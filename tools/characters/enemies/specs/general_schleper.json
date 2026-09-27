@@ -1,0 +1,119 @@
+{
+ "budget": {
+  "lod0": 11550,
+  "lod1": 5000,
+  "lod2": 2000
+ },
+ "id": "general_schleper",
+ "enemy": {
+  "soldierType": "general",
+  "variant": 0,
+  "archetype": 14,
+  "archetype_name": "heavy jowls + broad square (bespoke)",
+  "seed": 1,
+  "skinTone": "pale_pink",
+  "facialHair": "none",
+  "glasses": false,
+  "age": 52,
+  "extras": [
+   "walk 0.8x",
+   "hands behind back"
+  ],
+  "key": "general",
+  "silhouette": "wide, paunchy, grey leather greatcoat, peaked cap with cords",
+  "walkSpeedScale": 0.8
+ },
+ "body": {
+  "age_years": 52,
+  "muscle": 0.45,
+  "weight": 0.8,
+  "proportions": 0.45,
+  "height_m": 1.8,
+  "modifiers": {
+   "head/head-age-incr": 0.9,
+   "head/head-fat": 0.7,
+   "head/head-square": 0.5,
+   "neck/neck-double-incr": 0.8,
+   "neck/neck-scale-horiz-incr": 0.5,
+   "cheek/cheek-trans-down": 0.6,
+   "mouth/mouth-angles-down": 0.6,
+   "mouth/mouth-upperlip-volume-decr": 0.5,
+   "mouth/mouth-lowerlip-volume-decr": 0.3,
+   "nose/nose-scale-horiz-incr": 0.4,
+   "nose/nose-flaring-incr": 0.3,
+   "eyes/eye-scale-decr": 0.3,
+   "eyes/eye-bag-incr": 0.4,
+   "chin/chin-width-incr": 0.4,
+   "stomach/stomach-pregnant-incr": 0.35
+  }
+ },
+ "skin": {
+  "base": "old_caucasian_male",
+  "tint": [
+   1.03,
+   0.96,
+   0.95
+  ],
+  "ruddy": 0.45,
+  "stubble": 0.05,
+  "complexion": {
+   "freckles": 0.0,
+   "moles": 1,
+   "scar": false,
+   "lines": 0.9,
+   "veins": 0.8,
+   "seed": 99
+  }
+ },
+ "eyes": {
+  "iris": [
+   0.55,
+   0.62,
+   0.68
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow006",
+  "color": [
+   0.42,
+   0.4,
+   0.37
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.55,
+   0.54,
+   0.51
+  ],
+  "length": 0.004
+ },
+ "facial_hair": "none",
+ "glasses": false,
+ "outfit": "general_coat",
+ "outfit_opts": {
+  "wear": 0.03,
+  "tint_mul": [
+   1,
+   1,
+   1
+  ]
+ },
+ "kit": [
+  "coat_belt_brown",
+  "tabs_general",
+  "boards_silver"
+ ],
+ "headgear": {
+  "type": "officer_cap",
+  "badge": true,
+  "cords": true,
+  "color": [
+   0.42,
+   0.44,
+   0.4
+  ]
+ },
+ "weapon": {}
+}

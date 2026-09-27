@@ -1,0 +1,3 @@
+barracks.py a 1
+barracks.py ad 1
+barracks.py c 3

@@ -1,0 +1,5 @@
+barn.py a 1
+barn.py b 2
+barn.py a 1 snow
+drying_rack.py a 1
+drying_rack.py a 1 snow

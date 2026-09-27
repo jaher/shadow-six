@@ -1,0 +1,122 @@
+{
+ "id": "driver",
+ "notes": "Bible 1.5: thickset 1.83 m, broad jowly face, wide upturned pug nose, low bushy sandy brows, sandy-blond crop, clean-shaven; camo peaked field cap (mottled green-brown); yellow-olive green uniform, covered arms; goggles at the throat; Thompson; first-aid bag.",
+ "body": {
+  "age_years": 36,
+  "muscle": 0.65,
+  "weight": 0.65,
+  "proportions": 0.65,
+  "height_m": 1.83,
+  "modifiers": {
+   "head/head-square": 0.35,
+   "head/head-fat": 0.9,
+   "head/head-round": 0.35,
+   "cheek/cheek-volume-incr": 0.8,
+   "chin/chin-width-incr": 0.7,
+   "nose/nose-scale-horiz-incr": 0.7,
+   "nose/nose-scale-vert-decr": 0.4,
+   "nose/nose-septumangle-incr": 0.5,
+   "nose/nose-nostrils-width-incr": 0.5,
+   "eyebrows/eyebrows-trans-down": 0.5,
+   "eyes/eye-scale-decr": 0.2,
+   "mouth/mouth-scale-horiz-incr": 0.4,
+   "neck/neck-scale-horiz-incr": 0.5,
+   "torso/torso-scale-depth-incr": 0.3,
+   "neck/neck-double-incr": 0.6,
+   "nose/nose-point-up": 0.5,
+   "nose/nose-flaring-incr": 0.6,
+   "mouth/mouth-laugh-lines-out": 0.9,
+   "mouth-corner-puller": 0.4,
+   "eyes/eye-bag-incr": 0.35,
+   "ears/ear-scale-incr": 0.2
+  }
+ },
+ "skin": {
+  "base": "middleage_caucasian_male",
+  "tint": [
+   1.06,
+   0.95,
+   0.86
+  ],
+  "ruddy": 0.45,
+  "stubble": 0.08
+ },
+ "eyes": {
+  "iris": [
+   0.36,
+   0.22,
+   0.12
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow001",
+  "color": [
+   0.46,
+   0.36,
+   0.22
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.62,
+   0.5,
+   0.32
+  ]
+ },
+ "facial_hair": "none",
+ "outfit": "british_bd",
+ "outfit_opts": {
+  "tunic": [
+   0.3,
+   0.32,
+   0.18
+  ],
+  "trousers": [
+   0.28,
+   0.3,
+   0.17
+  ],
+  "gaiters": [
+   0.45,
+   0.43,
+   0.29
+  ]
+ },
+ "kit": [
+  "belt_web",
+  "holster_r",
+  "medic_bag",
+  "goggles_neck",
+  "sling_chest"
+ ],
+ "headgear": {
+  "type": "camo_cap",
+  "color": [
+   0.36,
+   0.36,
+   0.22
+  ],
+  "camo": [
+   [
+    0.22,
+    0.27,
+    0.14
+   ],
+   [
+    0.38,
+    0.28,
+    0.16
+   ],
+   [
+    0.14,
+    0.16,
+    0.1
+   ]
+  ]
+ },
+ "weapon": {
+  "primary": "thompson",
+  "secondary": "colt1911"
+ }
+}

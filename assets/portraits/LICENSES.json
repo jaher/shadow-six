@@ -1,0 +1,75 @@
+{
+ "assets": "clips/<character>/*_{256,512}.{webm,mp4,jpg}, still_1024.jpg, voice/*.{ogg,mp3} and portraits/final/*.png",
+ "credits_line": "Talking portraits: AI-generated with Z-Image-Turbo (Tongyi-MAI, Apache-2.0), JoyVASA (JD Health, MIT) with chinese-hubert-base (TencentGameMate, MIT) and LivePortrait (Kuaishou/Kling, MIT); face landmarks MediaPipe (Google, Apache-2.0). Voices AI-generated with Kokoro-82M (Apache-2.0) and Chatterbox-Multilingual (Resemble AI, MIT, PerTh watermark).",
+ "components": [
+  {
+   "role": "portrait text-to-image",
+   "name": "Z-Image-Turbo",
+   "source": "https://huggingface.co/Tongyi-MAI/Z-Image-Turbo",
+   "license": "Apache-2.0"
+  },
+  {
+   "role": "portrait DiT weights (quantised)",
+   "name": "z-image-turbo-Q4_K_M.gguf",
+   "source": "https://huggingface.co/unsloth/Z-Image-Turbo-GGUF",
+   "license": "Apache-2.0"
+  },
+  {
+   "role": "text encoder (quantised)",
+   "name": "Qwen3-4B-Q4_K_M.gguf",
+   "source": "https://huggingface.co/unsloth/Qwen3-4B-GGUF (from Qwen/Qwen3-4B)",
+   "license": "Apache-2.0"
+  },
+  {
+   "role": "audio-driven motion",
+   "name": "JoyVASA motion_generator_hubert_chinese + motion_template",
+   "source": "https://huggingface.co/jdh-algo/JoyVASA, https://github.com/jdh-algo/JoyVASA",
+   "license": "MIT"
+  },
+  {
+   "role": "audio features",
+   "name": "chinese-hubert-base",
+   "source": "https://huggingface.co/TencentGameMate/chinese-hubert-base",
+   "license": "MIT"
+  },
+  {
+   "role": "portrait animation renderer",
+   "name": "LivePortrait (human base_models, retargeting, landmark.onnx)",
+   "source": "https://huggingface.co/KlingTeam/LivePortrait, https://github.com/KwaiVGI/LivePortrait",
+   "license": "MIT"
+  },
+  {
+   "role": "face detection/landmarks (replaces InsightFace)",
+   "name": "MediaPipe FaceLandmarker face_landmarker.task",
+   "source": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+   "license": "Apache-2.0"
+  },
+  {
+   "role": "video encoding tool",
+   "name": "ffmpeg (imageio-ffmpeg build)",
+   "source": "https://pypi.org/project/imageio-ffmpeg/",
+   "license": "tool only (LGPL/GPL binary); outputs unencumbered"
+  }
+ ],
+ "excluded_on_purpose": [
+  "InsightFace buffalo_l (non-commercial weights) \u2014 vendored JoyVASA/LivePortrait code path replaced",
+  "Wav2Lip, SadTalker/BFM, Sonic, FLOAT (non-commercial)"
+ ],
+ "policy": "Synthetic faces, no real-person input: portraits are text-to-image from written descriptions only (prompts + seeds in portraits/final/seeds.json); no photo, likeness or voice of a real person was used as input. Before release, run a lookalike check (reverse image search of the six stills) and keep checking every uniform/insignia for Nazi symbols (none present: the Spy wears civilian tweed in these clips).",
+ "disclosure": "Credits must state that the commando portraits, their animation and the voices are AI-generated.",
+ "voices": [
+  {
+   "name": "Kokoro-82M",
+   "source": "https://huggingface.co/hexgrad/Kokoro-82M",
+   "license": "Apache-2.0",
+   "used_for": "green_beret, sniper, marine, sapper, driver"
+  },
+  {
+   "name": "Chatterbox-Multilingual",
+   "source": "https://github.com/resemble-ai/chatterbox",
+   "license": "MIT",
+   "used_for": "spy"
+  }
+ ],
+ "license_check": "Model-card licenses re-confirmed via the Hugging Face API on 2026-09-26: TencentGameMate/chinese-hubert-base mit, jdh-algo/JoyVASA mit, KlingTeam/LivePortrait mit, Tongyi-MAI/Z-Image-Turbo apache-2.0, unsloth/Z-Image-Turbo-GGUF apache-2.0, unsloth/Qwen3-4B-GGUF apache-2.0."
+}

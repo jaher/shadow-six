@@ -1,0 +1,117 @@
+{
+ "asset": "footbridge_arch",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "ashlar": {
+   "source": "Poly Haven",
+   "id": "stone_block_wall",
+   "url": "https://polyhaven.com/a/stone_block_wall",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Stone Block Wall",
+   "label": "Dressed stone blocks / ashlar (bridges)",
+   "files": {
+    "diff": {
+     "2k": "2k/ashlar_diff",
+     "1k": "1k/ashlar_diff"
+    },
+    "nor": {
+     "2k": "2k/ashlar_nor",
+     "1k": "1k/ashlar_nor"
+    },
+    "arm": {
+     "2k": "2k/ashlar_arm",
+     "1k": "1k/ashlar_arm"
+    }
+   }
+  },
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  },
+  "deck_planks": {
+   "source": "Poly Haven",
+   "id": "wood_planks_dirt",
+   "url": "https://polyhaven.com/a/wood_planks_dirt",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Dirt",
+   "label": "Deck / floor planks",
+   "files": {
+    "diff": {
+     "2k": "2k/deck_planks_diff",
+     "1k": "1k/deck_planks_diff"
+    },
+    "nor": {
+     "2k": "2k/deck_planks_nor",
+     "1k": "1k/deck_planks_nor"
+    },
+    "arm": {
+     "2k": "2k/deck_planks_arm",
+     "1k": "1k/deck_planks_arm"
+    }
+   }
+  },
+  "timber_beam": {
+   "source": "Poly Haven",
+   "id": "wood_planks_grey",
+   "url": "https://polyhaven.com/a/wood_planks_grey",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Grey",
+   "label": "Grey structural timber (beams, rafters)",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_beam_diff",
+     "1k": "1k/timber_beam_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_beam_nor",
+     "1k": "1k/timber_beam_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_beam_arm",
+     "1k": "1k/timber_beam_arm"
+    }
+   }
+  },
+  "wood_paint": {
+   "source": "Poly Haven",
+   "id": "weathered_peeling_timber",
+   "url": "https://polyhaven.com/a/weathered_peeling_timber",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Peeling Timber",
+   "label": "Pale painted wood base (tint via kit_tint for shutters/frames)",
+   "files": {
+    "diff": {
+     "2k": "2k/wood_paint_diff",
+     "1k": "1k/wood_paint_diff"
+    },
+    "nor": {
+     "2k": "2k/wood_paint_nor",
+     "1k": "1k/wood_paint_nor"
+    },
+    "arm": {
+     "2k": "2k/wood_paint_arm",
+     "1k": "1k/wood_paint_arm"
+    }
+   }
+  }
+ }
+}

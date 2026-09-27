@@ -1,0 +1,4 @@
+log_cabin.py a 41 snow
+log_cabin.py b 42 snow
+naust.py b 22 snow
+fishing_shed.py b 52 snow

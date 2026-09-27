@@ -1,0 +1,3888 @@
+{
+ "version": 1,
+ "materials": {
+  "fieldstone": {
+   "label": "Fieldstone rubble wall, warm (Normandy)",
+   "tile_m": 1.52,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.9,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.4819,
+    0.4326,
+    0.3635
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/fieldstone_diff",
+     "1k": "1k/fieldstone_diff"
+    },
+    "nor": {
+     "2k": "2k/fieldstone_nor",
+     "1k": "1k/fieldstone_nor"
+    },
+    "arm": {
+     "2k": "2k/fieldstone_arm",
+     "1k": "1k/fieldstone_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "rustic_stone_wall",
+    "url": "https://polyhaven.com/a/rustic_stone_wall",
+    "authors": [
+     "Dimitrios Savva"
+    ],
+    "license": "CC0-1.0",
+    "name": "Rustic Stone Wall"
+   },
+   "texel_density_px_per_m": {
+    "1k": 674,
+    "2k": 1347
+   }
+  },
+  "plaster_white": {
+   "label": "Whitewashed plaster",
+   "tile_m": 2.5,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.9,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.7124,
+    0.6952,
+    0.6536
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/plaster_white_diff",
+     "1k": "1k/plaster_white_diff"
+    },
+    "nor": {
+     "2k": "2k/plaster_white_nor",
+     "1k": "1k/plaster_white_nor"
+    },
+    "arm": {
+     "2k": "2k/plaster_white_arm",
+     "1k": "1k/plaster_white_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "white_plaster_rough_02",
+    "url": "https://polyhaven.com/a/white_plaster_rough_02",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "White Plaster Rough 02"
+   },
+   "texel_density_px_per_m": {
+    "1k": 410,
+    "2k": 819
+   }
+  },
+  "plaster_limewash": {
+   "label": "Lime-wash over render (desert)",
+   "tile_m": 3.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.92,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.7268,
+    0.6916,
+    0.6171
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/plaster_limewash_diff",
+     "1k": "1k/plaster_limewash_diff"
+    },
+    "nor": {
+     "2k": "2k/plaster_limewash_nor",
+     "1k": "1k/plaster_limewash_nor"
+    },
+    "arm": {
+     "2k": "2k/plaster_limewash_arm",
+     "1k": "1k/plaster_limewash_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "white_rough_plaster",
+    "url": "https://polyhaven.com/a/white_rough_plaster",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "White Rough Plaster"
+   },
+   "texel_density_px_per_m": {
+    "1k": 341,
+    "2k": 683
+   }
+  },
+  "adobe_ochre": {
+   "label": "Ochre adobe / clay render",
+   "tile_m": 2.5,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.95,
+   "metallic": 0.0,
+   "grime": 0.9,
+   "mean": [
+    0.6135,
+    0.4778,
+    0.3055
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/adobe_ochre_diff",
+     "1k": "1k/adobe_ochre_diff"
+    },
+    "nor": {
+     "2k": "2k/adobe_ochre_nor",
+     "1k": "1k/adobe_ochre_nor"
+    },
+    "arm": {
+     "2k": "2k/adobe_ochre_arm",
+     "1k": "1k/adobe_ochre_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "clay_plaster",
+    "url": "https://polyhaven.com/a/clay_plaster",
+    "authors": [
+     "Amal Kumar"
+    ],
+    "license": "CC0-1.0",
+    "name": "Clay Plaster"
+   },
+   "texel_density_px_per_m": {
+    "1k": 410,
+    "2k": 819
+   }
+  },
+  "plaster_rough": {
+   "label": "Rough render / half-timber infill (cream)",
+   "tile_m": 2.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.9,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.6432,
+    0.5949,
+    0.495
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/plaster_rough_diff",
+     "1k": "1k/plaster_rough_diff"
+    },
+    "nor": {
+     "2k": "2k/plaster_rough_nor",
+     "1k": "1k/plaster_rough_nor"
+    },
+    "arm": {
+     "2k": "2k/plaster_rough_arm",
+     "1k": "1k/plaster_rough_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "rough_plaster_03",
+    "url": "https://polyhaven.com/a/rough_plaster_03",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "Rough Plaster 03"
+   },
+   "texel_density_px_per_m": {
+    "1k": 512,
+    "2k": 1024
+   }
+  },
+  "timber_cladding": {
+   "label": "Red-painted Norwegian board cladding (Falu red)",
+   "tile_m": 1.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.8,
+   "metallic": 0.0,
+   "grime": 0.8,
+   "mean": [
+    0.4019,
+    0.1431,
+    0.1052
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/timber_cladding_diff",
+     "1k": "1k/timber_cladding_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_cladding_nor",
+     "1k": "1k/timber_cladding_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_cladding_arm",
+     "1k": "1k/timber_cladding_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "wood_plank_wall",
+    "url": "https://polyhaven.com/a/wood_plank_wall",
+    "authors": [
+     "Dimitrios Savva"
+    ],
+    "license": "CC0-1.0",
+    "name": "Wood Plank Wall"
+   },
+   "texel_density_px_per_m": {
+    "1k": 1024,
+    "2k": 2048
+   }
+  },
+  "timber_grey": {
+   "label": "Weathered grey timber",
+   "tile_m": 2.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "grime": 0.8,
+   "mean": [
+    0.4559,
+    0.4234,
+    0.3843
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/timber_grey_diff",
+     "1k": "1k/timber_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_grey_nor",
+     "1k": "1k/timber_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_grey_arm",
+     "1k": "1k/timber_grey_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "weathered_planks",
+    "url": "https://polyhaven.com/a/weathered_planks",
+    "authors": [
+     "Dario Barresi",
+     "Dimitrios Savva"
+    ],
+    "license": "CC0-1.0",
+    "name": "Weathered Planks"
+   },
+   "texel_density_px_per_m": {
+    "1k": 512,
+    "2k": 1024
+   }
+  },
+  "timber_siding": {
+   "label": "Weathered plank siding",
+   "tile_m": 1.57,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "grime": 0.8,
+   "mean": [
+    0.2911,
+    0.2337,
+    0.1913
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/timber_siding_diff",
+     "1k": "1k/timber_siding_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_siding_nor",
+     "1k": "1k/timber_siding_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_siding_arm",
+     "1k": "1k/timber_siding_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "weathered_plank_siding",
+    "url": "https://polyhaven.com/a/weathered_plank_siding",
+    "authors": [
+     "Dimitrios Savva"
+    ],
+    "license": "CC0-1.0",
+    "name": "Weathered Plank Siding"
+   },
+   "texel_density_px_per_m": {
+    "1k": 652,
+    "2k": 1304
+   }
+  },
+  "timber_tarred": {
+   "label": "Dark tarred timber",
+   "tile_m": 2.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.6,
+   "metallic": 0.0,
+   "grime": 0.5,
+   "mean": [
+    0.1571,
+    0.1276,
+    0.1081
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/timber_tarred_diff",
+     "1k": "1k/timber_tarred_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_tarred_nor",
+     "1k": "1k/timber_tarred_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_tarred_arm",
+     "1k": "1k/timber_tarred_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "dark_wooden_planks",
+    "url": "https://polyhaven.com/a/dark_wooden_planks",
+    "authors": [
+     "Amal Kumar"
+    ],
+    "license": "CC0-1.0",
+    "name": "Dark Wooden Planks"
+   },
+   "texel_density_px_per_m": {
+    "1k": 512,
+    "2k": 1024
+   }
+  },
+  "timber_beam": {
+   "label": "Grey structural timber (beams, rafters)",
+   "tile_m": 1.5,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "grime": 0.8,
+   "mean": [
+    0.408,
+    0.3595,
+    0.2993
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/timber_beam_diff",
+     "1k": "1k/timber_beam_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_beam_nor",
+     "1k": "1k/timber_beam_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_beam_arm",
+     "1k": "1k/timber_beam_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "wood_planks_grey",
+    "url": "https://polyhaven.com/a/wood_planks_grey",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "Wood Planks Grey"
+   },
+   "texel_density_px_per_m": {
+    "1k": 683,
+    "2k": 1365
+   }
+  },
+  "fieldstone_grey": {
+   "label": "Fieldstone rubble wall, grey (Norway/granite)",
+   "tile_m": 1.7,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.9,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.4231,
+    0.3906,
+    0.3601
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/fieldstone_grey_diff",
+     "1k": "1k/fieldstone_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/fieldstone_grey_nor",
+     "1k": "1k/fieldstone_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/fieldstone_grey_arm",
+     "1k": "1k/fieldstone_grey_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "stone_wall_04",
+    "url": "https://polyhaven.com/a/stone_wall_04",
+    "authors": [
+     "Amal Kumar"
+    ],
+    "license": "CC0-1.0",
+    "name": "Stone Wall 04"
+   },
+   "texel_density_px_per_m": {
+    "1k": 602,
+    "2k": 1205
+   }
+  },
+  "ashlar": {
+   "label": "Dressed stone blocks / ashlar (bridges)",
+   "tile_m": 2.1,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.4842,
+    0.4625,
+    0.4187
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/ashlar_diff",
+     "1k": "1k/ashlar_diff"
+    },
+    "nor": {
+     "2k": "2k/ashlar_nor",
+     "1k": "1k/ashlar_nor"
+    },
+    "arm": {
+     "2k": "2k/ashlar_arm",
+     "1k": "1k/ashlar_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "stone_block_wall",
+    "url": "https://polyhaven.com/a/stone_block_wall",
+    "authors": [
+     "Amal Kumar"
+    ],
+    "license": "CC0-1.0",
+    "name": "Stone Block Wall"
+   },
+   "texel_density_px_per_m": {
+    "1k": 488,
+    "2k": 975
+   }
+  },
+  "ashlar_limestone": {
+   "label": "Pale limestone ashlar (Caen stone)",
+   "tile_m": 2.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.6201,
+    0.5863,
+    0.5145
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/ashlar_limestone_diff",
+     "1k": "1k/ashlar_limestone_diff"
+    },
+    "nor": {
+     "2k": "2k/ashlar_limestone_nor",
+     "1k": "1k/ashlar_limestone_nor"
+    },
+    "arm": {
+     "2k": "2k/ashlar_limestone_arm",
+     "1k": "1k/ashlar_limestone_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "white_sandstone_blocks_02",
+    "url": "https://polyhaven.com/a/white_sandstone_blocks_02",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "White Sandstone Blocks 02"
+   },
+   "texel_density_px_per_m": {
+    "1k": 512,
+    "2k": 1024
+   }
+  },
+  "granite": {
+   "label": "Granite wall",
+   "tile_m": 1.9,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.8,
+   "metallic": 0.0,
+   "grime": 0.9,
+   "mean": [
+    0.4356,
+    0.3653,
+    0.2796
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/granite_diff",
+     "1k": "1k/granite_diff"
+    },
+    "nor": {
+     "2k": "2k/granite_nor",
+     "1k": "1k/granite_nor"
+    },
+    "arm": {
+     "2k": "2k/granite_arm",
+     "1k": "1k/granite_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "granite_wall",
+    "url": "https://polyhaven.com/a/granite_wall",
+    "authors": [
+     "Dimitrios Savva"
+    ],
+    "license": "CC0-1.0",
+    "name": "Granite Wall"
+   },
+   "texel_density_px_per_m": {
+    "1k": 539,
+    "2k": 1078
+   }
+  },
+  "brick_red": {
+   "label": "Red brick",
+   "tile_m": 1.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.4196,
+    0.2193,
+    0.1539
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/brick_red_diff",
+     "1k": "1k/brick_red_diff"
+    },
+    "nor": {
+     "2k": "2k/brick_red_nor",
+     "1k": "1k/brick_red_nor"
+    },
+    "arm": {
+     "2k": "2k/brick_red_arm",
+     "1k": "1k/brick_red_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "red_brick_03",
+    "url": "https://polyhaven.com/a/red_brick_03",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "Red Brick 03"
+   },
+   "texel_density_px_per_m": {
+    "1k": 1024,
+    "2k": 2048
+   }
+  },
+  "brick_dark": {
+   "label": "Dark Belgian brick",
+   "tile_m": 1.05,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "grime": 0.9,
+   "mean": [
+    0.2404,
+    0.1515,
+    0.1218
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/brick_dark_diff",
+     "1k": "1k/brick_dark_diff"
+    },
+    "nor": {
+     "2k": "2k/brick_dark_nor",
+     "1k": "1k/brick_dark_nor"
+    },
+    "arm": {
+     "2k": "2k/brick_dark_arm",
+     "1k": "1k/brick_dark_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "dark_brick_wall",
+    "url": "https://polyhaven.com/a/dark_brick_wall",
+    "authors": [
+     "Dario Barresi",
+     "Dimitrios Savva"
+    ],
+    "license": "CC0-1.0",
+    "name": "Dark Brick Wall"
+   },
+   "texel_density_px_per_m": {
+    "1k": 975,
+    "2k": 1950
+   }
+  },
+  "concrete_bunker": {
+   "label": "Weathered bunker concrete",
+   "tile_m": 2.71,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.9,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.4927,
+    0.4903,
+    0.465
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/concrete_bunker_diff",
+     "1k": "1k/concrete_bunker_diff"
+    },
+    "nor": {
+     "2k": "2k/concrete_bunker_nor",
+     "1k": "1k/concrete_bunker_nor"
+    },
+    "arm": {
+     "2k": "2k/concrete_bunker_arm",
+     "1k": "1k/concrete_bunker_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "concrete_wall_008",
+    "url": "https://polyhaven.com/a/concrete_wall_008",
+    "authors": [
+     "Dario Barresi",
+     "Charlotte Baglioni"
+    ],
+    "license": "CC0-1.0",
+    "name": "Concrete Wall 008"
+   },
+   "texel_density_px_per_m": {
+    "1k": 378,
+    "2k": 756
+   }
+  },
+  "concrete_board": {
+   "label": "Board-formed concrete",
+   "tile_m": 1.8,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.9,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.5092,
+    0.4978,
+    0.4567
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/concrete_board_diff",
+     "1k": "1k/concrete_board_diff"
+    },
+    "nor": {
+     "2k": "2k/concrete_board_nor",
+     "1k": "1k/concrete_board_nor"
+    },
+    "arm": {
+     "2k": "2k/concrete_board_arm",
+     "1k": "1k/concrete_board_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "wood_textured_concrete",
+    "url": "https://polyhaven.com/a/wood_textured_concrete",
+    "authors": [
+     "Dimitrios Savva"
+    ],
+    "license": "CC0-1.0",
+    "name": "Wood Textured Concrete"
+   },
+   "texel_density_px_per_m": {
+    "1k": 569,
+    "2k": 1138
+   }
+  },
+  "corrugated_rust": {
+   "label": "Rusty corrugated iron",
+   "tile_m": 2.0,
+   "grain": "v",
+   "rot90": false,
+   "roughness": 0.75,
+   "metallic": 0.4,
+   "grime": 0.6,
+   "mean": [
+    0.3146,
+    0.2458,
+    0.2025
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/corrugated_rust_diff",
+     "1k": "1k/corrugated_rust_diff"
+    },
+    "nor": {
+     "2k": "2k/corrugated_rust_nor",
+     "1k": "1k/corrugated_rust_nor"
+    },
+    "arm": {
+     "2k": "2k/corrugated_rust_arm",
+     "1k": "1k/corrugated_rust_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "rusty_corrugated_iron",
+    "url": "https://polyhaven.com/a/rusty_corrugated_iron",
+    "authors": [
+     "Charlotte Baglioni"
+    ],
+    "license": "CC0-1.0",
+    "name": "Rusty Corrugated Iron"
+   },
+   "texel_density_px_per_m": {
+    "1k": 512,
+    "2k": 1024
+   }
+  },
+  "roof_terracotta": {
+   "label": "Terracotta roof tiles",
+   "tile_m": 2.5,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.75,
+   "metallic": 0.0,
+   "grime": 0.4,
+   "mean": [
+    0.4591,
+    0.256,
+    0.1724
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/roof_terracotta_diff",
+     "1k": "1k/roof_terracotta_diff"
+    },
+    "nor": {
+     "2k": "2k/roof_terracotta_nor",
+     "1k": "1k/roof_terracotta_nor"
+    },
+    "arm": {
+     "2k": "2k/roof_terracotta_arm",
+     "1k": "1k/roof_terracotta_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "clay_roof_tiles_02",
+    "url": "https://polyhaven.com/a/clay_roof_tiles_02",
+    "authors": [
+     "Amal Kumar"
+    ],
+    "license": "CC0-1.0",
+    "name": "Clay Roof Tiles 02"
+   },
+   "texel_density_px_per_m": {
+    "1k": 410,
+    "2k": 819
+   }
+  },
+  "roof_slate": {
+   "label": "Slate roof",
+   "tile_m": 3.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.7,
+   "metallic": 0.0,
+   "grime": 0.4,
+   "mean": [
+    0.2435,
+    0.2523,
+    0.2695
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/roof_slate_diff",
+     "1k": "1k/roof_slate_diff"
+    },
+    "nor": {
+     "2k": "2k/roof_slate_nor",
+     "1k": "1k/roof_slate_nor"
+    },
+    "arm": {
+     "2k": "2k/roof_slate_arm",
+     "1k": "1k/roof_slate_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "roof_slates_02",
+    "url": "https://polyhaven.com/a/roof_slates_02",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "Roof Slates 02"
+   },
+   "texel_density_px_per_m": {
+    "1k": 341,
+    "2k": 683
+   }
+  },
+  "roof_shingle": {
+   "label": "Weathered wooden shingles",
+   "tile_m": 1.4,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "grime": 0.4,
+   "mean": [
+    0.3791,
+    0.3406,
+    0.2923
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/roof_shingle_diff",
+     "1k": "1k/roof_shingle_diff"
+    },
+    "nor": {
+     "2k": "2k/roof_shingle_nor",
+     "1k": "1k/roof_shingle_nor"
+    },
+    "arm": {
+     "2k": "2k/roof_shingle_arm",
+     "1k": "1k/roof_shingle_arm"
+    }
+   },
+   "source": {
+    "source": "ambientCG",
+    "id": "WoodSiding013",
+    "url": "https://ambientcg.com/view?id=WoodSiding013",
+    "authors": [
+     "ambientCG (Lennart Demes)"
+    ],
+    "license": "CC0-1.0",
+    "name": null
+   },
+   "texel_density_px_per_m": {
+    "1k": 731,
+    "2k": 1463
+   }
+  },
+  "roof_thatch": {
+   "label": "Reed thatch (Normandy chaumiere)",
+   "tile_m": 2.5,
+   "grain": "v",
+   "rot90": false,
+   "roughness": 0.95,
+   "metallic": 0.0,
+   "grime": 0.3,
+   "mean": [
+    0.3571,
+    0.2945,
+    0.1965
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/roof_thatch_diff",
+     "1k": "1k/roof_thatch_diff"
+    },
+    "nor": {
+     "2k": "2k/roof_thatch_nor",
+     "1k": "1k/roof_thatch_nor"
+    },
+    "arm": {
+     "2k": "2k/roof_thatch_arm",
+     "1k": "1k/roof_thatch_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "reed_roof_04",
+    "url": "https://polyhaven.com/a/reed_roof_04",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "Reed Roof 04"
+   },
+   "texel_density_px_per_m": {
+    "1k": 410,
+    "2k": 819
+   }
+  },
+  "sod": {
+   "label": "Sod / turf roof",
+   "tile_m": 2.5,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.95,
+   "metallic": 0.0,
+   "grime": 0.0,
+   "mean": [
+    0.284,
+    0.2928,
+    0.1556
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/sod_diff",
+     "1k": "1k/sod_diff"
+    },
+    "nor": {
+     "2k": "2k/sod_nor",
+     "1k": "1k/sod_nor"
+    },
+    "arm": {
+     "2k": "2k/sod_arm",
+     "1k": "1k/sod_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "sparse_grass",
+    "url": "https://polyhaven.com/a/sparse_grass",
+    "authors": [
+     "Amal Kumar"
+    ],
+    "license": "CC0-1.0",
+    "name": "Sparse Grass"
+   },
+   "texel_density_px_per_m": {
+    "1k": 410,
+    "2k": 819
+   }
+  },
+  "steel_painted": {
+   "label": "Painted riveted steel (bridge grey-green)",
+   "tile_m": 2.2,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.6,
+   "metallic": 0.5,
+   "grime": 0.6,
+   "mean": [
+    0.2902,
+    0.3225,
+    0.2925
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/steel_painted_diff",
+     "1k": "1k/steel_painted_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_painted_nor",
+     "1k": "1k/steel_painted_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_painted_arm",
+     "1k": "1k/steel_painted_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "rusty_painted_metal",
+    "url": "https://polyhaven.com/a/rusty_painted_metal",
+    "authors": [
+     "Amal Kumar"
+    ],
+    "license": "CC0-1.0",
+    "name": "Rusty Painted Metal"
+   },
+   "texel_density_px_per_m": {
+    "1k": 465,
+    "2k": 931
+   }
+  },
+  "steel_galv": {
+   "label": "Bare / galvanized steel (derived)",
+   "tile_m": 2.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.5,
+   "metallic": 0.9,
+   "grime": 0.4,
+   "mean": [
+    0.4045,
+    0.4161,
+    0.4163
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/steel_galv_diff",
+     "1k": "1k/steel_galv_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_galv_nor",
+     "1k": "1k/steel_galv_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_galv_arm",
+     "1k": "1k/steel_galv_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "rusty_painted_metal",
+    "url": "https://polyhaven.com/a/rusty_painted_metal",
+    "authors": [
+     "Amal Kumar"
+    ],
+    "license": "CC0-1.0",
+    "name": "Rusty Painted Metal"
+   },
+   "texel_density_px_per_m": {
+    "1k": 512,
+    "2k": 1024
+   }
+  },
+  "cast_iron": {
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "tile_m": 1.35,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.55,
+   "metallic": 0.8,
+   "grime": 0.3,
+   "mean": [
+    0.1346,
+    0.1343,
+    0.1249
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "rusty_metal_03",
+    "url": "https://polyhaven.com/a/rusty_metal_03",
+    "authors": [
+     "Amal Kumar"
+    ],
+    "license": "CC0-1.0",
+    "name": "Rusty Metal 03"
+   },
+   "texel_density_px_per_m": {
+    "1k": 759,
+    "2k": 1517
+   }
+  },
+  "deck_planks": {
+   "label": "Deck / floor planks",
+   "tile_m": 2.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "grime": 0.4,
+   "mean": [
+    0.45,
+    0.3538,
+    0.2688
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/deck_planks_diff",
+     "1k": "1k/deck_planks_diff"
+    },
+    "nor": {
+     "2k": "2k/deck_planks_nor",
+     "1k": "1k/deck_planks_nor"
+    },
+    "arm": {
+     "2k": "2k/deck_planks_arm",
+     "1k": "1k/deck_planks_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "wood_planks_dirt",
+    "url": "https://polyhaven.com/a/wood_planks_dirt",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "Wood Planks Dirt"
+   },
+   "texel_density_px_per_m": {
+    "1k": 512,
+    "2k": 1024
+   }
+  },
+  "cobblestone": {
+   "label": "Cobblestone setts",
+   "tile_m": 2.4,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.8,
+   "metallic": 0.0,
+   "grime": 0.3,
+   "mean": [
+    0.3686,
+    0.3507,
+    0.3209
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/cobblestone_diff",
+     "1k": "1k/cobblestone_diff"
+    },
+    "nor": {
+     "2k": "2k/cobblestone_nor",
+     "1k": "1k/cobblestone_nor"
+    },
+    "arm": {
+     "2k": "2k/cobblestone_arm",
+     "1k": "1k/cobblestone_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "cobblestone_05",
+    "url": "https://polyhaven.com/a/cobblestone_05",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "Cobblestone 05"
+   },
+   "texel_density_px_per_m": {
+    "1k": 427,
+    "2k": 853
+   }
+  },
+  "gravel": {
+   "label": "Gravel road",
+   "tile_m": 3.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.95,
+   "metallic": 0.0,
+   "grime": 0.0,
+   "mean": [
+    0.4776,
+    0.3481,
+    0.247
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/gravel_diff",
+     "1k": "1k/gravel_diff"
+    },
+    "nor": {
+     "2k": "2k/gravel_nor",
+     "1k": "1k/gravel_nor"
+    },
+    "arm": {
+     "2k": "2k/gravel_arm",
+     "1k": "1k/gravel_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "gravel_road",
+    "url": "https://polyhaven.com/a/gravel_road",
+    "authors": [
+     "Amal Kumar"
+    ],
+    "license": "CC0-1.0",
+    "name": "Gravel Road"
+   },
+   "texel_density_px_per_m": {
+    "1k": 341,
+    "2k": 683
+   }
+  },
+  "snow": {
+   "label": "Snow cap",
+   "tile_m": 3.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.7,
+   "metallic": 0.0,
+   "grime": 0.0,
+   "mean": [
+    0.7587,
+    0.76,
+    0.7619
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/snow_diff",
+     "1k": "1k/snow_diff"
+    },
+    "nor": {
+     "2k": "2k/snow_nor",
+     "1k": "1k/snow_nor"
+    },
+    "arm": {
+     "2k": "2k/snow_arm",
+     "1k": "1k/snow_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "snow_01",
+    "url": "https://polyhaven.com/a/snow_01",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "Snow 01"
+   },
+   "texel_density_px_per_m": {
+    "1k": 341,
+    "2k": 683
+   }
+  },
+  "mud": {
+   "label": "Mud / dirt",
+   "tile_m": 2.5,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.9,
+   "metallic": 0.0,
+   "grime": 0.0,
+   "mean": [
+    0.2877,
+    0.2548,
+    0.2051
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/mud_diff",
+     "1k": "1k/mud_diff"
+    },
+    "nor": {
+     "2k": "2k/mud_nor",
+     "1k": "1k/mud_nor"
+    },
+    "arm": {
+     "2k": "2k/mud_arm",
+     "1k": "1k/mud_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "brown_mud_02",
+    "url": "https://polyhaven.com/a/brown_mud_02",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "Brown Mud 02"
+   },
+   "texel_density_px_per_m": {
+    "1k": 410,
+    "2k": 819
+   }
+  },
+  "door_planks": {
+   "label": "Weathered peeling timber (doors)",
+   "tile_m": 1.1,
+   "grain": "v",
+   "rot90": false,
+   "roughness": 0.8,
+   "metallic": 0.0,
+   "grime": 0.6,
+   "mean": [
+    0.4333,
+    0.4047,
+    0.3626
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/door_planks_diff",
+     "1k": "1k/door_planks_diff"
+    },
+    "nor": {
+     "2k": "2k/door_planks_nor",
+     "1k": "1k/door_planks_nor"
+    },
+    "arm": {
+     "2k": "2k/door_planks_arm",
+     "1k": "1k/door_planks_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "weathered_peeling_timber",
+    "url": "https://polyhaven.com/a/weathered_peeling_timber",
+    "authors": [
+     "Dimitrios Savva"
+    ],
+    "license": "CC0-1.0",
+    "name": "Weathered Peeling Timber"
+   },
+   "texel_density_px_per_m": {
+    "1k": 931,
+    "2k": 1862
+   }
+  },
+  "wood_paint": {
+   "label": "Pale painted wood base (tint via kit_tint for shutters/frames)",
+   "tile_m": 1.5,
+   "grain": "v",
+   "rot90": false,
+   "roughness": 0.7,
+   "metallic": 0.0,
+   "grime": 0.6,
+   "mean": [
+    0.7295,
+    0.7235,
+    0.7023
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/wood_paint_diff",
+     "1k": "1k/wood_paint_diff"
+    },
+    "nor": {
+     "2k": "2k/wood_paint_nor",
+     "1k": "1k/wood_paint_nor"
+    },
+    "arm": {
+     "2k": "2k/wood_paint_arm",
+     "1k": "1k/wood_paint_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "weathered_peeling_timber",
+    "url": "https://polyhaven.com/a/weathered_peeling_timber",
+    "authors": [
+     "Dimitrios Savva"
+    ],
+    "license": "CC0-1.0",
+    "name": "Weathered Peeling Timber"
+   },
+   "texel_density_px_per_m": {
+    "1k": 683,
+    "2k": 1365
+   }
+  },
+  "glass_dirty": {
+   "label": "Dirty window glass",
+   "tile_m": 0.9,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 1.0,
+   "metallic": 0.0,
+   "grime": 0.0,
+   "mean": [
+    0.1,
+    0.1,
+    0.1
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/glass_dirty_diff",
+     "2k": "2k/glass_dirty_diff"
+    },
+    "nor": {
+     "1k": "1k/glass_dirty_nor",
+     "2k": "2k/glass_dirty_nor"
+    },
+    "arm": {
+     "1k": "1k/glass_dirty_arm",
+     "2k": "2k/glass_dirty_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (tools/make_procedural.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "specular": 1.0,
+   "envBoost": 1.4
+  },
+  "interior_dark": {
+   "label": "Interior darkness card",
+   "tile_m": 2.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 1.0,
+   "metallic": 0.0,
+   "grime": 0.0,
+   "mean": [
+    0.05,
+    0.045,
+    0.04
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/interior_dark_diff",
+     "2k": "2k/interior_dark_diff"
+    },
+    "nor": {
+     "1k": "1k/interior_dark_nor",
+     "2k": "2k/interior_dark_nor"
+    },
+    "arm": {
+     "1k": "1k/interior_dark_arm",
+     "2k": "2k/interior_dark_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (tools/make_procedural.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "specular": 0.0
+  },
+  "curtain": {
+   "label": "Curtain / lace hint",
+   "tile_m": 1.2,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 1.0,
+   "metallic": 0.0,
+   "grime": 0.0,
+   "mean": [
+    0.6,
+    0.57,
+    0.5
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/curtain_diff",
+     "2k": "2k/curtain_diff"
+    },
+    "nor": {
+     "1k": "1k/curtain_nor",
+     "2k": "2k/curtain_nor"
+    },
+    "arm": {
+     "1k": "1k/curtain_arm",
+     "2k": "2k/curtain_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (tools/make_procedural.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "specular": 0.2
+  },
+  "decals": {
+   "grain": "u",
+   "rot90": false,
+   "metallic": 0.0,
+   "grime": 0.0,
+   "normalScale": 1.0,
+   "source": {
+    "source": "procedural (tools/make_decals.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "label": "Weathering decal atlas (alpha blend)",
+   "tile_m": 1.0,
+   "roughness": 0.95,
+   "mean": [
+    0.2,
+    0.2,
+    0.2
+   ],
+   "maps": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   },
+   "alpha": "BLEND",
+   "specular": 0.0,
+   "atlas": "decals"
+  },
+  "signs": {
+   "grain": "u",
+   "rot90": false,
+   "metallic": 0.0,
+   "grime": 0.0,
+   "normalScale": 1.0,
+   "source": {
+    "source": "procedural (tools/make_decals.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "label": "Painted sign atlas",
+   "tile_m": 1.0,
+   "roughness": 0.8,
+   "mean": [
+    0.5,
+    0.45,
+    0.4
+   ],
+   "maps": {
+    "diff": {
+     "1k": "1k/signs_diff",
+     "2k": "2k/signs_diff"
+    }
+   },
+   "atlas": "signs",
+   "specular": 0.3
+  },
+  "canvas": {
+   "label": "Army canvas / tent duck (khaki-sand)",
+   "tile_m": 0.6,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.92,
+   "metallic": 0.0,
+   "grime": 0.8,
+   "mean": [
+    0.5285,
+    0.4717,
+    0.3572
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/canvas_diff",
+     "1k": "1k/canvas_diff"
+    },
+    "nor": {
+     "2k": "2k/canvas_nor",
+     "1k": "1k/canvas_nor"
+    },
+    "arm": {
+     "2k": "2k/canvas_arm",
+     "1k": "1k/canvas_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "rough_linen",
+    "url": "https://polyhaven.com/a/rough_linen",
+    "authors": [
+     "colormass",
+     "Rico Cilliers"
+    ],
+    "license": "CC0-1.0",
+    "name": "Rough Linen"
+   },
+   "texel_density_px_per_m": {
+    "1k": 1707,
+    "2k": 3413
+   }
+  },
+  "hessian": {
+   "label": "Hessian sandbag cloth",
+   "tile_m": 0.4,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.95,
+   "metallic": 0.0,
+   "grime": 0.6,
+   "mean": [
+    0.5237,
+    0.4473,
+    0.3227
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/hessian_diff",
+     "1k": "1k/hessian_diff"
+    },
+    "nor": {
+     "2k": "2k/hessian_nor",
+     "1k": "1k/hessian_nor"
+    },
+    "arm": {
+     "2k": "2k/hessian_arm",
+     "1k": "1k/hessian_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "hessian_230",
+    "url": "https://polyhaven.com/a/hessian_230",
+    "authors": [
+     "colormass",
+     "Rico Cilliers"
+    ],
+    "license": "CC0-1.0",
+    "name": "Hessian 230"
+   },
+   "texel_density_px_per_m": {
+    "1k": 2560,
+    "2k": 5120
+   }
+  },
+  "sand": {
+   "label": "Desert sand drift",
+   "tile_m": 1.8,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.95,
+   "metallic": 0.0,
+   "grime": 0.0,
+   "mean": [
+    0.5862,
+    0.4933,
+    0.3651
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/sand_diff",
+     "1k": "1k/sand_diff"
+    },
+    "nor": {
+     "2k": "2k/sand_nor",
+     "1k": "1k/sand_nor"
+    },
+    "arm": {
+     "2k": "2k/sand_arm",
+     "1k": "1k/sand_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "dense_sand",
+    "url": "https://polyhaven.com/a/dense_sand",
+    "authors": [
+     "Dimitrios Savva"
+    ],
+    "license": "CC0-1.0",
+    "name": "Dense Sand"
+   },
+   "texel_density_px_per_m": {
+    "1k": 569,
+    "2k": 1138
+   }
+  },
+  "concrete_formwork": {
+   "label": "Board-formed concrete (formwork, ties, lifts)",
+   "tile_m": 2.7,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.9,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.4953,
+    0.4787,
+    0.4428
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/concrete_formwork_diff",
+     "2k": "2k/concrete_formwork_diff"
+    },
+    "nor": {
+     "1k": "1k/concrete_formwork_nor",
+     "2k": "2k/concrete_formwork_nor"
+    },
+    "arm": {
+     "1k": "1k/concrete_formwork_arm",
+     "2k": "2k/concrete_formwork_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+    "license": "CC0-1.0",
+    "derived_from": {
+     "source": "Poly Haven",
+     "id": "concrete_wall_008",
+     "license": "CC0-1.0"
+    }
+   },
+   "texel_density_px_per_m": {
+    "1k": 379,
+    "2k": 759
+   }
+  },
+  "concrete_slab": {
+   "label": "Weathered concrete slab (top surfaces)",
+   "tile_m": 4.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.9,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.5304,
+    0.5111,
+    0.4642
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/concrete_slab_diff",
+     "2k": "2k/concrete_slab_diff"
+    },
+    "nor": {
+     "1k": "1k/concrete_slab_nor",
+     "2k": "2k/concrete_slab_nor"
+    },
+    "arm": {
+     "1k": "1k/concrete_slab_arm",
+     "2k": "2k/concrete_slab_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+    "license": "CC0-1.0",
+    "derived_from": {
+     "source": "Poly Haven",
+     "id": "concrete_wall_008",
+     "license": "CC0-1.0"
+    }
+   },
+   "texel_density_px_per_m": {
+    "1k": 256,
+    "2k": 512
+   }
+  },
+  "concrete_camo": {
+   "label": "Concrete with 3-colour disruptive camouflage paint (muted, 0.5-1.2 m blotches)",
+   "tile_m": 5.4,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.88,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.3701,
+    0.3384,
+    0.2746
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/concrete_camo_diff",
+     "2k": "2k/concrete_camo_diff"
+    },
+    "nor": {
+     "1k": "1k/concrete_camo_nor",
+     "2k": "2k/concrete_camo_nor"
+    },
+    "arm": {
+     "1k": "1k/concrete_camo_arm",
+     "2k": "2k/concrete_camo_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+    "license": "CC0-1.0",
+    "derived_from": {
+     "source": "Poly Haven",
+     "id": "concrete_wall_008",
+     "license": "CC0-1.0"
+    }
+   },
+   "texel_density_px_per_m": {
+    "1k": 190,
+    "2k": 379
+   }
+  },
+  "steel_grating": {
+   "label": "Steel floor grating (30 x 100 mm)",
+   "tile_m": 0.6,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.6,
+   "metallic": 0.6,
+   "grime": 0.3,
+   "mean": [
+    0.1589,
+    0.1552,
+    0.144
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/steel_grating_diff",
+     "2k": "2k/steel_grating_diff"
+    },
+    "nor": {
+     "1k": "1k/steel_grating_nor",
+     "2k": "2k/steel_grating_nor"
+    },
+    "arm": {
+     "1k": "1k/steel_grating_arm",
+     "2k": "2k/steel_grating_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "texel_density_px_per_m": {
+    "1k": 1707,
+    "2k": 3413
+   }
+  },
+  "tent_canvas": {
+   "label": "Tent / hangar canvas: 1 m sewn cloths, lap seams, repairs, rain streaks",
+   "tile_m": 6.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.95,
+   "metallic": 0.0,
+   "grime": 0.6,
+   "mean": [
+    0.562,
+    0.5161,
+    0.4029
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/tent_canvas_diff",
+     "2k": "2k/tent_canvas_diff"
+    },
+    "nor": {
+     "1k": "1k/tent_canvas_nor",
+     "2k": "2k/tent_canvas_nor"
+    },
+    "arm": {
+     "1k": "1k/tent_canvas_arm",
+     "2k": "2k/tent_canvas_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "texel_density_px_per_m": {
+    "1k": 171,
+    "2k": 341
+   }
+  },
+  "corrugated_galv": {
+   "label": "Worn galvanised corrugated iron",
+   "tile_m": 1.8,
+   "grain": "v",
+   "rot90": false,
+   "roughness": 0.6,
+   "metallic": 0.6,
+   "grime": 0.7,
+   "mean": [
+    0.4987,
+    0.4882,
+    0.468
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/corrugated_galv_diff",
+     "1k": "1k/corrugated_galv_diff"
+    },
+    "nor": {
+     "2k": "2k/corrugated_galv_nor",
+     "1k": "1k/corrugated_galv_nor"
+    },
+    "arm": {
+     "2k": "2k/corrugated_galv_arm",
+     "1k": "1k/corrugated_galv_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "worn_corrugated_iron",
+    "url": "https://polyhaven.com/a/worn_corrugated_iron",
+    "authors": [
+     "Jenelle van Heerden",
+     "Dimitrios Savva"
+    ],
+    "license": "CC0-1.0",
+    "name": "Worn Corrugated Iron"
+   },
+   "texel_density_px_per_m": {
+    "1k": 569,
+    "2k": 1138
+   }
+  },
+  "timber_creosote": {
+   "label": "Creosoted structural timber",
+   "tile_m": 1.5,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.8,
+   "metallic": 0.0,
+   "grime": 0.8,
+   "mean": [
+    0.2178,
+    0.163,
+    0.1192
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/timber_creosote_diff",
+     "2k": "2k/timber_creosote_diff"
+    },
+    "nor": {
+     "1k": "1k/timber_creosote_nor",
+     "2k": "2k/timber_creosote_nor"
+    },
+    "arm": {
+     "1k": "1k/timber_creosote_arm",
+     "2k": "2k/timber_creosote_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+    "license": "CC0-1.0",
+    "derived_from": {
+     "source": "Poly Haven",
+     "id": "wood_planks_grey",
+     "license": "CC0-1.0"
+    }
+   },
+   "texel_density_px_per_m": {
+    "1k": 683,
+    "2k": 1365
+   }
+  },
+  "roof_tile_flat": {
+   "label": "Flat clay plain tiles (Norman tuile plate / Alsatian Biberschwanz)",
+   "tile_m": 2.6,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.78,
+   "metallic": 0.0,
+   "grime": 0.45,
+   "mean": [
+    0.4464,
+    0.2549,
+    0.1774
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/roof_tile_flat_diff",
+     "1k": "1k/roof_tile_flat_diff"
+    },
+    "nor": {
+     "2k": "2k/roof_tile_flat_nor",
+     "1k": "1k/roof_tile_flat_nor"
+    },
+    "arm": {
+     "2k": "2k/roof_tile_flat_arm",
+     "1k": "1k/roof_tile_flat_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "clay_roof_tiles_03",
+    "url": "https://polyhaven.com/a/clay_roof_tiles_03",
+    "authors": [
+     "Amal Kumar"
+    ],
+    "license": "CC0-1.0",
+    "name": "Clay Roof Tiles 03"
+   },
+   "texel_density_px_per_m": {
+    "1k": 394,
+    "2k": 788
+   }
+  },
+  "roof_slate_b": {
+   "label": "Slate roof, larger weathered slates (repairs / tone variation)",
+   "tile_m": 1.5,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.72,
+   "metallic": 0.0,
+   "grime": 0.4,
+   "mean": [
+    0.2244,
+    0.2316,
+    0.2479
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/roof_slate_b_diff",
+     "1k": "1k/roof_slate_b_diff"
+    },
+    "nor": {
+     "2k": "2k/roof_slate_b_nor",
+     "1k": "1k/roof_slate_b_nor"
+    },
+    "arm": {
+     "2k": "2k/roof_slate_b_arm",
+     "1k": "1k/roof_slate_b_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "grey_roof_tiles_02",
+    "url": "https://polyhaven.com/a/grey_roof_tiles_02",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "Grey Roof Tiles 02"
+   },
+   "texel_density_px_per_m": {
+    "1k": 683,
+    "2k": 1365
+   }
+  },
+  "limewash_worn": {
+   "label": "Worn lime-wash over rubble (Tunis medina; peeling, stone showing)",
+   "tile_m": 2.5,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.92,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.6899,
+    0.6788,
+    0.6464
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/limewash_worn_diff",
+     "1k": "1k/limewash_worn_diff"
+    },
+    "nor": {
+     "2k": "2k/limewash_worn_nor",
+     "1k": "1k/limewash_worn_nor"
+    },
+    "arm": {
+     "2k": "2k/limewash_worn_arm",
+     "1k": "1k/limewash_worn_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "plastered_stone_wall",
+    "url": "https://polyhaven.com/a/plastered_stone_wall",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "Plastered Stone Wall"
+   },
+   "texel_density_px_per_m": {
+    "1k": 410,
+    "2k": 819
+   }
+  },
+  "mud_render": {
+   "label": "Mud/straw render, Libyan-Tunisian (darker, redder than sand)",
+   "tile_m": 2.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.95,
+   "metallic": 0.0,
+   "grime": 0.9,
+   "mean": [
+    0.4639,
+    0.346,
+    0.2348
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/mud_render_diff",
+     "1k": "1k/mud_render_diff"
+    },
+    "nor": {
+     "2k": "2k/mud_render_nor",
+     "1k": "1k/mud_render_nor"
+    },
+    "arm": {
+     "2k": "2k/mud_render_arm",
+     "1k": "1k/mud_render_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "clay_plaster",
+    "url": "https://polyhaven.com/a/clay_plaster",
+    "authors": [
+     "Amal Kumar"
+    ],
+    "license": "CC0-1.0",
+    "name": "Clay Plaster"
+   },
+   "texel_density_px_per_m": {
+    "1k": 512,
+    "2k": 1024
+   }
+  },
+  "mudbrick": {
+   "label": "Exposed sun-dried mud brick",
+   "tile_m": 2.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.95,
+   "metallic": 0.0,
+   "grime": 0.9,
+   "mean": [
+    0.4919,
+    0.3769,
+    0.2636
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/mudbrick_diff",
+     "1k": "1k/mudbrick_diff"
+    },
+    "nor": {
+     "2k": "2k/mudbrick_nor",
+     "1k": "1k/mudbrick_nor"
+    },
+    "arm": {
+     "2k": "2k/mudbrick_arm",
+     "1k": "1k/mudbrick_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "clay_block_wall",
+    "url": "https://polyhaven.com/a/clay_block_wall",
+    "authors": [
+     "Amal Kumar"
+    ],
+    "license": "CC0-1.0",
+    "name": "Clay Block Wall"
+   },
+   "texel_density_px_per_m": {
+    "1k": 512,
+    "2k": 1024
+   }
+  },
+  "sandstone_ochre": {
+   "label": "Ochre sandstone ashlar (Zitouna drum/minaret)",
+   "tile_m": 3.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.6512,
+    0.5302,
+    0.3707
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/sandstone_ochre_diff",
+     "1k": "1k/sandstone_ochre_diff"
+    },
+    "nor": {
+     "2k": "2k/sandstone_ochre_nor",
+     "1k": "1k/sandstone_ochre_nor"
+    },
+    "arm": {
+     "2k": "2k/sandstone_ochre_arm",
+     "1k": "1k/sandstone_ochre_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "sandstone_blocks_04",
+    "url": "https://polyhaven.com/a/sandstone_blocks_04",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "Sandstone Blocks 04"
+   },
+   "texel_density_px_per_m": {
+    "1k": 341,
+    "2k": 683
+   }
+  },
+  "bitumen_felt": {
+   "label": "Tarred roofing felt, sun-faded and dusty / bitumen patches",
+   "tile_m": 2.5,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.75,
+   "metallic": 0.0,
+   "grime": 0.3,
+   "mean": [
+    0.2595,
+    0.253,
+    0.237
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/bitumen_felt_diff",
+     "1k": "1k/bitumen_felt_diff"
+    },
+    "nor": {
+     "2k": "2k/bitumen_felt_nor",
+     "1k": "1k/bitumen_felt_nor"
+    },
+    "arm": {
+     "2k": "2k/bitumen_felt_arm",
+     "1k": "1k/bitumen_felt_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "bitumen",
+    "url": "https://polyhaven.com/a/bitumen",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "Bitumen"
+   },
+   "texel_density_px_per_m": {
+    "1k": 410,
+    "2k": 819
+   }
+  },
+  "screed_roof": {
+   "label": "Cracked lime/cement roof screed",
+   "tile_m": 2.5,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.92,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.5861,
+    0.556,
+    0.4992
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/screed_roof_diff",
+     "1k": "1k/screed_roof_diff"
+    },
+    "nor": {
+     "2k": "2k/screed_roof_nor",
+     "1k": "1k/screed_roof_nor"
+    },
+    "arm": {
+     "2k": "2k/screed_roof_arm",
+     "1k": "1k/screed_roof_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "cracked_concrete",
+    "url": "https://polyhaven.com/a/cracked_concrete",
+    "authors": [
+     "Dimitrios Savva"
+    ],
+    "license": "CC0-1.0",
+    "name": "Cracked Concrete"
+   },
+   "texel_density_px_per_m": {
+    "1k": 410,
+    "2k": 819
+   }
+  },
+  "patio_flags": {
+   "label": "Worn limestone patio flags",
+   "tile_m": 3.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "grime": 0.6,
+   "mean": [
+    0.6124,
+    0.5703,
+    0.5114
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/patio_flags_diff",
+     "1k": "1k/patio_flags_diff"
+    },
+    "nor": {
+     "2k": "2k/patio_flags_nor",
+     "1k": "1k/patio_flags_nor"
+    },
+    "arm": {
+     "2k": "2k/patio_flags_arm",
+     "1k": "1k/patio_flags_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "floor_tiles_04",
+    "url": "https://polyhaven.com/a/floor_tiles_04",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "Floor Tiles 04"
+   },
+   "texel_density_px_per_m": {
+    "1k": 341,
+    "2k": 683
+   }
+  },
+  "palm_log": {
+   "label": "Palm trunk / rough log (joists, beams)",
+   "tile_m": 1.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.95,
+   "metallic": 0.0,
+   "grime": 0.8,
+   "mean": [
+    0.3314,
+    0.27,
+    0.1989
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/palm_log_diff",
+     "1k": "1k/palm_log_diff"
+    },
+    "nor": {
+     "2k": "2k/palm_log_nor",
+     "1k": "1k/palm_log_nor"
+    },
+    "arm": {
+     "2k": "2k/palm_log_arm",
+     "1k": "1k/palm_log_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "bark_brown_01",
+    "url": "https://polyhaven.com/a/bark_brown_01",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "Bark Brown 01"
+   },
+   "texel_density_px_per_m": {
+    "1k": 1024,
+    "2k": 2048
+   }
+  },
+  "canvas_camo": {
+   "label": "Tent duck with painted disruptive camouflage (sand/brown/olive, 4 m repeat)",
+   "tile_m": 4.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.92,
+   "metallic": 0.0,
+   "grime": 0.8,
+   "mean": [
+    0.5544,
+    0.4626,
+    0.3388
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/canvas_camo_diff",
+     "1k": "1k/canvas_camo_diff"
+    },
+    "nor": {
+     "2k": "2k/canvas_camo_nor",
+     "1k": "1k/canvas_camo_nor"
+    },
+    "arm": {
+     "2k": "2k/canvas_camo_arm",
+     "1k": "1k/canvas_camo_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "rough_linen",
+    "url": "https://polyhaven.com/a/rough_linen",
+    "authors": [
+     "colormass",
+     "Rico Cilliers"
+    ],
+    "license": "CC0-1.0",
+    "name": "Rough Linen + own-work camouflage pattern (CC0)"
+   },
+   "texel_density_px_per_m": {
+    "1k": 256,
+    "2k": 512
+   }
+  },
+  "roof_pantile_black": {
+   "label": "Black glazed S-pantile roof (0.2 x 0.33 m), irregular laying",
+   "tile_m": 2.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.45,
+   "metallic": 0.0,
+   "grime": 0.3,
+   "mean": [
+    0.097,
+    0.085,
+    0.0751
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/roof_pantile_black_diff",
+     "2k": "2k/roof_pantile_black_diff"
+    },
+    "nor": {
+     "1k": "1k/roof_pantile_black_nor",
+     "2k": "2k/roof_pantile_black_nor"
+    },
+    "arm": {
+     "1k": "1k/roof_pantile_black_arm",
+     "2k": "2k/roof_pantile_black_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "texel_density_px_per_m": {
+    "1k": 512,
+    "2k": 1024
+   }
+  },
+  "tar_paper": {
+   "label": "Tar paper / roofing felt with roll laps and patches",
+   "tile_m": 3.6,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "grime": 0.6,
+   "mean": [
+    0.1743,
+    0.1727,
+    0.1668
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/tar_paper_diff",
+     "2k": "2k/tar_paper_diff"
+    },
+    "nor": {
+     "1k": "1k/tar_paper_nor",
+     "2k": "2k/tar_paper_nor"
+    },
+    "arm": {
+     "1k": "1k/tar_paper_arm",
+     "2k": "2k/tar_paper_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "texel_density_px_per_m": {
+    "1k": 284,
+    "2k": 569
+   }
+  },
+  "turf_grass": {
+   "label": "Dense turf for sod roofs (torvtak)",
+   "tile_m": 2.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.95,
+   "metallic": 0.0,
+   "grime": 0.0,
+   "mean": [
+    0.2127,
+    0.2521,
+    0.1049
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/turf_grass_diff",
+     "2k": "2k/turf_grass_diff"
+    },
+    "nor": {
+     "1k": "1k/turf_grass_nor",
+     "2k": "2k/turf_grass_nor"
+    },
+    "arm": {
+     "1k": "1k/turf_grass_arm",
+     "2k": "2k/turf_grass_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+    "license": "CC0-1.0",
+    "derived_from": {
+     "source": "Poly Haven",
+     "id": "sparse_grass",
+     "license": "CC0-1.0"
+    }
+   },
+   "texel_density_px_per_m": {
+    "1k": 512,
+    "2k": 1024
+   }
+  },
+  "log_hewn": {
+   "label": "Weathered hewn log surface (grain along u)",
+   "tile_m": 2.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "grime": 0.8,
+   "mean": [
+    0.4952,
+    0.442,
+    0.3756
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/log_hewn_diff",
+     "2k": "2k/log_hewn_diff"
+    },
+    "nor": {
+     "1k": "1k/log_hewn_nor",
+     "2k": "2k/log_hewn_nor"
+    },
+    "arm": {
+     "1k": "1k/log_hewn_arm",
+     "2k": "2k/log_hewn_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "texel_density_px_per_m": {
+    "1k": 512,
+    "2k": 1024
+   }
+  },
+  "board_batten": {
+   "label": "Painted board-and-batten cladding (tint per asset)",
+   "tile_m": 2.4,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.7,
+   "metallic": 0.0,
+   "grime": 0.8,
+   "mean": [
+    0.7787,
+    0.7775,
+    0.7528
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/board_batten_diff",
+     "2k": "2k/board_batten_diff"
+    },
+    "nor": {
+     "1k": "1k/board_batten_nor",
+     "2k": "2k/board_batten_nor"
+    },
+    "arm": {
+     "1k": "1k/board_batten_arm",
+     "2k": "2k/board_batten_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "texel_density_px_per_m": {
+    "1k": 427,
+    "2k": 853
+   }
+  },
+  "burlap_bag": {
+   "label": "Sandbag burlap (light khaki, soiled)",
+   "tile_m": 0.5,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.95,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.6038,
+    0.5469,
+    0.4185
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/burlap_bag_diff",
+     "2k": "2k/burlap_bag_diff"
+    },
+    "nor": {
+     "1k": "1k/burlap_bag_nor",
+     "2k": "2k/burlap_bag_nor"
+    },
+    "arm": {
+     "1k": "1k/burlap_bag_arm",
+     "2k": "2k/burlap_bag_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+    "license": "CC0-1.0",
+    "derived_from": {
+     "source": "Poly Haven",
+     "id": "hessian_230",
+     "license": "CC0-1.0"
+    }
+   },
+   "texel_density_px_per_m": {
+    "1k": 2048,
+    "2k": 4096
+   }
+  },
+  "granite_polished": {
+   "label": "Polished granite, jointless (ledger slabs, steles)",
+   "tile_m": 2.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.4,
+   "metallic": 0.0,
+   "grime": 0.5,
+   "mean": [
+    0.2955,
+    0.2678,
+    0.2748
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/granite_polished_diff",
+     "1k": "1k/granite_polished_diff"
+    },
+    "nor": {
+     "2k": "2k/granite_polished_nor",
+     "1k": "1k/granite_polished_nor"
+    },
+    "arm": {
+     "2k": "2k/granite_polished_arm",
+     "1k": "1k/granite_polished_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (own work, europe rework make_stone.py)",
+    "id": "granite_polished",
+    "url": null,
+    "authors": [
+     "SHADOW SIX art"
+    ],
+    "license": "CC0-1.0",
+    "name": "Polished granite, jointless (ledger slabs, steles)"
+   },
+   "texel_density_px_per_m": {
+    "1k": 512,
+    "2k": 1024
+   }
+  },
+  "limestone_smooth": {
+   "label": "Smooth pale limestone, jointless (headstones, kerbs, calvary)",
+   "tile_m": 2.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.8,
+   "metallic": 0.0,
+   "grime": 0.5,
+   "mean": [
+    0.6276,
+    0.6001,
+    0.5283
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/limestone_smooth_diff",
+     "1k": "1k/limestone_smooth_diff"
+    },
+    "nor": {
+     "2k": "2k/limestone_smooth_nor",
+     "1k": "1k/limestone_smooth_nor"
+    },
+    "arm": {
+     "2k": "2k/limestone_smooth_arm",
+     "1k": "1k/limestone_smooth_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (own work, europe rework make_stone.py)",
+    "id": "limestone_smooth",
+    "url": null,
+    "authors": [
+     "SHADOW SIX art"
+    ],
+    "license": "CC0-1.0",
+    "name": "Smooth pale limestone, jointless (headstones, kerbs, calvary)"
+   },
+   "texel_density_px_per_m": {
+    "1k": 512,
+    "2k": 1024
+   }
+  },
+  "stele_face": {
+   "label": "Stele face atlas 2x2: engraved / gilt inscriptions, photo plaque, cross, wreath",
+   "tile_m": 1.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.5,
+   "metallic": 0.0,
+   "grime": 0.5,
+   "mean": [
+    0.4182,
+    0.4005,
+    0.3639
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/stele_face_diff",
+     "1k": "1k/stele_face_diff"
+    },
+    "nor": {
+     "2k": "2k/stele_face_nor",
+     "1k": "1k/stele_face_nor"
+    },
+    "arm": {
+     "2k": "2k/stele_face_arm",
+     "1k": "1k/stele_face_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (own work, europe rework make_stone.py)",
+    "id": "stele_face",
+    "url": null,
+    "authors": [
+     "SHADOW SIX art"
+    ],
+    "license": "CC0-1.0",
+    "name": "Stele face atlas 2x2: engraved / gilt inscriptions, photo plaque, cross, wreath"
+   },
+   "texel_density_px_per_m": {
+    "1k": 1024,
+    "2k": 2048
+   }
+  },
+  "mesh_screen": {
+   "label": "Radar reflector wire mesh (alpha blend, 25 mm)",
+   "tile_m": 0.6,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.5,
+   "metallic": 0.6,
+   "grime": 0.3,
+   "mean": [
+    0.6271,
+    0.6358,
+    0.643
+   ],
+   "normalScale": 1.0,
+   "alpha": "BLEND",
+   "maps": {
+    "diff": {
+     "1k": "1k/mesh_screen_diff",
+     "2k": "2k/mesh_screen_diff"
+    },
+    "nor": {
+     "1k": "1k/mesh_screen_nor",
+     "2k": "2k/mesh_screen_nor"
+    },
+    "arm": {
+     "1k": "1k/mesh_screen_arm",
+     "2k": "2k/mesh_screen_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "texel_density_px_per_m": {
+    "1k": 1707,
+    "2k": 3413
+   },
+   "specular": 0.0
+  },
+  "rock_cliff": {
+   "label": "Rock cliff face, grey gneiss (valley walls, dam abutments)",
+   "tile_m": 1.83,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "grime": 0.8,
+   "mean": [
+    0.4135,
+    0.4129,
+    0.4034
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/rock_cliff_diff",
+     "1k": "1k/rock_cliff_diff"
+    },
+    "nor": {
+     "2k": "2k/rock_cliff_nor",
+     "1k": "1k/rock_cliff_nor"
+    },
+    "arm": {
+     "2k": "2k/rock_cliff_arm",
+     "1k": "1k/rock_cliff_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "cliff_side",
+    "url": "https://polyhaven.com/a/cliff_side",
+    "authors": [
+     "James Ray Cock",
+     "Jenelle van Heerden",
+     "Dario Barresi"
+    ],
+    "license": "CC0-1.0",
+    "name": "Cliff Side"
+   },
+   "texel_density_px_per_m": {
+    "1k": 560,
+    "2k": 1119
+   }
+  },
+  "darj_panel": {
+   "label": "Ochre ashlar panel carved with a white darj-wa-ktaf lozenge net (Zitouna/Hafsid minarets)",
+   "tile_m": 2.4,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "grime": 0.8,
+   "mean": [
+    0.7165,
+    0.5762,
+    0.406
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/darj_panel_diff",
+     "1k": "1k/darj_panel_diff"
+    },
+    "nor": {
+     "2k": "2k/darj_panel_nor",
+     "1k": "1k/darj_panel_nor"
+    },
+    "arm": {
+     "2k": "2k/darj_panel_arm",
+     "1k": "1k/darj_panel_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (own work, SHADOW SIX art pass)",
+    "id": "darj_panel",
+    "url": null,
+    "authors": [
+     "SHADOW SIX"
+    ],
+    "license": "CC0-1.0",
+    "name": "darj wa ktaf panel"
+   },
+   "texel_density_px_per_m": {
+    "1k": 427,
+    "2k": 853
+   }
+  },
+  "floor_checker": {
+   "label": "Black / cream checker floor tiles, grout, chips, dirt (interiors, ruins)",
+   "tile_m": 2.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.6,
+   "metallic": 0.0,
+   "grime": 0.5,
+   "mean": [
+    0.3745,
+    0.3572,
+    0.3214
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/floor_checker_diff",
+     "1k": "1k/floor_checker_diff"
+    },
+    "nor": {
+     "2k": "2k/floor_checker_nor",
+     "1k": "1k/floor_checker_nor"
+    },
+    "arm": {
+     "2k": "2k/floor_checker_arm",
+     "1k": "1k/floor_checker_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (own work, europe rework make_stone.py)",
+    "id": "floor_checker",
+    "url": null,
+    "authors": [
+     "SHADOW SIX art"
+    ],
+    "license": "CC0-1.0",
+    "name": "Black / cream checker floor tiles, grout, chips, dirt (interiors, ruins)"
+   },
+   "texel_density_px_per_m": {
+    "1k": 512,
+    "2k": 1024
+   }
+  },
+  "rubble_stone": {
+   "label": "Random rubble stone wall, irregular polygonal stones (garden / farm walls)",
+   "tile_m": 2.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.9,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.477,
+    0.4403,
+    0.3801
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/rubble_stone_diff",
+     "1k": "1k/rubble_stone_diff"
+    },
+    "nor": {
+     "2k": "2k/rubble_stone_nor",
+     "1k": "1k/rubble_stone_nor"
+    },
+    "arm": {
+     "2k": "2k/rubble_stone_arm",
+     "1k": "1k/rubble_stone_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "stone_wall",
+    "url": "https://polyhaven.com/a/stone_wall",
+    "authors": [
+     "Dario Barresi",
+     "Charlotte Baglioni"
+    ],
+    "license": "CC0-1.0",
+    "name": "Stone Wall"
+   },
+   "texel_density_px_per_m": {
+    "1k": 512,
+    "2k": 1024
+   }
+  },
+  "scree_grey": {
+   "label": "Grey broken-stone scree / masonry rubble (ruin debris mounds)",
+   "tile_m": 1.8,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.92,
+   "metallic": 0.0,
+   "grime": 0.8,
+   "mean": [
+    0.4064,
+    0.4051,
+    0.3941
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/scree_grey_diff",
+     "1k": "1k/scree_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/scree_grey_nor",
+     "1k": "1k/scree_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/scree_grey_arm",
+     "1k": "1k/scree_grey_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "gray_rocks",
+    "url": "https://polyhaven.com/a/gray_rocks",
+    "authors": [
+     "Dimitrios Savva"
+    ],
+    "license": "CC0-1.0",
+    "name": "Gray Rocks"
+   },
+   "texel_density_px_per_m": {
+    "1k": 569,
+    "2k": 1138
+   }
+  },
+  "setts_granite": {
+   "label": "Granite setts in courses (bridge decks, gate passages)",
+   "tile_m": 2.4,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.3895,
+    0.3795,
+    0.3597
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/setts_granite_diff",
+     "1k": "1k/setts_granite_diff"
+    },
+    "nor": {
+     "2k": "2k/setts_granite_nor",
+     "1k": "1k/setts_granite_nor"
+    },
+    "arm": {
+     "2k": "2k/setts_granite_arm",
+     "1k": "1k/setts_granite_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "cobblestone_floor_03",
+    "url": "https://polyhaven.com/a/cobblestone_floor_03",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "Cobblestone Floor 03"
+   },
+   "texel_density_px_per_m": {
+    "1k": 427,
+    "2k": 853
+   }
+  },
+  "snow_soft": {
+   "label": "Matte wind-packed snow (no veining)",
+   "tile_m": 3.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.88,
+   "metallic": 0.0,
+   "grime": 0.0,
+   "mean": [
+    0.8439,
+    0.8985,
+    0.9494
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/snow_soft_diff",
+     "2k": "2k/snow_soft_diff"
+    },
+    "nor": {
+     "1k": "1k/snow_soft_nor",
+     "2k": "2k/snow_soft_nor"
+    },
+    "arm": {
+     "1k": "1k/snow_soft_arm",
+     "2k": "2k/snow_soft_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/bridges/tools2/make_br_tex.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "texel_density_px_per_m": {
+    "1k": 341,
+    "2k": 683
+   }
+  },
+  "water_flow": {
+   "label": "Spillway white water, streaks along v (flow)",
+   "tile_m": 4.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.2,
+   "metallic": 0.0,
+   "grime": 0.0,
+   "mean": [
+    0.3229,
+    0.3936,
+    0.3936
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/water_flow_diff",
+     "2k": "2k/water_flow_diff"
+    },
+    "nor": {
+     "1k": "1k/water_flow_nor",
+     "2k": "2k/water_flow_nor"
+    },
+    "arm": {
+     "1k": "1k/water_flow_arm",
+     "2k": "2k/water_flow_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/bridges/tools2/make_br_tex.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "texel_density_px_per_m": {
+    "1k": 256,
+    "2k": 512
+   }
+  },
+  "concrete_aggregate": {
+   "label": "Fractured mass concrete, exposed gravel aggregate",
+   "tile_m": 1.2,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.9,
+   "metallic": 0.0,
+   "grime": 0.3,
+   "mean": [
+    0.5089,
+    0.4853,
+    0.4448
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/concrete_aggregate_diff",
+     "2k": "2k/concrete_aggregate_diff"
+    },
+    "nor": {
+     "1k": "1k/concrete_aggregate_nor",
+     "2k": "2k/concrete_aggregate_nor"
+    },
+    "arm": {
+     "1k": "1k/concrete_aggregate_arm",
+     "2k": "2k/concrete_aggregate_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/bridges/tools2/make_br_tex.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "texel_density_px_per_m": {
+    "1k": 853,
+    "2k": 1707
+   }
+  },
+  "foliage_atlas": {
+   "label": "Foliage clump atlas 2x2 (iris | grass tuft | broadleaf weeds | fern), alpha-tested cross cards",
+   "tile_m": 1.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.72,
+   "metallic": 0.0,
+   "grime": 0.0,
+   "mean": [
+    0.3861,
+    0.5127,
+    0.3055
+   ],
+   "normalScale": 0.6,
+   "alpha": "MASK",
+   "alphaCutoff": 0.5,
+   "doubleSided": true,
+   "specular": 0.1,
+   "maps": {
+    "diff": {
+     "1k": "1k/foliage_atlas_diff",
+     "2k": "2k/foliage_atlas_diff"
+    },
+    "nor": {
+     "1k": "1k/foliage_atlas_nor",
+     "2k": "2k/foliage_atlas_nor"
+    },
+    "arm": {
+     "1k": "1k/foliage_atlas_arm",
+     "2k": "2k/foliage_atlas_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (own work, europe rework rw/make_foliage.py)",
+    "id": "foliage_atlas",
+    "url": null,
+    "authors": [
+     "SHADOW SIX art"
+    ],
+    "license": "CC0-1.0",
+    "name": "Foliage clump atlas"
+   },
+   "texel_density_px_per_m": {
+    "1k": 1024,
+    "2k": 2048
+   }
+  },
+  "gravel_grey": {
+   "label": "Grey limestone gravel (cemetery / churchyard paths, grave infill)",
+   "tile_m": 2.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.95,
+   "metallic": 0.0,
+   "grime": 0.3,
+   "mean": [
+    0.4992,
+    0.4858,
+    0.466
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/gravel_grey_diff",
+     "1k": "1k/gravel_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/gravel_grey_nor",
+     "1k": "1k/gravel_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/gravel_grey_arm",
+     "1k": "1k/gravel_grey_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "gravel",
+    "url": "https://polyhaven.com/a/gravel",
+    "authors": [
+     "Dimitrios Savva"
+    ],
+    "license": "CC0-1.0",
+    "name": "Gravel"
+   },
+   "texel_density_px_per_m": {
+    "1k": 512,
+    "2k": 1024
+   }
+  },
+  "tar_paper_batten": {
+   "label": "Batten-roll tar paper (Leistendach; rolls run eave-ridge, streaks, patches)",
+   "tile_m": 3.6,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "grime": 0.4,
+   "mean": [
+    0.1272,
+    0.1253,
+    0.1222
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/tar_paper_batten_diff",
+     "2k": "2k/tar_paper_batten_diff"
+    },
+    "nor": {
+     "1k": "1k/tar_paper_batten_nor",
+     "2k": "2k/tar_paper_batten_nor"
+    },
+    "arm": {
+     "1k": "1k/tar_paper_batten_arm",
+     "2k": "2k/tar_paper_batten_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "texel_density_px_per_m": {
+    "1k": 284,
+    "2k": 569
+   }
+  },
+  "weatherboard_paint": {
+   "label": "Painted horizontal lap siding, 0.18 m boards (tint per asset)",
+   "tile_m": 1.8,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.62,
+   "metallic": 0.0,
+   "grime": 0.8,
+   "mean": [
+    0.7887,
+    0.7844,
+    0.7643
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/weatherboard_paint_diff",
+     "2k": "2k/weatherboard_paint_diff"
+    },
+    "nor": {
+     "1k": "1k/weatherboard_paint_nor",
+     "2k": "2k/weatherboard_paint_nor"
+    },
+    "arm": {
+     "1k": "1k/weatherboard_paint_arm",
+     "2k": "2k/weatherboard_paint_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "texel_density_px_per_m": {
+    "1k": 569,
+    "2k": 1138
+   }
+  },
+  "boards_weathered": {
+   "label": "Weathered vertical boards 0.2 m, per-plank ageing + tar staining",
+   "tile_m": 2.4,
+   "grain": "v",
+   "rot90": false,
+   "roughness": 0.85,
+   "metallic": 0.0,
+   "grime": 0.8,
+   "mean": [
+    0.3948,
+    0.3635,
+    0.3211
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/boards_weathered_diff",
+     "2k": "2k/boards_weathered_diff"
+    },
+    "nor": {
+     "1k": "1k/boards_weathered_nor",
+     "2k": "2k/boards_weathered_nor"
+    },
+    "arm": {
+     "1k": "1k/boards_weathered_arm",
+     "2k": "2k/boards_weathered_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "texel_density_px_per_m": {
+    "1k": 427,
+    "2k": 853
+   }
+  },
+  "mud_render2": {
+   "label": "Mud/straw render (hand-thrown, grit + straw), darker/redder than sand",
+   "tile_m": 1.6,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.96,
+   "metallic": 0.0,
+   "grime": 0.9,
+   "mean": [
+    0.3999,
+    0.2843,
+    0.1884
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/mud_render2_diff",
+     "1k": "1k/mud_render2_diff"
+    },
+    "nor": {
+     "2k": "2k/mud_render2_nor",
+     "1k": "1k/mud_render2_nor"
+    },
+    "arm": {
+     "2k": "2k/mud_render2_arm",
+     "1k": "1k/mud_render2_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "dirt_floor",
+    "url": "https://polyhaven.com/a/dirt_floor",
+    "authors": [
+     "eye-candy.xyz"
+    ],
+    "license": "CC0-1.0",
+    "name": "Dirt Floor"
+   },
+   "texel_density_px_per_m": {
+    "1k": 640,
+    "2k": 1280
+   }
+  },
+  "limewash_lumpy": {
+   "label": "Lumpy lime render over rubble (whitewashed, hand-applied)",
+   "tile_m": 2.2,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.92,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.7111,
+    0.6953,
+    0.6569
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/limewash_lumpy_diff",
+     "1k": "1k/limewash_lumpy_diff"
+    },
+    "nor": {
+     "2k": "2k/limewash_lumpy_nor",
+     "1k": "1k/limewash_lumpy_nor"
+    },
+    "arm": {
+     "2k": "2k/limewash_lumpy_arm",
+     "1k": "1k/limewash_lumpy_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "medieval_wall_01",
+    "url": "https://polyhaven.com/a/medieval_wall_01",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "Medieval Wall 01"
+   },
+   "texel_density_px_per_m": {
+    "1k": 465,
+    "2k": 931
+   }
+  },
+  "screed_lime": {
+   "label": "Patchy lime/cement roof screed (trowelled repairs, no craze)",
+   "tile_m": 2.5,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.93,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.6597,
+    0.6327,
+    0.5774
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/screed_lime_diff",
+     "1k": "1k/screed_lime_diff"
+    },
+    "nor": {
+     "2k": "2k/screed_lime_nor",
+     "1k": "1k/screed_lime_nor"
+    },
+    "arm": {
+     "2k": "2k/screed_lime_arm",
+     "1k": "1k/screed_lime_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "grey_plaster_02",
+    "url": "https://polyhaven.com/a/grey_plaster_02",
+    "authors": [
+     "Rob Tuytel"
+    ],
+    "license": "CC0-1.0",
+    "name": "Grey Plaster 02"
+   },
+   "texel_density_px_per_m": {
+    "1k": 410,
+    "2k": 819
+   }
+  },
+  "corrugated_zinc": {
+   "label": "Galvanised corrugated iron (76 mm pitch)",
+   "tile_m": 2.7,
+   "grain": "v",
+   "rot90": false,
+   "roughness": 0.55,
+   "metallic": 0.7,
+   "grime": 0.6,
+   "mean": [
+    0.423,
+    0.4234,
+    0.4118
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "2k": "2k/corrugated_zinc_diff",
+     "1k": "1k/corrugated_zinc_diff"
+    },
+    "nor": {
+     "2k": "2k/corrugated_zinc_nor",
+     "1k": "1k/corrugated_zinc_nor"
+    },
+    "arm": {
+     "2k": "2k/corrugated_zinc_arm",
+     "1k": "1k/corrugated_zinc_arm"
+    }
+   },
+   "source": {
+    "source": "Poly Haven",
+    "id": "corrugated_iron_02",
+    "url": "https://polyhaven.com/a/corrugated_iron_02",
+    "authors": [
+     "Jenelle van Heerden",
+     "Sergej Majboroda"
+    ],
+    "license": "CC0-1.0",
+    "name": "Corrugated Iron 02"
+   },
+   "texel_density_px_per_m": {
+    "1k": 379,
+    "2k": 759
+   }
+  },
+  "decals_dz": {
+   "grain": "u",
+   "rot90": false,
+   "metallic": 0.0,
+   "grime": 0.0,
+   "normalScale": 1.0,
+   "source": {
+    "source": "procedural (art/desert/scripts/make_decals_dz.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "label": "Desert weathering decal atlas (soft organic soot/grime/damp/stains/scorch, alpha blend)",
+   "tile_m": 1.0,
+   "roughness": 0.95,
+   "mean": [
+    0.2,
+    0.2,
+    0.2
+   ],
+   "maps": {
+    "diff": {
+     "1k": "1k/decals_dz_rgba",
+     "2k": "2k/decals_dz_rgba"
+    }
+   },
+   "alpha": "BLEND",
+   "atlas": "decals_dz",
+   "specular": 0.0
+  },
+  "palm_frond_dz": {
+   "label": "Palm frond / reed mat atlas 4x1 (dry grey | brown | olive frond | cane mat), alpha-tested cards",
+   "tile_m": 1.0,
+   "grain": "v",
+   "rot90": false,
+   "roughness": 0.9,
+   "metallic": 0.0,
+   "grime": 0.2,
+   "mean": [
+    0.5599,
+    0.4984,
+    0.3621
+   ],
+   "normalScale": 0.5,
+   "alpha": "MASK",
+   "alphaCutoff": 0.5,
+   "doubleSided": true,
+   "specular": 0.1,
+   "maps": {
+    "diff": {
+     "1k": "1k/palm_frond_dz_diff",
+     "2k": "2k/palm_frond_dz_diff"
+    },
+    "nor": {
+     "1k": "1k/palm_frond_dz_nor",
+     "2k": "2k/palm_frond_dz_nor"
+    },
+    "arm": {
+     "1k": "1k/palm_frond_dz_arm",
+     "2k": "2k/palm_frond_dz_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/desert/scripts/make_fronds.py, own work)",
+    "license": "CC0-1.0"
+   }
+  },
+  "paint_metal": {
+   "label": "Smooth enamel-painted sheet metal (pale, tint per asset)",
+   "tile_m": 2.0,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.45,
+   "metallic": 0.0,
+   "grime": 0.4,
+   "mean": [
+    0.79,
+    0.7859,
+    0.7779
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/paint_metal_diff",
+     "2k": "2k/paint_metal_diff"
+    },
+    "nor": {
+     "1k": "1k/paint_metal_nor",
+     "2k": "2k/paint_metal_nor"
+    },
+    "arm": {
+     "1k": "1k/paint_metal_arm",
+     "2k": "2k/paint_metal_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "texel_density_px_per_m": {
+    "1k": 512,
+    "2k": 1024
+   }
+  },
+  "concrete_camo_heer": {
+   "label": "Concrete, Heer disruptive paint (dunkelgelb / olive / chocolate brown, muted, sprayed edges)",
+   "tile_m": 5.4,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.88,
+   "metallic": 0.0,
+   "grime": 1.0,
+   "mean": [
+    0.3425,
+    0.3126,
+    0.2189
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/concrete_camo_heer_diff",
+     "2k": "2k/concrete_camo_heer_diff"
+    },
+    "nor": {
+     "1k": "1k/concrete_camo_heer_nor",
+     "2k": "2k/concrete_camo_heer_nor"
+    },
+    "arm": {
+     "1k": "1k/concrete_camo_heer_arm",
+     "2k": "2k/concrete_camo_heer_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+    "license": "CC0-1.0",
+    "derived_from": {
+     "source": "Poly Haven",
+     "id": "concrete_bunker (lib)",
+     "license": "CC0-1.0"
+    }
+   },
+   "texel_density_px_per_m": {
+    "1k": 190,
+    "2k": 379
+   }
+  },
+  "camo_netting": {
+   "label": "Garnished camouflage net: 10 cm twine mesh + hessian scrim strips (alpha MASK, double sided)",
+   "tile_m": 1.2,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.95,
+   "metallic": 0.0,
+   "grime": 0.2,
+   "mean": [
+    0.3403,
+    0.3241,
+    0.2089
+   ],
+   "normalScale": 0.8,
+   "alpha": "MASK",
+   "alphaCutoff": 0.45,
+   "doubleSided": true,
+   "specular": 0.1,
+   "maps": {
+    "diff": {
+     "1k": "1k/camo_netting_diff",
+     "2k": "2k/camo_netting_diff"
+    },
+    "nor": {
+     "1k": "1k/camo_netting_nor",
+     "2k": "2k/camo_netting_nor"
+    },
+    "arm": {
+     "1k": "1k/camo_netting_arm",
+     "2k": "2k/camo_netting_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/military/tools/make_mil_tex4.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "texel_density_px_per_m": {
+    "1k": 853,
+    "2k": 1707
+   }
+  },
+  "concrete_dam": {
+   "label": "Mass-concrete dam face: 1.6 m lifts, efflorescence, leaching streaks, weep holes (6.4 m tile)",
+   "tile_m": 6.4,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.86,
+   "metallic": 0.0,
+   "grime": 0.4,
+   "mean": [
+    0.5044,
+    0.4907,
+    0.4504
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/concrete_dam_diff",
+     "2k": "2k/concrete_dam_diff"
+    },
+    "nor": {
+     "1k": "1k/concrete_dam_nor",
+     "2k": "2k/concrete_dam_nor"
+    },
+    "arm": {
+     "1k": "1k/concrete_dam_arm",
+     "2k": "2k/concrete_dam_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (art/bridges/tools2/make_dam_tex.py, own work)",
+    "license": "CC0-1.0",
+    "derived_from": "concrete_board (lib, CC0 Poly Haven)"
+   },
+   "texel_density_px_per_m": {
+    "1k": 160,
+    "2k": 320
+   }
+  }
+ }
+}

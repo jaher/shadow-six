@@ -1,0 +1,113 @@
+{
+ "plaster_white": {
+  "ph": "white_plaster_rough_02"
+ },
+ "plaster_limewash": {
+  "ph": "white_rough_plaster"
+ },
+ "adobe_ochre": {
+  "ph": "clay_plaster"
+ },
+ "plaster_rough": {
+  "ph": "rough_plaster_03"
+ },
+ "timber_cladding": {
+  "ph": "wood_plank_wall"
+ },
+ "timber_grey": {
+  "ph": "weathered_planks"
+ },
+ "timber_siding": {
+  "ph": "weathered_plank_siding"
+ },
+ "timber_tarred": {
+  "ph": "dark_wooden_planks"
+ },
+ "timber_beam": {
+  "ph": "wood_planks_grey"
+ },
+ "fieldstone": {
+  "ph": "rustic_stone_wall"
+ },
+ "fieldstone_grey": {
+  "ph": "stone_wall_04"
+ },
+ "ashlar": {
+  "ph": "stone_block_wall"
+ },
+ "ashlar_limestone": {
+  "ph": "white_sandstone_blocks_02"
+ },
+ "granite": {
+  "ph": "granite_wall"
+ },
+ "brick_red": {
+  "ph": "red_brick_03"
+ },
+ "brick_dark": {
+  "ph": "dark_brick_wall"
+ },
+ "concrete_bunker": {
+  "ph": "concrete_wall_008"
+ },
+ "concrete_board": {
+  "ph": "wood_textured_concrete"
+ },
+ "corrugated_rust": {
+  "ph": "rusty_corrugated_iron"
+ },
+ "roof_terracotta": {
+  "ph": "clay_roof_tiles_02"
+ },
+ "roof_slate": {
+  "ph": "roof_slates_02"
+ },
+ "roof_shingle": {
+  "acg": "WoodSiding013"
+ },
+ "roof_thatch": {
+  "ph": "reed_roof_04"
+ },
+ "sod": {
+  "ph": "sparse_grass"
+ },
+ "steel_painted": {
+  "ph": "rusty_painted_metal"
+ },
+ "steel_galv": {
+  "ph": "metal_plate"
+ },
+ "cast_iron": {
+  "ph": "rusty_metal_03"
+ },
+ "deck_planks": {
+  "ph": "wood_planks_dirt"
+ },
+ "cobblestone": {
+  "ph": "cobblestone_05"
+ },
+ "gravel": {
+  "ph": "gravel_road"
+ },
+ "snow": {
+  "ph": "snow_01"
+ },
+ "mud": {
+  "ph": "brown_mud_02"
+ },
+ "door_planks": {
+  "ph": "weathered_peeling_timber"
+ },
+ "roof_tile_flat": {
+  "ph": "clay_roof_tiles_03"
+ },
+ "roof_slate_b": {
+  "ph": "grey_roof_tiles_02"
+ },
+ "rubble_stone": {
+  "ph": "stone_wall"
+ },
+ "gravel_grey": {
+  "ph": "gravel"
+ }
+}

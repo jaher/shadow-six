@@ -1,0 +1,8 @@
+barracks.py ad 74
+barracks.py ad 74 snow
+barracks.py cd 75
+barracks.py cd 75 snow
+radar_building.py ad 102
+radar_building.py ad 102 snow
+radar_dish.py ad 92
+radar_dish.py ad 92 snow

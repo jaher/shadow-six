@@ -1,0 +1,410 @@
+{
+ "asset": "radar_building_a",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "concrete_bunker": {
+   "source": "Poly Haven",
+   "id": "concrete_wall_008",
+   "url": "https://polyhaven.com/a/concrete_wall_008",
+   "authors": [
+    "Dario Barresi",
+    "Charlotte Baglioni"
+   ],
+   "license": "CC0-1.0",
+   "name": "Concrete Wall 008",
+   "label": "Weathered bunker concrete",
+   "files": {
+    "diff": {
+     "2k": "2k/concrete_bunker_diff",
+     "1k": "1k/concrete_bunker_diff"
+    },
+    "nor": {
+     "2k": "2k/concrete_bunker_nor",
+     "1k": "1k/concrete_bunker_nor"
+    },
+    "arm": {
+     "2k": "2k/concrete_bunker_arm",
+     "1k": "1k/concrete_bunker_arm"
+    }
+   }
+  },
+  "concrete_camo": {
+   "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+   "license": "CC0-1.0",
+   "derived_from": {
+    "source": "Poly Haven",
+    "id": "concrete_wall_008",
+    "license": "CC0-1.0"
+   },
+   "label": "Concrete with 3-colour disruptive camouflage paint (muted, 0.5-1.2 m blotches)",
+   "files": {
+    "diff": {
+     "1k": "1k/concrete_camo_diff",
+     "2k": "2k/concrete_camo_diff"
+    },
+    "nor": {
+     "1k": "1k/concrete_camo_nor",
+     "2k": "2k/concrete_camo_nor"
+    },
+    "arm": {
+     "1k": "1k/concrete_camo_arm",
+     "2k": "2k/concrete_camo_arm"
+    }
+   }
+  },
+  "concrete_formwork": {
+   "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+   "license": "CC0-1.0",
+   "derived_from": {
+    "source": "Poly Haven",
+    "id": "concrete_wall_008",
+    "license": "CC0-1.0"
+   },
+   "label": "Board-formed concrete (formwork, ties, lifts)",
+   "files": {
+    "diff": {
+     "1k": "1k/concrete_formwork_diff",
+     "2k": "2k/concrete_formwork_diff"
+    },
+    "nor": {
+     "1k": "1k/concrete_formwork_nor",
+     "2k": "2k/concrete_formwork_nor"
+    },
+    "arm": {
+     "1k": "1k/concrete_formwork_arm",
+     "2k": "2k/concrete_formwork_arm"
+    }
+   }
+  },
+  "concrete_slab": {
+   "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+   "license": "CC0-1.0",
+   "derived_from": {
+    "source": "Poly Haven",
+    "id": "concrete_wall_008",
+    "license": "CC0-1.0"
+   },
+   "label": "Weathered concrete slab (top surfaces)",
+   "files": {
+    "diff": {
+     "1k": "1k/concrete_slab_diff",
+     "2k": "2k/concrete_slab_diff"
+    },
+    "nor": {
+     "1k": "1k/concrete_slab_nor",
+     "2k": "2k/concrete_slab_nor"
+    },
+    "arm": {
+     "1k": "1k/concrete_slab_arm",
+     "2k": "2k/concrete_slab_arm"
+    }
+   }
+  },
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  },
+  "door_planks": {
+   "source": "Poly Haven",
+   "id": "weathered_peeling_timber",
+   "url": "https://polyhaven.com/a/weathered_peeling_timber",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Peeling Timber",
+   "label": "Weathered peeling timber (doors)",
+   "files": {
+    "diff": {
+     "2k": "2k/door_planks_diff",
+     "1k": "1k/door_planks_diff"
+    },
+    "nor": {
+     "2k": "2k/door_planks_nor",
+     "1k": "1k/door_planks_nor"
+    },
+    "arm": {
+     "2k": "2k/door_planks_arm",
+     "1k": "1k/door_planks_arm"
+    }
+   }
+  },
+  "glass_dirty": {
+   "source": "procedural (tools/make_procedural.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Dirty window glass",
+   "files": {
+    "diff": {
+     "1k": "1k/glass_dirty_diff",
+     "2k": "2k/glass_dirty_diff"
+    },
+    "nor": {
+     "1k": "1k/glass_dirty_nor",
+     "2k": "2k/glass_dirty_nor"
+    },
+    "arm": {
+     "1k": "1k/glass_dirty_arm",
+     "2k": "2k/glass_dirty_arm"
+    }
+   }
+  },
+  "hessian": {
+   "source": "Poly Haven",
+   "id": "hessian_230",
+   "url": "https://polyhaven.com/a/hessian_230",
+   "authors": [
+    "colormass",
+    "Rico Cilliers"
+   ],
+   "license": "CC0-1.0",
+   "name": "Hessian 230",
+   "label": "Hessian sandbag cloth",
+   "files": {
+    "diff": {
+     "2k": "2k/hessian_diff",
+     "1k": "1k/hessian_diff"
+    },
+    "nor": {
+     "2k": "2k/hessian_nor",
+     "1k": "1k/hessian_nor"
+    },
+    "arm": {
+     "2k": "2k/hessian_arm",
+     "1k": "1k/hessian_arm"
+    }
+   }
+  },
+  "interior_dark": {
+   "source": "procedural (tools/make_procedural.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Interior darkness card",
+   "files": {
+    "diff": {
+     "1k": "1k/interior_dark_diff",
+     "2k": "2k/interior_dark_diff"
+    },
+    "nor": {
+     "1k": "1k/interior_dark_nor",
+     "2k": "2k/interior_dark_nor"
+    },
+    "arm": {
+     "1k": "1k/interior_dark_arm",
+     "2k": "2k/interior_dark_arm"
+    }
+   }
+  },
+  "mesh_screen": {
+   "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Radar reflector wire mesh (alpha blend, 25 mm)",
+   "files": {
+    "diff": {
+     "1k": "1k/mesh_screen_diff",
+     "2k": "2k/mesh_screen_diff"
+    },
+    "nor": {
+     "1k": "1k/mesh_screen_nor",
+     "2k": "2k/mesh_screen_nor"
+    },
+    "arm": {
+     "1k": "1k/mesh_screen_arm",
+     "2k": "2k/mesh_screen_arm"
+    }
+   }
+  },
+  "signs": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Painted sign atlas",
+   "files": {
+    "diff": {
+     "1k": "1k/signs_diff",
+     "2k": "2k/signs_diff"
+    }
+   }
+  },
+  "steel_galv": {
+   "source": "Poly Haven",
+   "id": "rusty_painted_metal",
+   "url": "https://polyhaven.com/a/rusty_painted_metal",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Painted Metal",
+   "label": "Bare / galvanized steel (derived)",
+   "files": {
+    "diff": {
+     "2k": "2k/steel_galv_diff",
+     "1k": "1k/steel_galv_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_galv_nor",
+     "1k": "1k/steel_galv_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_galv_arm",
+     "1k": "1k/steel_galv_arm"
+    }
+   }
+  },
+  "steel_painted": {
+   "source": "Poly Haven",
+   "id": "rusty_painted_metal",
+   "url": "https://polyhaven.com/a/rusty_painted_metal",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Painted Metal",
+   "label": "Painted riveted steel (bridge grey-green)",
+   "files": {
+    "diff": {
+     "2k": "2k/steel_painted_diff",
+     "1k": "1k/steel_painted_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_painted_nor",
+     "1k": "1k/steel_painted_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_painted_arm",
+     "1k": "1k/steel_painted_arm"
+    }
+   }
+  },
+  "tar_paper": {
+   "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Tar paper / roofing felt with roll laps and patches",
+   "files": {
+    "diff": {
+     "1k": "1k/tar_paper_diff",
+     "2k": "2k/tar_paper_diff"
+    },
+    "nor": {
+     "1k": "1k/tar_paper_nor",
+     "2k": "2k/tar_paper_nor"
+    },
+    "arm": {
+     "1k": "1k/tar_paper_arm",
+     "2k": "2k/tar_paper_arm"
+    }
+   }
+  },
+  "timber_beam": {
+   "source": "Poly Haven",
+   "id": "wood_planks_grey",
+   "url": "https://polyhaven.com/a/wood_planks_grey",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Grey",
+   "label": "Grey structural timber (beams, rafters)",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_beam_diff",
+     "1k": "1k/timber_beam_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_beam_nor",
+     "1k": "1k/timber_beam_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_beam_arm",
+     "1k": "1k/timber_beam_arm"
+    }
+   }
+  },
+  "timber_grey": {
+   "source": "Poly Haven",
+   "id": "weathered_planks",
+   "url": "https://polyhaven.com/a/weathered_planks",
+   "authors": [
+    "Dario Barresi",
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Planks",
+   "label": "Weathered grey timber",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_grey_diff",
+     "1k": "1k/timber_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_grey_nor",
+     "1k": "1k/timber_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_grey_arm",
+     "1k": "1k/timber_grey_arm"
+    }
+   }
+  },
+  "wood_paint": {
+   "source": "Poly Haven",
+   "id": "weathered_peeling_timber",
+   "url": "https://polyhaven.com/a/weathered_peeling_timber",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Peeling Timber",
+   "label": "Pale painted wood base (tint via kit_tint for shutters/frames)",
+   "files": {
+    "diff": {
+     "2k": "2k/wood_paint_diff",
+     "1k": "1k/wood_paint_diff"
+    },
+    "nor": {
+     "2k": "2k/wood_paint_nor",
+     "1k": "1k/wood_paint_nor"
+    },
+    "arm": {
+     "2k": "2k/wood_paint_arm",
+     "1k": "1k/wood_paint_arm"
+    }
+   }
+  }
+ },
+ "norway_notes": [
+  "Geometry: procedural Blender script norway/scripts/radar_building.py (SHADOW SIX Norway group, own work, CC0).",
+  "Rework 1 (art director pass): shared helpers norway/scripts/nfx.py; procedural textures roof_pantile_black, tar_paper, turf_grass (from Poly Haven sparse_grass, CC0), log_hewn, board_batten, mesh_screen made by norway/tools/make_nor_tex.py (own work, CC0).",
+  "Rework 2 (art director pass 2): helpers norway/scripts/nfx2.py (+ sentry_box.py); procedural textures tar_paper_batten, weatherboard_paint, boards_weathered, paint_metal and the re-laid roof_pantile_black made by norway/tools/make_nor_tex2.py (own work, CC0). All other maps: see \"textures\" (CC0).",
+  "Reference photos (internal comparison only, not shipped): scratchpad/art/refs/norway/refs.md (Wikimedia Commons)."
+ ]
+}

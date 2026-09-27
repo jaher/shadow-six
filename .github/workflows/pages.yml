@@ -1,0 +1,50 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Stage the site (runtime files only)
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+          cp index.html LICENSE CREDITS.md _site/
+          for f in favicon.ico favicon.svg favicon.png; do
+            if [ -f "$f" ]; then cp "$f" _site/; fi
+          done
+          cp -r src styles vendor assets _site/
+          touch _site/.nojekyll
+          du -sh _site
+          test -f _site/index.html
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

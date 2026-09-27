@@ -1,0 +1,104 @@
+{
+ "id": "dog_a",
+ "kind": "dog",
+ "glb": "dog_a.glb",
+ "bytes": 626156,
+ "tris": {
+  "LOD0": 4199,
+  "LOD1": 1599,
+  "LOD2": 600
+ },
+ "materials": 1,
+ "lods": [
+  "LOD0",
+  "LOD1",
+  "LOD2"
+ ],
+ "lod_rule": "LOD0 >= 60 px/m, LOD1 >= 28 px/m, else LOD2",
+ "skeleton": "project dog rig (root, pelvis, spine, chest, neck, head, jaw, ear_l/r, tail1-3, upperarm/forearm/fpaw_l/r, thigh/shin/hpaw_l/r)",
+ "clips": {
+  "walk": {
+   "loop": true,
+   "duration": 0.75,
+   "groundSpeed": 0.89
+  },
+  "sniff_walk": {
+   "loop": true,
+   "duration": 1.0,
+   "groundSpeed": 0.49
+  },
+  "trot": {
+   "loop": true,
+   "duration": 0.5,
+   "groundSpeed": 2.21
+  },
+  "run": {
+   "loop": true,
+   "duration": 0.4,
+   "groundSpeed": 5.84
+  },
+  "idle": {
+   "loop": true,
+   "duration": 3.0
+  },
+  "sniff": {
+   "loop": true,
+   "duration": 2.0
+  },
+  "bark": {
+   "loop": true,
+   "duration": 1.0,
+   "events": {
+    "bark": [
+     0.03,
+     0.53
+    ]
+   }
+  },
+  "attack": {
+   "loop": true,
+   "duration": 1.0,
+   "events": {
+    "bite": [
+     0.42
+    ]
+   }
+  },
+  "die": {
+   "loop": false,
+   "duration": 1.3
+  },
+  "dead": {
+   "loop": true,
+   "duration": 1.0
+  }
+ },
+ "variation": {
+  "seed": 1,
+  "size": 0.971,
+  "saddle": 0.85,
+  "ear_tilt": 0.53
+ },
+ "withers_m": 0.602,
+ "mass_kg": 31.1,
+ "sockets": {
+  "mouth": {
+   "bone": "jaw",
+   "pos": [
+    0,
+    -0.6,
+    0.72
+   ]
+  },
+  "collar": {
+   "bone": "neck",
+   "pos": [
+    0,
+    -0.3,
+    0.66
+   ]
+  }
+ },
+ "licence": "project-authored geometry, rig and clips (CC0)",
+ "notes": "bible 6.5 Alsatian; spec 4.1 dog unit (bite 25 dmg/1.0 s; bark alerts)"
+}

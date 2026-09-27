@@ -1,0 +1,26 @@
+{
+ "about": "Expected transfer bytes per mission load (cold cache), by preset. Written by tools/perf/measure-load.mjs --budget; read by src/engine/load-progress.js for the loading bar. Missions not listed use default.",
+ "default": 90000000,
+ "missions": {
+  "m00": {
+   "high": 56700000,
+   "low": 36700000,
+   "ultra": 77600000
+  },
+  "m01": {
+   "high": 63400000,
+   "low": 46900000,
+   "ultra": 80600000
+  },
+  "m02": {
+   "high": 66900000,
+   "low": 49600000,
+   "ultra": 85500000
+  },
+  "m03": {
+   "high": 80900000,
+   "low": 62600000,
+   "ultra": 99800000
+  }
+ }
+}

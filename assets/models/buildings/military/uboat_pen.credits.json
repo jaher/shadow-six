@@ -1,0 +1,347 @@
+{
+ "asset": "uboat_pen",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "bitumen_felt": {
+   "source": "Poly Haven",
+   "id": "bitumen",
+   "url": "https://polyhaven.com/a/bitumen",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Bitumen",
+   "label": "Tarred roofing felt, sun-faded and dusty / bitumen patches",
+   "files": {
+    "diff": {
+     "2k": "2k/bitumen_felt_diff",
+     "1k": "1k/bitumen_felt_diff"
+    },
+    "nor": {
+     "2k": "2k/bitumen_felt_nor",
+     "1k": "1k/bitumen_felt_nor"
+    },
+    "arm": {
+     "2k": "2k/bitumen_felt_arm",
+     "1k": "1k/bitumen_felt_arm"
+    }
+   }
+  },
+  "camo_netting": {
+   "source": "procedural (art/military/tools/make_mil_tex4.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Garnished camouflage net: 10 cm twine mesh + hessian scrim strips (alpha MASK, double sided)",
+   "files": {
+    "diff": {
+     "1k": "1k/camo_netting_diff",
+     "2k": "2k/camo_netting_diff"
+    },
+    "nor": {
+     "1k": "1k/camo_netting_nor",
+     "2k": "2k/camo_netting_nor"
+    },
+    "arm": {
+     "1k": "1k/camo_netting_arm",
+     "2k": "2k/camo_netting_arm"
+    }
+   }
+  },
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "concrete_bunker": {
+   "source": "Poly Haven",
+   "id": "concrete_wall_008",
+   "url": "https://polyhaven.com/a/concrete_wall_008",
+   "authors": [
+    "Dario Barresi",
+    "Charlotte Baglioni"
+   ],
+   "license": "CC0-1.0",
+   "name": "Concrete Wall 008",
+   "label": "Weathered bunker concrete",
+   "files": {
+    "diff": {
+     "2k": "2k/concrete_bunker_diff",
+     "1k": "1k/concrete_bunker_diff"
+    },
+    "nor": {
+     "2k": "2k/concrete_bunker_nor",
+     "1k": "1k/concrete_bunker_nor"
+    },
+    "arm": {
+     "2k": "2k/concrete_bunker_arm",
+     "1k": "1k/concrete_bunker_arm"
+    }
+   }
+  },
+  "concrete_formwork": {
+   "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+   "license": "CC0-1.0",
+   "derived_from": {
+    "source": "Poly Haven",
+    "id": "concrete_wall_008",
+    "license": "CC0-1.0"
+   },
+   "label": "Board-formed concrete (formwork, ties, lifts)",
+   "files": {
+    "diff": {
+     "1k": "1k/concrete_formwork_diff",
+     "2k": "2k/concrete_formwork_diff"
+    },
+    "nor": {
+     "1k": "1k/concrete_formwork_nor",
+     "2k": "2k/concrete_formwork_nor"
+    },
+    "arm": {
+     "1k": "1k/concrete_formwork_arm",
+     "2k": "2k/concrete_formwork_arm"
+    }
+   }
+  },
+  "concrete_slab": {
+   "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+   "license": "CC0-1.0",
+   "derived_from": {
+    "source": "Poly Haven",
+    "id": "concrete_wall_008",
+    "license": "CC0-1.0"
+   },
+   "label": "Weathered concrete slab (top surfaces)",
+   "files": {
+    "diff": {
+     "1k": "1k/concrete_slab_diff",
+     "2k": "2k/concrete_slab_diff"
+    },
+    "nor": {
+     "1k": "1k/concrete_slab_nor",
+     "2k": "2k/concrete_slab_nor"
+    },
+    "arm": {
+     "1k": "1k/concrete_slab_arm",
+     "2k": "2k/concrete_slab_arm"
+    }
+   }
+  },
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  },
+  "interior_dark": {
+   "source": "procedural (tools/make_procedural.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Interior darkness card",
+   "files": {
+    "diff": {
+     "1k": "1k/interior_dark_diff",
+     "2k": "2k/interior_dark_diff"
+    },
+    "nor": {
+     "1k": "1k/interior_dark_nor",
+     "2k": "2k/interior_dark_nor"
+    },
+    "arm": {
+     "1k": "1k/interior_dark_arm",
+     "2k": "2k/interior_dark_arm"
+    }
+   }
+  },
+  "plaster_white": {
+   "source": "Poly Haven",
+   "id": "white_plaster_rough_02",
+   "url": "https://polyhaven.com/a/white_plaster_rough_02",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "White Plaster Rough 02",
+   "label": "Whitewashed plaster",
+   "files": {
+    "diff": {
+     "2k": "2k/plaster_white_diff",
+     "1k": "1k/plaster_white_diff"
+    },
+    "nor": {
+     "2k": "2k/plaster_white_nor",
+     "1k": "1k/plaster_white_nor"
+    },
+    "arm": {
+     "2k": "2k/plaster_white_arm",
+     "1k": "1k/plaster_white_arm"
+    }
+   }
+  },
+  "scree_grey": {
+   "source": "Poly Haven",
+   "id": "gray_rocks",
+   "url": "https://polyhaven.com/a/gray_rocks",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Gray Rocks",
+   "label": "Grey broken-stone scree / masonry rubble (ruin debris mounds)",
+   "files": {
+    "diff": {
+     "2k": "2k/scree_grey_diff",
+     "1k": "1k/scree_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/scree_grey_nor",
+     "1k": "1k/scree_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/scree_grey_arm",
+     "1k": "1k/scree_grey_arm"
+    }
+   }
+  },
+  "steel_galv": {
+   "source": "Poly Haven",
+   "id": "rusty_painted_metal",
+   "url": "https://polyhaven.com/a/rusty_painted_metal",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Painted Metal",
+   "label": "Bare / galvanized steel (derived)",
+   "files": {
+    "diff": {
+     "2k": "2k/steel_galv_diff",
+     "1k": "1k/steel_galv_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_galv_nor",
+     "1k": "1k/steel_galv_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_galv_arm",
+     "1k": "1k/steel_galv_arm"
+    }
+   }
+  },
+  "steel_painted": {
+   "source": "Poly Haven",
+   "id": "rusty_painted_metal",
+   "url": "https://polyhaven.com/a/rusty_painted_metal",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Painted Metal",
+   "label": "Painted riveted steel (bridge grey-green)",
+   "files": {
+    "diff": {
+     "2k": "2k/steel_painted_diff",
+     "1k": "1k/steel_painted_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_painted_nor",
+     "1k": "1k/steel_painted_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_painted_arm",
+     "1k": "1k/steel_painted_arm"
+    }
+   }
+  },
+  "timber_creosote": {
+   "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+   "license": "CC0-1.0",
+   "derived_from": {
+    "source": "Poly Haven",
+    "id": "wood_planks_grey",
+    "license": "CC0-1.0"
+   },
+   "label": "Creosoted structural timber",
+   "files": {
+    "diff": {
+     "1k": "1k/timber_creosote_diff",
+     "2k": "2k/timber_creosote_diff"
+    },
+    "nor": {
+     "1k": "1k/timber_creosote_nor",
+     "2k": "2k/timber_creosote_nor"
+    },
+    "arm": {
+     "1k": "1k/timber_creosote_arm",
+     "2k": "2k/timber_creosote_arm"
+    }
+   }
+  },
+  "water_flow": {
+   "source": "procedural (art/bridges/tools2/make_br_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Spillway white water, streaks along v (flow)",
+   "files": {
+    "diff": {
+     "1k": "1k/water_flow_diff",
+     "2k": "2k/water_flow_diff"
+    },
+    "nor": {
+     "1k": "1k/water_flow_nor",
+     "2k": "2k/water_flow_nor"
+    },
+    "arm": {
+     "1k": "1k/water_flow_arm",
+     "2k": "2k/water_flow_arm"
+    }
+   }
+  },
+  "wood_paint": {
+   "source": "Poly Haven",
+   "id": "weathered_peeling_timber",
+   "url": "https://polyhaven.com/a/weathered_peeling_timber",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Peeling Timber",
+   "label": "Pale painted wood base (tint via kit_tint for shutters/frames)",
+   "files": {
+    "diff": {
+     "2k": "2k/wood_paint_diff",
+     "1k": "1k/wood_paint_diff"
+    },
+    "nor": {
+     "2k": "2k/wood_paint_nor",
+     "1k": "1k/wood_paint_nor"
+    },
+    "arm": {
+     "2k": "2k/wood_paint_arm",
+     "1k": "1k/wood_paint_arm"
+    }
+   }
+  }
+ }
+}

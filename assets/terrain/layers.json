@@ -1,0 +1,54 @@
+{
+ "theaters": {
+  "desert": [
+   "sand",
+   "sand2",
+   "gravel",
+   "dirt",
+   "rockd",
+   "road",
+   "grassdry",
+   "mud"
+  ],
+  "temperate": [
+   "grass",
+   "grassdry",
+   "dirt",
+   "mud",
+   "gravel",
+   "road",
+   "leaves",
+   "wetsand"
+  ],
+  "snow": [
+   "snow",
+   "snowold",
+   "snowpack",
+   "rocks",
+   "gravel",
+   "road",
+   "grassdry",
+   "mud"
+  ]
+ },
+ "size": 1024,
+ "sources": {
+  "grass": "grass004",
+  "grassdry": "withered_grass",
+  "dirt": "dry_ground_01",
+  "mud": "brown_mud_02",
+  "gravel": "gravel_floor_02",
+  "sand": "dense_sand",
+  "sand2": "sand_01",
+  "wetsand": "coast_sand_01",
+  "rock": "rocks_ground_02",
+  "rockd": "rocks_ground_02",
+  "rocks": "rocks_ground_02",
+  "road": "rocky_trail_02",
+  "leaves": "forest_leaves_02",
+  "snow": "PROC_SNOW",
+  "snowold": "snow_03",
+  "snowpack": "PROC_SNOW",
+  "burnt": "burned_ground_01"
+ }
+}

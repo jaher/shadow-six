@@ -1,0 +1,66 @@
+{
+ "id": "german_rifleman_s1",
+ "enemy": {
+  "soldierType": "rifleman",
+  "seed": 1,
+  "archetype": 4
+ },
+ "body": {
+  "age_years": 21,
+  "muscle": 0.55,
+  "weight": 0.45,
+  "proportions": 0.6,
+  "height_m": 1.76,
+  "modifiers": {}
+ },
+ "skin": {
+  "base": "young_caucasian_male",
+  "tint": [
+   1.0,
+   0.98,
+   0.97
+  ],
+  "ruddy": 0.15,
+  "stubble": 0.15
+ },
+ "eyes": {
+  "iris": [
+   0.35,
+   0.45,
+   0.55
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow002",
+  "color": [
+   0.28,
+   0.2,
+   0.12
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.33,
+   0.24,
+   0.14
+  ]
+ },
+ "outfit": "heer_m40",
+ "outfit_opts": {},
+ "kit": [
+  "belt",
+  "ystraps",
+  "ammo_pouches",
+  "bread_bag",
+  "canteen",
+  "gasmask_can",
+  "bayonet"
+ ],
+ "headgear": {
+  "type": "m35"
+ },
+ "weapon": {
+  "primary": "kar98k"
+ }
+}

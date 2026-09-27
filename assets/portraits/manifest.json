@@ -1,0 +1,1830 @@
+{
+ "version": "v3-visemeshapes-blinkhold80",
+ "fps": 25,
+ "sizes": [
+  256
+ ],
+ "lead": 0.35,
+ "note": "Muted clips. Start the voice `lead` s after the clip starts, or seek the clip to `lead` when the voice starts. idle and talk_loop loop seamlessly. {size} -> 256 (HUD tier; 512 stays in the faces pipeline); formats webm (VP9) + mp4 (H.264).",
+ "characters": {
+  "green_beret": {
+   "name": "Green Beret \"Tiny\" McHale",
+   "game_id": "greenberet",
+   "poster": "green_beret/idle_{size}.jpg",
+   "lines": {
+    "consider_it_done": {
+     "clip": "green_beret/consider_it_done_{size}",
+     "key": "7d21f80cd60ba111",
+     "frames": 61,
+     "seconds": 2.44,
+     "text": "Consider it done.",
+     "lead": 0.35,
+     "voice_seconds": 1.454,
+     "kb": {
+      "256": [
+       26.0,
+       28.9
+      ]
+     },
+     "voice": "../audio/voice/green_beret/primary/consider_it_done.ogg",
+     "voice_mp3": "../audio/voice/green_beret/primary/consider_it_done.mp3",
+     "alt": {
+      "clip": "green_beret/consider_it_done_alt_{size}",
+      "key": "c0d15c13556eed4a",
+      "frames": 58,
+      "seconds": 2.32,
+      "lead": 0.35,
+      "voice_seconds": 1.319,
+      "kb": {
+       "256": [
+        24.7,
+        27.4
+       ]
+      },
+      "voice": "../audio/voice/green_beret/alt/consider_it_done.ogg",
+      "voice_mp3": "../audio/voice/green_beret/alt/consider_it_done.mp3"
+     }
+    },
+    "i_m_hit": {
+     "clip": "green_beret/i_m_hit_{size}",
+     "key": "793f7212a63d761a",
+     "frames": 53,
+     "seconds": 2.12,
+     "text": "I'm hit!",
+     "lead": 0.35,
+     "voice_seconds": 1.1,
+     "kb": {
+      "256": [
+       21.5,
+       25.0
+      ]
+     },
+     "voice": "../audio/voice/green_beret/primary/i_m_hit.ogg",
+     "voice_mp3": "../audio/voice/green_beret/primary/i_m_hit.mp3",
+     "alt": {
+      "clip": "green_beret/i_m_hit_alt_{size}",
+      "key": "fd5c8295f342acce",
+      "frames": 45,
+      "seconds": 1.8,
+      "lead": 0.35,
+      "voice_seconds": 0.806,
+      "kb": {
+       "256": [
+        20.9,
+        22.7
+       ]
+      },
+      "voice": "../audio/voice/green_beret/alt/i_m_hit.ogg",
+      "voice_mp3": "../audio/voice/green_beret/alt/i_m_hit.mp3"
+     }
+    },
+    "on_my_way": {
+     "clip": "green_beret/on_my_way_{size}",
+     "key": "035ed01a65a5c6c6",
+     "frames": 56,
+     "seconds": 2.24,
+     "text": "On my way.",
+     "lead": 0.35,
+     "voice_seconds": 1.242,
+     "kb": {
+      "256": [
+       25.0,
+       27.8
+      ]
+     },
+     "voice": "../audio/voice/green_beret/primary/on_my_way.ogg",
+     "voice_mp3": "../audio/voice/green_beret/primary/on_my_way.mp3",
+     "alt": {
+      "clip": "green_beret/on_my_way_alt_{size}",
+      "key": "c7a140d0822cc40a",
+      "frames": 54,
+      "seconds": 2.16,
+      "lead": 0.35,
+      "voice_seconds": 1.148,
+      "kb": {
+       "256": [
+        25.1,
+        26.9
+       ]
+      },
+      "voice": "../audio/voice/green_beret/alt/on_my_way.ogg",
+      "voice_mp3": "../audio/voice/green_beret/alt/on_my_way.mp3"
+     }
+    },
+    "ready": {
+     "clip": "green_beret/ready_{size}",
+     "key": "984fa78c5e0b025d",
+     "frames": 44,
+     "seconds": 1.76,
+     "text": "Ready.",
+     "lead": 0.35,
+     "voice_seconds": 0.745,
+     "kb": {
+      "256": [
+       19.9,
+       23.2
+      ]
+     },
+     "voice": "../audio/voice/green_beret/primary/ready.ogg",
+     "voice_mp3": "../audio/voice/green_beret/primary/ready.mp3",
+     "alt": {
+      "clip": "green_beret/ready_alt_{size}",
+      "key": "8a813130d48af5db",
+      "frames": 40,
+      "seconds": 1.6,
+      "lead": 0.35,
+      "voice_seconds": 0.61,
+      "kb": {
+       "256": [
+        19.6,
+        21.5
+       ]
+      },
+      "voice": "../audio/voice/green_beret/alt/ready.ogg",
+      "voice_mp3": "../audio/voice/green_beret/alt/ready.mp3"
+     }
+    },
+    "right_away": {
+     "clip": "green_beret/right_away_{size}",
+     "key": "00ba9c8106e67a7d",
+     "frames": 56,
+     "seconds": 2.24,
+     "text": "Right away.",
+     "lead": 0.35,
+     "voice_seconds": 1.254,
+     "kb": {
+      "256": [
+       25.4,
+       27.7
+      ]
+     },
+     "voice": "../audio/voice/green_beret/primary/right_away.ogg",
+     "voice_mp3": "../audio/voice/green_beret/primary/right_away.mp3",
+     "alt": {
+      "clip": "green_beret/right_away_alt_{size}",
+      "key": "1223bb92e402e65c",
+      "frames": 46,
+      "seconds": 1.84,
+      "lead": 0.35,
+      "voice_seconds": 0.837,
+      "kb": {
+       "256": [
+        21.5,
+        24.2
+       ]
+      },
+      "voice": "../audio/voice/green_beret/alt/right_away.ogg",
+      "voice_mp3": "../audio/voice/green_beret/alt/right_away.mp3"
+     }
+    },
+    "understood": {
+     "clip": "green_beret/understood_{size}",
+     "key": "84fd54349f707b6e",
+     "frames": 54,
+     "seconds": 2.16,
+     "text": "Understood.",
+     "lead": 0.35,
+     "voice_seconds": 1.141,
+     "kb": {
+      "256": [
+       23.0,
+       26.1
+      ]
+     },
+     "voice": "../audio/voice/green_beret/primary/understood.ogg",
+     "voice_mp3": "../audio/voice/green_beret/primary/understood.mp3",
+     "alt": {
+      "clip": "green_beret/understood_alt_{size}",
+      "key": "9adf4f7b7d308f8a",
+      "frames": 54,
+      "seconds": 2.16,
+      "lead": 0.35,
+      "voice_seconds": 1.154,
+      "kb": {
+       "256": [
+        23.2,
+        26.3
+       ]
+      },
+      "voice": "../audio/voice/green_beret/alt/understood.ogg",
+      "voice_mp3": "../audio/voice/green_beret/alt/understood.mp3"
+     }
+    },
+    "what_now": {
+     "clip": "green_beret/what_now_{size}",
+     "key": "7b43b5de089b6f72",
+     "frames": 52,
+     "seconds": 2.08,
+     "text": "What now?",
+     "lead": 0.35,
+     "voice_seconds": 1.086,
+     "kb": {
+      "256": [
+       23.6,
+       26.5
+      ]
+     },
+     "voice": "../audio/voice/green_beret/primary/what_now.ogg",
+     "voice_mp3": "../audio/voice/green_beret/primary/what_now.mp3",
+     "alt": {
+      "clip": "green_beret/what_now_alt_{size}",
+      "key": "745c2c25500c2c41",
+      "frames": 43,
+      "seconds": 1.72,
+      "lead": 0.35,
+      "voice_seconds": 0.718,
+      "kb": {
+       "256": [
+        21.9,
+        23.9
+       ]
+      },
+      "voice": "../audio/voice/green_beret/alt/what_now.ogg",
+      "voice_mp3": "../audio/voice/green_beret/alt/what_now.mp3"
+     }
+    },
+    "yes_sir": {
+     "clip": "green_beret/yes_sir_{size}",
+     "key": "60e6946ab5bdc928",
+     "frames": 56,
+     "seconds": 2.24,
+     "text": "Yes, sir!",
+     "lead": 0.35,
+     "voice_seconds": 1.253,
+     "kb": {
+      "256": [
+       24.2,
+       27.5
+      ]
+     },
+     "voice": "../audio/voice/green_beret/primary/yes_sir.ogg",
+     "voice_mp3": "../audio/voice/green_beret/primary/yes_sir.mp3",
+     "alt": {
+      "clip": "green_beret/yes_sir_alt_{size}",
+      "key": "68b51d34bf648af8",
+      "frames": 47,
+      "seconds": 1.88,
+      "lead": 0.35,
+      "voice_seconds": 0.881,
+      "kb": {
+       "256": [
+        20.9,
+        23.7
+       ]
+      },
+      "voice": "../audio/voice/green_beret/alt/yes_sir.ogg",
+      "voice_mp3": "../audio/voice/green_beret/alt/yes_sir.mp3"
+     }
+    }
+   },
+   "idle": {
+    "clip": "green_beret/idle_{size}",
+    "key": "35d21d4d66d2fdb4",
+    "frames": 107,
+    "seconds": 4.28,
+    "seam_jump": 0.02,
+    "median_step": 0.126,
+    "seam_ratio": 0.16,
+    "loop": true,
+    "kb": {
+     "256": [
+      29.4,
+      40.8
+     ]
+    }
+   },
+   "talk_loop": {
+    "clip": "green_beret/talk_loop_{size}",
+    "key": "9d5c891db7f660ad",
+    "frames": 124,
+    "seconds": 4.96,
+    "seam_jump": 0.418,
+    "median_step": 0.866,
+    "seam_ratio": 0.48,
+    "loop": true,
+    "kb": {
+     "256": [
+      49.1,
+      52.7
+     ]
+    }
+   }
+  },
+  "sniper": {
+   "name": "Sniper \"Duke\" Woolridge",
+   "game_id": "sniper",
+   "poster": "sniper/idle_{size}.jpg",
+   "lines": {
+    "consider_it_done": {
+     "clip": "sniper/consider_it_done_{size}",
+     "key": "a3439f6ce5a2fe47",
+     "frames": 57,
+     "seconds": 2.28,
+     "text": "Consider it done.",
+     "lead": 0.35,
+     "voice_seconds": 1.287,
+     "kb": {
+      "256": [
+       22.5,
+       26.2
+      ]
+     },
+     "voice": "../audio/voice/sniper/primary/consider_it_done.ogg",
+     "voice_mp3": "../audio/voice/sniper/primary/consider_it_done.mp3",
+     "alt": {
+      "clip": "sniper/consider_it_done_alt_{size}",
+      "key": "6e658019132d3e66",
+      "frames": 57,
+      "seconds": 2.28,
+      "lead": 0.35,
+      "voice_seconds": 1.285,
+      "kb": {
+       "256": [
+        22.5,
+        26.0
+       ]
+      },
+      "voice": "../audio/voice/sniper/alt/consider_it_done.ogg",
+      "voice_mp3": "../audio/voice/sniper/alt/consider_it_done.mp3"
+     }
+    },
+    "i_m_hit": {
+     "clip": "sniper/i_m_hit_{size}",
+     "key": "cb2e25fa7afbc2b1",
+     "frames": 48,
+     "seconds": 1.92,
+     "text": "I'm hit!",
+     "lead": 0.35,
+     "voice_seconds": 0.907,
+     "kb": {
+      "256": [
+       17.5,
+       21.1
+      ]
+     },
+     "voice": "../audio/voice/sniper/primary/i_m_hit.ogg",
+     "voice_mp3": "../audio/voice/sniper/primary/i_m_hit.mp3",
+     "alt": {
+      "clip": "sniper/i_m_hit_alt_{size}",
+      "key": "a0d3435e54cee64a",
+      "frames": 48,
+      "seconds": 1.92,
+      "lead": 0.35,
+      "voice_seconds": 0.925,
+      "kb": {
+       "256": [
+        17.4,
+        21.5
+       ]
+      },
+      "voice": "../audio/voice/sniper/alt/i_m_hit.ogg",
+      "voice_mp3": "../audio/voice/sniper/alt/i_m_hit.mp3"
+     }
+    },
+    "on_my_way": {
+     "clip": "sniper/on_my_way_{size}",
+     "key": "d9b039a653f85e34",
+     "frames": 63,
+     "seconds": 2.52,
+     "text": "On my way.",
+     "lead": 0.35,
+     "voice_seconds": 1.515,
+     "kb": {
+      "256": [
+       23.1,
+       26.9
+      ]
+     },
+     "voice": "../audio/voice/sniper/primary/on_my_way.ogg",
+     "voice_mp3": "../audio/voice/sniper/primary/on_my_way.mp3",
+     "alt": {
+      "clip": "sniper/on_my_way_alt_{size}",
+      "key": "0d91ce8696e14e41",
+      "frames": 52,
+      "seconds": 2.08,
+      "lead": 0.35,
+      "voice_seconds": 1.073,
+      "kb": {
+       "256": [
+        18.0,
+        22.5
+       ]
+      },
+      "voice": "../audio/voice/sniper/alt/on_my_way.ogg",
+      "voice_mp3": "../audio/voice/sniper/alt/on_my_way.mp3"
+     }
+    },
+    "ready": {
+     "clip": "sniper/ready_{size}",
+     "key": "ec20fdc39507c967",
+     "frames": 48,
+     "seconds": 1.92,
+     "text": "Ready.",
+     "lead": 0.35,
+     "voice_seconds": 0.92,
+     "kb": {
+      "256": [
+       17.9,
+       22.3
+      ]
+     },
+     "voice": "../audio/voice/sniper/primary/ready.ogg",
+     "voice_mp3": "../audio/voice/sniper/primary/ready.mp3",
+     "alt": {
+      "clip": "sniper/ready_alt_{size}",
+      "key": "6b189611faa7537d",
+      "frames": 40,
+      "seconds": 1.6,
+      "lead": 0.35,
+      "voice_seconds": 0.6,
+      "kb": {
+       "256": [
+        14.5,
+        17.9
+       ]
+      },
+      "voice": "../audio/voice/sniper/alt/ready.ogg",
+      "voice_mp3": "../audio/voice/sniper/alt/ready.mp3"
+     }
+    },
+    "right_away": {
+     "clip": "sniper/right_away_{size}",
+     "key": "e0a70787fe8e4ee5",
+     "frames": 49,
+     "seconds": 1.96,
+     "text": "Right away.",
+     "lead": 0.35,
+     "voice_seconds": 0.955,
+     "kb": {
+      "256": [
+       18.4,
+       22.2
+      ]
+     },
+     "voice": "../audio/voice/sniper/primary/right_away.ogg",
+     "voice_mp3": "../audio/voice/sniper/primary/right_away.mp3",
+     "alt": {
+      "clip": "sniper/right_away_alt_{size}",
+      "key": "d7e8ec5b36d65a1b",
+      "frames": 43,
+      "seconds": 1.72,
+      "lead": 0.35,
+      "voice_seconds": 0.73,
+      "kb": {
+       "256": [
+        15.7,
+        19.6
+       ]
+      },
+      "voice": "../audio/voice/sniper/alt/right_away.ogg",
+      "voice_mp3": "../audio/voice/sniper/alt/right_away.mp3"
+     }
+    },
+    "understood": {
+     "clip": "sniper/understood_{size}",
+     "key": "6259a4cd1ec74952",
+     "frames": 50,
+     "seconds": 2.0,
+     "text": "Understood.",
+     "lead": 0.35,
+     "voice_seconds": 1.008,
+     "kb": {
+      "256": [
+       18.8,
+       22.4
+      ]
+     },
+     "voice": "../audio/voice/sniper/primary/understood.ogg",
+     "voice_mp3": "../audio/voice/sniper/primary/understood.mp3",
+     "alt": {
+      "clip": "sniper/understood_alt_{size}",
+      "key": "c183b69193ffe7bd",
+      "frames": 50,
+      "seconds": 2.0,
+      "lead": 0.35,
+      "voice_seconds": 0.98,
+      "kb": {
+       "256": [
+        16.7,
+        21.6
+       ]
+      },
+      "voice": "../audio/voice/sniper/alt/understood.ogg",
+      "voice_mp3": "../audio/voice/sniper/alt/understood.mp3"
+     }
+    },
+    "what_now": {
+     "clip": "sniper/what_now_{size}",
+     "key": "4bf014f3a4bdeb04",
+     "frames": 51,
+     "seconds": 2.04,
+     "text": "What now?",
+     "lead": 0.35,
+     "voice_seconds": 1.056,
+     "kb": {
+      "256": [
+       18.9,
+       22.9
+      ]
+     },
+     "voice": "../audio/voice/sniper/primary/what_now.ogg",
+     "voice_mp3": "../audio/voice/sniper/primary/what_now.mp3",
+     "alt": {
+      "clip": "sniper/what_now_alt_{size}",
+      "key": "6e81a8673cdab8fb",
+      "frames": 43,
+      "seconds": 1.72,
+      "lead": 0.35,
+      "voice_seconds": 0.72,
+      "kb": {
+       "256": [
+        18.4,
+        21.2
+       ]
+      },
+      "voice": "../audio/voice/sniper/alt/what_now.ogg",
+      "voice_mp3": "../audio/voice/sniper/alt/what_now.mp3"
+     }
+    },
+    "yes_sir": {
+     "clip": "sniper/yes_sir_{size}",
+     "key": "a87a6c3c5a4c5af9",
+     "frames": 53,
+     "seconds": 2.12,
+     "text": "Yes, sir!",
+     "lead": 0.35,
+     "voice_seconds": 1.13,
+     "kb": {
+      "256": [
+       19.9,
+       24.0
+      ]
+     },
+     "voice": "../audio/voice/sniper/primary/yes_sir.ogg",
+     "voice_mp3": "../audio/voice/sniper/primary/yes_sir.mp3",
+     "alt": {
+      "clip": "sniper/yes_sir_alt_{size}",
+      "key": "96a2dc9dc04c0e58",
+      "frames": 45,
+      "seconds": 1.8,
+      "lead": 0.35,
+      "voice_seconds": 0.815,
+      "kb": {
+       "256": [
+        17.6,
+        20.7
+       ]
+      },
+      "voice": "../audio/voice/sniper/alt/yes_sir.ogg",
+      "voice_mp3": "../audio/voice/sniper/alt/yes_sir.mp3"
+     }
+    }
+   },
+   "idle": {
+    "clip": "sniper/idle_{size}",
+    "key": "6b87b04354b243c3",
+    "frames": 107,
+    "seconds": 4.28,
+    "seam_jump": 0.019,
+    "median_step": 0.1,
+    "seam_ratio": 0.19,
+    "loop": true,
+    "kb": {
+     "256": [
+      25.1,
+      38.0
+     ]
+    }
+   },
+   "talk_loop": {
+    "clip": "sniper/talk_loop_{size}",
+    "key": "90a1ff3a5e7c0ea0",
+    "frames": 124,
+    "seconds": 4.96,
+    "seam_jump": 0.118,
+    "median_step": 1.049,
+    "seam_ratio": 0.11,
+    "loop": true,
+    "kb": {
+     "256": [
+      50.8,
+      55.7
+     ]
+    }
+   }
+  },
+  "marine": {
+   "name": "Marine \"Fins\" Blackwood",
+   "game_id": "diver",
+   "poster": "marine/idle_{size}.jpg",
+   "lines": {
+    "consider_it_done": {
+     "clip": "marine/consider_it_done_{size}",
+     "key": "0e8ffa3c27c0b01a",
+     "frames": 53,
+     "seconds": 2.12,
+     "text": "Consider it done.",
+     "lead": 0.35,
+     "voice_seconds": 1.131,
+     "kb": {
+      "256": [
+       22.9,
+       27.1
+      ]
+     },
+     "voice": "../audio/voice/marine/primary/consider_it_done.ogg",
+     "voice_mp3": "../audio/voice/marine/primary/consider_it_done.mp3",
+     "alt": {
+      "clip": "marine/consider_it_done_alt_{size}",
+      "key": "9a0f0102d26a716d",
+      "frames": 57,
+      "seconds": 2.28,
+      "lead": 0.35,
+      "voice_seconds": 1.26,
+      "kb": {
+       "256": [
+        24.1,
+        27.5
+       ]
+      },
+      "voice": "../audio/voice/marine/alt/consider_it_done.ogg",
+      "voice_mp3": "../audio/voice/marine/alt/consider_it_done.mp3"
+     }
+    },
+    "i_m_hit": {
+     "clip": "marine/i_m_hit_{size}",
+     "key": "e5ff72e7c73151ca",
+     "frames": 45,
+     "seconds": 1.8,
+     "text": "I'm hit!",
+     "lead": 0.35,
+     "voice_seconds": 0.803,
+     "kb": {
+      "256": [
+       17.6,
+       21.9
+      ]
+     },
+     "voice": "../audio/voice/marine/primary/i_m_hit.ogg",
+     "voice_mp3": "../audio/voice/marine/primary/i_m_hit.mp3",
+     "alt": {
+      "clip": "marine/i_m_hit_alt_{size}",
+      "key": "5caf0c1b985d61cb",
+      "frames": 45,
+      "seconds": 1.8,
+      "lead": 0.35,
+      "voice_seconds": 0.8,
+      "kb": {
+       "256": [
+        20.8,
+        24.3
+       ]
+      },
+      "voice": "../audio/voice/marine/alt/i_m_hit.ogg",
+      "voice_mp3": "../audio/voice/marine/alt/i_m_hit.mp3"
+     }
+    },
+    "on_my_way": {
+     "clip": "marine/on_my_way_{size}",
+     "key": "567abf612d428491",
+     "frames": 48,
+     "seconds": 1.92,
+     "text": "On my way.",
+     "lead": 0.35,
+     "voice_seconds": 0.937,
+     "kb": {
+      "256": [
+       26.4,
+       28.4
+      ]
+     },
+     "voice": "../audio/voice/marine/primary/on_my_way.ogg",
+     "voice_mp3": "../audio/voice/marine/primary/on_my_way.mp3",
+     "alt": {
+      "clip": "marine/on_my_way_alt_{size}",
+      "key": "5197d2c42170b5ce",
+      "frames": 43,
+      "seconds": 1.72,
+      "lead": 0.35,
+      "voice_seconds": 0.714,
+      "kb": {
+       "256": [
+        23.7,
+        25.8
+       ]
+      },
+      "voice": "../audio/voice/marine/alt/on_my_way.ogg",
+      "voice_mp3": "../audio/voice/marine/alt/on_my_way.mp3"
+     }
+    },
+    "ready": {
+     "clip": "marine/ready_{size}",
+     "key": "132c19046d6e46a4",
+     "frames": 42,
+     "seconds": 1.68,
+     "text": "Ready.",
+     "lead": 0.35,
+     "voice_seconds": 0.689,
+     "kb": {
+      "256": [
+       19.7,
+       23.0
+      ]
+     },
+     "voice": "../audio/voice/marine/primary/ready.ogg",
+     "voice_mp3": "../audio/voice/marine/primary/ready.mp3",
+     "alt": {
+      "clip": "marine/ready_alt_{size}",
+      "key": "b7579f9d51cc1f67",
+      "frames": 37,
+      "seconds": 1.48,
+      "lead": 0.35,
+      "voice_seconds": 0.498,
+      "kb": {
+       "256": [
+        17.0,
+        20.3
+       ]
+      },
+      "voice": "../audio/voice/marine/alt/ready.ogg",
+      "voice_mp3": "../audio/voice/marine/alt/ready.mp3"
+     }
+    },
+    "right_away": {
+     "clip": "marine/right_away_{size}",
+     "key": "7fa4ccc800694e45",
+     "frames": 47,
+     "seconds": 1.88,
+     "text": "Right away.",
+     "lead": 0.35,
+     "voice_seconds": 0.874,
+     "kb": {
+      "256": [
+       26.3,
+       28.3
+      ]
+     },
+     "voice": "../audio/voice/marine/primary/right_away.ogg",
+     "voice_mp3": "../audio/voice/marine/primary/right_away.mp3",
+     "alt": {
+      "clip": "marine/right_away_alt_{size}",
+      "key": "8ba3d835a27dee8c",
+      "frames": 42,
+      "seconds": 1.68,
+      "lead": 0.35,
+      "voice_seconds": 0.675,
+      "kb": {
+       "256": [
+        17.6,
+        21.9
+       ]
+      },
+      "voice": "../audio/voice/marine/alt/right_away.ogg",
+      "voice_mp3": "../audio/voice/marine/alt/right_away.mp3"
+     }
+    },
+    "understood": {
+     "clip": "marine/understood_{size}",
+     "key": "80593e1f41a5114d",
+     "frames": 47,
+     "seconds": 1.88,
+     "text": "Understood.",
+     "lead": 0.35,
+     "voice_seconds": 0.863,
+     "kb": {
+      "256": [
+       18.5,
+       22.9
+      ]
+     },
+     "voice": "../audio/voice/marine/primary/understood.ogg",
+     "voice_mp3": "../audio/voice/marine/primary/understood.mp3",
+     "alt": {
+      "clip": "marine/understood_alt_{size}",
+      "key": "1531d5f31bbe6865",
+      "frames": 47,
+      "seconds": 1.88,
+      "lead": 0.35,
+      "voice_seconds": 0.862,
+      "kb": {
+       "256": [
+        18.7,
+        23.5
+       ]
+      },
+      "voice": "../audio/voice/marine/alt/understood.ogg",
+      "voice_mp3": "../audio/voice/marine/alt/understood.mp3"
+     }
+    },
+    "what_now": {
+     "clip": "marine/what_now_{size}",
+     "key": "8ffd1acd1656680f",
+     "frames": 45,
+     "seconds": 1.8,
+     "text": "What now?",
+     "lead": 0.35,
+     "voice_seconds": 0.8,
+     "kb": {
+      "256": [
+       22.0,
+       24.9
+      ]
+     },
+     "voice": "../audio/voice/marine/primary/what_now.ogg",
+     "voice_mp3": "../audio/voice/marine/primary/what_now.mp3",
+     "alt": {
+      "clip": "marine/what_now_alt_{size}",
+      "key": "0b863d0ea5181f79",
+      "frames": 43,
+      "seconds": 1.72,
+      "lead": 0.35,
+      "voice_seconds": 0.733,
+      "kb": {
+       "256": [
+        21.6,
+        24.8
+       ]
+      },
+      "voice": "../audio/voice/marine/alt/what_now.ogg",
+      "voice_mp3": "../audio/voice/marine/alt/what_now.mp3"
+     }
+    },
+    "yes_sir": {
+     "clip": "marine/yes_sir_{size}",
+     "key": "6f5d879e057a56ab",
+     "frames": 45,
+     "seconds": 1.8,
+     "text": "Yes, sir!",
+     "lead": 0.35,
+     "voice_seconds": 0.786,
+     "kb": {
+      "256": [
+       19.3,
+       23.1
+      ]
+     },
+     "voice": "../audio/voice/marine/primary/yes_sir.ogg",
+     "voice_mp3": "../audio/voice/marine/primary/yes_sir.mp3",
+     "alt": {
+      "clip": "marine/yes_sir_alt_{size}",
+      "key": "796c3a8b98175196",
+      "frames": 44,
+      "seconds": 1.76,
+      "lead": 0.35,
+      "voice_seconds": 0.757,
+      "kb": {
+       "256": [
+        19.0,
+        22.7
+       ]
+      },
+      "voice": "../audio/voice/marine/alt/yes_sir.ogg",
+      "voice_mp3": "../audio/voice/marine/alt/yes_sir.mp3"
+     }
+    }
+   },
+   "idle": {
+    "clip": "marine/idle_{size}",
+    "key": "02b649b866715c78",
+    "frames": 107,
+    "seconds": 4.28,
+    "seam_jump": 0.016,
+    "median_step": 0.118,
+    "seam_ratio": 0.14,
+    "loop": true,
+    "kb": {
+     "256": [
+      28.8,
+      43.3
+     ]
+    }
+   },
+   "talk_loop": {
+    "clip": "marine/talk_loop_{size}",
+    "key": "0db360950ed7e36b",
+    "frames": 102,
+    "seconds": 4.08,
+    "seam_jump": 0.231,
+    "median_step": 1.104,
+    "seam_ratio": 0.21,
+    "loop": true,
+    "kb": {
+     "256": [
+      46.1,
+      50.5
+     ]
+    }
+   }
+  },
+  "sapper": {
+   "name": "Sapper \"Inferno\" Hancock",
+   "game_id": "sapper",
+   "poster": "sapper/idle_{size}.jpg",
+   "lines": {
+    "consider_it_done": {
+     "clip": "sapper/consider_it_done_{size}",
+     "key": "dd278003de6ed2a5",
+     "frames": 61,
+     "seconds": 2.44,
+     "text": "Consider it done.",
+     "lead": 0.35,
+     "voice_seconds": 1.447,
+     "kb": {
+      "256": [
+       22.9,
+       25.3
+      ]
+     },
+     "voice": "../audio/voice/sapper/primary/consider_it_done.ogg",
+     "voice_mp3": "../audio/voice/sapper/primary/consider_it_done.mp3",
+     "alt": {
+      "clip": "sapper/consider_it_done_alt_{size}",
+      "key": "b104f102d75c5b57",
+      "frames": 56,
+      "seconds": 2.24,
+      "lead": 0.35,
+      "voice_seconds": 1.254,
+      "kb": {
+       "256": [
+        22.0,
+        24.3
+       ]
+      },
+      "voice": "../audio/voice/sapper/alt/consider_it_done.ogg",
+      "voice_mp3": "../audio/voice/sapper/alt/consider_it_done.mp3"
+     }
+    },
+    "i_m_hit": {
+     "clip": "sapper/i_m_hit_{size}",
+     "key": "4219efe7545d7068",
+     "frames": 50,
+     "seconds": 2.0,
+     "text": "I'm hit!",
+     "lead": 0.35,
+     "voice_seconds": 1.019,
+     "kb": {
+      "256": [
+       18.0,
+       21.6
+      ]
+     },
+     "voice": "../audio/voice/sapper/primary/i_m_hit.ogg",
+     "voice_mp3": "../audio/voice/sapper/primary/i_m_hit.mp3",
+     "alt": {
+      "clip": "sapper/i_m_hit_alt_{size}",
+      "key": "dcc21687e5542068",
+      "frames": 46,
+      "seconds": 1.84,
+      "lead": 0.35,
+      "voice_seconds": 0.84,
+      "kb": {
+       "256": [
+        17.7,
+        20.5
+       ]
+      },
+      "voice": "../audio/voice/sapper/alt/i_m_hit.ogg",
+      "voice_mp3": "../audio/voice/sapper/alt/i_m_hit.mp3"
+     }
+    },
+    "on_my_way": {
+     "clip": "sapper/on_my_way_{size}",
+     "key": "27cf87be03389ff5",
+     "frames": 55,
+     "seconds": 2.2,
+     "text": "On my way.",
+     "lead": 0.35,
+     "voice_seconds": 1.209,
+     "kb": {
+      "256": [
+       21.7,
+       24.2
+      ]
+     },
+     "voice": "../audio/voice/sapper/primary/on_my_way.ogg",
+     "voice_mp3": "../audio/voice/sapper/primary/on_my_way.mp3",
+     "alt": {
+      "clip": "sapper/on_my_way_alt_{size}",
+      "key": "839a933781ca6223",
+      "frames": 44,
+      "seconds": 1.76,
+      "lead": 0.35,
+      "voice_seconds": 0.755,
+      "kb": {
+       "256": [
+        17.9,
+        20.5
+       ]
+      },
+      "voice": "../audio/voice/sapper/alt/on_my_way.ogg",
+      "voice_mp3": "../audio/voice/sapper/alt/on_my_way.mp3"
+     }
+    },
+    "ready": {
+     "clip": "sapper/ready_{size}",
+     "key": "1996435965ddf10c",
+     "frames": 47,
+     "seconds": 1.88,
+     "text": "Ready.",
+     "lead": 0.35,
+     "voice_seconds": 0.878,
+     "kb": {
+      "256": [
+       18.0,
+       21.4
+      ]
+     },
+     "voice": "../audio/voice/sapper/primary/ready.ogg",
+     "voice_mp3": "../audio/voice/sapper/primary/ready.mp3",
+     "alt": {
+      "clip": "sapper/ready_alt_{size}",
+      "key": "1f2bd1d89db67653",
+      "frames": 39,
+      "seconds": 1.56,
+      "lead": 0.35,
+      "voice_seconds": 0.578,
+      "kb": {
+       "256": [
+        15.4,
+        18.5
+       ]
+      },
+      "voice": "../audio/voice/sapper/alt/ready.ogg",
+      "voice_mp3": "../audio/voice/sapper/alt/ready.mp3"
+     }
+    },
+    "right_away": {
+     "clip": "sapper/right_away_{size}",
+     "key": "9c316d68225bd43e",
+     "frames": 54,
+     "seconds": 2.16,
+     "text": "Right away.",
+     "lead": 0.35,
+     "voice_seconds": 1.165,
+     "kb": {
+      "256": [
+       21.4,
+       23.7
+      ]
+     },
+     "voice": "../audio/voice/sapper/primary/right_away.ogg",
+     "voice_mp3": "../audio/voice/sapper/primary/right_away.mp3",
+     "alt": {
+      "clip": "sapper/right_away_alt_{size}",
+      "key": "885bebbf33ed2aaf",
+      "frames": 43,
+      "seconds": 1.72,
+      "lead": 0.35,
+      "voice_seconds": 0.714,
+      "kb": {
+       "256": [
+        17.6,
+        20.2
+       ]
+      },
+      "voice": "../audio/voice/sapper/alt/right_away.ogg",
+      "voice_mp3": "../audio/voice/sapper/alt/right_away.mp3"
+     }
+    },
+    "understood": {
+     "clip": "sapper/understood_{size}",
+     "key": "ade1019747be43c2",
+     "frames": 52,
+     "seconds": 2.08,
+     "text": "Understood.",
+     "lead": 0.35,
+     "voice_seconds": 1.08,
+     "kb": {
+      "256": [
+       18.2,
+       21.4
+      ]
+     },
+     "voice": "../audio/voice/sapper/primary/understood.ogg",
+     "voice_mp3": "../audio/voice/sapper/primary/understood.mp3",
+     "alt": {
+      "clip": "sapper/understood_alt_{size}",
+      "key": "05043371a45ce4c3",
+      "frames": 49,
+      "seconds": 1.96,
+      "lead": 0.35,
+      "voice_seconds": 0.957,
+      "kb": {
+       "256": [
+        18.1,
+        21.0
+       ]
+      },
+      "voice": "../audio/voice/sapper/alt/understood.ogg",
+      "voice_mp3": "../audio/voice/sapper/alt/understood.mp3"
+     }
+    },
+    "what_now": {
+     "clip": "sapper/what_now_{size}",
+     "key": "3300dc882659de9e",
+     "frames": 52,
+     "seconds": 2.08,
+     "text": "What now?",
+     "lead": 0.35,
+     "voice_seconds": 1.084,
+     "kb": {
+      "256": [
+       20.6,
+       22.9
+      ]
+     },
+     "voice": "../audio/voice/sapper/primary/what_now.ogg",
+     "voice_mp3": "../audio/voice/sapper/primary/what_now.mp3",
+     "alt": {
+      "clip": "sapper/what_now_alt_{size}",
+      "key": "f3f6fa21e7f3b0b5",
+      "frames": 42,
+      "seconds": 1.68,
+      "lead": 0.35,
+      "voice_seconds": 0.68,
+      "kb": {
+       "256": [
+        23.1,
+        23.5
+       ]
+      },
+      "voice": "../audio/voice/sapper/alt/what_now.ogg",
+      "voice_mp3": "../audio/voice/sapper/alt/what_now.mp3"
+     }
+    },
+    "yes_sir": {
+     "clip": "sapper/yes_sir_{size}",
+     "key": "1758b94cad93094e",
+     "frames": 51,
+     "seconds": 2.04,
+     "text": "Yes, sir!",
+     "lead": 0.35,
+     "voice_seconds": 1.045,
+     "kb": {
+      "256": [
+       20.2,
+       22.7
+      ]
+     },
+     "voice": "../audio/voice/sapper/primary/yes_sir.ogg",
+     "voice_mp3": "../audio/voice/sapper/primary/yes_sir.mp3",
+     "alt": {
+      "clip": "sapper/yes_sir_alt_{size}",
+      "key": "9d95341b1cf65b86",
+      "frames": 43,
+      "seconds": 1.72,
+      "lead": 0.35,
+      "voice_seconds": 0.736,
+      "kb": {
+       "256": [
+        16.6,
+        19.5
+       ]
+      },
+      "voice": "../audio/voice/sapper/alt/yes_sir.ogg",
+      "voice_mp3": "../audio/voice/sapper/alt/yes_sir.mp3"
+     }
+    }
+   },
+   "idle": {
+    "clip": "sapper/idle_{size}",
+    "key": "2695d0ba9fdf549d",
+    "frames": 107,
+    "seconds": 4.28,
+    "seam_jump": 0.0,
+    "median_step": 0.097,
+    "seam_ratio": 0.0,
+    "loop": true,
+    "kb": {
+     "256": [
+      26.1,
+      36.6
+     ]
+    }
+   },
+   "talk_loop": {
+    "clip": "sapper/talk_loop_{size}",
+    "key": "30bbd2dcf5642289",
+    "frames": 122,
+    "seconds": 4.88,
+    "seam_jump": 0.027,
+    "median_step": 0.73,
+    "seam_ratio": 0.04,
+    "loop": true,
+    "kb": {
+     "256": [
+      41.7,
+      46.2
+     ]
+    }
+   }
+  },
+  "driver": {
+   "name": "Driver \"Tread\" Perkins",
+   "game_id": "driver",
+   "poster": "driver/idle_{size}.jpg",
+   "lines": {
+    "consider_it_done": {
+     "clip": "driver/consider_it_done_{size}",
+     "key": "b09aacdab5a0a64b",
+     "frames": 55,
+     "seconds": 2.2,
+     "text": "Consider it done.",
+     "lead": 0.35,
+     "voice_seconds": 1.209,
+     "kb": {
+      "256": [
+       24.8,
+       27.7
+      ]
+     },
+     "voice": "../audio/voice/driver/primary/consider_it_done.ogg",
+     "voice_mp3": "../audio/voice/driver/primary/consider_it_done.mp3",
+     "alt": {
+      "clip": "driver/consider_it_done_alt_{size}",
+      "key": "c4eb3f67abe01d23",
+      "frames": 53,
+      "seconds": 2.12,
+      "lead": 0.35,
+      "voice_seconds": 1.109,
+      "kb": {
+       "256": [
+        24.6,
+        27.0
+       ]
+      },
+      "voice": "../audio/voice/driver/alt/consider_it_done.ogg",
+      "voice_mp3": "../audio/voice/driver/alt/consider_it_done.mp3"
+     }
+    },
+    "i_m_hit": {
+     "clip": "driver/i_m_hit_{size}",
+     "key": "063c40131ed666e3",
+     "frames": 47,
+     "seconds": 1.88,
+     "text": "I'm hit!",
+     "lead": 0.35,
+     "voice_seconds": 0.886,
+     "kb": {
+      "256": [
+       22.0,
+       24.4
+      ]
+     },
+     "voice": "../audio/voice/driver/primary/i_m_hit.ogg",
+     "voice_mp3": "../audio/voice/driver/primary/i_m_hit.mp3",
+     "alt": {
+      "clip": "driver/i_m_hit_alt_{size}",
+      "key": "1ccd92ee882d9576",
+      "frames": 46,
+      "seconds": 1.84,
+      "lead": 0.35,
+      "voice_seconds": 0.842,
+      "kb": {
+       "256": [
+        21.1,
+        23.7
+       ]
+      },
+      "voice": "../audio/voice/driver/alt/i_m_hit.ogg",
+      "voice_mp3": "../audio/voice/driver/alt/i_m_hit.mp3"
+     }
+    },
+    "on_my_way": {
+     "clip": "driver/on_my_way_{size}",
+     "key": "4797eae446825406",
+     "frames": 53,
+     "seconds": 2.12,
+     "text": "On my way.",
+     "lead": 0.35,
+     "voice_seconds": 1.122,
+     "kb": {
+      "256": [
+       26.2,
+       27.5
+      ]
+     },
+     "voice": "../audio/voice/driver/primary/on_my_way.ogg",
+     "voice_mp3": "../audio/voice/driver/primary/on_my_way.mp3",
+     "alt": {
+      "clip": "driver/on_my_way_alt_{size}",
+      "key": "27f14d24a564430f",
+      "frames": 45,
+      "seconds": 1.8,
+      "lead": 0.35,
+      "voice_seconds": 0.796,
+      "kb": {
+       "256": [
+        23.0,
+        25.6
+       ]
+      },
+      "voice": "../audio/voice/driver/alt/on_my_way.ogg",
+      "voice_mp3": "../audio/voice/driver/alt/on_my_way.mp3"
+     }
+    },
+    "ready": {
+     "clip": "driver/ready_{size}",
+     "key": "b32cb64bd9642d63",
+     "frames": 42,
+     "seconds": 1.68,
+     "text": "Ready.",
+     "lead": 0.35,
+     "voice_seconds": 0.699,
+     "kb": {
+      "256": [
+       21.4,
+       23.7
+      ]
+     },
+     "voice": "../audio/voice/driver/primary/ready.ogg",
+     "voice_mp3": "../audio/voice/driver/primary/ready.mp3",
+     "alt": {
+      "clip": "driver/ready_alt_{size}",
+      "key": "f1b995631c774b18",
+      "frames": 38,
+      "seconds": 1.52,
+      "lead": 0.35,
+      "voice_seconds": 0.528,
+      "kb": {
+       "256": [
+        19.1,
+        21.3
+       ]
+      },
+      "voice": "../audio/voice/driver/alt/ready.ogg",
+      "voice_mp3": "../audio/voice/driver/alt/ready.mp3"
+     }
+    },
+    "right_away": {
+     "clip": "driver/right_away_{size}",
+     "key": "bfb50af112d971cd",
+     "frames": 48,
+     "seconds": 1.92,
+     "text": "Right away.",
+     "lead": 0.35,
+     "voice_seconds": 0.913,
+     "kb": {
+      "256": [
+       23.8,
+       24.8
+      ]
+     },
+     "voice": "../audio/voice/driver/primary/right_away.ogg",
+     "voice_mp3": "../audio/voice/driver/primary/right_away.mp3",
+     "alt": {
+      "clip": "driver/right_away_alt_{size}",
+      "key": "34e6f0c3e2438c15",
+      "frames": 43,
+      "seconds": 1.72,
+      "lead": 0.35,
+      "voice_seconds": 0.716,
+      "kb": {
+       "256": [
+        21.4,
+        23.6
+       ]
+      },
+      "voice": "../audio/voice/driver/alt/right_away.ogg",
+      "voice_mp3": "../audio/voice/driver/alt/right_away.mp3"
+     }
+    },
+    "understood": {
+     "clip": "driver/understood_{size}",
+     "key": "b1941251799570cc",
+     "frames": 49,
+     "seconds": 1.96,
+     "text": "Understood.",
+     "lead": 0.35,
+     "voice_seconds": 0.974,
+     "kb": {
+      "256": [
+       24.2,
+       25.8
+      ]
+     },
+     "voice": "../audio/voice/driver/primary/understood.ogg",
+     "voice_mp3": "../audio/voice/driver/primary/understood.mp3",
+     "alt": {
+      "clip": "driver/understood_alt_{size}",
+      "key": "581b478f065a4d5e",
+      "frames": 46,
+      "seconds": 1.84,
+      "lead": 0.35,
+      "voice_seconds": 0.842,
+      "kb": {
+       "256": [
+        20.4,
+        23.4
+       ]
+      },
+      "voice": "../audio/voice/driver/alt/understood.ogg",
+      "voice_mp3": "../audio/voice/driver/alt/understood.mp3"
+     }
+    },
+    "what_now": {
+     "clip": "driver/what_now_{size}",
+     "key": "3c604e9d5f3fd70b",
+     "frames": 47,
+     "seconds": 1.88,
+     "text": "What now?",
+     "lead": 0.35,
+     "voice_seconds": 0.877,
+     "kb": {
+      "256": [
+       27.8,
+       28.8
+      ]
+     },
+     "voice": "../audio/voice/driver/primary/what_now.ogg",
+     "voice_mp3": "../audio/voice/driver/primary/what_now.mp3",
+     "alt": {
+      "clip": "driver/what_now_alt_{size}",
+      "key": "98aa7314d00e4b11",
+      "frames": 42,
+      "seconds": 1.68,
+      "lead": 0.35,
+      "voice_seconds": 0.661,
+      "kb": {
+       "256": [
+        22.0,
+        23.6
+       ]
+      },
+      "voice": "../audio/voice/driver/alt/what_now.ogg",
+      "voice_mp3": "../audio/voice/driver/alt/what_now.mp3"
+     }
+    },
+    "yes_sir": {
+     "clip": "driver/yes_sir_{size}",
+     "key": "9b2ec0d8d0ecf92c",
+     "frames": 47,
+     "seconds": 1.88,
+     "text": "Yes, sir!",
+     "lead": 0.35,
+     "voice_seconds": 0.875,
+     "kb": {
+      "256": [
+       22.7,
+       24.7
+      ]
+     },
+     "voice": "../audio/voice/driver/primary/yes_sir.ogg",
+     "voice_mp3": "../audio/voice/driver/primary/yes_sir.mp3",
+     "alt": {
+      "clip": "driver/yes_sir_alt_{size}",
+      "key": "3950a95bf4e8b13d",
+      "frames": 42,
+      "seconds": 1.68,
+      "lead": 0.35,
+      "voice_seconds": 0.673,
+      "kb": {
+       "256": [
+        20.3,
+        23.1
+       ]
+      },
+      "voice": "../audio/voice/driver/alt/yes_sir.ogg",
+      "voice_mp3": "../audio/voice/driver/alt/yes_sir.mp3"
+     }
+    }
+   },
+   "idle": {
+    "clip": "driver/idle_{size}",
+    "key": "d4d8829b84473cf7",
+    "frames": 107,
+    "seconds": 4.28,
+    "seam_jump": 0.016,
+    "median_step": 0.104,
+    "seam_ratio": 0.15,
+    "loop": true,
+    "kb": {
+     "256": [
+      29.9,
+      43.2
+     ]
+    }
+   },
+   "talk_loop": {
+    "clip": "driver/talk_loop_{size}",
+    "key": "d20641f078906a0f",
+    "frames": 111,
+    "seconds": 4.44,
+    "seam_jump": 0.316,
+    "median_step": 0.95,
+    "seam_ratio": 0.33,
+    "loop": true,
+    "kb": {
+     "256": [
+      53.4,
+      54.3
+     ]
+    }
+   }
+  },
+  "spy": {
+   "name": "Spy \"Spooky\" Duchamp",
+   "game_id": "spy",
+   "poster": "spy/idle_{size}.jpg",
+   "lines": {
+    "consider_it_done": {
+     "clip": "spy/consider_it_done_{size}",
+     "key": "fa7dd2696e2ff8f1",
+     "frames": 55,
+     "seconds": 2.2,
+     "text": "Consider it done.",
+     "lead": 0.35,
+     "voice_seconds": 1.212,
+     "kb": {
+      "256": [
+       32.8,
+       33.5
+      ]
+     },
+     "voice": "../audio/voice/spy/primary/consider_it_done.ogg",
+     "voice_mp3": "../audio/voice/spy/primary/consider_it_done.mp3",
+     "alt": {
+      "clip": "spy/consider_it_done_alt_{size}",
+      "key": "7a31a24c0035d282",
+      "frames": 66,
+      "seconds": 2.64,
+      "lead": 0.35,
+      "voice_seconds": 1.631,
+      "kb": {
+       "256": [
+        38.7,
+        38.5
+       ]
+      },
+      "voice": "../audio/voice/spy/alt/consider_it_done.ogg",
+      "voice_mp3": "../audio/voice/spy/alt/consider_it_done.mp3"
+     }
+    },
+    "i_m_hit": {
+     "clip": "spy/i_m_hit_{size}",
+     "key": "6e0ecf99fbdaea08",
+     "frames": 45,
+     "seconds": 1.8,
+     "text": "I'm hit!",
+     "lead": 0.35,
+     "voice_seconds": 0.799,
+     "kb": {
+      "256": [
+       26.9,
+       28.0
+      ]
+     },
+     "voice": "../audio/voice/spy/primary/i_m_hit.ogg",
+     "voice_mp3": "../audio/voice/spy/primary/i_m_hit.mp3",
+     "alt": {
+      "clip": "spy/i_m_hit_alt_{size}",
+      "key": "5137419bc58e8dbd",
+      "frames": 46,
+      "seconds": 1.84,
+      "lead": 0.35,
+      "voice_seconds": 0.843,
+      "kb": {
+       "256": [
+        27.5,
+        28.4
+       ]
+      },
+      "voice": "../audio/voice/spy/alt/i_m_hit.ogg",
+      "voice_mp3": "../audio/voice/spy/alt/i_m_hit.mp3"
+     }
+    },
+    "on_my_way": {
+     "clip": "spy/on_my_way_{size}",
+     "key": "76173a83b396eae1",
+     "frames": 47,
+     "seconds": 1.88,
+     "text": "On my way.",
+     "lead": 0.35,
+     "voice_seconds": 0.861,
+     "kb": {
+      "256": [
+       27.6,
+       28.9
+      ]
+     },
+     "voice": "../audio/voice/spy/primary/on_my_way.ogg",
+     "voice_mp3": "../audio/voice/spy/primary/on_my_way.mp3",
+     "alt": {
+      "clip": "spy/on_my_way_alt_{size}",
+      "key": "eaf138974e3f5ce0",
+      "frames": 51,
+      "seconds": 2.04,
+      "lead": 0.35,
+      "voice_seconds": 1.05,
+      "kb": {
+       "256": [
+        30.7,
+        31.2
+       ]
+      },
+      "voice": "../audio/voice/spy/alt/on_my_way.ogg",
+      "voice_mp3": "../audio/voice/spy/alt/on_my_way.mp3"
+     }
+    },
+    "ready": {
+     "clip": "spy/ready_{size}",
+     "key": "3fd0f9d3f3779669",
+     "frames": 38,
+     "seconds": 1.52,
+     "text": "Ready.",
+     "lead": 0.35,
+     "voice_seconds": 0.512,
+     "kb": {
+      "256": [
+       26.1,
+       27.1
+      ]
+     },
+     "voice": "../audio/voice/spy/primary/ready.ogg",
+     "voice_mp3": "../audio/voice/spy/primary/ready.mp3",
+     "alt": {
+      "clip": "spy/ready_alt_{size}",
+      "key": "a6a30e5f1218b1f4",
+      "frames": 44,
+      "seconds": 1.76,
+      "lead": 0.35,
+      "voice_seconds": 0.756,
+      "kb": {
+       "256": [
+        27.6,
+        28.3
+       ]
+      },
+      "voice": "../audio/voice/spy/alt/ready.ogg",
+      "voice_mp3": "../audio/voice/spy/alt/ready.mp3"
+     }
+    },
+    "right_away": {
+     "clip": "spy/right_away_{size}",
+     "key": "737a7ef503196dc2",
+     "frames": 42,
+     "seconds": 1.68,
+     "text": "Right away.",
+     "lead": 0.35,
+     "voice_seconds": 0.68,
+     "kb": {
+      "256": [
+       26.0,
+       27.0
+      ]
+     },
+     "voice": "../audio/voice/spy/primary/right_away.ogg",
+     "voice_mp3": "../audio/voice/spy/primary/right_away.mp3",
+     "alt": {
+      "clip": "spy/right_away_alt_{size}",
+      "key": "96a9f95fe6d4f148",
+      "frames": 51,
+      "seconds": 2.04,
+      "lead": 0.35,
+      "voice_seconds": 1.049,
+      "kb": {
+       "256": [
+        29.6,
+        30.0
+       ]
+      },
+      "voice": "../audio/voice/spy/alt/right_away.ogg",
+      "voice_mp3": "../audio/voice/spy/alt/right_away.mp3"
+     }
+    },
+    "understood": {
+     "clip": "spy/understood_{size}",
+     "key": "92ec17e772b4ab64",
+     "frames": 66,
+     "seconds": 2.64,
+     "text": "Understood.",
+     "lead": 0.35,
+     "voice_seconds": 1.641,
+     "kb": {
+      "256": [
+       39.1,
+       39.1
+      ]
+     },
+     "voice": "../audio/voice/spy/primary/understood.ogg",
+     "voice_mp3": "../audio/voice/spy/primary/understood.mp3",
+     "alt": {
+      "clip": "spy/understood_alt_{size}",
+      "key": "b33cee69f99be7fe",
+      "frames": 52,
+      "seconds": 2.08,
+      "lead": 0.35,
+      "voice_seconds": 1.089,
+      "kb": {
+       "256": [
+        33.4,
+        33.1
+       ]
+      },
+      "voice": "../audio/voice/spy/alt/understood.ogg",
+      "voice_mp3": "../audio/voice/spy/alt/understood.mp3"
+     }
+    },
+    "what_now": {
+     "clip": "spy/what_now_{size}",
+     "key": "8482c6a19e8feca0",
+     "frames": 41,
+     "seconds": 1.64,
+     "text": "What now?",
+     "lead": 0.35,
+     "voice_seconds": 0.641,
+     "kb": {
+      "256": [
+       34.9,
+       32.1
+      ]
+     },
+     "voice": "../audio/voice/spy/primary/what_now.ogg",
+     "voice_mp3": "../audio/voice/spy/primary/what_now.mp3",
+     "alt": {
+      "clip": "spy/what_now_alt_{size}",
+      "key": "ef0cb2453cef43bc",
+      "frames": 48,
+      "seconds": 1.92,
+      "lead": 0.35,
+      "voice_seconds": 0.901,
+      "kb": {
+       "256": [
+        32.2,
+        31.9
+       ]
+      },
+      "voice": "../audio/voice/spy/alt/what_now.ogg",
+      "voice_mp3": "../audio/voice/spy/alt/what_now.mp3"
+     }
+    },
+    "yes_sir": {
+     "clip": "spy/yes_sir_{size}",
+     "key": "567efa7bcc487513",
+     "frames": 44,
+     "seconds": 1.76,
+     "text": "Yes, sir!",
+     "lead": 0.35,
+     "voice_seconds": 0.758,
+     "kb": {
+      "256": [
+       26.2,
+       27.6
+      ]
+     },
+     "voice": "../audio/voice/spy/primary/yes_sir.ogg",
+     "voice_mp3": "../audio/voice/spy/primary/yes_sir.mp3",
+     "alt": {
+      "clip": "spy/yes_sir_alt_{size}",
+      "key": "e3d47e8eddebefee",
+      "frames": 50,
+      "seconds": 2.0,
+      "lead": 0.35,
+      "voice_seconds": 0.989,
+      "kb": {
+       "256": [
+        29.6,
+        31.7
+       ]
+      },
+      "voice": "../audio/voice/spy/alt/yes_sir.ogg",
+      "voice_mp3": "../audio/voice/spy/alt/yes_sir.mp3"
+     }
+    }
+   },
+   "idle": {
+    "clip": "spy/idle_{size}",
+    "key": "196e7968bd7b0eec",
+    "frames": 107,
+    "seconds": 4.28,
+    "seam_jump": 0.019,
+    "median_step": 0.177,
+    "seam_ratio": 0.11,
+    "loop": true,
+    "kb": {
+     "256": [
+      41.7,
+      55.1
+     ]
+    }
+   },
+   "talk_loop": {
+    "clip": "spy/talk_loop_{size}",
+    "key": "ac4ee8cf06fddbf3",
+    "frames": 118,
+    "seconds": 4.72,
+    "seam_jump": 0.252,
+    "median_step": 1.382,
+    "seam_ratio": 0.18,
+    "loop": true,
+    "kb": {
+     "256": [
+      72.9,
+      68.9
+     ]
+    }
+   }
+  }
+ },
+ "voices": "voice paths are relative to this folder; ../audio/voice/ = the audio pack (identical files)"
+}

@@ -1,0 +1,6 @@
+radar_dish.py a 1
+radar_dish.py ad 1
+guard_hut.py a 1
+guard_hut.py b 2
+radar_building.py a 1
+radar_building.py ad 1

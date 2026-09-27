@@ -1,0 +1,129 @@
+{
+ "budget": {
+  "lod0": 11800,
+  "lod1": 5000,
+  "lod2": 2000
+ },
+ "id": "crew_v03",
+ "enemy": {
+  "soldierType": "crew",
+  "variant": 3,
+  "archetype": 9,
+  "archetype_name": "heavy brow ridge, deep-set eyes",
+  "seed": 1,
+  "skinTone": "weathered_tan",
+  "facialHair": "none",
+  "glasses": false,
+  "age": 25.1,
+  "extras": [],
+  "key": "9|weathered_tan|none|0",
+  "silhouette": "black Panzer wrap jacket, black side cap"
+ },
+ "body": {
+  "age_years": 25.1,
+  "muscle": 0.565,
+  "weight": 0.524,
+  "proportions": 0.55,
+  "height_m": 1.76,
+  "modifiers": {
+   "eyebrows/eyebrows-trans-down": 1.02,
+   "eyebrows/eyebrows-angle-down": 0.51,
+   "forehead/forehead-trans-forward": 0.68,
+   "eyes/eye-push1-in": 0.68,
+   "nose/nose-scale-horiz-incr": 0.183,
+   "nose/nose-scale-vert-incr": -0.026,
+   "ears/ear-scale-incr": -0.062,
+   "eyebrows/eyebrows-trans-up": -0.099,
+   "mouth/mouth-lowerlip-volume-incr": 0.124,
+   "cheek/cheek-volume-incr": -0.114,
+   "head/head-scale-horiz-incr": 0.543,
+   "head/head-scale-vert-incr": -0.301,
+   "head/head-scale-depth-incr": -0.011,
+   "nose/nose-scale-depth-incr": 0.123,
+   "mouth/mouth-scale-horiz-incr": -0.25,
+   "eyes/eye-scale-incr": -0.228,
+   "eyes/eye-trans-out": 0.571,
+   "eyes/eye-trans-up": -0.238,
+   "chin/chin-height-incr": 0.158,
+   "chin/chin-width-incr": -0.405,
+   "chin/chin-prominent-incr": 0.077,
+   "ears/ear-flap-incr": 0.292,
+   "eyebrows/eyebrows-angle-up": 0.159,
+   "cheek/cheek-bones-incr": -0.027,
+   "forehead/forehead-scale-vert-incr": 0.254,
+   "neck/neck-scale-horiz-incr": 0.561,
+   "mouth/mouth-upperlip-height-incr": 0.269,
+   "nose/nose-width2-incr": -0.542,
+   "eyebrows-left-inner-up": 0.326,
+   "eyebrows-right-inner-up": 0.351,
+   "mouth-compression": 0.282
+  }
+ },
+ "skin": {
+  "base": "young_caucasian_male",
+  "tint": [
+   0.831,
+   0.777,
+   0.596
+  ],
+  "ruddy": 0.22,
+  "stubble": 0.08,
+  "complexion": {
+   "freckles": 0.11,
+   "moles": 2,
+   "scar": false,
+   "lines": 0.16,
+   "seed": 24
+  }
+ },
+ "eyes": {
+  "iris": [
+   0.25,
+   0.16,
+   0.1
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow003",
+  "color": [
+   0.336,
+   0.24,
+   0.144
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.42,
+   0.3,
+   0.18
+  ]
+ },
+ "facial_hair": "none",
+ "glasses": false,
+ "outfit": "panzer",
+ "outfit_opts": {
+  "tint_mul": [
+   1.016,
+   1.004,
+   0.992
+  ],
+  "wear": 0.096
+ },
+ "kit": [
+  "belt",
+  "holster_l",
+  "headphones"
+ ],
+ "headgear": {
+  "type": "side_cap",
+  "color": [
+   0.08,
+   0.08,
+   0.085
+  ]
+ },
+ "weapon": {
+  "primary": "walther_p38"
+ }
+}

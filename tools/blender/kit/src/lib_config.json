@@ -1,0 +1,737 @@
+{
+ "_doc": "Per-material processing for build_lib.py. tile_m = metres per texture repeat (null = from source dimensions). target = mean sRGB albedo after grading (null = keep). lum = fraction of luminance variation kept when tinting. col = colorize amount toward target hue (0 keeps source colours). grime = vertex grime strength. grain = direction of features/wood grain in the image ('u' horizontal).",
+ "plaster_white": {
+  "label": "Whitewashed plaster",
+  "tile_m": 2.5,
+  "target": [
+   0.72,
+   0.7,
+   0.66
+  ],
+  "col": 0.8,
+  "lum": 0.45,
+  "rough": 0.9,
+  "grime": 1.0
+ },
+ "plaster_limewash": {
+  "label": "Lime-wash over render (desert)",
+  "tile_m": 3.0,
+  "target": [
+   0.74,
+   0.71,
+   0.64
+  ],
+  "col": 0.85,
+  "lum": 0.25,
+  "rough": 0.92,
+  "grime": 1.0
+ },
+ "adobe_ochre": {
+  "label": "Ochre adobe / clay render",
+  "tile_m": 2.5,
+  "target": [
+   0.62,
+   0.47,
+   0.31
+  ],
+  "col": 0.5,
+  "lum": 1.8,
+  "rough": 0.95,
+  "grime": 0.9
+ },
+ "plaster_rough": {
+  "label": "Rough render / half-timber infill (cream)",
+  "tile_m": 2.0,
+  "target": [
+   0.7,
+   0.65,
+   0.54
+  ],
+  "col": 0.75,
+  "lum": 0.6,
+  "rough": 0.9,
+  "grime": 1.0
+ },
+ "timber_cladding": {
+  "label": "Red-painted Norwegian board cladding (Falu red)",
+  "target": [
+   0.42,
+   0.15,
+   0.11
+  ],
+  "col": 0.9,
+  "lum": 0.8,
+  "rough": 0.8,
+  "grain": "u",
+  "grime": 0.8
+ },
+ "timber_grey": {
+  "label": "Weathered grey timber",
+  "target": [
+   0.47,
+   0.44,
+   0.4
+  ],
+  "col": 0.5,
+  "lum": 1.0,
+  "rough": 0.85,
+  "grain": "u",
+  "grime": 0.8
+ },
+ "timber_siding": {
+  "label": "Weathered plank siding",
+  "target": null,
+  "rough": 0.85,
+  "grain": "u",
+  "grime": 0.8
+ },
+ "timber_tarred": {
+  "label": "Dark tarred timber",
+  "target": [
+   0.16,
+   0.13,
+   0.11
+  ],
+  "col": 0.6,
+  "lum": 0.9,
+  "rough": 0.6,
+  "grain": "u",
+  "grime": 0.5
+ },
+ "timber_beam": {
+  "label": "Grey structural timber (beams, rafters)",
+  "target": [
+   0.42,
+   0.37,
+   0.31
+  ],
+  "col": 0.3,
+  "lum": 1.0,
+  "rough": 0.85,
+  "grain": "u",
+  "grime": 0.8
+ },
+ "fieldstone": {
+  "label": "Fieldstone rubble wall, warm (Normandy)",
+  "target": [
+   0.5,
+   0.45,
+   0.38
+  ],
+  "col": 0.2,
+  "lum": 1.0,
+  "rough": 0.9,
+  "grime": 1.0
+ },
+ "fieldstone_grey": {
+  "label": "Fieldstone rubble wall, grey (Norway/granite)",
+  "target": null,
+  "rough": 0.9,
+  "grime": 1.0
+ },
+ "ashlar": {
+  "label": "Dressed stone blocks / ashlar (bridges)",
+  "target": [
+   0.49,
+   0.47,
+   0.43
+  ],
+  "col": 0.3,
+  "lum": 1.0,
+  "rough": 0.85,
+  "grime": 1.0
+ },
+ "ashlar_limestone": {
+  "label": "Pale limestone ashlar (Caen stone)",
+  "target": [
+   0.63,
+   0.6,
+   0.53
+  ],
+  "col": 0.4,
+  "lum": 1.0,
+  "rough": 0.85,
+  "grime": 1.0
+ },
+ "granite": {
+  "label": "Granite wall",
+  "target": null,
+  "rough": 0.8,
+  "grime": 0.9
+ },
+ "brick_red": {
+  "label": "Red brick",
+  "target": [
+   0.46,
+   0.25,
+   0.18
+  ],
+  "col": 0.2,
+  "lum": 1.0,
+  "rough": 0.85,
+  "grime": 1.0
+ },
+ "brick_dark": {
+  "label": "Dark Belgian brick",
+  "target": [
+   0.3,
+   0.19,
+   0.15
+  ],
+  "col": 0.2,
+  "lum": 1.0,
+  "rough": 0.85,
+  "grime": 0.9
+ },
+ "concrete_bunker": {
+  "label": "Weathered bunker concrete",
+  "target": [
+   0.5,
+   0.49,
+   0.46
+  ],
+  "col": 0.5,
+  "lum": 1.0,
+  "rough": 0.9,
+  "grime": 1.0
+ },
+ "concrete_board": {
+  "label": "Board-formed concrete",
+  "target": [
+   0.52,
+   0.5,
+   0.46
+  ],
+  "col": 0.5,
+  "lum": 1.0,
+  "rough": 0.9,
+  "grain": "u",
+  "grime": 1.0
+ },
+ "corrugated_rust": {
+  "label": "Rusty corrugated iron",
+  "target": [
+   0.34,
+   0.27,
+   0.22
+  ],
+  "rough": 0.75,
+  "metal": 0.4,
+  "grain": "v",
+  "grime": 0.6,
+  "col": 0.45,
+  "lum": 1.0
+ },
+ "roof_terracotta": {
+  "label": "Terracotta roof tiles",
+  "target": [
+   0.5,
+   0.28,
+   0.19
+  ],
+  "col": 0.3,
+  "lum": 1.0,
+  "rough": 0.75,
+  "grime": 0.4
+ },
+ "roof_slate": {
+  "label": "Slate roof",
+  "target": [
+   0.27,
+   0.28,
+   0.3
+  ],
+  "col": 0.3,
+  "lum": 1.0,
+  "rough": 0.7,
+  "grime": 0.4
+ },
+ "roof_shingle": {
+  "label": "Weathered wooden shingles",
+  "target": [
+   0.4,
+   0.36,
+   0.31
+  ],
+  "col": 0.4,
+  "lum": 1.0,
+  "rough": 0.85,
+  "grime": 0.4
+ },
+ "roof_thatch": {
+  "label": "Reed thatch (Normandy chaumiere)",
+  "target": [
+   0.42,
+   0.35,
+   0.24
+  ],
+  "col": 0.2,
+  "lum": 1.0,
+  "rough": 0.95,
+  "grain": "v",
+  "grime": 0.3
+ },
+ "sod": {
+  "label": "Sod / turf roof",
+  "tile_m": 2.5,
+  "target": [
+   0.3,
+   0.31,
+   0.17
+  ],
+  "col": 0.3,
+  "lum": 1.0,
+  "rough": 0.95,
+  "grime": 0.0
+ },
+ "steel_painted": {
+  "label": "Painted riveted steel (bridge grey-green)",
+  "target": [
+   0.3,
+   0.33,
+   0.3
+  ],
+  "col": 0.7,
+  "lum": 0.8,
+  "rough": 0.6,
+  "metal": 0.5,
+  "grime": 0.6
+ },
+ "steel_galv": {
+  "label": "Bare / galvanized steel (derived)",
+  "tile_m": 2.0,
+  "target": [
+   0.42,
+   0.43,
+   0.43
+  ],
+  "rough": 0.5,
+  "metal": 0.9,
+  "grime": 0.4,
+  "from": "steel_painted",
+  "col": 0.9,
+  "lum": 0.9
+ },
+ "cast_iron": {
+  "label": "Cast iron (lamp posts, railings, fittings)",
+  "target": [
+   0.14,
+   0.14,
+   0.13
+  ],
+  "col": 0.8,
+  "lum": 0.7,
+  "rough": 0.55,
+  "metal": 0.8,
+  "grime": 0.3
+ },
+ "deck_planks": {
+  "label": "Deck / floor planks",
+  "target": null,
+  "rough": 0.85,
+  "grain": "u",
+  "grime": 0.4
+ },
+ "cobblestone": {
+  "label": "Cobblestone setts",
+  "target": [
+   0.38,
+   0.36,
+   0.33
+  ],
+  "rough": 0.8,
+  "grime": 0.3,
+  "col": 0.3,
+  "lum": 1.0
+ },
+ "gravel": {
+  "label": "Gravel road",
+  "tile_m": 3.0,
+  "target": null,
+  "rough": 0.95,
+  "grime": 0.0
+ },
+ "snow": {
+  "label": "Snow cap",
+  "tile_m": 3.0,
+  "target": [
+   0.86,
+   0.87,
+   0.89
+  ],
+  "col": 0.8,
+  "lum": 1.0,
+  "rough": 0.7,
+  "grime": 0.0
+ },
+ "mud": {
+  "label": "Mud / dirt",
+  "tile_m": 2.5,
+  "target": null,
+  "rough": 0.9,
+  "grime": 0.0
+ },
+ "door_planks": {
+  "label": "Weathered peeling timber (doors)",
+  "target": null,
+  "rough": 0.8,
+  "grain": "v",
+  "grime": 0.6
+ },
+ "wood_paint": {
+  "label": "Pale painted wood base (tint via kit_tint for shutters/frames)",
+  "from": "door_planks",
+  "tile_m": 1.5,
+  "target": [
+   0.78,
+   0.77,
+   0.74
+  ],
+  "col": 1.0,
+  "lum": 0.55,
+  "rough": 0.7,
+  "grain": "v",
+  "grime": 0.6
+ },
+ "canvas": {
+  "label": "Army canvas / tent duck (khaki-sand)",
+  "tile_m": 0.6,
+  "target": [
+   0.56,
+   0.5,
+   0.38
+  ],
+  "col": 0.85,
+  "lum": 1.4,
+  "rough": 0.92,
+  "grime": 0.8
+ },
+ "hessian": {
+  "label": "Hessian sandbag cloth",
+  "tile_m": 0.4,
+  "target": [
+   0.55,
+   0.47,
+   0.34
+  ],
+  "col": 0.7,
+  "lum": 1.0,
+  "rough": 0.95,
+  "grime": 0.6
+ },
+ "sand": {
+  "label": "Desert sand drift",
+  "tile_m": 1.8,
+  "target": [
+   0.6,
+   0.5,
+   0.37
+  ],
+  "col": 0.5,
+  "lum": 1.0,
+  "rough": 0.95,
+  "grime": 0.0
+ },
+ "limewash_worn": {
+  "label": "Worn lime-wash over rubble (Tunis medina; peeling, stone showing)",
+  "tile_m": 2.5,
+  "target": [
+   0.76,
+   0.74,
+   0.69
+  ],
+  "col": 0.75,
+  "lum": 1.4,
+  "rough": 0.92,
+  "grime": 1.0
+ },
+ "mud_render": {
+  "label": "Mud/straw render, Libyan-Tunisian (darker, redder than sand)",
+  "tile_m": 2.0,
+  "target": [
+   0.47,
+   0.35,
+   0.24
+  ],
+  "col": 0.6,
+  "lum": 5.0,
+  "rough": 0.95,
+  "grime": 0.9
+ },
+ "mudbrick": {
+  "label": "Exposed sun-dried mud brick",
+  "tile_m": 2.0,
+  "target": [
+   0.52,
+   0.4,
+   0.28
+  ],
+  "col": 0.55,
+  "lum": 1.6,
+  "rough": 0.95,
+  "grime": 0.9
+ },
+ "sandstone_ochre": {
+  "label": "Ochre sandstone ashlar (Zitouna drum/minaret)",
+  "tile_m": 3.0,
+  "target": [
+   0.7,
+   0.57,
+   0.4
+  ],
+  "col": 0.6,
+  "lum": 2.3,
+  "rough": 0.85,
+  "grime": 1.0
+ },
+ "bitumen_felt": {
+  "label": "Tarred roofing felt, sun-faded and dusty / bitumen patches",
+  "tile_m": 2.5,
+  "target": [
+   0.27,
+   0.265,
+   0.25
+  ],
+  "col": 0.8,
+  "lum": 2.5,
+  "rough": 0.75,
+  "grime": 0.3
+ },
+ "corrugated_galv": {
+  "label": "Worn galvanised corrugated iron",
+  "tile_m": 1.8,
+  "grain": "v",
+  "target": [
+   0.52,
+   0.51,
+   0.49
+  ],
+  "col": 0.4,
+  "lum": 1.2,
+  "rough": 0.6,
+  "metal": 0.6,
+  "grime": 0.7
+ },
+ "screed_roof": {
+  "label": "Cracked lime/cement roof screed",
+  "tile_m": 2.5,
+  "target": [
+   0.6,
+   0.57,
+   0.51
+  ],
+  "col": 0.6,
+  "lum": 0.95,
+  "rough": 0.92,
+  "grime": 1.0
+ },
+ "patio_flags": {
+  "label": "Worn limestone patio flags",
+  "tile_m": 3.0,
+  "target": [
+   0.62,
+   0.58,
+   0.52
+  ],
+  "col": 0.6,
+  "lum": 2.3,
+  "rough": 0.85,
+  "grime": 0.6
+ },
+ "palm_log": {
+  "label": "Palm trunk / rough log (joists, beams)",
+  "tile_m": 1.0,
+  "target": [
+   0.4,
+   0.33,
+   0.25
+  ],
+  "col": 0.6,
+  "lum": 1.2,
+  "rough": 0.95,
+  "grime": 0.8
+ },
+ "roof_tile_flat": {
+  "label": "Flat clay plain tiles (Norman tuile plate / Alsatian Biberschwanz)",
+  "target": [
+   0.47,
+   0.27,
+   0.19
+  ],
+  "col": 0.3,
+  "lum": 1.0,
+  "rough": 0.78,
+  "grime": 0.45
+ },
+ "roof_slate_b": {
+  "label": "Slate roof, larger weathered slates (repairs / tone variation)",
+  "target": [
+   0.25,
+   0.26,
+   0.28
+  ],
+  "col": 0.3,
+  "lum": 1.0,
+  "rough": 0.72,
+  "grime": 0.4
+ },
+ "canvas_camo": {
+  "label": "Tent duck with painted disruptive camouflage (sand/brown/olive, 4 m repeat)",
+  "tile_m": 4.0,
+  "col": 0.0,
+  "lum": 1.0,
+  "rough": 0.92,
+  "grime": 0.8
+ },
+ "granite_polished": {
+  "label": "Polished granite, jointless (ledger slabs, steles)",
+  "tile_m": 2.0,
+  "target": null,
+  "rough": 0.4,
+  "grime": 0.5
+ },
+ "limestone_smooth": {
+  "label": "Smooth pale limestone, jointless (headstones, kerbs, calvary)",
+  "tile_m": 2.0,
+  "target": null,
+  "rough": 0.8,
+  "grime": 0.5
+ },
+ "stele_face": {
+  "label": "Stele face atlas 2x2: engraved / gilt inscriptions, photo plaque, cross, wreath",
+  "tile_m": 1.0,
+  "target": null,
+  "rough": 0.5,
+  "grime": 0.5
+ },
+ "rock_cliff": {
+  "label": "Rock cliff face, grey gneiss (valley walls, dam abutments)",
+  "target": [
+   0.43,
+   0.43,
+   0.42
+  ],
+  "rough": 0.85,
+  "grime": 0.8,
+  "col": 0.85,
+  "lum": 1.0
+ },
+ "darj_panel": {
+  "label": "Ochre ashlar panel carved with a white darj-wa-ktaf lozenge net (Zitouna/Hafsid minarets)",
+  "tile_m": 2.4,
+  "rough": 0.85,
+  "grime": 0.8
+ },
+ "floor_checker": {
+  "label": "Black / cream checker floor tiles, grout, chips, dirt (interiors, ruins)",
+  "tile_m": 2.0,
+  "target": null,
+  "rough": 0.6,
+  "grime": 0.5
+ },
+ "rubble_stone": {
+  "label": "Random rubble stone wall, irregular polygonal stones (garden / farm walls)",
+  "target": [
+   0.5,
+   0.46,
+   0.4
+  ],
+  "col": 0.3,
+  "lum": 1.0,
+  "rough": 0.9,
+  "grime": 1.0
+ },
+ "scree_grey": {
+  "label": "Grey broken-stone scree / masonry rubble (ruin debris mounds)",
+  "target": [
+   0.44,
+   0.44,
+   0.43
+  ],
+  "col": 0.35,
+  "lum": 1.15,
+  "rough": 0.92,
+  "grime": 0.8,
+  "tile_m": 1.8
+ },
+ "setts_granite": {
+  "label": "Granite setts in courses (bridge decks, gate passages)",
+  "target": [
+   0.42,
+   0.41,
+   0.39
+  ],
+  "col": 0.3,
+  "lum": 1.3,
+  "rough": 0.85,
+  "grime": 1.0,
+  "tile_m": 2.4
+ },
+ "gravel_grey": {
+  "label": "Grey limestone gravel (cemetery / churchyard paths, grave infill)",
+  "tile_m": 2.0,
+  "target": [
+   0.53,
+   0.52,
+   0.5
+  ],
+  "col": 0.25,
+  "lum": 1.05,
+  "rough": 0.95,
+  "grime": 0.3
+ },
+ "mud_render2": {
+  "label": "Mud/straw render (hand-thrown, grit + straw), darker/redder than sand",
+  "tile_m": 1.6,
+  "target": [
+   0.42,
+   0.3,
+   0.2
+  ],
+  "col": 0.55,
+  "lum": 1.9,
+  "rough": 0.96,
+  "grime": 0.9
+ },
+ "limewash_lumpy": {
+  "label": "Lumpy lime render over rubble (whitewashed, hand-applied)",
+  "tile_m": 2.2,
+  "target": [
+   0.78,
+   0.76,
+   0.71
+  ],
+  "col": 0.7,
+  "lum": 1.25,
+  "rough": 0.92,
+  "grime": 1.0
+ },
+ "screed_lime": {
+  "label": "Patchy lime/cement roof screed (trowelled repairs, no craze)",
+  "tile_m": 2.5,
+  "target": [
+   0.7,
+   0.67,
+   0.61
+  ],
+  "col": 0.6,
+  "lum": 0.85,
+  "rough": 0.93,
+  "grime": 1.0
+ },
+ "corrugated_zinc": {
+  "label": "Galvanised corrugated iron (76 mm pitch)",
+  "tile_m": 2.7,
+  "grain": "v",
+  "target": [
+   0.44,
+   0.44,
+   0.43
+  ],
+  "col": 0.6,
+  "lum": 0.8,
+  "rough": 0.55,
+  "metal": 0.7,
+  "grime": 0.6
+ }
+}

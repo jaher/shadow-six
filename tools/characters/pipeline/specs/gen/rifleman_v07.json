@@ -1,0 +1,75 @@
+{
+ "id": "rifleman_v07",
+ "enemy": {
+  "soldierType": "rifleman",
+  "variant": 7,
+  "archetype": 8,
+  "archetype_name": "fleshy, double chin",
+  "seed": 1,
+  "skinTone": "fair_ruddy",
+  "facialHair": "stubble"
+ },
+ "body": {
+  "age_years": 23.5,
+  "muscle": 0.464,
+  "weight": 0.392,
+  "proportions": 0.55,
+  "height_m": 1.71,
+  "modifiers": {
+   "head/head-fat": 0.84,
+   "neck/neck-double-incr": 0.84,
+   "cheek/cheek-volume-incr": 0.32,
+   "chin/chin-jaw-drop-incr": 0.28,
+   "nose/nose-scale-horiz-incr": -0.016,
+   "nose/nose-scale-vert-incr": -0.128,
+   "ears/ear-scale-incr": -0.235,
+   "eyebrows/eyebrows-trans-up": -0.182,
+   "mouth/mouth-lowerlip-volume-incr": -0.056
+  }
+ },
+ "skin": {
+  "base": "young_caucasian_male",
+  "tint": [
+   1.03,
+   0.95,
+   0.92
+  ],
+  "ruddy": 0.4,
+  "stubble": 0.45
+ },
+ "brows": {
+  "asset": "eyebrow011",
+  "color": [
+   0.22400000000000003,
+   0.15200000000000002,
+   0.08800000000000001
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.28,
+   0.19,
+   0.11
+  ]
+ },
+ "facial_hair": "none",
+ "glasses": false,
+ "outfit": "heer_m40",
+ "outfit_opts": {},
+ "kit": [
+  "belt",
+  "ystraps",
+  "ammo_pouches",
+  "bread_bag",
+  "canteen",
+  "gasmask_can",
+  "bayonet"
+ ],
+ "headgear": {
+  "type": "m35"
+ },
+ "weapon": {
+  "primary": "kar98k"
+ }
+}

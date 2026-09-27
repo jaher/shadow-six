@@ -1,0 +1,298 @@
+[
+ {
+  "id": "wood_planks_grey",
+  "source": "Poly Haven",
+  "page": "https://polyhaven.com/a/wood_planks_grey",
+  "license": "CC0 1.0",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "files": {
+   "diff": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_planks_grey/wood_planks_grey_diff_1k.jpg",
+   "nor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_planks_grey/wood_planks_grey_nor_gl_1k.jpg",
+   "arm": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_planks_grey/wood_planks_grey_arm_1k.jpg",
+   "rough": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_planks_grey/wood_planks_grey_rough_1k.jpg",
+   "disp": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_planks_grey/wood_planks_grey_disp_1k.jpg"
+  }
+ },
+ {
+  "id": "dark_planks",
+  "source": "Poly Haven",
+  "page": "https://polyhaven.com/a/dark_planks",
+  "license": "CC0 1.0",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "files": {
+   "diff": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/dark_planks/dark_planks_diff_1k.jpg",
+   "nor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/dark_planks/dark_planks_nor_gl_1k.jpg",
+   "arm": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/dark_planks/dark_planks_arm_1k.jpg",
+   "rough": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/dark_planks/dark_planks_rough_1k.jpg",
+   "disp": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/dark_planks/dark_planks_disp_1k.jpg"
+  }
+ },
+ {
+  "id": "white_rough_plaster",
+  "source": "Poly Haven",
+  "page": "https://polyhaven.com/a/white_rough_plaster",
+  "license": "CC0 1.0",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "files": {
+   "diff": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/white_rough_plaster/white_rough_plaster_diff_1k.jpg",
+   "nor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/white_rough_plaster/white_rough_plaster_nor_gl_1k.jpg",
+   "arm": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/white_rough_plaster/white_rough_plaster_arm_1k.jpg",
+   "rough": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/white_rough_plaster/white_rough_plaster_rough_1k.jpg",
+   "disp": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/white_rough_plaster/white_rough_plaster_disp_1k.jpg"
+  }
+ },
+ {
+  "id": "rough_plaster_broken",
+  "source": "Poly Haven",
+  "page": "https://polyhaven.com/a/rough_plaster_broken",
+  "license": "CC0 1.0",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "files": {
+   "diff": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rough_plaster_broken/rough_plaster_broken_diff_1k.jpg",
+   "nor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rough_plaster_broken/rough_plaster_broken_nor_gl_1k.jpg",
+   "arm": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rough_plaster_broken/rough_plaster_broken_arm_1k.jpg",
+   "rough": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rough_plaster_broken/rough_plaster_broken_rough_1k.jpg",
+   "disp": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rough_plaster_broken/rough_plaster_broken_disp_1k.jpg"
+  }
+ },
+ {
+  "id": "weathered_plank_siding",
+  "source": "Poly Haven",
+  "page": "https://polyhaven.com/a/weathered_plank_siding",
+  "license": "CC0 1.0",
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "files": {
+   "diff": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/weathered_plank_siding/weathered_plank_siding_diff_1k.jpg",
+   "nor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/weathered_plank_siding/weathered_plank_siding_nor_gl_1k.jpg",
+   "arm": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/weathered_plank_siding/weathered_plank_siding_arm_1k.jpg",
+   "rough": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/weathered_plank_siding/weathered_plank_siding_rough_1k.jpg",
+   "disp": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/weathered_plank_siding/weathered_plank_siding_disp_1k.jpg"
+  }
+ },
+ {
+  "id": "weathered_planks",
+  "source": "Poly Haven",
+  "page": "https://polyhaven.com/a/weathered_planks",
+  "license": "CC0 1.0",
+  "authors": [
+   "Dario Barresi",
+   "Dimitrios Savva"
+  ],
+  "files": {
+   "diff": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/weathered_planks/weathered_planks_diff_1k.jpg",
+   "nor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/weathered_planks/weathered_planks_nor_gl_1k.jpg",
+   "arm": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/weathered_planks/weathered_planks_arm_1k.jpg",
+   "rough": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/weathered_planks/weathered_planks_rough_1k.jpg",
+   "disp": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/weathered_planks/weathered_planks_disp_1k.jpg"
+  }
+ },
+ {
+  "id": "painted_plaster_wall",
+  "source": "Poly Haven",
+  "page": "https://polyhaven.com/a/painted_plaster_wall",
+  "license": "CC0 1.0",
+  "authors": [
+   "Amal Kumar"
+  ],
+  "files": {
+   "diff": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/painted_plaster_wall/painted_plaster_wall_diff_1k.jpg",
+   "nor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/painted_plaster_wall/painted_plaster_wall_nor_gl_1k.jpg",
+   "arm": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/painted_plaster_wall/painted_plaster_wall_arm_1k.jpg",
+   "rough": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/painted_plaster_wall/painted_plaster_wall_rough_1k.jpg",
+   "disp": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/painted_plaster_wall/painted_plaster_wall_disp_1k.jpg"
+  }
+ },
+ {
+  "id": "weathered_peeling_timber",
+  "source": "Poly Haven",
+  "page": "https://polyhaven.com/a/weathered_peeling_timber",
+  "license": "CC0 1.0",
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "files": {
+   "diff": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/weathered_peeling_timber/weathered_peeling_timber_diff_1k.jpg",
+   "nor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/weathered_peeling_timber/weathered_peeling_timber_nor_gl_1k.jpg",
+   "arm": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/weathered_peeling_timber/weathered_peeling_timber_arm_1k.jpg",
+   "rough": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/weathered_peeling_timber/weathered_peeling_timber_rough_1k.jpg",
+   "disp": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/weathered_peeling_timber/weathered_peeling_timber_disp_1k.jpg"
+  }
+ },
+ {
+  "id": "green_metal_rust",
+  "source": "Poly Haven",
+  "page": "https://polyhaven.com/a/green_metal_rust",
+  "license": "CC0 1.0",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "files": {
+   "diff": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/green_metal_rust/green_metal_rust_diff_1k.jpg",
+   "nor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/green_metal_rust/green_metal_rust_nor_gl_1k.jpg",
+   "arm": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/green_metal_rust/green_metal_rust_arm_1k.jpg",
+   "rough": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/green_metal_rust/green_metal_rust_rough_1k.jpg",
+   "disp": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/green_metal_rust/green_metal_rust_disp_1k.jpg"
+  }
+ },
+ {
+  "id": "Fabric030",
+  "source": "ambientCG",
+  "page": "https://ambientcg.com/view?id=Fabric030",
+  "license": "CC0 1.0",
+  "download": "https://ambientcg.com/get?file=Fabric030_1K-JPG.zip",
+  "files": {
+   "ao": "Fabric030_1K-JPG_AmbientOcclusion.jpg",
+   "diff": "Fabric030_1K-JPG_Color.jpg",
+   "disp": "Fabric030_1K-JPG_Displacement.jpg",
+   "nor": "Fabric030_1K-JPG_NormalGL.jpg",
+   "rough": "Fabric030_1K-JPG_Roughness.jpg"
+  }
+ },
+ {
+  "id": "Rubber004",
+  "source": "ambientCG",
+  "page": "https://ambientcg.com/view?id=Rubber004",
+  "license": "CC0 1.0",
+  "download": "https://ambientcg.com/get?file=Rubber004_1K-JPG.zip",
+  "files": {
+   "diff": "Rubber004_1K-JPG_Color.jpg",
+   "disp": "Rubber004_1K-JPG_Displacement.jpg",
+   "nor": "Rubber004_1K-JPG_NormalGL.jpg",
+   "rough": "Rubber004_1K-JPG_Roughness.jpg"
+  }
+ },
+ {
+  "id": "sand_01",
+  "source": "Poly Haven",
+  "page": "https://polyhaven.com/a/sand_01",
+  "license": "CC0 1.0",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "files": {
+   "diff": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/sand_01/sand_01_diff_1k.jpg",
+   "nor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/sand_01/sand_01_nor_gl_1k.jpg",
+   "arm": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/sand_01/sand_01_arm_1k.jpg",
+   "rough": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/sand_01/sand_01_rough_1k.jpg",
+   "disp": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/sand_01/sand_01_disp_1k.jpg"
+  }
+ },
+ {
+  "id": "rust_coarse_01",
+  "source": "Poly Haven",
+  "page": "https://polyhaven.com/a/rust_coarse_01",
+  "license": "CC0 1.0",
+  "authors": [
+   "Dimitrios Savva",
+   "Rico Cilliers"
+  ],
+  "files": {
+   "diff": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rust_coarse_01/rust_coarse_01_diff_1k.jpg",
+   "nor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rust_coarse_01/rust_coarse_01_nor_gl_1k.jpg",
+   "arm": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rust_coarse_01/rust_coarse_01_arm_1k.jpg",
+   "rough": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rust_coarse_01/rust_coarse_01_rough_1k.jpg",
+   "disp": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rust_coarse_01/rust_coarse_01_disp_1k.jpg"
+  }
+ },
+ {
+  "id": "dense_sand",
+  "source": "Poly Haven",
+  "page": "https://polyhaven.com/a/dense_sand",
+  "license": "CC0 1.0",
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "files": {
+   "diff": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/dense_sand/dense_sand_diff_1k.jpg",
+   "nor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/dense_sand/dense_sand_nor_gl_1k.jpg",
+   "arm": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/dense_sand/dense_sand_arm_1k.jpg",
+   "rough": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/dense_sand/dense_sand_rough_1k.jpg",
+   "disp": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/dense_sand/dense_sand_disp_1k.jpg"
+  }
+ },
+ {
+  "id": "pine_bark",
+  "source": "Poly Haven",
+  "page": "https://polyhaven.com/a/pine_bark",
+  "license": "CC0 1.0",
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "files": {
+   "diff": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/pine_bark/pine_bark_diff_1k.jpg",
+   "nor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/pine_bark/pine_bark_nor_gl_1k.jpg",
+   "arm": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/pine_bark/pine_bark_arm_1k.jpg",
+   "rough": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/pine_bark/pine_bark_rough_1k.jpg",
+   "disp": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/pine_bark/pine_bark_disp_1k.jpg"
+  }
+ },
+ {
+  "id": "worn_corrugated_iron",
+  "source": "Poly Haven",
+  "page": "https://polyhaven.com/a/worn_corrugated_iron",
+  "license": "CC0 1.0",
+  "authors": [
+   "Jenelle van Heerden",
+   "Dimitrios Savva"
+  ],
+  "files": {
+   "diff": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/worn_corrugated_iron/worn_corrugated_iron_diff_1k.jpg",
+   "nor": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/worn_corrugated_iron/worn_corrugated_iron_nor_gl_1k.jpg",
+   "arm": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/worn_corrugated_iron/worn_corrugated_iron_arm_1k.jpg",
+   "rough": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/worn_corrugated_iron/worn_corrugated_iron_rough_1k.jpg",
+   "disp": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/worn_corrugated_iron/worn_corrugated_iron_disp_1k.jpg"
+  }
+ },
+ {
+  "id": "Fabric045",
+  "source": "ambientCG",
+  "page": "https://ambientcg.com/view?id=Fabric045",
+  "license": "CC0 1.0",
+  "download": "https://ambientcg.com/get?file=Fabric045_1K-JPG.zip",
+  "files": {
+   "ao": "Fabric045_1K-JPG_AmbientOcclusion.jpg",
+   "diff": "Fabric045_1K-JPG_Color.jpg",
+   "disp": "Fabric045_1K-JPG_Displacement.jpg",
+   "nor": "Fabric045_1K-JPG_NormalGL.jpg",
+   "rough": "Fabric045_1K-JPG_Roughness.jpg"
+  }
+ },
+ {
+  "id": "goegap",
+  "source": "Poly Haven HDRI",
+  "page": "https://polyhaven.com/a/goegap",
+  "license": "CC0 1.0",
+  "download": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/goegap_1k.hdr"
+ },
+ {
+  "id": "goegap",
+  "source": "Poly Haven HDRI",
+  "page": "https://polyhaven.com/a/goegap",
+  "license": "CC0 1.0",
+  "download": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/goegap_2k.hdr"
+ },
+ {
+  "id": "kloofendal_43d_clear_puresky",
+  "source": "Poly Haven HDRI",
+  "page": "https://polyhaven.com/a/kloofendal_43d_clear_puresky",
+  "license": "CC0 1.0",
+  "download": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/kloofendal_43d_clear_puresky_1k.hdr"
+ },
+ {
+  "id": "kloofendal_43d_clear_puresky",
+  "source": "Poly Haven HDRI",
+  "page": "https://polyhaven.com/a/kloofendal_43d_clear_puresky",
+  "license": "CC0 1.0",
+  "download": "https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/2k/kloofendal_43d_clear_puresky_2k.hdr"
+ }
+]

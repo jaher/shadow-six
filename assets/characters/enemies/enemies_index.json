@@ -1,0 +1,915 @@
+{
+ "afrika": [
+  {
+   "id": "afrika_v00",
+   "url": "enemies/out/afrika_v00.glb",
+   "head": 12,
+   "key": "12|weathered_tan|stubble|0",
+   "tone": "weathered_tan",
+   "facialHair": "stubble",
+   "glasses": false
+  },
+  {
+   "id": "afrika_v01",
+   "url": "enemies/out/afrika_v01.glb",
+   "head": 1,
+   "key": "1|weathered_tan|none|0",
+   "tone": "weathered_tan",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "afrika_v02",
+   "url": "enemies/out/afrika_v02.glb",
+   "head": 7,
+   "key": "7|weathered_tan|none|0",
+   "tone": "weathered_tan",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "afrika_v03",
+   "url": "enemies/out/afrika_v03.glb",
+   "head": 13,
+   "key": "13|sunburnt|moustache|0",
+   "tone": "sunburnt",
+   "facialHair": "moustache",
+   "glasses": false
+  },
+  {
+   "id": "afrika_v04",
+   "url": "enemies/out/afrika_v04.glb",
+   "head": 11,
+   "key": "11|weathered_tan|none|0",
+   "tone": "weathered_tan",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "afrika_v05",
+   "url": "enemies/out/afrika_v05.glb",
+   "head": 8,
+   "key": "8|fair_ruddy|none|0",
+   "tone": "fair_ruddy",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "afrika_v06",
+   "url": "enemies/out/afrika_v06.glb",
+   "head": 5,
+   "key": "5|sunburnt|none|0",
+   "tone": "sunburnt",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "afrika_v07",
+   "url": "enemies/out/afrika_v07.glb",
+   "head": 10,
+   "key": "10|sunburnt|stubble|0",
+   "tone": "sunburnt",
+   "facialHair": "stubble",
+   "glasses": false
+  },
+  {
+   "id": "afrika_v08",
+   "url": "enemies/out/afrika_v08.glb",
+   "head": 4,
+   "key": "4|fair_ruddy|stubble|0",
+   "tone": "fair_ruddy",
+   "facialHair": "stubble",
+   "glasses": false
+  },
+  {
+   "id": "afrika_v09",
+   "url": "enemies/out/afrika_v09.glb",
+   "head": 2,
+   "key": "2|weathered_tan|none|0",
+   "tone": "weathered_tan",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "afrika_v10",
+   "url": "enemies/out/afrika_v10.glb",
+   "head": 3,
+   "key": "3|fair_ruddy|none|0",
+   "tone": "fair_ruddy",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "afrika_v11",
+   "url": "enemies/out/afrika_v11.glb",
+   "head": 6,
+   "key": "6|weathered_tan|stubble|0",
+   "tone": "weathered_tan",
+   "facialHair": "stubble",
+   "glasses": false
+  }
+ ],
+ "crew": [
+  {
+   "id": "crew_v00",
+   "url": "enemies/out/crew_v00.glb",
+   "head": 6,
+   "key": "6|sunburnt|none|0",
+   "tone": "sunburnt",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "crew_v01",
+   "url": "enemies/out/crew_v01.glb",
+   "head": 11,
+   "key": "11|fair|none|0",
+   "tone": "fair",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "crew_v02",
+   "url": "enemies/out/crew_v02.glb",
+   "head": 2,
+   "key": "2|pale_pink|none|0",
+   "tone": "pale_pink",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "crew_v03",
+   "url": "enemies/out/crew_v03.glb",
+   "head": 9,
+   "key": "9|weathered_tan|none|0",
+   "tone": "weathered_tan",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "crew_v04",
+   "url": "enemies/out/crew_v04.glb",
+   "head": 5,
+   "key": "5|fair_ruddy|none|0",
+   "tone": "fair_ruddy",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "crew_v05",
+   "url": "enemies/out/crew_v05.glb",
+   "head": 7,
+   "key": "7|fair_ruddy|stubble|0",
+   "tone": "fair_ruddy",
+   "facialHair": "stubble",
+   "glasses": false
+  }
+ ],
+ "engineer": [
+  {
+   "id": "engineer_v00",
+   "url": "enemies/out/engineer_v00.glb",
+   "head": 9,
+   "key": "9|sunburnt|none|0",
+   "tone": "sunburnt",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "engineer_v01",
+   "url": "enemies/out/engineer_v01.glb",
+   "head": 8,
+   "key": "8|pale_pink|none|0",
+   "tone": "pale_pink",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "engineer_v02",
+   "url": "enemies/out/engineer_v02.glb",
+   "head": 1,
+   "key": "1|light_olive|none|0",
+   "tone": "light_olive",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "engineer_v03",
+   "url": "enemies/out/engineer_v03.glb",
+   "head": 11,
+   "key": "11|fair_ruddy|stubble|0",
+   "tone": "fair_ruddy",
+   "facialHair": "stubble",
+   "glasses": false
+  },
+  {
+   "id": "engineer_v04",
+   "url": "enemies/out/engineer_v04.glb",
+   "head": 5,
+   "key": "5|sunburnt|none|0",
+   "tone": "sunburnt",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "engineer_v05",
+   "url": "enemies/out/engineer_v05.glb",
+   "head": 15,
+   "key": "15|sunburnt|stubble|0",
+   "tone": "sunburnt",
+   "facialHair": "stubble",
+   "glasses": false
+  }
+ ],
+ "general": [
+  {
+   "id": "general_schleper",
+   "url": "enemies/out/general_schleper.glb",
+   "head": 14,
+   "key": "general",
+   "tone": "pale_pink",
+   "facialHair": "none",
+   "glasses": false
+  }
+ ],
+ "mg": [
+  {
+   "id": "mg_v00",
+   "url": "enemies/out/mg_v00.glb",
+   "head": 7,
+   "key": "7|light_olive|stubble|0",
+   "tone": "light_olive",
+   "facialHair": "stubble",
+   "glasses": false
+  },
+  {
+   "id": "mg_v01",
+   "url": "enemies/out/mg_v01.glb",
+   "head": 13,
+   "key": "13|sunburnt|stubble|0",
+   "tone": "sunburnt",
+   "facialHair": "stubble",
+   "glasses": false
+  },
+  {
+   "id": "mg_v02",
+   "url": "enemies/out/mg_v02.glb",
+   "head": 15,
+   "key": "15|fair_ruddy|none|0",
+   "tone": "fair_ruddy",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "mg_v03",
+   "url": "enemies/out/mg_v03.glb",
+   "head": 3,
+   "key": "3|fair_ruddy|none|0",
+   "tone": "fair_ruddy",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "mg_v04",
+   "url": "enemies/out/mg_v04.glb",
+   "head": 16,
+   "key": "16|fair|none|0",
+   "tone": "fair",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "mg_v05",
+   "url": "enemies/out/mg_v05.glb",
+   "head": 2,
+   "key": "2|sunburnt|none|0",
+   "tone": "sunburnt",
+   "facialHair": "none",
+   "glasses": false
+  }
+ ],
+ "officer": [
+  {
+   "id": "officer_v00",
+   "url": "enemies/out/officer_v00.glb",
+   "head": 12,
+   "key": "12|weathered_tan|moustache|0",
+   "tone": "weathered_tan",
+   "facialHair": "moustache",
+   "glasses": false
+  },
+  {
+   "id": "officer_v01",
+   "url": "enemies/out/officer_v01.glb",
+   "head": 16,
+   "key": "16|weathered_tan|none|0",
+   "tone": "weathered_tan",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "officer_v02",
+   "url": "enemies/out/officer_v02.glb",
+   "head": 1,
+   "key": "1|fair_ruddy|none|0",
+   "tone": "fair_ruddy",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "officer_v03",
+   "url": "enemies/out/officer_v03.glb",
+   "head": 5,
+   "key": "5|weathered_tan|none|0",
+   "tone": "weathered_tan",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "officer_v04",
+   "url": "enemies/out/officer_v04.glb",
+   "head": 10,
+   "key": "10|weathered_tan|none|0",
+   "tone": "weathered_tan",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "officer_v05",
+   "url": "enemies/out/officer_v05.glb",
+   "head": 13,
+   "key": "13|light_olive|none|1",
+   "tone": "light_olive",
+   "facialHair": "none",
+   "glasses": true
+  }
+ ],
+ "rifleman": [
+  {
+   "id": "rifleman_v00",
+   "url": "enemies/out/rifleman_v00.glb",
+   "head": 7,
+   "key": "7|sunburnt|none|0",
+   "tone": "sunburnt",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v01",
+   "url": "enemies/out/rifleman_v01.glb",
+   "head": 4,
+   "key": "4|sunburnt|none|0",
+   "tone": "sunburnt",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v02",
+   "url": "enemies/out/rifleman_v02.glb",
+   "head": 11,
+   "key": "11|pale_pink|none|0",
+   "tone": "pale_pink",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v03",
+   "url": "enemies/out/rifleman_v03.glb",
+   "head": 8,
+   "key": "8|fair_ruddy|stubble|0",
+   "tone": "fair_ruddy",
+   "facialHair": "stubble",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v04",
+   "url": "enemies/out/rifleman_v04.glb",
+   "head": 10,
+   "key": "10|fair_ruddy|moustache|0",
+   "tone": "fair_ruddy",
+   "facialHair": "moustache",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v05",
+   "url": "enemies/out/rifleman_v05.glb",
+   "head": 13,
+   "key": "13|sunburnt|none|1",
+   "tone": "sunburnt",
+   "facialHair": "none",
+   "glasses": true
+  },
+  {
+   "id": "rifleman_v06",
+   "url": "enemies/out/rifleman_v06.glb",
+   "head": 15,
+   "key": "15|fair|stubble|0",
+   "tone": "fair",
+   "facialHair": "stubble",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v07",
+   "url": "enemies/out/rifleman_v07.glb",
+   "head": 1,
+   "key": "1|fair|none|0",
+   "tone": "fair",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v08",
+   "url": "enemies/out/rifleman_v08.glb",
+   "head": 3,
+   "key": "3|fair_ruddy|none|0",
+   "tone": "fair_ruddy",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v09",
+   "url": "enemies/out/rifleman_v09.glb",
+   "head": 16,
+   "key": "16|sunburnt|none|0",
+   "tone": "sunburnt",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v10",
+   "url": "enemies/out/rifleman_v10.glb",
+   "head": 2,
+   "key": "2|light_olive|none|0",
+   "tone": "light_olive",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v11",
+   "url": "enemies/out/rifleman_v11.glb",
+   "head": 5,
+   "key": "5|pale_pink|none|0",
+   "tone": "pale_pink",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v12",
+   "url": "enemies/out/rifleman_v12.glb",
+   "head": 9,
+   "key": "9|fair|none|0",
+   "tone": "fair",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v13",
+   "url": "enemies/out/rifleman_v13.glb",
+   "head": 12,
+   "key": "12|light_olive|none|0",
+   "tone": "light_olive",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v14",
+   "url": "enemies/out/rifleman_v14.glb",
+   "head": 6,
+   "key": "6|light_olive|none|0",
+   "tone": "light_olive",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v15",
+   "url": "enemies/out/rifleman_v15.glb",
+   "head": 7,
+   "key": "7|sunburnt|stubble|0",
+   "tone": "sunburnt",
+   "facialHair": "stubble",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v16",
+   "url": "enemies/out/rifleman_v16.glb",
+   "head": 15,
+   "key": "15|light_olive|stubble|0",
+   "tone": "light_olive",
+   "facialHair": "stubble",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v17",
+   "url": "enemies/out/rifleman_v17.glb",
+   "head": 2,
+   "key": "2|sunburnt|stubble|0",
+   "tone": "sunburnt",
+   "facialHair": "stubble",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v18",
+   "url": "enemies/out/rifleman_v18.glb",
+   "head": 3,
+   "key": "3|weathered_tan|moustache|0",
+   "tone": "weathered_tan",
+   "facialHair": "moustache",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v19",
+   "url": "enemies/out/rifleman_v19.glb",
+   "head": 4,
+   "key": "4|fair_ruddy|none|0",
+   "tone": "fair_ruddy",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v20",
+   "url": "enemies/out/rifleman_v20.glb",
+   "head": 1,
+   "key": "1|sunburnt|none|0",
+   "tone": "sunburnt",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v21",
+   "url": "enemies/out/rifleman_v21.glb",
+   "head": 9,
+   "key": "9|pale_pink|none|0",
+   "tone": "pale_pink",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v22",
+   "url": "enemies/out/rifleman_v22.glb",
+   "head": 16,
+   "key": "16|weathered_tan|none|0",
+   "tone": "weathered_tan",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v23",
+   "url": "enemies/out/rifleman_v23.glb",
+   "head": 13,
+   "key": "13|fair|none|0",
+   "tone": "fair",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v24",
+   "url": "enemies/out/rifleman_v24.glb",
+   "head": 6,
+   "key": "6|weathered_tan|none|0",
+   "tone": "weathered_tan",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v25",
+   "url": "enemies/out/rifleman_v25.glb",
+   "head": 12,
+   "key": "12|fair_ruddy|stubble|0",
+   "tone": "fair_ruddy",
+   "facialHair": "stubble",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v26",
+   "url": "enemies/out/rifleman_v26.glb",
+   "head": 8,
+   "key": "8|weathered_tan|none|0",
+   "tone": "weathered_tan",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v27",
+   "url": "enemies/out/rifleman_v27.glb",
+   "head": 7,
+   "key": "7|pale_pink|stubble|0",
+   "tone": "pale_pink",
+   "facialHair": "stubble",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v28",
+   "url": "enemies/out/rifleman_v28.glb",
+   "head": 10,
+   "key": "10|sunburnt|stubble|1",
+   "tone": "sunburnt",
+   "facialHair": "stubble",
+   "glasses": true
+  },
+  {
+   "id": "rifleman_v29",
+   "url": "enemies/out/rifleman_v29.glb",
+   "head": 11,
+   "key": "11|fair|moustache|0",
+   "tone": "fair",
+   "facialHair": "moustache",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v30",
+   "url": "enemies/out/rifleman_v30.glb",
+   "head": 5,
+   "key": "5|light_olive|stubble|0",
+   "tone": "light_olive",
+   "facialHair": "stubble",
+   "glasses": false
+  },
+  {
+   "id": "rifleman_v31",
+   "url": "enemies/out/rifleman_v31.glb",
+   "head": 15,
+   "key": "15|fair_ruddy|none|0",
+   "tone": "fair_ruddy",
+   "facialHair": "none",
+   "glasses": false
+  }
+ ],
+ "sentry": [
+  {
+   "id": "sentry_v00",
+   "url": "enemies/out/sentry_v00.glb",
+   "head": 7,
+   "key": "7|fair_ruddy|moustache|0",
+   "tone": "fair_ruddy",
+   "facialHair": "moustache",
+   "glasses": false
+  },
+  {
+   "id": "sentry_v01",
+   "url": "enemies/out/sentry_v01.glb",
+   "head": 5,
+   "key": "5|light_olive|stubble|0",
+   "tone": "light_olive",
+   "facialHair": "stubble",
+   "glasses": false
+  },
+  {
+   "id": "sentry_v02",
+   "url": "enemies/out/sentry_v02.glb",
+   "head": 13,
+   "key": "13|weathered_tan|none|0",
+   "tone": "weathered_tan",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "sentry_v03",
+   "url": "enemies/out/sentry_v03.glb",
+   "head": 10,
+   "key": "10|sunburnt|none|0",
+   "tone": "sunburnt",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "sentry_v04",
+   "url": "enemies/out/sentry_v04.glb",
+   "head": 2,
+   "key": "2|weathered_tan|none|0",
+   "tone": "weathered_tan",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "sentry_v05",
+   "url": "enemies/out/sentry_v05.glb",
+   "head": 8,
+   "key": "8|fair_ruddy|stubble|1",
+   "tone": "fair_ruddy",
+   "facialHair": "stubble",
+   "glasses": true
+  },
+  {
+   "id": "sentry_v06",
+   "url": "enemies/out/sentry_v06.glb",
+   "head": 4,
+   "key": "4|fair_ruddy|moustache|0",
+   "tone": "fair_ruddy",
+   "facialHair": "moustache",
+   "glasses": false
+  },
+  {
+   "id": "sentry_v07",
+   "url": "enemies/out/sentry_v07.glb",
+   "head": 16,
+   "key": "16|pale_pink|moustache|0",
+   "tone": "pale_pink",
+   "facialHair": "moustache",
+   "glasses": false
+  }
+ ],
+ "sergeant": [
+  {
+   "id": "sergeant_v00",
+   "url": "enemies/out/sergeant_v00.glb",
+   "head": 7,
+   "key": "7|light_olive|none|0",
+   "tone": "light_olive",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "sergeant_v01",
+   "url": "enemies/out/sergeant_v01.glb",
+   "head": 10,
+   "key": "10|fair_ruddy|none|0",
+   "tone": "fair_ruddy",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "sergeant_v02",
+   "url": "enemies/out/sergeant_v02.glb",
+   "head": 3,
+   "key": "3|weathered_tan|moustache|0",
+   "tone": "weathered_tan",
+   "facialHair": "moustache",
+   "glasses": false
+  },
+  {
+   "id": "sergeant_v03",
+   "url": "enemies/out/sergeant_v03.glb",
+   "head": 5,
+   "key": "5|fair|none|0",
+   "tone": "fair",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "sergeant_v04",
+   "url": "enemies/out/sergeant_v04.glb",
+   "head": 12,
+   "key": "12|pale_pink|none|0",
+   "tone": "pale_pink",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "sergeant_v05",
+   "url": "enemies/out/sergeant_v05.glb",
+   "head": 11,
+   "key": "11|light_olive|moustache|0",
+   "tone": "light_olive",
+   "facialHair": "moustache",
+   "glasses": false
+  }
+ ],
+ "trooper": [
+  {
+   "id": "trooper_v00",
+   "url": "enemies/out/trooper_v00.glb",
+   "head": 3,
+   "key": "3|sunburnt|none|0",
+   "tone": "sunburnt",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "trooper_v01",
+   "url": "enemies/out/trooper_v01.glb",
+   "head": 4,
+   "key": "4|fair_ruddy|stubble|0",
+   "tone": "fair_ruddy",
+   "facialHair": "stubble",
+   "glasses": false
+  },
+  {
+   "id": "trooper_v02",
+   "url": "enemies/out/trooper_v02.glb",
+   "head": 10,
+   "key": "10|pale_pink|none|0",
+   "tone": "pale_pink",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "trooper_v03",
+   "url": "enemies/out/trooper_v03.glb",
+   "head": 5,
+   "key": "5|sunburnt|none|0",
+   "tone": "sunburnt",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "trooper_v04",
+   "url": "enemies/out/trooper_v04.glb",
+   "head": 9,
+   "key": "9|fair|stubble|0",
+   "tone": "fair",
+   "facialHair": "stubble",
+   "glasses": false
+  },
+  {
+   "id": "trooper_v05",
+   "url": "enemies/out/trooper_v05.glb",
+   "head": 2,
+   "key": "2|pale_pink|none|0",
+   "tone": "pale_pink",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "trooper_v06",
+   "url": "enemies/out/trooper_v06.glb",
+   "head": 6,
+   "key": "6|weathered_tan|none|0",
+   "tone": "weathered_tan",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "trooper_v07",
+   "url": "enemies/out/trooper_v07.glb",
+   "head": 11,
+   "key": "11|weathered_tan|moustache|0",
+   "tone": "weathered_tan",
+   "facialHair": "moustache",
+   "glasses": false
+  }
+ ],
+ "winter": [
+  {
+   "id": "winter_v00",
+   "url": "enemies/out/winter_v00.glb",
+   "head": 9,
+   "key": "9|fair_ruddy|stubble|0",
+   "tone": "fair_ruddy",
+   "facialHair": "stubble",
+   "glasses": false
+  },
+  {
+   "id": "winter_v01",
+   "url": "enemies/out/winter_v01.glb",
+   "head": 16,
+   "key": "16|fair_ruddy|stubble|0",
+   "tone": "fair_ruddy",
+   "facialHair": "stubble",
+   "glasses": false
+  },
+  {
+   "id": "winter_v02",
+   "url": "enemies/out/winter_v02.glb",
+   "head": 15,
+   "key": "15|pale_pink|moustache|1",
+   "tone": "pale_pink",
+   "facialHair": "moustache",
+   "glasses": true
+  },
+  {
+   "id": "winter_v03",
+   "url": "enemies/out/winter_v03.glb",
+   "head": 11,
+   "key": "11|fair_ruddy|stubble|1",
+   "tone": "fair_ruddy",
+   "facialHair": "stubble",
+   "glasses": true
+  },
+  {
+   "id": "winter_v04",
+   "url": "enemies/out/winter_v04.glb",
+   "head": 2,
+   "key": "2|fair_ruddy|moustache|0",
+   "tone": "fair_ruddy",
+   "facialHair": "moustache",
+   "glasses": false
+  },
+  {
+   "id": "winter_v05",
+   "url": "enemies/out/winter_v05.glb",
+   "head": 6,
+   "key": "6|fair_ruddy|none|0",
+   "tone": "fair_ruddy",
+   "facialHair": "none",
+   "glasses": false
+  },
+  {
+   "id": "winter_v06",
+   "url": "enemies/out/winter_v06.glb",
+   "head": 14,
+   "key": "14|fair_ruddy|stubble|0",
+   "tone": "fair_ruddy",
+   "facialHair": "stubble",
+   "glasses": false
+  },
+  {
+   "id": "winter_v07",
+   "url": "enemies/out/winter_v07.glb",
+   "head": 13,
+   "key": "13|fair|none|1",
+   "tone": "fair",
+   "facialHair": "none",
+   "glasses": true
+  }
+ ]
+}

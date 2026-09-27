@@ -1,0 +1,20 @@
+{
+  "name": "shadow-six",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SHADOW SIX: an unofficial, non-commercial fan tribute to Commandos: Behind Enemy Lines (1998), built with three.js. Not affiliated with Pyro Studios, Eidos, Square Enix or Kalypso Media.",
+  "type": "module",
+  "scripts": {
+    "serve": "node tools/serve.mjs 8080",
+    "test": "node tests/run.mjs",
+    "test:unit": "node tests/unit/run.mjs",
+    "vendor": "node tools/vendor-addons.mjs"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.49.1"
+  }
+}

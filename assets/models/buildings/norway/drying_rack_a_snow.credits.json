@@ -1,0 +1,106 @@
+{
+ "asset": "drying_rack_a_snow",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "granite": {
+   "source": "Poly Haven",
+   "id": "granite_wall",
+   "url": "https://polyhaven.com/a/granite_wall",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Granite Wall",
+   "label": "Granite wall",
+   "files": {
+    "diff": {
+     "2k": "2k/granite_diff",
+     "1k": "1k/granite_diff"
+    },
+    "nor": {
+     "2k": "2k/granite_nor",
+     "1k": "1k/granite_nor"
+    },
+    "arm": {
+     "2k": "2k/granite_arm",
+     "1k": "1k/granite_arm"
+    }
+   }
+  },
+  "log_hewn": {
+   "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathered hewn log surface (grain along u)",
+   "files": {
+    "diff": {
+     "1k": "1k/log_hewn_diff",
+     "2k": "2k/log_hewn_diff"
+    },
+    "nor": {
+     "1k": "1k/log_hewn_nor",
+     "2k": "2k/log_hewn_nor"
+    },
+    "arm": {
+     "1k": "1k/log_hewn_arm",
+     "2k": "2k/log_hewn_arm"
+    }
+   }
+  },
+  "snow": {
+   "source": "Poly Haven",
+   "id": "snow_01",
+   "url": "https://polyhaven.com/a/snow_01",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Snow 01",
+   "label": "Snow cap",
+   "files": {
+    "diff": {
+     "2k": "2k/snow_diff",
+     "1k": "1k/snow_diff"
+    },
+    "nor": {
+     "2k": "2k/snow_nor",
+     "1k": "1k/snow_nor"
+    },
+    "arm": {
+     "2k": "2k/snow_arm",
+     "1k": "1k/snow_arm"
+    }
+   }
+  },
+  "wood_paint": {
+   "source": "Poly Haven",
+   "id": "weathered_peeling_timber",
+   "url": "https://polyhaven.com/a/weathered_peeling_timber",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Peeling Timber",
+   "label": "Pale painted wood base (tint via kit_tint for shutters/frames)",
+   "files": {
+    "diff": {
+     "2k": "2k/wood_paint_diff",
+     "1k": "1k/wood_paint_diff"
+    },
+    "nor": {
+     "2k": "2k/wood_paint_nor",
+     "1k": "1k/wood_paint_nor"
+    },
+    "arm": {
+     "2k": "2k/wood_paint_arm",
+     "1k": "1k/wood_paint_arm"
+    }
+   }
+  }
+ },
+ "norway_notes": [
+  "Geometry: procedural Blender script norway/scripts/drying_rack.py (SHADOW SIX Norway group, own work, CC0).",
+  "Rework 1 (art director pass): shared helpers norway/scripts/nfx.py; procedural textures roof_pantile_black, tar_paper, turf_grass (from Poly Haven sparse_grass, CC0), log_hewn, board_batten, mesh_screen made by norway/tools/make_nor_tex.py (own work, CC0).",
+  "Rework 2 (art director pass 2): helpers norway/scripts/nfx2.py (+ sentry_box.py); procedural textures tar_paper_batten, weatherboard_paint, boards_weathered, paint_metal and the re-laid roof_pantile_black made by norway/tools/make_nor_tex2.py (own work, CC0). All other maps: see \"textures\" (CC0).",
+  "Reference photos (internal comparison only, not shipped): scratchpad/art/refs/norway/refs.md (Wikimedia Commons)."
+ ]
+}

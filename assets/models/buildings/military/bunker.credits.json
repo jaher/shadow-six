@@ -1,0 +1,229 @@
+{
+ "asset": "bunker",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "burlap_bag": {
+   "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+   "license": "CC0-1.0",
+   "derived_from": {
+    "source": "Poly Haven",
+    "id": "hessian_230",
+    "license": "CC0-1.0"
+   },
+   "label": "Sandbag burlap (light khaki, soiled)",
+   "files": {
+    "diff": {
+     "1k": "1k/burlap_bag_diff",
+     "2k": "2k/burlap_bag_diff"
+    },
+    "nor": {
+     "1k": "1k/burlap_bag_nor",
+     "2k": "2k/burlap_bag_nor"
+    },
+    "arm": {
+     "1k": "1k/burlap_bag_arm",
+     "2k": "2k/burlap_bag_arm"
+    }
+   }
+  },
+  "camo_netting": {
+   "source": "procedural (art/military/tools/make_mil_tex4.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Garnished camouflage net: 10 cm twine mesh + hessian scrim strips (alpha MASK, double sided)",
+   "files": {
+    "diff": {
+     "1k": "1k/camo_netting_diff",
+     "2k": "2k/camo_netting_diff"
+    },
+    "nor": {
+     "1k": "1k/camo_netting_nor",
+     "2k": "2k/camo_netting_nor"
+    },
+    "arm": {
+     "1k": "1k/camo_netting_arm",
+     "2k": "2k/camo_netting_arm"
+    }
+   }
+  },
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "concrete_camo_heer": {
+   "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+   "license": "CC0-1.0",
+   "derived_from": {
+    "source": "Poly Haven",
+    "id": "concrete_bunker (lib)",
+    "license": "CC0-1.0"
+   },
+   "label": "Concrete, Heer disruptive paint (dunkelgelb / olive / chocolate brown, muted, sprayed edges)",
+   "files": {
+    "diff": {
+     "1k": "1k/concrete_camo_heer_diff",
+     "2k": "2k/concrete_camo_heer_diff"
+    },
+    "nor": {
+     "1k": "1k/concrete_camo_heer_nor",
+     "2k": "2k/concrete_camo_heer_nor"
+    },
+    "arm": {
+     "1k": "1k/concrete_camo_heer_arm",
+     "2k": "2k/concrete_camo_heer_arm"
+    }
+   }
+  },
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  },
+  "interior_dark": {
+   "source": "procedural (tools/make_procedural.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Interior darkness card",
+   "files": {
+    "diff": {
+     "1k": "1k/interior_dark_diff",
+     "2k": "2k/interior_dark_diff"
+    },
+    "nor": {
+     "1k": "1k/interior_dark_nor",
+     "2k": "2k/interior_dark_nor"
+    },
+    "arm": {
+     "1k": "1k/interior_dark_arm",
+     "2k": "2k/interior_dark_arm"
+    }
+   }
+  },
+  "sod": {
+   "source": "Poly Haven",
+   "id": "sparse_grass",
+   "url": "https://polyhaven.com/a/sparse_grass",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Sparse Grass",
+   "label": "Sod / turf roof",
+   "files": {
+    "diff": {
+     "2k": "2k/sod_diff",
+     "1k": "1k/sod_diff"
+    },
+    "nor": {
+     "2k": "2k/sod_nor",
+     "1k": "1k/sod_nor"
+    },
+    "arm": {
+     "2k": "2k/sod_arm",
+     "1k": "1k/sod_arm"
+    }
+   }
+  },
+  "steel_galv": {
+   "source": "Poly Haven",
+   "id": "rusty_painted_metal",
+   "url": "https://polyhaven.com/a/rusty_painted_metal",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Painted Metal",
+   "label": "Bare / galvanized steel (derived)",
+   "files": {
+    "diff": {
+     "2k": "2k/steel_galv_diff",
+     "1k": "1k/steel_galv_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_galv_nor",
+     "1k": "1k/steel_galv_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_galv_arm",
+     "1k": "1k/steel_galv_arm"
+    }
+   }
+  },
+  "steel_painted": {
+   "source": "Poly Haven",
+   "id": "rusty_painted_metal",
+   "url": "https://polyhaven.com/a/rusty_painted_metal",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Painted Metal",
+   "label": "Painted riveted steel (bridge grey-green)",
+   "files": {
+    "diff": {
+     "2k": "2k/steel_painted_diff",
+     "1k": "1k/steel_painted_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_painted_nor",
+     "1k": "1k/steel_painted_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_painted_arm",
+     "1k": "1k/steel_painted_arm"
+    }
+   }
+  },
+  "timber_grey": {
+   "source": "Poly Haven",
+   "id": "weathered_planks",
+   "url": "https://polyhaven.com/a/weathered_planks",
+   "authors": [
+    "Dario Barresi",
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Planks",
+   "label": "Weathered grey timber",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_grey_diff",
+     "1k": "1k/timber_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_grey_nor",
+     "1k": "1k/timber_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_grey_arm",
+     "1k": "1k/timber_grey_arm"
+    }
+   }
+  }
+ }
+}

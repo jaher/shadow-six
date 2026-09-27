@@ -1,0 +1,6 @@
+dam_house.py a 1
+dam_house.py b 2
+cable_station.py lower 1
+cable_station.py upper 2
+cable_car.py cabin 1
+cable_car.py pylon 2

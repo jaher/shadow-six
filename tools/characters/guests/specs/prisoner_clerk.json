@@ -1,0 +1,104 @@
+{
+ "id": "prisoner_clerk",
+ "notes": "Bible 6.3: young clerk 25, glasses; slight, bare-headed, blanket.",
+ "body": {
+  "age_years": 25,
+  "muscle": 0.3,
+  "weight": 0.3,
+  "proportions": 0.6,
+  "height_m": 1.78,
+  "modifiers": {
+   "head/head-oval": 0.55,
+   "head/head-scale-horiz-decr": 0.3,
+   "cheek/cheek-volume-decr": 0.4,
+   "nose/nose-scale-vert-incr": 0.25,
+   "nose/nose-scale-horiz-decr": 0.35,
+   "chin/chin-prominent-decr": 0.4,
+   "chin/chin-width-decr": 0.4,
+   "mouth/mouth-scale-horiz-decr": 0.2,
+   "mouth/mouth-upperlip-volume-decr": 0.3,
+   "neck/neck-scale-horiz-decr": 0.5,
+   "eyebrows/eyebrows-angle-up": 0.4
+  }
+ },
+ "skin": {
+  "base": "young_caucasian_male",
+  "tint": [
+   1.0,
+   0.96,
+   0.92
+  ],
+  "desat": 0.2,
+  "ruddy": 0.1,
+  "stubble": 0.35,
+  "dirt": 0.45,
+  "bruises": [
+   "cheek_l"
+  ],
+  "seed": 44
+ },
+ "eyes": {
+  "iris": [
+   0.22,
+   0.15,
+   0.1
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow002",
+  "color": [
+   0.12,
+   0.09,
+   0.07
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.17,
+   0.12,
+   0.09
+  ],
+  "length": 0.009,
+  "lower": 0.022
+ },
+ "facial_hair": "none",
+ "glasses": true,
+ "outfit": "civ_clerk",
+ "outfit_opts": {
+  "blanket": [
+   0.36,
+   0.36,
+   0.3
+  ],
+  "blanket_drop": 0.08,
+  "blanket_check": [
+   [
+    0.22,
+    0.24,
+    0.18
+   ],
+   [
+    0.48,
+    0.46,
+    0.38
+   ]
+  ],
+  "blanket_pitch": 0.035
+ },
+ "kit": [
+  "blanket",
+  "tie"
+ ],
+ "headgear": {},
+ "weapon": {
+  "primary": null
+ },
+ "guest": {
+  "key": 7,
+  "mission": 17,
+  "can_crawl": false,
+  "tied_hands_until_freed": true,
+  "group": "m17_prisoners"
+ }
+}

@@ -1,0 +1,132 @@
+{
+ "id": "sergeant_v04",
+ "glb": "sergeant_v04.glb",
+ "bytes": 1192168,
+ "soldierType": "sergeant",
+ "variant": 4,
+ "variety": {
+  "archetype": 12,
+  "archetype_name": "wide-set eyes, flat bridge",
+  "skinTone": "pale_pink",
+  "facialHair": "none",
+  "glasses": false,
+  "age": 33.2,
+  "key": "12|pale_pink|none|0",
+  "extras": []
+ },
+ "silhouette": "peaked cap, Luger, binoculars",
+ "heightM": 1.767,
+ "tris": {
+  "lod0_total": 11650,
+  "LOD0": 10774,
+  "headgear": 684,
+  "brows_alpha": 192,
+  "LOD1": 4999,
+  "LOD2": 2000
+ },
+ "materials": 2,
+ "textures": 4,
+ "meshes": [
+  "base.003",
+  "base.002",
+  "eyebrow003",
+  "base.004",
+  "base.005"
+ ],
+ "sockets": {
+  "weapon_grip_r": "hand_r",
+  "weapon_support_l": "hand_l (two-bone IK to weapon grip_l)",
+  "sling": "spine_03 / clavicle_r",
+  "back": "spine_03",
+  "headgear": "head (mesh \"headgear\", hideable)",
+  "beltZ": 1.061948400735855,
+  "weapon": "luger",
+  "hold": "hand (pistol)",
+  "weapon_sockets": [
+   "grip_r",
+   "grip_l",
+   "butt",
+   "muzzle",
+   "sling_f",
+   "sling_b",
+   "bipod"
+  ]
+ },
+ "headgear": {
+  "type": "officer_cap",
+  "eyes_clear": true,
+  "front_edge_above_brow_m": 0.0159,
+  "auto_lift_m": 0.01,
+  "pushed_verts": 69,
+  "tris": 684,
+  "brow_z": 1.6711,
+  "eye_top_z": 1.673,
+  "extras": [
+   "crown_lifted(10mm)",
+   "peak_rebuilt(droop 24, +3mm)",
+   "badge_seated(-10.2mm)"
+  ],
+  "hair_clamped": 0
+ },
+ "animations": {
+  "library": [
+   "chars/out/anims.glb",
+   "chars/enemies/out/enemy_anims.glb"
+  ],
+  "supported": [
+   "idle",
+   "walk",
+   "run",
+   "sprint",
+   "look_around",
+   "aim",
+   "shoot",
+   "rifle_shoot",
+   "reload",
+   "hit",
+   "hit_head",
+   "knockback",
+   "die",
+   "dead",
+   "surrender",
+   "handsup_held",
+   "talk",
+   "yes",
+   "no",
+   "fold_arms",
+   "crouch_idle",
+   "crouch_walk",
+   "kneel_shoot",
+   "punch",
+   "use",
+   "open",
+   "sit",
+   "sit_enter",
+   "sit_exit",
+   "drive",
+   "salute",
+   "wave",
+   "stand_up",
+   "phone",
+   "climb",
+   "binoculars",
+   "pistol_idle"
+  ],
+  "speedScale": {
+   "walk": 1.0
+  }
+ },
+ "kit": [
+  "belt",
+  "ystraps",
+  "bread_bag",
+  "canteen",
+  "holster_l",
+  "map_case",
+  "binoculars",
+  "tresse"
+ ],
+ "outfit": "heer_m36",
+ "build_s": 13.6,
+ "licence": "CC0: MakeHuman/MPFB system assets (CC0), Quaternius UAL (CC0), ambientCG (CC0); project geometry/code CC0"
+}

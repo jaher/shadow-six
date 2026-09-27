@@ -1,0 +1,73 @@
+{
+ "id": "sergeant_v01",
+ "enemy": {
+  "soldierType": "sergeant",
+  "variant": 1,
+  "archetype": 2,
+  "archetype_name": "broad square, wide jaw",
+  "seed": 1,
+  "skinTone": "light_olive",
+  "facialHair": "stubble"
+ },
+ "body": {
+  "age_years": 28.2,
+  "muscle": 0.685,
+  "weight": 0.524,
+  "proportions": 0.55,
+  "height_m": 1.745,
+  "modifiers": {
+   "head/head-square": 0.98,
+   "chin/chin-width-incr": 0.84,
+   "chin/chin-jaw-drop-incr": 0.42,
+   "neck/neck-scale-horiz-incr": 0.42,
+   "nose/nose-scale-horiz-incr": -0.144,
+   "nose/nose-scale-vert-incr": 0.023,
+   "ears/ear-scale-incr": 0.019,
+   "eyebrows/eyebrows-trans-up": -0.171,
+   "mouth/mouth-lowerlip-volume-incr": -0.097,
+   "cheek/cheek-volume-incr": -0.25
+  }
+ },
+ "skin": {
+  "base": "young_caucasian_male",
+  "tint": [
+   0.97,
+   0.95,
+   0.88
+  ],
+  "ruddy": 0.08,
+  "stubble": 0.45
+ },
+ "brows": {
+  "asset": "eyebrow006",
+  "color": [
+   0.336,
+   0.24,
+   0.144
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.42,
+   0.3,
+   0.18
+  ]
+ },
+ "facial_hair": "none",
+ "glasses": false,
+ "outfit": "heer_m36",
+ "outfit_opts": {},
+ "kit": [
+  "belt",
+  "ystraps",
+  "bread_bag",
+  "canteen"
+ ],
+ "headgear": {
+  "type": "officer_cap"
+ },
+ "weapon": {
+  "primary": "mp40"
+ }
+}

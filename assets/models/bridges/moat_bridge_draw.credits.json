@@ -1,0 +1,192 @@
+{
+ "asset": "moat_bridge_draw",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "ashlar": {
+   "source": "Poly Haven",
+   "id": "stone_block_wall",
+   "url": "https://polyhaven.com/a/stone_block_wall",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Stone Block Wall",
+   "label": "Dressed stone blocks / ashlar (bridges)",
+   "files": {
+    "diff": {
+     "2k": "2k/ashlar_diff",
+     "1k": "1k/ashlar_diff"
+    },
+    "nor": {
+     "2k": "2k/ashlar_nor",
+     "1k": "1k/ashlar_nor"
+    },
+    "arm": {
+     "2k": "2k/ashlar_arm",
+     "1k": "1k/ashlar_arm"
+    }
+   }
+  },
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "cobblestone": {
+   "source": "Poly Haven",
+   "id": "cobblestone_05",
+   "url": "https://polyhaven.com/a/cobblestone_05",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Cobblestone 05",
+   "label": "Cobblestone setts",
+   "files": {
+    "diff": {
+     "2k": "2k/cobblestone_diff",
+     "1k": "1k/cobblestone_diff"
+    },
+    "nor": {
+     "2k": "2k/cobblestone_nor",
+     "1k": "1k/cobblestone_nor"
+    },
+    "arm": {
+     "2k": "2k/cobblestone_arm",
+     "1k": "1k/cobblestone_arm"
+    }
+   }
+  },
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  },
+  "deck_planks": {
+   "source": "Poly Haven",
+   "id": "wood_planks_dirt",
+   "url": "https://polyhaven.com/a/wood_planks_dirt",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Dirt",
+   "label": "Deck / floor planks",
+   "files": {
+    "diff": {
+     "2k": "2k/deck_planks_diff",
+     "1k": "1k/deck_planks_diff"
+    },
+    "nor": {
+     "2k": "2k/deck_planks_nor",
+     "1k": "1k/deck_planks_nor"
+    },
+    "arm": {
+     "2k": "2k/deck_planks_arm",
+     "1k": "1k/deck_planks_arm"
+    }
+   }
+  },
+  "gravel": {
+   "source": "Poly Haven",
+   "id": "gravel_road",
+   "url": "https://polyhaven.com/a/gravel_road",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Gravel Road",
+   "label": "Gravel road",
+   "files": {
+    "diff": {
+     "2k": "2k/gravel_diff",
+     "1k": "1k/gravel_diff"
+    },
+    "nor": {
+     "2k": "2k/gravel_nor",
+     "1k": "1k/gravel_nor"
+    },
+    "arm": {
+     "2k": "2k/gravel_arm",
+     "1k": "1k/gravel_arm"
+    }
+   }
+  },
+  "sandstone_ochre": {
+   "source": "Poly Haven",
+   "id": "sandstone_blocks_04",
+   "url": "https://polyhaven.com/a/sandstone_blocks_04",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Sandstone Blocks 04",
+   "label": "Ochre sandstone ashlar (Zitouna drum/minaret)",
+   "files": {
+    "diff": {
+     "2k": "2k/sandstone_ochre_diff",
+     "1k": "1k/sandstone_ochre_diff"
+    },
+    "nor": {
+     "2k": "2k/sandstone_ochre_nor",
+     "1k": "1k/sandstone_ochre_nor"
+    },
+    "arm": {
+     "2k": "2k/sandstone_ochre_arm",
+     "1k": "1k/sandstone_ochre_arm"
+    }
+   }
+  },
+  "timber_beam": {
+   "source": "Poly Haven",
+   "id": "wood_planks_grey",
+   "url": "https://polyhaven.com/a/wood_planks_grey",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Grey",
+   "label": "Grey structural timber (beams, rafters)",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_beam_diff",
+     "1k": "1k/timber_beam_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_beam_nor",
+     "1k": "1k/timber_beam_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_beam_arm",
+     "1k": "1k/timber_beam_arm"
+    }
+   }
+  }
+ }
+}

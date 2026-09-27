@@ -1,0 +1,113 @@
+{
+ "asset": "cable_car_pylon",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "concrete_bunker": {
+   "source": "Poly Haven",
+   "id": "concrete_wall_008",
+   "url": "https://polyhaven.com/a/concrete_wall_008",
+   "authors": [
+    "Dario Barresi",
+    "Charlotte Baglioni"
+   ],
+   "license": "CC0-1.0",
+   "name": "Concrete Wall 008",
+   "label": "Weathered bunker concrete",
+   "files": {
+    "diff": {
+     "2k": "2k/concrete_bunker_diff",
+     "1k": "1k/concrete_bunker_diff"
+    },
+    "nor": {
+     "2k": "2k/concrete_bunker_nor",
+     "1k": "1k/concrete_bunker_nor"
+    },
+    "arm": {
+     "2k": "2k/concrete_bunker_arm",
+     "1k": "1k/concrete_bunker_arm"
+    }
+   }
+  },
+  "steel_galv": {
+   "source": "Poly Haven",
+   "id": "rusty_painted_metal",
+   "url": "https://polyhaven.com/a/rusty_painted_metal",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Painted Metal",
+   "label": "Bare / galvanized steel (derived)",
+   "files": {
+    "diff": {
+     "2k": "2k/steel_galv_diff",
+     "1k": "1k/steel_galv_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_galv_nor",
+     "1k": "1k/steel_galv_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_galv_arm",
+     "1k": "1k/steel_galv_arm"
+    }
+   }
+  },
+  "steel_painted": {
+   "source": "Poly Haven",
+   "id": "rusty_painted_metal",
+   "url": "https://polyhaven.com/a/rusty_painted_metal",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Painted Metal",
+   "label": "Painted riveted steel (bridge grey-green)",
+   "files": {
+    "diff": {
+     "2k": "2k/steel_painted_diff",
+     "1k": "1k/steel_painted_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_painted_nor",
+     "1k": "1k/steel_painted_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_painted_arm",
+     "1k": "1k/steel_painted_arm"
+    }
+   }
+  }
+ },
+ "norway_notes": [
+  "Geometry: procedural Blender script norway/scripts/cable_car.py (SHADOW SIX Norway group, own work, CC0).",
+  "Rework 1 (art director pass): shared helpers norway/scripts/nfx.py; procedural textures roof_pantile_black, tar_paper, turf_grass (from Poly Haven sparse_grass, CC0), log_hewn, board_batten, mesh_screen made by norway/tools/make_nor_tex.py (own work, CC0).",
+  "Rework 2 (art director pass 2): helpers norway/scripts/nfx2.py (+ sentry_box.py); procedural textures tar_paper_batten, weatherboard_paint, boards_weathered, paint_metal and the re-laid roof_pantile_black made by norway/tools/make_nor_tex2.py (own work, CC0). All other maps: see \"textures\" (CC0).",
+  "Reference photos (internal comparison only, not shipped): scratchpad/art/refs/norway/refs.md (Wikimedia Commons)."
+ ]
+}

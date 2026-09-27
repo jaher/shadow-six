@@ -1,0 +1,72 @@
+"""Catalogue mapping: prop type -> asset base names (intact, non-snow). Variants (_snow, destroyed) attach automatically."""
+# source: 'architecture' = ARCHITECTURE.md prop catalogue, 'spec' = design-spec §7.7, 'extra' = new kit types
+TYPES = {
+    # ---- ARCHITECTURE catalogue
+    'barracks': ('architecture', ['barracks_a', 'barracks_b', 'barracks_c', 'barracks_desert_a', 'barracks_desert_b']),
+    'house': ('architecture', ['house_timber_a', 'house_timber_b', 'house_timber_c', 'farmhouse_normandy_a',
+                               'farmhouse_normandy_b', 'farmhouse_normandy_c', 'house_halftimber_a', 'house_halftimber_b',
+                               'house_halftimber_c', 'townhouse_row_a', 'townhouse_row_b', 'townhouse_row_c',
+                               'shop_front_a', 'shop_front_b', 'shop_front_c', 'house_adobe_a', 'house_adobe_b',
+                               'house_adobe_c', 'house_flat_white_a', 'house_flat_white_b', 'house_flat_white_c',
+                               'compound_courtyard_a', 'compound_courtyard_b']),
+    'hut': ('architecture', ['guard_hut_a', 'guard_hut_b', 'log_cabin_a', 'log_cabin_b', 'fishing_shed_a', 'fishing_shed_b']),
+    'bunker': ('architecture', ['bunker', 'bunker_desert', 'mg_nest', 'mg_nest_desert']),
+    'watchtower': ('architecture', ['watchtower', 'watchtower_desert']),
+    'wall': ('architecture', ['garden_wall_a', 'garden_wall_b', 'garden_wall_c', 'wall_octagon_seg', 'wall_octagon_corner',
+                              'castle_wall', 'castle_wall_stair']),
+    'fence': ('architecture', ['stockade_fence', 'stockade_fence_desert']),
+    'gate': ('architecture', ['stockade_gate', 'stockade_gate_desert', 'wall_octagon_gate', 'castle_gate']),
+    'bridge': ('architecture', ['bridge_stone_arch1_a', 'bridge_stone_arch1_b', 'bridge_stone_arch3_a', 'bridge_stone_arch3_b',
+                                'bridge_stone_arch5_a', 'bridge_timber_road', 'bridge_truss_maas', 'footbridge_arch',
+                                'footbridge_plank', 'moat_bridge_fixed', 'moat_bridge_draw', 'bridge_rail_trestle',
+                                'bridge_bascule_double', 'bridge_lift_lever']),
+    'pier': ('architecture', ['jetty_timber_small', 'pier_timber_t']),
+    'dam': ('architecture', ['dam_arch']),
+    'ruins': ('architecture', ['house_bombed_a', 'house_bombed_b']),   # + every destroyed variant (added automatically)
+    'hangar': ('architecture', ['hangar', 'hangar_a']),
+    'well': ('architecture', ['well_desert_a', 'well_desert_b']),
+    'tent': ('architecture', ['tent_command']),
+    'fueltank': ('architecture', ['fuel_depot']),
+    # ---- design-spec §7.7 structures
+    'villa': ('spec', ['villa_hq', 'villa_hq_b']),
+    'rail_bridge': ('spec', ['bridge_rail_trestle']),
+    'cable_car': ('spec', ['cable_car_cabin', 'cable_car_pylon', 'cable_station_lower', 'cable_station_upper']),
+    'uboat_pen': ('spec', ['uboat_pen']),
+    'lighthouse': ('spec', ['lighthouse', 'lighthouse_b']),
+    'drilling_rig': ('spec', ['drilling_rig']),
+    'mosque': ('spec', ['mosque_tunis']),
+    'minaret': ('spec', ['minaret_tunis']),
+    'flat_roof_house': ('spec', ['house_flat_white_a', 'house_flat_white_b', 'house_flat_white_c', 'compound_courtyard_a',
+                                 'compound_courtyard_b']),
+    'lock_gate': ('spec', ['lock_gates', 'lock_gates_open']),
+    'control_shack': ('spec', ['dam_house_a', 'dam_house_b', 'guard_hut_a']),
+    'casemate_gun': ('spec', ['casemate', 'casemate_camo']),
+    'cemetery': ('spec', ['cemetery_a', 'cemetery_b']),
+    'truss_bridge': ('spec', ['bridge_truss_maas']),
+    'mobile_bridge': ('spec', ['bridge_bascule_double', 'bridge_lift_lever']),
+    'watermill': ('spec', ['watermill_a', 'watermill_b']),
+    'launch_pad': ('spec', ['v2_pad', 'v2_pad_test']),
+    'castle_wall': ('spec', ['castle_wall', 'castle_wall_moat', 'castle_wall_stair', 'castle_tower', 'castle_tower_moat']),
+    'castle_gate': ('spec', ['castle_gate']),
+    'moat': ('spec', ['castle_wall_moat', 'castle_tower_moat', 'moat_bridge_draw', 'moat_bridge_fixed']),
+    'firing_range': ('spec', ['firing_range', 'firing_range_b']),
+    'water_gate': ('spec', ['lock_gates', 'lock_gates_open']),
+    # ---- extra kit types (not in either list yet)
+    'barn': ('extra', ['barn_a', 'barn_b']),
+    'boathouse': ('extra', ['naust_a', 'naust_b']),
+    'drying_rack': ('extra', ['drying_rack_a', 'drying_rack_b']),
+    'radar': ('extra', ['radar_dish_a', 'radar_building_a']),
+    'dam_house': ('extra', ['dam_house_a', 'dam_house_b']),
+    'church': ('extra', ['church_village_a', 'church_village_b']),
+    'station': ('extra', ['station_rail_a', 'station_rail_b', 'station_rail_goods']),
+    'windmill': ('extra', ['mill_old_a', 'mill_old_b']),
+    'castle_tower': ('extra', ['castle_tower', 'castle_tower_moat']),
+    'wall_octagon': ('extra', ['wall_octagon_seg', 'wall_octagon_corner', 'wall_octagon_gate']),
+}
+
+# explicit destroyed -> intact links whose names do not follow the _destroyed / _ruin rule
+DESTROYED_OF = {'barracks_ad': 'barracks_a', 'barracks_cd': 'barracks_c', 'radar_building_ad': 'radar_building_a',
+                'radar_dish_ad': 'radar_dish_a', 'wall_octagon_breach': 'wall_octagon_seg'}
+THEATERS = {'temperate': ['temperate', 'night'], 'coast': ['coast', 'temperate', 'night'],
+            'frost': ['temperate', 'coast', 'night'], 'snow': ['snow'], 'desert': ['desert']}
+REGION = {'norway': 'norway', 'desert': 'north_africa', 'europe': 'western_europe', 'military': None, 'bridges': None}

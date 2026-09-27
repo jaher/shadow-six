@@ -1,0 +1,126 @@
+{
+ "budget": {
+  "lod0": 11800,
+  "lod1": 5000,
+  "lod2": 2000
+ },
+ "id": "winter_v04",
+ "enemy": {
+  "soldierType": "winter",
+  "variant": 4,
+  "archetype": 2,
+  "archetype_name": "broad square, wide jaw",
+  "seed": 1,
+  "skinTone": "fair_ruddy",
+  "facialHair": "moustache",
+  "glasses": false,
+  "age": 24.3,
+  "extras": [],
+  "key": "2|fair_ruddy|moustache|0",
+  "silhouette": "white snow smock, white-washed helmet"
+ },
+ "body": {
+  "age_years": 24.3,
+  "muscle": 0.494,
+  "weight": 0.547,
+  "proportions": 0.55,
+  "height_m": 1.75,
+  "modifiers": {
+   "head/head-square": 1.19,
+   "chin/chin-width-incr": 1.0,
+   "chin/chin-jaw-drop-incr": 0.51,
+   "neck/neck-scale-horiz-incr": 0.771,
+   "nose/nose-scale-horiz-incr": -0.059,
+   "nose/nose-scale-vert-incr": 0.13,
+   "ears/ear-scale-incr": -0.245,
+   "eyebrows/eyebrows-trans-up": 0.018,
+   "mouth/mouth-lowerlip-volume-incr": -0.153,
+   "cheek/cheek-volume-incr": 0.131,
+   "head/head-scale-horiz-incr": 0.578,
+   "head/head-scale-vert-incr": -0.75,
+   "head/head-scale-depth-incr": 0.118,
+   "nose/nose-scale-depth-incr": 0.593,
+   "mouth/mouth-scale-horiz-incr": 0.239,
+   "eyes/eye-scale-incr": -0.338,
+   "eyes/eye-trans-out": -0.246,
+   "eyes/eye-trans-up": -0.75,
+   "chin/chin-height-incr": 0.387,
+   "chin/chin-prominent-incr": 0.008,
+   "ears/ear-flap-incr": 0.75,
+   "eyebrows/eyebrows-angle-up": 0.204,
+   "cheek/cheek-bones-incr": 0.394,
+   "forehead/forehead-scale-vert-incr": 0.245,
+   "mouth/mouth-upperlip-height-incr": -0.163,
+   "nose/nose-width2-incr": -0.165,
+   "mouth-depression": 0.399,
+   "nose-left-elevation": 0.39
+  }
+ },
+ "skin": {
+  "base": "young_caucasian_male",
+  "tint": [
+   1.054,
+   0.956,
+   0.884
+  ],
+  "ruddy": 0.45,
+  "stubble": 0.2,
+  "complexion": {
+   "freckles": 0.76,
+   "moles": 2,
+   "scar": false,
+   "lines": 0.23,
+   "seed": 31
+  }
+ },
+ "eyes": {
+  "iris": [
+   0.36,
+   0.5,
+   0.66
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow009",
+  "color": [
+   0.336,
+   0.24,
+   0.144
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.42,
+   0.3,
+   0.18
+  ]
+ },
+ "facial_hair": "moustache",
+ "glasses": false,
+ "outfit": "winter_smock",
+ "outfit_opts": {
+  "tint_mul": [
+   0.93,
+   0.953,
+   0.975
+  ],
+  "wear": 0.402
+ },
+ "kit": [
+  "belt",
+  "ammo_pouches"
+ ],
+ "headgear": {
+  "type": "m35",
+  "color": [
+   0.8,
+   0.81,
+   0.78
+  ],
+  "wear": 0.6
+ },
+ "weapon": {
+  "primary": "kar98k"
+ }
+}

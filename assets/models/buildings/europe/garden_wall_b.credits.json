@@ -1,0 +1,92 @@
+{
+ "asset": "garden_wall_b",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "ashlar_limestone": {
+   "source": "Poly Haven",
+   "id": "white_sandstone_blocks_02",
+   "url": "https://polyhaven.com/a/white_sandstone_blocks_02",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "White Sandstone Blocks 02",
+   "label": "Pale limestone ashlar (Caen stone)",
+   "files": {
+    "diff": {
+     "2k": "2k/ashlar_limestone_diff",
+     "1k": "1k/ashlar_limestone_diff"
+    },
+    "nor": {
+     "2k": "2k/ashlar_limestone_nor",
+     "1k": "1k/ashlar_limestone_nor"
+    },
+    "arm": {
+     "2k": "2k/ashlar_limestone_arm",
+     "1k": "1k/ashlar_limestone_arm"
+    }
+   }
+  },
+  "brick_red": {
+   "source": "Poly Haven",
+   "id": "red_brick_03",
+   "url": "https://polyhaven.com/a/red_brick_03",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Red Brick 03",
+   "label": "Red brick",
+   "files": {
+    "diff": {
+     "2k": "2k/brick_red_diff",
+     "1k": "1k/brick_red_diff"
+    },
+    "nor": {
+     "2k": "2k/brick_red_nor",
+     "1k": "1k/brick_red_nor"
+    },
+    "arm": {
+     "2k": "2k/brick_red_arm",
+     "1k": "1k/brick_red_arm"
+    }
+   }
+  },
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  }
+ }
+}

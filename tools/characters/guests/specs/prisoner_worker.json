@@ -1,0 +1,104 @@
+{
+ "id": "prisoner_worker",
+ "notes": "Bible 6.3: middle-aged worker, 40s, blue work jacket; bare-headed, heavy stubble, blanket.",
+ "body": {
+  "age_years": 44,
+  "muscle": 0.7,
+  "weight": 0.62,
+  "proportions": 0.5,
+  "height_m": 1.71,
+  "modifiers": {
+   "head/head-square": 0.55,
+   "head/head-fat": 0.35,
+   "neck/neck-scale-horiz-incr": 0.5,
+   "nose/nose-scale-horiz-incr": 0.5,
+   "nose/nose-hump-incr": 0.3,
+   "nose/nose-flaring-incr": 0.4,
+   "chin/chin-width-incr": 0.5,
+   "eyebrows/eyebrows-trans-down": 0.5,
+   "eyes/eye-scale-decr": 0.2,
+   "mouth/mouth-lowerlip-volume-incr": 0.4,
+   "mouth/mouth-laugh-lines-out": 0.5,
+   "forehead/forehead-scale-vert-decr": 0.3
+  }
+ },
+ "skin": {
+  "base": "middleage_caucasian_male",
+  "tint": [
+   1.02,
+   0.93,
+   0.86
+  ],
+  "ruddy": 0.35,
+  "stubble": 0.75,
+  "dirt": 0.65,
+  "bruises": [
+   "brow_l",
+   "lip"
+  ],
+  "seed": 42
+ },
+ "eyes": {
+  "iris": [
+   0.24,
+   0.16,
+   0.1
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow009",
+  "color": [
+   0.1,
+   0.08,
+   0.06
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.11,
+   0.09,
+   0.07
+  ],
+  "length": 0.008,
+  "recede": 0.02,
+  "grey_temples": 0.3
+ },
+ "facial_hair": "none",
+ "outfit": "civ_work",
+ "outfit_opts": {
+  "blanket": [
+   0.42,
+   0.36,
+   0.28
+  ],
+  "blanket_drop": 0.0,
+  "blanket_check": [
+   [
+    0.25,
+    0.2,
+    0.16
+   ],
+   [
+    0.6,
+    0.52,
+    0.4
+   ]
+  ],
+  "blanket_pitch": 0.06
+ },
+ "kit": [
+  "blanket"
+ ],
+ "headgear": {},
+ "weapon": {
+  "primary": null
+ },
+ "guest": {
+  "key": 7,
+  "mission": 17,
+  "can_crawl": false,
+  "tied_hands_until_freed": true,
+  "group": "m17_prisoners"
+ }
+}

@@ -1,0 +1,32 @@
+{
+ "size": 512,
+ "layers": [
+  "oak_0",
+  "oak_1",
+  "beech_0",
+  "beech_1",
+  "birch_0",
+  "birch_1",
+  "poplar_0",
+  "poplar_1",
+  "plane_0",
+  "plane_1",
+  "olive_0",
+  "olive_1",
+  "hedge_0",
+  "hedge_1",
+  "scrub_0",
+  "scrub_1",
+  "spruce_0",
+  "spruce_1",
+  "fir_0",
+  "fir_1",
+  "pine_0",
+  "pine_1",
+  "palm_0",
+  "palm_1",
+  "palmdry_0",
+  "palmdry_1"
+ ],
+ "sources": "ambientCG LeafSet004/010/013/022/024/030, PineNeedles001 (CC0); palm fronds procedural"
+}

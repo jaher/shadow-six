@@ -1,0 +1,96 @@
+/* SHADOW SIX — base layout, loading and title screens. HUD panels live in styles/ui.css (UI owner). */
+:root {
+  --ink: #e8e2d0;
+  --ink-dim: #a9a18a;
+  --paper: #14130f;
+  --olive: #4d5a2c;
+  --olive-hi: #7d8c47;
+  --brass: #c9a24a;
+  --danger: #b8392b;
+  --font-ui: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-stencil: "Stencil", "Impact", "Arial Black", sans-serif;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  color: var(--ink);
+  font: 14px/1.4 var(--font-ui);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#app { position: fixed; inset: 0; }
+
+#view { position: absolute; inset: 0; }
+#view canvas { display: block; width: 100%; height: 100%; outline: none; touch-action: none; }
+
+/* The HUD root never eats clicks; its panels opt back in with pointer-events: auto. */
+#hud { position: absolute; inset: 0; pointer-events: none; }
+
+.screen {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at 50% 40%, #2a2a20 0%, #0d0d0a 70%);
+  z-index: 20;
+}
+.screen[hidden] { display: none; }
+/* The `hidden` attribute must win over component display rules (e.g. .hud-overlay is display:flex). */
+[hidden] { display: none !important; }
+
+.brand {
+  font-family: var(--font-stencil);
+  letter-spacing: 0.18em;
+  font-size: clamp(32px, 6vw, 72px);
+  color: var(--brass);
+  text-shadow: 0 2px 0 #000, 0 0 24px rgba(201, 162, 74, 0.25);
+  margin: 0;
+}
+
+.loading-box { width: min(520px, 80vw); text-align: center; }
+.loading-bar { margin: 24px 0 8px; height: 6px; background: #2b2a22; border: 1px solid #3c3a2e; }
+.loading-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--olive), var(--brass)); transition: width 0.15s; }
+.loading-text { color: var(--ink-dim); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
+
+.title-box { text-align: center; max-width: 720px; padding: 24px; }
+.tagline { color: var(--ink-dim); letter-spacing: 0.3em; text-transform: uppercase; font-size: 12px; margin: 8px 0 36px; }
+.title-menu { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.title-menu button, .btn {
+  min-width: 280px;
+  padding: 10px 18px;
+  font: 600 14px var(--font-ui);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: linear-gradient(#3f4a24, #2c3418);
+  border: 1px solid #6d7a3e;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.title-menu button:hover, .btn:hover { background: linear-gradient(#56632f, #39431f); border-color: var(--brass); }
+.title-menu button:focus-visible, .btn:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+.title-menu .sub { font-size: 11px; color: var(--ink-dim); text-transform: none; letter-spacing: 0.02em; display: block; font-weight: 400; }
+.disclaimer { margin-top: 48px; color: #77705d; font-size: 11px; }
+
+.noscript { position: absolute; top: 40%; width: 100%; text-align: center; }
+
+/* Cursors set by the input/targeting system (body[data-cursor]). */
+body[data-cursor="target"] #view canvas, body[data-cursor="knife"] #view canvas { cursor: crosshair; }
+body[data-cursor="forbidden"] #view canvas { cursor: not-allowed; }
+body[data-cursor="move"] #view canvas { cursor: default; }
+body[data-cursor="pan"] #view canvas { cursor: grabbing; }
+body[data-cursor="hand"] #view canvas { cursor: pointer; }
+
+/* Drag-box selection rectangle (drawn by engine/input.js). */
+.select-box {
+  position: absolute;
+  border: 1px solid rgba(214, 238, 150, 0.9);
+  background: rgba(160, 200, 90, 0.12);
+  pointer-events: none;
+  z-index: 5;
+}

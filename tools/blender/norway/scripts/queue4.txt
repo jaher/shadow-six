@@ -1,0 +1,10 @@
+barracks.py ad 74 snow
+barracks.py a 71 snow
+dam_house.py a 111 snow
+radar_dish.py ad 92 snow
+barn.py a 31 snow
+cable_station.py upper 122 snow
+barn.py a 31
+barn.py b 32
+cable_station.py upper 122
+radar_dish.py ad 92

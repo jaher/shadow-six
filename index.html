@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SHADOW SIX</title>
+  <meta name="description" content="SHADOW SIX: an unofficial, non-commercial fan tribute to Commandos: Behind Enemy Lines (1998). Not affiliated with Pyro Studios, Eidos, Square Enix or Kalypso Media.">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="styles/base.css">
+  <link rel="stylesheet" href="styles/ui.css" data-ui-css="1">
+  <link rel="preload" href="assets/fonts/Anton-Regular.ttf" as="font" type="font/ttf" crossorigin>
+  <link rel="preload" href="assets/fonts/Oswald-VF.ttf" as="font" type="font/ttf" crossorigin>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three.module.js",
+      "three/addons/": "./vendor/addons/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <div id="view" aria-label="Game view"></div>
+    <div id="hud" aria-live="polite"></div>
+
+    <section id="loading" class="screen">
+      <div class="loading-box">
+        <div class="brand">SHADOW SIX</div>
+        <div class="loading-bar"><div class="loading-fill" id="loading-fill"></div></div>
+        <div class="loading-text" id="loading-text">Loading…</div>
+      </div>
+    </section>
+
+    <section id="title" class="screen" hidden>
+      <div class="title-box">
+        <h1 class="brand">SHADOW SIX</h1>
+        <p class="tagline">Six specialists. Behind enemy lines.</p>
+        <nav class="title-menu" id="title-menu" aria-label="Main menu"></nav>
+        <p class="disclaimer">SHADOW SIX is an unofficial, non-commercial fan tribute to <em>Commandos: Behind Enemy Lines</em>
+          (Pyro Studios / Eidos Interactive, 1998). It is not affiliated with, endorsed by or connected to Pyro Studios,
+          Eidos, Square Enix or Kalypso Media. 'Commandos' is a trademark of its owner. No assets from the original game
+          are used; all art, audio and code are original or CC0/redistributable (see CREDITS.md).</p>
+      </div>
+    </section>
+
+    <noscript><p class="noscript">SHADOW SIX needs JavaScript and WebGL 2.</p></noscript>
+  </div>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

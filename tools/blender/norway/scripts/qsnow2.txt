@@ -1,0 +1,3 @@
+barracks.py ad 74 snow
+barracks.py cd 75 snow
+radar_dish.py a 91 snow

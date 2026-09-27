@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600">
+<!-- SHADOW SIX title key art, layer 3: one hero, frontal, eyes to camera, pistol held ready across the body
+     (docs/menus-art-direction.md S03 + amendment A5). A back-lit silhouette: the burning emplacement behind him
+     paints a hot rim on his right, the night sky a cold rim on his left. Drawn for SHADOW SIX. -->
+<defs>
+  <linearGradient id="body" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#0d0e0b"/><stop offset=".55" stop-color="#11110d"/><stop offset=".86" stop-color="#1c140c"/><stop offset="1" stop-color="#3a1d0b"/>
+  </linearGradient>
+  <linearGradient id="skin" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#15110d"/><stop offset=".5" stop-color="#1e1711"/><stop offset=".8" stop-color="#4a2512"/><stop offset="1" stop-color="#a24d1c"/>
+  </linearGradient>
+  <linearGradient id="hot" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#ffcf7a"/><stop offset=".5" stop-color="#f08a2c"/><stop offset="1" stop-color="#b8461a" stop-opacity=".2"/>
+  </linearGradient>
+  <linearGradient id="cold" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#8fa2b4" stop-opacity=".75"/><stop offset="1" stop-color="#46525e" stop-opacity="0"/>
+  </linearGradient>
+  <radialGradient id="glow" cx=".78" cy=".35" r=".55">
+    <stop offset="0" stop-color="#ff8a2a" stop-opacity=".22"/><stop offset="1" stop-color="#ff8a2a" stop-opacity="0"/>
+  </radialGradient>
+  <filter id="soft" x="-5%" y="-5%" width="110%" height="110%"><feGaussianBlur stdDeviation="1.1"/></filter>
+  <filter id="blur4"><feGaussianBlur stdDeviation="4"/></filter>
+</defs>
+
+<!-- torso, shoulders, upper arms: battledress blouse under webbing -->
+<path id="torso" d="M14 600 C18 470 30 352 76 318 C108 294 150 284 172 274 L200 282 L228 274 C250 284 292 294 324 318 C370 352 382 470 386 600 Z" fill="url(#body)"/>
+<!-- collar and open neck -->
+<path d="M170 262 L186 300 L200 284 L214 300 L230 262 L222 276 L200 282 L178 276 Z" fill="#161410"/>
+<!-- neck -->
+<path d="M166 210 C166 238 162 258 158 272 L200 290 L242 272 C238 258 234 238 234 210 Z" fill="url(#skin)"/>
+<!-- webbing braces and a pouch -->
+<path d="M126 300 L164 600 M274 300 L240 600" stroke="#0a0a08" stroke-width="18"/>
+<path d="M126 300 L164 600" stroke="#2c2a20" stroke-width="1.6" opacity=".7"/>
+<path d="M274 300 L240 600" stroke="#c0622a" stroke-width="2.2" opacity=".75"/>
+<rect x="244" y="470" width="44" height="54" rx="4" fill="#0b0b09" stroke="#7a3a16" stroke-width="1.5" stroke-opacity=".6"/>
+
+<!-- head: jaw, ears, face planes -->
+<path d="M152 140 C150 96 176 78 200 78 C226 78 250 96 248 140 C247 170 240 196 226 212 C216 222 208 226 200 226 C192 226 184 222 174 212 C160 196 153 170 152 140 Z" fill="url(#skin)"/>
+<path d="M150 138 C141 136 139 152 146 164 C149 170 153 170 155 166 Z" fill="#17120e"/>
+<path d="M250 138 C259 136 262 152 255 164 C252 170 248 170 245 166 Z" fill="#8a3f16"/>
+<!-- brow shadow, nose, eyes to camera (warm catchlights), mouth set hard -->
+<path d="M164 128 C176 120 190 121 196 128 L196 134 C188 130 176 130 166 136 Z" fill="#0b0907"/>
+<path d="M204 128 C212 121 226 120 236 128 L234 136 C224 130 212 130 204 134 Z" fill="#0b0907"/>
+<ellipse cx="180" cy="140" rx="9" ry="4.2" fill="#0a0806"/><ellipse cx="220" cy="140" rx="9" ry="4.2" fill="#0a0806"/>
+<circle cx="183" cy="139" r="1.6" fill="#f3b36a"/><circle cx="223" cy="139" r="1.6" fill="#ffcf8a"/>
+<path d="M200 136 L196 170 C198 174 204 174 208 171" fill="none" stroke="#3a1e0e" stroke-width="2.4" stroke-linecap="round"/>
+<path d="M208 171 L214 170" stroke="#b25a22" stroke-width="1.6" opacity=".7"/>
+<path d="M184 192 C194 189 208 189 218 192" fill="none" stroke="#0a0806" stroke-width="3" stroke-linecap="round"/>
+<path d="M226 150 C234 170 232 196 222 208" fill="none" stroke="#c96a2a" stroke-width="2.2" opacity=".55" filter="url(#soft)"/>
+<!-- stubble shadow on the jaw -->
+<path d="M166 180 C172 206 188 222 200 224 C212 222 228 206 234 180 C226 200 214 212 200 213 C186 212 174 200 166 180 Z" fill="#0c0a08" opacity=".55"/>
+
+<!-- green beret, pulled right, cap badge -->
+<path d="M146 112 C142 84 172 60 214 62 C250 64 272 80 274 100 C276 112 262 118 250 116 C236 104 190 100 160 116 C152 120 147 118 146 112 Z" fill="#17230f"/>
+<path d="M150 116 C176 104 220 100 250 114" fill="none" stroke="#0a0f07" stroke-width="5" stroke-linecap="round"/>
+<path d="M214 62 C250 64 272 80 274 100" fill="none" stroke="url(#hot)" stroke-width="3" opacity=".8"/>
+<path d="M164 90 L172 84 L178 92 L170 98 Z" fill="#8a6a2a"/>
+
+<!-- the ready arm: forearm across the body, fist at the sternum, pistol angled up-left (not at the viewer) -->
+<path d="M332 430 C318 410 290 404 262 410 L196 424 C184 428 180 446 190 454 C200 462 214 460 226 456 L290 446 C312 452 330 452 340 446 Z" fill="#0f0f0c"/>
+<path d="M290 404 C312 404 330 416 338 440" fill="none" stroke="#e07a2a" stroke-width="3" opacity=".8" filter="url(#soft)"/>
+<path d="M186 428 C176 432 172 450 182 460 C194 468 212 464 218 452 C222 440 214 426 200 424 Z" fill="#1d1510"/>
+<path d="M214 432 C220 438 220 450 214 458" fill="none" stroke="#b25a22" stroke-width="2" opacity=".7"/>
+<!-- pistol: slide, grip, muzzle pointing up-left -->
+<path d="M190 432 L124 372 L136 360 L204 420 Z" fill="#070707"/>
+<path d="M136 360 L204 420" stroke="#6a6a64" stroke-width="1.2" opacity=".6"/>
+<path d="M188 436 L178 452 L192 462 L204 440 Z" fill="#0a0a0a"/>
+<path d="M124 372 L130 366" stroke="#ffcf7a" stroke-width="1.4" opacity=".5"/>
+
+<!-- rim light: hot from the fire (right), cold from the sky (left) -->
+<path d="M248 140 C247 170 240 196 226 212 M242 272 C250 284 292 294 324 318 C370 352 382 470 386 600" fill="none" stroke="url(#hot)" stroke-width="4" stroke-linecap="round" filter="url(#soft)"/>
+<path d="M248 96 C252 110 250 128 248 140" fill="none" stroke="#f0a050" stroke-width="2.5" opacity=".7" filter="url(#soft)"/>
+<path d="M152 140 C150 110 160 90 176 82 M158 272 C150 284 108 294 76 318 C30 352 18 470 14 600" fill="none" stroke="url(#cold)" stroke-width="2.5" filter="url(#soft)"/>
+
+</svg>

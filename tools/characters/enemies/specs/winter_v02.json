@@ -1,0 +1,130 @@
+{
+ "budget": {
+  "lod0": 11800,
+  "lod1": 5000,
+  "lod2": 2000
+ },
+ "id": "winter_v02",
+ "enemy": {
+  "soldierType": "winter",
+  "variant": 2,
+  "archetype": 15,
+  "archetype_name": "boyish, smooth (teen conscript)",
+  "seed": 1,
+  "skinTone": "pale_pink",
+  "facialHair": "moustache",
+  "glasses": true,
+  "age": 20,
+  "extras": [],
+  "key": "15|pale_pink|moustache|1",
+  "silhouette": "white snow smock, white-washed helmet"
+ },
+ "body": {
+  "age_years": 20,
+  "muscle": 0.643,
+  "weight": 0.564,
+  "proportions": 0.55,
+  "height_m": 1.759,
+  "modifiers": {
+   "head/head-age-decr": 1.1,
+   "head/head-round": 0.51,
+   "nose/nose-scale-vert-decr": 0.34,
+   "chin/chin-prominent-decr": 0.51,
+   "nose/nose-scale-horiz-incr": 0.151,
+   "nose/nose-scale-vert-incr": -0.003,
+   "ears/ear-scale-incr": 0.075,
+   "eyebrows/eyebrows-trans-up": 0.094,
+   "mouth/mouth-lowerlip-volume-incr": 0.235,
+   "cheek/cheek-volume-incr": -0.103,
+   "head/head-scale-horiz-incr": -0.155,
+   "head/head-scale-vert-incr": -0.316,
+   "head/head-scale-depth-incr": -0.25,
+   "nose/nose-scale-depth-incr": -0.481,
+   "mouth/mouth-scale-horiz-incr": 0.063,
+   "eyes/eye-scale-incr": -0.157,
+   "eyes/eye-trans-out": -0.489,
+   "eyes/eye-trans-up": -0.14,
+   "chin/chin-height-incr": 0.75,
+   "chin/chin-width-incr": 0.132,
+   "chin/chin-prominent-incr": -0.072,
+   "ears/ear-flap-incr": 0.184,
+   "eyebrows/eyebrows-angle-up": -0.588,
+   "cheek/cheek-bones-incr": 0.75,
+   "forehead/forehead-scale-vert-incr": -0.585,
+   "neck/neck-scale-horiz-incr": -0.205,
+   "mouth/mouth-upperlip-height-incr": -0.299,
+   "nose/nose-width2-incr": -0.223,
+   "eyebrows-left-inner-up": 0.314,
+   "eyebrows-right-inner-up": 0.288,
+   "eye-left-opened-up": 0.449,
+   "eye-right-opened-up": 0.377
+  }
+ },
+ "skin": {
+  "base": "young_caucasian_male",
+  "tint": [
+   1.031,
+   0.976,
+   0.941
+  ],
+  "ruddy": 0.3,
+  "stubble": 0.2,
+  "complexion": {
+   "freckles": 0.07,
+   "moles": 2,
+   "scar": false,
+   "lines": 0.03,
+   "seed": 17
+  }
+ },
+ "eyes": {
+  "iris": [
+   0.3,
+   0.42,
+   0.58
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow003",
+  "color": [
+   0.496,
+   0.4,
+   0.24
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.62,
+   0.5,
+   0.3
+  ]
+ },
+ "facial_hair": "moustache",
+ "glasses": true,
+ "outfit": "winter_smock",
+ "outfit_opts": {
+  "tint_mul": [
+   1.02,
+   1.047,
+   1.074
+  ],
+  "wear": 0.195
+ },
+ "kit": [
+  "belt",
+  "ammo_pouches"
+ ],
+ "headgear": {
+  "type": "m35",
+  "color": [
+   0.8,
+   0.81,
+   0.78
+  ],
+  "wear": 0.87
+ },
+ "weapon": {
+  "primary": "kar98k"
+ }
+}

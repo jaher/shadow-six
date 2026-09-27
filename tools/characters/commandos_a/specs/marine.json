@@ -1,0 +1,113 @@
+{
+ "id": "marine",
+ "notes": "Bible 1.3 + V.2 item 7: apparent 30-34 (age 0.555), long narrow face, heavy dark stubble, black knit watch cap with rolled cuff, navy roll-neck jumper, dark trousers, diving mask on the chest; darkest silhouette",
+ "body": {
+  "age_years": 32,
+  "muscle": 0.7,
+  "weight": 0.45,
+  "proportions": 0.85,
+  "height_m": 1.81,
+  "modifiers": {
+   "head/head-oval": 0.5,
+   "cheek/cheek-volume-decr": 0.5,
+   "chin/chin-width-decr": 0.4,
+   "chin/chin-prominent-incr": 0.2,
+   "nose/nose-scale-vert-incr": 0.3,
+   "nose/nose-scale-horiz-decr": 0.3,
+   "eyebrows/eyebrows-angle-down": 0.4,
+   "forehead/forehead-nubian-incr": 0.3,
+   "eyes/eye-height2-decr": 0.2,
+   "mouth/mouth-scale-horiz-incr": 0.1,
+   "torso/torso-vshape-incr": 0.5,
+   "hip/hip-scale-horiz-decr": 0.3,
+   "head/head-invertedtriangular": 0.3,
+   "eyes/eye-push1-in": 0.3,
+   "eyes/eye-bag-incr": 0.35
+  }
+ },
+ "skin": {
+  "base": "young_caucasian_male",
+  "blend": {
+   "base": "middleage_caucasian_male",
+   "f": 0.3
+  },
+  "tint": [
+   1.02,
+   0.91,
+   0.79
+  ],
+  "ruddy": 0.12,
+  "stubble": 1.0,
+  "under_eye": 0.45
+ },
+ "eyes": {
+  "iris": [
+   0.24,
+   0.15,
+   0.08
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow008",
+  "color": [
+   0.04,
+   0.035,
+   0.03
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.045,
+   0.04,
+   0.035
+  ],
+  "hide_above_brow": -0.006
+ },
+ "outfit": "commando_jumper",
+ "outfit_opts": {
+  "tunic": [
+   0.075,
+   0.085,
+   0.11
+  ],
+  "trousers": [
+   0.09,
+   0.095,
+   0.11
+  ],
+  "gaiters": [
+   0.08,
+   0.08,
+   0.085
+  ],
+  "boots": [
+   0.04,
+   0.035,
+   0.03
+  ],
+  "webbing": [
+   0.14,
+   0.14,
+   0.12
+  ]
+ },
+ "kit": [
+  "belt_web",
+  "knife_belt",
+  "holster_r",
+  "mask_chest"
+ ],
+ "headgear": {
+  "type": "watch_cap",
+  "color": [
+   0.035,
+   0.035,
+   0.038
+  ]
+ },
+ "weapon": {
+  "primary": "harpoon_gun",
+  "secondary": "pistol_colt"
+ }
+}

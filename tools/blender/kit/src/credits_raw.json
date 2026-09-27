@@ -1,0 +1,880 @@
+{
+ "plaster_white": {
+  "source": "Poly Haven",
+  "id": "white_plaster_rough_02",
+  "url": "https://polyhaven.com/a/white_plaster_rough_02",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1000,
+   1000
+  ],
+  "name": "White Plaster Rough 02"
+ },
+ "adobe_ochre": {
+  "source": "Poly Haven",
+  "id": "clay_plaster",
+  "url": "https://polyhaven.com/a/clay_plaster",
+  "authors": [
+   "Amal Kumar"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1999.9996423721313,
+   1999.9996423721313
+  ],
+  "name": "Clay Plaster"
+ },
+ "plaster_limewash": {
+  "source": "Poly Haven",
+  "id": "white_rough_plaster",
+  "url": "https://polyhaven.com/a/white_rough_plaster",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1000,
+   1000
+  ],
+  "name": "White Rough Plaster"
+ },
+ "plaster_rough": {
+  "source": "Poly Haven",
+  "id": "rough_plaster_03",
+  "url": "https://polyhaven.com/a/rough_plaster_03",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1500,
+   1500
+  ],
+  "name": "Rough Plaster 03"
+ },
+ "timber_cladding": {
+  "source": "Poly Haven",
+  "id": "wood_plank_wall",
+  "url": "https://polyhaven.com/a/wood_plank_wall",
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1000,
+   1000
+  ],
+  "name": "Wood Plank Wall"
+ },
+ "timber_beam": {
+  "source": "Poly Haven",
+  "id": "wood_planks_grey",
+  "url": "https://polyhaven.com/a/wood_planks_grey",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1500,
+   1500.0001192092896
+  ],
+  "name": "Wood Planks Grey"
+ },
+ "timber_siding": {
+  "source": "Poly Haven",
+  "id": "weathered_plank_siding",
+  "url": "https://polyhaven.com/a/weathered_plank_siding",
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1570.0000524520874,
+   1570.0000524520874
+  ],
+  "name": "Weathered Plank Siding"
+ },
+ "timber_tarred": {
+  "source": "Poly Haven",
+  "id": "dark_wooden_planks",
+  "url": "https://polyhaven.com/a/dark_wooden_planks",
+  "authors": [
+   "Amal Kumar"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2000,
+   2000
+  ],
+  "name": "Dark Wooden Planks"
+ },
+ "ashlar": {
+  "source": "Poly Haven",
+  "id": "stone_block_wall",
+  "url": "https://polyhaven.com/a/stone_block_wall",
+  "authors": [
+   "Amal Kumar"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2099.9999046325684,
+   2099.9999046325684
+  ],
+  "name": "Stone Block Wall"
+ },
+ "fieldstone": {
+  "source": "Poly Haven",
+  "id": "rustic_stone_wall",
+  "url": "https://polyhaven.com/a/rustic_stone_wall",
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1519.9998617172241,
+   1519.9998617172241
+  ],
+  "name": "Rustic Stone Wall"
+ },
+ "granite": {
+  "source": "Poly Haven",
+  "id": "granite_wall",
+  "url": "https://polyhaven.com/a/granite_wall",
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1899.9998569488525,
+   1899.9998569488525
+  ],
+  "name": "Granite Wall"
+ },
+ "fieldstone_grey": {
+  "source": "Poly Haven",
+  "id": "stone_wall_04",
+  "url": "https://polyhaven.com/a/stone_wall_04",
+  "authors": [
+   "Amal Kumar"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1700.0000476837158,
+   1700.0000476837158
+  ],
+  "name": "Stone Wall 04"
+ },
+ "ashlar_limestone": {
+  "source": "Poly Haven",
+  "id": "white_sandstone_blocks_02",
+  "url": "https://polyhaven.com/a/white_sandstone_blocks_02",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2000,
+   2000
+  ],
+  "name": "White Sandstone Blocks 02"
+ },
+ "timber_grey": {
+  "source": "Poly Haven",
+  "id": "weathered_planks",
+  "url": "https://polyhaven.com/a/weathered_planks",
+  "authors": [
+   "Dario Barresi",
+   "Dimitrios Savva"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2000,
+   2000
+  ],
+  "name": "Weathered Planks"
+ },
+ "brick_red": {
+  "source": "Poly Haven",
+  "id": "red_brick_03",
+  "url": "https://polyhaven.com/a/red_brick_03",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1000,
+   1000
+  ],
+  "name": "Red Brick 03"
+ },
+ "corrugated_rust": {
+  "source": "Poly Haven",
+  "id": "rusty_corrugated_iron",
+  "url": "https://polyhaven.com/a/rusty_corrugated_iron",
+  "authors": [
+   "Charlotte Baglioni"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2000,
+   2000
+  ],
+  "name": "Rusty Corrugated Iron"
+ },
+ "roof_slate": {
+  "source": "Poly Haven",
+  "id": "roof_slates_02",
+  "url": "https://polyhaven.com/a/roof_slates_02",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   3000,
+   3000
+  ],
+  "name": "Roof Slates 02"
+ },
+ "concrete_board": {
+  "source": "Poly Haven",
+  "id": "wood_textured_concrete",
+  "url": "https://polyhaven.com/a/wood_textured_concrete",
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1800.0000715255737,
+   1800.0000715255737
+  ],
+  "name": "Wood Textured Concrete"
+ },
+ "roof_terracotta": {
+  "source": "Poly Haven",
+  "id": "clay_roof_tiles_02",
+  "url": "https://polyhaven.com/a/clay_roof_tiles_02",
+  "authors": [
+   "Amal Kumar"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2500,
+   2500
+  ],
+  "name": "Clay Roof Tiles 02"
+ },
+ "roof_shingle": {
+  "source": "ambientCG",
+  "id": "WoodSiding013",
+  "url": "https://ambientcg.com/view?id=WoodSiding013",
+  "authors": [
+   "ambientCG (Lennart Demes)"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1400,
+   1400
+  ]
+ },
+ "concrete_bunker": {
+  "source": "Poly Haven",
+  "id": "concrete_wall_008",
+  "url": "https://polyhaven.com/a/concrete_wall_008",
+  "authors": [
+   "Dario Barresi",
+   "Charlotte Baglioni"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2710.0000381469727,
+   2710.0000381469727
+  ],
+  "name": "Concrete Wall 008"
+ },
+ "brick_dark": {
+  "source": "Poly Haven",
+  "id": "dark_brick_wall",
+  "url": "https://polyhaven.com/a/dark_brick_wall",
+  "authors": [
+   "Dario Barresi",
+   "Dimitrios Savva"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1049.9998331069946,
+   1049.9999523162842
+  ],
+  "name": "Dark Brick Wall"
+ },
+ "roof_thatch": {
+  "source": "Poly Haven",
+  "id": "reed_roof_04",
+  "url": "https://polyhaven.com/a/reed_roof_04",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2500,
+   2500
+  ],
+  "name": "Reed Roof 04"
+ },
+ "cobblestone": {
+  "source": "Poly Haven",
+  "id": "cobblestone_05",
+  "url": "https://polyhaven.com/a/cobblestone_05",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2400.0000953674316,
+   2400.0000953674316
+  ],
+  "name": "Cobblestone 05"
+ },
+ "steel_painted": {
+  "source": "Poly Haven",
+  "id": "rusty_painted_metal",
+  "url": "https://polyhaven.com/a/rusty_painted_metal",
+  "authors": [
+   "Amal Kumar"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2200.000047683716,
+   2200.000047683716
+  ],
+  "name": "Rusty Painted Metal"
+ },
+ "sod": {
+  "source": "Poly Haven",
+  "id": "sparse_grass",
+  "url": "https://polyhaven.com/a/sparse_grass",
+  "authors": [
+   "Amal Kumar"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2000,
+   2000
+  ],
+  "name": "Sparse Grass"
+ },
+ "steel_galv": {
+  "source": "Poly Haven",
+  "id": "rusty_painted_metal",
+  "url": "https://polyhaven.com/a/rusty_painted_metal",
+  "authors": [
+   "Amal Kumar"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2200.000047683716,
+   2200.000047683716
+  ],
+  "name": "Rusty Painted Metal"
+ },
+ "deck_planks": {
+  "source": "Poly Haven",
+  "id": "wood_planks_dirt",
+  "url": "https://polyhaven.com/a/wood_planks_dirt",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2000,
+   2000
+  ],
+  "name": "Wood Planks Dirt"
+ },
+ "cast_iron": {
+  "source": "Poly Haven",
+  "id": "rusty_metal_03",
+  "url": "https://polyhaven.com/a/rusty_metal_03",
+  "authors": [
+   "Amal Kumar"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1350.0001430511475,
+   1350.0001430511475
+  ],
+  "name": "Rusty Metal 03"
+ },
+ "gravel": {
+  "source": "Poly Haven",
+  "id": "gravel_road",
+  "url": "https://polyhaven.com/a/gravel_road",
+  "authors": [
+   "Amal Kumar"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2000,
+   2000
+  ],
+  "name": "Gravel Road"
+ },
+ "snow": {
+  "source": "Poly Haven",
+  "id": "snow_01",
+  "url": "https://polyhaven.com/a/snow_01",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2000,
+   2000
+  ],
+  "name": "Snow 01"
+ },
+ "mud": {
+  "source": "Poly Haven",
+  "id": "brown_mud_02",
+  "url": "https://polyhaven.com/a/brown_mud_02",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1299.996018409729,
+   1299.996018409729
+  ],
+  "name": "Brown Mud 02"
+ },
+ "door_planks": {
+  "source": "Poly Haven",
+  "id": "weathered_peeling_timber",
+  "url": "https://polyhaven.com/a/weathered_peeling_timber",
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1100.000023841858,
+   1100.000023841858
+  ],
+  "name": "Weathered Peeling Timber"
+ },
+ "canvas": {
+  "source": "Poly Haven",
+  "id": "rough_linen",
+  "url": "https://polyhaven.com/a/rough_linen",
+  "authors": [
+   "colormass",
+   "Rico Cilliers"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   270.7081392676629,
+   271.29998803138733
+  ],
+  "name": "Rough Linen"
+ },
+ "hessian": {
+  "source": "Poly Haven",
+  "id": "hessian_230",
+  "url": "https://polyhaven.com/a/hessian_230",
+  "authors": [
+   "colormass",
+   "Rico Cilliers"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   268.7538661074732,
+   267.1999931335449
+  ],
+  "name": "Hessian 230"
+ },
+ "sand": {
+  "source": "Poly Haven",
+  "id": "dense_sand",
+  "url": "https://polyhaven.com/a/dense_sand",
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1800.0000715255737,
+   1800.0000715255737
+  ],
+  "name": "Dense Sand"
+ },
+ "limewash_worn": {
+  "source": "Poly Haven",
+  "id": "plastered_stone_wall",
+  "url": "https://polyhaven.com/a/plastered_stone_wall",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2500,
+   2500
+  ],
+  "name": "Plastered Stone Wall"
+ },
+ "mud_render": {
+  "source": "Poly Haven",
+  "id": "clay_plaster",
+  "url": "https://polyhaven.com/a/clay_plaster",
+  "authors": [
+   "Amal Kumar"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1999.9996423721313,
+   1999.9996423721313
+  ],
+  "name": "Clay Plaster"
+ },
+ "mudbrick": {
+  "source": "Poly Haven",
+  "id": "clay_block_wall",
+  "url": "https://polyhaven.com/a/clay_block_wall",
+  "authors": [
+   "Amal Kumar"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2000,
+   2000
+  ],
+  "name": "Clay Block Wall"
+ },
+ "sandstone_ochre": {
+  "source": "Poly Haven",
+  "id": "sandstone_blocks_04",
+  "url": "https://polyhaven.com/a/sandstone_blocks_04",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   3000,
+   3000
+  ],
+  "name": "Sandstone Blocks 04"
+ },
+ "bitumen_felt": {
+  "source": "Poly Haven",
+  "id": "bitumen",
+  "url": "https://polyhaven.com/a/bitumen",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   19999.996185302734,
+   19999.996185302734
+  ],
+  "name": "Bitumen"
+ },
+ "corrugated_galv": {
+  "source": "Poly Haven",
+  "id": "worn_corrugated_iron",
+  "url": "https://polyhaven.com/a/worn_corrugated_iron",
+  "authors": [
+   "Jenelle van Heerden",
+   "Dimitrios Savva"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1799.9995946884155,
+   1799.9995946884155
+  ],
+  "name": "Worn Corrugated Iron"
+ },
+ "screed_roof": {
+  "source": "Poly Haven",
+  "id": "cracked_concrete",
+  "url": "https://polyhaven.com/a/cracked_concrete",
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2000,
+   2000
+  ],
+  "name": "Cracked Concrete"
+ },
+ "patio_flags": {
+  "source": "Poly Haven",
+  "id": "floor_tiles_04",
+  "url": "https://polyhaven.com/a/floor_tiles_04",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   4000,
+   4000
+  ],
+  "name": "Floor Tiles 04"
+ },
+ "palm_log": {
+  "source": "Poly Haven",
+  "id": "bark_brown_01",
+  "url": "https://polyhaven.com/a/bark_brown_01",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   999.9990463256836,
+   999.998927116394
+  ],
+  "name": "Bark Brown 01"
+ },
+ "roof_tile_flat": {
+  "source": "Poly Haven",
+  "id": "clay_roof_tiles_03",
+  "url": "https://polyhaven.com/a/clay_roof_tiles_03",
+  "authors": [
+   "Amal Kumar"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2599.9999046325684,
+   2599.9999046325684
+  ],
+  "name": "Clay Roof Tiles 03"
+ },
+ "roof_slate_b": {
+  "source": "Poly Haven",
+  "id": "grey_roof_tiles_02",
+  "url": "https://polyhaven.com/a/grey_roof_tiles_02",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1500,
+   1500
+  ],
+  "name": "Grey Roof Tiles 02"
+ },
+ "canvas_camo": {
+  "source": "Poly Haven",
+  "id": "rough_linen",
+  "url": "https://polyhaven.com/a/rough_linen",
+  "authors": [
+   "colormass",
+   "Rico Cilliers"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   4000,
+   4000
+  ],
+  "name": "Rough Linen + own-work camouflage pattern (CC0)"
+ },
+ "granite_polished": {
+  "source": "procedural (own work, europe rework make_stone.py)",
+  "id": "granite_polished",
+  "url": null,
+  "authors": [
+   "SHADOW SIX art"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2000.0,
+   2000.0
+  ],
+  "name": "Polished granite, jointless (ledger slabs, steles)"
+ },
+ "limestone_smooth": {
+  "source": "procedural (own work, europe rework make_stone.py)",
+  "id": "limestone_smooth",
+  "url": null,
+  "authors": [
+   "SHADOW SIX art"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2000.0,
+   2000.0
+  ],
+  "name": "Smooth pale limestone, jointless (headstones, kerbs, calvary)"
+ },
+ "stele_face": {
+  "source": "procedural (own work, europe rework make_stone.py)",
+  "id": "stele_face",
+  "url": null,
+  "authors": [
+   "SHADOW SIX art"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1000.0,
+   1000.0
+  ],
+  "name": "Stele face atlas 2x2: engraved / gilt inscriptions, photo plaque, cross, wreath"
+ },
+ "rock_cliff": {
+  "source": "Poly Haven",
+  "id": "cliff_side",
+  "url": "https://polyhaven.com/a/cliff_side",
+  "authors": [
+   "James Ray Cock",
+   "Jenelle van Heerden",
+   "Dario Barresi"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1830.0000429153442,
+   1830.0000429153442
+  ],
+  "name": "Cliff Side"
+ },
+ "darj_panel": {
+  "source": "procedural (own work, SHADOW SIX art pass)",
+  "id": "darj_panel",
+  "url": null,
+  "authors": [
+   "SHADOW SIX"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2400,
+   2400
+  ],
+  "name": "darj wa ktaf panel"
+ },
+ "floor_checker": {
+  "source": "procedural (own work, europe rework make_stone.py)",
+  "id": "floor_checker",
+  "url": null,
+  "authors": [
+   "SHADOW SIX art"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2000.0,
+   2000.0
+  ],
+  "name": "Black / cream checker floor tiles, grout, chips, dirt (interiors, ruins)"
+ },
+ "rubble_stone": {
+  "source": "Poly Haven",
+  "id": "stone_wall",
+  "url": "https://polyhaven.com/a/stone_wall",
+  "authors": [
+   "Dario Barresi",
+   "Charlotte Baglioni"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2000,
+   2000
+  ],
+  "name": "Stone Wall"
+ },
+ "scree_grey": {
+  "source": "Poly Haven",
+  "id": "gray_rocks",
+  "url": "https://polyhaven.com/a/gray_rocks",
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1799.9995946884155,
+   1799.9995946884155
+  ],
+  "name": "Gray Rocks"
+ },
+ "setts_granite": {
+  "source": "Poly Haven",
+  "id": "cobblestone_floor_03",
+  "url": "https://polyhaven.com/a/cobblestone_floor_03",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2400.0000953674316,
+   2400.0000953674316
+  ],
+  "name": "Cobblestone Floor 03"
+ },
+ "gravel_grey": {
+  "source": "Poly Haven",
+  "id": "gravel",
+  "url": "https://polyhaven.com/a/gravel",
+  "authors": [
+   "Dimitrios Savva"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2000,
+   2000
+  ],
+  "name": "Gravel"
+ },
+ "mud_render2": {
+  "source": "Poly Haven",
+  "id": "dirt_floor",
+  "url": "https://polyhaven.com/a/dirt_floor",
+  "authors": [
+   "eye-candy.xyz"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2069.9996948242188,
+   2069.9996948242188
+  ],
+  "name": "Dirt Floor"
+ },
+ "limewash_lumpy": {
+  "source": "Poly Haven",
+  "id": "medieval_wall_01",
+  "url": "https://polyhaven.com/a/medieval_wall_01",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2000,
+   2000
+  ],
+  "name": "Medieval Wall 01"
+ },
+ "screed_lime": {
+  "source": "Poly Haven",
+  "id": "grey_plaster_02",
+  "url": "https://polyhaven.com/a/grey_plaster_02",
+  "authors": [
+   "Rob Tuytel"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   1000,
+   1000
+  ],
+  "name": "Grey Plaster 02"
+ },
+ "corrugated_zinc": {
+  "source": "Poly Haven",
+  "id": "corrugated_iron_02",
+  "url": "https://polyhaven.com/a/corrugated_iron_02",
+  "authors": [
+   "Jenelle van Heerden",
+   "Sergej Majboroda"
+  ],
+  "license": "CC0-1.0",
+  "dimensions_mm": [
+   2700.000047683716,
+   2700.000047683716
+  ],
+  "name": "Corrugated Iron 02"
+ }
+}

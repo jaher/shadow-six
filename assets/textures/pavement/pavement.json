@@ -1,0 +1,94 @@
+{
+ "version": 1,
+ "license": "CC0-1.0",
+ "source": "Poly Haven",
+ "maps": "diff (sRGB albedo), nor (OpenGL normal), ard (R ambient occlusion, G roughness, B displacement/height)",
+ "tiers": [
+  "1k",
+  "512"
+ ],
+ "materials": {
+  "setts": {
+   "tile_m": 2.4,
+   "polyhaven": "cobblestone_floor_03",
+   "name": "Cobblestone Floor 03",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "url": "https://polyhaven.com/a/cobblestone_floor_03"
+  },
+  "belgian": {
+   "tile_m": 2.0,
+   "polyhaven": "cobblestone_floor_08",
+   "name": "Cobblestone Floor 08",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "url": "https://polyhaven.com/a/cobblestone_floor_08"
+  },
+  "pave_fan": {
+   "tile_m": 2.5,
+   "polyhaven": "patterned_cobblestone",
+   "name": "Patterned Cobblestone",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "url": "https://polyhaven.com/a/patterned_cobblestone"
+  },
+  "brick": {
+   "tile_m": 1.8,
+   "polyhaven": "herringbone_brick",
+   "name": "Herringbone Brick",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "url": "https://polyhaven.com/a/herringbone_brick"
+  },
+  "flags": {
+   "tile_m": 2.24,
+   "polyhaven": "precast_stone_paving",
+   "name": "Precast Stone Paving",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "url": "https://polyhaven.com/a/precast_stone_paving"
+  },
+  "asphalt": {
+   "tile_m": 2.2,
+   "polyhaven": "tarred_gravel",
+   "name": "Tarred Gravel",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "url": "https://polyhaven.com/a/tarred_gravel"
+  },
+  "asphalt_cracked": {
+   "tile_m": 3.0,
+   "polyhaven": "asphalt_02",
+   "name": "Asphalt 02",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "url": "https://polyhaven.com/a/asphalt_02"
+  },
+  "concrete": {
+   "tile_m": 4.5,
+   "polyhaven": "damaged_concrete_floor",
+   "name": "Damaged Concrete Floor",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "url": "https://polyhaven.com/a/damaged_concrete_floor"
+  },
+  "grate": {
+   "tile_m": 0.5,
+   "polyhaven": "metal_grate_rusty",
+   "name": "Metal Grate Rusty",
+   "authors": [
+    "Rob Tuytel",
+    "Dimitrios Savva"
+   ],
+   "url": "https://polyhaven.com/a/metal_grate_rusty"
+  }
+ }
+}

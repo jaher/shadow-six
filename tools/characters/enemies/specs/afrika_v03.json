@@ -1,0 +1,135 @@
+{
+ "budget": {
+  "lod0": 11550,
+  "lod1": 5000,
+  "lod2": 2000
+ },
+ "id": "afrika_v03",
+ "enemy": {
+  "soldierType": "afrika",
+  "variant": 3,
+  "archetype": 13,
+  "archetype_name": "aquiline nose, narrow lips",
+  "seed": 1,
+  "skinTone": "sunburnt",
+  "facialHair": "moustache",
+  "glasses": false,
+  "age": 20.7,
+  "extras": [
+   "no canteen"
+  ],
+  "key": "13|sunburnt|moustache|0",
+  "silhouette": "tropical khaki, sand helmet / long-peaked cap / pith"
+ },
+ "body": {
+  "age_years": 20.7,
+  "muscle": 0.533,
+  "weight": 0.352,
+  "proportions": 0.55,
+  "height_m": 1.755,
+  "modifiers": {
+   "nose/nose-hump-incr": 1.19,
+   "nose/nose-point-down": 0.51,
+   "mouth/mouth-upperlip-volume-decr": 0.85,
+   "mouth/mouth-lowerlip-volume-decr": 0.68,
+   "nose/nose-scale-horiz-incr": -0.012,
+   "nose/nose-scale-vert-incr": -0.201,
+   "ears/ear-scale-incr": -0.15,
+   "eyebrows/eyebrows-trans-up": 0.205,
+   "mouth/mouth-lowerlip-volume-incr": -0.204,
+   "cheek/cheek-volume-incr": 0.081,
+   "head/head-scale-horiz-incr": 0.011,
+   "head/head-scale-vert-incr": 0.026,
+   "head/head-scale-depth-incr": 0.288,
+   "nose/nose-scale-depth-incr": -0.042,
+   "mouth/mouth-scale-horiz-incr": -0.29,
+   "eyes/eye-scale-incr": 0.435,
+   "eyes/eye-trans-out": -0.426,
+   "eyes/eye-trans-up": -0.364,
+   "chin/chin-height-incr": -0.285,
+   "chin/chin-width-incr": 0.325,
+   "chin/chin-prominent-incr": -0.181,
+   "ears/ear-flap-incr": 0.025,
+   "eyebrows/eyebrows-angle-up": 0.55,
+   "cheek/cheek-bones-incr": -0.469,
+   "forehead/forehead-scale-vert-incr": -0.411,
+   "neck/neck-scale-horiz-incr": -0.04,
+   "mouth/mouth-upperlip-height-incr": 0.052,
+   "nose/nose-width2-incr": -0.129,
+   "eye-left-slit": 0.208,
+   "eye-right-slit": 0.347,
+   "mouth-protusion": 0.268,
+   "head/head-age-decr": 0.023
+  }
+ },
+ "skin": {
+  "base": "young_caucasian_male",
+  "tint": [
+   0.99,
+   0.818,
+   0.691
+  ],
+  "ruddy": 0.6,
+  "stubble": 0.2,
+  "complexion": {
+   "freckles": 0.18,
+   "moles": 2,
+   "scar": false,
+   "lines": 0.04,
+   "seed": 24
+  }
+ },
+ "eyes": {
+  "iris": [
+   0.36,
+   0.5,
+   0.66
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow002",
+  "color": [
+   0.336,
+   0.24,
+   0.144
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.42,
+   0.3,
+   0.18
+  ]
+ },
+ "facial_hair": "moustache",
+ "glasses": false,
+ "outfit": "dak",
+ "outfit_opts": {
+  "tint_mul": [
+   1.014,
+   1.006,
+   0.998
+  ],
+  "wear": 0.148
+ },
+ "kit": [
+  "belt_web",
+  "ystraps_web",
+  "ammo_pouches",
+  "bread_bag"
+ ],
+ "headgear": {
+  "type": "dak_cap",
+  "peak": 0.075,
+  "goggles": true,
+  "color": [
+   0.63,
+   0.56,
+   0.39
+  ]
+ },
+ "weapon": {
+  "primary": "kar98k"
+ }
+}

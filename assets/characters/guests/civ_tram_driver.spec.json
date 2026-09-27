@@ -1,0 +1,91 @@
+{
+ "id": "civ_tram_driver",
+ "notes": "M15 Compiegne civilian tram driver (realism-pipeline specials list): dark blue serge uniform, peaked service cap, moustache, 50s. Non-combatant civilian.",
+ "body": {
+  "age_years": 52,
+  "muscle": 0.45,
+  "weight": 0.68,
+  "proportions": 0.45,
+  "height_m": 1.73,
+  "modifiers": {
+   "head/head-round": 0.4,
+   "head/head-fat": 0.5,
+   "cheek/cheek-volume-incr": 0.5,
+   "nose/nose-scale-horiz-incr": 0.35,
+   "nose/nose-point-up": 0.2,
+   "neck/neck-double-incr": 0.6,
+   "stomach/stomach-pregnant-incr": 0.45,
+   "eyes/eye-bag-incr": 0.5
+  },
+  "height_macro": 0.4987277160441135
+ },
+ "skin": {
+  "base": "old_caucasian_male",
+  "tint": [
+   1.05,
+   0.94,
+   0.87
+  ],
+  "ruddy": 0.55,
+  "stubble": 0.1
+ },
+ "eyes": {
+  "iris": [
+   0.3,
+   0.25,
+   0.18
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow009",
+  "color": [
+   0.36,
+   0.32,
+   0.28
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.4,
+   0.37,
+   0.33
+  ],
+  "length": 0.005
+ },
+ "facial_hair": "moustache",
+ "facial_hair_color": [
+  0.4,
+  0.37,
+  0.33
+ ],
+ "outfit": "tram_uniform",
+ "outfit_opts": {},
+ "kit": [],
+ "headgear": {
+  "type": "officer_cap",
+  "color": [
+   0.12,
+   0.14,
+   0.22
+  ],
+  "visor_color": [
+   0.03,
+   0.03,
+   0.03
+  ],
+  "badge": true,
+  "badge_color": [
+   0.75,
+   0.62,
+   0.35
+  ]
+ },
+ "weapon": {
+  "primary": null
+ },
+ "civilian": {
+  "mission": 15,
+  "role": "tram_driver"
+ }
+}

@@ -1,0 +1,93 @@
+{
+ "smoke": {
+  "source": "keyed (poses.js)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "duration": 5
+ },
+ "walk_hands_back": {
+  "source": "keyed (poses.js)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "duration": 1.333,
+  "groundSpeed": 0.92
+ },
+ "idle_hands_back": {
+  "source": "keyed (poses.js)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "duration": 2.5
+ },
+ "binoculars": {
+  "source": "keyed (poses.js)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "duration": 4
+ },
+ "point": {
+  "source": "keyed (poses.js)",
+  "license": "CC0 (project-authored)",
+  "loop": false,
+  "duration": 1.7
+ },
+ "detonate": {
+  "source": "keyed (poses.js)",
+  "license": "CC0 (project-authored)",
+  "loop": false,
+  "duration": 1.4
+ },
+ "die": {
+  "source": "keyed (poses.js)",
+  "license": "CC0 (project-authored)",
+  "loop": false,
+  "duration": 2.4
+ },
+ "dead": {
+  "source": "keyed (poses.js)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "duration": 0.5
+ },
+ "rifle_aim": {
+  "source": "keyed (poses.js)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "duration": 2.5
+ },
+ "rifle_fire": {
+  "source": "keyed (poses.js)",
+  "license": "CC0 (project-authored)",
+  "loop": false,
+  "duration": 0.6
+ },
+ "rifle_reload": {
+  "source": "keyed (poses.js)",
+  "license": "CC0 (project-authored)",
+  "loop": false,
+  "duration": 2
+ },
+ "walk_fast": {
+  "source": "commandos_b/out/anims.glb walk_fast (resynth(Walk_Loop))",
+  "license": "CC0 (derived from Quaternius UAL, CC0)",
+  "loop": true,
+  "duration": 0.759,
+  "groundSpeed": 2.2,
+  "loco": true
+ },
+ "run_slow": {
+  "source": "commandos_b/out/anims.glb run_slow (resynth(Jog_Fwd_Loop))",
+  "license": "CC0 (derived from Quaternius UAL, CC0)",
+  "loop": true,
+  "duration": 0.732,
+  "groundSpeed": 3.7,
+  "loco": true
+ },
+ "run_fast": {
+  "source": "commandos_b/out/anims.glb run_fast (resynth(Jog_Fwd_Loop))",
+  "license": "CC0 (derived from Quaternius UAL, CC0)",
+  "loop": true,
+  "duration": 0.645,
+  "groundSpeed": 5.2,
+  "loco": true
+ }
+}

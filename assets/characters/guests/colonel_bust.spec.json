@@ -1,0 +1,77 @@
+{
+ "id": "colonel_bust",
+ "notes": "Bible 6.4: Colonel Montague Smith is voice-only; DO NOT show a face. This model exists only to be rendered as a backlit SILHOUETTE bust behind the briefing slides (sidecar render_as=silhouette). British officer SD, peaked cap, moustache - read only as outline.",
+ "body": {
+  "age_years": 56,
+  "muscle": 0.5,
+  "weight": 0.55,
+  "proportions": 0.6,
+  "height_m": 1.8,
+  "modifiers": {
+   "head/head-oval": 0.3,
+   "chin/chin-prominent-incr": 0.3,
+   "nose/nose-scale-vert-incr": 0.3
+  },
+  "height_macro": 0.5468130274337135
+ },
+ "skin": {
+  "base": "old_caucasian_male",
+  "tint": [
+   1.0,
+   0.95,
+   0.9
+  ],
+  "ruddy": 0.3,
+  "stubble": 0.05
+ },
+ "brows": {
+  "asset": "eyebrow001",
+  "color": [
+   0.5,
+   0.48,
+   0.45
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.55,
+   0.54,
+   0.52
+  ],
+  "length": 0.005
+ },
+ "facial_hair": "moustache",
+ "facial_hair_color": [
+  0.55,
+  0.53,
+  0.5
+ ],
+ "outfit": "british_sd",
+ "outfit_opts": {},
+ "kit": [
+  "tie"
+ ],
+ "headgear": {
+  "type": "officer_cap",
+  "color": [
+   0.47,
+   0.4,
+   0.27
+  ],
+  "visor_color": [
+   0.16,
+   0.1,
+   0.06
+  ],
+  "badge": true
+ },
+ "weapon": {
+  "primary": null
+ },
+ "budget": {
+  "lod0": 9000,
+  "lod1": 3500,
+  "lod2": 1500
+ }
+}

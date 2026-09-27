@@ -1,0 +1,3 @@
+barracks.py cd 75
+barracks.py cd 75 snow
+barracks.py ad 74 snow

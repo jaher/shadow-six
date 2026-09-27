@@ -1,0 +1,117 @@
+{
+ "id": "sapper",
+ "notes": "Bible 1.4 + V.2 items 5,6,11: medium-broad square face, moderately full cheeks, strong cheekbones, deep grin lines, no jowls; dark-brown brush moustache (no grey in BEL), faint temple grey; ruddy cheeks+nose; green domed Mk III helmet; brown leather jerkin over khaki BD; grenades on chest straps; satchel of charges on the hip; anklets.",
+ "body": {
+  "age_years": 40,
+  "muscle": 0.6,
+  "weight": 0.62,
+  "proportions": 0.6,
+  "height_m": 1.78,
+  "modifiers": {
+   "head/head-round": 0.3,
+   "head/head-square": 0.5,
+   "head/head-fat": 0.25,
+   "cheek/cheek-volume-incr": 0.4,
+   "cheek/cheek-bones-incr": 0.55,
+   "nose/nose-scale-vert-decr": 0.3,
+   "nose/nose-point-width-incr": 0.8,
+   "nose/nose-volume-incr": 0.6,
+   "chin/chin-prominent-decr": 0.2,
+   "neck/neck-scale-vert-decr": 0.4,
+   "neck/neck-scale-horiz-incr": 0.4,
+   "eyes/eye-scale-decr": 0.2,
+   "eyebrows/eyebrows-angle-up": 0.4,
+   "mouth/mouth-scale-horiz-incr": 0.2,
+   "torso/torso-scale-depth-incr": 0.3,
+   "head/head-age-incr": 0.35,
+   "nose/nose-flaring-incr": 0.4,
+   "mouth/mouth-laugh-lines-out": 0.8,
+   "mouth-corner-puller": 0.55,
+   "mouth-upward-retraction": 0.2,
+   "eye-left-slit": 0.25,
+   "eye-right-slit": 0.25,
+   "eyes/eye-bag-incr": 0.3
+  }
+ },
+ "skin": {
+  "base": "middleage_caucasian_male",
+  "tint": [
+   1.07,
+   0.96,
+   0.92
+  ],
+  "ruddy": 0.75,
+  "stubble": 0.15,
+  "scars": [
+   "burn_cheek_r"
+  ]
+ },
+ "eyes": {
+  "iris": [
+   0.42,
+   0.36,
+   0.2
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow009",
+  "color": [
+   0.2,
+   0.14,
+   0.09
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.2,
+   0.14,
+   0.09
+  ],
+  "grey_temples": 0.3
+ },
+ "facial_hair": "moustache",
+ "facial_hair_color": [
+  0.2,
+  0.13,
+  0.08
+ ],
+ "outfit": "british_bd",
+ "outfit_opts": {
+  "tunic": [
+   0.45,
+   0.39,
+   0.25
+  ],
+  "trousers": [
+   0.45,
+   0.39,
+   0.25
+  ],
+  "jerkin": [
+   0.3,
+   0.18,
+   0.09
+  ]
+ },
+ "kit": [
+  "belt_web",
+  "braces",
+  "chest_grenades",
+  "satchel_l",
+  "holster_r",
+  "wirecutters_leg"
+ ],
+ "headgear": {
+  "type": "mk3",
+  "color": [
+   0.27,
+   0.33,
+   0.21
+  ]
+ },
+ "weapon": {
+  "primary": "walther_p38",
+  "secondary": "time_bomb"
+ }
+}

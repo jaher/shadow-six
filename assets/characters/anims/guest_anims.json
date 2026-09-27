@@ -1,0 +1,334 @@
+{
+ "tied_idle": {
+  "source": "keyed (poses.js)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "duration": 4
+ },
+ "freed": {
+  "source": "keyed (poses.js)",
+  "license": "CC0 (project-authored)",
+  "loop": false,
+  "duration": 1.9
+ },
+ "tied_walk": {
+  "source": "resynth(Walk_Loop)",
+  "license": "CC0 (derived from Quaternius UAL, CC0)",
+  "loop": true,
+  "groundSpeed": 1.1,
+  "spm": 108,
+  "duty": 0.63,
+  "stride": 0.77,
+  "maxDrop": 0.022,
+  "maxIkErr": 0,
+  "warp": true,
+  "loco": true,
+  "duration": 1.111
+ },
+ "tied_walk_fast": {
+  "source": "resynth(Walk_Loop)",
+  "license": "CC0 (derived from Quaternius UAL, CC0)",
+  "loop": true,
+  "groundSpeed": 2.2,
+  "spm": 156,
+  "duty": 0.58,
+  "stride": 0.982,
+  "maxDrop": 0.073,
+  "maxIkErr": 0,
+  "warp": true,
+  "loco": true,
+  "duration": 0.769
+ },
+ "follow_walk": {
+  "source": "resynth(Walk_Loop)",
+  "license": "CC0 (derived from Quaternius UAL, CC0)",
+  "loop": true,
+  "groundSpeed": 2.2,
+  "spm": 152,
+  "duty": 0.6,
+  "stride": 1.042,
+  "maxDrop": 0.098,
+  "maxIkErr": 0,
+  "warp": true,
+  "loco": true,
+  "duration": 0.789
+ },
+ "follow_idle": {
+  "source": "keyed poses (guest_synth.js) on UAL frames",
+  "license": "CC0 (project-authored, derived from Quaternius UAL CC0)",
+  "loop": true,
+  "maxIkErr": 0,
+  "pose": "crouch-lite",
+  "duration": 5.2
+ },
+ "die_run": {
+  "source": "keyed poses (guest_synth.js) on UAL frames",
+  "license": "CC0 (project-authored, derived from Quaternius UAL CC0)",
+  "loop": false,
+  "maxIkErr": 0.074,
+  "travel": [
+   0,
+   0,
+   1.3
+  ],
+  "next": "dead_prone",
+  "prone": true,
+  "duration": 1
+ },
+ "die_run_25": {
+  "source": "keyed poses (guest_synth.js) on UAL frames",
+  "license": "CC0 (project-authored, derived from Quaternius UAL CC0)",
+  "loop": false,
+  "maxIkErr": 0.085,
+  "travel": [
+   0,
+   0,
+   1.3
+  ],
+  "next": "dead_prone",
+  "prone": true,
+  "duration": 1
+ },
+ "die_run_50": {
+  "source": "keyed poses (guest_synth.js) on UAL frames",
+  "license": "CC0 (project-authored, derived from Quaternius UAL CC0)",
+  "loop": false,
+  "maxIkErr": 0.082,
+  "travel": [
+   0,
+   0,
+   1.3
+  ],
+  "next": "dead_prone",
+  "prone": true,
+  "duration": 1
+ },
+ "die_run_75": {
+  "source": "keyed poses (guest_synth.js) on UAL frames",
+  "license": "CC0 (project-authored, derived from Quaternius UAL CC0)",
+  "loop": false,
+  "maxIkErr": 0.075,
+  "travel": [
+   0,
+   0,
+   1.3
+  ],
+  "next": "dead_prone",
+  "prone": true,
+  "duration": 1
+ },
+ "boat_sit": {
+  "source": "keyed poses (guest_synth.js) on UAL frames",
+  "license": "CC0 (project-authored, derived from Quaternius UAL CC0)",
+  "loop": true,
+  "maxIkErr": 0,
+  "seat": "raft floor",
+  "pelvisOverFloor": 0.2,
+  "duration": 1.667
+ },
+ "board_boat": {
+  "source": "keyed poses (guest_synth.js) on UAL frames",
+  "license": "CC0 (project-authored, derived from Quaternius UAL CC0)",
+  "loop": false,
+  "maxIkErr": 0.116,
+  "travel": [
+   0,
+   0,
+   0.8
+  ],
+  "next": "boat_sit",
+  "vehicle": "raft",
+  "duration": 2
+ },
+ "board_truck": {
+  "source": "keyed poses (guest_synth.js) on UAL frames",
+  "license": "CC0 (project-authored, derived from Quaternius UAL CC0)",
+  "loop": false,
+  "maxIkErr": 0.176,
+  "travel": [
+   0,
+   1.05,
+   0.9
+  ],
+  "next": "idle",
+  "vehicle": "truck",
+  "duration": 1.6
+ },
+ "board_car": {
+  "source": "keyed poses (guest_synth.js) on UAL frames",
+  "license": "CC0 (project-authored, derived from Quaternius UAL CC0)",
+  "loop": false,
+  "maxIkErr": 0.058,
+  "travel": [
+   0.06,
+   0,
+   0.62
+  ],
+  "travelYaw": 90,
+  "next": "sit",
+  "vehicle": "car",
+  "duration": 1.6
+ },
+ "crawl_unarmed": {
+  "source": "procedural keyframes (tools/characters/prone)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "loco": true,
+  "prone": true,
+  "groundSpeed": 0.9,
+  "strokesPerCycle": 2,
+  "stroke": 0.405,
+  "duty": 0.6,
+  "duration": 0.9,
+  "contacts": {
+   "el": "11 11 11 11 11 11 11 11 11 00 00 00 00 00 11 11 11 11 11 11 11 11 00 00 00 00 00 11",
+   "ft": "01 01 01 01 01 01 01 01 01 00 00 00 00 00 10 10 10 10 10 10 10 10 00 00 00 00 00 01"
+  }
+ },
+ "crawl_knife": {
+  "source": "procedural keyframes (tools/characters/prone)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "loco": true,
+  "prone": true,
+  "groundSpeed": 0.9,
+  "strokesPerCycle": 2,
+  "stroke": 0.405,
+  "duty": 0.6,
+  "hold": "crawl",
+  "duration": 0.9,
+  "contacts": {
+   "el": "11 11 11 11 11 11 11 11 11 00 00 00 00 00 11 11 11 11 11 11 11 11 00 00 00 00 00 11",
+   "ft": "01 01 01 01 01 01 01 01 01 00 00 00 00 00 10 10 10 10 10 10 10 10 00 00 00 00 00 01"
+  }
+ },
+ "crawl_idle_unarmed": {
+  "source": "procedural keyframes (tools/characters/prone)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "prone": true,
+  "duration": 8,
+  "contacts": {
+   "el": "11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11",
+   "ft": "11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11"
+  }
+ },
+ "prone_aim": {
+  "source": "procedural keyframes (tools/characters/prone)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "prone": true,
+  "hold": "prone",
+  "duration": 4
+ },
+ "prone_shoot": {
+  "source": "procedural keyframes (tools/characters/prone)",
+  "license": "CC0 (project-authored)",
+  "loop": false,
+  "prone": true,
+  "hold": "prone",
+  "duration": 1.2
+ },
+ "prone_shoot_smg": {
+  "source": "procedural keyframes (tools/characters/prone)",
+  "license": "CC0 (project-authored)",
+  "loop": false,
+  "prone": true,
+  "hold": "prone",
+  "duration": 0.6
+ },
+ "prone_pistol_aim": {
+  "source": "procedural keyframes (tools/characters/prone)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "prone": true,
+  "hold": "prone",
+  "duration": 2
+ },
+ "prone_pistol_shoot": {
+  "source": "procedural keyframes (tools/characters/prone)",
+  "license": "CC0 (project-authored)",
+  "loop": false,
+  "prone": true,
+  "hold": "prone",
+  "duration": 0.5
+ },
+ "prone_turn_l": {
+  "source": "procedural keyframes (tools/characters/prone)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "prone": true,
+  "hold": "crawl",
+  "duration": 0.6
+ },
+ "prone_turn_r": {
+  "source": "procedural keyframes (tools/characters/prone)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "prone": true,
+  "hold": "crawl",
+  "duration": 0.6
+ },
+ "crawl": {
+  "source": "procedural keyframes (tools/characters/prone)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "loco": true,
+  "prone": true,
+  "groundSpeed": 0.9,
+  "strokesPerCycle": 2,
+  "stroke": 0.405,
+  "duty": 0.6,
+  "hold": "crawl",
+  "duration": 0.9,
+  "contacts": {
+   "el": "11 11 11 11 11 11 11 11 11 00 00 00 00 00 11 11 11 11 11 11 11 11 00 00 00 00 00 11",
+   "ft": "01 01 01 01 01 01 01 01 01 00 00 00 00 00 10 10 10 10 10 10 10 10 00 00 00 00 00 01"
+  }
+ },
+ "crawl_idle": {
+  "source": "procedural keyframes (tools/characters/prone)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "prone": true,
+  "hold": "crawl",
+  "duration": 8,
+  "contacts": {
+   "el": "11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11",
+   "ft": "11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11"
+  }
+ },
+ "go_prone": {
+  "source": "procedural keyframes (tools/characters/prone)",
+  "license": "CC0 (project-authored)",
+  "loop": false,
+  "transition": true,
+  "prone": true,
+  "next": "crawl_idle",
+  "duration": 0.5
+ },
+ "get_up": {
+  "source": "procedural keyframes (tools/characters/prone)",
+  "license": "CC0 (project-authored)",
+  "loop": false,
+  "transition": true,
+  "prone": true,
+  "next": "idle",
+  "duration": 0.6
+ },
+ "die_prone": {
+  "source": "procedural keyframes (tools/characters/prone)",
+  "license": "CC0 (project-authored)",
+  "loop": false,
+  "prone": true,
+  "next": "dead_prone",
+  "duration": 0.9
+ },
+ "dead_prone": {
+  "source": "procedural keyframes (tools/characters/prone)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "prone": true,
+  "duration": 0.5
+ }
+}

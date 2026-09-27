@@ -1,0 +1,3 @@
+villa_hq.py snow 53 snow 30000
+villa_hq.py destroyed 54 temperate 30000
+villa_hq.py snow 53 snow 30000

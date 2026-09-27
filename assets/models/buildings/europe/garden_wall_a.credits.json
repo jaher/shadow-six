@@ -1,0 +1,193 @@
+{
+ "asset": "garden_wall_a",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "ashlar": {
+   "source": "Poly Haven",
+   "id": "stone_block_wall",
+   "url": "https://polyhaven.com/a/stone_block_wall",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Stone Block Wall",
+   "label": "Dressed stone blocks / ashlar (bridges)",
+   "files": {
+    "diff": {
+     "2k": "2k/ashlar_diff",
+     "1k": "1k/ashlar_diff"
+    },
+    "nor": {
+     "2k": "2k/ashlar_nor",
+     "1k": "1k/ashlar_nor"
+    },
+    "arm": {
+     "2k": "2k/ashlar_arm",
+     "1k": "1k/ashlar_arm"
+    }
+   }
+  },
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  },
+  "door_planks": {
+   "source": "Poly Haven",
+   "id": "weathered_peeling_timber",
+   "url": "https://polyhaven.com/a/weathered_peeling_timber",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Peeling Timber",
+   "label": "Weathered peeling timber (doors)",
+   "files": {
+    "diff": {
+     "2k": "2k/door_planks_diff",
+     "1k": "1k/door_planks_diff"
+    },
+    "nor": {
+     "2k": "2k/door_planks_nor",
+     "1k": "1k/door_planks_nor"
+    },
+    "arm": {
+     "2k": "2k/door_planks_arm",
+     "1k": "1k/door_planks_arm"
+    }
+   }
+  },
+  "fieldstone": {
+   "source": "Poly Haven",
+   "id": "rustic_stone_wall",
+   "url": "https://polyhaven.com/a/rustic_stone_wall",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rustic Stone Wall",
+   "label": "Fieldstone rubble wall, warm (Normandy)",
+   "files": {
+    "diff": {
+     "2k": "2k/fieldstone_diff",
+     "1k": "1k/fieldstone_diff"
+    },
+    "nor": {
+     "2k": "2k/fieldstone_nor",
+     "1k": "1k/fieldstone_nor"
+    },
+    "arm": {
+     "2k": "2k/fieldstone_arm",
+     "1k": "1k/fieldstone_arm"
+    }
+   }
+  },
+  "foliage_atlas": {
+   "source": "procedural (own work, europe rework rw/make_foliage.py)",
+   "id": "foliage_atlas",
+   "url": null,
+   "authors": [
+    "SHADOW SIX art"
+   ],
+   "license": "CC0-1.0",
+   "name": "Foliage clump atlas",
+   "label": "Foliage clump atlas 2x2 (iris | grass tuft | broadleaf weeds | fern), alpha-tested cross cards",
+   "files": {
+    "diff": {
+     "1k": "1k/foliage_atlas_diff",
+     "2k": "2k/foliage_atlas_diff"
+    },
+    "nor": {
+     "1k": "1k/foliage_atlas_nor",
+     "2k": "2k/foliage_atlas_nor"
+    },
+    "arm": {
+     "1k": "1k/foliage_atlas_arm",
+     "2k": "2k/foliage_atlas_arm"
+    }
+   }
+  },
+  "plaster_rough": {
+   "source": "Poly Haven",
+   "id": "rough_plaster_03",
+   "url": "https://polyhaven.com/a/rough_plaster_03",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rough Plaster 03",
+   "label": "Rough render / half-timber infill (cream)",
+   "files": {
+    "diff": {
+     "2k": "2k/plaster_rough_diff",
+     "1k": "1k/plaster_rough_diff"
+    },
+    "nor": {
+     "2k": "2k/plaster_rough_nor",
+     "1k": "1k/plaster_rough_nor"
+    },
+    "arm": {
+     "2k": "2k/plaster_rough_arm",
+     "1k": "1k/plaster_rough_arm"
+    }
+   }
+  },
+  "rubble_stone": {
+   "source": "Poly Haven",
+   "id": "stone_wall",
+   "url": "https://polyhaven.com/a/stone_wall",
+   "authors": [
+    "Dario Barresi",
+    "Charlotte Baglioni"
+   ],
+   "license": "CC0-1.0",
+   "name": "Stone Wall",
+   "label": "Random rubble stone wall, irregular polygonal stones (garden / farm walls)",
+   "files": {
+    "diff": {
+     "2k": "2k/rubble_stone_diff",
+     "1k": "1k/rubble_stone_diff"
+    },
+    "nor": {
+     "2k": "2k/rubble_stone_nor",
+     "1k": "1k/rubble_stone_nor"
+    },
+    "arm": {
+     "2k": "2k/rubble_stone_arm",
+     "1k": "1k/rubble_stone_arm"
+    }
+   }
+  }
+ }
+}

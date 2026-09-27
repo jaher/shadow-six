@@ -1,0 +1,361 @@
+{
+ "asset": "castle_gate_ruin",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "ashlar": {
+   "source": "Poly Haven",
+   "id": "stone_block_wall",
+   "url": "https://polyhaven.com/a/stone_block_wall",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Stone Block Wall",
+   "label": "Dressed stone blocks / ashlar (bridges)",
+   "files": {
+    "diff": {
+     "2k": "2k/ashlar_diff",
+     "1k": "1k/ashlar_diff"
+    },
+    "nor": {
+     "2k": "2k/ashlar_nor",
+     "1k": "1k/ashlar_nor"
+    },
+    "arm": {
+     "2k": "2k/ashlar_arm",
+     "1k": "1k/ashlar_arm"
+    }
+   }
+  },
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "cobblestone": {
+   "source": "Poly Haven",
+   "id": "cobblestone_05",
+   "url": "https://polyhaven.com/a/cobblestone_05",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Cobblestone 05",
+   "label": "Cobblestone setts",
+   "files": {
+    "diff": {
+     "2k": "2k/cobblestone_diff",
+     "1k": "1k/cobblestone_diff"
+    },
+    "nor": {
+     "2k": "2k/cobblestone_nor",
+     "1k": "1k/cobblestone_nor"
+    },
+    "arm": {
+     "2k": "2k/cobblestone_arm",
+     "1k": "1k/cobblestone_arm"
+    }
+   }
+  },
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  },
+  "fieldstone_grey": {
+   "source": "Poly Haven",
+   "id": "stone_wall_04",
+   "url": "https://polyhaven.com/a/stone_wall_04",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Stone Wall 04",
+   "label": "Fieldstone rubble wall, grey (Norway/granite)",
+   "files": {
+    "diff": {
+     "2k": "2k/fieldstone_grey_diff",
+     "1k": "1k/fieldstone_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/fieldstone_grey_nor",
+     "1k": "1k/fieldstone_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/fieldstone_grey_arm",
+     "1k": "1k/fieldstone_grey_arm"
+    }
+   }
+  },
+  "granite": {
+   "source": "Poly Haven",
+   "id": "granite_wall",
+   "url": "https://polyhaven.com/a/granite_wall",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Granite Wall",
+   "label": "Granite wall",
+   "files": {
+    "diff": {
+     "2k": "2k/granite_diff",
+     "1k": "1k/granite_diff"
+    },
+    "nor": {
+     "2k": "2k/granite_nor",
+     "1k": "1k/granite_nor"
+    },
+    "arm": {
+     "2k": "2k/granite_arm",
+     "1k": "1k/granite_arm"
+    }
+   }
+  },
+  "gravel": {
+   "source": "Poly Haven",
+   "id": "gravel_road",
+   "url": "https://polyhaven.com/a/gravel_road",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Gravel Road",
+   "label": "Gravel road",
+   "files": {
+    "diff": {
+     "2k": "2k/gravel_diff",
+     "1k": "1k/gravel_diff"
+    },
+    "nor": {
+     "2k": "2k/gravel_nor",
+     "1k": "1k/gravel_nor"
+    },
+    "arm": {
+     "2k": "2k/gravel_arm",
+     "1k": "1k/gravel_arm"
+    }
+   }
+  },
+  "interior_dark": {
+   "source": "procedural (tools/make_procedural.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Interior darkness card",
+   "files": {
+    "diff": {
+     "1k": "1k/interior_dark_diff",
+     "2k": "2k/interior_dark_diff"
+    },
+    "nor": {
+     "1k": "1k/interior_dark_nor",
+     "2k": "2k/interior_dark_nor"
+    },
+    "arm": {
+     "1k": "1k/interior_dark_arm",
+     "2k": "2k/interior_dark_arm"
+    }
+   }
+  },
+  "roof_slate": {
+   "source": "Poly Haven",
+   "id": "roof_slates_02",
+   "url": "https://polyhaven.com/a/roof_slates_02",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Roof Slates 02",
+   "label": "Slate roof",
+   "files": {
+    "diff": {
+     "2k": "2k/roof_slate_diff",
+     "1k": "1k/roof_slate_diff"
+    },
+    "nor": {
+     "2k": "2k/roof_slate_nor",
+     "1k": "1k/roof_slate_nor"
+    },
+    "arm": {
+     "2k": "2k/roof_slate_arm",
+     "1k": "1k/roof_slate_arm"
+    }
+   }
+  },
+  "scree_grey": {
+   "source": "Poly Haven",
+   "id": "gray_rocks",
+   "url": "https://polyhaven.com/a/gray_rocks",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Gray Rocks",
+   "label": "Grey broken-stone scree / masonry rubble (ruin debris mounds)",
+   "files": {
+    "diff": {
+     "2k": "2k/scree_grey_diff",
+     "1k": "1k/scree_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/scree_grey_nor",
+     "1k": "1k/scree_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/scree_grey_arm",
+     "1k": "1k/scree_grey_arm"
+    }
+   }
+  },
+  "setts_granite": {
+   "source": "Poly Haven",
+   "id": "cobblestone_floor_03",
+   "url": "https://polyhaven.com/a/cobblestone_floor_03",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Cobblestone Floor 03",
+   "label": "Granite setts in courses (bridge decks, gate passages)",
+   "files": {
+    "diff": {
+     "2k": "2k/setts_granite_diff",
+     "1k": "1k/setts_granite_diff"
+    },
+    "nor": {
+     "2k": "2k/setts_granite_nor",
+     "1k": "1k/setts_granite_nor"
+    },
+    "arm": {
+     "2k": "2k/setts_granite_arm",
+     "1k": "1k/setts_granite_arm"
+    }
+   }
+  },
+  "sod": {
+   "source": "Poly Haven",
+   "id": "sparse_grass",
+   "url": "https://polyhaven.com/a/sparse_grass",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Sparse Grass",
+   "label": "Sod / turf roof",
+   "files": {
+    "diff": {
+     "2k": "2k/sod_diff",
+     "1k": "1k/sod_diff"
+    },
+    "nor": {
+     "2k": "2k/sod_nor",
+     "1k": "1k/sod_nor"
+    },
+    "arm": {
+     "2k": "2k/sod_arm",
+     "1k": "1k/sod_arm"
+    }
+   }
+  },
+  "timber_beam": {
+   "source": "Poly Haven",
+   "id": "wood_planks_grey",
+   "url": "https://polyhaven.com/a/wood_planks_grey",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Grey",
+   "label": "Grey structural timber (beams, rafters)",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_beam_diff",
+     "1k": "1k/timber_beam_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_beam_nor",
+     "1k": "1k/timber_beam_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_beam_arm",
+     "1k": "1k/timber_beam_arm"
+    }
+   }
+  },
+  "timber_tarred": {
+   "source": "Poly Haven",
+   "id": "dark_wooden_planks",
+   "url": "https://polyhaven.com/a/dark_wooden_planks",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Dark Wooden Planks",
+   "label": "Dark tarred timber",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_tarred_diff",
+     "1k": "1k/timber_tarred_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_tarred_nor",
+     "1k": "1k/timber_tarred_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_tarred_arm",
+     "1k": "1k/timber_tarred_arm"
+    }
+   }
+  },
+  "wood_paint": {
+   "source": "Poly Haven",
+   "id": "weathered_peeling_timber",
+   "url": "https://polyhaven.com/a/weathered_peeling_timber",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Peeling Timber",
+   "label": "Pale painted wood base (tint via kit_tint for shutters/frames)",
+   "files": {
+    "diff": {
+     "2k": "2k/wood_paint_diff",
+     "1k": "1k/wood_paint_diff"
+    },
+    "nor": {
+     "2k": "2k/wood_paint_nor",
+     "1k": "1k/wood_paint_nor"
+    },
+    "arm": {
+     "2k": "2k/wood_paint_arm",
+     "1k": "1k/wood_paint_arm"
+    }
+   }
+  }
+ }
+}

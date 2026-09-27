@@ -1,0 +1,207 @@
+{
+ "asset": "wall_octagon_corner",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "fieldstone": {
+   "source": "Poly Haven",
+   "id": "rustic_stone_wall",
+   "url": "https://polyhaven.com/a/rustic_stone_wall",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rustic Stone Wall",
+   "label": "Fieldstone rubble wall, warm (Normandy)",
+   "files": {
+    "diff": {
+     "2k": "2k/fieldstone_diff",
+     "1k": "1k/fieldstone_diff"
+    },
+    "nor": {
+     "2k": "2k/fieldstone_nor",
+     "1k": "1k/fieldstone_nor"
+    },
+    "arm": {
+     "2k": "2k/fieldstone_arm",
+     "1k": "1k/fieldstone_arm"
+    }
+   }
+  },
+  "mud_render2": {
+   "source": "Poly Haven",
+   "id": "dirt_floor",
+   "url": "https://polyhaven.com/a/dirt_floor",
+   "authors": [
+    "eye-candy.xyz"
+   ],
+   "license": "CC0-1.0",
+   "name": "Dirt Floor",
+   "label": "Mud/straw render (hand-thrown, grit + straw), darker/redder than sand",
+   "files": {
+    "diff": {
+     "2k": "2k/mud_render2_diff",
+     "1k": "1k/mud_render2_diff"
+    },
+    "nor": {
+     "2k": "2k/mud_render2_nor",
+     "1k": "1k/mud_render2_nor"
+    },
+    "arm": {
+     "2k": "2k/mud_render2_arm",
+     "1k": "1k/mud_render2_arm"
+    }
+   }
+  },
+  "mudbrick": {
+   "source": "Poly Haven",
+   "id": "clay_block_wall",
+   "url": "https://polyhaven.com/a/clay_block_wall",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Clay Block Wall",
+   "label": "Exposed sun-dried mud brick",
+   "files": {
+    "diff": {
+     "2k": "2k/mudbrick_diff",
+     "1k": "1k/mudbrick_diff"
+    },
+    "nor": {
+     "2k": "2k/mudbrick_nor",
+     "1k": "1k/mudbrick_nor"
+    },
+    "arm": {
+     "2k": "2k/mudbrick_arm",
+     "1k": "1k/mudbrick_arm"
+    }
+   }
+  },
+  "palm_log": {
+   "source": "Poly Haven",
+   "id": "bark_brown_01",
+   "url": "https://polyhaven.com/a/bark_brown_01",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Bark Brown 01",
+   "label": "Palm trunk / rough log (joists, beams)",
+   "files": {
+    "diff": {
+     "2k": "2k/palm_log_diff",
+     "1k": "1k/palm_log_diff"
+    },
+    "nor": {
+     "2k": "2k/palm_log_nor",
+     "1k": "1k/palm_log_nor"
+    },
+    "arm": {
+     "2k": "2k/palm_log_arm",
+     "1k": "1k/palm_log_arm"
+    }
+   }
+  },
+  "sand": {
+   "source": "Poly Haven",
+   "id": "dense_sand",
+   "url": "https://polyhaven.com/a/dense_sand",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Dense Sand",
+   "label": "Desert sand drift",
+   "files": {
+    "diff": {
+     "2k": "2k/sand_diff",
+     "1k": "1k/sand_diff"
+    },
+    "nor": {
+     "2k": "2k/sand_nor",
+     "1k": "1k/sand_nor"
+    },
+    "arm": {
+     "2k": "2k/sand_arm",
+     "1k": "1k/sand_arm"
+    }
+   }
+  },
+  "steel_galv": {
+   "source": "Poly Haven",
+   "id": "rusty_painted_metal",
+   "url": "https://polyhaven.com/a/rusty_painted_metal",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Painted Metal",
+   "label": "Bare / galvanized steel (derived)",
+   "files": {
+    "diff": {
+     "2k": "2k/steel_galv_diff",
+     "1k": "1k/steel_galv_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_galv_nor",
+     "1k": "1k/steel_galv_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_galv_arm",
+     "1k": "1k/steel_galv_arm"
+    }
+   }
+  },
+  "timber_grey": {
+   "source": "Poly Haven",
+   "id": "weathered_planks",
+   "url": "https://polyhaven.com/a/weathered_planks",
+   "authors": [
+    "Dario Barresi",
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Planks",
+   "label": "Weathered grey timber",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_grey_diff",
+     "1k": "1k/timber_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_grey_nor",
+     "1k": "1k/timber_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_grey_arm",
+     "1k": "1k/timber_grey_arm"
+    }
+   }
+  }
+ }
+}

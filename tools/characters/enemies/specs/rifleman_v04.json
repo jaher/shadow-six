@@ -1,0 +1,128 @@
+{
+ "budget": {
+  "lod0": 11800,
+  "lod1": 5000,
+  "lod2": 2000
+ },
+ "id": "rifleman_v04",
+ "enemy": {
+  "soldierType": "rifleman",
+  "variant": 4,
+  "archetype": 10,
+  "archetype_name": "soft round, small nose (farm boy)",
+  "seed": 1,
+  "skinTone": "fair_ruddy",
+  "facialHair": "moustache",
+  "glasses": false,
+  "age": 19.7,
+  "extras": [],
+  "key": "10|fair_ruddy|moustache|0",
+  "silhouette": "M35 helmet, field grey, Kar98k"
+ },
+ "body": {
+  "age_years": 19.7,
+  "muscle": 0.528,
+  "weight": 0.515,
+  "proportions": 0.55,
+  "height_m": 1.739,
+  "modifiers": {
+   "head/head-round": 0.68,
+   "nose/nose-scale-horiz-decr": 0.51,
+   "nose/nose-scale-vert-decr": 0.51,
+   "cheek/cheek-volume-incr": 0.27,
+   "eyes/eye-scale-incr": 0.131,
+   "nose/nose-scale-horiz-incr": -0.117,
+   "nose/nose-scale-vert-incr": -0.09,
+   "ears/ear-scale-incr": -0.02,
+   "eyebrows/eyebrows-trans-up": 0.219,
+   "mouth/mouth-lowerlip-volume-incr": 0.027,
+   "head/head-scale-horiz-incr": 0.254,
+   "head/head-scale-vert-incr": 0.637,
+   "head/head-scale-depth-incr": 0.466,
+   "nose/nose-scale-depth-incr": -0.355,
+   "mouth/mouth-scale-horiz-incr": 0.311,
+   "eyes/eye-trans-out": 0.157,
+   "eyes/eye-trans-up": -0.551,
+   "chin/chin-height-incr": -0.718,
+   "chin/chin-width-incr": -0.317,
+   "chin/chin-prominent-incr": 0.12,
+   "ears/ear-flap-incr": -0.409,
+   "eyebrows/eyebrows-angle-up": 0.542,
+   "cheek/cheek-bones-incr": 0.384,
+   "forehead/forehead-scale-vert-incr": 0.203,
+   "neck/neck-scale-horiz-incr": -0.141,
+   "mouth/mouth-upperlip-height-incr": -0.241,
+   "nose/nose-width2-incr": 0.328,
+   "eye-left-slit": 0.342,
+   "eye-right-slit": 0.212,
+   "head/head-age-decr": 0.107
+  }
+ },
+ "skin": {
+  "base": "young_caucasian_male",
+  "tint": [
+   1.062,
+   0.956,
+   0.864
+  ],
+  "ruddy": 0.45,
+  "stubble": 0.2,
+  "complexion": {
+   "freckles": 0.31,
+   "moles": 2,
+   "scar": false,
+   "lines": 0.1,
+   "seed": 31
+  }
+ },
+ "eyes": {
+  "iris": [
+   0.36,
+   0.5,
+   0.66
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow002",
+  "color": [
+   0.08,
+   0.064,
+   0.048
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.1,
+   0.08,
+   0.06
+  ]
+ },
+ "facial_hair": "moustache",
+ "glasses": false,
+ "outfit": "heer_m40",
+ "outfit_opts": {
+  "tint_mul": [
+   0.981,
+   0.973,
+   0.966
+  ],
+  "wear": 0.261
+ },
+ "kit": [
+  "belt",
+  "ystraps",
+  "ammo_pouches",
+  "bread_bag",
+  "canteen",
+  "gasmask_can",
+  "bayonet"
+ ],
+ "headgear": {
+  "type": "m35",
+  "wear": 0.24
+ },
+ "weapon": {
+  "primary": "kar98k"
+ }
+}

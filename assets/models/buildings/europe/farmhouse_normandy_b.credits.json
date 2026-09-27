@@ -1,0 +1,375 @@
+{
+ "asset": "farmhouse_normandy_b",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "ashlar": {
+   "source": "Poly Haven",
+   "id": "stone_block_wall",
+   "url": "https://polyhaven.com/a/stone_block_wall",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Stone Block Wall",
+   "label": "Dressed stone blocks / ashlar (bridges)",
+   "files": {
+    "diff": {
+     "2k": "2k/ashlar_diff",
+     "1k": "1k/ashlar_diff"
+    },
+    "nor": {
+     "2k": "2k/ashlar_nor",
+     "1k": "1k/ashlar_nor"
+    },
+    "arm": {
+     "2k": "2k/ashlar_arm",
+     "1k": "1k/ashlar_arm"
+    }
+   }
+  },
+  "ashlar_limestone": {
+   "source": "Poly Haven",
+   "id": "white_sandstone_blocks_02",
+   "url": "https://polyhaven.com/a/white_sandstone_blocks_02",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "White Sandstone Blocks 02",
+   "label": "Pale limestone ashlar (Caen stone)",
+   "files": {
+    "diff": {
+     "2k": "2k/ashlar_limestone_diff",
+     "1k": "1k/ashlar_limestone_diff"
+    },
+    "nor": {
+     "2k": "2k/ashlar_limestone_nor",
+     "1k": "1k/ashlar_limestone_nor"
+    },
+    "arm": {
+     "2k": "2k/ashlar_limestone_arm",
+     "1k": "1k/ashlar_limestone_arm"
+    }
+   }
+  },
+  "brick_red": {
+   "source": "Poly Haven",
+   "id": "red_brick_03",
+   "url": "https://polyhaven.com/a/red_brick_03",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Red Brick 03",
+   "label": "Red brick",
+   "files": {
+    "diff": {
+     "2k": "2k/brick_red_diff",
+     "1k": "1k/brick_red_diff"
+    },
+    "nor": {
+     "2k": "2k/brick_red_nor",
+     "1k": "1k/brick_red_nor"
+    },
+    "arm": {
+     "2k": "2k/brick_red_arm",
+     "1k": "1k/brick_red_arm"
+    }
+   }
+  },
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "curtain": {
+   "source": "procedural (tools/make_procedural.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Curtain / lace hint",
+   "files": {
+    "diff": {
+     "1k": "1k/curtain_diff",
+     "2k": "2k/curtain_diff"
+    },
+    "nor": {
+     "1k": "1k/curtain_nor",
+     "2k": "2k/curtain_nor"
+    },
+    "arm": {
+     "1k": "1k/curtain_arm",
+     "2k": "2k/curtain_arm"
+    }
+   }
+  },
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  },
+  "door_planks": {
+   "source": "Poly Haven",
+   "id": "weathered_peeling_timber",
+   "url": "https://polyhaven.com/a/weathered_peeling_timber",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Peeling Timber",
+   "label": "Weathered peeling timber (doors)",
+   "files": {
+    "diff": {
+     "2k": "2k/door_planks_diff",
+     "1k": "1k/door_planks_diff"
+    },
+    "nor": {
+     "2k": "2k/door_planks_nor",
+     "1k": "1k/door_planks_nor"
+    },
+    "arm": {
+     "2k": "2k/door_planks_arm",
+     "1k": "1k/door_planks_arm"
+    }
+   }
+  },
+  "glass_dirty": {
+   "source": "procedural (tools/make_procedural.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Dirty window glass",
+   "files": {
+    "diff": {
+     "1k": "1k/glass_dirty_diff",
+     "2k": "2k/glass_dirty_diff"
+    },
+    "nor": {
+     "1k": "1k/glass_dirty_nor",
+     "2k": "2k/glass_dirty_nor"
+    },
+    "arm": {
+     "1k": "1k/glass_dirty_arm",
+     "2k": "2k/glass_dirty_arm"
+    }
+   }
+  },
+  "interior_dark": {
+   "source": "procedural (tools/make_procedural.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Interior darkness card",
+   "files": {
+    "diff": {
+     "1k": "1k/interior_dark_diff",
+     "2k": "2k/interior_dark_diff"
+    },
+    "nor": {
+     "1k": "1k/interior_dark_nor",
+     "2k": "2k/interior_dark_nor"
+    },
+    "arm": {
+     "1k": "1k/interior_dark_arm",
+     "2k": "2k/interior_dark_arm"
+    }
+   }
+  },
+  "plaster_limewash": {
+   "source": "Poly Haven",
+   "id": "white_rough_plaster",
+   "url": "https://polyhaven.com/a/white_rough_plaster",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "White Rough Plaster",
+   "label": "Lime-wash over render (desert)",
+   "files": {
+    "diff": {
+     "2k": "2k/plaster_limewash_diff",
+     "1k": "1k/plaster_limewash_diff"
+    },
+    "nor": {
+     "2k": "2k/plaster_limewash_nor",
+     "1k": "1k/plaster_limewash_nor"
+    },
+    "arm": {
+     "2k": "2k/plaster_limewash_arm",
+     "1k": "1k/plaster_limewash_arm"
+    }
+   }
+  },
+  "roof_terracotta": {
+   "source": "Poly Haven",
+   "id": "clay_roof_tiles_02",
+   "url": "https://polyhaven.com/a/clay_roof_tiles_02",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Clay Roof Tiles 02",
+   "label": "Terracotta roof tiles",
+   "files": {
+    "diff": {
+     "2k": "2k/roof_terracotta_diff",
+     "1k": "1k/roof_terracotta_diff"
+    },
+    "nor": {
+     "2k": "2k/roof_terracotta_nor",
+     "1k": "1k/roof_terracotta_nor"
+    },
+    "arm": {
+     "2k": "2k/roof_terracotta_arm",
+     "1k": "1k/roof_terracotta_arm"
+    }
+   }
+  },
+  "roof_tile_flat": {
+   "source": "Poly Haven",
+   "id": "clay_roof_tiles_03",
+   "url": "https://polyhaven.com/a/clay_roof_tiles_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Clay Roof Tiles 03",
+   "label": "Flat clay plain tiles (Norman tuile plate / Alsatian Biberschwanz)",
+   "files": {
+    "diff": {
+     "2k": "2k/roof_tile_flat_diff",
+     "1k": "1k/roof_tile_flat_diff"
+    },
+    "nor": {
+     "2k": "2k/roof_tile_flat_nor",
+     "1k": "1k/roof_tile_flat_nor"
+    },
+    "arm": {
+     "2k": "2k/roof_tile_flat_arm",
+     "1k": "1k/roof_tile_flat_arm"
+    }
+   }
+  },
+  "timber_beam": {
+   "source": "Poly Haven",
+   "id": "wood_planks_grey",
+   "url": "https://polyhaven.com/a/wood_planks_grey",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Grey",
+   "label": "Grey structural timber (beams, rafters)",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_beam_diff",
+     "1k": "1k/timber_beam_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_beam_nor",
+     "1k": "1k/timber_beam_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_beam_arm",
+     "1k": "1k/timber_beam_arm"
+    }
+   }
+  },
+  "timber_grey": {
+   "source": "Poly Haven",
+   "id": "weathered_planks",
+   "url": "https://polyhaven.com/a/weathered_planks",
+   "authors": [
+    "Dario Barresi",
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Planks",
+   "label": "Weathered grey timber",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_grey_diff",
+     "1k": "1k/timber_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_grey_nor",
+     "1k": "1k/timber_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_grey_arm",
+     "1k": "1k/timber_grey_arm"
+    }
+   }
+  },
+  "timber_siding": {
+   "source": "Poly Haven",
+   "id": "weathered_plank_siding",
+   "url": "https://polyhaven.com/a/weathered_plank_siding",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Plank Siding",
+   "label": "Weathered plank siding",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_siding_diff",
+     "1k": "1k/timber_siding_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_siding_nor",
+     "1k": "1k/timber_siding_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_siding_arm",
+     "1k": "1k/timber_siding_arm"
+    }
+   }
+  },
+  "wood_paint": {
+   "source": "Poly Haven",
+   "id": "weathered_peeling_timber",
+   "url": "https://polyhaven.com/a/weathered_peeling_timber",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Peeling Timber",
+   "label": "Pale painted wood base (tint via kit_tint for shutters/frames)",
+   "files": {
+    "diff": {
+     "2k": "2k/wood_paint_diff",
+     "1k": "1k/wood_paint_diff"
+    },
+    "nor": {
+     "2k": "2k/wood_paint_nor",
+     "1k": "1k/wood_paint_nor"
+    },
+    "arm": {
+     "2k": "2k/wood_paint_arm",
+     "1k": "1k/wood_paint_arm"
+    }
+   }
+  }
+ }
+}

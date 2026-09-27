@@ -1,0 +1,1175 @@
+{
+ "format": "rec lines: {speaker, voice, rec, text, files:[ogg,mp3], alt?, timing}; see src/audio/voice-lines.js REC",
+ "engines": {
+  "Kokoro-82M (hexgrad) weights+voicepacks": "Apache-2.0 - https://huggingface.co/hexgrad/Kokoro-82M",
+  "Chatterbox-Multilingual (Resemble AI)": "MIT - https://huggingface.co/ResembleAI/chatterbox ; outputs carry an imperceptible PerTh watermark (disclose as AI-generated)",
+  "misaki G2P": "Apache-2.0 (offline tool)",
+  "espeak-ng": "GPL-3.0 (offline phonemizer tool only; not shipped)",
+  "wav2vec2-xlsr-53-espeak-cv-ft (alignment)": "Apache-2.0",
+  "faster-whisper small (QA)": "MIT",
+  "CommonAccent ECAPA (QA)": "MIT",
+  "VoxLingua107 ECAPA (QA)": "Apache-2.0",
+  "ffmpeg 7.0.2 static via imageio-ffmpeg (rubberband, libopus, lame)": "GPL build used offline as a tool; outputs unencumbered",
+  "generated audio": "Project-owned output of Apache-2.0/MIT models; no real person cloned (all timbres = stock/blended synthetic voices or pitch-shifted builtin synthetic voice)"
+ },
+ "lines": [
+  {
+   "speaker": "greenberet",
+   "voice": 1,
+   "rec": "yes_sir",
+   "text": "Yes, sir!",
+   "lang": "en",
+   "duration": 1.253,
+   "asr_sim": 1.0,
+   "files": [
+    "green_beret/primary/yes_sir.ogg",
+    "green_beret/primary/yes_sir.mp3"
+   ],
+   "timing": "green_beret/primary/yes_sir.json",
+   "alt": [
+    "green_beret/alt/yes_sir.ogg",
+    "green_beret/alt/yes_sir.mp3"
+   ]
+  },
+  {
+   "speaker": "greenberet",
+   "voice": 1,
+   "rec": "right_away",
+   "text": "Right away.",
+   "lang": "en",
+   "duration": 1.254,
+   "asr_sim": 1.0,
+   "files": [
+    "green_beret/primary/right_away.ogg",
+    "green_beret/primary/right_away.mp3"
+   ],
+   "timing": "green_beret/primary/right_away.json",
+   "alt": [
+    "green_beret/alt/right_away.ogg",
+    "green_beret/alt/right_away.mp3"
+   ]
+  },
+  {
+   "speaker": "greenberet",
+   "voice": 1,
+   "rec": "understood",
+   "text": "Understood.",
+   "lang": "en",
+   "duration": 1.141,
+   "asr_sim": 1.0,
+   "files": [
+    "green_beret/primary/understood.ogg",
+    "green_beret/primary/understood.mp3"
+   ],
+   "timing": "green_beret/primary/understood.json",
+   "alt": [
+    "green_beret/alt/understood.ogg",
+    "green_beret/alt/understood.mp3"
+   ]
+  },
+  {
+   "speaker": "greenberet",
+   "voice": 1,
+   "rec": "on_my_way",
+   "text": "On my way.",
+   "lang": "en",
+   "duration": 1.242,
+   "asr_sim": 1.0,
+   "files": [
+    "green_beret/primary/on_my_way.ogg",
+    "green_beret/primary/on_my_way.mp3"
+   ],
+   "timing": "green_beret/primary/on_my_way.json",
+   "alt": [
+    "green_beret/alt/on_my_way.ogg",
+    "green_beret/alt/on_my_way.mp3"
+   ]
+  },
+  {
+   "speaker": "greenberet",
+   "voice": 1,
+   "rec": "consider_it_done",
+   "text": "Consider it done.",
+   "lang": "en",
+   "duration": 1.454,
+   "asr_sim": 1.0,
+   "files": [
+    "green_beret/primary/consider_it_done.ogg",
+    "green_beret/primary/consider_it_done.mp3"
+   ],
+   "timing": "green_beret/primary/consider_it_done.json",
+   "alt": [
+    "green_beret/alt/consider_it_done.ogg",
+    "green_beret/alt/consider_it_done.mp3"
+   ]
+  },
+  {
+   "speaker": "greenberet",
+   "voice": 1,
+   "rec": "what_now",
+   "text": "What now?",
+   "lang": "en",
+   "duration": 1.086,
+   "asr_sim": 1.0,
+   "files": [
+    "green_beret/primary/what_now.ogg",
+    "green_beret/primary/what_now.mp3"
+   ],
+   "timing": "green_beret/primary/what_now.json",
+   "alt": [
+    "green_beret/alt/what_now.ogg",
+    "green_beret/alt/what_now.mp3"
+   ]
+  },
+  {
+   "speaker": "greenberet",
+   "voice": 1,
+   "rec": "i_m_hit",
+   "text": "I'm hit!",
+   "lang": "en",
+   "duration": 1.1,
+   "asr_sim": 0.4,
+   "files": [
+    "green_beret/primary/i_m_hit.ogg",
+    "green_beret/primary/i_m_hit.mp3"
+   ],
+   "timing": "green_beret/primary/i_m_hit.json",
+   "alt": [
+    "green_beret/alt/i_m_hit.ogg",
+    "green_beret/alt/i_m_hit.mp3"
+   ]
+  },
+  {
+   "speaker": "greenberet",
+   "voice": 1,
+   "rec": "ready",
+   "text": "Ready.",
+   "lang": "en",
+   "duration": 0.745,
+   "asr_sim": 1.0,
+   "files": [
+    "green_beret/primary/ready.ogg",
+    "green_beret/primary/ready.mp3"
+   ],
+   "timing": "green_beret/primary/ready.json",
+   "alt": [
+    "green_beret/alt/ready.ogg",
+    "green_beret/alt/ready.mp3"
+   ]
+  },
+  {
+   "speaker": "sniper",
+   "voice": 1,
+   "rec": "yes_sir",
+   "text": "Yes, sir!",
+   "lang": "en",
+   "duration": 1.13,
+   "asr_sim": 1.0,
+   "files": [
+    "sniper/primary/yes_sir.ogg",
+    "sniper/primary/yes_sir.mp3"
+   ],
+   "timing": "sniper/primary/yes_sir.json",
+   "alt": [
+    "sniper/alt/yes_sir.ogg",
+    "sniper/alt/yes_sir.mp3"
+   ]
+  },
+  {
+   "speaker": "sniper",
+   "voice": 1,
+   "rec": "right_away",
+   "text": "Right away.",
+   "lang": "en",
+   "duration": 0.955,
+   "asr_sim": 1.0,
+   "files": [
+    "sniper/primary/right_away.ogg",
+    "sniper/primary/right_away.mp3"
+   ],
+   "timing": "sniper/primary/right_away.json",
+   "alt": [
+    "sniper/alt/right_away.ogg",
+    "sniper/alt/right_away.mp3"
+   ]
+  },
+  {
+   "speaker": "sniper",
+   "voice": 1,
+   "rec": "understood",
+   "text": "Understood.",
+   "lang": "en",
+   "duration": 1.008,
+   "asr_sim": 0.0,
+   "files": [
+    "sniper/primary/understood.ogg",
+    "sniper/primary/understood.mp3"
+   ],
+   "timing": "sniper/primary/understood.json",
+   "alt": [
+    "sniper/alt/understood.ogg",
+    "sniper/alt/understood.mp3"
+   ]
+  },
+  {
+   "speaker": "sniper",
+   "voice": 1,
+   "rec": "on_my_way",
+   "text": "On my way.",
+   "lang": "en",
+   "duration": 1.515,
+   "asr_sim": 1.0,
+   "files": [
+    "sniper/primary/on_my_way.ogg",
+    "sniper/primary/on_my_way.mp3"
+   ],
+   "timing": "sniper/primary/on_my_way.json",
+   "alt": [
+    "sniper/alt/on_my_way.ogg",
+    "sniper/alt/on_my_way.mp3"
+   ]
+  },
+  {
+   "speaker": "sniper",
+   "voice": 1,
+   "rec": "consider_it_done",
+   "text": "Consider it done.",
+   "lang": "en",
+   "duration": 1.287,
+   "asr_sim": 1.0,
+   "files": [
+    "sniper/primary/consider_it_done.ogg",
+    "sniper/primary/consider_it_done.mp3"
+   ],
+   "timing": "sniper/primary/consider_it_done.json",
+   "alt": [
+    "sniper/alt/consider_it_done.ogg",
+    "sniper/alt/consider_it_done.mp3"
+   ]
+  },
+  {
+   "speaker": "sniper",
+   "voice": 1,
+   "rec": "what_now",
+   "text": "What now?",
+   "lang": "en",
+   "duration": 1.056,
+   "asr_sim": 1.0,
+   "files": [
+    "sniper/primary/what_now.ogg",
+    "sniper/primary/what_now.mp3"
+   ],
+   "timing": "sniper/primary/what_now.json",
+   "alt": [
+    "sniper/alt/what_now.ogg",
+    "sniper/alt/what_now.mp3"
+   ]
+  },
+  {
+   "speaker": "sniper",
+   "voice": 1,
+   "rec": "i_m_hit",
+   "text": "I'm hit!",
+   "lang": "en",
+   "duration": 0.907,
+   "asr_sim": 1.0,
+   "files": [
+    "sniper/primary/i_m_hit.ogg",
+    "sniper/primary/i_m_hit.mp3"
+   ],
+   "timing": "sniper/primary/i_m_hit.json",
+   "alt": [
+    "sniper/alt/i_m_hit.ogg",
+    "sniper/alt/i_m_hit.mp3"
+   ]
+  },
+  {
+   "speaker": "sniper",
+   "voice": 1,
+   "rec": "ready",
+   "text": "Ready.",
+   "lang": "en",
+   "duration": 0.92,
+   "asr_sim": 1.0,
+   "files": [
+    "sniper/primary/ready.ogg",
+    "sniper/primary/ready.mp3"
+   ],
+   "timing": "sniper/primary/ready.json",
+   "alt": [
+    "sniper/alt/ready.ogg",
+    "sniper/alt/ready.mp3"
+   ]
+  },
+  {
+   "speaker": "diver",
+   "voice": 1,
+   "rec": "yes_sir",
+   "text": "Yes, sir!",
+   "lang": "en",
+   "duration": 0.786,
+   "asr_sim": 1.0,
+   "files": [
+    "marine/primary/yes_sir.ogg",
+    "marine/primary/yes_sir.mp3"
+   ],
+   "timing": "marine/primary/yes_sir.json",
+   "alt": [
+    "marine/alt/yes_sir.ogg",
+    "marine/alt/yes_sir.mp3"
+   ]
+  },
+  {
+   "speaker": "diver",
+   "voice": 1,
+   "rec": "right_away",
+   "text": "Right away.",
+   "lang": "en",
+   "duration": 0.874,
+   "asr_sim": 1.0,
+   "files": [
+    "marine/primary/right_away.ogg",
+    "marine/primary/right_away.mp3"
+   ],
+   "timing": "marine/primary/right_away.json",
+   "alt": [
+    "marine/alt/right_away.ogg",
+    "marine/alt/right_away.mp3"
+   ]
+  },
+  {
+   "speaker": "diver",
+   "voice": 1,
+   "rec": "understood",
+   "text": "Understood.",
+   "lang": "en",
+   "duration": 0.863,
+   "asr_sim": 1.0,
+   "files": [
+    "marine/primary/understood.ogg",
+    "marine/primary/understood.mp3"
+   ],
+   "timing": "marine/primary/understood.json",
+   "alt": [
+    "marine/alt/understood.ogg",
+    "marine/alt/understood.mp3"
+   ]
+  },
+  {
+   "speaker": "diver",
+   "voice": 1,
+   "rec": "on_my_way",
+   "text": "On my way.",
+   "lang": "en",
+   "duration": 0.937,
+   "asr_sim": 1.0,
+   "files": [
+    "marine/primary/on_my_way.ogg",
+    "marine/primary/on_my_way.mp3"
+   ],
+   "timing": "marine/primary/on_my_way.json",
+   "alt": [
+    "marine/alt/on_my_way.ogg",
+    "marine/alt/on_my_way.mp3"
+   ]
+  },
+  {
+   "speaker": "diver",
+   "voice": 1,
+   "rec": "consider_it_done",
+   "text": "Consider it done.",
+   "lang": "en",
+   "duration": 1.131,
+   "asr_sim": 0.67,
+   "files": [
+    "marine/primary/consider_it_done.ogg",
+    "marine/primary/consider_it_done.mp3"
+   ],
+   "timing": "marine/primary/consider_it_done.json",
+   "alt": [
+    "marine/alt/consider_it_done.ogg",
+    "marine/alt/consider_it_done.mp3"
+   ]
+  },
+  {
+   "speaker": "diver",
+   "voice": 1,
+   "rec": "what_now",
+   "text": "What now?",
+   "lang": "en",
+   "duration": 0.8,
+   "asr_sim": 1.0,
+   "files": [
+    "marine/primary/what_now.ogg",
+    "marine/primary/what_now.mp3"
+   ],
+   "timing": "marine/primary/what_now.json",
+   "alt": [
+    "marine/alt/what_now.ogg",
+    "marine/alt/what_now.mp3"
+   ]
+  },
+  {
+   "speaker": "diver",
+   "voice": 1,
+   "rec": "i_m_hit",
+   "text": "I'm hit!",
+   "lang": "en",
+   "duration": 0.803,
+   "asr_sim": 1.0,
+   "files": [
+    "marine/primary/i_m_hit.ogg",
+    "marine/primary/i_m_hit.mp3"
+   ],
+   "timing": "marine/primary/i_m_hit.json",
+   "alt": [
+    "marine/alt/i_m_hit.ogg",
+    "marine/alt/i_m_hit.mp3"
+   ]
+  },
+  {
+   "speaker": "diver",
+   "voice": 1,
+   "rec": "ready",
+   "text": "Ready.",
+   "lang": "en",
+   "duration": 0.689,
+   "asr_sim": 1.0,
+   "files": [
+    "marine/primary/ready.ogg",
+    "marine/primary/ready.mp3"
+   ],
+   "timing": "marine/primary/ready.json",
+   "alt": [
+    "marine/alt/ready.ogg",
+    "marine/alt/ready.mp3"
+   ]
+  },
+  {
+   "speaker": "sapper",
+   "voice": 1,
+   "rec": "yes_sir",
+   "text": "Yes, sir!",
+   "lang": "en",
+   "duration": 1.045,
+   "asr_sim": 1.0,
+   "files": [
+    "sapper/primary/yes_sir.ogg",
+    "sapper/primary/yes_sir.mp3"
+   ],
+   "timing": "sapper/primary/yes_sir.json",
+   "alt": [
+    "sapper/alt/yes_sir.ogg",
+    "sapper/alt/yes_sir.mp3"
+   ]
+  },
+  {
+   "speaker": "sapper",
+   "voice": 1,
+   "rec": "right_away",
+   "text": "Right away.",
+   "lang": "en",
+   "duration": 1.165,
+   "asr_sim": 1.0,
+   "files": [
+    "sapper/primary/right_away.ogg",
+    "sapper/primary/right_away.mp3"
+   ],
+   "timing": "sapper/primary/right_away.json",
+   "alt": [
+    "sapper/alt/right_away.ogg",
+    "sapper/alt/right_away.mp3"
+   ]
+  },
+  {
+   "speaker": "sapper",
+   "voice": 1,
+   "rec": "understood",
+   "text": "Understood.",
+   "lang": "en",
+   "duration": 1.08,
+   "asr_sim": 1.0,
+   "files": [
+    "sapper/primary/understood.ogg",
+    "sapper/primary/understood.mp3"
+   ],
+   "timing": "sapper/primary/understood.json",
+   "alt": [
+    "sapper/alt/understood.ogg",
+    "sapper/alt/understood.mp3"
+   ]
+  },
+  {
+   "speaker": "sapper",
+   "voice": 1,
+   "rec": "on_my_way",
+   "text": "On my way.",
+   "lang": "en",
+   "duration": 1.209,
+   "asr_sim": 1.0,
+   "files": [
+    "sapper/primary/on_my_way.ogg",
+    "sapper/primary/on_my_way.mp3"
+   ],
+   "timing": "sapper/primary/on_my_way.json",
+   "alt": [
+    "sapper/alt/on_my_way.ogg",
+    "sapper/alt/on_my_way.mp3"
+   ]
+  },
+  {
+   "speaker": "sapper",
+   "voice": 1,
+   "rec": "consider_it_done",
+   "text": "Consider it done.",
+   "lang": "en",
+   "duration": 1.447,
+   "asr_sim": 1.0,
+   "files": [
+    "sapper/primary/consider_it_done.ogg",
+    "sapper/primary/consider_it_done.mp3"
+   ],
+   "timing": "sapper/primary/consider_it_done.json",
+   "alt": [
+    "sapper/alt/consider_it_done.ogg",
+    "sapper/alt/consider_it_done.mp3"
+   ]
+  },
+  {
+   "speaker": "sapper",
+   "voice": 1,
+   "rec": "what_now",
+   "text": "What now?",
+   "lang": "en",
+   "duration": 1.084,
+   "asr_sim": 1.0,
+   "files": [
+    "sapper/primary/what_now.ogg",
+    "sapper/primary/what_now.mp3"
+   ],
+   "timing": "sapper/primary/what_now.json",
+   "alt": [
+    "sapper/alt/what_now.ogg",
+    "sapper/alt/what_now.mp3"
+   ]
+  },
+  {
+   "speaker": "sapper",
+   "voice": 1,
+   "rec": "i_m_hit",
+   "text": "I'm hit!",
+   "lang": "en",
+   "duration": 1.019,
+   "asr_sim": 0.5,
+   "files": [
+    "sapper/primary/i_m_hit.ogg",
+    "sapper/primary/i_m_hit.mp3"
+   ],
+   "timing": "sapper/primary/i_m_hit.json",
+   "alt": [
+    "sapper/alt/i_m_hit.ogg",
+    "sapper/alt/i_m_hit.mp3"
+   ]
+  },
+  {
+   "speaker": "sapper",
+   "voice": 1,
+   "rec": "ready",
+   "text": "Ready.",
+   "lang": "en",
+   "duration": 0.878,
+   "asr_sim": 1.0,
+   "files": [
+    "sapper/primary/ready.ogg",
+    "sapper/primary/ready.mp3"
+   ],
+   "timing": "sapper/primary/ready.json",
+   "alt": [
+    "sapper/alt/ready.ogg",
+    "sapper/alt/ready.mp3"
+   ]
+  },
+  {
+   "speaker": "driver",
+   "voice": 1,
+   "rec": "yes_sir",
+   "text": "Yes, sir!",
+   "lang": "en",
+   "duration": 0.875,
+   "asr_sim": 1.0,
+   "files": [
+    "driver/primary/yes_sir.ogg",
+    "driver/primary/yes_sir.mp3"
+   ],
+   "timing": "driver/primary/yes_sir.json",
+   "alt": [
+    "driver/alt/yes_sir.ogg",
+    "driver/alt/yes_sir.mp3"
+   ]
+  },
+  {
+   "speaker": "driver",
+   "voice": 1,
+   "rec": "right_away",
+   "text": "Right away.",
+   "lang": "en",
+   "duration": 0.913,
+   "asr_sim": 1.0,
+   "files": [
+    "driver/primary/right_away.ogg",
+    "driver/primary/right_away.mp3"
+   ],
+   "timing": "driver/primary/right_away.json",
+   "alt": [
+    "driver/alt/right_away.ogg",
+    "driver/alt/right_away.mp3"
+   ]
+  },
+  {
+   "speaker": "driver",
+   "voice": 1,
+   "rec": "understood",
+   "text": "Understood.",
+   "lang": "en",
+   "duration": 0.974,
+   "asr_sim": 1.0,
+   "files": [
+    "driver/primary/understood.ogg",
+    "driver/primary/understood.mp3"
+   ],
+   "timing": "driver/primary/understood.json",
+   "alt": [
+    "driver/alt/understood.ogg",
+    "driver/alt/understood.mp3"
+   ]
+  },
+  {
+   "speaker": "driver",
+   "voice": 1,
+   "rec": "on_my_way",
+   "text": "On my way.",
+   "lang": "en",
+   "duration": 1.122,
+   "asr_sim": 1.0,
+   "files": [
+    "driver/primary/on_my_way.ogg",
+    "driver/primary/on_my_way.mp3"
+   ],
+   "timing": "driver/primary/on_my_way.json",
+   "alt": [
+    "driver/alt/on_my_way.ogg",
+    "driver/alt/on_my_way.mp3"
+   ]
+  },
+  {
+   "speaker": "driver",
+   "voice": 1,
+   "rec": "consider_it_done",
+   "text": "Consider it done.",
+   "lang": "en",
+   "duration": 1.209,
+   "asr_sim": 1.0,
+   "files": [
+    "driver/primary/consider_it_done.ogg",
+    "driver/primary/consider_it_done.mp3"
+   ],
+   "timing": "driver/primary/consider_it_done.json",
+   "alt": [
+    "driver/alt/consider_it_done.ogg",
+    "driver/alt/consider_it_done.mp3"
+   ]
+  },
+  {
+   "speaker": "driver",
+   "voice": 1,
+   "rec": "what_now",
+   "text": "What now?",
+   "lang": "en",
+   "duration": 0.877,
+   "asr_sim": 1.0,
+   "files": [
+    "driver/primary/what_now.ogg",
+    "driver/primary/what_now.mp3"
+   ],
+   "timing": "driver/primary/what_now.json",
+   "alt": [
+    "driver/alt/what_now.ogg",
+    "driver/alt/what_now.mp3"
+   ]
+  },
+  {
+   "speaker": "driver",
+   "voice": 1,
+   "rec": "i_m_hit",
+   "text": "I'm hit!",
+   "lang": "en",
+   "duration": 0.886,
+   "asr_sim": 1.0,
+   "files": [
+    "driver/primary/i_m_hit.ogg",
+    "driver/primary/i_m_hit.mp3"
+   ],
+   "timing": "driver/primary/i_m_hit.json",
+   "alt": [
+    "driver/alt/i_m_hit.ogg",
+    "driver/alt/i_m_hit.mp3"
+   ]
+  },
+  {
+   "speaker": "driver",
+   "voice": 1,
+   "rec": "ready",
+   "text": "Ready.",
+   "lang": "en",
+   "duration": 0.699,
+   "asr_sim": 1.0,
+   "files": [
+    "driver/primary/ready.ogg",
+    "driver/primary/ready.mp3"
+   ],
+   "timing": "driver/primary/ready.json",
+   "alt": [
+    "driver/alt/ready.ogg",
+    "driver/alt/ready.mp3"
+   ]
+  },
+  {
+   "speaker": "spy",
+   "voice": 1,
+   "rec": "yes_sir",
+   "text": "Yes, sir!",
+   "lang": "en",
+   "duration": 0.758,
+   "asr_sim": 1.0,
+   "files": [
+    "spy/primary/yes_sir.ogg",
+    "spy/primary/yes_sir.mp3"
+   ],
+   "timing": "spy/primary/yes_sir.json",
+   "alt": [
+    "spy/alt/yes_sir.ogg",
+    "spy/alt/yes_sir.mp3"
+   ]
+  },
+  {
+   "speaker": "spy",
+   "voice": 1,
+   "rec": "right_away",
+   "text": "Right away.",
+   "lang": "en",
+   "duration": 0.68,
+   "asr_sim": 1.0,
+   "files": [
+    "spy/primary/right_away.ogg",
+    "spy/primary/right_away.mp3"
+   ],
+   "timing": "spy/primary/right_away.json",
+   "alt": [
+    "spy/alt/right_away.ogg",
+    "spy/alt/right_away.mp3"
+   ]
+  },
+  {
+   "speaker": "spy",
+   "voice": 1,
+   "rec": "understood",
+   "text": "Understood.",
+   "lang": "en",
+   "duration": 1.641,
+   "asr_sim": 1.0,
+   "files": [
+    "spy/primary/understood.ogg",
+    "spy/primary/understood.mp3"
+   ],
+   "timing": "spy/primary/understood.json",
+   "alt": [
+    "spy/alt/understood.ogg",
+    "spy/alt/understood.mp3"
+   ]
+  },
+  {
+   "speaker": "spy",
+   "voice": 1,
+   "rec": "on_my_way",
+   "text": "On my way.",
+   "lang": "en",
+   "duration": 0.861,
+   "asr_sim": 1.0,
+   "files": [
+    "spy/primary/on_my_way.ogg",
+    "spy/primary/on_my_way.mp3"
+   ],
+   "timing": "spy/primary/on_my_way.json",
+   "alt": [
+    "spy/alt/on_my_way.ogg",
+    "spy/alt/on_my_way.mp3"
+   ]
+  },
+  {
+   "speaker": "spy",
+   "voice": 1,
+   "rec": "consider_it_done",
+   "text": "Consider it done.",
+   "lang": "en",
+   "duration": 1.212,
+   "asr_sim": 1.0,
+   "files": [
+    "spy/primary/consider_it_done.ogg",
+    "spy/primary/consider_it_done.mp3"
+   ],
+   "timing": "spy/primary/consider_it_done.json",
+   "alt": [
+    "spy/alt/consider_it_done.ogg",
+    "spy/alt/consider_it_done.mp3"
+   ]
+  },
+  {
+   "speaker": "spy",
+   "voice": 1,
+   "rec": "what_now",
+   "text": "What now?",
+   "lang": "en",
+   "duration": 0.641,
+   "asr_sim": 1.0,
+   "files": [
+    "spy/primary/what_now.ogg",
+    "spy/primary/what_now.mp3"
+   ],
+   "timing": "spy/primary/what_now.json",
+   "alt": [
+    "spy/alt/what_now.ogg",
+    "spy/alt/what_now.mp3"
+   ]
+  },
+  {
+   "speaker": "spy",
+   "voice": 1,
+   "rec": "i_m_hit",
+   "text": "I'm hit!",
+   "lang": "en",
+   "duration": 0.799,
+   "asr_sim": 1.0,
+   "files": [
+    "spy/primary/i_m_hit.ogg",
+    "spy/primary/i_m_hit.mp3"
+   ],
+   "timing": "spy/primary/i_m_hit.json",
+   "alt": [
+    "spy/alt/i_m_hit.ogg",
+    "spy/alt/i_m_hit.mp3"
+   ]
+  },
+  {
+   "speaker": "spy",
+   "voice": 1,
+   "rec": "ready",
+   "text": "Ready.",
+   "lang": "en",
+   "duration": 0.512,
+   "asr_sim": 1.0,
+   "files": [
+    "spy/primary/ready.ogg",
+    "spy/primary/ready.mp3"
+   ],
+   "timing": "spy/primary/ready.json",
+   "alt": [
+    "spy/alt/ready.ogg",
+    "spy/alt/ready.mp3"
+   ]
+  },
+  {
+   "speaker": "ger",
+   "voice": 1,
+   "rec": "achtung",
+   "text": "Achtung!",
+   "lang": "de",
+   "duration": 0.754,
+   "asr_sim": 1.0,
+   "files": [
+    "german_1/primary/achtung.ogg",
+    "german_1/primary/achtung.mp3"
+   ],
+   "timing": "german_1/primary/achtung.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 1,
+   "rec": "alarm",
+   "text": "Alarm!",
+   "lang": "de",
+   "duration": 1.141,
+   "asr_sim": 1.0,
+   "files": [
+    "german_1/primary/alarm.ogg",
+    "german_1/primary/alarm.mp3"
+   ],
+   "timing": "german_1/primary/alarm.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 1,
+   "rec": "halt_wer_da",
+   "text": "Halt! Wer da?",
+   "lang": "de",
+   "duration": 1.259,
+   "asr_sim": 1.0,
+   "files": [
+    "german_1/primary/halt_wer_da.ogg",
+    "german_1/primary/halt_wer_da.mp3"
+   ],
+   "timing": "german_1/primary/halt_wer_da.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 1,
+   "rec": "was_war_das",
+   "text": "Was war das?",
+   "lang": "de",
+   "duration": 0.815,
+   "asr_sim": 1.0,
+   "files": [
+    "german_1/primary/was_war_das.ogg",
+    "german_1/primary/was_war_das.mp3"
+   ],
+   "timing": "german_1/primary/was_war_das.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 1,
+   "rec": "da_ist_jemand",
+   "text": "Da ist jemand!",
+   "lang": "de",
+   "duration": 1.095,
+   "asr_sim": 1.0,
+   "files": [
+    "german_1/primary/da_ist_jemand.ogg",
+    "german_1/primary/da_ist_jemand.mp3"
+   ],
+   "timing": "german_1/primary/da_ist_jemand.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 1,
+   "rec": "feuer",
+   "text": "Feuer!",
+   "lang": "de",
+   "duration": 0.576,
+   "asr_sim": 1.0,
+   "files": [
+    "german_1/primary/feuer.ogg",
+    "german_1/primary/feuer.mp3"
+   ],
+   "timing": "german_1/primary/feuer.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 1,
+   "rec": "haende_hoch",
+   "text": "Hände hoch!",
+   "lang": "de",
+   "duration": 0.96,
+   "asr_sim": 1.0,
+   "files": [
+    "german_1/primary/haende_hoch.ogg",
+    "german_1/primary/haende_hoch.mp3"
+   ],
+   "timing": "german_1/primary/haende_hoch.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 2,
+   "rec": "achtung",
+   "text": "Achtung!",
+   "lang": "de",
+   "duration": 0.573,
+   "asr_sim": 1.0,
+   "files": [
+    "german_2/primary/achtung.ogg",
+    "german_2/primary/achtung.mp3"
+   ],
+   "timing": "german_2/primary/achtung.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 2,
+   "rec": "alarm",
+   "text": "Alarm!",
+   "lang": "de",
+   "duration": 0.729,
+   "asr_sim": 1.0,
+   "files": [
+    "german_2/primary/alarm.ogg",
+    "german_2/primary/alarm.mp3"
+   ],
+   "timing": "german_2/primary/alarm.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 2,
+   "rec": "halt_wer_da",
+   "text": "Halt! Wer da?",
+   "lang": "de",
+   "duration": 1.262,
+   "asr_sim": 1.0,
+   "files": [
+    "german_2/primary/halt_wer_da.ogg",
+    "german_2/primary/halt_wer_da.mp3"
+   ],
+   "timing": "german_2/primary/halt_wer_da.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 2,
+   "rec": "was_war_das",
+   "text": "Was war das?",
+   "lang": "de",
+   "duration": 0.99,
+   "asr_sim": 1.0,
+   "files": [
+    "german_2/primary/was_war_das.ogg",
+    "german_2/primary/was_war_das.mp3"
+   ],
+   "timing": "german_2/primary/was_war_das.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 2,
+   "rec": "da_ist_jemand",
+   "text": "Da ist jemand!",
+   "lang": "de",
+   "duration": 1.012,
+   "asr_sim": 1.0,
+   "files": [
+    "german_2/primary/da_ist_jemand.ogg",
+    "german_2/primary/da_ist_jemand.mp3"
+   ],
+   "timing": "german_2/primary/da_ist_jemand.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 2,
+   "rec": "feuer",
+   "text": "Feuer!",
+   "lang": "de",
+   "duration": 0.713,
+   "asr_sim": 1.0,
+   "files": [
+    "german_2/primary/feuer.ogg",
+    "german_2/primary/feuer.mp3"
+   ],
+   "timing": "german_2/primary/feuer.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 2,
+   "rec": "haende_hoch",
+   "text": "Hände hoch!",
+   "lang": "de",
+   "duration": 0.815,
+   "asr_sim": 1.0,
+   "files": [
+    "german_2/primary/haende_hoch.ogg",
+    "german_2/primary/haende_hoch.mp3"
+   ],
+   "timing": "german_2/primary/haende_hoch.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 3,
+   "rec": "achtung",
+   "text": "Achtung!",
+   "lang": "de",
+   "duration": 0.545,
+   "asr_sim": 1.0,
+   "files": [
+    "german_3/primary/achtung.ogg",
+    "german_3/primary/achtung.mp3"
+   ],
+   "timing": "german_3/primary/achtung.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 3,
+   "rec": "alarm",
+   "text": "Alarm!",
+   "lang": "de",
+   "duration": 0.677,
+   "asr_sim": 1.0,
+   "files": [
+    "german_3/primary/alarm.ogg",
+    "german_3/primary/alarm.mp3"
+   ],
+   "timing": "german_3/primary/alarm.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 3,
+   "rec": "halt_wer_da",
+   "text": "Halt! Wer da?",
+   "lang": "de",
+   "duration": 1.063,
+   "asr_sim": 1.0,
+   "files": [
+    "german_3/primary/halt_wer_da.ogg",
+    "german_3/primary/halt_wer_da.mp3"
+   ],
+   "timing": "german_3/primary/halt_wer_da.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 3,
+   "rec": "was_war_das",
+   "text": "Was war das?",
+   "lang": "de",
+   "duration": 0.751,
+   "asr_sim": 1.0,
+   "files": [
+    "german_3/primary/was_war_das.ogg",
+    "german_3/primary/was_war_das.mp3"
+   ],
+   "timing": "german_3/primary/was_war_das.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 3,
+   "rec": "da_ist_jemand",
+   "text": "Da ist jemand!",
+   "lang": "de",
+   "duration": 1.116,
+   "asr_sim": 1.0,
+   "files": [
+    "german_3/primary/da_ist_jemand.ogg",
+    "german_3/primary/da_ist_jemand.mp3"
+   ],
+   "timing": "german_3/primary/da_ist_jemand.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 3,
+   "rec": "feuer",
+   "text": "Feuer!",
+   "lang": "de",
+   "duration": 1.32,
+   "asr_sim": 0.67,
+   "files": [
+    "german_3/primary/feuer.ogg",
+    "german_3/primary/feuer.mp3"
+   ],
+   "timing": "german_3/primary/feuer.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 3,
+   "rec": "haende_hoch",
+   "text": "Hände hoch!",
+   "lang": "de",
+   "duration": 0.94,
+   "asr_sim": 1.0,
+   "files": [
+    "german_3/primary/haende_hoch.ogg",
+    "german_3/primary/haende_hoch.mp3"
+   ],
+   "timing": "german_3/primary/haende_hoch.json"
+  }
+ ]
+}

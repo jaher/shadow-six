@@ -1,0 +1,130 @@
+{
+ "id": "spy",
+ "notes": "Bible 1.6 + V.2 items 1-4: medium-long lean-cheeked (not gaunt) face, long straight nose, thin lips, moderate lines; soft unathletic body [ours]; near-black oiled combed-back hair, slightly receding [ours]; pale sallow; ROUND WIRE GLASSES; rust-brown check wool flat cap; tan tweed jacket, waistcoat, dark tie, brown trousers, polished shoes [C2]. Disguise = spy_disguise.json with the identical body/face block.",
+ "body": {
+  "age_years": 38,
+  "muscle": 0.4,
+  "weight": 0.58,
+  "proportions": 0.55,
+  "height_m": 1.79,
+  "modifiers": {
+   "head/head-oval": 0.45,
+   "head/head-fat": 0.0,
+   "head/head-rectangular": 0.2,
+   "chin/chin-prominent-decr": 0.2,
+   "chin/chin-width-decr": 0.2,
+   "nose/nose-scale-vert-incr": 0.55,
+   "nose/nose-hump-decr": 0.2,
+   "nose/nose-point-width-incr": 0.2,
+   "mouth/mouth-lowerlip-volume-decr": 0.45,
+   "mouth/mouth-upperlip-volume-decr": 0.45,
+   "eyebrows/eyebrows-angle-up": 0.3,
+   "forehead/forehead-scale-vert-incr": 0.15,
+   "cheek/cheek-bones-incr": 0.3,
+   "cheek/cheek-volume-decr": 0.2,
+   "torso/torso-vshape-decr": 0.5,
+   "stomach/stomach-pregnant-incr": 0.15,
+   "neck/neck-scale-horiz-decr": 0.2,
+   "head/head-scale-horiz-decr": 0.25,
+   "nose/nose-point-down": 0.2,
+   "mouth/mouth-laugh-lines-out": 0.55,
+   "chin/chin-height-incr": 0.2,
+   "mouth-corner-puller": 0.3
+  }
+ },
+ "skin": {
+  "base": "middleage_caucasian_male",
+  "tint": [
+   1.0,
+   0.99,
+   0.9
+  ],
+  "desat": 0.25,
+  "ruddy": 0.08,
+  "stubble": 0.06
+ },
+ "eyes": {
+  "iris": [
+   0.26,
+   0.16,
+   0.1
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow002",
+  "color": [
+   0.06,
+   0.045,
+   0.035
+  ]
+ },
+ "hair": {
+  "style": "slick",
+  "color": [
+   0.07,
+   0.055,
+   0.045
+  ],
+  "length": 0.004,
+  "recede": 0.018,
+  "gloss": 0.35
+ },
+ "facial_hair": "none",
+ "glasses": true,
+ "outfit": "civilian_tweed",
+ "outfit_opts": {
+  "tunic": [
+   0.5,
+   0.38,
+   0.25
+  ],
+  "waistcoat": [
+   0.36,
+   0.28,
+   0.2
+  ],
+  "trousers": [
+   0.33,
+   0.25,
+   0.18
+  ],
+  "shirt": [
+   0.84,
+   0.82,
+   0.76
+  ],
+  "tie": [
+   0.14,
+   0.1,
+   0.09
+  ]
+ },
+ "kit": [
+  "tie"
+ ],
+ "headgear": {
+  "type": "flat_cap",
+  "color": [
+   0.4,
+   0.22,
+   0.12
+  ],
+  "check": [
+   [
+    0.22,
+    0.11,
+    0.06
+   ],
+   [
+    0.55,
+    0.38,
+    0.22
+   ]
+  ],
+  "check_pitch": 0.011
+ },
+ "weapon": {
+  "primary": "syringe",
+  "secondary": "walther_p38"
+ }
+}

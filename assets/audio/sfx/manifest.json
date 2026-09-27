@@ -1,0 +1,5386 @@
+{
+ "generated_by": "tools/audio/build_assets.py",
+ "sounds": [
+  {
+   "id": "artillery_period/artillery_period_438693_0",
+   "category": "artillery_period",
+   "mode": "bed",
+   "files": [
+    "artillery_period/artillery_period_438693_0.ogg",
+    "artillery_period/artillery_period_438693_0.mp3"
+   ],
+   "loop": true,
+   "duration": 30.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 438693,
+    "title": "G43-14-25 Distant Explosions.wav",
+    "author": "craigsmith",
+    "url": "https://freesound.org/people/craigsmith/sounds/438693/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/438/438693_2524442-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 700724
+  },
+  {
+   "id": "artillery_period/artillery_period_675609_0",
+   "category": "artillery_period",
+   "mode": "bed",
+   "files": [
+    "artillery_period/artillery_period_675609_0.ogg",
+    "artillery_period/artillery_period_675609_0.mp3"
+   ],
+   "loop": true,
+   "duration": 30.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 675609,
+    "title": "S16-31 Bombardment with distant explosions; Good.wav",
+    "author": "craigsmith",
+    "url": "https://freesound.org/people/craigsmith/sounds/675609/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/675/675609_2524442-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 707464
+  },
+  {
+   "id": "birds/birds_466073_0",
+   "category": "birds",
+   "mode": "bed",
+   "files": [
+    "birds/birds_466073_0.ogg",
+    "birds/birds_466073_0.mp3"
+   ],
+   "loop": true,
+   "duration": 30.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 466073,
+    "title": "BIRDS IN COUNTRYSIDE \u2013 2",
+    "author": "SamuelGremaud",
+    "url": "https://freesound.org/people/SamuelGremaud/sounds/466073/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/466/466073_8031303-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 803945
+  },
+  {
+   "id": "body_fall/body_fall_264062_0",
+   "category": "body_fall",
+   "mode": "shot",
+   "files": [
+    "body_fall/body_fall_264062_0.ogg",
+    "body_fall/body_fall_264062_0.mp3"
+   ],
+   "loop": false,
+   "duration": 1.328,
+   "source": {
+    "site": "freesound.org",
+    "id": 264062,
+    "title": "Melee Weapon hit with male moan & body fall ",
+    "author": "Paul368",
+    "url": "https://freesound.org/people/Paul368/sounds/264062/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/264/264062_2971294-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 27113
+  },
+  {
+   "id": "body_fall/body_fall_454418_0",
+   "category": "body_fall",
+   "mode": "shot",
+   "files": [
+    "body_fall/body_fall_454418_0.ogg",
+    "body_fall/body_fall_454418_0.mp3"
+   ],
+   "loop": false,
+   "duration": 0.716,
+   "source": {
+    "site": "freesound.org",
+    "id": 454418,
+    "title": "bodyfall thump over motorbike seat Parking Space.flac",
+    "author": "kyles",
+    "url": "https://freesound.org/people/kyles/sounds/454418/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/454/454418_612689-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 15641
+  },
+  {
+   "id": "body_fall/body_fall_853591_0",
+   "category": "body_fall",
+   "mode": "shot",
+   "files": [
+    "body_fall/body_fall_853591_0.ogg",
+    "body_fall/body_fall_853591_0.mp3"
+   ],
+   "loop": false,
+   "duration": 0.847,
+   "source": {
+    "site": "freesound.org",
+    "id": 853591,
+    "title": "A body falling to the ground, with leaf crush",
+    "author": "Wigglesworth",
+    "url": "https://freesound.org/people/Wigglesworth/sounds/853591/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/853/853591_6775466-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 17412
+  },
+  {
+   "id": "body_fall/body_fall_853591_1",
+   "category": "body_fall",
+   "mode": "shot",
+   "files": [
+    "body_fall/body_fall_853591_1.ogg",
+    "body_fall/body_fall_853591_1.mp3"
+   ],
+   "loop": false,
+   "duration": 0.576,
+   "source": {
+    "site": "freesound.org",
+    "id": 853591,
+    "title": "A body falling to the ground, with leaf crush",
+    "author": "Wigglesworth",
+    "url": "https://freesound.org/people/Wigglesworth/sounds/853591/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/853/853591_6775466-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 12321
+  },
+  {
+   "id": "body_fall/body_fall_853591_2",
+   "category": "body_fall",
+   "mode": "shot",
+   "files": [
+    "body_fall/body_fall_853591_2.ogg",
+    "body_fall/body_fall_853591_2.mp3"
+   ],
+   "loop": false,
+   "duration": 0.61,
+   "source": {
+    "site": "freesound.org",
+    "id": 853591,
+    "title": "A body falling to the ground, with leaf crush",
+    "author": "Wigglesworth",
+    "url": "https://freesound.org/people/Wigglesworth/sounds/853591/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/853/853591_6775466-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 13210
+  },
+  {
+   "id": "crawl/crawl_389794_0",
+   "category": "crawl",
+   "mode": "loop",
+   "files": [
+    "crawl/crawl_389794_0.ogg",
+    "crawl/crawl_389794_0.mp3"
+   ],
+   "loop": true,
+   "duration": 6.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 389794,
+    "title": "Crawling on a Wooden Floor.wav",
+    "author": "krnash",
+    "url": "https://freesound.org/people/krnash/sounds/389794/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/389/389794_6136319-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 149933
+  },
+  {
+   "id": "crickets/crickets_522299_0",
+   "category": "crickets",
+   "mode": "bed",
+   "files": [
+    "crickets/crickets_522299_0.ogg",
+    "crickets/crickets_522299_0.mp3"
+   ],
+   "loop": true,
+   "duration": 30.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 522299,
+    "title": "Crickets At Night - Raw sound",
+    "author": "Defelozedd94",
+    "url": "https://freesound.org/people/Defelozedd94/sounds/522299/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/522/522299_9084007-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 825001
+  },
+  {
+   "id": "dog/dog_431354_0",
+   "category": "dog",
+   "mode": "shot",
+   "files": [
+    "dog/dog_431354_0.ogg",
+    "dog/dog_431354_0.mp3"
+   ],
+   "loop": false,
+   "duration": 0.413,
+   "source": {
+    "site": "freesound.org",
+    "id": 431354,
+    "title": "german_shepherd.wav",
+    "author": "reg7783",
+    "url": "https://freesound.org/people/reg7783/sounds/431354/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/431/431354_2394357-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 9220
+  },
+  {
+   "id": "dog/dog_431354_1",
+   "category": "dog",
+   "mode": "shot",
+   "files": [
+    "dog/dog_431354_1.ogg",
+    "dog/dog_431354_1.mp3"
+   ],
+   "loop": false,
+   "duration": 0.395,
+   "source": {
+    "site": "freesound.org",
+    "id": 431354,
+    "title": "german_shepherd.wav",
+    "author": "reg7783",
+    "url": "https://freesound.org/people/reg7783/sounds/431354/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/431/431354_2394357-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 8820
+  },
+  {
+   "id": "dog/dog_431354_2",
+   "category": "dog",
+   "mode": "shot",
+   "files": [
+    "dog/dog_431354_2.ogg",
+    "dog/dog_431354_2.mp3"
+   ],
+   "loop": false,
+   "duration": 0.391,
+   "source": {
+    "site": "freesound.org",
+    "id": 431354,
+    "title": "german_shepherd.wav",
+    "author": "reg7783",
+    "url": "https://freesound.org/people/reg7783/sounds/431354/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/431/431354_2394357-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 8813
+  },
+  {
+   "id": "dog/dog_431354_3",
+   "category": "dog",
+   "mode": "shot",
+   "files": [
+    "dog/dog_431354_3.ogg",
+    "dog/dog_431354_3.mp3"
+   ],
+   "loop": false,
+   "duration": 0.45,
+   "source": {
+    "site": "freesound.org",
+    "id": 431354,
+    "title": "german_shepherd.wav",
+    "author": "reg7783",
+    "url": "https://freesound.org/people/reg7783/sounds/431354/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/431/431354_2394357-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 9742
+  },
+  {
+   "id": "dog/dog_485961_0",
+   "category": "dog",
+   "mode": "shot",
+   "files": [
+    "dog/dog_485961_0.ogg",
+    "dog/dog_485961_0.mp3"
+   ],
+   "loop": false,
+   "duration": 0.601,
+   "source": {
+    "site": "freesound.org",
+    "id": 485961,
+    "title": "Dog Barking Distance - 2.wav",
+    "author": "SpaceJoe",
+    "url": "https://freesound.org/people/SpaceJoe/sounds/485961/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/485/485961_6150892-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 12990
+  },
+  {
+   "id": "dog/dog_625501_0",
+   "category": "dog",
+   "mode": "shot",
+   "files": [
+    "dog/dog_625501_0.ogg",
+    "dog/dog_625501_0.mp3"
+   ],
+   "loop": false,
+   "duration": 2.406,
+   "source": {
+    "site": "freesound.org",
+    "id": 625501,
+    "title": "Animal Dog Bark And Growl 01.wav",
+    "author": "abhisheky948",
+    "url": "https://freesound.org/people/abhisheky948/sounds/625501/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/625/625501_13366994-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 46342
+  },
+  {
+   "id": "door_metal/door_metal_15316_0",
+   "category": "door_metal",
+   "mode": "shot",
+   "files": [
+    "door_metal/door_metal_15316_0.ogg",
+    "door_metal/door_metal_15316_0.mp3"
+   ],
+   "loop": false,
+   "duration": 4.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 15316,
+    "title": "Metal_push door open3.wav",
+    "author": "pagancow",
+    "url": "https://freesound.org/people/pagancow/sounds/15316/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/15/15316_45698-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 76124
+  },
+  {
+   "id": "door_metal/door_metal_336660_0",
+   "category": "door_metal",
+   "mode": "shot",
+   "files": [
+    "door_metal/door_metal_336660_0.ogg",
+    "door_metal/door_metal_336660_0.mp3"
+   ],
+   "loop": false,
+   "duration": 4.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 336660,
+    "title": "Door, metal, opening and closing",
+    "author": "giddster",
+    "url": "https://freesound.org/people/giddster/sounds/336660/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/336/336660_1738686-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 80607
+  },
+  {
+   "id": "door_wood/door_wood_125958_0",
+   "category": "door_wood",
+   "mode": "shot",
+   "files": [
+    "door_wood/door_wood_125958_0.ogg",
+    "door_wood/door_wood_125958_0.mp3"
+   ],
+   "loop": false,
+   "duration": 0.978,
+   "source": {
+    "site": "freesound.org",
+    "id": 125958,
+    "title": "Wooden door open-close",
+    "author": "Ryding",
+    "url": "https://freesound.org/people/Ryding/sounds/125958/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/125/125958_981397-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 20206
+  },
+  {
+   "id": "door_wood/door_wood_125958_1",
+   "category": "door_wood",
+   "mode": "shot",
+   "files": [
+    "door_wood/door_wood_125958_1.ogg",
+    "door_wood/door_wood_125958_1.mp3"
+   ],
+   "loop": false,
+   "duration": 1.763,
+   "source": {
+    "site": "freesound.org",
+    "id": 125958,
+    "title": "Wooden door open-close",
+    "author": "Ryding",
+    "url": "https://freesound.org/people/Ryding/sounds/125958/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/125/125958_981397-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 35182
+  },
+  {
+   "id": "explosion_distant/explosion_distant_320788_0",
+   "category": "explosion_distant",
+   "mode": "shot",
+   "files": [
+    "explosion_distant/explosion_distant_320788_0.ogg",
+    "explosion_distant/explosion_distant_320788_0.mp3"
+   ],
+   "loop": false,
+   "duration": 4.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 320788,
+    "title": "distant explosions",
+    "author": "Kostrava",
+    "url": "https://freesound.org/people/Kostrava/sounds/320788/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/320/320788_1134415-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 74566
+  },
+  {
+   "id": "explosion_distant/explosion_distant_320788_1",
+   "category": "explosion_distant",
+   "mode": "shot",
+   "files": [
+    "explosion_distant/explosion_distant_320788_1.ogg",
+    "explosion_distant/explosion_distant_320788_1.mp3"
+   ],
+   "loop": false,
+   "duration": 2.699,
+   "source": {
+    "site": "freesound.org",
+    "id": 320788,
+    "title": "distant explosions",
+    "author": "Kostrava",
+    "url": "https://freesound.org/people/Kostrava/sounds/320788/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/320/320788_1134415-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 50956
+  },
+  {
+   "id": "explosion_distant/explosion_distant_320788_2",
+   "category": "explosion_distant",
+   "mode": "shot",
+   "files": [
+    "explosion_distant/explosion_distant_320788_2.ogg",
+    "explosion_distant/explosion_distant_320788_2.mp3"
+   ],
+   "loop": false,
+   "duration": 4.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 320788,
+    "title": "distant explosions",
+    "author": "Kostrava",
+    "url": "https://freesound.org/people/Kostrava/sounds/320788/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/320/320788_1134415-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 74385
+  },
+  {
+   "id": "explosion_distant/explosion_distant_320788_3",
+   "category": "explosion_distant",
+   "mode": "shot",
+   "files": [
+    "explosion_distant/explosion_distant_320788_3.ogg",
+    "explosion_distant/explosion_distant_320788_3.mp3"
+   ],
+   "loop": false,
+   "duration": 4.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 320788,
+    "title": "distant explosions",
+    "author": "Kostrava",
+    "url": "https://freesound.org/people/Kostrava/sounds/320788/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/320/320788_1134415-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 75357
+  },
+  {
+   "id": "explosion_distant/explosion_distant_324277_0",
+   "category": "explosion_distant",
+   "mode": "shot",
+   "files": [
+    "explosion_distant/explosion_distant_324277_0.ogg",
+    "explosion_distant/explosion_distant_324277_0.mp3"
+   ],
+   "loop": false,
+   "duration": 4.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 324277,
+    "title": "distant explosion",
+    "author": "Kostrava",
+    "url": "https://freesound.org/people/Kostrava/sounds/324277/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/324/324277_1134415-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 76576
+  },
+  {
+   "id": "explosion_grenade/explosion_grenade_165911_0",
+   "category": "explosion_grenade",
+   "mode": "shot",
+   "files": [
+    "explosion_grenade/explosion_grenade_165911_0.ogg",
+    "explosion_grenade/explosion_grenade_165911_0.mp3"
+   ],
+   "loop": false,
+   "duration": 3.119,
+   "source": {
+    "site": "freesound.org",
+    "id": 165911,
+    "title": "Explosion 1.wav",
+    "author": "Deganoth",
+    "url": "https://freesound.org/people/Deganoth/sounds/165911/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/165/165911_1445941-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 60590
+  },
+  {
+   "id": "explosion_grenade/explosion_grenade_609587_0",
+   "category": "explosion_grenade",
+   "mode": "shot",
+   "files": [
+    "explosion_grenade/explosion_grenade_609587_0.ogg",
+    "explosion_grenade/explosion_grenade_609587_0.mp3"
+   ],
+   "loop": false,
+   "duration": 1.73,
+   "source": {
+    "site": "freesound.org",
+    "id": 609587,
+    "title": "Grenade Explosion SFX (medium-sized, meaty, realistic)",
+    "author": "unfa",
+    "url": "https://freesound.org/people/unfa/sounds/609587/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/609/609587_1038806-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 32629
+  },
+  {
+   "id": "explosion_large/explosion_large_156500_0",
+   "category": "explosion_large",
+   "mode": "long",
+   "files": [
+    "explosion_large/explosion_large_156500_0.ogg",
+    "explosion_large/explosion_large_156500_0.mp3"
+   ],
+   "loop": false,
+   "duration": 9.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 156500,
+    "title": "Big Far Explosion",
+    "author": "unfa",
+    "url": "https://freesound.org/people/unfa/sounds/156500/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/156/156500_1038806-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 246515
+  },
+  {
+   "id": "fs_grass/fs_grass_521587_0",
+   "category": "fs_grass",
+   "mode": "shot",
+   "files": [
+    "fs_grass/fs_grass_521587_0.ogg",
+    "fs_grass/fs_grass_521587_0.mp3"
+   ],
+   "loop": false,
+   "duration": 0.426,
+   "source": {
+    "site": "freesound.org",
+    "id": 521587,
+    "title": "Hiking Boot Footsteps on Grass",
+    "author": "Fission9",
+    "url": "https://freesound.org/people/Fission9/sounds/521587/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/521/521587_9395330-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 9092
+  },
+  {
+   "id": "fs_grass/fs_grass_521587_1",
+   "category": "fs_grass",
+   "mode": "shot",
+   "files": [
+    "fs_grass/fs_grass_521587_1.ogg",
+    "fs_grass/fs_grass_521587_1.mp3"
+   ],
+   "loop": false,
+   "duration": 0.32,
+   "source": {
+    "site": "freesound.org",
+    "id": 521587,
+    "title": "Hiking Boot Footsteps on Grass",
+    "author": "Fission9",
+    "url": "https://freesound.org/people/Fission9/sounds/521587/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/521/521587_9395330-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 7500
+  },
+  {
+   "id": "fs_grass/fs_grass_521587_2",
+   "category": "fs_grass",
+   "mode": "shot",
+   "files": [
+    "fs_grass/fs_grass_521587_2.ogg",
+    "fs_grass/fs_grass_521587_2.mp3"
+   ],
+   "loop": false,
+   "duration": 0.332,
+   "source": {
+    "site": "freesound.org",
+    "id": 521587,
+    "title": "Hiking Boot Footsteps on Grass",
+    "author": "Fission9",
+    "url": "https://freesound.org/people/Fission9/sounds/521587/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/521/521587_9395330-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 7328
+  },
+  {
+   "id": "fs_grass/fs_grass_521587_3",
+   "category": "fs_grass",
+   "mode": "shot",
+   "files": [
+    "fs_grass/fs_grass_521587_3.ogg",
+    "fs_grass/fs_grass_521587_3.mp3"
+   ],
+   "loop": false,
+   "duration": 0.473,
+   "source": {
+    "site": "freesound.org",
+    "id": 521587,
+    "title": "Hiking Boot Footsteps on Grass",
+    "author": "Fission9",
+    "url": "https://freesound.org/people/Fission9/sounds/521587/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/521/521587_9395330-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 9759
+  },
+  {
+   "id": "fs_grass/fs_grass_521587_4",
+   "category": "fs_grass",
+   "mode": "shot",
+   "files": [
+    "fs_grass/fs_grass_521587_4.ogg",
+    "fs_grass/fs_grass_521587_4.mp3"
+   ],
+   "loop": false,
+   "duration": 0.352,
+   "source": {
+    "site": "freesound.org",
+    "id": 521587,
+    "title": "Hiking Boot Footsteps on Grass",
+    "author": "Fission9",
+    "url": "https://freesound.org/people/Fission9/sounds/521587/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/521/521587_9395330-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 7879
+  },
+  {
+   "id": "fs_grass/fs_grass_521587_5",
+   "category": "fs_grass",
+   "mode": "shot",
+   "files": [
+    "fs_grass/fs_grass_521587_5.ogg",
+    "fs_grass/fs_grass_521587_5.mp3"
+   ],
+   "loop": false,
+   "duration": 0.338,
+   "source": {
+    "site": "freesound.org",
+    "id": 521587,
+    "title": "Hiking Boot Footsteps on Grass",
+    "author": "Fission9",
+    "url": "https://freesound.org/people/Fission9/sounds/521587/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/521/521587_9395330-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 7903
+  },
+  {
+   "id": "fs_gravel/fs_gravel_521588_0",
+   "category": "fs_gravel",
+   "mode": "shot",
+   "files": [
+    "fs_gravel/fs_gravel_521588_0.ogg",
+    "fs_gravel/fs_gravel_521588_0.mp3"
+   ],
+   "loop": false,
+   "duration": 0.428,
+   "source": {
+    "site": "freesound.org",
+    "id": 521588,
+    "title": "Hiking Boot Footsteps on Gravel",
+    "author": "Fission9",
+    "url": "https://freesound.org/people/Fission9/sounds/521588/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/521/521588_9395330-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 9555
+  },
+  {
+   "id": "fs_gravel/fs_gravel_521588_1",
+   "category": "fs_gravel",
+   "mode": "shot",
+   "files": [
+    "fs_gravel/fs_gravel_521588_1.ogg",
+    "fs_gravel/fs_gravel_521588_1.mp3"
+   ],
+   "loop": false,
+   "duration": 0.418,
+   "source": {
+    "site": "freesound.org",
+    "id": 521588,
+    "title": "Hiking Boot Footsteps on Gravel",
+    "author": "Fission9",
+    "url": "https://freesound.org/people/Fission9/sounds/521588/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/521/521588_9395330-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 9505
+  },
+  {
+   "id": "fs_gravel/fs_gravel_521588_2",
+   "category": "fs_gravel",
+   "mode": "shot",
+   "files": [
+    "fs_gravel/fs_gravel_521588_2.ogg",
+    "fs_gravel/fs_gravel_521588_2.mp3"
+   ],
+   "loop": false,
+   "duration": 0.429,
+   "source": {
+    "site": "freesound.org",
+    "id": 521588,
+    "title": "Hiking Boot Footsteps on Gravel",
+    "author": "Fission9",
+    "url": "https://freesound.org/people/Fission9/sounds/521588/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/521/521588_9395330-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 10204
+  },
+  {
+   "id": "fs_gravel/fs_gravel_521588_3",
+   "category": "fs_gravel",
+   "mode": "shot",
+   "files": [
+    "fs_gravel/fs_gravel_521588_3.ogg",
+    "fs_gravel/fs_gravel_521588_3.mp3"
+   ],
+   "loop": false,
+   "duration": 0.427,
+   "source": {
+    "site": "freesound.org",
+    "id": 521588,
+    "title": "Hiking Boot Footsteps on Gravel",
+    "author": "Fission9",
+    "url": "https://freesound.org/people/Fission9/sounds/521588/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/521/521588_9395330-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 9657
+  },
+  {
+   "id": "fs_metal/fs_metal_698697_0",
+   "category": "fs_metal",
+   "mode": "shot",
+   "files": [
+    "fs_metal/fs_metal_698697_0.ogg",
+    "fs_metal/fs_metal_698697_0.mp3"
+   ],
+   "loop": false,
+   "duration": 0.825,
+   "source": {
+    "site": "freesound.org",
+    "id": 698697,
+    "title": "Footsteps on Metal",
+    "author": "IENBA",
+    "url": "https://freesound.org/people/IENBA/sounds/698697/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/698/698697_9616576-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 16033
+  },
+  {
+   "id": "fs_metal/fs_metal_698697_1",
+   "category": "fs_metal",
+   "mode": "shot",
+   "files": [
+    "fs_metal/fs_metal_698697_1.ogg",
+    "fs_metal/fs_metal_698697_1.mp3"
+   ],
+   "loop": false,
+   "duration": 0.547,
+   "source": {
+    "site": "freesound.org",
+    "id": 698697,
+    "title": "Footsteps on Metal",
+    "author": "IENBA",
+    "url": "https://freesound.org/people/IENBA/sounds/698697/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/698/698697_9616576-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 11045
+  },
+  {
+   "id": "fs_metal/fs_metal_698697_2",
+   "category": "fs_metal",
+   "mode": "shot",
+   "files": [
+    "fs_metal/fs_metal_698697_2.ogg",
+    "fs_metal/fs_metal_698697_2.mp3"
+   ],
+   "loop": false,
+   "duration": 0.844,
+   "source": {
+    "site": "freesound.org",
+    "id": 698697,
+    "title": "Footsteps on Metal",
+    "author": "IENBA",
+    "url": "https://freesound.org/people/IENBA/sounds/698697/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/698/698697_9616576-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 16550
+  },
+  {
+   "id": "fs_metal/fs_metal_698697_3",
+   "category": "fs_metal",
+   "mode": "shot",
+   "files": [
+    "fs_metal/fs_metal_698697_3.ogg",
+    "fs_metal/fs_metal_698697_3.mp3"
+   ],
+   "loop": false,
+   "duration": 0.824,
+   "source": {
+    "site": "freesound.org",
+    "id": 698697,
+    "title": "Footsteps on Metal",
+    "author": "IENBA",
+    "url": "https://freesound.org/people/IENBA/sounds/698697/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/698/698697_9616576-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 16392
+  },
+  {
+   "id": "fs_metal/fs_metal_698697_4",
+   "category": "fs_metal",
+   "mode": "shot",
+   "files": [
+    "fs_metal/fs_metal_698697_4.ogg",
+    "fs_metal/fs_metal_698697_4.mp3"
+   ],
+   "loop": false,
+   "duration": 0.735,
+   "source": {
+    "site": "freesound.org",
+    "id": 698697,
+    "title": "Footsteps on Metal",
+    "author": "IENBA",
+    "url": "https://freesound.org/people/IENBA/sounds/698697/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/698/698697_9616576-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 14630
+  },
+  {
+   "id": "fs_metal/fs_metal_698697_5",
+   "category": "fs_metal",
+   "mode": "shot",
+   "files": [
+    "fs_metal/fs_metal_698697_5.ogg",
+    "fs_metal/fs_metal_698697_5.mp3"
+   ],
+   "loop": false,
+   "duration": 0.591,
+   "source": {
+    "site": "freesound.org",
+    "id": 698697,
+    "title": "Footsteps on Metal",
+    "author": "IENBA",
+    "url": "https://freesound.org/people/IENBA/sounds/698697/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/698/698697_9616576-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 11970
+  },
+  {
+   "id": "fs_metal/fs_metal_698697_6",
+   "category": "fs_metal",
+   "mode": "shot",
+   "files": [
+    "fs_metal/fs_metal_698697_6.ogg",
+    "fs_metal/fs_metal_698697_6.mp3"
+   ],
+   "loop": false,
+   "duration": 0.688,
+   "source": {
+    "site": "freesound.org",
+    "id": 698697,
+    "title": "Footsteps on Metal",
+    "author": "IENBA",
+    "url": "https://freesound.org/people/IENBA/sounds/698697/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/698/698697_9616576-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 13717
+  },
+  {
+   "id": "fs_sand/fs_sand_564893_0",
+   "category": "fs_sand",
+   "mode": "shot",
+   "files": [
+    "fs_sand/fs_sand_564893_0.ogg",
+    "fs_sand/fs_sand_564893_0.mp3"
+   ],
+   "loop": false,
+   "duration": 0.515,
+   "source": {
+    "site": "freesound.org",
+    "id": 564893,
+    "title": "Footsteps_Mountain_Boots_Wet_Sand_Sequence_Mono.wav",
+    "author": "Nox_Sound",
+    "url": "https://freesound.org/people/Nox_Sound/sounds/564893/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/564/564893_9250976-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 11487
+  },
+  {
+   "id": "fs_sand/fs_sand_564893_1",
+   "category": "fs_sand",
+   "mode": "shot",
+   "files": [
+    "fs_sand/fs_sand_564893_1.ogg",
+    "fs_sand/fs_sand_564893_1.mp3"
+   ],
+   "loop": false,
+   "duration": 0.212,
+   "source": {
+    "site": "freesound.org",
+    "id": 564893,
+    "title": "Footsteps_Mountain_Boots_Wet_Sand_Sequence_Mono.wav",
+    "author": "Nox_Sound",
+    "url": "https://freesound.org/people/Nox_Sound/sounds/564893/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/564/564893_9250976-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 5216
+  },
+  {
+   "id": "fs_sand/fs_sand_564893_2",
+   "category": "fs_sand",
+   "mode": "shot",
+   "files": [
+    "fs_sand/fs_sand_564893_2.ogg",
+    "fs_sand/fs_sand_564893_2.mp3"
+   ],
+   "loop": false,
+   "duration": 0.207,
+   "source": {
+    "site": "freesound.org",
+    "id": 564893,
+    "title": "Footsteps_Mountain_Boots_Wet_Sand_Sequence_Mono.wav",
+    "author": "Nox_Sound",
+    "url": "https://freesound.org/people/Nox_Sound/sounds/564893/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/564/564893_9250976-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 5330
+  },
+  {
+   "id": "fs_sand/fs_sand_564893_3",
+   "category": "fs_sand",
+   "mode": "shot",
+   "files": [
+    "fs_sand/fs_sand_564893_3.ogg",
+    "fs_sand/fs_sand_564893_3.mp3"
+   ],
+   "loop": false,
+   "duration": 0.21,
+   "source": {
+    "site": "freesound.org",
+    "id": 564893,
+    "title": "Footsteps_Mountain_Boots_Wet_Sand_Sequence_Mono.wav",
+    "author": "Nox_Sound",
+    "url": "https://freesound.org/people/Nox_Sound/sounds/564893/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/564/564893_9250976-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 5374
+  },
+  {
+   "id": "fs_sand/fs_sand_564893_4",
+   "category": "fs_sand",
+   "mode": "shot",
+   "files": [
+    "fs_sand/fs_sand_564893_4.ogg",
+    "fs_sand/fs_sand_564893_4.mp3"
+   ],
+   "loop": false,
+   "duration": 0.228,
+   "source": {
+    "site": "freesound.org",
+    "id": 564893,
+    "title": "Footsteps_Mountain_Boots_Wet_Sand_Sequence_Mono.wav",
+    "author": "Nox_Sound",
+    "url": "https://freesound.org/people/Nox_Sound/sounds/564893/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/564/564893_9250976-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 5880
+  },
+  {
+   "id": "fs_sand/fs_sand_564893_5",
+   "category": "fs_sand",
+   "mode": "shot",
+   "files": [
+    "fs_sand/fs_sand_564893_5.ogg",
+    "fs_sand/fs_sand_564893_5.mp3"
+   ],
+   "loop": false,
+   "duration": 0.225,
+   "source": {
+    "site": "freesound.org",
+    "id": 564893,
+    "title": "Footsteps_Mountain_Boots_Wet_Sand_Sequence_Mono.wav",
+    "author": "Nox_Sound",
+    "url": "https://freesound.org/people/Nox_Sound/sounds/564893/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/564/564893_9250976-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 5950
+  },
+  {
+   "id": "fs_sand/fs_sand_564893_6",
+   "category": "fs_sand",
+   "mode": "shot",
+   "files": [
+    "fs_sand/fs_sand_564893_6.ogg",
+    "fs_sand/fs_sand_564893_6.mp3"
+   ],
+   "loop": false,
+   "duration": 0.482,
+   "source": {
+    "site": "freesound.org",
+    "id": 564893,
+    "title": "Footsteps_Mountain_Boots_Wet_Sand_Sequence_Mono.wav",
+    "author": "Nox_Sound",
+    "url": "https://freesound.org/people/Nox_Sound/sounds/564893/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/564/564893_9250976-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 10525
+  },
+  {
+   "id": "fs_sand/fs_sand_564893_7",
+   "category": "fs_sand",
+   "mode": "shot",
+   "files": [
+    "fs_sand/fs_sand_564893_7.ogg",
+    "fs_sand/fs_sand_564893_7.mp3"
+   ],
+   "loop": false,
+   "duration": 0.539,
+   "source": {
+    "site": "freesound.org",
+    "id": 564893,
+    "title": "Footsteps_Mountain_Boots_Wet_Sand_Sequence_Mono.wav",
+    "author": "Nox_Sound",
+    "url": "https://freesound.org/people/Nox_Sound/sounds/564893/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/564/564893_9250976-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 11821
+  },
+  {
+   "id": "fs_snow/fs_snow_384423_0",
+   "category": "fs_snow",
+   "mode": "shot",
+   "files": [
+    "fs_snow/fs_snow_384423_0.ogg",
+    "fs_snow/fs_snow_384423_0.mp3"
+   ],
+   "loop": false,
+   "duration": 1.168,
+   "source": {
+    "site": "freesound.org",
+    "id": 384423,
+    "title": "Footstep in the snow_01 [RAW]",
+    "author": "cabled_mess",
+    "url": "https://freesound.org/people/cabled_mess/sounds/384423/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/384/384423_5450487-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 24203
+  },
+  {
+   "id": "fs_snow/fs_snow_432285_0",
+   "category": "fs_snow",
+   "mode": "shot",
+   "files": [
+    "fs_snow/fs_snow_432285_0.ogg",
+    "fs_snow/fs_snow_432285_0.mp3"
+   ],
+   "loop": false,
+   "duration": 0.803,
+   "source": {
+    "site": "freesound.org",
+    "id": 432285,
+    "title": "snow footsteps (outside recording)",
+    "author": "Nimlos",
+    "url": "https://freesound.org/people/Nimlos/sounds/432285/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/432/432285_4710044-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 17066
+  },
+  {
+   "id": "fs_snow/fs_snow_432285_1",
+   "category": "fs_snow",
+   "mode": "shot",
+   "files": [
+    "fs_snow/fs_snow_432285_1.ogg",
+    "fs_snow/fs_snow_432285_1.mp3"
+   ],
+   "loop": false,
+   "duration": 0.639,
+   "source": {
+    "site": "freesound.org",
+    "id": 432285,
+    "title": "snow footsteps (outside recording)",
+    "author": "Nimlos",
+    "url": "https://freesound.org/people/Nimlos/sounds/432285/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/432/432285_4710044-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 13742
+  },
+  {
+   "id": "fs_snow/fs_snow_432285_2",
+   "category": "fs_snow",
+   "mode": "shot",
+   "files": [
+    "fs_snow/fs_snow_432285_2.ogg",
+    "fs_snow/fs_snow_432285_2.mp3"
+   ],
+   "loop": false,
+   "duration": 0.674,
+   "source": {
+    "site": "freesound.org",
+    "id": 432285,
+    "title": "snow footsteps (outside recording)",
+    "author": "Nimlos",
+    "url": "https://freesound.org/people/Nimlos/sounds/432285/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/432/432285_4710044-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 14728
+  },
+  {
+   "id": "fs_snow/fs_snow_432285_3",
+   "category": "fs_snow",
+   "mode": "shot",
+   "files": [
+    "fs_snow/fs_snow_432285_3.ogg",
+    "fs_snow/fs_snow_432285_3.mp3"
+   ],
+   "loop": false,
+   "duration": 0.75,
+   "source": {
+    "site": "freesound.org",
+    "id": 432285,
+    "title": "snow footsteps (outside recording)",
+    "author": "Nimlos",
+    "url": "https://freesound.org/people/Nimlos/sounds/432285/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/432/432285_4710044-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 16658
+  },
+  {
+   "id": "fs_snow/fs_snow_432285_4",
+   "category": "fs_snow",
+   "mode": "shot",
+   "files": [
+    "fs_snow/fs_snow_432285_4.ogg",
+    "fs_snow/fs_snow_432285_4.mp3"
+   ],
+   "loop": false,
+   "duration": 0.677,
+   "source": {
+    "site": "freesound.org",
+    "id": 432285,
+    "title": "snow footsteps (outside recording)",
+    "author": "Nimlos",
+    "url": "https://freesound.org/people/Nimlos/sounds/432285/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/432/432285_4710044-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 15428
+  },
+  {
+   "id": "fs_snow/fs_snow_432285_5",
+   "category": "fs_snow",
+   "mode": "shot",
+   "files": [
+    "fs_snow/fs_snow_432285_5.ogg",
+    "fs_snow/fs_snow_432285_5.mp3"
+   ],
+   "loop": false,
+   "duration": 1.228,
+   "source": {
+    "site": "freesound.org",
+    "id": 432285,
+    "title": "snow footsteps (outside recording)",
+    "author": "Nimlos",
+    "url": "https://freesound.org/people/Nimlos/sounds/432285/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/432/432285_4710044-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 25802
+  },
+  {
+   "id": "fs_snow/fs_snow_432285_6",
+   "category": "fs_snow",
+   "mode": "shot",
+   "files": [
+    "fs_snow/fs_snow_432285_6.ogg",
+    "fs_snow/fs_snow_432285_6.mp3"
+   ],
+   "loop": false,
+   "duration": 0.669,
+   "source": {
+    "site": "freesound.org",
+    "id": 432285,
+    "title": "snow footsteps (outside recording)",
+    "author": "Nimlos",
+    "url": "https://freesound.org/people/Nimlos/sounds/432285/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/432/432285_4710044-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 15012
+  },
+  {
+   "id": "fs_wood/fs_wood_463670_0",
+   "category": "fs_wood",
+   "mode": "shot",
+   "files": [
+    "fs_wood/fs_wood_463670_0.ogg",
+    "fs_wood/fs_wood_463670_0.mp3"
+   ],
+   "loop": false,
+   "duration": 1.002,
+   "source": {
+    "site": "freesound.org",
+    "id": 463670,
+    "title": "footsteps boots wood planks loose jump.wav",
+    "author": "alec_mackay",
+    "url": "https://freesound.org/people/alec_mackay/sounds/463670/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/463/463670_6551032-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 21434
+  },
+  {
+   "id": "fs_wood/fs_wood_463670_1",
+   "category": "fs_wood",
+   "mode": "shot",
+   "files": [
+    "fs_wood/fs_wood_463670_1.ogg",
+    "fs_wood/fs_wood_463670_1.mp3"
+   ],
+   "loop": false,
+   "duration": 0.656,
+   "source": {
+    "site": "freesound.org",
+    "id": 463670,
+    "title": "footsteps boots wood planks loose jump.wav",
+    "author": "alec_mackay",
+    "url": "https://freesound.org/people/alec_mackay/sounds/463670/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/463/463670_6551032-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 15289
+  },
+  {
+   "id": "fs_wood/fs_wood_463670_2",
+   "category": "fs_wood",
+   "mode": "shot",
+   "files": [
+    "fs_wood/fs_wood_463670_2.ogg",
+    "fs_wood/fs_wood_463670_2.mp3"
+   ],
+   "loop": false,
+   "duration": 0.725,
+   "source": {
+    "site": "freesound.org",
+    "id": 463670,
+    "title": "footsteps boots wood planks loose jump.wav",
+    "author": "alec_mackay",
+    "url": "https://freesound.org/people/alec_mackay/sounds/463670/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/463/463670_6551032-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 16079
+  },
+  {
+   "id": "fs_wood/fs_wood_463670_3",
+   "category": "fs_wood",
+   "mode": "shot",
+   "files": [
+    "fs_wood/fs_wood_463670_3.ogg",
+    "fs_wood/fs_wood_463670_3.mp3"
+   ],
+   "loop": false,
+   "duration": 1.084,
+   "source": {
+    "site": "freesound.org",
+    "id": 463670,
+    "title": "footsteps boots wood planks loose jump.wav",
+    "author": "alec_mackay",
+    "url": "https://freesound.org/people/alec_mackay/sounds/463670/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/463/463670_6551032-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 24072
+  },
+  {
+   "id": "fs_wood/fs_wood_463670_4",
+   "category": "fs_wood",
+   "mode": "shot",
+   "files": [
+    "fs_wood/fs_wood_463670_4.ogg",
+    "fs_wood/fs_wood_463670_4.mp3"
+   ],
+   "loop": false,
+   "duration": 0.641,
+   "source": {
+    "site": "freesound.org",
+    "id": 463670,
+    "title": "footsteps boots wood planks loose jump.wav",
+    "author": "alec_mackay",
+    "url": "https://freesound.org/people/alec_mackay/sounds/463670/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/463/463670_6551032-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 13372
+  },
+  {
+   "id": "fs_wood/fs_wood_463670_5",
+   "category": "fs_wood",
+   "mode": "shot",
+   "files": [
+    "fs_wood/fs_wood_463670_5.ogg",
+    "fs_wood/fs_wood_463670_5.mp3"
+   ],
+   "loop": false,
+   "duration": 0.646,
+   "source": {
+    "site": "freesound.org",
+    "id": 463670,
+    "title": "footsteps boots wood planks loose jump.wav",
+    "author": "alec_mackay",
+    "url": "https://freesound.org/people/alec_mackay/sounds/463670/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/463/463670_6551032-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 13904
+  },
+  {
+   "id": "fs_wood/fs_wood_463670_6",
+   "category": "fs_wood",
+   "mode": "shot",
+   "files": [
+    "fs_wood/fs_wood_463670_6.ogg",
+    "fs_wood/fs_wood_463670_6.mp3"
+   ],
+   "loop": false,
+   "duration": 0.393,
+   "source": {
+    "site": "freesound.org",
+    "id": 463670,
+    "title": "footsteps boots wood planks loose jump.wav",
+    "author": "alec_mackay",
+    "url": "https://freesound.org/people/alec_mackay/sounds/463670/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/463/463670_6551032-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 9161
+  },
+  {
+   "id": "fs_wood/fs_wood_463670_7",
+   "category": "fs_wood",
+   "mode": "shot",
+   "files": [
+    "fs_wood/fs_wood_463670_7.ogg",
+    "fs_wood/fs_wood_463670_7.mp3"
+   ],
+   "loop": false,
+   "duration": 0.595,
+   "source": {
+    "site": "freesound.org",
+    "id": 463670,
+    "title": "footsteps boots wood planks loose jump.wav",
+    "author": "alec_mackay",
+    "url": "https://freesound.org/people/alec_mackay/sounds/463670/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/463/463670_6551032-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 12179
+  },
+  {
+   "id": "knife_stab/knife_stab_344404_0",
+   "category": "knife_stab",
+   "mode": "shot",
+   "files": [
+    "knife_stab/knife_stab_344404_0.ogg",
+    "knife_stab/knife_stab_344404_0.mp3"
+   ],
+   "loop": false,
+   "duration": 0.668,
+   "source": {
+    "site": "freesound.org",
+    "id": 344404,
+    "title": "Knife Stab Melon.wav",
+    "author": "jawbutch",
+    "url": "https://freesound.org/people/jawbutch/sounds/344404/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/344/344404_4986214-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 13451
+  },
+  {
+   "id": "knife_stab/knife_stab_385966_0",
+   "category": "knife_stab",
+   "mode": "shot",
+   "files": [
+    "knife_stab/knife_stab_385966_0.ogg",
+    "knife_stab/knife_stab_385966_0.mp3"
+   ],
+   "loop": false,
+   "duration": 0.398,
+   "source": {
+    "site": "freesound.org",
+    "id": 385966,
+    "title": "Large Swede Stab with Whoosh.wav",
+    "author": "minituffy",
+    "url": "https://freesound.org/people/minituffy/sounds/385966/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/385/385966_4705955-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 8834
+  },
+  {
+   "id": "metal_small/metal_small_259553_0",
+   "category": "metal_small",
+   "mode": "shot",
+   "files": [
+    "metal_small/metal_small_259553_0.ogg",
+    "metal_small/metal_small_259553_0.mp3"
+   ],
+   "loop": false,
+   "duration": 0.904,
+   "source": {
+    "site": "freesound.org",
+    "id": 259553,
+    "title": "small metal object fall ",
+    "author": "nicktermer",
+    "url": "https://freesound.org/people/nicktermer/sounds/259553/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/259/259553_2316086-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 19788
+  },
+  {
+   "id": "mg_heavy/mg_heavy_165394_0",
+   "category": "mg_heavy",
+   "mode": "long",
+   "files": [
+    "mg_heavy/mg_heavy_165394_0.ogg",
+    "mg_heavy/mg_heavy_165394_0.mp3"
+   ],
+   "loop": false,
+   "duration": 3.079,
+   "source": {
+    "site": "freesound.org",
+    "id": 165394,
+    "title": "Heavy Machine Gun",
+    "author": "ShawnyBoy",
+    "url": "https://freesound.org/people/ShawnyBoy/sounds/165394/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/165/165394_2989529-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 77807
+  },
+  {
+   "id": "mg_heavy/mg_heavy_417687_0",
+   "category": "mg_heavy",
+   "mode": "long",
+   "files": [
+    "mg_heavy/mg_heavy_417687_0.ogg",
+    "mg_heavy/mg_heavy_417687_0.mp3"
+   ],
+   "loop": false,
+   "duration": 4.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 417687,
+    "title": "LightMachineGun2.wav",
+    "author": "SuperPhat",
+    "url": "https://freesound.org/people/SuperPhat/sounds/417687/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/417/417687_7542558-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 99356
+  },
+  {
+   "id": "mg_heavy/mg_heavy_482122_0",
+   "category": "mg_heavy",
+   "mode": "long",
+   "files": [
+    "mg_heavy/mg_heavy_482122_0.ogg",
+    "mg_heavy/mg_heavy_482122_0.mp3"
+   ],
+   "loop": false,
+   "duration": 1.598,
+   "source": {
+    "site": "freesound.org",
+    "id": 482122,
+    "title": "Clean Machine Gun Burst",
+    "author": "qubodup",
+    "url": "https://freesound.org/people/qubodup/sounds/482122/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/482/482122_71257-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 42203
+  },
+  {
+   "id": "mg_period_craigsmith/mg_period_craigsmith_486053_0",
+   "category": "mg_period_craigsmith",
+   "mode": "long",
+   "files": [
+    "mg_period_craigsmith/mg_period_craigsmith_486053_0.ogg",
+    "mg_period_craigsmith/mg_period_craigsmith_486053_0.mp3"
+   ],
+   "loop": false,
+   "duration": 8.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 486053,
+    "title": "R30-43-Rapid-Fire Machine Gun.wav",
+    "author": "craigsmith",
+    "url": "https://freesound.org/people/craigsmith/sounds/486053/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/486/486053_2524442-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 188547
+  },
+  {
+   "id": "mg_period_craigsmith/mg_period_craigsmith_675591_0",
+   "category": "mg_period_craigsmith",
+   "mode": "long",
+   "files": [
+    "mg_period_craigsmith/mg_period_craigsmith_675591_0.ogg",
+    "mg_period_craigsmith/mg_period_craigsmith_675591_0.mp3"
+   ],
+   "loop": false,
+   "duration": 8.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 675591,
+    "title": "S20-23 distant sound of a Bren machine gun.wav",
+    "author": "craigsmith",
+    "url": "https://freesound.org/people/craigsmith/sounds/675591/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/675/675591_2524442-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 191809
+  },
+  {
+   "id": "pistol/pistol_163456_0",
+   "category": "pistol",
+   "mode": "shot",
+   "files": [
+    "pistol/pistol_163456_0.ogg",
+    "pistol/pistol_163456_0.mp3"
+   ],
+   "loop": false,
+   "duration": 0.414,
+   "source": {
+    "site": "freesound.org",
+    "id": 163456,
+    "title": "Pistol Shot",
+    "author": "LeMudCrab",
+    "url": "https://freesound.org/people/LeMudCrab/sounds/163456/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/163/163456_2263027-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 9258
+  },
+  {
+   "id": "pistol/pistol_740897_0",
+   "category": "pistol",
+   "mode": "shot",
+   "files": [
+    "pistol/pistol_740897_0.ogg",
+    "pistol/pistol_740897_0.mp3"
+   ],
+   "loop": false,
+   "duration": 1.843,
+   "source": {
+    "site": "freesound.org",
+    "id": 740897,
+    "title": "Colt 1911",
+    "author": "areniporgen",
+    "url": "https://freesound.org/people/areniporgen/sounds/740897/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/740/740897_15072041-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 36746
+  },
+  {
+   "id": "ricochet/ricochet_30932_0",
+   "category": "ricochet",
+   "mode": "shot",
+   "files": [
+    "ricochet/ricochet_30932_0.ogg",
+    "ricochet/ricochet_30932_0.mp3"
+   ],
+   "loop": false,
+   "duration": 0.353,
+   "source": {
+    "site": "freesound.org",
+    "id": 30932,
+    "title": "bullet ricochet.wav",
+    "author": "aust_paul",
+    "url": "https://freesound.org/people/aust_paul/sounds/30932/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/30/30932_15696-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 7601
+  },
+  {
+   "id": "ricochet/ricochet_30932_1",
+   "category": "ricochet",
+   "mode": "shot",
+   "files": [
+    "ricochet/ricochet_30932_1.ogg",
+    "ricochet/ricochet_30932_1.mp3"
+   ],
+   "loop": false,
+   "duration": 0.201,
+   "source": {
+    "site": "freesound.org",
+    "id": 30932,
+    "title": "bullet ricochet.wav",
+    "author": "aust_paul",
+    "url": "https://freesound.org/people/aust_paul/sounds/30932/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/30/30932_15696-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 5234
+  },
+  {
+   "id": "ricochet/ricochet_30932_2",
+   "category": "ricochet",
+   "mode": "shot",
+   "files": [
+    "ricochet/ricochet_30932_2.ogg",
+    "ricochet/ricochet_30932_2.mp3"
+   ],
+   "loop": false,
+   "duration": 0.46,
+   "source": {
+    "site": "freesound.org",
+    "id": 30932,
+    "title": "bullet ricochet.wav",
+    "author": "aust_paul",
+    "url": "https://freesound.org/people/aust_paul/sounds/30932/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/30/30932_15696-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 10092
+  },
+  {
+   "id": "ricochet/ricochet_30932_3",
+   "category": "ricochet",
+   "mode": "shot",
+   "files": [
+    "ricochet/ricochet_30932_3.ogg",
+    "ricochet/ricochet_30932_3.mp3"
+   ],
+   "loop": false,
+   "duration": 0.512,
+   "source": {
+    "site": "freesound.org",
+    "id": 30932,
+    "title": "bullet ricochet.wav",
+    "author": "aust_paul",
+    "url": "https://freesound.org/people/aust_paul/sounds/30932/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/30/30932_15696-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 10804
+  },
+  {
+   "id": "rifle_bolt_cycle/rifle_bolt_cycle_370345_0",
+   "category": "rifle_bolt_cycle",
+   "mode": "shot",
+   "files": [
+    "rifle_bolt_cycle/rifle_bolt_cycle_370345_0.ogg",
+    "rifle_bolt_cycle/rifle_bolt_cycle_370345_0.mp3"
+   ],
+   "loop": false,
+   "duration": 1.305,
+   "source": {
+    "site": "freesound.org",
+    "id": 370345,
+    "title": "Mosin Nagant Bolt Action Cycle",
+    "author": "Zott820",
+    "url": "https://freesound.org/people/Zott820/sounds/370345/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/370/370345_2558531-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 27669
+  },
+  {
+   "id": "rifle_bolt_cycle/rifle_bolt_cycle_370345_1",
+   "category": "rifle_bolt_cycle",
+   "mode": "shot",
+   "files": [
+    "rifle_bolt_cycle/rifle_bolt_cycle_370345_1.ogg",
+    "rifle_bolt_cycle/rifle_bolt_cycle_370345_1.mp3"
+   ],
+   "loop": false,
+   "duration": 0.253,
+   "source": {
+    "site": "freesound.org",
+    "id": 370345,
+    "title": "Mosin Nagant Bolt Action Cycle",
+    "author": "Zott820",
+    "url": "https://freesound.org/people/Zott820/sounds/370345/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/370/370345_2558531-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 6094
+  },
+  {
+   "id": "rifle_bolt_cycle/rifle_bolt_cycle_370345_2",
+   "category": "rifle_bolt_cycle",
+   "mode": "shot",
+   "files": [
+    "rifle_bolt_cycle/rifle_bolt_cycle_370345_2.ogg",
+    "rifle_bolt_cycle/rifle_bolt_cycle_370345_2.mp3"
+   ],
+   "loop": false,
+   "duration": 0.376,
+   "source": {
+    "site": "freesound.org",
+    "id": 370345,
+    "title": "Mosin Nagant Bolt Action Cycle",
+    "author": "Zott820",
+    "url": "https://freesound.org/people/Zott820/sounds/370345/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/370/370345_2558531-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 8899
+  },
+  {
+   "id": "rifle_bolt_cycle/rifle_bolt_cycle_370345_3",
+   "category": "rifle_bolt_cycle",
+   "mode": "shot",
+   "files": [
+    "rifle_bolt_cycle/rifle_bolt_cycle_370345_3.ogg",
+    "rifle_bolt_cycle/rifle_bolt_cycle_370345_3.mp3"
+   ],
+   "loop": false,
+   "duration": 0.787,
+   "source": {
+    "site": "freesound.org",
+    "id": 370345,
+    "title": "Mosin Nagant Bolt Action Cycle",
+    "author": "Zott820",
+    "url": "https://freesound.org/people/Zott820/sounds/370345/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/370/370345_2558531-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 17966
+  },
+  {
+   "id": "rifle_lee_enfield/rifle_lee_enfield_450852_0",
+   "category": "rifle_lee_enfield",
+   "mode": "shot",
+   "files": [
+    "rifle_lee_enfield/rifle_lee_enfield_450852_0.ogg",
+    "rifle_lee_enfield/rifle_lee_enfield_450852_0.mp3"
+   ],
+   "loop": false,
+   "duration": 0.553,
+   "source": {
+    "site": "freesound.org",
+    "id": 450852,
+    "title": "gun lee enfield 303 rifle fire shot loud badass crispy.wav",
+    "author": "kyles",
+    "url": "https://freesound.org/people/kyles/sounds/450852/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/450/450852_612689-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 12526
+  },
+  {
+   "id": "rifle_m1/rifle_m1_385785_0",
+   "category": "rifle_m1",
+   "mode": "shot",
+   "files": [
+    "rifle_m1/rifle_m1_385785_0.ogg",
+    "rifle_m1/rifle_m1_385785_0.mp3"
+   ],
+   "loop": false,
+   "duration": 2.75,
+   "source": {
+    "site": "freesound.org",
+    "id": 385785,
+    "title": "Rifle Shot (M1 Garand)",
+    "author": "Rijam",
+    "url": "https://freesound.org/people/Rijam/sounds/385785/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/385/385785_7210612-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 53883
+  },
+  {
+   "id": "rifle_m1/rifle_m1_386842_0",
+   "category": "rifle_m1",
+   "mode": "shot",
+   "files": [
+    "rifle_m1/rifle_m1_386842_0.ogg",
+    "rifle_m1/rifle_m1_386842_0.mp3"
+   ],
+   "loop": false,
+   "duration": 1.656,
+   "source": {
+    "site": "freesound.org",
+    "id": 386842,
+    "title": "M1 Garand Rifle",
+    "author": "nioczkus",
+    "url": "https://freesound.org/people/nioczkus/sounds/386842/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/386/386842_932959-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 31713
+  },
+  {
+   "id": "siren_airraid/siren_airraid_412171_0",
+   "category": "siren_airraid",
+   "mode": "long",
+   "files": [
+    "siren_airraid/siren_airraid_412171_0.ogg",
+    "siren_airraid/siren_airraid_412171_0.mp3"
+   ],
+   "loop": false,
+   "duration": 30.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 412171,
+    "title": "Air Raid Siren Alarm",
+    "author": "Poligonstudio",
+    "url": "https://freesound.org/people/Poligonstudio/sounds/412171/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/412/412171_7383104-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 846360
+  },
+  {
+   "id": "siren_airraid/siren_airraid_607382_0",
+   "category": "siren_airraid",
+   "mode": "long",
+   "files": [
+    "siren_airraid/siren_airraid_607382_0.ogg",
+    "siren_airraid/siren_airraid_607382_0.mp3"
+   ],
+   "loop": false,
+   "duration": 30.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 607382,
+    "title": "Long Air Raid Siren.wav",
+    "author": "JalynCatbtg",
+    "url": "https://freesound.org/people/JalynCatbtg/sounds/607382/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/607/607382_13349052-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 908841
+  },
+  {
+   "id": "siren_handcrank/siren_handcrank_239498_0",
+   "category": "siren_handcrank",
+   "mode": "long",
+   "files": [
+    "siren_handcrank/siren_handcrank_239498_0.ogg",
+    "siren_handcrank/siren_handcrank_239498_0.mp3"
+   ],
+   "loop": false,
+   "duration": 20.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 239498,
+    "title": "Hand cranked siren.wav",
+    "author": "mikewest",
+    "url": "https://freesound.org/people/mikewest/sounds/239498/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/239/239498_109726-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 548345
+  },
+  {
+   "id": "siren_handcrank/siren_handcrank_675690_0",
+   "category": "siren_handcrank",
+   "mode": "long",
+   "files": [
+    "siren_handcrank/siren_handcrank_675690_0.ogg",
+    "siren_handcrank/siren_handcrank_675690_0.mp3"
+   ],
+   "loop": false,
+   "duration": 20.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 675690,
+    "title": "S24-15 Hand Cranked siren.wav",
+    "author": "craigsmith",
+    "url": "https://freesound.org/people/craigsmith/sounds/675690/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/675/675690_2524442-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 534829
+  },
+  {
+   "id": "smg_thompson_single/smg_thompson_single_258198_0",
+   "category": "smg_thompson_single",
+   "mode": "shot",
+   "files": [
+    "smg_thompson_single/smg_thompson_single_258198_0.ogg",
+    "smg_thompson_single/smg_thompson_single_258198_0.mp3"
+   ],
+   "loop": false,
+   "duration": 0.232,
+   "source": {
+    "site": "freesound.org",
+    "id": 258198,
+    "title": "Thompson SMG Shot",
+    "author": "wadaltmon",
+    "url": "https://freesound.org/people/wadaltmon/sounds/258198/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/258/258198_4675419-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 5861
+  },
+  {
+   "id": "sniper_echo/sniper_echo_541164_0",
+   "category": "sniper_echo",
+   "mode": "shot",
+   "files": [
+    "sniper_echo/sniper_echo_541164_0.ogg",
+    "sniper_echo/sniper_echo_541164_0.mp3"
+   ],
+   "loop": false,
+   "duration": 2.595,
+   "source": {
+    "site": "freesound.org",
+    "id": 541164,
+    "title": "Distant Gunshot",
+    "author": "Resaural",
+    "url": "https://freesound.org/people/Resaural/sounds/541164/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/541/541164_9662992-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 50026
+  },
+  {
+   "id": "sniper_echo/sniper_echo_815476_0",
+   "category": "sniper_echo",
+   "mode": "shot",
+   "files": [
+    "sniper_echo/sniper_echo_815476_0.ogg",
+    "sniper_echo/sniper_echo_815476_0.mp3"
+   ],
+   "loop": false,
+   "duration": 1.515,
+   "source": {
+    "site": "freesound.org",
+    "id": 815476,
+    "title": "Sniper Shot Echoey",
+    "author": "qubodup",
+    "url": "https://freesound.org/people/qubodup/sounds/815476/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/815/815476_71257-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 29663
+  },
+  {
+   "id": "sniper_echo/sniper_echo_855608_0",
+   "category": "sniper_echo",
+   "mode": "shot",
+   "files": [
+    "sniper_echo/sniper_echo_855608_0.ogg",
+    "sniper_echo/sniper_echo_855608_0.mp3"
+   ],
+   "loop": false,
+   "duration": 1.445,
+   "source": {
+    "site": "freesound.org",
+    "id": 855608,
+    "title": "Sniper Shot in Field 3 (M2010 Enhanced Sniper Rifle ESR)",
+    "author": "qubodup",
+    "url": "https://freesound.org/people/qubodup/sounds/855608/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/855/855608_71257-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 28410
+  },
+  {
+   "id": "splash/splash_524524_0",
+   "category": "splash",
+   "mode": "shot",
+   "files": [
+    "splash/splash_524524_0.ogg",
+    "splash/splash_524524_0.mp3"
+   ],
+   "loop": false,
+   "duration": 0.729,
+   "source": {
+    "site": "freesound.org",
+    "id": 524524,
+    "title": "Water Splash in Lake 05.wav",
+    "author": "vero.marengere",
+    "url": "https://freesound.org/people/vero.marengere/sounds/524524/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/524/524524_6605732-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 17656
+  },
+  {
+   "id": "splash/splash_524524_1",
+   "category": "splash",
+   "mode": "shot",
+   "files": [
+    "splash/splash_524524_1.ogg",
+    "splash/splash_524524_1.mp3"
+   ],
+   "loop": false,
+   "duration": 1.85,
+   "source": {
+    "site": "freesound.org",
+    "id": 524524,
+    "title": "Water Splash in Lake 05.wav",
+    "author": "vero.marengere",
+    "url": "https://freesound.org/people/vero.marengere/sounds/524524/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/524/524524_6605732-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 41787
+  },
+  {
+   "id": "splash/splash_524524_2",
+   "category": "splash",
+   "mode": "shot",
+   "files": [
+    "splash/splash_524524_2.ogg",
+    "splash/splash_524524_2.mp3"
+   ],
+   "loop": false,
+   "duration": 1.683,
+   "source": {
+    "site": "freesound.org",
+    "id": 524524,
+    "title": "Water Splash in Lake 05.wav",
+    "author": "vero.marengere",
+    "url": "https://freesound.org/people/vero.marengere/sounds/524524/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/524/524524_6605732-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 37620
+  },
+  {
+   "id": "splash/splash_524524_3",
+   "category": "splash",
+   "mode": "shot",
+   "files": [
+    "splash/splash_524524_3.ogg",
+    "splash/splash_524524_3.mp3"
+   ],
+   "loop": false,
+   "duration": 1.503,
+   "source": {
+    "site": "freesound.org",
+    "id": 524524,
+    "title": "Water Splash in Lake 05.wav",
+    "author": "vero.marengere",
+    "url": "https://freesound.org/people/vero.marengere/sounds/524524/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/524/524524_6605732-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 34134
+  },
+  {
+   "id": "swim/swim_530158_0",
+   "category": "swim",
+   "mode": "loop",
+   "files": [
+    "swim/swim_530158_0.ogg",
+    "swim/swim_530158_0.mp3"
+   ],
+   "loop": true,
+   "duration": 8.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 530158,
+    "title": "POOL SWIMMING R-L",
+    "author": "tbsounddesigns",
+    "url": "https://freesound.org/people/tbsounddesigns/sounds/530158/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/530/530158_5387364-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 222010
+  },
+  {
+   "id": "tank_engine/tank_engine_121531_0",
+   "category": "tank_engine",
+   "mode": "loop",
+   "files": [
+    "tank_engine/tank_engine_121531_0.ogg",
+    "tank_engine/tank_engine_121531_0.mp3"
+   ],
+   "loop": true,
+   "duration": 7.921,
+   "source": {
+    "site": "freesound.org",
+    "id": 121531,
+    "title": "tracked vehicle.wav",
+    "author": "cognito perceptu",
+    "url": "https://freesound.org/people/cognito perceptu/sounds/121531/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/121/121531_57789-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 219713
+  },
+  {
+   "id": "tank_engine/tank_engine_329800_0",
+   "category": "tank_engine",
+   "mode": "loop",
+   "files": [
+    "tank_engine/tank_engine_329800_0.ogg",
+    "tank_engine/tank_engine_329800_0.mp3"
+   ],
+   "loop": true,
+   "duration": 8.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 329800,
+    "title": "t26_moving_01.wav",
+    "author": "greatmganga",
+    "url": "https://freesound.org/people/greatmganga/sounds/329800/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/329/329800_1204841-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 217169
+  },
+  {
+   "id": "tank_engine/tank_engine_572294_0",
+   "category": "tank_engine",
+   "mode": "loop",
+   "files": [
+    "tank_engine/tank_engine_572294_0.ogg",
+    "tank_engine/tank_engine_572294_0.mp3"
+   ],
+   "loop": true,
+   "duration": 8.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 572294,
+    "title": "tank_engine.wav",
+    "author": "monosfera",
+    "url": "https://freesound.org/people/monosfera/sounds/572294/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/572/572294_3625175-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 216429
+  },
+  {
+   "id": "tank_engine/tank_engine_675212_0",
+   "category": "tank_engine",
+   "mode": "loop",
+   "files": [
+    "tank_engine/tank_engine_675212_0.ogg",
+    "tank_engine/tank_engine_675212_0.mp3"
+   ],
+   "loop": true,
+   "duration": 8.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 675212,
+    "title": "S27-01 Military Tank or bulldozer; short.wav",
+    "author": "craigsmith",
+    "url": "https://freesound.org/people/craigsmith/sounds/675212/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/675/675212_2524442-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 195810
+  },
+  {
+   "id": "truck_engine/truck_engine_405086_0",
+   "category": "truck_engine",
+   "mode": "loop",
+   "files": [
+    "truck_engine/truck_engine_405086_0.ogg",
+    "truck_engine/truck_engine_405086_0.mp3"
+   ],
+   "loop": true,
+   "duration": 8.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 405086,
+    "title": "truck large diesel or military tank APC armored personnel carrier accelerate big rev and pull away then other distant engine rev and another one close pass by Saravena, Colombia 2016.flac",
+    "author": "kyles",
+    "url": "https://freesound.org/people/kyles/sounds/405086/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/405/405086_612689-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 193712
+  },
+  {
+   "id": "truck_engine/truck_engine_637916_0",
+   "category": "truck_engine",
+   "mode": "loop",
+   "files": [
+    "truck_engine/truck_engine_637916_0.ogg",
+    "truck_engine/truck_engine_637916_0.mp3"
+   ],
+   "loop": true,
+   "duration": 8.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 637916,
+    "title": "truck engine semi trailer idle deep close.flac",
+    "author": "kyles",
+    "url": "https://freesound.org/people/kyles/sounds/637916/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/637/637916_612689-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 217540
+  },
+  {
+   "id": "wind_desert/wind_desert_402710_0",
+   "category": "wind_desert",
+   "mode": "bed",
+   "files": [
+    "wind_desert/wind_desert_402710_0.ogg",
+    "wind_desert/wind_desert_402710_0.mp3"
+   ],
+   "loop": true,
+   "duration": 30.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 402710,
+    "title": "Desert wind stereo",
+    "author": "KasDonatov",
+    "url": "https://freesound.org/people/KasDonatov/sounds/402710/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/402/402710_7791228-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 836987
+  },
+  {
+   "id": "wind_snow/wind_snow_185070_0",
+   "category": "wind_snow",
+   "mode": "bed",
+   "files": [
+    "wind_snow/wind_snow_185070_0.ogg",
+    "wind_snow/wind_snow_185070_0.mp3"
+   ],
+   "loop": true,
+   "duration": 30.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 185070,
+    "title": "howling_wind.wav",
+    "author": "juryduty",
+    "url": "https://freesound.org/people/juryduty/sounds/185070/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/185/185070_3279921-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 756304
+  },
+  {
+   "id": "wind_snow/wind_snow_608269_0",
+   "category": "wind_snow",
+   "mode": "bed",
+   "files": [
+    "wind_snow/wind_snow_608269_0.ogg",
+    "wind_snow/wind_snow_608269_0.mp3"
+   ],
+   "loop": true,
+   "duration": 30.0,
+   "source": {
+    "site": "freesound.org",
+    "id": 608269,
+    "title": "Cold Wind Winter Animals Snow Birds Water Atmo Ambiance Atmosphere Mastered.wav",
+    "author": "szegvari",
+    "url": "https://freesound.org/people/szegvari/sounds/608269/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/608/608269_2282212-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 800332
+  },
+  {
+   "id": "k_step_concrete/footstep_concrete_000",
+   "category": "k_step_concrete",
+   "mode": "shot",
+   "files": [
+    "k_step_concrete/footstep_concrete_000.ogg",
+    "k_step_concrete/footstep_concrete_000.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 3042
+  },
+  {
+   "id": "k_step_concrete/footstep_concrete_001",
+   "category": "k_step_concrete",
+   "mode": "shot",
+   "files": [
+    "k_step_concrete/footstep_concrete_001.ogg",
+    "k_step_concrete/footstep_concrete_001.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 3287
+  },
+  {
+   "id": "k_step_concrete/footstep_concrete_002",
+   "category": "k_step_concrete",
+   "mode": "shot",
+   "files": [
+    "k_step_concrete/footstep_concrete_002.ogg",
+    "k_step_concrete/footstep_concrete_002.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 3264
+  },
+  {
+   "id": "k_step_concrete/footstep_concrete_003",
+   "category": "k_step_concrete",
+   "mode": "shot",
+   "files": [
+    "k_step_concrete/footstep_concrete_003.ogg",
+    "k_step_concrete/footstep_concrete_003.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 3267
+  },
+  {
+   "id": "k_step_concrete/footstep_concrete_004",
+   "category": "k_step_concrete",
+   "mode": "shot",
+   "files": [
+    "k_step_concrete/footstep_concrete_004.ogg",
+    "k_step_concrete/footstep_concrete_004.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 3214
+  },
+  {
+   "id": "k_step_grass/footstep_grass_000",
+   "category": "k_step_grass",
+   "mode": "shot",
+   "files": [
+    "k_step_grass/footstep_grass_000.ogg",
+    "k_step_grass/footstep_grass_000.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 13145
+  },
+  {
+   "id": "k_step_grass/footstep_grass_001",
+   "category": "k_step_grass",
+   "mode": "shot",
+   "files": [
+    "k_step_grass/footstep_grass_001.ogg",
+    "k_step_grass/footstep_grass_001.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 11985
+  },
+  {
+   "id": "k_step_grass/footstep_grass_002",
+   "category": "k_step_grass",
+   "mode": "shot",
+   "files": [
+    "k_step_grass/footstep_grass_002.ogg",
+    "k_step_grass/footstep_grass_002.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 12238
+  },
+  {
+   "id": "k_step_grass/footstep_grass_003",
+   "category": "k_step_grass",
+   "mode": "shot",
+   "files": [
+    "k_step_grass/footstep_grass_003.ogg",
+    "k_step_grass/footstep_grass_003.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 11987
+  },
+  {
+   "id": "k_step_grass/footstep_grass_004",
+   "category": "k_step_grass",
+   "mode": "shot",
+   "files": [
+    "k_step_grass/footstep_grass_004.ogg",
+    "k_step_grass/footstep_grass_004.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 11126
+  },
+  {
+   "id": "k_step_snow/footstep_snow_000",
+   "category": "k_step_snow",
+   "mode": "shot",
+   "files": [
+    "k_step_snow/footstep_snow_000.ogg",
+    "k_step_snow/footstep_snow_000.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 7673
+  },
+  {
+   "id": "k_step_snow/footstep_snow_001",
+   "category": "k_step_snow",
+   "mode": "shot",
+   "files": [
+    "k_step_snow/footstep_snow_001.ogg",
+    "k_step_snow/footstep_snow_001.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 7712
+  },
+  {
+   "id": "k_step_snow/footstep_snow_002",
+   "category": "k_step_snow",
+   "mode": "shot",
+   "files": [
+    "k_step_snow/footstep_snow_002.ogg",
+    "k_step_snow/footstep_snow_002.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 7991
+  },
+  {
+   "id": "k_step_snow/footstep_snow_003",
+   "category": "k_step_snow",
+   "mode": "shot",
+   "files": [
+    "k_step_snow/footstep_snow_003.ogg",
+    "k_step_snow/footstep_snow_003.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 7797
+  },
+  {
+   "id": "k_step_snow/footstep_snow_004",
+   "category": "k_step_snow",
+   "mode": "shot",
+   "files": [
+    "k_step_snow/footstep_snow_004.ogg",
+    "k_step_snow/footstep_snow_004.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 7625
+  },
+  {
+   "id": "k_step_wood/footstep_wood_000",
+   "category": "k_step_wood",
+   "mode": "shot",
+   "files": [
+    "k_step_wood/footstep_wood_000.ogg",
+    "k_step_wood/footstep_wood_000.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6435
+  },
+  {
+   "id": "k_step_wood/footstep_wood_001",
+   "category": "k_step_wood",
+   "mode": "shot",
+   "files": [
+    "k_step_wood/footstep_wood_001.ogg",
+    "k_step_wood/footstep_wood_001.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6102
+  },
+  {
+   "id": "k_step_wood/footstep_wood_002",
+   "category": "k_step_wood",
+   "mode": "shot",
+   "files": [
+    "k_step_wood/footstep_wood_002.ogg",
+    "k_step_wood/footstep_wood_002.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6137
+  },
+  {
+   "id": "k_step_wood/footstep_wood_003",
+   "category": "k_step_wood",
+   "mode": "shot",
+   "files": [
+    "k_step_wood/footstep_wood_003.ogg",
+    "k_step_wood/footstep_wood_003.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6116
+  },
+  {
+   "id": "k_step_wood/footstep_wood_004",
+   "category": "k_step_wood",
+   "mode": "shot",
+   "files": [
+    "k_step_wood/footstep_wood_004.ogg",
+    "k_step_wood/footstep_wood_004.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6279
+  },
+  {
+   "id": "k_glass/impactGlass_light_000",
+   "category": "k_glass",
+   "mode": "shot",
+   "files": [
+    "k_glass/impactGlass_light_000.ogg",
+    "k_glass/impactGlass_light_000.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 4927
+  },
+  {
+   "id": "k_glass/impactGlass_light_001",
+   "category": "k_glass",
+   "mode": "shot",
+   "files": [
+    "k_glass/impactGlass_light_001.ogg",
+    "k_glass/impactGlass_light_001.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 4791
+  },
+  {
+   "id": "k_glass/impactGlass_light_002",
+   "category": "k_glass",
+   "mode": "shot",
+   "files": [
+    "k_glass/impactGlass_light_002.ogg",
+    "k_glass/impactGlass_light_002.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 5062
+  },
+  {
+   "id": "k_glass/impactGlass_light_003",
+   "category": "k_glass",
+   "mode": "shot",
+   "files": [
+    "k_glass/impactGlass_light_003.ogg",
+    "k_glass/impactGlass_light_003.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 4739
+  },
+  {
+   "id": "k_glass/impactGlass_light_004",
+   "category": "k_glass",
+   "mode": "shot",
+   "files": [
+    "k_glass/impactGlass_light_004.ogg",
+    "k_glass/impactGlass_light_004.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 4786
+  },
+  {
+   "id": "k_hit_metal/impactMetal_light_000",
+   "category": "k_hit_metal",
+   "mode": "shot",
+   "files": [
+    "k_hit_metal/impactMetal_light_000.ogg",
+    "k_hit_metal/impactMetal_light_000.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 8480
+  },
+  {
+   "id": "k_hit_metal/impactMetal_light_001",
+   "category": "k_hit_metal",
+   "mode": "shot",
+   "files": [
+    "k_hit_metal/impactMetal_light_001.ogg",
+    "k_hit_metal/impactMetal_light_001.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6254
+  },
+  {
+   "id": "k_hit_metal/impactMetal_light_002",
+   "category": "k_hit_metal",
+   "mode": "shot",
+   "files": [
+    "k_hit_metal/impactMetal_light_002.ogg",
+    "k_hit_metal/impactMetal_light_002.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 5321
+  },
+  {
+   "id": "k_hit_metal/impactMetal_light_003",
+   "category": "k_hit_metal",
+   "mode": "shot",
+   "files": [
+    "k_hit_metal/impactMetal_light_003.ogg",
+    "k_hit_metal/impactMetal_light_003.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 10331
+  },
+  {
+   "id": "k_hit_metal/impactMetal_light_004",
+   "category": "k_hit_metal",
+   "mode": "shot",
+   "files": [
+    "k_hit_metal/impactMetal_light_004.ogg",
+    "k_hit_metal/impactMetal_light_004.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 5309
+  },
+  {
+   "id": "k_dig/impactMining_000",
+   "category": "k_dig",
+   "mode": "shot",
+   "files": [
+    "k_dig/impactMining_000.ogg",
+    "k_dig/impactMining_000.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 19157
+  },
+  {
+   "id": "k_dig/impactMining_001",
+   "category": "k_dig",
+   "mode": "shot",
+   "files": [
+    "k_dig/impactMining_001.ogg",
+    "k_dig/impactMining_001.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 18180
+  },
+  {
+   "id": "k_dig/impactMining_002",
+   "category": "k_dig",
+   "mode": "shot",
+   "files": [
+    "k_dig/impactMining_002.ogg",
+    "k_dig/impactMining_002.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 16344
+  },
+  {
+   "id": "k_dig/impactMining_003",
+   "category": "k_dig",
+   "mode": "shot",
+   "files": [
+    "k_dig/impactMining_003.ogg",
+    "k_dig/impactMining_003.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 19683
+  },
+  {
+   "id": "k_dig/impactMining_004",
+   "category": "k_dig",
+   "mode": "shot",
+   "files": [
+    "k_dig/impactMining_004.ogg",
+    "k_dig/impactMining_004.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 17249
+  },
+  {
+   "id": "k_barrel_set/impactPlate_heavy_000",
+   "category": "k_barrel_set",
+   "mode": "shot",
+   "files": [
+    "k_barrel_set/impactPlate_heavy_000.ogg",
+    "k_barrel_set/impactPlate_heavy_000.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 8074
+  },
+  {
+   "id": "k_barrel_set/impactPlate_heavy_001",
+   "category": "k_barrel_set",
+   "mode": "shot",
+   "files": [
+    "k_barrel_set/impactPlate_heavy_001.ogg",
+    "k_barrel_set/impactPlate_heavy_001.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6455
+  },
+  {
+   "id": "k_barrel_set/impactPlate_heavy_002",
+   "category": "k_barrel_set",
+   "mode": "shot",
+   "files": [
+    "k_barrel_set/impactPlate_heavy_002.ogg",
+    "k_barrel_set/impactPlate_heavy_002.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 8381
+  },
+  {
+   "id": "k_barrel_set/impactPlate_heavy_003",
+   "category": "k_barrel_set",
+   "mode": "shot",
+   "files": [
+    "k_barrel_set/impactPlate_heavy_003.ogg",
+    "k_barrel_set/impactPlate_heavy_003.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6691
+  },
+  {
+   "id": "k_barrel_set/impactPlate_heavy_004",
+   "category": "k_barrel_set",
+   "mode": "shot",
+   "files": [
+    "k_barrel_set/impactPlate_heavy_004.ogg",
+    "k_barrel_set/impactPlate_heavy_004.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 9107
+  },
+  {
+   "id": "k_hit_flesh/impactPunch_medium_000",
+   "category": "k_hit_flesh",
+   "mode": "shot",
+   "files": [
+    "k_hit_flesh/impactPunch_medium_000.ogg",
+    "k_hit_flesh/impactPunch_medium_000.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 7559
+  },
+  {
+   "id": "k_hit_flesh/impactPunch_medium_001",
+   "category": "k_hit_flesh",
+   "mode": "shot",
+   "files": [
+    "k_hit_flesh/impactPunch_medium_001.ogg",
+    "k_hit_flesh/impactPunch_medium_001.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 7294
+  },
+  {
+   "id": "k_hit_flesh/impactPunch_medium_002",
+   "category": "k_hit_flesh",
+   "mode": "shot",
+   "files": [
+    "k_hit_flesh/impactPunch_medium_002.ogg",
+    "k_hit_flesh/impactPunch_medium_002.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 9718
+  },
+  {
+   "id": "k_hit_flesh/impactPunch_medium_003",
+   "category": "k_hit_flesh",
+   "mode": "shot",
+   "files": [
+    "k_hit_flesh/impactPunch_medium_003.ogg",
+    "k_hit_flesh/impactPunch_medium_003.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 8491
+  },
+  {
+   "id": "k_hit_flesh/impactPunch_medium_004",
+   "category": "k_hit_flesh",
+   "mode": "shot",
+   "files": [
+    "k_hit_flesh/impactPunch_medium_004.ogg",
+    "k_hit_flesh/impactPunch_medium_004.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 9625
+  },
+  {
+   "id": "k_hit_soft/impactSoft_medium_000",
+   "category": "k_hit_soft",
+   "mode": "shot",
+   "files": [
+    "k_hit_soft/impactSoft_medium_000.ogg",
+    "k_hit_soft/impactSoft_medium_000.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 3924
+  },
+  {
+   "id": "k_hit_soft/impactSoft_medium_001",
+   "category": "k_hit_soft",
+   "mode": "shot",
+   "files": [
+    "k_hit_soft/impactSoft_medium_001.ogg",
+    "k_hit_soft/impactSoft_medium_001.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 5008
+  },
+  {
+   "id": "k_hit_soft/impactSoft_medium_002",
+   "category": "k_hit_soft",
+   "mode": "shot",
+   "files": [
+    "k_hit_soft/impactSoft_medium_002.ogg",
+    "k_hit_soft/impactSoft_medium_002.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 3991
+  },
+  {
+   "id": "k_hit_soft/impactSoft_medium_003",
+   "category": "k_hit_soft",
+   "mode": "shot",
+   "files": [
+    "k_hit_soft/impactSoft_medium_003.ogg",
+    "k_hit_soft/impactSoft_medium_003.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 4271
+  },
+  {
+   "id": "k_hit_soft/impactSoft_medium_004",
+   "category": "k_hit_soft",
+   "mode": "shot",
+   "files": [
+    "k_hit_soft/impactSoft_medium_004.ogg",
+    "k_hit_soft/impactSoft_medium_004.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 4260
+  },
+  {
+   "id": "k_thud_wood/impactWood_heavy_000",
+   "category": "k_thud_wood",
+   "mode": "shot",
+   "files": [
+    "k_thud_wood/impactWood_heavy_000.ogg",
+    "k_thud_wood/impactWood_heavy_000.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6373
+  },
+  {
+   "id": "k_thud_wood/impactWood_heavy_001",
+   "category": "k_thud_wood",
+   "mode": "shot",
+   "files": [
+    "k_thud_wood/impactWood_heavy_001.ogg",
+    "k_thud_wood/impactWood_heavy_001.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6461
+  },
+  {
+   "id": "k_thud_wood/impactWood_heavy_002",
+   "category": "k_thud_wood",
+   "mode": "shot",
+   "files": [
+    "k_thud_wood/impactWood_heavy_002.ogg",
+    "k_thud_wood/impactWood_heavy_002.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6611
+  },
+  {
+   "id": "k_thud_wood/impactWood_heavy_003",
+   "category": "k_thud_wood",
+   "mode": "shot",
+   "files": [
+    "k_thud_wood/impactWood_heavy_003.ogg",
+    "k_thud_wood/impactWood_heavy_003.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6813
+  },
+  {
+   "id": "k_thud_wood/impactWood_heavy_004",
+   "category": "k_thud_wood",
+   "mode": "shot",
+   "files": [
+    "k_thud_wood/impactWood_heavy_004.ogg",
+    "k_thud_wood/impactWood_heavy_004.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6573
+  },
+  {
+   "id": "k_hit_wood/impactWood_light_000",
+   "category": "k_hit_wood",
+   "mode": "shot",
+   "files": [
+    "k_hit_wood/impactWood_light_000.ogg",
+    "k_hit_wood/impactWood_light_000.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 5596
+  },
+  {
+   "id": "k_hit_wood/impactWood_light_001",
+   "category": "k_hit_wood",
+   "mode": "shot",
+   "files": [
+    "k_hit_wood/impactWood_light_001.ogg",
+    "k_hit_wood/impactWood_light_001.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 5703
+  },
+  {
+   "id": "k_hit_wood/impactWood_light_002",
+   "category": "k_hit_wood",
+   "mode": "shot",
+   "files": [
+    "k_hit_wood/impactWood_light_002.ogg",
+    "k_hit_wood/impactWood_light_002.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 5500
+  },
+  {
+   "id": "k_hit_wood/impactWood_light_003",
+   "category": "k_hit_wood",
+   "mode": "shot",
+   "files": [
+    "k_hit_wood/impactWood_light_003.ogg",
+    "k_hit_wood/impactWood_light_003.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 5684
+  },
+  {
+   "id": "k_hit_wood/impactWood_light_004",
+   "category": "k_hit_wood",
+   "mode": "shot",
+   "files": [
+    "k_hit_wood/impactWood_light_004.ogg",
+    "k_hit_wood/impactWood_light_004.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_impact-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/impact-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 5642
+  },
+  {
+   "id": "k_belt/beltHandle1",
+   "category": "k_belt",
+   "mode": "shot",
+   "files": [
+    "k_belt/beltHandle1.ogg",
+    "k_belt/beltHandle1.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6597
+  },
+  {
+   "id": "k_belt/beltHandle2",
+   "category": "k_belt",
+   "mode": "shot",
+   "files": [
+    "k_belt/beltHandle2.ogg",
+    "k_belt/beltHandle2.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 9627
+  },
+  {
+   "id": "k_page/bookFlip1",
+   "category": "k_page",
+   "mode": "shot",
+   "files": [
+    "k_page/bookFlip1.ogg",
+    "k_page/bookFlip1.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 13333
+  },
+  {
+   "id": "k_page/bookFlip2",
+   "category": "k_page",
+   "mode": "shot",
+   "files": [
+    "k_page/bookFlip2.ogg",
+    "k_page/bookFlip2.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 7845
+  },
+  {
+   "id": "k_page/bookFlip3",
+   "category": "k_page",
+   "mode": "shot",
+   "files": [
+    "k_page/bookFlip3.ogg",
+    "k_page/bookFlip3.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 4839
+  },
+  {
+   "id": "k_book_open/bookOpen",
+   "category": "k_book_open",
+   "mode": "shot",
+   "files": [
+    "k_book_open/bookOpen.ogg",
+    "k_book_open/bookOpen.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 3598
+  },
+  {
+   "id": "k_stamp/bookPlace1",
+   "category": "k_stamp",
+   "mode": "shot",
+   "files": [
+    "k_stamp/bookPlace1.ogg",
+    "k_stamp/bookPlace1.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 5503
+  },
+  {
+   "id": "k_stamp/bookPlace2",
+   "category": "k_stamp",
+   "mode": "shot",
+   "files": [
+    "k_stamp/bookPlace2.ogg",
+    "k_stamp/bookPlace2.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6808
+  },
+  {
+   "id": "k_stamp/bookPlace3",
+   "category": "k_stamp",
+   "mode": "shot",
+   "files": [
+    "k_stamp/bookPlace3.ogg",
+    "k_stamp/bookPlace3.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 5443
+  },
+  {
+   "id": "k_cloth/cloth1",
+   "category": "k_cloth",
+   "mode": "shot",
+   "files": [
+    "k_cloth/cloth1.ogg",
+    "k_cloth/cloth1.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 11452
+  },
+  {
+   "id": "k_cloth/cloth2",
+   "category": "k_cloth",
+   "mode": "shot",
+   "files": [
+    "k_cloth/cloth2.ogg",
+    "k_cloth/cloth2.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 7407
+  },
+  {
+   "id": "k_cloth/cloth3",
+   "category": "k_cloth",
+   "mode": "shot",
+   "files": [
+    "k_cloth/cloth3.ogg",
+    "k_cloth/cloth3.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 8168
+  },
+  {
+   "id": "k_cloth/cloth4",
+   "category": "k_cloth",
+   "mode": "shot",
+   "files": [
+    "k_cloth/cloth4.ogg",
+    "k_cloth/cloth4.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6908
+  },
+  {
+   "id": "k_creak/creak1",
+   "category": "k_creak",
+   "mode": "shot",
+   "files": [
+    "k_creak/creak1.ogg",
+    "k_creak/creak1.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 11962
+  },
+  {
+   "id": "k_creak/creak2",
+   "category": "k_creak",
+   "mode": "shot",
+   "files": [
+    "k_creak/creak2.ogg",
+    "k_creak/creak2.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 14194
+  },
+  {
+   "id": "k_creak/creak3",
+   "category": "k_creak",
+   "mode": "shot",
+   "files": [
+    "k_creak/creak3.ogg",
+    "k_creak/creak3.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6358
+  },
+  {
+   "id": "k_door_close/doorClose_1",
+   "category": "k_door_close",
+   "mode": "shot",
+   "files": [
+    "k_door_close/doorClose_1.ogg",
+    "k_door_close/doorClose_1.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 11351
+  },
+  {
+   "id": "k_door_close/doorClose_2",
+   "category": "k_door_close",
+   "mode": "shot",
+   "files": [
+    "k_door_close/doorClose_2.ogg",
+    "k_door_close/doorClose_2.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 11400
+  },
+  {
+   "id": "k_door_close/doorClose_3",
+   "category": "k_door_close",
+   "mode": "shot",
+   "files": [
+    "k_door_close/doorClose_3.ogg",
+    "k_door_close/doorClose_3.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 13759
+  },
+  {
+   "id": "k_door_close/doorClose_4",
+   "category": "k_door_close",
+   "mode": "shot",
+   "files": [
+    "k_door_close/doorClose_4.ogg",
+    "k_door_close/doorClose_4.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 11158
+  },
+  {
+   "id": "k_door_open/doorOpen_1",
+   "category": "k_door_open",
+   "mode": "shot",
+   "files": [
+    "k_door_open/doorOpen_1.ogg",
+    "k_door_open/doorOpen_1.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 16087
+  },
+  {
+   "id": "k_door_open/doorOpen_2",
+   "category": "k_door_open",
+   "mode": "shot",
+   "files": [
+    "k_door_open/doorOpen_2.ogg",
+    "k_door_open/doorOpen_2.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 24219
+  },
+  {
+   "id": "k_draw/drawKnife1",
+   "category": "k_draw",
+   "mode": "shot",
+   "files": [
+    "k_draw/drawKnife1.ogg",
+    "k_draw/drawKnife1.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 7085
+  },
+  {
+   "id": "k_draw/drawKnife2",
+   "category": "k_draw",
+   "mode": "shot",
+   "files": [
+    "k_draw/drawKnife2.ogg",
+    "k_draw/drawKnife2.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 8002
+  },
+  {
+   "id": "k_draw/drawKnife3",
+   "category": "k_draw",
+   "mode": "shot",
+   "files": [
+    "k_draw/drawKnife3.ogg",
+    "k_draw/drawKnife3.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 8201
+  },
+  {
+   "id": "k_drop_leather/dropLeather",
+   "category": "k_drop_leather",
+   "mode": "shot",
+   "files": [
+    "k_drop_leather/dropLeather.ogg",
+    "k_drop_leather/dropLeather.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 7345
+  },
+  {
+   "id": "k_pouch/handleSmallLeather",
+   "category": "k_pouch",
+   "mode": "shot",
+   "files": [
+    "k_pouch/handleSmallLeather.ogg",
+    "k_pouch/handleSmallLeather.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6044
+  },
+  {
+   "id": "k_pouch/handleSmallLeather2",
+   "category": "k_pouch",
+   "mode": "shot",
+   "files": [
+    "k_pouch/handleSmallLeather2.ogg",
+    "k_pouch/handleSmallLeather2.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 5598
+  },
+  {
+   "id": "k_knife/knifeSlice",
+   "category": "k_knife",
+   "mode": "shot",
+   "files": [
+    "k_knife/knifeSlice.ogg",
+    "k_knife/knifeSlice.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 10222
+  },
+  {
+   "id": "k_knife/knifeSlice2",
+   "category": "k_knife",
+   "mode": "shot",
+   "files": [
+    "k_knife/knifeSlice2.ogg",
+    "k_knife/knifeSlice2.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 10017
+  },
+  {
+   "id": "k_metal_click/metalClick",
+   "category": "k_metal_click",
+   "mode": "shot",
+   "files": [
+    "k_metal_click/metalClick.ogg",
+    "k_metal_click/metalClick.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 8453
+  },
+  {
+   "id": "k_metal_latch/metalLatch",
+   "category": "k_metal_latch",
+   "mode": "shot",
+   "files": [
+    "k_metal_latch/metalLatch.ogg",
+    "k_metal_latch/metalLatch.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_rpg-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/rpg-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 5481
+  },
+  {
+   "id": "k_ui_click/click_001",
+   "category": "k_ui_click",
+   "mode": "shot",
+   "files": [
+    "k_ui_click/click_001.ogg",
+    "k_ui_click/click_001.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 3229
+  },
+  {
+   "id": "k_ui_click/click_002",
+   "category": "k_ui_click",
+   "mode": "shot",
+   "files": [
+    "k_ui_click/click_002.ogg",
+    "k_ui_click/click_002.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 1214
+  },
+  {
+   "id": "k_ui_click/click_003",
+   "category": "k_ui_click",
+   "mode": "shot",
+   "files": [
+    "k_ui_click/click_003.ogg",
+    "k_ui_click/click_003.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 1214
+  },
+  {
+   "id": "k_ui_click/click_004",
+   "category": "k_ui_click",
+   "mode": "shot",
+   "files": [
+    "k_ui_click/click_004.ogg",
+    "k_ui_click/click_004.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 1503
+  },
+  {
+   "id": "k_ui_click/click_005",
+   "category": "k_ui_click",
+   "mode": "shot",
+   "files": [
+    "k_ui_click/click_005.ogg",
+    "k_ui_click/click_005.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 1226
+  },
+  {
+   "id": "k_ui_confirm/confirmation_001",
+   "category": "k_ui_confirm",
+   "mode": "shot",
+   "files": [
+    "k_ui_confirm/confirmation_001.ogg",
+    "k_ui_confirm/confirmation_001.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6131
+  },
+  {
+   "id": "k_ui_confirm/confirmation_002",
+   "category": "k_ui_confirm",
+   "mode": "shot",
+   "files": [
+    "k_ui_confirm/confirmation_002.ogg",
+    "k_ui_confirm/confirmation_002.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 10557
+  },
+  {
+   "id": "k_ui_confirm/confirmation_003",
+   "category": "k_ui_confirm",
+   "mode": "shot",
+   "files": [
+    "k_ui_confirm/confirmation_003.ogg",
+    "k_ui_confirm/confirmation_003.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6705
+  },
+  {
+   "id": "k_ui_confirm/confirmation_004",
+   "category": "k_ui_confirm",
+   "mode": "shot",
+   "files": [
+    "k_ui_confirm/confirmation_004.ogg",
+    "k_ui_confirm/confirmation_004.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 9497
+  },
+  {
+   "id": "k_ui_error/error_001",
+   "category": "k_ui_error",
+   "mode": "shot",
+   "files": [
+    "k_ui_error/error_001.ogg",
+    "k_ui_error/error_001.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 4638
+  },
+  {
+   "id": "k_ui_error/error_002",
+   "category": "k_ui_error",
+   "mode": "shot",
+   "files": [
+    "k_ui_error/error_002.ogg",
+    "k_ui_error/error_002.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 4416
+  },
+  {
+   "id": "k_ui_error/error_003",
+   "category": "k_ui_error",
+   "mode": "shot",
+   "files": [
+    "k_ui_error/error_003.ogg",
+    "k_ui_error/error_003.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 9642
+  },
+  {
+   "id": "k_ui_error/error_004",
+   "category": "k_ui_error",
+   "mode": "shot",
+   "files": [
+    "k_ui_error/error_004.ogg",
+    "k_ui_error/error_004.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 3282
+  },
+  {
+   "id": "k_ui_error/error_005",
+   "category": "k_ui_error",
+   "mode": "shot",
+   "files": [
+    "k_ui_error/error_005.ogg",
+    "k_ui_error/error_005.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 11542
+  },
+  {
+   "id": "k_ui_error/error_006",
+   "category": "k_ui_error",
+   "mode": "shot",
+   "files": [
+    "k_ui_error/error_006.ogg",
+    "k_ui_error/error_006.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 11065
+  },
+  {
+   "id": "k_ui_error/error_007",
+   "category": "k_ui_error",
+   "mode": "shot",
+   "files": [
+    "k_ui_error/error_007.ogg",
+    "k_ui_error/error_007.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 4745
+  },
+  {
+   "id": "k_ui_error/error_008",
+   "category": "k_ui_error",
+   "mode": "shot",
+   "files": [
+    "k_ui_error/error_008.ogg",
+    "k_ui_error/error_008.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 4194
+  },
+  {
+   "id": "k_ui_scratch/scratch_001",
+   "category": "k_ui_scratch",
+   "mode": "shot",
+   "files": [
+    "k_ui_scratch/scratch_001.ogg",
+    "k_ui_scratch/scratch_001.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 3644
+  },
+  {
+   "id": "k_ui_scratch/scratch_002",
+   "category": "k_ui_scratch",
+   "mode": "shot",
+   "files": [
+    "k_ui_scratch/scratch_002.ogg",
+    "k_ui_scratch/scratch_002.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 3710
+  },
+  {
+   "id": "k_ui_scratch/scratch_003",
+   "category": "k_ui_scratch",
+   "mode": "shot",
+   "files": [
+    "k_ui_scratch/scratch_003.ogg",
+    "k_ui_scratch/scratch_003.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 3357
+  },
+  {
+   "id": "k_ui_scratch/scratch_004",
+   "category": "k_ui_scratch",
+   "mode": "shot",
+   "files": [
+    "k_ui_scratch/scratch_004.ogg",
+    "k_ui_scratch/scratch_004.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6956
+  },
+  {
+   "id": "k_ui_scratch/scratch_005",
+   "category": "k_ui_scratch",
+   "mode": "shot",
+   "files": [
+    "k_ui_scratch/scratch_005.ogg",
+    "k_ui_scratch/scratch_005.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 6694
+  },
+  {
+   "id": "k_ui_select/select_001",
+   "category": "k_ui_select",
+   "mode": "shot",
+   "files": [
+    "k_ui_select/select_001.ogg",
+    "k_ui_select/select_001.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 1994
+  },
+  {
+   "id": "k_ui_select/select_002",
+   "category": "k_ui_select",
+   "mode": "shot",
+   "files": [
+    "k_ui_select/select_002.ogg",
+    "k_ui_select/select_002.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 1988
+  },
+  {
+   "id": "k_ui_select/select_003",
+   "category": "k_ui_select",
+   "mode": "shot",
+   "files": [
+    "k_ui_select/select_003.ogg",
+    "k_ui_select/select_003.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 8306
+  },
+  {
+   "id": "k_ui_select/select_004",
+   "category": "k_ui_select",
+   "mode": "shot",
+   "files": [
+    "k_ui_select/select_004.ogg",
+    "k_ui_select/select_004.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 8643
+  },
+  {
+   "id": "k_ui_select/select_005",
+   "category": "k_ui_select",
+   "mode": "shot",
+   "files": [
+    "k_ui_select/select_005.ogg",
+    "k_ui_select/select_005.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 8583
+  },
+  {
+   "id": "k_ui_select/select_006",
+   "category": "k_ui_select",
+   "mode": "shot",
+   "files": [
+    "k_ui_select/select_006.ogg",
+    "k_ui_select/select_006.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 38336
+  },
+  {
+   "id": "k_ui_select/select_007",
+   "category": "k_ui_select",
+   "mode": "shot",
+   "files": [
+    "k_ui_select/select_007.ogg",
+    "k_ui_select/select_007.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 2435
+  },
+  {
+   "id": "k_ui_select/select_008",
+   "category": "k_ui_select",
+   "mode": "shot",
+   "files": [
+    "k_ui_select/select_008.ogg",
+    "k_ui_select/select_008.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 2439
+  },
+  {
+   "id": "k_ui_switch/switch_001",
+   "category": "k_ui_switch",
+   "mode": "shot",
+   "files": [
+    "k_ui_switch/switch_001.ogg",
+    "k_ui_switch/switch_001.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 11762
+  },
+  {
+   "id": "k_ui_switch/switch_002",
+   "category": "k_ui_switch",
+   "mode": "shot",
+   "files": [
+    "k_ui_switch/switch_002.ogg",
+    "k_ui_switch/switch_002.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 11895
+  },
+  {
+   "id": "k_ui_switch/switch_003",
+   "category": "k_ui_switch",
+   "mode": "shot",
+   "files": [
+    "k_ui_switch/switch_003.ogg",
+    "k_ui_switch/switch_003.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 12152
+  },
+  {
+   "id": "k_ui_switch/switch_004",
+   "category": "k_ui_switch",
+   "mode": "shot",
+   "files": [
+    "k_ui_switch/switch_004.ogg",
+    "k_ui_switch/switch_004.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 12609
+  },
+  {
+   "id": "k_ui_switch/switch_005",
+   "category": "k_ui_switch",
+   "mode": "shot",
+   "files": [
+    "k_ui_switch/switch_005.ogg",
+    "k_ui_switch/switch_005.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 14766
+  },
+  {
+   "id": "k_ui_switch/switch_006",
+   "category": "k_ui_switch",
+   "mode": "shot",
+   "files": [
+    "k_ui_switch/switch_006.ogg",
+    "k_ui_switch/switch_006.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 14115
+  },
+  {
+   "id": "k_ui_switch/switch_007",
+   "category": "k_ui_switch",
+   "mode": "shot",
+   "files": [
+    "k_ui_switch/switch_007.ogg",
+    "k_ui_switch/switch_007.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 13707
+  },
+  {
+   "id": "k_ui_tick/tick_001",
+   "category": "k_ui_tick",
+   "mode": "shot",
+   "files": [
+    "k_ui_tick/tick_001.ogg",
+    "k_ui_tick/tick_001.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 1955
+  },
+  {
+   "id": "k_ui_tick/tick_002",
+   "category": "k_ui_tick",
+   "mode": "shot",
+   "files": [
+    "k_ui_tick/tick_002.ogg",
+    "k_ui_tick/tick_002.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 1535
+  },
+  {
+   "id": "k_ui_tick/tick_004",
+   "category": "k_ui_tick",
+   "mode": "shot",
+   "files": [
+    "k_ui_tick/tick_004.ogg",
+    "k_ui_tick/tick_004.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 2491
+  },
+  {
+   "id": "k_ui_toggle/toggle_001",
+   "category": "k_ui_toggle",
+   "mode": "shot",
+   "files": [
+    "k_ui_toggle/toggle_001.ogg",
+    "k_ui_toggle/toggle_001.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 4014
+  },
+  {
+   "id": "k_ui_toggle/toggle_002",
+   "category": "k_ui_toggle",
+   "mode": "shot",
+   "files": [
+    "k_ui_toggle/toggle_002.ogg",
+    "k_ui_toggle/toggle_002.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 3905
+  },
+  {
+   "id": "k_ui_toggle/toggle_003",
+   "category": "k_ui_toggle",
+   "mode": "shot",
+   "files": [
+    "k_ui_toggle/toggle_003.ogg",
+    "k_ui_toggle/toggle_003.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 3803
+  },
+  {
+   "id": "k_ui_toggle/toggle_004",
+   "category": "k_ui_toggle",
+   "mode": "shot",
+   "files": [
+    "k_ui_toggle/toggle_004.ogg",
+    "k_ui_toggle/toggle_004.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_interface-sounds",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/interface-sounds",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 2227
+  },
+  {
+   "id": "k_ui_click/click1",
+   "category": "k_ui_click",
+   "mode": "shot",
+   "files": [
+    "k_ui_click/click1.ogg",
+    "k_ui_click/click1.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_ui-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/ui-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 2581
+  },
+  {
+   "id": "k_ui_click/click2",
+   "category": "k_ui_click",
+   "mode": "shot",
+   "files": [
+    "k_ui_click/click2.ogg",
+    "k_ui_click/click2.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_ui-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/ui-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 2146
+  },
+  {
+   "id": "k_ui_click/click3",
+   "category": "k_ui_click",
+   "mode": "shot",
+   "files": [
+    "k_ui_click/click3.ogg",
+    "k_ui_click/click3.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_ui-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/ui-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 2676
+  },
+  {
+   "id": "k_ui_click/click4",
+   "category": "k_ui_click",
+   "mode": "shot",
+   "files": [
+    "k_ui_click/click4.ogg",
+    "k_ui_click/click4.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_ui-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/ui-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 1916
+  },
+  {
+   "id": "k_ui_click/click5",
+   "category": "k_ui_click",
+   "mode": "shot",
+   "files": [
+    "k_ui_click/click5.ogg",
+    "k_ui_click/click5.mp3"
+   ],
+   "duration": null,
+   "source": {
+    "site": "kenney.nl",
+    "title": "kenney_ui-audio",
+    "author": "Kenney (www.kenney.nl)",
+    "url": "https://kenney.nl/assets/ui-audio",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+   },
+   "bytes": 1933
+  },
+  {
+   "id": "bomb_tick1/bomb_tick1_487730_0",
+   "category": "bomb_tick1",
+   "mode": "shot",
+   "duration": 0.11,
+   "files": [
+    "bomb_tick1/bomb_tick1_487730_0.ogg",
+    "bomb_tick1/bomb_tick1_487730_0.mp3"
+   ],
+   "source": {
+    "site": "freesound.org",
+    "id": 487730,
+    "title": "Ticking Timer 40 Sec.wav",
+    "author": "LilMati",
+    "url": "https://freesound.org/people/LilMati/sounds/487730/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/487/487730_6142149-hq.mp3",
+    "note": "single ticks cut from the loop"
+   },
+   "bytes": 3265
+  },
+  {
+   "id": "bomb_tick1/bomb_tick1_487730_1",
+   "category": "bomb_tick1",
+   "mode": "shot",
+   "duration": 0.11,
+   "files": [
+    "bomb_tick1/bomb_tick1_487730_1.ogg",
+    "bomb_tick1/bomb_tick1_487730_1.mp3"
+   ],
+   "source": {
+    "site": "freesound.org",
+    "id": 487730,
+    "title": "Ticking Timer 40 Sec.wav",
+    "author": "LilMati",
+    "url": "https://freesound.org/people/LilMati/sounds/487730/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/487/487730_6142149-hq.mp3",
+    "note": "single ticks cut from the loop"
+   },
+   "bytes": 3160
+  },
+  {
+   "id": "bomb_tick1/bomb_tick1_487730_2",
+   "category": "bomb_tick1",
+   "mode": "shot",
+   "duration": 0.11,
+   "files": [
+    "bomb_tick1/bomb_tick1_487730_2.ogg",
+    "bomb_tick1/bomb_tick1_487730_2.mp3"
+   ],
+   "source": {
+    "site": "freesound.org",
+    "id": 487730,
+    "title": "Ticking Timer 40 Sec.wav",
+    "author": "LilMati",
+    "url": "https://freesound.org/people/LilMati/sounds/487730/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/487/487730_6142149-hq.mp3",
+    "note": "single ticks cut from the loop"
+   },
+   "bytes": 3360
+  },
+  {
+   "id": "bomb_tick1/bomb_tick1_487730_3",
+   "category": "bomb_tick1",
+   "mode": "shot",
+   "duration": 0.11,
+   "files": [
+    "bomb_tick1/bomb_tick1_487730_3.ogg",
+    "bomb_tick1/bomb_tick1_487730_3.mp3"
+   ],
+   "source": {
+    "site": "freesound.org",
+    "id": 487730,
+    "title": "Ticking Timer 40 Sec.wav",
+    "author": "LilMati",
+    "url": "https://freesound.org/people/LilMati/sounds/487730/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/487/487730_6142149-hq.mp3",
+    "note": "single ticks cut from the loop"
+   },
+   "bytes": 3374
+  },
+  {
+   "id": "surf/surf_proc_0",
+   "category": "surf",
+   "mode": "bed",
+   "loop": true,
+   "duration": 32.0,
+   "files": [
+    "surf/surf_proc_0.ogg",
+    "surf/surf_proc_0.mp3"
+   ],
+   "source": {
+    "site": "project",
+    "title": "procedural shoreline: swells, crash and receding wash, small laps on rocks",
+    "author": "SHADOW SIX contributors (tools/audio/procedural_beds.py)",
+    "license": "CC0-1.0",
+    "url": "tools/audio/procedural_beds.py"
+   },
+   "bytes": 906915
+  },
+  {
+   "id": "river/river_proc_0",
+   "category": "river",
+   "mode": "bed",
+   "loop": true,
+   "duration": 24.0,
+   "files": [
+    "river/river_proc_0.ogg",
+    "river/river_proc_0.mp3"
+   ],
+   "source": {
+    "site": "project",
+    "title": "procedural fast shallow river: broadband rush plus bubble chirps",
+    "author": "SHADOW SIX contributors (tools/audio/procedural_beds.py)",
+    "license": "CC0-1.0",
+    "url": "tools/audio/procedural_beds.py"
+   },
+   "bytes": 672758
+  }
+ ]
+}

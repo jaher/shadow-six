@@ -1,0 +1,405 @@
+{
+ "asset": "farmhouse_normandy_a_ruin",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "ashlar_limestone": {
+   "source": "Poly Haven",
+   "id": "white_sandstone_blocks_02",
+   "url": "https://polyhaven.com/a/white_sandstone_blocks_02",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "White Sandstone Blocks 02",
+   "label": "Pale limestone ashlar (Caen stone)",
+   "files": {
+    "diff": {
+     "2k": "2k/ashlar_limestone_diff",
+     "1k": "1k/ashlar_limestone_diff"
+    },
+    "nor": {
+     "2k": "2k/ashlar_limestone_nor",
+     "1k": "1k/ashlar_limestone_nor"
+    },
+    "arm": {
+     "2k": "2k/ashlar_limestone_arm",
+     "1k": "1k/ashlar_limestone_arm"
+    }
+   }
+  },
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "corrugated_rust": {
+   "source": "Poly Haven",
+   "id": "rusty_corrugated_iron",
+   "url": "https://polyhaven.com/a/rusty_corrugated_iron",
+   "authors": [
+    "Charlotte Baglioni"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Corrugated Iron",
+   "label": "Rusty corrugated iron",
+   "files": {
+    "diff": {
+     "2k": "2k/corrugated_rust_diff",
+     "1k": "1k/corrugated_rust_diff"
+    },
+    "nor": {
+     "2k": "2k/corrugated_rust_nor",
+     "1k": "1k/corrugated_rust_nor"
+    },
+    "arm": {
+     "2k": "2k/corrugated_rust_arm",
+     "1k": "1k/corrugated_rust_arm"
+    }
+   }
+  },
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  },
+  "deck_planks": {
+   "source": "Poly Haven",
+   "id": "wood_planks_dirt",
+   "url": "https://polyhaven.com/a/wood_planks_dirt",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Dirt",
+   "label": "Deck / floor planks",
+   "files": {
+    "diff": {
+     "2k": "2k/deck_planks_diff",
+     "1k": "1k/deck_planks_diff"
+    },
+    "nor": {
+     "2k": "2k/deck_planks_nor",
+     "1k": "1k/deck_planks_nor"
+    },
+    "arm": {
+     "2k": "2k/deck_planks_arm",
+     "1k": "1k/deck_planks_arm"
+    }
+   }
+  },
+  "door_planks": {
+   "source": "Poly Haven",
+   "id": "weathered_peeling_timber",
+   "url": "https://polyhaven.com/a/weathered_peeling_timber",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Peeling Timber",
+   "label": "Weathered peeling timber (doors)",
+   "files": {
+    "diff": {
+     "2k": "2k/door_planks_diff",
+     "1k": "1k/door_planks_diff"
+    },
+    "nor": {
+     "2k": "2k/door_planks_nor",
+     "1k": "1k/door_planks_nor"
+    },
+    "arm": {
+     "2k": "2k/door_planks_arm",
+     "1k": "1k/door_planks_arm"
+    }
+   }
+  },
+  "fieldstone": {
+   "source": "Poly Haven",
+   "id": "rustic_stone_wall",
+   "url": "https://polyhaven.com/a/rustic_stone_wall",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rustic Stone Wall",
+   "label": "Fieldstone rubble wall, warm (Normandy)",
+   "files": {
+    "diff": {
+     "2k": "2k/fieldstone_diff",
+     "1k": "1k/fieldstone_diff"
+    },
+    "nor": {
+     "2k": "2k/fieldstone_nor",
+     "1k": "1k/fieldstone_nor"
+    },
+    "arm": {
+     "2k": "2k/fieldstone_arm",
+     "1k": "1k/fieldstone_arm"
+    }
+   }
+  },
+  "floor_checker": {
+   "source": "procedural (own work, europe rework make_stone.py)",
+   "id": "floor_checker",
+   "url": null,
+   "authors": [
+    "SHADOW SIX art"
+   ],
+   "license": "CC0-1.0",
+   "name": "Black / cream checker floor tiles, grout, chips, dirt (interiors, ruins)",
+   "label": "Black / cream checker floor tiles, grout, chips, dirt (interiors, ruins)",
+   "files": {
+    "diff": {
+     "2k": "2k/floor_checker_diff",
+     "1k": "1k/floor_checker_diff"
+    },
+    "nor": {
+     "2k": "2k/floor_checker_nor",
+     "1k": "1k/floor_checker_nor"
+    },
+    "arm": {
+     "2k": "2k/floor_checker_arm",
+     "1k": "1k/floor_checker_arm"
+    }
+   }
+  },
+  "glass_dirty": {
+   "source": "procedural (tools/make_procedural.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Dirty window glass",
+   "files": {
+    "diff": {
+     "1k": "1k/glass_dirty_diff",
+     "2k": "2k/glass_dirty_diff"
+    },
+    "nor": {
+     "1k": "1k/glass_dirty_nor",
+     "2k": "2k/glass_dirty_nor"
+    },
+    "arm": {
+     "1k": "1k/glass_dirty_arm",
+     "2k": "2k/glass_dirty_arm"
+    }
+   }
+  },
+  "gravel": {
+   "source": "Poly Haven",
+   "id": "gravel_road",
+   "url": "https://polyhaven.com/a/gravel_road",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Gravel Road",
+   "label": "Gravel road",
+   "files": {
+    "diff": {
+     "2k": "2k/gravel_diff",
+     "1k": "1k/gravel_diff"
+    },
+    "nor": {
+     "2k": "2k/gravel_nor",
+     "1k": "1k/gravel_nor"
+    },
+    "arm": {
+     "2k": "2k/gravel_arm",
+     "1k": "1k/gravel_arm"
+    }
+   }
+  },
+  "interior_dark": {
+   "source": "procedural (tools/make_procedural.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Interior darkness card",
+   "files": {
+    "diff": {
+     "1k": "1k/interior_dark_diff",
+     "2k": "2k/interior_dark_diff"
+    },
+    "nor": {
+     "1k": "1k/interior_dark_nor",
+     "2k": "2k/interior_dark_nor"
+    },
+    "arm": {
+     "1k": "1k/interior_dark_arm",
+     "2k": "2k/interior_dark_arm"
+    }
+   }
+  },
+  "roof_slate": {
+   "source": "Poly Haven",
+   "id": "roof_slates_02",
+   "url": "https://polyhaven.com/a/roof_slates_02",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Roof Slates 02",
+   "label": "Slate roof",
+   "files": {
+    "diff": {
+     "2k": "2k/roof_slate_diff",
+     "1k": "1k/roof_slate_diff"
+    },
+    "nor": {
+     "2k": "2k/roof_slate_nor",
+     "1k": "1k/roof_slate_nor"
+    },
+    "arm": {
+     "2k": "2k/roof_slate_arm",
+     "1k": "1k/roof_slate_arm"
+    }
+   }
+  },
+  "roof_terracotta": {
+   "source": "Poly Haven",
+   "id": "clay_roof_tiles_02",
+   "url": "https://polyhaven.com/a/clay_roof_tiles_02",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Clay Roof Tiles 02",
+   "label": "Terracotta roof tiles",
+   "files": {
+    "diff": {
+     "2k": "2k/roof_terracotta_diff",
+     "1k": "1k/roof_terracotta_diff"
+    },
+    "nor": {
+     "2k": "2k/roof_terracotta_nor",
+     "1k": "1k/roof_terracotta_nor"
+    },
+    "arm": {
+     "2k": "2k/roof_terracotta_arm",
+     "1k": "1k/roof_terracotta_arm"
+    }
+   }
+  },
+  "roof_tile_flat": {
+   "source": "Poly Haven",
+   "id": "clay_roof_tiles_03",
+   "url": "https://polyhaven.com/a/clay_roof_tiles_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Clay Roof Tiles 03",
+   "label": "Flat clay plain tiles (Norman tuile plate / Alsatian Biberschwanz)",
+   "files": {
+    "diff": {
+     "2k": "2k/roof_tile_flat_diff",
+     "1k": "1k/roof_tile_flat_diff"
+    },
+    "nor": {
+     "2k": "2k/roof_tile_flat_nor",
+     "1k": "1k/roof_tile_flat_nor"
+    },
+    "arm": {
+     "2k": "2k/roof_tile_flat_arm",
+     "1k": "1k/roof_tile_flat_arm"
+    }
+   }
+  },
+  "timber_beam": {
+   "source": "Poly Haven",
+   "id": "wood_planks_grey",
+   "url": "https://polyhaven.com/a/wood_planks_grey",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Grey",
+   "label": "Grey structural timber (beams, rafters)",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_beam_diff",
+     "1k": "1k/timber_beam_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_beam_nor",
+     "1k": "1k/timber_beam_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_beam_arm",
+     "1k": "1k/timber_beam_arm"
+    }
+   }
+  },
+  "timber_tarred": {
+   "source": "Poly Haven",
+   "id": "dark_wooden_planks",
+   "url": "https://polyhaven.com/a/dark_wooden_planks",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Dark Wooden Planks",
+   "label": "Dark tarred timber",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_tarred_diff",
+     "1k": "1k/timber_tarred_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_tarred_nor",
+     "1k": "1k/timber_tarred_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_tarred_arm",
+     "1k": "1k/timber_tarred_arm"
+    }
+   }
+  },
+  "wood_paint": {
+   "source": "Poly Haven",
+   "id": "weathered_peeling_timber",
+   "url": "https://polyhaven.com/a/weathered_peeling_timber",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Peeling Timber",
+   "label": "Pale painted wood base (tint via kit_tint for shutters/frames)",
+   "files": {
+    "diff": {
+     "2k": "2k/wood_paint_diff",
+     "1k": "1k/wood_paint_diff"
+    },
+    "nor": {
+     "2k": "2k/wood_paint_nor",
+     "1k": "1k/wood_paint_nor"
+    },
+    "arm": {
+     "2k": "2k/wood_paint_arm",
+     "1k": "1k/wood_paint_arm"
+    }
+   }
+  }
+ }
+}

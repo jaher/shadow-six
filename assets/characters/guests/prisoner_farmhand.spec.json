@@ -1,0 +1,120 @@
+{
+ "id": "prisoner_farmhand",
+ "notes": "Bible 6.3: young farmhand ~20, flat cap; filthy, unshaven, blanket over the shoulders.",
+ "body": {
+  "age_years": 20,
+  "muscle": 0.6,
+  "weight": 0.45,
+  "proportions": 0.55,
+  "height_m": 1.74,
+  "modifiers": {
+   "head/head-round": 0.45,
+   "cheek/cheek-volume-incr": 0.3,
+   "nose/nose-scale-vert-decr": 0.3,
+   "nose/nose-point-up": 0.4,
+   "nose/nose-scale-horiz-incr": 0.25,
+   "chin/chin-width-incr": 0.3,
+   "eyes/eye-scale-incr": 0.15,
+   "ears/ear-scale-incr": 0.3,
+   "ears/ear-flap-incr": 0.4,
+   "mouth/mouth-scale-horiz-incr": 0.2,
+   "eyebrows/eyebrows-angle-up": 0.2
+  },
+  "height_macro": 0.6041221910856235
+ },
+ "skin": {
+  "base": "young_caucasian_male",
+  "tint": [
+   1.04,
+   0.95,
+   0.88
+  ],
+  "ruddy": 0.4,
+  "stubble": 0.3,
+  "dirt": 0.6,
+  "bruises": [
+   "eye_l"
+  ],
+  "seed": 41
+ },
+ "eyes": {
+  "iris": [
+   0.3,
+   0.36,
+   0.44
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow004",
+  "color": [
+   0.3,
+   0.22,
+   0.13
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.3,
+   0.21,
+   0.12
+  ],
+  "length": 0.006
+ },
+ "facial_hair": "none",
+ "outfit": "civ_farm",
+ "outfit_opts": {
+  "blanket": [
+   0.33,
+   0.35,
+   0.36
+  ],
+  "blanket_drop": 0.06,
+  "blanket_check": [
+   [
+    0.2,
+    0.22,
+    0.24
+   ],
+   [
+    0.52,
+    0.5,
+    0.46
+   ]
+  ]
+ },
+ "kit": [
+  "blanket"
+ ],
+ "headgear": {
+  "type": "flat_cap",
+  "color": [
+   0.28,
+   0.24,
+   0.2
+  ],
+  "check": [
+   [
+    0.2,
+    0.17,
+    0.14
+   ],
+   [
+    0.36,
+    0.31,
+    0.25
+   ]
+  ],
+  "check_pitch": 0.012
+ },
+ "weapon": {
+  "primary": null
+ },
+ "guest": {
+  "key": 7,
+  "mission": 17,
+  "can_crawl": false,
+  "tied_hands_until_freed": true,
+  "group": "m17_prisoners"
+ }
+}

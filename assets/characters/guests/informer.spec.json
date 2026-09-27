@@ -1,0 +1,121 @@
+{
+ "id": "informer",
+ "notes": "Bible 6.2 (our design): Tunisian civilian 40-48, 1.72 m, wiry; short dark hair with grey, neat dark moustache, lined alert anxious face, brown eyes, olive-brown skin. Red felt chechia, crumpled light linen jacket over a collarless shirt, loose trousers, worn shoes. A clerk/merchant who has been beaten: bruises. Dignified, not a stereotype.",
+ "body": {
+  "age_years": 45,
+  "muscle": 0.45,
+  "weight": 0.33,
+  "proportions": 0.6,
+  "height_m": 1.72,
+  "race": {
+   "caucasian": 0.72,
+   "african": 0.18,
+   "asian": 0.1
+  },
+  "modifiers": {
+   "head/head-oval": 0.35,
+   "head/head-rectangular": 0.2,
+   "cheek/cheek-volume-decr": 0.5,
+   "cheek/cheek-bones-incr": 0.4,
+   "nose/nose-scale-vert-incr": 0.35,
+   "nose/nose-hump-incr": 0.45,
+   "nose/nose-point-down": 0.3,
+   "nose/nose-scale-horiz-incr": 0.1,
+   "eyebrows/eyebrows-angle-down": 0.45,
+   "eyes/eye-bag-incr": 0.5,
+   "mouth/mouth-laugh-lines-out": 0.6,
+   "forehead/forehead-scale-vert-incr": 0.2,
+   "chin/chin-width-decr": 0.15,
+   "eyes/eye-scale-incr": 0.1,
+   "neck/neck-scale-horiz-decr": 0.3,
+   "mouth/mouth-scale-horiz-decr": 0.1,
+   "ears/ear-scale-incr": 0.15
+  },
+  "height_macro": 0.479695294151872
+ },
+ "skin": {
+  "base": "middleage_caucasian_male",
+  "tint": [
+   0.86,
+   0.72,
+   0.57
+  ],
+  "desat": 0.08,
+  "ruddy": 0.05,
+  "stubble": 0.35,
+  "bruises": [
+   "brow_r",
+   "jaw_l"
+  ],
+  "dirt": 0.35,
+  "seed": 21
+ },
+ "eyes": {
+  "iris": [
+   0.2,
+   0.12,
+   0.07
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow010",
+  "color": [
+   0.08,
+   0.06,
+   0.05
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.09,
+   0.075,
+   0.065
+  ],
+  "length": 0.006,
+  "grey_temples": 0.55,
+  "recede": 0.008
+ },
+ "facial_hair": "moustache",
+ "facial_hair_color": [
+  0.08,
+  0.065,
+  0.055
+ ],
+ "outfit": "civ_linen",
+ "outfit_opts": {
+  "tunic": [
+   0.74,
+   0.69,
+   0.57
+  ],
+  "shirt": [
+   0.86,
+   0.84,
+   0.77
+  ],
+  "trousers": [
+   0.36,
+   0.33,
+   0.28
+  ]
+ },
+ "kit": [],
+ "headgear": {
+  "type": "chechia",
+  "color": [
+   0.55,
+   0.09,
+   0.07
+  ]
+ },
+ "weapon": {
+  "primary": null
+ },
+ "guest": {
+  "key": 7,
+  "mission": 12,
+  "can_crawl": true,
+  "tied_hands_until_freed": true
+ }
+}

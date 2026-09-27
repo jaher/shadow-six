@@ -1,0 +1,119 @@
+{
+ "id": "prisoner_oldman",
+ "notes": "Bible 6.3: older man 58, beret; grey moustache, lined, blanket.",
+ "body": {
+  "age_years": 58,
+  "muscle": 0.35,
+  "weight": 0.5,
+  "proportions": 0.4,
+  "height_m": 1.68,
+  "modifiers": {
+   "head/head-oval": 0.3,
+   "head/head-fat": 0.2,
+   "nose/nose-scale-vert-incr": 0.5,
+   "nose/nose-point-down": 0.5,
+   "nose/nose-hump-incr": 0.6,
+   "nose/nose-scale-horiz-incr": 0.3,
+   "ears/ear-scale-incr": 0.45,
+   "eyes/eye-bag-incr": 0.8,
+   "eyebrows/eyebrows-angle-down": 0.3,
+   "mouth/mouth-laugh-lines-out": 1.0,
+   "cheek/cheek-volume-decr": 0.3,
+   "neck/neck-double-incr": 0.3,
+   "chin/chin-prominent-decr": 0.3,
+   "torso/torso-vshape-decr": 0.4
+  }
+ },
+ "skin": {
+  "base": "old_caucasian_male",
+  "tint": [
+   1.03,
+   0.94,
+   0.88
+  ],
+  "ruddy": 0.5,
+  "stubble": 0.5,
+  "dirt": 0.5,
+  "bruises": [],
+  "seed": 43
+ },
+ "eyes": {
+  "iris": [
+   0.33,
+   0.3,
+   0.22
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow007",
+  "color": [
+   0.62,
+   0.6,
+   0.56
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.66,
+   0.65,
+   0.62
+  ],
+  "length": 0.006,
+  "recede": 0.03
+ },
+ "facial_hair": "moustache",
+ "facial_hair_color": [
+  0.66,
+  0.64,
+  0.6
+ ],
+ "outfit": "civ_jacket",
+ "outfit_opts": {
+  "tunic": [
+   0.31,
+   0.26,
+   0.2
+  ],
+  "blanket": [
+   0.4,
+   0.3,
+   0.24
+  ],
+  "blanket_drop": 0.04,
+  "blanket_check": [
+   [
+    0.28,
+    0.14,
+    0.1
+   ],
+   [
+    0.56,
+    0.48,
+    0.38
+   ]
+  ]
+ },
+ "kit": [
+  "blanket"
+ ],
+ "headgear": {
+  "type": "basque_beret",
+  "color": [
+   0.09,
+   0.1,
+   0.13
+  ],
+  "pulled": "right"
+ },
+ "weapon": {
+  "primary": null
+ },
+ "guest": {
+  "key": 7,
+  "mission": 17,
+  "can_crawl": false,
+  "tied_hands_until_freed": true,
+  "group": "m17_prisoners"
+ }
+}

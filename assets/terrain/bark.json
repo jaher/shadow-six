@@ -1,0 +1,18 @@
+{
+ "size": 512,
+ "layers": [
+  "oak",
+  "beech",
+  "birch",
+  "poplar",
+  "plane",
+  "olive",
+  "pine",
+  "spruce",
+  "palm",
+  "dead",
+  "burnt",
+  "generic"
+ ],
+ "sources": "Poly Haven bark_brown_02, bark_platanus, bark_willow, pine_bark, palm_bark; ambientCG Bark012 (all CC0); birch synthesised"
+}

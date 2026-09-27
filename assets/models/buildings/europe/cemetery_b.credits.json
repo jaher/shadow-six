@@ -1,0 +1,342 @@
+{
+ "asset": "cemetery_b",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "ashlar": {
+   "source": "Poly Haven",
+   "id": "stone_block_wall",
+   "url": "https://polyhaven.com/a/stone_block_wall",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Stone Block Wall",
+   "label": "Dressed stone blocks / ashlar (bridges)",
+   "files": {
+    "diff": {
+     "2k": "2k/ashlar_diff",
+     "1k": "1k/ashlar_diff"
+    },
+    "nor": {
+     "2k": "2k/ashlar_nor",
+     "1k": "1k/ashlar_nor"
+    },
+    "arm": {
+     "2k": "2k/ashlar_arm",
+     "1k": "1k/ashlar_arm"
+    }
+   }
+  },
+  "ashlar_limestone": {
+   "source": "Poly Haven",
+   "id": "white_sandstone_blocks_02",
+   "url": "https://polyhaven.com/a/white_sandstone_blocks_02",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "White Sandstone Blocks 02",
+   "label": "Pale limestone ashlar (Caen stone)",
+   "files": {
+    "diff": {
+     "2k": "2k/ashlar_limestone_diff",
+     "1k": "1k/ashlar_limestone_diff"
+    },
+    "nor": {
+     "2k": "2k/ashlar_limestone_nor",
+     "1k": "1k/ashlar_limestone_nor"
+    },
+    "arm": {
+     "2k": "2k/ashlar_limestone_arm",
+     "1k": "1k/ashlar_limestone_arm"
+    }
+   }
+  },
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  },
+  "fieldstone": {
+   "source": "Poly Haven",
+   "id": "rustic_stone_wall",
+   "url": "https://polyhaven.com/a/rustic_stone_wall",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rustic Stone Wall",
+   "label": "Fieldstone rubble wall, warm (Normandy)",
+   "files": {
+    "diff": {
+     "2k": "2k/fieldstone_diff",
+     "1k": "1k/fieldstone_diff"
+    },
+    "nor": {
+     "2k": "2k/fieldstone_nor",
+     "1k": "1k/fieldstone_nor"
+    },
+    "arm": {
+     "2k": "2k/fieldstone_arm",
+     "1k": "1k/fieldstone_arm"
+    }
+   }
+  },
+  "granite": {
+   "source": "Poly Haven",
+   "id": "granite_wall",
+   "url": "https://polyhaven.com/a/granite_wall",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Granite Wall",
+   "label": "Granite wall",
+   "files": {
+    "diff": {
+     "2k": "2k/granite_diff",
+     "1k": "1k/granite_diff"
+    },
+    "nor": {
+     "2k": "2k/granite_nor",
+     "1k": "1k/granite_nor"
+    },
+    "arm": {
+     "2k": "2k/granite_arm",
+     "1k": "1k/granite_arm"
+    }
+   }
+  },
+  "granite_polished": {
+   "source": "procedural (own work, europe rework make_stone.py)",
+   "id": "granite_polished",
+   "url": null,
+   "authors": [
+    "SHADOW SIX art"
+   ],
+   "license": "CC0-1.0",
+   "name": "Polished granite, jointless (ledger slabs, steles)",
+   "label": "Polished granite, jointless (ledger slabs, steles)",
+   "files": {
+    "diff": {
+     "2k": "2k/granite_polished_diff",
+     "1k": "1k/granite_polished_diff"
+    },
+    "nor": {
+     "2k": "2k/granite_polished_nor",
+     "1k": "1k/granite_polished_nor"
+    },
+    "arm": {
+     "2k": "2k/granite_polished_arm",
+     "1k": "1k/granite_polished_arm"
+    }
+   }
+  },
+  "gravel_grey": {
+   "source": "Poly Haven",
+   "id": "gravel",
+   "url": "https://polyhaven.com/a/gravel",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Gravel",
+   "label": "Grey limestone gravel (cemetery / churchyard paths, grave infill)",
+   "files": {
+    "diff": {
+     "2k": "2k/gravel_grey_diff",
+     "1k": "1k/gravel_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/gravel_grey_nor",
+     "1k": "1k/gravel_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/gravel_grey_arm",
+     "1k": "1k/gravel_grey_arm"
+    }
+   }
+  },
+  "limestone_smooth": {
+   "source": "procedural (own work, europe rework make_stone.py)",
+   "id": "limestone_smooth",
+   "url": null,
+   "authors": [
+    "SHADOW SIX art"
+   ],
+   "license": "CC0-1.0",
+   "name": "Smooth pale limestone, jointless (headstones, kerbs, calvary)",
+   "label": "Smooth pale limestone, jointless (headstones, kerbs, calvary)",
+   "files": {
+    "diff": {
+     "2k": "2k/limestone_smooth_diff",
+     "1k": "1k/limestone_smooth_diff"
+    },
+    "nor": {
+     "2k": "2k/limestone_smooth_nor",
+     "1k": "1k/limestone_smooth_nor"
+    },
+    "arm": {
+     "2k": "2k/limestone_smooth_arm",
+     "1k": "1k/limestone_smooth_arm"
+    }
+   }
+  },
+  "roof_slate": {
+   "source": "Poly Haven",
+   "id": "roof_slates_02",
+   "url": "https://polyhaven.com/a/roof_slates_02",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Roof Slates 02",
+   "label": "Slate roof",
+   "files": {
+    "diff": {
+     "2k": "2k/roof_slate_diff",
+     "1k": "1k/roof_slate_diff"
+    },
+    "nor": {
+     "2k": "2k/roof_slate_nor",
+     "1k": "1k/roof_slate_nor"
+    },
+    "arm": {
+     "2k": "2k/roof_slate_arm",
+     "1k": "1k/roof_slate_arm"
+    }
+   }
+  },
+  "roof_terracotta": {
+   "source": "Poly Haven",
+   "id": "clay_roof_tiles_02",
+   "url": "https://polyhaven.com/a/clay_roof_tiles_02",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Clay Roof Tiles 02",
+   "label": "Terracotta roof tiles",
+   "files": {
+    "diff": {
+     "2k": "2k/roof_terracotta_diff",
+     "1k": "1k/roof_terracotta_diff"
+    },
+    "nor": {
+     "2k": "2k/roof_terracotta_nor",
+     "1k": "1k/roof_terracotta_nor"
+    },
+    "arm": {
+     "2k": "2k/roof_terracotta_arm",
+     "1k": "1k/roof_terracotta_arm"
+    }
+   }
+  },
+  "sod": {
+   "source": "Poly Haven",
+   "id": "sparse_grass",
+   "url": "https://polyhaven.com/a/sparse_grass",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Sparse Grass",
+   "label": "Sod / turf roof",
+   "files": {
+    "diff": {
+     "2k": "2k/sod_diff",
+     "1k": "1k/sod_diff"
+    },
+    "nor": {
+     "2k": "2k/sod_nor",
+     "1k": "1k/sod_nor"
+    },
+    "arm": {
+     "2k": "2k/sod_arm",
+     "1k": "1k/sod_arm"
+    }
+   }
+  },
+  "stele_face": {
+   "source": "procedural (own work, europe rework make_stone.py)",
+   "id": "stele_face",
+   "url": null,
+   "authors": [
+    "SHADOW SIX art"
+   ],
+   "license": "CC0-1.0",
+   "name": "Stele face atlas 2x2: engraved / gilt inscriptions, photo plaque, cross, wreath",
+   "label": "Stele face atlas 2x2: engraved / gilt inscriptions, photo plaque, cross, wreath",
+   "files": {
+    "diff": {
+     "2k": "2k/stele_face_diff",
+     "1k": "1k/stele_face_diff"
+    },
+    "nor": {
+     "2k": "2k/stele_face_nor",
+     "1k": "1k/stele_face_nor"
+    },
+    "arm": {
+     "2k": "2k/stele_face_arm",
+     "1k": "1k/stele_face_arm"
+    }
+   }
+  },
+  "wood_paint": {
+   "source": "Poly Haven",
+   "id": "weathered_peeling_timber",
+   "url": "https://polyhaven.com/a/weathered_peeling_timber",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Peeling Timber",
+   "label": "Pale painted wood base (tint via kit_tint for shutters/frames)",
+   "files": {
+    "diff": {
+     "2k": "2k/wood_paint_diff",
+     "1k": "1k/wood_paint_diff"
+    },
+    "nor": {
+     "2k": "2k/wood_paint_nor",
+     "1k": "1k/wood_paint_nor"
+    },
+    "arm": {
+     "2k": "2k/wood_paint_arm",
+     "1k": "1k/wood_paint_arm"
+    }
+   }
+  }
+ }
+}

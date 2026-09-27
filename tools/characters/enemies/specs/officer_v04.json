@@ -1,0 +1,125 @@
+{
+ "budget": {
+  "lod0": 11550,
+  "lod1": 5000,
+  "lod2": 2000
+ },
+ "id": "officer_v04",
+ "enemy": {
+  "soldierType": "officer",
+  "variant": 4,
+  "archetype": 10,
+  "archetype_name": "soft round, small nose (farm boy)",
+  "seed": 1,
+  "skinTone": "weathered_tan",
+  "facialHair": "none",
+  "glasses": false,
+  "age": 35.3,
+  "extras": [],
+  "key": "10|weathered_tan|none|0",
+  "silhouette": "peaked cap with cords, open collar, breeches, riding boots"
+ },
+ "body": {
+  "age_years": 35.3,
+  "muscle": 0.46,
+  "weight": 0.508,
+  "proportions": 0.55,
+  "height_m": 1.708,
+  "modifiers": {
+   "head/head-round": 0.68,
+   "nose/nose-scale-horiz-decr": 0.51,
+   "nose/nose-scale-vert-decr": 0.51,
+   "cheek/cheek-volume-incr": 0.739,
+   "eyes/eye-scale-incr": 0.815,
+   "nose/nose-scale-horiz-incr": -0.059,
+   "nose/nose-scale-vert-incr": 0.025,
+   "ears/ear-scale-incr": -0.007,
+   "eyebrows/eyebrows-trans-up": -0.226,
+   "mouth/mouth-lowerlip-volume-incr": 0.145,
+   "head/head-scale-horiz-incr": 0.139,
+   "head/head-scale-vert-incr": -0.035,
+   "head/head-scale-depth-incr": -0.563,
+   "nose/nose-scale-depth-incr": 0.392,
+   "mouth/mouth-scale-horiz-incr": 0.27,
+   "eyes/eye-trans-out": -0.409,
+   "eyes/eye-trans-up": 0.464,
+   "chin/chin-height-incr": -0.693,
+   "chin/chin-width-incr": -0.063,
+   "chin/chin-prominent-incr": 0.579,
+   "ears/ear-flap-incr": -0.569,
+   "eyebrows/eyebrows-angle-up": 0.409,
+   "cheek/cheek-bones-incr": -0.292,
+   "forehead/forehead-scale-vert-incr": 0.486,
+   "neck/neck-scale-horiz-incr": 0.055,
+   "mouth/mouth-upperlip-height-incr": -0.388,
+   "nose/nose-width2-incr": 0.142,
+   "eye-left-slit": 0.43,
+   "eye-right-slit": 0.436,
+   "head/head-age-incr": 0.281,
+   "cheek/cheek-trans-down": 0.08
+  }
+ },
+ "skin": {
+  "base": "middleage_caucasian_male",
+  "tint": [
+   0.85,
+   0.777,
+   0.602
+  ],
+  "ruddy": 0.22,
+  "stubble": 0.08,
+  "complexion": {
+   "freckles": 0.08,
+   "moles": 0,
+   "scar": false,
+   "lines": 0.46,
+   "seed": 31
+  }
+ },
+ "eyes": {
+  "iris": [
+   0.45,
+   0.52,
+   0.56
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow001",
+  "color": [
+   0.098,
+   0.082,
+   0.067
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.122,
+   0.103,
+   0.084
+  ]
+ },
+ "facial_hair": "none",
+ "glasses": false,
+ "outfit": "officer_heer",
+ "outfit_opts": {
+  "tint_mul": [
+   0.969,
+   0.966,
+   0.962
+  ],
+  "wear": 0.358
+ },
+ "kit": [
+  "belt_brown",
+  "holster_l_brown"
+ ],
+ "headgear": {
+  "type": "officer_cap",
+  "badge": true,
+  "cords": true
+ },
+ "weapon": {
+  "primary": "walther_p38"
+ }
+}

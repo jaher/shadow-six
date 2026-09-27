@@ -1,0 +1,141 @@
+{
+ "budget": {
+  "lod0": 11800,
+  "lod1": 5000,
+  "lod2": 2000
+ },
+ "id": "sergeant_v02",
+ "enemy": {
+  "soldierType": "sergeant",
+  "variant": 2,
+  "archetype": 3,
+  "archetype_name": "round, full cheeks, snub nose",
+  "seed": 1,
+  "skinTone": "weathered_tan",
+  "facialHair": "moustache",
+  "glasses": false,
+  "age": 31.7,
+  "extras": [],
+  "key": "3|weathered_tan|moustache|0",
+  "silhouette": "peaked cap, Luger, binoculars"
+ },
+ "body": {
+  "age_years": 31.7,
+  "muscle": 0.673,
+  "weight": 0.539,
+  "proportions": 0.55,
+  "height_m": 1.741,
+  "modifiers": {
+   "head/head-round": 1.19,
+   "cheek/cheek-volume-incr": 1.126,
+   "nose/nose-scale-vert-decr": 0.68,
+   "nose/nose-point-up": 0.68,
+   "head/head-fat": 0.51,
+   "nose/nose-scale-horiz-incr": -0.135,
+   "nose/nose-scale-vert-incr": 0.044,
+   "ears/ear-scale-incr": 0.016,
+   "eyebrows/eyebrows-trans-up": 0.209,
+   "mouth/mouth-lowerlip-volume-incr": -0.011,
+   "head/head-scale-horiz-incr": -0.637,
+   "head/head-scale-vert-incr": -0.722,
+   "head/head-scale-depth-incr": 0.098,
+   "nose/nose-scale-depth-incr": -0.324,
+   "mouth/mouth-scale-horiz-incr": -0.039,
+   "eyes/eye-scale-incr": 0.432,
+   "eyes/eye-trans-out": -0.75,
+   "eyes/eye-trans-up": 0.068,
+   "chin/chin-height-incr": 0.524,
+   "chin/chin-width-incr": -0.131,
+   "chin/chin-prominent-incr": 0.711,
+   "ears/ear-flap-incr": 0.618,
+   "eyebrows/eyebrows-angle-up": 0.297,
+   "cheek/cheek-bones-incr": 0.334,
+   "forehead/forehead-scale-vert-incr": -0.255,
+   "neck/neck-scale-horiz-incr": -0.509,
+   "mouth/mouth-upperlip-height-incr": 0.05,
+   "nose/nose-width2-incr": 0.75,
+   "eyebrows-left-down": 0.3,
+   "eyebrows-right-down": 0.453,
+   "head/head-age-incr": 0.14,
+   "cheek/cheek-trans-down": 0.025
+  }
+ },
+ "skin": {
+  "base": "middleage_caucasian_male",
+  "tint": [
+   0.834,
+   0.744,
+   0.627
+  ],
+  "ruddy": 0.22,
+  "stubble": 0.2,
+  "complexion": {
+   "freckles": 0.06,
+   "moles": 2,
+   "scar": false,
+   "lines": 0.29,
+   "seed": 17
+  }
+ },
+ "eyes": {
+  "iris": [
+   0.45,
+   0.52,
+   0.56
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow007",
+  "color": [
+   0.336,
+   0.24,
+   0.144
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.42,
+   0.3,
+   0.18
+  ]
+ },
+ "facial_hair": "moustache",
+ "glasses": false,
+ "outfit": "heer_m36",
+ "outfit_opts": {
+  "tint_mul": [
+   0.941,
+   0.952,
+   0.963
+  ],
+  "wear": 0.288
+ },
+ "kit": [
+  "belt",
+  "ystraps",
+  "bread_bag",
+  "canteen",
+  "holster_l",
+  "map_case",
+  "binoculars",
+  "tresse"
+ ],
+ "headgear": {
+  "type": "officer_cap",
+  "badge": true,
+  "color": [
+   0.44,
+   0.46,
+   0.4
+  ],
+  "visor_color": [
+   0.03,
+   0.03,
+   0.03
+  ]
+ },
+ "weapon": {
+  "primary": "luger"
+ }
+}

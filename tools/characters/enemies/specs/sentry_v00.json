@@ -1,0 +1,123 @@
+{
+ "budget": {
+  "lod0": 11800,
+  "lod1": 5000,
+  "lod2": 2000
+ },
+ "id": "sentry_v00",
+ "enemy": {
+  "soldierType": "sentry",
+  "variant": 0,
+  "archetype": 7,
+  "archetype_name": "gaunt, prominent cheekbones",
+  "seed": 1,
+  "skinTone": "fair_ruddy",
+  "facialHair": "moustache",
+  "glasses": false,
+  "age": 25.7,
+  "extras": [],
+  "key": "7|fair_ruddy|moustache|0",
+  "silhouette": "M35 helmet, long greatcoat, Kar98k"
+ },
+ "body": {
+  "age_years": 25.7,
+  "muscle": 0.489,
+  "weight": 0.532,
+  "proportions": 0.55,
+  "height_m": 1.793,
+  "modifiers": {
+   "cheek/cheek-bones-incr": 0.993,
+   "cheek/cheek-volume-decr": 1.02,
+   "head/head-fat": -0.68,
+   "eyes/eye-bag-incr": 0.51,
+   "nose/nose-scale-horiz-incr": 0.195,
+   "nose/nose-scale-vert-incr": -0.15,
+   "ears/ear-scale-incr": 0.093,
+   "eyebrows/eyebrows-trans-up": 0.04,
+   "mouth/mouth-lowerlip-volume-incr": -0.048,
+   "cheek/cheek-volume-incr": -0.071,
+   "head/head-scale-horiz-incr": -0.32,
+   "head/head-scale-vert-incr": 0.738,
+   "head/head-scale-depth-incr": -0.092,
+   "nose/nose-scale-depth-incr": -0.05,
+   "mouth/mouth-scale-horiz-incr": 0.496,
+   "eyes/eye-scale-incr": 0.389,
+   "eyes/eye-trans-out": -0.704,
+   "eyes/eye-trans-up": -0.266,
+   "chin/chin-height-incr": 0.39,
+   "chin/chin-width-incr": -0.651,
+   "chin/chin-prominent-incr": -0.074,
+   "ears/ear-flap-incr": -0.67,
+   "eyebrows/eyebrows-angle-up": 0.547,
+   "forehead/forehead-scale-vert-incr": 0.359,
+   "neck/neck-scale-horiz-incr": 0.303,
+   "mouth/mouth-upperlip-height-incr": -0.161,
+   "nose/nose-width2-incr": -0.202,
+   "eye-left-slit": 0.205,
+   "eye-right-slit": 0.268
+  }
+ },
+ "skin": {
+  "base": "young_caucasian_male",
+  "tint": [
+   1.059,
+   0.916,
+   0.908
+  ],
+  "ruddy": 0.45,
+  "stubble": 0.2,
+  "complexion": {
+   "freckles": 0.15,
+   "moles": 2,
+   "scar": false,
+   "lines": 0.19,
+   "seed": 3
+  }
+ },
+ "eyes": {
+  "iris": [
+   0.25,
+   0.16,
+   0.1
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow002",
+  "color": [
+   0.36,
+   0.16,
+   0.064
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.45,
+   0.2,
+   0.08
+  ]
+ },
+ "facial_hair": "moustache",
+ "glasses": false,
+ "outfit": "greatcoat",
+ "outfit_opts": {
+  "tint_mul": [
+   0.992,
+   1.001,
+   1.011
+  ],
+  "wear": 0.32
+ },
+ "kit": [
+  "coat_belt",
+  "ammo_pouches",
+  "gasmask_can"
+ ],
+ "headgear": {
+  "type": "m35",
+  "wear": 0.36
+ },
+ "weapon": {
+  "primary": "kar98k"
+ }
+}

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Building viewer</title>
+<style>html,body{margin:0;height:100%;background:#8a949c;overflow:hidden}canvas{display:block}#info{position:fixed;left:8px;top:6px;font:12px monospace;color:#fff;text-shadow:0 1px 2px #000}</style>
+<script type="importmap">{"imports":{"three":"../../vendor/three.module.js","three/addons/":"../../vendor/addons/"}}</script>
+</head>
+<body>
+<div id="info"></div>
+<script type="module">
+// Dev viewer for the building library: ?asset=barracks_a&theater=snow&az=35&el=30&dist=1.4&flag=1
+// (asset may also be a catalogue type; several comma-separated assets are laid out in a row).
+import * as THREE from 'three';
+import { loadBuildingLibrary, createBuilding, buildingMeta } from '../../src/art/building-library.js';
+import { dressFlags, tickFlags } from '../../src/art/flags.js';
+
+const q = new URLSearchParams(location.search);
+const names = (q.get('asset') || 'barracks_a').split(',');
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.AgXToneMapping;
+renderer.toneMappingExposure = +(q.get('exp') || 1.6);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(q.get('bg') || '#9aa6ae');
+scene.add(new THREE.HemisphereLight(0xdfe8f0, 0x5a5048, 1.3));
+const sun = new THREE.DirectionalLight(0xfff2e0, 3.2);
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+scene.add(sun, sun.target);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: q.get('ground') || '#7d7a70', roughness: 1 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; ground.position.y = +(q.get('groundY') || 0); if (q.get('ground') !== 'none') scene.add(ground);
+
+await loadBuildingLibrary(null, { base: '../../assets/', quality: q.get('quality') || 'default' });
+const box = new THREE.Box3();
+let x0 = 0;
+const built = [];
+for (const n of names) {
+  const b = createBuilding(n, { x: 0, z: 0, rot: +(q.get('rot') || 0), theater: q.get('theater') || undefined, variant: q.get('variant') || undefined });
+  if (!b) { console.warn('no asset', n); continue; }
+  await b.ready;
+  const w = b.meta.bbox.max[0] - b.meta.bbox.min[0];
+  if (names.length > 1) b.object3d.position.x = x0 - b.meta.bbox.min[0];
+  x0 += w + 3;
+  if (q.get('dress') !== '0') dressFlags(b.object3d, b.asset, { flag: q.get('flag') !== '0' });
+  if (q.get('lod')) b.setLod(+q.get('lod'));
+  if (q.get('hilite')) b.object3d.traverse((o) => { if (o.isMesh) for (const m of [].concat(o.material)) if (m.name.includes(q.get('hilite'))) { m.emissive?.set(0x00ff00); m.emissiveIntensity = 3; } });
+  scene.add(b.object3d);
+  built.push(b);
+}
+scene.updateMatrixWorld(true);
+for (const b of built) box.expandByObject(b.object3d);
+let c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
+let r = Math.max(s.x, s.y, s.z) * 0.5 * +(q.get('dist') || 1.5);
+if (q.get('look')) { const [lx, ly, lz, lr] = q.get('look').split(',').map(Number); c = new THREE.Vector3(lx, ly, lz); r = lr || 4; }
+const az = THREE.MathUtils.degToRad(+(q.get('az') || 35)), el = THREE.MathUtils.degToRad(+(q.get('el') || 28));
+const cam = new THREE.PerspectiveCamera(+(q.get('fov') || 40), innerWidth / innerHeight, 0.1, 2000);
+cam.position.set(c.x + Math.sin(az) * Math.cos(el) * r * 2, c.y + Math.sin(el) * r * 2, c.z + Math.cos(az) * Math.cos(el) * r * 2);
+cam.lookAt(c);
+{ const sp = (q.get('sun') || '-30,60,40').split(',').map(Number); sun.position.set(c.x + sp[0], c.y + sp[1], c.z + sp[2]); } sun.target.position.copy(c);
+const sc = sun.shadow.camera; sc.left = sc.bottom = -r * 1.5; sc.right = sc.top = r * 1.5; sc.far = 400; sc.updateProjectionMatrix();
+document.getElementById('info').textContent = built.map((b) => b.asset).join(', ');
+let t = 0;
+const loop = () => { t += 1 / 60; tickFlags(1 / 60); renderer.render(scene, cam); };
+renderer.setAnimationLoop(loop);
+setTimeout(() => { document.body.dataset.ready = '1'; }, 300);
+window.__built = built;
+</script>
+</body>
+</html>

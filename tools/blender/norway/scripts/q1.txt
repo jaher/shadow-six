@@ -1,0 +1,6 @@
+drying_rack.py a 1
+drying_rack.py b 2
+drying_rack.py a 1 snow
+naust.py b 2
+fishing_shed.py b 2
+log_cabin.py b 3

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+<!-- SHADOW SIX title key art, layer 1 of 3 (sky, searchlight, sea, burning emplacement). Ours. -->
+<defs>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#07090d"/><stop offset=".45" stop-color="#1a1d22"/><stop offset=".72" stop-color="#4a2c1a"/><stop offset=".86" stop-color="#8a4418"/><stop offset="1" stop-color="#1a0e08"/></linearGradient>
+<radialGradient id="glow" cx=".72" cy=".78" r=".45"><stop offset="0" stop-color="#ff8a2a" stop-opacity=".75"/><stop offset=".35" stop-color="#c2481a" stop-opacity=".35"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+<linearGradient id="beam" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#e9edf0" stop-opacity=".42"/><stop offset="1" stop-color="#e9edf0" stop-opacity="0"/></linearGradient>
+<linearGradient id="smoke" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#2a1d15" stop-opacity=".9"/><stop offset="1" stop-color="#11100f" stop-opacity="0"/></linearGradient>
+<filter id="plume" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="22"/></filter>
+<filter id="soft" x="-60%" y="-30%" width="220%" height="160%"><feGaussianBlur stdDeviation="14"/></filter>
+<filter id="cloud"><feTurbulence type="fractalNoise" baseFrequency=".004 .012" numOctaves="4" seed="7"/><feColorMatrix values="0 0 0 0 .1  0 0 0 0 .1  0 0 0 0 .12  0 0 0 1.4 -.55"/></filter>
+</defs>
+<rect width="1600" height="900" fill="url(#sky)"/>
+<rect width="1600" height="560" filter="url(#cloud)" opacity=".85"/>
+<rect width="1600" height="900" fill="url(#glow)"/>
+<g filter="url(#plume)" fill="#1b140f"><ellipse cx="1190" cy="640" rx="70" ry="46" opacity="0.78"/><ellipse cx="1205" cy="578" rx="86" ry="55" opacity="0.71"/><ellipse cx="1226" cy="516" rx="102" ry="64" opacity="0.64"/><ellipse cx="1253" cy="454" rx="118" ry="73" opacity="0.57"/><ellipse cx="1286" cy="392" rx="134" ry="82" opacity="0.50"/><ellipse cx="1325" cy="330" rx="150" ry="91" opacity="0.43"/><ellipse cx="1370" cy="268" rx="166" ry="100" opacity="0.36"/><ellipse cx="1421" cy="206" rx="182" ry="109" opacity="0.29"/><ellipse cx="1478" cy="144" rx="198" ry="118" opacity="0.22"/></g>
+<path d="M0 735 L1600 720 L1600 900 L0 900 Z" fill="#0c0b0a"/>
+<path d="M0 742 L1600 728" stroke="#b85a22" stroke-opacity=".35" stroke-width="3"/>
+<g fill="#0a0908">
+<path d="M920 730 L960 690 L1010 684 L1030 660 L1250 652 L1290 672 L1420 676 L1470 730 Z"/>
+<path d="M1100 668 L1300 612 L1306 624 L1112 680 Z"/>
+<rect x="1060" y="640" width="120" height="36" rx="8"/>
+<path d="M880 736 q20 -16 40 0 q20 -16 40 0 q20 -16 40 0 q20 -16 40 0 L1040 750 L880 750 Z"/>
+</g>
+</svg>

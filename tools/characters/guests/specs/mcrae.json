@@ -1,0 +1,129 @@
+{
+ "id": "mcrae",
+ "notes": "Bible 6.1: Capt. Gregor McRae RAF, apparent 30-34, 1.77 m slim (weight 0.35); narrow fine-boned face, straight nose, auburn hair at the helmet edges, freckles + sunburnt nose, green-grey eyes, wry cocky expression, thin neat pencil moustache, bruised cheekbone. Leather flying helmet with goggles pushed up. Khaki drill shirt with RAF blue-grey rank slides, khaki shorts, desert boots, silk scarf; sheepskin jacket tied round the waist. Prisoner: no belt, no holster.",
+ "body": {
+  "age_years": 32,
+  "muscle": 0.5,
+  "weight": 0.35,
+  "proportions": 0.75,
+  "height_m": 1.77,
+  "modifiers": {
+   "head/head-oval": 0.5,
+   "head/head-scale-horiz-decr": 0.3,
+   "head/head-fat": 0.0,
+   "cheek/cheek-volume-decr": 0.4,
+   "cheek/cheek-bones-incr": 0.45,
+   "chin/chin-width-decr": 0.35,
+   "chin/chin-prominent-incr": 0.25,
+   "chin/chin-height-incr": 0.15,
+   "nose/nose-scale-horiz-decr": 0.35,
+   "nose/nose-hump-decr": 0.5,
+   "nose/nose-scale-vert-incr": 0.2,
+   "nose/nose-point-width-decr": 0.3,
+   "mouth/mouth-lowerlip-volume-decr": 0.2,
+   "mouth/mouth-scale-horiz-decr": 0.1,
+   "eyebrows/eyebrows-angle-up": 0.35,
+   "eyes/eye-scale-decr": 0.05,
+   "neck/neck-scale-horiz-decr": 0.25,
+   "jaw/jaw-scale-horiz-decr": 0.2,
+   "mouth-corner-puller": 0.35,
+   "ears/ear-scale-decr": 0.1
+  }
+ },
+ "skin": {
+  "base": "young_caucasian_male",
+  "tint": [
+   1.06,
+   0.94,
+   0.86
+  ],
+  "ruddy": 0.3,
+  "stubble": 0.12,
+  "sunburn": 0.8,
+  "freckles": 0.75,
+  "dirt": 0.45,
+  "bruises": [
+   "cheek_l"
+  ],
+  "seed": 11
+ },
+ "eyes": {
+  "iris": [
+   0.33,
+   0.38,
+   0.3
+  ]
+ },
+ "brows": {
+  "asset": "eyebrow006",
+  "color": [
+   0.4,
+   0.2,
+   0.1
+  ]
+ },
+ "hair": {
+  "style": "crop",
+  "color": [
+   0.46,
+   0.22,
+   0.11
+  ],
+  "length": 0.007
+ },
+ "facial_hair": "pencil",
+ "facial_hair_color": [
+  0.4,
+  0.19,
+  0.09
+ ],
+ "outfit": "raf_drill",
+ "outfit_opts": {
+  "shorts": true,
+  "rolled": true,
+  "scarf": [
+   0.86,
+   0.8,
+   0.64
+  ],
+  "sheepskin": [
+   0.5,
+   0.36,
+   0.22
+  ]
+ },
+ "kit": [
+  "drill_pockets",
+  "rank_slides",
+  "silk_scarf",
+  "sheepskin_waist"
+ ],
+ "headgear": {
+  "type": "flying_helmet",
+  "color": [
+   0.26,
+   0.15,
+   0.08
+  ],
+  "visor_color": [
+   0.1,
+   0.08,
+   0.06
+  ],
+  "badge_color": [
+   0.3,
+   0.34,
+   0.33
+  ],
+  "goggles": true
+ },
+ "weapon": {
+  "primary": null
+ },
+ "guest": {
+  "key": 7,
+  "mission": 10,
+  "can_crawl": true,
+  "tied_hands_until_freed": true
+ }
+}

@@ -1,0 +1,13 @@
+villa_hq.py a 51 temperate 30000
+villa_hq.py b 52 temperate 30000
+villa_hq.py snow 53 snow 30000
+villa_hq.py destroyed 54 temperate 30000
+castle_gate.py a 95 temperate 30000 --bridge
+castle_gate.py ruin 96 temperate 30000 --bridge
+uboat_pen.py snow 61 snow 30000 --bridge
+uboat_pen.py a 62 temperate 30000 --bridge
+villa_hq.py a 51 temperate 30000
+villa_hq.py b 52 temperate 30000
+villa_hq.py a 51 temperate 30000
+villa_hq.py snow 53 snow 30000
+villa_hq.py destroyed 54 temperate 30000

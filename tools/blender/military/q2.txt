@@ -1,0 +1,18 @@
+hangar.py desert 71 desert 15000
+hangar.py a 72 temperate 15000
+hangar.py destroyed 73 desert 15000
+lighthouse.py a 81 temperate 15000
+lighthouse.py b 82 temperate 15000
+lighthouse.py snow 83 snow 15000
+lighthouse.py destroyed 84 temperate 15000
+castle_tower.py a 93 temperate 15000
+castle_tower.py moat 94 temperate 15000 --bridge
+castle_tower.py ruin 97 temperate 15000
+castle_wall.py a 91 temperate 12000
+castle_wall.py stair 92 temperate 12000
+castle_wall.py moat 98 temperate 12000 --bridge
+castle_wall.py ruin 99 temperate 12000
+hangar.py desert 71 desert 15000
+hangar.py a 72 temperate 15000
+castle_gate.py a 95 temperate 30000 --bridge
+castle_gate.py ruin 96 temperate 30000 --bridge
