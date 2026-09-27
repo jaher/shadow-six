@@ -1,0 +1,82 @@
+{
+ "materials": {
+  "veh_tyre": {
+   "label": "Military tyre rubber, tread strip (cross-country / NDT)",
+   "tile_m": null,
+   "uv": "keep (tread strip)",
+   "maps": {
+    "diff": {
+     "1k": "1k/veh_tyre_diff"
+    },
+    "nor": {
+     "1k": "1k/veh_tyre_nor"
+    },
+    "arm": {
+     "1k": "1k/veh_tyre_arm"
+    }
+   },
+   "metallic": 0.0,
+   "normalScale": 1.0,
+   "roughness": 0.9,
+   "source": {
+    "license": "CC0-1.0",
+    "source": "procedural (vehicles/cars_moto/scripts/make_cm_tex.py, own work)"
+   }
+  },
+  "veh_wreck": {
+   "label": "Fire-gutted steel detail (low contrast; burn pattern in vertex colour)",
+   "tile_m": 1.5,
+   "mean": [
+    0.6353,
+    0.59,
+    0.5492
+   ],
+   "maps": {
+    "diff": {
+     "1k": "1k/veh_wreck_diff"
+    },
+    "nor": {
+     "1k": "1k/veh_wreck_nor"
+    },
+    "arm": {
+     "1k": "1k/veh_wreck_arm"
+    }
+   },
+   "metallic": 0.0,
+   "normalScale": 0.9,
+   "roughness": 0.92,
+   "source": {
+    "license": "CC0-1.0",
+    "source": "procedural (vehicles/cars_moto/scripts/make_cm_tex.py, own work)"
+   }
+  },
+  "veh_paintc": {
+   "label": "Military vehicle paint, chip-free (edge wear in vertex colour); replaces veh_paint in cars_moto GLBs",
+   "tile_m": 1.5,
+   "mean": [
+    0.7959,
+    0.791,
+    0.7827
+   ],
+   "maps": {
+    "diff": {
+     "1k": "1k/veh_paintc_diff"
+    },
+    "nor": {
+     "1k": "1k/veh_paintc_nor"
+    },
+    "arm": {
+     "1k": "1k/veh_paintc_arm"
+    }
+   },
+   "metallic": 0.0,
+   "normalScale": 0.6,
+   "roughness": 0.55,
+   "source": {
+    "license": "CC0-1.0",
+    "source": "procedural (vehicles/cars_moto/scripts/make_paintc_tex.py, own work)"
+   }
+  }
+ },
+ "note": "files in vehicles/cars_moto/lib/*.jpg; merge into art/kit/lib (1k/) on consolidation"
+}

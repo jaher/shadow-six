@@ -86,11 +86,13 @@ test('m02 §7.5 steps 2+4: after the snipes the GB climbs walk_sw, lowers the la
   sn.issue({ type: 'ability', id: 'sniper', target: e5 }); s.run(3, () => !e5.alive);
   assert.ok(!e4.alive && !e5.alive, 'both sentries down');
   place(sn, 14, 88);
-  // window: the boat has passed downstream (step 3) and e7 turns onto his north (east-bound) leg, away
-  // from the walkway; then the ferried GB (step 3 result) lands below the climbable edge
+  // window: the boat has passed downstream (step 3) and e7 turns onto his north (east-bound) leg — the loop's
+  // first waypoint, where he sets off NE along the depot, away from the walkway; then the ferried GB (step 3
+  // result) lands below the climbable edge
   const boat = s.get('pboat');
+  const e7Start = getMission('m02').enemies.find((e) => e.id === 'e7').route.points[0];
   let bx = boat.x;
-  const window = () => { const east = boat.x > bx; bx = boat.x; return east && boat.x > 36 && boat.x < 50 && Math.hypot(e7.x - 46, e7.z - 29) < 0.6; };
+  const window = () => { const east = boat.x > bx; bx = boat.x; return east && boat.x > 36 && boat.x < 50 && Math.hypot(e7.x - e7Start.x, e7.z - e7Start.z) < 0.6; };
   assert.ok(s.run(400, window), 'a step-4 window comes up');
   const t0 = w.time;
   place(gb, 24.6, 42.6);

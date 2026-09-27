@@ -253,7 +253,7 @@ export async function createVegetation(scene, placements, theater = 'temperate',
     for (const p of hero) {
       const key = Math.floor(p.x / CHUNK) + ',' + Math.floor(p.z / CHUNK);
       if (!chunks.has(key)) chunks.set(key, { key, trees: [] });
-      chunks.get(key).trees.push({ species: p.species, seed: p.seed, x: p.x, y: p.y, z: p.z, scale: p.scale, burnt: p.burnt, leafless: p.leafless });
+      chunks.get(key).trees.push({ species: p.species, seed: p.seed, x: p.x, y: p.y, z: p.z, scale: p.scale, burnt: p.burnt, leafless: p.leafless, crownBase: p.crownBase, crownR: p.crownR });
     }
     const chunkList = [...chunks.values()];
     let out = null;

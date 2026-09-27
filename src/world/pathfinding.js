@@ -5,7 +5,7 @@
  * @module world/pathfinding
  */
 
-import { T } from './grid.js';
+import { T, B } from './grid.js';
 
 const SQRT2 = Math.SQRT2;
 /** Extra cost factor for wading through shallow water / swimming, so land & bridges are preferred. */
@@ -13,7 +13,7 @@ const WATER_COST = 1.8;
 /** Max distance (m) to look for a walkable substitute when the goal (or start) cell is blocked. */
 export const NEAREST_WALKABLE_RADIUS = 3;
 /** Clearance used by string pulling (m, < CELL/2) so smoothed paths don't graze wall corners. */
-export const SMOOTH_CLEARANCE = 0.2;
+export const SMOOTH_CLEARANCE = 0.35; // agent body radius (placement rule e): smoothed legs keep arms and rifle off walls
 
 /** Min-heap of node indices keyed by an external Float64Array of f-scores. */
 class NodeHeap {
@@ -103,6 +103,20 @@ const DJ = [0, 0, 1, -1, 1, -1, 1, -1];
  *   traversing an off-grid link carries `link` (and `y`, the link end height): the unit must climb /
  *   use the ladder from the previous waypoint (the link's other end) to this one.
  */
+/** Extra cost factor of a cell edge-adjacent to a blocked cell (walls, buildings, visual nav blocks). */
+export const HUG_COST = 1.35;
+/** Is cell (i, j) edge-adjacent to a structure-blocked cell (block or navBlock; water and map edges don't count)? */
+export function hugsObstacle(grid, i, j) {
+  const { cols, rows, block, navBlock } = grid;
+  for (let q = 0; q < 4; q++) {
+    const ii = i + (q === 0) - (q === 1), jj = j + (q === 2) - (q === 3);
+    if (ii < 0 || jj < 0 || ii >= cols || jj >= rows) continue;
+    const k = jj * cols + ii;
+    if (block[k] !== B.NONE || (navBlock && navBlock[k])) return true;
+  }
+  return false;
+}
+
 export function findPath(grid, sx, sz, tx, tz, opts = {}) {
   const swim = !!opts.swim;
   const walkOpts = { swim, dynamic: !!opts.dynamic };
@@ -168,6 +182,8 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
       let step = d >= 4 ? SQRT2 : 1;
       const t = terrain[nk];
       if ((t === T.WATER || t === T.SHALLOW) && !bridge[nk]) step *= WATER_COST;
+      // clearance (placement rule e): a body is ~0.35 m wide with arms and rifle — prefer cells not touching a wall
+      else if (hugsObstacle(grid, ni, nj)) step *= HUG_COST;
       const ng = g[k] + step;
       if (stamp[nk] !== id || ng < g[nk]) {
         stamp[nk] = id;

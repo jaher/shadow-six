@@ -12,21 +12,25 @@ export default async function core2Camera(page, t) {
     const rig = G.cameraRig;
     const out = {};
     const cam = () => G.cameraController;
-    // --- §2.1 projection: pitch 40°, yaw 0
+    // --- §2.1 projection: pitch 40°, default yaw +15° (Options → CAMERA ANGLE)
     const off = cam().viewOffset();
     out.offset = [off.x, off.y, off.z].map((v) => +v.toFixed(4));
+    out.yaw = cam().yawDeg;
+    const az = cam().azimuth, R = [Math.cos(az), -Math.sin(az)], D = [Math.sin(az), Math.cos(az)]; // screen-right / screen-down on the ground
+    const along = (a, b, dir) => +((b.x - a.x) * dir[0] + (b.z - a.z) * dir[1]).toFixed(3);
     // --- §2.2 scale in CSS px per metre
     out.scale = {};
     for (const z of [0.5, 1, 2]) {
       g.setZoom(z);
       g.centerOn(30, 30);
-      const a = cam().worldToScreen(30, 0, 30), b = cam().worldToScreen(31, 0, 30);
+      const a = cam().worldToScreen(30, 0, 30), b = cam().worldToScreen(30 + R[0], 0, 30 + R[1]); // 1 m along screen-right
       out.scale[z] = +(b.x - a.x).toFixed(3);
     }
     // --- wheel-style zoom keeps the ground under the cursor; it tweens over 0.25 s
     g.setZoom(1);
     g.centerOn(30, 30);
     const cr = G.renderer.domElement.getBoundingClientRect();
+    const T = () => ({ x: cam().target.x, z: cam().target.z });
     const px = cr.left + cr.width * 0.7, py = cr.top + cr.height * 0.4;
     const g0 = cam().screenToGround(px, py);
     cam().zoomStep(1, px, py);
@@ -47,25 +51,32 @@ export default async function core2Camera(page, t) {
     g.setZoom(2);
     g.centerOn(30, 30);
     rig.setPointer(2, cr.height / 2, true, false); // left edge, pointer over a HUD panel
+    let t0e = T();
     rig.update(0.5);
-    out.edgeDx = +(cam().target.x - 30).toFixed(3);
+    out.edgeDx = along(t0e, T(), R);
+    out.edgeDrift = along(t0e, T(), D);
     rig.setPointer(cr.width / 2, cr.height / 2, true, true);
     g.centerOn(30, 30);
     G.input.held.add('ArrowDown');
+    t0e = T();
     rig.update(0.5);
     G.input.held.delete('ArrowDown');
-    out.arrowDz = +(cam().target.z - 30).toFixed(3);
+    out.arrowDz = along(t0e, T(), D);
+    out.arrowDrift = along(t0e, T(), R);
     rig.edgeOverHud = false; // the modern option
     g.centerOn(30, 30);
     rig.setPointer(2, cr.height / 2, true, false);
+    t0e = T();
     rig.update(0.5);
-    out.modernDx = +(cam().target.x - 30).toFixed(3);
+    out.modernDx = along(t0e, T(), R);
     rig.edgeOverHud = true;
     rig.setPointer(cr.width / 2, cr.height / 2, false, false);
     // bounds: never more than 4 m past the edge
     g.setZoom(1);
     g.centerOn(-100, -100);
     out.fp = cam().groundFootprint(0).map((p) => [+p.x.toFixed(2), +p.z.toFixed(2)]);
+    out.over = cam().clampOvershoot();
+    out.cornerSeen = cam().worldToView(0, 0, 0).visible;
     // --- recentre rules
     const w = G.world;
     const [gb, sn] = w.commandos;
@@ -99,7 +110,7 @@ export default async function core2Camera(page, t) {
     g.advance(4);
     rig.update(0.016);
     // the tracked target may only differ from the unit where the map bounds clamp it
-    const ex = cam().viewHalfExtents(), b = cam().bounds;
+    const ex = cam().clampHalfExtents(), b = cam().bounds;
     const cx = Math.min(Math.max(patrol.x, b.minX + ex.x), b.maxX - ex.x), cz = Math.min(Math.max(patrol.z, b.minZ + ex.z), b.maxZ - ex.z);
     out.track = { d: Math.hypot(cam().target.x - cx, cam().target.z - cz), moved: Math.hypot(patrol.x - p0.x, patrol.z - p0.z), at: [patrol.x, patrol.z] };
     const badge = document.querySelector('.view-track-badge');
@@ -111,7 +122,8 @@ export default async function core2Camera(page, t) {
   });
   t.log(JSON.stringify(r));
   t.near(r.offset[1], Math.sin((40 * Math.PI) / 180), 1e-3, 'pitch 40° (y = sin 40°)');
-  t.near(r.offset[0], 0, 1e-6, 'yaw 0 (no x component)');
+  t.equal(Math.round(r.yaw), 15, 'default camera yaw +15°');
+  t.near(r.offset[0], Math.sin((15 * Math.PI) / 180) * Math.cos((40 * Math.PI) / 180), 1e-3, 'yaw +15°: camera swung east');
   t.near(r.scale[1], 40, 0.01, '1× = 40 CSS px/m');
   t.near(r.scale[2], 80, 0.01, '2× = 80 CSS px/m');
   t.near(r.scale[0.5], 20, 0.01, '0.5× = 20 CSS px/m');
@@ -121,10 +133,13 @@ export default async function core2Camera(page, t) {
   t.equal(r.keyZoom.zoom, 1, 'key zoom out');
   t(r.keyZoom.drift < 1e-6, 'key zoom keeps the screen centre');
   t.equal(r.reset, 1, 'numpad * returns to 1×');
-  t.near(r.edgeDx, -7.5, 0.01, 'edge scroll 30 m/s ÷ 2 over the HUD (0.5 s → 7.5 m)');
-  t.near(r.arrowDz, 7.5, 0.01, 'arrow keys: same speed');
+  t.near(r.edgeDx, -7.5, 0.01, 'edge scroll 30 m/s ÷ 2 over the HUD (0.5 s → 7.5 m to the screen left)');
+  t.near(r.edgeDrift, 0, 1e-6, 'left edge scroll: no vertical drift on screen');
+  t.near(r.arrowDz, 7.5, 0.01, 'arrow keys: same speed (Down → screen down)');
+  t.near(r.arrowDrift, 0, 1e-6, 'arrow Down: no horizontal drift on screen');
   t.equal(r.modernDx, 0, 'modern option: no edge scroll over the HUD');
-  for (const [x, z] of r.fp) t(x >= -4.05 && z >= -4.05, `bounds: corner (${x},${z}) within 4 m of the map`);
+  for (const [x, z] of r.fp) t(x >= -4.05 - r.over && z >= -4.05 - r.over, `bounds: corner (${x},${z}) within 4 m (+${r.over.toFixed(1)} m slanted corner) of the map`);
+  t(r.cornerSeen, 'bounds: the map corner is in view when pushed into it');
   t(r.recentreOff < 0.05, `selecting an off-screen man recentres (${r.recentreOff})`);
   t(r.onScreenMoved < 1e-6, 'selecting an on-screen man does not recentre');
   t(r.againDist < 0.05, 'selecting an already-selected man recentres');

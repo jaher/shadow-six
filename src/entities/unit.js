@@ -5,6 +5,7 @@
  * @module entities/unit
  */
 
+import { settleBody, fallHeading, settleSolid } from '../world/placement.js';
 import { Entity } from './entity.js';
 import { createUnitModel } from '../art/unit-model.js';
 import { CONFIG, velToSpeed } from '../config.js';
@@ -235,6 +236,8 @@ export class Unit extends Entity {
    */
   die(cause = 'damage', killer = null) {
     if (!this.alive) return;
+    // the death clip falls forward from a run (die_run), backward from a stand / walk (placement rule e)
+    const fall = /^(run|sprint|walk_fast)/.test(this._anim || '') ? 1 : /^(crawl|prone|swim)/.test(this._anim || '') ? 0 : -1;
     this.alive = false;
     this.hp = 0;
     this.state = 'dead';
@@ -245,6 +248,17 @@ export class Unit extends Entity {
     this._animOverride = null;
     this._setAnim('die', { loop: false });
     const w = this.world;
+    // placement rule (e): the body lies clear of walls / buildings (slides ≤ 1.2 m off them, same surface)
+    if (w?.grid && !this.vehicle && this.state === 'dead') {
+      // …and falls away from a wall / deck edge in front of it (the corpse turns, its spot stays)
+      const fh = fallHeading(w.grid, this.x, this.z, this.heading, 1.6, fall);
+      if (fh !== this.heading) { this.heading = fh; this.prevHeading = fh; }
+      const to = settleBody(w.grid, this.x, this.z);
+      if (to) { this.x = to.x; this.z = to.z; }
+      // …and clear of the standing visuals the nav grid does not see (stakes along a wall walk, railings)
+      const off = settleSolid(w.grid, this.x, this.z, this.heading, { likely: fall });
+      if (off) { this.x = off.x; this.z = off.z; }
+    }
     if (w) {
       if (this.faction === 'enemy' && killer?.faction === 'player') {
         w.stats.kills++;

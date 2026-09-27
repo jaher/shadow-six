@@ -74,9 +74,11 @@ export default {
     // --- north landmass: the relay station (objective) and the camp
     { id: 'relay_hut', type: 'hut', variant: 'relay_station', x: 12, z: 12, rot: 0, w: 6, d: 5, h: 3.5,
       destructible: true, destroyedBy: ['explosion'], debris: true, fire: true, hp: 100 },
-    { id: 'relay_mast', type: 'radio_mast', x: 16.5, z: 8, rot: 0, r: 0.5, h: 18, destructible: true, destroyedBy: ['explosion'], collapses: true, hp: 100 },
+    { id: 'relay_mast', type: 'radio_mast', x: 16.08, z: 6.4, // legs clear of the hut's eaves (placement rule b)
+      rot: 0, r: 0.5, h: 18, destructible: true, destroyedBy: ['explosion'], collapses: true, hp: 100 },
     { id: 'barr_L_a', type: 'barracks', variant: 'timber_long', x: 32, z: 19, rot: 0, w: 16, d: 7, h: 4.5 },
-    { id: 'barr_L_b', type: 'barracks', variant: 'timber_long', x: 37, z: 26.5, rot: deg(90), w: 8, d: 6, h: 4.5 },
+    // turned E-W and 3.5 m clear of barr_L_a (placement rule c: its roof and snow skirt crossed barr_L_a's; porch E)
+    { id: 'barr_L_b', type: 'barracks', variant: 'timber_long', x: 37, z: 29, rot: 0, w: 8, d: 6, h: 4.5 },
     { id: 'barr_2', type: 'barracks', variant: 'timber_long', x: 14, z: 32, rot: 0, w: 12, d: 6, h: 4.5 },
     // piers: w = length along the heading, d = deck width
     { id: 'pier_n', type: 'pier', x: 42, z: 39, rot: deg(90), w: 7, d: 2.5 },
@@ -85,7 +87,7 @@ export default {
     { id: 'jetty_s', type: 'pier', x: 32, z: 99, rot: deg(270), w: 7, d: 2.5, rendezvous: true },
     { id: 'house_s', type: 'house', variant: 'timber_2storey', x: 30.5, z: 113, rot: 0, w: 10, d: 8, h: 7, snowRoof: true, enterable: false },
     { id: 'wall_s', type: 'wall', variant: 'stone_plank_roof', points: [[25.5, 117], [21, 125], [17.5, 132]], width: 0.6, h: 1.8, climbable: true },
-    { id: 'sbox', type: 'hut', variant: 'sentry_box', x: 16.5, z: 134, rot: 0, w: 1.6, d: 1.6, h: 2.4 },
+    { id: 'sbox', type: 'hut', variant: 'sentry_box', x: 16.5, z: 134, rot: deg(26.6), w: 1.6, d: 1.6, h: 2.4 },
     { id: 'debris', type: 'crates', variant: 'timber_debris', x: 27, z: 127, rot: deg(30), w: 3, d: 2, h: 1, block: 1 },
     { id: 'rubble', type: 'ruins', variant: 'rubble', x: 9.5, z: 150.5, rot: 0, w: 3.5, d: 2, h: 1.0, block: 1 },
     { id: 'rocks_drv', type: 'rocks', x: 57, z: 150, rot: 0, w: 7, d: 4, h: 2.5 },
@@ -94,14 +96,15 @@ export default {
     { id: 'islet_1', type: 'rocks', x: 18, z: 72, rot: 0, w: 5, d: 4, h: 3 },
     { id: 'islet_2', type: 'rocks', x: 23, z: 78, rot: 0, w: 3, d: 3, h: 2 },
     // telegraph poles along the road (wire spans between consecutive poles)
-    ...[[6, 141], [20, 129], [36, 130], [50, 135], [62, 141]].map(([x, z], k) => ({ id: `pole_${k + 1}`, type: 'telegraph_pole', x, z, h: 7, wireTo: k < 4 ? `pole_${k + 2}` : null })),
+    ...[[6, 141], [20.13, 128.92], [36, 130], [50, 135], [62, 141]].map(([x, z], k) => ({ id: `pole_${k + 1}`, type: 'telegraph_pole', x, z, h: 7, wireTo: k < 4 ? `pole_${k + 2}` : null })),
     // pines (occluder r 0.8), unique seeds
     ...[[2, 20], [30, 9], [54, 4], [60, 10], [62, 22], [58, 30], [52, 34], [14, 110], [18, 106], [32, 146], [36, 150], [28, 152]]
       .map(([x, z], k) => ({ type: 'pine', x, z, r: 0.8, h: 8 + ((k * 7) % 5), seed: 101 + k })),
     // bare deciduous trees (occluder r 0.7)
     ...[[12, 118], [20, 114], [58, 118], [62, 124], [54, 122]].map(([x, z], k) => ({ type: 'tree', variant: 'bare_winter', x, z, r: 0.7, h: 7 + (k % 3), seed: 201 + k })),
     // explosive fuel drums (class `barrel`, GB can carry them)
-    ...[['b1', 41.8, 23.5], ['b2', 42.8, 24.3], ['b3', 41.9, 25.2], ['b4', 21.5, 33], ['b5', 21.5, 34.2]]
+    // placed clear of the barracks' steps and snow skirts (placement rule b)
+    ...[['b1', 41.8, 23.5], ['b2', 42.46, 23.81], ['b3', 41.05, 23.79], ['b4', 21.95, 32.95], ['b5', 21.94, 34.09]]
       .map(([id, x, z]) => ({ id, type: 'barrels', variant: 'fuel_explosive', x, z, r: 0.3, h: 0.9, explosive: 'barrel', carriable: true, destructible: true, hp: 1 })),
   ],
   vehicles: [

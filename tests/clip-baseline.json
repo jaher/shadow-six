@@ -1,0 +1,4 @@
+{
+ "note": "Accepted static/turret overlaps (tools/audit/clipping.mjs --write-baseline). Remove keys as they get fixed. Empty since the placement rules (docs/clipping-audit.md): any new overlap fails tests/clipping.test.mjs.",
+ "keys": []
+}

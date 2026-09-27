@@ -19,13 +19,52 @@ import { Interactable, INTERACTABLE_KINDS, BCD_ACTIVATABLE } from './interactabl
 import { CONFIG } from '../config.js';
 import { explode } from './projectile.js';
 import { FIXED_KIT, BCD_KIT } from '../items.js';
+import { T } from '../world/grid.js';
 
-const box = (w, h, d, color, x, z) => {
+/**
+ * Placeholder device: a Group at (x, 0, z) holding a w × h × d box standing ON the ground (`g.userData.inner` = the
+ * box; w runs along world x). Dynamic devices (pushables) get the heading compensation from `faceHeading`.
+ */
+const box = (w, h, d, color, x, z, y0 = 0) => {
+  const g = new THREE.Group();
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color, roughness: 0.8 }));
-  m.position.set(x, h / 2, z);
+  m.position.y = y0 + h / 2;
   m.castShadow = true;
-  return m;
+  g.add(m);
+  g.position.set(x, 0, z);
+  g.userData.inner = m;
+  return g;
 };
+/** Entity.syncTransform turns a dynamic object3d by headingToRotY (model forward = +z): keep `w` along the heading. */
+const faceHeading = (g) => { if (g?.userData.inner) g.userData.inner.rotation.y = -Math.PI / 2; return g; };
+/** Lift cage: a floor plate and four corner posts (riders stand inside it, not inside a solid block). */
+const cage = (x, z) => {
+  const g = box(1.8, 0.1, 1.8, 0x585858, x, z);
+  for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.4, 0.1), g.userData.inner.material);
+    post.position.set(sx * 0.85, 1.2, sz * 0.85); post.castShadow = true;
+    g.add(post);
+  }
+  return g;
+};
+
+/**
+ * Placement rule (e) for small standing devices (a switch post, a floating mine): solid for walkers and swimmers
+ * (nav-only block over the body + 0.25 m) while it stands, and approached from its edge (commando targetPoint).
+ */
+function stampSolid(ent, w, d) {
+  const g = ent.world?.grid;
+  if (!g?.navStamp) return;
+  g.navStamp(`dev:${ent.id}`, ent.destroyed || ent.removed ? [] : g.rectCells(ent.x, ent.z, w + 0.5, d + 0.5, ent.heading ?? 0));
+}
+/** Where a unit at `u` stands to reach a solid w × d body (heading h) centred on `o`: just outside its edge. */
+function edgeApproach(o, u, w, d, h = 0, gap = 0.55) {
+  const c = Math.cos(h), s = Math.sin(h), dx = u.x - o.x, dz = u.z - o.z;
+  const hw = w / 2 + gap, hd = d / 2 + gap;
+  let lu = Math.max(-hw, Math.min(hw, dx * c + dz * s)), lv = Math.max(-hd, Math.min(hd, -dx * s + dz * c));
+  if (Math.abs(lu) < hw && Math.abs(lv) < hd) { if (hw - Math.abs(lu) < hd - Math.abs(lv)) lu = Math.sign(lu || 1) * hw; else lv = Math.sign(lv || 1) * hd; }
+  return { x: o.x + lu * c - lv * s, z: o.z + lu * s + lv * c };
+}
 
 export class SeaMine extends Interactable {
   constructor(o) {
@@ -33,12 +72,15 @@ export class SeaMine extends Interactable {
     this.exploded = false;
   }
   canUse() { return "Can't use that."; }
+  onAdded(world) { super.onAdded?.(world); stampSolid(this, 1, 1); } // swimmers go round it
+  approachFrom(u) { return edgeApproach(this, u, 1, 1); }
   takeDamage(amount, source) { if (!this.exploded) this.detonate(source); }
   detonate(source = null) {
     const w = this.world;
     if (this.exploded || !w) return;
     this.exploded = true;
     this.destroyed = true;
+    stampSolid(this, 1, 1);
     if (this.object3d) this.object3d.visible = false;
     w.events.emit('bcd:mine', { mine: this, x: this.x, z: this.z });
     explode(w, this.x, this.z, 'bomb', source || this);
@@ -74,6 +116,16 @@ export class Pushable extends Interactable {
     this.roles = o.roles ?? ['greenberet', 'driver'];
   }
   get speed() { return this.variant === 'tank' ? CONFIG.bcd.push.tank : CONFIG.bcd.push.wagon; }
+  /** Where a unit at `u` stands to push: just outside the body on its side (the body itself is solid). */
+  approachFrom(u) { return edgeApproach(this, u, this.size[0], this.size[1], this.heading ?? 0); }
+  /** At rest the wagon / tank is solid for walkers (grid nav-only block; placement rule e); rolling it is not. */
+  onAdded(world) { super.onAdded?.(world); this._navRest(); }
+  _navRest() {
+    const g = this.world?.grid;
+    if (!g?.navStamp) return;
+    g.navStamp(`push:${this.id}`, this.destroyed || this.goal ? [] : g.rectCells(this.x, this.z, this.size[0] + 0.3, this.size[1] + 0.3, this.heading ?? 0));
+    this._navAt = { x: this.x, z: this.z };
+  }
   canUse(c) {
     if (!this.world?.rules?.pushables) return "Can't use that.";
     if (this.destroyed) return 'Nothing there.';
@@ -92,6 +144,7 @@ export class Pushable extends Interactable {
     }
     this.goal = { x: g.x, z: g.z };
     this.pusher = c;
+    this._navRest();
     this._off = { x: c.x - this.x, z: c.z - this.z };
     this.world?.events.emit('device', { id: this.tag ?? this.id, sfx: 'push', x: this.x, z: this.z, on: true });
     return true;
@@ -99,16 +152,17 @@ export class Pushable extends Interactable {
   update(dt) {
     super.update?.(dt);
     const w = this.world, g = this.goal;
+    if (!g && !this.destroyed && (this._navAt?.x !== this.x || this._navAt?.z !== this.z)) this._navRest(); // moved by a load
     if (!g || !w || this.destroyed) return;
     const p = this.pusher;
-    if (!p?.alive || p.isMoving || (p.currentAction && p.currentActionId !== 'use')) { this.goal = null; this.pusher = null; return; } // he let go
+    if (!p?.alive || p.isMoving || (p.currentAction && p.currentActionId !== 'use')) { this.goal = null; this.pusher = null; this._navRest(); return; } // he let go
     const dx = g.x - this.x, dz = g.z - this.z, d = Math.hypot(dx, dz);
     const step = Math.min(d, this.speed * dt);
     if (d > 1e-6) { this.x += (dx / d) * step; this.z += (dz / d) * step; this.heading = Math.atan2(dz, dx); }
     p.x = this.x + this._off.x; p.z = this.z + this._off.z;
     if ((this._noiseT -= dt) <= 0) { this._noiseT = 1; w.emitNoise(this.x, this.z, CONFIG.bcd.push.noiseRadius, 'push', p); }
     if (this.object3d) this.object3d.position.set(this.x, this.object3d.position.y, this.z);
-    if (d <= 0.05) { this.goal = null; this.pusher = null; }
+    if (d <= 0.05) { this.goal = null; this.pusher = null; this._navRest(); }
   }
   stampOccluder(grid) {
     if (!this.destroyed && !this.removed) grid.stampDynamic(this.x, this.z, this.size[0], this.size[1], this.heading);
@@ -118,6 +172,7 @@ export class Pushable extends Interactable {
     const bullet = ['pistol', 'rifle', 'sniper', 'sniperRifle', 'smg', 'mg', 'bullet', 'shot', 'luger', 'mp40'].includes(cause);
     if (bullet && ++this.bulletHits < 3) return;
     this.destroyed = true;
+    this._navRest();
     if (this.object3d) this.object3d.visible = false;
     this.world?.events.emit('structure:destroyed', { id: this.tag ?? this.id, type: 'pushable', owner: this.owner });
     explode(this.world, this.x, this.z, 'fuelTank', source, { exclude: this });
@@ -172,11 +227,30 @@ export class Drawbridge extends Interactable {
     this.moving = 0;
   }
   canUse() { return "Can't use that."; }
-  onAdded(world) { super.onAdded?.(world); this._apply(); }
+  onAdded(world) {
+    super.onAdded?.(world);
+    (world.surfaces ||= []).push(this); // walkers' feet on its boards (world.groundY, map-builder)
+    this._apply();
+  }
+  /** Walking height on the lowered span (its boards' top), null off it or while raised. */
+  heightAt(x, z) {
+    if (this.raised || this.removed) return null;
+    const R = this.rect, c = Math.cos(R.rot ?? 0), s = Math.sin(R.rot ?? 0), dx = x - R.x, dz = z - R.z;
+    return Math.abs(dx * c + dz * s) <= R.w / 2 && Math.abs(-dx * s + dz * c) <= R.d / 2 ? DRAWBRIDGE_TOP : null;
+  }
   _apply() {
     const g = this.world?.grid, R = this.rect;
     if (!g) return;
     g.fillOrientedRect(R.x, R.z, R.w, R.d, R.rot ?? 0, 'bridge', this.raised ? 0 : 1);
+    // lowered: swimmers keep off its sides (a 0.35 m band of water cells along the span; placement rule e)
+    if (g.navStamp) {
+      const band = [];
+      if (!this.raised) {
+        const inner = new Set(g.rectCells(R.x, R.z, R.w, R.d, R.rot ?? 0));
+        for (const k of g.rectCells(R.x, R.z, R.w - 1, R.d + 0.7, R.rot ?? 0)) if (!inner.has(k) && !g.bridge[k] && (g.terrain[k] === T.WATER || g.terrain[k] === T.SHALLOW)) band.push(k);
+      }
+      g.navStamp(`span:${this.id}`, band);
+    }
     g.version++;
     if (this.object3d) this.object3d.rotation.z = this.raised ? Math.PI / 2.4 : 0;
   }
@@ -201,6 +275,8 @@ export class Drawbridge extends Interactable {
 
 export class DrawbridgeSwitch extends Interactable {
   constructor(o) { super({ ...o, interactKind: 'drawbridgeSwitch', label: 'Bridge switch' }); }
+  onAdded(world) { super.onAdded?.(world); stampSolid(this, 0.4, 0.3); } // the post is solid (placement rule e)
+  approachFrom(u) { return edgeApproach(this, u, 0.4, 0.3); }
   canUse() { return this.world?.rules?.drawbridges ? true : "Can't use that."; }
   interact() {
     let ok = false;
@@ -224,11 +300,15 @@ export class Knapsack extends Interactable {
   }
 }
 
+const DRAWBRIDGE_TOP = 0.03; // the span's boards (MESH.drawbridge: 0.3 m thick from -0.27)
+
 const MESH = {
   seaMine: (s) => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 8), new THREE.MeshStandardMaterial({ color: 0x2a2a26, roughness: 0.6 })); m.position.set(s.x, 0.2, s.z); return m; },
-  pushable: (s) => (s.variant === 'tank' ? box(3, 1.8, 1.6, 0x4a5236, s.x, s.z) : box(5, 2.2, 2.4, 0x5a3a26, s.x, s.z)),
-  lift: (s) => box(1.8, 2.4, 1.8, 0x585858, s.x, s.z),
-  drawbridge: (s) => box((s.rect?.d ?? 8), 0.3, (s.rect?.w ?? 3), 0x6b5030, s.rect?.x ?? s.x, s.rect?.z ?? s.z),
+  pushable: (s) => faceHeading(s.variant === 'tank' ? box(3, 1.8, 1.6, 0x4a5236, s.x, s.z) : box(5, 2.2, 2.4, 0x5a3a26, s.x, s.z)),
+  lift: (s) => cage(s.x, s.z),
+  // the span matches its nav rect (w along `rot`, d across): the deck lies across the water, not along it, its
+  // boards flush with the banks (walkers' feet stay on top)
+  drawbridge: (s) => { const m = box((s.rect?.w ?? 3), 0.3, (s.rect?.d ?? 8), 0x6b5030, s.rect?.x ?? s.x, s.rect?.z ?? s.z, -0.27); m.rotation.y = -(s.rect?.rot ?? 0); return m; },
   drawbridgeSwitch: (s) => box(0.4, 0.9, 0.3, 0xb0a040, s.x, s.z),
   knapsack: (s) => box(0.5, 0.35, 0.35, 0x4f5a34, s.x, s.z),
 };
@@ -237,5 +317,10 @@ const CLASS = { seaMine: SeaMine, pushable: Pushable, lift: Lift, drawbridge: Dr
 for (const [kind, C] of Object.entries(CLASS)) {
   INTERACTABLE_KINDS[kind] = (spec, opts = {}) => new C({ ...spec, object3d: opts.meshes === false ? null : MESH[kind]?.(spec) ?? null });
 }
-INTERACTABLE_KINDS.penGate = (spec, opts = {}) => new Interactable({ ...spec, interactKind: 'door', label: 'Pen gate', object3d: opts.meshes === false ? null : box(3, 1.6, 0.2, 0x6a5a3a, spec.x, spec.z) });
+INTERACTABLE_KINDS.penGate = (spec, opts = {}) => {
+  // the leaf lies along its fence line (`rot`, set by world/placement.js from the nearest run when not authored)
+  const leaf = opts.meshes === false ? null : box(3, 1.6, 0.2, 0x6a5a3a, spec.x, spec.z);
+  if (leaf) leaf.rotation.y = -(spec.rot ?? 0);
+  return new Interactable({ ...spec, interactKind: 'door', label: 'Pen gate', object3d: leaf });
+};
 for (const k of ['pushable', 'lift', 'drawbridgeSwitch', 'knapsack']) BCD_ACTIVATABLE.add(k); // the BEL set stays untouched

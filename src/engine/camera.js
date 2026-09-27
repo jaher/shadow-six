@@ -1,12 +1,17 @@
 /**
  * Camera — design-spec §2.1–§2.3. Owned by CORE2.
  *
- * CameraController = ONE view: a BEL fixed 3/4 OrthographicCamera (pitch 40° below horizontal, yaw 0:
- * map x = screen x, north up, ground depth foreshortened by sin 40°). Scale is defined in CSS pixels per
- * metre (CONFIG.camera.pxPerMeterAt1x = 40 at 1×), so a larger window shows more map. Discrete zoom
+ * CameraController = ONE view: a BEL fixed 3/4 OrthographicCamera (pitch 40° below horizontal; yaw
+ * CONFIG.camera.yawDeg / Options "Camera angle": 0 = BEL (map x = screen x, north up, walls face the screen head-on),
+ * default +15° so axis-aligned buildings show a sliver of their shaded east side; ground depth foreshortened by
+ * sin 40°). Panning, clamping, zoom anchoring and picking work in screen axes, so they follow the yaw.
+ * Scale is defined in CSS pixels per metre (CONFIG.camera.pxPerMeterAt1x = 40 at 1×), so a larger window shows
+ * more map. Discrete zoom
  * levels 0.5/1/2 tween over 0.25 s keeping the ground point under the cursor (wheel) or the screen
- * centre (keys) fixed; recentring tweens over 0.35 s; the target is clamped so the view never shows
- * more than boundsMargin (4 m) beyond the map edge; a view can track (follow) a unit.
+ * centre (keys) fixed; recentring tweens over 0.35 s; the target is clamped so the view shows at most
+ * boundsMargin (4 m) beyond the map edge at yaw 0 (with yaw: see clampHalfExtents — every map point stays
+ * reachable, the slanted corners may overshoot; a pan that meets the limit slides along it; recentres, tracking
+ * and the briefing tour use focusTarget, void-free unless the point needs the loose limit); a view can track a unit.
  *
  * CameraRig = the multi-view manager (§2.3 F2–F7): 1–6 views with cycling layouts, each with its own
  * target, zoom and tracking; the active view gets a 2 px red frame and receives orders, zoom and
@@ -62,10 +67,28 @@ export class CameraController {
 
   // ------------------------------------------------------------ transform
 
-  /** Unit vector from target towards the camera: (0, sin 40°, cos 40°) at yaw 0. */
+  /** Unit vector from target towards the camera: (sin yaw·cos 40°, sin 40°, cos yaw·cos 40°). */
   viewOffset(out = new THREE.Vector3()) {
     const ce = Math.cos(this.elevation);
     return out.set(Math.sin(this.azimuth) * ce, Math.sin(this.elevation), Math.cos(this.azimuth) * ce);
+  }
+
+  /** Camera yaw (deg, + swings the camera east so east faces show on screen-right); keeps the target. */
+  setYaw(deg) {
+    const a = THREE.MathUtils.degToRad(Number(deg) || 0);
+    if (a === this.azimuth) return;
+    this.azimuth = a;
+    // the clamps depend on the yaw: re-aim at the old centre like a recentre, so switching the Options angle near
+    // a map corner shows no void wedge (the loose manual-scroll clamp would leave up to ~11 m at 45°)
+    const f = this.focusTarget(this.target.x, this.target.z);
+    this.target.x = f.x;
+    this.target.z = f.z;
+    this._applyTransform();
+  }
+
+  /** Current yaw in degrees. */
+  get yawDeg() {
+    return THREE.MathUtils.radToDeg(this.azimuth);
   }
 
   /** CSS pixels per metre (along screen x) at the current zoom (§2.2: 40 × zoom). */
@@ -125,28 +148,87 @@ export class CameraController {
     return { x: hw * ca + hh * sa, z: hw * sa + hh * ca };
   }
 
+  /**
+   * Half-extents (m, world x / z) of the rectangle the TARGET is kept inside (inset from the bounds).
+   * Yaw 0: the view's own half-extents (the view edge stops exactly boundsMargin past the map edge).
+   * With yaw the view is a rotated rectangle: keeping it wholly inside the bounds would leave wedges along every
+   * map edge (up to 2·hw·sin(yaw) m deep) that can never be scrolled into view. So the inset is the largest one
+   * that still lets every map point come at least reachMargin (r, 2 m) inside the view: the inner rectangle
+   * (hw−r, hh−r) scaled by k = min((hw−r)/ex', (hh−r)/ez') where ex'/ez' are its rotated extents, plus M —
+   * never more than the strict (void-free) inset. The view's slanted corners may then show a little ground past
+   * the margin (see clampOvershoot); the mid-points of the screen edges stay close to it.
+   */
+  clampHalfExtents(zoom = this.zoom) {
+    const e = this.viewHalfExtents(zoom);
+    const ca = Math.abs(Math.cos(this.azimuth)), sa = Math.abs(Math.sin(this.azimuth));
+    if (sa < 1e-9) return e;
+    const M = this.cfg.boundsMargin ?? 0, r = Math.min(M, this.cfg.reachMargin ?? M), ppm = this.pxPerMeter(zoom);
+    const hw = Math.max(0, this.width / 2 / ppm - r);
+    const hh = Math.max(0, this.height / 2 / ppm / (Math.sin(this.elevation) || 1) - r);
+    const rx = hw * ca + hh * sa, rz = hw * sa + hh * ca;
+    const k = Math.min(rx > 0 ? hw / rx : 1, rz > 0 ? hh / rz : 1);
+    return { x: Math.min(e.x, M + hw * k), z: Math.min(e.z, M + hh * k) };
+  }
+
+  /** How far (m) past the bounds the view's farthest corner may reach at the clamp limit (0 at yaw 0). */
+  clampOvershoot(zoom = this.zoom) {
+    const e = this.viewHalfExtents(zoom), c = this.clampHalfExtents(zoom);
+    return Math.max(e.x - c.x, e.z - c.z);
+  }
+
   /** Smallest zoom at which the view still fits inside the map bounds (a tiny map never shows past its margin). */
   minZoomForMap() {
     const b = this.bounds;
     if (!b) return 0;
-    const e = this.viewHalfExtents(1); // extents scale with 1/zoom
-    return Math.max(e.x / ((b.maxX - b.minX) / 2), e.z / ((b.maxZ - b.minZ) / 2));
+    const f = (z) => { const e = this.clampHalfExtents(z); return Math.max(e.x / ((b.maxX - b.minX) / 2), e.z / ((b.maxZ - b.minZ) / 2)); };
+    let z = f(1); // exact at yaw 0 (extents ∝ 1/zoom); with yaw the fixed margin term needs a few fixed-point steps
+    if (Math.abs(Math.sin(this.azimuth)) > 1e-9) for (let i = 0; i < 8 && z > 0; i++) z *= f(z);
+    return z;
   }
 
-  /** Keep the whole view inside the bounds; centre when the map is smaller than the view. */
+  /** Keep the target inside the clamp rectangle (clampHalfExtents); centre when the map is smaller than the view. */
   _clamp() {
     const b = this.bounds;
     if (!b) return;
-    const e = this.viewHalfExtents();
+    const e = this.clampHalfExtents();
     const fit = (v, lo, hi, half) => (hi - lo <= 2 * half ? (lo + hi) / 2 : clamp(v, lo + half, hi - half));
     this.target.x = fit(this.target.x, b.minX, b.maxX, e.x);
     this.target.z = fit(this.target.z, b.minZ, b.maxZ, e.z);
   }
 
-  /** Centre the view on a ground point immediately (cancels a recentre tween). */
+  /**
+   * Target for a PROGRAMMATIC look at (x, z) (recentre, tracking, briefing tour, save restore): the strict clamp
+   * (view wholly inside the bounds, as at yaw 0), loosened toward the manual-scroll clamp only as far as needed to
+   * bring the point focusInset (fraction of the half-view) inside the screen. With yaw this keeps the void wedges
+   * the loose clamp allows (clampHalfExtents) to deliberate pushes against the map edge. Yaw 0: plain clamp.
+   */
+  focusTarget(x, z) {
+    const b = this.bounds;
+    if (!b) return { x, z };
+    const fit = (v, lo, hi, half) => (hi - lo <= 2 * half ? (lo + hi) / 2 : clamp(v, lo + half, hi - half));
+    const le = this.clampHalfExtents(), L = { x: fit(x, b.minX, b.maxX, le.x), z: fit(z, b.minZ, b.maxZ, le.z) };
+    if (Math.abs(Math.sin(this.azimuth)) < 1e-9) return L;
+    const se = this.viewHalfExtents(), S = { x: fit(x, b.minX, b.maxX, se.x), z: fit(z, b.minZ, b.maxZ, se.z) };
+    const ca = Math.cos(this.azimuth), sa = Math.sin(this.azimuth), ppm = this.pxPerMeter();
+    const k = 1 - (this.cfg.focusInset ?? 0.24);
+    const hw = (this.width / 2 / ppm) * k, hh = (this.height / 2 / ppm / (Math.sin(this.elevation) || 1)) * k;
+    const sees = (t) => {
+      const dx = x - t.x, dz = z - t.z;
+      return Math.abs(dx * ca - dz * sa) <= hw + 1e-9 && Math.abs(dx * sa + dz * ca) <= hh + 1e-9;
+    };
+    if (sees(S)) return S;
+    const at = (f) => ({ x: S.x + (L.x - S.x) * f, z: S.z + (L.z - S.z) * f });
+    if (!sees(L)) return L;
+    let lo = 0, hi = 1;
+    for (let i = 0; i < 24; i++) { const m = (lo + hi) / 2; if (sees(at(m))) hi = m; else lo = m; }
+    return at(hi);
+  }
+
+  /** Centre the view on a ground point immediately (cancels a recentre tween); see focusTarget. */
   centerOn(x, z) {
     this._panTween = null;
-    this.target.set(x, 0, z);
+    const f = this.focusTarget(x, z);
+    this.target.set(f.x, 0, f.z);
     this._applyTransform();
   }
 
@@ -155,7 +237,8 @@ export class CameraController {
    */
   recenterOn(x, z, dur = this.cfg.recenterTween) {
     if (!(dur > 0)) return this.centerOn(x, z);
-    this._panTween = { fx: this.target.x, fz: this.target.z, tx: x, tz: z, t: 0, dur };
+    const f = this.focusTarget(x, z);
+    this._panTween = { fx: this.target.x, fz: this.target.z, tx: f.x, tz: f.z, t: 0, dur };
   }
 
   /** Is a ground point inside this view (with an inset margin in CSS px)? */
@@ -175,9 +258,19 @@ export class CameraController {
   panScreen(dxPx, dyPx) {
     const ppm = this.pxPerMeter();
     const fore = Math.sin(this.elevation) || 1; // one screen px of height spans 1/sin(el) px-metres of ground
+    this._panScreenMetres(dxPx / ppm, dyPx / ppm / fore);
+  }
+
+  /**
+   * Pan by ground metres along screen-right (gx) and screen-down (gy). With yaw a screen axis is slanted against the
+   * map edges: a move that meets a clamp edge keeps its component ALONG that edge and slides the view along it
+   * (per-axis clamp), so holding Up against the west limit still climbs to the north edge (verifier: M1 objective).
+   */
+  _panScreenMetres(gx, gy) {
     const ca = Math.cos(this.azimuth), sa = Math.sin(this.azimuth);
-    const gx = dxPx / ppm, gy = dyPx / ppm / fore; // ground metres along screen-right / screen-down
-    this.panBy(gx * ca + gy * sa, -gx * sa + gy * ca);
+    this.target.x += gx * ca + gy * sa;
+    this.target.z += -gx * sa + gy * ca;
+    this._applyTransform(); // clamps each world axis on its own = slide along the edge
   }
 
   // ------------------------------------------------------------ zoom
@@ -288,17 +381,16 @@ export class CameraController {
     if (tr) {
       if (tr.removed) this.tracking = null;
       else {
-        this.target.x = tr.x;
-        this.target.z = tr.z;
+        const f = this.focusTarget(tr.x, tr.z);
+        this.target.x = f.x;
+        this.target.z = f.z;
         this._applyTransform();
       }
     }
     if (!this.enabled || this.tracking || !pan || (!pan.x && !pan.y)) return;
     const speed = this.cfg.scrollSpeed / this.zoom; // §2.3: 30 m/s ÷ zoom (ground metres)
     this._panTween = null;
-    const ca = Math.cos(this.azimuth), sa = Math.sin(this.azimuth);
-    const gx = pan.x * speed * dt, gy = pan.y * speed * dt;
-    this.panBy(gx * ca + gy * sa, -gx * sa + gy * ca);
+    this._panScreenMetres(pan.x * speed * dt, pan.y * speed * dt);
   }
 
   // ------------------------------------------------------------ projection helpers
@@ -377,6 +469,7 @@ export class CameraController {
   /** Copy target/zoom/bounds from another view (new multi-view panes start as a copy). */
   copyFrom(o) {
     this.bounds = { ...o.bounds };
+    this.azimuth = o.azimuth;
     this.zoom = this.zoomTarget = o.zoomTarget;
     this.target.copy(o.target);
     this._applyTransform();
@@ -614,6 +707,12 @@ export class CameraRig {
 
   setBounds(width, depth) {
     for (const v of this.views) v.setBounds(width, depth);
+  }
+
+  /** Options "Camera angle": yaw (deg) for every view, current and future. */
+  setYaw(deg) {
+    this.cfg.yawDeg = Number(deg) || 0;
+    for (const v of this.views) v.setYaw(this.cfg.yawDeg);
   }
 
   /** Back to one untracked view (mission load). */

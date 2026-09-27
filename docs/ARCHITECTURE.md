@@ -241,7 +241,7 @@ export class Game {
   probe(x, z) → enemyId|null       // §5.2 Shift+click ground; showOnlyCone(target)
 }
 ```
-Camera (§2.1–§2.3): `CameraController` = one orthographic view (pitch 40°, yaw 0, `pxPerMeter() = 40 × zoom`
+Camera (§2.1–§2.3): `CameraController` = one orthographic view (pitch 40°, yaw `CONFIG.camera.yawDeg` = 15° / Options CAMERA ANGLE via `CameraRig.setYaw`, `pxPerMeter() = 40 × zoom`
 CSS px/m, `zoomStep(dir, clientX?, clientY?)` 0.25 s tween anchored on the cursor, `zoomReset()`, `recenterOn(x,z)`
 0.35 s, `isOnScreen(x,z)`, `track(entity)`/`untrack()`, `screenToGround`/`worldToScreen` relative to its view rect).
 `CameraRig` owns edge scroll (whole window incl. HUD; `edgeOverHud=false` = modern option), arrows, middle-drag,
@@ -928,7 +928,11 @@ Emitters add the events they own; AUDIO never needs another team to call it.
 ### Missions (MISSIONS)
 Write defs in the §7.3 form (see Missions above); run them through `normalizeMission` in a unit test
 (`validateMission(def).errors` must be empty). Raised walkable areas: write `elev` via map-builder footprints (ART)
-and connect them with `climbLinks` / `ladders`.
+and connect them with `climbLinks` / `ladders`. Layout alignment (design-spec §7.3): `src/missions/alignment.js` (pure) —
+`analyzeMission(def)` → `{entries, violations, advisories, nearMisses}`; tanks (`STRICT_TYPES` / `STRICT_VARIANT`)
+and items tagged `align: 'fence'` are strict (≤ `ALIGN.tolDeg` from their fence/wall/road modulo 90°), everything
+else advisory. `node tools/layout/align-report.mjs [--strict] [files]` prints the table (reads files from any
+checkout, read-only); add a merged mission to `ENFORCED` in `tests/unit/alignment.test.mjs`.
 
 ## Campaigns & rulesets (expansion-ready)
 

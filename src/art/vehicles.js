@@ -42,7 +42,7 @@ export function createVehicleModel(vehicleType = 'truck') {
   root.name = `vehicle:${vehicleType}`;
   const body = new THREE.Group();
   root.add(body);
-  let turret = null;
+  let turret = null, gunPivot = null, gun = null;
   const wheels = [];
   if (vehicleType === 'plane') {
     body.add(part(new THREE.BoxGeometry(1.6, 1.6, d.l), d.mat, 0, 1.4, 0));
@@ -73,10 +73,14 @@ export function createVehicleModel(vehicleType = 'truck') {
       turret = new THREE.Group();
       turret.position.set(0, 0.4 + hullH, vehicleType === 'tank' ? -0.2 : 0);
       turret.add(part(new THREE.BoxGeometry(d.w * 0.65, d.h * 0.35, d.l * 0.35), d.mat, 0, d.h * 0.17, 0));
-      const barrel = part(new THREE.CylinderGeometry(0.07, 0.08, d.l * 0.5, 8), 'metal', 0, d.h * 0.2, d.l * 0.35);
+      const barrel = part(new THREE.CylinderGeometry(0.07, 0.08, d.l * 0.5, 8), 'metal', 0, 0, d.l * 0.35);
       barrel.rotation.x = Math.PI / 2;
-      turret.add(barrel);
+      gunPivot = new THREE.Group(); gunPivot.name = 'gunPivot'; gunPivot.position.y = d.h * 0.2; // elevation (placement rule d)
+      gunPivot.add(barrel);
+      turret.add(gunPivot);
       body.add(turret);
+      // barrel reach / height + the turret housing (half length / width, roof) for the traverse rule (placement d)
+      gun = { len: d.l * 0.6, h: 0.4 + hullH + d.h * 0.2, hl: d.l * 0.175, hw: d.w * 0.325, top: 0.4 + hullH + d.h * 0.35 };
     }
     const wheelGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.3, 12);
     wheelGeo.rotateZ(Math.PI / 2);
@@ -96,7 +100,10 @@ export function createVehicleModel(vehicleType = 'truck') {
       for (const w of wheels) w.rotation.x += (v * dt) / 0.4;
       if (d.boat && !destroyed) body.position.y = Math.sin((vehicle?.world?.time ?? 0) * 1.7) * 0.05;
     },
-    setTurretHeading(localRad) { if (turret) turret.rotation.y = localRad; },
+    // localRad = world turret heading − hull heading; rotation.y runs the other way (headingToRotY = π/2 − h)
+    setTurretHeading(localRad) { if (turret) turret.rotation.y = -localRad; },
+    gun,
+    setGunLift(a) { if (gunPivot) gunPivot.rotation.x = -(Number.isFinite(a) ? a : 0); },
     setDestroyed(on) {
       destroyed = !!on;
       root.traverse((o) => { if (o.isMesh) o.material = getMaterial(on ? 'crater' : o.userData.mat || d.mat); });

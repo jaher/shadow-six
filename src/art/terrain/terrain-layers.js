@@ -223,7 +223,8 @@ export function undulation(theater, x, z, seed = 7) {
 /**
  * Game integration: per-grid-cell flatten factor (0 = full undulation, 1 = flat) so structures, raised decks,
  * bridges and shores sit on level ground and units never float or sink. Blocked / bridge / raised / water cells
- * are 1, roads `road`; the field is box-blurred over `radius` metres and re-maxed so footprints stay fully flat.
+ * and the cells under prop bases (grid.flatExtra, map-builder stampFlatBase) are 1, roads `road`; the field is
+ * box-blurred over `radius` metres and re-maxed so footprints stay fully flat.
  * @param {{cols:number, rows:number, cell:number, terrain:Uint8Array, block:Uint8Array, bridge:Uint8Array, elev:Float32Array}} grid
  * @param {{radius?:number, road?:number}} [o]
  * @returns {Float32Array}
@@ -233,7 +234,7 @@ export function buildFlatMask(grid, o = {}) {
   const src = new Float32Array(n);
   for (let k = 0; k < n; k++) {
     const c = grid.terrain[k];
-    src[k] = grid.block[k] || grid.bridge?.[k] || grid.elev?.[k] || c === TC.WATER || c === TC.SHALLOW ? 1 : c === TC.ROAD ? road : 0;
+    src[k] = grid.block[k] || grid.bridge?.[k] || grid.elev?.[k] || grid.flatExtra?.[k] || c === TC.WATER || c === TC.SHALLOW ? 1 : c === TC.ROAD ? road : 0;
   }
   const r = Math.max(1, Math.round((o.radius ?? 2.5) / grid.cell));
   const b = boxBlur1(boxBlur1(src, cols, rows, r, 1), cols, rows, r, cols);

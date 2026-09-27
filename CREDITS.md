@@ -10,6 +10,7 @@ and code are original or CC0/redistributable (see CREDITS.md).
 | Component | Author | Licence |
 | --- | --- | --- |
 | [three.js](https://threejs.org/) r186 and addons (`vendor/`) | three.js authors | MIT |
+| [three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh) 0.9.15 build (`vendor/three-mesh-bvh/`, clipping audit only; licence file kept) | Garrett Johnson and contributors | MIT |
 | Draco decoder (`vendor/addons/libs/draco/`) | Google | Apache-2.0 |
 | Basis Universal transcoder (`vendor/addons/libs/basis/`) | Binomial LLC | Apache-2.0 |
 | meshoptimizer decoder (`vendor/addons/libs/meshopt_decoder.module.js`) | Arseny Kapoulkine | MIT |
@@ -159,6 +160,56 @@ Poly Haven maps were regraded, tiled and resized; procedural maps are generated 
 | `timber_tarred` | [Poly Haven `dark_wooden_planks` (Dark Wooden Planks)](https://polyhaven.com/a/dark_wooden_planks) | Amal Kumar | CC0 1.0 |
 | `turf_grass` | Procedural (tools/blender/norway/tools/make_nor_tex.py, own work); derived from Poly Haven `sparse_grass` (CC0) | SHADOW SIX project (own work) | CC0 1.0 |
 
+### Vehicles
+
+53 vehicles, guns and props (`assets/models/vehicles/<group>/`: cars_moto, armour, aircraft, naval, rail; LOD0 + LOD2,
+burnt/destroyed and theater paint variants; index `assets/models/vehicles/manifest.json`) are procedural geometry scripted
+in Blender (`tools/blender/vehicles/`; own work, CC0), including every marking (Balkenkreuz, tactical numbers, hull
+lettering), baked AO, procedural paint/whitewash/burn shaders and track textures. They use the shared texture library
+(`assets/textures/lib/1k`, 37 maps added for vehicles) and per-asset armour atlases (`assets/models/vehicles/armour/tex/`).
+Per-asset lists are merged in `assets/models/vehicles/credits.json`. Reference photos were used for proportions only
+and are not shipped. All texture sources are CC0 1.0.
+
+| Material(s) | Source | Author | Licence |
+| --- | --- | --- | --- |
+| `air_corr`, `air_fabric`, `air_skin` | Procedural (`tools/blender/vehicles/aircraft/scripts/make_air_tex.py`, own work) | SHADOW SIX project (own work) | CC0 1.0 |
+| `bitumen_felt` | [Poly Haven `bitumen` (Bitumen)](https://polyhaven.com/a/bitumen) | Rob Tuytel | CC0 1.0 |
+| `canvas` | [Poly Haven `rough_linen` (Rough Linen)](https://polyhaven.com/a/rough_linen) | colormass, Rico Cilliers | CC0 1.0 |
+| `cast_iron` | [Poly Haven `rusty_metal_03` (Rusty Metal 03)](https://polyhaven.com/a/rusty_metal_03) | Amal Kumar | CC0 1.0 |
+| `coal` | Procedural (`tools/blender/vehicles/rail/scripts/make_rail_tex.py`, own work) | SHADOW SIX project (own work) | CC0 1.0 |
+| `corrugated_rust` | [Poly Haven `rusty_corrugated_iron` (Rusty Corrugated Iron)](https://polyhaven.com/a/rusty_corrugated_iron) | Charlotte Baglioni | CC0 1.0 |
+| `deck_planks` | [Poly Haven `wood_planks_dirt` (Wood Planks Dirt)](https://polyhaven.com/a/wood_planks_dirt) | Rob Tuytel | CC0 1.0 |
+| `glass_dirty` | Procedural (`tools/blender/kit/tools/make_procedural.py`, own work) | SHADOW SIX project (own work) | CC0 1.0 |
+| `gravel_grey` | [Poly Haven `gravel` (Gravel)](https://polyhaven.com/a/gravel) | Dimitrios Savva | CC0 1.0 |
+| `heat` | Procedural (`tools/blender/vehicles/rail/scripts/make_heat_tex.py`, own work) | SHADOW SIX project (own work) | CC0 1.0 |
+| `hessian` | [Poly Haven `hessian_230` (Hessian 230)](https://polyhaven.com/a/hessian_230) | colormass, Rico Cilliers | CC0 1.0 |
+| `k5camo`, `k5ww`, `rivet` | Procedural (`tools/blender/vehicles/rail/scripts/make_k5_tex.py`, own work) | SHADOW SIX project (own work) | CC0 1.0 |
+| `limewash_worn` | [Poly Haven `plastered_stone_wall` (Plastered Stone Wall)](https://polyhaven.com/a/plastered_stone_wall) | Rob Tuytel | CC0 1.0 |
+| `mud` | [Poly Haven `brown_mud_02` (Brown Mud 02)](https://polyhaven.com/a/brown_mud_02) | Rob Tuytel | CC0 1.0 |
+| `snow_soft` | Procedural (`tools/blender/bridges/tools2/make_br_tex.py`, own work) | SHADOW SIX project (own work) | CC0 1.0 |
+| `steel_galv` | [Poly Haven `rusty_painted_metal` (Rusty Painted Metal)](https://polyhaven.com/a/rusty_painted_metal) | Amal Kumar | CC0 1.0 |
+| `steel_grating` | Procedural (`tools/blender/military/tools/make_mil_tex.py`, own work) | SHADOW SIX project (own work) | CC0 1.0 |
+| `timber_creosote` | Procedural (`tools/blender/military/tools/make_mil_tex.py`, own work); derived from Poly Haven `wood_planks_grey` (CC0) | SHADOW SIX project (own work) | CC0 1.0 |
+| `timber_grey` | [Poly Haven `weathered_planks` (Weathered Planks)](https://polyhaven.com/a/weathered_planks) | Dario Barresi, Dimitrios Savva | CC0 1.0 |
+| `timber_tarred` | [Poly Haven `dark_wooden_planks` (Dark Wooden Planks)](https://polyhaven.com/a/dark_wooden_planks) | Amal Kumar | CC0 1.0 |
+| `veh_burnt` | Procedural (`tools/blender/vehicles/cars_moto/scripts/make_burnt_tex.py`, own work) | SHADOW SIX project (own work) | CC0 1.0 |
+| `veh_paint` | Procedural (`tools/blender/vehicles/cars_moto/scripts/make_veh_tex.py`, own work) | SHADOW SIX project (own work) | CC0 1.0 |
+| `veh_paintc` | Procedural (`tools/blender/vehicles/cars_moto/scripts/make_paintc_tex.py`, own work) | SHADOW SIX project (own work) | CC0 1.0 |
+| `veh_tyre`, `veh_wreck` | Procedural (`tools/blender/vehicles/cars_moto/scripts/make_cm_tex.py`, own work) | SHADOW SIX project (own work) | CC0 1.0 |
+| `wood_paint` | [Poly Haven `weathered_peeling_timber` (Weathered Peeling Timber)](https://polyhaven.com/a/weathered_peeling_timber) | Dimitrios Savva | CC0 1.0 |
+
+Armour group (baked per-asset atlases):
+
+| Used for | Source | Licence |
+| --- | --- | --- |
+| green_metal_rust (paint breakup/normal) | Poly Haven | CC0 1.0 |
+| rust_coarse_01 (bare steel, tracks) | Poly Haven | CC0 1.0 |
+| Rubber004 (tyres) | ambientCG | CC0 1.0 |
+| weathered_planks (tool handles, stocks) | Poly Haven | CC0 1.0 |
+| Fabric030 / Fabric045 (sandbags, canvas) | ambientCG | CC0 1.0 |
+| sand_01 / dense_sand (earth) | Poly Haven | CC0 1.0 |
+| geometry, procedural paint/whitewash/burn shaders, track texture, markings (Balkenkreuz, tactical numbers) | own work (SHADOW SIX, Blender script) | CC0 1.0 |
+
 ## Fonts
 
 | Asset | Source | Author | Licence |
@@ -182,7 +233,7 @@ Full per-file list (one row per source recording, with URL and author): **`asset
 | `assets/audio/sfx/{fs_*,rifle_*,pistol,sniper_echo,mg_*,explosion_*,siren_*,dog,…}` (trimmed, split, loudness-normalised, Opus + MP3) | [Freesound](https://freesound.org) (61 source recordings; licence and provenance re-checked live 2026-09-26) | craigsmith (USC 1930s–40s nitrate FX library), kyles, qubodup (DVIDS public-domain footage), unfa, Kostrava and others — see `assets/audio/CREDITS.md` | CC0 |
 | `assets/audio/sfx/k_*` (footsteps, impacts, cloth, doors, UI; re-encoded Opus + MP3) | [Kenney](https://kenney.nl) impact-sounds, rpg-audio, interface-sounds, ui-audio | Kenney | CC0 |
 | `assets/audio/sfx/{surf,river}` (ambience beds, procedural) and `bomb_tick1` (single ticks cut from Freesound 487730) | this project (`tools/audio/procedural_beds.py`) | project contributors | CC0 |
-| `assets/audio/voice/**` (commando acknowledgements, German barks; word/viseme timing JSON) | AI-generated: Kokoro-82M (hexgrad) and Chatterbox-Multilingual (Resemble AI, PerTh watermark); no real person cloned | project contributors | project output of Apache-2.0 / MIT models |
+| `assets/audio/voice/**` (voices v2: every commando line in his own voice, primary + urgent take, pain/death sounds; German barks; word/viseme timing JSON) | AI-generated: Kokoro-82M (hexgrad) and Chatterbox-Multilingual (Resemble AI, PerTh watermark); each commando is a distinct blend of stock Kokoro voicepacks (no pack shared between two men; the French Spy blends Romance-language packs), pitch/formant-shifted; Chatterbox takes are referenced only on those synthetic blends; no real person cloned | project contributors | project output of Apache-2.0 / MIT models |
 | Menu foley (`ui_*` ids: rifle safety tick, bolt latch, Bakelite toggle, typewriter strike and bell, paper, coin clink, telegraph buzz, projector, lamp chain) | procedural recipes in `src/audio/synth.js`, played by `src/ui/ui-sound.js` | SHADOW SIX contributors | ours |
 
 ## Research references

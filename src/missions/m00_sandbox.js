@@ -44,7 +44,7 @@ export default {
     { type: 'hut', id: 'hut1', x: 53, z: 49, rot: 0 },
     { type: 'sandbags', x: 47.5, z: 25.5, rot: 0, w: 3 },
     { type: 'sandbags', x: 47.5, z: 34.5, rot: 0, w: 3 },
-    { type: 'barrels', x: 56, z: 7 },
+    { type: 'barrels', x: 55.76, z: 6.62 }, // clear of barracks1's steps (placement rule b)
     { type: 'crates', x: 47.5, z: 52 },
     // west bank
     { type: 'house', id: 'house1', x: 16, z: 14, rot: 0 },
@@ -55,9 +55,9 @@ export default {
     { type: 'tree', x: 24, z: 8 },
     { type: 'pine', x: 30, z: 14 },
     { type: 'bush', x: 12, z: 26 },
-    { type: 'bush', x: 22, z: 30.5 },
+    { type: 'bush', x: 22.55, z: 32.53 }, // off the road (placement rule b)
     { type: 'rocks', x: 34, z: 54 },
-    { type: 'lamp_post', x: 35, z: 28 },
+    { type: 'lamp_post', x: 33.5, z: 32.4 }, // beside the bridge approach: off its ramp and the road (placement rule b)
   ],
   commandos: [
     { role: 'greenberet', x: 6, z: 52, heading: -H, inventory: { knife: 1, pistol: 1, decoy: 1, shovel: 1 } },

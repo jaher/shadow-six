@@ -1,7 +1,7 @@
 /**
  * Talking portraits in the running game (docs/talking-portraits.md; design-spec §6.3): per mission the HUD mounts
  * the clips into every portrait slot + the speaker card, stills become photos, the first selected man's idle loop
- * plays (the others greyscale + paused), a recorded bark from the audio engine plays its exact clip on the card
+ * plays (the others greyscale + paused), a recorded bark from the audio engine plays its exact clip in the man's top-left portrait (card mirrors)
  * in sync with the voice (drift vs the AudioContext clock), the urgent alt take gets its own clip, a death hides
  * the host (skull shows), and a missing manifest leaves the stills.  Screenshots int-portraits-m1..m3; frame cost
  * per preset with the clips live.
@@ -32,14 +32,16 @@ export default async function portraits(page, t) {
         greyOther: other ? getComputedStyle(other.idle).filter.includes('grayscale') : true,
         colourSel: sel ? !getComputedStyle(sel.idle).filter.includes('grayscale') : false,
         placeholderMouth: getComputedStyle(document.querySelector('.hud-portrait .mouth')).display };
-      // a recorded acknowledgement: the audio engine plays the take, the card plays its exact clip
+      // a recorded acknowledgement: the audio engine plays the take, his portrait plays its exact clip
       const bark = a.say(cmds[0], 'ack_move', { force: true });
       await Promise.resolve();
       await new Promise((ok2) => setTimeout(ok2, 450));
       const cur = tp.cur;
       out.bark = { rec: bark?.rec, take: bark?.take, text: bark?.text };
       out.clip = cur?.entry?.clip || null;
-      out.cardPlaying = !!cur && !cur.v.paused && cur.v.classList.contains('on') && !document.querySelector('.hud-speaker-card').hidden;
+      out.slotPlaying = !!cur && cur.v === tp.slots.get(cmds[0])?.line && !cur.v.paused && cur.v.classList.contains('on');
+      const card = !document.querySelector('.hud-speaker-card').hidden;
+      out.cardMirror = !card || (cur?.vs?.includes(tp.card.line) && !tp.card.line.paused);
       out.driftMs = cur ? Math.round((cur.v.currentTime - tp._expected(cur, cur.clk())) * 1000) : null;
       out.clock = cur ? (cur.clk() === a.engine?.ctx?.currentTime ? 'audio' : 'wall') : null;
       return out;
@@ -73,7 +75,8 @@ export default async function portraits(page, t) {
     t.ok(r.greyOther && r.colourSel, `${id}: greyscale when unselected, colour when selected`);
     t.equal(r.placeholderMouth, 'none', `${id}: placeholder mouth retired`);
     t.ok(r.bark.rec && r.clip && r.clip.includes(`/${r.bark.rec}_`), `${id}: recorded bark "${r.bark.text}" -> clip ${r.clip}`);
-    t.ok(r.cardPlaying, `${id}: speaker card plays the line`);
+    t.ok(r.slotPlaying, `${id}: his top-left portrait plays the line`);
+    t.ok(r.cardMirror, `${id}: the speaker card (when shown) mirrors it`);
     t.ok(Math.abs(r.driftMs) <= 120, `${id}: lip-sync drift ${r.driftMs} ms (${r.clock} clock)`);
     t.ok(e.ended, `${id}: line ended, back to idle`);
     t.ok(e.urgent.clip && (e.urgent.take === 'alt') === e.urgent.clip.includes('_alt_'), `${id}: hurt take ${e.urgent.take} -> ${e.urgent.clip}`);

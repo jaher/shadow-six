@@ -2,8 +2,9 @@
 import { test, assert, near } from './lib.mjs';
 import { CameraController, CameraRig, VIEW_LAYOUTS } from '../../src/engine/camera.js';
 
+// BEL's yaw 0 (the default is now the tilted camera; camera-yaw.test.mjs covers it)
 function view(w = 1920, h = 1080, map = [200, 200]) {
-  const c = new CameraController({});
+  const c = new CameraController({ config: { yawDeg: 0 } });
   c.resize(w, h);
   c.setBounds(...map);
   c.centerOn(100, 100);
@@ -72,6 +73,7 @@ test('§2.3 multi-view layouts tile the canvas; F-key repeat cycles; shrinking k
   const rig = new CameraRig({});
   rig.resize(1200, 800);
   rig.setBounds(200, 200);
+  rig.setYaw(0);
   rig.active.centerOn(50, 60);
   rig.setViews(3);
   assert.equal(rig.count, 3);

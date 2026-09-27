@@ -271,7 +271,8 @@ export function libraryVisual(type, p = {}, ctx = {}) {
   }
   if (type === 'dam') {
     // the mission's own cliffs/terrain make the gorge: the asset's rock walls and rim crags would float on flat ground
-    const hideRock = () => b.object3d.traverse((o) => { if (o.isMesh && [].concat(o.material).some((m) => /rock_cliff|scree/.test(m.name))) o.visible = false; });
+    // …and the snow draped over those crags goes with them (else it floats as sheets over the gorge)
+    const hideRock = () => { b.object3d.traverse((o) => { if (o.isMesh && [].concat(o.material).some((m) => /rock_cliff|scree/.test(m.name))) o.visible = false; }); stripDrape(b.object3d, /rock_cliff|scree/, /snow/); };
     hideRock();
     const prev = b.object3d.userData.onLodAttached;
     b.object3d.userData.onLodAttached = (...args) => { prev?.(...args); hideRock(); };
@@ -296,6 +297,46 @@ export function libraryVisual(type, p = {}, ctx = {}) {
   const dispose = () => { if (state.disposed) return; state.disposed = true; state.b.dispose(); S.live.delete(state.b); outer.removeFromParent(); };
   return { object3d: outer, asset: b.asset, scale: [sx, sy, sz], matrix: M, footprints, doors, ladders, roofs, climbEdges, anchors, bridge, piers,
     ready: b.ready, setDoorOpen: outer.userData.setDoorOpen, dispose };
+}
+
+/**
+ * Remove the triangles of `drape` meshes (snow cover) lying on hidden `host` meshes (crags) of the same LOD: a drape
+ * triangle whose three vertices are within 0.35 m of a host vertex is dropped (geometry cloned, never shared).
+ */
+export function stripDrape(root, hostRe, drapeRe, tol = 0.35) {
+  const lods = [];
+  root.traverse((n) => { if (/^lod\d$/.test(n.name)) lods.push(n); });
+  if (!lods.length) lods.push(root);
+  const matOf = (o, re) => [].concat(o.material).some((m) => re.test(m?.name || ''));
+  const v = new THREE.Vector3();
+  for (const lod of lods) {
+    const hosts = [], drapes = [];
+    lod.traverse((o) => { if (o.isMesh && !o.userData.drapeStripped) { if (matOf(o, hostRe)) hosts.push(o); else if (matOf(o, drapeRe)) drapes.push(o); } });
+    if (!hosts.length || !drapes.length) continue;
+    lod.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(lod.matrixWorld).invert();
+    const cell = new Set(), key = (x, y, z) => `${Math.round(x / tol)},${Math.round(y / tol)},${Math.round(z / tol)}`;
+    for (const h of hosts) {
+      const pos = h.geometry.attributes.position, m = new THREE.Matrix4().multiplyMatrices(inv, h.matrixWorld);
+      for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i).applyMatrix4(m); cell.add(key(v.x, v.y, v.z)); }
+    }
+    const near = (x, y, z) => { const i = Math.round(x / tol), j = Math.round(y / tol), k = Math.round(z / tol);
+      for (let a = -1; a <= 1; a++) for (let c = -1; c <= 1; c++) for (let e = -1; e <= 1; e++) if (cell.has(`${i + a},${j + c},${k + e}`)) return true; return false; };
+    for (const d of drapes) {
+      const g = d.geometry, pos = g.attributes.position, idx = g.index, m = new THREE.Matrix4().multiplyMatrices(inv, d.matrixWorld);
+      const count = idx ? idx.count : pos.count, keep = [];
+      const onHost = (i) => { v.fromBufferAttribute(pos, i).applyMatrix4(m); return near(v.x, v.y, v.z); };
+      for (let t = 0; t + 2 < count; t += 3) {
+        const a = idx ? idx.getX(t) : t, b2 = idx ? idx.getX(t + 1) : t + 1, c = idx ? idx.getX(t + 2) : t + 2;
+        if (!(onHost(a) && onHost(b2) && onHost(c))) keep.push(a, b2, c);
+      }
+      if (keep.length === count) continue;
+      const ng = g.clone();
+      ng.setIndex(keep);
+      d.geometry = ng; d.userData.drapeStripped = true;
+      if (!keep.length) d.visible = false;
+    }
+  }
 }
 
 /**

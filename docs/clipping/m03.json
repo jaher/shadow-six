@@ -1,0 +1,1074 @@
+{
+ "mission": "m03",
+ "date": "2026-09-27T19:01:53.404Z",
+ "static": {
+  "mission": "m03",
+  "items": 109,
+  "categories": {
+   "bridge": 1,
+   "building": 10,
+   "fence": 13,
+   "prop": 19,
+   "sandbags": 1,
+   "pole": 4,
+   "cliff": 2,
+   "ruins": 1,
+   "wall": 1,
+   "tent": 2,
+   "trunk": 8,
+   "foliage": 8,
+   "character": 38,
+   "vehicle": 1
+  },
+  "pairsTested": 106,
+  "ms": 304,
+  "findings": []
+ },
+ "turrets": {
+  "mission": "m03",
+  "turrets": 0,
+  "findings": []
+ },
+ "turretProbe": {
+  "spots": 57,
+  "tests": 84,
+  "findings": [
+   {
+    "key": "m03:pylon_1|sdkfz#47:turret@pylon_1",
+    "a": {
+     "id": "sdkfz#47:turret",
+     "type": "sdkfz",
+     "cat": "turret",
+     "kind": "turret"
+    },
+    "b": {
+     "id": "pylon_1",
+     "type": "telegraph_pole",
+     "cat": "pole",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 61.899,
+     "y": 2,
+     "z": 121.948
+    },
+    "box": {
+     "min": [
+      61.823,
+      1.922,
+      121.884
+     ],
+     "max": [
+      61.977,
+      2.056,
+      122.004
+     ]
+    },
+    "contact": 0.748,
+    "segments": 29,
+    "depth": 0.021,
+    "depthAinB": 0.021,
+    "depthBinA": 0,
+    "insideA": 2,
+    "insideB": 0,
+    "volume": 0,
+    "allowed": false,
+    "reason": null,
+    "angleDeg": 150,
+    "firstT": null,
+    "count": 1,
+    "probe": "sdkfz",
+    "near": "pylon_1",
+    "at": {
+     "x": 64.87,
+     "z": 120.28
+    }
+   }
+  ]
+ },
+ "floating": {
+  "tested": 32,
+  "findings": []
+ },
+ "dynamic": {
+  "mission": "m03",
+  "t": 180,
+  "samples": 360,
+  "kills": [
+   {
+    "id": "e2",
+    "t": 60,
+    "x": 27.6,
+    "z": 61.64
+   },
+   {
+    "id": "e13",
+    "t": 60,
+    "x": 138,
+    "z": 92
+   },
+   {
+    "id": "e1",
+    "t": 120,
+    "x": 26.17,
+    "z": 64.34
+   },
+   {
+    "id": "e3",
+    "t": 120,
+    "x": 25.01,
+    "z": 59.95
+   }
+  ],
+  "notes": [],
+  "findings": [
+   {
+    "key": "m03:camp_barr|camp_barr#0.0.1",
+    "a": {
+     "id": "camp_barr#0.0.1",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "b": {
+     "id": "camp_barr",
+     "type": "hut",
+     "cat": "building",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 121.682,
+     "y": 1.784,
+     "z": 61.049
+    },
+    "box": {
+     "min": [
+      121.578,
+      0.592,
+      61.039
+     ],
+     "max": [
+      121.724,
+      2.235,
+      61.059
+     ]
+    },
+    "contact": 0.096,
+    "segments": 13,
+    "depth": 0.304,
+    "depthAinB": 0.304,
+    "depthBinA": 0.001,
+    "insideA": 74,
+    "insideB": 3,
+    "volume": 0,
+    "allowed": false,
+    "reason": null,
+    "t": 9,
+    "at": {
+     "x": 121.83,
+     "z": 60.95
+    },
+    "unitState": "active",
+    "speed": 2.97,
+    "firstT": 9,
+    "count": 1,
+    "shot": "../../../..<claude-tmp>"
+   },
+   {
+    "key": "m03:dam|sapper",
+    "a": {
+     "id": "sapper",
+     "type": "sapper",
+     "cat": "character",
+     "kind": "commando",
+     "state": "active"
+    },
+    "b": {
+     "id": "dam",
+     "type": "dam",
+     "cat": "bridge",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 28,
+     "y": 0.696,
+     "z": 40.745
+    },
+    "box": {
+     "min": [
+      27.989,
+      0.625,
+      40.662
+     ],
+     "max": [
+      28.012,
+      0.767,
+      40.832
+     ]
+    },
+    "contact": 0.492,
+    "segments": 47,
+    "depth": 0.276,
+    "depthAinB": 0.276,
+    "depthBinA": 0,
+    "insideA": 338,
+    "insideB": 0,
+    "volume": 0.002,
+    "allowed": false,
+    "reason": null,
+    "t": 128.5,
+    "at": {
+     "x": 28.41,
+     "z": 40.59
+    },
+    "unitState": "active",
+    "speed": 4.5,
+    "firstT": 21.5,
+    "count": 3,
+    "shot": "../../../..<claude-tmp>"
+   },
+   {
+    "key": "m03:dam|e1",
+    "a": {
+     "id": "e1",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "b": {
+     "id": "dam",
+     "type": "dam",
+     "cat": "bridge",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 27.461,
+     "y": 0.474,
+     "z": 40.713
+    },
+    "box": {
+     "min": [
+      27.457,
+      0.423,
+      40.664
+     ],
+     "max": [
+      27.466,
+      0.526,
+      40.761
+     ]
+    },
+    "contact": 0.318,
+    "segments": 24,
+    "depth": 0.276,
+    "depthAinB": 0.276,
+    "depthBinA": 0,
+    "insideA": 185,
+    "insideB": 0,
+    "volume": 0.001,
+    "allowed": false,
+    "reason": null,
+    "t": 84,
+    "at": {
+     "x": 26.84,
+     "z": 40.82
+    },
+    "unitState": "active",
+    "speed": 3.8,
+    "firstT": 84,
+    "count": 1,
+    "shot": "../../../..<claude-tmp>"
+   },
+   {
+    "key": "m03:camp_barr#0.0.0|dam",
+    "a": {
+     "id": "camp_barr#0.0.0",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "b": {
+     "id": "dam",
+     "type": "dam",
+     "cat": "bridge",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 27.46,
+     "y": 0.458,
+     "z": 40.723
+    },
+    "box": {
+     "min": [
+      27.456,
+      0.409,
+      40.681
+     ],
+     "max": [
+      27.465,
+      0.508,
+      40.763
+     ]
+    },
+    "contact": 0.283,
+    "segments": 23,
+    "depth": 0.214,
+    "depthAinB": 0.214,
+    "depthBinA": 0,
+    "insideA": 180,
+    "insideB": 0,
+    "volume": 0.001,
+    "allowed": false,
+    "reason": null,
+    "t": 84,
+    "at": {
+     "x": 26.83,
+     "z": 40.83
+    },
+    "unitState": "active",
+    "speed": 3.8,
+    "firstT": 84,
+    "count": 1,
+    "shot": "../../../..<claude-tmp>"
+   },
+   {
+    "key": "m03:dam|e29",
+    "a": {
+     "id": "e29",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "b": {
+     "id": "dam",
+     "type": "dam",
+     "cat": "bridge",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 44.39,
+     "y": 0.997,
+     "z": 25.179
+    },
+    "box": {
+     "min": [
+      44.237,
+      0.217,
+      25.094
+     ],
+     "max": [
+      44.507,
+      1.448,
+      25.718
+     ]
+    },
+    "contact": 4.068,
+    "segments": 336,
+    "depth": 0.128,
+    "depthAinB": 0.128,
+    "depthBinA": 0,
+    "insideA": 283,
+    "insideB": 0,
+    "volume": 0,
+    "allowed": false,
+    "reason": null,
+    "t": 87.5,
+    "at": {
+     "x": 44.38,
+     "z": 25.34
+    },
+    "unitState": "active",
+    "speed": 3.8,
+    "firstT": 87.5,
+    "count": 1,
+    "shot": "../../../..<claude-tmp>"
+   },
+   {
+    "key": "m03:dam|spy",
+    "a": {
+     "id": "spy",
+     "type": "spy",
+     "cat": "character",
+     "kind": "commando",
+     "state": "active"
+    },
+    "b": {
+     "id": "dam",
+     "type": "dam",
+     "cat": "bridge",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 44.37,
+     "y": 1.193,
+     "z": 25.117
+    },
+    "box": {
+     "min": [
+      44.135,
+      0.353,
+      24.954
+     ],
+     "max": [
+      45.019,
+      1.479,
+      25.254
+     ]
+    },
+    "contact": 2.961,
+    "segments": 327,
+    "depth": 0.114,
+    "depthAinB": 0.114,
+    "depthBinA": 0,
+    "insideA": 512,
+    "insideB": 0,
+    "volume": 0.004,
+    "allowed": false,
+    "reason": null,
+    "t": 22.5,
+    "at": {
+     "x": 44.41,
+     "z": 25.28
+    },
+    "unitState": "active",
+    "speed": 4.5,
+    "firstT": 22.5,
+    "count": 1,
+    "shot": "../../../..<claude-tmp>"
+   },
+   {
+    "key": "m03:diver|pine#60~trunk",
+    "a": {
+     "id": "diver",
+     "type": "diver",
+     "cat": "character",
+     "kind": "commando",
+     "state": "active"
+    },
+    "b": {
+     "id": "pine#60~trunk",
+     "type": "vegBark",
+     "cat": "trunk",
+     "kind": "vegetation",
+     "tree": "pine#60"
+    },
+    "point": {
+     "x": 89.419,
+     "y": 1.017,
+     "z": 50.04
+    },
+    "box": {
+     "min": [
+      89.402,
+      1.002,
+      50.038
+     ],
+     "max": [
+      89.428,
+      1.032,
+      50.042
+     ]
+    },
+    "contact": 0.091,
+    "segments": 10,
+    "depth": 0.104,
+    "depthAinB": 0,
+    "depthBinA": 0.104,
+    "insideA": 0,
+    "insideB": 3,
+    "volume": 0,
+    "allowed": false,
+    "reason": null,
+    "t": 16,
+    "at": {
+     "x": 89.37,
+     "z": 50.16
+    },
+    "unitState": "active",
+    "speed": 2.25,
+    "firstT": 16,
+    "count": 1
+   },
+   {
+    "key": "m03:dam|e5",
+    "a": {
+     "id": "e5",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "b": {
+     "id": "dam",
+     "type": "dam",
+     "cat": "bridge",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 27.295,
+     "y": 1.289,
+     "z": 41.775
+    },
+    "box": {
+     "min": [
+      27.241,
+      0.907,
+      41.454
+     ],
+     "max": [
+      27.387,
+      1.43,
+      41.897
+     ]
+    },
+    "contact": 2.323,
+    "segments": 337,
+    "depth": 0.096,
+    "depthAinB": 0.096,
+    "depthBinA": 0,
+    "insideA": 486,
+    "insideB": 0,
+    "volume": 0,
+    "allowed": false,
+    "reason": null,
+    "t": 152.5,
+    "at": {
+     "x": 26.92,
+     "z": 41.58
+    },
+    "unitState": "active",
+    "speed": 3.8,
+    "firstT": 152.5,
+    "count": 1
+   },
+   {
+    "key": "m03:dam|st_barr2#0.0.2",
+    "a": {
+     "id": "st_barr2#0.0.2",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "b": {
+     "id": "dam",
+     "type": "dam",
+     "cat": "bridge",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 44.085,
+     "y": 1.185,
+     "z": 25.109
+    },
+    "box": {
+     "min": [
+      43.824,
+      0.602,
+      24.868
+     ],
+     "max": [
+      44.282,
+      1.497,
+      25.271
+     ]
+    },
+    "contact": 11.903,
+    "segments": 1073,
+    "depth": 0.095,
+    "depthAinB": 0.095,
+    "depthBinA": 0.008,
+    "insideA": 655,
+    "insideB": 2,
+    "volume": 0.011,
+    "allowed": false,
+    "reason": null,
+    "t": 176.5,
+    "at": {
+     "x": 44.07,
+     "z": 25.25
+    },
+    "unitState": "active",
+    "speed": 1.8,
+    "firstT": 176.5,
+    "count": 1
+   },
+   {
+    "key": "m03:dam|e18",
+    "a": {
+     "id": "e18",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "b": {
+     "id": "dam",
+     "type": "dam",
+     "cat": "bridge",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 27.405,
+     "y": 0.706,
+     "z": 41.274
+    },
+    "box": {
+     "min": [
+      27.382,
+      0.06,
+      40.945
+     ],
+     "max": [
+      27.438,
+      0.958,
+      41.508
+     ]
+    },
+    "contact": 0.888,
+    "segments": 94,
+    "depth": 0.082,
+    "depthAinB": 0.082,
+    "depthBinA": 0,
+    "insideA": 354,
+    "insideB": 0,
+    "volume": 0.001,
+    "allowed": false,
+    "reason": null,
+    "t": 58.5,
+    "at": {
+     "x": 27.01,
+     "z": 41.49
+    },
+    "unitState": "active",
+    "speed": 3.8,
+    "firstT": 58,
+    "count": 3
+   },
+   {
+    "key": "m03:st_barr2|st_barr2#0.0.1",
+    "a": {
+     "id": "st_barr2#0.0.1",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "b": {
+     "id": "st_barr2",
+     "type": "barracks",
+     "cat": "building",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 68.469,
+     "y": 0.223,
+     "z": 102.376
+    },
+    "box": {
+     "min": [
+      68.423,
+      0.199,
+      102.322
+     ],
+     "max": [
+      68.52,
+      0.245,
+      102.424
+     ]
+    },
+    "contact": 0.332,
+    "segments": 30,
+    "depth": 0.074,
+    "depthAinB": 0.074,
+    "depthBinA": 0,
+    "insideA": 135,
+    "insideB": 0,
+    "volume": 0,
+    "allowed": false,
+    "reason": null,
+    "t": 55.5,
+    "at": {
+     "x": 68.71,
+     "z": 102.19
+    },
+    "unitState": "active",
+    "speed": 3.8,
+    "firstT": 52.5,
+    "count": 5
+   },
+   {
+    "key": "m03:cabin_1|camp_barr#0.0.1",
+    "a": {
+     "id": "camp_barr#0.0.1",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "b": {
+     "id": "cabin_1",
+     "type": "hut",
+     "cat": "building",
+     "kind": "instance"
+    },
+    "point": {
+     "x": 104.787,
+     "y": 0.053,
+     "z": 50.669
+    },
+    "box": {
+     "min": [
+      104.707,
+      0.021,
+      50.54
+     ],
+     "max": [
+      104.898,
+      0.111,
+      50.76
+     ]
+    },
+    "contact": 0.888,
+    "segments": 73,
+    "depth": 0.072,
+    "depthAinB": 0.072,
+    "depthBinA": 0,
+    "insideA": 114,
+    "insideB": 0,
+    "volume": 0,
+    "allowed": false,
+    "reason": null,
+    "t": 22,
+    "at": {
+     "x": 104.71,
+     "z": 50.36
+    },
+    "unitState": "active",
+    "speed": 1.98,
+    "firstT": 22,
+    "count": 1
+   },
+   {
+    "key": "m03:dam|e2",
+    "a": {
+     "id": "e2",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "b": {
+     "id": "dam",
+     "type": "dam",
+     "cat": "bridge",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 28.098,
+     "y": 1.269,
+     "z": 40.506
+    },
+    "box": {
+     "min": [
+      28.019,
+      1.078,
+      40.37
+     ],
+     "max": [
+      28.17,
+      1.418,
+      40.757
+     ]
+    },
+    "contact": 2.343,
+    "segments": 219,
+    "depth": 0.072,
+    "depthAinB": 0.072,
+    "depthBinA": 0,
+    "insideA": 336,
+    "insideB": 0,
+    "volume": 0,
+    "allowed": false,
+    "reason": null,
+    "t": 42,
+    "at": {
+     "x": 28.38,
+     "z": 40.62
+    },
+    "unitState": "active",
+    "speed": 3.8,
+    "firstT": 42,
+    "count": 1
+   },
+   {
+    "key": "m03:e15|st_barr1",
+    "a": {
+     "id": "e15",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "b": {
+     "id": "st_barr1",
+     "type": "barracks",
+     "cat": "building",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 21.761,
+     "y": 0.08,
+     "z": 86.128
+    },
+    "box": {
+     "min": [
+      21.7,
+      0.052,
+      86.054
+     ],
+     "max": [
+      21.837,
+      0.106,
+      86.21
+     ]
+    },
+    "contact": 0.473,
+    "segments": 35,
+    "depth": 0.07,
+    "depthAinB": 0.07,
+    "depthBinA": 0.025,
+    "insideA": 148,
+    "insideB": 4,
+    "volume": 0,
+    "allowed": false,
+    "reason": null,
+    "t": 56.5,
+    "at": {
+     "x": 21.71,
+     "z": 86.66
+    },
+    "unitState": "active",
+    "speed": 3.8,
+    "firstT": 56.5,
+    "count": 1
+   },
+   {
+    "key": "m03:cabin_1|camp_barr#0.0.0",
+    "a": {
+     "id": "camp_barr#0.0.0",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "b": {
+     "id": "cabin_1",
+     "type": "hut",
+     "cat": "building",
+     "kind": "instance"
+    },
+    "point": {
+     "x": 105.268,
+     "y": 0.104,
+     "z": 50.325
+    },
+    "box": {
+     "min": [
+      105.222,
+      0.066,
+      50.252
+     ],
+     "max": [
+      105.324,
+      0.14,
+      50.384
+     ]
+    },
+    "contact": 0.418,
+    "segments": 35,
+    "depth": 0.065,
+    "depthAinB": 0.065,
+    "depthBinA": 0.021,
+    "insideA": 148,
+    "insideB": 4,
+    "volume": 0,
+    "allowed": false,
+    "reason": null,
+    "t": 19,
+    "at": {
+     "x": 105.3,
+     "z": 49.99
+    },
+    "unitState": "active",
+    "speed": 1.8,
+    "firstT": 19,
+    "count": 1
+   },
+   {
+    "key": "m03:dam|greenberet",
+    "a": {
+     "id": "greenberet",
+     "type": "greenberet",
+     "cat": "character",
+     "kind": "commando",
+     "state": "active"
+    },
+    "b": {
+     "id": "dam",
+     "type": "dam",
+     "cat": "bridge",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 44.66,
+     "y": 1.487,
+     "z": 24.963
+    },
+    "box": {
+     "min": [
+      44.355,
+      1.455,
+      24.696
+     ],
+     "max": [
+      45.283,
+      1.531,
+      25.138
+     ]
+    },
+    "contact": 1.465,
+    "segments": 136,
+    "depth": 0.062,
+    "depthAinB": 0.062,
+    "depthBinA": 0,
+    "insideA": 247,
+    "insideB": 0,
+    "volume": 0.001,
+    "allowed": false,
+    "reason": null,
+    "t": 28,
+    "at": {
+     "x": 44.78,
+     "z": 24.93
+    },
+    "unitState": "active",
+    "speed": 2.25,
+    "firstT": 28,
+    "count": 1
+   },
+   {
+    "key": "m03:e21|st_shed",
+    "a": {
+     "id": "e21",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "b": {
+     "id": "st_shed",
+     "type": "hangar",
+     "cat": "building",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 33.758,
+     "y": 0.034,
+     "z": 84.83
+    },
+    "box": {
+     "min": [
+      33.7,
+      0.019,
+      84.731
+     ],
+     "max": [
+      33.796,
+      0.052,
+      84.88
+     ]
+    },
+    "contact": 0.479,
+    "segments": 50,
+    "depth": 0.057,
+    "depthAinB": 0.057,
+    "depthBinA": 0,
+    "insideA": 166,
+    "insideB": 0,
+    "volume": 0,
+    "allowed": false,
+    "reason": null,
+    "t": 132.5,
+    "at": {
+     "x": 33.41,
+     "z": 84.91
+    },
+    "unitState": "active",
+    "speed": 3.8,
+    "firstT": 123,
+    "count": 20
+   },
+   {
+    "key": "m03:st_barr2#0.0.1|st_shed",
+    "a": {
+     "id": "st_barr2#0.0.1",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "b": {
+     "id": "st_shed",
+     "type": "hangar",
+     "cat": "building",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 39.16,
+     "y": 0.938,
+     "z": 84.001
+    },
+    "box": {
+     "min": [
+      39.062,
+      0.818,
+      84
+     ],
+     "max": [
+      39.238,
+      1.239,
+      84.006
+     ]
+    },
+    "contact": 2.295,
+    "segments": 420,
+    "depth": 0.051,
+    "depthAinB": 0.051,
+    "depthBinA": 0,
+    "insideA": 332,
+    "insideB": 0,
+    "volume": 0.001,
+    "allowed": false,
+    "reason": null,
+    "t": 107.5,
+    "at": {
+     "x": 39.16,
+     "z": 84.25
+    },
+    "unitState": "active",
+    "speed": 1.8,
+    "firstT": 107.5,
+    "count": 1
+   }
+  ]
+ },
+ "baseline": {
+  "fresh": [],
+  "gone": []
+ }
+}

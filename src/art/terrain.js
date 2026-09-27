@@ -176,6 +176,7 @@ export function treePlacement(def, theater = 'temperate', k = 0) {
   return {
     species, x: def.x, z: def.z, seed, scale, burnt: !!def.burnt, hero: true,
     leafless: def.variant === 'bare_winter' ? true : undefined,
+    crownBase: def.crownBase, crownR: def.crownR, // placement pruning hints (world/placement.js)
   };
 }
 

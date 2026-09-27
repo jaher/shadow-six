@@ -15,12 +15,13 @@ export default async function view(page, t) {
     const THREE = await import('three');
     const out = { W, D, margin: cc.cfg.boundsMargin || 0, corners: [], shadow: [] };
     const cases = [[1, 0, 0], [1, W, D], [0.55, 30, 30], [2, 47, 30], [1, 12, 30], [0.55, 5, 55]];
-    for (const [z, x, y] of cases) {
+    for (const yaw of [0, 15, 45]) for (const [z, x, y] of cases) {
+      G.cameraRig.setYaw(yaw);
       g.setZoom(z);
       g.centerOn(x, y);
       g.render();
       const fp = cc.groundFootprint(0);
-      out.corners.push({ z, fp: fp.map((p) => [+p.x.toFixed(2), +p.z.toFixed(2)]) });
+      out.corners.push({ z, yaw, over: cc.clampOvershoot(), fp: fp.map((p) => [+p.x.toFixed(2), +p.z.toFixed(2)]) });
       // shadow camera must contain every screen-corner hit at y=0 and y=H
       const cam = R.sun.shadow.camera;
       cam.updateMatrixWorld();
@@ -32,6 +33,7 @@ export default async function view(page, t) {
       }
       out.shadow.push(inside);
     }
+    G.cameraRig.setYaw(15);
     g.setZoom(1);
     g.centerOn(30, 30);
     const stats = {};
@@ -44,10 +46,13 @@ export default async function view(page, t) {
     return { ...out, stats, cones, conesAfter, inOverlay, enemies: G.world.enemies.length };
   });
   t.log(JSON.stringify({ stats: r.stats, shadow: r.shadow, cones: r.conesAfter }));
-  const eps = 0.05 + r.margin; // design-spec §2.3: the view may show up to boundsMargin (4 m) beyond the map edge
   for (const c of r.corners) {
+    // design-spec §2.3: the view may show up to boundsMargin (4 m) beyond the map edge; with yaw the slanted view
+    // corners may overshoot by clampOvershoot() so every map point stays reachable (0 at yaw 0)
+    if (c.yaw === 0) t.equal(c.over, 0, 'yaw 0: no overshoot');
+    const eps = 0.05 + r.margin + c.over;
     for (const [x, z] of c.fp) {
-      t(x >= -eps && x <= r.W + eps && z >= -eps && z <= r.D + eps, `zoom ${c.z}: corner (${x},${z}) within ${r.margin} m of the ${r.W}x${r.D} map`);
+      t(x >= -eps && x <= r.W + eps && z >= -eps && z <= r.D + eps, `yaw ${c.yaw} zoom ${c.z}: corner (${x},${z}) within ${r.margin} m (+${c.over.toFixed(1)}) of the ${r.W}x${r.D} map`);
     }
   }
   r.shadow.forEach((ok, i) => t(ok, `shadow camera covers all corners at y=0..H (case ${i})`));

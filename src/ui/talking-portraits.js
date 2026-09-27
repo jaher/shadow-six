@@ -27,9 +27,64 @@ import { registerPortraitPhoto, getPortraitURL } from '../art/portraits.js';
 export const ROLE_TO_CHAR = Object.freeze({ greenberet: 'green_beret', sniper: 'sniper', diver: 'marine', marine: 'marine', sapper: 'sapper', driver: 'driver', spy: 'spy' });
 /** game voice key -> rendered generic lines usable for it (own-voice mode, and the fallback when text does not match) */
 export const KEY_LINES = Object.freeze({
-  select: ['what_now', 'yes_sir', 'ready'], ack_move: ['on_my_way', 'right_away', 'understood'],
+  select: ['yes_sir', 'ready', 'what_now'], ack_move: ['on_my_way', 'right_away', 'understood'],
   ack_act: ['consider_it_done', 'right_away'], act_kill: ['consider_it_done'], hurt: ['i_m_hit'],
 });
+/** Own-voice anti-spam (s): the same man re-selected inside `select` stays quiet, other lines 0.6 s apart. */
+export const OWN_VOICE_CD = Object.freeze({ select: 3, other: 0.6 });
+/**
+ * Round-robin through a key's rendered lines, starting at the first ('yes_sir' for a selection): never the same
+ * line twice in a row while there is more than one.  @returns {string|null}
+ */
+export function nextLine(names, prev) {
+  if (!names?.length) return null;
+  const i = names.indexOf(prev);
+  return names[i < 0 ? 0 : (i + 1) % names.length];
+}
+const WHO = Symbol('last speaker');
+/** a seek lands a decode later: aim this far past the audio clock so the first frames after it are on time (s) */
+const SEEK_AHEAD = 0.01;
+/**
+ * Cooldown gate for own-voice lines (`last`: Map unit -> {t, key}): a different man always speaks; re-selecting
+ * the man who spoke last waits OWN_VOICE_CD.select, any other line OWN_VOICE_CD.other.  Records the line when it passes.
+ */
+export function ownVoiceGate(last, unit, key, now) {
+  const p = last.get(unit);
+  const cd = p?.key === key && last.get(WHO) === unit ? (OWN_VOICE_CD[key] ?? OWN_VOICE_CD.other) : OWN_VOICE_CD.other;
+  if (p && now - p.t < cd) return false;
+  last.set(unit, { t: now, key }); last.set(WHO, unit);
+  return true;
+}
+/**
+ * Pain reactions (docs/talking-portraits.md §9): `retrigger` = a hit inside this many seconds of the last flinch
+ * does not restart it; `wounded` = hp fraction below which the idle loop is the wounded loop; `pulse` = red edge (s);
+ * `still` = how long the pain still shows in reduced-motion mode (s).
+ */
+export const PAIN = Object.freeze({ retrigger: 0.4, wounded: 0.5, pulse: 0.45, still: 0.7 });
+/** A commando's portrait state: 'dead' | 'downed' (feat/bodies buddy rescue) | 'wounded' (hp < 50 %) | 'ok'. */
+export function painState(u) {
+  if (!u || u.alive === false) return 'dead';
+  if (u.downed || u.state === 'downed') return 'downed';
+  const max = u.maxHp > 0 ? u.maxHp : 100;
+  return (u.hp ?? max) / max < PAIN.wounded ? 'wounded' : 'ok';
+}
+/** Flinch gate (`last`: Map unit -> start time): a new flinch only PAIN.retrigger s after the last one. Records it. */
+export function flinchGate(last, unit, now) {
+  const t = last.get(unit);
+  if (t != null && now - t < PAIN.retrigger) return false;
+  last.set(unit, now); return true;
+}
+/**
+ * The flinch clip for a hit: the one rendered from the grunt being heard (`rec`), else the next in turn
+ * (never the same twice in a row).  @returns {object|null}
+ */
+export function pickFlinch(list, rec, prev) {
+  if (!list?.length) return null;
+  const x = rec && list.find((f) => f.rec === rec);
+  if (x) return x;
+  const i = list.indexOf(prev);
+  return list[(i + 1) % list.length];
+}
 /** mission theater -> portrait grade (design-spec §2.4); night lighting overrides */
 export const THEATER_THEME = Object.freeze({ desert: 'desert', africa: 'desert', snow: 'snow', norway: 'snow', temperate: 'europe', europe: 'europe', night: 'night' });
 /** Portrait grade for a mission def ({theater, lighting}). */
@@ -52,6 +107,14 @@ const CSS = `
 .tp-host .tp-tint{position:absolute;inset:0;background:var(--tp-tint,#000);opacity:var(--tp-a,0);mix-blend-mode:soft-light}
 .tp-host .tp-vig{position:absolute;inset:0;background:radial-gradient(ellipse 72% 78% at 50% 42%,transparent 55%,rgba(10,7,4,.55) 100%);box-shadow:inset 0 0 0 1px rgba(236,208,138,.22),inset 0 0 6px rgba(0,0,0,.7)}
 .hud-portrait:not(.selected) .tp-host video{filter:var(--tp-f,none) grayscale(1) brightness(.8)}
+.tp-host img.tp-still{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 28%;filter:var(--tp-f,none);opacity:0;transition:opacity .08s}
+.tp-host img.tp-still.on{opacity:1}
+.hud-portrait:not(.selected):not(.tp-talking) .tp-host img.tp-still{filter:var(--tp-f,none) grayscale(1) brightness(.8)}
+.tp-host .tp-pulse{position:absolute;inset:0;opacity:0;pointer-events:none;box-shadow:inset 0 0 0 2px rgba(214,38,26,.95),inset 0 0 12px 2px rgba(190,20,10,.75)}
+.tp-host.tp-hit .tp-pulse{animation:tp-hit .45s ease-out}
+@keyframes tp-hit{0%{opacity:1}100%{opacity:0}}
+.tp-host.tp-hit.tp-rm .tp-pulse{animation:none;opacity:1}
+@media (prefers-reduced-motion:reduce){.tp-host.tp-hit .tp-pulse{animation:none;opacity:1}}
 `;
 // keep the HUD's skull / state glyph above the video host (the slot is the last child of .face)
 const CSS_Z = '.hud-portrait-slot{z-index:0}.hud-portrait .skull,.hud-portrait .glyph{z-index:1}' +
@@ -59,7 +122,9 @@ const CSS_Z = '.hud-portrait-slot{z-index:0}.hud-portrait .skull,.hud-portrait .
   '.hud-speaker-card .tp-host{z-index:0}.hud-speaker-card .name{z-index:1}' +
   '.tp-on .hud-portrait .mouth,.tp-on .hud-speaker-card .mouth{display:none}' +
   // stills while no clip is on screen: the same grade as the video (theme set on the HUD root)
-  '.tp-on .hud-portrait.selected .face img,.tp-on .hud-speaker-card img{filter:var(--tp-f,none)}';
+  '.tp-on .hud-portrait.selected .face img,.tp-on .hud-speaker-card img{filter:var(--tp-f,none)}' +
+  // a man who is talking is in colour in the top-left strip, selected or not
+  '.hud-portrait.tp-talking .tp-host video{filter:var(--tp-f,none)}';
 
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, ' ').trim();
 const TYPES = { webm: 'video/webm; codecs="vp9"', mp4: 'video/mp4; codecs="avc1.4D401E"' };
@@ -87,7 +152,8 @@ export class TalkingPortraits {
     this.slots = new Map();     // unit -> {char, host, idle}
     this.card = null;           // {host, line} in the speaker card
     this.cur = null;            // current line playback
-    this._subs = []; this._lastSay = new Map();
+    this._subs = []; this._lastSay = new Map(); this._lastLine = new Map();
+    this._flinchAt = new Map(); this._painRec = new Map(); this._lastFlinch = new Map();   // pain (§9)
   }
 
   /** Fetch the manifest and preload the clips of `units` (the mission's commandos). Resolves false on any failure. */
@@ -142,6 +208,7 @@ export class TalkingPortraits {
   }
 
   url(path) { const p = path.replace('{size}', String(this.size)); return this.base + p; }
+  stillURL(path) { const u = this.url(path); return this.blobs.get(u) || u; }
   clipURL(entry) { const u = this.url(entry.clip) + '.' + this.fmt; return this.blobs.get(u) || u; }
 
   async _blob(u) {
@@ -152,9 +219,10 @@ export class TalkingPortraits {
 
   async _preload(c) {
     const e = this.man.characters[c], jobs = [];
-    const clips = [e.idle, e.talk_loop, ...Object.values(e.lines).flatMap((l) => [l, l.alt])];
+    const clips = [e.idle, e.talk_loop, ...Object.values(e.lines).flatMap((l) => [l, l.alt]), ...(e.pain?.flinch || []), e.pain?.wounded];
     for (const x of clips) if (x) jobs.push(this._blob(this.url(x.clip) + '.' + this.fmt).catch(() => { /* streams instead */ }));
-    if (this.ownVoice) for (const x of Object.values(e.lines)) jobs.push(this._voice(x));
+    for (const k of ['still', 'downed']) if (e.pain?.[k]) jobs.push(this._blob(this.url(e.pain[k])).catch(() => {}));
+    if (this.ownVoice) for (const x of [...Object.values(e.lines), ...(e.pain?.flinch || [])]) jobs.push(this._voice(x));
     await Promise.all(jobs);
   }
 
@@ -175,9 +243,11 @@ export class TalkingPortraits {
     const mk = () => { const v = document.createElement('video'); v.muted = true; v.defaultMuted = true; v.playsInline = true;
       v.setAttribute('muted', ''); v.setAttribute('playsinline', ''); v.preload = 'auto'; v.disablePictureInPicture = true; host.appendChild(v); return v; };
     const idle = mk(), line = mk();
-    for (const k of ['tp-tint', 'tp-vig']) { const d = document.createElement('div'); d.className = k; host.appendChild(d); }
+    const still = document.createElement('img'); still.className = 'tp-still'; still.alt = ''; host.appendChild(still);   // pain / downed stills
+    let pulse = null;
+    for (const k of ['tp-tint', 'tp-vig', 'tp-pulse']) { const d = document.createElement('div'); d.className = k; host.appendChild(d); if (k === 'tp-pulse') pulse = d; }
     parent.appendChild(host);
-    return { host, idle, line };
+    return { host, idle, line, still, pulse };   // pulse: the red edge shown on a hit (.tp-hit)
   }
 
   _attach(unit, char) {
@@ -194,7 +264,7 @@ export class TalkingPortraits {
       img.addEventListener('error', () => { if (img.src !== stub) img.src = stub; }, { once: true });
       img.src = h.idle.poster;
     }
-    this.slots.set(unit, { char, img, ...h });
+    this.slots.set(unit, { char, img, ...h, state: painState(unit) });
   }
 
   _attachCard() {
@@ -225,11 +295,16 @@ export class TalkingPortraits {
     on('unit:selected', (e) => this._selected(e));
     on('unit:killed', (e) => {
       const s = this.slots.get(e.unit); if (!s) return;
-      s.idle.pause(); s.host.hidden = true;
+      s.idle.pause(); s.host.hidden = true; s.state = 'dead';
       if (this.cur?.unit === e.unit && this.cur.entry?.rec !== 'i_m_hit') this._stop(true);
     });
     // read the bark after every synchronous handler ran (the audio system stamps text/duration in its own handler)
-    on('bark', (e) => queueMicrotask(() => this._bark(e)));
+    on('bark', (e) => { if (e?.line === 'pain' && e.unit) this._painRec.set(e.unit, e.rec || null); queueMicrotask(() => this._bark(e)); });
+    // pain (§9): the hit man's portrait flinches at once (after the audio system picked his grunt, same tick)
+    on('unit:damaged', (e) => queueMicrotask(() => this._hit(e)));
+    on('unit:downed', (e) => this._refresh(e?.unit));      // feat/bodies buddy rescue (no-op without it)
+    on('unit:revived', (e) => this._refresh(e?.unit));
+    on('ability:end', () => this._refreshAll());           // first aid / revive healed someone
     if (this.ownVoice) {
       on('unit:selected', (e) => { const u = e.units?.[0]; if (u && e.units.length === 1 && !e.silent) this._sayOwn(u, 'select'); });
       on('unit:order', (e) => { const o = e.order || {}; this._sayOwn(e.unit, o.type === 'move' ? 'ack_move' : 'ack_act'); });
@@ -238,11 +313,82 @@ export class TalkingPortraits {
 
   _selected(e) {
     const first = (e?.units || [])[0];
-    for (const [u, s] of this.slots) {
-      if (u === first && u.alive !== false) { if (s.idle.src !== this.clipURL(this.man.characters[s.char].idle)) s.idle.src = this.clipURL(this.man.characters[s.char].idle); s.idle.play().catch(() => {}); }
-      else if (!s.idle.paused) s.idle.pause();
-      if (!s.idle.src) s.idle.src = this.clipURL(this.man.characters[s.char].idle);   // shows the first frame (poster)
-    }
+    this._sel = first;
+    for (const [u, s] of this.slots) { if (s.state !== 'dead') s.state = painState(u); this._applyIdle(u, s); }
+  }
+
+  /** The man's idle clip: the wounded loop below PAIN.wounded hp (when rendered), else the normal idle. */
+  _idleEntry(s) { const e = this.man.characters[s.char]; return (s.state === 'wounded' && e.pain?.wounded) || e.idle; }
+
+  /**
+   * Idle / still for one slot: only the first selected man's idle loop plays (at most one idle decode); the others
+   * show its first frame.  A downed man shows his downed still (eyes half-closed) over it; the static face below
+   * (what shows before a clip decodes, or when clips fail) follows the same state.
+   */
+  _applyIdle(u, s) {
+    const x = this._idleEntry(s), src = this.clipURL(x);
+    if (s.idleSrc !== src) { s.idleSrc = src; s.idle.poster = this.url(x.clip) + '.jpg'; s.idle.src = src; }
+    if (u === this._sel && u.alive !== false && s.state !== 'downed' && !this._still()) s.idle.play().catch(() => {});
+    else if (!s.idle.paused) s.idle.pause();
+    const pn = this.man.characters[s.char].pain;
+    const down = s.state === 'downed' && pn?.downed ? this.stillURL(pn.downed) : null;
+    if (down) { s.still.src = down; s.still.classList.add('on'); } else if (!s.painUntil) s.still.classList.remove('on');
+    if (s.img) { const want = down || s.idle.poster; if (s.img.getAttribute('src') !== want) s.img.src = want; }
+  }
+
+  /** Re-read one man's state (hit, healed, downed, revived) and swap his idle / still when it changed. */
+  _refresh(u) {
+    const s = u && this.slots.get(u);
+    if (!s || !this.ok || s.state === 'dead') return;
+    const st = painState(u);
+    if (st === s.state) return;
+    s.state = st;
+    if (st !== 'dead') this._applyIdle(u, s);
+  }
+
+  _refreshAll() { for (const u of this.slots.keys()) this._refresh(u); }
+
+  /**
+   * 'unit:damaged' on a commando: his top-left portrait flinches at once (the flinch clip rendered from the grunt
+   * the audio system is playing, else the next variant), in colour, with a red edge pulse.  A hit inside
+   * PAIN.retrigger s of the last flinch does not restart it.  Reduced motion: the pain still instead of video.
+   */
+  _hit(e) {
+    const u = e?.unit, s = u && this.slots.get(u);
+    if (!this.ok || !s) return;
+    const rec = this._painRec.get(u); this._painRec.delete(u);
+    this._refresh(u);
+    if (u.alive === false || (u.hp ?? 1) <= 0 || s.state === 'downed' || s.host.hidden) return;   // skull / downed still
+    if (!flinchGate(this._flinchAt, u, this._now())) return;
+    this._pulse(s);
+    const f = pickFlinch(this.man.characters[s.char].pain?.flinch, rec, this._lastFlinch.get(u));
+    if (!f) return;
+    this._lastFlinch.set(u, f);
+    if (this._still()) return this._painStill(s);
+    this._play(u, s.char, { ...f, lead: 0, pain: true }, { dur: f.voice_seconds });
+    this._voiceOnly(f, this.ownVoice);                    // own-voice mode: the grunt too (the game's audio does it otherwise)
+  }
+
+  /** Wall clock (s) for the flinch gate (the game can hit a man while the audio clock is suspended). */
+  _now() { return performance.now() / 1000; }
+
+  /** Red edge pulse on the slot (restarts on every hit that flinches). */
+  _pulse(s) {
+    const h = s.host; h.classList.remove('tp-hit'); void h.offsetWidth; h.classList.add('tp-hit');
+    if (this._still()) h.classList.add('tp-rm'); else h.classList.remove('tp-rm');   // reduced motion: a static red edge
+    clearTimeout(s.pulseT); s.pulseT = setTimeout(() => h.classList.remove('tp-hit'), PAIN.pulse * 1000);
+  }
+
+  /** Reduced motion: the flinch-peak still, in colour, for PAIN.still s. */
+  _painStill(s) {
+    const pn = this.man.characters[s.char].pain; if (!pn?.still) return;
+    const face = s.host.closest?.('.hud-portrait');
+    s.still.src = this.stillURL(pn.still); s.still.classList.add('on'); face?.classList.add('tp-talking');
+    s.painUntil = true; clearTimeout(s.stillT);
+    s.stillT = setTimeout(() => {
+      s.painUntil = false; face?.classList.remove('tp-talking');
+      if (s.state !== 'downed') s.still.classList.remove('on');
+    }, PAIN.still * 1000);
   }
 
   _charOf(e) { return ROLE_TO_CHAR[e?.speaker] || ROLE_TO_CHAR[e?.unit?.role] || null; }
@@ -268,6 +414,7 @@ export class TalkingPortraits {
 
   _bark(e) {
     if (!this.ok || !e || e.suppressed || e.unit?.kind === 'enemy' || e.unit?.faction === 'enemy') return;
+    if (e.line === 'pain') return;                                             // the grunt: the flinch (unit:damaged) shows it
     const char = this._charOf(e); if (!char || !this.man.characters[char]) return;
     if (e.unit && e.unit.alive === false && e.line !== 'death') return;
     const exact = this.entryFor(char, e);
@@ -283,50 +430,65 @@ export class TalkingPortraits {
 
   _sayOwn(unit, key) {
     const char = ROLE_TO_CHAR[unit?.role]; if (!this.ok || !char || unit.alive === false) return;
-    const now = this._clock(), last = this._lastSay.get(unit) ?? -9;
-    if (now - last < 0.6) return; this._lastSay.set(unit, now);
-    const names = (KEY_LINES[key] || []).filter((n) => this.man.characters[char].lines[n]);
-    if (!names.length) return;
-    const n = names[Math.floor(Math.random() * names.length)];
-    this._play(unit, char, this.man.characters[char].lines[n], { voice: true });
+    const now = this._clock();
+    if (!ownVoiceGate(this._lastSay, unit, key, now)) return;
+    const lines = this.man.characters[char].lines;
+    const names = (KEY_LINES[key] || []).filter((n) => lines[n]);
+    const rk = `${char}|${key}`, n = nextLine(names, this._lastLine.get(rk));
+    if (!n) return;
+    this._lastLine.set(rk, n);
+    this._play(unit, char, lines[n], { voice: true });
   }
 
   /**
-   * Play `entry` (a rendered line) or, when null, the generic talk loop for `dur` s, on the speaker card
-   * (or the unit's slot when the HUD has no card). The clip follows the audio clock: it is seeked so that
+   * Play `entry` (a rendered line) or, when null, the generic talk loop for `dur` s, in the speaker's own top-left
+   * portrait slot (mirrored on the speaker card while the HUD shows it; card only for a man without a slot). The
+   * portrait turns to colour while he talks, then fades back to his idle loop / still. The clip follows the audio clock: it is seeked so that
    * clip time `lead` coincides with the voice onset, and requestVideoFrameCallback corrects drift.
    */
   _play(unit, char, entry, { voice = false, dur = 1 } = {}) {
-    const h = this.card || this.slots.get(unit); if (!h) return;
-    if (h === this.card && this.hud?.topbar?.card?.hidden) return;   // the HUD chose not to show a card (laconic)
-    const e = this.man.characters[char], v = h.line;
+    // the man's own top-left portrait talks; the speaker card (when the HUD shows it) mirrors the same clip
+    const slot = this.slots.get(unit);
+    const card = this.card && !this.hud?.topbar?.card?.hidden ? this.card : null;   // hidden card: laconic HUD
+    const h = slot && !slot.host.hidden ? slot : card; if (!h) return;
+    const e = this.man.characters[char];
     this._stop(true);
     const clip = entry || e.talk_loop; if (!clip) return;
+    if (this._still()) return this._voiceOnly(entry, voice);                     // reduced motion: the still stays
+    const vs = [h.line, ...(card && card !== h ? [card.line] : [])], v = vs[0];
     const PRE = voice ? 0.12 : 0;                         // own voice: keep 120 ms of lip anticipation before onset
     const lead = entry ? (entry.lead ?? this.man.lead ?? 0.35) : 0;
     const seek = Math.max(0, lead - PRE);
     const len = entry ? (entry.voice_seconds || dur) : dur;
-    v.loop = !entry; v.src = this.clipURL(clip);
+    const src = this.clipURL(clip);
+    for (const x of vs) { x.loop = !entry; if (x.src !== src) x.src = src; }
     const clk = this._clockFn();
     const t0 = clk() + PRE;                              // voice onset on the audio clock
-    if (voice && entry && this.ctx) {
-      const buf = this.voices.get(entry.voice);
-      if (buf) {
-        if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
-        const src = this.ctx.createBufferSource(); src.buffer = buf; src.connect(this.ctx.destination);
-        src.start(this.ctx.currentTime + PRE); this._src = src;
-      }
-    }
-    const cur = this.cur = { h, v, t0, lead, end: t0 + len + 0.3, loop: !entry, clk, unit, entry };
+    this._voiceOnly(entry, voice);
+    const face = h === slot ? slot.host.closest?.('.hud-portrait') : null;
+    face?.classList.add('tp-talking');                   // in colour while he speaks, even when not selected
+    const cur = this.cur = { h, v, vs, face, t0, lead, end: t0 + len + 0.3, loop: !entry, clk, unit, entry };
     // safety net: end the line on wall time too (a stalled / throttled video never calls back)
     cur.timer = setTimeout(() => { if (this.cur === cur) this._stop(); }, (len + 0.3 + PRE) * 1000 + 400);
-    const start = () => {
+    const go = (x) => {
       if (this.cur !== cur) return;
-      v.currentTime = seek;
-      v.playbackRate = 1;
-      v.play().then(() => { if (this.cur === cur) { v.classList.add('on'); this._track(cur); } }).catch(() => this._stop());
+      x.currentTime = seek; x.playbackRate = 1;
+      x.play().then(() => { if (this.cur !== cur) return; x.classList.add('on'); if (x === v) this._track(cur); })
+        .catch(() => { if (x === v) this._stop(); });
     };
-    if (v.readyState >= 1) start(); else v.addEventListener('loadedmetadata', start, { once: true });
+    for (const x of vs) { if (x.readyState >= 1) go(x); else x.addEventListener('loadedmetadata', () => go(x), { once: true }); }
+  }
+
+  /** Reduced-motion option (HUD menu kit: 'on' or the OS setting): portraits keep their still. */
+  _still() { return !!this.hud?.kit?.reducedMotion; }
+
+  /** Own-voice mode: start the rendered voice take `PRE` s from now on our AudioContext. */
+  _voiceOnly(entry, voice) {
+    if (!(voice && entry && this.ctx)) return;
+    const buf = this.voices.get(entry.voice); if (!buf) return;
+    if (this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
+    const src = this.ctx.createBufferSource(); src.buffer = buf; src.connect(this.ctx.destination);
+    src.start(this.ctx.currentTime + 0.12); this._src = src;
   }
 
   /** drift correction against the audio clock + end of line */
@@ -336,9 +498,16 @@ export class TalkingPortraits {
       const now = cur.clk();
       if (now >= cur.end) return this._stop();
       if (!cur.loop) {
-        const drift = cur.v.currentTime - this._expected(cur, now);
-        if (Math.abs(drift) > 0.1) cur.v.currentTime = this._expected(cur, now);
-        else cur.v.playbackRate = Math.abs(drift) > 0.02 ? Math.min(1.08, Math.max(0.92, 1 - drift * 2)) : 1;
+        for (const v of cur.vs) {
+          if (v.paused) continue;
+          const drift = v.currentTime - this._expected(cur, now);
+          // > 30 ms off (typically the start-up lag of play()): seek, at most every 250 ms so a seek can land;
+          // smaller drift is nudged with the playback rate
+          const sk = cur.seekAt || (cur.seekAt = new Map());
+          if (Math.abs(drift) > 0.03 && now - (sk.get(v) ?? -1e9) >= 0.25) {
+            v.currentTime = this._expected(cur, now) + SEEK_AHEAD; v.playbackRate = 1; sk.set(v, now);
+          } else v.playbackRate = Math.abs(drift) > 0.015 ? Math.min(1.08, Math.max(0.92, 1 - drift * 2)) : 1;
+        }
       }
       if (cur.v.requestVideoFrameCallback) cur.v.requestVideoFrameCallback(step); else requestAnimationFrame(step);
     };
@@ -354,9 +523,11 @@ export class TalkingPortraits {
     if (cur?.timer) clearTimeout(cur.timer);
     if (this._src && immediate) { try { this._src.stop(); } catch { /* already ended */ } this._src = null; }
     if (!cur) return;
-    cur.v.classList.remove('on');
-    const v = cur.v;
-    setTimeout(() => { if (!this.cur || this.cur.v !== v) v.pause(); }, immediate ? 0 : 160);
+    cur.face?.classList.remove('tp-talking');
+    for (const v of cur.vs || [cur.v]) {
+      v.classList.remove('on');
+      setTimeout(() => { if (!this.cur?.vs?.includes(v)) v.pause(); }, immediate ? 0 : 160);
+    }
   }
 
   /** Is a line clip on screen? (tests / HUD placeholder suppression) */

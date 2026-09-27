@@ -1,0 +1,49 @@
+<!doctype html><html><head><meta charset="utf-8"><title>vehtest</title>
+<style>body{margin:0;background:#777}</style>
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script></head>
+<body><script type="module">
+import * as THREE from 'three';
+import { loadVehicleLibrary, createVehicleVisual, setVehicleZoom, preloadVehicles } from './src/art/vehicle-library.js';
+const Q = new URLSearchParams(location.search);
+const list = (Q.get('list') || 'kubelwagen').split(',');
+const theater = Q.get('theater') || 'temperate', zoom = +(Q.get('zoom') || 1), ppm = 40 * zoom;
+const W = +(Q.get('w') || 1000), H = +(Q.get('h') || 700);
+window.__errors = []; addEventListener('error', (e) => window.__errors.push(String(e.message)));
+const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(W, H); r.shadowMap.enabled = true; document.body.appendChild(r.domElement);
+r.toneMapping = THREE.ACESFilmicToneMapping; r.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(theater === 'snow' ? 0xdfe3e6 : theater === 'desert' ? 0xc9b48a : 0x7d8a63);
+const g = new THREE.Mesh(new THREE.PlaneGeometry(2000, 2000), new THREE.MeshStandardMaterial({ color: scene.background })); g.rotation.x = -Math.PI / 2; g.receiveShadow = true; scene.add(g);
+scene.add(new THREE.HemisphereLight(0xdde8ff, 0x554433, 1.2));
+const sun = new THREE.DirectionalLight(0xfff2dd, 2.6); sun.position.set(30, 60, 40); sun.castShadow = true;
+Object.assign(sun.shadow.camera, { left: -80, right: 80, top: 80, bottom: -80, far: 300 }); sun.shadow.mapSize.set(4096, 4096); scene.add(sun); scene.add(sun.target);
+const cam = new THREE.OrthographicCamera(-W / 2 / ppm, W / 2 / ppm, H / 2 / ppm, -H / 2 / ppm, -500, 1000);
+const pitch = +(Q.get('pitch') || 40) * Math.PI / 180, yaw = +(Q.get('yaw') || 20) * Math.PI / 180;
+await loadVehicleLibrary(null, { base: 'assets/' });
+setVehicleZoom(zoom);
+const hs = [];
+for (const t of list) {
+  const [type, flag] = t.split(':');
+  const h = createVehicleVisual(type, { theater, seed: 1, destroyed: flag === 'd' });
+  if (!h) { window.__errors.push('no visual ' + type); continue; }
+  hs.push(h); scene.add(h.object3d);
+}
+await Promise.all(hs.map((h) => h.ready));
+const gap = 1.5, maxW = W / ppm * 0.95; let x = 0, z = 0, rowD = 0; const rows = [[]];
+for (const h of hs) {
+  h.object3d.rotation.y = +(Q.get('rot') || 0) * Math.PI / 180; h.object3d.updateMatrixWorld(true);
+  const b = new THREE.Box3().setFromObject(h.object3d); const w = b.max.x - b.min.x, d = b.max.z - b.min.z;
+  if (x + w > maxW && x > 0) { x = 0; z += rowD + gap; rowD = 0; rows.push([]); }
+  h.object3d.position.set(x - b.min.x, 0, z - b.min.z); x += w + gap; rowD = Math.max(rowD, d); rows[rows.length - 1].push([h, x]);
+}
+for (const r of rows) { const wx = r[r.length - 1][1] / 2; for (const [h] of r) h.object3d.position.x -= wx; }
+const zc = (z + rowD) / 2; for (const h of hs) h.object3d.position.z -= zc;
+if (Q.get('anim')) for (const h of hs) {
+  for (const n of ['door_fl', 'hatch_driver', 'hatch_commander', 'canopy', 'door_l']) h.setPart(n, 1);
+  for (let i = 0; i < 30; i++) h.update(1 / 30, { speed: 3, steer: 0.8, turretYaw: +(Q.get('ty') ?? 0.7), gunPitch: +(Q.get('gp') ?? 0.3), engine: true });
+}
+const tgt = new THREE.Vector3(0, 1, 0);
+cam.position.set(tgt.x + Math.sin(yaw) * Math.cos(pitch) * 200, tgt.y + Math.sin(pitch) * 200, tgt.z + Math.cos(yaw) * Math.cos(pitch) * 200); cam.lookAt(tgt);
+r.render(scene, cam);
+const info = hs.map((h) => ({ asset: h.asset, paint: h.paint, model: h.model, destroyed: h.destroyed, parts: Object.keys(h.parts).length, sockets: Object.keys(h.sockets).length, emitters: h.emitters.length, contacts: h.contacts.length }));
+window.__info = info; window.__done = true;
+</script></body></html>

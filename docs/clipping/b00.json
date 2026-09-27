@@ -1,0 +1,70 @@
+{
+ "mission": "b00",
+ "date": "2026-09-27T19:02:13.444Z",
+ "static": {
+  "mission": "b00",
+  "items": 39,
+  "categories": {
+   "building": 1,
+   "prop": 9,
+   "fence": 1,
+   "gate": 1,
+   "character": 26,
+   "vehicle": 1
+  },
+  "pairsTested": 2,
+  "ms": 136,
+  "findings": []
+ },
+ "turrets": {
+  "mission": "b00",
+  "turrets": 0,
+  "findings": []
+ },
+ "turretProbe": {
+  "spots": 34,
+  "tests": 44,
+  "findings": []
+ },
+ "floating": {
+  "tested": 10,
+  "findings": []
+ },
+ "dynamic": {
+  "mission": "b00",
+  "t": 180,
+  "samples": 360,
+  "kills": [
+   {
+    "id": "ostrich1",
+    "t": 60,
+    "x": 43.83,
+    "z": 50.77
+   },
+   {
+    "id": "dog1",
+    "t": 60,
+    "x": 50.97,
+    "z": 44.19
+   },
+   {
+    "id": "pack_guard",
+    "t": 120,
+    "x": 47.45,
+    "z": 50.89
+   },
+   {
+    "id": "snitch1",
+    "t": 120,
+    "x": 45.85,
+    "z": 49.7
+   }
+  ],
+  "notes": [],
+  "findings": []
+ },
+ "baseline": {
+  "fresh": [],
+  "gone": []
+ }
+}

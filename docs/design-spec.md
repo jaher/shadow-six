@@ -99,6 +99,7 @@
 
 ### 2.1 Projection
 - **Camera.** `THREE.OrthographicCamera` with **pitch 40° below horizontal** and **yaw 0°**: map axes align with the screen, and north is up. This is BEL's projection: screen x equals map x, and screen y equals map y × sin 40° [data: open-commandos `g_sin40`, gap-8 §3].
+  **Amended:** the default yaw is now **+15°** (`CONFIG.camera.yawDeg`; Options → CAMERA ANGLE: CLASSIC 0° / TILTED 15° / ISOMETRIC 45°, persisted) so axis-aligned buildings show a sliver of their shaded east side instead of a flat front elevation. The sun stays compass-fixed (NW). Panning, edge scroll and middle-drag stay screen-relative. The bounds clamp keeps every map point reachable with the 4 m margin, and the slanted view corners may show ground past it when the player scrolls hard into an edge (at the corner limit up to about (2 m + max(half-view width, half-view depth)·sin 2·yaw)/(cos yaw + sin yaw): 8 m at 1× and 15 m at 0.5× on a 1280×720 window at 15°; `CameraController.clampHalfExtents`). A scroll that meets the limit slides along it. Recentres, unit tracking, the briefing tour and a CAMERA ANGLE change keep the view void-free (4 m margin only) unless the point they aim at needs the loose limit (`focusTarget`). The notebook map stays north-up and draws the view as a rotated rectangle.
   - Position: `cam = target + d·(0, sin 40°, cos 40°)`, then `lookAt(target)`, with d = 200 m.
   - Buildings are rotated in the mission data, not by the camera. Most BEL buildings sit about 45° to the screen, so their walls read at about ±32.5° [measured].
   - **No rotation**: BEL had none.
@@ -1102,6 +1103,7 @@ Every button has a hover state (BEL's `M_` sprites).
 - When a commando barks (§9.4), his top-bar face plays a lip-synced clip, or a real-time head driven by visemes.
 - An optional **speaker card** (96×72 ref px) under the portrait slot shows the same face larger for the line's duration + 0.5 s.
 - Laconic mode suppresses acknowledgement barks and therefore the animations.
+- **Pain (user request, 2026-09-27):** a hit commando's portrait shows pain at once (<150 ms): a flinch clip (brows down, eyes squeezed, teeth-clenched grimace, small head jerk, partial recovery) with a short grunt in his own voice, in colour, with a brief red edge pulse on the slot. It interrupts select/ack lines; hits inside 0.4 s do not restart it; his "I'm hit!" (itself rendered with a grimace) may follow once the grunt has ended, never over it. Below 50 % hp his idle is a wounded loop (strained, heavier breathing, an occasional wince); a DOWNED man (buddy rescue) shows a half-closed-eyes still; death keeps the skull. Reduced motion shows a pain still; muted voice still flinches. Details: `talking-portraits.md` §9.
 
 ### 6.4 Right column (36 ref px strap, top-anchored notebook, bottom-anchored hand and knapsack)
 
@@ -1301,6 +1303,18 @@ extraction: { vehicleId, exit:{x,z,r}, spawnWhen:[objectiveIds] }
 
 - Mission briefings, TA text and notebook hints are **our own wording**.
 - Objective and hint *content* follows the research; the original strings are not copied.
+- **Layout rule: structures run parallel to their enclosure** (BEL look; matters with the 15° camera yaw). Fuel /
+  storage / water tanks and cisterns (tank pairs and rows) are **strict**: their `rot` is the angle of the fence /
+  wall / palisade they stand in or by (within 12 m; otherwise the nearest road / pavement edge within 10 m) modulo
+  90°, within 2°, and so is anything tagged `align: 'fence'`. Every other building is an **aesthetic call**: align it
+  where that makes the compound read orderly (a long barracks along its wall, a sentry box at the gate, a garrison
+  beside the palisade), keep its own angle where that looks better (villages, rural cabins, a grid of huts, a
+  building facing the gate or the camera). Avoid near-misses: 3–15° off the neighbouring fence reads as a mistake,
+  so make it parallel or clearly different (≥ ~20°). Among the four parallel rotations pick the one whose door /
+  facade faces the yard, gate approach or street (the camera when unsure). `src/missions/alignment.js` checks it;
+  `node tools/layout/align-report.mjs` lists STRICT violations and advisory near-misses; `tests/unit/alignment.test.mjs`
+  enforces the strict set (and no near-misses) for the missions in its `ENFORCED` list. `alignFree: '<reason>'`
+  opts a structure out.
 
 ### 7.4 Mission 1: *Baptism of Fire* (buildable layout)
 
@@ -1355,7 +1369,7 @@ extraction: { vehicleId, exit:{x,z,r}, spawnWhen:[objectiveIds] }
 | `jetty_s` | pier | 32 | 99 | 270 | 2.5 × 7 | **Rendezvous** jetty on the south shore |
 | `house_s` | house (`timber_2storey`, snowy roof) | 30.5 | 113 | 0 | 10 × 8 × 7 | Not enterable |
 | `wall_s` | wall (`stone_plank_roof`) | points (25.5,117) (21,125) (17.5,132) | | | width 0.6, h 1.8 | **`climbable:true`** (GB) |
-| `sbox` | hut (`sentry_box`) | 16.5 | 134 | 0 | 1.6 × 1.6 × 2.4 | |
+| `sbox` | hut (`sentry_box`) | 16.5 | 134 | 26.6 | 1.6 × 1.6 × 2.4 | Square to the end of `wall_s` (its gate post) |
 | `debris` | crates (`timber_debris`) | 27 | 127 | 30 | 3 × 2 × 1 | `B.LOW` |
 | `rubble` | ruins (`rubble`) | 9.5 | 150.5 | 0 | 3.5 × 2 × 1.0 | `B.LOW` (e6 stands "behind rubble") |
 | `rocks_drv` | rocks | 57 | 150 | 0 | 7 × 4 × 2.5 | `B.HIGH`: hides the Driver's start |
@@ -1461,13 +1475,13 @@ extraction: { vehicleId, exit:{x,z,r}, spawnWhen:[objectiveIds] }
 | `walk_sw` | (wall walkway, part of `camp_wall`) | 28.5 | 43.2 | | y 2.2 | Elevated standing spot for e5. Bodies and prone men on it are hidden from the camp interior (§4.7 deck-edge rule) |
 | `gate_se` | gate (`barrier_boom`) | 56 | 48.8 | 317 | opening 4 m | Operable (raise) and rammable at fast speed |
 | `sbox_se` | hut (`sentry_box`) | 54.4 | 52.3 | 317 | 1.6 × 1.6 | Just outside the gate on the SW verge of T4, clear of the straight truck line start → gate → exit (was (60,53), on the road: blocked the escape) |
-| `barr_camp` | barracks (`log_garrison`) + flag | 40 | 24 | 0 | 12 × 6 × 4.5 | **Garrison**, pool 10; **jail** |
-| `cab1` | hut (`log_cabin`) | 26 | 36 | 0 | 5 × 4 × 3.5 | |
-| `depot_a` / `depot_b` | fueltank (`horizontal_cradle`) | 52 / 56.5 | 32 / 36.5 | 0 | 9 × 3.4 × 3.5 | **Objective**, `bombOnly:false` (bomb or barrel) |
+| `barr_camp` | barracks (`log_garrison`) + flag | 37.74 | 24.01 | 318.5 | 12 × 6 × 4.5 | **Garrison**, pool 10; **jail**. Runs along the NW edge (−41.5°), clear of p3's N-corner leg |
+| `cab1` | hut (`log_cabin`) | 29.26 | 36.77 | 219.8 | 5 × 4 × 3.5 | Parallel to the SW edge, door to the yard |
+| `depot_a` / `depot_b` | fueltank (`horizontal_cradle`) | 49.64 / 57.21 | 27.94 / 34.47 | 40.8 | 9 × 3.4 × 3.5 | **Objective**, `bombOnly:false` (bomb or barrel). End to end along the NE edge (strict alignment rule, §7.3) |
 | `t1` / `t2` | watchtower (`timber_mg`) | 30 / 56 | 20.6 / 22.1 | 228 / 311 | 3 × 3, deck at 5.5 m | Each with an MG gunner facing **outward** |
-| `crates1` | crates | 46 | 48 | 0 | 2 × 2 × 1.2 | `B.LOW` |
+| `crates1` | crates | 46 | 48 | 317.4 | 2 × 2 × 1.2 | `B.LOW`; parallel to the SE edge |
 | barrels | barrels (`fuel_explosive`) | (25,33) (26,33) (48.5,36.2) (49.4,36.8) | | | | 4 barrels |
-| `barr_out` | barracks (`log_garrison`) + flagpole | 76 | 38 | 0 | 6 × 8 × 4 | **Garrison**, pool 5. The E-corner charge (within 6.75 m) razes it |
+| `barr_out` | barracks (`log_garrison`) + flagpole | 73.26 | 39.18 | 47.4 | 6 × 8 × 4 | **Garrison**, pool 5; parallel to the SE edge. The E-corner charge (within 6.75 m) razes it |
 | `rocks_n1..3` | rocks | (22,40.5) · (34,51) · (41,55.5) | | | 4×2.5×2.2 · 4×2.5×2.2 · 3×2×2 | Between the SW wall and the river: cover |
 | `islet1` / `islet2` | rocks + pine (island) | (24,58.5) / (48,78) | | | r 2.2 / r 2 | In the river |
 | `sw_wall` | wall (`palisade`) | S side (28,97)–(10,97) and (6,97)–(1,97); W side (1,97)–(1,70); N side (1,70)–(28,70); E side (28,70)–(28,76) and (28,80)–(28,97) | | | h 2.2 | SW settlement. **Openings:** S at x 6–10; E at z 76–80 |
@@ -1478,7 +1492,7 @@ extraction: { vehicleId, exit:{x,z,r}, spawnWhen:[objectiveIds] }
 
 | id | Type | Position / route | Notes |
 |---|---|---|---|
-| `truck` | truck | (50, 44), heading 39 | Faces the gate; **escape vehicle** |
+| `truck` | truck | (50, 44), heading 47.4 | Faces the gate, square to the SE edge; **escape vehicle** |
 | `pboat` | patrol boat | PINGPONG (1,36.8) wait 15 → (18,50) → (36,64) → (52,78) → (66,95) wait 15, at **2.5 m/s** | Crew: `mg` gunner (vision `mg`, sweep 60, giro 180, facing travel). Engine audible at 60 m. About 103 s per cycle |
 
 **Commandos** (behind the S palisade of the SW settlement).
@@ -1503,7 +1517,7 @@ All start at heading 270.
 | e4 | [4] | soldier, holdsPost | (20,42.5) | PINGPONG: (20,42.5) wait 3 look 135 ↔ (40,57.5) wait 3 look 135. Walks in front of the rocks (snipe him there) |
 | e5 | [5] | sentry, holdsPost, **elevated y 2.2** | (28.5,43.2) | Post heading 130 (over the river), sweep 35. On the wall walkway beside the ladder |
 | e6 | [6] | soldier, investigates | (30,31) | PINGPONG: (30,31) wait 3 look 180 ↔ (51,49.5) wait 5 look 40. Walks to the gate |
-| e7 | [7] | soldier, holdsPost | (46,29) | LOOP around the depot: (46,29) → (62.5,29.5) wait 2 look 315 → (62,41) → (47,39.5) wait 2 look 180 |
+| e7 | [7] | soldier, holdsPost | (47.28,21.41) | LOOP around the depot, parallel to the NE edge: (47.28,21.41) wait 2 look 41 → (63.98,35.81) wait 2 look 315 → (59.01,41.57) → (42.31,27.17) wait 2 look 180 |
 | e8 / e9 | – | mg (towers t1 / t2), elevated y 5.5 | on towers | Post 228 / 311, sweep 50, giro 180 |
 | e10–e12 | – | sergeant + 2 troopers, squad `p3`, jail `barr_camp` | (20,34) | LOOP VEL 1.0: (20,34) → (38,14.5) wait 3 look 225 → (64,32.5) → (64,40) wait 3 look 45 → (46,53) → (20,34) |
 | e13–e16 | – | sergeant + 3 troopers, squad `p4` (columns 2), jail `barr_camp`, reactEvents [RINT] | (80.5,4) | PINGPONG along the E edge: (80.5,4) wait 5 look 180 ↔ (80.5,96) wait 5 look 180. Crosses the escape road at z 68. **Alarm route:** (62,54) at VEL 3, then loop (58,54) (68,44) (78,52) (70,62) |
@@ -1515,8 +1529,8 @@ Kildread's count is 6 walkers, 1 sentry, patrols of 4 and 3, 2 towers, the boat 
 - `z_ne` = the NE bank: poly (0,0) (82,0) (82,104) (74,104) (64,84) (52,70) (36,56) (18,42) (0,28). `onSeen:'RINT'`, `onHeard:'RINT'`.
 - The SW bank has no zone, so pistol lures work there.
 - **RINT** fires the siren and releases:
-  - `barr_camp`: a 4-man squad. Exit (40,28.5) → (46,40) → (52,48) at 2.7 m/s, then p3's loop at 1.8 m/s.
-  - `barr_out`: a 3-man squad. Exit (73,43) → (66,50), then the loop (58,54) (68,44) (78,52) (70,62).
+  - `barr_camp`: a 4-man squad. Exit (41.04,27.71) → (46,40) → (52,48) at 2.7 m/s, then p3's loop at 1.8 m/s.
+  - `barr_out`: a 3-man squad. Exit (70.5,44) → (66,50), then the loop (58,54) (68,44) (78,52) (70,62).
   - p4's alarm route.
 
 **Objectives and extraction.**
@@ -1859,7 +1873,7 @@ Positional loops, sparse, gain 0.1–0.2 [the demo's "noisy mother nature"]:
 
   | Key | When |
   |---|---|
-  | `select` | On selection; 70% chance, with a 6 s cooldown per man |
+  | `select` | On selection, always ("Yes, sir!" first, then rotating); re-selecting the man who answered last stays quiet for 3 s, a different man always answers (the leader only for a group) |
   | `ack_move` | Move order |
   | `ack_act` | Ability order |
   | `act_kill` | 30% after a silent kill |
@@ -1930,7 +1944,7 @@ Positional loops, sparse, gain 0.1–0.2 [the demo's "noisy mother nature"]:
 
 ```js
 CONFIG.sim      = { dt: 1/60, belTick: 0.05, belUnit: 0.045, belTickHz: 20 }
-CONFIG.camera   = { pitchDeg: 40, yawDeg: 0, zoomLevels: [0.5, 1, 2], pxPerMeterAt1x: 40, edgePx: 8,
+CONFIG.camera   = { pitchDeg: 40, yawDeg: 15, zoomLevels: [0.5, 1, 2], pxPerMeterAt1x: 40, edgePx: 8,
                     scrollSpeed: 30, zoomTween: 0.25, recenterTween: 0.35, boundsMargin: 4 }
 CONFIG.units    = { walk: 2.25, run: {greenberet: 5.4, driver: 5.4, default: 4.5}, crawl: 0.9, carry: 1.6,
                     raftCarryPenalty: 0.9, swim: 1.8, row: 2.5,

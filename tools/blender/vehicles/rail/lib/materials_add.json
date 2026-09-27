@@ -1,0 +1,75 @@
+{
+ "materials": {
+  "coal": {
+   "label": "Lump coal (voronoi lumps, dark albedo, glossy facets)",
+   "tile_m": 2.0,
+   "carrier": "kit:gravel_grey (coal key)",
+   "maps": {
+    "diff": "lib/coal_diff.jpg",
+    "nor": "lib/coal_nor.jpg",
+    "arm": "lib/coal_arm.jpg"
+   },
+   "source": {
+    "license": "CC0-1.0",
+    "source": "procedural (vehicles/rail/scripts/make_rail_tex.py, own work)"
+   }
+  },
+  "rivet": {
+   "label": "Riveted steel plate: butt straps every 1.5 m, lap rows every 1.0 m (pale, tinted per asset by vertex colour)",
+   "tile_m": 6.0,
+   "carrier": "kit:air_skin (RIVETED keys) / kit:veh_paint via SWAP",
+   "uv_transform": "KHR_texture_transform scale = carrier tile / 6.0",
+   "maps": {
+    "diff": "lib/rivet_diff.jpg",
+    "nor": "lib/rivet_nor.jpg",
+    "arm": "lib/rivet_arm.jpg"
+   },
+   "source": {
+    "license": "CC0-1.0",
+    "source": "procedural (vehicles/rail/scripts/make_k5_tex.py, own work)"
+   }
+  },
+  "k5camo": {
+   "label": "K5 Italy 1943-44 camouflage: tan + red-brown + olive blotches over rivets (absolute colours)",
+   "tile_m": 6.0,
+   "maps": {
+    "diff": "lib/k5camo_diff.jpg",
+    "nor": "lib/rivet_nor.jpg",
+    "arm": "lib/rivet_arm.jpg"
+   },
+   "source": {
+    "license": "CC0-1.0",
+    "source": "procedural (vehicles/rail/scripts/make_k5_tex.py, own work)"
+   }
+  },
+  "k5ww": {
+   "label": "Worn winter whitewash over Dunkelgrau with streaks and worn-through patches",
+   "tile_m": 6.0,
+   "carrier": "kit:limewash_worn",
+   "maps": {
+    "diff": "lib/k5ww_diff.jpg",
+    "nor": "lib/rivet_nor.jpg",
+    "arm": "lib/rivet_arm.jpg"
+   },
+   "source": {
+    "license": "CC0-1.0",
+    "source": "procedural (vehicles/rail/scripts/make_k5_tex.py, own work)"
+   }
+  },
+  "heat": {
+   "label": "Heat-discoloured burnt steel: grey ash, straw/bronze/blue temper bands, soot, rust bloom, flaking (organic fbm, no blocks)",
+   "tile_m": 3.0,
+   "carrier": "kit:veh_burnt~fbfbfb (rail.HEAT keys in burnt variants, SWAP -> heat)",
+   "uv_transform": "KHR_texture_transform scale = 2.0 / 3.0",
+   "maps": {
+    "diff": "lib/heat_diff.jpg",
+    "nor": "lib/heat_nor.jpg",
+    "arm": "lib/heat_arm.jpg"
+   },
+   "source": {
+    "license": "CC0-1.0",
+    "source": "procedural (vehicles/rail/scripts/make_heat_tex.py, own work)"
+   }
+  }
+ }
+}

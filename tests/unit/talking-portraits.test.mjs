@@ -8,7 +8,7 @@ import { readFileSync, existsSync, statSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, assert } from './lib.mjs';
-import { TalkingPortraits, ROLE_TO_CHAR, themeFor } from '../../src/ui/talking-portraits.js';
+import { TalkingPortraits, ROLE_TO_CHAR, themeFor, KEY_LINES, nextLine, ownVoiceGate, OWN_VOICE_CD } from '../../src/ui/talking-portraits.js';
 import { registerPortraitPhoto, portraitPhotoURL, getPortraitURL } from '../../src/art/portraits.js';
 import { LINES } from '../../src/audio/voice-lines.js';
 
@@ -31,20 +31,22 @@ test('portraits: every commando role maps to a character with idle + talk loop +
   assert.deepEqual(man.sizes, [256]);
 });
 
-test('portraits: every recorded take the game can play has its own clip (primary + urgent alt)', () => {
-  let n = 0;
+test('portraits: every rendered take has its clip (primary + urgent alt); other recorded lines use the talk loop', () => {
+  let n = 0, loop = 0;
+  const core = new Set(Object.values(KEY_LINES).flat());
   for (const l of vox.lines) {
     const c = ROLE_TO_CHAR[l.speaker]; if (!c) continue; // German guards have no portrait
     const x = man.characters[c].lines[l.rec];
-    assert.ok(x, `${l.speaker}/${l.rec}: clip`);
+    if (!x) { assert.ok(!core.has(l.rec), `${l.speaker}/${l.rec}: core line needs a clip`); loop++; continue; } // voices v2 flavour/pain take
     assert.equal(x.text, l.text, `${l.speaker}/${l.rec}: clip rendered from the subtitle text`);
     for (const f of files256(x.clip)) assert.ok(existsSync(f), f);
     if (l.alt) { assert.ok(x.alt, `${l.speaker}/${l.rec}: alt clip`); for (const f of files256(x.alt.clip)) assert.ok(existsSync(f), f); n++; }
     n++;
   }
   assert.ok(n >= 96, `${n} takes covered`);
-  // …and every recorded line in LINES is in the pack
-  for (const r of ROLES) for (const k of ['select', 'ack_move', 'ack_act', 'hurt']) for (const l of LINES[r][k].filter((x) => x.rec)) {
+  // …every rendered clip is a line of the pack, and every core (KEY_LINES) line in LINES has its clip
+  for (const e of Object.values(man.characters)) for (const r of Object.keys(e.lines)) assert.ok(vox.lines.some((l) => l.speaker === e.game_id && l.rec === r), `${e.game_id}/${r} in the pack`);
+  for (const r of ROLES) for (const k of ['select', 'ack_move', 'ack_act', 'hurt']) for (const l of LINES[r][k].filter((x) => core.has(x.rec))) {
     assert.ok(man.characters[ROLE_TO_CHAR[r]].lines[l.rec], `${r}.${k}: ${l.rec}`);
   }
 });
@@ -101,4 +103,31 @@ test('portraits: theater grade, photo registry, no-DOM fallback', async () => {
   const tp = new TalkingPortraits({ events: null });
   assert.equal(await tp.load([{ id: 1, role: 'spy' }]), false);
   assert.equal(tp.ok, false);
+});
+
+test('portraits: own-voice line rotation starts at "yes_sir", never repeats back to back, covers every line', () => {
+  assert.equal(KEY_LINES.select[0], 'yes_sir');
+  assert.equal(nextLine([], null), null);
+  assert.equal(nextLine(['only'], 'only'), 'only');
+  const seen = [];
+  let prev;
+  for (let i = 0; i < 7; i++) { prev = nextLine(KEY_LINES.select, prev); seen.push(prev); }
+  assert.equal(seen[0], 'yes_sir');
+  for (let i = 1; i < seen.length; i++) assert.notEqual(seen[i], seen[i - 1], `repeat at ${i}`);
+  assert.deepEqual([...new Set(seen)].sort(), [...KEY_LINES.select].sort());
+  assert.equal(nextLine(KEY_LINES.ack_move, 'not-a-line'), KEY_LINES.ack_move[0], 'unknown previous -> first');
+  // every rotated line is rendered for every character
+  for (const c of Object.values(man.characters)) for (const k of ['select', 'ack_move', 'ack_act']) for (const n of KEY_LINES[k]) assert.ok(c.lines[n], `${c.game_id}: ${n}`);
+});
+
+test('portraits: own-voice cooldowns: rapid re-selection of the same man stays quiet, a new man always speaks', () => {
+  const last = new Map(), a = { id: 1 }, b = { id: 2 };
+  assert.ok(ownVoiceGate(last, a, 'select', 0));
+  assert.ok(!ownVoiceGate(last, a, 'select', 1), 'same man, inside the select cooldown');
+  assert.ok(ownVoiceGate(last, b, 'select', 1.05), 'new man speaks at once');
+  assert.ok(ownVoiceGate(last, a, 'select', 1.7), 'back to the first man (someone else spoke since): speaks');
+  assert.ok(!ownVoiceGate(last, a, 'select', 2.5), 'him again: quiet');
+  assert.ok(ownVoiceGate(last, a, 'select', 1.7 + OWN_VOICE_CD.select + 0.01), 'after the cooldown');
+  assert.ok(ownVoiceGate(last, a, 'ack_move', 1.7 + OWN_VOICE_CD.select + 0.7), 'an order after a selection: short gap only');
+  assert.ok(!ownVoiceGate(last, a, 'ack_move', 1.7 + OWN_VOICE_CD.select + 0.9), 'order spam: 0.6 s gap');
 });

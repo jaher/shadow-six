@@ -9,35 +9,50 @@
 const L = (...texts) => texts.map((t) => (Array.isArray(t) ? { text: t[0], gloss: t[1] } : typeof t === 'object' ? t : { text: t }));
 /** A line with a recorded take (`rec` = file stem in assets/audio/voice/lines.json). */
 const R = (text, rec, gloss) => (gloss ? { text, gloss, rec } : { text, rec });
-/** The recorded commando acknowledgements (voices/final: 8 lines × 6 commandos, primary + urgent alt takes). */
+/** The shared commando acknowledgements (voices v2: every commando says them in his own voice, primary + urgent alt). */
 const ACK = {
-  select: [R('Ready.', 'ready'), R('Yes, sir!', 'yes_sir'), R('What now?', 'what_now')],
+  select: [R('Yes, sir!', 'yes_sir'), R('Ready.', 'ready'), R('What now?', 'what_now')],
   ack_move: [R('On my way.', 'on_my_way'), R('Right away.', 'right_away'), R('Understood.', 'understood')],
   ack_act: [R('Consider it done.', 'consider_it_done'), R('Understood.', 'understood')],
   hurt: [R("I'm hit!", 'i_m_hit')],
 };
-/** Recorded commando lines first, then the unrecorded role flavour lines (used only without a voice pack). */
-const withRec = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, ACK[k] ? [...ACK[k], ...v] : v]));
+/** Recording stem of a line = its text slugged (ä→ae…, accents dropped, non-alphanumerics → `_`): "What'll it be?" → what_ll_it_be. */
+export const recOf = (text) => String(text).replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/Ä/g, 'Ae').replace(/Ö/g, 'Oe')
+  .replace(/Ü/g, 'Ue').replace(/ß/g, 'ss').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+/**
+ * Shared acknowledgements first, then the man's own lines.  Voices v2 recorded every commando line, so every other
+ * key (cant, spotted, alarm, death, special_*, act_*) is voiced via its `rec`.  On the ACK keys the man's own flavour
+ * lines stay unrecorded (never picked while a pack is loaded) until the talking-portrait set renders their
+ * lip-synced clips: the portrait of a select/order/hurt line must match the voice (docs/talking-portraits.md).
+ */
+const withRec = (o) => ({ ...Object.fromEntries(Object.entries(o).map(([k, v]) => [k, ACK[k] ? [...ACK[k], ...v]
+  : v.map((l) => (l.rec ? l : { ...l, rec: recOf(l.text) }))])), pain: PAIN });
+/**
+ * Pain grunts (voices v2 `<char>/pain/pain_hit_{1,2,3}`, non-verbal, each man's own voice): voiced the instant a
+ * commando is hit, with the talking portrait's flinch clip rendered from the same grunt (docs/talking-portraits.md §9).
+ * Non-verbal: empty text (= the recording's), no subtitle, and no urgent alt take.
+ */
+const PAIN = Object.freeze(['pain_hit_1', 'pain_hit_2', 'pain_hit_3'].map((rec) => Object.freeze({ text: '', rec, nonverbal: true })));
 
 /** speaker (commando role / 'ger' / guests / 'colonel') → key → [{text, gloss?}]. */
 export const LINES = Object.freeze({
   greenberet: withRec({ // Tiny (Irish, gruff)
     select: L('Aye?', 'McHale.', "What'll it be?"), ack_move: L("On me way.", 'Right so.', "Movin'.", 'Grand.'),
-    ack_act: L('Leave him to me.', 'Quiet as a church mouse.'), act_kill: L('Sleep tight.'),
+    ack_act: L('Leave him to me.', 'Quiet as a church mouse.'), act_kill: L('Sleep tight.'), act_ok: L('Sorted.'),
     special_decoy: L("That'll turn a few heads."), special_dig: L('Snug as a bug.'), special_barrel: L('Heavy wee thing.'),
     cant: L("Can't do that one, sir.", 'Not with these hands.'), hurt: L("Argh! I'm grand, I'm grand!", "They've nicked me!"),
     spotted: L('Ah, feck.'), death: L('Tell me mam…'), alarm: L("That's torn it — they've the siren going!"),
   }),
   sniper: withRec({ // Duke (upper-class RP)
     select: L('Woolridge.', 'At your disposal.', 'Yes?'), ack_move: L('Very well.', 'If I must.', 'Quite.'),
-    ack_act: L('One shot will suffice.', "Hold still, there's a good fellow."), act_kill: L('Clean.'),
+    ack_act: L('One shot will suffice.', "Hold still, there's a good fellow."), act_kill: L('Clean.'), act_ok: L('Secured.'),
     cant: L('Hardly my department, old boy.'), cant_noammo: L("I'm afraid I'm out of rounds."),
     hurt: L("Blast. I'm hit.", 'Rather inconvenient.'), spotted: L("Ah. We've been noticed."), death: L('Most… unsporting.'),
     alarm: L('The alarm, I fear.'),
   }),
   diver: withRec({ // Fins (sarcastic Australian)
     select: L('Blackwood.', 'Yeah, what now?', 'Mm?'), ack_move: L('Righto… sir.', 'Off I go, then.', 'No worries.'),
-    ack_act: L('Into the drink.', 'Nice and quiet.'), special_raft: L('Hop in, mind the paint.'),
+    ack_act: L('Into the drink.', 'Nice and quiet.'), special_raft: L('Hop in, mind the paint.'), act_ok: L('Done and dusted.'),
     special_dive: L('See you on the other side.'), cant: L('Not without a boat, mate.', "In this? You're joking."),
     hurt: L('Strewth! That stings!'), spotted: L('Oh, bloody marvellous.'), death: L("Should've… stayed in the water."),
     alarm: L("Here we go — siren's up!"),
@@ -45,18 +60,18 @@ export const LINES = Object.freeze({
   sapper: withRec({ // Inferno (dry northern English)
     select: L('Hancock.', 'Sapper here.'), ack_move: L('On it.', 'Right you are.', 'Moving.'),
     ack_act: L('Charge set — ten seconds, run!', "This'll make a lovely bang.", "Wire's no bother."),
-    special_detonate: L('Fire in the hole.'), cant: L('Wrong tool for that.', "Wire's live — not touching it."),
+    special_detonate: L('Fire in the hole.'), act_ok: L('Sorted, that.'), cant: L('Wrong tool for that.', "Wire's live — not touching it."),
     hurt: L("Ahh! I'm hit!"), spotted: L("They've clocked me!"), death: L("Should've… cut the other one."), alarm: L("That's the alarm, lads."),
   }),
   driver: withRec({ // Tread (Brooklyn)
     select: L('Yeah, boss?', 'Tread here.', 'Whaddaya need?'), ack_move: L('You got it.', 'On my way, boss.', 'Easy money.'),
-    ack_act: L('Time to make some noise.'), special_drive: L('Hop in, fellas.', 'Hold onto your helmets.'),
+    ack_act: L('Time to make some noise.'), act_ok: L('Done deal.'), special_drive: L('Hop in, fellas.', 'Hold onto your helmets.'),
     special_heal: L("Hold still, this'll pinch."), cant: L('Not my line of work, boss.'), hurt: L('Ow! They winged me!'),
     spotted: L('Uh-oh.'), death: L("Aw, this ain't good…"), alarm: L("Aw geez, they sounded the alarm!"),
   }),
   spy: withRec({ // Spooky (French)
     select: L('Oui?', 'Duchamp.', 'Mon capitaine?'), ack_move: L("D'accord.", 'Bien sûr.', 'I go.'),
-    ack_act: L('A small prick… et voilà.', 'Nobody will notice.'), special_uniform: L('Now I am one of them.'),
+    ack_act: L('A small prick… et voilà.', 'Nobody will notice.'), special_uniform: L('Now I am one of them.'), act_ok: L('Voilà.'),
     special_distract: L(['Guten Tag, Soldat. Alles ruhig?', 'Good day, soldier. All quiet?'],
       ['Na, Kamerad — wie läuft der Dienst?', 'Well, comrade — how goes the duty?'], ['Stehen Sie bequem.', 'At ease.']),
     cant: L('Non. That, I cannot do.'), hurt: L('Aïe! Merde…'), spotted: L('Zut, they know me.'), death: L('Pour… la France…'),
@@ -98,13 +113,16 @@ export const LINE_ALIASES = Object.freeze({
 /**
  * Anti-spam rules. `cd` = per-speaker cooldown for that key (s); `global` = cooldown shared by every
  * speaker (so a squad doesn't shout in unison); `chance` = play probability; `prio` = priority (a
- * higher-priority line interrupts at once); `laconic` = muted by the Verbose/Laconic option; `sub` = subtitle shown.
+ * higher-priority line interrupts at once); `laconic` = muted by the Verbose/Laconic option; `sub` = subtitle shown;
+ * `first` = variant index of a speaker's first line (else random; then round-robin, so never an immediate repeat);
+ * `newMan` = a different commando's line replaces a same-or-lower-priority one at once (selecting a new man
+ * always gets his answer, and the `cd` only holds while re-selecting the man who answered last).
  */
 export const RULES = Object.freeze({
-  select: { cd: 6, chance: 0.7, prio: 1, laconic: true },
+  select: { cd: 3, prio: 1, laconic: true, first: 0, newMan: true },
   ack_move: { cd: 0.8, prio: 1, laconic: true }, ack_act: { cd: 0.8, prio: 2, laconic: true },
   act_kill: { cd: 3, chance: 0.3, prio: 2, sub: true }, cant: { cd: 1.2, prio: 2, sub: true }, cant_noammo: { cd: 2, prio: 2, sub: true },
-  hurt: { cd: 1.5, prio: 4, sub: true }, death: { cd: 0, prio: 6, sub: true }, spotted: { cd: 5, prio: 3, sub: true },
+  hurt: { cd: 1.5, prio: 4, sub: true }, pain: { cd: 0.4, prio: 5, sub: false }, death: { cd: 0, prio: 6, sub: true }, spotted: { cd: 5, prio: 3, sub: true },
   alarm: { cd: 20, global: 20, prio: 3, sub: true }, special: { cd: 2, prio: 2, sub: true },
   ger_halt: { cd: 4, global: 0.6, prio: 3, sub: true }, ger_suspicious: { cd: 6, global: 1.5, prio: 2, sub: true },
   ger_giveup: { cd: 8, global: 2, prio: 1, sub: true }, ger_mandown: { cd: 6, global: 1, prio: 4, sub: true },
@@ -146,6 +164,7 @@ export class VoiceDirector {
     this.commando = null; // {id, key, prio, start, dur, handle}
     this.enemy = []; // [{id, key, prio, start, dur, handle}]
     this.variantIx = new Map(); // `${speaker}|${key}` → round-robin counter
+    this.lastBy = new Map(); // key → speakerId of its last line
   }
 
   /**
@@ -162,7 +181,9 @@ export class VoiceDirector {
     const k = `${req.speakerId}|${key}`;
     if (!req.force) {
       const t = this.last.get(k);
-      if (t != null && now - t < rule.cd) return { ok: false, reason: 'cooldown' };
+      // `newMan`: the cooldown only holds while he is still the last man who answered (re-selecting him again)
+      const other = rule.newMan && this.lastBy.get(key) !== req.speakerId;
+      if (t != null && now - t < rule.cd && !other) return { ok: false, reason: 'cooldown' };
       const g = this.lastGlobal.get(key);
       if (rule.global && g != null && now - g < rule.global) return { ok: false, reason: 'cooldown-global' };
     }
@@ -170,7 +191,8 @@ export class VoiceDirector {
     let replaces = null;
     if (req.commando) {
       const cur = this.commando;
-      if (cur && rule.prio <= cur.prio && now - cur.start < REPLACE_AFTER) return { ok: false, reason: 'busy' };
+      const newMan = rule.newMan && cur && cur.id !== req.speakerId && cur.prio <= rule.prio;
+      if (cur && rule.prio <= cur.prio && now - cur.start < REPLACE_AFTER && !newMan) return { ok: false, reason: 'busy' };
       replaces = cur;
     } else if (this.enemy.length >= MAX_ENEMY_VOICES) {
       const low = this.enemy.reduce((a, b) => (a.prio <= b.prio ? a : b));
@@ -182,11 +204,12 @@ export class VoiceDirector {
     // lines with a recorded take win when the caller says it has them (req.prefer), so subtitles match the voice
     let pool = lines.map((_, i) => i);
     if (req.prefer) { const p = pool.filter((i) => req.prefer(lines[i])); if (p.length) pool = p; }
-    const ix = (this.variantIx.get(vk) ?? Math.floor(this.rand() * pool.length)) % pool.length;
+    const ix = (this.variantIx.get(vk) ?? rule.first ?? Math.floor(this.rand() * pool.length)) % pool.length;
     const n = pool[ix];
     this.variantIx.set(vk, ix + 1);
     this.last.set(k, now);
     this.lastGlobal.set(key, now);
+    this.lastBy.set(key, req.speakerId);
     return { ok: true, line: lines[n], n, replaces, rule };
   }
 
@@ -203,5 +226,5 @@ export class VoiceDirector {
     this.enemy = this.enemy.filter((e) => now < e.start + e.dur);
   }
 
-  reset() { this.last.clear(); this.lastGlobal.clear(); this.commando = null; this.enemy = []; }
+  reset() { this.last.clear(); this.lastGlobal.clear(); this.lastBy.clear(); this.commando = null; this.enemy = []; }
 }

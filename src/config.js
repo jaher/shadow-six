@@ -50,7 +50,7 @@ export const CONFIG = {
   /** Camera: fixed 3/4 view (§2). */
   camera: {
     pitchDeg: 40, // §2.1 pitch below horizontal; BEL projects map depth by sin 40°
-    yawDeg: 0, // §2.1 north up, map axes aligned with the screen
+    yawDeg: 15, // §2.1 BEL was 0 (north up, walls face the screen head-on); +15° shows a sliver of each building's shaded east side (Options → CAMERA ANGLE: 0 / 15 / 45)
     zoomLevels: [0.5, 1, 2], // §2.2 discrete zoom steps (camera.zoom)
     pxPerMeterAt1x: 40, // §2.2 screen pixels per metre at zoom 1 (1080p reference)
     edgePx: 8, // §2.3 pointer within this many px of the edge scrolls
@@ -58,6 +58,8 @@ export const CONFIG = {
     zoomTween: 0.25, // §2.2 zoom tween duration (s)
     recenterTween: 0.35, // §2.3 recentre-on-unit tween (s)
     boundsMargin: 4, // §2.3 how far (m) the view edge may go beyond the map edge
+    reachMargin: 2, // with yaw: every map point can be scrolled at least this far (m) inside the view (camera.js clampHalfExtents)
+    focusInset: 0.24, // with yaw: a recentre/track/tour keeps the view void-free unless the point would sit in this outer fraction of the half-view (camera.js focusTarget)
     distance: 150, // camera distance from its target along the view ray (m); orthographic → clipping only
     defaultZoom: 1, // §2.2 1× "normal"; also numpad * / Backspace
     edgeScroll: true, // §2.3 (game.options.edgeScroll / edgeScrollOverHud override at runtime)

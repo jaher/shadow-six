@@ -33,8 +33,9 @@ export { dropCarried };
 const KEEP_AT_ZERO = new Set(['sniperRifle', 'smg']);
 
 /** Resolve an ability target into a world point. */
-export function targetPoint(target) {
+export function targetPoint(target, from = null) {
   if (!target) return null;
+  if (from && typeof target.approachFrom === 'function') return target.approachFrom(from); // solid props: their edge
   if (typeof target.x === 'number' && typeof target.z === 'number') return { x: target.x, z: target.z };
   return null;
 }
@@ -352,7 +353,7 @@ export class Commando extends Unit {
     if (p.def.autoStand && this._stanceT > 0) return; // still getting up: approach/act once he is on his feet
     const w = this.world;
     const self = p.def.targeting === 'self' || p.def.targeting === 'none';
-    const tp = self ? { x: this.x, z: this.z } : (p.def.approachPoint?.(this, p.target, w) ?? targetPoint(p.target));
+    const tp = self ? { x: this.x, z: this.z } : (p.def.approachPoint?.(this, p.target, w) ?? targetPoint(p.target, this));
     if (!tp) {
       this.pendingAbility = null;
       return;

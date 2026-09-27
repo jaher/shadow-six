@@ -1,0 +1,435 @@
+{
+ "mission": "m00",
+ "date": "2026-09-27T18:53:52.424Z",
+ "static": {
+  "mission": "m00",
+  "items": 29,
+  "categories": {
+   "bridge": 1,
+   "wall": 1,
+   "building": 3,
+   "prop": 4,
+   "sandbags": 3,
+   "fence": 1,
+   "rocks": 1,
+   "pole": 1,
+   "trunk": 3,
+   "foliage": 3,
+   "character": 8
+  },
+  "pairsTested": 16,
+  "ms": 75,
+  "findings": []
+ },
+ "turrets": {
+  "mission": "m00",
+  "turrets": 0,
+  "findings": []
+ },
+ "turretProbe": {
+  "spots": 42,
+  "tests": 48,
+  "findings": []
+ },
+ "floating": {
+  "tested": 12,
+  "findings": []
+ },
+ "dynamic": {
+  "mission": "m00",
+  "t": 180,
+  "samples": 360,
+  "kills": [
+   {
+    "id": "sentry_bridge",
+    "t": 60,
+    "x": 47,
+    "z": 30
+   },
+   {
+    "id": "patrol_east",
+    "t": 60,
+    "x": 49.78,
+    "z": 26.46
+   },
+   {
+    "id": "officer",
+    "t": 120,
+    "x": 51,
+    "z": 17
+   }
+  ],
+  "notes": [],
+  "findings": [
+   {
+    "key": "m00:bridge|sniper",
+    "a": {
+     "id": "sniper",
+     "type": "sniper",
+     "cat": "character",
+     "kind": "commando",
+     "state": "active"
+    },
+    "b": {
+     "id": "bridge",
+     "type": "bridge",
+     "cat": "bridge",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 35.26,
+     "y": 0.277,
+     "z": 32.211
+    },
+    "box": {
+     "min": [
+      35.079,
+      0.225,
+      31.79
+     ],
+     "max": [
+      35.431,
+      0.353,
+      32.639
+     ]
+    },
+    "contact": 0.818,
+    "segments": 94,
+    "depth": 0.105,
+    "depthAinB": 0.105,
+    "depthBinA": 0,
+    "insideA": 182,
+    "insideB": 0,
+    "volume": 0,
+    "allowed": false,
+    "reason": null,
+    "t": 55,
+    "at": {
+     "x": 35.25,
+     "z": 32.24
+    },
+    "unitState": "active",
+    "speed": 2.25,
+    "firstT": 55,
+    "count": 2,
+    "shot": "../../../..<claude-tmp>"
+   },
+   {
+    "key": "m00:greenberet|sandbags#7",
+    "a": {
+     "id": "greenberet",
+     "type": "greenberet",
+     "cat": "character",
+     "kind": "commando",
+     "state": "active"
+    },
+    "b": {
+     "id": "sandbags#7",
+     "type": "sandbags",
+     "cat": "sandbags",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 49.212,
+     "y": 0.809,
+     "z": 25.527
+    },
+    "box": {
+     "min": [
+      49.163,
+      0.732,
+      25.445
+     ],
+     "max": [
+      49.307,
+      0.876,
+      25.634
+     ]
+    },
+    "contact": 0.671,
+    "segments": 65,
+    "depth": 0.07,
+    "depthAinB": 0.054,
+    "depthBinA": 0.07,
+    "insideA": 6,
+    "insideB": 9,
+    "volume": 0.001,
+    "allowed": false,
+    "reason": null,
+    "t": 100,
+    "at": {
+     "x": 49.39,
+     "z": 25.51
+    },
+    "unitState": "active",
+    "speed": 2.25,
+    "firstT": 100,
+    "count": 1
+   },
+   {
+    "key": "m00:sandbags#8|sniper",
+    "a": {
+     "id": "sniper",
+     "type": "sniper",
+     "cat": "character",
+     "kind": "commando",
+     "state": "active"
+    },
+    "b": {
+     "id": "sandbags#8",
+     "type": "sandbags",
+     "cat": "sandbags",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 49.191,
+     "y": 0.217,
+     "z": 34.418
+    },
+    "box": {
+     "min": [
+      49.109,
+      0.155,
+      34.342
+     ],
+     "max": [
+      49.276,
+      0.299,
+      34.536
+     ]
+    },
+    "contact": 1.341,
+    "segments": 164,
+    "depth": 0.07,
+    "depthAinB": 0.07,
+    "depthBinA": 0.022,
+    "insideA": 91,
+    "insideB": 4,
+    "volume": 0.001,
+    "allowed": false,
+    "reason": null,
+    "t": 108.5,
+    "at": {
+     "x": 49.12,
+     "z": 33.98
+    },
+    "unitState": "active",
+    "speed": 2.25,
+    "firstT": 108.5,
+    "count": 1
+   },
+   {
+    "key": "m00:bridge|sapper",
+    "a": {
+     "id": "sapper",
+     "type": "sapper",
+     "cat": "character",
+     "kind": "commando",
+     "state": "active"
+    },
+    "b": {
+     "id": "bridge",
+     "type": "bridge",
+     "cat": "bridge",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 34.17,
+     "y": 0.092,
+     "z": 31.178
+    },
+    "box": {
+     "min": [
+      34.17,
+      0.067,
+      31.125
+     ],
+     "max": [
+      34.17,
+      0.12,
+      31.232
+     ]
+    },
+    "contact": 0.267,
+    "segments": 33,
+    "depth": 0.069,
+    "depthAinB": 0.069,
+    "depthBinA": 0,
+    "insideA": 158,
+    "insideB": 0,
+    "volume": 0,
+    "allowed": false,
+    "reason": null,
+    "t": 14,
+    "at": {
+     "x": 33.75,
+     "z": 31.14
+    },
+    "unitState": "active",
+    "speed": 2.25,
+    "firstT": 14,
+    "count": 1
+   },
+   {
+    "key": "m00:guard_fuel|sandbags#8",
+    "a": {
+     "id": "guard_fuel",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "b": {
+     "id": "sandbags#8",
+     "type": "sandbags",
+     "cat": "sandbags",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 49.13,
+     "y": 0.393,
+     "z": 34.444
+    },
+    "box": {
+     "min": [
+      49.04,
+      0.151,
+      34.336
+     ],
+     "max": [
+      49.228,
+      0.84,
+      34.626
+     ]
+    },
+    "contact": 1.546,
+    "segments": 154,
+    "depth": 0.067,
+    "depthAinB": 0.067,
+    "depthBinA": 0.028,
+    "insideA": 40,
+    "insideB": 6,
+    "volume": 0.002,
+    "allowed": false,
+    "reason": null,
+    "t": 6,
+    "at": {
+     "x": 49.17,
+     "z": 34.15
+    },
+    "unitState": "active",
+    "speed": 1.8,
+    "firstT": 6,
+    "count": 1
+   },
+   {
+    "key": "m00:patrol_east|sandbags#7",
+    "a": {
+     "id": "patrol_east",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "b": {
+     "id": "sandbags#7",
+     "type": "sandbags",
+     "cat": "sandbags",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 49.183,
+     "y": 0.837,
+     "z": 25.5
+    },
+    "box": {
+     "min": [
+      49.054,
+      0.788,
+      25.356
+     ],
+     "max": [
+      49.324,
+      0.877,
+      25.657
+     ]
+    },
+    "contact": 1.305,
+    "segments": 156,
+    "depth": 0.062,
+    "depthAinB": 0.062,
+    "depthBinA": 0.02,
+    "insideA": 49,
+    "insideB": 6,
+    "volume": 0,
+    "allowed": false,
+    "reason": null,
+    "t": 6,
+    "at": {
+     "x": 49.25,
+     "z": 25.56
+    },
+    "unitState": "active",
+    "speed": 1.8,
+    "firstT": 6,
+    "count": 1
+   },
+   {
+    "key": "m00:sandbags#7|sapper",
+    "a": {
+     "id": "sapper",
+     "type": "sapper",
+     "cat": "character",
+     "kind": "commando",
+     "state": "active"
+    },
+    "b": {
+     "id": "sandbags#7",
+     "type": "sandbags",
+     "cat": "sandbags",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 46.078,
+     "y": 0.924,
+     "z": 25.536
+    },
+    "box": {
+     "min": [
+      46.034,
+      0.871,
+      25.452
+     ],
+     "max": [
+      46.117,
+      1.003,
+      25.613
+     ]
+    },
+    "contact": 0.642,
+    "segments": 118,
+    "depth": 0.055,
+    "depthAinB": 0.055,
+    "depthBinA": 0.024,
+    "insideA": 32,
+    "insideB": 3,
+    "volume": 0,
+    "allowed": false,
+    "reason": null,
+    "t": 129.5,
+    "at": {
+     "x": 45.75,
+     "z": 25.67
+    },
+    "unitState": "active",
+    "speed": 4.5,
+    "firstT": 129.5,
+    "count": 1
+   }
+  ]
+ },
+ "baseline": {
+  "fresh": [],
+  "gone": []
+ }
+}

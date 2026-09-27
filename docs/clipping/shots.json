@@ -1,0 +1,1048 @@
+[
+ {
+  "mission": "m00",
+  "name": "clip-after-m00-s1",
+  "before": "clip-before-m00-s1",
+  "x": 35,
+  "z": 28,
+  "box": {
+   "min": [
+    34.923,
+    0.2,
+    27.921
+   ],
+   "max": [
+    35.077,
+    0.2,
+    28.079
+   ]
+  },
+  "pair": "bridge × lamp_post#21"
+ },
+ {
+  "mission": "m00",
+  "name": "clip-after-m00-s2",
+  "before": "clip-before-m00-s2",
+  "x": 44.953,
+  "z": 3.948,
+  "box": {
+   "min": [
+    0,
+    0,
+    0
+   ],
+   "max": [
+    45.25,
+    2.6,
+    4.25
+   ]
+  },
+  "pair": "wall#2 × wall#3"
+ },
+ {
+  "mission": "m00",
+  "dyn": true,
+  "name": "clip-after-m00-d1",
+  "before": "clip-before-m00-d1",
+  "x": 44.78,
+  "z": 10.093,
+  "box": {
+   "min": [
+    44.75,
+    1.322,
+    10.004
+   ],
+   "max": [
+    45.25,
+    1.496,
+    10.155
+   ]
+  },
+  "pair": "sentry_bridge × wall#3"
+ },
+ {
+  "mission": "m00",
+  "dyn": true,
+  "name": "clip-after-m00-d2",
+  "before": "clip-before-m00-d2",
+  "x": 45.181,
+  "z": 27.206,
+  "box": {
+   "min": [
+    44.787,
+    0.165,
+    27.063
+   ],
+   "max": [
+    45.25,
+    1.952,
+    27.25
+   ]
+  },
+  "pair": "sniper × wall#3"
+ },
+ {
+  "mission": "m00",
+  "dyn": true,
+  "name": "clip-after-m00-d3",
+  "before": "clip-before-m00-d3",
+  "x": 44.569,
+  "z": 27.299,
+  "box": {
+   "min": [
+    44.36,
+    0.2,
+    27.056
+   ],
+   "max": [
+    44.895,
+    0.48,
+    27.416
+   ]
+  },
+  "pair": "sapper × bridge"
+ },
+ {
+  "mission": "m00",
+  "dyn": true,
+  "name": "clip-after-m00-d4",
+  "before": "clip-before-m00-d4",
+  "x": 44.77,
+  "z": 27.25,
+  "box": {
+   "min": [
+    44.55,
+    0.157,
+    27.066
+   ],
+   "max": [
+    45.08,
+    0.48,
+    27.426
+   ]
+  },
+  "pair": "sniper × bridge"
+ },
+ {
+  "mission": "m00",
+  "dyn": true,
+  "name": "clip-after-m00-d5",
+  "before": "clip-before-m00-d5",
+  "x": 44.905,
+  "z": 27.53,
+  "box": {
+   "min": [
+    44.75,
+    0.2,
+    27.317
+   ],
+   "max": [
+    45.005,
+    0.48,
+    27.89
+   ]
+  },
+  "pair": "greenberet × bridge"
+ },
+ {
+  "mission": "m01",
+  "name": "clip-after-m01-s1",
+  "before": "clip-before-m01-s1",
+  "x": 37.229,
+  "z": 22.392,
+  "box": {
+   "min": [
+    33.38,
+    0.42,
+    22.079
+   ],
+   "max": [
+    40,
+    3.259,
+    22.844
+   ]
+  },
+  "pair": "barr_L_a × barr_L_b"
+ },
+ {
+  "mission": "m01",
+  "name": "clip-after-m01-s2",
+  "before": "clip-before-m01-s2",
+  "x": 16.025,
+  "z": 8.481,
+  "box": {
+   "min": [
+    15.954,
+    0.151,
+    8.409
+   ],
+   "max": [
+    16.119,
+    0.237,
+    8.545
+   ]
+  },
+  "pair": "relay_hut × relay_mast"
+ },
+ {
+  "mission": "m01",
+  "name": "clip-after-m01-s3",
+  "before": "clip-before-m01-s3",
+  "x": 21.285,
+  "z": 34.2,
+  "box": {
+   "min": [
+    21.18,
+    -0.029,
+    33.891
+   ],
+   "max": [
+    21.458,
+    0.038,
+    34.509
+   ]
+  },
+  "pair": "barr_2 × b5"
+ },
+ {
+  "mission": "m01",
+  "name": "clip-after-m01-s4",
+  "before": "clip-before-m01-s4",
+  "x": 41.588,
+  "z": 23.498,
+  "box": {
+   "min": [
+    41.48,
+    0.008,
+    23.222
+   ],
+   "max": [
+    41.644,
+    0.088,
+    23.776
+   ]
+  },
+  "pair": "barr_L_b × b1"
+ },
+ {
+  "mission": "m01",
+  "name": "clip-after-m01-s5",
+  "before": "clip-before-m01-s5",
+  "x": 21.354,
+  "z": 33,
+  "box": {
+   "min": [
+    21.18,
+    -0.029,
+    32.691
+   ],
+   "max": [
+    21.457,
+    0.037,
+    33.309
+   ]
+  },
+  "pair": "barr_2 × b4"
+ },
+ {
+  "mission": "m01",
+  "dyn": true,
+  "name": "clip-after-m01-d1",
+  "before": "clip-before-m01-d1",
+  "x": 34.24,
+  "z": 108.242,
+  "box": {
+   "min": [
+    34.096,
+    0.343,
+    108.014
+   ],
+   "max": [
+    34.425,
+    0.54,
+    108.507
+   ]
+  },
+  "pair": "e9 × house_s"
+ },
+ {
+  "mission": "m01",
+  "dyn": true,
+  "name": "clip-after-m01-d2",
+  "before": "clip-before-m01-d2",
+  "x": 34.694,
+  "z": 108.258,
+  "box": {
+   "min": [
+    34.368,
+    0.423,
+    108.118
+   ],
+   "max": [
+    34.916,
+    0.551,
+    108.469
+   ]
+  },
+  "pair": "e8 × house_s"
+ },
+ {
+  "mission": "m01",
+  "dyn": true,
+  "name": "clip-after-m01-d3",
+  "before": "clip-before-m01-d3",
+  "x": 27.067,
+  "z": 108.487,
+  "box": {
+   "min": [
+    26.809,
+    0.481,
+    108.317
+   ],
+   "max": [
+    27.328,
+    0.545,
+    108.683
+   ]
+  },
+  "pair": "diver × house_s"
+ },
+ {
+  "mission": "m01",
+  "dyn": true,
+  "name": "clip-after-m01-d4",
+  "before": "clip-before-m01-d4",
+  "x": 33.233,
+  "z": 94.455,
+  "box": {
+   "min": [
+    32.896,
+    -0.332,
+    94.1
+   ],
+   "max": [
+    33.827,
+    0.091,
+    94.906
+   ]
+  },
+  "pair": "diver × jetty_s"
+ },
+ {
+  "mission": "m01",
+  "dyn": true,
+  "name": "clip-after-m01-d5",
+  "before": "clip-before-m01-d5",
+  "x": 17.693,
+  "z": 132.221,
+  "box": {
+   "min": [
+    17.413,
+    0.392,
+    132.02
+   ],
+   "max": [
+    17.826,
+    1.555,
+    132.402
+   ]
+  },
+  "pair": "greenberet × wall_s"
+ },
+ {
+  "mission": "m02",
+  "name": "clip-after-m02-s1",
+  "before": "clip-before-m02-s1",
+  "x": 22.68,
+  "z": 38.545,
+  "box": {
+   "min": [
+    21.904,
+    -0.03,
+    37.784
+   ],
+   "max": [
+    23.803,
+    2.026,
+    39.434
+   ]
+  },
+  "pair": "camp_wall × cab1"
+ },
+ {
+  "mission": "m02",
+  "name": "clip-after-m02-s2",
+  "before": "clip-before-m02-s2",
+  "x": 1.102,
+  "z": 80.002,
+  "box": {
+   "min": [
+    1.051,
+    -0.03,
+    77.169
+   ],
+   "max": [
+    1.155,
+    0,
+    82.843
+   ]
+  },
+  "pair": "sw_wall × cabA"
+ },
+ {
+  "mission": "m02",
+  "name": "clip-after-m02-s3",
+  "before": "clip-before-m02-s3",
+  "x": 26.001,
+  "z": 33.004,
+  "box": {
+   "min": [
+    25.68,
+    0.039,
+    32.71
+   ],
+   "max": [
+    26.32,
+    0.374,
+    33.32
+   ]
+  },
+  "pair": "cab1 × bar2"
+ },
+ {
+  "mission": "m02",
+  "name": "clip-after-m02-s4",
+  "before": "clip-before-m02-s4",
+  "x": 25,
+  "z": 33.004,
+  "box": {
+   "min": [
+    24.68,
+    0.036,
+    32.714
+   ],
+   "max": [
+    25.32,
+    0.344,
+    33.32
+   ]
+  },
+  "pair": "cab1 × bar1"
+ },
+ {
+  "mission": "m02",
+  "name": "clip-after-m02-s5",
+  "before": "clip-before-m02-s5",
+  "x": 24.167,
+  "z": 58.869,
+  "box": {
+   "min": [
+    24.149,
+    0.444,
+    58.837
+   ],
+   "max": [
+    24.175,
+    0.505,
+    58.887
+   ]
+  },
+  "pair": "islet1 × pine#19~trunk"
+ },
+ {
+  "mission": "m02",
+  "name": "clip-after-m02-s6",
+  "before": "clip-before-m02-s6",
+  "x": 56.171,
+  "z": 22.254,
+  "box": {
+   "min": [
+    54.458,
+    1.118,
+    20.735
+   ],
+   "max": [
+    57.502,
+    2.955,
+    23.448
+   ]
+  },
+  "pair": "camp_wall × t2"
+ },
+ {
+  "mission": "m02",
+  "name": "clip-after-m02-s7",
+  "before": "clip-before-m02-s7",
+  "x": 28.462,
+  "z": 43.32,
+  "box": {
+   "min": [
+    28.24,
+    2.207,
+    42.964
+   ],
+   "max": [
+    28.679,
+    3.11,
+    43.546
+   ]
+  },
+  "pair": "camp_wall × e5"
+ },
+ {
+  "mission": "m02",
+  "name": "clip-after-m02-s8",
+  "before": "clip-before-m02-s8",
+  "x": 30.074,
+  "z": 20.555,
+  "box": {
+   "min": [
+    28.488,
+    1.108,
+    19.245
+   ],
+   "max": [
+    31.552,
+    2.981,
+    21.989
+   ]
+  },
+  "pair": "camp_wall × t1"
+ },
+ {
+  "mission": "m02",
+  "name": "clip-after-m02-s9",
+  "before": "clip-before-m02-s9",
+  "x": 22.556,
+  "z": 39.084,
+  "box": {
+   "min": [
+    22.391,
+    0,
+    39.032
+   ],
+   "max": [
+    22.713,
+    0.6,
+    39.142
+   ]
+  },
+  "pair": "cab1 × rocks_n1"
+ },
+ {
+  "mission": "m02",
+  "name": "clip-after-m02-s10",
+  "before": "clip-before-m02-s10",
+  "x": 56.644,
+  "z": 48.222,
+  "box": {
+   "min": [
+    54.216,
+    0,
+    47.122
+   ],
+   "max": [
+    57.718,
+    2.6,
+    50.454
+   ]
+  },
+  "pair": "camp_wall × gate_se"
+ },
+ {
+  "mission": "m02",
+  "dyn": true,
+  "name": "clip-after-m02-d1",
+  "before": "clip-before-m02-d1",
+  "x": 25.432,
+  "z": 57.443,
+  "box": {
+   "min": [
+    24.951,
+    0.012,
+    55.999
+   ],
+   "max": [
+    26.095,
+    0.992,
+    58.206
+   ]
+  },
+  "pair": "pboat × pine#19~trunk"
+ },
+ {
+  "mission": "m02",
+  "dyn": true,
+  "name": "clip-after-m02-d2",
+  "before": "clip-before-m02-d2",
+  "x": 49.743,
+  "z": 77.13,
+  "box": {
+   "min": [
+    48.008,
+    0.006,
+    74.625
+   ],
+   "max": [
+    52.503,
+    2.353,
+    79.612
+   ]
+  },
+  "pair": "pboat × pine#21~trunk"
+ },
+ {
+  "mission": "m02",
+  "dyn": true,
+  "name": "clip-after-m02-d3",
+  "before": "clip-before-m02-d3",
+  "x": 18.896,
+  "z": 93.987,
+  "box": {
+   "min": [
+    18.648,
+    0.44,
+    93.848
+   ],
+   "max": [
+    19.135,
+    0.488,
+    94.129
+   ]
+  },
+  "pair": "driver × cabB"
+ },
+ {
+  "mission": "m02",
+  "dyn": true,
+  "name": "clip-after-m02-d4",
+  "before": "clip-before-m02-d4",
+  "x": 10.411,
+  "z": 83.162,
+  "box": {
+   "min": [
+    10.285,
+    0.324,
+    82.917
+   ],
+   "max": [
+    10.55,
+    0.494,
+    83.32
+   ]
+  },
+  "pair": "greenberet × cabA"
+ },
+ {
+  "mission": "m02",
+  "dyn": true,
+  "name": "clip-after-m02-d5",
+  "before": "clip-before-m02-d5",
+  "x": 17.921,
+  "z": 88.344,
+  "box": {
+   "min": [
+    17.394,
+    0.366,
+    88.057
+   ],
+   "max": [
+    18.343,
+    0.986,
+    88.596
+   ]
+  },
+  "pair": "e1 × cabB"
+ },
+ {
+  "mission": "m03",
+  "name": "clip-after-m03-s1",
+  "before": "clip-before-m03-s1",
+  "x": 20.503,
+  "z": 41.999,
+  "box": {
+   "min": [
+    17.914,
+    0.062,
+    40.438
+   ],
+   "max": [
+    22.957,
+    0.967,
+    44.522
+   ]
+  },
+  "pair": "dam × dam_bunker"
+ },
+ {
+  "mission": "m03",
+  "name": "clip-after-m03-s2",
+  "before": "clip-before-m03-s2",
+  "x": 40,
+  "z": 85.001,
+  "box": {
+   "min": [
+    39.75,
+    0.014,
+    84.8
+   ],
+   "max": [
+    40.25,
+    0.048,
+    85.2
+   ]
+  },
+  "pair": "st_shed × bombs_shed"
+ },
+ {
+  "mission": "m03",
+  "name": "clip-after-m03-s3",
+  "before": "clip-before-m03-s3",
+  "x": 3.997,
+  "z": 69.939,
+  "box": {
+   "min": [
+    3.95,
+    0.195,
+    67.796
+   ],
+   "max": [
+    4.05,
+    2.434,
+    72.819
+   ]
+  },
+  "pair": "st_fence × pine#59~foliage"
+ },
+ {
+  "mission": "m03",
+  "name": "clip-after-m03-s4",
+  "before": "clip-before-m03-s4",
+  "x": 39.87,
+  "z": 63.218,
+  "box": {
+   "min": [
+    37.254,
+    0.485,
+    60.873
+   ],
+   "max": [
+    43.516,
+    1.283,
+    66.459
+   ]
+  },
+  "pair": "dam × st_fence"
+ },
+ {
+  "mission": "m03",
+  "name": "clip-after-m03-s5",
+  "before": "clip-before-m03-s5",
+  "x": 58.528,
+  "z": 121.806,
+  "box": {
+   "min": [
+    58.487,
+    0.485,
+    120.487
+   ],
+   "max": [
+    58.55,
+    0.813,
+    122.55
+   ]
+  },
+  "pair": "cage_12 × pylon_1"
+ },
+ {
+  "mission": "m03",
+  "dyn": true,
+  "name": "clip-after-m03-d1",
+  "before": "clip-before-m03-d1",
+  "x": 50.917,
+  "z": 32.11,
+  "box": {
+   "min": [
+    50.822,
+    1.304,
+    32.007
+   ],
+   "max": [
+    51.042,
+    1.441,
+    32.233
+   ]
+  },
+  "pair": "camp_barr#0.0.1 × dam"
+ },
+ {
+  "mission": "m03",
+  "dyn": true,
+  "name": "clip-after-m03-d2",
+  "before": "clip-before-m03-d2",
+  "x": 61.645,
+  "z": 37.14,
+  "box": {
+   "min": [
+    61.549,
+    1.401,
+    37.03
+   ],
+   "max": [
+    61.754,
+    1.497,
+    37.246
+   ]
+  },
+  "pair": "sapper × dam"
+ },
+ {
+  "mission": "m03",
+  "dyn": true,
+  "name": "clip-after-m03-d3",
+  "before": "clip-before-m03-d3",
+  "x": 50.753,
+  "z": 32.359,
+  "box": {
+   "min": [
+    50.676,
+    1.375,
+    32.287
+   ],
+   "max": [
+    50.833,
+    1.47,
+    32.417
+   ]
+  },
+  "pair": "camp_barr#0.0.0 × dam"
+ },
+ {
+  "mission": "m03",
+  "dyn": true,
+  "name": "clip-after-m03-d4",
+  "before": "clip-before-m03-d4",
+  "x": 21.107,
+  "z": 40.113,
+  "box": {
+   "min": [
+    20.989,
+    1.491,
+    40.016
+   ],
+   "max": [
+    21.203,
+    1.599,
+    40.236
+   ]
+  },
+  "pair": "e3 × dam"
+ },
+ {
+  "mission": "m03",
+  "dyn": true,
+  "name": "clip-after-m03-d5",
+  "before": "clip-before-m03-d5",
+  "x": 50.935,
+  "z": 32.093,
+  "box": {
+   "min": [
+    50.826,
+    1.329,
+    32.003
+   ],
+   "max": [
+    51.055,
+    1.416,
+    32.221
+   ]
+  },
+  "pair": "camp_barr#0.0.2 × dam"
+ },
+ {
+  "mission": "b00",
+  "name": "clip-after-b00-s1",
+  "before": "clip-before-b00-s1",
+  "x": 15,
+  "z": 86.535,
+  "box": {
+   "min": [
+    14.3,
+    0,
+    85.55
+   ],
+   "max": [
+    15.7,
+    0.3,
+    87
+   ]
+  },
+  "pair": "bridge1 × boat1"
+ },
+ {
+  "mission": "b00",
+  "name": "clip-after-b00-s2",
+  "before": "clip-before-b00-s2",
+  "x": 15,
+  "z": 68,
+  "box": {
+   "min": [
+    14.52,
+    0,
+    67.543
+   ],
+   "max": [
+    15.48,
+    0.3,
+    68.457
+   ]
+  },
+  "pair": "bridge1 × mine1"
+ },
+ {
+  "mission": "b00",
+  "name": "clip-after-b00-s3",
+  "before": "clip-before-b00-s3",
+  "x": 50,
+  "z": 50,
+  "box": {
+   "min": [
+    49.95,
+    0,
+    49.9
+   ],
+   "max": [
+    50.05,
+    1.6,
+    50.1
+   ]
+  },
+  "pair": "fence#2 × pen_gate"
+ },
+ {
+  "mission": "b00",
+  "dyn": true,
+  "name": "clip-after-b00-d1",
+  "before": "clip-before-b00-d1",
+  "x": 44.975,
+  "z": 69.498,
+  "box": {
+   "min": [
+    44.652,
+    1.079,
+    69.307
+   ],
+   "max": [
+    45.282,
+    1.079,
+    69.712
+   ]
+  },
+  "pair": "driver × wagon1"
+ },
+ {
+  "mission": "b00",
+  "dyn": true,
+  "name": "clip-after-b00-d2",
+  "before": "clip-before-b00-d2",
+  "x": 44.952,
+  "z": 70.991,
+  "box": {
+   "min": [
+    44.672,
+    1.079,
+    70.77
+   ],
+   "max": [
+    45.309,
+    1.079,
+    71.175
+   ]
+  },
+  "pair": "sapper × wagon1"
+ },
+ {
+  "mission": "b00",
+  "dyn": true,
+  "name": "clip-after-b00-d3",
+  "before": "clip-before-b00-d3",
+  "x": 45.038,
+  "z": 71.501,
+  "box": {
+   "min": [
+    44.891,
+    1.079,
+    71.303
+   ],
+   "max": [
+    45.277,
+    1.079,
+    71.775
+   ]
+  },
+  "pair": "snitch1 × wagon1"
+ },
+ {
+  "mission": "b00",
+  "dyn": true,
+  "name": "clip-after-b00-d4",
+  "before": "clip-before-b00-d4",
+  "x": 44.536,
+  "z": 68.803,
+  "box": {
+   "min": [
+    44.262,
+    1.079,
+    68.589
+   ],
+   "max": [
+    44.856,
+    1.079,
+    69.022
+   ]
+  },
+  "pair": "sniper × wagon1"
+ },
+ {
+  "mission": "b00",
+  "dyn": true,
+  "name": "clip-after-b00-d5",
+  "before": "clip-before-b00-d5",
+  "x": 44.636,
+  "z": 68.984,
+  "box": {
+   "min": [
+    44.434,
+    1.079,
+    68.672
+   ],
+   "max": [
+    44.844,
+    1.079,
+    69.259
+   ]
+  },
+  "pair": "yard_guard × wagon1"
+ },
+ {
+  "mission": "m02",
+  "name": "clip-after-m02-t1-new",
+  "x": 29.38,
+  "z": 24.43,
+  "pair": "t1 at its new spot, outer legs against camp_wall"
+ },
+ {
+  "mission": "m02",
+  "name": "clip-after-m02-walk",
+  "x": 27,
+  "z": 42,
+  "pair": "walk_sw: plank deck, stakes stepped off it, e5 on the deck"
+ },
+ {
+  "mission": "b00",
+  "name": "clip-after-b00-wagon",
+  "x": 45,
+  "z": 70,
+  "pair": "wagon1 along its rail, standing on the ground (nav-blocked at rest)"
+ }
+]

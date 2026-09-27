@@ -12,6 +12,8 @@
  */
 import { validateRoads } from '../world/roads.js';
 
+import { footprintConflicts } from '../world/placement.js';
+
 export const CAMPAIGN_IDS = Object.freeze(['BEL', 'BCD']);
 export const SOLDIER_TYPES = Object.freeze(['sentry', 'soldier', 'sergeant', 'trooper', 'mg', 'officer', 'truckDriver',
   'courier', 'crew', 'gunner', 'engineer', 'general', 'dog', 'tutorial',
@@ -158,6 +160,10 @@ export function validateMission(def) {
     if (!inMap(l.x, l.z) || !Array.isArray(l.top) || l.top.length < 2) E(`ladders[${i}] needs x, z and top:[x,z,y]`);
   });
   for (const j of arr(def.jails)) if (!arr(def.structures).some((s) => s.id === j)) Wn(`jail "${j}" is not a structure id`);
+  // placement rule (c): building footprints must not overlap or crowd each other (eaves), nor sink into a deck
+  for (const c of footprintConflicts(arr(def.structures))) {
+    Wn(c.kind === 'overlap' ? `structures ${c.a} and ${c.b} overlap (footprints intersect)` : `structures ${c.a} and ${c.b} are ${c.gap} m apart: their eaves cross (keep ≥ 1.2 m or clipAllow)`);
+  }
   // ABILITIES devices placed by the mission (switch, lever, valve, phone, clothesline, ammo, crate, jail, barrel…)
   if (def.interactables !== undefined && !Array.isArray(def.interactables)) E('interactables must be an array');
   if ((def.campaign ?? 'BEL') !== 'BCD') { // ruleset data guard: BCD-only types in a BEL mission

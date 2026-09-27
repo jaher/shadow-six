@@ -16,7 +16,8 @@ const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` sta
 /** Closed square outline (a 5 × 5 transformer cage). */
 const square = (x, z, s = 5) => [[x - s / 2, z - s / 2], [x + s / 2, z - s / 2], [x + s / 2, z + s / 2], [x - s / 2, z + s / 2], [x - s / 2, z - s / 2]];
 const CAGES = [];
-for (const z of [100, 110, 120]) for (const x of [20, 32, 44, 56]) CAGES.push([x, z]);
+// the E column stands 1 m west of the old x 56: clear of st_barr2's steps / flagpole and pylon_1's legs
+for (const z of [100, 110, 120]) for (const x of [20, 32, 44, 55]) CAGES.push([x, z]);
 
 const E7_LOOP = [P(104, 50), P(138, 50, 3, 90), P(138, 89), P(116, 78), P(104, 64, 3, 180)];
 
@@ -109,7 +110,7 @@ export default {
     { id: 'mg_gate', type: 'sandbags', variant: 'mg_ring', x: 10, z: 99, rot: deg(180), ring: { r: 1.8 }, h: 1.0, block: 1 },
     ...[[30, 72], [31.5, 73.5], [56, 94]].map(([x, z], k) => ({ id: `drum_${k + 1}`, type: 'crates', variant: 'cable_drum', x, z, rot: 0, w: 1.5, d: 1.5, h: 1.5, block: 1 })),
     { id: 'sign_w', type: 'sign', x: 2, z: 88, rot: 0, text: 'SIMA KRAFTVERK' },
-    ...[[60, 122], [80, 100], [96, 62]].map(([x, z], k) => ({ id: `pylon_${k + 1}`, type: 'telegraph_pole', variant: 'lattice_pylon', x, z, h: 18, r: 0.6, wireTo: k < 2 ? `pylon_${k + 2}` : null })),
+    ...[[60, 122], [80, 100], [95.64, 62.27]].map(([x, z], k) => ({ id: `pylon_${k + 1}`, type: 'telegraph_pole', variant: 'lattice_pylon', x, z, h: 18, r: 0.6, wireTo: k < 2 ? `pylon_${k + 2}` : null })),
     // --- the north: cliffs with the gully (x 74–84) between them, and the start wall on the plateau
     { id: 'cliff_e', type: 'cliff', points: [[84, 20], [148, 20], [148, 34], [124, 38], [84, 42]], h: 12, climbable: false },
     { id: 'cliff_w', type: 'cliff', points: [[56, 18], [74, 18], [74, 34], [56, 30]], h: 10, climbable: false },
@@ -123,11 +124,11 @@ export default {
     { id: 'spools', type: 'crates', variant: 'cable_drum', x: 114, z: 61, rot: 0, w: 1.5, d: 1.5, h: 1.5, block: 1 },
     { id: 'camp_tent', type: 'tent', x: 132, z: 43, rot: 0, w: 4, d: 4, flag: true, garrison: true },
     { id: 'tent2', type: 'tent', x: 141, z: 42, rot: 0, w: 4, d: 4 },
-    ...[[50, 6], [58, 8], [90, 6], [130, 6], [140, 10], [6, 50], [2, 70], [90, 48], [146, 60]]
+    ...[[48.77, 6.55], [58, 8], [90, 6], [130, 6], [140, 10], [6, 50], [2, 70], [90, 48], [146, 60]]
       .map(([x, z], k) => ({ type: 'pine', x, z, r: 0.6, h: 9 + (k % 6), seed: 401 + k })),
   ],
   items: [
-    { id: 'bombs_shed', itemId: 'timeBomb', x: 40, z: 85, count: 2 },
+    { id: 'bombs_shed', itemId: 'timeBomb', x: 37.58, z: 86.17, count: 2 }, // beside the shed's ramp, not on it
   ],
   // §3.4/§7.6 the Spy's uniform hangs on a clothesline: 'use' it (1.5 s activation) and she is dressed at once
   interactables: [
@@ -180,7 +181,7 @@ export default {
     { id: 'e22', prima: 22, soldierType: 'sentry', x: 7, z: 90, heading: deg(180), flags: { holdsPost: true, investigates: false }, post: { heading: deg(180), sweep: 35 } },
     { id: 'e23', prima: 23, soldierType: 'soldier', x: 8, z: 95.5, heading: deg(0), flags: { holdsPost: true, investigates: false },
       route: { type: 'PINGPONG', vel: 1.0, points: [P(8, 95.5, 3), P(15, 95.5, 3)] } },
-    ...[['e24', 14, 87, 200, true], ['e25', 6, 104, 180, false], ['e26', 12, 108, 180, true], ['e27', 8, 116, 135, false]]
+    ...[['e24', 14.33, 87.68, 200, true], ['e25', 6, 104, 180, false], ['e26', 12, 108, 180, true], ['e27', 8, 116, 135, false]]
       .map(([id, x, z, h, inv], k) => ({ id, prima: 24 + k, soldierType: 'sentry', x, z, heading: deg(h),
         flags: { investigates: inv, holdsPost: !inv }, post: { heading: deg(h), sweep: 40 } })),
     { id: 'e28', soldierType: 'mg', x: 10, z: 99, heading: deg(180), post: { heading: deg(180), sweep: 50, giro: 180 } },

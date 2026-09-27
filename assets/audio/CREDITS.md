@@ -76,10 +76,16 @@ Freesound files are the HQ previews, trimmed / split / loudness-normalised and r
 ## Voices
 
 AI-generated with Kokoro-82M (hexgrad, Apache-2.0) and Chatterbox-Multilingual (Resemble AI, MIT; outputs
-carry an imperceptible PerTh watermark). No real person was cloned: English timbres are stock or blended
-Kokoro voicepacks; German guards use Chatterbox's built-in synthetic voice (B and C tape-shifted).
+carry an imperceptible PerTh watermark). No real person was cloned. Voices v2: each commando has his own
+timbre, a weighted blend of stock Kokoro voicepacks with no pack shared between two men (Green Beret
+am_onyx+em_santa, Sniper bm_george+bm_fable, Marine am_puck+am_fenrir, Sapper bm_daniel+am_echo, Driver
+am_michael+am_adam, Spy im_nicola+ff_siwis+em_alex), pitch/formant-shifted; accents come from hand-written
+IPA (Hiberno-English, cut-glass RP, broad Australian, Scouse, New York, French L1). Urgent takes, pain sounds
+and the Spy's German use Chatterbox with references rendered from those synthetic blends only. German guards
+use Chatterbox's built-in synthetic voice (B and C tape-shifted).
 Offline tools (not shipped): misaki G2P (Apache-2.0), espeak-ng (GPL-3.0), wav2vec2 alignment (Apache-2.0),
-faster-whisper QA (MIT), ffmpeg (imageio-ffmpeg static build).
+ffmpeg with rubberband (imageio-ffmpeg static build); QA only: faster-whisper (MIT), SpeechBrain
+spkrec-ecapa-voxceleb (Apache-2.0), CommonAccent ECAPA (MIT), VoxLingua107 ECAPA (Apache-2.0).
 
 ## Excluded (licence / provenance gate, realism-pipeline v2 §1.5.1)
 

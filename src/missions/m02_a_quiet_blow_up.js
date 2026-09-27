@@ -63,8 +63,8 @@ export default {
   // step 3p road network: truck tracks inside the camp (packed, trampled ground), a trodden path through the
   // settlement that stays snow for gameplay (grid: false)
   roads: [
-    { id: 'camp_track', surface: 'snow_packed', points: [[56, 48], [53, 41], [47, 33], [40, 28]], width: 3.5, wear: 0.8 },
-    { id: 'depot_track', surface: 'slush', points: [[53, 41], [58, 38], [62, 33]], width: 3, wear: 0.6 },
+    { id: 'camp_track', surface: 'snow_packed', points: [[56, 48], [53, 41], [47, 33], [41.5, 28.4]], width: 3.5, wear: 0.8 },
+    { id: 'depot_track', surface: 'slush', points: [[53, 41], [58.5, 40.5], [63, 39.5]], width: 3, wear: 0.6 },
     { id: 'village_path', surface: 'snow_packed', points: [[8, 103], [8.5, 92], [12, 86], [20, 80], [28, 78]], width: 1.8, grid: false, wear: 0.3 },
   ],
   // street furniture: visual only in the locked BEL layout
@@ -87,36 +87,41 @@ export default {
     { id: 'gate_se', type: 'gate', variant: 'barrier_boom', x: GATE.x, z: GATE.z, rot: deg(317), w: 4, operable: true, rammable: true },
     // sentry box just outside the gate on the SW verge of T4, clear of the straight truck line to the exit
     { id: 'sbox_se', type: 'hut', variant: 'sentry_box', x: 54.4, z: 52.3, rot: deg(317), w: 1.6, d: 1.6, h: 2.4 },
-    { id: 'barr_camp', type: 'barracks', variant: 'log_garrison', x: 40, z: 24, rot: 0, w: 12, d: 6, h: 4.5, flag: true, garrison: true },
-    { id: 'cab1', type: 'hut', variant: 'log_cabin', x: 26, z: 36, rot: 0, w: 5, d: 4, h: 3.5 },
-    { id: 'depot_a', type: 'fueltank', variant: 'horizontal_cradle', x: 52, z: 32, rot: 0, w: 9, d: 3.4, h: 3.5, destructible: true, bombOnly: false, hp: 100 },
-    { id: 'depot_b', type: 'fueltank', variant: 'horizontal_cradle', x: 56.5, z: 36.5, rot: 0, w: 9, d: 3.4, h: 3.5, destructible: true, bombOnly: false, hp: 100 },
-    { id: 't1', type: 'watchtower', variant: 'timber_mg', x: 30, z: 20.6, rot: deg(228), w: 3, d: 3, h: 5.5, deckY: 5.5 },
-    { id: 't2', type: 'watchtower', variant: 'timber_mg', x: 56, z: 22.1, rot: deg(311), w: 3, d: 3, h: 5.5, deckY: 5.5 },
-    { id: 'crates1', type: 'crates', x: 46, z: 48, rot: 0, w: 2, d: 2, h: 1.2, block: 1 },
+    // buildings run parallel to the palisade edge they stand by (NW edge −41.5°, NE edge 40.8°, SE edge 137.4°, SW edge −140.2°)
+    { id: 'barr_camp', type: 'barracks', variant: 'log_garrison', x: 37.74, z: 24.01, rot: deg(318.5), w: 12, d: 6, h: 4.5, flag: true, garrison: true },
+    { id: 'cab1', type: 'hut', variant: 'log_cabin', x: 29.26, z: 36.77, rot: deg(219.8), w: 5, d: 4, h: 3.5 },
+    // the depot: two tanks end to end along the NE edge, between p3's wall-side leg and the camp track
+    { id: 'depot_a', type: 'fueltank', variant: 'horizontal_cradle', x: 49.64, z: 27.94, rot: deg(40.8), w: 9, d: 3.4, h: 3.5, destructible: true, bombOnly: false, hp: 100 },
+    { id: 'depot_b', type: 'fueltank', variant: 'horizontal_cradle', x: 57.21, z: 34.47, rot: deg(40.8), w: 9, d: 3.4, h: 3.5, destructible: true, bombOnly: false, hp: 100 },
+    // MG towers stand just inside the palisade, outer legs against it (placement rule a: never astride the wall);
+    // t1 sits 3 m SW along the NW edge of the aligned barracks' W end
+    { id: 't1', type: 'watchtower', variant: 'timber_mg', x: 27.06, z: 26.49, rot: deg(228), w: 3, d: 3, h: 5.5, deckY: 5.5 },
+    { id: 't2', type: 'watchtower', variant: 'timber_mg', x: 54.42, z: 23.93, rot: deg(311), w: 3, d: 3, h: 5.5, deckY: 5.5 },
+    { id: 'crates1', type: 'crates', x: 46, z: 48, rot: deg(317.4), w: 2, d: 2, h: 1.2, block: 1 },
     ...[['bar1', 25, 33], ['bar2', 26, 33], ['bar3', 48.5, 36.2], ['bar4', 49.4, 36.8]]
       .map(([id, x, z]) => ({ id, type: 'barrels', variant: 'fuel_explosive', x, z, r: 0.3, h: 0.9, explosive: 'barrel', carriable: true, destructible: true, hp: 1 })),
-    // garrison outside the E corner (a charge within 6.75 m of the E corner razes it)
-    { id: 'barr_out', type: 'barracks', variant: 'log_garrison', x: 76, z: 38, rot: 0, w: 6, d: 8, h: 4, flag: true, garrison: true, razeRadius: 6.75, destructible: true, hp: 100 },
+    // garrison outside the E corner, parallel to the SE edge that runs on to the gate road (a charge within 6.75 m of the E corner razes it)
+    { id: 'barr_out', type: 'barracks', variant: 'log_garrison', x: 73.26, z: 39.18, rot: deg(47.4), w: 6, d: 8, h: 4, flag: true, garrison: true, razeRadius: 6.75, destructible: true, hp: 100 },
     // cover between the SW wall and the river
-    { id: 'rocks_n1', type: 'rocks', x: 22, z: 40.5, rot: 0, w: 4, d: 2.5, h: 2.2 },
+    { id: 'rocks_n1', type: 'rocks', x: 21.83, z: 40.75, rot: 0, w: 4, d: 2.5, h: 2.2 },
     { id: 'rocks_n2', type: 'rocks', x: 34, z: 51, rot: 0, w: 4, d: 2.5, h: 2.2 },
-    { id: 'rocks_n3', type: 'rocks', x: 41, z: 55.5, rot: 0, w: 3, d: 2, h: 2 },
+    { id: 'rocks_n3', type: 'rocks', x: 40.31, z: 55.81, rot: 0, w: 3, d: 2, h: 2 },
     // islets in the river (land discs in `terrain`)
     { id: 'islet1', type: 'rocks', x: 23.4, z: 58.9, r: 1.0, h: 1.6 },
-    { type: 'pine', x: 24.8, z: 58.0, r: 0.45, h: 9, seed: 301 },
+    { type: 'pine', x: 25.01, z: 59.03, r: 0.45, h: 9, seed: 301 }, // clear of the boat lane and the rock
     { id: 'islet2', type: 'rocks', x: 47.4, z: 78.4, r: 0.9, h: 1.5 },
-    { type: 'pine', x: 48.7, z: 77.6, r: 0.45, h: 10, seed: 302 },
+    { type: 'pine', x: 48.75, z: 78.95, r: 0.45, h: 10, seed: 302 },
     // --- the SW settlement: palisade with openings S (x 6–10) and E (z 76–80)
     { id: 'sw_wall', type: 'wall', variant: 'palisade', h: 2.2, width: 0.4,
       segments: [[[10, 97], [28, 97], [28, 80]], [[6, 97], [1, 97], [1, 70], [28, 70], [28, 76]]] },
-    { id: 'cabA', type: 'hut', variant: 'log_cabin', x: 6, z: 80, rot: 0, w: 7, d: 5, h: 4, snowRoof: true },
+    { id: 'cabA', type: 'hut', variant: 'log_cabin', x: 6.5, z: 80, // clear of the W palisade
+      rot: 0, w: 7, d: 5, h: 4, snowRoof: true },
     { id: 'cabB', type: 'hut', variant: 'log_cabin', x: 16, z: 91, rot: 0, w: 7, d: 5, h: 4, snowRoof: true },
     ...[[4, 50], [12, 58], [36, 76], [44, 92], [60, 70], [70, 20], [78, 8], [8, 20], [20, 6]]
       .map(([x, z], k) => ({ type: 'pine', x, z, r: 0.6, h: 9 + (k % 5), seed: 311 + k })),
   ],
   vehicles: [
-    { id: 'truck', vehicleType: 'truck', variant: 'opel_canvas', x: 50, z: 44, heading: deg(39), driveable: true, seats: 6, hits: 30, escape: true },
+    { id: 'truck', vehicleType: 'truck', variant: 'opel_canvas', x: 50, z: 44, heading: deg(47.4), driveable: true, seats: 6, hits: 30, escape: true },
     { id: 'pboat', vehicleType: 'patrolboat', x: 1, z: 36.8, heading: deg(39), driveable: false, crew: ['e17'], engineAudible: 60,
       route: { type: 'PINGPONG', speed: 2.5, points: [P(1, 36.8, 15), P(18, 50), P(36, 64), P(52, 78), P(66, 95, 15)] } },
   ],
@@ -133,23 +138,25 @@ export default {
       route: { type: 'LOOP', vel: 1.0, points: [P(4, 73), P(24, 73, 3, 0), P(24, 85), P(11, 85, 3, 180), P(11, 75)] } },
     { id: 'e2', prima: 2, soldierType: 'soldier', x: 14, z: 78, heading: deg(56), flags: { investigates: true, followsTracks: true },
       route: { type: 'PINGPONG', vel: 1.0, points: [P(14, 78, 4, 90), P(24, 92, 4, 180)] } },
-    { id: 'e3', prima: 3, soldierType: 'soldier', x: 22, z: 95, heading: deg(270), flags: { investigates: true, followsTracks: true },
+    { id: 'e3', prima: 3, soldierType: 'soldier', x: 22.13, z: 95.08, heading: deg(270), flags: { investigates: true, followsTracks: true },
       route: { type: 'PINGPONG', vel: 1.0, points: [P(22, 95, 3, 90), P(22, 76, 3, 270)] } },
     // NE bank outside the SW wall, in front of the rocks (snipe him there)
     { id: 'e4', prima: 4, soldierType: 'soldier', x: 20, z: 42.5, heading: deg(37), flags: { holdsPost: true, investigates: false },
       route: { type: 'PINGPONG', vel: 1.0, points: [P(20, 42.5, 3, 135), P(40, 57.5, 3, 135)] } },
     // on the wall walk beside the (raised) ladder, watching the river
-    { id: 'e5', prima: 5, soldierType: 'sentry', x: 28.5, z: 43.2, heading: deg(130), elevated: true, y: 2.2,
+    { id: 'e5', prima: 5, soldierType: 'sentry', x: 28.60, z: 43.08, // on the walk's deck, 0.3 m off the palisade line (≥ 0.32 m: e7 finds the body, §7.5 step 2)
+      heading: deg(130), elevated: true, y: 2.2,
       flags: { holdsPost: true, investigates: false }, post: { heading: deg(130), sweep: 35 } },
     { id: 'e6', prima: 6, soldierType: 'soldier', x: 30, z: 31, heading: deg(41), flags: { investigates: true },
       route: { type: 'PINGPONG', vel: 1.0, points: [P(30, 31, 3, 180), P(51, 49.5, 5, 40)] } },
-    { id: 'e7', prima: 7, soldierType: 'soldier', x: 46, z: 29, heading: deg(0), flags: { holdsPost: true, investigates: false },
-      route: { type: 'LOOP', vel: 1.0, points: [P(46, 29), P(62.5, 29.5, 2, 315), P(62, 41), P(47, 39.5, 2, 180)] } },
+    { id: 'e7', prima: 7, soldierType: 'soldier', x: 47.28, z: 21.41, heading: deg(41), flags: { holdsPost: true, investigates: false },
+      // loop round the depot, parallel to the NE edge
+      route: { type: 'LOOP', vel: 1.0, points: [P(47.28, 21.41, 2, 41), P(63.98, 35.81, 2, 315), P(59.01, 41.57), P(42.31, 27.17, 2, 180)] } },
     // MG gunners on the towers, facing outward
-    { id: 'e8', soldierType: 'mg', x: 30, z: 20.6, heading: deg(228), elevated: true, y: 5.5, tower: 't1', post: { heading: deg(228), sweep: 50, giro: 180 } },
-    { id: 'e9', soldierType: 'mg', x: 56, z: 22.1, heading: deg(311), elevated: true, y: 5.5, tower: 't2', post: { heading: deg(311), sweep: 50, giro: 180 } },
+    { id: 'e8', soldierType: 'mg', x: 27.06, z: 26.49, heading: deg(228), elevated: true, y: 5.5, tower: 't1', post: { heading: deg(228), sweep: 50, giro: 180 } },
+    { id: 'e9', soldierType: 'mg', x: 54.42, z: 23.93, heading: deg(311), elevated: true, y: 5.5, tower: 't2', post: { heading: deg(311), sweep: 50, giro: 180 } },
     // patrol p3 (sergeant + 2 troopers) circling inside the camp
-    ...[['e10', 20, 34], ['e11', 21.2, 35.4], ['e12', 22.4, 36.8]].map(([id, x, z], k) => ({
+    ...[['e10', 20, 34], ['e11', 21.2, 35.4], ['e12', 21.81, 36.92]].map(([id, x, z], k) => ({
       id, soldierType: k ? 'trooper' : 'sergeant', x, z, heading: deg(313), jail: 'barr_camp',
       squad: { id: 'p3', leader: 'e10', columns: 1 }, route: { type: 'LOOP', vel: 1.0, points: P3_LOOP },
     })),
@@ -169,8 +176,8 @@ export default {
   ],
   jails: ['barr_camp'],
   barracks: {
-    barr_camp: { pool: 10, squads: [{ event: 'RINT', size: 4, exitVel: 3, exitRoute: [P(40, 28.5), P(46, 40), P(52, 48)], loopVel: 2, loop: P3_LOOP }] },
-    barr_out: { pool: 5, squads: [{ event: 'RINT', size: 3, exitRoute: [P(73, 43), P(66, 50)], loop: OUT_LOOP }] },
+    barr_camp: { pool: 10, squads: [{ event: 'RINT', size: 4, exitVel: 3, exitRoute: [P(41.04, 27.71), P(46, 40), P(52, 48)], loopVel: 2, loop: P3_LOOP }] },
+    barr_out: { pool: 5, squads: [{ event: 'RINT', size: 3, exitRoute: [P(70.5, 44), P(66, 50)], loop: OUT_LOOP }] },
   },
   climbLinks: [
     // GB over the climbable SW edge: river side → wall walk, wall walk → camp interior

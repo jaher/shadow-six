@@ -54,7 +54,7 @@ export function createAudio(events, opts = {}) {
     options: { ...DEFAULT_OPTIONS, ...(saved.options || {}) },
     track: 'menu', // requested music cue (plays only outside missions; the game boots on the title screen)
     gameState: 'title',
-    listener: { x: 0, z: 0, viewWidth: 40 },
+    listener: { x: 0, z: 0, viewWidth: 40, yaw: 0 },
     log: [],
     engine: null,
     world: null,
@@ -93,7 +93,7 @@ export function createAudio(events, opts = {}) {
         try { ctx = (opts.createContext || defaultContext)(); } catch { ctx = null; }
         if (!ctx) return false;
         this.engine = new AudioEngine(ctx, { fetch: opts.fetch, base: opts.base, rand, jitter: opts.jitter ?? !opts.createContext });
-        this.engine.setListener(this.listener.x, this.listener.z, this.listener.viewWidth);
+        this.engine.setListener(this.listener.x, this.listener.z, this.listener.viewWidth, this.listener.yaw);
         this._applyVolumes();
         if (opts.loadAssets !== false) { this.engine.loadManifests().catch(() => {}); if (this.mission) this._preload(); }
       }
@@ -157,7 +157,7 @@ function addMethods(audio, events, rand) {
       if (!o.loop && now - (this.recent.get(dk) ?? -1e9) < (o.dedupe ?? A().dedupe ?? 0.08)) return null;
       this.recent.set(dk, now);
       if (this.recent.size > 256) this.recent.clear();
-      const sp = p ? spatialize(p, this.listener.x, this.listener.z, this.listener.viewWidth, o.range, o.cls || SFX[id]?.cls) : { gain: 1, cull: false };
+      const sp = p ? spatialize(p, this.listener.x, this.listener.z, this.listener.viewWidth, o.range, o.cls || SFX[id]?.cls, this.listener.yaw) : { gain: 1, cull: false };
       const entry = this._push({ type: SFX[id]?.bus === 'ambience' ? 'ambience' : 'sfx', name: id, event: o.event, x: p?.x, z: p?.z,
         gain: +sp.gain.toFixed(3), loop: !!o.loop || undefined, culled: (sp.cull && !o.loop) || undefined, known: !!SFX[id] });
       if (!this.unlocked || !this.engine || !SFX[id]) return null;
@@ -365,11 +365,12 @@ function addVoiceSiren(audio, events, rand) {
 
     // ---- frame update ------------------------------------------------------------------------------
     /** Per frame: listener over the view centre, follow loops, timers, bomb ticks, siren, sparse ambience. */
-    update(cx, cz, viewWidth) {
+    update(cx, cz, viewWidth, yaw) {
       const L = this.listener;
       if (Number.isFinite(cx) && Number.isFinite(cz)) { L.x = cx; L.z = cz; }
       if (viewWidth > 0) L.viewWidth = viewWidth;
-      this.engine?.setListener(L.x, L.z, L.viewWidth);
+      if (Number.isFinite(yaw)) L.yaw = yaw;
+      this.engine?.setListener(L.x, L.z, L.viewWidth, L.yaw);
       const now = this.now();
       for (const [key, rec] of this.loops) {
         const f = rec.follow;

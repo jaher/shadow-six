@@ -55,7 +55,7 @@
   "InsightFace buffalo_l (non-commercial weights) \u2014 vendored JoyVASA/LivePortrait code path replaced",
   "Wav2Lip, SadTalker/BFM, Sonic, FLOAT (non-commercial)"
  ],
- "policy": "Synthetic faces, no real-person input: portraits are text-to-image from written descriptions only (prompts + seeds in portraits/final/seeds.json); no photo, likeness or voice of a real person was used as input. Before release, run a lookalike check (reverse image search of the six stills) and keep checking every uniform/insignia for Nazi symbols (none present: the Spy wears civilian tweed in these clips).",
+ "policy": "Synthetic faces, no real-person input: portraits are text-to-image from written descriptions only (prompts + seeds in portraits/final/seeds.json; the Green Beret's slimmer 2026-09-27 still is img2img from his own earlier text-to-image still, same model); no photo, likeness or voice of a real person was used as input. Before release, run a lookalike check (reverse image search of the six stills) and keep checking every uniform/insignia for Nazi symbols (none present: the Spy wears civilian tweed in these clips).",
  "disclosure": "Credits must state that the commando portraits, their animation and the voices are AI-generated.",
  "voices": [
   {
@@ -71,5 +71,12 @@
    "used_for": "spy"
   }
  ],
- "license_check": "Model-card licenses re-confirmed via the Hugging Face API on 2026-09-26: TencentGameMate/chinese-hubert-base mit, jdh-algo/JoyVASA mit, KlingTeam/LivePortrait mit, Tongyi-MAI/Z-Image-Turbo apache-2.0, unsloth/Z-Image-Turbo-GGUF apache-2.0, unsloth/Qwen3-4B-GGUF apache-2.0."
+ "license_check": "Model-card licenses re-confirmed via the Hugging Face API on 2026-09-26: TencentGameMate/chinese-hubert-base mit, jdh-algo/JoyVASA mit, KlingTeam/LivePortrait mit, Tongyi-MAI/Z-Image-Turbo apache-2.0, unsloth/Z-Image-Turbo-GGUF apache-2.0, unsloth/Qwen3-4B-GGUF apache-2.0.",
+ "lookalike_log": [
+  {
+   "date": "2026-09-27",
+   "still": "green_beret (slimmer)",
+   "check": "visual review against the lookalike rule: no resemblance to a real actor noticed; no actor names or \"looks like\" terms in any prompt; reverse image search still pending before release (offline pipeline)"
+  }
+ ]
 }

@@ -1,0 +1,279 @@
+{
+ "mission": "m01",
+ "date": "2026-09-27T18:54:56.864Z",
+ "static": {
+  "mission": "m01",
+  "items": 68,
+  "categories": {
+   "building": 6,
+   "pole": 6,
+   "pier": 2,
+   "sandbags": 1,
+   "wall": 1,
+   "prop": 6,
+   "ruins": 1,
+   "rocks": 5,
+   "trunk": 12,
+   "foliage": 8,
+   "character": 16,
+   "vehicle": 3,
+   "emplacement": 1
+  },
+  "pairsTested": 13,
+  "ms": 169,
+  "findings": [
+   {
+    "key": "m01:barr_L_a|barr_L_b",
+    "a": {
+     "id": "barr_L_a",
+     "type": "barracks",
+     "cat": "building",
+     "kind": "structure"
+    },
+    "b": {
+     "id": "barr_L_b",
+     "type": "barracks",
+     "cat": "building",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 32.759,
+     "y": 0.002,
+     "z": 24.493
+    },
+    "box": {
+     "min": [
+      32.606,
+      0,
+      24.482
+     ],
+     "max": [
+      32.9,
+      0.008,
+      24.503
+     ]
+    },
+    "contact": 0.612,
+    "segments": 7,
+    "depth": 0.007,
+    "depthAinB": 0.007,
+    "depthBinA": 0,
+    "insideA": 3,
+    "insideB": 0,
+    "volume": 0,
+    "allowed": true,
+    "reason": "resting on a surface"
+   }
+  ]
+ },
+ "turrets": {
+  "mission": "m01",
+  "turrets": 1,
+  "findings": []
+ },
+ "turretProbe": {
+  "spots": 55,
+  "tests": 94,
+  "findings": []
+ },
+ "floating": {
+  "tested": 23,
+  "findings": []
+ },
+ "dynamic": {
+  "mission": "m01",
+  "t": 180,
+  "samples": 360,
+  "kills": [
+   {
+    "id": "e7",
+    "t": 60,
+    "x": 37.01,
+    "z": 116.67
+   },
+   {
+    "id": "e13",
+    "t": 60,
+    "x": 22,
+    "z": 39.5
+   },
+   {
+    "id": "e9",
+    "t": 120,
+    "x": 35.89,
+    "z": 106.72
+   },
+   {
+    "id": "e11",
+    "t": 120,
+    "x": 43.78,
+    "z": 33.99
+   }
+  ],
+  "notes": [],
+  "findings": [
+   {
+    "key": "m01:greenberet|wall_s",
+    "a": {
+     "id": "greenberet",
+     "type": "greenberet",
+     "cat": "character",
+     "kind": "commando",
+     "state": "active"
+    },
+    "b": {
+     "id": "wall_s",
+     "type": "wall",
+     "cat": "wall",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 19.033,
+     "y": 0.929,
+     "z": 128.434
+    },
+    "box": {
+     "min": [
+      18.887,
+      0.041,
+      128.011
+     ],
+     "max": [
+      19.594,
+      1.742,
+      128.628
+     ]
+    },
+    "contact": 4.695,
+    "segments": 363,
+    "depth": 0.3,
+    "depthAinB": 0.3,
+    "depthBinA": 0,
+    "insideA": 2465,
+    "insideB": 0,
+    "volume": 0.057,
+    "allowed": false,
+    "reason": null,
+    "t": 66,
+    "at": {
+     "x": 19.27,
+     "z": 128.51
+    },
+    "unitState": "active",
+    "speed": 0.5,
+    "firstT": 64.5,
+    "count": 24,
+    "shot": "../../../..<claude-tmp>"
+   },
+   {
+    "key": "m01:greenberet|pole_2",
+    "a": {
+     "id": "greenberet",
+     "type": "greenberet",
+     "cat": "character",
+     "kind": "commando",
+     "state": "active"
+    },
+    "b": {
+     "id": "pole_2",
+     "type": "telegraph_pole",
+     "cat": "pole",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 20.141,
+     "y": 1.192,
+     "z": 128.914
+    },
+    "box": {
+     "min": [
+      20.013,
+      0.634,
+      128.797
+     ],
+     "max": [
+      20.256,
+      1.609,
+      129.042
+     ]
+    },
+    "contact": 4.748,
+    "segments": 441,
+    "depth": 0.115,
+    "depthAinB": 0.115,
+    "depthBinA": 0,
+    "insideA": 371,
+    "insideB": 0,
+    "volume": 0.017,
+    "allowed": false,
+    "reason": null,
+    "t": 77.5,
+    "at": {
+     "x": 19.99,
+     "z": 128.87
+    },
+    "unitState": "active",
+    "speed": 0.5,
+    "firstT": 64,
+    "count": 9,
+    "shot": "../../../..<claude-tmp>"
+   },
+   {
+    "key": "m01:diver|jetty_s",
+    "a": {
+     "id": "diver",
+     "type": "diver",
+     "cat": "character",
+     "kind": "commando",
+     "state": "active"
+    },
+    "b": {
+     "id": "jetty_s",
+     "type": "pier",
+     "cat": "pier",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 31.018,
+     "y": 0.608,
+     "z": 102.087
+    },
+    "box": {
+     "min": [
+      30.937,
+      0.315,
+      101.978
+     ],
+     "max": [
+      31.109,
+      0.807,
+      102.173
+     ]
+    },
+    "contact": 2.498,
+    "segments": 251,
+    "depth": 0.085,
+    "depthAinB": 0.085,
+    "depthBinA": 0,
+    "insideA": 96,
+    "insideB": 0,
+    "volume": 0.003,
+    "allowed": false,
+    "reason": null,
+    "t": 90.5,
+    "at": {
+     "x": 31.12,
+     "z": 101.83
+    },
+    "unitState": "active",
+    "speed": 2.25,
+    "firstT": 65,
+    "count": 4
+   }
+  ]
+ },
+ "baseline": {
+  "fresh": [],
+  "gone": []
+ }
+}

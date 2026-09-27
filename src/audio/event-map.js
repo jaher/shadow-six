@@ -224,7 +224,16 @@ export function installHandlers(a, events) {
     if (o.type === 'move') a.say(e.unit, 'ack_move');
     else if (o.type === 'ability') { if (!a.say(e.unit, abilityVoice(o.id))) a.say(e.unit, 'ack_act'); }
   });
-  on('unit:damaged', (e) => { const u = e.unit; if (u && (u.hp ?? 1) > 0) a.say(u, isEnemy(u) ? 'ger_hurt' : 'hurt'); });
+  // A hit commando grunts at once in his own voice ('pain', prio 5: cuts a select/ack line; his portrait flinches on
+  // the same event, docs/talking-portraits.md §9). His "I'm hit!" ('hurt', 1.5 s cooldown) follows once the grunt
+  // has finished, so the two never overlap; a hit inside the grunt's 0.4 s cooldown adds nothing.
+  on('unit:damaged', (e) => {
+    const u = e.unit;
+    if (!u || (u.hp ?? 1) <= 0) return;
+    if (isEnemy(u)) { a.say(u, 'ger_hurt'); return; }
+    const g = a.say(u, 'pain');
+    if (g) a.after(Math.max(0.3, g.duration || 0.6), () => { if (u.alive !== false && (u.hp ?? 1) > 0) a.say(u, 'hurt'); });
+  });
   on('unit:killed', (e) => {
     const u = e.unit, silent = SILENT_KILLS.has(String(e.cause || ''));
     if (isEnemy(u) && !silent) a.say(u, 'ger_death');

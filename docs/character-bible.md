@@ -90,7 +90,7 @@ The bodies come from `mpfb_make2.py` (MakeHuman CC0 system assets, macros `gende
 | Born; age | 10 Oct 1909, Dublin. **31** in Feb 1941, 35 in 1945. **Apparent 32–36.** |
 | Nationality | Irish. Former Army heavyweight boxing champion 1934–37; a sergeant. |
 | Height / build | **2.00 m** (spec; the sources say 1.96–2.10), about 100 kg. **The biggest and strongest of the six** [manual: "Tiny is your strongest"]. Heavyweight boxer's frame: very broad shoulders, huge upper arms and forearms, thick neck, deep chest. Some waist thickness, but not fat. |
-| Face shape | **Broad and square**, heavy [HUD, team]. A wide, flat-planed face with high, hard cheekbones. |
+| Face shape | **Broad and square** [HUD, team]. A wide, flat-planed face with high, hard cheekbones. **Portrait face: slimmer, per user (2026-09-27)**: a fighting-trim boxer's face, taut over the jaw and cheekbones, no jowls or double chin, a lean muscular neck. He keeps the big square jaw, heavy build and broad shoulders; only the face fat goes. The request covers the top-left HUD portrait face; the 3D head below is unchanged. |
 | Jaw / chin | **Massive, square, wide jaw**; a strong, slightly jutting chin [HUD, art]. Thick neck muscle runs straight down from the jaw corners. |
 | Nose | **Broad, flattened boxer's nose.** Low, wide bridge, a slight kink from old breaks [HUD reads broad; the break is ours, justified by the boxing bio]. |
 | Brows | **Heavy, dark, straight brows** low over the eyes; a thick brow ridge [HUD]. A small scar notch through the left brow [ours]. |
@@ -108,8 +108,8 @@ The bodies come from `mpfb_make2.py` (MakeHuman CC0 system assets, macros `gende
 
 **Art direction brief.**
 - **Portrait:** a photoreal head-and-shoulders portrait of a huge Irish sergeant in his mid-thirties, a former heavyweight boxer.
-  - Broad square face, massive jaw, flattened broken nose, heavy low dark brows, deep-set pale grey-blue eyes narrowed in a hard stare.
-  - Ruddy, weathered skin with small scars on the brow and lip, a slightly thickened left ear, a thick muscular neck.
+  - Broad square face that is lean and hard, with no jowls or double chin (slimmer, per user; see Face shape), massive jaw, flattened broken nose, heavy low dark brows, deep-set pale grey-blue eyes narrowed in a hard stare.
+  - Ruddy, weathered skin with small scars on the brow and lip, a slightly thickened left ear, a strong muscular neck (not a fat bull neck).
   - Clean-shaven with light stubble, short dark-brown hair under a near-black green beret worn low and angled to the right, with a small generic dagger badge.
   - A sleeveless mottled-camouflage top with webbing braces over bare, very muscular shoulders.
   - Low warm key light from the upper left, a dark background, 1940s war-film grit.

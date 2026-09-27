@@ -92,7 +92,7 @@ test('voices: every recorded line in LINES has a take (6 commandos, 3 German voi
     const k = `${l.speaker}|${l.rec}`;
     byKey.set(k, [...(byKey.get(k) || []), l]);
     const t = JSON.parse(readFileSync(join(ROOT, 'voice', l.timing), 'utf8'));
-    assert.ok(t.visemes?.length && t.words?.length, `${l.timing} has word + viseme timing`);
+    assert.ok(t.visemes?.length && (l.nonverbal || t.words?.length), `${l.timing} has word + viseme timing`);
   }
   for (const [speaker, keys] of Object.entries(LINES)) {
     for (const lines of Object.values(keys)) {
@@ -102,6 +102,7 @@ test('voices: every recorded line in LINES has a take (6 commandos, 3 German voi
         assert.ok(takes?.length, `${speaker} ${line.rec}`);
         for (const tk of takes) assert.equal(tk.text, line.text, `${speaker} ${line.rec}: subtitle = recording`);
         if (speaker === 'ger') assert.equal(takes.length, 3, `3 German voices for ${line.rec}`);
+        else if (line.nonverbal) assert.ok(takes.every((tk) => tk.nonverbal && tk.kind === 'pain_hit'), `${speaker} ${line.rec}: a recorded pain grunt`);
         else assert.ok(takes[0].alt, `${speaker} ${line.rec} has the urgent alt take`);
       }
     }
@@ -119,7 +120,7 @@ test('per-mission loading: decode only what M1 needs, one siren take, no beds; M
   const urls = [...eng.decoded.keys()];
   assert.ok(m1.buffers > 50 && m1.buffers === urls.length, `${m1.buffers} buffers`);
   assert.ok(!urls.some((u) => /^sfx\/(wind_|surf|river|birds|crickets|artillery)/.test(u)), `beds are streamed, never decoded (${urls.filter((u) => /^sfx\/(wind_|surf|river|birds|crickets|artillery)/.test(u))})`);
-  assert.equal(urls.filter((u) => /siren_/.test(u)).length, 1, 'one siren take pinned for the mission');
+  assert.equal(urls.filter((u) => /^sfx\/siren_/.test(u)).length, 1, 'one siren take pinned for the mission');
   assert.ok(urls.some((u) => u.includes('voice/green_beret/')) && !urls.some((u) => u.includes('voice/sniper/')), 'voice packs of the squad only');
   const a2 = missionAudio(M02);
   await eng.preload(a2.ids, { speakers: a2.speakers });

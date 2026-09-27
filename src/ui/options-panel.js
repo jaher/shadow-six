@@ -47,6 +47,7 @@ export const OPTION_ROWS = [
   ['selectionRing', 'SELECTION RING', 'bool'],
   ['edgeScroll', 'EDGE SCROLL', 'bool'],
   ['wheelZoom', 'WHEEL ZOOM', 'bool'],
+  ['cameraAngle', 'CAMERA ANGLE', [0, 15, 45]],
   ['saveReminder', 'SAVE REMINDER', 'bool'],
   ['h', 'CONTROLS'],
   ['bindings', 'KEYBOARD', 'bindings'],
@@ -74,7 +75,8 @@ export const OPTION_HELP = {
   warnings: 'Your men call out when they are spotted.', blood: 'Blood effects on wounds and bodies.', censored: 'Replaces gore and harsh language.',
   activePause: 'Give orders while the game is paused. Off is faithful to 1998.', coneAlertTint: 'Vision cones tint as a guard grows suspicious.',
   selectionRing: 'A ring under each selected man.', edgeScroll: 'Scroll the map when the mouse touches the screen edge.',
-  wheelZoom: 'Zoom with the mouse wheel.', saveReminder: 'A gentle reminder when you have not saved for a while.',
+  wheelZoom: 'Zoom with the mouse wheel.',
+  cameraAngle: 'CLASSIC looks straight up the map as in 1998. TILTED turns the view slightly so buildings show a side. ISOMETRIC turns it to a diagonal.', saveReminder: 'A gentle reminder when you have not saved for a while.',
   bindings: 'Rebind the keyboard controls.', textScale: 'Size of all menu text.', reducedMotion: 'Replace slides, page turns and camera moves with fades.',
   highContrast: 'Brighter idle items, darker backgrounds, no grain, outlined focus.', holdConfirm: 'Hold (Y)ES to confirm quitting, overwriting or deleting.',
 };
@@ -85,6 +87,7 @@ export function formatOption(key, v) {
   if (typeof v === 'boolean') return v ? 'ON' : 'OFF';
   if (key === 'uiScale') return v ? `${v}×` : 'AUTO';
   if (key === 'resScale' || key === 'textScale' || key === 'subBand' || key === 'brightness') return `${Math.round(v * 100)}%`;
+  if (key === 'cameraAngle') return `${{ 0: 'CLASSIC', 15: 'TILTED', 45: 'ISOMETRIC' }[v] || 'CUSTOM'} ${v}°`;
   if (key === 'intro') return v === 'first' ? 'FIRST RUN' : String(v).toUpperCase();
   return String(v).toUpperCase();
 }

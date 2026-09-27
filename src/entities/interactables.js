@@ -497,12 +497,24 @@ export class Barrel extends Interactable {
     if (carrier) { carrier.carrying = null; this.carriedBy = null; }
     if (this.hidesBody) { this.hidesBody.hiddenUnderBarrel = false; this.hidesBody = null; }
     if (w) {
+      this._navRest();
       explodeHook.fn?.(w, this.x, this.z, 'barrel', this, this.igniter);
       w.removeLater(this);
     }
   }
 
+  /** A standing drum is solid for walkers (grid nav-only block, placement rule e); carried or gone it is not. */
+  _navRest() {
+    const g = this.world?.grid;
+    if (!g?.navStamp) return;
+    const rest = !this.exploded && !this.carriedBy && !this.removed;
+    g.navStamp(`barrel:${this.id}`, rest ? g.rectCells(this.x, this.z, 0.7, 0.7, 0) : []);
+    this._navAt = rest ? { x: this.x, z: this.z } : null;
+  }
+
   update(dt) {
+    const rest = !this.exploded && !this.carriedBy;
+    if (rest ? (this._navAt?.x !== this.x || this._navAt?.z !== this.z) : this._navAt) this._navRest();
     if (this.exploded) return;
     if (this.carriedBy) {
       const c = this.carriedBy;

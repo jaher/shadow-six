@@ -1,0 +1,161 @@
+{
+ "mission": "m02",
+ "date": "2026-09-27T18:59:17.827Z",
+ "static": {
+  "mission": "m02",
+  "items": 66,
+  "categories": {
+   "wall": 2,
+   "gate": 1,
+   "building": 6,
+   "prop": 7,
+   "tower": 2,
+   "rocks": 5,
+   "trunk": 10,
+   "foliage": 10,
+   "character": 21,
+   "vehicle": 2
+  },
+  "pairsTested": 52,
+  "ms": 507,
+  "findings": [
+   {
+    "key": "m02:e8|t1",
+    "a": {
+     "id": "t1",
+     "type": "watchtower",
+     "cat": "tower",
+     "kind": "structure"
+    },
+    "b": {
+     "id": "e8",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "point": {
+     "x": 26.834,
+     "y": 5.594,
+     "z": 26.425
+    },
+    "box": {
+     "min": [
+      26.786,
+      5.59,
+      26.359
+     ],
+     "max": [
+      26.895,
+      5.595,
+      26.523
+     ]
+    },
+    "contact": 0.844,
+    "segments": 85,
+    "depth": 0.009,
+    "depthAinB": 0,
+    "depthBinA": 0.009,
+    "insideA": 0,
+    "insideB": 55,
+    "volume": 0,
+    "allowed": true,
+    "reason": "resting on a surface"
+   },
+   {
+    "key": "m02:e9|t2",
+    "a": {
+     "id": "t2",
+     "type": "watchtower",
+     "cat": "tower",
+     "kind": "structure"
+    },
+    "b": {
+     "id": "e9",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "point": {
+     "x": 54.47,
+     "y": 5.594,
+     "z": 23.712
+    },
+    "box": {
+     "min": [
+      54.391,
+      5.591,
+      23.673
+     ],
+     "max": [
+      54.528,
+      5.595,
+      23.764
+     ]
+    },
+    "contact": 0.712,
+    "segments": 82,
+    "depth": 0.008,
+    "depthAinB": 0,
+    "depthBinA": 0.008,
+    "insideA": 0,
+    "insideB": 42,
+    "volume": 0,
+    "allowed": true,
+    "reason": "resting on a surface"
+   }
+  ]
+ },
+ "turrets": {
+  "mission": "m02",
+  "turrets": 0,
+  "findings": []
+ },
+ "turretProbe": {
+  "spots": 56,
+  "tests": 74,
+  "findings": []
+ },
+ "floating": {
+  "tested": 19,
+  "findings": []
+ },
+ "dynamic": {
+  "mission": "m02",
+  "t": 180,
+  "samples": 360,
+  "kills": [
+   {
+    "id": "e1",
+    "t": 60,
+    "x": 25.7,
+    "z": 79.17
+   },
+   {
+    "id": "e2",
+    "t": 60,
+    "x": 26.13,
+    "z": 77.89
+   },
+   {
+    "id": "e4",
+    "t": 120,
+    "x": 33.43,
+    "z": 53.89
+   },
+   {
+    "id": "e5",
+    "t": 120,
+    "x": 28.88,
+    "z": 42.8
+   }
+  ],
+  "notes": [],
+  "findings": []
+ },
+ "baseline": {
+  "fresh": [],
+  "gone": []
+ }
+}

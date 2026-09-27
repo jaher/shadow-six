@@ -310,7 +310,7 @@ function genConifer(sp, r, H, q, bark, leaves, tint, leafTint, phase) {
   tube(bark, pts, rads, Math.max(4, Math.round(8 * q.radial)), barkLayer, (p) => wind(p, 0), tint, 2);
   const crown = [];
   const nW = Math.round((H * (1 - sp.crownBase)) / (sp.pine ? 0.75 : 0.45));
-  const width = sp.width * H * (0.85 + 0.3 * r());
+  const width = Math.min(sp.width * H * (0.85 + 0.3 * r()), (sp.maxWidth ?? Infinity) - 0.6);
   const cards = q.cards;
   for (let w = 0; w < nW; w++) {
     const t = sp.crownBase + (1 - sp.crownBase) * ((w + r() * 0.6) / nW);
@@ -488,7 +488,10 @@ export function generateTree(species, seed, q, bark, leaves, at) {
   const lb = 0.8 + 0.35 * r(), hue = (r() - 0.5) * 0.25 + (at.hue || 0);
   const leafTint = [lb * (1 + hue), lb * (1 + hue * 0.3), lb * (1 - hue * 0.6)];
   const gen = { broad: genBroad, conifer: genConifer, palm: genPalm, bush: genBush }[sp.kind];
-  const sp2 = at.burnt ? { ...sp, bark: 'burnt', leaf: null } : at.leafless ? { ...sp, leaf: null } : sp;
+  let sp2 = at.burnt ? { ...sp, bark: 'burnt', leaf: null } : at.leafless ? { ...sp, leaf: null } : sp;
+  // placement pruning hints (world/placement.js pruneTree): lowest branches lifted / crown narrowed near obstacles
+  if (at.crownBase != null && sp2.crownBase != null) sp2 = { ...sp2, crownBase: Math.min(0.8, Math.max(sp2.crownBase, at.crownBase / H)) };
+  if (at.crownR != null && sp2.width != null) sp2 = { ...sp2, maxWidth: at.crownR };
   const crown = gen(sp2, r, H, q, bark, leaves, tint, leafTint, phase);
   // crown-shaped normals for foliage
   let cr = 1, cc = V(0, H * 0.6, 0), rad = V(1, 1, 1);

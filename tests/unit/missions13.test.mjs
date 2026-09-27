@@ -109,7 +109,7 @@ test('m02: sealed camp — gate and raised ladder; wall walk; zones → alarm; g
   const ctx = loadGrid(getMission('m02'));
   const { grid, world } = ctx;
   assert.ok(Math.abs(grid.elev[at(grid, 28.5, 43.2)] - 2.2) < 1e-6, 'e5 stands on walk_sw at y 2.2');
-  assert.ok(grid.elev[at(grid, 30, 20.6)] > 5, 't1 deck raised');
+  assert.ok(grid.elev[at(grid, 27.06, 26.49)] > 5, 't1 deck raised');
   const ladder = world.ladders.find((l) => l.id === 'ladder_sw');
   assert.ok(ladder && ladder.raised && !grid.links.find((l) => l.id === ladder.linkId).enabled);
   assert.equal(findPath(grid, 23, 45, 40, 30, { role: 'sniper' }), null, 'no way in while the gate is shut and the ladder up');

@@ -1,0 +1,154 @@
+<!doctype html><html><head><meta charset="utf-8"><title>kit review</title>
+<style>html,body{margin:0;background:#222;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"/vendor/three.module.js","three/addons/":"/vendor/addons/"}}</script>
+</head><body>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+const GL = () => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const KIT = '/fs' + new URL(location.href).searchParams.get('kit');
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x8a9198);
+const S = { root: null, meta: null, overlay: new THREE.Group(), figs: new THREE.Group(), ground: new THREE.Group(), box: null };
+scene.add(S.overlay, S.figs, S.ground);
+const sun = new THREE.DirectionalLight(0xfff1dc, 3.0);
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
+scene.add(sun, sun.target);
+const hemi = new THREE.HemisphereLight(0xbfd4ea, 0x5a5040, 0.0); scene.add(hemi);
+const texLoader = new THREE.TextureLoader();
+function libTex(id, map, srgb) {
+  const t = texLoader.load(`${KIT}/lib/1k/${id}_${map}.jpg`); t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
+}
+function libMat(id, tile, rep) {
+  const m = new THREE.MeshStandardMaterial({ map: libTex(id, 'diff', true), normalMap: libTex(id, 'nor'), roughnessMap: libTex(id, 'arm'), roughness: 1 });
+  for (const t of [m.map, m.normalMap, m.roughnessMap]) t.repeat.set(rep / tile, rep / tile);
+  return m;
+}
+window.__K = { THREE, scene, renderer, S, sun, EffectComposer, RenderPass, GTAOPass, OutputPass };
+window.setup = async ({ glb, sidecar, theater = 'temperate', env = 1.0, tone = 'agx', sunEl = 42, figures = true, variant = null, fig = null, pose = null }) => {
+  const hdr = await new RGBELoader().loadAsync('/hdri/kloofendal_43d_clear_puresky_1k.hdr');
+  hdr.mapping = THREE.EquirectangularReflectionMapping;
+  const pm = new THREE.PMREMGenerator(renderer);
+  scene.environment = pm.fromEquirectangular(hdr).texture; scene.environmentIntensity = env;
+  renderer.toneMapping = tone === 'aces' ? THREE.ACESFilmicToneMapping : THREE.AgXToneMapping;
+  renderer.toneMappingExposure = tone === 'aces' ? 0.85 : 1.0;
+  const mgr = new THREE.LoadingManager();
+  if (variant && variant !== 'grey') mgr.setURLModifier(u => u.replace('_grey_', `_${variant}_`));
+  const g = await new GLTFLoader(mgr).loadAsync(glb);
+  S.root = g.scene; scene.add(S.root);
+  if (pose) S.root.traverse(o => { const p = pose[o.name]; if (p) { if (p.rot) o.rotation.set(...p.rot.map(a => a * Math.PI / 180)); } });
+  let tris = 0;
+  S.root.traverse(o => { if (o.isMesh) { o.castShadow = o.receiveShadow = true;
+    tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
+    const m = o.material; if (m.aoMap) m.aoMapIntensity = 0.85;
+    if (m.transparent) { o.castShadow = false; m.depthWrite = false; m.polygonOffset = true; m.polygonOffsetFactor = -2; } } });
+  S.meta = sidecar ? await (await fetch(sidecar)).json().catch(() => null) : null;
+  S.box = new THREE.Box3().setFromObject(S.root);
+  const sz = S.box.getSize(new THREE.Vector3()), c = S.box.getCenter(new THREE.Vector3());
+  // ground / water
+  // water: murky green-brown, wind ripples (tileable normal map) -> broken sky/bank reflections instead of a flat slab
+  const waterMat = (w, h) => {
+    const n = 256, d = new Uint8Array(n * n * 4), H = new Float32Array(n * n), T = 2 * Math.PI / n;
+    const waves = [[3, 1, 0.9], [-2, 4, 0.7], [7, -3, 0.35], [5, 9, 0.25], [-11, 6, 0.18], [13, 14, 0.1], [-17, -9, 0.08]];
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { let v = 0; for (const [a, b, k] of waves) v += k * Math.sin(T * (a * x + b * y) + a * 1.7); H[y * n + x] = v; }
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const gx = H[y * n + (x + 1) % n] - H[y * n + (x + n - 1) % n], gy = H[((y + 1) % n) * n + x] - H[((y + n - 1) % n) * n + x];
+      const nx = -gx * 2.2, ny = -gy * 2.2, l = Math.hypot(nx, ny, 1), i = (y * n + x) * 4;
+      d[i] = (nx / l * 0.5 + 0.5) * 255; d[i + 1] = (ny / l * 0.5 + 0.5) * 255; d[i + 2] = (1 / l * 0.5 + 0.5) * 255; d[i + 3] = 255;
+    }
+    const tex = new THREE.DataTexture(d, n, n); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(w / 11, h / 11); tex.needsUpdate = true;
+    return new THREE.MeshStandardMaterial({ color: 0x121e17, roughness: 0.16, metalness: 0.0, normalMap: tex, normalScale: new THREE.Vector2(0.2, 0.2), transparent: true, opacity: 0.93 });
+  };
+  const R = Math.max(sz.x, sz.z) * 3 + 40;
+  const gid = { desert: 'gravel', snow: 'snow' }[theater] || 'sod';
+  const br = S.meta && S.meta.bridge;
+  if (br) {   // road along X, river flowing along Z (north-south): water between the abutments
+    const wy = br.water_level, bed = wy - 2.6, rw = br.river_width;
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(rw + 1, R), waterMat(rw + 1, R));
+    water.rotation.x = -Math.PI / 2; water.position.set(0, wy, 0); water.receiveShadow = true; S.ground.add(water);
+    const bedm = new THREE.Mesh(new THREE.PlaneGeometry(R, R), libMat('mud', 2.5, R)); bedm.rotation.x = -Math.PI / 2; bedm.position.y = bed; bedm.receiveShadow = true; S.ground.add(bedm);
+    for (const s of [-1, 1]) {
+      const bank = new THREE.Mesh(new THREE.BoxGeometry(R / 2, -bed, R), libMat(gid, 2.5, R));
+      bank.position.set(s * (rw / 2 + R / 4), bed / 2 - 0.02, 0); bank.receiveShadow = true; S.ground.add(bank);
+    }
+  } else if (S.meta && S.meta.review_water) {   // generic water pit: {level, bed, rects: [[x0,z0,x1,z1], ...]} (game coords)
+    const rw = S.meta.review_water, bed = rw.bed ?? rw.level - 2.5;
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(R, R), waterMat(R, R));
+    water.rotation.x = -Math.PI / 2; water.position.set(c.x, rw.level, c.z); water.receiveShadow = true; S.ground.add(water);
+    const bedm = new THREE.Mesh(new THREE.PlaneGeometry(R, R), libMat('mud', 2.5, R)); bedm.rotation.x = -Math.PI / 2; bedm.position.set(c.x, bed, c.z); S.ground.add(bedm);
+    // land = textured ground plane (1 m grid) whose vertices inside the water rects drop to the bed (pit walls hidden by revetments)
+    const inW = (x, z) => rw.rects.some(([a, b, e, f]) => x > a && x < e && z > b && z < f);
+    const n = Math.ceil(R), lg = new THREE.PlaneGeometry(R, R, n, n); lg.rotateX(-Math.PI / 2);
+    const pa = lg.attributes.position;
+    for (let i = 0; i < pa.count; i++) { const x = pa.getX(i) + c.x, z = pa.getZ(i) + c.z; pa.setY(i, inW(x, z) ? bed - 0.02 : (rw.land ?? -0.01)); }
+    lg.computeVertexNormals();
+    const land = new THREE.Mesh(lg, libMat(gid, 2.5, R)); land.position.set(c.x, 0, c.z); land.receiveShadow = true; S.ground.add(land);
+  } else if (S.meta && S.meta.review_track) {   // railway: origin = top of rail; ballast bed, sleepers, two rails along Z
+    const rt = S.meta.review_track, gy = rt.ground ?? -0.42, g2 = (rt.gauge ?? 1.435) / 2 + 0.035, L = R;
+    const gm = new THREE.Mesh(new THREE.PlaneGeometry(R, R), libMat(gid, 2.5, R));
+    gm.rotation.x = -Math.PI / 2; gm.position.set(c.x, gy, c.z); gm.receiveShadow = true; S.ground.add(gm);
+    const bw = rt.ballast ?? (g2 * 2 + 1.4), bh = (rt.sleeper_top ?? -0.17) - 0.03 - gy;
+    const shp = new THREE.Shape([new THREE.Vector2(-bw / 2 - bh * 1.5, 0), new THREE.Vector2(bw / 2 + bh * 1.5, 0), new THREE.Vector2(bw / 2, bh), new THREE.Vector2(-bw / 2, bh)]);
+    const bg = new THREE.ExtrudeGeometry(shp, { depth: L, bevelEnabled: false }); bg.translate(0, 0, -L / 2);
+    const bm_ = libMat(rt.ballast_mat ?? 'gravel_grey', 2.0, L); bm_.color = new THREE.Color(0x77716a); const bal = new THREE.Mesh(bg, bm_); bal.position.set(0, gy, c.z); bal.receiveShadow = true; S.ground.add(bal);
+    const st = rt.sleeper_top ?? -0.17, sw = rt.sleeper_len ?? (g2 * 2 + 1.1), sp = rt.sleeper_pitch ?? 0.65;
+    const sm = libMat('timber_creosote', 1.5, 3), n = Math.floor(L / sp);
+    const sl = new THREE.InstancedMesh(new THREE.BoxGeometry(sw, 0.16, (rt.sleeper_w ?? 0.26)), sm, n);
+    for (let i = 0; i < n; i++) { const m = new THREE.Matrix4().makeTranslation(0, st - 0.08, c.z - L / 2 + i * sp); sl.setMatrixAt(i, m); }
+    sl.receiveShadow = sl.castShadow = true; S.ground.add(sl);
+    const rm = new THREE.MeshStandardMaterial({ color: 0x4e3a2c, roughness: 0.85, metalness: 0.15, envMapIntensity: 0.4 }), hm = new THREE.MeshStandardMaterial({ color: 0x8c8782, roughness: 0.42, metalness: 0.75, envMapIntensity: 0.35 });   // rusty web + polished head (low env: no sky-blue cast)
+    const rh = -st;
+    for (const s of [-1, 1]) {
+      const web = new THREE.Mesh(new THREE.BoxGeometry(rt.rail_w ?? 0.07, rh - 0.02, L), rm); web.position.set(s * g2, st + (rh - 0.02) / 2, c.z); web.castShadow = web.receiveShadow = true; S.ground.add(web);
+      const foot = new THREE.Mesh(new THREE.BoxGeometry((rt.rail_w ?? 0.07) * 2, 0.02, L), rm); foot.position.set(s * g2, st + 0.01, c.z); S.ground.add(foot);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(rt.rail_w ?? 0.07, 0.02, L), hm); head.position.set(s * g2, -0.01, c.z); S.ground.add(head);
+    }
+  } else {
+    const gm = new THREE.Mesh(new THREE.PlaneGeometry(R, R), libMat(gid, 2.5, R));
+    gm.rotation.x = -Math.PI / 2; gm.position.set(c.x, -0.01, c.z); gm.receiveShadow = true; S.ground.add(gm);
+  }
+  if (fig) {   // real 1.8 m soldier (rest pose) for scale, left-front of the asset
+    const fg = await GL().loadAsync(fig); const f = fg.scene;
+    const fb = new THREE.Box3().setFromObject(f), fh = fb.max.y - fb.min.y; f.scale.setScalar(1.8 / fh);
+    f.position.set(S.box.min.x - 0.6, -fb.min.y * 1.8 / fh, S.box.min.z + Math.min(1.2, (S.box.max.z - S.box.min.z) * 0.3)); f.rotation.y = -0.9;
+    f.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } }); S.figs.add(f);
+    if (S.meta && S.meta.review_water) { f.position.y += (S.meta.review_water.fig_y || 0); f.position.z = S.meta.review_water.fig_z ?? f.position.z; }
+    const RT = S.meta && S.meta.review_track; if (RT) { f.position.y += (RT.ground ?? -0.42); f.position.x -= (RT.fig_dx ?? 0.8); }
+    if (!(S.meta && S.meta.review_water)) {
+    const f2 = (await GL().loadAsync(fig)).scene; f2.scale.copy(f.scale);
+    f2.position.set(S.box.max.x + 0.6 + (RT ? (RT.fig_dx ?? 0.8) : 0), f.position.y, S.box.min.z + Math.min(1.2, (S.box.max.z - S.box.min.z) * 0.3)); f2.rotation.y = 0.9;
+    f2.traverse(o => { if (o.isMesh) { o.castShadow = true; o.frustumCulled = false; } }); S.figs.add(f2);
+    }
+  }
+  if (figures && !fig) {  // 1.8 m scale capsules
+    const fm = new THREE.MeshStandardMaterial({ color: 0x55603a, roughness: 0.8 });
+    const pos = br ? [[-br.river_width / 2 - 4, 0.05, 1.2], [br.river_width / 2 + 3, 0.05, -1.0], [0, br.deck_top ?? 0, 1.0]] : [[S.box.max.x + 1.2, 0, S.box.max.z - 0.5], [S.box.min.x - 1.2, 0, S.box.max.z + 1.5]];
+    for (const [x, y, z] of pos) { const m = new THREE.Mesh(new THREE.CapsuleGeometry(0.25, 1.3, 4, 12), fm); m.position.set(x, y + 0.9, z); m.castShadow = true; S.figs.add(m); }
+  }
+  // sun from the NW, elevation sunEl
+  const el = THREE.MathUtils.degToRad(sunEl), d = 80;
+  sun.position.set(c.x - Math.cos(el) * Math.SQRT1_2 * d, Math.sin(el) * d, c.z - Math.cos(el) * Math.SQRT1_2 * d);
+  sun.target.position.copy(c);
+  const ext = Math.max(sz.x, sz.y, sz.z) * 0.9 + 6;
+  Object.assign(sun.shadow.camera, { left: -ext, right: ext, top: ext, bottom: -ext, near: 1, far: 200 });
+  sun.shadow.camera.updateProjectionMatrix();
+  return { tris, size: sz.toArray(), center: c.toArray(), meta: !!S.meta };
+};
+</script>
+<script type="module" src="/review_views.js"></script>
+</body></html>

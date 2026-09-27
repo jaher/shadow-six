@@ -92,6 +92,38 @@ export class NavGrid {
      */
     this.elev = new Float32Array(n);
     /**
+     * Nav-only blocks (placement rule e, world/placement.js): cells where a structure's VISUAL stands outside its
+     * gameplay footprint (steps, porches' posts, woodpiles, splayed tower legs) or where an idle movable prop
+     * (pushable wagon) sits. Counted per stamp key; blocks walking (isWalkable), never sight or cover.
+     * @type {Uint8Array}
+     */
+    this.navBlock = new Uint8Array(n);
+    this._navStamps = new Map();
+    /**
+     * Overhead visuals (placement rules d/e): per open cell the lowest / highest point of structure visuals above
+     * body height (eaves, porch roofs, a tower's cabin). Walkers pass under; vehicles taller than `overLo` and gun
+     * barrels at its height do not. Allocated on the first overStamp (null = nothing overhead anywhere).
+     * @type {Float32Array|null}
+     */
+    this.overLo = null;
+    /** @type {Float32Array|null} */
+    this.overHi = null;
+    /** Same for tree branches (soft: gun arcs only). @type {Float32Array|null} */
+    this.softLo = null;
+    /** @type {Float32Array|null} */
+    this.softHi = null;
+    this._overStamps = new Map();
+    /**
+     * Standing visuals at quarter-cell resolution (placement rule e, bodies): what rises 0.15–1.2 m above the local
+     * walking surface (stakes along a wall walk, railings, crates). Counted per stamp key; bodies never lie across
+     * it (fallHeading / settleBody), walking is not affected. null until the first solidStamp.
+     * @type {Uint8Array|null}
+     */
+    this.solid = null;
+    this._solidStamps = new Map();
+    /** Measured visual top (world y) of structure footprint cells (0 = unknown; gun arcs, placement rule d). @type {Float32Array|null} */
+    this.blockTop = null;
+    /**
      * Off-grid links fed to the pathfinder (§10.2): climb edges (GB only by default) and ladders
      * (everyone). See addLink(). `_linkIndex` maps a cell index → links touching it.
      * @type {GridLink[]}
@@ -149,7 +181,7 @@ export class NavGrid {
   isWalkable(i, j, opts) {
     if (i < 0 || j < 0 || i >= this.cols || j >= this.rows) return false;
     const k = j * this.cols + i;
-    if (this.block[k] !== B.NONE) return false;
+    if (this.block[k] !== B.NONE || this.navBlock[k]) return false;
     if (opts && opts.dynamic && this.dynamicBlock[k] !== B.NONE) return false;
     if (this.bridge[k]) return true;
     if (this.terrain[k] === T.WATER) return !!(opts && opts.swim);
@@ -365,6 +397,78 @@ export class NavGrid {
     }
     if (n) { this._dynamicDirty = true; this.dynamicVersion++; }
     return n;
+  }
+
+  /**
+   * Nav-only block stamp (see navBlock): replaces the cells previously stamped under `key` with `cells`
+   * (cell indices). Bumps `version` when anything changed (paths replan).
+   * @param {string} key @param {Iterable<number>} cells
+   */
+  navStamp(key, cells) {
+    const prev = this._navStamps.get(key), next = new Set(cells);
+    if (prev) for (const k of prev) if (!next.has(k) && this.navBlock[k]) this.navBlock[k]--;
+    for (const k of next) if (!prev || !prev.has(k)) this.navBlock[k] = Math.min(255, this.navBlock[k] + 1);
+    if (next.size) this._navStamps.set(key, next); else this._navStamps.delete(key);
+    this.version++;
+  }
+
+  /**
+   * Overhead stamp (see overLo): replaces the cells previously stamped under `key` with `cells` (cell index →
+   * [lo, hi] world y). Bumps `version` (gun arcs / drive probes recompute). `soft` (tree branches) goes to
+   * softLo / softHi instead: gun barrels keep out of it, hulls brush through.
+   * @param {string} key @param {Map<number, [number, number]>} cells @param {boolean} [soft]
+   */
+  overStamp(key, cells, soft = false) {
+    const n = this.cols * this.rows;
+    if (!this.overLo) for (const f of ['overLo', 'softLo']) this[f] = new Float32Array(n).fill(Infinity);
+    if (!this.overHi) for (const f of ['overHi', 'softHi']) this[f] = new Float32Array(n).fill(-Infinity);
+    const touched = new Set(this._overStamps.get(key)?.cells.keys() || []);
+    for (const k of cells.keys()) touched.add(k);
+    if (cells.size) this._overStamps.set(key, { cells: new Map(cells), soft }); else this._overStamps.delete(key);
+    for (const k of touched) {
+      let lo = Infinity, hi = -Infinity, slo = Infinity, shi = -Infinity;
+      for (const st of this._overStamps.values()) {
+        const r = st.cells.get(k);
+        if (!r) continue;
+        if (st.soft) { if (r[0] < slo) slo = r[0]; if (r[1] > shi) shi = r[1]; } else { if (r[0] < lo) lo = r[0]; if (r[1] > hi) hi = r[1]; }
+      }
+      this.overLo[k] = lo; this.overHi[k] = hi; this.softLo[k] = slo; this.softHi[k] = shi;
+    }
+    this.version++;
+  }
+
+  /**
+   * Standing-visual stamp (see `solid`): replaces the quarter cells previously stamped under `key` with `cells`
+   * ("i,j" keys at cell / 2, as from placement-visual standingCells).
+   * @param {string} key @param {Iterable<string>} cells
+   */
+  solidStamp(key, cells) {
+    const S = this.cols * 2;
+    if (!this.solid) this.solid = new Uint8Array(S * this.rows * 2);
+    const toIdx = (c) => { const [i, j] = c.split(',').map(Number); return i >= 0 && j >= 0 && i < S && j < this.rows * 2 ? j * S + i : -1; };
+    const prev = this._solidStamps.get(key), next = new Set();
+    for (const c of cells) { const k = toIdx(c); if (k >= 0) next.add(k); }
+    if (prev) for (const k of prev) if (!next.has(k) && this.solid[k]) this.solid[k]--;
+    for (const k of next) if (!prev || !prev.has(k)) this.solid[k] = Math.min(255, this.solid[k] + 1);
+    if (next.size) this._solidStamps.set(key, next); else this._solidStamps.delete(key);
+  }
+
+  /** Does a standing visual occupy (x, z)? (quarter-cell resolution; false when nothing was stamped) */
+  solidAt(x, z) {
+    if (!this.solid) return false;
+    const h = this.cell / 2, i = Math.floor(x / h), j = Math.floor(z / h);
+    return i >= 0 && j >= 0 && i < this.cols * 2 && j < this.rows * 2 && this.solid[j * this.cols * 2 + i] > 0;
+  }
+
+  /** Cells of an oriented rect (centre, w along heading, d across) whose centres lie inside it. */
+  rectCells(cx, cz, w, d, heading = 0) {
+    const out = [], c = Math.cos(heading), s = Math.sin(heading), r = Math.hypot(w, d) / 2;
+    const c0 = this.worldToCell(cx - r, cz - r), c1 = this.worldToCell(cx + r, cz + r);
+    for (let j = Math.max(0, c0.j); j <= Math.min(this.rows - 1, c1.j); j++) for (let i = Math.max(0, c0.i); i <= Math.min(this.cols - 1, c1.i); i++) {
+      const p = this.cellCenter(i, j), dx = p.x - cx, dz = p.z - cz;
+      if (Math.abs(dx * c + dz * s) <= w / 2 && Math.abs(-dx * s + dz * c) <= d / 2) out.push(this.idx(i, j));
+    }
+    return out;
   }
 
   /** Dynamic block class at a world point (0 outside). */

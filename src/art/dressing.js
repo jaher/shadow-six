@@ -357,6 +357,31 @@ const WALL_KIND = (variant = '', mat = '') => {
  * @param {number[][]} points polyline [[x, z], …]
  * @param {{variant?: string, mat?: string, h: number, width: number, id?: string}} o
  */
+/** How far a palisade's stakes step away from a wall walk's deck (m). */
+export const WALK_SHIFT = 0.2;
+/**
+ * Signed across-shift (along the left normal nx, nz) for a stake at (x, z): −WALK_SHIFT·side when a walkway
+ * ({points, width}) covers the spot, side = the walk's side of the line; 0 elsewhere.
+ */
+export function walkShiftAt(x, z, nx, nz, walkways) {
+  for (const w of walkways || []) {
+    const p = w.points.map((q) => (Array.isArray(q) ? q : [q.x, q.z]));
+    for (let k = 0; k + 1 < p.length; k++) {
+      const [cx, cz] = p[k], [dx, dz] = p[k + 1], l2 = (dx - cx) ** 2 + (dz - cz) ** 2 || 1;
+      // the raised walk (nav line fill) runs half its width past each end: so do the stepped-off stakes
+      const L = Math.sqrt(l2), ext = (w.width ?? 1.2) / 2 / L;
+      let t = ((x - cx) * (dx - cx) + (z - cz) * (dz - cz)) / l2;
+      if (t < -ext || t > 1 + ext) continue;
+      t = Math.max(0, Math.min(1, t));
+      const fx = cx + (dx - cx) * t, fz = cz + (dz - cz) * t;
+      if (Math.hypot(fx - x, fz - z) > (w.width ?? 1.2) / 2 + 0.05) continue;
+      const side = Math.sign((fx - x) * nx + (fz - z) * nz) || 1;
+      return -side * WALK_SHIFT;
+    }
+  }
+  return 0;
+}
+
 export function buildWall(points, o) {
   const kind = WALL_KIND(o.variant, o.mat), h = o.h ?? 2, width = o.width ?? 0.4;
   const root = new THREE.Group(); root.name = `dressing:wall:${kind}`;
@@ -368,18 +393,25 @@ export function buildWall(points, o) {
       const [ax, az] = points[k], [bx, bz] = points[k + 1], L = Math.hypot(bx - ax, bz - az);
       if (L < 1e-3) continue;
       const tx = (bx - ax) / L, tz = (bz - az) / L;
+      const chunks = []; // runs of stakes with the same walk shift → their own rails
       for (let dd = 0.14; dd < L; ) {
         const r = 0.11 + R() * 0.045, H = h * (0.93 + R() * 0.12);
-        const x = ax + tx * (dd + r), z = az + tz * (dd + r);
+        let x = ax + tx * (dd + r), z = az + tz * (dd + r);
+        // a wall walk runs along here: the stakes stand in front of its deck (never through a sentry's legs)
+        const sh = walkShiftAt(x, z, -tz, tx, o.walkways);
+        x -= tz * sh; z += tx * sh;
         e.set((R() - 0.5) * 0.05, R() * Math.PI * 2, (R() - 0.5) * 0.05);
         M4.compose(ps.set(x, -0.3, z), q.setFromEuler(e), sc.set(r, H + 0.3, r));
         mats.push(M4.clone());
+        const last = chunks[chunks.length - 1];
+        if (last && last.sh === sh) last.d1 = dd + 2 * r; else chunks.push({ sh, d0: dd, d1: dd + 2 * r });
         dd += 2 * r + 0.015;
       }
       // two split-log rails on the inside face
-      for (const y of [h * 0.28, h * 0.72]) {
-        const rail = mesh(new THREE.BoxGeometry(L, 0.16, 0.1), dressingMaterial('logsTarred'));
-        rail.position.set((ax + bx) / 2 - tz * 0.2, y, (az + bz) / 2 + tx * 0.2);
+      for (const c of chunks) for (const y of [h * 0.28, h * 0.72]) {
+        const len = c.d1 - c.d0, mid = (c.d0 + c.d1) / 2, off = 0.2 + c.sh;
+        const rail = mesh(new THREE.BoxGeometry(len, 0.16, 0.1), dressingMaterial('logsTarred'));
+        rail.position.set(ax + tx * mid - tz * off, y, az + tz * mid + tx * off);
         rail.rotation.y = -Math.atan2(bz - az, bx - ax);
         rails.add(rail);
       }
@@ -646,3 +678,31 @@ export function buildPole(p) {
   return g;
 }
 let GLASS = null;
+
+/**
+ * Timber wall-walk deck (mission `walkways` on a wall): plank deck strips [{ax, az, bx, bz, off, width, y}] (off =
+ * across offset of the strip centre from the a→b line, left normal positive) on posts every ~2 m at the inner edge.
+ * The strips are computed by the map builder so the deck stops at the wall's inner face (never through it).
+ */
+export function buildWalkDeck(strips) {
+  const root = new THREE.Group(); root.name = 'dressing:walkway';
+  const planks = dressingMaterial('planks'), posts = dressingMaterial('logsTarred');
+  for (const s of strips) {
+    const L = Math.hypot(s.bx - s.ax, s.bz - s.az);
+    if (L < 0.2 || s.width < 0.2) continue;
+    const tx = (s.bx - s.ax) / L, tz = (s.bz - s.az) / L, nx = -tz, nz = tx;
+    const cx = (s.ax + s.bx) / 2 + nx * s.off, cz = (s.az + s.bz) / 2 + nz * s.off, rot = -Math.atan2(tz, tx);
+    const deck = mesh(new THREE.BoxGeometry(L, 0.08, s.width), planks);
+    deck.position.set(cx, s.y - 0.04, cz); deck.rotation.y = rot;
+    root.add(deck);
+    const n = Math.max(1, Math.round(L / 2));
+    for (let k = 0; k <= n; k++) {
+      const u = -L / 2 + 0.15 + ((L - 0.3) * k) / n, e = s.off + s.width / 2 - 0.1;
+      const post = mesh(new THREE.BoxGeometry(0.14, s.y - 0.08, 0.14), posts);
+      post.position.set((s.ax + s.bx) / 2 + tx * u + nx * e, (s.y - 0.08) / 2, (s.az + s.bz) / 2 + tz * u + nz * e);
+      post.rotation.y = rot;
+      root.add(post);
+    }
+  }
+  return consolidate(root);
+}

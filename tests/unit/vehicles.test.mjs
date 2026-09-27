@@ -617,3 +617,19 @@ test('unmannable guns (§3.4): the 210 mm mortar and the M20 anti-tank gun — a
   assert.equal(cannon.canEnter(dr), true);
   assert.equal(vehicleDef('cannon').unmannable, undefined, 'the spawn flag does not leak into the registry');
 });
+
+test('placement rules (d/e): the drive probe sees a lone post anywhere across the nose and refuses eaves lower than the hull', () => {
+  const w = mkWorld();
+  const tk = w.spawnVehicle('panzer2', { x: 20, z: 30, heading: 0 });
+  // a 0.5 m post 0.75 m off the centre line: between the old three nose samples (centre, ±1.45 m)
+  w.grid.block[w.grid.idx(60, 61)] = B.HIGH; w.grid.version++; // cell x 30–30.5, z 30.5–31
+  assert.ok(tk.straightReach(40, 30) < 8.5, `stops before the post (${tk.straightReach(40, 30).toFixed(2)} m)`);
+  const w2 = mkWorld(), tk2 = w2.spawnVehicle('panzer2', { x: 20, z: 30, heading: 0 });
+  const eaves = new Map(); for (const k of w2.grid.rectCells(30, 30, 1, 6)) eaves.set(k, [2.0, 3.5]);
+  w2.grid.overStamp('cab', eaves);
+  assert.ok(tk2.hullHeight() > 2.0, 'hull + turret taller than those eaves');
+  assert.ok(!tk2.passableAt(30, 30) && tk2.passableAt(27, 30), 'cannot drive under eaves lower than itself');
+  const high = new Map(); for (const k of w2.grid.rectCells(30, 30, 1, 6)) high.set(k, [4.5, 6]);
+  w2.grid.overStamp('cab', high);
+  assert.ok(tk2.passableAt(30, 30), 'a high gallery lets it through');
+});

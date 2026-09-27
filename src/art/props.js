@@ -120,7 +120,7 @@ function buildLinear(type, p, def, ctx = {}) {
   const width = p.width ?? def.width;
   const h = p.h ?? def.h ?? 0;
   const dressed = type === 'wall' && dressingOn(ctx);
-  const root = dressed ? buildWall(points, { variant: p.variant, mat: p.mat || def.mat, h, width, id: p.id }) : new THREE.Group();
+  const root = dressed ? buildWall(points, { variant: p.variant, mat: p.mat || def.mat, h, width, id: p.id, walkways: p.walkways }) : new THREE.Group();
   for (let k = 0; !dressed && k + 1 < points.length; k++) {
     const [ax, az] = points[k], [bx, bz] = points[k + 1];
     const len = Math.hypot(bx - ax, bz - az);

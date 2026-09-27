@@ -33,15 +33,17 @@ export function airCutoff(d) {
  * @param {number} viewWidth live frustum width (m) — pan only
  * @param {number} [range] per-sound audible radius (m) replacing the class max (e.g. M2 pboat 60 m, §7.5)
  * @param {string} [cls] distance class (manifest.js DISTANCE), default 'mech'
+ * @param {number} [yaw] camera yaw (rad): pan follows the screen-right axis, not world x
  * @returns {{gain:number, pan:number, d:number, far:boolean, cull:boolean, lp:number}}
  */
-export function spatialize(pos, cx, cz, viewWidth, range, cls) {
+export function spatialize(pos, cx, cz, viewWidth, range, cls, yaw = 0) {
   const c = DISTANCE[cls] || DISTANCE.mech;
   const max = range > 0 ? range : c.max;
   const ref = Math.min(c.ref, max);
   const dx = pos.x - cx, dz = pos.z - cz;
   const d = Math.hypot(dx, dz);
-  const pan = Math.max(-1, Math.min(1, dx / Math.max(1, viewWidth / 2))) * 0.8;
+  const lat = yaw ? dx * Math.cos(yaw) - dz * Math.sin(yaw) : dx; // offset along screen-right (camera yaw, rad)
+  const pan = Math.max(-1, Math.min(1, lat / Math.max(1, viewWidth / 2))) * 0.8;
   const lp = airCutoff(d);
   if (d > max) return { gain: 0, pan, d, far: true, cull: true, lp };
   const inv = ref / (ref + (A().rolloff ?? 1) * (Math.max(d, ref) - ref));
@@ -82,7 +84,7 @@ export class AudioEngine {
     this.pinned = new Map(); // id → url[] restricted for this mission (one siren take …)
     this.rr = new Map(); // id → round-robin counter
     this.active = new Set();
-    this.listener = { x: 0, z: 0, viewWidth: 40 };
+    this.listener = { x: 0, z: 0, viewWidth: 40, yaw: 0 };
     this.ready = Promise.resolve();
   }
 
@@ -189,7 +191,7 @@ export class AudioEngine {
     const range = o.range > 0 ? o.range : undefined;
     let sp = { gain: 1, pan: 0, cull: false, d: 0, lp: 20000 };
     if (pos) {
-      sp = spatialize(pos, this.listener.x, this.listener.z, this.listener.viewWidth, range, cls);
+      sp = spatialize(pos, this.listener.x, this.listener.z, this.listener.viewWidth, range, cls, this.listener.yaw);
       if (sp.cull && !loop) return null;
       // distance timbre (§1.5.0): far explosions use the distant recordings, not a low-passed close one
       if (def?.far && !loop && !o.buffer && sp.d > (A().farLayerAt ?? 160) && this.files.has(def.far)) return this.play(def.far, o);
@@ -282,7 +284,7 @@ export class AudioEngine {
     if (h.ended) return;
     let gain = h.base, pan = 0, lp = 20000;
     if (h.pos) {
-      const sp = spatialize(h.pos, this.listener.x, this.listener.z, this.listener.viewWidth, h.range, h.cls);
+      const sp = spatialize(h.pos, this.listener.x, this.listener.z, this.listener.viewWidth, h.range, h.cls, this.listener.yaw);
       gain *= sp.gain; pan = sp.pan; lp = sp.lp;
     }
     ramp(h.gainNode.gain, gain, this.now, 0.05);
@@ -291,8 +293,9 @@ export class AudioEngine {
   }
 
   /** Move the listener to the active view centre (width = live frustum width); re-spatialize positional voices. */
-  setListener(x, z, viewWidth) {
+  setListener(x, z, viewWidth, yaw) {
     this.listener.x = x; this.listener.z = z;
+    if (Number.isFinite(yaw)) this.listener.yaw = yaw;
     if (viewWidth > 0) this.listener.viewWidth = viewWidth;
     for (const h of this.active) if (h.pos) this._apply(h);
   }

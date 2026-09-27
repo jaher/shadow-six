@@ -21,6 +21,7 @@
  * @module entities/vehicle
  */
 
+import { turretArc, clampTraverse, liftAt, ownerHeight } from '../world/placement.js';
 import * as THREE from 'three';
 import { Entity } from './entity.js';
 import { CONFIG, KILL } from '../config.js';
@@ -159,20 +160,25 @@ function boxModel(type, def) {
   hull.position.y = h / 2;
   hull.castShadow = hull.receiveShadow = true;
   root.add(hull);
-  let turret = null;
+  let turret = null, gunPivot = null;
   if (def.kind === 'emplacement') {
     turret = new THREE.Group();
     turret.position.y = h;
     const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, type === 'cannon' ? 2.4 : 1.2, 8), new THREE.MeshStandardMaterial({ color: 0x222222 }));
     barrel.rotation.x = Math.PI / 2;
     barrel.position.z = type === 'cannon' ? 1.2 : 0.6;
-    turret.add(barrel);
+    gunPivot = new THREE.Group(); gunPivot.name = 'gunPivot'; // elevation (placement rule d: lift over walls)
+    gunPivot.add(barrel);
+    turret.add(gunPivot);
     root.add(turret);
   }
   return {
     root, turret, dims: { w, l, h },
+    gun: turret ? { len: type === 'cannon' ? 2.4 : 1.2, h } : null,
     update() {},
-    setTurretHeading(r) { if (turret) turret.rotation.y = r; },
+    // local = world turret heading − hull heading; rotation.y turns the other way (headingToRotY = π/2 − h)
+    setTurretHeading(r) { if (turret) turret.rotation.y = -r; },
+    setGunLift(a) { if (gunPivot) gunPivot.rotation.x = -(Number.isFinite(a) ? a : 0); },
     setDestroyed(on) { mat.color.setHex(on ? 0x1d1a17 : 0x3c4038); },
     dispose() { root.traverse((o) => { o.geometry?.dispose(); o.material?.dispose?.(); }); },
   };
@@ -507,6 +513,9 @@ export class Vehicle extends Entity {
       if (g.block[k] === B.HIGH && !g.bridge[k]) return false;
     } else {
       if (g.block[k] !== B.NONE && !this._rammable(x, z)) return false;
+      if (g.navBlock?.[k]) return false; // what the visuals occupy (steps, woodpiles, tower legs; placement rule e)
+      // eaves, porch roofs, balconies lower than the hull + turret (placement rule e overhead clearance)
+      if (g.overLo && g.overLo[k] < Infinity && g.overLo[k] < this._groundAt(x, z) + this.hullHeight() + 0.1) return false;
       if (t === T.WATER && !g.bridge[k]) return false;
       if (g.elev && g.elev[k] > 0.3) return false;
     }
@@ -515,6 +524,27 @@ export class Vehicle extends Entity {
       if (v._inHull(x, z, 0.1)) return false;
     }
     return true;
+  }
+
+  /** Ground height under (x, z) (the visual ground when the terrain provides one, else 0). */
+  _groundAt(x, z) {
+    const w = this.world, gy = w?.groundY;
+    return typeof gy === 'function' ? gy.call(w, x, z) : 0;
+  }
+
+  /** Height of the hull + turret / cab / canvas above its ground (m, the model's bounds; fallback 2.4). */
+  hullHeight() {
+    if (this._hullH != null) return this._hullH;
+    const o = this.object3d;
+    let h = this.def.height ?? 2.4, meshes = 0;
+    if (o) {
+      o.updateMatrixWorld(true);
+      o.traverse((n) => { if (n.isMesh) meshes++; });
+      const b = new THREE.Box3().setFromObject(o);
+      if (meshes && !b.isEmpty()) h = Math.max(0.5, b.max.y - o.position.y);
+    }
+    if (meshes) this._hullH = h; // a model still loading (truck GLB) is measured again later
+    return h;
   }
 
   /** §3.7 ramming: at fast speed, barriers and light gates (interactables flagged light/barrier) give way. */
@@ -531,8 +561,11 @@ export class Vehicle extends Entity {
     const c = Math.cos(h), s = Math.sin(h);
     const nx = x + c * (l / 2), nz = z + s * (l / 2);
     if (!strict) return [[x, z]];
-    const px = -s * (wd / 2 - 0.15), pz = c * (wd / 2 - 0.15);
-    return [[nx, nz], [nx + px, nz + pz], [nx - px, nz - pz]];
+    const px = -s * (wd / 2 + 0.05), pz = c * (wd / 2 + 0.05); // the full hull width (+5 cm): mirrors and wings clear walls
+    // across the width at ≤ 0.4 m (under a grid cell): a lone post or a tree trunk never slips between two samples
+    const pts = [[nx, nz]], n = Math.max(1, Math.ceil((wd + 0.1) / 2 / 0.4));
+    for (let k = 1; k <= n; k++) { const f = k / n; pts.push([nx + px * f, nz + pz * f], [nx - px * f, nz - pz * f]); }
+    return pts;
   }
 
   /**
@@ -647,6 +680,12 @@ export class Vehicle extends Entity {
     if (this.speed > 0.05 && this.def.runover) this._runover();
     this._updateWeapons(dt);
     for (const u of this.occupants) { u.x = this.x; u.z = this.z; u.heading = this.heading; u.snap?.(); }
+    // placement rule (d): the barrel never swings through a wall — closed arcs are skipped, low ones lift it
+    const arc = this.gunArc();
+    // (every angle closed — the housing under an overhang: the turret stays where it is, barrel level)
+    if (arc && !arc.some((v) => v !== Infinity)) { this.turretHeading = this._turretKeep ?? this.turretHeading; this.model.setGunLift?.(0); }
+    else if (arc) { this.turretHeading = clampTraverse(arc, this.turretHeading); this.model.setGunLift?.(liftAt(arc, this.turretHeading)); }
+    this._turretKeep = this.turretHeading;
     this.model.setTurretHeading?.(this.turretHeading - this.heading);
     this.model.update?.(dt, this);
   }
@@ -890,7 +929,26 @@ export class Vehicle extends Entity {
 
   /** Traverse limit (giro): may the gun point at heading h? Around the post heading for an emplacement,
    *  around the current heading for a moving mount (boat MG 'facing travel', §7.5). */
+  /**
+   * Traverse arc of this vehicle's gun over the static scene (world/placement.js turretArc): lift per angle,
+   * Infinity where the barrel would pass through a wall / building. Lazy; recomputed when the grid changes or
+   * the hull moves. null for guns without a model barrel (no `model.gun`).
+   */
+  gunArc() {
+    const w = this.world, g = this.model?.gun;
+    if (!w?.grid || !g || this.destroyed) return null;
+    const key = `${w.grid.version}|${this.x.toFixed(1)}|${this.z.toFixed(1)}`;
+    if (this._arcKey !== key) {
+      this._arcKey = key;
+      // the hull itself is never in block / navBlock (vehicles stamp the dynamic layer only): nothing to skip
+      this._arc = turretArc(w.grid, this.x, this.z, { len: g.len, h: g.h, housing: g.hl ? { hl: g.hl, hw: g.hw, top: g.top } : null, heightOf: ownerHeight(w), y0: this._groundAt(this.x, this.z) });
+    }
+    return this._arc;
+  }
+
   canTraverse(h) {
+    const arc = this.gunArc();
+    if (arc && liftAt(arc, h) === Infinity) return false;
     if (this.giro == null || this.giro >= 360) return true;
     const ref = this.vehicleKind === 'emplacement' ? this.postHeading : this.heading;
     return Math.abs(angleDiff(ref, h)) <= (this.giro * DEG) / 2 + 1e-6;

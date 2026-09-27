@@ -9,6 +9,20 @@
  */
 
 import { normalizeMission } from './missions/schema.js';
+import { placeSpawn } from './world/placement.js';
+
+/** Spawn def after the placement rules, standing on the measured surface (tower decks: grid elev, not the authored y). */
+const placed = (world, spawn) => {
+  const s = placeSpawn(spawn, world.placement, spawnFree(world));
+  const e = world.grid?.elevAt?.(s.x, s.z) ?? 0;
+  return (s.y ?? 0) > 0 && e > 0 && Math.abs(e - s.y) < 0.5 && e !== s.y ? { ...s, y: e } : s;
+};
+
+/** Spawn-placement test (world/placement.js placeSpawn): walkable at the spawn's own elevation. */
+const spawnFree = (world) => (x, z, s) => {
+  const g = world.grid;
+  return !!g && g.walkableAt(x, z) && Math.abs((g.elevAt?.(x, z) ?? 0) - (s.y ?? 0)) < 0.3;
+};
 import { Flow } from './core/flow.js';
 import { CONFIG } from './config.js';
 import { EventBus } from './core/events.js';
@@ -252,9 +266,9 @@ export class Game {
       if (s.role === medic && s.inventory?.firstAid === undefined && def.firstAid !== false) {
         s.inventory = { ...(s.inventory || defaultInventory(s.role)), firstAid: FIRST_AID_DOSES };
       }
-      world.add(new Commando(s));
+      world.add(new Commando(placed(world, s)));
     }
-    for (const spawn of def.enemies || []) world.add(new Enemy(spawn));
+    for (const spawn of def.enemies || []) world.add(new Enemy(placed(world, spawn)));
     const Vehicle = pick(VehicleMod, 'Vehicle', 'default');
     const createVehicle = pick(VehicleMod, 'createVehicle');
     world.vehicleFactory = (spawn) => (createVehicle ? createVehicle(spawn) : new Vehicle(spawn));
@@ -554,7 +568,8 @@ export class Game {
       this._updateCones();
       this.renderer.fitShadowToView?.(this.cameraRig);
       const cc = this.cameraController;
-      safe(() => this.audio?.update?.(cc.target.x, cc.target.z, 2 * (cc.viewHalfExtents?.().x || 20)), 'audio'); // §9 listener = view centre, maxDistance ∝ view width
+      // §9 listener = view centre, maxDistance ∝ view width (screen width in ground metres); pan along screen-right (yaw)
+      safe(() => this.audio?.update?.(cc.target.x, cc.target.z, cc.pxPerMeter ? cc.width / cc.pxPerMeter() : 40, cc.azimuth || 0), 'audio');
     }
     if (w?.fx) safe(() => w.fx.frame?.(), 'fx frame'); // VFX sort/upload, lights, decals (sim runs in step())
     this.selection.update(dt);

@@ -155,25 +155,43 @@ export function wireLibraryDoors(world, built) {
  * Walkable deck surfaces of library bridges (and piers/quays with a deck height), in world coords.
  * `heightAt(x, z)` = deck height along the bridge (deck_end at the ends, smooth ramp to deck_top), or null outside.
  */
-export function libraryDecks(built) {
+export function libraryDecks(built, o = {}) {
   const out = [];
-  for (const b of built) {
-    const br = b.library?.bridge;
-    if (!br?.deck || br.deck.length < 3 || !(br.deck_top > 0.05)) continue;
+  for (let b of built) {
+    let br = b.library?.bridge;
+    if (!br?.deck || br.deck.length < 3 || !(br.deck_top > 0.05)) {
+      // a library bridge / pier without sidecar deck data: its gameplay rect is the deck, measured on the visual
+      const d = b.def, isDeck = b.library && (/bridge|pier|jetty|dam/.test(b.type) || d.deck) && d.w != null && d.d != null;
+      if (!isDeck || !o.measure) continue;
+      const c = Math.cos(d.rot ?? 0), s = Math.sin(d.rot ?? 0), hw = d.w / 2, hd = d.d / 2;
+      br = { deck: [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([u, v]) => [d.x + u * c - v * s, d.z + u * s + v * c]), deck_top: 1.2, deck_end: 0 };
+      b = { ...b, library: { ...b.library, scale: [1, 1, 1] } };
+    }
     const sy = b.library.scale[1], top = br.deck_top * sy, endH = (br.deck_end ?? 0) * sy;
     const rot = b.def.rot ?? 0, c = Math.cos(rot), s = Math.sin(rot), x0 = b.def.x ?? 0, z0 = b.def.z ?? 0;
     // along-axis extent of the deck in the structure frame (local +X = bridge heading)
     const along = br.deck.map(([x, z]) => (x - x0) * c + (z - z0) * s);
     const lo = Math.min(...along), hi = Math.max(...along), half = (hi - lo) / 2, mid = (hi + lo) / 2;
     const ramp = Math.min(half * 0.45, Math.max(2, (br.approach?.length ?? 6) * b.library.scale[0]));
-    const poly = br.deck;
+    // measured decks cover the whole walkable nav rect (the sidecar deck can stop short of the crest's ends)
+    const d = b.def, rect = o.measure && d.w != null && d.d != null
+      ? [[-d.w / 2, -d.d / 2], [d.w / 2, -d.d / 2], [d.w / 2, d.d / 2], [-d.w / 2, d.d / 2]].map(([u, v]) => [x0 + u * c - v * s, z0 + u * s + v * c]) : null;
+    const polyArea = (p) => Math.abs(p.reduce((t, q, k) => { const r = p[(k + 1) % p.length]; return t + q[0] * r[1] - r[0] * q[1]; }, 0)) / 2;
+    const poly = rect && polyArea(rect) > polyArea(br.deck) ? rect : br.deck;
+    const analytic = (x, z) => {
+      const u = Math.abs((x - x0) * c + (z - z0) * s - mid), k = Math.min(1, Math.max(0, (half - u) / ramp));
+      return endH + (top - endH) * k * k * (3 - 2 * k);
+    };
+    // browser: the walking surface measured on the visual (placement rule e: nobody wades through a deck)
+    const field = o.measure ? o.measure(b, poly, rot, top) : null;
     out.push({
-      id: b.def.id ?? b.type, poly, top, lift: 0, root: b.library.object3d ?? null,
+      id: b.def.id ?? b.type, poly, top, owner: b.owner, measured: !!field, lift: 0, root: b.library.object3d ?? null,
       heightAt(x, z) {
-        if (!inPoly(x, z, poly)) return null;
-        const u = Math.abs((x - x0) * c + (z - z0) * s - mid), k = Math.min(1, Math.max(0, (half - u) / ramp));
-        return endH + (top - endH) * k * k * (3 - 2 * k) + this.lift;
+        // measured field (placement rule e) or the analytic ramp, plus the plank / snow-cap lift (calibrateDeck)
+        const h = field ? field.heightAt(x, z) : inPoly(x, z, poly) ? analytic(x, z) : null;
+        return h == null ? null : h + this.lift;
       },
+      parapet: (x, z) => !!field && field.parapet(x, z),
     });
   }
   return out;

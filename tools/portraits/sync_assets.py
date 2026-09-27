@@ -67,6 +67,16 @@ def main():
                 voice(c, 'alt', ln, info['alt'], a)
                 out['alt'] = a
             e['lines'][ln] = out
+        pn = e.get('pain')
+        if pn:   # pain set (§9): flinch clips (voice = the pack's pain grunt), wounded loop, downed + pain stills
+            fl = []
+            for info in pn['flinch']:
+                out, n = clip(info); total += n; nclips += 1
+                voice(c, 'pain', info['rec'], info, out); fl.append(out)
+            pn['flinch'] = fl
+            pn['wounded'], n = clip(pn['wounded']); total += n; nclips += 1
+            for k in ('downed', 'still'):
+                total += copy(pn[k].replace('{size}', str(SIZE)))
     man['sizes'] = [SIZE]
     man['note'] = man['note'].replace('256 (HUD) or 512 (character select)', f'{SIZE} (HUD tier; 512 stays in the faces pipeline)')
     man['voices'] = 'voice paths are relative to this folder; ../audio/voice/ = the audio pack (identical files)'

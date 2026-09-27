@@ -133,6 +133,7 @@ export class HUD {
     if (g.cameraRig) {
       g.cameraRig.edgeScroll = o.edgeScroll !== false;
       g.cameraRig.wheelZoom = o.wheelZoom !== false;
+      g.cameraRig.setYaw?.(Number.isFinite(o.cameraAngle) ? o.cameraAngle : CONFIG.camera.yawDeg); // Options → CAMERA ANGLE
     }
     CONFIG.ai.submissive = o.halt === 'submissive'; // §4.5 Submissive / Indifferent
     // OPTIONS → CONTROLS rebinding: overrides on top of engine/input.js KEY_BINDINGS

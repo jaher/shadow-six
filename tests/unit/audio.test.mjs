@@ -215,29 +215,47 @@ test('§4.9 siren: 0.75 → 0 over 25 s of mission time, positional + 30 % bed, 
   assert.equal(r.audio.siren.active, false);
 });
 
-test('§9.4 select: 70 % chance, 6 s per-man cooldown; laconic mutes select/ack', () => {
-  let roll = 0.5;
+test('§9.4 select: always answers ("Yes, sir!" first, then rotates), 3 s per-man cooldown; laconic mutes select/ack', () => {
+  let roll = 0.95;
   const r = rig({ rand: () => roll });
   const tiny = commando('c1', 'greenberet');
   const barks = [];
   r.events.on('bark', (e) => barks.push(e));
   r.events.emit('unit:selected', { units: [tiny] });
-  assert.equal(barks.length, 1);
-  assert.ok(LINES.greenberet.select.some((l) => l.text === barks[0].text), 'stamped text');
+  assert.equal(barks.length, 1, 'no chance roll: a selection always gets an answer');
+  assert.equal(barks[0].text, 'Yes, sir!', 'first selection line');
   assert.equal(barks[0].subtitle, false, 'no subtitle for selection chatter');
-  r.clock.t = 3; r.events.emit('unit:selected', { units: [tiny] });
-  assert.equal(barks.length, 1, 'cooldown');
-  r.clock.t = 7; roll = 0.95; r.events.emit('unit:selected', { units: [tiny] });
-  assert.equal(barks.length, 1, '30 % miss');
-  r.clock.t = 14; roll = 0.2; r.events.emit('unit:selected', { units: [tiny] });
+  r.clock.t = 2; r.events.emit('unit:selected', { units: [tiny] });
+  assert.equal(barks.length, 1, 'cooldown: rapid re-selection stays quiet');
+  r.clock.t = 4; r.events.emit('unit:selected', { units: [tiny] });
   assert.equal(barks.length, 2);
+  assert.notEqual(barks[1].text, barks[0].text, 'no immediate repeat');
   r.audio.setOption('laconic', true);
   r.clock.t = 30;
   r.events.emit('unit:selected', { units: [tiny] });
   r.events.emit('unit:order', { unit: tiny, order: { type: 'move', x: 1, z: 1 } });
   assert.equal(barks.length, 2, 'laconic');
   r.events.emit('unit:damaged', { unit: tiny, amount: 10 });
-  assert.equal(barks.at(-1).line, 'hurt', 'hurt is never muted');
+  assert.equal(barks.at(-1).line, 'pain', 'the pain grunt is never muted');
+  r.clock.t = 31.5; r.audio.update(0, 0);
+  assert.equal(barks.at(-1).line, 'hurt', 'hurt is never muted (it follows the grunt)');
+});
+
+test('§9.4 select: a new commando always speaks (replaces the previous answer at once); group -> leader only', () => {
+  const r = rig();
+  const tiny = commando('c1', 'greenberet'), duke = commando('c2', 'sniper'), fins = commando('c3', 'diver');
+  const barks = [];
+  r.events.on('bark', (e) => barks.push(e));
+  r.events.emit('unit:selected', { units: [tiny] });
+  r.clock.t = 0.1; r.events.emit('unit:selected', { units: [duke] });
+  assert.deepEqual(barks.map((b) => b.speaker), ['greenberet', 'sniper'], 'second man answers inside 0.4 s');
+  r.clock.t = 0.2; r.events.emit('unit:selected', { units: [duke] });
+  assert.equal(barks.length, 2, 'same man again: quiet');
+  r.clock.t = 1; r.events.emit('unit:selected', { units: [fins, tiny] });
+  assert.deepEqual(barks.map((b) => b.speaker), ['greenberet', 'sniper', 'diver'], 'group: the leader only');
+  r.clock.t = 1.6; r.events.emit('unit:selected', { units: [tiny] });
+  assert.equal(barks.at(-1).speaker, 'greenberet', 'back to Tiny inside his 3 s: others spoke since, he answers');
+  assert.notEqual(barks.at(-1).text, barks[0].text, 'with the next line');
 });
 
 test('§9.4 one commando voice at a time: replace after 0.4 s, higher priority interrupts', () => {
@@ -253,8 +271,10 @@ test('§9.4 one commando voice at a time: replace after 0.4 s, higher priority i
   assert.ok(first.stopped != null, 'older line replaced after 0.4 s');
   r.clock.t = 0.6;
   r.events.emit('unit:damaged', { unit: duke, amount: 5 });
-  assert.equal(r.audio.debug().voices.commando, 'hurt', 'hurt interrupts at once');
+  assert.equal(r.audio.debug().voices.commando, 'pain', 'the pain grunt interrupts at once');
   assert.equal(r.ctx.busOf(r.ctx.started.at(-1), r.audio.engine.bus), 'voice');
+  r.clock.t = 1.8; r.audio.update(0, 0);
+  assert.equal(r.audio.debug().voices.commando, 'hurt', "then his \"I'm hit!\" follows the grunt");
 });
 
 test('German barks: AI bark gets text + gloss subtitle, challenge duplicate suppressed, squad anti-spam', () => {

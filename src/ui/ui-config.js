@@ -5,6 +5,8 @@
  * @module ui/ui-config
  */
 
+import { CONFIG } from '../config.js';
+
 export const UI = {
   refHeight: 480, // §6: uiScale = clamp(floor(innerHeight / 480 × 2) / 2, 1, 3)
   scaleMin: 1,
@@ -61,6 +63,7 @@ export const OPTION_DEFAULTS = {
   coneAlertTint: true,
   edgeScroll: true,
   wheelZoom: true,
+  cameraAngle: CONFIG.camera.yawDeg, // camera yaw (deg): 0 classic BEL / 15 tilted / 45 isometric
   selectionRing: true, // §6.1 ⚑
   nature: true, // §9.2 ambience
   // docs/menus-art-direction.md S10 / §1.9 (menus, video, accessibility, controls)

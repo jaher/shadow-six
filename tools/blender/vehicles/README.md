@@ -39,3 +39,43 @@ The front faces glTF +Z, the pivot is the ground centre, and the truck is 6.2 m 
 ## Notes
 - The burnt scorch decal is set to `specularFactor 0` (KHR_materials_specular). Without it the near-black soot reflects the sky and reads navy blue in three.js.
 - No national insignia and no swastikas (spec §10.6). Registration plates are blank.
+
+---
+
+# Realistic vehicle library (`assets/models/vehicles/<group>/`)
+
+53 scripted-Blender vehicles, guns and props in five groups. The runtime is `src/art/vehicle-library.js`; the index is
+`assets/models/vehicles/manifest.json`. The six `truck_*.glb` files above are the older Opel Blitz set used by
+`src/art/truck-model.js`; the library's `opel_blitz_cargo` / `opel_blitz_tanker` replace them once vehicle.js is wired.
+
+| Folder | Assets | Script entry points |
+|---|---|---|
+| `cars_moto/` | r75_sidecar, kubelwagen, horch901, citroen11, willys_mb, opel_blitz_cargo, opel_blitz_tanker | `scripts/{r75,kubelwagen,horch,citroen,willys,blitz}.py` on `scripts/veh.py`, `scripts/validate.py`, `lib/materials_add.json` (+ `make_*_tex.py`) |
+| `armour/` | panzer2_f, panzer3_j/l, panzer4_f2/g, sdkfz251_c, sdkfz231_8rad, flak88 (+noshield), morser18_21cm, mg34/mg42_tripod, mgnest_ring/horseshoe | `scripts/run.sh {pz2,pz3,pz4,sdkfz251,sdkfz231,flak88,morser18,mg_tripod,mg_nest}.py <arg>`, `scripts/vlib.py` (on `../blib.py`), `scripts/rebuild_all.sh` |
+| `aircraft/` | ju52_3m, ju87_b, bf109_e, fi156_storch, fw_c30_autogiro, fuel_bowser, bomb_trolley, starter_cart, chocks, windsock | `scripts/{ju52,ju87,bf109,storch,c30,props}.py` on `scripts/ac.py` + `veh.py`, `scripts/check.py` |
+| `naval/` | battleship_bismarck, uboat_viic, patrol_boat (HS 114), minisub_biber, fishing_boat, harbour_tug, rowboat, raft | `scripts/{battleship,uboat,patrol_boat,biber,fishing_boat,tug,rowboat,raft}.py` on `scripts/nav.py` + `veh.py` |
+| `rail/` | loco_br52, tender_t30, coach, wagon_covered/open/flat/tank, railgun_k5, rail_crane (+idler), tram_fr, handcar, mine_cart, mine_tipper | `scripts/<asset>.py`, `scripts/rail.py`, `scripts/wheelcheck.py`, `lib` textures from `make_heat_tex.py` |
+| `consolidate/` | ships the outputs into the game | `pack_veh.py` → `stage_tex.py` → `build_manifest_veh.py` (see below) |
+
+Each group folder keeps its own README (build commands, conventions, rework notes) and `review_tool/` (three.js review renderer).
+
+## Rebuilding
+1. `tools/blender/vehicles/relocate_vehicles.sh` (scripts hard-code the scratch workspace), then merge
+   `kit_materials.json` (the kit material table with the `veh_*`, `air_*` and wood-paint entries) into `tools/blender/kit/lib/materials.json`.
+2. Blender 4.2 with Pillow/numpy (`--python-use-system-env`); each group README lists the exact command per asset.
+   Outputs: `<group>/out/<asset>/<model>{,_lod1,_lod2}.glb` + `.kit.json` (armour: `<asset>_lod{0,1,2}.glb`, `_burnt_lod*`, `.veh.json`, `tex/`).
+3. Ship: `cd consolidate && GLTFPACK=<gltfpack> python3 pack_veh.py && python3 stage_tex.py && python3 build_manifest_veh.py`,
+   then copy `consolidate/ship/assets/*` over `assets/`. `node shot.mjs "<query>" out.jpg` renders the library in Chromium
+   (`_vehtest.html`-style page; see the script).
+
+## What ships (budget: vehicle assets ≤ 60 MB, 57.9 MB used)
+- meshopt + quantised GLBs (`gltfpack -cc -kn -km -ke -vp 14 -vtf`); every node name is kept, so moving parts keep their pivots.
+- LOD0 and LOD2 only. LOD1 (~40%) is built but not shipped; the library draws LOD0 at zoom ≥ 0.75 and LOD2 below.
+- Baked AO embedded per LOD (LOD0 384 px, 640 px for ships, trains and the Ju 52; LOD2 96/128 px), lightly blurred.
+- Shared textures by relative URI: `assets/textures/lib/1k/` (37 new files, the rest reused from the building library);
+  armour atlases in `models/vehicles/armour/tex/` at 1k (the 2k set is not shipped; ORM at 512 px). Armour paint =
+  texture swap `_grey_` → `_dak_` / `_winter_` (the library's LoadingManager URL modifier).
+- 16 variants are built but not shipped (manifest `assets.<asset>.unshipped`, list in `consolidate/prune.json`):
+  paint-only duplicates, Bismarck camo, K5 dak, rowboat painted and the winter sets of freight wagons, crane, handcar and mine cars.
+- Sidecar per model: `<group>/<model>.json` (unified schema: parts with pivots/axes/limits, sockets, muzzles, emitters,
+  lights with blackout flags, contacts, tracks, toggles). Model space: +x = vehicle LEFT, y up, +z = front.

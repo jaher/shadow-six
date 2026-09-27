@@ -186,6 +186,11 @@ export function installTestApi(game) {
       return { preset: R.presetName, frames: n, wallMedian: med(wall), wallP95: p95(wall), gpuMedian: med(gpu), gpuP95: p95(gpu), gpuSamples: gpu.length, size: [R.width, R.height], pixelRatio: R.renderer.getPixelRatio(), ...R.stats() };
     },
     abilities: () => Object.keys(ABILITIES),
+    /** Clipping / interpenetration audit (debug/clip-audit.js, loaded on first use): `const c = await __game.clipAudit()`. */
+    async clipAudit() {
+      if (!api.clip) api.clip = (await import('./clip-audit.js')).createClipApi(game);
+      return true;
+    },
   };
   window.__game = api;
   return api;

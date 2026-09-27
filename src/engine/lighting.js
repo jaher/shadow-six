@@ -14,7 +14,8 @@
  */
 import * as THREE from 'three';
 
-/** Compass azimuth (deg) of the sun for every theater: north-west = screen upper-left (yaw 0, north up). */
+/** Compass azimuth (deg) of the sun for every theater: north-west = screen upper-left at yaw 0. The sun stays tied to the
+ * compass whatever the camera yaw: at the default +15° the east side walls that come into view are the shaded ones. */
 export const SUN_AZIMUTH_NW = 315;
 
 /**

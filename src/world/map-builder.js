@@ -21,6 +21,7 @@ import { normalizeMission } from '../missions/schema.js';
 import { buildProp, LINEAR_PROPS } from '../art/props.js';
 import { buildTerrain, canBuildRealTerrain, TREE_TYPES, coverPropsWithSnow, setPropSnow, wireTrailRecords, buildMaskedWater } from '../art/terrain.js';
 import { buildWater } from '../art/water.js';
+import { buildWalkDeck, WALK_SHIFT } from '../art/dressing.js';
 import * as WaterModule from '../art/water/index.js';
 import { Interactable, createInteractable, createPickup, createExtraction, spawnMissionInteractables } from '../entities/interactables.js';
 import { tickBuildings, buildingLog } from '../art/building-props.js';
@@ -32,6 +33,8 @@ import { buildFurniture } from '../art/furniture/index.js';
 import { createStreetLights } from '../render/street-lights.js';
 import { resolveLighting } from '../engine/lighting.js';
 import { createBuildingBatch } from '../art/building-library.js';
+import { resolvePlacement, placeCat } from './placement.js';
+import { planHull, planCells, finestMeshes, measureTop, deckField, lowSurfaces, overheadCells, standingCells } from './placement-visual.js';
 import { applyLibraryNav, libraryDoorPoints, wireLibraryDoors, libraryDecks, calibrateDeck, libraryWaterObstacles } from './map-library.js';
 import '../entities/bcd-interactables.js'; // registers the BCD mechanics' interactable kinds (docs/bcd-plan.md §1.10)
 
@@ -93,7 +96,60 @@ export function isExplosiveBarrel(s) {
 }
 
 export function buildStructure(s, ctx) {
-  const { type, segments, ...params } = s;
+  const r = buildStructureCore(s, ctx);
+  // wall walks get a plank deck on posts, stopping at the wall's inner face (units never stand in the air)
+  if (s.walkways?.length && ctx.library !== false && !ctx.navOnly && r.object3d) {
+    const strips = walkwayStrips(s);
+    if (strips.length) {
+      const deck = buildWalkDeck(strips); // world coords → into the structure's frame
+      r.object3d.updateMatrixWorld(true);
+      deck.applyMatrix4(r.object3d.matrixWorld.clone().invert());
+      r.object3d.add(deck);
+    }
+  }
+  return r;
+}
+
+/** Deck strips of a structure's `walkways` with the wall band (its runs ± half width) cut out. */
+export function walkwayStrips(s) {
+  const runs = (s.segments || (s.points ? [s.points] : [])).map(pts2), hw = (s.width ?? 0.5) / 2 + 0.03, out = [];
+  for (const w of s.visualWalkways || s.walkways || []) {
+    const p = pts2(w.points), W = w.width ?? 1.2;
+    for (let k = 0; k + 1 < p.length; k++) {
+      const [ax, az] = p[k], [bx, bz] = p[k + 1], L = Math.hypot(bx - ax, bz - az);
+      if (L < 1e-6) continue;
+      const nx = -(bz - az) / L, nz = (bx - ax) / L, mx = (ax + bx) / 2, mz = (az + bz) / 2;
+      // across offset of the nearest wall segment (walks run along their wall)
+      let best = null;
+      for (const run of runs) for (let q = 0; q + 1 < run.length; q++) {
+        const [cx, cz] = run[q], [dx, dz] = run[q + 1], l2 = (dx - cx) ** 2 + (dz - cz) ** 2 || 1;
+        const t = Math.max(0, Math.min(1, ((mx - cx) * (dx - cx) + (mz - cz) * (dz - cz)) / l2));
+        const fx = cx + (dx - cx) * t, fz = cz + (dz - cz) * t, dist = Math.hypot(fx - mx, fz - mz);
+        if (!best || dist < best.dist) best = { dist, off: (fx - mx) * nx + (fz - mz) * nz };
+      }
+      let lo = -W / 2, hi = W / 2;
+      if (best && best.dist < W / 2 + hw) {
+        // the palisade steps WALK_SHIFT away from the walk (dressing buildWall): the deck meets its rails
+        const toward = Math.sign(-best.off) || 1, inner = hw - WALK_SHIFT + 0.07;
+        const b0 = best.off - (toward < 0 ? inner : hw), b1 = best.off + (toward > 0 ? inner : hw);
+        if (hi - b1 >= b0 - lo) lo = Math.max(lo, b1); else hi = Math.min(hi, b0);
+      }
+      if (hi - lo >= 0.3) out.push({ ax, az, bx, bz, off: (lo + hi) / 2, width: hi - lo, y: w.y });
+    }
+  }
+  return out;
+}
+
+function buildStructureCore(s, ctx) {
+  const { type, segments, visualRuns, placementDropped, visualWalkways, ...params } = s;
+  // placement rules (world/placement.js): the visual run is cut / chained, the nav footprint keeps the authored line
+  if (visualRuns && LINEAR_PROPS.includes(type)) {
+    const nav = buildStructureCore({ ...params, type, ...(segments ? { segments } : {}) }, { ...ctx, library: false, navOnly: true });
+    const group = new THREE.Group();
+    group.name = `prop:${type}${params.id ? ':' + params.id : ''}`;
+    for (const run of visualRuns) group.add(buildProp(type, { ...params, points: run }, ctx).object3d);
+    return { object3d: group, footprints: nav.footprints, interactables: nav.interactables || [] };
+  }
   // linear prop with gaps: one buildProp per segment, merged
   if (segments && LINEAR_PROPS.includes(type)) {
     const group = new THREE.Group();
@@ -132,6 +188,260 @@ export function buildStructure(s, ctx) {
   }
   return { ...r, footprints: fps };
 }
+
+/**
+ * Run the placement rules (world/placement.js) over a mission's first-pass build. Browser: solids use their visual
+ * plan hulls (library sidecar meshes, dressing); grid-only: the data footprints.
+ * @returns {ReturnType<typeof resolvePlacement> & {changed: Set<number>}}
+ */
+export function placeStructures(mission, first, { grid, meshes = false, realTerrain = false } = {}) {
+  const hulls = new Map();
+  const shapeOf = meshes ? (def, k, band) => {
+    const r = first[k];
+    if (!r?.object3d || TREE_TYPES.includes(def.type)) return null;
+    const key = `${k}:${band}`;
+    if (!hulls.has(key)) {
+      if (band === 'low') hulls.set(key, planCells(r.object3d, { maxY: 1.8, cell: 0.25 }));
+      else { const h = planHull(r.object3d); hulls.set(key, h ? [h] : null); }
+    }
+    return hulls.get(key);
+  } : null;
+  const W = grid.width, D = grid.depth;
+  const wet = (x, z) => { const t = grid.terrainAt?.(x, z); return t === T.WATER || t === T.SHALLOW; };
+  const isFree = (x, z, cat, pt) => x > 0.5 && z > 0.5 && x < W - 0.5 && z < D - 0.5 && (!wet(x, z) || wet(pt.x, pt.z));
+  const res = resolvePlacement(mission.structures || [], { shapeOf, isFree, vehicles: mission.vehicles, terrain: mission.terrain, items: mission.items, interactables: mission.interactables });
+  const changed = new Set();
+  res.structures.forEach((d, k) => {
+    const o = (mission.structures || [])[k];
+    if (d.visualRuns || d.visualWalkways || d.x !== o.x || d.z !== o.z) changed.add(k);
+  });
+  return { ...res, changed };
+}
+
+/**
+ * Rule (e) body clearance (m): a cell is blocked when a visual comes this close to its centre, so a walker on the
+ * nearest free cell centre keeps its shoulders and boots out of the post, curb or log end beside it (half that
+ * next to bridge / pier decks, whose approaches must stay open).
+ */
+export const VIS_NAV_MARGIN = 0.2;
+
+/** Placement categories whose visuals block walking beyond their footprints (rule e). */
+const VIS_NAV_CATS = new Set(['building', 'tower', 'tent', 'ruins', 'prop', 'rocks', 'rocks_big', 'vehicle', 'emplacement', 'pole', 'sandbags', 'cliff']);
+
+/**
+ * Rule (e) nav clearance vs meshes: every cell whose centre lies under (or within VIS_NAV_MARGIN of) a
+ * structure's visual at body height (0.3–1.8 m, enclosed interiors filled) and is still walkable ground becomes a
+ * nav-only block (grid.navBlock: sight and cover unchanged). Door approaches, link / ladder ends keep a 0.9 m free disc. Cleared when the
+ * structure is destroyed.
+ * @returns {{cells: number, structures: number}}
+ */
+export function stampVisualNav(world, built) {
+  const grid = world.grid, keep = [], lanes = new Set();
+  for (const [, p] of world.structureDoors || []) keep.push(p);
+  for (const b of built) {
+    for (const d of b.library?.doors || []) if (d.approach) keep.push([d.approach.x, d.approach.z]);
+    if (b.def.enterable || b.def.garrison) { const p = doorPoint(b.def); keep.push([p.x, p.z]); }
+  }
+  for (const l of grid.links || []) { keep.push([l.a.x, l.a.z]); keep.push([l.b.x, l.b.z]); }
+  const free = (x, z) => keep.some(([kx, kz]) => Math.hypot(kx - x, kz - z) < 0.9);
+  let cells = 0, n = 0;
+  for (const b of built) {
+    if (!b.object3d || TREE_TYPES.includes(b.type) || b.def.clip === false) continue;
+    const cat = placeCat(b.def), deck = cat === 'bridge' || cat === 'pier';
+    // walls: what the dressing adds around the nav line (end caps, buttresses, plank roofs, walk posts)
+    if (LINEAR_PROPS.includes(b.type) && cat !== 'wall') continue;
+    if (!VIS_NAV_CATS.has(cat) && !deck && cat !== 'wall') continue;
+    // bridges / dams / piers: their walkable deck is nav already; what stands OFF the deck at body height (a
+    // dam's arch, a lift bridge's counterweight) blocks, except within 1 m of the deck (approaches, abutments)
+    // the approach lanes in line with the deck (its width, 3 m past each end) stay free
+    const D = b.def, dc = Math.cos(D.rot ?? 0), ds = Math.sin(D.rot ?? 0);
+    // …and 1.5 m around every landing (a deck cell next to walkable land), wherever a curved deck really ends
+    const landings = [];
+    if (deck) {
+      const R = Math.ceil(2 * Math.max(D.w ?? 0, D.d ?? 0) / grid.cell) + 8, ci = grid.worldToCell(D.x ?? 0, D.z ?? 0);
+      for (let j = Math.max(0, ci.j - R); j <= Math.min(grid.rows - 1, ci.j + R); j++) for (let i = Math.max(0, ci.i - R); i <= Math.min(grid.cols - 1, ci.i + R); i++) {
+        if (!grid.bridge[grid.idx(i, j)]) continue;
+        for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const ii = i + di, jj = j + dj;
+          if (!grid.inBounds(ii, jj)) continue;
+          const kk = grid.idx(ii, jj);
+          // a landing is where the deck meets dry land (a shallow toe ledge along a dam's face is no way on)
+          if (!grid.bridge[kk] && grid.block[kk] === B.NONE && grid.terrain[kk] !== T.WATER && grid.terrain[kk] !== T.SHALLOW) for (let t = 1; t <= 3; t++) landings.push(`${i + di * t},${j + dj * t}`);
+        }
+      }
+    }
+    const lane = new Set(landings); // 1.5 m straight out of each landing: the way on / off the deck
+    for (const key of lane) { const [i, j] = key.split(',').map(Number); if (grid.inBounds(i, j)) lanes.add(grid.idx(i, j)); }
+    const nearDeck = deck ? (i, j) => {
+      if (lane.has(`${i},${j}`)) return true;
+      const p = grid.cellCenter(i, j);
+      if (D.w == null || D.d == null) return false;
+      const dx = p.x - D.x, dz = p.z - D.z, u = dx * dc + dz * ds, v = -dx * ds + dz * dc;
+      return Math.abs(v) <= D.d / 2 + 0.3 && Math.abs(u) <= D.w / 2 + 3;
+    } : null;
+    const rects = planCells(b.object3d, { minY: 0.3, maxY: 1.8, cell: 0.25, close: deck || cat === 'wall' ? 0 : 3 });
+    if (!rects) continue;
+    const out = new Set(), m = deck ? VIS_NAV_MARGIN / 2 : VIS_NAV_MARGIN;
+    for (const r of rects) {
+      const x0 = r[0][0] - m, z0 = r[0][1] - m, x1 = r[2][0] + m, z1 = r[2][1] + m;
+      const c0 = grid.worldToCell(x0, z0), c1 = grid.worldToCell(x1, z1);
+      for (let j = Math.max(0, c0.j); j <= Math.min(grid.rows - 1, c1.j); j++) for (let i = Math.max(0, c0.i); i <= Math.min(grid.cols - 1, c1.i); i++) {
+        const c = grid.cellCenter(i, j), k = grid.idx(i, j);
+        if (c.x < x0 || c.x > x1 || c.z < z0 || c.z > z1) continue;
+        if (grid.block[k] !== B.NONE || grid.bridge[k] || grid.elev[k] > 0 || grid.terrain[k] === T.WATER || free(c.x, c.z)) continue;
+        if (nearDeck && nearDeck(i, j)) continue;
+        out.add(k);
+      }
+    }
+    if (!out.size) continue;
+    grid.navStamp(`vis:${b.owner}`, out);
+    cells += out.size; n++;
+  }
+  const off = world.events?.on?.('structure:destroyed', (e) => { if (e?.owner != null) grid.navStamp(`vis:${e.owner}`, []); });
+  return { cells, structures: n, lanes, off: typeof off === 'function' ? off : null };
+}
+
+/** Placement categories whose base the terrain levels (rule b seating). */
+const FLAT_CATS = new Set(['building', 'tent', 'tower', 'ruins', 'prop', 'sandbags', 'emplacement', 'pole']);
+
+/**
+ * Rule (b) seating: the ground under a prop's / building's visual base (below 0.6 m, one cell around) is levelled
+ * by the terrain (grid.flatExtra → buildFlatMask), so a well, a crate or a lift on a slope neither hangs over a
+ * dip nor sinks into a bump; footprint cells alone miss the part of the visual that overhangs them. Interactable
+ * props (pickups, drums, devices) included. Structures with an authored `y` keep their ground.
+ * @returns {number} cells levelled
+ */
+export function stampFlatBase(world, built, extra = []) {
+  const grid = world.grid, roots = [];
+  for (const b of built) {
+    if (!b.object3d || TREE_TYPES.includes(b.type) || LINEAR_PROPS.includes(b.type) || b.def.clip === false || b.def.y != null) continue;
+    if (FLAT_CATS.has(placeCat(b.def))) roots.push(b.object3d);
+  }
+  for (const e of extra) if (e?.object3d && !e.float) roots.push(e.object3d);
+  if (!roots.length) return 0;
+  const flat = grid.flatExtra || (grid.flatExtra = new Uint8Array(grid.cols * grid.rows)), c = grid.cell;
+  let n = 0;
+  for (const r of roots) {
+    const rects = planCells(r, { maxY: 0.6, cell: 0.25, close: 0 });
+    for (const q of rects || []) {
+      const c0 = grid.worldToCell(q[0][0] - c, q[0][1] - c), c1 = grid.worldToCell(q[2][0] + c, q[2][1] + c);
+      for (let j = Math.max(0, c0.j); j <= Math.min(grid.rows - 1, c1.j); j++) for (let i = Math.max(0, c0.i); i <= Math.min(grid.cols - 1, c1.i); i++) {
+        const k = grid.idx(i, j);
+        if (!flat[k]) { flat[k] = 1; n++; }
+      }
+    }
+  }
+  return n;
+}
+
+/**
+ * Rules (d/e) overhead clearance: what structure visuals put above body height over OPEN cells (eaves, porch and
+ * lean-to roofs, balconies, a tower's cabin) → grid.overStamp. Vehicles taller than the lowest point there don't
+ * drive in (Vehicle.passableAt) and gun arcs treat it as an obstacle at its height (placement.turretArc). Trees
+ * (soft canopies) and decks (boats pass under bridges) are left out. Cleared when the structure is destroyed.
+ * @returns {{cells: number, structures: number, off: Function|null}}
+ */
+export function stampOverhead(world, built) {
+  const grid = world.grid;
+  let cells = 0, n = 0;
+  for (const b of built) {
+    if (!b.object3d || TREE_TYPES.includes(b.type) || b.def.clip === false) continue;
+    const cat = placeCat(b.def);
+    if (cat === 'bridge' || cat === 'pier' || cat === 'flag') continue;
+    const raw = overheadCells(b.object3d, { minY: 1.8, maxY: 12, cell: grid.cell });
+    const out = new Map();
+    for (const [key, r] of raw) {
+      const [i, j] = key.split(',').map(Number);
+      if (!grid.inBounds(i, j)) continue;
+      const k = grid.idx(i, j);
+      if (grid.block[k] !== B.NONE || grid.elev[k] > 0.3) continue; // footprints and raised decks: their own rules
+      out.set(k, [+r[0].toFixed(2), +r[1].toFixed(2)]);
+    }
+    // footprint cells: the visual's real top there (a rock or a palisade taller than its data `h`) for gun arcs
+    for (const [key, r] of overheadCells(b.object3d, { minY: 0.2, maxY: 30, cell: grid.cell })) {
+      const [i, j] = key.split(',').map(Number);
+      if (!grid.inBounds(i, j)) continue;
+      const k = grid.idx(i, j);
+      if (grid.block[k] === B.NONE) continue;
+      if (!grid.blockTop) grid.blockTop = new Float32Array(grid.cols * grid.rows);
+      if (r[1] > grid.blockTop[k]) grid.blockTop[k] = r[1];
+    }
+    if (!out.size) continue;
+    grid.overStamp(`over:${b.owner}`, out);
+    cells += out.size; n++;
+  }
+  const off = world.events?.on?.('structure:destroyed', (e) => { if (e?.owner != null) grid.overStamp(`over:${e.owner}`, new Map()); });
+  return { cells, structures: n, off: typeof off === 'function' ? off : null };
+}
+
+/**
+ * Rule (d) tree branches: the vegetation system's bark (merged per chunk, built asynchronously) above body height
+ * over open cells → a soft overhead stamp (grid.softLo): gun barrels and turret housings keep out of low boughs,
+ * hulls and walkers brush through them. Re-stamped whenever called (quality changes regenerate the trees).
+ * @returns {number} cells stamped
+ */
+export function stampTreeBranches(world, root) {
+  const grid = world.grid, out = new Map();
+  if (!grid || !root) return 0;
+  const raw = new Map();
+  root.traverse((n) => { if (n.isMesh && !n.isInstancedMesh && n.name === 'vegBark') overheadCells(n, { minY: 1.2, maxY: 6, cell: grid.cell }, raw); });
+  for (const [key, r] of raw) {
+    const [i, j] = key.split(',').map(Number);
+    if (!grid.inBounds(i, j)) continue;
+    const k = grid.idx(i, j);
+    if (grid.block[k] !== B.NONE) continue; // the trunk's own footprint
+    out.set(k, [+r[0].toFixed(2), +r[1].toFixed(2)]);
+  }
+  grid.overStamp('over:trees', out, true);
+  return out.size;
+}
+
+/**
+ * Rule (e) bodies: every structure's standing parts (0.15–1.2 m above the local walking surface: ground, deck or
+ * wall walk) → grid.solidStamp at quarter-cell resolution. A dying unit's body turns / slides clear of them
+ * (placement fallHeading / settleBody) even where the nav grid has no block: palisade stakes beside a wall walk,
+ * a bridge railing. Cleared when the structure is destroyed.
+ * @returns {{cells: number, off: Function|null}}
+ */
+export function stampStanding(world, built) {
+  const grid = world.grid, h = grid.cell / 2, cache = new Map();
+  let maxElev = 0;
+  for (let k = 0; k < grid.elev.length; k++) if (grid.elev[k] > maxElev) maxElev = grid.elev[k];
+  const gy = typeof world.groundY === 'function' ? world.groundY : null;
+  const surf = (x, z) => {
+    const key = Math.floor(x / h) * 100003 + Math.floor(z / h);
+    let v = cache.get(key);
+    if (v === undefined) {
+      const i = Math.floor(x / grid.cell), j = Math.floor(z / grid.cell);
+      const e = grid.inBounds(i, j) ? grid.elev[grid.idx(i, j)] : 0;
+      v = Math.max(e, gy ? gy.call(world, x, z) : 0);
+      cache.set(key, v);
+    }
+    return v;
+  };
+  let cells = 0;
+  for (const b of built) {
+    if (!b.object3d || TREE_TYPES.includes(b.type) || b.def.clip === false || b.type === 'road' || b.type === 'river') continue;
+    const set = standingCells(b.object3d, surf, { lo: 0.15, hi: 1.2, cell: h, maxY: maxElev + 2 });
+    if (!set.size) continue;
+    grid.solidStamp(`solid:${b.owner}`, set);
+    cells += set.size;
+  }
+  const off = world.events?.on?.('structure:destroyed', (e) => { if (e?.owner != null) grid.solidStamp(`solid:${e.owner}`, []); });
+  return { cells, off: typeof off === 'function' ? off : null };
+}
+
+/** Measured floor height of a watchtower deck (median of 5 raycasts around its centre), or undefined. */
+export function deckSurface(b) {
+  const d = b.def, y0 = d.deckY ?? d.h ?? 5.5, meshes = finestMeshes(b.object3d);
+  const ys = [[0, 0], [0.5, 0], [-0.5, 0], [0, 0.5], [0, -0.5]]
+    .map(([u, v]) => measureTop(b.object3d, (d.x ?? 0) + u, (d.z ?? 0) + v, y0 - 0.6, y0 + 0.8, meshes)).filter((v) => v != null).sort((p, q) => p - q);
+  return ys.length ? +ys[ys.length >> 1].toFixed(3) : undefined;
+}
+
+/** Feet footprint for the low-surface ground height (centre + 4 points FOOT_R m out; placement rule e). */
+const FOOT_R = 0.18;
+const FOOT_OFFS = [[0, 0], [FOOT_R, 0], [-FOOT_R, 0], [0, FOOT_R], [0, -FOOT_R]];
 
 /** Is (x, z) on a bridge cell of the nav grid? */
 function onBridgeCell(grid, x, z) {
@@ -221,7 +531,7 @@ export function applyElevation(grid, built) {
     for (const w of b.def.walkways || []) raise({ shape: 'line', points: pts2(w.points), width: w.width ?? 1.2 }, w.y);
     if (b.type === 'watchtower') {
       const d = b.def;
-      raise({ shape: 'rect', x: d.x, z: d.z, w: d.w ?? 3, d: d.d ?? 3, rot: d.rot ?? 0 }, d.deckY ?? d.h ?? 5.5);
+      raise({ shape: 'rect', x: d.x, z: d.z, w: d.w ?? 3, d: d.d ?? 3, rot: d.rot ?? 0 }, b.deckSurfaceY ?? d.deckY ?? d.h ?? 5.5);
     }
   }
   if (n) grid.version++;
@@ -265,18 +575,30 @@ export function buildMap(world, mission, opts = {}) {
   // 2. build every structure (meshes + footprints)
   // explosive fuel drums (`barrels` + explosive:'barrel') are dynamic Barrel entities (§3.4 carry, §3.6 barrel
   // class), not static props: no footprint (they can be carried away), spawned in step 4
+  const ctx = { theater, grid, world, missionId: mission.id };
+  const first = (mission.structures || []).map((s) => (isExplosiveBarrel(s) ? null : buildStructure(s, ctx)));
+  // terrain of every structure first (rivers, lakes): the placement rules keep scenery out of the water
+  first.forEach((r, k) => { if (r) for (const fp of r.footprints) applyFootprint(grid, fp, 'terrain', STRUCTURE_OWNER_BASE + k); });
+  applyShoreShallows(grid, mission.shoreShallowWidth);
+  // 2b. placement rules (world/placement.js): runs cut at solids, towers off fence lines, scenery out of solids
+  const placement = placeStructures(mission, first, { grid, meshes, realTerrain });
+  if (placement.log.length && meshes) console.info(`[placement] ${mission.id}:\n  ${placement.log.join("\n  ")}`);
+  world.placement = placement;
+  mission = { ...mission, structures: placement.structures, items: placement.items, interactables: placement.interactables };
   const built = [], drums = [];
-  (mission.structures || []).forEach((s, k) => {
+  mission.structures.forEach((s, k) => {
     if (isExplosiveBarrel(s)) { drums.push({ def: s, owner: STRUCTURE_OWNER_BASE + k }); return; }
-    const r = buildStructure(s, { theater, grid, world, missionId: mission.id });
+    if (s.placementDropped) { first[k]?.library?.dispose(); return; }
+    let r = first[k];
+    if (placement.changed.has(k)) { r.library?.dispose(); r = buildStructure(s, ctx); }
     built.push({ def: s, type: s.type, owner: STRUCTURE_OWNER_BASE + k, ...r });
   });
-  // 3. grid passes: terrain (all) → shore rim → bridges → blocks → raised surfaces
-  for (const b of built) for (const fp of b.footprints) applyFootprint(grid, fp, 'terrain', b.owner);
-  applyShoreShallows(grid, mission.shoreShallowWidth);
+  // 3. grid passes: terrain (above) → shore rim (above) → bridges → blocks → raised surfaces
   for (const pass of ['bridge', 'block']) {
     for (const b of built) for (const fp of b.footprints) applyFootprint(grid, fp, pass, b.owner);
   }
+  // raised decks stand where the visual's floor really is (the fitted asset's planks sit a few cm off deckY)
+  if (meshes) for (const b of built) if (b.type === 'watchtower' && b.object3d) b.deckSurfaceY = deckSurface(b);
   // step 3p street furniture: posts block their nav cell (movement only, sight passes: B.FENCE), the Morris column is solid
   const furn = expandFurniture(roadNet);
   for (const it of furn.items) {
@@ -288,6 +610,21 @@ export function buildMap(world, mission, opts = {}) {
   const libLog = buildingLog();
   const libNav = applyLibraryNav(grid, built, mission, snapToSurface);
   if (libNav.roofs || libNav.ladders || libNav.climbs) libLog.push(`nav: ${libNav.roofs} roofs, ${libNav.ladders} ladders, ${libNav.climbs} climb edges (${libNav.structures.join(', ')})`);
+  // measured decks (placement rule e): walking level from the visual; railings / parapets / lamp posts / end blocks
+  // over the deck cells are nav-only blocks
+  const decks = libraryDecks(built.filter((b) => b.library), meshes ? { measure: (b, poly, rot, top) => deckField(b.object3d, poly, rot, top + 2.5, { pad: 1.5 }) } : {});
+  for (const d of decks) {
+    if (!d.measured) continue;
+    const cells = [];
+    const [x0, z0, x1, z1] = [Math.min(...d.poly.map((p) => p[0])), Math.min(...d.poly.map((p) => p[1])), Math.max(...d.poly.map((p) => p[0])), Math.max(...d.poly.map((p) => p[1]))];
+    const c0 = grid.worldToCell(x0 - 1.5, z0 - 1.5), c1 = grid.worldToCell(x1 + 1.5, z1 + 1.5);
+    for (let j = Math.max(0, c0.j); j <= Math.min(grid.rows - 1, c1.j); j++) for (let i = Math.max(0, c0.i); i <= Math.min(grid.cols - 1, c1.i); i++) {
+      const p = grid.cellCenter(i, j), k = grid.idx(i, j);
+      if (grid.bridge[k] && d.parapet(p.x, p.z)) cells.push(k);
+    }
+    if (cells.length) grid.navStamp(`deck:${d.owner}`, cells);
+    if (cells.length) libLog.push(`deck ${d.id}: ${cells.length} railing/parapet cells blocked`);
+  }
   grid.version++;
 
   // 4. meshes + interactables
@@ -353,6 +690,19 @@ export function buildMap(world, mission, opts = {}) {
   // from the top, driven by world.ladders), fence power
   interactables.push(...spawnMissionInteractables(world, mission, { meshes }));
 
+  // 5c. placement rule (e): what the visuals occupy outside their gameplay footprints blocks walking (browser)
+  let visNavOff = null, deckLanes = null;
+  if (meshes) {
+    const vn = stampVisualNav(world, built);
+    visNavOff = vn.off; deckLanes = vn.lanes;
+    if (vn.cells) libLog.push(`visual nav: ${vn.cells} cells blocked (${vn.structures} structures)`);
+    const fl = stampFlatBase(world, built, interactables);
+    if (fl) libLog.push(`levelled: ${fl} cells under prop bases`);
+    const ov = stampOverhead(world, built);
+    if (ov.off) { const a = visNavOff; visNavOff = () => { a?.(); ov.off(); }; }
+    if (ov.cells) libLog.push(`overhead: ${ov.cells} cells (${ov.structures} structures)`);
+  }
+
   // 6. mission registries (consumed by AI alarm/brain, abilities, objectives)
   registerMission(world, mission, structures);
 
@@ -384,13 +734,39 @@ export function buildMap(world, mission, opts = {}) {
   // library buildings: repeats → instanced batches, bridge decks → visual ground height, piers → water obstacles
   const libBuilt = built.filter((b) => b.library);
   const batches = meshes ? batchLibraryRepeats(libBuilt, propsRoot, libLog) : [];
-  const decks = libraryDecks(libBuilt);
+  // placement rule (e): feet stand on the low surfaces of the visuals (steps, ramps, porch boards, snow skirts)
+  const SURF_CELL = 0.2, surf = meshes ? new Map() : null;
+  if (surf) {
+    for (const b of built) {
+      if (!b.object3d || TREE_TYPES.includes(b.type) || LINEAR_PROPS.includes(b.type) || b.def.clip === false) continue;
+      lowSurfaces(b.object3d, { maxY: 0.6, cell: SURF_CELL }, surf);
+    }
+    if (surf.size) libLog.push(`low surfaces: ${surf.size} samples`);
+  }
+  // deck landings: the way on / off a bridge or dam follows its abutment's top (up to 2 m on this flat ground)
+  const laneSurf = meshes && deckLanes?.size ? new Map() : null;
+  if (laneSurf) for (const b of built) {
+    const cat = placeCat(b.def);
+    if (b.object3d && (cat === 'bridge' || cat === 'pier')) lowSurfaces(b.object3d, { maxY: 2.0, cell: SURF_CELL, flat: 0.8 }, laneSurf);
+  }
   let deckGroundY = null;
-  if (decks.length) {
+  if (decks.length || surf?.size || laneSurf?.size || world.surfaces?.length) {
     const base = world.groundY;
     deckGroundY = (x, z) => {
       for (const d of decks) { const h = d.heightAt(x, z); if (h != null && onBridgeCell(grid, x, z)) return h; }
-      return typeof base === 'function' ? base.call(world, x, z) : 0;
+      // movable walkable surfaces (a lowered drawbridge span): world.surfaces[i].heightAt → y or null
+      for (const s of world.surfaces || []) { const h = s.heightAt(x, z); if (h != null && onBridgeCell(grid, x, z)) return h; }
+      const g = typeof base === 'function' ? base.call(world, x, z) : 0;
+      // the highest low surface under the feet (centre ± FOOT_R): a boot steps up onto a kerb, plinth or snow
+      // skirt instead of pushing into its side while the body's centre is still below
+      let sy;
+      for (const [dx, dz] of FOOT_OFFS) {
+        const px = x + dx, pz = z + dz, key = `${Math.floor(px / SURF_CELL)},${Math.floor(pz / SURF_CELL)}`;
+        const onLane = laneSurf && deckLanes.has(grid.idx(Math.floor(px / grid.cell), Math.floor(pz / grid.cell)));
+        const v = onLane && laneSurf.has(key) ? laneSurf.get(key) : surf?.size ? surf.get(key) : undefined;
+        if (v !== undefined && (sy === undefined || v > sy)) sy = v;
+      }
+      return sy !== undefined && sy > g ? sy : g;
     };
     world.groundY = deckGroundY;
     // modelled plank / snow-cap height (deck_top is the bare structure): measured once the meshes are in
@@ -402,6 +778,12 @@ export function buildMap(world, mission, opts = {}) {
         Promise.resolve(b?.library.ready).then(cal, () => {});
       }
     }
+  }
+  // placement rule (e) bodies: standing visuals over any walking surface (after the deck-aware ground is known)
+  if (meshes) {
+    const t0 = performance.now(), st = stampStanding(world, built);
+    if (st.off) { const a = visNavOff; visNavOff = () => { a?.(); st.off(); }; }
+    if (st.cells) libLog.push(`standing visuals: ${st.cells} quarter cells (${Math.round(performance.now() - t0)} ms)`);
   }
   world.waterObstacles = libraryWaterObstacles(libBuilt);
   const doors = wireLibraryDoors(world, libBuilt);
@@ -452,7 +834,7 @@ export function buildMap(world, mission, opts = {}) {
     propsRoot, terrain, structures, interactables, links,
     get water() { return water; },
     /** Resolves when the ground textures, grass, trees and water are built (placeholder / grid-only: at once). */
-    ready: Promise.all([Promise.resolve(terrain?.ready).then(buildPavementNow).then(buildWaterNow).then(() => water?.system.texturesReady), libReady]).then(() => { lifeReady = true; }),
+    ready: Promise.all([Promise.resolve(terrain?.ready).then(() => { if (!gone && meshes && terrain?.ground) stampTreeBranches(world, terrain.ground); }).then(buildPavementNow).then(buildWaterNow).then(() => water?.system.texturesReady), libReady]).then(() => { lifeReady = true; }),
     /** Per displayed frame: trails, grass/snow/tree animation, preset follow; water sim + reflections (before render). */
     frame(dt, camera) {
       terrain?.frame?.(dt, camera, world); water?.frame(dt, camera);
@@ -471,6 +853,7 @@ export function buildMap(world, mission, opts = {}) {
     get life() { return life; },
     dispose() {
       gone = true;
+      visNavOff?.();
       windFx?.dispose(); windFx = null;
       life?.dispose(); life = null;
       pavement?.dispose(); pavement = null;
