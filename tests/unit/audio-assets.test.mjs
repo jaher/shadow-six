@@ -71,8 +71,11 @@ test('files: every sound has an Opus/OGG file and an MP3 twin on disk; total aud
   const walk = (d, rel = '') => readdirSync(d, { withFileTypes: true }).flatMap((f) => (f.isDirectory() ? walk(join(d, f.name), `${rel}${f.name}/`) : [`${rel}${f.name}`]));
   const stray = walk(join(ROOT, 'sfx')).filter((f) => f !== 'manifest.json' && !listed.has(f));
   assert.deepEqual(stray, [], 'no shipped sfx file outside the manifest');
-  const mb = du(ROOT) / 1e6;
-  assert.ok(mb <= 60, `assets/audio ${mb.toFixed(1)} MB`);
+  // budgets: SFX + voices ≤ 60 MB; the score (assets/audio/music, streamed per screen / mission) has its own ≤ 80 MB
+  const music = existsSync(join(ROOT, 'music')) ? du(join(ROOT, 'music')) / 1e6 : 0;
+  const mb = du(ROOT) / 1e6 - music;
+  assert.ok(mb <= 60, `assets/audio (without music) ${mb.toFixed(1)} MB`);
+  assert.ok(music <= 80, `assets/audio/music ${music.toFixed(1)} MB`);
 });
 
 test('coverage: the core §9.3 ids and every theater bed resolve to recorded files', () => {

@@ -169,7 +169,11 @@ export const SFX = Object.freeze(Object.fromEntries(ROWS.flatMap(([ids, bus, rec
   ids.map((id) => [id, Object.freeze({ id, bus, recipe, gain, loop: !!extra.loop, bed: !!extra.bed, burst: !!extra.burst,
     far: extra.far || null, cls: classOf(id), alias: ALIASES[id] || [] })]))));
 
-/** §9.1 music cues (music bus). `loop` cues are beds; the rest are one-shot stingers. */
+/**
+ * §9.1 music cues (music bus). `loop` cues are beds; the rest are one-shot stingers; `mission` cues are the in-mission
+ * suspense score (music-director.js: tension segments chained + the alert layer). `mood` names the old synth
+ * placeholder recipe — NOT used on the music bus any more (a cue without a recorded file is silence).
+ */
 export const MUSIC = Object.freeze({
   menu: { loop: true, mood: 'march' },
   campaign_norway: { loop: true, mood: 'cold' }, campaign_africa: { loop: true, mood: 'modal' },
@@ -180,7 +184,11 @@ export const MUSIC = Object.freeze({
   success_1: { mood: 'success' }, success_2: { mood: 'success' }, success_3: { mood: 'success' },
   fail_1: { mood: 'fail' }, fail_2: { mood: 'fail' }, fail_3: { mood: 'fail' },
   credits: { loop: true, mood: 'march' }, exit: { mood: 'success' },
-  drone: { loop: true, mood: 'drone' }, // option "cinematic ambience" (off by default) — the only in-mission bed
+  drone: { loop: true, mood: 'drone' }, // option "cinematic ambience" (off by default; superseded by missionMusic)
+  mission_tension_a: { mission: true, mood: 'drone' }, mission_tension_b: { mission: true, mood: 'drone' },
+  mission_tension_c: { mission: true, mood: 'drone' }, mission_bridge_1: { mission: true, mood: 'drone' },
+  mission_bridge_2: { mission: true, mood: 'drone' }, mission_bridge_3: { mission: true, mood: 'drone' },
+  mission_alert: { mission: true, loop: true, mood: 'ostinato' },
 });
 
 /**

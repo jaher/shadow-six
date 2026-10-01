@@ -1,7 +1,8 @@
 /**
  * AUDIO (design-spec §9; ARCHITECTURE "Audio"). Event-driven: createAudio(events) subscribes to the
  * canonical events listed in sfx-events.js and turns them into SFX (§9.3), voice lines (§9.4), the
- * siren (§4.9), theater ambience (§9.2) and menu/briefing/debrief music (§9.1 — never during missions).
+ * siren (§4.9), theater ambience (§9.2) and music (§9.1 menu/briefing beds + stingers; in missions the adaptive
+ * suspense score of music-director.js, option `missionMusic` — false = "Classic 1998", no in-mission music).
  *
  * Contract: createAudio(events, opts?) → { unlock(), setMuted(b), setVolume(ch, v), setOption(k, v),
  *   playSfx(id, pos?, o?), music(track|null), say(unit, key), update(cx, cz, viewWidth?), debug(), dispose(),
@@ -16,6 +17,7 @@ import { AudioEngine, spatialize } from './engine.js';
 import { SFX, MUSIC, ambienceFor } from './manifest.js';
 import { VoiceDirector, lineKey, speakerOf } from './voice-lines.js';
 import { installHandlers, missionAudio } from './event-map.js';
+import { MusicDirector } from './music-director.js';
 
 const hashStr = (s) => { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
 
@@ -23,7 +25,7 @@ const LOG_MAX = 200;
 const STORE_KEY = 'shadowsix.audio.v1';
 const MISSION_STATES = new Set(['playing', 'paused']);
 /** Default user options (§6.8 menu): "Nature sounds" ON, Verbose, cinematic drone OFF. */
-export const DEFAULT_OPTIONS = Object.freeze({ natureSounds: true, laconic: false, cinematicAmbience: false, subtitles: true });
+export const DEFAULT_OPTIONS = Object.freeze({ natureSounds: true, laconic: false, cinematicAmbience: false, subtitles: true, missionMusic: true });
 
 function defaultContext() {
   const AC = typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext);
@@ -95,7 +97,16 @@ export function createAudio(events, opts = {}) {
         this.engine = new AudioEngine(ctx, { fetch: opts.fetch, base: opts.base, rand, jitter: opts.jitter ?? !opts.createContext });
         this.engine.setListener(this.listener.x, this.listener.z, this.listener.viewWidth, this.listener.yaw);
         this._applyVolumes();
-        if (opts.loadAssets !== false) { this.engine.loadManifests().catch(() => {}); if (this.mission) this._preload(); }
+        const eng = this.engine;
+        this.musicDir = new MusicDirector({ ctx: eng.ctx, out: eng.bus.music,
+          load: opts.musicLoad || ((id) => eng.loadMusic(id)), has: opts.musicHas || ((id) => eng.files.has(id)),
+          log: (e) => this._push(e) });
+        // the score must keep chaining while the game loop is paused/throttled: tick it from a timer too
+        if (typeof window !== 'undefined' && typeof setInterval === 'function') this._musicTimer = setInterval(() => this._musicTick(), 250);
+        if (opts.loadAssets !== false) {
+          eng.loadManifests().then(() => { this._refreshMusic(); if (this.mission) this.musicDir.prefetchMission(this._startCue()); }).catch(() => {});
+          if (this.mission) this._preload();
+        }
       }
       try { const p = this.engine.ctx.resume?.(); p?.catch?.(() => {}); } catch { /* ignore */ }
       if (!this.unlocked) {
@@ -196,34 +207,70 @@ function addMethods(audio, events, rand) {
     },
     after(sec, fn) { this.timers.push({ at: this.now() + sec, fn }); },
 
-    // ---- music (§9.1): menus / briefing / debrief only ---------------------------------------------
-    /** Request a music cue. Loops are refused during missions; a theater name at mission start plays a start stinger. */
+    // ---- music (§9.1 + suspense score): every music-bus sound goes through the MusicDirector ------------------
+    /** Request a music cue: a bed outside missions; in missions loops are refused (the director owns the score). */
     music(track) {
       if (track == null) { this.track = null; this._refreshMusic(); return; }
       const cue = MUSIC[track];
-      if (cue && !cue.loop) { this._stinger(track); return; }
+      if (cue && !cue.loop && !cue.mission) { this._stinger(track); return; }
       if (this.inMission()) {
         this._push({ type: 'music', name: track, refused: true });
-        if (!cue && !this._startStingerDone) { this._startStingerDone = true; this._stinger(`start_${1 + Math.floor(rand() * 6)}`); }
+        this._missionMusicStart(); // a theater name at mission start (Game.start) — idempotent
         return;
       }
-      this.track = cue ? track : 'menu';
+      // an unknown name ('theme' from the briefing) means "this screen's music": keep the state's cue (briefing_N)
+      // instead of falling back to the menu bed (that dropped and re-decoded the menu, and the briefing never played)
+      this.track = cue && !cue.mission ? track : (cueForState(this.gameState, this) || this.track || 'menu');
       this._refreshMusic();
     },
+    _startCue() { return this._startCueId || (this._startCueId = `start_${1 + Math.floor(rand() * 6)}`); },
     _stinger(cue) {
-      this._push({ type: 'music', name: cue, stinger: true });
-      if (this.unlocked && this.engine) this.engine.play(cue, { bus: 'music', loop: false });
+      if (this.unlocked && this.musicDir) this.musicDir.stinger(cue);
+      else this._push({ type: 'music', name: cue, stinger: true });
     },
-    /** Desired bed: menu/briefing cue outside missions; in missions silence (or the optional drone). */
+    /** Once per mission: start stinger → suspense score (option missionMusic), or the stinger only (Classic 1998). */
+    _missionMusicStart() {
+      if (this._startStingerDone) return;
+      this._startStingerDone = true;
+      const st = this._startCue();
+      this._startCueId = null;
+      if (!this.unlocked || !this.musicDir) { this._push({ type: 'music', name: st, stinger: true }); return; }
+      if (this.options.missionMusic) this.musicDir.startMission({ stinger: st });
+      else this.musicDir.stinger(st);
+      this._refreshMusic();
+    },
+    /** Desired music: menu/briefing bed outside missions; in missions the suspense score (or silence, Classic). */
     _refreshMusic() {
-      const want = this.inMission() ? (this.options.cinematicAmbience ? 'drone' : null) : this.track;
-      const cur = this.musicHandle;
-      if (this.musicId === want && (!want || (cur && !cur.ended) || !this.unlocked)) return;
-      if (cur) { cur.stop(1.5); this.musicHandle = null; }
+      const d = this.musicDir;
+      if (this.inMission()) {
+        this.musicId = this.options.missionMusic ? 'mission' : (this.options.cinematicAmbience ? 'drone' : null);
+        if (!d || !this.unlocked) return;
+        if (this.options.missionMusic) {
+          d.playBed(null);
+          if (this._startStingerDone && d.state !== 'mission') d.startMission({ stinger: null }); // toggled on / late unlock
+        } else {
+          if (d.state === 'mission') d.stopMission(1.5);
+          d.playBed(this.options.cinematicAmbience ? 'drone' : null);
+        }
+        d.setPaused(this.gameState === 'paused');
+        return;
+      }
+      const want = this.track;
+      if (this.musicId !== want && want) this._push({ type: 'music', name: want });
       this.musicId = want;
-      if (!want) return;
-      this._push({ type: 'music', name: want });
-      if (this.unlocked && this.engine) this.musicHandle = this.engine.play(want, { bus: 'music', loop: true, fadeIn: 1.0 });
+      if (!d || !this.unlocked) return;
+      if (d.state === 'mission') d.stopMission(1.5);
+      d.setPaused(false);
+      d.playBed(want);
+    },
+    /** Alarm / combat / search → the director's alert layer; voices and briefing speech duck the music. */
+    _musicTick() {
+      const d = this.musicDir;
+      if (!d) return;
+      d.setAlarm(!!(this.siren.active || this.world?.alarm?.active));
+      const voice = this.engine ? [...this.engine.active].some((h) => h.bus === 'voice' && !h.ended) : false;
+      d.setDuck(voice || !!globalThis.speechSynthesis?.speaking);
+      d.update();
     },
 
     // ---- ambience (§9.2) ---------------------------------------------------------------------------
@@ -385,6 +432,7 @@ function addVoiceSiren(audio, events, rand) {
       }
       for (const [k, b] of this.bursts) if (now > b.until || b.handle?.ended) { b.handle?.stop(0.12); this.bursts.delete(k); }
       this._tickBombs();
+      this._musicTick();
       if (this.siren.active) {
         this.siren.gain = this._sirenGain();
         if (this.siren.gain <= 0) this._sirenStop(0.5); else this._sirenSync();
@@ -423,7 +471,7 @@ function addVoiceSiren(audio, events, rand) {
       const d = this.director;
       return {
         unlocked: this.unlocked, muted: this.muted, volumes: { ...this.volumes }, options: { ...this.options },
-        gameState: this.gameState, track: this.track, music: this.musicId || null,
+        gameState: this.gameState, track: this.track, music: this.musicId || null, score: this.musicDir?.debug() || null,
         siren: { active: this.siren.active, gain: +this.siren.gain.toFixed(3), handles: this.siren.handles.length },
         loops: [...this.loops.entries()].map(([k, r]) => `${k}:${r.id}`), ambience: this.ambience.map((l) => l.id),
         voices: { commando: d.commando?.key || null, enemy: d.enemy.map((v) => v.key) },
@@ -436,6 +484,8 @@ function addVoiceSiren(audio, events, rand) {
       };
     },
     dispose() {
+      if (this._musicTimer) clearInterval(this._musicTimer);
+      this.musicDir?.dispose();
       for (const off of this._subs) off?.();
       this._subs.length = 0;
       this._offGesture?.();
@@ -473,8 +523,13 @@ function wire(audio, events, subs, rand, opts) {
     const cue = cueForState(to, audio);
     if (cue) audio.track = cue;
     if (to === 'debrief') audio.track = null; // the debrief is silent after the end stinger
-    if (to === 'won') { audio.track = null; audio._stinger(`success_${1 + Math.floor(rand() * 3)}`); }
-    if (to === 'lost') { audio.track = null; audio._stinger(`fail_${1 + Math.floor(rand() * 3)}`); }
+    if (to === 'won' || to === 'lost') {
+      audio.track = null;
+      const st = to === 'won' ? `success_${1 + Math.floor(rand() * 3)}` : `fail_${1 + Math.floor(rand() * 3)}`;
+      if (audio.unlocked && audio.musicDir) audio.musicDir.endMission(st); // the end stinger is what stops the score
+      else audio._push({ type: 'music', name: st, stinger: true });
+    }
+    if (MISSION_STATES.has(to) && !MISSION_STATES.has(was)) audio._missionMusicStart(); // also a save restored paused
     if (!audio.inMission()) {
       audio._sirenStop(0.5); audio.bombs.clear();
       for (const k of [...audio.loops.keys()]) audio.stopLoop(k, 0.5);
@@ -486,10 +541,17 @@ function wire(audio, events, subs, rand, opts) {
   };
   on('game:state', (e) => setState(e.to));
   on('flow:state', (e) => { if (e.to !== 'playing' && e.to !== 'paused') setState(e.to); });
+  // in-mission score: alert layer on alarm / enemies in combat-search states (music-director.js HOT_STATES)
+  const ekey = (u) => u?.id ?? u?.tag ?? u;
+  on('alarm:start', () => audio.musicDir?.setAlarm(true));
+  on('enemy:state', (e) => audio.musicDir?.setEnemyState(ekey(e.enemy), e.to));
+  on('unit:killed', (e) => { if (e.unit?.kind === 'enemy') audio.musicDir?.dropEnemy(ekey(e.unit)); });
   on('mission:loaded', (e) => {
     audio.world = e.world || null;
     audio.mission = e.mission || null;
     audio._startStingerDone = false;
+    if (audio.musicDir?.state === 'mission') audio.musicDir.stopMission(1.0);
+    audio.musicDir?.prefetchMission(audio._startCue());
     audio.ambience.forEach((l) => l.handle?.stop(0.5));
     audio.ambience = [];
     audio.director.reset();

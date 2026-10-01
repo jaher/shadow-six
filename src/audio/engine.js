@@ -84,6 +84,7 @@ export class AudioEngine {
     this.pinned = new Map(); // id → url[] restricted for this mission (one siren take …)
     this.rr = new Map(); // id → round-robin counter
     this.active = new Set();
+    this.musicMeta = new Map(); // music cue → {loopStart, loopEnd, endSec, bpm, barSec, decodeRate, …} (music/manifest.json meta)
     this.listener = { x: 0, z: 0, viewWidth: 40, yaw: 0 };
     this.ready = Promise.resolve();
   }
@@ -140,9 +141,31 @@ export class AudioEngine {
     if (rec) return rec;
     const def = SFX[id];
     if (def) return this._buffer(`sfx:${id}`, () => synth(def.recipe, this.sr, hashId(id)));
-    const cue = MUSIC[id];
-    if (cue) return this._buffer(`music:${cue.mood}`, () => synth(cue.mood, this.sr));
+    // music cues: recorded file only — the music bus never plays a synth placeholder (silence instead)
     return null;
+  }
+
+  /**
+   * Fetch + decode a music cue for the music director (own cache there; not part of the per-mission SFX eviction).
+   * Long mission cues decode at `meta.decodeRate` (OfflineAudioContext resamples) to keep decoded PCM small.
+   * @returns {Promise<{buffer: AudioBuffer, meta: object}|null>} null when the cue has no recorded file
+   */
+  async loadMusic(id) {
+    const url = this.files.get(id)?.[0];
+    if (!url || !this.fetch || !this.ctx.decodeAudioData) return null;
+    try {
+      const res = await this.fetch(this.base + url);
+      if (!res.ok) return null;
+      const ab = await res.arrayBuffer();
+      const meta = this.musicMeta.get(id) || {};
+      const OAC = globalThis.OfflineAudioContext || globalThis.webkitOfflineAudioContext;
+      let buffer = null;
+      if (OAC && meta.decodeRate && meta.decodeRate < (this.ctx.sampleRate || 48000)) {
+        try { buffer = await new OAC(2, 1, meta.decodeRate).decodeAudioData(ab.slice(0)); } catch { buffer = null; }
+      }
+      if (!buffer) buffer = await this.ctx.decodeAudioData(ab);
+      return { buffer, meta };
+    } catch { return null; }
   }
 
   /** True when `speaker` has a recorded take of rec line `rec`. */
@@ -328,8 +351,9 @@ export class AudioEngine {
       }
     }
     for (const [id, files] of Object.entries(music?.cues || {})) {
-      const file = pickFile([].concat(files), 'music/');
+      const file = pickMusic([].concat(files));
       if (file) { addTo(this.files, id, file); n.music++; }
+      if (music.meta?.[id]) this.musicMeta.set(id, { ...music.meta[id] });
     }
     for (const l of voice?.lines || []) {
       if (l.rec && l.files) { // recorded rec line (tools/audio/build_assets.py)
@@ -402,6 +426,12 @@ function pickFile(files = [], prefix) {
   const canOgg = typeof Audio === 'undefined' || !!new Audio().canPlayType?.('audio/ogg; codecs=opus');
   const f = files.find((x) => (canOgg ? /\.ogg$/ : /\.mp3$/).test(x)) || files[0];
   return f ? (f.startsWith(prefix) ? f : prefix + f) : null;
+}
+/** Music files: OGG Vorbis where the browser plays it (Safari: MP3). */
+function pickMusic(files = []) {
+  const canVorbis = typeof Audio === 'undefined' || !!new Audio().canPlayType?.('audio/ogg; codecs="vorbis"');
+  const f = files.find((x) => (canVorbis ? /\.ogg$/ : /\.mp3$/).test(x)) || files.find((x) => /\.mp3$/.test(x)) || files[0];
+  return f ? (f.startsWith('music/') ? f : 'music/' + f) : null;
 }
 function addTo(map, id, file) { const a = map.get(id) || []; if (!a.includes(file)) a.push(file); map.set(id, a); }
 function hashId(s) { let h = 7; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h || 1; }

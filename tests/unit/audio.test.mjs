@@ -158,32 +158,54 @@ test('§7.5 M2 pboat: engine loop uses spawn.engineAudible (60 m) as its audible
   near(r.srcs('truck_drive')[0].outputs[0].gain.value, (12 / 70) * SFX.truck_drive.gain, 1e-9);
 });
 
-test('§9.1 no music during missions: menu/briefing beds, silence in play, stingers at start/end', () => {
-  const r = rig();
-  const music = () => r.ctx.playing().filter((s) => r.ctx.busOf(s, r.audio.engine.bus) === 'music' && s.loop).map((s) => s._id);
-  r.events.emit('game:state', { from: 'boot', to: 'title' });
-  assert.deepEqual(music(), ['menu']);
-  r.events.emit('mission:loaded', { mission: { id: 'm02', theater: 'snow' }, world: r.world });
-  r.events.emit('game:state', { from: 'title', to: 'briefing' });
-  assert.deepEqual(music(), ['briefing_3'], JSON.stringify(music()));
-  r.events.emit('game:state', { from: 'briefing', to: 'playing' });
-  r.audio.music('snow'); // what Game.start() asks for
-  assert.deepEqual(music(), [], 'no music bed while playing');
-  assert.equal(r.ctx.started.filter((s) => /^start_\d$/.test(s._id)).length, 1, 'one start stinger');
-  r.audio.music('menu');
-  r.audio.music('snow');
-  r.events.emit('game:state', { from: 'playing', to: 'paused' });
-  r.events.emit('game:state', { from: 'paused', to: 'playing' });
-  assert.deepEqual(music(), [], 'still silent (explicit menu request refused, pause too)');
-  assert.equal(r.ctx.started.filter((s) => /^start_\d$/.test(s._id)).length, 1, 'stinger not repeated');
-  assert.ok(r.audio.log.some((l) => l.type === 'music' && l.name === 'menu' && l.refused));
-  r.audio.setOption('cinematicAmbience', true);
-  assert.deepEqual(music(), ['drone'], 'optional cinematic drone is the only in-mission bed');
-  r.audio.setOption('cinematicAmbience', false);
-  r.events.emit('game:state', { from: 'playing', to: 'won' });
-  assert.equal(r.ctx.started.filter((s) => /^success_\d$/.test(s._id)).length, 1);
-  r.events.emit('game:state', { from: 'won', to: 'title' });
-  assert.deepEqual(music(), ['menu']);
+test('§9.1 music: real beds/stingers only (no synth on the music bus); suspense score in missions; Classic 1998 toggle', async () => {
+  const { LIB, fakeLoad, flush } = await import('./music-director.test.mjs');
+  const lib = { ...LIB, briefing_3: LIB.menu, start_2: LIB.start_1 };
+  let ctx = null;
+  const events = new EventBus();
+  const audio = createAudio(events, { createContext: () => (ctx = new MockAudioContext()), rand: () => 0.1, storage: null, autoUnlock: false,
+    loadAssets: false, musicLoad: (id) => fakeLoad(ctx, lib)(id), musicHas: (id) => !!lib[id] });
+  audio.unlock();
+  const cue = (s) => s.buffer && s.buffer.length === Math.round((lib[Object.keys(lib).find((k) => audio.musicDir.ready?.get(k)?.buffer === s.buffer)]?.len ?? -1) * 100);
+  const playing = () => ctx.playing().map((s) => Object.keys(lib).find((k) => audio.musicDir.ready?.get(k)?.buffer === s.buffer)).filter(Boolean);
+  const tick = async (n = 3) => { for (let i = 0; i < n; i++) { audio.update(); await flush(); } };
+  events.emit('game:state', { from: 'boot', to: 'title' });
+  await tick();
+  assert.deepEqual(playing(), ['menu'], 'menu bed is the recorded file');
+  assert.ok(ctx.started.every(cue), 'every music source is a recorded buffer (synth placeholders never reach the music bus)');
+  const src = ctx.started[0];
+  near(src.loopStart, 10); near(src.loopEnd, 160);
+  events.emit('mission:loaded', { mission: { id: 'm02', theater: 'snow' }, world: { clock: 0, commandos: [] } });
+  events.emit('game:state', { from: 'title', to: 'briefing' });
+  await tick();
+  assert.deepEqual(playing().filter((k) => k !== 'menu'), ['briefing_3']);
+  events.emit('game:state', { from: 'briefing', to: 'playing' });
+  await tick();
+  assert.equal(audio.debug().music, 'mission');
+  assert.equal(audio.musicDir.state, 'mission');
+  assert.ok(audio.log.some((l) => l.type === 'music' && /^start_\d$/.test(l.name) && l.stinger), 'start stinger');
+  assert.ok(audio.log.some((l) => l.type === 'music' && l.name === 'mission_tension_a' && l.segment), 'tension bed');
+  audio.music('menu');
+  assert.ok(audio.log.some((l) => l.type === 'music' && l.name === 'menu' && l.refused), 'menu bed refused in mission');
+  events.emit('alarm:start', { source: { x: 0, z: 0 } });
+  await tick();
+  assert.equal(audio.musicDir.debug().threat.alarm, true);
+  events.emit('game:state', { from: 'playing', to: 'paused' });
+  near(audio.musicDir.master.gain.value, 0.35, 1e-9, 'pause keeps the score at reduced volume');
+  events.emit('game:state', { from: 'paused', to: 'playing' });
+  near(audio.musicDir.master.gain.value, 1);
+  audio.setOption('missionMusic', false); // Classic 1998
+  assert.equal(audio.musicDir.state, 'idle', 'no in-mission music');
+  assert.equal(audio.debug().music, null);
+  audio.setOption('missionMusic', true);
+  assert.equal(audio.musicDir.state, 'mission', 'back on mid-mission');
+  events.emit('game:state', { from: 'playing', to: 'won' });
+  await tick();
+  assert.equal(audio.musicDir.state, 'ended');
+  assert.ok(audio.log.some((l) => l.type === 'music' && /^success_\d$/.test(l.name) && l.stinger));
+  events.emit('game:state', { from: 'won', to: 'title' });
+  await tick();
+  assert.ok(playing().includes('menu'));
 });
 
 test('§4.9 siren: 0.75 → 0 over 25 s of mission time, positional + 30 % bed, RINT restarts, alarm:end stops', () => {

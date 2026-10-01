@@ -141,7 +141,8 @@ export class HUD {
     // AUDIO (§9.2 / §9.4 / §6.5) keeps its own option names
     const a = g.audio;
     if (a?.setOption && a.options) {
-      const want = { laconic: o.voice === 'laconic', natureSounds: o.nature !== false, subtitles: o.subtitles !== false };
+      const want = { laconic: o.voice === 'laconic', natureSounds: o.nature !== false, subtitles: o.subtitles !== false,
+        missionMusic: o.missionMusic !== 'classic' };
       for (const [k, v] of Object.entries(want)) if (k in a.options && a.options[k] !== v) a.setOption(k, v);
     }
   }

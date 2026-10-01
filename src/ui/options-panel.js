@@ -30,6 +30,7 @@ export const OPTION_ROWS = [
   ['h', 'SOUND'],
   ['volMaster', 'MASTER', 'vol'],
   ['volMusic', 'MUSIC', 'vol'],
+  ['missionMusic', 'MISSION MUSIC', ['suspense', 'classic']],
   ['volSfx', 'EFFECTS', 'vol'],
   ['volVoice', 'VOICES', 'vol'],
   ['nature', 'NATURE SOUNDS', 'bool'],
@@ -80,7 +81,8 @@ export const OPTION_ROWS = [
 
 /** One-line helpers (item-sub) and the detail pane's typed description. */
 export const OPTION_HELP = {
-  volMaster: 'Every sound in the game.', volMusic: 'Orchestral score and stingers.', volSfx: 'Weapons, engines, footsteps and alarms.',
+  volMaster: 'Every sound in the game.', volMusic: 'Orchestral score and stingers.',
+  missionMusic: 'SUSPENSE: a quiet orchestral score under every mission that rises when the alarm sounds. CLASSIC 1998: no music during missions, only the start and end stingers.', volSfx: 'Weapons, engines, footsteps and alarms.',
   volVoice: 'Your men and the enemy.', nature: 'Wind, surf, birds and crickets under the action.', subtitles: 'Show what is said, with the speaker\'s name.',
   subSize: 'Size of the subtitle text.', subBand: 'Darkness of the band behind subtitles.',
   preset: 'Shadows, water, grass and post-processing. Lower it on older hardware.', resScale: 'Render at a fraction of the screen resolution for speed.',
@@ -111,6 +113,7 @@ export function formatOption(key, v) {
   if (key === 'uiScale') return v ? `${v}×` : 'AUTO';
   if (key === 'resScale' || key === 'textScale' || key === 'subBand' || key === 'brightness') return `${Math.round(v * 100)}%`;
   if (key === 'cameraAngle') return `${{ 0: 'CLASSIC', 15: 'TILTED', 45: 'ISOMETRIC' }[v] || 'CUSTOM'} ${v}°`;
+  if (key === 'missionMusic') return v === 'classic' ? 'CLASSIC 1998 (NONE)' : 'SUSPENSE';
   if (key === 'intro') return v === 'first' ? 'FIRST RUN' : String(v).toUpperCase();
   if (key === 'rulesPreset') return CONFIG.houseRules.labels[v] || String(v).toUpperCase();
   return String(v).toUpperCase();

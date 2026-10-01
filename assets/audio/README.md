@@ -43,3 +43,14 @@ script and re-run it. Anything the manifests do not cover falls back to the proc
 ```
 Cue ids are the §9.1 names. No recorded music ships yet (menus use the synth placeholder). Music never plays
 during a mission; the exceptions are the start stinger and the optional `drone`.
+
+## Music: `music/manifest.json`
+```json
+{ "cues": { "menu": ["menu.ogg", "menu.mp3"], "start_1": ["start.ogg", "start.mp3"] },
+  "meta": { "menu": { "bpm": 96, "barSec": 2.5, "loopStart": 10, "loopEnd": 160, "decodeRate": 32000 },
+            "start_1": { "bpm": 84, "endSec": 11.429 } } }
+```
+- Original score (route A: MIDI scores + CC0 VSCO samples), OGG Vorbis + MP3 twin. Credits: `music/CREDITS.md`.
+- `loopStart`/`loopEnd`: loop body in seconds (intro before it plays once); `endSec`: where a stinger hands over;
+  `decodeRate`: decode sample rate (long mission cues decode at 24–32 kHz to keep PCM small).
+- Played only by `src/audio/music-director.js`; a cue without a file is silence (never a synth placeholder).

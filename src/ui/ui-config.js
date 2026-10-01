@@ -51,6 +51,7 @@ export const OPTION_DEFAULTS = {
   volSfx: 1,
   volVoice: 1,
   volMusic: 0.7,
+  missionMusic: 'suspense', // 'suspense' (in-mission score, default) | 'classic' (1998: no in-mission music)
   halt: 'indifferent', // 'submissive' | 'indifferent' (§4.5 / §6.8)
   voice: 'verbose', // 'verbose' | 'laconic' (§6.3)
   warnings: true, // "Commando warnings" (§6.2)

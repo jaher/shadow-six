@@ -45,7 +45,7 @@ D = `~/.claude/projects/-home-jaherrero-projects-commandos-threejs-docs-screensh
 |---|---|---|---|---|
 | 1 | missions 4–20 (`wf_f8b05e29-c7b`) | T/missions-4-20-wf_f8b05e29-c7b.js | commandos-wt-missions / feat/missions | 62 agents done; last playtest/fix passes (M7, M20 …), then MERGE into master — unblocks align M4–M20 + mission art pass |
 | 2 | ~~clipping audit~~ DONE (merged 30c7254) — QUEUED follow-up "clip-2" (see PROGRESS.md 2026-09-27T19:05Z) | — | — | launch after the reset |
-| 3 | bodies: physics (Rapier), blood, drag/carry, buddy rescue, craters (`wf_be5a0824-a7d`) | T/bodies-combat-feedback-wf_be5a0824-a7d.js | commandos-wt-bodies / feat/bodies | drag/carry fixes (put-down flip, overlap after revive, upright drag start, M2 e5 corpse through the walkway — see bodies_dragcarry notes) → verify → merge — unblocks gate-smash merge |
+| 3 | ~~bodies (physics, blood, drag/carry, rescue)~~ DONE (merged 8bee97d, published 22f3ddb) | — | — | — |
 | 4 | ~~portraits pain + lip resync~~ DONE (merged 165efe6) | — | — | — |
 | 5 | buildings aligned to fences (`wf_0a14f1b4-fd5`) | S/align-buildings-to-fences-wf_0a14f1b4-fd5.js | commandos-wt-align / feat/align | M1–M3 MERGED (203693d); fix-m4-20 agent is polling for the missions merge (≤ 8 h), then realigns M4–M20 (tanks strict, others aesthetic) → verify → merge |
 | 6 | vehicle integration (`wf_5468d5f3-2cf`) | S/vehicle-integration-wf_5468d5f3-2cf.js | commandos-wt-vehint / feat/vehicle-integration | core done (a96d9b6 also fixes the red loading-int2 test); AMBIENT step (flyovers, windsock, crews — fix R75 passenger in the tub + theater uniforms, night lights) → verify → merge |
@@ -58,6 +58,7 @@ D = `~/.claude/projects/-home-jaherrero-projects-commandos-threejs-docs-screensh
 | 13 | barbed wire everywhere (`wf_1566168d-bd5`) | T/barbed-wire-wf_1566168d-bd5.js | commandos-wt-wire / feat/barbed-wire | research → build → critic → merge → M4–M20 after the missions merge |
 | 14 | chimney smoke + ambient-smoke readability (`wf_e1d52344-449`) | T/chimney-smoke-wf_e1d52344-449.js | commandos-wt-smoke / feat/chimney-smoke | build → verify → merge |
 | 15 | music-now fast track: no beeps + suspense mission music (`wf_4db9841b-f46`) | T/music-now-wf_4db9841b-f46.js | commandos-wt-musicnow / feat/music-now | build → verify → merge → orchestrator publishes |
+| 16 | touch/mobile (`wf_92372ad6-2e0`) | T/touch-mobile-wf_92372ad6-2e0.js | commandos-wt-touch / feat/touch | screens → early merge (PUBLISH right after) → in-game touch → verify → merge → publish |
 
 **QUEUED — launch after the in-flight work (in this order, ≤ 8 agents total):**
 1. ~~`clip-2`~~ LAUNCHED (row 10). Remaining part: the clipping audit over M4–M20 after the missions merge → do it inside the mission art pass. Was: dynamic penetrations (m00 7 / m01 3 / m03 18: soldiers vs M3 dam parapet + barracks, GB/e6 vs M1 wall_s), roof eaves in turret arcs + vehicle drive probe; then the clipping audit over M4–M20 once missions merged (acceptance (e)).

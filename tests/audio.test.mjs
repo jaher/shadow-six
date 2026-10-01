@@ -1,6 +1,6 @@
 /**
  * AUDIO in the running game (design-spec §9, §4.9): locked until the first gesture, real WebAudio graph
- * after it, no music bed during the mission (start stinger only), theater ambience, siren envelope
+ * after it, the suspense score during the mission (start stinger → tension; music-director.js), theater ambience, siren envelope
  * following world.alarm, German barks with subtitle glosses. Screenshot: the audio debug overlay.
  */
 export default async function audio(page, t) {
@@ -45,7 +45,7 @@ export default async function audio(page, t) {
   t.log(JSON.stringify({ ...r, d0: { music: r.d0.music, ambience: r.d0.ambience, siren: r.d0.siren, active: r.d0.active, buses: r.d0.buses } }));
   t.ok(r.unlocked, 'AudioContext created on the first gesture');
   t.equal(r.d0.gameState, 'playing');
-  t.equal(r.d0.music, null, '§9.1 no music bed during the mission');
+  t.equal(r.d0.music, 'mission', 'suspense score during the mission (default option)');
   t.ok(r.musicLog.some((s) => /^start_\d\*$/.test(s)), 'start stinger at mission start');
   t.ok(r.d0.ambience.includes('wind'), '§9.2 theater ambience');
   t.ok(r.d0.siren.active && r.d0.siren.handles === 2, 'siren: positional + bed');
@@ -65,5 +65,5 @@ export default async function audio(page, t) {
     window.__audioPanel.dispose();
     return { pausedMusic: s1, errors: 0 };
   });
-  t.equal(after.pausedMusic, null, 'no music while paused either');
+  t.equal(after.pausedMusic, 'mission', 'pause keeps the score (at reduced volume)');
 }

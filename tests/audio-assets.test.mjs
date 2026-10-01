@@ -1,8 +1,8 @@
 /**
  * Recorded audio in the running game (realism-pipeline v2 §1.5; tools/audio/build_assets.py): manifests load,
  * each mission decodes only its own set (evicting the last), ambience beds stream through media elements,
- * German barks and commando acks play recorded takes (not the babble placeholder) with subtitles, no music
- * in missions. Screenshots int-audio-m1..m3 (audio debug overlay + bark subtitle); frame cost per preset.
+ * German barks and commando acks play recorded takes (not the babble placeholder) with subtitles, the
+ * suspense score in missions. Screenshots int-audio-m1..m3 (audio debug overlay + bark subtitle); frame cost per preset.
  */
 export default async function audioAssets(page, t) {
   await page.keyboard.press('Shift'); // first gesture → AudioContext
@@ -51,7 +51,7 @@ export default async function audioAssets(page, t) {
     t.ok(r.guardVoice, `${id}: German bark is a recorded take`);
     t.ok(r.ackVoice, `${id}: commando ack is a recorded take`);
     t.ok(r.shotRec, `${id}: rifle shot is a recorded file`);
-    t.equal(r.music, null, `${id}: no music during the mission`);
+    t.equal(r.music, 'mission', `${id}: suspense score during the mission`);
     t.ok(s.streams.length >= 1 && s.streams.every((x) => x.playing), `${id}: ambience beds streaming (${s.streams.map((x) => x.file)})`);
   }
   t.ok(rows[1].ambience.includes('river') && rows[1].streams.some((x) => /river/.test(x.file)), 'M2 river bed');

@@ -17,7 +17,7 @@ class Gain extends Node { constructor(c) { super(c, 'gain'); this.gain = new Par
 class Panner extends Node { constructor(c) { super(c, 'pan'); this.pan = new Param(0); } }
 class Source extends Node {
   constructor(c) { super(c, 'source'); this.playbackRate = new Param(1); this.loop = false; this.buffer = null; this.started = null; this.stopped = null; }
-  start(t = 0) { this.started = t; this.ctx.started.push(this); }
+  start(t = 0, off = 0) { this.started = t; this.offset = off; this.ctx.started.push(this); }
   stop(t = 0) { this.stopped = t; if (!this.loop) this.onended?.(); }
 }
 class Buffer {

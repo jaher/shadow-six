@@ -1,3 +1,356 @@
 {
- "cues": {}
+ "note": "Original compositions for SHADOW SIX (route A: MIDI score + VSCO 2 CE / VSCO 1 samples, CC0). meta: loopStart/loopEnd (s) = loop body; endSec = where a stinger hands over; decodeRate = decode Hz.",
+ "cues": {
+  "menu": [
+   "menu.ogg",
+   "menu.mp3"
+  ],
+  "credits": [
+   "menu.ogg",
+   "menu.mp3"
+  ],
+  "briefing_1": [
+   "briefing.ogg",
+   "briefing.mp3"
+  ],
+  "briefing_2": [
+   "briefing.ogg",
+   "briefing.mp3"
+  ],
+  "briefing_3": [
+   "briefing.ogg",
+   "briefing.mp3"
+  ],
+  "start_1": [
+   "start.ogg",
+   "start.mp3"
+  ],
+  "start_2": [
+   "start.ogg",
+   "start.mp3"
+  ],
+  "start_3": [
+   "start.ogg",
+   "start.mp3"
+  ],
+  "start_4": [
+   "start.ogg",
+   "start.mp3"
+  ],
+  "start_5": [
+   "start.ogg",
+   "start.mp3"
+  ],
+  "start_6": [
+   "start.ogg",
+   "start.mp3"
+  ],
+  "success_1": [
+   "success.ogg",
+   "success.mp3"
+  ],
+  "success_2": [
+   "success.ogg",
+   "success.mp3"
+  ],
+  "success_3": [
+   "success.ogg",
+   "success.mp3"
+  ],
+  "exit": [
+   "success.ogg",
+   "success.mp3"
+  ],
+  "fail_1": [
+   "fail.ogg",
+   "fail.mp3"
+  ],
+  "fail_2": [
+   "fail.ogg",
+   "fail.mp3"
+  ],
+  "fail_3": [
+   "fail.ogg",
+   "fail.mp3"
+  ],
+  "mission_tension_a": [
+   "mission_tension_a.ogg",
+   "mission_tension_a.mp3"
+  ],
+  "mission_tension_b": [
+   "mission_tension_b.ogg",
+   "mission_tension_b.mp3"
+  ],
+  "mission_tension_c": [
+   "mission_tension_c.ogg",
+   "mission_tension_c.mp3"
+  ],
+  "mission_bridge_1": [
+   "mission_bridge_1.ogg",
+   "mission_bridge_1.mp3"
+  ],
+  "mission_bridge_2": [
+   "mission_bridge_2.ogg",
+   "mission_bridge_2.mp3"
+  ],
+  "mission_bridge_3": [
+   "mission_bridge_3.ogg",
+   "mission_bridge_3.mp3"
+  ],
+  "mission_alert": [
+   "mission_alert.ogg",
+   "mission_alert.mp3"
+  ]
+ },
+ "meta": {
+  "menu": {
+   "bpm": 96,
+   "barSec": 2.5,
+   "lengthSec": 164.0,
+   "tailSec": 4.0,
+   "lufs": -18.05,
+   "key": "D minor (Aeolian) -> F major -> D minor",
+   "loopStart": 10.0,
+   "loopEnd": 160.0,
+   "decodeRate": 32000
+  },
+  "credits": {
+   "bpm": 96,
+   "barSec": 2.5,
+   "lengthSec": 164.0,
+   "tailSec": 4.0,
+   "lufs": -18.05,
+   "key": "D minor (Aeolian) -> F major -> D minor",
+   "loopStart": 10.0,
+   "loopEnd": 160.0,
+   "decodeRate": 32000
+  },
+  "briefing_1": {
+   "bpm": 84,
+   "barSec": 2.857143,
+   "lengthSec": 75.429,
+   "tailSec": 4.0,
+   "lufs": -20.08,
+   "key": "D minor",
+   "loopStart": 2.857146,
+   "loopEnd": 71.428562,
+   "decodeRate": 32000
+  },
+  "briefing_2": {
+   "bpm": 84,
+   "barSec": 2.857143,
+   "lengthSec": 75.429,
+   "tailSec": 4.0,
+   "lufs": -20.08,
+   "key": "D minor",
+   "loopStart": 2.857146,
+   "loopEnd": 71.428562,
+   "decodeRate": 32000
+  },
+  "briefing_3": {
+   "bpm": 84,
+   "barSec": 2.857143,
+   "lengthSec": 75.429,
+   "tailSec": 4.0,
+   "lufs": -20.08,
+   "key": "D minor",
+   "loopStart": 2.857146,
+   "loopEnd": 71.428562,
+   "decodeRate": 32000
+  },
+  "start_1": {
+   "bpm": 84,
+   "barSec": 2.857143,
+   "lengthSec": 15.429,
+   "tailSec": 4.0,
+   "lufs": -20.0,
+   "key": "D minor",
+   "endSec": 11.429
+  },
+  "start_2": {
+   "bpm": 84,
+   "barSec": 2.857143,
+   "lengthSec": 15.429,
+   "tailSec": 4.0,
+   "lufs": -20.0,
+   "key": "D minor",
+   "endSec": 11.429
+  },
+  "start_3": {
+   "bpm": 84,
+   "barSec": 2.857143,
+   "lengthSec": 15.429,
+   "tailSec": 4.0,
+   "lufs": -20.0,
+   "key": "D minor",
+   "endSec": 11.429
+  },
+  "start_4": {
+   "bpm": 84,
+   "barSec": 2.857143,
+   "lengthSec": 15.429,
+   "tailSec": 4.0,
+   "lufs": -20.0,
+   "key": "D minor",
+   "endSec": 11.429
+  },
+  "start_5": {
+   "bpm": 84,
+   "barSec": 2.857143,
+   "lengthSec": 15.429,
+   "tailSec": 4.0,
+   "lufs": -20.0,
+   "key": "D minor",
+   "endSec": 11.429
+  },
+  "start_6": {
+   "bpm": 84,
+   "barSec": 2.857143,
+   "lengthSec": 15.429,
+   "tailSec": 4.0,
+   "lufs": -20.0,
+   "key": "D minor",
+   "endSec": 11.429
+  },
+  "success_1": {
+   "bpm": 84,
+   "barSec": 2.857143,
+   "lengthSec": 15.929,
+   "tailSec": 4.0,
+   "lufs": -18.0,
+   "key": "D minor -> D major",
+   "endSec": 11.929
+  },
+  "success_2": {
+   "bpm": 84,
+   "barSec": 2.857143,
+   "lengthSec": 15.929,
+   "tailSec": 4.0,
+   "lufs": -18.0,
+   "key": "D minor -> D major",
+   "endSec": 11.929
+  },
+  "success_3": {
+   "bpm": 84,
+   "barSec": 2.857143,
+   "lengthSec": 15.929,
+   "tailSec": 4.0,
+   "lufs": -18.0,
+   "key": "D minor -> D major",
+   "endSec": 11.929
+  },
+  "exit": {
+   "bpm": 84,
+   "barSec": 2.857143,
+   "lengthSec": 15.929,
+   "tailSec": 4.0,
+   "lufs": -18.0,
+   "key": "D minor -> D major",
+   "endSec": 11.929
+  },
+  "fail_1": {
+   "bpm": 72,
+   "barSec": 3.333333,
+   "lengthSec": 15.0,
+   "tailSec": 4.0,
+   "lufs": -20.0,
+   "key": "D Phrygian",
+   "endSec": 11.0
+  },
+  "fail_2": {
+   "bpm": 72,
+   "barSec": 3.333333,
+   "lengthSec": 15.0,
+   "tailSec": 4.0,
+   "lufs": -20.0,
+   "key": "D Phrygian",
+   "endSec": 11.0
+  },
+  "fail_3": {
+   "bpm": 72,
+   "barSec": 3.333333,
+   "lengthSec": 15.0,
+   "tailSec": 4.0,
+   "lufs": -20.0,
+   "key": "D Phrygian",
+   "endSec": 11.0
+  },
+  "mission_tension_a": {
+   "bpm": 84,
+   "barSec": 2.857143,
+   "lengthSec": 126.857,
+   "tailSec": 4.0,
+   "lufs": -22.02,
+   "key": "D minor (Phrygian colour Eb)",
+   "loopStart": 2.857146,
+   "loopEnd": 122.857146,
+   "decodeRate": 24000
+  },
+  "mission_tension_b": {
+   "bpm": 84,
+   "barSec": 2.857143,
+   "lengthSec": 155.429,
+   "tailSec": 4.0,
+   "lufs": -22.03,
+   "key": "D minor (chromatic drift over D pedal)",
+   "loopStart": 2.857146,
+   "loopEnd": 151.428562,
+   "decodeRate": 24000
+  },
+  "mission_tension_c": {
+   "bpm": 84,
+   "barSec": 2.857143,
+   "lengthSec": 155.429,
+   "tailSec": 4.0,
+   "lufs": -22.01,
+   "key": "D minor / D Dorian over D pedal",
+   "loopStart": 2.857146,
+   "loopEnd": 151.428562,
+   "decodeRate": 24000
+  },
+  "mission_bridge_1": {
+   "bpm": 84,
+   "barSec": 2.857143,
+   "lengthSec": 29.714,
+   "tailSec": 4.0,
+   "lufs": -22.24,
+   "key": "D minor (pedal)",
+   "loopStart": 2.857146,
+   "loopEnd": 25.714292,
+   "decodeRate": 24000
+  },
+  "mission_bridge_2": {
+   "bpm": 84,
+   "barSec": 2.857143,
+   "lengthSec": 29.714,
+   "tailSec": 4.0,
+   "lufs": -22.25,
+   "key": "D minor (pedal)",
+   "loopStart": 2.857146,
+   "loopEnd": 25.714292,
+   "decodeRate": 24000
+  },
+  "mission_bridge_3": {
+   "bpm": 84,
+   "barSec": 2.857143,
+   "lengthSec": 29.714,
+   "tailSec": 4.0,
+   "lufs": -22.2,
+   "key": "D minor (pedal)",
+   "loopStart": 2.857146,
+   "loopEnd": 25.714292,
+   "decodeRate": 24000
+  },
+  "mission_alert": {
+   "bpm": 84,
+   "barSec": 2.857143,
+   "lengthSec": 75.429,
+   "tailSec": 4.0,
+   "lufs": -19.04,
+   "key": "D minor (Phrygian colour Eb)",
+   "loopStart": 2.857146,
+   "loopEnd": 71.428562,
+   "decodeRate": 32000
+  }
+ }
 }
