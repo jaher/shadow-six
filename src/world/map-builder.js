@@ -202,6 +202,7 @@ export function placeStructures(mission, first, { grid, meshes = false, realTerr
     const key = `${k}:${band}`;
     if (!hulls.has(key)) {
       if (band === 'low') hulls.set(key, planCells(r.object3d, { maxY: 1.8, cell: 0.25 }));
+      else if (band.startsWith('body')) hulls.set(key, planCells(r.object3d, { minY: 0.3, maxY: +band.split(':')[1] || 1.8, cell: 0.25, fit: true }));
       else { const h = planHull(r.object3d); hulls.set(key, h ? [h] : null); }
     }
     return hulls.get(key);

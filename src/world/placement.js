@@ -2,8 +2,9 @@
  * Generic placement rules against object interpenetration (user report: "turrets crossing a fence"). Pure and
  * data-driven: runs on any mission's structures / items / interactables / spawns (missions 4-20, phase 3 street
  * furniture), called by map-builder before the meshes are built. Rules:
- *  (a) linear runs (walls, fences, palisades, wire, sandbag lines): the VISUAL run is cut where it meets a solid
- *      (building, tower, gate, bunker, bridge/dam, tent, big prop, a higher-ranked run) with the cut end stopping
+ *  (a) linear runs (walls, fences, palisades, wire, sandbag lines): the VISUAL run is cut where a solid stands ON it
+ *      (building, tower, gate, bunker, bridge/dam, tent, big prop, a higher-ranked run: its body at wall height
+ *      reaches the run's centreline; one merely touching the run's face never cuts it) with the cut end stopping
  *      `linearGap` short of it — the fence builder puts end posts there; the NAV footprint keeps the authored line,
  *      so no gap ever opens. Runs of one kind sharing an end are chained into one run (proper corners). A watchtower
  *      standing on a run is moved to the run's inner side with its legs against the fence (`onLine: 'gap'` keeps it
@@ -18,7 +19,7 @@
  * (explicit join, never cut/moved against that item), `clip: false` (ignored by the rules).
  * @module world/placement
  */
-import { rectPoly, circlePoly, polyDist, lineDist, clipPolyline, linePolys, inflatePoly, centroidOf, convexHull, segDist, boundsOf, polysOverlap } from './placement-geom.js';
+import { rectPoly, circlePoly, polyDist, lineDist, inPoly, clipPolyline, sweepPoly, linePolys, inflatePoly, centroidOf, convexHull, segDist, boundsOf, polysOverlap } from './placement-geom.js';
 import { categoryOf } from '../debug/clip-rules.js';
 
 /** Tunables (metres). */
@@ -242,6 +243,13 @@ export function roadObstacles(terrain = []) {
 const LINEAR_CATS = new Set(Object.keys(RUN_RANK));
 const rankOf = (r) => RUN_RANK[r.cat] ?? 1;
 const halfW = (r) => Math.max(0.05, (r.def.width ?? (r.cat === 'wall' ? 0.5 : r.cat === 'sandbags' ? 0.8 : 0.1)) / 2);
+/** Top of a run's drawn body (palisade stakes stand up to ~5 % over `h`). */
+const runTop = (r) => (r.def.h ?? 2) * 1.06 + 0.1;
+/**
+ * How far a run's drawn body overhangs its end points (art/dressing buildWall, props buildLinear): palisade stakes
+ * are flush, fence posts 0.05 m, box walls / sandbags half their width.
+ */
+const endCap = (r) => (r.cat === 'wall' && /palisade|stockade|log/.test(String(r.def.variant ?? '')) ? 0 : r.cat === 'fence' ? 0.05 : halfW(r));
 const polyLen = (r) => r.reduce((t, p, k) => (k ? t + Math.hypot(p[0] - r[k - 1][0], p[1] - r[k - 1][1]) : 0), 0);
 const same = (p, q, e = 0.05) => Math.hypot(p[0] - q[0], p[1] - q[1]) < e;
 
@@ -314,8 +322,11 @@ export function structureRecords(structures, shapeOf = null) {
     const ignored = def.clip === false || cat === 'ground';
     const data = ignored ? [] : dataShape(def, cat);
     const vis = (band) => (ignored || linear ? null : shapeOf?.(def, k, band)) || null;
-    const polys = vis('low') || data, tall = vis('tall') || polys;
-    return { k, def, id, cat, linear, ignored, polys, tall, bb: boundsOf(polys.length ? polys : [[[def.x ?? 0, def.z ?? 0]]]) };
+    // body: what stands at wall height (0.3–1.8 m; no flat snow skirts / decals) — the shape that cuts runs
+    const polys = vis('low') || data, tall = vis('tall') || polys, body = vis('body') || polys;
+    // bodyTo(h): the body up to a tall run's top (h > 2.2: eaves / porch roofs over a 3 m palisade), visual only
+    const bodyTo = shapeOf && !ignored && !linear ? (h) => (h > 2.2 ? vis(`body:${+h.toFixed(2)}`) : null) : null;
+    return { k, def, id, cat, linear, ignored, polys, tall, body, bodyTo, bb: boundsOf(polys.length ? polys : [[[def.x ?? 0, def.z ?? 0]]]) };
   });
 }
 
@@ -336,7 +347,7 @@ export function resolvePlacement(structures = [], o = {}) {
     const kind = String(it.interactKind ?? it.kind ?? '');
     if (!GATE_KIND.test(kind) || it.x == null) continue;
     const polys = it.rect ? [rectPoly(it.rect.x, it.rect.z, it.rect.w, it.rect.d, it.rect.rot ?? 0)] : [circlePoly(it.x, it.z, it.r ?? GATE_R)];
-    recs.push({ k: -1 - k, def: { ...it, type: kind }, id: String(it.id ?? `${kind}#${k}`), cat: 'gate', linear: false, ignored: false, polys, tall: polys, bb: boundsOf(polys), extra: true });
+    recs.push({ k: -1 - k, def: { ...it, type: kind }, id: String(it.id ?? `${kind}#${k}`), cat: 'gate', linear: false, ignored: false, polys, tall: polys, body: polys, bb: boundsOf(polys), extra: true });
     // a gate leaf without its own heading lines up with the run it sits in (else it would cross the fence)
     if (it.rot == null && !it.rect) {
       let best = null;
@@ -360,7 +371,8 @@ export function resolvePlacement(structures = [], o = {}) {
         attached.add(`${lin.id}|${t.id}`);
         if (!mv.dx && !mv.dz) continue;
         t.def.x = +((t.def.x ?? 0) + mv.dx).toFixed(3); t.def.z = +((t.def.z ?? 0) + mv.dz).toFixed(3);
-        t.polys = shift(t.polys, mv.dx, mv.dz); t.tall = shift(t.tall, mv.dx, mv.dz); t.bb = boundsOf(t.polys);
+        t.polys = shift(t.polys, mv.dx, mv.dz); t.tall = shift(t.tall, mv.dx, mv.dz); t.body = shift(t.body, mv.dx, mv.dz); t.bb = boundsOf(t.polys);
+        t.mx = (t.mx ?? 0) + mv.dx; t.mz = (t.mz ?? 0) + mv.dz; // bodyTo() shapes come from the unmoved build
         const prev = moves.get(t.id) || { dx: 0, dz: 0 };
         moves.set(t.id, { dx: +(prev.dx + mv.dx).toFixed(3), dz: +(prev.dz + mv.dz).toFixed(3) });
         log.push(`tower ${t.id} on ${lin.id}: moved (${mv.dx}, ${mv.dz}) m, legs against the run`);
@@ -373,21 +385,36 @@ export function resolvePlacement(structures = [], o = {}) {
     const mine = chained.filter((c) => c.r === lin);
     const hw = halfW(lin);
     const cutters = [
-      ...solids.filter((s) => RUN_SOLIDS.has(s.cat) && !allowed(lin, s) && !attached.has(`${lin.id}|${s.id}`)).map((s) => ({ id: s.id, polys: s.polys })),
+      ...solids.filter((s) => RUN_SOLIDS.has(s.cat) && !allowed(lin, s) && !attached.has(`${lin.id}|${s.id}`)).map((s) => ({ id: s.id, polys: s.body, s })),
       ...linears.filter((m) => m !== lin && !allowed(lin, m) && (rankOf(m) > rankOf(lin) || (rankOf(m) === rankOf(lin) && m.k < lin.k)))
         .map((m) => ({ id: m.id, polys: chained.filter((c) => c.r === m).flatMap((c) => linePolys(c.run, halfW(m))) })),
-    ].flatMap((c) => c.polys.map((p) => ({ id: c.id, p: inflatePoly(p, hw + RULES.linearGap) })));
+    ].flatMap((c) => c.polys.map((p) => ({ id: c.id, s: c.s, raw: inflatePoly(p, RULES.linearGap), p: inflatePoly(p, hw + RULES.linearGap) })));
     for (const c of cutters) c.bb = boundsOf([c.p]);
+    // what a cut must clear: the solid up to the run's own height (a 3 m palisade under a barracks' eaves), once it
+    // is known to stand on the line (the body at 0.3–1.8 m decides that, so eaves over a wall beside it never cut)
+    const runH = runTop(lin);
+    const clearOf = (qs) => [...new Set(qs.map((q) => q.s ?? q))].flatMap((s) => {
+      if (!s.def) return [s.raw];
+      const up = s.bodyTo?.(runH);
+      return up ? shift(up, s.mx ?? 0, s.mz ?? 0).map((p) => inflatePoly(p, RULES.linearGap)) : qs.filter((q) => q.s === s).map((q) => q.raw);
+    });
+    // only a shape that stands ON the line cuts it (its footprint reaches the run's centreline): a building or
+    // sentry box beside the wall whose skirt / eaves merely touch the wall face leaves the run whole — cutting
+    // there opened a see-through hole in M2's camp palisade while the nav line stayed blocked (user report)
+    const onLine = (run, q) => { const r = clipPolyline(run, [q.raw], 0); return r.length !== 1 || r[0] !== run; };
     const runs = [], by = new Set();
     let changedWalk = false;
     let cut = false, before = 0, after = 0;
     for (const c of mine) {
       const rb = boundsOf([c.run]);
-      const near = cutters.filter((q) => bboxHit(q.bb, rb, 0.01));
-      const parts = near.length ? clipPolyline(c.run, near.map((q) => q.p), 0.3) : [c.run];
+      const near = cutters.filter((q) => bboxHit(q.bb, rb, 0.01) && onLine(c.run, q));
+      // the run's drawn body is swept over each segment (±hw across, ±its end overhang along): its ends stop
+      // `linearGap` short of a solid's face — a palisade meets a gate filling its declared opening post-to-post
+      const cap = endCap(lin), sweep = (qs) => { const raws = clearOf(qs); return (a, b) => raws.map((p) => sweepPoly(p, a, b, hw, cap)); };
+      const parts = near.length ? clipPolyline(c.run, sweep(near), 0.3) : [c.run];
       if (parts.length !== 1 || parts[0] !== c.run) {
         cut = true;
-        for (const q of near) if (clipPolyline(c.run, [q.p], 0).length !== 1 || clipPolyline(c.run, [q.p], 0)[0] !== c.run) by.add(q.id);
+        for (const q of near) { const r = clipPolyline(c.run, sweep([q]), 0); if (r.length !== 1 || r[0] !== c.run) by.add(q.id); }
       }
       before += polyLen(c.run); after += parts.reduce((t, r) => t + polyLen(r), 0);
       runs.push(...parts);
@@ -512,6 +539,59 @@ export function footprintConflicts(structures = [], gap = 2 * RULES.eaves) {
     if (d < gap - 1e-6) out.push({ a: A.id, b: Bj.id, kind: 'tight', gap: +d.toFixed(2) });
   }
   return out;
+}
+
+/**
+ * Closed-enclosure check (user report "Level 2 the fence is not fully closed"): every authored run of every wall /
+ * fence / wire line must be DRAWN (its visual runs, pooled over chained runs) except where a solid or another run
+ * actually stands on it — its body shape (browser: fitted to the mesh, no diagonal cell padding) reaches the run's
+ * centreline and the uncovered stretch lies within that shape's cut reach (+ `linearGap`, swept ±half-width across
+ * the run and ±its end overhang along it — so a gate in line with a palisade explains no slot beside its posts).
+ * Declared openings are gaps between authored runs, so they never count. Nav always blocks the authored line, so an unexplained stretch is a see-through hole that still blocks.
+ * @param {object[]} records `resolvePlacement(...).records` (browser: visual body shapes; node: data shapes)
+ * @param {{step?: number, tol?: number, minLen?: number}} [o]
+ * @returns {{id: string, from: number[], to: number[], len: number}[]} unexplained gaps (≥ `minLen` m)
+ */
+export function enclosureGaps(records, o = {}) {
+  const step = o.step ?? 0.1, tol = o.tol ?? 0.03, minLen = o.minLen ?? 0.15;
+  const live = records.filter((r) => !r.ignored);
+  const linears = live.filter((r) => r.linear);
+  const drawn = linears.flatMap((r) => r.def.visualRuns || runsOf(r.def));
+  const shapes = [
+    ...live.filter((r) => !r.linear && RUN_SOLIDS.has(r.cat)).map((r) => ({ id: r.id, rec: r, polys: r.body || r.polys })),
+    ...linears.map((m) => ({ id: m.id, lin: m, polys: runsOf(m.def).flatMap((r) => linePolys(r, halfW(m))) })),
+  ];
+  const gaps = [];
+  for (const lin of linears) {
+    const hw = halfW(lin), cap = endCap(lin);
+    for (const run of runsOf(lin.def)) {
+      const occ = []; // shapes standing on the run, at the cut's own reach (swept ±hw across, ±cap along)
+      for (const sh of shapes) {
+        if (sh.lin === lin) continue;
+        const on = sh.polys.map((p) => inflatePoly(p, RULES.linearGap + tol)).filter((raw) => { const hit = clipPolyline(run, [raw], 0); return hit.length !== 1 || hit[0] !== run; });
+        if (!on.length) continue;
+        // a solid standing on the run is cleared up to the run's height (as the cut does: eaves over a palisade)
+        const up = sh.rec?.bodyTo?.(runTop(lin));
+        occ.push(...(up ? shift(up, sh.rec.mx ?? 0, sh.rec.mz ?? 0).map((p) => inflatePoly(p, RULES.linearGap + tol)) : on));
+      }
+      let open = null;
+      const close = () => { if (open && open.len >= minLen) gaps.push({ id: lin.id, from: open.from, to: open.to, len: +open.len.toFixed(2) }); open = null; };
+      for (let k = 0; k + 1 < run.length; k++) {
+        const [ax, az] = run[k], [bx, bz] = run[k + 1], L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(L / step));
+        const reach = occ.map((p) => sweepPoly(p, run[k], run[k + 1], hw, cap));
+        for (let i = k ? 1 : 0; i <= n; i++) {
+          const x = ax + ((bx - ax) * i) / n, z = az + ((bz - az) * i) / n;
+          const ok = drawn.some((r) => lineDist(x, z, r) <= tol) || reach.some((p) => inPoly(x, z, p));
+          if (ok) { close(); continue; }
+          const pt = [+x.toFixed(2), +z.toFixed(2)];
+          if (!open) open = { from: pt, to: pt, len: 0 };
+          else { open.len += Math.hypot(x - open.to[0], z - open.to[1]); open.to = pt; }
+        }
+      }
+      close();
+    }
+  }
+  return gaps;
 }
 
 /**

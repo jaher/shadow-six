@@ -99,6 +99,27 @@ normally set by the rules).
   interactables such as pen gates) or a higher-ranked run (wall > sandbags > fence > wire). Each cut end stops 6 cm short
   of the solid's real visual outline; the fence builder puts its end posts there. The **nav footprint keeps the authored
   line**, so no gap ever opens under a cut.
+- **Only a solid standing ON the line cuts it** (user report "Level 2 the fence is not fully closed"): the cutting
+  shape is the solid's body at wall height (0.3–1.8 m, `planCells` band `body`; no flat snow skirts or decals), and it
+  must reach the run's centreline. A building or sentry box beside the wall whose skirt / steps merely touch the wall
+  face leaves the run whole. Before, M2's sentry box `sbox_se` (0.7 m off the SE edge) and the skirt of `barr_out` cut
+  ~3.5 m of palisade between the gate and the box and at the E corner (see-through holes that still blocked movement),
+  and M1 `wall_s` had a 0.3 m slit at `house_s`. Screens: `docs/screenshots/m2-fence-before.jpg` / `-after.jpg`.
+- **Closed-enclosure check** `enclosureGaps(records)` (`tests/unit/enclosure.test.mjs` on data shapes,
+  `tests/enclosure.test.mjs` on the browser's visual shapes for every mission): every authored run is drawn except
+  at declared openings (gaps between authored runs) and within the cut reach of a solid / run that stands on it, and
+  a straight walk across any authored line never gets through the nav grid (visual coverage == nav blocking).
+- **Cuts follow the real mesh, post-to-post at gates** (verifier, M2 `gate_se`): the `body` shape is fitted
+  (`planCells({fit: true})`: rasterized in the structure's own frame, row ends trimmed to the geometry), so a rotated
+  gate is no longer padded by ~0.6 m of diagonal cells; the cut shape is the solid swept ±half-width ACROSS the run and
+  only by the run's real end overhang ALONG it (`sweepPoly`; palisade 0 m, fence posts 0.05 m, box walls half their
+  width) instead of a round half-width inflation; palisade stakes are flush with a run's free ends. Once a solid is
+  known to stand on a run (body at 0.3–1.8 m), a tall run (top > 2.2 m) is cleared of it up to its own top, so 3 m
+  stakes never poke into a barracks' eaves (M2 `barr_out` at the E corner). Before, the camp
+  palisade stopped 1.1 m / 0.55 m short of the gate posts (see-through slots, nav still blocked) and M3 `st_fence`
+  0.6 m short of `gate_w`; now both meet the gate 6 cm short of its posts. `enclosureGaps` uses the same reach, and
+  the GPU test measures every gate's mesh against the drawn run ends (≤ 0.15 m). Screen:
+  `docs/screenshots/m2-gate-slots-before-after.jpg` (left before, right after; 45° and 15° yaw, zoom 4).
 - Runs of one kind (type, variant, width, height) that share an end are chained into one run: proper corners instead of
   two walls overlapping for 17.5 m (M0 `wall#2` / `wall#3`).
 - A **watchtower standing on a run** moves to the run's inner side (towards the enclosure) with its splayed legs 8 cm off

@@ -100,7 +100,7 @@ export function clipPolyline(points, polys, minLen = 0.3) {
   let cut = false;
   for (let k = 0; k + 1 < points.length; k++) {
     const a = points[k], b = points[k + 1];
-    const ivs = mergeIntervals(polys.flatMap((p) => insideIntervals(a, b, p)));
+    const ivs = mergeIntervals((typeof polys === 'function' ? polys(a, b) : polys).flatMap((p) => insideIntervals(a, b, p)));
     let t = 0;
     for (const [t0, t1] of ivs) {
       cut = true;
@@ -115,6 +115,21 @@ export function clipPolyline(points, polys, minLen = 0.3) {
   if (!cut) return [points];
   const len = (r) => r.reduce((s, p, k) => (k ? s + Math.hypot(p[0] - r[k - 1][0], p[1] - r[k - 1][1]) : 0), 0);
   return runs.map((r) => r.filter((p, k) => !k || !same(p, r[k - 1]))).filter((r) => r.length >= 2 && len(r) >= minLen);
+}
+
+/**
+ * Cut shape of solid `pts` for the segment a→b of a run of half-width `hw` whose drawn ends overhang its end points
+ * by `cap`: the solid swept ±hw across the segment and ±cap along it (where the run's drawn body would overlap
+ * it). Unlike a round `hw` inflation, a run whose ends are flush (cap 0: palisade stakes, fence posts) meets a gate
+ * or post standing in line with it end-to-end instead of `hw` short. Non-convex shapes fall back to the round
+ * inflation by max(hw, cap).
+ */
+export function sweepPoly(pts, a, b, hw, cap = 0) {
+  const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz);
+  const area = Math.abs(polyArea(pts));
+  if (L < 1e-9 || Math.abs(Math.abs(polyArea(convexHull(pts))) - area) > 1e-6 * Math.max(1, area)) return inflatePoly(pts, Math.max(hw, cap));
+  const tx = dx / L, tz = dz / L, nx = -tz * hw, nz = tx * hw, cx = tx * cap, cz = tz * cap;
+  return convexHull(pts.flatMap(([x, z]) => [[x + nx + cx, z + nz + cz], [x + nx - cx, z + nz - cz], [x - nx + cx, z - nz + cz], [x - nx - cx, z - nz - cz]]));
 }
 
 /** Polyline → capsule-ish polygon list (one oriented rect per segment, half-width `hw`). */

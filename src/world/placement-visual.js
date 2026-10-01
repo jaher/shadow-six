@@ -52,14 +52,30 @@ const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3
 /**
  * Occupancy of a structure's render triangles within a height band, rasterized at `cell` m and merged into row
  * rectangles (non-convex: a barn's ramp, an L-shaped house, stairs and snow skirts keep their real outline).
- * @param {THREE.Object3D} root @param {{minY?: number, maxY?: number, groundY?: number, cell?: number}} [o]
+ * `fit: true` rasterizes in the structure's own frame (its world position and yaw) and trims each row's end
+ * rectangles to the real geometry, so a rotated gate or wall-side hut is not padded by up to a diagonal cell at each
+ * end (the shape that cuts fence runs: an inflated one left see-through slots beside M2's camp gate).
+ * @param {THREE.Object3D} root @param {{minY?: number, maxY?: number, groundY?: number, cell?: number, close?: number, fit?: boolean}} [o]
  * @returns {number[][][]|null} rectangles [[x, z] × 4][] or null when empty
  */
 export function planCells(root, o = {}) {
   const minY = o.minY ?? -Infinity, maxY = o.maxY ?? Infinity, gy = o.groundY ?? 0, cell = o.cell ?? 0.25;
   root.updateMatrixWorld(true);
-  const cells = new Set();
-  const mark = (x, z) => cells.add(`${Math.floor(x / cell)},${Math.floor(z / cell)}`);
+  const cells = new Set(), rowLo = new Map(), rowHi = new Map();
+  // frame: world (x, z) → local (lx, lz) about the root's origin and yaw (identity unless `fit`)
+  let ox = 0, oz = 0, c = 1, s = 0;
+  if (o.fit) {
+    const q = new THREE.Quaternion(), p = new THREE.Vector3();
+    root.matrixWorld.decompose(p, q, new THREE.Vector3());
+    const yaw = new THREE.Euler().setFromQuaternion(q, 'YXZ').y;
+    ox = p.x; oz = p.z; c = Math.cos(yaw); s = Math.sin(yaw);
+  }
+  const toWorld = ([lx, lz]) => [ox + lx * c + lz * s, oz - lx * s + lz * c];
+  const mark = (x, z) => {
+    const dx = x - ox, dz = z - oz, lx = dx * c - dz * s, lz = dx * s + dz * c, j = Math.floor(lz / cell);
+    cells.add(`${Math.floor(lx / cell)},${j}`);
+    if (o.fit) { rowLo.set(j, Math.min(rowLo.get(j) ?? Infinity, lx)); rowHi.set(j, Math.max(rowHi.get(j) ?? -Infinity, lx)); }
+  };
   const tri = (a, b, c) => {
     const ya = a.y - gy, yb = b.y - gy, yc = c.y - gy;
     if (Math.min(ya, yb, yc) > maxY || Math.max(ya, yb, yc) < minY) return;
@@ -98,9 +114,15 @@ export function planCells(root, o = {}) {
   const out = [];
   for (const [j, list] of rows) {
     list.sort((p, q) => p - q);
-    let s = list[0], prev = list[0];
-    const push = () => { const x0 = s * cell, x1 = (prev + 1) * cell, z0 = j * cell, z1 = (j + 1) * cell; out.push([[x0, z0], [x1, z0], [x1, z1], [x0, z1]]); };
-    for (let k = 1; k < list.length; k++) { if (list[k] === prev + 1) { prev = list[k]; continue; } push(); s = prev = list[k]; }
+    const lo = rowLo.get(j) ?? -Infinity, hi = rowHi.get(j) ?? Infinity;
+    const push = () => {
+      // trim only an end cell that holds the row's extreme sample (cells added by closing stay whole)
+      const x0 = lo > s0 * cell && lo < (s0 + 1) * cell ? lo : s0 * cell, x1 = hi > prev * cell && hi < (prev + 1) * cell ? hi : (prev + 1) * cell;
+      const z0 = j * cell, z1 = (j + 1) * cell;
+      out.push([[x0, z0], [x1, z0], [x1, z1], [x0, z1]].map((pt) => (o.fit ? toWorld(pt) : pt)));
+    };
+    let s0 = list[0], prev = list[0];
+    for (let k = 1; k < list.length; k++) { if (list[k] === prev + 1) { prev = list[k]; continue; } push(); s0 = prev = list[k]; }
     push();
   }
   return out;

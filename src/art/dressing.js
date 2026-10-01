@@ -394,8 +394,12 @@ export function buildWall(points, o) {
       if (L < 1e-3) continue;
       const tx = (bx - ax) / L, tz = (bz - az) / L;
       const chunks = []; // runs of stakes with the same walk shift → their own rails
-      for (let dd = 0.14; dd < L; ) {
+      // the run's free ends are flush (first stake starts AT the start, last one ends AT the end): a run cut at a
+      // gate / building meets it `linearGap` short (placement rule a); inner corners keep the 0.14 m step-in
+      const first = k === 0, isLast = k + 2 === points.length;
+      for (let dd = first ? 0 : 0.14; dd < L; ) {
         const r = 0.11 + R() * 0.045, H = h * (0.93 + R() * 0.12);
+        if (isLast && dd + 2 * r > L) dd = Math.max(0, L - 2 * r);
         let x = ax + tx * (dd + r), z = az + tz * (dd + r);
         // a wall walk runs along here: the stakes stand in front of its deck (never through a sentry's legs)
         const sh = walkShiftAt(x, z, -tz, tx, o.walkways);
