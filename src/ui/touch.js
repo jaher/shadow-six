@@ -1,6 +1,6 @@
 /**
- * Touch / phone support for the menus and full-screen UI (no in-mission camera input here; that lives with the
- * camera rig). Detects a touch-first device, keeps `html.mk-touch` in sync with the last pointer type, stops the
+ * Touch / phone support for the menus and full-screen UI (in-mission finger gestures on the map live in
+ * input/touch-game.js); adds the in-mission MENU and CANCEL buttons. Detects a touch-first device, keeps `html.mk-touch` in sync with the last pointer type, stops the
  * page itself from pinch / double-tap zooming or showing long-press callouts over the UI, and shows a dismissible
  * "rotate to landscape" hint on very narrow portrait screens (the game stays usable underneath).
  * @module ui/touch
@@ -100,8 +100,24 @@ export function installTouch(hud) {
   });
   menu.addEventListener('pointerdown', (e) => e.stopPropagation());
   (hud.root || doc.body).appendChild(menu);
+  // no right button on a phone: CANCEL puts the armed item / tool away, or cancels the men's context action
+  // (drop the body, stand up from the snow, holster) — exactly a right-click (Input.rightClick)
+  const cancel = doc.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'touch-cancel';
+  cancel.hidden = true;
+  cancel.setAttribute('aria-label', 'Cancel');
+  cancel.innerHTML = '<b aria-hidden="true">\u2715</b><span>CANCEL</span>';
+  cancel.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (hud.cursor?.mode) hud.cursor.setMode(null);
+    else hud.game?.input?.rightClick?.();
+  });
+  cancel.addEventListener('pointerdown', (e) => e.stopPropagation());
+  (hud.root || doc.body).appendChild(cancel);
   return {
     menu,
+    cancel,
     hint,
     /** Per frame (HUD.update): the MENU button only while a mission is on screen with no card over it. */
     update() {
@@ -109,7 +125,11 @@ export function installTouch(hud) {
       const show = root.classList.contains('mk-touch') && !!g?.world && (g.state === 'playing' || g.state === 'paused')
         && !hud.kit?.active && !hud.briefing?.active && !hud.debrief?.active && !hud.boot?.active && !hud.loading?.active;
       if (menu.hidden === show) menu.hidden = !show;
+      const inp = g?.input;
+      const busy = show && !!inp && (!!inp.targeting || !!inp.mode || !!hud.cursor?.mode
+        || inp.selection.some((c) => c.armed || c.carrying || c.buried));
+      if (cancel.hidden === busy) cancel.hidden = !busy;
     },
-    dispose() { offs.forEach((f) => f()); hint.remove(); menu.remove(); },
+    dispose() { offs.forEach((f) => f()); hint.remove(); menu.remove(); cancel.remove(); },
   };
 }

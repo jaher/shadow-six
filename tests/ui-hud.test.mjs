@@ -17,7 +17,7 @@ export default async function uiHud(page, t) {
     const gb = w.commandos.find((c) => c.role === 'greenberet');
     const sa = w.commandos.find((c) => c.role === 'sapper');
     const out = { briefingUp, briefingAfterStart: vis('.ui-briefing') };
-    out.panels = Object.fromEntries(['.hud-topbar', '.hud-portraits', '.hud-posture', '.hud-help', '.hud-camera', '.hud-eye', '.hud-lamp', '.hud-notebook', '.hud-hand', '.hud-knapsack'].map((s) => [s, vis(s)]));
+    out.panels = Object.fromEntries(['.hud-topbar', '.hud-portraits', '.hud-stance', '.hud-help', '.hud-camera', '.hud-eye', '.hud-lamp', '.hud-notebook', '.hud-hand', '.hud-knapsack'].map((s) => [s, vis(s)]));
     out.portraits = [...document.querySelectorAll('.hud-portrait')].map((p) => ({ role: p.dataset.role, sel: p.classList.contains('selected') }));
     out.barH = q('.hud-topbar').getBoundingClientRect().height;
     out.scale = hud.scale;

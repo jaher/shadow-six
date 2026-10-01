@@ -21,6 +21,7 @@
 import { ABILITIES, abilityInCampaign } from '../abilities/index.js';
 import { CONFIG } from '../config.js';
 import { abilitiesForKey, codeOf } from './hotkeys.js';
+import { TouchGame } from '../input/touch-game.js';
 
 /** Action → list of KeyboardEvent.code. Edit here to rebind. Chords (Ctrl+S/L/B) are in CTRL_BINDINGS. */
 export const KEY_BINDINGS = {
@@ -116,6 +117,8 @@ export class Input {
     this._boxEl = null;
     this._hover = { x: 0, y: 0, t: 0, shown: false, inside: false };
     this._listeners = [];
+    /** Fingers on the canvas (tap / drag-pan / pinch-zoom, input/touch-game.js); mouse and pen stay here. */
+    this.touch = domElement ? new TouchGame(game, domElement) : null;
     if (domElement) this._attach();
   }
 
@@ -553,6 +556,7 @@ export class Input {
   // ------------------------------------------------------------ mouse
 
   _pointerDown(e) {
+    if (this.touch?.owns(e)) return; // fingers: input/touch-game.js
     this.domElement.focus?.({ preventScroll: true });
     this._setMods(e);
     if (!this.active || (e.button !== 0 && e.button !== 2)) return;
@@ -572,6 +576,7 @@ export class Input {
   }
 
   _pointerMove(e) {
+    if (this.touch?.owns(e)) return;
     const h = this._hover;
     if (h.shown && (Math.abs(e.clientX - h.x) > 2 || Math.abs(e.clientY - h.y) > 2)) this._hideTooltip();
     h.x = e.clientX;
@@ -591,6 +596,7 @@ export class Input {
   }
 
   _pointerUp(e) {
+    if (this.touch?.owns(e)) return;
     if (e.button !== 0 && e.button !== 2) return;
     if (this._swallow === e.button) { this._swallow = -1; return; }
     const p = this._press;
@@ -621,14 +627,15 @@ export class Input {
    * Handle a left click at a client-space point (also used by tests).
    * @param {number} clientX
    * @param {number} clientY
-   * @param {{shift?: boolean, ctrl?: boolean, alt?: boolean}} [mods]
+   * @param {{shift?: boolean, ctrl?: boolean, alt?: boolean, double?: boolean}} [mods] `double` overrides the
+   *   double-click detection (touch: the gesture classifier's double tap, with a finger-sized radius)
    * @returns {string} what the click did (for tests): 'track'|'untrack'|'ability'|'volley'|'select'|
    *   'deselect'|'cone'|'probe'|'move'|'run'|'refused'|'none'
    */
   click(clientX, clientY, mods = {}) {
     const now = performance.now();
     const last = this._lastClick;
-    const isDouble = !!last && now - last.t <= MOUSE.doubleClickMs && Math.hypot(clientX - last.x, clientY - last.y) <= MOUSE.doubleClickPx;
+    const isDouble = typeof mods.double === 'boolean' ? mods.double : !!last && now - last.t <= MOUSE.doubleClickMs && Math.hypot(clientX - last.x, clientY - last.y) <= MOUSE.doubleClickPx;
     this._lastClick = isDouble ? null : { t: now, x: clientX, y: clientY };
     const g = this.game;
     const cam = g.cameraController;
@@ -775,6 +782,7 @@ export class Input {
    * @param {number} dt
    */
   update(dt) {
+    this.touch?.update(dt);
     const h = this._hover;
     if (!this.world || !h.inside || h.shown || this._press) return;
     h.t += dt;
@@ -827,6 +835,7 @@ export class Input {
     this._press = null;
     this._lastClick = null;
     this._lastIssue = null;
+    this.touch?.reset();
     this.setCursor('');
     this._hideBox();
   }
@@ -834,6 +843,7 @@ export class Input {
   dispose() {
     for (const off of this._listeners) off();
     this._listeners.length = 0;
+    this.touch?.dispose();
     this._boxEl?.remove();
   }
 }

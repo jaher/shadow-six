@@ -366,8 +366,8 @@ export const CREDITS_SECTIONS = [
     "CC0 1.0"
    ],
    [
-    "hands, eye and posture figures in the icons (tool/hand, tool/eye., cursor/hand.open, grab, fist, tool/posture.)",
-    "MakeHuman system assets via MPFB (skins, high-poly eyes, eyelashes, eyebrows, expression targets); the posture figures are the game's own Green Beret model",
+    "hands, eye and stance figures in the icons (tool/hand, tool/eye., cursor/hand.open, grab, fist, tool/stance.)",
+    "MakeHuman system assets via MPFB (skins, high-poly eyes, eyelashes, eyebrows, expression targets); the stance figures are the game's own Green Beret model",
     "MakeHuman community; SHADOW SIX contributors",
     "CC0 1.0 (system assets)"
    ],

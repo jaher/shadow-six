@@ -8,7 +8,7 @@ This folder rebuilds every knapsack item, top-right tool, context cursor and por
 | `studio.py` | Scene reset (Cycles GPU, AgX Medium High Contrast, transparent film, 16-bit PNG), a CC0 studio HDRI, one light rig for every icon (key upper-left, cool fill, warm rim, sheen softbox at the mirror angle), camera presets (`item`: the ONE inventory view, 32° up / 14° left, 200 mm, enforced for every knapsack item; `tool` 85 mm, `badge`, `front`, `flat`), per-icon framing, two-pass render (object, then shadow catcher), hotspot export, `@S.shot` registry |
 | `mats.py` | Materials: `metal` (edge wear from the Bevel node, texture-driven roughness), `gunmetal` (Parkerized / blued conversion coat: mottling, specular breakup, bare steel on handled edges), `paint` (chipped to metal), `wood`, `textured` (Poly Haven sets), `solid` (bakelite, enamel, rubber), `glass`, `emission`, `image` (UV labels) |
 | `mdl.py` | Modelling helpers: `slab` (extruded 2D profile + bevel + weighted normals), `cut` (boolean cutters: ejection ports, serrations, finger holes), `lathe`, `cyl`, `box`, `tube`, `chaikin`, `decal`, `group`, `hot`, `squash`, `deform` |
-| `models/*.py` | One module per family: `guns` (Colt M1911A1, Walther P38, Beretta M1935, No.4 Mk I (T) and No.4, Thompson M1928A1, speargun, .303 round), `blades`, `tools`, `boxes`, `misc`, `human` (hands, raw eyes, posture figurines on plinths), `hudtools` (movie camera, lamp, "?" plaque, notebook coil + page, the eye's brass porthole), `cursors`, `pack` (the rucksack face and the brass count tag) |
+| `models/*.py` | One module per family: `guns` (Colt M1911A1, Walther P38, Beretta M1935, No.4 Mk I (T) and No.4, Thompson M1928A1, speargun, .303 round), `blades`, `tools`, `boxes`, `misc`, `human` (hands, raw eyes, the stance figures on their brass-rimmed plaque), `hudtools` (movie camera, lamp, "?" plaque, notebook coil + page, the eye's brass porthole), `cursors`, `pack` (the rucksack face and the brass count tag) |
 | `labels/gen_labels.py` | Printed textures: watch dial, a generic cigarette pack of our own design, chloroform label |
 | `post.py` | Masters → shipped files: grade (saturation −10 %, warm mids, black point 14, white point 245), contact shadow extracted from the catcher pass, a thin inner edge light on the key-light side, a crisp dark keyline (cursors: dark keyline inside a light one), autocrop, the knapsack visual-mass rule (`MASS`/`CAP`: every item the same opaque area, long guns span two slots), Lanczos downscale in linear light on premultiplied alpha, unsharp mask, tool state variants (hover, pressed, active, disabled), lamp glow, WebP plus PNG fallback, `manifest.json` (`slot` → `s`) |
 | `vector.py` | The graphic cursors as brass / vitreous-enamel badges finished with post.compose (one family with the rendered cursors): arrow, crosshair, target, tracking arrows, forbidden overlay, sparkle (2 frames); No.32 scope reticle over the rendered eyepiece with a tinted, reflecting lens (ok/bad); black-ink stamps (vehicle, house, shovel, bubbles, skull, bars) |
@@ -19,6 +19,7 @@ This folder rebuilds every knapsack item, top-right tool, context cursor and por
 ```bash
 B=<scratch>/realism/characters/blender-4.2.9-linux-x64/blender
 $B -b --factory-startup -P tools/blender/icons/shoot.py -- guns all          # or: <module> <shot[,shot]> ; modules listed above
+# stance button: `human stance` (STANCE_SAMPLES / STANCE_ONLY=crawl|stand for quick looks), then post.py 'stance.*'
 # order matters once: `human eye` writes masters/raw/eye.*.png, which `hudtools eyeport` mounts in the porthole
 python3 labels/gen_labels.py <scratch>/icons/labels                          # once, before boxes.py
 python3 tools/blender/icons/post.py ['glob' ...]                             # masters -> out/<class>/<id>@<tier>.webp|png + manifest
@@ -29,7 +30,7 @@ rsync -a --delete <scratch>/icons/out/ assets/ui/icons/ && node tools/blender/ic
 Paths: `ICON_SCRATCH` (default `~/.cache/shadow-six/icons`) holds `tex/`, `hdri/`, `labels/`, `dec/`, `masters/` and `out/`.
 
 `human.py` needs `realism/characters/out/mh_beret.blend` (MPFB, CC0) and its MPFB user data for the hands and the eye. It also needs
-`dec/greenberet.glb` for the posture figures. That file is the game's commando with the meshopt compression removed; make it with `scratch/gt/decode.mjs`.
+`dec/greenberet.glb` for the stance figures. That file is the game's commando with the meshopt compression removed; make it with `scratch/gt/decode.mjs`.
 
 ## Conventions
 - A master is the ref box × 8 (cursors: 256 px, scope: 704 px). Tiers are ref × 2/3/4/6 for items, tools and stamps, and 32 ref px × 1/1.5/2/3/4

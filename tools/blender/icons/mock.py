@@ -23,7 +23,7 @@ def topbar():
     after.paste(bar, (130, 0)); after.paste(bar.crop((0, 0, 30, 88)), (490, 0))
     game = full.crop((1000, 100, 1360, 170)); after.paste(game.crop((0, 0, 360, 70)), (130, 88))
     eyebox = full.crop((1830, 60, 1840, 88)).resize((100, 88)); after.paste(eyebox, (520, 0))
-    put(after, icon('tool', 'posture.prone'), 225, 50)
+    put(after, icon('tool', 'stance.crawl'), 225, 50)
     put(after, icon('tool', 'help'), 305, 46)
     put(after, icon('tool', 'camera'), 385, 72)
     put(after, icon('tool', 'lamp.off'), 470, 48)

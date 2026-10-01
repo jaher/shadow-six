@@ -78,27 +78,39 @@ export class CursorLayer {
       return;
     }
     if (!this.mode || !isView(e.target) || !this.hud.playing) return;
+    // a finger may still pan / pinch with a tool armed: input/touch-game.js calls toolAt() on a TAP
+    if (e.pointerType === 'touch' && this.hud.game.input?.touch?.enabled) return;
     e.stopPropagation();
     e.preventDefault();
     if (e.button === 2) return this.setMode(null); // right-click leaves the tool
+    this.toolAt(e.clientX, e.clientY);
+  }
+
+  /** Use the armed UI tool (eye / track / hand) at a client point (a click, or a tap on a touch screen). */
+  toolAt(x, y) {
+    if (!this.mode || !this.hud.playing) return 'none';
     const g = this.hud.game;
-    this.pos = { x: e.clientX, y: e.clientY, over: true };
+    this.pos = { x, y, over: true };
     if (this.mode === 'eye') {
-      if (g.input && g.input.canInspect === false) return; // §6.8: no cone inspection while paused (faithful)
+      if (g.input && g.input.canInspect === false) return 'refused'; // §6.8: no cone inspection while paused (faithful)
       const en = this.pick((q) => q.kind === 'enemy' && q.alive !== false);
       if (en) g.toggleCone?.(en);
+      return en ? 'cone' : 'none';
     } else if (this.mode === 'track') {
       const u = this.pick((q) => (q.kind === 'enemy' || q.kind === 'commando' || q.kind === 'vehicle') && q.alive !== false);
       if (u) {
         this.hud.track(u);
         this.setMode(null);
       }
+      return u ? 'track' : 'none';
     } else if (this.mode === 'hand') {
       const t = this.pick(grabbable);
       if (!t) this.hud.message('There is nothing to pick up there.', 'info');
       else this.hud.handOn(t);
       this.setMode(null);
+      return t ? 'hand' : 'none';
     }
+    return 'none';
   }
 
   /** Sprite id + forbidden flag for the current frame. */

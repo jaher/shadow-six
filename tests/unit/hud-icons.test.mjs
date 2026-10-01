@@ -57,7 +57,7 @@ test('every manifest file exists, is small, and the srcset covers 1080p and 4K',
 });
 
 test('tool buttons carry every state variant; markup has intrinsic size (no layout shift)', () => {
-  for (const t of ['camera', 'hand', 'help', 'notebook', 'posture.prone', 'posture.stand', 'eye.open']) {
+  for (const t of ['camera', 'hand', 'help', 'notebook', 'stance.crawl', 'stance.stand', 'eye.open']) {
     const h = toolHTML(`tool/${t}`);
     for (const v of ['base', 'hover', 'pressed', 'active', 'disabled']) assert.ok(h.includes(`data-v="${v}"`), `${t} ${v}`);
   }
@@ -66,10 +66,11 @@ test('tool buttons carry every state variant; markup has intrinsic size (no layo
   assert.match(img, new RegExp(`width="${bw}" height="${bh}"`));
   assert.match(img, /srcset="[^"]*sniperRifle@6x\.webp 3x/);
   // one slot height on the top bar (41 ref px): nothing hangs over the game view
-  for (const t of ['camera', 'help', 'eye.open', 'eye.closed', 'lamp.off', 'lamp.on', 'posture.prone', 'posture.stand']) {
+  for (const t of ['camera', 'help', 'eye.open', 'eye.closed', 'lamp.off', 'lamp.on']) {
     assert.equal(ICON_MANIFEST[`tool/${t}`].b[1], 41, `${t} is 41 ref px tall`);
   }
-  assert.deepEqual(ICON_MANIFEST['tool/posture.prone'].b, ICON_MANIFEST['tool/posture.stand'].b, 'posture states share one box');
+  // the stance toggle moved to the bottom HUD (left of the hand): its two figures share one box (no shift on toggle)
+  assert.deepEqual(ICON_MANIFEST['tool/stance.crawl'].b, ICON_MANIFEST['tool/stance.stand'].b, 'stance states share one box');
   // cursors are authored in ref px and ship a tier for uiScale 2 at DPR 2
   assert.equal(pickTier('cursor/knife', 4), '4x');
   assert.match(iconHTML('cursor/knife', { scale: 2 }), /knife@4x\.webp 2x/);

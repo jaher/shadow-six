@@ -187,7 +187,7 @@ VARIANTS = {
     'active': lambda im, u: glow(tint(im, 1.06), (1.0, 0.56, 0.10), 6 * u, 0.8),
     'disabled': lambda im, u: tint(im, 0.62, 0.15, 0.85),
 }
-STATEFUL = ('camera', 'help', 'hand', 'notebook', 'posture.stand', 'posture.prone', 'eye.open')
+STATEFUL = ('camera', 'help', 'hand', 'notebook', 'stance.crawl', 'stance.stand', 'eye.open')
 
 
 def save_png(im, path):

@@ -2,7 +2,8 @@
  * Top bar (design-spec §6.1–6.3): portraits packed from the left at a 65 ref-px pitch (frame 62×44, face 40×40,
  * recessed 9×37 health slot with a 6×34 rgb(104,0,0) fill draining from the top, skull at HP 0, greyscale when
  * unselected, state glyphs), warning flashes (§6.2), the talking-portrait slot + speaker card (§6.3) and the
- * right-hand icons: posture toggle, "?", movie camera (tracking), eye (cone tool) and the siren lamp.
+ * right-hand icons: "?", movie camera (tracking), eye (cone tool) and the siren lamp (the stance toggle lives at the
+ * bottom, left of the hand: stance-button.js).
  * @module ui/topbar
  */
 
@@ -55,8 +56,6 @@ export class TopBar {
   _buildIcons() {
     const h = this.hud;
     const i = this.icons;
-    this.posture = wireToolStates(tip(el('button', 'hud-icon hud-posture', i), 'LIE DOWN / STAND UP (C / S)'));
-    this.posture.addEventListener('click', () => h.togglePosture());
     this.help = wireToolStates(tip(iconEntry('tool/help') ? fromHTML(`<button class="hud-icon hud-help">${toolHTML('tool/help')}<span class="lbl">?</span></button>`, null, i) : el('button', 'hud-icon hud-help', i, '?'), 'HELP (F1)'));
     this.help.addEventListener('click', () => h.menus.showHelp());
     this.camera = wireToolStates(tip(fromHTML(`<button class="hud-icon hud-camera">${toolHTML('tool/camera') || GLYPHS.camera}</button>`, null, i), 'TRACKING CAMERA'));
@@ -249,16 +248,6 @@ export class TopBar {
       this.cardUntil = 0;
       this.card.classList.remove('on');
       this.card.hidden = true;
-    }
-    // Posture icon shows the posture you can switch TO (§6.1).
-    const sel = w.commandos.filter((c) => c.selected && c.alive);
-    const toStand = sel.length > 0 && sel.every((c) => c.stance === 'crawl');
-    const want = toStand ? 'stand' : 'prone';
-    if (this._posture !== want) {
-      this._posture = want;
-      this.posture.innerHTML = iconEntry(`tool/posture.${want}`) ? toolHTML(`tool/posture.${want}`) : GLYPHS[want];
-      this.posture.dataset.to = want;
-      applyToolState(this.posture);
     }
     this.lamp.classList.toggle('on', !!w.alarm?.active);
     this._armed(this.eye, hud.cursor.mode === 'eye');

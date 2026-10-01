@@ -1,4 +1,4 @@
-# human.py - photoreal hands (open palm, grab, fist, on lever), eye (open/closed) and posture figures from the
+# human.py - photoreal hands (open palm, grab, fist, on lever), eye (open/closed) and the stance-button figures from the
 # MakeHuman (MPFB, CC0) character already built for the game (realism/characters/out/mh_*.blend).
 import sys, os, math, bmesh
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
@@ -321,42 +321,97 @@ def aim(arm, bone, d):
     bpy.context.view_layer.update()
 
 
-def plinth(rx, ry, z0=0.0):
-    """Display plinth for the posture figurines (tin-soldier look): turned walnut disc with a brass rim band. Gives both
-    figures the same ground line and a bright edge that separates them from the dark top bar."""
-    import mats as M_
-    wd = M_.wood('plinth_walnut', tint=(1.0, 0.68, 0.46), tex='fine_grained_wood', scale=0.4, rough=0.35, coat=0.6)
-    br = M_.metal('plinth_brass', M_.lin((0.78, 0.60, 0.32)), rough=0.22, wear=0.8)
-    top = D.lathe('plinth', [(0, 0), (1.0, 0), (1.0, 0.055), (0.96, 0.08), (0, 0.08)], wd, segs=96)
-    top.scale = (rx, ry, 1.0); top.location = (0, 0, z0 - 0.08)
-    band = D.lathe('plinth_band', [(1.012, 0.012), (1.012, 0.042), (0.99, 0.042), (0.99, 0.012)], br, segs=96)
-    band.scale = (rx, ry, 1.0); band.location = (0, 0, z0 - 0.08)
-    return [top, band]
+# --- stance button (bottom HUD, left of the hand): a soldier CRAWLING (shown while upright) / STANDING (shown while
+# crawling). The old 40x41 top-bar figurines on plinths read as a knife at game size, so the stance button is a bigger
+# plaque in the "?" plaque's family (die-struck brass rim, vitreous enamel field) with the posed game commando in
+# strict profile in front of it: the crawler propped on his elbows, head up, legs out; the stander upright. Ivory
+# enamel behind the olive figure keeps the silhouette legible on snow, grass and dark ground alike.
+STANCE_BOX = (64, 48)
+STANCE_VIEW = dict(elev=float(os.environ.get('STANCE_ELEV', '6')), azim=float(os.environ.get('STANCE_AZIM', '4')))
+LIE = Matrix.Rotation(math.radians(90), 4, 'Z') @ Matrix.Rotation(math.radians(90), 4, 'X')   # standing -> face down, head +X, left side +Y
 
 
-POSTURE_BOX = (40, 41)     # both states share one slot (no layout shift when the toggle flips)
+def _fig_points():
+    """Evaluated vertices of the commando meshes (world)."""
+    dg = bpy.context.evaluated_depsgraph_get(); pts = []
+    for o in bpy.context.scene.objects:
+        if o.type != 'MESH' or not (o.name.startswith('LOD0') or o.name.startswith('headgear')): continue
+        e = o.evaluated_get(dg); me = e.to_mesh()
+        pts += [o.matrix_world @ v.co for v in me.vertices]
+        e.to_mesh_clear()
+    return pts
 
 
-@S.shot('posture')
-def _posture(mode):
-    arm = load_commando()
-    wrot(arm, 'upperarm_l', 'Y', 47); wrot(arm, 'upperarm_r', 'Y', -47)
-    wrot(arm, 'lowerarm_l', 'X', -12); wrot(arm, 'lowerarm_r', 'X', -12)
-    plinth(0.42, 0.42)
-    S.shoot('posture.stand', 'tool', box=POSTURE_BOX, preset='tool', elev=24, azim=-22, margin=0.03, shadow=False, light={'rim': 1.3}, scale=12)
-    S.reset()
-    arm = load_commando()
-    aim(arm, 'upperarm_l', (0.45, -0.22, 0.86)); aim(arm, 'lowerarm_l', (-0.5, -0.2, 0.84))
-    aim(arm, 'upperarm_r', (-0.6, -0.25, 0.75)); aim(arm, 'lowerarm_r', (0.75, -0.2, 0.6))
-    wrot(arm, 'neck_01', 'X', -35)
-    wrot(arm, 'thigh_l', 'Y', 8); wrot(arm, 'thigh_r', 'Y', -8)
-    if os.environ.get('PRONE_DEBUG'):
-        S.shoot('prone_dbg', 'tool', box=(24, 47), preset='tool', elev=10, azim=-22, lens=85, margin=0.03, shadow=False, samples=24); return
-    arm.matrix_world = Matrix.Translation((0, 0, 0.13)) @ Matrix.Rotation(math.radians(90), 4, 'Z') @ Matrix.Rotation(math.radians(90), 4, 'X') @ arm.matrix_world
+def stance_plaque(pts, crawl):
+    """Brass-rimmed ivory enamel plaque in the XZ plane behind the figure (camera at -Y), box aspect, centred on it,
+    with an olive-earth enamel band below his lowest point: he visibly lies on / stands on the ground."""
+    x0, x1 = min(p.x for p in pts), max(p.x for p in pts); z0, z1 = min(p.z for p in pts), max(p.z for p in pts)
+    y1 = max(p.y for p in pts)
+    asp = STANCE_BOX[0] / STANCE_BOX[1]
+    # the ground line sits at GROUND of the plaque height for both icons; the crawler (long) sizes the plaque by his
+    # length (toes and fists just reach the rim), the stander by his height (beret just under the rim): the figure is
+    # as big as the plaque allows, which is what makes it legible at 64 ref px
+    GROUND = 0.24
+    zg = z0 + (0.09 if crawl else 0.015)   # crawler: belly on the ground line, elbows and toes dug in
+    if crawl: W = (x1 - x0) / 0.97; H = W / asp
+    else: H = (z1 - zg) / (1 - GROUND - 0.035); W = H * asp
+    cx, cz = (x0 + x1) / 2, zg - GROUND * H + H / 2
+    br = M.metal('stance_brass', M.lin((0.80, 0.63, 0.32)), rough=0.24, wear=0.9, wear_color=M.lin((0.98, 0.88, 0.6)), grain=0.3)
+    en = M.solid('stance_enamel', M.lin((0.80, 0.76, 0.60)), rough=0.14, coat=1.0, var=0.06, vscale=4.0, bevel=0.003)
+    earth = M.solid('stance_earth', M.lin((0.33, 0.29, 0.17)), rough=0.2, coat=1.0, var=0.10, vscale=6.0, bevel=0.003)
+    def rr(w, h):
+        r = [(cx - w / 2, cz - h / 2), (cx + w / 2, cz - h / 2), (cx + w / 2, cz + h / 2), (cx - w / 2, cz + h / 2)]
+        return [(v[0], v[1]) for v in D.chaikin(r, 4, True)]
+    rim = W * 0.04; t = W * 0.03
+    yb = y1 + 0.25
+    inner = rr(W - 2 * rim, H - 2 * rim)
+    plate = D.slab('stance_plate', rr(W, H), t, br, y=yb, bevel=t * 0.3, plane='XZ')
+    field = D.slab('stance_field', inner, t * 0.4, en, y=yb - t * 0.55, bevel=t * 0.1, plane='XZ')
+    band = []
+    for x, z in inner:
+        q = (x, min(z, zg))
+        if not band or (abs(band[-1][0] - q[0]) > 1e-4 or abs(band[-1][1] - q[1]) > 1e-4): band.append(q)
+    ground = D.slab('stance_ground', band, t * 0.4, earth, y=yb - t * 0.75, bevel=t * 0.1, plane='XZ')
+    return [plate, field, ground]
+
+
+def _crawl_pose(arm):
+    """Low crawl, propped on the elbows. Directions are given in the LYING frame (head +X, up +Z, his left +Y) and
+    mapped back to the standing rig, which is then laid down."""
+    Li = LIE.to_3x3().inverted()
+    def A(bone, d):
+        if bone in arm.pose.bones: aim(arm, bone, Li @ Vector(d))
+    for b in ('spine_01', 'spine_02', 'spine_03'): A(b, (1, 0, 0.42))
+    A('neck_01', (1, 0, 0.75)); A('Head', (0.45, 0, 1))
+    A('upperarm_l', (0.3, 0.12, -1)); A('upperarm_r', (0.3, -0.12, -1))
+    A('lowerarm_l', (1, -0.38, -0.04)); A('lowerarm_r', (1, 0.38, -0.04))
+    A('hand_l', (1, -0.3, -0.1)); A('hand_r', (1, 0.3, -0.1))
+    A('thigh_l', (-1, 0.13, -0.06)); A('calf_l', (-1, 0.08, 0.0)); A('foot_l', (-0.85, 0.05, -0.5))
+    A('thigh_r', (-0.7, -0.6, -0.04)); A('calf_r', (-0.8, 0.55, 0.0)); A('foot_r', (-0.8, 0.3, -0.5))
+    for side in ('l', 'r'):   # loose fists, not open palms (open hands read as swimming)
+        pose_hand(arm, side, curl=(20, 75, 80, 85, 85), thumb=(0, 0, 25), axis=os.environ.get('STANCE_FAXIS', 'Z'))
+    arm.matrix_world = LIE @ arm.matrix_world
     bpy.context.view_layer.update()
-    pl = plinth(1.08, 0.40, float(os.environ.get('PRONE_Z', '-0.02')))     # body lies along +X from ~0 to ~2 m
-    for o in pl: o.location.x += float(os.environ.get('PRONE_X', '0.95'))
-    # turn the figurine ~40 deg into depth: a compact 3/4 read that fills the square slot like the standing one
-    D.group('prone_root', [o for o in bpy.context.scene.objects if o.parent is None and o.type in ('ARMATURE', 'MESH', 'EMPTY')],
-            loc=(-0.95, 0, 0), rot=(0, 0, float(os.environ.get('PRONE_YAW', '-40'))))
-    S.shoot('posture.prone', 'tool', box=POSTURE_BOX, preset='tool', elev=24, azim=-22, margin=0.03, shadow=False, light={'rim': 1.3}, scale=12)
+
+
+@S.shot('stance')
+def _stance(mode):
+    which = os.environ.get('STANCE_ONLY', 'crawl,stand').split(',')
+    samples = int(os.environ['STANCE_SAMPLES']) if os.environ.get('STANCE_SAMPLES') else None
+    for k, tag in enumerate(which):
+        if k: S.reset()
+        arm = load_commando()
+        for o in [o for o in bpy.data.objects if o.type == 'MESH' and o.name.startswith('Icosphere')]:
+            bpy.data.objects.remove(o, do_unlink=True)   # invisible 2 m helper sphere in the GLB: would skew framing
+        if tag == 'stand':
+            for sd, sx in (('l', 1), ('r', -1)):   # at attention: arms straight down his sides (reads in profile)
+                aim(arm, f'upperarm_{sd}', (0.12 * sx, 0.02, -1)); aim(arm, f'lowerarm_{sd}', (0.05 * sx, -0.06, -1))
+                aim(arm, f'hand_{sd}', (0.02 * sx, -0.04, -1))
+                pose_hand(arm, sd, curl=(20, 60, 65, 70, 70), thumb=(0, 0, 20), axis=os.environ.get('STANCE_FAXIS', 'Z'))
+            arm.matrix_world = Matrix.Rotation(math.radians(-90), 4, 'Z') @ arm.matrix_world   # profile, facing +X
+            bpy.context.view_layer.update()
+        else:
+            _crawl_pose(arm)
+        stance_plaque(_fig_points(), tag == 'crawl')
+        S.shoot(f'stance.{tag}', 'tool', box=STANCE_BOX, preset='badge', margin=0.02, shadow=False, light={'rim': 1.3},
+                scale=12, samples=samples, **STANCE_VIEW)

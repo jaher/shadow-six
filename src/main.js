@@ -8,6 +8,9 @@ import { Game, missionList } from './game.js';
 import { assets } from './engine/assets.js';
 import { installTestApi } from './debug/test-api.js';
 import { hasQuickSave } from './save.js';
+import { PRESET_CHOSEN_KEY, bootPreset, gpuName } from './engine/device.js';
+import { touchFirst } from './ui/touch.js';
+import { loadOptions } from './ui/ui-config.js';
 
 const params = new URLSearchParams(location.search);
 const TEST = params.get('test') === '1';
@@ -107,12 +110,19 @@ async function boot() {
     setLoading(0, 'WebGL 2 is required.');
     return;
   }
+  // phones / tablets start on a mobile preset (engine/device.js); the GPU name refines it once the context exists
+  let chosen = false;
+  try { chosen = localStorage.getItem(PRESET_CHOSEN_KEY) === '1'; } catch { /* private mode */ }
+  const dev = { param: params.get('preset'), touch: touchFirst(), options: { ...loadOptions(), presetChosen: chosen } };
   const game = new Game($('view'), {
     manualTick: TEST,
-    preset: params.get('preset') || undefined,
+    preset: bootPreset(dev) || undefined,
     preserveDrawingBuffer: TEST,
     hudRoot: $('hud'),
   });
+  const want = bootPreset({ ...dev, gpu: gpuName(game.renderer.renderer?.getContext?.()) });
+  if (want && want !== game.renderer.presetName) game.renderer.setPreset(want);
+  if (want && game.hud?.options) game.hud.options.preset = game.renderer.presetName; // OPTIONS shows what runs
   window.shadowSix = game;
   if (TEST) installTestApi(game);
 

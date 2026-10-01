@@ -57,6 +57,9 @@ src/engine/post-passes.js             foundation — SanitizePass, XRayPass, LUT
 src/engine/gtao-alpha.js, env-grade.js foundation (from the terrain track) — alpha-aware GTAO, IBL grading
 src/engine/camera.js                  CORE2 — CameraController + CameraRig (ortho 40°, zoom levels, multi-view)
 src/engine/input.js                   CORE2 — Input: §5 bindings, mouse, picking, right-drag box, hotkeys
+src/input/gestures.js                 GestureClassifier: finger samples → tap / double tap / long press / pan / pinch (pure)
+src/input/touch-game.js               TouchGame (input.touch): in-mission fingers — tap = Input.click, drag pans, pinch zooms
+src/engine/device.js                  mobile device → default quality preset (medium / low), applied in main.js
 src/world/world.js                    foundation — World container + spatial queries + noise
 src/world/grid.js                     foundation — NavGrid layers, LOS, cover queries
 src/world/pathfinding.js              foundation — A* + smoothing
@@ -754,6 +757,12 @@ Menus and full-screen screens follow docs/menus-art-direction.md (S01–S22 + am
   + searchlight), `ui-sound.js` (`hud.sound.play(id)`; ui_* rows in the audio manifest), `profiles.js`, `tips.js`,
   `menu-model.js` (pure, unit-tested logic). Card specs may add `focusEl(card)` (focus target when a card has no rows),
   `onDevice(device)` and `ctrlKeys` (Ctrl/Cmd chords the card binds; all others stay with the browser).
+- In-mission touch (design-spec §5.4): `Input` owns a `TouchGame` (`input.touch`) that takes every `pointerType ===
+  'touch'` pointer on the canvas (Input's mouse handlers, the rig's edge scroll and the cursor tools skip fingers).
+  Tap → `Input.click(x, y, {double})` or `hud.cursor.toolAt(x, y)` with a UI tool armed; long press → selection
+  toggle (commando) or Shift+click semantics; drag → `CameraController.panScreen` + momentum in `Input.update`;
+  pinch → `CameraController.zoomAt(z, cx, cy)` (immediate, anchored, clamped). `hud.touch` adds the CANCEL button
+  (= `Input.rightClick`).
 - Touch / phones (`src/ui/touch.js`, `hud.touch`): `touchFirst()` starts the kit in `device = 'touch'` (big BACK /
   SELECT bar, footer choices as ≥ 44 px buttons, "(ENTER)"/"(ESC)" prefixes dropped); `html.mk-touch` follows the last
   pointer type. Every keyboard-only prompt has a tap: the boot/title splash (`.bt` takes pointer events; "TAP TO

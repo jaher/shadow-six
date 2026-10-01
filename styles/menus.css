@@ -550,4 +550,13 @@ html.mk-rm .rot-ico { animation: none; transform: rotate(-90deg); }
 .touch-menu[hidden] { display: none !important; }
 .touch-menu i { display: block; width: 22px; height: 2px; background: currentColor; }
 .touch-menu span { margin-top: 2px; font: 500 9px/1 var(--f-item, sans-serif); letter-spacing: .14em; }
+/* fingers do not hover: no software cursor parked where the last touch was (move sparkles stay; src/ui/cursor.js) */
+html.mk-touch .ui-cursor { display: none !important; }
+/* CANCEL (touch only, above MENU while an item / tool is armed): the right-click of a phone */
+.touch-cancel { position: fixed; z-index: 24; left: calc(10px + env(safe-area-inset-left)); bottom: calc(70px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 52px; height: 52px; padding: 0; pointer-events: auto;
+  border: 1px solid rgba(214, 92, 64, .8); border-radius: 4px; background: rgba(40, 10, 6, .8); color: var(--cream, #efe6c8); touch-action: manipulation; }
+.touch-cancel[hidden] { display: none !important; }
+.touch-cancel b { font-size: 18px; line-height: 1; font-weight: 400; }
+.touch-cancel span { font: 500 8px/1 var(--f-item, sans-serif); letter-spacing: .1em; }
 html.mk-touch .mk-confirm .mk-hints.touch { display: none; } /* (Y)ES (N)O are the buttons */

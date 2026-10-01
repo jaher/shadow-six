@@ -1084,6 +1084,33 @@ A **software cursor** is drawn on a top overlay. CSS cursors cannot do the scope
 | Tracking pointer (4 orange arrows) | After clicking the camera icon |
 | Plain arrow | Nothing selected, and over the HUD |
 
+### 5.4 Touch (phones, tablets) [remake]
+
+Not in the 1998 game. A finger on the map is classified by `src/input/gestures.js` and acted on by
+`src/input/touch-game.js`; mouse and pen input is unchanged (§5.2). **Tapping is for the men, dragging is for the
+map.**
+
+| Gesture | Action | Desktop equivalent |
+|---|---|---|
+| Tap (moves < 10 px, lifts within 500 ms) | Select a commando (tap a selected man to deselect him); walk to the ground; use the armed item on a target; get into a vehicle; with the eye / camera / hand tool armed, use the tool | Left click |
+| Double tap (second tap ≤ 350 ms and ≤ 32 px from the first) | Run; with a melee item, run to the target | Double-click |
+| Long press (held still 550 ms) | On a commando: add / remove him from the selection. On an enemy: his vision cone. On the ground: the probe marker (§4.2) | Ctrl+click / Shift+click |
+| One-finger drag | Pan the map 1:1 under the finger; a flick coasts (velocity decays at e^(−5t)). **Never an order**, keeps the selection and the armed item | Middle drag, edges, arrows |
+| Two fingers | Pinch to zoom, continuous between 0.5× and 2×, about the fingers' midpoint (spread = zoom in); moving both fingers pans | Wheel, numpad + / − |
+| CANCEL button (bottom left, above MENU; only while an item or tool is armed or a man can cancel a context action) | Put the item / tool away, or cancel the context action | Right click |
+| MENU button (bottom left) | The in-mission menu (pauses) | Esc |
+
+Rules: a gesture that ever became a drag, a pinch or a long press can no longer end as a tap; a second finger turns a
+drag into a pinch; after a pinch the finger left on the glass can pan but never taps. Panning follows the same pause rule
+as other user scrolling (frozen while paused in faithful mode); zoom always works. Panning untracks the tracking camera.
+The camera's clamp (§2.3) applies to every touch pan and zoom (`CameraController.panScreen` / `zoomAt`). Fingers never
+edge-scroll. The software cursor is hidden in touch mode (the destination sparkle stays). Knapsack items, portraits, the
+posture / eye / camera / hand / help buttons are plain buttons and work by tap.
+
+Device defaults (`src/engine/device.js`): a touch-first device or a mobile GPU boots on the **medium** preset (**low** on
+older Adreno / Mali / PowerVR GPUs), which caps the device pixel ratio at 1.25 (1 on low; every preset caps it, ultra at
+2). `?preset=` and a quality chosen in OPTIONS win. Desktop defaults are unchanged.
+
 ---
 
 ## 6. HUD and UI
@@ -1129,10 +1156,14 @@ Every button has a hover state (BEL's `M_` sprites).
 
   | Icon | Size (ref px) | Function |
   |---|---|---|
-  | Posture toggle | 47×32 (prone) / 24×47 (standing) | Shows the posture you can switch to. Click = C or S for the selection |
   | "?" | 18×34 | Help, same as F1 |
   | Movie camera | 55×69; hangs below the bar | Tracking tool |
   | **Eye** | 52×45, flush top-right | Photo-real eye with a 2-frame blink. Click = eye cursor. **Right-click = hide the displayed cone** |
+
+- **Stance toggle** (SHADOW SIX: moved from the top bar to the bottom HUD, immediately left of the hand; the 1998
+  figurine was too small to recognise). A 64×48 brass-rimmed plaque showing the posture a click switches TO: a man
+  crawling while the selection stands, a man standing while it crawls. Click = C or S for the selection; greyed
+  when nobody selected can change stance (vehicle, hidden, carrying a body, in water…).
 
 - **Alarm lamp.** A 29×52 red siren lamp next to the eye flashes at 2 Hz while the siren runs (25 s) (BEL `ALMR`).
 

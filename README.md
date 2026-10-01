@@ -81,24 +81,28 @@ URL parameters:
 
 The controls follow the original game.
 
-| Input | Action |
-| --- | --- |
-| Left click a commando or portrait, `1`–`6` | Select (Shift adds to the selection); `0` deselects, `8` selects all |
-| Left drag | Box select |
-| Left click on the ground | Walk there; **double-click** runs |
-| Right click | Cancel the armed item, else deselect |
-| Click (Shift+click) an enemy | Show its vision cone |
-| `C` / `S` | Lie down and crawl / stand up |
-| `X` knife, `G` pistol, `R` sniper rifle, `J` harpoon or trap, `B` bomb, `A` detonator, `E` grenade, `L` injection, `W` wire cutters, `K` first aid, `U` uniform, `Q` decoy, `T` boat, `D` diving gear, `F` shovel | Knapsack items (each commando only has his own) |
-| `Tab` | Move the knapsack panel to the other side |
-| Arrow keys, screen edges, middle drag | Pan the camera |
-| Mouse wheel, numpad `+` / `-` (or `=` / `-`) | Zoom; numpad `*` or `Backspace` resets |
-| `Home` | Centre on the selection |
-| `P`, `Esc` | Pause and objectives, cancel |
-| `F1` | Help |
-| `F2`–`F7` | Split-screen camera views |
-| `F8` / `F9` (`Ctrl+S` / `Ctrl+L`) | Quick save / quick load |
-| `Ctrl+B` | Notes |
+| Mouse / keyboard | Touch (phone, tablet) | Action |
+| --- | --- | --- |
+| Left click a commando or portrait, `1`–`6` | Tap a commando or his portrait; **long-press** a commando adds / removes him | Select (Shift adds to the selection); `0` deselects, `8` selects all |
+| Left drag | — | Box select |
+| Left click on the ground | Tap the ground; **double-tap** runs | Walk there; **double-click** runs |
+| Right click | **CANCEL** button (shown while something is armed) | Cancel the armed item, else deselect |
+| Click (Shift+click) an enemy | **Long-press** an enemy, or the eye button then tap | Show its vision cone |
+| `C` / `S` | Posture button | Lie down and crawl / stand up |
+| `X` knife, `G` pistol, `R` sniper rifle, `J` harpoon or trap, `B` bomb, `A` detonator, `E` grenade, `L` injection, `W` wire cutters, `K` first aid, `U` uniform, `Q` decoy, `T` boat, `D` diving gear, `F` shovel | Tap the item in the knapsack, then tap the target | Knapsack items (each commando only has his own) |
+| `Tab` | — | Move the knapsack panel to the other side |
+| Arrow keys, screen edges, middle drag | **One-finger drag** (flick to coast); two fingers also pan | Pan the camera |
+| Mouse wheel, numpad `+` / `-` (or `=` / `-`) | **Pinch** with two fingers (spread = zoom in, about the fingers' midpoint) | Zoom; numpad `*` or `Backspace` resets |
+| `Home` | — | Centre on the selection |
+| `P`, `Esc` | **MENU** button (bottom left) | Pause and objectives, cancel |
+| `F1` | ? button | Help |
+| `F2`–`F7` | — | Split-screen camera views |
+| `F8` / `F9` (`Ctrl+S` / `Ctrl+L`) | MENU → save / load | Quick save / quick load |
+| `Ctrl+B` | Notes button | Notes |
+
+On a touch screen a tap never pans and a drag never gives an order: a finger that moves more than 10 px is a drag, and a
+second finger turns it into a pinch. Phones and tablets start on the *medium* quality preset (*low* on older mobile GPUs),
+which also caps the rendering resolution; a quality picked in OPTIONS is kept.
 
 ## Weapons per commando (BEL 1998)
 

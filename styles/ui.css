@@ -104,17 +104,16 @@
 .hud-portrait.warn-held { animation: warnRed 0.25s steps(1) infinite; }
 @keyframes warnRed { 0% { box-shadow: 0 0 calc(6 * var(--r)) calc(2 * var(--r)) rgba(255, 30, 20, 0.95), inset 0 0 0 calc(1 * var(--r)) #ff4a3a; } 50% { box-shadow: none; } }
 
-/* right-hand icons: posture, "?", movie camera, lamp, eye in its brass porthole. Review: one slot height (41 ref px)
+/* right-hand icons: "?", movie camera, lamp, eye in its brass porthole. Review: one slot height (41 ref px)
    on one baseline inside the 45-px bar: nothing hangs over the game view. */
 .hud-icons { display: flex; align-items: center; gap: calc(4 * var(--r)); padding-right: calc(2 * var(--r)); flex: 0 0 auto; }
 .hud-icon { position: relative; padding: 0; border: 0; background: none; color: #e4dcc4; cursor: pointer; pointer-events: auto; }
 .hud-icon svg { width: 100%; height: 100%; display: block; }
 /* rendered icons (icon-art.js): every state variant is its own render, stacked; applyToolState() shows one */
-.hud-icon > .ico, .hud-hand > .ico { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: contain; pointer-events: none; user-select: none; }
-.hud-icon > img.ico[hidden], .hud-hand > img.ico[hidden] { display: none !important; }
+.hud-icon > .ico, .hud-hand > .ico, .hud-stance > .ico { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: contain; pointer-events: none; user-select: none; }
+.hud-icon > img.ico[hidden], .hud-hand > img.ico[hidden], .hud-stance > img.ico[hidden] { display: none !important; }
 .hud-icon:not(:has(> .ico)):hover { filter: brightness(1.3) drop-shadow(0 0 calc(2 * var(--r)) var(--brass)); }
-.hud-icon:focus-visible, .hud-hand:focus-visible, .hud-knapsack .item:focus-visible { outline: calc(1 * var(--r)) dotted var(--brass-hi); outline-offset: calc(1 * var(--r)); }
-.hud-posture { width: calc(40 * var(--r)); height: calc(41 * var(--r)); } /* both figurines share the slot: no shift on toggle */
+.hud-icon:focus-visible, .hud-hand:focus-visible, .hud-stance:focus-visible, .hud-knapsack .item:focus-visible { outline: calc(1 * var(--r)) dotted var(--brass-hi); outline-offset: calc(1 * var(--r)); }
 .hud-help { width: calc(24 * var(--r)); height: calc(41 * var(--r)); font: 400 calc(26 * var(--r)) / 1 var(--f-head); color: var(--brass-hi); text-shadow: 0 calc(1 * var(--r)) 0 #000; }
 .hud-camera { width: calc(48 * var(--r)); height: calc(41 * var(--r)); z-index: 4; }
 .hud-camera.armed:not(:has(> .ico)), .hud-eye.armed:not(:has(> .ico)) { filter: drop-shadow(0 0 calc(4 * var(--r)) #f08a1c); }
@@ -190,6 +189,16 @@
 .hud-hand:has(> .ico) { padding: 0; filter: none; }
 .hud-hand svg { width: 100%; height: 100%; }
 .hud-hand:not(:has(> .ico)):hover { filter: drop-shadow(0 0 calc(4 * var(--r)) var(--brass-hi)); }
+/* stance toggle (stance-button.js): brass-rimmed plaque left of the hand showing the posture a click switches TO
+   (crawling figure while upright, standing figure while crawling). Both renders share one 64x48 box: no shift on
+   toggle. Sits on the hand's baseline; phones keep a >= 44 CSS px target whatever the UI scale. */
+.hud-stance { position: relative; flex: 0 0 auto; align-self: flex-end; width: calc(64 * var(--r)); height: calc(48 * var(--r)); margin-bottom: calc(4 * var(--r));
+  padding: 0; border: 0; background: none; cursor: pointer; pointer-events: auto; touch-action: manipulation; filter: drop-shadow(0 calc(1.5 * var(--r)) calc(2 * var(--r)) rgba(0, 0, 0, 0.7)); }
+.hud-stance:has(> .ico) { filter: none; } /* the render carries its own keyline + shading (post.py) */
+.hud-stance svg { width: 100%; height: 100%; display: block; }
+.hud-stance[aria-disabled='true'] { cursor: not-allowed; }
+.hud-stance:not(:has(> .ico)):hover { filter: drop-shadow(0 0 calc(4 * var(--r)) var(--brass-hi)); }
+html.mk-touch .hud-stance { min-width: 59px; min-height: 44px; }
 .hud-knapsack { position: relative; width: calc(112 * var(--r)); height: calc(149 * var(--r)); pointer-events: auto; }
 .hud-knapsack .pack {
   position: absolute; inset: 0; border-radius: calc(30 * var(--r)) calc(30 * var(--r)) calc(10 * var(--r)) calc(10 * var(--r));

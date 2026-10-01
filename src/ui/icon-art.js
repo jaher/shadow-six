@@ -130,7 +130,7 @@ registerFallbacks(GLYPHS, 'stamp/');
 registerFallbacks({
   'item/leeEnfield': ITEM_ICONS.sniperRifle, 'item/beretta': ITEM_ICONS.pistol, 'item/grenade.mini': ITEM_ICONS.grenade,
   'item/charge.mini': ITEM_ICONS.timeBomb, 'item/star': GLYPHS.star, 'tool/camera': GLYPHS.camera, 'tool/hand': GLYPHS.hand,
-  'tool/eye': EYE_SVG, 'tool/lamp': GLYPHS.lamp, 'tool/posture.prone': GLYPHS.prone, 'tool/posture.stand': GLYPHS.stand,
+  'tool/eye': EYE_SVG, 'tool/lamp': GLYPHS.lamp, 'tool/stance.crawl': GLYPHS.prone, 'tool/stance.stand': GLYPHS.stand,
   'tool/help': HELP_SVG, 'cursor/forbidden': FORBIDDEN, 'cursor/sparkle': SPARKLE, 'cursor/hand.open': CURSORS.hand.svg,
   'cursor/eye': CURSORS.eye.svg, 'cursor/scope': CURSORS.scope.svg, 'cursor/fist': CURSORS.grab.svg,
 });

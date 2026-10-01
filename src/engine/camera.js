@@ -317,6 +317,24 @@ export class CameraController {
     this._zoomTo(this.cfg.defaultZoom);
   }
 
+  /**
+   * Continuous zoom (touch pinch), immediate: the ground under the client point (the fingers' midpoint) stays put.
+   * Kept within the discrete levels' range (0.5×–2×) and the map's zoom floor; the target is re-clamped.
+   * @returns {number} the zoom applied
+   */
+  zoomAt(z, clientX, clientY) {
+    const L = this.cfg.zoomLevels;
+    const to = Math.max(clamp(z, L[0], L[L.length - 1]), this.minZoomForMap());
+    const before = this.screenToGround(clientX, clientY);
+    this._zoomTween = null;
+    this._panTween = null;
+    this.zoom = this.zoomTarget = to;
+    this._applyTransform();
+    const after = before && this.screenToGround(clientX, clientY);
+    if (after) this.panBy(before.x - after.x, before.z - after.z);
+    return this.zoom;
+  }
+
   _zoomTo(level, clientX, clientY) {
     const to = Math.max(level, this.minZoomForMap());
     if (Math.abs(to - this.zoomTarget) < 1e-6 && !this._zoomTween) return;
@@ -564,6 +582,8 @@ export class CameraRig {
     const el = this.domElement;
     // Edge scroll works wherever the pointer is inside the window — including over the HUD (§2.3).
     this._on(window, 'pointermove', (e) => {
+      // a finger is not a hovering cursor: no edge scroll (touch panning is input/touch-game.js)
+      if (e.pointerType === 'touch') { this._pointer.inside = false; return; }
       const r = el.getBoundingClientRect();
       this._pointer.x = e.clientX - r.left;
       this._pointer.y = e.clientY - r.top;

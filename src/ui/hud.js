@@ -14,6 +14,7 @@ import { computeUiScale, loadOptions, saveOptions } from './ui-config.js';
 import { TopBar } from './topbar.js';
 import { Notebook } from './notebook.js';
 import { Knapsack } from './knapsack.js';
+import { StanceButton } from './stance-button.js';
 import { CursorLayer } from './cursor.js';
 import { installIconFallback, preloadIcons, refreshIcons } from './icon-art.js';
 import { Tooltips } from './tooltip.js';
@@ -31,6 +32,7 @@ import { Loading } from './loading.js';
 import { Backdrop } from './backdrop.js';
 import { Boot } from './boot.js';
 import { installTouch } from './touch.js';
+import { PRESET_CHOSEN_KEY } from '../engine/device.js';
 import { KEY_BINDINGS } from '../engine/input.js';
 import { setInsignia } from '../art/insignia.js';
 
@@ -80,6 +82,7 @@ export class HUD {
     this.notebook = new Notebook(this, this.right);
     this.bottom = el('div', 'hud-right-bottom', root);
     this.knapsack = new Knapsack(this, this.bottom);
+    this.stance = new StanceButton(this, this.bottom); // first in the cluster: immediately left of the hand
     this.cursor = new CursorLayer(this);
     this.tooltips = new Tooltips(this);
     this.messages = new Messages(this);
@@ -161,7 +164,10 @@ export class HUD {
     const vol = { volMaster: 'master', volSfx: 'sfx', volVoice: 'voice', volMusic: 'music' }[key];
     if (vol) a?.setVolume?.(vol, value);
     if (key === 'uiScale') this._applyScale();
-    if (key === 'preset') this.game.renderer?.setPreset?.(value);
+    if (key === 'preset') {
+      this.game.renderer?.setPreset?.(value);
+      try { globalThis.localStorage?.setItem(PRESET_CHOSEN_KEY, '1'); } catch { /* private mode */ } // engine/device.js
+    }
     if (/^(textScale|highContrast|reducedMotion|grain)$/.test(key)) this.kit.applyPrefs();
     if (key === 'menuBg' || key === 'reducedMotion') this.backdrop?.setMode(this.backdrop.mode);
     if (!o.quiet) this.game.events.emit('ui:click', { sfx: 'ui_click' });
@@ -504,6 +510,7 @@ export class HUD {
       else if (t && this.game.state === 'playing') this.game.cameraController?.centerOn(t.x, t.z);
       this.topbar.update(dt);
       this.knapsack.update();
+      this.stance.update();
       this._nbT = (this._nbT || 0) - dt;
       if (this._nbT <= 0) {
         this._nbT = 0.1;
