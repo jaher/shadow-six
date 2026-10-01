@@ -9,7 +9,7 @@ Tile 1.5 m. Writes lib/{1k,2k}/<id>_{diff,nor,arm}.{jpg,webp} and registers lib/
 import os, json
 import numpy as np
 from PIL import Image
-KIT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'art', 'kit'))
+KIT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'kit'))
 LIB = os.path.join(KIT, 'lib')
 N = 2048
 rng = np.random.default_rng(1942)

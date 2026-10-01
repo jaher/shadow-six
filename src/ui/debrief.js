@@ -83,6 +83,7 @@ export class Debrief {
     this.root.hidden = true;
     this.root.replaceChildren();
     if (this.hud.backdrop?.mode === 'mission' && !this.hud.kit?.active) this.hud.backdrop.setMode('off');
+    this.hud.menus?.sync(); // a pause the card covered shows its GAME PAUSED again
   }
 
   _clear() {
@@ -108,6 +109,7 @@ export class Debrief {
     this.root.replaceChildren();
     this.root.onclick = null;
     this.hud.backdrop?.setMode(bg === 'mission' ? 'mission' : 'off');
+    this.hud.menus?.sync(); // the card covers GAME PAUSED (its (R)ESUME is not live here)
     const box = el('div', 'endbox', this.root);
     return box;
   }

@@ -1,7 +1,7 @@
 """mo_fix.py src.glb packed.glb : restore the external texture uris (by image name) that mo_keepuri.mjs had to embed
 as placeholders, dropping the placeholder bufferViews' references."""
 import sys, os
-sys.path.insert(0, '<claude-tmp>')
+sys.path.insert(0, os.path.join(os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), *['..'] * 5)), 'tools/blender/kit/tools'))
 import glb_post
 src, dst = sys.argv[1:3]
 js0, _ = glb_post.read_glb(src)

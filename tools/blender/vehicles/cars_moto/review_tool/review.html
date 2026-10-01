@@ -113,7 +113,7 @@ window.setup = async ({ glb, sidecar, theater = 'temperate', env = 1.0, tone = '
   }
   if (fig) {
     try {
-      const an = await GL().loadAsync('/fs<repo>/assets/characters/anims/enemy_anims.glb');
+      const an = await GL().loadAsync('/repo/assets/characters/anims/enemy_anims.glb');
       const clip = an.animations.find(a => a.name === 'idle_hands_back') || an.animations.find(a => /idle/.test(a.name));
       S.mixers = [];
       if (clip) for (const f of S.figs.children) { const mx = new THREE.AnimationMixer(f); mx.clipAction(clip).play(); mx.update(0.6); S.mixers.push(mx); }

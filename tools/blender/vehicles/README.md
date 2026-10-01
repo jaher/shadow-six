@@ -1,6 +1,9 @@
-# tools/blender/vehicles: Opel Blitz trucks
+# tools/blender/vehicles: Opel Blitz trucks (first generation, retired)
 
-These scripts regenerate the six truck GLBs in `assets/models/vehicles/`. The runtime is `src/art/truck-model.js`.
+`truck.py` built the first six Opel Blitz GLBs (`truck_{dak,grey,burnt}[_tanker].glb`). They no longer ship: since the
+vehicle integration every game vehicle (trucks included) comes from the realistic vehicle library below
+(`cars_moto/` Opel Blitz cargo / tanker), drawn by `src/art/vehicle-model.js`. The section is kept for the history of
+the scripts (`blib.py`, `glbpack.py`, `lod.py` are still shared by the library groups).
 
 | File | Body | Paint | Tris (drawn) | Size |
 |---|---|---|---|---|
@@ -45,8 +48,9 @@ The front faces glTF +Z, the pivot is the ground centre, and the truck is 6.2 m 
 # Realistic vehicle library (`assets/models/vehicles/<group>/`)
 
 53 scripted-Blender vehicles, guns and props in five groups. The runtime is `src/art/vehicle-library.js`; the index is
-`assets/models/vehicles/manifest.json`. The six `truck_*.glb` files above are the older Opel Blitz set used by
-`src/art/truck-model.js`; the library's `opel_blitz_cargo` / `opel_blitz_tanker` replace them once vehicle.js is wired.
+`assets/models/vehicles/manifest.json`; the game adapter (entity model contract, trails, doors, lamps, wrecks, static
+structures) is `src/art/vehicle-model.js` + `src/art/static-vehicles.js`. The library's `opel_blitz_cargo` /
+`opel_blitz_tanker` replaced the six first-generation `truck_*.glb` files (deleted).
 
 | Folder | Assets | Script entry points |
 |---|---|---|
@@ -60,7 +64,8 @@ The front faces glTF +Z, the pivot is the ground centre, and the truck is 6.2 m 
 Each group folder keeps its own README (build commands, conventions, rework notes) and `review_tool/` (three.js review renderer).
 
 ## Rebuilding
-1. `tools/blender/vehicles/relocate_vehicles.sh` (scripts hard-code the scratch workspace), then merge
+1. `tools/blender/vehicles/relocate_vehicles.sh [repo-root]` (already run: the scripts point at the main checkout;
+   re-run it with another root to move them; Blender = `$B42`, python deps = `$PYDEPS42`, work files = `$VEH_WORK`), then merge
    `kit_materials.json` (the kit material table with the `veh_*`, `air_*` and wood-paint entries) into `tools/blender/kit/lib/materials.json`.
 2. Blender 4.2 with Pillow/numpy (`--python-use-system-env`); each group README lists the exact command per asset.
    Outputs: `<group>/out/<asset>/<model>{,_lod1,_lod2}.glb` + `.kit.json` (armour: `<asset>_lod{0,1,2}.glb`, `_burnt_lod*`, `.veh.json`, `tex/`).

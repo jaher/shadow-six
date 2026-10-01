@@ -27,12 +27,12 @@ export default async function (page, t) {
     const d = diffBaseline([...st.findings, ...tu.findings], baseline, id);
     t.log(`${id}: ${st.items} items, ${st.findings.length} contacts, ${d.accepted.length} accepted, ${d.fresh.length} new, ${d.gone.length} fixed (${st.ms} ms)`);
     if (id === 'm01') {
-      // detector sanity (user report: "turrets crossing a fence"): park the MG nest just south of barracks barr_2
-      // (x 8..20, z 29..35); its barrel (emplacement model: 0.9 m from the pivot) must be caught crossing the wall when
-      // the sweep points it north — parked 0.4 m off the wall
+      // detector sanity (user report: "turrets crossing a fence"): park the MG nest 0.7 m south of barracks barr_2
+      // (x 8..20, z 29..35); its barrel must be caught crossing the wall when the sweep points it north. The gun stands
+      // closer than its barrel reach (emplacement placeholder barrel 0.9 m → 0.5 m away; the library MG 34 on its tripod, 0.55 m → 0.3 m)
       const probe = await page.evaluate(() => {
         const v = window.__game.game.world.entities.find((e) => e.tag === 'mg1_gun');
-        v.x = 14; v.z = 35.4; v.giro = null; v.syncTransform(1); v.object3d.updateMatrixWorld(true);
+        v.x = 14; v.z = 35 + Math.min(0.7, (v.model.gun?.len ?? 1.2) * 0.55); v.giro = null; v.syncTransform(1); v.object3d.updateMatrixWorld(true);
         const raw = window.__game.clip.turrets({ raw: true }), ruled = window.__game.clip.turrets();
         const arc = v.gunArc(), closed = arc.filter((a) => a === Infinity).length, lifted = arc.filter((a) => a > 0 && a !== Infinity).length;
         return { raw, ruled, closed, lifted };

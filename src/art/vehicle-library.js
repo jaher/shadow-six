@@ -32,7 +32,7 @@ const WHEEL_KINDS = new Set(['wheel', 'wheel_free']);
 
 const V = {
   manifest: null, base: 'assets/', manager: null, loaders: new Map(), gltf: new Map(), meta: new Map(),
-  pending: new Map(), texCache: new Map(), live: new Set(), zoom: 1,
+  pending: new Map(), texCache: new Map(), live: new Set(), zoom: 1, quality: 'default',
 };
 
 /** GLTFLoader plugin: one Texture per external image URL across every vehicle GLB (shared lib + armour atlases). */
@@ -56,13 +56,30 @@ function loaderFor(swap) {
   if (V.loaders.has(key)) return V.loaders.get(key);
   const mgr = new THREE.LoadingManager();
   if (V.manager?.onError) mgr.onError = V.manager.onError;
-  if (swap) mgr.setURLModifier((u) => (/\.(jpe?g|png|webp)(\?|$)/i.test(u) ? u.split(swap[0]).join(swap[1]) : u));
+  mgr.setURLModifier((u) => (/\.(jpe?g|png|webp)(\?|$)/i.test(u) ? libTexture(swap ? u.split(swap[0]).join(swap[1]) : u) : u));
   const l = new GLTFLoader(mgr);
   l.setMeshoptDecoder(MeshoptDecoder);
   l.register((parser) => new SharedTextures(parser));
   V.loaders.set(key, l);
   return l;
 }
+
+/**
+ * Shared-library texture URL: byte-identical maps removed from textures/lib/1k resolve to their survivor
+ * (manifest textures.aliases), and the 'low' quality preset fetches the 512 set (setVehicleTextureQuality).
+ */
+function libTexture(u) {
+  const T = V.manifest?.textures;
+  if (!T || !/\/textures\/lib\/1k\//.test(u)) return u;
+  const name = u.slice(u.lastIndexOf('/') + 1).split('?')[0];
+  const kept = T.aliases?.[name];
+  let out = kept ? u.slice(0, u.lastIndexOf('/') + 1) + kept : u;
+  if (V.quality === 'low' && T.low) out = out.replace('/textures/lib/1k/', `/textures/lib/${T.low}/`);
+  return out;
+}
+
+/** Texture set for the next loads: 'low' → the 512 library maps (the engine 'low' preset), else 1k. */
+export function setVehicleTextureQuality(q) { V.quality = q === 'low' ? 'low' : 'default'; }
 
 const isBrowser = () => typeof window !== 'undefined' && typeof document !== 'undefined';
 
@@ -461,6 +478,9 @@ function createConsist(type, T, opts) {
   });
   return h;
 }
+
+/** Every live vehicle visual (mission vehicles, static vehicles, consist cars): the loading-screen GPU warm-up. */
+export function liveVehicleVisuals() { return [...V.live]; }
 
 /** Drop cached GLBs/sidecars (tests, mission unload). Live visuals keep their clones. */
 export function clearVehicleCache() { V.gltf.clear(); V.meta.clear(); V.pending.clear(); V.texCache.clear(); }

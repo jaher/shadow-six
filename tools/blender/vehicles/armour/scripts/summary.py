@@ -1,5 +1,5 @@
 import json, glob, os
-R = '<claude-tmp>'
+R = os.path.join(os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), *['..'] * 5)), 'tools/blender/vehicles/armour/out')
 rows = []
 for f in sorted(glob.glob(R + '/*/*.veh.json')):
     d = json.load(open(f)); n = d['name']

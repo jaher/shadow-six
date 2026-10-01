@@ -86,10 +86,10 @@ export class Screens {
         { label: 'HELP', id: 'help', onSelect: () => hud.menus.showHelp() },
         { label: 'QUIT GAME', id: 'quit', onSelect: () => this.quit() },
       ],
-      // in mission: Esc / right-click / pad B resume; no RESUME row is added (contract item 8)
-      hints: inM ? [['Escape', 'RESUME'], ['Enter', 'SELECT'], ['ArrowUp', 'MOVE']] : [['Enter', 'SELECT'], ['ArrowUp', 'MOVE']],
+      // in mission: Esc / R / right-click / pad B resume; no RESUME row is added (contract item 8)
+      hints: inM ? [['Escape', '(R)ESUME'], ['Enter', 'SELECT'], ['ArrowUp', 'MOVE']] : [['Enter', 'SELECT'], ['ArrowUp', 'MOVE']],
       onBack: inM ? () => hud.menus.close(true) : () => false,
-      keys: inM ? {} : { KeyC: () => this.continueCampaign(true) },
+      keys: inM ? { KeyR: () => hud.menus.close(true) } : { KeyC: () => this.continueCampaign(true) }, // (R)ESUME / (C)ONTINUE
       render: (box, kit, card) => this._profileTab(card),
       onStart: inM ? () => hud.menus.close(true) : () => this.continueCampaign(true),
     };

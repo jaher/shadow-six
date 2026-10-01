@@ -1,7 +1,8 @@
 #!/bin/bash
 # review.sh <glb> [views]  -> renders game1,game2,close,close_se with a real 1.8 m soldier (theater + uniform by variant)
-T=<claude-tmp>
-E=<repo>/assets/characters/enemies
+REPO="${REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)}"  # repo root (no machine paths)
+T=$REPO/tools/blender/vehicles/naval/review_tool
+E=$REPO/assets/characters/enemies
 G=$(readlink -f $1); D=$(dirname $G); N=$(basename $G .glb)
 TH=temperate; FIG=$E/rifleman_v00.glb
 case $N in *_dak*) TH=desert; FIG=$E/afrika_v00.glb;; *_winter*) TH=snow; FIG=$E/winter_v00.glb;; esac

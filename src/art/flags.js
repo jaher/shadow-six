@@ -207,6 +207,7 @@ export function tickFlags(dt, wind = null, camera = null) {
     if (!step && c.warm) continue;
     const e = m.matrixWorld.elements;
     wind.sample(e[12], e[14], t, _w);
+    if (c.vel) { _w.x -= c.vel.x; _w.z -= c.vel.z; } // a cloth on a moving vehicle feels the apparent wind
     toLocal(e, _w.x, 0, _w.z, _lw);
     toLocal(e, 0, -9.81, 0, _lg);
     // first simulated frame (mission start, first time on screen, after a rewind): start pre-warmed, never flat

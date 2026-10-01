@@ -514,7 +514,7 @@ def canopy_glass(p):
     """Rework 2: the library 'glass_dirty' (dark, opaque building window) read as a black box from the game camera.
     Aircraft glazing -> blue-grey tint, alpha 0.14 BLEND, glossy clear coat, faint streak normals, so the
     cockpit interior and the frame bars read through it."""
-    sys.path.insert(0, os.path.join(VH.SCR, '..', '..', '..', 'art', 'kit', 'tools'))
+    sys.path.insert(0, os.path.join(VH.SCR, '..', '..', '..', 'kit', 'tools'))
     from glb_post import read_glb, write_glb
     js, b = read_glb(p)
     ch = False
@@ -544,7 +544,7 @@ def canopy_glass(p):
 def mat_fix(p, fix):
     """Per-asset material override {kit_id: {'rough': r, 'metal': m, 'spec': s}}: drops the library MR texture so the
     surface gets one uniform (e.g. matte, heat-scaled) finish."""
-    sys.path.insert(0, os.path.join(VH.SCR, '..', '..', '..', 'art', 'kit', 'tools'))
+    sys.path.insert(0, os.path.join(VH.SCR, '..', '..', '..', 'kit', 'tools'))
     from glb_post import read_glb, write_glb
     js, b = read_glb(p)
     for m in js.get('materials', []):

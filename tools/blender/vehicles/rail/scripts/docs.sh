@@ -1,6 +1,7 @@
 #!/bin/bash
 # docs.sh -> refresh docs/screenshots/veh-rail-*.jpg from out/*/review PNGs (run after review_all)
-D=$(cd "$(dirname "$0")" && pwd); O=$D/../out; SS=<repo>/docs/screenshots
+REPO="${REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)}"  # repo root (no machine paths)
+D=$(cd "$(dirname "$0")" && pwd); O=$D/../out; SS=$REPO/docs/screenshots
 r() { echo "$1=$O/$2/review/$3_$4.png"; }
 python3 $D/compose.py $SS/veh-rail-lineup.jpg "SHADOW SIX rail group (rework 2): close views, 1.8 m soldier for scale" 4 320 close \
   $(r loco_br52 loco_br52 loco_br52_dr close_se) $(r tender_t30 tender_t30 tender_t30_dr close_se) $(r railgun_k5 railgun_k5 railgun_k5_grey close_se) \

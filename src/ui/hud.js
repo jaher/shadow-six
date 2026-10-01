@@ -427,6 +427,7 @@ export class HUD {
     if (this.notebook.notesOpen) return consume(this.notebook.hideNotes()); // any key closes the notes
     if (this.debrief.active) {
       if (this.debrief.key(e)) consume();
+      else e.stopImmediatePropagation(); // an end card owns the keyboard: no unit select / ability / quick save behind it
       return;
     }
     if (this.briefing.active) {
@@ -453,6 +454,7 @@ export class HUD {
       return;
     }
     if (!this.playing) return;
+    if (this.menus.key(e)) return consume(); // the P pause card's (R)ESUME
     if (e.code === 'F1') {
       consume();
       this.menus.showHelp();

@@ -48,7 +48,9 @@ import { BloodSystem } from './render/blood/index.js';
 import { resolveHouseRules, tierFromPreset } from './core/house-rules.js';
 import { nobodyLeftToHelp } from './entities/downed.js';
 import { prepareCharacters, awaitUnitModels, warmUnitModels, charactersFrame, transportFrame, releaseCharacters } from './art/unit-model.js';
-import { prepareTruckArt } from './art/truck-model.js';
+import { prepareVehicleArt, warmVehicleArt, tickVehicles, releaseVehicles, createVehicleLamps } from './art/vehicle-model.js';
+import { staticVehicleAssets, dressStaticVehicles } from './art/static-vehicles.js';
+import { flyoverAssets, createFlyovers } from './render/flyovers.js';
 import { createLoadProgress, loadBudget } from './engine/load-progress.js';
 import * as Missions from './missions/index.js';
 import * as VehicleMod from './entities/vehicle.js';
@@ -220,13 +222,16 @@ export class Game {
     // realistic characters (art/unit-model.js): library + squad-aware enemy looks; placeholder capsules on failure
     prog.stage('characters');
     await safeAsync(() => prepareCharacters(def), 'characters');
-    // realistic Opel Blitz trucks (art/truck-model.js): theater paint + burnt wreck GLBs; placeholders on failure
+    // realistic vehicle library (art/vehicle-model.js): every vehicle type of the mission in the theater paint + its wreck
     prog.stage('vehicles');
-    await safeAsync(() => prepareTruckArt(def, { assets }), 'trucks');
+    await safeAsync(() => prepareVehicleArt(def, { assets, quality: r.presetName, extra: staticVehicleAssets(def), ambient: flyoverAssets(def), canon: VehicleMod.canonicalType, onProgress: (d, n) => prog.stage('vehicles', d / Math.max(1, n)) }), 'vehicles');
     if (this.world !== world) return prog.cancel(), world; // unloaded / replaced while loading
     prog.stage('terrain');
     const build = pick(MapBuilder, 'buildMap', 'buildMission', 'build', 'default');
     this.mapHandle = build ? safe(() => build(world, def, { theater: def.theater, renderer: r, scene: r.scene, assets }), 'map-builder') : null;
+    safe(() => dressStaticVehicles(world, def), 'static vehicles'); // parked wagons / aircraft / flak: library models
+    safe(() => createFlyovers(world, def, { renderer: r, seed: def.seed ?? CONFIG.sim.seed }), 'flyovers'); // ambient aircraft overhead
+    safe(() => createVehicleLamps(r.scene, { preset: r.presetName }), 'vehicle lamps'); // night: real headlamp lights (fixed pool)
     // ground textures, grass and trees build asynchronously (decode + splat + tree workers): wait, bounded
     const ready = this.mapHandle?.ready;
     if (ready) await safeAsync(() => Promise.race([ready, new Promise((ok) => setTimeout(ok, 20000))]), 'terrain');
@@ -235,6 +240,8 @@ export class Game {
     this._spawnUnits(world, def);
     await safeAsync(() => awaitUnitModels(world.entities.filter((e) => e.model?.ready)), 'character bodies');
     this.warmMs = await safeAsync(() => warmUnitModels(world.entities.filter((e) => e.model?.real)), 'character grounding');
+    // vehicles, wrecks, lamps, scorch: shaders + textures + vertex buffers on the GPU now, not on the first pan / wreck swap
+    this.vehicleWarm = await safeAsync(() => warmVehicleArt(r.renderer, r.scene, r.camera, () => this.cameraRig.render(this.renderer, 0)), 'vehicle warm-up');
     if (this.world !== world) return prog.cancel(), world;
     // house rules (bodies-design §0.3) + blast/ragdoll physics (§A): Rapier over the finished map, null object on failure
     world.house = resolveHouseRules({ options: this.options, mission: def, tier: tierFromPreset(r.presetName) });
@@ -249,6 +256,7 @@ export class Game {
     if (trails && world.blood) trails.onStep = (e) => world.blood?.onStep(e); // bloody boot prints on the real footfalls
     // first-hit hitch: compile the stain / spatter programs now (bounded; a slow driver just finishes later)
     if (world.blood?.warm) await safeAsync(() => Promise.race([world.blood.warm(r.renderer, r.camera), new Promise((ok) => setTimeout(ok, 4000))]), 'blood warm-up');
+    if (world.marks?.warm) await safeAsync(() => Promise.race([world.marks.warm(r.renderer, r.camera), new Promise((ok) => setTimeout(ok, 4000))]), 'blast marks warm-up'); // crater decal program + atlas
     if (this.world !== world) return prog.cancel(), world;
     prog.stage('finish');
     world.objectives = createObjectives(def.objectives || []);
@@ -316,6 +324,7 @@ export class Game {
       this.physicsVisuals = null;
       this.world.dispose();
       safe(() => releaseCharacters(), 'characters dispose');
+      safe(() => releaseVehicles(), 'vehicles dispose');
       // Anything the map builder added directly to the scene (terrain, props) is removed here.
       const keep = new Set(['sun', 'hemi']);
       for (const o of [...this.renderer.scene.children]) {
@@ -596,6 +605,7 @@ export class Game {
       if (w.wind) safe(() => w.wind.frame(Math.max(0, w.time - (1 - Math.min(1, alpha)) * CONFIG.sim.dt), cc0.target), 'wind');
       const rig = this.cameraRig, cam = (rig.count ?? 1) > 1 ? false : rig.active?.camera || this.renderer.camera;
       safe(() => charactersFrame(cam, cc0.pxPerMeter?.() ?? 40), 'characters view'); // LOD + off-screen culling/throttling
+      safe(() => tickVehicles(animDt, cam || this.renderer.camera, w.wind ?? null), 'vehicles view'); // LOD by zoom, windsocks
       for (const e of w.entities) {
         e.syncTransform?.(alpha);
         e.renderUpdate?.(animDt);

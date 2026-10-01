@@ -1,7 +1,8 @@
 #!/bin/bash
 # docs_rework2.sh: crops + captioned sheets -> docs/screenshots/veh-armour-{afv,guns,detail,variants}.jpg
-cd <claude-tmp>
-D=<repo>/docs/screenshots; T=docs_tmp; mkdir -p $T
+REPO="${REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)}"  # repo root (no machine paths)
+cd $REPO/tools/blender/vehicles/armour/review
+D=$REPO/docs/screenshots; T=docs_tmp; mkdir -p $T
 crop() { python3 -c "
 from PIL import Image; import sys
 im=Image.open('$1').convert('RGB'); W,H=im.size; x0,y0,x1,y1=[float(v) for v in '$2'.split(',')]

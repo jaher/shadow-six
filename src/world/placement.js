@@ -703,6 +703,17 @@ export function turretArc(grid, x, z, o) {
       if (grid.elev && grid.elev[k] - y0 > top) top = grid.elev[k] - y0;
       if (top > o.h - 0.05) lift = Math.max(lift, Math.atan2(top + 0.12 - o.h, d));
     }
+    // the gun's REAR (MG butt stock, breech) swinging the other way: a wall there closes the angle (o.back, m)
+    if (o.back > 0 && lift !== Infinity) {
+      for (let d = 0.1, q = 0; d <= o.back + 0.1 + 1e-9; q = (q + 1) % 3, d += q === 0 ? 0.1 : 0) {
+        const lat = (q - 1) * 0.12, i = Math.floor((x - ca * d - sa * lat) / c), j = Math.floor((z - sa * d + ca * lat) / c);
+        if (i < 0 || j < 0 || i >= grid.cols || j >= grid.rows) continue;
+        const k = j * grid.cols + i;
+        if (o.skip?.(k)) continue;
+        const top = grid.block[k] ? (o.heightOf?.(k) ?? DEFAULT_H[grid.block[k]] ?? 2) : grid.navBlock?.[k] ? (o.heightOf?.(k) ?? 1.5) : -Infinity;
+        if (top > o.h - 0.25) { lift = Infinity; break; }
+      }
+    }
     // the turret housing turned to this angle (half length hl along it, hw across) under an overhang lower than
     // its roof: that angle is closed (the housing cannot lift)
     const H = o.housing;

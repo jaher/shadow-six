@@ -634,7 +634,7 @@ Choosing **(Y)ES** opens name entry:
 - **In mission** (reached with Esc):
   - The background is **B2 oxblood**.
   - SAVE GAME is enabled.
-  - Esc or a right-click on this card **resumes**, and the hint bar shows `ESC RESUME` first.
+  - Esc, R or a right-click on this card **resumes**, and the hint bar shows `ESC (R)ESUME` first (players read the word RESUME as an R hotkey; R is honoured).
   - **No RESUME row is added**, which keeps the list faithful. Players are pointed to Esc and right-click by the hint bar, and gamepad B resumes.
 - **QUIT GAME:**
   - In mission, it goes to the quit card (S13) with the choice "QUIT MISSION".
@@ -1114,7 +1114,7 @@ Used whenever the briefing is skipped or unavailable: loading a save, quickload,
 - A centred **"GAME PAUSED"** CardTitle (stamped steel) on the live, frozen game.
 - **Polish:**
   - the game gets a 30% desaturation plus a 25% vignette, as a 150 ms shader fade, so the pause is obvious without the full oxblood grade;
-  - a hint `P RESUME` below the title, at 7 r.
+  - a hint `P (R)ESUME` below the title, at 7 r. P or R resumes (R is consumed there, so it never also arms the R ability). Hidden while an end card (MISSION NOT COMPLETED…) covers the pause.
 - **Active pause** ⚑: a thin 1 r **brass frame** runs round the viewport, and the hint adds "ORDERS ENABLED". Players can see that input is live.
 - The HUD stays visible, as in BEL.
 - **Code:** `menus.js` (`.ui-paused`).

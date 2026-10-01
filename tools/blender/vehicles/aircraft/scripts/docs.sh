@@ -1,7 +1,8 @@
 #!/bin/bash
 # docs.sh : refresh docs/screenshots/veh-aircraft-{lineup,gamecam,rework}.jpg from the review renders
+REPO="${REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)}"  # repo root (no machine paths)
 cd $(dirname $0)/../out
-D=<repo>/docs/screenshots
+D=$REPO/docs/screenshots
 r() { echo "$1=$2/review/$2_$3.png"; }
 python3 ../scripts/compose_docs.py $D/veh-aircraft-lineup.jpg "SHADOW SIX aircraft group - grey (temperate) close 3/4 views" 4 \
   "$(r 'Ju 52/3m' ju52_3m grey_close_se)" "$(r 'Ju 87 B' ju87_b grey_close_se)" "$(r 'Bf 109 E' bf109_e grey_close_se)" \

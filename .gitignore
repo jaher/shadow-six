@@ -5,4 +5,7 @@ docs/research-raw/gap-6-briefings.txt
 # parsed from retail game files: local research aid only, never published
 docs/research-raw/gap-6-bcd-missions.json
 __pycache__/
+# Blender vehicle pipeline: work files (renders, logs) and the Python deps it installs, never committed
+tools/blender/vehicles/.work/
+tools/blender/vehicles/pydeps42/
 dist/

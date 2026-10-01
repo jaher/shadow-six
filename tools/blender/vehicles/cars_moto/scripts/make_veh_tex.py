@@ -5,7 +5,7 @@ orange-peel normal. Tile 1.5 m. Writes lib/{1k,2k}/veh_paint_{diff,nor,arm}.{jpg
 import os, json, sys
 import numpy as np
 from PIL import Image, ImageFilter
-KIT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'art', 'kit'))
+KIT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'kit'))
 LIB = os.path.join(KIT, 'lib')
 N = 2048
 rng = np.random.default_rng(1941)

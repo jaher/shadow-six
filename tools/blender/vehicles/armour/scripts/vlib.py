@@ -4,14 +4,15 @@
 # grime -> albedo/ORM, shared normal/AO), stamp decals (position-map projection), LOD0-2 GLBs with external
 # textures, <name>.veh.json sidecar (nodes+pivots, sockets, emitters, contacts, variants), credits.
 import sys, os, math, json, time, random
-SCR = '<claude-tmp>'
-sys.path.insert(0, SCR + '/realism/blender-modeling')
+SCR = os.environ.get('VEH_WORK', os.path.join(os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), *['..'] * 5)), 'tools/blender/vehicles/.work'))
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, '..', '..'))  # tools/blender/vehicles (blib.py)
 import bpy, bmesh
 from mathutils import Vector, Matrix
 import blib as B
 import numpy as np
 
-VROOT = SCR + '/vehicles/armour'
+VROOT = os.path.abspath(os.path.join(HERE, '..'))
 VARIANTS = ('grey', 'dak', 'winter', 'burnt')
 # paint (sRGB): RAL 7021 Dunkelgrau as it reads faded in period photos; RAL 8000 Gelbbraun (DAK 1941-42)
 PAINT = {'grey': (56, 60, 62), 'dak': (150, 126, 84), 'winter': (56, 60, 62), 'burnt': (60, 50, 44)}

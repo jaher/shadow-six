@@ -1,6 +1,6 @@
 # patch_coal.py glb... -> apply the current rail:coal material values (rework 2) to already-built GLBs
 import sys, os
-sys.path.insert(0, '<claude-tmp>')
+sys.path.insert(0, os.path.join(os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), *['..'] * 5)), 'tools/blender/kit/tools'))
 import glb_post
 for p in sys.argv[1:]:
     js, b = glb_post.read_glb(p)

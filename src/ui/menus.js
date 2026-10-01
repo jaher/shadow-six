@@ -10,7 +10,7 @@
 import { CONFIG } from '../config.js';
 import { hasQuickSave, listSlots, saveSlot as storeSlot, deleteSlot, exportSave, importSave, SLOT_COUNT, AUTOSAVE_KEY } from '../save.js';
 import { el, fmtTime } from './dom.js';
-import { photoPrint, typeField, stamp, cap } from './menu-kit.js';
+import { photoPrint, typeField, stamp, cap, labelHTML } from './menu-kit.js';
 import { rankLabel } from './menu-model.js';
 import { catalogueEntry } from './catalogue.js';
 import { buildOptions } from './options-panel.js';
@@ -70,13 +70,26 @@ export class Menus {
   /** Show the right pause visuals for the game state. */
   sync() {
     const paused = this.hud.game.state === 'paused';
-    const show = paused && !this.open && !this._suppress && !!this.hud.world;
+    const show = paused && !this.open && !this._suppress && !!this.hud.world && !this.hud.debrief?.active; // not under an end card
     this.pauseCard.hidden = !show;
     document.documentElement.classList.toggle('s6-paused', show); // S18: 30 % desaturation + vignette on the live frame
     const active = !!this.hud.game.options?.activePause;
     this.pauseCard.classList.toggle('active', active);
-    this.pauseHintText.textContent = active ? 'RESUME  ·  ORDERS ENABLED' : 'RESUME';
+    // BEL grammar: (R)ESUME — R resumes as well as P (key() below); the word alone read as an R hotkey to players
+    this.pauseHintText.innerHTML = labelHTML(active ? '(R)ESUME  ·  ORDERS ENABLED' : '(R)ESUME');
     if (!paused && this.view && this._pausedByMenu) this.close(false);
+  }
+
+  /**
+   * Keys for the S18 pause card (P pause, no menu card open; HUD capture phase, before Input): R = (R)ESUME.
+   * Consumed, so R never also reaches the game (R is an ability key: sniper rifle / BCD puppet).
+   * @returns {boolean} consumed
+   */
+  key(e) {
+    if (this.pauseCard.hidden || e.code !== 'KeyR' || e.ctrlKey || e.metaKey || e.altKey) return false;
+    const g = this.hud.game;
+    if (!e.repeat && g.state === 'paused') g.togglePause();
+    return true;
   }
 
   _pause() {

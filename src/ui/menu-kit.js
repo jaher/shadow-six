@@ -578,7 +578,9 @@ export class MenuKit {
       h.dataset.code = code;
       const g = pad && PAD[code];
       if (!touch) h.append(g ? cap(g[0], `pad ${g[1]}`) : cap(capText || (code === 'ArrowUp' ? '↑↓' : keyName(code))));
-      h.append(label);
+      if (touch) h.append(String(label).replace(/\(([A-Z0-9])\)/i, '$1')); // a tap button has no hotkey letter
+      else if (hotkeyOf(label)) h.insertAdjacentHTML('beforeend', labelHTML(label)); // '(R)ESUME': letter in brass
+      else h.append(label);
       h.addEventListener('click', (e) => {
         e.stopPropagation();
         if (fn) fn(this);

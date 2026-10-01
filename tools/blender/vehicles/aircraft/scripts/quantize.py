@@ -3,7 +3,7 @@ NORMAL float3 -> int8 normalized (KHR_mesh_quantization), TEXCOORD_1 (AO atlas, 
 COLOR_0 stays 16 bit (kit: dark paints band at 8 bit). ~48 -> ~36 bytes / vertex. Positions and tiling TEXCOORD_0 stay float."""
 import sys, os, struct
 import numpy as np
-sys.path.insert(0, '<claude-tmp>')
+sys.path.insert(0, os.path.join(os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), *['..'] * 5)), 'tools/blender/kit/tools'))
 from glb_post import read_glb, write_glb
 
 NC = {5120: np.int8, 5121: np.uint8, 5122: np.int16, 5123: np.uint16, 5125: np.uint32, 5126: np.float32}

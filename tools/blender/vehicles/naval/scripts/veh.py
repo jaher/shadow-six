@@ -7,7 +7,7 @@ mud splash low, dust on top faces, snow (winter), soot (burnt) - replaces the ki
 """
 import sys, os, math, json, random
 SCR = os.path.dirname(os.path.abspath(__file__))
-KIT = os.path.abspath(os.path.join(SCR, '..', '..', '..', 'art', 'kit'))
+KIT = os.path.abspath(os.path.join(SCR, '..', '..', '..', 'kit'))
 sys.path.insert(0, os.path.join(KIT, 'blender'))
 import bpy, bmesh
 from mathutils import Vector as V, Matrix, noise

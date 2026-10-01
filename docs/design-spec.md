@@ -519,6 +519,14 @@ The animation names are the humanoid names from ARCHITECTURE. Each voice cue is 
   - At fast speed, any enemy in the front sensor box (1.8–5.4 m ahead, ±1.35 m) dies. The kill is silent.
   - At slow speed, enemies step aside, turn and shoot.
   - Friendly units in the box are also killed.
+- **Getting out (door side)** [rec, vehicle integration]. Units step out on the side of their seat's door. Period vehicles
+  are left-hand drive: the driver (first seat) gets out on the vehicle's **left**, the co-driver on the right, rear seats
+  alternate one row further back. The BMW R75's sidecar is on the **right**: the rider steps off left, the sidecar
+  passenger right. Truck passengers (seat 3+) use the tailgate; everyone in the Sd.Kfz. 251 half-track uses its rear
+  doors; the Ju 52 cabin door is on the left. Boats keep the bank rule. That seat's door or hatch visibly opens and closes.
+  A click on a point still overrides the side (nearest free cell to it).
+- **Vehicle footprints** match the real models (m, length × width): Opel Blitz 6.3 × 2.4, Horch 901 4.9 × 1.9,
+  Citroën 4.8 × 1.9, BMW R75 with sidecar 2.3 × 1.7, Panzer IV 6.6 × 2.9, Sd.Kfz. 251 / 231 5.9 × 2.2.
 - **Ramming barriers.** Barriers and light gates break at fast speed.
 - **Tainted vehicles.** An enemy who sees a commando board a vehicle marks it `tainted`. From then on **every enemy who sees it attacks it until it is destroyed**, even when empty. This is the M15 trick.
 - **Vehicle HP** in hits [data `.IMPACTOS`]:

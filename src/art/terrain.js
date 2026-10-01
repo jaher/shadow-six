@@ -391,9 +391,22 @@ export function stampWorld(t, world, grid) {
     if (v.removed || v.alive === false || !(Math.abs(v.speed || 0) > 0.05) || (v.y || 0) > GROUND_Y_MAX) continue;
     const type = vehicleTrailType(v);
     if (!type || wet(v.x, v.z)) continue;
-    t.stampTrail('vehicle', v.x, v.z, v.heading, { id: 'v' + v.id, type, speed: Math.abs(v.speed), record: false });
+    // library models (art/vehicle-model.js): one rut per real wheel / track contact (dual rears, sidecar wheel,
+    // half-track fronts + tracks); placeholders: the generic layout of trails.js VEHICLE_TYPES
+    _contacts.length = 0;
+    const cs = v.model?.trailContacts?.(v, _contacts);
+    if (cs?.length) {
+      const load = TRAIL_LOAD[type] ?? 1;
+      for (const c of cs) {
+        if (wet(c.x, c.z)) continue;
+        t.stampTrail(c.kind, c.x, c.z, v.heading, { id: `v${v.id}:${c.id}`, width: c.width, load, record: false });
+      }
+    } else t.stampTrail('vehicle', v.x, v.z, v.heading, { id: 'v' + v.id, type, speed: Math.abs(v.speed), record: false });
   }
 }
+const _contacts = [];
+/** Rut depth factor per trail layout (trails.js VEHICLE_TYPES load): heavier vehicles cut deeper. */
+const TRAIL_LOAD = { car: 0.7, jeep: 0.6, truck: 1, motorcycle: 0.45, halftrack: 1.05, tank: 1.25 };
 
 /** Gameplay 'footprint' events → terrain trail records (queryTrails / QA). The AI list stays world.ai.footprints. */
 export function wireTrailRecords(events, handle) {

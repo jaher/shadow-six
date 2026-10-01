@@ -81,12 +81,17 @@ src/art/unit-model.js                 ART — Unit model factory: real character
 src/art/unit-anim-map.js              ART — gameplay anim → clip candidates, action → weapon prop, theater looks, guests (pure)
 src/art/humanoid-real.js              ART — character library facade (manifest, runtimes, LOD, culling, throttling)
 src/art/characters/                   ART — verified character runtimes (commandos_a/b, enemies, guests, pipeline)
-src/art/vehicle-crew.js               ART — enemy crew figures on open vehicles (patrol boat, tank hatch, motorcycle)
+src/art/vehicle-crew.js               ART — crew figures at the library seats: crew records + occupants (cars, lorry cabs, R75, 251, hatches)
+src/art/vehicle-pennants.js           ART — cloth pennants on vehicles (patrol-boat masthead, staff-car wing flag), apparent wind
 src/art/props.js                      ART — building/prop builders (catalogue below)
 src/art/dressing.js                   ART — procedural realistic non-library props (palisade/stone walls, rocks, cliffs, tents, sandbags, crates, transformers, pylons, poles)
 src/art/characters/skin-min.js        ART — fast lowest-point query on skinned meshes (clip ground curves)
-src/art/vehicles.js                   ART — vehicle models (used by VEHICLES)
-src/art/truck-model.js                ART — Opel Blitz GLB trucks (cargo/tanker, theater paint, burnt wreck, wheels, headlights)
+src/art/vehicles.js                   ART — placeholder vehicle models (types without a library model, `?vehicles=0`)
+src/art/vehicle-library.js            ART — realistic vehicle library (manifest, LODs, paints, wrecks, parts, sockets)
+src/art/vehicle-model.js              ART — library → entity model contract (motion, doors, lamps, trails, wrecks, exhaust)
+src/art/static-vehicles.js            ART — parked wagons / aircraft / flak / U-boats / windsocks among the structures
+src/art/windsock-sock.js              ART — continuous windsock fabric (banded tube on a smooth spine through the hinge angles)
+src/render/flyovers.js                ART — ambient aircraft flyovers (seeded schedule, level library aircraft, prop discs, sun-shadow twins, engine loops)
 src/art/terrain.js                    ART — terrain facade: real splat ground/grass/clutter/snow/trees/trails or placeholder
 src/art/terrain/*.js                  ART — terrain R&D modules (docs/terrain-pipeline.md): layers, grass, treegen, trails
 src/art/portraits.js                  ART — portrait stills: registered photo posters, procedural canvas fallback
@@ -386,17 +391,107 @@ kneel_shoot, carried, dog clips) and weapon props, and times locomotion from the
 `Game.render` calls `charactersFrame(camera, pxPerMetre)` once per frame (LOD, off-screen culling/throttling) and
 updates the scene's world matrices once per frame (`scene.matrixWorldAutoUpdate` is off during the composer passes).
 
-Vehicles get their model from `entities/vehicle.js modelFor`: `art/truck-model.js createTruckModel` first. It returns
-the real Opel Blitz for the `truck`, `opel_blitz`, `opel_blitz_tanker` and `fuel_truck` types once `prepareTruckArt(def)`
-has run in `Game.loadMission`. That call loads `assets/models/vehicles/truck_<dak|grey|burnt>[_tanker].glb` for the
-mission's trucks. Desert missions get `dak`, every other theater gets `grey`, and a spawn can override this with `paint`.
-Without a real truck model the vehicle falls back to `art/vehicles.js` placeholders, which also cover every other type.
-The truck model has the same contract (`root, turret, dims, update(dt, vehicle), setTurretHeading, setDestroyed, dispose`):
-- The wheels roll with `vehicle.speed`, and the front pair steers from the yaw rate.
-- `setDestroyed(true)` swaps in the burnt wreck with its scorch decal.
-- At night (`resolveLighting(...).night`) a crewed or moving truck shows emissive headlamps and an additive ground light
-  pool. It adds no real light, so the shaders never recompile.
-- `?trucks=0` keeps the placeholders. The models are built by `tools/blender/vehicles/`.
+Vehicles get their model from `entities/vehicle.js modelFor`: `art/vehicle-model.js createLibraryVehicleModel` first (the
+realistic vehicle library, `art/vehicle-library.js`, once `prepareVehicleArt(def)` has run in `Game.loadMission`'s
+'vehicles' stage), else the `art/vehicles.js` placeholders / the local box. `prepareVehicleArt` preloads every vehicle
+type the mission spawns (`missionVehicleSpawns`: `vehicles[]` + any nested `vehicleType`, with its `variant`: a variant
+naming a library type wins, `LIB_VARIANT` maps registry variant names, e.g. M1's `{vehicleType:'car',
+variant:'kubelwagen'}` → Kübelwagen) and the static vehicles among its
+structures (`art/static-vehicles.js staticVehicleAssets`), in the theater paint (manifest `byTheater`: temperate / night /
+coast → grey, desert → dak tan, snow → winter whitewash; `car` is always civilian black; a spawn `paint` wins) plus their
+burnt wrecks, both shipped LODs (the 512 texture set on the 'low' preset), and reports sub-progress to the loading screen.
+`await warmVehicleArt(renderer, scene, camera, renderFrame)` (after the character warm-up, still behind the loading
+screen) builds every live vehicle's wreck instance now (kept: a later destroy only flips visibility), shows every LOD
+of both with culling off next to the shared lamp / scorch materials, and draws two frames of the real pipeline
+(`cameraRig.render`: shadow, AO, x-ray passes…) plus one vehicles-only render with the water mirror's clipping plane:
+exactly the programs, textures and buffers a first pan / wreck swap would create (warming the shared GLB templates is
+not enough — per-object shadow flags, render-target colour space and the mirror's clip plane key the programs). First
+pan onto four vehicles +7 ms over an empty pan (was ≈ 200 ms), wreck swap +5 ms (was ≈ 30 ms) (`tests/vehint-warm`).
+The VFX library's own first blast (any explosion: barrel, grenade, wreck) still compiles its particle shaders once.
+Types without a library model keep the placeholder and are logged (`vehicleArtContext().log`): `van`, `atgunM20`,
+`cable_car` (`LIB_VEHICLE`). `mgNest` draws the MG 34 on its tripod (the sandbag ring is the mission's structure).
+`?vehicles=0` keeps every placeholder. The library model has the placeholder contract plus hooks:
+```js
+model = { root, turret /* LOD0 turret / gun-mount node (clipping audit), null until loaded or wrecked */,
+  dims {l, w, h, library, paint, scale?}, library: true, visual /* library handle */, ready, isReady,
+  gun /* {len, h, back?, hl?, hw?, top?} clipping-rule reach (back = MG butt / breech behind the pivot, emplacements) */,
+  update(dt, vehicle), setTurretHeading(localRad) /* posed at once */,
+  setGunLift(rad), setDestroyed(on), boarding(seat, 'enter'|'exit'), seatExit(seat), trailContacts(vehicle, out),
+  muzzleWorld(weapon, vehicle) → {x, y, z}, wreckEmitter(vehicle), crewSeats(modelKey), dispose() }
+```
+- **Motion** (`update`, every sim step): wheels roll from the signed ground speed, front wheels / forks / 8-Rad axles steer
+  from the yaw rate (bicycle model on the real wheelbase), tracks scroll (differential on the spot turns), props / rotors
+  spin while crewed, turrets and guns follow the entity (`turretYaw = -(turretHeading - heading)`, gun lift + = up; a gun
+  on a limited mount — MG 34 tripod ±30° — is re-laid as a whole beyond it, and `placement.turretArc` `o.back` closes the
+  angles where its butt would hit a wall), the
+  body pitches / rolls on the ground relief under the hull and squats / dives under acceleration (damped spring); boats
+  float on the water level and bob. Oversize planes / guns keep their true size when the hull clears static structures,
+  else shrink visually (≥ 0.55×, logged) — gameplay keeps the registry `size`. Boats (and anything with crew figures)
+  ALWAYS keep their true size, so their sailors match the hull: a route laid for the registry footprint that would put a
+  true-size hull over an islet or the cut end of a river gets a visual **berth** instead (the drawn hull eases ≤ 2 m
+  sideways, ≤ 0.6 m/s, to where its waterline plan `boatHalfBeam` floats clear, with a 2.5 s look-ahead; the entity,
+  sight and path are untouched).
+  Land registry sizes match the real models (design-spec §3.7).
+- **Doors:** `Vehicle.enter` / `exit` call `model.boarding(seat)`; the seat's door / hatch / tailgate (`doorsForSeat`, from
+  the sidecar pivots + names) opens and closes in ~1.5 s. The exit side is gameplay and model-independent:
+  `seatSide(type, kind, seat)` (LHD driver left, co-driver right, R75 sidecar right, truck tailgate, 251 rear doors, Ju 52
+  left) drives `Vehicle._exitPoint`.
+- **Destroyed:** `setDestroyed(true)` swaps to the burnt wreck (lazy-loaded if not preloaded) and lays an oriented soot
+  scorch decal (multiply-blended, moved into the VFX ground-decal scene) and flattens the grass under the hull
+  (terrain `flatten` stamp); `render/fx.js` puts the `burning_wreck` and, once the fire is out, the smoke column at the model's
+  engine-bay / fuel-tank fire emitter (`wreckEmitter`). Wrecks still bake into the static grid as B.HIGH after 20 s.
+- **Trails:** `art/terrain.js stampWorld` stamps one rut per real wheel / track contact (`trailContacts`: dual rear tyres,
+  the sidecar wheel, half-track front wheels + tracks) with the layout's load; placeholders keep the generic layout.
+- **Exhaust:** puffs (`smoke_puff`, VFX library directly, not logged) at the exhaust emitters while the engine runs, rate /
+  size / soot rising with the load (speed, acceleration, turning). **Muzzles:** `vehicle:fire` and vehicle `shot` events carry
+  `muzzle` (the model's muzzle at the sim transform), used by the VFX muzzle flash.
+- **Lamps:** head (blackout covers → a narrow slit and a dim beam pool), Notek, tail and convoy lamps at the library's
+  light anchors, each with an additive glare sprite (`lamp-glare`: a lit vehicle gives itself away at night from afar);
+  one ground pool per vehicle (the cheap cookie: from the bumper, rising to a peak a few metres out and fading smoothly
+  to nothing, a gaussian across that widens with distance — no hard edge anywhere; slit covers → a short dim band) that
+  follows the relief. `createVehicleLamps(scene, {preset})` (Game.loadMission, night only) adds a FIXED pool of real
+  SpotLights (`LAMP_LIGHTS` low 0 / medium 2 / high 3 / ultra 4 → no shader recompiles mid-mission) handed each frame to
+  the lit vehicles nearest the view centre (`model.beam` {kind: full | blackout | notek}): walls, grass and soldiers ahead
+  are lit for real. Military lamps carry blackout covers; civilian cars full beams. On at night
+  (`resolveLighting(...).night`) while crewed or moving, or when `vehicle.lightsOn === true` (`false` forces off).
+  Cab glazing is set to 0.3 opacity (clear period glass: the crew is seen).
+- **Crew figures** (`art/vehicle-crew.js`): crew RECORDS sit / stand at `CREW_SOCKETS` (driver + co-driver of cars and
+  lorries, 251 driver, tank / 8-Rad commander in the hatch turning with the turret, R75 rider + sidecar, patrol-boat
+  hands); OCCUPANTS (commandos or enemies who `enter`) sit at `model.seatHolder(k)` in boarding order (cars, lorry cabs,
+  R75, 251 — not under a canvas, not in a tank), in their own look (`lookOf(unit)`). Seated figures settle once the clip
+  has blended in: pelvis over the socket, 0.1 m above the cushion, head top under a closed roof (`cabRoof`: Opel cab,
+  Citroën, canvas tops up); weapons put away. A figure goes when its record dies, its occupant gets out or the hull dies.
+  **Scripted exits:** `Vehicle.exit(enemy, x, z, o)` on a land vehicle puts the rider at his seat's door
+  (`seatSide`: LHD driver left) and then `moveTo(x, z)` — no one climbs through the body.
+- **Pennants** (`art/vehicle-pennants.js`): the patrol boat's masthead commissioning pennant (library `pennant` anchor)
+  and, with spawn `pennant: true`, a staff car's command flag on the right front wing — Verlet cloth ticked by
+  `art/flags.js tickFlags` with the WindField minus the vehicle's velocity (apparent wind; `CLOTHS[i].vel`).
+- **Flyovers** (`render/flyovers.js createFlyovers(world, def, {renderer, seed})`, after the map build; aircraft preloaded
+  intact via `prepareVehicleArt(def, {ambient: flyoverAssets(def)})`): data `def.ambient.flyovers` = false | true |
+  {types: bf109 / ju52 / storch / ju87, interval, first, altitude, count}, else `FLYOVER_DEFAULTS[def.id]` (period / place:
+  M1 Sola, M4 Værnes, M5 Herdla, desert Stukas and Storches, the Tunis Ju 52 bridge…; off for Claymore, the Eidfjord dam,
+  D-Day, dawn / castle / unlisted missions and at night). The schedule (`flyoverSchedule`) is a pure function of the
+  replay seed + mission id (own PRNG: `world.rng` untouched) and poses (`aircraftPose`) a pure function of SIM time
+  (`wind.t`): deterministic, frozen on pause, nothing outside 'playing' / 'paused' (briefing tour). 1–3 aircraft (Rotte,
+  vic, lone Storch) at 40–85 m (below the camera's near plane), cruising, trimmed level from the three-point attitude
+  (`trimPitch`: hub → elevator datum), Bf 109 gear retracted, blades → a translucent blur disc. Half the passes fly along
+  the shadow ↔ on-screen axis so both the aircraft and its shadow cross the view. Shadow: a shadow-only twin (no colour /
+  depth, AO / x-ray excluded, `customDepthMaterial` = ordered dither for the soft, faint shadow of a high aircraft) on the
+  same sun ray just under `renderer.shadowCasterHeight`; while one is up the sun shadow camera's near plane is pulled
+  back by its size (wrapper on `renderer.fitShadowToView`, restored on release). Sound: a keyed `plane_engine` loop per
+  element (`audio.startLoop`), positioned + Doppler-shifted (radial speed to the listener) every frame, stopped when not
+  playing. `world.flyovers` = {config, schedule(), active(), frame, dispose}.
+- **Static vehicles** (`art/static-vehicles.js dressStaticVehicles(world, def)`, after the map build): `train_car` variants
+  (covered / open / flat / tank wagons, coach, BR 52, mine carts), `railway_gun` (K5), `aa_gun` (Flak 18/36), `plane`,
+  `uboat` and `windsock` structures get the library model on their footprint (true scale while the overhang clears every
+  other blocked cell, else fitted, ≥ 0.6×); gameplay footprints are untouched. Windsocks yaw downwind with inertia and fill
+  with the WindField speed (limp under ≈ 1.5 kt, streamed at ≈ 15 kt, gust flutter). The fabric is one continuous
+  banded tube (`art/windsock-sock.js`, 30 × 20, two draw groups) bent along a smooth spine through the library's four
+  hinge angles (the `sock_seg*` nodes stay posed, their meshes hidden): no slits at the hoops; a slack sock narrows,
+  flattens and falls into lengthwise folds, a full one ripples.
+- Per displayed frame `Game.render` calls `tickVehicles(dt, camera, wind)` (LOD0 at zoom ≥ 0.75 else LOD2; headlamp light
+  pool; tickers `fn(dt, wind, camera)`: windsocks, flyovers); `Game.unloadMission` calls `releaseVehicles()` (disposes
+  models, the lamp pool and every ticker's `onRelease`, e.g. the flyover engine loops). Library geometry / materials are marked `userData.shared`.
 
 ```js
 // src/entities/commando.js
@@ -533,7 +628,7 @@ structure flags `bombOnly`/`grenadeDestructible`/`light`/`bunker`/`indestructibl
 
 - **Asset loading & size** (art integration 2 step 4): every subsystem fetches only what the mission uses (buildings:
   the picked GLBs + destroyed/snow variants, every LOD the preset can show — `low` skips LOD0; characters: the
-  squad picks + the commandos; trucks: the paints the mission needs; terrain: the theatre's strips; audio: the
+  squad picks + the commandos; vehicles: the mission's types in its theater paint + wrecks; terrain: the theatre's strips; audio: the
   mission's SFX/voice pack after `mission:loaded`; portraits: the squad). `Game.loadMission` reports real progress
   (`engine/load-progress.js`: stage shares + Resource Timing bytes vs `assets/load-budget.json`) as
   `mission:progress`; `ui/loading.js` shows it for every mission start (`hud.startMission` → loading → briefing) and

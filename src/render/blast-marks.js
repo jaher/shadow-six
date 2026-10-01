@@ -134,6 +134,20 @@ export class BlastMarks {
     }
   }
 
+  /**
+   * Load-time warm-up: build the mark mesh (empty when no marks yet), upload its atlas and compile its program now, so
+   * the first blast of a mission (a grenade, a vehicle going up) doesn't pay ≈ 20 ms for them in its frame.
+   */
+  async warm(renderer, camera) {
+    if (!this.visual || !camera || !(renderer?.compileAsync || renderer?.compile)) return;
+    if (!this.mesh) this._rebuild();
+    const m = this.mesh, vis = m.visible;
+    renderer.initTexture?.(m.material.uniforms.map.value);
+    m.visible = true;
+    try { await (renderer.compileAsync ? renderer.compileAsync(m, camera, this.scene) : renderer.compile(m, camera, this.scene)); }
+    finally { m.visible = vis; }
+  }
+
   serialize() { return this.marks.map((m) => ({ ...m })); }
 
   /** Rebuild from a save (craters re-stamped, decals redrawn). */

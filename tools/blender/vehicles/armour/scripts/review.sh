@@ -1,9 +1,10 @@
 #!/bin/bash
 # review.sh <name> [extra render args]: renders grey game1/game2/close/close_se + dak/winter/burnt closes + LODs,
 # composes review/<name>/<name>_review.jpg (<=1280 px). Usage from vehicles/armour.
+REPO="${REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)}"  # repo root (no machine paths)
 N=$1; shift
-cd <claude-tmp>
-FIG=<repo>/assets/characters/enemies/crew_v00.glb
+cd $REPO/tools/blender/vehicles/armour
+FIG=$REPO/assets/characters/enemies/crew_v00.glb
 O=review/$N; mkdir -p $O
 R="timeout 170 node review_tool/render.mjs"
 $R out/$N/${N}_lod0.glb $O --views game1,game2,close,close_se --fig $FIG "$@" | grep -v HTTP | tail -1

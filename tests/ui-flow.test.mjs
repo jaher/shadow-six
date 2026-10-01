@@ -182,7 +182,7 @@ async function rest(page, t) {
     G.pause(false);
     return out;
   });
-  t(p.shown && p.title === 'GAME PAUSED' && /^P\s*RESUME/.test(p.hint), 'P shows "GAME PAUSED" + [P] RESUME');
+  t(p.shown && p.title === 'GAME PAUSED' && /^P\s*\(R\)ESUME/.test(p.hint), 'P shows "GAME PAUSED" + [P] (R)ESUME');
   // S18 on the live frame: the steel title must read ≥ 3:1 against the pixels under it (the shade band)
   const pr = await page.evaluate(() => {
     window.__game.game.pause(true);

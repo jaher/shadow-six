@@ -43,7 +43,7 @@ D = `~/.claude/projects/-home-jaherrero-projects-commandos-threejs-docs-screensh
 
 | # | Workflow (runId) | scriptPath | Worktree / branch | Next after resume |
 |---|---|---|---|---|
-| 1 | missions 4–20 (`wf_f8b05e29-c7b`) | T/missions-4-20-wf_f8b05e29-c7b.js | commandos-wt-missions / feat/missions | 62 agents done; last playtest/fix passes (M7, M20 …), then MERGE into master — unblocks align M4–M20 + mission art pass |
+| 1 | ~~missions 4–20~~ DONE (merged a916ff0, published ffdf23b) | — | — | — |
 | 2 | ~~clipping audit~~ DONE (merged 30c7254) — QUEUED follow-up "clip-2" (see PROGRESS.md 2026-09-27T19:05Z) | — | — | launch after the reset |
 | 3 | ~~bodies (physics, blood, drag/carry, rescue)~~ DONE (merged 8bee97d, published 22f3ddb) | — | — | — |
 | 4 | ~~portraits pain + lip resync~~ DONE (merged 165efe6) | — | — | — |
@@ -64,12 +64,18 @@ D = `~/.claude/projects/-home-jaherrero-projects-commandos-threejs-docs-screensh
 | 22 | units never through/under vehicles or solid objects (all stances) (`wf_c736e9b4-d6c`) | T/prone-vehicle-clearance-wf_c736e9b4-d6c.js | commandos-wt-prone / feat/prone-clearance | fix → verify → merge |
 | 23 | truck canvas cloth smooth + welded (`wf_64fc6322-8dc`) | T/truck-cloth-wf_64fc6322-8dc.js | commandos-wt-cloth / feat/truck-cloth | fix → verify → merge |
 | 24 | crawl alternating arms + smooth walk + unit avoidance (`wf_2b12341e-15e`) | T/locomotion-crawl-walk-wf_2b12341e-15e.js | commandos-wt-loco / feat/locomotion | crawl → walk → verify → merge |
-| 25 | R to resume while paused + all hotkeys (`wf_79ca4505-aa9`) | T/pause-hotkeys-wf_79ca4505-aa9.js | commandos-wt-hotkeys / fix/pause-hotkeys | fix + merge |
+| 25 | ~~R to resume + all hotkeys~~ DONE (merged 8e995a0) | — | — | — |
 | 26 | instant mission restart + persistent asset cache (`wf_c7e00164-82f`) | S/instant-restart-cache-wf_c7e00164-82f.js | commandos-wt-cache / feat/instant-restart | build → verify → merge → publish |
 | 27 | ?debug level select (`wf_d4b13aaf-eb1`) | T/debug-level-select-wf_d4b13aaf-eb1.js | commandos-wt-dbg / feat/debug-level-select | build + merge |
 | 28 | ground birds walk smoothly (`wf_d74fe7e5-21e`) | T/ground-birds-smooth-wf_d74fe7e5-21e.js | commandos-wt-birds / feat/ground-birds | fix → verify → merge |
 | 29 | smooth shores (`wf_82157f79-4c7`) | T/smooth-shores-wf_82157f79-4c7.js | commandos-wt-shores / feat/smooth-shores (from feat/map-edges) | build → verify → merge after map-edges |
 | 30 | dam water as realistic as possible (`wf_a3114e2b-8a7`) | S/dam-water-realism-wf_a3114e2b-8a7.js | commandos-wt-damwater / feat/dam-water (from feat/m3-dam-front) | build → critic ×2 → merge after m3-dam-front |
+| 31 | M2 barrier gate + MG platform + access platform (`wf_12575d2d-200`) | T/m2-barrier-mg-platform-wf_12575d2d-200.js | commandos-wt-m2gate / feat/m2-barrier (from feat/gate-smash) | build → verify → merge after gate-smash |
+| 32 | vegetation as real as possible (`wf_28124fe9-15c`) | S/vegetation-realism-wf_28124fe9-15c.js | commandos-wt-veg / feat/vegetation | research → ground → trees → critic → merge |
+| 33 | MISSION ART PASS M4–M20 (`wf_c771ef78-bf8`) | T/mission-art-pass-wf_c771ef78-bf8.js | commandos-wt-art1/-art2 / art/mNN | 2 lanes, per mission build → verify → merge |
+| 34 | HUD eye photoreal (`wf_efc2550c-990`) | T/hud-eye-realistic-wf_efc2550c-990.js | commandos-wt-eye / feat/hud-eye | build → verify → merge |
+| 35 | historical flags + neutral toggle (`wf_e3004fb2-499`) | T/historical-flags-wf_e3004fb2-499.js | commandos-wt-flags / feat/historical-flags | build → verify → merge |
+| 36 | 1940s newsreel briefing narration (`wf_47be8d80-c46`) | T/newsreel-briefing-voice-wf_47be8d80-c46.js | commandos-wt-narration / feat/newsreel-narration | voice → render → verify → merge |
 | 13 | barbed wire everywhere (`wf_1566168d-bd5`) | T/barbed-wire-wf_1566168d-bd5.js | commandos-wt-wire / feat/barbed-wire | research → build → critic → merge → M4–M20 after the missions merge |
 | 14 | chimney smoke + ambient-smoke readability (`wf_e1d52344-449`) | T/chimney-smoke-wf_e1d52344-449.js | commandos-wt-smoke / feat/chimney-smoke | build → verify → merge |
 | 15 | ~~music-now (suspense, no beeps)~~ DONE (merged 1381a81, published) | — | — | — |

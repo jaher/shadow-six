@@ -1,6 +1,7 @@
 #!/bin/bash
 # docs.sh -> docs/screenshots/veh-cars_moto-{lineup,variants,game}.jpg from the review renders
-D=$(cd "$(dirname "$0")" && pwd); O=$D/../out; S=<repo>/docs/screenshots
+REPO="${REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)}"  # repo root (no machine paths)
+D=$(cd "$(dirname "$0")" && pwd); O=$D/../out; S=$REPO/docs/screenshots
 R() { echo "$O/$1/review/$2_$3.png"; }
 python3 $D/compose.py $S/veh-cars_moto-lineup.jpg "SHADOW SIX - cars & motorcycles (LOD0, close view, 1.8 m soldier for scale)" 4 320 close \
   "R75 grey=$(R r75_sidecar r75_sidecar_grey close)" "Kubel grey=$(R kubelwagen kubelwagen_grey close)" \

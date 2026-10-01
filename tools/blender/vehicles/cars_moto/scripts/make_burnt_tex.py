@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 import importlib.util
 spec = importlib.util.spec_from_file_location('mvt_noise', os.path.join(os.path.dirname(__file__), 'make_veh_tex.py'))
-KIT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'art', 'kit'))
+KIT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', 'kit'))
 LIB = os.path.join(KIT, 'lib')
 N = 2048
 rng = np.random.default_rng(1944)

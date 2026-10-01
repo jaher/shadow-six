@@ -239,9 +239,11 @@ export class FX {
     }
     if (def.tanker) this.spawn('tanker_explosion', v.x, v.z, { yaw, dur: 1e6 });
     else this.spawn('explosion_small', v.x, v.z, { scale: clamp(len / 5, 0.8, 1.5) });
-    const h = def.height ?? (len > 5.5 ? 1.9 : 1.3);
-    const handle = def.tanker ? null : this.spawn('burning_wreck', v.x, v.z, { size: [wid, len], h, yaw, dur: 1e6 });
-    this._wrecks.set(v, { handle, x: v.x, z: v.z, h, tanker: !!def.tanker, len });
+    const h = def.height ?? (v.model?.library ? Math.min(2.4, (v.model.dims?.h ?? 2) * 0.7) : len > 5.5 ? 1.9 : 1.3);
+    const src = v.model?.wreckEmitter?.(v); // the library model's engine-bay / fuel-tank fire point
+    const fx0 = src ? (v.x + src.x) / 2 : v.x, fz0 = src ? (v.z + src.z) / 2 : v.z;
+    const handle = def.tanker ? null : this.spawn('burning_wreck', fx0, fz0, { size: [wid, len], h, yaw, dur: 1e6 });
+    this._wrecks.set(v, { handle, x: v.x, z: v.z, sx: src?.x ?? v.x, sz: src?.z ?? v.z, h, tanker: !!def.tanker, len });
     if (def.tanker) this._afterFire(v.x, v.z, 60, 1.1, 2);
   }
 
@@ -252,7 +254,7 @@ export class FX {
       if (Math.hypot(w.x - e.x, w.z - e.z) > 1.5 || w.out) continue;
       w.out = true;
       w.handle?.stop?.();
-      if (!w.tanker) this.spawn('smoke_column', w.x, w.z, { y: this._y(w.x, w.z) + w.h + 0.6, color: 'black', rate: 1.8, scale: clamp(w.len / 6, 0.5, 1), op: 0.6, dur: 1e6 });
+      if (!w.tanker) this.spawn('smoke_column', w.sx ?? w.x, w.sz ?? w.z, { y: this._y(w.x, w.z) + w.h + 0.6, color: 'black', rate: 1.8, scale: clamp(w.len / 6, 0.5, 1), op: 0.6, dur: 1e6 });
     }
   }
 
@@ -272,10 +274,11 @@ export class FX {
     const f = e.from || e.shooter, t = e.to;
     if (!f || !t || NO_FLASH.has(e.weapon)) return;
     const dx = t.x - f.x, dz = t.z - f.z, d = Math.hypot(dx, dz) || 1;
-    const fy = this._y(f.x, f.z) + this._muzzleY(e);
+    const mu = e.muzzle; // vehicle guns: the model's muzzle (art/vehicle-model.js muzzleWorld)
+    const fy = mu ? mu.y : this._y(f.x, f.z) + this._muzzleY(e);
     const tgt = e.target;
     const ty = this._y(t.x, t.z) + (e.hit && tgt ? (tgt.kind === 'vehicle' ? 1.2 : tgt.stance === 'prone' ? 0.3 : 1.1) : 0.05);
-    const mx = f.x + (dx / d) * 0.7, mz = f.z + (dz / d) * 0.7;
+    const mx = mu ? mu.x : f.x + (dx / d) * 0.7, mz = mu ? mu.z : f.z + (dz / d) * 0.7;
     this.spawn('muzzle_flash', mx, mz, { y: fy, dir: V3(dx / d, (ty - fy) / d, dz / d), weapon: MUZZLE[e.weapon] || 'rifle', to: { x: t.x, y: ty, z: t.z } });
     const impact = () => {
       if (this.disposed) return;
@@ -293,10 +296,11 @@ export class FX {
   onVehicleFire(e) {
     const v = e.vehicle, t = e.target;
     if (!v || !t || e.weapon !== 'cannon') return;
-    const m = typeof v.muzzleToward === 'function' ? v.muzzleToward(t.x, t.z) : { x: v.x, z: v.z };
+    const m = e.muzzle || (typeof v.muzzleToward === 'function' ? v.muzzleToward(t.x, t.z) : { x: v.x, z: v.z });
+    const my = e.muzzle ? e.muzzle.y : this._y(m.x, m.z) + 1.9;
     const dx = t.x - m.x, dz = t.z - m.z, d = Math.hypot(dx, dz) || 1;
-    this.spawn('muzzle_flash', m.x, m.z, { y: this._y(m.x, m.z) + 1.9, dir: V3(dx / d, 0, dz / d), weapon: 'cannon', tracer: false });
-    this.spawn('smoke_puff', m.x, m.z, { y: this._y(m.x, m.z) + 1.9, dir: V3(dx / d, 0.2, dz / d), size: 2.2, col: [0.55, 0.53, 0.5] });
+    this.spawn('muzzle_flash', m.x, m.z, { y: my, dir: V3(dx / d, 0, dz / d), weapon: 'cannon', tracer: false });
+    this.spawn('smoke_puff', m.x, m.z, { y: my, dir: V3(dx / d, 0.2, dz / d), size: 2.2, col: [0.55, 0.53, 0.5] });
   }
 
   /** Surface hits not covered by 'shot': knife / harpoon (flesh), projectiles on walls / hulls. */

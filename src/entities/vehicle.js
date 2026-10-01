@@ -26,7 +26,7 @@ import * as THREE from 'three';
 import { Entity } from './entity.js';
 import { CONFIG, KILL } from '../config.js';
 import { createVehicleModel, VEHICLE_MODELS } from '../art/vehicles.js';
-import { createTruckModel } from '../art/truck-model.js';
+import { createLibraryVehicleModel, seatSide } from '../art/vehicle-model.js';
 import { createCrewFigures } from '../art/vehicle-crew.js';
 import { angleTo, turnTowardsAngle, angleDiff } from '../core/math.js';
 import { B, T } from '../world/grid.js';
@@ -62,7 +62,8 @@ export function operatorMatches(ops, unit) {
  *  kind: 'land'|'boat'|'plane'|'emplacement'|'rail'; model: art/vehicles.js key (missing → local box);
  *  speed: CONFIG.vehicles speed key ({slow, fast, turn}); hits: bullets to destroy (null = n/a, 0 = immune);
  *  armor: 'none' | 'light' (grenades destroy) | 'heavy' (only bombs and shells); weapons: CONFIG.weapons keys
- *  (first = primary; 'torpedo' = mini-sub tubes); size: [length, width] m (run-over box, occluder, wreck);
+ *  (first = primary; 'torpedo' = mini-sub tubes); size: [length, width] m (run-over box, occluder, wreck; land vehicles
+ *  match the library models' real dimensions — art/vehicle-model.js fits oversize boat / plane / gun visuals instead);
  *  occludes: stamps grid.dynamicBlock (§4.2 OCLU); runover: kills in the front box at fast speed;
  *  tanker: any hit explodes it (§3.6); raft: deflates instead of being destroyed by bullets (§4.3);
  *  fastOnly: single speed (motorcycle); vision: profile when crewed (tank / sdkfz); legacy aliases via `alias`;
@@ -76,22 +77,22 @@ export const VEHICLE_TYPES = {
   patrolboat: { kind: 'boat', model: 'patrolboat', speed: 'boat', hits: 60, size: [8, 2.6], occludes: true, weapons: ['mg'], vision: 'mg' },
   minisub: { kind: 'boat', model: 'raft', speed: 'boat', hits: 30, size: [6, 1.4], occludes: false, weapons: ['torpedo'], torpedoes: 2 },
   // --- land (Driver) ---
-  truck: { kind: 'land', model: 'truck', speed: 'truck', hits: 30, size: [6, 2.4], occludes: true, runover: true, grenadeDestructible: true },
+  truck: { kind: 'land', model: 'truck', speed: 'truck', hits: 30, size: [6.3, 2.4], occludes: true, runover: true, grenadeDestructible: true },
   opel_blitz: { alias: 'truck' },
-  opel_blitz_tanker: { kind: 'land', model: 'fuel_truck', speed: 'truck', hits: 1, size: [6, 2.4], occludes: true, runover: true, tanker: true },
+  opel_blitz_tanker: { kind: 'land', model: 'fuel_truck', speed: 'truck', hits: 1, size: [6.3, 2.4], occludes: true, runover: true, tanker: true },
   fuel_truck: { alias: 'opel_blitz_tanker' },
   kubelwagen: { kind: 'land', model: 'car', speed: 'car', hits: 20, size: [3.8, 1.6], occludes: true, runover: true },
   willys: { kind: 'land', model: 'car', speed: 'car', hits: 30, size: [3.4, 1.6], occludes: true, runover: true },
-  horch: { kind: 'land', model: 'car', speed: 'car', hits: 30, size: [4.6, 1.8], occludes: true, runover: true },
-  citroen15: { kind: 'land', model: 'car', speed: 'car', hits: 60, size: [4.5, 1.8], occludes: true, runover: true },
+  horch: { kind: 'land', model: 'car', speed: 'car', hits: 30, size: [4.9, 1.9], occludes: true, runover: true },
+  citroen15: { kind: 'land', model: 'car', speed: 'car', hits: 60, size: [4.8, 1.9], occludes: true, runover: true },
   van: { kind: 'land', model: 'truck', speed: 'car', hits: 60, size: [5, 2.1], occludes: true, runover: true },
-  car: { kind: 'land', model: 'car', speed: 'car', hits: 60, size: [4.5, 1.9], occludes: true, runover: true },
-  motorcycle: { kind: 'land', model: 'motorcycle', speed: 'motorcycle', hits: 20, size: [2, 1.2], occludes: false, runover: true, fastOnly: true },
+  car: { kind: 'land', model: 'car', speed: 'car', hits: 60, size: [4.8, 1.9], occludes: true, runover: true },
+  motorcycle: { kind: 'land', model: 'motorcycle', speed: 'motorcycle', hits: 20, size: [2.3, 1.7], occludes: false, runover: true, fastOnly: true },
   panzer2: { kind: 'land', model: 'tank', speed: 'tank', hits: 1000, armor: 'light', size: [5, 2.8], occludes: true, runover: true, weapons: ['cannon', 'tankMg'], vision: 'tank', turret: true },
   panzer3: { kind: 'land', model: 'tank', speed: 'tank', hits: 0, armor: 'heavy', size: [5.5, 2.9], occludes: true, runover: true, weapons: ['cannon', 'tankMg'], vision: 'tank', turret: true },
-  panzer4: { kind: 'land', model: 'tank', speed: 'tank', hits: 0, armor: 'heavy', size: [5.9, 2.9], occludes: true, runover: true, weapons: ['cannon', 'tankMg'], vision: 'tank', turret: true },
+  panzer4: { kind: 'land', model: 'tank', speed: 'tank', hits: 0, armor: 'heavy', size: [6.6, 2.9], occludes: true, runover: true, weapons: ['cannon', 'tankMg'], vision: 'tank', turret: true },
   tank: { alias: 'panzer2' },
-  sdkfz: { kind: 'land', model: 'armoredcar', speed: 'halftrack', hits: 500, armor: 'light', size: [5.5, 2.2], occludes: true, runover: true, weapons: ['tankMg'], vision: 'sdkfz', turret: true },
+  sdkfz: { kind: 'land', model: 'armoredcar', speed: 'halftrack', hits: 500, armor: 'light', size: [5.9, 2.2], occludes: true, runover: true, weapons: ['tankMg'], vision: 'sdkfz', turret: true },
   armoredcar: { alias: 'sdkfz' },
   halftrack: { alias: 'sdkfz' },
   // --- planes (McRae) ---
@@ -257,9 +258,10 @@ function boxModel(type, def) {
   };
 }
 
-/** Model through the ART modules when they know the type (real truck GLBs first), else the local placeholder box. */
+/** Model through the ART modules: the realistic vehicle library (art/vehicle-model.js, once prepareVehicleArt ran), else
+ *  the art/vehicles.js placeholders, else the local placeholder box (types the library has no model for: van, atgunM20 …). */
 function modelFor(type, def, spawn = {}) {
-  const real = createTruckModel(def.type, spawn); // Opel Blitz GLBs (art/truck-model.js) once prepareTruckArt ran
+  const real = createLibraryVehicleModel(type, def, spawn);
   if (real) return real;
   if (VEHICLE_MODELS[def.model]) return createVehicleModel(def.model);
   if (VEHICLE_MODELS[type]) return createVehicleModel(type);
@@ -350,7 +352,7 @@ export class Vehicle extends Entity {
 
   /** Per-frame visuals: enemy crew figures on open vehicles (art/vehicle-crew.js; built on the first frame). */
   renderUpdate(dt) {
-    if (this._crewFig === undefined) this._crewFig = this.world ? createCrewFigures(this) : undefined;
+    if (this._crewFig === undefined && this.model.isReady !== false) this._crewFig = this.world ? createCrewFigures(this) : undefined;
     this._crewFig?.update(dt);
   }
 
@@ -464,6 +466,7 @@ export class Vehicle extends Entity {
     if (unit.faction === 'player') this._checkTaint(unit);
     this.occupants.push(unit);
     if (!this.driver && this.canOperate(unit)) this.driver = unit;
+    this.model.boarding?.(this.occupants.length - 1, 'enter'); // that seat's door / hatch opens and closes
     unit.stop?.();
     unit.state = 'inVehicle';
     unit.vehicle = this;
@@ -508,10 +511,15 @@ export class Vehicle extends Entity {
     if (w) {
       const diver = unit.role === 'diver' && (unit.stance === 'dive' || unit.diving || unit.canSwim);
       if (this.isBoat && !o.force && !this.destroyed && !this._nearShallowOrBank() && !diver) return false;
-      p = this._exitPoint(x, z, diver && this.isBoat, unit, k);
+      // a scripted exit of an enemy rider (mission scripts: `exit(e, x, z, {force})`) steps out through his seat's
+      // door like everyone else, then walks to the point (the lorry driver of M4 heads for his errand)
+      const doorFirst = unit.faction !== 'player' && x != null && !this.isBoat && !this.destroyed && this.def.kind === 'land';
+      p = this._exitPoint(doorFirst ? undefined : x, doorFirst ? undefined : z, diver && this.isBoat, unit, k);
+      if (doorFirst && p) o = { ...o, walkTo: { x, z } };
       if (!p && !o.force && !this.destroyed) return false;
     }
     this.occupants.splice(k, 1);
+    if (!this.destroyed) this.model.boarding?.(k, 'exit');
     if (this.driver === unit) this.driver = this.occupants.find((u) => this.canOperate(u)) || null;
     if (!this.driver) this._halt();
     p = p || { x: this.x, z: this.z };
@@ -519,6 +527,7 @@ export class Vehicle extends Entity {
     unit.vehicle = null;
     unit.setPosition?.(p.x, p.z, this.heading);
     if (unit.object3d) unit.object3d.visible = true;
+    if (o.walkTo && Math.hypot(o.walkTo.x - p.x, o.walkTo.z - p.z) > 0.6) unit.moveTo?.(o.walkTo.x, o.walkTo.z);
     w?.events.emit('vehicle:exit', { vehicle: this, unit });
     return true;
   }
@@ -532,9 +541,12 @@ export class Vehicle extends Entity {
   _exitPoint(px, pz, swim = false, unit = null, seat = 0) {
     const g = this.world.grid;
     const R = CONFIG.vehicles.exitRadius + Math.max(...this.def.size) / 2;
-    const side = this.heading + Math.PI / 2;
-    const out = this.def.size[1] / 2 + 1;
-    const along = px == null ? (seat % 2 ? 1 : -1) * Math.ceil(seat / 2) * EXIT_SPACING : 0;
+    // the seat's door side (art/vehicle-model.js seatSide: LHD driver left, R75 sidecar right, tailgate / rear doors)
+    const ss = seatSide(this.vehicleType, this.def.kind, seat);
+    const side = this.heading + (ss ? ss.side : 1) * Math.PI / 2;
+    const [len, wid] = this.def.size;
+    const out = ss?.back ? 0.5 : wid / 2 + 1;
+    const along = px == null ? (ss ? (ss.back ? -(len / 2 + 1) : -ss.row * EXIT_SPACING) : (seat % 2 ? 1 : -1) * Math.ceil(seat / 2) * EXIT_SPACING) : 0;
     const want = {
       x: px ?? this.x + Math.cos(side) * out + Math.cos(this.heading) * along,
       z: pz ?? this.z + Math.sin(side) * out + Math.sin(this.heading) * along,
@@ -630,6 +642,22 @@ export class Vehicle extends Entity {
     const it = this.world.interactables.find((o) => !o.destroyed && (o.barrier || o.light || o.interactKind === 'barrier')
       && Math.hypot(o.x - x, o.z - z) < (o.radius || 1.5) + 1);
     return !!it;
+  }
+
+  /**
+   * A closed gate / boom barrier at (x, z) (its own grid cells, still blocked)? Routes probe the hull centre only, so
+   * a route vehicle also checks its bumper against shut gates: the lorry waits with its nose at the level-crossing
+   * boom (M4), not through it with its cab over the rails (real-length models would stop the train).
+   */
+  _closedGateAt(x, z) {
+    const w = this.world, g = w?.grid;
+    if (!g || this.isBoat || !w.interactables) return false;
+    const { i, j } = g.worldToCell(x, z);
+    if (!g.inBounds(i, j)) return false;
+    const k = g.idx(i, j), own = g.owner?.[k];
+    if (!own || g.block[k] === B.NONE) return false;
+    return w.interactables.some((o) => o.owner === own && !o.destroyed && o.open === false && (o.barrier || o.interactKind === 'door'))
+      && !this._rammable(x, z);
   }
 
   /** Nose probe points of the hull placed at (x, z) facing h. */
@@ -789,7 +817,8 @@ export class Vehicle extends Entity {
     const h = g.strict ? want : this.heading;
     const nx = this.x + Math.cos(h) * step, nz = this.z + Math.sin(h) * step;
     const ahead = CONFIG.vehicles.probeStep;
-    const clear = this._nosePoints(nx + Math.cos(h) * ahead, nz + Math.sin(h) * ahead, h, g.strict).every(([px, pz]) => this.passableAt(px, pz));
+    const clear = this._nosePoints(nx + Math.cos(h) * ahead, nz + Math.sin(h) * ahead, h, g.strict).every(([px, pz]) => this.passableAt(px, pz))
+      && (g.strict || !this._closedGateAt(nx + Math.cos(h) * (this.def.size[0] / 2 + ahead), nz + Math.sin(h) * (this.def.size[0] / 2 + ahead)));
     if (!clear) {
       if (g.strict) { this._halt(); return; } // §3.7 stops at the first blocking cell
       this.speed = 0; // routes wait until the way is clear (e.g. a vehicle parked on the road)
@@ -1029,7 +1058,7 @@ export class Vehicle extends Entity {
     if (this._arcKey !== key) {
       this._arcKey = key;
       // the hull itself is never in block / navBlock (vehicles stamp the dynamic layer only): nothing to skip
-      this._arc = turretArc(w.grid, this.x, this.z, { len: g.len, h: g.h, housing: g.hl ? { hl: g.hl, hw: g.hw, top: g.top } : null, heightOf: ownerHeight(w), y0: Math.max(this.y || 0, this._groundAt(this.x, this.z)) }); // y: a hull on a ridge / deck (M11)
+      this._arc = turretArc(w.grid, this.x, this.z, { len: g.len, h: g.h, back: g.back, housing: g.hl ? { hl: g.hl, hw: g.hw, top: g.top } : null, heightOf: ownerHeight(w), y0: Math.max(this.y || 0, this._groundAt(this.x, this.z)) }); // y: a hull on a ridge / deck (M11)
     }
     return this._arc;
   }
@@ -1040,6 +1069,14 @@ export class Vehicle extends Entity {
     if (this.giro == null || this.giro >= 360) return true;
     const ref = this.vehicleKind === 'emplacement' ? this.postHeading : this.heading;
     return Math.abs(angleDiff(ref, h)) <= (this.giro * DEG) / 2 + 1e-6;
+  }
+
+  /** Visual muzzle {x, y, z} of weapon `id` on the model (VFX flash only; gameplay keeps muzzleToward), or null. */
+  _muzzleFx(id) {
+    const m = this.model;
+    if (!m?.muzzleWorld) return null;
+    m.setTurretHeading?.(this.turretHeading - this.heading);
+    return m.muzzleWorld(id, this);
   }
 
   /** Muzzle point: hull edge toward (x, z), so the own hull (stamped as occluder) doesn't block the shot. */
@@ -1073,7 +1110,7 @@ export class Vehicle extends Entity {
     if ((this.weaponCd[id] || 0) > 0 || (this.volley && id !== 'cannon' && id !== 'torpedo')) return false;
     const W = CONFIG.weapons;
     if (id !== 'torpedo') this.turretHeading = h;
-    w.events.emit('vehicle:fire', { vehicle: this, target, weapon: id });
+    w.events.emit('vehicle:fire', { vehicle: this, target, weapon: id, muzzle: this._muzzleFx(id) });
     if (id === 'cannon') {
       const m = this.muzzleToward(target.x, target.z);
       w.add(new Projectile('shell', { from: m, to: { x: target.x, z: target.z }, source: this.shooter, vehicle: this }));
@@ -1133,7 +1170,7 @@ export class Vehicle extends Entity {
       else if (tgt.explodeBarrel || tgt.barrel) hitBarrel(w, tgt, this.shooter);
       else tgt.takeDamage?.(wd.dmg, this.shooter, id);
     }
-    w.events.emit('shot', { from: m, to: { x: aim.x, z: aim.z }, shooter: this.shooter, target: tgt, hit, weapon: id });
+    w.events.emit('shot', { from: m, to: { x: aim.x, z: aim.z }, shooter: this.shooter, target: tgt, hit, weapon: id, muzzle: this._muzzleFx(id) });
     if (!hit) w.events.emit('hit', { x: aim.x, z: aim.z, surface: 'ground', target: null, weapon: id });
   }
 

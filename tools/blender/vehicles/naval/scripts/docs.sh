@@ -1,6 +1,7 @@
 #!/bin/bash
 # docs.sh: refresh docs/screenshots/veh-naval-{lineup,variants,elevations,closeups}.jpg from the review renders + Blender close-ups
-D=$(cd "$(dirname "$0")/.." && pwd); O=$D/out; R=$D/review_rd; SS=<repo>/docs/screenshots
+REPO="${REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../../.." && pwd)}"  # repo root (no machine paths)
+D=$(cd "$(dirname "$0")/.." && pwd); O=$D/out; R=$D/review_rd; SS=$REPO/docs/screenshots
 c() { echo "$O/$1/review/$1_$2_$3.png"; }
 python3 $D/scripts/compose.py $SS/veh-naval-lineup.jpg "SHADOW SIX - naval craft (review renderer, close view, 1.8 m figure on the quay)" 4 320 close \
   "Bismarck grey=$(c battleship_bismarck grey close_se)" "Type VIIC=$(c uboat_viic grey close_se)" "harbour tug=$(c harbour_tug civil close_se)" \

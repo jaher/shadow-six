@@ -1,8 +1,9 @@
 // Kit review renderer. node render.mjs <asset.glb> [outdir] [--theater temperate] [--views game1,game2,close,front,top,detail]
 // Starts its own static server, renders the views in headless Chromium (GPU), writes PNGs + <name>_sheet.jpg.
-import { chromium } from '<repo>/node_modules/playwright-core/index.mjs';
+import { chromium } from '../../../../../node_modules/playwright-core/index.mjs';
 import { spawn, execFileSync } from 'child_process'; import path from 'path'; import fs from 'fs';
-const HERE = path.dirname(new URL(import.meta.url).pathname), KIT = '<claude-tmp>';
+const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../../..'); // repo root (no machine paths)
+const HERE = path.dirname(new URL(import.meta.url).pathname), KIT = REPO + '/tools/blender/kit';
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
 const glb = path.resolve(args[0]);
