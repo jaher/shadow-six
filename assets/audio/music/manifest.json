@@ -1,77 +1,110 @@
 {
- "note": "Original compositions for SHADOW SIX (route A: MIDI score + VSCO 2 CE / VSCO 1 samples, CC0). meta: loopStart/loopEnd (s) = loop body; endSec = where a stinger hands over; decodeRate = decode Hz.",
+ "note": "Original compositions for SHADOW SIX (route A: MIDI score + VSCO 2 CE / VSCO 1 samples, CC0). files: [OGG Vorbis q5, MP3 128k (Safari)]. meta: loopStart/loopEnd (s, sample-accurate at sampleRate) = loop body after a play-once intro; once = plays once (then the caller decides); endSec = where a start stinger hands over; decodeRate = decode Hz; gain = linear trim; category = how the game uses it; mp3LeadSec = extra leading silence of a decoder that ignores the LAME gapless header.",
+ "version": 3,
  "cues": {
   "menu": [
    "menu.ogg",
    "menu.mp3"
   ],
   "credits": [
-   "menu.ogg",
-   "menu.mp3"
+   "credits.ogg",
+   "credits.mp3"
+  ],
+  "tutorial": [
+   "tutorial.ogg",
+   "tutorial.mp3"
   ],
   "briefing_1": [
-   "briefing.ogg",
-   "briefing.mp3"
+   "briefing_1.ogg",
+   "briefing_1.mp3"
   ],
   "briefing_2": [
-   "briefing.ogg",
-   "briefing.mp3"
+   "briefing_2.ogg",
+   "briefing_2.mp3"
   ],
   "briefing_3": [
-   "briefing.ogg",
-   "briefing.mp3"
+   "briefing_3.ogg",
+   "briefing_3.mp3"
+  ],
+  "campaign_norway": [
+   "campaign_norway.ogg",
+   "campaign_norway.mp3"
+  ],
+  "campaign_africa": [
+   "campaign_africa.ogg",
+   "campaign_africa.mp3"
+  ],
+  "campaign_normandy": [
+   "campaign_normandy.ogg",
+   "campaign_normandy.mp3"
+  ],
+  "campaign_rhine": [
+   "campaign_rhine.ogg",
+   "campaign_rhine.mp3"
+  ],
+  "campaign_reich": [
+   "campaign_reich.ogg",
+   "campaign_reich.mp3"
+  ],
+  "campaign_end": [
+   "campaign_end.ogg",
+   "campaign_end.mp3"
   ],
   "start_1": [
-   "start.ogg",
-   "start.mp3"
+   "start_1.ogg",
+   "start_1.mp3"
   ],
   "start_2": [
-   "start.ogg",
-   "start.mp3"
+   "start_2.ogg",
+   "start_2.mp3"
   ],
   "start_3": [
-   "start.ogg",
-   "start.mp3"
+   "start_3.ogg",
+   "start_3.mp3"
   ],
   "start_4": [
-   "start.ogg",
-   "start.mp3"
+   "start_4.ogg",
+   "start_4.mp3"
   ],
   "start_5": [
-   "start.ogg",
-   "start.mp3"
+   "start_5.ogg",
+   "start_5.mp3"
   ],
   "start_6": [
-   "start.ogg",
-   "start.mp3"
+   "start_6.ogg",
+   "start_6.mp3"
   ],
   "success_1": [
-   "success.ogg",
-   "success.mp3"
+   "success_1.ogg",
+   "success_1.mp3"
   ],
   "success_2": [
-   "success.ogg",
-   "success.mp3"
+   "success_2.ogg",
+   "success_2.mp3"
   ],
   "success_3": [
-   "success.ogg",
-   "success.mp3"
-  ],
-  "exit": [
-   "success.ogg",
-   "success.mp3"
+   "success_3.ogg",
+   "success_3.mp3"
   ],
   "fail_1": [
-   "fail.ogg",
-   "fail.mp3"
+   "fail_1.ogg",
+   "fail_1.mp3"
   ],
   "fail_2": [
-   "fail.ogg",
-   "fail.mp3"
+   "fail_2.ogg",
+   "fail_2.mp3"
   ],
   "fail_3": [
-   "fail.ogg",
-   "fail.mp3"
+   "fail_3.ogg",
+   "fail_3.mp3"
+  ],
+  "exit": [
+   "exit.ogg",
+   "exit.mp3"
+  ],
+  "debrief_promotion": [
+   "debrief_promotion.ogg",
+   "debrief_promotion.mp3"
   ],
   "mission_tension_a": [
    "mission_tension_a.ogg",
@@ -104,178 +137,480 @@
  },
  "meta": {
   "menu": {
+   "category": "menu",
+   "gain": 1.0,
    "bpm": 96,
    "barSec": 2.5,
    "lengthSec": 164.0,
+   "lengthSamples": 7872000,
+   "sampleRate": 48000,
    "tailSec": 4.0,
    "lufs": -18.05,
+   "truePeakDbTP": -1.87,
    "key": "D minor (Aeolian) -> F major -> D minor",
+   "mood": "heroic, restrained, confident",
+   "mp3LeadSec": 0.023021,
    "loopStart": 10.0,
    "loopEnd": 160.0,
+   "loopStartSample": 480000,
+   "loopEndSample": 7680000,
    "decodeRate": 32000
   },
   "credits": {
+   "category": "credits",
+   "gain": 1.0,
    "bpm": 96,
    "barSec": 2.5,
-   "lengthSec": 164.0,
+   "lengthSec": 74.0,
+   "lengthSamples": 3552000,
+   "sampleRate": 48000,
+   "tailSec": 0.0,
+   "lufs": -18.0,
+   "truePeakDbTP": -1.79,
+   "key": "D minor -> D major",
+   "mood": "proud, reflective",
+   "mp3LeadSec": 0.023021,
+   "once": true,
+   "decodeRate": 32000
+  },
+  "tutorial": {
+   "category": "tutorial",
+   "gain": 1.0,
+   "bpm": 100,
+   "barSec": 2.4,
+   "lengthSec": 215.2,
+   "lengthSamples": 10329600,
+   "sampleRate": 48000,
    "tailSec": 4.0,
    "lufs": -18.05,
-   "key": "D minor (Aeolian) -> F major -> D minor",
-   "loopStart": 10.0,
-   "loopEnd": 160.0,
+   "truePeakDbTP": -1.9,
+   "key": "F major / D minor",
+   "mood": "brisk, training camp, lighter but military",
+   "mp3LeadSec": 0.023021,
+   "loopStart": 9.6,
+   "loopEnd": 211.2,
+   "loopStartSample": 460800,
+   "loopEndSample": 10137600,
    "decodeRate": 32000
   },
   "briefing_1": {
-   "bpm": 84,
-   "barSec": 2.857143,
-   "lengthSec": 75.429,
+   "category": "briefing",
+   "gain": 1.0,
+   "bpm": 80,
+   "barSec": 3.0,
+   "lengthSec": 88.0,
+   "lengthSamples": 4224000,
+   "sampleRate": 48000,
    "tailSec": 4.0,
-   "lufs": -20.08,
+   "lufs": -20.12,
+   "truePeakDbTP": -6.12,
    "key": "D minor",
-   "loopStart": 2.857146,
-   "loopEnd": 71.428562,
+   "mood": "tense, methodical, planning",
+   "mp3LeadSec": 0.023021,
+   "loopStart": 6.0,
+   "loopEnd": 84.0,
+   "loopStartSample": 288000,
+   "loopEndSample": 4032000,
    "decodeRate": 32000
   },
   "briefing_2": {
-   "bpm": 84,
-   "barSec": 2.857143,
-   "lengthSec": 75.429,
+   "category": "briefing",
+   "gain": 1.0,
+   "bpm": 90,
+   "barSec": 2.666667,
+   "lengthSec": 100.0,
+   "lengthSamples": 4800000,
+   "sampleRate": 48000,
    "tailSec": 4.0,
-   "lufs": -20.08,
-   "key": "D minor",
-   "loopStart": 2.857146,
-   "loopEnd": 71.428562,
+   "lufs": -20.07,
+   "truePeakDbTP": -6.91,
+   "key": "A minor",
+   "mood": "urgent, clockwork",
+   "mp3LeadSec": 0.023021,
+   "loopStart": 5.333333,
+   "loopEnd": 96.0,
+   "loopStartSample": 256000,
+   "loopEndSample": 4608000,
    "decodeRate": 32000
   },
   "briefing_3": {
+   "category": "briefing",
+   "gain": 1.0,
+   "bpm": 70,
+   "barSec": 3.428571,
+   "lengthSec": 113.714,
+   "lengthSamples": 5458286,
+   "sampleRate": 48000,
+   "tailSec": 4.0,
+   "lufs": -20.06,
+   "truePeakDbTP": -9.05,
+   "key": "G minor",
+   "mood": "sombre, weighty, the stakes",
+   "mp3LeadSec": 0.023021,
+   "loopStart": 6.857146,
+   "loopEnd": 109.714292,
+   "loopStartSample": 329143,
+   "loopEndSample": 5266286,
+   "decodeRate": 32000
+  },
+  "campaign_norway": {
+   "category": "campaign",
+   "gain": 1.0,
+   "bpm": 72,
+   "barSec": 3.333333,
+   "lengthSec": 137.333,
+   "lengthSamples": 6592000,
+   "sampleRate": 48000,
+   "tailSec": 4.0,
+   "lufs": -18.08,
+   "truePeakDbTP": -5.97,
+   "key": "D Dorian (B natural)",
+   "mood": "cold, lonely, determined",
+   "mp3LeadSec": 0.023021,
+   "loopStart": 6.666667,
+   "loopEnd": 133.333333,
+   "loopStartSample": 320000,
+   "loopEndSample": 6400000,
+   "decodeRate": 32000
+  },
+  "campaign_africa": {
+   "category": "campaign",
+   "gain": 1.0,
+   "bpm": 104,
+   "barSec": 2.307692,
+   "lengthSec": 77.846,
+   "lengthSamples": 3736615,
+   "sampleRate": 48000,
+   "tailSec": 4.0,
+   "lufs": -17.95,
+   "truePeakDbTP": -1.88,
+   "key": "E Phrygian",
+   "mood": "restless, dry, sun-hammered",
+   "mp3LeadSec": 0.023021,
+   "loopStart": 2.307688,
+   "loopEnd": 73.846146,
+   "loopStartSample": 110769,
+   "loopEndSample": 3544615,
+   "decodeRate": 32000
+  },
+  "campaign_normandy": {
+   "category": "campaign",
+   "gain": 1.0,
+   "bpm": 108,
+   "barSec": 2.222222,
+   "lengthSec": 110.667,
+   "lengthSamples": 5312000,
+   "sampleRate": 48000,
+   "tailSec": 4.0,
+   "lufs": -18.1,
+   "truePeakDbTP": -1.71,
+   "key": "B-flat major <-> G minor (trio in E-flat)",
+   "mood": "hope with a cost; forward motion",
+   "mp3LeadSec": 0.023021,
+   "loopStart": 8.888896,
+   "loopEnd": 106.666667,
+   "loopStartSample": 426667,
+   "loopEndSample": 5120000,
+   "decodeRate": 32000
+  },
+  "campaign_rhine": {
+   "category": "campaign",
+   "gain": 1.0,
    "bpm": 84,
    "barSec": 2.857143,
-   "lengthSec": 75.429,
+   "lengthSec": 72.571,
+   "lengthSamples": 3483429,
+   "sampleRate": 48000,
    "tailSec": 4.0,
-   "lufs": -20.08,
-   "key": "D minor",
-   "loopStart": 2.857146,
-   "loopEnd": 71.428562,
+   "lufs": -18.12,
+   "truePeakDbTP": -1.87,
+   "key": "C minor",
+   "mood": "heavy, grinding, muddy",
+   "mp3LeadSec": 0.023021,
+   "loopStart": 5.714292,
+   "loopEnd": 68.571438,
+   "loopStartSample": 274286,
+   "loopEndSample": 3291429,
+   "decodeRate": 32000
+  },
+  "campaign_reich": {
+   "category": "campaign",
+   "gain": 1.0,
+   "bpm": 120,
+   "barSec": 2.0,
+   "lengthSec": 95.0,
+   "lengthSamples": 4560000,
+   "sampleRate": 48000,
+   "tailSec": 3.0,
+   "lufs": -18.04,
+   "truePeakDbTP": -1.85,
+   "key": "F minor, Phrygian bII (G-flat)",
+   "mood": "grim, relentless, dark grandeur",
+   "mp3LeadSec": 0.023021,
+   "loopStart": 4.0,
+   "loopEnd": 92.0,
+   "loopStartSample": 192000,
+   "loopEndSample": 4416000,
+   "decodeRate": 32000
+  },
+  "campaign_end": {
+   "category": "campaign",
+   "gain": 1.0,
+   "bpm": 66,
+   "barSec": 3.636364,
+   "lengthSec": 85.273,
+   "lengthSamples": 4093090,
+   "sampleRate": 48000,
+   "tailSec": 0.0,
+   "lufs": -18.0,
+   "truePeakDbTP": -6.42,
+   "key": "D major -> B minor -> D major",
+   "mood": "elegy, earned peace",
+   "mp3LeadSec": 0.023021,
+   "once": true,
    "decodeRate": 32000
   },
   "start_1": {
-   "bpm": 84,
-   "barSec": 2.857143,
-   "lengthSec": 15.429,
-   "tailSec": 4.0,
-   "lufs": -20.0,
-   "key": "D minor",
-   "endSec": 11.429
+   "category": "stinger_start",
+   "gain": 1.0,
+   "bpm": 72,
+   "barSec": 3.333333,
+   "lengthSec": 16.666,
+   "lengthSamples": 799984,
+   "sampleRate": 48000,
+   "tailSec": 0.0,
+   "lufs": -16.0,
+   "truePeakDbTP": -6.31,
+   "key": "D Dorian (B natural)",
+   "mood": "cold, still, resolute - mission start (Norway)",
+   "mp3LeadSec": 0.023021,
+   "once": true,
+   "endSec": 15.166
   },
   "start_2": {
-   "bpm": 84,
-   "barSec": 2.857143,
-   "lengthSec": 15.429,
-   "tailSec": 4.0,
-   "lufs": -20.0,
-   "key": "D minor",
-   "endSec": 11.429
+   "category": "stinger_start",
+   "gain": 1.0,
+   "bpm": 104,
+   "barSec": 2.307692,
+   "lengthSec": 13.848,
+   "lengthSamples": 664726,
+   "sampleRate": 48000,
+   "tailSec": 0.0,
+   "lufs": -16.0,
+   "truePeakDbTP": -1.83,
+   "key": "E Phrygian",
+   "mood": "restless, dry, sun-hammered - mission start (North Africa)",
+   "mp3LeadSec": 0.023021,
+   "once": true,
+   "endSec": 12.348
   },
   "start_3": {
-   "bpm": 84,
-   "barSec": 2.857143,
-   "lengthSec": 15.429,
-   "tailSec": 4.0,
-   "lufs": -20.0,
-   "key": "D minor",
-   "endSec": 11.429
+   "category": "stinger_start",
+   "gain": 1.0,
+   "bpm": 108,
+   "barSec": 2.222222,
+   "lengthSec": 17.776,
+   "lengthSamples": 853226,
+   "sampleRate": 48000,
+   "tailSec": 0.0,
+   "lufs": -16.0,
+   "truePeakDbTP": -1.71,
+   "key": "B-flat major (ends on the dominant F)",
+   "mood": "hope, momentum - mission start (Normandy)",
+   "mp3LeadSec": 0.023021,
+   "once": true,
+   "endSec": 16.276
   },
   "start_4": {
+   "category": "stinger_start",
+   "gain": 1.0,
    "bpm": 84,
    "barSec": 2.857143,
-   "lengthSec": 15.429,
-   "tailSec": 4.0,
-   "lufs": -20.0,
-   "key": "D minor",
-   "endSec": 11.429
+   "lengthSec": 17.146,
+   "lengthSamples": 822994,
+   "sampleRate": 48000,
+   "tailSec": 0.0,
+   "lufs": -16.0,
+   "truePeakDbTP": -2.07,
+   "key": "C minor",
+   "mood": "heavy, grinding - mission start (Rhine)",
+   "mp3LeadSec": 0.023021,
+   "once": true,
+   "endSec": 15.646
   },
   "start_5": {
-   "bpm": 84,
-   "barSec": 2.857143,
-   "lengthSec": 15.429,
-   "tailSec": 4.0,
-   "lufs": -20.0,
-   "key": "D minor",
-   "endSec": 11.429
+   "category": "stinger_start",
+   "gain": 1.0,
+   "bpm": 120,
+   "barSec": 2.0,
+   "lengthSec": 24.0,
+   "lengthSamples": 1152000,
+   "sampleRate": 48000,
+   "tailSec": 0.0,
+   "lufs": -16.0,
+   "truePeakDbTP": -1.97,
+   "key": "F minor, Phrygian bII (G-flat)",
+   "mood": "grim, relentless - mission start (Final Assault)",
+   "mp3LeadSec": 0.023021,
+   "once": true,
+   "endSec": 22.5
   },
   "start_6": {
-   "bpm": 84,
-   "barSec": 2.857143,
-   "lengthSec": 15.429,
-   "tailSec": 4.0,
-   "lufs": -20.0,
+   "category": "stinger_start",
+   "gain": 1.0,
+   "bpm": 80,
+   "barSec": 3.0,
+   "lengthSec": 21.0,
+   "lengthSamples": 1008000,
+   "sampleRate": 48000,
+   "tailSec": 0.0,
+   "lufs": -16.0,
+   "truePeakDbTP": -3.51,
    "key": "D minor",
-   "endSec": 11.429
+   "mood": "covert, tense, quiet - mission start (generic)",
+   "mp3LeadSec": 0.023021,
+   "once": true,
+   "endSec": 19.5
   },
   "success_1": {
-   "bpm": 84,
-   "barSec": 2.857143,
-   "lengthSec": 15.929,
-   "tailSec": 4.0,
-   "lufs": -18.0,
-   "key": "D minor -> D major",
-   "endSec": 11.929
+   "category": "stinger_success",
+   "gain": 1.0,
+   "bpm": 112,
+   "barSec": 2.142857,
+   "lengthSec": 10.711,
+   "lengthSamples": 514148,
+   "sampleRate": 48000,
+   "tailSec": 0.0,
+   "lufs": -16.0,
+   "truePeakDbTP": -2.47,
+   "key": "D major (bVI-I close)",
+   "mood": "triumphant with weight - mission success",
+   "mp3LeadSec": 0.023021,
+   "once": true,
+   "endSec": 9.211
   },
   "success_2": {
-   "bpm": 84,
-   "barSec": 2.857143,
-   "lengthSec": 15.929,
-   "tailSec": 4.0,
-   "lufs": -18.0,
-   "key": "D minor -> D major",
-   "endSec": 11.929
+   "category": "stinger_success",
+   "gain": 1.0,
+   "bpm": 100,
+   "barSec": 2.4,
+   "lengthSec": 12.0,
+   "lengthSamples": 576000,
+   "sampleRate": 48000,
+   "tailSec": 0.0,
+   "lufs": -16.0,
+   "truePeakDbTP": -1.85,
+   "key": "B-flat major (minor-plagal close)",
+   "mood": "warm, proud, with weight - mission success",
+   "mp3LeadSec": 0.023021,
+   "once": true,
+   "endSec": 10.5
   },
   "success_3": {
-   "bpm": 84,
-   "barSec": 2.857143,
-   "lengthSec": 15.929,
-   "tailSec": 4.0,
-   "lufs": -18.0,
-   "key": "D minor -> D major",
-   "endSec": 11.929
-  },
-  "exit": {
-   "bpm": 84,
-   "barSec": 2.857143,
-   "lengthSec": 15.929,
-   "tailSec": 4.0,
-   "lufs": -18.0,
-   "key": "D minor -> D major",
-   "endSec": 11.929
+   "category": "stinger_success",
+   "gain": 1.0,
+   "bpm": 96,
+   "barSec": 2.5,
+   "lengthSec": 13.5,
+   "lengthSamples": 648000,
+   "sampleRate": 48000,
+   "tailSec": 0.0,
+   "lufs": -16.0,
+   "truePeakDbTP": -1.82,
+   "key": "F major (F minor -> Picardy F major)",
+   "mood": "brisk, earned - mission success",
+   "mp3LeadSec": 0.023021,
+   "once": true,
+   "endSec": 12.0
   },
   "fail_1": {
-   "bpm": 72,
-   "barSec": 3.333333,
-   "lengthSec": 15.0,
-   "tailSec": 4.0,
-   "lufs": -20.0,
-   "key": "D Phrygian",
-   "endSec": 11.0
+   "category": "stinger_fail",
+   "gain": 1.0,
+   "bpm": 60,
+   "barSec": 4.0,
+   "lengthSec": 16.0,
+   "lengthSamples": 768000,
+   "sampleRate": 48000,
+   "tailSec": 0.0,
+   "lufs": -16.0,
+   "truePeakDbTP": -5.5,
+   "key": "D minor (ends i add b6)",
+   "mood": "loss, broken resolve - mission failed",
+   "mp3LeadSec": 0.023021,
+   "once": true,
+   "endSec": 14.5
   },
   "fail_2": {
-   "bpm": 72,
-   "barSec": 3.333333,
-   "lengthSec": 15.0,
-   "tailSec": 4.0,
-   "lufs": -20.0,
-   "key": "D Phrygian",
-   "endSec": 11.0
+   "category": "stinger_fail",
+   "gain": 1.0,
+   "bpm": 66,
+   "barSec": 3.636364,
+   "lengthSec": 19.995,
+   "lengthSamples": 959781,
+   "sampleRate": 48000,
+   "tailSec": 0.0,
+   "lufs": -16.0,
+   "truePeakDbTP": -3.89,
+   "key": "G minor",
+   "mood": "funeral, sober - mission failed",
+   "mp3LeadSec": 0.023021,
+   "once": true,
+   "endSec": 18.495
   },
   "fail_3": {
-   "bpm": 72,
-   "barSec": 3.333333,
-   "lengthSec": 15.0,
-   "tailSec": 4.0,
-   "lufs": -20.0,
-   "key": "D Phrygian",
-   "endSec": 11.0
+   "category": "stinger_fail",
+   "gain": 1.0,
+   "bpm": 56,
+   "barSec": 4.285714,
+   "lengthSec": 22.003,
+   "lengthSamples": 1056137,
+   "sampleRate": 48000,
+   "tailSec": 0.0,
+   "lufs": -16.0,
+   "truePeakDbTP": -3.77,
+   "key": "D minor",
+   "mood": "elegy, unfinished - mission failed",
+   "mp3LeadSec": 0.023021,
+   "once": true,
+   "endSec": 20.503
+  },
+  "exit": {
+   "category": "stinger_exit",
+   "gain": 1.0,
+   "bpm": 90,
+   "barSec": 2.666667,
+   "lengthSec": 8.0,
+   "lengthSamples": 384015,
+   "sampleRate": 48000,
+   "tailSec": 0.0,
+   "lufs": -18.0,
+   "truePeakDbTP": -3.75,
+   "key": "D minor -> D major",
+   "mood": "curt sign-off",
+   "mp3LeadSec": 0.023021,
+   "once": true,
+   "endSec": 6.5
+  },
+  "debrief_promotion": {
+   "category": "stinger_promotion",
+   "gain": 1.0,
+   "bpm": 112,
+   "barSec": 2.142857,
+   "lengthSec": 17.15,
+   "lengthSamples": 823200,
+   "sampleRate": 48000,
+   "tailSec": 0.0,
+   "lufs": -16.0,
+   "truePeakDbTP": -1.82,
+   "key": "B-flat major (bVI colour, resolved)",
+   "mood": "ceremonial, proud - promotion/medal",
+   "mp3LeadSec": 0.023021,
+   "once": true,
+   "endSec": 15.65
   },
   "mission_tension_a": {
+   "category": "mission",
+   "gain": 1.0,
    "bpm": 84,
    "barSec": 2.857143,
    "lengthSec": 126.857,
@@ -287,6 +622,8 @@
    "decodeRate": 24000
   },
   "mission_tension_b": {
+   "category": "mission",
+   "gain": 1.0,
    "bpm": 84,
    "barSec": 2.857143,
    "lengthSec": 155.429,
@@ -298,6 +635,8 @@
    "decodeRate": 24000
   },
   "mission_tension_c": {
+   "category": "mission",
+   "gain": 1.0,
    "bpm": 84,
    "barSec": 2.857143,
    "lengthSec": 155.429,
@@ -309,6 +648,8 @@
    "decodeRate": 24000
   },
   "mission_bridge_1": {
+   "category": "mission",
+   "gain": 1.0,
    "bpm": 84,
    "barSec": 2.857143,
    "lengthSec": 29.714,
@@ -320,6 +661,8 @@
    "decodeRate": 24000
   },
   "mission_bridge_2": {
+   "category": "mission",
+   "gain": 1.0,
    "bpm": 84,
    "barSec": 2.857143,
    "lengthSec": 29.714,
@@ -331,6 +674,8 @@
    "decodeRate": 24000
   },
   "mission_bridge_3": {
+   "category": "mission",
+   "gain": 1.0,
    "bpm": 84,
    "barSec": 2.857143,
    "lengthSec": 29.714,
@@ -342,6 +687,8 @@
    "decodeRate": 24000
   },
   "mission_alert": {
+   "category": "mission_alert",
+   "gain": 1.0,
    "bpm": 84,
    "barSec": 2.857143,
    "lengthSec": 75.429,

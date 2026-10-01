@@ -23,6 +23,16 @@ export const ALERT_CUE = 'mission_alert';
 export const HOT_STATES = Object.freeze(new Set(['COMBAT', 'SEARCH', 'ALARM_RUN', 'ARREST', 'combat', 'search']));
 export const PAUSE_GAIN = 0.35;
 export const DUCK_GAIN = 0.55;
+/** Briefing loops sit under the Colonel's voice: ducked by 8 dB while he speaks (STYLE §2.2). */
+export const BRIEFING_DUCK_GAIN = 0.4;
+/** Bed crossfade (s): outgoing fade, incoming fade (1.5–3 s between cues). */
+export const BED_FADE_OUT = 2.0;
+export const BED_FADE_IN = 1.5;
+/** Play-once beds and the bed that follows them (STYLE §2.5: campaign_end → credits → menu). */
+export const BED_THEN = Object.freeze({ credits: 'menu', campaign_end: 'credits' });
+
+/** Gain the duck node takes while a voice speaks over `bedId` (null = the mission score / no bed). */
+export function duckGainFor(bedId) { return /^briefing_/.test(bedId || '') ? BRIEFING_DUCK_GAIN : DUCK_GAIN; }
 /** Level of the tension chain under gameplay (≈ -7.5 dB: the cues are mastered at -22 LUFS; footsteps must sit
  * above the score). The alert layer and the stingers play at full level. */
 export const TENSION_TRIM = 0.42;
@@ -108,7 +118,7 @@ export class MusicDirector {
   get now() { return this.ctx.currentTime || 0; }
 
   /** Start a buffer on `bus` at time `at` (offset s); loop with the manifest loop points when asked. */
-  _src(res, bus, at, { offset = 0, loop = false, gain = 1 } = {}) {
+  _src(res, bus, at, { offset = 0, loop = false, gain = 1, onEnd = null } = {}) {
     const src = this.ctx.createBufferSource();
     src.buffer = res.buffer;
     if (loop) {
@@ -117,9 +127,15 @@ export class MusicDirector {
       if (m.loopEnd > m.loopStart) { src.loopStart = m.loopStart; src.loopEnd = m.loopEnd; }
     }
     const g = this.ctx.createGain(); g.gain.value = gain;
-    src.connect(g); g.connect(bus);
+    const trim = this.ctx.createGain(); trim.gain.value = Number.isFinite(res.meta?.gain) ? res.meta.gain : 1; // manifest gain
+    src.connect(trim); trim.connect(g); g.connect(bus);
     const h = { src, g, id: res.id, ended: false, at };
-    src.onended = () => { h.ended = true; this.handles.delete(h); try { g.disconnect(); } catch { /* ignore */ } };
+    src.onended = () => {
+      const natural = !h.ended;
+      h.ended = true; this.handles.delete(h);
+      try { g.disconnect(); } catch { /* ignore */ }
+      if (natural && onEnd) onEnd(h);
+    };
     try { src.start(Math.max(this.now, at), Math.max(0, offset)); } catch { /* ignore */ }
     this.handles.add(h);
     return h;
@@ -163,23 +179,38 @@ export class MusicDirector {
   }
 
   // ---- beds & stingers ----------------------------------------------------------------------------------------
-  /** Looping bed outside missions (menu / briefing); null stops it. */
+  /**
+   * Bed outside missions (menu / campaign / briefing / tutorial / credits); null stops it. Beds with loop points loop
+   * their body (sample-accurate loopStart/loopEnd after a play-once intro); `once` beds (credits, campaign_end) play
+   * through and hand over to BED_THEN. Changing bed crossfades (BED_FADE_OUT / BED_FADE_IN).
+   */
   playBed(id) {
     if (this.bed?.id === id && (this.bed.h || this.bed.pending)) return;
-    if (this.bed?.h) this._stop(this.bed.h, 1.5);
-    this.bed = id ? { id, h: null, pending: true } : null;
-    if (!id) return;
-    this._drop((k) => k !== id && !MISSION_CHAIN.includes(k) && k !== ALERT_CUE && !/^(start|success|fail)_/.test(k)); // other beds
+    // the audible bed keeps playing until the incoming one is decoded: then they crossfade (no gap / dip while the
+    // next cue decodes). `out` = the bed still sounding while a request is pending ({id, h, rec}).
+    const prev = this.bed;
+    const out = prev?.h ? { id: prev.id, h: prev.h, rec: prev } : prev?.out || null;
+    if (!id) { this.bed = null; if (out) this._stop(out.h, BED_FADE_OUT); return; }
+    if (out?.id === id && !out.h.ended) { this.bed = out.rec; return; } // back to the bed that never stopped
+    const rec = this.bed = { id, h: null, pending: true, out };
+    const then = BED_THEN[id] || null;
+    this._drop((k) => k !== id && k !== then && k !== out?.id && !MISSION_CHAIN.includes(k) && k !== ALERT_CUE && !/^(start|success|fail)_/.test(k)); // other beds
     this.log({ type: 'music', name: id, bed: true });
-    const rec = this.bed;
     this.fetch(id).then((res) => {
       if (this.bed !== rec) return;
       rec.pending = false;
+      if (rec.out) { this._stop(rec.out.h, BED_FADE_OUT); rec.out = null; }
       if (!res) return;
-      rec.h = this._src(res, this.bedBus, this.now + 0.02, { loop: true, gain: 0 });
-      setG(rec.h.g.gain, 1, this.now, 1.0);
+      const loops = res.meta.loopEnd > res.meta.loopStart;
+      const next = loops ? null : then;
+      if (next) this.fetch(next); // decoded before the play-once bed ends: the handover has no gap
+      const onEnd = next ? () => { if (this.bed === rec) { this.bed = null; this.playBed(next); this.onBedChange?.(next); } } : null;
+      rec.h = this._src(res, this.bedBus, this.now + 0.02, { loop: loops, gain: 0, onEnd });
+      setG(rec.h.g.gain, 1, this.now, BED_FADE_IN);
     });
   }
+  /** Decode a front-end bed ahead of its request (the map table's briefing loop) so the change is a true crossfade. */
+  prefetchBed(id) { if (id && this.has(id)) this.fetch(id); }
   /** One-shot stinger. Resolves its handle (null when the cue has no recorded file). */
   stinger(id, at = null) {
     this.log({ type: 'music', name: id, stinger: true });
@@ -196,6 +227,7 @@ export class MusicDirector {
   startMission({ stinger = null } = {}) {
     this.stopMission(1.5, false);
     if (this.bed?.h) this._stop(this.bed.h, 1.5);
+    if (this.bed?.out) this._stop(this.bed.out.h, 1.5);
     this.bed = null;
     const g = ++this.gen;
     this.state = 'mission'; this.history = []; this.threat.reset();
@@ -292,12 +324,16 @@ export class MusicDirector {
   dropEnemy(key) { this.threat.drop(key, this.now); }
 
   setPaused(b) { if (this.paused === !!b) return; this.paused = !!b; setG(this.master.gain, b ? PAUSE_GAIN : 1, this.now, 0.4); }
-  setDuck(b) { if (this.ducked === !!b) return; this.ducked = !!b; setG(this.duckNode.gain, b ? DUCK_GAIN : 1, this.now, b ? 0.25 : 0.8); }
+  setDuck(b) {
+    if (this.ducked === !!b) return;
+    this.ducked = !!b;
+    setG(this.duckNode.gain, b ? duckGainFor(this.state === 'mission' ? null : this.bed?.id) : 1, this.now, b ? 0.25 : 0.8);
+  }
 
   /** Stop the mission score (fade) — `bump` drops pending async starts. */
   stopMission(fade = 1.2, bump = true) {
     if (bump) this.gen++;
-    for (const h of [...this.handles]) if (h !== this.bed?.h) this._stop(h, fade);
+    for (const h of [...this.handles]) if (h !== this.bed?.h && h !== this.bed?.out?.h) this._stop(h, fade);
     this.seg = null; this.alert = null; this.grid = null; this.pendingStart = null;
     this.threat.reset();
     const now = this.now;
@@ -328,5 +364,5 @@ export class MusicDirector {
     if (!this.seg) return this.pendingStart ? null : null;
     return this.seg.at <= this.now + 1e-3 ? this.seg.id : this.history[this.history.length - 2] ?? this.seg.id;
   }
-  dispose() { this.stopMission(0); if (this.bed?.h) this._stop(this.bed.h, 0); this.bed = null; }
+  dispose() { this.stopMission(0); if (this.bed?.h) this._stop(this.bed.h, 0); if (this.bed?.out) this._stop(this.bed.out.h, 0); this.bed = null; }
 }

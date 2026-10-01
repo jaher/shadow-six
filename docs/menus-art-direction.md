@@ -38,7 +38,7 @@ These twelve invariants are not negotiable. If a screen breaks one, it no longer
 **Legal guard rails:**
 - No Eidos or Pyro logos, flame marks or box art. The emblem, wordmark and key art are our own.
 - Never use the original "COMMANDOS" plate or the real Combined Operations badge.
-- No swastikas, SS runes or death's heads (spec §10.6).
+- No swastikas, SS runes or death's heads in menus, UI, stills or branding (spec §10.6). In-mission enemy flags are the historical flag by user decision (spec §10.6, Options → INSIGNIA); menus never show it.
 - Assets are CC0 or made by us. The only licence exceptions are the fonts (SIL OFL / Apache-2.0), with licence files shipped in `assets/fonts/`.
 
 ---

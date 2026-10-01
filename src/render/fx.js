@@ -16,7 +16,8 @@
  *  - 'vehicle:fire'   cannon muzzle_flash · 'hit' knife/harpoon → blood_puff · wall/metal → sparks · smoke_puff
  *  - 'unit:killed'    blood_puff + pool decal (unless blood off / censored; not for bloodless causes)
  *  - vehicles         vehicle_dust_trail on sand/snow/dirt, mud_spray on mud cells
- *  - structures       chimney_smoke on houses with chimneys (+ fire_small campfires / smoke_column from mission `fx`)
+ *  - structures       chimney_smoke from the models' chimney anchors (ambient smoke: capped + masked for readability,
+ *                     vfx/ambient.js) (+ fire_small campfires / smoke_column from mission `fx`)
  * Explosive drums are registered with `vfx.addExplosive` (gameplay stays authoritative: the drum's own `ignite`
  * chain detonates it; the registry hides the prop and gives the chained look).
  * Without a WebGL renderer (node tests) nothing is drawn but every event is still mapped and logged in `items`.
@@ -26,6 +27,9 @@
 import * as THREE from 'three';
 import { createVfx } from './vfx/index.js';
 import { T } from '../world/grid.js';
+import { buildingMeta } from '../art/building-library.js';
+import { assetExtents } from '../art/building-props.js';
+import { coneAt } from '../ai/perception.js';
 
 /** Theater → default ground surface (dust / clod colours). */
 const THEATER_SURF = { desert: 'sand', snow: 'snow', temperate: 'grass', coast: 'dirt', night: 'grass', winter: 'snow' };
@@ -41,6 +45,10 @@ const NO_BLOOD_CAUSE = new Set(['syringe', 'injection', 'drown', 'fire', 'electr
 const ROUND_SPEED = 260;
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+const _ray = new THREE.Raycaster(), _down = new THREE.Vector3(0, -1, 0);
+// the scene now carries THREE.Sprites (vehicle headlight halos): Sprite.raycast needs raycaster.camera or it throws, so
+// the down-rays get a fixed dummy camera (sprite hits are filtered out by the callers anyway)
+_ray.camera = new THREE.PerspectiveCamera(); _ray.camera.updateMatrixWorld();
 
 /**
  * The reduced-motion option (ui-config: 'system' | 'on' | 'off'; booleans accepted): 'system' follows the
@@ -339,6 +347,7 @@ export class FX {
     const houses = [];
     for (const [id, s] of w.structures || []) if (s?.object3d && !s.entity) houses.push([id, s]);
     houses.forEach(([id, s], k) => this._maybeChimney(id, s, k));
+    this._lightChimneys();
     for (const f of w.mission?.fx || []) if (f?.kind && f.x != null) this.spawn(f.kind, f.x, f.z, { ...f });
   }
 
@@ -354,36 +363,118 @@ export class FX {
   }
 
   /**
-   * Chimney smoke (E4): structures with a chimney — a child named /chimney/ in the model, `chimney: true|{x,z,y}` in
-   * the mission data, or (placeholder houses) a seeded share of houses/huts that get a small brick stack.
+   * Chimney smoke (E4, ambient): emission points are the chimney tops of the ACTUAL model — the building library's
+   * `chimney` anchors (manifest sidecar, transformed by the placed instance, also for instanced repeats), a model child
+   * named /chimney/, or the mission's `chimney: {x, z, y}`. Library models without a chimney anchor never smoke (no smoke
+   * from bare roofs); ruins / destroyed variants are cold. Only procedural placeholder houses/huts (no library model)
+   * get a seeded brick stack, seated on the roof surface under it (raycast) so it never floats.
+   * Per-chimney variety (seeded by id): cold / faint / normal / busy, theater-weighted, plus a slow draught variation.
    */
   _maybeChimney(id, s, k) {
     const def = s.def || {}, obj = s.object3d;
     if (def.chimney === false || s.destroyed) return;
-    let pos = null, mesh = null;
     obj.updateMatrixWorld(true);
-    obj.traverse((o) => { if (!pos && /chimney/i.test(o.name || '')) { const b = new THREE.Box3().setFromObject(o); pos = V3((b.min.x + b.max.x) / 2, b.max.y + 0.1, (b.min.z + b.max.z) / 2); } });
-    if (!pos && def.chimney && typeof def.chimney === 'object') pos = V3(def.chimney.x, def.chimney.y ?? this._y(def.chimney.x, def.chimney.z) + 6, def.chimney.z);
-    if (!pos) {
+    let pts = def.chimney && typeof def.chimney === 'object'
+      ? [V3(def.chimney.x, def.chimney.y ?? this._y(def.chimney.x, def.chimney.z) + 6, def.chimney.z)] : FX.chimneyPoints(obj);
+    if (pts === null) return; // library model without a chimney (or a ruin): no smoke
+    pts = pts.map((q) => this._seatOnStack(q));
+    let mesh = null;
+    if (!pts.length) {
       if (!['house', 'hut'].includes(s.type) && def.chimney !== true) return;
       const share = this.theater === 'snow' ? 0.75 : 0.45;
       const r = (Math.imul((k + 1) * 2654435761, 97) >>> 0) / 4294967296 + (typeof id === 'string' ? id.length * 0.013 : 0);
       if (def.chimney !== true && (r % 1) > share) return;
-      const box = new THREE.Box3().setFromObject(obj);
-      if (box.isEmpty()) return;
-      const w = def.w ?? (box.max.x - box.min.x), d = def.d ?? (box.max.z - box.min.z);
-      const local = V3(w * 0.28 * (k % 2 ? 1 : -1), 0, d * 0.18);
-      local.applyAxisAngle(V3(0, 1, 0), obj.rotation?.y ?? 0);
-      const cx = (box.min.x + box.max.x) / 2 + local.x, cz = (box.min.z + box.max.z) / 2 + local.z;
-      mesh = new THREE.Mesh(FX._stackGeo ||= new THREE.BoxGeometry(0.6, 1.5, 0.6), FX._stackMat ||= new THREE.MeshStandardMaterial({ color: 0x5b3a2e, roughness: 0.92 }));
-      mesh.position.set(cx, box.max.y + 0.45, cz); mesh.castShadow = true; mesh.receiveShadow = true; mesh.name = 'fx-chimney';
-      this.root.add(mesh);
-      pos = V3(cx, box.max.y + 1.25, cz);
+      const st = this._placeholderStack(obj, def, k);
+      if (!st) return;
+      mesh = st.mesh; pts = [st.pos];
     }
-    // wood smoke is grey-white: over snow it needs a slightly darker, denser plume to read from the game camera
-    const snow = this.theater === 'snow';
-    const handle = this.spawn('chimney_smoke', pos.x, pos.z, { y: pos.y, rate: snow ? 26 : 20, op: snow ? 0.6 : 0.45, col: snow ? [0.33, 0.34, 0.36] : undefined });
-    this._chimneys.push({ id, owner: s.owner, handle, mesh, pos });
+    pts.forEach((pos, j) => {
+      const act = def.chimney === true || def.chimney?.activity != null ? (def.chimney?.activity ?? 1) : FX.chimneyActivity(`${id}#${j}`, this.theater);
+      const rec = { id, owner: s.owner, handle: null, mesh: j === 0 ? mesh : null, pos, activity: act };
+      this._chimneys.push(rec);
+    });
+  }
+
+  /**
+   * The sidecar's chimney anchor floats a few decimetres above the stack (capped stacks): snap the emission point down
+   * onto the drawn stack top (+5 cm) with a short ray (instanced repeats are drawn by a batch → ray the whole scene).
+   */
+  _seatOnStack(q) {
+    const root = this.scene;
+    if (!root?.isObject3D) return q;
+    _ray.set(V3(q.x, q.y + 0.3, q.z), _down); _ray.far = 1.0;
+    const hit = _ray.intersectObject(root, true).find((h) => h.object.visible !== false && !h.object.isPoints && !h.object.isSprite && h.object.name !== 'fx-chimney');
+    return hit && hit.point.y > q.y - 0.7 ? V3(q.x, hit.point.y + 0.05, q.z) : q;
+  }
+
+  /** After the scan: make sure a map with chimneys has at least one lit, then start the emitters. */
+  _lightChimneys() {
+    const C = this._chimneys;
+    if (C.length && !C.some((c) => c.activity > 0)) C[0].activity = 1;
+    const snow = this.theater === 'snow' || this.theater === 'winter';
+    for (const c of C) {
+      if (c.handle || !(c.activity > 0) || c.dead) continue;
+      // wood smoke is bluish-grey: over snow a little darker than the snow so it still reads at low opacity
+      c.handle = this.spawn('chimney_smoke', c.pos.x, c.pos.z, { y: c.pos.y, activity: c.activity,
+        col: snow ? [0.27, 0.3, 0.38] : [0.33, 0.34, 0.38], seed: FX._hash(`${c.id}:${c.pos.x.toFixed(1)}`) * 1e6 | 0 });
+    }
+  }
+
+  /**
+   * World chimney tops of a structure's library model(s): [] when the object carries no library model (procedural),
+   * null when it does but the model has no chimney anchor (or is a ruin / destroyed variant).
+   */
+  static chimneyPoints(obj) {
+    const pts = [];
+    let lib = false;
+    obj.traverse((o) => {
+      const name = o.userData?.building;
+      if (name) {
+        lib = true;
+        if (/ruin|destroyed/.test(name)) return;
+        for (const an of buildingMeta(name)?.anchors || []) if (an.kind === 'chimney') pts.push(V3(an.pos[0], an.pos[1], an.pos[2]).applyMatrix4(o.matrixWorld));
+      } else if (!lib && /chimney/i.test(o.name || '') && o.name !== 'fx-chimney') {
+        const b = new THREE.Box3().setFromObject(o);
+        if (!b.isEmpty()) pts.push(V3((b.min.x + b.max.x) / 2, b.max.y + 0.05, (b.min.z + b.max.z) / 2));
+      }
+    });
+    const asset = obj.userData?.libraryAsset;
+    if (!lib && asset) { // instanced repeat: the batch draws it and the library node was disposed → rebuild its matrix
+      lib = true;
+      const fit = obj.children.find((c) => c.name === 'fit'), turn = fit?.children[0], ext = assetExtents(asset);
+      if (turn && ext && !/ruin|destroyed/.test(asset)) {
+        const M = new THREE.Matrix4().makeTranslation(-ext.cx, 0, -ext.cz).premultiply(turn.matrixWorld);
+        for (const an of buildingMeta(asset)?.anchors || []) if (an.kind === 'chimney') pts.push(V3(an.pos[0], an.pos[1], an.pos[2]).applyMatrix4(M));
+      }
+    }
+    return lib && !pts.length ? null : pts;
+  }
+
+  /** Seeded chimney state: 0 (cold) · ~0.45 (faint) · 1 (normal) · 1.5 (busy); more fires lit in cold theaters. */
+  static chimneyActivity(key, theater) {
+    const u = FX._hash(key), cold = theater === 'snow' || theater === 'winter' || theater === 'night';
+    const [off, faint, normal] = cold ? [0.15, 0.5, 0.9] : [0.4, 0.7, 0.95];
+    return u < off ? 0 : u < faint ? 0.45 : u < normal ? 1 : 1.5;
+  }
+
+  static _hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return ((h ^ (h >>> 13)) >>> 0) / 4294967296; }
+
+  /** Brick stack for a procedural house/hut, seated on the roof surface under it and topping the ridge. */
+  _placeholderStack(obj, def, k) {
+    const box = new THREE.Box3().setFromObject(obj);
+    if (box.isEmpty()) return null;
+    const w = def.w ?? (box.max.x - box.min.x), d = def.d ?? (box.max.z - box.min.z);
+    const local = V3(w * 0.28 * (k % 2 ? 1 : -1), 0, d * 0.18);
+    local.applyAxisAngle(V3(0, 1, 0), obj.rotation?.y ?? 0);
+    const cx = (box.min.x + box.max.x) / 2 + local.x, cz = (box.min.z + box.max.z) / 2 + local.z;
+    _ray.set(V3(cx, box.max.y + 5, cz), _down); _ray.far = Infinity;
+    const hit = _ray.intersectObject(obj, true).find((h) => !h.object.isSprite && !h.object.isPoints);
+    const roofY = hit ? hit.point.y : box.max.y, top = Math.max(roofY + 0.9, box.max.y + 0.35), base = roofY - 0.3;
+    const mesh = new THREE.Mesh(FX._stackGeo ||= new THREE.BoxGeometry(0.6, 1, 0.6), FX._stackMat ||= new THREE.MeshStandardMaterial({ color: 0x5b3a2e, roughness: 0.92 }));
+    mesh.scale.y = top - base; mesh.position.set(cx, (top + base) / 2, cz);
+    mesh.castShadow = true; mesh.receiveShadow = true; mesh.name = 'fx-chimney';
+    this.root.add(mesh);
+    return { mesh, pos: V3(cx, top + 0.02, cz) };
   }
 
   _stopTrail(v) { const t = this._trails.get(v); if (t) { t.handle?.stop?.(); this._trails.delete(v); } }
@@ -435,6 +526,47 @@ export class FX {
     const cam = this.world.game?.renderer?.camera;
     if (cam && v.camera !== cam) v.camera = cam;
     v.frame();
+    this._ambientMask();
+  }
+
+  /**
+   * Readability mask sources for the AMBIENT smoke layer (vfx.ambient, used by the FxPass composite): every unit,
+   * enemy (and body), door, pickup and the probe ring as a world cylinder, plus the vision cones on show. Only those
+   * near the live ambient smoke are sent (its AABB grown by the ground it can cover on screen at the 40° pitch).
+   */
+  _ambientMask() {
+    const v = this.vfx, A = v.ambient, P = v.amb, w = this.world;
+    A.entities.length = 0; A.cones.length = 0;
+    if (!P?.liveCount) return;
+    const b = P.box, reach = Math.max(0, b.max.y - b.min.y) * 1.3 + P.maxSize + 6;
+    const x0 = b.min.x - reach, x1 = b.max.x + reach, z0 = b.min.z - reach, z1 = b.max.z + reach, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+    const near = (x, z, r = 0) => x > x0 - r && x < x1 + r && z > z0 - r && z < z1 + r;
+    // units not drawn (garrisoned inside a building, hidden in a vehicle…) leave no hole in the plume
+    // screen-space capsule per entity: its upright axis (base → top) in the camera plane, radius r (m)
+    const add = (e, r, h) => {
+      if (!e || e.removed || e.object3d?.visible === false || !Number.isFinite(e.x) || !near(e.x, e.z, r)) return;
+      const y0 = Math.max(e.y || 0, this._y(e.x, e.z));
+      A.entities.push({ x: e.x, z: e.z, r, y0, top: y0 + h });
+    };
+    for (const u of w.commandos || []) add(u, 0.9, 1.9);   // + selection ring around the feet
+    for (const e of w.enemies || []) add(e, 0.85, 1.9);    // standing / prone / bodies
+    for (const it of w.interactables || []) {
+      const k = it.interactKind;
+      if (k === 'door') add(it, 0.9, it.h ?? 2);
+      else if (k === 'pickup' || k === 'knapsack' || k === 'extraction' || k === 'switch' || k === 'drawbridgeSwitch') add(it, 0.7, 0.8);
+    }
+    const cones = w.game?.cones;
+    if (cones?.probe) add(cones.probe, 0.8, 0.2);
+    if (A.entities.length > A.maxEntities) {
+      A.entities.sort((p, q) => Math.hypot(p.x - cx, p.z - cz) - Math.hypot(q.x - cx, q.z - cz));
+      A.entities.length = A.maxEntities;
+    }
+    for (const e of w.enemies || []) {
+      if (A.cones.length >= A.maxCones) break;
+      if (!(e.coneVisible || cones?.showAll) || e.alive === false) continue;
+      const c = coneAt(e);
+      if (c && near(c.x, c.z, c.far)) A.cones.push({ x: c.x, z: c.z, heading: c.heading, halfFov: c.halfFov, far: c.far, top: this._y(c.x, c.z) + 2.5 });
+    }
   }
 
   /** Camera-shake offset (m, camera plane) for the camera rig; null with the reduced-motion option. */

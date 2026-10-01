@@ -44,7 +44,7 @@ test('unknown prop types never throw: placeholder box with a blocking footprint'
   assert.equal(r.interactables[0].interactKind, 'explosiveTarget');
 });
 
-test('flags: spec banner mesh (field grey + Balkenkreuz texture in the browser), pinned cloth, pole', () => {
+test('flags: spec flag mesh (insignia texture in the browser, tests/unit/flags-insignia), pinned cloth, pole', () => {
   const f = makeFlag({ pole: true, h: 6 });
   const cloth = f.getObjectByName('flag_cloth');
   assert.ok(cloth && cloth.userData.cloth.pinned === 'hoist');

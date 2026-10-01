@@ -97,7 +97,7 @@ export function smokePuffs(vfx, pos, rng, n, o = {}) {
       life: rr(rng, o.lmin ?? 8, o.lmax ?? 16), s0: rr(rng, 0.8, 1.2) * (o.s0 ?? 2), s1: rr(rng, 0.8, 1.3) * (o.s1 ?? 10), drag: o.drag ?? 0.6, buoy: rr(rng, 0.7, 1.2) * (o.buoy ?? 2.2),
       ...c, op: rr(rng, 0.75, 1) * (o.op ?? 0.85), temp: o.temp ?? 0, cool: o.cool ?? 1, noise: o.noise ?? 1.6, rot: rr(rng, -0.25, 0.25),
       mode: o.temp ? MODE.FIRE : MODE.SMOKE, wind: o.wind ?? 1, seed: rng(), shape: rng() < (o.wisp ?? 0.3) ? 1 : 0, erode: o.erode ?? 0.08,
-      stretch: o.stretch ?? 0.03, fin: o.fin ?? 0.25 });
+      stretch: o.stretch ?? 0.03, fin: o.fin ?? 0.25, ambient: !!o.ambient, aux: o.ambient ? 1 : 0 });
   }
 }
 /** Continuous buoyant smoke column: tight base, rises fast, widens and thins with height, bends
@@ -105,10 +105,10 @@ export function smokePuffs(vfx, pos, rng, n, o = {}) {
  *  screen, not a ground carpet. Returns the emitter (stop() via handle). */
 export function smokeColumn(vfx, pos, rng, o = {}) {
   const base = pos.clone();
-  return vfx.addEmitter({ dur: o.dur ?? 22, rate: (a) => ((o.rate ?? 8) * Math.exp(-a / (o.decay ?? 12)) + (o.minRate ?? 0)) * (o.fade ? o.fade(a) : 1),
+  return vfx.addEmitter({ ambient: !!o.ambient, dur: o.dur ?? 22, rate: (a) => ((o.rate ?? 8) * Math.exp(-a / (o.decay ?? 12)) + (o.minRate ?? 0)) * (o.fade ? o.fade(a) : 1),
     fn: () => smokePuffs(vfx, base, rng, 1, { spread: o.spread ?? 0.8, ySpread: 0.4, lat: 0.25, vmin: 0.2, vmax: 1.2, vy: o.vy ?? 4, s0: o.s0 ?? 1.6, s1: o.s1 ?? 9,
       lmin: o.lmin ?? 9, lmax: o.lmax ?? 15, buoy: o.buoy ?? 2.6, drag: o.drag ?? 0.45, col: o.col, op: o.op ?? 0.8, temp: o.temp, cool: o.cool,
-      wisp: o.wisp ?? 0.35, erode: o.erode ?? 0.1, noise: o.noise ?? 1.4, stretch: 0.02 }) });
+      wisp: o.wisp ?? 0.35, erode: o.erode ?? 0.1, noise: o.noise ?? 1.4, stretch: 0.02, ambient: o.ambient }) });
 }
 /** Flame tongues licking from an area: tall procedural FLAME sprites anchored on the fuel surface
  *  (leaning with the wind) + a few hot puffs that detach and cool into smoke.
@@ -247,7 +247,7 @@ export const RECIPES = {
   fire_small(vfx, pos, o, rng) {
     const s = o.scale ?? 1, dur = o.dur ?? 1e6;
     const e1 = vfx.addEmitter({ dur, rate: 18 * s, fn: () => flames(vfx, pos, rng, { rx: 0.25 * s, rz: 0.25 * s, size: 0.62 * s, tall: 1.0, puffFrac: 0.12, tmin: 1500, tmax: 1950 }) });
-    const e2 = RECIPES.chimney_smoke(vfx, pos.clone().setY(pos.y + 0.9 * s), { dur, rate: 9, col: [0.55, 0.55, 0.56], op: 0.22, s1: 3.2 }, rng);
+    const e2 = RECIPES.chimney_smoke(vfx, pos.clone().setY(pos.y + 0.9 * s), { dur, rate: 8, col: [0.55, 0.55, 0.57], op: 0.24, s1: 2.6, vary: false, ambient: false }, rng);
     const e3 = vfx.addEmitter({ dur, rate: 2, fn: () => embers(vfx, pos, rng, 1, 0.15, { lmin: 1, lmax: 3, size: 0.03 }) });
     const fl = fireLightAndHaze(vfx, pos, rng, { intensity: 14 * s, dur, radius: 6, hazeR: 0.8, h: 0.7, haze: 0.7, color: [1, 0.5, 0.18] });
     vfx.decal(pos, 1.3 * s, 'scorch', { rot: rng() * 6, fade: 1 });
@@ -273,17 +273,34 @@ export const RECIPES = {
   /** Generic persistent smoke column. opts {color:'black'|'grey'|'white'|[r,g,b], rate, dur, scale} */
   smoke_column(vfx, pos, o, rng) {
     const s = o.scale ?? 1, col = Array.isArray(o.color) ? o.color : ({ black: SOOT, grey: GREY, white: WOOD }[o.color || 'black']);
-    return handle(smokeColumn(vfx, pos, rng, { dur: o.dur ?? 1e6, rate: (o.rate ?? 4) * s, decay: 1e9, spread: 0.6 * s, s0: 1.6 * s, s1: 9 * s, col, op: o.op ?? 0.85, buoy: 2.4, vy: 3.2 }));
+    return handle(smokeColumn(vfx, pos, rng, { dur: o.dur ?? 1e6, rate: (o.rate ?? 4) * s, decay: 1e9, spread: 0.6 * s, s0: 1.6 * s, s1: 9 * s, col, op: o.op ?? 0.85, buoy: 2.4, vy: 3.2, ambient: !!o.ambient }));
   },
 
-  /** E4 chimney / wood smoke: many small torn wisps -> a long, thin grey-white plume bent by the wind. */
+  /** E4 chimney / wood smoke — AMBIENT by default (own pool; the FxPass composite caps its perceived change and keeps
+   *  it faint over units and shown cones). A thin, continuous plume anchored on the stack: many small light bluish-grey
+   *  wisps leave the stack at 1–2 m/s, rise on their buoyancy, then bend over with the world wind (mean uWind + the
+   *  WindField gust fronts in the shader). They overlap densely near the stack (the plume is densest just above it),
+   *  stretch along their motion, meander together in one coherent curl field and tear (wisp atlas cells, erosion
+   *  growing with age), then dilute (expand + fade) within ~6–10 m. In wind the plume lies flatter, stays narrower and
+   *  dissipates sooner, as real wood smoke mixes faster.
+   *  opts {rate, activity (0 off .. ~1.6 busy), vary (slow draught/stoking modulation, default on), op, col, s1, scale,
+   *  dur, ambient (default true)} */
   chimney_smoke(vfx, pos, o, rng) {
-    const col = o.col ?? WOOD, s = o.scale ?? 1;
-    return vfx.addEmitter({ dur: o.dur ?? 1e6, rate: o.rate ?? 26, fn: () => {
-      const c = mixCol(col, rng, 0.12);
-      vfx.emit({ x: pos.x + rr(rng, -0.1, 0.1) * s, y: pos.y, z: pos.z + rr(rng, -0.1, 0.1) * s, vx: rr(rng, -0.15, 0.15), vy: rr(rng, 1.2, 2.0), vz: rr(rng, -0.15, 0.15),
-        life: rr(rng, 8, 12), s0: 0.25 * s, s1: rr(rng, 0.7, 1.2) * (o.s1 ?? 3.6) * s, drag: 0.7, buoy: rr(rng, 1.0, 1.5), ...c, op: rr(rng, 0.7, 1) * (o.op ?? 0.4),
-        noise: 1.3, rot: rr(rng, -0.3, 0.3), mode: MODE.SMOKE, wind: 1, seed: rng(), shape: 1, erode: 0.18, stretch: 0.45, fin: 0.6 });
+    const col = o.col ?? WOOD, s = o.scale ?? 1, act = o.activity ?? 1, ph = rng() * 400, amb = o.ambient !== false;
+    if (!(act > 0)) return null;
+    // activity mostly scales the density (a faint stove still makes a continuous thread, not separate puffs)
+    const base = (o.rate ?? 32) * Math.min(1.25, 0.55 + 0.45 * act), s1 = o.s1 ?? 0.85, op = (o.op ?? 0.5) * Math.min(1.2, act ** 0.6);
+    // slow variation (stove draught, periods ~60–140 s) + an occasional short burst when fuel is added
+    const rate = o.vary === false ? base : (a) => { const t = a + ph;
+      return base * Math.max(0.55, 0.82 + 0.12 * Math.sin(t * 0.045) + 0.08 * Math.sin(t * 0.107 + 1.3) + 0.45 * Math.max(0, Math.sin(t * 0.019)) ** 16); };
+    return vfx.addEmitter({ ambient: amb, dur: o.dur ?? 1e6, rate, fn: () => {
+      const w = vfx.u.uWind.value, ws = Math.hypot(w.x, w.z), calm = 1 / (1 + 0.22 * ws);
+      const c = mixCol(col, rng, 0.08);
+      vfx.emit({ ambient: amb, aux: 1, x: pos.x + rr(rng, -0.05, 0.05) * s, y: pos.y + 0.04 + rr(rng, 0, 0.12) * s, z: pos.z + rr(rng, -0.05, 0.05) * s,
+        vx: rr(rng, -0.05, 0.05) + w.x * 0.3, vy: rr(rng, 1.3, 1.6) * s, vz: rr(rng, -0.05, 0.05) + w.z * 0.3,
+        life: rr(rng, 5, 7) * (0.45 + 0.55 * calm), s0: rr(rng, 0.3, 0.38) * s, s1: rr(rng, 0.8, 1.15) * s1 * s * (1.2 - 0.2 * calm),
+        drag: 0.85, buoy: rr(rng, 0.92, 1.08), ...c, op: Math.min(0.9, rr(rng, 0.75, 1) * op * Math.min(1.45, 1 + 0.07 * ws)), noise: rr(rng, 0.25, 0.4), rot: rr(rng, -0.3, 0.3),
+        mode: MODE.SMOKE, wind: rr(rng, 0.95, 1.02), seed: rng(), shape: 1, erode: 0.16, stretch: 0.6, fin: 0.12 });
     } });
   },
 

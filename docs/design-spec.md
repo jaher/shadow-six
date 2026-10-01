@@ -91,7 +91,7 @@
 - A difficulty setting (BEL has none).
 - Commandos 2 features: interiors, windows, swimming for everyone.
 - Any asset from the original game.
-- Swastikas. Flags use a field-grey banner with a black-and-white Balkenkreuz, and vehicles use the Balkenkreuz.
+- Swastikas, SS runes or death's heads on uniforms, characters, UI, menus or branding. **Exception — enemy flags (user decision 2026-09-30):** flagpoles fly the historical German national flag of 1935–45 (red field, white disc, black swastika), as BEL's international release did; Options → INSIGNIA → NEUTRAL swaps in a field-grey banner with a Balkenkreuz (as BEL's German release did). Vehicles use the Balkenkreuz in both modes.
 
 ---
 
@@ -1863,25 +1863,44 @@ The scheme copies the demo's structure with our own keys:
   400 m, MG/explosions 1.5 km) plus air absorption; see `src/audio/manifest.js` `DISTANCE`.
 - Assets are recorded CC0 or self-made, plus **Piper/neural TTS** voices; see `realism-pipeline.md`. The ARCHITECTURE line "all sounds synthesized" is superseded (§10.4).
 
-### 9.1 Music (faithful: **no music during missions**) [data, guide]
-**Cues.** New orchestral war-film cues (snare-driven march, brass calls, sombre strings); never the 1998 recordings.
+### 9.1 Music [data, guide]
+**Cues.** Original orchestral war-film cues (snare-driven march, brass calls, sombre strings), composed for this
+project (route A: symbolic scores + VSCO 2 CE CC0 samples; style brief and originality rule in the music STYLE
+notes). Never the 1998 recordings, never a quote or paraphrase of the Commandos or film scores. Files:
+`assets/audio/music/<cue>.ogg` (Vorbis q5) + `.mp3` (128 kb/s, Safari), listed with loop points, category and gain in
+`assets/audio/music/manifest.json`; credits in `assets/audio/music/CREDITS.md`.
 
-| Cue | Length | Mood |
-|---|---|---|
-| `menu` | about 2:40, loop | Heroic, restrained march |
-| `campaign_norway` | about 2:15 | Cold brass, low strings |
-| `campaign_africa` | about 1:15 | Warm, modal |
-| `campaign_normandy` | about 1:50 | Hopeful snare |
-| `campaign_reich` | about 1:30 | Grim, heavy |
-| `briefing_1`–`briefing_3` | 1:15–1:50 | Tense ostinato under the Colonel's voice |
-| `start_1`–`start_6` | 13–25 s stingers | Played at mission start (random pick) |
-| `success_1`–`success_3` | 10–14 s | |
-| `fail_1`–`fail_3` | 15–23 s | |
-| `credits` | about 1:05 | |
-| `exit` | 8 s | |
+| Cue | Length | Where it plays | Mood / key |
+|---|---|---|---|
+| `menu` | 2:44, intro + loop 10–160 s | title, main menu, options, load/save, help | Heroic, restrained march; D minor → F |
+| `campaign_norway` | 2:17, loop | campaign map, focused mission M1–M7 | Cold, lonely; D Dorian |
+| `campaign_africa` | 1:18, loop | campaign map, M8–M12 | Restless, dry; E Phrygian |
+| `campaign_normandy` | 1:51, loop | campaign map, M13–M15 | Hope with a cost (march); B♭ ↔ G minor |
+| `campaign_rhine` | 1:13, loop | campaign map, M16–M18 | Heavy, grinding; C minor |
+| `campaign_reich` | 1:35, loop | campaign map, M19–M20 (Final Assault) | Grim grandeur; F minor ♭II |
+| `campaign_end` | 1:25, once → `menu` | epilogue (End of WWII) | Elegy; D major |
+| `briefing_1`–`briefing_3` | 1:28–1:54, loop | briefing (mission n → `briefing_(1 + n mod 3)`), ducked −8 dB under the Colonel | Tense ostinato; D / A / G minor |
+| `tutorial` | 3:35, loop | tutorials screen | Brisk training camp; F major / D minor |
+| `start_1`–`start_6` | 14–24 s | mission start, by theater: Norway, Africa, Normandy, Rhine, Final Assault; `start_6` covert (sandbox, unknown maps) | per theater |
+| `success_1`–`success_3` | 11–14 s | mission won (random) | D / B♭ / F major |
+| `fail_1`–`fail_3` | 16–22 s | mission lost (random) | D / G / D minor |
+| `debrief_promotion` | 17 s | debrief after a rank promotion | B♭ fanfare |
+| `credits` | 1:14, once → `menu` | credits roll | D minor → D major |
+| `exit` | 8 s | QUIT GAME (the menu bed fades under it) | D minor → D |
+| `mission_tension_a/b/c`, `mission_bridge_1–3`, `mission_alert` | 2–2.5 min segments, 8-bar bridges, alert loop | in missions, option **Mission music: Suspense** (default) | 84 BPM D-minor grid |
 
-- **Option "cinematic ambience"** (off by default) adds a low drone bed during missions.
-- The siren and the SFX carry the tension; **silence is part of the design**.
+- **In missions.** BEL has no music during missions (only the start/end stingers). The option **Mission music** keeps
+  that as **CLASSIC 1998** (start stinger → silence + ambience → end stinger); the default **SUSPENSE** chains the
+  quiet tension segments after the start stinger and crossfades the alert layer in on a bar line when the alarm sounds
+  or enemies fight/search (calm hold 8 s). The siren and the SFX still carry the tension; the score never masks them.
+- **Mixing.** Beds crossfade 2 s out / 1.5 s in; loops use the manifest loop points (intro once, body looped,
+  `AudioBufferSourceNode.loopStart/loopEnd`). Voices duck the briefing −8 dB and the mission score −5 dB; pause keeps
+  the score at −9 dB. Loudness: front end −18 LUFS, briefings −20, stingers −16, mission score −22; true peak ≤ −1 dBTP.
+- **Loading.** Lazy: the manifest loads with the audio manifests, each cue is fetched + decoded on first request (beds at
+  32 kHz, mission segments at 24 kHz, to bound decoded PCM); the first menu frame never waits for music. Only the
+  current bed and the mission's next segments stay decoded. Safari gets the MP3 (loop points shifted when its decoder
+  ignores the LAME gapless header).
+- **Option "cinematic ambience"** (off by default; Classic only) adds a low drone bed during missions.
 
 ### 9.2 Ambience (SHOULD; toggle "Nature sounds", default ON)
 Positional loops, sparse, gain 0.1–0.2 [the demo's "noisy mother nature"]:
@@ -2058,7 +2077,7 @@ CONFIG.rulesets = { BEL: { knockouts: false, handcuffs: false, stones: false, ci
   | 14 | M1–M3 | Each loads, the paths from every commando start to every objective and the extraction exist, and no commando starts inside a cone |
 
 ### 10.6 Content and legal
-- Enemy flags use a field-grey banner with a Balkenkreuz. **No swastikas or SS runes** anywhere.
+- Enemy flags (user decision 2026-09-30): the **historical German national flag 1935–45** on enemy flagpoles and garrison buildings only — red field, white disc 3/4 of the height with its centre 1/20 of the length toward the hoist, black swastika at 45°, 3:5 (`src/art/flags.js`, `src/art/flag-textures.js`). Options → GAME PREFERENCES → **INSIGNIA: HISTORICAL (default) / NEUTRAL**; NEUTRAL shows the field-grey banner with a Balkenkreuz (saved setting). It is never used as decoration, in the UI, menus, branding or merchandise. **SS runes, death's heads and swastikas on uniforms or characters stay out** unless the user asks. Vehicles keep the Balkenkreuz.
 - Censored mode adds gravestones and removes blood.
 - The briefing texts, Colonel lines and barks in this document are **original writing**.
 - Fonts are SIL OFL (Oswald/Anton) and credited in CREDITS.md, noting that OFL is not CC0 (the policy allows it with attribution).

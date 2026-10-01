@@ -17,6 +17,7 @@ import * as THREE from 'three';
 import { getMaterial } from './materials.js';
 import { B, T } from '../world/grid.js';
 import { PROP_TYPES, PROP_DEFAULTS, LINEAR_PROPS } from './props.js';
+import { makeFlag } from './flags.js';
 import { libraryVisual, libraryHinted } from './building-props.js';
 
 const H = B.HIGH, L = B.LOW;
@@ -475,7 +476,7 @@ function footprintsFor(type, p, x, z, rot) {
  * Build one §7.7 extra prop. Same signature/result as props.js buildProp.
  * @param {string} type @param {object} params {x, z, rot, id?, destructible?, w?, d?, h?, r?, points?, width?, targetAt?, roofWalk?, open?}
  */
-export function buildExtraProp(type, params = {}, ctx = {}) { // eslint-disable-line no-unused-vars
+export function buildExtraProp(type, params = {}, ctx = {}) {
   const base = EXTRA_PROP_DEFAULTS[resolve(type)];
   if (!base) throw new Error(`[props-extra] unknown prop type "${type}"`);
   const p = { ...base, ...params };
@@ -484,6 +485,11 @@ export function buildExtraProp(type, params = {}, ctx = {}) { // eslint-disable-
   const group = placed(x, z, rot);
   group.name = `prop:${type}${params.id ? ':' + params.id : ''}`;
   group.add(meshFor(resolve(type), p));
+  if (params.flag) { // garrison flag (design-spec §2.4 / §10.6) beside the placeholder, as props.js does
+    const f = makeFlag({ pole: true, h: Math.max(5, (p.h ?? 3) + 2.5), theater: ctx.theater });
+    f.position.set((p.w ?? 4) / 2 + 0.9, 0, (p.d ?? 4) / 2 - 0.2);
+    group.add(f);
+  }
   const footprints = footprintsFor(resolve(type), p, x, z, rot);
   let interactables;
   if (params.destructible) {

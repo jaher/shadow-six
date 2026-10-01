@@ -16,6 +16,7 @@ import { UI } from './ui-config.js';
 import { catalogueEntry, formatMissionDate } from './catalogue.js';
 import { europeSVG, project } from './europe.js';
 import { tourStops } from './tour.js';
+import { briefingCueFor } from '../audio/music-cues.js';
 import { isTouchUI } from './touch.js';
 
 /**
@@ -126,7 +127,7 @@ export class Briefing {
     }
     if (this.slides.some((f) => f.classList.contains('capture'))) this._captureLater(def);
     this.hud.sound?.play('projector');
-    this.hud.game.audio?.music?.('theme');
+    this.hud.game.audio?.music?.(briefingCueFor(def)); // the mission's briefing loop (ducks under the Colonel)
   }
 
   /** Space / → / click: the next slide now. */

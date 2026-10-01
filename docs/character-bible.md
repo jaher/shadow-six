@@ -39,7 +39,7 @@ Every trait carries a tag that says where it comes from.
   - The Sniper's dossier photo is a retouched version of a **real WWII photograph of a real officer**. Never use it as a reference, as an img2img input or for face matching.
   - Portrait generators get **text prompts only**. No face-reference or IP-adapter input taken from the original art or from photographs of real people. This follows the no-cloning rule in `realism-pipeline.md` §1.8.
 - **No tracing.** Reference images live only in the scratchpad (`refs/characters/`) for internal viewing and are **never shipped**. The traits here are generic ("shaved head, gaunt, big ears"), and any one of them could describe thousands of men.
-- **No swastikas, SS runes or death's-head badges** anywhere (spec §10.6). Where real insignia would contain one, §5.4 gives a substitute.
+- **No swastikas, SS runes or death's-head badges** on characters, uniforms, portraits or headgear (spec §10.6). Where real insignia would contain one, §5.4 gives a substitute. (Enemy *flags* on flagpoles are the historical 1935–45 flag by user decision 2026-09-30, with a NEUTRAL option — spec §10.6; that does not extend to characters.)
 
 ### 0.3 Canon age against apparent age
 - By birth date, all six commandos are **29 to 31 in February 1941** and 33 to 35 in 1945 (born 1909–1911).

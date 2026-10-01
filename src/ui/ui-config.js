@@ -50,7 +50,7 @@ export const OPTION_DEFAULTS = {
   volMaster: 0.8,
   volSfx: 1,
   volVoice: 1,
-  volMusic: 0.7,
+  volMusic: 0.6, // = audio.js volumes.music (the bus the music loudness targets were set at)
   missionMusic: 'suspense', // 'suspense' (in-mission score, default) | 'classic' (1998: no in-mission music)
   halt: 'indifferent', // 'submissive' | 'indifferent' (§4.5 / §6.8)
   voice: 'verbose', // 'verbose' | 'laconic' (§6.3)
@@ -59,6 +59,7 @@ export const OPTION_DEFAULTS = {
   uiScale: 0, // 0 = auto
   blood: true,
   censored: false,
+  insignia: 'historical', // enemy flags: 'historical' (1935–45 national flag, user decision 2026-09-30) | 'neutral' (field-grey Balkenkreuz banner)
   subtitles: true, // bark subtitles (§6.5)
   activePause: false, // ⚑ §6.8
   coneAlertTint: true,

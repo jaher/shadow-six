@@ -1,8 +1,10 @@
 /**
- * Enemy flags (design-spec §2.4 / §10.6): a field-grey banner with a black-and-white Balkenkreuz — never the
- * red-field/white-disc layout. The cloth is a subdivided plane pinned along its hoist edge ("cloth-ready": the
- * vertex shader waves it from shared wind uniforms today; step 4w's WindField / cloth solver can drive the same
- * mesh through `userData.cloth`). Barracks flags mark reinforcement buildings, so they must read at 0.5× zoom.
+ * Enemy flags (design-spec §2.4 / §10.6). Insignia per Options → GAME PREFERENCES → INSIGNIA (art/insignia.js):
+ * HISTORICAL (default, user decision 2026-09-30) = the German national flag 1935–45 (red field, white disc offset
+ * toward the hoist, black swastika at 45°, 3:5); NEUTRAL = the field-grey banner with a Balkenkreuz. Textures:
+ * art/flag-textures.js (wool weave, seams, fray, theater weathering). The cloth is a subdivided plane pinned along
+ * its hoist edge, driven by the Verlet solver from the mission WindField (or shader waves for `cloth:false`).
+ * Barracks flags mark reinforcement buildings, so they must read at 0.5× zoom.
  * @module art/flags
  */
 
@@ -10,84 +12,103 @@ import * as THREE from 'three';
 import { buildingMeta } from './building-library.js';
 import { VerletCloth, CLOTHS, registerCloth } from './cloth.js';
 import { WindField, resolveWind } from '../world/wind.js';
+import { FLAG_W, FLAG_H, DISC, paintFlag } from './flag-textures.js';
+import { getInsignia, onInsignia } from './insignia.js';
 
 export { registerCloth };
 const SEG = [16, 8];
  // simulation grid (17 × 9 particles): ≈0.08 ms per flag per 1/60 s step
+/** Flag height / length: 3:5 (the 1935 national flag). */
+export const FLAG_ASPECT = 0.6;
 
 /** Shared animation uniforms (one per page): time, wind strength 0..1, wind heading (rad, world). */
 export const FLAG_UNIFORMS = { uFlagTime: { value: 0 }, uFlagWind: { value: 0.55 }, uFlagWindDir: { value: 0.6 } };
+/** Fabric uniforms: back-face disc mirror (historical: the swastika reads the same from both sides, as on the
+ * double-sided appliqué originals) — disc (u, v, ru, rv). */
+const FABRIC_UNIFORMS = { uFlagMirror: { value: 1 }, uFlagDisc: { value: new THREE.Vector4(DISC.u, DISC.v, DISC.ru, DISC.rv) } };
 
-const C = { tex: null, mat: null, poleMat: null };
+const C = { tex: new Map(), mats: new Map(), poleMat: null };
+const theaterKey = (t) => (t && typeof t === 'string' ? t : 'temperate');
 
-/** Field-grey banner + Balkenkreuz (canvas, 512×344). */
-export function flagTexture() {
-  if (C.tex || typeof document === 'undefined') return C.tex;
-  const W = 512, H = 344, cv = document.createElement('canvas');
-  cv.width = W; cv.height = H;
-  const g = cv.getContext('2d');
-  g.fillStyle = '#5e6456'; // Feldgrau
-  g.fillRect(0, 0, W, H);
-  // woven wool: fine thread noise + slow dye mottling
-  const img = g.getImageData(0, 0, W, H), px = img.data;
-  let s = 1234567;
-  const rnd = () => ((s = (Math.imul(s, 1103515245) + 12345) >>> 0) / 4294967296);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const k = (y * W + x) * 4, n = (rnd() - 0.5) * 14 + ((x + y) & 1 ? 3 : -3) + Math.sin(x * 0.021 + y * 0.013) * 6;
-    px[k] += n; px[k + 1] += n; px[k + 2] += n * 0.9;
-  }
-  g.putImageData(img, 0, 0);
-  // Balkenkreuz: straight black arms with white outer edges, centred
-  const cx = W / 2, cy = H / 2, L = H * 0.36, A = H * 0.075, E = H * 0.035;
-  const cross = (half, arm, col) => {
-    g.fillStyle = col;
-    g.fillRect(cx - half, cy - arm, half * 2, arm * 2);
-    g.fillRect(cx - arm, cy - half, arm * 2, half * 2);
-  };
-  cross(L + E, A + E, '#e9e6dc');
-  cross(L, A, '#121212');
-  // hem + hoist sleeve, grime towards the fly end
-  g.strokeStyle = 'rgba(30,32,26,0.55)'; g.lineWidth = 6; g.strokeRect(3, 3, W - 6, H - 6);
-  g.fillStyle = 'rgba(210,205,190,0.55)'; g.fillRect(0, 0, 14, H);
-  const grd = g.createLinearGradient(W * 0.6, 0, W, 0);
-  grd.addColorStop(0, 'rgba(40,36,28,0)'); grd.addColorStop(1, 'rgba(40,36,28,0.28)');
-  g.fillStyle = grd; g.fillRect(0, 0, W, H);
+/** Flag texture for the current insignia mode and a theater (canvas, 640×384; null outside the browser). */
+export function flagTexture(theater, mode = getInsignia()) {
+  if (typeof document === 'undefined') return null;
+  const key = `${mode}:${theaterKey(theater)}`;
+  if (C.tex.has(key)) return C.tex.get(key);
+  const cv = document.createElement('canvas');
+  cv.width = FLAG_W; cv.height = FLAG_H;
+  paintFlag(cv.getContext('2d', { willReadFrequently: true }), { mode, theater: theaterKey(theater) });
   const t = new THREE.CanvasTexture(cv);
   t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
-  C.tex = t;
+  t.name = `flag_${key}`;
+  C.tex.set(key, t);
   return t;
 }
 
-/** Waving cloth material: displaces the pinned plane (uv.x = 0 at the hoist) with travelling waves. */
-export function flagMaterial() {
-  if (C.mat) return C.mat;
-  const m = new THREE.MeshStandardMaterial({ map: flagTexture(), roughness: 0.92, metalness: 0, side: THREE.DoubleSide });
+/** Wool fabric shading: back-face disc mirror + light translucency (sun through the bunting from behind). */
+function fabric(sh) {
+  Object.assign(sh.uniforms, FABRIC_UNIFORMS);
+  sh.fragmentShader = sh.fragmentShader
+    .replace('#include <common>', '#include <common>\nuniform float uFlagMirror; uniform vec4 uFlagDisc;')
+    .replace('#include <map_fragment>', `#ifdef USE_MAP
+  vec2 fUv = vMapUv;
+  if (uFlagMirror > 0.5 && !gl_FrontFacing) { vec2 dd = (fUv - uFlagDisc.xy) / uFlagDisc.zw; if (dot(dd, dd) < 1.0) fUv.x = 2.0 * uFlagDisc.x - fUv.x; }
+  diffuseColor *= texture2D(map, fUv);
+#endif`)
+    .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
+#if NUM_DIR_LIGHTS > 0
+  { float tr = max(0.0, -dot(normal, directionalLights[0].direction)); reflectedLight.directDiffuse += diffuseColor.rgb * directionalLights[0].color * tr * 0.28 * RECIPROCAL_PI; }
+#endif`);
+}
+
+function clothMat(name, theater) {
+  const m = new THREE.MeshStandardMaterial({ map: flagTexture(theater), roughness: 0.92, metalness: 0, side: THREE.DoubleSide, alphaTest: 0.5 });
   m.name = 'flag_cloth';
   m.userData.shared = true;
   m.userData.snowCover = true; // no top-face snow on a flying flag (art/terrain.js coverPropsWithSnow skips it)
+  m.userData.flagTheater = theaterKey(theater);
+  C.mats.set(name, m);
+  return m;
+}
+
+/** Waving cloth material: displaces the pinned plane (uv.x = 0 at the hoist) with travelling waves. */
+export function flagMaterial(theater) {
+  const name = `wave:${theaterKey(theater)}`;
+  if (C.mats.has(name)) return C.mats.get(name);
+  const m = clothMat(name, theater);
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, FLAG_UNIFORMS);
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nuniform float uFlagTime; uniform float uFlagWind;\nvec3 flagWave(vec3 p, vec2 q){ float u=q.x; float a=(0.06+0.22*uFlagWind)*u; float ph=u*7.0-uFlagTime*(3.0+4.0*uFlagWind)+q.y*1.3; float w=sin(ph)*a+sin(ph*2.13+1.7)*a*0.35; p.z+=w; p.x-=abs(w)*0.25; p.y-=(1.0-uFlagWind)*u*u*0.55; return p; }')
       .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n{ float u=uv.x; float a=(0.06+0.22*uFlagWind)*u; float ph=u*7.0-uFlagTime*(3.0+4.0*uFlagWind)+uv.y*1.3; float dz=cos(ph)*7.0*a+cos(ph*2.13+1.7)*14.9*a*0.35; objectNormal=normalize(vec3(-dz*0.55,0.0,1.0)); }')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed=flagWave(transformed,uv);');
+    fabric(sh);
   };
   m.customProgramCacheKey = () => 'flag_cloth_v1';
-  C.mat = m;
   return m;
 }
 
 /** Cloth-simulated flag material: the geometry itself moves (correct shadows), no vertex waves. */
-export function flagClothMaterial() {
-  if (C.clothMat) return C.clothMat;
-  const m = new THREE.MeshStandardMaterial({ map: flagTexture(), roughness: 0.92, metalness: 0, side: THREE.DoubleSide });
-  m.name = 'flag_cloth';
-  m.userData.shared = true;
-  m.userData.snowCover = true;
-  C.clothMat = m;
+export function flagClothMaterial(theater) {
+  const name = `sim:${theaterKey(theater)}`;
+  if (C.mats.has(name)) return C.mats.get(name);
+  const m = clothMat(name, theater);
+  m.onBeforeCompile = fabric;
+  m.customProgramCacheKey = () => 'flag_cloth_sim_v1';
   return m;
 }
+
+/** Options → INSIGNIA changed: repaint every live flag material (same meshes, new map). */
+function applyInsignia(mode) {
+  FABRIC_UNIFORMS.uFlagMirror.value = mode === 'neutral' ? 0 : 1;
+  for (const m of C.mats.values()) {
+    const t = flagTexture(m.userData.flagTheater, mode);
+    if (t && m.map !== t) { m.map = t; m.needsUpdate = true; }
+  }
+}
+FABRIC_UNIFORMS.uFlagMirror.value = getInsignia() === 'neutral' ? 0 : 1;
+onInsignia(applyInsignia);
 
 function poleMaterial() {
   return (C.poleMat ??= new THREE.MeshStandardMaterial({ color: 0x6f6a60, roughness: 0.55, metalness: 0.6 }));
@@ -95,18 +116,19 @@ function poleMaterial() {
 
 /**
  * A flag (hoist edge at x = 0, top at y = 0, flying towards +x), optionally on its own pole.
- * @param {{w?: number, h?: number, pole?: boolean, poleH?: number}} [o] pole → the group origin is the pole foot
+ * @param {{w?: number, h?: number, pole?: boolean, poleH?: number, theater?: string, cloth?: boolean}} [o] pole → the
+ *   group origin is the pole foot; theater picks the weathering (art/flag-textures.js)
  * @returns {THREE.Group}
  */
 export function makeFlag(o = {}) {
-  const w = o.w ?? 1.8, hgt = o.h && !o.pole ? o.h : (o.flagH ?? w * 0.66);
+  const w = o.w ?? 1.8, hgt = o.h && !o.pole ? o.h : (o.flagH ?? w * FLAG_ASPECT);
   const g = new THREE.Group();
   g.name = 'flag';
   const sim = o.cloth !== false;
   const seg = sim ? SEG : [24, 12];
   const geo = new THREE.PlaneGeometry(w, hgt, seg[0], seg[1]);
   geo.translate(w / 2, -hgt / 2, 0);
-  const cloth = new THREE.Mesh(geo, sim ? flagClothMaterial() : flagMaterial());
+  const cloth = new THREE.Mesh(geo, sim ? flagClothMaterial(o.theater) : flagMaterial(o.theater));
   cloth.name = 'flag_cloth';
   cloth.castShadow = true;
   cloth.userData.cloth = { pinned: 'hoist', w, h: hgt, segments: seg };
@@ -130,7 +152,7 @@ export function makeFlag(o = {}) {
 }
 
 /**
- * Replace every baked flag of a library building (red-field layout in the kit) with the spec banner.
+ * Replace every baked flag of a library building (the kit's own flag meshes) with the spec flag (current insignia).
  * `flag:false` (no garrison) → bare pole. Returns the added flag groups.
  * @param {THREE.Object3D} root the createBuilding() group (sidecar-local coords)
  * @param {string} asset asset name
@@ -147,7 +169,8 @@ export function dressFlags(root, asset, o = {}) {
   if (!o.flag) return out;
   for (const an of a.anchors) {
     if (an.name !== 'flag') continue;
-    const f = makeFlag({ w: an.width ?? 1.6, h: an.height ?? 1.07 });
+    const fw = an.width ?? 1.6; // 3:5 cloth, never taller than the kit's flag anchor
+    const f = makeFlag({ w: fw, h: Math.min(an.height ?? 1.07, fw * FLAG_ASPECT), theater: o.theater });
     f.name = 'flag_spec';
     f.position.set(an.pos[0], an.pos[1], an.pos[2]);
     f.rotation.y = -(an.heading ?? 0);

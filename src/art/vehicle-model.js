@@ -627,7 +627,7 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
     if (wheels.length > 1) st.wb = Math.max(...wheels) - Math.min(...wheels) || st.wb;
     st.lamps = buildLamps(vis.lights, vis.object3d);
     st.beam = beamInfo(vis.meta?.lights);
-    st.pennants = addPennants(vis, spawn);
+    st.pennants = addPennants(vis, spawn, S.theater);
     clearGlass(vis.object3d);
     placePools(st.lamps, vis.object3d);
     for (const g of st.lamps) g.visible = false;

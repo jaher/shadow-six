@@ -1,7 +1,9 @@
 /**
  * Cloth pennants on vehicles (vehicle integration, ambient step): the patrol boat's masthead commissioning pennant
  * (its library 'pennant' anchor; plain, spec §10.6: no ensign) and, when a mission spawn asks for it
- * (`pennant: true`), a staff car's small command flag on a staff over the right front wing.
+ * (`pennant: true`), a staff car's small command flag on a staff over the right front wing. The command flag wears the
+ * shared enemy-flag cloth material of art/flags.js, so it follows Options → INSIGNIA (historical national flag by
+ * default, field-grey Balkenkreuz banner when neutral) and the mission theater's weathering, and repaints live.
  * Both are the shared Verlet cloth of art/cloth.js (ticked with every flag by art/flags.js tickFlags from the mission
  * WindField) and feel the APPARENT wind: the vehicle's own motion is subtracted from the wind, so a pennant streams
  * aft when the boat runs into a calm and hangs limp on a halted car on a still day.
@@ -9,14 +11,13 @@
  */
 import * as THREE from 'three';
 import { VerletCloth, registerCloth, CLOTHS } from './cloth.js';
-import { flagTexture } from './flags.js';
+import { flagClothMaterial } from './flags.js';
 
 let MAT = null;
 function materials() {
   if (MAT) return MAT;
   MAT = {
     pennant: new THREE.MeshStandardMaterial({ color: 0xd9d6cc, roughness: 0.9, side: THREE.DoubleSide }),
-    flag: new THREE.MeshStandardMaterial({ map: flagTexture() || null, color: flagTexture() ? 0xffffff : 0x5e6456, roughness: 0.9, side: THREE.DoubleSide }),
     staff: new THREE.MeshStandardMaterial({ color: 0x2a2a28, roughness: 0.4, metalness: 0.6 }),
   };
   for (const m of Object.values(MAT)) m.userData.shared = true;
@@ -49,9 +50,10 @@ function clothStrip(w, h, seg, mat, taper = 0) {
  * Add a vehicle's pennants (after its visual is ready).
  * @param {object} vis createVehicleVisual handle (meta, emitters, lights, object3d)
  * @param {{pennant?: boolean|string}} [spawn] mission spawn
+ * @param {string} [theater] mission theater (flag weathering)
  * @returns {{list: THREE.Object3D[], setVelocity: (vx: number, vz: number) => void, dispose: () => void}|null}
  */
-export function addPennants(vis, spawn = {}) {
+export function addPennants(vis, spawn = {}, theater = 'temperate') {
   const M = materials(), list = [], entries = [];
   // masthead pennant at the library anchor, streaming aft at rest (flag +x → model -z)
   for (const e of (vis.emitters || []).filter((q) => q.kind === 'pennant')) {
@@ -68,7 +70,7 @@ export function addPennants(vis, spawn = {}) {
     const g = new THREE.Group(); g.name = 'pennant:staff';
     const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.009, 0.5, 6), M.staff);
     staff.position.y = 0.25; staff.castShadow = true;
-    const { mesh, entry } = clothStrip(0.3, 0.2, [6, 4], M.flag);
+    const { mesh, entry } = clothStrip(0.3, 0.18, [6, 4], flagClothMaterial(theater)); // 5:3, the flag art's proportions
     mesh.position.set(0.008, 0.49, 0);
     g.add(staff, mesh); g.rotation.y = Math.PI / 2;
     g.position.set(...base);

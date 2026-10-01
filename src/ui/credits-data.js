@@ -10,6 +10,11 @@ export const CREDITS_SECTIONS = [
     "MIT"
    ],
    [
+    "three-mesh-bvh 0.9.15 build (vendor/three-mesh-bvh/, clipping audit only; licence file kept)",
+    "Garrett Johnson and contributors",
+    "MIT"
+   ],
+   [
     "Draco decoder (vendor/addons/libs/draco/)",
     "Google",
     "Apache-2.0"
@@ -791,6 +796,202 @@ export const CREDITS_SECTIONS = [
     "Procedural (tools/blender/norway/tools/make_nor_tex.py, own work); derived from Poly Haven sparse_grass (CC0)",
     "SHADOW SIX project (own work)",
     "CC0 1.0"
+   ],
+   [
+    "Material(s)",
+    "Source",
+    "Author",
+    "Licence"
+   ],
+   [
+    "air_corr, air_fabric, air_skin",
+    "Procedural (tools/blender/vehicles/aircraft/scripts/make_air_tex.py, own work)",
+    "SHADOW SIX project (own work)",
+    "CC0 1.0"
+   ],
+   [
+    "bitumen_felt",
+    "Poly Haven bitumen (Bitumen)",
+    "Rob Tuytel",
+    "CC0 1.0"
+   ],
+   [
+    "canvas",
+    "Poly Haven rough_linen (Rough Linen)",
+    "colormass, Rico Cilliers",
+    "CC0 1.0"
+   ],
+   [
+    "cast_iron",
+    "Poly Haven rusty_metal_03 (Rusty Metal 03)",
+    "Amal Kumar",
+    "CC0 1.0"
+   ],
+   [
+    "coal",
+    "Procedural (tools/blender/vehicles/rail/scripts/make_rail_tex.py, own work)",
+    "SHADOW SIX project (own work)",
+    "CC0 1.0"
+   ],
+   [
+    "corrugated_rust",
+    "Poly Haven rusty_corrugated_iron (Rusty Corrugated Iron)",
+    "Charlotte Baglioni",
+    "CC0 1.0"
+   ],
+   [
+    "deck_planks",
+    "Poly Haven wood_planks_dirt (Wood Planks Dirt)",
+    "Rob Tuytel",
+    "CC0 1.0"
+   ],
+   [
+    "glass_dirty",
+    "Procedural (tools/blender/kit/tools/make_procedural.py, own work)",
+    "SHADOW SIX project (own work)",
+    "CC0 1.0"
+   ],
+   [
+    "gravel_grey",
+    "Poly Haven gravel (Gravel)",
+    "Dimitrios Savva",
+    "CC0 1.0"
+   ],
+   [
+    "heat",
+    "Procedural (tools/blender/vehicles/rail/scripts/make_heat_tex.py, own work)",
+    "SHADOW SIX project (own work)",
+    "CC0 1.0"
+   ],
+   [
+    "hessian",
+    "Poly Haven hessian_230 (Hessian 230)",
+    "colormass, Rico Cilliers",
+    "CC0 1.0"
+   ],
+   [
+    "k5camo, k5ww, rivet",
+    "Procedural (tools/blender/vehicles/rail/scripts/make_k5_tex.py, own work)",
+    "SHADOW SIX project (own work)",
+    "CC0 1.0"
+   ],
+   [
+    "limewash_worn",
+    "Poly Haven plastered_stone_wall (Plastered Stone Wall)",
+    "Rob Tuytel",
+    "CC0 1.0"
+   ],
+   [
+    "mud",
+    "Poly Haven brown_mud_02 (Brown Mud 02)",
+    "Rob Tuytel",
+    "CC0 1.0"
+   ],
+   [
+    "snow_soft",
+    "Procedural (tools/blender/bridges/tools2/make_br_tex.py, own work)",
+    "SHADOW SIX project (own work)",
+    "CC0 1.0"
+   ],
+   [
+    "steel_galv",
+    "Poly Haven rusty_painted_metal (Rusty Painted Metal)",
+    "Amal Kumar",
+    "CC0 1.0"
+   ],
+   [
+    "steel_grating",
+    "Procedural (tools/blender/military/tools/make_mil_tex.py, own work)",
+    "SHADOW SIX project (own work)",
+    "CC0 1.0"
+   ],
+   [
+    "timber_creosote",
+    "Procedural (tools/blender/military/tools/make_mil_tex.py, own work); derived from Poly Haven wood_planks_grey (CC0)",
+    "SHADOW SIX project (own work)",
+    "CC0 1.0"
+   ],
+   [
+    "timber_grey",
+    "Poly Haven weathered_planks (Weathered Planks)",
+    "Dario Barresi, Dimitrios Savva",
+    "CC0 1.0"
+   ],
+   [
+    "timber_tarred",
+    "Poly Haven dark_wooden_planks (Dark Wooden Planks)",
+    "Amal Kumar",
+    "CC0 1.0"
+   ],
+   [
+    "veh_burnt",
+    "Procedural (tools/blender/vehicles/cars_moto/scripts/make_burnt_tex.py, own work)",
+    "SHADOW SIX project (own work)",
+    "CC0 1.0"
+   ],
+   [
+    "veh_paint",
+    "Procedural (tools/blender/vehicles/cars_moto/scripts/make_veh_tex.py, own work)",
+    "SHADOW SIX project (own work)",
+    "CC0 1.0"
+   ],
+   [
+    "veh_paintc",
+    "Procedural (tools/blender/vehicles/cars_moto/scripts/make_paintc_tex.py, own work)",
+    "SHADOW SIX project (own work)",
+    "CC0 1.0"
+   ],
+   [
+    "veh_tyre, veh_wreck",
+    "Procedural (tools/blender/vehicles/cars_moto/scripts/make_cm_tex.py, own work)",
+    "SHADOW SIX project (own work)",
+    "CC0 1.0"
+   ],
+   [
+    "wood_paint",
+    "Poly Haven weathered_peeling_timber (Weathered Peeling Timber)",
+    "Dimitrios Savva",
+    "CC0 1.0"
+   ],
+   [
+    "Used for",
+    "Source",
+    "Licence"
+   ],
+   [
+    "green_metal_rust (paint breakup/normal)",
+    "Poly Haven",
+    "CC0 1.0"
+   ],
+   [
+    "rust_coarse_01 (bare steel, tracks)",
+    "Poly Haven",
+    "CC0 1.0"
+   ],
+   [
+    "Rubber004 (tyres)",
+    "ambientCG",
+    "CC0 1.0"
+   ],
+   [
+    "weathered_planks (tool handles, stocks)",
+    "Poly Haven",
+    "CC0 1.0"
+   ],
+   [
+    "Fabric030 / Fabric045 (sandbags, canvas)",
+    "ambientCG",
+    "CC0 1.0"
+   ],
+   [
+    "sand_01 / dense_sand (earth)",
+    "Poly Haven",
+    "CC0 1.0"
+   ],
+   [
+    "geometry, procedural paint/whitewash/burn shaders, track texture, markings (Balkenkreuz, tactical numbers)",
+    "own work (SHADOW SIX, Blender script)",
+    "CC0 1.0"
    ]
   ],
   "text": [
@@ -800,7 +1001,16 @@ export const CREDITS_SECTIONS = [
    "(assets/textures/lib/1k default, 2k albedo for the ultra preset; metadata assets/textures/lib/materials.json).",
    "Every source is listed below; per-asset lists are in each <asset>.credits.json. Baked AO maps, decal/sign atlases",
    "and all lettering are own work. The review HDRI (Poly Haven kloofendal_43d_clear_puresky, CC0) is not shipped.",
-   "Poly Haven maps were regraded, tiled and resized; procedural maps are generated by the listed scripts."
+   "Poly Haven maps were regraded, tiled and resized; procedural maps are generated by the listed scripts.",
+   "### Vehicles",
+   "53 vehicles, guns and props (assets/models/vehicles/<group>/: cars_moto, armour, aircraft, naval, rail; LOD0 + LOD2,",
+   "burnt/destroyed and theater paint variants; index assets/models/vehicles/manifest.json) are procedural geometry scripted",
+   "in Blender (tools/blender/vehicles/; own work, CC0), including every marking (Balkenkreuz, tactical numbers, hull",
+   "lettering), baked AO, procedural paint/whitewash/burn shaders and track textures. They use the shared texture library",
+   "(assets/textures/lib/1k, 37 maps added for vehicles) and per-asset armour atlases (assets/models/vehicles/armour/tex/).",
+   "Per-asset lists are merged in assets/models/vehicles/credits.json. Reference photos were used for proportions only",
+   "and are not shipped. All texture sources are CC0 1.0.",
+   "Armour group (baked per-asset atlases):"
   ]
  },
  {
@@ -877,10 +1087,16 @@ export const CREDITS_SECTIONS = [
     "procedural recipes in src/audio/synth.js, played by src/ui/ui-sound.js",
     "SHADOW SIX contributors",
     "ours"
+   ],
+   [
+    "assets/audio/music/ (the whole soundtrack: menu, six campaign themes, three briefings, tutorial, credits, start / success / unsuccessful / exit / promotion stingers, the in-mission suspense score; OGG Vorbis + MP3)",
+    "original composition for this project (symbolic scores rendered with orchestral samples from VS Chamber Orchestra 2 Community Edition and VSCO 1 percussion by Versilian Studios — Sam Gossner, Simon Dalzell; sample cutting by Elan Hickler/Soundemote)",
+    "project contributors; samples Versilian Studios",
+    "music: project licence; samples CC0 1.0 — per-cue list in assets/audio/music/CREDITS.md"
    ]
   ],
   "text": [
-   "listed falls back to the procedural placeholders in src/audio/synth.js (menu music, some vehicles and tools). -->",
+   "listed falls back to the procedural placeholders in src/audio/synth.js (some vehicles and tools; the music bus never uses a placeholder). -->",
    "Full per-file list (one row per source recording, with URL and author): assets/audio/CREDITS.md."
   ]
  },
@@ -926,7 +1142,7 @@ export const CREDITS_SECTIONS = [
    "assets/characters/manifest.json). Everything shipped is CC0 or project-authored; no CC-BY, NC or mocap-derived data.",
    "Notes:",
    "- Faces are MakeHuman targets with seeded archetypes (16 enemy face types); no scan or photo of a real person is used.",
-   "- Insignia are plain: no swastikas, SS runes or death's heads anywhere.",
+   "- Uniform insignia are plain: no swastikas, SS runes or death's heads on characters. Enemy flagpoles fly the historical 1935-45 German flag (Options > INSIGNIA > NEUTRAL shows a Balkenkreuz banner instead).",
    "- Rejected sources: Bandai-Namco Research Motion (NC licence); CMU mocap is allowed only as baked clips and is not used here; ACCAD BVH is not used (broken rest pose)."
   ]
  }

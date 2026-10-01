@@ -160,7 +160,7 @@ test('§7.5 M2 pboat: engine loop uses spawn.engineAudible (60 m) as its audible
 
 test('§9.1 music: real beds/stingers only (no synth on the music bus); suspense score in missions; Classic 1998 toggle', async () => {
   const { LIB, fakeLoad, flush } = await import('./music-director.test.mjs');
-  const lib = { ...LIB, briefing_3: LIB.menu, start_2: LIB.start_1 };
+  const lib = { ...LIB, briefing_2: LIB.menu, start_2: LIB.start_1 };
   let ctx = null;
   const events = new EventBus();
   const audio = createAudio(events, { createContext: () => (ctx = new MockAudioContext()), rand: () => 0.1, storage: null, autoUnlock: false,
@@ -178,7 +178,7 @@ test('§9.1 music: real beds/stingers only (no synth on the music bus); suspense
   events.emit('mission:loaded', { mission: { id: 'm02', theater: 'snow' }, world: { clock: 0, commandos: [] } });
   events.emit('game:state', { from: 'title', to: 'briefing' });
   await tick();
-  assert.deepEqual(playing().filter((k) => k !== 'menu'), ['briefing_3']);
+  assert.deepEqual(playing().filter((k) => k !== 'menu'), ['briefing_2']);
   events.emit('game:state', { from: 'briefing', to: 'playing' });
   await tick();
   assert.equal(audio.debug().music, 'mission');

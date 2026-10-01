@@ -18,6 +18,7 @@ import { SFX, MUSIC, ambienceFor } from './manifest.js';
 import { VoiceDirector, lineKey, speakerOf } from './voice-lines.js';
 import { installHandlers, missionAudio } from './event-map.js';
 import { MusicDirector } from './music-director.js';
+import { cueForState, startCueFor, endStinger } from './music-cues.js';
 
 const hashStr = (s) => { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
 
@@ -101,6 +102,8 @@ export function createAudio(events, opts = {}) {
         this.musicDir = new MusicDirector({ ctx: eng.ctx, out: eng.bus.music,
           load: opts.musicLoad || ((id) => eng.loadMusic(id)), has: opts.musicHas || ((id) => eng.files.has(id)),
           log: (e) => this._push(e) });
+        // a play-once bed (credits, campaign_end) handed over to the menu theme: that is now the request
+        this.musicDir.onBedChange = (id) => { if (!this.inMission() && this.track && this.track !== id) { this.track = id; this.musicId = id; } };
         // the score must keep chaining while the game loop is paused/throttled: tick it from a timer too
         if (typeof window !== 'undefined' && typeof setInterval === 'function') this._musicTimer = setInterval(() => this._musicTick(), 250);
         if (opts.loadAssets !== false) {
@@ -212,6 +215,7 @@ function addMethods(audio, events, rand) {
     music(track) {
       if (track == null) { this.track = null; this._refreshMusic(); return; }
       const cue = MUSIC[track];
+      if (cue?.stopsBed) { this.track = null; this._refreshMusic(); } // exit: the menu bed fades under the sign-off
       if (cue && !cue.loop && !cue.mission) { this._stinger(track); return; }
       if (this.inMission()) {
         this._push({ type: 'music', name: track, refused: true });
@@ -220,10 +224,13 @@ function addMethods(audio, events, rand) {
       }
       // an unknown name ('theme' from the briefing) means "this screen's music": keep the state's cue (briefing_N)
       // instead of falling back to the menu bed (that dropped and re-decoded the menu, and the briefing never played)
-      this.track = cue && !cue.mission ? track : (cueForState(this.gameState, this) || this.track || 'menu');
+      this.track = cue && !cue.mission ? track : (cueForState(this.gameState, this.mission) || this.track || 'menu');
       this._refreshMusic();
     },
-    _startCue() { return this._startCueId || (this._startCueId = `start_${1 + Math.floor(rand() * 6)}`); },
+    /** Decode a front-end cue ahead of its request (the map table's briefing loop): the change is a true crossfade. */
+    musicPrefetch(track) { if (this.unlocked && MUSIC[track] && !MUSIC[track].mission) this.musicDir?.prefetchBed(track); },
+    /** Start stinger of the loaded mission: its theater's (start_1 Norway … start_5 Final Assault), start_6 covert. */
+    _startCue() { return this._startCueId || (this._startCueId = startCueFor(this.mission, rand)); },
     _stinger(cue) {
       if (this.unlocked && this.musicDir) this.musicDir.stinger(cue);
       else this._push({ type: 'music', name: cue, stinger: true });
@@ -495,16 +502,6 @@ function addVoiceSiren(audio, events, rand) {
   });
 }
 
-/** Music cue for a game/flow state (§9.1). null = keep the current request. */
-function cueForState(s, a) {
-  if (s === 'title' || s === 'select' || s === 'menu' || s === 'epilogue') return 'menu';
-  if (s === 'briefing') {
-    const n = parseInt(String(a.mission?.id || '').replace(/\D/g, ''), 10) || 0;
-    return `briefing_${1 + (n % 3)}`;
-  }
-  return null;
-}
-
 /** Attach methods, event handlers and the first-gesture unlock. */
 function wire(audio, events, subs, rand, opts) {
   addMethods(audio, events, rand);
@@ -520,12 +517,19 @@ function wire(audio, events, subs, rand, opts) {
     audio.gameState = to;
     if (to === 'paused' && was === 'playing') audio.playSfx('pause_on', null, { event: 'game:state' });
     if (to === 'playing' && was === 'paused') audio.playSfx('pause_off', null, { event: 'game:state' });
-    const cue = cueForState(to, audio);
-    if (cue) audio.track = cue;
-    if (to === 'debrief') audio.track = null; // the debrief is silent after the end stinger
+    // music-cues.js: undefined = keep, null = silence. The Game enters 'briefing' just before 'mission:loaded': the
+    // briefing loop is picked there (or here when the mission is already known), never from the previous mission.
+    if (!MISSION_STATES.has(to) && to !== 'briefing') audio._missionFresh = false;
+    const cue = to === 'briefing' && !audio._missionFresh ? undefined : cueForState(to, audio.mission);
+    if (cue !== undefined) audio.track = cue;
+    if (to === 'debrief' && audio._promoted) { // rank promotion: the fanfare after the end stinger (BEL debrief)
+      audio._promoted = false;
+      if (audio.unlocked && audio.musicDir) audio.musicDir.stinger('debrief_promotion', audio.musicDir.now + 0.6);
+      else audio._push({ type: 'music', name: 'debrief_promotion', stinger: true });
+    }
     if (to === 'won' || to === 'lost') {
       audio.track = null;
-      const st = to === 'won' ? `success_${1 + Math.floor(rand() * 3)}` : `fail_${1 + Math.floor(rand() * 3)}`;
+      const st = endStinger(to === 'won', rand);
       if (audio.unlocked && audio.musicDir) audio.musicDir.endMission(st); // the end stinger is what stops the score
       else audio._push({ type: 'music', name: st, stinger: true });
     }
@@ -544,12 +548,19 @@ function wire(audio, events, subs, rand, opts) {
   // in-mission score: alert layer on alarm / enemies in combat-search states (music-director.js HOT_STATES)
   const ekey = (u) => u?.id ?? u?.tag ?? u;
   on('alarm:start', () => audio.musicDir?.setAlarm(true));
+  on('mission:won', (e) => { audio._promoted = !!(e.promoted || e.rankUp); });
   on('enemy:state', (e) => audio.musicDir?.setEnemyState(ekey(e.enemy), e.to));
   on('unit:killed', (e) => { if (e.unit?.kind === 'enemy') audio.musicDir?.dropEnemy(ekey(e.unit)); });
+  // STYLE §2.5 "Mission load: fade out" — the front-end bed fades while a mission (or a save) loads; the briefing
+  // loop / the start stinger pick up after it. In-mission reloads keep the director's own handling.
+  on('mission:loading', () => { if (!audio.inMission()) { audio.track = null; audio._refreshMusic(); } });
   on('mission:loaded', (e) => {
     audio.world = e.world || null;
     audio.mission = e.mission || null;
     audio._startStingerDone = false;
+    audio._startCueId = null; // the start stinger follows the new mission's theater
+    audio._missionFresh = true;
+    if (audio.gameState === 'briefing') { audio.track = cueForState('briefing', audio.mission); audio._refreshMusic(); }
     if (audio.musicDir?.state === 'mission') audio.musicDir.stopMission(1.0);
     audio.musicDir?.prefetchMission(audio._startCue());
     audio.ambience.forEach((l) => l.handle?.stop(0.5));

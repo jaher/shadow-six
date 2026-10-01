@@ -2,7 +2,8 @@
  * Street furniture other than lamps (step 3p): benches, bollards, Morris column, fences, period road signs, level
  * crossings, telegraph lines with sagging wind-swayed wires. Builders return per-material part lists in a local frame
  * (like lamps.js) so identical pieces are drawn instanced; signs / posters get a small canvas texture per text.
- * No swastikas or real insignia anywhere: German military signs are plain black-on-yellow unit boards.
+ * No swastikas or real insignia on signs: German military signs are plain black-on-yellow unit boards (enemy
+ * flagpoles carry the flag of art/flags.js).
  * @module art/furniture/street-props
  */
 import * as THREE from 'three';

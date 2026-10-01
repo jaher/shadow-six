@@ -12,6 +12,7 @@ import { CONFIG } from '../config.js';
 import { el, fromHTML, tip } from './dom.js';
 import { GLYPHS, EYE_SVG } from './icons.js';
 import { applyToolState, iconEntry, iconHTML, toolHTML, wireToolStates } from './icon-art.js';
+import { EyeAnimator } from './eye-anim.js';
 import { UI } from './ui-config.js';
 import { ROLE_NAMES } from './catalogue.js';
 import { CommandoWarnings } from './bcd-ui.js';
@@ -66,6 +67,11 @@ export class TopBar {
     const eye = iconEntry('tool/eye.open') ? toolHTML('tool/eye.open') + iconHTML('tool/eye.closed', { cls: 'lid' }) : EYE_SVG;
     this.eye = wireToolStates(tip(fromHTML(`<button class="hud-icon hud-eye">${eye}</button>`, null, i), 'EYE: SHOW A VISION CONE'));
     this.eye.addEventListener('click', () => h.cursor.setMode(h.cursor.mode === 'eye' ? null : 'eye'));
+    // the rendered eye lives: blinks, saccades, dilates under the pointer, looks at the cursor while armed (eye-anim.js)
+    if (iconEntry('tool/eye.open')) {
+      this.eyeAnim = new EyeAnimator(this.eye, { reducedMotion: () => !!h.kit?.reducedMotion, armed: () => h.cursor?.mode === 'eye' });
+      this.eyeAnim.refresh(h.scale || 1);
+    }
     this.eye.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       h.hideCones();
@@ -256,6 +262,7 @@ export class TopBar {
     }
     this.lamp.classList.toggle('on', !!w.alarm?.active);
     this._armed(this.eye, hud.cursor.mode === 'eye');
+    this.eyeAnim?.tick();
     this._armed(this.camera, hud.cursor.mode === 'track');
   }
 }

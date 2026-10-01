@@ -11,6 +11,7 @@ import { el } from './dom.js';
 import { medal, LOCK_SVG } from './menu-kit.js';
 import { BEL_CATALOGUE, CAMPAIGN_TABS } from './catalogue.js';
 import { europeSVG, project } from './europe.js';
+import { campaignTheme, briefingCueFor } from '../audio/music-cues.js';
 
 /** The part of Europe the BEL campaign covers (Norway → Libya). */
 export const TABLE_VIEW = { lon0: -8, lon1: 30, lat0: 27, lat1: 71.5 };
@@ -85,6 +86,10 @@ export class MapTable {
     const focusIx = Math.max(0, pins.findIndex((p) => p.st === 'next'));
     const open = (p, direct) => {
       if (p.st === 'locked' || p.st === 'unbuilt') return;
+      // a mission is starting: closing the table must not send the flow (and the music) back to the title menu —
+      // the bed fades on 'mission:loading' (STYLE §2.5) and the briefing loop decodes meanwhile
+      this._launching = true;
+      if (!direct) s.game?.audio?.musicPrefetch?.(briefingCueFor(p.c));
       if (direct) hud.loading.startDirect(p.c.id);
       else hud.startMission(p.c.id);
     };
@@ -110,7 +115,11 @@ export class MapTable {
         onSelect: () => open(p, false),
       })),
       defaultFocus: focusIx,
-      detail: (r, pane) => this._card(pins.find((p) => p.c.id === r.id), pane),
+      detail: (r, pane) => {
+        const pin = pins.find((p) => p.c.id === r.id);
+        if (pin) this._theme(pin.c); // the focused pin's theater theme (crossfades only when the chapter changes)
+        return this._card(pin, pane);
+      },
       footer: [
         { label: '(B)RIEFING', onSelect: () => open(cur(), false) },
         { label: '(S)TART WITHOUT BRIEFING', onSelect: () => open(cur(), true) },
@@ -127,11 +136,19 @@ export class MapTable {
       onOpen: () => {
         kit.sound.play('lamp');
         s.flow?.openSelect?.();
+        this._theme(pins[focusIx]?.c);
       },
       onClose: () => {
-        if (s.flow?.state === 'select') s.flow.setState('title');
+        const launching = this._launching;
+        this._launching = false;
+        if (!launching && s.flow?.state === 'select') s.flow.setState('title');
       },
     });
+  }
+
+  /** Campaign-map music (§9.1): the theme of the focused mission's theater (Norway … Final Assault). */
+  _theme(c) {
+    this.s.game?.audio?.music?.(campaignTheme(c));
   }
 
   _switchTab(dir) {

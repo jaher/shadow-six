@@ -32,6 +32,7 @@ import { Backdrop } from './backdrop.js';
 import { Boot } from './boot.js';
 import { installTouch } from './touch.js';
 import { KEY_BINDINGS } from '../engine/input.js';
+import { setInsignia } from '../art/insignia.js';
 
 function ensureStylesheet() {
   for (const [key, href] of [['uiCss', 'styles/ui.css'], ['menusCss', 'styles/menus.css'], ['screensCss', 'styles/menus-screens.css']]) {
@@ -125,6 +126,7 @@ export class HUD {
     if (key !== this._iconKey) {
       this._iconKey = key;
       refreshIcons(this.root, this.scale);
+      this.topbar?.eyeAnim?.refresh(this.scale);
       this.iconsReady = preloadIcons(this.scale);
     }
   }
@@ -138,6 +140,7 @@ export class HUD {
       g.cameraRig.setYaw?.(Number.isFinite(o.cameraAngle) ? o.cameraAngle : CONFIG.camera.yawDeg); // Options → CAMERA ANGLE
     }
     CONFIG.ai.submissive = o.halt === 'submissive'; // §4.5 Submissive / Indifferent
+    setInsignia(o.insignia); // Options → INSIGNIA: enemy flag layout (art/flags.js repaints live flags)
     // OPTIONS → CONTROLS rebinding: overrides on top of engine/input.js KEY_BINDINGS
     if (g.input && 'bindings' in g.input) g.input.bindings = { ...KEY_BINDINGS, ...(o.bindings || {}) };
     // AUDIO (§9.2 / §9.4 / §6.5) keeps its own option names
@@ -322,6 +325,14 @@ export class HUD {
     const ok = await this.game.quickLoad();
     if (!ok && !this.world) this.game.quitToTitle?.();
     return ok;
+  }
+
+  /** End of the campaign (debrief → EPILOGUE): back to the title, the End of WWII theme, the credits roll. */
+  epilogue() {
+    this.quitToTitle();
+    this.screens.openMain?.();
+    this.game.flow?.setState('epilogue'); // music: campaign_end → credits → menu (after openMain's menu request)
+    this.screens.showCredits?.({ epilogue: true });
   }
 
   quitToTitle() {

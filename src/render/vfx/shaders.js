@@ -43,11 +43,16 @@ void main(){
   vec3 pos=d0.xyz+d1.xyz*f1+acc*f2;
   vec3 vel=d1.xyz*e+acc*f1;
   pos+=gustPush(pos,age,d5.w);
-  if(d4.z>0.0) pos+=d4.z*curlNoise(pos*0.16+vec3(seed*17.0,-uTime*0.12,seed*5.0))*(1.0-exp(-age*0.7));
+  // ambient wisps (aux flag) share ONE coherent turbulence field (no per-particle offset, ~3 m eddies) so neighbours
+  // meander together and the plume reads as a sinuous ribbon that tears, instead of averaging into a uniform veil;
+  // the meander grows slowly with age, so the plume leaves the stack as a narrow column and only then wanders
+  bool ambW = mode==0 && d6.w>0.5;
+  if(d4.z>0.0) pos+=d4.z*(ambW ? curlNoise(pos*0.32+vec3(seed*0.6,-uTime*0.2,seed*0.4))*(1.0-exp(-age*0.35))
+                               : curlNoise(pos*0.16+vec3(seed*17.0,-uTime*0.12,seed*5.0))*(1.0-exp(-age*0.7)));
   float grow = mode==1 ? 1.0-pow(1.0-x,4.0) : (mode==0 ? 1.0-pow(1.0-x,2.2) : sqrt(x));
   float size=mix(d2.x,d2.y,grow);
   float fin=clamp(age/max(min(d6.z,life*0.3),1e-3),0.0,1.0);
-  float fout = mode==0 ? pow(1.0-x,1.3) : (mode==1 ? (1.0-smoothstep(0.45,1.0,x)) : (1.0-smoothstep(0.55,1.0,x)));
+  float fout = mode==0 ? pow(1.0-x, ambW ? 1.4 : 1.3) : (mode==1 ? (1.0-smoothstep(0.45,1.0,x)) : (1.0-smoothstep(0.55,1.0,x)));
   float T = 300.0+(d4.x-300.0)*exp(-age/max(d4.y,1e-3));
   vec2 c=position.xy; vec3 wp;
   if(mode==2){
@@ -133,8 +138,9 @@ void main(){
   float dt=texture2D(uDetail, vUv*0.55+vec2(seed*3.1,seed*7.7)+vec2(0.0,-uTime*0.03)).r;
   float dt2=texture2D(uDetail, vUv*1.3+vec2(seed*5.3,seed*1.7)+vec2(uTime*0.02,0.0)).g;
   float ero = (mode==1 ? mix(0.05,0.5,x) : mix(0.05,0.45,x)) + vC.y*(0.2+0.5*x);
-  float cov = tx.a*(vC.x>0.5 ? 1.7 : 1.0);
-  float dens=smoothstep(ero,1.0,cov*(0.62+0.5*dt+0.25*dt2));
+  float cov = tx.a*(vC.x>0.5 ? (vC.w>0.5 && mode==0 ? 1.3 : 1.7) : 1.0); // ambient wisps: softer edges (no hard rims that pop as they drift)
+  // ambient wisps: softer, less grainy body (fine detail reads as dirt from the game camera), torn only as they age
+  float dens=vC.w>0.5 && mode==0 ? smoothstep(ero,1.0,cov*(0.78+(0.22+0.3*x)*dt+0.1*dt2)) : smoothstep(ero,1.0,cov*(0.62+0.5*dt+0.25*dt2));
   float alpha=dens*vA.a;
   alpha*=softFade(uSoftK*vSize);
   if(alpha<0.002) discard;
@@ -153,6 +159,22 @@ void main(){
   float hot = mode==1 ? smoothstep(800.0,1600.0,Tl) : 0.0;
   alb*=mix(1.0,0.3,hot);
   vec3 col=alb*(uSunColor*diff*selfSh+amb+fl*(1.0-0.9*hot));
+  if(mode==0 && vC.w>0.5){
+    // AMBIENT wood smoke (chimneys, smoulder): fine particles → strong forward scattering. Thin edges glow warm on the
+    // sun side when the view looks towards the sun (Henyey-Greenstein g=0.55), the optically thick core stays darker
+    // and the underside takes the darker ground bounce; fresh smoke near the stack is denser/greyer, old smoke bluer.
+    // Smooth shading only: a wisp is a few dozen pixels on screen, so the atlas normal / thickness detail turns into
+    // per-pixel grain that boils as the wisps drift (reads as dirt, not smoke) → a soft dome normal, density self-shadow.
+    vec2 q=vUv*2.0; vec3 Nd=normalize(q.x*vR+q.y*vU+sqrt(max(1.0-dot(q,q),0.0))*vF);
+    vec3 Na=normalize(mix(Nd,N,0.15)); float ndA=dot(Na,uSunDir);
+    float mu=dot(-uSunDir,normalize(vF));
+    float g=0.55, hg=(1.0-g*g)/pow(max(1.0+g*g-2.0*g*mu,1e-3),1.5)*0.25;
+    float thin=1.0-smoothstep(0.25,0.9,dens);
+    float sh=mix(1.0,0.6,smoothstep(0.2,0.85,dens)*vA.a);         // optically thick core: self-shadowed, darker
+    float wrapD=clamp(ndA*0.6+0.4,0.0,1.0);                        // soft wrap: a plume is lit through its body
+    col=alb*(uSunColor*(wrapD*sh*0.9+hg*thin*0.8)+mix(uGroundColor,uSkyColor,Na.y*0.5+0.5)*mix(0.6,1.1,Na.y*0.5+0.5)*sh+fxLights(Na,0.65));
+    col*=mix(vec3(1.0),vec3(0.94,0.98,1.06),x);
+  }
   col=mix(col,uFogColor,fogK);
   // cooling fire only glows in the dense interior of a puff (red pockets inside soot); thin fringes over
   // snow would otherwise tint pink. Hot puffs glow through their whole body.

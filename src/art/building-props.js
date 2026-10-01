@@ -290,7 +290,7 @@ export function libraryVisual(type, p = {}, ctx = {}) {
   const flags = dressFlags(b.object3d, b.asset, { flag: !!p.flag, theater });
   if (p.flag && !flags.length) {
     // garrison marker (§ barracks flags) on an asset without its own pole: a pole at the east gable
-    const pole = makeFlag({ pole: true, h: 6.5 });
+    const pole = makeFlag({ pole: true, h: 6.5, theater });
     pole.position.set(ew / 2 + 1.8, 0, ed / 2 + 0.4); // SE corner: faces the camera
     pole.scale.set(1 / sx, 1 / sy, 1 / sz);
     fit.add(pole);

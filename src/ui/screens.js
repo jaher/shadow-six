@@ -243,6 +243,8 @@ export class Screens {
     rows.push({ kind: 'rule' }, { label: 'EXIT', onSelect: () => this.kit.pop() });
     this.kit.open({
       id: 'tutorials', title: 'TUTORIALS', bg: this.bg, rows, className: 'mk-compact mk-tutorials', colw: 240,
+      onOpen: () => this.game.audio?.music?.('tutorial'), // the training-camp theme (§9.1)
+      onClose: () => { if (!this.game.world) this.game.audio?.music?.('menu'); },
       detail: (r, pane) => {
         if (!r.help) return false;
         el('div', 'desc', pane, r.help);
@@ -307,7 +309,8 @@ export class Screens {
 
   // ---------------------------------------------------------------- S12 CREDITS
 
-  showCredits() {
+  /** The credits roll; `epilogue` (campaign end): the music is the flow's campaign_end → credits → menu chain. */
+  showCredits({ epilogue = false } = {}) {
     const kit = this.kit;
     let scroller = null, y = 0, speed = 1, raf = 0, last = 0, page = 0, hold = 0;
     const stop = () => { cancelAnimationFrame(raf); raf = 0; };
@@ -340,7 +343,7 @@ export class Screens {
         vp.setAttribute('aria-label', 'Credits. Down arrow speeds up, Escape returns.');
         scroller = el('div', 'mk-rollin', vp);
         this._creditsContent(scroller);
-        this.game.audio?.music?.('credits');
+        if (!epilogue) this.game.audio?.music?.('credits');
         if (!paged()) raf = requestAnimationFrame(step);
       },
       hints: [['ArrowDown', 'FASTER'], ['Escape', 'BACK']],
@@ -363,7 +366,7 @@ export class Screens {
         }
         return false;
       },
-      onClose: () => { stop(); this.game.audio?.music?.('menu'); },
+      onClose: () => { stop(); if (!epilogue) this.game.audio?.music?.('menu'); }, // the epilogue chain ends on the menu itself
     });
   }
 

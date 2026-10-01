@@ -164,7 +164,9 @@ export class Loading {
   async startDirect(id) {
     const hud = this.hud;
     hud.closeAll();
-    const ok = await this.run({ missionId: id, auto: false }, () => (hud.game.flow ? hud.game.flow.startMission(id) : hud.game.loadMission(id)).then(() => true));
+    // no briefing: the loaded mission passes through 'briefing' — keep the music silent until the start stinger
+    const ok = await this.run({ missionId: id, auto: false }, () => (hud.game.flow ? hud.game.flow.startMission(id) : hud.game.loadMission(id))
+      .then(() => { hud.game.audio?.music?.(null); return true; }));
     if (!ok) return hud.game.quitToTitle?.();
     hud.briefing.close();
     hud.game.flow ? hud.game.flow.begin() : hud.game.start();

@@ -130,8 +130,16 @@
 .hud-eye > .ico.lid { opacity: 0; animation: blink 4s infinite; }
 .hud-eye[data-state="disabled"] > .ico.lid { display: none; }
 .hud-eye .lid { animation: blink 4s infinite; transform-origin: 50% 30%; }
-.hud-eye:hover .lid, .hud-eye.armed .lid { animation-duration: 0.5s; }
+/* fallback blink (no sheet yet / failed load): the same calm 4 s cadence under hover and armed, never a frantic flicker */
 @keyframes blink { 0%, 92%, 100% { opacity: 0; } 94%, 98% { opacity: 1; } }
+/* living eye (eye-anim.js): sheet cells over the porthole window; the static renders stay underneath as the fallback.
+   Tool states: hover/active tint like their renders; pressed and disabled show their own static render. */
+.hud-eye > .eye-anim { position: absolute; display: block; background-repeat: no-repeat; pointer-events: none; visibility: hidden; }
+.hud-eye.eye-live > .eye-anim { visibility: visible; }
+.hud-eye.eye-live > .ico.lid, .hud-eye.eye-rm > .ico.lid { animation: none; opacity: 0; }
+.hud-eye.eye-live[data-state="pressed"] > .eye-anim, .hud-eye.eye-live[data-state="disabled"] > .eye-anim { visibility: hidden; }
+.hud-eye[data-state="hover"] > .eye-anim { filter: brightness(1.2) saturate(1.05); }
+.hud-eye[data-state="active"] > .eye-anim { filter: brightness(1.06); }
 
 /* §6.3 speaker card under the portrait slot */
 .hud-speaker-card {

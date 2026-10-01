@@ -3,7 +3,7 @@
 Status: the final best-of VFX library, built from the three prototypes (A: Mantaflow flipbooks,
 B: real-time volumetrics, C: GPU particles) following the three judge reports
 (art direction, tech/perf, engine integration). The library lives in
-`src/render/vfx/` (11 ES modules, about 1.7k lines, no shipped textures; lab copy in `scratchpad/vfx/final/vfx/`). It is
+`src/render/vfx/` (12 ES modules, about 1.8k lines, no shipped textures; lab copy in `scratchpad/vfx/final/vfx/`). It is
 integrated into the game (see §6). Everything in it is original code or procedurally generated at startup, so it can be redistributed
 in the public repository. The one exception is the Ashima/Gustavson simplex noise (MIT, attributed in `glsl.js`).
 
@@ -80,7 +80,7 @@ against world surfaces in every theater.
 | `burning_wreck` (E3) | Flame tongues sampled on the wreck **top** (oriented footprint, `h` = top height): 34/s normal + 9/s large, so the flames rise 1.5–3 m above the hull instead of hiding inside it. Soot column (narrow base, widening, wind-bent), embers, flickering light + haze. Returns a handle |
 | `fuel_pool_fire` | 5 random lobes (irregular pool), tall tongues (40·R/s) + large tongues with detaching hot puffs, black column, embers, light, haze, dark fuel-stain decals |
 | `fire_small` | Campfire: short tongues, embers, thin grey-white wood-smoke plume (the chimney recipe), 14 cd flicker light, scorch |
-| `chimney_smoke` (E4) | 26 wisps/s of grey-white wood smoke (albedo 0.42), small (0.25 → 3.6 m), velocity-stretched, torn "wisp" atlas cells, erosion that grows with age. Buoyant (1.4–2 m/s) and bent by the wind into a long, thin plume |
+| `chimney_smoke` (E4) | **Ambient** (own pool, readability-limited, §6.4). A thin, continuous plume anchored on the stack top: ~32 faint wisps/s × `activity` (0 cold · 0.45 faint · 1 · 1.5 busy) with a slow draught/stoking modulation (periods 60–140 s). Stack-sized at birth (0.3–0.38 m, born within 12 cm above the stack, 0.12 s fade-in) → ~0.9 m; leave at 1.3–1.6 m/s, rise on buoyancy, bend over with `world.wind` (mean + gust fronts in the shader) and dilute within ~6–10 m of rise in calm air, sooner and flatter in wind (life × 0.45–1; opacity × up to 1.45 in wind so the longer, more diluted plume still reads). One coherent curl-noise field for all ambient wisps whose amplitude grows slowly with age (narrow at the stack, meanders and tears further out); velocity-stretched wisp cells with soft rims; alpha ∝ (1 − age)^1.6. Shading is smooth only (soft dome normal, density self-shadow, Henyey-Greenstein forward scatter on thin edges, bluer as it ages): atlas normal detail on wisps a few dozen pixels wide read as grain and boiled. Light bluish-grey (snow albedo [0.27, 0.3, 0.38], displayed a little darker than the snow; elsewhere [0.33, 0.34, 0.38]) |
 | `smoke_column` | Generic persistent column (`color: black/grey/white`) |
 | `smoke_puff` | Rifle / impact smoke: 5 small torn wisps along `dir` |
 | `muzzle_flash` (E5) | **2–3 frame** (45 ms) HDR star aligned to the barrel: a forward petal 0.65–0.95 m (×weapon factor: pistol 0.65, MG 1.1) + 3 side petals at 120°, explicit yellow→orange HDR ramp (10→4), min on-screen size 7×28 px so it reads at 40–50 m view width. 45 ms flash sprite, **1-frame light pool** (45 cd, 20 ms), smoke puff, and a 260 m/s tracer (not for pistols) |
@@ -240,7 +240,7 @@ In node tests there is no WebGL renderer. The adapter still maps every event and
 | `hit` | Knife or harpoon on flesh → `blood_puff`. Projectile on a wall or metal → `sparks` |
 | `unit:killed` | `blood_puff` + blood pool decal, except for bloodless causes (syringe, drowning, fire, electric, explosions, train) or when blood is off or censored |
 | Land vehicles (per tick) | `vehicle_dust_trail` (rate ∝ speed) on sand, snow powder and dirt roads. `mud_spray` from the rear wheels on mud cells |
-| Structures (at map build) | `chimney_smoke` from a model child named `/chimney/`, from a mission `chimney: true / {x, z, y}`, or, for placeholder houses/huts, from a seeded share (75% in snow, 45% elsewhere) that gets a small brick stack. It stops on `structure:destroyed` |
+| Structures (at map build) | `chimney_smoke` from the **chimney anchors of the actual model** (building-library sidecar `anchors[kind='chimney']`, transformed by the placed instance — also for instanced repeats, whose model node is disposed — then snapped onto the drawn stack top +5 cm by a short ray), a model child named `/chimney/`, or a mission `chimney: true / {x, z, y, activity}`. Library models without a chimney anchor, ruins and destroyed variants never smoke; only procedural (non-library) houses/huts get a seeded brick stack, seated on the roof surface under it (raycast). Per-chimney activity is seeded by id and theater (snow: 15 % cold, 35 % faint, 40 % normal, 10 % busy; elsewhere 40 % cold); a map with chimneys always has one lit. It stops on `structure:destroyed` |
 | Mission `fx: [{kind, x, z, …}]` | Any kind, e.g. campfires (`fire_small`) or a `smoke_column` |
 
 ### 6.3 In-game performance (M1, 1280×720, RTX 5090 ANGLE-GL headless, `__game.bench(60)` whole frame)
@@ -256,6 +256,66 @@ The typical fight is a 5-drum chain, a burning truck wreck, a grenade and 3 chim
 
 The added GPU cost of a fight is about 0.1 to 0.25 ms here, within the lab figures in §4 (×9 on a mid laptop ≈ 1–2 ms).
 
+### 6.4 Ambient smoke and readability (feat/chimney-smoke)
+
+The user asked for chimney smoke that looks realistic and does not get in the way. From the 40° game camera, smoke
+rising from a roof projects over the ground behind and above the building on screen, exactly where guards, cones and
+paths are. So chimney plumes are thin, light bluish-grey and continuous from the stack top (they read as wood smoke,
+not as stains), and the readability work is done locally where they cross units and cones, not by turning the whole
+plume down. Before/after: `docs/screenshots/smoke-before-after.jpg` (M1/M2/M3, zoom 1 and 2, BEFORE = the dense
+pre-rework plume, AFTER = this) and `smoke-m0{1,2,3}-z{0.5,1,2}-after.jpg`.
+
+**Ambient layer.** Chimney smoke is emitted with `ambient: true` (aux flag = 1) into its own pool `vfx.amb`
+(`ambCap` 2.5k/4.5k/7.5k/9k per preset: 30 busy chimneys fit the high preset; unsorted, so it is drawn in spawn order
+and pans never reshuffle overlapping wisps; its own pressure thins chimneys above 60 % fill) and accumulated into its
+own target. Only `chimney_smoke` is ambient by default. Fire and wreck smoke keep their full strength and stay out of
+the pool: the persistent `fire_large` column, the `fuel_pool_fire` column, `burning_wreck`, `smoke_column` and the
+campfire plume of `fire_small`. A burning building or fuel depot should still put up a black column. `smoke_column`
+can opt in with `{ambient: true}`. Explosion smoke stays dramatic and is not limited.
+
+**Composite** (FxPass, per pixel where the ambient layer has coverage):
+1. *Background estimate*: the darkest of 5 taps (±4 px) of the scene copy. Ground texture, footprint edges and falling
+   snowflakes (small, bright, moving) therefore never modulate the plume pixel by pixel. Using the raw pixel made the
+   plume speckle and boil as flakes passed.
+2. *Tone band*: the smoke's own lit luminance is kept within 0.5–1.8 × the background (reference never below a dimly
+   lit ground, 0.1 / exposure), keeping its hue (`AMBIENT_RULES.toneMin/toneMax`). The VFX light uniforms can disagree
+   with what lights the ground (night theaters, lamps). A wisp much darker than the ground reads as a stain, and one
+   much brighter reads as a white sheet.
+3. *Alpha ceiling*: linear up to 0.6, then soft to 0.92.
+4. *Perceived cap*: the composite blends in linear HDR before the tone curve. AgX compresses a veil over snow and
+   expands it in the darks, so the cap limits the change of the DISPLAYED value: perceived = |D(Lo) − D(Lb)| /
+   max(D(Lb), 0.3), D = the AgX curve on a grey (gamma for other curves). The knee is soft: changes under 60 % of the
+   cap pass untouched (so the plume's structure is not flattened), and above that they approach the cap. An 8-step
+   bisection finds the layer's strength. Caps (`vfx/ambient.js` `AMBIENT_RULES`): 0.35 where the smoke overlaps the
+   ground plane, 0.5 over roofs (more than 1.2–4.5 m above the local ground).
+
+**Masks.** `FX._ambientMask()` sends, each frame, the entities near the live ambient smoke (its AABB grown by the
+ground it can cover on screen): commandos, enemies and bodies, doors, pickups, switches, the probe ring (screen-space
+capsules of their upright axis, r 0.7–0.9 m, soft to 1.8 r), and the shown vision cones (world sectors on the ground). The
+cap drops to 0.35 × 0.1 = 0.035 over units and 0.35 × 0.12 = 0.042 over cones. A silhouette under a plume keeps its
+contrast, and cones and selection rings are not tinted. Hidden units (garrisoned) leave no hole in the plume.
+
+**Temporal stability.** At 30 fps steps (M3, zoom 1, mission wind), 59.6k → ~11k pixels per frame change their
+perceived value by more than 0.05. Three causes were removed: the per-pixel background (snowflakes), the atlas normal
+detail in the shading (grain), and an intermittent stack exit (too few, too opaque wisps). The remaining changes are
+the edges of wisps moving with the wind (~8 px per frame at 6.5 m/s).
+
+**Tests.** `tests/unit/chimney-smoke.test.mjs` covers: emission points = transformed anchors, also for instanced
+repeats; no smoke from chimney-less models or ruins; the activity distribution; wisps born on the stack top; rise of
+6–10 m in calm air and flatter in wind; slow variation; only chimney smoke ambient (fire / wreck / pool / column /
+campfire smoke not); budgets; the soft knee; the limiter holds for random backgrounds.
+`tests/chimney-smoke.test.mjs` (GPU, M1 + M3) checks:
+- emission 5 cm above the drawn stack top;
+- the plume clearly visible (> 3000 px with a perceived change > 0.04, max > 0.15);
+- the plume anchored at the stack (perceived > 0.08 within 1.5 m above the stack top);
+- the perceived change ≤ the roof cap everywhere;
+- ≤ 0.035 (+ tolerance) over every unit's screen box, with a commando and an enemy moved right under a plume;
+- the shown cone untinted;
+- the FxPass cost of the ambient layer.
+
+**Cost** (RTX 5090, FxPass GPU timer, 1280×720 high): +0.025 ms (M1, 161 live wisps) and +0.04 ms (M3, ~600–900 live
+wisps) for the ambient pool draw, the scene copy, the tone band and the limiter.
+
 ## 7. Judge must-fix checklist
 
 | Must-fix | Status |
@@ -267,7 +327,7 @@ The added GPU cost of a fight is about 0.1 to 0.25 ms here, within the lab figur
 | E2 grenade | 16-jet brown dirt fountain + clods + short flash + grey-brown skirt. No fireball, no cotton balls. Visibly bigger than B's (about 5–6 m tall at 0.6 s) |
 | Fireball onset | Single coherent hot core from frame 1 (C's radial puffs, high drag). No disc/decal phase. The barrel flash is cut to HDR 7 so it no longer blows out white; E1 keeps a short (0.14 s) HDR-16 flash |
 | Cotton-ball look | Wisp atlas cells, age-growing erosion, velocity stretch, faster dissipation. Chimney/rifle/dust use small, many and torn wisps |
-| E4 chimney | Grey-white (albedo 0.42) thin wisp plume, 26/s, wind-bent. Lab framing uses `ty` so the plume stays in view |
+| E4 chimney | Reworked (feat/chimney-smoke): ambient wisp plume with per-chimney activity, readability-limited (§6.4). Lab framing uses `ty` so the plume stays in view |
 | Engine retune (bloom 2.0, ACES/AgX) | Tuned inside the real engine at bloom threshold 2.0 with the default ACES (`CONFIG.render.toneMapping`). Flame/fireball cores exceed 2.0 and bloom; rims stay orange. Smoke uses the engine's 1/π Lambert, which removed the washed-out look the prototypes had at 3× brightness |
 | Heat haze occlusion; static grain | Haze is skipped where scene depth is in front of the source (geometry occludes). Noise scrolls in time. Haze exists only on medium+ |
 | Theaters (snow / overcast / night) | Sun, hemisphere, IBL and fog are pulled from the scene every frame. Validated in the lab: night fire lights smoke and ground (6 pooled lights feed both the materials and the particle shader); snow and overcast columns take sky colour and stay dark/sooty. Pooled lights cast no shadows; the flash pool (45–420 cd) is strong enough to read |
@@ -285,7 +345,7 @@ The added GPU cost of a fight is about 0.1 to 0.25 ms here, within the lab figur
 Integration (game):
 - **Multi-view layouts** (2–4 camera views, §2.3) use the plain forward path, so they show no VFX. Only the single main view runs the post chain.
 - **Decals are flat quads** at ground height + 2 cm (polygon offset). On steep carved banks, a large scorch can clip into the slope.
-- **Placeholder chimneys**: until the building library models carry a `chimney` node, houses/huts get a seeded brick stack from the adapter.
+- **Chimneys** come from the library sidecar anchors; only procedural houses/huts still get a seeded brick stack.
   Wood smoke over snow is still low-contrast from the game camera, even after the snow theater's darker, denser plume.
 - **Heat haze and pooled lights** are unchanged from the lab (8 haze sources, 6 shadowless lights: at night, fire light passes through walls).
 - **Grenade in snow** (art review): white snow spray on white snow was nearly invisible at the game camera. On
@@ -306,8 +366,11 @@ Library:
   compact blobs; a second re-sim (vz 4, burning rate 0.55) was aborted for time. That route stays open with the §5 tools.
 - **Sprite smoke from a steep camera.** Billboards face the camera, so a column seen from above is a stack of discs. The
   stretch/erosion/wisp cells hide this at 40–80 m, but a smooth 360° rotation or strong zoom can show it.
-- **Chimney smoke is low-contrast** on bright plaster, sand and snow (physically right: wood smoke is grey-white).
-  Missions with dark roofs read best. Raise `op` per mission if needed.
+- **Ambient smoke is soft by design.** The perceived cap (0.35 over the ground, 0.5 over roofs) and the tone band keep
+  plumes a light bluish-grey a little darker than the snow. In strong wind they lie flat and thin out quickly, as real
+  wood smoke does. Missions can set `chimney: {…, activity}` per structure.
+- **Ambient masks are ortho-only**: the unit capsules use the camera plane of the orthographic game camera (the FX run in
+  the single main view only).
 - **Heat haze** is screen-space, limited to 8 sources, and occlusion is a per-source depth test (a wall between the
   camera and part of a large fire can still wobble slightly at its edge).
 - **Half-resolution edges.** On ultra (pixelRatio 2) the smoke is rendered at 1080p and upsampled bilinearly. There is a

@@ -779,7 +779,7 @@ The §1.4 mapping table covers the 22 contract names. The full list to produce:
 **Clutter kit** (for the realism budget; DL Poly Haven props plus small BL items):
 - jerrycans, ammo cans, stick-grenade crates, radio sets, lanterns, ladders, spades, picks, wheelbarrows, carts, tyres, fire pits, laundry lines, posters,
 - awnings and water jars (desert), fishing nets and boats (Norway), bicycles and tables (Europe),
-- flags **without swastikas** (plain or Balkenkreuz only).
+- flags: none from asset packs — every enemy flag is the procedural one in `src/art/flags.js` (historical 1935–45 flag by user decision 2026-09-30, Balkenkreuz banner under Options → INSIGNIA → NEUTRAL).
 
 ### 2.5 Buildings (route: BL, `house.py`-style scripts; 3–10k tris; intact plus ruined)
 
@@ -1065,7 +1065,7 @@ Frame times are wall-clock medians over 150 frames at **1920 × 1080 on the RTX 
 | R9 | **pmndrs `postprocessing` supports three < 0.187 only** | certain on upgrade / medium | Freeze r186; vendor the exact files | three's own `EffectComposer` chain (GTAO or SSAO + UnrealBloom + OutputPass + SMAA). The prototype's `pp=three` mode works; it costs about 1–2 ms more and shows AO halos on grass |
 | R10 | **VRAM and download size** (WebP decodes to RGBA8; uncompressed texture arrays measured 117 MB) and **KTX2 encoding still untested** | medium / medium | Test KTX-Software `toktx` or `gltf-transform etc1s/uastc` early; per-mission manifests; per-mission audio with streamed beds (187 MB decoded otherwise) | 1k textures on low and medium; drop ultra 2k |
 | R11 | **Performance numbers are best-case**: shared-GPU re-runs were 1.3–1.7× slower; mid-range GPUs never measured | medium / medium | Re-measure on the engine with a quiet GPU and on a real mid-range machine before fixing auto-preset thresholds; dynamic resolution; zoom LOD; animation throttling; atlas characters (7 materials → 2) | Low preset |
-| R12 | **Sensitive insignia** on downloaded aircraft and vehicles | medium / high | Manual texture check at intake; paint out swastikas; flags are plain or Balkenkreuz only | Retexture the whole asset |
+| R12 | **Sensitive insignia** on downloaded aircraft and vehicles | medium / high | Manual texture check at intake; paint out swastikas; downloaded flags are never used (enemy flags come from `src/art/flags.js`, spec §10.6) | Retexture the whole asset |
 | R13 | **Provenance of CC0 sounds and uploads**: game rips posted as CC0, and **CC0 uploads built from NC/BY samples** (Freesound 177556, removed) | medium / high | Read every description for sources, not just the licence field; reject known rips (morganpurkis) and derivatives of non-CC0 samples; prefer period libraries (craigsmith), Kenney and own recordings | Replace the sound from another CC0 source or `procedural.js` |
 | R14 | **Scale and proportion errors** from single-axis fitting | medium / medium | `assets/dimensions.json` with 3-axis checks; reject anything more than 10% off; capsules in the review shots | — |
 | R15 | **Style mismatch** between scanned PH assets and softer scripted assets | high / medium | Re-bake sourced vehicles through the grime stack; push grime contrast and micro-normals; one grade | Use fewer scanned hero assets next to scripted ones |

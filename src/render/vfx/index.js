@@ -14,15 +14,17 @@ import { FxPass, NHAZE } from './pass.js';
 import { attachToEngine } from './engine.js';
 import { RECIPES, ALIASES } from './effects.js';
 import { WIND_UNIFORMS } from '../../world/wind.js';
+import { AMBIENT_RULES } from './ambient.js';
 
 export const FIXED_DT = 1 / 60;
 /** VFX quality tiers, keyed like engine QUALITY_PRESETS. */
 export const VFX_QUALITY = {
-  low: { smokeCap: 9000, hotCap: 3000, density: 0.55, fxMaxHeight: 540, haze: false, debrisCap: 160, softK: 0.5 },
-  medium: { smokeCap: 16000, hotCap: 5000, density: 0.75, fxMaxHeight: 720, haze: true, debrisCap: 300, softK: 0.5 },
-  high: { smokeCap: 26000, hotCap: 8000, density: 1, fxMaxHeight: 900, haze: true, debrisCap: 450, softK: 0.5 },
-  ultra: { smokeCap: 36000, hotCap: 12000, density: 1, fxMaxHeight: 1080, haze: true, debrisCap: 600, softK: 0.5 },
+  low: { smokeCap: 9000, hotCap: 3000, ambCap: 2500, density: 0.55, fxMaxHeight: 540, haze: false, debrisCap: 160, softK: 0.5 },
+  medium: { smokeCap: 16000, hotCap: 5000, ambCap: 4500, density: 0.75, fxMaxHeight: 720, haze: true, debrisCap: 300, softK: 0.5 },
+  high: { smokeCap: 26000, hotCap: 8000, ambCap: 7500, density: 1, fxMaxHeight: 900, haze: true, debrisCap: 450, softK: 0.5 },
+  ultra: { smokeCap: 36000, hotCap: 12000, ambCap: 9000, density: 1, fxMaxHeight: 1080, haze: true, debrisCap: 600, softK: 0.5 },
 };
+export { AMBIENT_RULES, displayValue, perceivedChange, capScale } from './ambient.js';
 
 function mulberry32(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
@@ -50,6 +52,9 @@ export function createVfx(scene, camera, renderer, opts = {}) {
     vertexShader: HOT_VERT, fragmentShader: HOT_FRAG, ...premult, blendDst: THREE.OneFactor, blendDstAlpha: THREE.OneFactor });
   const QMAX = VFX_QUALITY.ultra;
   const smoke = new ParticlePool(QMAX.smokeCap, smokeMat, { sorted: true, name: 'vfx-smoke' });
+  // ambient pool: same shader (own uData), stable spawn-order draw (no camera-dependent sorting → no flicker on pans)
+  const ambMat = new THREE.ShaderMaterial({ uniforms: { ...smokeMat.uniforms }, vertexShader: SMOKE_VERT, fragmentShader: SMOKE_FRAG, ...premult });
+  const amb = new ParticlePool(QMAX.ambCap, ambMat, { sorted: false, bounds: true, name: 'vfx-ambient' });
   const hot = new ParticlePool(QMAX.hotCap, hotMat, { sorted: false, name: 'vfx-hot' });
   const lights = new LightPool(scene, u);
   const decals = new Decals(opts.decalScene || (eng ? eng.decalScene : scene), textures);
@@ -57,7 +62,9 @@ export function createVfx(scene, camera, renderer, opts = {}) {
   const haze = [];
 
   const vfx = {
-    time: 0, acc: 0, seedCounter: 1, camera, scene, textures, u, smoke, hot, lights, decals, debris, haze,
+    time: 0, acc: 0, seedCounter: 1, camera, scene, textures, u, smoke, hot, amb, lights, decals, debris, haze, ambPressure: 1,
+    /** Ambient readability state (FxPass composite): cap + screen mask sources, refreshed by the host each frame. */
+    ambient: { ...AMBIENT_RULES, entities: [], cones: [] },
     events: [], emitters: [], explosives: [], shake: 0, onShake: null, quality: { ...VFX_QUALITY.high, name: 'high' },
     depthProvider: null, groundHeight: opts.groundHeight || (() => 0), pressure: 1, env: { auto: opts.autoEnvironment !== false },
     rand(seed) { return mulberry32((seed ?? this.seedCounter++) * 9301 + 49297); },
@@ -66,8 +73,8 @@ export function createVfx(scene, camera, renderer, opts = {}) {
     at(delay, fn) { this.events.push({ t: this.time + delay, fn }); },
     addEmitter(e) { e.acc = 0; e.t0 = this.time; this.emitters.push(e); return e; },
     emit(p) {
-      const pool = p.hot ? hot : smoke;
-      if (pool.liveCount >= (p.hot ? this.quality.hotCap : this.quality.smokeCap) && pool.free.length) {
+      const pool = p.hot ? hot : p.ambient ? amb : smoke;
+      if (pool.liveCount >= (p.hot ? this.quality.hotCap : p.ambient ? this.quality.ambCap : this.quality.smokeCap) && pool.free.length) {
         // over the preset budget: recycle the oldest instead of growing
         const f = pool.free; pool.free = []; const r = pool.emit(this.time + (p.dtOff || 0), p); pool.free = f; return r;
       }
@@ -112,15 +119,15 @@ export function createVfx(scene, camera, renderer, opts = {}) {
     /** Per displayed frame: sort + upload particles, lights, decals (camera-dependent work). */
     frame() { this._frame(); },
   };
-  Object.assign(vfx, makeRuntime(vfx, { eng, gl, u, smoke, hot, lights, decals, debris, haze, textures, smokeMat, hotMat }));
+  Object.assign(vfx, makeRuntime(vfx, { eng, gl, u, smoke, hot, amb, lights, decals, debris, haze, textures, smokeMat, hotMat }));
   vfx.pass = new FxPass(vfx);
-  vfx.pass.smokeScene.add(smoke.mesh); vfx.pass.hotScene.add(hot.mesh);
+  vfx.pass.smokeScene.add(smoke.mesh); vfx.pass.hotScene.add(hot.mesh); vfx.pass.ambScene.add(amb.mesh);
   if (eng) vfx.detach = attachToEngine(eng, vfx);
   else vfx.setQuality(opts.quality || 'high');
   return vfx;
 }
 
-function makeRuntime(vfx, { eng, gl, u, smoke, hot, lights, decals, debris, haze, textures, smokeMat, hotMat }) {
+function makeRuntime(vfx, { eng, gl, u, smoke, hot, amb, lights, decals, debris, haze, textures, smokeMat, hotMat }) {
   const _v = new THREE.Vector3(), _w = new THREE.Vector3();
   let sunL = null, hemiL = null;
   const findLights = () => {
@@ -137,9 +144,11 @@ function makeRuntime(vfx, { eng, gl, u, smoke, hot, lights, decals, debris, haze
       // budget pressure: thin out continuous emitters when the smoke pool nears its cap
       const fill = smoke.liveCount / this.quality.smokeCap;
       this.pressure = fill > 0.7 ? Math.max(0.35, 1 - (fill - 0.7) * 2.2) : 1;
+      const afill = amb.liveCount / this.quality.ambCap; // ambient budget per map: chimneys thin out instead of recycling
+      this.ambPressure = afill > 0.6 ? Math.max(0.25, 1 - (afill - 0.6) * 2) : 1;
       for (const e of this.emitters) {
         const age = t - e.t0; if (age > e.dur || e.stopped) { e.dead = true; continue; }
-        e.acc += dt * (typeof e.rate === 'function' ? e.rate(age) : e.rate) * (e.noScale ? 1 : this.quality.density * this.pressure);
+        e.acc += dt * (typeof e.rate === 'function' ? e.rate(age) : e.rate) * (e.noScale ? 1 : this.quality.density * (e.ambient ? this.ambPressure : this.pressure));
         while (e.acc >= 1) { e.acc -= 1; e.fn(age, e); }
         if (e.tick) e.tick(age, dt, e);
       }
@@ -154,6 +163,7 @@ function makeRuntime(vfx, { eng, gl, u, smoke, hot, lights, decals, debris, haze
       if (this.env.auto) this.syncEnvironment();
       this.camera.updateMatrixWorld();
       smoke.update(t, this.camera, u.uWind.value);
+      amb.update(t, this.camera, u.uWind.value);
       hot.update(t, this.camera, u.uWind.value);
       lights.update(t);
       decals.update(t);
@@ -197,9 +207,10 @@ function makeRuntime(vfx, { eng, gl, u, smoke, hot, lights, decals, debris, haze
       const add = (p, rx, ry) => { _w.copy(p).project(c); const px = (_w.x * 0.5 + 0.5) * w, py = (_w.y * 0.5 + 0.5) * h;
         x0 = Math.min(x0, px - rx); x1 = Math.max(x1, px + rx); y0 = Math.min(y0, py - ry); y1 = Math.max(y1, py + ry); };
       const ppm = c.isOrthographicCamera ? h / ((c.top - c.bottom) / c.zoom) : h / 20;
-      if (smoke.liveCount) {
-        const b = smoke.box, m = smoke.maxSize * 0.75 + 2;
-        for (let i = 0; i < 8; i++) add(_v.set(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y + smoke.maxSize * 0.6 : b.min.y, i & 4 ? b.max.z : b.min.z), m * ppm, m * ppm);
+      for (const P of [smoke, amb]) {
+        if (!P.liveCount) continue;
+        const b = P.box, m = P.maxSize * 0.75 + (P === amb ? 4 : 2); // ambient: + gust push / curl margin
+        for (let i = 0; i < 8; i++) add(_v.set(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y + P.maxSize * 0.6 : b.min.y, i & 4 ? b.max.z : b.min.z), m * ppm, m * ppm);
       }
       if (nHaze) { const U = this.pass.mat.uniforms; for (let i = 0; i < U.uNH.value; i++) { const q = U.uHaze.value[i]; const r = q.z * h * 1.25 + 8;
         const px = q.x * w, py = q.y * h; x0 = Math.min(x0, px - r); x1 = Math.max(x1, px + r); y0 = Math.min(y0, py - r); y1 = Math.max(y1, py + r); } }
@@ -235,18 +246,18 @@ function makeRuntime(vfx, { eng, gl, u, smoke, hot, lights, decals, debris, haze
       return new THREE.Vector2(Math.sin(t * 61.3) * 0.6 + Math.sin(t * 37.1), Math.cos(t * 53.7) * 0.6 + Math.sin(t * 29.3 + 1)).multiplyScalar(a); },
     /** Budget report: particles, draws, lights and a GPU-time estimate (ms, calibrated on RTX 5090 x9 for a mid laptop). */
     stats() {
-      const p = this.pass, s = smoke.liveCount, hN = hot.liveCount;
-      const draws = (p.drawn ? 2 + (hN ? 1 : 0) : 0) + (debris.mesh.count ? 2 : 0) + debris.heroes.length * 2 + (decals.count ? 1 : 0);
-      return { smoke: s, hot: hN, particles: s + hN, recycled: smoke.recycled + hot.recycled, debris: debris.items.length, decals: decals.count,
+      const p = this.pass, s = smoke.liveCount + amb.liveCount, hN = hot.liveCount;
+      const draws = (p.drawn ? 2 + (hN ? 1 : 0) + (amb.liveCount ? 1 : 0) : 0) + (debris.mesh.count ? 2 : 0) + debris.heroes.length * 2 + (decals.count ? 1 : 0);
+      return { smoke: s, ambient: amb.liveCount, ambPressure: this.ambPressure, hot: hN, particles: s + hN, recycled: smoke.recycled + hot.recycled + amb.recycled, debris: debris.items.length, decals: decals.count,
         lights: lights.reqs.length, emitters: this.emitters.length, haze: haze.length, draws, pressure: this.pressure, quality: this.quality.name,
         fxRes: p.fxRT ? [p.fxRT.width, p.fxRT.height] : null };
     },
     clear() {
       this.events = []; this.emitters = []; lights.clear(); debris.clear(); decals.clear(); haze.length = 0;
-      smoke.clear(); hot.clear(); this.time = 0; this.acc = 0; for (const ex of this.explosives) ex.armed = true;
+      smoke.clear(); hot.clear(); amb.clear(); this.time = 0; this.acc = 0; for (const ex of this.explosives) ex.armed = true;
     },
     dispose() {
-      this.detach?.(); this.clear(); smoke.dispose(); hot.dispose(); debris.dispose(); decals.dispose(); lights.dispose();
+      this.detach?.(); this.clear(); smoke.dispose(); hot.dispose(); amb.dispose(); debris.dispose(); decals.dispose(); lights.dispose();
       textures.dispose(); this.pass.dispose(true);
     },
   };

@@ -182,13 +182,16 @@ export const SFX = Object.freeze(Object.fromEntries(ROWS.flatMap(([ids, bus, rec
 export const MUSIC = Object.freeze({
   menu: { loop: true, mood: 'march' },
   campaign_norway: { loop: true, mood: 'cold' }, campaign_africa: { loop: true, mood: 'modal' },
-  campaign_normandy: { loop: true, mood: 'hopeful' }, campaign_reich: { loop: true, mood: 'grim' },
+  campaign_normandy: { loop: true, mood: 'hopeful' }, campaign_rhine: { loop: true, mood: 'grim' },
+  campaign_reich: { loop: true, mood: 'grim' }, campaign_end: { loop: true, once: true, mood: 'hopeful' }, // end: once → menu
+  tutorial: { loop: true, mood: 'march' },
   briefing_1: { loop: true, mood: 'ostinato' }, briefing_2: { loop: true, mood: 'ostinato' }, briefing_3: { loop: true, mood: 'ostinato' },
   start_1: { mood: 'stinger' }, start_2: { mood: 'stinger' }, start_3: { mood: 'stinger' },
   start_4: { mood: 'stinger' }, start_5: { mood: 'stinger' }, start_6: { mood: 'stinger' },
   success_1: { mood: 'success' }, success_2: { mood: 'success' }, success_3: { mood: 'success' },
   fail_1: { mood: 'fail' }, fail_2: { mood: 'fail' }, fail_3: { mood: 'fail' },
-  credits: { loop: true, mood: 'march' }, exit: { mood: 'success' },
+  credits: { loop: true, once: true, mood: 'march' }, // plays once, then the menu theme (music-cues ONCE_THEN)
+  exit: { mood: 'success', stopsBed: true }, debrief_promotion: { mood: 'success' },
   drone: { loop: true, mood: 'drone' }, // option "cinematic ambience" (off by default; superseded by missionMusic)
   mission_tension_a: { mission: true, mood: 'drone' }, mission_tension_b: { mission: true, mood: 'drone' },
   mission_tension_c: { mission: true, mood: 'drone' }, mission_bridge_1: { mission: true, mood: 'drone' },

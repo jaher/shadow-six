@@ -24,6 +24,9 @@ export class ParticlePool {
     this.cap = Math.ceil(capacity / PER_ROW) * PER_ROW;
     this.rows = this.cap / PER_ROW;
     this.sorted = !!o.sorted;
+    /** Unsorted pools that still need the live AABB (FxPass scissor rect): the ambient pool keeps a camera-independent
+     *  draw order (spawn order) so pans never reshuffle overlapping wisps (no sorting flicker), but needs bounds. */
+    this.bounds = !!o.bounds;
     this.data = new Float32Array(ROW_W * this.rows * 4);
     this.tex = new THREE.DataTexture(this.data, ROW_W, this.rows, THREE.RGBAFormat, THREE.FloatType);
     this.tex.minFilter = this.tex.magFilter = THREE.NearestFilter;
@@ -102,7 +105,10 @@ export class ParticlePool {
     }
     this.box.makeEmpty(); this.maxSize = 0;
     if (this.sorted && n > 1) this._sort(t, camera, wind, n);
-    else for (let j = 0; j < n; j++) this.order[j] = this.live[j];
+    else {
+      for (let j = 0; j < n; j++) this.order[j] = this.live[j];
+      if (this.bounds) for (let j = 0; j < n; j++) { const i = this.live[j]; this._pos(i, t, wind, _p); this.box.expandByPoint(_v.set(_p[0], _p[1], _p[2])); this._ms(i); }
+    }
     if (this.sorted && n === 1) { this._pos(this.live[0], t, wind, _p); this.box.expandByPoint(_v.set(_p[0], _p[1], _p[2])); this._ms(this.live[0]); }
     this.idxAttr.clearUpdateRanges(); this.idxAttr.addUpdateRange(0, Math.max(n, 1)); this.idxAttr.needsUpdate = true;
     this.geometry.instanceCount = n;

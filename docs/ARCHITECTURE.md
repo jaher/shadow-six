@@ -785,8 +785,14 @@ else in the codebase calls audio directly except the Game (music) and UI clicks.
   6 commandos × primary/urgent-alt, German guards × 3 voices chosen per soldier); a speaker with a pack is silent
   (subtitle only) on lines without a take. `bark` payloads also get `rec` and `take` ('primary'|'alt'), so talking
   portraits can load `assets/audio/voice/<char>/<take>/<rec>.json` (word + viseme timing).
-- Music plays only outside missions (`game:state` / `flow:state`). While playing or paused, `music()` requests are refused;
-  only the start stinger and the optional drone play.
+- Music (§9.1): every music-bus sound goes through `src/audio/music-director.js` (one bed with crossfades, stingers,
+  the in-mission score). Which cue plays where is the pure `src/audio/music-cues.js` (chapter of a mission → campaign
+  theme + start stinger, briefing rotation, state/screen → cue); `audio.js` applies it on `game:state` / `flow:state`
+  and `mission:loaded`, the UI asks for screen cues with `audio.music(cue)` (map table: focused theater; tutorials;
+  credits; quit → `exit`). Outside missions `music()` sets the bed; while playing or paused bed requests are refused
+  and the director owns the score (option `missionMusic`: Suspense chain + alert layer, or Classic 1998 = start
+  stinger only). Cue files, loop points, gain and category: `assets/audio/music/manifest.json` (loaded lazily with the
+  other audio manifests; a cue without a file is silence, never a synth placeholder).
 - Voice lines are broadcast as `bark` events and audio stamps `{speaker, text, gloss, subtitle, variant, duration, rec, take}` onto the payload.
   A `bark` that audio drops for anti-spam gets `suppressed: true`, and the UI must skip it.
 

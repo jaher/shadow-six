@@ -226,7 +226,7 @@ Armour group (baked per-asset atlases):
 ## Audio
 
 <!-- Sound effects and voices: recorded files in assets/audio (built by tools/audio/build_assets.py); anything not
-listed falls back to the procedural placeholders in `src/audio/synth.js` (menu music, some vehicles and tools). -->
+listed falls back to the procedural placeholders in `src/audio/synth.js` (some vehicles and tools; the music bus never uses a placeholder). -->
 
 Full per-file list (one row per source recording, with URL and author): **`assets/audio/CREDITS.md`**.
 
@@ -237,6 +237,7 @@ Full per-file list (one row per source recording, with URL and author): **`asset
 | `assets/audio/sfx/{surf,river}` (ambience beds, procedural) and `bomb_tick1` (single ticks cut from Freesound 487730) | this project (`tools/audio/procedural_beds.py`) | project contributors | CC0 |
 | `assets/audio/voice/**` (voices v2: every commando line in his own voice, primary + urgent take, pain/death sounds; German barks; word/viseme timing JSON) | AI-generated: Kokoro-82M (hexgrad) and Chatterbox-Multilingual (Resemble AI, PerTh watermark); each commando is a distinct blend of stock Kokoro voicepacks (no pack shared between two men; the French Spy blends Romance-language packs), pitch/formant-shifted; Chatterbox takes are referenced only on those synthetic blends; no real person cloned | project contributors | project output of Apache-2.0 / MIT models |
 | Menu foley (`ui_*` ids: rifle safety tick, bolt latch, Bakelite toggle, typewriter strike and bell, paper, coin clink, telegraph buzz, projector, lamp chain) | procedural recipes in `src/audio/synth.js`, played by `src/ui/ui-sound.js` | SHADOW SIX contributors | ours |
+| `assets/audio/music/*` (the whole soundtrack: menu, six campaign themes, three briefings, tutorial, credits, start / success / unsuccessful / exit / promotion stingers, the in-mission suspense score; OGG Vorbis + MP3) | original composition for this project (symbolic scores rendered with orchestral samples from [VS Chamber Orchestra 2 Community Edition](https://github.com/sgossner/VSCO-2-CE) and VSCO 1 percussion by Versilian Studios — Sam Gossner, Simon Dalzell; sample cutting by Elan Hickler/Soundemote) | project contributors; samples Versilian Studios | music: project licence; samples CC0 1.0 — per-cue list in `assets/audio/music/CREDITS.md` |
 
 ## Research references
 
@@ -258,5 +259,5 @@ Realistic soldiers, guests and dogs in `assets/characters/` (built by `tools/cha
 
 Notes:
 - Faces are MakeHuman targets with seeded archetypes (16 enemy face types); no scan or photo of a real person is used.
-- Insignia are plain: no swastikas, SS runes or death's heads anywhere.
+- Uniform insignia are plain: no swastikas, SS runes or death's heads on characters. Enemy flagpoles fly the historical 1935-45 German flag (Options > INSIGNIA > NEUTRAL shows a Balkenkreuz banner instead).
 - Rejected sources: Bandai-Namco Research Motion (NC licence); CMU mocap is allowed only as baked clips and is not used here; ACCAD BVH is not used (broken rest pose).

@@ -164,7 +164,7 @@ export class AudioEngine {
         try { buffer = await new OAC(2, 1, meta.decodeRate).decodeAudioData(ab.slice(0)); } catch { buffer = null; }
       }
       if (!buffer) buffer = await this.ctx.decodeAudioData(ab);
-      return { buffer, meta };
+      return { buffer, meta: mp3LeadFix(meta, buffer.duration, /\.mp3$/i.test(url)) };
     } catch { return null; }
   }
 
@@ -426,6 +426,19 @@ function pickFile(files = [], prefix) {
   const canOgg = typeof Audio === 'undefined' || !!new Audio().canPlayType?.('audio/ogg; codecs=opus');
   const f = files.find((x) => (canOgg ? /\.ogg$/ : /\.mp3$/).test(x)) || files[0];
   return f ? (f.startsWith(prefix) ? f : prefix + f) : null;
+}
+/**
+ * Safari MP3: a decoder that ignores the LAME gapless header returns `mp3LeadSec` of encoder/decoder delay before
+ * the music (and padding after). Detected from the decoded length vs the manifest `lengthSec`; the loop points and
+ * the stinger hand-over shift by the lead so the loop stays sample-accurate. Other formats/decoders: unchanged.
+ * @returns {object} meta (a shifted copy when compensated)
+ */
+export function mp3LeadFix(meta = {}, duration = 0, isMp3 = false) {
+  const lead = meta.mp3LeadSec;
+  if (!isMp3 || !(lead > 0) || !(meta.lengthSec > 0) || !(duration - meta.lengthSec > lead * 0.5)) return meta;
+  const m = { ...meta, mp3LeadApplied: lead };
+  for (const k of ['loopStart', 'loopEnd', 'endSec']) if (Number.isFinite(m[k])) m[k] = +(m[k] + lead).toFixed(6);
+  return m;
 }
 /** Music files: OGG Vorbis where the browser plays it (Safari: MP3). */
 function pickMusic(files = []) {

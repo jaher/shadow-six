@@ -367,8 +367,9 @@ const ROUND = {
     return g;
   },
   sign: (p, def, ctx) => {
+    if (p.variant === 'flag_pole') return makeFlag({ pole: true, h: p.h ?? 7, theater: ctx?.theater }); // a free-standing enemy flagpole
     // flagpoles (garrison markers, e.g. M14 `flagpole_german`): the animated cloth flag of art/flags.js (browser)
-    if (/flagpole/.test(String(p.variant ?? '')) && dressingOn(ctx) && typeof document !== 'undefined') return makeFlag({ pole: true, poleH: p.h ?? 6 });
+    if (/flagpole/.test(String(p.variant ?? '')) && dressingOn(ctx) && typeof document !== 'undefined') return makeFlag({ pole: true, poleH: p.h ?? 6, theater: ctx?.theater });
     const g = new THREE.Group();
     g.add(cyl(0.05, 0.05, p.h, def.mat));
     g.add(box(1, 0.5, 0.05, 'planks', p.h - 0.25));
@@ -476,7 +477,7 @@ function buildPlaceholderProp(type, params, ctx, def) {
   const castsShadow = type !== 'crater' && type !== 'sea' && type !== 'lake';
   group.traverse((o) => { if (o.isMesh) o.castShadow = o.castShadow && castsShadow; });
   if (params.flag) { // garrison flag (design-spec §2.4 / §10.6) beside the placeholder
-    const f = makeFlag({ pole: true, h: Math.max(5, (p.h ?? 3) + 2.5) });
+    const f = makeFlag({ pole: true, h: Math.max(5, (p.h ?? 3) + 2.5), theater: ctx.theater });
     f.position.set((p.w ?? 4) / 2 + 0.9, 0, (p.d ?? 4) / 2 - 0.2);
     group.add(f);
   }
