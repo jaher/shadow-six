@@ -11,6 +11,27 @@ import { el, fromHTML, tip } from './dom.js';
 import { GLYPHS, ITEM_ICONS } from './icons.js';
 import { knapsackView, packLayout } from './knapsack-model.js';
 import { COUNT_ART, iconEntry, iconHTML, itemArt, toolHTML, wireToolStates } from './icon-art.js';
+import { CONFIG } from '../config.js';
+
+/**
+ * bodies-design §C.5 context pair while one man transports another: Lift (shoulder) or Drag (collar), and Put down.
+ * @returns {{mode:string, lift:{show:boolean, ok:boolean, tip:string}, drag:{show:boolean, tip:string}, put:{tip:string}}|null}
+ */
+export function transportButtons(c, world) {
+  if (!c || !c.carrying || c.carrying.kind === 'interactable') return null;
+  const B = CONFIG.bodies, shoulderOk = c.role === 'greenberet' || c.role === 'spy';
+  const six = world?.house?.preset !== 'classic1998';
+  const not = six ? ' ✦ Not in the 1998 original.' : '';
+  const busy = c.currentActionId === 'carryToggle' || c.currentActionId === 'drop';
+  return {
+    mode: c.carryMode || 'shoulder', busy,
+    lift: { show: c.carryMode === 'drag', ok: shoulderOk && !busy,
+      tip: shoulderOk ? `LIFT (H) — shoulder carry, ${CONFIG.units.carry} m/s, ${B.drag.toShoulder} s to lift.` : 'Only the Green Beret and the Spy can shoulder a man.' },
+    drag: { show: c.carryMode === 'shoulder' && !!world?.house?.dragBodies, ok: !busy,
+      tip: `DRAG (SHIFT+H) — ${B.drag.speed} m/s, walks backwards, ${B.drag.toDrag} s to lower.${not}` },
+    put: { tip: `PUT DOWN (RIGHT-CLICK) — ${c.carryMode === 'drag' ? B.drag.release : CONFIG.abilities.carry.drop} s.` },
+  };
+}
 
 const R = (n) => `calc(${n} * var(--r))`;
 
@@ -44,6 +65,33 @@ export class Knapsack {
     this.pack = el('div', 'pack', this.root);
     this.sig = '';
     this.left = false;
+    this.transport = el('div', 'hud-transport', parent);
+    this.transport.hidden = true;
+    this._tsig = '';
+  }
+
+  /** §C.5 Lift / Drag / Put down buttons while the selected man transports someone. */
+  _updateTransport(sel, w) {
+    const c = sel.length === 1 ? sel[0] : null;
+    const v = transportButtons(c, w);
+    const sig = v ? `${c.id}|${v.mode}|${v.busy}|${w.house?.preset}` : '';
+    if (sig === this._tsig) return;
+    this._tsig = sig;
+    this.transport.replaceChildren();
+    this.transport.hidden = !v;
+    if (!v) return;
+    const btn = (cls, label, t, ok, fn) => {
+      const b = tip(el('button', `hud-tbtn ${cls}`, this.transport), t);
+      b.type = 'button';
+      b.innerHTML = `${GLYPHS[cls === 'lift' ? 'carrying' : cls === 'drag' ? 'dragging' : 'downed'] || ''}<span>${label}</span>`;
+      b.disabled = !ok;
+      if (cls === 'drag') b.classList.add('not-original');
+      b.addEventListener('click', () => { if (!b.disabled) this.hud.game.enqueue(fn); });
+      return b;
+    };
+    if (v.lift.show) btn('lift', 'Lift', v.lift.tip, v.lift.ok, () => c.issue({ type: 'ability', id: 'carryToggle', target: c }));
+    if (v.drag.show) btn('drag', 'Drag', v.drag.tip, v.drag.ok, () => c.issue({ type: 'ability', id: 'carryToggle', target: c }));
+    btn('put', 'Put down', v.put.tip, !v.busy, () => c.issue({ type: 'cancel' }));
   }
 
   /** Tab: mirror the knapsack to the other side (§6.4). */
@@ -55,6 +103,7 @@ export class Knapsack {
   update() {
     const w = this.hud.world;
     const sel = w ? w.commandos.filter((c) => c.selected && c.alive) : [];
+    this._updateTransport(sel, w);
     const view = knapsackView(sel, w);
     const tgt = this.hud.game.input?.targeting?.abilityId || '';
     const sig = `${view.mode}|${sel.map((u) => u.id).join(',')}|${view.items.map((i) => `${i.id}:${i.count}:${i.disabled}`).join()}|${tgt}|${this._crewSig(sel)}`;

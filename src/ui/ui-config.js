@@ -81,6 +81,13 @@ export const OPTION_DEFAULTS = {
   highContrast: false,
   holdConfirm: false, // hold-to-confirm for destructive actions
   bindings: {}, // action → [KeyboardEvent.code] overrides of engine/input.js KEY_BINDINGS
+  // bodies-design §D.3 RULES (house rules, applied at the next mission start or load; core/house-rules.js)
+  rulesPreset: 'shadowSix', // 'shadowSix' | 'classic1998' | 'custom' (set when a toggle differs from the preset)
+  dragBodies: true,
+  buddyRescue: true,
+  dropWhenShot: true,
+  ragdollAllDeaths: true,
+  physicsGameplay: true,
 };
 
 export const OPTIONS_KEY = 'shadowsix.options.v1';

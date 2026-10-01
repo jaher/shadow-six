@@ -18,7 +18,9 @@ export function registerAbility(def) {
   // Campaign-only defs (e.g. campaigns ['BCD']) are stored NON-enumerable: every BEL enumeration of ABILITIES
   // (Object.keys/values) stays exactly the BEL set, while lookups by id work everywhere. allAbilities() and
   // abilitiesForRole(role, campaign) see them (docs/bcd-plan.md §0 hard rule).
-  if (full.campaigns && !full.campaigns.includes('BEL')) {
+  // House-rule abilities (bodies-design §0.3: `houseRule: 'dragBodies'`) are stored non-enumerable too, so every BEL
+  // enumeration (bel-lock) stays the pinned 1998 set; abilitiesForRole(role, campaign, house) adds them when the rule is on.
+  if ((full.campaigns && !full.campaigns.includes('BEL')) || full.houseRule) {
     Object.defineProperty(ABILITIES, def.id, { value: full, enumerable: false, configurable: true, writable: true });
   } else ABILITIES[def.id] = full;
   return full;
@@ -48,7 +50,7 @@ export function allAbilities() {
 export const ABILITY_DEFAULTS = Object.freeze({
   targeting: 'none', range: 1, roles: [], item: null, cursor: 'target', order: 100,
   campaigns: null, noiseRadius: 0, noiseKind: null, visibleToEnemies: true, group: null,
-  autoStand: false, ranged: false, firesOnTheMove: false,
+  autoStand: false, ranged: false, firesOnTheMove: false, houseRule: null, houseRoles: null,
 });
 
 /**
@@ -70,15 +72,32 @@ export function abilityInCampaign(def, campaign = 'BEL') {
 }
 
 /**
+ * Is a def offered under the house rules (bodies-design §0.3)? `houseRule` defs need their rule on; `houseRoles`
+ * ({rule: roles[]}) extends a def to more roles while that rule is on (e.g. `drop` for every dragger).
+ * @param {object} def
+ * @param {object|null} house world.house (null = no house rules: the 1998 lists)
+ * @param {string} [role]
+ */
+export function abilityInHouse(def, house, role = null) {
+  if (def?.houseRule && !house?.[def.houseRule]) return false;
+  if (role != null && !def.roles.includes(role)) {
+    const extra = def.houseRoles && Object.entries(def.houseRoles).some(([rule, roles]) => house?.[rule] && roles.includes(role));
+    return !!extra;
+  }
+  return true;
+}
+
+/**
  * Default ability ids for a role, in action-panel order, limited to the active campaign's abilities.
  * @param {string} role
  * @param {string|{id:string}} [campaign='BEL'] campaign id or a ruleset object (world.rules)
+ * @param {object|null} [house] world.house: house-rule abilities are included only when their rule is on
  * @returns {string[]}
  */
-export function abilitiesForRole(role, campaign = 'BEL') {
+export function abilitiesForRole(role, campaign = 'BEL', house = null) {
   const c = typeof campaign === 'object' && campaign ? campaign.id : campaign || 'BEL';
   return allAbilities()
-    .filter((d) => d.roles.includes(role) && abilityInCampaign(d, c))
+    .filter((d) => abilityInCampaign(d, c) && abilityInHouse(d, house, role))
     .sort((a, b) => a.order - b.order)
     .map((d) => d.id);
 }

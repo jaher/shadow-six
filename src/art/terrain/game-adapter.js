@@ -69,9 +69,29 @@ export function stampUnits(terrain, units) {
     const id = 'u' + (u.id ?? u.name);
     if (u.stance === 'crawl' || u.stance === 'prone') terrain.stampTrail('crawl', u.x, u.z, u.heading, { id, record: false });
     else terrain.stampTrail('walker', u.x, u.z, u.heading, { id, run: u.moveMode === 'run', record: false });
-    if (u.carrying) terrain.stampTrail('drag', u.x - Math.cos(u.heading) * 0.9, u.z - Math.sin(u.heading) * 0.9, u.heading, { id: id + 'd' });
+    const heels = dragHeels(u);
+    if (heels) terrain.stampTrail('drag', heels.x, heels.z, heels.heading, { id: id + 'd', record: false });
   }
 }
+
+/**
+ * Where a DRAGGED body's heels furrow the ground (bodies-design §B.5), or null. Only `carryMode === 'drag'` furrows:
+ * a shoulder carry leaves the carrier's normal prints only. The heels trail the body away from the dragger.
+ * @param {{carrying?:object, carryMode?:string, x:number, z:number, heading:number}} u
+ */
+export function dragHeels(u) {
+  const b = u?.carrying;
+  if (!b || u.carryMode !== 'drag' || (b.kind && b.kind !== 'commando' && b.kind !== 'enemy' && b.kind !== 'guest')) return null;
+  // the tow (Commando._placeDragged): his yaw points from the dragger's hands to his pelvis, the heels trail beyond it
+  let dx, dz, bx, bz;
+  const d = Number.isFinite(b.x) ? Math.hypot(b.x - u.x, b.z - u.z) : 0;
+  if (Number.isFinite(b.x) && Number.isFinite(b.heading)) { dx = Math.cos(b.heading); dz = Math.sin(b.heading); bx = b.x; bz = b.z; } else if (d > 0.3) {
+    dx = (b.x - u.x) / d; dz = (b.z - u.z) / d; bx = b.x; bz = b.z;
+  } else { dx = Math.cos(u.heading); dz = Math.sin(u.heading); bx = u.x + dx * 0.95; bz = u.z + dz * 0.95; }
+  return { x: bx + dx * HEEL, z: bz + dz * HEEL, heading: Math.atan2(-dz, -dx) };
+}
+/** Pelvis → heels of a dragged man lying on his back with the torso raised (m, measured on the being_dragged pose). */
+export const HEEL = 0.82;
 
 /** Per-frame vehicle stamping: every wheel/track, dual rear tyres, spray hook (terrain opts.onSpray). */
 export function stampVehicles(terrain, vehicles) {

@@ -17,13 +17,13 @@ function mini(options = { blood: true, censored: false }) {
   return { world, fx, kinds, subs };
 }
 
-test('vfx: the library ships the 19 effect kinds (+2 wind kinds, step 4w) and per-preset budgets', () => {
+test('vfx: the library ships the 19 effect kinds (+2 wind kinds, step 4w; +2 bodies kinds, 4x/4y) and per-preset budgets', () => {
   const kinds = Object.keys(RECIPES).filter((k) => !k.startsWith('_'));
-  assert.equal(kinds.length, 21, kinds.join(','));
+  assert.equal(kinds.length, 23, kinds.join(','));
   for (const k of ['snow_puff', 'dust_devil']) assert.ok(kinds.includes(k), k);
   for (const k of ['explosion_large', 'explosion_small', 'grenade', 'barrel_explosion', 'tanker_explosion', 'burning_wreck', 'fuel_pool_fire',
     'fire_small', 'smoke_column', 'chimney_smoke', 'smoke_puff', 'muzzle_flash', 'tracer', 'dust_kick', 'vehicle_dust_trail', 'mud_spray',
-    'water_splash', 'blood_puff', 'sparks']) assert.ok(kinds.includes(k), k);
+    'water_splash', 'blood_puff', 'blood_cloud', 'sparks', 'glass_shards']) assert.ok(kinds.includes(k), k);
   assert.deepEqual(Object.keys(VFX_QUALITY), ['low', 'medium', 'high', 'ultra']);
   assert.ok(VFX_QUALITY.low.haze === false && VFX_QUALITY.high.haze, 'heat haze from medium up');
 });

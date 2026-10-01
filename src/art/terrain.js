@@ -10,7 +10,7 @@
 
 import * as THREE from 'three';
 import { T } from '../world/grid.js';
-import { createTerrainHandle, tracksNear as trailsNear } from './terrain/game-adapter.js';
+import { createTerrainHandle, tracksNear as trailsNear, dragHeels } from './terrain/game-adapter.js';
 import { buildFlatMask, PALETTES } from './terrain/terrain-layers.js';
 import { pretrampleRoads, terrainPainter } from '../world/roads.js';
 import { createVegetation } from './terrain/vegetation.js';
@@ -377,11 +377,9 @@ export function stampWorld(t, world, grid) {
       const id = 'u' + u.id;
       if (u.stance === 'crawl' || u.stance === 'prone') t.stampTrail('crawl', u.x, u.z, u.heading, { id, record: false });
       else t.stampTrail('walker', u.x, u.z, u.heading, { id, run: u.moveMode === 'run', record: false });
-      const body = u.carrying;
-      if (body && (body.kind === 'commando' || body.kind === 'enemy')) {
-        const bx = u.x - Math.cos(u.heading) * 0.9, bz = u.z - Math.sin(u.heading) * 0.9;
-        t.stampTrail('drag', bx, bz, u.heading, { id: id + 'd', record: false });
-      }
+      // bodies-design §B.5: only a DRAG furrows (heels); a shoulder carry leaves the carrier's prints only
+      const heels = dragHeels(u);
+      if (heels) t.stampTrail('drag', heels.x, heels.z, heels.heading, { id: id + 'd', record: false });
     }
   }
   for (const v of world.vehicles || []) {
@@ -395,7 +393,10 @@ export function stampWorld(t, world, grid) {
 /** Gameplay 'footprint' events → terrain trail records (queryTrails / QA). The AI list stays world.ai.footprints. */
 export function wireTrailRecords(events, handle) {
   if (!events?.on) return () => {};
-  return events.on('footprint', (e) => handle.recordTrail('foot', e.x, e.z, e.heading, e.owner?.id ?? e.ownerId ?? null, { aiVisible: e.aiVisible !== false, t0: e.t }));
+  const off1 = events.on('footprint', (e) => handle.recordTrail('foot', e.x, e.z, e.heading, e.owner?.id ?? e.ownerId ?? null, { aiVisible: e.aiVisible !== false, t0: e.t }));
+  // bodies-design §B.5: the heel furrow of a dragged man, recorded by the sim every 0.5 m (render-rate independent)
+  const off2 = events.on('dragmark', (e) => handle.recordTrail('drag', e.x, e.z, e.heading, e.owner?.id ?? null, { aiVisible: false, t0: e.t }));
+  return () => { (typeof off1 === 'function' ? off1 : () => {})(); (typeof off2 === 'function' ? off2 : () => events.off?.('dragmark'))(); };
 }
 
 /** True when `renderer` (engine Renderer or WebGLRenderer) can host the final terrain (browser, live GL context). */

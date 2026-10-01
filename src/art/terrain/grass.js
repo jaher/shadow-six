@@ -83,6 +83,7 @@ export function grassMaterials(U) {
 }
 
 const CHUNK = 8;
+const BLANK_MASK = (() => { const t = new THREE.DataTexture(new Uint8Array(4), 1, 1); t.needsUpdate = true; return t; })();
 
 /**
  * @param {object} ctx terrain context (grid, splat, P palette, heightAt, trails, windDir, tNoise, W, D, opts)
@@ -99,6 +100,7 @@ export function createGrass(ctx, Q) {
     tTrail: { value: trails.texture }, tFlatG: { value: trails.flatTexture }, tNoiseG: { value: ctx.tNoise },
     uMapG: { value: new THREE.Vector4(W, D, 1 / W, 1 / D) }, uMinW: { value: 0.02 }, uLodW: { value: 1 },
     uSunV: { value: new THREE.Vector3(0, 1, 0) }, uSunI: { value: 3 },
+    tBloodG: { value: BLANK_MASK }, // set by render/blood (grass blades soaked red-brown where blood lies)
   };
   const { mat, depth } = grassMaterials(U);
   let geos = [], meshes = [], clutter = null;

@@ -11,14 +11,24 @@ const HUMAN = {
   dive: ['dive', 'swim'], aim: ['aim'], shoot: ['shoot'], stab: ['stab'], throw: ['throw'], punch: ['punch'],
   plant: ['plant'], climb: ['climb'], carry_idle: ['carry_idle'], carry_walk: ['carry_walk'], die: ['die'], dead: ['dead'],
   surrender: ['surrender', 'handsup_held'], salute: ['salute'], look_around: ['look_around', 'idle'], use: ['use'],
+  // bodies-design §C.10 (derived clips: art/body-clips.js; the fallbacks keep a kit without them working)
+  drag_walk: ['drag_walk', 'drag', 'walk'], drag_idle: ['drag_idle', 'crouch_idle', 'idle'], drag_grab: ['drag_grab', 'pickup', 'plant'],
+  drag_release: ['drag_release', 'plant'], lift_to_shoulder: ['lift_to_shoulder', 'pickup', 'plant'],
+  drag_to_shoulder: ['drag_to_shoulder', 'lift_to_shoulder', 'pickup'], shoulder_to_drag: ['shoulder_to_drag', 'put_down', 'plant'],
+  put_down: ['put_down', 'plant'], downed_fall: ['downed_fall', 'die'], downed_idle: ['downed_idle', 'crawl_idle'],
+  downed_crawl: ['downed_crawl', 'crawl'], revive_give: ['revive_give', 'use'], revive_receive: ['downed_idle', 'crawl_idle'],
+  stand_up: ['stand_up', 'idle'], revive_up: ['get_up', 'stand_up', 'idle'], blast_fall: ['blast_fall', 'knockback', 'hit'], hit: ['hit', 'idle'],
 };
+
+/** Gameplay names a transported man plays whatever he was doing (dead, dying or downed). */
+const LOAD_NAMES = new Set(['dead', 'die', 'downed_idle', 'downed_crawl', 'downed_fall', 'revive_receive', 'idle', 'crawl_idle']);
 /** Dogs (dogkit clips: idle walk sniff_walk trot run sniff bark attack die dead sit). */
 const DOG = {
   idle: ['idle'], walk: ['walk'], run: ['run'], crawl: ['sniff_walk'], crawl_idle: ['sit'], aim: ['bark'], shoot: ['bark'],
   punch: ['attack'], stab: ['attack'], die: ['die'], dead: ['dead'], look_around: ['sniff'], use: ['sniff'],
 };
 /** Locomotion names whose playback rate follows the unit's ground speed (feet planted). */
-export const LOCOMOTION = new Set(['walk', 'run', 'crawl', 'swim', 'dive', 'carry_walk']);
+export const LOCOMOTION = new Set(['walk', 'run', 'crawl', 'swim', 'dive', 'carry_walk', 'drag_walk', 'downed_crawl']);
 
 const LONG = new Set(['kar98k', 'no4_sniper', 'harpoon_gun', 'mg34', 'mg42']);
 const SMG = new Set(['thompson', 'mp40']);
@@ -51,12 +61,14 @@ function proneAnim(name, wc, c) {
  * Clip candidates for a gameplay animation.
  * @param {string} name gameplay name (ARCHITECTURE contract)
  * @param {{dog?:boolean, faction?:string, role?:string, actionId?:string|null, stance?:string, carried?:boolean,
- *   weapon?:string|null, weaponClass?:string}} [c] weapon: prop in hand (prone clips follow its carry class)
+ *   load?:'shoulder'|'drag'|null, weapon?:string|null, weaponClass?:string}} [c] load: how this man is being transported
+ *   (bodies-design §C.10) — overrides his own clip; weapon: prop in hand (prone clips follow its carry class)
  * @returns {string[]} ordered candidates; the caller plays the first the character has (else 'idle')
  */
 export function mapAnim(name, c = {}) {
   if (c.dog) return DOG[name] || ['idle'];
-  if (c.carried && (name === 'dead' || name === 'die')) return ['carried', 'dead'];
+  if (c.load === 'drag' && LOAD_NAMES.has(name)) return ['being_dragged', 'dead'];
+  if ((c.load === 'shoulder' || (c.carried && c.load == null)) && LOAD_NAMES.has(name)) return ['carried', 'dead'];
   const a = c.actionId || null;
   const prone = c.stance === 'crawl';
   if (prone) { const p = proneAnim(name, c.weaponClass || weaponClass(c.weapon), c); if (p) return p; }

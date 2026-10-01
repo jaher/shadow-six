@@ -55,7 +55,11 @@ export const KEY_BINDINGS = {
   views6: ['F7'],
   quickSave: ['F8'],
   quickLoad: ['F9'],
+  dragBody: ['KeyH'], // held with Shift: the drag hand (bodies-design §C.5; plain H stays the `hand` hotkey)
 };
+
+/** Bindings that fire only with Shift held (their key alone keeps its normal meaning). */
+export const SHIFT_BINDINGS = new Set(['dragBody']);
 
 /** Ctrl (or ⌘) chords: code → action (§5.1). */
 export const CTRL_BINDINGS = { KeyS: 'quickSave', KeyL: 'quickLoad', KeyB: 'notes' };
@@ -305,6 +309,13 @@ export class Input {
     if (!abilityInCampaign(def, this.game.world?.campaign)) return false; // not in this campaign's ruleset
     const owners = this.selection.filter((c) => c.abilities?.includes(abilityId));
     if (!owners.length) return false;
+    // bodies-design §C.5: H while dragging lifts, Shift+H while shouldering lowers (def.redirect → a self order)
+    const red = def.redirect?.(owners[0]);
+    if (red) {
+      const c = owners[0];
+      this.game.enqueue(() => c.issue({ type: 'ability', id: red.id, target: red.target }));
+      return true;
+    }
     const group = def.id === 'pistol' || def.groupFire === true;
     const commandos = group ? owners : [owners[0]];
     if (def.targeting === 'none' || def.targeting === 'self') {
@@ -344,7 +355,8 @@ export class Input {
       return;
     }
     const ok = t.def.canUse ? t.def.canUse(t.commando, target, this.world) : true;
-    this.setCursor(ok === true ? t.def.cursor || 'target' : 'forbidden');
+    // def.cursorFor: a target-dependent cursor (H over a body a non-GB/Spy would drag → hand_drag, §C.5)
+    this.setCursor(ok === true ? t.def.cursorFor?.(t.commando, target, this.world) || t.def.cursor || 'target' : 'forbidden');
   }
 
   _tryIssueTargeted(clientX, clientY, run) {
@@ -456,7 +468,7 @@ export class Input {
     this._setMods(e);
     const g = this.game;
     if (!this.world) return;
-    const action = this.keyAction(e);
+    let action = this.keyAction(e);
     const ctrl = this.mods.ctrl;
     const defs = !ctrl && !e.altKey ? this.abilitiesForCode(e.code) : [];
     // §5: preventDefault on every bound key (F1 help, F5 reload, Tab focus, Ctrl+S/L/B, page scroll…)
@@ -496,6 +508,8 @@ export class Input {
       return;
     }
     if (!this.active || e.repeat) return;
+    if (SHIFT_BINDINGS.has(action) && !e.shiftKey) action = null; // a Shift binding's key alone keeps its meaning
+    if (action === 'dragBody') { this.beginTargeting('drag'); return; } // Shift+H (§C.5)
     if (action && /^select\d$/.test(action)) {
       this.selectUnit(this.commandoForKey(Number(action.slice(6))));
       return;

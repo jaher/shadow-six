@@ -224,6 +224,13 @@ export function installHandlers(a, events) {
     if (o.type === 'move') a.say(e.unit, 'ack_move');
     else if (o.type === 'ability') { if (!a.say(e.unit, abilityVoice(o.id))) a.say(e.unit, 'ack_act'); }
   });
+  // bodies-design §C.7: a downed man's heartbeat follows him (faster once he fades); the carry thumps and drags
+  const hb = (u) => `downed:${u?.id}`;
+  on('unit:downed', (e, t) => { if (e.unit) a.startLoop(hb(e.unit), 'heartbeat', e.unit, { follow: e.unit, event: t }); });
+  on('unit:revived', (e) => a.stopLoop(hb(e.unit), 0.6));
+  on('bark', (e) => { if (e?.line === 'hurry' && e.about?.downed) a.startLoop(hb(e.about), 'heartbeat', e.about, { follow: e.about, rate: 1.7 }); });
+  on('load:picked', (e, t) => sfx(e.mode === 'drag' ? 'body_drag' : 'barrel_lift', e.carrier, t));
+  on('load:dropped', (e, t) => { if (e.how !== 'vehicle') sfx('body_drop', e.load || e.carrier, t); });
   // A hit commando grunts at once in his own voice ('pain', prio 5: cuts a select/ack line; his portrait flinches on
   // the same event, docs/talking-portraits.md §9). His "I'm hit!" ('hurt', 1.5 s cooldown) follows once the grunt
   // has finished, so the two never overlap; a hit inside the grunt's 0.4 s cooldown adds nothing.

@@ -313,8 +313,8 @@ export class FX {
   onKilled(e) {
     const u = e.unit; if (!u || u.kind === 'vehicle') return;
     if (!this.bloodOn || NO_BLOOD_CAUSE.has(e.cause)) return;
-    // a restrained blood mist and the pool decal under the body (the original's muted look)
-    this.spawn('blood_puff', u.x, u.z, { y: this._y(u.x, u.z) + 0.35, dir: V3(0, -0.2, 0) });
+    // a restrained blood mist; the pool, spatter and stains belong to render/blood (world.blood, bodies-design §B)
+    this.spawn('blood_puff', u.x, u.z, { y: this._y(u.x, u.z) + 0.35, dir: V3(0, -0.2, 0), decal: !this.world.blood });
   }
 
   onStructureDestroyed(e) {

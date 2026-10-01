@@ -53,6 +53,27 @@ export function leaveVehicle(unit, x, z) {
   return ok;
 }
 
+/** The live man `c` transports (a downed buddy or a guest who can't walk), else null (§C.8). */
+function liveLoad(c) {
+  const u = c.carrying;
+  return u && u.kind === 'commando' && u.alive && (u.downed || u.cannotWalk) ? u : null;
+}
+
+/** §C.8: hand the load over to the vehicle (he becomes an occupant; the transporter stays outside). */
+function loadIntoVehicle(c, load, vehicle, world) {
+  if (c.carrying !== load || !load.alive) return false;
+  const mode = c.carryMode;
+  c.carrying = null; c.carryMode = null; c.carryTransition = null;
+  load.carriedBy = null;
+  load.state = 'active';
+  if (vehicle.canEnter(load) !== true) { load.state = 'carried'; load.carriedBy = c; c.carrying = load; c.carryMode = mode; return false; }
+  vehicle.enter(load);
+  if (vehicle.driver === load && load.downed) vehicle.driver = null; // a downed man never operates it
+  c.refreshAbilities?.();
+  world.events.emit('load:dropped', { carrier: c, load, how: 'vehicle', mode });
+  return true;
+}
+
 registerAbility({
   id: 'enterVehicle',
   label: 'Get in',
@@ -70,8 +91,14 @@ registerAbility({
     if (commando.vehicle) return 'Already inside a vehicle.';
     const f = freeToAct(commando);
     if (f !== true) return f;
-    if (commando.carrying) return 'Drop it first.';
+    const load = liveLoad(commando);
+    if (commando.carrying && !load) return 'Drop it first.';
     if (target.destroyed) return 'Pick a vehicle.';
+    if (load) { // bodies-design §C.8: load a downed buddy / a guest who can't walk (the transporter stays out)
+      if (target.vehicleKind === 'emplacement') return 'Drop it first.';
+      const ok = target.canEnter(load);
+      return ok === true ? true : `Can't load him: ${ok}.`;
+    }
     // §3.7 boats: only the Marine boards from the water; the others by the bank or in shallow water
     if (target.vehicleKind === 'boat' && !commando.canSwim && world?.groundAt) {
       const g = world.groundAt(target.x, target.z);
@@ -83,7 +110,8 @@ registerAbility({
 
   start(commando, vehicle, world) {
     const V = CONFIG.vehicles;
-    const board = vehicle.vehicleKind === 'emplacement' ? V.gunMountTime : V.boardTime;
+    const load = liveLoad(commando);
+    const board = load ? CONFIG.bodies.vehicleLoad : vehicle.vehicleKind === 'emplacement' ? V.gunMountTime : V.boardTime;
     let t = 0, repath = 0, boarding = false, walked = 0, lastP = null;
     return {
       interruptible: true,
@@ -119,6 +147,7 @@ registerAbility({
         }
         t += dt;
         if (t < board) return 'running';
+        if (load) return loadIntoVehicle(commando, load, vehicle, world) ? 'done' : 'failed';
         const ok = vehicle.canEnter(commando);
         if (ok !== true) {
           world.events.emit('message', { text: `${commando.nickname || commando.role}: ${ok}.`, kind: 'warn', unit: commando });

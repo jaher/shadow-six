@@ -69,12 +69,21 @@ test('loading: character GLBs are meshopt-compressed and every character loader 
 test('loading: building textures — 512 set for low, byte-identical maps aliased away', () => {
   const man = JSON.parse(readFileSync(P('assets/models/buildings/manifest.json'), 'utf8'));
   assert.equal(man.textures.low, '512');
+  // the vehicle library (art/vehicle-library.js) loads the shared maps without the building aliases: a map one of its
+  // GLBs (or its manifest's paint swaps) still names stays on disk (wood_paint_* on the fishing boats / covered wagon)
+  const vehRefs = (() => {
+    const out = [], walk = (d) => { for (const e of readdirSync(P(d), { withFileTypes: true })) {
+      if (e.isDirectory()) walk(`${d}${e.name}/`); else if (/\.(glb|json)$/.test(e.name)) out.push(readFileSync(P(d + e.name)).toString('latin1'));
+    } };
+    if (existsSync(P('assets/models/vehicles/'))) walk('assets/models/vehicles/');
+    return (name) => out.some((b) => b.includes(name));
+  })();
   for (const [gone, kept] of Object.entries(man.textures.aliases)) {
-    assert.ok(!existsSync(P(`assets/textures/lib/1k/${gone}`)), `${gone} removed`);
+    assert.ok(!existsSync(P(`assets/textures/lib/1k/${gone}`)) || vehRefs(gone), `${gone} removed`);
     assert.ok(existsSync(P(`assets/textures/lib/1k/${kept}`)) && existsSync(P(`assets/textures/lib/512/${kept}`)), `${kept} kept`);
   }
   const k1 = readdirSync(P('assets/textures/lib/1k')), k5 = new Set(readdirSync(P('assets/textures/lib/512')));
-  assert.deepEqual(k1.filter((f) => !k5.has(f)), [], 'every 1k map has its 512 twin');
+  assert.deepEqual(k1.filter((f) => !k5.has(f) && !vehRefs(f)), [], 'every building 1k map has its 512 twin (vehicles load 1k only)');
 });
 
 test('loading: GitHub Pages limits — no asset file over 50 MB, assets well under 1 GB', () => {

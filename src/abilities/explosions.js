@@ -112,7 +112,9 @@ export function applyExplosion(world, x, z, cls, source = null, opts = {}) {
       if (e.alive === false || e.state === 'inVehicle' || e.state === 'jailed' || e.vehicle) continue; // occupants: the hull decides
       const dmg = explosionDamage(cls, d);
       if (dmg <= 0) continue;
-      e.takeDamage(dmg, killer, cls === 'barrel' || cls === 'vehicle' ? 'explosion' : cls);
+      // bodies-design §C.6: a point-blank blast (inside 0.5 × R_k) is never downable — the unit reads this context
+      if (e.kind === 'commando') e._blastCtx = { d, rk: Math.max(E.lethal || 0, E.lethalRadius || 0) };
+      try { e.takeDamage(dmg, killer, cls === 'barrel' || cls === 'vehicle' ? 'explosion' : cls); } finally { if (e._blastCtx) e._blastCtx = null; }
       (e.alive ? out.damaged : out.killed).push(e);
     } else if (e.kind === 'vehicle') {
       if (e.destroyed) continue;

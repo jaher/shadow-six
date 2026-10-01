@@ -89,3 +89,12 @@ test('BEL lock: BEL commandos have no BCD ability and useAbility refuses them; B
   assert.deepEqual(stoneLanded(w, 20, 20), [], 'even a direct call: no stone reactions under BEL');
   assert.equal(e.brain.state, 'IDLE');
 });
+
+test('BEL lock (bodies-design §0.3): under the classic1998 house rules every role keeps exactly the pinned BEL list', async () => {
+  const { resolveHouseRules } = await import('../../src/core/house-rules.js');
+  const classic = resolveHouseRules({ preset: 'classic1998' });
+  for (const [r, ids] of Object.entries(BEL_ROLES)) assert.deepEqual(abilitiesForRole(r, 'BEL', classic), ids, r);
+  const six = resolveHouseRules({ preset: 'shadowSix' });
+  for (const id of ['drag', 'carryToggle']) assert.ok(!Object.keys(ABILITIES).includes(id), `${id} is not enumerable`);
+  assert.ok(abilitiesForRole('sniper', 'BEL', six).includes('drag'), 'shadowSix adds drag');
+});

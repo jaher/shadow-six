@@ -11,6 +11,8 @@ import { findPath } from './pathfinding.js';
 import { EventBus } from '../core/events.js';
 import { Rng } from '../core/math.js';
 import { CONFIG, rulesFor } from '../config.js';
+import { resolveHouseRules } from '../core/house-rules.js';
+import { NULL_PHYSICS } from '../physics/null-physics.js';
 import { WindField } from './wind.js';
 
 /** Spatial hash bucket size (m). */
@@ -34,6 +36,10 @@ export class World {
     /** Campaign id ('BEL' | 'BCD') and its ruleset (CONFIG.rulesets); systems check world.rules.* flags. */
     this.campaign = mission?.campaign || 'BEL';
     this.rules = rulesFor(this.campaign);
+    /** House rules (bodies-design §0.3): not in the 1998 original; the Game re-resolves it with the options. */
+    this.house = resolveHouseRules({ mission });
+    /** Blast / ragdoll physics (src/physics): a null object until Game.loadMission awaits createPhysics(). */
+    this.physics = NULL_PHYSICS;
     this.width = size[0];
     this.depth = size[1];
     this.grid = new NavGrid(size[0], size[1]);
@@ -370,6 +376,8 @@ export class World {
 
   /** Dispose every entity and unsubscribe world-scoped listeners. */
   dispose() {
+    try { this.physics?.dispose?.(); } catch { /* presentation layer */ }
+    this.physics = NULL_PHYSICS;
     for (const off of this._subs) off();
     this._subs.length = 0;
     for (const e of [...this.entities]) this.remove(e);

@@ -19,6 +19,7 @@ and code are original or CC0/redistributable (see CREDITS.md).
 | ktx-parse (`vendor/addons/libs/ktx-parse.module.js`) | Don McCurdy | MIT |
 | stats.js (`vendor/addons/libs/stats.module.js`) | mrdoob | MIT |
 | [playwright-core](https://playwright.dev/) (tests only) | Microsoft | Apache-2.0 |
+| [Rapier](https://rapier.rs/) 3D, deterministic compat build `@dimforge/rapier3d-deterministic-compat` 0.21.0 (`vendor/rapier/`, WASM inlined; blast / ragdoll physics) | Dimforge (Sébastien Crozet) | Apache-2.0 (`vendor/rapier/LICENSE`) |
 | SHADOW SIX game code (`src/`, `tools/`, `tests/`) | project contributors | MIT |
 
 ## Art assets

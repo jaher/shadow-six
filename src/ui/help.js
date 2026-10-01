@@ -6,7 +6,7 @@
  * @module ui/help
  */
 
-import { KEY_BINDINGS, CTRL_BINDINGS } from '../engine/input.js';
+import { KEY_BINDINGS, CTRL_BINDINGS, SHIFT_BINDINGS } from '../engine/input.js';
 import { getPortraitURL } from '../art/portraits.js';
 import { el } from './dom.js';
 import { photoPrint, stamp, cap, keyName } from './menu-kit.js';
@@ -44,7 +44,7 @@ const SILHOUETTE = '<svg viewBox="0 0 60 80"><rect width="60" height="80" fill="
 
 const GROUPS = [
   ['SELECTION', ['select1', 'select2', 'select3', 'select4', 'select5', 'select6', 'select7', 'selectAll', 'deselect', 'centerSelection']],
-  ['MOVEMENT', ['crawl', 'stand']],
+  ['MOVEMENT', ['crawl', 'stand', 'dragBody']],
   ['CAMERA', ['panUp', 'panDown', 'panLeft', 'panRight', 'zoomIn', 'zoomOut', 'zoomReset', 'views1', 'views2', 'views3']],
   ['TOOLS', ['knapsackSide', 'help', 'pause', 'cancel']],
   ['SAVING', ['quickSave', 'quickLoad']],
@@ -178,7 +178,7 @@ export class Help {
       for (const a of list) {
         if (!binds[a]) continue;
         const dt = el('dt', null, dl);
-        dt.append(cap(keyName(binds[a][0])));
+        dt.append(cap((SHIFT_BINDINGS.has(a) ? 'SHIFT+' : '') + keyName(binds[a][0])));
         el('dd', 'mk-typed', dl, a.replace(/([A-Z])/g, ' $1').replace(/(\d)/, ' $1').toUpperCase());
       }
     };

@@ -12,16 +12,17 @@
 import * as THREE from 'three';
 import { STAMP_VERT, STAMP_FRAG, FADE_VERT, FADE_FRAG } from './trails-glsl.js';
 
-export const TRAIL_KINDS = { tire: 0, track: 1, foot: 2, crawl: 3, drag: 4, crater: 5, flatten: 6 };
+export const TRAIL_KINDS = { tire: 0, track: 1, foot: 2, crawl: 3, drag: 4, crater: 5, flatten: 6, melt: 5 }; // melt = a soft bowl, no berm (blood on snow)
 // defaults per kind: feature width (m), quad width factor, depth, berm, min spacing for CPU records (m)
 const KIND_DEF = {
   tire: { fw: 0.26, qw: 1.9, depth: 0.85, berm: 0.8, rec: 0.6 },
   track: { fw: 0.52, qw: 1.8, depth: 1.1, berm: 0.9, rec: 0.6 },
   foot: { fw: 0.2, qw: 1.0, len: 0.34, depth: 0.75, berm: 0.5, rec: 0 },
   crawl: { fw: 0.6, qw: 1.7, depth: 0.55, berm: 0.4, rec: 0.4 },
-  drag: { fw: 0.42, qw: 1.7, depth: 0.5, berm: 0.4, rec: 0.4 },
+  drag: { fw: 0.42, qw: 1.7, depth: 0.7, berm: 0.4, rec: 0.4 },
   crater: { fw: 2.0, qw: 1.8, depth: 1.4, berm: 1.0, rec: 0 },
   flatten: { fw: 0.8, qw: 1.0, depth: 0, berm: 0, rec: 1e9 },
+  melt: { fw: 0.5, qw: 1.8, depth: 0.1, berm: 0, rec: 1e9 },
 };
 const MAX_BATCH = 4096;
 /** Vehicle layouts: track (m, wheel centre to centre), wheelbase, tyre width, rear dual tyres, tracked rear. */
@@ -46,6 +47,8 @@ export class TrailSystem {
     this.pxPerM = o.pxPerM || 16;
     this.materialAt = o.materialAt;
     this.onSpray = o.onSpray || null;
+    /** Visual footfall hook ({id, x, z, yaw, side, length, width, material, snow}): bloody boot prints (render/blood). */
+    this.onStep = null;
     const w = Math.min(4096, Math.ceil(this.W * this.pxPerM)), h = Math.min(4096, Math.ceil(this.D * this.pxPerM));
     const mk = (ww, hh, fmt) => new THREE.WebGLRenderTarget(ww, hh, {
       type: THREE.HalfFloatType, format: fmt, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
@@ -232,6 +235,7 @@ export class TrailSystem {
       this._push(2, px, pz, Math.cos(yaw), Math.sin(yaw), (params.length ?? 0.34) * sc, 0.2 * sc, 0.2 * sc, 0, depth, 0.5, src.side, mat.coh ?? 0.7, Math.random() * 97);
       this._record('foot', px, pz, heading, id, mat, { side: src.side });
       this.stats.stamps++;
+      this.onStep?.({ id, x: px, z: pz, yaw, side: src.side, length: (params.length ?? 0.34) * sc, width: 0.2 * sc, material: mat.name, snow: mat.snow ?? 0 });
     }
     return mat;
   }

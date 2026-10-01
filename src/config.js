@@ -427,6 +427,165 @@ export const CONFIG = {
   },
 
   /**
+   * House rules (docs/bodies-design.md §0.3): rules that are NOT in the 1998 original. `world.house` is resolved from
+   * a preset + per-rule overrides at mission load (core/house-rules.js); `world.rules` (above) is never edited.
+   */
+  houseRules: {
+    default: 'shadowSix',
+    presets: {
+      // physicsGameplay: a thrown / settled body's resting place and a toppled prop's footprint feed back to gameplay
+      // (AI body discovery, nav, cover). Off = the 1998 behaviour: physics is drawn but gameplay positions stay put.
+      shadowSix: { dragBodies: true, buddyRescue: true, dropWhenShot: true, ragdollAllDeaths: true, physicsGameplay: true },
+      classic1998: { dragBodies: false, buddyRescue: false, dropWhenShot: false, ragdollAllDeaths: true, physicsGameplay: false },
+    },
+    labels: { shadowSix: 'SHADOW SIX', classic1998: 'CLASSIC 1998', custom: 'CUSTOM' },
+  },
+
+  /**
+   * Drag, shoulder carry and buddy rescue (docs/bodies-design.md §C). Shoulder carry keeps `abilities.carry` (pick 1.0,
+   * drop 0.8) and `units.carry` (1.6 m/s) — the spec values; everything here is [rec] unless noted.
+   */
+  bodies: {
+    drag: {
+      speed: 0.8, // m/s walking backwards, can't run
+      turnRate: Math.PI, // rad/s cap while transporting (180°/s)
+      offset: 0.95, // m: the body's pelvis sits this far behind the dragger along the path
+      reach: 0.45, // m: his hands (collar / armpits) ahead of him; the pelvis trails offset − reach behind them (tow)
+      yawRate: 5, // 1/s: the body's yaw eases towards the hands → pelvis line (exponential)
+      heel: 0.82, // m pelvis → heels along the body (the furrow; art/terrain/game-adapter HEEL)
+      grab: 1.0, release: 0.6, // s
+      toShoulder: 1.0, toDrag: 0.8, // s (drag → shoulder lift / shoulder → drag lower)
+    },
+    dropFallH: 1.4, // m a shouldered body falls from when the carrier is hit
+    vehicleLoad: 1.5, // s to load a downed buddy / cannotWalk guest into a vehicle
+    downed: {
+      bleedOut: 60, // s from DOWNED to death
+      crawlSpeed: 0.3, // m/s
+      overkillMax: 60, // damage beyond the remaining hp above this kills outright
+      blastCore: 0.5, // × R_k: inside this an explosion kills outright
+      fatal: ['drown', 'crush', 'vehicle', 'runover', 'train', 'fall'], // causes that are never downable
+      revive: 4.0, // s (one first-aid dose)
+      reviveHp: 34, // HP after the revive (one dose)
+      standUp: 1.2, // s getting up after the revive
+      hurry: 15, // s left: faster pulse / heartbeat, "Hurry, he's fading!"
+      barkRange: 40, // m: the nearest other commando within this calls "Man down!"
+      coverRange: 3.0, // m: a guard who sees a downed man walks up to this distance and covers him
+      finishDelay: 8.0, // s of covering (any guard) before the finishing shot: the in-sight rescue window
+    },
+  },
+
+  /**
+   * Blast shock-wave physics (docs/bodies-design.md §A, PROGRESS 4x). Presentation layer: `world.explode()` still
+   * decides every death; only a body's resting place is fed back to gameplay. [rec] values unless noted.
+   */
+  physics: {
+    enabled: true,
+    gravity: -9.81, solverIterations: 4,
+    terrainStep: 1.0, // heightfield sample spacing (m): 1 m keeps the save snapshot small (§A.10); slopes are gentle
+    staticH: { high: 3.2, low: 0.9, fence: 1.1 }, // collider heights of grid blockers (m)
+    blast: {
+      reachMul: 2.5, // R_b = reachMul × R_k
+      J0: 900, r0Mul: 0.35, lift: 0.35, angular: 0.15,
+      maxDvBody: 11, maxDvProp: 16, // m/s clamps (design §A.3 max 14/18; tuned down so point-blank bodies stay on screen)
+      area: { body: 0.7, standingMin: 0.25 }, // effective frontal area (m²)
+      rays: [0.3, 1.0, 1.6], rayFrom: 0.4, occMin: 0.15, front: 340,
+      Q: { grenade: 1, bomb: 3, barrel: 2, fuelTank: 4, vehicle: 2.5, shell: 1.5 },
+    },
+    ragdoll: {
+      mass: 75, settleAt: 1.2, // s after death (die clip end) for the settle ragdoll
+      linDamp: 0.05, angDamp: 0.6, jointDamp: 2.0, friction: 0.8,
+      limits: { neck: 40, shoulder: 85, hip: 70, spine: 30, knee: 140, elbow: 145 },
+      blend: 0.15, drive: { from: 0.4, time: 0.6 },
+      settleV: 0.05, settleW: 0.2, settleHold: 0.5, timeout: 6,
+      nudge: 1.5, nudgeFar: 6, nudgeBlend: 0.3,
+    },
+    // fall: 0.9 s going down, lying dazed, 1.2 s getting up; a guard knocked down is blind and holds fire meanwhile
+    // (physicsGameplay; the 1998 rules keep it a visual flinch of the same length)
+    survivor: { flinch: 0.6, fall: 2.5, maxOffset: 0.6, times: { hit: 0.4, knockback: 0.8, fall: 3.4 }, getUp: 1.2 },
+    props: { wake: 0.8, navMinH: 0.6, navMinMass: 20, nudge: 1.0 },
+    vehicles: { lightRoll: 18, heavyRoll: 5, heavyTime: 0.8, stiffness: 60, damping: 7, flipDv: 3.5, flipTime: 0.9 },
+    doors: { reachMul: 1.5 }, glass: { reachMul: 1.8 },
+    looseItemFrac: 0.6, // knock-loose helmets when J > 60 % of the fall threshold
+    // §0.2 determinism: the ragdoll and prop caps decide which body / prop gets simulated, and that result feeds
+    // gameplay, so they are ONE fixed set for every graphics preset (a replay made on 'low' matches one on 'ultra').
+    gameplayCaps: { ragdolls: 8, props: 48 },
+    // purely visual extras (debris chips, glass shards) scale with the quality preset
+    caps: {
+      low: { debris: 32 },
+      medium: { debris: 64 },
+      high: { debris: 64 },
+      ultra: { debris: 96 },
+    },
+    classicThrow: 0.3, // × blast Δv on bodies when physics is visual only (physicsGameplay off): a slump, not a flight
+    // ground marks (orchestrator 2026-09-27): crater (soft ground) / scorch (hard floors) size per class, metres
+    marks: { grenade: 1.3, shell: 1.6, barrel: 2.0, vehicle: 2.6, bomb: 3.0, fuelTank: 3.4 },
+  },
+
+  /**
+   * Blood (docs/bodies-design.md §B, PROGRESS 4y). Pure presentation: never read by gameplay or the AI. Volumes (L)
+   * and colours from forensic references; every other number is [rec].
+   */
+  blood: {
+    // §B.1 wound classes. spatter: [min, max] droplet decals, cone half-angle (deg), range [min, max] m.
+    causes: {
+      // grow: s over which the wound empties into the pool (most of it early: a visible pool within ~20 s)
+      shot: { puff: 1, spatter: [3, 8], cone: 20, range: [0.5, 2.5], pool: 0.8, grow: [14, 22], wound: 'spine_03', stain: 0.13 },
+      burst: { puff: 1, spatter: [3, 6], cone: 22, range: [0.5, 2.2], pool: 1.0, grow: [16, 26], wound: 'spine_03', stain: 0.11, perUnit: 3, window: 0.2 },
+      knife: { puff: 0, spurt: { pulses: 3, time: 1.0, arc: [0.3, 0.9], drops: 5 }, pool: 1.5, grow: [25, 35], wound: 'neck_01', stain: 0.14, attacker: true },
+      explosion: { puff: 0, radial: [6, 14], range: [0.3, 2.0], pool: 0.6, grow: [10, 16], wound: 'spine_02', stain: 0.1 },
+      harpoon: { puff: 1, spatter: [2, 4], cone: 25, range: [0.3, 1.2], pool: 1.0, grow: [30, 45], wound: 'spine_03', stain: 0.10 },
+      trap: { puff: 0, spatter: [2, 4], cone: 180, range: [0.1, 0.5], pool: 0.6, grow: [25, 35], wound: 'calf_r', stain: 0.07 },
+      bite: { puff: 1, spatter: [1, 3], cone: 60, range: [0.2, 0.8], pool: 0.5, grow: [25, 35], wound: 'lowerarm_l', stain: 0.08 },
+      runover: { puff: 0, smear: 1.5, pool: 0.6, grow: [20, 30], wound: 'pelvis', stain: 0.12 },
+      nonLethal: { puff: 1, spatter: [1, 3], cone: 20, range: [0.3, 1.2], pool: 0, wound: 'spine_03', stain: 0.06 },
+    },
+    // cause id (weapon ids included) → class above; anything listed in `none` never bleeds (syringe stays bloodless)
+    alias: {
+      shot: 'shot', bullet: 'shot', pistol: 'shot', luger: 'shot', rifle: 'shot', sniper: 'shot', sniperRifle: 'shot', leeEnfield: 'shot', damage: 'shot',
+      smg: 'burst', mp40: 'burst', mg: 'burst', tankMg: 'burst',
+      knife: 'knife', harpoon: 'harpoon', trap: 'trap', bite: 'bite', dogBite: 'bite', runover: 'runover', train: 'runover',
+      explosion: 'explosion', grenade: 'explosion', bomb: 'explosion', timeBomb: 'explosion', remoteBomb: 'explosion', shell: 'explosion',
+      barrel: 'explosion', vehicle: 'explosion', torpedo: 'explosion', fuelTank: 'explosion',
+    },
+    none: ['syringe', 'injection', 'poison', 'chloroform', 'punch', 'ko', 'knockout', 'drown', 'electric', 'fire'],
+    // §B.2 pools: 64 × 64 cells of 2.5 cm, 10 Hz steps, ≤ 4 pools per frame; start delay after death (s)
+    pool: { n: 64, cell: 0.025, hz: 10, perFrame: 4, sub: 3, delay: [0.5, 1.5], film: 1.4, maxAge: 1800, settleAfter: 12 },
+    // colour by age (sRGB hex; the shader converts): fresh → dark (2–4 min) → dried (10–15 min)
+    colors: { fresh: '#6e0a0a', dark: '#3a0605', dry: '#2a1308', snowCore: '#a3101c', halo: '#c24a5a' },
+    age: { dark: [120, 240], dry: [600, 900] },
+    // §B.3 surfaces. absorb = liquid → soaked per s; cap = soak capacity (mm); halo = snow bleed channel;
+    // dryMul = drying time multiplier (snow stays vivid ×4), sheen = s of wet gloss on absorbent ground
+    surfaces: {
+      snow: { absorb: 0.35, cap: 3.5, spread: 0.14, halo: 3, dryMul: 4, crack: 0, micro: 'grain', melt: 0.015, wetAge: 600 },
+      soil: { absorb: 0.25, cap: 5, spread: 0.03, halo: 0, dryMul: 1, crack: 0.3, micro: 'soil', sheen: 30 },
+      gravel: { absorb: 0.18, cap: 3, spread: 0.02, halo: 0, dryMul: 1, crack: 0.2, micro: 'gravel', sheen: 30 },
+      grass: { absorb: 0.12, cap: 4, spread: 0.02, halo: 0, dryMul: 1, crack: 0.2, micro: 'soil', tintGrass: 1 },
+      mud: { absorb: 0.10, cap: 3, spread: 0.02, halo: 0, dryMul: 0.6, crack: 0, micro: 'soil', film: 1 },
+      hard: { absorb: 0.004, cap: 0.4, spread: 0, halo: 0, dryMul: 1, crack: 1, micro: 'rock' },
+      paved: { absorb: 0.004, cap: 0.4, spread: 0, halo: 0, dryMul: 1, crack: 1, micro: 'joints' }, // floors, roofs, platforms
+      wood: { absorb: 0.02, cap: 1, spread: 0.01, halo: 0, dryMul: 1, crack: 0.6, micro: 'planks' },
+      metal: { absorb: 0, cap: 0, spread: 0, halo: 0, dryMul: 1, crack: 0.2, micro: 'none', tension: 2.2 },
+      ice: { absorb: 0, cap: 0, spread: 0, halo: 0, dryMul: 3, crack: 0, micro: 'none', tension: 1.4 },
+      road: { absorb: 0.03, cap: 0.8, spread: 0.01, halo: 0, dryMul: 1, crack: 0.7, micro: 'soil', tension: 1.1 },
+    },
+    // §B.4 clothing stains
+    stain: { grow: 30, start: 0.035, wetFor: 120, spray: 0.04 }, // start: the hole and first soak show at once
+    // §B.5 trails, drips, prints
+    trail: {
+      smearWidth: [0.18, 0.35], smearStep: 0.08, dripEvery: [0.3, 1.5], drop: [0.02, 0.04],
+      bleedRate: 0.02, dragLoss: 0.01, bloodyFeet: 6, wetAge: 180, footR: 0.12,
+    },
+    water: { cloud: 12 },
+    // §B.6 budgets per quality preset (medium between low and high)
+    budgets: {
+      low: { pools: 16, decals: 128, smear: 60, stains: 4 },
+      medium: { pools: 32, decals: 192, smear: 120, stains: 8 },
+      high: { pools: 48, decals: 256, smear: 200, stains: 8 },
+      ultra: { pools: 64, decals: 512, smear: 400, stains: 8 },
+    },
+  },
+
+  /**
    * Beyond the Call of Duty tunables (docs/bcd-plan.md §1.14). Every [rec] number lives here; nothing
    * reads this block under the BEL ruleset.
    */

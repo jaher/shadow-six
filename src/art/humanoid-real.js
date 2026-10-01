@@ -25,6 +25,7 @@
  * @module art/humanoid-real
  */
 import * as THREE from 'three';
+import { addBodyClips } from './body-clips.js';
 
 const ROOT = new URL('../../assets/characters/', import.meta.url);
 const url = (p) => new URL(p, ROOT).href;
@@ -50,10 +51,10 @@ export const ANIMS = ['idle', 'walk', 'run', 'crawl_idle', 'crawl', 'swim', 'div
   'throw', 'punch', 'plant', 'climb', 'carry_idle', 'carry_walk', 'die', 'dead', 'surrender', 'salute',
   'look_around', 'use'];
 const WATER = new Set(['swim', 'swim_idle', 'dive']);
-const LOCO = new Set(['walk', 'run', 'sprint', 'crawl', 'swim', 'crouch_walk', 'carry_walk', 'drag', 'tied_walk', 'follow_walk']);
+const LOCO = new Set(['walk', 'run', 'sprint', 'crawl', 'swim', 'crouch_walk', 'carry_walk', 'drag', 'tied_walk', 'follow_walk', 'downed_crawl', 'drag_walk']);
 // design-spec §3.1 / §4.1 ground speeds (m/s) used when the caller gives none; keeps the feet planted at game speed
 const SPEED = {
-  player: { walk: 2.25, run: 4.5, crawl: 0.9, swim: 1.8, crouch_walk: 2.25, carry_walk: 1.6, drag: 1.6 },
+  player: { walk: 2.25, run: 4.5, crawl: 0.9, swim: 1.8, crouch_walk: 2.25, carry_walk: 1.6, drag: 0.8, drag_walk: 0.8, downed_crawl: 0.3 },
   fast: { run: 5.4 },   // greenberet, driver
   enemy: { walk: 0.9, run: 3.8, crouch_walk: 0.9 },
   neutral: { walk: 2.25, run: 4.5, crawl: 0.9, tied_walk: 1.1, follow_walk: 2.25 },
@@ -73,6 +74,11 @@ const _m4 = new THREE.Matrix4(), _sph = new THREE.Sphere(new THREE.Vector3(), 1.
 /** fnv1a 32-bit (same hash as the pipeline's variety.js). */
 function fnv1a(str) { let h = 0x811c9dc5; for (const c of new TextEncoder().encode(String(str))) { h ^= c; h = Math.imul(h, 0x01000193) >>> 0; } return h >>> 0; }
 
+/** bodies-design §C.10: derived drag / carry / downed clips on every kit's library (before any clip is adapted). */
+function bodyClips(lib, kit) {
+  try { lib._bodyClips = addBodyClips(lib); } catch (e) { console.warn('[humanoid-real] body clips for', kit, 'failed', e); }
+}
+
 async function initCommandos(L) {
   const [CA, PK, PW, CB, CBW] = await Promise.all(['commandos_a/ca_runtime.js', 'pipeline/charkit.js',
     'pipeline/weapons.js', 'commandos_b/charkit.js', 'commandos_b/weapons.js'].map(loadRuntime));
@@ -89,6 +95,7 @@ async function initCommandos(L) {
   };
   const [caLib, caW, bLib, bW] = await Promise.all([CA.loadCALib(), PW.loadWeapons(url('weapons/weapons.glb')), cbLib(),
     CBW.loadWeapons(url('weapons/weapons_b.glb'))]);
+  bodyClips(caLib, 'commandos_a'); bodyClips(bLib, 'commandos_b');
   L.rt.commandos_a = {
     load: (e) => PK.loadCharacter(url(e.glb)),
     create: (tpl) => CA.createCommando(tpl, caLib),
@@ -111,12 +118,14 @@ async function initEnemies(L) {
     const ca = await PK.loadAnimLibrary(url('anims/commando_anims.glb'));
     for (const n of ['carried']) if (!E.lib.clips.has(n) && ca.clips.has(n)) { E.lib.clips.set(n, ca.clips.get(n)); E.lib.meta[n] ||= ca.meta[n]; }
   } catch (e) { console.warn('[humanoid-real] carried clip for enemies unavailable', e); }
+  bodyClips(E.lib, 'enemies');
   L.rt.enemies = { EK, SK, E, picks: new Map() };
 }
 
 async function initGuests(L) {
   const [GK, GC] = await Promise.all([loadRuntime('guests/guestkit.js'), loadRuntime('guests/charkit.js')]);
   const lib = await GK.loadGuestLib();
+  bodyClips(lib, 'guests');
   L.rt.guests = {
     load: (e) => GC.loadCharacter(url(e.glb)),
     create: (tpl, o) => GK.createGuest(tpl, lib, { id: o.id }), lib,

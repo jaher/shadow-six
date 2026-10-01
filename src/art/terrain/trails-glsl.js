@@ -97,13 +97,22 @@ void main() {
     R = max(furrow * 0.45, smoothstep(0.0, 0.3, el) * 0.8);
     G = smoothstep(0.9, 1.15, a) * smoothstep(1.6, 1.15, a) * 0.5;
     A = smoothstep(1.4, 0.9, a);
-  } else if (kind == 4) {                   // dragged body: smooth furrow + two heel grooves
-    float a = abs(u) / (0.5 * fw);
-    float furrow = smoothstep(1.0, 0.2, a) * 0.4;
-    float heels = smoothstep(0.035, 0.0, abs(abs(u) - 0.11)) * (0.8 + 0.2 * n1(odo * 7.0));
-    R = max(furrow, heels);
-    G = smoothstep(0.95, 1.2, a) * smoothstep(1.6, 1.2, a) * 0.6;
-    A = smoothstep(1.4, 0.8, a);
+  } else if (kind == 4) {                   // dragged body: two wandering heel ruts, a faint smoothed band (coat, buttocks)
+    float wv = (n1(odo * 1.7 + sd * 5.0) - 0.5) * 0.05;                 // the legs swing / splay a little
+    float sp = 0.1 + (n1(odo * 0.9 + sd * 9.0) - 0.5) * 0.04;
+    float cr = (n2(vec2(u * 40.0, odo * 16.0) + sd) - 0.5) * 0.018 * (1.2 - coh); // crumbling rut walls
+    float dl = abs(u - wv + sp) + cr, dr = abs(u - wv - sp) + cr;
+    float wl = 0.03 + 0.015 * n1(odo * 3.1 + sd), wr = 0.03 + 0.015 * n1(odo * 2.7 + sd * 3.0);
+    // heels bounce and dig in unevenly: depth varies, short skips on the right / left in turn
+    float gl = smoothstep(0.25, 0.45, n1(odo * 2.2 + sd * 2.0)), gr = smoothstep(0.25, 0.45, n1(odo * 2.2 + sd * 2.0 + 17.3));
+    float hl = smoothstep(wl, wl * 0.3, dl) * (0.45 + 0.55 * n1(odo * 6.0 + sd)) * (0.35 + 0.65 * gl);
+    float hr = smoothstep(wr, wr * 0.3, dr) * (0.45 + 0.55 * n1(odo * 5.3 + sd * 7.0)) * (0.35 + 0.65 * gr);
+    float band = smoothstep(0.2, 0.05, abs(u - wv * 0.5)) * (0.1 + 0.08 * n2(vec2(u * 25.0, odo * 3.0) + sd * 5.0));
+    R = max(max(hl, hr), band) * dnz;
+    float bl = smoothstep(wl * 0.9, wl * 1.6, dl) * smoothstep(wl * 2.8, wl * 1.6, dl);
+    float br = smoothstep(wr * 0.9, wr * 1.6, dr) * smoothstep(wr * 2.8, wr * 1.6, dr);
+    G = max(bl * (0.3 + 0.7 * gl), br * (0.3 + 0.7 * gr)) * 0.55 * (0.6 + 0.4 * n2(vec2(u * 30.0, odo * 9.0)));
+    A = smoothstep(0.26, 0.1, abs(u - wv * 0.5));
   } else if (kind == 5) {                   // crater / explosion scar
     float rr = length(vec2(u, v)) / (0.5 * fw);
     R = smoothstep(1.0, 0.1, rr);

@@ -24,6 +24,7 @@ const ROWS = [
   [['climb_scrape', 'ladder'], 'sfx', 'scrape', 0.4],
   [['dig_snow', 'dig_sand'], 'sfx', 'dig', 0.45],
   [['body_drop', 'barrel_set'], 'sfx', 'thud', 0.6],
+  [['heartbeat'], 'sfx', 'heartbeat', 0.55, { loop: true }], // bodies-design §C.7 downed man
   [['barrel_lift'], 'sfx', 'grunt', 0.5],
   // Water
   [['splash_in', 'splash_out'], 'sfx', 'splash', 0.6],

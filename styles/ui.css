@@ -62,7 +62,22 @@
 .hud-portrait .skull .ico { padding: 8%; box-sizing: border-box; }
 .hud-portrait.dead .skull { display: block; }
 .hud-portrait.dead { cursor: default; }
-.hud-portrait .glyph { position: absolute; right: 0; bottom: 0; width: calc(16 * var(--r)); height: calc(16 * var(--r)); filter: drop-shadow(0 0 1px #000); }
+/* bodies-design §C.7 downed: desaturated, red pulsing frame, bleed-out ring + seconds, green revive ring */
+.hud-portrait .downed-ring, .hud-portrait .downed-secs { display: none; }
+.hud-portrait.downed .face img, .hud-portrait.downed .hud-portrait-slot > * { filter: grayscale(1) brightness(0.8) sepia(0.4) hue-rotate(-25deg); }
+.hud-portrait.downed { animation: downed-pulse 1s ease-in-out infinite; }
+.hud-portrait.downed.hurry { animation-duration: 0.5s; }
+@keyframes downed-pulse { 50% { box-shadow: inset 0 0 0 calc(2 * var(--r)) rgb(200, 24, 16), 0 0 calc(6 * var(--r)) rgba(200, 24, 16, 0.7); } }
+.hud-portrait.downed .downed-ring { display: block; position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); z-index: 2; pointer-events: none; }
+.hud-portrait .downed-ring circle { fill: none; stroke-linecap: round; }
+.hud-portrait .downed-ring .bleed { stroke: rgb(214, 36, 22); stroke-width: 3; stroke-dasharray: var(--left, 1) 1; }
+.hud-portrait .downed-ring .rev { stroke: rgb(90, 214, 96); stroke-width: 2.5; stroke-dasharray: var(--rev, 0) 1; opacity: 0; }
+.hud-portrait.reviving .downed-ring .rev { opacity: 1; }
+.hud-portrait.downed .downed-secs {
+  display: block; position: absolute; left: 0; right: 0; top: 34%; z-index: 3; pointer-events: none; text-align: center; font: 700 calc(12 * var(--r)) / 1 var(--font-stencil, sans-serif);
+  color: #ffd9cc; text-shadow: 0 0 calc(2 * var(--r)) #000, 0 0 calc(1 * var(--r)) #000;
+}
+.hud-portrait .glyph { z-index: 2; position: absolute; right: 0; bottom: 0; width: calc(16 * var(--r)); height: calc(16 * var(--r)); filter: drop-shadow(0 0 1px #000); }
 .hud-portrait .glyph:empty { display: none; }
 .hud-portrait[data-glyph="bars"] .glyph { inset: 0; width: auto; height: auto; }
 .hud-portrait .glyph svg { width: 100%; height: 100%; }
@@ -232,6 +247,7 @@
   background: rgba(0, 0, 0, 0.55); text-shadow: 0 1px 0 #000;
 }
 .hud-message[data-kind="warn"] { color: #ffcf6a; }
+.hud-message[data-kind="alert"] { color: #ff6a52; font-weight: 700; } /* bodies-design §C.7: "TINY IS DOWN — 60 s" */
 .hud-message.pop { animation: msgpop 0.25s ease-out; }
 @keyframes msgpop { from { opacity: 0; transform: translate(-50%, -4px); } }
 .hud-subs { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
@@ -361,3 +377,17 @@ body.ui-softcursor #view canvas { cursor: none !important; }
 @media (max-width: 560px) {
   .ui-options .rows { grid-template-columns: 1fr; }
 }
+
+/* bodies-design §C.5: Lift / Drag / Put down while transporting a man (above the hand button) */
+.hud-transport { position: absolute; right: calc(8 * var(--r)); bottom: calc(118 * var(--r)); display: flex; gap: calc(4 * var(--r)); pointer-events: auto; z-index: 4; }
+.hud-transport[hidden] { display: none; }
+.hud-tbtn {
+  display: flex; align-items: center; gap: calc(3 * var(--r)); padding: calc(3 * var(--r)) calc(6 * var(--r));
+  font: 700 calc(10 * var(--r)) / 1 var(--font-stencil, sans-serif); letter-spacing: 0.06em; text-transform: uppercase; color: #efe2bd;
+  background: linear-gradient(#5a4a36, #2d241a); border: calc(1 * var(--r)) solid #17110b; border-radius: calc(3 * var(--r));
+  box-shadow: inset 0 0 0 calc(1 * var(--r)) rgba(236, 208, 138, 0.2), 0 calc(2 * var(--r)) calc(3 * var(--r)) rgba(0, 0, 0, 0.5); cursor: pointer;
+}
+.hud-tbtn svg { width: calc(18 * var(--r)); height: calc(18 * var(--r)); }
+.hud-tbtn:hover:not(:disabled) { box-shadow: inset 0 0 0 calc(1 * var(--r)) var(--brass-hi); }
+.hud-tbtn:disabled { opacity: 0.45; cursor: default; filter: grayscale(0.7); }
+.hud-tbtn.not-original span::after { content: ' ✦'; color: var(--brass-hi, #e8c86a); }

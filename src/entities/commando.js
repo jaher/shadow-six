@@ -26,6 +26,7 @@ import { spawnInventory, isUnlimited } from '../items.js';
 import { installAbilitySystems } from '../abilities/system.js';
 import { dropCarried } from '../abilities/common.js';
 import { releasePuppet, installBcdSystems } from '../ai/bcd-enemy.js';
+import { isDownableHit, enterDowned, tickDowned, serializeDowned } from './downed.js';
 
 export { dropCarried };
 
@@ -80,6 +81,14 @@ export class Commando extends Unit {
     this.pendingAbility = null;
     /** Body (Unit) or Barrel being carried (§3.4). */
     this.carrying = null;
+    /** bodies-design §C: how a man is transported — 'shoulder' | 'drag' (null for a barrel / nothing). */
+    this.carryMode = null;
+    /** Lift / lower in progress {kind: 'toShoulder'|'toDrag', t, dur} (visual pairing, save). */
+    this.carryTransition = null;
+    /** bodies-design §C.6: DOWNED state {t, cause, sourceId, since, hurried} or null. */
+    this.downed = null;
+    /** §C.8 mission flag: a guest / prisoner who can't walk (only transport moves him). */
+    this.cannotWalk = !!spawn.cannotWalk;
     this.disguised = false;
     this._startDisguised = !!spawn.disguised;
     this.canSwim = role === 'diver';
@@ -111,6 +120,7 @@ export class Commando extends Unit {
 
   onAdded(world) {
     installAbilitySystems(world);
+    this.refreshAbilities(); // house-rule abilities (world.house) now that the world is known
     const sd = world.mission?.startDisguised || [];
     if (this._startDisguised || sd.includes(this.role) || sd.includes(this.tag)) this.setDisguise(true);
     if (this.state === 'jailed' && this.object3d) this.object3d.visible = false;
@@ -158,7 +168,7 @@ export class Commando extends Unit {
    */
   refreshAbilities() {
     if (this._fixedAbilities) { this.abilities = [...this._fixedAbilities]; return this.abilities; }
-    this.abilities = abilitiesForRole(this.role, this.campaign).filter((id) => {
+    this.abilities = abilitiesForRole(this.role, this.campaign, this.world?.house ?? null).filter((id) => {
       const d = ABILITIES[id];
       if (d.available) return d.available(this);
       return !d.item || this.has(d.item);
@@ -183,6 +193,7 @@ export class Commando extends Unit {
     const U = CONFIG.units;
     const wp = this.path?.[this.pathIndex];
     if (wp?.link) return wp.link.kind === 'climb' ? CONFIG.abilities.climbSpeed : CONFIG.abilities.ladderSpeed;
+    if (this.carrying && this.carryMode === 'drag' && this.stance === 'stand') return CONFIG.bodies.drag.speed * this.speedMul; // §C.2
     if (this.carrying && this.stance === 'stand') return U.carry * this.speedMul;
     let s = super.speed;
     if (this.role === 'diver' && this.has('inflatableBoat') && this.stance === 'stand') s = Math.max(0.1, s - U.raftCarryPenalty);
@@ -193,11 +204,24 @@ export class Commando extends Unit {
   pathQuery() {
     const q = super.pathQuery();
     if (this.carrying) q.noLinks = true;
+    if (this.carrying && this.carrying.kind !== 'interactable') q.swim = false; // §C.1: no swimming with a man
+    if (this.downed) { q.noLinks = true; q.swim = false; } // §C.6: he crawls on the flat
     return q;
+  }
+
+  /** §C.2: a dragger walks backwards, facing the body (Unit._followPath adds this to the path heading). */
+  get moveHeadingOffset() {
+    return this.carrying && this.carryMode === 'drag' ? Math.PI : 0;
+  }
+
+  /** §C.2: turning with a dragged man is capped (180°/s). */
+  get moveTurnRate() {
+    return this.carrying && this.carryMode === 'drag' ? Math.min(this.turnRate, CONFIG.bodies.drag.turnRate) : this.turnRate;
   }
 
   moveTo(x, z, opts = {}) {
     if (this.hidden || this.state === 'hidden' || this.state === 'jailed') return false;
+    if (this.cannotWalk && !this.downed) return false; // §C.8: only transport moves him
     const run = !!opts.run && !this.carrying;
     const ok = super.moveTo(x, z, { ...opts, run });
     // §3.4: no climbing (walls or ladders) while carrying a body or barrel — pathQuery() already
@@ -219,6 +243,7 @@ export class Commando extends Unit {
 
   setStance(stance) {
     if (!this.alive || stance === this.stance) return;
+    if (this.downed) return; // §C.6: he stays down until revived
     if (stance === 'crawl' && (this.carrying || this.buried || this.hidden || this.noCrawl)) return;
     if (this.diving && stance !== 'dive') return; // gear on: only the dive ability changes stance
     const prev = this.stance;
@@ -448,10 +473,11 @@ export class Commando extends Unit {
       this._updateAnim(dt);
       return;
     }
+    if (this.downed) tickDowned(this, dt);
     super.update(dt);
     if (this.diving && this.alive) this.stance = 'dive';
     this._updateLinks();
-    this._updateCarried();
+    this._updateCarried(dt);
   }
 
   /** §3.5 single file: keep 1.0 m behind the unit ahead, running when it runs. */
@@ -480,13 +506,156 @@ export class Commando extends Unit {
   }
 
   /** Carried body follows on the shoulder (§3.4); carry animations. */
-  _updateCarried() {
+  _updateCarried(dt = 0) {
     const c = this.carrying;
-    if (!c) return;
+    if (!c) { this._dragTrail = null; this._heelAt = null; return; }
+    if (c.kind !== 'interactable' && this.carryMode === 'drag') {
+      this._placeDragged(c, dt);
+      if (this.alive && !this._animOverride) this._setAnim(this._moving ? 'drag_walk' : 'drag_idle');
+      return;
+    }
+    this._dragTrail = null;
     if (c.kind !== 'interactable') {
       c.x = this.x; c.z = this.z; c.y = (this.y || 0) + 1.2; c.heading = this.heading;
     }
     if (this.alive && !this._animOverride) this._setAnim(this._moving ? 'carry_walk' : 'carry_idle');
+  }
+
+  /** Where the dragger's hands hold the man (collar / armpits): `drag.reach` m ahead of him. */
+  dragHands() {
+    const r = CONFIG.bodies.drag.reach;
+    return { x: this.x + Math.cos(this.heading) * r, z: this.z + Math.sin(this.heading) * r };
+  }
+
+  /**
+   * Can a dragged man lie at (x, z)? The straight line from the dragger to him crosses only walkable cells at the
+   * dragger's own level (no fence / wall / building corner between them, no drop off a roof, deck or platform edge).
+   */
+  _dragSpotOk(x, z) {
+    const w = this.world;
+    if (!w) return true;
+    const g = w.grid, ref = g.elevAt(this.x, this.z);
+    if (Math.hypot(x - this.x, z - this.z) < 0.3) return false; // never on top of the dragger
+    return g.walkableLine(this.x, this.z, x, z, { elevRef: ref });
+  }
+
+  /** Record the dragger's travelled path (newest last, ≤ 3 m of it): the fallback line the body trails along. */
+  _pushDragTrail() {
+    const T = this._dragTrail || (this._dragTrail = []);
+    const last = T[T.length - 1];
+    if (!last || Math.hypot(this.x - last.x, this.z - last.z) >= 0.1) T.push({ x: this.x, z: this.z });
+    let len = 0;
+    for (let i = T.length - 1; i > 0; i--) {
+      len += Math.hypot(T[i].x - T[i - 1].x, T[i].z - T[i - 1].z);
+      if (len > 3) { T.splice(0, i - 1); break; }
+    }
+  }
+
+  /** Point `dist` m back along the travelled path from the dragger (the oldest point when the path is shorter). */
+  _trailPoint(dist) {
+    const T = this._dragTrail;
+    let px = this.x, pz = this.z, left = dist;
+    for (let i = T ? T.length - 1 : -1; i >= 0; i--) {
+      const q = T[i], d = Math.hypot(q.x - px, q.z - pz);
+      if (d >= left && d > 1e-6) return { x: px + ((q.x - px) * left) / d, z: pz + ((q.z - pz) * left) / d };
+      left -= d; px = q.x; pz = q.z;
+    }
+    return { x: px, z: pz };
+  }
+
+  /**
+   * Start a drag (grab or shoulder → drag): the man lies `drag.offset` m in front of the dragger (he walks backwards
+   * facing him), or at the first clear bearing around him when something is in the way.
+   */
+  _startDrag(b) {
+    const D = CONFIG.bodies.drag;
+    this._dragTrail = [{ x: this.x, z: this.z }];
+    if (b.carriedBy === this && Number.isFinite(b.x) && Math.hypot(b.x - this.x, b.z - this.z) >= 0.3 && this._dragSpotOk(b.x, b.z)) return;
+    for (const da of [0, 0.5, -0.5, 1.0, -1.0, 1.6, -1.6, Math.PI]) {
+      const a = this.heading + da, x = this.x + Math.cos(a) * D.offset, z = this.z + Math.sin(a) * D.offset;
+      if (this._dragSpotOk(x, z)) { b.x = x; b.z = z; b.heading = a; return; }
+    }
+  }
+
+  /**
+   * §C.2 kinematic, deterministic gameplay position of a dragged man — a trailing tow: his pelvis is pulled towards
+   * the dragger's hands on a rigid `offset − reach` m link (so he trails along the travelled path and does not swing
+   * around when the dragger turns in place), and his yaw eases towards the hands → pelvis line. Every spot is checked
+   * by `_dragSpotOk`; when the link would cross a wall, fence or edge he follows the dragger's own travelled path.
+   */
+  _placeDragged(b, dt = 0) {
+    const w = this.world, D = CONFIG.bodies.drag;
+    if (!this._dragTrail) this._startDrag(b);
+    this._pushDragTrail();
+    const h = this.dragHands(), L = D.offset - D.reach;
+    let dx = b.x - h.x, dz = b.z - h.z, d = Math.hypot(dx, dz);
+    if (!(d > 1e-4)) { dx = Math.cos(this.heading); dz = Math.sin(this.heading); d = 1; }
+    let x = h.x + (dx / d) * L, z = h.z + (dz / d) * L;
+    if (!this._dragSpotOk(x, z)) {
+      const p = this._trailPoint(D.offset);
+      if (this._dragSpotOk(p.x, p.z)) { x = p.x; z = p.z; } else if (this._dragSpotOk(b.x, b.z)) { x = b.x; z = b.z; } else {
+        // every candidate is blocked (a fresh grab on a cramped spot): the nearest trail point that is clear
+        let best = null;
+        for (let s = 0.4; s <= 3 && !best; s += 0.2) { const q = this._trailPoint(s); if (this._dragSpotOk(q.x, q.z)) best = q; }
+        if (best) { x = best.x; z = best.z; } else { x = b.x; z = b.z; }
+      }
+    }
+    b.x = x; b.z = z;
+    b.y = w ? w.grid.elevAt(x, z) : this.y || 0;
+    // facing away from the dragger (lying on his back, the head is at the dragger's feet): yaw eased to the link
+    const want = Math.atan2(z - h.z, x - h.x);
+    const cur = Number.isFinite(b.heading) ? b.heading : want;
+    const k = dt > 0 ? 1 - Math.exp(-dt * D.yawRate) : 1;
+    b.heading = cur + Math.atan2(Math.sin(want - cur), Math.cos(want - cur)) * k;
+    // the heels furrow the ground (bodies-design §B.5): a gameplay-rate record every 0.5 m of heel travel
+    if (w) {
+      const hx = x + Math.cos(b.heading) * D.heel, hz = z + Math.sin(b.heading) * D.heel, H = this._heelAt;
+      if (!H) this._heelAt = { x: hx, z: hz };
+      else if (Math.hypot(hx - H.x, hz - H.z) >= 0.5) {
+        w.events.emit('dragmark', { x: hx, z: hz, heading: Math.atan2(hz - H.z, hx - H.x), t: w.time, owner: this, load: b });
+        H.x = hx; H.z = hz;
+      }
+    }
+  }
+
+  /** Put the load down at once (hit, downed, died): no animation. */
+  dropLoad(how = 'gentle') {
+    if (!this.carrying) return null;
+    const it = dropCarried(this, how);
+    this.refreshAbilities();
+    return it;
+  }
+
+  /**
+   * bodies-design §C.4 / §C.6: a carrier who is hit drops his load (`dropWhenShot`); a lethal downable hit leaves him
+   * DOWNED instead of dead (`buddyRescue`); any hit on a downed man kills him.
+   */
+  takeDamage(amount, source = null, cause = 'damage') {
+    if (!this.alive || amount <= 0) return;
+    const w = this.world;
+    // §C.6: a medic hit during a revive stops (the dose is kept)
+    if (this.currentActionId === 'firstAid' && this.currentActionTarget?.reviving?.by === this) this.cancelAction();
+    if (this.carrying && this.carrying.kind !== 'interactable' && w?.house?.dropWhenShot) {
+      const sx = source?.x, sz = source?.z;
+      const d = sx != null ? Math.hypot(this.x - sx, this.z - sz) : 0;
+      this._hitDir = d > 1e-3 ? { x: (this.x - sx) / d, z: (this.z - sz) / d } : null;
+      if (this.currentAction && ['carryToggle', 'drop'].includes(this.currentActionId)) this.cancelAction();
+      this.dropLoad('shot');
+      this._hitDir = null;
+      if (this.hp - amount > 0) this.playAction('hit', 0.35);
+    }
+    if (this.downed) { // §C.6 finishing hit
+      if (w) { w.stats.damageTaken += amount; w.events.emit('unit:damaged', { unit: this, amount, source, cause }); }
+      this.downed = null;
+      this.die(cause, source);
+      return;
+    }
+    if (isDownableHit(this, amount, cause, w)) {
+      if (w) { w.stats.damageTaken += amount; w.events.emit('unit:damaged', { unit: this, amount, source, cause }); }
+      enterDowned(this, cause, source);
+      return;
+    }
+    super.takeDamage(amount, source, cause);
   }
 
   die(cause, killer) {
@@ -498,7 +667,9 @@ export class Commando extends Unit {
     this.selected = false;
     this.armed = null;
     this.hanging = false;
-    if (this.carrying) dropCarried(this);
+    this.downed = null;
+    this.carryTransition = null;
+    if (this.carrying) dropCarried(this, 'died');
     super.die(cause, killer);
   }
 
@@ -515,12 +686,21 @@ export class Commando extends Unit {
       selected: this.selected,
       disguised: this.disguised,
       carrying: this.carrying ? this.carrying.id : null,
+      // bodies-design §D.1 (optional fields: saves without them load as before)
+      ...(this.carrying && this.carryMode ? { carryMode: this.carryMode } : null),
+      ...(this.carryTransition ? { carryTransition: { ...this.carryTransition } } : null),
+      ...(this.downed ? { downed: serializeDowned(this) } : null),
+      ...(this.cannotWalk ? { cannotWalk: true } : null),
+      ...(this.reviving ? { revivingT: this.reviving.t } : null),
       jailId: this.jailId,
       y: this.y,
       diving: this.diving,
       // a running ability that can be picked up again after a load (def.resume, e.g. the Spy's distract)
       action: this.currentAction && ABILITIES[this.currentActionId]?.resume
-        ? { id: this.currentActionId, target: this.currentActionTarget?.id ?? null } : null,
+        ? { id: this.currentActionId, target: this.currentActionTarget?.id ?? null,
+          ...(this.currentAction.saveData || this.currentAction.t > 0 ? { t: this.currentAction.t ?? 0 } : null),
+          ...(this.currentAction.saveData ? { data: this.currentAction.saveData() } : null) } : null,
+      ...(this._dragTrail && this.carryMode === 'drag' ? { dragTrail: this._dragTrail.map((p) => [p.x, p.z]) } : null),
       ...(this.world?.rules?.id === 'BCD' ? { bcd: {
         wardrobe: this.wardrobe ? [...this.wardrobe] : null, uniformType: this.uniformType ?? null,
         puppet: this.puppet?.id ?? null, lipstickTarget: this._lipstickTarget?.id ?? null,
@@ -533,11 +713,21 @@ export class Commando extends Unit {
   resumeSavedAction() {
     const a = this._savedAction;
     this._savedAction = null;
+    const tr = this._savedTransition;
+    this._savedTransition = null;
     const def = a && ABILITIES[a.id];
-    if (!def?.resume || !this.alive || !this.world) return false;
+    const task = def?.resume && this.alive && this.world
+      ? def.resume(this, a.target != null ? this.world.byId(a.target) : null, this.world, a) : null;
+    if (!task) {
+      // §D.1: a lift / lower that can't be resumed (an old save) resolves to its end state
+      if (tr && this.carrying && this.carrying.kind !== 'interactable') {
+        if (tr.kind === 'toShoulder') this.carryMode = 'shoulder';
+        else if (tr.kind === 'toDrag') { this.carryMode = 'drag'; this._dragTrail = null; }
+        this.refreshAbilities();
+      }
+      return false;
+    }
     const target = a.target != null ? this.world.byId(a.target) : null;
-    const task = def.resume(this, target, this.world);
-    if (!task) return false;
     this.currentAction = task;
     this.currentActionId = a.id;
     this.currentActionTarget = target;
@@ -563,6 +753,17 @@ export class Commando extends Unit {
     const w = this.world;
     const c = d.carrying != null ? w?.byId(d.carrying) : null;
     this.carrying = c || null;
+    // §D.1: a transition in progress is resumed from the mode it started in (resumeSavedAction; an old save's
+    // transition resolves to its end state there); an old save's man carried by a non-GB/Spy is a drag
+    this.carryMode = c && c.kind !== 'interactable'
+      ? d.carryMode || (['greenberet', 'spy'].includes(this.role) ? 'shoulder' : 'drag') : null;
+    this.carryTransition = null;
+    this._savedTransition = d.carryTransition ? { ...d.carryTransition } : null;
+    this._dragTrail = this.carryMode === 'drag' && Array.isArray(d.dragTrail) ? d.dragTrail.map(([x, z]) => ({ x, z })) : null;
+    this.downed = d.downed ? { ...d.downed } : null;
+    this.reviving = null;
+    this._savedReviveT = d.revivingT ?? 0;
+    this.cannotWalk = !!d.cannotWalk || this.cannotWalk;
     if (c) {
       if (c.kind === 'interactable') c.carriedBy = this;
       else { c.state = 'carried'; c.carriedBy = this; }

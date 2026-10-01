@@ -16,6 +16,17 @@ export const COMMANDO_LINES = {
   spy: { select: L('Oui? | Duchamp. | Mon capitaine?'), ack_move: L('D\'accord. | Bien sûr. | I go.'), ack_act: L('A small prick… et voilà. | Nobody will notice.'), special_uniform: L('Now I am one of them.'), cant: L('Non. That, I cannot do.'), hurt: L('Aïe! Merde…'), spotted: L('Zut, they know me.'), death: L('Pour… la France…') },
 };
 
+/**
+ * bodies-design §C.7 buddy-rescue lines (every commando; a role's own line wins). `{name}` = the downed man's nickname.
+ * Censored mode keeps them: none is gory.
+ */
+export const RESCUE_LINES = {
+  man_down: L('Man down! | {name}\'s hit! | {name} is down — cover him! | Medic! {name}\'s down!'),
+  hurry: L('Hurry, he\'s fading! | {name} won\'t last much longer!'),
+  revived: L('Thanks, mate. | Back on my feet. | I owe you one.'),
+  moan: L('Ngh… | Aagh… | Can\'t… feel my legs…'),
+};
+
 /** German key → [[german, english gloss]] */
 export const GERMAN_LINES = {
   ger_halt: [['Halt!', 'Stop!'], ['Stehen bleiben!', 'Stand still!'], ['Wer da?', 'Who\'s there?'], ['Hände hoch!', 'Hands up!'], ['Keine Bewegung!', 'Don\'t move!']],
@@ -52,6 +63,11 @@ export function barkText(b, n = 0) {
   const role = b.unit?.role;
   const own = role && COMMANDO_LINES[role]?.[key];
   if (own?.length && b.unit?.faction !== 'enemy') return { text: own[n % own.length], gloss: null, german: false, key };
+  const rescue = RESCUE_LINES[key];
+  if (rescue && b.unit?.faction !== 'enemy') {
+    const name = b.about?.nickname || b.about?.name || 'He';
+    return { text: rescue[n % rescue.length].replace(/\{name\}/g, name), gloss: null, german: false, key };
+  }
   const g = GERMAN_LINES[key] || GERMAN_LINES[ALIASES[key]];
   if (g) {
     const [de, en] = g[n % g.length];

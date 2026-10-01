@@ -116,7 +116,7 @@ export function targetClass(target, o = {}, viewer = null) {
   if (target.kind === 'footprint') return target.aiVisible === false ? null : 'near';
   if (isBody(target)) {
     // hidden (barrel), carried or inside a building: never seen (§4.7)
-    if (target.hiddenBody || target.carriedBy || target.state === 'carried' || target.hidden) return null;
+    if (target.hiddenBody || target.carriedBy || target.state === 'carried' || target.hidden || target.sunk) return null; // sunk: bodies-design §A.4
     return 'full';
   }
   if (target.kind === 'vehicle') return 'full';

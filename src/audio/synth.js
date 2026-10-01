@@ -48,6 +48,8 @@ const RECIPES = {
   rustle: (sr, s) => render(sr, 0.35, (t, i, r) => r() * Math.sin(Math.PI * t / 0.35) * (0.6 + 0.4 * Math.sin(t * 90)), { seed: s, lp: 4000, hp: 600 }),
   scrape: (sr, s) => render(sr, 0.45, (t, i, r) => r() * Math.sin(Math.PI * t / 0.45), { seed: s, lp: 2500, hp: 300 }),
   dig: (sr, s) => render(sr, 0.3, (t, i, r) => r() * dec(t, 12), { seed: s, lp: 1200 }),
+  // bodies-design §C.7: lub-dub (1.0 s loop; played faster under the hurry mark)
+  heartbeat: (sr, s) => render(sr, 1.0, (t) => { const b = (u) => (u > 0 ? Math.sin(TAU * 52 * u) * dec(u, 22) : 0); return b(t) + 0.7 * b(t - 0.28); }, { seed: s, lp: 260 }),
   thud: (sr, s) => render(sr, 0.35, (t, i, r) => (Math.sin(TAU * 70 * t) + 0.3 * r()) * dec(t, 14), { seed: s, lp: 600 }),
   grunt: (sr, s) => render(sr, 0.3, (t) => Math.sign(Math.sin(TAU * (110 - 40 * t) * t)) * att(t, 0.03) * dec(t, 8), { seed: s, lp: 900 }),
   splash: (sr, s) => render(sr, 0.7, (t, i, r) => r() * att(t, 0.01) * dec(t, 6), { seed: s, lp: (t) => 6000 - 5000 * Math.min(1, t) }),

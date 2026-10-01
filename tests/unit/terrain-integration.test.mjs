@@ -56,7 +56,7 @@ test('stampWorld: walkers, crawlers, dragged bodies and moving vehicles stamp vi
   const w = {
     commandos: [
       { id: 1, alive: true, path: [1], x: 10, z: 10, y: 0, heading: 0, stance: 'stand', moveMode: 'run' },
-      { id: 2, alive: true, path: [1], x: 20, z: 10, y: 0, heading: 1, stance: 'crawl', carrying: { kind: 'enemy' } },
+      { id: 2, alive: true, path: [1], x: 20, z: 10, y: 0, heading: 1, stance: 'crawl', carrying: { kind: 'enemy' }, carryMode: 'drag' }, // bodies-design §B.5: only a drag furrows
       { id: 3, alive: true, path: null, x: 30, z: 10, y: 0, heading: 0 }, // idle: nothing
       { id: 4, alive: true, path: [1], x: 40, z: 10, y: 3, heading: 0 }, // on a roof: nothing
     ],

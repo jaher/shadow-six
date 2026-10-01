@@ -35,6 +35,10 @@ export const TIPS = [
   T('double-click', 'Double-click to run. Running is fast and noisy on hard ground.'),
   T('portraits', 'A blue glow on a portrait means that man has been seen. Red means he is under fire or held at gunpoint.'),
   T('views', 'Split the screen with the camera keys to watch two places at once.'),
+  // bodies-design §C.5 / §C.6 (house rules SHADOW SIX)
+  T('drag', 'Any commando can drag a body. Only the Green Beret and the Spy can carry one on their shoulders.'),
+  T('drag-seen', 'Drop a body before you are seen: guards react to a man moving a body at once.'),
+  T('downed', 'A man at 0 health is down, not dead: drag or carry him to cover and revive him with the first-aid kit (K) before he bleeds out.'),
   T('barrels', 'An explosive drum can be carried and set down. One shot and it takes everything around it, and any drum nearby.'),
   T('dogs', 'Dogs smell you through walls of grass and bark at what they find.'),
   T('officers', 'Officers wander, and they notice the details soldiers miss.'),

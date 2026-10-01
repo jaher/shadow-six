@@ -392,6 +392,11 @@ export class EnemyBrain {
     if (this.alertT > 0 && (this.alertT -= dt) <= 0) this._updateAlert();
     if (e.state === 'inVehicle' && e.vehicle) { e.x = e.vehicle.x; e.z = e.vehicle.z; if (!this._crewHeading) e.heading = e.vehicle.heading; }
     if (this.bcd && bcdPre(this, dt)) return; // BCD: STUNNED / BOUND / PUPPET consume the step
+    // bodies-design §A.5: blown off his feet — down, dazed, getting up; no perception, no fire, no movement
+    if (e.knockedDown) {
+      if (w.time < e.knockedDown.until) { if (e.isMoving) e.stop(); this.burstLeft = 0; return; }
+      e.knockedDown = null;
+    }
     this._perceive();
     if (!e.alive) return;
     if (this.bcd && !AWARE.has(this.state)) bcdScan(this); // BCD: a comrade seen knocked out / cuffed
@@ -467,6 +472,15 @@ export class EnemyBrain {
     if (scr === 'courier') return this._startAlarmRun(c.x, c.z);
     if (scr === 'engineer') return this._scriptAlarm(c.x, c.z);
     if (this.state === 'ALARM_RUN' || this.state === 'COMBAT' || this.state === 'ARREST') return;
+    // bodies-design §C.6: a DOWNED commando is a body found (zone alarm, sawBody, once per downing: saved with the
+    // downed state) AND a target — the guard closes in and covers him, and finishes him after `finishDelay` s
+    const down = seen.find((s) => s.unit.downed)?.unit;
+    if (down && seen.every((s) => s.unit.downed)) {
+      e.sawBody = true;
+      if (!down.downed.alarmed) { down.downed.alarmed = true; this._alarmShout('body', down.x, down.z); }
+      if (this.state === 'CHALLENGE' || this.state === 'HOLD') return;
+      return this._enterCombat(down, { seen: true });
+    }
     // §4.5: mg, armour, dogs never challenge — fire on sight (dogs bark and attack)
     if (!this.arch.challenges || e.flags.firesOnSight || this.combatReady || (this.state === 'REINFORCE' && this.world.alarm?.active)) {
       if (this.state === 'CHALLENGE' || this.state === 'HOLD') return;
@@ -685,9 +699,21 @@ export class EnemyBrain {
       if (vis && this.fireT <= 0) { this.fireT = 1.5; this._shout('bark', 'dog_bark'); }
       return;
     }
+    // bodies-design §C.6: a DOWNED man is not shot on sight: the guard walks up to him and covers him; only after
+    // `finishDelay` s of covering (any guard, once per tick) does the finishing shot come — the window for a rescue
+    const dn = t.downed && !isVeh && w.house?.buddyRescue ? t.downed : null;
+    if (dn && vis && W && this.arch.script !== 'dog' && !fixed && d > CONFIG.bodies.downed.coverRange) {
+      this._repathT -= dt;
+      if (!e.isMoving || this._repathT <= 0) { this._repathT = 0.5; this._go(t.x, t.z, CONFIG.ai.chaseSpeed * 0.6); }
+      return;
+    }
     if (vis && W && d <= range + (this.arch.script === 'dog' ? 0.3 : 0) && (!fixed || this._traverseOk(h))) {
       if (e.isMoving) e.stop();
       e.idleAnim = 'aim';
+      if (dn) {
+        if (dn.coverTick !== w.tick) { dn.coverTick = w.tick; dn.covered = (dn.covered || 0) + dt; }
+        if (dn.covered < CONFIG.bodies.downed.finishDelay) return;
+      }
       if (this.aimT > 0) { this.aimT -= dt; return; }
       this._fire(dt, t, W, isVeh);
       return;

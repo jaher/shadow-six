@@ -133,6 +133,7 @@ unsubscribe function and call it between scenarios. **Canonical events** (payloa
 | `unit:climb` | `{unit, kind:'climb'|'ladder', link}` | abilities → audio, anim |
 | `unit:water` | `{unit, what:'enter'|'exit'|'dive'|'surface'|'row'}` | unit/abilities → audio, fx |
 | `footprint` | `{x, z, heading, t, owner, aiVisible, terrain}` | unit (SNOW/SAND/MUD, every 0.75/1.6 m) → AI (TRACKS §4.8), render (trail), audio |
+| `dragmark` | `{x, z, heading, t, owner, load}` | dragger (Commando._placeDragged, every 0.5 m of heel travel) → terrain trail records ('drag', not AI-visible) |
 | `ability:start` / `ability:end` | `{unit, id, target}` / `{unit, id, result}` | commando → audio, ui, AI (suspicious acts) |
 | `ability:refused` | `{unit, id, target, reason}` | commando (useAbility: canUse/item/ability gate said no; also a warn `message` + `cant` bark) → replay logs, tests |
 | `bomb:armed` | `{bomb, kind:'time'|'remote', fuse, unit}` | abilities → audio (tick loop), ui |
@@ -174,6 +175,15 @@ unsubscribe function and call it between scenarios. **Canonical events** (payloa
 | `mission:countdown` | `{reason, t}` (§8.1 5 s grace countdown started; `reason:null` = cancelled) | game → ui |
 | `mission:escaped` | `{reason, choices:['continue','quickload']}` (§8.1 escaped with targets not done; game paused → `game.continueEscape()` / `game.quickLoad()`) | game → ui |
 | `camera:views` | `{count, layout, active}` (§2.3 multi-view F2–F7 changed) | camera rig → ui |
+| `blast:front` | `{x, z, Rk, Rb, Q, kind, t, restore?}` (bodies-design §A.3: kill radius, blast reach, charge; `restore` = replayed from a save) | physics → fx, terrain marks, doors, glass, water |
+| `unit:blast` | `{unit, dv, reaction:'flinch'|'stagger'|'fall', dir}` (§A.5 visual-only survivor reaction) | physics → render, audio |
+| `body:settled` | `{unit, x, y, z, pose}` (§A.4 ragdoll at rest: gameplay position fed back) | physics → ai, fx, blood |
+| `prop:settled` | `{ent, key, x, z}` (§A.6 loose prop at rest, nav re-stamped) | physics → fx |
+| `load:picked` | `{carrier, load, mode:'shoulder'|'drag'}` (bodies-design §C: a man taken up) | abilities → blood, audio, ui |
+| `load:dropped` | `{carrier, load, how:'gentle'|'shot'|'died'|'downed'|'vehicle', mode}` (§C.4 put down / knocked off) | abilities → blood, physics visuals, ui |
+| `load:mode` | `{carrier, mode}` (§C.4 lifted to the shoulder / lowered to a drag) | abilities → blood, ui |
+| `unit:downed` | `{unit, cause, source}` (§C.6 buddy rescue: 0 HP, alive, bleeding out) | units → ui, audio, blood, ai |
+| `unit:revived` | `{unit, by}` (§C.6 first-aid revive done) | abilities → ui, audio, blood |
 | `message` | `{text, kind:'info'|'warn'|'bark', unit?}` | anyone → ui |
 | `bark` | `{unit, line}` | anyone → audio (voice), ui (speech bubble) |
 | `ui:cursor` | `{cursor}` | input/abilities → ui |

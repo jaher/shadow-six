@@ -88,7 +88,7 @@ export class Enemy extends Unit {
 
   /** BCD: unconscious, cuffed or puppeted — no cone, no reactions (always false under BEL). */
   get incapacitated() {
-    return !!this.ko || !!this.puppetOf;
+    return !!this.ko || !!this.puppetOf || (!!this.knockedDown && (this.world?.time ?? 0) < this.knockedDown.until);
   }
 
   onAdded(world) {
@@ -125,6 +125,7 @@ export class Enemy extends Unit {
       sawKill: this.sawKill,
       targetId: this.target ? this.target.id : null,
       coneVisible: this.coneVisible,
+      ...(this.knockedDown ? { knockedDown: { ...this.knockedDown } } : null), // bodies-design §A.5
       // §10.5 replay: movement speed and head control the brain set on the body (e.g. _go's 1.8 m/s investigate walk)
       vel: this.vel, routeMode: this.routeMode, idleAnim: this.idleAnim ?? null,
       headOffset: this.headOffset ?? 0, sweepActive: !!this.sweepActive,
@@ -144,6 +145,7 @@ export class Enemy extends Unit {
     this.sawKill = !!d.sawKill;
     this._targetId = d.targetId ?? null; // resolved by the brain via world.byId after load
     this.coneVisible = !!d.coneVisible;
+    this.knockedDown = d.knockedDown ? { ...d.knockedDown } : null;
     if (d.vel !== undefined) this.vel = d.vel;
     if (d.routeMode) this.routeMode = d.routeMode;
     if (d.idleAnim !== undefined) this.idleAnim = d.idleAnim ?? undefined;

@@ -42,6 +42,8 @@ export const CURSORS = {
   },
   activate: { hot: [12, 4], svg: S(`<rect x="16" y="3" width="4" height="16" fill="#777" stroke="${D}"/><circle cx="18" cy="3" r="3" fill="#b22"/><path d="M8 30c-2-4-3-8-2-11l4-2 3 1 4-1 3 2v6l-3 5z" fill="#e0bc98" stroke="${D}"/>`) },
   hand: { hot: [14, 12], svg: S(`<path d="M9 30c-3-4-6-9-6-12 0-2 2-2 3-1l3 4V6c0-2 3-2 3 0v9V3c0-2 3-2 3 0v12V4c0-2 3-2 3 0v11V7c0-2 3-2 3 0v13c0 4-2 8-4 10z" fill="#e0bc98" stroke="${D}"/>`) },
+  // bodies-design §C.5: two hands pulling a collar backwards (the result would be a DRAG)
+  hand_drag: { hot: [16, 12], svg: S(`<path d="M6 13c3-3 7-4 10-4s7 1 10 4l-2 4c-2-2-5-3-8-3s-6 1-8 3z" fill="#5b6233" stroke="${D}"/><path d="M5 18c-1-3 0-6 3-6h3c2 0 2 3 0 3h-1l1 2c1 2-1 4-3 4-2 0-3-1-3-3z" fill="#e0bc98" stroke="${D}"/><path d="M27 18c1-3 0-6-3-6h-3c-2 0-2 3 0 3h1l-1 2c-1 2 1 4 3 4 2 0 3-1 3-3z" fill="#e0bc98" stroke="${D}"/><path d="M16 23v7M12 27l4 3 4-3" stroke="${B}" stroke-width="2" fill="none" stroke-linecap="round"/>`) },
   grab: { hot: [14, 14], svg: S(`<path d="M8 30c-2-3-4-7-4-10 0-2 1-4 3-4h2v-3c0-2 3-2 3 0v-1c0-2 3-2 3 0v1c0-2 3-2 3 0v1c0-2 3-2 3 0v8c0 4-2 6-4 8z" fill="#e0bc98" stroke="${D}"/>`) },
   climb: { hot: [4, 4], svg: S(`<path d="M5 5l18 18" stroke="#6b4a2a" stroke-width="3.5"/><path d="M3 11c2-6 6-9 12-9-4 2-6 4-7 7z" fill="#aab" stroke="${D}"/>`) },
   barrel: { hot: [16, 16], svg: S(`<ellipse cx="16" cy="7" rx="9" ry="3" fill="#7a3a1a" stroke="${D}"/><path d="M7 7v18c0 2 18 2 18 0V7" fill="#8e4a22" stroke="${D}"/><path d="M7 13h18M7 20h18" stroke="${D}"/>`) },

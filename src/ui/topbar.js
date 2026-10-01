@@ -18,6 +18,12 @@ import { CommandoWarnings } from './bcd-ui.js';
 
 /** Portrait state glyph for a commando (§6.1 table). */
 export function portraitGlyph(c) {
+  // bodies-design §C.5 / §C.7: a downed man shows how he is moved; a transporter how he moves a man
+  if (c.downed || c.state === 'carried') {
+    if (c.state === 'carried' && c.carriedBy) return c.carriedBy.carryMode === 'drag' ? 'dragged' : 'carried';
+    if (c.downed) return 'downed';
+  }
+  if (c.carrying && c.carrying.kind !== 'interactable') return c.carryMode === 'drag' ? 'dragging' : 'carrying';
   if (c.state === 'jailed' || c.state === 'captured') return 'bars';
   if (c.state === 'inVehicle' || c.vehicle) return 'vehicle';
   if (c.state === 'hidden' || c.hidden) return 'house';
@@ -89,6 +95,9 @@ export class TopBar {
       const mouth = el('i', 'mouth', face);
       const skull = fromHTML(`<div class="skull">${iconHTML('stamp/skull', { mult: 2.5 }) || GLYPHS.skull}</div>`, null, face);
       const glyph = el('div', 'glyph', face);
+      // §C.7 bleed-out ring + seconds (downed) and the green revive ring (while a medic works on him)
+      const ring = fromHTML(`<svg class="downed-ring" viewBox="0 0 40 40" aria-hidden="true"><circle class="bleed" cx="20" cy="20" r="17" pathLength="1"/><circle class="rev" cx="20" cy="20" r="13" pathLength="1"/></svg>`, null, face);
+      const secs = el('span', 'downed-secs', face);
       const slot = el('div', 'hud-portrait-slot', face); // §6.3 talking-portrait host (cross-team hook)
       slot.dataset.unitId = String(c.id);
       const hp = el('div', 'hp', p);
@@ -96,7 +105,7 @@ export class TopBar {
       const key = order.indexOf(c.role);
       el('span', 'key', p, key >= 0 ? String(key + 1) : '7');
       p.addEventListener('click', (e) => this.hud.selectFromPortrait(c, e));
-      this.cards.set(c, { p, img, fill, skull, glyph, slot, mouth, sig: '', glyphKey: '' });
+      this.cards.set(c, { p, img, fill, skull, glyph, slot, mouth, ring, secs, sig: '', glyphKey: '' });
     }
   }
 
@@ -118,6 +127,24 @@ export class TopBar {
     const rank = { seen: 1, hurt: 2, held: 2 };
     if (cur && cur.until > now && rank[cur.kind] > rank[kind]) return;
     this.warn.set(unit.id, { kind, until: now + ttl });
+  }
+
+  /**
+   * §C.7 downed portrait: desaturated, red pulsing frame (1 Hz; 2 Hz under the hurry mark), bleed-out ring + seconds,
+   * green revive ring while a medic works on him.
+   */
+  _downedRing(c, r, down) {
+    r.down = down;
+    r.p.classList.toggle('downed', down);
+    if (!down) { r.secs.textContent = ''; return; }
+    const P = CONFIG.bodies.downed, t = Math.max(0, c.downed.t);
+    r.p.classList.toggle('hurry', t <= P.hurry);
+    r.ring.style.setProperty('--left', (t / P.bleedOut).toFixed(4));
+    const rv = c.reviving ? Math.min(1, c.reviving.t / (c.reviving.dur || P.revive)) : 0;
+    r.ring.style.setProperty('--rev', rv.toFixed(4));
+    r.p.classList.toggle('reviving', rv > 0);
+    const txt = String(Math.ceil(t));
+    if (r.secs.textContent !== txt) r.secs.textContent = txt;
   }
 
   /** Commandos currently seen by any enemy (§6.2 blue glow; band rule via perception.canSee). */
@@ -179,7 +206,8 @@ export class TopBar {
     if (w.rules?.commandoWarnings && this._bcdWarn?.world !== w) { this._bcdWarn?.dispose(); this._bcdWarn = new CommandoWarnings(w); }
     for (const [c, r] of this.cards) {
       const f = Math.max(0, Math.min(1, c.hp / c.maxHp));
-      const dead = !c.alive || c.hp <= 0;
+      const down = !!(c.alive && c.downed);
+      const dead = !c.alive || (c.hp <= 0 && !down);
       const ev = this.warn.get(c.id);
       let warn = '';
       if (warnOn && !dead) {
@@ -190,6 +218,7 @@ export class TopBar {
         else if (bcd === 'blue' && !warn) warn = 'seen';
       }
       const g = dead ? '' : portraitGlyph(c);
+      if (down || r.down) this._downedRing(c, r, down);
       const sig = `${Math.round(f * 34)}|${c.selected ? 1 : 0}|${dead ? 1 : 0}|${warn}|${g}`;
       if (sig !== r.sig) {
         r.sig = sig;

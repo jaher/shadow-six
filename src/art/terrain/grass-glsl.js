@@ -13,6 +13,7 @@ uniform vec2 uWind;
 uniform float uWindStr;
 uniform sampler2D tTrail;
 uniform sampler2D tFlatG;
+uniform sampler2D tBloodG; // world-space blood mask (render/blood, bodies-design §B.3 grass): blades darken red-brown
 uniform sampler2D tNoiseG;
 uniform vec4 uMapG;
 uniform float uMinW;      // metres: min blade width for the current pixel footprint
@@ -63,6 +64,7 @@ vec3 grassPos(vec3 p, inout vec3 n) {
   col *= mix(0.4, 1.0, smoothstep(0.0, 0.65, t));                    // canopy self-occlusion
   col *= mix(1.0, 0.7, fl);
   col *= 1.0 + min(wS.z, 1.0) * 0.16 * t * uWindStr;                 // silvery sheen as a gust front sweeps the field
+  col = mix(col, vec3(0.12, 0.012, 0.008) * (0.7 + 0.6 * iScl.z), texture(tBloodG, wp * uMapG.zw).r * 0.85 * (0.35 + 0.65 * (1.0 - t * 0.6)));
   vGCol = col;
   vGT = t;
   return r + iOff.xyz;

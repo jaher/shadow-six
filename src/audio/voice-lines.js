@@ -16,6 +16,14 @@ const ACK = {
   ack_act: [R('Consider it done.', 'consider_it_done'), R('Understood.', 'understood')],
   hurt: [R("I'm hit!", 'i_m_hit')],
 };
+/** bodies-design §C.7 buddy-rescue lines every commando (and guest) has (no voice pack yet: synth / subtitle; kept out of
+ * the `rec` mapping below). `moan` = a downed man's sparse groan (distinct from the instant `pain` grunt on a hit). */
+const RESCUE = {
+  man_down: L('Man down!', "He's hit!", 'Cover him!', 'Medic!'),
+  hurry: L("Hurry, he's fading!", "He won't last much longer!"),
+  revived: L('Thanks, mate.', 'Back on my feet.', 'I owe you one.'),
+  moan: L('Ngh…', 'Aagh…', "Can't… feel my legs…"),
+};
 /** Recording stem of a line = its text slugged (ä→ae…, accents dropped, non-alphanumerics → `_`): "What'll it be?" → what_ll_it_be. */
 export const recOf = (text) => String(text).replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/Ä/g, 'Ae').replace(/Ö/g, 'Oe')
   .replace(/Ü/g, 'Ue').replace(/ß/g, 'ss').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
@@ -25,7 +33,7 @@ export const recOf = (text) => String(text).replace(/ä/g, 'ae').replace(/ö/g, 
  * lines stay unrecorded (never picked while a pack is loaded) until the talking-portrait set renders their
  * lip-synced clips: the portrait of a select/order/hurt line must match the voice (docs/talking-portraits.md).
  */
-const withRec = (o) => ({ ...Object.fromEntries(Object.entries(o).map(([k, v]) => [k, ACK[k] ? [...ACK[k], ...v]
+const withRec = (o) => ({ ...RESCUE, ...Object.fromEntries(Object.entries(o).map(([k, v]) => [k, ACK[k] ? [...ACK[k], ...v]
   : v.map((l) => (l.rec ? l : { ...l, rec: recOf(l.text) }))])), pain: PAIN });
 /**
  * Pain grunts (voices v2 `<char>/pain/pain_hit_{1,2,3}`, non-verbal, each man's own voice): voiced the instant a
@@ -77,9 +85,9 @@ export const LINES = Object.freeze({
     cant: L('Non. That, I cannot do.'), hurt: L('Aïe! Merde…'), spotted: L('Zut, they know me.'), death: L('Pour… la France…'),
     alarm: L("L'alarme! Vite!"),
   }),
-  mcrae: { select: L("Get me to that kite and I'll fly her home.", 'About time, lads.') },
-  informer: { select: L('Thank God you came.') },
-  gilbert: { select: L('Mes hommes vous suivront.', 'Allez, vite!') },
+  mcrae: { ...RESCUE, select: L("Get me to that kite and I'll fly her home.", 'About time, lads.') },
+  informer: { ...RESCUE, select: L('Thank God you came.') },
+  gilbert: { ...RESCUE, select: L('Mes hommes vous suivront.', 'Allez, vite!') },
   ger: {
     ger_halt: L(R('Halt! Wer da?', 'halt_wer_da', "Halt! Who's there?"), R('Hände hoch!', 'haende_hoch', 'Hands up!'), ['Halt!', 'Stop!'], ['Stehen bleiben!', 'Stand still!'], ['Wer da?', "Who's there?"], ['Hände hoch!', 'Hands up!'], ['Keine Bewegung!', "Don't move!"]),
     ger_suspicious: L(R('Was war das?', 'was_war_das', 'What was that?'), ['Da war doch was…', 'There was something…'], ['Hallo? Ist da jemand?', 'Hello? Anyone there?'],
@@ -129,7 +137,9 @@ export const RULES = Object.freeze({
   ger_alarm: { cd: 5, global: 1.2, prio: 4, sub: true }, ger_combat: { cd: 4, global: 1, prio: 3, sub: true },
   ger_arrest: { cd: 5, global: 1, prio: 3, sub: true }, ger_distracted: { cd: 6, prio: 1, sub: true },
   spy_unmask: { cd: 5, prio: 5, sub: true }, ger_hurt: { cd: 1.5, prio: 4, sub: false }, ger_death: { cd: 0, prio: 6, sub: false },
-  courier: { cd: 10, prio: 4, sub: true }, sergeant_order: { cd: 8, global: 3, prio: 2, sub: true }, dog: { cd: 1.5, prio: 1, sub: false },
+  courier: { cd: 10, prio: 4, sub: true },
+  man_down: { cd: 4, global: 2, prio: 5, sub: true }, hurry: { cd: 10, prio: 4, sub: true }, revived: { cd: 3, prio: 3, sub: true },
+  moan: { cd: 7, chance: 0.6, prio: 1, sub: false }, sergeant_order: { cd: 8, global: 3, prio: 2, sub: true }, dog: { cd: 1.5, prio: 1, sub: false },
 });
 const DEFAULT_RULE = { cd: 2, prio: 2, sub: true };
 export function ruleFor(key) { return RULES[key] || (key.startsWith('special') ? RULES.special : DEFAULT_RULE); }

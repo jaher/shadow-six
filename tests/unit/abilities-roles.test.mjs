@@ -176,8 +176,8 @@ test('climb: GB crosses a wall through a climb link (0.5 m/s, unit:climb); other
   assert.ok(s.world.time - tLink >= 3 / CONFIG.abilities.climbSpeed - 0.2, 'climbing at 0.5 m/s');
 });
 
-test('carry a body: GB/Spy only, 1.6 m/s, no running, right-click drops (0.8 s); Sapper cannot', () => {
-  const s = makeSim({ commandos: [{ role: 'greenberet', x: 10, z: 10 }, { role: 'sapper', x: 10, z: 14 }], enemies: [guard('dead', 11, 12)] }, { brains: false });
+test('carry a body: GB/Spy only, 1.6 m/s, no running, right-click drops (0.8 s); Sapper cannot (1998 rules: no drag)', () => {
+  const s = makeSim({ houseRules: { dragBodies: false }, commandos: [{ role: 'greenberet', x: 10, z: 10 }, { role: 'sapper', x: 10, z: 14 }], enemies: [guard('dead', 11, 12)] }, { brains: false });
   const gb = s.cmd('greenberet'), body = s.get('dead');
   body.die('knife', gb);
   assert.equal(s.cmd('sapper').issue({ type: 'ability', id: 'hand', target: body }), false);

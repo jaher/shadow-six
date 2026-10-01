@@ -44,6 +44,13 @@ export const GLYPHS = {
   stand: S(`<circle cx="11" cy="5" r="3.5" fill="#d8cfb4"/><path d="M11 10v14M11 24l-4 10M11 24l4 10M11 12l-5 8M11 12l5 8" stroke="#d8cfb4" stroke-width="3.5" stroke-linecap="round" fill="none"/>`, '0 0 22 36'),
   camera: S(`<rect x="4" y="12" width="17" height="12" rx="2" fill="#2b2a24" stroke="${BRASS}"/><circle cx="9" cy="7" r="4.5" fill="#2b2a24" stroke="${BRASS}"/><circle cx="18" cy="7" r="4.5" fill="#2b2a24" stroke="${BRASS}"/><path d="M21 15l7-4v14l-7-4z" fill="#2b2a24" stroke="${BRASS}"/>`),
   hand: S(`<path d="M9 30c-3-4-6-9-6-12 0-2 2-2 3-1l3 4V6c0-2 3-2 3 0v9-12c0-2 3-2 3 0v12-11c0-2 3-2 3 0v11-8c0-2 3-2 3 0v14c0 5-2 8-4 9z" fill="#c9a07c" stroke="#5a3b22"/>`),
+  // bodies-design §C.5 / §C.7 (feat/hud-icons may repaint these): a man lying down, on a shoulder, dragged by the collar
+  downed: S(`<path d="M3 24h26" stroke="${RED}" stroke-width="2"/><circle cx="7" cy="19" r="3" fill="#d8cfb4"/><path d="M10 20h13l4 3" stroke="#d8cfb4" stroke-width="3.5" stroke-linecap="round" fill="none"/><path d="M17 8v7M13.5 11.5h7" stroke="${RED}" stroke-width="2.5"/>`),
+  carrying: S(`<circle cx="13" cy="6" r="3" fill="${BRASS}"/><path d="M13 10v11l-3 9M13 21l3 9" stroke="${BRASS}" stroke-width="3" stroke-linecap="round" fill="none"/><path d="M5 11h19l3 4" stroke="#d8cfb4" stroke-width="3.5" stroke-linecap="round" fill="none"/>`),
+  dragging: S(`<circle cx="24" cy="7" r="3" fill="${BRASS}"/><path d="M24 11l-2 9 3 9M22 20l-4 9M23 13l-7 5" stroke="${BRASS}" stroke-width="3" stroke-linecap="round" fill="none"/><path d="M15 19l-5 4H3" stroke="#d8cfb4" stroke-width="3.5" stroke-linecap="round" fill="none"/>`),
+  carried: S(`<path d="M5 11h19l3 4" stroke="#d8cfb4" stroke-width="3.5" stroke-linecap="round" fill="none"/><path d="M13 14v14" stroke="${BRASS}" stroke-width="3" opacity=".6"/>`),
+  dragged: S(`<path d="M24 12l-8 8H3" stroke="#d8cfb4" stroke-width="3.5" stroke-linecap="round" fill="none"/><path d="M4 27h24" stroke="#6b5a40" stroke-width="2" stroke-dasharray="3 2"/>`),
+  revive: S(`<circle cx="16" cy="16" r="12" fill="#e8e2d0" stroke="${DARK}"/><path d="M16 9v14M9 16h14" stroke="${RED}" stroke-width="3.5"/>`),
   lamp: S(`<rect x="7" y="24" width="18" height="6" fill="#333" stroke="#111"/><path d="M9 24V14a7 7 0 0 1 14 0v10z" fill="currentColor" stroke="#111"/>`, '0 0 32 32'),
 };
 

@@ -40,7 +40,14 @@ import { Selection } from './render/selection.js';
 import { FIRST_AID_DOSES, firstAidCarrier, defaultInventory } from './items.js';
 import * as MapBuilder from './world/map-builder.js';
 import { prepareMissionArt } from './art/building-props.js';
-import { prepareCharacters, awaitUnitModels, warmUnitModels, charactersFrame, releaseCharacters } from './art/unit-model.js';
+import { createPhysics } from './physics/world-physics.js';
+import { NULL_PHYSICS } from './physics/null-physics.js';
+import { PhysicsVisuals } from './render/physics-visuals.js';
+import { BlastMarks } from './render/blast-marks.js';
+import { BloodSystem } from './render/blood/index.js';
+import { resolveHouseRules, tierFromPreset } from './core/house-rules.js';
+import { nobodyLeftToHelp } from './entities/downed.js';
+import { prepareCharacters, awaitUnitModels, warmUnitModels, charactersFrame, transportFrame, releaseCharacters } from './art/unit-model.js';
 import { prepareTruckArt } from './art/truck-model.js';
 import { createLoadProgress, loadBudget } from './engine/load-progress.js';
 import * as Missions from './missions/index.js';
@@ -229,6 +236,20 @@ export class Game {
     await safeAsync(() => awaitUnitModels(world.entities.filter((e) => e.model?.ready)), 'character bodies');
     this.warmMs = await safeAsync(() => warmUnitModels(world.entities.filter((e) => e.model?.real)), 'character grounding');
     if (this.world !== world) return prog.cancel(), world;
+    // house rules (bodies-design §0.3) + blast/ragdoll physics (§A): Rapier over the finished map, null object on failure
+    world.house = resolveHouseRules({ options: this.options, mission: def, tier: tierFromPreset(r.presetName) });
+    world.physics = (await safeAsync(() => createPhysics(world, { tier: world.house.physicsTier }), 'physics')) || NULL_PHYSICS;
+    // no physics on this machine: play by the rule the null object can honour (saved, so a load keeps it)
+    if (world.physics.isNull) world.house.physicsGameplay = false;
+    if (this.world !== world) { world.physics.dispose(); return prog.cancel(), world; }
+    this.physicsVisuals = safe(() => new PhysicsVisuals(world, r.scene), 'physics visuals');
+    world.marks = safe(() => new BlastMarks(world, r.scene), 'blast marks'); // craters / scorch (saved, visual only)
+    world.blood = safe(() => new BloodSystem(world, r.scene), 'blood'); // pools, spatter, stains, smears (saved, visual only)
+    const trails = world.terrain?.terrain?.trails;
+    if (trails && world.blood) trails.onStep = (e) => world.blood?.onStep(e); // bloody boot prints on the real footfalls
+    // first-hit hitch: compile the stain / spatter programs now (bounded; a slow driver just finishes later)
+    if (world.blood?.warm) await safeAsync(() => Promise.race([world.blood.warm(r.renderer, r.camera), new Promise((ok) => setTimeout(ok, 4000))]), 'blood warm-up');
+    if (this.world !== world) return prog.cancel(), world;
     prog.stage('finish');
     world.objectives = createObjectives(def.objectives || []);
     if (!world.extraction) world.extraction = def.extraction || null;
@@ -286,6 +307,10 @@ export class Game {
     if (this.world) {
       safe(() => this.mapHandle?.dispose?.(), 'map dispose');
       safe(() => this.world.fx?.dispose?.(), 'fx dispose');
+      safe(() => this.physicsVisuals?.dispose?.(), 'physics visuals dispose');
+      safe(() => this.world.marks?.dispose?.(), 'blast marks dispose');
+      safe(() => this.world.blood?.dispose?.(), 'blood dispose');
+      this.physicsVisuals = null;
       this.world.dispose();
       safe(() => releaseCharacters(), 'characters dispose');
       // Anything the map builder added directly to the scene (terrain, props) is removed here.
@@ -358,10 +383,12 @@ export class Game {
     run(w.vehicles);
     run(w.projectiles);
     run(w.interactables);
+    safe(() => w.physics.step(dt), 'physics'); // bodies-design §1 tick order: after interactables, before objectives
     w.alarm?.update(dt);
     const res = checkObjectives(w);
     safe(() => updateExtractionVehicle(w, (this._endFlags ||= {})), 'extraction'); // §7.6 scripted escape vehicle
     safe(() => w.fx?.update?.(dt), 'fx');
+    if (w.blood) safe(() => w.blood.update(dt), 'blood');
     safe(() => (this.mapHandle?.update ? this.mapHandle.update(dt) : this.mapHandle?.terrain?.update?.(dt)), 'map');
     w.flushRemovals();
     w.time += dt;
@@ -381,6 +408,8 @@ export class Game {
     const jailed = (c) => c.state === 'jailed' || c.state === 'captured';
     if (w.commandos.length && alive.every(jailed)) return { code: 'allLost', reason: 'ALL YOUR MEN HAVE DIED OR HAVE BEEN CAPTURED.' };
     if (CONFIG.mission.failOnCommandoDeath && w.commandos.some((c) => c.alive === false)) return { code: 'died', reason: 'ONE OR MORE OF YOUR MEN DIED…' };
+    // bodies-design §C.8: every man down / captured and nobody able to help → no 60 s wait
+    if (w.house?.buddyRescue && nobodyLeftToHelp(w)) return { code: 'died', reason: 'NOBODY LEFT TO HELP.' };
     const ex = w.mission?.extraction;
     if (ex?.vehicleId != null) {
       const v = w.byId(ex.vehicleId);
@@ -564,6 +593,8 @@ export class Game {
         e.syncTransform?.(alpha);
         e.renderUpdate?.(animDt);
       }
+      safe(() => transportFrame(), 'transport poses'); // carried / dragged men after both skeletons updated (§C.10)
+      if (this.physicsVisuals) safe(() => this.physicsVisuals.frame(), 'physics visuals'); // props, vehicle rock, censored bodies
       safe(() => this.mapHandle?.frame?.(animDt, this.renderer.camera), 'terrain frame'); // trails, grass, trees
       this._updateCones();
       this.renderer.fitShadowToView?.(this.cameraRig);
@@ -572,6 +603,7 @@ export class Game {
       safe(() => this.audio?.update?.(cc.target.x, cc.target.z, cc.pxPerMeter ? cc.width / cc.pxPerMeter() : 40, cc.azimuth || 0), 'audio');
     }
     if (w?.fx) safe(() => w.fx.frame?.(), 'fx frame'); // VFX sort/upload, lights, decals (sim runs in step())
+    if (w?.blood) safe(() => w.blood.frame(), 'blood frame'); // pool flow sims + atlas uploads, stain uniforms
     this.selection.update(dt);
     this.input.update?.(dt);
     // world matrices once per frame, not once per render pass (main, GTAO normals, x-ray, water, …): with 46 skinned

@@ -7,10 +7,20 @@
  * @module ui/options-panel
  */
 
-import { KEY_BINDINGS } from '../engine/input.js';
+import { KEY_BINDINGS, SHIFT_BINDINGS } from '../engine/input.js';
 import { el } from './dom.js';
 import { cap, keyName } from './menu-kit.js';
 import { OPTION_DEFAULTS } from './ui-config.js';
+import { CONFIG } from '../config.js';
+
+/** bodies-design §D.3: the house-rule toggles a RULES preset sets. */
+export const HOUSE_KEYS = ['dragBodies', 'buddyRescue', 'dropWhenShot', 'ragdollAllDeaths', 'physicsGameplay'];
+
+/** The preset whose flags equal these options, else 'custom'. */
+export function matchingPreset(o) {
+  for (const [name, flags] of Object.entries(CONFIG.houseRules.presets)) if (HOUSE_KEYS.every((k) => o[k] === flags[k])) return name;
+  return 'custom';
+}
 
 const PCT = (v) => String(Math.round(v * 100));
 const ON = [true, false];
@@ -49,6 +59,13 @@ export const OPTION_ROWS = [
   ['wheelZoom', 'WHEEL ZOOM', 'bool'],
   ['cameraAngle', 'CAMERA ANGLE', [0, 15, 45]],
   ['saveReminder', 'SAVE REMINDER', 'bool'],
+  ['rule'],
+  ['rulesPreset', 'RULES', ['shadowSix', 'classic1998', 'custom']],
+  ['dragBodies', 'DRAG BODIES (ALL COMMANDOS)', 'bool'],
+  ['buddyRescue', 'BUDDY RESCUE', 'bool'],
+  ['dropWhenShot', 'DROP BODIES WHEN HIT', 'bool'],
+  ['ragdollAllDeaths', 'BODIES SETTLE WITH PHYSICS', 'bool'],
+  ['physicsGameplay', 'PHYSICS MOVES BODIES AND COVER', 'bool'],
   ['h', 'CONTROLS'],
   ['bindings', 'KEYBOARD', 'bindings'],
   ['h', 'ACCESSIBILITY'],
@@ -77,6 +94,12 @@ export const OPTION_HELP = {
   selectionRing: 'A ring under each selected man.', edgeScroll: 'Scroll the map when the mouse touches the screen edge.',
   wheelZoom: 'Zoom with the mouse wheel.',
   cameraAngle: 'CLASSIC looks straight up the map as in 1998. TILTED turns the view slightly so buildings show a side. ISOMETRIC turns it to a diagonal.', saveReminder: 'A gentle reminder when you have not saved for a while.',
+  rulesPreset: 'SHADOW SIX: any commando can drag a body, a man at 0 health is downed and can be rescued, a carrier drops his load when hit. CLASSIC 1998: exactly the 1998 rules — only the Green Beret and the Spy move bodies, and any death fails the mission. Applies from the next mission start or load.',
+  dragBodies: 'Any commando can drag a body, slowly and walking backwards. Not in the 1998 original.',
+  buddyRescue: 'A commando at 0 health is downed for 60 s instead of dying. Drag or carry him to safety and revive him with the first aid kit. Not in the 1998 original.',
+  dropWhenShot: 'A man carrying or dragging a body drops it when he is hit. Not in the 1998 original.',
+  ragdollAllDeaths: 'Every death ends in a short physical settle on the ground.',
+  physicsGameplay: 'Where a thrown body comes to rest and where a toppled crate lands count for the guards, paths and cover. Off: bodies and cover stay where they were, as in 1998. Not in the 1998 original.',
   bindings: 'Rebind the keyboard controls.', textScale: 'Size of all menu text.', reducedMotion: 'Replace slides, page turns and camera moves with fades.',
   highContrast: 'Brighter idle items, darker backgrounds, no grain, outlined focus.', holdConfirm: 'Hold (Y)ES to confirm quitting, overwriting or deleting.',
 };
@@ -89,6 +112,7 @@ export function formatOption(key, v) {
   if (key === 'resScale' || key === 'textScale' || key === 'subBand' || key === 'brightness') return `${Math.round(v * 100)}%`;
   if (key === 'cameraAngle') return `${{ 0: 'CLASSIC', 15: 'TILTED', 45: 'ISOMETRIC' }[v] || 'CUSTOM'} ${v}°`;
   if (key === 'intro') return v === 'first' ? 'FIRST RUN' : String(v).toUpperCase();
+  if (key === 'rulesPreset') return CONFIG.houseRules.labels[v] || String(v).toUpperCase();
   return String(v).toUpperCase();
 }
 
@@ -110,8 +134,21 @@ function optionRow(hud, key, label, kind) {
   }
   return {
     ...base, kind: 'toggle', choices, get: () => o[key], format: (v) => (base.valueless ? '' : formatOption(key, v)),
-    set: (v) => (DISPLAY.has(key) ? keepSettings(hud, key, v) : hud.setOption(key, v, { quiet: true })),
+    set: (v) => (DISPLAY.has(key) ? keepSettings(hud, key, v) : key === 'rulesPreset' || HOUSE_KEYS.includes(key) ? setRule(hud, key, v) : hud.setOption(key, v, { quiet: true })),
   };
+}
+
+/** §D.3: a preset sets its four toggles; a toggle that departs from every preset makes the preset CUSTOM. */
+function setRule(hud, key, v) {
+  if (key === 'rulesPreset') {
+    hud.setOption('rulesPreset', v, { quiet: true });
+    const flags = CONFIG.houseRules.presets[v];
+    if (flags) for (const k of HOUSE_KEYS) hud.setOption(k, flags[k], { quiet: true });
+  } else {
+    hud.setOption(key, v, { quiet: true });
+    hud.setOption('rulesPreset', matchingPreset(hud.options), { quiet: true });
+  }
+  hud.kit?.refresh?.();
 }
 
 /** Rows of the sub-card `group`. */
@@ -189,7 +226,7 @@ export function openControls(hud, tab = 'kb') {
   };
   if (tab === 'kb') {
     for (const action of Object.keys(KEY_BINDINGS)) {
-      rows.push({ kind: 'bind', id: action, label: actionLabel(action), value: keyName(binds()[action]?.[0]), onSelect: (r) => startListen(r), onFocus: count });
+      rows.push({ kind: 'bind', id: action, label: actionLabel(action), value: (SHIFT_BINDINGS.has(action) ? 'SHIFT+' : '') + keyName(binds()[action]?.[0]), onSelect: (r) => startListen(r), onFocus: count });
     }
     rows.push({ kind: 'rule' }, { label: 'RESET ALL', onSelect: () => resetAll() });
   } else {

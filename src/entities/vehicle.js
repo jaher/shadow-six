@@ -1165,7 +1165,7 @@ export class Vehicle extends Entity {
     return {
       ...super.serialize(), vehicleType: this.vehicleType, hp: this.hp, hits: this.hits, raftHits: this.raftHits,
       tainted: this.tainted, destroyed: this.destroyed, used: this.used, torpedoes: this.torpedoes,
-      wreckT: this.wreckT, burning: this.burning, passedExit: !!this.passedExit, drivenOff: !!this.drivenOff, crew: this.crew.map((c) => c.alive),
+      wreckT: this.wreckT, burning: this.burning, ...(this.blastFlip ? { blastFlip: { ...this.blastFlip, t0: -1e3 } } : null), passedExit: !!this.passedExit, drivenOff: !!this.drivenOff, crew: this.crew.map((c) => c.alive),
       occupants: this.occupants.map((u) => u.id), driver: this.driver?.id ?? null,
       rail: this.def.rail ? { s: this.railS, t: this.railT, dir: this.railDir, running: this.railRunning } : null,
       // drive state (§10 a quickload replays identically): the exact leg, waypoint, remaining wait, speed
@@ -1181,6 +1181,7 @@ export class Vehicle extends Entity {
 
   deserialize(d) {
     super.deserialize(d);
+    this.blastFlip = d.blastFlip ? { ...d.blastFlip } : null; // a wreck thrown over stays over (visual, bodies §A.7)
     this.hp = d.hp ?? this.hp;
     this.hits = d.hits ?? 0;
     this.raftHits = d.raftHits ?? 0;

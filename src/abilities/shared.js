@@ -13,10 +13,12 @@
 import { registerAbility } from './registry.js';
 import { CONFIG } from '../config.js';
 import { canPickUp } from '../items.js';
-import { timedTask, bodyNear, interactableNear, freeToAct, inShallow, dropCarried, enemyNear } from './common.js';
+import { timedTask, bodyNear, interactableNear, freeToAct, inShallow, dropCarried, dropSpot, enemyNear } from './common.js';
 import { suspiciousAct } from './system.js';
 import { ACTIVATABLE, BCD_ACTIVATABLE } from '../entities/interactables.js';
 import { tryDress, dressIn } from './spy.js';
+import { reviveDowned } from '../entities/downed.js';
+import { isTransportable, liveLoadNear, transportMode, takeLoad, carriesMan, transportTimes, DRAG_ROLES, liftHint } from './bodies.js';
 
 const A = CONFIG.abilities;
 
@@ -39,12 +41,15 @@ export function handTarget(c, t, world) {
   if (c.carrying) return null;
   if (packOf(t)) return { kind: 'loot', ent: t };
   if (isBody(t) && t.state !== 'carried') return { kind: 'body', ent: t };
+  if (t.kind === 'commando' && t.alive && isTransportable(t, world)) return { kind: 'body', ent: t }; // §C.1 downed buddy / cannotWalk guest
   if (t.kind === 'vehicle') return t.vehicleType === 'raft' ? { kind: 'raft', ent: t } : null;
   if (t.kind === 'interactable') return t.interactKind === 'barrel' ? { kind: 'barrel', ent: t } : { kind: 'item', ent: t };
   const it = interactableNear(world, x, z, 1.2, (i) => i.interactKind === 'barrel' || ['pickup', 'ammo', 'crate', 'decoy', 'trap'].includes(i.interactKind));
   if (it) return it.interactKind === 'barrel' ? { kind: 'barrel', ent: it } : { kind: 'item', ent: it };
   const b = bodyNear(world, x, z, 1.2) || (ko ? enemyNear(world, x, z, 1.2, (q) => !!q.ko && !q.puppetOf && q.state !== 'carried') : null);
   if (b) return packOf(b) ? { kind: 'loot', ent: b } : { kind: 'body', ent: b };
+  const live = liveLoadNear(world, x, z, 1.2);
+  if (live) return { kind: 'body', ent: live };
   const raft = world.vehicles.find((v) => v.vehicleType === 'raft' && !v.destroyed && Math.hypot(v.x - x, v.z - z) < 2);
   return raft ? { kind: 'raft', ent: raft } : null;
 }
@@ -52,7 +57,11 @@ export function handTarget(c, t, world) {
 /** Why `c` can't pick up what handTarget found (role table §3.2), or true. */
 function handAllowed(c, h, world) {
   switch (h.kind) {
-    case 'body': return canPickUp(c.role, 'body') ? (h.ent.hiddenUnderBarrel ? 'Nothing there.' : true) : "Can't carry bodies.";
+    case 'body': { // §C.5: GB/Spy shoulder, anyone else drags when `dragBodies` is on
+      const m = transportMode(c, null, world);
+      if (m !== 'shoulder' && m !== 'drag') return m;
+      return h.ent.hiddenUnderBarrel ? 'Nothing there.' : true;
+    }
     case 'barrel': return h.ent.canUse(c);
     case 'hideBody': return true;
     case 'loot': return canPickUp(c.role, 'cigarettes') ? true : "Can't take that.";
@@ -77,24 +86,39 @@ registerAbility({
     return handAllowed(c, h, world);
   },
   approachPoint(c, t, world) { return handTarget(c, t, world)?.ent ?? t; },
+  // the result would be a drag (not GB/Spy, dragBodies on) → the collar-pulling hand (§C.5)
+  cursorFor: (c, t, world) => (handTarget(c, t, world)?.kind === 'body' && transportMode(c, null, world) === 'drag' ? 'hand_drag' : null),
+  // H while dragging a man lifts him to the shoulder (§C.5)
+  redirect: (c) => (carriesMan(c) && c.carryMode === 'drag' && c.world?.house?.dragBodies ? { id: 'carryToggle', target: c } : null),
+  // §D.1: a lift / grab in progress is picked up again after a load with its elapsed time (bodies only)
+  resume(c, t, world, a) {
+    const ent = a?.data?.load != null ? world.byId(a.data.load) : null;
+    if (!ent || !isTransportable(ent, world) || !a.data.mode) return null;
+    return handTask(c, { kind: 'body', ent }, world, a.data.mode, a.t || 0);
+  },
   start(c, t, world) {
     const h = handTarget(c, t, world);
+    return handTask(c, h, world, h.kind === 'body' ? transportMode(c, null, world) : null, 0);
+  },
+});
+
+/** The hand task (start or resume at `t0` s): pick up, lift / grab a man, hide a body, loot, pack the raft. */
+function handTask(c, h, world, mode, t0) {
     const ent = h.ent;
-    const dur = h.kind === 'loot' ? CONFIG.bcd.lootTime : h.kind === 'raft' ? A.raftPack : h.kind === 'item' ? A.hand.min : h.kind === 'hideBody' ? A.carry.drop : A.carry.pick;
-    c.playAction(h.kind === 'item' ? 'use' : 'plant', dur);
+    const T = transportTimes();
+    const dur = h.kind === 'loot' ? CONFIG.bcd.lootTime : h.kind === 'raft' ? A.raftPack : h.kind === 'item' ? A.hand.min : h.kind === 'hideBody' ? A.carry.drop : mode === 'drag' ? T.grab : A.carry.pick;
+    c.playAction(h.kind === 'item' ? 'use' : mode === 'drag' ? 'drag_grab' : mode === 'shoulder' ? 'lift_to_shoulder' : 'plant', dur);
+    const lift = h.kind === 'body' ? liftHint(ent, c, mode, dur, t0) : null;
     return timedTask({
-      dur,
+      dur, t0,
+      save: h.kind === 'body' ? () => ({ load: ent.id, mode }) : null,
+      tick: lift?.tick, onCancel: lift?.clear, onEnd: lift?.clear,
       steps: [{ at: dur, fn: () => {
         if (handAllowed(c, h, world) !== true) return false;
         switch (h.kind) {
           case 'body':
-            ent.state = 'carried';
-            ent.carriedBy = c;
-            c.carrying = ent;
-            if (c.stance !== 'stand') c.setStance('stand');
-            if (c.disguised) suspiciousAct(world, c, 'carry');
-            c.refreshAbilities();
-            return true;
+            if (!isTransportable(ent, world)) return false;
+            return takeLoad(c, ent, mode, world);
           case 'barrel':
             ent.carriedBy = c;
             c.carrying = ent;
@@ -128,33 +152,62 @@ registerAbility({
         }
       } }],
     });
-  },
-});
+}
 
 registerAbility({
   id: 'drop', label: 'Drop', icon: '⤓', hotkey: null, roles: ['greenberet', 'spy'], targeting: 'self', order: 81,
+  houseRoles: { dragBodies: DRAG_ROLES }, // every dragger gets the Put down button (bodies-design §C.5)
   always: true, visibleToEnemies: false, available: (c) => !!c.carrying,
   canUse: (c) => (c.carrying ? true : 'Carrying nothing.'),
-  start(c, t, world) {
-    c.playAction('plant', A.carry.drop);
-    return timedTask({ dur: A.carry.drop, steps: [{ at: A.carry.drop, fn: () => { dropCarried(c); c.refreshAbilities(); return true; } }] });
-  },
+  // §D.1: a put-down / release in progress is picked up again after a load with its elapsed time
+  resume(c, t, world, a) { return c.carrying ? dropTask(c, world, a?.t || 0) : null; },
+  start(c, t, world) { return dropTask(c, world, 0); },
 });
+
+/** Put down / release the load (start, or resume at `t0` s). */
+function dropTask(c, world, t0) {
+    // §C.2 / §C.3: a drag is released in 0.6 s, a shouldered man is put down in 0.8 s (spec), a barrel stood up
+    const man = carriesMan(c), drag = man && c.carryMode === 'drag';
+    const dur = drag ? transportTimes().release : A.carry.drop;
+    c.playAction(drag ? 'drag_release' : man ? 'put_down' : 'plant', dur);
+    if (man) c.carryTransition = { kind: 'putDown', t: t0, dur, spot: dropSpot(c, 'gentle') }; // visual pairing: the load goes down with him, onto the spot
+    const clear = () => { if (c.carryTransition?.kind === 'putDown') c.carryTransition = null; };
+    return timedTask({
+      dur, t0,
+      tick: (dt, tt) => { if (c.carryTransition?.kind === 'putDown') c.carryTransition.t = tt; },
+      onCancel: clear, onEnd: clear,
+      steps: [{ at: dur, fn: () => { dropCarried(c, 'gentle'); c.refreshAbilities(); return true; } }],
+    });
+}
 
 registerAbility({
   id: 'firstAid', label: 'First aid kit', icon: '✚', hotkey: 'k', roles: ['driver', 'spy', 'sniper'], item: 'firstAid',
   targeting: 'unit', cursor: 'syringe', order: 70, visibleToEnemies: false, range: A.firstAid.range,
-  canUse(c, t) {
+  canUse(c, t, world = c.world) {
     const f = freeToAct(c);
     if (f !== true) return f;
     if (!c.has('firstAid')) return 'No doses left.';
     if (!t || t.kind !== 'commando' || !t.alive) return 'Pick a wounded commando.';
+    if (t.downed) { // bodies-design §C.6: K on a downed man revives him (house rule buddyRescue)
+      if (!world?.house?.buddyRescue) return 'Pick a wounded commando.';
+      if (t.state === 'carried' || t.carriedBy) return 'Put him down first.';
+      if (t.state === 'inVehicle') return "Can't reach him there.";
+      return true;
+    }
     if (t.state === 'inVehicle' || t.hidden || t.state === 'hidden') return "Can't reach him there.";
     if (t.hp >= t.maxHp) return 'Not wounded.';
     return true;
   },
+  // §D.1: a revive in progress is resumed after a load with its remaining time (a plain heal is not)
+  resume(c, t, world) {
+    if (!t?.downed || !t.alive || this.canUse(c, t, world) !== true) return null;
+    const t0 = t._savedReviveT || 0;
+    t._savedReviveT = 0;
+    return reviveTask(c, t, world, t0);
+  },
   start(c, t, world) {
     const F = A.firstAid;
+    if (t.downed) return reviveTask(c, t, world);
     c.playAction('use', F.dur);
     return timedTask({
       dur: F.dur,
@@ -167,6 +220,32 @@ registerAbility({
     });
   },
 });
+
+/**
+ * §C.6 revive: 4.0 s kneeling beside him (`revive_give` / `revive_receive`), one dose spent at the end, 34 HP, he gets
+ * up. A hit on the medic cancels it (the dose is kept: Commando.takeDamage); he may not be moved meanwhile.
+ */
+function reviveTask(c, t, world, t0 = 0) {
+  const full = CONFIG.bodies.downed.revive;
+  const dur = Math.max(1 / 60, full - t0);
+  c.playAction('revive_give', dur);
+  t.reviving = { by: c, t: t0, dur: full };
+  const clear = () => { if (t.reviving?.by === c) t.reviving = null; };
+  return timedTask({
+    dur,
+    tick: (dt, tt) => {
+      if (!t.alive || !t.downed || t.state === 'carried') return 'failed';
+      if (t.reviving) t.reviving.t = t0 + tt;
+      return undefined;
+    },
+    onCancel: clear, onEnd: clear,
+    steps: [{ at: dur, fn: () => {
+      if (!t.alive || !t.downed || !c.consume('firstAid')) return false;
+      reviveDowned(t, c);
+      return true;
+    } }],
+  });
+}
 
 registerAbility({
   id: 'use', label: 'Use', icon: '⚙', hotkey: null, roles: ['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy'],

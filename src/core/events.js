@@ -95,7 +95,7 @@ export class EventBus {
 export const EVENT_NAMES = Object.freeze([
   // units
   'unit:selected', 'unit:order', 'unit:damaged', 'unit:killed', 'unit:stance', 'unit:captured', 'unit:jailed',
-  'unit:freed', 'unit:held', 'unit:step', 'unit:climb', 'unit:water', 'footprint',
+  'unit:freed', 'unit:held', 'unit:step', 'unit:climb', 'unit:water', 'footprint', 'dragmark',
   // abilities / items
   'ability:start', 'ability:end', 'ability:refused', 'bomb:armed', 'bomb:detonate', 'bomb:exploded', 'trap:sprung', 'projectile:bounce', 'hit',
   // enemies / AI
@@ -130,4 +130,8 @@ export const EVENT_NAMES = Object.freeze([
   'enemy:rearmed',
   'enemy:cuffed',
   'enemy:ko',
+  // bodies / physics (docs/bodies-design.md §1)
+  'blast:front', 'unit:blast', 'body:settled', 'prop:settled',
+  // drag / shoulder carry / buddy rescue (docs/bodies-design.md §C)
+  'load:picked', 'load:dropped', 'load:mode', 'unit:downed', 'unit:revived',
 ]);

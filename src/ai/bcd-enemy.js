@@ -202,9 +202,12 @@ export function cuff(e, by, world) {
 export function rouse(e, world, why = 'wake') {
   if (e.carriedBy) {
     const c = e.carriedBy;
+    const mode = c.carryMode || null;
     c.carrying = null;
+    c.carryMode = null; c.carryTransition = null; // bodies-design §C.4: a load that wakes is dropped at once
     e.carriedBy = null;
     c.refreshAbilities?.();
+    world.events.emit('load:dropped', { carrier: c, load: e, how: 'woke', mode });
   }
   e.puppetOf = null;
   standUp(e);

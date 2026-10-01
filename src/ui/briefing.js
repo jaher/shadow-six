@@ -8,6 +8,7 @@
  * @module ui/briefing
  */
 
+import { forcedRuleLines } from '../core/house-rules.js';
 import { getPortraitURL } from '../art/portraits.js';
 import { el, btn } from './dom.js';
 import { cap } from './menu-kit.js';
@@ -94,10 +95,17 @@ export class Briefing {
     });
     const place = def.location || this.cat?.place || def.subtitle || '';
     if (place) el('div', 'place', right, place);
-    this._paragraphs(def).forEach((t, i) => {
+    const paras = this._paragraphs(def);
+    paras.forEach((t, i) => {
       const p = el('p', null, right, t);
       p.style.setProperty('--d', `${450 + i * 200}ms`);
     });
+    // the mission's forced house rules (bodies-design §0.3), before the player commits
+    const rules = forcedRuleLines(def);
+    if (rules.length) {
+      const r = el('p', 'rules', right, `Standing orders: ${rules.join(' ')}`);
+      r.style.setProperty('--d', `${450 + paras.length * 200}ms`);
+    }
     const skip = el('button', 'skip', box, 'Press Escape to skip');
     skip.type = 'button';
     skip.addEventListener('click', (e) => { e.stopPropagation(); this.next(); });

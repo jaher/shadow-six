@@ -75,13 +75,19 @@ function mockVfx() {
   return { vfx, rec };
 }
 
-test('grenade in snow throws dark frozen soil + black smoke and leaves a scorch (not white-on-white)', () => {
+test('grenade in snow: a white snow-powder column with a little frozen soil, a dirty-snow bowl (no black scorch)', () => {
+  // bodies review 2026-09-27 supersedes the earlier "dark soil + black smoke + scorch" art note: on snow the column
+  // is mostly white powder, some grey-brown soil keeps it readable, and the crater is not an ink blot
   let s = 7;
   const rng = () => ((s = (s * 16807) % 2147483647) / 2147483647);
   const dark = (p) => p.r !== undefined && p.r + p.g + p.b < 0.9 && !p.temp;
+  const light = (p) => p.r !== undefined && p.r + p.g + p.b > 1.8 && !p.temp;
   const run = (surface) => { const { vfx, rec } = mockVfx(); RECIPES.grenade(vfx, new THREE.Vector3(10, 0, 10), { surface }, rng); return rec; };
   const snow = run('snow'), dirt = run('dirt');
-  assert.ok(snow.parts.filter(dark).length > 40, `dark particles in snow: ${snow.parts.filter(dark).length}`);
-  assert.ok(snow.decals.some((d) => d.kind === 'scorch'), 'scorch decal in snow');
+  const nd = snow.parts.filter(dark).length, nl = snow.parts.filter(light).length;
+  assert.ok(nl > 3 * nd, `mostly white powder in snow (${nl} light vs ${nd} dark)`);
+  assert.ok(nd > 0, 'a little frozen soil');
+  assert.ok(!snow.decals.some((d) => d.kind === 'scorch'), 'no black scorch decal on snow');
+  assert.ok(snow.decals.some((d) => d.kind === 'crater' && (d.o?.opacity ?? 1) < 0.5), 'only a faint powder burn');
   assert.ok(!dirt.decals.some((d) => d.kind === 'scorch'), 'dirt keeps the crater decal only');
 });

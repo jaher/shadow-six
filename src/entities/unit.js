@@ -12,9 +12,9 @@ import { CONFIG, velToSpeed } from '../config.js';
 import { angleTo, turnTowardsAngle, angleDiff, dist } from '../core/math.js';
 import { T } from '../world/grid.js';
 
-const LOW_STANCES = new Set(['crawl', 'swim', 'dive']);
+const LOW_STANCES = new Set(['crawl', 'swim', 'dive', 'downed']);
 /** Every Unit.state value (§10.4 #2). BEL never enters 'stunned'/'bound' (BCD rulesets only). */
-export const UNIT_STATES = Object.freeze(['active', 'dead', 'stunned', 'hidden', 'inVehicle', 'carried', 'busy', 'bound', 'held', 'captured', 'jailed']);
+export const UNIT_STATES = Object.freeze(['active', 'dead', 'stunned', 'hidden', 'inVehicle', 'carried', 'busy', 'bound', 'held', 'captured', 'jailed', 'downed']);
 /** States in which cones can never see the unit. */
 /** States in which the unit cannot be ordered to move (captured units are walked by their escort). */
 const IMMOBILE_STATES = new Set(['dead', 'inVehicle', 'carried', 'stunned', 'bound', 'jailed']);
@@ -61,6 +61,10 @@ export class Unit extends Entity {
     this.bodyNoticed = false;
     /** Body hidden (e.g. in a bush/building); never noticed. Persisted by serialize(). */
     this.hiddenBody = false;
+    /** bodies-design §A.4: settled ragdoll pose (model draws it), settle flag, sunk in deep water (not perceived). */
+    this.bodyPose = null;
+    this.settled = false;
+    this.sunk = false;
     /** @type {{x:number, z:number}[] | null} */
     this.path = null;
     this.pathIndex = 0;
@@ -99,7 +103,8 @@ export class Unit extends Entity {
   get speed() {
     const U = CONFIG.units;
     let s;
-    if (this.stance === 'crawl') s = U.crawl;
+    if (this.stance === 'downed') s = CONFIG.bodies.downed.crawlSpeed; // bodies-design §C.6: a downed man crawls
+    else if (this.stance === 'crawl') s = U.crawl;
     else if (this.stance === 'swim' || this.stance === 'dive') s = U.swim;
     else if (this.faction === 'enemy') s = this.moveMode === 'run' ? CONFIG.ai.chaseSpeed : velToSpeed(this.vel ?? CONFIG.ai.defaultVel);
     else s = this.moveMode === 'run' ? (U.run[this.role] ?? U.run.default) : U.walk;
@@ -300,6 +305,7 @@ export class Unit extends Entity {
     const moving = this._moving;
     switch (this.stance) {
       case 'crawl': name = moving ? 'crawl' : 'crawl_idle'; break;
+      case 'downed': name = moving ? 'downed_crawl' : this.reviving ? 'revive_receive' : 'downed_idle'; break;
       case 'swim': name = 'swim'; break;
       case 'dive': name = 'dive'; break;
       default: name = moving ? (this.moveMode === 'run' ? 'run' : 'walk') : this.idleAnim || 'idle';
@@ -318,7 +324,7 @@ export class Unit extends Entity {
     this._moving = false;
     if (this._stanceT > 0) {
       this._stanceT -= dt;
-    } else if (this.path && (this.state === 'active' || this.state === 'hidden' || this.state === 'captured')) {
+    } else if (this.path && (this.state === 'active' || this.state === 'hidden' || this.state === 'captured' || this.state === 'downed')) {
       this._followPath(dt);
     }
     this._updateAnim(dt);
@@ -361,7 +367,8 @@ export class Unit extends Entity {
     // Surface height (§10.2 elev): raised areas are reached only through links, so snapping is safe.
     // The ABILITIES team animates link traversal (climb/ladder waypoints carry `link`, see findPath).
     if (w) { const e = w.grid.elevAt(this.x, this.z); if (e > 0 || this.y > 0) this.y = e; }
-    if (dirX || dirZ) this.heading = turnTowardsAngle(this.heading, Math.atan2(dirZ, dirX), this.turnRate * dt);
+    // moveHeadingOffset: a dragger walks backwards (π, bodies-design §C.2); moveTurnRate caps turning with a load
+    if (dirX || dirZ) this.heading = turnTowardsAngle(this.heading, Math.atan2(dirZ, dirX) + (this.moveHeadingOffset || 0), (this.moveTurnRate ?? this.turnRate) * dt);
     // Swimmers switch stance automatically in deep water.
     if (this.canSwim && w) {
       const g = w.groundAt(this.x, this.z);
@@ -420,6 +427,10 @@ export class Unit extends Entity {
       hiddenBody: !!this.hiddenBody,
       held: this.held, buried: this.buried, disguised: this.disguised, underwater: this.underwater, hidden: this.hidden,
       carriedBy: this.carriedBy ? this.carriedBy.id : null,
+      // bodies-design §A.4 / §D.1 (optional): the settled ragdoll pose + flags
+      ...(this.bodyPose ? { bodyPose: this.bodyPose } : null),
+      ...(this.settled ? { settled: true } : null),
+      ...(this.sunk ? { sunk: true } : null),
     };
   }
 
@@ -443,6 +454,10 @@ export class Unit extends Entity {
     this.underwater = !!d.underwater; this.hidden = !!d.hidden;
     /** Entity id of the carrier; resolved to the entity lazily by whoever needs it (world.byId). */
     this._carriedById = d.carriedBy ?? null;
+    this.bodyPose = d.bodyPose ?? null;
+    this.settled = !!d.settled;
+    this.sunk = !!d.sunk;
+    this._rd = null;
     this._anim = null;
     this._animOverride = null;
     if (!this.alive) this._setAnim('dead');

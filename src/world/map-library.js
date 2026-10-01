@@ -12,6 +12,7 @@
  * @module world/map-library
  */
 
+import * as THREE from 'three';
 import { LINK, B } from './grid.js';
 
 const MIN_RAISE = 1.5; // m — lower walkable sidecar surfaces (quays, porches) stay ground level
@@ -124,30 +125,148 @@ export function libraryDoorPoints(built, log = []) {
  * Door nodes follow the game: a unit entering/leaving a hideout swings the main door open for a moment; gates and
  * doors with an open state follow it. @returns {{frame: (dt:number) => void, dispose: () => void}}
  */
+const PANE_MATS = new Map();
+/** The glass material with a per-vertex 'aBroken' flag: a broken pane draws as a dark, empty frame. */
+function paneMaterial(m) {
+  if (PANE_MATS.has(m)) return PANE_MATS.get(m);
+  const c = m.clone();
+  const prev = m.onBeforeCompile, key = m.customProgramCacheKey?.bind(m);
+  c.onBeforeCompile = (sh, r) => {
+    prev?.call(c, sh, r);
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute float aBroken; varying float vBroken;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvBroken = aBroken;');
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vBroken;')
+      .replace('#include <color_fragment>', '#include <color_fragment>\nif (vBroken > 0.5) diffuseColor = vec4(0.035, 0.038, 0.042, 1.0);')
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nif (vBroken > 0.5) roughnessFactor = 0.9;');
+  };
+  c.customProgramCacheKey = () => `${key ? key() : ''}|pane`;
+  PANE_MATS.set(m, c);
+  return c;
+}
+
+/**
+ * Window panes of a glass mesh: its connected islands (vertices merged by position), each with its world centre,
+ * outward normal and radius. Gives the mesh its own geometry copy with a zeroed 'aBroken' attribute and the pane
+ * material. @returns {{c: THREE.Vector3, n: THREE.Vector3|null, r: number, verts: number[]}[]}
+ */
+export function paneIslands(mesh) {
+  const g0 = mesh.geometry, pos = g0?.getAttribute('position');
+  if (!pos) return [];
+  const g = g0.clone(); mesh.geometry = g;
+  const n = pos.count, par = new Int32Array(n).map((_, i) => i);
+  const find = (i) => { while (par[i] !== i) { par[i] = par[par[i]]; i = par[i]; } return i; };
+  const join = (a, b) => { a = find(a); b = find(b); if (a !== b) par[b] = a; };
+  const key = new Map();
+  for (let i = 0; i < n; i++) {
+    const k = `${Math.round(pos.getX(i) * 1e3)},${Math.round(pos.getY(i) * 1e3)},${Math.round(pos.getZ(i) * 1e3)}`;
+    if (key.has(k)) join(key.get(k), i); else key.set(k, i);
+  }
+  const idx = g.getIndex();
+  const tri = (t) => (idx ? [idx.getX(t * 3), idx.getX(t * 3 + 1), idx.getX(t * 3 + 2)] : [t * 3, t * 3 + 1, t * 3 + 2]);
+  const nt = idx ? idx.count / 3 : n / 3;
+  for (let t = 0; t < nt; t++) { const [a, b, c] = tri(t); join(a, b); join(a, c); }
+  const groups = new Map();
+  for (let i = 0; i < n; i++) { const r = find(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(i); }
+  g.setAttribute('aBroken', new THREE.BufferAttribute(new Float32Array(n), 1).setUsage(THREE.DynamicDrawUsage));
+  mesh.material = Array.isArray(mesh.material) ? mesh.material.map(paneMaterial) : paneMaterial(mesh.material);
+  const nrm = g.getAttribute('normal'), mw = mesh.matrixWorld, nm = new THREE.Matrix3().getNormalMatrix(mw), v = new THREE.Vector3();
+  const out = [];
+  for (const verts of groups.values()) {
+    const c = new THREE.Vector3();
+    for (const i of verts) c.add(v.fromBufferAttribute(pos, i));
+    c.multiplyScalar(1 / verts.length);
+    let r = 0;
+    for (const i of verts) r = Math.max(r, v.fromBufferAttribute(pos, i).distanceTo(c));
+    c.applyMatrix4(mw);
+    const nn = nrm ? new THREE.Vector3().fromBufferAttribute(nrm, verts[0]).applyMatrix3(nm).normalize() : null;
+    out.push({ c, n: nn, r: r * mw.getMaxScaleOnAxis(), verts });
+  }
+  return out;
+}
 export function wireLibraryDoors(world, built) {
   const byId = new Map();
   for (const b of built) {
     if (!b.library?.doors.length || b.def.id == null) continue;
     const main = b.library.doors.find((q) => q.id === 'main') ?? b.library.doors[0];
-    const e = { lib: b.library, door: main.id, t: 0, target: 0, hold: 0 };
+    const e = { lib: b.library, door: main.id, t: 0, target: 0, hold: 0, x: b.def.x ?? 0, z: b.def.z ?? 0, blast: null };
     byId.set(`${b.def.id}:door`, e); byId.set(String(b.def.id), e);
   }
-  if (!byId.size || !world.events) return { frame() {}, dispose() {} };
+  // window glass of every library building (not instanced repeats): blown out PANE BY PANE by a close blast (§A.8):
+  // each glass mesh is split into its connected islands (one per window pane), a per-vertex 'broken' flag turns a
+  // pane into a dark, empty frame (one draw call per mesh as before)
+  const panes = [];
+  for (const b of built) {
+    const root = b.library?.object3d;
+    if (!root || b.def.x == null) continue;
+    const bid = String(b.def.id ?? `${b.type}@${b.def.x},${b.def.z}`);
+    const meshes = [];
+    root.traverse((o) => { if (o.isMesh && !o.isInstancedMesh && /glass/i.test((Array.isArray(o.material) ? o.material[0] : o.material)?.name || '')) meshes.push(o); });
+    root.updateMatrixWorld(true);
+    meshes.forEach((m, mi) => {
+      for (const [k, isl] of paneIslands(m).entries()) {
+        panes.push({ id: `${bid}#${mi}:${k}`, x: isl.c.x, z: isl.c.z, y: isl.c.y, n: isl.n, r: isl.r, mesh: m, verts: isl.verts, broken: false, delay: -1 });
+      }
+    });
+  }
+  world.brokenPanes = world.brokenPanes || [];
+  if ((!byId.size && !panes.length) || !world.events) return { frame() {}, dispose() {} };
   const off = world.events.on('door', (ev) => {
     const e = byId.get(String(ev?.id));
     if (!e) return;
     if (ev.unit) { e.target = 1; e.hold = 1.2; } else e.target = ev.open ? 1 : 0;
   });
+  // bodies-design §A.8: a blast front swings the doors of nearby buildings open (damped hinge, overshoot, left ajar);
+  // visual only — the gameplay door / hideout state never changes
+  const breakPane = (p) => {
+    p.broken = true;
+    const a = p.mesh.geometry.getAttribute('aBroken');
+    for (const v of p.verts) a.array[v] = 1;
+    a.needsUpdate = true;
+    if (!world.brokenPanes.includes(p.id)) world.brokenPanes.push(p.id);
+  };
+  const offBlast = world.events.on('blast:front', (ev) => {
+    for (const p of panes) {
+      if (p.broken) continue;
+      const dx = p.x - ev.x, dz = p.z - ev.z, d = Math.hypot(dx, dz);
+      // a pane facing away from the blast (on the far wall) is shielded by the building: shorter reach
+      const facing = p.n && d > 1e-3 ? (p.n.x * dx + p.n.z * dz) / d : -1;
+      const r = Math.max(0, d - p.r);
+      if (r > 1.8 * ev.Rk * (facing > 0.3 ? 0.55 : 1)) continue;
+      if (ev.restore) breakPane(p); else { p.delay = r / 340; p.bx = ev.x; p.bz = ev.z; }
+    }
+    for (const e of new Set(byId.values())) {
+      const r = Math.hypot(e.x - ev.x, e.z - ev.z);
+      if (r > 1.5 * ev.Rk + 3) continue;
+      const rest = 0.35 + 0.2 * (Math.abs(e.x * 0.37 + e.z * 0.61) % 1);
+      if (ev.restore) { e.t = e.target = e.ajar = rest; e.blast = null; e.lib.setDoorOpen(e.door, rest); continue; }   // loaded save
+      e.blast = { delay: r / 340, v: 4 + 6 * Math.max(0, 1 - r / (1.5 * ev.Rk + 3)), rest };
+    }
+  });
   return {
     frame(dt) {
+      for (const p of panes) {
+        if (p.broken || p.delay < 0 || (p.delay -= dt) > 0) continue;
+        breakPane(p);
+        // shards out of this pane (a small burst per window)
+        world.fx?.spawn?.('glass_shards', p.x, p.z, { y: p.y, scale: Math.min(1, 0.35 + p.r) });
+      }
       for (const e of new Set(byId.values())) {
-        if (e.hold > 0 && (e.hold -= dt) <= 0) e.target = 0;
+        if (e.blast) {
+          const B = e.blast;
+          if ((B.delay -= dt) > 0) continue;
+          B.v += ((B.rest - e.t) * 30 - B.v * 3.2) * dt;   // damped hinge spring
+          e.t = Math.min(1, Math.max(0, e.t + B.v * dt));
+          e.lib.setDoorOpen(e.door, e.t);
+          if (Math.abs(B.v) < 0.01 && Math.abs(e.t - B.rest) < 0.01) { e.target = e.t; e.blast = null; e.ajar = B.rest; }
+          continue;
+        }
+        if (e.hold > 0 && (e.hold -= dt) <= 0) e.target = e.ajar ?? 0;
         if (e.t === e.target) continue;
         e.t = e.target > e.t ? Math.min(e.target, e.t + dt * 1.6) : Math.max(e.target, e.t - dt * 1.6);
         e.lib.setDoorOpen(e.door, e.t);
       }
     },
-    dispose() { off?.(); },
+    dispose() { off?.(); offBlast?.(); },
   };
 }
 

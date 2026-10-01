@@ -7,6 +7,7 @@
  * @module ui/notebook
  */
 
+import { forcedRuleLines } from '../core/house-rules.js';
 import { el, tip } from './dom.js';
 import { iconEntry, iconHTML, toolHTML, wireToolStates } from './icon-art.js';
 import { drawSketch } from './sketch.js';
@@ -159,7 +160,10 @@ export class Notebook {
       }
     };
     dot(w.enemies || [], '#c41e1e', 3);
-    dot(w.commandos || [], '#1d4fd8', 4);
+    dot((w.commandos || []).filter((c) => !c.downed), '#1d4fd8', 4);
+    // bodies-design §C.7: a pulsing red dot for a downed man
+    const down = (w.commandos || []).filter((c) => c.downed && c.alive);
+    if (down.length) dot(down, `rgba(214, 30, 22, ${(0.55 + 0.45 * Math.abs(Math.sin((w.time || 0) * Math.PI))).toFixed(2)})`, 5);
   }
 
   objectivePoints(w) {
@@ -215,6 +219,11 @@ export class Notebook {
       const hl = el('ul', 'hints', page);
       for (const h of hints) el('li', null, hl, String(h).toUpperCase());
     } else if (this.def.briefing?.text) el('p', 'hint', page, this.def.briefing.text);
+    const rules = forcedRuleLines(this.def); // forced house rules (bodies-design §0.3)
+    if (rules.length) {
+      const rl = el('ul', 'hints rules', page);
+      for (const r of rules) el('li', null, rl, r.toUpperCase());
+    }
     [...page.querySelectorAll('li, dd, .hint')].forEach((n, i) => n.style.setProperty('--rot', `${(((i * 37) % 7) - 3) * 0.1}deg`));
     el('p', 'close', this.notes, 'ANY KEY / CLICK CLOSES');
     this.hud.sound?.play('paper');

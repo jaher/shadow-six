@@ -16,11 +16,14 @@ import { CONFIG } from '../config.js';
  * @param {() => void} [o.onCancel]
  * @param {() => void} [o.onEnd] after done/failed (not after cancel)
  * @param {boolean} [o.interruptible=true]
+ * @param {number} [o.t0=0] elapsed time to start from (save/load resume: steps already past are not re-run)
+ * @param {() => object} [o.save] extra data a save keeps to resume this task (`def.resume`)
  */
-export function timedTask({ dur, steps = [], tick = null, onCancel = null, onEnd = null, interruptible = true }) {
-  let t = 0;
-  let k = 0;
+export function timedTask({ dur, steps = [], tick = null, onCancel = null, onEnd = null, interruptible = true, t0 = 0, save = null }) {
+  let t = t0;
   const list = [...steps].sort((a, b) => a.at - b.at);
+  let k = 0;
+  while (t0 > 0 && k < list.length && list[k].at <= t0 + 1e-9) k++; // already run before the save
   let finished = false;
   const end = (r) => {
     if (!finished) { finished = true; onEnd?.(r); }
@@ -29,6 +32,7 @@ export function timedTask({ dur, steps = [], tick = null, onCancel = null, onEnd
   return {
     interruptible,
     get t() { return t; },
+    saveData: save,
     update(dt) {
       if (finished) return 'done';
       t += dt;
@@ -139,6 +143,7 @@ export function inReach(world, c, to, range, los = false) {
 
 export function freeToAct(c) {
   if (!c.alive) return 'Dead.';
+  if (c.downed) return "He's down."; // bodies-design §C.6
   if (c.state === 'hidden' || c.hidden) return 'Leave the building first.';
   if (c.state === 'inVehicle') return 'Get out first.';
   if (c.buried) return 'Rise first.';
@@ -146,22 +151,67 @@ export function freeToAct(c) {
   return true;
 }
 
+/** Straight line from `c` to (x, z) over walkable cells at his level (≥ 0.3 m from him). */
+export function clearFrom(w, c, x, z) {
+  if (Math.hypot(x - c.x, z - c.z) < 0.3) return false;
+  return w.grid.walkableLine(c.x, c.z, x, z, { elevRef: w.grid.elevAt(c.x, c.z) });
+}
+
+/**
+ * Where `c` would put his load `it` down (`how` 'gentle' | 'shot' | 'died'): a dragged man where he lies, else ahead
+ * of him (along the hit direction when knocked off). Deterministic; used by dropCarried and the put-down visuals.
+ */
+export function dropSpot(c, how = 'gentle', it = c.carrying, mode = c.carryMode || null) {
+  const w = c.world;
+  let p;
+  if (mode === 'drag' && it.kind !== 'interactable' && (!w || clearFrom(w, c, it.x, it.z))) p = { x: it.x, z: it.z }; // §C.2: he lies where he was dragged
+  else {
+    // shouldered: at his feet ahead of him; knocked off by a hit (§C.4): along the hit direction, a little further
+    const k = how === 'shot' && c._hitDir ? 0.9 : 0.6;
+    // a live man (downed buddy) rolls off the right shoulder and lands beside him on his front (the model's fall)
+    const a = how === 'shot' && it.alive && it.kind !== 'interactable' && mode !== 'drag' ? c.heading + Math.PI / 2
+      : how === 'shot' && c._hitDir ? Math.atan2(c._hitDir.z, c._hitDir.x) : c.heading;
+    // a barrel stands at his feet ahead (as before); a man at the first clear bearing round him (never across a wall / fence, off a raised edge, or on top of him)
+    for (const da of it.kind === 'interactable' ? [] : [0, 0.6, -0.6, 1.2, -1.2, 1.9, -1.9, Math.PI]) {
+      if (p) break;
+      const x = c.x + Math.cos(a + da) * k, z = c.z + Math.sin(a + da) * k;
+      if (!w || clearFrom(w, c, x, z)) p = { x, z };
+    }
+    if (!p && w && it.kind !== 'interactable' && mode === 'drag') p = { x: it.x, z: it.z };
+    if (!p) p = w?.grid.walkableAt(c.x + Math.cos(a) * k, c.z + Math.sin(a) * k) ? { x: c.x + Math.cos(a) * k, z: c.z + Math.sin(a) * k } : { x: c.x, z: c.z };
+  }
+  return p;
+}
+
 /**
  * Put down whatever `c` carries at his feet (bodies lie down, barrels stand upright). No animation — the
  * `drop` ability wraps this in its 0.8 s task.
  */
-export function dropCarried(c) {
+export function dropCarried(c, how = 'gentle') {
   const it = c.carrying;
   if (!it) return null;
+  const mode = c.carryMode || null;
   c.carrying = null;
-  const fx = c.x + Math.cos(c.heading) * 0.6, fz = c.z + Math.sin(c.heading) * 0.6;
-  const p = c.world?.grid.walkableAt(fx, fz) ? { x: fx, z: fz } : { x: c.x, z: c.z };
+  c.carryMode = null;
+  c.carryTransition = null;
+  const w = c.world;
+  const p = dropSpot(c, how, it, mode);
   it.carriedBy = null;
   it.x = p.x; it.z = p.z; it.y = c.y || 0;
+  // a man put down off a shoulder lies stretched away from the carrier (visual: the model / settle ragdoll use it)
+  if (it.kind !== 'interactable' && mode !== 'drag' && how === 'gentle' && c.world?.house) it.heading = c.heading + Math.PI;
+  // a live man knocked off the shoulder lies on his front as he hung: head towards the carrier's back
+  else if (it.kind !== 'interactable' && it.alive && mode !== 'drag' && how === 'shot') it.heading = c.heading + Math.PI;
   if (it.kind !== 'interactable') {
-    it.state = it.alive ? it._bcdState || 'active' : 'dead'; // BCD: a knocked-out man stays down (bcd-plan §1.2)
+    // BCD: a knocked-out man stays down (bcd-plan §1.2); a downed buddy is downed again (bodies-design §C.6)
+    it.state = it.alive ? (it.downed ? 'downed' : it._bcdState || 'active') : 'dead';
+    it._preCarryState = null;
     it._anim = null;
-    it._setAnim?.('dead');
+    it._setAnim?.(it.alive && it.downed ? 'downed_idle' : 'dead');
+    // how he left the transport (the physics drop of a body; the fall a downed buddy's model plays)
+    const dir = how === 'shot' && c._hitDir ? { x: c._hitDir.x, z: c._hitDir.z } : null;
+    it.carryDrop = { how, mode, t: w?.time ?? 0, fromH: mode === 'shoulder' || mode == null ? CONFIG.bodies.dropFallH : 0.3, dir, ch: c.heading };
+    w?.events.emit('load:dropped', { carrier: c, load: it, how, mode });
   }
   return it;
 }

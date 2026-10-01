@@ -156,6 +156,12 @@ export function dirtFountain(vfx, pos, rng, o = {}) {
 const handle = (...parts) => ({ stop() { for (const p of parts) if (p) { if (p.stop) p.stop(); else p.stopped = true; } } });
 
 export const RECIPES = {
+  /** Blown-out window panes (bodies-design §A.8): pale glass chips thrown out of the frame (debris: 2 s, no CCD). */
+  glass_shards(vfx, pos, o, rng) {
+    const s = o.scale ?? 1;
+    chunks(vfx, pos, rng, Math.round(28 * s), { vmin: 2, vmax: 6.5, upBias: 0.3, smin: 0.015, smax: 0.06, colors: [[0.72, 0.8, 0.84], [0.5, 0.58, 0.62], [0.86, 0.9, 0.92]] });
+  },
+
   /** E1 large explosion (fuel tank / ammo dump / demolition charge). opts.scale */
   explosion_large(vfx, pos, o, rng) {
     const s = o.scale ?? 1, up = (h) => pos.clone().add(V3(0, h, 0));
@@ -172,7 +178,10 @@ export const RECIPES = {
     });
     // aftermath column (handed over from the fireball puffs; narrow and vertical)
     smokeColumn(vfx, up(3 * s), rng, { dur: o.dur ?? 26, rate: 9 * s, decay: 10, minRate: 1.5 * s, spread: 1.2 * s, s0: 2.6 * s, s1: 11 * s, lmin: 11, lmax: 18, buoy: 2.8, vy: 4.5 });
-    chunks(vfx, pos, rng, Math.round(45 * s), { vmin: 8, vmax: 26, trail: 0.35, burn: 0.3, colors: [[0.1, 0.09, 0.08], [0.25, 0.22, 0.18], [0.18, 0.2, 0.14]] });
+    // thrown debris: on snow mostly packed snow and ice lumps with some frozen soil, elsewhere earth and charred bits
+    chunks(vfx, pos, rng, Math.round(45 * s), { vmin: 8, vmax: 26, trail: 0.35, burn: 0.3, colors: o.surface === 'snow'
+      ? [[0.78, 0.8, 0.84], [0.64, 0.66, 0.7], [0.3, 0.26, 0.22]] : [[0.1, 0.09, 0.08], [0.25, 0.22, 0.18], [0.18, 0.2, 0.14]] });
+    if (o.surface === 'snow') dirtFountain(vfx, pos, rng, { scale: 1.6 * s, jets: 12, cone: 0.6, clod: SURFACE.snow.clod }); // white powder column
     sparks(vfx, up(1), rng, Math.round(200 * s), { vmin: 10, vmax: 38 });
     embers(vfx, up(3 * s), rng, Math.round(100 * s), 3 * s, { lmin: 3, lmax: 8 });
     shockwave(vfx, pos, rng, 22 * s, Math.round(60 * s), 1.6 * s, surf(o).dust);
@@ -208,16 +217,16 @@ export const RECIPES = {
     light(vfx, up(1.0), [1, 0.72, 0.45], 9, 0.18, (a) => 300 * Math.exp(-a * 28));
     const snow = o.surface === 'snow';
     dirtFountain(vfx, pos, rng, { scale: 1.15 * s, jets: 16, cone: 0.5, clod: S.clod });
-    // art review: in snow a grenade bursts through into the frozen soil beneath — dark earth jets + a black
-    // TNT smoke core; white-on-white alone made the blast nearly invisible at the game camera
-    if (snow) dirtFountain(vfx, pos, rng, { scale: 0.95 * s, jets: 9, cone: 0.35, clod: SURFACE.dirt.clod.map((c) => c * 1.6) });
-    // brown-grey dust body rising from the crater + low skirt
-    vfx.at(0.06, () => smokePuffs(vfx, up(0.4), rng, vfx.n(14), { col: S.dust.map((c) => c * 0.62), spread: 0.8 * s, lat: 0.6, vmin: 1.5, vmax: 5, vy: 2.2, s0: 0.6 * s, s1: 5.5 * s, lmin: 4, lmax: 7, buoy: 0.8, drag: 1.8, op: 0.72, wisp: 0.55, erode: 0.12 }));
-    smokePuffs(vfx, up(1.2), rng, vfx.n(snow ? 10 : 6), { col: snow ? [0.1, 0.095, 0.09] : [0.2, 0.18, 0.16], spread: 0.5 * s, lat: 0.3, vmin: 0.5, vmax: 1.5, vy: 2.4, s0: 1.0 * s, s1: 4 * s, lmin: 4, lmax: 7, buoy: 1.2, op: snow ? 0.75 : 0.6, wisp: 0.5 });
-    if (snow) vfx.decal(pos, 2.4 * s, 'scorch', { rot: rng() * 6, opacity: 0.85 });
+    // in snow the column is mostly white powder; a few jets of frozen soil from under the cover (grey-brown, lighter
+    // than bare earth: soil mixed with snow) and a thin TNT smoke core keep it readable at the game camera
+    if (snow) dirtFountain(vfx, pos, rng, { scale: 0.55 * s, jets: 5, cone: 0.3, clod: SURFACE.dirt.clod.map((c, i) => c * 1.4 + SURFACE.snow.clod[i] * 0.35) });
+    // dust body rising from the crater + low skirt (white snow powder on snow, brown-grey elsewhere)
+    vfx.at(0.06, () => smokePuffs(vfx, up(0.4), rng, vfx.n(14), { col: S.dust.map((c) => c * (snow ? 0.95 : 0.62)), spread: 0.8 * s, lat: 0.6, vmin: 1.5, vmax: 5, vy: 2.2, s0: 0.6 * s, s1: 5.5 * s, lmin: 4, lmax: 7, buoy: 0.8, drag: 1.8, op: 0.72, wisp: 0.55, erode: 0.12 }));
+    smokePuffs(vfx, up(1.2), rng, vfx.n(6), { col: snow ? [0.24, 0.23, 0.22] : [0.2, 0.18, 0.16], spread: 0.5 * s, lat: 0.3, vmin: 0.5, vmax: 1.5, vy: 2.4, s0: 1.0 * s, s1: 4 * s, lmin: 4, lmax: 7, buoy: 1.2, op: snow ? 0.55 : 0.6, wisp: 0.5 });
     sparks(vfx, up(0.3), rng, 26, { vmin: 8, vmax: 22, lmin: 0.15, lmax: 0.45, size: 0.035 });
     shockwave(vfx, pos, rng, 7 * s, Math.round(20 * s), 0.5, S.dust);
-    vfx.decal(pos, 3 * s, 'crater', { rot: rng() * 6 });
+    // the bowl itself is carved by render/blast-marks (dirty-snow ejecta on snow): only a faint powder-burn here
+    vfx.decal(pos, 3 * s, 'crater', { rot: rng() * 6, opacity: snow ? 0.35 : 1 });
     vfx.blast(pos, 4 * s, rng);
   },
 
@@ -405,6 +414,13 @@ export const RECIPES = {
     }
     smokePuffs(vfx, pos, rng, vfx.n(3), { col: [0.22, 0.03, 0.025], spread: 0.08, vmin: 0.3, vmax: 1.2, vy: 0.2, s0: 0.25, s1: 0.95, lmin: 0.4, lmax: 0.8, buoy: -0.5, drag: 3, op: 0.7, wisp: 1, erode: 0.25, fin: 0.02 });
     if (o.decal !== false) vfx.at(0.4, () => vfx.decal(pos, rr(rng, 0.5, 0.9), 'blood', { rot: rng() * 6, fade: 0.6, opacity: 0.8 }));
+  },
+
+  /** Blood in water (bodies-design §B.3): a faint dark-red cloud dispersing at the surface, drifting (~12 s). opts {scale, dur} */
+  blood_cloud(vfx, pos, o, rng) {
+    const s = o.scale ?? 1, L = o.dur ?? 12;
+    smokePuffs(vfx, pos, rng, vfx.n(Math.round(5 * s + 3)), { col: [0.26, 0.03, 0.028], spread: 0.25 * s, ySpread: 0.02, lat: 1, vmin: 0.04, vmax: 0.22, vy: 0,
+      s0: 0.35 * s, s1: 1.8 * s, lmin: L * 0.6, lmax: L, buoy: 0, drag: 1.2, op: 0.3, wisp: 1, erode: 0.35, wind: 0.15, fin: 0.1 });
   },
 
   /** Metal impact / ricochet sparks. opts {dir} */

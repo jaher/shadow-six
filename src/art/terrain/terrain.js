@@ -271,7 +271,7 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
   setQuality(quality);
 
   return {
-    mesh, trails, splat, grass, snowfx, uniforms: U, heightAt, materialAt,
+    mesh, trails, splat, grass, snowfx, uniforms: U, heightAt, materialAt, segPerM: seg,
     update(dt, camera) {
       time += dt;
       U.uTime.value = time;

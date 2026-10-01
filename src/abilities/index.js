@@ -19,12 +19,13 @@
  * @module abilities/index
  */
 
-export { ABILITIES, ABILITY_DEFAULTS, registerAbility, abilitiesForRole, abilityInCampaign, groupIntersection, allAbilities } from './registry.js';
+export { ABILITIES, ABILITY_DEFAULTS, registerAbility, abilitiesForRole, abilityInCampaign, groupIntersection, allAbilities, abilityInHouse } from './registry.js';
 
 // Built-in abilities register themselves on import. Owners add one file per ability here.
 import './knife.js';
 import './weapons.js';
 import './shared.js';
+import './bodies.js'; // bodies-design §C: drag / carryToggle (house rule dragBodies)
 import './greenberet.js';
 import './sapper.js';
 import './marine.js';

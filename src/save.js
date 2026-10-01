@@ -13,6 +13,7 @@ import { Enemy } from './entities/enemy.js';
 import { Bomb, Trap, Decoy } from './abilities/charges.js';
 import { bcdPostRestore } from './ai/bcd-enemy.js';
 import { createPickup } from './entities/interactables.js';
+import { restoreHouseRules } from './core/house-rules.js';
 
 export const SAVE_KEY = 'shadowsix.quicksave.v1';
 const SAVE_VERSION = 1;
@@ -36,6 +37,11 @@ export function snapshot(game) {
     alarm: w.alarm?.serialize?.() ?? null,
     // electric-fence power table (§7.6 st_fence "powered until fence_switch is used"): not part of any entity
     fencePower: w.fencePower ? [...w.fencePower] : null,
+    // bodies-design §D.1: the house rules the run was made with (+ physics tier) and the physics layer (§A.10)
+    house: w.house ? { ...w.house } : null,
+    physics: w.physics?.serialize?.() ?? null,
+    marks: w.marks?.serialize?.() ?? null, // explosion craters / scorch (visual, persistent)
+    blood: w.blood?.serialize?.() ?? null, // bodies-design §B.7: pools (re-simulated from seeds), decals, smears, stains
     camera: game.cameraController.getState?.() ?? null,
     views: game.cameraRig?.getState?.() ?? null,
     flow: game.flow?.serialize?.() ?? null,
@@ -61,6 +67,7 @@ export async function restore(game, snap) {
   restoreWorld(w, snap.world);
   if (snap.alarm) w.alarm?.deserialize?.(snap.alarm);
   restoreFencePower(w, snap.fencePower);
+  restorePhysicsLayer(w, snap);
   if (snap.views && game.cameraRig?.setState) game.cameraRig.setState(snap.views, (id) => w.byId(id));
   else {
     const cam = snap.camera;
@@ -116,7 +123,7 @@ export function restoreWorld(w, S) {
   }
   if (w.rules?.id === 'BCD') bcdPostRestore(w); // BCD: links to entities restored after their owner
   // running actions that survive a load (the Spy's distraction), now that every target is restored
-  for (const c of w.commandos || []) if (c._savedAction) c.resumeSavedAction?.();
+  for (const c of w.commandos || []) if (c._savedAction || c._savedTransition) c.resumeSavedAction?.();
   // ids of entities spawned during play (placed traps, deployed rafts …) are kept from the save, so the
   // id counter must move past them — otherwise the next spawn reuses a live id (replay m02: raft and trap
   // both id 36, the raft vanished on the following load).
@@ -125,6 +132,21 @@ export function restoreWorld(w, S) {
   for (const d of S.entities) if (Number.isFinite(d.id) && d.id > maxId) maxId = d.id;
   Entity.nextId = Math.max(Entity.nextId, maxId + 1, S.nextId ?? 0);
   return w;
+}
+
+/**
+ * House rules + physics after a load (bodies-design §D.1, §A.10): the saved house layer wins (old saves keep the
+ * current preset), its physics tier sets the caps, then the physics layer restores (a snapshot while bodies moved).
+ */
+export function restorePhysicsLayer(w, snap) {
+  w.house = restoreHouseRules(snap.house, w.house);
+  for (const c of w.commandos || []) c.refreshAbilities?.(); // house-rule abilities follow the restored layer (§C)
+  try {
+    w.physics?.setTier?.(w.house.physicsTier);
+    if (snap.physics) w.physics?.restore?.(snap.physics);
+    if (snap.marks) w.marks?.restore?.(snap.marks);
+  } catch (err) { console.warn('[save] physics restore failed; bodies keep their saved poses', err); }
+  try { w.blood?.restore?.(snap.blood || null); } catch (err) { console.warn('[save] blood restore failed', err); } // old saves: no blood
 }
 
 /**

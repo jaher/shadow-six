@@ -96,7 +96,9 @@ while IFS= read -r hit; do flag "code address in docs: ${hit:0:140}"; done < <(
 
 # secrets
 while IFS= read -r hit; do flag "secret-like string: ${hit:0:100}"; done < <(
-  grep -rnIE 'ghp_[A-Za-z0-9]{20,}|gho_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|(^|[^A-Za-z0-9])sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----' . || true)
+  # tokens must stand alone: a match buried inside a longer base64 run (e.g. WASM embedded in a vendored
+  # bundle like vendor/rapier/rapier.mjs) is random data, not a credential
+  grep -rnIE '(^|[^A-Za-z0-9+/])(ghp_[A-Za-z0-9]{20,}|gho_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}([^A-Za-z0-9+/=]|$))|-----BEGIN [A-Z ]*PRIVATE KEY-----' . || true)
 while IFS= read -r f; do flag "private key file: $f"; done < <(
   find . \( -name 'id_rsa*' -o -name 'id_ed25519*' -o -name '*.pem' -o -name '*.key' -o -name '.env' \) -print)
 

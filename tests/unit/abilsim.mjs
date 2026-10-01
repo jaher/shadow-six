@@ -64,6 +64,7 @@ export function makeSim(def = {}, opts = {}) {
       run(world.vehicles);
       run(world.projectiles);
       run(world.interactables);
+      world.physics.step(dt); // bodies-design §1 tick order (null object unless a test installs Rapier)
       world.flushRemovals();
       world.time += dt;
       world.tick++;
