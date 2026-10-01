@@ -17,6 +17,7 @@ import * as THREE from 'three';
 import { getMaterial } from './materials.js';
 import { B, T } from '../world/grid.js';
 import { PROP_TYPES, PROP_DEFAULTS, LINEAR_PROPS } from './props.js';
+import { libraryVisual, libraryHinted } from './building-props.js';
 
 const H = B.HIGH, L = B.LOW;
 /** type → defaults: w, d, h (m), r (round), block, mat, roof, kind ('box'|'round'|'linear'|'area'|custom). */
@@ -119,14 +120,19 @@ function anchor(p, name) {
 
 // ------------------------------------------------------------------ builders
 /** Linear extras (tram_track, sea_wall, castle_wall): mesh per segment + a line footprint. */
-function buildLinearExtra(type, p) {
+function buildLinearExtra(type, p, ctx = {}) {
   const pts = (p.points || [[p.x ?? 0, p.z ?? 0], [(p.x ?? 0) + (p.w ?? 10), p.z ?? 0]]).map((q) => (Array.isArray(q) ? q : [q.x, q.z]));
   const width = p.width, root = new THREE.Group();
+  // a hinted library wall section (e.g. sea_wall `at_wall_segment`, 8 m) is tiled along each run, front (+z) to the
+  // run's right-hand side; the placeholder box stays where the library is off or the asset is missing
+  const tile = ctx.library !== false && libraryHinted(type, p);
   for (let k = 0; k + 1 < pts.length; k++) {
     const [ax, az] = pts[k], [bx, bz] = pts[k + 1];
     const len = Math.hypot(bx - ax, bz - az);
     if (len < 1e-6) continue;
-    const seg = placed((ax + bx) / 2, (az + bz) / 2, Math.atan2(bz - az, bx - ax));
+    const rot = Math.atan2(bz - az, bx - ax);
+    if (tile && tileRun(root, type, p, ctx, ax, az, bx, bz, len, rot)) continue;
+    const seg = placed((ax + bx) / 2, (az + bz) / 2, rot);
     if (type === 'tram_track') {
       for (const s of [-0.72, 0.72]) { const r = box(len, 0.05, 0.08, 'rail', 0.02); r.position.z = s; seg.add(r); }
     } else {
@@ -139,6 +145,19 @@ function buildLinearExtra(type, p) {
   if (p.block) footprints.push({ shape: 'line', points: pts, width: Math.max(width, 0.5), block: p.block });
   if (type === 'tram_track') footprints.push({ shape: 'line', points: pts, width, terrain: T.ROAD });
   return { object3d: root, footprints, castsShadow: type !== 'tram_track' };
+}
+
+/** Tile a run a→b with library sections of ~`tileLen` m (scaled to fit exactly); false → caller builds the box. */
+function tileRun(root, type, p, ctx, ax, az, bx, bz, len, rot) {
+  const L0 = p.tileLen ?? 8, n = Math.max(1, Math.round(len / L0)), l = len / n, parts = [];
+  for (let i = 0; i < n; i++) {
+    const t = (i + 0.5) / n;
+    const v = libraryVisual(type, { ...p, id: `${p.id ?? type}#${parts.length}`, x: ax + (bx - ax) * t, z: az + (bz - az) * t, rot, w: l, d: p.width, points: undefined }, ctx);
+    if (!v) { for (const q of parts) q.dispose(); return false; }
+    parts.push(v);
+  }
+  for (const v of parts) root.add(v.object3d);
+  return true;
 }
 
 /** Plan outline of a Type VII hull (local +x = bow): pointed bow, rounded stern, saddle tanks amidships. */
@@ -460,7 +479,7 @@ export function buildExtraProp(type, params = {}, ctx = {}) { // eslint-disable-
   const base = EXTRA_PROP_DEFAULTS[resolve(type)];
   if (!base) throw new Error(`[props-extra] unknown prop type "${type}"`);
   const p = { ...base, ...params };
-  if (base.kind === 'linear') return buildLinearExtra(type, p);
+  if (base.kind === 'linear') return buildLinearExtra(type, p, ctx);
   const x = params.x ?? 0, z = params.z ?? 0, rot = params.rot ?? 0;
   const group = placed(x, z, rot);
   group.name = `prop:${type}${params.id ? ':' + params.id : ''}`;
@@ -475,5 +494,9 @@ export function buildExtraProp(type, params = {}, ctx = {}) { // eslint-disable-
   }
   const castsShadow = !['moat', 'ravine', 'mine', 'tram_track'].includes(type);
   group.traverse((o) => { if (o.isMesh) o.castShadow = o.castShadow && castsShadow; });
+  // realistic visual from the building library when the mission names one (`asset`, or a hinted `variant`);
+  // the placeholder's footprints, walkable roofs and demolition anchors stay the gameplay ones
+  const lib = ctx.library !== false && libraryHinted(type, params) ? libraryVisual(type, { ...params, w: p.w, d: p.d, r: p.r }, ctx) : null;
+  if (lib) return { object3d: lib.object3d, footprints, castsShadow: true, interactables, library: lib };
   return { object3d: group, footprints, castsShadow, interactables };
 }

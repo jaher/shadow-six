@@ -124,6 +124,8 @@ test('vehicles: static structures — wagons, K5, flak, aircraft, windsock; fit 
   assert.equal(staticVehicleAsset('railway_gun', 'railway_gun_k5'), 'railgun_k5');
   assert.equal(staticVehicleAsset('aa_gun', 'flak38_quad_towed'), null, 'no quad 2 cm model yet');
   assert.equal(staticVehicleAsset('plane', 'storch'), 'fi156_storch');
+  assert.equal(staticVehicleAsset('crates', 'van_parked', { vehicleArt: 'opel_blitz_cargo' }), 'opel_blitz_cargo', 'vehicleArt opt-in');
+  assert.deepEqual(staticVehicleAssets({ structures: [{ type: 'crates', variant: 'crate_stack' }, { type: 'crates', vehicleArt: 'opel_blitz_cargo' }] }), ['opel_blitz_cargo']);
   assert.deepEqual(staticVehicleAssets({ structures: [{ type: 'windsock' }, { type: 'barracks' }, { type: 'train_car', variant: 'coach' }] }), ['coach', 'windsock']);
   for (const a of ['wagon_covered', 'loco_br52', 'wagon_flat', 'mine_tipper', 'railgun_k5', 'flak88', 'fi156_storch', 'ju52_3m', 'windsock', 'uboat_viic']) assert.ok(MAN.assets[a], a);
   assert.equal(fitOnFootprint([9.8, 3], [10, 3]), 1);

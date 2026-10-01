@@ -18,6 +18,7 @@ import { catalogueEntry, formatMissionDate } from './catalogue.js';
 import { TIPS, loadSeen, markSeen } from './tips.js';
 import { drawEurope } from './europe.js';
 import { MISSIONS } from '../missions/index.js';
+import { isTouchUI } from './touch.js';
 
 export class Loading {
   constructor(hud) {
@@ -135,7 +136,7 @@ export class Loading {
       cont = resolve;
       if (info.auto !== false || !result) setTimeout(resolve, 400);
       else {
-        prompt.textContent = 'PRESS ANY KEY';
+        prompt.textContent = isTouchUI() ? 'TAP TO CONTINUE' : 'PRESS ANY KEY';
         prompt.classList.add('mk-press');
         pct.textContent = 'LOADING 100%';
       }

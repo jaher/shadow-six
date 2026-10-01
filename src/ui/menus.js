@@ -50,6 +50,12 @@ export class Menus {
     this.pauseHint = el('p', 'hint', this.pauseCard);
     this.pauseHint.append(cap('P'));
     this.pauseHintText = el('span', null, this.pauseHint, 'RESUME');
+    // a click / tap on the hint resumes, like P (phones have no P)
+    this.pauseHint.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const g = hud.game;
+      if (g.state === 'paused') g.togglePause();
+    });
     this.pauseCard.hidden = true;
     this.view = null; // 'esc' | 'save' | 'load' | 'options' | 'help'
     this._suppress = false;
@@ -246,7 +252,7 @@ export class Menus {
     lab.replaceChildren();
     row.classList.add('typing');
     const def = (this.hud.def?.title || 'SAVE').toUpperCase();
-    const f = typeField(lab, { max: 24, value: def, cls: 'mk-slotfield', sound: kit.sound, accept: (c) => (/^[\w .,'!?&-]$/.test(c) ? c.toUpperCase() : null) });
+    const f = typeField(lab, { max: 24, value: def, cls: 'mk-slotfield', sound: kit.sound, accept: (c) => (/^[\w .,'!?&-]$/.test(c) ? c.toUpperCase() : null), label: 'Save name', onEnter: () => t.spec.onKey?.({ code: 'Enter' }) });
     const prevKey = t.spec.onKey;
     t.spec.onKey = (e) => {
       if (e.code === 'Enter' || e.code === 'NumpadEnter') {

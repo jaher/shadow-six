@@ -10,6 +10,7 @@
 import { el } from './dom.js';
 import { DISCLAIMER } from './screens.js';
 import { SplashFx } from './splash-fx.js';
+import { pressPrompt, isTouchUI } from './touch.js';
 
 const SEEN_KEY = 'shadowsix.intro.seen';
 const VERSION = 'v0.9';
@@ -181,7 +182,7 @@ export class Boot {
     if (this.ruleFill) this.ruleFill.style.transform = `scaleX(${this._p})`;
   }
 
-  /** Loading done: "PRESS ANY KEY" (220 ms crossfade); `onEnter` runs on the first input. */
+  /** Loading done: "PRESS ANY KEY OR CLICK" / "TAP TO CONTINUE" (220 ms crossfade); `onEnter` runs on the first input. */
   setReady(onEnter) {
     this.ready = true;
     if (onEnter) this._enter = onEnter;
@@ -190,7 +191,7 @@ export class Boot {
     if (!p) return;
     p.classList.add('swap');
     setTimeout(() => {
-      p.textContent = 'PRESS ANY KEY';
+      p.textContent = pressPrompt(isTouchUI());
       p.classList.remove('swap');
       p.classList.add('mk-press');
       p.parentElement.classList.add('ready');

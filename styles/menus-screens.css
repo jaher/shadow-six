@@ -16,7 +16,7 @@
   height: calc(2.5 * var(--mr)); border-top: max(1px, calc(.5 * var(--mr))) solid rgba(40, 30, 14, .55); border-bottom: max(1px, calc(.5 * var(--mr))) solid rgba(40, 30, 14, .55);
 }
 .mk-servicebook .mk-letterhead { color: #3a2c14; margin-bottom: calc(6 * var(--mr)); font-size: max(12px, calc(8.5 * var(--mr) * var(--ts))); }
-.mk-servicebook .fld { display: flex; align-items: baseline; gap: calc(8 * var(--mr)); padding-bottom: calc(2 * var(--mr)); border-bottom: max(1px, calc(.4 * var(--mr))) dotted rgba(40, 30, 14, .5); }
+.mk-servicebook .fld { position: relative; display: flex; align-items: baseline; gap: calc(8 * var(--mr)); padding-bottom: calc(2 * var(--mr)); border-bottom: max(1px, calc(.4 * var(--mr))) dotted rgba(40, 30, 14, .5); }
 .mk-servicebook .fld .k { width: calc(44 * var(--mr)); flex: none; font: 600 max(12px, calc(8 * var(--mr) * var(--ts))) / 1 var(--f-item); letter-spacing: .14em; color: #5a0d06; }
 .mk-servicebook .mk-typed { font-size: max(15px, calc(12 * var(--mr) * var(--ts))); letter-spacing: .12em; color: #1b1810; }
 .mk-servicebook .mk-stamp { font-size: max(16px, calc(16 * var(--mr))); }
@@ -540,3 +540,18 @@ html.s6-paused #view canvas { filter: saturate(.7); transition: filter 150ms lin
 .mk-spread.controls .mk-page.right { align-items: stretch; }
 @media (max-aspect-ratio: 3/4) and (max-width: 760px) { .mk-tutorials .mk-detail { left: 16px; right: 16px; width: auto; top: auto; } }
 .part1 .skip { right: auto; } /* only as wide as its words: the hint bar sits beside it */
+
+/* ================================================================== touch (html.mk-touch): briefing buttons */
+.br-hints.touch { gap: 10px; }
+html.mk-touch .part1 .br-hints.touch { position: fixed; z-index: 4; left: 16px; right: 16px; top: auto; bottom: calc(12px + env(safe-area-inset-bottom)); justify-content: flex-end; }
+html.mk-touch .part1 .br-hints.touch .mk-touchbtn { min-width: 0; flex: 0 1 auto; }
+html.mk-touch .part1 .br-hints.touch .mk-touchbtn.go { margin-left: 0; }
+html.mk-touch .part1 .skip { display: none; } /* CONTINUE in the touch bar does the same (Esc = next part) */
+html.mk-touch .part2 .nav.touch { gap: 10px; width: 100%; justify-content: flex-end; }
+html.mk-touch .part2 .tourhint { min-height: 44px; min-width: 88px; padding: 0 16px; border: 1px solid rgba(201, 162, 74, .6); border-radius: 3px; background: rgba(12, 12, 7, .82); font-size: 14px; color: var(--cream); }
+html.mk-touch .part2 .tourhint.start { border-color: var(--brass); background: rgba(60, 46, 18, .9); }
+html.mk-touch .mk-nexttip { min-height: 44px; padding: 0 16px; border: 1px solid rgba(201, 162, 74, .6); border-radius: 3px; background: rgba(12, 12, 7, .82); color: var(--cream); font-size: 14px; }
+html.mk-touch .mk-nexttip .mk-cap { display: none; }
+.ui-paused .hint { pointer-events: auto; cursor: pointer; }
+html.mk-touch .ui-paused .hint { min-height: 44px; padding: 0 18px; border: 1px solid rgba(201, 162, 74, .6); border-radius: 3px; background: rgba(12, 12, 7, .82); }
+html.mk-touch .ui-paused .hint .mk-cap { display: none; }

@@ -16,6 +16,7 @@ import { CONFIG } from '../config.js';
 import { el, fmtTime } from './dom.js';
 import { labelHTML, medal, stamp } from './menu-kit.js';
 import { hasQuickSave } from '../save.js';
+import { isTouchUI } from './touch.js';
 
 const REASONS = [
   [/all commandos dead|all.*(dead|captured)/i, 'ALL YOUR MEN HAVE DIED OR HAVE BEEN CAPTURED.'],
@@ -153,7 +154,7 @@ export class Debrief {
     if (pw && !tutorial) lines.push({ text: `YOUR PASSWORD FOR THE NEXT MISSION IS ${pw}`, cls: 'pw' }); // [orig] string
     this._lines(box, lines);
     const f = el('div', 'mk-footer', box);
-    const press = el('p', 'press', f, 'PRESS ANY KEY TO CONTINUE');
+    const press = el('p', 'press', f, isTouchUI() ? 'TAP TO CONTINUE' : 'PRESS ANY KEY TO CONTINUE');
     this._armAt = performance.now() + (this.hud.game.manualTick ? 0 : 1200);
     this._later(this.hud.game.manualTick ? 0 : 1200, () => press.classList.add('on', 'mk-press'));
     this.root.onclick = () => this.stage === 'card' && performance.now() >= this._armAt && this._continue();
@@ -212,6 +213,7 @@ export class Debrief {
     const flow = this.hud.game.flow;
     const C = CONFIG.mission, per = C.starsPerRank;
     const box = this._show('debrief', 'debrief', 'black');
+    this.root.onclick = () => this._finish?.(); // a tap anywhere completes the roll-up, like any key
     const gold = flow?.gold ?? 0;
     const rankIx = (g) => Math.min(C.ranks.length - 1, Math.floor(Math.max(0, g) / per));
     const beforeIx = rankIx(gold - (p.merit || 0)), nowIx = rankIx(gold);

@@ -30,6 +30,7 @@ import { Help } from './help.js';
 import { Loading } from './loading.js';
 import { Backdrop } from './backdrop.js';
 import { Boot } from './boot.js';
+import { installTouch } from './touch.js';
 import { KEY_BINDINGS } from '../engine/input.js';
 
 function ensureStylesheet() {
@@ -95,6 +96,7 @@ export class HUD {
     this.loading = new Loading(this);
     this.backdrop = new Backdrop(this);
     this.boot = new Boot(this);
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') this.touch = installTouch(this); // phones: taps everywhere
     this.toastEl = el('div', 'mk-toast', root);
     this.toastEl.hidden = true;
     this._applyScale();
@@ -502,6 +504,7 @@ export class HUD {
     this.tooltips.update(dt);
     this.kit.update(dt);
     this.backdrop.update(dt);
+    this.touch?.update();
   }
 
   dispose() {

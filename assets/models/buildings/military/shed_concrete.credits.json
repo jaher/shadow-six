@@ -1,0 +1,247 @@
+{
+ "asset": "shed_concrete",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "concrete_formwork": {
+   "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+   "license": "CC0-1.0",
+   "derived_from": {
+    "source": "Poly Haven",
+    "id": "concrete_wall_008",
+    "license": "CC0-1.0"
+   },
+   "label": "Board-formed concrete (formwork, ties, lifts)",
+   "files": {
+    "diff": {
+     "1k": "1k/concrete_formwork_diff",
+     "2k": "2k/concrete_formwork_diff"
+    },
+    "nor": {
+     "1k": "1k/concrete_formwork_nor",
+     "2k": "2k/concrete_formwork_nor"
+    },
+    "arm": {
+     "1k": "1k/concrete_formwork_arm",
+     "2k": "2k/concrete_formwork_arm"
+    }
+   }
+  },
+  "concrete_slab": {
+   "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+   "license": "CC0-1.0",
+   "derived_from": {
+    "source": "Poly Haven",
+    "id": "concrete_wall_008",
+    "license": "CC0-1.0"
+   },
+   "label": "Weathered concrete slab (top surfaces)",
+   "files": {
+    "diff": {
+     "1k": "1k/concrete_slab_diff",
+     "2k": "2k/concrete_slab_diff"
+    },
+    "nor": {
+     "1k": "1k/concrete_slab_nor",
+     "2k": "2k/concrete_slab_nor"
+    },
+    "arm": {
+     "1k": "1k/concrete_slab_arm",
+     "2k": "2k/concrete_slab_arm"
+    }
+   }
+  },
+  "curtain": {
+   "source": "procedural (tools/make_procedural.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Curtain / lace hint",
+   "files": {
+    "diff": {
+     "1k": "1k/curtain_diff",
+     "2k": "2k/curtain_diff"
+    },
+    "nor": {
+     "1k": "1k/curtain_nor",
+     "2k": "2k/curtain_nor"
+    },
+    "arm": {
+     "1k": "1k/curtain_arm",
+     "2k": "2k/curtain_arm"
+    }
+   }
+  },
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  },
+  "door_planks": {
+   "source": "Poly Haven",
+   "id": "weathered_peeling_timber",
+   "url": "https://polyhaven.com/a/weathered_peeling_timber",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Peeling Timber",
+   "label": "Weathered peeling timber (doors)",
+   "files": {
+    "diff": {
+     "2k": "2k/door_planks_diff",
+     "1k": "1k/door_planks_diff"
+    },
+    "nor": {
+     "2k": "2k/door_planks_nor",
+     "1k": "1k/door_planks_nor"
+    },
+    "arm": {
+     "2k": "2k/door_planks_arm",
+     "1k": "1k/door_planks_arm"
+    }
+   }
+  },
+  "glass_dirty": {
+   "source": "procedural (tools/make_procedural.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Dirty window glass",
+   "files": {
+    "diff": {
+     "1k": "1k/glass_dirty_diff",
+     "2k": "2k/glass_dirty_diff"
+    },
+    "nor": {
+     "1k": "1k/glass_dirty_nor",
+     "2k": "2k/glass_dirty_nor"
+    },
+    "arm": {
+     "1k": "1k/glass_dirty_arm",
+     "2k": "2k/glass_dirty_arm"
+    }
+   }
+  },
+  "interior_dark": {
+   "source": "procedural (tools/make_procedural.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Interior darkness card",
+   "files": {
+    "diff": {
+     "1k": "1k/interior_dark_diff",
+     "2k": "2k/interior_dark_diff"
+    },
+    "nor": {
+     "1k": "1k/interior_dark_nor",
+     "2k": "2k/interior_dark_nor"
+    },
+    "arm": {
+     "1k": "1k/interior_dark_arm",
+     "2k": "2k/interior_dark_arm"
+    }
+   }
+  },
+  "steel_painted": {
+   "source": "Poly Haven",
+   "id": "rusty_painted_metal",
+   "url": "https://polyhaven.com/a/rusty_painted_metal",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Painted Metal",
+   "label": "Painted riveted steel (bridge grey-green)",
+   "files": {
+    "diff": {
+     "2k": "2k/steel_painted_diff",
+     "1k": "1k/steel_painted_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_painted_nor",
+     "1k": "1k/steel_painted_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_painted_arm",
+     "1k": "1k/steel_painted_arm"
+    }
+   }
+  },
+  "timber_beam": {
+   "source": "Poly Haven",
+   "id": "wood_planks_grey",
+   "url": "https://polyhaven.com/a/wood_planks_grey",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Grey",
+   "label": "Grey structural timber (beams, rafters)",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_beam_diff",
+     "1k": "1k/timber_beam_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_beam_nor",
+     "1k": "1k/timber_beam_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_beam_arm",
+     "1k": "1k/timber_beam_arm"
+    }
+   }
+  },
+  "wood_paint": {
+   "source": "Poly Haven",
+   "id": "weathered_peeling_timber",
+   "url": "https://polyhaven.com/a/weathered_peeling_timber",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Peeling Timber",
+   "label": "Pale painted wood base (tint via kit_tint for shutters/frames)",
+   "files": {
+    "diff": {
+     "2k": "2k/wood_paint_diff",
+     "1k": "1k/wood_paint_diff"
+    },
+    "nor": {
+     "2k": "2k/wood_paint_nor",
+     "1k": "1k/wood_paint_nor"
+    },
+    "arm": {
+     "2k": "2k/wood_paint_arm",
+     "1k": "1k/wood_paint_arm"
+    }
+   }
+  }
+ }
+}

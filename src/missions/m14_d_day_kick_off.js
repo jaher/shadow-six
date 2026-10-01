@@ -60,7 +60,7 @@ const GUN = {
   g1: { x: 54, z: 125.5, w: 8, d: 9, rot: -45 }, // front 45: over the S beach
   g2: { x: 90, z: 99.5, w: 12, d: 9, rot: -30 }, // front 60: over the E beach
   g3: { x: 90.5, z: 60, w: 11, d: 10, rot: 0 }, // turret block (target central)
-  g4: { x: 42, z: 48, w: 9, d: 9, rot: 0 }, // open pit + apron
+  g4: { x: 42, z: 48, w: 9, d: 9, rot: 180 }, // open pit + apron (square, symmetric: rot 180 only trains the gun N)
 };
 const F1 = gunFrame(GUN.g1), F2 = gunFrame(GUN.g2);
 const gun = (id, variant, h, extra = {}) => {
@@ -81,10 +81,20 @@ const RAMP_G2 = { a: [...F2(-4, -11), 0], b: [...F2(-4, -3.6), ROOF_Y - 0.1], wi
 
 // ---------------------------------------------------------------- small builders
 const rock = (id, x, z, w, d, h = 2.2) => ({ id, type: 'rocks', variant: 'rock_coast', x, z, rot: 0, w, d, h, block: 2 });
-const tree = (id, x, z, k) => ({ id, type: 'tree', variant: 'broadleaf_normandy', x, z, r: 0.5, h: 8 + (k % 3), seed: 1401 + k });
-const tetra = (id, x, z) => ({ id, type: 'crates', variant: 'beach_tetrahedron', label: 'Beach obstacle', x, z, rot: deg(30), w: 1.4, d: 1.4, h: 1.4, block: 1 });
+// art pass: tree_13 by bar_n's S wall is a narrow Lombardy poplar (a spreading crown reached into the barracks);
+// tree_10/11/12 round house_t ("the house near the tank") are young birches, low and narrow, so the landmark reads
+// from the default camera (full-size oaks/planes S of it hid its roof)
+const TREE_LOOK = { tree_13: { species: 'poplar' }, tree_10: { species: 'birch', h: 6.5 }, tree_11: { species: 'birch', h: 6 },
+  tree_12: { species: 'birch', h: 6.5 } };
+const tree = (id, x, z, k) => ({ id, type: 'tree', variant: 'broadleaf_normandy', x, z, r: 0.5, h: 8 + (k % 3), seed: 1401 + k,
+  ...(TREE_LOOK[id] || {}) });
+// art pass: every third beach obstacle is a steel Czech hedgehog (same footprint and block as the concrete tetrahedra)
+const tetra = (id, x, z, k = 0) => ({ id, type: 'crates', variant: k % 3 === 2 ? 'czech_hedgehog' : 'beach_tetrahedron', label: 'Beach obstacle', x, z,
+  rot: deg(30), w: 1.4, d: 1.4, h: 1.4, block: 1 });
 const tooth = (id, x, z) => ({ id, type: 'crates', variant: 'dragons_teeth', label: "Dragon's tooth", x, z, rot: 0, w: 1.2, d: 1.2, h: 1.2, block: 1 });
-const wire = (id, points) => ({ id, type: 'fence', variant: 'barbed_wire_hedgehog', points, h: 1.2 });
+// dossier §5.3: barbed wire with a Czech hedgehog every 3 m — `hedgehogEvery` steers feat/barbed-wire's belt recipes
+// (wire-obstacles: hedgehog_belt / concertina with a hedgehog variant), which replace the plain fence look
+const wire = (id, points) => ({ id, type: 'fence', variant: 'barbed_wire_hedgehog', points, h: 1.2, hedgehogEvery: 3 });
 const drum = (id, x, z) => ({ id, type: 'barrels', variant: 'fuel_explosive', x, z, r: 0.3, h: 0.9, explosive: 'barrel', carriable: true, destructible: true, hp: 1 });
 const nestRing = (id, x, z, h) => ({ id, type: 'sandbags', variant: 'mg_nest_sandbag', x, z, rot: deg(h), ring: { r: 1.6 }, h: 1.0, block: 1 });
 
@@ -103,14 +113,17 @@ const STRUCTURES = [
   { id: 'bar_n', type: 'flat_roof_house', variant: 'barracks_concrete_2st', label: 'Barracks', x: 57.5, z: 68.5, rot: 0, w: 12, d: 8, h: BAR_ROOF_Y,
     roofY: BAR_ROOF_Y, roofWalk: true, mat: 'concrete', garrison: true, destructible: true, destroyedBy: ['explosion'], hp: 100, door: deg(180) },
   { id: 'flag_n', type: 'sign', variant: 'flagpole_german', x: 60, z: 58, rot: 0, w: 0.3, d: 0.3, h: 6, block: 0 },
-  { id: 'house_t', type: 'house', variant: 'house_concrete_2st', label: 'House', x: 19.5, z: 84.5, rot: 0, w: 9, d: 7, h: 6, mat: 'concrete' },
-  { id: 'hut_g4', type: 'hut', variant: 'shed_concrete', label: 'Shed', x: 52, z: 48.5, rot: 0, w: 6, d: 5, h: 3, mat: 'concrete' },
-  { id: 'van_g4', type: 'crates', variant: 'van_parked', label: 'Van', x: 57.8, z: 48.5, rot: deg(90), w: 4.5, d: 2, h: 2.2, block: 2 },
+  // (chimney: false — the modelled stacks / stove pipe stand in for the FX placeholder brick stack)
+  { id: 'house_t', type: 'house', variant: 'house_concrete_2st', label: 'House', x: 19.5, z: 84.5, rot: 0, w: 9, d: 7, h: 6, mat: 'concrete', chimney: false },
+  { id: 'hut_g4', type: 'hut', variant: 'shed_concrete', label: 'Shed', x: 52, z: 48.5, rot: 0, w: 6, d: 5, h: 3, mat: 'concrete', chimney: false },
+  { id: 'van_g4', type: 'crates', variant: 'van_parked', label: 'Van', x: 57.8, z: 48.5, rot: deg(90), w: 4.5, d: 2, h: 2.2, block: 2,
+    vehicleArt: 'opel_blitz_cargo' }, // the light lorry by the gun-4 shed: a parked Opel Blitz (library model, decor + cover)
   { id: 'pb_w', type: 'bunker', variant: 'blockhouse_small', label: 'Blockhouse', x: 37, z: 114, rot: 0, w: 6, d: 6, h: 2.5 },
   { id: 'bh_g1', type: 'bunker', variant: 'blockhouse_small', label: 'Blockhouse', x: 47.5, z: 135, rot: 0, w: 5, d: 5, h: 2.5 },
   // --- the anti-tank wall (§5.3): two concrete segments, gap_n and gap_mid open
   { id: 'w1', type: 'sea_wall', variant: 'at_wall_segment', label: 'Anti-tank wall', points: [[23.5, 117], [31, 129]], width: 1.2, h: 2.5 },
-  { id: 'w2', type: 'sea_wall', variant: 'at_wall_segment', label: 'Anti-tank wall', points: [[35, 133], [44, 145]], width: 1.2, h: 2.5 },
+  { id: 'w2', type: 'sea_wall', variant: 'at_wall_segment', label: 'Anti-tank wall', points: [[35, 133], [44, 145]], width: 1.2, h: 2.5,
+    clipAllow: ['rk_spit_sw'] }, // its S end is built into the SW rock spit (dossier §5.3)
   // --- wire belts (see-through)
   wire('wr_sw1', [[1, 168], [14, 167.5]]), wire('wr_sw2', [[8, 181.5], [18, 176.5]]), wire('wr_sw3', [[22, 156], [34, 155]]),
   wire('wr_s1', [[59, 123], [70, 126.5]]), wire('wr_s2', [[45.5, 147.5], [48.5, 150]]),
@@ -122,7 +135,7 @@ const STRUCTURES = [
   ...[[4, 162], [12, 163], [19, 153.5], [24, 161], [33, 157.5], [37, 163], [11, 175], [6, 177.5], [14, 173.5], [17, 171.5], [31, 168],
     [57, 140.5], [57, 151.5], [48, 153.5], [72, 136], [73, 143], [79, 127.5], [80, 139],
     [105, 95], [108, 98.5], [100, 108], [88, 32], [93, 36.5], [96, 29.5], [104, 43], [100, 51.5], [109, 55], [108, 59.5], [110, 67.5],
-    [12, 40], [20, 45], [27, 36], [35, 39], [45, 32.5], [55, 37.5], [5, 46]].map(([x, z], k) => tetra(`tt_${k + 1}`, x, z)),
+    [12, 40], [20, 45], [27, 36], [35, 39], [45, 32.5], [55, 37.5], [5, 46]].map(([x, z], k) => tetra(`tt_${k + 1}`, x, z, k)),
   ...[[30.5, 50], [31, 52.5], [31.5, 55], [33.5, 50.5], [34, 53], [34.5, 55.5], [44.5, 57.5], [46, 59.5]].map(([x, z], k) => tooth(`dt_${k + 1}`, x, z)),
   // --- MG nests (sandbag rings; the guns themselves are `mgNest` vehicles)
   nestRing('mg1_ring', 88, 136, 200), nestRing('mg2_ring', 93, 91.5, 120), nestRing('mg3_ring', 93, 75.5, 330), nestRing('mg4_ring', 83.5, 52, 300),
@@ -140,6 +153,14 @@ const STRUCTURES = [
     .map(([x, z], k) => tree(`tree_${k + 1}`, x, z, k)),
   // --- the red buoy (extraction point)
   { id: 'buoy', type: 'sign', variant: 'buoy_red', label: 'Buoy', x: 122, z: 191, r: 0.6, h: 1.5, block: 0 },
+  // --- art pass set dressing (visual only, block 0): 'Achtung Minen' boards on the seaward side of the wire belts,
+  // a 'Halt! Sperrgebiet' board on the N beach, ammunition and stores stacked by the garrisons
+  ...[[7, 169.5], [31, 153.3], [66, 123.4], [99.5, 89.3], [89.5, 28.6], [27, 23.6], [52, 38.8], [107.2, 66], [9, 34.5], [3, 49]]
+    .map(([x, z], k) => ({ id: `minen_${k + 1}`, type: 'sign', variant: 'sign_minen', x, z, rot: deg((k * 67) % 360), r: 0.2, h: 1.5, block: 0 })),
+  { id: 'sperr_n', type: 'sign', variant: 'sign_sperrgebiet', x: 42.5, z: 37.6, rot: deg(-4), w: 1.9, d: 0.4, h: 1.8, block: 0 },
+  { id: 'ammo_bs', type: 'crates', variant: 'ammo_boxes', x: 61.6, z: 102.2, rot: 0, w: 1.4, d: 0.9, h: 0.7, block: 0 },
+  { id: 'ammo_bn', type: 'crates', variant: 'ammo_boxes', x: 49.8, z: 63.2, rot: 0, w: 1.4, d: 0.9, h: 0.7, block: 0 },
+  { id: 'stores_g3', type: 'crates', variant: 'crate_stack', x: 83.2, z: 64.6, rot: deg(90), w: 1.6, d: 1.0, h: 0.9, block: 0 },
 ];
 
 // ---------------------------------------------------------------- enemies (dossier §8; `prima` = Prima's number)
@@ -299,6 +320,30 @@ export default {
     { type: 'path', terrain: 'ground', points: [[79.5, 75], [92, 68]], width: 4 },
     { type: 'path', terrain: 'ground', points: [[70, 105], [80, 97]], width: 4 },
   ],
+  // art pass (step 3p road network, visual only: grid false keeps the layout's dirt tracks as the nav terrain):
+  // rutted dirt on the supply track, concrete hardstands at the two garrison doors
+  roads: [
+    { id: 'supply_track', surface: 'dirt', points: [[22, 114], [40, 108.5], [55, 111.5], [68, 108], [78.5, 90], [79.5, 75], [78, 66], [74, 57], [64, 55],
+      [50, 58], [30, 62], [12, 72]], width: 3.4, wear: 0.7, puddles: 0.4, weeds: 0.4, grid: false },
+  ],
+  pavements: [
+    { id: 'pad_bar_n', surface: 'concrete', points: [[46.8, 65.2], [51.4, 65.2], [51.4, 71.8], [46.8, 71.8]], cracks: 0.5, weeds: 0.5, patches: 0.2, edge: 'ragged', grid: false },
+    { id: 'pad_bar_s', surface: 'concrete', points: [[51.2, 107.1], [59.8, 107.1], [59.8, 109.6], [51.2, 109.6]], cracks: 0.5, weeds: 0.4, edge: 'ragged', grid: false },
+  ],
+  // field telephone net between the garrisons and the batteries, blackout lamps at the barracks doors, unit boards
+  furniture: [
+    { type: 'telegraph', points: [[48.5, 101.5], [63.5, 101], [73.5, 98.5]], spacing: 12, h: 6.5, wires: 2, block: false },
+    { type: 'telegraph', points: [[84, 67.5], [79.5, 61.5], [70, 58.8], [60, 61.4], [48, 61.6], [38.5, 56.5]], spacing: 12, h: 6.5, wires: 2, block: false },
+    { type: 'lamp', variant: 'wall_lamp', x: 51.45, z: 66.6, rot: Math.PI, hooded: true, block: false },
+    { type: 'lamp', variant: 'wall_lamp', x: 57.7, z: 107.05, rot: Math.PI / 2, hooded: true, block: false },
+    { type: 'floodlight', x: 47.5, z: 101.2, rot: deg(150), block: false },
+    { type: 'sign', variant: 'wehrmacht', x: 17.6, z: 113.6, rot: deg(-30), text: 'SPERRGEBIET\nBETRETEN VERBOTEN', block: false },
+    { type: 'sign', variant: 'wehrmacht', x: 49.6, z: 72.8, rot: Math.PI, text: 'KP.-GEF.STD.', block: false },
+    { type: 'sign', variant: 'wehrmacht', x: 53.6, z: 116.6, rot: deg(-20), text: 'BTTR. LA RIVIERE', block: false },
+  ],
+  // vegetation tags for the vegetation pass (docs/vegetation.md §1 M14): Normandy coast in late May
+  vegetation: { region: 'normandy_coast', month: 5, dune: ['marram', 'sea_kale', 'sea_rocket'], trees: ['oak', 'ash', 'elm'],
+    shrubs: ['hawthorn', 'blackthorn', 'gorse'], meadow: ['cow_parsley', 'buttercup', 'red_campion'] },
   structures: STRUCTURES,
   items: [],
   interactables: [],
@@ -356,15 +401,17 @@ export default {
     // T4 [rec]: soft-lock, fewer charges left than guns standing
     { on: 'tick', when: (_p, w) => outOfCharges(w), do: [{ fail: 'YOU NO LONGER HAVE THE EXPLOSIVES TO DESTROY EVERY GUN.' }] },
   ],
+  // art pass: the ridge and the rock spits keep their realistic `cliff` dressing (art/dressing.js rock massifs);
+  // only the sand drift needs the script's ramp mesh
   script: m14Script({
-    levels: [{ poly: RIDGE, y: RIDGE_Y }],
-    rocks: ROCKS,
     ramps: [RAMP_G2],
-    hide: ['ridge', 'ramp_g2', ...ROCKS.map((r) => r.id)],
+    hide: ['ramp_g2'],
   }),
   // the rowboat is on the map from the start; the exit counts once o1 is done and every living commando is aboard
   extraction: { vehicleId: 'boat', exit: { x: 122, z: 191, r: 6 }, spawnWhen: [] },
   alarmFail: null,
+  // art pass: the Atlantic Wall assets are visuals only; roofs, ladders and climb links stay the layout's (§4.2, §7.1)
+  libraryNav: false,
   par: { time: 900 },
   cameraStart: { x: 16, z: 190, zoom: 1 },
   startDisguised: [],

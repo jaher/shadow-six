@@ -16,6 +16,7 @@ import { UI } from './ui-config.js';
 import { catalogueEntry, formatMissionDate } from './catalogue.js';
 import { europeSVG, project } from './europe.js';
 import { tourStops } from './tour.js';
+import { isTouchUI } from './touch.js';
 
 /**
  * Theatre-correct photo set [archival, tinted, cold] for a mission's briefing slides (names in assets/ui/briefing,
@@ -106,16 +107,21 @@ export class Briefing {
       const r = el('p', 'rules', right, `Standing orders: ${rules.join(' ')}`);
       r.style.setProperty('--d', `${450 + paras.length * 200}ms`);
     }
-    const skip = el('button', 'skip', box, 'Press Escape to skip');
+    const touch = isTouchUI();
+    const skip = el('button', 'skip', box, touch ? 'SKIP ›' : 'Press Escape to skip');
     skip.type = 'button';
     skip.addEventListener('click', (e) => { e.stopPropagation(); this.next(); });
-    // the shared KeyHintBar for the rest (BEL's own line above keeps Esc)
-    const bar = el('nav', 'mk-hints br-hints', box);
+    // the shared KeyHintBar for the rest (BEL's own line above keeps Esc); phones get real PREV / NEXT buttons
+    const bar = el('nav', `mk-hints br-hints ${touch ? 'touch' : ''}`.trim(), box);
     bar.setAttribute('aria-label', 'Controls');
-    for (const [c, label, fn] of [['← →', 'SLIDE', () => this.advance()], ['↵', 'NEXT PART', () => this.next()]]) {
-      const h = el('button', 'mk-hint', bar);
+    const hints = touch
+      ? [[null, '‹ PREV', () => this.back()], [null, 'NEXT ›', () => this.advance()], [null, 'CONTINUE', () => this.next(), 'go']]
+      : [['← →', 'SLIDE', () => this.advance()], ['↵', 'NEXT PART', () => this.next()]];
+    for (const [c, label, fn, cls] of hints) {
+      const h = el('button', `mk-hint ${touch ? `mk-touchbtn ${cls || ''}` : ''}`.trim(), bar);
       h.type = 'button';
-      h.append(cap(c), label);
+      if (c) h.append(cap(c));
+      h.append(label);
       h.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
     }
     if (this.slides.some((f) => f.classList.contains('capture'))) this._captureLater(def);
@@ -333,9 +339,11 @@ export class Briefing {
       const b = btn(label, fn, nav, `tourhint ${cls}`.trim());
       return b;
     };
-    hint('← PREV', () => this.gotoStop(Math.max(0, this.stopIx - 1)));
-    hint('SPACE NEXT', () => this.gotoStop(this.stopIx + 1));
-    hint('ESC START MISSION', () => this.finish(), 'start');
+    const touch = isTouchUI();
+    if (touch) nav.classList.add('touch');
+    hint(touch ? '‹ PREV' : '← PREV', () => this.gotoStop(Math.max(0, this.stopIx - 1)));
+    hint(touch ? 'NEXT ›' : 'SPACE NEXT', () => this.gotoStop(this.stopIx + 1));
+    hint(touch ? 'START MISSION' : 'ESC START MISSION', () => this.finish(), 'start');
     this.marker = el('div', 'marker', this.root);
     this.marker.hidden = true;
     this.ring = this.marker; // legacy name (tests / tour)

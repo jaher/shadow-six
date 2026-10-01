@@ -99,8 +99,9 @@ export function isExplosiveBarrel(s) {
 
 export function buildStructure(s, ctx) {
   const r = buildStructureCore(s, ctx);
-  // wall walks get a plank deck on posts, stopping at the wall's inner face (units never stand in the air)
-  if (s.walkways?.length && ctx.library !== false && !ctx.navOnly && r.object3d) {
+  // wall walks get a plank deck on posts, stopping at the wall's inner face (units never stand in the air);
+  // a rock massif (`cliff`) is its own walking surface: its broken top carries the units, no deck
+  if (s.walkways?.length && s.type !== 'cliff' && ctx.library !== false && !ctx.navOnly && r.object3d) {
     const strips = walkwayStrips(s);
     if (strips.length) {
       const deck = buildWalkDeck(strips); // world coords → into the structure's frame

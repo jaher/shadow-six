@@ -19,8 +19,12 @@ import { createVehicleVisual, vehicleLibraryReady, resolveVehicle } from './vehi
 import { vehicleArtReady, vehicleArtContext, noteVehicleArt, addVehicleTicker, markShared } from './vehicle-model.js';
 import { createWindsockSock } from './windsock-sock.js';
 
-/** Structure type (+ variant hint) → library asset / type, or null (keep the placeholder, logged). */
-export function staticVehicleAsset(type, variant = '') {
+/**
+ * Structure type (+ variant hint) → library asset / type, or null (keep the placeholder, logged).
+ * A structure of any other type opts in with `vehicleArt: '<library asset>'` (e.g. a parked lorry kept as decor/cover).
+ */
+export function staticVehicleAsset(type, variant = '', def = null) {
+  if (def?.vehicleArt) return def.vehicleArt;
   const v = String(variant || '').toLowerCase();
   switch (type) {
     case 'train_car':
@@ -44,13 +48,15 @@ export function staticVehicleAsset(type, variant = '') {
 }
 
 const STATIC_TYPES = new Set(['train_car', 'railway_gun', 'aa_gun', 'plane', 'uboat', 'windsock', 'fuel_bowser', 'bomb_trolley', 'starter_cart', 'chocks']);
+/** Is this structure drawn with a library vehicle? (a static type, or an explicit `vehicleArt` opt-in) */
+const isStaticVehicle = (type, def) => STATIC_TYPES.has(type) || !!def?.vehicleArt;
 
 /** Library assets the mission's static structures need (for the preload). */
 export function staticVehicleAssets(def) {
   const out = new Set();
   for (const s of def?.structures || []) {
-    if (!STATIC_TYPES.has(s?.type)) continue;
-    const a = staticVehicleAsset(s.type, s.variant);
+    if (!isStaticVehicle(s?.type, s)) continue;
+    const a = staticVehicleAsset(s.type, s.variant, s);
     if (a) out.add(a);
   }
   return [...out].sort();
@@ -74,8 +80,8 @@ export function dressStaticVehicles(world, def) {
   if (!vehicleArtReady() || !vehicleLibraryReady() || !world?.structures) return out;
   const theater = vehicleArtContext().theater;
   for (const [id, s] of world.structures) {
-    if (!STATIC_TYPES.has(s.type) || !s.object3d) continue;
-    const asset = staticVehicleAsset(s.type, s.def?.variant);
+    if (!isStaticVehicle(s.type, s.def) || !s.object3d) continue;
+    const asset = staticVehicleAsset(s.type, s.def?.variant, s.def);
     if (!asset || !resolveVehicle(asset)) { noteVehicleArt(`${id} (${s.type}${s.def?.variant ? ' ' + s.def.variant : ''}): no library model (placeholder)`); continue; }
     const vis = createVehicleVisual(asset, { theater, seed: id.length * 31 + (s.def?.x | 0), paint: s.def?.paint, destroyed: !!s.def?.wreck });
     if (!vis) continue;

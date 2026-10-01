@@ -260,7 +260,10 @@ export function buildCliff(p) {
   let arc = 0;
   const arcs = ring.map((q, i) => { const a = arc; const nq = ring[(i + 1) % N]; arc += Math.hypot(nq[0] - q[0], nq[1] - q[1]); return a; });
   const pw = Math.max(...poly.map((q) => q[0])) - Math.min(...poly.map((q) => q[0])), pd = Math.max(...poly.map((q) => q[1])) - Math.min(...poly.map((q) => q[1]));
-  const batK = Math.min(0.3 * h, 0.2 * Math.min(pw, pd));   // top inset: 30 % of h, less on narrow outcrops
+  // a walkable massif (mission `walkways` on its top, e.g. the M14 ridge, or `flatTop`) keeps a near-flat top just under
+  // the walking height h and steep faces, so units on it stand on rock, never in it or in the air
+  const flat = !!(p.flatTop || p.walkways?.length);
+  const batK = flat ? Math.min(0.3, 0.08 * h) : Math.min(0.3 * h, 0.2 * Math.min(pw, pd));   // top inset: 30 % of h, less on narrow outcrops
   const top = [], offs = [];
   for (let l = 0; l <= levels; l++) {
     const t = l / levels, y = y0 + (h - y0) * t;
@@ -273,7 +276,8 @@ export function buildCliff(p) {
       const bat = batK * Math.pow(tt, 1.15);                                                     // battered walls
       // the rim never bulges inwards (the top rings start from the clean inset contour: no folds / holes)
       const d = (l === levels ? Math.max(-0.2, 2.1 * col + 0.35 * fine) : 2.1 * col + 0.35 * fine + 0.3 * ledge) - bat;
-      const yy = l === levels ? h + 0.9 * fbm(x * 0.2, 3.1, z * 0.2, seed + 3, 3) : y + (l > 0 ? 0.35 * fine : 0);
+      const yy = l === levels ? (flat ? h - 0.1 - 0.3 * Math.abs(fbm(x * 0.2, 3.1, z * 0.2, seed + 3, 3)) : h + 0.9 * fbm(x * 0.2, 3.1, z * 0.2, seed + 3, 3))
+        : Math.min(y + (l > 0 ? 0.35 * fine : 0), flat ? h - 0.1 : Infinity);
       // batter through a mitred inset of the polygon (per-vertex normals pushed the corners past their neighbours);
       // the noise alone goes along the vertex normal
       const O = offs[l] || (offs[l] = offsetPoly(poly, bat)), [e, t] = edgeOf[k], A = O[e], B = O[(e + 1) % O.length];
@@ -305,7 +309,8 @@ export function buildCliff(p) {
       const [rx, y, rz] = top[i], [e, t] = edgeOf[i], A = off[e], B = off[(e + 1) % off.length];
       const X = r === 0 ? rx : A[0] + (B[0] - A[0]) * t, Z = r === 0 ? rz : A[1] + (B[1] - A[1]) * t;
       const k = Math.pow(r / RINGS, 0.8);   // blend from the rim height into the rolling top (no step at the rim)
-      const Y = (y + 0.05) * (1 - k) + (h + 0.6 + 1.6 * fbm(X * 0.09, 7.7, Z * 0.09, seed + 5, 3) + 0.4 * fbm(X * 0.5, 1.3, Z * 0.5, seed + 6, 2)) * k;
+      const Y = flat ? (y + 0.05) * (1 - k) + (h - 0.06 - 0.14 * Math.abs(fbm(X * 0.3, 7.7, Z * 0.3, seed + 5, 3))) * k
+        : (y + 0.05) * (1 - k) + (h + 0.6 + 1.6 * fbm(X * 0.09, 7.7, Z * 0.09, seed + 5, 3) + 0.4 * fbm(X * 0.5, 1.3, Z * 0.5, seed + 6, 2)) * k;
       pos.push(X, Y, Z); uv.push(X / 9 + 0.37, Z / 9 + 0.61);   // wider tiling seen from above
     }
   }

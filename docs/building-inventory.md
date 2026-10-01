@@ -101,7 +101,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `barracks_rendered_hip` | barracks | White-rendered barracks with a snowy hip roof | Norway | M7 (×2-3) | B, D, E | 20×9×7 | VAR:norway |
 | `barracks_desert` | barracks | Flat-roof desert barracks. Some have guards on the roof | N. Africa | M8, M9, M10, M11, M12 | B, D, R | 18×8×4 | desert |
 | `barracks_corrugated_gable` | barracks | Long corrugated-iron gable barracks with a flag; brick or timber hipped corrugated in M19 | Desert/Germany | M10 (NE), M19 (×2-3) | B, D | 24×9×6 | VAR:military |
-| `barracks_concrete_2st` | barracks | 2-storey flat-roof grey concrete barracks/blockhouse with outside stairs | Atlantic Wall | M14 (4-5) | B, E, R, L | 16×10×7 | NEW |
+| `barracks_concrete_2st` | barracks | 2-storey flat-roof grey concrete barracks/blockhouse with outside stairs | Atlantic Wall | M14 (4-5) | B, E, R, L | 16×10×7 | BUILT (M14 pass: `barracks_concrete_2st`, `barracks_concrete_1st`) |
 | `hut_timber_barrack` | hut | Small wooden barrack hut: plank walls, grey shingle roof | Germany | M20 (about 12, S courts), B5 (small wooden huts) | E | 10×5×4 | NEW |
 | `hut_pow_long` | hut | Long wooden prisoner hut on a raised floor, grey pitched roof. M17 variant: dark timber, one cross-gable | Germany/Alsace | B7 (about 10), M17 (5-6) | E | 30×8×5 | VAR:military (stockade) |
 | `nissen_hut` | hut | Corrugated half-cylinder (Nissen/Quonset) hut | Norway/France | M2 (in the camp), M13 (×3) | E | 10×6×4 | NEW |
@@ -143,19 +143,19 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `pillbox_round` | bunker | Round concrete pillbox, possibly with a cupola | Belgium/Alsace/Prussia/Desert | M16/M18 (both bridge ends, D in M18), M17 (riverside, D), M8 (SW, with cupola) [img], B5 | D | 6 Ø × 3 | NEW |
 | `bunker_sandbag_thatch` | bunker | Sandbag bunker with a thatch or timber roof | N. Africa | M9 (**objective**) | **D** | 8×6×2.5 | VAR:military |
 | `dugout_airfield` | bunker | Long, low, log/sandbag-roofed dugout bunker | N. Africa | M10 (airfield NW; it releases patrols) [img] | — | 14×6×2.5 | NEW |
-| `casemate_embrasure` | casemate_gun | Concrete casemate/blockhouse with a gun embrasure (Atlantic Wall) | France | M14 (×2) | **D** | 12×10×5 | military |
-| `gun_turret_block` | casemate_gun | Concrete block with a rotating gun turret | France | M14 | **D** | 10×10×5 | NEW |
-| `gun_pit_open` | new | Open circular concrete gun pit, for a coastal gun or a flak/AA gun | France/Guernsey/Norway/Desert | M14 (coastal), M7 (×2 210 mm coastal guns), M8 (210 mm on the escarpment), B1 (×5 AA `ANTI01-05`) | **D** | 10 Ø × 1.5 | NEW |
+| `casemate_embrasure` | casemate_gun | Concrete casemate/blockhouse with a gun embrasure (Atlantic Wall) | France | M14 (×2) | **D** | 12×10×5 | BUILT (M14 pass: `casemate_h612` 8×9, `casemate_h679` 12×9, + destroyed) |
+| `gun_turret_block` | casemate_gun | Concrete block with a rotating gun turret | France | M14 | **D** | 10×10×5 | BUILT (M14 pass, + destroyed) |
+| `gun_pit_open` | new | Open circular concrete gun pit, for a coastal gun or a flak/AA gun | France/Guernsey/Norway/Desert | M14 (coastal), M7 (×2 210 mm coastal guns), M8 (210 mm on the escarpment), B1 (×5 AA `ANTI01-05`) | **D** | 10 Ø × 1.5 | BUILT (M14 pass: 155 mm GPF on a Kreisbettung, + destroyed) |
 | `aa_ring_sandbag` | aa_gun | Circular sandbag AA emplacement | Germany | B6, B5 (apron AA) | D | 7 Ø × 1.2 | VAR:military |
 | `flak_rampart` | aa_gun | Flakvierling on a castle rampart, with crates | Germany | M20 (N rampart) | D | 4×4×2 | VAR:military |
 | `at_gun_emplacement` | new | Fixed anti-tank or pier gun emplacement: a sandbag or concrete gun position | France/Germany | M13 (pier gun by the floodgate), M20 (N rampart, covers the Panzer III) | — | 5×5×1.5 | NEW |
 | `blockhouse_wolfsschanze` | bunker | Flat-roofed camouflaged concrete blockhouse; one has a rooftop platform with stairs. Includes a long low concrete barracks | Prussia | B5 (SE compound) | R, L, B | 20×12×6 | NEW |
 | `bunker_cupola` | bunker | Round concrete bunker with an armoured cupola | Prussia | B5 | — | 8 Ø × 3 | NEW (shares a mesh with `pillbox_round`) |
-| `at_wall_segment` | wall | Free-standing concrete anti-tank wall segment | France | M14 (its watchers trigger the alarm) | — | 8×1×2.5 | NEW |
+| `at_wall_segment` | wall | Free-standing concrete anti-tank wall segment | France | M14 (its watchers trigger the alarm) | — | 8×1×2.5 | BUILT (M14 pass: 8 m section, tiled along `sea_wall` runs) |
 | `blast_wall_revetment` | wall | Free-standing concrete blast-wall or revetment segments on an apron | N. Africa | M10 (E apron) [img, critic] | — | 10×1×2 | NEW |
-| `dragons_teeth` | new | A row of concrete dragon's teeth | France | M14 | — | 1.2×1.2×1.2 each | NEW |
-| `czech_hedgehog` | new | Steel Czech hedgehog (beach or wire obstacle) | All | M14 (hundreds), M6, M8, M10 (wire belts), M11, M15 (roadblock) | — | 1.8 | NEW |
-| `beach_tetrahedron` | new | Concrete tetrahedron or pyramid beach obstacle | France | M14 | — | 1.5 | NEW |
+| `dragons_teeth` | new | A row of concrete dragon's teeth | France | M14 | — | 1.2×1.2×1.2 each | BUILT (M14 pass) |
+| `czech_hedgehog` | new | Steel Czech hedgehog (beach or wire obstacle) | All | M14 (hundreds), M6, M8, M10 (wire belts), M11, M15 (roadblock) | — | 1.8 | BUILT (M14 pass) |
+| `beach_tetrahedron` | new | Concrete tetrahedron or pyramid beach obstacle | France | M14 | — | 1.5 | BUILT (M14 pass) |
 | `wire_on_stakes` | fence | Barbed wire on stakes, and wire belts | All | M4 (gorge rim), M6, M8, M10, M14 | cut | linear | VAR:military |
 | `trench_ruins` | trench | Trench with low ruined foundation walls | N. Africa | M10 (start) [img] | cover | area | VAR:desert |
 | `v2_pad_gantry` | new | V2 upright on a launch table, with a service gantry | Germany | M19 (×3, **objective**) | **D**, L | 6×6×16 | military |
@@ -473,7 +473,8 @@ Each mission lists the §1 ids it needs, with counts. **Bold** marks an objectiv
   - `pontoon_minisub`.
   - `at_gun_emplacement` (pier gun).
   - `buoy`, crates.
-- **M14 D-Day Kick Off (La Rivière)** [i]:
+- **M14 D-Day Kick Off (La Rivière)** [i] — art pass done (`manifest-atlantic-wall.json`; also `blockhouse_small`, `shed_concrete`,
+  `house_coastal_normandy`, `sign_minen`, `sign_sperrgebiet`, `buoy_red`):
   - **`gun_pit_open`, `gun_turret_block`, `casemate_embrasure` ×2** (4 guns, all different).
   - `barracks_concrete_2st` ×2 (image) to ×4-5 (source B).
   - `at_wall_segment`s.

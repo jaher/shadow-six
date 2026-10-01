@@ -9,6 +9,7 @@
  */
 
 import { el } from './dom.js';
+import { touchFirst } from './touch.js';
 import {
   nextFocus, edgeFocus, firstEnabled, splitHotkey, hotkeyOf, codeForHotkey, stepSlider, crossedDetent, flipChoice,
   passwordChar, normalizePassword,
@@ -96,28 +97,43 @@ export function typeField(parent, opts = {}) {
   el('span', 'mk-caret', wrap);
   const max = opts.max ?? 24;
   const accept = opts.accept || ((c) => (c.length === 1 ? c : null));
+  // touch: a transparent native <input> over the glyphs; tapping it (only then) opens the phone keyboard.
+  // Keyboard players never focus it, so their keys keep going through key() below.
+  const inp = el('input', 'mk-typein', wrap);
+  Object.assign(inp, { type: 'text', autocomplete: 'off', spellcheck: false, maxLength: max, enterKeyHint: 'done' });
+  inp.setAttribute('autocapitalize', 'characters');
+  inp.setAttribute('autocorrect', 'off');
+  inp.setAttribute('aria-label', opts.label || 'Name');
+  const filter = (v) => [...String(v || '')].map((c) => accept(c)).filter(Boolean).join('').slice(0, max);
   const f = {
     el: wrap,
+    input: inp,
     value: '',
+    /** A prefilled default: the first typed character (or Backspace) replaces it, like selected text. */
+    fresh: false,
     set(v, strike = false) {
       this.value = String(v || '').slice(0, max);
+      if (inp.value !== this.value) inp.value = this.value;
       text.replaceChildren();
       [...this.value].forEach((ch, i) => {
-        const g = el('span', 'g', text, ch === ' ' ? ' ' : ch);
+        const g = el('span', 'g', text, ch === ' ' ? ' ' : ch);
         g.style.transform = `translateY(${((i * 7919) % 7) / 10 - 0.3}px)`; // ±0.3 r jitter, stable per glyph
         g.style.opacity = String(0.9 + ((i * 104729) % 10) / 100);
         if (strike && i === this.value.length - 1) g.classList.add('strike');
       });
+      wrap.classList.toggle('fresh', this.fresh && !!this.value);
       opts.onChange?.(this.value);
     },
     key(e) {
       if (e.code === 'Backspace') {
-        if (this.value) this.set(this.value.slice(0, -1));
+        if (this.fresh) { this.fresh = false; this.set(''); }
+        else if (this.value) this.set(this.value.slice(0, -1));
         opts.sound?.play('typeBack');
         return true;
       }
       if (e.key && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
         const c = accept(e.key);
+        if (c && this.fresh) { this.fresh = false; this.value = ''; }
         if (c && this.value.length < max) {
           this.set(this.value + c, true);
           opts.sound?.play('type');
@@ -127,6 +143,23 @@ export function typeField(parent, opts = {}) {
       return false;
     },
   };
+  inp.addEventListener('focus', () => {
+    wrap.classList.add('focus');
+    if (f.fresh) setTimeout(() => inp.select(), 0);
+  });
+  inp.addEventListener('blur', () => wrap.classList.remove('focus'));
+  inp.addEventListener('input', () => {
+    const v = filter(inp.value);
+    const grew = v.length > f.value.length;
+    f.fresh = false;
+    f.set(v, grew);
+    opts.sound?.play(grew ? 'type' : 'typeBack');
+  });
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); inp.blur(); opts.onEnter?.(f.value); }
+  });
+  inp.addEventListener('click', (e) => e.stopPropagation());
+  f.fresh = !!opts.fresh && !!opts.value;
   f.set(opts.value || '');
   return f;
 }
@@ -138,11 +171,19 @@ export function passwordCells(parent, opts = {}) {
   row.setAttribute('role', 'group');
   row.setAttribute('aria-label', opts.label || 'Password');
   const cells = Array.from({ length: n }, () => el('span', 'mk-cell', row));
+  // touch: a transparent native input over the cells opens the phone keyboard when tapped
+  const inp = el('input', 'mk-typein', row);
+  Object.assign(inp, { type: 'text', autocomplete: 'off', spellcheck: false, maxLength: n, enterKeyHint: 'go' });
+  inp.setAttribute('autocapitalize', 'characters');
+  inp.setAttribute('autocorrect', 'off');
+  inp.setAttribute('aria-label', opts.label || 'Password');
   const p = {
     el: row,
+    input: inp,
     value: '',
     set(v) {
       this.value = normalizePassword(v, n);
+      if (inp.value !== this.value) inp.value = this.value;
       cells.forEach((c, i) => {
         c.textContent = this.value[i] || '';
         c.classList.toggle('cur', i === this.value.length);
@@ -172,6 +213,17 @@ export function passwordCells(parent, opts = {}) {
       row.classList.add(ok ? 'ok' : 'bad');
     },
   };
+  inp.addEventListener('input', () => {
+    const grew = normalizePassword(inp.value, n).length > p.value.length;
+    p.set(inp.value);
+    opts.sound?.play(grew ? 'type' : 'typeBack');
+  });
+  inp.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); inp.blur(); opts.onEnter?.(p.value); }
+  });
+  inp.addEventListener('focus', () => row.classList.add('focus'));
+  inp.addEventListener('blur', () => row.classList.remove('focus'));
+  inp.addEventListener('click', (e) => e.stopPropagation());
   p.set('');
   return p;
 }
@@ -201,7 +253,7 @@ export class MenuKit {
     this.live = el('div', 'mk-sr', this.layer);
     this.live.setAttribute('aria-live', 'polite');
     this.stack = [];
-    this.device = 'kb';
+    this.device = touchFirst() ? 'touch' : 'kb'; // phones start with the big BACK / SELECT touch buttons
     this.seen = new Set(); // card ids already staggered this session (B4)
     this._pad = { held: {}, t: {}, connected: false };
     this._hoverRun = 0;
@@ -388,7 +440,10 @@ export class MenuKit {
     if (off) b.setAttribute('aria-disabled', 'true');
     el('span', 'mk-tab', b);
     const lab = el('span', 'mk-label', b);
-    lab.innerHTML = labelHTML(typeof r.labelFn === 'function' ? r.labelFn() : r.label);
+    let text = typeof r.labelFn === 'function' ? r.labelFn() : r.label;
+    // touch: "(ENTER) CONFIRM" / "(ESC) BACK" name keys a phone does not have; the button is the action
+    if (this.device === 'touch' && typeof text === 'string') text = text.replace(/^\((ENTER|ESC|SPACE)\)\s+/, '');
+    lab.innerHTML = labelHTML(text);
     if (r.hotkey == null) r.hotkey = hotkeyOf(r.label);
     if (r.locked) b.insertAdjacentHTML('beforeend', LOCK_SVG);
     if (kind === 'toggle') this._toggleVal(b, r);

@@ -19,8 +19,8 @@ import * as THREE from 'three';
 import { getMaterial } from './materials.js';
 import { B, T, CELL } from '../world/grid.js';
 import { libraryVisual, libTypeOf } from './building-props.js';
-import { buildRocks, buildCliff, buildWall, buildTent, buildRuins, buildSandbags, buildCrates, buildGenerator, buildLattice, buildPole } from './dressing.js';
 import { makeFlag } from './flags.js';
+import { buildRocks, buildCliff, buildWall, buildTent, buildRuins, buildSandbags, buildCrates, buildGenerator, buildLattice, buildPole } from './dressing.js';
 
 /** Prop catalogue (missions may only use these). */
 export const PROP_TYPES = ['barracks', 'house', 'hut', 'bunker', 'watchtower', 'wall', 'fence', 'gate', 'sandbags',
@@ -361,7 +361,9 @@ const ROUND = {
     g.add(box(1.4, 0.1, 0.1, def.mat, p.h - 0.5));
     return g;
   },
-  sign: (p, def) => {
+  sign: (p, def, ctx) => {
+    // flagpoles (garrison markers, e.g. M14 `flagpole_german`): the animated cloth flag of art/flags.js (browser)
+    if (/flagpole/.test(String(p.variant ?? '')) && dressingOn(ctx) && typeof document !== 'undefined') return makeFlag({ pole: true, poleH: p.h ?? 6 });
     const g = new THREE.Group();
     g.add(cyl(0.05, 0.05, p.h, def.mat));
     g.add(box(1, 0.5, 0.05, 'planks', p.h - 0.25));

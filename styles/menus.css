@@ -304,8 +304,13 @@
 @keyframes mk-strike { from { transform: translateY(calc(-0.6 * var(--mr))); opacity: 0.6; } }
 .mk-caret { display: inline-block; width: 0.55em; height: 1em; margin-left: 1px; vertical-align: -0.12em; background: currentColor; animation: mk-caret 1.06s steps(1) infinite; }
 @keyframes mk-caret { 50% { opacity: 0; } }
+/* touch: a transparent native input over the field's line opens the phone keyboard (only when tapped) */
+.mk-typein { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 44px; margin: 0; padding: 0; border: 0; opacity: 0;
+  font-size: 16px; color: transparent; background: transparent; caret-color: transparent; cursor: text; user-select: text; -webkit-user-select: text; }
+.mk-typed.fresh .txt { background: rgba(90, 13, 6, .14); }
+.mk-typed.focus .mk-caret { animation-duration: .6s; }
 .mk-rm .mk-caret { animation: none; }
-.mk-cells { display: flex; gap: calc(6 * var(--mr)); justify-content: center; }
+.mk-cells { position: relative; display: flex; gap: calc(6 * var(--mr)); justify-content: center; }
 .mk-cell {
   width: calc(22 * var(--mr)); height: calc(24 * var(--mr)); min-width: 34px; min-height: 38px; display: grid; place-items: center; border-radius: calc(3 * var(--mr));
   font: 400 max(18px, calc(14 * var(--mr))) / 1 var(--f-typed); color: #16140c;
@@ -403,7 +408,7 @@
 
 /* ================================================================== S01 boot, S03 title splash (boot.js) */
 #title.ui-title-kit { display: none !important; }
-.bt { position: fixed; inset: 0; z-index: 60; background: #000; color: var(--brief-white); overflow: hidden; cursor: default; font-family: var(--f-body); }
+.bt { position: fixed; inset: 0; z-index: 60; background: #000; color: var(--brief-white); overflow: hidden; cursor: pointer; pointer-events: auto; touch-action: manipulation; font-family: var(--f-body); }
 .bt[hidden] { display: none !important; }
 .bt::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: var(--tex-grain); background-size: 256px; opacity: .05; mix-blend-mode: screen; }
 .bt-disc { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .55em; padding: 0 24px; text-align: center; opacity: 0; transition: opacity 400ms linear; }
@@ -468,6 +473,9 @@
 .bt-disclaimer { position: absolute; left: 16px; right: 70px; bottom: max(12px, calc(10 * var(--mr))); margin: 0; font: 400 max(12px, calc(7 * var(--mr) * var(--ts))) / 1.35 var(--f-body); color: rgba(240, 240, 240, .74); max-width: max(280px, calc(420 * var(--mr))); text-shadow: 0 1px 2px #000; }
 .bt-ver { position: absolute; right: 16px; bottom: max(12px, calc(10 * var(--mr))); font: 400 max(12px, calc(7 * var(--mr))) / 1 var(--f-body); color: rgba(240, 240, 240, .72); text-shadow: 0 1px 2px #000; }
 @media (max-width: 520px) { .bt-disclaimer { right: 16px; bottom: max(34px, calc(28 * var(--mr))); } .bt-prompt span::after { content: ''; } }
+/* phones: the prompt sits above the (multi-line) disclaimer, never under it */
+@media (max-width: 520px) { .bt-prompt { bottom: calc(176px + env(safe-area-inset-bottom)); } }
+@media (max-height: 540px) and (min-width: 521px) { .bt-prompt { bottom: calc(136px + env(safe-area-inset-bottom)); } }
 .mk-rm .bt-l, .mk-rm .bt-art .bt-l { animation: none !important; transform: none; }
 
 /* ================================================================== §1.10 backgrounds (backdrop.js) */
@@ -507,3 +515,39 @@ html.bd-live #view canvas { visibility: hidden; }
 .bd[data-mode='mission'] { background: var(--oxblood-1); }
 .bd[data-mode='mission'] .bd-vig { background: radial-gradient(ellipse 80% 75% at 50% 50%, transparent 55%, rgba(0, 0, 0, .2) 100%); }
 html.mk-rm .bd-sheen, html.mk-rm .bd-camo, html.mk-rm .bd-frozen.on { animation: none; }
+
+/* ================================================================== touch (src/ui/touch.js: html.mk-touch on phones / after a tap) */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; touch-action: manipulation; }
+html.mk-touch, html.mk-touch body { -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+html.mk-touch .mk-layer button, html.mk-touch .mk-layer [role='menuitem'] { touch-action: manipulation; }
+/* every menu row and footer choice is a ≥ 44 px finger target */
+html.mk-touch .mk-row { min-height: 44px; align-items: center; }
+/* landscape phones (short screens): the list rows share the height between the title and the touch bar */
+@media (max-height: 540px) {
+  html.mk-touch .mk-list .mk-row { min-height: max(30px, min(44px, calc((100dvh - 190px) / 7))); }
+}
+html.mk-touch .mk-footer .mk-row { justify-content: center; min-width: 88px; padding: 0 14px; border: 1px solid rgba(201, 162, 74, .55); border-radius: 3px; background: rgba(24, 19, 12, .72); }
+html.mk-touch .mk-footer .mk-row .mk-label::after { display: none; }
+html.mk-touch .mk-hints.touch { bottom: calc(14px + env(safe-area-inset-bottom)); }
+
+/* the rotate hint: narrow portrait phones; any tap dismisses it for this session */
+.rot-hint { position: fixed; inset: 0; z-index: 90; display: flex; align-items: center; justify-content: center; pointer-events: auto;
+  background: rgba(8, 7, 4, .86); color: var(--cream, #efe6c8); font: 500 16px/1.4 var(--f-item, sans-serif); text-align: center;
+  padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom); }
+.rot-hint[hidden] { display: none !important; }
+.rot-box { max-width: 320px; letter-spacing: .04em; }
+.rot-box p { margin: 0 0 8px; }
+.rot-box .sub { color: var(--khaki, #c9b98d); font-size: 14px; }
+.rot-ico { width: 56px; height: 90px; margin: 0 auto 18px; border: 3px solid currentColor; border-radius: 10px; animation: rot-turn 2.4s ease-in-out infinite; }
+@keyframes rot-turn { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+.rot-ok { margin-top: 14px; min-height: 44px; padding: 0 18px; font: inherit; font-size: 14px; letter-spacing: .12em; color: inherit; background: rgba(24, 19, 12, .9); border: 1px solid rgba(201, 162, 74, .7); border-radius: 3px; }
+html.mk-rm .rot-ico { animation: none; transform: rotate(-90deg); }
+
+/* the in-mission MENU button (touch only; src/ui/touch.js) */
+.touch-menu { position: fixed; z-index: 24; left: calc(10px + env(safe-area-inset-left)); bottom: calc(10px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; width: 52px; height: 52px; padding: 0; pointer-events: auto;
+  border: 1px solid rgba(201, 162, 74, .7); border-radius: 4px; background: rgba(12, 12, 7, .78); color: var(--cream, #efe6c8); touch-action: manipulation; }
+.touch-menu[hidden] { display: none !important; }
+.touch-menu i { display: block; width: 22px; height: 2px; background: currentColor; }
+.touch-menu span { margin-top: 2px; font: 500 9px/1 var(--f-item, sans-serif); letter-spacing: .14em; }
+html.mk-touch .mk-confirm .mk-hints.touch { display: none; } /* (Y)ES (N)O are the buttons */

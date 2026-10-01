@@ -1,0 +1,181 @@
+{
+ "mission": "m14",
+ "date": "2026-10-01T08:02:31.969Z",
+ "static": {
+  "mission": "m14",
+  "items": 211,
+  "categories": {
+   "cliff": 7,
+   "building": 10,
+   "pole": 13,
+   "prop": 56,
+   "fence": 14,
+   "sandbags": 5,
+   "rocks": 10,
+   "trunk": 11,
+   "foliage": 11,
+   "character": 67,
+   "vehicle": 2,
+   "emplacement": 5
+  },
+  "pairsTested": 99,
+  "ms": 787,
+  "findings": [
+   {
+    "key": "m14:rk_spit_sw|wr_s2",
+    "a": {
+     "id": "rk_spit_sw",
+     "type": "cliff",
+     "cat": "cliff",
+     "kind": "structure"
+    },
+    "b": {
+     "id": "wr_s2",
+     "type": "fence",
+     "cat": "fence",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 48.272,
+     "y": 0.633,
+     "z": 149.81
+    },
+    "box": {
+     "min": [
+      47.672,
+      0.037,
+      149.291
+     ],
+     "max": [
+      48.57,
+      1.915,
+      150.07
+     ]
+    },
+    "contact": 1.47,
+    "segments": 34,
+    "depth": 0.797,
+    "depthAinB": 0,
+    "depthBinA": 0.797,
+    "insideA": 0,
+    "insideB": 36,
+    "volume": 0,
+    "allowed": true,
+    "reason": "joint"
+   },
+   {
+    "key": "m14:g1|wr_s1",
+    "a": {
+     "id": "g1",
+     "type": "casemate_gun",
+     "cat": "building",
+     "kind": "structure"
+    },
+    "b": {
+     "id": "wr_s1",
+     "type": "fence",
+     "cat": "fence",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 60.168,
+     "y": 0.19,
+     "z": 123.371
+    },
+    "box": {
+     "min": [
+      60.105,
+      0.16,
+      123.309
+     ],
+     "max": [
+      60.23,
+      0.221,
+      123.434
+     ]
+    },
+    "contact": 0.418,
+    "segments": 8,
+    "depth": 0.203,
+    "depthAinB": 0,
+    "depthBinA": 0.203,
+    "insideA": 0,
+    "insideB": 12,
+    "volume": 0,
+    "allowed": true,
+    "reason": "joint"
+   },
+   {
+    "key": "m14:g4|hut_g4",
+    "a": {
+     "id": "g4",
+     "type": "casemate_gun",
+     "cat": "building",
+     "kind": "structure"
+    },
+    "b": {
+     "id": "hut_g4",
+     "type": "hut",
+     "cat": "building",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 48.965,
+     "y": -0.046,
+     "z": 50.843
+    },
+    "box": {
+     "min": [
+      48.96,
+      -0.05,
+      50.583
+     ],
+     "max": [
+      49.032,
+      -0.043,
+      51.04
+     ]
+    },
+    "contact": 0.529,
+    "segments": 4,
+    "depth": 0.007,
+    "depthAinB": 0,
+    "depthBinA": 0.007,
+    "insideA": 1,
+    "insideB": 3,
+    "volume": 0,
+    "allowed": true,
+    "reason": "resting on a surface"
+   }
+  ]
+ },
+ "turrets": {
+  "mission": "m14",
+  "turrets": 6,
+  "findings": []
+ },
+ "turretProbe": {
+  "spots": 60,
+  "tests": 83,
+  "findings": []
+ },
+ "floating": {
+  "tested": 87,
+  "findings": [
+   {
+    "id": "mg3_ring",
+    "type": "sandbags",
+    "cat": "sandbags",
+    "kind": "floating",
+    "gap": 0.067,
+    "x": 91.606,
+    "z": 74.999
+   }
+  ]
+ },
+ "dynamic": null,
+ "baseline": {
+  "fresh": [],
+  "gone": []
+ }
+}

@@ -1,0 +1,23 @@
+# M14 art pass (Atlantic Wall, Juno): run.sh-style lines "script variant seed theater budget"; ship with
+# tools/blender/consolidate/addon_manifest.py -> assets/models/buildings/manifest-atlantic-wall.json
+casemate_juno.py h612 1412 coast 15000
+casemate_juno.py h679 1413 coast 15000
+casemate_juno.py h612_destroyed 1414 coast 15000
+casemate_juno.py h679_destroyed 1415 coast 15000
+gun_turret_block.py a 1433 coast 15000
+gun_turret_block.py destroyed 1434 coast 15000
+gun_pit_open.py a 1444 coast 15000
+gun_pit_open.py destroyed 1445 coast 15000
+barracks_concrete.py 2st 1450 coast 15000
+barracks_concrete.py 1st 1451 coast 15000
+barracks_concrete.py shed 1452 coast 15000
+barracks_concrete.py blockhouse 1453 coast 15000
+beach_obstacles.py tetra 141 coast 4000
+beach_obstacles.py teeth 141 coast 4000
+beach_obstacles.py hedgehog 141 coast 4000
+beach_obstacles.py atwall 141 coast 4000
+coast_props.py minen 1470 coast 3000
+coast_props.py sperr 1471 coast 3000
+coast_props.py buoy 1472 coast 3000
+# europe/scripts/house_coastal_normandy.py -- d 1460  (args: variant seed; out: europe/out/house_coastal_normandy;
+#   shipped under buildings/military/ with the rest of the pass: copy it to military/out before addon_manifest.py)

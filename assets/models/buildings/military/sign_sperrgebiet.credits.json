@@ -1,0 +1,43 @@
+{
+ "asset": "sign_sperrgebiet",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "signs": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Painted sign atlas",
+   "files": {
+    "diff": {
+     "1k": "1k/signs_diff",
+     "2k": "2k/signs_diff"
+    }
+   }
+  },
+  "timber_grey": {
+   "source": "Poly Haven",
+   "id": "weathered_planks",
+   "url": "https://polyhaven.com/a/weathered_planks",
+   "authors": [
+    "Dario Barresi",
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Planks",
+   "label": "Weathered grey timber",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_grey_diff",
+     "1k": "1k/timber_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_grey_nor",
+     "1k": "1k/timber_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_grey_arm",
+     "1k": "1k/timber_grey_arm"
+    }
+   }
+  }
+ }
+}

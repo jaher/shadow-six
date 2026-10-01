@@ -24,6 +24,16 @@ The runtime side is `src/art/building-library.js`, and the data it reads is `ass
 3. Validate: `python3 tools/blender/kit/tools/validate.py <glb> --budget 15000` (use `--bridge --budget 25000` for bridges).
 4. Ship: `consolidate/pack.py`, `textures.py`, `sidecars.py`, then `build_manifest.py`. Run them from a folder that has `../<family>/out`, or edit `ART` in `pack.py`. They need `gltfpack` (`npm i gltfpack`).
 
+## Add-on manifests (per-mission art passes)
+An art pass ships its new assets without rebuilding the whole library: `consolidate/addon_manifest.py <art_root> <repo> <addon>
+<group> type=a,b ...` packs the named builds (and their `_destroyed` / `_snow` twins) into `assets/models/buildings/<group>/` and
+writes `assets/models/buildings/<addon>.json` (same entry schema, `assets` + `types` only). `src/art/building-library.js`
+merges every name in `EXTRA_MANIFESTS` after `manifest.json`. Missions reach the assets through `VARIANT_HINTS`
+(`src/art/building-props.js`) by `variant` name; register them under their own types (not `crates`, `sign`, `house` …)
+so unhinted structures of other missions keep their looks. §7.7 extra props (`casemate_gun`, `flat_roof_house`, `sea_wall`)
+switch to the library only for hinted variants; a hinted `sea_wall` tiles its 8 m section along the run.
+- M14 (Atlantic Wall, `manifest-atlantic-wall.json`): `military/q_m14.txt` lists the builds.
+
 ## Conventions
 - Blender Z-up, 1 unit = 1 m. The pivot is the ground centre and the front faces Blender −Y, which is glTF +Z (game south at `rot` 0).
 - Sidecars (`<asset>.kit.json`) use game coordinates: x east, y up, z south; `heading = atan2(dz, dx)`.

@@ -283,7 +283,7 @@ export class Screens {
       lines: [{ text: 'ENTER THE PASSWORD FOR YOUR MISSION', cls: 'cream' }],
       render: (box) => {
         const w = el('div', 'mk-pwwrap', box);
-        cells = passwordCells(w, { sound: kit.sound, onChange: () => kit.note('') });
+        cells = passwordCells(w, { sound: kit.sound, onChange: () => kit.note(''), onEnter: () => accept() });
         w.addEventListener('paste', (e) => cells.set(e.clipboardData?.getData('text') || ''));
         this.pw = cells;
       },
@@ -462,7 +462,9 @@ export class Screens {
         el('div', 'mk-letterhead', sheet, "SOLDIER'S SERVICE AND PAY BOOK");
         const f = el('div', 'fld', sheet);
         el('span', 'k', f, 'NAME:');
-        field = typeField(f, { max: 12, accept: profileNameChar, sound: kit.sound, value: o.rename ? prof.current : '', onChange: (v) => {
+        // a default name (COMMANDO, COMMANDO 2…) so CONFIRM works without a keyboard; the first key replaces it
+        const def = o.rename ? prof.current : defaultProfileName(prof);
+        field = typeField(f, { max: 12, accept: profileNameChar, sound: kit.sound, value: def, fresh: !o.rename, label: 'Soldier name', onEnter: () => confirm(), onChange: (v) => {
           kit.note('');
           const ok = kit.top?.els?.find((b) => b.dataset.id === 'confirm');
           ok?.setAttribute('aria-disabled', v.trim() ? 'false' : 'true');
@@ -506,4 +508,13 @@ export class Screens {
     kit.pop();
     this.selectUser(done);
   }
+}
+
+/** The first free default soldier name: COMMANDO, COMMANDO 2, COMMANDO 3… */
+function defaultProfileName(prof) {
+  for (let i = 1; i < 99; i++) {
+    const n = i === 1 ? 'COMMANDO' : `COMMANDO ${i}`;
+    if (!prof?.exists?.(n)) return n;
+  }
+  return '';
 }

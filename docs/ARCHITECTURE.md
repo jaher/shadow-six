@@ -708,6 +708,16 @@ Menus and full-screen screens follow docs/menus-art-direction.md (S01–S22 + am
   + searchlight), `ui-sound.js` (`hud.sound.play(id)`; ui_* rows in the audio manifest), `profiles.js`, `tips.js`,
   `menu-model.js` (pure, unit-tested logic). Card specs may add `focusEl(card)` (focus target when a card has no rows),
   `onDevice(device)` and `ctrlKeys` (Ctrl/Cmd chords the card binds; all others stay with the browser).
+- Touch / phones (`src/ui/touch.js`, `hud.touch`): `touchFirst()` starts the kit in `device = 'touch'` (big BACK /
+  SELECT bar, footer choices as ≥ 44 px buttons, "(ENTER)"/"(ESC)" prefixes dropped); `html.mk-touch` follows the last
+  pointer type. Every keyboard-only prompt has a tap: the boot/title splash (`.bt` takes pointer events; "TAP TO
+  CONTINUE" / "PRESS ANY KEY OR CLICK"), TypeFields and password cells carry a transparent native `<input>` that opens
+  the phone keyboard only when tapped (NEW USER is prefilled with COMMANDO, the first key replaces it), briefing
+  ‹ PREV / NEXT › / CONTINUE and the tour's START MISSION buttons, the loading screen's NEXT TIP, win card / debrief
+  taps, and an in-mission MENU button (bottom-left, = Esc → `menus.showEsc()`). Also: no page pinch / double-tap zoom
+  (viewport meta + gesture guards), no long-press callouts, safe-area insets, a dismissible rotate-to-landscape hint on
+  narrow portrait screens. No in-mission camera gestures here (those belong with the camera rig's pan/zoom API).
+  Tests: `tests/touch-{pixel7,iphone14,desktop}.test.mjs` (shared flow in `tests/touch-flow.mjs`).
 - Consumes only `game.flow`, `game.events` (`mission:loading`, `mission:won/lost/escaped`, `game:state`), the renderer
   canvas (B2 snapshot) and, for B1, `World` + `MapBuilder.buildMap` into the idle scene (released on `mission:loading`).
 - Assets: `assets/fonts/*` (OFL / Apache, licences alongside), `assets/ui/*` (emblem, wordmark, CC0 textures, baked B1s

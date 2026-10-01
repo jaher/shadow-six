@@ -89,6 +89,26 @@ export function libTextureURL(file) {
   return { url: `${root}1k/${f}`, tier: '1k' };
 }
 
+/** Add-on manifests under assets/models/buildings/ (same schema, `assets` + `types` only), merged after manifest.json. */
+export const EXTRA_MANIFESTS = ['manifest-atlantic-wall'];
+
+/**
+ * Merge an add-on manifest into `base` (in place): new assets; per type the variant / all / byTheater lists are
+ * unioned (types it introduces are added whole). Returns `base`.
+ */
+export function mergeManifest(base, ext) {
+  Object.assign(base.assets, ext.assets || {});
+  for (const [t, e] of Object.entries(ext.types || {})) {
+    const b = base.types[t];
+    if (!b) { base.types[t] = e; continue; }
+    const uni = (a = [], c = []) => [...new Set([...a, ...c])];
+    b.variants = uni(b.variants, e.variants); b.all = uni(b.all, e.all);
+    b.byTheater = b.byTheater || {};
+    for (const [th, l] of Object.entries(e.byTheater || {})) b.byTheater[th] = uni(b.byTheater[th], l);
+  }
+  return base;
+}
+
 export async function loadBuildingLibrary(assets = null, opts = {}) {
   L.base = opts.base ?? assets?.manifest?.base ?? 'assets/';
   L.quality = opts.quality ?? 'default';
@@ -103,6 +123,13 @@ export async function loadBuildingLibrary(assets = null, opts = {}) {
     const res = await fetch(`${L.base}models/buildings/manifest.json`);
     if (!res.ok) throw new Error(`[building-library] manifest ${res.status}`);
     L.manifest = await res.json();
+    // per-family add-on manifests (one small file per art pass, so passes never edit the same one-line JSON)
+    await Promise.all(EXTRA_MANIFESTS.map(async (x) => {
+      try {
+        const r = await fetch(`${L.base}models/buildings/${x}.json`);
+        if (r.ok) mergeManifest(L.manifest, await r.json());
+      } catch (e) { console.warn(`[building-library] ${x}:`, e?.message || e); }
+    }));
     L.ultra = new Set(L.manifest.textures?.ultra2k || []);
   }
   const api = { manifest: L.manifest, preload: (list, theater) => preloadBuildings(list, { theater, lods: opts.lods, onProgress: opts.onProgress }) };

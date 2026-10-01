@@ -42,7 +42,32 @@ export const VARIANT_HINTS = {
   gate: { barrier_boom: null, chainlink: null },
   fueltank: { horizontal_cradle: null },
   tent: {}, well: {},
+  // Atlantic Wall (M14 art pass; reusable by M6/M7/M8/M10/M11/M15): the fit ranks the sizes, so one hint list
+  // serves the small H612-type and the wide H679-type casemate
+  casemate_gun: {
+    casemate_embrasure: ['casemate_h612', 'casemate_h679'], gun_turret_block: ['gun_turret_block'], gun_pit_open: ['gun_pit_open'],
+  },
+  flat_roof_house: { barracks_concrete_2st: ['barracks_concrete_2st'] },
+  sea_wall: { at_wall_segment: ['at_wall_segment'] },
+  sign: { buoy_red: ['buoy_red'], sign_minen: ['sign_minen'], sign_sperrgebiet: ['sign_sperrgebiet'] },
+  crates: {
+    beach_tetrahedron: ['beach_tetrahedron'], dragons_teeth: ['dragons_teeth'], czech_hedgehog: ['czech_hedgehog'],
+  },
 };
+Object.assign(VARIANT_HINTS.barracks, { barracks_concrete_2st: ['barracks_concrete_1st', 'barracks_concrete_2st'] });
+Object.assign(VARIANT_HINTS.hut, { shed_concrete: ['shed_concrete'] });
+Object.assign(VARIANT_HINTS.house, { house_concrete_2st: ['house_coastal_normandy'] });
+Object.assign(VARIANT_HINTS.bunker, { blockhouse_small: ['blockhouse_small'] });
+
+/**
+ * Does the mission opt this structure into a library visual by name (an explicit `asset`, or a `variant` the hints
+ * map to assets)? Extra (§7.7) props only switch to the library on such an opt-in (art/props-extra.js).
+ */
+export function libraryHinted(type, p = {}) {
+  if (p.asset) return true;
+  const h = VARIANT_HINTS[type];
+  return !!(h && p.variant != null && Object.prototype.hasOwnProperty.call(h, p.variant) && h[p.variant]);
+}
 
 /** Footprint kinds that describe the structure's body (used to fit the visual onto the gameplay footprint). */
 const MAIN_KINDS = new Set(['building', 'bunker', 'sentry_box', 'tower_leg', 'tent', 'curtain_wall', 'wall', 'wire_fence',
@@ -117,9 +142,10 @@ export function pickAsset(type, p = {}, ctx = {}) {
   if (p.asset && M.assets[p.asset]) cands = [p.asset];                      // explicit asset name (mission override)
   else {
     const lt = libTypeOf(type);
-    if (!lt) return null;
     const hints = VARIANT_HINTS[type];
-    if (hints && p.variant != null && Object.prototype.hasOwnProperty.call(hints, p.variant)) {
+    const hinted = hints && p.variant != null && Object.prototype.hasOwnProperty.call(hints, p.variant);
+    if (!lt && !(hinted && hints[p.variant])) return null; // catalogue types the library lacks: hinted variants only
+    if (hinted) {
       if (hints[p.variant] === null) return null;
       cands = hints[p.variant].filter((n) => M.assets[n]);
       const th = cands.filter((n) => suits(n, theater));

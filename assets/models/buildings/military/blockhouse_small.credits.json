@@ -1,0 +1,134 @@
+{
+ "asset": "blockhouse_small",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "concrete_formwork": {
+   "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+   "license": "CC0-1.0",
+   "derived_from": {
+    "source": "Poly Haven",
+    "id": "concrete_wall_008",
+    "license": "CC0-1.0"
+   },
+   "label": "Board-formed concrete (formwork, ties, lifts)",
+   "files": {
+    "diff": {
+     "1k": "1k/concrete_formwork_diff",
+     "2k": "2k/concrete_formwork_diff"
+    },
+    "nor": {
+     "1k": "1k/concrete_formwork_nor",
+     "2k": "2k/concrete_formwork_nor"
+    },
+    "arm": {
+     "1k": "1k/concrete_formwork_arm",
+     "2k": "2k/concrete_formwork_arm"
+    }
+   }
+  },
+  "concrete_slab": {
+   "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+   "license": "CC0-1.0",
+   "derived_from": {
+    "source": "Poly Haven",
+    "id": "concrete_wall_008",
+    "license": "CC0-1.0"
+   },
+   "label": "Weathered concrete slab (top surfaces)",
+   "files": {
+    "diff": {
+     "1k": "1k/concrete_slab_diff",
+     "2k": "2k/concrete_slab_diff"
+    },
+    "nor": {
+     "1k": "1k/concrete_slab_nor",
+     "2k": "2k/concrete_slab_nor"
+    },
+    "arm": {
+     "1k": "1k/concrete_slab_arm",
+     "2k": "2k/concrete_slab_arm"
+    }
+   }
+  },
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  },
+  "interior_dark": {
+   "source": "procedural (tools/make_procedural.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Interior darkness card",
+   "files": {
+    "diff": {
+     "1k": "1k/interior_dark_diff",
+     "2k": "2k/interior_dark_diff"
+    },
+    "nor": {
+     "1k": "1k/interior_dark_nor",
+     "2k": "2k/interior_dark_nor"
+    },
+    "arm": {
+     "1k": "1k/interior_dark_arm",
+     "2k": "2k/interior_dark_arm"
+    }
+   }
+  },
+  "sod": {
+   "source": "Poly Haven",
+   "id": "sparse_grass",
+   "url": "https://polyhaven.com/a/sparse_grass",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Sparse Grass",
+   "label": "Sod / turf roof",
+   "files": {
+    "diff": {
+     "2k": "2k/sod_diff",
+     "1k": "1k/sod_diff"
+    },
+    "nor": {
+     "2k": "2k/sod_nor",
+     "1k": "1k/sod_nor"
+    },
+    "arm": {
+     "2k": "2k/sod_arm",
+     "1k": "1k/sod_arm"
+    }
+   }
+  },
+  "steel_painted": {
+   "source": "Poly Haven",
+   "id": "rusty_painted_metal",
+   "url": "https://polyhaven.com/a/rusty_painted_metal",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Painted Metal",
+   "label": "Painted riveted steel (bridge grey-green)",
+   "files": {
+    "diff": {
+     "2k": "2k/steel_painted_diff",
+     "1k": "1k/steel_painted_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_painted_nor",
+     "1k": "1k/steel_painted_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_painted_arm",
+     "1k": "1k/steel_painted_arm"
+    }
+   }
+  }
+ }
+}
