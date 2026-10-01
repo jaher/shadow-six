@@ -303,7 +303,7 @@
 | `knife` | X | GB, Marine (not the Marine in M7) | enemy | 1.2 reach; auto-walks (double-click = run) | Kill, blood spray and pool | Stab 0.6 s; kill at 0.3 s | none |
 | `pistol` | G | all | point/enemy | 13.5 | 80 damage per hit | see §3.2 | pistol |
 | `sniper` | R | Sniper | enemy/point | **45** | Kill, one shot | Kneel and aim 0.6 s; shot; **0.5 s reload**; limited ammo | none |
-| `smg` | M | Driver (M1, M2, M10; M4 from the air-drop) | point/enemy | **18** | Burst of **5 rounds × 100 damage**, fan of 5 rays over ±15° [inf] | Burst 0.25 s; next burst after 0.8 s | smg |
+| `smg` | M | Driver (M1, M2, M10; M4 from the air-drop) | point/enemy | **18** | Burst of **5 rounds × 200 damage** (a round that hits kills a soldier: "kills in one hit" [guide: Kildread, CommandosHQ]), fan of 5 rays over ±15° [inf] | Burst 0.25 s; next burst after 0.8 s | smg |
 | `harpoon` | J | Marine | enemy | **9** (200 u; a patched value may be 4.5) | Kill; works from land or from the water surface | Shot, then **3.0 s reload**; unlimited | none |
 | `decoyDrop` | Q | GB | self | at feet | Places the acoustic decoy; an activator replaces it in the knapsack | Plant 0.8 s | — |
 | `decoyToggle` | I | GB (holding the activator) | none | anywhere (radio) | Toggles beeping on or off | instant | decoy pulse |
@@ -552,7 +552,7 @@ Every commando also carries a pistol. "(site)" marks items found on the map.
 | 1 | GB, Ma, Dr | – | – | SMG (100) | Dr | GB: knife, decoy, shovel. Ma: knife, harpoon, diving gear; raft (site). 5 barrels, truck, MG nest (site) |
 | 2 | GB, Sn, Ma, Sa, Dr | 5 | trap, 2 time bombs | SMG (100) | Dr | Ma: raft carried. 4 barrels, truck (site) |
 | 3 | GB, Ma, Sa, Sp | – | trap, cutters, 2 time bombs (site) | – | Sp | Uniform (site), raft (site), electric-fence switch |
-| 4 | GB, Sn, Ma, Sa, Dr | 4 (+3 air-drop) | trap, 3 grenades, 1 time bomb (air-drop) | SMG (air-drop) | Dr | Patrol boat, Panzer II, motorcycle, truck, 3 MG nests |
+| 4 | GB, Sn, Ma, Sa, Dr | 4 (+3 air-drop) | trap, 3 grenades, 1 time bomb (air-drop) | SMG (air-drop) | Dr | Ma: raft carried (file `IT_BALSA`; Kildread "Pneumatic Boat"). Patrol boat, Panzer II, motorcycle, truck, 3 MG nests |
 | 5 | GB, Sp | – | – | – | Sp | 3 barrels, uniform (site), cable car, 2 phones, mines |
 | 6 | GB, Sn, Sa | 5 | trap, 2 remote bombs | – | Sn | — |
 | 7 | GB, Ma (**no knife**), Sa, Dr, Sp | – | trap, 4 time bombs (air-drop) | – | Dr | Rowboat, half-track, 2 barrels, uniform (site) |
@@ -1700,6 +1700,8 @@ M1–M3 use only catalogue types, plus `raft`, `truck`, `patrolboat`, `kubelwage
 | Structures | `villa`, `rail_bridge` (trestle), `cable_car` (+ stations), `telephone`, `mine` (hidden), `railway_gun`, `uboat_pen`, `lighthouse`, `drilling_rig`, `mosque`/`minaret`, `flat_roof_house` (roof walkable, ladders), `battleship`, `lock_gate` + `control_shack`, `casemate_gun`, `tram` + `tram_track`, `cemetery`, `truss_bridge` + `detonator`, `mobile_bridge` + `lever`, `fuel_valve` (oil spill/fire), `watermill`, `v2_rocket` + `launch_pad`, `conveyor` + `mine_cart`, `castle_wall`/`castle_gate` + `moat`, `firing_range`, `water_gate` + `lever`, `flak` | M4–M20 |
 | Vehicles | `motorcycle` (sidecar), `panzer2`, `panzer3`, `panzer4`, `sdkfz` (half-track / armoured car), `opel_blitz_tanker`, `citroen15`, `horch`, `willys`, `autogyro`, `ju52`, `ju87`, `minisub`, `rowboat`, `train` (locomotive + cars) | M4–M20 |
 | Units | `dog`, `courier`, `engineer`, `general`, guest prisoners | M4, M13, M15–M17, M19 |
+
+- **`drilling_rig` (M11).** Oil derrick on a drill-floor skid. The skid is the footprint (`w × d`, B.HIGH), and the bomb goes within 3 m of it. Above the skid stands an open, tapered steel lattice tower (`h` about 22 m): four legs, girts and X-bracing on every face, a monkey board at about 60 % height, and a crown block with a sheave. The travelling block hangs on the drill line, and a doghouse sits on the skid. Never a solid column.
 
 ---
 

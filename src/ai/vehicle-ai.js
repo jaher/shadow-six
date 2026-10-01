@@ -130,6 +130,9 @@ export function createVehicleBrain(vehicle, spawn = {}) {
         if (b.state === 'attack') { b.state = b.resume || behavior; b.target = null; }
         return;
       }
+      // `spawn.dormantUntilAlarm` (dossier D1 'dormant'): the crew sleep — no perception, no fire — until any
+      // alarm zone has fired (world.alarm.zonesFired is saved, so this holds from the first step after a load)
+      if (spawn.dormantUntilAlarm && !w.alarm?.zonesFired?.length) { vehicle.sweepActive = false; return; }
       // eyes: sweep phase is seeded like enemies (§4.2)
       if (vehicle.vision && !b.seeded) { b.seeded = true; vehicle.vision.phase = w.rng?.next ? w.rng.next() * (vehicle.vision.period || 1) : 0; }
       const armed = !!vehicle.def.weapons?.length && !!vehicle.vision;
@@ -291,6 +294,9 @@ function tick(world, dt, cd) {
   if (!targets.length) return;
   for (const e of world.enemies) {
     if (!e.alive || !e.vision || !GUNS.has(e.weapon) || e.held || ['stunned', 'bound', 'dead', 'captured'].includes(e.state)) continue;
+    // an artillery gunner at his emplacement fires its gun through his own brain (_gunnerLook → _combat, §4.1),
+    // never a hand weapon, and only inside his gun's traverse (replay m07: g22 plinked the rowboat with a rifle)
+    if (e.brain?.arch?.script === 'gunner' && e.brain._emplacement?.()) continue;
     const t0 = e.target;
     if (t0 && t0.kind === 'commando' && t0.alive) continue;
     // one path owns each attack: a brain already in COMBAT against a vehicle (boarding seen, gunner) fires

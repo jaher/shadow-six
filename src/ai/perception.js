@@ -33,6 +33,7 @@ const TAU = Math.PI * 2;
  * @property {number} near     near-band radius at theta (m) = far/2 for elliptical profiles
  * @property {number} far      far radius at theta (m)
  * @property {boolean} elevated
+ * @property {boolean} overlooks  viewer looks down past the roof rule (balcony sentry)
  */
 
 /** θ(t) sweep offset for an enemy (radians). φ = vision.phase (s). */
@@ -73,7 +74,7 @@ export function coneAt(enemy, t) {
   const vy = enemy.y || 0;
   return {
     x: enemy.x, z: enemy.z, y: vy + (v.eyeHeight ?? CONFIG.stealth.eyeHeight), vy,
-    heading: enemy.heading + theta, theta, halfFov: v.fov / 2, near, far, elevated: !!(v.elevated || enemy.elevated),
+    heading: enemy.heading + theta, theta, halfFov: v.fov / 2, near, far, elevated: !!(v.elevated || enemy.elevated), overlooks: !!v.overlooks,
   };
 }
 
@@ -151,8 +152,12 @@ export function canSee(viewer, target, world, o = {}) {
   const zone = pointInCone(cone, target.x, target.z);
   if (!zone || (zone === 'far' && cls === 'near')) return 'none';
   // Roof rule (§4.2): a unit on a roof is invisible to viewers more than rooftopDelta lower, and vice versa.
+  // A mission whose raised levels are open terraces and wall walks turns it off (`rules.roofRule: false`, M20).
   const S = CONFIG.stealth, vy = cone.vy ?? (viewer.y || 0), ty = target.y || 0;
-  if ((vy >= S.roofY || ty >= S.roofY) && Math.abs(vy - ty) > S.rooftopDelta) return 'none';
+  // `overlooks` (spawn flag): a sentry on a balcony or ledge looks DOWN past the rule (M12 jail ledge, ooc "overlooking
+  // the lower level"); the men below still cannot see him, and he never sees up.
+  if ((vy >= S.roofY || ty >= S.roofY) && Math.abs(vy - ty) > S.rooftopDelta && world?.mission?.rules?.roofRule !== false
+    && !(cone.overlooks && vy > ty)) return 'none';
   const low = isBody(target) || cls === 'near';
   // Deck-edge rule (§4.7): a body or a low (prone) unit lying on a raised surface above the viewer's eye
   // (a wall walk, a deck) is hidden by the surface edge — the low-surface case of the roof rule (M2 walk_sw).
@@ -189,11 +194,14 @@ export function probe(world, x, z) {
   return null;
 }
 
-/** Dead units (any faction) that can still be found: not jailed/removed (+ world.ai.extraBodies). */
+/**
+ * Dead units (any faction) that can still be found: not jailed/removed (+ world.ai.extraBodies). A spawn
+ * flagged `quietBody` (the M19 caged dog) leaves no body anyone reacts to.
+ */
 export function bodiesOf(world) {
   const out = [];
   for (const list of [world.enemies, world.commandos]) {
-    for (const u of list) if (!u.alive && !u.removed && u.state !== 'jailed') out.push(u);
+    for (const u of list) if (!u.alive && !u.removed && u.state !== 'jailed' && !u.spawn?.quietBody) out.push(u);
   }
   for (const b of world.ai?.extraBodies || []) out.push(b);
   return out;
@@ -259,8 +267,14 @@ export function noticedBody(enemy, world) {
  */
 export function hears(enemy, noise) {
   if (!enemy.alive || noise.source === enemy || !(noise.radius > 0)) return false;
+  let r = noise.radius;
+  // optional per-mission cap on how far an explosion carries to the guards (`rules.explosionHearing`, m; M10: the camp
+  // and the airfield are ~100 m apart and each turns out only for its own bangs). Zone onHeard sensors keep their
+  // map-wide reach for explosions (alarm.js, §4.9); without the rule nothing changes (§4.4 map-wide).
+  const cap = noise.kind === 'explosion' ? enemy.world?.mission?.rules?.explosionHearing : null;
+  if (cap > 0 && cap < r) r = cap;
   const dx = noise.x - enemy.x, dz = noise.z - enemy.z;
-  return dx * dx + dz * dz <= noise.radius * noise.radius;
+  return dx * dx + dz * dz <= r * r;
 }
 
 /** Namespace object (ARCHITECTURE "Cross-team interfaces": perception.canSee / perception.coneAt). */

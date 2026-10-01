@@ -455,7 +455,7 @@ function buildPlaceholderProp(type, params, ctx, def) {
   } else {
     const build = BUILDERS[type] || BUILDERS[{ house: 'barracks', hut: 'barracks', hangar: 'barracks', train_car: 'barracks' }[type]];
     if (build) group.add(build(p, def, ctx));
-    else group.add(box(p.w, p.h ?? 1, p.d, def.mat || 'concrete'));
+    else group.add(box(p.w, p.h ?? 1, p.d, p.mat || def.mat || 'concrete')); // a spec's `mat` wins, as for barracks/walls
     if (p.block) footprints.push(rectFp(x, z, p.w, p.d, rot, { block: p.block }));
     if (type === 'watchtower') {
       interactables = [{ interactKind: 'climbable', x: x + Math.cos(rot + Math.PI / 2) * (p.d / 2 + 0.6), z: z + Math.sin(rot + Math.PI / 2) * (p.d / 2 + 0.6), elevation: p.h, top: { x, z } }];

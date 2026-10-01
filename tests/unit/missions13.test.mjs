@@ -39,15 +39,18 @@ test('#14 checker catches a commando placed inside a cone and a blocked route', 
 
 // §3.8 / §3.4 regression: M1/M2 Driver shipped `smg: 100` (bursts) = 500 rounds; the knapsack must show 20.
 test('BEL missions: every commando spawns with its §3.8 BEL_LOADOUTS kit (SMG in bursts: 100 rounds = 20)', () => {
-  CAMPAIGNS.BEL.forEach((m, i) => {
-    const n = i + 1;
+  CAMPAIGNS.BEL.forEach((m) => {
+    const n = Number(m.id.slice(1)); // mission number from the id (m06 → 6): missions land out of order
     const L = belLoadout(n);
     assert.ok(L, `M${n} has a BEL loadout`);
-    assert.deepEqual(m.commandos.map((c) => c.role), L.team, `M${n} team`);
+    // §3.5 guests (M10 McRae, M12 informer, M17 prisoners) spawn as role 'guest' commandos: checked against L.guests
+    const guests = m.commandos.filter((c) => c.role === 'guest');
+    assert.deepEqual(m.commandos.filter((c) => c.role !== 'guest').map((c) => c.role), L.team, `M${n} team`);
+    assert.deepEqual(guests.map((c) => c.guestId ?? c.id), L.guests, `M${n} guests`);
     // same first-aid rule as game._spawnUnits: one 6-dose kit on Driver → Spy → Sniper
     const medic = firstAidCarrier(m.commandos.map((c) => c.role));
     assert.equal(medic, L.medic, `M${n} medic`);
-    for (const c of m.commandos) {
+    for (const c of m.commandos.filter((x) => x.role !== 'guest')) {
       const mine = { ...(c.inventory || {}) };
       if (c.role === medic && mine.firstAid === undefined) mine.firstAid = FIRST_AID_DOSES;
       const want = { ...L.inventories[c.role] };

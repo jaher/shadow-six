@@ -14,6 +14,44 @@ import { normalizeMission, validateMission } from '../../src/missions/schema.js'
 import { findPath } from '../../src/world/pathfinding.js';
 import { Enemy, makeVision } from '../../src/entities/enemy.js';
 import { coneAt, pointInCone } from '../../src/ai/perception.js';
+import { T, B } from '../../src/world/grid.js';
+import { vehicleDef } from '../../src/entities/vehicle.js';
+
+/**
+ * Water reach of a boat from `from` (§3.7 boats: over WATER/SHALLOW, never through a HIGH block or
+ * under a bridge deck): a 4-connected flood over cells whose 3×3 neighbourhood is all water, so the
+ * hull has a cell of clearance either side. @returns {(x:number, z:number, r?:number) => boolean}
+ */
+export function boatReach(g, from) {
+  const { cols, rows } = g, ok = new Uint8Array(cols * rows), ok2 = new Uint8Array(cols * rows), seen = new Uint8Array(cols * rows);
+  for (let k = 0; k < ok.length; k++) ok[k] = (g.terrain[k] === T.WATER || g.terrain[k] === T.SHALLOW) && g.block[k] !== B.HIGH && !g.bridge[k] ? 1 : 0;
+  for (let j = 1; j < rows - 1; j++) for (let i = 1; i < cols - 1; i++) {
+    let a = 1;
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) a &= ok[(j + dj) * cols + i + di];
+    ok2[j * cols + i] = a;
+  }
+  const s = g.idx(Math.floor(from.x / g.cell), Math.floor(from.z / g.cell)), q = [s];
+  seen[s] = 1;
+  while (q.length) {
+    const k = q.pop(), i = k % cols, j = (k - i) / cols;
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const ii = i + di, jj = j + dj, kk = jj * cols + ii;
+      if (ii >= 0 && jj >= 0 && ii < cols && jj < rows && !seen[kk] && ok2[kk]) { seen[kk] = 1; q.push(kk); }
+    }
+  }
+  return (x, z, r = 3) => {
+    for (let j = Math.floor((z - r) / g.cell); j <= (z + r) / g.cell; j++) for (let i = Math.floor((x - r) / g.cell); i <= (x + r) / g.cell; i++) {
+      if (i >= 0 && j >= 0 && i < cols && j < rows && seen[j * cols + i] && Math.hypot((i + 0.5) * g.cell - x, (j + 0.5) * g.cell - z) <= r) return true;
+    }
+    return false;
+  };
+}
+
+/** Can an escape vehicle reach its exit? Boats over water (boatReach), land vehicles by A*. */
+export function escapeReaches(grid, veh, exit) {
+  if (vehicleDef(veh.vehicleType || 'truck').boat) return boatReach(grid, veh)(exit.x, exit.z, Math.max(exit.r ?? 3, grid.cell));
+  return !!findPath(grid, veh.x, veh.z, exit.x, exit.z, { maxNodes: 400000 });
+}
 
 /** Build a normalized mission grid-only (no meshes). */
 export function loadGrid(def) {
@@ -136,7 +174,7 @@ export function checkMission(def, opts = {}) {
     const veh = n.vehicles.find((x) => x.id === ex.vehicleId);
     const at = veh ? { x: veh.x, z: veh.z } : ex.arrive || ex.spawnAt;
     if (at) targets.push({ id: `extraction:${ex.vehicleId}`, goals: [at] });
-    if (veh && ex.exit && !findPath(grid, veh.x, veh.z, ex.exit.x, ex.exit.z, { maxNodes: 400000 })) problems.push(`escape vehicle ${veh.id} cannot reach its exit`);
+    if (veh && ex.exit && !escapeReaches(grid, veh, ex.exit)) problems.push(`escape vehicle ${veh.id} cannot reach its exit`);
   }
   for (const t of targets) if (!t.goals.length) problems.push(`objective target ${t.id} has no walkable approach`);
   for (const c of n.commandos) {

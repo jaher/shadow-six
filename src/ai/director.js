@@ -17,6 +17,8 @@ import { CONFIG } from '../config.js';
 import { Footprints } from './footprints.js';
 import { canSee, hears } from './perception.js';
 import { ABILITIES } from '../abilities/registry.js';
+import { structureDoorPoint } from '../entities/interactables.js';
+import { canSeeVehicle } from './vehicle-ai.js';
 
 export class AIDirector {
   /** @param {import('../world/world.js').World} world */
@@ -53,6 +55,34 @@ export class AIDirector {
       if (p) { p.x = c.x; p.z = c.z; } else this._prev.set(c.id, { x: c.x, z: c.z });
     }
     for (const e of w.enemies) if (e.alive && !e.removed) e.brain?.belTick?.(dt20, n);
+    this._rowedBoats();
+  }
+
+  /**
+   * §4.3 (M14 review): a rowboat under way with a commando at the oars is seen like a standing commando.
+   * Every reacting enemy whose cone covers it taints it, fights it and raises his zone (the MG fire that sinks it,
+   * dossier m14 §6.1). A beached or drifting boat does not count; rafts, armed boats and spawns flagged
+   * `suspicious: false` (M7, M19 keep their verified behaviour) are left alone.
+   */
+  _rowedBoats() {
+    const w = this.world;
+    for (const v of w.vehicles || []) {
+      const D = v.def;
+      if (!D?.boat || D.raft || D.weapons?.length || v.destroyed || v.removed || v.tainted || v.spawn?.suspicious === false) continue;
+      // under way = a drive order in hand (turning in place counts) or still gliding
+      const rower = v.driver;
+      if (!rower || rower.faction !== 'player' || !(v.goal || (v.speed || 0) > 0.05)) continue;
+      const seen = w.enemies.filter((e) => e.alive && !e.removed && e.vision && e.brain?.reacts?.() && canSeeVehicle(e, v, w));
+      if (!seen.length) continue;
+      v.tainted = true;
+      v.taintedBy = seen[0];
+      w.events.emit('vehicle:tainted', { vehicle: v, by: seen[0] });
+      w.events.emit('ui:warning', { unit: rower, kind: 'seen' });
+      for (const e of seen) {
+        w.events.emit('enemy:spotted', { enemy: e, target: rower, vehicle: v });
+        e.brain.onBoardSeen?.(v, rower);
+      }
+    }
   }
 
   // ------------------------------------------------------------ hearing (§4.4, §4.9)
@@ -67,7 +97,7 @@ export class AIDirector {
         const z = w.alarm.zoneAt(e.x, e.z);
         if (z && z.onHeard && !zonesHeard.has(z.id)) {
           zonesHeard.add(z.id);
-          if (!(n.kind === 'explosion' && n.accident)) w.alarm.raise(z.id, 'heard', n.x, n.z, { sensor: 'heard' });
+          if (!(n.kind === 'explosion' && n.accident)) w.alarm.raise(z.id, 'heard', n.x, n.z, { sensor: 'heard', about: n.about });
         }
       }
     }
@@ -130,10 +160,13 @@ export class AIDirector {
     for (const e of seen) e.brain.onBoardSeen?.(vehicle, unit);
   }
 
-  _onAbility({ unit, id }) {
+  _onAbility({ unit, id, target }) {
     if (!unit || unit.faction !== 'player') return;
     const def = ABILITIES[id] ?? null;
-    const suspicious = def ? def.visibleToEnemies !== false : true;
+    let suspicious = def ? def.visibleToEnemies !== false : true;
+    // mission exemption from the §3.4 boarding rule (abilities/system.js spyMayBoard; M5 cable car)
+    const may = this.world.mission?.rules?.spyMayBoard;
+    if (id === 'enterVehicle' && unit.disguised && target && Array.isArray(may) && (may.includes(target.tag) || may.includes(target.id) || may.includes(target.vehicleType))) suspicious = false;
     if (unit.disguised && suspicious) {
       const seen = this.witnesses(unit, { ignoreDisguise: true }).filter((e) => e.brain?.reacts?.());
       if (seen.length) {
@@ -164,16 +197,25 @@ export class AIDirector {
     const w = this.world;
     const s = (w.mission?.structures || []).find((q) => q.id === jailId);
     if (!s) return null;
-    const d = s.door ? { x: s.door.x ?? s.door[0], z: s.door.z ?? s.door[1] } : { x: s.x, z: s.z + (s.d ?? 6) / 2 + 0.8 };
+    const d = typeof s.door === 'number' ? (([x, z]) => ({ x, z }))(structureDoorPoint(s, 0.8))
+      : s.door ? { x: s.door.x ?? s.door[0], z: s.door.z ?? s.door[1] } : { x: s.x, z: s.z + (s.d ?? 6) / 2 + 0.8 };
     return w.grid.nearestWalkable?.(d.x, d.z, 4) || d;
   }
 
   serialize() {
-    return { footprints: this.footprints.serialize() };
+    // squads: leader + breadcrumb trail, so the followers' file comes back exactly after a load (§8.4 replay:
+    // an empty trail after a quickload re-formed the file behind the leader's heading and the future diverged)
+    const squads = [...this.squads.values()].map((s) => ({ id: s.id, leader: s.leader?.id ?? null, trail: s.trail.map((p) => ({ x: p.x, z: p.z })) }));
+    return { footprints: this.footprints.serialize(), squads };
   }
 
   deserialize(d) {
     if (d?.footprints) this.footprints.deserialize(d.footprints);
+    for (const q of d?.squads || []) {
+      const s = this.squad(q.id);
+      s.trail = (q.trail || []).map((p) => ({ x: p.x, z: p.z }));
+      s._leaderId = q.leader; // resolved on first use (the leader may be respawned after this runs)
+    }
   }
 
   dispose() {

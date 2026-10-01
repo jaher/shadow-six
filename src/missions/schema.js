@@ -14,6 +14,8 @@ import { validateRoads } from '../world/roads.js';
 
 import { footprintConflicts } from '../world/placement.js';
 
+import { ACTION_VERBS } from './setpiece-actions.js';
+
 export const CAMPAIGN_IDS = Object.freeze(['BEL', 'BCD']);
 export const SOLDIER_TYPES = Object.freeze(['sentry', 'soldier', 'sergeant', 'trooper', 'mg', 'officer', 'truckDriver',
   'courier', 'crew', 'gunner', 'engineer', 'general', 'dog', 'tutorial',
@@ -177,6 +179,19 @@ export function validateMission(def) {
     if (it?.id != null) addId(it.id, 'interactable');
   });
   arr(def.objectives).forEach((o, i) => { if (!o.id) E(`objectives[${i}] missing id`); });
+  // MISSIONS set-pieces (src/missions/setpieces.js): {type, id?, …}; triggers {on, do:[{verb…}]}
+  if (def.setpieces !== undefined && !Array.isArray(def.setpieces)) E('setpieces must be an array');
+  arr(def.setpieces).forEach((sp, i) => {
+    if (!sp || typeof sp.type !== 'string') E(`setpieces[${i}] missing type`);
+    if (sp?.id != null) addId(sp.id, 'setpiece');
+  });
+  if (def.triggers !== undefined && !Array.isArray(def.triggers)) E('triggers must be an array');
+  arr(def.triggers).forEach((t, i) => {
+    if (!t || typeof t.on !== 'string') E(`triggers[${i}] missing 'on'`);
+    if (!Array.isArray(t?.do)) E(`triggers[${i}] 'do' must be an array of actions`);
+    else t.do.forEach((a, k) => { if (!ACTION_VERBS.some((v) => a && a[v] !== undefined)) E(`triggers[${i}].do[${k}] unknown action`); });
+  });
+  if (def.script !== undefined && typeof def.script !== 'function') E('script must be a function (world, director)');
   const ex = def.extraction;
   if (ex && !(ex.vehicleId || ex.zone || (typeof ex.x === 'number' && typeof ex.z === 'number'))) E('extraction must be {vehicleId,…} | {zone:{x,z,r}} | {x,z,r} | null');
   if (ex?.spawnWhen) for (const o of ex.spawnWhen) if (!arr(def.objectives).some((q) => q.id === o)) Wn(`extraction.spawnWhen "${o}" is not an objective id`);
@@ -298,6 +313,8 @@ export function normalizeMission(def, opts = {}) {
     noZonesFallback: def.noZonesFallback ?? def.zones === undefined,
     jails: arr(def.jails),
     alarmFail: def.alarmFail || null,
+    setpieces: arr(def.setpieces),
+    triggers: arr(def.triggers),
     climbLinks: arr(def.climbLinks).map((l) => ({ roles: ['greenberet'], ...l, a: [l.a[0], l.a[1], l.a[2] ?? 0], b: [l.b[0], l.b[1], l.b[2] ?? 0] })),
     ladders: arr(def.ladders).map((l) => ({ raised: false, y: 0, ...l, top: [l.top[0], l.top[1], l.top[2] ?? 0] })),
     triplines: arr(def.triplines),
@@ -315,4 +332,22 @@ export function normalizeMission(def, opts = {}) {
   if (!out.cameraStart && !out.commandos.length) out.cameraStart = { x: W / 2, z: D / 2 };
   Object.defineProperty(out, NORMALIZED, { value: true });
   return out;
+}
+
+/**
+ * Deliberate compound joins for placement rule (c) (`footprintConflicts`): a tower on its ruin, a wing or lean-to on
+ * its house, a terrace row sharing party walls. Appends each partner's id to the first structure's `clipAllow`
+ * (in place, so scripts holding the same objects see it) and returns the array.
+ * @param {object[]} structures
+ * @param {[string, string][]} pairs
+ * @returns {object[]}
+ */
+export function joinStructures(structures, pairs) {
+  const byId = new Map(structures.filter((s) => s && s.id != null).map((s) => [s.id, s]));
+  for (const [a, b] of pairs) {
+    const s = byId.get(a);
+    if (!s || !byId.has(b)) throw new Error(`joinStructures: unknown structure pair ${a} / ${b}`);
+    s.clipAllow = [...new Set([...(s.clipAllow || []), b])];
+  }
+  return structures;
 }

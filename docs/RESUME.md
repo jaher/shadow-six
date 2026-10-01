@@ -48,16 +48,31 @@ D = `~/.claude/projects/-home-jaherrero-projects-commandos-threejs-docs-screensh
 | 3 | ~~bodies (physics, blood, drag/carry, rescue)~~ DONE (merged 8bee97d, published 22f3ddb) | — | — | — |
 | 4 | ~~portraits pain + lip resync~~ DONE (merged 165efe6) | — | — | — |
 | 5 | buildings aligned to fences (`wf_0a14f1b4-fd5`) | S/align-buildings-to-fences-wf_0a14f1b4-fd5.js | commandos-wt-align / feat/align | M1–M3 MERGED (203693d); fix-m4-20 agent is polling for the missions merge (≤ 8 h), then realigns M4–M20 (tanks strict, others aesthetic) → verify → merge |
-| 6 | vehicle integration (`wf_5468d5f3-2cf`) | S/vehicle-integration-wf_5468d5f3-2cf.js | commandos-wt-vehint / feat/vehicle-integration | core done (a96d9b6 also fixes the red loading-int2 test); AMBIENT step (flyovers, windsock, crews — fix R75 passenger in the tub + theater uniforms, night lights) → verify → merge |
+| 6 | vehicle integration — DONE except merge → merge-queue-vehicles (`wf_2b198f41-913`) | T/merge-queue-vehicles-wf_2b198f41-913.js | commandos-wt-vehint / feat/vehicle-integration | wait for master free → merge |
 | 7 | ~~30 s gameplay video~~ DONE — user accepted the first cut (scratchpad/video/shadow-six-m02-gameplay-30s*.mp4) | — | — | — |
 | 8 | gate/door smash by vehicles (`wf_048f7b58-69f`) | ~/.claude/projects/-home-jaherrero-projects-commandos-wt-bodies/f925f159-56cb-4b42-b065-406d3c4ffa40/workflows/scripts/gate-smash-wf_048f7b58-69f.js | commandos-wt-smash / feat/gate-smash (from feat/bodies) | BUILD step running → demo clip (SEND scratchpad/video/gate-smash-m02.mp4) → verify → merge after feat/bodies |
 | 9 | music production, route A (`wf_56cb00cb-7cb`) | T/music-production-wf_56cb00cb-7cb.js | commandos-wt-music / feat/music | compose 3 batches (scratchpad/music/a/cues) → review + reel (SEND scratchpad/music/for_user/soundtrack-reel.mp3) → integrate (no in-mission music, faithful to BEL) → verify → merge |
 | 10 | clip-2 dynamic penetrations + eaves (`wf_0e57658f-125`) | T/clip-2-wf_0e57658f-125.js | commandos-wt-clip2 / feat/clip2 | fix → verify → merge |
 | 11 | ~~web build + README Play-now~~ DONE (merged 39d1582, published 719fdfa) | — | — | — |
-| 12 | M2 river + fence + map edges/apron all maps (`wf_63710755-a0a`) | T/m2-river-fence-map-edges-wf_63710755-a0a.js | commandos-wt-edges / feat/map-edges | M2 fence+river → apron + clamp + no-void test → verify → merge → M4–M20 after the missions merge |
+| 12 | ~~M2 fence~~ DONE (268b96a); river + map edges relaunched → row 17 | — | — | — |
+| 17 | M2 river ~2x + map edges/apron + tour camera (`wf_1d717746-3bf`) | T/m2-river-and-map-edges-wf_1d717746-3bf.js | commandos-wt-edges / feat/map-edges | river → edges → verify → merge → M4–M20 after the missions merge |
+| 17b | map-edges verify + merge (relaunch, AUTH block) (`wf_27d338eb-236`) | T/map-edges-verify-merge-wf_27d338eb-236.js | commandos-wt-edges / feat/map-edges | verify → fix → merge (+ new missions edge tests) |
+| 18 | detailed fuel tanks like the original (`wf_9fca8b22-91c`) | T/fuel-tanks-wf_9fca8b22-91c.js | commandos-wt-tanks / feat/fuel-tanks | research → build → critic → merge → M4–M20 after the missions merge |
+| 19 | user batch: carry/drag legs, raft wake, M3 dam front + water, sniper scope (`wf_85fc5a05-12b`) | T/user-batch-carry-raft-dam-scope-wf_85fc5a05-12b.js | commandos-wt-carry/-raft/-dam/-scope | per track build → verify → fix → merge |
+| 20 | pine needles realistic (`wf_dac19419-301`) | T/pine-needles-wf_dac19419-301.js | commandos-wt-pines / feat/pine-needles | build → critic → merge |
+| 21 | merge queue 1: gate-smash → chimney-smoke → music (`wf_b2b5a930-46f`) | T/merge-queue-1-wf_b2b5a930-46f.js | (branch worktrees) | waits for master free, merges sequentially |
+| 22 | units never through/under vehicles or solid objects (all stances) (`wf_c736e9b4-d6c`) | T/prone-vehicle-clearance-wf_c736e9b4-d6c.js | commandos-wt-prone / feat/prone-clearance | fix → verify → merge |
+| 23 | truck canvas cloth smooth + welded (`wf_64fc6322-8dc`) | T/truck-cloth-wf_64fc6322-8dc.js | commandos-wt-cloth / feat/truck-cloth | fix → verify → merge |
+| 24 | crawl alternating arms + smooth walk + unit avoidance (`wf_2b12341e-15e`) | T/locomotion-crawl-walk-wf_2b12341e-15e.js | commandos-wt-loco / feat/locomotion | crawl → walk → verify → merge |
+| 25 | R to resume while paused + all hotkeys (`wf_79ca4505-aa9`) | T/pause-hotkeys-wf_79ca4505-aa9.js | commandos-wt-hotkeys / fix/pause-hotkeys | fix + merge |
+| 26 | instant mission restart + persistent asset cache (`wf_c7e00164-82f`) | S/instant-restart-cache-wf_c7e00164-82f.js | commandos-wt-cache / feat/instant-restart | build → verify → merge → publish |
+| 27 | ?debug level select (`wf_d4b13aaf-eb1`) | T/debug-level-select-wf_d4b13aaf-eb1.js | commandos-wt-dbg / feat/debug-level-select | build + merge |
+| 28 | ground birds walk smoothly (`wf_d74fe7e5-21e`) | T/ground-birds-smooth-wf_d74fe7e5-21e.js | commandos-wt-birds / feat/ground-birds | fix → verify → merge |
+| 29 | smooth shores (`wf_82157f79-4c7`) | T/smooth-shores-wf_82157f79-4c7.js | commandos-wt-shores / feat/smooth-shores (from feat/map-edges) | build → verify → merge after map-edges |
+| 30 | dam water as realistic as possible (`wf_a3114e2b-8a7`) | S/dam-water-realism-wf_a3114e2b-8a7.js | commandos-wt-damwater / feat/dam-water (from feat/m3-dam-front) | build → critic ×2 → merge after m3-dam-front |
 | 13 | barbed wire everywhere (`wf_1566168d-bd5`) | T/barbed-wire-wf_1566168d-bd5.js | commandos-wt-wire / feat/barbed-wire | research → build → critic → merge → M4–M20 after the missions merge |
 | 14 | chimney smoke + ambient-smoke readability (`wf_e1d52344-449`) | T/chimney-smoke-wf_e1d52344-449.js | commandos-wt-smoke / feat/chimney-smoke | build → verify → merge |
-| 15 | music-now fast track: no beeps + suspense mission music (`wf_4db9841b-f46`) | T/music-now-wf_4db9841b-f46.js | commandos-wt-musicnow / feat/music-now | build → verify → merge → orchestrator publishes |
+| 15 | ~~music-now (suspense, no beeps)~~ DONE (merged 1381a81, published) | — | — | — |
 | 16 | touch/mobile (`wf_92372ad6-2e0`) | T/touch-mobile-wf_92372ad6-2e0.js | commandos-wt-touch / feat/touch | screens → early merge (PUBLISH right after) → in-game touch → verify → merge → publish |
 
 **QUEUED — launch after the in-flight work (in this order, ≤ 8 agents total):**

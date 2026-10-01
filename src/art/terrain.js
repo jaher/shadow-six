@@ -29,7 +29,12 @@ const TERRAIN_RGB = {
   [T.SHALLOW]: [0x5a, 0x5a, 0x48],
   [T.MUD]: [0x4a, 0x3d, 0x2c],
 };
-const THEATER_TINT = { desert: [1.08, 1.02, 0.92], snow: [1, 1, 1.04], temperate: [1, 1, 1], coast: [1, 1, 0.98], night: [0.55, 0.6, 0.75] };
+const THEATER_TINT = { desert: [1.08, 1.02, 0.92], snow: [1, 1, 1.04], temperate: [1, 1, 1], coast: [1, 1, 0.98], night: [0.55, 0.6, 0.75],
+  frost: [0.97, 0.99, 1.04] };
+/** §2.4 frost variant (mission `groundPalette: 'frost'`, M18 December): rimed, bleached grass and dark wet mud. */
+const PALETTE_RGB = {
+  frost: { [T.GRASS]: [0x7a, 0x7e, 0x6c], [T.GROUND]: [0x6a, 0x5f, 0x50], [T.MUD]: [0x3e, 0x34, 0x2a], [T.ROAD]: [0x76, 0x6f, 0x64] },
+};
 const WATER_DEPTH = { [T.WATER]: -1.2, [T.SHALLOW]: -0.35 };
 
 /** Tiny deterministic hash noise in [0,1). */
@@ -47,7 +52,7 @@ export function paintGroundTexture(grid, theater = 'temperate') {
   for (let j = 0; j < rows; j++) {
     for (let i = 0; i < cols; i++) {
       const k = j * cols + i;
-      const rgb = TERRAIN_RGB[grid.terrain[k]] || TERRAIN_RGB[T.GROUND];
+      const rgb = PALETTE_RGB[theater]?.[grid.terrain[k]] || TERRAIN_RGB[grid.terrain[k]] || TERRAIN_RGB[T.GROUND];
       const n = 0.9 + 0.2 * hash(i, j) + 0.06 * Math.sin(i * 0.21) * Math.cos(j * 0.17);
       for (let c = 0; c < 3; c++) data[k * 4 + c] = Math.max(0, Math.min(255, rgb[c] * n * tint[c]));
       data[k * 4 + 3] = 255;

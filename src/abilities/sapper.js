@@ -57,7 +57,10 @@ function plantBomb(kind) {
     c.playAction('plant', plant);
     return timedTask({ dur: plant, steps: [{ at: plant, fn: () => {
       if (!c.consume(item)) return false;
-      const bomb = world.add(new Bomb({ x: c.x + Math.cos(c.heading) * 0.4, z: c.z + Math.sin(c.heading) * 0.4, bombKind: kind, owner: c, seq: ++bombSeq }));
+      // per-mission time-bomb fuse (M4's retail file: 7.5 s); default CONFIG.weapons.timeBomb.fuse
+      const mf = world.mission?.timeBombFuse;
+      const bomb = world.add(new Bomb({ x: c.x + Math.cos(c.heading) * 0.4, z: c.z + Math.sin(c.heading) * 0.4, y: c.y || 0, bombKind: kind, owner: c, seq: ++bombSeq,
+        ...(kind === 'time' && Number.isFinite(mf) ? { fuse: mf } : {}) }));
       world.events.emit('bomb:armed', { bomb, kind, fuse: Number.isFinite(bomb.fuse) ? bomb.fuse : null, unit: c });
       return true;
     } }] });

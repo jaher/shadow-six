@@ -51,6 +51,8 @@ git -C "$DEV" archive --format=tar "$REF" | tar -x -C "$STAGE"
 
 # dev-only material
 rm -rf "$STAGE/docs/research-raw" "$STAGE/docs/realism-raw" "$STAGE/tests/out"
+# per-mission research dossiers quote briefings / strategy guides (TA:, Prima:) - dev-only, never published
+rm -rf "$STAGE/docs/missions"
 find "$STAGE" -name '*.bak*' -print0 | xargs -0 -r rm -rf
 # tracked files that nevertheless match an ignore rule
 git -C "$DEV" ls-files -c -i --exclude-standard -z | \

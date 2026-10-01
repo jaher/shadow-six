@@ -2,6 +2,9 @@
  * Smoke: boot → title splash → front end → sandbox via the menus (live loop) → then, in test mode, every mission loads,
  * advances 20 s of simulation without errors and is screenshotted to tests/out/.
  */
+/** Every mission (M1–M20 + sandboxes) loads in turn: more than the runner's default 90 s. */
+export const timeout = 480_000;
+
 export default async function smoke(page, t) {
   // 1) Real boot path (no test mode): S01 disclaimer → S03 title splash → any key → S04 NEW USER → MAIN →
   //    NEW GAME → TUTORIALS → TRAINING: SANDBOX → briefing (part 1 → part 2) → playing.

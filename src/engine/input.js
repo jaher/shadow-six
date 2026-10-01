@@ -281,7 +281,9 @@ export class Input {
       case 'point':
         return cam.screenToGround(clientX, clientY);
       case 'enemy':
-        return this.pickEntity(clientX, clientY, (e) => e.kind === 'enemy' && e.alive);
+        return this.pickEntity(clientX, clientY, (e) => (e.kind === 'enemy' && e.alive)
+          || (!!def.hitsBarrels && e.interactKind === 'barrel' && !e.exploded && !e.carriedBy)
+          || (!!def.hitsTankers && e.kind === 'vehicle' && !!e.def?.tanker && !e.destroyed));
       case 'unit':
         return this.pickEntity(clientX, clientY, (e) => (e.kind === 'enemy' || e.kind === 'commando') && e.alive);
       case 'body':

@@ -206,6 +206,9 @@ export class Commando extends Unit {
     if (this.carrying) q.noLinks = true;
     if (this.carrying && this.carrying.kind !== 'interactable') q.swim = false; // §C.1: no swimming with a man
     if (this.downed) { q.noLinks = true; q.swim = false; } // §C.6: he crawls on the flat
+    // §3.4 diving gear: plan through open water and under decks (grid.underpass, M16/M18 bridge spans); a target
+    // beyond the water falls back to the plain swim path, cut at the last wet waypoint below (moveTo)
+    if (this.diving && !this._diveFallback && !q.noLinks && q.swim !== false) q.dive = true;
     return q;
   }
 
@@ -223,14 +226,15 @@ export class Commando extends Unit {
     if (this.hidden || this.state === 'hidden' || this.state === 'jailed') return false;
     if (this.cannotWalk && !this.downed) return false; // §C.8: only transport moves him
     const run = !!opts.run && !this.carrying;
-    const ok = super.moveTo(x, z, { ...opts, run });
+    let ok = super.moveTo(x, z, { ...opts, run });
+    if (!ok && this.diving) { this._diveFallback = true; try { ok = super.moveTo(x, z, { ...opts, run }); } finally { this._diveFallback = false; } }
     // §3.4: no climbing (walls or ladders) while carrying a body or barrel — pathQuery() already
     // plans link-free, so this only guards a path that somehow still holds a link.
     if (ok && this.carrying && this.path.some((p) => p.link)) { this.stop(); return false; }
     // §3.4 diving gear: he stays in WATER/SHALLOW cells — the path ends at the last water waypoint
     if (ok && this.diving) {
       const w = this.world;
-      const wet = (p) => { const g = w.groundAt(p.x, p.z); return (g.water || g.shallow) && !g.bridge; };
+      const wet = (p) => { const g = w.groundAt(p.x, p.z); return ((g.water || g.shallow) && !g.bridge) || !!w.grid.underpassAt?.(p.x, p.z); };
       let n = 1;
       while (n < this.path.length && wet(this.path[n])) n++;
       if (n <= 1) { this.stop(); return false; }
@@ -348,8 +352,10 @@ export class Commando extends Unit {
     if (!this.cancelAction()) return false;
     if (def.autoStand && this.stance === 'crawl') this.setStance('stand'); // stand (0.6 s), then approach/act
     const tp = targetPoint(target);
-    this.pendingAbility = { def, target, run: run && !this.carrying, t: 0, repathT: 0, click: tp ? { ...tp } : null };
+    const pend = { def, target, run: run && !this.carrying, t: 0, repathT: 0, click: tp ? { ...tp } : null };
+    this.pendingAbility = pend;
     this._updatePending(0);
+    if (pend.refused) return fail(pend.refused);
     return true;
   }
 
@@ -440,7 +446,15 @@ export class Commando extends Unit {
     if (!this.path || (p.repathT <= 0 && moved && !onLink)) {
       p.repathT = CONFIG.abilities.approachRepath;
       p.lastTp = { x: tp.x, z: tp.z };
-      if (!this.moveTo(tp.x, tp.z, { run: p.run })) {
+      const went = this.moveTo(tp.x, tp.z, { run: p.run });
+      if (this.diving && (!went || (this.moveTarget && Math.hypot(tp.x - this.moveTarget.x, tp.z - this.moveTarget.z) > range + 0.1))) {
+        // §3.4 diving gear: the walk-up ends at the water's edge, short of the target — refuse the order
+        // instead of swimming there and doing nothing (M16 review: knife on the island pair from the water)
+        this.pendingAbility = null;
+        this.stop();
+        p.refused = "Can't reach that from the water.";
+        if (dt > 0) w.events.emit('message', { text: `${this.nickname}: ${p.refused}`, kind: 'warn', unit: this });
+      } else if (!went) {
         this.pendingAbility = null;
         w.events.emit('message', { text: `${this.nickname}: can't reach the target.`, kind: 'warn', unit: this });
       }
@@ -491,7 +505,8 @@ export class Commando extends Unit {
     if (this._followT > 0 && this.path) return;
     this._followT = 0.25;
     const ux = (this.x - lead.x) / d, uz = (this.z - lead.z) / d;
-    super.moveTo(lead.x + ux * gap, lead.z + uz * gap, { run: lead.moveMode === 'run' && !!lead.path });
+    // an unreachable leader (in a raft on the river …): hold here, don't march on along a stale path
+    if (!super.moveTo(lead.x + ux * gap, lead.z + uz * gap, { run: lead.moveMode === 'run' && !!lead.path }) && this.path) this.stop();
   }
 
   /** Emit unit:climb when a path segment through a climb/ladder link starts (§3.4 climb, §3.2 ladders). */

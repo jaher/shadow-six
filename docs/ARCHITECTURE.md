@@ -311,6 +311,9 @@ Typed-array layers, size `cols × rows` where `cols = ceil(W/CELL)`:
 - `castRay(ax, az, angle, maxDist, {viewerElevated, dynamic, viewerY}) → distance` to first `B.HIGH` cell (used by cone meshes).
 - Both take `ownOwner` (grid owner id): cells of the structure the viewer is posted in do not block
   (bunker crews look out of the slit; `perception.postOwner(enemy, world)` resolves mission `structure`).
+  `lineOfSight` also takes `passOwners` (Set of owner ids whose static cells do not block): `abilities/common.js
+  shotLosOpts(c, to, world, rifle)` passes the owners of structures flagged **`shotThrough: true`** for a sniper
+  round (`rifle`) and for any bullet at an explosive barrel/tanker (M19 plank palisade: opaque to sight, not to rounds).
 - **Stage-0 extensions (§10.2 / §10.4 #7):**
   - `dynamicBlock: Uint8Array` (B.* values) — cleared and re-stamped **every step** (`clearDynamic()`,
     `stampDynamic(cx, cz, w, d, rotHeading, value=B.HIGH)`, `dynamicAt(x,z)`); writes bump `dynamicVersion`, never
@@ -412,7 +415,7 @@ export class Enemy extends Unit {
   soldierType: 'soldier'|'officer'|'sentry'|'sniper'|'mg'|'tankcrew'…
   brain            // EnemyBrain (ai/enemy-brain.js)
   vision           // makeVision(soldierType, spawn) → {profile, fov (rad), fovDeg, near, far, sweep (rad), sweepDeg,
-                   //   period, elliptical, ellipseRatio, eyeHeight, elevated, phase, range=far, nearRange=near} | null
+                   //   period, elliptical, ellipseRatio, eyeHeight, elevated, overlooks, phase, range=far, nearRange=near} | null
   route            // [{x, z, wait, look}] or null;  routeMode 'loop'|'pingpong';  vel (VEL, speed = vel×0.9)
   post             // {x, z, heading, sweep, period, scan, scanPeriod} for static sentries
   alertLevel       // 0 calm, 1 suspicious / N > 0, 2 combat or alarm
@@ -587,7 +590,7 @@ export default {
   climbLinks: [{a:[x,z,y], b:[x,z,y], roles?}], ladders: [{x, z, y?, top:[x,z,y], raised?}],
   triplines: [{unitId|role, zone, event}], barracks: {id: {pool, squads:[{event, size, exitRoute, loop}]}},
   enemies[i]: {id, soldierType, flags:{...}, squad?:{id, leader, columns}, route?:{type:'LOOP'|'PINGPONG'|'STOPPED'|'EXIT',
-               vel, points:[{x,z,wait,look,speed?}]}, post?:{heading, sweep, period}, partner?, jail?, elevated?, y?, nervousness?},
+               vel, points:[{x,z,wait,look,speed?}]}, post?:{heading, sweep, period}, partner?, jail?, elevated?, overlooks? (sees down past the roof rule; M12 ledge), y?, nervousness?},
   startDisguised: ['spy'],
   extraction: {vehicleId, exit:{x,z,r}, spawnWhen:[objectiveIds]} | {zone:{x,z,r}} | null,
 }
@@ -700,7 +703,7 @@ your report.
 ### Perception (AI) — `src/ai/perception.js`
 ```js
 import { perception } from '../ai/perception.js';   // or named imports
-perception.coneAt(enemy, t?) → Cone | null   // {x, z, y(eye), heading(head, rad), theta, halfFov, near, far, elevated}
+perception.coneAt(enemy, t?) → Cone | null   // {x, z, y(eye), heading(head, rad), theta, halfFov, near, far, elevated, overlooks}
 perception.canSee(viewer, target, world, {ignoreDisguise}?) → 'none' | 'near' | 'far'
 perception.pointInCone(cone, x, z) → 'near' | 'far' | null      // geometry only
 perception.sweepOffset(enemy, t) → θ (rad) = A·sin(2π(t+φ)/P);  perception.ellipseFar(a, θ)
@@ -751,7 +754,7 @@ Legacy `raise(x, z, cause)` still works (= `'global'`). Emits `alarm:zone` for e
   `world.ai.extraBodies` — push non-unit body entities (`kind:'body'`) so guards can find them. `world.ai.jailDoor(id)`.
 - `src/ai/archetypes.js` — per-`soldierType` behaviour row (reacts / challenges / patrol / alarms / script).
 - Mission spawn fields read by the brain (all optional): `giro` (MG traverse deg), `handler` (dog → handler id),
-  `caged`, `exitRoute` (courier), `alarmEvent`, `detonator {x,z}` (engineer), `onArrive` (engineer/general event),
+  `caged`, `quietBody` (its body alarms nobody: `perception.bodiesOf` skips it; M19 caged dog, whose script also ignores its death unless the shooter is seen), `exitRoute` (courier), `alarmEvent`, `detonator {x,z}` (engineer), `onArrive` (engineer/general event),
   `alarmOnDecoyGiveUp`, `reactEvents` + `alarmRoute` (patrol switch on an event), route waypoint `event`
   (follow-up event) and **`look` in degrees** (design-spec §4.1). Structures may give a jail `door: {x, z}`.
 - Maps **without a `zones` key** (sandbox/test maps), or with `noZonesFallback: true`, behave as one map-wide zone with
@@ -943,6 +946,19 @@ and connect them with `climbLinks` / `ladders`. Layout alignment (design-spec §
 and items tagged `align: 'fence'` are strict (≤ `ALIGN.tolDeg` from their fence/wall/road modulo 90°), everything
 else advisory. `node tools/layout/align-report.mjs [--strict] [files]` prints the table (reads files from any
 checkout, read-only); add a merged mission to `ENFORCED` in `tests/unit/alignment.test.mjs`.
+
+**Set-piece mechanics (M4-M20, `src/missions/setpieces.js`).** Mission data `setpieces: [{type, id, …}]`,
+`triggers: [{on, match?, when?, once?, delay?, do:[actions]}]`, `alarmFail: {events|event, message}` and an optional
+`script(world, director)`; map-builder installs them (`world.setpieces`: `get(id)`, `fail(reason)`, `pieces`). Set-pieces
+are entities of kind `'setpiece'` (saved by id; ticked at 20 Hz on `onBelTick`), hand devices are `Device`
+interactables (`interactKind:'device'`, used with the shared 'use' ability). Types: `rail_line`, `cable_car` (+ `cableCar()`
+helper), `conveyor`, `current`, `lock_gate`, `mobile_bridge`, `collapse`, `multi_charge`, `phones`, `minefield`,
+`fuel_valve`, `firing_range`, `gate_control`. Hooks other systems read (all optional): `world.scriptFail` (Game loss,
+§8.1), `world.railBlocks` [{x,z,r,active}] (rail vehicles stop short), `world.driveRules` [(vehicle,x,z)→false vetoes]
+(`canDriveTo`), rail registry flag `harmless` (no kill box / never blocked: `cable_car`, `mine_cart`), rail track points
+may carry `y`, rail `schedule.accident` (a tram meeting a tanker blows it up as an accident), general spawn `cars:[ids]`.
+§7.7 prop types: `src/art/props-extra.js` (`EXTRA_PROP_TYPES`, `buildExtraProp`, registered into `PROP_TYPES` on import;
+footprints may carry `elev` = walkable roof/deck height; `targetAt` anchors the demolition target, e.g. `'bow'`/`'stern'`).
 
 ## Campaigns & rulesets (expansion-ready)
 

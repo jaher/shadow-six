@@ -74,6 +74,13 @@ export class NavGrid {
     /** @type {Int32Array} id of the structure occupying the cell (0 = none) */
     this.owner = new Int32Array(n);
     /**
+     * 1 = open water under a deck or its girders (set-piece `deck_underpass`, M16/M18): a diver (opts.dive)
+     * passes these cells whatever their block/bridge state; everyone else sees the deck and its girders.
+     * Static (rebuilt with the map), not saved.
+     * @type {Uint8Array}
+     */
+    this.underpass = new Uint8Array(n);
+    /**
      * Dynamic occluders (§4.2 OCLU, §10.2): B.* per cell, CLEARED AND RE-STAMPED EVERY SIM STEP by the
      * vehicles/trains system (clearDynamic() + stampDynamic()). Blocks sight (lineOfSight/castRay, unless
      * opts.dynamic === false); blocks movement only when isWalkable() gets opts.dynamic = true.
@@ -175,17 +182,30 @@ export class NavGrid {
   /**
    * @param {number} i
    * @param {number} j
-   * @param {{swim?: boolean, dynamic?: boolean}} [opts] swim: deep water is walkable (the diver);
-   *   dynamic: also treat dynamicBlock (vehicles/trains this step) as blocking
+   * @param {{swim?: boolean, dynamic?: boolean, dive?: boolean}} [opts] swim: deep water is walkable (the diver);
+   *   dynamic: also treat dynamicBlock (vehicles/trains this step) as blocking; dive: a submerged diver keeps to
+   *   open water (WATER/SHALLOW, no deck, no obstacle) plus the `underpass` cells under a deck and its girders
    */
   isWalkable(i, j, opts) {
     if (i < 0 || j < 0 || i >= this.cols || j >= this.rows) return false;
     const k = j * this.cols + i;
+    if (opts && opts.dive) {
+      if (this.underpass[k]) return true;
+      const t = this.terrain[k];
+      if ((t !== T.WATER && t !== T.SHALLOW) || this.bridge[k] || this.block[k] !== B.NONE || this.navBlock[k]) return false;
+      return !(opts.dynamic && this.dynamicBlock[k] !== B.NONE);
+    }
     if (this.block[k] !== B.NONE || this.navBlock[k]) return false;
     if (opts && opts.dynamic && this.dynamicBlock[k] !== B.NONE) return false;
     if (this.bridge[k]) return true;
     if (this.terrain[k] === T.WATER) return !!(opts && opts.swim);
     return true;
+  }
+
+  /** Is (x, z) an `underpass` cell (open water under a deck, divers only)? */
+  underpassAt(x, z) {
+    const i = Math.floor(x / this.cell), j = Math.floor(z / this.cell);
+    return this.inBounds(i, j) && this.underpass[this.idx(i, j)] === 1;
   }
 
   /** isWalkable() at a world point. */
@@ -617,22 +637,28 @@ export class NavGrid {
    * `ownOwner`: grid owner id of the structure the viewer is posted in (bunker crew) — its cells do not block.
    * `ownHull` {x, z, w, d, heading}: the viewer's own vehicle footprint — its dynamic stamp does not block
    * (a crewed vehicle looks from its gun mount, inside its own hull; §7.5 pboat).
-   * @param {{viewerElevated?: boolean, targetLow?: boolean, dynamic?: boolean, viewerY?: number, targetY?: number, ownHull?: object}} [opts]
+   * `targetHull` {x, z, w, d, heading}: the target vehicle's own footprint — its dynamic stamp does not
+   * block a shot at that vehicle (an occluding hull never hides its own centre).
+   * `passOwners` Set of grid owner ids whose static cells do not block (a bullet through planks: the
+   * `shotThrough` structures, abilities/common.js shotLosOpts).
+   * @param {{viewerElevated?: boolean, targetLow?: boolean, dynamic?: boolean, viewerY?: number, targetY?: number, ownHull?: object, targetHull?: object, passOwners?: Set<number>}} [opts]
    * @returns {boolean} true when visible
    */
   lineOfSight(ax, az, bx, bz, opts) {
     const lowBlocks = !!(opts && opts.targetLow && !opts.viewerElevated);
     const useDyn = !(opts && opts.dynamic === false);
     const own = useDyn && opts?.ownHull ? this._hullTest(opts.ownHull) : null;
+    const tgt = useDyn && opts?.targetHull ? this._hullTest(opts.targetHull) : null;
     // 2.5D: raised cells (elev) block like B.HIGH when higher than both endpoints (+LOS_CLEAR).
     const hy = Math.max(opts?.viewerY ?? 0, opts?.targetY ?? 0) + LOS_CLEAR;
     const block = this.block, dyn = this.dynamicBlock, elev = this.elev;
-    const ownOwner = opts?.ownOwner || 0, owner = this.owner;
+    const ownOwner = opts?.ownOwner || 0, owner = this.owner, pass = opts?.passOwners || null;
     const blocked = this._traverse(ax, az, bx, bz, (k) => {
-      const b = ownOwner && owner[k] === ownOwner ? B.NONE : block[k]; // the viewer's own bunker: he looks out of its slit
+      // the viewer's own bunker: he looks out of its slit; a `passOwners` structure: the bullet goes through
+      const b = (ownOwner && owner[k] === ownOwner) || (pass && owner[k] && pass.has(owner[k])) ? B.NONE : block[k];
       if (b === B.HIGH || (lowBlocks && b === B.LOW)) return true;
       if (elev[k] > hy) return true;
-      if (useDyn) { const d = dyn[k]; if ((d === B.HIGH || (lowBlocks && d === B.LOW)) && !(own && own(k))) return true; }
+      if (useDyn) { const d = dyn[k]; if ((d === B.HIGH || (lowBlocks && d === B.LOW)) && !(own && own(k)) && !(tgt && tgt(k))) return true; }
       return false;
     });
     return !blocked;

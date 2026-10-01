@@ -287,7 +287,10 @@ export class Game {
       if (s.role === medic && s.inventory?.firstAid === undefined && def.firstAid !== false) {
         s.inventory = { ...(s.inventory || defaultInventory(s.role)), firstAid: FIRST_AID_DOSES };
       }
-      world.add(new Commando(placed(world, s)));
+      const c = new Commando(placed(world, s));
+      world.add(c);
+      // §7.3 `stance: 'crawl'`: the mission starts him prone (already down: no stance-change lockout)
+      if (spawn.stance === 'crawl') { c.setStance('crawl'); c._stanceT = 0; }
     }
     for (const spawn of def.enemies || []) world.add(new Enemy(placed(world, spawn)));
     const Vehicle = pick(VehicleMod, 'Vehicle', 'default');
@@ -406,6 +409,8 @@ export class Game {
     const w = this.world;
     const alive = w.commandos.filter((c) => c.alive !== false && !c.removed);
     const jailed = (c) => c.state === 'jailed' || c.state === 'captured';
+    // §8.1 alarm-fail scripts (M13 sub shelled, M15 general escaped, M16 bridge blown …): src/missions/setpieces.js
+    if (w.scriptFail) return { code: 'script', reason: w.scriptFail };
     if (w.commandos.length && alive.every(jailed)) return { code: 'allLost', reason: 'ALL YOUR MEN HAVE DIED OR HAVE BEEN CAPTURED.' };
     if (CONFIG.mission.failOnCommandoDeath && w.commandos.some((c) => c.alive === false)) return { code: 'died', reason: 'ONE OR MORE OF YOUR MEN DIED…' };
     // bodies-design §C.8: every man down / captured and nobody able to help → no 60 s wait
@@ -438,7 +443,8 @@ export class Game {
     const f = (this._endFlags ||= {});
     if (res.won) {
       const ex = w.extraction ?? w.mission?.extraction ?? null;
-      if (ex) {
+      // a won extraction never overrides a loss (e.g. a dead commando: the escape objective counts only the living)
+      if (ex && !this._lossCondition(res)) {
         this.pendingEnd = null;
         this._endMission(true, 'MISSION COMPLETED');
         return;
@@ -507,6 +513,7 @@ export class Game {
   }
 
   _endMission(won, reason) {
+    if (this.state === 'won' || this.state === 'lost') return; // idempotent: one mission:won/lost per run
     this.pendingEnd = null;
     const w = this.world;
     const stats = { ...w.stats, time: w.time - (w.stats.startTime || 0), mission: this.missionDef?.id };

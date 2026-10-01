@@ -17,6 +17,8 @@ export function meleeReachable(c, target) {
   if (!target.alive) return 'Already dead.';
   if (target.state === 'inVehicle' || target.vehicle) return "Can't reach him in there.";
   if (target.elevated || target.covered || Math.abs((target.y || 0) - (c.y || 0)) > 0.6) return "Can't reach him up there.";
+  // a bunker's crew sits behind concrete (as spy.js Distract refuses him): no silent no-op walk-round
+  if (target.soldierType === 'crew' && (target.spawn?.structure || target.structure)) return 'He is shut in his post.';
   return true;
 }
 

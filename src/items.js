@@ -130,7 +130,9 @@ export function defaultInventory(role) {
  * @returns {Record<string, number>}
  */
 export function spawnInventory(role, missionInv, campaign = 'BEL') {
-  let inv = missionInv ? { ...(FIXED_KIT[role] || { pistol: 1 }), ...missionInv } : defaultInventory(role);
+  // guests (M10 McRae, M12 Informer, M17 Gilbert…) carry nothing: their only weapon is the hand (§3.8)
+  const base = FIXED_KIT[role] || (role === 'guest' ? {} : { pistol: 1 });
+  let inv = missionInv ? { ...base, ...missionInv } : defaultInventory(role);
   if (campaign === 'BCD' && BCD_KIT[role]) {
     inv = { ...BCD_KIT[role], ...inv };
     if (role === 'natasha' || role === 'skopje') delete inv.pistol; // guests: Beretta / no weapon (§1.8)
@@ -216,7 +218,7 @@ export const BEL_LOADOUTS = Object.freeze({
   1: { team: ['greenberet', 'diver', 'driver'], inventory: { greenberet: { shovel: 1 }, diver: {}, driver: { smg: 20 } }, site: { raft: 1, barrels: 5, vehicles: ['truck', 'mgNest'] } },
   2: { team: ['greenberet', 'sniper', 'diver', 'sapper', 'driver'], inventory: { greenberet: { shovel: 1 }, sniper: { sniperRifle: 5 }, diver: { inflatableBoat: 1 }, sapper: { timeBomb: 2 }, driver: { smg: 20 } }, site: { barrels: 4, vehicles: ['truck'] } },
   3: { team: ['greenberet', 'diver', 'sapper', 'spy'], inventory: { greenberet: { shovel: 1 }, diver: {}, sapper: { wireCutters: 1 }, spy: {} }, site: { timeBomb: 2, uniform: 1, raft: 1, electricSwitch: 1 } },
-  4: { team: ['greenberet', 'sniper', 'diver', 'sapper', 'driver'], inventory: { greenberet: { shovel: 1 }, sniper: { sniperRifle: 4 }, diver: {}, sapper: { grenade: 3 }, driver: {} }, site: { airdrop: { sniperRifle: 3, timeBomb: 1, smg: 20 }, vehicles: ['patrolboat', 'tank', 'motorcycle', 'truck', 'mgNest', 'mgNest', 'mgNest'] } },
+  4: { team: ['greenberet', 'sniper', 'diver', 'sapper', 'driver'], inventory: { greenberet: { shovel: 1 }, sniper: { sniperRifle: 4 }, diver: { inflatableBoat: 1 }, sapper: { grenade: 3 }, driver: {} }, site: { airdrop: { sniperRifle: 3, timeBomb: 1, smg: 20 }, vehicles: ['patrolboat', 'tank', 'motorcycle', 'truck', 'mgNest', 'mgNest', 'mgNest'] } },
   5: { team: ['greenberet', 'spy'], inventory: { greenberet: { shovel: 1 }, spy: {} }, site: { barrels: 3, uniform: 1, phones: 2 } },
   6: { team: ['greenberet', 'sniper', 'sapper'], inventory: { greenberet: { shovel: 1 }, sniper: { sniperRifle: 5 }, sapper: { remoteBomb: 2 } }, site: {} },
   7: { team: ['greenberet', 'diver', 'sapper', 'driver', 'spy'], inventory: { greenberet: { shovel: 1 }, diver: { knife: 0 }, sapper: {}, driver: {}, spy: {} }, site: { airdrop: { timeBomb: 4 }, barrels: 2, uniform: 1, vehicles: ['rowboat', 'halftrack'] } },

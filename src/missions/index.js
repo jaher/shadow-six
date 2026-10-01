@@ -8,10 +8,27 @@ import m00 from './m00_sandbox.js';
 import m01 from './m01_baptism_of_fire.js';
 import m02 from './m02_a_quiet_blow_up.js';
 import m03 from './m03_reverse_engineering.js';
+import m04 from './m04_restore_pride.js';
+import m05 from './m05_blind_justice.js';
+import m06 from './m06_menace_of_the_leopold.js';
+import m07 from './m07_chase_of_the_wolves.js';
+import m08 from './m08_pyrotechnics.js';
+import m09 from './m09_a_courtesy_call.js';
+import m10 from './m10_operation_icarus.js';
+import m11 from './m11_in_the_soup.js';
+import m12 from './m12_up_on_the_roof.js';
+import m13 from './m13_david_and_goliath.js';
+import m14 from './m14_d_day_kick_off.js';
+import m15 from './m15_the_end_of_the_butcher.js';
+import m16 from './m16_stop_wildfire.js';
+import m17 from './m17_before_dawn.js';
+import m18 from './m18_the_force_of_circumstance.js';
+import m19 from './m19_frustrate_retaliation.js';
+import m20 from './m20_operation_valhalla.js';
 import b00 from './m00_bcd_sandbox.js'; // BCD sandbox (dev/test map, docs/bcd-plan.md §3 N13)
 
-/** Ordered list of all mission definitions (sandbox first, then BEL, then BCD). */
-export const MISSIONS = [m00, m01, m02, m03, b00];
+/** Ordered list of all mission definitions (sandbox first, then BEL M1–M20 in campaign order, then BCD). */
+export const MISSIONS = [m00, m01, m02, m03, m04, m05, m06, m07, m08, m09, m10, m11, m12, m13, m14, m15, m16, m17, m18, m19, m20, b00];
 
 /**
  * Campaigns as ordered mission lists (ARCHITECTURE.md "Campaigns & rulesets"). Every def declares

@@ -5,6 +5,9 @@
  * same line everywhere (visual coverage == nav blocking: no see-through hole that still blocks, no drawn wall one
  * can walk through). Unit side: tests/unit/enclosure.test.mjs.
  */
+/** Every mission (M1–M20 + sandboxes) loads in turn: more than the runner's default 90 s. */
+export const timeout = 480_000;
+
 export default async function enclosure(page, t) {
   const r = await page.evaluate(async () => {
     const { MISSIONS } = await import('./src/missions/index.js');

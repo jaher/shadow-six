@@ -61,6 +61,9 @@ export function explosionDestroysStructure(cls, it, dCenter, ctx = null) {
     // demolition marker (§7.6 M3 `dam_charge`): the bomb must sit within the marker's r of its point
     const mk = it.marker && ctx?.world?.markers?.get?.(it.marker);
     if (mk && ctx.x != null) return Math.hypot(ctx.x - mk.x, ctx.z - mk.z) <= (mk.r ?? E.targetRadius);
+    // a structure def's explicit `targetRadius` (m from the target point) replaces the prop-sized reach (M14 guns: §3.3's 3 m)
+    const tr = p.structure?.targetRadius;
+    if (it.interactKind === 'explosiveTarget' && Number.isFinite(tr)) return dCenter <= tr;
     if (it.interactKind === 'explosiveTarget') return dCenter <= E.targetRadius + (it.radius || 0) || edge <= E.targetRadius;
     return edge <= E.lethal;
   }
@@ -103,6 +106,13 @@ export function applyExplosion(world, x, z, cls, source = null, opts = {}) {
     if (e === opts.exclude || e.alive === false || e.state === 'inVehicle' || e.state === 'jailed' || e.vehicle) continue;
     if (e.kind !== 'commando' && e.kind !== 'enemy') continue;
     if (explosionDamage(cls, Math.hypot(e.x - x, e.z - z)) >= (e.hp ?? Infinity)) { e.blastDoomed = true; doomed.push(e); }
+  }
+  // Same for the structures this blast razes: a guard killed next to a barracks raises the alarm (witnessed
+  // kill → RINT) before the loop reaches the building, and the release must already see it as rubble (M11 P1).
+  for (const e of cands) {
+    if (e === opts.exclude || e.destroyed || (e.kind !== 'interactable' && e.kind !== 'prop') || e.interactKind === 'barrel' || isBarrel(e)) continue;
+    if (e.kind === 'prop' && (typeof e.explosionHit === 'function' || !e.destructible)) continue;
+    if (explosionDestroysStructure(cls, e, Math.hypot(e.x - x, e.z - z), { world, x, z })) { e.blastDoomed = true; doomed.push(e); }
   }
   try {
   for (const e of cands) {
@@ -155,7 +165,8 @@ export function applyExplosion(world, x, z, cls, source = null, opts = {}) {
   if (opts.emit !== false) {
     world.events.emit('explosion', { x, z, radius: reach, kind: cls, source, accident: !!opts.accident });
     // accidents (M15 scripted blast) and the tanker's second (barrel) blast make no extra noise
-    if (!opts.silent && !opts.accident) world.emitNoise(x, z, MAP_WIDE, 'explosion', killer, 3);
+    // map-wide (§4.9) unless the mission caps how far a blast pulls investigators (`explosionPull` m, M11 D2)
+    if (!opts.silent && !opts.accident) world.emitNoise(x, z, world.mission?.explosionPull ?? MAP_WIDE, 'explosion', killer, 3);
   }
   return out;
 }

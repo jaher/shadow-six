@@ -4,13 +4,13 @@
  *
  *   world.alarm.raise(zoneId | 'global', cause, x, z, {sensor?})  → fired event name | null
  *   world.alarm.fireEvent(eventName, {zoneId?, cause?, x?, z?})     → releases barracks squads / siren on 'RINT'
- *   world.alarm.zoneAt(x, z) → zone | null        world.alarm.zones  [{id, poly, onSeen, onHeard}]
+ *   world.alarm.zoneAt(x, z) → zone | null        world.alarm.zones  [{id, poly, onSeen, onHeard, reach?, heardLocal?, ignoreFrom?}]
  *   world.alarm.active (siren sounding)           world.alarm.siren {active, gain, t}
  *   world.alarm.zonesFired [{zone, event, cause, t}]  (every zone event, in order)
  *   world.alarm.raiseUnzoned(cause, x, z, sensor)  sensor outside every zone: nothing — except on maps
  *        without any zones that opt in (mission.noZonesFallback, default: `zones` key absent — never an
  *        explicit `zones: []` like M1), where CONFIG.alarm.noZonesFallback acts as one map-wide zone
- *   world.alarm.barracks  {id: {pool, destroyed, squads:[{event, size, exitRoute, loop, released, members, regenT}]}}
+ *   world.alarm.barracks  {id: {pool, destroyed, squads:[{event, size, exitRoute, loop, door?, regen?, released, members, regenT}]}}
  *
  * Events: 'alarm:zone' {zone, event, cause, x, z} for every event; 'alarm:start' {x, z, cause, event} when
  * the siren starts ('RINT' only; a new RINT restarts the 25 s fade); 'alarm:end' when it fades out;
@@ -32,6 +32,19 @@ export function pointInPoly(x, z, poly) {
   return inside;
 }
 
+/** Distance from (x, z) to polygon `poly` (0 inside). */
+export function distToPoly(x, z, poly) {
+  if (pointInPoly(x, z, poly)) return 0;
+  let best = Infinity;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [ax, az] = poly[j], [bx, bz] = poly[i];
+    const dx = bx - ax, dz = bz - az, L = dx * dx + dz * dz;
+    const t = L ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L)) : 0;
+    best = Math.min(best, Math.hypot(x - ax - t * dx, z - az - t * dz));
+  }
+  return best;
+}
+
 const P = (p) => ({ x: p.x ?? p[0], z: p.z ?? p[1], ...(p.event ? { event: p.event } : {}) });
 
 /**
@@ -50,14 +63,16 @@ export function alarmRoutePlan(r, ownRoute) {
     const pts = (Array.isArray(r) ? r : r.points).map(P);
     return { exit: pts.slice(0, 1), loop: pts };
   }
-  const run = r.run ? [{ x: r.run.x, z: r.run.z, speed: r.run.vel ?? CONFIG.ai.reinforceVel.exit }] : [];
+  // `run` is one point {x, z, vel} or a list of them (a multi-leg run, e.g. M9 pt_nw down the W side)
+  const run = (Array.isArray(r.run) ? r.run : r.run ? [r.run] : []).map((q) => ({ x: q.x ?? q[0], z: q.z ?? q[1], speed: q.vel ?? CONFIG.ai.reinforceVel.exit }));
   const src = r.loop || (r.resume ? ownRoute : null);
   let loop = (src?.points || (Array.isArray(src) ? src : [])).map(pt);
   if (loop.length > 1 && loop[0].x === loop.at(-1).x && loop[0].z === loop.at(-1).z) loop.pop(); // closed polyline
   if (src?.type === 'PINGPONG' && loop.length > 2) loop = [...loop, ...loop.slice(1, -1).reverse()];
   if (run.length && loop.length) { // join the loop where the run ends
     let k = 0, best = Infinity;
-    loop.forEach((p, i) => { const d = Math.hypot(p.x - run[0].x, p.z - run[0].z); if (d < best) { best = d; k = i; } });
+    const end = run.at(-1);
+    loop.forEach((p, i) => { const d = Math.hypot(p.x - end.x, p.z - end.z); if (d < best) { best = d; k = i; } });
     loop = [...loop.slice(k), ...loop.slice(0, k)];
   }
   return { exit: run, loop, loopVel: src?.vel };
@@ -109,7 +124,8 @@ export class Alarm {
    * Trip a zone's sensor (or the global alarm). Legacy form raise(x, z, cause) == raise('global', cause, x, z).
    * @param {string} zoneId zone id, or 'global' (fires CONFIG.alarm.sirenEvent)
    * @param {string} cause 'seen' | 'kill' | 'body' | 'shout' | 'heard' | 'explosion' | …
-   * @param {{sensor?: 'seen'|'heard'}} [opts] which zone sensor; default 'heard' for heard/explosion causes
+   * @param {{sensor?: 'seen'|'heard', about?: {x: number, z: number}}} [opts] which zone sensor; default 'heard' for
+   *   heard/explosion causes; `about`: what a heard alarm shout was about (zone `ignoreFrom`)
    * @returns {string|null} the event fired
    */
   raise(zoneId, cause, x, z, opts = {}) {
@@ -117,13 +133,32 @@ export class Alarm {
     if (zoneId === 'global') return this.fireEvent(CONFIG.alarm.sirenEvent, { zoneId: null, cause, x, z });
     const zn = this.zones.find((q) => q.id === zoneId);
     if (!zn) return null;
+    // optional zone `reach` (m): its sensors ignore a source that far outside the polygon — a guard standing in
+    // the zone who hears / sees something across the M4 fjord reacts on his own, the zone stays quiet.
+    // Explosions keep their map-wide reach (§4.9).
+    if (zn.reach != null && cause !== 'explosion' && Number.isFinite(x) && Number.isFinite(z) && distToPoly(x, z, zn.poly) > zn.reach) return null;
     const sensor = opts.sensor || (cause === 'heard' || cause === 'explosion' ? 'heard' : 'seen');
+    // optional zone `heardLocal` (M11 D1): its heard sensor fires only for a noise whose source lies inside it
+    if (zn.heardLocal && sensor === 'heard' && Number.isFinite(x) && Number.isFinite(z) && !pointInPoly(x, z, zn.poly)) return null;
+    if (zn.ignoreFrom && cause !== 'explosion' && this._fromIgnored(zn, sensor, cause, x, z, opts.about)) return null;
     const evt = sensor === 'heard' ? zn.onHeard : zn.onSeen;
     if (!evt) return null;
     const key = `${zoneId}|${evt}`;
     if (this._lastFire.get(key) === this.world.time) return evt; // same zone event already fired this step
     this._lastFire.set(key, this.world.time);
     return this.fireEvent(evt, { zoneId, cause, x, z });
+  }
+
+  /**
+   * Optional zone `ignoreFrom: [zoneId]` (M18 islands: "cries there reach no one"): this zone's heard sensor ignores a
+   * noise made inside one of those zones, or an alarm shout about something inside them; a body lying inside them is
+   * found and investigated but trips nothing. Sightings of the team and explosions are unaffected.
+   */
+  _fromIgnored(zn, sensor, cause, x, z, about) {
+    const polys = zn.ignoreFrom.map((id) => this.zones.find((q) => q.id === id)?.poly).filter(Boolean);
+    const inside = (p) => !!p && Number.isFinite(p.x) && Number.isFinite(p.z) && polys.some((poly) => pointInPoly(p.x, p.z, poly));
+    if (sensor === 'heard') return inside({ x, z }) || inside(about);
+    return cause === 'body' && inside({ x, z });
   }
 
   /**
@@ -186,6 +221,8 @@ export class Alarm {
     for (const list of [w.interactables, w.props]) {
       for (const e of list || []) {
         if (e.destroyed && e.interactKind !== 'door' && (e.tag ?? e.id) === b.id) return (b.destroyed = true); // doors share the tag
+        // razed by the blast being applied right now (explosions.js marks it before any victim dies)
+        if (e.blastDoomed && e.interactKind !== 'door' && (e.tag ?? e.id) === b.id) return true;
       }
     }
     return false;
@@ -206,7 +243,10 @@ export class Alarm {
     s.released = true;
     if (n <= 0) return [];
     b.pool -= n;
-    const door = this._barracksDoor(b);
+    // optional per-squad exit `door` [x, z]: squads of one garrison released together leave by their own doors
+    // instead of stacking on the first squad's exit point (M10 dugout: 9 men on 3 spots, one grenade)
+    const sd = s.door ? P(s.door) : null;
+    const door = sd ? (w.grid.nearestWalkable?.(sd.x, sd.z, 4) || sd) : this._barracksDoor(b);
     const squadId = `${b.id}#${s.k}`;
     const units = [];
     for (let k = 0; k < n; k++) {
@@ -236,7 +276,7 @@ export class Alarm {
       const r = e.spawn.alarmRoute || e.spawn.reactRoute;
       const plan = alarmRoutePlan(r, e.spawn.route);
       const pts = plan.exit.length ? plan.exit : plan.loop;
-      if (e.brain?.reinforce && pts.length) e.brain.reinforce(plan.exit, plan.loop, { loopVel: plan.loopVel });
+      if (e.brain?.reinforce && pts.length) e.brain.reinforce(plan.exit, plan.loop, { loopVel: plan.loopVel, committed: true });
       // tank depots (M9, M10, M13): a crewed vehicle drives to the first point
       if (e.state === 'inVehicle' && e.vehicle?.driveTo && pts.length) e.vehicle.driveTo(pts[0].x, pts[0].z, true);
     }
@@ -247,7 +287,8 @@ export class Alarm {
     for (const b of Object.values(this.barracks)) {
       for (const s of b.squads) {
         if (!s.members.includes(unit)) continue;
-        if (s.members.every((m) => !m.alive)) s.regenT = CONFIG.alarm.regen;
+        // `regen: false` (M4 r4/r6, dossier §8.3): released once, never rebuilt from the pool
+        if (s.members.every((m) => !m.alive) && s.regen !== false) s.regenT = CONFIG.alarm.regen;
       }
     }
   }

@@ -11,13 +11,13 @@
 
 import { registerAbility } from './registry.js';
 import { CONFIG, KILL } from '../config.js';
-import { timedTask, enemyNear, freeToAct, bark, inReach } from './common.js';
+import { timedTask, enemyNear, freeToAct, bark, inReach, shotLosOpts } from './common.js';
 
 const W = CONFIG.weapons;
 
-/** Shooter eye/target LOS through the grid (static + dynamic occluders). */
-export function shotClear(world, from, to) {
-  return world.grid.lineOfSight(from.x, from.z, to.x, to.z, { viewerY: from.y || 0, targetY: to.y || 0 });
+/** Shooter eye/target LOS through the grid (static + dynamic occluders); `rifle`: through `shotThrough` planks. */
+export function shotClear(world, from, to, rifle = false) {
+  return world.grid.lineOfSight(from.x, from.z, to.x, to.z, shotLosOpts(from, to, world, rifle));
 }
 
 /** Resolve a clicked point/entity into a shot target: enemy near the point, barrel near the point, or the point. */
@@ -27,7 +27,17 @@ export function shotTarget(world, t) {
   const e = enemyNear(world, t.x, t.z, 1.0);
   if (e) return e;
   const b = world.interactables.find((it) => it.interactKind === 'barrel' && !it.exploded && Math.hypot(it.x - t.x, it.z - t.z) < 0.8);
-  return b || { x: t.x, z: t.z };
+  return b || vehicleAtPoint(world, t.x, t.z) || { x: t.x, z: t.z };
+}
+
+/** An intact vehicle whose hull covers (x, z): a click on its body aims at it (§3.7 bullets vs hulls). */
+function vehicleAtPoint(world, x, z) {
+  for (const v of world.vehicles || []) {
+    if (v.destroyed || v.removed || v.hiddenRail || !v.def?.size || v.def.kind === 'rail') continue;
+    const dx = x - v.x, dz = z - v.z, c = Math.cos(v.heading || 0), s = Math.sin(v.heading || 0);
+    if (Math.abs(dx * c + dz * s) <= v.def.size[0] / 2 && Math.abs(-dx * s + dz * c) <= v.def.size[1] / 2) return v;
+  }
+  return null;
 }
 
 /** Apply one bullet of `dmg` to target (unit/barrel/vehicle) and emit `shot`. */
@@ -52,6 +62,16 @@ function shotInReach(world, c, t, range) {
 function canFireFrom(c, boatOk = false) {
   if (c.state === 'inVehicle') return boatOk && c.vehicle?.vehicleKind === 'boat' ? true : 'Get out first.';
   return freeToAct(c);
+}
+
+/** A fuel tanker (def.tanker, one bullet sets it off) that is still intact: rifle/harpoon may aim at it like a barrel. */
+function isShootableTanker(t) {
+  return !!t && t.kind === 'vehicle' && !!t.def?.tanker && !t.destroyed && !t.removed && !t.hiddenRail;
+}
+
+/** A loose or racked explosive barrel a bullet can set off (not yet exploded, not being carried). */
+function isShootableBarrel(t) {
+  return !!t && t.interactKind === 'barrel' && !t.exploded && !t.destroyed && !t.carriedBy && !t.removed;
 }
 
 // ---------------------------------------------------------------- pistol (G)
@@ -96,24 +116,26 @@ registerAbility({
   id: 'sniper', label: 'Sniper rifle', icon: '🎯', hotkey: 'r', roles: ['sniper'], item: 'sniperRifle',
   targeting: 'enemy', cursor: 'scope', order: 12, noiseRadius: 0, visibleToEnemies: true,
   range: W.sniper.range, ranged: true,
+  hitsBarrels: true, hitsTankers: true, // §3.3 target "enemy/point": an explosive barrel in reach and in sight too (K's M8 finale)
   available: (c) => c.inventory.has('sniperRifle'),
   canUse(c, t, world) {
     const f = canFireFrom(c, true);
     if (f !== true) return f;
     if (!c.has('sniperRifle')) { bark(world, c, 'cant_noammo'); return 'No rounds left.'; }
+    if (isShootableBarrel(t) || isShootableTanker(t)) return world.time < (c._boltT ?? -1) ? 'Reloading.' : inReach(world, c, t, W.sniper.range, true, true);
     if (!t || t.kind !== 'enemy' || !t.alive) return 'Pick an enemy.';
     if (t.covered || t.vehicle?.def?.covered || t.vehicle?.def?.armored) return "Can't hit him in there.";
     if (world.time < (c._boltT ?? -1)) return 'Reloading.';
-    return inReach(world, c, t, W.sniper.range, true); // §3.4 lens red beyond 45 m or out of LOS
+    return inReach(world, c, t, W.sniper.range, true, true); // §3.4 lens red beyond 45 m or out of LOS
   },
-  needsLOS: (c, t, world) => shotClear(world, c, t),
+  needsLOS: (c, t, world) => shotClear(world, c, t, true),
   start(c, t, world) {
     const A = W.sniper;
     c.playAction('aim', A.aim);
     return timedTask({
       dur: A.aim + 0.1, interruptible: true,
       steps: [{ at: A.aim, fn: () => {
-        if (!t.alive || Math.hypot(t.x - c.x, t.z - c.z) > A.range + 0.5 || !shotClear(world, c, t)) return false;
+        if (!(isShootableBarrel(t) || isShootableTanker(t) || t.alive) || Math.hypot(t.x - c.x, t.z - c.z) > A.range + 0.5 || !shotClear(world, c, t, true)) return false;
         if (!c.consume('sniperRifle')) return false;
         c.faceTowards(t.x, t.z);
         c.playAction('shoot', 0.3);
@@ -193,10 +215,12 @@ registerAbility({
 registerAbility({
   id: 'harpoon', label: 'Harpoon gun', icon: '🔱', hotkey: 'j', roles: ['diver'], item: 'harpoon',
   targeting: 'enemy', cursor: 'harpoon', order: 13, noiseRadius: 0, visibleToEnemies: true,
-  range: W.harpoon.range, ranged: true,
+  range: W.harpoon.range, ranged: true, hitsTankers: true,
   canUse(c, t, world) {
     const f = freeToAct(c);
     if (f !== true) return f;
+    if (isShootableBarrel(t)) return world.time < (c._boltT ?? -1) ? 'Reloading.' : inReach(world, c, t, W.sniper.range, true);
+    if (isShootableTanker(t)) return world.time < (c._harpoonT ?? -1) ? 'Reloading.' : inReach(world, c, t, W.harpoon.range, true);
     if (!t || t.kind !== 'enemy' || !t.alive) return 'Pick an enemy.';
     if (world.time < (c._harpoonT ?? -1)) return 'Reloading.';
     if (t.covered || t.vehicle?.def?.armored) return "Can't hit him in there.";
@@ -210,10 +234,10 @@ registerAbility({
     return timedTask({
       dur: 0.4,
       steps: [{ at: 0.2, fn: () => {
-        if (!t.alive || !shotClear(world, c, t)) return false;
+        if (!(t.alive || isShootableTanker(t)) || !shotClear(world, c, t)) return false;
         c.faceTowards(t.x, t.z);
         fireBullet(world, c, t, KILL, 'harpoon', 'harpoon');
-        world.events.emit('hit', { x: t.x, z: t.z, surface: 'flesh', target: t, weapon: 'harpoon' });
+        world.events.emit('hit', { x: t.x, z: t.z, surface: t.kind === 'vehicle' ? 'metal' : 'flesh', target: t, weapon: 'harpoon' });
         c._harpoonT = world.time + W.harpoon.reload;
         return true;
       } }],

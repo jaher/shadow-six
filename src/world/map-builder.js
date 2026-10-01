@@ -23,6 +23,8 @@ import { buildTerrain, canBuildRealTerrain, TREE_TYPES, coverPropsWithSnow, setP
 import { buildWater } from '../art/water.js';
 import { buildWalkDeck, WALK_SHIFT } from '../art/dressing.js';
 import * as WaterModule from '../art/water/index.js';
+import { buildExtraProp, isExtraProp } from '../art/props-extra.js';
+import { installSetpieces } from '../missions/setpieces.js';
 import { Interactable, createInteractable, createPickup, createExtraction, spawnMissionInteractables } from '../entities/interactables.js';
 import { tickBuildings, buildingLog } from '../art/building-props.js';
 import { createWindFx } from '../render/wind-fx.js';
@@ -166,7 +168,8 @@ function buildStructureCore(s, ctx) {
   if (poly && params.x == null) [params.x, params.z] = centroid(poly);
   // walkable decks (dam crest) sit at ground level on this flat map: the placeholder mesh is the deck slab,
   // the structure's real height stays in the def (`h`) for FX/collapse
-  const r = buildProp(type, params.deck ? { ...params, h: params.deckY ?? 0.6 } : params, ctx);
+  // §7.7 types (villa, rail_bridge, lock_gate, v2_rocket …): placeholder builders in art/props-extra.js
+  const r = (isExtraProp(type) ? buildExtraProp : buildProp)(type, params.deck ? { ...params, h: params.deckY ?? 0.6 } : params, ctx);
   let fps = r.footprints;
   const blockOf = (list) => list.find((f) => f.block)?.block ?? null;
   if (poly) {
@@ -520,16 +523,23 @@ export function applyShoreShallows(grid, width) {
 export function applyElevation(grid, built) {
   let n = 0;
   const scratch = new grid.constructor(grid.width, grid.depth, grid.cell);
-  const raise = (fp, y) => {
+  // a wall / fence / wire line standing on a raised plateau or ramp (walkways of ANOTHER structure: M10 wire belt on
+  // the shelf, M11 ridge wall, M12 platform arcades) keeps blocking up there: its cells are raised, not cleared
+  const LINES = new Set(['wall', 'fence', 'barbed_wire', 'wire', 'wire_fence', 'palisade', 'sandbag_line', 'railing']);
+  const lineOwners = new Set(built.filter((b) => LINES.has(b.type) && (b.def.points || b.def.segments) && !b.def.walkways?.length).map((b) => b.owner));
+  const raise = (fp, y, keepLinesOf = null) => {
     scratch.block.fill(0);
     applyFootprint(scratch, { ...fp, block: B.HIGH }, 'block', 0);
     for (let k = 0; k < grid.size; k++) {
       if (!scratch.block[k]) continue;
+      if (keepLinesOf != null && grid.block[k] && grid.owner[k] !== keepLinesOf && lineOwners.has(grid.owner[k])) { grid.elev[k] = y; n++; continue; }
       grid.elev[k] = y; grid.block[k] = B.NONE; grid.owner[k] = 0; n++;
     }
   };
   for (const b of built) {
-    for (const w of b.def.walkways || []) raise({ shape: 'line', points: pts2(w.points), width: w.width ?? 1.2 }, w.y);
+    for (const w of b.def.walkways || []) raise({ shape: 'line', points: pts2(w.points), width: w.width ?? 1.2 }, w.y, b.owner);
+    // walkable roofs / decks declared by a footprint (`elev` m, props-extra flat roofs, rail bridge decks)
+    for (const fp of b.footprints || []) if (fp.elev > 0) raise(fp, fp.elev);
     if (b.type === 'watchtower') {
       const d = b.def;
       raise({ shape: 'rect', x: d.x, z: d.z, w: d.w ?? 3, d: d.d ?? 3, rot: d.rot ?? 0 }, b.deckSurfaceY ?? d.deckY ?? d.h ?? 5.5);
@@ -642,7 +652,7 @@ export function buildMap(world, mission, opts = {}) {
       const obj = tagged && !(spec.interactKind === 'door' && b.library) ? b.object3d : null;
       if (obj) ownedByEntity = true;
       const extra = spec.interactKind === 'explosiveTarget'
-        ? { bombOnly: !!b.def.bombOnly, destroyedBy: b.def.destroyedBy ?? null, explosive: b.def.explosive ?? null, carriable: !!b.def.carriable }
+        ? { bombOnly: !!(b.def.bombOnly ?? spec.bombOnly), destroyedBy: b.def.destroyedBy ?? null, explosive: b.def.explosive ?? null, carriable: !!b.def.carriable }
         : {};
       const it = addIt(new Interactable({ ...spec, ...extra, structure: b.def, owner: b.owner, object3d: meshes ? obj : null, tag: tagged ? b.def.id ?? null : null }));
       if (spec.interactKind === 'door' && b.def.open) it.setOpen(true); // gates that start open (M3 gate_w)
@@ -706,13 +716,18 @@ export function buildMap(world, mission, opts = {}) {
 
   // 6. mission registries (consumed by AI alarm/brain, abilities, objectives)
   registerMission(world, mission, structures);
+  // 6b. set-piece mechanics + data triggers + alarm-fail scripts (M4-M20, src/missions/setpieces.js)
+  world.structures = structures;
+  installSetpieces(world, mission, { meshes });
 
   // 7. ground + water from the finished grid
   let terrain = null, unwire = null, pavedGroundY = null;
   if (meshes) {
-    const trees = realTerrain ? built.filter((b) => TREE_TYPES.includes(b.type)).map((b) => b.def) : [];
+    // point trees only: a forest AREA (tree type + `points`, e.g. M4/M20 'forest' footprints) has no x/z of its own
+    const trees = realTerrain ? built.filter((b) => TREE_TYPES.includes(b.type) && Number.isFinite(b.def?.x) && Number.isFinite(b.def?.z)).map((b) => b.def) : [];
     // real terrain: the water system (src/art/water) owns the surface → buildTerrain returns water: null
-    terrain = buildTerrain(grid, theater, realTerrain ? { renderer: opts.renderer, mission, trees, ownWater: true, roads } : {});
+    // placeholder ground takes the mission's `groundPalette` (e.g. 'frost', M18 §2.4); real terrain keeps the theater
+    terrain = buildTerrain(grid, realTerrain ? theater : (mission.groundPalette || theater), realTerrain ? { renderer: opts.renderer, mission, trees, ownWater: true, roads } : {});
     world.scene?.add(terrain.ground);
     if (terrain.water) world.scene?.add(terrain.water);
     world.scene?.add(propsRoot);

@@ -138,12 +138,21 @@ export class Interactable extends Entity {
     const w = this.world;
     if (w) {
       for (const u of [...this.occupants]) { this.release(u); u.takeDamage?.(1e5, source, 'explosion'); }
+      // a post's crew (enemy spawn `structure`, e.g. M17's bunker gunner) goes with the post, wherever the blast was,
+      // and lies buried in its rubble: nobody comes upon that body
+      const sid = this.tag ?? this.id;
+      for (const e of [...(w.enemies || [])]) {
+        if (e.soldierType !== 'crew' || e.spawn?.structure == null || (e.spawn.structure !== sid && e.spawn.structure !== this.id)) continue;
+        if (e.alive) e.takeDamage?.(1e5, source, 'explosion');
+        if (!e.alive) e.hiddenBody = true;
+      }
       // anyone standing on a collapsing crest goes down with it
       if (this._crestCells?.length) this._killOnCrest(source);
       w.events.emit('explosion', { x: this.x, z: this.z, radius: Math.max(4, this.radius * 2), kind: 'structure', source: this });
       w.emitNoise?.(this.x, this.z, 40, 'explosion', this);
       w.events.emit('structure:destroyed', { id: this.tag ?? this.id, type: this.interactKind, owner: this.owner });
-      w.events.emit('message', { text: `${this.displayName} destroyed.`, kind: 'info' });
+      // `quietDestroy` (structure def): the mission announces this one itself (M14 review: two messages per gun)
+      if (!(this.params?.quietDestroy || this.params?.structure?.quietDestroy)) w.events.emit('message', { text: `${this.displayName} destroyed.`, kind: 'info' });
     }
     this.onDestroyed?.(this, w, source, cause);
   }
@@ -428,6 +437,8 @@ export class Interactable extends Entity {
       count: this.count, contents: this.contents, lowered: !!this.lowered, ringing: this.ringing,
       occupants: this.occupants.map((u) => u.id),
       ...(this.params?.pack ? { itemId: this.itemId, pack: true } : null), // BCD cigarette pack thrown in play (respawned)
+      // an open door's shut-state cells: the saved grid holds them open, so they cannot be re-read on load
+      ...(this.open && this._savedCells ? { savedCells: this._savedCells.slice() } : {}),
     };
   }
 
@@ -435,7 +446,13 @@ export class Interactable extends Entity {
     super.deserialize(d);
     this.hp = d.hp ?? this.hp;
     if (d.destroyed && !this.destroyed) this._applyDestroyedState(); // no side effects on load
-    if (d.open !== this.open) this.setOpen(!!d.open, true); // grid cells + visibility only, quiet on load
+    if (d.open !== this.open) { // grid cells + visibility only, quiet on load; a lock refuses hands, not a load
+      const lk = this.locked;
+      this.locked = false;
+      this.setOpen(!!d.open, true);
+      this.locked = lk;
+    }
+    if (this.open && Array.isArray(d.savedCells)) this._savedCells = d.savedCells.slice();
     this.on = !!d.on;
     this.count = d.count ?? this.count;
     if (d.contents) this.contents = { ...d.contents };
@@ -613,6 +630,21 @@ export function createInteractable(spec, opts = {}) {
 }
 
 /**
+ * World-space [x, z] of a structure's door (§7.3). `s.door` may be an [x, z] point, an {x, z} point, or a number:
+ * the door side in radians local to `rot` (map-builder doorPoint convention: 0 = +x face, +90° = +z face, the default).
+ * @returns {[number, number]}
+ */
+export function structureDoorPoint(s, pad = 0.6) {
+  const door = s.door;
+  if (Array.isArray(door)) return [door[0], door[1]];
+  if (door && typeof door === 'object' && Number.isFinite(door.x)) return [door.x, door.z];
+  const rot = s.rot ?? 0, side = typeof door === 'number' && Number.isFinite(door) ? door : Math.PI / 2;
+  const across = Math.abs(Math.sin(side)) > 0.5;
+  const reach = ((across ? s.d : s.w) ?? (s.r ? s.r * 2 : 6)) / 2 + pad;
+  return [s.x + Math.cos(rot + side) * reach, s.z + Math.sin(rot + side) * reach];
+}
+
+/**
  * Add a normalized mission's interactables to the world: `mission.interactables[]`, a hideout door for every
  * structure with `enterable:true` (§3.2), a ladder device for every raised ladder (§3.2: lowered from the top),
  * and the electric-fence power table (`world.fencePower`: fence structure id → powered).
@@ -627,9 +659,8 @@ export function spawnMissionInteractables(world, mission, opts = {}) {
   for (const s of mission.structures || []) {
     if ((s.electric || s.variant === 'electric') && s.id != null) world.fencePower.set(s.id, s.powered !== false);
     if (s.enterable) {
-      const rot = s.rot ?? 0, d = s.d ?? 6;
-      // explicit mission door → the building-library asset's main door (map-builder, when close) → south face
-      const door = s.door || world.structureDoors?.get?.(s.id) || [s.x + Math.cos(rot + Math.PI / 2) * (d / 2 + 0.6), s.z + Math.sin(rot + Math.PI / 2) * (d / 2 + 0.6)];
+      // explicit mission door (point or side) → the building-library asset's main door (map-builder, when close) → south face
+      const door = (s.door == null && world.structureDoors?.get?.(s.id)) || structureDoorPoint(s);
       add(new Interactable({ interactKind: 'door', enterable: true, x: door[0], z: door[1], id: s.id != null ? `${s.id}:door` : null, structure: s }));
     }
   }

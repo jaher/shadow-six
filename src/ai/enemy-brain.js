@@ -19,13 +19,16 @@
 
 import { CONFIG } from '../config.js';
 import { angleTo, angleDiff, wrapAngle } from '../core/math.js';
-import { perceive, canSee, hears } from './perception.js';
+import { perceive, canSee, hears, coneAt } from './perception.js';
 import { archetypeOf, isPatrolMember } from './archetypes.js';
 import { ensureAI } from './director.js';
 import { BCD_BRAIN_STATES } from './bcd-enemy.js';
 import { AnimalBrain } from './animal-brain.js';
 import { ANIMAL_TYPES } from './bcd-ranks.js';
 import { bcdPre, bcdScan, bcdOnSeen, bcdState, bcdExit, bcdOfficerLook } from './bcd-brain.js';
+
+/** A noise-driven turn needs this long (s) before what he now faces counts for a kill witness (notifyKill). */
+const NOISE_WITNESS_DELAY = 0.3;
 
 /** Spec brain states (design-spec §4.6). */
 export const BRAIN_STATES = Object.freeze(['IDLE', 'INVESTIGATE', 'DECOY', 'TRACKS', 'BODY', 'CHALLENGE', 'HOLD',
@@ -200,8 +203,15 @@ export class EnemyBrain {
     // that re-queued the man on the ground for the next finder, a shout/revive livelock); lipstick breaks at ≥ 2
     if (this.bcd && (e.incapacitated || S === 'REVIVE' || S === 'FLEE' || S === 'REPORT' || (lvl < 2 && S === 'LIPSTICK'))) return;
     if (n.kind === 'decoy' && S === 'DECOY' && this.goal) { this.goal.lastPulse = this.world.time; return; }
+    // a level-3 shock (explosion, alarm shout, burst) breaks a lure off and leaves the lured man deaf to lures for a
+    // while (replay m08: one pulsing decoy held the whole camp through the depot's chain explosion)
+    if (lvl >= 3 && S === 'DECOY') this._shockT = this.world.time;
+    if (n.kind === 'decoy' && this._lureShocked()) return;
     if (this.arch.script === 'engineer' || this.arch.script === 'general') return this._scriptAlarm(n.x, n.z);
     if (!this.arch.reacts || BUSY.has(S) || lvl <= 0) return;
+    // §4.9 a patrol sent on its alarm route (reactEvents) runs it through: noises do not turn it aside until it
+    // reaches its loop (replay m09: pt_nw investigated the blast instead of running S past the lorry)
+    if (this._committedRun && S === 'REINFORCE' && this.routeIndex < (this._loopStart ?? 0)) return;
     if (S === 'DISTRACTED') { // §4.4: level ≥ 2 breaks the distraction off
       if (lvl >= 2) { this.releaseDistraction(); this._reactNoise(n, lvl); }
       return;
@@ -215,6 +225,10 @@ export class EnemyBrain {
 
   _reactNoise(n, lvl) {
     const e = this.enemy;
+    // the cone before a noise swings him round: a kill in the same instant (the blast that made the noise)
+    // is judged with it (notifyKill), there is no time to see who fired yet (M5 fix: barrel blast unmasking)
+    const now = this.world.time;
+    if (!this._preNoise || now - this._preNoise.t > NOISE_WITNESS_DELAY) this._preNoise = { t: now, cone: coneAt(e, now) };
     // §4.3: the run to a wounded comrade's shooter is not redirected by lesser noises (e.g. the comrade's own shots)
     if (this.state === 'INVESTIGATE' && this.phase === 'go' && this.goal?.priority === 'wounded' && lvl <= 2) return;
     if (e.flags.holdsPost || this.arch.script === 'crew' || this.arch.script === 'gunner' || e.soldierType === 'mg' || !e.flags.investigates) {
@@ -293,8 +307,10 @@ export class EnemyBrain {
   notifyKill(victim, killer) {
     const e = this.enemy, w = this.world;
     if (!e.alive || e.blastDoomed || !w || victim === e || !this.arch.reacts || e.incapacitated) return false;
-    const sawVictim = canSee(e, { x: victim.x, z: victim.z, y: victim.y || 0, kind: 'body', falling: true }, w) !== 'none';
-    const sawKiller = killer && killer.alive && canSee(e, killer, w, { ignoreDisguise: true }) !== 'none';
+    // a noise that turned him a moment ago (the same blast) does not count yet: judge with the cone he had
+    const pre = this._preNoise && w.time - this._preNoise.t <= NOISE_WITNESS_DELAY ? { cone: this._preNoise.cone } : {};
+    const sawVictim = canSee(e, { x: victim.x, z: victim.z, y: victim.y || 0, kind: 'body', falling: true }, w, pre) !== 'none';
+    const sawKiller = killer && killer.alive && canSee(e, killer, w, { ignoreDisguise: true, ...pre }) !== 'none';
     if (!sawVictim && !sawKiller) return false;
     e.sawKill = true;
     e.nervousness = 20 * e.nervThreshold;
@@ -562,19 +578,20 @@ export class EnemyBrain {
     }
   }
 
-  _shout(kind, line) {
+  _shout(kind, line, about = null) {
     const e = this.enemy, w = this.world;
     const N = CONFIG.stealth.noise[kind];
     this.shoutT = w.time;
     w.events.emit('bark', { unit: e, line });
-    if (N) w.emitNoise(e.x, e.z, N.radius, kind, e);
+    if (N) w.emitNoise(e.x, e.z, N.radius, kind, e, undefined, about ? { about } : null);
   }
 
   /** "Alarm!" (ger_alarm): alarmShout noise (level 3, 36 m) + the shouter's zone event (§4.9). */
   _alarmShout(cause, x, z) {
     if (!this.arch.alarms) return;
-    this._shout('alarmShout', 'ger_alarm');
-    this._raiseZone(cause, x ?? this.enemy.x, z ?? this.enemy.z);
+    const at = { x: x ?? this.enemy.x, z: z ?? this.enemy.z };
+    this._shout('alarmShout', 'ger_alarm', at); // the noise carries what it is about (zone `ignoreFrom`, M18 islands)
+    this._raiseZone(cause, at.x, at.z);
   }
 
   /** Fire the onSeen sensor of the zone this enemy stands in (§4.9; no zones → CONFIG fallback). */
@@ -658,9 +675,13 @@ export class EnemyBrain {
     this._set('COMBAT');
     this._look(0);
     if (prev && prev !== t) this._refreshHeld(prev);
+    // spotted / the "seen" warning only when he actually sees the commando: a guard who saw a comrade die fights
+    // towards the body, not the unseen killer (replay m06: 'spotted sapper' logged from 60 m after the gun blast)
     if (t.faction === 'player') {
-      w.events.emit('enemy:spotted', { enemy: e, target: t });
-      w.events.emit('ui:warning', { unit: t, kind: 'seen' });
+      if (seen) {
+        w.events.emit('enemy:spotted', { enemy: e, target: t });
+        w.events.emit('ui:warning', { unit: t, kind: 'seen' });
+      }
       if (this.arch.script === 'dog') this._shout('bark', 'dog_bark');
     }
     if (seen && this.arch.alarms) {
@@ -693,6 +714,17 @@ export class EnemyBrain {
     if (fixed) {
       if (this._traverseOk(h)) e.heading = h; // MG traverse limited to ±giro/2 (§4.1)
     } else if (!e.isMoving || vis) e.turnTowards(vis ? t.x : e.lastSeen.x, vis ? t.z : e.lastSeen.z, dt);
+    // §4.1 artillery gunner at his emplacement: fires its gun (210 mm / AT: a shell that kills any vehicle in one hit,
+    // 13.5 m minimum) at vehicles only, never his fallback rifle (replay m07: g22 plinked the rowboat 30 times)
+    const emp = this.arch.script === 'gunner' ? this._emplacement() : null;
+    if (emp) {
+      this.burstLeft = 0;
+      if (!vis || !isVeh || !this._traverseOk(h)) return;
+      e.idleAnim = 'aim';
+      if (this.aimT > 0) { this.aimT -= dt; return; }
+      emp.fireAt(t);
+      return;
+    }
     const range = this.arch.script === 'dog' ? CONFIG.weapons.dogBite.range : W?.range ?? 0;
     if (this.arch.script === 'dog' && e.spawn?.caged) { // caged dogs only bark (§4.1)
       this.fireT -= dt;
@@ -780,11 +812,21 @@ export class EnemyBrain {
     return Math.abs(angleDiff(h, this._clampTraverse(h))) < 1e-6;
   }
 
-  /** `h` clamped into the MG traverse (post heading ± giro/2; mission data `post.giro` or spawn `giro`). */
+  /** The armed emplacement this soldier mans (spawn `emplacement: <vehicle id>`), or null once it is gone. */
+  _emplacement() {
+    const id = this.enemy.spawn?.emplacement;
+    const v = id != null ? this.world.byId?.(id) : null;
+    return v && v.kind === 'vehicle' && !v.destroyed && v.def?.weapons?.length ? v : null;
+  }
+
+  /**
+   * `h` clamped into the MG traverse (post heading ± giro/2; mission data `post.giro` or spawn `giro`). An
+   * artillery gunner with a `giro` is held to it too (m07: a gun cannot swing round at a half-track parked behind it).
+   */
   _clampTraverse(h) {
     const e = this.enemy;
     const giro = e.spawn?.giro ?? e.post?.giro;
-    if (e.soldierType !== 'mg' || !giro || giro >= 360 || !e.post) return h;
+    if ((e.soldierType !== 'mg' && this.arch.script !== 'gunner') || !giro || giro >= 360 || !e.post) return h;
     const half = (giro * DEG) / 2, d = angleDiff(e.post.heading, h);
     return Math.abs(d) <= half + 1e-6 ? h : e.post.heading + Math.sign(d) * half;
   }
@@ -918,7 +960,7 @@ export class EnemyBrain {
   _investigate() {
     const e = this.enemy, I = CONFIG.ai.investigate, g = this.goal;
     if (this.phase === 'go') {
-      if (this._dist(g) <= I.arrive || !e.isMoving) {
+      if (this._dist(g) <= I.arrive || !e.isMoving || this._nearFire()) {
         e.stop();
         this.phase = 'look';
         this.pt = 0;
@@ -930,6 +972,19 @@ export class EnemyBrain {
     e.sweepActive = false;
     e.headOffset = I.lookSweep * DEG * Math.sin((2 * Math.PI * this.pt) / I.look);
     if (this.pt >= I.look) this._set('RETURN');
+  }
+
+  /**
+   * A burning wreck (§3.6: fire within CONFIG.vehicles.wreckFireRadius of its hull) is 1 m or less ahead: an
+   * investigator or searcher stops at its edge rather than walking into the flames (replay m06: the armoured-car
+   * bomb's map-wide noise drew every investigator into the burning wreck, and each death seen was a zone alarm).
+   */
+  _nearFire() {
+    const e = this.enemy, vs = this.world?.vehicles;
+    if (!vs) return false;
+    const R = CONFIG.vehicles.wreckFireRadius + 1;
+    for (const v of vs) if (v.burning && !v.removed && v._inHull?.(e.x, e.z, R)) return true;
+    return false;
   }
 
   _startDecoy(n) {
@@ -973,9 +1028,24 @@ export class EnemyBrain {
     return null;
   }
 
+  /** Within CONFIG.ai.decoy.shockIgnore s of a level-3 shock or a broken-off lure: lures are ignored. */
+  _lureShocked() {
+    const hold = CONFIG.ai.decoy.shockIgnore ?? 0;
+    return hold > 0 && this._shockT != null && this.world.time - this._shockT < hold;
+  }
+
   _decoy(dt) {
     const e = this.enemy, D = CONFIG.ai.decoy, g = this.goal, w = this.world;
     const src = g.source;
+    // the siren starting (RINT) breaks the lure off; so does a mission's dwell cap (rules.decoyMaxDwell, s)
+    const siren = !!w.alarm?.active;
+    if (g.siren == null) g.siren = siren;
+    const maxDwell = w.mission?.rules?.decoyMaxDwell ?? D.maxDwell ?? null;
+    if ((siren && !g.siren) || (maxDwell != null && this.t >= maxDwell)) {
+      this._shockT = w.time;
+      this._set('RETURN');
+      return;
+    }
     const off = (src && (src.on === false || src.active === false || src.removed)) || w.time - g.lastPulse > D.pulse + 0.25;
     if (this.phase === 'go') {
       const there = g.sx != null ? Math.hypot(g.sx - e.x, g.sz - e.z) <= 0.3 : this._dist(g) <= D.standOff;
@@ -1058,7 +1128,7 @@ export class EnemyBrain {
     const e = this.enemy, S = CONFIG.ai.search;
     if (this.t >= S.time) return this._set('RETURN');
     if (this.phase === 'go') {
-      if (e.isMoving && this.pt < 15) return;
+      if (e.isMoving && this.pt < 15 && !this._nearFire()) return;
       e.stop();
       this.phase = 'lookpt';
       this.pt = 0;
@@ -1213,6 +1283,7 @@ export class EnemyBrain {
     if (!id || !this.world?.ai) return null;
     const sq = this.world.ai.squads.get(id);
     if (!sq) return null;
+    if (sq._leaderId !== undefined) { sq.leader = (sq._leaderId != null && this.world.byId(sq._leaderId)) || sq.leader; delete sq._leaderId; }
     if (!sq.leader || !sq.leader.alive) { // promote the next living member
       sq.leader = [...sq.members].find((m) => m.alive && !m.removed) || null;
       sq.trail.length = 0;
@@ -1301,7 +1372,9 @@ export class EnemyBrain {
     } else if (this.arch.script === 'general') {
       let best = null, bd = Infinity;
       for (const v of w.vehicles) {
-        if (v.destroyed || v.vehicleType !== 'car') continue;
+        // any staff car (car, citroen15, horch, kubelwagen …: registry model 'car'); spawn.cars limits the choice
+        if (v.destroyed || !(v.vehicleType === 'car' || v.def?.model === 'car')) continue;
+        if (e.spawn?.cars && !e.spawn.cars.includes(v.tag ?? v.id)) continue;
         const dd = this._dist(v);
         if (dd < bd) { bd = dd; best = v; }
       }
@@ -1384,7 +1457,7 @@ export class EnemyBrain {
    * Released barracks squad member / reacting patrol: run the exit route at 2.7 m/s, then loop `loop`
    * at 1.8 m/s for the rest of the mission (state REINFORCE; normal patrol rules apply).
    */
-  reinforce(exitRoute = [], loop = [], { loopVel } = {}) {
+  reinforce(exitRoute = [], loop = [], { loopVel, committed = false } = {}) {
     const e = this.enemy;
     const pts = (loop.length ? loop : exitRoute.slice(-1)).map((p) => ({ x: p.x ?? p[0], z: p.z ?? p[1], wait: p.wait ?? 0, look: p.look ?? null }));
     const vExit = CONFIG.ai.reinforceVel.exit;
@@ -1397,6 +1470,7 @@ export class EnemyBrain {
     e.route = [...exit, ...pts];
     e.routeMode = 'loop';
     this._loopStart = exit.length;
+    this._committedRun = !!committed && exit.length > 0; // deaf to noises on the exit leg (reacting patrols, §4.9)
     this.routeVel = loopVel ?? CONFIG.ai.reinforceVel.loop;
     this._routeType = 'LOOP';
     this.idleState = 'REINFORCE';
@@ -1426,10 +1500,12 @@ export class EnemyBrain {
       targetId: ref(this.target), anchor: this.anchor, aimT: this.aimT, fireT: this.fireT, lostT: this.lostT,
       goal: g, searchPts: this.searchPts, noiseTurnT: this.noiseTurnT, alertT: this.alertT, alertBoost: this.alertBoost,
       glanceT: this.glanceT, routeVel: this.routeVel, routeType: this._routeType ?? null, loopStart: this._loopStart ?? null,
-      route: this.idleState === 'REINFORCE' ? this.enemy.route : null, distractedBy: ref(this.distractedBy),
+      committedRun: !!this._committedRun, route: this.idleState === 'REINFORCE' ? this.enemy.route : null, distractedBy: ref(this.distractedBy),
       wanderT: this.wanderT, stuckRef: this._stuckRef ? { ...this._stuckRef } : null, // §4.6 panic unstick (§10.5 replay)
       lastPrint: this._lastPrint ?? null, trail: this._trail ? { ...this._trail } : null,
       ...(this.bcd ? { lipstickBy: ref(this.lipstickBy) } : null),
+      // cadence timers (squad follow re-path, shouts, lure shock) so a load replays the same future (§8.4)
+      repathT: this._repathT ?? null, shoutT: this.shoutT ?? null, shockT: this._shockT ?? null, combatReady: !!this.combatReady,
     };
   }
 
@@ -1442,6 +1518,7 @@ export class EnemyBrain {
     if (!this.idleState) this.idleState = 'IDLE';
     this._routeType = d.routeType ?? undefined;
     this._loopStart = d.loopStart ?? undefined;
+    this._committedRun = !!d.committedRun;
     this._stuckRef = d.stuckRef ? { ...d.stuckRef } : null;
     if (d.route) this.enemy.route = d.route;
     this.target = byId(d.targetId);
@@ -1459,6 +1536,10 @@ export class EnemyBrain {
     if (this.goal && this.state === 'TRACKS' && !print) this.phase = 'look'; // older save / print expired
     this._lastPrint = d.lastPrint ?? undefined;
     this._trail = d.trail ? { ...d.trail } : null;
+    if (d.repathT != null) this._repathT = d.repathT;
+    if (d.shoutT != null) this.shoutT = d.shoutT;
+    if (d.shockT != null) this._shockT = d.shockT;
+    if (d.combatReady !== undefined) this.combatReady = !!d.combatReady;
     this.burstLeft = 0;
   }
 }

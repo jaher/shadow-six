@@ -41,7 +41,8 @@ function bboxOf(fps, pad = 1) {
 function navOverridden(b, mission) {
   const d = b.def;
   if (mission.libraryNav === false || d.nav === false || b.type === 'watchtower') return true;
-  if (d.walkways?.length || d.deck || d.deckY != null) return true;
+  // the mission authors its own upper floor / roof (walkways, decks, roofWalk / roofY + parapets): keep that nav
+  if (d.walkways?.length || d.deck || d.deckY != null || d.roofWalk != null || d.roofY != null) return true;
   const bb = bboxOf(b.footprints);
   const hit = (x, z) => x >= bb.x0 && x <= bb.x1 && z >= bb.z0 && z <= bb.z1;
   for (const l of mission.ladders || []) if (hit(l.x, l.z) || (l.top && hit(l.top[0], l.top[1]))) return true;
@@ -74,9 +75,13 @@ export function applyLibraryNav(grid, built, mission, snap) {
       out.roofs++;
     }
     const end = (x, z, y) => { const p = snap(grid, x, z, y) || { x, z }; return { x: p.x, z: p.z, y }; };
+    // an asset standing at the map edge (M7 harbour, M12 kasbah) may carry a ladder / climb foot beyond it: skip that link
+    const inside = (p) => p.x >= 0 && p.z >= 0 && p.x < grid.width && p.z < grid.depth;
     for (const l of lib.ladders) {
       if (!(l.y >= MIN_RAISE)) continue;
-      grid.addLink(LINK.LADDER, end(l.a[0], l.a[1], 0), end(l.b[0], l.b[1], l.y), { roles: null });
+      const a = end(l.a[0], l.a[1], 0), bTop = end(l.b[0], l.b[1], l.y);
+      if (!inside(a) || !inside(bTop)) continue;
+      grid.addLink(LINK.LADDER, a, bTop, { roles: null });
       out.ladders++;
     }
     for (const c of lib.climbEdges) {
@@ -87,7 +92,9 @@ export function applyLibraryNav(grid, built, mission, snap) {
       if (!roof) continue;
       if (inPoly(mx + nx * 0.8, mz + nz * 0.8, roof.points)) { nx = -nx; nz = -nz; } // n points outwards
       const top = c.top ?? c.y ?? roof.elev;
-      grid.addLink(LINK.CLIMB, end(mx + nx * 1.0, mz + nz * 1.0, 0), end(mx - nx * 1.0, mz - nz * 1.0, top), { roles: ['greenberet'] });
+      const foot = end(mx + nx * 1.0, mz + nz * 1.0, 0), head = end(mx - nx * 1.0, mz - nz * 1.0, top);
+      if (!inside(foot) || !inside(head)) continue;
+      grid.addLink(LINK.CLIMB, foot, head, { roles: ['greenberet'] });
       out.climbs++;
     }
     if (raised.length) out.structures.push(b.def.id ?? b.type);

@@ -699,7 +699,8 @@ export function turretArc(grid, x, z, o) {
       // eaves / porch roofs / low boughs over open ground coming down to the barrel or turret roof: that angle is
       // closed (a roof rises inward, lifting over its edge would drive the barrel through the slope behind it)
       if (grid.overLo && Math.min(grid.overLo[k], grid.softLo[k]) - y0 < o.h + 0.3) { lift = Infinity; break; }
-      if (grid.elev?.[k] > top) top = grid.elev[k];
+      // ground levels relative to the pivot's own ground (a gun on a ridge / deck is not walled in by the ridge itself)
+      if (grid.elev && grid.elev[k] - y0 > top) top = grid.elev[k] - y0;
       if (top > o.h - 0.05) lift = Math.max(lift, Math.atan2(top + 0.12 - o.h, d));
     }
     // the turret housing turned to this angle (half length hl along it, hw across) under an overhang lower than

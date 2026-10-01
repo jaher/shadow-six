@@ -23,7 +23,7 @@ if (!files.length) {
   process.exit(1);
 }
 
-const TEST_TIMEOUT = 90_000;
+const TEST_TIMEOUT = 90_000; // a test module may export `timeout` (ms) for a longer budget (every-mission loops)
 const h = await startHarness({ swiftshader: flags.has('--swiftshader'), headless: !flags.has('--headed') });
 console.log(`browser tests (${h.mode}) on ${h.url}`);
 let pass = 0;
@@ -43,7 +43,7 @@ for (const f of files) {
     await h.openGame(page);
     await Promise.race([
       mod.default(page, t),
-      new Promise((_, rej) => { timer = setTimeout(() => rej(new Error(`timeout ${TEST_TIMEOUT} ms`)), TEST_TIMEOUT); }),
+      new Promise((_, rej) => { const ms = mod.timeout ?? TEST_TIMEOUT; timer = setTimeout(() => rej(new Error(`timeout ${ms} ms`)), ms); }),
     ]);
   } catch (e) {
     err = e;

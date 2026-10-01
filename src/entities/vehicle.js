@@ -137,7 +137,7 @@ export function vehicleDef(type) {
   const base = VEHICLE_TYPES[canon];
   const V = CONFIG.vehicles;
   const sp = (base.speed && V[base.speed]) || { slow: 0, fast: 0, turn: 0 };
-  const seats = V.seats?.[type] ?? V.seats?.[canon] ?? V.capacity[type] ?? V.capacity[base.kind] ?? 1;
+  const seats = V.seats?.[type] ?? V.seats?.[canon] ?? base.seats ?? V.capacity[type] ?? V.capacity[base.kind] ?? 1;
   return {
     weapons: [], armor: 'none', ...base,
     type: canon,
@@ -149,8 +149,81 @@ export function vehicleDef(type) {
   };
 }
 
+/**
+ * Emplacement gun shapes (no ART model yet): sandbag pit ring, carriage, barrel on an elevating
+ * cradle. `len`/`r` barrel, `elev` deg, `pit` ring radius, `shield` gun shield, `trail` split trails.
+ * mortar210 is the 21 cm Mörser 18 of BEL M7/M8 — a long, steeply raised barrel readable at 1x.
+ */
+const GUN_SHAPES = {
+  mortar210: { len: 5.2, r: 0.17, elev: 30, pit: 2.1, carriage: [1.5, 0.8, 3.2], shield: false, trail: 2.8 },
+  cannon: { len: 3.0, r: 0.09, elev: 6, pit: 1.6, carriage: [1.1, 0.55, 1.6], shield: true, trail: 1.8 },
+  atgunM20: { len: 2.6, r: 0.07, elev: 3, pit: 1.5, carriage: [1.0, 0.5, 1.4], shield: true, trail: 1.6 },
+  mgNest: { len: 1.0, r: 0.035, elev: 2, pit: 1.0, carriage: [0.25, 0.5, 0.25], shield: false, trail: 0 },
+};
+
+/** Emplacement placeholder: pit + gun; turret = the traversing gun group (barrel along +z). */
+function gunModel(type, def) {
+  type = canonicalType(type);
+  const S = GUN_SHAPES[type] || GUN_SHAPES.cannon;
+  const [l, w] = def.size;
+  const root = new THREE.Group();
+  root.name = `vehicle:${type}`;
+  const bagMat = new THREE.MeshStandardMaterial({ color: 0x8a7a5a, roughness: 0.95 });
+  const steel = new THREE.MeshStandardMaterial({ color: 0x4a5048, roughness: 0.6, metalness: 0.3 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x24262a, roughness: 0.5, metalness: 0.4 });
+  const add = (parent, geo, mat, x, y, z) => {
+    const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; parent.add(m); return m;
+  };
+  // sandbag ring, open at the back (−z) for the crew
+  const n = Math.max(8, Math.round(S.pit * 7)), bagH = S.pit > 1.2 ? 0.75 : 0.55;
+  const bagGeo = new THREE.BoxGeometry((2 * Math.PI * S.pit) / n * 0.95, bagH, 0.45);
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    if (Math.abs(Math.cos(a) + 1) < 0.35) continue; // gap at the rear
+    const b = add(root, bagGeo, bagMat, Math.sin(a) * S.pit, bagH / 2, Math.cos(a) * S.pit);
+    b.rotation.y = a;
+  }
+  const turret = new THREE.Group();
+  root.add(turret);
+  const [cw, ch, cl] = S.carriage;
+  add(turret, new THREE.BoxGeometry(cw, ch, cl), steel, 0, ch / 2 + 0.15, 0);
+  if (S.trail) { // split trails running back from the carriage
+    for (const sx of [-1, 1]) {
+      const t = add(turret, new THREE.BoxGeometry(0.16, 0.14, S.trail), steel, sx * cw * 0.35, 0.12, -S.trail / 2);
+      t.rotation.y = sx * 0.18;
+    }
+  }
+  if (type !== 'mgNest') { // road wheels / pedestal
+    const wheel = new THREE.CylinderGeometry(ch * 0.9, ch * 0.9, 0.18, 14);
+    for (const sx of [-1, 1]) add(turret, wheel, dark, sx * (cw / 2 + 0.1), ch * 0.9, 0).rotation.z = Math.PI / 2;
+  }
+  const cradle = new THREE.Group(); // elevating mass, pivots at the trunnions
+  cradle.position.y = ch + 0.25;
+  cradle.rotation.x = -S.elev * Math.PI / 180;
+  turret.add(cradle);
+  add(cradle, new THREE.BoxGeometry(S.r * 4.2, S.r * 3.4, S.len * 0.35), steel, 0, 0, S.len * 0.05);
+  const barrel = add(cradle, new THREE.CylinderGeometry(S.r, S.r * 1.25, S.len, 12), dark, 0, 0, S.len / 2 - S.len * 0.1);
+  barrel.rotation.x = Math.PI / 2;
+  add(cradle, new THREE.CylinderGeometry(S.r * 1.35, S.r * 1.35, S.len * 0.06, 12), dark, 0, 0, S.len * 0.9 - S.len * 0.03)
+    .rotation.x = Math.PI / 2; // muzzle band
+  if (S.shield) add(turret, new THREE.BoxGeometry(cw * 1.6, 1.0, 0.05), steel, 0, ch + 0.45, cl * 0.25);
+  const mats = [bagMat, steel, dark], base = mats.map((m) => m.color.getHex());
+  return {
+    root, turret, dims: { w, l, h: 1.0 },
+    // barrel reach from the pivot and trunnion height (world/placement.js turretArc, placement rule d)
+    gun: { len: S.len * 0.9, h: ch + 0.25 },
+    update() {},
+    // local = world turret heading − hull heading; rotation.y turns the other way (as boxModel)
+    setTurretHeading(r) { turret.rotation.y = -r; },
+    setGunLift(a) { cradle.rotation.x = -S.elev * Math.PI / 180 - (Number.isFinite(a) ? a : 0); },
+    setDestroyed(on) { mats.forEach((m, i) => m.color.setHex(on ? 0x1d1a17 : base[i])); if (on) cradle.rotation.x = 0.12; },
+    dispose() { root.traverse((o) => { o.geometry?.dispose(); }); mats.forEach((m) => m.dispose()); },
+  };
+}
+
 /** Placeholder model for types the ART catalogue does not have yet (train, tram, mgNest, cannon). */
 function boxModel(type, def) {
+  if (def.kind === 'emplacement') return gunModel(type, def);
   const [l, w] = def.size;
   const h = def.kind === 'emplacement' ? 1.0 : def.kind === 'rail' ? 3.2 : 1.6;
   const root = new THREE.Group();
@@ -211,6 +284,10 @@ export class Vehicle extends Entity {
     if (spawn.operators) D.operators = [...spawn.operators];
     if (spawn.seats != null) D.seats = spawn.seats; // mission override (M3 evac_truck seats: 6)
     if (spawn.unmannable != null) D.unmannable = !!spawn.unmannable; // §3.4 per-spawn "never manned" flag
+    if (Array.isArray(spawn.weapons)) { // per-spawn armament (M4's Panzer II: hull MG only, Kildread "armed like the SdKfz")
+      D.weapons = [...spawn.weapons]; D.weapon = D.weapons[0] ?? null; D.weapon2 = D.weapons[1] ?? null;
+    }
+    if (spawn.boardAny) D.boardAny = true; // scripted escape boat (BEL exit vehicle, M4): anyone boards it from the bank
     this.def = D;
     this.spawn = spawn;
     /** 'land' | 'boat' | 'plane' | 'emplacement' | 'rail' */
@@ -355,7 +432,7 @@ export class Vehicle extends Entity {
     const op = this.canOperate(unit);
     if (this.def.kind === 'emplacement' && !op) return 'only the Driver can man this gun';
     // §3.4 raft/boats: the Marine boards first; others board while the boat sits in shallow water.
-    if (this.isBoat && !this.driver && !op) return 'the Marine must board first';
+    if (this.isBoat && !this.driver && !op && !this.def.boardAny) return 'the Marine must board first';
     if (this.isBoat && !op && this.world && !this._nearShallowOrBank()) return 'the boat must be in shallow water';
     return true;
   }
@@ -591,6 +668,7 @@ export class Vehicle extends Entity {
 
   /** Can the operator's straight-line click at (x, z) move the vehicle at all? (cursor feedback) */
   canDriveTo(x, z) {
+    if (this.world?.driveRules?.some((r) => r(this, x, z) === false)) return false; // MISSIONS rules (M19 no rowing upstream)
     return this.driveable && !this.destroyed && this.vehicleKind !== 'emplacement' && this.straightReach(x, z) >= 0.5;
   }
 
@@ -832,9 +910,18 @@ export class Vehicle extends Entity {
     if (this.waitT > 0) { this.waitT -= dt; this.speed = 0; return; }
     const [from, to, half] = this.killBox;
     // A vehicle standing on the track ahead stops the train (§3.7).
-    const blocker = this.world.vehicles.find((v) => v !== this && !v.removed && !v.def.rail
+    // `harmless` rail types (cable car, mine cart) run overhead / on their own rails: no kill box, never blocked.
+    const harmless = !!this.def.harmless;
+    const blocker = !harmless && this.world.vehicles.find((v) => v !== this && !v.removed && !v.def.rail && !v.destroyed
       && this._inBoxOf(v.x, v.z, 0, to + 1, half + Math.max(...v.def.size) / 2));
-    if (blocker) { if (this.speed > 0) this.world.events.emit('vehicle:stop', { vehicle: this }); this.speed = 0; return; }
+    // §7.1 M15: a tram with `accident` hitting a tanker blows it up as an "accident" (no alarm noise)
+    if (blocker && blocker.def.tanker && (this.spawn.accident || this.schedule.accident)) {
+      blocker.spawn.accident = true;
+      blocker.destroy(this, 'accident');
+    } else if (blocker) { if (this.speed > 0) this.world.events.emit('vehicle:stop', { vehicle: this }); this.speed = 0; return; }
+    // §7.1 M18 damaged track (MISSIONS set-piece `rail_line`: a grenade on the rails): world.railBlocks [{x,z,r,active}]
+    const rb = !harmless && this.world.railBlocks?.find((b) => b.active !== false && this._inBoxOf(b.x, b.z, 0, to + 1 + (b.r ?? 1), half + (b.r ?? 1)));
+    if (rb) { if (this.speed > 0) this.world.events.emit('vehicle:stop', { vehicle: this }); this.speed = 0; return; }
     this.speed = S.speed;
     const prevS = this.railS;
     this.railS += this.railDir * S.speed * dt;
@@ -845,7 +932,7 @@ export class Vehicle extends Entity {
     const end = this.railDir > 0 ? this.railS >= this.trackLen : this.railS <= 0;
     this.railS = Math.max(0, Math.min(this.trackLen, this.railS));
     this._placeOnTrack();
-    for (const u of this._unitsInBox(from, to, half)) {
+    for (const u of harmless ? [] : this._unitsInBox(from, to, half)) {
       u.die?.('train', this);
       this.world.events.emit('vehicle:runover', { vehicle: this, victim: u });
     }
@@ -869,11 +956,11 @@ export class Vehicle extends Entity {
 
   /** Set up track geometry (called from the constructor for rail types). */
   _initRail(spawn) {
-    this.track = (spawn.track || []).map((p) => ({ x: p.x, z: p.z, wait: p.wait || 0 }));
+    this.track = (spawn.track || []).map((p) => (Array.isArray(p) ? { x: p[0], z: p[1], y: p[2] ?? null, wait: 0 } : { x: p.x, z: p.z, y: p.y ?? null, wait: p.wait || 0 }));
     const T0 = CONFIG.vehicles.trainSchedule;
     const sc = spawn.schedule || {};
     this.schedule = { period: sc.period ?? T0.period, speed: sc.speed ?? T0.speed, delay: sc.delay ?? T0.delay,
-      mode: sc.mode ?? (this.def.type === 'tram' ? 'pingpong' : 'once'), endWait: sc.endWait };
+      mode: sc.mode ?? (this.def.type === 'train' ? 'once' : 'pingpong'), endWait: sc.endWait, accident: !!sc.accident };
     this.segLen = [];
     this.trackLen = 0;
     this.trackStops = [];
@@ -893,7 +980,7 @@ export class Vehicle extends Entity {
     this.hiddenRail = this.schedule.mode === 'once';
     if (this.hiddenRail && this.object3d) this.object3d.visible = false;
     if (this.track.length >= 2) this._placeOnTrack();
-    if (this.schedule.mode !== 'once') { this.railT = 0; }
+    if (this.schedule.mode !== 'once') { this.railT = sc.delay ?? 0; } // pingpong: docked at the start for `delay` s
   }
 
   _placeOnTrack() {
@@ -903,6 +990,7 @@ export class Vehicle extends Entity {
     const f = this.segLen[k] > 0 ? Math.min(1, s / this.segLen[k]) : 0;
     this.x = a.x + (b.x - a.x) * f;
     this.z = a.z + (b.z - a.z) * f;
+    if (a.y != null && b.y != null) this.y = a.y + (b.y - a.y) * f; // cable car: height along the cable
     this.heading = angleTo(a.x, a.z, b.x, b.z) + (this.railDir < 0 ? Math.PI : 0);
   }
 
@@ -937,11 +1025,11 @@ export class Vehicle extends Entity {
   gunArc() {
     const w = this.world, g = this.model?.gun;
     if (!w?.grid || !g || this.destroyed) return null;
-    const key = `${w.grid.version}|${this.x.toFixed(1)}|${this.z.toFixed(1)}`;
+    const key = `${w.grid.version}|${this.x.toFixed(1)}|${this.z.toFixed(1)}|${(this.y || 0).toFixed(1)}`;
     if (this._arcKey !== key) {
       this._arcKey = key;
       // the hull itself is never in block / navBlock (vehicles stamp the dynamic layer only): nothing to skip
-      this._arc = turretArc(w.grid, this.x, this.z, { len: g.len, h: g.h, housing: g.hl ? { hl: g.hl, hw: g.hw, top: g.top } : null, heightOf: ownerHeight(w), y0: this._groundAt(this.x, this.z) });
+      this._arc = turretArc(w.grid, this.x, this.z, { len: g.len, h: g.h, housing: g.hl ? { hl: g.hl, hw: g.hw, top: g.top } : null, heightOf: ownerHeight(w), y0: Math.max(this.y || 0, this._groundAt(this.x, this.z)) }); // y: a hull on a ridge / deck (M11)
     }
     return this._arc;
   }
@@ -1037,7 +1125,9 @@ export class Vehicle extends Entity {
     const m = this.muzzleToward(aim.x, aim.z);
     const d = Math.hypot(aim.x - this.x, aim.z - this.z);
     let hit = false;
-    if (tgt && d <= wd.range + 0.5 && w.grid.lineOfSight(m.x, m.z, ...edgePoint(tgt, m), { dynamic: tgt.kind !== 'vehicle' })) {
+    // the gun looks out from the hull's own height (a hull on a ridge fires down over the rim, M11 quarry);
+    // never up: targetY is left out, so raised cells above the hull (a bunker roof, a cliff) still block (M11 D4)
+    if (tgt && d <= wd.range + 0.5 && w.grid.lineOfSight(m.x, m.z, ...edgePoint(tgt, m), { dynamic: tgt.kind !== 'vehicle', viewerY: this.y || 0 })) {
       hit = true;
       if (tgt.kind === 'vehicle') tgt.takeDamage(wd.dmg, this.shooter, id);
       else if (tgt.explodeBarrel || tgt.barrel) hitBarrel(w, tgt, this.shooter);
@@ -1166,7 +1256,9 @@ export class Vehicle extends Entity {
       ...super.serialize(), vehicleType: this.vehicleType, hp: this.hp, hits: this.hits, raftHits: this.raftHits,
       tainted: this.tainted, destroyed: this.destroyed, used: this.used, torpedoes: this.torpedoes,
       wreckT: this.wreckT, burning: this.burning, ...(this.blastFlip ? { blastFlip: { ...this.blastFlip, t0: -1e3 } } : null), passedExit: !!this.passedExit, drivenOff: !!this.drivenOff, crew: this.crew.map((c) => c.alive),
-      occupants: this.occupants.map((u) => u.id), driver: this.driver?.id ?? null,
+      // a save taken after a load but before the first tick still carries the not-yet-relinked occupants
+      occupants: this._pendingOccupants ? [...this._pendingOccupants.ids] : this.occupants.map((u) => u.id),
+      driver: this._pendingOccupants ? this._pendingOccupants.driver ?? null : this.driver?.id ?? null,
       rail: this.def.rail ? { s: this.railS, t: this.railT, dir: this.railDir, running: this.railRunning } : null,
       // drive state (§10 a quickload replays identically): the exact leg, waypoint, remaining wait, speed
       drive: {

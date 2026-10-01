@@ -76,6 +76,17 @@ export const HDRI_ALIASES = {
   overcast: (theater) => (theater === 'snow' ? 'overcast_snow' : 'overcast_temperate'),
   clear: 'clear_day', sunny: 'clear_day', desert: 'desert_noon', noon: (t) => (t === 'desert' ? 'desert_noon' : 'clear_day'),
   dawn: 'golden_hour', golden: 'golden_hour', sunrise: 'golden_hour', moon: 'night', moonlit: 'night',
+  // descriptive names used by the M5–M20 mission files → the vendored presets
+  spring_broken_cloud: 'clear_day', winter_overcast_coast: 'overcast_snow',
+  desert_clear_noon: 'desert_noon', desert_clear_morning: 'desert_noon',
+  overcast_harbour_noon: 'overcast_temperate', coast_overcast_spring: 'overcast_temperate',
+};
+
+/** Descriptive LUT names used by the M5–M20 mission files → engine/grade.js GRADES ids. */
+export const LUT_ALIASES = {
+  norway_spring: 'norway', norway_winter: 'norway', desert_noon: 'desert', tunis: 'urban',
+  coast_day: 'coast', coast_may: 'coast', temperate_day: 'temperate', temperate_late_summer: 'temperate',
+  temperate_overcast: 'temperate', temperate_frost: 'frost',
 };
 
 /** @returns {string|null} HDRI preset id for a mission/theater hdri name (null = procedural sky). */
@@ -135,7 +146,7 @@ export function resolveLighting(theater, ml = null) {
   if (Number.isFinite(m.kelvin)) L.kelvin = m.kelvin;
   if (Number.isFinite(m.kelvin) || m.sunColor === undefined) L.sunColor = kelvinToColor(L.kelvin ?? 5800).getHex();
   if (m.hdri !== undefined && m.hdri !== null) L.hdri = m.hdri;
-  if (m.lut !== undefined && m.lut !== null) L.lut = m.lut;
+  if (m.lut !== undefined && m.lut !== null) L.lut = LUT_ALIASES[m.lut] ?? m.lut;
   if (m.fog === false) L.fog = null;
   else if (Number.isFinite(m.fog)) L.fog = { color: base.fog?.color ?? 0xb0b8c0, near: 0, far: 4 * m.fog };
   else if (m.fog && typeof m.fog === 'object') L.fog = { ...base.fog, ...m.fog };

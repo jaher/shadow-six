@@ -187,7 +187,7 @@ export const CONFIG = {
   ai: {
     nervousness: { T: 50, decayPerTick: 1, closeRange: 2.25, heldValue: 1000, bodyBonusDiv: 25, dispMul: 2 }, // §4.5 [EXE]: N += floor(dispMul·d²), d in BEL units
     investigate: { speed: 1.8, look: 4.0, runSpeed: 3.8, arrive: 1.5, lookSweep: 90 }, // §4.6 INVESTIGATE
-    decoy: { radius: 13.5, pulse: 1.5, giveUp: 5.0, standOff: 2.0 }, // §4.6 DECOY [rec]
+    decoy: { radius: 13.5, pulse: 1.5, giveUp: 5.0, standOff: 2.0, shockIgnore: 20, maxDwell: null }, // §4.6 DECOY [rec]; shockIgnore: s deaf to lures after a level-3 shock / broken lure; maxDwell: s (null = none; missions: rules.decoyMaxDwell)
     search: { time: 20, points: 3, radius: 8, look: 2 }, // §4.6 SEARCH
     lostTarget: 3.0, // §4.6 COMBAT → SEARCH after target lost 3 s
     chaseSpeed: 3.8, // §4.1 [data: German run stride 55 vs 75]
@@ -240,7 +240,7 @@ export const CONFIG = {
     pistol: { range: 13.5, dmg: 80, cadence: 0.15, noise: 18, noiseKind: 'pistol', accuracy: 1 }, // §3.3 commando pistol
     luger: { range: 13.5, dmg: 80, cadence: 0.5, noise: 18, noiseKind: 'pistol', accuracy: 1 }, // §4.1 sergeant pistol
     sniper: { range: 45, dmg: KILL, reload: 0.5, aim: 0.6, noise: 0, accuracy: 1 }, // §3.3 silent, one shot kills
-    smg: { range: 18, rounds: 5, dmg: 100, fanDeg: 15, cadence: 0.8, burstDur: 0.25, noise: 25, noiseKind: 'smg', accuracy: 1 }, // §3.3 Driver
+    smg: { range: 18, rounds: 5, dmg: 200, fanDeg: 15, cadence: 0.8, burstDur: 0.25, noise: 25, noiseKind: 'smg', accuracy: 1 }, // §3.3 Driver; a round that hits kills (Kildread / CommandosHQ: "kills in one hit")
     harpoon: { range: 9, dmg: KILL, reload: 3.0, noise: 0, accuracy: 1 }, // §3.3 silent, unlimited
     grenade: { range: 13.5, flight: 1.0, throwTime: 0.7, explosion: 'grenade', noise: MAP_WIDE, noiseKind: 'explosion' }, // §3.3
     timeBomb: { fuse: 10.0, plant: 1.0, explosion: 'bomb', noise: MAP_WIDE, noiseKind: 'explosion' }, // §3.3 [manual/data]
@@ -269,6 +269,7 @@ export const CONFIG = {
       grenade: { lethal: 0, lethalDmg: 200, lethalRadius: 4.5, dmgRadius: 6.75, dmg: 100, structures: 'grenadeDestructible', chain: 4.5, chainDelay: 0 },
       vehicle: { lethal: 0, dmgRadius: 9, dmg: 180, structures: 'light', chain: 6.75, chainDelay: 0 }, // [data .DANO 180 .RADIO 200]
       shell: { lethal: 2.25, dmgRadius: 4.5, dmg: 150, structures: 'allButBunker', chain: 4.5, chainDelay: 0 },
+      mine: { lethal: 3.0, dmgRadius: 0, dmg: 0, structures: 'none', chain: 3.0, chainDelay: 0 }, // §4.11 land mine: 3 m, lethal (M5 dossier §6.2)
     },
     // --- LEGACY (placeholder brain / items / projectiles) ---
     smgBurst: { fanAngle: deg(15), rays: 5, bursts: 20 }, // → smg.fanDeg / smg.rounds; bursts = item count

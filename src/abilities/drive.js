@@ -113,6 +113,10 @@ registerAbility({
     const load = liveLoad(commando);
     const board = load ? CONFIG.bodies.vehicleLoad : vehicle.vehicleKind === 'emplacement' ? V.gunMountTime : V.boardTime;
     let t = 0, repath = 0, boarding = false, walked = 0, lastP = null;
+    // BEL: a crawler told to board a boat gets up first — nobody crawls through the surf into a boat (M14 review:
+    // the prone Driver stalled at the water's edge); land vehicles keep the crawl approach
+    if (vehicle.vehicleKind === 'boat' && commando.stance === 'crawl') commando.setStance('stand');
+    const cant = () => { world.events.emit('message', { text: `${commando.nickname || commando.role}: can't reach it.`, kind: 'warn', unit: commando }); return 'failed'; };
     return {
       interruptible: true,
       update(dt) {
@@ -128,7 +132,7 @@ registerAbility({
             return 'running';
           }
           walked += dt;
-          if (walked > CONFIG.abilities.approachTimeout) return 'failed';
+          if (walked > CONFIG.abilities.approachTimeout) return cant(); // never end silently
           repath -= dt;
           // re-path only when the boarding point moved, and never mid climb/ladder link (a fresh path from
           // the middle of the inner steps restarts the traversal: replay m02, stuck on walk_sw for 30 s)
@@ -138,10 +142,7 @@ registerAbility({
             const p = boardPoint(vehicle, commando);
             if (p && commando.path && lastP && Math.hypot(p.x - lastP.x, p.z - lastP.z) <= CONFIG.abilities.approachRepathMove) return 'running';
             lastP = p ? { x: p.x, z: p.z } : null;
-            if (!p || !commando.moveTo(p.x, p.z, {})) {
-              world.events.emit('message', { text: `${commando.nickname || commando.role}: can't reach it.`, kind: 'warn', unit: commando });
-              return 'failed';
-            }
+            if (!p || !commando.moveTo(p.x, p.z, {})) return cant();
           }
           return 'running';
         }

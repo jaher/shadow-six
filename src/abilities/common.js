@@ -127,6 +127,35 @@ export function inDeep(world, u) {
   return g.water && !g.bridge;
 }
 
+/**
+ * grid.lineOfSight options for a shot from `c` at `to`: heights, plus — when `to` is a vehicle — its own
+ * hull as `targetHull`, so an occluding vehicle (truck, tanker) does not hide its own centre.
+ */
+export function shotLosOpts(c, to, world = null, rifle = false) {
+  const o = { viewerY: c.y || 0, targetY: to.y || 0 };
+  const sz = to.kind === 'vehicle' && to.def?.size;
+  if (sz) o.targetHull = { x: to.x, z: to.z, w: sz[0], d: sz[1], heading: to.heading || 0 };
+  // `shotThrough` planks (M19's palisade) hide what is behind them from the guards, but a sniper's rifle round
+  // goes through them, and so does any bullet at an explosive barrel or tanker (M19: the Sniper shoots the caged
+  // dog and the barrels by the rockets through the fence [P][ooc][fd])
+  if (world && (rifle || to.interactKind === 'barrel' || (to.kind === 'vehicle' && to.def?.tanker))) {
+    const pass = shotThroughOwners(world);
+    if (pass.size) o.passOwners = pass;
+  }
+  return o;
+}
+
+/** Grid owner ids of the structures flagged `shotThrough` (cached per world, rebuilt when the map changes). */
+export function shotThroughOwners(world) {
+  const S = world?.structures;
+  if (!S?.values) return new Set();
+  if (world._shotThrough?.src === S && world._shotThrough.n === S.size) return world._shotThrough.set;
+  const set = new Set();
+  for (const s of S.values()) if (s?.def?.shotThrough && s.owner) set.add(s.owner);
+  world._shotThrough = { src: S, n: S.size, set };
+  return set;
+}
+
 /** Common "can act" gate: alive, not hidden/buried/in vehicle/carried. */
 /**
  * §3.3 out-of-range feedback for ranged abilities (they never auto-walk): true when `to` is within
@@ -134,10 +163,10 @@ export function inDeep(world, u) {
  * shows the forbidden overlay and issue() refuses the order.
  * @returns {true|string}
  */
-export function inReach(world, c, to, range, los = false) {
+export function inReach(world, c, to, range, los = false, rifle = false) {
   if (!to) return 'Pick a target.';
   if (Math.hypot(to.x - c.x, to.z - c.z) > range) return 'Out of range.';
-  if (los && !world.grid.lineOfSight(c.x, c.z, to.x, to.z, { viewerY: c.y || 0, targetY: to.y || 0 })) return 'No line of sight.';
+  if (los && !world.grid.lineOfSight(c.x, c.z, to.x, to.z, shotLosOpts(c, to, world, rifle))) return 'No line of sight.';
   return true;
 }
 

@@ -54,6 +54,16 @@ export function unmaskSpy(world, spy, witness = null, why = 'seen') {
 }
 
 /**
+ * Mission exemption from the §3.4 boarding rule: `rules.spyMayBoard` lists vehicle ids (mission tags) or types an officer
+ * boards as a matter of course (M5: the cable car), so a disguised Spy climbing in is not suspicious.
+ */
+export function spyMayBoard(world, vehicle) {
+  const list = world?.mission?.rules?.spyMayBoard;
+  if (!vehicle || !Array.isArray(list)) return false;
+  return list.includes(vehicle.tag) || list.includes(vehicle.id) || list.includes(vehicle.vehicleType);
+}
+
+/**
  * Check a suspicious act by a disguised Spy: every enemy that sees him (disguise ignored) unmasks him.
  * @returns {boolean} unmasked
  */
@@ -86,8 +96,8 @@ export function installAbilitySystems(world) {
   world.listen('unit:killed', ({ killer }) => {
     if (killer?.disguised) suspiciousAct(world, killer, 'kill');
   });
-  world.listen('vehicle:enter', ({ unit }) => {
-    if (unit?.disguised) suspiciousAct(world, unit, 'vehicle');
+  world.listen('vehicle:enter', ({ unit, vehicle }) => {
+    if (unit?.disguised && !spyMayBoard(world, vehicle)) suspiciousAct(world, unit, 'vehicle');
   });
 
   world.onBelTick((dt20, n) => {

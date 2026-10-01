@@ -79,15 +79,15 @@ test('sniper rifle: 45 m one-shot kill, silent, limited rounds, 0.5 s bolt; ammo
   assert.equal(s.get('e2').alive, false);
 });
 
-test('SMG: 5-round fan ±15° to 18 m, 100 damage per round, one burst per click, 20 bursts, smg noise', () => {
+test('SMG: 5-round fan ±15° to 18 m, 200 damage per round (one hit kills), one burst per click, 20 bursts, smg noise', () => {
   const s = makeSim({ commandos: [{ role: 'driver', x: 10, z: 30, inventory: { smg: 20 } }], enemies: [guard('a', 20, 30), guard('b', 20, 32.6), guard('c', 20, 36)] }, { brains: false });
   const dr = s.cmd('driver');
   assert.ok(dr.abilities.includes('smg'));
   dr.issue({ type: 'ability', id: 'smg', target: { x: 20, z: 30 } });
   s.run(0.5);
   assert.equal(dr.inventory.get('smg'), 19);
-  assert.equal(s.get('a').hp, 100, 'centre ray: one round (100)');
-  assert.equal(s.get('b').hp, 100, 'side ray (+7.5° ≈ 1.3 m at 10 m) hits b');
+  assert.equal(s.get('a').alive, false, 'centre ray: one round kills a');
+  assert.equal(s.get('b').alive, false, 'side ray (+7.5° ≈ 1.3 m at 10 m) kills b');
   assert.equal(s.get('c').hp, 200, 'outside the fan');
   const n = s.last('noise');
   assert.equal(n.p.kind, 'smg');

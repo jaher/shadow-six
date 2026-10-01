@@ -177,7 +177,7 @@ function respawn(world, d) {
   } else if (d.kind === 'interactable') {
     // ABILITIES charges placed during play (§3.4): time/remote bombs, bear traps, decoys
     const owner = world.byId(d.planter) || null;
-    if (d.interactKind === 'bomb') e = new Bomb({ x: d.x, z: d.z, bombKind: d.bombKind, owner, fuse: d.fuse ?? undefined, seq: d.seq });
+    if (d.interactKind === 'bomb') e = new Bomb({ x: d.x, z: d.z, y: d.y ?? 0, bombKind: d.bombKind, owner, fuse: d.fuse ?? undefined, seq: d.seq });
     else if (d.interactKind === 'trap') e = new Trap({ x: d.x, z: d.z, owner });
     else if (d.interactKind === 'decoy') e = new Decoy({ x: d.x, z: d.z, owner });
     else if (d.interactKind === 'pickup' && d.pack) { // BCD §1.5: a cigarette pack thrown during play

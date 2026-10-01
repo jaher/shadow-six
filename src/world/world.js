@@ -290,6 +290,7 @@ export class World {
       dynamic: !!opts.dynamic,
       noLinks: !!opts.noLinks,
       swim: !!(opts.swim || opts.allowWater),
+      dive: !!opts.dive,
       maxNodes: opts.maxNodes ?? Math.max(40000, this.grid.size),
       smooth: opts.smooth,
     });
@@ -334,10 +335,11 @@ export class World {
    *   'mandown'|'alarmShout'|'bark'|'spyUnmask'|'phone'|'horn' (legacy: 'shot', 'footsteps', …)
    * @param {any} [source] entity that made the noise
    * @param {number} [level]
+   * @param {object} [extra] extra payload fields (e.g. `about` {x, z}: what an alarm shout is about)
    */
-  emitNoise(x, z, radius, kind, source = null, level) {
+  emitNoise(x, z, radius, kind, source = null, level, extra = null) {
     const lv = level ?? CONFIG.stealth.noise[kind]?.level ?? (kind === 'explosion' ? 3 : kind === 'shot' ? 2 : 1);
-    this.events.emit('noise', { x, z, radius, kind, level: lv, source });
+    this.events.emit('noise', { ...(extra || {}), x, z, radius, kind, level: lv, source });
   }
 
   /**

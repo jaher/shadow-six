@@ -15,7 +15,10 @@ register('./resolve-hooks.mjs', import.meta.url);
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const filter = process.argv[2] || '';
-const files = readdirSync(dir).filter((f) => f.endsWith('.test.mjs')).sort();
+// per-mission suites live in tests/missions/*.test.mjs (same lib.mjs registry), listed as 'missions/<file>'
+const missionsDir = join(dir, '..', 'missions');
+const listTests = (d) => { try { return readdirSync(d).filter((f) => f.endsWith('.test.mjs')).sort(); } catch { return []; } };
+const files = [...listTests(dir), ...listTests(missionsDir).map((f) => `../missions/${f}`)];
 let pass = 0, fail = 0;
 for (const f of files) {
   const before = cases.length;

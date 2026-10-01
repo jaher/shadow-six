@@ -26,7 +26,7 @@ function blob(color, r = 0.18, h = 0.12) {
 }
 
 export class Bomb extends Interactable {
-  /** @param {{x, z, bombKind:'time'|'remote', owner?: any, fuse?: number, seq?: number}} o */
+  /** @param {{x, z, y?: number, bombKind:'time'|'remote', owner?: any, fuse?: number, seq?: number}} o */
   constructor(o) {
     super({ interactKind: 'bomb', x: o.x, z: o.z, dynamic: true, object3d: blob(o.bombKind === 'time' ? 0x7a2020 : 0x20207a) });
     this.bombKind = o.bombKind;
@@ -34,7 +34,9 @@ export class Bomb extends Interactable {
     this.fuse = o.bombKind === 'time' ? o.fuse ?? CONFIG.weapons.timeBomb.fuse : Infinity;
     this.seq = o.seq ?? 0;
     this.exploded = false;
-    this.object3d.position.set(this.x, 0, this.z);
+    // planted where the Sapper stands: on a roof / crest it sits on the roof, not inside the block (M14 review, g3)
+    this.y = this.prevY = o.y ?? 0;
+    this.object3d.position.set(this.x, this.y, this.z);
   }
 
   /** Remote: detonate after the radio delay (§3.4). */

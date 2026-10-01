@@ -164,7 +164,7 @@ export function installHandlers(a, events) {
   on('bomb:exploded', (e, t) => { a.bombs.delete(key(e.bomb || e, 'bomb')); sfx('explosion_big', e, t); });
   on('explosion', (e, t) => {
     const k = String(e.kind || '');
-    const id = /grenade|shell/.test(k) ? 'explosion_small' : /barrel/.test(k) ? 'barrel_explode' : 'explosion_big';
+    const id = /grenade|shell|mine/.test(k) ? 'explosion_small' : /barrel/.test(k) ? 'barrel_explode' : 'explosion_big';
     sfx(id, e, t);
     if (id === 'explosion_big') a.after(0.6, () => sfx('debris_rain', e, t));
   });

@@ -94,7 +94,8 @@ const DJ = [0, 0, 1, -1, 1, -1, 1, -1];
  * @param {number} sz start z (m)
  * @param {number} tx target x (m)
  * @param {number} tz target z (m)
- * @param {{swim?: boolean, maxNodes?: number, smooth?: boolean, role?: string, dynamic?: boolean, noLinks?: boolean}} [opts]
+ * @param {{swim?: boolean, maxNodes?: number, smooth?: boolean, role?: string, dynamic?: boolean, noLinks?: boolean, dive?: boolean}} [opts]
+ *   dive: a submerged diver, who also passes grid `underpass` cells (NavGrid.isWalkable).
  *   role: unit role for off-grid links (grid.linkAllowed; undefined → only links open to everyone,
  *   '*' → every enabled link). noLinks: plan on grid steps only (no climb edges / ladders — §3.4 a
  *   commando carrying a body or barrel walks around them). dynamic: treat grid.dynamicBlock as blocking (vehicles this step).
@@ -119,7 +120,7 @@ export function hugsObstacle(grid, i, j) {
 
 export function findPath(grid, sx, sz, tx, tz, opts = {}) {
   const swim = !!opts.swim;
-  const walkOpts = { swim, dynamic: !!opts.dynamic };
+  const walkOpts = { swim, dynamic: !!opts.dynamic, dive: !!opts.dive };
   const role = opts.role;
   const hasLinks = !opts.noLinks && grid.links && grid.links.length > 0;
   const maxNodes = opts.maxNodes ?? 40000;
