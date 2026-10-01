@@ -3,10 +3,12 @@
  * Zero-dependency static file server for SHADOW SIX (no build step: the repo root is the web root).
  *
  *   node tools/serve.mjs [port]        # default 8080; port 0 = pick a free port
+ *   node tools/serve.mjs 8080 --root dist --base /shadow-six/   # the web build, as GitHub Pages serves it
  *
  * Also importable: `const { url, close } = await startServer({ port: 0 })` (used by tests/harness.mjs).
  */
 import { createServer } from 'node:http';
+import { createGzip } from 'node:zlib';
 import { createReadStream, promises as fs } from 'node:fs';
 import { extname, join, normalize, resolve, sep, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -55,15 +57,30 @@ export const MIME = {
 
 /**
  * Start serving `root`.
- * @param {{port?: number, root?: string, host?: string, quiet?: boolean}} [opts]
+ * @param {{port?: number, root?: string, host?: string, quiet?: boolean, base?: string}} [opts]
+ *   gzip: compress text responses like GitHub Pages does (the static/--base mode turns it on).
+ *   base: URL path prefix the site lives under (GitHub Pages project sites: '/shadow-six/'); other paths 404.
  * @returns {Promise<{server: import('node:http').Server, port: number, url: string, close: () => Promise<void>}>}
  */
-export function startServer({ port = 8080, root = ROOT, host = '127.0.0.1', quiet = true } = {}) {
+export function startServer({ port = 8080, root = ROOT, host = '127.0.0.1', quiet = true, base = '/', gzip = false } = {}) {
   const rootAbs = resolve(root);
+  base = ('/' + base + '/').replace(/\/+/g, '/');
+  /** 404 with the site's 404.html when it has one (GitHub Pages behaviour), else plain text. */
+  const notFound = async (res, req) => {
+    if (!quiet) console.log(`404 ${req.url}`);
+    const page = await fs.readFile(join(rootAbs, '404.html')).catch(() => null);
+    if (page) res.writeHead(404, { 'Content-Type': MIME['.html'] }).end(page);
+    else res.writeHead(404, { 'Content-Type': 'text/plain' }).end('not found');
+  };
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://x');
-      let rel = decodeURIComponent(url.pathname);
+      if (base !== '/' && (url.pathname === '/' || url.pathname === base.slice(0, -1))) {
+        res.writeHead(302, { Location: base }).end();
+        return;
+      }
+      if (!url.pathname.startsWith(base)) return notFound(res, req);
+      let rel = decodeURIComponent(url.pathname.slice(base.length - 1));
       if (rel.endsWith('/')) rel += 'index.html';
       const file = normalize(join(rootAbs, rel));
       if (file !== rootAbs && !file.startsWith(rootAbs + sep)) {
@@ -71,20 +88,18 @@ export function startServer({ port = 8080, root = ROOT, host = '127.0.0.1', quie
         return;
       }
       const st = await fs.stat(file).catch(() => null);
-      if (!st || !st.isFile()) {
-        res.writeHead(404, { 'Content-Type': 'text/plain' }).end('not found');
-        if (!quiet) console.log(`404 ${req.url}`);
-        return;
-      }
+      if (!st || !st.isFile()) return notFound(res, req);
       const type = MIME[extname(file).toLowerCase()] || 'application/octet-stream';
+      const gz = gzip && /^(text\/|application\/(json|javascript)|image\/svg)/.test(type) && /\bgzip\b/.test(req.headers['accept-encoding'] || '');
       res.writeHead(200, {
         'Content-Type': type,
-        'Content-Length': st.size,
+        ...(gz ? { 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding' } : { 'Content-Length': st.size }),
         'Cache-Control': 'no-cache',
         'Cross-Origin-Opener-Policy': 'same-origin',
       });
       if (req.method === 'HEAD') return res.end();
-      createReadStream(file).pipe(res);
+      if (gz) createReadStream(file).pipe(createGzip({ level: 6 })).pipe(res);
+      else createReadStream(file).pipe(res);
     } catch (err) {
       res.writeHead(500).end(String(err));
     }
@@ -96,7 +111,7 @@ export function startServer({ port = 8080, root = ROOT, host = '127.0.0.1', quie
       resolveP({
         server,
         port: actual,
-        url: `http://${host === '0.0.0.0' ? 'localhost' : host}:${actual}/`,
+        url: `http://${host === '0.0.0.0' ? 'localhost' : host}:${actual}${base}`,
         close: () => new Promise((r) => { server.closeAllConnections?.(); server.close(() => r()); }),
       });
     });
@@ -105,7 +120,10 @@ export function startServer({ port = 8080, root = ROOT, host = '127.0.0.1', quie
 
 // CLI
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const port = Number(process.argv[2] ?? process.env.PORT ?? 8080);
-  const { url } = await startServer({ port, quiet: false, host: process.env.HOST || '127.0.0.1' });
-  console.log(`SHADOW SIX dev server: ${url}  (root ${ROOT})`);
+  const argv = process.argv.slice(2);
+  const flag = (n) => { const i = argv.indexOf(n); if (i < 0) return undefined; const v = argv[i + 1]; argv.splice(i, 2); return v; };
+  const root = resolve(flag('--root') ?? ROOT), base = flag('--base') ?? '/';
+  const port = Number(argv[0] ?? process.env.PORT ?? 8080);
+  const { url } = await startServer({ port, root, base, gzip: base !== '/' || argv.includes('--gzip'), quiet: false, host: process.env.HOST || '127.0.0.1' });
+  console.log(`SHADOW SIX ${root === ROOT ? 'dev' : 'static'} server: ${url}  (root ${root})`);
 }

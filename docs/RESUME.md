@@ -15,7 +15,7 @@ Nothing is lost when a limit hits: work is saved in five layers.
 | Workflow state (per-agent results, resumable) | `~/.claude/projects/-home-jaherrero-projects/f925f159-56cb-4b42-b065-406d3c4ffa40/subagents/workflows/wf_*/journal.jsonl` + scripts under `~/.claude/projects/*/f925f159-…/workflows/scripts/` | written by Claude Code; persistent under `/home` |
 
 **Backups run from the user's crontab, independent of Claude Code** (survive restarts / the computer being switched off):
-- `*/3 * * * * <projects>/commandos-rnd-backup/backup.sh` (was */10; tightened 2026-09-27 near the weekly limit) — mirrors the /tmp scratchpad (~67 GB incl. venvs,
+- `*/10 * * * * <projects>/commandos-rnd-backup/backup.sh` (was */3 near the weekly limit; back to */10 on 2026-09-30) — mirrors the /tmp scratchpad (~67 GB incl. venvs,
   sample libraries, model weights, renders) and /tmp task outputs to `<projects>/commandos-rnd-backup/`,
   snapshots every worktree's uncommitted work to `refs/wip/<branch>`, and hourly writes `repo.bundle` (all git refs).
 - `@reboot … restore.sh` — after a boot, copies the scratchpad + task outputs back into /tmp at the same session path.
@@ -53,6 +53,10 @@ D = `~/.claude/projects/-home-jaherrero-projects-commandos-threejs-docs-screensh
 | 8 | gate/door smash by vehicles (`wf_048f7b58-69f`) | ~/.claude/projects/-home-jaherrero-projects-commandos-wt-bodies/f925f159-56cb-4b42-b065-406d3c4ffa40/workflows/scripts/gate-smash-wf_048f7b58-69f.js | commandos-wt-smash / feat/gate-smash (from feat/bodies) | BUILD step running → demo clip (SEND scratchpad/video/gate-smash-m02.mp4) → verify → merge after feat/bodies |
 | 9 | music production, route A (`wf_56cb00cb-7cb`) | T/music-production-wf_56cb00cb-7cb.js | commandos-wt-music / feat/music | compose 3 batches (scratchpad/music/a/cues) → review + reel (SEND scratchpad/music/for_user/soundtrack-reel.mp3) → integrate (no in-mission music, faithful to BEL) → verify → merge |
 | 10 | clip-2 dynamic penetrations + eaves (`wf_0e57658f-125`) | T/clip-2-wf_0e57658f-125.js | commandos-wt-clip2 / feat/clip2 | fix → verify → merge |
+| 11 | web build + README Play-now (`wf_058eed11-a81`) | ~/.claude/projects/-home-jaherrero-projects-shadow-six-public/f925f159-56cb-4b42-b065-406d3c4ffa40/workflows/scripts/web-build-publish-prep-wf_058eed11-a81.js | commandos-wt-build / feat/web-build | build → verify → merge; THEN run tools/publish/sync-public.sh (push) + check https://jaher.github.io/shadow-six/ |
+| 12 | M2 river + fence + map edges/apron all maps (`wf_63710755-a0a`) | T/m2-river-fence-map-edges-wf_63710755-a0a.js | commandos-wt-edges / feat/map-edges | M2 fence+river → apron + clamp + no-void test → verify → merge → M4–M20 after the missions merge |
+| 13 | barbed wire everywhere (`wf_1566168d-bd5`) | T/barbed-wire-wf_1566168d-bd5.js | commandos-wt-wire / feat/barbed-wire | research → build → critic → merge → M4–M20 after the missions merge |
+| 14 | chimney smoke + ambient-smoke readability (`wf_e1d52344-449`) | T/chimney-smoke-wf_e1d52344-449.js | commandos-wt-smoke / feat/chimney-smoke | build → verify → merge |
 
 **QUEUED — launch after the in-flight work (in this order, ≤ 8 agents total):**
 1. ~~`clip-2`~~ LAUNCHED (row 10). Remaining part: the clipping audit over M4–M20 after the missions merge → do it inside the mission art pass. Was: dynamic penetrations (m00 7 / m01 3 / m03 18: soldiers vs M3 dam parapet + barracks, GB/e6 vs M1 wall_s), roof eaves in turret arcs + vehicle drive probe; then the clipping audit over M4–M20 once missions merged (acceptance (e)).
@@ -70,8 +74,7 @@ notes files (`scratchpad/notes/*.notes.md`) and from committed + WIP work (`git 
 `.git/worktrees/*/index.lock` with no git process running can be removed. If master is mid-merge, let the re-run merge
 agent finish it (or `git merge --abort` and let it redo the merge) — never commit other workflows' files.
 
-**Waiting on the user (not blocked):** the GitHub publish push (one-liner in PROGRESS.md; the tool blocks Claude from
-pushing the public repo) and the music choice A/B/C (default A). After the reset also: send the pending screenshots
+**PUBLISHED 2026-09-27:** https://github.com/jaher/shadow-six — live site https://jaher.github.io/shadow-six/ (Pages via Actions). Re-sync after merges with `tools/publish/sync-public.sh` (it pushes). Music: route A chosen by default. After the reset also: send the pending screenshots
 (align before/after final, pain sheet final, vehint-*, video), then continue the not-yet-started steps in PROGRESS.md
 (mission art pass for M4–M20, building batches 3c-2/3c-3, music production, phase 3 leftovers, BCD missions, final review).
 

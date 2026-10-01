@@ -20,6 +20,7 @@ function webglOk() {
 
 function setLoading(p, text) {
   const fill = $('loading-fill');
+  fill?.parentElement?.classList.remove('indeterminate');
   if (fill) fill.style.width = `${Math.round(Math.max(0, Math.min(1, p)) * 100)}%`;
   if (text && $('loading-text')) $('loading-text').textContent = text;
 }

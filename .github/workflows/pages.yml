@@ -1,50 +1,67 @@
-name: Deploy to GitHub Pages
+name: Deploy web build to GitHub Pages
+
+# Builds the playable web version (npm run build → dist/: bundled + minified JS, runtime assets only) and publishes
+# it at https://jaher.github.io/shadow-six/ (enable once: Settings → Pages → Source: GitHub Actions).
 
 on:
   push:
-    branches: [master]
+    branches: [master, main]
   workflow_dispatch:
+
+# Only one Pages deploy at a time; a newer commit supersedes an in-progress run.
+concurrency:
+  group: pages
+  cancel-in-progress: true
 
 permissions:
   contents: read
   pages: write
   id-token: write
 
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
 jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Stage the site (runtime files only)
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install build tools
+        run: npm ci --no-audit --no-fund
+
+      - name: Build web target
+        run: npm run build
+
+      - name: Check the site
         run: |
           set -euo pipefail
-          mkdir -p _site
-          cp index.html LICENSE CREDITS.md _site/
-          for f in favicon.ico favicon.svg favicon.png; do
-            if [ -f "$f" ]; then cp "$f" _site/; fi
-          done
-          cp -r src styles vendor assets _site/
-          touch _site/.nojekyll
-          du -sh _site
-          test -f _site/index.html
+          test -f dist/index.html
+          test -f dist/.nojekyll
+          grep -qi 'not affiliated' dist/index.html
+          cat dist/version.json
+          du -sh dist
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload artifact
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: _site
+          path: dist
 
-      - name: Deploy
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

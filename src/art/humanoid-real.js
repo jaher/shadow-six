@@ -29,8 +29,21 @@ import * as THREE from 'three';
 const ROOT = new URL('../../assets/characters/', import.meta.url);
 const url = (p) => new URL(p, ROOT).href;
 /** Runtimes live next to this module (moved from assets/characters/runtime in art integration 2). */
-const RT = new URL('./characters/', import.meta.url);
-const rt = (p) => new URL(p, RT).href;
+// Character runtimes, loaded lazily. Literal import() specifiers (not computed URLs) so a bundler can split them
+// into lazy chunks for the web build while the unbundled dev server keeps loading them as plain modules.
+const RUNTIMES = {
+  'commandos_a/ca_runtime.js': () => import('./characters/commandos_a/ca_runtime.js'),
+  'pipeline/charkit.js': () => import('./characters/pipeline/charkit.js'),
+  'pipeline/weapons.js': () => import('./characters/pipeline/weapons.js'),
+  'commandos_b/charkit.js': () => import('./characters/commandos_b/charkit.js'),
+  'commandos_b/weapons.js': () => import('./characters/commandos_b/weapons.js'),
+  'commandos_b/squadkit.js': () => import('./characters/commandos_b/squadkit.js'),
+  'enemies/enemykit.js': () => import('./characters/enemies/enemykit.js'),
+  'guests/guestkit.js': () => import('./characters/guests/guestkit.js'),
+  'guests/charkit.js': () => import('./characters/guests/charkit.js'),
+  'guests/dogkit.js': () => import('./characters/guests/dogkit.js'),
+};
+const loadRuntime = (p) => RUNTIMES[p]();
 
 /** Animation names the ARCHITECTURE contract requires (missing ones fall back to idle). */
 export const ANIMS = ['idle', 'walk', 'run', 'crawl_idle', 'crawl', 'swim', 'dive', 'aim', 'shoot', 'stab',
@@ -62,7 +75,7 @@ function fnv1a(str) { let h = 0x811c9dc5; for (const c of new TextEncoder().enco
 
 async function initCommandos(L) {
   const [CA, PK, PW, CB, CBW] = await Promise.all(['commandos_a/ca_runtime.js', 'pipeline/charkit.js',
-    'pipeline/weapons.js', 'commandos_b/charkit.js', 'commandos_b/weapons.js'].map(p => import(rt(p))));
+    'pipeline/weapons.js', 'commandos_b/charkit.js', 'commandos_b/weapons.js'].map(loadRuntime));
   const cbLib = async () => {   // commandos_b verified library: own clips + enemy/guest clips it lacks (rw/common.js loadLib)
     const lib = await CB.loadAnimLibrary(url('anims/commando_anims.glb'));
     for (const u of ['anims/enemy_anims.glb', 'anims/guest_anims.glb']) {
@@ -90,11 +103,11 @@ async function initCommandos(L) {
 }
 
 async function initEnemies(L) {
-  const [EK, SK] = await Promise.all([import(rt('enemies/enemykit.js')), import(rt('commandos_b/squadkit.js'))]);
+  const [EK, SK] = await Promise.all([loadRuntime('enemies/enemykit.js'), loadRuntime('commandos_b/squadkit.js')]);
   const E = await EK.loadEnemySet(url('enemies/'), { anims: url('anims/base_anims.glb'), weapons: url('weapons/weapons.glb'),
     enemyAnims: url('anims/enemy_anims.glb') });
   try {   // clips the enemy set lacks but the game needs on Germans too (same UAL rig): a body on a commando's shoulder
-    const PK = await import(rt('pipeline/charkit.js'));
+    const PK = await loadRuntime('pipeline/charkit.js');
     const ca = await PK.loadAnimLibrary(url('anims/commando_anims.glb'));
     for (const n of ['carried']) if (!E.lib.clips.has(n) && ca.clips.has(n)) { E.lib.clips.set(n, ca.clips.get(n)); E.lib.meta[n] ||= ca.meta[n]; }
   } catch (e) { console.warn('[humanoid-real] carried clip for enemies unavailable', e); }
@@ -102,7 +115,7 @@ async function initEnemies(L) {
 }
 
 async function initGuests(L) {
-  const [GK, GC] = await Promise.all([import(rt('guests/guestkit.js')), import(rt('guests/charkit.js'))]);
+  const [GK, GC] = await Promise.all([loadRuntime('guests/guestkit.js'), loadRuntime('guests/charkit.js')]);
   const lib = await GK.loadGuestLib();
   L.rt.guests = {
     load: (e) => GC.loadCharacter(url(e.glb)),
@@ -111,7 +124,7 @@ async function initGuests(L) {
 }
 
 async function initDogs(L) {
-  const DK = await import(rt('guests/dogkit.js'));
+  const DK = await loadRuntime('guests/dogkit.js');
   L.rt.dogs = { load: (e) => DK.loadDog(url(e.glb)), create: (tpl) => DK.createDog(tpl) };
 }
 

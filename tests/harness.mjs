@@ -8,6 +8,8 @@
  *   h.errors(page)                           // -> string[]
  *   await h.close();
  *
+ * SS_DIST=1 node tests/run.mjs <pattern> runs against the web build (dist/, served under /shadow-six/).
+ *
  * playwright-core falls back to the main checkout so the harness also works in git worktrees without node_modules.
  */
 import os from 'node:os';
@@ -60,7 +62,10 @@ const IGNORED = [/GPU stall due to ReadPixels/i, /GL Driver Message/i, /Automati
 export async function startHarness(opts = {}) {
   const { startServer } = await import(pathToFileURL(join(ROOT, 'tools/serve.mjs')).href);
   const { chromium } = await loadPlaywright();
-  const server = await startServer({ port: 0 });
+  // SS_DIST=1 (or a directory): test the web build (npm run build) as GitHub Pages serves it, under /shadow-six/
+  const dist = process.env.SS_DIST ? resolve(ROOT, /^(1|true)$/.test(process.env.SS_DIST) ? 'dist' : process.env.SS_DIST) : null;
+  if (dist && !existsSync(join(dist, 'index.html'))) throw new Error(`SS_DIST: no build at ${dist} (run npm run build)`);
+  const server = await startServer(dist ? { port: 0, root: dist, base: '/shadow-six/', gzip: true } : { port: 0 });
   const args = opts.swiftshader ? SWIFTSHADER_ARGS : GPU_ARGS;
   let browser;
   try {

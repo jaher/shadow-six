@@ -5,3 +5,4 @@ docs/research-raw/gap-6-briefings.txt
 # parsed from retail game files: local research aid only, never published
 docs/research-raw/gap-6-bcd-missions.json
 __pycache__/
+dist/

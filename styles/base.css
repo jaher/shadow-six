@@ -53,7 +53,13 @@ html, body {
 }
 
 .loading-box { width: min(520px, 80vw); text-align: center; }
-.loading-bar { margin: 24px 0 8px; height: 6px; background: #2b2a22; border: 1px solid #3c3a2e; }
+.loading-bar { position: relative; overflow: hidden; margin: 24px 0 8px; height: 6px; background: #2b2a22; border: 1px solid #3c3a2e; }
+/* before the game script runs (first web visit: the bundle is still downloading) the bar sweeps; main.js drops
+   .indeterminate on its first real progress report */
+.loading-bar.indeterminate::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 30%;
+  background: linear-gradient(90deg, transparent, var(--brass), transparent); animation: ss-sweep 1.2s ease-in-out infinite; }
+@keyframes ss-sweep { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+@media (prefers-reduced-motion: reduce) { .loading-bar.indeterminate::after { animation-duration: 3s; } }
 .loading-fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--olive), var(--brass)); transition: width 0.15s; }
 .loading-text { color: var(--ink-dim); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; }
 

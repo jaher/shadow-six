@@ -1,22 +1,35 @@
 # SHADOW SIX
 
-A browser remake of **Commandos: Behind Enemy Lines** (1998), built on three.js (r186) with physically based
-rendering. It is a real-time stealth tactics game: six specialists, enemy vision cones, a fixed 3/4 camera and
-missions set in WWII Europe and Africa.
+A real-time stealth tactics game in your browser: a fan remake of **Commandos: Behind Enemy Lines** (1998) built
+with three.js. Six specialists, enemy vision cones, a fixed 3/4 camera and WWII missions behind enemy lines.
 
-**[Play online: https://jaher.github.io/shadow-six/](https://jaher.github.io/shadow-six/)** (desktop browser
-with WebGL 2; the first load of a mission downloads a lot of textures, models and audio, so give it a moment).
+**▶ Play now in your browser (nothing to install): <https://jaher.github.io/shadow-six/>**
 
-> **Disclaimer.** SHADOW SIX is an unofficial, non-commercial fan tribute to *Commandos: Behind Enemy Lines*
-> (Pyro Studios / Eidos Interactive, 1998). It is not affiliated with, endorsed by or connected to Pyro Studios,
-> Eidos, Square Enix or Kalypso Media. 'Commandos' is a trademark of its owner. No assets from the original
-> game are used; all art, audio and code are original or CC0/redistributable (see [CREDITS.md](CREDITS.md)).
-
-![Mission 2: the camp](docs/screenshots/int2-final-m02-camp.jpg)
+> **Fan tribute, not an official game.** SHADOW SIX is an unofficial, non-commercial fan tribute to
+> *Commandos: Behind Enemy Lines* (Pyro Studios / Eidos Interactive, 1998). It is not affiliated with, endorsed
+> by or connected to Pyro Studios, Eidos, Square Enix or Kalypso Media. 'Commandos' is a trademark of its owner.
+> No assets from the original game are used; all art, audio and code are original or CC0/redistributable
+> (see [CREDITS.md](CREDITS.md)).
 
 | | |
 | --- | --- |
-| ![Mission 3: the gorge](docs/screenshots/int2-final-m03-gorge.jpg) | ![Mission 1](docs/screenshots/int2-final-m01-scale.jpg) |
+| ![Title splash](docs/screenshots/menus-s03-title-splash.jpg) | ![Mission 2: the walled camp](docs/screenshots/yaw-level-m02-walled-camp-z1.jpg) |
+| ![Mission 2: a boat on the river](docs/screenshots/int-water-m2-river-boat-wake.jpg) | ![The six commandos: talking portraits and their pain sheet](docs/screenshots/portrait-pain-sheet.jpg) |
+
+## What you get
+
+- **The Behind Enemy Lines campaign**, rebuilt mission by mission from the original's 20 missions: missions 1–3
+  are playable now, the rest are on the way (see [Status](#status)).
+- **Six commandos with their original abilities and weapons**: the Green Beret (knife, decoy, shovel, climbing),
+  Sniper, Marine (harpoon, boat, diving gear), Sapper (time and remote bombs, grenades, traps), Driver and Spy
+  (uniform, lethal injection); each carries only what he had in 1998.
+- **Talking portraits**: every commando speaks his lines in his own voice, with lip-synced portrait clips.
+- **Enemies that see and hear**: vision cones you can inspect, noise, footprints in the snow, bodies that get
+  found, alarms and reinforcements.
+- **A world that reacts**: snow with trails and footprints, rivers and fjords with swimmers and boat wakes, wind
+  in the trees and flags, fire, smoke and explosions, physically based lighting.
+- **Briefings, debriefings, quick save / load and a sandbox** to learn the controls; the *Beyond the Call of
+  Duty* gadgets and units exist behind their own ruleset (sandbox only for now).
 
 ## Status
 
@@ -25,16 +38,32 @@ Work in progress.
 - **Playable now:** missions 1 to 3 of the *Behind Enemy Lines* campaign, with realistic art: snow terrain,
   water, buildings, vehicles, animated soldiers and commandos, vision cones, alarms, the knapsack, stealth kills,
   carrying bodies, explosives, briefings, debriefings, and saving and loading.
-- **Coming later:** missions 4 to 20, the *Beyond the Call of Duty* campaign, and further features and polish.
+- **Work in progress:** missions 4 to 20, the *Beyond the Call of Duty* campaign and some systems and polish.
   They are being built on separate branches and will be published as they are finished.
+
+## System requirements
+
+- A desktop browser with **WebGL 2**: Chrome or Edge (recommended) or Firefox; recent Safari should work but is
+  less tested.
+- A dedicated GPU is recommended for the High and Ultra presets; Low runs on integrated graphics.
+- Mouse and keyboard. The first visit downloads the game (about 1 MB of code, then roughly 40–100 MB of models,
+  textures and audio per mission, depending on the quality preset, shown by the loading bar); later visits come from the browser cache.
 
 ## Running locally
 
-There is no build step: the repository root is the web root.
+For development there is no build step: the repository root is the web root.
 
 ```sh
-node tools/serve.mjs          # http://localhost:8080/  (or: npm run serve)
-node tools/serve.mjs 3000     # another port
+npm install                   # dev tools only (esbuild for the web build, playwright-core for the tests)
+npm run serve                 # http://localhost:8080/  (node tools/serve.mjs [port])
+```
+
+The web build that GitHub Pages serves bundles and minifies the code and copies only the runtime assets:
+
+```sh
+npm run build                 # → dist/ (size report; fails over 950 MB or on a non-relative URL)
+npm run serve:dist            # http://localhost:8080/shadow-six/, served like GitHub Pages
+node tools/perf/measure-web-start.mjs   # first-visit start-up on a throttled 20 Mbit/s link
 ```
 
 Any static file server also works, for example `npx serve .` or `python3 -m http.server 8080`. Use a desktop
@@ -100,15 +129,18 @@ real GPU (`--use-angle=gl`); `--swiftshader` uses software rendering. It fails o
 
 ## Deployment
 
-[`.github/workflows/pages.yml`](.github/workflows/pages.yml) publishes the site to GitHub Pages on every push to
-`master`. It copies only the runtime files (`index.html`, `src/`, `styles/`, `vendor/`, `assets/`, `LICENSE`,
-`CREDITS.md`) into the Pages artifact. All URLs in the game are relative, so it works under the `/shadow-six/`
-sub-path. [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs the unit tests.
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml) builds the web target on every push to `master`
+(`npm ci`, `npm run build`, see [tools/build/build.mjs](tools/build/build.mjs)) and deploys `dist/` to GitHub
+Pages. The build bundles `src/` with esbuild (code-split, content-hashed file names), keeps every URL relative so
+the site works under the `/shadow-six/` sub-path, adds `version.json`, a `404.html` that returns to the game and a
+small service worker that keeps the large assets cached between visits (code is never served from it).
+`SS_DIST=1 node tests/run.mjs webbuild` checks the build in headless Chromium.
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs the unit tests and the web build.
 
 ## Layout
 
 ```
-index.html            entry page (import map → vendor/three.module.js)
+index.html            entry page (dev: import map → vendor/three.module.js; the build bundles it)
 styles/               screen, menu and HUD styles
 src/main.js           boot: WebGL check → Game → assets → title
 src/game.js           Game: states, fixed-step loop, mission loading
@@ -126,7 +158,7 @@ src/ui/, src/audio/   menus, HUD, briefings, credits; audio
 src/missions/         mission definitions (m00 sandbox, m01–m03)
 assets/               textures, models, HDRIs, audio, portraits, fonts (see CREDITS.md)
 vendor/               three.js r186 and addons
-tools/                dev server, asset build scripts (Blender, audio, portraits)
+tools/                dev server, web build (tools/build), asset build scripts (Blender, audio, portraits)
 tests/                browser tests and unit tests
 docs/                 architecture, design spec, research notes, screenshots
 ```

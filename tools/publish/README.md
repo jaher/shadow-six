@@ -23,7 +23,8 @@ public. The public repo has its own clean, linear history instead.
 4. **Commit** as `Jose-Angel Herrero Bajo <id+jaher@users.noreply.github.com>`
    with the message `Sync from dev master <sha>: <dev subject>`.
 5. **Push** to `origin master`. The public repo's `pages.yml` workflow then
-   deploys the site and `ci.yml` runs the unit tests.
+   builds the web target (`npm ci && npm run build`, see `tools/build/`) and
+   deploys `dist/`; `ci.yml` runs the unit tests and the web build.
 
 ## Usage
 
