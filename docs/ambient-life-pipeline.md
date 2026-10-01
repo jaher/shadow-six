@@ -9,6 +9,7 @@ in fields and ducks on ponds. None of this affects gameplay and none of it is sa
 |---|---|
 | `src/world/fish-sim.js` | Pure, deterministic fish boids: `FISH_SPECIES`, `FISH_HABITATS`, `fishHabitat()`, `fishPlan()`, `FishSim` |
 | `src/world/bird-sim.js` | Pure bird behaviour: `BIRD_SPECIES`, `birdPlan()`, `BirdSim`, `windAtHeight()` |
+| `src/world/bird-ground.js` | Feet and gait of the birds that stand (crows, gulls): `legDims`, `feetGait`, `feetAir`, `turnTo`, `peckCurve` |
 | `src/art/fish-model.js` | Procedural fish body, instanced swimming shader, soft bed shadows (`createFishMesh`, `writeFish`, `createFishShadows`) |
 | `src/art/bird-model.js` | Low-poly birds with GPU wing flap, fold and peck, two plumages per species (`createBirdMesh`, `writeBirds`) |
 | `src/render/ambient-life.js` | Per-mission director `createAmbientLife(world, renderer)`: plans the life, wires events, and each frame steps the sims, culls and uploads instances |
@@ -116,7 +117,7 @@ The fish model:
 | species | where | behaviour |
 |---|---|---|
 | herring gull | Seas, harbours, fjords, big rivers. About 35 % are first-winter brown birds. | They wheel on 7–15 m circles in flap-and-glide bouts. They land on pier deck edges and pier heads (`lifePerches` from the mission's `pier` / `jetty` structures, with y from `world.groundY`) or on the water, and sit 15–50 s. |
-| hooded crow (black carrion crow on the alternate plumage) | Open snow, grass, ground or mud fields (`lifeFields`: obstacle-free 2 m grid) | They walk, hop and peck (the head bobs on the GPU), then commute between patches of the same fields. |
+| hooded crow (black carrion crow on the alternate plumage) | Open snow, grass, ground or mud fields (`lifeFields`: obstacle-free 2 m grid) | They walk with alternating steps and a head-bob, hop, peck and look round (see *On the ground*), then commute between patches of the same fields. |
 | mallard (drakes and ducks) | Ponds, lakes, rivers slower than 1.1 m/s | They paddle around home water near the bank, dabble tail-up, and leave faint ripples (`water.disturb`). |
 | common eider | Northern seas and fjords (M1) | Rafts of 4–8. Eiders patter off the water to take off, while mallards spring straight up. |
 
@@ -138,6 +139,44 @@ The fish model:
   A flushed bird bursts off with fast wingbeats and climbs away. Ducks splash (`WakeTracker.splash`, which also
   frightens the fish below), fly a circuit and come back to land. The director emits `ambient:flush`
   `{x, z, species}` for audio hooks.
+- **On the ground** (crows in the fields, gulls on pier decks; `src/world/bird-ground.js`). User report: *"walks walk
+  strange on the ground, with abrupt movements"*. The old crows teleported 0.15–0.5 m with an instant heading snap
+  about 0.7 times a second, had no legs (the body floated 6 cm up), and landings / take-offs popped (a 0.35 m snap
+  onto the spot, pitch 0.5 → 0, wings folded and flaps stopped in one frame, a 25 cm jump up at take-off). Now:
+  - **Activities, blended.** A crow walks to a spot 0.5–2.3 m off (0.3–0.6 m/s, accel ≤ 2 m/s², braking into the
+    spot), pecks in bouts of 2–5 (a 0.1 s strike, a short hold, a slower lift, with the body pitching and crouching
+    a little), stands looking round (head saccades of ~0.2 s, capped at 7 rad/s), or makes 1–2 two-footed hops
+    (0.22–0.42 m, 5–9 cm high, ballistic flight time, a 0.1 s crouch before and a 0.14 s sink into the legs after).
+    Turn rate ≤ 3.2 rad/s (2.6 walking, 1.2 into a strong wind), itself eased; a big turn is made on the spot first.
+  - **Feet in world space.** A planted foot never moves. A gait clock (cycle 0.36 s slow … 0.22 s brisk) steps the
+    left foot at phase 0 and the right at 0.5, each swinging 0.42 of a cycle on a low arc to v(C − T)/2 ahead of
+    its hip, so one foot is always down and the stance is centred under the hip. Standing or turning on the spot,
+    a foot more than 1.5 cm off its rest point shuffles back under the hip.
+  - **Head-bob.** The head holds still in space while a foot is planted and thrusts forward with each step.
+    A slight waddle rolls the body over the planted foot.
+  - **Landing.** Legs come down and reach forward in the last 4 m. Within 1.2 m the bird sinks onto the spot under
+    deep flaring beats: a perch is homed onto (settling within 4 cm; the rest is a critically damped shuffle, ω 9 rad/s,
+    that starts from the touchdown's own drift), a field landing glides out its speed (decay 2.2/s, carried into the
+    first steps), the water just runs out the remaining speed. Then the feet are planted where they are and a crouch
+    spring (ω 20 rad/s, ζ 0.75) takes the sink rate. Wings fold and the pitch eases out in `_idle`; nothing is snapped.
+    Gulls do not pick a post someone is standing near (1.5 × wary radius).
+  - **Take-off from the feet.** A crouch on the spot (0.16 s, or 0.09 s when startled) with the wings opening and the
+    body turning into the jump (≤ 6 rad/s), then the spring (2.6 m/s up); the legs trail and tuck under the belly.
+    A timed take-off waits for the peck bout to end; only a startle cuts a peck.
+  - **Startle.** Someone moving inside 1.6 × the wary radius makes crows walk off briskly (0.75 m/s) away from
+    them, veering up to 80° round obstacles or water (boxed in: they stand alert); inside the wary radius they flush.
+  - **Obstacles.** `env.blocked(x, z)` (grid block > 0 or a standing visual) keeps crows out of walls, palisades and
+    rocks: spawn spots, walk / hop / walk-off targets need 0.25 m clearance and a clear straight path (sampled every
+    0.6 m); while walking, a probe one body length plus the braking distance ahead brakes the crow (≤ 2.5 m/s²) and
+    gives up a walk heading straight at an obstacle. (M2 report: a crow half inside the palisade logs; a 90 s M2 probe
+    went from 117 frames of a crow standing in a blocked cell to 0.)
+  - **Flocks.** Walk and hop targets keep 0.5 m (hops 0.35 m) from other crows and stay in open field within 9 m
+    of home; no per-frame separation forces, so no jitter.
+  - **Rendering.** Crows and gulls have legs (two crossed quads and a toe wedge each). `writeBirds` brings each sim
+    foot into the body frame (`iLeg0` / `iLeg1`, plus head-bob and look), so planted feet stay put on screen
+    whatever the body's pitch and roll. The body centre stands `0.27 × len` above the ground (it is part of `b.y`).
+  - The sim already steps every displayed frame on the interpolated 60 Hz sim time, so no extra render
+    interpolation is needed.
 - **Wing animation.** Each wing has two panels. The arm rotates about the shoulder and the hand about the wrist,
   lagging about 50°. Folded wings sweep back along the flank with the primaries just past the tail. A
   `customDepthMaterial` runs the same animation, so the shadows match.
@@ -164,6 +203,9 @@ ray by their height), and uploads only the visible instances.
 | ultra | 315 / 20 | 173 | 0.179 ms | 2.0 / 1.9 / 2.4 |
 | high, M2 river | 32 / 12 | 5 | 0.032 ms | 2.6 / 2.4 / 2.3 |
 
+The ground gait (feet, head-bob, hops) raised the bird sim from about 0.014 to 0.056 ms per 60 Hz step for 20
+birds (12 crows + 8 gulls, node on a loaded machine), still well inside the 0.3 ms budget.
+
 The GPU work is small: at most about 173 fish × under 260 triangles, plus 1 shadow quad each, in 3–7 instanced draws.
 It sits inside the measurement noise, and the whole feature stays within the 0.3 ms budget on every preset.
 
@@ -179,6 +221,13 @@ It sits inside the measurement noise, and the whole feature stays within the 0.3
   - crows flushing on approach;
   - the director over a real `World` (M1 perches, events → stun and flush, pause);
   - model budgets, tags, culling and shadows.
+- `tests/unit/bird-ground.test.mjs` steps crows and gulls at 60 Hz with someone walking past: per-frame displacement,
+  speed-change and heading-change limits, planted feet never sliding, steps per metre walked, legs within reach,
+  head-bob, hops and pecks, landing / take-off blends (height, pitch, fold, flap amplitude), determinism, the
+  rendered foot landing exactly on the sim foot, a palisade across the field (never entered, bill kept out, eased
+  braking), no timed take-off mid-peck, and no jerk when a gull settles on a post.
+- `node tools/perf/birdclip.mjs --mission=m01 --sp=crow --zoom=2 --secs=8 --fps=30 --out=<dir>` records frames and a
+  per-frame trace of the ground birds (60 Hz sim, rendered every step) for motion review.
 - `tests/p3-fish.test.mjs` runs in the real game on the GPU: M1 species and birds, meshes tagged, fish under the
   surface, swim phases frozen on pause, a blast that stuns and scatters and flushes, the M2 trout, disposal, and the
   coast sandbox.

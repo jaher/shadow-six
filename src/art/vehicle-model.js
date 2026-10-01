@@ -23,7 +23,7 @@
 import * as THREE from 'three';
 import { loadVehicleLibrary, preloadVehicles, createVehicleVisual, vehicleLibraryReady, resolveVehicle, setVehicleZoom, setVehicleTextureQuality, liveVehicleVisuals } from './vehicle-library.js';
 import { resolveLighting } from '../engine/lighting.js';
-import { applyFlap } from './cloth-wind.js';
+import { applyCanvasCover } from './cloth-wind.js';
 import { addPennants } from './vehicle-pennants.js';
 import { T, B } from '../world/grid.js';
 
@@ -616,7 +616,7 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
     },
     /** Night beam for the real-light pool: {on, kind, pos (model space), obj (the posed model)} or null. */
     get beam() { return st.beam && !st.destroyed ? { on: !!st.lampsOn, kind: st.beam.kind, pos: st.beam.pos, obj: vis.object3d } : null; },
-    dispose() { S.live.delete(model); st.pennants?.dispose(); vis.dispose(); st.scorch?.removeFromParent(); root.clear(); },
+    dispose() { S.live.delete(model); st.pennants?.dispose(); vis.object3d.traverse((o) => { if (o.userData.ownCanvas) o.material.dispose(); }); vis.dispose(); st.scorch?.removeFromParent(); root.clear(); },
   };
 
   model.ready = vis.ready.then(() => {
@@ -1020,21 +1020,26 @@ function gunInfo(vis, def, dims) {
   return { len, h: mz.pos[1], back: vis._gunBack ?? 0 };
 }
 
-/** Opel Blitz canvas cover: flap weights (bed rail and hoops fixed, bays and rear flap free) + the wind shader. */
+/**
+ * Opel Blitz canvas cover: the shared weld-safe cover model (cloth-wind.js `applyCanvasCover`: pin weights from the
+ * hoops / bed rail, smoothed outward field so the rear panel and its roll stay on the cover, slow per-object phases)
+ * and its own material per vehicle (library materials are shared by every instance; per-object wind uniforms need
+ * their own). The cover is the canvas part that is ≥ 0.3 m tall and ≥ 1 m long along the vehicle (model +z = front),
+ * measured in the vehicle's own frame (not the world: the heading at load time must not matter); the small canvas piece
+ * behind the cab (1.7 m wide, 12 cm deep), seat cushions and straps stay put. Winter paint whitewashes the cover
+ * (`kit:limewash_worn~<tint>`; the untinted `kit:limewash_worn` is the body paint and never matches).
+ */
+const CANVAS_MAT = /canvas|limewash_worn~/i;
 function canvasFlap(root) {
+  root.updateWorldMatrix(true, true);
+  const box = new THREE.Box3(), toLocal = new THREE.Matrix4(), inv = root.matrixWorld.clone().invert(), covers = [];
   root.traverse((o) => {
-    if (!o.isMesh || !/canvas/i.test(o.material?.name || '') || o.geometry.attributes.aFlap) return;
-    const g = o.geometry, P = g.attributes.position;
+    if (!o.isMesh || !CANVAS_MAT.test(o.material?.name || '') || o.userData.ownCanvas) return;
+    const g = o.geometry;
     if (!g.boundingBox) g.computeBoundingBox();
-    const bb = g.boundingBox, H = Math.max(bb.max.y - bb.min.y, 0.1), L = Math.max(bb.max.z - bb.min.z, 0.1);
-    if (H < 0.5 || L < 1.5) return; // seat cushions / small canvas bits stay put
-    const F = new Float32Array(P.count);
-    for (let i = 0; i < P.count; i++) {
-      const yr = (P.getY(i) - bb.min.y) / H, zr = (P.getZ(i) - bb.min.z) / L;
-      const wy = clamp(yr / 0.2, 0, 1), bay = Math.abs(Math.sin(Math.PI * zr * 4));
-      F[i] = zr < 0.05 ? wy : wy * (0.25 + 0.6 * bay) * 0.85;
-    }
-    g.setAttribute('aFlap', new THREE.BufferAttribute(F, 1));
-    applyFlap(o.material);
+    box.copy(g.boundingBox).applyMatrix4(toLocal.multiplyMatrices(inv, o.matrixWorld)); // vehicle-local metres
+    if (box.max.y - box.min.y < 0.3 || box.max.z - box.min.z < 1) return;
+    covers.push(o);
   });
+  for (const o of covers) { applyCanvasCover(o, { rear: -1 }); o.userData.ownCanvas = true; }
 }

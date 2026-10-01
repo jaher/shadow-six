@@ -20,6 +20,7 @@ import { getMaterial } from './materials.js';
 import { B, T, CELL } from '../world/grid.js';
 import { libraryVisual, libTypeOf } from './building-props.js';
 import { makeFlag } from './flags.js';
+import { wireTypeOf } from './wire-obstacles.js';
 import { buildBreakableGate } from './breakable-gates.js';
 import { isBreakableGate } from '../world/breakables.js';
 import { buildRocks, buildCliff, buildWall, buildTent, buildRuins, buildSandbags, buildCrates, buildGenerator, buildLattice, buildPole } from './dressing.js';
@@ -123,7 +124,10 @@ function buildLinear(type, p, def, ctx = {}) {
   const h = p.h ?? def.h ?? 0;
   const dressed = type === 'wall' && dressingOn(ctx);
   const root = dressed ? buildWall(points, { variant: p.variant, mat: p.mat || def.mat, h, width, id: p.id, walkways: p.walkways }) : new THREE.Group();
-  for (let k = 0; !dressed && k + 1 < points.length; k++) {
+  // barbed wire (art/wire-obstacles.js): the map's wire layer draws this run; the footprints below are unchanged
+  const wire = (type === 'fence' || type === 'wall') && dressingOn(ctx) ? wireTypeOf({ ...p, type, h }, ctx) : null;
+  if (wire && !root.userData.wireRun) root.userData.wireRun = { type: wire, def: { ...p, type, h, width }, points, coping: type === 'wall' ? { top: h } : null };
+  for (let k = 0; !dressed && !(wire && type === 'fence') && k + 1 < points.length; k++) {
     const [ax, az] = points[k], [bx, bz] = points[k + 1];
     const len = Math.hypot(bx - ax, bz - az);
     if (len < 1e-6) continue;

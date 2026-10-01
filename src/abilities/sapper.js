@@ -183,7 +183,7 @@ registerAbility({
       }
       for (const f of fenceCells(world.grid, cell.x, cell.z, A.cutGap / 2 + 0.01)) world.grid.block[f.k] = B.NONE;
       world.grid.version++;
-      world.events.emit('structure:destroyed', { id: fenceId ?? 'fence', type: 'fence-gap', owner: world.grid.owner[cell.k] });
+      world.events.emit('structure:destroyed', { id: fenceId ?? 'fence', type: 'fence-gap', owner: world.grid.owner[cell.k], x: cell.x, z: cell.z });
       return true;
     } }] });
   },

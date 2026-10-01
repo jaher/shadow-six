@@ -59,6 +59,10 @@ export const WIND_UNIFORMS = {
   uWindD: { value: new Float32Array([0, 0, 1, 0]) },          // dust devil x, z, radius, strength (0 = none)
 };
 
+let ACTIVE = null;
+/** The WindField that last published the GPU uniforms (frame()): CPU consumers sampling per object (canvas covers). */
+export const activeWind = () => ACTIVE;
+
 export class WindField {
   /**
    * @param {object} [params] resolveWind() output (or partial overrides)
@@ -142,6 +146,7 @@ export class WindField {
    */
   frame(t, at = null) {
     this.t = t;
+    ACTIVE = this;
     const P = this.p, U = WIND_UNIFORMS;
     U.uWindA.value.set([this.dx, this.dz, P.speed, t]);
     U.uWindB.value.set([P.gustiness, P.turbulence, P.frontSpeed, P.spacing]);

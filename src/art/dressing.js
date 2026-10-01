@@ -12,7 +12,7 @@
  * @module art/dressing
  */
 import * as THREE from 'three';
-import { applyFlap, applySway, swayWeights } from './cloth-wind.js';
+import { applyFlap, applySway, swayWeights, canvasAttributes, transformCanvasAttrs } from './cloth-wind.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { libTextureURL } from './building-library.js';
 
@@ -121,7 +121,7 @@ export function boxUV(geo, tile = 3) {
  * shadow flag. The review measured +45 draw calls (×2 with shadows) from per-part meshes (fins, ropes, stones).
  */
 /** Step 4w per-vertex wind weights that survive consolidation (canvas flap, rope/wire sway). */
-const WIND_ATTRS = ['aFlap', 'aSway'];
+const WIND_ATTRS = { aFlap: 1, aSway: 1, aFlapDir: 3, aFlapP: 4, aFlapG: 3 };
 
 export function consolidate(g) {
   g.updateMatrixWorld(true);
@@ -130,8 +130,9 @@ export function consolidate(g) {
     if (!o.isMesh || o.isInstancedMesh || o === g) return;
     const k = `${o.material.uuid}|${o.castShadow}`;
     if (!groups.has(k)) groups.set(k, { mat: o.material, cast: o.castShadow, geos: [] });
-    const geo = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
-    for (const a of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv', ...WIND_ATTRS].includes(a)) geo.deleteAttribute(a);
+    const m = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
+    const geo = transformCanvasAttrs((o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(m), m);
+    for (const a of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv', ...Object.keys(WIND_ATTRS)].includes(a)) geo.deleteAttribute(a);
     if (!geo.attributes.uv) geo.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(geo.attributes.position.count * 2), 2));
     groups.get(k).geos.push(geo);
     drop.push(o);
@@ -139,7 +140,7 @@ export function consolidate(g) {
   if (drop.length < 2) return g;
   for (const o of drop) o.removeFromParent();
   for (const { mat, cast, geos } of groups.values()) {
-    for (const a of WIND_ATTRS) if (geos.some((q) => q.attributes[a])) for (const q of geos) if (!q.attributes[a]) q.setAttribute(a, new THREE.Float32BufferAttribute(new Float32Array(q.attributes.position.count), 1));
+    for (const [a, k] of Object.entries(WIND_ATTRS)) if (geos.some((q) => q.attributes[a])) for (const q of geos) if (!q.attributes[a]) q.setAttribute(a, new THREE.Float32BufferAttribute(new Float32Array(q.attributes.position.count * k), k));
     const m = mesh(mergeGeometries(geos, false), mat, cast);
     m.name = g.name;
     g.add(m);
@@ -393,7 +394,7 @@ export function buildWall(points, o) {
   const R = rng(seedOf(o.id ?? points.flat().join(',')));
   if (kind === 'palisade') {
     const mats = [], M4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), sc = new THREE.Vector3(), ps = new THREE.Vector3();
-    const rails = new THREE.Group();
+    const rails = new THREE.Group(), stakes = [];
     for (let k = 0; k + 1 < points.length; k++) {
       const [ax, az] = points[k], [bx, bz] = points[k + 1], L = Math.hypot(bx - ax, bz - az);
       if (L < 1e-3) continue;
@@ -411,7 +412,7 @@ export function buildWall(points, o) {
         x -= tz * sh; z += tx * sh;
         e.set((R() - 0.5) * 0.05, R() * Math.PI * 2, (R() - 0.5) * 0.05);
         M4.compose(ps.set(x, -0.3, z), q.setFromEuler(e), sc.set(r, H + 0.3, r));
-        mats.push(M4.clone());
+        mats.push(M4.clone()); stakes.push({ x, z, top: H, r });
         const last = chunks[chunks.length - 1];
         if (last && last.sh === sh) last.d1 = dd + 2 * r; else chunks.push({ sh, d0: dd, d1: dd + 2 * r });
         dd += 2 * r + 0.015;
@@ -424,12 +425,6 @@ export function buildWall(points, o) {
         rail.rotation.y = -Math.atan2(bz - az, bx - ax);
         rails.add(rail);
       }
-      if (/wire/.test(String(o.variant))) for (const y of [h + 0.12, h + 0.32]) {
-        const wire = mesh(swayWeights(new THREE.CylinderGeometry(0.012, 0.012, L, 4), Math.min(1, L / 4)), applySway(dressingMaterial('logsTarred')), false);
-        wire.position.set((ax + bx) / 2, y, (az + bz) / 2);
-        wire.rotation.set(0, -Math.atan2(bz - az, bx - ax), Math.PI / 2);
-        rails.add(wire);
-      }
     }
     const inst = new THREE.InstancedMesh(logGeometry(), dressingMaterial('logs'), Math.max(1, mats.length));
     mats.forEach((m, i) => inst.setMatrixAt(i, m));
@@ -438,6 +433,8 @@ export function buildWall(points, o) {
     inst.computeBoundingSphere();
     inst.name = 'palisade';
     root.add(inst, consolidate(rails));
+    // barbed-wire coping (art/wire-obstacles.js coping_bracket): brackets on the tallest stakes, strands clear of every top
+    if (/wire/.test(String(o.variant))) root.userData.wireRun = { type: 'coping_bracket', def: { id: o.id, variant: o.variant, type: 'wall', h }, points, coping: { stakes } };
     return root;
   }
   const mat = dressingMaterial(kind);
@@ -473,15 +470,11 @@ export function buildTent(p) {
   }
   geo.computeVertexNormals();
   boxUV(geo, 2.5);
-  // step 4w: canvas panels flap between the poles (0 at the pole ends, ground seam and ridge; 1 mid-panel)
-  const F = new Float32Array(P.count);
-  for (let i = 0; i < P.count; i++) {
-    const x = P.getX(i), y = P.getY(i), z = P.getZ(i), u = Math.max(0, 1 - Math.pow((2 * x) / w, 2));
-    F[i] = Math.abs(z) > 1e-3 && Math.abs(Math.abs(x) - w / 2) > 1e-3 ? u * Math.sin(Math.PI * Math.min(1, Math.max(0, y / h))) : 0;
-  }
-  geo.setAttribute('aFlap', new THREE.Float32BufferAttribute(F, 1));
+  // step 4w: canvas panels billow between the poles (0 at the pole ends, ground seam and ridge; 1 mid-panel). A pure
+  // function of position + welded directions: the wall/roof crease never opens.
+  canvasAttributes(geo, (x, y) => Math.max(0, 1 - Math.pow((2 * x) / w, 2)) * Math.sin(Math.PI * Math.min(1, Math.max(0, y / h))));
   const g = new THREE.Group(); g.name = 'dressing:tent';
-  const mat = applyFlap(dressingMaterial('canvas'));
+  const mat = applyFlap(dressingMaterial('canvas').clone()); // own instance per tent: per-object wind uniforms
   mat.side = THREE.DoubleSide;
   g.add(mesh(geo, mat));
   const rope = dressingMaterial('logsTarred');

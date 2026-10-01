@@ -21,7 +21,8 @@ import { normalizeMission } from '../missions/schema.js';
 import { buildProp, LINEAR_PROPS } from '../art/props.js';
 import { buildTerrain, canBuildRealTerrain, TREE_TYPES, coverPropsWithSnow, setPropSnow, wireTrailRecords, buildMaskedWater } from '../art/terrain.js';
 import { buildWater } from '../art/water.js';
-import { buildWalkDeck, WALK_SHIFT } from '../art/dressing.js';
+import { buildWalkDeck, WALK_SHIFT, dressingMaterial } from '../art/dressing.js';
+import { buildMissionWire } from '../art/wire-obstacles.js';
 import * as WaterModule from '../art/water/index.js';
 import { buildExtraProp, isExtraProp } from '../art/props-extra.js';
 import { installSetpieces } from '../missions/setpieces.js';
@@ -722,7 +723,7 @@ export function buildMap(world, mission, opts = {}) {
   installSetpieces(world, mission, { meshes });
 
   // 7. ground + water from the finished grid
-  let terrain = null, unwire = null, pavedGroundY = null;
+  let terrain = null, unwire = null, pavedGroundY = null, wire = null;
   if (meshes) {
     // point trees only: a forest AREA (tree type + `points`, e.g. M4/M20 'forest' footprints) has no x/z of its own
     const trees = realTerrain ? built.filter((b) => TREE_TYPES.includes(b.type) && Number.isFinite(b.def?.x) && Number.isFinite(b.def?.z)).map((b) => b.def) : [];
@@ -731,6 +732,7 @@ export function buildMap(world, mission, opts = {}) {
     terrain = buildTerrain(grid, realTerrain ? theater : (mission.groundPalette || theater), realTerrain ? { renderer: opts.renderer, mission, trees, ownWater: true, roads } : {});
     world.scene?.add(terrain.ground);
     if (terrain.water) world.scene?.add(terrain.water);
+    wire = buildMissionWire(propsRoot, { terrain, theater, mission, world, renderer: opts.renderer, material: dressingMaterial, night: theater === 'night' || !!mission.lighting?.night });
     world.scene?.add(propsRoot);
     if (realTerrain) {
       // top-facing snow on props (shared uniform: cached materials reused by a later non-snow mission get 0)
@@ -798,7 +800,7 @@ export function buildMap(world, mission, opts = {}) {
   }
   // placement rule (e) bodies: standing visuals over any walking surface (after the deck-aware ground is known)
   if (meshes) {
-    const t0 = performance.now(), st = stampStanding(world, built);
+    const t0 = performance.now(), st = stampStanding(world, wire?.standing ? [...built, wire.standing] : built);
     if (st.off) { const a = visNavOff; visNavOff = () => { a?.(); st.off(); }; }
     if (st.cells) libLog.push(`standing visuals: ${st.cells} quarter cells (${Math.round(performance.now() - t0)} ms)`);
   }
@@ -858,12 +860,13 @@ export function buildMap(world, mission, opts = {}) {
       if (pavement && pavement.quality !== terrain?.quality) { pavement.quality = terrain.quality; pavement.setQuality(terrain.quality); }
       streetLights?.frame(dt, camera); tickBuildings(dt, camera, world.wind ?? null); doors.frame(dt);
       if (windFx === undefined) windFx = opts.meshes === false ? null : createWindFx(world, realTerrain ? opts.renderer : null); // step 4w
-      windFx?.frame(dt, camera);
+      windFx?.frame(dt, camera); wire?.update(dt);
       // step 4f: fish under the water, gulls / crows / ducks (after the water's bed capture: never baked into it)
       if (life === undefined && lifeReady && !gone) life = opts.meshes === false || !realTerrain ? null : createAmbientLife(world, opts.renderer);
       life?.frame(dt, camera);
     },
     get windFx() { return windFx; },
+    get wire() { return wire; },
     get pavement() { return pavement; },
     get furniture() { return furniture; },
     get streetLights() { return streetLights; },
@@ -872,6 +875,7 @@ export function buildMap(world, mission, opts = {}) {
       gone = true;
       visNavOff?.();
       windFx?.dispose(); windFx = null;
+      wire?.dispose(); wire = null;
       life?.dispose(); life = null;
       pavement?.dispose(); pavement = null;
       streetLights?.dispose(); streetLights = null;

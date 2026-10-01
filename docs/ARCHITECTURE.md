@@ -646,6 +646,15 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   (`stampWorld`), and `world.ai.footprints.tracksNear(x,z,r)` annotates AI prints with `printVisibility` (§4.8).
   Real path: `water: null` (`ctx.ownWater`) — the water system below owns the surface; river banks are carved
   from a bilinear signed distance to the wet cells (`cellSignedDistance`/`carveDepth`, no 0.5 m staircase).
+- **Barbed wire** (`src/art/barbed-wire.js` strand primitive + `src/art/wire-obstacles.js` recipes / layer,
+  docs/barbed-wire.md): `props.js` tags every wire `fence` run (and wire-coped walls) with `userData.wireRun` instead of
+  drawing boxes (footprints unchanged), `dressing.js` records the palisade stake tops for the coping; map-builder builds
+  ONE wire layer per mission after the terrain (`mapHandle.wire`: `{group, runs, parts, gaps, stats, update, scanGaps,
+  sparksSpawned, dispose}`). Wire is coverage-widened ribbons (2-px tent minimum, no crawl), instanced barbs / snow
+  beads (LOD by pixel size), a projected ground-shadow ribbon, instanced posts / frames and chain-link panels. Cut gaps
+  are re-derived from the grid's FENCE cells (Sapper cutters, loaded saves); M3 sparks follow `world.fencePower`.
+  Dev map `src/missions/dev/wire-gallery.js`, tool `tools/perf/wireshot.mjs`, tests `tests/unit/barbed-wire.test.mjs`,
+  `tests/barbed-wire.test.mjs`.
 - **Water** (`src/art/water.js` + module `src/art/water/`, docs/water-pipeline.md): map-builder builds it once the
   terrain is ready (real terrain only; bed capture renders the static scene from above) and the map handle's
   `ready` also awaits its textures. Handle (`world.water`, `mapHandle.water`; null on dry maps / placeholder):

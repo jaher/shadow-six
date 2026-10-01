@@ -94,6 +94,8 @@ export function createAmbientLife(world, renderer = null, o = {}) {
     wind: (x, z, out) => { if (W?.sample) { W.sample(x, z, W.t, wv); out[0] = wv.x; out[1] = wv.z; } else { out[0] = out[1] = 0; } },
     water: (x, z) => (water ? water.sample(x, z) : null),
     ground: gY,
+    // obstacles a crow must not walk into: blocked cells (walls, palisades, rocks) and standing visuals
+    blocked: (x, z) => { const G = world.grid; return !!G?.block && (G.blockAt(x, z) > 0 || !!G.solidAt?.(x, z)); },
     fields: lifeFields(world.grid),
     perches: lifePerches(mission, gY),
     splash: (x, z, s) => water?.wakes?.splash?.(x, z, s),
