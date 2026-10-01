@@ -528,6 +528,40 @@ The animation names are the humanoid names from ARCHITECTURE. Each voice cue is 
 - **Vehicle footprints** match the real models (m, length × width): Opel Blitz 6.3 × 2.4, Horch 901 4.9 × 1.9,
   Citroën 4.8 × 1.9, BMW R75 with sidecar 2.3 × 1.7, Panzer IV 6.6 × 2.9, Sd.Kfz. 251 / 231 5.9 × 2.2.
 - **Ramming barriers.** Barriers and light gates break at fast speed.
+  - *Addendum (gate smash).* The fast-speed rule stands: a slow (click) order still stops at the first blocking cell, in
+    front of the gate. How a gate breaks is physical. At the moment the bumper reaches the gate plane, the impulse
+    J = vehicle mass × speed is compared with the gate's strength [rec]:
+
+    | Gate kind (variants) | Hold below | Shatter from | Break work (speed loss) |
+    |---|---|---|---|
+    | Plank (palisade / plank double or single gate, barn / garage doors) | 3 000 N·s | 24 000 N·s | 6 000 N·s |
+    | Boom (`barrier_boom`) | 800 N·s | 9 000 N·s | 1 200 N·s |
+    | Wire / frame (chainlink, mesh, iron, jail door) | 3 500 N·s | 30 000 N·s | 7 000 N·s |
+
+    Masses [rec]: truck 3.5 t, car 1.3 t, Kübelwagen 0.75 t, motorcycle 0.26 t, tank 9.5 t, SdKfz 8 t.
+    - **Hold** (J below the hold threshold, e.g. a fast order started with the nose on the gate): the vehicle stops, the
+      leaves bow and spring back, a creak. The gate stays shut.
+    - **Burst**: the more-struck leaf is torn off its hinges and thrown ahead. The other swings open, hanging on its
+      upper hinge if the bumper caught it. Planks near the bumper crack off. A boom pole snaps at the seam nearest the
+      impact; the stub stays on the pivot and the counterweight swings it up.
+    - **Shatter** (the M2 escape truck at 9 m/s: J 31 500): the more-struck leaf comes apart into boards and rail
+      halves and is thrown ahead. The other leaf stays one large chunk (rails, Z-brace, most boards; only boards the
+      bumper caught crack off) hanging on its upper hinge. A hanging leaf that the vehicle drives into a wall tears
+      that hinge too and drops flat. A boom pole snaps in two or three places, and the pieces spin away.
+    - A board that breaks at a seam shows a jagged, torn end of fresh wood, and throws a short splinter or two.
+    - The vehicle loses `work / J + m_gate / (m_gate + m)` of its speed (4–70 %). For 0.9 s it re-accelerates at 12 %
+      of its normal rate. The body pitches forward a few degrees (truck ≈ 3°, car ≈ 5°). Rolling over flat wreckage
+      gives small bumps.
+    - The pieces are Rapier bodies (bodies-design §A). They collide with the ground, walls, props, units and each
+      other, and the vehicle shoves them. A piece freezes into static wreckage only when it has come to rest lying
+      down and clear of the walls. A piece that stops standing on end (or a slab standing on edge) is tipped over away
+      from the gate line first. Pieces settle in about 4 s; 9 s is a safety cap.
+      The wreckage is never stamped on the NavGrid: only the gate's own cells clear, so the gap is passable for units
+      and vehicles. The break is deterministic (seed = hash(gate id, tick)), and it survives save and load (a
+      snapshot while pieces move).
+    - The noise and alarm are unchanged: a `crash` noise of `ramNoise` 20 m, never an explosion. Sounds: a splintering
+      crack, hinge straps snapping, and landing thuds (CC0, `assets/audio/CREDITS.md`). FX: wood splinters and chips,
+      a snow / dust / sand puff at the base, and snow clumps off the top rail in winter theaters.
 - **Tainted vehicles.** An enemy who sees a commando board a vehicle marks it `tainted`. From then on **every enemy who sees it attacks it until it is destroyed**, even when empty. This is the M15 trick.
 - **Vehicle HP** in hits [data `.IMPACTOS`]:
 

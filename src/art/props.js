@@ -20,6 +20,8 @@ import { getMaterial } from './materials.js';
 import { B, T, CELL } from '../world/grid.js';
 import { libraryVisual, libTypeOf } from './building-props.js';
 import { makeFlag } from './flags.js';
+import { buildBreakableGate } from './breakable-gates.js';
+import { isBreakableGate } from '../world/breakables.js';
 import { buildRocks, buildCliff, buildWall, buildTent, buildRuins, buildSandbags, buildCrates, buildGenerator, buildLattice, buildPole } from './dressing.js';
 
 /** Prop catalogue (missions may only use these). */
@@ -203,6 +205,9 @@ const BUILDERS = {
     return g;
   },
   gate: (p, def) => {
+    // rammable gates: the pre-fractured model the gate smash breaks apart (art/breakable-gates.js, §3.7 addendum)
+    const bg = isBreakableGate({ ...p, type: 'gate' }) ? buildBreakableGate(p) : null;
+    if (bg) return bg;
     const g = new THREE.Group();
     const leaf = box(p.w, p.h, 0.08, def.mat);
     leaf.material = getMaterial('woodDark');

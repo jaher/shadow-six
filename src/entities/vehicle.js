@@ -34,6 +34,7 @@ import { makeVision } from './enemy.js';
 import { Projectile, explode, hitBarrel } from './projectile.js';
 import { createVehicleBrain } from '../ai/vehicle-ai.js';
 import { canSee as perceptionCanSee } from '../ai/perception.js';
+import { inContact, ramGate, applyRamResponse, bumpGate } from '../world/breakables.js';
 
 /** Minimum spacing (m) between units stepping out of a hull: per-seat exit offset / occupied-spot test. */
 const EXIT_SPACING = 0.9;
@@ -812,7 +813,9 @@ export class Vehicle extends Entity {
     // routes: slow down in bends so the turning circle (v / turn rate) still reaches the waypoint
     const target = g.strict ? this.maxSpeed
       : Math.min(this.maxSpeed * Math.max(0.25, Math.cos(Math.min(diff, Math.PI / 2))), diff > 0.2 ? Math.max(0.8, this.def.turn * d * 0.5) : Infinity);
-    this.speed = Math.min(target, this.speed + this.maxSpeed * 2 * dt);
+    // after a gate smash the vehicle claws its speed back slowly (world/breakables.js applyRamResponse)
+    const acc = this.ramDrag > 0 ? ((this.ramDrag = Math.max(0, this.ramDrag - dt)), 0.12) : 1;
+    this.speed = Math.min(target, this.speed + this.maxSpeed * 2 * acc * dt);
     const step = Math.min(d, this.speed * dt);
     const h = g.strict ? want : this.heading;
     const nx = this.x + Math.cos(h) * step, nz = this.z + Math.sin(h) * step;
@@ -820,7 +823,7 @@ export class Vehicle extends Entity {
     const clear = this._nosePoints(nx + Math.cos(h) * ahead, nz + Math.sin(h) * ahead, h, g.strict).every(([px, pz]) => this.passableAt(px, pz))
       && (g.strict || !this._closedGateAt(nx + Math.cos(h) * (this.def.size[0] / 2 + ahead), nz + Math.sin(h) * (this.def.size[0] / 2 + ahead)));
     if (!clear) {
-      if (g.strict) { this._halt(); return; } // §3.7 stops at the first blocking cell
+      if (g.strict) { if (this.speed > 0.5) bumpGate(this); this._halt(); return; } // §3.7 stops at the first blocking cell (a closed gate there bows: §3.7 addendum)
       this.speed = 0; // routes wait until the way is clear (e.g. a vehicle parked on the road)
       this.blockedT = (this.blockedT || 0) + dt;
       return;
@@ -858,8 +861,15 @@ export class Vehicle extends Entity {
     const [nx, nz] = this._nosePoints(this.x, this.z, this.heading)[0];
     for (const o of this.world.interactables) {
       if (o.destroyed || !(o.barrier || o.light || o.interactKind === 'barrier')) continue;
+      if (o.ramBreak) { // gate smash (world/breakables.js): contact at the gate plane, outcome from J = m·v
+        if (o.open || !inContact(this, o)) continue;
+        const r = ramGate(this, o);
+        if (r.outcome !== 'hold') o.ramBreak(this);
+        applyRamResponse(this, o, r);
+        if (r.outcome === 'hold') return;
+        continue;
+      }
       if (Math.hypot(o.x - nx, o.z - nz) > (o.radius || 1.5) + 0.5) continue;
-      if (o.ramBreak) { o.ramBreak(this); continue; }
       if (o.destroy) o.destroy(this, 'ram'); else o.takeDamage?.(KILL, this, 'ram');
       o.destroyed = true;
       this.world.events.emit('structure:destroyed', { id: o.tag ?? o.id, type: o.interactKind || 'barrier', owner: this });
@@ -1301,7 +1311,7 @@ export class Vehicle extends Entity {
       drive: {
         path: this.path ? this.path.map((p) => ({ ...p })) : null, pathIndex: this.pathIndex,
         goal: this.goal ? { ...this.goal } : null, waitT: this.waitT, speed: this.speed, fast: this.fast,
-        maxSpeed: this.maxSpeed ?? null, blockedT: this.blockedT || 0, turretHeading: this.turretHeading,
+        maxSpeed: this.maxSpeed ?? null, blockedT: this.blockedT || 0, ramDrag: this.ramDrag || 0, turretHeading: this.turretHeading,
         weaponCd: { ...this.weaponCd },
       },
       brain: this.brain?.serialize?.() ?? null,
@@ -1349,6 +1359,7 @@ export class Vehicle extends Entity {
     this.fast = !!D.fast;
     if (D.maxSpeed != null) this.maxSpeed = D.maxSpeed;
     this.blockedT = D.blockedT || 0;
+    this.ramDrag = D.ramDrag || 0; // gate smash re-acceleration drag (world/breakables.js)
     if (Number.isFinite(D.turretHeading)) this.turretHeading = D.turretHeading;
     if (D.weaponCd) this.weaponCd = { ...D.weaponCd };
   }

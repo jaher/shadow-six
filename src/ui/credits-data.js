@@ -211,6 +211,12 @@ export const CREDITS_SECTIONS = [
     "CC0"
    ],
    [
+    "assets/terrain/needles.webp, needles_n.webp (conifer needle-spray atlas: Norway spruce sprays and comb curtains, Scots / stone pine tufts and pads; albedo, needle normals, coverage; procedural, tools/render/build_needles.py)",
+    "this project",
+    "project contributors",
+    "CC0"
+   ],
+   [
     "assets/portraits/ (talking-portrait clips, 256 px VP9 WebM + H.264 MP4 + poster stills; 6 commandos × 8 lines × primary/urgent take + idle + talk loop; full component list in assets/portraits/LICENSES.json)",
     "AI-generated, synthetic faces from written descriptions only (no photo, likeness or voice of a real person): portraits with Z-Image-Turbo (Tongyi-MAI; unsloth GGUF) + Qwen3-4B text encoder, animation with JoyVASA (jdh-algo) + chinese-hubert-base (TencentGameMate) + LivePortrait (KwaiVGI), face crop with MediaPipe FaceLandmarker; voices are the assets/audio/voice pack",
     "project contributors",

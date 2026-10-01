@@ -184,6 +184,11 @@ unsubscribe function and call it between scenarios. **Canonical events** (payloa
 | `unit:blast` | `{unit, dv, reaction:'flinch'|'stagger'|'fall', dir}` (§A.5 visual-only survivor reaction) | physics → render, audio |
 | `body:settled` | `{unit, x, y, z, pose}` (§A.4 ragdoll at rest: gameplay position fed back) | physics → ai, fx, blood |
 | `prop:settled` | `{ent, key, x, z}` (§A.6 loose prop at rest, nav re-stamped) | physics → fx |
+| `gate:smash` | `{id, gate, vehicle, outcome:'burst'|'shatter', kind, J, mass, speed, info, tick, seed, x, z}` (§3.7 ramming addendum: a vehicle broke a gate; `info` = contact point / travel direction in the gate frame) | interactables → physics debris, smash visuals, audio |
+| `gate:hold` | `{id, gate, vehicle, x, z, J, dir}` (§3.7 addendum: impulse below the gate's hold threshold: the vehicle stops, the gate bows) | vehicles → smash visuals, audio |
+| `gate:thud` | `{id, x, z, v, heavy}` (a gate piece hit the ground / a wall hard; rate-limited) | physics debris → audio, fx |
+| `gate:hinge` | `{id, x, z}` (a hanging leaf jammed against a wall tore its last hinge and dropped) | physics debris → audio |
+| `gate:settled` | `{id}` (every piece of a smashed gate is at rest and frozen into static wreckage) | physics debris → tests, fx |
 | `load:picked` | `{carrier, load, mode:'shoulder'|'drag'}` (bodies-design §C: a man taken up) | abilities → blood, audio, ui |
 | `load:dropped` | `{carrier, load, how:'gentle'|'shot'|'died'|'downed'|'vehicle', mode}` (§C.4 put down / knocked off) | abilities → blood, physics visuals, ui |
 | `load:mode` | `{carrier, mode}` (§C.4 lifted to the shoulder / lowered to a drag) | abilities → blood, ui |
@@ -551,6 +556,38 @@ plus (ABILITIES) `'lever'|'valve'|'phone'|'ladder'|'clothesline'|'ammo'|'crate'|
 structure flags `bombOnly`/`grenadeDestructible`/`light`/`bunker`/`indestructible` (from the mission structure def).
 `Barrel` (explosive drum, carried by the GB, `ignite(delay)`), `createInteractable(spec)`,
 `spawnMissionInteractables(world, mission)` (called by map-builder).
+
+### Breakable gates (gate smash, design-spec §3.7 ramming addendum)
+Rammable gates (`Interactable.barrier`: mission `rammable:true`, `variant:'barrier_boom'`, `type:'barrier'`) break
+physically when a vehicle rams them. Split so each half stays small and merge-friendly:
+- `src/world/breakables.js` (pure, node-safe): `gateLayout(def)` / `layoutOf(def)` — the pre-fractured layout of each
+  kind (`plank` double/single gates incl. palisade and barn doors, `boom` barrier, `wire` frame gates; `def.look`
+  overrides the variant, e.g. M2 `look:'palisade_double'`): every piece an oriented box in the gate frame with its
+  seams, nails and hinges; `ramOutcome(kind, mass, speed)` → `hold|burst|shatter` from J = m·v; `vehicleResponse`
+  (speed loss ∝ gate strength); `inContact` (bumper at the gate plane), `ramGate` (the pure decision),
+  `smashGate` (record + `gate:smash`), `applyRamResponse` (halt / speed loss / `ramDrag` / pitch rock).
+- `src/physics/debris.js` `GateDebris` (`world.physics.gates`): intact gates are fixed compound bodies (their grid
+  owner is left out of the STATIC cuboids); `gate:smash` → `planFracture` (union-find over the bonds, deterministic
+  from the smash seed and the contact) → dynamic compound bodies + spherical hinge joints to the posts (revolute for
+  the boom pivot); vehicles near active debris are kinematic hull boxes (clearance 0.32 m); pieces freeze to FIXED
+  when still, lying down and out of the walls (never re-stamped on the NavGrid; an upright piece is tipped over, a
+  hanging leaf jammed into a wall tears its hinge: `gate:hinge`); a hull hitting a frozen piece taller than its
+  clearance wakes it. The break runs after the tick's step (its cost and the first contact solve land in two frames).
+  `_warm()` smashes a copy of the first gate in a throw-away Rapier world at load. In the browser it repeats for
+  0.6 s once per page (then idle-time retries if no pass was slow), so V8's deopt of Rapier's step happens there, not
+  in play (a ≈ 5 ms first-smash frame otherwise). Loose splinters (`layout.splinters`) only spawn from seams that broke.
+  `serialize/restore` ride on `physics/persist.js` (poses; body/joint/hull handles with the Rapier snapshot).
+  `pieceBoxes` + `obbOverlap` audit the wreckage (tests).
+- `src/art/breakable-gates.js` builds one mesh per layout piece (jagged interlocking splinter seams, hinge straps,
+  pintles, striped pole); boards carry 3 material slots (weathered / torn end faces / torn zone, swapped to fresh wood
+  once that seam broke); `userData.gate` = `{layout, pieces, leaves, setOpen, nudge, tick}` (open swing / hold bow).
+  Hooked from `props.js` `BUILDERS.gate` for breakable defs only.
+- `src/render/gate-smash-visuals.js` (owned by `render/physics-visuals.js`): detaches piece meshes and drives them from
+  the body poses (a seeded canned scatter without Rapier; same wood, the prop snow cover thinned to a dusting),
+  FX via `render/gate-smash-fx.js` `spawnGateFx`
+  (splinters, surface puff, snow clumps, landing puffs), distance-scaled shake, debris bumps.
+Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/serialize` (`smash` record),
+`Vehicle._breakBarriers/_updateDrive` (+ `ramDrag` saved), `world-physics.js`, `persist.js`, audio event map.
 
 ### Rendering pieces
 - `CameraController` (`src/engine/camera.js`): OrthographicCamera, fixed azimuth/elevation (spec), zoom levels,

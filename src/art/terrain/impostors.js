@@ -13,8 +13,8 @@ const _v = new THREE.Vector3();
 
 /**
  * @param {THREE.WebGLRenderer} gl
- * @param {{key:string, bark:THREE.BufferGeometry|null, leaf:THREE.BufferGeometry|null}[]} protos tree-local geometry (root at origin)
- * @param {{barkMat:THREE.Material, leafMat:THREE.Material, leafNormalMat:THREE.Material, U:object}} mats vegetation materials
+ * @param {{key:string, bark:THREE.BufferGeometry|null, leaf:THREE.BufferGeometry|null, needle?:THREE.BufferGeometry|null}[]} protos tree-local geometry (root at origin)
+ * @param {{barkMat:THREE.Material, leafMat:THREE.Material, leafNormalMat:THREE.Material, needleMat?:THREE.Material, needleNormalMat?:THREE.Material, U:object}} mats vegetation materials
  * @param {{views?:number, tile?:number, pitch?:number}} [o] pitch = camera elevation (rad)
  */
 export function bakeImpostors(gl, protos, mats, o = {}) {
@@ -29,7 +29,8 @@ export function bakeImpostors(gl, protos, mats, o = {}) {
   const scene = new THREE.Scene();
   scene.add(new THREE.AmbientLight(0xffffff, 1));
   const bark = new THREE.Mesh(undefined, mats.barkMat), leaf = new THREE.Mesh(undefined, mats.leafMat);
-  scene.add(bark, leaf);
+  const needle = new THREE.Mesh(undefined, mats.needleMat || mats.leafMat);
+  scene.add(bark, leaf, needle);
   const nBark = new THREE.MeshNormalMaterial();
   const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
   const meta = [];
@@ -46,7 +47,7 @@ export function bakeImpostors(gl, protos, mats, o = {}) {
       const az = (v / views) * Math.PI * 2;
       const R = new THREE.Vector3(Math.cos(az), 0, -Math.sin(az));
       const Uv = new THREE.Vector3(-Math.sin(az) * Math.sin(pitch), Math.cos(pitch), -Math.cos(az) * Math.sin(pitch));
-      for (const g of [P.bark, P.leaf]) {
+      for (const g of [P.bark, P.leaf, P.needle]) {
         if (!g) continue;
         const a = g.attributes.position.array;
         for (let k = 0; k < a.length; k += 9) { // every 3rd vertex is plenty for bounds
@@ -59,6 +60,7 @@ export function bakeImpostors(gl, protos, mats, o = {}) {
     meta.push({ key: P.key, S, v0 });
     bark.geometry = P.bark || new THREE.BufferGeometry(); bark.visible = !!P.bark;
     leaf.geometry = P.leaf || new THREE.BufferGeometry(); leaf.visible = !!P.leaf;
+    needle.geometry = P.needle || new THREE.BufferGeometry(); needle.visible = !!P.needle;
     for (let v = 0; v < views; v++) {
       const t = i * views + v, tx = (t % cols) * tile, ty = Math.floor(t / cols) * tile;
       const az = (v / views) * Math.PI * 2;
@@ -72,6 +74,7 @@ export function bakeImpostors(gl, protos, mats, o = {}) {
         gl.setRenderTarget(rt);
         bark.material = pass ? nBark : mats.barkMat;
         leaf.material = pass ? mats.leafNormalMat : mats.leafMat;
+        needle.material = pass ? (mats.needleNormalMat || mats.leafNormalMat) : (mats.needleMat || mats.leafMat);
         bake.value = pass ? 0 : 1;
         gl.render(scene, cam);
       }
@@ -87,12 +90,13 @@ export function bakeImpostors(gl, protos, mats, o = {}) {
 
 const IMP_PARS = WIND_GLSL + /* glsl */ `
 attribute vec4 iPos;   // x, y, z, rotation (rad)
-attribute vec4 iDat;   // proto index, scale, brightness, unused
+attribute vec4 iDat;   // proto index, scale, brightness, light gain (0 → 1)
 uniform sampler2D tImpA;
 uniform vec4 uAtlas;   // cols, rows, views, 1/views
 uniform vec2 uProto[64]; // S (m), v0
 varying vec2 vAtlasUv;
 varying float vBright;
+varying float vGain;
 `;
 const IMP_VERT = /* glsl */ `
 vec3 camR = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
@@ -106,6 +110,7 @@ float t = float(pi) * uAtlas.z + vi;
 vec2 cell = vec2(mod(t, uAtlas.x), floor(t / uAtlas.x));
 vAtlasUv = (cell + uv) / uAtlas.xy;
 vBright = iDat.z;
+vGain = iDat.w > 0.0 ? iDat.w : 1.0;
 vec3 transformed = iPos.xyz + camR * ((uv.x - 0.5) * S) + camU * ((uv.y - v0) * S);
 // step 4w: distant trees keep bending with the same wind as the unique ones (trunk lean + natural-frequency sway)
 vec4 iw = windSample(iPos.xz);
@@ -130,7 +135,7 @@ export function createImpostorMesh(bank, inst) {
   const P = new Float32Array(inst.length * 4), D = new Float32Array(inst.length * 4);
   const box = new THREE.Box3();
   inst.forEach((t, i) => {
-    P.set([t.x, t.y, t.z, t.rot], i * 4); D.set([t.proto, t.scale, t.bright, 0], i * 4);
+    P.set([t.x, t.y, t.z, t.rot], i * 4); D.set([t.proto, t.scale, t.bright, t.gain ?? 0], i * 4);
     box.expandByPoint(_v.set(t.x, t.y, t.z));
   });
   g.setAttribute('iPos', new THREE.InstancedBufferAttribute(P, 4));
@@ -152,9 +157,19 @@ export function createImpostorMesh(bank, inst) {
   mat.onBeforeCompile = (sh) => {
     vert(sh);
     sh.vertexShader = sh.vertexShader.replace('#include <beginnormal_vertex>', 'vec3 objectNormal = vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]);');
-    sh.fragmentShader = 'uniform sampler2D tImpA;\nuniform sampler2D tImpN;\nvarying vec2 vAtlasUv;\nvarying float vBright;\n' + sh.fragmentShader
-      .replace('#include <map_fragment>', 'vec4 impA = texture2D(tImpA, vAtlasUv); if (impA.a < 0.5) discard; diffuseColor.rgb = impA.rgb * vBright;')
-      .replace('#include <normal_fragment_maps>', 'normal = normalize(texture2D(tImpN, vAtlasUv).xyz * 2.0 - 1.0);');
+    sh.fragmentShader = 'uniform sampler2D tImpA;\nuniform sampler2D tImpN;\nvarying vec2 vAtlasUv;\nvarying float vBright;\nvarying float vGain;\n' + sh.fragmentShader
+      // unsharp mask (4 taps; outside texels count as the centre) when the tile is ~1:1 or minified: bilinear
+      // sampling softened it — impostor crowns read blurrier than the crisp mesh sprays next to them
+      .replace('#include <map_fragment>', `vec4 impA = texture2D(tImpA, vAtlasUv); if (impA.a < 0.5) discard;
+        vec2 ipx = 1.0 / vec2(textureSize(tImpA, 0));
+        vec4 n0 = texture2D(tImpA, vAtlasUv + vec2(ipx.x, 0.0)), n1 = texture2D(tImpA, vAtlasUv - vec2(ipx.x, 0.0));
+        vec4 n2 = texture2D(tImpA, vAtlasUv + vec2(0.0, ipx.y)), n3 = texture2D(tImpA, vAtlasUv - vec2(0.0, ipx.y));
+        vec3 nAvg = (mix(impA.rgb, n0.rgb, step(0.5, n0.a)) + mix(impA.rgb, n1.rgb, step(0.5, n1.a)) + mix(impA.rgb, n2.rgb, step(0.5, n2.a)) + mix(impA.rgb, n3.rgb, step(0.5, n3.a))) * 0.25;
+        vec2 tpp = fwidth(vAtlasUv) / ipx;   // atlas texels per screen pixel: no sharpening when magnified (blocky)
+        diffuseColor.rgb = max(impA.rgb + 0.6 * smoothstep(0.6, 1.1, max(tpp.x, tpp.y)) * (impA.rgb - nAvg), 0.0) * vBright;`)
+      .replace('#include <normal_fragment_maps>', 'normal = normalize(texture2D(tImpN, vAtlasUv).xyz * 2.0 - 1.0);')
+      // needle sprays are lit with canopy scattering + translucency the flat atlas cannot carry: per-instance gain
+      .replace('#include <lights_fragment_end>', '#include <lights_fragment_end>\nreflectedLight.indirectDiffuse *= vGain; reflectedLight.directDiffuse *= mix(1.0, vGain, 0.5);');
   };
   mat.customProgramCacheKey = () => 'impostor';
   const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: THREE.DoubleSide });

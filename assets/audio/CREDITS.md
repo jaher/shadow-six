@@ -33,6 +33,9 @@ Freesound files are the HQ previews, trimmed / split / loudness-normalised and r
 | fs_snow | 1 | Footstep in the snow_01 [RAW] | cabled_mess | https://freesound.org/people/cabled_mess/sounds/384423/ | CC0-1.0 |
 | fs_snow | 7 | snow footsteps (outside recording) | Nimlos | https://freesound.org/people/Nimlos/sounds/432285/ | CC0-1.0 |
 | fs_wood | 8 | footsteps boots wood planks loose jump.wav | alec_mackay | https://freesound.org/people/alec_mackay/sounds/463670/ | CC0-1.0 |
+| gate_debris | 7 | Wooden Planks Dropping on Concrete, Breaking Wood | TheLittleCrow | https://freesound.org/people/TheLittleCrow/sounds/589866/ | CC0-1.0 |
+| gate_splinter | 4 | R29-30-Breaking Wooden Poles.wav (1930s-40s Hollywood nitrate FX library donated to USC, released CC0) | craigsmith | https://freesound.org/people/craigsmith/sounds/481936/ | CC0-1.0 |
+| gate_splinter | 1 | G26-05-Wooden Chair Break.wav (1930s-40s Hollywood nitrate FX library donated to USC, released CC0) | craigsmith | https://freesound.org/people/craigsmith/sounds/438322/ | CC0-1.0 |
 | k_barrel_set, k_dig, k_glass, k_hit_flesh, k_hit_metal, k_hit_soft, k_hit_wood, k_step_concrete, k_step_grass, k_step_snow, k_step_wood, k_thud_wood | 60 | kenney_impact-sounds | Kenney (www.kenney.nl) | https://kenney.nl/assets/impact-sounds | CC0-1.0 |
 | k_belt, k_book_open, k_cloth, k_creak, k_door_close, k_door_open, k_draw, k_drop_leather, k_knife, k_metal_click, k_metal_latch, k_page, k_pouch, k_stamp | 32 | kenney_rpg-audio | Kenney (www.kenney.nl) | https://kenney.nl/assets/rpg-audio | CC0-1.0 |
 | k_ui_click, k_ui_confirm, k_ui_error, k_ui_scratch, k_ui_select, k_ui_switch, k_ui_tick, k_ui_toggle | 44 | kenney_interface-sounds | Kenney (www.kenney.nl) | https://kenney.nl/assets/interface-sounds | CC0-1.0 |

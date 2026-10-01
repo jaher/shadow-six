@@ -169,6 +169,7 @@ export function installHandlers(a, events) {
     if (id === 'explosion_big') a.after(0.6, () => sfx('debris_rain', e, t));
   });
   on('structure:destroyed', (e, t) => {
+    if (e.cause === 'ram') return; // a gate smash: gate:smash plays the splintering, not a collapse boom
     const pos = e.x != null ? e : e.structure || e.prop;
     if (/dam/.test(e.type || '')) { sfx('dam_burst', pos, t); a.startLoop(key(e, 'flood'), 'flood_rush', pos, { event: t }); } else sfx('collapse', pos, t);
   });
@@ -179,6 +180,17 @@ export function installHandlers(a, events) {
     if (!id) return;
     if (SFX_LOOP.has(id)) { if (e.on === false) a.stopLoop(key(e, 'dev')); else a.startLoop(key(e, 'dev'), id, e, { event: t }); } else sfx(id, e, t);
   });
+  // gate smash (§3.7 ramming addendum)
+  on('gate:smash', (e, t) => {
+    const metal = e.kind === 'wire';
+    sfx(metal ? 'gate_thud_metal' : 'gate_smash', e, t);
+    a.after(0.04, () => sfx('gate_hinge_snap', e, t));
+    if (e.outcome === 'shatter') a.after(0.11, () => sfx('gate_hinge_snap', e, t));
+    a.after(0.22, () => sfx(metal ? 'gate_thud_metal' : 'gate_thud', e, t));
+  });
+  on('gate:hold', (e, t) => { sfx('gate_thud', e, t); a.after(0.08, () => sfx('gate_creak', e, t)); });
+  on('gate:thud', (e, t) => sfx(e.material === 'metal' ? 'gate_thud_metal' : 'gate_thud', e, t));
+  on('gate:hinge', (e, t) => sfx('gate_hinge_snap', e, t));
   on('door', (e, t) => sfx(/hangar/.test(String(e.id)) ? 'hangar_door' : 'gate_creak', e.door || e, t));
   on('noise', (e, t) => {
     const id = { decoy: 'decoy_beep', phone: 'telephone_ring', horn: 'horn_car', bark: 'dog_bark', dog: 'dog_bark' }[e.kind];

@@ -63,6 +63,10 @@ const ROWS = [
   [['power_down'], 'sfx', 'power_down', 0.5],
   [['telephone_ring'], 'sfx', 'ring', 0.5],
   [['gate_creak', 'hangar_door', 'barrier_lift', 'lock_gate'], 'sfx', 'creak', 0.45],
+  // gate smash (§3.7 ramming addendum): splintering crack, hinge / strap snapping, pieces landing
+  [['gate_smash'], 'sfx', 'impact', 0.95],
+  [['gate_hinge_snap'], 'sfx', 'snap', 0.5],
+  [['gate_thud', 'gate_thud_metal'], 'sfx', 'thud', 0.42],
   [['water_pressure', 'water_jet'], 'sfx', 'hiss', 0.5],
   [['cable_car_motor'], 'sfx', 'engine', 0.35, { loop: true }],
   // Vehicles
@@ -128,7 +132,8 @@ const ALIASES = {
   explosion_big: ['explosion_large', 'explosion_grenade'], collapse: ['explosion_large'], dam_burst: ['explosion_large'],
   explosion_far: ['explosion_distant'], tank_cannon: ['explosion_grenade'],
   siren: ['siren_airraid', 'siren_handcrank'], gate_creak: ['door_wood', 'k_creak'], hangar_door: ['door_metal'],
-  barrier_lift: ['k_creak'], lock_gate: ['door_metal'], truck_idle: ['truck_engine'], truck_drive: ['truck_engine'],
+  barrier_lift: ['k_creak'], gate_smash: ['gate_splinter'], gate_hinge_snap: ['k_metal_latch', 'k_hit_metal'],
+  gate_thud: ['gate_debris', 'k_thud_wood'], gate_thud_metal: ['k_hit_metal', 'metal_small'], lock_gate: ['door_metal'], truck_idle: ['truck_engine'], truck_drive: ['truck_engine'],
   tank_engine: ['tank_engine'], tank_tracks: ['tank_engine'], boat_engine: ['truck_engine'], dog_bark: ['dog'], dog_growl: ['dog'],
   wind: ['wind_snow'], wind_snow: ['wind_snow'], wind_desert: ['wind_desert'], surf: ['surf'], river: ['river'],
   birds: ['birds'], crickets: ['crickets'], artillery_far: ['artillery_period'],

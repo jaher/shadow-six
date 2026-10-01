@@ -85,6 +85,7 @@ export function serializePhysics(pw) {
     tier: pw.tier,
     pending: pw.pendingSettle.map((p) => ({ id: p.unit.id, at: p.at, prone: p.prone })),
     props: pw.props.serialize(),
+    gates: pw.gates?.serialize?.() ?? null, // gate smash debris (physics/debris.js)
     ...(moving ? {
       snapshot: 'lz:' + toB64(lzPack(pw.rw.takeSnapshot())),
       ragdolls: pw.ragdolls.map((rd) => ({
@@ -134,6 +135,7 @@ export function restorePhysics(pw, data) {
     }
     pw.props.active = (data.active || []).map((a) => { const it = byKey.get(a.key); if (it) { it.t = a.t; it.still = a.still; } return it; }).filter(Boolean);
   }
+  pw.gates?.restore?.(data.gates, !!data.snapshot);
   // moved props: settled transform (fixed bodies; the grid re-stamp came back with the saved NavGrid)
   for (const s of data.props || []) {
     const it = byKey.get(s.key);

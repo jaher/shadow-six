@@ -29,6 +29,7 @@ export default {
   date: '1941-03-01',
   place: 'Stamsund, Lofoten (Operation Claymore)',
   theater: 'snow',
+  treeSnow: 0.8, // snow load on the conifers (0..1.3; art/terrain.js): wind off the lake has stripped the sprays
   coneColors: 'green',
   size: [82, 104],
   seed: 1941_0301,
@@ -84,7 +85,7 @@ export default {
       segments: [[gapB, [46, 58], [16, 33], [42, 10], [71, 35], gapA]],
       climbable: { from: [22.5, 38.4], to: [29.5, 44.3] },
       walkways: [{ id: 'walk_sw', points: [[22.72, 38.13], [29.72, 44.03]], width: 1.4, y: 2.2 }] },
-    { id: 'gate_se', type: 'gate', variant: 'barrier_boom', x: GATE.x, z: GATE.z, rot: deg(317), w: 4, operable: true, rammable: true },
+    { id: 'gate_se', type: 'gate', variant: 'barrier_boom', look: 'palisade_double', x: GATE.x, z: GATE.z, rot: deg(317), w: 4, operable: true, rammable: true },
     // sentry box just outside the gate on the SW verge of T4, clear of the straight truck line to the exit
     { id: 'sbox_se', type: 'hut', variant: 'sentry_box', x: 54.4, z: 52.3, rot: deg(317), w: 1.6, d: 1.6, h: 2.4 },
     // buildings run parallel to the palisade edge they stand by (NW edge −41.5°, NE edge 40.8°, SE edge 137.4°, SW edge −140.2°)

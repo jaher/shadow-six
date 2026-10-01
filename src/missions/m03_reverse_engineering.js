@@ -29,6 +29,7 @@ export default {
   date: '1941-03-04',
   place: 'Sysendam dam near the Sima hydro plant, Eidfjord',
   theater: 'snow',
+  treeSnow: 1.15, // snow load on the conifers (0..1.3; art/terrain.js): deep inland snow
   coneColors: 'green',
   size: [148, 133],
   seed: 1941_0304,

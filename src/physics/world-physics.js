@@ -17,6 +17,8 @@ import { spawnRagdoll, readPose, updateSettle, removeRagdoll, poseRecord } from 
 import { applyBlast, EXPLOSIVE_CAUSES } from './blast-apply.js';
 import { settleFeedback, trackInFlight } from './feedback.js';
 import { PropSystem, propSpec } from './props.js';
+import { GateDebris } from './debris.js';
+import { isBreakableGate } from '../world/breakables.js';
 
 /**
  * Create the physics for a freshly built world (after the map + terrain are ready).
@@ -50,6 +52,8 @@ export class PhysicsWorld {
     this.rw.integrationParameters.numSolverIterations = P.solverIterations;
     // loose props are their own bodies: their footprint cells stay out of the STATIC cuboids
     const loose = new Set([...(world.structures?.values?.() || [])].filter((st) => propSpec(st.def, st.type)).map((st) => st.owner));
+    // breakable gates are their own (fixed, then broken) bodies: physics/debris.js
+    for (const it of world.interactables || []) if (it.barrier && it.owner && isBreakableGate({ ...(it.params?.structure || {}), type: it.params?.structure?.type || 'gate' })) loose.add(it.owner);
     this.statics = buildStatics(R, this.rw, world, loose);
     /** @type {object[]} active ragdolls (sorted by unit id) */
     this.ragdolls = [];
@@ -57,6 +61,7 @@ export class PhysicsWorld {
     this.pendingSettle = [];
     this.blasts = [];
     this.props = new PropSystem(this);
+    this.gates = new GateDebris(this);
     // warm-up step: the first step builds the broad phase over every static collider (tens of ms on a big map); do it
     // at load, identically for every run (deterministic), not on the first blast
     this.rw.step();
@@ -97,9 +102,9 @@ export class PhysicsWorld {
   // ------------------------------------------------------------ queries
 
   ragdollOf(unit) { return this.ragdolls.find((r) => r.unit === unit) || null; }
-  activeCounts() { return { ragdolls: this.ragdolls.length, props: this.props.active.length, debris: 0 }; }
+  activeCounts() { return { ragdolls: this.ragdolls.length, props: this.props.active.length, debris: this.gates.count() }; }
   /** True while anything simulates (a save then carries a snapshot, §A.10). */
-  moving() { return this.ragdolls.length > 0 || this.props.active.length > 0; }
+  moving() { return this.ragdolls.length > 0 || this.props.active.length > 0 || this.gates.moving(); }
   stats() { return { ms: this._ms, rapier: this._msRapier ?? 0, peak: this._msPeak, ragdolls: this.ragdolls.length, props: this.props.active.length, bodies: this.rw.bodies.len() }; }
 
   /** Physics tier from the save (§A.9: the tier is part of the deterministic state). */
@@ -182,8 +187,9 @@ export class PhysicsWorld {
       }
     }
     this.props.preStep(dt);
+    this.gates.preStep(dt);
     this._unitCapsules();
-    if (this.ragdolls.length || this.props.active.length) {
+    if (this.ragdolls.length || this.props.active.length || this.gates.moving()) {
       const ts = performance.now();
       this.rw.step();
       this._msRapier = performance.now() - ts;
@@ -197,6 +203,7 @@ export class PhysicsWorld {
         }
       }
       this.props.postStep(dt);
+      this.gates.postStep(dt);
     }
     const ms = performance.now() - t0;
     this._ms = ms; if (ms > this._msPeak) this._msPeak = ms;
@@ -212,6 +219,7 @@ export class PhysicsWorld {
     const active = [];
     for (const rd of this.ragdolls) active.push(rd.pose);
     for (const it of this.props.active) active.push(it.pose);
+    for (const g of this.gates.active) for (const b of g.bodies) if (!b.fixed) active.push(b.pose);
     const want = new Set();
     if (active.length) {
       for (const u of w.commandos.concat(w.enemies)) {
@@ -242,6 +250,7 @@ export class PhysicsWorld {
     for (const off of this._offs) off?.();
     this._offs = [];
     this.props.dispose?.();
+    this.gates.dispose?.();
     try { this.rw.free(); } catch { /* already freed */ }
     this.ragdolls = []; this.pendingSettle = []; this.blasts = [];
   }

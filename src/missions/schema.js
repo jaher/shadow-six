@@ -293,6 +293,7 @@ export function normalizeMission(def, opts = {}) {
     water: def.water || null, // { velocity, angleDeg, turbulence }
     ambient: def.ambient || null, // { fish?: false, birds?: false, habitat?: 'fjord'|'sea'|'river'|'lake', density?: 0..2 } (render/ambient-life.js)
     weather: def.weather || null, // { wind?: {preset?, dirDeg?, speed?, gustiness?, turbulence?, blow?}, timeOfDay? } (world/wind.js)
+    treeSnow: def.treeSnow ?? null, // snow load on the conifers 0..1.3 (art/terrain.js); null = theater default
     shoreShallowWidth: num(def.shoreShallowWidth, 2.0),
     terrain: arr(def.terrain),
     // step 3p (world/roads.js): road splines {surface, points, width, kerb?, sidewalk?, rails?, markings?, lamps?},

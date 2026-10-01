@@ -28,7 +28,11 @@ import { CONFIG } from '../config.js';
 import { canPickUp } from '../items.js';
 import { canSee } from '../ai/perception.js';
 import { wardrobeOf, addToWardrobe } from './wardrobe.js';
+import { smashGate } from '../world/breakables.js';
 import { makeClothesline } from '../art/clothesline.js';
+
+/** The breakable gate model under a structure group (art/breakable-gates.js userData.gate) or null. */
+const gateModelOf = (o) => o?.userData?.gate || o?.children?.find?.((c) => c.userData?.gate)?.userData.gate || null;
 
 /** Causes that can damage an explosive target (BEL: only explosives destroy structures). */
 const NON_EXPLOSIVE = new Set(['pistol', 'rifle', 'sniperRifle', 'sniper', 'smg', 'knife', 'harpoon', 'injection', 'syringe', 'bullet', 'punch', 'mg', 'shot', 'electric']);
@@ -186,8 +190,9 @@ export class Interactable extends Entity {
       if (S?.destroyFx?.includes('flood') && Array.isArray(S.floodPoly)) g.fillPoly(S.floodPoly, 'terrain', T.WATER);
       g.version++;
     }
-    // library buildings swap to their modelled destroyed variant (art/building-props.js); others burn + slump
-    if (this.object3d?.userData?.destroy?.()) { /* swapped */ } else if (this.object3d) {
+    // library buildings swap to their modelled destroyed variant (art/building-props.js); breakable gates break apart
+    // (render/gate-smash-visuals.js); others burn + slump
+    if (gateModelOf(this.object3d)) { /* smash visuals */ } else if (this.object3d?.userData?.destroy?.()) { /* swapped */ } else if (this.object3d) {
       const burnt = new THREE.MeshStandardMaterial({ color: 0x1d1a17, roughness: 1 });
       burnt.userData.shared = false;
       this.object3d.traverse((o) => { if (o.isMesh) o.material = burnt; });
@@ -220,7 +225,8 @@ export class Interactable extends Entity {
       }
       g.version++;
     }
-    if (this.object3d && !this.enterable) this.object3d.visible = !this.open;
+    const gm = gateModelOf(this.object3d); // breakable gate model: swing the leaves / raise the boom (§3.7 addendum)
+    if (this.object3d && !this.enterable && !this._smashing) { if (gm) gm.setOpen(this.open, quiet); else this.object3d.visible = !this.open; }
     if (!quiet) this.world?.events.emit('door', { id: this.tag ?? this.id, open: this.open });
     return true;
   }
@@ -233,10 +239,14 @@ export class Interactable extends Entity {
   ramBreak(source = null) {
     if (this.destroyed) return false;
     const w = this.world;
+    this._smashing = true; // the smash visuals own a breakable gate's model (render/gate-smash-visuals.js)
     if (this.interactKind === 'door') { this.locked = false; this.setOpen(true, true); }
     this._applyDestroyedState();
-    if (this.object3d && this.interactKind === 'door') this.object3d.visible = false;
+    this._smashing = false;
+    if (this.object3d && this.interactKind === 'door' && !gateModelOf(this.object3d)) this.object3d.visible = false;
     if (w) {
+      // gate smash (world/breakables.js): impact → outcome; the physics breaks the pre-fractured model
+      if (source?.kind === 'vehicle') this.smash = smashGate(this, source);
       w.grid.version++;
       w.emitNoise?.(this.x, this.z, CONFIG.vehicles.ramNoise, 'crash', source);
       w.events.emit('structure:destroyed', { id: this.tag ?? this.id, type: 'barrier', owner: this.owner, cause: 'ram', source });
@@ -437,6 +447,7 @@ export class Interactable extends Entity {
       count: this.count, contents: this.contents, lowered: !!this.lowered, ringing: this.ringing,
       occupants: this.occupants.map((u) => u.id),
       ...(this.params?.pack ? { itemId: this.itemId, pack: true } : null), // BCD cigarette pack thrown in play (respawned)
+      ...(this.smash ? { smash: this.smash } : null), // gate smash record (world/breakables.js)
       // an open door's shut-state cells: the saved grid holds them open, so they cannot be re-read on load
       ...(this.open && this._savedCells ? { savedCells: this._savedCells.slice() } : {}),
     };
@@ -445,6 +456,7 @@ export class Interactable extends Entity {
   deserialize(d) {
     super.deserialize(d);
     this.hp = d.hp ?? this.hp;
+    if (d.smash) this.smash = d.smash;
     if (d.destroyed && !this.destroyed) this._applyDestroyedState(); // no side effects on load
     if (d.open !== this.open) { // grid cells + visibility only, quiet on load; a lock refuses hands, not a load
       const lk = this.locked;

@@ -1,0 +1,16 @@
+{
+ "size": 512,
+ "layers": [
+  "spruce_0",
+  "spruce_1",
+  "spruce_curtain",
+  "spruce_top",
+  "scots_0",
+  "scots_1",
+  "stone_0",
+  "stone_1",
+  "scots_pad",
+  "stone_pad"
+ ],
+ "sources": "procedural needle sprays (tools/render/build_needles.py), own work, CC0"
+}

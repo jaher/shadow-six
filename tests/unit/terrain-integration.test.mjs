@@ -24,7 +24,7 @@ test('trees: every mission tree maps to a seeded, unique treegen placement (same
     if (defs.length > 1) assert.ok(seen.size >= defs.length * 0.9, `${m.id}: trees unique (${seen.size}/${defs.length})`);
   }
   assert.equal(treePlacement({ type: 'barrel', x: 1, z: 1 }), null);
-  assert.equal(treePlacement({ type: 'pine', x: 3, z: 4 }, 'snow').species.match(/spruce|fir/) != null, true);
+  assert.equal(treePlacement({ type: 'pine', x: 3, z: 4 }, 'snow').species.match(/^(spruce|scots_pine)$/) != null, true);
   assert.equal(treePlacement({ type: 'palm', x: 3, z: 4 }, 'desert').species, 'date_palm');
   assert.equal(treePlacement({ type: 'tree', x: 3, z: 4, variant: 'dead' }).species, 'dead_tree');
 });

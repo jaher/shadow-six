@@ -132,6 +132,8 @@ export const EVENT_NAMES = Object.freeze([
   'enemy:ko',
   // bodies / physics (docs/bodies-design.md §1)
   'blast:front', 'unit:blast', 'body:settled', 'prop:settled',
+  // gate smash (design-spec §3.7 ramming addendum; world/breakables.js, physics/debris.js)
+  'gate:smash', 'gate:hold', 'gate:thud', 'gate:hinge', 'gate:settled',
   // drag / shoulder carry / buddy rescue (docs/bodies-design.md §C)
   'load:picked', 'load:dropped', 'load:mode', 'unit:downed', 'unit:revived',
 ]);

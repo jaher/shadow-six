@@ -164,11 +164,74 @@ Meadow triangles at ultra fell from 9.8–11M to 4.5M, and frame time from 5.12 
     go from 10–17 % to about 40 % coverage, so each card reads as a leaf clump, not a skeletal twig.
   - **Crown-shell fill.** Clumped cards are seeded around existing twig leaves on the outer 45 % of the crown, so the
     canopy reads as a full mass from the high camera. They are never placed floating in empty air.
-- **Conifers.**
-  - Needle cards are re-tinted from near-black (`[0.10, 0.17, 0.12]`) to living green (`[0.20, 0.29, 0.19]`) and
-    are denser (10 shoots, four needle sprays per node).
-  - Pines no longer form a star. Branches follow the golden angle with 30 % denser whorls. Length is shaped into a
-    rounded umbrella crown. Needle clumps run along the outer 65 % of each branch, with shell tufts on top.
+- **Conifers (needle sprays, `src/art/terrain/conifers.js`).** Pines read as flat cardboard clumps under snow
+  caps, so conifer crowns were rebuilt from a baked needle-spray atlas:
+  - **Atlas.** `tools/render/build_needles.py` draws every needle as a tapered three-strip polygon (cylindrical
+    normal) on twigs and side shoots at 4× supersampling: Norway spruce sprays (2 variants), hanging comb curtains,
+    the leader spray, Scots and stone pine tufts, and pad rosettes (a branch end seen from above). Colour follows
+    needle age (new growth lighter, old needles darker, a few yellowing). `needles.webp` is opaque sRGB albedo with
+    the colour bled into the gaps; `needles_n.webp` holds the needle normal (RG) and coverage (B). Both are opaque
+    on purpose: the browser's premultiplied canvas decode zeroes the colour of transparent texels, which darkens
+    the mips. The shader takes the needle mass (snow fill, AO) and the translucency from blurred mips of B.
+    The gap texels hold a darker bleed (`GAP` 0.62 × the needle colour). Under minification the space between
+    side shoots then reads as the shaded crown interior, so the shoot structure survives at zoom 2 instead of
+    averaging into a soft smear. Scots pine cards are branchlets: a twig with alternating side shoots, each
+    ending in its own small brush of paired needles, in a light grey/yellow-green. One big brush per card was about
+    three times the size of a real tuft, and from the camera it read as a lobed broad leaf or a dark holly leaf.
+  - **Spruce / fir.** Whorled tiers follow a cone. Low limbs sag with up-turned tips. Each limb carries arched spray
+    cards (the snow sits on the convex top), hanging comb curtains on spruce, and short inter-whorl twigs. Limb
+    tubes end under the outer spray, just below its centre line, so no snow-capped stick shows past the needles.
+    Spray length scales with tree height (`H/10`, at least 0.38), so a small tree gets more, smaller sprays and not
+    a few tree-sized cards. Curtains only grow on trees over 6 m. Each is cut into narrow two-row strips (about
+    0.55 m) with gaps and their own drop, hanging under the limb, because one wide comb read as a flat dark plane.
+  - **Pines.** Scots (rounded, layered pads), stone/umbrella (forked bole, limbs climbing to a flat canopy) and
+    Aleppo (open, irregular). Limbs fork into twigs that end in pads of tufts under a rosette cap. The tufts
+    radiate out of the pad with their faces turned to the sky, so a pad reads as a pom-pom of needles. Normals
+    are bent per pad, so a pad shades as one cushion and not as separate "leaves". The tufts hold less than half the snow catch
+    and the pad cap carries the load, because white flecks on every tuft read as separate leaves.
+  - **Per-vertex `aExt`.** Crown AO comes from the radial depth in the tier and the tiers above, with curtains
+    darker. The signed snow catch is sky exposure × geometric normal y. The fragment uses
+    `max(face·catch, 0)`, so snow loads only the top face of a tier.
+  - **Needle material** (`makeNeedleMaterials`, its own draw call per chunk in place of the leaf one):
+    - alpha is coverage-preserving (scaled up with the mip level; the pipeline has no MSAA);
+    - tangent normals come from screen derivatives;
+    - transmission goes through thin needle edges (`1 − mass`), not the dense cores. The forward-scatter lobe is
+      wide (`((1 + dot(−L, V)) / 2)²`, with V = (0, 0, 1) under the orthographic camera). From the fixed 40° view,
+      a sun behind the trees sits only about 70° off the view axis, where the old `pow(·, 3)` lobe gave about 0.04;
+    - snow bounce plus canopy scattering: indirect ×1.45 × AO, plus a green fill of `albedo·sun·0.05·AO`
+      (0.4 × that off snow), so shaded skirts over bright snow stay dark green;
+    - needle meshes skip the screen-space GTAO prepass (`userData.aoExclude`). Their crown AO is baked per
+      vertex. From the 40° camera, GTAO read the stacked tiers as one deep crevice, and the lower skirts went
+      near-black (10th-percentile luminance 2 against bright snow);
+    - snow clumps sit on the dense spray cores (a coarse mip of the coverage), so the needle fringes stay green.
+      A clump is opaque over the gaps between shoots, which used to punch black "ink dashes" through it. Its edge
+      is lumpy (world noise at 21 and 47 /m), and it gets a gentle bump normal (the surface-gradient method) from
+      a lump height of 1 to 3 cm, taken from the smooth load and not from the needle stencil. Crevices and thin
+      edges are greyer, and green needle tips poke out at the edges. Speckle fixes: a fragment kept only by the snow
+      body is pure snow (the dark gap-bleed albedo drew ink rims), needle normals fade out under snow, the old
+      7 cm bump (slopes of about 3 at 21 to 47 /m) sprinkled one-pixel black facets through the clumps, and the
+      needle shadow lookup is taken 12 cm toward the sun against card self-shadowing.
+  - **Species by theater** (`art/terrain.js`): snow = Norway spruce 65 % + Scots pine; desert = Aleppo pine;
+    coast = stone + Aleppo; elsewhere a Scots / spruce / Aleppo mix. The snow load is per mission (`treeSnow`:
+    M1 1.0, M2 0.8, M3 1.15) and defaults to 1 in the snow theater.
+  - **Wind.** All sprays of a limb share its phase. Flex runs 0.2 at the trunk to 1 at the tip, so tiers sway as
+    units through the shared `vegWind`, with needle flutter on top.
+  - **Impostors** are baked from the same needle meshes. A per-instance light gain (`IMP_NEEDLE_GAIN` 1.3, in
+    `iDat.w`) stands in for the scattering and translucency the flat atlas cannot carry. The impostor albedo gets a
+    4-tap unsharp mask (texels outside the silhouette count as the centre), because the ~1:1 bake looked softer
+    than the mesh sprays. In `tests/pines.test.mjs`,
+    impostor brightness is within 7 % of the meshes and coverage within 2 %.
+  - **Cost.**
+    - Average tris per tree, bark included, at high: spruce 6.2 k (was 4.8 k), Scots pine 6.7 k, fir 4.4 k,
+      stone pine 3.9 k, Aleppo 3.8 k. Low is about 40–60 % cheaper (spruce 3.7 k, Scots pine 2.7 k, fir 3.0 k):
+      no curtains or inter-whorl twigs, fewer and longer sprays, fewer tufts. Limb tubes have 2, 3 or 4 segments at
+      low, medium or high, because limbs made up most of a low-preset Scots pine.
+    - The draw calls are unchanged: needles replace the leaf mesh in conifer chunks. Only a chunk that mixes
+      broadleaves and conifers draws one extra mesh.
+    - Measured on M1/M2/M3 at high with `tools/perf/pineshot.mjs --perf`, before/after interleaved on a shared,
+      loaded machine. Vegetation was shown and hidden on alternate frames, three runs of 300 frames each. The GPU
+      tree cost (timer query) was 0.65/0.87/0.51 ms before and 0.57/0.09/0.44 ms after, inside the run-to-run noise
+      of about ±0.5 ms. Draw calls were the same (496/426/287), and the scene tris rose by less than 1 %.
 - **Translucency.** Foliage cards are lit with transmission and wrap:
   - diffuse term `albedo·sun·(0.07 + 0.16·back + 0.3·forward-scatter)`;
   - canopy multiple scattering (ambient ×1.3).
@@ -182,7 +245,7 @@ Meadow triangles at ultra fell from 9.8–11M to 4.5M, and frame time from 5.12 
     designed trees and anything flagged `hero` stay unique. Only forest interiors become impostors.
 - **Impostors.** Two prototypes per species (plus bare and burnt variants) are generated.
   - Each prototype is baked from six azimuths at the camera's actual pitch into an sRGB albedo atlas and a
-    view-space normal atlas. Tile size is 128/160/192/224 px by preset.
+    view-space normal atlas. Tile size is 160/192/224/256 px by preset.
   - The impostors are drawn as one instanced, camera-facing billboard per tree, anchored at the root. The view
     tile is picked by camera azimuth minus the tree's rotation.
   - They are **lit at runtime**, with the atlas normals, by the same sun, hemisphere and IBL as the 3D trees, and

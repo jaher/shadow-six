@@ -27,7 +27,9 @@ albedo, snow speck cleanup, and packing into per-theater layer strips (albedo, n
   and ambientCG **Bark012** (CC0). Birch bark is synthesised (own work).
 - `foliage.png`, `foliage.json`: leaf-cluster cards composed from ambientCG **LeafSet004, LeafSet010, LeafSet013, LeafSet022,
   LeafSet024, LeafSet030, PineNeedles001** (CC0). Twigs and palm fronds are procedural.
-- Tree geometry is generated at runtime from a per-tree seed by `src/art/terrain/treegen.js` (own code).
+- `needles.webp`, `needles_n.webp`, `needles.json`: conifer needle-spray atlas (Norway spruce sprays, comb curtains and
+  leader, Scots / stone pine tufts and pad rosettes), drawn needle by needle by `tools/render/build_needles.py` (own work, CC0).
+- Tree geometry is generated at runtime from a per-tree seed by `src/art/terrain/treegen.js` and `conifers.js` (own code).
 
 ## Procedural (no files)
 Grass blades, tufts, wildflowers, stones, snow sparkle and particles, drifts, trail/footprint stamps, frozen-pond ice and

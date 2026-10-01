@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { headingToRotY } from '../core/math.js';
+import { GateSmashVisuals } from './gate-smash-visuals.js';
 
 const _m = new THREE.Matrix4(), _m0 = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(1, 1, 1);
 const _qt = new THREE.Quaternion(), _ax = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
@@ -87,6 +88,7 @@ export class PhysicsVisuals {
     this.graves = new Map();
     this.helmets = new Map();
     this._landed = new Set();
+    this.gates = new GateSmashVisuals(world, scene); // gate smash pieces + FX (§3.7 ramming addendum)
     this._offBlast = world.events?.on?.('blast:front', (ev) => { if (!ev.restore) this._blowOff(ev); this._fenceBlast(ev); });
     /** palisade logs knocked by blasts: InstancedMesh → {base matrices, per-log motion} */
     this.fences = null;
@@ -185,6 +187,7 @@ export class PhysicsVisuals {
   frame() {
     const w = this.world, pw = w.physics;
     if (pw && !pw.isNull) this._props(pw);
+    this.gates.frame(this._dt());
     this._vehicles(w);
     this._fences(w);
     this._censored(w);
@@ -250,7 +253,11 @@ export class PhysicsVisuals {
         continue;
       }
       const r = v.blastRock;
-      if (!r || !o) continue;
+      if (!o) continue;
+      // the rock rebuilds the pure yaw every frame; once it ends, put the yaw back once (syncTransform only writes
+      // rotation.y, so a leftover tilt would stay in the Euler x / z)
+      if (!r) { if (v._rocked) { o.rotation.set(0, headingToRotY(v.heading), 0); v._rocked = false; } continue; }
+      v._rocked = true;
       const t = now - r.t0 - Math.hypot(v.x - (r.bx ?? v.x), v.z - (r.bz ?? v.z)) / 340;
       const heavy = r.heavy, maxDeg = heavy ? V.heavyRoll : V.lightRoll, dur = heavy ? V.heavyTime : 1.6;
       if (t > dur * 2.5) { v.blastRock = null; continue; }
@@ -294,7 +301,11 @@ export class PhysicsVisuals {
     }
   }
 
+  /** Sim time since the last frame (the gate leaves animate on it; 0 while paused). */
+  _dt() { const t = this.world.time || 0, d = this._t != null ? t - this._t : 0; this._t = t; return Math.max(0, Math.min(0.1, d)); }
+
   dispose() {
+    this.gates.dispose();
     this._offBlast?.();
     for (const h of this.helmets.values()) this.scene.remove(h.mesh);
     this.helmets.clear();

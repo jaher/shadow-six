@@ -170,7 +170,10 @@ export function treePlacement(def, theater = 'temperate', k = 0) {
   const seed = seedOf(def, k), snow = theater === 'snow', desert = theater === 'desert';
   let species;
   if (def.species && SPECIES[def.species]) species = def.species;
-  else if (def.type === 'pine') species = snow ? (seed % 10 < 7 ? 'spruce' : 'fir') : desert ? 'pine' : pickBy(seed, ['pine', 'pine', 'spruce']);
+  // pines by theater: Norway spruce + Scots pine in the snow, Aleppo pine in the desert, stone (umbrella) and Aleppo
+  // pines on the coast, a Scots pine / spruce / Aleppo mix elsewhere
+  else if (def.type === 'pine') species = snow ? (seed % 20 < 13 ? 'spruce' : 'scots_pine') : desert ? 'pine'
+    : theater === 'coast' ? pickBy(seed, ['stone_pine', 'stone_pine', 'pine']) : pickBy(seed, ['scots_pine', 'spruce', 'pine']);
   else if (def.type === 'palm') species = 'date_palm';
   else if (def.type === 'bush') species = desert ? 'desert_shrub' : snow ? 'shrub' : pickBy(seed, ['shrub', 'hedge']);
   else if (def.variant === 'dead' || def.variant === 'dead_tree') species = 'dead_tree';
@@ -289,7 +292,8 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
   const ready = inner.ready.then(async (t) => {
     if (disposed) return null;
     if (placements.length) {
-      veg = await createVegetation(ground, placements, theater, { quality, terrain: t, renderer: R, pitchDeg });
+      // snow load on the trees: per mission (`treeSnow`, 0..1.3), else 1 in the snow theater
+      veg = await createVegetation(ground, placements, theater, { quality, terrain: t, renderer: R, pitchDeg, snow: mission?.treeSnow ?? undefined });
       if (disposed) { veg.dispose(); veg = null; return null; }
     }
     stats.readyMs = Math.round(performance.now() - t0);

@@ -22,6 +22,7 @@ export default {
   date: '1941-02-20',
   place: 'Sola, near Stavanger, Norway',
   theater: 'snow',
+  treeSnow: 1, // snow load on the conifers (0..1.3; art/terrain.js): fresh, heavy snowfall
   coneColors: 'green',
   size: [65, 171],
   seed: 1941_0220,
