@@ -2,6 +2,7 @@
 // current drift, turn slew and a quiet stationary state — pure logic over a recording sink.
 import { test, assert } from './lib.mjs';
 import { WakeTracker, KELVIN_TAN, boatProfile } from '../../src/art/water.js';
+import { rowPeriod, catchOffset, ROW } from '../../src/art/oars.js';
 
 const RAFT = { kind: 'boat', model: 'raft', size: [2.6, 1.3], raft: true };
 const PATROL = { kind: 'boat', model: 'patrolboat', size: [8, 2.6], weapons: ['mg'] };
@@ -55,6 +56,43 @@ test('wake: the bow wave grows with speed; rowed craft stroke on alternating sid
   assert.ok(s.length >= 3, `paddle strokes (${s.length})`);
   assert.ok(s.some((d) => d[1] > 0.5) && s.some((d) => d[1] < -0.5), 'both sides');
   assert.equal(strokes(PATROL).length, 0, 'no paddles on the patrol boat');
+});
+
+test('wake: the rowboat\'s oars catch together — a ring each side at the blades, one stroke per row period of its speed, the clock running through display frames without a sim tick', () => {
+  const ROWBOAT = { kind: 'boat', model: 'raft', size: [3.6, 1.5] };
+  assert.equal(boatProfile(ROWBOAT).oars, true, 'rowboat: oars');
+  assert.equal(boatProfile(RAFT).oars, false, 'raft: a paddle');
+  const { sink, w } = rig();
+  const b = { kind: 'vehicle', def: ROWBOAT, x: 0, z: 0, alive: true };
+  w.update([b], 1 / 30);
+  // 2.5 m/s, ticked at 60 Hz but displayed at 120 Hz (every other display frame has no sim step)
+  const rings = [], us = [];
+  for (let f = 0; f < 120 * 8; f++) {
+    if (f % 2 === 0) b.x += 2.5 / 60;
+    const before = sink.d.length;
+    w.update([b], 1 / 120);
+    for (const d of sink.d.slice(before)) if (d[2] === 0.02 && d[3] === 0.5) rings.push({ f, x: d[0] - b.x, z: d[1] });
+    us.push(w.strokeOf(b));
+  }
+  const c = catchOffset();
+  assert.ok(rings.length >= 8, `catch rings (${rings.length})`);
+  const byF = new Map(); for (const r of rings) byF.set(r.f, [...(byF.get(r.f) || []), r]);
+  for (const [, rs] of byF) {
+    assert.equal(rs.length, 2, 'both blades at once');
+    assert.ok(rs.some((r) => r.z > 1.5) && rs.some((r) => r.z < -1.5), 'one each side, out at the blades');
+    for (const r of rs) { assert.ok(Math.abs(Math.abs(r.z) - c.side) < 0.01, 'at the oars\' reach'); assert.ok(Math.abs(r.x - c.fwd) < 0.1, 'forward of midships'); }
+  }
+  const fs = [...byF.keys()], gaps = fs.slice(1).map((f, i) => (f - fs[i]) / 120);
+  const per = rowPeriod(2.5);
+  for (const g of gaps.slice(2)) assert.ok(Math.abs(g - per) < 0.05, `one stroke per ${per.toFixed(2)} s (${g.toFixed(2)})`);
+  const s = us[us.length - 1];
+  assert.ok(s.oars && s.moving && s.u >= 0 && s.u < 1 && Math.abs(s.period - per) < 0.05, 'the oarsman reads the phase of the stroke');
+  // the swirl each blade leaves where it came out, after the drive
+  assert.ok(sink.d.some((d) => d[2] === -0.01 && d[3] === 0.4), 'release swirls');
+  // stopped: the clock stops (not reset) after a moment
+  for (let f = 0; f < 60; f++) w.update([b], 1 / 60);
+  assert.equal(w.strokeOf(b).moving, false);
+  assert.ok(ROW.drive > 0.3);
 });
 
 test('wake: crests drift with the current; a turn slews the wash outward; at rest the water goes quiet', () => {

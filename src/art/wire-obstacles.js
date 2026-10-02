@@ -215,8 +215,9 @@ function post(C, kind, d, h, r, o = {}) {
 /** Field fence (§4.2): timber stakes 2.5–3 m apart, 4–8 strands on the outside face, strainer braces at the ends. */
 function fieldFence(C) {
   const { run, h } = C, mil = C.def.military || C.theater === 'desert';
-  const n = h <= 1.4 ? 4 : 5 + Math.max(0, Math.round((h - 1.5) / 0.25));
-  const ys = Array.from({ length: n }, (_, i) => 0.15 + ((h - 0.2) * i) / (n - 1));
+  // `strands` overrides the count: 1 = a minefield marking line (one strand near the stake tops, the signs hang on it)
+  const n = Math.max(1, Math.round(C.def.strands ?? (h <= 1.4 ? 4 : 5 + Math.max(0, Math.round((h - 1.5) / 0.25)))));
+  const ys = n === 1 ? [h - 0.12] : Array.from({ length: n }, (_, i) => 0.15 + ((h - 0.2) * i) / (n - 1));
   const st = run.stations(2.7), posts = [];
   for (const d of st) {
     const end = d === 0 || d === run.length, corner = run.corners().some((c) => Math.abs(c - d) < 1e-6);

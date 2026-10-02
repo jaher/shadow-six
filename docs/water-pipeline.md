@@ -189,8 +189,14 @@ engine.render():   RenderPass(world) → decals → [afterWorld] DepthStashPass 
     screen.
   - The bed fades 2.2× faster at night (art direction), so harbours read as dark mirrors with lamp glints.
 - **Ice.**
-  - **Shore shelf** (`ice: width`): snow-covered old ice at the bank, then clear black ice, floes, slush and a
-    crack network. The cracks are cell walls of the lace texture under a noise mask, not a grid.
+  - **Shore shelf** (`ice: width`; user request 2026-09-30 "the ice transition should be smoother, there are two
+    colors of ice"): one continuous gradient, never two flat bands. Across the shelf (0 at the bank, the edge at
+    0.62 × width): snow-covered ice matching the bank snow, then wind-swept grey-white ice with drifted snow streaks
+    (anisotropic noise along a fixed drift), then thin clear dark blue-green ice (the water below, air bubbles, glossy
+    GGX highlight), a slightly raised lit edge with a thin dark wet lip, then slush, frazil grains and pans breaking
+    into open water. Every boundary is warped by noise at 31, 23, 8 and 2 m scales, so no band keeps a constant
+    width, and the transitions widen with the pixel footprint (no shimmer at zoom 0.5). Cracks (cell walls of the
+    lace texture under a noise mask, not a grid) and long pressure ridges show through the thinner ice.
   - **Fully frozen** (`frozen: true`, from W-B): wind-drifted snow patches over clear ice, with GGX glints on
     the ice.
 
@@ -338,15 +344,51 @@ tools/check.sh                                                          # syntax
   water, down to 0.6 m on fast rivers; M1 2.6, M2 1.8, M3 1.3), `frozen: true` when `mission.water.frozen`, and surf
   on non-snow seas. Mask bodies use their bounding box as the mesh; texels more than ~0.7 m outside the water cells
   are discarded (`maskCut`), so land dips inside the box never show water.
-- **Banks.** The terrain carve now follows a bilinear signed distance to the wet/deep cells (`cellSignedDistance`,
-  `carveDepth` in `src/art/terrain/terrain.js`), and the bake blurs its shore distance twice, so shorelines and ice
-  edges are smooth lines instead of the 0.5 m cell staircase. The cell signed distance is evened out along the edge
-  (`smoothSigned`: a ~1.5 m tent blur on the edge cells only, every cell keeping its side) so a bank running at a
-  shallow angle to the grid (one 0.5 m jog every few metres, the M3 pool below the dam) carves a straight line; the
-  shore ice ends where the bank rises out of the water (the per-pixel bed depth), not at the body's cell mask.
+- **Banks (continuous shore field).** User request 2026-09-30: "make the edges of the shore more smooth and less
+  polygonal". Shorelines no longer come from the 0.5 m nav cells. `src/world/shore-field.js` (`buildShoreField`)
+  builds one signed distance to the shore (m, > 0 in water) and one to the deep-water edge, on a 0.25 m lattice over
+  the map and its scenery apron, from the mission's own water shapes:
+  - `path` rivers: the centreline and its per-point widths are smoothed into a tapered ribbon with flat ends, like
+    `grid.fillLine`;
+  - `poly` / `rect` lakes, fjords and reservoirs: a smoothed outline. Edges along the map boundary are open water,
+    not shore;
+  - `circle` islets and ponds: true circles (authored islets are lobed polygons instead, e.g. M2 `islet()`: a
+    perfect disc reads as machine-made);
+  - smoothing (`smoothCurve`): sharp corners are first cut by a chord 0.45 m inside the corner, then 5 rounds of
+    Chaikin corner cutting (each cut ≤ 2.5 m) give a tangent-continuous outline. Straight sides stay straight;
+  - features compose in mission order with a 1.6 m smooth union or subtraction (smooth max), so a river mouth or a
+    camp polygon cutting a bank gets a fillet, not a crease;
+  - deep water = the wet field minus `shoreShallowWidth` (the nav shore rim), plus explicit shallow features.
+
+  Some nav wet cells disagree with the shapes by more than 0.4 m: structure footprints, painted roads, and the
+  apron's extruded shores. Around those cells the field blends, over about 2 m, into an exact Euclidean distance of
+  the cell mask (Felzenszwalb EDT), upsampled and box-blurred. A faded value noise (±0.25 m, 1.3–4.3 m scales)
+  keeps banks from looking machine-drawn.
+  - **Consumers.** `buildTerrain` builds the field once (the apron code field first) and hands it to:
+    - the map carve and the apron carve (`opts.shore` → `carveDepth`), so the seam is identical: the apron's seam
+      band only fades out the map's residual, and its mesh is split to 0.25 m over banks (`art/apron.js`; an unsplit
+      neighbour takes the split cell's edge vertices into a fan, so no T-junction pinholes), so a bank crossing a map
+      edge keeps its line (bank contours turn ≤ 25° per 0.5 m through every seam, or no more than 10° over an
+      authored corner within 5 m of the edge, e.g. the M16 / M18 quay rectangle: `tests/unit/apron-seam.test.mjs`,
+      `tests/edges-void-<id>.test.mjs`);
+    - the splat (`buildSplat` `opts.shore`): the wet bed and the shallow/deep line follow the field, and non-snow
+      theatres get a damp wet-sand or mud line within 0.8 m of the shore;
+    - the water bodies (`d.sdf`): the bake's mask distance near the banks and the shore distance for the contact
+      foam and the ice rim are the field itself, so they stay smooth at any bake resolution. A chamfer is kept only
+      for dry spots inside the water (captured rocks, piers, hulls) and for far water.
+  - **Gameplay** is unchanged: the nav grid is not touched, and every nav cell centre that disagrees with the drawn
+    shore lies within 0.5 m of it (the noise fades out where a cell centre already sits across the noiseless line) (`tests/unit/shore-field.test.mjs`, `tests/shores.test.mjs`).
+  - **Cost:** built once at load, in about 0.3–0.4 s for M1–M3 (headless GPU run, the 90 m apron included; `tests/shores.test.mjs` logs it). The field is clamped at ±4 m.
+  - **Screenshots:** `docs/screenshots/shores-before-after.jpg`.
+  - **Fallback** (no field: placeholder terrain, a failed build): the carve follows a bilinear signed distance to the
+    wet/deep cells (`cellSignedDistance`, `carveDepth`), evened out along the edge (`smoothSigned`: a ~1.5 m tent
+    blur on the edge cells only), and the bake blurs its shore distance twice. Either way the shore ice ends where the
+    bank rises out of the water (the per-pixel bed depth), not at the body's cell mask.
 - **Interaction.** `WakeTracker` (per displayed frame, in `mapHandle.frame`, before `engine.render()`): swimmers,
   waders and divers emit alternating-sign strokes with foam; boats emit a bow wave, churning prop/paddle wash and two
-  Kelvin shoulders every frame; entering the water (a commando wading in, a body falling in, a raft launched) and
+  Kelvin shoulders every frame (the raft's paddle rings out on alternating sides; the rowboat's two oars catch
+  together, a ring at each blade once per row stroke of a period set by the speed — `art/oars.js`, the clock the
+  oarsman's arms follow through `strokeOf`); entering the water (a commando wading in, a body falling in, a raft launched) and
   dying in it splash (ripple ring + `fx.spawn('splash')`). Events: grenade/charge/barrel `explosion` in water →
   water column (-0.6 m, foam 1) + ring of secondary drops + a large splash; `projectile:bounce` in water → splash;
   missed `shot` into water → spout; `unit:water` dive/surface/row → rings.

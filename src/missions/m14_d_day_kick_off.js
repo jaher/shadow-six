@@ -283,6 +283,16 @@ const LADDERS = [
   { id: 'ld_g3', x: 84.2, z: 60, y: 0, top: [85.8, 60, ROOF_Y], raised: false, heading: deg(0) }, // g3's W wall, anyone [P]
 ];
 
+// ---------------------------------------------------------------- barbed wire (docs/barbed-wire.md §12)
+/** The M4–M20 wire pass: see-through, uncrossable (B.FENCE) runs added where the wire belongs; none crosses a route
+ *  or lengthens an approach (tests/unit/wire-placements.test.mjs). Drawn by the map's wire layer (art/wire-obstacles.js). */
+const WIRE_PASS = [
+  // concertina in front of three MG nests (mg2 stands against casemate g2; mg3 is left open: the N barracks squad runs past it)
+  { id: 'wx_mg1', type: 'fence', variant: 'concertina', points: [[84.1, 138.3], [83.6, 136.8], [83.6, 135.2], [84.1, 133.8], [85.1, 132.6], [86.5, 131.8]], h: 1.2 },
+  { id: 'wx_mg4', type: 'fence', variant: 'concertina', points: [[82, 47.8], [83.5, 47.5], [85, 47.8], [86.4, 48.6], [87.4, 49.8], [87.9, 51.2]], h: 1.2 },
+  { id: 'wx_mg5', type: 'fence', variant: 'concertina', points: [[57.8, 22.1], [59.2, 21.6], [60.8, 21.6], [62.3, 22.1]], h: 1.2 },
+];
+
 export default {
   id: 'm14',
   campaign: 'BEL',
@@ -345,7 +355,7 @@ export default {
   vegetation: { region: 'normandy_coast', month: 5, dune: ['marram', 'sea_kale', 'sea_rocket'], trees: ['oak', 'ash', 'elm'],
     shrubs: ['hawthorn', 'blackthorn', 'gorse'], meadow: ['cow_parsley', 'buttercup', 'red_campion'],
     farmland: { crops: 'none', orchards: 0.25 } }, // bocage fringe (art/terrain/bocage.js), clear of gameplay
-  structures: STRUCTURES,
+  structures: [...STRUCTURES, ...WIRE_PASS],
   items: [],
   interactables: [],
   vehicles: [

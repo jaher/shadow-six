@@ -768,9 +768,9 @@ export class Game {
     const w = this.world;
     if (!w) return null;
     this.probeMarker = { x, z };
-    safe(() => this.cones?.setProbe?.(x, z), 'probe-ring');
     const e = safe(() => probeCone(w, x, z), 'probe');
     this.showOnlyCone(e || null);
+    safe(() => this.cones?.setProbe?.(x, z, e || null), 'probe-ring'); // found now: the ring is triggered at once
     this.events.emit('ui:probe', { x, z, enemy: e || null });
     return e ? e.id : null;
   }

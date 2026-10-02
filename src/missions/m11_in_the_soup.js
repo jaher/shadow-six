@@ -287,6 +287,14 @@ const BARRACKS = {
 /** Structure meshes standing on a raised level (lifted by the script). */
 const LIFT = [...PLATEAU_PROPS.map((s) => [s.id, Y]), ...MESA_PROPS.map((s) => [s.id, MESA_Y])];
 
+// ---------------------------------------------------------------- barbed wire (docs/barbed-wire.md §12)
+/** The M4–M20 wire pass: see-through, uncrossable (B.FENCE) runs added where the wire belongs; none crosses a route
+ *  or lengthens an approach (tests/unit/wire-placements.test.mjs). Drawn by the map's wire layer (art/wire-obstacles.js). */
+const WIRE_PASS = [
+  // a concertina in front of the E MG pit
+  { id: 'wx_mg_e', type: 'fence', variant: 'concertina', points: [[75.6, 86.9], [76.1, 85.5], [77.1, 84.3], [78.5, 83.5], [80, 83.2], [81.5, 83.5]], h: 1.2 },
+];
+
 export default {
   id: 'm11',
   campaign: 'BEL',
@@ -326,7 +334,7 @@ export default {
     { type: 'path', terrain: 'road', points: [[62, 15], [70, 15], [78, 17], [86, 23]], width: 4 },
   ],
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
-  structures: joinStructures(STRUCTURES, [['rig_w', 'house_y']]),
+  structures: joinStructures([...STRUCTURES, ...WIRE_PASS], [['rig_w', 'house_y']]),
   items: [],
   interactables: [],
   vehicles: [

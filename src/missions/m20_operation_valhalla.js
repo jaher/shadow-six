@@ -464,6 +464,15 @@ export const TANK_FAIL = 'THE TANK HAS BEEN DESTROYED. THERE IS NO OTHER WAY OUT
 /** T2: the Spy is dressed once he has put the uniform on (the clothesline only puts it in his kit). */
 export const spyDressed = (w) => w.commandos?.some((c) => c.role === 'spy' && c.alive !== false && c.disguised === true);
 
+// ---------------------------------------------------------------- barbed wire (docs/barbed-wire.md §12)
+/** The M4–M20 wire pass: see-through, uncrossable (B.FENCE) runs added where the wire belongs; none crosses a route
+ *  or lengthens an approach (tests/unit/wire-placements.test.mjs). Drawn by the map's wire layer (art/wire-obstacles.js). */
+const WIRE_PASS = [
+  // a concertina in front of the anti-tank gun: an arc ~4.3 m out, centred on the muzzle (heading 294°); its W end
+  // stops short of the diagonal walk past the nest's front to the court (driver → p57b stays as short as without it)
+  { id: 'wx_atgun', type: 'fence', variant: 'concertina', points: [[78.3, 46.4], [79.6, 46.9], [80.6, 47.9], [81.2, 49.1]], h: 1.2 },
+];
+
 export default {
   id: 'm20',
   campaign: 'BEL',
@@ -504,7 +513,7 @@ export default {
   pavements: PAVEMENTS,
   furniture: FURNITURE,
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
-  structures: joinStructures(STRUCTURES, [['gh_sw', 'br_sw'], ['gh_se', 'br_se'], ['gh_se', 'h_s5'], ['turret', 'hq'], ['turret', 'flak_hq'], ['hq', 'hq_wing'], ['hq_wing', 'n_range'], ['hq_wing', 'flak_hq'], ['n_range', 'blk_n'], ['n_range', 'flak_n'], ['h_s1', 'h_s4'], ['h_s3', 'h_tur'],
+  structures: joinStructures([...STRUCTURES, ...WIRE_PASS], [['gh_sw', 'br_sw'], ['gh_se', 'br_se'], ['gh_se', 'h_s5'], ['turret', 'hq'], ['turret', 'flak_hq'], ['hq', 'hq_wing'], ['hq_wing', 'n_range'], ['hq_wing', 'flak_hq'], ['n_range', 'blk_n'], ['n_range', 'flak_n'], ['h_s1', 'h_s4'], ['h_s3', 'h_tur'],
     // art pass: the masonry is one compound — curtains bond into the gatehouses, terraces abut the buildings and walls
     // they retain, props stand on the levels (castle-kit draws each face once; these contacts are the bonds)
     ['cw_sw', 'gh_sw'], ['cw_s', 'gh_sw'], ['cw_s', 'gh_se'], ['cw_e1', 'gh_se'], ['cw_w', 'crag'], ['cw_w', 't_hq'],

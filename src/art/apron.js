@@ -33,10 +33,11 @@ const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
  * @param {{src:string, seed:number, frozen:boolean, heightAt:(x:number,z:number)=>number}} t the map terrain
  * @returns {{heightAt:(x:number,z:number)=>number, range:[number, number]}}
  */
-export function apronHeights(f, t, cfg = CONFIG.apron) {
+export function apronHeights(f, t, cfg = CONFIG.apron, shore = null) {
   const g = f.grid, A = f.A, W = f.W, D = f.D;
-  const wet = sampleCells(cellSignedDistance(g, (c) => c === T.WATER || c === T.SHALLOW), g);
-  const deep = sampleCells(cellSignedDistance(g, (c) => c === T.WATER), g);
+  // the continuous shore field (world coordinates) when given, else the bilinear cell signed distance (apron grid)
+  const wet = shore ? (x, z) => shore.wetAt(x - A, z - A) : sampleCells(cellSignedDistance(g, (c) => c === T.WATER || c === T.SHALLOW), g);
+  const deep = shore ? (x, z) => shore.deepAt(x - A, z - A) : sampleCells(cellSignedDistance(g, (c) => c === T.WATER), g);
   const depths = t.frozen ? ICE_DEPTH : WATER_DEPTH;
   const band = cfg.seamBand, fade = cfg.fade;
   let lo = 0, hi = 0;
@@ -56,20 +57,44 @@ export function apronHeights(f, t, cfg = CONFIG.apron) {
     const d = Math.hypot(x - qx, z - qz); // distance past the map edge (0 inside)
     if (d <= 0) return t.heightAt(x, z);
     const outer = Math.min(x + A, z + A, W + A - x, D + A - z); // distance to the apron's outer edge
+    // within the seam band only the map's residual (its own edge height minus this field's: flattening under
+    // structures, mesh interpolation) is carried out and faded; the undulation and the water carve come from the same
+    // continuous shore field on both sides, so a bank crossing the edge at any angle keeps its line (no extrusion)
     let y = own(x, z);
-    if (d < band) y = t.heightAt(qx, qz) + (y - t.heightAt(qx, qz)) * ss(0, band, d);
+    if (d < band) y += (t.heightAt(qx, qz) - own(qx, qz)) * (1 - ss(0, band, d));
     y *= ss(0, fade, outer);
     if (y < lo) lo = y; if (y > hi) hi = y;
     return y;
   };
-  return { heightAt, get range() { return [lo, hi]; } };
+  /**
+   * Whether the lattice cell [x0,x1]x[z0,z1] holds part of a bank or channel slope (needs the fine lattice). The deep
+   * field is tested by its range over the cell's corners, edge midpoints and centre, not by its centre value ± the
+   * cell radius: it is not a distance everywhere (the nav-rim clamp `deep <= wet - shoreShallowWidth` levels it off at
+   * margin - width ≈ 2 m over open sea, M14's whole apron), so only cells it really crosses the slope band in split.
+   */
+  const fineAt = (x0, z0, x1, z1) => {
+    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, r = Math.hypot(x1 - x0, z1 - z0) / 2;
+    const sw = wet(cx + A, cz + A);
+    if (sw > -0.6 - r && sw < 0.6 + r) return true;
+    let lo = Infinity, hi = -Infinity;
+    for (const u of [0, 0.5, 1]) for (const v of [0, 0.5, 1]) {
+      const sd = deep(x0 + (x1 - x0) * u + A, z0 + (z1 - z0) * v + A);
+      if (sd < lo) lo = sd; if (sd > hi) hi = sd;
+    }
+    return lo < 0.9 + 0.3 && hi > -0.25 - 0.3; // carveDepth's deep slope (-0.25..0.9) + 0.3 m slack
+  };
+  return { heightAt, fineAt, get range() { return [lo, hi]; } };
 }
 
 /**
  * Ring geometry: lattice lines every `step` m plus the map edges, quads strictly inside the map (1 m in from every
- * edge) left out; vertices inside the map sit 5 cm under the map's own surface.
+ * edge) left out; vertices inside the map sit 5 cm under the map's own surface. Lattice cells where `fineAt` finds a
+ * bank or channel slope are split `fine` x `fine` (0.25 m near the map, like its own mesh; 0.5 m on the far lattice),
+ * so a shore keeps its smooth line across the seam and over the apron; where a split cell meets an unsplit one its
+ * edge vertices lie on the coarse edge (no crack) and the unsplit cell takes them into its outline as a fan around its
+ * centre (no T-junction pinholes).
  */
-export function apronGeometry(f, heightAt, mapHeightAt, step = CONFIG.apron.cell) {
+export function apronGeometry(f, heightAt, mapHeightAt, step = CONFIG.apron.cell, fineAt = null, fine = 4) {
   const A = f.A, W = f.W, D = f.D;
   // lattice lines every `step` m within `near` m of the map, twice as far apart beyond (seen only at low zoom)
   const near = 24;
@@ -81,22 +106,65 @@ export function apronGeometry(f, heightAt, mapHeightAt, step = CONFIG.apron.cell
     }
     return [...s].sort((a, b) => a - b);
   };
-  const xs = axis(W), zs = axis(D), nx = xs.length, nz = zs.length;
-  const pos = new Float32Array(nx * nz * 3);
+  const xs = axis(W), zs = axis(D), nx = xs.length - 1, nz = zs.length - 1;
+  const H = (x, z) => (x > 0 && x < W && z > 0 && z < D ? mapHeightAt(x, z) - 0.05 : heightAt(x, z));
+  const hole = (i, j) => xs[i] >= 1 && xs[i + 1] <= W - 1 && zs[j] >= 1 && zs[j + 1] <= D - 1;
+  // per-cell split count (0 = left out, 1 = plain quad)
+  const n = new Uint8Array(nx * nz);
   for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
-    const x = xs[i], z = zs[j], k = (j * nx + i) * 3;
-    const inMap = x > 0 && x < W && z > 0 && z < D;
-    pos[k] = x; pos[k + 1] = inMap ? mapHeightAt(x, z) - 0.05 : heightAt(x, z); pos[k + 2] = z;
+    n[j * nx + i] = hole(i, j) ? 0 : fineAt && fineAt(xs[i], zs[j], xs[i + 1], zs[j + 1]) ? fine : 1;
   }
-  const idx = [];
-  for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) {
-    if (xs[i] >= 1 && xs[i + 1] <= W - 1 && zs[j] >= 1 && zs[j + 1] <= D - 1) continue;
-    const a = j * nx + i, b = a + 1, c = a + nx, d = c + 1;
-    idx.push(a, c, b, b, c, d);
+  const cnt = (i, j) => (i < 0 || j < 0 || i >= nx || j >= nz ? 0 : n[j * nx + i]);
+  const pos = [], idx = [], vmap = new Map();
+  // shared vertices keyed by position (1/64 m); the height (true, or `y` on a coarse edge) only for new ones
+  const vert = (x, z, y = null) => {
+    const k = Math.round((x + A + 8) * 64) * 1e6 + Math.round((z + A + 8) * 64);
+    let v = vmap.get(k);
+    if (v === undefined) { v = pos.length / 3; pos.push(x, y ?? H(x, z), z); vmap.set(k, v); }
+    return v;
+  };
+  const Y = (x, z) => pos[vert(x, z) * 3 + 1]; // a lattice corner's height (shared with the coarse neighbour)
+  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+    const m = n[j * nx + i];
+    if (!m) continue;
+    const x0 = xs[i], x1 = xs[i + 1], z0 = zs[j], z1 = zs[j + 1];
+    if (m === 1) {
+      const a = vert(x0, z0), b = vert(x1, z0), c = vert(x0, z1), d = vert(x1, z1);
+      const kW = cnt(i - 1, j), kE = cnt(i + 1, j), kN = cnt(i, j - 1), kS = cnt(i, j + 1);
+      if (kW < 2 && kE < 2 && kN < 2 && kS < 2) { idx.push(a, c, b, b, c, d); continue; }
+      // next to a split cell: take its edge vertices into this cell's outline (a fan around the centre), so the
+      // shared edge has the same vertices on both sides (no T-junction pinholes at grazing angles)
+      const ring = [], ya = pos[a * 3 + 1], yb = pos[b * 3 + 1], yc = pos[c * 3 + 1], yd = pos[d * 3 + 1];
+      const edge = (k, P, Q, yP, yQ) => { ring.push(vert(P[0], P[1])); for (let s = 1; s < k; s++) { const u = s / k; ring.push(vert(P[0] + (Q[0] - P[0]) * u, P[1] + (Q[1] - P[1]) * u, yP + (yQ - yP) * u)); } };
+      edge(Math.max(1, kW), [x0, z0], [x0, z1], ya, yc); // a → c (W), c → d (S), d → b (E), b → a (N)
+      edge(Math.max(1, kS), [x0, z1], [x1, z1], yc, yd);
+      edge(Math.max(1, kE), [x1, z1], [x1, z0], yd, yb);
+      edge(Math.max(1, kN), [x1, z0], [x0, z0], yb, ya);
+      const o = vert((x0 + x1) / 2, (z0 + z1) / 2, (ya + yb + yc + yd) / 4);
+      for (let k = 0; k < ring.length; k++) idx.push(o, ring[k], ring[(k + 1) % ring.length]);
+      continue;
+    }
+    // edges shared with an unsplit neighbour: vertices on the straight coarse edge
+    const flatW = cnt(i - 1, j) === 1, flatE = cnt(i + 1, j) === 1, flatN = cnt(i, j - 1) === 1, flatS = cnt(i, j + 1) === 1;
+    const V = [];
+    for (let b = 0; b <= m; b++) for (let a = 0; a <= m; a++) {
+      const u = a / m, w = b / m, x = x0 + (x1 - x0) * u, z = z0 + (z1 - z0) * w;
+      const corner = (a === 0 || a === m) && (b === 0 || b === m);
+      let y = null;
+      if (!corner && a === 0 && flatW) y = Y(x0, z0) + (Y(x0, z1) - Y(x0, z0)) * w;
+      else if (!corner && a === m && flatE) y = Y(x1, z0) + (Y(x1, z1) - Y(x1, z0)) * w;
+      else if (!corner && b === 0 && flatN) y = Y(x0, z0) + (Y(x1, z0) - Y(x0, z0)) * u;
+      else if (!corner && b === m && flatS) y = Y(x0, z1) + (Y(x1, z1) - Y(x0, z1)) * u;
+      V.push(vert(x, z, y));
+    }
+    for (let b = 0; b < m; b++) for (let a = 0; a < m; a++) {
+      const p = b * (m + 1) + a, q = V[p], r = V[p + 1], c = V[p + m + 1], d = V[p + m + 2];
+      idx.push(q, c, r, r, c, d);
+    }
   }
   const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  geo.setIndex(nx * nz > 65535 ? new THREE.Uint32BufferAttribute(idx, 1) : new THREE.Uint16BufferAttribute(idx, 1));
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(pos.length / 3 > 65535 ? new THREE.Uint32BufferAttribute(idx, 1) : new THREE.Uint16BufferAttribute(idx, 1));
   geo.computeVertexNormals();
   geo.computeBoundingBox(); geo.computeBoundingSphere();
   return geo;
@@ -171,14 +239,16 @@ export function apronTrees(f, mission = {}, trees = [], theater = 'temperate', c
  * @param {import('../world/grid.js').NavGrid} grid
  * @param {object} mission normalized mission def
  * @param {string} theater
- * @param {{trees?:object[], quality?:string, pitchDeg?:number, createVegetation?:Function, treePlacement?:Function, season?:object, snow?:number}} [o]
+ * @param {{trees?:object[], quality?:string, pitchDeg?:number, createVegetation?:Function, treePlacement?:Function,
+ *   season?:object, snow?:number, field?:object, shore?:object}} [o] field = a prebuilt buildApronField(); shore = the
+ *   continuous shore field (world/shore-field.js) the map's terrain carves with (same banks across the seam)
  */
 export function createApron(R, parent, t, grid, mission, theater, o = {}) {
   const t0 = performance.now();
-  const f = buildApronField(grid, mission);
+  const f = o.field || buildApronField(grid, mission);
   // bocage past the edges (Normandy / Belgium / Germany farmland): hedges on raised earth banks with bare soil flanks
   const boc = apronBocage(f, mission), bank = bankField(boc.banks);
-  const H = apronHeights(f, bank ? { ...t, bank } : t);
+  const H = apronHeights(f, bank ? { ...t, bank } : t, CONFIG.apron, o.shore || null);
   const L = (LAYER_PALETTES[theater] || LAYER_PALETTES.temperate).layers, iDirt = L.indexOf('dirt'), iLeaf = L.indexOf('leaves');
   const paint = bank && iDirt >= 0 ? (x, z, w) => {
     const b = bank(x, z);
@@ -187,7 +257,7 @@ export function createApron(R, parent, t, grid, mission, theater, o = {}) {
     for (let k = 0; k < 8; k++) w[k] *= 1 - soilW - leafW;
     w[iDirt] += soilW; if (iLeaf >= 0) w[iLeaf] += leafW;
   } : undefined;
-  const splat = buildSplat(f.grid, theater, { splatRes: 1, origin: [f.ox, f.oz], frozenWater: t.frozen, seed: t.seed, paint });
+  const splat = buildSplat(f.grid, theater, { splatRes: 1, origin: [f.ox, f.oz], frozenWater: t.frozen, seed: t.seed, paint, shore: o.shore || null });
   const tA = splatTexture(splat.a, splat.w, splat.h), tB = splatTexture(splat.b, splat.w, splat.h);
   const blank = new THREE.DataTexture(new Uint8Array(4), 1, 1, THREE.RGBAFormat); blank.needsUpdate = true;
   const Wg = f.grid.width, Dg = f.grid.depth;
@@ -195,7 +265,7 @@ export function createApron(R, parent, t, grid, mission, theater, o = {}) {
   const U = { ...t.uniforms, tSplatA: { value: tA }, tSplatB: { value: tB }, tTrail: { value: blank }, tFlat: { value: blank },
     uMap: { value: new THREE.Vector4(Wg, Dg, 1 / Wg, 1 / Dg) }, uOrigin: { value: new THREE.Vector2(f.ox, f.oz) } };
   const mat = terrainMaterial(U, 'terrainB:apron');
-  const geo = apronGeometry(f, H.heightAt, t.heightAt);
+  const geo = apronGeometry(f, H.heightAt, t.heightAt, CONFIG.apron.cell, H.fineAt);
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = 'terrain:apron'; mesh.receiveShadow = true; mesh.castShadow = false;
   mesh.userData.apron = true;

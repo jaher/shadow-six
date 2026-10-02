@@ -109,6 +109,29 @@ export async function phoneFlow(t, name, o = {}) {
     // MAIN → NEW GAME → SINGLE PLAYER → START CAMPAIGN: one tap each (no hover, no focus-then-select)
     await page.waitForTimeout(300);
     await shot(`${tag}-4-main`);
+    const mainRows = await page.evaluate(() => [...document.querySelectorAll('.mk-host .mk-card:not(.leaving) .mk-list .mk-row')].map((r) => {
+      const b = r.getBoundingClientRect(), l = r.querySelector('.mk-label').getBoundingClientRect();
+      return { id: r.dataset.id, x: b.left + b.width / 2, y: b.top + b.height / 2, w: b.width, h: b.height, left: b.left, right: b.right, bottom: b.bottom,
+        lab: { left: l.left, right: l.right, cx: l.left + l.width / 2 } };
+    }));
+    const small = mainRows.filter((r) => r.w < 43.5 || r.h < 43.5 || r.bottom > vp.height);
+    t(mainRows.length >= 5 && !small.length, `${tag}: every MAIN MENU row is a ≥ 44 px target on screen (${small.map((r) => `${r.id} ${r.w.toFixed(0)}×${r.h.toFixed(0)}`).join(', ')})`);
+    // …and lies fully inside the viewport, its label too (none clipped off a screen edge)
+    const off = mainRows.filter((r) => r.left < -0.5 || r.right > vp.width + 0.5 || r.lab.left < -0.5 || r.lab.right > vp.width + 0.5);
+    t(!off.length, `${tag}: every MAIN MENU row and label is inside the ${vp.width} px wide screen (${off.map((r) => `${r.id} row ${r.left.toFixed(0)}..${r.right.toFixed(0)} label ${r.lab.left.toFixed(0)}..${r.lab.right.toFixed(0)}`).join(', ')})`);
+    if (!o.landscape) {
+      // portrait centres the MAIN MENU: every label sits on the screen's centre line, in the middle of its row
+      const skew = mainRows.filter((r) => Math.abs(r.lab.cx - vp.width / 2) > 12 || Math.abs(r.lab.cx - r.x) > 2);
+      t(!skew.length, `${tag}: every MAIN MENU label is centred (${skew.map((r) => `${r.id} label centre ${r.lab.cx.toFixed(0)} row centre ${r.x.toFixed(0)}`).join(', ')})`);
+    }
+    // HELP has no close control of its own: the touch bar's EXIT is the way out
+    await tap(row('help'));
+    await waitCard('help');
+    await page.waitForTimeout(400);
+    await shot(`${tag}-4b-help`);
+    await tap('.mk-host .mk-card:not(.leaving) .mk-touchbtn.back', 44);
+    await waitCard('main');
+    await page.waitForTimeout(400);
     await tap('.mk-host .mk-card:not(.leaving) .mk-list .mk-row:first-child');
     await waitCard('newgame');
     t(await page.evaluate(() => !!document.querySelector('.mk-host .mk-card:not(.leaving) .mk-touchbtn.back')), `${tag}: a visible BACK button on sub-menus`);
@@ -121,6 +144,19 @@ export async function phoneFlow(t, name, o = {}) {
     await page.waitForTimeout(900); // the card's entrance animation settles before the tap
     const tip0 = await page.evaluate(() => document.querySelector('.mk-tiphost')?.textContent || '');
     if (await page.evaluate(() => window.shadowSix.hud.kit.top?.spec.id === 'loading' && !!document.querySelector('.mk-nexttip'))) {
+      // the longest FIELD TIP in the pool must not cover NEXT TIP (the tip host grows; the button moves down with it)
+      const hit = await page.evaluate(async () => {
+        const { TIPS } = await import(new URL('src/ui/tips.js', location.href).href);
+        const longest = TIPS.reduce((a, b) => (b.text.length > a.text.length ? b : a));
+        const tips = document.querySelectorAll('.mk-tiphost .mk-tip .mk-typed');
+        const p = tips[tips.length - 1], was = p.textContent;
+        p.textContent = longest.text;
+        const r = document.querySelector('.mk-nexttip').getBoundingClientRect();
+        const ok = !!document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest('.mk-nexttip');
+        p.textContent = was;
+        return { ok, n: longest.text.length };
+      });
+      t(hit.ok, `${tag}: NEXT TIP is not covered by the longest tip card (${hit.n} chars)`);
       await tap('.mk-nexttip', 44);
       await page.waitForTimeout(500);
       const tip1 = await page.evaluate(() => ({ text: document.querySelector('.mk-tiphost')?.textContent || '', on: window.shadowSix.hud.loading.active && window.shadowSix.hud.kit.top?.spec.id === 'loading' }));
@@ -131,6 +167,15 @@ export async function phoneFlow(t, name, o = {}) {
     await wait(() => window.shadowSix?.state === 'briefing' && !!document.querySelector('.ui-briefing.part1 .br-hints.touch'), null, 60000);
     await page.waitForTimeout(600);
     await shot(`${tag}-6-briefing`);
+    await page.waitForTimeout(1500); // the paragraphs fade in
+    const clear = await page.evaluate(() => {
+      const ps = [...document.querySelectorAll('.ui-briefing.part1 p')].filter((p) => p.getBoundingClientRect().height);
+      const last = ps[ps.length - 1];
+      for (let sc = last.parentElement; sc; sc = sc.parentElement) if (sc.scrollHeight > sc.clientHeight + 1) sc.scrollTop = 1e6;
+      const r = last.getBoundingClientRect(), bar = document.querySelector('.ui-briefing .br-hints').getBoundingClientRect();
+      return { text: last.textContent.slice(0, 40), bottom: Math.round(r.bottom), bar: Math.round(bar.top), ok: r.bottom <= bar.top + 1 || r.right <= bar.left };
+    });
+    t(clear.ok, `${tag}: the briefing's last line scrolls clear of the touch bar ("${clear.text}" bottom ${clear.bottom} vs bar ${clear.bar})`);
     const slide0 = await page.evaluate(() => window.shadowSix.hud.briefing.slide);
     await tap('.ui-briefing .br-hints .mk-touchbtn:nth-child(2)', 44); // NEXT ›
     await page.waitForTimeout(200);
@@ -173,6 +218,22 @@ export async function phoneFlow(t, name, o = {}) {
       await shot(`${tag}-10-debrief`);
       await tap('.ui-end .mk-footer .mk-row:last-child', 44); // (P)LAY AGAIN
       await wait(() => window.shadowSix.state === 'briefing' || window.shadowSix.hud.loading.active, null, 10000);
+    }
+    if (o.ghost) {
+      // a returning player: the tap that leaves the title must not also open the MAIN MENU row that appears under it
+      const opt = mainRows.find((r) => r.id === 'options');
+      await page.reload();
+      await wait(() => document.body.dataset.ready === '1', null, 30000);
+      for (let i = 0; i < 8 && !(await page.evaluate(() => window.shadowSix?.hud?.boot?.phase === 'splash')); i++) {
+        await page.touchscreen.tap(vp.width / 2, vp.height / 2);
+        await page.waitForTimeout(350);
+      }
+      await wait(() => window.shadowSix?.hud?.boot?.phase === 'splash' && /TAP TO CONTINUE/.test(document.querySelector('.bt-prompt')?.textContent || ''), null, 30000);
+      await page.touchscreen.tap(opt.x, opt.y);
+      await wait(() => !!document.querySelector('.mk-host .mk-card:not(.leaving)')?.dataset.card, null, 8000);
+      await page.waitForTimeout(1000);
+      await shot(`${tag}-11-ghost`);
+      t.equal(await card(), 'main', `${tag}: tapping the title where OPTIONS will be lands on MAIN MENU (no ghost click)`);
     }
     t.equal(await page.evaluate(() => window.__keys), 0, `${tag}: no keyboard event was needed`);
     t(errs.length === 0, `${tag}: no page errors:\n  ${errs.slice(0, 6).join('\n  ')}`);

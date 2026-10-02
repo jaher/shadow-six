@@ -241,6 +241,15 @@ const chainFuel = (w, other) => {
   if (s) applyExplosion(w, s.x, s.z, 'barrel', null, { silent: true });
 };
 
+// ---------------------------------------------------------------- barbed wire (docs/barbed-wire.md §12)
+/** The M4–M20 wire pass: see-through, uncrossable (B.FENCE) runs added where the wire belongs; none crosses a route
+ *  or lengthens an approach (tests/unit/wire-placements.test.mjs). Drawn by the map's wire layer (art/wire-obstacles.js). */
+const WIRE_PASS = [
+  // harbour wire: concertina along the outer faces of the SW mole (by the pier gun) and the empty NW mole (no ramp, no post)
+  { id: 'wx_mole_sw', type: 'fence', variant: 'concertina', points: [[1.5, 134.6], [6, 139.4], [11.2, 145]], h: 1.2 },
+  { id: 'wx_mole_nw', type: 'fence', variant: 'concertina', points: [[1, 42.2], [6, 42.3], [10, 40.4], [12.8, 41.1]], h: 1.2 },
+];
+
 export default {
   id: 'm13',
   campaign: 'BEL',
@@ -282,7 +291,7 @@ export default {
     { id: 'fuel_charge', x: 76, z: 43.5, r: 3, target: FUEL },
   ],
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
-  structures: joinStructures(STRUCTURES, [['hut_a', 'hut_b']]),
+  structures: joinStructures([...STRUCTURES, ...WIRE_PASS], [['hut_a', 'hut_b']]),
   items: [],
   interactables: [],
   vehicles: VEHICLES,

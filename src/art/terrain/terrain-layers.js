@@ -125,6 +125,16 @@ export function buildSplat(grid, theater, opts = {}) {
   const isWet = (c) => c === TC.WATER || c === TC.SHALLOW;
   const ind = new Float32Array(grid.cols * grid.rows);
   for (let k = 0; k < ind.length; k++) ind[k] = grid.terrain[k] !== base ? 1 : 0;
+  const shore = opts.shore || null; // world/shore-field.js (world coordinates)
+  const landNear = (ci, cj) => { // a dry code next to a wet cell (the bank's own ground), else the base ground
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) {
+      const i = ci + di, j = cj + dj;
+      if (i < 0 || j < 0 || i >= grid.cols || j >= grid.rows) continue;
+      const c = grid.terrain[j * grid.cols + i];
+      if (!isWet(c)) return c;
+    }
+    return base;
+  };
   const fr = Math.max(1, Math.round((opts.featherM ?? 1.5) / grid.cell));
   const feather = boxBlur1(boxBlur1(ind, grid.cols, grid.rows, fr, 1), grid.cols, grid.rows, fr, grid.cols);
   for (let j = 0; j < H; j++) {
@@ -134,8 +144,18 @@ export function buildSplat(grid, theater, opts = {}) {
       const wx = x + (fbm(x / 4, z / 4, 3, seed + 51) - 0.5) * 1.3 + (vnoise(x * 1.4, z * 1.4, seed + 52) - 0.5) * 0.45;
       const wz = z + (fbm(x / 4, z / 4, 3, seed + 53) - 0.5) * 1.3 + (vnoise(x * 1.4, z * 1.4, seed + 54) - 0.5) * 0.45;
       const ci = Math.min(grid.cols - 1, Math.max(0, Math.floor((wx - ox) / grid.cell))), cj = Math.min(grid.rows - 1, Math.max(0, Math.floor((wz - oz) / grid.cell)));
-      const code = grid.terrain[cj * grid.cols + ci];
+      let code = grid.terrain[cj * grid.cols + ci];
+      let damp = 0;
+      if (shore) { // the wet / deep lines follow the continuous shore field (no cell-shaped wet bed at the bank)
+        const sw = shore.wetAt(x, z);
+        if (sw > 0) code = shore.deepAt(x, z) > 0 ? TC.WATER : TC.SHALLOW;
+        else {
+          if (isWet(code)) code = landNear(ci, cj);
+          if (th !== 'snow') damp = 0.55 * smooth(-0.8, 0, sw + (vnoise(x * 0.9, z * 0.9, seed + 61) - 0.5) * 0.5); // wet sand / mud line
+        }
+      }
       rules(th, code, x, z, w, seed);
+      if (damp > 0.01) { rules(th, TC.SHALLOW, x, z, wb, seed); for (let k = 0; k < 8; k++) w[k] += (wb[k] - w[k]) * damp; }
       if (th === 'snow' && isWet(code) && !opts.frozenWater) { // liquid water in winter: dark wet bed, not the ice layer
         w.fill(0); w[7] = 1; w[3] = code === TC.WATER ? 0.6 : 0.4 + 0.3 * smooth(0.4, 0.7, fbm(x / 5, z / 5, 3, seed + 2));
       }

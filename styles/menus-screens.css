@@ -220,8 +220,9 @@ html.mk-touch .mk-help .mk-note { pointer-events: none; } /* the (empty) note li
 .mk-brhead { position: absolute; left: calc(12 * var(--mr)); right: calc(8 * var(--mr)); top: calc(8 * var(--mr)); display: flex; justify-content: space-between; font: 400 max(12px, calc(11 * var(--mr) * var(--ts))) / 1 var(--f-body); color: var(--brief-white); }
 .mk-brtext { position: absolute; left: calc(407 * var(--mr)); width: calc(225 * var(--mr)); top: calc(29 * var(--mr)); bottom: calc(40 * var(--mr)); display: flex; flex-direction: column; }
 .mk-brtitle { margin: 0 0 calc(18 * var(--mr)); display: flex; flex-direction: column; font: 400 max(26px, calc(44 * var(--mr) * var(--ts))) / calc(56 * var(--mr) * var(--ts)) var(--f-big); color: var(--brief-red); text-transform: none; }
-.mk-tiphost { position: relative; min-height: calc(110 * var(--mr)); }
-.mk-tip { position: absolute; left: 0; right: calc(6 * var(--mr)); top: 0; padding: calc(10 * var(--mr)) calc(12 * var(--mr)) calc(12 * var(--mr)); transform: rotate(-1deg); background: var(--tex-paper), #e2d9b6; background-size: calc(240 * var(--mr)); }
+/* tips stack in one grid cell (the new one slides over the old): the host grows to the longest, so NEXT TIP is never under it */
+.mk-tiphost { position: relative; display: grid; min-height: calc(110 * var(--mr)); }
+.mk-tip { grid-area: 1 / 1; position: relative; align-self: start; margin-right: calc(6 * var(--mr)); padding: calc(10 * var(--mr)) calc(12 * var(--mr)) calc(12 * var(--mr)); transform: rotate(-1deg); background: var(--tex-paper), #e2d9b6; background-size: calc(240 * var(--mr)); }
 .mk-tip .clip { position: absolute; left: calc(14 * var(--mr)); top: calc(-8 * var(--mr)); width: calc(9 * var(--mr)); min-width: 9px; transform: rotate(-6deg); filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .5)); }
 .mk-tip .mk-letterhead { color: #5a0d06; margin-bottom: calc(5 * var(--mr)); font-size: max(12px, calc(7.5 * var(--mr) * var(--ts))); }
 .mk-tip .mk-typed { margin: 0; font-size: max(12px, calc(9 * var(--mr) * var(--ts))); line-height: 1.5; }

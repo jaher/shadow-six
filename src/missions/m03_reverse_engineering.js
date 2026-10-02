@@ -15,6 +15,41 @@ const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (enemy-brain reads wp.look * DEG, §4.1)
 
 /** Closed square outline (a 5 × 5 transformer cage). */
+/**
+ * T2 tailwater river with natural banks instead of a ruler-straight channel (user request 2026-09-30 "make the edges
+ * of the shore more smooth and less polygonal"): the centreline `C` (foot of the dam → SE corner, 20 m) is resampled
+ * every ~4 m and, past the bend at (60, 54), each bank wanders on its own (cosine-eased keys, ±~2 m over 12–25 m).
+ * The NE / camp bank (R, offsets + = into the water) keeps the raft afloat, the E6 post, E14, the uniform line and
+ * the camp palisade on dry land. Keys are in metres along the old straight channel from (37, 33) (s 31 = the bend).
+ * @param {number[][]} C centreline
+ * @param {number} w nominal width
+ * @returns {{points: number[][], widths: number[]}} for a `path` terrain entry (per-point widths)
+ */
+function tailwaterPath(C, w = 20) {
+  const LK = [[0, 0], [31, 0], [36, 0.2], [50, -1.0], [62, 0.8], [78, 2.2], [92, 0.6], [104, -0.8], [118, 1.2], [132, 2.0], [142, 0.5], [160, 0]];
+  const RK = [[0, 0], [31, 0], [40, 1.2], [48, 1.4], [58, 0.4], [70, -0.6], [80, 0.3], [91, 0.9], [100, -0.5], [112, 0.6], [124, 1.6], [136, 0.2], [160, 0]];
+  const key = (K, s) => {
+    if (s >= K[K.length - 1][0]) return K[K.length - 1][1];
+    const j = Math.max(0, K.findIndex((q, i) => i + 1 < K.length && s < K[i + 1][0]));
+    const [s0, v0] = K[j], [s1, v1] = K[Math.min(K.length - 1, j + 1)], t = s1 > s0 ? Math.min(1, Math.max(0, (s - s0) / (s1 - s0))) : 0;
+    return v0 + (v1 - v0) * (1 - Math.cos(Math.PI * t)) / 2;
+  };
+  const bend = C.findIndex((q) => q[0] === 60 && q[1] === 54);
+  const points = [], widths = [];
+  let sBend = 0;
+  for (let i = 0; i + 1 < C.length; i++) {
+    const [x0, z0] = C[i], [x1, z1] = C[i + 1], L = Math.hypot(x1 - x0, z1 - z0), ux = (x1 - x0) / L, uz = (z1 - z0) / L;
+    const n = Math.max(1, Math.round(L / 4)), last = i + 2 === C.length;
+    for (let k = 0; k < n + (last ? 1 : 0); k++) {
+      const d = (L * k) / n, s = i < bend ? 0 : 31 + sBend + d;
+      const lv = key(LK, s), rv = key(RK, s), off = (lv + rv) / 2; // SW (station) bank at +w/2 + lv, NE (camp) at -w/2 + rv
+      points.push([+(x0 + ux * d - uz * off).toFixed(2), +(z0 + uz * d + ux * off).toFixed(2)]);
+      widths.push(+(w + lv - rv).toFixed(2));
+    }
+    if (i >= bend) sBend += L;
+  }
+  return { points, widths };
+}
 const square = (x, z, s = 5) => [[x - s / 2, z - s / 2], [x + s / 2, z - s / 2], [x + s / 2, z + s / 2], [x - s / 2, z + s / 2], [x - s / 2, z - s / 2]];
 const CAGES = [];
 // the E column stands 1 m west of the old x 56: clear of st_barr2's steps / flagpole and pylon_1's legs
@@ -83,7 +118,7 @@ export default {
     { type: 'poly', terrain: 'water', level: M3_RESERVOIR_LEVEL, drainOn: 'dam',
       points: [[0, 0], [55, 0], [56, 10], [55, 18], ...arc(21.6, 38, -38), [25, 27.4], [14, 29], [0, 30]] },
     // T2 river from the foot of the dam (towards the camera), bending SE to the SE corner
-    { type: 'path', terrain: 'water', points: [[41, 23], [44, 35], [52, 46], [60, 54], [84, 74], [108, 94], [132, 114], [150, 129]], width: 20 },
+    { type: 'path', terrain: 'water', ...tailwaterPath([[41, 23], [44, 35], [52, 46], [60, 54], [84, 74], [108, 94], [132, 114], [150, 129]], 20) },
     // T3 dam-toe ledge along the foot of the face (the auto 2 m rim is added by the builder)
     { type: 'poly', terrain: 'shallow', points: TOE },
     // T4 station yard (= fence polygon) and camp interior (= palisade polygon)

@@ -522,9 +522,21 @@ html.mk-touch, html.mk-touch body { -webkit-touch-callout: none; -webkit-tap-hig
 html.mk-touch .mk-layer button, html.mk-touch .mk-layer [role='menuitem'] { touch-action: manipulation; }
 /* every menu row and footer choice is a ≥ 44 px finger target */
 html.mk-touch .mk-row { min-height: 44px; align-items: center; }
-/* landscape phones (short screens): the list rows share the height between the title and the touch bar */
+/* every list row is as wide as its list (HELP / EXIT are not 30 px slivers) */
+html.mk-touch .mk-list:not(.centred) .mk-row { align-self: stretch; min-width: 88px; }
+/* portrait phones centre the list: rows keep their own width (stretched rows would left-align their labels and push
+   them off a list that can overhang the screen), so a short one (HELP) is a centred ≥ 88 px target instead */
+@media (max-aspect-ratio: 3/4) and (max-width: 760px) {
+  html.mk-touch .mk-list:not(:has(.opt)) .mk-row { align-self: auto; justify-content: center; }
+}
+/* landscape phones (short screens): rows stay 44 px; a plain list of 5+ rows (MAIN MENU, the in-mission menu) splits
+   into two columns so it fits between the title and the touch bar; option / slot lists scroll */
 @media (max-height: 540px) {
-  html.mk-touch .mk-list .mk-row { min-height: max(30px, min(44px, calc((100dvh - 190px) / 7))); }
+  html.mk-touch .mk-list:not(.slots):not(:has(.opt)):has(> .mk-row:nth-child(5)) { display: grid; grid-auto-flow: column; grid-template-rows: repeat(3, auto); column-gap: 32px; }
+  html.mk-touch .mk-list:not(.slots):not(:has(.opt)):has(> .mk-row:nth-child(7)) { grid-template-rows: repeat(4, auto); }
+  html.mk-touch .mk-list:not(.slots):not(:has(.opt)):has(> .mk-row:nth-child(9)) { grid-template-rows: repeat(5, auto); }
+  html.mk-touch .mk-list.slots, html.mk-touch .mk-list:has(.opt) { max-height: calc(100dvh - 150px - env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  html.mk-touch .mk-list.slots::before, html.mk-touch .mk-list:has(.opt)::before { inset: 0; }
 }
 html.mk-touch .mk-footer .mk-row { justify-content: center; min-width: 88px; padding: 0 14px; border: 1px solid rgba(201, 162, 74, .55); border-radius: 3px; background: rgba(24, 19, 12, .72); }
 html.mk-touch .mk-footer .mk-row .mk-label::after { display: none; }

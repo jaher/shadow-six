@@ -82,3 +82,19 @@ test('VisionCones: one cone at a time, spotter promotes, probe ring triggers onc
   assert.deepEqual([...vc.cones.keys()], [b]);
   vc.dispose();
 });
+
+test('VisionCones: a probe the caller already resolved is triggered at once and never re-shows a hidden cone', () => {
+  const w = new World({ size: [60, 60] });
+  const scene = { add: () => {} };
+  const b = viewer({ id: 2, x: 40, z: 40, heading: Math.PI, world: w });
+  w.enemies.push(b);
+  const vc = new VisionCones(w, scene);
+  b.coneVisible = true; // Game.probe → showOnlyCone(b)
+  const p = vc.setProbe(25, 38, b);
+  assert.equal(p.triggered, true);
+  assert.equal(p.enemy, b);
+  b.coneVisible = false; // the player hides it (eye tool / click) before the next frame
+  vc.update();
+  assert.equal(b.coneVisible, false, 'no late trigger re-shows the hidden cone');
+  vc.dispose();
+});

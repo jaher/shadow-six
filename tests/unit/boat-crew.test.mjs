@@ -7,18 +7,20 @@ import { makeSim } from './abilsim.mjs';
 import { boardingHint } from '../../src/abilities/drive.js';
 import { vehicleOrderLabel } from '../../src/ui/tooltip.js';
 
-test('boat seats: the raft kneels the Marine at the stern and seats the men forward facing the bow; the mini-sub draws nobody', () => {
+test('boat seats: the raft kneels the Marine at the stern and seats the men forward of him, low or on the bow; the mini-sub draws nobody', () => {
   const raft = boatLayout('raft');
   assert.equal(raft, BOAT_SEATS.raft);
   assert.equal(raft.seats[0].pose, 'paddle', 'seat 0: the paddler');
   assert.ok(raft.seats[0].p[2] < -0.6, 'at the stern');
   assert.ok(raft.seats.length >= 5, 'five seats (M13 raft seats: 5)');
-  for (const s of raft.seats.slice(1, 3)) {
-    assert.equal(s.pose, 'floor');
-    assert.ok(s.p[2] > raft.seats[0].p[2] + 0.4, 'forward of the Marine');
-    assert.ok(!s.yaw, 'facing the bow');
-  }
+  const first = raft.seats[1];
+  assert.equal(first.pose, 'floor', 'the first man sits on the floor (below the paddle\'s sweep)');
+  assert.ok(!first.yaw, '…facing the bow');
+  for (const s of raft.seats.slice(1)) assert.ok(s.p[2] > raft.seats[0].p[2] + 0.6, 'forward of the Marine');
+  assert.equal(raft.seats[2].pose, 'tube', 'the second on the bow tube…');
+  near(raft.seats[2].yaw, Math.PI, 1e-9, '…facing aft');
   for (const s of raft.seats) assert.ok(Math.abs(s.p[0]) < 0.6 && Math.abs(s.p[2]) < 1.2, 'inside the 2.7 × 1.3 m hull');
+  for (const s of raft.seats) assert.ok(s.feet?.l && s.feet?.r, 'every raft seat fits the legs to the hull');
   const row = boatLayout('rowboat');
   assert.equal(row.seats[0].pose, 'row');
   near(row.seats[0].yaw, Math.PI, 1e-9, 'the oarsman faces aft');
@@ -102,10 +104,10 @@ test('paddle: alternating strokes, blade in the water on the stroke side, the ha
 test('oars: catch → drive (blades in) → feathered recovery, the oarsman leans with the stroke', () => {
   const c = rowKey(0), d = rowKey(ROW.drive * 0.5), f = rowKey(ROW.drive), r = rowKey(0.75);
   near(c.sweep, ROW.catch, 1e-9, 'catch: blades forward');
-  assert.equal(c.lift, 0); assert.equal(d.lift, 0, 'blades in on the drive');
+  assert.ok(d.wet && d.pitch > c.pitch + 0.1, 'blades buried on the drive (pitched down from the catch)');
   assert.ok(d.sweep < c.sweep && f.sweep < d.sweep, 'swept aft');
   near(f.sweep, ROW.finish, 1e-9);
-  assert.ok(r.lift > 0.1, 'out of the water on the recovery');
+  assert.ok(!r.wet && r.pitch < d.pitch - 0.1 && r.feather > 1.4, 'out of the water and feathered on the recovery');
   assert.ok(c.bend > 0.3 && f.bend < 0, 'reach forward at the catch, lean back at the finish');
   near(rowKey(1).sweep, rowKey(0).sweep, 1e-9, 'cyclic');
 });

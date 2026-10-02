@@ -27,8 +27,18 @@ export async function voidCheck(page, t, id) {
     for (let s = 0.005; s < 1; s += 0.01) {
       for (const [x, z, dx, dz] of [[s * W, 0, 0, -1], [s * W, D, 0, 1], [0, s * D, -1, 0], [W, s * D, 1, 0]]) step = Math.max(step, Math.abs(ap.heightAt(x + dx * 0.05, z + dz * 0.05) - ter.heightAt(x, z)));
     }
+    // shores crossing the edge (tests/shore-seam-metric.mjs): bank contours on the real map + apron meshes, 5 m either
+    // side of the seam (the old extruded seam band jogged, notched or turned 90 deg there)
+    let seams = [];
+    if (ter.shore && !G.missionDef?.water?.frozen) {
+      const M = await import('/tests/shore-seam-metric.mjs'), geo = ap.mesh.geometry;
+      const near = (x, z) => { const qx = Math.min(W, Math.max(0, x)), qz = Math.min(D, Math.max(0, z)); return Math.hypot(x - qx, z - qz) < 8; };
+      const mesh = M.meshSurface(geo.attributes.position.array, geo.index.array, (x, z) => near(x, z) && !(x > 0.5 && x < W - 0.5 && z > 0.5 && z < D - 0.5));
+      const Gd = (x, z) => (x >= 0 && x <= W && z >= 0 && z <= D ? ter.heightAt(x, z) : mesh(x, z));
+      seams = M.seamTurns(W, D, Gd, ter.shore.wetAt, -0.35).map((c) => ({ at: c.at, turn: +c.turn.toFixed(1), ref: +c.ref.toFixed(1) }));
+    }
     return { apron: true, A: ap.field.A, seam, step, gridW: grid.width, gridD: grid.depth, W, D, stats: ap.stats,
-      camApron: G.cameraController.apron };
+      camApron: G.cameraController.apron, seams };
   }, id);
   t(info.apron, `${id}: the map has a scenery apron`);
   if (!info.apron) return;
@@ -36,6 +46,11 @@ export async function voidCheck(page, t, id) {
   t(info.seam < 0.01, `${id}: apron meets the map edge with no height step (max ${info.seam.toFixed(4)} m)`);
   t(info.step < 0.08, `${id}: no ledge just past the edge (max ${info.step.toFixed(3)} m)`);
   t(info.gridW === info.W && info.gridD === info.D, `${id}: nav grid unchanged (${info.gridW}x${info.gridD})`);
+  if (info.seams.length) t.log(`${id}: shores crossing the edges ${info.seams.map((c) => `${c.at} ${c.turn}°${c.ref > 25 ? ` (designed ${c.ref}°)` : ''}`).join(', ')}`);
+  // a natural bank: <= 25 deg per 0.5 m; where the mission's own shape has a corner within 5 m of the edge (a quay or
+  // pool rectangle), the drawn ground may turn as much as that corner plus 10 deg — never a jog the seam adds
+  const jog = info.seams.filter((c) => c.turn > Math.max(25, c.ref + 10));
+  t(!jog.length, `${id}: every bank crossing a map edge runs smooth through the map / apron seam (max turn <= 25 deg per 0.5 m, or the designed corner + 10; ${JSON.stringify(jog)})`);
   t.log(`${id}: apron ${info.A} m, ${info.stats.verts} verts, ${info.stats.trees} trees, ground ${info.stats.groundMs} ms, total ${info.stats.ms} ms`);
 
   const fails = [];

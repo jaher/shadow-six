@@ -454,3 +454,5 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 - 2026-10-01T21:10 PDT vibrating sound MERGED 248b2566 (projector UI loop leaked into missions; zipper smoothing). Unit 1490/0 on merged master; audio-buzz + audio pass. Publishing.
 - 2026-10-01T21:22 PDT briefing jitter MERGED dcf1f718 (tour camera feedback loop; slides). Unit 1490/0 on merged master; briefing-steady, narration, audio-buzz pass. Publishing.
 - 2026-10-01T21:41 PDT body rest + floating corpses MERGED 88ee9ced. Unit 1496/0 on merged master; body-rest, body-ground, body-props pass. Publishing.
+- 2026-10-01T21:45 PDT user: "Shout of the soldier when getting stabbed" → German voices have no pain clips; background agent in worktree commandos-wt-stabcry / feat/stab-cry (synthetic German pain/death cries, synced to the stab, no AI noise). Publish after merge.
+- 2026-10-01T22:48 PDT boat oars/hands MERGED 344ea290. Unit 1520/0 on merged master; boat-oars, boat-boarding, boat-dry-hull pass. M20 art merged 61cde555 by missing-pieces. Publishing.

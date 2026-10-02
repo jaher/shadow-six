@@ -14,6 +14,8 @@ import { pressPrompt, isTouchUI } from './touch.js';
 
 const SEEN_KEY = 'shadowsix.intro.seen';
 const VERSION = 'v0.9';
+/** ms after the title appears before its prompt (and an input) arms: a tap burst that skipped the intro is still landing. */
+const SPLASH_GUARD = 500;
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export class Boot {
@@ -37,7 +39,8 @@ export class Boot {
     if (!this.active) return false;
     if (e?.code && /^(F5|F11|F12)$/.test(e.code)) return false;
     if (this.phase === 'splash') {
-      if (this.ready) this._go();
+      // a burst of taps (or keys) that skipped the intro must not also fall through the title it uncovered
+      if (this.ready && this._armed) this._go();
     } else this._skip?.();
     return true;
   }
@@ -51,7 +54,10 @@ export class Boot {
     this.root.className = 'bt';
     if (!this._pointer) {
       this._pointer = true;
-      this.root.addEventListener('pointerdown', (e) => { e.preventDefault(); this.key({}); });
+      // continue on the click, not on pointerdown: a finger's click fires after the menu has replaced the splash and
+      // would land on whichever MAIN MENU row now sits under it (preventDefault on pointerdown does not stop it)
+      this.root.addEventListener('pointerdown', (e) => e.preventDefault());
+      this.root.addEventListener('click', (e) => { e.stopPropagation(); this.key({}); });
     }
     // 1) the disclaimer
     this.phase = 'disclaimer';
@@ -115,6 +121,8 @@ export class Boot {
   /** S03: the title splash; `ready:false` shows LOADING… with the brass rule. */
   showSplash({ ready = false } = {}) {
     this.phase = 'splash';
+    this._splashT = performance.now();
+    this._armed = false;
     this.active = true;
     this.root.hidden = false;
     this.hud.kit.close();
@@ -189,14 +197,17 @@ export class Boot {
     if (onEnter) this._enter = onEnter;
     this.progress(1);
     const p = this.promptEl;
-    if (!p) return;
+    if (!p) { this._armed = true; return; } // no title on screen (showSplash re-arms when it builds one)
     p.classList.add('swap');
+    // the prompt (and input) arm together, never sooner than SPLASH_GUARD after the title appeared
     setTimeout(() => {
+      if (this.promptEl !== p) return; // the splash was torn down / rebuilt meanwhile
+      this._armed = true;
       p.textContent = pressPrompt(isTouchUI());
       p.classList.remove('swap');
       p.classList.add('mk-press');
       p.parentElement.classList.add('ready');
-    }, 110);
+    }, Math.max(110, SPLASH_GUARD - (performance.now() - (this._splashT || 0))));
   }
 
   _go() {

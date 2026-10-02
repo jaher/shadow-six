@@ -219,6 +219,14 @@ const B1_LOOP = [P(20, 82), P(32, 91), P(48, 88), P(46, 70), P(22, 70), P(12, 84
 /** Plateau structures and drums lifted to y 4 by the script (meshes; drum entities). */
 const LIFT = [...RUINS, GUN_PARAPET, WIRE_GUN, ...PLATEAU_DRUMS].map((s) => s.id);
 
+// ---------------------------------------------------------------- barbed wire (docs/barbed-wire.md §12)
+/** The M4–M20 wire pass: see-through, uncrossable (B.FENCE) runs added where the wire belongs; none crosses a route
+ *  or lengthens an approach (tests/unit/wire-placements.test.mjs). Drawn by the map's wire layer (art/wire-obstacles.js). */
+const WIRE_PASS = [
+  // dossier §5.6 wire_wadi: the E bank N of the bridge (wire_wadi_w is the W bank)
+  { id: 'wx_wadi_e', type: 'fence', variant: 'wire_on_stakes', points: [[97.1, 0], [96.4, 28.7]], h: 1.2 },
+];
+
 export default {
   id: 'm08',
   campaign: 'BEL',
@@ -260,7 +268,7 @@ export default {
     { type: 'path', terrain: 'road', points: [[72, 29], [69, 22], [66.2, 17.4]], width: 3 },
   ],
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
-  structures: joinStructures(STRUCTURES, [['house_1', 'house_2'], ['house_2', 'house_3'], ['house_4', 'house_5']]),
+  structures: joinStructures([...STRUCTURES, ...WIRE_PASS], [['house_1', 'house_2'], ['house_2', 'house_3'], ['house_4', 'house_5']]),
   items: [],
   interactables: [],
   vehicles: [

@@ -227,7 +227,7 @@ export class VisionCone {
  * previously shown one. `?debug=cones` (or `showAll`) shows every cone (Shift+V cheat).
  * Spotter highlight: 'enemy:spotted' (CHALLENGE / COMBAT entry) or 'enemy:noise-turn' (a lure turns a
  * post-holder) makes that enemy's cone the shown one at 75%
- * alpha for 1 s. Probe marker: setProbe(x, z) drops the red 0.6 m ring; the first enemy whose cone (standing
+ * alpha for 1 s. Probe marker: setProbe(x, z[, enemy]) drops the red 0.6 m ring; the first enemy whose cone (standing
  * test) contains it gets its cone shown and the ring pulses; each marker triggers once; clearProbe().
  */
 export class VisionCones {
@@ -268,8 +268,12 @@ export class VisionCones {
     while (this.shown.length > max) this.shown.shift().coneVisible = false;
   }
 
-  /** Drop the red probe marker at (x, z) (Shift+click on the ground). */
-  setProbe(x, z) {
+  /**
+   * Drop the red probe marker at (x, z) (Shift+click on the ground). `enemy`: the cone the caller already found covering
+   * the point and showed (Game.probe) — the marker is then triggered at once, so a later frame never re-shows a cone the
+   * player has hidden since (eye tool, click) as a "late" trigger.
+   */
+  setProbe(x, z, enemy = null) {
     this.clearProbe();
     const r = CONFIG.stealth.probeRing / 2;
     const geo = new THREE.RingGeometry(r - 0.07, r, 32);
@@ -278,7 +282,8 @@ export class VisionCones {
     mesh.position.set(x, Y + 0.01, z);
     mesh.renderOrder = 6;
     this.scene?.add(mesh);
-    this.probe = { x, z, mesh, triggered: false, enemy: null, t0: 0 };
+    this.probe = { x, z, mesh, triggered: !!enemy, enemy: enemy || null, t0: enemy ? (this.world.time ?? 0) : 0 };
+    if (enemy) this._promote(enemy);
     return this.probe;
   }
 

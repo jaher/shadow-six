@@ -6,25 +6,36 @@
  *  - a figure with the man's own look (real character model, weapon stowed) on a SEAT of the hull's layout
  *    (BOAT_SEATS, else the library model's standing sockets), parented to the posed hull so it bobs and rolls with it;
  *    the operator (the Marine) always takes seat 0, the others the first free seat and keep it while aboard;
- *  - the Marine kneels at the raft's stern and PADDLES: a single-bladed paddle in his hands (the raft's own port
- *    paddle leaves its rowlock, the starboard one is shipped along the tube), one stroke per wake stroke on alternating
- *    sides, in step with the catch rings the wake draws (art/water.js WakeTracker.strokeOf); pivoting on the spot he
- *    strokes on one side only; at rest the paddle lies across his thighs. In the rowboat he ROWS: facing aft on the
- *    midship thwart, hands on the looms, both oars sweeping (catch, drive, feathered recovery) while it moves;
+ *  - every seated man's legs are fitted to the hull (two-bone leg IK onto the seat's foot spots on the floorboards /
+ *    floor / tube): no boot through the planking, the floor or a thwart, knees up where the seat is low;
+ *  - the Marine kneels at the raft's stern and PADDLES: a single-bladed paddle gripped in both fists (the paddle runs
+ *    through both palms; the raft's own port paddle leaves its rowlock, the starboard one is stowed along the top of
+ *    the starboard tube), one stroke per wake stroke on alternating sides, in step with the catch rings the wake draws
+ *    (art/water.js WakeTracker.strokeOf); pivoting on the spot he strokes on one side only; at rest the paddle lies
+ *    across his thighs;
+ *  - in the rowboat he ROWS: facing aft on the midship thwart, a fist round each oar handle, the oars turning between
+ *    their thole pins on the gunwales (art/oars.js): catch (blades dip, arms out, leaning toward the stern) → drive
+ *    (blades in, lean back, handles to the chest) → feathered recovery, the stroke clock the wake's (both blades ring
+ *    out at each catch); the inside oar shortens its stroke in a turn and backs water when he pivots on the spot; at
+ *    rest he holds them with the blades flat on the water; with men aboard but nobody at the oars they trail
+ *    alongside, in an empty boat they are shipped inside along the thwarts (the model's own oars are hidden);
  *  - getting in is shown: from the bank he steps over the tube / gunwale and sits down, from the water he hoists
  *    himself in; getting out he stands up, steps over the side and walks to the spot the sim put him on, where his
  *    own model takes over (it stays hidden until then). The sim's timing is unchanged (boardTime, instant exit).
  *  - the Biber mini-sub is enclosed (its pilot sits under the hatch, which already opens and closes as he boards):
  *    nobody is drawn there.
  *
- * Every pose is a pure function of the stroke / transition time, unit-tested in tests/unit/boat-crew.test.mjs; the
- * figures are UnitModels (art/unit-model.js) whose `overlay` hook writes the paddling / rowing arms after the mixer
- * (two-bone IK, like the Green Beret's shovel in art/shovel-dig.js).
+ * Every pose is a pure function of the stroke / transition time, unit-tested in tests/unit/boat-crew.test.mjs and
+ * tests/unit/boat-oars.test.mjs; the figures are UnitModels (art/unit-model.js) whose `overlay` hook writes the legs,
+ * the paddling / rowing arms and the closed fists after the mixer (two-bone IK, like the shovel in art/shovel-dig.js).
  * @module art/boat-crew
  */
 import * as THREE from 'three';
-import { twoBoneIKPole, wpos } from './characters/commandos_a/ca_ik.js';
+import { twoBoneIKPole, wpos, wquat, handFrame, handQuat } from './characters/commandos_a/ca_ik.js';
 import { T as TERRAIN } from '../world/grid.js';
+import { OAR, ROW, EASY, TRAIL, rowKey, backKey, mixOar, oarPoints, oarDir, oarAnglesThrough } from './oars.js';
+
+export { ROW, rowKey, OAR } from './oars.js';
 
 const PI = Math.PI;
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -39,46 +50,66 @@ const wrapPi = (a) => Math.atan2(Math.sin(a), Math.cos(a));
  *   paddle  kneeling, paddling (the raft's Marine)          root on the floor   clip kneel_shoot
  *   row     on a thwart facing aft, rowing (yaw π)          pelvis on the seat  clip sit
  *   floor   on the bottom, knees up, hands on the tubes     root on the floor   clip boat_sit (guest raft clip)
- *   tube    on the inflatable's side tube                   pelvis on the seat  clip sit
+ *   tube    on the inflatable's tube                        pelvis on the seat  clip sit
  *   bench   on a thwart / the stern sheets                  pelvis on the seat  clip sit
  *   stand   standing on deck                                root on the deck    clip idle
- * `rim`: height of the tube top / gunwale / deck edge a man steps over getting in or out.
+ * `p`: the root (root poses) or the seat top under the pelvis (seated poses). `feet` {l, r}: hull-space ankle spots
+ * the legs are fitted to ([x, y, z, toe?] — toe = lowest the toes may go; knee 'down' for a kneeling leg), y = the
+ * floor under the sole + 8.5 cm. `rim`: height of the tube top / gunwale / deck edge a man steps over.
  */
 export const BOAT_SEATS = Object.freeze({
-  // the inflatable (2.7 × 1.3 m, tubes Ø 0.38 with their top at y 0.44): the Marine kneels at the stern, the men sit on
-  // the floor one behind the other facing the bow; a 4th and 5th (M13's five-seat raft) on the side tubes
-  raft: { rim: 0.44, seats: [
-    { p: [0, 0.02, -0.62], pose: 'paddle' }, // his trailing foot stays inside the stern tube
-    { p: [0, 0.02, 0.02], pose: 'floor' },
-    { p: [0, 0.02, 0.6], pose: 'floor' },
-    { p: [0.47, 0.44, -0.35], pose: 'tube' },
-    { p: [-0.47, 0.44, 0.3], pose: 'tube' },
+  // the inflatable (2.7 × 1.3 m, tubes ~0.30 high, floor 0.02 between |x| 0.25 from z −0.9 to 0.9, the cross-thwart
+  // tube z −0.33 … −0.17 topped at 0.21; raft.py): the Marine kneels at the stern (front foot up on the thwart, back
+  // knee on the floor, back foot on the stern tube — his paddle sweeps both sides over the tubes beside him, so the
+  // men keep low or forward of it): one sits on the floor before the thwart, knees up; one on the bow tube facing aft;
+  // M13's 4th and 5th on the side tubes forward, feet in the bow's well
+  raft: { rim: 0.32, seats: [
+    { p: [0, 0.02, -0.62], pose: 'paddle', feet: { l: [0.16, 0.295, -0.27, 0.22], r: [-0.13, 0.385, -1.05, 0.31], kneeR: 'down' } },
+    { p: [0, 0.02, 0.02], pose: 'floor', feet: { l: [0.17, 0.105, 0.44], r: [-0.17, 0.105, 0.44] } },
+    { p: [0, 0.42, 1.1], yaw: PI, pose: 'tube', feet: { l: [-0.055, 0.105, 0.8], r: [0.055, 0.105, 0.8] } },
+    { p: [0.37, 0.3, 0.42], yaw: -0.9, pose: 'tube', feet: { l: [0.19, 0.105, 0.66], r: [0.11, 0.105, 0.56] } },
+    { p: [-0.37, 0.3, 0.42], yaw: 0.9, pose: 'tube', feet: { l: [-0.11, 0.105, 0.56], r: [-0.19, 0.105, 0.66] } },
   ] },
-  // the wooden rowboat (3.9 × 1.4 m): the oarsman on the midship thwart facing aft, a man in the stern sheets facing him,
-  // one on the bow thwart, then the bottom boards forward and a second man in the stern sheets (M7 / M14: five aboard)
-  rowboat: { rim: 0.82, seats: [
-    { p: [0, 0.36, -0.15], yaw: PI, pose: 'row' },
-    { p: [0.12, 0.38, -1.2], pose: 'bench' },
-    { p: [0, 0.38, 1.1], pose: 'bench' },
-    { p: [0, 0.05, 0.36], pose: 'floor' },
-    { p: [-0.24, 0.38, -1.22], pose: 'bench' },
+  // the wooden rowboat (3.9 × 1.4 m, floorboards at 0.043, thwarts topped at 0.357 / 0.337 / 0.357 at z −1.2 / −0.15
+  // / 1.05; rowboat.py): the oarsman on the midship thwart facing aft (feet braced on the boards before him), two men
+  // side by side in the stern sheets facing him (feet tucked back clear of his), one on the bow thwart (feet together
+  // on the keel boards where the bow narrows), then the bottom boards forward of the oarsman (M7 / M14: five aboard)
+  rowboat: { rim: 0.52, seats: [
+    { p: [0, 0.337, -0.15], yaw: PI, pose: 'row', feet: { l: [-0.14, 0.128, -0.53], r: [0.14, 0.128, -0.53] } },
+    { p: [0.23, 0.357, -1.2], pose: 'bench', feet: { l: [0.27, 0.128, -1.03], r: [0.12, 0.128, -1.03] } },
+    { p: [0, 0.357, 1.05], pose: 'bench', feet: { l: [0.09, 0.128, 1.36], r: [-0.09, 0.128, 1.36] } },
+    { p: [0, 0.043, 0.25], pose: 'floor', feet: { l: [0.17, 0.128, 0.84], r: [-0.17, 0.128, 0.84] } },
+    { p: [-0.23, 0.357, -1.2], pose: 'bench', feet: { l: [-0.12, 0.128, -1.03], r: [-0.27, 0.128, -1.03] } },
   ] },
+});
+/**
+ * Standing spots moved off the deck fittings, per library asset and socket name ([x, z]; the deck height stays the
+ * socket's): the patrol boat's after-deck passenger sockets stand on its engine-room vents and the stern lookout on
+ * the centre bollard, so the men stand on the clear deck beside them.
+ */
+export const STAND_FIX = Object.freeze({
+  patrol_boat: { passenger_0: [-0.3, -4.75], passenger_1: [0.3, -4.75], passenger_2: [-0.3, -5.6], passenger_3: [0.3, -5.6], crew_stern: [0.45, -6.45] },
 });
 /** Library types whose occupants are never drawn: the Biber's pilot is enclosed under its hatch. */
 export const ENCLOSED = new Set(['minisub']);
 
 /**
  * Seat layout of a boat: its BOAT_SEATS entry, else the library model's standing deck sockets (the patrol / escape boat:
- * helm first, then the passengers on the after deck, the stern lookout), else none.
+ * helm first, then the passengers on the after deck, the stern lookout; moved clear of the deck fittings, STAND_FIX),
+ * else none.
  * @param {string} libType library type (vehicle-model `libType`) @param {object} [meta] model sidecar (sockets)
- * @returns {{rim:number, seats:{p:number[], yaw?:number, pose:string}[]}}
+ * @returns {{rim:number, seats:{p:number[], yaw?:number, pose:string, feet?:object}[]}}
  */
 export function boatLayout(libType, meta = null) {
   if (ENCLOSED.has(libType)) return { rim: 0, seats: [] };
   if (BOAT_SEATS[libType]) return BOAT_SEATS[libType];
+  const fix = STAND_FIX[meta?.asset] || {};
   const socks = (meta?.sockets || []).filter((s) => /^stand_(helm|boat|lookout)/.test(s.pose || '') && Array.isArray(s.pos));
   const helm = socks.filter((s) => /helm/.test(s.pose)), rest = socks.filter((s) => !/helm/.test(s.pose));
-  const seats = [...helm, ...rest].map((s) => ({ p: [...s.pos], yaw: Math.atan2(s.dir?.[0] ?? 0, s.dir?.[2] ?? 1), pose: 'stand' }));
+  const seats = [...helm, ...rest].map((s) => {
+    const f = fix[s.name], p = f ? [f[0], s.pos[1], f[1]] : [...s.pos];
+    return { p, yaw: Math.atan2(s.dir?.[0] ?? 0, s.dir?.[2] ?? 1), pose: 'stand' };
+  });
   return { rim: seats.length ? Math.max(...seats.map((s) => s.p[1])) + 0.25 : 0, seats };
 }
 
@@ -131,16 +162,18 @@ export const PADDLE = Object.freeze({ length: 1.45, lower: 0.5, blade: 0.44 });
  * One stroke on his LEFT (s = +1; mirrored for the right). G = the top hand on the T-grip, T = where the blade points
  * (the paddle is rigid: the tip lies PADDLE.length from the grip along G→T), bend = forward lean, twist = shoulders
  * turned to his left, lean = body rolled out over the stroke side. Catch far forward, pull back to the hip, lift out,
- * swing the paddle up and across in front of him to the other side's catch.
+ * raise the paddle upright in front of him (T-grip low, blade high — both fists keep it, clear of the men forward)
+ * and bring it down on the other side's catch. The top hand reaches out over the side so the shaft stays steep,
+ * clear of the side tube (crown ~0.30 at |x| 0.46, root-local here with the root at the floor).
  */
 const STROKE = [
-  { u: 0.00, G: [0.10, 1.00, 0.32], T: [0.95, -0.50, 0.85], bend: 0.32, twist: -0.30, lean: 0.16 },
-  { u: 0.30, G: [0.16, 0.96, 0.08], T: [1.00, -0.50, 0.14], bend: 0.18, twist: -0.02, lean: 0.18 },
-  { u: 0.55, G: [0.16, 0.95, -0.12], T: [0.92, -0.18, -0.60], bend: 0.10, twist: 0.25, lean: 0.12 },
-  { u: 0.78, G: [0.04, 1.15, 0.25], T: [0.10, 1.60, 1.30], bend: 0.14, twist: 0.00, lean: 0.00 },
+  { u: 0.00, G: [0.27, 1.00, 0.32], T: [1.18, -0.50, 0.85], bend: 0.32, twist: -0.30, lean: 0.18 },
+  { u: 0.30, G: [0.30, 0.96, 0.08], T: [1.2, -0.50, 0.14], bend: 0.18, twist: -0.02, lean: 0.2 },
+  { u: 0.55, G: [0.28, 0.95, -0.12], T: [1.12, -0.18, -0.60], bend: 0.10, twist: 0.25, lean: 0.14 },
+  { u: 0.78, G: [0.02, 0.88, 0.22], T: [0.06, 2.10, 0.70], bend: 0.10, twist: 0.00, lean: 0.00 },
 ];
 /** Pivoting: the recovery comes back to the same side (feathered forward, low over the water). */
-const TURN_BACK = { G: [0.10, 1.10, 0.22], T: [1.05, 0.50, 0.90], bend: 0.20, twist: -0.12, lean: 0.12 };
+const TURN_BACK = { G: [0.24, 1.10, 0.22], T: [1.25, 0.50, 0.90], bend: 0.20, twist: -0.12, lean: 0.14 };
 /** At rest: the paddle across his thighs, both hands on the shaft (the top hand at his right). */
 export const HOLD = Object.freeze({ G: [-0.42, 0.62, 0.30], T: [1.30, 0.58, 0.32], bend: 0.06, twist: 0, lean: 0, top: 'r', lowerAt: 0.75 });
 
@@ -188,21 +221,30 @@ export function paddlePose(u, s, same, act) {
   return { ...mixKey(h, k, a), top: act > 0.5 ? k.top : 'r', wet: k.wet && act > 0.5, lowerAt: lerp(HOLD.lowerAt, PADDLE.lower, a) };
 }
 
-// ------------------------------------------------------------------ rowing (oars: art/vehicle-library posePart)
+// ------------------------------------------------------------------ rowing: the oars per side (art/oars.js)
 
-/** Row cycle (one stroke per two wake strokes): catch → drive (blades in) → release → feathered recovery. */
-export const ROW = Object.freeze({ catch: 0.5, finish: -0.42, lift: 0.16, drive: 0.45 });
 /**
- * Oar sweep / lift and the oarsman's lean at phase u of a row stroke (sweep + = blades forward toward the bow).
- * @returns {{sweep:number, lift:number, bend:number}}
+ * The two oars' keys at row phase u: forward strokes (moving), the inside oar's stroke shortened by `turn` (−1 … 1,
+ * + = turning to starboard: the port oar pulls the long stroke), backing water when pivoting (`pivot`); blended from
+ * the rest hold by `act` and from trailing (nobody at the oars) by `hold`. @returns {{1: object, '-1': object, bend:number}}
+ * keyed by side (+1 port, −1 starboard).
  */
-export function rowKey(u) {
-  u = ((u % 1) + 1) % 1;
-  if (u < ROW.drive) { const k = smooth(u / ROW.drive); return { sweep: lerp(ROW.catch, ROW.finish, k), lift: 0, bend: lerp(0.38, -0.22, k) }; }
-  const r = (u - ROW.drive) / (1 - ROW.drive);
-  const lift = ROW.lift * smooth(r / 0.15) * (1 - smooth((r - 0.85) / 0.15));
-  const k = smooth((r - 0.08) / 0.84);
-  return { sweep: lerp(ROW.finish, ROW.catch, k), lift, bend: lerp(-0.22, 0.38, k) };
+export function oarKeys(u, { act = 1, hold = 1, turn = 0, pivot = false } = {}) {
+  const out = {};
+  const fwd = rowKey(u);
+  const mid = (ROW.catch + ROW.finish) / 2;
+  for (const s of [1, -1]) {
+    const inside = -s * turn;                              // > 0: this oar is on the inside of the turn
+    const k = pivot && inside > 0 ? backKey(u) : { ...fwd };
+    // a turn under way: the inside oar takes a short stroke; pivoting: both short (one pulls, one backs)
+    if (pivot) k.sweep = mid + (k.sweep - mid) * 0.7;
+    else if (inside > 0) k.sweep = mid + (k.sweep - mid) * (1 - 0.65 * clamp(inside, 0, 1));
+    out[s] = mixOar(TRAIL, mixOar(EASY, k, smooth(act)), smooth(hold));
+  }
+  // pivoting, one oar pulls while the other backs: he sits up between the two (each hand reaches its own handle)
+  const bend = pivot ? (out[1].bend + out[-1].bend) / 2 : lerp(EASY.bend, fwd.bend, smooth(act));
+  out.bend = lerp(TRAIL.bend, bend, smooth(hold));
+  return out;
 }
 
 // ------------------------------------------------------------------ boarding / leaving paths
@@ -280,12 +322,120 @@ export function makePaddle() {
   return g;
 }
 
+let OAR_GEO = null;
+/**
+ * Low-poly oar (art/oars.js OAR): origin at the thole pivot, the loom along +X (pivot → blade), the handle at
+ * x −inboard … −inboard + grip, a leather sleeve where it bears on the pins, the square blade in the X-Y plane
+ * (feathering turns it about X).
+ */
+export function makeOar() {
+  if (!OAR_GEO) {
+    const wood = new THREE.MeshStandardMaterial({ color: 0x8a7a63, roughness: 0.85 });
+    const leather = new THREE.MeshStandardMaterial({ color: 0x3b2a1e, roughness: 0.7 });
+    const out = OAR.length - OAR.inboard, b0 = out - OAR.blade, h0 = -OAR.inboard + OAR.grip;
+    const along = (geo, x0, x1) => { geo.rotateZ(-PI / 2); geo.translate((x0 + x1) / 2, 0, 0); return geo; };
+    const loom = along(new THREE.CylinderGeometry(0.019, 0.024, b0 + 0.02 - h0, 7, 1), h0, b0 + 0.02);
+    const handle = along(new THREE.CylinderGeometry(0.017, 0.017, OAR.grip, 6, 1), -OAR.inboard, h0);
+    const sleeve = along(new THREE.CylinderGeometry(0.029, 0.029, 0.2, 7, 1), -0.09, 0.11);
+    const sh = new THREE.Shape(), w = OAR.bladeW / 2;
+    sh.moveTo(0, -0.02); sh.lineTo(0.08, -w * 0.8); sh.lineTo(OAR.blade - 0.04, -w); sh.quadraticCurveTo(OAR.blade, -w, OAR.blade, 0);
+    sh.quadraticCurveTo(OAR.blade, w, OAR.blade - 0.04, w); sh.lineTo(0.08, w * 0.8); sh.lineTo(0, 0.02); sh.lineTo(0, -0.02);
+    const blade = new THREE.ExtrudeGeometry(sh, { depth: 0.014, bevelEnabled: false, curveSegments: 2 });
+    blade.translate(b0, 0, -0.007);
+    const pin = new THREE.CylinderGeometry(0.013, 0.015, 0.16, 6, 1); pin.translate(0, 0.08, 0);
+    OAR_GEO = { wood, leather, loom, handle, sleeve, blade, pin };
+  }
+  const G = OAR_GEO;
+  const g = new THREE.Group(); g.name = 'prop_oar';
+  for (const [geo, mat] of [[G.loom, G.wood], [G.handle, G.wood], [G.sleeve, G.leather], [G.blade, G.wood]]) {
+    const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.receiveShadow = true; g.add(m);
+  }
+  return g;
+}
+/** A pair of thole pins on the gunwale either side of an oar's pivot (hull space, side s). */
+function makeTholes(s) {
+  makeOar();
+  const g = new THREE.Group(); g.name = 'prop_tholes';
+  for (const dz of [-0.045, 0.045]) {
+    const m = new THREE.Mesh(OAR_GEO.pin, OAR_GEO.wood); m.castShadow = true;
+    m.position.set(s * OAR.pivot[0], OAR.gunwale - 0.01, OAR.pivot[2] + dz);
+    g.add(m);
+  }
+  return g;
+}
+
+const _ox = new THREE.Vector3(), _oy = new THREE.Vector3(), _oz = new THREE.Vector3(), _om = new THREE.Matrix4();
+/**
+ * Shipped (an empty boat): each oar lifted out of its pins and laid fore-and-aft over the thwarts along its side,
+ * handle aft, blade forward on edge — inside the hull from z −1.3 to 1.3 (the hull's inner half-breadth there is
+ * ≥ 0.43 at this height, rowboat.py stations). Hull space of the oar's pivot point and its +X (loom) axis.
+ */
+export const SHIPPED = Object.freeze({ x: 0.4, y: 0.425, z: -1.3 + OAR.inboard });
+const _shipQ = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+  new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 1, 0), new THREE.Vector3(-1, 0, 0)));
+const _sp = new THREE.Vector3(), _sq = new THREE.Quaternion();
+/**
+ * Pose an oar object (hull space, child of the hull group) at side s: sweep / pitch about its pivot, feathered; with
+ * `ship` > 0 blended toward its shipped place inside the boat (SHIPPED).
+ */
+export function setOar(obj, s, sweep, pitch, feather, ship = 0) {
+  const d = oarDir(s, sweep, pitch);
+  _ox.set(d[0], d[1], d[2]);
+  _oy.set(0, 1, 0).addScaledVector(_ox, -_ox.y).normalize();                 // square: blade face upright
+  _oz.crossVectors(_ox, _oy);
+  const f = feather * s;
+  _oy.multiplyScalar(Math.cos(f)).addScaledVector(_oz, Math.sin(f));          // feathered about the loom
+  _oz.crossVectors(_ox, _oy);
+  _om.makeBasis(_ox, _oy, _oz);
+  obj.quaternion.setFromRotationMatrix(_om);
+  obj.position.set(s * OAR.pivot[0], OAR.pivot[1], OAR.pivot[2]);
+  if (ship > 0.001) {
+    const k = smooth(ship);
+    _sp.set(s * SHIPPED.x, SHIPPED.y, SHIPPED.z);
+    // lifted on the way so it clears the gunwale: up by 0.25 m at mid-blend
+    obj.position.lerp(_sp, k).y += 0.25 * Math.sin(PI * k);
+    obj.quaternion.slerp(_sq.copy(_shipQ), k);
+  }
+  obj.updateMatrixWorld(true);
+}
+
 // ------------------------------------------------------------------ skeleton overlays
 
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _f = new THREE.Vector3(), _l = new THREE.Vector3(), _u = new THREE.Vector3();
 const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _m = new THREE.Matrix4(), _inv = new THREE.Matrix4();
 const SPINE = [['spine_01', 0.4], ['spine_02', 0.35], ['spine_03', 0.25]];
-const TOUCHED = ['spine_01', 'spine_02', 'spine_03', 'neck_01', 'Head', 'upperarm_l', 'lowerarm_l', 'hand_l', 'upperarm_r', 'lowerarm_r', 'hand_r'];
+const DIGITS = ['index', 'middle', 'ring', 'pinky', 'thumb'];
+const FINGER_BONES = [];
+for (const s of ['l', 'r']) for (const d of DIGITS) for (const j of ['01', '02', '03']) FINGER_BONES.push(`${d}_${j}_${s}`);
+const ARMS = ['spine_01', 'spine_02', 'spine_03', 'neck_01', 'Head', 'upperarm_l', 'lowerarm_l', 'hand_l', 'upperarm_r', 'lowerarm_r', 'hand_r', ...FINGER_BONES];
+const LEGS = ['thigh_l', 'calf_l', 'foot_l', 'thigh_r', 'calf_r', 'foot_r'];
+/**
+ * Palm-normal sign per hand (ca_ik handFrame: n = finger axis × knuckle line · sign), measured once per skeleton in
+ * the clip's pose: the thumb sits on the palm side of the knuckles. The UAL hands are mirror images (left +1, right
+ * −1 on the commandos' kits), the fallback when the thumb test is inconclusive.
+ */
+const PSIGN = new WeakMap();
+function palmSign(B) {
+  let ps = PSIGN.get(B);
+  if (ps) return ps;
+  ps = { l: 1, r: -1 };
+  for (const s of ['l', 'r']) {
+    if (!B['thumb_02_' + s] || !B['index_01_' + s] || !B['pinky_01_' + s]) continue;
+    const { n } = handFrame(B, s, 1);
+    const km = wpos(B['index_01_' + s]).lerp(wpos(B['pinky_01_' + s]), 0.5);
+    const d = n.dot(wpos(B['thumb_02_' + s]).sub(km));
+    if (Math.abs(d) > 0.006) ps[s] = d > 0 ? 1 : -1;
+  }
+  PSIGN.set(B, ps);
+  return ps;
+}
+/**
+ * Where a bar held in the fist runs (hand-bone frame): this far from the wrist toward the middle knuckle, this far
+ * out on the palm side — the oar handle / paddle shaft axis inside the closed fingers.
+ */
+export const GRIP = Object.freeze({ t: 0.82, off: 0.032 });
+/** Finger flexion per joint (rad) for a fist round a ~4 cm bar; the thumb's turn per joint (01, 02, 03) is capped by `thumb`. */
+export const CURL = { j: [1.2, 1.35, 0.85], thumb: [0.5, 0.7, 0.7] };
 
 /** Rotate bone b by `angle` about the WORLD axis `axis`. */
 function turnWorld(b, axis, angle) {
@@ -314,42 +464,171 @@ function frameAxes(root) {
   _f.set(0, 0, 1).applyQuaternion(_q); _l.set(1, 0, 0).applyQuaternion(_q); _u.set(0, 1, 0).applyQuaternion(_q);
 }
 
+/** Elbow pole of arm s: out to his side, down and back. */
+function elbowPole(B, s) {
+  const sg = s === 'l' ? 1 : -1;
+  return wpos(B['upperarm_' + s]).addScaledVector(_l, 0.5 * sg).addScaledVector(_u, -0.6).addScaledVector(_f, -0.2);
+}
+
+/** Shoulder → grip point reach of arm s, fully stretched (m). */
+function armReach(B, s) {
+  const a = wpos(B['upperarm_' + s]), b = wpos(B['lowerarm_' + s]), c = wpos(B['hand_' + s]);
+  return a.distanceTo(b) + b.distanceTo(c) + c.distanceTo(gripPoint(B, s));
+}
+
 /** Two-bone arm IK: hand `s` to world point p, elbow out to the side and down. */
 function arm(B, s, p) {
-  const sh = wpos(B['upperarm_' + s]), sg = s === 'l' ? 1 : -1;
-  twoBoneIKPole(B['upperarm_' + s], B['lowerarm_' + s], B['hand_' + s], p, sh.addScaledVector(_l, 0.5 * sg).addScaledVector(_u, -0.6).addScaledVector(_f, -0.2));
+  twoBoneIKPole(B['upperarm_' + s], B['lowerarm_' + s], B['hand_' + s], p, elbowPole(B, s));
+}
+
+/** The grip point of hand s (world): the axis of a bar held in its fist (GRIP). */
+export function gripPoint(B, s, out = new THREE.Vector3()) {
+  const { n } = handFrame(B, s, palmSign(B)[s]);
+  return out.copy(wpos(B['hand_' + s])).lerp(wpos(B['middle_01_' + s]), GRIP.t).addScaledVector(n, GRIP.off);
+}
+
+/**
+ * Close the fingers of hand s round a bar (k = 0 open as the clip has them … 1 a fist): the four fingers flexed toward
+ * the palm, the thumb wrapped over the bar (a short CCD bringing its tip against the bar on the fingers' side) when
+ * the bar (point g, axis a) is given.
+ */
+function curlFingers(B, s, k = 1, g = null, a = null) {
+  if (k <= 0.001 || !B['index_01_' + s]) return;
+  const { f, n } = handFrame(B, s, palmSign(B)[s]);
+  const ax = new THREE.Vector3().crossVectors(f, n).normalize();       // flexion turns the fingers toward the palm
+  for (const d of ['index', 'middle', 'ring', 'pinky']) CURL.j.forEach((an, i) => turnWorld(B[`${d}_0${i + 1}_${s}`], ax, an * k));
+  const tip = B['thumb_04_leaf_' + s] || B['thumb_03_' + s];
+  if (!g || !a || !tip || !B['thumb_01_' + s]) return;
+  for (let it = 0; it < 2; it++) {
+    for (const j of ['03', '02', '01']) {
+      const b = B[`thumb_${j}_${s}`]; if (!b || b === tip) continue;
+      const tp = wpos(tip), c = tp.clone().sub(g), on = g.clone().addScaledVector(a, c.dot(a));
+      const want = on.addScaledVector(n, -0.022);                       // against the bar, round on the fingers' side
+      const jp = wpos(b), from = tp.sub(jp), to = want.sub(jp);
+      if (from.lengthSq() < 1e-8 || to.lengthSq() < 1e-8) continue;
+      _q.setFromUnitVectors(from.normalize(), to.normalize());
+      const ang = 2 * Math.acos(clamp(_q.w, -1, 1));
+      if (ang < 1e-4) continue;
+      const lim = Math.min(ang, CURL.thumb[['01', '02', '03'].indexOf(j)] * 1.6) * k;
+      const axis = new THREE.Vector3(_q.x, _q.y, _q.z).normalize();
+      turnWorld(b, axis, lim);
+    }
+  }
+}
+
+/**
+ * Hand s round a bar: its grip point (GRIP) onto world point g, the bar along world axis a, the palm facing `pn`
+ * (made ⟂ a), the fingers across the bar on the side nearest the clip's and closed round it; elbow toward `pole`.
+ * w < 1 blends from the clip's hand (position, rotation, fingers). @returns {number} grip error (m)
+ */
+export function gripBar(B, s, g, a, pn, pole, w = 1, curl = true) {
+  const hand = B['hand_' + s];
+  const ps = palmSign(B)[s];
+  const n = pn.clone().addScaledVector(a, -pn.dot(a)).normalize();
+  const cur = handFrame(B, s, ps);
+  const fd = new THREE.Vector3().crossVectors(n, a).normalize();
+  if (fd.dot(cur.f) < 0) fd.negate();
+  let q = handQuat(B, s, ps, fd, n);
+  if (w < 0.999) q = wquat(hand).slerp(q, w);
+  const tgt = w < 0.999 ? gripPoint(B, s).lerp(g, w) : g.clone();
+  for (let i = 0; i < 2; i++) {
+    const off = gripPoint(B, s).sub(wpos(hand)).applyQuaternion(wquat(hand).invert()).applyQuaternion(q);
+    twoBoneIKPole(B['upperarm_' + s], B['lowerarm_' + s], hand, tgt.clone().sub(off), pole, q);
+  }
+  if (curl) curlFingers(B, s, w, tgt, a);
+  return gripPoint(B, s).distanceTo(tgt);
+}
+
+/**
+ * Seated legs on the hull: each ankle to its seat spot (`feet.l/r` hull space, blended by w from the clip), the knee
+ * bent up toward his front (or down onto the floor: `kneeL/R` 'down'), the foot turned as the clip holds it but
+ * pitched up when its toes would dip under the spot's `toe` height. @returns {boolean}
+ */
+export function fitLegs(m, hullObj, feet, w = 1, guard = null) {
+  const B = m.real?.inner?.bones;
+  if (!B?.thigh_l || !feet || w <= 0.001) return false;
+  for (const n of LEGS) if (B[n]) guard?.touch(B[n]);
+  const root = m._body?.() || m.root;
+  m.root.updateWorldMatrix(true, true); // the hull moved this frame: fresh matrices from the vehicle root down
+  frameAxes(root);
+  hullObj.updateWorldMatrix(true, false);
+  const up = _b.set(0, 1, 0).transformDirection(hullObj.matrixWorld).clone();
+  for (const s of ['l', 'r']) {
+    const spot = feet[s];
+    if (!spot) continue;
+    const foot = B['foot_' + s], keep = wquat(foot);
+    const want = hullObj.localToWorld(new THREE.Vector3(spot[0], spot[1], spot[2]));
+    const tgt = w < 0.999 ? wpos(foot).lerp(want, w) : want;
+    const down = feet['knee' + s.toUpperCase()] === 'down';
+    const knee = wpos(B['calf_' + s]);
+    const pole = down ? knee.addScaledVector(up, -0.5).addScaledVector(_f, 0.1) : knee.addScaledVector(up, 0.35).addScaledVector(_f, 0.35);
+    twoBoneIKPole(B['thigh_' + s], B['calf_' + s], foot, tgt, pole, keep);
+    const toeY = spot[3];
+    const toeB = B['ball_leaf_' + s] || B['ball_' + s];
+    if (toeY != null && toeB) {                                // toes clear of the floor / tube under them
+      const ank = hullObj.worldToLocal(wpos(foot)), toe = hullObj.worldToLocal(wpos(toeB));
+      const fv = toe.clone().sub(ank), len = fv.length();
+      if (toe.y < toeY && len > 0.02) {
+        const want = Math.asin(clamp((toeY - ank.y) / len, -1, 1)), now = Math.asin(clamp(fv.y / len, -1, 1));
+        const axW = wpos(toeB).sub(wpos(foot)).cross(up).normalize();
+        turnWorld(foot, axW, (want - now) * w);
+      }
+    }
+  }
+  return true;
 }
 
 /**
  * Write the paddling pose on the model's bones and place the paddle (root-local key P from paddlePose; w = weight of
- * the paddling arms over the clip's own — 0 while getting in). @returns {boolean} pose written
+ * the paddling arms over the clip's own — 0 while getting in). Both fists close on the paddle: the top hand round the
+ * T-grip, the lower hand round the shaft; the paddle is then laid through both grip points (the hands never slip off
+ * it, wherever the arm IK fell short). @returns {boolean} pose written
  */
 export function applyPaddlePose(m, P, paddle, guard, w = 1) {
   const B = m.real?.inner?.bones;
   if (!B || !B.hand_r || !B.hand_l || !B.upperarm_l || w <= 0.001) { if (paddle) paddle.visible = false; return false; }
-  for (const n of TOUCHED) if (B[n]) guard?.touch(B[n]);
+  for (const n of ARMS) if (B[n]) guard?.touch(B[n]);
   const root = m._body?.() || m.root;
-  m.root.updateMatrixWorld(true);
+  m.root.updateWorldMatrix(true, true); // the hull moved this frame: fresh matrices from the vehicle root down
   frameAxes(root);
   torso(B, P.bend * w, P.twist * w, P.lean * w);
   const G = root.localToWorld(new THREE.Vector3(...P.G)), Tt = root.localToWorld(new THREE.Vector3(...P.T));
   const dir = Tt.sub(G).normalize();
   const top = P.top || 'r', low = top === 'r' ? 'l' : 'r';
-  const lowP = G.clone().addScaledVector(dir, P.lowerAt ?? PADDLE.lower);
-  if (w >= 0.999) { arm(B, top, G); arm(B, low, lowP); }
-  else { // blend: IK toward the hands' current spots → keys
-    const pT = wpos(B['hand_' + top]).lerp(G, w), pL = wpos(B['hand_' + low]).lerp(lowP, w);
-    arm(B, top, pT); arm(B, low, pL);
+  const lowAt = P.lowerAt ?? PADDLE.lower;
+  // the paddle's frame: −Y along the shaft (grip → tip), +Z (blade face) toward his front, X along the T-grip
+  const frame = (d) => {
+    const y = d.clone().negate();
+    const z = _a.copy(_f).addScaledVector(y, -_f.dot(y));
+    if (z.lengthSq() < 1e-6) z.copy(_u).addScaledVector(y, -_u.dot(y));
+    z.normalize();
+    return { x: new THREE.Vector3().crossVectors(y, z).normalize(), y, z: z.clone() };
+  };
+  const F = frame(dir);
+  // top hand: palm down onto the T-grip (along the paddle's x), lower hand: palm toward the shaft from his side
+  gripBar(B, top, G, F.x, dir, elbowPole(B, top), w);
+  // the lower hand on the shaft: where the key puts it, else slid along the shaft to the nearest spot his arm
+  // reaches (the recovery swings the paddle high across him)
+  const shL = wpos(B['upperarm_' + low]);
+  const lowAtP = (at) => G.clone().addScaledVector(dir, at);
+  let at = lowAt, eLow = gripBar(B, low, lowAtP(at), dir, lowAtP(at).sub(shL), elbowPole(B, low), w, false);
+  if (eLow > 0.008 && w > 0.5) {
+    for (const d of [0.08, -0.08, 0.16, -0.16, 0.24, -0.24, 0.32, -0.3]) {
+      const a2 = clamp(lowAt + d, 0.16, 0.8);
+      const e2 = gripBar(B, low, lowAtP(a2), dir, lowAtP(a2).sub(shL), elbowPole(B, low), w, false);
+      if (e2 < eLow) { eLow = e2; at = a2; }
+      if (e2 < 0.008) break;
+    }
+    if (eLow > 0.008 || at !== lowAt) eLow = gripBar(B, low, lowAtP(at), dir, lowAtP(at).sub(shL), elbowPole(B, low), w, false);
   }
+  curlFingers(B, low, w, gripPoint(B, low), dir);
   if (paddle) {
     paddle.visible = w > 0.5;
-    // paddle frame: −Y along the shaft (grip → tip), +Z (blade face) toward his front
-    const y = dir.clone().negate();
-    let z = _a.copy(_f).addScaledVector(y, -_f.dot(y));
-    if (z.lengthSq() < 1e-6) z = _a.copy(_u).addScaledVector(y, -_u.dot(y));
-    z.normalize();
-    const x = new THREE.Vector3().crossVectors(y, z).normalize();
-    _m.makeBasis(x, y, z).setPosition(wpos(B['hand_' + top]).lerp(wpos(B['middle_01_' + top] || B['hand_' + top]), 0.5));
+    const gt = gripPoint(B, top), gl = gripPoint(B, low);
+    const d2 = gl.clone().sub(gt);
+    const dd = d2.length() > 0.08 && d2.dot(dir) > 0 ? d2.normalize() : dir;   // through both fists
+    const F2 = frame(dd);
+    _m.makeBasis(F2.x, F2.y, F2.z).setPosition(gt);
     _inv.copy(paddle.parent.matrixWorld).invert();
     _m.premultiply(_inv);
     _m.decompose(paddle.position, paddle.quaternion, paddle.scale);
@@ -359,28 +638,69 @@ export function applyPaddlePose(m, P, paddle, guard, w = 1) {
 }
 
 /**
- * Oarsman: hands on the two looms (world points), lean `bend` toward his front (the stern). @returns {boolean}
+ * Oarsman: torso lean `bend` toward his front (the stern), a fist round each oar's handle — `oars` [{s, key, obj}]
+ * (side +1 port / −1 starboard, the oar key, its object) in the hull group `hullObj`; with the hands on (w ≈ 1) each
+ * oar is then laid from its pivot through the fist that holds it. @returns {{err:number, hand:object}|null}
  */
-export function applyRowPose(m, hands, bend, guard) {
+export function applyRowPose(m, hullObj, oars, bend, guard, w = 1) {
   const B = m.real?.inner?.bones;
-  if (!B || !B.hand_r || !B.hand_l || !B.upperarm_l || !hands) return false;
-  for (const n of TOUCHED) if (B[n]) guard?.touch(B[n]);
+  if (!B || !B.hand_r || !B.hand_l || !B.upperarm_l || !oars || w <= 0.001) return null;
+  for (const n of ARMS) if (B[n]) guard?.touch(B[n]);
   const root = m._body?.() || m.root;
-  m.root.updateMatrixWorld(true);
+  m.root.updateWorldMatrix(true, true); // the hull moved this frame: fresh matrices from the vehicle root down
   frameAxes(root);
-  torso(B, bend, 0, 0);
-  arm(B, 'l', hands.l); arm(B, 'r', hands.r);
-  return true;
+  hullObj.updateWorldMatrix(true, false);
+  // which fist holds which oar: the hand on that side of the boat (he faces aft: his right on the port oar)
+  const xr = hullObj.worldToLocal(wpos(B.upperarm_r)).x, xl = hullObj.worldToLocal(wpos(B.upperarm_l)).x;
+  const handOf = (s) => ((xr > xl) === (s > 0) ? 'r' : 'l');
+  torso(B, bend * w, 0, 0);
+  const down = _b.set(0, -1, 0).transformDirection(hullObj.matrixWorld).clone();
+  let err = 0;
+  const hand = {};
+  for (const o of oars) {
+    const h = handOf(o.s), P = oarPoints(o.s, o.key.sweep, o.key.pitch);
+    const g = hullObj.localToWorld(new THREE.Vector3(...P.hand));
+    const a = new THREE.Vector3(...P.dir).transformDirection(hullObj.matrixWorld);
+    const pn = down.clone().multiplyScalar(0.85).addScaledVector(_f, 0.35);   // overhand: palm down onto the loom
+    o.err = gripBar(B, h, g, a, pn, elbowPole(B, h), w);
+    err = Math.max(err, o.err);
+    hand[o.s] = h;
+    if (w > 0.98 && o.obj) {                                                    // the oar through his fist
+      const q = hullObj.worldToLocal(gripPoint(B, h));
+      const ang = oarAnglesThrough(o.s, [q.x, q.y, q.z]);
+      setOar(o.obj, o.s, ang.sweep, ang.pitch, o.key.feather);
+      o.reach = ang.reach;
+    }
+  }
+  return { err, hand };
 }
 
 // ------------------------------------------------------------------ the crew
 
 const HIP_ABOVE_SEAT = 0.1;
 const _v = new THREE.Vector3(), _w = new THREE.Vector3();
-/** Handle end of an oar (oar node local, starboard oar; mirrored x for port). */
-const OAR_HANDLE = [0.78, 0.29, -0.06];
-/** Shipped starboard paddle (raft): turned in along the tube (blade forward) and levelled. */
-const SHIPPED = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 1.4, -0.56, 'YXZ'));
+/**
+ * The raft's starboard paddle stowed (raft.py: the paddle node pivots at its rowlock, its shaft along d from the
+ * T-grip end 0.55 inboard to the tip 1.05 outboard, the blade flat): lifted out of the rowlock and laid along the
+ * crown of the starboard tube, T-grip aft, blade forward — inside the boat, clear of the paddler's strokes.
+ */
+export const STOW = (() => {
+  const piv = new THREE.Vector3(-0.6, 0.32, -0.55);
+  const d0 = new THREE.Vector3(-0.85, -0.42, -0.30).normalize();          // rest shaft, T-grip → tip
+  const grip0 = d0.clone().multiplyScalar(-0.55);                           // node-local T-grip end
+  const A = new THREE.Vector3(-0.37, 0.337, -0.9), Bp = new THREE.Vector3(-0.38, 0.337, 0.7);
+  const d1 = Bp.clone().sub(A).normalize();
+  const q1 = new THREE.Quaternion().setFromUnitVectors(d0, d1);
+  const up = new THREE.Vector3(0, 1, 0);
+  const n0 = up.clone().addScaledVector(d0, -d0.y).normalize().applyQuaternion(q1); // the blade face normal, carried
+  const n1 = up.clone().addScaledVector(d1, -d1.y).normalize();                     // … rolled to lie flat
+  const roll = Math.atan2(new THREE.Vector3().crossVectors(n0, n1).dot(d1), n0.dot(n1));
+  const q = new THREE.Quaternion().setFromAxisAngle(d1, roll).multiply(q1);
+  const off = A.clone().sub(piv).sub(grip0.clone().applyQuaternion(q));
+  /** where a node-local point of the paddle ends up, stowed (hull space) */
+  const at = (local) => new THREE.Vector3(...local).applyQuaternion(q).add(piv).add(off);
+  return { q, off, d0, at };
+})();
 
 /**
  * Boat crew figures for a vehicle (or null when there is nothing to draw: no seats, library model missing).
@@ -399,8 +719,15 @@ export function createBoatCrew(v, deps) {
   if (model.libType === 'raft') { hull.l = 2.7; hull.w = 1.3; } // the sidecar's measured box includes the shipped paddles
   const figs = new Map(); // unit → figure (aboard, or stepping out)
   let seats = new Map();
-  const rig = { paddleT: 0, rowT: 0, act: 0, lastH: v.heading, yawRate: 0, takenL: false, shipped: false };
+  const rig = { paddleT: 0, rowT: 0, act: 0, lastH: v.heading, yawRate: 0, takenL: false, rowAct: 0, hold: 0, ship: null };
   const open0 = !v.driveable || !(v.def.operators || []).length;
+  // the rowboat's oars: ours (between the thole pins aft of the oarsman), the model's own pair hidden
+  const oars = model.libType === 'rowboat' && vis.parts?.oar_r ? [1, -1].map((s) => {
+    const obj = makeOar(); obj.name = s > 0 ? 'oar_port' : 'oar_starboard';
+    group.add(obj); group.add(makeTholes(s));
+    return { s, obj, key: { ...TRAIL } };
+  }) : null;
+  if (oars) { vis.showPart?.('oar_l', false); vis.showPart?.('oar_r', false); }
 
   const toLocal = (x, y, z) => { vis.object3d.updateWorldMatrix(true, false); return vis.object3d.worldToLocal(_v.set(x, y, z)).clone(); };
   const groundAt = (x, z) => v.world?.groundY?.(x, z) ?? 0;
@@ -449,11 +776,11 @@ export function createBoatCrew(v, deps) {
     const m = deps.createUnitModel(deps.lookOf(u));
     if (!m.isReal) { m.dispose?.(); return null; }
     const s = layout.seats[k];
-    const f = { u, k, m, pose: s.pose, clip: null, mode: 'root', floor: s.pose === 'stand' ? s.p[1] : layout.rim > 0.6 ? 0.05 : 0.02,
+    const f = { u, k, m, pose: s.pose, clip: null, mode: 'root', floor: s.pose === 'stand' ? s.p[1] : layout.rim > 0.45 ? 0.05 : 0.02,
       tr: null, place: null, t: 0, ready: false, clipNow: null, yaw: s.yaw || 0, out: false, paddle: null };
     m.root.visible = false;
     group.add(m.root);
-    // a boat figure always carries an overlay: weapons stay stowed (unit-model _wantWeapon), arms paddle / row
+    // a boat figure always carries an overlay: weapons stay stowed (unit-model _wantWeapon), legs fitted, arms paddle / row
     m.overlay = (mm, dt, guard) => overlay(f, guard);
     const bf = u.boardFrom, now = v.world?.time ?? 0;
     f.from = bf && now - bf.t < 1.5 && now > 0.5 && !u.downed && Math.hypot(bf.x - v.x, bf.z - v.z) < 6 ? { ...bf } : null;
@@ -523,7 +850,7 @@ export function createBoatCrew(v, deps) {
     const moving = (v.speed || 0) > 0.15 || !!w?.moving;
     const turning = !moving && Math.abs(rig.yawRate) > 0.5;
     rig.act = clamp(rig.act + (moving || turning ? 1 : -1) * dt / 0.35, 0, 1);
-    if (w && moving) return { u: w.t / w.period, s: -(w.side || 1), same: false }; // wake side +1 = boat's right = his −x
+    if (w && moving && !w.oars) return { u: w.t / w.period, s: -(w.side || 1), same: false }; // wake side +1 = boat's right = his −x
     rig.paddleT += dt;
     const per = 0.9 * (turning ? 0.85 : 1);
     // pivoting: forward strokes on the outside of the turn (heading increasing = turning right → stroke on his left)
@@ -531,40 +858,68 @@ export function createBoatCrew(v, deps) {
     return { u: (rig.paddleT % per) / per, s, same: turning };
   }
 
+  /** Weight of a seated pose over the clip: 0 walking in / out, rising to 1 as he sits down (or falling as he rises). */
+  function seatW(f) {
+    const tr = f.tr;
+    if (!tr) return 1;
+    if (tr.dir === 'in') return smooth((tr.t - tr.P.t1 - tr.P.t2) / tr.P.t3);
+    if (tr.dir === 'out') return 1 - smooth(tr.t / 0.25);
+    return 1;
+  }
+
   function overlay(f, guard) {
     if (!f.ready) return false;
+    const s = layout.seats[f.k];
+    if (f.m.real?.inner?.bones) palmSign(f.m.real.inner.bones); // read off the clip's own hands, before any write
+    const w = seatW(f);
+    let on = false;
+    if (s.feet) on = fitLegs(f.m, vis.object3d, s.feet, w, guard) || on;
     if (f.pose === 'paddle' && f.u === v.driver) {
-      const w = f.tr ? (f.tr.dir === 'in' ? smooth((f.tr.t - f.tr.P.t1 - f.tr.P.t2) / f.tr.P.t3) : f.tr.dir === 'out' ? 1 - smooth(f.tr.t / 0.25) : 1) : 1;
       if (w > 0.5 && !f.paddle) { f.paddle = makePaddle(); group.add(f.paddle); }
       const P = paddlePose(rig.st?.u ?? 0, rig.st?.s ?? 1, rig.st?.same ?? false, rig.act);
       // his slung harpoon gun is laid in the boat while he paddles (the kneeling clip would shoulder it)
       if (w > 0.5) f.m.root.traverse((o) => { if (o.isMesh && /^weapon_/.test(o.name) && o.visible) o.visible = false; });
-      return applyPaddlePose(f.m, P, f.paddle, guard, w);
+      on = applyPaddlePose(f.m, P, f.paddle, guard, w) || on;
     }
-    if (f.pose === 'row' && f.u === v.driver && rig.hands && !f.tr) return applyRowPose(f.m, rig.hands, rig.rowBend ?? 0.1, guard);
-    return false;
+    if (f.pose === 'row' && f.u === v.driver && oars && rig.hold > 0.001 && !f.out) {
+      for (const o of oars) o.key = rig.keys[o.s];
+      const r = applyRowPose(f.m, vis.object3d, oars, rig.bend, guard, Math.min(w, smooth(rig.hold)));
+      if (r) { rig.gripErr = r.err; rig.hands = r.hand; on = true; }
+    }
+    return on;
   }
 
-  /** Paddles in their rowlocks, oars: the paddle he holds leaves its lock, the other is shipped; the oars row. */
+  /**
+   * Paddles in their rowlocks (the paddle he holds leaves its lock, the other is stowed along the tube); the oars:
+   * rowing / held / trailing, posed from the keys (the oarsman's overlay then lays each through his fist).
+   */
   function boatParts(dt) {
     const pf = [...figs.values()].find((f) => f.pose === 'paddle' && f.u === v.driver && !f.out && f.paddle?.visible);
     const takeL = !!pf;
-    if (takeL !== rig.takenL) { rig.takenL = takeL; vis.showPart?.('paddle_l', !takeL); vis.posePart?.('paddle_r', takeL ? SHIPPED : null); }
+    if (takeL !== rig.takenL) {
+      rig.takenL = takeL; vis.showPart?.('paddle_l', !takeL);
+      vis.posePart?.('paddle_r', takeL ? STOW.q : null, takeL ? STOW.off : null);
+    }
+    if (!oars) return;
     const rf = [...figs.values()].find((f) => f.pose === 'row' && f.u === v.driver && !f.out);
-    if (!rf || !vis.parts?.oar_r) { if (rig.oars) { vis.posePart?.('oar_r', null); vis.posePart?.('oar_l', null); rig.oars = false; } rig.hands = null; return; }
-    const moving = (v.speed || 0) > 0.15;
-    rig.rowAct = clamp((rig.rowAct || 0) + (moving ? 1 : -1) * dt / 0.4, 0, 1);
-    if (moving || rig.rowAct > 0) rig.rowT += dt;
-    const k = rowKey(rig.rowT / 1.8), a = smooth(rig.rowAct);
-    const sweep = k.sweep * a, lift = k.lift * a;
-    // starboard oar: + yaw swings the blade forward (handle aft); + z-roll lifts the blade (port mirrored)
-    vis.posePart?.('oar_r', _q.setFromEuler(new THREE.Euler(0, sweep, -lift, 'YXZ')));
-    vis.posePart?.('oar_l', _q.setFromEuler(new THREE.Euler(0, -sweep, lift, 'YXZ')));
-    rig.oars = true;
-    rig.rowBend = lerp(0.1, k.bend, a);
-    const P = vis.parts;
-    P.oar_r.updateWorldMatrix(true, false); P.oar_l.updateWorldMatrix(true, false);
-    rig.hands = { r: P.oar_r.localToWorld(new THREE.Vector3(...OAR_HANDLE)), l: P.oar_l.localToWorld(new THREE.Vector3(-OAR_HANDLE[0], OAR_HANDLE[1], OAR_HANDLE[2])) };
+    const seated = !!rf && rf.ready && !rf.tr;
+    rig.hold = clamp(rig.hold + (seated ? 1 : -1) * dt / 0.5, 0, 1);
+    // nobody aboard: the oars are shipped inside; men aboard but nobody at the oars: they trail alongside
+    const empty = !figs.size && !(v.occupants || []).length;
+    rig.ship = clamp((rig.ship ?? (empty ? 1 : 0)) + (empty ? 1 : -1) * dt / 0.7, 0, 1);
+    const w = v.world?.water?.wakes?.strokeOf?.(v);
+    const moving = seated && ((v.speed || 0) > 0.15 || !!w?.moving);
+    const pivot = seated && !moving && Math.abs(rig.yawRate) > 0.3;
+    rig.rowAct = clamp(rig.rowAct + (moving || pivot ? 1 : -1) * dt / 0.4, 0, 1);
+    rig.moving = moving; rig.pivot = pivot;
+    let u;
+    if (moving && w?.oars) { u = w.u; rig.rowT = u * 1.6; } // the wake's stroke clock: both blades ring out at its catch
+    else { if (rig.rowAct > 0) rig.rowT += dt; u = (rig.rowT / 1.6) % 1; }
+    const turn = clamp(rig.yawRate / 0.8, -1, 1);
+    rig.keys = oarKeys(u, { act: rig.rowAct, hold: rig.hold, turn: moving || pivot ? turn : 0, pivot });
+    rig.bend = rig.keys.bend;
+    rig.u = u;
+    for (const o of oars) { o.key = rig.keys[o.s]; setOar(o.obj, o.s, o.key.sweep, o.key.pitch, o.key.feather, rig.ship); }
   }
 
   function step(f, dt) {
@@ -618,9 +973,15 @@ export function createBoatCrew(v, deps) {
     figures: [],
     occupants: figs,
     seats: () => seats,
+    /** The rowboat's oars ({s, obj, key, reach}) and the rig state (keys, hold, rowAct, u, gripErr, hands) — tests. */
+    oars,
+    rig,
     update(dt) {
       if (v.destroyed) { for (const f of [...figs.values()]) drop(f); group.visible = false; return; }
-      if (dt > 0) { const dh = wrapPi((v.heading ?? 0) - rig.lastH); rig.lastH = v.heading ?? 0; rig.yawRate += (dh / dt - rig.yawRate) * Math.min(1, dt * 8); }
+      // the turn rate per SIM second (a display frame without a sim tick tells nothing: high refresh rates, tests)
+      const now = v.world?.time, sdt = now != null && rig.lastT != null ? now - rig.lastT : dt;
+      if (sdt > 0) { const dh = wrapPi((v.heading ?? 0) - rig.lastH); rig.lastH = v.heading ?? 0; rig.yawRate += (dh / sdt - rig.yawRate) * Math.min(1, sdt * 8); }
+      if (now != null) rig.lastT = now;
       sync();
       rig.st = stroke(dt);
       boatParts(dt);
@@ -628,6 +989,7 @@ export function createBoatCrew(v, deps) {
     },
     dispose() {
       for (const f of [...figs.values()]) drop(f);
+      if (oars) { vis.showPart?.('oar_l', true); vis.showPart?.('oar_r', true); }
       group.removeFromParent();
     },
   };

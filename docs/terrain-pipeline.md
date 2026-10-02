@@ -75,6 +75,12 @@ The pass then renders without a scene override and restores the materials. As a 
 ### 2.3 Water against undulating ground (must-fix 3)
 - **Carving.** The heightfield is carved from the grid: deep water to −1.2 m and shallows to −0.35 m, tested with
   a 4-tap cell test at ±0.3 m so banks slope instead of stepping.
+- **Continuous shorelines (game integration, 2026-09-30).** In the game, the carve (`carveDepth`) reads
+  the shore field from `src/world/shore-field.js` instead of the cells. That field is a 0.25 m signed distance
+  built from the mission's smoothed water shapes: river ribbons with per-point widths, smoothed lake and fjord
+  outlines, and circles (the M2 islets are authored as lobed outlines), with a gentle ±0.25 m noise. The same field drives the apron carve, the splat's
+  wet and deep lines, and the water's shore distance (ice rim, contact foam). Banks are smooth curves instead of the
+  0.5 m staircase or the octagons left by the chamfer distance. See `docs/water-pipeline.md` §10, "Banks".
 - **Snow theatre.** Water cells become a flat ice sheet (−0.06 m with a 2 % residual undulation) drawn by the terrain
   ice shader, so no water plane can clip through the ground.
 - **The stub water plane is replaced.** The demo uses the final water system
@@ -87,7 +93,9 @@ The pass then renders without a scene override and restores the materials. As a 
 - **Feathered, noise-thresholded masks.** A "not base ground" indicator is box-blurred over 1.5 m. The splat
   blends from the patch or road rules into the theatre's base rules by
   `smoothstep(0.25, 0.85, feather + 2.2·edgeNoise)`. Borders become irregular transition zones instead of discs
-  with smooth edges. Water and shallows are never feathered, so they stay aligned with the water mask.
+  with smooth edges. Water and shallows are never feathered, so they stay aligned with the water mask. With the shore
+  field (`opts.shore`), the wet code and the shallow/deep line come from the field rather than from the cells. In
+  that case non-snow theatres get a damp wet-sand or mud band within 0.8 m of the drawn shore.
 - **Rules with fractal thresholds.** Every mask threshold gets an `edgeN` perturbation (2.3 m fBm plus 0.6 m value
   noise), and sand and snow get wind-aligned streak noise. Dark rock outcrops are rare and broken up. Desert
   hardpan is pale dirt with a gravel lag and tongues of drifted sand. Snow `GROUND` is wind-scoured snow with grass

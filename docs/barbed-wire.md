@@ -887,3 +887,59 @@ inside the noise of the shared GPU (±1 ms).
 **Not done / follow-ups.** Icicles and dust grooves (`ultra`); a trampled-ground strip under belts; the hum loop;
 tank flattening (`flattenRun`); the clip audit does not see the wire layer (fence structures now have empty
 visuals); feat/missions hints (`wire: 'knife_rest'` for M4; `hedgehogEvery` for M10) still to add on that branch.
+
+---
+
+## 12. M4–M20 wire pass (feat/barbed-wire-m4-20)
+
+The missions' own wire (M4 knife rests, M6 belts, M7/M9/M10 copings, M8/M10 aprons, M11 triple concertina, M14
+Atlantic-Wall belts, M15 knife rests, M16/M18 hedgehog belts, M17 cage) already drew through the alias table and
+`art/wire-missions.js`. This pass **adds** wire where the original maps have it and the missions did not, and where
+period practice puts it. Each mission file carries a `WIRE_PASS` list (structure ids `wx_*`, `fence`, `B.FENCE`).
+
+| Mission | Added | Why |
+|---|---|---|
+| M4 | `wx_mg_x` concertina arc in front of the crossing MG nest | wire covered by the gun |
+| M7 | `wx_mg_ne` in front of the NE MG nest; `wx_gun22` round the W gun pit (map-edge side) | |
+| M8 | `wx_wadi_e` double apron on the wadi's E bank (x ≈ 96) | dossier §5.6 `wire_wadi` (the W bank was there) |
+| M9 | `wx_mines` one strand on 0.9 m stakes along z 118.6, behind the *Achtung Minen* boards | dossier §5.1 minefield edge |
+| M10 | `wx_mg_3` in front of MG 3 on the road | |
+| M11 | `wx_mg_e` in front of the E MG pit | |
+| M13 | `wx_mole_sw` (by the pier gun) and `wx_mole_nw` concertina on the outer faces of the moles | harbour wire; no ramp, no post there |
+| M14 | `wx_mg1`, `wx_mg4`, `wx_mg5` in front of three MG nests | |
+| M18 | `wx_mg_w`, `wx_mg_isl` (rimed by the frost palette) | |
+| M20 | `wx_atgun` in front of the anti-tank gun | |
+
+Arcs are 4–4.5 m from the nest centre, ±30–50° about the nest's `rot` (the closed side of its sandbag ring), so the
+crew's way in stays open. `fieldFence` takes `strands` (1 = a minefield marking line, the strand 12 cm under the
+stake tops).
+
+**Rules (enforced by `tests/unit/wire-placements.test.mjs`, helper `tests/unit/wire-check.mjs`).** Each map is built
+grid-only with and without its `wx_*` runs. Every enemy route leg, barracks squad leg, vehicle route leg, the escape
+vehicle's drive to its exit and every commando start → enemy / vehicle / objective approach must stay walkable and
+no more than 1 m longer. No added wire cell within 1 m of a spawn, route point, commando start or vehicle, or within
+~2 m of an explosive / carriable / interactable item; no added run within 1.8 m (+ trunk radius) of a tree; never on
+a raised deck (`grid.elev`: the elevation pass would clear its cells, and the layer draws on the terrain); a straight
+walk across any added run (±0.8 m, every 0.25 m) never gets through (the GPU enclosure test's nav rule: the first M4
+arc ended on a cell a diagonal walk slipped past). With the
+meshes built, every added run is drawn, its ground-level wire (every coil / strand path point below 2 m) stays out
+of every other structure's solid cell, tall (`B.HIGH`) or low (`B.LOW`: sandbags, hedgehogs, bridge parapets, ravine
+rims), read on the grid built *without* the added runs (their own fence stamp overwrites the cells they cross: the
+first M18 island coil ran its last loops through `sandbags_isl` and the old B.HIGH-only check missed it; the M8
+`wx_wadi_e` stakes, which leaned over the `wadi_n` rim and touched the bridge approach, and the M10 `wx_mg_3` end at
+hedgehog `hh_e7` were pulled clear by the same check). Touching another wire run's cells is allowed. The layer stays in the
+§7 budget (< 200 k ribbon triangles, ≤ 40 draw objects, < 150 ms build).
+
+**Tried and dropped (screenshots or checks).** M4 pier nest (under the pines), M5 radar (the summit is a raised
+deck), M7 E gun pit (down the quay slope), M8 SW pillbox (crossed `wire_s`), M11 mesa rim (under the raised mesa
+visual), M13 S jetty (beside the explosive barrels), M14 mg2 (cut to 2 m against casemate g2) and mg3 (the N
+barracks squad runs past it), M16/M18 pillboxes (under the truss bridge), M17 pillbox and M19 nests (the arcs land on
+the river bank and water). M5, M12, M15, M16, M17 and M19 get nothing new.
+
+**Budget.** Layer stats after the pass (Node build, barbs deferred): M4 2 runs / 7.5 k tris, M7 11 / 26.5 k,
+M8 5 / 11.3 k, M9 9 / 32.6 k, M10 19 / 34.0 k, M11 2 / 17.1 k, M13 2 / 3.2 k, M14 17 / 19.3 k, M18 6 / 13.9 k,
+M20 1 / 0.6 k; ≤ 16 draw objects everywhere. M10 stays the largest map (unchanged but for one 7 m coil).
+
+**Not done.** M19's plank palisade (`palisade_plank`, "planks topped with wire" in the dossier) still draws the
+props.js placeholder and has no coping: the coping needs a plank-palisade renderer, and the barbed-wire unit test
+pins `palisade_plank` as not-wire. Nests on river banks (M16, M17, M19) would need wire bent along the bank.

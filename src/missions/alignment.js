@@ -122,6 +122,12 @@ function polyArea(P) {
 // ---------------------------------------------------------------------------------------------- references
 
 const isWallType = (t) => WALL_TYPES.includes(t);
+/**
+ * Fence variants that are field obstacles, not site lines: a concertina coil is thrown in an arc around a nest or
+ * across a gap (the wire pass, barbed-wire.md §12), so nothing is built parallel to it and it is never a reference.
+ */
+export const OBSTACLE_FENCE_VARIANTS = Object.freeze(['concertina']);
+const isReferenceWall = (s) => isWallType(s.type) && !OBSTACLE_FENCE_VARIANTS.includes(s.variant);
 
 /**
  * Wall/fence polylines of a mission: structure `points` / `segments`, rect-shaped wall props (long axis), and
@@ -131,7 +137,7 @@ const isWallType = (t) => WALL_TYPES.includes(t);
 export function wallPolylines(def) {
   const out = [];
   (def.structures || []).forEach((s, i) => {
-    if (!s || !isWallType(s.type)) return;
+    if (!s || !isReferenceWall(s)) return;
     const id = s.id ?? `${s.type}#${i}`;
     if (Array.isArray(s.segments)) for (const seg of s.segments) { if (seg.length > 1) out.push({ id, pts: seg.map(pt) }); }
     else if (Array.isArray(s.points) && s.points.length > 1) out.push({ id, pts: s.points.map(pt) });

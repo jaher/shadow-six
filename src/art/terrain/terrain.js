@@ -236,8 +236,10 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
   // (buildFlatMask), and carve liquid water even in the snow theatre unless the mission's water is frozen
   const frozen = src === 'snow' && !!opts.frozenWater;
   const flatAt = opts.flatMask ? sampleCells(opts.flatMask, grid) : null;
-  const wetAt = sampleCells(cellSignedDistance(grid, (t) => t === 5 || t === 6), grid);
-  const deepAt = sampleCells(cellSignedDistance(grid, (t) => t === 5), grid);
+  // banks follow the continuous shore field (world/shore-field.js: smooth mission shapes, sub-cell) when given,
+  // else the bilinear cell signed distance
+  const wetAt = opts.shore ? opts.shore.wetAt : sampleCells(cellSignedDistance(grid, (t) => t === 5 || t === 6), grid);
+  const deepAt = opts.shore ? opts.shore.deepAt : sampleCells(cellSignedDistance(grid, (t) => t === 5), grid);
   const depths = frozen ? ICE_DEPTH : WATER_DEPTH;
   // docs/vegetation.md §3.2: desert scrub is planned before the heightfield so each plant's nebkha (sand mound with a
   // downwind tail) is real terrain: the plant sits in the ground, units walk over it, shadows fall on it

@@ -21,7 +21,9 @@ export default async function view(page, t) {
       g.centerOn(x, y);
       g.render();
       const fp = cc.groundFootprint(0);
-      out.corners.push({ z, yaw, over: cc.clampOvershoot(), fp: fp.map((p) => [+p.x.toFixed(2), +p.z.toFixed(2)]) });
+      // the HUD top bar's depth on the ground (m): at yaw 0 the north limit lets the view reach exactly this far further
+      const bar = Math.min(cc.hudTop || 0, cc.height * 0.5) / cc.pxPerMeter() / (Math.sin(cc.elevation) || 1);
+      out.corners.push({ z, yaw, bar, over: cc.clampOvershoot(), fp: fp.map((p) => [+p.x.toFixed(2), +p.z.toFixed(2)]) });
       // shadow camera must contain every screen-corner hit at y=0 and y=H
       const cam = R.sun.shadow.camera;
       cam.updateMatrixWorld();
@@ -48,8 +50,9 @@ export default async function view(page, t) {
   t.log(JSON.stringify({ stats: r.stats, shadow: r.shadow, cones: r.conesAfter }));
   for (const c of r.corners) {
     // design-spec §2.3: the view may show up to boundsMargin (4 m) beyond the map edge; with yaw the slanted view
-    // corners may overshoot by clampOvershoot() so every map point stays reachable (0 at yaw 0)
-    if (c.yaw === 0) t.equal(c.over, 0, 'yaw 0: no overshoot');
+    // corners may overshoot by clampOvershoot() so every map point stays reachable. At yaw 0 that is 0 without a HUD
+    // top bar and exactly the bar's ground depth with one (the ground under the bar is drawn, §2.3)
+    if (c.yaw === 0) t(Math.abs(c.over - c.bar) < 1e-6, `yaw 0 zoom ${c.z}: overshoot ${c.over} = the HUD bar's depth ${c.bar}`);
     const eps = 0.05 + r.margin + c.over;
     for (const [x, z] of c.fp) {
       t(x >= -eps && x <= r.W + eps && z >= -eps && z <= r.D + eps, `yaw ${c.yaw} zoom ${c.z}: corner (${x},${z}) within ${r.margin} m (+${c.over.toFixed(1)}) of the ${r.W}x${r.D} map`);

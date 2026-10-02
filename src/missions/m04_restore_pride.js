@@ -451,6 +451,14 @@ export const timeBombLeft = (w) => w.commandos.some((c) => c.alive !== false && 
     || (i.interactKind === 'bomb' && i.bombKind === 'time' && !i.exploded && !i.removed));
 
 // ---------------------------------------------------------------- the mission
+// ---------------------------------------------------------------- barbed wire (docs/barbed-wire.md §12)
+/** The M4–M20 wire pass: see-through, uncrossable (B.FENCE) runs added where the wire belongs; none crosses a route
+ *  or lengthens an approach (tests/unit/wire-placements.test.mjs). Drawn by the map's wire layer (art/wire-obstacles.js). */
+const WIRE_PASS = [
+  // a concertina in front of the crossing MG nest
+  { id: 'wx_mg_x', type: 'fence', variant: 'concertina', points: [[146.4, 86.1], [145.5, 87.4], [144.2, 88.3], [142.7, 88.7], [141.1, 88.5], [140.1, 88.1]], h: 1.2 },
+];
+
 export default {
   id: 'm04',
   campaign: 'BEL',
@@ -485,7 +493,7 @@ export default {
     // demolition marker for o1: the time bomb must go off on the villa's front steps
     { id: 'villa_steps', x: STEPS.x, z: STEPS.z, r: 3, target: 'villa' },
   ],
-  structures: STRUCTURES,
+  structures: [...STRUCTURES, ...WIRE_PASS],
   items: [],
   interactables: INTERACTABLES,
   vehicles: VEHICLES,

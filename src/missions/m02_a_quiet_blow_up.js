@@ -31,6 +31,21 @@ const DZ = 16;
 const Q = (x, z, wait = 0, look = null) => P(x, z + DZ, wait, look); // a SW-bank waypoint (old coordinates + DZ)
 
 /**
+ * Islet outline (user request 2026-09-30 "make the edges of the shore more smooth and less polygonal"; review: the
+ * islets read as perfect circles): 24 points on r(θ) = r·(1 + 0.12 sin(2θ + a) + 0.035 sin(3θ + b)),
+ * a lobed, natural outline the shore field smooths further. The long axis runs N–S (along the view: the 45° camera
+ * foreshortens it, so no lobe reads as a sharp tip) and the rocks' side (θ ≈ 115–185°) stays ≥ 0.87 r.
+ */
+function islet(x, z, r, a, b) {
+  const out = [];
+  for (let k = 0; k < 24; k++) {
+    const t = (k / 24) * 2 * Math.PI, q = r * (1 + 0.12 * Math.sin(2 * t + a) + 0.035 * Math.sin(3 * t + b));
+    out.push([+(x + q * Math.cos(t)).toFixed(2), +(z + q * Math.sin(t)).toFixed(2)]);
+  }
+  return out;
+}
+
+/**
  * T1 river with natural banks: a Catmull-Rom curve through the old 12 m river's centreline (plus map-edge
  * extensions), sampled every ~4 m. NE (camp) bank = the old NE edge (centre − 6 m), only ever nudged INTO the
  * water (≤ 0.9 m, so nothing on the camp side gets closer to it); SW bank = NE bank + width(s): 24 m ± ~15–20%
@@ -60,10 +75,19 @@ function riverPath() {
     const [s0, w0] = WK[j], [s1, w1] = WK[Math.min(WK.length - 1, j + 1)], u = s1 > s0 ? Math.min(1, (s - s0) / (s1 - s0)) : 0;
     const w = w0 + (w1 - w0) * (1 - Math.cos(Math.PI * u)) / 2 + 1.0 * Math.sin(s / 6.7 + 2.1);
     const off = -6 + nudge + (w - nudge) / 2; // centre offset along n from the old centreline
-    points.push([+(c[k][0] + nx * off).toFixed(2), +(c[k][1] + nz * off).toFixed(2)]);
-    widths.push(+(w - nudge).toFixed(2));
+    points.push([c[k][0] + nx * off, c[k][1] + nz * off]);
+    widths.push(w - nudge);
   }
-  return { points, widths };
+  // two [1 2 1]/4 passes: the offset of the Catmull-Rom has curvature spikes at its knots, and 10-12 m in on the
+  // inside of a bend (SW bank at (52, 100.5), (29, 76)) the bank of a tight one turns ~30° in half a metre (a corner)
+  for (let pass = 0; pass < 2; pass++) {
+    const P = points.map((q) => q.slice()), Wd = widths.slice();
+    for (let k = 1; k + 1 < P.length; k++) {
+      for (const d of [0, 1]) points[k][d] = (P[k - 1][d] + 2 * P[k][d] + P[k + 1][d]) / 4;
+      widths[k] = (Wd[k - 1] + 2 * Wd[k] + Wd[k + 1]) / 4;
+    }
+  }
+  return { points: points.map((q) => [+q[0].toFixed(2), +q[1].toFixed(2)]), widths: widths.map((w) => +w.toFixed(2)) };
 }
 
 export default {
@@ -98,9 +122,9 @@ export default {
   terrain: [
     // T1 river (SW bank = start, NE bank = camp): ~20–28 m wide (mean 24; the old river was 12), natural banks
     { type: 'path', terrain: 'water', ...riverPath() },
-    // islets (land discs in the river's SW half, clear of the boat lane; rocks + a pine on each)
-    { type: 'circle', terrain: 'snow', x: 16.9, z: 63.7, r: 3.0 },
-    { type: 'circle', terrain: 'snow', x: 40.6, z: 83.0, r: 2.8 },
+    // islets (land in the river's SW half, clear of the boat lane; rocks + a pine on each): irregular, not discs
+    { type: 'poly', terrain: 'snow', points: islet(16.9, 63.7, 3.0, 4.71, 0) },
+    { type: 'poly', terrain: 'snow', points: islet(40.6, 83.0, 2.8, 3.5, 4.8) },
     // T3 camp interior (packed, trampled)
     { type: 'poly', terrain: 'ground', points: [[16, 33], [42, 10], [71, 35], [46, 58]] },
     // T4 escape road from the SE gate to the east edge

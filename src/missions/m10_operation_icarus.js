@@ -364,6 +364,14 @@ function openPen(w) {
 }
 
 // ---------------------------------------------------------------- the mission
+// ---------------------------------------------------------------- barbed wire (docs/barbed-wire.md §12)
+/** The M4–M20 wire pass: see-through, uncrossable (B.FENCE) runs added where the wire belongs; none crosses a route
+ *  or lengthens an approach (tests/unit/wire-placements.test.mjs). Drawn by the map's wire layer (art/wire-obstacles.js). */
+const WIRE_PASS = [
+  // a concertina in front of MG 3 on the road
+  { id: 'wx_mg_3', type: 'fence', variant: 'concertina', points: [[74.1, 97.3], [73.6, 95.8], [73.6, 94.2], [74.1, 92.8], [75.1, 91.6], [75.4, 91.4]], h: 1.2 },
+];
+
 export default {
   id: 'm10',
   campaign: 'BEL',
@@ -405,7 +413,7 @@ export default {
     { type: 'path', terrain: 'road', points: ROAD, width: 5 },
     { type: 'path', terrain: 'road', points: [[73, 49], [76, 46], [80, 38]], width: 5 },
   ],
-  structures: STRUCTURES,
+  structures: [...STRUCTURES, ...WIRE_PASS],
   items: [],
   interactables: [
     // the pen's jail door: frees McRae (§4.10: not while an enemy sees you)

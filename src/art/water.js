@@ -18,6 +18,7 @@
  */
 import { T } from '../world/grid.js';
 import { dryHullOf } from './water/hulls.js';
+import { rowPeriod, catchOffset, ROW } from './oars.js';
 
 /** World Y of the water surface. Terrain carves deep cells to -1.2 m and shallows to -0.35 m below it. */
 export const WATER_LEVEL = -0.1;
@@ -123,13 +124,17 @@ const WAKE = {
 export const KELVIN_TAN = Math.tan(19.47 * Math.PI / 180);
 
 /**
- * Wake profile of a craft: rowed (the Marine's inflatable raft, rowboats: paddle strokes, a light wash, a soft
- * bow) vs powered (patrol boat, mini-sub: churning prop wash, a full bow wave). stroke = paddle period (s).
+ * Wake profile of a craft: rowed (the Marine's inflatable raft: paddle strokes; the rowboat: OARS, both blades at
+ * once; a light wash, a soft bow) vs powered (patrol boat, mini-sub: churning prop wash, a full bow wave).
+ * stroke = paddle period (s; oars: art/oars.js rowPeriod of the speed).
  */
 export function boatProfile(def = {}) {
   const rowed = !!def.raft || (def.model === 'raft' && !(def.weapons || []).includes('torpedo'));
-  return rowed ? { rowed: true, wash: 0.3, bow: 0.8, crest: 0.45, stroke: 0.9 } : { rowed: false, wash: 0.65, bow: 1, crest: 0.6, stroke: 0 };
+  if (!rowed) return { rowed: false, wash: 0.65, bow: 1, crest: 0.6, stroke: 0 };
+  return { rowed: true, oars: !def.raft, wash: 0.3, bow: 0.8, crest: 0.45, stroke: 0.9 };
 }
+/** Where the rowboat's blades catch, relative to the boat (art/oars.js). */
+const OAR_CATCH = catchOffset();
 
 /**
  * Per-frame ripple/foam emitter for everything in the water.
@@ -160,11 +165,17 @@ export class WakeTracker {
   /**
    * Paddle-stroke clock of a rowed craft, for the paddler's arms (art/boat-crew.js): the stroke now in the water
    * started `t` s ago on `side` (+1 = the craft's right, heading + π/2; −1 its left), one every `period` s while
-   * `moving`. Null for craft this tracker has not seen or that are not rowed.
+   * `moving`. Oared craft (`oars`): both blades together, `u` = the phase of the row stroke (0 = the catch, when both
+   * catch rings ring out), `period` its length at the boat's speed. Null for craft this tracker has not seen or that
+   * are not rowed.
    */
   strokeOf(e) {
     const st = this.state.get(e);
     if (!st?.prof?.rowed) return null;
+    if (st.prof.oars) {
+      const per = st.rowPer || rowPeriod(st.v || 0), u = st.rowU ?? 0;
+      return { oars: true, side: 0, u, t: u * per, period: per, moving: (st.rowStill ?? 9) < 0.3 };
+    }
     return { side: st.side || 1, t: st.strokeT || 0, period: st.prof.stroke, moving: st.fx != null };
   }
 
@@ -239,8 +250,8 @@ export class WakeTracker {
           if (arm.length > 24) arm.splice(0, arm.length - 24);
         }
       }
-      // paddle strokes (raft, rowboat): alternating sides; the catch rings out, the blade leaves a swirl astern
-      if (P.rowed) {
+      if (P.oars) { st.rowStill = 0; st.hx = fx; st.hz = fz; }
+      else if (P.rowed) { // paddle strokes (raft): alternating sides; the catch rings out, the blade leaves a swirl astern
         st.strokeT = (st.strokeT || 0) + dt;
         if (st.strokeT >= P.stroke) {
           st.strokeT = 0; st.side = -(st.side || 1);
@@ -251,9 +262,26 @@ export class WakeTracker {
       }
     } else {
       st.fx = null;
+      if (P.oars) st.rowStill = (st.rowStill ?? 9) + dt;
       if (wet && alive) { // quiet: a faint lap round the hull every few seconds, no foam
         st.lap = (st.lap || 0) + dt;
         if (st.lap >= 2.6) { st.lap = 0; this._emit(e.x, e.z, 0.006, beam * 0.8, 0); }
+      }
+    }
+    // oars (rowboat): the row clock runs while the boat makes way (a display frame without a sim tick is not a stop);
+    // both blades catch at once, out at the oars' reach forward of midships, and each leaves its swirl where it came
+    // out at the end of the drive (the blade grips the water while the boat runs past it)
+    if (P.oars && st.rowStill < 0.3 && wet && alive) {
+      const per = st.rowPer = rowPeriod(st.v);
+      st.rowU = (st.rowU ?? 0.9) + dt / per;
+      if (st.rowU >= 1) {
+        st.rowU -= 1;
+        const fx = st.hx, fz = st.hz, px = -fz, pz = fx;
+        for (const sg of [1, -1]) {
+          const ox = e.x + fx * OAR_CATCH.fwd + px * OAR_CATCH.side * sg, oz = e.z + fz * OAR_CATCH.fwd + pz * OAR_CATCH.side * sg;
+          this._emit(ox, oz, 0.02, 0.5, 0.45);
+          puddles.push({ x: ox, z: oz, t: ROW.drive * per });
+        }
       }
     }
     for (let i = puddles.length - 1; i >= 0; i--) {
@@ -291,7 +319,7 @@ const QUALITY_OF = { low: 'low', medium: 'medium', high: 'high', ultra: 'ultra' 
  * @param {object} grid nav grid
  * @param {object} mission normalized mission def
  * @param {string} theater
- * @param {{module?: object, terrain?: object}} [o] module = the src/art/water/index.js namespace (injected)
+ * @param {{module?: object, terrain?: object, apron?: object, shore?: object}} [o] module = the src/art/water/index.js namespace (injected); shore = world/shore-field.js field
  */
 /** Step 4w: FFT spectra from the mission wind (mean 10 m speed + heading); a floor keeps some swell alive. */
 export function windSpectra(wind) {
@@ -365,6 +393,9 @@ export function buildWater(R, world, grid, mission, theater, o = {}) {
   const descs = extendBodiesOverApron(waterBodyDescriptors(grid, mission, theater, mod.waterBodiesFromGrid), o.apron?.field || null,
     mod.WATER_QUALITY?.[Q]?.bodyRes ?? 256);
   if (!descs.length) return null;
+  // continuous shorelines (world/shore-field.js, built with the terrain): bank distance for the mask edge, the
+  // contact foam and the ice rim — the same smooth line the terrain is carved along
+  if (o.shore) for (const d of descs) { d.sdf = o.shore.wetAt; d.sdfFar = o.shore.margin - 0.8; }
   const t0 = performance.now();
   const system = mod.createWater(R, R.scene, R.camera, {
     quality: Q, terrain: o.terrain ? [o.terrain, o.apron?.mesh].filter(Boolean) : undefined, lateDecals: true,

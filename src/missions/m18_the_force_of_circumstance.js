@@ -308,6 +308,15 @@ const BARRACKS = {
   nw_h3: { pool: 6, squads: [squad([P(33, 10.5), P(32, 18)], [P(32, 18), P(50, 30), P(26, 42), P(20, 48)])] },
 };
 
+// ---------------------------------------------------------------- barbed wire (docs/barbed-wire.md §12)
+/** The M4–M20 wire pass: see-through, uncrossable (B.FENCE) runs added where the wire belongs; none crosses a route
+ *  or lengthens an approach (tests/unit/wire-placements.test.mjs). Drawn by the map's wire layer (art/wire-obstacles.js). */
+const WIRE_PASS = [
+  // rimed concertina in front of the W bank and island MG nests
+  { id: 'wx_mg_w', type: 'fence', variant: 'concertina', points: [[28.4, 75.4], [27.9, 76.8], [26.9, 78], [25.5, 78.8], [24, 79.1], [22.5, 78.8]], h: 1.2 },
+  { id: 'wx_mg_isl', type: 'fence', variant: 'concertina', points: [[46.3, 94.5], [45.2, 94.4], [43.8, 93.9], [42.6, 92.9], [41.8, 91.5]], h: 1.2 },
+];
+
 export default {
   id: 'm18',
   campaign: 'BEL',
@@ -340,7 +349,7 @@ export default {
   terrain: TERRAIN,
   markers: MARKERS.map((m) => ({ ...m })),
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
-  structures: joinStructures(STRUCTURES, [['bridge', 'pb_w'], ['bridge', 'pb_e'], ['blk_n', 'blk_e'], ['blk_w', 'blk_e'], ['blk_e', 'town_grey'], ['nw_h1', 'nw_h2'], ['nw_h2', 'red_house']]),
+  structures: joinStructures([...STRUCTURES, ...WIRE_PASS], [['bridge', 'pb_w'], ['bridge', 'pb_e'], ['blk_n', 'blk_e'], ['blk_w', 'blk_e'], ['blk_e', 'town_grey'], ['nw_h1', 'nw_h2'], ['nw_h2', 'red_house']]),
   // the green case: three German remote charges (Sapper only; the detonator comes with the first one planted)
   items: [{ id: 'bombs_crate', itemId: 'remoteBomb', x: 50.5, z: 88.5, count: 3 }],
   interactables: [],

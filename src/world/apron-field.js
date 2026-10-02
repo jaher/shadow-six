@@ -136,7 +136,8 @@ export function buildApronField(grid, mission = {}, o = {}) {
     const i = Math.min(cols - 1, Math.max(0, Math.floor((x + A) / cell))), j = Math.min(rows - 1, Math.max(0, Math.floor((z + A) / cell)));
     return t[j * cols + i];
   };
-  return { grid: ext, A, W, D, base, ox: -A, oz: -A, codeAt, inMap: (x, z) => x >= 0 && z >= 0 && x <= W && z <= D };
+  // feats: the extended terrain features (world coordinates) — the analytic shapes of world/shore-field.js
+  return { grid: ext, A, W, D, base, ox: -A, oz: -A, feats, codeAt, inMap: (x, z) => x >= 0 && z >= 0 && x <= W && z <= D };
 }
 
 /** Chamfer distance from non-water cells; water cells within `width` m become shallow where `may(k)`. */

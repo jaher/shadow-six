@@ -669,11 +669,19 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   - `createApron` is called by `art/terrain.js buildTerrain` once the map ground is ready (handle `terrain.apron`,
     `terrain.apronReady`). It builds:
     - one ring mesh on a 1 m lattice (2 m more than 24 m out) through the map edges. It reaches 1 m under the map,
-      5 cm below it.
+      5 cm below it. Lattice cells holding a bank or channel slope (`fineAt`, from the shore field) are split 4 × 4
+      (0.25 m near the map, like its own mesh; 0.5 m further out); a split cell's edge against an unsplit one keeps its
+      vertices on the coarse edge (no T-junction crack). The deep field is tested by its range over the cell (9
+      samples), not centre ± radius: over open sea it levels off at margin − shoreShallowWidth (≈ 2 m), and M14's whole
+      sea apron would otherwise split (edges-void-m14 caps the apron at +900k triangles).
     - the map's own terrain shader (`terrainMaterial(U)`, sharing the layer arrays; uniform `uOrigin` offsets the
       splat UV) with a 1 texel/m apron splat (`buildSplat(…, {origin})`).
-    - heights = `undulation` + the same water carve, blended into the map's edge heights over `seamBand` (6 m),
-      settling to y = 0 over the outer `fade` (24 m).
+    - heights = `undulation` + the same water carve from the shore field on both sides of the edge; within
+      `seamBand` (6 m) only the map's residual (its edge height minus that field: flattening under structures, mesh
+      interpolation) is carried out and faded, so a bank crossing the edge at any angle keeps its line (extruding the
+      edge profile used to jog, notch or turn banks 90° there; `tests/unit/apron-seam.test.mjs` and every
+      `edges-void-<id>` GPU test measure the bank contours through each seam). Heights settle to y = 0 over the outer
+      `fade` (24 m).
     - a flat 600 m skirt.
     - impostor-only trees (`createVegetation(…, {maxUnique: 0})`, one instanced draw) at each side's edge-band
       density, thinning (`treeFalloff`) to the theatre background, off water and roads.
@@ -688,6 +696,17 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
     `tests/edges-void-<map>.test.mjs`, which reads back magenta-background frames at 4 edges and 4 corners × min/max
     zoom × 0/15/45° × 16:9, 32:9 and phone portrait, and checks seam heights and cost. A new map needs its one-line
     `edges-void-<id>.test.mjs`; `tests/unit/apron-coverage.test.mjs` enforces that.
+- **Shore field** (`src/world/shore-field.js`, pure; user request 2026-09-30 "make the edges of the shore more smooth
+  and less polygonal"). `buildShoreField(codeGrid, mission, {ox, oz, feats, W, D})` builds a 0.25 m signed distance
+  to every shoreline (`wetAt`) and to the deep-water edge (`deepAt`). It covers the map and the apron, and is
+  built from the mission's smoothed water shapes: river ribbons with per-point widths, smoothed outlines, and
+  circle islets. It falls back to a smoothed exact distance of the cells wherever the cells disagree with those
+  shapes (structures, roads, extruded apron shores).
+  - `art/terrain.js buildTerrain` builds it once and hands it to the map and apron carves, the splat's wet line and
+    the water bodies' shore distance (`handle.shore`).
+  - The nav grid is unchanged: a nav cell centre can disagree with the drawn shore only within 0.5 m of it.
+  - Tests: `tests/unit/shore-field.test.mjs` and `tests/shores.test.mjs`. Details are in
+    `docs/water-pipeline.md` §10, "Banks".
 - `VisionCone` (`src/render/vision-cone.js`): per enemy fan mesh (≥48 rays) built from `grid.castRay`, two
   zones (near/far) with different alpha — geometry = `perception.coneAt(enemy)` (§10.2); faithful BEL flat colours
   (`CONFIG.stealth.coneColors`), tint by `alertLevel` only with the `alertTint` option (§10.4 #5); `update(enemy)`; drawn slightly above ground,
@@ -949,13 +968,19 @@ Menus and full-screen screens follow docs/menus-art-direction.md (S01–S22 + am
 - Touch / phones (`src/ui/touch.js`, `hud.touch`): `touchFirst()` starts the kit in `device = 'touch'` (big BACK /
   SELECT bar, footer choices as ≥ 44 px buttons, "(ENTER)"/"(ESC)" prefixes dropped); `html.mk-touch` follows the last
   pointer type. Every keyboard-only prompt has a tap: the boot/title splash (`.bt` takes pointer events; "TAP TO
-  CONTINUE" / "PRESS ANY KEY OR CLICK"), TypeFields and password cells carry a transparent native `<input>` that opens
+  CONTINUE" / "PRESS ANY KEY OR CLICK"; it continues on the `click`, not on pointerdown, and arms ≥ 500 ms after the
+  title appears, so the finger's click never lands on the MAIN MENU row that replaces it), TypeFields and password cells carry a transparent native `<input>` that opens
   the phone keyboard only when tapped (NEW USER is prefilled with COMMANDO, the first key replaces it), briefing
   ‹ PREV / NEXT › / CONTINUE and the tour's START MISSION buttons, the loading screen's NEXT TIP, win card / debrief
-  taps, and an in-mission MENU button (bottom-left, = Esc → `menus.showEsc()`). Also: no page pinch / double-tap zoom
+  taps, and an in-mission MENU button (bottom-left, = Esc: skips the escape truck's drive-off first, else puts an armed
+  ability away and opens `menus.showEsc()`). List rows stay ≥ 44 px and as wide as their list; on short landscape
+  screens a plain list of 5+ rows splits into two columns and option / slot lists scroll. Loading tips stack in one
+  grid cell, so a long FIELD TIP pushes NEXT TIP down instead of covering it. Also: no page pinch / double-tap zoom
   (viewport meta + gesture guards), no long-press callouts, safe-area insets, a dismissible rotate-to-landscape hint on
   narrow portrait screens. No in-mission camera gestures here (those belong with the camera rig's pan/zoom API).
-  Tests: `tests/touch-{pixel7,iphone14,desktop}.test.mjs` (shared flow in `tests/touch-flow.mjs`).
+  Tests: `tests/touch-{pixel7,iphone14}{,-land}.test.mjs`, `touch-desktop`, `touch-menu-esc` (shared phone flow in
+  `tests/touch-flow.mjs`: ≥ 44 px MAIN rows, HELP EXIT, NEXT TIP clear of the longest tip, briefing clear of the touch
+  bar, a returning player's title tap opens no menu row).
 - Consumes only `game.flow`, `game.events` (`mission:loading`, `mission:won/lost/escaped`, `game:state`), the renderer
   canvas (B2 snapshot) and, for B1, `World` + `MapBuilder.buildMap` into the idle scene (released on `mission:loading`).
 - Assets: `assets/fonts/*` (OFL / Apache, licences alongside), `assets/ui/*` (emblem, wordmark, CC0 textures, baked B1s

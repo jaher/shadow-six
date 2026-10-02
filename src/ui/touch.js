@@ -115,8 +115,12 @@ export function installTouch(hud) {
   menu.innerHTML = '<i></i><i></i><i></i><span>MENU</span>';
   menu.addEventListener('click', (e) => {
     e.stopPropagation();
+    // what Esc does in a mission (hud.js): the first press skips the escape truck's drive-off (§7.6); otherwise any
+    // armed ability / cursor tool is dropped and the in-mission menu opens
+    if (hud.game?.skipExtraction?.()) return;
+    if (hud.game?.input?.targeting) hud.game.input.cancelTargeting?.();
     if (hud.cursor?.mode) hud.cursor.setMode(null);
-    hud.menus?.showEsc?.(); // exactly what Esc does in a mission
+    hud.menus?.showEsc?.();
   });
   menu.addEventListener('pointerdown', (e) => e.stopPropagation());
   (hud.root || doc.body).appendChild(menu);

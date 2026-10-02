@@ -22,6 +22,8 @@ import { addSnowCover } from './terrain/snowfx.js';
 import { CONFIG } from '../config.js';
 import { dataKey } from '../engine/asset-cache.js';
 import { createApron } from './apron.js';
+import { buildApronField } from '../world/apron-field.js';
+import { buildShoreField } from '../world/shore-field.js';
 import { structureRecords, obstacle, pruneTree, OBSTACLE_H } from '../world/placement.js';
 import { polyDist } from '../world/placement-geom.js';
 
@@ -371,6 +373,14 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
   if (!canBuildRealTerrain(R) || ctx.real === false) return buildPlaceholderTerrain(grid, theater);
   let quality = presetOf(R);
   const mission = ctx.mission || null;
+  // continuous shorelines (world/shore-field.js): one field over the map + apron drives both carves, the splat's
+  // wet line and the water's shore distance (smooth banks instead of the 0.5 m cell staircase)
+  let apronField = null, shore = null;
+  try {
+    if (mission && ctx.apron !== false) apronField = buildApronField(grid, mission);
+    shore = buildShoreField(apronField?.grid ?? grid, mission || {}, apronField
+      ? { ox: apronField.ox, oz: apronField.oz, feats: apronField.feats, W: apronField.W, D: apronField.D } : { W: grid.width, D: grid.depth });
+  } catch (e) { console.error('[shore] field failed', e); shore = null; }
   // farmland fringe (bocage.js: mission.vegetation.farmland): field hedges, crops, orchards clear of gameplay
   const farm = farmland(mission, grid);
   // mission trees → treegen placements; desert bushes become hero instances of the 3D scrub archetypes instead
@@ -386,7 +396,7 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
   const inner = createTerrainHandle(R, new THREE.Group(), grid, theater, {
     scrubHeroes,
     fields: farm.fields,
-    quality, flatMask: buildFlatMask(grid), frozenWater: !!mission?.water?.frozen,
+    quality, flatMask: buildFlatMask(grid), frozenWater: !!mission?.water?.frozen, shore,
     // step 3p: ctx.roads (world/roads.js RoadIndex) → soft roads pre-trampled + splat painter; else the legacy paths
     roads: ctx.roads ? pretrampleRoads(ctx.roads.net) : roadPolylines(mission),
     paint: composePaint(forestFloorPainter(ctx.forests, (PALETTES[theater] || PALETTES.temperate).layers),
@@ -431,7 +441,7 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
     if (disposed) return null;
     // scenery past the map edges (art/apron.js): ground + water continuation + forest; before the water's bed capture
     if (mission && ctx.apron !== false) {
-      try { apron = createApron(R, ground, t, grid, mission, theater, { trees: ctx.trees || [], quality, pitchDeg, createVegetation, treePlacement, season: vegetationProfile(mission, theater).trees, snow: mission?.treeSnow ?? undefined }); }
+      try { apron = createApron(R, ground, t, grid, mission, theater, { trees: ctx.trees || [], quality, pitchDeg, createVegetation, treePlacement, season: vegetationProfile(mission, theater).trees, snow: mission?.treeSnow ?? undefined, field: apronField, shore }); }
       catch (e) { console.error('[apron] build failed', e); apron = null; }
       apronReady = Promise.resolve(apron?.forest).then(() => apron);
     }
@@ -450,6 +460,8 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
   };
   const h = {
     ground, water, ready, stats, real: true,
+    /** Continuous shore field (world/shore-field.js) the banks are carved with, or null. */
+    shore,
     /** Scenery apron (art/apron.js) once built, else null; `apronReady` resolves with it (or null). */
     get apron() { return apron; },
     get apronReady() { return apronReady; },

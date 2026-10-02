@@ -190,3 +190,12 @@ test('quay faces (quay_edge set-piece) are reference walls: a depot tank on a qu
   assert.equal(tank.suggestedDeg, 0);
   assert.equal(byId(res, 'shed').status, 'ok');
 });
+
+test('concertina coils (wire-pass obstacles) are not reference lines; a plain wire fence still is', () => {
+  const def = mission([
+    { id: 'coil', type: 'fence', variant: 'concertina', points: [[0, 0], [3, 1.5], [5, 4]] },
+    { id: 'stakes', type: 'fence', variant: 'wire_on_stakes', points: [[0, 20], [40, 20]] }]);
+  const ids = wallPolylines(def).map((p) => p.id);
+  assert.ok(!ids.includes('coil'), 'concertina is an obstacle');
+  assert.ok(ids.includes('stakes'), 'wire on stakes is a fence line');
+});

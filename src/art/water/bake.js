@@ -66,6 +66,9 @@ export function bakeBody(b, res = 256, cap = null) {
       ins[k] = b.mask(minX + (i + 0.5) / rx * w, minZ + (j + 0.5) / rz * h) ? 1 : 0; out[k] = 1 - ins[k]; }
     const dIn = distanceField(out, rx, rz, cell), dOut = distanceField(ins, rx, rz, cell);
     maskSD = new Float32Array(N); for (let k = 0; k < N; k++) maskSD[k] = ins[k] ? dIn[k] - 0.5 * cell : -(dOut[k] - 0.5 * cell);
+    // the continuous shore field (world/shore-field.js) replaces the texel-mask staircase near this body's banks
+    if (b.sdf) for (let j = 0; j < rz; j++) for (let i = 0; i < rx; i++) { const k = j * rx + i;
+      if (Math.abs(maskSD[k]) < 1.5) maskSD[k] = b.sdf(minX + (i + 0.5) / rx * w, minZ + (j + 0.5) / rz * h); }
   }
   const sample = (x, z) => {
     if (maskSD) { const i = Math.min(rx - 1, Math.max(0, Math.floor((x - minX) / w * rx))), j = Math.min(rz - 1, Math.max(0, Math.floor((z - minZ) / h * rz))); return maskSD[j * rx + i]; }
@@ -174,6 +177,21 @@ export function bakeBody(b, res = 256, cap = null) {
       tmp[k] = dist[k] <= 0 ? 0 : (2 * dist[k] + dist[k - (i > 0)] + dist[k + (i < rx - 1)]) / 4; }
     for (let j = 0; j < rz; j++) for (let i = 0; i < rx; i++) { const k = j * rx + i;
       dist[k] = tmp[k] <= 0 ? 0 : (2 * tmp[k] + tmp[k - (j > 0) * rx] + tmp[k + (j < rz - 1) * rx]) / 4; }
+  }
+  // continuous shore field: the bank distance is the field itself (smooth ice rims and contact foam at any bake
+  // resolution); the chamfer only keeps the dry spots inside the water (captured rocks, piers, hulls) and far water
+  if (b.sdf) {
+    const inner = new Float32Array(rx * rz), sd = new Float32Array(rx * rz), far = b.sdfFar ?? 5;
+    for (let j = 0; j < rz; j++) for (let i = 0; i < rx; i++) { const k = j * rx + i;
+      sd[k] = b.sdf(minX + (i + 0.5) / rx * w, minZ + (j + 0.5) / rz * h);
+      inner[k] = data[k * 4 + 3] <= 0 && sd[k] > 0.5 ? 0 : INF; }
+    for (let j = 0; j < rz; j++) for (let i = 0; i < rx; i++) { const k = j * rx + i; if (!inner[k]) continue;
+      const rl = (q, c) => { if (inner[q] + c < inner[k]) inner[k] = inner[q] + c; };
+      if (i > 0) rl(k - 1, cx); if (j > 0) rl(k - rx, cz); if (i > 0 && j > 0) rl(k - rx - 1, cd); if (i < rx - 1 && j > 0) rl(k - rx + 1, cd); }
+    for (let j = rz - 1; j >= 0; j--) for (let i = rx - 1; i >= 0; i--) { const k = j * rx + i; if (!inner[k]) continue;
+      const rl = (q, c) => { if (inner[q] + c < inner[k]) inner[k] = inner[q] + c; };
+      if (i < rx - 1) rl(k + 1, cx); if (j < rz - 1) rl(k + rx, cz); if (i < rx - 1 && j < rz - 1) rl(k + rx + 1, cd); if (i > 0 && j < rz - 1) rl(k + rx - 1, cd); }
+    for (let k = 0; k < rx * rz; k++) dist[k] = Math.min(sd[k] >= far ? dist[k] : Math.max(0, sd[k]), inner[k]);
   }
   const half2 = new Uint16Array(rx * rz * 4);
   for (let k = 0; k < rx * rz; k++) half2[k * 4] = THREE.DataUtils.toHalfFloat(Math.min(dist[k], 60000));

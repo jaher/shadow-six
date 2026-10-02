@@ -1058,7 +1058,7 @@ export function buildMap(world, mission, opts = {}) {
   const buildWaterNow = () => {
     if (gone || !realTerrain) return;
     try {
-      water = buildWater(opts.renderer, world, grid, mission, theater, { module: WaterModule, terrain: terrain?.terrain?.mesh, apron: terrain?.apron });
+      water = buildWater(opts.renderer, world, grid, mission, theater, { module: WaterModule, terrain: terrain?.terrain?.mesh, apron: terrain?.apron, shore: terrain?.shore });
     } catch (e) {
       console.error('[water] build failed, using the flat placeholder', e);
       water = null;

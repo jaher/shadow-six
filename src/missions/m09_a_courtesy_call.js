@@ -199,6 +199,14 @@ function allDown(world) {
   return ['o1', 'o2', 'o3', 'o4', 'o5'].every((id) => list.find((o) => o.id === id)?.done);
 }
 
+// ---------------------------------------------------------------- barbed wire (docs/barbed-wire.md §12)
+/** The M4–M20 wire pass: see-through, uncrossable (B.FENCE) runs added where the wire belongs; none crosses a route
+ *  or lengthens an approach (tests/unit/wire-placements.test.mjs). Drawn by the map's wire layer (art/wire-obstacles.js). */
+const WIRE_PASS = [
+  // dossier §5.1: the minefield edge is a single strand on stakes; the Achtung Minen boards stand along it
+  { id: 'wx_mines', type: 'fence', variant: 'field_fence', points: [[3, 118.4], [99, 118.4]], h: 0.9, strands: 1 },
+];
+
 export default {
   id: 'm09',
   campaign: 'BEL',
@@ -235,7 +243,7 @@ export default {
     { type: 'path', terrain: 'road', points: [[0, 95], [12, 93.5], [25.5, 89], [33, 82], [40, 74], [48, 60]], width: 5 }, // road_w
   ],
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
-  structures: joinStructures(STRUCTURES, [['house_n1', 'house_n2'], ['house_n2', 'house_ne'], ['house_ne', 'house_ne_annex']]),
+  structures: joinStructures([...STRUCTURES, ...WIRE_PASS], [['house_n1', 'house_n2'], ['house_n2', 'house_ne'], ['house_ne', 'house_ne_annex']]),
   items: [],
   interactables: [],
   vehicles: VEHICLES,

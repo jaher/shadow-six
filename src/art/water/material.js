@@ -284,30 +284,63 @@ void main(){
   vec3 foamLit = foamColor*mix(1.0, 0.55, night)*fLight/PI;
   col = mix(col, foamLit, foam*mix(1.0, 0.7, night));
   // ---------------------------------------------------------------- ice: shore shelf (iceWidth m) or fully frozen (iceWidth >= 1000)
+  // shelf (user request 2026-09-30 "the ice transition should be smoother ... more realistic"): one continuous gradient
+  // across the shelf instead of two flat bands — snow-covered ice at the bank, wind-swept grey-white ice with drifted
+  // snow streaks, thin clear dark ice (bubbles, cracks, gloss), a raised edge with a thin dark wet lip, then slush,
+  // frazil and pans breaking into open water; every boundary is warped at three scales so no band keeps a width
   float iceA = 0.0;
   if (iceWidth > 0.0) {
     bool frozen = iceWidth >= 1000.0;
     float big = texture(foamTex, vXZ/23.0).g, small = texture(foamTex, vXZ/4.3).g;
+    float nB = texture(foamTex, vXZ/31.0 + 0.13).b, nM = texture(foamTex, vXZ/8.3 + 0.57).b, nS = texture(foamTex, vXZ/2.1 + 0.29).b;
     float iw = frozen ? 4.0 : iceWidth;
-    float e = frozen ? 0.0 : shoreD + (big - 0.5)*iceWidth*1.1 + (small - 0.5)*0.6;
-    for (int k = 0; k < 4; k++) { vec3 f = iceFree[k]; if (f.z > 0.0) e += 12.0*(1.0 - smoothstep(f.z*0.55, f.z, distance(vXZ, f.xy) + (small - 0.5)*1.5)); }
-    // floes: the outer third breaks into plates (cell pattern of the mask texture) before open water
-    float floe = smoothstep(0.35, 0.55, texture(foamTex, vXZ/7.7).g + 0.35 - 0.7*smoothstep(iw*0.65, iw*1.25, e));
-    float ice = frozen ? 1.0 : max(1.0 - smoothstep(iw*0.62 - 0.06, iw*0.62 + 0.06, e), floe*(1.0 - smoothstep(iw*1.2, iw*1.3, e)));
+    float aa = footprint*1.5/iw;                                                   // shelf units per pixel (no shimmer)
+    // across-shelf coordinate: 0 at the bank, 0.62 at the (wandering) ice edge
+    float u = frozen ? 0.0 : (shoreD + (big - 0.5)*iw*1.1 + (nM - 0.5)*iw*0.8 + (small - 0.5)*0.5)/iw;
+    // open water kept free of the shore ice (iceFree: M3, where the dam's water lands)
+    for (int k = 0; k < 4; k++) { vec3 f = iceFree[k]; if (f.z > 0.0) u += 12.0/iw*(1.0 - smoothstep(f.z*0.55, f.z, distance(vXZ, f.xy) + (small - 0.5)*1.5)); }
+    // drifted snow: long streaks along the wind (fixed NW drift), clumped by the big noise
+    vec2 wd = vec2(0.8, 0.6), sq = vec2(dot(vXZ, wd), dot(vXZ, vec2(-wd.y, wd.x)));
+    float streak = texture(foamTex, sq/vec2(9.0, 3.4) + 0.41).b*0.7 + nS*0.3;
+    float floe = smoothstep(0.35, 0.55, texture(foamTex, vXZ/7.7).g + 0.35 - 0.7*smoothstep(0.65, 1.25, u));
+    float ice = frozen ? 1.0 : max(1.0 - smoothstep(0.62 - 0.03 - aa, 0.62 + 0.03 + aa, u), floe*(1.0 - smoothstep(1.2, 1.3 + aa, u)));
+    // snow cover thins outward: a broad, noisy ramp (bank -> mid shelf) with streaks reaching further out
     float snowCover = frozen ? smoothstep(0.42, 0.62, big + (small - 0.5)*0.5 + (1.0 - smoothstep(0.0, 3.0, shoreD))*0.4)
-                             : 1.0 - smoothstep(iw*0.25, iw*0.6, e + (small - 0.5)*1.2);   // snow on the older shore ice
-    float slush = frozen ? 0.0 : (1.0 - smoothstep(iw*0.6, iw*1.6, e))*(1.0 - ice);
-    col = mix(col, col*0.75 + foamColor*skyIrr/PI*0.18, slush*0.5);
+                             : 1.0 - smoothstep(0.04, 0.36 + aa, u + (nM - 0.5)*0.34 + (nS - 0.5)*0.12 - smoothstep(0.54, 0.62 + aa, streak)*0.22);
+    // clear (young, thin) ice toward the edge: grey-white wind-swept ice in between, no hard line
+    float clearK = frozen ? 0.0 : smoothstep(0.22, 0.52 + aa, u + (nB - 0.5)*0.2 + (nS - 0.5)*0.08 - smoothstep(0.56, 0.68 + aa, streak)*0.12);
+    float slush = frozen ? 0.0 : (1.0 - smoothstep(0.6, 1.6, u))*(1.0 - ice);
+    // frazil: grains and small pans drifting just off the edge
+    float frazil = frozen ? 0.0 : smoothstep(0.62, 0.8, texture(foamTex, vXZ/1.3 + 0.7).g*0.7 + nS*0.3)*(1.0 - smoothstep(0.66, 1.5, u))*(1.0 - ice);
+    col = mix(col, col*0.78 + foamColor*skyIrr/PI*0.2, slush*0.55);
+    col = mix(col, foamColor*skyIrr/PI*0.75, frazil*0.5);
     // crack network: cell walls of the lace texture at a large scale, only where a noise mask allows (not a grid)
     float cracks = smoothstep(0.93, 0.985, texture(foamTex, vXZ/11.0 + 0.2).r)*smoothstep(0.45, 0.7, texture(foamTex, vXZ/37.0).b)*0.55;
-    vec3 iceN = normalize(vec3(-(small - 0.5)*0.12, 1.0, -(big - 0.5)*0.12));
-    // clear (black) ice shows the dark water below; snow-covered ice is bright and matte
-    vec3 clearIce = refr*0.45 + iceColor*0.05*skyIrr;
-    vec3 snowIce = iceColor*(1.0 - cracks)*(0.88 + 0.2*small)*(sunColor*max(dot(iceN, L), 0.0)*visS + skyIrr)/PI;
-    vec3 iceLit = mix(clearIce, snowIce, max(snowCover, 0.35*(1.0 - cracks)));
+    float ridges = smoothstep(0.96, 0.99, texture(foamTex, sq/vec2(6.0, 23.0) + 0.83).r)*smoothstep(0.5, 0.75, nB); // pressure ridges
+    vec3 iceN = normalize(vec3(-(small - 0.5)*0.12 - (nS - 0.5)*0.05, 1.0, -(big - 0.5)*0.12 - (nM - 0.5)*0.05));
+    float lit = max(dot(iceN, L), 0.0)*visS;
+    vec3 snowAlb = vec3(0.36, 0.37, 0.395)*(0.93 + 0.1*small + 0.06*nS);         // matches the bank snow's brightness
+    vec3 snowIce = snowAlb*(sunColor*lit + skyIrr)/PI;
+    // wind-swept grey-white ice: the ice colour, a little of the water below showing through
+    vec3 greyIce = mix(iceColor*(0.4 + 0.07*nM)*(sunColor*lit + skyIrr)/PI, refr*0.6, 0.2 + 0.12*nB);
+    // clear dark blue-green ice: the water below through a thin glassy sheet, air bubbles, white cracks
+    float bubbles = smoothstep(0.82, 0.92, texture(foamTex, vXZ/0.9 + 0.17).g)*smoothstep(0.35, 0.65, nM)*0.35;
+    vec3 clearIce = refr*vec3(0.42, 0.5, 0.52) + iceColor*0.06*skyIrr + bubbles*iceColor*skyIrr/PI;
+    vec3 iceLit = mix(greyIce, clearIce, clearK);
+    iceLit = mix(iceLit, snowIce, snowCover);
+    iceLit = mix(iceLit, iceColor*(sunColor*lit + skyIrr)/PI*1.05, (cracks + ridges*0.6)*(1.0 - snowCover*0.7));
+    float gloss = (1.0 - snowCover)*mix(0.45, 1.0, clearK);
     float Fi = 0.04 + 0.96*pow(1.0 - max(dot(iceN, V), 0.0), 5.0);
-    iceLit += envLookup(reflect(-V, iceN))*Fi*(1.0 - snowCover);
-    iceLit += sunColor*visS*ggx(max(dot(iceN, H), 0.0), 0.08)*Fi*0.25*(1.0 - snowCover)*max(dot(iceN, L), 0.0);
+    iceLit += envLookup(reflect(-V, iceN))*Fi*gloss;
+    iceLit += sunColor*visS*ggx(max(dot(iceN, H), 0.0), 0.08)*Fi*0.3*gloss*max(dot(iceN, L), 0.0);
+    if (!frozen) {
+      // raised edge: a lit lip on the ice, a thin dark wet line on the water just past it
+      float edgeW = max(0.05, aa);
+      float lipIce = smoothstep(0.62 - 0.07 - aa, 0.62 - 0.02, u)*(1.0 - smoothstep(0.62 - 0.02, 0.62 + aa, u));
+      iceLit *= 1.0 + 0.1*lipIce;
+      float wetLip = smoothstep(0.6, 0.62 + aa*0.5, u)*(1.0 - smoothstep(0.62 + 0.02, 0.62 + 0.02 + edgeW + aa, u));
+      col *= 1.0 - 0.3*wetLip*(1.0 - floe);
+    }
     // the shelf ends where the bank rises out of the water (the per-pixel bed depth: the terrain's smooth contour),
     // not at the body's cell mask, whose 0.5 m steps would show as a sawtooth rim where the bank is low and flat
     ice *= smoothstep(0.0, 0.03, col0 + vSurfFoam*0.02);

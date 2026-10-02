@@ -302,6 +302,15 @@ const Z_VIL = [[94, 50], [113, 50], [114, 56], [118, 66], [124, 66], [130, 58], 
 
 const NOT_ENOUGH = 'Not enough charges left to sink the U-boats.';
 
+// ---------------------------------------------------------------- barbed wire (docs/barbed-wire.md §12)
+/** The M4–M20 wire pass: see-through, uncrossable (B.FENCE) runs added where the wire belongs; none crosses a route
+ *  or lengthens an approach (tests/unit/wire-placements.test.mjs). Drawn by the map's wire layer (art/wire-obstacles.js). */
+const WIRE_PASS = [
+  // concertina in front of the NE MG nest and round the W gun pit (on the map edge side)
+  { id: 'wx_mg_ne', type: 'fence', variant: 'concertina', points: [[70.6, 69.5], [70.5, 67.9], [71.1, 66.4], [72.2, 65.2]], h: 1.2 },
+  { id: 'wx_gun22', type: 'fence', variant: 'concertina', points: [[7.3, 98], [5.6, 98.5], [3.9, 98.4], [2.3, 97.8], [0.9, 96.7]], h: 1.2 },
+];
+
 export default {
   id: 'm07',
   campaign: 'BEL',
@@ -338,7 +347,7 @@ export default {
     { id: 'u2_charge', x: U2.x, z: U2.z, r: 3, target: 'uboat_2' },
   ],
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
-  structures: joinStructures(STRUCTURES, [['h_big', 'h_1'], ['h_3', 'h_5'], ['h_4', 'h_6'], ['uboat_1', 'uboat_1_tower'], ['uboat_2', 'uboat_2_tower'], ['boat_m3', 'boat_m4'], ['boat_m7', 'boat_m10']]),
+  structures: joinStructures([...STRUCTURES, ...WIRE_PASS], [['h_big', 'h_1'], ['h_3', 'h_5'], ['h_4', 'h_6'], ['uboat_1', 'uboat_1_tower'], ['uboat_2', 'uboat_2_tower'], ['boat_m3', 'boat_m4'], ['boat_m7', 'boat_m10']]),
   items: [],
   interactables: [
     // the air-drop crate: all four time bombs (only the Sapper can take them)
