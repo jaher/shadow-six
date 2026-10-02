@@ -1,11 +1,12 @@
 // The rowboat's oars and the men's seats in the open boats (src/art/oars.js, src/art/boat-crew.js): the oars turn
 // between thole pins aft of the oarsman, the stroke (catch, drive, feathered recovery), the handles in his reach and
 // apart, no oar through the hull or a thwart, turns and pivots, the stroke clock from the speed; every seated man's
-// feet inside the hull on its floor, the escape boat's men off its deck fittings, the raft's spare paddle stowed.
+// feet inside the hull on its floor, the escape boat's men off its deck fittings, the raft's spare paddle stowed; the
+// raft's paddle clear of its tubes, thwart and floor over the whole stroke cycle.
 import { test, assert, near } from './lib.mjs';
 import { OAR, BLADE_C, ROW, EASY, TRAIL, rowKey, backKey, oarPoints, oarDir, oarAnglesThrough, pivotOf, pitchFor, rowPeriod,
   catchOffset } from '../../src/art/oars.js';
-import { BOAT_SEATS, STAND_FIX, boatLayout, oarKeys, SHIPPED, STOW } from '../../src/art/boat-crew.js';
+import { BOAT_SEATS, STAND_FIX, boatLayout, oarKeys, SHIPPED, STOW, paddlePose, PADDLE, HOLD, UPRIGHT, SWITCH_U } from '../../src/art/boat-crew.js';
 
 const ROWER = BOAT_SEATS.rowboat.seats[0];
 const U = Array.from({ length: 200 }, (_, i) => i / 200);
@@ -207,4 +208,98 @@ test('seats: the escape boat\'s men stand on clear deck (off its engine-room ven
   const g = STOW.at(STOW.d0.clone().multiplyScalar(-0.55).toArray()), t = STOW.at(STOW.d0.clone().multiplyScalar(1.05).toArray());
   for (const p of [g, t]) { assert.ok(p.x < -0.3 && p.x > -0.5 && Math.abs(p.z) < 1.0, `stowed end ${p.toArray().map((v) => v.toFixed(2))} along the starboard tube`); assert.ok(p.y > 0.32, 'resting on top of it'); }
   assert.ok(t.z > g.z + 1.4, 'blade forward, grip aft, lengthwise');
+});
+
+// The inflatable (raft.py, Blender x y z → hull x, z, −y): the buoyancy tube round a stadium centreline (loop_path,
+// bow raised and narrowed), radius 0.19; the cross-thwart tube (radius 0.11) at z −0.25; the floor at y 0.02.
+const RAFT_TUBE = (() => {
+  const L = 2.7, B = 1.3, R = 0.19, a = L / 2 - R, b = B / 2 - R, zc = R - 0.08, out = [];
+  for (let i = 0; i < 40; i++) {
+    const t = 2 * Math.PI * i / 40, y = a * Math.sign(Math.sin(t)) * Math.abs(Math.sin(t)) ** 0.35;
+    let x = b * Math.sign(Math.cos(t)) * Math.abs(Math.cos(t)) ** 0.8;
+    if (y < 0) x *= 1 - 0.18 * (-y / a) ** 3;
+    out.push([x, zc + (y < 0 ? 0.14 * Math.max(0, (-y - a * 0.4) / (a * 0.6)) ** 2 : 0), -y]);
+  }
+  return { R, pts: out };
+})();
+const segPt = (p, A, C) => {
+  const ab = [C[0] - A[0], C[1] - A[1], C[2] - A[2]], ap = [p[0] - A[0], p[1] - A[1], p[2] - A[2]];
+  const t = Math.max(0, Math.min(1, (ap[0] * ab[0] + ap[1] * ab[1] + ap[2] * ab[2]) / (ab[0] ** 2 + ab[1] ** 2 + ab[2] ** 2)));
+  return Math.hypot(ap[0] - ab[0] * t, ap[1] - ab[1] * t, ap[2] - ab[2] * t);
+};
+/** Distance from hull point p to the raft's tube skin / the thwart's skin (m; < 0 inside). */
+const tubeGap = (p) => { const P = RAFT_TUBE.pts; let d = 9; for (let i = 0; i < P.length; i++) d = Math.min(d, segPt(p, P[i], P[(i + 1) % P.length])); return d - RAFT_TUBE.R; };
+const thwartGap = (p) => segPt(p, [-0.47, 0.11, -0.25], [0.47, 0.11, -0.25]) - 0.11;
+/** Inside the tube's inner edge (over the floor). */
+const overFloor = (p) => {
+  const P = RAFT_TUBE.pts; let inside = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) if ((P[i][2] > p[2]) !== (P[j][2] > p[2]) && p[0] < ((P[j][0] - P[i][0]) * (p[2] - P[i][2])) / (P[j][2] - P[i][2]) + P[i][0]) inside = !inside;
+  return inside && tubeGap(p) > 0;
+};
+
+test('raft paddle: over the whole stroke cycle — both sides, pivoting, to and from the rest hold — the shaft and blade never pass through the tubes, the thwart or the floor; the hands change over with the paddle raised', () => {
+  // the paddler kneels at the stern facing the bow (yaw 0): his root-local frame is the hull's, offset by the seat
+  const seat = BOAT_SEATS.raft.seats[0];
+  assert.ok(seat.pose === 'paddle' && !seat.yaw, 'the paddler: seat 0, facing the bow');
+  const root = seat.p;
+  // nominal kneeling shoulders (root-local, measured on the posed Marine) and the hand's reach to a fist on the shaft
+  const SH = { l: [0.11, 0.92, 0.12], r: [-0.16, 0.96, -0.13] }, REACH = 0.6;
+  const line = (P) => {
+    const d = P.T.map((v, i) => v - P.G[i]), n = Math.hypot(...d);
+    return { G: P.G.map((v, i) => v + root[i]), d: d.map((v) => v / n) };
+  };
+  const W = { shaft: [9], blade: [9], thwart: [9], floor: [], reach: [0], swap: [9], jump: [0] };
+  const N = 400;
+  for (const same of [false, true]) for (const s of [1, -1]) for (let ai = 0; ai <= 20; ai++) {
+    const act = ai / 20, tag = (u) => `u ${u.toFixed(3)} s ${s}${same ? ' pivoting' : ''} act ${act}`;
+    let prev = null;
+    for (let i = 0; i < N; i++) {
+      const u = i / N, P = paddlePose(u, s, same, act), { G, d } = line(P);
+      for (let k = 0; k <= 58; k++) {
+        const t = k * 0.025, p = G.map((v, j) => v + d[j] * t), blade = t > PADDLE.length - PADDLE.blade;
+        // the shaft (r 1.8 cm) and the blade (taken as a rod as wide as the blade: 8.5 cm)
+        const gap = tubeGap(p) - (blade ? 0.085 : 0.018);
+        if (blade ? gap < W.blade[0] : gap < W.shaft[0]) W[blade ? 'blade' : 'shaft'] = [gap, tag(u)];
+        const tg = thwartGap(p) - 0.018;
+        if (tg < W.thwart[0]) W.thwart = [tg, tag(u)];
+        if (p[1] < 0.06 && overFloor(p) && W.floor.length < 3) W.floor.push(tag(u));
+      }
+      // the hand low on the shaft can reach it (closest point to his shoulder, 0.16 … 0.8 m down from the grip)
+      const S = SH[P.top === 'r' ? 'l' : 'r'], rel = S.map((v, j) => v - P.G[j]);
+      const tt = Math.max(0.16, Math.min(0.8, rel[0] * d[0] + rel[1] * d[1] + rel[2] * d[2]));
+      const reach = Math.hypot(...rel.map((v, j) => v - d[j] * tt));
+      if (reach > W.reach[0]) W.reach = [reach, tag(u)];
+      // the hands change over only with the paddle raised (shaft steeply up: blade high, T-grip at his chest)
+      if (prev && prev.top !== P.top && d[1] < W.swap[0]) W.swap = [d[1], tag(u)];
+      // continuous (the next stroke's u = 0 follows on from u → 1): no snap — the fastest swing, mid-recovery as the
+      // paddle is flicked up from the exit, moves the tip 15 cm per 1/400 of the cycle; a snap was 1.8 m
+      const tip = G.map((v, j) => v + d[j] * PADDLE.length);
+      if (prev) { const j = Math.hypot(...tip.map((v, k2) => v - prev.tip[k2])); if (j > W.jump[0]) W.jump = [j, tag(u)]; }
+      prev = { top: P.top, tip };
+    }
+  }
+  assert.ok(W.shaft[0] > 0.05, `the shaft clear of the tubes by ${(W.shaft[0] * 100).toFixed(1)} cm at the closest (${W.shaft[1]})`);
+  assert.ok(W.blade[0] > 0.03, `…the blade by ${(W.blade[0] * 100).toFixed(1)} cm (${W.blade[1]})`);
+  assert.ok(W.thwart[0] > 0.1, `…the thwart by ${(W.thwart[0] * 100).toFixed(1)} cm (${W.thwart[1]})`);
+  assert.ok(!W.floor.length, `…never down through the floor (${W.floor.join('; ')})`);
+  assert.ok(W.reach[0] < REACH, `the lower fist's spot on the shaft within ${W.reach[0].toFixed(2)} m of his shoulder (${W.reach[1]})`);
+  assert.ok(W.swap[0] > 0.8, `the hands change over with the paddle raised (shaft direction y ${W.swap[0].toFixed(2)}, ${W.swap[1]})`);
+  assert.ok(W.jump[0] < 0.2, `no snap: the blade tip moves ≤ ${(W.jump[0] * 100).toFixed(1)} cm per 1/${N} of the stroke (${W.jump[1]})`);
+  // between rest and stroke: raised upright through the middle of the blend, both ways, on either side
+  for (const s of [1, -1]) for (const u of [0, 0.3, 0.6, 0.85]) {
+    const mid = paddlePose(u, s, false, 0.5);
+    assert.deepEqual([mid.G, mid.T], [UPRIGHT.G, UPRIGHT.T], `half way between the hold and the stroke (u ${u}, s ${s}): upright before him`);
+  }
+  assert.ok(Math.abs(SWITCH_U - 0.82) < 0.05 && paddlePose(SWITCH_U - 0.001, 1, false, 1).top === 'r' && paddlePose(SWITCH_U + 0.001, 1, false, 1).top === 'l', 'the change-over in the recovery');
+  // continuous in the blend weight too (start / stop at any phase): ≤ 13 cm per 1/200 of the blend (the straight blend
+  // flipped the blade through the boat at 50 cm a step)
+  for (const s of [1, -1]) for (let ui = 0; ui < 50; ui++) {
+    let prev = null;
+    for (let ai = 0; ai <= 200; ai++) {
+      const { G, d } = line(paddlePose(ui / 50, s, false, ai / 200)), tip = G.map((v, j) => v + d[j] * PADDLE.length);
+      if (prev) assert.ok(Math.hypot(...tip.map((v, j) => v - prev[j])) < 0.2, `blend snaps at act ${ai / 200} (u ${ui / 50}, s ${s})`);
+      prev = tip;
+    }
+  }
+  assert.deepEqual(paddlePose(0.4, -1, false, 0).G, HOLD.G, 'at rest: the hold');
 });

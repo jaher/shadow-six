@@ -12,7 +12,8 @@
  *    through both palms; the raft's own port paddle leaves its rowlock, the starboard one is stowed along the top of
  *    the starboard tube), one stroke per wake stroke on alternating sides, in step with the catch rings the wake draws
  *    (art/water.js WakeTracker.strokeOf); pivoting on the spot he strokes on one side only; at rest the paddle lies
- *    across his thighs;
+ *    across his thighs, and setting off or stopping he raises it upright before him on the way (the shaft and blade
+ *    clear of the tubes, the thwart and the floor at every phase: tests/unit/boat-oars.test.mjs, GPU boat-oars);
  *  - in the rowboat he ROWS: facing aft on the midship thwart, a fist round each oar handle, the oars turning between
  *    their thole pins on the gunwales (art/oars.js): catch (blades dip, arms out, leaning toward the stern) → drive
  *    (blades in, lean back, handles to the chest) → feathered recovery, the stroke clock the wake's (both blades ring
@@ -176,6 +177,18 @@ const STROKE = [
 const TURN_BACK = { G: [0.24, 1.10, 0.22], T: [1.25, 0.50, 0.90], bend: 0.20, twist: -0.12, lean: 0.14 };
 /** At rest: the paddle across his thighs, both hands on the shaft (the top hand at his right). */
 export const HOLD = Object.freeze({ G: [-0.42, 0.62, 0.30], T: [1.30, 0.58, 0.32], bend: 0.06, twist: 0, lean: 0, top: 'r', lowerAt: 0.75 });
+/**
+ * Raised upright before him, square to his front (the recovery's top: T-grip low at his chest, blade high): the way
+ * the paddle goes between the rest hold and a stroke.
+ */
+export const UPRIGHT = Object.freeze({ G: [0, 0.88, 0.22], T: [0, 2.10, 0.70], bend: 0.10, twist: 0, lean: 0 });
+/**
+ * Phase at which the hands change over on the grip in the recovery: just after the paddle stands upright, its blade
+ * tipping toward the next stroke's side. Later, the hand still low on the shaft would have to reach across his body
+ * after the blade (out of reach on his left: the shaft was then laid through the fist wherever it fell short, down
+ * through the port tube).
+ */
+export const SWITCH_U = 0.82;
 
 const mirror = (k, s) => ({ G: [k.G[0] * s, k.G[1], k.G[2]], T: [k.T[0] * s, k.T[1], k.T[2]], bend: k.bend, twist: k.twist * s, lean: k.lean * s });
 function mixKey(a, b, k) {
@@ -193,9 +206,9 @@ export function paddleKey(u, s, same = false) {
   let k;
   if (u >= STROKE[last].u) {
     const to = same ? mirror(STROKE[0], s) : mirror(STROKE[0], -s);
+    // pivoting: on from TURN_BACK, where the exit led (it used to restart from the exit here: a snap every stroke)
     const from = same ? mirror(TURN_BACK, s) : mirror(STROKE[last], s);
-    const base = same ? mixKey(mirror(STROKE[last - 1], s), from, smooth((u - STROKE[last].u) / 0.08)) : from;
-    k = mixKey(base, to, smooth((u - STROKE[last].u) / (1 - STROKE[last].u)));
+    k = mixKey(from, to, smooth((u - STROKE[last].u) / (1 - STROKE[last].u)));
   } else {
     let i = last;
     while (i > 0 && STROKE[i].u > u) i--;
@@ -203,14 +216,17 @@ export function paddleKey(u, s, same = false) {
     const bb = same && i + 1 === last ? TURN_BACK : b;
     k = mixKey(mirror(a, s), mirror(bb, s), smooth((u - a.u) / (b.u - a.u)));
   }
-  // the hand on the grip is the one away from the stroke; it changes over as the paddle crosses (u ≈ 0.9)
-  const top = (same || u < 0.9 ? s : -s) > 0 ? 'r' : 'l';
+  // the hand on the grip is the one away from the stroke; it changes over as the raised paddle tips across (SWITCH_U)
+  const top = (same || u < SWITCH_U ? s : -s) > 0 ? 'r' : 'l';
   return { ...k, top, wet: u < STROKE[2].u, lowerAt: PADDLE.lower };
 }
 
 /**
  * The paddler's pose: strokes while moving (phase u, side s, pivoting → same side), the rest hold when not, blended
- * by `act` (0 hold … 1 stroking).
+ * by `act` (0 hold … 1 stroking). Between the two the paddle is raised UPRIGHT before him and brought down again —
+ * never blended straight across: from the lap (blade on his left) to a stroke on his right that swept the blade
+ * down through the floor, the thwart and the tubes, and into the man sitting before him. The hands change over up
+ * there when the stroke wants the left one on the grip.
  */
 export function paddlePose(u, s, same, act) {
   const k = paddleKey(u, s, same);
@@ -218,7 +234,12 @@ export function paddlePose(u, s, same, act) {
   const h = { ...HOLD, wet: false };
   if (act <= 0.001) return h;
   const a = smooth(act);
-  return { ...mixKey(h, k, a), top: act > 0.5 ? k.top : 'r', wet: k.wet && act > 0.5, lowerAt: lerp(HOLD.lowerAt, PADDLE.lower, a) };
+  if (a < 0.5) {
+    const b = a * 2;
+    return { ...mixKey(HOLD, UPRIGHT, b), top: 'r', wet: false, lowerAt: lerp(HOLD.lowerAt, PADDLE.lower, b) };
+  }
+  const b = a * 2 - 1;
+  return { ...mixKey(UPRIGHT, k, b), top: k.top, wet: k.wet && b > 0.5, lowerAt: PADDLE.lower };
 }
 
 // ------------------------------------------------------------------ rowing: the oars per side (art/oars.js)
