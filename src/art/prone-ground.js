@@ -47,7 +47,9 @@ function ankleBy(B, s, dy) {
 /**
  * Per-frame prone grounding / turning for one UnitModel. Call after the mixer stepped.
  * @param {object} st persistent state object of the model
- * @param {{root:object, body:object, bones:object, groundY:(x:number,z:number)=>number, prone:boolean, dt:number, moving:boolean}} o
+ * @param {{root:object, body:object, bones:object, groundY:(x:number,z:number)=>number, prone:boolean, dt:number, moving:boolean,
+ *   pivot?:number, done?:Function}} o pivot: where along the body the lagging heading turns (PIVOT m ahead: the chest);
+ *   done: called once the shown heading has caught up
  * @returns {{turnDir:number, active:boolean}}
  */
 export function proneGround(st, o) {
@@ -85,7 +87,9 @@ export function proneGround(st, o) {
   // the unit, which the relief pass below uses); only the lagging heading pivots about the chest (PIVOT m ahead):
   // body.position = pivot - Ryaw * pivot. (Pivoting the tilt about the chest too sank the body 0.3 * tan(slope)
   // into an uphill slope - review: elbows 1-5 cm, knees 2 cm on the M1 drift.)
-  _v.set(0, 0, PIVOT).applyAxisAngle(_up, off); body.position.set(0, 0, PIVOT).sub(_v);
+  const piv = o.pivot ?? PIVOT;
+  _v.set(0, 0, piv).applyAxisAngle(_up, off); body.position.set(0, 0, piv).sub(_v);
+  if (o.done && Math.abs(off) < 0.01) o.done();
   if (!o.prone || !o.groundY) return { turnDir, active };
   // local relief under each elbow / ankle vs the fitted plane
   root.updateMatrixWorld(true);

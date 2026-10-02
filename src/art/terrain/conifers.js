@@ -21,6 +21,19 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
 /**
+ * Walk-under clearance of one branch polyline (tree-local, y up from the ground): with `clear` {y, r} (or a list) the
+ * branch ends at its last point before one that lies below `y` farther than `r` from the trunk axis.
+ * @returns {number} segments kept (bp.length - 1 when untouched, 0 = drop the branch)
+ */
+export function clearBranch(bp, clear) {
+  const last = bp.length - 1;
+  if (!clear) return last;
+  const list = Array.isArray(clear) ? clear : [clear];
+  for (let i = 1; i <= last; i++) if (list.some((c) => bp[i].y < c.y && Math.hypot(bp[i].x, bp[i].z) > c.r)) return i - 1;
+  return last;
+}
+
+/**
  * @param {object} env {THREE, V, UP, tube, BARK_LAYERS}
  * @returns {{genSpruce:Function, genPine:Function, along:Function, trunk:Function, spray:Function, card:Function, shade:Function}}
  */
@@ -138,12 +151,16 @@ export function makeConifers(env) {
         d.x += (r() - 0.5) * 0.12; d.z += (r() - 0.5) * 0.12; d.normalize();
         p.addScaledVector(d, len / s3); bp.push(p.clone());
       }
+      // walk-under clearance (placement hint `clear`): below head height a limb ends at the trunk's footprint
+      // instead of reaching over the ground walkers use; its sprays and curtains past the cut are not drawn
+      const sN = clearBranch(bp, sp.clear), cutF = sN / s3;
+      if (sN === 0) return;
       const rb = Math.max(0.012, T.radAt(c0.y) * (small ? 0.18 : 0.3));
       const flexAt = (pp) => 0.2 + 0.8 * clamp(Math.hypot(pp.x - c0.x, pp.z - c0.z) / Math.max(0.5, len), 0, 1);
       // the limb ends under its outer spray (a bare snow-capped stick past the needles read as a white line)
       // and hangs just below the spray's centre line, so the sprays (not a snow-capped stick) carry the snow
-      const bt = (small || q.seg < 0.6 ? bp.slice(0, 3) : [bp[0], bp[2], bp[3]]).map((x, i) => (i ? x.clone().add(V(0, -rb * 1.6 - 0.02, 0)) : x));
-      tube(bark, bt, bt.map((_, i) => Math.max(0.008, rb * (1 - i / (s3 + 1)))), 3, BARK_LAYERS.indexOf(sp.bark), (pp) => [sway(pp.y), flexAt(pp) * 0.6, phB], tint, 1);
+      const bt = (small || q.seg < 0.6 ? [0, 1, 2] : [0, 2, 3]).filter((i) => i <= sN).map((i) => bp[i]).map((x, i) => (i ? x.clone().add(V(0, -rb * 1.6 - 0.02, 0)) : x));
+      if (bt.length >= 2) tube(bark, bt, bt.map((_, i) => Math.max(0.008, rb * (1 - i / (s3 + 1)))), 3, BARK_LAYERS.indexOf(sp.bark), (pp) => [sway(pp.y), flexAt(pp) * 0.6, phB], tint, 1);
       if (!foliage) return;
       const info = (layer) => (pp) => [layer, sway(pp.y), flexAt(pp), phB];
       const nS = Math.max(1, Math.round(len / ((0.9 + 0.3 * r()) * sc * qs)));
@@ -155,11 +172,13 @@ export function makeConifers(env) {
         const layer = tt > 0.86 ? NL('spruce_top') : NL('spruce_0') + (r() < 0.5 ? 0 : 1);
         const sh = (0.86 + 0.24 * r()) * (outer ? 1.06 : 0.9 + 0.06 * k);
         const tn = shade(leafTint, sh, !outer && r() < 0.18 ? 0.5 + 0.5 * r() : 0);
-        spray(nd, bp, f0, f1, W, W * (0.1 + 0.14 * (1 - tt)), (r() - 0.5) * 0.5, layer, info(layer), tn, extAt(tt, 1));
+        const roll = (r() - 0.5) * 0.5;
+        if (f1 > cutF + 1e-6) continue;
+        spray(nd, bp, f0, f1, W, W * (0.1 + 0.14 * (1 - tt)), roll, layer, info(layer), tn, extAt(tt, 1));
         crown.push(along(bp, (f0 + f1) / 2).p);
       }
       // hanging comb curtains under the longer limbs (both sides), darker and unexposed
-      if (!small && len > 0.9 && H > 6 && q.cards >= 0.6 && r() < (sp.curtain ?? 0) * Math.min(1, q.cards)) {
+      if (sN === s3 && !small && len > 0.9 && H > 6 && q.cards >= 0.6 && r() < (sp.curtain ?? 0) * Math.min(1, q.cards)) {
         for (const side of [-1, 1]) {
           if (r() < 0.25) continue;
           const f0 = 0.25 + 0.15 * r(), f1 = Math.min(1.05, f0 + 0.45 + 0.35 * r());
@@ -297,10 +316,15 @@ export function makeConifers(env) {
           const bp = [c0.clone()], p = c0.clone();
           for (let i = 0; i < 4; i++) { d.y += lerp(0.12, -0.1, umb); d.x += (r() - 0.5) * 0.25; d.z += (r() - 0.5) * 0.25; d.normalize(); p.addScaledVector(d, len / 4); bp.push(p.clone()); }
           const phB = phase + r() * 6.28, rb = Math.max(0.016, T.radAt(Math.min(y, H * 0.95)) * 0.4);
+          // walk-under clearance (placement hint `clear`): a low limb ends at the trunk's footprint (no pad past the cut)
+          const sN = clearBranch(bp, sp.clear);
+          if (sN === 0) continue;
           // limb LOD: 2 / 3 / 4 tube segments at low / medium / high (most of a low-preset Scots pine's tris were limbs)
           const lb = q.seg < 0.6 ? [0, 2, 4] : q.seg < 0.9 ? [0, 1, 3, 4] : [0, 1, 2, 3, 4];
-          tube(bark, lb.map((i) => bp[i]), lb.map((i) => Math.max(0.01, rb * (1 - i / 5))), 3, barkL, (pp) => [sway(pp.y), 0.4, phB], tint, 1);
+          const lk = lb.filter((i) => i <= sN);
+          if (lk.length >= 2) tube(bark, lk.map((i) => bp[i]), lk.map((i) => Math.max(0.01, rb * (1 - i / 5))), 3, barkL, (pp) => [sway(pp.y), 0.4, phB], tint, 1);
           if (!foliage) continue;
+          if (sN < 4) continue;
           pad(bp[4].clone().addScaledVector(d, padSz * 0.2), out, 1, phB);
           const nt = Math.round((0.6 + 1.4 * r()) * Math.min(1.2, len / 1.2) * (q.twigs ?? 1));
           for (let k = 0; k < nt; k++) {

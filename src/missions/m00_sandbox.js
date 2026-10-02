@@ -39,7 +39,9 @@ export default {
     // enemy compound (east bank): walls with a gap on the west side at the road
     { type: 'wall', points: [[45, 4], [58, 4], [58, 56], [45, 56], [45, 33]] },
     { type: 'wall', points: [[45, 27], [45, 4]] },
-    { type: 'barracks', id: 'barracks1', x: 52, z: 11, rot: 0, w: 10, d: 6, reinforcementSpawn: true },
+    // (x 52.5, 9.6 m: the W gable door's steps leave a two-cell way to the compound wall — at x 52 they stood 0.8 m
+    // from it — and the E eaves stay clear of the E wall)
+    { type: 'barracks', id: 'barracks1', x: 52.5, z: 11, rot: 0, w: 9.6, d: 6, reinforcementSpawn: true },
     { type: 'fueltank', id: 'fuel_depot', x: 52, z: 38, destructible: true, hp: 100 },
     { type: 'hut', id: 'hut1', x: 53, z: 49, rot: 0 },
     { type: 'sandbags', x: 47.5, z: 25.5, rot: 0, w: 3 },

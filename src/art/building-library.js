@@ -343,7 +343,7 @@ export function createBuilding(type, params = {}, rng = null) {
   const anchors = a.anchors.map((an) => ({ ...an, pos: P.p3(an.pos), heading: P.h(an.heading) }));
   const roofs = a.roofs.map((r) => ({ ...r, points: r.points.map(P.pt) }));
   const climbEdges = a.climbEdges.map((c) => ({ ...c, a: P.pt(c.a), b: P.pt(c.b) }));
-  const bridge = a.bridge ? { ...a.bridge, deck: a.bridge.deck ? a.bridge.deck.map(P.pt) : null } : null;
+  const bridge = a.bridge ? { ...a.bridge, deck: a.bridge.deck ? a.bridge.deck.map(P.pt) : null, crest: a.bridge.crest_poly ? a.bridge.crest_poly.map(P.pt) : null } : null;
   return {
     object3d: group, asset: name, meta: a,
     footprints: buildingFootprints(name, x, z, rot),

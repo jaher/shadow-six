@@ -3,7 +3,7 @@
  * Clipping / interpenetration audit (GPU headless, the browser test harness).
  *
  *   node tools/audit/clipping.mjs [--mission m01[,m02…]] [--dynamic 180] [--shots 6] [--clutter]
- *                                 [--write-baseline] [--out docs/clipping] [--screens docs/screenshots]
+ *                                 [--seed 7] [--write-baseline] [--out docs/clipping] [--screens docs/screenshots]
  *
  * Per mission: static audit (every static render item pair, triangle-exact, see src/debug/clip-audit.js), turret
  * sweep (every turret over its arc), turret probe (tanks / armoured cars parked where they can drive beside every
@@ -27,6 +27,7 @@ const arg = (name, def) => { const i = argv.indexOf(`--${name}`); return i < 0 ?
 const flag = (name) => argv.includes(`--${name}`);
 const missions = String(arg('mission', 'm00,m01,m02,m03,b00')).split(',').filter(Boolean);
 const dynSeconds = +arg('dynamic', 180);
+const seed = +arg('seed', 7); // dynamic run's commando-move RNG (tests/clipping.test.mjs asserts seeds 7 and 11)
 const nShots = +arg('shots', 6);
 const OUT = resolve(ROOT, arg('out', 'docs/clipping'));
 const SCREENS = resolve(ROOT, arg('screens', 'docs/screenshots'));
@@ -63,6 +64,7 @@ try {
     const page = await h.newPage(VIEW);
     await h.openGame(page);
     await page.evaluate((m) => window.__game.loadMission(m), id);
+    await page.evaluate(() => Promise.resolve(window.__game.game.mapHandle?.ready).then(() => true)); // every mesh in
     await page.evaluate(() => window.__game.clipAudit());
     const st = await page.evaluate((clutter) => window.__game.clip.static({ clutter }), flag('clutter'));
     const tu = await page.evaluate(() => window.__game.clip.turrets());
@@ -85,7 +87,7 @@ try {
     }
     let dyn = null;
     if (dynSeconds > 0) {
-      await page.evaluate(() => window.__game.clip.dynamicBegin({}));
+      await page.evaluate((s) => window.__game.clip.dynamicBegin({ seed: s }), seed);
       const tmp = new Map(); // key → temp crop of its worst moment so far
       let n = 0, last = 0;
       for (let t = 0; t < dynSeconds; t += 0.5) {

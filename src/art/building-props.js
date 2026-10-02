@@ -314,7 +314,7 @@ export function libraryVisual(type, p = {}, ctx = {}) {
   const roofs = a.roofs.map((r) => ({ ...r, points: r.points.map(pt), elev: (r.elev ?? 0) * sy }));
   const climbEdges = a.climbEdges.map((c) => ({ ...c, a: pt(c.a), b: pt(c.b), y: c.y != null ? c.y * sy : c.y, top: c.top != null ? c.top * sy : c.top }));
   const anchors = a.anchors.map((an) => ({ ...an, pos: p3(an.pos), heading: hd(an.heading) }));
-  const bridge = a.bridge ? { ...a.bridge, deck: a.bridge.deck ? a.bridge.deck.map(pt) : null } : null;
+  const bridge = a.bridge ? { ...a.bridge, deck: a.bridge.deck ? a.bridge.deck.map(pt) : null, crest: a.bridge.crest_poly ? a.bridge.crest_poly.map(pt) : null } : null;
   const piers = a.footprints.filter((f) => /^(pier|bent|dolphin|gate_pier)$/.test(f.kind)).map((f) => {
     const q = f.points.map(pt), cx = q.reduce((s, e) => s + e[0], 0) / q.length, cz = q.reduce((s, e) => s + e[1], 0) / q.length;
     return { x: cx, z: cz, r: Math.max(0.3, Math.max(...q.map((e) => Math.hypot(e[0] - cx, e[1] - cz))) * 0.8), points: q };

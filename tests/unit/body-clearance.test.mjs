@@ -122,7 +122,8 @@ test('crawling at a parked hull from 8 directions: never under it, stops ≥ 0.1
 test('turning while prone next to a hull never swings the legs under it', () => {
   const w = mkWorld();
   w.spawnVehicle('truck', { x: 30, z: 30, heading: 0 });
-  const c = w.add(new Commando({ role: 'greenberet', x: 30, z: 31.2 + 0.55, heading: 0 }));
+  // (0.75 m off the side: his drawn-up knee reaches 0.67 m out of his body line, world/body-clearance.js LIMBS)
+  const c = w.add(new Commando({ role: 'greenberet', x: 30, z: 31.2 + 0.75, heading: 0 }));
   c.setStance('crawl'); step(w, 30);
   assert.ok(unitGap(c) > 0);
   c.moveTo(30, 36); // straight away from the hull: he must turn 90° first

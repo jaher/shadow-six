@@ -5,22 +5,57 @@
  * @module entities/unit
  */
 
-import { settleBody, fallHeading, settleSolid } from '../world/placement.js';
+import { settleBody, fallHeading, settleSolid, settleHands, climbTrack, climbAt, ownerHeight, weaponRoom } from '../world/placement.js';
 import { Entity } from './entity.js';
 import { createUnitModel } from '../art/unit-model.js';
 import { CONFIG, velToSpeed } from '../config.js';
 import { angleTo, turnTowardsAngle, angleDiff, dist } from '../core/math.js';
-import { T, MAX_STEP } from '../world/grid.js';
+import { T, B, MAX_STEP } from '../world/grid.js';
 import { plan as avoidPlan, priority, blocks, givesWay } from './avoidance.js';
 
+/** Body reach (m) kept over a wall while climbing it: torso + pack / slung rifle. */
+const CLIMB_R = 0.45;
+
+/** Running stride (rule e): how far the boots reach from the body, and how high the heel rises on its own (m). */
+const RUN_REACH = 0.6, RUN_HEEL = 0.12;
+/** Walking stride (rule e): the trailing toe leaves a step about half a metre behind the body. */
+const WALK_REACH = 0.5, WALK_HEEL = 0.04;
+/** Lying down (rule e): where along the body (m from the hips, + ahead) the ground under it is sampled. */
+const CRAWL_SAMPLES = [-0.9, -0.5, 0, 0.3, 0.6, 0.9, 1.2];
+/** Lateral samples (m) where his elbows / hands rest beside his chest (0.3–0.6 m ahead of the hips). */
+const CRAWL_ARMS = [-0.6, -0.4, -0.2, 0, 0.2, 0.4, 0.6];
+/** …a low surface up to this high is lain over (a step, a kerb); anything higher is a wall the nav keeps him off. */
+const STEP_RISE = 0.35;
 /** Brain states in which a standing enemy steps aside for a mate who cannot get past him. */
 const YIELD_STATES = new Set(['IDLE', 'REINFORCE', 'RETURN', 'INVESTIGATE', 'SEARCH', 'TRACKS', 'BODY']);
 import { cornerOffset } from './path-curve.js';
-import { bodyGap, clearPose, avoidMask, inflationTiers, hasObstacles, pushedBy, deadStance, MOVE_MARGIN, STOP_MARGIN } from '../world/body-clearance.js';
+import { BODY, bodyGap, clearPose, avoidMask, inflationTiers, hasObstacles, pushedBy, deadStance, staticNear, rectSDF, MOVE_MARGIN, STOP_MARGIN } from '../world/body-clearance.js';
 import { pathLength } from '../world/pathfinding.js';
+import { gateLayout } from '../world/breakables.js';
 import { runNoiseStep } from '../ai/running-noise.js';
 
 const LOW_STANCES = new Set(['crawl', 'swim', 'dive', 'downed']);
+/**
+ * Boom barriers on the map (world/breakables.js gateLayout): their pole line in gate-local u (along the gate) from the
+ * counterweight to past the fork rest, and the pole's rest height; cached per world.
+ */
+function boomLines(w) {
+  if (w._boomLines && w._boomLines.src === w.structures) return w._boomLines.list;
+  const list = [];
+  for (const s of w.structures?.values?.() || []) {
+    const d = s.def;
+    if (s.type !== 'gate' || !d) continue;
+    const L = gateLayout(d);
+    if (L?.kind !== 'boom' || !L.pivot) continue;
+    const xe = Math.max(...L.pieces.filter((p) => p.kind === 'pole').map((p) => p.c[0] + p.h[0]));
+    list.push({ x: d.x ?? 0, z: d.z ?? 0, tx: Math.cos(d.rot ?? 0), tz: Math.sin(d.rot ?? 0), u0: L.pivot[0] - 0.9, u1: xe + 0.15, y: L.pivot[1] });
+  }
+  w._boomLines = { src: w.structures, list };
+  return list;
+}
+
+/** How fast a lying man's shown body turns while he crawls (rad/s; art/prone-ground.js: 75°/s × 1.5). */
+const PRONE_TURN = (112 * Math.PI) / 180;
 /** Every Unit.state value (§10.4 #2). BEL never enters 'stunned'/'bound' (BCD rulesets only). */
 export const UNIT_STATES = Object.freeze(['active', 'dead', 'stunned', 'hidden', 'inVehicle', 'carried', 'busy', 'bound', 'held', 'captured', 'jailed', 'downed']);
 /** A man stopped in place: not walking, not carried along on a conveyor belt (moved at the 20 Hz BEL tick: 3 sim steps). */
@@ -307,6 +342,7 @@ export class Unit extends Entity {
   stop() {
     this._bakeLane();
     this.path = null;
+    this._climb = null;
     this.pathIndex = 0;
     this.moveTarget = null;
     this._onArrive = null;
@@ -411,6 +447,11 @@ export class Unit extends Entity {
       // …and clear of the standing visuals the nav grid does not see (stakes along a wall walk, railings)
       const off = settleSolid(w.grid, this.x, this.z, this.heading, { likely: fall });
       if (off) { this.x = off.x; this.z = off.z; }
+      // …and, fallen on his back, his hands flung out past his head clear of a building's foot (a plinth, a skirt)
+      if (fall < 0 && deadStance(this.stance) === 'dead') {
+        const A = BODY.dead.arms, hd = settleHands(w.grid, this.x, this.z, this.heading, { at: A.at, half: A.half, r: A.r });
+        if (hd) { this.x = hd.x; this.z = hd.z; }
+      }
       // …and never under a vehicle hull (world/body-clearance.js); a man run over lies where the wheels caught him
       const ds = deadStance(this.stance); // on his back (his hands flung out past his head), or on his belly
       if (cause !== 'runover' && cause !== 'train' && hasObstacles(w) && bodyGap(w, this.x, this.z, this.heading, ds) < STOP_MARGIN) {
@@ -463,7 +504,7 @@ export class Unit extends Entity {
       case 'swim': name = 'swim'; break;
       case 'dive': name = 'dive'; break;
       // a commando holding a load keeps its carry / drag clip (Commando._holdAnim): never walk ⇄ carry_walk per tick
-      default: name = this._holdAnim?.(moving) || (moving ? (this.moveMode === 'run' ? 'run' : 'walk') : this.idleAnim || 'idle');
+      default: name = this._holdAnim?.(moving) || (moving ? (this.moveMode === 'run' && !this._heelBlocked() ? 'run' : 'walk') : this.idleAnim || 'idle');
     }
     this._setAnim(name);
   }
@@ -490,6 +531,101 @@ export class Unit extends Entity {
     this._guardBody(dt);
     if (!this._moving) this._runNoiseD = null; // a new run starts its running-noise counter afresh
     this._updateAnim(dt);
+    if (!this._moving && (this._anim === 'aim' || this._anim === 'shoot')) this._keepWeaponRoom(dt);
+    else this._weaponBack = 0;
+  }
+
+  /**
+   * Placement rule (e) stride: the boots reach RUN_REACH (WALK_REACH) m before and behind the body: where the ground
+   * there is a step higher than the heel's own lift, the body rides up the difference so the boot clears the step
+   * instead of kicking through its edge (the feet ring of world.groundY covers the soles and the short stride).
+   */
+  syncTransform(alpha = 1) {
+    super.syncTransform(alpha);
+    const o = this.object3d, w = this.world;
+    if (o && this._pitched) { o.rotation.x = 0; this._pitched = false; }
+    if (o && (this.stance === 'crawl' || this.stance === 'downed') && this.alive && typeof w?.groundY === 'function' && !this.vehicle) return this._crawlOverSteps(o, w);
+    if (!o || typeof w?.groundY !== 'function' || !this._moving || LOW_STANCES.has(this.stance) || this._climb) return;
+    const run = this.moveMode === 'run', reach = run ? RUN_REACH : WALK_REACH, heel = run ? RUN_HEEL : WALK_HEEL;
+    const x = o.position.x, z = o.position.z, c = Math.cos(this.heading), s = Math.sin(this.heading), g0 = w.groundY(x, z) || 0;
+    let lift = 0;
+    for (const d of [-reach, reach]) lift = Math.max(lift, (w.groundY(x + c * d, z + s * d) || 0) - g0 - heel);
+    if (lift > 0) o.position.y += Math.min(lift, 0.3);
+  }
+
+  /**
+   * Placement rule (e) running stride: the trailing heel kicks up to 0.85 m behind a runner; while a wall, a stake
+   * or a building stands there (running off a post with his back to the palisade: M2 e5), his first strides are shown
+   * as a walk at the same pace.
+   */
+  _heelBlocked() {
+    const g = this.world?.grid;
+    if (!g) return false;
+    const c = Math.cos(this.heading), s = Math.sin(this.heading);
+    for (const d of [0.45, 0.65, 0.85]) for (const v of [-0.15, 0, 0.15]) {
+      const x = this.x - c * d - s * v, z = this.z - s * d + c * v, { i, j } = g.worldToCell(x, z);
+      if (!g.inBounds(i, j)) continue;
+      const k = g.idx(i, j);
+      if (g.block[k] !== B.NONE || g.solidAt?.(x, z)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Placement rule (e) for a man lying down: his body reaches 1.2 m ahead (head, the weapon), his elbows 0.6 m to
+   * the sides and his boots 0.9 m behind (CRAWL_SAMPLES / CRAWL_ARMS), so beside a door's steps, a kerb or a plinth
+   * (a low surface ≤ STEP_RISE m up) the hips stay on the ground while his head or an arm would go into its side.
+   * The body rises and pitches (≤ 12°, about his hips) just enough that every sample lies on what is under it.
+   */
+  _crawlOverSteps(o, w) {
+    const g = w.grid, x = o.position.x, z = o.position.z, h = this.heading, c = Math.cos(h), s = Math.sin(h);
+    const surf = (px, pz) => (g?.elevAt ? g.elevAt(px, pz) || 0 : 0) + (w.groundY(px, pz) || 0);
+    const y0 = surf(x, z), need = [];
+    let up = false;
+    for (const a of CRAWL_SAMPLES) for (const v of a > 0.2 && a < 0.7 ? CRAWL_ARMS : [-0.25, 0, 0.25]) {
+      const r = surf(x + c * a - s * v, z + s * a + c * v) - y0;
+      if (r > STEP_RISE) continue; // (a wall: the nav keeps him off it)
+      need.push([a, r]); // (every sample: the tilt never puts his boots or head below the ground either)
+      if (r > 0.03) up = true;
+    }
+    if (!up) return;
+    let best = null;
+    for (let d = -12; d <= 12; d++) {
+      const sn = Math.sin((d * Math.PI) / 180);
+      let L = 0;
+      for (const [a, r] of need) L = Math.max(L, r - a * sn);
+      if (!best || L < best.L - 1e-4 || (Math.abs(L - best.L) <= 1e-4 && Math.abs(d) < Math.abs(best.d))) best = { L, d };
+    }
+    o.position.y += Math.min(best.L, STEP_RISE);
+    if (best.d) {
+      o.rotation.order = 'YXZ';
+      o.rotation.x = (-best.d * Math.PI) / 180; // (model forward is local +Z: a negative x tilt lifts the head)
+      this._pitched = true;
+    }
+  }
+
+  /**
+   * Placement rule (e) weapons: standing (or kneeling) and aiming, the unit steps back (≤ 0.6 m, a quick 1.6 m/s half step: done before the rifle is up) until the
+   * shouldered barrel is out of the wall or building in front of it (placement.weaponRoom); no room: stays put.
+   */
+  _keepWeaponRoom(dt) {
+    const w = this.world;
+    if (!w?.grid || LOW_STANCES.has(this.stance) || this.vehicle || this._climb) return;
+    const left = 0.6 - (this._weaponBack || 0); // per aim (≤ 0.6 m in all)
+    // parked hulls and wagons count too (taller than the shoulder: a vehicle's own height, a wagon's box)
+    const solidAt = (x, z, y) => (w.vehicles || []).some((v) => v !== this.vehicle && !v.removed && !v.hiddenRail && v._inHull?.(x, z, 0) && (v.hullHeight?.() ?? 2) > y)
+      || (w.interactables || []).some((it) => it.interactKind === 'pushable' && !it.destroyed && it.size && Math.abs((x - it.x) * Math.cos(it.heading ?? 0) + (z - it.z) * Math.sin(it.heading ?? 0)) <= it.size[0] / 2 + 0.05
+        && Math.abs(-(x - it.x) * Math.sin(it.heading ?? 0) + (z - it.z) * Math.cos(it.heading ?? 0)) <= it.size[1] / 2 + 0.05)
+      // and the solid props (body clearance: a fuel tank, a crate stack) whose visual reaches past their footprint
+      || staticNear(w, x, z, 0.05).some((R) => (R.top ?? 2) > y - (this.y || 0) && rectSDF(x, z, R) < 0.05)
+      // and a boom barrier's pole line above its rest height: the pole swings up through it whenever the gate opens
+      || boomLines(w).some((L) => { const px = x - L.x, pz = z - L.z, u = px * L.tx + pz * L.tz, v = -px * L.tz + pz * L.tx;
+        return Math.abs(v) < 0.15 && u > L.u0 && u < L.u1 && y - (this.y || 0) > L.y; });
+    const b = left > 1e-3 ? weaponRoom(w.grid, this.x, this.z, this.heading, this.y ?? 0, { heightOf: ownerHeight(w), max: Math.min(0.5, left), solidAt }) : null;
+    if (!b) return;
+    const st = Math.min(b, 1.6 * dt);
+    this._weaponBack = (this._weaponBack || 0) + st;
+    this.x -= Math.cos(this.heading) * st; this.z -= Math.sin(this.heading) * st;
   }
 
   /**
@@ -542,7 +678,9 @@ export class Unit extends Entity {
     if (sl > 1e-4 && this.path && mt && !(pr && pr.t > 3)) {
       for (const a of [0.61, -0.61, 1.22, -1.22]) {
         const ca = Math.cos(a), sa = Math.sin(a), dx = sx * ca - sz * sa, dz = sx * sa + sz * ca;
-        cands.push([P.x + dx, P.z + dz, front ? Math.atan2(dz, dx) : this.heading, true, true]);
+        // (a crawler's body turns toward the slide no faster than it is shown turning, art/prone-ground.js: the shown
+        // body lags a heading that jumps, and swept through what he slid along — b00 Sapper's hands in the fuel tank)
+        cands.push([P.x + dx, P.z + dz, front ? turnTowardsAngle(P.heading, Math.atan2(dz, dx), PRONE_TURN * dt) : this.heading, true, true]);
       }
     }
     let pick = null;
@@ -570,7 +708,7 @@ export class Unit extends Entity {
           this.stop();
           this._bodyRepaths = 0;
           const cp = st === 'crawl' || st === 'downed' ? clearPose(w, this.x, this.z, this.heading, st, { maxDist: 0, ignore: ign }) : null;
-          if (cp) this.heading = cp.heading; // given up: at least lie clear of it where he is
+          if (cp) { this.heading = cp.heading; this._turnInPlace = true; } // given up: at least lie clear of it where he is
         }
         else this._bodyRepaths = n;
       }
@@ -581,7 +719,8 @@ export class Unit extends Entity {
   _followPath(dt) {
     const w = this.world;
     // Re-path if the grid changed under us (door closed, bridge destroyed…).
-    if (w && this._pathGridVersion !== w.grid.version && this.moveTarget) {
+    // (not halfway over a wall: the climb finishes first)
+    if (w && this._pathGridVersion !== w.grid.version && this.moveTarget && !this._climb) {
       const t = this.moveTarget, cb = this._onArrive, run = this.moveMode === 'run';
       if (!this.moveTo(t.x, t.z, { run, onArrive: cb })) {
         this.stop();
@@ -599,6 +738,7 @@ export class Unit extends Entity {
     this.trackV = step / dt; // pace along the path (route progress; the lane and curve ride on top)
     const stride = step, running = this.moveMode === 'run'; // (an arrival this step resets moveMode / path)
     let dirX = 0, dirZ = 0;
+    let climbing = false;
     const sp = this.path.length === 1 && this.path[0].steer ? this.path[0] : null;
     if (sp && step > 1e-9) { // steering at a moving slot: the walk direction turns at a body's rate (no kinks)
       const dx = sp.x - this.x, dz = sp.z - this.z, d = Math.hypot(dx, dz);
@@ -618,6 +758,25 @@ export class Unit extends Entity {
     } else { this._mdirX = 0; this._mdirZ = 0; }
     while (step > 1e-9 && this.path) {
       const wp = this.path[this.pathIndex];
+      if (wp.link?.kind === 'climb' && w) {
+        // rule (e) climbs: over the wall's real top (placement.climbTrack), same duration as the flat crossing
+        let C = this._climb;
+        if (!C || C.wp !== wp) C = this._climb = { wp, x: this.x, z: this.z, s: 0, T: climbTrack(w.grid, { x: this.x, z: this.z, y: this.y }, wp, { heightOf: ownerHeight(w), r: CLIMB_R }) };
+        const L = C.T.L, use = Math.min(step, L - C.s);
+        C.s += Math.max(0, use); step -= Math.max(0, use);
+        if (L > 1e-6) { dirX = (wp.x - C.x) / L; dirZ = (wp.z - C.z) / L; }
+        const p = climbAt(C.T, L > 1e-6 ? C.s / L : 1);
+        this.x = C.x + dirX * p.d; this.z = C.z + dirZ * p.d; this.y = p.y;
+        climbing = true;
+        // over the top he turns round and climbs down facing the wall (back and rifle away from it)
+        if (p.d > C.T.L / 2 && p.y > (wp.y ?? 0) + 0.05) { dirX = -dirX; dirZ = -dirZ; }
+        if (C.s < L - 1e-9) break;
+        this.x = wp.x; this.z = wp.z;
+        if (wp.y !== undefined) this.y = wp.y;
+        this._climb = null; climbing = false;
+        if (++this.pathIndex >= this.path.length) { this._arrive(); break; }
+        continue;
+      }
       const dx = wp.x - this.x, dz = wp.z - this.z;
       const d = Math.hypot(dx, dz);
       if (d > 1e-6) { dirX = dx / d; dirZ = dz / d; }
@@ -658,7 +817,7 @@ export class Unit extends Entity {
     // On a stair (grid ramps) he follows its slope rather than the cell steps, and steps on / off it (from the wall walk
     // beside it, the landing, the floor) ease over ~0.15 s instead of snapping a cell's height in one tick.
     // (On arrival he stands at the surface height.)
-    if (w) {
+    if (w && !climbing) {
       const g = w.grid, e = g.surfaceY ? g.surfaceY(this.x, this.z) : g.elevAt(this.x, this.z);
       if (e > 0 || this.y > 0) {
         const d = e - this.y;
@@ -675,7 +834,10 @@ export class Unit extends Entity {
     const lv = this.stance === 'stand' ? this._leanV : this._laneV;
     const lean = lv && this.trackV > 0.1 ? Math.max(-0.4, Math.min(0.4, (this.stance === 'stand' ? 0.6 : 1) * Math.atan2(lv, this.trackV))) : 0;
     // moveHeadingOffset: a dragger walks backwards (π, bodies-design §C.2); moveTurnRate caps turning with a load
-    if (dirX || dirZ) this.heading = turnTowardsAngle(this.heading, Math.atan2(dirZ, dirX) + lean + (this.moveHeadingOffset || 0), (this.moveTurnRate ?? this.turnRate) * dt);
+    // (a crawler turns no faster than his body is shown turning, art/prone-ground.js: a shown body lagging a quick turn
+    // swept its legs through what the sim had checked clear — M2 diver at the barrier's pivot post)
+    const tRate = this.moveTurnRate ?? this.turnRate, lying = this.stance === 'crawl' || this.stance === 'downed';
+    if (dirX || dirZ) this.heading = turnTowardsAngle(this.heading, Math.atan2(dirZ, dirX) + lean + (this.moveHeadingOffset || 0), (lying ? Math.min(tRate, PRONE_TURN) : tRate) * dt);
     // Swimmers switch stance automatically in deep water.
     if (this.canSwim && w) {
       const g = w.groundAt(this.x, this.z);
@@ -1022,7 +1184,8 @@ export class Unit extends Entity {
       && bodyGap(w, this.x, this.z, this.heading, st, this._bodyIgnore()) < STOP_MARGIN) {
       this._settled = true;
       const cp = clearPose(w, this.x, this.z, this.heading, st, { maxDist: 1.5 });
-      if (cp && !cp.moved) this.heading = cp.heading;
+      // (_turnInPlace: the shown body pivots about his hips like the sweep checked here, not about the chest)
+      if (cp && !cp.moved) { this.heading = cp.heading; this._turnInPlace = true; }
       else if (cp) {
         this.path = [{ x: this.x, z: this.z }, { x: cp.x, z: cp.z }];
         this.pathIndex = 1;
@@ -1034,7 +1197,7 @@ export class Unit extends Entity {
     if (this._settleHeading != null) {
       const h = this._settleHeading;
       this._settleHeading = null;
-      if (w && bodyGap(w, this.x, this.z, h, st) >= bodyGap(w, this.x, this.z, this.heading, st)) this.heading = h;
+      if (w && bodyGap(w, this.x, this.z, h, st) >= bodyGap(w, this.x, this.z, this.heading, st)) { this.heading = h; this._turnInPlace = true; }
     }
     this._bodyRepaths = 0;
     const cb = this._onArrive;

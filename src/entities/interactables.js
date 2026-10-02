@@ -30,6 +30,7 @@ import { canSee } from '../ai/perception.js';
 import { wardrobeOf, addToWardrobe } from './wardrobe.js';
 import { smashGate } from '../world/breakables.js';
 import { makeClothesline } from '../art/clothesline.js';
+import { RULES } from '../world/placement.js';
 import { fuelWreckNav, inLocalQuarter } from '../art/fuel-tanks.js';
 import { buildExplosiveDrum, buildMarkerProp } from '../art/kit-props.js';
 import { dressingMaterial, boxUV } from '../art/dressing.js';
@@ -169,12 +170,31 @@ export class Interactable extends Entity {
    * while the grid still carries them (mission build, and a load rebuilds the mission before restoring the grid).
    */
   onAdded(world) {
+    if (this.interactKind === 'pickup' && this.object3d) this._pickupNav(world, true);
     this._recordWreckDeck(world);
     const fx = this.params?.structure?.destroyFx;
     if (!Array.isArray(fx) || !fx.includes('removeCrest') || !this.owner || !world?.grid) return;
     const g = world.grid, cells = [];
     for (let k = 0; k < g.size; k++) if (g.owner[k] === this.owner && g.bridge[k]) cells.push(k);
     this._crestCells = cells;
+  }
+
+  /**
+   * Placement rule (e): a pickup's crate on the ground is walked round (nav-only block over it + the body clearance),
+   * and its taker reaches it from the edge (approachFrom); picked up, the way is free again.
+   */
+  _pickupNav(world, on) {
+    const g = world?.grid;
+    if (!g?.navStamp) return;
+    const m = 2 * BODY_NAV;
+    g.navStamp(`pick:${this.id}`, on ? g.rectCells(this.x, this.z, PICKUP_SIZE[0] + m, PICKUP_SIZE[1] + m, 0) : []);
+  }
+
+  /** Where a unit at `u` stands to take a pickup: just outside its crate on its side (other kinds: undefined). */
+  approachFrom(u) {
+    if (this.interactKind !== 'pickup' || !this.object3d) return { x: this.x, z: this.z };
+    const dx = u.x - this.x, dz = u.z - this.z, d = Math.hypot(dx, dz) || 1, r = PICKUP_SIZE[0] / 2 + BODY_NAV + 0.1;
+    return d <= r ? { x: u.x, z: u.z } : { x: this.x + (dx / d) * r, z: this.z + (dz / d) * r };
   }
 
   /** Destroyed state only (flags, grid, burnt look) with no events/noise/callbacks — used by destroy() and deserialize(). */
@@ -440,6 +460,7 @@ export class Interactable extends Entity {
         w?.events.emit('message', { text: `${commando.nickname || 'Commando'} picked up ${this.itemId}.`, kind: 'info', unit: commando });
         this.count = 0;
         this.alive = false;
+        this._pickupNav(w, false);
         w?.removeLater?.(this);
         return true;
       }
@@ -643,8 +664,11 @@ export class Barrel extends Interactable {
 export const explodeHook = { fn: null };
 
 /** Pickup marker mesh (small crate). */
+/** Pickup crate (m, w × d) and the body clearance kept round it (placement RULES.bodyNav). */
+const PICKUP_SIZE = [0.5, 0.4], BODY_NAV = RULES.bodyNav;
+
 export function createPickup(itemId, x, z, count = 1, extra = {}) {
-  const m = new THREE.Mesh(boxUV(new THREE.BoxGeometry(0.5, 0.35, 0.4).toNonIndexed(), 0.5), dressingMaterial('planks')); // a plank crate (placeholder-art pass)
+  const m = new THREE.Mesh(boxUV(new THREE.BoxGeometry(PICKUP_SIZE[0], 0.35, PICKUP_SIZE[1]).toNonIndexed(), 0.5), dressingMaterial('planks')); // a plank crate (placeholder-art pass)
   m.position.set(x, 0.18, z);
   m.castShadow = true;
   return new Interactable({ interactKind: 'pickup', x, z, itemId, count, object3d: m, tag: extra.id ?? null, ...extra });

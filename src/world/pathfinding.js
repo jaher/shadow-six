@@ -13,6 +13,8 @@ const WATER_COST = 1.8;
 /** Max distance (m) to look for a walkable substitute when the goal (or start) cell is blocked. */
 export const NEAREST_WALKABLE_RADIUS = 3;
 /** Clearance used by string pulling (m, < CELL/2) so smoothed paths don't graze wall corners. */
+/** Clearance (m) of a path's goal from structure-blocked cells (clearOfWalls; within the goal's own cell). */
+export const GOAL_CLEARANCE = 0.45;
 export const SMOOTH_CLEARANCE = 0.35; // agent body radius (placement rule e): smoothed legs keep arms and rifle off walls
 
 /** Min-heap of node indices keyed by an external Float64Array of f-scores. */
@@ -106,6 +108,35 @@ const DJ = [0, 0, 1, -1, 1, -1, 1, -1];
  *   traversing an off-grid link carries `link` (and `y`, the link end height): the unit must climb /
  *   use the ladder from the previous waypoint (the link's other end) to this one.
  */
+/**
+ * Rule (e) goals: a destination closer than the body radius to a structure-blocked cell (block or navBlock: walls,
+ * buildings, their visual reach) is pushed away from it, within its own cell, so the unit does not stop with a
+ * shoulder, boot or rifle in the wall. Water and map edges don't count.
+ * @returns {{x:number, z:number}}
+ */
+export function clearOfWalls(grid, x, z, i = Math.floor(x / grid.cell), j = Math.floor(z / grid.cell), r = SMOOTH_CLEARANCE) {
+  const { cols, rows, block, navBlock, cell: c } = grid;
+  const x0 = i * c, z0 = j * c, m = r; // (as far as its own cell allows: the clamp below)
+  let px = x, pz = z, moved = false;
+  for (let pass = 0; pass < 2; pass++) {
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+      if (!di && !dj) continue;
+      const ii = i + di, jj = j + dj;
+      if (ii < 0 || jj < 0 || ii >= cols || jj >= rows) continue;
+      const k = jj * cols + ii;
+      if (block[k] === B.NONE && !(navBlock && navBlock[k])) continue;
+      // nearest point of that cell's square
+      const qx = Math.min(Math.max(px, ii * c), (ii + 1) * c), qz = Math.min(Math.max(pz, jj * c), (jj + 1) * c);
+      const dx = px - qx, dz = pz - qz, d = Math.hypot(dx, dz);
+      if (d >= m - 1e-9) continue;
+      if (d > 1e-9) { px = qx + (dx / d) * m; pz = qz + (dz / d) * m; } else { px -= di * (m - d); pz -= dj * (m - d); }
+      moved = true;
+    }
+    if (moved) { px = Math.min(Math.max(px, x0 + 0.01), x0 + c - 0.01); pz = Math.min(Math.max(pz, z0 + 0.01), z0 + c - 0.01); }
+  }
+  return moved ? { x: px, z: pz } : { x, z };
+}
+
 /** Extra cost factor of a cell edge-adjacent to a blocked cell (walls, buildings, visual nav blocks). */
 export const HUG_COST = 1.35;
 /** Is cell (i, j) edge-adjacent to a structure-blocked cell (block or navBlock; water and map edges don't count)? */
@@ -146,6 +177,8 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
     if (!n) return null;
     gi = n.i; gj = n.j; goal = { x: n.x, z: n.z };
   }
+  // (a stride's reach off the wall: the leading boot of a unit arriving at a run stops short of it)
+  goal = clearOfWalls(grid, goal.x, goal.z, gi, gj, GOAL_CLEARANCE);
   if (si === gi && sj === gj) return [start, goal];
 
   const b = buffers(grid);

@@ -123,7 +123,7 @@ test('physics-rules: active ragdoll caps are honoured with a deterministic pick 
 
 test('physics-rules: 1998 rules (physicsGameplay off): bodies keep their death spot, props keep their footprint', async () => {
   const def = { size: [60, 60], commandos: [{ role: 'sapper', x: 3, z: 3 }], enemies: RING(6, 30, 30, 1.0, 0.4),
-    structures: [{ id: 'c', type: 'crates', x: 33, z: 30, w: 1.4, d: 1.4, h: 1.2 }] }; // clear of e0 (31,30): a body spawned inside it slides out on death (placement rule e)
+    structures: [{ id: 'c', type: 'crates', x: 34, z: 30, w: 1.4, d: 1.4, h: 1.2 }] }; // clear of e0 (31,30) and of e5's flung-out hand (32.8, 30.0): a body inside it, or lying with a hand in it, slides out on death (placement rule e)
   const s = await sim(def);
   s.world.house.physicsGameplay = false;
   const g = s.world.grid, block0 = Uint8Array.from(g.block);

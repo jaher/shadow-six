@@ -236,6 +236,12 @@ export function clearForestFill(fill, structures) {
  * @param {string} theater
  * @param {number} [k] index (seed fallback)
  */
+/**
+ * Walk-under radius (m) of a tree: walkers pass its trunk as close as the nav allows (the free cell beside the
+ * footprint, their body radius 0.35 m), so below head height the branches stay within the trunk's own reach.
+ */
+export const treeClearR = () => 0.35;
+
 export function treePlacement(def, theater = 'temperate', k = 0) {
   if (!def || !TREE_TYPES.includes(def.type)) return null;
   const seed = seedOf(def, k), snow = theater === 'snow', desert = theater === 'desert';
@@ -258,6 +264,9 @@ export function treePlacement(def, theater = 'temperate', k = 0) {
     species, x: def.x, z: def.z, seed, scale, burnt: !!def.burnt, hero: true, riverside: def.type === 'tree' && !def.species && (!def.variant || def.variant === 'broadleaf'),
     leafless: def.variant === 'bare_winter' ? true : undefined,
     crownBase: def.crownBase, crownR: def.crownR, // placement pruning hints (world/placement.js)
+    // walk-under clearance (placement rule e): below head height no branch reaches past the trunk's nav footprint
+    // and, when the crown was lifted over an obstacle (placement pruneTree), above its top (crownFloor)
+    clear: def.type === 'bush' ? undefined : [{ y: 1.95, r: treeClearR(def) }, ...(def.crownFloor ? [{ y: def.crownFloor, r: treeClearR(def) }] : [])],
   };
 }
 

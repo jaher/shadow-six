@@ -4,9 +4,11 @@ User report: *"Be careful with objects crossing other objects, for example turre
 This page describes the audit tool built for it, what it found on M1, M2, M3, the m00 sandbox and the b00 BCD sandbox
 (e8eea3f, "before"), and the generic placement / clearance rules that fix it ("after"): **zero unintended static or turret
 overlaps on all five maps** (31 before) and 175 → 69 → **26** moving penetrations deeper than 5 cm (first fix, then the
-second pass on the verifier's findings: see "Second pass"). Tanks and armoured cars parked beside every wall, fence and
-building side of the five maps (the turret probe, 349 parked guns) never swing a barrel or turret through them, and no
-prop floats over a slope.
+second pass on the verifier's findings: see "Second pass") → **0** after the third pass (clip-2), which made the dynamic
+run a gate: no live unit or vehicle goes deeper than 5 cm into anything on any of the five maps, for two seeds of the
+180 s run. Tanks and armoured cars parked beside every wall, fence and building side of the five maps (the turret probe)
+never swing a barrel or turret through them, hulls never sweep a corner into a wall when they turn, and no prop floats
+over a slope.
 
 ## Tool
 
@@ -16,7 +18,7 @@ prop floats over a slope.
 | `src/debug/clip-geom.js` | Triangle-exact measurement with three-mesh-bvh 0.9.15 (MIT, vendored in `vendor/three-mesh-bvh/`). BVHs are built over Float32 copies of the positions, so game geometry is never touched |
 | `src/debug/clip-audit.js` | Collects the scene items and runs the static audit, the turret sweep and the dynamic audit. Test mode: `await __game.clipAudit()` loads it lazily and exposes it as `__game.clip` |
 | `tools/audit/clipping.mjs` | CLI (GPU headless via the test harness). Writes `docs/clipping/<mission>.json` and 2×-zoom crops `docs/screenshots/clip-<mission>-{s,t,d}<n>.jpg` (640×400, about 30–50 KB) |
-| `tests/clipping.test.mjs` | GPU test, about 21 s. For all five maps, fails on any unintended static or turret overlap that is not in `tests/clip-baseline.json`. It also checks the detector itself: an MG nest parked 0.7 m from barracks `barr_2` must be caught when its barrel sweeps through the wall (`turrets({raw: true})`), and that rule (d) keeps the same gun's barrel out of the wall in play. Every map must have visual nav blocks stamped, no floating / buried prop, a clean turret probe (≤ 8 cm), and on M2 the wall-walk sentry `e5` shot beside the palisade must lie clear of it |
+| `tests/clipping.test.mjs` | GPU test (static part about 21 s; the dynamic acceptance runs the five maps in parallel pages for seeds 7 and 11, a few minutes). Dynamic: no live unit or vehicle deeper than 5 cm into anything in 180 s. For all five maps, fails on any unintended static or turret overlap that is not in `tests/clip-baseline.json`. It also checks the detector itself: an MG nest parked 0.7 m from barracks `barr_2` must be caught when its barrel sweeps through the wall (`turrets({raw: true})`), and that rule (d) keeps the same gun's barrel out of the wall in play. Every map must have visual nav blocks stamped, no floating / buried prop, a clean turret probe (≤ 8 cm), and on M2 the wall-walk sentry `e5` shot beside the palisade must lie clear of it |
 | `__game.clip.turretProbe()` | Guns the maps don't have yet: a `panzer2` and an `sdkfz` are parked where they could really drive (every hull point passable at ≤ 0.4 m spacing: blocks, visual nav blocks, eaves) as close as possible beside every wall, fence, gate, building, tower, tent and pole side, and their guns swept over their open arcs. The GPU test requires no overlap deeper than 8 cm |
 | `__game.clip.floating()` | Rule (b) seating: each prop's flat bottom (vertices within 4 cm of its lowest) against the terrain right under it: a corner more than 5 cm above the ground (hanging over a slope or a dip) or a base buried deeper than 0.5 m. Over water / carved banks is skipped |
 | `__game.clip.vehicleBodies()` | Characters (standing, crouched, lying, dead) against vehicle hulls and wrecks, posed now, mesh against mesh (crews and a man run over skipped). The dynamic audit runs it every sample and sends half the commando moves to a spot at, under or across a solid (vehicle hull, wreck, fuel drum, pushable, crate / fuel tank / rock / sandbag body solid) in a random stance; props, drums and pushables are statics of the ordinary character checks |
@@ -26,6 +28,7 @@ prop floats over a slope.
 
 ```
 node tools/audit/clipping.mjs --mission m01            # static + turrets + 180 s dynamic, 6 crops
+node tools/audit/clipping.mjs --seed 11                # the second seed of the dynamic acceptance
 node tools/audit/clipping.mjs --dynamic 0              # all 5 maps, static + turrets only (~40 s)
 node tools/audit/clipping.mjs --dynamic 0 --write-baseline   # accept the current overlaps
 node tests/run.mjs clipping                            # the guard test
@@ -173,7 +176,7 @@ normally set by the rules).
 
 - **Nav-only blocks** (`grid.navBlock`): every walkable cell under a structure's visual at body height (0.3–1.8 m) becomes
   unwalkable — steps, porches' posts, woodpiles, tower legs, wall end caps, bridge counterweights, a dam's arch off its
-  deck. Sight and cover are unchanged. Door approaches and ladder / climb ends keep a 0.9 m free disc. Cleared when the
+  deck. Sight and cover are unchanged. The approach cell of a real door (0.5 m) and of a ladder / climb end (0.4 m) stays free, a guessed layout door keeps a 0.9 m disc, and the ways between mission points are kept by `keepWays` (clip-2). Cleared when the
   structure is destroyed. Idle pushable wagons / tanks stamp their footprint too (they are approached at their edge).
 - **Clearance**: A* adds 35 % cost to cells touching a blocked cell, and path smoothing keeps 0.35 m (the body) off
   walls, so arms and rifles stay out of walls where there is room.
@@ -191,11 +194,14 @@ normally set by the rules).
   every ≤ 0.4 m across it (a lone post or a trunk used to slip between the three samples). Overhangs lower than the
   vehicle's own height (hull + turret, measured on the model: `hullHeight()`) stop it, so a tank never parks with its
   turret inside a cabin's eaves. Boughs don't (a hull brushes through them).
-- **Body clearance** (`VIS_NAV_MARGIN`, 0.2 m): a cell is a visual nav block when a visual comes within 0.2 m of its
-  centre (0.1 m beside bridge / pier decks), so a walker on the nearest free cell keeps shoulders and boots off a post,
-  a log end or a kerb.
-- **Kerbs and plinths**: the feet stand on the highest low surface within 0.18 m of the body's centre, so a boot steps
-  up onto a kerb, a bridge abutment or a snow skirt instead of pushing into its side.
+- **Body clearance** (`RULES.bodyNav` = `VIS_NAV_MARGIN`, 0.3 m since clip-2): a cell is a visual nav block when a
+  visual comes within 0.3 m of its centre (decks too, their ends kept reachable), so a walker on the nearest free cell
+  keeps shoulders and boots off a post, a log end or a kerb. The same margin is used by solid devices, knapsacks on the
+  ground and idle pushables.
+- **Kerbs and plinths**: the feet stand on the highest low surface within 0.18 m of the body's centre, plus two stride
+  rings (0.27 m and 0.36 m) that count lower, less so for a low lip, so a boot steps up onto a kerb, a bridge abutment,
+  a drawbridge's boards or a snow skirt instead of pushing into its side. Running, the body rides up over a step 0.6 m
+  before or behind it (the kicked-up heel).
 - **Devices and movable decks**: small standing devices are solid (a switch post, a floating sea mine: nav block and
   approached at their edge); a lowered drawbridge carries its walkers on its boards (`world.surfaces`, feet at the boards'
   top instead of the carved bank under them) and keeps swimmers 0.35 m off its sides.
@@ -311,7 +317,77 @@ guarded by a test; the audit tool gained the checks that would have caught them.
 | `panzer2` beside M2 `cabA` (before: spawned under the eaves, turret at 60°; after: parked where it can drive, turret asked to 230°, snapped to the nearest open angle) | ![](screenshots/clip-before2-m02-tank-cabA.jpg) | ![](screenshots/clip-after2-m02-tank-cabA.jpg) |
 | b00 driver at the drawbridge's east end | ![](screenshots/clip-before2-b00-drawbridge.jpg) | ![](screenshots/clip-after2-b00-drawbridge.jpg) |
 
-## Results: before → after
+## Third pass (clip-2): moving units, and the dynamic run as a gate
+
+The second pass left 26 moving penetrations deeper than 5 cm. Clip-2 classified every one of them (and those a second
+seed turns up), fixed each class with a generic rule, and made the dynamic run part of the acceptance:
+`tests/clipping.test.mjs` now runs the same 180 s simulation as the tool on all five maps for **two seeds (7 and 11)**
+and fails on any unintended penetration deeper than 5 cm by a live unit or vehicle. Corpses are left to the bodies
+workflow (Rapier); they are logged, not asserted.
+
+| class | cases (before) | rule (generic) | where |
+|---|---|---|---|
+| Walk height on dams and bridges | M3 squads, `e1`, `e29`, the Sapper through the dam's crest and parapets (0.13–0.28 m, 9 of 19 on M3) | **the walkable deck follows the asset's own crest** (`bridge.crest_poly` of the dam sidecar): the data rect was the arch's chord, so at both ends walkers stood on air beside the curved crest and walked through its parapet ends. The bridge cells, the measured deck field and its parapet cells now come from the crest polygon. On a deck the feet ring reads the deck's own kerbs and abutment tops. A Sapper walked over the M3 dam end to end: deepest contact 0.155 m before, 0.05 m after | `building-props` / `building-library` `bridge.crest`, `map-builder` (bridge footprints), `map-library.libraryDecks` |
+| Path too close to geometry | m00 walkers vs sandbag courses and the bridge; M1 diver / `e5` vs `jetty_s` / `pier_n`; b00 Green Beret vs the fuel tank, Spy and Natasha through a knapsack | body clearance 0.2 → **0.3 m** everywhere (`RULES.bodyNav`: visual nav blocks, decks with no half-margin exemption, solid devices, idle pushables); InstancedMesh visuals (sandbag courses, stake rows) are measured too; posts and railings block the deck cells within 0.3 m and so do a deck's open edges (its surface drops more than 15 cm there: a pier on the bank, a raised crest; landings flush with the ground stay open); piers keep swimmers 0.7 m off their edges and piles (a swimmer lies along his heading); a knapsack or a pickup crate on the ground is solid and taken from its edge | `map-builder` `stampVisualNav` / `deckCover` / `deckEdges`, `placement-visual` `meshMatrices`, `interactables` / `bcd-interactables` |
+| Feet at steps, kerbs, ramps | m00 / b00 boots in a bridge end, a plinth, the drawbridge's 3 cm lip; M3 squads against `st_shed`'s ramp, the dam's abutment lip | low parts (0.12–0.3 m: a ramp's side, a step's face, a plinth) keep the 0.3 m clearance on the ground beside them, not on their own tops (walked on); the feet ring reads the soles at full height (rings at 0.1 m and 0.2 m: a stair's next step in front of the shins) and two stride rings (0.27 m, 0.36 m) that count lower, less for a low lip, over surfaces up to a door sill (0.8 m); deck and drawbridge edges count as steps for a dry walker (≤ 0.45 m); walking or running, the body rides up over a step 0.5 / 0.6 m before or behind it (the toe leaving it, the heel kicking up). `groundY` got faster on the way (1.7 µs a call, 1.9 before: numeric sample keys) | `map-builder` `stampVisualNav` (low parts), `deckGroundY`, `Unit.syncTransform` |
+| Steering / goals | units stopping with a shoulder or rifle in a wall; b00 Sniper arriving at a run, his leading boot in the fuel tank (seed 11) | `findPath` pushes a goal 0.45 m (a stride's reach) off any structure-blocked neighbour, within its cell (`clearOfWalls`) | `pathfinding` |
+| Running off a post | M2 sentry `e5` turning to run off his wall-walk post: his heel, 0.85 m behind him in a running stride, kicked 0.14 m into the palisade stakes (seed 11) | while a wall, a stake or a building stands within a stride's heel reach behind a runner, his first strides are shown as a walk at the same pace (moving his post instead made his corpse slide into the walk deck) | `Unit._heelBlocked` |
+| Wading (found on the way: master's M3 solution) | the low-part stamps of the dam closed the M3 tailwater's toe ledge, the Sapper's way to his second charge | no low-part stamps in shallow water (a boot under the water line kicks no step face anyone sees) | `map-builder` `stampVisualNav` |
+| Layout | m00 `barracks1`'s gable door: its steps stood 0.8 m from the compound wall, a way narrower than a body that `keepWays` must keep (the door is a way point) | data: `barracks1` x 52 → 52.5 and 10 → 9.6 m long (1.6 m; at 52.6 × 10 m its east eaves went 8 cm into the east wall once master's barracks fit) | `missions/m00_sandbox.js` |
+| Arm / rifle pose near walls | M1 `e8` aiming into `wall_s`, b00 `pack_guard` into a wagon (seed 11) | aiming or shooting, a unit steps back (≤ 0.6 m) until the shouldered barrel (0.3–1.1 m ahead) is clear of any wall, building, parked hull or wagon taller than his shoulder; over sandbags or from a wall walk he fires over | `placement.weaponRoom`, `Unit._keepWeaponRoom` |
+| Climbs | M1 Green Beret through `wall_s` (0.30 m) and `pole_2` | a climb follows the wall's real top (`climbTrack`: rises at the face, crosses above the measured top, drops on the far side, faces the wall going down); climb / ladder landings are obstacles for poles, trees and props; a link end keeps its own cell open (0.4 m; it had the 0.9 m doorway disc, which left the wall beside it open) | `placement` `climbTrack` / `landingObstacles`, `Unit._followPath`, `navKeepPoints` |
+| Heads under eaves, lintels | M3 garrison `camp_barr#0.0.1` leaving the barracks (0.30 m) | open cells under an overhang lower than 1.9 m above the walking surface are nav-blocked | `map-builder` `stampHeadroom` |
+| Raised walks | M2 garrison squad on `walk_sw` inside the palisade stakes (seed 11) | walk cells within 0.3 m of what stands on the walk (stakes, a parapet, a railing) are nav-blocked; where that would split the walk, half the margin, else only the cells the stakes stand in | `map-builder` `stampWalkClearance` |
+| Raised decks (after master's dam front) | M3 `e2` / `e3` aiming and `e8` running on the dam crest with a shin in its 0.6 m downstream parapet (0.055–0.062 m, both seeds): the crest became a raised walk (grid elevation 7.28 m) which neither the deck cover (decks at ground level) nor the raised-walk clearance (not decks) saw | the raised-walk clearance covers raised decks too (a dam crest, a high bridge); the crossing and every path over the dam are unchanged | `map-builder` `stampWalkClearance` |
+| Boom barrier footway | M2 `barr_out` running through `gate_se`'s footway, an elbow in the fork rest (0.054 m, seed 11); `barr_camp` aiming in the footway with his rifle in the far gate post (0.136 m) | the fork rest and the far gate post keep the 0.3 m body clearance on the footway's side (the footway stays ≥ 0.9 m); a gate's fixed posts (pivot post, fork rest, log gate posts) are body solids (`world/body-clearance.js`) that stand on when the boom is smashed, those from hip height up 0.2 m wider, the fork rest also covering the resting pole tip (a running man's hands, arms and rifle, a crawler's drawn-up knee; `barr_camp`'s hand in the pole tip, 0.065 m; `barr_camp` running past the far post, 0.101 m; the diver crawling past the pivot post, 0.111 m); an aiming man treats the boom's pole line above its rest height as solid (the pole swings up through it whenever the gate opens: M2 `e7`'s rifle in the rising tip, 0.055 m) | `map-builder` `stampBarrierGaps` / `stampBodySolids` |
+| Rifles at solid props | b00 `yard_guard` aiming with his barrel in the fuel tank `tank1` (0.08 m, seed 11): the rifle check only knew grid blocks, hulls and wagons, and the tank's visual reaches past its footprint | the body solids carry their height (`top`); an aiming man steps back (a quick 1.6 m/s half step, done before the rifle is up) from a solid prop taller than his shoulder too, and the barrel is sampled ±0.25 m across and out to the muzzle (1.15 m; a wagon or fuel tank with 5 cm to spare) (the rifle sits off the body centre; M2 `e7` with his muzzle in a gate post) | `map-builder` `stampBodySolids`, `Unit._keepWeaponRoom` |
+| Lying men turning | b00 Sapper crawling along the fuel tank `tank1`, hands in its side (0.088 m, seed 7): sliding along it, the body guard turned his sim heading 119° in one tick; the shown body (art/prone-ground.js) follows at 112°/s and swept through the tank on the short way round | a crawler's heading (following his path, or sliding along an obstacle) turns no faster than his body is shown turning (M2 diver: his lagging legs swept through the barrier's pivot post); a settle turn (turned clear of a hull in place) is shown pivoting about his hips, as its sweep was checked | `Unit._guardBody`, `Unit._arrive`, `art/prone-ground.js` (`pivot`) |
+| Stairs (found on the way: master's M2 access platform) | the wider body clearance and the raised-walk clearance closed the access platform's stair foot and two of its treads | a stair's graded run and the step onto it at either end are never stamped (its hand rails are walk-only footprints already); its two ends are ways `keepWays` keeps; the raised-walk clearance skips ramp cells and keeps every way off a raised piece | `map-builder` `stampVisualNav`, `rampEnds`, `stampWalkClearance` |
+| A crawler's limbs | b00 Green Beret crawling off the wagon `wagon1`, his toes in its side (0.083 m, seed 7): the body capsule (1.3 m ahead, 0.92 m behind, 0.3 m wide) missed the crawl stroke's limbs (the straight leg's toes up to 1.07 m behind and 0.37 m out, the drawn-up knee 0.64 m to the side); and lying down he started turned the way he last lay (a stale shown heading) | the prone body reaches 1.05 m behind and carries limb discs (knees, toes) in every body-clearance check; a man not lying has no shown prone heading left over | `world/body-clearance.js` (`BODY.prone`, `LIMBS`), `art/unit-model.js` |
+| Arms by a fuel drum | M2 `e12` turning on the spot beside the drum `bar4`, his swinging arm and port-arms rifle 0.053 m into it (seed 11; the body capsule, 0.3 m, stood 5 cm off the drum's 0.34 m disc) | a standing drum's body-clearance disc is 0.42 m (its rims: 0.32 m radius): the rest is the reach of a running man's arms and rifle past his body | `world/body-clearance.js` `DRUM_R` |
+| Kneeling gunner's back foot | M2 MG gunner `e8` on platform `t1`: the kneeling shot's back foot points straight down, its toe 15 cm through the deck planks (0.059 m by the audit, seed 11; on the ground the terrain hides it) | the platform gunner's `mg_kneel` lays that foot back flat, instep on the deck (toe 2–3 cm above it) | `art/body-clips.js` `mg_kneel` |
+| Corpses' flung-out hands | M3 `e7` killed beside `camp_barr`: lying on his back, a hand 1.6 m from where he stood, in the barracks' foot (0.051 m, seed 7, body; not gated) | a man who falls on his back shifts ≤ 0.6 m until both hands (1.45 m behind, 0.7 m out) are off structure and visual-nav cells, his body line still clear | `placement.settleHands`, `Unit.die` |
+| Instanced repeats | M3 squad at `cabin_3`'s door, boots in its porch boards (0.089 m, seed 11): three identical cabins become one instanced batch, which disposed their own meshes *before* the low surfaces under the feet, the standing visuals and the head room were measured | the repeats are batched only after every visual measurement | `map-builder` (`batchLibraryRepeats` call) |
+| Lying down beside steps | m00 Green Beret crawling past `barracks1`'s gable steps, head and arm in their side (0.074 m, seed 7); b00 Sapper lying beside the fuel tank, an elbow in its base (0.089 m) | a crawler's body (hips ± 0.9 m, head and weapon 1.2 m ahead, elbows ± 0.6 m; every sample bounds the tilt, so neither boots nor head dip under the ground) rises and pitches (≤ 12°) just enough to lie over a step or kerb ≤ 0.35 m under it: scripted crawl past the steps 0.074 → 0 m | `Unit._crawlOverSteps` |
+| Spawns / posts / doors in geometry | M3 garrison squad appearing beside `camp_barr`'s snow skirt (seed 11): the 0.9 m doorway disc was kept open at the layout's door side, 2.1 m from the asset's real door; M1 `e9` past `house_s`'s steps inside the doorway disc | a garrison's doorway is at the asset's main door (as hideouts already were); a real door keeps only its approach cell open (0.5 m), the way out of it is kept by `keepWays` (below), so steps and railings beside it keep their clearance | `map-library.libraryDoorPoints`, `navKeepPoints` |
+| Trees | M3 diver past a pine's low bough; M2 patrol boat vs a spruce bough sagging over its lane | below head height a branch ends at the trunk's reach; a crown lifted over a vehicle lane also gets a floor at the vehicle's top + 0.25 m (a drooping spruce bough is cut there), and lanes are as tall as the vehicles (3.2 m) | `treegen.clearBranch`, `placement.pruneTree` / `routeObstacles` |
+| Ways kept open | (found on the way: the wider clearance first closed M3's dam crest, the mission's only crossing, and some lanes and doorways) | no stamp may cut a way. A deck keeps its crossing (end to end over the deck and dry ground; a wade along the dam's toe ledge does not count), else its stamp steps down (half margin, what stands right there, without the deck cover). Every way between the mission's points (spawns, posts, pickups, devices, exits, real doors, link ends, deck ends) that was open before the stamps stays open: where one is cut, only the stamp cells that make the cut (both sides within 1.5 m; else those hemming the cut-off piece) step down a level, low parts first, down to none as a last resort, and the check runs again. Reachability of every mission point is the same as on master (M3 `e34` gained a way) | `map-builder` `deckCrossing`, `keepWays`, `walkPieces`, `missionWayPoints` |
+| Hulls turning in place | tank beside M2 `sw_wall` / a wall ahead: corners swept 5–26 cm into it | the drive probe now covers turning: a driven hull turns in place only while its outline (+5 cm, ≤ 0.4 m samples) stays out of blocking cells and eaves; with no room it backs up (≤ 3 m) first — or pulls forward when its tail is against a wall (M20 `pz3`) — else the order is refused (forbidden cursor). Only what stands there blocks the sweep (`_sweepFree`: walls, posts, eaves, a raised walk above the hull, other hulls), not a lower bank, open water or the rest of the ramp the hull is on (M11 half-track) | `Vehicle._outline` / `_turnClear` / `_sweepFree` / `turnPlan` |
+
+The verifier's eaves finding (tank turret and barrel inside `cabA`'s eaves, 0.40 m) was re-checked on the live code:
+turret arcs and the drive probe already use the real roof meshes (`grid.overLo`, measured on the visuals above 1.8 m,
+since the second pass): a `panzer2` or `sdkfz` driven at `cabA` / `cabB` from any side stops 1.2 m short of the eaves
+with hull and turret clear, and in play its arc is clean (0.417 m only with `turrets({raw: true})`, the rule switched
+off). What was left was turning in place (above).
+
+Dynamic penetrations > 5 cm, live units and vehicles (`node tools/audit/clipping.mjs`, 180 s; "before" is master
+c75ae22):
+
+| map | seed 7 before | seed 7 after | seed 11 before | seed 11 after |
+|---|---|---|---|---|
+| m00 | 6 | **0** | 6 | **0** |
+| M1 | 4 | **0** | 7 | **0** |
+| M2 | 0 | **0** | 3 | **0** |
+| M3 | 19 | **0** | 10 | **0** |
+| b00 | 1 | **0** | 4 | **0** |
+| **total** | **30** (worst 0.30 m) | **0** | **30** (worst 0.47 m) | **0** |
+
+Static and turret overlaps stay at 0, the turret probe at 0 overlaps > 5 cm (322 parked guns), floating props at 0.
+
+The four worst cases of the "before" run:
+
+| worst case (before) | before | after |
+|---|---|---|
+| M3 garrison `camp_barr#0` just out of the cabin, 2.5 s in (0.30 m into its eaves and skirt at t = 9 s): before, two of them stand against the wall; after, on clear ground | ![](screenshots/clip2-before-m03-barracks.jpg) | ![](screenshots/clip2-after-m03-barracks.jpg) |
+| M1 Green Beret climbing `wall_s` (0.30 m): the same scripted climb before and after; before, he crosses inside the wall at ground level (only his selection ring shows), after, on top of its plank roof (0 contact all the way) | ![](screenshots/clip2-before-m01-climb.jpg) | ![](screenshots/clip2-after-m01-climb.jpg) |
+| M3 Sapper at the dam's west end (0.28 m): the same scripted walk over the dam before and after; before, half his body is inside the parapet, after, he walks the curved crest (deepest contact all the way 0.05 m) | ![](screenshots/clip2-before-m03-dam.jpg) | ![](screenshots/clip2-after-m03-dam.jpg) |
+| b00 Green Beret against the fuel tank (0.16 m, t = 127.5 s): after, a guard passes the tank at the body clearance | ![](screenshots/clip2-before-b00-tank.jpg) | ![](screenshots/clip2-after-b00-tank.jpg) |
+
+After the master merge (the dam crest became a raised walk): the seed-7 run at t = 115.5 s, where `e3` stood with a shin in the downstream parapet (0.062 m) — now the squad fires from the crest clear of it:
+
+![](screenshots/clip2-after-m03-dam-parapet.jpg)
+
+## Results: before → after (first and second pass)
 
 Same maps, same audit (`node tools/audit/clipping.mjs`: static + turret sweep + 180 s dynamic, seed 7).
 
@@ -331,7 +407,8 @@ m00 lost one item (wall#3 is drawn by wall#2's chained run). The three remaining
 "resting on a surface", under 1 cm deep: the MG gunners e8 / e9 standing on their measured tower decks, and the snow
 skirts of M1's two long barracks meeting on the ground between them.
 
-The dynamic run is not a gate (it is one seeded run, a tool rather than a test). What remains is small and local:
+At the time the dynamic run was not a gate (one seeded run, a tool rather than a test). What remained then (all fixed by
+the third pass, see "Third pass (clip-2)"):
 
 - **M3 dam (9 of 17)**: the arch crest curves while its nav deck is the straight 27 × 4 m rect; walkers crossing near
   both ends brush the curved parapet ends and the abutment blocks (0.2–0.28 m). The deck is measured, the parapets,
@@ -503,12 +580,18 @@ The raw per-pair data (times, positions, unit states, counts, crops) is in `docs
 
 ## Limitations
 
+- clip-2, after the second master merge: the two seed-11 M2 cases left open then (`e8`'s kneeling foot through the
+  `t1` deck, `e12`'s arm in the drum `bar4`) and M3 `e7`'s corpse hand in `camp_barr` (seed 7) are fixed (table above).
+
 - **Depth** is penetration into the other item's *solid*. A barrel poking through a thin wall into a hollow room gives a
   small depth but a non-zero contact length, which is why contact is reported (and ranked) too. One-sided categories
   (`foliage`, `fence`, `flag`, `wire`) are never used as the "inside" reference, so their pairs rank by contact only.
   Depth is capped at 1.5 m.
 - **Dynamic run coverage**:
-  - one deterministic 180 s run per map (seed 7), not exhaustive.
+  - two deterministic 180 s runs per map (seeds 7 and 11; the GPU test runs both), not exhaustive: a third seed may
+    still find a stride or a rifle brushing an edge. What no rule can fully cover without foot / arm IK: a boot at the
+    very end of a stride over a step's edge, a rifle swung behind a running unit (the clearances, the feet rings and
+    the ride-up reduce them below 5 cm on both seeds).
   - the commandos are invulnerable.
   - unit-vs-unit and unit-vs-vehicle pairs are not audited.
   - units in vehicles, hidden, buried, held or underwater are skipped.
@@ -527,6 +610,11 @@ The raw per-pair data (times, positions, unit states, counts, crops) is in `docs
   - visual nav blocks, measured decks and feet surfaces exist only in the browser build (grid-only builds have none).
   - buildings are never moved at runtime: overlapping / crowded footprints are schema warnings, fixed in the data.
   - elevated posts (wall walks, decks) are not pushed out: the mission places them against their deck edges (M2 e5).
+  - clip-2: `keepWays` keeps the ways between the mission's points open before any clearance; where the geometry itself
+    leaves a way narrower than a body (a door's steps against a wall), the clearance gives way there and the layout is
+    the fix (m00 `barracks1`). Swimmers' ways are not part of the check (a pier's swimmer band never gives way).
+  - clip-2: the hull turning check covers player orders (`driveTo`); scripted AI routes turn while rolling on their
+    authored lanes.
   - crown pruning (`crownBase` / `crownR`) applies to conifers; broadleaf trees rely on the trunk clearances.
   - a turret arc is a barrel band (5° steps, the line ±0.2 m) against grid cells with measured heights and overhangs;
     thin obstacles narrower than a 0.5 m cell can still be missed by the arc but are caught by the audit's

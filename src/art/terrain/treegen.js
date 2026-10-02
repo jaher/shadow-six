@@ -14,7 +14,8 @@ import { rng } from './noise.js';
 import { makeBroadleaves } from './broadleaf.js';
 import { makeShrubs } from './shrubs.js';
 import { makePalms } from './palms.js';
-import { makeConifers, NEEDLE_LAYERS } from './conifers.js';
+import { makeConifers, NEEDLE_LAYERS, clearBranch } from './conifers.js';
+export { clearBranch };
 export { NEEDLE_LAYERS };
 
 // Foliage card layers (assets/foliage.json: <name>_0, <name>_1 → layer 2*i + v) and bark layers (assets/bark.json)
@@ -320,6 +321,7 @@ export function generateTree(species, seed, q, bark, leaves, at, needles = leave
   // placement pruning hints (world/placement.js pruneTree): lowest branches lifted / crown narrowed near obstacles
   if (at.crownBase != null && sp2.crownBase != null) sp2 = { ...sp2, crownBase: Math.min(0.8, Math.max(sp2.crownBase, at.crownBase / H)) };
   if (at.crownR != null && sp2.width != null) sp2 = { ...sp2, maxWidth: at.crownR };
+  if (at.clear) sp2 = { ...sp2, clear: at.clear };                // walk-under clearance (conifers.js clearBranch)
   const conifer = sp.kind === 'conifer';
   const fol = conifer ? needles : leaves, f0 = conifer ? n0 : l0;
   const crown = gen(sp2, r, H, q, bark, fol, tint, leafTint, phase);

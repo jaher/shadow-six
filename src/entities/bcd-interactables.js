@@ -18,6 +18,7 @@ import * as THREE from 'three';
 import { Interactable, INTERACTABLE_KINDS, BCD_ACTIVATABLE } from './interactables.js';
 import { CONFIG } from '../config.js';
 import { explode } from './projectile.js';
+import { RULES } from '../world/placement.js';
 import { bodyCapsule, capsuleRectGap, unitStance } from '../world/body-clearance.js';
 import { FIXED_KIT, BCD_KIT } from '../items.js';
 import { dressingMaterial, boxUV } from '../art/dressing.js';
@@ -54,13 +55,14 @@ const cage = (x, z) => {
 };
 
 /**
- * Placement rule (e) for small standing devices (a switch post, a floating mine): solid for walkers and swimmers
- * (nav-only block over the body + 0.25 m) while it stands, and approached from its edge (commando targetPoint).
+ * Placement rule (e) for small standing devices (a switch post, a floating mine, a knapsack on the ground): solid
+ * for walkers and swimmers (nav-only block over the body + RULES.bodyNav) while it stands, and approached from its
+ * edge (commando targetPoint). `off` clears the stamp (picked up).
  */
-function stampSolid(ent, w, d) {
-  const g = ent.world?.grid;
+function stampSolid(ent, w, d, off = false) {
+  const g = ent.world?.grid, m = 2 * RULES.bodyNav;
   if (!g?.navStamp) return;
-  g.navStamp(`dev:${ent.id}`, ent.destroyed || ent.removed ? [] : g.rectCells(ent.x, ent.z, w + 0.5, d + 0.5, ent.heading ?? 0));
+  g.navStamp(`dev:${ent.id}`, off || ent.destroyed || ent.removed ? [] : g.rectCells(ent.x, ent.z, w + m, d + m, ent.heading ?? 0));
 }
 /** Where a unit at `u` stands to reach a solid w × d body (heading h) centred on `o`: just outside its edge. */
 function edgeApproach(o, u, w, d, h = 0, gap = 0.55) {
@@ -128,7 +130,7 @@ export class Pushable extends Interactable {
   _navRest() {
     const g = this.world?.grid;
     if (!g?.navStamp) return;
-    g.navStamp(`push:${this.id}`, this.destroyed || this.goal ? [] : g.rectCells(this.x, this.z, this.size[0] + 0.3, this.size[1] + 0.3, this.heading ?? 0));
+    g.navStamp(`push:${this.id}`, this.destroyed || this.goal ? [] : g.rectCells(this.x, this.z, this.size[0] + 2 * RULES.bodyNav, this.size[1] + 2 * RULES.bodyNav, this.heading ?? 0));
     this._navAt = { x: this.x, z: this.z };
   }
   canUse(c) {
@@ -317,6 +319,9 @@ export class DrawbridgeSwitch extends Interactable {
 
 export class Knapsack extends Interactable {
   constructor(o) { super({ ...o, interactKind: 'knapsack', label: 'Knapsack' }); this.ownerRole = o.ownerRole ?? 'greenberet'; }
+  /** The pack on the ground is walked round, not through (placement rule e), and reached from its edge. */
+  onAdded(world) { super.onAdded?.(world); stampSolid(this, 0.5, 0.35); }
+  approachFrom(u) { return edgeApproach(this, u, 0.5, 0.35, this.heading ?? 0); }
   canUse(c) {
     if (this.removed || this.count <= 0) return 'Empty.';
     return c?.role === this.ownerRole ? true : 'Not my kit.';
@@ -325,6 +330,7 @@ export class Knapsack extends Interactable {
     const kit = { ...(FIXED_KIT[c.role] || {}), ...(BCD_KIT[c.role] || {}), ...(this.params.contents || {}) };
     for (const [id, n] of Object.entries(kit)) if (!c.has(id)) Interactable.give(c, id, n);
     this.count = 0;
+    stampSolid(this, 0.5, 0.35, true);
     this.world?.removeLater?.(this);
     return true;
   }

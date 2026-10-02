@@ -30,7 +30,7 @@ import { createLibraryVehicleModel, seatSide, vehicleArtContext } from '../art/v
 import { createKitVehicleModel } from '../art/kit-vehicles.js';
 import { createCrewFigures } from '../art/vehicle-crew.js';
 import { angleTo, turnTowardsAngle, angleDiff } from '../core/math.js';
-import { B, T } from '../world/grid.js';
+import { B, T, MAX_STEP } from '../world/grid.js';
 import { hullRect, capsuleRectGap, bodyCapsule, isSolidHull, bodyShape, bodyGap } from '../world/body-clearance.js';
 import { makeVision } from './enemy.js';
 import { Projectile, explode, hitBarrel } from './projectile.js';
@@ -42,6 +42,8 @@ import { inContact, ramGate, applyRamResponse, bumpGate } from '../world/breakab
 const EXIT_SPACING = 0.9;
 
 const DEG = Math.PI / 180;
+/** Furthest (m) a driven hull backs up on its own to make room to turn in place (§3.7 + placement rule d). */
+const MAX_BACKUP = 3;
 
 /**
  * Who may operate each vehicle kind by default (§3.7). Entries name a commando role, or a guest's
@@ -685,26 +687,111 @@ export class Vehicle extends Entity {
    * forbidden cursor when ~0). Assumes it has turned to face the point first.
    * @returns {number} metres (0 = can't move that way)
    */
-  straightReach(x, z) {
+  straightReach(x, z, ox = this.x, oz = this.z) {
     if (!this.world || !this.def.fast) return 0;
-    const d = Math.hypot(x - this.x, z - this.z);
+    const d = Math.hypot(x - ox, z - oz);
     if (d < 1e-3) return 0;
-    const h = angleTo(this.x, this.z, x, z);
+    const h = angleTo(ox, oz, x, z);
     const st = CONFIG.vehicles.probeStep;
     const c = Math.cos(h), s = Math.sin(h);
     let reach = 0;
     for (let t = st; t <= d + 1e-6; t += st) {
-      const ok = this._nosePoints(this.x + c * t, this.z + s * t, h).every(([px, pz]) => this.passableAt(px, pz));
+      const ok = this._nosePoints(ox + c * t, oz + s * t, h).every(([px, pz]) => this.passableAt(px, pz));
       if (!ok) break;
       reach = t;
     }
     return Math.min(reach, d);
   }
 
+  /** Outline of the hull at (x, z) facing h (+5 cm), sampled ≤ 0.4 m apart (placement rule d: turning in place). */
+  _outline(x, z, h, m = 0.05) {
+    const [l, wd] = this.def.size, c = Math.cos(h), s = Math.sin(h), a = l / 2 + m, b = wd / 2 + m, pts = [];
+    const na = Math.max(1, Math.ceil((2 * a) / 0.4)), nb = Math.max(1, Math.ceil((2 * b) / 0.4));
+    const at = (u, v) => pts.push([x + c * u - s * v, z + s * u + c * v]);
+    for (let k = 0; k <= na; k++) { const u = -a + (2 * a * k) / na; at(u, -b); at(u, b); }
+    for (let k = 1; k < nb; k++) { const v = -b + (2 * b * k) / nb; at(-a, v); at(a, v); }
+    return pts;
+  }
+
+  /**
+   * Placement rule (d) for hulls: can it turn in place at (x, z) from h0 to h1 (the short way) without its corners
+   * sweeping into a blocking cell (a wall, a building's eaves, another hull)? Cells the hull already overlaps at h0
+   * (a parked spawn) don't count.
+   */
+  _turnClear(x, z, h0, h1) {
+    const g = this.world.grid, cellOf = ([px, pz]) => { const { i, j } = g.worldToCell(px, pz); return g.inBounds(i, j) ? g.idx(i, j) : -1; };
+    const y0 = x === this.x && z === this.z ? this.y || 0 : g.elevAt(x, z) || 0;
+    const free = ([px, pz]) => this._sweepFree(px, pz, x, z, y0);
+    const had = new Set(this._outline(x, z, h0).filter((p) => !free(p)).map(cellOf));
+    const d = angleDiff(h0, h1), n = Math.max(1, Math.ceil(Math.abs(d) / (4 * DEG)));
+    for (let k = 1; k <= n; k++) {
+      for (const p of this._outline(x, z, h0 + (d * k) / n)) if (!free(p) && !had.has(cellOf(p))) return false;
+    }
+    return true;
+  }
+
+  /**
+   * Can a hull corner swing over (x, z)? Only what stands there counts (a wall, a post, eaves, a raised walk above the
+   * hull's floor, another hull): unlike driving onto it, open water or a lower bank under an overhanging corner is no
+   * obstacle, nor is the rest of a ramp the hull stands on (no step up > MAX_STEP between its centre (ox, oz) at y0
+   * and the point).
+   */
+  _sweepFree(x, z, ox = this.x, oz = this.z, y0 = this.y || 0) {
+    if (this.isBoat) return this.passableAt(x, z);
+    const w = this.world, g = w.grid, { i, j } = g.worldToCell(x, z);
+    if (!g.inBounds(i, j)) return !!this.offMapOK;
+    const k = g.idx(i, j);
+    if (g.block[k] !== B.NONE && !g.bridge[k] && !this._rammable(x, z)) return false;
+    if (g.navBlock?.[k]) return false;
+    if (g.overLo && g.overLo[k] < Infinity && g.overLo[k] < this._groundAt(x, z) + this.hullHeight() + 0.1) return false;
+    if (g.elev && g.elev[k] > y0 + 0.3) {
+      // higher than the hull's floor: the rest of a ramp it stands on (no step up on the way out from its centre),
+      // or a ledge / raised walk the corner would swing into
+      const L = Math.hypot(x - ox, z - oz), n = Math.max(1, Math.ceil(L / 0.25));
+      let prev = g.elevAt(ox, oz) || 0;
+      for (let q = 1; q <= n; q++) {
+        const e = g.elevAt(ox + ((x - ox) * q) / n, oz + ((z - oz) * q) / n) || 0;
+        if (e - prev > MAX_STEP + 1e-3) return false; // (a stair-stepped ramp: no step higher than a walker takes)
+        prev = e;
+      }
+    }
+    for (const v of w.vehicles) {
+      if (v === this || v.removed || v.hiddenRail || (v.destroyed && v.wreckBaked)) continue;
+      if (v._inHull(x, z, 0.1)) return false;
+    }
+    return true;
+  }
+
+  /**
+   * How far (m) the hull first backs up (> 0) or pulls forward (< 0) before it can turn toward (x, z) without
+   * sweeping into anything: 0 = turn where it stands, null = not within MAX_BACKUP either way (backing up preferred
+   * at equal distance: the way it came in is known to be clear).
+   */
+  turnPlan(x, z) {
+    if (!this.world || this.isBoat) return 0;
+    const st = CONFIG.vehicles.probeStep, open = { 1: true, [-1]: true };
+    for (let b = 0; b <= MAX_BACKUP + 1e-6; b += st) {
+      for (const sg of b > 0 ? [1, -1] : [1]) {
+        if (!open[sg]) continue;
+        const dir = sg > 0 ? this.heading + Math.PI : this.heading, c = Math.cos(dir), s = Math.sin(dir);
+        const ox = this.x + c * b, oz = this.z + s * b;
+        if (b > 0 && !this._nosePoints(ox, oz, dir).every(([px, pz]) => this.passableAt(px, pz))) { open[sg] = false; continue; }
+        const want = angleTo(ox, oz, x, z);
+        if (Math.abs(angleDiff(this.heading, want)) <= CONFIG.vehicles.alignDeg * DEG || this._turnClear(ox, oz, this.heading, want)) return sg * b;
+      }
+      if (!open[1] && !open[-1]) return null;
+    }
+    return null;
+  }
+
   /** Can the operator's straight-line click at (x, z) move the vehicle at all? (cursor feedback) */
   canDriveTo(x, z) {
+    if (!this.driveable || this.destroyed || this.vehicleKind === 'emplacement') return false;
     if (this.world?.driveRules?.some((r) => r(this, x, z) === false)) return false; // MISSIONS rules (M19 no rowing upstream)
-    return this.driveable && !this.destroyed && this.vehicleKind !== 'emplacement' && this.straightReach(x, z) >= 0.5;
+    const b = this.turnPlan(x, z);
+    if (b == null) return false;
+    const c = Math.cos(this.heading + Math.PI), s = Math.sin(this.heading + Math.PI); // (b < 0: pulled forward)
+    return this.straightReach(x, z, this.x + c * b, this.z + s * b) >= 0.5;
   }
 
   /**
@@ -720,7 +807,7 @@ export class Vehicle extends Entity {
     if (!this.canDriveTo(x, z)) { this.fast = wasFast; return false; }
     this.maxSpeed = this.fast ? this.def.fast : this.def.slow;
     this.path = null;
-    this.goal = { x, z, strict: true };
+    this.goal = { x, z, strict: true, back: this.turnPlan(x, z) || 0 };
     return true;
   }
 
@@ -809,16 +896,29 @@ export class Vehicle extends Entity {
     const g = this.goal;
     const d = Math.hypot(g.x - this.x, g.z - this.z);
     if (d < (g.strict ? 0.3 : 0.8)) return this._nextWaypoint();
+    // player driving with no room to turn: back up first (turnPlan), slow, the rear probed like a nose
+    // (back < 0: no room behind either, it pulls forward first)
+    if (g.strict && g.back) {
+      const bh = this.heading + (g.back > 0 ? Math.PI : 0), mv = Math.min(Math.abs(g.back), this.def.slow * dt);
+      const bx = this.x + Math.cos(bh) * mv, bz = this.z + Math.sin(bh) * mv;
+      if (!this._nosePoints(bx, bz, bh).every(([px, pz]) => this.passableAt(px, pz))) { this._halt(); return; }
+      this.x = bx; this.z = bz; g.back -= Math.sign(g.back) * mv; this.speed = 0;
+      if (Math.abs(g.back) < 1e-6) g.back = 0;
+      return;
+    }
     const want = angleTo(this.x, this.z, g.x, g.z);
     const diff = Math.abs(angleDiff(this.heading, want));
     const h0 = this.heading;
-    this.heading = turnTowardsAngle(this.heading, want, this.def.turn * dt);
+    const turned = turnTowardsAngle(this.heading, want, this.def.turn * dt);
+    // Player driving: turn in place first (its corners never sweep into a wall or the eaves: rule d), then a straight
+    // line. Routes (AI) turn while rolling.
+    if (g.strict && diff > CONFIG.vehicles.alignDeg * DEG && !this.isBoat && !this._turnClear(this.x, this.z, this.heading, turned)) { this._halt(); return; }
+    this.heading = turned;
     // turning in place / in a bend never swings the hull over a man on the ground (body clearance)
     if (this.heading !== h0 && !this._lethal() && this._stepAside(this._bodiesUnder(this.x, this.z, this.heading), this.x, this.z, this.heading).length) {
       this.heading = h0;
       return this._bodyBlocked(g, dt);
     }
-    // Player driving: turn in place first, then a straight line. Routes (AI) turn while rolling.
     if (g.strict && diff > CONFIG.vehicles.alignDeg * DEG) { this.speed = 0; return; }
     if (!g.strict && diff > Math.PI / 3) { this.speed = 0; return; } // routes: sharp bends / reversals turn in place
     const was = this.speed;

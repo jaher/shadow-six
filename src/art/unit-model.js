@@ -422,9 +422,13 @@ export class UnitModel {
     // not while a stance transition plays (own-transition runtimes report the target clip already)
     const prone = PRONE_CLIP.test(this.clip || '') && !this._tr && !TR_CLIP.test(inner._clipName || inner.animClip || '');
     const st = this._pg || (this._pg = { active: false });
-    if (!prone && !st.active) return false;
+    // (not lying: the shown heading is the sim's — a stale one from the last time he lay down would make the next
+    // lie-down start turned that way: b00 Green Beret lying down with his legs in a wagon)
+    if (!prone && !st.active) { st.visYaw = null; return false; }
     const w = u?.world, ey = u?.y || 0;
-    const res = proneGround(st, { root: this.root, body: this._body(), bones: inner.bones, dt, prone,
+    // a settle turn (Unit._arrive / _guardBody: turned clear of a hull in place) pivots about his hips, as its sweep was
+    // checked, not about the chest
+    const res = proneGround(st, { root: this.root, body: this._body(), bones: inner.bones, dt, prone, pivot: u?._turnInPlace ? 0 : undefined, done: u?._turnInPlace ? () => { u._turnInPlace = false; } : undefined,
       moving: LOCOMOTION.has(this.anim) && this._v > 0.1, groundY: w?.groundY ? (x, z) => w.groundY(x, z) + ey : null });
     st.active = res.active;
     const turn = prone && res.turnDir && this.anim === 'crawl_idle' ? (res.turnDir > 0 ? 'prone_turn_l' : 'prone_turn_r') : null;

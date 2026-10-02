@@ -379,6 +379,17 @@ function rng(seed) {
   return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
 }
 
+/** Classification aid for a dynamic finding: the entity's pose / path / nav context at its worst moment. */
+function diagOf(game, e) {
+  const g = game.world.grid, r2 = (v) => (v == null || !Number.isFinite(v) ? v : Math.round(v * 100) / 100);
+  const d = { y: r2(e.object3d?.position.y ?? e.y), elev: r2(g.elevAt?.(e.x, e.z)), heading: Math.round((e.heading ?? 0) * 180 / Math.PI),
+    stance: e.stance, anim: e._anim ?? null, moving: !!e.path, alive: e.alive !== false };
+  if (e.path) { const wp = e.path[e.pathIndex]; d.wp = wp ? [r2(wp.x), r2(wp.z)] : null; d.goal = e.moveTarget ? [r2(e.moveTarget.x), r2(e.moveTarget.z)] : null; }
+  const i = Math.floor(e.x / g.cell), j = Math.floor(e.z / g.cell);
+  if (i >= 0 && j >= 0 && i < g.cols && j < g.rows) { const k = j * g.cols + i; d.cell = { block: g.block[k], nav: g.navBlock[k], walk: g.isWalkable?.(i, j) }; }
+  return d;
+}
+
 const WALLISH = new Set(['building', 'wall', 'fence', 'gate', 'tower', 'pole', 'tent', 'prop', 'sandbags', 'ruins', 'bridge', 'pier', 'vehicle']);
 
 /**
@@ -440,7 +451,8 @@ export function dynamicAudit(game) {
         if (f && !f.allowed && f.depth > S.o.minDepth) {
           const e = D.entity;
           const prev = S.found.get(f.key)?.depth ?? 0;
-          keepWorst(S.found, f, { t: +S.t.toFixed(2), at: { x: +e.x.toFixed(2), z: +e.z.toFixed(2) }, unitState: D.state ?? e.state ?? null, speed: +(e.speed ?? 0).toFixed(2) });
+          keepWorst(S.found, f, { t: +S.t.toFixed(2), at: { x: +e.x.toFixed(2), z: +e.z.toFixed(2) }, unitState: D.state ?? e.state ?? null, speed: +(e.speed ?? 0).toFixed(2),
+            diag: diagOf(game, e) });
           if (f.depth > prev * 1.25 + 0.02) S.hits.push({ key: f.key, depth: f.depth, point: f.point, box: f.box, t: +S.t.toFixed(2) });
         }
       }

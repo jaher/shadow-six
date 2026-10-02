@@ -28,6 +28,9 @@ export const RULES = Object.freeze({
   towerGap: 0.08, // tower legs ↔ fence face
   step: 0.15, maxMove: 4.5, angles: 16, // relocation ring search
   unitR: 0.35, // character body radius
+  // nav clearance (rule e): a cell is blocked when a solid body comes this close to its centre, so a walker on the
+  // nearest free centre keeps shoulders, boots and rifle out of it (the visual stamps, solid props and devices)
+  bodyNav: 0.3,
   eaves: 0.6, // roof overhang beyond a building's wall line (tall point props keep clear of it)
 });
 
@@ -70,7 +73,7 @@ export const OBSTACLE_H = { wall: 2.2, fence: 2.0, sandbags: 1.0, rocks: 1.5, ro
  */
 export function pruneTree(def, obstacles) {
   const H = def.h ?? 10, reach = 0.35 * H + 0.3, x = def.x ?? 0, z = def.z ?? 0;
-  let base = 0, crownR = Infinity;
+  let base = 0, crownR = Infinity, floor = 0;
   for (const o of obstacles) {
     if (o.cat === 'tree' || o.cat === 'foliage' || o.cat === 'item' || o.cat === 'road' || o.def === def) continue;
     if (!bboxHit([x, z, x, z], o.bb, reach)) continue;
@@ -78,11 +81,13 @@ export function pruneTree(def, obstacles) {
     for (const p of o.tall) d = Math.min(d, Math.max(0, polyDist(x, z, p)));
     if (d >= reach) continue;
     const h = o.def?.h ?? OBSTACLE_H[o.cat] ?? 2;
-    if (h + 0.9 <= 0.55 * H) base = Math.max(base, h + 0.9); // + branch droop and hanging needle cards
+    // + branch droop and hanging needle cards; `crownFloor`: no branch of a drooping species (spruce) sags below
+    // the obstacle's top + 0.25 m beyond the trunk (the tree generator cuts it there)
+    if (h + 0.9 <= 0.55 * H) { base = Math.max(base, h + 0.9); floor = Math.max(floor, h + 0.25); }
     else crownR = Math.min(crownR, Math.max(1.2, d - 0.25));
   }
   if (!base && crownR === Infinity) return null;
-  return { ...(base ? { crownBase: +base.toFixed(2) } : {}), ...(crownR < Infinity ? { crownR: +crownR.toFixed(2) } : {}) };
+  return { ...(base ? { crownBase: +base.toFixed(2), crownFloor: +floor.toFixed(2) } : {}), ...(crownR < Infinity ? { crownR: +crownR.toFixed(2) } : {}) };
 }
 
 const toXZ = (p) => (Array.isArray(p) ? [p[0], p[1]] : [p.x, p.z]);
@@ -222,7 +227,23 @@ export function routeObstacles(vehicles = []) {
     const pts = v.route?.points;
     if (!pts || pts.length < 2) continue;
     const hw = VEHICLE_HALF_WIDTH[v.vehicleType] ?? 1.5;
-    out.push(obstacle(`${v.id}:route`, 'route', linePolys(pts.map(toXZ), hw), { type: 'route', id: v.id }));
+    // (its height: the vehicle's, mast / cab / canvas included — crowns over the lane clear it)
+    out.push(obstacle(`${v.id}:route`, 'route', linePolys(pts.map(toXZ), hw), { type: 'route', id: v.id, h: OBSTACLE_H.vehicle }));
+  }
+  return out;
+}
+
+/**
+ * Climb / ladder landings (mission `climbLinks` {a, b}, `ladders` {x, z, top}) as `landing` obstacles: the climber
+ * steps off there (body radius + a stride), so poles, trees, props and pickups keep clear of it (rule b).
+ */
+export const LANDING_R = 0.5;
+export function landingObstacles(links = null) {
+  const out = [];
+  for (const [k, l] of (links?.climbLinks || []).entries()) for (const [e, p] of [['a', l.a], ['b', l.b]]) if (p) out.push(obstacle(`climb${k + 1}:${e}`, 'landing', [circlePoly(p[0], p[1], LANDING_R)]));
+  for (const [k, l] of (links?.ladders || []).entries()) {
+    if (l.x != null) out.push(obstacle(`${l.id ?? `ladder${k + 1}`}:foot`, 'landing', [circlePoly(l.x, l.z, LANDING_R)]));
+    if (l.top) out.push(obstacle(`${l.id ?? `ladder${k + 1}`}:top`, 'landing', [circlePoly(l.top[0], l.top[1], LANDING_R)]));
   }
   return out;
 }
@@ -334,7 +355,8 @@ export function structureRecords(structures, shapeOf = null) {
  * Resolve a mission's placement (rules a–b). Never mutates the input; returns new defs.
  * @param {object[]} structures mission structures
  * @param {{shapeOf?: (def:object, k:number) => (number[][][]|null), isFree?: (x:number, z:number, cat:string) => boolean,
- *   vehicles?: object[], terrain?: object[], items?: object[], interactables?: object[], points?: boolean}} [o]
+ *   vehicles?: object[], terrain?: object[], items?: object[], interactables?: object[], points?: boolean,
+ *   links?: {climbLinks?: object[], ladders?: object[]}}} [o] links: climb / ladder landings keep points clear
  *   points: move point props (default: only when `shapeOf` gives the visual shapes)
  * @returns {{structures: object[], items: object[], interactables: object[], moves: Map<string, {dx:number, dz:number}>,
  *   dropped: string[], log: string[], records: object[]}}
@@ -441,7 +463,7 @@ export function resolvePlacement(structures = [], o = {}) {
   const obstacles = [
     ...solids.map((s) => obstacle(s.id, s.cat, s.polys, s.def, s.tall)),
     ...linears.map((l) => obstacle(l.id, l.cat, l.polys, l.def)),
-    ...routeObstacles(o.vehicles), ...roadObstacles(o.terrain),
+    ...routeObstacles(o.vehicles), ...roadObstacles(o.terrain), ...landingObstacles(o.links),
     ...(o.vehicles || []).filter((v) => !v.route && v.x != null).map((v) => obstacle(String(v.id), 'vehicle', [rectPoly(v.x, v.z, v.vehicleType === 'mgNest' ? 1.4 : 6, v.vehicleType === 'mgNest' ? 1.4 : 2.6, v.heading ?? 0)], v)),
   ];
   const points = live.filter((r) => !r.linear && POINT_CATS.has(r.cat));
@@ -665,6 +687,49 @@ export function settleSolid(grid, x, z, h, o = {}) {
 }
 
 /**
+ * Rule (e) bodies on their back: the hands flung out past the head (`at` m behind the unit position, `half` m to each
+ * side, `r` m across) must not lie in a structure cell (grid block or navBlock: a building's plinth or snow skirt
+ * reaches past its footprint) — the lying-body disc of settleBody is 1 m, the hands reach 1.6 m. Returns the nearest
+ * shift (≤ `maxMove` m, same surface height, walkable, the body line and its standing visuals still clear) that
+ * clears both hands, or null when they are already clear or nothing is found (clip-2: M3 `e7`'s hand in `camp_barr`).
+ * @param {import('./grid.js').NavGrid} grid
+ */
+export function settleHands(grid, x, z, h, o = {}) {
+  if (!grid?.block) return null;
+  const at = o.at ?? 1.45, half = o.half ?? 0.7, r = o.r ?? 0.15, maxMove = o.maxMove ?? 0.6, c = grid.cell;
+  const ca = Math.cos(h), sa = Math.sin(h), y0 = grid.elevAt ? grid.elevAt(x, z) : 0;
+  const solid = (px, pz) => {
+    const i = Math.floor(px / c), j = Math.floor(pz / c);
+    if (i < 0 || j < 0 || i >= grid.cols || j >= grid.rows) return true;
+    const k = j * grid.cols + i;
+    return grid.block[k] !== 0 || !!(grid.navBlock && grid.navBlock[k]);
+  };
+  const handsHit = (px, pz) => {
+    for (const s of [-1, 1]) {
+      const hx = px - ca * at - sa * half * s, hz = pz - sa * at + ca * half * s;
+      for (const [dx, dz] of [[0, 0], [r, 0], [-r, 0], [0, r], [0, -r]]) if (solid(hx + dx, hz + dz)) return true;
+    }
+    return false;
+  };
+  if (!handsHit(x, z)) return null;
+  // the body itself (heels 0.65 m ahead, head 1.25 m behind) stays clear where it moves
+  const bodyClear = (px, pz) => {
+    for (let u = -1.25; u <= 0.65 + 1e-9; u += 0.25) for (const v of [-0.25, 0, 0.25]) {
+      const qx = px + ca * u - sa * v, qz = pz + sa * u + ca * v;
+      if (solid(qx, qz) || grid.solidAt?.(qx, qz)) return false;
+    }
+    return true;
+  };
+  for (let d = 0.1; d <= maxMove + 1e-9; d += 0.1) for (let a = 0; a < 16; a++) {
+    const px = x + Math.cos((a * Math.PI) / 8) * d, pz = z + Math.sin((a * Math.PI) / 8) * d;
+    if (grid.elevAt && Math.abs(grid.elevAt(px, pz) - y0) > 0.1) continue;
+    if (grid.isWalkable && !grid.isWalkable(Math.floor(px / c), Math.floor(pz / c), { swim: true })) continue;
+    if (!handsHit(px, pz) && bodyClear(px, pz)) return { x: +px.toFixed(3), z: +pz.toFixed(3), moved: +d.toFixed(2) };
+  }
+  return null;
+}
+
+/**
  * Rule (d) turrets / emplacement guns: for every traverse angle (world, `step`°) the barrel elevation (rad) needed
  * to pass over the static obstacles within its reach, or Infinity when even `maxLift` does not clear them (that
  * arc is closed: the gun never swings its barrel through a wall, fence or building).
@@ -819,4 +884,92 @@ export function fallHeading(grid, x, z, h, len = 1.6, likely = 0) {
     if (cc < bc - 1e-6) { bc = cc; best = h + off; }
   }
   return best;
+}
+
+/**
+ * Rule (e) climbs: the vertical track of a climb link a → b over what it crosses (a wall, its cap, its plank roof:
+ * the measured mesh tops grid.blockTop / grid.overHi, else the owner's data height). The body (radius `r`) keeps its
+ * feet above every top it overlaps, so the climber walks to the face, rises, crosses at the top and drops on the far
+ * side instead of sliding through the wall at ground height.
+ * @param {{x:number, z:number, y?:number}} a @param {{x:number, z:number, y?:number}} b
+ * @param {{r?: number, heightOf?: (k:number) => number|null}} [o]
+ * @returns {{L:number, len:number, pts:{d:number, y:number, s:number}[]}} L horizontal length; pts along (distance
+ *   from a, world y) with s = cumulative track length (len = total)
+ */
+export function climbTrack(grid, a, b, o = {}) {
+  const r = o.r ?? RULES.unitR, c = grid.cell, L = Math.hypot(b.x - a.x, b.z - a.z), ya = a.y ?? 0, yb = b.y ?? 0;
+  const ux = L > 1e-6 ? (b.x - a.x) / L : 0, uz = L > 1e-6 ? (b.z - a.z) / L : 0;
+  const topAt = (x, z) => {
+    const i = Math.floor(x / c), j = Math.floor(z / c);
+    if (i < 0 || j < 0 || i >= grid.cols || j >= grid.rows) return -Infinity;
+    const k = j * grid.cols + i;
+    let t = -Infinity;
+    if (grid.block[k]) t = grid.blockTop?.[k] > 0 ? grid.blockTop[k] : (grid.elev?.[k] ?? 0) + (o.heightOf?.(k) ?? 2);
+    if (grid.overHi && grid.overHi[k] > t) t = grid.overHi[k]; // plank roofs, caps and eaves over the approach
+    return t;
+  };
+  const pts = [];
+  const n = Math.max(1, Math.ceil(L / 0.05));
+  for (let q = 0; q <= n; q++) {
+    const d = (L * q) / n, base = ya + ((yb - ya) * q) / n;
+    let env = -Infinity;
+    for (let u = -r; u <= r + 1e-9; u += 0.1) for (const v of [-0.2, 0, 0.2]) {
+      const x = a.x + ux * (d + u) - uz * v, z = a.z + uz * (d + u) + ux * v;
+      env = Math.max(env, topAt(x, z));
+    }
+    const y = Math.max(base, env + 0.02), prev = pts[pts.length - 1];
+    // conservative steps: rise before moving on, move on before dropping (no diagonal cut through a wall corner)
+    if (prev && y > prev.y + 1e-6) pts.push({ d: prev.d, y });
+    else if (prev && y < prev.y - 1e-6) pts.push({ d, y: prev.y });
+    pts.push({ d, y });
+  }
+  pts[0].y = ya; pts[pts.length - 1].y = yb; // the link ends stand on their own ground
+  let s = 0;
+  pts[0].s = 0;
+  for (let q = 1; q < pts.length; q++) { s += Math.hypot(pts[q].d - pts[q - 1].d, pts[q].y - pts[q - 1].y); pts[q].s = s; }
+  return { L, len: s, pts };
+}
+
+/** Point of a climbTrack at progress fraction f (0..1 of its track length) → {d, y}. */
+export function climbAt(track, f) {
+  const s = Math.min(1, Math.max(0, f)) * track.len, P = track.pts;
+  for (let q = 1; q < P.length; q++) {
+    if (P[q].s < s && q < P.length - 1) continue;
+    const seg = P[q].s - P[q - 1].s, t = seg > 1e-9 ? Math.min(1, Math.max(0, (s - P[q - 1].s) / seg)) : 1;
+    return { d: P[q - 1].d + (P[q].d - P[q - 1].d) * t, y: P[q - 1].y + (P[q].y - P[q - 1].y) * t };
+  }
+  return { d: P[P.length - 1].d, y: P[P.length - 1].y };
+}
+
+/**
+ * Rule (e) weapons: a unit aiming a shouldered long gun keeps its barrel out of walls and buildings. Returns how far
+ * (m, ≤ `max`) the unit at (x, z) facing `h` (feet at `y`) steps back so every barrel sample (0.3–`reach` m ahead,
+ * 1.15 m by default: the muzzle of a shouldered rifle; ±0.25 m across: the rifle sits off the body centre; at the
+ * shoulder) is over open ground or over a block lower than the shoulder (a sandbag wall, a palisade seen from its
+ * wall walk: he fires over it); 0 = room already, `max` (or the last open step) when the barrel cannot clear within
+ * it (best effort), null = no step back.
+ * @param {{reach?: number, max?: number, shoulder?: number, heightOf?: (k:number) => number|null,
+ *   solidAt?: (x:number, z:number, y:number) => boolean}} [o] solidAt: movable solids taller than y at (x, z)
+ */
+export function weaponRoom(grid, x, z, h, y = 0, o = {}) {
+  const reach = o.reach ?? 1.15, max = o.max ?? 0.5, sh = y + (o.shoulder ?? 1.15), c = Math.cos(h), s = Math.sin(h), cell = grid.cell;
+  const hit = (px, pz) => {
+    if (o.solidAt?.(px, pz, sh)) return true; // hulls, wagons: what stands there that the grid does not hold
+    const i = Math.floor(px / cell), j = Math.floor(pz / cell);
+    if (i < 0 || j < 0 || i >= grid.cols || j >= grid.rows) return false;
+    const k = j * grid.cols + i;
+    if (grid.block[k] === 0) return false;
+    const top = grid.blockTop?.[k] > 0 ? grid.blockTop[k] : (grid.elev?.[k] ?? 0) + (o.heightOf?.(k) ?? 2);
+    return top > sh;
+  };
+  let room = 0;
+  for (let b = 0; b <= max + 1e-9; b += 0.05) {
+    const bx = x - c * b, bz = z - s * b;
+    if (b > 0 && !grid.isWalkable(Math.floor(bx / cell), Math.floor(bz / cell))) break;
+    room = b;
+    let clear = true;
+    for (const d of [0.3, 0.45, 0.6, 0.75, 0.9, 1.05, reach]) for (const v of [-0.25, -0.1, 0, 0.1, 0.25]) if (clear && d <= reach + 1e-9 && hit(bx + c * d - s * v, bz + s * d + c * v)) { clear = false; break; }
+    if (clear) return +b.toFixed(2);
+  }
+  return room > 0 ? +room.toFixed(2) : null; // no full room: as far back as the ground allows (best effort)
 }

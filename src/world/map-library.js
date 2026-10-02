@@ -112,15 +112,15 @@ function defaultDoor(s) {
 }
 
 /**
- * Hideout door points from the assets' main doors (enterable structures without a mission `door`), kept only when
- * within 4 m of the default point (else the mission layout wins and the mismatch is logged).
+ * Hideout / garrison door points from the assets' main doors (enterable or garrison structures without a mission
+ * `door`), kept only when within 4 m of the default point (else the mission layout wins and the mismatch is logged).
  * @returns {Map<string, number[]>} structure id → [x, z]
  */
 export function libraryDoorPoints(built, log = []) {
   const out = new Map();
   for (const b of built) {
     const s = b.def, lib = b.library;
-    if (!lib || !s.enterable || s.door || s.id == null || !lib.doors.length) continue;
+    if (!lib || !(s.enterable || s.garrison) || s.door || s.id == null || !lib.doors.length) continue; // (garrison: its doorway stays open, rule e)
     const d = lib.doors.find((q) => q.id === 'main') ?? lib.doors[0];
     const p = d.approach ?? { x: d.x, z: d.z };
     const def = defaultDoor(s);
@@ -307,7 +307,8 @@ export function libraryDecks(built, o = {}) {
     const d = b.def, rect = o.measure && d.w != null && d.d != null
       ? [[-d.w / 2, -d.d / 2], [d.w / 2, -d.d / 2], [d.w / 2, d.d / 2], [-d.w / 2, d.d / 2]].map(([u, v]) => [x0 + u * c - v * s, z0 + u * s + v * c]) : null;
     const polyArea = (p) => Math.abs(p.reduce((t, q, k) => { const r = p[(k + 1) % p.length]; return t + q[0] * r[1] - r[0] * q[1]; }, 0)) / 2;
-    const poly = rect && polyArea(rect) > polyArea(br.deck) ? rect : br.deck;
+    // a curved crest (a dam's arch: the asset's crest_poly) is the deck itself
+    const poly = br.crest?.length >= 3 ? br.crest : rect && polyArea(rect) > polyArea(br.deck) ? rect : br.deck;
     const analytic = (x, z) => {
       const u = Math.abs((x - x0) * c + (z - z0) * s - mid), k = Math.min(1, Math.max(0, (half - u) / ramp));
       return endH + (top - endH) * k * k * (3 - 2 * k);

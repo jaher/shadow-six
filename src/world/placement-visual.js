@@ -12,6 +12,13 @@ import { sessionCache, hasher, dataKey } from '../engine/asset-cache.js';
 export { dataKey };
 
 const SKIP = /shadow|proxy|collider|collision|occluder|decal|selection|marker|halo|glow|blob|impostor/i;
+/** World matrices of a mesh: its own, or one per instance of an InstancedMesh (sandbag courses, stake rows…). */
+export function meshMatrices(nd) {
+  if (!nd.isInstancedMesh) return [nd.matrixWorld];
+  const out = [], im = new THREE.Matrix4();
+  for (let k = 0; k < nd.count; k++) { nd.getMatrixAt(k, im); out.push(new THREE.Matrix4().multiplyMatrices(nd.matrixWorld, im)); }
+  return out;
+}
 const _v = new THREE.Vector3();
 
 /**
@@ -97,8 +104,8 @@ function planCellsRaw(root, o = {}) {
       const sib = nd.parent?.children || [];
       if (nd.name !== ['lod0', 'lod1', 'lod2'].find((nm) => sib.some((c) => c.name === nm))) return;
     }
-    if (nd.isMesh && !nd.isInstancedMesh && !SKIP.test(nd.name || '') && nd.geometry?.attributes?.position) {
-      const pos = nd.geometry.attributes.position, idx = nd.geometry.index, m = nd.matrixWorld;
+    if (nd.isMesh && !SKIP.test(nd.name || '') && nd.geometry?.attributes?.position) for (const m of meshMatrices(nd)) {
+      const pos = nd.geometry.attributes.position, idx = nd.geometry.index;
       const count = idx ? idx.count : pos.count;
       for (let t = 0; t + 2 < count; t += 3) {
         const i0 = idx ? idx.getX(t) : t, i1 = idx ? idx.getX(t + 1) : t + 1, i2 = idx ? idx.getX(t + 2) : t + 2;
@@ -151,8 +158,8 @@ function overheadCellsRaw(root, o = {}, into = new Map()) {
       const sib = nd.parent?.children || [];
       if (nd.name !== ['lod0', 'lod1', 'lod2'].find((nm) => sib.some((c) => c.name === nm))) return;
     }
-    if (nd.isMesh && !nd.isInstancedMesh && !SKIP.test(nd.name || '') && nd.geometry?.attributes?.position) {
-      const pos = nd.geometry.attributes.position, idx = nd.geometry.index, m = nd.matrixWorld;
+    if (nd.isMesh && !SKIP.test(nd.name || '') && nd.geometry?.attributes?.position) for (const m of meshMatrices(nd)) {
+      const pos = nd.geometry.attributes.position, idx = nd.geometry.index;
       const count = idx ? idx.count : pos.count;
       for (let t = 0; t + 2 < count; t += 3) {
         const i0 = idx ? idx.getX(t) : t, i1 = idx ? idx.getX(t + 1) : t + 1, i2 = idx ? idx.getX(t + 2) : t + 2;
@@ -191,8 +198,8 @@ function standingCellsRaw(root, surf, o = {}, into = new Set()) {
       const sib = nd.parent?.children || [];
       if (nd.name !== ['lod0', 'lod1', 'lod2'].find((nm) => sib.some((c) => c.name === nm))) return;
     }
-    if (nd.isMesh && !nd.isInstancedMesh && !SKIP.test(nd.name || '') && nd.geometry?.attributes?.position) {
-      const pos = nd.geometry.attributes.position, idx = nd.geometry.index, m = nd.matrixWorld;
+    if (nd.isMesh && !SKIP.test(nd.name || '') && nd.geometry?.attributes?.position) for (const m of meshMatrices(nd)) {
+      const pos = nd.geometry.attributes.position, idx = nd.geometry.index;
       const count = idx ? idx.count : pos.count;
       for (let t = 0; t + 2 < count; t += 3) {
         const i0 = idx ? idx.getX(t) : t, i1 = idx ? idx.getX(t + 1) : t + 1, i2 = idx ? idx.getX(t + 2) : t + 2;
@@ -396,8 +403,8 @@ function lowSurfacesRaw(root, o = {}, into = new Map()) {
       const sib = nd.parent?.children || [];
       if (nd.name !== ['lod0', 'lod1', 'lod2'].find((nm) => sib.some((c) => c.name === nm))) return;
     }
-    if (nd.isMesh && !nd.isInstancedMesh && !SKIP.test(nd.name || '') && nd.geometry?.attributes?.position) {
-      const pos = nd.geometry.attributes.position, idx = nd.geometry.index, m = nd.matrixWorld;
+    if (nd.isMesh && !SKIP.test(nd.name || '') && nd.geometry?.attributes?.position) for (const m of meshMatrices(nd)) {
+      const pos = nd.geometry.attributes.position, idx = nd.geometry.index;
       const count = idx ? idx.count : pos.count;
       for (let t = 0; t + 2 < count; t += 3) {
         const i0 = idx ? idx.getX(t) : t, i1 = idx ? idx.getX(t + 1) : t + 1, i2 = idx ? idx.getX(t + 2) : t + 2;

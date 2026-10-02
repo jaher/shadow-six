@@ -3,7 +3,9 @@
  * (all static render items + parked vehicles + spawned characters) and the turret sweep must not find an unintended
  * overlap that is missing from tests/clip-baseline.json. Accepted overlaps live in the baseline; regenerate with
  *   node tools/audit/clipping.mjs --dynamic 0 --write-baseline
- * The dynamic audit (sim run) is tools-only: too long for the per-test timeout.
+ * Dynamic acceptance (docs/clipping-audit.md): the same 180 s sim run as the tool (patrols, vehicle routes, scripted
+ * commando moves along walls, kills at 60 / 120 s) for seeds 7 and 11 (one page per seed), must find no
+ * unintended penetration deeper than 5 cm by a live unit or vehicle (bodies: the bodies workflow's physics; logged).
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -11,6 +13,26 @@ import { diffBaseline } from '../src/debug/clip-rules.js';
 import { TESTS_DIR } from './harness.mjs';
 
 const MISSIONS = ['m00', 'm01', 'm02', 'm03', 'b00'];
+const DYNAMIC = { seconds: 180, seeds: [7, 11], chunk: 10 };
+export const timeout = 40 * 60_000; // two seeds × five maps of 180 s sim (15–25 min under shared load)
+
+/**
+ * One dynamic audit run (tools/audit/clipping.mjs --dynamic 180 --seed s) on a mission's own page (opened once and
+ * reused for every seed, as the tool reuses its page: a page load under heavy shared load is the slow part).
+ */
+async function dynamicRun(h, page, id, seed) {
+  await page.evaluate((m) => window.__game.loadMission(m), id);
+  // every building mesh in (loadMission waits 20 s at most; the visual nav stamps are measured on the meshes)
+  await page.evaluate(() => Promise.resolve(window.__game.game.mapHandle?.ready).then(() => true));
+  await page.evaluate(() => window.__game.clipAudit());
+  await page.evaluate((s) => window.__game.clip.dynamicBegin({ seed: s }), seed);
+  for (let t = 0; t < DYNAMIC.seconds; t += DYNAMIC.chunk) {
+    const r = await page.evaluate((c) => window.__game.clip.dynamicRun(c), DYNAMIC.chunk);
+    if (r.state !== 'playing') break;
+  }
+  const r = await page.evaluate(() => window.__game.clip.dynamicEnd());
+  return { id, seed, ...r, errors: h.errors(page) };
+}
 
 export default async function (page, t) {
   const baseline = JSON.parse(readFileSync(join(TESTS_DIR, 'clip-baseline.json'), 'utf8'));
@@ -71,4 +93,33 @@ export default async function (page, t) {
     for (const f of d.fresh) fresh.push(`${f.key} depth ${f.depth} m contact ${f.contact} m at (${f.point.x}, ${f.point.y}, ${f.point.z})`);
   }
   t(!fresh.length, `new unintended overlaps (fix them, or accept via tools/audit/clipping.mjs --write-baseline):\n  ${fresh.join('\n  ')}`);
+
+  // dynamic acceptance: every mission × seed
+  const fmt = (f) => `${f.a.id} × ${f.b.cat}:${f.b.id} ${f.depth} m @t=${f.t}s (${f.point.x}, ${f.point.y}, ${f.point.z})`;
+  // one page per seed (the test's own page and one more), the missions one after the other in each: five pages at
+  // once ran the shared machine out of memory
+  const extra = await t.harness.newPage();
+  for (let tries = 1; ; tries++) { // (a page load can time out under heavy shared load: up to 3 tries)
+    try { await t.harness.openGame(extra); break; } catch (e) { if (tries >= 3) throw e; }
+  }
+  const pages = [page, extra];
+  try {
+    const bySeed = await Promise.all(DYNAMIC.seeds.map(async (seed, k) => {
+      const out = [];
+      for (const id of MISSIONS) out.push(await dynamicRun(t.harness, pages[k % pages.length], id, seed));
+      return out;
+    }));
+    for (const [k, runs] of bySeed.entries()) {
+      const seed = DYNAMIC.seeds[k];
+      for (const r of runs) {
+        const dead = (f) => f.a.state === 'dead' || f.b.state === 'dead';
+        const live = r.findings.filter((f) => !dead(f)), bodies = r.findings.filter(dead);
+        t.log(`${r.id} seed ${seed}: ${r.samples} samples over ${r.t} s → ${live.length} live, ${bodies.length} body penetrations > 5 cm${r.notes.length ? ` (${r.notes.join('; ')})` : ''}`);
+        for (const f of bodies.slice(0, 3)) t.log(`   body (bodies workflow): ${fmt(f)}`);
+        t(r.t >= DYNAMIC.seconds - 1e-6, `${r.id} seed ${seed}: the sim ran ${DYNAMIC.seconds} s (${r.t} s)`);
+        t(!r.errors.length, `${r.id} seed ${seed}: no page errors${r.errors.length ? ': ' + r.errors.slice(0, 2).join(' | ') : ''}`);
+        t(!live.length, `${r.id} seed ${seed}: no unintended dynamic penetration > 5 cm${live.length ? ':\n  ' + live.slice(0, 6).map(fmt).join('\n  ') : ''}`);
+      }
+    }
+  } finally { await extra.close().catch(() => {}); }
 }

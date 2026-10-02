@@ -24,7 +24,9 @@
  */
 export const BODY = {
   stand: { front: 0.3, back: 0.3, r: 0.3 },
-  prone: { front: 1.3, back: 0.92, r: 0.3 }, // front: the weapon held out ahead of the face when he stops (crawl-animation.md §4.1)
+  // front: the weapon held out ahead of the face when he stops (crawl-animation.md §4.1); back: the dragging toe of the
+  // straight leg, measured 1.0-1.06 m behind the unit position in the stroke (clip-2: 0.92 let it into a wagon's side)
+  prone: { front: 1.3, back: 1.05, r: 0.3 },
   // a man lying dead on his back (the settled death pose: art 'dead' clip, physics/ragdoll LIE.supine): he fell
   // backwards, so his heels are 0.65 m ahead of where he stood, his head 1.25 m behind it, and his hands flung out
   // past the head, 1.45 m behind it and up to 0.7 m to each side (a man who died crawling lies like a crawler)
@@ -122,8 +124,12 @@ export function isSolidHull(v) {
   return k === 'land' || k === 'rail';
 }
 
-/** Fuel drums standing on the ground (not carried, not blown up): disc radius (m). */
-const DRUM_R = 0.34;
+/**
+ * Fuel drums standing on the ground (not carried, not blown up): disc radius (m). The drum measures 0.32 m in radius at its rims;
+ * the rest keeps a standing man's swinging arms and port-arms rifle (up to ~0.45 m out of his centre, past the 0.3 m
+ * body) out of it while he runs past or turns beside it (clip-2: M2 `e12` turning on the spot by `bar4`, 0.053 m).
+ */
+const DRUM_R = 0.42;
 
 /**
  * Solid movers among the world's interactables: standing fuel drums (discs) and BCD pushables (rects, rolling or at
@@ -255,8 +261,24 @@ export function bodyGap(world, x, z, heading, stance, ignore = null) {
   const C = bodyCapsule(x, z, heading, stance), A = armsCapsule(x, z, heading, stance);
   let g = Infinity;
   for (const R of hulls) g = Math.min(g, capsuleRectGap(C, R), A ? capsuleRectGap(A, R) : Infinity);
+  // a crawler's limbs reach out of the capsule: the drawn-up knee (one side, then the other) and the splayed toes
+  if (CRAWL_LIMBS.has(stance)) {
+    const c = Math.cos(heading), s = Math.sin(heading);
+    for (const [a, l, r] of LIMBS) {
+      const px = x + c * a - s * l, pz = z + s * a + c * l;
+      for (const R of hulls) g = Math.min(g, (R.r != null ? Math.hypot(px - R.x, pz - R.z) - R.r : rectSDF(px, pz, R)) - r);
+    }
+  }
   return g;
 }
+
+/** Stances whose limbs splay out of the body capsule (crawl-animation.md §3: frog-legged low crawl). */
+const CRAWL_LIMBS = new Set(['crawl', 'downed']);
+/**
+ * Limb discs [along (m, + ahead), lateral (m), radius] of a crawler, measured on the crawl stroke (clip-2): the
+ * drawn-up knee 0.64 m to his side just behind the hips, the toes of the straight leg up to 1.07 m behind, 0.37 m out.
+ */
+const LIMBS = [[-0.15, 0.5, 0.17], [-0.15, -0.5, 0.17], [-0.95, 0.3, 0.17], [-0.95, -0.3, 0.17]];
 
 /** Gap of a unit's current body (its stance and heading). */
 export function unitGap(u, world = u.world) {

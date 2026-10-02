@@ -165,6 +165,9 @@ export function recipes(mirror = MIRROR) {
     ['mg_kneel', { dur: 2.4, loop: true, layers: [
       { src: 'kneel_shoot', time: T.at(0.5, true) },
       { add: { bone: 'spine_02', axis: 'z', deg: (τ) => 1.2 * Math.sin((τ / 2.4) * Math.PI * 2) } },
+      // the knee-down leg's foot laid back flat, instep on the deck (the kneeling shot points it straight down: its toe
+      // went 15 cm through the platform's planks; clip-2, M2 `e8` on `t1`)
+      { add: { bone: 'foot_r', axis: 'x', deg: () => 75 } },
     ] }],
     // kneel at his head (upright torso, one knee down), hook the armpits, then haul into the crouched hold
     ['drag_grab', { dur: 1.0, layers: [

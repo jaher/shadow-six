@@ -512,7 +512,7 @@ export async function createVegetation(scene, placements, theater = 'temperate',
     for (const p of hero) {
       const key = Math.floor(p.x / CHUNK) + ',' + Math.floor(p.z / CHUNK);
       if (!chunks.has(key)) chunks.set(key, { key, trees: [] });
-      chunks.get(key).trees.push({ species: p.species, seed: p.seed, x: p.x, y: p.y, z: p.z, scale: p.scale, burnt: p.burnt, leafless: p.leafless, marc: p.marc, marcTrees: p.marcTrees, ivy: p.ivy, dates: p.dates, fruit: p.fruit, crownBase: p.crownBase, crownR: p.crownR, visual: p.visual });
+      chunks.get(key).trees.push({ species: p.species, seed: p.seed, x: p.x, y: p.y, z: p.z, scale: p.scale, burnt: p.burnt, leafless: p.leafless, marc: p.marc, marcTrees: p.marcTrees, ivy: p.ivy, dates: p.dates, fruit: p.fruit, crownBase: p.crownBase, crownR: p.crownR, visual: p.visual, clear: p.clear });
     }
     const chunkList = [...chunks.values()];
     // generated meshes are a pure function of the chunks + quality: a restart reuses them (session cache)
