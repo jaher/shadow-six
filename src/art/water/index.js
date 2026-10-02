@@ -27,6 +27,13 @@ import { sceneSignature } from '../../world/placement-visual.js';
 export { FX_LAYER };
 import { makeWaterMaterial, TIME_LOOP } from './material.js';
 import { dryHullUniforms, packDryHulls } from './hulls.js';
+/**
+ * Sun glint (material.js): the unresolved-glint sheen is soft-capped at SUN_SHEEN_CAP x the sun (2x on the sea), and a
+ * sparkle facet that mirrors the sun shines SUN_GLITTER x Fresnel x the sun (~6 HDR at the 40° mirror angle). The
+ * orthographic camera sees every pixel from the same direction, so an uncapped lobe whitened whole bodies at once
+ * (M13-M15 at yaw 45 under the 40° NW sun). opts.sheenCap / opts.glitter override them.
+ */
+export const SUN_SHEEN_CAP = 0.025, SUN_GLITTER = 110;
 /** Characters farther than this (m, XZ) from every reflecting water body are left out of the mirror render. */
 const REFLECT_REACH = 6;
 
@@ -98,6 +105,7 @@ export class WaterSystem {
       plPos: v([0, 1, 2, 3].map(() => new THREE.Vector3())), plCol: v([0, 1, 2, 3].map(() => new THREE.Vector3())), plCount: v(0),
       fogOn: v(0), fogNear: v(100), fogFar: v(300), fogColor: v(new THREE.Vector3()),
       directFrac: v(1), sunShadow: v(null), sunShadowMat: v(new THREE.Matrix4()), shadowOn: v(0), shadowBias: v(0.0015), shadowTexel: v(new THREE.Vector2(1 / 4096, 1 / 4096)), dbg: v(this.opts.dbg | 0), flowPeriod: v(1.6), night: v(0),
+      sheenCap: v(this.opts.sheenCap ?? SUN_SHEEN_CAP), glitter: v(SUN_GLITTER),
       ...dryHullUniforms(),
     };
   }
@@ -359,6 +367,7 @@ export class WaterSystem {
     s.night.value = o.night ?? 1 - THREE.MathUtils.smoothstep(key, 0.15, 0.9);
     const sunE = lum(s.sunColor.value) * Math.max(s.sunDir.value.y, 0), skyE = lum(s.skyIrr.value);
     s.directFrac.value = sunE / Math.max(sunE + skyE, 1e-4);
+    s.glitter.value = (o.glitter ?? SUN_GLITTER) * (1 - 0.65 * s.night.value); // moonlight: fainter sparkles
     // nearest point lights to the view centre (re-gathered every 30 frames)
     if (!this._pl || (this._plTick = (this._plTick || 0) + 1) % 30 === 0) { this._pl = []; this.scene.traverseVisible((ob) => { if (ob.isPointLight || ob.isSpotLight) this._pl.push(ob); }); }
     const c = this._viewCentre || new THREE.Vector3();

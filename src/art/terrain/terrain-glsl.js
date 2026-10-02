@@ -250,7 +250,11 @@ if (uTurf.x > 0.0) {
     turfC = gT * (bl - 0.3) * max(l1, l2 * 0.6);
   }
 }
-float rough = clamp(dT.g + (nz.b - 0.5) * 0.16 * uMacro, 0.04, 1.0);
+// dry ground is never glossier than 0.62: at game scale grass, gravel and soil are rough (blades, grains, their
+// shadowing). The packed grass (Grass004, ~0.26) and gravel (~0.47) maps read as polished: the orthographic camera puts
+// one sun-mirror orientation on every pixel, so at yaw 45 under the 40° NW sun whole lawns blew out to white. Ice,
+// slush, wet ruts and puddles below keep their own (low) roughness.
+float rough = clamp(dT.g + (nz.b - 0.5) * 0.16 * uMacro, 0.62, 1.0);
 float ao = mix(1.0, dT.r, 0.85);
 // tangent frame: +x, -z, normal = geometric world normal
 vec3 Ng = normalize(vWNrm);

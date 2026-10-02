@@ -156,7 +156,8 @@ engine.render():   RenderPass(world) → decals → [afterWorld] DepthStashPass 
   - Beer–Lambert absorption along the view path and the sun path, with (absorption + turbidity) per RGB channel,
     plus in-scatter.
   - Schlick Fresnel.
-  - GGX sun and point-light glints (the lamp glints form long reflections at night).
+  - Sun glint as capped sheen + sparse sparkles (see "Sun glint" below), GGX point-light glints (the lamp glints
+    form long reflections at night).
   - Crest SSS on the sea.
   - A soft shoreline fade, and fog.
 - **River at game distance (must-fix 10).** The reflection is averaged over three sub-pixel facets, N and N tilted
@@ -165,6 +166,23 @@ engine.render():   RenderPass(world) → decals → [afterWorld] DepthStashPass 
   - Unresolved ripples reflect brighter, lower sky, so a river reads as moving water rather than flat dark green,
     while the roughness patches (cat's paws, slicks) are advected with the current.
   - This is still physically based, at about 2–3 % Fresnel for a flat surface at 55°.
+- **Sun glint (fix/water-glare, user report 2026-10-01: canal water in M15 rendered almost pure white).** The
+  orthographic camera has one view direction for the whole screen, so a specular lobe on the resolved wave normal
+  puts the same sun-mirror orientation on every pixel. Facing the sun at its mirror angle (Options yaw 45 under the
+  40° NW sun of M13–M15) the old narrow GGX (peak ~2 HDR on calm water) whitened whole canals (M15: 29–39 % of the
+  water above 0.92 luma, 80 % above 0.8) and paled the harbours. The glint is now:
+  - **facets**: the resolved waves plus capillary ripples (the detail normals ×0.3 and a drifting, centred 1–2 m
+    fbm wave-group field, slope sd ~0.15; carried by a river's current) that cluster the glitter;
+  - **sheen**: the glints a pixel cannot resolve, a slightly wider lobe on those facets, soft-capped at
+    `SUN_SHEEN_CAP` (0.025) × the sun. A lake takes 1/5 of the lobe, a river ~1/2 (flow streaks), the sea all of it
+    with a 2× cap (its swell stays readable); it silvers the water round the sparkle clusters and never whitens it;
+  - **sparkles**: world-anchored cells (≥ 2.5 px, like the snow glints) whose facet adds a random tilt (sd 0.035);
+    only facets mirroring the sun within ~2° shine (`SUN_GLITTER` × Fresnel × sun, ~6 HDR at the 40° mirror angle,
+    fainter by moonlight), so the glint is a sparse field of points that thins out away from the mirror direction.
+    Each lives 0.2 s and fades in and out (twinkle; 1280 lives per shader loop, seamless).
+  - Contract (tests/water-glare.test.mjs): on M15 and M13 at yaw 0/15/30/45, ≤ 2 % of the open water above 0.92
+    luma, p95 < 0.8, mean within 0.2 of yaw 0, sparkles still present at the M15 mirror yaw, ≤ 0.5 % of the ground
+    near white. The water mask is `dbg` 14 minus `dbg` 13 (open-water coverage drawn white / black).
 - **Caustics (must-fix 8, W-B graft).** Caustics are projected along the refracted sun ray onto the bed and blurred
   with depth.
   - They are gated by the shadow map at the bed and by `directFrac`, the sun's share of the bed lighting, so they
@@ -185,8 +203,7 @@ engine.render():   RenderPass(world) → decals → [afterWorld] DepthStashPass 
 - **Night (must-fix 6).** A `night` factor is computed from the key-light level.
   - Foam is lit only by moon, sky and lamps, at 0.55× albedo and 0.7× coverage, so it reads as dull grey and never
     glows.
-  - The moon's glint cap falls from 400 to 25, because an orthographic camera spreads glitter over the whole
-    screen.
+  - Moonlight sparkles are 0.35× as bright (the sheen cap scales with the moon's own small irradiance).
   - The bed fades 2.2× faster at night (art direction), so harbours read as dark mirrors with lamp glints.
 - **Ice.**
   - **Shore shelf** (`ice: width`; user request 2026-09-30 "the ice transition should be smoother, there are two
@@ -284,7 +301,7 @@ using the GPU at about 60 % during this run.
 | 3 | AO over water | Water is composited after GTAO, using the stashed world depth |
 | 4 | Transparent objects under water | `FX_LAYER` + `LateFxPass`, verified by pixel readback |
 | 5 | Foam | W-B lace, thin advected river streaks, fbm breakup, footprint-soft edges, capped opacity, per-pixel surf |
-| 6 | Night foam | `night` factor dims foam; moon glint cap; night murk |
+| 6 | Night foam | `night` factor dims foam; fainter moonlight sparkles; night murk |
 | 7 | Ripples | Normals only; walls, shallow-water speed and current drift from the environment texture |
 | 8 | River caustics | Two-phase advection with the current |
 | 9 | Long sessions | Quantised FFT with a 256 s loop, all terms periodic, clock wrapped on the CPU (bit-identical frames) |
@@ -295,8 +312,8 @@ using the GPU at about 60 % during this run.
 ## 9. Known weaknesses and next steps
 
 - **Glitter under an orthographic camera.** The view direction is the same for every pixel, so sun and moon
-  glitter spread evenly over the screen instead of forming a glitter path. The caps and the night factor hide
-  this, but a low sun behind the camera is not true to life.
+  glitter spread evenly over the screen instead of forming a glitter path. The capped sheen and sparse sparkles
+  (Sun glint above) keep it from whitening the water, but there is still no single glitter path.
 - **Shore foam at close zoom.** It still reads as separate patches rather than continuous swash, and it has no
   foam advection by the surf's run-up or backwash.
 - **Boat wakes.** They come from ripple sim plus `disturb` foam only, which gives roughly a V shape. A proper Kelvin

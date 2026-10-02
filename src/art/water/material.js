@@ -67,7 +67,7 @@ uniform sampler2DShadow sunShadow; uniform mat4 sunShadowMat; uniform float shad
 uniform vec2 resolution; uniform mat4 projInv, camWorld, reflMatrix, viewMat;
 uniform float uOrtho, camNear, camFar, slopeA, slopeB, detailScale, causticsPatch, causticsStrength, reflEnabled, envIntensity;
 uniform float refrStrength, roughness, sssStrength, foamScale, shoreFoamDepth, iceWidth, flowPeriod, fogOn, fogNear, fogFar;
-uniform float rippleTexel, reflDistort, fadeDepth, envRot, night, shoreFoam, foamAmount, sheen, directFrac, maskCut;
+uniform float rippleTexel, reflDistort, fadeDepth, envRot, night, shoreFoam, foamAmount, sheen, directFrac, maskCut, sheenCap, glitter;
 uniform vec2 flowDir; uniform int dbg;
 uniform vec3 plPos[4], plCol[4]; uniform int plCount;
 uniform vec3 sunDir, sunColor, skyIrr, absorb, scatterColor, foamColor, fogColor, iceColor;
@@ -97,6 +97,8 @@ vec4 flowTex(sampler2D t, vec2 xz, vec2 flow, float scale, float per, float o){
   return mix(b, a, w);
 }
 float ggx(float NH, float a){ float a2 = a*a; float d = NH*NH*(a2 - 1.0) + 1.0; return a2/(PI*d*d); }
+// three uniform randoms per glitter cell (hash without sine: stable for cell ids up to ~1e5)
+vec3 glitHash(vec2 p){ vec3 q = fract(p.xyx*vec3(0.1031, 0.1030, 0.0973)); q += dot(q, q.yxz + 33.33); return fract((q.xxy + q.yzz)*q.zyx); }
 void main(){
   // grid-mask bodies: the mesh is the component's bounding box; drop texels well outside the water cells
   if (texture(bodyTex, (vXZ - bodyBounds.xy)/bodyBounds.zw).a < maskCut) discard;
@@ -223,14 +225,45 @@ void main(){
     col += mix(refr, ri, Fi)/3.0; refl += ri/3.0; Favg += Fi/3.0;
   }
   float NV = max(dot(N, V), 0.0);
-  // ---------------------------------------------------------------- sun glitter (GGX, lobe widened by sig), crest SSS
+  // ---------------------------------------------------------------- sun glint: capped sheen + sparse sparkles, crest SSS
+  // The orthographic camera has ONE view direction for the whole screen, so the sun's mirror lobe on the resolved wave
+  // normal lands on every pixel at once: facing the sun at its mirror angle (yaw 45 under the 40° NW sun of M13-M15)
+  // the narrow GGX (peak ~2 HDR on calm water) turned whole canals and harbours into one white sheet. Split instead:
+  //  - facets: the resolved waves + capillary ripples (amplified detail normals and a drifting 1-2 m wave-group field,
+  //    slope sd ~0.15, a breeze; carried by a river's current) that cluster the glitter;
+  //  - sheen: the glints the pixel cannot resolve, a slightly wider lobe on those facets (a river's and the sea's own
+  //    waves lead, so flow streaks and swell keep their shape), soft-capped at sheenCap x the sun: it silvers the water
+  //    round the sparkle clusters and never whitens it. A lake takes 1/5 of the lobe (calm water: faint away from the
+  //    mirror direction), a river ~1/2 (its flow streaks), the sea all of it and a 2x cap (its swell stays readable);
+  //  - sparkles: world-anchored cells (>= 2.5 px, as the snow glints) whose facet adds a random tilt; only facets that
+  //    mirror the sun within ~2° catch it, so the glint is a sparse field of bright points that thins out away from
+  //    the mirror direction. Each lives 0.2 s and fades in and out (twinkle).
   vec3 L = normalize(sunDir);
   vec3 H = normalize(L + V);
-  float NH = max(dot(N, H), 0.0), NL = max(dot(N, L), 0.0);
+  float NL = max(dot(N, L), 0.0);
   float a = sqrt(roughness*roughness + sig*sig*0.5);
   float FH = 0.02 + 0.98*pow(1.0 - max(dot(L, H), 0.0), 5.0);
-  // night: the moon's glitter is capped lower (an orthographic camera spreads it over the whole screen)
-  vec3 spec = sunColor*visS*min(ggx(NH, a)*FH*0.25/max(NV, 0.05)*NL, mix(400.0, 25.0, night));
+  // (foamTex g/b: fbm noise, mean 0.41 / 0.5, sd ~0.19 / 0.18)
+  vec4 g1 = river ? flowTex(foamTex, vXZ, flow, 1.9, flowPeriod, 0.3) : texture(foamTex, vXZ/1.9 + vec2(7.0, 5.0)/TL*time);
+  vec4 g2 = river ? flowTex(foamTex, vXZ + 0.34, flow, 0.83, flowPeriod, 0.7) : texture(foamTex, vXZ/0.83 - vec2(4.0, 9.0)/TL*time + 0.41);
+  vec2 grp = (g1.gb - vec2(0.41, 0.5))*0.7 + (g2.bg - vec2(0.5, 0.41))*0.35;
+  vec2 capl = (dn.rg*0.3 + grp)*(0.6 + 0.8*ruffle)*(bodyType > 0.5 ? 0.6 : 1.0);
+  vec2 gsl = slope + capl;
+  vec3 gnG = normalize(vec3(-slope.x - capl.x*(bodyType > 0.5 ? 0.35 : 1.0), 1.0, -slope.y - capl.y*(bodyType > 0.5 ? 0.35 : 1.0)));
+  bool sea = bodyType > 1.5;
+  float raw = ggx(max(dot(gnG, H), 0.0), sqrt(a*a + 0.0036))*FH*(sea ? 0.25 : river ? 0.12 : 0.05)/max(NV, 0.05)*NL;
+  float sc = sheenCap*(sea ? 2.0 : 1.0);
+  vec3 spec = sunColor*visS*sc*(1.0 - exp(-raw/sc));
+  float csz = exp2(ceil(log2(max(footprint*2.5, 1.0/64.0))));
+  vec2 cq = vXZ/csz, cid = floor(cq);
+  float ph = time*5.0 + glitHash(cid).x;                                      // 5 Hz: 1280 lives per TL (seamless)
+  vec3 hg = glitHash(cid + floor(ph)*vec2(17.13, 31.71));
+  vec2 gj = sqrt(-2.0*log(max(hg.x, 1e-4)))*vec2(cos(2.0*PI*hg.y), sin(2.0*PI*hg.y))*0.035;
+  vec3 gn = normalize(vec3(-gsl.x - gj.x, 1.0, -gsl.y - gj.y));
+  float gh = max(dot(gn, H), 0.0), gh2 = max(gh*gh, 1e-4);
+  float catchSun = exp(-(1.0 - gh2)/gh2/(2.0*0.035*0.035));                  // sun disc + 2° capillary blur
+  float disc = 1.0 - smoothstep(0.1, 0.28, length(fract(cq) - 0.5 - (hg.zx - 0.5)*0.44));
+  spec += sunColor*visS*FH*NL*catchSun*disc*sin(PI*fract(ph))*glitter;
   // point lights (lamps, fires, flares): GGX glints stretched by the waves → long night reflections
   float ap = max(a, 0.12);
   for (int i = 0; i < 4; i++) {
@@ -354,6 +387,8 @@ void main(){
   else if (dbg == 7) col = vec3(foam); else if (dbg == 12) col = vec3(rFoam, cover, fdens); else if (dbg == 8) col = vec3(visS);
   else if (dbg == 9) col = spec; else if (dbg == 10) col = refr; else if (dbg == 11) col = foamLit*foam;
   if (fogOn > 0.5) col = mix(col, fogColor, smoothstep(fogNear, fogFar, -vViewPos.z));
+  // coverage mask for tests (frame 14 minus frame 13 = open water: no ice, no foam, no shore fade)
+  if (dbg == 13) col = vec3(0.0); else if (dbg == 14) col = vec3((1.0 - iceA)*(1.0 - foam)*fade);
   gl_FragColor = vec4(col, 1.0);
 }`;
 

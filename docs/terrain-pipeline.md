@@ -29,10 +29,13 @@ clutter, and crown density. Every item on the judge's must-fix list has been add
 ## 1. Design
 
 - **Asset-driven ground.** Each theatre uses eight de-lit CC0 photoscan layers, packed as three `sampler2DArray`s
-  (albedo, normal, data = AO/roughness/height). The layers are blended through a CPU-built splat (four texels per
-  metre, two RGBA8 textures). For each pixel the shader keeps only the three strongest layers, samples each with
-  hex tiling, and height-blends them. The approach is data-driven: a mission can re-weight layers with
-  `opts.paint(x, z, w)` (forest floor under trees, burnt patches) and never touches the shader.
+  (albedo, normal, data = AO/roughness/height). Dry ground is floored at roughness 0.62 in the shader: the packed
+  grass (~0.26) and gravel (~0.47) maps blew lawns out to white at the sun's mirror angle under the orthographic
+  camera (fix/water-glare); ice, slush, wet ruts and puddles keep their own low roughness. The layers are blended
+  through a CPU-built splat (four texels per metre, two RGBA8 textures). For each pixel the shader keeps only the
+  three strongest layers, samples each with hex tiling, and height-blends them. The approach is data-driven: a
+  mission can re-weight layers with `opts.paint(x, z, w)` (forest floor under trees, burnt patches) and never
+  touches the shader.
 - **One world-space deformation field.** Every trail (tyre, track, boot, crawl, drag, crater) is a stamp into one
   map-sized RG16F render target. The terrain vertex shader displaces the ground by the field scaled by each layer's
   softness, and the fragment shader derives relief normals, rut self-shadowing, darkening, wet puddles, slush and
