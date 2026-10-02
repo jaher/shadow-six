@@ -121,6 +121,12 @@ export class FX {
     const t = g.terrainAt(x, z); if (t !== T.WATER && t !== T.SHALLOW) return false;
     const c = g.worldToCell(x, z); return !g.bridge?.[g.idx(c.i, c.j)];
   }
+  /** Wading-depth water when the map was built (the M3 toe ledge is flooded by the very blast that breaks the dam). */
+  _wadeable(x, z) {
+    const g = this.world.grid; if (!g?.terrainAt) return false;
+    if (!this._wade0) return g.terrainAt(x, z) === T.SHALLOW;
+    const c = g.worldToCell(x, z); return !!this._wade0[g.idx(c.i, c.j)];
+  }
   _wind() {
     const w = this.world.mission?.wind || this.world.mission?.lighting?.wind;
     if (Array.isArray(w)) return V3(w[0] || 0, 0, w[1] || 0);
@@ -183,7 +189,9 @@ export class FX {
     }
     if (this._wet(x, z)) { // water column (drawn by the water system when it exists)
       if (!this.world.water) this.spawn('water_splash', x, z, { scale: clamp(r / 5, 0.5, 1.6) });
-      return;
+      // in open water that is all; a charge on a wading-depth ledge or bank (M3's dam toe) goes up in fire and
+      // smoke above the spray like on dry ground
+      if (!this._wadeable(x, z) || (kind !== 'bomb' && kind !== 'structure')) return;
     }
     const src = e.source;
     if (kind === 'barrel') {
@@ -359,6 +367,7 @@ export class FX {
   _scan() {
     const w = this.world;
     this._scanned = true;
+    if (w.grid?.terrain) this._wade0 = w.grid.terrain.map((t) => (t === T.SHALLOW ? 1 : 0));
     this._scanBarrels();
     const houses = [];
     for (const [id, s] of w.structures || []) if (s?.object3d && !s.entity) houses.push([id, s]);
