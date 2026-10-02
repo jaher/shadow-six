@@ -350,6 +350,19 @@ tools/check.sh                                                          # syntax
   dying in it splash (ripple ring + `fx.spawn('splash')`). Events: grenade/charge/barrel `explosion` in water →
   water column (-0.6 m, foam 1) + ring of secondary drops + a large splash; `projectile:bounce` in water → splash;
   missed `shot` into water → spout; `unit:water` dive/surface/row → rings.
+- **Dry hulls** (`src/art/water/hulls.js`). The surface is one sheet depth-tested against the world, and an open
+  boat's floor sits at the waterline (raft floor +2 cm, rowboat floorboards +3 cm over a bilge below it), so as a
+  hull bobbed (±5 cm), pitched and rolled, or a swell / surf crest ran under it, the water came up through the floor
+  and the men sitting there looked as if they sat in water (M2: floor flooded in ~43 % of frames). Every frame
+  `frame()` hands the water the boats as drawn (`dryHullOf`: the visual's world matrix, so bob, pitch, roll and the
+  berth offset are included; nearest 8 to the view) and the shader (a) discards water fragments inside each hull's
+  waterline plan, taken in the hull's frame at the fragment's height (a two-sided superellipse per library type,
+  fitted inside the outer skin: the raft's tube centreline, the rowboat's lines from -10 to +25 cm with their flare,
+  the decked patrol / fishing boats 8 cm down; the mini-sub runs awash and stays wet), and (b) lays the wave / surf
+  displacement down round each hull in the vertex stage (still within 0.3 m of its waterline box, full waves 1.8 m
+  out; the normals keep the waves' shading), since the hulls do not heave with the sea — no crest stands over a side
+  tube. Wrecked or deflated hulls take water. GPU test: `tests/boat-dry-hull.test.mjs` (flat-magenta water, floor
+  pixels read back every frame: M2 raft, M13 raft at sea, M14 rowboat).
 - **Layering.** `lateDecals: true` moves the ground-decal pass after the water (vision cones and markers stay readable
   over rivers); FX spawn on `FX_LAYER` (`world.fx.lateLayer = 11`); `LateFxPass.roots` scans registered roots
   (`handle.addLateRoot`) every frame so a splash or smoke puff over the water draws on its first frame.

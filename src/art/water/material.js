@@ -6,6 +6,7 @@
  */
 import * as THREE from 'three';
 import { WIND_GLSL, WIND_UNIFORMS } from '../../world/wind.js';
+import { DRY_HULL_GLSL } from './hulls.js';
 
 /** Shader clock period (s); equals the FFT loop period. Every speed/period below divides it. */
 export const TIME_LOOP = 256;
@@ -15,6 +16,7 @@ uniform float time, level, bodyType, dispScaleA, dispScaleB, patchA, patchB, sur
 uniform vec4 bodyBounds, rippleArea;
 uniform sampler2D bodyTex, dispA, dispB, rippleTex;
 const float PI = 3.14159265, TL = ${TIME_LOOP.toFixed(1)};
+${DRY_HULL_GLSL}
 vec4 bodyAt(vec2 xz){ return texture(bodyTex, (xz - bodyBounds.xy)/bodyBounds.zw); }
 // shoaling surf: crests follow depth contours and run toward the shore; returns (height, breaking foam)
 vec2 surf(float depth, float t){
@@ -47,6 +49,7 @@ void main(){
   }
   vec2 s = surf(body.a, time);
   d.y += s.x;
+  if (dryN > 0) d *= 1.0 - dryCalm(wp.xyz); // still water round floating hulls (art/water/hulls.js)
   // interactive ripples feed the normals only (fragment shader): no vertex aliasing on the 0.75 m grid
   wp.xyz += d;
   vWorld = wp.xyz; vXZ = xz; vBody = body; vSurfFoam = s.y;
@@ -97,6 +100,8 @@ float ggx(float NH, float a){ float a2 = a*a; float d = NH*NH*(a2 - 1.0) + 1.0; 
 void main(){
   // grid-mask bodies: the mesh is the component's bounding box; drop texels well outside the water cells
   if (texture(bodyTex, (vXZ - bodyBounds.xy)/bodyBounds.zw).a < maskCut) discard;
+  // no water inside a floating hull (raft, rowboat…): its waterline plan is cut out (art/water/hulls.js)
+  if (dryN > 0 && dryHull(vWorld)) discard;
   vec2 suv = gl_FragCoord.xy/resolution;
   vec3 V = uOrtho > 0.5 ? normalize(camWorld[2].xyz) : normalize(cameraPosition - vWorld);
   vec2 flow = vBody.rg;

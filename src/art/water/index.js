@@ -26,6 +26,7 @@ import { sceneSignature } from '../../world/placement-visual.js';
 
 export { FX_LAYER };
 import { makeWaterMaterial, TIME_LOOP } from './material.js';
+import { dryHullUniforms, packDryHulls } from './hulls.js';
 /** Characters farther than this (m, XZ) from every reflecting water body are left out of the mirror render. */
 const REFLECT_REACH = 6;
 
@@ -97,6 +98,7 @@ export class WaterSystem {
       plPos: v([0, 1, 2, 3].map(() => new THREE.Vector3())), plCol: v([0, 1, 2, 3].map(() => new THREE.Vector3())), plCount: v(0),
       fogOn: v(0), fogNear: v(100), fogFar: v(300), fogColor: v(new THREE.Vector3()),
       directFrac: v(1), sunShadow: v(null), sunShadowMat: v(new THREE.Matrix4()), shadowOn: v(0), shadowBias: v(0.0015), shadowTexel: v(new THREE.Vector2(1 / 4096, 1 / 4096)), dbg: v(this.opts.dbg | 0), flowPeriod: v(1.6), night: v(0),
+      ...dryHullUniforms(),
     };
   }
 
@@ -279,6 +281,12 @@ export class WaterSystem {
   disturb(x, z, strength = 0.1, radius = 0.6, foam = 0) { this.ripples.disturb(x, z, strength, radius, foam); }
   /** Boat wake crest dab: height (m) + crisp, short-lived crest foam 0..1 (the Kelvin V arms; see RippleSim.crest). */
   crest(x, z, strength = 0.01, radius = 0.3, amount = 0.5, x1 = x, z1 = z) { this.ripples.crest(x, z, strength, radius, amount, x1, z1); }
+
+  /**
+   * Hulls to keep dry this frame (art/water/hulls.js dryHullOf() results): the water is not drawn inside their
+   * waterline plans. Call before the render; the nearest MAX_DRY_HULLS to the view centre are kept.
+   */
+  setDryHulls(list = []) { const c = this._viewCentre; return packDryHulls(list, this.shared, c?.x ?? 0, c?.z ?? 0); }
 
   _syncRippleEnv() { this.ripples.setBodies(this.bodies.filter((b) => b.mesh.visible).map((b) => ({ texture: b.bake.texture, bounds: b.bake.bounds }))); }
 

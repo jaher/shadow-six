@@ -10,12 +10,14 @@
  *    something enters the water (a body falling in, a commando wading in) and when a unit dies in it. Pure logic
  *    over a `sink` with `disturb(x,z,s,r,foam)` (+ optional `crest(x,z,s,r,amount)`).
  *  - `buildWater(renderer, world, grid, mission, theater)`: the GPU system (WaterSystem through the engine's
- *    official post hooks), the event wiring (explosions / grenades / missed shots into water) and the FX layer.
+ *    official post hooks), the event wiring (explosions / grenades / missed shots into water), the FX layer and the
+ *    dry hulls (no water inside a boat, calm water round it: art/water/hulls.js).
  *
  * Only built with the real terrain (GPU renderer); the placeholder terrain keeps its flat plane.
  * @module art/water
  */
 import { T } from '../world/grid.js';
+import { dryHullOf } from './water/hulls.js';
 
 /** World Y of the water surface. Terrain carves deep cells to -1.2 m and shallows to -0.35 m below it. */
 export const WATER_LEVEL = -0.1;
@@ -426,8 +428,9 @@ export function buildWater(R, world, grid, mission, theater, o = {}) {
     else if (e.what === 'row') system.disturb(u.x, u.z, 0.05, 0.9, 0.35);
   });
 
+  const dry = [], dryPool = [];
   const handle = {
-    system, bodies, stats, level: WATER_LEVEL, real: true, drains,
+    system, bodies, stats, level: WATER_LEVEL, real: true, drains, dry,
     sample: (x, z) => system.sample(x, z),
     depthAt: (x, z) => system.depthAt(x, z),
     disturb: (...a) => system.disturb(...a),
@@ -440,6 +443,14 @@ export function buildWater(R, world, grid, mission, theater, o = {}) {
       if (q && q !== system.qualityName) system.setQuality(q);
       if (camera && system.camera !== camera) system.camera = camera;
       wakes.update(world.entities || [], dt);
+      // hulls as drawn this frame (bob, pitch, roll, berth): no water inside them (art/water/hulls.js)
+      dry.length = 0;
+      for (const v of world.vehicles || []) {
+        if (v.def?.kind !== 'boat') continue;
+        const d = dryHullOf(v, dryPool[dry.length] ||= { inv: null, plan: null, x: 0, z: 0 });
+        if (d) dry.push(d);
+      }
+      system.setDryHulls(dry);
       if (drains.length) drainStep(dt);
       const t = performance.now();
       system.update(dt);
