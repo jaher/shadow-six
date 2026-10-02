@@ -217,17 +217,19 @@ test('m05 fix: a noise that swings a sentry round does not make him a witness of
   const w = s.world, e15 = s.get('e15'), spy = s.cmd('spy'), p18 = s.get('p18a');
   spy.setDisguise(true);
   // e15 faces E (away); the Spy stands 10 m W of him on the plateau, the victim beyond the Spy
-  e15.x = 95; e15.z = 40; e15.heading = 0; e15.post.heading = 0; e15.post.sweep = 0;
+  e15.x = 95; e15.z = 40; e15.heading = 0; Object.assign(e15.post, { x: 95, z: 40, heading: 0, sweep: 0 }); // (his post moves with him)
   spy.x = 85; spy.z = 40; spy.y = 16;
   p18.x = 80; p18.z = 40;
   e15.brain.hear({ x: 80, z: 40, radius: 1000, kind: 'explosion', level: 3, source: null });
-  assert.ok(Math.abs(Math.cos(e15.heading) + 1) < 0.05, 'the blast swung him round (W)');
+  // SHADOW SIX smooth turn: the blast starts swinging him round (W) on the spot; he still faces E this instant
+  assert.ok(e15.brain.turn && Math.abs(e15.heading) < 1e-9, 'he starts turning round');
   p18.brain.enemy.hp = 0;
   const saw = e15.brain.notifyKill(p18, spy);
   assert.equal(saw, false, 'the kill in the same instant is judged with the cone he had (facing E)');
   assert.ok(spy.disguised && s.count('enemy:unmasked-spy') === 0, 'the Spy stays disguised');
-  w.time += 0.5;
-  assert.equal(e15.brain.notifyKill(p18, spy), true, 'half a second later he does see it');
+  s.run(1.3, () => !e15.brain.turn);
+  assert.ok(Math.abs(Math.cos(e15.heading) + 1) < 0.05, 'the blast swung him round (W)');
+  assert.equal(e15.brain.notifyKill(p18, spy), true, 'once he faces it he does see it');
 });
 
 test('m05 fix: a mine has a 3 m lethal blast (dossier §6.2), not the grenade 6.75 m', () => {

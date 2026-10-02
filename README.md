@@ -78,6 +78,36 @@ URL parameters:
 | `?mission=m01` | Skip the title screen and load a mission (`m01`–`m03`; `m00` is the sandbox). |
 | `?preset=low\|medium\|high\|ultra` | Rendering quality preset. |
 | `?test=1` | Test mode: the simulation only advances through `window.__game.advance(s)`. |
+| `?debug` | Debug mode: the DEBUG LEVEL SELECT instead of the title (see [Debug mode](#debug-mode)). `?debug=cones` also shows every vision cone. |
+
+## Debug mode
+
+Add `?debug` to the URL (`?debug=1`, `?debug=cones` and any other value work too; `?debug=0` is off), for example
+`http://localhost:8080/?debug` or `https://jaher.github.io/shadow-six/?debug`. The game skips the title splash and
+opens **DEBUG LEVEL SELECT**: every mission in the mission list, grouped as *Behind Enemy Lines* (by mission number),
+*Beyond the Call of Duty* and *Sandbox / test maps*, each with its number, name, theater colour and icon, and a
+thumbnail once you have played it in debug mode (a small capture cached in the browser). New missions appear by
+themselves. Click or tap a level, or use the arrow keys and Enter. Esc (or *Main menu*) goes to the normal title.
+
+Options in the overlay, remembered in `localStorage` (those marked * apply on the next launch):
+
+| Option | Effect |
+| --- | --- |
+| Skip briefing (default on) | The level starts at once. |
+| All commandos * | Adds every missing commando of the campaign beside the first one. |
+| Invulnerable | Commandos take no damage. |
+| Enemies blind & deaf | Inspection mode: enemies see and hear nothing, so they never react. |
+| All vision cones | Every enemy cone stays drawn. |
+| Free camera | No scroll clamp at the map edge and zoom from 0.125× to 4×. |
+| Time ×0.5 / ×1 / ×2 / ×4 | Simulation speed. |
+| Time of day * / Wind * | Dawn, noon, dusk or overcast lighting; any wind preset. |
+| Info HUD | The corner readout (also F11). |
+
+Keys while `?debug` is on: **F10** level select (also the small DEBUG button, bottom left), **PageDown / PageUp**
+next / previous level, **Ctrl+R** instant restart, **F11** info HUD (mission, state, FPS, frame and CPU ms, draw
+calls, triangles, cursor world x/z, camera zoom and yaw). The URL follows the level you are in, so
+`?debug&mission=m05` reloads or shares that level directly, with the remembered options. Without the parameter none
+of this exists, and nothing in the normal menus leads to it.
 
 ## Controls
 

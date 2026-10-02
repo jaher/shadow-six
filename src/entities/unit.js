@@ -369,6 +369,7 @@ export class Unit extends Entity {
    */
   takeDamage(amount, source = null, cause = 'damage') {
     if (!this.alive || amount <= 0) return;
+    if (this.faction === 'player' && this.world?.debug?.invulnerable) return; // ?debug inspection option
     this.hp = Math.max(0, this.hp - amount);
     if (this.faction === 'player' && this.world) this.world.stats.damageTaken += amount;
     this.world?.events.emit('unit:damaged', { unit: this, amount, source, cause });

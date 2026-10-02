@@ -228,6 +228,15 @@ export const CONFIG = {
     defaultVel: 1.0,
     reinforceVel: { exit: 3, loop: 2 }, // §4.1 reaction squads: 2.7 m/s exit, 1.8 m/s loop
     bodyTurnDeg: 180, // §4.1 body turn 180°/s [rec]; head turn instant [EXE PASO 90]
+    // SHADOW SIX smooth turn on the spot (enemy-brain _turnTo / _turnStep) instead of BEL's instant snap for noise turns
+    // (steps, shots, barks, "Halt!", lures), a lure walker's / body finder's / distracted man's / partner glance's turn and
+    // a post's turn back to its heading: accelerate at `accel` °/s², cruise at bodyTurnDeg (the walking body turn), brake
+    // at brake·accel onto the bearing — 180° in 1.15 s, 90° in 0.65 s, 45° in 0.4 s. The cone turns with the body each
+    // step. A noise turn stops the head sweep (it fades back in over `sweepIn` s once he faces the bearing); a head
+    // turned away when the turn starts comes round with the body (head carry, at most `headRate` °/s), so the cone never
+    // jumps. "Halt!" (CHALLENGE / HOLD): the head — the cone — swings onto the commando at `aimRate` °/s and stays on him
+    // while the body turns to him at the eased rate (no body snap). [rec]
+    turn: { accel: 1000, brake: 0.9, sweepIn: 1.0, headRate: 240, aimRate: 360 },
     squadSpacing: 1.2, // §4.1 troopers follow the leader's breadcrumbs 1.2 m apart
     // squad follower speed controller (playtest: the M1 south patrol pair stuttered and walked through each other):
     // leader pace + braking catch-up to the slot, accel-limited; never closer than minGap to a mate ahead

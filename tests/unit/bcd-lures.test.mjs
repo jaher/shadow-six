@@ -22,6 +22,8 @@ test('BCD stone: thrown with Y (12 m arc, hidden count); a soldier within 4 m tu
   assert.equal(e.brain.state, 'STONE');
   assert.equal(e.brain.phase, 'look');
   s.run(0.2);
+  assert.ok(Math.abs(e.heading) > 0.005 && Math.abs(Math.atan2(31 - 30, 27 - 30) - e.heading) > 0.5, 'turning round on the spot (SHADOW SIX smooth turn), not snapped');
+  s.run(1.0);
   assert.ok(Math.abs(Math.atan2(31 - 30, 27 - 30) - e.heading) < 0.05, 'faces the point');
   s.run(CONFIG.bcd.stones.lookTime + 0.2);
   assert.notEqual(e.brain.state, 'STONE', 'look over');

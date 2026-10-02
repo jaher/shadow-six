@@ -25,6 +25,7 @@ import { transportState, transportClip, poseTransported, captureStart, groundDra
 import { carrierContact, loadSway, loadGait } from './transport-contact.js';
 import { BoneGuard, StickyGuard, capturePose, mixPose } from './pose-blend.js';
 import { proneGround, PRONE_CLIP } from './prone-ground.js';
+import { turnStep } from './turn-step.js';
 
 const PRONE_SHOT = /^prone_(shoot|shoot_smg|pistol_shoot)$/;
 /** Stance transitions play over exactly the sim's stance-change time (CONFIG.units.stanceDown / stanceUp). */
@@ -365,6 +366,8 @@ export class UnitModel {
     }
     // procedural action overlay on the skeleton after the mixer (art/shovel-dig.js: digging, rising out of the snow)
     if (R.inner && this.overlay && !tst && !this._rdLast) { try { stepped = this.overlay(this, dt, this._guard) || stepped; } catch (e) { console.warn('[unit-model] overlay', e?.stack || e); this.overlay = null; } }
+    // a standing German turning on the spot steps round, head leading (art/turn-step.js; SHADOW SIX smooth turn)
+    if (R.inner && !this.dog && !this.player && !tst && !this._carryOn && !this._rdLast && !this._blend) stepped = turnStep(this, dt, this._guard) || stepped;
     // prone bodies on the real terrain (art/prone-ground.js) — not while transported or in a physics/baked ragdoll pose
     if (R.inner && !this.dog && !tst && !this._carryOn && !this._rdLast && (stepped || this._pg?.active)) stepped = this._prone(dt) || stepped;
     if (stepped || !this._mwValid || !this._mw.equals(root.matrix)) {

@@ -130,6 +130,7 @@ export class Enemy extends Unit {
       vel: this.vel, routeMode: this.routeMode, idleAnim: this.idleAnim ?? null,
       headOffset: this.headOffset ?? 0, sweepActive: !!this.sweepActive,
       sweepAmp: this.sweepAmp ?? null, sweepPeriod: this.sweepPeriod ?? null,
+      sweepW: this.sweepW ?? null, headCarry: this.headCarry || 0, // smooth turn: sweep weight, head carried round (perception)
       lastSeen: this.lastSeen ? { ...this.lastSeen, target: this.lastSeen.target?.id ?? null } : null,
       lastHurtBy: this.lastHurtBy ? { ...this.lastHurtBy } : null,
       brain: this.brain.serialize?.() ?? null,
@@ -153,6 +154,8 @@ export class Enemy extends Unit {
     if (d.sweepActive !== undefined) this.sweepActive = d.sweepActive;
     if (d.sweepAmp !== undefined) this.sweepAmp = d.sweepAmp ?? undefined;
     if (d.sweepPeriod !== undefined) this.sweepPeriod = d.sweepPeriod ?? undefined;
+    if (d.sweepW !== undefined) this.sweepW = d.sweepW ?? undefined;
+    if (d.headCarry !== undefined) this.headCarry = d.headCarry || 0;
     if (d.lastSeen !== undefined) {
       const ls = d.lastSeen;
       this.lastSeen = ls ? { ...ls, target: ls.target != null ? this.world?.byId(ls.target) ?? null : null } : null;

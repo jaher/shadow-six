@@ -94,6 +94,8 @@ export class Game {
     this.world = null;
     this.missionDef = null;
     this.missionIndex = -1;
+    /** ?debug only (debug/debug-mode.js): {flags: {invulnerable, noDetect}, transformDef(def)}; null otherwise. */
+    this.debug = null;
     this.manualTick = !!opts.manualTick;
     this.accumulator = 0;
     this.timeScale = CONFIG.sim.timeScale;
@@ -206,6 +208,7 @@ export class Game {
     this.unloadMission();
     this.missionIndex = list.indexOf(def);
     sessionCache.beginMission(def.id); // asset cache: tag what this load uses; keep this + the last mission (LRU budget)
+    if (this.debug?.transformDef) def = this.debug.transformDef(def); // ?debug inspection options (debug/debug-options.js)
     def = normalizeMission(def, { difficulty: this.difficulty ?? null }); // design-spec §7.3 defaults (throws on invalid data); BCD Easy/Hard variant
     this.missionDef = def;
     Entity.nextId = 1; // deterministic ids (save/load, tests)
@@ -221,6 +224,7 @@ export class Game {
     const world = new World({ game: this, scene: r.scene, events: this.events, size: def.size, seed: def.seed ?? CONFIG.sim.seed, mission: def });
     this.world = world;
     world.alarm = new Alarm(world);
+    world.debug = this.debug?.flags || null; // ?debug: {invulnerable, noDetect} read by Unit.takeDamage / perception
     const FX = pick(FxMod, 'FX', 'Fx', 'default');
     world.fx = safe(() => (FX ? new FX(world, r.scene) : null), 'fx');
 

@@ -185,9 +185,15 @@ function distractTask(c, t, world, resumed) {
         release();
         return 'done';
       }
-      // the target faces the Spy (his cone points at him); a frozen squad faces its leader
-      t.stop?.(); t.sweepActive = false; t.headOffset = 0; t.faceTowards(c.x, c.z);
-      for (const m of squad) if (m.alive) { m.stop?.(); m.sweepActive = false; m.headOffset = 0; m.faceTowards(t.x, t.z); }
+      // the target faces the Spy (his cone points at him); a frozen squad faces its leader. A man the Spy distracts
+      // (DISTRACTED brain) turns round to him on the spot at the eased body rate (EnemyBrain._distracted), not in one tick
+      const face = (u, x, z) => {
+        u.stop?.();
+        if (u.brain?.state === 'DISTRACTED' && u.brain.distractedBy === c) return;
+        u.sweepActive = false; u.headOffset = 0; u.faceTowards(x, z);
+      };
+      face(t, c.x, c.z);
+      for (const m of squad) if (m.alive) face(m, t.x, t.z);
       return 'running';
     },
     cancel() {

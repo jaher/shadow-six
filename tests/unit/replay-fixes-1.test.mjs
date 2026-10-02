@@ -173,7 +173,7 @@ test('m01 e13: an MG gunner turning to a noise stays inside his gun traverse (po
   assert.ok(Math.abs(e.heading) < 0.02, 'turned as far as the gun goes (0°)');
   s.run(10);
   w.emitNoise(10, 50, 60, 'explosion', null, 3); // south-west, inside the traverse
-  s.run(0.25);
+  for (let i = 0; i < 6; i++) { s.run(0.25); assert.ok(within(), `heading ${(e.heading * DEG).toFixed(0)}° outside the traverse`); } // (a smooth turn)
   const want = Math.atan2(50 - e.z, 10 - e.x);
   assert.ok(Math.abs(((e.heading - want + 3 * Math.PI) % (2 * Math.PI)) - Math.PI) < 0.02, 'faces a noise inside the traverse');
 });

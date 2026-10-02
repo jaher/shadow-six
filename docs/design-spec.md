@@ -672,6 +672,19 @@ Every commando also carries a pistol. "(site)" marks items found on the map.
   - Investigating walk: 1.8 m/s [rec].
   - Chase/run: 3.8 m/s [data: German run stride 55 vs commando 75].
   - Body turn: 180°/s [rec]; head turn: instant (`PASO 90` per vision update) [EXE].
+  - **SHADOW SIX smooth turn** (a deliberate change from BEL's instant head turn; `CONFIG.ai.turn`, all [rec]). A guard
+    turning to something on the spot — any heard noise (running steps, shots, barks, "Halt!", alarm shouts, blasts,
+    decoys / phones / horns), a lure he walks to, a body he found, the Spy talking to him, the partner glance, a post's
+    turn back to its heading (BCD: a stone's click, a cigarette pack, the lipstick, a revive) — turns at an eased, steady
+    rate: accelerate at 1000°/s², cruise at the 180°/s body turn, brake onto the bearing (180° ≈ 1.15 s, 90° ≈ 0.65 s,
+    45° ≈ 0.4 s); an investigator / a lured walker turns first, then walks. The cone turns with the body every step, so he sees only what it actually sweeps over (a runner who gets out
+    of sight before it comes round is not seen). For the turn the head sweep stops and fades back in over 1 s after it;
+    a head turned away when the turn begins comes round with the body (≤ 240°/s), so the cone never jumps. "Halt!"
+    (CHALLENGE / HOLD): the cone swings onto the commando at 360°/s and stays on him while the body turns to him at the
+    eased rate. **Kept instant:** an MG / gun crew / caged dog / man in a vehicle tracking a target it fights (the gun
+    traverses with the target, §4.1), a crew's heading in its vehicle, mission scripts that set headings, a BCD officer
+    watching a Spy he recognised, an animal's attack, the player's puppet; COMBAT keeps BEL's linear 180°/s body turn.
+    Visual: a turning German steps round on the spot (feet planted, alternate steps, head leading — art/turn-step.js).
 
 ### 4.2 Vision cones (logic = display)
 
@@ -840,9 +853,9 @@ Every commando also carries a pistol. "(site)" marks items found on the map.
   Raised natural ground (the `walkways` of a `cliff` plateau or terrace and of a `road` ramp: M5 summit, M8/M10/M11
   plateaus, M14 ridge, M20 terraces) is marked `grid.naturalElev` and reads its terrain code like the ground below.
 
-- **Reaction** (enemy-brain `_hearSteps`; head turns are instant in BEL). A post-holder, gunner or crewman faces the
-  sound at once (a gunner within his traverse) and sweeps around it for 8 s; an investigator faces it and walks over at
-  1.8 m/s, re-aimed at each newer step. "Was war das?" at most every 6 s; a "?" over the guard and the cone flash
+- **Reaction** (enemy-brain `_hearSteps`; head turns are instant in BEL, SHADOW SIX turns him smoothly, §4.1). A
+  post-holder, gunner or crewman turns round to the sound (≈ 1.15 s for 180°; a gunner within his traverse) and sweeps
+  around it for 8 s; an investigator stops, turns round to it, then walks over at 1.8 m/s, re-aimed at each newer step. "Was war das?" at most every 6 s; a "?" over the guard and the cone flash
   (`enemy:noise-turn`, `enemy:heard-steps`). Busy, distracted and lured men ignore steps as they ignore every level-1 noise;
   a patrol member hands it to his leader, who reacts whatever his own distance to the step (a runner behind the tail of a
   file is heard by the squad). A step counts once per man: a leader handed the same step by several squad members
@@ -2190,6 +2203,13 @@ CONFIG.rulesets = { BEL: { knockouts: false, handcuffs: false, stones: false, ci
 - The briefing texts, Colonel lines and barks in this document are **original writing**.
 - Fonts are SIL OFL (Oswald/Anton) and credited in CREDITS.md, noting that OFL is not CC0 (the policy allows it with attribution).
 - The fan-tribute disclaimer (top of this file) appears on the title screen, in the credits, in the README and in the page footer of the published build.
+
+### 10.7 Debug mode (`?debug`, developer tool, not part of the 1998 game)
+- **Switch:** the URL parameter `debug` with any value except `0`/`false`/`off`/`no` (`?debug`, `?debug=1`, `?debug=cones`). Without it nothing below is created (no DOM, no key handler, `game.debug === null`) and no menu links to it. Code: `src/debug/debug-mode.js` (DOM, keys, HUD) and `src/debug/debug-options.js` (pure: parsing, options, grouping, def transform).
+- **Level select:** boot skips the title splash and opens DEBUG LEVEL SELECT over the title. It lists `missionList()` at run time, grouped BEL (sorted by mission number, whatever the list order), BCD, then sandbox/test maps (`m00`, `dev: true` maps, unnumbered maps); a tile shows number, title, id, theater colour/icon and a 240×135 capture taken 2.5 s into the first debug play of that level (IndexedDB via `ui/thumbs.js`, key `dbg:<id>`). Tap/click or arrows + Enter launch; Esc returns to the title (or resumes a mission). Opened in game it freezes the sim (`timeScale = 0`) until closed.
+- **Options** (localStorage `shadowsix.debug.options`): skip briefing (default on), all commandos (missing roles of the ruleset added beside the first commando), invulnerable (`Unit.takeDamage` ignores player damage), enemies blind & deaf (`perception.canSee` → `'none'` for non-player viewers, `hears` → false), all vision cones (`VisionCones.showAll`), free camera (bounds margin = map size, zoom 0.125×–4×), time scale 0.5/1/2/4, time of day (dawn/noon/dusk/overcast → `def.lighting`) and wind (`def.weather.wind.preset`). The def-changing ones apply at the next launch through `Game.debug.transformDef` on a copy of the def; the sim reads the live flags from `world.debug`.
+- **Keys** (window capture listener installed before the HUD's, so it wins): F10 level select, PageDown/PageUp next/previous level in the select's order (wrapping), Ctrl+R instant restart (no loading card), F11 corner info HUD (mission, state, time scale, FPS, frame ms, CPU ms of `Game.render`, draw calls and triangles of the whole frame, cursor ground x/z, camera zoom and yaw, active flags).
+- **Deep link:** the URL becomes `?debug…&mission=<id>` on every launch; loading such a URL enters the level directly with the remembered options. Works on the web build under `/shadow-six/` (relative URLs only).
 
 ---
 

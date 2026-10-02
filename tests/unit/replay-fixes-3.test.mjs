@@ -79,6 +79,8 @@ test('M3 readability: a lure that swings a post-holder round emits enemy:noise-t
   w.emitNoise(20, 28, 13.5, 'decoy', null);
   assert.equal(turns.length, 1, 'decoy turn flagged');
   assert.equal(turns[0].enemy, gun);
+  assert.ok(Math.abs(gun.heading) < 1e-9 && gun.brain.turn, 'he starts turning round on the spot (SHADOW SIX smooth turn)');
+  run(w, 0.9); // 90°: ≈ 0.65 s
   assert.ok(Math.abs(gun.heading - Math.PI / 2) < 0.05, `faces the decoy (${gun.heading.toFixed(2)})`);
   vc.update();
   assert.equal(gun.coneVisible, true, 'his cone becomes the shown one');

@@ -11,6 +11,7 @@
  */
 
 import { CONFIG } from '../config.js';
+import { angleTo } from '../core/math.js';
 import { canSee, perceive } from './perception.js';
 import { rouse, rearmStep } from './bcd-enemy.js';
 import { stoneStep, cigsStep, lipstickStep, cigsAbort } from './bcd-reactions.js';
@@ -155,7 +156,7 @@ function reviveStep(b) {
   const q = g?.victim;
   if (!q || !q.alive || !q.ko) { if (q) q._reviver = null; return b._startSearch(); }
   if (b.phase === 'go') {
-    if (b._dist(q) <= 1.3 || (!e.isMoving && b.pt > 0.3)) { e.stop(); b.phase = 'work'; b.pt = 0; e.faceTowards(q.x, q.z); e.playAction('use', 1); }
+    if (b._dist(q) <= 1.3 || (!e.isMoving && b.pt > 0.3)) { e.stop(); b.phase = 'work'; b.pt = 0; b._turnTo(angleTo(e.x, e.z, q.x, q.z)); e.playAction('use', 1); }
     return;
   }
   const need = g.bound ? CONFIG.bcd.freeTime : CONFIG.bcd.reviveTime;

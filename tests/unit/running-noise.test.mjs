@@ -105,6 +105,10 @@ test('running noise (c): walking right up behind a guard is silent — heading u
   assert.ok(gb2.issue({ type: 'ability', id: 'knife', target: e2, run: true }));
   s2.run(0.6);
   assert.ok(s2.count('noise', (n) => n.kind === 'footsteps') >= 1, 'the run is heard');
+  // he turns round to the runner on the spot (SHADOW SIX smooth turn: 180° in ~1.15 s), not in one tick
+  const h06 = Math.abs(angleDiff(e2.heading, 0));
+  assert.ok(e2.brain.turn && h06 > 0.05 && h06 < 2, `turning round (${h06.toFixed(2)} rad at 0.6 s)`);
+  s2.run(1.0, () => Math.abs(angleDiff(e2.heading, 0)) > 2);
   assert.ok(Math.abs(angleDiff(e2.heading, 0)) > 2, 'he faced the runner');
 });
 
@@ -164,7 +168,12 @@ test('running noise (f): a commando who freezes outside 2.25 m is not challenged
   run(w, 3, () => froze != null);
   assert.ok(froze != null, 'heard');
   assert.equal(g.brainState, 'INVESTIGATE');
+  // he turns round to the sound on the spot first (SHADOW SIX smooth turn), then walks over
+  assert.equal(g.brain.phase, 'turn');
+  const at = { x: g.x, z: g.z };
+  run(w, 1.3, () => g.brain.phase !== 'turn');
   assert.ok(facing(g, c.x, c.z, 0.6), 'he faces the sound');
+  near(Math.hypot(g.x - at.x, g.z - at.z), 0, 0.05, 'turned on the spot');
   // a still man more than 2.25 m off scores no nervousness
   const d = Math.hypot(c.x - g.x, c.z - g.z);
   assert.ok(d > CONFIG.ai.nervousness.closeRange, `${d.toFixed(2)} m`);
@@ -245,30 +254,39 @@ test('running noise (i): a post-holder faces the steps for the noise hold; an MG
   const w = world(T.ROAD);
   const g = w.enemies[0];
   w.emitNoise(24, 34, 10, 'footsteps', null, 1);
-  assert.ok(facing(g, 24, 34, 1e-6), 'faces the step');
   near(g.brain.noiseTurnT, CONFIG.ai.noiseTurnHold, 1e-9);
+  assert.ok(!facing(g, 24, 34, 0.5) && g.brain.turn, 'turning round on the spot (SHADOW SIX smooth turn), not snapped');
+  run(w, 1.3, () => !g.brain.turn);
+  assert.ok(facing(g, 24, 34, 1e-6), 'faces the step');
   assert.equal(first(w, 'enemy:state', (p) => p.enemy === g), null, 'stays at his post');
   const mg = addEnemy(w, { id: 'mg', soldierType: 'mg', x: 40, z: 10, heading: 0, post: { heading: 0, sweep: 0, giro: 90 } });
   w.emitNoise(34, 10, 10, 'footsteps', null, 1); // straight behind him
+  run(w, 1);
   near(Math.abs(angleDiff(mg.heading, 0)), Math.PI / 4, 1e-6, 'turned to the edge of his 90° traverse');
   const turns = [];
   const w2 = world(T.ROAD, { enemies: [{ id: 'r', soldierType: 'soldier', x: 30, z: 30, heading: 0, route: [{ x: 30, z: 30 }, { x: 50, z: 30 }] }] });
   w2.events.on('enemy:noise-turn', (p) => turns.push(p));
   const r = w2.enemies[0];
   run(w2, 0.5);
-  w2.emitNoise(r.x - 6, r.z + 2, 10, 'footsteps', null, 1);
+  const sx = r.x - 6, sz = r.z + 2;
+  w2.emitNoise(sx, sz, 10, 'footsteps', null, 1);
   assert.equal(r.brainState, 'INVESTIGATE');
   assert.equal(r.brain.goal.steps, true);
-  assert.ok(facing(r, r.x - 6 + 0.0, r.z + 2, 0.05), 'faces the sound at once');
+  assert.equal(r.brain.phase, 'turn', 'he stops and turns round to the sound on the spot first');
   assert.equal(turns.length, 1);
   assert.equal(turns[0].kind, 'footsteps');
-  // a newer step retargets him (throttled re-path)
-  run(w2, 0.8);
+  // a newer step while he turns re-aims the turn
+  run(w2, 0.6);
+  assert.equal(r.brain.phase, 'turn');
   const nx = r.x - 5, nz = r.z + 5;
   w2.emitNoise(nx, nz, 10, 'footsteps', null, 1);
   assert.equal(r.brain.goal.x, nx);
   assert.equal(r.brain.goal.z, nz);
-  assert.ok(facing(r, nx, nz, 1e-6));
+  run(w2, 1.5, () => !r.brain.turn);
+  assert.ok(facing(r, nx, nz, 0.05), 'faces the newest step');
+  run(w2, 0.5);
+  assert.equal(r.brain.phase, 'go', 'then walks over');
+  assert.ok(r.isMoving);
 });
 
 test('running noise (i2): a patrol — the leader investigates the steps and the squad follows him', () => {

@@ -7,6 +7,7 @@
  */
 
 import { CONFIG } from '../config.js';
+import { angleTo } from '../core/math.js';
 import { canSee } from './perception.js';
 import { AWARE_KO } from './bcd-enemy.js';
 import { isAnimal } from './bcd-ranks.js';
@@ -42,10 +43,12 @@ export function stoneLanded(world, x, z, thrower = null, hitUnit = null) {
     e._stoneT.push(world.time);
     const walk = e._stoneT.length >= S.investigateAt && e.flags.investigates && !e.flags.holdsPost;
     b.goal = { x, z, stone: true };
-    b.bcdEnter('STONE', walk ? 'go' : 'look');
-    e.stop();
-    if (walk) b._go(x, z, CONFIG.ai.investigate.speed);
-    else e.faceTowards(x, z);
+    b._smoothHead(() => { // he turns round to the click on the spot (SHADOW SIX smooth turn, enemy-brain _turnTo)
+      b.bcdEnter('STONE', walk ? 'go' : 'look');
+      e.stop();
+      if (walk) b._go(x, z, CONFIG.ai.investigate.speed);
+      else b._turnTo(angleTo(e.x, e.z, x, z));
+    });
     out.push(e);
   }
   world.events.emit('bcd:stone', { x, z, thrower, reacted: out });
@@ -57,8 +60,8 @@ export function stoneStep(b) {
   const e = b.enemy, g = b.goal, S = CONFIG.bcd.stones;
   if (!g) return b._set('RETURN');
   if (b.phase === 'look') {
-    e.faceTowards(g.x, g.z);
     b._look(0);
+    b._turnTo(angleTo(e.x, e.z, g.x, g.z));
     if (b.pt >= S.lookTime) b._set('RETURN');
     return;
   }
@@ -103,7 +106,7 @@ export function cigsStep(b) {
   if (b.phase === 'go') {
     if (b._dist(g) <= 1.0 || (!e.isMoving && b.pt > 0.3)) {
       e.stop(); b.phase = 'kneel'; b.pt = 0;
-      e.faceTowards(g.x, g.z);
+      b._turnTo(angleTo(e.x, e.z, g.x, g.z));
       e.playAction('use', C.pickupTime);
       g.far = e.vision?.far;
       if (e.vision) e.vision.far = e.vision.near; // §1.5: the kneel lowers and shortens the cone
@@ -153,6 +156,6 @@ export function lipstickStep(b) {
     return b._set('RETURN');
   }
   e.stop();
-  e.faceTowards(n.x, n.z);
   b._look(0);
+  if (Math.abs(n.x - e.x) + Math.abs(n.z - e.z) > 1e-6) b._turnTo(angleTo(e.x, e.z, n.x, n.z)); // turns round to her on the spot
 }

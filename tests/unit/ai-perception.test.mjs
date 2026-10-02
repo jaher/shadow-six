@@ -100,6 +100,9 @@ test('§4.1 wounded soldier hunts the shooter; a comrade seeing him investigates
   run(w, 0.1);
   assert.equal(g.brainState, 'IDLE', 'a sentry holds its post…');
   assert.equal(g.alertLevel, 2, '…but turns to the shooter, COMBAT-ready');
+  // SHADOW SIX smooth turn: he turns round on the spot (31° in ~0.35 s), not in one tick
+  assert.ok(g.brain.turn && g.heading >= 0 && g.heading < Math.atan2(30, 50) - 0.05, `turning, not snapped (${g.heading.toFixed(3)})`);
+  run(w, 0.6);
   near(g.heading, Math.atan2(30, 50), 0.01);
   assert.equal(s.alive, true);
 });

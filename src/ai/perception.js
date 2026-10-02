@@ -11,9 +11,12 @@
  *   probe(world, x, z)                 → first enemy whose standing-test cone contains (x, z), or null
  *   perceive(enemy, world)             → the §4.3 seen list {commandos, bodies, prints} (≤ 16 objects)
  *
- * Head direction: when `enemy.sweepActive` is true the head yaw is heading + headOffset + sweepOffset(t)
- * (the sweep is centred on headOffset, so a post can re-centre it on a noise); otherwise heading +
- * headOffset. The brain owns both fields. Head turns are instant [EXE PASO 90].
+ * Head direction: when `enemy.sweepActive` is true the head yaw is heading + headOffset + headCarry +
+ * sweepW·sweepOffset(t) (the sweep is centred on headOffset, so a post can re-centre it on a noise); otherwise heading +
+ * headOffset + headCarry. The brain owns these fields. BEL turned heads instantly [EXE PASO 90]; SHADOW SIX turns a
+ * guard who hears something on the spot at an eased rate (enemy-brain _turnTo): the sweep weight sweepW (default 1)
+ * fades the sweep out for the turn and back in after it, and headCarry (default 0) carries a head that was turned away
+ * when the turn began round with the body, so the cone moves continuously.
  * @module ai/perception
  */
 
@@ -55,8 +58,8 @@ export function ellipseFar(a, theta, ratio = CONFIG.stealth.ellipseRatio) {
 
 /** Head yaw offset θ (rad) of a viewer at time t (see module doc). */
 export function headTheta(enemy, t) {
-  const base = enemy.headOffset || 0;
-  return enemy.sweepActive ? base + sweepOffset(enemy, t) : base;
+  const base = (enemy.headOffset || 0) + (enemy.headCarry || 0);
+  return enemy.sweepActive ? base + (enemy.sweepW ?? 1) * sweepOffset(enemy, t) : base;
 }
 
 /**
@@ -148,6 +151,7 @@ export function targetClass(target, o = {}, viewer = null) {
  */
 export function canSee(viewer, target, world, o = {}) {
   if (viewer.alive === false || viewer.state === 'dead' || viewer.incapacitated) return 'none'; // BCD: knocked out / cuffed
+  if (world?.debug?.noDetect && viewer.faction !== 'player') return 'none'; // ?debug inspection mode: nobody sees anything
   const cls = targetClass(target, o, viewer);
   if (!cls) return 'none';
   const cone = o.cone || coneAt(viewer, world?.time);
@@ -271,6 +275,7 @@ export function noticedBody(enemy, world) {
  */
 export function hears(enemy, noise) {
   if (!enemy.alive || noise.source === enemy || !(noise.radius > 0)) return false;
+  if (enemy.world?.debug?.noDetect) return false; // ?debug inspection mode: deaf too
   let r = noise.radius;
   // optional per-mission cap on how far an explosion carries to the guards (`rules.explosionHearing`, m; M10: the camp
   // and the airfield are ~100 m apart and each turns out only for its own bangs). Zone onHeard sensors keep their

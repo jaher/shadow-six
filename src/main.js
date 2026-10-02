@@ -1,6 +1,7 @@
 /**
  * Boot: WebGL check → Game → preload assets (loading screen) → title screen.
- * URL params: ?test=1 (manual ticking + window.__game), ?mission=<id> (skip title), ?preset=low|medium|high|ultra.
+ * URL params: ?test=1 (manual ticking + window.__game), ?mission=<id> (skip title), ?preset=low|medium|high|ultra,
+ * ?debug[=…] (debug level select + quick keys + info HUD, debug/debug-mode.js; `?debug&mission=m05` deep-links).
  * @module main
  */
 
@@ -8,6 +9,7 @@ import { Game, missionList } from './game.js';
 import { assets } from './engine/assets.js';
 import { installTestApi } from './debug/test-api.js';
 import { hasQuickSave } from './save.js';
+import { installDebugMode } from './debug/debug-mode.js';
 import { installOfflineCache } from './engine/offline-cache.js';
 import { PRESET_CHOSEN_KEY, bootPreset, gpuName } from './engine/device.js';
 import { touchFirst } from './ui/touch.js';
@@ -111,6 +113,10 @@ async function boot() {
     setLoading(0, 'WebGL 2 is required.');
     return;
   }
+  // ?debug: installed before the Game so its key listener runs ahead of the HUD's (nothing exists without the param)
+  let storage = null;
+  try { storage = window.localStorage; } catch { storage = null; }
+  const dbg = installDebugMode({ search: location.search, storage, missions: missionList, history: window.history });
   // phones / tablets start on a mobile preset (engine/device.js); the GPU name refines it once the context exists
   let chosen = false;
   try { chosen = localStorage.getItem(PRESET_CHOSEN_KEY) === '1'; } catch { /* private mode */ }
@@ -126,11 +132,15 @@ async function boot() {
   if (want && game.hud?.options) game.hud.options.preset = game.renderer.presetName; // OPTIONS shows what runs
   window.shadowSix = game;
   if (TEST) installTestApi(game);
+  dbg?.attach(game, {
+    startMission: (id) => startMission(game, id).then(() => !!game.world),
+    showTitle: () => { buildTitle(game); showScreen('title'); },
+  });
   installOfflineCache(game); // web build: keep the downloaded mission in the service worker cache, prefetch the next
 
   // docs/menus-art-direction.md S01/S03: the HUD boot plays the disclaimer + ident while assets preload, then the
   // title splash's brass rule shows the rest of the preload and turns into PRESS ANY KEY.
-  const boot = !TEST && !params.get('mission') ? game.hud?.boot : null;
+  const boot = !TEST && !params.get('mission') && !dbg ? game.hud?.boot : null;
   if (boot) {
     showScreen('none');
     boot.start();
@@ -160,7 +170,12 @@ async function boot() {
     showScreen('none');
     window.__gameReady = true;
   } else if (mission) {
-    await startMission(game, mission);
+    if (dbg) await dbg.launch(mission);
+    else await startMission(game, mission);
+  } else if (dbg) {
+    buildTitle(game); // debug: the title goes straight to DEBUG LEVEL SELECT (Esc / Main menu → the normal title)
+    showScreen('title');
+    dbg.open();
   } else if (boot) {
     buildTitle(game);
     boot.ready = true;

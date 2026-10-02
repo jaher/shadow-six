@@ -2,8 +2,11 @@
  * House rule runningNoise (design-spec §4.4 "Running is heard"): the M0 bridge sentry (47,30) holds his post looking
  * west, his head fixed. The Green Beret passes 6 m behind his back, over the ground east of the bridge (7.5 m radius):
  *  A) walking → nothing: the sentry never turns, no "?", no noise rings.
- *  B) running → the sentry turns to the steps at once, a "?" shows over him, "Was war das?", noise rings spread from
+ *  B) running → the sentry turns round to the steps, a "?" shows over him, "Was war das?", noise rings spread from
  *     the runner's feet, and he spots the runner ("Halt!"); the rings are gone 1 s after the last step.
+ *     SHADOW SIX smooth turn: he turns round on the spot at the eased body rate (≈ 1.15 s for 180°) — every rendered
+ *     tick shows an intermediate heading (no snap, ≤ 3° a tick), his feet step round (art/turn-step.js) and the cone
+ *     turns with him.
  * Every other enemy and commando is removed so only the sentry can react.
  */
 export const timeout = 240_000; // two mission loads and ~160 rendered frames (slow under load)
@@ -72,18 +75,55 @@ export default async function runningNoise(page, t) {
   await setup(page, true);
   const b = await page.evaluate(async () => {
     const g = window.__game, G = g.game, R = window.__rn;
+    const { coneAt } = await import('/src/ai/perception.js');
+    const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
     // advance to the first heard step, then grab the frame with the "?" and the rings showing
     for (let i = 0; i < 60 && !R.log.heard; i++) { g.advance(0.05); G.render(0.05, 1); }
-    for (let i = 0; i < 3; i++) { g.advance(1 / 60); G.render(1 / 60, 1); }
+    for (let i = 0; i < 3; i++) { g.step(); G.render(1 / 60, 1); }
     const marks = [...document.querySelectorAll('.hud-mark')];
-    return { heard: R.log.heard, marks: marks.length, markText: marks[0]?.textContent ?? '', rings: G.selection.noise.active,
-      turn: Math.abs(Math.atan2(Math.sin(R.s.heading - R.h0), Math.cos(R.s.heading - R.h0))) };
+    const out = { heard: R.log.heard, marks: marks.length, markText: marks[0]?.textContent ?? '', rings: G.selection.noise.active,
+      turn3: Math.abs(wrap(R.s.heading - R.h0)) };
+    // then tick by tick (one sim step, one rendered frame) through the turn: heading, cone, the feet stepping round
+    const hs = [R.s.heading], cones = [], drawn = [], feet = [];
+    let planted = 0;
+    for (let i = 0; i < 120; i++) {
+      g.step(); G.render(1 / 60, 1);
+      hs.push(R.s.heading);
+      const cone = G.cones?.cones?.get?.(R.s); // the drawn cone (the noise-turn flash shows it) follows his heading
+      if (cone?.group?.visible && cone._key) { cones.push(Math.abs(wrap(cone._key.h - coneAt(R.s).heading))); drawn.push(cone._key.h); }
+      const st = R.s.model?._turnStep;
+      if (st?.feet) planted++;
+      if (st?.step && feet.at(-1) !== st.step.s) feet.push(st.step.s);
+      if (i === 30) window.__rnMid = Math.abs(wrap(R.s.heading - R.h0));
+      if (!R.s.brain.turn && i > 10) break;
+    }
+    const steps = hs.slice(1).map((h, k) => Math.abs(wrap(h - hs[k])));
+    out.ticks = steps.length;
+    out.maxStep = Math.max(...steps);
+    out.distinct = new Set(hs.map((h) => h.toFixed(3))).size;
+    out.turn = Math.abs(wrap(R.s.heading - R.h0));
+    out.mid = window.__rnMid;
+    out.real = !!R.s.model?.isReal;
+    out.planted = planted;
+    out.coneFrames = cones.length;
+    out.coneLag = cones.length ? Math.max(...cones) : null;
+    out.coneJump = drawn.length > 1 ? Math.max(...drawn.slice(1).map((h, k) => Math.abs(wrap(h - drawn[k])))) : null;
+    out.feet = feet.join('');
+    out.state = R.s.brainState;
+    return out;
   });
-  t.log('first step heard:', JSON.stringify(b));
+  t.log('first step heard, then the turn:', JSON.stringify(b));
   t(b.heard >= 1, 'a step heard');
   t(b.marks >= 1 && b.markText === '?', `"?" over the sentry (${b.marks} "${b.markText}")`);
   t(b.rings >= 1, 'a noise ring on the ground');
+  t(b.turn3 < 0.2, `3 ticks after the step he has only begun to turn (${b.turn3.toFixed(3)} rad): no snap`);
+  t(b.maxStep <= (Math.PI / 60) + 1e-6, `never more than 3° a tick (${(b.maxStep * 180 / Math.PI).toFixed(2)}°)`);
+  t(b.ticks >= 40 && b.distinct >= 40, `the turn shows on ${b.ticks} ticks, ${b.distinct} distinct headings`);
+  t(b.mid > 0.4 && b.mid < b.turn - 0.3, `half a second in he is part way round (${b.mid?.toFixed(2)} of ${b.turn.toFixed(2)} rad)`);
   t(b.turn > 1, `the sentry turned to the steps (${b.turn.toFixed(2)} rad)`);
+  t(b.coneFrames >= 30 && b.coneLag < 0.03, `the drawn cone is his cone (${b.coneFrames} frames, ≤ ${b.coneLag?.toFixed(3)} rad off)`);
+  t(b.coneJump < 0.17, `the drawn cone turns with him, never jumps (≤ ${(b.coneJump * 180 / Math.PI).toFixed(1)}° a frame)`);
+  if (b.real) t(b.planted > 20 && b.feet.length >= 2 && !/ll|rr/.test(b.feet), `his feet step round, in turn (${b.feet}, planted ${b.planted} frames)`);
   await t.shot('running-noise-run');
   const r = await watch(page, 6);
   t.log('run:', JSON.stringify(r));

@@ -20,7 +20,7 @@
 import { CONFIG, velToSpeed } from '../config.js';
 import { hasObstacles, bodyGap, MOVE_MARGIN } from '../world/body-clearance.js';
 import { angleTo, angleDiff, wrapAngle } from '../core/math.js';
-import { perceive, canSee, hears, coneAt } from './perception.js';
+import { perceive, canSee, hears, coneAt, headTheta } from './perception.js';
 import { archetypeOf, isPatrolMember } from './archetypes.js';
 import { ensureAI } from './director.js';
 import { BCD_BRAIN_STATES } from './bcd-enemy.js';
@@ -31,6 +31,8 @@ import { blocks as blocksUnit } from '../entities/avoidance.js';
 
 /** A noise-driven turn needs this long (s) before what he now faces counts for a kill witness (notifyKill). */
 const NOISE_WITNESS_DELAY = 0.3;
+/** A smooth turn closer than this (rad) to its bearing is done (he faces it). */
+const TURN_DONE = 1e-4;
 
 /** Spec brain states (design-spec §4.6). */
 export const BRAIN_STATES = Object.freeze(['IDLE', 'INVESTIGATE', 'DECOY', 'TRACKS', 'BODY', 'CHALLENGE', 'HOLD',
@@ -92,6 +94,10 @@ export class EnemyBrain {
     this._trail = null; // {ownerId, t}: the trail last followed in TRACKS (its prints do not restart TRACKS)
     this.searchPts = null;
     this.noiseTurnT = 0; // holdsPost: sweep re-centred on a noise (§4.4) for 8 s
+    /** SHADOW SIX smooth turn on the spot {h: bearing (rad), w: angular speed (rad/s), head: sweep held} | null (_turnTo). */
+    this.turn = null;
+    this._turnSeq = 0; // smooth turns started / re-aimed (the head carry is taken around them: _smoothHead)
+    this._headDepth = 0;
     this.alertT = 0; // holdsPost: alertLevel raised by a noise
     this.alertBoost = 0;
     // SHADOW SIX runningNoise: suspicion from heard running steps (+1 per step heard, decays stealth.runNoise.susp.decay/s)
@@ -147,6 +153,10 @@ export class EnemyBrain {
     if (this.bcd) bcdExit(this, from, state);
     this.state = state;
     this.t = 0;
+    // fighting, arresting, running the alarm: no turn on the spot (COMBAT turns at the body rate, the others walk);
+    // CHALLENGE / HOLD keep a turn under way: the aim re-aims it at the commando (_turnStep)
+    if (state === 'COMBAT' || state === 'ARREST' || state === 'ALARM_RUN' || state === 'DEAD') this.turn = null;
+    if (state === 'DEAD') e.headCarry = 0;
     if (!AWARE.has(state) && from !== state) {
       e.idleAnim = 'idle';
     }
@@ -194,6 +204,16 @@ export class EnemyBrain {
     e.headOffset = offset;
   }
 
+  /** _look(0) with the cone kept where it is: the head's offset is carried (headCarry) and settles as he turns. */
+  _carryLook() {
+    const e = this.enemy, t = this.world?.time ?? 0;
+    if (!e.vision) return this._look(0);
+    const th = headTheta(e, t);
+    this._look(0);
+    const c = (e.headCarry || 0) + angleDiff(headTheta(e, t), th);
+    e.headCarry = Math.abs(c) < 1e-9 ? 0 : c;
+  }
+
   /** Default head behaviour for the idle state (posts sweep continuously; walkers only at waits). */
   _applyHead() {
     const e = this.enemy;
@@ -215,6 +235,10 @@ export class EnemyBrain {
    *   his own distance to them)
    */
   hear(n, relayed = false) {
+    return this._smoothHead(() => this._hear(n, relayed));
+  }
+
+  _hear(n, relayed) {
     const e = this.enemy;
     if (!e.alive || !this.world || !(relayed || hears(e, n))) return;
     const lvl = n.level ?? 1;
@@ -259,11 +283,12 @@ export class EnemyBrain {
       // §4.4 holdsPost: turn to face it; the sweep re-centres on it for 8 s
       // an MG gunner turns only as far as his gun traverses (replay m01: e13 faced behind his nest for 8 s,
       // his cone — the gun's firing cone — pointing where the MG cannot fire)
+      // SHADOW SIX: he turns round on the spot at the eased body rate (_turnTo), not in one tick
       const h = this._clampTraverse(angleTo(e.x, e.z, n.x, n.z));
       // a lure (decoy / phone / horn) that swings a post-holder round is flagged so the UI can show his cone
       // turning (replay round 3, M3 e34: the bunker gunner is passed only by turning him with a decoy)
-      const lure = LURES.has(n.kind) && (this.noiseTurnT <= 0 || Math.abs(angleDiff(e.heading, h)) > 0.2);
-      e.heading = h;
+      const lure = LURES.has(n.kind) && (this.noiseTurnT <= 0 || Math.abs(angleDiff(this._turnGoal(), h)) > 0.2);
+      this._turnTo(h);
       if (lure) this.world.events.emit('enemy:noise-turn', { enemy: e, x: n.x, z: n.z, kind: n.kind });
       this.noiseTurnT = CONFIG.ai.noiseTurnHold;
       if (lvl >= 2) { this.alertT = CONFIG.ai.noiseTurnHold; this.alertBoost = lvl >= 3 ? 2 : 1; }
@@ -286,9 +311,10 @@ export class EnemyBrain {
   }
 
   /**
-   * SHADOW SIX house rule runningNoise: a running commando's step (level 1) reached this enemy. He turns at once to
-   * the sound (head turns are instant in BEL): a post-holder / gunner / crew man faces it (his gun's traverse) and
-   * sweeps around it for noiseTurnHold s; an investigator faces it and walks over (re-aimed at each newer step).
+   * SHADOW SIX house rule runningNoise: a running commando's step (level 1) reached this enemy. He turns round to the
+   * sound on the spot at the eased body rate (_turnTo: 180° in 1.15 s — not BEL's instant head turn, so a runner who
+   * dives for cover in time is not seen): a post-holder / gunner / crew man faces it (his gun's traverse) and sweeps
+   * around it for noiseTurnHold s; an investigator turns to it, then walks over (re-aimed at each newer step).
    * "Was war das?" at most every susp.barkEvery s. Repeated steps raise suspicion: alert level 1 at susp.alertAt; an
    * investigator who reached susp.searchAt SEARCHes around the last step when his look ends. Never alert level 2,
    * never an alarm, never combat-ready: being spotted still goes through the cone and the §4.5 nervousness rule
@@ -307,28 +333,27 @@ export class EnemyBrain {
     const post = e.flags.holdsPost || this.arch.script === 'crew' || this.arch.script === 'gunner' || e.soldierType === 'mg' || !e.flags.investigates;
     const tracking = post ? this.noiseTurnT > 0 : this.state === 'INVESTIGATE' && !!this.goal?.steps;
     const h = post ? this._clampTraverse(angleTo(e.x, e.z, n.x, n.z)) : angleTo(e.x, e.z, n.x, n.z);
-    const turn = !tracking || Math.abs(angleDiff(e.heading, h)) > 0.2;
+    const turn = !tracking || Math.abs(angleDiff(this._turnGoal(), h)) > 0.2;
     if (post) {
-      e.heading = h;
+      this._turnTo(h);
       this.noiseTurnT = CONFIG.ai.noiseTurnHold;
     } else if (tracking) {
       const g = this.goal;
       g.x = n.x; g.z = n.z;
-      if (this.phase === 'look') { // heard again while looking round: back on his feet towards the newest step
-        this._set('INVESTIGATE', 'go');
+      if (this.phase === 'look' || this.phase === 'turn') { // heard again while looking round: turn to the newest step, then walk over
+        this._set('INVESTIGATE', 'turn');
         this._look(0);
-        this._go(n.x, n.z, g.speed);
+        this._turnTo(h);
         g.repathT = now;
-      } else if (now - (g.repathT ?? -Infinity) >= SU.repath) {
+      } else if (now - (g.repathT ?? -Infinity) >= SU.repath) { // on his way: the new path turns him as he walks
         this._go(n.x, n.z, g.speed);
         g.repathT = now;
       }
     } else {
-      this._startInvestigate(n.x, n.z, CONFIG.ai.investigate.speed);
+      this._startInvestigate(n.x, n.z, CONFIG.ai.investigate.speed, { turnFirst: true });
       this.goal.steps = true;
       this.goal.repathT = now;
     }
-    if (!post) e.heading = h; // facing the sound now; the walk there keeps him facing it
     if (turn) w.events.emit('enemy:noise-turn', { enemy: e, x: n.x, z: n.z, kind: 'footsteps' });
     w.events.emit('enemy:heard-steps', { enemy: e, x: n.x, z: n.z, susp: this.stepSusp });
     if (this._stepBarkT == null || now - this._stepBarkT >= SU.barkEvery) {
@@ -367,8 +392,11 @@ export class EnemyBrain {
     if (!e.alive || e.incapacitated || this.isAware() || BUSY.has(this.state)) return false;
     this.distractedBy = spy;
     e.stop();
-    this._set('DISTRACTED');
-    this._look(0);
+    this._smoothHead(() => { // he turns round to the Spy on the spot (SHADOW SIX: not in one tick)
+      this._set('DISTRACTED');
+      this._look(0);
+      this._turnTo(angleTo(e.x, e.z, spy.x, spy.z));
+    });
     this.world?.events.emit('enemy:distracted', { enemy: e, spy, on: true });
     return true;
   }
@@ -505,6 +533,13 @@ export class EnemyBrain {
       if (w.time < e.knockedDown.until) { if (e.isMoving) e.stop(); this.burstLeft = 0; return; }
       e.knockedDown = null;
     }
+    this._turnStep(dt); // a turn on the spot first: this step's cone (perception) is the one he turned to
+    this._smoothHead(() => this._think(dt));
+  }
+
+  /** Perception and the state behaviour of one step (update). */
+  _think(dt) {
+    const e = this.enemy, w = this.world;
     this._perceive();
     if (!e.alive) return;
     // stepping out of a vehicle's way (vehicle.js _stepAside): an idle man finishes the step before his routine
@@ -634,9 +669,13 @@ export class EnemyBrain {
     this.anchor = { x: c.x, z: c.z };
     this.aimT = CONFIG.ai.aim;
     this.lostT = 0;
+    // the head stays where it looked (it has him in sight): from there it swings onto him at aimRate and the body comes
+    // round under it at the eased body rate (_turnStep) — SHADOW SIX: no snap of the body onto him
+    const th = e.vision ? headTheta(e, w.time) : 0;
     this._set('CHALLENGE');
-    this._look(0);
-    e.faceTowards(c.x, c.z);
+    e.sweepActive = false;
+    e.headCarry = 0;
+    e.headOffset = wrapAngle(th);
     e.idleAnim = 'aim';
     const wasHeld = c.held;
     c.held = true;
@@ -714,7 +753,7 @@ export class EnemyBrain {
   _challenge(dt) {
     const e = this.enemy, c = this.target;
     if (!c || !c.alive || c.state === 'captured' || c.state === 'jailed') return this._set('RETURN');
-    e.faceTowards(c.x, c.z);
+    // (aimed at him in _turnStep: the cone on him, the body turning to him)
     this.aimT -= dt;
     // before the aim completes, the target may still settle; re-shout (3 s cooldown) when he keeps moving
     if (Math.hypot(c.x - this.anchor.x, c.z - this.anchor.z) > CONFIG.ai.halt.moveTol) {
@@ -747,8 +786,7 @@ export class EnemyBrain {
     const e = this.enemy, c = this.target;
     if (!c || !c.alive || c.state === 'jailed') return this._set('RETURN');
     if (c.state === 'captured') return this._set('RETURN'); // a patrol took him
-    e.faceTowards(c.x, c.z);
-    e.idleAnim = 'aim';
+    e.idleAnim = 'aim'; // (aimed at him in _turnStep)
     if (this._heldViolated(dt)) this._enterCombat(c, { seen: canSee(e, c, this.world) !== 'none' });
   }
   // ------------------------------------------------------------ COMBAT (§4.6) + firing (§4.1, §4.11)
@@ -760,6 +798,7 @@ export class EnemyBrain {
     if (this.state === 'COMBAT' && this.target === t) return;
     const prev = this.target;
     const wasCombat = this.state === 'COMBAT';
+    const wasAiming = this.state === 'CHALLENGE' || this.state === 'HOLD';
     if (this.distractedBy) this.releaseDistraction();
     this.target = t;
     e.target = t;
@@ -770,7 +809,10 @@ export class EnemyBrain {
     this.fireT = 0;
     if (!wasCombat && e.soldierType !== 'mg' && !e.flags.holdsPost) e.stop();
     this._set('COMBAT');
-    this._look(0);
+    // from CHALLENGE / HOLD his head may still lead a body coming round to the aim: the cone stays on the target and
+    // the lead settles as the body turns (head carry); otherwise the head straight, the cone on his body heading
+    if (wasAiming) this._carryLook();
+    else { this._look(0); e.headCarry = 0; }
     if (prev && prev !== t) this._refreshHeld(prev);
     // spotted / the "seen" warning only when he actually sees the commando: a guard who saw a comrade die fights
     // towards the body, not the unseen killer (replay m06: 'spotted sapper' logged from 60 m after the gun blast)
@@ -921,11 +963,120 @@ export class EnemyBrain {
    * artillery gunner with a `giro` is held to it too (m07: a gun cannot swing round at a half-track parked behind it).
    */
   _clampTraverse(h) {
+    const e = this.enemy, half = this._traverseHalf();
+    if (half == null) return h;
+    const d = angleDiff(e.post.heading, h);
+    return Math.abs(d) <= half + 1e-6 ? h : e.post.heading + Math.sign(d) * half;
+  }
+
+  /** Half the traverse (rad) of an MG gunner / gun layer held to his post's `giro` (< 360°), else null. */
+  _traverseHalf() {
     const e = this.enemy;
     const giro = e.spawn?.giro ?? e.post?.giro;
-    if ((e.soldierType !== 'mg' && this.arch.script !== 'gunner') || !giro || giro >= 360 || !e.post) return h;
-    const half = (giro * DEG) / 2, d = angleDiff(e.post.heading, h);
-    return Math.abs(d) <= half + 1e-6 ? h : e.post.heading + Math.sign(d) * half;
+    if ((e.soldierType !== 'mg' && this.arch.script !== 'gunner') || !giro || giro >= 360 || !e.post) return null;
+    return (giro * DEG) / 2;
+  }
+
+  // ------------------------------------------------------------ SHADOW SIX: smooth turn on the spot
+
+  /**
+   * Turn on the spot to bearing `h` (rad) at the eased body rate (CONFIG.ai.turn, run by _turnStep each step), or re-aim
+   * the turn under way (its angular speed carries over, no jerk). Replaces BEL's instant head snap [EXE PASO 90] for
+   * noise / lure / body / glance / distraction turns: the cone turns with the body, so he only sees what it actually
+   * sweeps over. Walking, the path turns him instead (_turnStep drops the turn).
+   * @param {number} h bearing (rad)
+   * @param {{head?: boolean}} [o] head (default): the head sweep stops for the turn and fades back in after it; a head
+   *   turned away comes round with the body (call inside _smoothHead so the cone never jumps)
+   * @returns {boolean} true while a turn is under way (false: he already faces it)
+   */
+  _turnTo(h, { head = true } = {}) {
+    const e = this.enemy;
+    h = wrapAngle(h);
+    if (head) { e.sweepW = 0; this._turnSeq++; } // (already facing it: the head still comes back to centre, on it)
+    if (!this.turn && Math.abs(this._turnLeft(h)) <= TURN_DONE) { e.heading = h; return false; }
+    if (this.turn) { this.turn.h = h; this.turn.head = this.turn.head || head; } else this.turn = { h, w: 0, head };
+    return true;
+  }
+
+  /** The bearing he is turning to, or his heading when not turning. */
+  _turnGoal() {
+    return this.turn ? this.turn.h : this.enemy.heading;
+  }
+
+  /** Signed angle (rad) still to turn to bearing h — a gun held to its traverse goes round through its arc. */
+  _turnLeft(h) {
+    const e = this.enemy;
+    if (this._traverseHalf() != null) return angleDiff(e.post.heading, h) - angleDiff(e.post.heading, e.heading);
+    return angleDiff(e.heading, h);
+  }
+
+  /**
+   * One step of the turn on the spot: an eased trapezoid (accelerate at turn.accel, cruise at bodyTurnDeg, brake onto
+   * the bearing at brake·accel); then the head carry comes round with the body and the sweep fades back in.
+   */
+  _turnStep(dt) {
+    const e = this.enemy, C = CONFIG.ai.turn;
+    // CHALLENGE / HOLD: the turn follows the commando he aims at (§4.5)
+    const aim = (this.state === 'CHALLENGE' || this.state === 'HOLD') && this.target && Math.abs(this.target.x - e.x) + Math.abs(this.target.z - e.z) > 1e-6 ? this.target : null;
+    const ab = aim ? angleTo(e.x, e.z, aim.x, aim.z) : 0;
+    if (aim) {
+      if (this.turn) this.turn.h = ab;
+      else if (Math.abs(this._turnLeft(ab)) > TURN_DONE) this.turn = { h: ab, w: 0, head: false };
+    }
+    const T = this.turn;
+    let moved = 0, left = 0;
+    if (T && (e.path || e.state === 'inVehicle')) this.turn = null; // walking: the path turns him (Unit._followPath)
+    else if (T) {
+      left = this._turnLeft(T.h);
+      const a = C.accel * DEG, vmax = CONFIG.ai.bodyTurnDeg * DEG;
+      const want = Math.sign(left) * Math.min(vmax, Math.sqrt(2 * a * C.brake * Math.abs(left)));
+      T.w += Math.max(-a * dt, Math.min(a * dt, want - T.w));
+      const step = T.w * dt;
+      if (Math.abs(left) <= TURN_DONE || (step * left > 0 && Math.abs(step) >= Math.abs(left))) { // on the bearing
+        moved = left;
+        e.heading = T.h;
+        this.turn = null;
+      } else {
+        moved = step;
+        e.heading = wrapAngle(e.heading + step);
+      }
+    }
+    // a head turned away when the turn began comes round with the body (in proportion to the turn done, so both
+    // arrive together), at most headRate; standing, what is left settles at headRate
+    const c = e.headCarry || 0;
+    if (c) {
+      const H = C.headRate * DEG * dt;
+      const d = Math.min(H, Math.abs(c), moved && Math.abs(left) > 1e-9 ? Math.abs((c * moved) / left) : H);
+      e.headCarry = Math.abs(c) - d <= 1e-9 ? 0 : c - Math.sign(c) * d;
+    }
+    if (!this.turn?.head && e.sweepActive && (e.sweepW ?? 1) < 1) e.sweepW = Math.min(1, e.sweepW + dt / C.sweepIn);
+    // the aim: his head (the cone) swings onto the commando at aimRate and stays on him while the body comes round
+    if (aim) {
+      const want = angleDiff(e.heading, ab), cur = e.headOffset || 0, r = C.aimRate * DEG * dt;
+      e.headOffset = wrapAngle(cur + Math.max(-r, Math.min(r, angleDiff(cur, want))));
+    }
+  }
+
+  /**
+   * Run `fn` (a reaction that may start a smooth turn) with the cone kept continuous: when it starts or re-aims a head
+   * turn (_turnTo), whatever it did to the head (sweep stopped, look-round offset dropped) is carried (headCarry) and
+   * comes round with the body in _turnStep. Re-entrant (a squad member relaying a noise to its leader).
+   */
+  _smoothHead(fn) {
+    const e = this.enemy, w = this.world;
+    if (this._headDepth > 0 || !w || !e.vision) return fn();
+    const t = w.time, seq = this._turnSeq, th = headTheta(e, t);
+    this._headDepth++;
+    try {
+      return fn();
+    } finally {
+      this._headDepth--;
+      // (an aware state sets the head itself: CHALLENGE / HOLD aim it at the commando, COMBAT straightens it)
+      if (this._turnSeq !== seq && !AWARE.has(this.state)) {
+        const c = (e.headCarry || 0) + angleDiff(headTheta(e, t), th);
+        e.headCarry = Math.abs(c) < 1e-9 ? 0 : c;
+      }
+    }
   }
 
   // ------------------------------------------------------------ ARREST + jail (§4.10)
@@ -937,7 +1088,7 @@ export class EnemyBrain {
     this.goal = { jailId };
     this.anchor = { x: c.x, z: c.z };
     this._set('ARREST', 'approach');
-    this._look(0);
+    this._carryLook(); // (the aim's head lead settles as he walks up)
     this._go(c.x, c.z, CONFIG.ai.arrest.escortSpeed);
   }
 
@@ -953,7 +1104,7 @@ export class EnemyBrain {
         return;
       }
       e.stop();
-      e.faceTowards(c.x, c.z);
+      this._turnTo(angleTo(e.x, e.z, c.x, c.z), { head: false }); // faces his prisoner on the spot
       const door = w.ai.jailDoor(this.goal.jailId);
       c.stop?.();
       c.state = 'captured';
@@ -1007,7 +1158,7 @@ export class EnemyBrain {
     this._look(0);
     // a patrol member finding a body raises the alarm immediately (§4.7)
     if (isPatrolMember(e)) { this.goal.shouted = true; this._alarmShout('body', body.x, body.z); }
-    if (e.flags.holdsPost || !e.flags.investigates) { this.phase = 'kneel'; e.faceTowards(body.x, body.z); }
+    if (e.flags.holdsPost || !e.flags.investigates) { this.phase = 'kneel'; this._turnTo(angleTo(e.x, e.z, body.x, body.z)); }
     else this._go(body.x, body.z, CONFIG.ai.investigate.speed);
   }
 
@@ -1015,7 +1166,7 @@ export class EnemyBrain {
     const e = this.enemy, w = this.world, g = this.goal, B = CONFIG.ai.body;
     const b = g.body;
     if (this.phase === 'go') {
-      if (this._dist(b) <= B.arrive + 0.1 || (!e.isMoving && this.pt > 0.2)) { e.stop(); this.phase = 'kneel'; this.pt = 0; e.faceTowards(b.x, b.z); e.playAction('use', B.kneel); }
+      if (this._dist(b) <= B.arrive + 0.1 || (!e.isMoving && this.pt > 0.2)) { e.stop(); this.phase = 'kneel'; this.pt = 0; this._turnTo(angleTo(e.x, e.z, b.x, b.z)); e.playAction('use', B.kneel); }
       return;
     }
     if (this.phase === 'kneel' && this.pt >= B.kneel) {
@@ -1056,6 +1207,14 @@ export class EnemyBrain {
 
   _investigate() {
     const e = this.enemy, I = CONFIG.ai.investigate, g = this.goal;
+    if (this.phase === 'turn') { // turning round to the sound on the spot (running steps): then he walks over
+      if (this.turn) return;
+      this.phase = 'go';
+      this.pt = 0;
+      this._go(g.x, g.z, g.speed);
+      if (g.steps) g.repathT = this.world.time;
+      return;
+    }
     if (this.phase === 'go') {
       if (this._dist(g) <= I.arrive || !e.isMoving || this._nearFire()) {
         e.stop();
@@ -1090,14 +1249,22 @@ export class EnemyBrain {
 
   _startDecoy(n) {
     const e = this.enemy;
-    this._set('DECOY', 'go');
+    this._set('DECOY', 'turn');
     this.goal = { x: n.x, z: n.z, source: n.source ?? null, lastPulse: this.world.time, offT: 0 };
     const slot = this._decoySlot(n);
     if (slot) { this.goal.sx = slot.x; this.goal.sz = slot.z; }
     this._look(0);
-    if (slot) this._go(slot.x, slot.z, CONFIG.ai.investigate.speed);
-    else this._go(n.x, n.z, CONFIG.ai.investigate.speed);
-    e.faceTowards(n.x, n.z);
+    // he turns round to the lure on the spot (SHADOW SIX: not in one tick), then walks to it
+    e.stop();
+    if (!this._turnTo(angleTo(e.x, e.z, n.x, n.z))) this._decoyGo();
+  }
+
+  /** DECOY: set off for the stand-off slot (or the lure itself). */
+  _decoyGo() {
+    const g = this.goal;
+    this.phase = 'go';
+    if (g.sx != null) this._go(g.sx, g.sz, CONFIG.ai.investigate.speed);
+    else this._go(g.x, g.z, CONFIG.ai.investigate.speed);
   }
 
   /**
@@ -1148,12 +1315,14 @@ export class EnemyBrain {
       return;
     }
     const off = (src && (src.on === false || src.active === false || src.removed)) || w.time - g.lastPulse > D.pulse + 0.25;
-    if (this.phase === 'go') {
+    if (this.phase === 'turn') {
+      if (!this.turn) this._decoyGo();
+    } else if (this.phase === 'go') {
       const there = g.sx != null ? Math.hypot(g.sx - e.x, g.sz - e.z) <= 0.3 : this._dist(g) <= D.standOff;
       if (there || !e.isMoving) { e.stop(); this.phase = 'stare'; }
     } else {
-      e.faceTowards(g.x, g.z);
       this._look(0);
+      this._turnTo(angleTo(e.x, e.z, g.x, g.z));
     }
     if (off) {
       g.offT += dt;
@@ -1283,8 +1452,8 @@ export class EnemyBrain {
   _distracted() {
     const e = this.enemy, s = this.distractedBy;
     if (!s || !s.alive || s.disguised === false) { this.releaseDistraction(); return; }
-    e.faceTowards(s.x, s.z);
     this._look(0);
+    if (Math.abs(s.x - e.x) + Math.abs(s.z - e.z) > 1e-6) this._turnTo(angleTo(e.x, e.z, s.x, s.z));
   }
 
   // ------------------------------------------------------------ IDLE: post / route / squad (§4.1, §4.6)
@@ -1305,7 +1474,8 @@ export class EnemyBrain {
     const p = e.post || this._home;
     if (p && Math.hypot(p.x - e.x, p.z - e.z) > 0.6) return this._set('RETURN');
     if (this.noiseTurnT > 0) { this._sweep(true); return; } // sweep re-centred on the noise heading
-    if (e.post) e.turnToHeading(e.post.heading, dt);
+    // back to his post heading on the spot at the eased body rate, sweeping as he turns
+    if (e.post && !this.turn && Math.abs(this._turnLeft(e.post.heading)) > TURN_DONE) this._turnTo(e.post.heading, { head: false });
     this._sweep(true);
   }
 
@@ -1398,14 +1568,24 @@ export class EnemyBrain {
         return true;
       }
     }
-    if (p) { e.faceTowards(p.x, p.z); this._look(0); }
+    if (p) { this._look(0); this._turnTo(angleTo(e.x, e.z, p.x, p.z)); } // turns round to him on the spot (SHADOW SIX)
     if (this.glanceT <= -G.dur) { this.glanceT = G.every; this._applyHead(); }
     return true;
   }
-  _startInvestigate(x, z, speed = CONFIG.ai.investigate.speed) {
-    this._set('INVESTIGATE', 'go');
+  /**
+   * INVESTIGATE (x, z) at `speed`. turnFirst (running steps): he stops, turns round to it on the spot, then walks over
+   * (phase 'turn' → 'go').
+   */
+  _startInvestigate(x, z, speed = CONFIG.ai.investigate.speed, { turnFirst = false } = {}) {
+    const e = this.enemy;
+    this._set('INVESTIGATE', turnFirst ? 'turn' : 'go');
     this.goal = { x, z, speed };
     this._look(0);
+    if (turnFirst) {
+      e.stop();
+      if (this._turnTo(angleTo(e.x, e.z, x, z))) return;
+      this.phase = 'go';
+    }
     this._go(x, z, speed);
   }
 
@@ -1595,7 +1775,7 @@ export class EnemyBrain {
   _follow(dt, lead) {
     const e = this.enemy, lb = lead.brain;
     // a frozen squad faces its (distracted) leader (§4.6)
-    if (lb?.state === 'DISTRACTED') { e.stop(); this._fv = 0; e.faceTowards(lead.x, lead.z); this._look(0); return; }
+    if (lb?.state === 'DISTRACTED') { e.stop(); this._fv = 0; this._look(0); this._turnTo(angleTo(e.x, e.z, lead.x, lead.z)); return; }
     if (lb?.squadTrail !== false) lb?._recordTrail?.();
     // making way for the leader walking by: a sidestep once begun is walked to its end (an aborted one is a shuffle)
     let way = this._makeWay(lead);
@@ -1678,7 +1858,7 @@ export class EnemyBrain {
     this._repathT -= dt;
     const d = Math.hypot(bx - e.x, bz - e.z);
     if (d > 0.6 && this._repathT <= 0) { this._repathT = 0.3; e.vel = (h.vel || this.routeVel) * (d > 3 ? 2 : 1.2); e.moveTo(bx, bz); }
-    if (!e.isMoving) e.turnToHeading(h.heading, dt);
+    if (!e.isMoving && !this.turn) e.turnToHeading(h.heading, dt);
     this._sweep(true);
   }
 
@@ -1833,6 +2013,7 @@ export class EnemyBrain {
       // squad follower pace (speed, start delay, the doorway / corner point he holds to)
       ...(this._fv || this._goT || this._wayPt ? { follow: [this._fv ?? 0, this._goT ?? 0, this._wayPt ? { ...this._wayPt } : null] } : null),
       stepSusp: this.stepSusp, stepT: this.stepT, stepBarkT: this._stepBarkT, // runningNoise suspicion memory
+      turn: this.turn ? { ...this.turn } : null, // a turn on the spot under way (bearing, angular speed, head held)
     };
   }
 
@@ -1869,6 +2050,7 @@ export class EnemyBrain {
     if (d.shockT != null) this._shockT = d.shockT;
     if (d.stepSusp != null) { this.stepSusp = d.stepSusp; this.stepT = d.stepT ?? null; this._stepBarkT = d.stepBarkT ?? null; }
     if (d.combatReady !== undefined) this.combatReady = !!d.combatReady;
+    this.turn = d.turn ? { ...d.turn } : null;
     this.burstLeft = 0;
   }
 }
