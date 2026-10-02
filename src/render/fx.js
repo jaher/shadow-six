@@ -121,6 +121,11 @@ export class FX {
     const t = g.terrainAt(x, z); if (t !== T.WATER && t !== T.SHALLOW) return false;
     const c = g.worldToCell(x, z); return !g.bridge?.[g.idx(c.i, c.j)];
   }
+  /** Deck height at (x, z) when the map was built (0 = no deck there). */
+  _deckAt(x, z) {
+    const g = this.world.grid; if (!this._deck0 || !g?.worldToCell) return 0;
+    const c = g.worldToCell(x, z); return g.inBounds?.(c.i, c.j) ? this._deck0[g.idx(c.i, c.j)] : 0;
+  }
   /** Wading-depth water when the map was built (the M3 toe ledge is flooded by the very blast that breaks the dam). */
   _wadeable(x, z) {
     const g = this.world.grid; if (!g?.terrainAt) return false;
@@ -187,7 +192,8 @@ export class FX {
     if (kind === 'vehicle' || (kind === 'barrel' && !(e.source && e.source.interactKind === 'barrel'))) {
       if (this._suppress.some((s) => now - s.t < 0.25 && Math.hypot(s.x - x, s.z - z) < 2)) return;
     }
-    if (this._wet(x, z)) { // water column (drawn by the water system when it exists)
+    const deckY = kind === 'bomb' ? this._deckAt(x, z) : 0;
+    if (!deckY && this._wet(x, z)) { // water column (drawn by the water system when it exists)
       if (!this.world.water) this.spawn('water_splash', x, z, { scale: clamp(r / 5, 0.5, 1.6) });
       // in open water that is all; a charge on a wading-depth ledge or bank (M3's dam toe) goes up in fire and
       // smoke above the spray like on dry ground
@@ -203,7 +209,7 @@ export class FX {
     }
     if (kind === 'grenade') return void this.spawn('grenade', x, z);
     if (kind === 'shell') return void this.spawn('explosion_small', x, z, { scale: clamp(r / 5, 0.8, 1.4) });
-    if (kind === 'bomb') return void this.spawn('explosion_large', x, z, { scale: clamp(r / 9, 0.7, 1.3) });
+    if (kind === 'bomb') return void this.spawn('explosion_large', x, z, { scale: clamp(r / 9, 0.7, 1.3), ...(deckY > 0.3 ? { y: deckY } : {}) });
     if (kind === 'structure') return void this._structureBlast(x, z, r, src);
     if (kind === 'vehicle') return void this.spawn('explosion_small', x, z, { scale: 1.2 });
     // unknown class: by radius
@@ -368,6 +374,9 @@ export class FX {
     const w = this.world;
     this._scanned = true;
     if (w.grid?.terrain) this._wade0 = w.grid.terrain.map((t) => (t === T.SHALLOW ? 1 : 0));
+    // walkable decks when the map was built (their height): a charge on a deck the blast itself brings down (the M3
+    // crest) still goes up in fire at the deck, not as a water column in the river under it
+    if (w.grid?.bridge) this._deck0 = Float32Array.from(w.grid.bridge, (b, k) => (b ? Math.max(0.01, w.grid.elev[k]) : 0));
     this._scanBarrels();
     const houses = [];
     for (const [id, s] of w.structures || []) if (s?.object3d && !s.entity) houses.push([id, s]);

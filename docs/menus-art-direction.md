@@ -1494,7 +1494,11 @@ The amendments below **override** the sections they cite. Where one conflicts wi
 - The box art's power is **one man, facing the viewer, dead centre**. Putting five silhouettes behind him dilutes it into a generic ensemble poster.
 - **Amendment:**
   - one hero, frontal, with his eyes to camera;
-  - the pistol raised in a **ready position across the body**. That keeps the "direct address" without copying the aim-at-viewer composition;
+  - the pistol raised in a **ready position, muzzle up beside his head** (high ready, on his right, clear of the face
+    and the wordmark), held in a real firing grip: web high on the grip safety, three fingers round the front strap,
+    trigger finger straight along the frame. That keeps the "direct address" without copying the aim-at-viewer
+    composition. (Was "across the body"; changed by the user's choice, 2026-10-02, when the hero's crude pistol was
+    replaced by the M1911A1 from `tools/ui/keyart/colt1911.py`.);
   - the burning emplacement stays behind him;
   - the other five appear in S02 and S21, not here.
 

@@ -264,9 +264,10 @@ export function treePlacement(def, theater = 'temperate', k = 0) {
     species, x: def.x, z: def.z, seed, scale, burnt: !!def.burnt, hero: true, riverside: def.type === 'tree' && !def.species && (!def.variant || def.variant === 'broadleaf'),
     leafless: def.variant === 'bare_winter' ? true : undefined,
     crownBase: def.crownBase, crownR: def.crownR, // placement pruning hints (world/placement.js)
-    // walk-under clearance (placement rule e): below head height no branch reaches past the trunk's nav footprint
-    // and, when the crown was lifted over an obstacle (placement pruneTree), above its top (crownFloor)
-    clear: def.type === 'bush' ? undefined : [{ y: 1.95, r: treeClearR(def) }, ...(def.crownFloor ? [{ y: def.crownFloor, r: treeClearR(def) }] : [])],
+    // walk-under clearance (placement rule e): below head height no limb's WOOD reaches past the trunk's nav footprint
+    // (`wood`: the needles stay, walkers brush through them as through a bush) and, when the crown was lifted over an
+    // obstacle (placement pruneTree), no part of a limb sags below its top (crownFloor) — conifers.js limbClearance
+    clear: def.type === 'bush' ? undefined : [{ y: 1.95, r: treeClearR(def), wood: true }, ...(def.crownFloor ? [{ y: def.crownFloor, r: treeClearR(def) }] : [])],
   };
 }
 

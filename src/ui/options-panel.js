@@ -37,6 +37,7 @@ export const OPTION_ROWS = [
   ['narration', 'NARRATION', 'bool'],
   ['volNarration', 'NARRATION VOLUME', 'vol'],
   ['nature', 'NATURE SOUNDS', 'bool'],
+  ['volAmbience', 'AMBIENCE', 'vol'],
   ['subtitles', 'SUBTITLES', 'bool'],
   ['subSize', 'SUBTITLE SIZE', ['S', 'M', 'L']],
   ['subBand', 'SUBTITLE BACKGROUND', 'pct'],
@@ -89,7 +90,7 @@ export const OPTION_ROWS = [
 export const OPTION_HELP = {
   volMaster: 'Every sound in the game.', volMusic: 'Orchestral score and stingers.',
   missionMusic: 'SUSPENSE: a quiet orchestral score under every mission that rises when the alarm sounds. CLASSIC 1998: no music during missions, only the start and end stingers.', volSfx: 'Weapons, engines, footsteps and alarms.',
-  volVoice: 'Your men and the enemy.', narration: 'A 1940s newsreel announcer reads the briefing before each mission; the words appear as he reads them. N switches it in the briefing.', volNarration: 'The briefing announcer.', nature: 'Wind, surf, birds and crickets under the action.', subtitles: 'Show what is said, with the speaker\'s name.',
+  volVoice: 'Your men and the enemy.', narration: 'A 1940s newsreel announcer reads the briefing before each mission; the words appear as he reads them. N switches it in the briefing.', volNarration: 'The briefing announcer.', nature: 'Wind, surf, birds and crickets under the action.', volAmbience: 'Volume of the wind, water, birds and distant guns.', subtitles: 'Show what is said, with the speaker\'s name.',
   subSize: 'Size of the subtitle text.', subBand: 'Darkness of the band behind subtitles.',
   preset: 'Shadows, water, grass and post-processing. Lower it on older hardware.', resScale: 'Render at a fraction of the screen resolution for speed.',
   uiScale: 'Size of the in-mission interface. AUTO follows the window height.', menuBg: 'LIVE shows the moving diorama behind the menus; STILL a painted frame.',
@@ -133,7 +134,8 @@ function optionRow(hud, key, label, kind) {
   const def = OPTION_DEFAULTS[key];
   const base = { id: key, label, sub: OPTION_HELP[key], def, help: OPTION_HELP[key] };
   if (kind === 'vol' || kind === 'pct') {
-    const sample = { volSfx: () => hud.game.audio?.playSfx?.('pistol_shot'), volVoice: () => hud.game.audio?.playSfx?.('dog_bark'), volMusic: () => hud.sound.play('bell'), volMaster: () => hud.sound.play('select') }[key];
+    const sample = { volSfx: () => hud.game.audio?.playSfx?.('pistol_shot'), volVoice: () => hud.game.audio?.playSfx?.('dog_bark'), volMusic: () => hud.sound.play('bell'), volMaster: () => hud.sound.play('select'),
+      volAmbience: () => hud.game.audio?.playSfx?.('wind_gust', null, { gain: 5, dedupe: 0.5 }) }[key]; // a gust, raised to footstep level
     return { ...base, kind: 'slider', min: 0, max: key === 'subBand' ? 0.8 : 1, get: () => o[key], set: (v) => hud.setOption(key, v, { quiet: true }), sample, format: PCT };
   }
   const choices = kind === 'bool' ? ON : kind;

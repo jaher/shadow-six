@@ -2509,75 +2509,6 @@
    "bytes": 217540
   },
   {
-   "id": "wind_desert/wind_desert_402710_0",
-   "category": "wind_desert",
-   "mode": "bed",
-   "files": [
-    "wind_desert/wind_desert_402710_0.ogg",
-    "wind_desert/wind_desert_402710_0.mp3"
-   ],
-   "loop": true,
-   "duration": 30.0,
-   "source": {
-    "site": "freesound.org",
-    "id": 402710,
-    "title": "Desert wind stereo",
-    "author": "KasDonatov",
-    "url": "https://freesound.org/people/KasDonatov/sounds/402710/",
-    "license": "CC0-1.0",
-    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-    "fetched": "https://cdn.freesound.org/previews/402/402710_7791228-hq.mp3",
-    "note": "HQ preview (no-login CDN) of CC0 sound"
-   },
-   "bytes": 836987
-  },
-  {
-   "id": "wind_snow/wind_snow_185070_0",
-   "category": "wind_snow",
-   "mode": "bed",
-   "files": [
-    "wind_snow/wind_snow_185070_0.ogg",
-    "wind_snow/wind_snow_185070_0.mp3"
-   ],
-   "loop": true,
-   "duration": 30.0,
-   "source": {
-    "site": "freesound.org",
-    "id": 185070,
-    "title": "howling_wind.wav",
-    "author": "juryduty",
-    "url": "https://freesound.org/people/juryduty/sounds/185070/",
-    "license": "CC0-1.0",
-    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-    "fetched": "https://cdn.freesound.org/previews/185/185070_3279921-hq.mp3",
-    "note": "HQ preview (no-login CDN) of CC0 sound"
-   },
-   "bytes": 756304
-  },
-  {
-   "id": "wind_snow/wind_snow_608269_0",
-   "category": "wind_snow",
-   "mode": "bed",
-   "files": [
-    "wind_snow/wind_snow_608269_0.ogg",
-    "wind_snow/wind_snow_608269_0.mp3"
-   ],
-   "loop": true,
-   "duration": 30.0,
-   "source": {
-    "site": "freesound.org",
-    "id": 608269,
-    "title": "Cold Wind Winter Animals Snow Birds Water Atmo Ambiance Atmosphere Mastered.wav",
-    "author": "szegvari",
-    "url": "https://freesound.org/people/szegvari/sounds/608269/",
-    "license": "CC0-1.0",
-    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-    "fetched": "https://cdn.freesound.org/previews/608/608269_2282212-hq.mp3",
-    "note": "HQ preview (no-login CDN) of CC0 sound"
-   },
-   "bytes": 800332
-  },
-  {
    "id": "k_step_concrete/footstep_concrete_000",
    "category": "k_step_concrete",
    "mode": "shot",
@@ -5657,6 +5588,66 @@
     "note": "HQ preview (no-login CDN) of CC0 sound; take cut + loudness-normalised by tools/audio/gate_smash_sfx.py"
    },
    "bytes": 8443
+  },
+  {
+   "id": "wind_air/wind_air_proc_0",
+   "category": "wind_air",
+   "mode": "bed",
+   "loop": true,
+   "duration": 40.0,
+   "lufs": -24.0,
+   "files": [
+    "wind_air/wind_air_proc_0.ogg",
+    "wind_air/wind_air_proc_0.mp3"
+   ],
+   "source": {
+    "site": "project",
+    "title": "procedural soft breeze: broadband air, slow natural drift, no howl",
+    "author": "SHADOW SIX contributors (tools/audio/procedural_beds.py)",
+    "license": "CC0-1.0",
+    "url": "tools/audio/procedural_beds.py"
+   },
+   "bytes": 1073863
+  },
+  {
+   "id": "wind_cold/wind_cold_proc_0",
+   "category": "wind_cold",
+   "mode": "bed",
+   "loop": true,
+   "duration": 40.0,
+   "lufs": -24.0,
+   "files": [
+    "wind_cold/wind_cold_proc_0.ogg",
+    "wind_cold/wind_cold_proc_0.mp3"
+   ],
+   "source": {
+    "site": "project",
+    "title": "procedural cold wind: broadband air with faint spindrift hiss, no howl",
+    "author": "SHADOW SIX contributors (tools/audio/procedural_beds.py)",
+    "license": "CC0-1.0",
+    "url": "tools/audio/procedural_beds.py"
+   },
+   "bytes": 1066926
+  },
+  {
+   "id": "wind_sand/wind_sand_proc_0",
+   "category": "wind_sand",
+   "mode": "bed",
+   "loop": true,
+   "duration": 40.0,
+   "lufs": -24.0,
+   "files": [
+    "wind_sand/wind_sand_proc_0.ogg",
+    "wind_sand/wind_sand_proc_0.mp3"
+   ],
+   "source": {
+    "site": "project",
+    "title": "procedural desert air: steady low wind with a light sand hiss, no whistle",
+    "author": "SHADOW SIX contributors (tools/audio/procedural_beds.py)",
+    "license": "CC0-1.0",
+    "url": "tools/audio/procedural_beds.py"
+   },
+   "bytes": 1067981
   }
  ]
 }

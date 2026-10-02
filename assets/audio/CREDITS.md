@@ -55,7 +55,7 @@ Freesound files are the HQ previews, trimmed / split / loudness-normalised and r
 | rifle_lee_enfield | 1 | gun lee enfield 303 rifle fire shot loud badass crispy.wav | kyles | https://freesound.org/people/kyles/sounds/450852/ | CC0-1.0 |
 | rifle_m1 | 1 | Rifle Shot (M1 Garand) | Rijam | https://freesound.org/people/Rijam/sounds/385785/ | CC0-1.0 |
 | rifle_m1 | 1 | M1 Garand Rifle | nioczkus | https://freesound.org/people/nioczkus/sounds/386842/ | CC0-1.0 |
-| river, surf | 2 | procedural shoreline: swells, crash and receding wash, small laps on rocks | SHADOW SIX contributors (tools/audio/procedural_beds.py) | tools/audio/procedural_beds.py | CC0-1.0 |
+| river, surf, wind_air, wind_cold, wind_sand | 5 | procedural ambience beds: cold wind: broadband air with faint spindrift hiss, no howl; desert air: steady low wind with a light sand hiss, no whistle; fast shallow river: broadband rush plus bubble chirps; shoreline: swells, crash and receding wash, small laps on rocks; soft breeze: broadband air, slow natural drift, no howl | SHADOW SIX contributors (tools/audio/procedural_beds.py) | tools/audio/procedural_beds.py | CC0-1.0 |
 | siren_airraid | 1 | Air Raid Siren Alarm | Poligonstudio | https://freesound.org/people/Poligonstudio/sounds/412171/ | CC0-1.0 |
 | siren_airraid | 1 | Long Air Raid Siren.wav | JalynCatbtg | https://freesound.org/people/JalynCatbtg/sounds/607382/ | CC0-1.0 |
 | siren_handcrank | 1 | Hand cranked siren.wav | mikewest | https://freesound.org/people/mikewest/sounds/239498/ | CC0-1.0 |
@@ -72,9 +72,6 @@ Freesound files are the HQ previews, trimmed / split / loudness-normalised and r
 | tank_engine | 1 | S27-01 Military Tank or bulldozer; short.wav (1930s-40s Hollywood nitrate FX library donated to USC, released CC0) | craigsmith | https://freesound.org/people/craigsmith/sounds/675212/ | CC0-1.0 |
 | truck_engine | 1 | truck large diesel or military tank APC armored personnel carrier accelerate big rev and pull away then other distant engine rev and another one close pass by Saravena, Colombia 2016.flac | kyles | https://freesound.org/people/kyles/sounds/405086/ | CC0-1.0 |
 | truck_engine | 1 | truck engine semi trailer idle deep close.flac | kyles | https://freesound.org/people/kyles/sounds/637916/ | CC0-1.0 |
-| wind_desert | 1 | Desert wind stereo | KasDonatov | https://freesound.org/people/KasDonatov/sounds/402710/ | CC0-1.0 |
-| wind_snow | 1 | howling_wind.wav | juryduty | https://freesound.org/people/juryduty/sounds/185070/ | CC0-1.0 |
-| wind_snow | 1 | Cold Wind Winter Animals Snow Birds Water Atmo Ambiance Atmosphere Mastered.wav | szegvari | https://freesound.org/people/szegvari/sounds/608269/ | CC0-1.0 |
 
 ## Voices
 

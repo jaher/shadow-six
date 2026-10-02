@@ -129,6 +129,12 @@ export class NavGrid {
     this.navBlock = new Uint8Array(n);
     this._navStamps = new Map();
     /**
+     * Mission `noWalk` areas (map-builder stampNoWalk; M3: the foot of the dam's face): 1 = nobody may be there, not
+     * even a body coming to rest (it is moved out, physics/feedback.js). Their cells are navBlock stamps too. null = none.
+     * @type {Uint8Array|null}
+     */
+    this.noWalk = null;
+    /**
      * Overhead visuals (placement rules d/e): per open cell the lowest / highest point of structure visuals above
      * body height (eaves, porch roofs, a tower's cabin). Walkers pass under; vehicles taller than `overLo` and gun
      * barrels at its height do not. Allocated on the first overStamp (null = nothing overhead anywhere).

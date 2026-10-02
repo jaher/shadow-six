@@ -195,6 +195,12 @@ Meadow triangles at ultra fell from 9.8–11M to 4.5M, and frame time from 5.12 
     Spray length scales with tree height (`H/10`, at least 0.38), so a small tree gets more, smaller sprays and not
     a few tree-sized cards. Curtains only grow on trees over 6 m. Each is cut into narrow two-row strips (about
     0.55 m) with gaps and their own drop, hanging under the limb, because one wide comb read as a flat dark plane.
+  - **Clearance floors (`limbClearance`).** Mission trees carry placement floors (`clear`). The walk-under floor
+    (1.95 m beyond the trunk's 0.35 m nav reach, clip-2 rule e) binds only the limb **wood**; the needle sprays stay
+    where they grew, so a spruce keeps its lowest, widest, snow-laden tiers. An obstacle floor (`crownFloor`) lifts a
+    sagging limb onto it with its sprays and drops a limb born under it. Removed parts are generated into a sink, so
+    the rest of the tree (and its lean and yaw) is the same tree as without the floors. Every spray of a limb is drawn,
+    the outer one too (it runs past the tip and carries the snow; the clip-2 cut dropped it from every limb).
   - **Pines.** Scots (rounded, layered pads), stone/umbrella (forked bole, limbs climbing to a flat canopy) and
     Aleppo (open, irregular). Limbs fork into twigs that end in pads of tufts under a rosette cap. The tufts
     radiate out of the pad with their faces turned to the sky, so a pad reads as a pom-pom of needles. Normals

@@ -422,11 +422,15 @@ export class Unit extends Entity {
    * Kill this unit. The body stays in the world (alive = false, state 'dead').
    * @param {string} [cause]
    * @param {any} [killer]
+   * @param {{fall?: number, prone?: boolean}} [o] how he goes down when the killer decides it (abilities/knife.js
+   *   contact kill): fall 1 forward / -1 backward; prone: he ends on his face (a crawler's corpse: dead_prone clip,
+   *   prone settle ragdoll, prone body shape)
    */
-  die(cause = 'damage', killer = null) {
+  die(cause = 'damage', killer = null, o = null) {
     if (!this.alive) return;
     // the death clip falls forward from a run (die_run), backward from a stand / walk (placement rule e)
-    const fall = /^(run|sprint|walk_fast)/.test(this._anim || '') ? 1 : /^(crawl|prone|swim)/.test(this._anim || '') ? 0 : -1;
+    const fall = o?.fall ?? (/^(run|sprint|walk_fast)/.test(this._anim || '') ? 1 : /^(crawl|prone|swim)/.test(this._anim || '') ? 0 : -1);
+    if (o?.prone && this.stance === 'stand') this.stance = 'crawl'; // pitched onto his face: he lies like a crawler
     this.alive = false;
     this.hp = 0;
     this.state = 'dead';

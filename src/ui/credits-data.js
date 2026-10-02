@@ -215,7 +215,7 @@ export const CREDITS_SECTIONS = [
     "CC0"
    ],
    [
-    "assets/terrain/foliage.webp, foliage_n.webp (leaf / twig spray atlas; broadleaf, shrub, ivy, gorse, acacia and palm-leaflet sprays procedural, tools/render/build_leaves.py; conifer and palm-frond tiles composed)",
+    "assets/terrain/foliage.webp, foliage_n.webp (leaf / twig spray atlas: broadleaf, shrub, ivy, gorse, acacia and palm-leaflet sprays procedural, tools/render/build_leaves.py; conifer and palm-frond tiles composed)",
     "own work (procedural sprays); ambientCG (LeafSet004/010/013/022/024/030, PineNeedles001) for the conifer / palm tiles",
     "project contributors; ambientCG",
     "CC0"
@@ -294,7 +294,7 @@ export const CREDITS_SECTIONS = [
    ],
    [
     "assets/ui/keyart/hero.webp (S03 title-splash hero), assets/ui/keyart/tiny-portrait.webp (S20 debrief figure, Help dossier print)",
-    "offline Cycles renders of the project's Green Beret character model (MakeHuman / MPFB base mesh and skin, CC0; outfit textures from ambientCG, CC0), posed, lit and graded by tools/ui/keyart/render.py + grade.py",
+    "offline Cycles renders of the project's Green Beret character model (MakeHuman / MPFB base mesh and skin, CC0; outfit textures from ambientCG, CC0), posed, lit and graded by tools/ui/keyart/render.py + grade.py; the hero's Colt M1911A1 modelled procedurally by tools/ui/keyart/colt1911.py",
     "SHADOW SIX contributors",
     "ours (CC0 inputs)"
    ],
@@ -1001,8 +1001,10 @@ export const CREDITS_SECTIONS = [
   ],
   "text": [
    "### Buildings & bridges",
-   "193 buildings and bridges (assets/models/buildings/<theater>/, assets/models/bridges/, 3 LODs each) are procedural",
-   "geometry scripted in Blender with the SHADOW SIX kit (tools/blender/; own work, CC0). They share one texture library",
+   "204 buildings and bridges (assets/models/buildings/<theater>/, assets/models/bridges/, 3 LODs each) are procedural",
+   "geometry scripted in Blender with the SHADOW SIX kit (tools/blender/; own work, CC0). The M20 castle masonry, field",
+   "guns and range props are procedural three.js geometry (src/art/castle-kit.js, src/art/field-guns.js; own work, CC0)",
+   "textured from the same library. They share one texture library",
    "(assets/textures/lib/1k default, 2k albedo for the ultra preset; metadata assets/textures/lib/materials.json).",
    "Every source is listed below; per-asset lists are in each <asset>.credits.json. Baked AO maps, decal/sign atlases",
    "and all lettering are own work. The review HDRI (Poly Haven kloofendal_43d_clear_puresky, CC0) is not shipped.",
@@ -1076,7 +1078,7 @@ export const CREDITS_SECTIONS = [
     "CC0"
    ],
    [
-    "assets/audio/sfx/{surf,river} (ambience beds, procedural) and bomb_tick1 (single ticks cut from Freesound 487730)",
+    "assets/audio/sfx/{surf,river,wind_air,wind_cold,wind_sand} (ambience beds, procedural) and bomb_tick1 (single ticks cut from Freesound 487730)",
     "this project (tools/audio/procedural_beds.py)",
     "project contributors",
     "CC0"

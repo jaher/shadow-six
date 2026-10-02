@@ -34,6 +34,54 @@ export function clearBranch(bp, clear) {
 }
 
 /**
+ * Clearance by lifting: a limb that breaks a floor (clearBranch) keeps its length, foliage and snow; every point after
+ * the break that lies farther than `r` from the trunk axis is raised to the floor + `margin` (the wood hangs under
+ * the spray line and has a radius: `margin` keeps the bark itself above the floor).
+ * @param {{x:number, y:number, z:number}[]} bp branch polyline (tree-local) @param {object|object[]} clear {y, r} floors
+ * @param {number} [margin]
+ * @returns {{pts: object[], sN: number, lifted: boolean}} pts the polyline to build on (bp itself when untouched);
+ *   sN = clearBranch(bp, clear): 0 = the limb is born under a floor beyond the trunk's reach (dropped)
+ */
+export function liftBranch(bp, clear, margin = 0) {
+  const sN = clearBranch(bp, clear), last = bp.length - 1;
+  if (sN === 0 || sN === last) return { pts: bp, sN, lifted: false };
+  const list = Array.isArray(clear) ? clear : [clear];
+  const pts = bp.map((p, i) => {
+    if (i <= sN) return p;
+    const rho = Math.hypot(p.x, p.z);
+    let y = p.y;
+    for (const c of list) if (rho > c.r && y < c.y + margin) y = c.y + margin;
+    return y === p.y ? p : p.clone ? p.clone().setY(y) : { ...p, y };
+  });
+  return { pts, sN, lifted: true };
+}
+
+/**
+ * Clearance plan of one conifer limb (tree-local polyline) under the placement floors `clear` ({y, r[, wood]} or a list):
+ *  - hard floors (placement pruneTree's `crownFloor` over a wall, rock, boat or vehicle lane): no part of the limb
+ *    goes under; a limb sagging below is lifted onto the floor + `margin` with all its foliage (liftBranch), a limb born
+ *    below it is dropped;
+ *  - `wood` floors (walk-under, rule e: below head height beyond the trunk's footprint): only the WOOD keeps above it —
+ *    the bark ends at the limb's last point before the break (clearBranch) — while the needles stay where they grew:
+ *    walkers brush through needles as through a bush (clip-rules NATURAL character|foliage). Cutting the needles there
+ *    too stripped every spruce of its lowest, widest, snow-laden tiers.
+ * @returns {{pts: object[], drop: boolean, lifted: boolean, woodN: number}} pts: the polyline for needles and wood;
+ *   drop: nothing of the limb is drawn; lifted: raised onto a hard floor; woodN: wood segments kept along pts
+ */
+export function limbClearance(bp, clear, margin = 0) {
+  const list = !clear ? [] : Array.isArray(clear) ? clear : [clear];
+  const hard = list.filter((c) => !c.wood);
+  const { pts, sN, lifted } = liftBranch(bp, hard.length ? hard : null, margin);
+  return { pts, drop: sN === 0, lifted, woodN: sN === 0 ? 0 : clearBranch(pts, list.length ? list : null) };
+}
+
+/**
+ * Accumulator that keeps nothing. Limb parts the clearance removes are still generated into it, so the tree's random
+ * stream (and with it every other limb, the lean and the yaw) is the same tree as without clearance.
+ */
+const SINK = { count: 0, p: [], n: [], vert: () => 0, tri: () => {} };
+
+/**
  * @param {object} env {THREE, V, UP, tube, BARK_LAYERS}
  * @returns {{genSpruce:Function, genPine:Function, along:Function, trunk:Function, spray:Function, card:Function, shade:Function}}
  */
@@ -151,15 +199,15 @@ export function makeConifers(env) {
         d.x += (r() - 0.5) * 0.12; d.z += (r() - 0.5) * 0.12; d.normalize();
         p.addScaledVector(d, len / s3); bp.push(p.clone());
       }
-      // walk-under clearance (placement hint `clear`): below head height a limb ends at the trunk's footprint
-      // instead of reaching over the ground walkers use; its sprays and curtains past the cut are not drawn
-      const sN = clearBranch(bp, sp.clear), cutF = sN / s3;
-      if (sN === 0) return;
       const rb = Math.max(0.012, T.radAt(c0.y) * (small ? 0.18 : 0.3));
+      // clearance (placement hint `clear`, limbClearance): below head height the limb's wood ends at the trunk's
+      // footprint while its sprays stay; over an obstacle's floor the whole limb is lifted (margin: the bark hangs
+      // rb·1.6 + 0.02 under the spray line with radius ≤ rb) or, born under it, dropped
+      const L = limbClearance(bp, sp.clear, rb * 2.6 + 0.05), path = L.pts, ndk = L.drop ? SINK : nd;
       const flexAt = (pp) => 0.2 + 0.8 * clamp(Math.hypot(pp.x - c0.x, pp.z - c0.z) / Math.max(0.5, len), 0, 1);
       // the limb ends under its outer spray (a bare snow-capped stick past the needles read as a white line)
       // and hangs just below the spray's centre line, so the sprays (not a snow-capped stick) carry the snow
-      const bt = (small || q.seg < 0.6 ? [0, 1, 2] : [0, 2, 3]).filter((i) => i <= sN).map((i) => bp[i]).map((x, i) => (i ? x.clone().add(V(0, -rb * 1.6 - 0.02, 0)) : x));
+      const bt = (small || q.seg < 0.6 ? [0, 1, 2] : [0, 2, 3]).filter((i) => i <= L.woodN).map((i) => path[i]).map((x, i) => (i ? x.clone().add(V(0, -rb * 1.6 - 0.02, 0)) : x));
       if (bt.length >= 2) tube(bark, bt, bt.map((_, i) => Math.max(0.008, rb * (1 - i / (s3 + 1)))), 3, BARK_LAYERS.indexOf(sp.bark), (pp) => [sway(pp.y), flexAt(pp) * 0.6, phB], tint, 1);
       if (!foliage) return;
       const info = (layer) => (pp) => [layer, sway(pp.y), flexAt(pp), phB];
@@ -172,13 +220,14 @@ export function makeConifers(env) {
         const layer = tt > 0.86 ? NL('spruce_top') : NL('spruce_0') + (r() < 0.5 ? 0 : 1);
         const sh = (0.86 + 0.24 * r()) * (outer ? 1.06 : 0.9 + 0.06 * k);
         const tn = shade(leafTint, sh, !outer && r() < 0.18 ? 0.5 + 0.5 * r() : 0);
-        const roll = (r() - 0.5) * 0.5;
-        if (f1 > cutF + 1e-6) continue;
-        spray(nd, bp, f0, f1, W, W * (0.1 + 0.14 * (1 - tt)), roll, layer, info(layer), tn, extAt(tt, 1));
-        crown.push(along(bp, (f0 + f1) / 2).p);
+        // every spray, the outer one too: it runs past the tip (f1 up to 1.12) and carries the snow load
+        spray(ndk, path, f0, f1, W, W * (0.1 + 0.14 * (1 - tt)), (r() - 0.5) * 0.5, layer, info(layer), tn, extAt(tt, 1));
+        if (!L.drop) crown.push(along(path, (f0 + f1) / 2).p);
       }
-      // hanging comb curtains under the longer limbs (both sides), darker and unexposed
-      if (sN === s3 && !small && len > 0.9 && H > 6 && q.cards >= 0.6 && r() < (sp.curtain ?? 0) * Math.min(1, q.cards)) {
+      // hanging comb curtains under the longer limbs (both sides), darker and unexposed; none under a limb lifted
+      // over an obstacle (they would hang onto it)
+      if (!small && len > 0.9 && H > 6 && q.cards >= 0.6 && r() < (sp.curtain ?? 0) * Math.min(1, q.cards)) {
+        const ck = L.lifted ? SINK : ndk;
         for (const side of [-1, 1]) {
           if (r() < 0.25) continue;
           const f0 = 0.25 + 0.15 * r(), f1 = Math.min(1.05, f0 + 0.45 + 0.35 * r());
@@ -187,7 +236,7 @@ export function makeConifers(env) {
           const nst = Math.max(1, Math.round(((f1 - f0) * len) / 0.55));
           for (let k = 0; k < nst; k++) {
             const a0 = f0 + ((f1 - f0) * k) / nst, a1 = a0 + ((f1 - f0) / nst) * (0.72 + 0.2 * r());
-            spray(nd, bp, a0, a1, hang * (0.75 + 0.45 * r()), 0, (r() - 0.5) * 0.4, NL('spruce_curtain'), info(NL('spruce_curtain')), shade(leafTint, 0.9 + 0.14 * r()),
+            spray(ck, path, a0, a1, hang * (0.75 + 0.45 * r()), 0, (r() - 0.5) * 0.4, NL('spruce_curtain'), info(NL('spruce_curtain')), shade(leafTint, 0.9 + 0.14 * r()),
               (pp, n) => [extAt(tt, 0.92)(pp, n)[0], 0], side);   // whole comb per strip: a v sub-range cut the hanging twigs with straight edges
           }
         }
@@ -260,8 +309,8 @@ export function makeConifers(env) {
       const ao = (0.62 + 0.38 * sstep(0.1, 0.9, rho)) * (0.8 + 0.2 * hf) * (0.78 + 0.22 * din);   // open pine crowns: light gets in
       return [ao, (0.35 + 0.4 * hf) * n.y];   // pine pads hold less snow than spruce shelves (no cotton-wool crowns)
     };
-    function pad(P, o, flex, phB) {
-      const v0 = nd.count;
+    function pad(P, o, flex, phB, acc = nd) {
+      const v0 = acc.count;
       const pr = padSz * (0.9 + 0.4 * r()), padTint = 0.85 + 0.25 * r(), nT = Math.max(4, Math.round((9 + 5 * r()) * q.cards));
       const info = (layer) => (pp) => [layer, sway(pp.y), flex, phB];
       const ext = extFor(P, pr);
@@ -278,7 +327,7 @@ export function makeConifers(env) {
         right.normalize();
         const layer = L0 + (r() < 0.5 ? 0 : 1);
         const sz = padSz * (0.62 + 0.36 * r());   // the brush fills the outer ~half of its card (bare twig base)
-        card(nd, P.clone().add(off).addScaledVector(dir, -sz * 0.3), dir, right, sz, layer, info(layer), shade(leafTint, padTint * (0.93 + 0.14 * r()), r() < 0.1 ? 0.5 : 0), extT, 1.05);
+        card(acc, P.clone().add(off).addScaledVector(dir, -sz * 0.3), dir, right, sz, layer, info(layer), shade(leafTint, padTint * (0.93 + 0.14 * r()), r() < 0.1 ? 0.5 : 0), extT, 1.05);
       }
       const LP = NL(sp.needle + '_pad');
       for (let k = 0; k < 1; k++) {                                              // cap: needle cushion seen from above (snow shelf)
@@ -286,18 +335,18 @@ export function makeConifers(env) {
         let right = V().crossVectors(up, UP).normalize();
         if (V().crossVectors(right, up).y < 0) right.negate();
         const sz = pr * (1.1 + 0.3 * r());
-        card(nd, P.clone().add(V((r() - 0.5) * pr * 0.5, pr * (0.12 + 0.2 * k), (r() - 0.5) * pr * 0.5)).addScaledVector(up, -sz * 0.5), up, right, sz, LP, info(LP), shade(leafTint, padTint * (1.02 + 0.08 * r())), ext, 1);
+        card(acc, P.clone().add(V((r() - 0.5) * pr * 0.5, pr * (0.12 + 0.2 * k), (r() - 0.5) * pr * 0.5)).addScaledVector(up, -sz * 0.5), up, right, sz, LP, info(LP), shade(leafTint, padTint * (1.02 + 0.08 * r())), ext, 1);
       }
       // pad-level normals: the tufts of one pad shade as one lumpy cushion (lit top, shaded flanks), not as
       // separate cards (individually lit tufts read as big leaves from the game camera)
       const t = V(), n = V();
-      for (let i = v0; i < nd.count; i++) {
-        t.fromArray(nd.p, i * 3).sub(P).add(V(0, pr * 0.6, 0)).normalize();
-        n.fromArray(nd.n, i * 3);
+      for (let i = v0; i < acc.count; i++) {
+        t.fromArray(acc.p, i * 3).sub(P).add(V(0, pr * 0.6, 0)).normalize();
+        n.fromArray(acc.n, i * 3);
         if (n.dot(t) < 0) n.negate();
-        n.lerp(t, 0.75).normalize().toArray(nd.n, i * 3);
+        n.lerp(t, 0.75).normalize().toArray(acc.n, i * 3);
       }
-      crown.push(P.clone());
+      if (acc !== SINK) crown.push(P.clone());
     }
     for (const Ld of leaders) {
       const y0 = Math.max(crownLo, Ld[0].y), y1 = Ld[Ld.length - 1].y;
@@ -316,24 +365,24 @@ export function makeConifers(env) {
           const bp = [c0.clone()], p = c0.clone();
           for (let i = 0; i < 4; i++) { d.y += lerp(0.12, -0.1, umb); d.x += (r() - 0.5) * 0.25; d.z += (r() - 0.5) * 0.25; d.normalize(); p.addScaledVector(d, len / 4); bp.push(p.clone()); }
           const phB = phase + r() * 6.28, rb = Math.max(0.016, T.radAt(Math.min(y, H * 0.95)) * 0.4);
-          // walk-under clearance (placement hint `clear`): a low limb ends at the trunk's footprint (no pad past the cut)
-          const sN = clearBranch(bp, sp.clear);
-          if (sN === 0) continue;
+          // clearance (placement hint `clear`, limbClearance): below head height the wood ends at the trunk's footprint
+          // (pads stay); over an obstacle's floor the limb is lifted (margin: its bark radius) or, born under it, dropped.
+          // Dropped parts are generated into the sink: the rest of the tree keeps its random stream.
+          const L = limbClearance(bp, sp.clear, rb + 0.05), path = L.pts, acc = L.drop ? SINK : nd;
           // limb LOD: 2 / 3 / 4 tube segments at low / medium / high (most of a low-preset Scots pine's tris were limbs)
           const lb = q.seg < 0.6 ? [0, 2, 4] : q.seg < 0.9 ? [0, 1, 3, 4] : [0, 1, 2, 3, 4];
-          const lk = lb.filter((i) => i <= sN);
-          if (lk.length >= 2) tube(bark, lk.map((i) => bp[i]), lk.map((i) => Math.max(0.01, rb * (1 - i / 5))), 3, barkL, (pp) => [sway(pp.y), 0.4, phB], tint, 1);
+          const lk = lb.filter((i) => i <= L.woodN);
+          if (lk.length >= 2) tube(bark, lk.map((i) => path[i]), lk.map((i) => Math.max(0.01, rb * (1 - i / 5))), 3, barkL, (pp) => [sway(pp.y), 0.4, phB], tint, 1);
           if (!foliage) continue;
-          if (sN < 4) continue;
-          pad(bp[4].clone().addScaledVector(d, padSz * 0.2), out, 1, phB);
+          pad(path[4].clone().addScaledVector(d, padSz * 0.2), out, 1, phB, acc);
           const nt = Math.round((0.6 + 1.4 * r()) * Math.min(1.2, len / 1.2) * (q.twigs ?? 1));
           for (let k = 0; k < nt; k++) {
-            const { p: tp, d: td } = along(bp, 0.45 + 0.4 * r());
+            const ft = 0.45 + 0.4 * r(), { p: tp, d: td } = along(path, ft);
             const sd = td.clone().applyAxisAngle(UP, (r() < 0.5 ? -1 : 1) * (0.6 + 0.5 * r())).setY(td.y + 0.3).normalize();
             const tl = 0.3 + 0.4 * r();
             const te = tp.clone().addScaledVector(sd, tl);
-            tube(bark, [tp, te], [rb * 0.5, 0.008], 3, barkL, (pp) => [sway(pp.y), 0.6, phB], tint, 1);
-            pad(te, V(sd.x, 0, sd.z).normalize(), 0.85, phB);
+            tube(ft * 4 <= L.woodN ? bark : SINK, [tp, te], [rb * 0.5, 0.008], 3, barkL, (pp) => [sway(pp.y), 0.6, phB], tint, 1);   // twig wood past the cut: none
+            pad(te, V(sd.x, 0, sd.z).normalize(), 0.85, phB, acc);
           }
         }
       }

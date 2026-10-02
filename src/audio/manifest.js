@@ -84,11 +84,14 @@ const ROWS = [
   // Alarm
   [['siren'], 'sfx', 'siren', 1.0, { loop: true }],
   // Nature (ambience bus)
-  // beds: streamed through a media element (never decoded), 4 s crossfades
+  // beds: streamed through a media element (never decoded), 4 s crossfades. The wind beds are procedural soft air
+  // (tools/audio/procedural_beds.py wind_air / wind_cold / wind_sand; levels in AMBIENCE, automation in wind-bed.js)
   [['wind', 'wind_snow', 'wind_desert', 'surf', 'river', 'crickets', 'artillery_far'], 'ambience', 'noise_loop', 1.0, { loop: true, bed: true }],
   [['birds'], 'ambience', 'bird', 1.0, { loop: true, bed: true }],
-  // step 4w: tied to the mission WindField (world/wind.js): gust whooshes at the view centre, halyard clank at flags
-  [['wind_gust'], 'ambience', 'gust', 0.5],
+  // step 4w: tied to the mission WindField (world/wind.js): gust whooshes at the view centre, halyard clank at flags.
+  // The whoosh is a soft breath over the bed (≈ −46 dBFS peak, a few dB over the snow bed and ≈ 18 dB under a
+  // footstep at the view; the old one peaked at −16 dBFS, as loud as the footsteps; wind-bed.js GUST)
+  [['wind_gust'], 'ambience', 'gust', 0.03],
   [['flag_clank'], 'sfx', 'halyard', 0.35],
   [['dog_bark', 'dog_growl'], 'sfx', 'dog', 0.6],
   // UI
@@ -139,7 +142,7 @@ const ALIASES = {
   barrier_lift: ['k_creak'], gate_smash: ['gate_splinter'], gate_hinge_snap: ['k_metal_latch', 'k_hit_metal'],
   gate_thud: ['gate_debris', 'k_thud_wood'], gate_thud_metal: ['k_hit_metal', 'metal_small'], lock_gate: ['door_metal'], truck_idle: ['truck_engine'], truck_drive: ['truck_engine'],
   tank_engine: ['tank_engine'], tank_tracks: ['tank_engine'], boat_engine: ['truck_engine'], dog_bark: ['dog'], dog_growl: ['dog'],
-  wind: ['wind_snow'], wind_snow: ['wind_snow'], wind_desert: ['wind_desert'], surf: ['surf'], river: ['river'], waterfall: ['river'], waterfall_roar: ['surf'], rapids: ['river'],
+  wind: ['wind_air'], wind_snow: ['wind_cold'], wind_desert: ['wind_sand'], surf: ['surf'], river: ['river'], waterfall: ['river'], waterfall_roar: ['surf'], rapids: ['river'],
   birds: ['birds'], crickets: ['crickets'], artillery_far: ['artillery_period'],
   ui_click: ['k_ui_click'], ui_hover: ['k_ui_tick'], cursor_forbidden: ['k_ui_error'], knapsack_open: ['k_book_open', 'k_cloth'],
   notebook_flip: ['k_page'], pencil_scratch: ['k_ui_scratch'], stamp: ['k_stamp'], pause_on: ['k_ui_toggle'], pause_off: ['k_ui_switch'],
@@ -210,17 +213,27 @@ export const MUSIC = Object.freeze({
  * ~4 s; `sparse: s` layers are positional one-shot "sweeteners" every ~s seconds (0.5–1.5×), placed `far`
  * [min, max] m from the listener in a random direction (a distant dog, far shelling). `day` / `night`
  * restrict a layer to the lighting. Gains are for the recorded beds (≈ −20 dBFS RMS); the ambience bus
- * and the "Nature sounds" option scale them.
+ * (Options → AMBIENCE) and the "Nature sounds" option scale them.
+ *
+ * Wind (user 2026-10-02: "too intense, as if in a terror movie"): background air you notice only when the game is
+ * quiet. The wind beds are mastered at −24 LUFS (sfx manifest `lufs`); the in-mission music bed is ≈ −34 LUFS (tension
+ * cues at −22 LUFS × TENSION_TRIM 0.42 × MUSIC 0.6), so gain g puts the wind 34 − 24 + 20·log10(g) dB under the
+ * score: snow 13 dB (the most present, never dominant), fjord 14, desert 15 (the sand hiss lighter), temperate 16,
+ * coast and urban 17 (under the surf / the far guns). The old recorded beds sat 4–8 dB OVER the score (measured in
+ * game, K-weighted; the howling snow take +8 dB).
  */
+const MUSIC_BED_LUFS = -33.9, WIND_BED_LUFS = -24;
+/** Gain that sets a wind bed `db` dB under the in-mission music bed. */
+const WIND_UNDER = (db) => +(10 ** ((MUSIC_BED_LUFS - db - WIND_BED_LUFS) / 20)).toFixed(3);
 export const AMBIENCE = Object.freeze({
-  snow: [['wind', 0.42], ['dog_bark', 0.5, { sparse: 35, far: [90, 160] }]],
-  temperate: [['wind', 0.16], ['birds', 0.34, { day: true }], ['crickets', 0.3, { night: true }],
+  snow: [['wind_snow', WIND_UNDER(13)], ['dog_bark', 0.5, { sparse: 35, far: [90, 160] }]],
+  temperate: [['wind', WIND_UNDER(16)], ['birds', 0.34, { day: true }], ['crickets', 0.3, { night: true }],
     ['dog_bark', 0.45, { sparse: 30, far: [90, 160] }]],
-  coast: [['surf', 0.42], ['wind', 0.14], ['birds', 0.2, { day: true }]],
-  fjord: [['wind', 0.34], ['surf', 0.3]],
-  desert: [['wind_desert', 0.4], ['crickets', 0.22, { night: true }]],
+  coast: [['surf', 0.42], ['wind', WIND_UNDER(17)], ['birds', 0.2, { day: true }]],
+  fjord: [['wind_snow', WIND_UNDER(14)], ['surf', 0.3]],
+  desert: [['wind_desert', WIND_UNDER(15)], ['crickets', 0.22, { night: true }]],
   summer: [['birds', 0.3, { day: true }], ['crickets', 0.32]],
-  urban: [['wind', 0.12], ['artillery_far', 0.16], ['dog_bark', 0.4, { sparse: 22, far: [70, 140] }]],
+  urban: [['wind', WIND_UNDER(17)], ['artillery_far', 0.16], ['dog_bark', 0.4, { sparse: 22, far: [70, 140] }]],
 });
 /** Mission-specific extra layers (§9.2): river rush M2/M3/M19, dog barks M19. */
 export const MISSION_AMBIENCE = Object.freeze({

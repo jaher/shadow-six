@@ -10,7 +10,7 @@
 import { CONFIG } from '../config.js';
 import { ABILITIES } from '../abilities/index.js';
 import { el } from './dom.js';
-import { computeUiScale, loadOptions, saveOptions } from './ui-config.js';
+import { computeUiScale, loadOptions, saveOptions, VOLUME_CHANNELS } from './ui-config.js';
 import { TopBar } from './topbar.js';
 import { Notebook } from './notebook.js';
 import { Knapsack } from './knapsack.js';
@@ -180,7 +180,7 @@ export class HUD {
     saveOptions(this.options);
     this._applyGameOptions();
     const a = this.game.audio;
-    const vol = { volMaster: 'master', volSfx: 'sfx', volVoice: 'voice', volMusic: 'music', volNarration: 'narration' }[key];
+    const vol = VOLUME_CHANNELS[key];
     if (vol) a?.setVolume?.(vol, value);
     if (key === 'uiScale') this._applyScale();
     if (key === 'preset') {

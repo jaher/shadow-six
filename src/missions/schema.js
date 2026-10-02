@@ -192,6 +192,11 @@ export function validateMission(def) {
     else t.do.forEach((a, k) => { if (!ACTION_VERBS.some((v) => a && a[v] !== undefined)) E(`triggers[${i}].do[${k}] unknown action`); });
   });
   if (def.script !== undefined && typeof def.script !== 'function') E('script must be a function (world, director)');
+  // `noWalk`: [{id?, points}] polygons nobody walks, wades or swims in (map-builder stamps their ground-level cells)
+  if (def.noWalk !== undefined && !Array.isArray(def.noWalk)) E('noWalk must be an array of {id?, points}');
+  arr(def.noWalk).forEach((n, i) => {
+    if (!Array.isArray(n?.points) || n.points.length < 3 || !n.points.every((q) => Array.isArray(q) && Number.isFinite(q[0]) && Number.isFinite(q[1]))) E(`noWalk[${i}] needs points: [[x, z], …] (3+)`);
+  });
   const ex = def.extraction;
   if (ex && !(ex.vehicleId || ex.zone || (typeof ex.x === 'number' && typeof ex.z === 'number'))) E('extraction must be {vehicleId,…} | {zone:{x,z,r}} | {x,z,r} | null');
   if (ex?.spawnWhen) for (const o of ex.spawnWhen) if (!arr(def.objectives).some((q) => q.id === o)) Wn(`extraction.spawnWhen "${o}" is not an objective id`);
@@ -319,6 +324,7 @@ export function normalizeMission(def, opts = {}) {
     climbLinks: arr(def.climbLinks).map((l) => ({ roles: ['greenberet'], ...l, a: [l.a[0], l.a[1], l.a[2] ?? 0], b: [l.b[0], l.b[1], l.b[2] ?? 0] })),
     ladders: arr(def.ladders).map((l) => ({ raised: false, y: 0, ...l, top: [l.top[0], l.top[1], l.top[2] ?? 0] })),
     triplines: arr(def.triplines),
+    noWalk: arr(def.noWalk).map((n, i) => ({ ...n, id: n.id ?? `nowalk${i}` })),
     barracks: Object.fromEntries(Object.entries(def.barracks || {}).map(([k, b]) => [k, {
       pool: num(b.pool, 5),
       squads: arr(b.squads).map((s) => ({ event: 'RINT', size: 2, exitRoute: [], loop: [], ...s })),

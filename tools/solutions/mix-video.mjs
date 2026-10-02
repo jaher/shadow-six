@@ -81,8 +81,9 @@ if (alarmOn != null) {
 }
 clip(M('success_1'), musicEnd + 0.3, { vol: 0.9 });
 
-// --- ambience: snow wind all through (looped), the river after the dam goes
-clip(S('wind_snow', 'wind_snow_185070_0.ogg'), 0, { len: V, loop: true, vol: 0.35, fin: 2, fout: 3 });
+// --- ambience: snow wind all through (looped; the soft procedural bed at −24 LUFS, ≈ 13 dB under the score as in the
+// game, src/audio/manifest.js AMBIENCE), the river after the dam goes
+clip(S('wind_cold', 'wind_cold_proc_0.ogg'), 0, { len: V, loop: true, vol: 0.22, fin: 2, fout: 3 });
 if (objT('o2') != null) clip(S('river', 'river_proc_0.ogg'), vt(objT('o2')) + 1, { len: Math.max(1, endCard - vt(objT('o2')) - 1), loop: true, vol: 0.7, fin: 2, fout: 2 });
 
 // --- effects on the run's events

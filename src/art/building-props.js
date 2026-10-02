@@ -267,8 +267,11 @@ export function fitScale(rawX, rawZ, maxDoorH = 0) {
  *   setDoorOpen: (id: string, t: number) => void, dispose: () => void}}
  */
 export function libraryVisual(type, p = {}, ctx = {}) {
-  const pick = pickAsset(type, p, ctx);
+  // `assetPart` (M3 `dam_shack`): one part of another asset (its `asset`, a sidecar box) is this structure's visual
+  const part = p.assetPart?.box ? p.assetPart : null;
+  let pick = pickAsset(type, part ? { ...p, asset: part.asset ?? p.asset } : p, ctx);
   if (!pick) return null;
+  if (part) { const [x0, z0, x1, z1] = part.box; pick = { ...pick, turn: 0, ext: { w: x1 - x0, d: z1 - z0, cx: (x0 + x1) / 2, cz: (z0 + z1) / 2 } }; }
   const theater = ctx.theater;
   // `artOffset: [dx, dz]` (m): the model only, nudged off a neighbour it would clip (the gameplay footprint stays)
   const x = (p.x ?? 0) + (p.artOffset?.[0] ?? 0), z = (p.z ?? 0) + (p.artOffset?.[1] ?? 0), rot = p.rot ?? 0;
@@ -307,7 +310,11 @@ export function libraryVisual(type, p = {}, ctx = {}) {
   const pt = (q) => { v.set(q[0], 0, q[1]).applyMatrix4(M); return [v.x, v.z]; };
   const p3 = (q) => { v.set(q[0], q[1], q[2]).applyMatrix4(M); return { x: v.x, y: v.y, z: v.z }; };
   const hd = (h) => { v.set(Math.cos(h ?? 0), 0, Math.sin(h ?? 0)).transformDirection(M); return Math.atan2(v.z, v.x); };
-  const a = b.meta;
+  // the part's own sidecar entries only (no bridge: a part is no deck); `hideParts`: everything but those parts
+  const hides = Array.isArray(p.hideParts) && p.hideParts.length ? p.hideParts : null;
+  let a = b.meta;
+  if (part) a = partMeta(a, [part], true);
+  if (hides) a = partMeta(a, hides, false);
   const doors = a.doors.map((dd) => ({ id: dd.id, kind: dd.kind, node: dd.node, heading: hd(dd.heading), width: dd.width * sx, height: dd.height * sy,
     ...p3(dd.pos), approach: dd.approach ? (([ax, az]) => ({ x: ax, z: az }))(pt(dd.approach)) : null }));
   const ladders = a.ladders.map((l) => ({ a: pt(l.a), b: pt(l.b), y: l.y * sy }));
@@ -353,6 +360,22 @@ export function libraryVisual(type, p = {}, ctx = {}) {
     };
     dressDam(b);
   }
+  // asset parts: keep only `assetPart` (its source asset's natural rock and the snow on it left out), drop `hideParts`
+  // (geometry per LOD, door nodes; late LODs and the destroyed variant too)
+  const dressParts = part || hides ? (bb) => {
+    const run = () => {
+      if (part) {
+        stripDrape(bb.object3d, /rock_cliff|scree/, /snow/);
+        bb.object3d.traverse((o) => { if (o.isMesh && [].concat(o.material).some((m) => /rock_cliff|scree/.test(m?.name || ''))) o.visible = false; });
+        cutParts(bb.object3d, [part], true);
+      }
+      if (hides) cutParts(bb.object3d, hides, false);
+    };
+    run();
+    const prev = bb.object3d.userData.onLodAttached;
+    bb.object3d.userData.onLodAttached = (...args) => { prev?.(...args); run(); };
+  } : null;
+  dressParts?.(b);
   if (/^oil_tank_column/.test(b.asset)) {
     // M11: the pale pipe run with red flanges and valves to the neighbouring column(s) (art/fuel-pipes.js)
     const same = (q) => q === p || (q.id != null && q.id === p.id && q.x === p.x && q.z === p.z);
@@ -384,12 +407,105 @@ export function libraryVisual(type, p = {}, ctx = {}) {
     outer.userData.libraryAsset = nb.asset;
     dressFlags(nb.object3d, nb.asset, { flag: false });
     dressDam?.(nb);
+    dressParts?.(nb);
     return true;
   };
   S.live.add(b);
   const dispose = () => { if (state.disposed) return; state.disposed = true; state.b.dispose(); S.live.delete(state.b); outer.removeFromParent(); };
   return { object3d: outer, asset: b.asset, scale: [sx, sy, sz], matrix: M, footprints, doors, ladders, roofs, climbEdges, anchors, bridge, piers,
     ready: b.ready, setDoorOpen: outer.userData.setDoorOpen, dispose };
+}
+
+/**
+ * Asset part test (sidecar coords: x east, z south, y up): `{box: [x0, z0, x1, z1], pad?: m (default 0.5),
+ * y?: [y0, y1]}` → in2(x, z) / in3(x, y, z).
+ */
+function partTest(part) {
+  const [x0, z0, x1, z1] = part.box, m = part.pad ?? 0.5, [y0, y1] = part.y ?? [-Infinity, Infinity];
+  const in2 = (x, z) => x >= x0 - m && x <= x1 + m && z >= z0 - m && z <= z1 + m;
+  return { in2, in3: (x, y, z) => y >= y0 && y <= y1 && in2(x, z) };
+}
+
+/**
+ * Sidecar entries of asset meta `a` inside (`keep`) or outside (!keep) the parts: doors, ladders, roofs, climb edges,
+ * anchors and footprints (all their points); a kept part carries no bridge / deck. @returns {object} a shallow copy
+ */
+export function partMeta(a, parts, keep) {
+  const T = parts.map(partTest), inside = (x, z) => T.some((t) => t.in2(x, z));
+  const sel = (yes) => (keep ? yes : !yes);
+  const all = (pts) => pts.length > 0 && pts.every((q) => inside(q[0], q[1]));
+  return {
+    ...a,
+    doors: (a.doors || []).filter((d) => sel(inside(d.pos[0], d.pos[2]))),
+    ladders: (a.ladders || []).filter((l) => sel(all([l.a, l.b]))),
+    roofs: (a.roofs || []).filter((r) => sel(all(r.points || []))),
+    climbEdges: (a.climbEdges || []).filter((c) => sel(all([c.a, c.b]))),
+    anchors: (a.anchors || []).filter((an) => sel(inside(an.pos[0], an.pos[2]))),
+    footprints: (a.footprints || []).filter((f) => sel(all(f.points || []))),
+    bridge: keep ? null : a.bridge,
+  };
+}
+
+/** A new indexed geometry holding only the vertices `tri` (old indices, 3 per triangle) uses (attributes copied raw). */
+function subsetGeometry(g, tri) {
+  const remap = new Map(), order = [];
+  const idx = new (tri.length > 65535 || g.attributes.position.count > 65535 ? Uint32Array : Uint16Array)(tri.length);
+  tri.forEach((v, k) => { let n = remap.get(v); if (n === undefined) { n = order.length; remap.set(v, n); order.push(v); } idx[k] = n; });
+  const ng = new THREE.BufferGeometry();
+  for (const [name, at] of Object.entries(g.attributes)) {
+    const size = at.itemSize, il = !!at.isInterleavedBufferAttribute;
+    const src = il ? at.data.array : at.array, stride = il ? at.data.stride : size, off = il ? at.offset : 0;
+    const out = new src.constructor(order.length * size);
+    order.forEach((v, k) => { for (let c = 0; c < size; c++) out[k * size + c] = src[v * stride + off + c]; });
+    ng.setAttribute(name, new THREE.BufferAttribute(out, size, at.normalized));
+  }
+  ng.setIndex(new THREE.BufferAttribute(idx, 1));
+  ng.userData = { ...g.userData };
+  ng.computeBoundingBox(); ng.computeBoundingSphere();
+  return ng;
+}
+
+/**
+ * Keep (`keep`) or drop (!keep) the parts of a library building (`root` = createBuilding's group, sidecar frame), per
+ * LOD (each once): a triangle belongs to a part when its three vertices do (box + y range); a door node by its pivot.
+ * Meshes left empty are hidden; geometries are new (the shared GLB caches stay intact). @returns {number} LODs cut
+ */
+export function cutParts(root, parts, keep) {
+  const T = parts.map(partTest), inside = (x, y, z) => T.some((t) => t.in3(x, y, z));
+  const key = `cut:${keep ? 'keep' : 'drop'}:${parts.map((q) => q.box.join(',')).join(';')}`;
+  const lods = [];
+  root.traverse((n) => { if (/^lod\d$/.test(n.name)) lods.push(n); });
+  if (!lods.length) lods.push(root);
+  const v = new THREE.Vector3(), m = new THREE.Matrix4();
+  let n = 0;
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  for (const lod of lods) {
+    if (lod.userData[key]) continue;
+    lod.userData[key] = true; n++;
+    const doors = [], meshes = [];
+    lod.traverse((o) => { if (o !== lod && /^door_/.test(o.name || '')) doors.push(o); });
+    lod.traverse((o) => { if (o.isMesh && !doors.some((d) => { let q = o; while (q && q !== lod) { if (q === d) return true; q = q.parent; } return false; })) meshes.push(o); });
+    for (const d of doors) {
+      v.setFromMatrixPosition(m.multiplyMatrices(inv, d.matrixWorld));
+      if (inside(v.x, v.y, v.z) !== keep) d.visible = false;
+    }
+    for (const o of meshes) {
+      if (!o.visible) continue; // (hidden rock, emptied drape)
+      const g = o.geometry, pos = g.attributes.position, idx = g.index, count = idx ? idx.count : pos.count;
+      m.multiplyMatrices(inv, o.matrixWorld);
+      const kept = [];
+      for (let t = 0; t + 2 < count; t += 3) {
+        let ins = true;
+        for (let k = 0; k < 3 && ins; k++) { v.fromBufferAttribute(pos, idx ? idx.getX(t + k) : t + k).applyMatrix4(m); ins = inside(v.x, v.y, v.z); }
+        if (ins === keep) for (let k = 0; k < 3; k++) kept.push(idx ? idx.getX(t + k) : t + k);
+      }
+      if (kept.length === count) continue;
+      if (!kept.length) { o.visible = false; continue; }
+      o.geometry = subsetGeometry(g, kept);
+    }
+  }
+  return n;
 }
 
 /**
@@ -505,7 +621,7 @@ export async function prepareMissionArt(mission, o = {}) {
   }
   const theater = mission?.theater || 'temperate', names = new Set();
   for (const s of mission?.structures || []) {
-    const pk = pickAsset(s.type, s, { theater, missionId: S.mission });
+    const pk = pickAsset(s.type, s.assetPart?.asset ? { ...s, asset: s.assetPart.asset } : s, { theater, missionId: S.mission });
     if (!pk) continue;
     const a = buildingMeta(pk.name);
     names.add(theater === 'snow' && a.snowVariant ? a.snowVariant : pk.name); // the variant createBuilding will use

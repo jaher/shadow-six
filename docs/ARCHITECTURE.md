@@ -999,7 +999,8 @@ Menus and full-screen screens follow docs/menus-art-direction.md (S01–S22 + am
   canvas (B2 snapshot) and, for B1, `World` + `MapBuilder.buildMap` into the idle scene (released on `mission:loading`).
 - Assets: `assets/fonts/*` (OFL / Apache, licences alongside), `assets/ui/*` (emblem, wordmark, CC0 textures, baked B1s
   stills: `node tools/ui/bake_dioramas.mjs`; key art `assets/ui/keyart/{hero,tiny-portrait}.webp` rendered offline from
-  the Green Beret model by `tools/ui/keyart/render.py` (Blender) + `grade.py`; briefing slides `assets/ui/briefing/*.webp`
+  the Green Beret model by `tools/ui/keyart/render.py` (Blender; the hero's M1911A1 from `colt1911.py`, gripped by a
+  finger-contact solve) + `grade.py`; briefing slides `assets/ui/briefing/*.webp`
   from public-domain IWM photographs by `tools/ui/build_briefing_photos.py`), `src/ui/europe-coast.js` (`node tools/ui/build_coast.mjs`),
   `src/ui/credits-data.js` (`node tools/ui/build_credits.mjs` from CREDITS.md).
 

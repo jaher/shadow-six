@@ -38,7 +38,11 @@ test('knife kill: the victim cries (stab cry, his own voice) on the hit frame, p
   s.run(4, () => !e.alive);
   assert.equal(e.alive, false, 'knifed');
   assert.equal(e.deathCause, 'knife');
-  assert.ok(Math.abs(killedAt - stabAt - K.hit) <= 1 / 60 + 1e-9, `kill on the hit frame (${(killedAt - stabAt).toFixed(3)} s after the stab starts)`);
+  // the hit frame: 0.3 s after the last step in to contact (abilities/knife-contact.js; 0.3 s after the start for the
+  // classic stab at arm's length)
+  const rec = (s.world.knifeKills || []).find((r) => r.v === e), hit = rec ? rec.hit : K.hit;
+  assert.ok(Math.abs(killedAt - stabAt - hit) <= 1 / 60 + 1e-9, `kill on the hit frame (${(killedAt - stabAt).toFixed(3)} s after the stab starts, hit ${hit.toFixed(3)})`);
+  assert.ok(hit <= K.hit + 0.3 + 1e-9, 'the step in adds at most 0.3 s');
   const cry = A.barks.find((b) => b.line === CRY_KEYS.stab);
   assert.ok(cry, `a stab cry (${A.barks.map((b) => b.line)})`);
   assert.equal(cry.unit, e, 'in the victim\'s voice');

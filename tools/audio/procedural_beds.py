@@ -105,7 +105,92 @@ def river(loop_s=24.0, seed=23):
     return norm(loopify(np.stack(chans, 1), loop_s), -4)
 
 
+def lufs(x):
+    """Ungated BS.1770 loudness (K-weighted, channels summed) of a (n,) or (n, 2) 48 kHz render, LUFS."""
+    from scipy.signal import lfilter
+    x = np.atleast_2d(np.asarray(x, dtype=np.float64).T).T
+    ms = 0.0
+    for c in range(x.shape[1]):
+        y = lfilter([1.53512485958697, -2.69169618940638, 1.19839281085285], [1, -1.69065929318241, 0.73248077421585], x[:, c])
+        y = lfilter([1.0, -2.0, 1.0], [1, -1.99004745483398, 0.99007225036621], y)
+        ms += np.mean(y ** 2)
+    return -0.691 + 10 * np.log10(ms + 1e-20)
+
+
+def shaped(n, rng, gain):
+    """Circular (seamlessly looping) Gaussian noise of length n with magnitude response gain(f), unit RMS."""
+    f = np.fft.rfftfreq(n, 1 / SR)
+    spec = np.fft.rfft(rng.standard_normal(n)) * gain(np.maximum(f, 1e-3))
+    spec[0] = 0
+    out = np.fft.irfft(spec, n)
+    return out / (np.std(out) + 1e-12)
+
+
+def drift(n, rng, corner_hz, rate=100):
+    """Slow circular random process (unit std): Gaussian-spectrum noise with corner `corner_hz` (no periodicity)."""
+    m = int(n * rate / SR)
+    f = np.fft.rfftfreq(m, 1 / rate)
+    spec = np.fft.rfft(rng.standard_normal(m)) * np.exp(-0.5 * (f / corner_hz) ** 2)
+    spec[0] = 0
+    lo = np.fft.irfft(spec, m)
+    lo /= np.std(lo) + 1e-12
+    # circular linear interpolation up to audio rate
+    xp = np.arange(m + 1) * (n / m)
+    return np.interp(np.arange(n), xp, np.concatenate([lo, lo[:1]]))
+
+
+def hp2(f, fc):
+    return (f / fc) ** 2 / np.sqrt(1 + (f / fc) ** 4)
+
+
+def lp(f, fc, order=1):
+    return 1 / np.sqrt(1 + (f / fc) ** (2 * order))
+
+
+# Wind beds (2026-10-02 "the wind sound is too intense, as if in a terror movie"): the recorded takes they replace
+# (Freesound 185070 "howling_wind", 402710 desert wind) were all moaning resonances (narrow peaks gliding 450–2600 Hz)
+# and 60 dB swells out of dead silence. These are soft broadband air: shaped noise with smooth, wide spectra (no
+# resonant band, nothing pitched), two layers (low body, upper air) whose levels drift independently and slowly
+# (corners 0.04–0.25 Hz, never periodic) so the timbre breathes a little brighter in a stronger spell — no swell
+# deeper than a few dB. Rendered as exact circular loops (FFT noise), so the loop seam is invisible.
+WIND = {
+    # name: (body LP Hz, body tilt corner Hz, air band (lo, hi) Hz, air level dB, hiss band, hiss dB, body sd dB, air sd dB, seed)
+    'wind_air': (900, 220, (450, 2600), -12, None, None, 1.6, 3.0, 41),         # temperate / coast / urban: a soft breeze
+    'wind_cold': (1200, 260, (500, 3400), -10, (3000, 9000), -25, 1.8, 3.4, 43),  # snow / fjord: a little airier, faint spindrift
+    'wind_sand': (750, 200, (400, 2200), -15, (2500, 9000), -26, 1.2, 2.2, 47),   # desert: steady low air, a light sand hiss
+}
+
+
+def wind(name, loop_s=40.0):
+    lpf, tilt, air, air_db, hiss, hiss_db, sd_b, sd_a, seed = WIND[name]
+    rng = np.random.default_rng(seed)
+    n = int(loop_s * SR)
+    env_rng = np.random.default_rng(seed + 1000)  # shared by both channels (one wind, two ears)
+    k = np.log(10) / 20
+    spell = drift(n, env_rng, 0.04)  # slow spells (≈ 25 s): both layers
+    e_body = np.exp(k * sd_b * (0.7 * spell + 0.3 * drift(n, env_rng, 0.12)))
+    e_air = np.exp(k * sd_a * (0.6 * spell + 0.4 * drift(n, env_rng, 0.25)))
+    body_g = lambda f: hp2(f, 45) * lp(f, tilt) * lp(f, lpf, 2)
+    air_g = lambda f: hp2(f, air[0]) * lp(f, air[0] * 1.6) * lp(f, air[1], 2)
+    chans = []
+    for ch in range(2):
+        sh = int(0.21 * SR) * ch  # the right ear hears the same spell a moment later (width without phasing)
+        sig = shaped(n, rng, body_g) * np.roll(e_body, sh)
+        sig += 10 ** (air_db / 20) * shaped(n, rng, air_g) * np.roll(e_air, sh)
+        if hiss:
+            hiss_g = lambda f, h=hiss: hp2(f, h[0]) * lp(f, h[1], 2)
+            sig += 10 ** (hiss_db / 20) * shaped(n, rng, hiss_g) * np.roll(e_air, sh) ** 1.5
+        chans.append(sig)
+    x = np.stack(chans, 1)
+    return x * 10 ** ((WIND_LUFS - lufs(x)) / 20)
+
+
+WIND_LUFS = -24.0  # mastering loudness of the wind beds (manifest `lufs`; src/audio/manifest.js sets the in-game level)
+
 BEDS = {
     'surf': (surf, 'procedural shoreline: swells, crash and receding wash, small laps on rocks'),
     'river': (river, 'procedural fast shallow river: broadband rush plus bubble chirps'),
+    'wind_air': (lambda: wind('wind_air'), 'procedural soft breeze: broadband air, slow natural drift, no howl'),
+    'wind_cold': (lambda: wind('wind_cold'), 'procedural cold wind: broadband air with faint spindrift hiss, no howl'),
+    'wind_sand': (lambda: wind('wind_sand'), 'procedural desert air: steady low wind with a light sand hiss, no whistle'),
 }

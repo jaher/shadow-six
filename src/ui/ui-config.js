@@ -52,6 +52,7 @@ export const OPTION_DEFAULTS = {
   volSfx: 1,
   volVoice: 1,
   volMusic: 0.6, // = audio.js volumes.music (the bus the music loudness targets were set at)
+  volAmbience: 1, // wind, water, birds: the ambience bus (audio.js volumes.ambience; levels set at 1, manifest.js AMBIENCE)
   narration: true, // the briefing's newsreel narrator reads the text before each mission (docs/narration.md)
   volNarration: 1,
   missionMusic: 'suspense', // 'suspense' (in-mission score, default) | 'classic' (1998: no in-mission music)
@@ -96,6 +97,10 @@ export const OPTION_DEFAULTS = {
   physicsGameplay: true,
   runningNoise: true, // guards hear a running commando (stealth.runNoise); off = 1998 silent movement
 };
+
+/** Volume options → audio.setVolume channel (the busses of audio/engine.js, plus the briefing narrator). */
+export const VOLUME_CHANNELS = Object.freeze({ volMaster: 'master', volSfx: 'sfx', volVoice: 'voice', volMusic: 'music',
+  volAmbience: 'ambience', volNarration: 'narration' });
 
 export const OPTIONS_KEY = 'shadowsix.options.v1';
 

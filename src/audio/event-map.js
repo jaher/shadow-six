@@ -7,6 +7,7 @@
 import { SFX } from './manifest.js';
 import { CRY_KEYS, cryOf, speakerOf } from './voice-lines.js';
 import { isAnimal } from '../ai/bcd-ranks.js';
+import { gustWhooshGain } from './wind-bed.js';
 
 /** CONFIG.weapons keys (and vehicle weapons) → shot SFX. */
 export const WEAPON_SFX = Object.freeze({
@@ -125,8 +126,15 @@ export function installHandlers(a, events) {
   const on = (t, fn) => subs.push(events.on(t, (e = {}) => fn(e, t)));
   const sfx = (id, pos, event, o) => id && a.playSfx(id, pos, { event, ...o });
 
-  // Wind (step 4w): gust whooshes (ambience bus, gated by "nature sounds") and the halyard clank at flags
-  on('wind:gust', (e, t) => { if (a.options?.natureSounds !== false) sfx('wind_gust', null, t, { bus: 'ambience', gain: Math.min(1.5, (0.35 + (e.gust || 0)) * Math.min(1.6, (e.speed || 6) / 7)), dedupe: 0 }); });
+  // Wind (step 4w): gust whooshes (ambience bus, gated by "nature sounds"; strong fronts only, one per 45 s at most,
+  // soft — wind-bed.js gustWhooshGain) and the halyard clank at flags
+  on('wind:gust', (e, t) => {
+    if (a.options?.natureSounds === false) return;
+    const gain = gustWhooshGain(e, a.now(), a._gustAt);
+    if (!gain) return;
+    a._gustAt = a.now();
+    sfx('wind_gust', null, t, { bus: 'ambience', gain, dedupe: 0 });
+  });
   on('wind:flag', (e, t) => sfx('flag_clank', e, t, { gain: 0.6 + 0.4 * Math.min(1, e.gust || 0) }));
   // Movement / bodies
   on('unit:step', (e, t) => { a.lastStepEvent = a.now(); sfx(stepSfx(e.terrain, e.stance ?? e.unit?.stance), e.unit, t); });

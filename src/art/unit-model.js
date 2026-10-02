@@ -244,7 +244,8 @@ export class UnitModel {
     const idle = this.anim === 'idle' || LOCOMOTION.has(this.anim) || this.anim === 'crawl_idle';
     // crawling with the knife selected (Green Beret, knife cursor up) or crawling in on a knife order: crawl_knife, the knife in the fist
     // a knife order keeps the knife in the fist from the crawl-in through getting up and the last steps to the stab
-    const knifeIn = c.tool === 'knife' && (c.stance === 'crawl' || this.unit?.pendingAbility?.def?.id === 'knife');
+    // …and a contact knife kill keeps it in his fist while his hands come off the victim (art/knife-kill.js)
+    const knifeIn = (c.tool === 'knife' && (c.stance === 'crawl' || this.unit?.pendingAbility?.def?.id === 'knife')) || this._knifeShow;
     let want = idle ? (knifeIn ? 'knife' : null) : actionWeapon(this.opts.role, c.actionId);
     if (want === null) want = CARRY_WEAPON[this.opts.role] || false;
     // bodies-design §C.10: both hands on the load (slung weapon), none while down or carried
@@ -321,6 +322,11 @@ export class UnitModel {
     // the ability's action id is set after its start() played the clip (Commando._updatePending): re-pick the weapon
     // then, so the knife stab shows the knife (not the carry pistol)
     if (R.inner && this.player && this.unit && (this.unit.currentActionId ?? null) !== (this._actId ?? null)) { this._actId = this.unit.currentActionId ?? null; this._weaponFor(this._ctx()); }
+    // the contact knife kill's blend-out (abilities/knife.js sets knifeShow): the knife stays in his fist until it ends
+    if (R.inner && this.player && this.unit) {
+      const ks = (this.unit.knifeShow ?? -1) > (this.unit.world?.time ?? 0);
+      if (ks !== !!this._knifeShow) { this._knifeShow = ks; this._weaponFor(this._ctx()); }
+    }
     if (R.inner && dt > 0 && LOCOMOTION.has(this.anim)) {
       const p = this.root.position;
       if (this._last) {
@@ -372,6 +378,9 @@ export class UnitModel {
       } else if (this._rdLast) { this._rdLast = null; this._rdBase = null; this._rdFrom = null; this._mwValid = false; this._rdGuard.release(); }
       else if (!this._idleSeen && this.anim === 'idle' && stepped && ++this._idleN > 4) { rememberIdle(this); this._idleSeen = true; }
     }
+    // walking in on a knife order: the pose shown, for the contact kill to blend from (art/knife-kill.js; the stab
+    // clip's first frame would jump)
+    if (R.inner && this.player && u?.pendingAbility?.def?.id === 'knife' && stepped) this._preKnife = capturePose(this);
     // procedural action overlay on the skeleton after the mixer (art/shovel-dig.js: digging, rising out of the snow)
     if (R.inner && this.overlay && !tst && !this._rdLast) { try { stepped = this.overlay(this, dt, this._guard) || stepped; } catch (e) { console.warn('[unit-model] overlay', e?.stack || e); this.overlay = null; } }
     // a standing German turning on the spot steps round, head leading (art/turn-step.js; SHADOW SIX smooth turn)

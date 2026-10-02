@@ -78,6 +78,28 @@ const CREST = [...arc(20.95, -38, 38), ...arc(19.0, 38, -38)];
 const TOE = [...arc(16.3, -27, 27, 8), ...arc(13.2, 27, -27, 8)];
 const W_STAIR = [[22.85, 40.3], damPt(-12.31, 4.24)]; // bottom → top (the crest's W end)
 const E_STAIR = [[59.35, 33.9], damPt(12.31, 4.24)];
+/** Point `f` of the way down a stair ([bottom, top]) from its top, `off` m off its axis towards the plunge pool. */
+const stairPt = ([[bx, bz], [tx, tz]], f, off) => {
+  const L = Math.hypot(bx - tx, bz - tz), ux = (bx - tx) / L, uz = (bz - tz) / L, [px, pz] = damPt(0, 20);
+  const s = ((px - tx) * -uz + (pz - tz) * ux) > 0 ? 1 : -1; // the normal (-uz, ux) or its opposite: the pool side
+  return [r2(tx + ux * L * f - s * uz * off), r2(tz + uz * L * f + s * ux * off)];
+};
+/**
+ * Nobody walks in front of the dam (user request 2026-10-02: "people should not be able to walk right in front of
+ * the dam"): the face, the toe ledge (T3) with its rim and the snow at the feet of the face, from the crest's
+ * downstream edge (r 19.2, ±45°) down the inner side of the stairs (E to its middle, W to 40 %) and across to the
+ * plunge pool (r 10.5, +50° … -36°, then r 12.5 at -40°: the W shore below the face's end, where boats land for the
+ * bunker, stays open). `noWalk` (map-builder): ground-level cells only, so the crest deck and the stair treads stay open.
+ */
+const DAM_FRONT = [...arc(19.2, -45, 45, 18), stairPt(E_STAIR, 0.5, 0.5), ...arc(10.5, 50, -36, 18), arc(12.5, -40, -40, 1)[0],
+  stairPt(W_STAIR, 0.4, 0.5)];
+/**
+ * The dam's own control shack (dam_arch BL.control_shack, sidecar footprint x 16.0–19.4, z 6.6–9.4, door on its
+ * W face, HALT sign on its S face) stood on a 6.6 m crag right beside the E stair and read as a tank from the camera
+ * (user request 2026-10-02: "Fuel tank in the dam mission is too close to the stairs"). The dam hides it
+ * (`hideParts`) and `dam_shack` rebuilds that very part (`assetPart`) on the ground by the truck road N of the dam.
+ */
+const SHACK_PART = { asset: 'dam_arch', box: [16.0, 6.6, 19.4, 9.4], pad: 0.7, y: [-0.8, 4.6] };
 /** Water surface of the raised reservoir (the asset's reservoir sits 1.2 m under its deck). */
 export const M3_RESERVOIR_LEVEL = DAM.elev - 1.2;
 
@@ -105,6 +127,7 @@ export default {
       'A uniform hangs outside the east camp, by the river.',
       'Anything suspicious in the east camp or south of the river raises the alarm.',
       'The bunker gunner turns towards any noise. Give him something to look at before you go behind him.',
+      'The dam\'s weak point is the spillway gates in the middle of the crest. Light the fuse and get off the crest.',
       'The truck will wait north of the dam.',
     ],
   },
@@ -150,9 +173,10 @@ export default {
     { type: 'sign', variant: 'plate', x: 7, z: 95.5, rot: 0, text: 'ADGANG\nFORBUDT', block: false },
   ],
   markers: [
-    // demolition marker for o2: the bomb must be armed within 3 m (on the toe ledge at the foot of the face, W of the
-    // spillway: beside a frozen trickle, out of the churning water under the falling sheets)
-    { id: 'dam_charge', x: damPt(-6, 6.25)[0], z: damPt(-6, 6.25)[1], r: 3, target: 'dam' },
+    // demolition marker for o2: the bomb must be armed within 3 m of the spillway gates in the middle of the crest
+    // (the face's foot is out of bounds, `noWalk`): the gate piers and their hoists are the arch's weak section, and
+    // dam_arch_destroyed breaks open right there (gap_x ±4.6; render/dam-breach BREACH u0 0)
+    { id: 'dam_charge', x: damPt(0, 0)[0], z: damPt(0, 0)[1], r: 3, target: 'dam' },
   ],
   structures: [
     // --- dam and bunker (objectives, bomb only). The crest is a walkable deck (bridge cells).
@@ -162,13 +186,16 @@ export default {
       elev: DAM.elev, walkY: DAM.walk, points: CREST,
       ramps: [{ id: 'stair_w', points: W_STAIR, width: 1.6, y0: 0.25, y1: DAM.walk, landing: 1.6 }, { id: 'stair_e', points: E_STAIR, width: 1.6, y0: 0.25, y1: DAM.walk, landing: 1.6 }],
       waterFx: { downstream: [[44, 35], [50, 43.5], [56, 50]], surge: [[44, 35], [52, 46], [60, 54], [84, 74], [100, 87.5]] },
+      hideParts: [SHACK_PART], // its control shack stands on the ground by the truck road (`dam_shack`)
       destructible: true, bombOnly: true, marker: 'dam_charge', hp: 100, destroyFx: ['collapse', 'flood', 'removeCrest'],
       // the surge drowns the toe ledge (T3) + its rim: with the crest gone the two banks are split
       floodPoly: [...arc(18, -42, 42, 12), ...arc(10.5, 42, -42, 12)] }, // the whole foot of the face, abutment to abutment
     // rock rims holding the raised reservoir (S and E shores)
     { id: 'rim_s', type: 'cliff', points: [[-1, 29.5], [14, 28.5], [25, 26.6], [27.2, 27.4], [26.6, 31.5], [14, 34], [-1, 35]], h: 7.6, climbable: false },
-    // the crag under the dam's gate-keeper hut (the asset's own rock is hidden: it was cut for a 12 m gorge)
-    { id: 'dam_crag', type: 'cliff', points: [[57, 23.2], [61.4, 22.8], [62, 27.4], [57.4, 27.8]], h: 6.6, climbable: false },
+    // the dam's gate-keeper shack (its own part of the dam asset, `assetPart`) on the ground E of the truck road at the
+    // N edge, door to the road, parallel to it, its HALT sign to the camera (12 m clear of cliff_w, which would hide
+    // it); nav: false (no climbable roof)
+    { id: 'dam_shack', type: 'hut', variant: 'dam_shack', x: 64.4, z: 2.6, rot: 0, w: 3.4, d: 2.8, h: 2.95, assetPart: SHACK_PART, nav: false },
     { id: 'rim_e', type: 'cliff', points: [[55, -1], [58.4, -1], [58, 9], [57.4, 15.5], [56.6, 20.2], [55, 21.2], [54.6, 18], [55, 12]], h: 7.6, climbable: false },
     { id: 'dam_bunker', type: 'bunker', variant: 'surveillance', x: 19, z: 46, rot: deg(315), w: 5, d: 4, h: 2.4,
       destructible: true, bombOnly: true, hp: 100, crew: ['e34'] },
@@ -201,7 +228,7 @@ export default {
     { id: 'spools', type: 'crates', variant: 'cable_drum', x: 114, z: 61, rot: 0, w: 1.5, d: 1.5, h: 1.5, block: 1 },
     { id: 'camp_tent', type: 'tent', x: 132, z: 43, rot: 0, w: 4, d: 4, flag: true, garrison: true },
     { id: 'tent2', type: 'tent', x: 141, z: 42, rot: 0, w: 4, d: 4 },
-    ...[[66, 5], [70.5, 9], [90, 6], [130, 6], [140, 10], [6, 50], [2, 70], [90, 48], [146, 60]]
+    ...[[70.2, 4.2], [70.5, 9], [90, 6], [130, 6], [140, 10], [6, 50], [2, 70], [90, 48], [146, 60]]
       .map(([x, z], k) => ({ type: 'pine', x, z, r: 0.6, h: 9 + (k % 6), seed: 401 + k })),
   ],
   items: [
@@ -288,6 +315,7 @@ export default {
   climbLinks: [],
   ladders: [],
   triplines: [],
+  noWalk: [{ id: 'dam_front', points: DAM_FRONT }],
   objectives: [
     { id: 'o1', text: 'Destroy the dam bunker', type: 'destroy', targets: ['dam_bunker'], required: true, bombOnly: true },
     { id: 'o2', text: 'Demolish the dam', type: 'destroy', targets: ['dam'], marker: 'dam_charge', required: true, bombOnly: true },

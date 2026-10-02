@@ -37,7 +37,9 @@ export function settleFeedback(pw, rd, rec) {
   let { x, z } = pelvisXZ(pw, rd);
   let nx = 0, nz = 0;
   const i = Math.floor(x / g.cell), j = Math.floor(z / g.cell);
-  if (g.isWater(i, j)) {
+  // a mission `noWalk` area (M3: the foot of the dam) holds nobody, not even a body in its water: moved out
+  const barred = !!(g.noWalk && g.inBounds(i, j) && g.noWalk[g.idx(i, j)]);
+  if (g.isWater(i, j) && !barred) {
     u.sunk = true;   // deep water: removed from perception like a drowned man
   } else if (!g.isWalkable(i, j)) {
     const n = g.nearestWalkable(x, z, C.nudge) || g.nearestWalkable(x, z, C.nudgeFar);

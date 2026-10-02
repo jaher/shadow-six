@@ -319,7 +319,8 @@ export const CONFIG = {
 
   /** Abilities (§3.3, §3.4). Owners append per-ability keys at the end. */
   abilities: {
-    knife: { reach: 1.2, dur: 0.6, hit: 0.3, range: 1.2, windup: 0.3, duration: 0.6, noise: 0 }, // §3.3 (range/windup/duration = LEGACY aliases)
+    // contact: the last step in to body contact, the victim held (abilities/knife-contact.js); false = the classic stab at arm's length
+    knife: { reach: 1.2, dur: 0.6, hit: 0.3, range: 1.2, windup: 0.3, duration: 0.6, noise: 0, contact: true }, // §3.3 (range/windup/duration = LEGACY aliases)
     syringe: { dur: 0.9, hit: 0.5, reach: 1.2 }, // §3.3
     timeBomb: { fuse: 10 }, // §3.3
     firstAid: { heal: 34, doses: 6, dur: 1.5, at: 0.5, range: 1.2 }, // §3.3 +34 HP per dose, 6 doses

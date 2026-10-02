@@ -70,7 +70,7 @@ export const SFX_EVENTS = Object.freeze([
   { event: 'mission:won', sfx: ['stamp', 'promotion'], pick: 'stars/rank change' },
   { event: 'mission:lost', sfx: [], pick: 'failure stinger (music channel)' },
   { event: 'objective:update', sfx: ['pencil_scratch'] },
-  { event: 'wind:gust', sfx: ['wind_gust'], pick: 'gust front at the view centre (world/wind.js; gain ∝ gust × speed)' },
+  { event: 'wind:gust', sfx: ['wind_gust'], pick: 'strong gust front at the view centre (world/wind.js; ≥ 45 s apart, soft: audio/wind-bed.js)' },
   { event: 'wind:flag', sfx: ['flag_clank'], pick: 'gust filling a flag: halyard snap-hook on the pole' },
 ]);
 

@@ -20,7 +20,8 @@
  *      cone would sweep over him), crawls round the bunker ruin and up the W stair, and switches it on from there:
  *      e18 turns his back on the dam, p5 / e19 / the new squad gather at it, far from the dam's foot. The Spy
  *      crawls (no prints to follow) to the W stair; both cross the crest to the truck road
- *   I  the raft lands Marine and Sapper by the dam; the Sapper walks out on the toe ledge and plants charge two (o2)
+ *   I  the raft lands Marine and Sapper at the foot of the E stair (the face's foot is out of bounds); the Sapper
+ *      climbs to the spillway gates in the middle of the crest, plants charge two and runs off the crest (o2)
  *   J  the truck comes for them north of the dam; all four get in (o3)
  * Orders only (move / run / crawl / stance / ability / leave & board vehicles); timing reads what a player sees.
  */
@@ -73,7 +74,9 @@ async function crawlCautiously(D, pts, { finalPause = 0, maxWait = 900 } = {}) {
     const leg = [[pts[k][0], pts[k][1], k === pts.length - 1 ? finalPause : 0.5]];
     if (!D.routeClear('greenberet', leg, { delay: gb.buried ? 1.5 : 0.3 })) {
       if (!gb.buried) { D.ability('greenberet', 'shovel'); await D.until(() => gb.buried, 5, 'GB digs in to wait'); }
-      await D.until(() => D.routeClear('greenberet', leg, { delay: 1.5 }), maxWait, `clear leg to (${pts[k]})`);
+      const why = []; // (who keeps the leg covered, for the timeout message)
+      await D.until(() => { why.length = 0; return D.routeClear('greenberet', leg, { delay: 1.5, why }); }, maxWait, `clear leg to (${pts[k]})`)
+        .catch((e) => { throw new Error(`${e.message} [${why.join(' ')}]`); });
     }
     if (gb.buried) {
       D.order('greenberet', { type: 'move', x: gb.x, z: gb.z }); // digs himself out
@@ -338,23 +341,25 @@ export const STAGES = [
     await D.path('spy', [...CREST_PATH, [59.5, 14.5]]);
     D.checkpoint('H4 Spy at the truck road');
   }],
-  ['I', 'Dam: charge two on the toe ledge', async (D) => {
+  ['I', 'Dam: charge two at the spillway gates on the crest', async (D) => {
     const sap = D.c('sapper');
-    await D.row(51.2, 31.6);
+    await D.row(56.3, 37.6); // the E bank by the foot of the E stair (the dam's foot itself is out of bounds)
     const raft = D.raft();
-    const exits = ['sapper', 'diver'].map((r) => raft._exitPoint(undefined, undefined, false, D.c(r), raft.occupants.indexOf(D.c(r))) || { x: 52.8, z: 32.5 });
-    await clearWindow(D, [...exits.map((p) => [p.x, p.z]), [55, 30], [58, 24]], 4, 300, 'landing by the dam unseen');
+    const exits = ['sapper', 'diver'].map((r) => raft._exitPoint(undefined, undefined, false, D.c(r), raft.occupants.indexOf(D.c(r))) || { x: 57.5, z: 36.5 });
+    await clearWindow(D, [...exits.map((p) => [p.x, p.z]), [59.35, 34.3], [60, 28]], 4, 300, 'landing by the E stair unseen');
     for (const r of ['sapper', 'diver']) { D.ability(r, 'leaveVehicle'); await D.wait(0.3); }
     D.order('diver', { type: 'move', x: 58.5, z: 13.5 });
-    D.checkpoint('I1 Marine and Sapper ashore by the dam');
-    await D.go('sapper', 48, 27, { tol: 0.6 });
-    await D.until(() => D.routeClear('sapper', [[38.0, 28.6, 3.0], [48, 27]], { speed: 1.4, low: false }), 600, 'nobody watching the toe ledge');
-    await D.go('sapper', 38.0, 28.6, { tol: 0.25 });
-    try { await D.face('sapper', 35.82, 29.59); } catch { /* already facing the spot */ }
+    D.checkpoint('I1 Marine and Sapper ashore by the E stair');
+    await D.go('sapper', 59.35, 34.3, { tol: 0.6 });
+    // up the E stair to the spillway gates (dam_charge (40,22), r 3), plant, and back down — nobody may see it
+    const PLANT = [41.0, 22.4];
+    await D.until(() => D.routeClear('sapper', [CREST_PATH[2], [...PLANT, 1.5], CREST_PATH[2], CREST_PATH[3]], { speed: 2.0, low: false }), 600, 'nobody watching the crest');
+    await D.go('sapper', ...CREST_PATH[2], { tol: 0.6 });
+    await D.go('sapper', ...PLANT, { tol: 0.3 });
     D.ability('sapper', 'timeBomb');
     await D.until(() => (sap.inventory.get('timeBomb') ?? 0) === 0, 5, 'charge two planted');
-    D.checkpoint('I2 charge two planted at the foot of the dam');
-    await D.path('sapper', [[48, 27], [58, 15]], { run: true });
+    D.checkpoint('I2 charge two planted at the spillway gates');
+    await D.path('sapper', [CREST_PATH[2], CREST_PATH[3], [58, 15]], { run: true }); // off the crest well inside the 10 s fuse
     await D.until(() => objective(D, 'o2'), 20, 'o2');
     D.checkpoint('I3 the dam is down (o2)');
   }],

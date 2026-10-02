@@ -55,10 +55,12 @@ test('knife from a crawl: he crawls in, stands up (0.6 s) only when close, then 
   s.run(0.55);
   near(gb.x, x1, 1e-6, 'no movement while getting up (0.6 s)');
   assert.ok(e.alive, 'no stab before he is on his feet');
+  let atStart = null;   // the stab starts in reach (then the contact kill's last step in: abilities/knife-contact.js)
+  s.world.events.on('ability:start', (p) => { if (p.id === 'knife' && atStart == null) atStart = Math.hypot(e.x - gb.x, e.z - gb.z); });
   s.run(2, () => !e.alive);
   assert.equal(e.alive, false);
   assert.equal(e.deathCause, 'knife');
-  assert.ok(Math.hypot(e.x - gb.x, e.z - gb.z) <= K.reach + 1e-6, 'stepped into reach standing');
+  assert.ok(atStart != null && atStart <= K.reach + 1e-6, `stepped into reach standing (${atStart?.toFixed(2)} m)`);
   assert.equal(gb.stance, 'stand');
   assert.deepEqual(msgs, [], 'no refusal / warning');
   // already in reach while crawling: stands at once and still waits for the stand before the stab

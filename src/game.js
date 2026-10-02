@@ -48,6 +48,7 @@ import { BloodSystem } from './render/blood/index.js';
 import { resolveHouseRules, tierFromPreset } from './core/house-rules.js';
 import { nobodyLeftToHelp } from './entities/downed.js';
 import { prepareCharacters, awaitUnitModels, warmUnitModels, charactersFrame, transportFrame, releaseCharacters } from './art/unit-model.js';
+import { knifeKillFrame } from './art/knife-kill.js';
 import { prepareVehicleArt, warmVehicleArt, tickVehicles, releaseVehicles, createVehicleLamps } from './art/vehicle-model.js';
 import { staticVehicleAssets, dressStaticVehicles } from './art/static-vehicles.js';
 import { flyoverAssets, createFlyovers } from './render/flyovers.js';
@@ -676,6 +677,7 @@ export class Game {
         e.renderUpdate?.(animDt);
       }
       safe(() => transportFrame(), 'transport poses'); // carried / dragged men after both skeletons updated (§C.10)
+      if (w.knifeKills?.length) safe(() => knifeKillFrame(w, alpha, CONFIG.sim.dt), 'knife kill poses'); // contact knife kills: both men posed together
       if (this.physicsVisuals) safe(() => this.physicsVisuals.frame(), 'physics visuals'); // props, vehicle rock, censored bodies
       safe(() => this.mapHandle?.frame?.(animDt, this.renderer.camera), 'terrain frame'); // trails, grass, trees
       this._updateCones();

@@ -104,13 +104,21 @@ export class Enemy extends Unit {
 
   update(dt) {
     if (this.alive) this.brain.update(dt);
+    // held by a contact knife kill (abilities/knife.js): his brain runs, but he neither walks nor turns until the blade
+    // goes in (transient: never saved; it lapses on its own)
+    const H = this.knifeHold;
+    if (H && this.alive) {
+      if ((this.world?.time ?? 0) <= H.until) { if (this.path) this.stop(); this.x = H.x; this.z = H.z; this.heading = H.h; }
+      else this.knifeHold = null;
+    }
     super.update(dt);
   }
 
-  die(cause, killer) {
+  die(cause, killer, o) {
     if (this.puppetOf) { this.puppetOf.puppet = null; this.puppetOf = null; } // BCD: a killed puppet / captive
     this.ko = null;
-    super.die(cause, killer);
+    this.knifeHold = null;
+    super.die(cause, killer, o);
     this.alertLevel = 0;
     this.brain.onDeath?.(cause, killer);
   }

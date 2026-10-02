@@ -207,6 +207,9 @@ function captureHome(h, clipName) {
 }
 function weaponPost(h, dt, ik) {
   const w = h.weapon; if (!w) return;
+  // a hand weapon swapped in for an action (the Marine's knife): it stays in the fist where equip() put it — the
+  // long-gun home (the harpoon gun's place on his back) is not its place (the knife was drawn on his back)
+  if (!LONG.has(h.weaponName)) { aimRig(h, 0, null); h.aimW = 0; h._wLast = null; return; }
   const S3 = h.bones.spine_03; h.object.updateMatrixWorld(true);
   const wa = aimWeight(h);
   // home placement in world space (optionally sliding from the previous hold)

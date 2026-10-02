@@ -1739,6 +1739,7 @@ Kildread's count is 6 walkers, 1 sentry, patrols of 4 and 3, 2 towers, the boat 
   - A uniform hangs outside the east camp, by the river.
   - Anything suspicious in the east camp or south of the river raises the alarm.
   - The bunker gunner turns towards any noise. Give him something to look at before you go behind him.
+  - The dam's weak point is the spillway gates in the middle of the crest. Light the fuse and get off the crest.
   - The truck will wait north of the dam.
 
 **Terrain.**
@@ -1747,13 +1748,14 @@ Kildread's count is 6 walkers, 1 sentry, patrols of 4 and 3, 2 towers, the boat 
 |---|---|---|
 | T1 | `water` (reservoir, **raised**: `level` 5.8) | poly (0,0) (55,0) (56,10) (55,18), the dam's upstream arc (r 21.6) to (27.9,28.3), (25,27.4) (14,29) (0,30). Its own still water body 5.8 m up, held by the dam and two rock rims; nobody wades or swims in it; it drains to the river level when the dam falls |
 | T2 | `water` (river) | path (41,23) (44,35) (52,46) (60,54) (84,74) (108,94) (132,114) (150,129), width 20: from the foot of the dam towards the camera, bending SE |
-| T3 | `shallow` | auto rim 2 m, plus the dam-toe ledge along the foot of the face (arch radius 13.2–16.3, ±27°) |
+| T3 | `shallow` | auto rim 2 m, plus the dam-toe ledge along the foot of the face (arch radius 13.2–16.3, ±27°). Out of bounds (`noWalk`, below) |
 | T4 | `ground` | station yard poly = the fence polygon below; camp interior poly = the palisade below |
 | T5 | `road` | path (0,92) (4,92) (20,92) (26,88), width 5 (W gate). Dirt road (60,0) (60,12), width 4 (truck pickup) |
 
 - **The dam faces the camera** (re-authored 2026-09-30, user request "show the dam from the front not behind"): rot 345° turns its downstream face to the default 15° camera yaw. The player sees the tall concrete face with the reservoir beyond it (top of the screen) and the river pouring towards the bottom of the screen.
 - The crest is a curved `bridge` deck **raised 7 m** (grid `elev` 7; the visual stands 7 m up, so 7 m of face show above the river). It runs from the W end (29.2,29.3) to the E end (53,22.9), reached only by two concrete stairs (`ramps`): the W stair from (22.85,40.3) and the E stair from (59.35,33.9).
 - Water runs down the face: spillway sheets from the two gate bays, trickles, frozen trickles and icicles, foam and spray at the foot, white water down the river, the sound of falling water (positional) — visual/audio only.
+- **Nobody walks in front of the dam** (user request 2026-10-02): `noWalk` area `dam_front`, from the crest's downstream edge (arch radius 19.2, ±45°) down the inner side of the stairs (E to its middle, W to 40 %) and across to the plunge pool (radius 10.5, +50° … −36°, then 12.5 at −40°, so the W shore where the raft lands for the bunker stays open). Its ground-level cells are nav-blocked for walkers, waders, swimmers, divers and boats (sight unchanged); the crest deck and the stair treads stay open; orders and paths into it stop at the nearest valid spot or are refused; a body coming to rest in it is moved out.
 - E bank edge ≈ (51,22) (54,32) (60,40) (67,47) (84,60.5) (108,80.5) (132,100.5) (148,114).
 - SW bank edge ≈ (31,26) (35,38) (44,52) (45,53.8) (60,67.5) (84,87.5) (108,107.5) (130,126).
 
@@ -1761,9 +1763,9 @@ Kildread's count is 6 walkers, 1 sentry, patrols of 4 and 3, 2 towers, the boat 
 
 | id | type (variant) | x | z | rot | size | Notes |
 |---|---|---|---|---|---|---|
-| `dam` | dam (concrete arch) | 40 | 22 | 345 | 27 long × 3 crest × 14 high, `elev` 7 | **Objective.** `bombOnly`; demolition marker `dam_charge` at (35.82,29.59) on the toe ledge at the foot of the face, W of the spillway (beside a frozen trickle, out of the churning water) (the bomb must be within 3 m). Crest = curved `bridge` cells at elev 7 (walking surface 7.28 on top of its snowy deck), two stairs (`ramps`, cells at the tread heights). `waterFx` (water down the face, white water streaming away downstream, spray mist at the foot). On destruction: collapse FX, flood surge over the whole foot of the face, crest removed, the falling water stops and the reservoir bursts through the breach: a torrent into the pool and a surge of white water down the river while it drains (40 s) |
+| `dam` | dam (concrete arch) | 40 | 22 | 345 | 27 long × 3 crest × 14 high, `elev` 7 | **Objective.** `bombOnly`; demolition marker `dam_charge` at (40,22): the spillway gates in the middle of the crest, the arch's weak section, where dam_arch_destroyed breaks open (the bomb must be within 3 m; the original's charge at the dam base is out of bounds here). Its control shack (part of the asset) is hidden (`hideParts`) and stands as `dam_shack` by the truck road. Crest = curved `bridge` cells at elev 7 (walking surface 7.28 on top of its snowy deck), two stairs (`ramps`, cells at the tread heights). `waterFx` (water down the face, white water streaming away downstream, spray mist at the foot). On destruction: collapse FX, flood surge over the whole foot of the face, crest removed, the falling water stops and the reservoir bursts through the breach: a torrent into the pool and a surge of white water down the river while it drains (40 s) |
 | `rim_s`, `rim_e` | cliff | S shore (−1,29.5)…(27.2,27.4)…(−1,35); E shore (55,−1)…(56.6,20.2)…(55,12) | | | h 7.6 | Rock rims holding the raised reservoir; `B.HIGH` |
-| `dam_crag` | cliff | poly (57,23.2) (61.4,22.8) (62,27.4) (57.4,27.8) | | | h 6.6 | Under the dam's gate-keeper hut (E end) |
+| `dam_shack` | hut (`assetPart` of dam_arch: its control shack) | 64.4 | 2.6 | 0 | 3.4 × 2.8 × 2.95 | The dam's gate-keeper shack on the ground E of the truck road at the N edge, door to the road, parallel to it, HALT sign to the camera; `nav: false`. It stood on a 6.6 m crag (`dam_crag`, removed) 2 m from the E stair, where it read as a tank (user request 2026-10-02) |
 | `dam_bunker` | bunker (surveillance) | 19 | 46 | 315 | 5 × 4 × 2.4 | **Objective.** `bombOnly`. Crew `e34`: vision `bunker` (near 18, far 36, 40°, sweep 50) facing NE over the dam |
 | `st_fence` | fence (`electric`, chain-link) | closed poly (4,58) (34,58) (70,90) (70,126) (4,126) | | | h 2.5 | `B.FENCE` (see-through). **Powered** until `fence_switch` is used. **Gates:** N gap x 24–28 at z 58 (dam path); W gate (below) |
 | `gate_w` | gate (`chainlink`) | 4 | 92 | 270 | opening 4 m | Open; road enters here |
@@ -1786,7 +1788,7 @@ Kildread's count is 6 walkers, 1 sentry, patrols of 4 and 3, 2 towers, the boat 
 | `spools` | crates (`cable_drum`) | 114 | 61 | 0 | Ø 1.5 | |
 | `camp_tent` | tent + flag | 132 | 43 | 0 | 4 × 4 | **Garrison**, pool 5 |
 | `tent2` | tent | 141 | 42 | 0 | 4 × 4 | |
-| trees | pine | (66,5) (70.5,9) (90,6) (130,6) (140,10) (6,50) (2,70) (90,48) (146,60) | | | h 9–14 | |
+| trees | pine | (70.2,4.2) (70.5,9) (90,6) (130,6) (140,10) (6,50) (2,70) (90,48) (146,60) | | | h 9–14 | |
 
 **Items.**
 - `timeBomb` ×2 at (40,85). The Sapper picks them up.
@@ -1860,7 +1862,7 @@ Kildread's count is 6 walkers, 1 sentry, patrols of 4 and 3, 2 towers, the boat 
 5. The Sapper cuts the fence. The GB knifes while the Spy distracts. The Sapper collects both bombs.
 6. Row to the bunker. Charge one goes behind it (o1). The alarm sounds; hide the raft and wait out the siren (25 s) and the searches.
    - The crew's `sweep 50` is the §4.2 amplitude A (±50° about heading 315, plus the 40° aperture: about −115° to +25°), like every other profile. It covers the NE side, the crest and the shore, so the gunner must be turned first: he faces any noise (the GB's decoy dug in near the bunker, or a thrown stone), which leaves the rear unwatched for the plant. The notebook hints at this (replay round 2).
-7. Row to the dam toe (the foot of the face, under the spillway) and plant charge two (o2).
+7. Row to the foot of the E stair, climb to the spillway gates in the middle of the crest and plant charge two (o2); get off the crest before it blows (the foot of the face, where the original plants it, is out of bounds).
 8. The truck arrives; everyone boards (the Spy crosses by raft or before the blast).
 
 ### 7.7 Prop, interactable and vehicle types needed later (not in the ARCHITECTURE catalogue yet)

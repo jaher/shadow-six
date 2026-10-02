@@ -20,6 +20,7 @@ import { installHandlers, missionAudio } from './event-map.js';
 import { MusicDirector } from './music-director.js';
 import { Narrator } from './narration.js';
 import { cueForState, startCueFor, endStinger } from './music-cues.js';
+import { WIND_BED, windBedTargetDb, smoothWindDb } from './wind-bed.js';
 
 const hashStr = (s) => { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
 
@@ -456,12 +457,18 @@ function addVoiceSiren(audio, events, rand) {
         this.siren.gain = this._sirenGain();
         if (this.siren.gain <= 0) this._sirenStop(0.5); else this._sirenSync();
       }
-      // step 4w: the wind beds follow the mission WindField at the listener (lulls, gust swells), same field as the visuals
+      // step 4w: the wind beds follow the mission WindField at the listener (lulls, stronger spells), same field as the
+      // visuals — gently: ±2.5 dB, gliding over seconds (wind-bed.js; the old ×0.6…×1.9 within a second moaned)
       const W = this.world?.wind;
       if (W?.sample && this.ambience.length) {
         const s = W.sample(L.x, L.z, W.t, (this._wS ||= {}));
-        const k = Math.min(1.9, 0.3 + s.speed / 9 + s.gust * 0.5);
-        for (const l of this.ambience) if (/^wind/.test(l.id) && l.handle?.setGain && Math.abs((l._wk ?? 1) - k) > 0.02) { l._wk = k; l.handle.setGain(l.gain * k); }
+        this._wDb = smoothWindDb(this._wDb, windBedTargetDb(s, W.p), now - (this._wT ?? now));
+        this._wT = now;
+        for (const l of this.ambience) {
+          if (!/^wind/.test(l.id) || !l.handle?.setGain || Math.abs((l._wDb ?? Infinity) - this._wDb) < WIND_BED.stepDb) continue;
+          l._wDb = this._wDb;
+          l.handle.setGain(l.gain * 10 ** (this._wDb / 20));
+        }
       }
       if (this.unlocked && this.gameState === 'playing') {
         for (const l of this.ambience) {

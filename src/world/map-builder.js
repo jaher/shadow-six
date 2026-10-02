@@ -18,6 +18,7 @@
 import * as THREE from 'three';
 import { terrainCode, LINK, T, B, MAX_STEP } from './grid.js';
 import { CONFIG } from '../config.js';
+import { pointInPolygon } from '../core/math.js';
 import { normalizeMission } from '../missions/schema.js';
 import { buildProp, LINEAR_PROPS } from '../art/props.js';
 import { edgeStructureRuns, edgeLineExtensions, edgeBuildingRows } from './edge-extend.js';
@@ -321,6 +322,49 @@ export function missionWayPoints(mission, interactables = []) {
   for (const it of [...(mission.items || []), ...interactables]) add(it.x, it.z);
   for (const z of [mission.extraction, mission.rendezvous]) if (z) add(z.x, z.z);
   return out;
+}
+
+/**
+ * Ground-level cells of a `noWalk` polygon: cell centre inside, not a deck (bridge) cell, not raised (a stair's treads,
+ * a roof: elev > 0.3) and not on or beside a ramp's run (`keepRamp` m, default 0.25), so the walks above and beside
+ * the area stay open. @returns {number[]} cell indices
+ */
+export function noWalkCells(grid, area) {
+  const pts = area?.points;
+  if (!Array.isArray(pts) || pts.length < 3) return [];
+  const m = area.keepRamp ?? 0.25, c = grid.cell;
+  let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+  for (const [x, z] of pts) { x0 = Math.min(x0, x); z0 = Math.min(z0, z); x1 = Math.max(x1, x); z1 = Math.max(z1, z); }
+  const out = [];
+  for (let j = Math.max(0, Math.floor(z0 / c)); j <= Math.min(grid.rows - 1, Math.floor(z1 / c)); j++) {
+    for (let i = Math.max(0, Math.floor(x0 / c)); i <= Math.min(grid.cols - 1, Math.floor(x1 / c)); i++) {
+      const x = (i + 0.5) * c, z = (j + 0.5) * c, k = grid.idx(i, j);
+      if (!pointInPolygon(x, z, pts) || grid.bridge[k] || grid.elev[k] > 0.3) continue;
+      if (grid.ramps && grid.nearRamp(x, z, m)) continue;
+      out.push(k);
+    }
+  }
+  return out;
+}
+
+/**
+ * Stamp every `noWalk` area (normalized mission) as a nav-only block (`nowalk:<id>`: isWalkable false for walkers,
+ * swimmers, divers and boats; sight unchanged) and publish the union as `grid.noWalk` (Uint8Array, 1 = no-walk; null
+ * when there is none): a body coming to rest there is moved out (physics/feedback.js).
+ * @returns {number} cells stamped
+ */
+export function stampNoWalk(grid, areas) {
+  grid.noWalk = null;
+  let n = 0;
+  for (const [k, a] of (areas || []).entries()) {
+    const cells = noWalkCells(grid, a);
+    if (!cells.length) continue;
+    grid.navStamp(`nowalk:${a.id ?? k}`, cells);
+    grid.noWalk ||= new Uint8Array(grid.size);
+    for (const c of cells) grid.noWalk[c] = 1;
+    n += cells.length;
+  }
+  return n;
 }
 
 /** Keep radius (m) around a climb / ladder end: its own cell stays open, the wall beside it still blocks. */
@@ -1405,6 +1449,9 @@ export function buildMap(world, mission, opts = {}) {
   stampBarrierGaps(world, built);
   stampNavFootprints(world, built);
   for (const b of built) for (const f of b.footprints || []) if (f.ramp) grid.addRamp(f.ramp);   // stairs: sloped walker height
+  // 5b''. `noWalk` areas (M3: the foot of the dam's face): nobody walks, wades, swims or is sent there; before the
+  // visual nav pass, so its keep-the-ways-open rules never count on them
+  stampNoWalk(grid, mission.noWalk);
 
   // 5c. placement rule (e): what the visuals occupy outside their gameplay footprints blocks walking (browser)
   let visNavOff = null, deckLanes = null;

@@ -16,17 +16,21 @@ function hash(str) { let h = 2166136261; for (const c of str) h = Math.imul(h ^ 
 
 /**
  * Render `dur` seconds by calling f(t, i, noise) per sample; a one-pole low-pass with cutoff `lp` Hz
- * (or a function of t) is applied when given.
+ * (or a function of t) is applied when given (`poles: 2` = two in series, −12 dB/oct).
  */
-function render(sr, dur, f, { seed = 1, lp = 0, hp = 0 } = {}) {
+function render(sr, dur, f, { seed = 1, lp = 0, hp = 0, poles = 1 } = {}) {
   const n = Math.max(1, Math.round(sr * dur));
   const out = new Float32Array(n);
   const rnd = rng(seed);
-  let y = 0, h = 0, px = 0;
+  let y = 0, y2 = 0, h = 0, px = 0;
   for (let i = 0; i < n; i++) {
     const t = i / sr;
     let x = f(t, i, rnd);
-    if (lp) { const c = typeof lp === 'function' ? lp(t) : lp; y += (1 - Math.exp(-TAU * c / sr)) * (x - y); x = y; }
+    if (lp) {
+      const a = 1 - Math.exp(-TAU * (typeof lp === 'function' ? lp(t) : lp) / sr);
+      y += a * (x - y); x = y;
+      if (poles > 1) { y2 += a * (x - y2); x = y2; }
+    }
     if (hp) { const a = Math.exp(-TAU * hp / sr); h = a * (h + x - px); px = x; x = h; }
     out[i] = x;
   }
@@ -41,6 +45,8 @@ function normalize(buf, peak = 0.9) {
 const dec = (t, k) => Math.exp(-t * k); // exponential decay envelope
 const att = (t, a) => Math.min(1, t / a); // linear attack
 const loopFade = (t, dur) => Math.min(1, t / 0.05, (dur - t) / 0.05); // click-free loop seams
+/** Gust envelope: raised-cosine rise over 0.8 s, raised-cosine fall over 1.6 s. */
+const gustEnv = (t) => (t < 0.8 ? 0.5 - 0.5 * Math.cos(Math.PI * t / 0.8) : 0.5 + 0.5 * Math.cos(Math.PI * Math.min(1, (t - 0.8) / 1.6)));
 
 /** Recipe name → (sr, seed) => Float32Array. */
 const RECIPES = {
@@ -84,9 +90,10 @@ const RECIPES = {
   chain: (sr, s) => render(sr, 0.22, (t, i, r) => [0, 0.05, 0.09, 0.14].reduce((a, k) => a + (t > k ? (r() * 0.5 + Math.sin(TAU * 3100 * t)) * dec(t - k, 90) : 0), 0), { seed: s, hp: 800 }),
   crackle: (sr, s) => render(sr, 2.0, (t, i, r) => (r() > 0.995 ? 1 : 0.08 * r()) * loopFade(t, 2), { seed: s, lp: 3000 }),
   noise_loop: (sr, s) => render(sr, 4.0, (t, i, r) => r() * (0.7 + 0.3 * Math.sin(TAU * 0.5 * t)) * loopFade(t, 4), { seed: s, lp: 700 }),
-  // step 4w: a gust front passing the listener (3.2 s swell, the band opening as it peaks) and the halyard snap-hook
-  // clanking against a steel flagpole when a gust fills the flag
-  gust: (sr, s) => render(sr, 3.2, (t, i, r) => r() * Math.pow(Math.sin(Math.PI * t / 3.2), 1.6), { seed: s, lp: (t) => 260 + 1300 * Math.pow(Math.sin(Math.PI * t / 3.2), 2), hp: 90 }),
+  // step 4w: a gust front passing the listener — a soft breath of air (rises 0.8 s, dies away 1.6 s; dark: the cutoff only
+  // opens 200 → 650 Hz, 12 dB/oct; the old 3.2 s swell opening to 1.6 kHz was a ghostly whoosh) — and the halyard
+  // snap-hook clanking against a steel flagpole when a gust fills the flag
+  gust: (sr, s) => render(sr, 2.4, (t, i, r) => r() * gustEnv(t), { seed: s, lp: (t) => 200 + 450 * gustEnv(t), hp: 70, poles: 2 }),
   halyard: (sr, s) => render(sr, 0.7, (t, i, r) => [0, 0.14, 0.33].reduce((a, k, j) => a + (t > k ? (Math.sin(TAU * (1850 + 260 * j) * t) + 0.55 * Math.sin(TAU * 2790 * t) + 0.3 * Math.sin(TAU * 4130 * t) + 0.25 * r()) * dec(t - k, 26 + 6 * j) * (1 - 0.3 * j) : 0), 0), { seed: s, hp: 500 }),
   noise_swell: (sr, s) => render(sr, 5.0, (t, i, r) => r() * Math.sin(Math.PI * t / 5), { seed: s, lp: 1200 }),
   beep: (sr) => render(sr, 0.12, (t) => Math.sin(TAU * 1500 * t) * Math.min(1, (0.12 - t) / 0.01)),

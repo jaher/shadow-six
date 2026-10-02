@@ -3,7 +3,7 @@
 import { test, assert } from './lib.mjs';
 import { readFileSync, existsSync } from 'node:fs';
 import * as THREE from 'three';
-import { generateTree, GeoAcc, TREE_QUALITY, SPECIES, useThree, NEEDLE_LAYERS } from '../../src/art/terrain/treegen.js';
+import { generateTree, GeoAcc, TREE_QUALITY, SPECIES, useThree, NEEDLE_LAYERS, limbClearance } from '../../src/art/terrain/treegen.js';
 import { treePlacement } from '../../src/art/terrain.js';
 
 useThree(THREE);
@@ -106,4 +106,56 @@ test('pines: tri budget per quality and the baked needle atlas matches the layer
   const meta = JSON.parse(readFileSync(new URL('assets/terrain/needles.json', ROOT), 'utf8'));
   assert.deepEqual(meta.layers, NEEDLE_LAYERS, 'needles.json layers = NEEDLE_LAYERS');
   for (const f of ['needles.webp', 'needles_n.webp']) assert.ok(existsSync(new URL(`assets/terrain/${f}`, ROOT)), f);
+});
+
+// User report 2026-10-02 ("they are not rendering the same way they used to with all detail"): the clip-2 walk-under
+// clearance dropped the outer, snow-carrying spray of every spruce / fir limb (it was measured against a cut at the
+// tip: f1 1.12 > 1) and every needle of the low tiers, and its skipped rng calls made every tree a different one.
+const WALK = [{ y: 1.95, r: 0.35, wood: true }]; // terrain.js treePlacement: walk-under floor (wood only)
+
+test('pines: every spruce / fir limb keeps all its sprays — the needle cards of the pine-needle look-dev (7a0994bb)', () => {
+  // needle tris per tree at 7a0994bb (full detail); the broken build had 3978 / 2388 / 1206 / 1914 / 688
+  const LOOKDEV = { 'spruce/11/high': 5586, 'spruce/4242/high': 3548, 'spruce/90001/low': 1358, 'fir/11/high': 3394, 'fir/90001/high': 1752, 'scots_pine/11/high': 4604 };
+  for (const [k, want] of Object.entries(LOOKDEV)) {
+    const [sp, seed, q] = k.split('/');
+    assert.equal(gen(sp, Number(seed), q).n.idx.length / 3, want, `${k}: needle tris as at the look-dev`);
+    assert.equal(gen(sp, Number(seed), q, { clear: WALK }).n.idx.length / 3, want, `${k}: the walk-under clearance keeps them`);
+  }
+});
+
+test('pines: the walk-under clearance binds the limb wood only (needles, lean and yaw unchanged); no wood under head height', () => {
+  const lowWood = (b) => { let k = 0; for (let i = 0; i < b.count; i++) { const y = b.p[i * 3 + 1]; if (y > 0.25 && y < 1.6 && Math.hypot(b.p[i * 3], b.p[i * 3 + 2]) > 0.7) k++; } return k; };
+  for (const sp of ['spruce', 'fir', 'scots_pine']) for (const seed of [11, 4242, 90001]) {
+    const a = gen(sp, seed), c = gen(sp, seed, 'high', { clear: WALK });
+    assert.equal(hash(c.n.p), hash(a.n.p), `${sp} ${seed}: same needle cards (same tree)`);
+    assert.deepEqual(c.n.ext, a.n.ext, `${sp} ${seed}: same AO / snow catch`);
+    assert.equal(lowWood(c.b), 0, `${sp} ${seed}: no limb wood under head height beyond the trunk`);
+    if (sp !== 'scots_pine') assert.ok(lowWood(a.b) > 0 && c.b.count < a.b.count, `${sp} ${seed}: the low limbs' wood is what goes`);
+  }
+});
+
+test('pines: a hard floor (crown lifted over an obstacle) lifts a sagging limb with its sprays; the crown above is the same tree', () => {
+  const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+  const sag = [V3(0, 4.1, 0), V3(0.8, 3.9, 0), V3(1.6, 3.6, 0), V3(2.4, 3.3, 0), V3(3.0, 3.2, 0)];
+  const floor = [{ y: 3.45, r: 0.35 }];
+  const L = limbClearance(sag, [...WALK, ...floor], 0.1);
+  assert.ok(L.lifted && !L.drop, 'lifted, not dropped');
+  assert.deepEqual(L.pts.slice(0, 3).map((p) => p.y), [4.1, 3.9, 3.6], 'points above the floor stay');
+  for (const p of L.pts.slice(3)) assert.ok(Math.abs(p.y - 3.55) < 1e-9, `lifted onto the floor + margin (${p.y})`);
+  assert.deepEqual(L.pts.map((p) => p.x), sag.map((p) => p.x), 'the limb keeps its reach');
+  assert.equal(L.woodN, 4, 'its wood is whole');
+  const born = limbClearance([V3(0, 3, 0), V3(0.8, 2.9, 0), V3(1.6, 2.7, 0)], floor);
+  assert.ok(born.drop, 'a limb born under the floor is dropped');
+  const walk = limbClearance([V3(0, 2.3, 0), V3(0.6, 2.0, 0), V3(1.2, 1.7, 0), V3(1.8, 1.5, 0)], WALK);
+  assert.ok(!walk.lifted && !walk.drop && walk.pts[3].y === 1.5 && walk.woodN === 1, 'walk-under: needles stay where they grew, the wood ends at the break');
+  // a whole spruce under a 4 m floor: the crown above it is unchanged (dropped limbs keep the rng stream)
+  for (const seed of [11, 4242]) {
+    const a = gen('spruce', seed), c = gen('spruce', seed, 'high', { clear: [{ y: 4, r: 0.35 }] });
+    const above = (n) => n.p.filter((_, i) => i % 3 === 1 && n.p[i] > 7.5);
+    assert.ok(above(a.n).length > 500, 'crown above 7.5 m');
+    assert.deepEqual(above(c.n), above(a.n), `spruce ${seed}: same crown above the floor`);
+    let under = 0;
+    for (let i = 0; i < c.b.count; i++) { const y = c.b.p[i * 3 + 1]; if (y > 0.25 && y < 3.7 && Math.hypot(c.b.p[i * 3], c.b.p[i * 3 + 2]) > 0.7) under++; }
+    assert.equal(under, 0, `spruce ${seed}: no wood under the floor beyond the trunk`);
+  }
 });
