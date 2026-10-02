@@ -992,7 +992,7 @@ Used whenever the briefing is skipped or unavailable: loading a save, quickload,
 - **[new]** a loading indicator in the footer: while loading, the footer reads "Press Escape to skip" in 40% white plus a tiny brass rule; once loaded it goes to full white. Pressing Esc before loading finishes goes to S14 with the same image.
 
 **Slides:**
-- Slides change every **6 s** (spec §6.6) with a **film-gate dissolve**: 500 ms, with a 2-frame luminance flicker and a gate-weave jitter during the dissolve.
+- Slides change every **6 s** (spec §6.6) with a **film-gate dissolve**: 500 ms, with a 2-frame luminance flicker. (The gate-weave jitter it also had was dropped: players read it as the screen shaking.) The photo going out holds its last Ken Burns frame while it fades.
 - Each photo gets a **Ken Burns** move: 3% zoom over 6.5 s, the direction alternating per slide, `--ease-io`.
 - **Map slide** (SVG, from `europe.js`):
   - cream sea `--map-paper`, land `--map-land`, thin borders;

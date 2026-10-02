@@ -42,6 +42,15 @@ export function briefingPhotos(def, n = 0) {
   return ['france-tank', 'stuka', 'france-road'];
 }
 
+/**
+ * Seconds the Colonel's tour camera takes to fly to a stop `dist` m away: one eased tween per stop (camera.js
+ * recenterOn), so the path depends only on the time since it set off and an uneven frame rate cannot shake it.
+ * A longer hop takes a little longer. @param {number} dist ground metres
+ */
+export function tourFlyTime(dist) {
+  return Math.min(2.2, Math.max(0.9, 0.6 + (Number(dist) || 0) / 60));
+}
+
 export class Briefing {
   constructor(hud) {
     this.hud = hud;
@@ -177,11 +186,13 @@ export class Briefing {
     this.slideT = 0;
     const prev = this.slides[this.slide];
     prev.classList.remove('on');
-    prev.classList.add('off'); // film-gate dissolve out (500 ms) with its flicker
-    setTimeout(() => prev.classList.remove('off'), 520);
+    prev.classList.add('off'); // film-gate dissolve out (500 ms), holding its last Ken Burns frame
+    clearTimeout(prev._offT);
+    prev._offT = setTimeout(() => prev.classList.remove('off'), 520);
     this.slide = i;
     const cur = this.slides[i];
-    cur.classList.remove('on');
+    clearTimeout(cur._offT); // back before its dissolve ended (quick page turns): it shows at once, not at opacity 0
+    cur.classList.remove('on', 'off');
     void cur.offsetWidth; // restart the Ken Burns
     cur.classList.add('on');
     [...(this.pips?.children || [])].forEach((p, k) => p.classList.toggle('on', k <= i));
@@ -321,6 +332,7 @@ export class Briefing {
     this.stopVoice();
     this.hud.sound?.stop('projector');
     const g = this.hud.game, cc = g.cameraController;
+    if (g.cameraRig) g.cameraRig.scripted = false; // the player scrolls again
     if (this.part === 2 && this._saved && cc) cc.setZoom(this._saved.zoom); // back from the tour's 0.5× framing
     // the mission starts (tour finished / skipped, or the briefing closed by game.start()): look at the squad, not
     // wherever the tour (or the mission's cameraStart) left the camera
@@ -546,6 +558,7 @@ export class Briefing {
     this.ring = this.marker; // legacy name (tests / tour)
     this._saved = cc?.getState?.();
     if (cc && this._saved) cc.setZoom(this._saved.zoom * UI.briefingZoom);
+    if (g.cameraRig) g.cameraRig.scripted = true; // the tour flies the camera: no edge / key / drag scrolling fights it
     this.stopIx = -1;
     this.stopT = 0;
     this._from = this._saved ? { x: this._saved.x, z: this._saved.z } : null;
@@ -569,6 +582,7 @@ export class Briefing {
     }
     this.sub.textContent = s.text;
     this.root.dataset.stop = s.kind;
+    this._flyTo(s);
     const label = { objective: 'OBJECTIVE', danger: 'DANGER', extraction: 'EXTRACTION' }[s.kind];
     this.marker.className = `marker ${s.kind}`;
     this.marker.innerHTML = s.kind === 'objective'
@@ -579,14 +593,47 @@ export class Briefing {
     this._tourSay(s.text);
   }
 
+  /**
+   * Fly the camera to a tour stop: one eased tween from where it is to the stop's framing (cut with reduced motion).
+   * It used to be eased frame by frame (centerOn(cur + (stop − cur)·2.5·dt)), which never settled: centerOn frames a
+   * point below the HUD bar, so it handed back a target shifted up-screen and the next frame chased the stop again
+   * from there — the camera came to rest 20–45 m short (the circle often under the subtitles or off screen), where
+   * the shift balanced the step, and that resting place moved with every change of frame time: an uneven frame rate
+   * shook the map back and forth by up to ~20–70 px a frame while the narrator read.
+   * The tween runs in the camera's own update, before the frame is drawn, so the marker placed after it matches.
+   */
+  _flyTo(s) {
+    const cc = this.hud.game.cameraController;
+    if (!cc || !s) return;
+    const a = this._tourAim(cc, s);
+    const cur = cc.getState?.();
+    const rm = !!this.hud.kit?.reducedMotion;
+    if (cc.recenterOn && !rm) cc.recenterOn(a.x, a.z, tourFlyTime(cur ? Math.hypot(a.x - cur.x, a.z - cur.z) : 0));
+    else cc.centerOn?.(a.x, a.z);
+  }
+
+  /**
+   * The ground point to centre so a stop sits midway between the letterbox bars, not under the Colonel's subtitles
+   * (centerOn centres a point in the view below the HUD top bar; the tour's bottom bar is far taller than its top one,
+   * on a phone held sideways it hid the circle). The stop shifted down-screen by the difference of the two centres.
+   */
+  _tourAim(cc, s) {
+    const top = this.root.querySelector('.bar.top'), bot = this.root.querySelector('.bar.bottom');
+    const H = cc.height, ppm = cc.pxPerMeter?.(), fore = Math.sin(cc.elevation) || 1;
+    if (!top || !bot || !(H > 0) || !(ppm > 0)) return s;
+    const r0 = this.root.getBoundingClientRect(), view = (cc.domElement?.getBoundingClientRect?.().top || 0) + (cc.rect?.y || 0);
+    const strip = r0.top + (top.offsetTop + top.offsetHeight + bot.offsetTop) / 2; // offsets: the bars slide in by transform
+    const usable = view + (Math.min(cc.hudTop || 0, H / 2) + H) / 2;
+    const d = (usable - strip) / (ppm * fore); // ground m along screen-down
+    if (!Number.isFinite(d) || bot.offsetTop <= top.offsetTop + top.offsetHeight) return s;
+    return { x: s.x + Math.sin(cc.azimuth || 0) * d, z: s.z + Math.cos(cc.azimuth || 0) * d };
+  }
+
   updateTour(dt) {
     const s = this.stops[this.stopIx];
     const cc = this.hud.game.cameraController;
     this.stopT += dt;
     if (s && cc) {
-      const cur = cc.getState();
-      const k = this.hud.kit?.reducedMotion ? 1 : Math.min(1, dt * 2.5);
-      cc.centerOn(cur.x + (s.x - cur.x) * k, cur.z + (s.z - cur.z) * k);
       const p = cc.worldToScreen?.(s.x, 0, s.z);
       const show = !!p && s.kind !== 'start' && this.marker.childNodes.length > 0;
       this.marker.hidden = !show;

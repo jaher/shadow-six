@@ -452,3 +452,4 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 - 2026-10-01T20:50 PDT user: "Do they grab the rows with the hands when on the boat" → raft yes (two-handed paddle), M14 rowboat no (hands clasped, oar through the boat, boots under hull, spare raft paddle sticking out) → background agent in worktree commandos-wt-oars / fix/boat-oars-hands. Publish after merge.
 - 2026-10-01T20:50 PDT smooth noise turn MERGED 3caefcf5 (unit 1467/0 on merged master; running-noise + ai pass). debug-level-select merged dc6bc303 by missing-pieces. Publishing.
 - 2026-10-01T21:10 PDT vibrating sound MERGED 248b2566 (projector UI loop leaked into missions; zipper smoothing). Unit 1490/0 on merged master; audio-buzz + audio pass. Publishing.
+- 2026-10-01T21:22 PDT briefing jitter MERGED dcf1f718 (tour camera feedback loop; slides). Unit 1490/0 on merged master; briefing-steady, narration, audio-buzz pass. Publishing.

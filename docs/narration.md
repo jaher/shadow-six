@@ -35,6 +35,10 @@ person was used as a reference.
     paragraph ever sits under them.
 - **Part 2, the Colonel's tour.** The camera flies to each stop (start, objectives, the guarded spot, extraction) and
   the narrator reads its caption from a recorded clip. The browser's own speech synthesis is no longer used.
+  - Each flight is one eased move of 0.9 to 2.2 s, longer for a longer hop (`tourFlyTime` in `src/ui/briefing.js`). It
+    puts the stop midway between the letterbox bars, as far as the map edge allows, and then the camera holds still. An
+    uneven frame rate cannot shake it, and edge, key and drag scrolling are locked until the tour ends
+    (`tests/briefing-steady.test.mjs`).
   - Each stop waits for him: he starts 0.3 s after the camera sets off, and the camera moves on 0.6 s after his line
     ends, holding a stop for at least 2.5 s (`TOUR_TIMING` in `src/ui/briefing-narration.js`). After the last stop he
     reads the sign-off, "That is all, officer. Good luck."

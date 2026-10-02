@@ -659,8 +659,9 @@ export class Game {
   render(dt = 0, alpha = 1) {
     const w = this.world;
     const animDt = this.state === 'playing' ? dt : 0;
-    // §6.8: faithful pause freezes scrolling (arrows, edge, middle-drag); the ⚑ active-pause option allows it.
-    this.cameraRig.panLocked = this.state === 'paused' && !this.options.activePause;
+    // §6.8: faithful pause freezes scrolling (arrows, edge, middle-drag); the ⚑ active-pause option allows it. The
+    // Colonel's tour flies the camera itself (ui/briefing.js sets rig.scripted): no scrolling may fight it either.
+    this.cameraRig.panLocked = (this.state === 'paused' && !this.options.activePause) || !!this.cameraRig.scripted;
     this.cameraRig.update(dt);
     if (w) {
       const cc0 = this.cameraController;

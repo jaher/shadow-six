@@ -679,6 +679,8 @@ export class CameraRig {
     this.enabled = true;
     /** §6.8 faithful pause: user scrolling (arrows, edge, middle-drag) is frozen; tweens and zoom still run. */
     this.panLocked = false;
+    /** A scripted camera move owns the view (the briefing tour): Game.render locks user scrolling while it is set. */
+    this.scripted = false;
     /** Called after views/layout/active change: fn(rig). */
     this.onChange = null;
     this._pointer = { x: 0, y: 0, inside: false, overCanvas: false };
