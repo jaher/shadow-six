@@ -82,7 +82,7 @@ test('m02 §7.5 step 3–4 scripted: after the boat passes, the Marine rafts the
   // window: the boat has just passed the crossing, heading downstream (SE)
   assert.ok(s.run(400, () => { const east = boat.x > bx; bx = boat.x; return east && boat.x > 32; }), 'boat passes downstream');
   const watch = () => { if (boat.brain?.state === 'attack') attacked = attacked ?? w.time; return false; };
-  place(ma, 23.4, 55.5); place(gb, 22.8, 56.4); // SW shallows opposite the climb base
+  place(ma, 19.5, 73.2); place(gb, 18.8, 73.4); // SW shallows across the (24 m) river from the climb base
   assert.ok(ma.issue({ type: 'ability', id: 'raft', target: ma }), 'Marine: deploy the raft');
   s.run(2.2, watch);
   const raft = w.vehicles.find((v) => v.vehicleType === 'raft');
@@ -91,7 +91,8 @@ test('m02 §7.5 step 3–4 scripted: after the boat passes, the Marine rafts the
   s.run(10, () => watch() || gb.vehicle === raft);
   assert.equal(gb.vehicle, raft, 'GB aboard');
   assert.ok(ma.issue({ type: 'move', x: 27.9, z: 49.6 }), 'Marine: row to the NE bank');
-  s.run(8, watch);
+  s.run(20, () => watch() || Math.hypot(raft.x - 27.9, raft.z - 49.6) < 2.5); // the raft grounds at the shallows
+  assert.ok(Math.hypot(raft.x - 27.9, raft.z - 49.6) < 2.5, `raft across (${raft.x.toFixed(1)},${raft.z.toFixed(1)}) at ${w.time.toFixed(1)}`);
   assert.ok(gb.issue({ type: 'ability', id: 'leaveVehicle', target: gb }), 'GB: land');
   assert.ok(ma.issue({ type: 'ability', id: 'leaveVehicle', target: ma }), 'Marine: out');
   s.run(0.5, watch);

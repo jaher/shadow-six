@@ -48,7 +48,8 @@ function doubleLine(ctx, pts, map, gap, j) {
 /** Hatching clipped to a thick path (water). */
 function hatchPath(ctx, pts, map, widthPx, size) {
   ctx.save();
-  ctx.lineWidth = widthPx;
+  const wAt = (i) => (Array.isArray(widthPx) ? widthPx[i] : widthPx); // per-point widths (natural banks)
+  ctx.lineWidth = Array.isArray(widthPx) ? widthPx.reduce((a, b) => a + b, 0) / widthPx.length : widthPx;
   ctx.lineCap = 'round';
   ctx.strokeStyle = 'rgba(40,62,96,0.12)';
   polyline(ctx, pts, map, () => 0);
@@ -63,7 +64,7 @@ function hatchPath(ctx, pts, map, widthPx, size) {
     const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
     const dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1;
     const [px, py] = map(pts[i][0], pts[i][1]);
-    const nx = (-dz / L) * widthPx / 2, ny = (dx / L) * widthPx / 2;
+    const nx = (-dz / L) * wAt(i) / 2, ny = (dx / L) * wAt(i) / 2;
     ribbon.push([px + nx, py + ny]);
     back.unshift([px - nx, py - ny]);
   }
@@ -112,7 +113,7 @@ export function drawSketch(ctx, def, w, h) {
   ctx.strokeStyle = INK;
   ctx.lineWidth = 1;
   for (const t of def?.terrain || []) {
-    if (t.type === 'path' && (t.terrain === 'shallow' || t.terrain === 'water')) hatchPath(ctx, t.points, map, (t.width || 4) * sx, [w, h]);
+    if (t.type === 'path' && (t.terrain === 'shallow' || t.terrain === 'water')) hatchPath(ctx, t.points, map, t.widths ? t.widths.map((v) => v * sx) : (t.width || 4) * sx, [w, h]);
     else if (t.type === 'path' && t.terrain === 'road') {
       ctx.strokeStyle = FAINT;
       doubleLine(ctx, t.points, map, Math.max(2, (t.width || 3) * sx), j);

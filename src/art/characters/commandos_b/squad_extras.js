@@ -7,6 +7,8 @@
 // the animation. Budget: <= ~900 tris for all extras on one man, 1 shared material per item kind.
 import * as THREE from 'three';
 import { mulberry32 } from '../pipeline/variety.js';
+import { sessionCache, dataKey } from '../../../engine/asset-cache.js';
+import { geometryHash } from '../../../world/placement-visual.js';
 
 const M = {};
 function mat(k) {
@@ -30,9 +32,24 @@ function mat(k) {
 }
 const mesh = (geo, k) => { const m = new THREE.Mesh(geo, mat(k)); m.castShadow = true; m.receiveShadow = true; return m; };
 
-// skinned surface sample in root-local (unscaled) space at the current pose
+// skinned surface sample in root-local (unscaled) space at the current pose. Session cache (engine/asset-cache.js):
+// the same body (content-hashed geometry) in the same pose (bone matrices relative to the root) gives the same
+// samples, so a restart does not skin every soldier's vertices again. The samples are only read.
 function surface(h) {
   const root = h.object, inv = new THREE.Matrix4(); root.updateMatrixWorld(true); inv.copy(root.matrixWorld).invert();
+  const m = new THREE.Matrix4();
+  let ok = true;
+  const key = dataKey((k) => root.traverse((o) => {
+    if (!o.isSkinnedMesh || !o.visible || !o.geometry.attributes._mask || o.name === 'headgear') return;
+    const gh = geometryHash(o.geometry);
+    if (!gh) { ok = false; return; }
+    k.str(gh); k.floats(m.multiplyMatrices(inv, o.matrixWorld).elements); k.floats(o.bindMatrix.elements);
+    if (o.morphTargetInfluences) k.floats(o.morphTargetInfluences);
+    for (const [i, b] of o.skeleton.bones.entries()) { k.floats(m.multiplyMatrices(inv, b.matrixWorld).elements); k.floats(o.skeleton.boneInverses[i].elements); }
+  }));
+  return ok ? sessionCache.memo(`surface:${key}`, () => surfaceNow(root, inv), { bytes: (P) => P.length * 8 }) : surfaceNow(root, inv);
+}
+function surfaceNow(root, inv) {
   const pts = [], v = new THREE.Vector3();
   root.traverse(o => {
     if (!o.isSkinnedMesh || !o.visible || !o.geometry.attributes._mask || o.name === 'headgear') return;

@@ -7,6 +7,8 @@
 import { CONFIG } from '../config.js';
 import { ABILITIES } from '../abilities/index.js';
 import { probe as probeCone } from '../ai/perception.js';
+import { sessionCache } from '../engine/asset-cache.js';
+import * as Offline from '../engine/offline-cache.js';
 
 /** Resolve a unit reference: numeric id, mission tag or role name. */
 function unit(game, ref) {
@@ -143,6 +145,14 @@ export function installTestApi(game) {
     },
     quickSave: () => game.quickSave(),
     quickLoad: () => game.quickLoad(),
+    /** Asset caches: in-memory session cache stats + the page side of the service worker cache (engine/offline-cache.js). */
+    cache: {
+      stats: () => sessionCache.stats(),
+      cacheLoadedAssets: () => Offline.cacheLoadedAssets(),
+      status: () => Offline.cacheStatus(),
+      prefetch: (id, preset) => Offline.prefetchMission(id, preset),
+      clear: (o) => Offline.clearCachedGameData(o),
+    },
     renderStats: () => game.renderer.stats?.(),
     /** Render one frame and read it back: mean/std RGB, saturation, contextLost (NaN/black-frame guard). */
     frameStats() {

@@ -16,6 +16,7 @@ import { categoryOf, classify, overlapKey, naturalPair, explicitAllow, GROUND_LA
 import { setCharacterView } from '../art/humanoid-real.js';
 import { liftAt } from '../world/placement.js';
 import { T } from '../world/grid.js';
+import { isSolidHull, hullsNear, dynamicObstacles } from '../world/body-clearance.js';
 
 const SKIP_NAME = /shadow|proxy|collider|collision|occluder|decal|selection|select_ring|ring_sel|vision|cone|marker|halo|glow|blob|water|impostor/i;
 
@@ -383,16 +384,29 @@ const WALLISH = new Set(['building', 'wall', 'fence', 'gate', 'tower', 'pole', '
 /**
  * Dynamic audit, in chunks so each page.evaluate stays short:
  *   begin(o) → run(seconds) … → end() → {findings, samples, t}
- * o: {sample = 0.5 s, moveEvery = 12 s, killAt = [60, 120] s, seed, minDepth = 0.05}
+ * o: {sample = 0.5 s, moveEvery = 12 s, killAt = [60, 120] s, seed, minDepth = 0.05, unitGap = 0.6 m}
+ * end() also lists unit-vs-unit overlaps (`unitOverlaps`, standing men closer than unitGap, worst per pair).
  */
 export function dynamicAudit(game) {
-  const S = { hits: [], t: 0, samples: 0, found: new Map(), statics: null, grid: null, o: null, r: null, nextMove: 0, kills: [], notes: [] };
+  const S = { hits: [], t: 0, samples: 0, found: new Map(), units: new Map(), statics: null, grid: null, o: null, r: null, nextMove: 0, kills: [], notes: [] };
   const w = () => game.world;
   const moveCommandos = () => {
     const targets = S.statics.filter((it) => WALLISH.has(it.cat));
-    if (!targets.length) return;
+    // every solid a body must keep out of (world/body-clearance.js): vehicle hulls and wrecks, drums, pushables,
+    // crates, fuel tanks, rocks, plane / boat props
+    const hulls = [...dynamicObstacles(w()), ...(w().bodySolids?.list || []).filter((o) => !o.gone).map((o) => o.R)];
+    if (!targets.length && !hulls.length) return;
     for (const c of w().commandos) {
       if (!c.alive || c.vehicle || c.state === 'inVehicle') continue;
+      // half the moves (all without walls): stand / crouch / crawl to a spot at, under or across a solid
+      if (hulls.length && (!targets.length || S.r() < 0.5)) {
+        const R = hulls[Math.floor(S.r() * hulls.length)], a = S.r() * 2 * Math.PI, rr = S.r() * 1.2;
+        const lx = Math.cos(a) * ((R.r ?? R.hl) + rr), lz = Math.sin(a) * ((R.r ?? R.hw) + rr), ch = Math.cos(R.h || 0), sh = Math.sin(R.h || 0);
+        c.setStance?.(['stand', 'crouch', 'crawl'][Math.floor(S.r() * 3)]);
+        c.issue?.({ type: 'move', x: R.x + lx * ch - lz * sh, z: R.z + lx * sh + lz * ch, run: S.r() < 0.3 });
+        continue;
+      }
+      if (!targets.length) continue;
       for (let tries = 0; tries < 5; tries++) {
         const it = targets[Math.floor(S.r() * targets.length)], b = it.box;
         const side = Math.floor(S.r() * 4), u = S.r(), pad = 0.35;
@@ -431,11 +445,31 @@ export function dynamicAudit(game) {
         }
       }
     }
+    // unit vs unit (playtest: "without crossing each other"): two standing men closer than `unitGap` centre to
+    // centre are inside each other; worst per pair (dead / downed / carried / swimming men are excluded, as in
+    // the avoidance rules)
+    const U = [...w().commandos, ...w().enemies].filter((u) => u.alive && !u.removed && !u.buried && !u.underwater
+      && !['downed', 'swim', 'dive'].includes(u.stance) && !['dead', 'inVehicle', 'carried', 'jailed', 'hidden'].includes(u.state));
+    for (let i = 0; i < U.length; i++) for (let j = i + 1; j < U.length; j++) {
+      const a = U[i], b = U[j];
+      if (Math.abs((a.y || 0) - (b.y || 0)) > 1) continue;
+      const d = Math.hypot(a.x - b.x, a.z - b.z);
+      if (d >= S.o.unitGap) continue;
+      const ka = String(a.tag ?? a.id), kb = String(b.tag ?? b.id), key = `${mission}|unit:${ka < kb ? ka + '|' + kb : kb + '|' + ka}`;
+      const f = S.units.get(key);
+      if (!f || d < f.dist) S.units.set(key, { key, a: ka, b: kb, dist: +d.toFixed(3), t: +S.t.toFixed(2), at: { x: +a.x.toFixed(2), z: +a.z.toFixed(2) },
+        moving: [!!a.path, !!b.path], states: [a.brain?.state ?? a.state, b.brain?.state ?? b.state], n: (f?.n ?? 0) + 1 });
+      else f.n++;
+    }
+    // characters (standing, crouched, lying, dead) against vehicle hulls, mesh against mesh (docs/clipping-audit.md)
+    vehicleBodies(game, mission, (f, e) => {
+      keepWorst(S.found, f, { t: +S.t.toFixed(2), at: { x: +e.x.toFixed(2), z: +e.z.toFixed(2) }, unitState: e.state ?? null, stance: e.stance ?? null, speed: +(e.speed ?? 0).toFixed(2) });
+    }, S.o.minDepth);
     S.samples++;
   };
   return {
     begin(o = {}) {
-      S.o = { sample: 0.5, moveEvery: 12, killAt: [60, 120], seed: 7, minDepth: 0.05, ...o };
+      S.o = { sample: 0.5, moveEvery: 12, killAt: [60, 120], seed: 7, minDepth: 0.05, unitGap: 0.6, ...o };
       S.r = rng(S.o.seed);
       if (game.state !== 'playing') game.start();
       // the commandos are the audit's actors: shots and blasts must not end the run (instance-level patch, audit only)
@@ -459,9 +493,32 @@ export function dynamicAudit(game) {
     },
     end() {
       return { mission: game.missionDef?.id ?? '?', t: S.t, samples: S.samples, kills: S.kills, notes: S.notes,
-        findings: [...S.found.values()].sort((x, y) => y.depth - x.depth) };
+        findings: [...S.found.values()].sort((x, y) => y.depth - x.depth),
+        unitOverlaps: [...S.units.values()].sort((x, y) => x.dist - y.dist) };
     },
   };
+}
+
+/**
+ * Characters against solid vehicle hulls (world/body-clearance.js isSolidHull): every man on foot, alive or dead,
+ * whose rough box reaches a hull is posed and measured mesh against mesh; crews and a man run over (he lies where
+ * the wheels caught him) are skipped. `report(finding, unit)` gets each unintended overlap deeper than `minDepth`.
+ * @returns {number} overlaps reported
+ */
+export function vehicleBodies(game, mission, report, minDepth = 0.05) {
+  const w = game.world;
+  if (!(w.vehicles || []).some((v) => isSolidHull(v))) return 0;
+  const vehs = collectDynamic(game, { units: false, near: (v) => isSolidHull(v) });
+  if (!vehs.length) return 0;
+  const men = collectDynamic(game, { vehicles: false, near: (u) => !(u.alive === false && /^(runover|train)$/.test(u.deathCause || ''))
+    && hullsNear(w, u.x, u.z, 1.3).length > 0 });
+  let n = 0;
+  for (const M of men) for (const V of vehs) {
+    if (!M.box.intersectsBox(V.box)) continue;
+    const f = judge(game, mission, M, V, { minDepth });
+    if (f && !f.allowed && f.depth > minDepth) { f.kind = 'body-vehicle'; report(f, M.entity); n++; }
+  }
+  return n;
 }
 
 /**
@@ -558,6 +615,13 @@ export function createClipApi(game) {
     dynamicRun: (s = 10) => dyn.run(s),
     dynamicEnd() { const r = strip(dyn.end()); dyn = null; return r; },
     countByCategory,
+    /** Characters × vehicle hulls posed now (mesh vs mesh): unintended overlaps deeper than minDepth, worst first. */
+    vehicleBodies(o = {}) {
+      refreshPoses(game, o.dt ?? 0);
+      const out = [];
+      vehicleBodies(game, game.missionDef?.id ?? '?', (f, e) => out.push({ ...f, unit: String(e.tag ?? e.id), stance: e.stance, alive: e.alive }), o.minDepth ?? 0.02);
+      return strip(out.sort((a, b) => b.depth - a.depth));
+    },
     fit: (o = {}) => fitReport(game, o),
     entity: (tag, o = {}) => strip(entityAudit(game, tag, o)),
     floating: (o = {}) => strip(floatingAudit(game, o)),

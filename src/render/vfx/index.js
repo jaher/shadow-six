@@ -14,6 +14,7 @@ import { FxPass, NHAZE } from './pass.js';
 import { attachToEngine } from './engine.js';
 import { RECIPES, ALIASES } from './effects.js';
 import { WIND_UNIFORMS } from '../../world/wind.js';
+import { sessionCache } from '../../engine/asset-cache.js';
 import { AMBIENT_RULES } from './ambient.js';
 
 export const FIXED_DT = 1 / 60;
@@ -28,10 +29,17 @@ export { AMBIENT_RULES, displayValue, perceivedChange, capScale } from './ambien
 
 function mulberry32(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
+const RENDERER_ID = new WeakMap(); // renderer → small id (cache key of its baked textures)
+
 export function createVfx(scene, camera, renderer, opts = {}) {
   const eng = renderer && renderer._buildComposer ? renderer : null;
   const gl = eng ? eng.renderer : renderer;
-  const textures = bakeVfxTextures(gl);
+  // baked once per renderer and page (session cache): a restart does not re-render the puff / scorch atlases
+  if (gl && !RENDERER_ID.has(gl)) RENDERER_ID.set(gl, RENDERER_ID.n = (RENDERER_ID.n || 0) + 1);
+  const texKey = `vfx:textures:${RENDERER_ID.get(gl)}`;
+  const textures = gl ? sessionCache.memo(texKey, () => bakeVfxTextures(gl), {
+    bytes: (1024 * 1024 + 256 * 256 + 512 * 512) * 4 * 1.34, dispose: (t) => t.dispose(),
+  }) : bakeVfxTextures(gl);
   const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
   const u = {
     uTime: { value: 0 }, uWind: { value: (opts.wind || V3(1.6, 0, 0.6)).clone() },
@@ -258,7 +266,7 @@ function makeRuntime(vfx, { eng, gl, u, smoke, hot, amb, lights, decals, debris,
     },
     dispose() {
       this.detach?.(); this.clear(); smoke.dispose(); hot.dispose(); amb.dispose(); debris.dispose(); decals.dispose(); lights.dispose();
-      textures.dispose(); this.pass.dispose(true);
+      this.pass.dispose(true); // `textures` belong to the session cache
     },
   };
 }

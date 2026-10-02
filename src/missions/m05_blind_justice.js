@@ -247,7 +247,7 @@ export default {
   size: [107, 131],
   seed: 1941_0502,
   briefing: {
-    historical: 'Spring 1941. Crete has fallen and the western ports burn night after night. London wants Berlin looking north, sure that Norway is next, and nothing rattles them like losing their eyes on the coast: the radar on the mountain above Herdla airfield.',
+    historical: 'May 1941. Greece has fallen, and the bombing of Britain goes on night after night. London wants Berlin looking north, convinced that Norway is next, and nothing alarms them more than losing their eyes on the coast: the radar on the hill above Herdla airfield.',
     text: 'Only two of you tonight, officer, but the right two. You come in through the village at the foot of the mountain. The radar sits on the summit, and there are only two ways up: the cable car, or the east rock face, which only the Green Beret can scale. A field telephone line runs through the lower camp, and a ringing phone will pull a sentry off his post. We believe the southern approaches are mined: watch where their patrols walk, and walk there. Wreck the radar, then fly out in the little autogyro parked by the dish. I want both of you home.',
     objectivesSummary: 'Destroy the radar on the summit. Escape in the autogyro.',
     hints: [

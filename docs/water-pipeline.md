@@ -146,6 +146,11 @@ engine.render():   RenderPass(world) → decals → [afterWorld] DepthStashPass 
 
   Ripples now feed the surface normals only, never the vertices, so they no longer alias on the 0.75 m mesh or
   cross banks. Tested: a quay cell stays at 0 while a ring spreads at about 1.1 m/s.
+- **Boat wakes.** The ripple texture is (height, velocity, wash foam, crest foam). Wash foam (.b) spreads and
+  decays slowly (half-life about 1.6 s): the trail astern, splashes, paddle strokes. Crest foam (.a) never spreads and
+  decays in about 0.25 s; `crest()` dabs it as capsules between a boat's Kelvin crest particles, so the V arms stay
+  crisp lines that follow the particles out at tan 19.47°·v and downstream with the current. Up to 48 dabs per step.
+  The look per theatre is in `docs/screenshots/raft-wake-*.jpg` (`node tools/water/raft-wake-shots.mjs`).
 - **Optics.**
   - Screen-space refraction with a foreground-leak guard.
   - Beer–Lambert absorption along the view path and the sun path, with (absorption + turbidity) per RGB channel,
@@ -335,7 +340,10 @@ tools/check.sh                                                          # syntax
   are discarded (`maskCut`), so land dips inside the box never show water.
 - **Banks.** The terrain carve now follows a bilinear signed distance to the wet/deep cells (`cellSignedDistance`,
   `carveDepth` in `src/art/terrain/terrain.js`), and the bake blurs its shore distance twice, so shorelines and ice
-  edges are smooth lines instead of the 0.5 m cell staircase.
+  edges are smooth lines instead of the 0.5 m cell staircase. The cell signed distance is evened out along the edge
+  (`smoothSigned`: a ~1.5 m tent blur on the edge cells only, every cell keeping its side) so a bank running at a
+  shallow angle to the grid (one 0.5 m jog every few metres, the M3 pool below the dam) carves a straight line; the
+  shore ice ends where the bank rises out of the water (the per-pixel bed depth), not at the body's cell mask.
 - **Interaction.** `WakeTracker` (per displayed frame, in `mapHandle.frame`, before `engine.render()`): swimmers,
   waders and divers emit alternating-sign strokes with foam; boats emit a bow wave, churning prop/paddle wash and two
   Kelvin shoulders every frame; entering the water (a commando wading in, a body falling in, a raft launched) and
@@ -358,3 +366,106 @@ tools/check.sh                                                          # syntax
   off → on; noisy, ±0.5 ms): low M2 1.6 → 1.8, M3 1.6 → 2.8; medium 1.9 → 2.3, 1.5 → 2.8; high 1.9 → 3.4,
   2.6 → 5.5 (the planar reflection re-renders the map, grass included); ultra 3.4 → 3.6, 4.3 → 4.9. CPU
   `frame()` 0.1–1.0 ms; build (capture + bake) 50–125 ms at load.
+
+## 11. Water down the M3 dam (`src/render/dam-water*.js`, `src/render/dam-flow.js`)
+
+The dam's falling water is drawn on the late FX layer on top of the water surface (the river body stays the
+system's). The user asked for it to be "as realistic as possible"; reference notes (overflow spillways, plunge
+pools, hydraulic jumps, tailwater, winter low flow) drove these choices. From a high oblique camera, the eye reads
+motion at the right speed, stretching along the flow, a dark-to-white gradient down the fall, and spray at the foot.
+
+- **Spillway sheets (`dam-water-mats.js` SHEET_FRAG).** The pattern is advected in *travel time*,
+  `τ(s) = (√(v0² + 2gs) − v0)/g` (s = fall from the lip), so the water accelerates down the face and every feature
+  stretches with the fall. At the top is a smooth glassy laminar sheet: sky reflection, streamwise striations, ridge
+  glints and fast, broken Kelvin-Helmholtz ripple bands (~13 per second of travel time, from value noise, so they
+  come at irregular spacings and never read as a ladder). A faint milky stage comes
+  next. From the aeration inception point (3.9 m down the 5.4 m gate sheets, so that the transition is on screen:
+  the camera never sees the crest), white fingers lengthen with the fall and merge into opaque streaked white water
+  (alpha 0.9–1). The edges neck in and break into fingers that shed droplets. At the foot, an opaque, ragged
+  impact band on the same clock meets a splash-crown ribbon (white water thrown up about 0.2–0.6 m, torn into jets),
+  and the pool's boil and foam extend two cells under the curtain, so sheet and pool overlap without a seam. Trickles use the same clock (a clinging glassy film with droplet packets). A splash zone of
+  spray-soaked dark concrete with a rime fringe, the wet streaks, the frozen trickles and the icicles stay.
+- **Flow bake (`dam-flow.js`, ~0.2–0.4 s at load).** A 2D *stable-fluids* solver on a staggered 80×80 grid (0.7 m
+  cells, in the dam frame) over the pool and river. The water mask comes from the nav grid's water/shallow cells
+  downstream of the face's foot. The solver runs semi-Lagrangian advection, bank drag (a fast core and slow edges)
+  and eddy viscosity, then SOR pressure projection with *mass sources*:
+  - the boil where the plunging jet comes back up;
+  - a sink at the face, so the **roller** runs back to the wall (−1.3 m/s at the surface);
+  - entrainment sinks beside the jet, so the corners answer with **side eddies**;
+  - the jet's downstream push.
+
+  The final field is exactly mass-conserving (`div = sources`; unit-tested at < 1 % of |v|/h). It is scaled so
+  that the core runs at 1.5 m/s. Two scalars are then advected through it to steady state: *foam* (22 s life:
+  carried and thinned down the river, collecting in slack water) and *aeration* (2.2 s: the white boil and the
+  jump). The result is uploaded as a half-float RGBA texture (current, foam, aeration). Foam and aeration are
+  blurred over the water cells first (σ 2.2 m across, 1.1 m along the stream): advected without diffusion, they
+  end on a straight line along the jet's flanks, which drew the boil as a box with ruler-straight sides. The
+  shader also reads them through a ragged, slowly breathing warp (up to ~2 m across, ~0.8 m along), so the
+  boil's flanks fray irregularly into the slack water.
+- **Pool shader (`dam-water-pool-glsl.js`).** It is drawn on a mesh over the water cells only, with premultiplied
+  alpha.
+  - **Foam (`dam-water-foam.js`).** The foam is a persistent field on the GPU: ping-pong half-float targets
+    (512×672 over the pool and the first ~40 m of river, 6 cm texels). Every 1/15 s it is advected by the baked
+    current with MacCormack (limited), gathered where the surface converges (eddies, the roller at the face, the
+    banks), thinned where it diverges, and faded over ~15 s; foam older than ~30 s (threads in the eddies) dies.
+    It is born only on thin lines (the ragged roller toe, ~1.9 m past the boil, brightest under the two sheets, and
+    each sheet's plunge) as big open cells, rafts and wandering lanes, so it leaves them at once and drifts off as
+    whole patches. It neither streaks from fixed spots nor leaves in rings. Along with its thickness, each parcel
+    carries its displacement since birth and its age. The pool shader draws the lace at that *material
+    coordinate*: a Worley wall network (power diagram, curved walls, ~0.4 m cells with patches of ~0.8 m open cells,
+    plus ~0.17 m cells in dense foam, walls of varying width eaten into bubbles by the foam texture). Thin foam
+    is torn: its walls break into fragments with irregular gaps, so it reads as lace, not cracked ice. The lace is glued to the foam: it deforms with
+    the strain, is never re-seeded or cross-faded, and a raft keeps its holes all the way downstream. Thickness sets
+    the walls' width, from sparse grey threads (alpha ~0.35) to white rafts (~0.92). Where the strain packs the
+    walls finer than ~2 px (shear layers, eddies), they turn into thin foam lines: ridges of a coarser noise at
+    the same material coordinate, drawn out by the shear, with clear water between them. The shader samples the field back-traced along the current
+    by the time since its last step, so the foam glides at the display rate. In the GPU test the whole dam-water layer
+    costs ~0.9 ms (budget 1.5 ms).
+  - **The plunge.** Two impact plumes under the sheets widen downstream and merge. Over them lie milky aerated
+    water and a churning boil (two counter-sliding lace layers) whose size and brightness pulse by about ±15 % on
+    an irregular 1.5–3.6 s clock. Upwelling domes lift (brighter) and push the lace outwards; their centres show
+    darker clear water. The boil ends at a fixed, ragged, brighter toe line. Past it, the jump is 2–3 irregular
+    humps decaying downstream. Their crests are lit and their troughs blue-grey (through the foam too), and the
+    clear water in the troughs is darker. The aerated body clears past the jump.
+  - **Surface.** A rough, flow-mapped surface adds sky Fresnel and sun glints (more in the boil and the fast core).
+  - **Light.** Lit by the mission's sun direction and sky; dimmed at night.
+  - **Stability.** Everything is anchored in world/dam space (no screen-space terms), so panning and zooming never
+    swim. Every animated term divides the 3600 s clock wrap.
+- **Spray and mist (`dam-water-spray.js`).** These are stateless GPU billboards, closed-form in (seed, time),
+  with no per-frame CPU work. They come only from the two sheets' plunges (the trickles only ripple the pool), so
+  everything stays within ~5 m of them.
+  - 44 impact-cloud puffs, 1–3 m tall, stand in front of the face along each sheet's impact line. They are soft,
+    torn and churning, they pulse, and they drift out and downwind. They hide the pool's contact line with the face.
+  - 380 spray clumps and droplets are thrown up and out on ballistic arcs and fall back. A droplet is a translucent
+    grey-blue streak along its screen velocity (up to 6×), so it never reads as the drifting snow.
+  - 64 mist puffs: half are a low veil hugging the face's foot either side of the plunge (it dims the face and the
+    walls' bases); half rise off the boil and drift downstream with the mission wind (`world.wind.sample`, eased
+    over 2.5 s).
+  - The billboards' axes form a right-handed basis. Mirrored, they were back-face culled, and until this fix no
+    spray or mist was ever drawn.
+- **Sound.** Three positional ambience layers stop when the dam is destroyed (`until: 'dam'`): `waterfall` (the
+  rush at the face), `waterfall_roar` (the plunge's low roar: the surf sample at 0.62× rate, `small` distance class)
+  and `rapids` (the tailwater, 15 m downstream, `vehicle` class). `audio.js` passes an ambience layer's `rate`.
+- **Tests.** `tests/unit/dam-flow.test.mjs` bakes on the real M3 grid and checks:
+  - continuity and that no current crosses a bank;
+  - the roller and the jet;
+  - a fast core and slow banks;
+  - side eddies;
+  - foam carried and thinning downstream;
+  - aeration confined to the plunge;
+  - determinism.
+
+  `tests/dam-water.test.mjs` (GPU) checks:
+  - the build and the FX layer;
+  - the plunge as the brightest water;
+  - the foam pattern moving **downstream** on screen (cross-correlation of a luminance profile along the jet,
+    0.1–0.3 s apart, the dam water's own clock and foam field stepped);
+  - that nothing moves while paused;
+  - the render-time budget (layer visible vs hidden ≤ 1.5 ms).
+- **Screenshots** (1280×720, high preset): `docs/screenshots/dam-water-overview-z05.jpg`, `dam-water-z1.jpg`,
+  `dam-water-spillway-z2.jpg`, `dam-water-pool-z2.jpg`.
+- **Known limits.**
+  - The bake is 2D (surface currents only). The roller and the entrainment are modelled as sources and sinks,
+    not resolved in depth.
+  - No rainbow: M3 is overcast, and an orthographic camera has no per-pixel view angle to place one.
+  - The mist does not leave wet decals on the banks; only the face's splash zone is soaked.

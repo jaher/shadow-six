@@ -22,6 +22,7 @@
  */
 
 import { registerPortraitPhoto, getPortraitURL } from '../art/portraits.js';
+import { sessionCache } from '../engine/asset-cache.js';
 
 /** game role id -> clip character id */
 export const ROLE_TO_CHAR = Object.freeze({ greenberet: 'green_beret', sniper: 'sniper', diver: 'marine', marine: 'marine', sapper: 'sapper', driver: 'driver', spy: 'spy' });
@@ -213,8 +214,14 @@ export class TalkingPortraits {
 
   async _blob(u) {
     if (this.blobs.has(u)) return;
-    const r = await this.fetch(u); if (!r.ok) throw new Error('missing ' + u);
-    this.blobs.set(u, URL.createObjectURL(await r.blob()));
+    // session cache (engine/asset-cache.js): one download per clip per page; the next mission / a restart reuses
+    // the object URL (revoked when the cache evicts it, not on dispose)
+    const url = await sessionCache.memoAsync(`blob:${u}`, async () => {
+      const r = await this.fetch(u); if (!r.ok) throw new Error('missing ' + u);
+      const b = await r.blob();
+      return { url: URL.createObjectURL(b), size: b.size };
+    }, { bytes: (x) => x.size, dispose: (x) => URL.revokeObjectURL(x.url) });
+    this.blobs.set(u, url.url);
   }
 
   async _preload(c) {
@@ -540,7 +547,7 @@ export class TalkingPortraits {
     for (const u of this._subs) u(); this._subs = [];
     for (const s of [...this.slots.values(), this.card].filter(Boolean)) { for (const v of s.host.querySelectorAll('video')) { v.pause(); v.removeAttribute('src'); v.load(); } s.host.remove(); }
     this.slots.clear(); this.card = null;
-    for (const u of this.blobs.values()) URL.revokeObjectURL(u); this.blobs.clear();
+    this.blobs.clear(); // object URLs belong to the session cache
     this.ctx?.close?.(); this.ctx = null; this.ok = false;
   }
 }

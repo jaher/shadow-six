@@ -9,11 +9,14 @@
  * just above the cushion; under a closed roof (Opel Blitz cab, Citroën) it is lowered further until the head clears
  * the roof lining — no head through the roof. Weapons are put away while seated. A figure disappears when its
  * record dies, its occupant gets out (he stands at the door, entities/vehicle.js exit) or the vehicle is destroyed.
+ * Open boats without crew records (the raft, the rowboat, the escape boat) draw their men through art/boat-crew.js:
+ * seated / kneeling on the hull's own layout, the Marine paddling or rowing, stepping in and out.
  * Nothing is built when the character library is not active (placeholders / node tests).
  * @module art/vehicle-crew
  */
 import { Vector3 } from 'three';
 import { createUnitModel, characterContext } from './unit-model.js';
+import { createBoatCrew } from './boat-crew.js';
 
 /** Seats per art/vehicles.js model key (placeholder models): [x, y, z] in model space, clip, parent ('turret'). */
 export const CREW_SEATS = {
@@ -80,6 +83,7 @@ export function createCrewFigures(v) {
   if (!characterContext().ready || !v?.model?.root) return null;
   const key = v.def?.model || v.vehicleType;
   const lib = !!v.model.crewSeats;
+  if (v.def?.kind === 'boat' && !v.crew?.length) return lib ? createBoatCrew(v, { createUnitModel, lookOf }) : null;
   const figures = [];
   // crew records: the model's crew sockets (library) or the fixed placeholder seats
   if (v.crew?.length) {

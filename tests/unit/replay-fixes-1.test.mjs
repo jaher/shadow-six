@@ -42,7 +42,7 @@ for (const withNextId of [true, false]) {
   });
 }
 
-test('m02: enterVehicle from the wall walk (walk_sw) comes down the inner steps and boards the truck', () => {
+test('m02: enterVehicle from the wall walk (walk_sw) comes down plat_sw\'s stair and boards the truck', () => {
   const s = makeSim(getMission('m02'), { brains: false });
   const w = s.world, sn = s.cmd('sniper'), truck = s.get('truck');
   for (const e of [...w.enemies]) w.remove(e); // no interference
@@ -212,12 +212,12 @@ test('m01: a guard killed by the barrel a pistol shot sets off never reacts to t
 test('m03 dam: once destroyed the crest (and the flooded toe ledge) no longer joins the banks — also after a load', () => {
   const build = () => { Entity.nextId = 1; return makeSim(getMission('m03'), { brains: false }); };
   const s = build(), w = s.world;
-  const SW = [24, 41], NE = [46, 21];
+  const SW = [22, 41], NE = [60, 35]; // the feet of the W and E crest stairs
   assert.ok(w.findPath(...SW, ...NE, { role: 'greenberet' }), 'the crest is walkable before');
   const e = w.enemies.find((q) => q.alive);
-  Object.assign(e, { x: 35.2, z: 31.2 }); // a soldier standing on the crest
+  Object.assign(e, { x: 40.2, z: 22.2, y: 7 }); // a soldier standing on the (raised) crest
   w.byId('dam').destroy(null, 'bomb');
-  assert.equal(w.grid.walkableAt(35, 31), false, 'crest cell');
+  assert.equal(w.grid.walkableAt(40, 22), false, 'crest cell');
   assert.equal(w.findPath(...SW, ...NE, { role: 'greenberet' }), null, 'no walking route between the banks');
   assert.equal(e.alive, false, 'a man on the crest goes down with it');
   const S = JSON.parse(JSON.stringify({ ...w.serialize(), nextId: Entity.nextId }));

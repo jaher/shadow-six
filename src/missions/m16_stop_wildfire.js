@@ -296,8 +296,11 @@ export default {
   coneColors: 'green',
   size: [201, 150],
   seed: 1944_0904,
+  // farmland fringe (art/terrain/bocage.js): field hedges, crops and orchards on the clear map edges, hedges
+  // backing walls (visual only: laid out clear of every gameplay point and route)
+  vegetation: { farmland: { crops: ['stubble', 'wheat', 'stubble'], orchards: 0.25 } },
   briefing: {
-    historical: 'September 1944. The Allies are sweeping across Belgium, and the high command wants the Rhine crossed before winter; plans for a great airborne operation in Holland are already on the table. The Germans are falling back on the Siegfried Line and mean to leave nothing standing behind them. Next on their list is the big road bridge over the Maas north of Liège. Our armour needs that bridge.',
+    historical: 'September 1944. The Allies are sweeping across Belgium, and the high command wants the Rhine crossed before winter. The Germans are falling back on the Siegfried Line and mean to leave nothing standing behind them. Next on their list is the big road bridge over the Maas at Liège. Our armour needs that bridge.',
     text: 'Listen carefully, officer; this one is delicate. Their engineers have already wired the bridge. There are four of them, each with his own charge, and they have orders to keep an eye on one another. At the first sign of trouble, any trouble anywhere, they blow it. So you cannot take them one at a time over an afternoon. You take them together, or near enough that it makes no difference. There is a lorry parked by the south road. When the last of them is down, get everybody into it and drive out. I want that bridge standing.',
     objectivesSummary: 'Kill the four engineers almost at once, before any of them reaches his plunger. Then everyone into the lorry and out by the south road.',
     hints: [

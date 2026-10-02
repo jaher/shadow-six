@@ -13,6 +13,7 @@ import { makeRng, fishHabitat } from './fish-sim.js';
 import { legDims, feetInit, feetPlant, feetAir, feetGait, turnTo, peckCurve, smooth, restFoot } from './bird-ground.js';
 
 const _R = { x: 0, z: 0 };
+const HOP_RAMP = 0.06; // s over which a hop's forward speed builds (push-off) and dies (landing)
 
 /**
  * span/len (m), cruise airspeed (m/s), flap frequency (Hz), glide share (0 flaps all the time … 1 soars), altitude
@@ -116,7 +117,7 @@ export class BirdSim {
     b.st = st; b.tt = st === 'ground' ? 8 + this.rnd() * 20 : 15 + this.rnd() * 35;
     const vyIn = b.vy; b.pvx = spawn ? 0 : b.vx; b.pvz = spawn ? 0 : b.vz; // a perch landing carries its last drift into the shuffle
     b.v = st === 'ground' && !spawn ? Math.min(0.6, Math.max(0, b.vx * Math.cos(b.yaw) + b.vz * Math.sin(b.yaw))) : 0;
-    b.vx = b.vy = b.vz = 0; b.act = ''; b.at = spawn ? this.rnd() * 2 : 0.3; b.hop = null; b.launch = 0;
+    b.vx = b.vy = b.vz = 0; b.va = 0; b.act = ''; b.at = spawn ? this.rnd() * 2 : 0.3; b.hop = null; b.launch = 0;
     if (spawn) { b.fold = 1; b.amp = 0; b.bank = 0; b.pitch = 0; }
     const up = G && st !== 'swim' && st !== 'float' ? G.stand : 0;
     if (perch) { // a landing keeps its last few cm off the post and shuffles onto it (_idle), no snap
@@ -270,6 +271,11 @@ export class BirdSim {
     const e = this.env, perch = b.land === 'perched', ex = b.tx - b.x, ez = b.tz - b.z, kh = Math.min(1, (perch ? 8 : b.land === 'ground' ? 2.2 : 3.5) * h);
     b.vx += ((perch ? ex * 4 : 0) - b.vx) * kh; b.vz += ((perch ? ez * 4 : 0) - b.vz) * kh;
     b.vy += (clamp((b.ty - b.y) * 5, -1.6, b.G ? -0.3 : 0.4) - b.vy) * Math.min(1, 10 * h);
+    if (b.land === 'ground' && b.G) { // coming down close to a wall / the water's edge: the flare kills the run-out sooner (≤ 5 m/s²)
+      const sp = Math.hypot(b.vx, b.vz), free = sp > 0.05 ? this._freeAhead(b, b.vx / sp, b.vz / sp, 1.2) : Infinity;
+      const vmax = Math.sqrt(2 * 1.6 * Math.max(0, free - 0.3));
+      if (sp > vmax) { const k = Math.max(vmax, sp - 5 * h) / sp; b.vx *= k; b.vz *= k; }
+    }
     b.x += b.vx * h; b.z += b.vz * h; b.y += b.vy * h;
     if (b.land === 'ground') b.ty = e.ground(b.x, b.z) + (b.G ? b.G.stand : 0);
     else if (b.land === 'swim' || b.land === 'float') b.ty = e.water(b.x, b.z)?.level ?? b.ty;
@@ -448,6 +454,18 @@ export class BirdSim {
     return true;
   }
 
+  /** Distance (m, to ~2 mm; Infinity past `max`) of the first wet or blocked point straight ahead of the bird. */
+  _freeAhead(b, cy, sy, max) {
+    const bad = (s) => this.env.water(b.x + cy * s, b.z + sy * s) || this._blocked(b.x + cy * s, b.z + sy * s, 0);
+    for (let s = 0.025; s < max + 0.025; s += 0.025) {
+      if (!bad(s)) continue;
+      let lo = s - 0.025, hi = s;
+      for (let k = 0; k < 4; k++) { const m = (lo + hi) / 2; if (bad(m)) hi = m; else lo = m; }
+      return lo;
+    }
+    return Infinity;
+  }
+
   /** Is the straight walk (x0, z0) → (x1, z1) dry and clear of obstacles (sampled every ~0.6 m)? */
   _clearPath(x0, z0, x1, z1) {
     const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 0.6));
@@ -500,10 +518,12 @@ export class BirdSim {
     switch (b.act) {
       case 'walk': case 'away': {
         const dx = b.mx - b.x, dz = b.mz - b.z, d = Math.hypot(dx, dz);
-        if (d < 0.05) { if (b.act === 'away') { look = 1; break; } b.act = 'stand'; b.at = 0.4 + r() * 1.2; break; }
-        face = Math.atan2(dz, dx);
-        const c = Math.max(0, Math.cos(wrapA(face - b.yaw)));
-        vd = Math.min(b.vw * c * c * c, Math.sqrt(2 * 1.2 * d)); // turn (on the spot) first, brake into the spot
+        const fa = Math.atan2(dz, dx), ca = Math.cos(wrapA(fa - b.yaw));
+        // arrived (slowed right down on the spot, or just past it): stop easing out from the creep, never turn back for it
+        if (d < 0.015 || (d < 0.06 && b.v < 0.12) || (d < 0.2 && ca < 0)) { if (b.act === 'away') { look = 1; break; } b.act = 'stand'; b.at = 0.4 + r() * 1.2; break; }
+        face = d > 0.12 ? fa : b.yaw; // the last few cm: hold the heading (the bearing swings round as the spot comes up)
+        const c = Math.max(0, ca);
+        vd = Math.min(b.vw * c * c * c, Math.sqrt(2 * 1.0 * Math.max(0, d - 0.01 - 0.18 * b.v))); // turn (on the spot) first, brake into the spot (leading the eased speed's lag)
         maxTurn = b.v > 0.05 ? 2.6 : 3.2; look = 0.3;
         break;
       }
@@ -521,19 +541,30 @@ export class BirdSim {
     if (face === null && ws > 3) { face = up; maxTurn = 1.2; } // stand into a strong wind
     if (face !== null) turnTo(b, h, face, maxTurn); else b.yr *= 1 - Math.min(1, 10 * h);
     const cy = Math.cos(b.yaw), sy = Math.sin(b.yaw);
-    if ((b.v > 1e-3 || vd > 0) && this._blocked(b.x + cy * (0.22 + (b.v * b.v) / 4.4), b.z + sy * (0.22 + (b.v * b.v) / 4.4), 0)) {
-      vd = 0; // an obstacle within braking distance + body length ahead: brake; heading straight at it → give the walk up
+    const look2 = 0.22 + 0.3 * b.v + (b.v * b.v) / 4.4; // body length + the eased braking distance
+    const free = b.v > 1e-3 || vd > 0 ? this._freeAhead(b, cy, sy, look2) : Infinity; // dry, clear ground straight ahead
+    if (free < look2) {
+      vd = 0; // an obstacle / water within braking distance + body length ahead: brake; heading straight at it → give the walk up
       if ((b.act === 'walk' || b.act === 'away') && face !== null && Math.cos(wrapA(face - b.yaw)) > 0.9) { b.act = 'stand'; b.at = 0.5; b.mx = b.x; b.mz = b.z; }
     }
-    b.v += clamp(vd - b.v, -2.5 * h, 2 * h);
+    // speed: the acceleration itself is eased (jerk ≤ 18 m/s³, |a| ≤ 2.4 m/s²), so steps off, speed-ups and stops
+    // blend in instead of switching on at full thrust / full brake
+    let aw = clamp((vd - b.v) * 6, -2.4, 1.8), jerk = 18;
+    // too close for that (a landing run-out coming in near a wall or the water's edge): brake as hard as the room left
+    // demands, so the bird still stops short of it with a continuous speed instead of stopping dead
+    const room = free - 0.015;
+    if (b.v > 1e-3 && (b.v * b.v) / 4.8 + 0.07 * b.v > room) { aw = Math.min(aw, (-1.15 * b.v * b.v) / (2 * Math.max(0.005, room))); jerk = 240; }
+    b.va = (b.va || 0) + clamp(aw - (b.va || 0), -jerk * h, jerk * h);
+    b.v = Math.max(0, b.v + b.va * h); if (b.v === 0 && b.va < 0) b.va = 0;
     if (b.v > 1e-4) {
       const nx = b.x + cy * b.v * h, nz = b.z + sy * b.v * h;
-      if (e.water(nx, nz) || this._blocked(nx, nz, 0)) { b.act = 'stand'; b.at = 0.5; b.mx = b.x; b.mz = b.z; } else { b.x = nx; b.z = nz; }
+      if (e.water(nx, nz) || this._blocked(nx, nz, 0)) { b.act = 'stand'; b.at = 0.5; b.mx = b.x; b.mz = b.z; b.v = 0; b.va = 0; } // last resort: the feet stop with the body
+      else { b.x = nx; b.z = nz; }
     }
     b.peck += (peck - b.peck) * Math.min(1, 18 * h);
     const w = feetGait(b, h, e.ground);
     this._looks(b, h, b.act === 'peck' ? 0 : look);
-    this._crouch(b, h, G.crouch * 0.35 * b.peck);
+    this._crouch(b, h, G.crouch * 0.35 * b.peck + (b.wcr || 0)); // a brisk walk goes on slightly bent legs (stance)
     b.gy = e.ground(b.x, b.z);
     b.y = b.gy + G.stand - b.crouch + w * G.lift * 0.12;
     b.pitch += (-0.35 * b.peck - b.pitch) * Math.min(1, 6 * h);
@@ -542,38 +573,49 @@ export class BirdSim {
   /** A two-footed hop: 0.22–0.42 m along a ballistic arc 5–9 cm high (flight time from the height). */
   _startHop(b) {
     const r = this.rnd, sc = b.S.len / 0.47, H = (0.05 + r() * 0.04) * sc, len = (0.22 + r() * 0.2) * sc, a = b.ha;
-    const x1 = b.x + Math.cos(a) * len, z1 = b.z + Math.sin(a) * len;
+    const x1 = b.x + Math.cos(a) * len, z1 = b.z + Math.sin(a) * len, T = 2 * Math.sqrt((2 * H) / 9.81);
     if (!this._okSpot(b, x1, z1, 0.35)) { b.act = 'stand'; b.at = 0.5; return; }
-    b.hop = { t: -0.1, T: 2 * Math.sqrt((2 * H) / 9.81), H, a, x0: b.x, z0: b.z, x1, z1, o: b.feet.map((f) => [f.x - b.x, f.z - b.z]), landed: false };
+    b.hop = { t: -0.1, T, H, a, x0: b.x, z0: b.z, x1, z1, len, V: len / (T + HOP_RAMP), o: b.feet.map((f) => [f.x - b.x, f.z - b.z]), landed: false };
+    b.va = 0;
   }
 
-  /** Hop phases: crouch (0.1 s) → arc (feet drawn up under the body) → land, sink into the legs (0.14 s). */
+  /**
+   * Hop phases: crouch (0.1 s) → arc (feet drawn up under the body) → land, sink into the legs (0.14 s). The forward
+   * speed builds over the last HOP_RAMP s of the push-off and dies away over the first HOP_RAMP s of the landing (the
+   * legs push and absorb), so the body never goes 0 → 1.5 m/s in one frame; the heading keeps easing throughout.
+   */
   _hop(b, h) {
-    const p = b.hop, G = b.G, e = this.env, k = Math.min(1, 20 * h);
-    p.t += h; b.v = 0; b.cv = 0;
-    b.peck *= 1 - k; b.look *= 1 - Math.min(1, 8 * h); b.bob *= 1 - k; b.sway *= 1 - k;
-    if (p.t < 0) {
-      b.crouch = G.crouch * Math.sin((Math.PI * (p.t + 0.1)) / 0.1);
+    const p = b.hop, G = b.G, e = this.env, k = Math.min(1, 20 * h), R = HOP_RAMP;
+    p.t += h; b.v = 0; b.va = 0; b.cv = 0;
+    b.peck *= 1 - k; b.look *= 1 - Math.min(1, 8 * h); b.bob *= 1 - k; b.sway *= 1 - k; b.bobv = 0; b.swayv = 0;
+    turnTo(b, h, p.a, 5);
+    // distance along the hop: velocity ramps 0 → V over [−R, 0], V through the flight, V → 0 over [T, T + R]
+    const t = p.t, s = t < -R ? 0 : t < 0 ? (p.V * (t + R) ** 2) / (2 * R) : t < p.T ? p.V * (R / 2 + t) : t < p.T + R ? p.len - (p.V * (p.T + R - t) ** 2) / (2 * R) : p.len;
+    const fx = p.x0 + Math.cos(p.a) * s, fz = p.z0 + Math.sin(p.a) * s;
+    if (t < 0) {
+      b.x = fx; b.z = fz; // leaning into the push-off over planted feet
+      b.crouch = G.crouch * Math.sin((Math.PI * (t + 0.1)) / 0.1);
       b.y = b.gy + G.stand - b.crouch;
-    } else if (p.t < p.T) {
-      const u = p.t / p.T, q = smooth(Math.min(1, u * 3));
-      b.x = p.x0 + (p.x1 - p.x0) * u; b.z = p.z0 + (p.z1 - p.z0) * u; b.gy = e.ground(b.x, b.z);
+    } else if (t < p.T) {
+      const u = t / p.T, q = smooth(Math.min(1, u * 3)), ahead = p.len - s; // feet reach for where the body will stop
+      b.x = fx; b.z = fz; b.gy = e.ground(b.x, b.z);
       b.crouch = 0; b.y = b.gy + G.stand + 4 * p.H * u * (1 - u);
-      turnTo(b, h, p.a, 5);
+      const ax = Math.min(ahead, p.V * R / 2) * Math.cos(p.a), az = Math.min(ahead, p.V * R / 2) * Math.sin(p.a);
       b.feet.forEach((f, i) => {
         restFoot(b, i, 0, _R);
-        f.x = b.x + p.o[i][0] + (_R.x - b.x - p.o[i][0]) * q; f.z = b.z + p.o[i][1] + (_R.z - b.z - p.o[i][1]) * q;
+        f.x = b.x + p.o[i][0] + (_R.x + ax - b.x - p.o[i][0]) * q; f.z = b.z + p.o[i][1] + (_R.z + az - b.z - p.o[i][1]) * q;
         f.y = b.y - G.stand + G.leg * 0.3 * Math.sin(Math.PI * u); f.s = -1; f.air = true; // carried
         f.rx = f.x - b.x; f.ry = f.y - b.y; f.rz = f.z - b.z;
       });
     } else {
-      if (!p.landed) { p.landed = true; b.x = p.x1; b.z = p.z1; b.gy = e.ground(b.x, b.z); feetPlant(b, e.ground); }
-      const s = (p.t - p.T) / 0.14;
-      b.crouch = s < 1 ? G.crouch * 0.7 * Math.sin(Math.PI * s) : 0;
+      if (!p.landed) { p.landed = true; feetPlant(b, e.ground); }
+      b.x = fx; b.z = fz; b.gy = e.ground(b.x, b.z); // the last few cm slide in over the planted feet as the legs give
+      const s2 = (t - p.T) / 0.14;
+      b.crouch = s2 < 1 ? G.crouch * 0.7 * Math.sin(Math.PI * s2) : 0;
       b.y = b.gy + G.stand - b.crouch;
-      if (s >= 1) { b.hop = null; if (--b.nh > 0) b.ha = b.yaw + (this.rnd() - 0.5) * 0.6; else { b.act = 'stand'; b.at = 0.4 + this.rnd() * 0.8; } }
+      if (s2 >= 1 && t >= p.T + R) { b.hop = null; if (--b.nh > 0) b.ha = b.yaw + (this.rnd() - 0.5) * 0.6; else { b.act = 'stand'; b.at = 0.4 + this.rnd() * 0.8; } }
     }
-    b.pitch += ((p.t > 0 && p.t < p.T ? 0.12 * Math.cos((Math.PI * p.t) / p.T) : 0) - b.pitch) * Math.min(1, 10 * h);
+    b.pitch += ((t > 0 && t < p.T ? 0.12 * Math.cos((Math.PI * t) / p.T) : 0) - b.pitch) * Math.min(1, 10 * h);
   }
 
   /** Counts per state (tests / debug). */

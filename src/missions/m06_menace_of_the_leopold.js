@@ -81,7 +81,7 @@ export default {
   size: [132, 105],
   seed: 1941_0510,
   briefing: {
-    historical: 'Spring has come to the far north of Norway. Within weeks Germany will march on the Soviet Union, and the units up here are rehearsing for it. One rehearsal uses a monster of a railway gun, the Leopold, which is shelling Resistance hideouts in the hills before it is shipped east. It must never get there.',
+    historical: 'May 1941. Within weeks Germany will march on the Soviet Union, and even in the far north of Norway its troops are rehearsing for it. Among them is a monster of a railway gun, the Leopold, shelling Resistance hideouts in the hills before it is sent east. It must never get there.',
     text: 'There is little to tell you this time. You will come in from the north-west. Reach that gun by whatever route you can find and wreck it for good. As soon as it goes up, one of our trucks will collect you in the north-east. Their headquarters stands just south of the gun: keep well away from it. I do not want to hear that gun fire again. Good luck.',
     objectivesSummary: 'Destroy the Leopold railway gun. Then get everyone aboard the truck in the north-east.',
     hints: [

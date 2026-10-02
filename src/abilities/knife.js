@@ -3,7 +3,10 @@
  * Click an enemy: he walks up and stabs; double-click (run order) = the sprint-kill. Stab 0.6 s, kill at 0.3 s,
  * blood (`hit` flesh), silent (no noise event). Only living enemies on foot at ground level: not tower/bunker
  * crews, vehicle crews or gunners behind armour. The Marine can knife from the water (surfaces for 0.6 s).
- * From a crawl he stands up first (0.6 s, `autoStand`) and then walks up and stabs — never refused.
+ * From a crawl (`autoStand`) he crawls up to the enemy and stands up (0.6 s) only within
+ * CONFIG.abilities.crawlStandLead (1 m) of reach, then steps in and stabs — never refused. A deliberate change from
+ * BEL (which stood him up at the click), at the user's request 2026-10-01; a double-click (run order) still stands
+ * him up at once and runs in.
  * @module abilities/knife
  */
 
@@ -34,7 +37,7 @@ registerAbility({
   cursor: 'knife',
   order: 10,
   campaigns: null, noiseRadius: 0, visibleToEnemies: true, group: 'melee', // §3.3: silent; a suspicious act
-  autoStand: true, // §3.3/§3.4: clicking from a crawl stands him up, then he walks up and stabs
+  autoStand: true, // §3.3/§3.4: clicked from a crawl he crawls in, stands up only when close, then stabs
 
   canUse(commando, target) {
     const f = freeToAct(commando);

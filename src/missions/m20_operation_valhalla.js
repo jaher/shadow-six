@@ -438,8 +438,11 @@ export default {
   coneColors: 'green',
   size: [157, 162],
   seed: 1945_0211,
+  // farmland fringe (art/terrain/bocage.js): field hedges, crops and orchards on the clear map edges, hedges
+  // backing walls (visual only: laid out clear of every gameplay point and route)
+  vegetation: { farmland: { crops: 'none', orchards: 0.5 } },
   briefing: {
-    historical: 'February 1945. The Red Army is in East Prussia and the end of the Reich is in sight. Then a coded signal shakes Allied headquarters: an enemy agent has stolen the design of Fat Man, the atomic bomb of the Manhattan Project, and carried it across the Atlantic. The plans now sit in Gundelfingen castle, north of Freiburg. From there they are to go east to a hidden laboratory in the Carpathians, where a German bomb is close to finished.',
+    historical: 'February 1945. The Red Army is in East Prussia and the end of the Reich is in sight. But a coded signal has shaken Allied headquarters: an enemy agent has stolen plans from the Manhattan Project, our atomic bomb programme. They lie in Gundelfingen castle, north of Freiburg, waiting to go east to a hidden German laboratory.',
     text: 'Officer, this is the most important job we have ever handed you, and I can tell you almost nothing about it. You will be on your own. Get inside that fortress and leave nothing standing: the headquarters, and the two rockets parked in its courtyard. Then take the tank they keep there and drive out through the south-west gate. Do this and the war may be over. Fail, and heaven help us all. Every eye in London is on you and your men. Good luck, son.',
     objectivesSummary: 'Blow up the headquarters and destroy both V2 rockets, then everyone into the Panzer III and out through the south-west gate.',
     hints: [

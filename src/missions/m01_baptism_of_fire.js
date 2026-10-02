@@ -27,7 +27,7 @@ export default {
   size: [65, 171],
   seed: 1941_0220,
   briefing: {
-    historical: 'Winter, 1941. Stavanger airfield is the Luftwaffe\'s northern eye over the North Sea, and its radio traffic runs through a small relay station at Sola. Silence it, and the bombers fly blind.',
+    historical: 'February 1941. From Sola, outside Stavanger, the Luftwaffe flies its patrols and raids out over the North Sea, and the airfield\'s signals pass through a small relay station nearby. Silence it, and the bombers fly blind.',
     text: 'Your men have landed apart, officer. The Marine is on the eastern peninsula; the Green Beret and the Driver are south of the coast road. Regroup at the wooden jetty, cross the fjord, and destroy the relay station in the north-west corner of the island. There are fuel drums by the barracks, and the Green Beret can handle those. Good luck.',
     objectivesSummary: 'Destroy the relay station.',
     hints: [

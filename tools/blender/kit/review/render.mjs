@@ -33,7 +33,7 @@ try {
   await page.goto(`http://localhost:${port}/review.html?kit=${encodeURIComponent(KIT)}`);
   await page.waitForFunction(() => window.ready && window.setup);
   const info = await page.evaluate(a => window.setup(a), { glb: '/fs' + glb, sidecar: fs.existsSync(side) ? '/fs' + side : null,
-    theater: opt('theater', 'temperate'), tone: opt('tone', 'agx'), sunEl: +opt('sun', 42) });
+    theater: opt('theater', 'temperate'), tone: opt('tone', 'agx'), sunEl: +opt('sun', 42), yaw: +opt('yaw', 0) });
   console.log('loaded', name, JSON.stringify(info));
   if (!fs.existsSync(side)) {                            // not a kit asset: derive and write a fallback sidecar
     const m = await page.evaluate(() => window.autoMeta());

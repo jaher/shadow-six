@@ -420,6 +420,18 @@ export class Renderer {
   }
 
   _applyEnvironment(L) {
+    // same HDRI + same lighting as the environment in use (a restart, the next mission in the theatre): keep the
+    // filtered PMREM instead of grading + filtering it again
+    let key = null;
+    try { key = `${this.theaterHdr?.uuid || 'sky'}|${JSON.stringify(L)}`; } catch { key = null; }
+    if (key && key === this._envKey && this._envRT) {
+      this.scene.environment = this._envRT.texture;
+      this.scene.environmentIntensity = L.envIntensity ?? 0.5;
+      this._rebindEnvironment();
+      if (L.envBackground) this.scene.background = this._envRT.texture;
+      return;
+    }
+    this._envKey = key;
     const old = this._envRT;
     let rt = null;
     try {

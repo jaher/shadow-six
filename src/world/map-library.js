@@ -69,7 +69,7 @@ export function applyLibraryNav(grid, built, mission, snap) {
       scratch.fillPoly(r.points, 'block', B.HIGH, 0);
       for (let k = 0; k < grid.size; k++) {
         if (!scratch.block[k]) continue;
-        grid.elev[k] = r.elev; grid.block[k] = B.NONE; grid.owner[k] = 0;
+        grid.elev[k] = r.elev; grid.block[k] = B.NONE; grid.owner[k] = 0; grid.naturalElev[k] = 0;
       }
       raised.push(r);
       out.roofs++;
@@ -273,7 +273,9 @@ export function wireLibraryDoors(world, built) {
         e.lib.setDoorOpen(e.door, e.t);
       }
     },
-    dispose() { off?.(); offBlast?.(); },
+    // the per-mesh geometry copies made by paneIslands are ours (a building owned by an entity leaves the scene
+    // before the map unload disposes what is left in it)
+    dispose() { off?.(); offBlast?.(); for (const m of new Set(panes.map((p) => p.mesh))) m.geometry?.dispose(); },
   };
 }
 
@@ -309,7 +311,11 @@ export function libraryDecks(built, o = {}) {
       return endH + (top - endH) * k * k * (3 - 2 * k);
     };
     // browser: the walking surface measured on the visual (placement rule e: nobody wades through a deck)
-    const field = o.measure ? o.measure(b, poly, rot, top) : null;
+    // a raised deck (`elev`, M3 dam crest): the visual stands `elev` higher and units already stand at grid elev
+    // there, so the measured surface is taken relative to it
+    const lift0 = b.def.elev > 0 ? b.def.elev : 0;
+    const field0 = o.measure ? o.measure(b, poly, rot, top + lift0) : null;
+    const field = field0 && lift0 ? { heightAt: (x, z) => { const h = field0.heightAt(x, z); return h == null ? h : h - lift0; }, parapet: (x, z) => field0.parapet(x, z) } : field0;
     out.push({
       id: b.def.id ?? b.type, poly, top, owner: b.owner, measured: !!field, lift: 0, root: b.library.object3d ?? null,
       heightAt(x, z) {

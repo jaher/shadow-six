@@ -28,8 +28,8 @@ export function portraitGlyph(c) {
   if (c.carrying && c.carrying.kind !== 'interactable') return c.carryMode === 'drag' ? 'dragging' : 'carrying';
   if (c.state === 'jailed' || c.state === 'captured') return 'bars';
   if (c.state === 'inVehicle' || c.vehicle) return 'vehicle';
+  if (c.buried) return 'shovel'; // before 'house': a buried man's state is 'hidden' too
   if (c.state === 'hidden' || c.hidden) return 'house';
-  if (c.buried) return 'shovel';
   if (c.underwater || c.stance === 'dive') return 'bubbles';
   return '';
 }

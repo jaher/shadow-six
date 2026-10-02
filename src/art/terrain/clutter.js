@@ -1,10 +1,13 @@
 /**
  * Ground clutter: pebbles/stones (per-layer density), wildflowers (Normandy poppies, daisies, buttercups, clover)
- * in noise-driven patches, broad-leaf weeds (dock/plantain rosettes). All instanced, seeded, per-instance colour.
+ * in noise-driven patches by season, broad-leaf weeds (3D dock/plantain rosettes). All instanced, seeded, per-instance
+ * colour. Desert plants live in scrub.js (3D archetypes), not here.
  * @module terrain-b/clutter
  */
 import * as THREE from 'three';
+import { WIND_GLSL } from '../../world/wind.js';
 import { rng, fbm } from './noise.js';
+import { makeBuf, leaf, blade, panicle } from './grass-arch.js';
 
 function stoneGeo(seed) {
   const g = new THREE.IcosahedronGeometry(1, 1);
@@ -21,40 +24,57 @@ function stoneGeo(seed) {
   return g;
 }
 
-function flowerGeo(petals, stemH, headR) {
+function flowerGeo(petals, stemH, headR, cup = 0.5) {
   const parts = [];
   const stem = new THREE.CylinderGeometry(0.004, 0.005, stemH, 3, 1, true); stem.translate(0, stemH / 2, 0);
-  const head = new THREE.CircleGeometry(headR, petals * 2); head.rotateX(-Math.PI / 2 + 0.25); head.translate(0, stemH, 0);
+  const head = new THREE.CircleGeometry(headR, petals * 2); head.rotateX(-Math.PI / 2);
   const pa = head.attributes.position;
-  for (let i = 1; i < pa.count; i++) { // scalloped petal outline
-    const x = pa.getX(i), z = pa.getZ(i) , a = Math.atan2(z, x);
+  for (let i = 1; i < pa.count; i++) { // scalloped petal outline, petals rising into a cup (3D head, not a disc)
+    const x = pa.getX(i), z = pa.getZ(i), a = Math.atan2(z, x);
     const k = 0.6 + 0.4 * Math.abs(Math.cos((a * petals) / 2));
-    pa.setX(i, x * k); pa.setZ(i, z * k);
+    pa.setX(i, x * k); pa.setZ(i, z * k); pa.setY(i, headR * k * cup);
   }
+  head.rotateX(0.25); head.translate(0, stemH, 0); head.computeVertexNormals();
+  // two stem leaves (lanceolate, rising) so a flower is a plant, not a lollipop
+  const lv = [];
+  for (const [y, a] of [[0.25, 0.4], [0.5, 3.6]]) {
+    const c = Math.cos(a), sn = Math.sin(a), L = stemH * 0.32, w = headR * 0.35 + 0.004;
+    lv.push([0, stemH * y, 0], [c * L * 0.5 - sn * w, stemH * (y + 0.08), sn * L * 0.5 + c * w], [c * L, stemH * (y + 0.2), sn * L], [c * L * 0.5 + sn * w, stemH * (y + 0.08), sn * L * 0.5 - c * w]);
+  }
+  const leaves = new THREE.BufferGeometry();
+  leaves.setAttribute('position', new THREE.Float32BufferAttribute(lv.flat(), 3));
+  leaves.setIndex([0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7]); leaves.computeVertexNormals();
   for (const g of [stem, head]) { g.deleteAttribute('uv'); parts.push(g); }
+  parts.push(leaves);
   // colour: stem green (0), head uses instance colour (1) → encode with a vertex attribute
   const cs = new Float32Array(stem.attributes.position.count).fill(0), ch = new Float32Array(head.attributes.position.count).fill(1);
   ch[0] = 0.5; // darker centre
   stem.setAttribute('aHead', new THREE.BufferAttribute(cs, 1)); head.setAttribute('aHead', new THREE.BufferAttribute(ch, 1));
+  leaves.setAttribute('aHead', new THREE.BufferAttribute(new Float32Array(8), 1));
   const m = mergeSimple(parts);
   return m;
 }
 
-function weedGeo(seed) {
-  const r = rng(seed), pos = [], idx = [];
-  const n = 5 + ((r() * 4) | 0);
+/**
+ * Dock / plantain rosette: cupped, ovate leaves on short petioles rising 30–60° and arching over (grass-arch leaf()),
+ * optionally an upright seed spike. Real volume: height ≥ 0.25 × width (no flat star cut-out).
+ */
+function rosetteGeo(seed, spike) {
+  const r = rng(seed), B = makeBuf();
+  const n = 5 + ((r() * 3) | 0);
   for (let k = 0; k < n; k++) {
-    const a = (k / n) * 6.283 + r() * 0.5, L = 0.12 + 0.12 * r(), w = 0.035 + 0.02 * r(), up = 0.1 + 0.25 * r();
-    const c = Math.cos(a), s = Math.sin(a), b = pos.length / 3;
-    const pts = [[0, 0.01, 0], [L * 0.45, up * L * 0.6, w], [L, up * L, 0], [L * 0.45, up * L * 0.6, -w]];
-    for (const [x, y, z] of pts) pos.push(c * x - s * z, y, s * x + c * z);
-    idx.push(b, b + 1, b + 2, b, b + 2, b + 3);
+    leaf(B, { a: (k / n) * 6.283 + r() * 0.5, L: 0.11 + 0.08 * r(), W: 0.03 + 0.015 * r(), elev: 0.6 + 0.45 * r(), curl: 0.18 + 0.15 * r(), cup: 0.45 });
+  }
+  leaf(B, { a: r() * 6.283, L: 0.1, W: 0.022, elev: 1.25, curl: 0.12 });
+  if (spike) { // seed spike: a stem with spikelets (dock / plantain)
+    const tip = blade(B, { bx: 0, bz: 0, a: r() * 6.283, h: 0.32 + 0.12 * r(), w: 0.004, lean: 0.06, seg: 3, taper: 0.5 });
+    panicle(B, tip, 0.4, 8, 0.02, r, 0.2);
   }
   const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setIndex(idx);
-  g.computeVertexNormals();
-  const nn = g.attributes.normal; for (let i = 0; i < nn.count; i++) nn.setXYZ(i, nn.getX(i) * 0.4, Math.abs(nn.getY(i)) + 0.6, nn.getZ(i) * 0.4);
+  g.setAttribute('position', new THREE.Float32BufferAttribute(B.pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(B.nor, 3));
+  g.setIndex(B.idx);
+  const nn = g.attributes.normal; for (let i = 0; i < nn.count; i++) { const l = Math.hypot(nn.getX(i), nn.getY(i), nn.getZ(i)) || 1; nn.setXYZ(i, nn.getX(i) / l, nn.getY(i) / l, nn.getZ(i) / l); }
   return g;
 }
 
@@ -79,7 +99,58 @@ const STONE_COL = { desert: [0xa8906c, 0x8c7458, 0xc0a888, 0x6e5e4c], temperate:
  * @param {object} ctx terrain context @param {{clutter:number}} q quality @param {THREE.Group} group parent
  * @param {object} U grass uniforms (unused; kept for API symmetry)
  */
-export function createClutter(ctx, q, group) {
+/**
+ * Wind + brushing for the flowers and the dock / plantain rosettes (critic: frozen next to swaying grass): the shared
+ * wind field bends each plant from its base (∝ height², stem stiffness uClAmp), gusts add lean, and the trail /
+ * flatten RT (walkers brushing through) presses the stems over and splays them like the grass tufts.
+ */
+const CLUTTER_PROJECT = /* glsl */ `
+vec4 mvPosition = vec4( transformed, 1.0 );
+#ifdef USE_INSTANCING
+  mvPosition = instanceMatrix * mvPosition;
+  vec3 ip = instanceMatrix[3].xyz;
+#else
+  vec3 ip = vec3(0.0);
+#endif
+{
+  vec3 rel = mvPosition.xyz - ip;
+  float hh = max(rel.y, 0.0), t = clamp(hh / uClH, 0.0, 1.2);
+  vec2 uvT = ip.xz * uMapG.zw;
+  float inMap = step(0.0, uvT.x) * step(uvT.x, 1.0) * step(0.0, uvT.y) * step(uvT.y, 1.0);
+  float fl = clamp(texture(tFlatG, uvT).r + texture(tTrail, uvT).r * 0.8, 0.0, 1.0) * inMap;
+  vec2 pd = normalize(vec2(sin(ip.x * 12.9 + ip.z * 4.1), cos(ip.x * 3.7 - ip.z * 9.3)) + 1e-3);
+  mvPosition.xz += pd * hh * fl * 0.8;                        // brushed / trodden: pressed over, splayed
+  mvPosition.y -= hh * fl * 0.72;
+  vec4 wS = windSample(ip.xz);
+  float ws = windStr(wS) * uWindStr;
+  vec2 wd = length(wS.xy) > 1e-3 ? wS.xy / length(wS.xy) : uWindA.xy;
+  float ph = uWindA.w * (2.0 + 0.6 * fract(ip.x * 3.17)) + dot(ip.xz, vec2(0.37, 0.21)) * 3.0;
+  float lean = ws * ws * 0.9 + wS.z * uWindStr * 0.5;
+  float osc = (sin(ph) * 0.6 + sin(ph * 2.7 + 1.1) * 0.25 + wS.w * 0.15) * (0.12 + 0.6 * ws) * uWindStr;
+  vec2 off = (wd * (lean + osc * 0.5) + vec2(-wd.y, wd.x) * osc * 0.3) * t * t * uClAmp * (1.0 - fl);
+  mvPosition.xz += off;
+  mvPosition.y -= dot(off, off) * 0.5 / max(hh, 0.05);         // the stem keeps its length as it bends
+}
+mvPosition = modelViewMatrix * mvPosition;
+gl_Position = projectionMatrix * mvPosition;
+`;
+const CLUTTER_PARS = 'uniform float uWindStr;\nuniform float uClAmp;\nuniform float uClH;\nuniform sampler2D tTrail;\nuniform sampler2D tFlatG;\nuniform vec4 uMapG;\n';
+/** Patch a clutter material (or its depth material) with the wind bend. U: the grass uniforms (wind, trail RT). */
+function windClutter(m, U, amp, h, key) {
+  if (!U) return m;
+  const own = { uClAmp: { value: amp }, uClH: { value: h } };
+  const prev = m.onBeforeCompile;
+  m.onBeforeCompile = (sh, r) => {
+    prev?.call(m, sh, r);
+    Object.assign(sh.uniforms, U, own);
+    sh.vertexShader = WIND_GLSL + CLUTTER_PARS + sh.vertexShader.replace('#include <project_vertex>', CLUTTER_PROJECT);
+  };
+  m.customProgramCacheKey = () => key;
+  m.userData.windAmp = own.uClAmp; // tests / tuning
+  return m;
+}
+
+export function createClutter(ctx, q, group, U = null) {
   const { W, D, heightAt, materialAt, src } = ctx;
   const dens = q.clutter * (ctx.opts.clutter === false ? 0 : 1);
   const excl = ctx.opts.exclude || null; // step 3p: nothing on / through hard pavement
@@ -118,7 +189,8 @@ export function createClutter(ctx, q, group) {
   });
 
   // --- wildflowers (temperate) + weeds -------------------------------------------------------------------
-  if (src === 'temperate') {
+  const prof = ctx.veg || { flowers: 1, season: 'summer' };
+  if (src === 'temperate' && prof.flowers > 0) {
     const FL = [
       { name: 'poppy', col: [0xb81c10, 0xd02818], petals: 4, h: [0.28, 0.45], r: 0.03 },
       { name: 'daisy', col: [0xe8e4d8, 0xf0ece0], petals: 12, h: [0.08, 0.16], r: 0.014 },
@@ -126,13 +198,15 @@ export function createClutter(ctx, q, group) {
       { name: 'clover', col: [0xa86890, 0xc088a8], petals: 8, h: [0.06, 0.12], r: 0.012 },
       { name: 'yarrow', col: [0xe0dcc8, 0xd8d0c0], petals: 16, h: [0.3, 0.5], r: 0.03 },
     ];
+    // season mix (docs/vegetation.md §3.9): May buttercups / daisies / clover; late summer yarrow, fewer poppies
+    const SEAS = { spring: [1, 1.2, 1.5, 1.1, 0.3], summer: [1, 1, 1, 1, 1], late: [0.4, 0.6, 0.5, 0.8, 1.6], autumn: [0.1, 0.5, 0.2, 0.4, 0.6] }[prof.season] || [1, 1, 1, 1, 1];
     const fMat = new THREE.MeshStandardMaterial({ roughness: 0.6, side: THREE.DoubleSide });
     fMat.onBeforeCompile = (sh) => {
       sh.vertexShader = 'attribute float aHead;\nvarying float vHead;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvHead = aHead;');
       sh.fragmentShader = 'varying float vHead;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
         diffuseColor.rgb = vHead < 0.25 ? vec3(0.05, 0.09, 0.02) : vHead < 0.75 ? diffuseColor.rgb * 0.35 + vec3(0.12, 0.09, 0.0) : diffuseColor.rgb;`);
     };
-    fMat.customProgramCacheKey = () => 'clutterFlower';
+    windClutter(fMat, U, 0.16, 0.4, 'clutterFlowerW'); // thin stems: a soft bend
     const nF = Math.round(W * D * 2.2 * dens);
     FL.forEach((f, fi) => {
       const list = [];
@@ -142,41 +216,48 @@ export function createClutter(ctx, q, group) {
         const patch = fbm(x / 7 + fi * 13.1, z / 7 - fi * 7.7, 3, 900 + fi);
         const m = materialAt(x, z);
         const g = m.weights[0] + m.weights[1] * 0.6;
-        if (r() > g * Math.max(0, (patch - 0.55) * 4) * (fi === 0 ? 0.25 : 0.12)) continue;
+        if (r() > g * Math.max(0, (patch - 0.55) * 4) * (fi === 0 ? 0.25 : 0.12) * SEAS[fi] * prof.flowers) continue;
         list.push([x, z]);
       }
       if (!list.length) return;
-      const im = new THREE.InstancedMesh(flowerGeo(f.petals, 1, f.r / 0.6), fMat, list.length);
+      const hm = (f.h[0] + f.h[1]) / 2;
+      const im = new THREE.InstancedMesh(flowerGeo(f.petals, hm, f.r / 0.6, 0.9), fMat, list.length);
       list.forEach(([x, z], i) => {
         const h = f.h[0] + (f.h[1] - f.h[0]) * r();
         e.set((r() - 0.5) * 0.3, r() * 6.28, (r() - 0.5) * 0.3); qt.setFromEuler(e);
-        im.setMatrixAt(i, m4.compose(ps.set(x, heightAt(x, z) - 0.01, z), qt, sc.set(0.6, h, 0.6)));
+        im.setMatrixAt(i, m4.compose(ps.set(x, heightAt(x, z) - 0.01, z), qt, sc.set(0.6, h / hm, 0.6)));
         im.setColorAt(i, col.set(f.col[(r() * 2) | 0]).multiplyScalar(0.85 + 0.3 * r()));
       });
       im.name = 'clutterFlowers_' + f.name; im.receiveShadow = true;
       group.add(im); meshes.push(im);
     });
   }
-  if (src === 'temperate' || src === 'desert') {
-    const wMat = new THREE.MeshStandardMaterial({ roughness: 0.7, side: THREE.DoubleSide });
-    const list = [];
+  // broad-leaf weeds: 3D dock / plantain rosettes (cupped leaves rising 30–60°, a seed spike on some) along verges
+  // and in the sward. The desert no longer gets weeds here: its plants are the 3D scrub archetypes (scrub.js).
+  if (src === 'temperate') {
+    const wMat = windClutter(new THREE.MeshStandardMaterial({ roughness: 0.7, side: THREE.DoubleSide }), U, 0.05, 0.25, 'clutterWeedW'); // stiff rosette leaves
+    const wDepth = windClutter(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: THREE.DoubleSide }), U, 0.05, 0.25, 'clutterWeedWd');
+    const winter = prof.season === 'winter' || prof.season === 'thaw';
+    const lists = [[], []];
     for (let i = 0; i < W * D * 0.5 * dens; i++) {
       const x = r() * W, z = r() * D, m = materialAt(x, z);
       if (excl && excl(x, z)) continue;
-      const g = src === 'temperate' ? m.weights[0] * 0.5 + m.weights[2] * 0.6 + m.weights[1] * 0.4 : m.weights[6] * 0.6 + m.weights[3] * 0.08 + (m.weights[0] + m.weights[1]) * 0.035; // T-A desert shrubs on open sand
-      if (r() < g) list.push([x, z]);
+      const g = (m.weights[0] * 0.5 + m.weights[2] * 0.6 + m.weights[1] * 0.4) * (1 - m.weights[7]); // not on beach sand
+      if (r() < g * (winter ? 0.5 : 1)) lists[r() < 0.5 ? 0 : 1].push([x, z]);
     }
-    if (list.length) {
-      const im = new THREE.InstancedMesh(weedGeo(7), wMat, list.length);
+    lists.forEach((list, v) => {
+      if (!list.length) return;
+      const im = new THREE.InstancedMesh(rosetteGeo(7 + v, v === 1), wMat, list.length);
       list.forEach(([x, z], i) => {
-        const s = (0.7 + 0.9 * r()) * (src === 'desert' && r() < 0.35 ? 2.2 : 1); // some low camel-thorn bushes
-        e.set(0, r() * 6.28, 0); qt.setFromEuler(e);
-        im.setMatrixAt(i, m4.compose(ps.set(x, heightAt(x, z), z), qt, sc.set(s, s, s)));
-        im.setColorAt(i, src === 'desert' ? col.setRGB(0.2 + 0.08 * r(), 0.18 + 0.05 * r(), 0.08) : col.setRGB(0.05 + 0.04 * r(), 0.1 + 0.05 * r(), 0.025));
+        const s = 0.7 + 0.7 * r();
+        e.set((r() - 0.5) * 0.15, r() * 6.28, (r() - 0.5) * 0.15); qt.setFromEuler(e);
+        im.setMatrixAt(i, m4.compose(ps.set(x, heightAt(x, z) - 0.005, z), qt, sc.set(s, s * (0.8 + 0.4 * r()), s)));
+        if (winter) im.setColorAt(i, col.setRGB(0.09 + 0.05 * r(), 0.075 + 0.03 * r(), 0.035)); // frost-browned
+        else im.setColorAt(i, col.setRGB(0.045 + 0.03 * r(), 0.085 + 0.045 * r(), 0.022 + 0.01 * r()));
       });
-      im.name = 'clutterWeeds'; im.receiveShadow = true; im.castShadow = true;
+      im.name = 'clutterWeeds'; im.receiveShadow = true; im.castShadow = true; if (U) im.customDepthMaterial = wDepth;
       group.add(im); meshes.push(im);
-    }
+    });
   }
   return {
     meshes,

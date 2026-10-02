@@ -298,7 +298,7 @@ export default {
   size: [101, 153],
   seed: 1942_1203,
   briefing: {
-    historical: 'December 1942. Out of Tunisia the Axis is hitting back hard. While the armies grind against each other, small Allied parties are to slip into the corner of Libya the enemy still holds, cut his supply lines and find out how strong Rommel really is. Your target is the oil field at Maradah, south of El Agheila. Wreck its drilling rigs and Berlin will have to send whole divisions south just to guard what is left.',
+    historical: 'December 1942. In Tunisia the Axis is hitting back hard, and in Libya Rommel\'s army has gone to ground behind El Agheila. Small Allied parties are slipping behind it to cut his supplies. At the southern end of his line lies the oasis of Maradah: wreck the drilling rigs there, and the fuel he hoped to draw from it never flows.',
     text: 'You come in on the western edge of the field. Four drilling rigs are pumping out there: every one of them has to come down. When they are burning, get out along the dirt road to the west. There is an armoured half-track standing in the eastern valley, and you may well need to borrow it. That is all. Good luck.',
     objectivesSummary: 'Bring down all four drilling rigs, then take the half-track out along the west road.',
     hints: [

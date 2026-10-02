@@ -12,6 +12,7 @@ import { GATE_KINDS, ramOutcome, vehicleResponse, gateLayout, gateKindOf, isBrea
 import { planFracture, componentsOf, pieceBoxes, obbOverlap } from '../../src/physics/debris.js';
 import { GROUPS, groundAt } from '../../src/physics/statics.js';
 import '../../src/abilities/index.js';
+import { m2PlankDef } from '../m2-plank-def.mjs';
 
 const M2_GATE = { id: 'gate_se', type: 'gate', variant: 'barrier_boom', look: 'palisade_double', w: 4, rammable: true };
 
@@ -85,9 +86,14 @@ test('gate smash: fracture plan — burst tears one leaf off and leaves the othe
 
 // ------------------------------------------------------------------ physics (M2 gate_se)
 
-async function m2Sim() {
+/**
+ * M2 staged for a ram. M2's gate_se is a boom barrier; `plank: true` swaps in the two-leaf plank gate (the model the
+ * plank tests below exercise) on the same spot, in the old 4 m opening (m2PlankDef).
+ */
+async function m2Sim({ plank = true } = {}) {
   Entity.nextId = 1;
-  const def = getMission('m02');
+  const def0 = getMission('m02');
+  const def = plank ? m2PlankDef(def0) : def0;
   const s = makeSim({ ...def, commandos: def.commandos.filter((c) => c.role === 'driver') }, { brains: false });
   s.world.physics = await createPhysics(s.world, { tier: 'high' });
   const truck = s.get('truck'), gate = s.world.interactables.find((i) => i.tag === 'gate_se'), driver = s.cmd('driver');
@@ -97,7 +103,7 @@ async function m2Sim() {
 }
 const digest = (pw) => JSON.stringify(pw.gates.byKey('gate_se').bodies.map((b) => [b.pieces, b.pose, b.fixed]));
 
-test('gate smash physics: M2 truck at escape speed → pieces fly, settle, freeze; no interpenetration; truck goes on', async () => {
+test('gate smash physics (plank gate on M2 gate_se): truck at escape speed → pieces fly, settle, freeze; no interpenetration; truck goes on', async () => {
   const { s, truck, gate, driver, pw } = await m2Sim();
   assert.equal(pw.isNull, false);
   const ev = [];
@@ -189,4 +195,65 @@ test('gate smash: slow truck stops at the gate (hold); open gate is never rammed
   o.truck.handleOrder(o.driver, { type: 'move', x: 62, z: 55, run: true });
   o.s.run(6);
   assert.equal(o.gate.destroyed, false, 'an open gate is driven through, not rammed');
+});
+
+// ------------------------------------------------------------------ M2's boom barrier (user request: barrier gate)
+
+test('M2 boom barrier: layout — striped pole in 4 segments, counterweight arm, pivot post beside the pole, fork rest, two log gate posts at the opening ends', () => {
+  const g = getMission('m02').structures.find((x) => x.id === 'gate_se');
+  assert.equal(gateKindOf(g), 'boom');
+  const L = gateLayout(g), by = (id) => L.pieces.find((p) => p.id === id);
+  assert.equal(L.pieces.filter((p) => p.kind === 'pole').length, 4);
+  assert.ok(by('arm') && by('weight') && by('post0') && by('post1'));
+  assert.deepEqual([by('gpost0').c[0] - by('gpost0').h[0], by('gpost1').c[0] + by('gpost1').h[0]].map((v) => +v.toFixed(3)), g.gap, 'gate posts end the opening flush');
+  // the counterweight clears the pivot post through the whole raise (0 → 1.45 rad about the pin)
+  const w = by('weight'), p0 = by('post0'), [px, py] = L.pivot;
+  assert.ok(Math.abs(w.c[2] - p0.c[2]) >= w.h[2] + p0.h[2], 'counterweight and pivot post never share a slice across the gate');
+  // the footway: ≥ 1.4 m clear between the fork rest and the far gate post
+  assert.ok(L.footway[1] - L.footway[0] >= 1.4, `footway ${(L.footway[1] - L.footway[0]).toFixed(2)} m`);
+  assert.ok(by('post1').c[0] + by('post1').h[0] <= L.footway[0] && by('gpost1').c[0] - by('gpost1').h[0] >= L.footway[1]);
+  assert.ok(px < -L.w / 2 && Math.abs(py - 1) < 1e-9, 'pin at 1 m beside the road');
+});
+
+test('M2 boom barrier physics: escape-speed truck snaps the pole — the outer pole flies, the stub stays on the pin, all settle; truck goes on', async () => {
+  const { s, truck, gate, driver, pw } = await m2Sim({ plank: false });
+  const ev = [];
+  for (const n of ['gate:smash', 'gate:settled', 'gate:hold']) s.world.events.on(n, (e) => ev.push([n, s.world.time, e]));
+  assert.ok(truck.handleOrder(driver, { type: 'move', x: 62, z: 55, run: true }), 'fast order through the lowered boom');
+  s.run(9);
+  const smash = ev.find((e) => e[0] === 'gate:smash'), settled = ev.find((e) => e[0] === 'gate:settled');
+  assert.ok(smash && settled && !ev.some((e) => e[0] === 'gate:hold'), 'smash and settle, no hold');
+  assert.equal(smash[2].outcome, 'shatter');
+  assert.equal(smash[2].kind, 'boom');
+  assert.ok(settled[1] - smash[1] < 4.5, `settled ${(settled[1] - smash[1]).toFixed(2)} s after the smash`);
+  const g = pw.gates.byKey('gate_se');
+  const stub = g.bodies.find((b) => b.pieces.includes('pole0'));
+  assert.ok(stub && stub.hinged && stub.pieces.includes('weight'), 'the stub with the counterweight stays on the pin');
+  const loose = g.bodies.filter((b) => !b.hinged);
+  assert.ok(loose.length >= 1 && loose.every((b) => b.pieces.every((id) => /^pole[1-3]$/.test(id))), `outer pole pieces fly (${loose.map((b) => b.pieces.join('+'))})`);
+  assert.ok(g.bodies.every((b) => b.fixed) && !pw.moving(), 'all settled');
+  const boxes = pieceBoxes(g);
+  let worst = 0;
+  for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) if (boxes[i].body !== boxes[j].body) worst = Math.max(worst, obbOverlap(boxes[i], boxes[j]));
+  assert.ok(worst < 0.05, `max piece overlap ${worst.toFixed(3)} m`);
+  const low = Math.min(...boxes.map((b) => b.c.y - b.h.reduce((q, h, i) => q + h * Math.abs(b.ax[i].y), 0) - groundAt(s.world, b.c.x, b.c.z)));
+  assert.ok(low > -0.03, `nothing under the ground (lowest corner ${(low * 100).toFixed(1)} cm)`);
+  assert.ok(gate.destroyed && Math.hypot(truck.x - 62, truck.z - 55) < 1.5, 'the truck drove on through the opening');
+});
+
+test('M2 boom barrier: a slow truck stops at the lowered boom (hold), raised it drives under', async () => {
+  const { s, truck, gate, driver } = await m2Sim({ plank: false });
+  const holds = [];
+  s.world.events.on('gate:hold', (e) => holds.push(e));
+  truck.handleOrder(driver, { type: 'move', x: 62, z: 55, run: false });
+  s.run(8);
+  assert.equal(gate.destroyed, false);
+  assert.equal(holds.length, 1, 'the boom bows and holds');
+  const past = (truck.x - gate.x) * Math.cos(truck.heading) + (truck.z - gate.z) * Math.sin(truck.heading);
+  assert.ok(past < 0, `stopped short of the boom (${past.toFixed(2)} m)`);
+  const o = await m2Sim({ plank: false });
+  o.gate.setOpen(true);
+  o.truck.handleOrder(o.driver, { type: 'move', x: 62, z: 55, run: false });
+  o.s.run(9);
+  assert.ok(!o.gate.destroyed && Math.hypot(o.truck.x - 62, o.truck.z - 55) < 1.5, 'raised: the truck drives under it');
 });

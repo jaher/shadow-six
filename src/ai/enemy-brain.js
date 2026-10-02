@@ -17,7 +17,8 @@
  * @module ai/enemy-brain
  */
 
-import { CONFIG } from '../config.js';
+import { CONFIG, velToSpeed } from '../config.js';
+import { hasObstacles, bodyGap, MOVE_MARGIN } from '../world/body-clearance.js';
 import { angleTo, angleDiff, wrapAngle } from '../core/math.js';
 import { perceive, canSee, hears, coneAt } from './perception.js';
 import { archetypeOf, isPatrolMember } from './archetypes.js';
@@ -26,6 +27,7 @@ import { BCD_BRAIN_STATES } from './bcd-enemy.js';
 import { AnimalBrain } from './animal-brain.js';
 import { ANIMAL_TYPES } from './bcd-ranks.js';
 import { bcdPre, bcdScan, bcdOnSeen, bcdState, bcdExit, bcdOfficerLook } from './bcd-brain.js';
+import { blocks as blocksUnit } from '../entities/avoidance.js';
 
 /** A noise-driven turn needs this long (s) before what he now faces counts for a kill witness (notifyKill). */
 const NOISE_WITNESS_DELAY = 0.3;
@@ -54,6 +56,15 @@ const BUSY = new Set(['CHALLENGE', 'HOLD', 'ARREST', 'COMBAT', 'BODY', 'ALARM_RU
 const ALERT_OF = { IDLE: 0, REINFORCE: 0, RETURN: 0, DISTRACTED: 0, INVESTIGATE: 1, DECOY: 1, TRACKS: 1, BODY: 1,
   SEARCH: 1, CHALLENGE: 1, HOLD: 1, ARREST: 1, COMBAT: 2, ALARM_RUN: 2, DEAD: 0 };
 
+
+/** Unit direction of the last ≥ 0.5 m of a breadcrumb trail ending at e (falls back to e's heading). */
+function trailDir(tr, e) {
+  for (const p of tr) {
+    const dx = e.x - p.x, dz = e.z - p.z, d = Math.hypot(dx, dz);
+    if (d >= 0.5) return { x: dx / d, z: dz / d };
+  }
+  return { x: Math.cos(e.heading), z: Math.sin(e.heading) };
+}
 export class EnemyBrain {
   /** @param {import('../entities/enemy.js').Enemy} enemy */
   constructor(enemy) {
@@ -83,6 +94,10 @@ export class EnemyBrain {
     this.noiseTurnT = 0; // holdsPost: sweep re-centred on a noise (§4.4) for 8 s
     this.alertT = 0; // holdsPost: alertLevel raised by a noise
     this.alertBoost = 0;
+    // SHADOW SIX runningNoise: suspicion from heard running steps (+1 per step heard, decays stealth.runNoise.susp.decay/s)
+    this.stepSusp = 0;
+    this.stepT = null; // sim time of the last step heard
+    this._stepBarkT = null; // last "Was war das?" at a step (one per susp.barkEvery s)
     this.glanceT = 0; // partner glance (§4.6)
     this.stuckT = 0; // panic unstick (§4.6)
     this.wanderT = 0;
@@ -193,10 +208,15 @@ export class EnemyBrain {
 
   // ------------------------------------------------------------ public API: stimuli
 
-  /** A noise reached this enemy (world 'noise' payload {x, z, radius, kind, level, source}) (§4.4). */
-  hear(n) {
+  /**
+   * A noise reached this enemy (world 'noise' payload {x, z, radius, kind, level, source}) (§4.4).
+   * @param {object} n
+   * @param {boolean} [relayed] passed on by a squad member who heard it (running steps: the leader reacts whatever
+   *   his own distance to them)
+   */
+  hear(n, relayed = false) {
     const e = this.enemy;
-    if (!e.alive || !this.world || !hears(e, n)) return;
+    if (!e.alive || !this.world || !(relayed || hears(e, n))) return;
     const lvl = n.level ?? 1;
     const S = this.state;
     // BCD: REVIVE / FLEE / REPORT are busy at every level (a revive is never dropped for a comrade's alarm shout —
@@ -207,7 +227,8 @@ export class EnemyBrain {
     // while (replay m08: one pulsing decoy held the whole camp through the depot's chain explosion)
     if (lvl >= 3 && S === 'DECOY') this._shockT = this.world.time;
     if (n.kind === 'decoy' && this._lureShocked()) return;
-    if (this.arch.script === 'engineer' || this.arch.script === 'general') return this._scriptAlarm(n.x, n.z);
+    // a running man's steps never make the engineer fire his charges or the general flee (runningNoise)
+    if (this.arch.script === 'engineer' || this.arch.script === 'general') return n.kind === 'footsteps' ? undefined : this._scriptAlarm(n.x, n.z);
     if (!this.arch.reacts || BUSY.has(S) || lvl <= 0) return;
     // §4.9 a patrol sent on its alarm route (reactEvents) runs it through: noises do not turn it aside until it
     // reaches its loop (replay m09: pt_nw investigated the blast instead of running S past the lorry)
@@ -217,14 +238,17 @@ export class EnemyBrain {
       return;
     }
     if (S === 'DECOY' && lvl < 2) return; // at the decoy: ignores level 1
-    // a patrol member defers to its squad leader (the leader investigates, the squad follows)
+    // a patrol member defers to its squad leader (the leader investigates, the squad follows). Running steps are
+    // short-range: the leader at the head of the file may be out of their reach while the tail man hears them, so the
+    // tail man's hearing counts for the squad (other noises keep the leader's own range check)
     const lead = this._leader();
-    if (lead && lead !== e && lead.alive) { lead.brain?.hear?.(n); return; }
+    if (lead && lead !== e && lead.alive) { lead.brain?.hear?.(n, n.kind === 'footsteps'); return; }
     this._reactNoise(n, lvl);
   }
 
   _reactNoise(n, lvl) {
     const e = this.enemy;
+    if (n.kind === 'footsteps') return this._hearSteps(n);
     // the cone before a noise swings him round: a kill in the same instant (the blast that made the noise)
     // is judged with it (notifyKill), there is no time to see who fired yet (M5 fix: barrel blast unmasking)
     const now = this.world.time;
@@ -249,7 +273,75 @@ export class EnemyBrain {
     }
     if (n.kind === 'decoy') return this._startDecoy(n);
     if (lvl >= 3) { this.alertT = CONFIG.ai.investigate.look + 10; this.alertBoost = 2; }
+    // investigating already, a mate's noise close by (his shot within 8 m: he sees who fired) gives him nowhere new to
+    // go: he keeps on (re-aiming at it turned him round on the spot: a file stalled where its own shots kept turning it)
+    if (this.state === 'INVESTIGATE' && n.source?.faction === e.faction && Math.hypot(n.x - e.x, n.z - e.z) <= CONFIG.ai.investigate.mateShot) return;
     this._startInvestigate(n.x, n.z, lvl >= 3 ? CONFIG.ai.investigate.runSpeed : CONFIG.ai.investigate.speed);
+  }
+
+  /** Running-step suspicion now (decayed since the last step heard). */
+  _stepSuspNow() {
+    if (!(this.stepSusp > 0) || this.stepT == null) return 0;
+    return Math.max(0, this.stepSusp - (this.world.time - this.stepT) * CONFIG.stealth.runNoise.susp.decay);
+  }
+
+  /**
+   * SHADOW SIX house rule runningNoise: a running commando's step (level 1) reached this enemy. He turns at once to
+   * the sound (head turns are instant in BEL): a post-holder / gunner / crew man faces it (his gun's traverse) and
+   * sweeps around it for noiseTurnHold s; an investigator faces it and walks over (re-aimed at each newer step).
+   * "Was war das?" at most every susp.barkEvery s. Repeated steps raise suspicion: alert level 1 at susp.alertAt; an
+   * investigator who reached susp.searchAt SEARCHes around the last step when his look ends. Never alert level 2,
+   * never an alarm, never combat-ready: being spotted still goes through the cone and the §4.5 nervousness rule
+   * ("Halt!" first).
+   */
+  _hearSteps(n) {
+    const e = this.enemy, w = this.world, now = w.time, SU = CONFIG.stealth.runNoise.susp;
+    // §4.3: the run to a wounded comrade's shooter is not redirected by steps
+    if (this.state === 'INVESTIGATE' && this.goal?.priority === 'wounded') return;
+    // one step counts once: a leader is handed the same step by every squad member who heard it (and may hear it
+    // himself); a step is one noise payload shared by every hearer, so the last one handled is enough to drop repeats
+    if (this._stepNoise === n) return;
+    this._stepNoise = n;
+    this.stepSusp = this._stepSuspNow() + 1;
+    this.stepT = now;
+    const post = e.flags.holdsPost || this.arch.script === 'crew' || this.arch.script === 'gunner' || e.soldierType === 'mg' || !e.flags.investigates;
+    const tracking = post ? this.noiseTurnT > 0 : this.state === 'INVESTIGATE' && !!this.goal?.steps;
+    const h = post ? this._clampTraverse(angleTo(e.x, e.z, n.x, n.z)) : angleTo(e.x, e.z, n.x, n.z);
+    const turn = !tracking || Math.abs(angleDiff(e.heading, h)) > 0.2;
+    if (post) {
+      e.heading = h;
+      this.noiseTurnT = CONFIG.ai.noiseTurnHold;
+    } else if (tracking) {
+      const g = this.goal;
+      g.x = n.x; g.z = n.z;
+      if (this.phase === 'look') { // heard again while looking round: back on his feet towards the newest step
+        this._set('INVESTIGATE', 'go');
+        this._look(0);
+        this._go(n.x, n.z, g.speed);
+        g.repathT = now;
+      } else if (now - (g.repathT ?? -Infinity) >= SU.repath) {
+        this._go(n.x, n.z, g.speed);
+        g.repathT = now;
+      }
+    } else {
+      this._startInvestigate(n.x, n.z, CONFIG.ai.investigate.speed);
+      this.goal.steps = true;
+      this.goal.repathT = now;
+    }
+    if (!post) e.heading = h; // facing the sound now; the walk there keeps him facing it
+    if (turn) w.events.emit('enemy:noise-turn', { enemy: e, x: n.x, z: n.z, kind: 'footsteps' });
+    w.events.emit('enemy:heard-steps', { enemy: e, x: n.x, z: n.z, susp: this.stepSusp });
+    if (this._stepBarkT == null || now - this._stepBarkT >= SU.barkEvery) {
+      this._stepBarkT = now;
+      w.events.emit('bark', { unit: e, line: 'ger_suspicious' });
+    }
+    if (this.stepSusp >= SU.alertAt) {
+      this.alertT = Math.max(this.alertT, CONFIG.ai.noiseTurnHold);
+      if (!(this.alertBoost >= 1)) this.alertBoost = 1;
+    }
+    // so many steps that he will search around the last one when his look round ends (not go home)
+    if (!post && this.stepSusp >= SU.searchAt) this.goal.search = true;
+    this._updateAlert();
   }
 
   /** Alarm reached this enemy (legacy hook from alarm.js; §4.9 reactEvents / scripted runners). */
@@ -415,6 +507,11 @@ export class EnemyBrain {
     }
     this._perceive();
     if (!e.alive) return;
+    // stepping out of a vehicle's way (vehicle.js _stepAside): an idle man finishes the step before his routine
+    if (e.stepAside) {
+      if (w.time < e.stepAside.until && e.path && (this.state === 'IDLE' || this.state === 'REINFORCE')) return;
+      e.stepAside = null;
+    }
     if (this.bcd && !AWARE.has(this.state)) bcdScan(this); // BCD: a comrade seen knocked out / cuffed
     switch (this.state) {
       case 'IDLE': case 'REINFORCE': this._idle(dt); break;
@@ -971,7 +1068,11 @@ export class EnemyBrain {
     // look around 4 s: θ sweeps ±90° over the 4 s
     e.sweepActive = false;
     e.headOffset = I.lookSweep * DEG * Math.sin((2 * Math.PI * this.pt) / I.look);
-    if (this.pt >= I.look) this._set('RETURN');
+    if (this.pt >= I.look) {
+      // runningNoise: many steps heard → search around the last one instead of going home
+      if (g?.steps && g.search) return this._startSearch({ x: g.x, z: g.z });
+      this._set('RETURN');
+    }
   }
 
   /**
@@ -1096,14 +1197,14 @@ export class EnemyBrain {
   // ------------------------------------------------------------ SEARCH / RETURN / DISTRACTED
 
   /** SEARCH (§4.6): 3 seeded random points within 8 m of lastSeen, 2 s look at each, 20 s total. */
-  _startSearch() {
+  _startSearch(centre = null) {
     const e = this.enemy, w = this.world, S = CONFIG.ai.search;
     const t = this.target;
     this._set('SEARCH', 'go');
     this.target = null;
     e.target = null;
     if (t) this._refreshHeld(t);
-    const c = e.lastSeen || { x: e.x, z: e.z };
+    const c = centre || e.lastSeen || { x: e.x, z: e.z };
     this.searchPts = [];
     if (e.flags.holdsPost || e.soldierType === 'mg' || e.state === 'inVehicle') { this.searchPts = []; this.phase = 'look'; return; }
     for (let k = 0; k < S.points; k++) {
@@ -1144,7 +1245,8 @@ export class EnemyBrain {
     const e = this.enemy;
     this._look(0);
     const home = this._homePoint();
-    if (this._dist(home) <= 0.5) {
+    // home, or beside it when another man stands on it (Unit._avoidPlan stops a walker beside a man on his goal)
+    if (this._dist(home) <= 0.5 || (!e.isMoving && this._homeTaken(home))) {
       e.stop();
       e.vel = this.routeVel;
       this._set(this.idleState);
@@ -1157,6 +1259,13 @@ export class EnemyBrain {
       this._repathT = 1;
       if (!this._go(home.x, home.z, CONFIG.ai.investigate.speed, { fallback: false })) { this._set(this.idleState); this._applyHead(); }
     }
+  }
+
+  /** Another man standing on `home` with this enemy already beside it (a body width off). */
+  _homeTaken(home) {
+    const e = this.enemy, w = this.world, c = CONFIG.units.avoid.clear;
+    if (this._dist(home) > c + 0.15 || !w.entitiesInRadius) return false;
+    return w.entitiesInRadius(home.x, home.z, c, (n) => n !== e && !n.path && blocksUnit(e, n)).length > 0;
   }
 
   /** Post position, or the nearest route waypoint (route index updated). */
@@ -1205,13 +1314,28 @@ export class EnemyBrain {
     const wp = r[this.routeIndex];
     if (this._isLeader()) this._recordTrail();
     if (!this.atWait) {
-      if (Math.hypot(wp.x - e.x, wp.z - e.z) > 0.3) {
+      const tk = e.track || e; // route progress is measured on the path track (not the dodge lane / corner curve)
+      if (Math.hypot(wp.x - tk.x, wp.z - tk.z) > 0.3) {
         this._look(0);
         if (!e.isMoving) {
           const v = wp.speed ?? this.routeVel;
           e.vel = v;
           if (!e.moveTo(wp.x, wp.z)) this._advanceWaypoint();
         }
+        return;
+      }
+      // a pass-through waypoint (no wait, look or event): walk straight on to the next one — the one-tick stop
+      // there flashed the idle pose at every corner of a patrol (playtest: "soldiers jerking" on M1)
+      if (!(wp.wait > 0) && wp.look == null && !wp.event && r.length > 1) {
+        this._advanceWaypoint();
+        let nx = r[this.routeIndex];
+        // a LOOP closes on its first point: skip the duplicate too (still pass-through)
+        for (let k = 0; k < r.length && Math.hypot(nx.x - tk.x, nx.z - tk.z) <= 0.3 && !(nx.wait > 0) && nx.look == null && !nx.event; k++) { this._advanceWaypoint(); nx = r[this.routeIndex]; }
+        if (nx !== wp && Math.hypot(nx.x - tk.x, nx.z - tk.z) > 0.3) {
+          e.vel = nx.speed ?? this.routeVel;
+          if (e.moveTo(nx.x, nx.z)) return;
+        }
+        e.stop();
         return;
       }
       e.stop();
@@ -1237,6 +1361,16 @@ export class EnemyBrain {
       if (this.routeIndex + this.routeDir >= r.length || this.routeIndex + this.routeDir < 0) this.routeDir *= -1;
       this.routeIndex += this.routeDir;
     }
+  }
+
+  /** The waypoint the route goes to after the current one (no state change), or null without a route. */
+  _nextWaypoint() {
+    const r = this.enemy.route;
+    if (!r || r.length < 2) return null;
+    let i = this.routeIndex;
+    if (this.routeType === 'LOOP' || this.enemy.routeMode === 'loop') i = i + 1 < r.length ? i + 1 : Math.min(this._loopStart ?? 0, r.length - 1);
+    else i += i + this.routeDir >= r.length || i + this.routeDir < 0 ? -this.routeDir : this.routeDir;
+    return r[i] || null;
   }
 
   _pickNearestWaypoint() {
@@ -1296,24 +1430,71 @@ export class EnemyBrain {
     return l === this.enemy;
   }
 
+  /**
+   * Leader breadcrumbs (newest first, 0.3 m apart). A route halt or a reversal starts a fresh leg: the trail is
+   * cut to the halt point, so the followers close up there and fall in behind the leader on the new leg instead
+   * of walking the old leg back through him (playtest: "without crossing each other").
+   */
   _recordTrail() {
     const e = this.enemy, sq = this.world.ai.squads.get(e.squad.id);
     const tr = sq.trail;
+    if (this._routeHalt()) {
+      if (!sq.halt || sq.halt.x !== e.x || sq.halt.z !== e.z) { // frozen at entry: he turns to `look` while he waits
+        const dir = trailDir(tr, e), nx = this._nextWaypoint();
+        const nl = nx ? Math.hypot(nx.x - e.x, nx.z - e.z) : 0;
+        const next = nl > 0.5 ? { x: (nx.x - e.x) / nl, z: (nx.z - e.z) / nl } : null;
+        const turn = next ? dir.x * next.x + dir.z * next.z : 1; // cos of the turn onto the next leg
+        sq.halt = { x: e.x, z: e.z, dir, next, turn };
+        // about turn: the file faces the other way, so its tail becomes its head (nobody overtakes a mate)
+        if (turn < -0.5) sq.flip = !sq.flip;
+      }
+      if (tr.length !== 1 || tr[0].x !== e.x || tr[0].z !== e.z) { tr.length = 0; tr.push({ x: e.x, z: e.z }); }
+      return;
+    }
+    sq.halt = null;
     if (!tr.length || Math.hypot(tr[0].x - e.x, tr[0].z - e.z) >= 0.3) {
+      if (tr.length >= 2) { // an about turn without a halt (> 120°): the old leg is behind the followers, not the leader
+        const a = trailDir(tr.slice(1), tr[0]), bx = e.x - tr[0].x, bz = e.z - tr[0].z;
+        if (a.x * bx + a.z * bz < -0.5 * Math.hypot(bx, bz)) { tr.length = 1; sq.flip = !sq.flip; }
+      }
       tr.unshift({ x: e.x, z: e.z });
       if (tr.length > 80) tr.length = 80;
     }
   }
 
-  /** Breadcrumb point of this member: k·1.2 m behind the leader along its trail, in `columns` columns. */
-  _followPoint(lead) {
+  /** Straight walkable line from this man to p (same level, body clearance): steer at it without A*. */
+  _steerable(p) {
+    const e = this.enemy, w = this.world, g = w.grid;
+    if (!g.walkableLine(e.x, e.z, p.x, p.z, { clearance: 0.3, elevRef: g.elevAt(e.x, e.z) })) return false;
+    // nor through a solid the grid does not hold (a vehicle hull, a wreck, a crate: body-clearance.js) — those he
+    // paths round (Unit._planPath); steering straight walked a file into a passing half-track's way (M11)
+    if (!hasObstacles(w) || (e.y || 0) > 1) return true;
+    const dx = p.x - e.x, dz = p.z - e.z, d = Math.hypot(dx, dz), h = Math.atan2(dz, dx), n = Math.ceil(d / 0.5), ign = e._bodyIgnore?.() ?? null;
+    for (let k = 1; k <= n; k++) if (bodyGap(w, e.x + (dx * k) / n, e.z + (dz * k) / n, h, e.stance, ign) < MOVE_MARGIN) return false;
+    return true;
+  }
+
+  /** Standing at a route waypoint's wait (IDLE on his route; a stale flag from before an alarm does not count). */
+  _routeHalt() { return this.state === 'IDLE' && this.atWait && this.waitT > 0 && !this.enemy.isMoving; }
+
+  /** Live squad mates of this enemy other than the leader, in squad order (their rank order). */
+  _mates(lead) {
+    const sq = this.world.ai.squads.get(this.enemy.squad.id);
+    const out = [...sq.members].filter((m) => m.alive && m !== lead && !m.removed);
+    return sq.flip ? out.reverse() : out;
+  }
+
+  /**
+   * Breadcrumb point of this member: k·1.2 m behind the leader along its trail, in `columns` columns.
+   * @param {number} [ahead] metres further up the trail (the pure-pursuit aim point that smooths merges and corners)
+   */
+  _followPoint(lead, ahead = 0) {
     const e = this.enemy, sq = this.world.ai.squads.get(e.squad.id);
-    const members = [...sq.members].filter((m) => m.alive && m !== lead && !m.removed);
-    const k = members.indexOf(e);
+    const k = this._mates(lead).indexOf(e);
     if (k < 0) return null;
     const cols = Math.max(1, e.squad.columns || 1);
-    const rank = Math.floor(k / cols) + 1, col = k % cols;
-    const want = rank * CONFIG.ai.squadSpacing;
+    const rank = Math.floor(k / cols) + 1, col = cols > 1 ? this._column(lead, k, cols) : 0;
+    const want = Math.max(0.3, rank * CONFIG.ai.squadSpacing - ahead);
     let acc = 0, prev = { x: lead.x, z: lead.z };
     let pt = null;
     for (const p of sq.trail) {
@@ -1322,26 +1503,169 @@ export class EnemyBrain {
       acc += seg;
       prev = p;
     }
+    // trail shorter than the slot (fresh leg after a halt): fall in diagonally, `want` short of the leader on the
+    // straight line from this man (no detour back to the halt point, never ahead of the leader)
+    if (!pt && sq.trail.length) {
+      const dx = lead.x - e.x, dz = lead.z - e.z, dl = Math.hypot(dx, dz) || 1;
+      // still ahead of a leader walking off past him (an about turn): hold until he has gone by
+      // (his walk, not his still turning body; setting off, the way his path goes — a follower must not step off
+      // towards a leader about to walk past him, then stop again)
+      let lvx = lead.vx || 0, lvz = lead.vz || 0, ls = Math.hypot(lvx, lvz);
+      const lw = ls <= 0.1 && lead.path ? lead.path[lead.pathIndex] : null;
+      if (lw) { lvx = lw.x - lead.x; lvz = lw.z - lead.z; ls = Math.hypot(lvx, lvz); if (ls < 0.3) ls = 0; }
+      if (ls > 0.1 && -(dx * lvx + dz * lvz) / ls > -0.6) pt = { x: e.x, z: e.z, hold: true };
+      else pt = { x: lead.x - (dx / dl) * want, z: lead.z - (dz / dl) * want };
+    }
     if (!pt) pt = { x: prev.x - Math.cos(lead.heading) * (want - acc), z: prev.z - Math.sin(lead.heading) * (want - acc) };
-    if (cols > 1) { const off = (col - (cols - 1) / 2) * 1.2; pt.x += -Math.sin(lead.heading) * off; pt.z += Math.cos(lead.heading) * off; }
+    if (cols > 1) { // after an odd number of about turns the leader faces the other way: each man keeps his world side
+      const off = (col - (cols - 1) / 2) * 1.2 * (sq.flip ? -1 : 1);
+      pt.x += -Math.sin(lead.heading) * off; pt.z += Math.cos(lead.heading) * off;
+    }
     return pt;
   }
 
+  /**
+   * Column of this man in a multi-column squad, fixed per rank the first time it is asked from where the men
+   * stand (rightmost of the rank → column 0 …), so nobody crosses the leader's line to reach his column.
+   */
+  _column(lead, k, cols) {
+    const e = this.enemy, sq = this.world.ai.squads.get(e.squad.id);
+    const n = this._mates(lead).length;
+    if (!sq.cols || sq.colsN !== n) { sq.cols = new Map(); sq.colsN = n; } // a man fell: re-form the ranks
+    if (!sq.cols.has(e.id)) {
+      const mates = this._mates(lead), r0 = Math.floor(k / cols) * cols;
+      const rank = mates.slice(r0, r0 + cols);
+      const lx = -Math.sin(lead.heading), lz = Math.cos(lead.heading), f = sq.flip ? -1 : 1;
+      const lat = (m) => ((m.x - lead.x) * lx + (m.z - lead.z) * lz) * f;
+      const sorted = [...rank].sort((a, b) => lat(a) - lat(b) || (a.id < b.id ? -1 : 1));
+      // a short last rank: each man takes the outermost column on his own side
+      sorted.forEach((m, c) => { if (!sq.cols.has(m.id)) sq.cols.set(m.id, rank.length < cols && lat(m) >= 0 ? cols - rank.length + c : c); });
+    }
+    return sq.cols.get(e.id) ?? k % cols;
+  }
+
+  /**
+   * Halt slot: during a route halt before a sharp turn / about turn, each man sidesteps to ≥ 1 m off the
+   * leader's line at his own place along it, so the leader's next leg never runs through the file.
+   * Null when the next leg goes on ahead, or neither side is walkable (he keeps the breadcrumb slot).
+   */
+  _besidePoint(lead) {
+    const e = this.enemy, sq = this.world.ai.squads.get(e.squad.id), g = this.world.grid, H = sq.halt;
+    // only when the next leg turns back past the file (> 60°): straight on, the file just waits behind him
+    if (!H || H.turn > 0.5) return null;
+    const d = H.dir, px = -d.z, pz = d.x; // left of the arrival direction
+    const rx = e.x - lead.x, rz = e.z - lead.z;
+    const back = Math.max(0.35, -(rx * d.x + rz * d.z)), lat = rx * px + rz * pz;
+    // side: a single file stands outside the turn; a multi-column squad keeps each man's own side
+    let pref = lat >= 0 ? 1 : -1;
+    if ((e.squad.columns || 1) <= 1 && H.next) { const sd = H.next.x * px + H.next.z * pz; if (Math.abs(sd) > 0.25) pref = sd > 0 ? -1 : 1; }
+    const off = Math.max(1.0, Math.abs(lat));
+    for (const s of [pref, -pref]) { // a sidestep at his own place along the line: the file keeps its order
+      const x = lead.x + px * s * off - d.x * back, z = lead.z + pz * s * off - d.z * back;
+      if (g.walkableLine(lead.x, lead.z, x, z, { clearance: 0.3, elevRef: g.elevAt(lead.x, lead.z) })) return { x, z };
+    }
+    return null;
+  }
+
+  /**
+   * Make way: the leader is walking back at this man (an about turn or a sharp corner without a halt) and
+   * would pass within a body width — sidestep to 1 m off his line, on the side he already stands.
+   * @returns {{x:number, z:number}|null}
+   */
+  _makeWay(lead) {
+    const e = this.enemy, g = this.world.grid;
+    const sp = Math.hypot(lead.vx || 0, lead.vz || 0);
+    if (sp < 0.1) return null;
+    const fx = lead.vx / sp, fz = lead.vz / sp, rx = e.x - lead.x, rz = e.z - lead.z;
+    const along = rx * fx + rz * fz, lat = -rx * fz + rz * fx;
+    if (along <= 0 || along > 3 || Math.abs(lat) >= 0.85) return null; // (sidestep to 1.05: hysteresis, no dither)
+    const pref = lat >= 0 ? 1 : -1;
+    for (const s of [pref, -pref]) {
+      const x = lead.x + fx * along - fz * s * 1.05, z = lead.z + fz * along + fx * s * 1.05;
+      if (g.walkableLine(e.x, e.z, x, z, { clearance: 0.3, elevRef: g.elevAt(e.x, e.z) })) return { x, z };
+    }
+    return null;
+  }
+
+  /**
+   * Squad member in IDLE: walks his slot behind the leader with a speed controller (the leader's pace plus a
+   * braking catch-up term, accel-limited) instead of re-pathing to a moving point and stopping on it every
+   * 0.25 s — the stop-start stutter of the M1 south patrol. He never closes in on a mate ahead (≥ 0.9 m).
+   */
   _follow(dt, lead) {
-    const e = this.enemy;
+    const e = this.enemy, lb = lead.brain;
     // a frozen squad faces its (distracted) leader (§4.6)
-    if (lead.brain?.state === 'DISTRACTED') { e.stop(); e.faceTowards(lead.x, lead.z); this._look(0); return; }
-    const pt = this._followPoint(lead);
+    if (lb?.state === 'DISTRACTED') { e.stop(); this._fv = 0; e.faceTowards(lead.x, lead.z); this._look(0); return; }
+    if (lb?.squadTrail !== false) lb?._recordTrail?.();
+    // making way for the leader walking by: a sidestep once begun is walked to its end (an aborted one is a shuffle)
+    let way = this._makeWay(lead);
+    if (way) this._wayPt = { x: way.x, z: way.z, t: 1.2 };
+    else if (this._wayPt && (this._wayPt.t -= dt) > 0 && Math.hypot(this._wayPt.x - this.enemy.x, this._wayPt.z - this.enemy.z) > CONFIG.ai.squadFollow.stop) way = this._wayPt;
+    else this._wayPt = null;
+    const halted = !!way || (!!lb?._routeHalt?.() && !lead.isMoving);
+    const pt = way || (halted && this._besidePoint(lead)) || this._followPoint(lead);
     if (!pt) return;
+    const F = CONFIG.ai.squadFollow;
     const d = Math.hypot(pt.x - e.x, pt.z - e.z);
-    this._repathT -= dt;
-    if (d > 0.4 && this._repathT <= 0) {
-      this._repathT = 0.25;
-      e.vel = Math.max(this.routeVel, lead.vel || this.routeVel) * (d > 2 ? 1.5 : 1.1);
-      if (!e.moveTo(pt.x, pt.z)) e.stop();
-    } else if (d <= 0.2 && e.isMoving) e.stop();
-    if (!e.isMoving) e.turnToHeading(lead.heading, dt);
-    if (lead.brain?.atWait) this._sweep(true, CONFIG.stealth.vision.patrolWatch.sweep * DEG, CONFIG.stealth.vision.patrolWatch.period);
+    const base = lead.isMoving ? lead.speed : 0;
+    // catching up: half again a walking pace, a quarter more than a running leader (a soldier, not a sprinter)
+    const walk = velToSpeed(this.routeVel), top = Math.max(walk * F.catchUp, base * (base > walk * 1.2 ? 1.25 : F.catchUp));
+    // signed slot error along the line to the leader: ahead of his slot he eases off instead of turning back
+    const dl = Math.hypot(lead.x - e.x, lead.z - e.z);
+    const err = !halted && dl > 1e-6 ? ((pt.x - e.x) * (lead.x - e.x) + (pt.z - e.z) * (lead.z - e.z)) / dl : d;
+    const x = Math.max(0, Math.abs(err) - F.arrive);
+    // his real pace last tick caps the controller's memory (he may have reached his slot and stood since)
+    // (his own pace, before the avoidance's brake on top of it: the two would compound into a hard stop)
+    const v0 = Math.min(this._fv ?? 0, (e.path ? (e.trackV ?? 0) / Math.max(0.05, e._avScale ?? 1) : 0) + F.accel * dt);
+    let want;
+    if (pt.hold) want = 0;
+    else if (base > 0) { // keeping station on a walking leader: braking curve, linear near the slot (no limit cycle)
+      const fix = Math.min(Math.sqrt(2 * F.decel * x), F.gain * x);
+      // behind the leader's back with his slot still behind him (fresh leg): stand until the slot comes up
+      want = err >= 0 ? Math.min(top, base + fix) : v0 < 0.05 ? 0 : Math.max(0, base - fix);
+    } else { // walking up to a standing slot: constant-deceleration stop, no creeping at a crawl
+      // standing still he starts only for a real step (2 × stop): no stop-go dither on a slot that creeps
+      want = d < (v0 < 0.05 ? 2 * F.stop : F.stop) || err < 0 ? 0 : Math.min(top, Math.max(F.minWalk, Math.sqrt(2 * F.decel * d)));
+    }
+    if (!halted) { // keep clear of the mates ahead of him in the file (and the leader)
+      const mates = this._mates(lead), k = mates.indexOf(e);
+      // only men in front of him on his way (one beside him is the avoidance lane's business)
+      const ux = pt.x - e.x, uz = pt.z - e.z, ul = Math.hypot(ux, uz) || 1;
+      const inFront = (m) => ((m.x - e.x) * ux + (m.z - e.z) * uz) / ul > 0.3;
+      let gap = inFront(lead) ? Math.hypot(lead.x - e.x, lead.z - e.z) : Infinity;
+      for (let j = 0; j < k; j++) if (inFront(mates[j])) gap = Math.min(gap, Math.hypot(mates[j].x - e.x, mates[j].z - e.z));
+      // standing behind a mate he waits for a real gap (minGap + gapHyst) before he steps off: a file moving off
+      // after a halt does not stop-start at a crawl (walk / idle flicker)
+      want = v0 < 0.05 && gap < F.minGap + F.gapHyst ? 0 : Math.min(want, Math.max(0, (gap - F.minGap) * F.gapGain));
+    }
+    // standing, he steps off only for a real walk (≥ minWalk, wanted for F.startT s): a creeping slot or a hold
+    // that comes and goes is no reason for a one-frame walk (walk / idle flicker)
+    if (v0 < 0.05) {
+      this._goT = want >= F.minWalk ? (this._goT || 0) + dt : 0;
+      if (this._goT < F.startT && !way) want = 0;
+    } else this._goT = 0;
+    const v = want > v0 ? Math.min(want, v0 + F.accel * dt) : Math.max(want, v0 - F.decel * dt);
+    this._fv = v;
+    // (holding for a leader walking by: he brakes at a walker's rate first — a dead stop from a walk reads as a jerk)
+    if (want === 0 && (v < 0.02 || (pt.hold && v < 0.3) || (base === 0 && d < F.stop))) { // standing (or holding for a leader walking by): a clean stop
+      this._fv = 0;
+      if (e.isMoving) e.stop();
+      if (!lead.isMoving) e.turnToHeading(lead.heading, dt); // held up behind a moving file: keep facing the way on
+    } else {
+      e.vel = v / CONFIG.ai.velMul;
+      this._repathT -= dt;
+      // pure pursuit: aim a little further up the trail than the slot (rounded corners, smooth merge after a halt)
+      const mv = Math.hypot(e.vx || 0, e.vz || 0), bd = (v * v) / (2 * F.decel) + 0.05; // braking to a hold: on his way, a stop's length
+      const aim = pt.hold && mv > 0.05 ? { x: e.x + (e.vx / mv) * bd, z: e.z + (e.vz / mv) * bd } : halted || pt.hold ? pt : this._followPoint(lead, F.lookahead) || pt;
+      if (this._steerable(aim)) e.steerTo(aim.x, aim.z);
+      // (no straight line: a path to the aim point, renewed before its end while the slot moves on — arriving on a
+      // stale slot point at a walk would stop him dead for a tick)
+      else if (this._repathT <= 0 || !e.isMoving || (base > 0 && e._pathLeft && e._pathLeft(1) < v * 0.4 + 0.1)) {
+        this._repathT = 0.25;
+        if (!e.moveTo(aim.x, aim.z) && (aim === pt || !e.moveTo(pt.x, pt.z))) { e.stop(); this._fv = 0; }
+      }
+    }
+    if (lb?.atWait) this._sweep(true, CONFIG.stealth.vision.patrolWatch.sweep * DEG, CONFIG.stealth.vision.patrolWatch.period);
     else this._look(0);
   }
 
@@ -1506,6 +1830,9 @@ export class EnemyBrain {
       ...(this.bcd ? { lipstickBy: ref(this.lipstickBy) } : null),
       // cadence timers (squad follow re-path, shouts, lure shock) so a load replays the same future (§8.4)
       repathT: this._repathT ?? null, shoutT: this.shoutT ?? null, shockT: this._shockT ?? null, combatReady: !!this.combatReady,
+      // squad follower pace (speed, start delay, the doorway / corner point he holds to)
+      ...(this._fv || this._goT || this._wayPt ? { follow: [this._fv ?? 0, this._goT ?? 0, this._wayPt ? { ...this._wayPt } : null] } : null),
+      stepSusp: this.stepSusp, stepT: this.stepT, stepBarkT: this._stepBarkT, // runningNoise suspicion memory
     };
   }
 
@@ -1537,8 +1864,10 @@ export class EnemyBrain {
     this._lastPrint = d.lastPrint ?? undefined;
     this._trail = d.trail ? { ...d.trail } : null;
     if (d.repathT != null) this._repathT = d.repathT;
+    [this._fv, this._goT, this._wayPt] = d.follow ? [d.follow[0], d.follow[1], d.follow[2] ? { ...d.follow[2] } : null] : [0, 0, null];
     if (d.shoutT != null) this.shoutT = d.shoutT;
     if (d.shockT != null) this._shockT = d.shockT;
+    if (d.stepSusp != null) { this.stepSusp = d.stepSusp; this.stepT = d.stepT ?? null; this._stepBarkT = d.stepBarkT ?? null; }
     if (d.combatReady !== undefined) this.combatReady = !!d.combatReady;
     this.burstLeft = 0;
   }

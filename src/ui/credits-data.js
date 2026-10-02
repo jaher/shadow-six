@@ -55,6 +55,11 @@ export const CREDITS_SECTIONS = [
     "Apache-2.0"
    ],
    [
+    "Rapier 3D, deterministic compat build @dimforge/rapier3d-deterministic-compat 0.21.0 (vendor/rapier/, WASM inlined; blast / ragdoll physics)",
+    "Dimforge (Sébastien Crozet)",
+    "Apache-2.0 (vendor/rapier/LICENSE)"
+   ],
+   [
     "SHADOW SIX game code (src/, tools/, tests/)",
     "project contributors",
     "MIT"
@@ -72,7 +77,7 @@ export const CREDITS_SECTIONS = [
     "CC0 1.0"
    ],
    [
-    "Opel Blitz trucks: assets/models/vehicles/.glb (6 variants; own Blender geometry by tools/blender/vehicles/, baked with CC0 texture sets listed in tools/blender/vehicles/asset_manifest.json)",
+    "Vehicle library: assets/models/vehicles/<group>/ (cars & motorcycles, armour, aircraft, naval, rail; own Blender geometry by tools/blender/vehicles/, CC0 texture sets — see Vehicles below). The first-generation Opel Blitz truck GLBs (truck_.glb) were retired at the vehicle integration",
     "Poly Haven, ambientCG",
     "SHADOW SIX project; Poly Haven / ambientCG artists",
     "CC0 1.0"
@@ -210,9 +215,9 @@ export const CREDITS_SECTIONS = [
     "CC0"
    ],
    [
-    "assets/terrain/foliage.webp (leaf-cluster cards, composed)",
-    "ambientCG (LeafSet004/010/013/022/024/030, PineNeedles001)",
-    "ambientCG",
+    "assets/terrain/foliage.webp, foliage_n.webp (leaf / twig spray atlas; broadleaf, shrub, ivy, gorse, acacia and palm-leaflet sprays procedural, tools/render/build_leaves.py; conifer and palm-frond tiles composed)",
+    "own work (procedural sprays); ambientCG (LeafSet004/010/013/022/024/030, PineNeedles001) for the conifer / palm tiles",
+    "project contributors; ambientCG",
     "CC0"
    ],
    [
@@ -1075,6 +1080,12 @@ export const CREDITS_SECTIONS = [
     "this project (tools/audio/procedural_beds.py)",
     "project contributors",
     "CC0"
+   ],
+   [
+    "assets/audio/narration/ (the briefing's 1940s newsreel narrator: one clip per briefing line and per map-tour caption, Opus + MP3, word timings; docs/narration.md)",
+    "AI-generated: Kokoro-82M (hexgrad) blend am_onyx+bm_lewis+am_eric with British G2P, Praat PSOLA cadence and a synthetic period chain (tools/audio/narration); an original voice, no real person cloned or imitated, no reference recordings; the text is our own briefing and tour text",
+    "project contributors",
+    "project output of an Apache-2.0 model"
    ],
    [
     "assets/audio/voice/ (voices v2: every commando line in his own voice, primary + urgent take, pain/death sounds; German barks; word/viseme timing JSON)",

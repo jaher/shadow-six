@@ -152,6 +152,7 @@ class Conveyor extends SetPiece {
       const nt = t + v * dt;
       if (nt >= L && this.dir > 0 && this.spec.exit) { const e = P(this.spec.exit); u.setPosition(e.x, e.z); continue; }
       const c = Math.max(0, Math.min(L, nt));
+      u._beltTick = this.world.tick; // on the move (not a man stopped in place: standing men do not step off him)
       u.x = a.x + ux * c + (u.x - a.x - ux * t);
       u.z = a.z + uz * c + (u.z - a.z - uz * t);
     }

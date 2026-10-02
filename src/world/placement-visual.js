@@ -7,6 +7,9 @@
  */
 import * as THREE from 'three';
 import { convexHull } from './placement-geom.js';
+import { sessionCache, hasher, dataKey } from '../engine/asset-cache.js';
+
+export { dataKey };
 
 const SKIP = /shadow|proxy|collider|collision|occluder|decal|selection|marker|halo|glow|blob|impostor/i;
 const _v = new THREE.Vector3();
@@ -16,7 +19,7 @@ const _v = new THREE.Vector3();
  * @param {{minY?: number, maxY?: number, groundY?: number, maxVerts?: number}} [o] band relative to `groundY`
  * @returns {number[][]|null} hull polygon [[x, z], …] or null (no vertices in the band)
  */
-export function planHull(root, o = {}) {
+function planHullRaw(root, o = {}) {
   const minY = o.minY ?? -Infinity, maxY = o.maxY ?? Infinity, gy = o.groundY ?? 0, maxVerts = o.maxVerts ?? 60000;
   root.updateMatrixWorld(true);
   const pts = [];
@@ -58,7 +61,7 @@ const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3
  * @param {THREE.Object3D} root @param {{minY?: number, maxY?: number, groundY?: number, cell?: number, close?: number, fit?: boolean}} [o]
  * @returns {number[][][]|null} rectangles [[x, z] × 4][] or null when empty
  */
-export function planCells(root, o = {}) {
+function planCellsRaw(root, o = {}) {
   const minY = o.minY ?? -Infinity, maxY = o.maxY ?? Infinity, gy = o.groundY ?? 0, cell = o.cell ?? 0.25;
   root.updateMatrixWorld(true);
   const cells = new Set(), rowLo = new Map(), rowHi = new Map();
@@ -135,7 +138,7 @@ export function planCells(root, o = {}) {
  * @param {THREE.Object3D} root @param {{minY?: number, maxY?: number, cell?: number, groundY?: number}} [o]
  * @returns {Map<string, [number, number]>} "i,j" (cell indices) → [lo, hi] (world y)
  */
-export function overheadCells(root, o = {}, into = new Map()) {
+function overheadCellsRaw(root, o = {}, into = new Map()) {
   const minY = o.minY ?? 1.8, maxY = o.maxY ?? 12, gy = o.groundY ?? 0, cell = o.cell ?? 0.5;
   root.updateMatrixWorld(true);
   const put = (x, z, y) => {
@@ -179,7 +182,7 @@ export function overheadCells(root, o = {}, into = new Map()) {
  * @param {{lo?: number, hi?: number, cell?: number, maxY?: number}} [o] maxY: skip triangles wholly above it
  * @param {Set<string>} [into] "i,j" at `cell`
  */
-export function standingCells(root, surf, o = {}, into = new Set()) {
+function standingCellsRaw(root, surf, o = {}, into = new Set()) {
   const lo = o.lo ?? 0.15, hi = o.hi ?? 1.2, cell = o.cell ?? 0.25;
   root.updateMatrixWorld(true);
   const visit = (nd) => {
@@ -297,7 +300,7 @@ export function closeCells(cells, R = 3) {
  * reported by `parapet`.
  * @returns {{heightAt: (x:number, z:number) => (number|null), parapet: (x:number, z:number) => boolean, samples: number}|null}
  */
-export function deckField(root, poly, rot, hi, o = {}) {
+function deckFieldRaw(root, poly, rot, hi, o = {}) {
   const step = o.step ?? 0.35, rail = o.rail ?? 0.45, lo = o.lo ?? -3;
   const c = Math.cos(rot), s = Math.sin(rot);
   const cx = poly.reduce((t, p) => t + p[0], 0) / poly.length, cz = poly.reduce((t, p) => t + p[1], 0) / poly.length;
@@ -383,7 +386,7 @@ const _n = new THREE.Vector3(), _e1 = new THREE.Vector3(), _e2 = new THREE.Vecto
  * @param {THREE.Object3D} root @param {Map<string, number>} [into] accumulates across structures
  * @returns {Map<string, number>} "i,j" → world y
  */
-export function lowSurfaces(root, o = {}, into = new Map()) {
+function lowSurfacesRaw(root, o = {}, into = new Map()) {
   const maxY = o.maxY ?? 0.6, cell = o.cell ?? 0.2, gy = o.groundY ?? 0;
   root.updateMatrixWorld(true);
   const put = (x, z, y) => { const k = `${Math.floor(x / cell)},${Math.floor(z / cell)}`; const p = into.get(k); if (p === undefined || y > p) into.set(k, y); };
@@ -413,5 +416,132 @@ export function lowSurfaces(root, o = {}, into = new Map()) {
     for (const ch of nd.children) visit(ch);
   };
   visit(root);
+  return into;
+}
+
+// ---- session memo (engine/asset-cache.js) ---------------------------------------------------------------------
+// The analyses above are pure functions of a structure's render geometry and world placement. A restart / reload of
+// the same mission builds the same structures from the same cached templates (shared geometry), so each result is
+// keyed by a signature of the subtree — node names, visibility, clip flags, geometry identity + version, world
+// matrices, instance matrices — plus the call's options. Results are copied out, so callers may mutate them.
+
+/** Bits of an attribute's array (interleaved: the whole buffer) as 32-bit words when aligned, else bytes. */
+function attrWords(a) {
+  const arr = a.isInterleavedBufferAttribute ? a.data.array : a.array;
+  if (!arr?.buffer) return null;
+  return arr.byteLength % 4 === 0 && arr.byteOffset % 4 === 0 ? new Uint32Array(arr.buffer, arr.byteOffset, arr.byteLength >> 2) : new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength);
+}
+const _geoHash = new WeakMap(); // geometry → {pv, iv, hash}
+/** Content hash of a geometry's positions + index (memoised per geometry object and attribute version). */
+export function geometryHash(g) {
+  const pos = g?.attributes?.position, idx = g?.index;
+  if (!pos) return null;
+  const pv = pos.isInterleavedBufferAttribute ? pos.data.version : pos.version, iv = idx ? idx.version : -1;
+  const c = _geoHash.get(g);
+  if (c && c.pv === pv && c.iv === iv && c.pos === pos && c.idx === idx) return c.hash;
+  const h = hasher();
+  const words = attrWords(pos);
+  if (!words) return null;
+  h.num(pos.count); h.num(pos.itemSize); h.num(pos.offset ?? 0); h.num(pos.data?.stride ?? 0); h.num(pos.normalized ? 1 : 0); h.str(pos.array?.constructor?.name || pos.data?.array?.constructor?.name);
+  h.words(words);
+  if (idx) { const iw = attrWords(idx); if (!iw) return null; h.num(idx.count); h.words(iw); }
+  const hash = h.hex();
+  _geoHash.set(g, { pv, iv, pos, idx, hash });
+  return hash;
+}
+
+/** Signature of everything the analyses read from a structure's subtree (null: not cacheable). */
+export function visualSignature(root) {
+  if (!root?.isObject3D) return null;
+  root.updateMatrixWorld(true);
+  const h = hasher();
+  let ok = true;
+  const visit = (n) => {
+    h.str(n.name); h.num(n.visible ? 1 : 0); h.num(n.userData?.clip === false ? 1 : 0); h.num(n.children.length);
+    if (n.isMesh) {
+      const g = n.geometry, pos = g?.attributes?.position;
+      const gh = pos ? geometryHash(g) : null;
+      if (!gh) ok = false; else h.str(gh);
+      h.num(n.isInstancedMesh ? n.count : -1);
+      if (n.isInstancedMesh) h.floats(n.instanceMatrix.array.subarray(0, n.count * 16));
+      h.floats(n.matrixWorld.elements);
+    }
+    for (const c of n.children) visit(c);
+  };
+  visit(root);
+  return ok ? h.hex() : null;
+}
+
+/**
+ * Signature of what a camera would draw of `root`: every visible mesh / line / point set (subtrees in `skip` or
+ * invisible are left out) by content-hashed geometry, world matrix and instance matrices. Null when something drawn
+ * is not a pure function of its geometry (skinned or morphed meshes): such a scene is not cacheable.
+ */
+export function sceneSignature(root, skip = null) {
+  if (!root?.isObject3D) return null;
+  root.updateMatrixWorld(true);
+  const h = hasher();
+  let ok = true;
+  const visit = (n) => {
+    if (!ok) return;
+    if (!n.visible || skip?.has(n)) { h.num(-7); return; }
+    if (n.isMesh || n.isLine || n.isPoints) {
+      if (n.isSkinnedMesh || n.morphTargetInfluences?.length) { ok = false; return; }
+      const gh = geometryHash(n.geometry);
+      if (!gh) { ok = false; return; }
+      h.str(gh); h.floats(n.matrixWorld.elements);
+      if (n.isInstancedMesh) { h.num(n.count); h.floats(n.instanceMatrix.array.subarray(0, n.count * 16)); }
+    }
+    h.num(n.children.length);
+    for (const c of n.children) visit(c);
+  };
+  visit(root);
+  return ok ? h.hex() : null;
+}
+
+const optKey = (o) => JSON.stringify(o, (k, v) => (typeof v === 'function' ? undefined : v));
+function memoVisual(kind, root, args, compute, bytes) {
+  const sig = visualSignature(root);
+  if (!sig) return compute();
+  return sessionCache.memo(`visual:${kind}:${sig}:${optKey(args)}`, compute, { bytes });
+}
+const arrBytes = (v) => (v ? JSON.stringify(v).length * 2 : 0);
+const mapBytes = (m) => m.size * 64;
+
+export function planHull(root, o = {}) {
+  const v = memoVisual('hull', root, o, () => planHullRaw(root, o), arrBytes);
+  return v && v.map((p) => p.slice());
+}
+
+export function planCells(root, o = {}) {
+  const v = memoVisual('cells', root, o, () => planCellsRaw(root, o), arrBytes);
+  return v && v.map((r) => r.map((p) => p.slice()));
+}
+
+export function overheadCells(root, o = {}, into = new Map()) {
+  const v = memoVisual('overhead', root, o, () => overheadCellsRaw(root, o, new Map()), mapBytes);
+  for (const [k, [lo, hi]] of v) {
+    const p = into.get(k);
+    if (!p) into.set(k, [lo, hi]); else { if (lo < p[0]) p[0] = lo; if (hi > p[1]) p[1] = hi; }
+  }
+  return into;
+}
+
+/** `o.surfKey`: identity of `surf` (the walking surface it samples); without one the result is not cached. */
+export function standingCells(root, surf, o = {}, into = new Set()) {
+  if (o.surfKey == null) return standingCellsRaw(root, surf, o, into);
+  const v = memoVisual('standing', root, o, () => standingCellsRaw(root, surf, o, new Set()), (s) => s.size * 48);
+  for (const k of v) into.add(k);
+  return into;
+}
+
+export function deckField(root, poly, rot, hi, o = {}) {
+  // the field only closes over its own sample arrays: shared as is
+  return memoVisual('deck', root, { poly, rot, hi, o }, () => deckFieldRaw(root, poly, rot, hi, o), (d) => (d ? d.samples * 8 + 256 : 0));
+}
+
+export function lowSurfaces(root, o = {}, into = new Map()) {
+  const v = memoVisual('low', root, o, () => lowSurfacesRaw(root, o, new Map()), mapBytes);
+  for (const [k, y] of v) { const p = into.get(k); if (p === undefined || y > p) into.set(k, y); }
   return into;
 }

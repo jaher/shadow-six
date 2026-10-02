@@ -8,6 +8,7 @@ import { Game, missionList } from './game.js';
 import { assets } from './engine/assets.js';
 import { installTestApi } from './debug/test-api.js';
 import { hasQuickSave } from './save.js';
+import { installOfflineCache } from './engine/offline-cache.js';
 import { PRESET_CHOSEN_KEY, bootPreset, gpuName } from './engine/device.js';
 import { touchFirst } from './ui/touch.js';
 import { loadOptions } from './ui/ui-config.js';
@@ -125,6 +126,7 @@ async function boot() {
   if (want && game.hud?.options) game.hud.options.preset = game.renderer.presetName; // OPTIONS shows what runs
   window.shadowSix = game;
   if (TEST) installTestApi(game);
+  installOfflineCache(game); // web build: keep the downloaded mission in the service worker cache, prefetch the next
 
   // docs/menus-art-direction.md S01/S03: the HUD boot plays the disclaimer + ident while assets preload, then the
   // title splash's brass rule shows the rest of the preload and turns into PRESS ANY KEY.

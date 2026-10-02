@@ -19,6 +19,7 @@ export default async function core2Save(page, t) {
     g.advance(1);
     G.cameraRig.setViews(2);
     G.cameraRig.views[1].centerOn(47, 30);
+    const v1Saved = [G.cameraRig.views[1].target.x, G.cameraRig.views[1].target.z]; // (centerOn aims the play view below the HUD bar at 47,30)
     const saveClock = G.world.clock;
     G.quickSave();
     g.advance(8);
@@ -35,14 +36,16 @@ export default async function core2Save(page, t) {
     const slots = listSlots();
     g.advance(2);
     const okSlot = await G.loadSlot(3);
-    return { same: a === b, a: a.slice(0, 200), b: b.slice(0, 200), saveClock, loaded, slot3: slots[3]?.name, empty0: slots[0], okSlot, clockAfterSlot: G.world.clock };
+    return { v1Saved, same: a === b, a: a.slice(0, 200), b: b.slice(0, 200), saveClock, loaded, slot3: slots[3]?.name, empty0: slots[0], okSlot, clockAfterSlot: G.world.clock };
   });
   t.log(JSON.stringify(det));
   t(det.same, 'quickload + same ticks reproduces the exact same world (determinism)');
   t.equal(det.loaded.state, 'playing', 'a load during play resumes play (§8.4; only a P-pause is kept)');
   t.near(det.loaded.clock, det.saveClock, 1e-9, 'mission clock is saved');
   t.equal(det.loaded.views, 2, 'camera views are saved');
-  t.near(det.loaded.v1[0], 47, 0.01, 'second view target restored');
+  t(Math.abs(det.v1Saved[0] - 47) < 1, `second view was looking at x 47 (${det.v1Saved[0]})`);
+  t.near(det.loaded.v1[0], det.v1Saved[0], 0.01, 'second view target restored');
+  t.near(det.loaded.v1[1], det.v1Saved[1], 0.01, 'second view target restored (z)');
   t.equal(det.slot3, 'before bridge', 'named slot listed');
   t(det.okSlot, 'named slot loads');
 

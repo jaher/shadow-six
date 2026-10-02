@@ -15,6 +15,7 @@ uniform sampler2D tNoise;
 uniform sampler2D tTrail;
 uniform sampler2D tFlat;
 uniform vec4 uMap;          // W, D, 1/W, 1/D
+uniform vec2 uOrigin;       // world xz of the splat/trail maps' (0,0) texel corner (map 0,0; the apron: -width)
 uniform vec2 uTrailTexel;   // 1/trail RT size
 uniform float uTile[8];     // 1/tile metres
 uniform float uSoft[8];
@@ -25,6 +26,11 @@ uniform float uIce[8];
 uniform float uSlush[8];
 uniform vec3 uTintL[8];
 uniform float uGrassShade;
+uniform vec2 uSward;
+uniform vec4 uTurf;        // short sward between the tufts: x strength (0 = off), y dryness of the season
+uniform vec3 uTurfA;       // lush sward colour (grass palette, linear)
+uniform vec3 uTurfB;       // dry / dead sward colour
+uniform float uMeadowMacro; // 0..1 strength of the meadow mown / unmown swathes        // dead sward: x dryness of the grass layers (olive / straw), y matted dead patches
 uniform float uDebug;
 uniform float uHexScale;    // hex cells per metre
 uniform float uMacro;       // macro variation strength
@@ -37,6 +43,15 @@ uniform float uTime;
 varying vec3 vWPos;
 varying vec3 vWNrm;
 
+// one short blade bundle per cell (cell = 1/s m): a tapered streak at a random angle; returns coverage 0..1
+float turfBlade(vec2 wp, float s, float sd, float lean) {
+  vec2 q = wp * s, c = floor(q), f = q - c - 0.5;
+  vec3 h = fract(sin(vec3(dot(c + sd, vec2(127.1, 311.7)), dot(c + sd, vec2(269.5, 183.3)), dot(c + sd, vec2(419.2, 371.9)))) * 43758.5453);
+  float a = lean + (h.x - 0.5) * 1.3;                      // blades lie in swathes (a local lean), not at random
+  vec2 d = vec2(cos(a), sin(a)), p = f - (h.yz - 0.5) * 0.16;
+  float t = clamp(dot(p, d), -0.4, 0.4), w = 0.1 * (1.0 - 0.6 * abs(t) / 0.4);
+  return (1.0 - smoothstep(w * 0.55, w, length(p - d * t))) * (0.55 + 0.45 * h.y);
+}
 vec2 tbHash2(vec2 p) {
   vec2 r = mat2(127.1, 311.7, 269.5, 183.3) * p;
   return fract(sin(r) * 43758.5453);
@@ -123,6 +138,7 @@ uniform sampler2D tSplatA;
 uniform sampler2D tSplatB;
 uniform sampler2D tTrail;
 uniform vec4 uMap;
+uniform vec2 uOrigin;
 uniform float uSoft[8];
 varying vec3 vWPos;
 varying vec3 vWNrm;
@@ -131,7 +147,7 @@ varying vec3 vWNrm;
 // after <begin_vertex>: displace by trail ruts/berms scaled by the layer softness at this vertex
 export const VERT_MAIN = /* glsl */ `
 {
-  vec2 tuv = position.xz * uMap.zw;
+  vec2 tuv = (position.xz - uOrigin) * uMap.zw;
   vec4 tr = texture(tTrail, tuv);
   vec4 sa = texture(tSplatA, tuv), sb = texture(tSplatB, tuv);
   float soft = dot(sa, vec4(uSoft[0], uSoft[1], uSoft[2], uSoft[3])) + dot(sb, vec4(uSoft[4], uSoft[5], uSoft[6], uSoft[7]));
@@ -145,7 +161,7 @@ vWNrm = normalize(mat3(modelMatrix) * objectNormal);
 
 // replaces <map_fragment>: computes albedo, roughness, AO, world normal and snow glints
 export const FRAG_MAIN = /* glsl */ `
-vec2 tuv = vWPos.xz * uMap.zw;
+vec2 tuv = (vWPos.xz - uOrigin) * uMap.zw;
 vec2 p = vec2(vWPos.x, -vWPos.z);
 vec2 pdx = dFdx(p), pdy = dFdy(p);
 vec4 nz = texture(tNoise, vWPos.xz / 23.0);
@@ -190,6 +206,50 @@ albT *= mix(1.0, 0.64, clamp(grassF, 0.0, 1.0) * uGrassShade);
 float mB = mix(0.76, 1.2, nz.r) * mix(0.88, 1.1, nzL.g);
 vec3 hue = mix(vec3(1.0), mix(vec3(0.93, 1.02, 0.9), vec3(1.08, 1.0, 0.82), nz.g), uMacro * (1.0 - snowF * 0.8));
 albT *= mix(vec3(1.0), mB * hue, uMacro);
+// meadow macro patches (critic: a uniform speckle from the zoom-0.5 camera): 15-40 m swathes of lighter, yellower
+// mown / grazed sward and darker, deeper unmown grass on the grass layers
+{
+  float gM = clamp(grassF * 1.4, 0.0, 1.0) * (1.0 - snowF);
+  float mown = smoothstep(0.36, 0.66, nz.g * 0.45 + nzL.b * 0.55);
+  albT *= mix(vec3(1.0), mix(vec3(0.84, 0.9, 0.84), vec3(1.14, 1.1, 0.9), mown), gM * uMeadowMacro);
+}
+// winter / thaw sward (veg-profile swardOf): the grass layers desaturate and brown toward the tufts' olive and straw,
+// with flattened dead mats in 3-10 m clumps (a green carpet under straw tufts read as stars on a lawn)
+if (uSward.x > 0.0) {
+  float gW = clamp(grassF * 1.6, 0.0, 1.0);
+  float lum = dot(albT, vec3(0.3, 0.59, 0.11));
+  float mat = smoothstep(0.42, 0.72, nzL.r * 0.55 + nz.a * 0.3 + nzF.b * 0.15);
+  vec3 olive = vec3(lum) * vec3(1.18, 1.1, 0.68) * 1.08, straw = vec3(lum) * vec3(1.42, 1.18, 0.7) * 1.3;
+  vec3 matted = vec3(lum) * vec3(1.22, 0.98, 0.66) * 0.95;
+  vec3 dry = mix(mix(olive, straw, smoothstep(0.3, 0.8, nz.g) * 0.8), matted, mat * uSward.y);
+  albT = mix(albT, dry, gW * uSward.x * (1.0 - snowF));
+}
+// short sward (critic: evenly dotted tufts on flat paint, not a pasture): under and between the 3D tufts the grass
+// layers become a continuous turf of blade bundles (6 cm and 11 cm cells) in the tufts' own season colours — lit
+// tips over shadowed gaps (self-shadow standing in for parallax), with a bundle-scale normal. Band-limited: once a
+// bundle is under ~1.5 px it fades to its mean coverage, so panning never crawls.
+float turfC = 0.0;
+if (uTurf.x > 0.0) {
+  float gT = clamp(grassF * 1.5, 0.0, 1.0) * (1.0 - snowF) * uTurf.x;
+  if (gT > 0.01) {
+    vec2 wp = vWPos.xz;
+    float fw = length(fwidth(wp));
+    float lean = (nzF.g * 0.7 + nz.b * 0.3) * 9.0;
+    float b1 = max(turfBlade(wp, 16.0, 3.1, lean), turfBlade(wp + 0.031, 16.0, 7.7, lean + 0.4));
+    float b2 = turfBlade(wp + 0.17, 9.0, 11.3, lean - 0.3);
+    float l1 = 1.0 - smoothstep(0.022, 0.045, fw), l2 = 1.0 - smoothstep(0.04, 0.08, fw);
+    float bl = clamp(mix(0.3, b1, l1) * 0.65 + mix(0.18, b2, l2) * 0.55, 0.0, 1.0);
+    // tussock / matted-clump scale (5-40 cm, mip-filtered noise: never aliases): light and dark, green and dry
+    // patches of the sward that still read from the zoom-0.5 / 1 cameras where the bundles average out
+    vec4 c1 = texture(tNoise, wp / 1.7), c2 = texture(tNoise, wp / 5.3 + 0.31);
+    float cl = smoothstep(0.22, 0.78, c1.r * 0.55 + c2.g * 0.45);
+    float dryL = clamp(uTurf.y + (nz.g - 0.5) * 0.5 + (nzF.b - 0.5) * 0.35 + (c2.b - 0.5) * 0.55, 0.0, 1.0);
+    vec3 swC = mix(uTurfA, uTurfB, dryL) * mix(0.8, 1.15, nzF.r) * mix(0.62, 1.28, cl);
+    vec3 turf = swC * mix(0.66, 1.0, bl);               // shadowed gaps between lit blade bundles
+    albT = mix(albT, turf, gT * 0.66);
+    turfC = gT * (bl - 0.3) * max(l1, l2 * 0.6);
+  }
+}
 float rough = clamp(dT.g + (nz.b - 0.5) * 0.16 * uMacro, 0.04, 1.0);
 float ao = mix(1.0, dT.r, 0.85);
 // tangent frame: +x, -z, normal = geometric world normal
@@ -200,6 +260,7 @@ vec4 tr = texture(tTrail, tuv);
 tr.a = texture(tFlat, tuv).r;
 float rut = clamp(tr.r, 0.0, 1.0);
 float soft01 = clamp(softF / 0.05, 0.0, 1.0);
+nT.xy += vec2(turfC * 0.16, turfC * 0.1);   // bundles tilt a little (short sward; no glints)
 nT.xy *= (1.0 - 0.35 * snowF) * (1.0 - 0.75 * rut * soft01); // art review: snow micro-normals read as brushed fur under the low sun
 vec3 nW = normalize(Tg * nT.x + Bg * nT.y + Ng * max(nT.z, 0.15));
 // ---- snow: wind sastrugi ridges + bluish sub-surface cavities -----------------------------------

@@ -65,6 +65,20 @@ export const CONFIG = {
     edgeScroll: true, // §2.3 (game.options.edgeScroll / edgeScrollOverHud override at runtime)
   },
 
+  /**
+   * Scenery apron past the playable map (art/apron.js; design-spec §2.3 "never see the map boundary"). Not walkable,
+   * the nav grid is unchanged. The camera keeps its true ground footprint inside `width` (camera.js apronMinZoom).
+   */
+  apron: {
+    width: 90, // m of detailed scenery past every map edge (zoom 0.5 at 45° on a 3840x1080 view reaches ~83 m)
+    skirt: 600, // m of plain far ground beyond it (safety cover for extreme views; never reached by the clamp)
+    cell: 1, // m, apron heightfield / code-field resolution (0.5 m within seamBand of the map edge)
+    seamBand: 6, // m: heights blend from the map's own edge heights into the apron's
+    fade: 24, // m: outer band where the apron relief settles to y = 0 (meets the flat skirt)
+    treeFalloff: 45, // m: forest density thins to ~1/e at this distance past the edge
+    grassBand: 30, // m: the map's 3D grass continues past the edge, thinning out (noisy line) over this band
+  },
+
   /** Humanoid units (commandos, guests; enemy movement speeds live in CONFIG.ai) (§3.1, §3.2). */
   units: {
     walk: 2.25, // §3.1 every commando walks 2.25 m/s = 0.1125 m/tick [EXE]
@@ -81,6 +95,9 @@ export const CONFIG = {
     turnRateDeg: 540, // §3.1 commando turn rate [rec]
     radius: 0.45, // §3.1 collision cylinder R10 = 0.45 m [data]
     separation: 0.5, // §3.1 soft separation between units [rec]
+    // local avoidance (src/entities/avoidance.js): lateral lane dodge layered on the path track (route progress and
+    // patrol timing unchanged) + lower-priority walkers wait for a crossing priority walker; clear = 2 × radius
+    avoid: { on: true, clear: 0.9, hyst: 0.15, moving: 0.15, together: 0.3, sameWay: 0.94, look: 4.0, horizon: 1.5, crossCos: 0.6, laneMax: 1.0, laneRate: 0.7, laneAccel: 3.0, ghostAfter: 1.5, dropBack: 0.6, brakeT: 0.6, arriveLook: 2.0, cornerR: 0.5, steerTurn: 9.4, wallR: 0.25, laneOut: 1.5, brake: 4.0 },
     height: 1.8, // standing height (m): BEL 40 units
     pickRadius: 0.6, // generous screen picking radius (m)
     arriveEps: 0.08, // waypoint reached distance (m)
@@ -110,7 +127,7 @@ export const CONFIG = {
     // --- LEGACY (unit.js placeholder movement; migrate to the spec keys above) ---
     turnRate: deg(540), // rad/s = turnRateDeg
     enemyTurnRate: deg(180), // rad/s = CONFIG.ai.bodyTurnDeg (§4.1)
-    stanceChangeTime: 0.5, // LEGACY → stanceDown / stanceUp
+    stanceChangeTime: 0.5, // LEGACY (unused): Unit.setStance uses stanceDown / stanceUp
   },
 
   /** Stealth: vision cones, noise, footprints (§4.2, §4.4, §4.8). Angles in degrees. */
@@ -171,9 +188,20 @@ export const CONFIG = {
       stone: { level: 1, radius: 4 }, // BCD stone click (bcd-plan §1.4)
       push: { level: 1, radius: 6 }, // BCD pushable wagon/tank (§1.10)
       cluck: { level: 1, radius: 6 }, // BCD chickens (§1.9)
+      footsteps: { level: 1, radius: 7.5 }, // SHADOW SIX house rule runningNoise: a running commando's step (radius by surface: runNoise)
       siren: { level: 0, radius: 0 }, // cosmetic: the alarm travels through zone events
     },
     zoneHeardLevel: 2, // §4.9 onHeard sensors fire on level ≥ 2
+    // SHADOW SIX house rule `runningNoise` (§4.4; not in BEL, where movement is silent): a commando running upright makes a
+    // level-1 'footsteps' noise every `step` m (the first after step·startFrac m). Hearing radius by the surface under his
+    // feet (src/ai/running-noise.js stepSurface), × rules.enemyHearingMul; dogs × dogMul (1: a dog that turns and sees
+    // a man goes straight for him, no "Halt!", so a longer reach would be an instant alarm at 15–18 m). All [rec]: every
+    // radius is inside the 18 m near band so a guard who turns can see the runner. Walking, crawling, swimming are silent.
+    runNoise: {
+      step: 2.7, startFrac: 0.5, dogMul: 1,
+      radius: { deck: 12, floor: 12, road: 10, shallow: 9, ground: 7.5, snow: 7.5, grass: 6, sand: 6, mud: 6 }, // snow crunches
+      susp: { decay: 0.5, alertAt: 3, searchAt: 6, repath: 0.75, barkEvery: 6 }, // brain _hearSteps: suspicion memory
+    },
     bushBlocksLowOnly: true, // §4.2 a 2 m bush blocks only low targets [rec]
     // --- AI team additions (Stage 1) ---
     alertTint: false, // §4.2/§10.4 #5 modern option: alerted cones red (alertLevel 2) / yellow (1); faithful = off
@@ -186,7 +214,7 @@ export const CONFIG = {
   /** Enemy AI (§4.1, §4.3–§4.7). */
   ai: {
     nervousness: { T: 50, decayPerTick: 1, closeRange: 2.25, heldValue: 1000, bodyBonusDiv: 25, dispMul: 2 }, // §4.5 [EXE]: N += floor(dispMul·d²), d in BEL units
-    investigate: { speed: 1.8, look: 4.0, runSpeed: 3.8, arrive: 1.5, lookSweep: 90 }, // §4.6 INVESTIGATE
+    investigate: { speed: 1.8, look: 4.0, runSpeed: 3.8, arrive: 1.5, lookSweep: 90, mateShot: 8 }, // §4.6 INVESTIGATE
     decoy: { radius: 13.5, pulse: 1.5, giveUp: 5.0, standOff: 2.0, shockIgnore: 20, maxDwell: null }, // §4.6 DECOY [rec]; shockIgnore: s deaf to lures after a level-3 shock / broken lure; maxDwell: s (null = none; missions: rules.decoyMaxDwell)
     search: { time: 20, points: 3, radius: 8, look: 2 }, // §4.6 SEARCH
     lostTarget: 3.0, // §4.6 COMBAT → SEARCH after target lost 3 s
@@ -201,6 +229,9 @@ export const CONFIG = {
     reinforceVel: { exit: 3, loop: 2 }, // §4.1 reaction squads: 2.7 m/s exit, 1.8 m/s loop
     bodyTurnDeg: 180, // §4.1 body turn 180°/s [rec]; head turn instant [EXE PASO 90]
     squadSpacing: 1.2, // §4.1 troopers follow the leader's breadcrumbs 1.2 m apart
+    // squad follower speed controller (playtest: the M1 south patrol pair stuttered and walked through each other):
+    // leader pace + braking catch-up to the slot, accel-limited; never closer than minGap to a mate ahead
+    squadFollow: { catchUp: 1.5, accel: 1.5, decel: 2.5, gain: 1.5, arrive: 0.06, stop: 0.12, minWalk: 0.4, lookahead: 0.7, minGap: 0.9, gapGain: 3, gapHyst: 0.35, startT: 0.25 },
     body: { arrive: 1.5, kneel: 1.0, alarmDelay: 1.0 }, // §4.6 BODY
     noiseTurnHold: 8, // §4.4 holdsPost: sweep re-centred on a level-1 noise for 8 s
     arrest: { arrive: 1.5, escortSpeed: 1.8, rescueTime: 1.5 }, // §4.10
@@ -284,6 +315,7 @@ export const CONFIG = {
     firstAid: { heal: 34, doses: 6, dur: 1.5, at: 0.5, range: 1.2 }, // §3.3 +34 HP per dose, 6 doses
     dig: 2.0, // §3.3 shovel: dig 2.0 s
     rise: 1.0, // §3.3 shovel: rise 1.0 s
+    moundPickRadius: 0.85, // a buried GB is clicked / tapped at his mound (engine/input.js pickEntity), m
     cutters: 3.0, // §3.3 cut time [rec]
     cutGap: 1.5, // §3.3 1.5 m gap in fence cells
     raftDeploy: 2.0, // §3.3
@@ -301,6 +333,10 @@ export const CONFIG = {
     approachRepath: 0.5, // s between re-path attempts while walking into range of a moving target
     approachRepathMove: 0.5, // m the approach target must move before the auto-walk re-paths (static targets: one path)
     approachTimeout: 30, // give up walking into range after this many seconds
+    // autoStand melee (knife, BCD knock-outs, cuffs, hanger) ordered from a crawl: he crawls in and stands up only this
+    // many metres beyond the ability's reach (user request 2026-10-01; BEL stood him up at the click). 0.6 s stand
+    // + ~0.45 s step-in at 2.25 m/s still lands on a stationary or slowly-turning guard.
+    crawlStandLead: 1.0,
     // --- ABILITIES team (§3.2–§3.6) ---
     pistolDraw: { greenberet: 0.3, spy: 0.2, driver: 0.2, default: 0.25 }, // §3.2 draw time
     ladderSpeed: 0.8, // §3.2 everyone climbs ladders at 0.8 m/s [rec]
@@ -436,8 +472,9 @@ export const CONFIG = {
     presets: {
       // physicsGameplay: a thrown / settled body's resting place and a toppled prop's footprint feed back to gameplay
       // (AI body discovery, nav, cover). Off = the 1998 behaviour: physics is drawn but gameplay positions stay put.
-      shadowSix: { dragBodies: true, buddyRescue: true, dropWhenShot: true, ragdollAllDeaths: true, physicsGameplay: true },
-      classic1998: { dragBodies: false, buddyRescue: false, dropWhenShot: false, ragdollAllDeaths: true, physicsGameplay: false },
+      // runningNoise: guards hear a commando running nearby (stealth.runNoise). Off = the 1998 rule: movement is silent.
+      shadowSix: { dragBodies: true, buddyRescue: true, dropWhenShot: true, ragdollAllDeaths: true, physicsGameplay: true, runningNoise: true },
+      classic1998: { dragBodies: false, buddyRescue: false, dropWhenShot: false, ragdollAllDeaths: true, physicsGameplay: false, runningNoise: false },
     },
     labels: { shadowSix: 'SHADOW SIX', classic1998: 'CLASSIC 1998', custom: 'CUSTOM' },
   },

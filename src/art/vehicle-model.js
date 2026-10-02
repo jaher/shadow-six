@@ -514,6 +514,8 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
 
   const model = {
     dims, library: true, visual: vis, ready: null, isReady: false,
+    /** Library type drawn (e.g. 'raft', 'rowboat', 'minisub' for registry model key 'raft'): boat crew layouts (art/boat-crew.js). */
+    libType: lt,
     root,
     /** The traversing turret / gun mount node (LOD0; the clipping audit sweeps it), null until loaded or when wrecked. */
     get turret() {

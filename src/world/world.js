@@ -279,7 +279,8 @@ export class World {
 
   /**
    * Path from (fromX, fromZ) to (toX, toZ) on the NavGrid.
-   * @param {{swim?: boolean, allowWater?: boolean, maxNodes?: number, role?: string, dynamic?: boolean, noLinks?: boolean}} [opts]
+   * @param {{swim?: boolean, allowWater?: boolean, maxNodes?: number, role?: string, dynamic?: boolean, noLinks?: boolean, avoid?: Uint8Array, nearRadius?: number}} [opts]
+   *   avoid: keep-out cell mask (body clearance around vehicle hulls, world/body-clearance.js avoidMask)
    *   role: who walks (off-grid climb/ladder links are role-gated, see NavGrid.linkAllowed)
    *   noLinks: ignore every off-grid link (grid steps only; e.g. a commando carrying a body, §3.4)
    * @returns {{x:number, z:number, y?:number, link?:{id:number, kind:string}}[] | null}
@@ -293,6 +294,8 @@ export class World {
       dive: !!opts.dive,
       maxNodes: opts.maxNodes ?? Math.max(40000, this.grid.size),
       smooth: opts.smooth,
+      avoid: opts.avoid,
+      nearRadius: opts.nearRadius,
     });
   }
 

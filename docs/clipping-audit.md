@@ -19,6 +19,7 @@ prop floats over a slope.
 | `tests/clipping.test.mjs` | GPU test, about 21 s. For all five maps, fails on any unintended static or turret overlap that is not in `tests/clip-baseline.json`. It also checks the detector itself: an MG nest parked 0.7 m from barracks `barr_2` must be caught when its barrel sweeps through the wall (`turrets({raw: true})`), and that rule (d) keeps the same gun's barrel out of the wall in play. Every map must have visual nav blocks stamped, no floating / buried prop, a clean turret probe (≤ 8 cm), and on M2 the wall-walk sentry `e5` shot beside the palisade must lie clear of it |
 | `__game.clip.turretProbe()` | Guns the maps don't have yet: a `panzer2` and an `sdkfz` are parked where they could really drive (every hull point passable at ≤ 0.4 m spacing: blocks, visual nav blocks, eaves) as close as possible beside every wall, fence, gate, building, tower, tent and pole side, and their guns swept over their open arcs. The GPU test requires no overlap deeper than 8 cm |
 | `__game.clip.floating()` | Rule (b) seating: each prop's flat bottom (vertices within 4 cm of its lowest) against the terrain right under it: a corner more than 5 cm above the ground (hanging over a slope or a dip) or a base buried deeper than 0.5 m. Over water / carved banks is skipped |
+| `__game.clip.vehicleBodies()` | Characters (standing, crouched, lying, dead) against vehicle hulls and wrecks, posed now, mesh against mesh (crews and a man run over skipped). The dynamic audit runs it every sample and sends half the commando moves to a spot at, under or across a solid (vehicle hull, wreck, fuel drum, pushable, crate / fuel tank / rock / sandbag body solid) in a random stance; props, drums and pushables are statics of the ordinary character checks |
 | `__game.clip.entity(tag)` | One unit or vehicle, posed now, against the statics (probes and tests: a body after its death clip) |
 | `__game.clip.fit()` | Rule (c) report: per structure, how far its visual reaches beyond its `w × d` footprint, at the base (< 1 m) and in full (eaves, flags) |
 | `tools/audit/clip-shots.mjs` | Before / after crops for this page from `docs/clipping/shots.json` (same framing as the audit's crops, box outlined in green) |
@@ -198,6 +199,73 @@ normally set by the rules).
 - **Devices and movable decks**: small standing devices are solid (a switch post, a floating sea mine: nav block and
   approached at their edge); a lowered drawbridge carries its walkers on its boards (`world.surfaces`, feet at the boards'
   top instead of the carved bank under them) and keeps swimmers 0.35 m off its sides.
+- **Characters and vehicles** (`src/world/body-clearance.js`; user: *"characters when crawling can end up under a
+  vehicle"*, *"neither soldiers nor commandos can cross cars"*). Before, units pathed by their centre with no idea of
+  vehicles: a crawl ordered at a truck ended at its centre, under the chassis (mesh overlap 0.24–0.63 m), and soldiers
+  walked straight through parked cars. Now a man is a disc standing / crouched (r 0.3 m) and a capsule lying down
+  (crawl, downed, dead: 1.3 m ahead of the pelvis — the weapon held out in front of the face when he stops,
+  crawl-animation.md §4.1 — to 0.92 m behind, r 0.3, along the heading). Every land vehicle, train and wreck (burnt-out
+  and baked into the grid too) is a solid hull (the larger of its data size and its measured model), and so is every
+  other solid object (*"…or any other object which could be climbed on"*):
+  - *Movers*: standing fuel drums (a 0.34 m disc; carried or blown up they are not) and the BCD pushables (wagon,
+    fuel tank: their rect, at rest or rolling; the man pushing one is not blocked by it).
+  - *Static solids* (`world.bodySolids`, `stampBodySolids` in map-builder): every prop / rocks / vehicle-prop /
+    emplacement visual at body height (0.15–1.6 m over the ground under it: crate stacks, fuel tanks and depots, carts,
+    furniture, rocks, wrecked planes and boats) → the min-area rect of its plan hull; sandbag lines → one rect per bag
+    (up to 1.2 m) so a bent line keeps its pit open. Dropped when the structure is destroyed. Walls, fences,
+    buildings, bridges and dams keep their own rules above (grid blocks, visual nav blocks).
+  The only way over any of them is a climb link / ladder where the data has one (the path goes through the link).
+  - *Paths*: `Unit.moveTo` plans with a keep-out mask around the hulls (`avoidMask`, `grid.isWalkable opts.avoid`):
+    a crawler first with room to lie any way (1.15 m), else lying parallel (0.4 m); a click on a hull ends at the free
+    spot nearest it on the man's own side.
+  - *Every step* (`Unit._guardBody`, after path following, actions and the brain): a step or a turn that would take the
+    body deeper under a hull is undone (he slides without turning, pivots about the elbows, or slides along it — the
+    step turned up to 70° — when that keeps him clear); blocked within 1.2 m of the goal he stops there, otherwise he
+    re-plans (a vehicle parked in the way since). Turning while prone beside a hull never swings the legs under it. A
+    man walking up to use or pick up a device / drum plans his path up to it (it is left out of his mask) but his body
+    still stops short of it; a crawler reaches it with his hands (range measured 0.8 m ahead of his hips).
+  - *Stops*: a man lying down ends with the whole body ≥ 0.1 m clear: turned parallel in place when the turn sweeps
+    clear, else a short crawl to the nearest free pose (`clearPose`); lying down beside a hull picks the nearest clear
+    heading; a corpse's fall and a dropped body (`dropSpot`) do the same.
+  - *Moving vehicles* (`Vehicle._bodiesUnder`): before the hull would touch anyone on foot, at run-over speed he is run
+    over (§3.7, kept: anyone, prone too, legs beside the rails of a train); slower, an enemy of the other side on his
+    feet steps aside — he runs straight to a free spot beside the hull (walkable line checked) while the vehicle waits —
+    and for anyone else (friends, men lying down, no room) the vehicle stops and waits (a player's straight drive gives
+    up after 1.5 s). It never drives over a man and leaves him alive under it.
+  - *Pushed wagon / fuel tank* (`Pushable._bodyInWay`): before the box would touch a man (standing, lying, dead) it
+    stops and the pusher lets go — it never rolls through a body.
+  - Dynamic audit, 120 s per map, character × vehicle meshes: before 6 penetrations (M1 Driver crouched 0.63 m and
+    Green Beret 0.46 m into the parked truck; M2 the four `barr_camp` soldiers walking through the camp truck,
+    0.23–0.36 m), after **0** (all maps: 31 → 23 penetrations in total, the rest are the known walls / dam / sandbags
+    brushes listed under Results).
+  - Solid objects (second pass): before, a crawl ordered at an object's centre ended with head and chest inside it —
+    M2 `crates1` 0.17–0.25 m from 6/6 directions, fuel depot 0.22 m, M1 fuel drums 0.22–0.30 m and rocks 0.16–0.39 m,
+    b00 pushable tank 0.19–0.25 m from 8/8, wagon 0.08–0.23 m, crates 0.10 m; under a baked M1 truck wreck the capsule
+    ended 0.46–1.01 m inside the hull from 8/8; a pushed b00 wagon rolled through a prone and a standing soldier; a
+    soldier walking across the M1 drums brushed them 0.10–0.15 m. After: 0 from every direction (probe: crawls from
+    8 directions at each, mesh against mesh), the wagon stops short of the man, the soldier walks round the drums.
+    The dynamic audit now also sends the commando moves at props, drums, pushables and wrecks (`vehicleBodies` covers
+    wrecks): 120 s per map, **13** penetrations in total (m00 3, m01 2, m02 4, m03 4, b00 0; body-vehicle 0), none
+    against a vehicle, wreck, prop, drum, pushable or sandbag line — the rest are walkers brushing walls, building
+    corners, a ruin and a pine trunk (0.05–0.12 m) and the bridge / dam landings (m00 bridge 0.12–0.30 m, m03 dam
+    0.06–0.24 m: a man stepping onto the deck), which are structure nav (visual nav blocks, deck lanes), not objects.
+    Reachability: the masks cut no reachable cell off for a walker or a crawler lying parallel on any map.
+  - Tests: `tests/unit/body-clearance.test.mjs` (capsule, hull gap, stop placement, mask, 24 crawls, turning, walkers,
+    corpse), `tests/unit/body-solids.test.mjs` (min-area rect, static solids, crawls at a crate stack from 8
+    directions, walkers round fuel drums, a crawling GB still picks one up, baked wreck, pushed wagon stops for a man
+    standing / lying on the rail), GPU `tests/prone-vehicle.test.mjs` (truck, Kübelwagen, Panzer II from 8 directions:
+    capsule never under, stop ≥ 0.09 m, posed meshes clear), `tests/vehicle-block.test.mjs` (enemies standing /
+    crouched walk round them), `tests/vehicle-runover.test.mjs` (slow truck waits short of a prone man, a German in a
+    slow truck's lane runs aside — largest step < 0.2 m — and it goes on, fast truck runs a crawler over),
+    `tests/body-props.test.mjs` (M2 crates from 8 directions and the fuel depot, b00 pushable tank, wagon and crates:
+    capsule never in, posed meshes ≤ 5 cm; the wagon pushed at a man lying on the rail stops short of him) and
+    `tests/body-wreck.test.mjs` (M1 baked truck wreck from 4 directions, a soldier across fuel drums, rocks).
+
+| before | after |
+|---|---|
+| ![](screenshots/prone-vehicle-before.jpg) | ![](screenshots/prone-vehicle-after.jpg) |
+| ![](screenshots/prone-props-before.jpg) M2 `crates1`: head and chest in the crate | ![](screenshots/prone-props-after.jpg) the same crawl stops clear |
+
 - **Turrets** turned the wrong way visually: models applied `turret.rotation.y = local` while the hull uses
   `headingToRotY` (π/2 − h), so every barrel off the hull axis was mirrored (and pointed at things the gun was not aiming
   at). Both model families now apply `−local`.

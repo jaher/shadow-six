@@ -113,6 +113,8 @@ function rules(th, code, x, z, w, seed) {
  */
 export function buildSplat(grid, theater, opts = {}) {
   const res = opts.splatRes || 4, seed = opts.seed || 7;
+  // origin: world xz of the grid's (0,0) corner (the apron's code field starts at -width); noise stays in world space
+  const ox = opts.origin?.[0] || 0, oz = opts.origin?.[1] || 0;
   const W = Math.ceil(grid.width * res), H = Math.ceil(grid.depth * res);
   const th = PALETTES[theater]?.sourceTheater || (PALETTES[theater] ? theater : 'temperate');
   let f = new Float32Array(W * H * 8);
@@ -127,11 +129,11 @@ export function buildSplat(grid, theater, opts = {}) {
   const feather = boxBlur1(boxBlur1(ind, grid.cols, grid.rows, fr, 1), grid.cols, grid.rows, fr, grid.cols);
   for (let j = 0; j < H; j++) {
     for (let i = 0; i < W; i++) {
-      const x = (i + 0.5) / res, z = (j + 0.5) / res;
+      const x = ox + (i + 0.5) / res, z = oz + (j + 0.5) / res;
       // domain warp of the grid lookup: ragged road verges / patch borders instead of cell-aligned lines
       const wx = x + (fbm(x / 4, z / 4, 3, seed + 51) - 0.5) * 1.3 + (vnoise(x * 1.4, z * 1.4, seed + 52) - 0.5) * 0.45;
       const wz = z + (fbm(x / 4, z / 4, 3, seed + 53) - 0.5) * 1.3 + (vnoise(x * 1.4, z * 1.4, seed + 54) - 0.5) * 0.45;
-      const ci = Math.min(grid.cols - 1, Math.max(0, Math.floor(wx / grid.cell))), cj = Math.min(grid.rows - 1, Math.max(0, Math.floor(wz / grid.cell)));
+      const ci = Math.min(grid.cols - 1, Math.max(0, Math.floor((wx - ox) / grid.cell))), cj = Math.min(grid.rows - 1, Math.max(0, Math.floor((wz - oz) / grid.cell)));
       const code = grid.terrain[cj * grid.cols + ci];
       rules(th, code, x, z, w, seed);
       if (th === 'snow' && isWet(code) && !opts.frozenWater) { // liquid water in winter: dark wet bed, not the ice layer

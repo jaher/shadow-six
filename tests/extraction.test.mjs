@@ -1,6 +1,6 @@
 /**
  * §7.6 scripted escape vehicle + §8.1 win (M3 evac_truck): nothing on the map until o1 and o2 are
- * done; then the friendly truck spawns off-map at (52,−6), drives to (52,12) and waits; once every
+ * done; then the friendly truck spawns off-map at (60,−6), drives to (60,10) (NE of the dam's reservoir) and waits; once every
  * living commando is aboard it drives off north through the exit and the mission is won. The spawn
  * is latched (quick save/load keeps it; no second truck).
  */
@@ -60,9 +60,9 @@ export default async function extraction(page, t) {
   t.equal(r.before, false, 'no evac truck at mission start');
   t.equal(r.afterO1, false, 'o1 alone does not spawn the truck');
   t(r.spawn && r.spawn.type === 'truck', 'o1+o2 done → the evac truck spawns');
-  t(r.spawn && r.spawn.z < 0, 'it spawns off the north edge (52,−6)');
+  t(r.spawn && r.spawn.z < 0, 'it spawns off the north edge (60,−6)');
   t.equal(r.spawn?.cap, 6, 'the evac truck seats 6');
-  t(r.arrived && Math.hypot(r.arrived.x - 52, r.arrived.z - 12) < 1, `arrives at (52,12) within 5 s (${JSON.stringify(r.arrived)})`);
+  t(r.arrived && Math.hypot(r.arrived.x - 60, r.arrived.z - 10) < 1, `arrives at (60,10) within 5 s (${JSON.stringify(r.arrived)})`);
   t.equal(r.arrived?.moving, false, 'and waits there');
   t(r.reload.flag && r.reload.n === 1, `quick save/load keeps the latched spawn and one truck (${JSON.stringify(r.reload)})`);
   t.equal(r.nTrucks, 1, 'exactly one evac truck');

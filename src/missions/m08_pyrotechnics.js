@@ -218,7 +218,7 @@ export default {
   size: [112, 105],
   seed: 1942_1019,
   briefing: {
-    historical: 'October 1942. Montgomery now commands the Eighth Army at El Alamein, and both armies are digging in for the battle that will decide North Africa. Until it begins, small raiding parties are to strike at Rommel\'s rear. Today\'s target is the supply base at Tell el Eisa: burn it and a whole armoured division runs dry.',
+    historical: 'October 1942. Montgomery now commands the Eighth Army at El Alamein, and both sides are digging in for the battle that will decide North Africa. Until it begins, small raiding parties strike behind the Axis lines. Today\'s target is the supply base at Tell el Eisa: burn it, and a whole armoured division runs dry.',
     text: 'You will set out from the ruined village on the ridge in the north-west. Get down into the camp and destroy everything that matters: every rack of oil barrels, both fuel tanks and that great water reservoir. Once the lot is burning, one of our jeeps will pick you up at the bridge. That is all. Good luck.',
     objectivesSummary: 'Blow up the oil barrels, both fuel tanks and the reservoir, then meet our jeep at the bridge.',
     hints: [

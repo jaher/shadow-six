@@ -75,7 +75,10 @@ export function createCommando(tpl, lib, opts = {}) {
     if (tr && lib.clips.has(tr) && n !== h._clipName) {
       // into go_prone quickly: its frame 0 is the standing idle, and a long cross-fade from the standing foot to the kneeling
       // one dipped the toes 13 cm into the ground (review)
-      const a = play(tr, { loop: false, fade: h._clipName === 'go_prone' || h._clipName === 'get_up' ? 0.25 : tr === 'go_prone' ? 0.08 : 0.2 });
+      // played over the game's stance-change time when the host sets h.trDur (unit-model: CONFIG.units.stanceDown / Up)
+      const want = h.trDur && h.trDur[tr], dur = h.clip(tr)?.duration;
+      const a = play(tr, { loop: false, fade: h._clipName === 'go_prone' || h._clipName === 'get_up' ? 0.25 : tr === 'go_prone' ? 0.08 : 0.1,
+        timeScale: want && dur ? dur / want : 1 });
       h._queued = { name: n, o, tr }; h._animName = name; h._prone = PRONE.has(n);
       return a;
     }

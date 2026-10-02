@@ -155,6 +155,85 @@ function wireTex() {
   return WIRE_TEX;
 }
 
+let HALT_MAT = null;
+/** The HALT plate: black lettering on white, red border (canvas in the browser, plain white in node). */
+function haltMat() {
+  if (HALT_MAT) return HALT_MAT;
+  let map = null;
+  if (typeof document !== 'undefined') {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 112;
+    const x = c.getContext('2d');
+    x.fillStyle = '#e8e2d4'; x.fillRect(0, 0, 256, 112);
+    x.strokeStyle = '#9a1c14'; x.lineWidth = 12; x.strokeRect(6, 6, 244, 100);
+    x.fillStyle = '#161412'; x.font = 'bold 66px Arial, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText('HALT', 128, 60);
+    map = new THREE.CanvasTexture(c); map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 4;
+  }
+  HALT_MAT = Object.assign(new THREE.MeshStandardMaterial({ color: 0xffffff, map, roughness: 0.7, metalness: 0.05 }), { name: 'gate:halt' });
+  return HALT_MAT;
+}
+
+/** Boom posts: the pivot post (timber, iron cheek plates, pin, cap, concrete footing), the fork rest, the log gate posts. */
+function boomPost(p) {
+  const [hx, hy, hz] = p.h, g = new THREE.Group();
+  const add = (geo, mat, x, y, z, shadow = true) => { const m = mk(geo, mat, shadow); m.position.set(x, y, z); g.add(m); return m; };
+  if (p.gatePost) { // log gate post: tapering trunk, axe-pointed top, two iron bands, a tarred foot
+    add(new THREE.CylinderGeometry(hx * 0.9, hx, 2 * hy - 0.22, 12), dressingMaterial('logs'), 0, -0.11, 0);
+    add(new THREE.ConeGeometry(hx * 0.9, 0.22, 12), dressingMaterial('logs'), 0, hy - 0.11, 0);
+    add(new THREE.CylinderGeometry(hx * 1.02, hx * 1.04, 0.5, 12), dressingMaterial('logsTarred'), 0, -hy + 0.25, 0);
+    for (const y of [hy - 0.55, -hy + 1.0]) add(new THREE.CylinderGeometry(hx * 0.95, hx * 0.95, 0.05, 12), ironMat(), 0, y, 0);
+    return g;
+  }
+  const pivot = p.id === 'post0';
+  add(new THREE.BoxGeometry(2 * hx, 2 * hy, 2 * hz), dressingMaterial('creosote'), 0, 0, 0);
+  add(new THREE.BoxGeometry(2 * hx + 0.2, 0.14, 2 * hz + 0.2), dressingMaterial('concrete'), 0, -hy + 0.05, 0); // footing
+  if (pivot) {
+    // the pole turns on a pin in a bearing bolted to the post's face (the post stands 0.3 m behind the pole line)
+    const yPole = 1.0 - p.c[1], zPole = -p.c[2];
+    add(new THREE.BoxGeometry(2 * hx + 0.03, 0.02, 2 * hz + 0.03), ironMat(), 0, hy + 0.01, 0); // cap
+    add(new THREE.ConeGeometry(Math.SQRT2 * hx, 0.1, 4, 1).rotateY(Math.PI / 4), dressingMaterial('creosote'), 0, hy + 0.07, 0); // weathering cap
+    add(new THREE.BoxGeometry(0.22, 0.34, 0.016), ironMat(), 0, yPole, hz + 0.008); // back plate
+    add(new THREE.BoxGeometry(0.16, 0.16, zPole - hz - 0.07), ironMat(), 0, yPole, (hz + zPole - 0.07) / 2); // bearing block
+    for (const [bx, by] of [[-0.08, 0.13], [0.08, 0.13], [-0.08, -0.13], [0.08, -0.13]]) {
+      const b = add(new THREE.CylinderGeometry(0.014, 0.014, 0.02, 6), ironMat(), bx, yPole + by, hz + 0.02, false);
+      b.rotation.x = Math.PI / 2;
+    }
+    const pin = add(new THREE.CylinderGeometry(0.024, 0.024, zPole - hz + 0.1, 10), ironMat(), 0, yPole, (hz + zPole + 0.1) / 2);
+    pin.rotation.x = Math.PI / 2;
+    const nut = add(new THREE.CylinderGeometry(0.04, 0.04, 0.03, 6), ironMat(), 0, yPole, zPole + 0.085);
+    nut.rotation.x = Math.PI / 2;
+  } else { // fork rest: two flat bars and a rubber saddle the pole drops into
+    for (const sz of [-1, 1]) add(new THREE.BoxGeometry(0.05, 0.26, 0.016), ironMat(), 0, hy + 0.04, sz * 0.082);
+    add(new THREE.BoxGeometry(0.07, 0.02, 0.18), new THREE.MeshStandardMaterial({ color: 0x1b1a19, roughness: 0.9 }), 0, hy + 0.005, 0);
+  }
+  return g;
+}
+
+/** Counterweight: a cast concrete block in an iron strap cage, clamped onto the short arm. */
+function counterweight(hx, hy, hz) {
+  const g = new THREE.Group();
+  const core = mk(new THREE.BoxGeometry(2 * hx, 2 * hy, 2 * hz), dressingMaterial('concrete'));
+  g.add(core);
+  for (const y of [-hy * 0.55, hy * 0.55]) { const b = mk(new THREE.BoxGeometry(2 * hx + 0.016, 0.04, 2 * hz + 0.016), ironMat()); b.position.y = y; g.add(b); }
+  for (const x of [-hx * 0.6, hx * 0.6]) { const b = mk(new THREE.BoxGeometry(0.04, 2 * hy + 0.016, 2 * hz + 0.016), ironMat()); b.position.x = x; g.add(b); }
+  return g;
+}
+
+/** Pole fittings: the HALT plate hung under the second segment, a red-banded iron end cap on the free end. */
+function poleExtras(m, p) {
+  const r = p.h[1];
+  if (p.id === 'pole1') {
+    const plate = mk(new THREE.BoxGeometry(0.52, 0.23, 0.012), [ironMat(), ironMat(), ironMat(), ironMat(), haltMat(), haltMat()]);
+    plate.position.set(0, -r - 0.16, 0);
+    m.add(plate);
+    for (const sx of [-0.2, 0.2]) { const h = mk(new THREE.BoxGeometry(0.012, 0.06, 0.012), ironMat(), false); h.position.set(sx, -r - 0.025, 0); m.add(h); }
+  }
+  if (!p.seamMax && p.seamMin) { // free end: iron ferrule
+    const f = mk(new THREE.CylinderGeometry(r * 1.06, r * 1.06, 0.07, 12), ironMat());
+    f.rotation.z = Math.PI / 2; f.position.x = p.h[0] - 0.035; m.add(f);
+  }
+}
+
 /** Mesh for one layout piece, centred on its collider box (rotation rz about z included). */
 function pieceMesh(p, L, kind) {
   const [hx, hy, hz] = p.h;
@@ -164,7 +243,7 @@ function pieceMesh(p, L, kind) {
   else if (p.kind === 'brace') m = mk(new THREE.BoxGeometry(2 * hx, 2 * hy, 2 * hz), dressingMaterial('logsTarred'));
   else if (p.kind === 'pole') m = mk(poleSegment(hx, hy, p.seamMin, p.seamMax, { cx: p.c[0], x0: p.x0 }), stripeMat());
   else if (p.kind === 'weight' && p.round) m = mk(poleSegment(hx, hy, null, null), ironMat());
-  else if (p.kind === 'weight') m = mk(new THREE.BoxGeometry(2 * hx, 2 * hy, 2 * hz), dressingMaterial('concrete'));
+  else if (p.kind === 'weight') m = counterweight(hx, hy, hz);
   else if (p.kind === 'frame') m = mk(new THREE.BoxGeometry(2 * hx, 2 * hy, 2 * hz), dressingMaterial('galv'));
   else if (p.kind === 'mesh') {
     const mat = wireMeshMat();
@@ -176,9 +255,10 @@ function pieceMesh(p, L, kind) {
   } else if (p.kind === 'post') {
     if (kind === 'plank') m = mk(new THREE.CylinderGeometry(hx * 0.92, hx, 2 * hy, 9), dressingMaterial('logs'));
     else if (kind === 'wire') m = mk(new THREE.CylinderGeometry(hx, hx, 2 * hy, 10), dressingMaterial('galv'));
-    else m = mk(new THREE.BoxGeometry(2 * hx, 2 * hy, 2 * hz), dressingMaterial('creosote'));
+    else m = boomPost(p);
   } else if (p.kind === 'splinter') m = mk(sliver(hx, hy, hz), freshWoodMat(), false);
   else m = mk(new THREE.BoxGeometry(2 * hx, 2 * hy, 2 * hz), dressingMaterial('planks'));
+  if (p.kind === 'pole') poleExtras(m, p);
   m.name = `gate-piece:${p.id}`;
   m.position.set(p.c[0], p.c[1], p.c[2]);
   m.rotation.z = p.rz || 0;

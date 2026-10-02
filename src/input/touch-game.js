@@ -16,8 +16,14 @@
 
 import { GestureClassifier } from './gestures.js';
 
-/** Momentum: velocity decays by e^(-friction·t); below stopPxS the coast ends. */
-export const TOUCH_PAN = { friction: 5, stopPxS: 20, maxPxS: 4000 };
+/** In-mission HUD chrome a finger may rest on while the other one pinches the map. */
+export const HUD_CHROME = '.hud-topbar, .hud-right, .hud-right-bottom, .hud-transport, .hud-speaker-card, .touch-menu, .touch-cancel';
+
+/**
+ * Momentum: velocity decays by e^(-friction·t); below stopPxS the coast ends. A tap that lands while the map coasts
+ * (or within stopTapMs of the coast ending) only stops the map: it is used up and gives no order.
+ */
+export const TOUCH_PAN = { friction: 5, stopPxS: 20, maxPxS: 4000, stopTapMs: 150 };
 
 export class TouchGame {
   /**
@@ -32,6 +38,12 @@ export class TouchGame {
     /** Pan momentum, CSS px/s (screen space). */
     this.velocity = { x: 0, y: 0 };
     this._pinchZoom = 1;
+    /** performance.now() when the map last coasted (-inf: never); the touch that stops a coast never taps. */
+    this._coastT = -Infinity;
+    this._stopTap = false;
+    /** Touch pointers down on the HUD chrome: id → {x, y, joined (fed to the classifier as half of a pinch)}. */
+    this._hudFingers = new Map();
+    this._eatClickUntil = 0;
     /** Last gestures handled (tests / debugging): [{type, result?}]. */
     this.log = [];
     this._listeners = [];
@@ -63,19 +75,56 @@ export class TouchGame {
       e.preventDefault();
       el.focus?.({ preventScroll: true });
       el.setPointerCapture?.(e.pointerId);
-      this.handle(this.gestures.down(e.pointerId, e.clientX, e.clientY, performance.now()));
+      const t = performance.now();
+      this.touchDown(t);
+      // a finger already resting on the HUD makes this one a pinch (it joins first, where it is now)
+      for (const [id, p] of this._hudFingers) if (!p.joined && this.gestures.count < 2) {
+        p.joined = true;
+        this.handle(this.gestures.down(id, p.x, p.y, t));
+      }
+      this.handle(this.gestures.down(e.pointerId, e.clientX, e.clientY, t));
     });
+    // fingers on the in-mission HUD chrome (bag, top bar, MENU …): a tap there stays the HUD's, but together with a
+    // finger on the map it is the other half of a pinch (capture: the HUD buttons stop their pointerdowns)
+    this._on(window, 'pointerdown', (e) => {
+      if (!this.owns(e)) return;
+      this._eatClickUntil = 0; // a new touch: the click left over from a pinch (if any) has passed
+      if (e.target === el || !this._active || !e.target?.closest?.(HUD_CHROME)) return;
+      const p = { x: e.clientX, y: e.clientY, joined: false };
+      this._hudFingers.set(e.pointerId, p);
+      if (this.gestures.count === 1) {
+        p.joined = true;
+        this.handle(this.gestures.down(e.pointerId, e.clientX, e.clientY, performance.now()));
+      }
+    }, { capture: true });
     this._on(window, 'pointermove', (e) => {
-      if (this.owns(e)) this.handle(this.gestures.move(e.pointerId, e.clientX, e.clientY, performance.now()));
+      if (!this.owns(e)) return;
+      const p = this._hudFingers.get(e.pointerId);
+      if (p) { p.x = e.clientX; p.y = e.clientY; }
+      this.handle(this.gestures.move(e.pointerId, e.clientX, e.clientY, performance.now()));
     });
     this._on(window, 'pointerup', (e) => {
       if (!this.owns(e)) return;
       el.releasePointerCapture?.(e.pointerId);
+      this._hudFingerUp(e.pointerId);
       this.handle(this.gestures.up(e.pointerId, e.clientX, e.clientY, performance.now()));
     });
     this._on(window, 'pointercancel', (e) => {
-      if (this.owns(e)) this.handle(this.gestures.cancel(e.pointerId));
+      if (!this.owns(e)) return;
+      this._hudFingerUp(e.pointerId);
+      this.handle(this.gestures.cancel(e.pointerId));
     });
+    // the HUD finger of a pinch must not press the button it lifts from
+    this._on(window, 'click', (e) => {
+      if (performance.now() < this._eatClickUntil) { e.stopPropagation(); e.preventDefault(); this._eatClickUntil = 0; }
+    }, { capture: true });
+  }
+
+  _hudFingerUp(id) {
+    const p = this._hudFingers.get(id);
+    if (!p) return;
+    this._hudFingers.delete(id);
+    if (p.joined) this._eatClickUntil = performance.now() + 600;
   }
 
   /** Act on classified gestures. */
@@ -87,6 +136,18 @@ export class TouchGame {
     }
   }
 
+  /**
+   * A finger is about to touch down (before the classifier sees it). The first finger on a coasting map stops it,
+   * and a tap with that finger is then used up instead of becoming an order.
+   */
+  touchDown(t) {
+    if (this.gestures.count) return;
+    const v = this.velocity;
+    this._stopTap = !!(v.x || v.y) || t - this._coastT < TOUCH_PAN.stopTapMs;
+    if (this._stopTap) this._coastT = -Infinity; // stopped by the finger: the next touch is a fresh one
+    v.x = v.y = 0;
+  }
+
   get _active() {
     return !!this.game.input?.active;
   }
@@ -95,6 +156,12 @@ export class TouchGame {
     const input = this.game.input;
     if (!this._active || !input) return 'inactive';
     this.velocity.x = this.velocity.y = 0;
+    if (this._stopTap) {
+      // this tap stopped the coasting map: no order, and it does not start a double tap either
+      this._stopTap = false;
+      this.gestures._lastTap = null;
+      return 'stop';
+    }
     // multi-view: a tap on an inactive view only activates it (as a click does, §2.3)
     const rig = this.rig;
     if (rig && rig.count > 1) {
@@ -136,6 +203,7 @@ export class TouchGame {
     const k = s > m ? m / s : 1;
     this.velocity.x = vx * k;
     this.velocity.y = vy * k;
+    if (vx || vy) this._coastT = performance.now();
   }
 
   _pinchstart() {
@@ -159,6 +227,7 @@ export class TouchGame {
     const v = this.velocity;
     if (!v.x && !v.y) return;
     if (!this._active || this.rig?.panLocked || this.gestures.count) { v.x = v.y = 0; return; }
+    this._coastT = performance.now();
     this.cam.panScreen(-v.x * dt, -v.y * dt);
     const f = Math.exp(-TOUCH_PAN.friction * dt);
     v.x *= f;
@@ -170,6 +239,9 @@ export class TouchGame {
   reset() {
     this.gestures = new GestureClassifier(this.gestures.cfg);
     this.velocity.x = this.velocity.y = 0;
+    this._coastT = -Infinity;
+    this._stopTap = false;
+    this._hudFingers.clear();
   }
 
   dispose() {

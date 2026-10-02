@@ -9,7 +9,7 @@
  * Pages gzips text on top of this; binaries are sent as-is). --budget writes assets/load-budget.json (the loading
  * screen's expected bytes per mission and preset, engine/load-progress.js).
  */
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -55,7 +55,11 @@ for (const preset of presets) {
     const sum = (ph) => rec.filter((x) => x.phase === ph).reduce((a, x) => a + x.bytes, 0);
     const groups = {};
     for (const x of rec.filter((x) => x.phase === 'mission')) groups[group(x.url)] = (groups[group(x.url)] || 0) + x.bytes;
-    const row = { inGameMB: inGame ? +(inGame.bytes / 1e6).toFixed(1) : null, preset, id, bootMB: +(sum('boot') / 1e6).toFixed(1), missionMB: +(sum('mission') / 1e6).toFixed(1), files: rec.length, loadMs, bootMs: t1 - t0, groups };
+    // site-relative asset URLs of the mission phase: assets/mission-assets.json (engine/offline-cache.js prefetch)
+    const base = new URL(h.url + '/').href;
+    const assetUrls = [...new Set(rec.filter((x) => x.phase === 'mission').map((x) => x.url.replace(/[?#].*$/, '')).filter((u) => u.startsWith(base))
+      .map((u) => u.slice(base.length)).filter((u) => /^(assets|vendor)\//.test(u)))].sort();
+    const row = { assetUrls, inGameMB: inGame ? +(inGame.bytes / 1e6).toFixed(1) : null, preset, id, bootMB: +(sum('boot') / 1e6).toFixed(1), missionMB: +(sum('mission') / 1e6).toFixed(1), files: rec.length, loadMs, bootMs: t1 - t0, groups };
     out.push(row);
     console.log(`${preset.padEnd(5)} ${id}  boot ${row.bootMB} MB  mission ${row.missionMB} MB  total ${(row.bootMB + row.missionMB).toFixed(1)} MB  ${rec.length} files  load ${loadMs} ms  (loadMission saw ${row.inGameMB} MB)`);
     for (const [g, b] of Object.entries(groups).sort((a, b) => b[1] - a[1]).slice(0, 12)) console.log(`      ${(b / 1e6).toFixed(2).padStart(7)} MB  ${g}`);
@@ -68,7 +72,16 @@ if (process.argv.includes('--budget')) {
   for (const r of out) (b.missions[r.id] ||= {})[r.preset] = Math.round((r.inGameMB ?? r.missionMB) * 1e6); // what loadMission itself sees
   writeFileSync(join(ROOT, 'assets/load-budget.json'), JSON.stringify(b, null, 1) + '\n');
   console.log('wrote assets/load-budget.json');
+  // what each mission downloads, for the background prefetch of the next campaign mission (merged: missions and
+  // presets not measured this run keep their lists)
+  const listFile = join(ROOT, 'assets/mission-assets.json');
+  let L = null;
+  try { L = JSON.parse(readFileSync(listFile, 'utf8')); } catch { L = null; }
+  L = { about: 'Site-relative asset URLs each mission loads, by preset. Written by tools/perf/measure-load.mjs --budget; read by src/engine/offline-cache.js to prefetch the next campaign mission into the service worker cache.', presets: L?.presets || {} };
+  for (const r of out) (L.presets[r.preset] ||= {})[r.id] = r.assetUrls;
+  writeFileSync(listFile, JSON.stringify(L) + '\n');
+  console.log('wrote assets/mission-assets.json');
 }
 const j = arg('json', '');
-if (j) writeFileSync(j, JSON.stringify(out, null, 1));
+if (j) writeFileSync(j, JSON.stringify(out.map(({ assetUrls, ...r }) => ({ ...r, assets: assetUrls.length })), null, 1));
 await h.close();

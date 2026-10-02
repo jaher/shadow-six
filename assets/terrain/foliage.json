@@ -1,5 +1,7 @@
 {
  "size": 512,
+ "normalSize": 256,
+ "cols": 8,
  "layers": [
   "oak_0",
   "oak_1",
@@ -26,7 +28,27 @@
   "palm_0",
   "palm_1",
   "palmdry_0",
-  "palmdry_1"
+  "palmdry_1",
+  "willow_0",
+  "willow_1",
+  "ash_0",
+  "ash_1",
+  "apple_0",
+  "apple_1",
+  "hazel_0",
+  "hazel_1",
+  "acacia_0",
+  "acacia_1",
+  "brown_0",
+  "brown_1",
+  "twig_0",
+  "twig_1",
+  "ivy_0",
+  "ivy_1",
+  "gorse_0",
+  "gorse_1",
+  "palmleaf_0",
+  "palmleaf_1"
  ],
- "sources": "ambientCG LeafSet004/010/013/022/024/030, PineNeedles001 (CC0); palm fronds procedural"
+ "sources": "procedural leaf / twig sprays (tools/render/build_leaves.py), own work, CC0; conifer and palm tiles: ambientCG LeafSet004/010/013/022/024/030, PineNeedles001 (CC0), palm fronds procedural"
 }

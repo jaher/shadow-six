@@ -3,7 +3,7 @@
 import http from 'http'; import fs from 'fs'; import path from 'path';
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const VENDOR = '<repo>/vendor';
-const ALLOW = ['<claude-tmp>', '<repo>/'];
+const ALLOW = ['<claude-tmp>', '<repo>/', path.resolve(HERE, '../../../..') + '/'];
 const T = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json',
   '.glb': 'model/gltf-binary', '.gltf': 'model/gltf+json', '.bin': 'application/octet-stream', '.png': 'image/png',
   '.jpg': 'image/jpeg', '.webp': 'image/webp', '.hdr': 'application/octet-stream', '.wasm': 'application/wasm' };

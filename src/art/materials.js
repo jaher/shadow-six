@@ -29,6 +29,7 @@ export const PALETTE = {
   olivePaint: { color: 0x4b5431, roughness: 0.6, metalness: 0.3 },
   greyPaint: { color: 0x5d625c, roughness: 0.6, metalness: 0.3 },
   fuelRed: { color: 0x7d2b20, roughness: 0.55, metalness: 0.35 },
+  tankCream: { color: 0xc4bba3, roughness: 0.55, metalness: 0.2 },
   glass: { color: 0x1c2428, roughness: 0.1, metalness: 0.2 },
   foliage: { color: 0x3c5a2a, roughness: 0.9 },
   foliageDark: { color: 0x2c4420, roughness: 0.9 },

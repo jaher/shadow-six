@@ -63,6 +63,7 @@ src/engine/device.js                  mobile device → default quality preset (
 src/world/world.js                    foundation — World container + spatial queries + noise
 src/world/grid.js                     foundation — NavGrid layers, LOS, cover queries
 src/world/pathfinding.js              foundation — A* + smoothing
+src/world/body-clearance.js           body vs solids: vehicle hulls, wrecks, drums, pushables, props (disc / prone capsule, keep-out mask, clear poses)
 src/world/map-builder.js              MISSIONS — fills grid + registries from mission data (ART props for meshes)
 src/entities/entity.js                foundation
 src/entities/unit.js                  foundation — humanoid movement/stance/health/anim hooks
@@ -74,10 +75,13 @@ src/entities/interactables.js         ABILITIES — doors/hideouts, pickups, exp
 src/ai/perception.js                  AI
 src/ai/enemy-brain.js                 AI
 src/ai/alarm.js                       AI
+src/ai/running-noise.js               AI — house rule runningNoise: who makes step noise, step surface → hearing radius (pure)
 src/render/vision-cone.js             AI
 src/render/fx.js                      VEHICLES/FX — game adapter of the VFX library (events → effects)
 src/render/vfx/*.js                   VEHICLES/FX — final VFX library (GPU particle pools, FxPass, debris, decals, lights)
 src/render/selection.js               foundation — selection rings, move markers, path preview (ground decals)
+src/render/scope-magnifier.js         foundation — sniper scope 2× magnifier (lens camera → small RT → glass composite in the canvas)
+src/render/noise-rings.js             AI — runningNoise cue: a ring per running step growing to its hearing radius (ground decal)
 src/art/materials.js                  ART
 src/art/humanoid.js                   ART — placeholder capsule soldier (fallback: ?chars=0, node tests, load failure)
 src/art/unit-model.js                 ART — Unit model factory: real character (humanoid-real) or placeholder; anim/weapon mapping, gait from ground speed
@@ -88,6 +92,9 @@ src/art/vehicle-crew.js               ART — crew figures at the library seats:
 src/art/vehicle-pennants.js           ART — cloth pennants on vehicles (patrol-boat masthead, staff-car wing flag), apparent wind
 src/art/props.js                      ART — building/prop builders (catalogue below)
 src/art/dressing.js                   ART — procedural realistic non-library props (palisade/stone walls, rocks, cliffs, tents, sandbags, crates, transformers, pylons, poles)
+src/art/fuel-tanks.js                 ART — fuel-tank family resolution (docs/fuel-tanks.md): library asset per variant/footprint/theater, blast scale, wreck nav (pure)
+src/art/fuel-pipes.js                 ART — M11 oilfield pipe runs between neighbouring columns (pairs: pure; meshes: three.js)
+src/art/fuel-hooks.js                 ART — M17 valve hooks: `device` events turn the model's handwheel, the spout pours (wired by map-builder)
 src/art/characters/skin-min.js        ART — fast lowest-point query on skinned meshes (clip ground curves)
 src/art/vehicles.js                   ART — placeholder vehicle models (types without a library model, `?vehicles=0`)
 src/art/vehicle-library.js            ART — realistic vehicle library (manifest, LODs, paints, wrecks, parts, sockets)
@@ -153,7 +160,8 @@ unsubscribe function and call it between scenarios. **Canonical events** (payloa
 | `enemy:challenge` | `{enemy, target}` | brain (CHALLENGE entry, "Halt!") → audio, ui |
 | `enemy:held` | `{enemy, target}` | brain (HOLD) → ui |
 | `enemy:distracted` | `{enemy, spy, on:boolean}` | brain (distractBy/releaseDistraction) → ui |
-| `enemy:noise-turn` | `{enemy, x, z, kind}` | brain (a post-holder turns to a lure: decoy/phone/horn) → ui (cone highlight) |
+| `enemy:noise-turn` | `{enemy, x, z, kind}` | brain (a post-holder turns to a lure: decoy/phone/horn; any guard turning to a running commando's steps: `kind: 'footsteps'`) → ui (cone highlight) |
+| `enemy:heard-steps` | `{enemy, x, z, susp}` | brain (house rule `runningNoise`: a guard heard a running commando's step; `susp` = his step suspicion) → ui ("?" over the guard) |
 | `enemy:unmasked-spy` | `{enemy, spy}` | AI → abilities (spy loses disguise), ui, audio |
 | `enemy:body-found` | `{enemy, body}` | perception → alarm |
 | `alarm:zone` | `{zone, event, cause, x, z}` | alarm (every zone/mission event: RINT, REXT, RPER, custom) → AI (barracks release), mission, tests |
@@ -175,7 +183,7 @@ unsubscribe function and call it between scenarios. **Canonical events** (payloa
 | `ambient:flush` | `{x, z, species}` | ambient life (render/ambient-life.js: a sitting gull / crow / duck takes off at a gunshot, explosion, loud noise or someone walking up) → audio hook (no gameplay effect) |
 | `objective:update` | `{objective}` | mission → ui, audio |
 | `mission:loading` | `{id}` | game → ui (menu diorama releases the scene before a mission builds) |
-| `mission:progress` | `{id, p, stage, bytes, expected, files}` (p 0..1 monotonic; stage lighting/buildings/characters/vehicles/terrain/units/finish/done) | game (`engine/load-progress.js`) → loading screen |
+| `mission:progress` | `{id, p, stage, bytes, expected, files, cached}` (p 0..1 monotonic; cached = files served without the network; stage lighting/buildings/characters/vehicles/terrain/units/finish/done) | game (`engine/load-progress.js`) → loading screen |
 | `mission:loaded` | `{mission, world}` | game → ui, audio |
 | `mission:won` / `mission:lost` | `{reason, stats, stars:{time, damage}, merit, rank, password}` | game (`game.flow.onMissionEnd`) → ui, audio |
 | `mission:refused` | `{reason}` ("ALL YOUR MEN MUST ESCAPE") | mission → ui |
@@ -336,6 +344,9 @@ Typed-array layers, size `cols × rows` where `cols = ceil(W/CELL)`:
     reachable only through links. LOS: a cell with `elev > max(viewerY, targetY) + LOS_CLEAR (1 m)` blocks like B.HIGH
     (pass `viewerY/targetY` = unit `y`). `walkableLine(..., {elevRef})` keeps smoothing on one level. Fill it with
     `fillRect/fillPoly/...(…, 'elev', height)`.
+  - `naturalElev: Uint8Array` — 1 = a raised cell is natural ground (walkways of a `cliff` or `road` structure,
+    map-builder `applyElevation`), 0 = a built floor (roof, deck, wall walk, tower). Static, not saved; read by
+    `ai/running-noise.js stepSurface` (raised snow is still snow underfoot).
   - **Links** (`LINK.CLIMB` / `LINK.LADDER`): `addLink(kind, a{x,z,y?}, b{x,z,y?}, {roles, enabled, cost, id}) → link`,
     `removeLink(id)`, `setLinkEnabled(id, on)`, `linksAt(cellIndex)`, `linkAllowed(link, role)`. Bidirectional
     off-grid A* edges. Default roles: climb `['greenberet']`, ladder `null` (everyone, enemies included); role `'*'`
@@ -349,7 +360,11 @@ walkable with `swim: true` (the diver) — bridges are always walkable. Neighbou
 (elevation). Off-grid links touching a cell are expanded when `grid.linkAllowed(link, opts.role)`; the waypoint
 reached through a link carries `link: {id, kind}` and `y` (the previous waypoint is the link's other end) — the unit
 walking the path must play climb/ladder there (ABILITIES); the foundation `Unit` just moves and takes `y`.
-Smoothing runs per grid-only run and never across a link or a level change.
+Smoothing runs per grid-only run and never across a link or a level change. `avoid` (a cell mask, 1 = keep out) and
+`nearRadius` (substitute goal search, default 3 m) are extra options: `Unit.moveTo` passes the body-clearance mask
+around vehicle hulls, wrecks, fuel drums, pushables and solid props (`src/world/body-clearance.js`,
+docs/clipping-audit.md "Characters and vehicles": standing disc / prone capsule vs oriented rects and discs, per-step
+guard, clear stop poses, vehicles and pushed wagons stop for or run over men in their way).
 
 ### Entities
 ```js
@@ -377,6 +392,9 @@ export class Unit extends Entity {
   path: [{x,z}] | null, pathIndex
   model   // from art/humanoid.js: { root: Object3D, setAnim(name, {loop, speed}), update(dt), setColors(opts), setDisguise(bool) }
   moveTo(x, z, {run=false, onArrive}) → boolean (false if no path)
+  steerTo(x, z) → boolean             // one-waypoint path re-aimed every tick, no A* (squad followers on a moving slot)
+  get track() → {x, z}               // position on the path track (minus avoidance lane + corner curve): route progress
+  vx, vz, trackV                      // last tick's velocity (m/s) and pace along the path (avoidance / followers read them)
   stop()
   setStance(stance)
   faceTowards(x, z) / turnTowards(x, z, dt) → boolean(done)
@@ -388,6 +406,37 @@ export class Unit extends Entity {
   update(dt)                          // follows path (silent, §4.4), emits 'footprint' on SNOW/SAND/MUD, updates anim
 }
 ```
+Locomotion (playtest 2026-09-30, "walk smoother and without crossing each other"): progress is computed on the
+string-pulled path *track*; two offsets ride on top of it, so route timing never changes. `path-curve.js` rounds
+corners ≤ 120° with a stateless quadratic Bézier (r ≈ 0.5 m); `avoidance.js` plans a lateral *lane* each tick
+(deterministic, fixed step): closest approach over 1.5 s from both velocities, keep-right head-on, walk round a
+standing man (and a man about to stop on his goal), share the gap with another dodger, same-way walkers string out
+(the man behind drops back). Right of way: route patrol (never waits, only dodges sideways) > squad follower >
+other enemy > commando; a lower rank waits short of a priority walker's crossing. Two men stacked on one spot
+step apart (lower id right). Lanes are accel- and rate-limited (no lateral jump, also when a wall cuts one back),
+keep a body radius (`wallR`) off walls here and half a second on, close on the last leg (a patrol dodging a man by
+its waypoint keeps its lane and eases off instead of walking into him). Narrow gaps (a doorway, a corridor): a
+walker that cannot get round a standing man stops short of him, and an idle commando standing in the way steps
+aside (`Unit._yieldFor`, also for a teammate held up > 0.5 s crossing a formation); a file walking or merging
+into a gap queues behind the man ahead when there is no room beside him (lead taken along the pair's mean heading,
+so never both wait); two men meeting where both half-dodges do not fit: the one giving way (`givesWay`) holds
+where his lane fits until the other is past. A man sent to a spot another holds stops beside it. Braking is a
+walker's (`brake` m/s²). Only then a walker stuck > 1.5 s squeezes past (no deadlock) — never onto a man standing on
+his own goal, and only for a while: the men he squeezed past are forgotten once he is past them or after 3 s, so two
+men never walk on inside each other. Two men standing inside each other (a pile on a chase point) step apart: the
+one giving way takes a short step to a free spot (`Unit._settle`), or is eased off at a shuffle when his brain holds him
+there (`Unit._nudge`). A calm enemy standing in a mate's way steps aside like an idle commando. On raised ground (wall
+walks, dams, bridge decks) there is no lane or corner curve: the deck's nav cells do not see its parapet. Released barracks squads
+appear a body width apart round the door (`Alarm._doorSpots`). Dead / downed / carried / swimming men are not obstacles; a melee target or carried body is
+never avoided. Tunables: `CONFIG.units.avoid`; state (`avoid` array) is saved. Squad followers
+(`EnemyBrain._follow`) use a speed controller on their breadcrumb slot (`CONFIG.ai.squadFollow`), sidestep off
+the leader's line at halts before sharp turns and on about turns (whose rank order then flips; a sidestep once begun
+is finished), and hold until the leader has walked by (braking at `decel`, not a dead stop). Standing, a follower
+steps off only for a real walk wanted for `startT` s and a real gap to the mate ahead (`gapHyst`): no one-frame
+walk / idle flicker. Walk / run / crawl mixers step every frame at every zoom (`humanoid-real.js`: only idle
+poses drop to 30 Hz when zoomed out, idle breathing loops to 15 Hz to pay for it), so a planted foot does not slide on
+alternate frames. Debug: `tests/unit/loco-trace.mjs` (per-tick traces + smoothness / overlap metrics), the
+dynamic clip audit lists unit-vs-unit overlaps (`unitOverlaps`).
 Animation names the humanoid model must support: `idle, walk, run, crawl_idle, crawl, swim, dive, aim,
 shoot, stab, throw, punch, plant, climb, carry_idle, carry_walk, die, dead, surrender, salute, look_around,
 use` (missing ones fall back to `idle`).
@@ -595,7 +644,48 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
 ### Rendering pieces
 - `CameraController` (`src/engine/camera.js`): OrthographicCamera, fixed azimuth/elevation (spec), zoom levels,
   `panBy(dx,dz)`, `centerOn(x,z)`, `setZoom(level)`, edge-scroll, arrow keys pan (**no WASD**: §10.4 #1), middle-drag pan,
-  wheel zoom, clamped to map bounds. `screenToGround(clientX, clientY) → {x, z}`.
+  wheel zoom, clamped to map bounds. `screenToGround(clientX, clientY) → {x, z}`. `setApron(width, [yLo, yHi])` (rig:
+  every view, copies included): the zoom floor `apronMinZoom()` keeps `voidReach(zoom)` inside the scenery apron.
+  `voidReach` = the clamp margin + the slanted-corner overshoot + the footprint shift from the apron's lowest and highest
+  ground. It is cached per view size, HUD bar, yaw and apron, and logged once when it lifts the floor.
+  `setHudTop(px)` (the rig sets it from `hud.topBarHeight` = 47 ref px × UI scale, for views at the canvas top): the
+  clamp, `focusTarget` and `isVisible` treat the view as the part below the HUD top bar (`usableHalf`), so every map
+  point can be scrolled clear of it. `centerOn(x, z, inset?)` / `focusTarget(x, z, inset?)` take the focus inset.
+  `Game.focusSquad()` (called by `Briefing.close()` when the mission starts) recentres on the squad (inset 0.5, whole
+  bodies clear of the bar). The pan/zoom API (`panBy`,
+  `panScreen`, `setZoom`, `zoomStep`, `centerOn`) is unchanged.
+- **Scenery apron** (`src/world/apron-field.js` pure + `src/art/apron.js` GPU; design-spec §2.3 "never see the map
+  boundary"). It is non-playable scenery past every map edge, `CONFIG.apron.width` (90 m) wide, and never touches
+  the nav grid.
+  - `buildApronField(grid, mission)` builds a NavGrid of (W+2A)×(D+2A), with world (−A, −A) at its corner:
+    - the map's codes are copied verbatim;
+    - mission `terrain` paths and `roads` polylines that touch an edge are extended along their end direction
+      (`extendPath`); polys, rects and circles are drawn whole;
+    - other wet, road and patch edge cells are extruded outward with a lateral domain warp (meandering shores);
+    - a shore-shallow rim is added;
+    - `mission.apron` = `{width?, terrain?: [features, world coords], extend?: false, trees?: density×}`.
+  - `createApron` is called by `art/terrain.js buildTerrain` once the map ground is ready (handle `terrain.apron`,
+    `terrain.apronReady`). It builds:
+    - one ring mesh on a 1 m lattice (2 m more than 24 m out) through the map edges. It reaches 1 m under the map,
+      5 cm below it.
+    - the map's own terrain shader (`terrainMaterial(U)`, sharing the layer arrays; uniform `uOrigin` offsets the
+      splat UV) with a 1 texel/m apron splat (`buildSplat(…, {origin})`).
+    - heights = `undulation` + the same water carve, blended into the map's edge heights over `seamBand` (6 m),
+      settling to y = 0 over the outer `fade` (24 m).
+    - a flat 600 m skirt.
+    - impostor-only trees (`createVegetation(…, {maxUnique: 0})`, one instanced draw) at each side's edge-band
+      density, thinning (`treeFalloff`) to the theatre background, off water and roads.
+    - the map's 3D grass continued past the edge (`grass.setApron`, own 8 m chunks from the apron splat), thinning
+      out over `grassBand` (30 m) along a noisy line, so no edge shows as a straight grass line.
+  - `art/water.js extendBodiesOverApron` grows every edge-crossing water body to its apron component (same bake
+    texel density via `bakeRes`, capped at 768; bodies that meet out there merge). The water bed capture also sees
+    the apron mesh.
+  - Cost: about 6 draw calls over all passes and ≤ 335k triangles (M3). Ground ≈ 160 ms at load; the forest builds in
+    the background (map `ready` waits for it).
+  - Tests: `tests/unit/apron-field.test.mjs`, `tests/unit/camera-apron.test.mjs`, `tests/unit/camera-hud.test.mjs`, and
+    `tests/edges-void-<map>.test.mjs`, which reads back magenta-background frames at 4 edges and 4 corners × min/max
+    zoom × 0/15/45° × 16:9, 32:9 and phone portrait, and checks seam heights and cost. A new map needs its one-line
+    `edges-void-<id>.test.mjs`; `tests/unit/apron-coverage.test.mjs` enforces that.
 - `VisionCone` (`src/render/vision-cone.js`): per enemy fan mesh (≥48 rays) built from `grid.castRay`, two
   zones (near/far) with different alpha — geometry = `perception.coneAt(enemy)` (§10.2); faithful BEL flat colours
   (`CONFIG.stealth.coneColors`), tint by `alertLevel` only with the `alertTint` option (§10.4 #5); `update(enemy)`; drawn slightly above ground,
@@ -610,13 +700,17 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   armed only while its commando is x-rayed (`XRayPass.isHidden(root)`, GPU occlusion queries on his silhouette draw,
   a frame or two of lag), so a soldier in plain view gets no ghost over a truck cab in front of his ring; path ghosts
   stay armed. BCD overlays (`render/bcd-overlay.js`: puppet range disc + ring, knock-out arcs) are ground decals in the
-  same group, bent over `world.groundY`. Library bridge/pier decks are calibrated to the modelled planks
+  same group, bent over `world.groundY`; so are the noise rings (`render/noise-rings.js`, house rule `runningNoise`,
+  option NOISE RINGS: one amber ring per running step growing to its hearing radius over 0.6 s). Library bridge/pier decks are calibrated to the modelled planks
   (`map-library.js calibrateDeck`: snow caps sit ~8 cm above the sidecar `deck_top`), so units and decals stand on
-  the rendered deck. Test: tests/selection-ring.test.mjs.
+  the rendered deck. Over a raised walk (grid `elev` > 0: a dam crest, stair treads, tower decks) `world.groundY` adds
+  nothing unless a modelled surface rises above that height, since the grid already holds the absolute walking
+  surface there (the relief and low surfaces under the M3 crest used to float units 0.25 m or sink them 8 cm).
+  Test: tests/selection-ring.test.mjs.
 - `FX` (`src/render/fx.js`, docs/vfx-pipeline.md §6): `world.fx.spawn(kind, x, z, opts)` with any of the 19 library
   kinds (`explosion_large|explosion_small|grenade|barrel_explosion|tanker_explosion|burning_wreck|fuel_pool_fire|
   fire_small|smoke_column|chimney_smoke|smoke_puff|muzzle_flash|tracer|dust_kick|vehicle_dust_trail|mud_spray|
-  water_splash|blood_puff|sparks`) or an old stub kind (`muzzle`, `explosion`, `smoke`, `fire`, `blood`, `splash`,
+  water_splash|blood_puff|sparks`, plus `fuel_tank_blast|fuel_tank_fire` for fuel-tank structures, docs/fuel-tanks.md §12) or an old stub kind (`muzzle`, `explosion`, `smoke`, `fire`, `blood`, `splash`,
   `dust`, `tracer`, `debris`); `opts.y` = height (default ground). Persistent kinds return `{stop()}`.
   `fx.update(dt)` runs in the sim tick (frozen while paused), `fx.frame()` once per displayed frame (Game.render),
   `fx.shakeOffset()` → camera-plane Vector2 | null (reduced-motion option), `fx.stats()`, `fx.vfx` (library, null
@@ -624,6 +718,29 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   `vehicle:fire`, `fire`, `hit`, `structure:destroyed`; registers explosive drums (`vfx.addExplosive`, never armed:
   the gameplay ignite chain decides), chimneys (model child named /chimney/, mission `chimney`, or placeholder
   houses) and optional mission `fx: [{kind, x, z, ...opts}]`. Blood honours `options.blood` / `options.censored`.
+- Dam water (`src/render/dam-water.js` + `-mats.js`, `-geom.js`, `-pool.js`, `-pool-glsl.js`, `-spray.js`,
+  `dam-flow.js`; structures with `waterFx`, M3): built by the map handle with the ambient-life layer (after the
+  water's bed capture) and ticked per displayed frame (frozen while paused). The face is sampled by raycasts on the
+  dam's finest LOD (dam frame: u along the crest, v downstream).
+
+  On the late FX layer it draws:
+  - **spillway sheets** advected in travel time (they accelerate down the face, glassy at the lip, then white
+    fingers and streaks lengthening with the fall);
+  - **trickles and the face**: trickles, frozen trickles, wet streaks, a spray-soaked splash zone with rime, and
+    icicles;
+  - **the pool and tailwater**: a 2D stable-fluids flow field baked at load from the nav grid's water cells (the
+    roller back to the face, side eddies, a fast core and slow banks, with foam and aeration advected to steady
+    state), drawn by a dual-phase flow-mapped shader (LIC foam streaks along the current, boil with upwelling
+    domes, standing waves, bubbles);
+  - **spray and mist**: stateless GPU droplets and mist drifting with `world.wind`.
+
+  About 10 Hz of `water.disturb` keeps the pool rippling. When the dam is destroyed the intact water fades out and
+  `src/render/dam-breach.js` takes over: a thick tongue of water through the breach of dam_arch_destroyed (dam frame,
+  scaled by the remaining head), a boil at its landing and a surge front of white water running down the river
+  (`waterFx.surge` centreline, 7 m/s; geom `waterStrip`, mats `foamMaterial`); its strength follows the reservoir's
+  drain (`water.drains`, 40 s) and it is gone once the reservoir is down. The sound is
+  three positional ambience layers (`waterfall`, `waterfall_roar`, `rapids`; `until: 'dam'`). See
+  docs/water-pipeline.md §11.
 
 ### Art (`src/art/*`)
 - `createHumanoid({faction, role, soldierType, colors}) → model` (interface above). Realistic (§10.4 #3), readable at
@@ -648,7 +765,7 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   map-builder stamps trails every frame for footsteps, crawl furrows, dragged bodies and land-vehicle wheels/tracks
   (`stampWorld`), and `world.ai.footprints.tracksNear(x,z,r)` annotates AI prints with `printVisibility` (§4.8).
   Real path: `water: null` (`ctx.ownWater`) — the water system below owns the surface; river banks are carved
-  from a bilinear signed distance to the wet cells (`cellSignedDistance`/`carveDepth`, no 0.5 m staircase).
+  from a bilinear signed distance to the wet cells (`cellSignedDistance`/`carveDepth`, edge cells smoothed, no 0.5 m staircase).
 - **Barbed wire** (`src/art/barbed-wire.js` strand primitive + `src/art/wire-obstacles.js` recipes / layer,
   docs/barbed-wire.md): `props.js` tags every wire `fence` run (and wire-coped walls) with `userData.wireRun` instead of
   drawing boxes (footprints unchanged), `dressing.js` records the palisade stake tops for the coping; map-builder builds
@@ -662,11 +779,15 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   terrain is ready (real terrain only; bed capture renders the static scene from above) and the map handle's
   `ready` also awaits its textures. Handle (`world.water`, `mapHandle.water`; null on dry maps / placeholder):
   `{system, bodies, stats, level (-0.1 m), sample(x,z) → {depth, flow:[vx,vz], level, type, shore, ice, body}|null,
-  depthAt(x,z), disturb(x,z,strength,radius,foam), addLateRoot(obj3d), wakes, frame(dt,camera), dispose()}`.
+  depthAt(x,z), disturb(x,z,strength,radius,foam), addLateRoot(obj3d), wakes, frame(dt,camera), dispose()}`;
+  `system.crest(x,z,strength,radius,amount,x1?,z1?)` = short-lived wake-crest foam (ripple texture .a).
   Bodies = `waterBodyDescriptors(grid, mission, theater)` (one per 4-connected WATER/SHALLOW component; `river` when
   `mission.water.velocity > 0` with the current from `angleDeg`; `sea` on coast edges; optical preset per theatre;
   shore ice shelf on `snow` maps (narrower on fast rivers), `water.frozen` → fully frozen). `mapHandle.frame` runs
-  `WakeTracker` (swimmers/waders/divers ripple + foam, boats: bow wave, prop wash, Kelvin shoulders; splash when a
+  `WakeTracker` (swimmers/waders/divers ripple + foam; boats (`_boat`, `boatProfile` rowed/powered, true-scale
+  library hull size): v²-scaled bow wave, broken wash astern slewed outward in turns, Kelvin V arms of crest particles
+  born at the bow shoulders that run out at tan 19.47°·v, drift with the current (`sample().flow`) and are drawn as
+  capsules into the ripple sim's crest channel, paddle strokes on rafts / rowboats, quiet water at rest; splash when a
   unit enters the water or dies in it) and `water.update` BEFORE the render. Events: `explosion` in water → water
   column + splash, `projectile:bounce` → splash, missed `shot` → spout, `unit:water` dive/surface/row → ripples.
   Post chain with water: `afterWorld` DepthStashPass; `afterAO` WaterPass → late decal RenderPass (the world decal
@@ -688,6 +809,46 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   (`manifest.textures.aliases`). Tools: `tools/perf/measure-load.mjs` (bytes per mission/preset, `--budget`),
   `tools/perf/shot.mjs` (A/B screenshot), `tools/perf/terrain_webp.py`, `tools/perf/lib_textures.py`.
 
+### Asset cache (`src/engine/asset-cache.js`, `engine/program-keeper.js`, `engine/offline-cache.js`, `tools/build/sw.mjs`)
+Two layers, both generic (keyed by URL / asset id / content signature, never per feature):
+- **In memory (session).** `sessionCache` (SessionCache) memoises what a load produces that does not depend on the
+  simulation: `memo(key, fn, {bytes, dispose})` / `memoAsync` (one shared load, failures not cached). Users today:
+  terrain layer arrays + noise (`layer:<url>…`), the splat and heightfield (`terrain:splat|height:<grid hash>…`; a splat painter hook is cached only with its
+  `paintKey`, e.g. the road network's content hash),
+  vegetation strips, generated tree chunks (`trees:<quality>:<hash of the placements>`) and impostor bakes,
+  the placement-visual analyses (`visual:<kind>:<signature>`: node names, visibility, content-hashed geometry,
+  world matrices — `visualSignature`), the renderer's filtered environment (`_envKey`, same HDRI + lighting).
+  `Game.loadMission` calls `beginMission(id)`: entries used from then on are tagged with the mission; a byte budget
+  (`defaultBudget()`: ~1/6 of `navigator.deviceMemory`, 256 MB–1.5 GB, ≤ 512 MB on phones) evicts least-recently-used
+  entries not used by the current or the last mission, calling their `dispose` (GPU resources are freed then).
+  Cached GPU objects are `retain()`ed: their owners call `sessionCache.release(obj)` instead of `obj.dispose()` (a
+  no-op for retained ones), and `Game.unloadMission` keeps them. Results handed out are copies (or immutable).
+  Shader programs: `Game.unloadMission` starts `deferMaterialDisposal()` (Material#dispose calls are queued) and the
+  first frame drawn after the next build flushes them, so programs both missions use are never destroyed (no
+  recompiles). `game.building` is true while a world is built: the frame loop does not draw a half-built world.
+  RESTART / quick load / loading a save of a cached mission: no asset request, no decode, no recompile — only the
+  simulation, entities and scene instances are rebuilt. `ui/loading.js` treats such a load as *warm* (the mission id
+  is in `sessionCache.missions`): a 120 ms fade instead of the loading card (the card appears only if the rebuild
+  takes > 1.5 s, and then only stays up 0.4 s from when it appeared; `hud.loading.lastRun = {warm, card}`); a cold load whose files mostly come from a cache shows
+  `FROM CACHE` beside the MB counter (`mission:progress.cached`).
+- **Persistent (web build).** `dist/sw.js` (generated by `tools/build/sw.mjs`, registered by the build's inline
+  script on secure origins; test pages opt in with `&sw=1`): assets (`assets/`, `vendor/` binaries, media, fonts)
+  cache-first in `ss-assets-v1`, keyed by URL + content hash from `sw-index-<hash>.json`, so a deploy re-downloads
+  only changed files and purges removed ones; Range requests are answered from a cached copy (or streamed while the
+  whole file is stored). A miss is fetched with `cache: 'no-cache'` (Pages sends max-age=600, so a deploy can land
+  while the browser still holds the old file fresh) and stored only if its SHA-1 matches the index hash: old bytes
+  never sit under a new key. HTML, JS, CSS, JSON: network-first with `ss-code-<version>` as the offline fallback (older
+  builds' code caches are deleted on activate). Page side (`installOfflineCache(game)`, main.js): after each
+  `mission:loaded`, when idle, `cache-urls` (everything the page fetched, incl. what loaded before the worker took
+  control), `navigator.storage.persist()` once, then `prefetch` of the next two campaign missions in order
+  (`upcomingMissions`, the `flow.nextMissionId()` chain; a newer mission load stops the chain) from
+  `assets/mission-assets.json` (written by `tools/perf/measure-load.mjs --budget`) unless data-saver / 2G / cellular
+  or < 250 MB of quota is left. OPTIONS → CLEAR CACHED GAME DATA → `clearCachedGameData()` (Cache Storage + the
+  in-memory cache, except what the mission on screen uses; `sessionCache.keepOnly(id)` also forgets the other missions,
+  so their next load is cold). Measure: `node tools/perf/measure-restart.mjs` (dist,
+  throttled link shared with the worker, Pages cache headers). Tests: `tests/unit/asset-cache.test.mjs`,
+  `tests/cache-restart.test.mjs`, `cache-sw.test.mjs`, `cache-deploy.test.mjs` (the last two with `SS_DIST=1`).
+
 ### Missions (`src/missions/*.js`)
 Every def goes through `normalizeMission(def)` (`src/missions/schema.js`; Game.loadMission and map-builder call it;
 idempotent, non-mutating, throws on invalid data, `validateMission(def) → {errors, warnings}`). It fills every
@@ -699,7 +860,18 @@ Schema-level structure params the builder understands (on top of the prop catalo
 (gaps), area props `points` (polygon footprint, e.g. cliffs), `ring: {r, arc?}` (MG sandbag ring, open behind),
 round props with `w`+`d` (rect footprint), `deck: true` (blocks → bridge cells, e.g. a dam crest), `walkways:
 [{points, width, y}]` and watchtower `deckY` (raised walkable `elev`), gate `open: true`, `switches: [{id, x, z, …}]`
-(switch interactables). Top-level `markers: [{id, x, z, r}]` (demolition markers). After building, the world carries
+(switch interactables). Raised dam (M3, design-spec §7.6): `elev: m` lifts the library visual and raises the `deck`'s
+bridge cells to that grid `elev` (`walkY`: the deck's walking surface when the asset's snowy deck stands over its lifted
+origin, M3 7.28; owner kept, so `destroyFx: ['removeCrest']` still finds them; the crest cells drop
+back to 0 when it goes), `points` on a deck = its walkable plan polygon (the curved crest), `ramps: [{points:[bottom…top],
+width, y0, y1}]` = stairs whose cells take the height of the drawn tread under them (art/dam-stairs.js `stairTopAt`,
+which also draws them), `waterFx: {downstream?: [[x,z]…], surge?: [[x,z]…], streams?}` = the water running down its
+face and the burst's surge line (render/dam-water.js, dam-breach.js, below). Terrain features
+`{terrain:'water', level, drainOn?}` are raised water (the M3 reservoir): their own still water body at `level`
+(art/water.js `raisedWaterMasks`), nav-blocked for walkers and swimmers alike, drained to the river level over 40 s once
+the `drainOn` structure is destroyed. Mission `water.iceFree: [{x, z, r}]` keeps open water (no shore ice shelf) where
+a fall lands; mission `ambience: [[sfxId, gain, {at:{x,z}, until: structureId}]]` adds a positional ambience layer
+(the dam's `waterfall`) that stops with that structure. Top-level `markers: [{id, x, z, r}]` (demolition markers). After building, the world carries
 `world.zones` (and `world.alarm.zones`), `world.barracks` (Map id → {x, z, door, pool, alive, squads, jail}),
 `world.jails`, `world.ladders` ({id, linkId, raised, top} + a `ladder` interactable), `world.triplines`, `world.markers`.
 Owner of `src/world/map-builder.js`: MISSIONS (schema-driven building); ART owns the prop meshes it calls.
@@ -713,7 +885,7 @@ export default {
   id: 'm01', title, subtitle, theater, size: [W, D],
   briefing: { text, objectivesSummary },
   baseTerrain: 'sand'|'grass'|'snow'|'ground',
-  terrain: [ {type:'rect'|'poly'|'path', terrain:'road'|'water'|..., x,z,w,d | points, width, surface?} ],
+  terrain: [ {type:'rect'|'poly'|'path', terrain:'road'|'water'|..., x,z,w,d | points, width | widths (one per point: tapered segments, natural banks), surface?} ],
   roads?: [ {surface:'setts'|'asphalt'|..., points, width, kerb?, sidewalk?, rails?, markings?, lamps?} ],
   pavements?: [ {surface, points | x,z,w,d, raise?, kerb?, quay?} ], furniture?: [ {type, variant?, x, z, rot?} ],
   structures: [ {type:'barracks', x, z, rot, id, reinforcementSpawn:true, ...}, ... ],
@@ -750,7 +922,8 @@ Menus and full-screen screens follow docs/menus-art-direction.md (S01–S22 + am
   `styles/menus.css` (tokens, components, B1 backdrop, boot) and `styles/menus-screens.css` (S04–S20 screens, phones).
 - `boot.js` (S01–S03 disclaimer, ident, title splash), `screens.js` (front end: MAIN in BEL order, NEW GAME, SINGLE
   PLAYER, TUTORIALS, PASSWORD, CREDITS, QUIT, profiles), `map-table.js` (S06b), `menus.js` (in-mission Esc = MAIN,
-  S09 save/load, S18 pause card), `options-panel.js` (S10), `help.js` (S11), `loading.js` (S14), `briefing.js` (S15/S16),
+  S09 save/load, S18 pause card), `options-panel.js` (S10), `help.js` (S11), `loading.js` (S14), `briefing.js` (S15/S16; its words come from `briefing-text.js`, and the newsreel narration timeline
+  from `briefing-narration.js`, docs/narration.md),
   `notebook.js` (S17), `debrief.js` (S19/S20), `backdrop.js` (`hud.backdrop.setMode('frontend'|'mission'|'paper'|'off')`:
   B1: the M1 moss camo ground, the live diorama (or its baked still) only as a blurred grey soft-light pass, the badge
   as a runtime emboss of `assets/ui/emblem-badge-height.svg`; B2 oxblood frozen frame), `splash-fx.js` (S03 WebGL2 fire
@@ -762,7 +935,13 @@ Menus and full-screen screens follow docs/menus-art-direction.md (S01–S22 + am
   Tap → `Input.click(x, y, {double})` or `hud.cursor.toolAt(x, y)` with a UI tool armed; long press → selection
   toggle (commando) or Shift+click semantics; drag → `CameraController.panScreen` + momentum in `Input.update`;
   pinch → `CameraController.zoomAt(z, cx, cy)` (immediate, anchored, clamped). `hud.touch` adds the CANCEL button
-  (= `Input.rightClick`).
+  (= `Input.rightClick`). The tap that stops a coasting map (or lands within `TOUCH_PAN.stopTapMs` of the coast
+  ending) is used up (`'stop'`, no order). A finger resting on the HUD chrome (`HUD_CHROME`: bag, top bar, MENU …)
+  joins a map finger as the other half of a pinch, and the click it would give on lifting is swallowed.
+  Finger-sized HUD under `html.mk-touch`: `touchHudScales()` (ui/touch.js) gives `--ut` (top bar fitted to its real
+  content) and `--ub` (bag + hand ≈ 1.15–1.2) on top of the desktop `--u`; posture / help are ≥ 44 px wide, top-bar
+  controls get ::after hit pads (≥ 44 × 48 px), a bag tap between slots goes to the nearest slot
+  (`knapsack.nearestSlot`), and the in-mission chrome is `touch-action: none` (no iOS page pinch).
 - Touch / phones (`src/ui/touch.js`, `hud.touch`): `touchFirst()` starts the kit in `device = 'touch'` (big BACK /
   SELECT bar, footer choices as ≥ 44 px buttons, "(ENTER)"/"(ESC)" prefixes dropped); `html.mk-touch` follows the last
   pointer type. Every keyboard-only prompt has a tap: the boot/title splash (`.bt` takes pointer events; "TAP TO
@@ -791,7 +970,9 @@ else in the codebase calls audio directly except the Game (music) and UI clicks.
   Options: `natureSounds`, `laconic`, `cinematicAmbience`, `subtitles`. Options and volumes persist in `localStorage`.
 - Files: `manifest.js` (catalog of §9.3 ids, §9.1 cues, §9.2 layers), `synth.js` (procedural placeholders),
   `voice-lines.js` (§9.4 text/glosses, `VoiceDirector`: cooldowns, priority, one commando voice at a time),
-  `engine.js` (WebAudio graph and inverse-distance law), `event-map.js` (event → sound), `debug-panel.js` (dev overlay).
+  `engine.js` (WebAudio graph and inverse-distance law), `event-map.js` (event → sound), `debug-panel.js` (dev overlay),
+  `narration.js` (`audio.narrator`: the briefing's newsreel narrator; `assets/audio/narration/manifest.json`, its own
+  gain into the voice bus, `volumes.narration`, ducks the music; docs/narration.md).
   Recorded files go in `assets/audio/` via their manifests (see `assets/audio/README.md`), built from the R&D outputs by
   `tools/audio/build_assets.py` (licence gate, Opus + MP3 twins, `assets/audio/CREDITS.md`).
 - Assets (realism-pipeline v2 §1.5): per-mission loading — `mission:loaded` → `missionAudio(def)` (event-map.js) → `engine.preload`
@@ -1098,6 +1279,28 @@ Emitters add the events they own; AUDIO never needs another team to call it.
   those roots get camera layer 7 (`XRAY_LAYER`) enabled; don't use layer 7 for anything else. Look: a rim matcap
   (`post-passes.js xrayMatcap`) — dark team-green fill (`CONFIG.render.xray.color`) with a bright opaque rim (`rim`),
   so the silhouette reads on white snow roofs and on dark roofs/brick alike (art review).
+- Sniper scope magnifier (`render/scope-magnifier.js`, design-spec §5.3): `Game.render` calls `_scopeFrame()` right
+  after `cameraRig.render`, inside the frame's matrix-walk guard. While `hud.cursor.lensState()` is non-null (the
+  rifle's scope cursor over the view) a second OrthographicCamera copies the frame camera (pose, layers, near/far; the
+  active view's camera with several views) with its frustum cut to the 2× square around the cursor's ray, renders
+  world → (water: the water system's own `WaterPass` re-run on the lens targets, `water.camera` swapped for the call) →
+  late FX layer (skipped when the frame's LateFxPass found nothing on it) → decal scene → the valid target's subtree
+  with a faint neutral additive rim matcap into a HalfFloat target
+  (glass radius 36 ref px × HUD scale × canvas pixel ratio × 1.5, ≤ 512 px, × 1.5 margin), then draws a circle-masked quad into the
+  canvas at the cursor (tone mapping + sRGB in its shader; tint, chromatic fringe, vignette, dimmed + desaturated glass on
+  no shot; breathing sway unless reduced motion). Shadow maps and world matrices are the frame's (`shadowMap.autoUpdate` and
+  `matrixWorldAutoUpdate` off for the lens), and its renders reuse three's `info.render.frame` of the last main render of
+  the scene (a `scene.onBeforeRender` hook), so skinned men are not re-skinned and their bone textures not re-uploaded;
+  the counter is restored past every value used. No grade/LUT/AO/bloom in the glass. The reticle DOM (cursor.js) is
+  always near-black; no shot = a dark circle-and-slash mark + greyed range text. Budget: < 0.5 ms CPU a frame,
+  amortised, measured as the mean of `stats.ms` over 60 real rAF frames (tests/sniper-scope; also < 35% of the main
+  render's CPU, GPU < 50%). Cost cuts: top-level scene children (men, vehicles, buildings) whose cached local bounds miss
+  the lens frustum, unculled skinned meshes outside it and count-0 instanced meshes are hidden for the lens draws; no
+  water pass without water in the window. Reuse governor (`lensReuseFrames`): the target is rendered with a 50% margin
+  (`SCOPE.margin`); while the smoothed render cost is over 80% of the budget, up to `SCOPE.maxReuse` (3) following
+  frames composite the old image shifted to the current window (uniforms `uC`/`uK`, the window centre projected through
+  the stored view-projection; same rotation/zoom/target only, inside the margin).
+  Nothing is created until the scope first shows. Touch / gamepad aim: `hud.cursor.setAim(x, y)`.
 - Off-map surround: `setFog` sets `scene.background` to the fog colour × 0.07 — a dark slate border (the original's
   black surround) where the widest zoom shows past a narrow map's edge.
 - QA: `renderer.frameStats()` / `__game.frameStats()` (mean/std RGB, saturation, black fraction, context lost)

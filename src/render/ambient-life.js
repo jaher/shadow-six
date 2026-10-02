@@ -131,7 +131,7 @@ export function createAmbientLife(world, renderer = null, o = {}) {
     const f = e.from || e.shooter; if (f) birds.noise(f.x, f.z, 55);
     const t = e.to; if (fish && t && !e.hit && wet(t.x, t.z)) fish.impulse(t.x, t.z, 2.5, 0.9);
   });
-  on('noise', (n) => { if ((n.radius || 0) >= 10) birds.noise(n.x, n.z, Math.min(70, n.radius * 1.3)); });
+  on('noise', (n) => { if ((n.radius || 0) >= 10 && n.kind !== 'footsteps') birds.noise(n.x, n.z, Math.min(70, n.radius * 1.3)); });
   on('projectile:bounce', (e) => { if (fish && wet(e.x, e.z)) fish.impulse(e.x, e.z, 3.5, 1); });
   on('unit:water', (e) => { const u = e.unit; if (fish && u && (e.what === 'dive' || e.what === 'surface')) fish.impulse(u.x, u.z, 4, 1); });
   const wk = water?.wakes, prevSplash = wk?.onSplash;

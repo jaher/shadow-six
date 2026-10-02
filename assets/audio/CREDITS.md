@@ -86,6 +86,11 @@ am_michael+am_adam, Spy im_nicola+ff_siwis+em_alex), pitch/formant-shifted; acce
 IPA (Hiberno-English, cut-glass RP, broad Australian, Scouse, New York, French L1). Urgent takes, pain sounds
 and the Spy's German use Chatterbox with references rendered from those synthetic blends only. German guards
 use Chatterbox's built-in synthetic voice (B and C tape-shifted).
+
+The briefing narrator (`narration/`) is a newsreel-style announcer made the same way: a blend of stock Kokoro
+voicepacks (am_onyx .4, bm_lewis .3, am_eric .3) read with British G2P at speed 1.20, widened in pitch with
+Praat PSOLA and passed through a synthetic 1940s film-sound chain (docs/narration.md). It is an original voice:
+no real person or announcer was cloned or imitated, and no reference recording was used.
 Offline tools (not shipped): misaki G2P (Apache-2.0), espeak-ng (GPL-3.0), wav2vec2 alignment (Apache-2.0),
 ffmpeg with rubberband (imageio-ffmpeg static build); QA only: faster-whisper (MIT), SpeechBrain
 spkrec-ecapa-voxceleb (Apache-2.0), CommonAccent ECAPA (MIT), VoxLingua107 ECAPA (Apache-2.0).

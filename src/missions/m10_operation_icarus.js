@@ -374,7 +374,7 @@ export default {
   size: [119, 209],
   seed: 1942_1114,
   briefing: {
-    historical: 'Mid-November 1942. El Alamein was won ten days ago, and Rommel\'s army is falling back into Libya, fighting for every mile. At El Agheila it has dug in round an airfield. Yesterday one of our reconnaissance pilots, Captain Gregor McRae of the RAF, was shot down over those lines and taken to the camp beside the field. We want him back.',
+    historical: 'November 1942. Alamein was won ten days ago, and Rommel\'s army is retreating across Libya. Far behind it, at El Agheila, the enemy holds an airfield with a prison camp beside it. Yesterday one of our reconnaissance pilots, Captain Gregor McRae of the RAF, was shot down and taken there. We want him back.',
     text: 'You start in the ruins north-west of the camp. Get McRae out of his cage, and while you are inside, blow up the bomb store on the south side of the compound. If you fancy one of their tanks, help yourself, but think first: only one of them has no crew, and they will hear the engine. Your way home is the Junkers transport on the airfield up the hill to the north, and McRae can fly it. If you find a moment for the two Stukas parked beside it, nobody here will complain. That is all.',
     objectivesSummary: 'Free Captain McRae. Destroy the bomb store with a time bomb. Everyone aboard the Junkers on the airfield, McRae at the controls. The Stukas are a bonus.',
     hints: [

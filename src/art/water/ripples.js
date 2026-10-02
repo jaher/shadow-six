@@ -1,22 +1,24 @@
 /**
  * RippleSim — interactive GPU heightfield (linear wave equation, (h, v) form, fixed 60 Hz steps)
  * in a square world window that follows the camera (texel-snapped scrolling, contents shifted).
- *   texture rgba = (height m, vertical velocity, foam/turbulence 0..1, unused)
+ *   texture rgba = (height m, vertical velocity, foam/turbulence 0..1, wake-crest foam 0..1)
  * disturb(x,z,strength,radius): strength in metres of displacement (negative = push down, e.g. a
- * body falling in); foam is injected proportionally. Wave speed `speed` (m/s) sets the coupling
+ * body falling in); foam is injected proportionally. crest(x,z,strength,radius,amount): a boat's Kelvin-arm
+ * crest dab — height plus short-lived crest foam in .a (fast decay, no spreading) so the V arms stay crisp lines
+ * instead of smearing into the slow, diffusing wash foam in .b. Wave speed `speed` (m/s) sets the coupling
  * k = 4 c^2 dt^2 / dx^2 (clamped for stability).
  */
 import * as THREE from 'three';
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
 
-const MAX_DROPS = 24;
+const MAX_DROPS = 48;
 const VS = /* glsl */`varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 
 const STEP_FS = /* glsl */`
 precision highp float;
 varying vec2 vUv;
-uniform sampler2D src; uniform vec2 shift; uniform float texel, k, damp, foamDecay;
-uniform vec4 drops[${MAX_DROPS}]; uniform int nDrops; uniform vec4 area; // area: minX, minZ, size, _
+uniform sampler2D src; uniform vec2 shift; uniform float texel, k, damp, foamDecay, crestDecay;
+uniform vec4 drops[${MAX_DROPS}]; uniform vec2 dropEnd[${MAX_DROPS}]; uniform int nDrops; uniform vec4 area; // area: minX, minZ, size, _
 uniform sampler2D envTex; uniform float envOn, speed, stepDt; // env: r = water depth (m, <=0 dry/solid), gb = current (m/s)
 vec4 S(vec2 uv){ return (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) ? vec4(0.0) : texture2D(src, uv); }
 void main(){
@@ -25,7 +27,7 @@ void main(){
   vec2 uv = vUv + shift - env.gb*stepDt/area.z;
   vec4 c = S(uv);
   // walls: banks, piers, rocks and hulls in the bed capture reflect ripples (h = 0 on dry cells)
-  if (env.r <= 0.03) { gl_FragColor = vec4(0.0, 0.0, c.b*0.9, 1.0); return; }
+  if (env.r <= 0.03) { gl_FragColor = vec4(0.0, 0.0, c.b*0.9, 0.0); return; }
   float avg = 0.25*(S(uv+vec2(texel,0.)).r + S(uv-vec2(texel,0.)).r + S(uv+vec2(0.,texel)).r + S(uv-vec2(0.,texel)).r);
   // shallow water slows the waves: c = min(c_deep, sqrt(g*d))
   float cl = min(speed, sqrt(9.81*env.r));
@@ -39,14 +41,17 @@ void main(){
   // foam: decays, spreads a little, is fed by strong velocity (breaking at the wake crest)
   float fAvg = 0.25*(S(uv+vec2(texel,0.)).b + S(uv-vec2(texel,0.)).b + S(uv+vec2(0.,texel)).b + S(uv-vec2(0.,texel)).b);
   c.b = mix(c.b, fAvg, 0.25)*foamDecay + clamp(abs(c.g)*4.0 - 0.02, 0.0, 0.025);
+  c.a *= crestDecay;
   vec2 world = area.xy + vUv*area.z;
   for (int i = 0; i < ${MAX_DROPS}; i++) {
     if (i >= nDrops) break;
     vec4 d = drops[i];
-    float r = length(world - d.xy)/d.w;
-    if (r < 1.0) { float b = 0.5 + 0.5*cos(r*3.14159265); float h = sign(d.z)*fract(abs(d.z)); float fo = floor(abs(d.z))/100.0; c.r += h*b; c.b = min(1.0, c.b + (abs(h)*1.5 + fo*0.5)*b); }
+    vec2 pa = world - d.xy, ba = dropEnd[i] - d.xy;                       // capsule: a dab drawn along a segment
+    float r = length(pa - ba*clamp(dot(pa, ba)/max(dot(ba, ba), 1e-6), 0.0, 1.0))/abs(d.w);
+    if (r < 1.0) { float b = 0.5 + 0.5*cos(r*3.14159265); float h = sign(d.z)*fract(abs(d.z)); float fo = floor(abs(d.z))/100.0; c.r += h*b;
+      if (d.w < 0.0) c.a = max(c.a, fo*b); else c.b = min(1.0, c.b + (abs(h)*1.5 + fo*0.5)*b); } // w < 0: wake-crest dab
   }
-  gl_FragColor = vec4(c.rgb, 1.0);
+  gl_FragColor = c;
 }`;
 
 export class RippleSim {
@@ -63,10 +68,11 @@ export class RippleSim {
       wrapS: THREE.ClampToEdgeWrapping, wrapT: THREE.ClampToEdgeWrapping });
     this.a = mk(); this.b = mk();
     this.drops = []; this.pending = [];
-    for (let i = 0; i < MAX_DROPS; i++) this.drops.push(new THREE.Vector4());
+    this.dropEnd = [];
+    for (let i = 0; i < MAX_DROPS; i++) { this.drops.push(new THREE.Vector4()); this.dropEnd.push(new THREE.Vector2()); }
     this.mat = new THREE.ShaderMaterial({ vertexShader: VS, fragmentShader: STEP_FS, depthTest: false, depthWrite: false,
       uniforms: { src: { value: null }, shift: { value: new THREE.Vector2() }, texel: { value: 1 / this.res }, k: { value: 0.05 },
-        damp: { value: this.damping }, foamDecay: { value: 0.993 }, drops: { value: this.drops }, nDrops: { value: 0 },
+        damp: { value: this.damping }, foamDecay: { value: 0.993 }, crestDecay: { value: 0.955 }, drops: { value: this.drops }, dropEnd: { value: this.dropEnd }, nDrops: { value: 0 },
         area: { value: new THREE.Vector4() }, envTex: { value: null }, envOn: { value: 0 }, speed: { value: this.speed }, stepDt: { value: 1 / 60 } } });
     this.quad = new FullScreenQuad(this.mat);
     this.acc = 0;
@@ -119,6 +125,16 @@ export class RippleSim {
     if (this.pending.length < 256) this.pending.push([x, z, packed, Math.max(radius, 1.5 * this.size / this.res)]);
   }
 
+  /**
+   * Wake-crest dab: height `strength` (m) plus crest foam `amount` 0..1 in .a (decays in ~0.25 s, never spreads),
+   * drawn as a capsule from (x, z) to (x1, z1) when given (a stretch of a Kelvin arm between two crest particles).
+   */
+  crest(x, z, strength = 0.01, radius = 0.3, amount = 0.5, x1 = x, z1 = z) {
+    const h = Math.max(-0.99, Math.min(0.99, strength)), f = Math.round(Math.max(0, Math.min(1, amount)) * 100);
+    const packed = (h < 0 ? -1 : 1) * (f + Math.abs(h));
+    if (this.pending.length < 256) this.pending.push([x, z, packed, -Math.max(radius, 1.5 * this.size / this.res), x1, z1]);
+  }
+
   /** Recentre the window on (cx, cz) world metres; contents are shifted by whole texels. */
   follow(cx, cz) {
     const cell = this.size / this.res;
@@ -144,7 +160,7 @@ export class RippleSim {
       const s = first && this._shift ? this._shift : [0, 0];
       u.shift.value.set(s[0], s[1]);
       const n = first ? Math.min(this.pending.length, MAX_DROPS) : 0;
-      for (let i = 0; i < n; i++) { const d = this.pending[i]; this.drops[i].set(d[0], d[1], d[2], d[3]); }
+      for (let i = 0; i < n; i++) { const d = this.pending[i]; this.drops[i].set(d[0], d[1], d[2], d[3]); this.dropEnd[i].set(d[4] ?? d[0], d[5] ?? d[1]); }
       u.nDrops.value = n;
       if (first) { this.pending.splice(0, n); this._shift = null; }
       first = false;

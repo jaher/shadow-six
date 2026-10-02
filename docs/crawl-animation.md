@@ -70,8 +70,12 @@ We use the **FM low crawl body** (flat, weapon carried per doctrine) with a **le
 
 - The legs **alternate** between strokes, not the firing-side leg only as in the FM. An alternating, symmetric loop is less mechanical and reads better from the
   isometric camera.
-- **Both forearms work together**, because the rifle lies across them. The elbow opposite the pushing leg **leads by about 8% of the cycle**,
-  the contralateral coordination of the high crawl. This gives a visible left/right rhythm while both elbows stay on the ground.
+- **The forearms ALTERNATE** (user, 2026-09-30: *"when crawling alternate between left / right arm, don't use both arms"*).
+  This is the contralateral coordination of the FM high crawl ("alternately advance your right elbow and left knee, then your
+  left elbow and right knee") on the low-crawl body: the left elbow plants with the right knee drawn up and pulls while the right
+  leg pushes, as the right forearm (rifle on it) skims forward; then they swap. The elbows stay on the ground (the reaching one
+  skims 1 to 1.5 cm up) and the weapon stays in the right fist. *First build (superseded): both forearms pulled together, the
+  contralateral elbow leading by 8% of the cycle.* See §10 for the as-built numbers.
 
 ### 3.2 Contact rules (always true in `crawl` and `crawl_idle`)
 
@@ -103,6 +107,8 @@ We use the **FM low crawl body** (flat, weapon carried per doctrine) with a **le
   shoulder). That "wings-out" pull is the characteristic leopard-crawl silhouette.
 
 ### 3.4 Keyframes (per 0.25 cycle; the second half mirrors the first)
+
+> **Superseded for the arms by §10:** the elbows now alternate (left elbow with the right knee, then right elbow with the left knee). The leg, pelvis and head columns still hold.
 
 Space: the root follows the ground at constant v. +Z is forward, +X is the character's left, Y is up, in metres, for the 1.80 m UAL body.
 **Elbow and hand values are relative to the same-side shoulder joint (`upperarm_*`)**. Leg values are relative to the pelvis.
@@ -180,10 +186,23 @@ is enough (`overrideUpper`-style, with the elbow effector paths shared).
 
 | Clip | Duration | Keys |
 |---|---|---|
-| **`go_prone`** (stand → prone) | **0.50 s** (spec) | 0.00 standing, weapon slung or in hand → **0.12** drop straight down onto **both knees** (pelvis y 0.92 → 0.55). The right hand takes the weapon at the front swivel (FM: slide a hand to the rifle) and the left hand reaches forward → **0.25** torso pitches 60° forward and the **left palm plants** about 0.5 m ahead of the knees (the only moment a palm carries weight). The legs start kicking back → **0.38** the chest lowers past the left arm and the left forearm lays flat. The legs are straight back and the right forearm with the weapon is set down → **0.50** exactly `crawl_idle` frame 0 (elbows planted). **No root motion:** there is no forward step. The knees land under the hips (z ≈ +0.05), the body pivots forward over the knees and the legs slide back, so the **pelvis ends over the root (z 0)** like every prone clip, and the head ends about 0.65 m ahead of the unit's position. |
-| **`get_up`** (prone → stand) | **0.60 s** (spec) | FM order: 0.00 prone idle → **0.10** head up, arms drawn in, elbows in, hands under the shoulders (the right fist around the weapon, the left palm flat) → **0.22** **right knee pulled forward** under the hip, push up by straightening the arms, chest 0.35 m up → **0.35** on the right knee and the left foot (a kneel), the torso rising, the weapon coming up in the right hand → **0.48** drive up off the left leg, the right foot comes through → **0.60** exactly `idle` frame 0. The pelvis stays over the root, and the right knee and then the feet come in under it, so there is no root motion. |
+| **`go_prone`** (stand → prone) | **0.50 s** (= `CONFIG.units.stanceDown`) | The `get_up` path played backward with a quicker drop: 0.00 idle → **0.06** the right foot steps back (a lunge), the left stays planted → **0.14** down onto the right knee, the left foot forward (a kneel), hands off the ground → **0.27** both hands planted ahead (left palm flat, right fist on the weapon), the left leg swung back on an arc, toes on the ground (a one-knee push-up) → **0.42** the chest lowered between the hands, the right knee slides back to the prone line → **0.50** the hands slide forward just over the ground to `crawl_idle` frame 0 (elbows planted). |
+| **`get_up`** (prone → stand) | **0.60 s** (= `CONFIG.units.stanceUp`) | 0.00 `crawl_idle` frame 0 → **0.10** head up, the hands drawn in under the shoulders, just over the ground (left palm flat, right fist around the weapon) → **0.25** push-up: arms straight, chest up, the **right knee drawn 7 cm forward along the ground under the hip**, the left toes on the ground → **0.37** rocked back onto the right knee (it does not slide), hands off the ground, the **left foot swung forward on an arc and planted** where `idle` has it → **0.47** driving up off the left leg; the right toes pivot in place (heel up), then the right foot steps through on an arc → **0.60** exactly `idle` frame 0. |
 | **`dive_prone`** (optional, run → prone) | 0.70 s | FM rush stop: plant both feet, drop to the knees, fall forward **breaking the fall with the rifle butt** (unarmed: both forearms), then slide 0.2 m. Use when a prone order arrives while running. |
 | **Crawl start / stop** | (blend) | `crawl_idle` ↔ `crawl` crossfade 0.15 s, phase-matched: enter at t = 0.00 or 0.50 (the catch pose, whichever foot is closer). Stopping waits for the next catch (≤ 0.25 s) or blends out at the finish. |
+
+As built (2026-10, `tools/characters/prone/stance_trans.mjs`; the first version slerped five key poses and its left leg swung
+through the ground between 0.22 and 0.35 s, so the contact solve lifted the whole body and the pelvis spiked 0.97 → 0.66 m mid-rise: in
+the game a floating lunge with the hands off the ground): one shared path over six key poses (PRONE, HANDS, PUSH, KNEEL, RISE, IDLE). Torso and arms
+blend per bone between them; the hip centre (monotone cubic height, its z from the kneeling knee), both legs (two-bone IK to explicit knee /
+ankle / toe targets with the foot's world rotation) and the planted hands are solved every frame, so the hip rises (falls) monotonically,
+nothing passes through the ground, nothing levitates and contacts hold (kneeling knee and planted feet < 3 cm). Per-frame hand-plant weights
+ship as `contacts.hd`; `prone-fit.js` (step 4h) bends this body's trunk forward (<= 25°) and lets the arms reach so the palms stay on the
+ground on every body, and for transitions lifts the whole body only over a knee / shin (boots and forearms are fitted per limb). Every
+runtime plays the transition over exactly the sim's stance time (`h.trDur` / unit-model `speed`), the fade into `get_up` is 0.1 s (a longer
+cross-fade from `crawl_idle` dipped the fingers 7 cm into the ground), and a knife crawl-in keeps the knife in the fist (`crawl_knife` grip
+through `go_prone` / `get_up`). Tests: `tests/unit/stance-transitions.test.mjs`, `tests/stance-transitions.test.mjs`; strip
+`docs/screenshots/stance-transitions.jpg`.
 
 ### 4.5 Prone death (`die_prone` → `dead_prone`)
 
@@ -280,10 +299,9 @@ transitions. Keep ACCAD's `A8_CrouchToLie` / `A10_LieToCrouch` as an optional up
 
 ## 7. One-paragraph brief (for the modeller or animator)
 
-Flat on the belly, head up looking along the ground, helmet the highest point. **Both elbows and forearms on the ground**, forearms angled in so the fists meet
-in front of the chin. The right fist holds the rifle at the front sling swivel, the rifle **rests on the right forearm**, muzzle up off the dirt and butt dragging
-by the hip. Each stroke (0.5 s): reach both forearms forward while one knee draws up **sideways along the ground**, then pull with the forearms and push off
-the inside of that boot. The body surges about 10 cm, the hips roll 12° toward the drawn knee, and the next stroke uses the other leg. Two strokes per second-long
+Flat on the belly, head up looking along the ground, helmet the highest point. **Elbows and forearms on the ground**, forearms angled in. The right fist holds the rifle at the front sling swivel, the rifle **rests on the right forearm**, muzzle up off the dirt and butt dragging
+by the hip. Each stroke (0.45 s): **one** forearm reaches forward while the **opposite** knee draws up **sideways along the ground**, then that elbow pulls and that boot
+pushes off its inside edge, while the other forearm skims forward for the next stroke (left elbow + right knee, then right elbow + left knee). The body surges about 10 cm, the hips roll 12° toward the drawn knee, and the next stroke uses the other leg. Two strokes per second-long
 cycle cover 0.9 m. Palms never carry weight, and boot soles never face the sky.
 
 ## 8. As built
@@ -359,3 +377,26 @@ defects. All of them are fixed:
 | go_prone: 10-14 cm "knee" penetration at 0.05-0.15 s (it was the toes: the 0.2 s cross-fade from the standing foot to the kneeling one); the slung rifle stuck up off the back; get_up snapped the rifle from the hands to the back | Cross-fade into go_prone is 0.08 s (unit-model, guestkit, ca_runtime), since go_prone starts on the idle frame. Transition fits also lift the body over its lowest limb. go_prone / get_up now carry the gun in the right fist (crawl grip, `BY_CLIP`), with the right-hand keys re-authored so the rifle is carried low and forward. The hand-over blend moves it between the sling and the hands |
 | Slopes: uphill, joints 3-5 cm lower than on the flat | `prone-ground.js`: the slope tilt now turns the body about the unit origin on the ground. Only the lagging heading pivots about the chest. Pivoting the tilt about the chest had sunk the body by 0.3·tan(slope). On the M1 drift the minimums are now elbow 0.036 m, knee 0.048 m and toe 0.056 m |
 | Enemy (zoomed-out) crawl updated every other frame | `humanoid-real.js`: the LOD half-rate mixer step is skipped for the moving crawl clips (planted contacts move against the root every frame) |
+
+## 10. Alternating elbows (third pass, feat/locomotion)
+
+User (2026-09-30, while playing): *"when crawling alternate between left / right arm, don't use both arms"*. The first two
+builds pulled with both forearms at once. The crawl is now a **contralateral elbow crawl** (FM high-crawl rhythm on the
+low-crawl body); legs, body speed, grips and the weapon carry are unchanged.
+
+| | As built (`crawl.mjs`, `ARM`) |
+|---|---|
+| Rhythm | Left elbow + right knee pull / push through the first half (0.45 s), right elbow + left knee through the second. The arms run exactly half a cycle apart |
+| Plant | Each elbow lands at 8% of a half *before* its own half (on the slow glide) and lifts at 84% of it: planted 0.41 s per cycle (46%), never both at once; a 36 ms glide with neither planted |
+| Pull | Shoulder travel past the planted elbow `PULL_A` = 0.26 m: catch 0.13 m ahead of the shoulder, finish 0.13 m behind it, on the upper-arm circle |
+| Reach | The free forearm (with the rifle, on the right) skims forward 1 to 1.5 cm up, swinging out round the shoulder. Its motion eases in and out **in the world**, so it peels off and settles onto the ground at rest (no slide into or out of a plant). Fists reach 0.38 m ahead of the shoulder at each catch |
+| Shoulders | Torso flat. Per side, the scapula slides (protracted 6 cm at the catch, retracted at the finish) and the pulling shoulder alone lifts by clavicle elevation (solved per frame so its upper arm reaches the elbow exactly). The chest rolls ±6° with the arms (pulling shoulder up mid-pull), the hips ±8° with the legs. Shoulder joints 0.218 to 0.243 m |
+| Weapon | Unchanged hold: right fist at the front swivel, handguard on the right forearm, butt dragging. The grip frame is built at the right elbow's catch (t = T/2) |
+| Turning on the spot | `prone_turn_l/_r`: the elbows step one at a time, half a loop apart |
+| Idle / transitions | `crawl_idle`, `go_prone`, `get_up`, aim and death clips keep the symmetric idle pose (both elbows at the catch). Entering the crawl at t = 0 matches the left arm; the right forearm blends back into its reach in the 0.2 s cross-fade |
+
+**Checks:** `tests/unit/prone-anims.test.mjs` "elbows ALTERNATE": per cycle the left and right elbow forward-travel peaks are
+0.5 ± 0.1 cycle apart, each elbow strokes > 18 cm, the planted runs (almost) never overlap, both forearms never swing
+forward together, the knee drawn up at an elbow's catch is the opposite one, and planted boots slide < 3 cm. The planted
+elbow skate (< 1.5 cm) and flat-chest checks still hold. `tests/crawl.test.mjs` (in game, M02 Sniper): each forearm swings
+in turn and never together (`alt.both` = 0), planted elbows 0.06 m/s. Strip: `docs/screenshots/crawl-alternate-strip.jpg`.

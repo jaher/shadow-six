@@ -52,6 +52,7 @@ Contents: §0 hard rules and rule layering · §1 module map and data flow · §
 | `dropWhenShot` | **on** | off | A carrier or dragger who takes damage drops his load at once (§C.4) |
 | `ragdollAllDeaths` | on | on | Every death ends in a short ragdoll settle on the terrain (§A.4) |
 | `physicsGameplay` | **on** | off | A thrown / settled body's resting place, a toppled prop's nav / LOS footprint and a guard knocked off his feet (§A.5) count for gameplay. Off = the 1998 behaviour: physics is drawn but bodies keep their death spot, cover keeps its footprint, blast throws are a slump |
+| `runningNoise` | **on** | off | Guards hear a commando running upright near them: a level-1 `footsteps` noise every 2.7 m, its radius by the surface underfoot (design-spec §4.4 "Running is heard"). Walking, crawling, swimming and a disguised Spy stay silent. Off = BEL: movement is silent |
 
 - A house rule is read at mission load and stays fixed until the mission ends. The save file stores `world.house`, so
   loading a save restores the rules it was made with. Changing the option mid-mission takes effect at the next load or
@@ -590,6 +591,21 @@ Common restrictions (spec §3.4 and §4.7, both modes):
   at exactly 1.0 s. `c.carryMode = 'shoulder'`.
 - **Moving**: `carry_walk` / `carry_idle` as today (1.6 m/s, `CONFIG.units.carry`). The body is attached by the
   existing `carried` pose (pivot on the pelvis) at the shoulder socket, and bleeding bodies drip (§B.5).
+- **Legs (carry-legs fix)**: the carrier's / dragger's clip is chosen once per state (`Commando._holdAnim`, asked by
+  `Unit._updateAnim`) so the gait plays at speed; before, walk and carry_walk swapped every tick, which restarted the
+  mixer and froze his legs mid-stride. The load's limbs swing with each of his steps (`art/carry-gait.js` springs,
+  `loadGait` in art/transport-contact.js): shins and arms over the shoulder swing fore and aft, a dragged man's legs
+  wiggle and his knees bump at every tug. The hold pose's 35° torso pitch tipped his legs ~0.45 m into the ground;
+  `groundDraggedLegs` now swings each leg back up by two-bone IK so the ankle trails 0.08 m above the terrain (any
+  depth; keeping the pose's / the knee bump's reach and sideways swing), a rise followed at once, a dip settled into
+  over ~0.4 s, eased in / out over grab, toDrag, release and toShoulder (`dragGroundWeight`); through the rest of any
+  lift / lower an ankle is only kept out of the snow. In a transition the ground level is the transporter's: lowered
+  from the shoulder (toDrag) the load's own y is still the 1.2 m carry height, which aimed the heels (and the drag end
+  key's pelvis) 1.2 m up: his legs kicked out at the carrier's chest and snapped down when the lower ended. Lowered
+  into the drag his ankles now stay -0.003 to +0.07 m on the snow (bodies-dragcarry `lowerHeels`); frames:
+  docs/screenshots/carry-legs-lower-to-drag.jpg. Standing still, the
+  springs settle; only the `carried` clip's slight sway remains. Before/after: docs/screenshots/carry-legs-before-after.jpg;
+  dragged legs side / front: docs/screenshots/carry-legs-drag-heels.jpg.
 - **Put down gently**: right-click, **0.8 s** (spec §3.3, unchanged), with the new `put_down` clip. He kneels, the body
   slides off to lie on its side or back, and a small settle follows.
 
@@ -818,7 +834,7 @@ bodies-downed|bodies-ai|bodies-rules|bodies-save.test.mjs` + a classic1998 case 
   at the gameplay position and the chest pulled under the dragger's hands.
 - **Deviations**: DOWNED lies PRONE (like the design's crawl fallbacks) — a supine idle would flip on every crawl
   order. The drag ragdoll constraint (§C.2 first bullet) is not built: every tier uses the authored `being_dragged`
-  pose, with the heels grounded by two-bone IK (`groundDraggedLegs`: each ankle eased to the terrain height over ~0.4 s). The shouldered body's ragdoll
+  pose, with the heels grounded by two-bone IK (`groundDraggedLegs`: each leg swung up so the ankle trails 0.08 m above the terrain; a dip eased over ~0.4 s). The shouldered body's ragdoll
   fall is started from a lying template raised ~1.1 m (the settle template), not from the carried pose.
 - **Not done / open**: the briefing notebook does not yet print a mission's forced house rules; no voice pack for the
   rescue lines (synth + subtitles); no minimap tooltip for the downed dot.
@@ -869,6 +885,8 @@ GAME PREFERENCES gains a **RULES** group:
 - `rulesPreset`: `SHADOW SIX` (default) | `CLASSIC 1998` | `CUSTOM` (set automatically when a toggle differs from a
   preset). The detail pane for CLASSIC 1998 says: "Exactly the 1998 rules: only the Green Beret and the Spy move
   bodies, and any death fails the mission."
+  Options saved before a house rule existed take that rule's value from their saved preset (`loadOptions`), so a
+  CLASSIC 1998 player stays CLASSIC 1998 when a new rule arrives.
 - `dragBodies`: DRAG BODIES (ALL COMMANDOS). Description: "Any commando can drag a body, slowly and walking backwards.
   Not in the 1998 original."
 - `buddyRescue`: BUDDY RESCUE. Description: "A commando at 0 health is downed for 60 s instead of dying. Drag or carry
@@ -876,6 +894,9 @@ GAME PREFERENCES gains a **RULES** group:
 - `dropWhenShot`: DROP BODIES WHEN HIT. Description: "A man carrying or dragging a body drops it when he is hit. Not in
   the 1998 original."
 - `ragdollAllDeaths` (VIDEO or GAME, visual): BODIES SETTLE WITH PHYSICS.
+- `runningNoise`: RUNNING IS HEARD. Description: "Guards hear a commando running nearby, louder on roads, decks and
+  floors, quieter on grass, sand and mud. Walking and crawling stay silent. Not in the 1998 original." Its companion
+  display option `noiseRings` (NOISE RINGS, default on) draws a faint ring from the runner's feet to the hearing radius.
 
 The existing `blood` and `censored` options gate §B. The options take effect at the next mission start or load; the
 panel says so while a mission is running.

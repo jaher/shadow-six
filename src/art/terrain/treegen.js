@@ -11,11 +11,15 @@ let UP = null;
 /** Provide the three.js namespace (main thread: vegetation.js; worker: treegen.worker.js). */
 export function useThree(T) { THREE = T; UP = new T.Vector3(0, 1, 0); }
 import { rng } from './noise.js';
+import { makeBroadleaves } from './broadleaf.js';
+import { makeShrubs } from './shrubs.js';
+import { makePalms } from './palms.js';
 import { makeConifers, NEEDLE_LAYERS } from './conifers.js';
 export { NEEDLE_LAYERS };
 
 // Foliage card layers (assets/foliage.json: <name>_0, <name>_1 → layer 2*i + v) and bark layers (assets/bark.json)
-export const LEAF_LAYERS = ['oak', 'beech', 'birch', 'poplar', 'plane', 'olive', 'hedge', 'scrub', 'spruce', 'fir', 'pine', 'palm', 'palmdry'];
+export const LEAF_LAYERS = ['oak', 'beech', 'birch', 'poplar', 'plane', 'olive', 'hedge', 'scrub', 'spruce', 'fir', 'pine', 'palm', 'palmdry',
+  'willow', 'ash', 'apple', 'hazel', 'acacia', 'brown', 'twig', 'ivy', 'gorse', 'palmleaf'];
 export const BARK_LAYERS = ['oak', 'beech', 'birch', 'poplar', 'plane', 'olive', 'pine', 'spruce', 'palm', 'dead', 'burnt', 'generic'];
 
 /**
@@ -80,7 +84,59 @@ export const SPECIES = {
   shrub: { kind: 'bush', bark: 'generic', leaf: 'hedge', H: [1.0, 1.8], R: [0.7, 1.2], cards: 40, leafSize: [0.7, 1.0] },
   desert_shrub: { kind: 'bush', bark: 'dead', leaf: 'scrub', H: [0.5, 1.1], R: [0.5, 1.0], cards: 22, leafSize: [0.5, 0.8], sparse: 0.35 },
 };
-SPECIES.cypress = { ...SPECIES.poplar, leaf: 'fir', bark: 'pine', H: [8, 14], r0: [0.18, 0.26], leafSize: [0.8, 1.1] };
+// pass 2 (broadleaf.js): crown envelope (crown profile, crownBase/wr ranges as fractions of H), weeping, shade gaps,
+// winter twig spray (0 purple-brown birch-like, 1 grey), marcescent leaf variant (brown_0 oak, brown_1 beech), tints
+Object.assign(SPECIES.oak, { crownBase: [0.28, 0.4], wr: [0.42, 0.56], trunk: 0.62, twig: 1, marcV: 0, gap: 0.12, lean: 0.08, roots: true });
+Object.assign(SPECIES.beech, { crown: 'ovoid', crownBase: [0.2, 0.32], wr: [0.32, 0.42], trunk: 0.8, twig: 1, marcV: 1, sprayW: 1.15, roots: true });
+Object.assign(SPECIES.plane, { crownBase: [0.32, 0.45], wr: [0.38, 0.5], twig: 1, roots: true });
+Object.assign(SPECIES.poplar, { crownBase: [0.05, 0.12], wr: [0.1, 0.14], twig: 0 });
+Object.assign(SPECIES.birch, { crownBase: [0.3, 0.45], wr: [0.2, 0.28], weep: 0.35, twig: 0, twigSpray: 0, sprayW: 0.85 });
+Object.assign(SPECIES.olive, { crown: 'round', crownBase: [0.35, 0.5], wr: [0.45, 0.6], twig: 1 });
+Object.assign(SPECIES.dead_tree, { crownBase: [0.35, 0.5], wr: [0.3, 0.42] });
+const BROAD_LEVELS = (a1, t1, g1, n2 = 5, n3 = 4) => [
+  { seg: 10, radial: 10, children: 6, start: 0.3, angle: a1, lenRatio: 0.62, radRatio: 0.55, gnarl: 0.1, tropism: 0.04 },
+  { seg: 7, radial: 7, children: n2, start: 0.2, angle: 45, lenRatio: 0.55, radRatio: 0.5, gnarl: g1, tropism: t1 },
+  { seg: 4, radial: 4, children: n3, start: 0.25, angle: 45, lenRatio: 0.5, radRatio: 0.55, gnarl: 0.25, tropism: 0.02 },
+  { seg: 2, radial: 3, children: 0 }];
+Object.assign(SPECIES, {
+  willow: { kind: 'broad', bark: 'oak', leaf: 'willow', H: [8, 14], r0: [0.3, 0.45], crown: 'round', crownBase: [0.2, 0.3], wr: [0.45, 0.58], flare: 0.6,
+    weep: 0.6, pollard: 0.5, twig: 0, levels: BROAD_LEVELS(45, 0.02, 0.2, 6, 5), leafLevel: 2, leaves: 5, leafSize: [1.2, 1.7], leafStart: 0.2, sprayW: 0.8, lt: [1.02, 1, 0.96] },
+  ash: { kind: 'broad', bark: 'beech', leaf: 'ash', H: [12, 20], r0: [0.24, 0.36], crown: 'oval', crownBase: [0.3, 0.42], wr: [0.27, 0.36], flare: 0.4,
+    gap: 0.22, twig: 1, levels: BROAD_LEVELS(35, 0.06, 0.12, 5, 3), leafLevel: 2, leaves: 3, leafSize: [1.3, 1.8], leafStart: 0.4 },
+  alder: { kind: 'broad', bark: 'oak', leaf: 'hazel', H: [10, 16], r0: [0.18, 0.28], crown: 'oval', crownBase: [0.15, 0.25], wr: [0.24, 0.32], flare: 0.3,
+    twig: 0, levels: BROAD_LEVELS(60, 0.0, 0.12, 4, 3), leafLevel: 2, leaves: 5, leafSize: [0.9, 1.3], leafStart: 0.3, lt: [0.8, 0.86, 0.82], bt: [0.75, 0.75, 0.78] },
+  apple: { kind: 'broad', bark: 'olive', leaf: 'apple', H: [4, 6.5], r0: [0.14, 0.22], crown: 'round', crownBase: [0.28, 0.38], wr: [0.5, 0.66], trunk: 0.45, flare: 0.4,
+    twig: 1, levels: BROAD_LEVELS(55, 0.04, 0.3, 4, 4), leafLevel: 2, leaves: 6, leafSize: [0.8, 1.1], leafStart: 0.25 },
+  hawthorn: { kind: 'broad', bark: 'generic', leaf: 'hedge', H: [4, 7], r0: [0.1, 0.16], stems: [1, 3], crown: 'round', crownBase: [0.15, 0.3], wr: [0.38, 0.5], trunk: 0.5,
+    flare: 0.3, twig: 1, levels: BROAD_LEVELS(50, 0.02, 0.35, 5, 4), leafLevel: 2, leaves: 6, leafSize: [0.8, 1.1], leafStart: 0.2 },
+  horse_chestnut: { kind: 'broad', bark: 'oak', leaf: 'plane', H: [14, 20], r0: [0.3, 0.45], crown: 'ovoid', crownBase: [0.2, 0.3], wr: [0.38, 0.46], flare: 0.5,
+    gap: 0.04, fill: 0.5, twig: 1, roots: true, levels: BROAD_LEVELS(45, 0.04, 0.12, 5, 4), leafLevel: 2, leaves: 6, leafSize: [1.2, 1.7], leafStart: 0.3, lt: [0.86, 0.92, 0.86] },
+  acacia: { kind: 'broad', bark: 'olive', leaf: 'acacia', H: [4.5, 7.5], r0: [0.14, 0.24], stems: [1, 2], crown: 'umbrella', crownBase: [0.42, 0.55], wr: [0.5, 0.65],
+    trunk: 0.5, flare: 0.3, gap: 0.2, fill: 0.2, twig: 1, levels: BROAD_LEVELS(42, 0.0, 0.3, 5, 4), leafLevel: 2, leaves: 3, leafSize: [1.0, 1.4], leafStart: 0.4, lean: 0.25, lt: [1.1, 1.08, 0.98] },
+});
+// shrubs.js: envelope shape (dome | hedge | box | wedge), stems, side shoots per stem, shell sprays (cards)
+Object.assign(SPECIES.hedge, { shape: 'hedge', stems: [6, 10], shoots: 5, cards: 110, leafSize: [0.8, 1.15], twig: 1, deciduous: true });
+Object.assign(SPECIES.shrub, { shape: 'dome', stems: [4, 7], shoots: 4, cards: 55, leafSize: [0.7, 1.0], twig: 1, deciduous: true });
+Object.assign(SPECIES.desert_shrub, { shape: 'dome', stems: [5, 9], shoots: 3, cards: 34, leafSize: [0.5, 0.8], R: [0.6, 1.1], H: [0.6, 1.3], evergreen: true });
+Object.assign(SPECIES, {
+  hazel: { kind: 'bush', shape: 'vase', bark: 'generic', leaf: 'hazel', H: [2.2, 3.8], R: [1.2, 1.8], stems: [6, 12], shoots: 3, cards: 60, leafSize: [0.9, 1.3], stemR: 0.03, arch: 1, twig: 0, deciduous: true },
+  box: { kind: 'bush', shape: 'box', bark: 'generic', leaf: 'hedge', leafV: 1, H: [0.5, 0.8], R: [0.6, 0.9], stems: [3, 4], shoots: 2, cards: 90, leafSize: [0.3, 0.42], lt: [0.72, 0.82, 0.72], evergreen: true },
+  gorse: { kind: 'bush', shape: 'dome', bark: 'generic', leaf: 'gorse', H: [1.0, 1.8], R: [0.8, 1.3], stems: [6, 10], shoots: 4, cards: 70, leafSize: [0.7, 1.0], evergreen: true },
+  sea_buckthorn: { kind: 'bush', shape: 'wedge', bark: 'generic', leaf: 'olive', H: [1.2, 2.2], R: [1.0, 1.6], stems: [5, 9], shoots: 4, cards: 70, leafSize: [0.7, 1.0], lt: [1.05, 1.06, 1.12], sculpt: true, evergreen: true },
+});
+// palms.js: dates (orange bunches, Aug–Dec), suckers (share with offshoots), pruned (town: no skirt, no suckers)
+Object.assign(SPECIES.date_palm, { dates: true, suckers: 0.6, r0: [0.24, 0.31] });
+SPECIES.date_palm_town = { ...SPECIES.date_palm, dates: false, pruned: true, H: [6, 11] };
+SPECIES.canary_palm = { kind: 'palm', form: 'canary', bark: 'palm', leaf: 'palm', H: [7, 12], r0: [0.34, 0.44], pruned: true, lt: [0.95, 1.08, 0.9] };
+SPECIES.acacia_shrub = { ...SPECIES.acacia, H: [1.8, 2.6], stems: [2, 3], crownBase: [0.2, 0.32], wr: [0.42, 0.52], trunk: 0.35, levels: [
+    { seg: 6, radial: 6, children: 5, start: 0.3, angle: 45, lenRatio: 0.7, radRatio: 0.55, gnarl: 0.2, tropism: 0.02 },
+    { seg: 4, radial: 4, children: 4, start: 0.25, angle: 50, lenRatio: 0.55, radRatio: 0.5, gnarl: 0.3, tropism: 0.0 },
+    { seg: 2, radial: 3, children: 0 }], leafLevel: 1, leaves: 2, leafSize: [0.6, 0.9], gap: 0.3, fill: 0.05, lean: 0.1, lt: [1.15, 1.1, 0.95] };
+SPECIES.cypress = { ...SPECIES.poplar, leaf: 'fir', bark: 'pine', H: [8, 14], r0: [0.18, 0.26], leafSize: [0.8, 1.1], evergreen: true };
+SPECIES.olive.evergreen = true;
+// forest floor (forest-fill.js understorey): brambles (semi-evergreen, dark in winter), fallen boughs
+SPECIES.bramble = { kind: 'bush', shape: 'dome', bark: 'generic', leaf: 'hedge', leafV: 0, H: [0.55, 1.0], R: [0.9, 1.6], stems: [5, 9], shoots: 3, cards: 38, leafSize: [0.5, 0.75], arch: 1, lt: [0.66, 0.7, 0.62], evergreen: true };
+SPECIES.fallen = { kind: 'broad', bark: 'dead', leaf: null, H: [2.5, 6], r0: [0.06, 0.14], fallen: true, levels: [{ seg: 2, radial: 3, children: 0 }] };
 SPECIES.spruce_snow = SPECIES.spruce;
 
 const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
@@ -204,194 +260,26 @@ function bendNormals(acc, from, centre, radii, k = 0.75) {
 
 function rotateAbout(v, axis, ang) { return v.clone().applyAxisAngle(axis, ang); }
 
-/** Recursive broadleaf / dead tree. */
-function genBroad(sp, r, H, q, bark, leaves, tint, leafTint, phase) {
-  const levels = sp.levels;
-  const leafVar = (r() * 2) | 0;
-  const leafLayer = sp.leaf ? LEAF_LAYERS.indexOf(sp.leaf) * 2 + leafVar : -1;
-  const barkLayer = BARK_LAYERS.indexOf(sp.bark);
-  const crownPts = [];
-  const cardMul = q.cards;
-  const trunkLen = H * (sp.crown === 'column' ? 0.95 : 0.78);
-  const windFn = (lvl) => (p) => [Math.pow(Math.max(0, p.y) / H, 1.5), lvl / levels.length, phase + lvl * 0.7];
-  const shape = (t) => (sp.crown === 'column' ? 0.35 + 0.65 * Math.sin(Math.PI * Math.min(1, t * 1.1 + 0.05)) : sp.crown === 'oval' ? 0.5 + 0.5 * Math.sin(Math.PI * t) : 0.45 + 0.75 * Math.sin(Math.PI * (0.25 + 0.7 * t)));
-
-  function branch(p0, dir, len, r0, lvl, azi0) {
-    const L = levels[lvl];
-    const seg = Math.max(2, Math.round(L.seg * q.seg));
-    const pts = [], rads = [], dirs = [];
-    const p = p0.clone(), d = dir.clone();
-    const broken = sp.broken && lvl > 0 && r() < sp.broken ? 0.4 + 0.4 * r() : 1;
-    for (let i = 0; i <= seg; i++) {
-      const t = i / seg;
-      pts.push(p.clone()); dirs.push(d.clone());
-      let rr = lerp(r0, r0 * (lvl === 0 ? 0.35 : 0.2), t);
-      if (lvl === 0) rr *= 1 + (sp.flare || 0) * Math.pow(Math.max(0, 1 - t * 8), 3);
-      rads.push(Math.max(0.006, rr));
-      if (i < seg) {
-        d.add(V(r() - 0.5, (r() - 0.5) * 0.5, r() - 0.5).multiplyScalar(L.gnarl || 0));
-        d.y += (L.tropism || 0) - (sp.droop || 0) * 0.08 * lvl;
-        d.normalize();
-        p.addScaledVector(d, (len * broken) / seg);
-      }
-    }
-    const radial = Math.max(3, Math.round(L.radial * q.radial));
-    tube(bark, pts, rads, radial, barkLayer, windFn(lvl), tint, Math.max(1, Math.round((2 * Math.PI * r0) / 0.5)));
-    if (broken < 1) return;
-    // children
-    const nC = L.children ? Math.max(1, Math.round(L.children * (0.75 + 0.5 * r()) * (lvl >= 2 ? q.twigs : 1))) : 0;
-    let azi = azi0 + r() * 6.28;
-    for (let c = 0; c < nC; c++) {
-      const t = lerp(L.start, 0.97, (c + 0.3 + 0.5 * r()) / nC);
-      const fi = t * seg, i = Math.min(seg - 1, Math.floor(fi)), f = fi - i;
-      const cp = pts[i].clone().lerp(pts[i + 1], f);
-      const pd = dirs[i].clone().lerp(dirs[i + 1], f).normalize();
-      azi += 2.4 + (r() - 0.5) * 0.6;
-      const ax = rotateAbout(perp(pd), pd, azi);
-      const ang = THREE.MathUtils.degToRad(L.angle * (0.75 + 0.5 * r()));
-      const cd = rotateAbout(pd, ax, ang);
-      const clen = len * L.lenRatio * (lvl === 0 ? shape(t) : 1 - 0.4 * t) * (0.8 + 0.4 * r());
-      const cr = lerp(r0, r0 * 0.3, t) * L.radRatio;
-      branch(cp, cd, clen, cr, lvl + 1, azi);
-    }
-    // leaf cards on the twigs
-    if (leafLayer >= 0 && lvl >= sp.leafLevel) {
-      const n = Math.max(1, Math.round(sp.leaves * cardMul * (0.7 + 0.6 * r())));
-      for (let k = 0; k < n; k++) {
-        const t = lerp(sp.leafStart, 1, r());
-        const fi = t * seg, i = Math.min(seg - 1, Math.floor(fi));
-        const cp = pts[i].clone().lerp(pts[i + 1], fi - i);
-        const up = dirs[i].clone().add(V(r() - 0.5, r() - 0.5 + (sp.droop ? -sp.droop : 0.1), r() - 0.5).multiplyScalar(1.4)).normalize();
-        const right = V().crossVectors(up, V(r() - 0.5, r() - 0.5, r() - 0.5)).normalize();
-        const size = lerp(sp.leafSize[0], sp.leafSize[1], r()) * q.leafScale * (0.8 + 0.25 * H / sp.H[1]);
-        const w = [Math.pow(Math.max(0, cp.y) / H, 1.5), 1, phase + r() * 6.28];
-        const s = 0.85 + 0.3 * r();
-        card(leaves, cp, up, right, size, leafLayer, w, [leafTint[0] * s, leafTint[1] * s, leafTint[2] * s]);
-        crownPts.push(cp);
-      }
-    }
-  }
-  const stems = sp.stems ? sp.stems[0] + ((r() * (sp.stems[1] - sp.stems[0] + 1)) | 0) : 1;
-  const r0 = lerp(sp.r0[0], sp.r0[1], r()) * (H / sp.H[1]) ** 0.6 / Math.sqrt(stems);
-  for (let s = 0; s < stems; s++) {
-    const a = r() * 6.28, lean = stems > 1 ? 0.35 + 0.2 * r() : 0.04 * r();
-    const dir = V(Math.cos(a) * lean, 1, Math.sin(a) * lean).normalize();
-    branch(V(Math.cos(a) * 0.1 * (stems - 1), -0.15, Math.sin(a) * 0.1 * (stems - 1)), dir, trunkLen / (stems > 1 ? 1.15 : 1), r0, 0, r() * 6.28);
-  }
-  // T-A graft (must-fix 7): fill the crown shell with clumped cards so the canopy reads as a full, readable mass
-  // from the high game camera; clumps are seeded around existing twig leaves (never floating in empty air)
-  if (leafLayer >= 0 && crownPts.length > 8) {
-    const bb = new THREE.Box3().setFromPoints(crownPts), c = V(), rad = V();
-    bb.getCenter(c); bb.getSize(rad).multiplyScalar(0.5);
-    const nFill = Math.round(crownPts.length * (sp.fill ?? 0.45) * cardMul);
-    for (let k = 0; k < nFill; k++) {
-      const anchor = crownPts[(r() * crownPts.length) | 0];
-      const out = V().subVectors(anchor, c).divide(rad.clone().addScalar(0.01));
-      if (out.length() < 0.55) continue;                     // shell only: interior stays shaded/open
-      out.normalize();
-      const p = anchor.clone().addScaledVector(out, 0.2 + 0.5 * r()).add(V(r() - 0.5, (r() - 0.5) * 0.6, r() - 0.5).multiplyScalar(0.7));
-      const up = out.clone().add(V(0, 0.6, 0)).add(V(r() - 0.5, r() - 0.5, r() - 0.5).multiplyScalar(0.9)).normalize();
-      const right = V().crossVectors(up, V(r() - 0.5, r() - 0.5, r() - 0.5)).normalize();
-      const size = lerp(sp.leafSize[0], sp.leafSize[1], r()) * q.leafScale * 0.95;
-      const sh = 0.8 + 0.35 * r();
-      card(leaves, p, up, right, size, leafLayer + (r() < 0.5 ? 0 : (leafLayer % 2 ? -1 : 1)), [Math.pow(Math.max(0, p.y) / H, 1.5), 1, phase + r() * 6.28], [leafTint[0] * sh, leafTint[1] * sh, leafTint[2] * sh]);
-      crownPts.push(p);
-    }
-  }
-  return crownPts;
-}
+let _bl = null, _sh = null, _pm = null;
+/** Palm generator (palms.js). */
+const pm = () => (_pm ??= makePalms({ THREE, V, tube, LEAF_LAYERS, BARK_LAYERS }));
+/** Shrub / hedge generator (shrubs.js) sharing the broadleaf spray, frame and crown AO helpers. */
+const sh = () => (_sh ??= makeShrubs({ THREE, V, UP, tube, LEAF_LAYERS, BARK_LAYERS, ...bl() }));
+/** Broadleaf generator (broadleaf.js), built once THREE is injected. */
+const bl = () => (_bl ??= makeBroadleaves({ THREE, V, UP, tube, LEAF_LAYERS, BARK_LAYERS }));
+/** Broadleaf / bare / dead tree (broadleaf.js: species crown envelope, twig-tip sprays, crown AO). */
+function genBroad(...a) { return bl().genBroadleaf(...a); }
 
 let _cf = null;
 /** Conifer generators (conifers.js), built once THREE is injected. */
 const cf = () => (_cf ??= makeConifers({ THREE, V, UP, tube, BARK_LAYERS }));
 function genConifer(sp, ...a) { return sp.form === 'pine' ? cf().genPine(sp, ...a) : cf().genSpruce(sp, ...a); }
 
-function genPalm(sp, r, H, q, bark, leaves, tint, leafTint, phase) {
-  const barkLayer = BARK_LAYERS.indexOf('palm');
-  const r0 = lerp(sp.r0[0], sp.r0[1], r());
-  const seg = Math.max(6, Math.round(14 * q.seg));
-  const a = r() * 6.28, lean = 0.05 + 0.3 * r() * r();
-  const d = V(Math.cos(a) * lean, 1, Math.sin(a) * lean).normalize();
-  const p = V(0, -0.2, 0), pts = [], rads = [];
-  for (let i = 0; i <= seg; i++) {
-    const t = i / seg;
-    pts.push(p.clone());
-    rads.push(r0 * (1 + 0.5 * Math.pow(Math.max(0, 1 - t * 6), 2)) * (1 + 0.1 * Math.sin(t * 40 * (0.8 + r() * 0.1))) * (1 - 0.15 * t));
-    d.y += 0.03 * t; d.normalize();
-    p.addScaledVector(d, H / seg);
-  }
-  tube(bark, pts, rads, Math.max(5, Math.round(9 * q.radial)), barkLayer, (pp) => [Math.pow(Math.max(0, pp.y) / H, 2), 0, phase], tint, 2);
-  const top = pts[pts.length - 1];
-  const crown = [];
-  const nF = Math.round((16 + r() * 10) * Math.min(1, q.cards + 0.3));
-  let az = r() * 6.28;
-  for (let f = 0; f < nF; f++) {
-    az += 2.39996 + (r() - 0.5) * 0.3;
-    const age = f / nF; // 0 young (upright) → 1 old (drooping)
-    const dry = age > 0.82 && r() < 0.8;
-    const elev = dry ? -1.2 - 0.3 * r() : lerp(1.15, -0.45, age) + (r() - 0.5) * 0.3;
-    const len = (dry ? 2.2 : 2.8 + 1.6 * r()) * (0.75 + 0.25 * H / sp.H[1]);
-    const layer = LEAF_LAYERS.indexOf(dry ? 'palmdry' : 'palm') * 2 + ((r() * 2) | 0);
-    const out = V(Math.cos(az), 0, Math.sin(az));
-    const side = V(-Math.sin(az), 0, Math.cos(az));
-    const S = 7;
-    let e = elev;
-    const fp = top.clone().addScaledVector(out, 0.15);
-    const fold = 0.45 + 0.2 * r();
-    const rows = [];
-    for (let i = 0; i <= S; i++) {
-      const t = i / S;
-      const dir = out.clone().multiplyScalar(Math.cos(e)).add(V(0, Math.sin(e), 0));
-      const wdt = len * 0.34 * Math.pow(Math.sin(Math.PI * Math.min(1, 0.08 + t)), 0.6) * (dry ? 0.6 : 1);
-      const lift = V(0, 1, 0).multiplyScalar(wdt * 0.5 * Math.sin(fold));
-      const nrmUp = V().crossVectors(side, dir).normalize();
-      if (nrmUp.y < 0) nrmUp.negate();
-      const w = [Math.pow(Math.max(0, fp.y) / H, 2), 0.3 + 0.7 * t, phase + f * 0.37];
-      const lt = dry ? [1, 1, 1] : [leafTint[0] * (0.9 + 0.2 * r()), leafTint[1], leafTint[2]];
-      rows.push([
-        leaves.vert(fp.clone().addScaledVector(side, -wdt * Math.cos(fold)).add(lift), nrmUp, 0, t, [layer, ...w], lt),
-        leaves.vert(fp.clone(), nrmUp, 0.5, t, [layer, ...w], lt),
-        leaves.vert(fp.clone().addScaledVector(side, wdt * Math.cos(fold)).add(lift), nrmUp, 1, t, [layer, ...w], lt),
-      ]);
-      crown.push(fp.clone());
-      fp.addScaledVector(dir, len / S);
-      e -= (dry ? 0.05 : 0.16 + 0.1 * r()) * (1 + Math.max(0, Math.cos(e)));
-    }
-    for (let i = 0; i < S; i++) for (let k = 0; k < 2; k++) {
-      const a0 = rows[i][k], b0 = rows[i][k + 1], c0 = rows[i + 1][k], d0 = rows[i + 1][k + 1];
-      leaves.tri(a0, b0, d0); leaves.tri(a0, d0, c0);
-    }
-  }
-  return crown;
-}
+/** Date / Canary palm (palms.js: ringed trunk with boots, pinnate fronds of separate leaflets, skirt, suckers, dates). */
+function genPalm(...a) { return pm().genPalm(...a); }
 
-function genBush(sp, r, H, q, bark, leaves, tint, leafTint, phase) {
-  const R = lerp(sp.R[0], sp.R[1], r());
-  const leafLayer = LEAF_LAYERS.indexOf(sp.leaf) * 2 + ((r() * 2) | 0);
-  const barkLayer = BARK_LAYERS.indexOf(sp.bark);
-  const stems = 3 + ((r() * 4) | 0);
-  for (let s = 0; s < stems; s++) {
-    const a = r() * 6.28, rr = R * (0.4 + 0.5 * r());
-    const pts = [V(0, -0.05, 0), V(Math.cos(a) * rr * 0.4, H * 0.45, Math.sin(a) * rr * 0.4), V(Math.cos(a) * rr * 0.8, H * (0.75 + 0.2 * r()), Math.sin(a) * rr * 0.8)];
-    tube(bark, pts, [0.05, 0.03, 0.01].map((x) => x * (H / 2 + 0.3)), 3, barkLayer, (p) => [p.y / H, 0.5, phase], tint, 1);
-  }
-  const n = Math.round(sp.cards * q.cards * (0.8 + 0.4 * r()) * (R / sp.R[1]));
-  const crown = [];
-  const off = V((r() - 0.5) * 0.3, 0, (r() - 0.5) * 0.3);
-  for (let k = 0; k < n; k++) {
-    let v;
-    do { v = V(r() * 2 - 1, r() * 2 - 1, r() * 2 - 1); } while (v.lengthSq() > 1);
-    if (sp.sparse && r() < sp.sparse) continue;
-    const p = V(v.x * R, (0.55 + 0.45 * v.y) * H * 0.85, v.z * R).add(off);
-    const up = V(v.x, 0.8 + v.y * 0.4, v.z).add(V(r() - 0.5, 0, r() - 0.5)).normalize();
-    const right = V().crossVectors(up, V(r() - 0.5, r() - 0.5, r() - 0.5)).normalize();
-    const size = lerp(sp.leafSize[0], sp.leafSize[1], r()) * q.leafScale;
-    const s = 0.8 + 0.35 * r() * (0.6 + 0.4 * (p.y / H));
-    card(leaves, p.clone().addScaledVector(up, -size * 0.45), up, right, size, leafLayer, [p.y / H * 0.5, 1, phase + r() * 6], [leafTint[0] * s, leafTint[1] * s, leafTint[2] * s]);
-    crown.push(p);
-  }
-  return crown;
-}
+/** Shrub / hedge / box (shrubs.js: multi-stem frame in a seeded envelope, species sprays, crown AO). */
+function genBush(...a) { return sh().genShrub(...a); }
 
 export const TREE_QUALITY = {
   low: { seg: 0.5, radial: 0.5, cards: 0.45, leafScale: 1.35, twigs: 0.5 },
@@ -421,8 +309,14 @@ export function generateTree(species, seed, q, bark, leaves, at, needles = leave
   const tint = at.burnt ? [0.35, 0.33, 0.32] : [tb * (0.95 + 0.1 * r()), tb, tb * (0.95 + 0.1 * r())];
   const lb = 0.8 + 0.35 * r(), hue = (r() - 0.5) * 0.25 + (at.hue || 0);
   const leafTint = [lb * (1 + hue), lb * (1 + hue * 0.3), lb * (1 - hue * 0.6)];
+  if (sp.lt) for (let k = 0; k < 3; k++) leafTint[k] *= sp.lt[k];
+  if (sp.bt && !at.burnt) for (let k = 0; k < 3; k++) tint[k] *= sp.bt[k];
   const gen = { broad: genBroad, conifer: genConifer, palm: genPalm, bush: genBush }[sp.kind];
-  let sp2 = at.burnt ? { ...sp, bark: 'burnt', leaf: null } : at.leafless ? { ...sp, leaf: null } : sp;
+  // leafless (winter): twig sprays + marcescent leaves (at.marc share); ivy on the trunk (at.ivy)
+  let sp2 = at.burnt ? { ...sp, bark: 'burnt', leaf: null } : at.leafless ? { ...sp, leaf: null, marc: at.marc || 0, marcTrees: at.marcTrees ?? 0.3 } : sp;
+  if (at.ivy && !at.burnt) sp2 = { ...sp2, ivy: true };
+  if (sp2.dates && !at.dates) sp2 = { ...sp2, dates: false }; // date bunches only when ripe (veg-profile treeSeason)
+  if (at.fruit) sp2 = { ...sp2, fruit: true };                  // apples from late summer
   // placement pruning hints (world/placement.js pruneTree): lowest branches lifted / crown narrowed near obstacles
   if (at.crownBase != null && sp2.crownBase != null) sp2 = { ...sp2, crownBase: Math.min(0.8, Math.max(sp2.crownBase, at.crownBase / H)) };
   if (at.crownR != null && sp2.width != null) sp2 = { ...sp2, maxWidth: at.crownR };
@@ -437,11 +331,13 @@ export function generateTree(species, seed, q, bark, leaves, at, needles = leave
     if (sp.kind === 'conifer') cc.y = bb.min.y + (bb.max.y - bb.min.y) * 0.35;
     if (sp.kind === 'palm') cc.y -= 0.6;
     cr = Math.max(rad.x, rad.z);
-    bendNormals(fol, f0, cc, rad, sp.kind === 'palm' ? 0.35 : conifer ? 0.5 : 0.72); // conifers: card + map normals keep the tiers
+    // palms: leaflet normals face the sky (palms.js); conifers: card + map normals keep the tiers
+    bendNormals(fol, f0, cc, rad, sp.kind === 'palm' ? 0.12 : conifer ? 0.5 : 0.72);
   }
   // lean + random rotation + placement
+  const ex = (r() - 0.5) * 0.06, yaw = r() * 6.28, ez = (r() - 0.5) * 0.06;
   const m = new THREE.Matrix4().compose(V(at.x, at.y, at.z),
-    new THREE.Quaternion().setFromEuler(new THREE.Euler((r() - 0.5) * 0.06, r() * 6.28, (r() - 0.5) * 0.06)), V(1, 1, 1));
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(ex, sp.sculpt ? Math.atan2(-(at.windZ ?? 0.25), at.windX ?? 1) : yaw, ez)), V(1, 1, 1));
   bark.transform(m, b0); leaves.transform(m, l0);
   if (needles !== leaves) needles.transform(m, n0);
   const kind = WIND_KIND[sp.kind] ?? 0;

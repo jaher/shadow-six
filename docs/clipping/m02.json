@@ -1,6 +1,6 @@
 {
  "mission": "m02",
- "date": "2026-09-27T18:59:17.827Z",
+ "date": "2026-10-01T16:29:24.733Z",
  "static": {
   "mission": "m02",
   "items": 66,
@@ -16,8 +16,8 @@
    "character": 21,
    "vehicle": 2
   },
-  "pairsTested": 52,
-  "ms": 507,
+  "pairsTested": 53,
+  "ms": 556,
   "findings": [
    {
     "key": "m02:e8|t1",
@@ -61,6 +61,48 @@
     "volume": 0,
     "allowed": true,
     "reason": "resting on a surface"
+   },
+   {
+    "key": "m02:camp_wall|sbox_se",
+    "a": {
+     "id": "camp_wall",
+     "type": "wall",
+     "cat": "wall",
+     "kind": "structure"
+    },
+    "b": {
+     "id": "sbox_se",
+     "type": "hut",
+     "cat": "building",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 53.896,
+     "y": 0.023,
+     "z": 50.806
+    },
+    "box": {
+     "min": [
+      53.886,
+      0.016,
+      50.804
+     ],
+     "max": [
+      53.905,
+      0.03,
+      50.808
+     ]
+    },
+    "contact": 0.06,
+    "segments": 8,
+    "depth": 0.009,
+    "depthAinB": 0,
+    "depthBinA": 0.009,
+    "insideA": 0,
+    "insideB": 6,
+    "volume": 0,
+    "allowed": true,
+    "reason": "joint"
    },
    {
     "key": "m02:e9|t2",
@@ -129,30 +171,259 @@
    {
     "id": "e1",
     "t": 60,
-    "x": 25.7,
-    "z": 79.17
+    "x": 25.55,
+    "z": 78.46
    },
    {
     "id": "e2",
     "t": 60,
-    "x": 26.13,
-    "z": 77.89
+    "x": 26.44,
+    "z": 78.57
    },
    {
     "id": "e4",
     "t": 120,
-    "x": 33.43,
-    "z": 53.89
+    "x": 33.78,
+    "z": 54.12
    },
    {
     "id": "e5",
     "t": 120,
-    "x": 28.88,
-    "z": 42.8
+    "x": 28.6,
+    "z": 42.58
    }
   ],
   "notes": [],
-  "findings": []
+  "findings": [
+   {
+    "key": "m02:camp_wall|e5",
+    "a": {
+     "id": "e5",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "b": {
+     "id": "camp_wall",
+     "type": "wall",
+     "cat": "wall",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 28.396,
+     "y": 2.32,
+     "z": 43.388
+    },
+    "box": {
+     "min": [
+      28.282,
+      2.205,
+      43.331
+     ],
+     "max": [
+      28.549,
+      2.638,
+      43.443
+     ]
+    },
+    "contact": 1.474,
+    "segments": 141,
+    "depth": 0.191,
+    "depthAinB": 0.191,
+    "depthBinA": 0,
+    "insideA": 61,
+    "insideB": 0,
+    "volume": 0,
+    "allowed": false,
+    "reason": null,
+    "t": 81,
+    "at": {
+     "x": 28.6,
+     "z": 43.08
+    },
+    "unitState": "active",
+    "speed": 3.8,
+    "firstT": 78,
+    "count": 18,
+    "shot": "docs/screenshots/clip-m02-d1.jpg"
+   },
+   {
+    "key": "m02:e16|pine#31~trunk",
+    "a": {
+     "id": "e16",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "b": {
+     "id": "pine#31~trunk",
+     "type": "vegBark",
+     "cat": "trunk",
+     "kind": "vegetation",
+     "tree": "pine#31"
+    },
+    "point": {
+     "x": 79.824,
+     "y": 0.953,
+     "z": 9.699
+    },
+    "box": {
+     "min": [
+      79.693,
+      0.728,
+      9.565
+     ],
+     "max": [
+      80.058,
+      1.201,
+      9.918
+     ]
+    },
+    "contact": 0.567,
+    "segments": 75,
+    "depth": 0.072,
+    "depthAinB": 0.002,
+    "depthBinA": 0.072,
+    "insideA": 3,
+    "insideB": 1,
+    "volume": 0,
+    "allowed": false,
+    "reason": null,
+    "t": 14,
+    "at": {
+     "x": 79.9,
+     "z": 9.64
+    },
+    "unitState": "active",
+    "speed": 0.9,
+    "firstT": 14,
+    "count": 1
+   }
+  ],
+  "unitOverlaps": [
+   {
+    "key": "m02|unit:barr_camp#0.0.0|e6",
+    "a": "e6",
+    "b": "barr_camp#0.0.0",
+    "dist": 0.033,
+    "t": 27.5,
+    "at": {
+     "x": 27.47,
+     "z": 42.12
+    },
+    "moving": [
+     false,
+     true
+    ],
+    "states": [
+     "INVESTIGATE",
+     "INVESTIGATE"
+    ],
+    "n": 4
+   },
+   {
+    "key": "m02|unit:barr_camp#0.0.1|e6",
+    "a": "e6",
+    "b": "barr_camp#0.0.1",
+    "dist": 0.042,
+    "t": 144.5,
+    "at": {
+     "x": 27.28,
+     "z": 41.89
+    },
+    "moving": [
+     false,
+     true
+    ],
+    "states": [
+     "INVESTIGATE",
+     "TRACKS"
+    ],
+    "n": 7
+   },
+   {
+    "key": "m02|unit:barr_camp#0.0.0|barr_camp#0.0.1",
+    "a": "barr_camp#0.0.0",
+    "b": "barr_camp#0.0.1",
+    "dist": 0.215,
+    "t": 145,
+    "at": {
+     "x": 26.75,
+     "z": 41.25
+    },
+    "moving": [
+     false,
+     true
+    ],
+    "states": [
+     "INVESTIGATE",
+     "TRACKS"
+    ],
+    "n": 11
+   },
+   {
+    "key": "m02|unit:diver|driver",
+    "a": "diver",
+    "b": "driver",
+    "dist": 0.31,
+    "t": 139.5,
+    "at": {
+     "x": 28.55,
+     "z": 76.25
+    },
+    "moving": [
+     true,
+     true
+    ],
+    "states": [
+     "active",
+     "active"
+    ],
+    "n": 1
+   },
+   {
+    "key": "m02|unit:e3|sniper",
+    "a": "sniper",
+    "b": "e3",
+    "dist": 0.472,
+    "t": 113,
+    "at": {
+     "x": 30.01,
+     "z": 76.05
+    },
+    "moving": [
+     true,
+     false
+    ],
+    "states": [
+     "active",
+     "COMBAT"
+    ],
+    "n": 3
+   },
+   {
+    "key": "m02|unit:e3|greenberet",
+    "a": "greenberet",
+    "b": "e3",
+    "dist": 0.546,
+    "t": 151,
+    "at": {
+     "x": 28.86,
+     "z": 69.87
+    },
+    "moving": [
+     true,
+     false
+    ],
+    "states": [
+     "active",
+     "COMBAT"
+    ],
+    "n": 1
+   }
+  ]
  },
  "baseline": {
   "fresh": [],

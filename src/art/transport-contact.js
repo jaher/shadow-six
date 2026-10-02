@@ -8,10 +8,15 @@
  *   loadSway(lm, st, dt, guard)        the load's limp parts (head, arms, legs over a shoulder) swing with the
  *                                      transporter's gait: a damped pendulum driven by the pelvis acceleration and
  *                                      the vertical bob of each step.
+ *   loadGait(lm, st, dt, guard)        the load's legs and arms swing step by step with the transporter's gait
+ *                                      (art/carry-gait.js springs): dangling legs swing fore and aft over a shoulder;
+ *                                      dragged legs wiggle and their knees bump at each of the dragger's steps (the
+ *                                      heels are put back on the ground afterwards by groundDraggedLegs).
  * @module art/transport-contact
  */
 import { Vector3, Quaternion } from 'three';
 import { twoBoneIKPole } from './characters/commandos_a/ca_ik.js';
+import { GAIT, gaitState, stepGait } from './carry-gait.js';
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const ramp = (k, a, b) => { const x = clamp((k - a) / Math.max(1e-6, b - a), 0, 1); return x * x * (3 - 2 * x); };
@@ -146,4 +151,68 @@ export function loadSway(lm, st, dt, guard = null) {
     if (did) b.updateMatrixWorld(true);
   }
   return true;
+}
+
+// ------------------------------------------------------------------ step-driven limb swing (carry-legs)
+
+const _Y = new Vector3(0, 1, 0), _k1 = new Vector3(), _k2 = new Vector3(), _k3 = new Vector3(), _n = new Vector3();
+
+/** Rotate bone `b` by the WORLD rotation of `ang` about the world `axis` (children follow). */
+function rotW(b, axis, ang, guard) {
+  if (!b || Math.abs(ang) < 1e-5) return false;
+  guard?.touch(b);
+  b.parent.getWorldQuaternion(_pq);
+  _q.setFromAxisAngle(axis, ang);
+  _rq.copy(_pq).invert().multiply(_q).multiply(_pq);
+  b.quaternion.premultiply(_rq);
+  b.updateMatrixWorld(true);
+  return true;
+}
+
+/** Bend the knee (calf about the knee's own hinge axis) by `ang` rad: positive = more flexion. */
+function bendKnee(th, ca, ft, ang, fallback, guard) {
+  th.getWorldPosition(_k1); ca.getWorldPosition(_k2); ft.getWorldPosition(_k3);
+  _n.copy(_k2).sub(_k1).cross(_k3.sub(_k2));
+  if (_n.lengthSq() < 1e-8) _n.copy(fallback); else _n.normalize();
+  return rotW(ca, _n, ang, guard);
+}
+
+/**
+ * Step-driven swing of a transported man's limbs, layered on his hold pose (after poseTransported, before the heels
+ * are grounded and the transporter's hands are placed). The gait runs off the transporter's gameplay position, so it
+ * is still while he stands. @returns {boolean} posed
+ */
+export function loadGait(lm, st, dt, guard = null) {
+  const c = st?.carrier;
+  if (!c || !(dt > 0)) return false;
+  const mode = st.kind === 'hold' ? st.from : st.to === 'drag' || st.to === 'shoulder' ? st.to : null;
+  if (mode !== 'shoulder' && mode !== 'drag') return false;
+  const G = lm._gait || (lm._gait = { S: gaitState(), x: c.x, z: c.z, mode });
+  if (G.mode !== mode) { G.S = gaitState(); G.mode = mode; }
+  const d = Math.hypot(c.x - G.x, c.z - G.z);
+  G.x = c.x; G.z = c.z;
+  const S = stepGait(G.S, d, dt, GAIT[mode]);
+  const amt = st.kind === 'hold' ? 1 : ramp(st.k, 0.7, 1);
+  if (amt <= 0) return false;
+  const cr = c.model?.root;
+  if (cr) { cr.updateMatrixWorld(true); _l.set(1, 0, 0).applyQuaternion(cr.getWorldQuaternion(_q)).setY(0).normalize(); } // his left
+  else _l.set(Math.cos(c.heading + Math.PI / 2), 0, Math.sin(c.heading + Math.PI / 2));
+  let did = false;
+  for (const [s, L, A] of [['l', S.l, S.al], ['r', S.r, S.ar]]) {
+    const th = sock(lm, 'thigh_' + s), ca = sock(lm, 'calf_' + s), ft = sock(lm, 'foot_' + s), ua = sock(lm, 'upperarm_' + s);
+    if (mode === 'shoulder') {
+      // over the shoulder: the thighs are held by his forearm (a little play), the shins and the arms down his back
+      // swing fore and aft about his left axis
+      did = rotW(th, _l, L.a * 0.3 * amt, guard) || did;
+      did = rotW(ca, _l, L.a * 0.9 * amt, guard) || did;
+      did = rotW(ua, _l, A.a * amt, guard) || did;
+      did = rotW(sock(lm, 'lowerarm_' + s), _l, A.a * 0.5 * amt, guard) || did;
+    } else {
+      // dragged on his back: the legs wiggle side to side as they trail, the knees bump up at each tug
+      did = rotW(th, _Y, L.a * 1.1 * amt, guard) || did;
+      if (th && ca && ft) did = bendKnee(th, ca, ft, Math.abs(L.a) * 1.8 * amt, _l, guard) || did;
+      did = rotW(ua, _Y, A.a * 0.5 * amt, guard) || did;
+    }
+  }
+  return did;
 }

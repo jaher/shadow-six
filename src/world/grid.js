@@ -51,6 +51,21 @@ export const LINK = Object.freeze({ CLIMB: 'climb', LADDER: 'ladder' });
  * @property {number} ka  cell index of a;  @property {number} kb  cell index of b
  */
 
+/**
+ * Sight over walls from high up (an MG gunner on an open platform, `overWalls`): a blocking cell whose structure is
+ * lower than the sight line where it crosses that cell does not block. `ow` = {heightOf(k) → m | null, eyeY, targetTopY,
+ * scale?} (scale: traverse parameter t per unit of the eye → target line, castRay overshoots its end). Cells with no
+ * known height keep blocking. @returns {((k: number, t: number) => boolean)|null}
+ */
+export function overWallsTest(ow) {
+  if (!ow || typeof ow.heightOf !== 'function') return null;
+  const s = ow.scale ?? 1, y0 = ow.eyeY, y1 = ow.targetTopY ?? 1.5;
+  return (k, t) => {
+    const h = ow.heightOf(k);
+    return h != null && h < y0 + (y1 - y0) * Math.min(1, t * s);
+  };
+}
+
 export class NavGrid {
   /**
    * @param {number} width  map width W (m, along X)
@@ -98,6 +113,13 @@ export class NavGrid {
      * @type {Float32Array}
      */
     this.elev = new Float32Array(n);
+    /**
+     * 1 = this raised cell is natural ground (the walkways of a `cliff` plateau / terrace or a `road` ramp, written by
+     * map-builder applyElevation), so its terrain code still says what it is underfoot (snow, sand, grass...);
+     * 0 = a built floor (roof, deck, wall walk, tower). Read by ai/running-noise stepSurface. Static, not saved.
+     * @type {Uint8Array}
+     */
+    this.naturalElev = new Uint8Array(n);
     /**
      * Nav-only blocks (placement rule e, world/placement.js): cells where a structure's VISUAL stands outside its
      * gameplay footprint (steps, porches' posts, woodpiles, splayed tower legs) or where an idle movable prop
@@ -182,9 +204,10 @@ export class NavGrid {
   /**
    * @param {number} i
    * @param {number} j
-   * @param {{swim?: boolean, dynamic?: boolean, dive?: boolean}} [opts] swim: deep water is walkable (the diver);
+   * @param {{swim?: boolean, dynamic?: boolean, dive?: boolean, avoid?: Uint8Array}} [opts] swim: deep water is walkable (the diver);
    *   dynamic: also treat dynamicBlock (vehicles/trains this step) as blocking; dive: a submerged diver keeps to
-   *   open water (WATER/SHALLOW, no deck, no obstacle) plus the `underpass` cells under a deck and its girders
+   *   open water (WATER/SHALLOW, no deck, no obstacle) plus the `underpass` cells under a deck and its girders;
+   *   avoid: Uint8Array mask (1 = keep out), e.g. body-clearance.avoidMask around vehicle hulls
    */
   isWalkable(i, j, opts) {
     if (i < 0 || j < 0 || i >= this.cols || j >= this.rows) return false;
@@ -197,6 +220,7 @@ export class NavGrid {
     }
     if (this.block[k] !== B.NONE || this.navBlock[k]) return false;
     if (opts && opts.dynamic && this.dynamicBlock[k] !== B.NONE) return false;
+    if (opts && opts.avoid && opts.avoid[k]) return false; // body clearance around vehicle hulls (world/body-clearance.js)
     if (this.bridge[k]) return true;
     if (this.terrain[k] === T.WATER) return !!(opts && opts.swim);
     return true;
@@ -336,18 +360,25 @@ export class NavGrid {
 
   /**
    * Fill a polyline of the given width (walls, fences, roads, rivers): one oriented rect per segment
-   * plus round joints.
+   * plus round joints. `width` may be an array (one width per point): each segment is then a tapered
+   * quad between its end widths (natural river banks, M2).
    * @param {Array<[number,number]|{x:number,z:number}>} points
+   * @param {number|number[]} width
    */
   fillLine(points, width, layerName, value, owner) {
     const pts = points.map((p) => (Array.isArray(p) ? p : [p.x, p.z]));
+    const wAt = (k) => (Array.isArray(width) ? (width[k] ?? width[width.length - 1]) : width);
     for (let k = 0; k + 1 < pts.length; k++) {
       const [ax, az] = pts[k], [bx, bz] = pts[k + 1];
       const len = Math.hypot(bx - ax, bz - az);
       if (len < 1e-6) continue;
-      this.fillOrientedRect((ax + bx) / 2, (az + bz) / 2, len, width, Math.atan2(bz - az, bx - ax), layerName, value, owner);
+      const wa = wAt(k), wb = wAt(k + 1);
+      if (wa === wb) { this.fillOrientedRect((ax + bx) / 2, (az + bz) / 2, len, wa, Math.atan2(bz - az, bx - ax), layerName, value, owner); continue; }
+      const nx = -(bz - az) / len, nz = (bx - ax) / len;
+      this.fillPoly([[ax + nx * wa / 2, az + nz * wa / 2], [bx + nx * wb / 2, bz + nz * wb / 2],
+        [bx - nx * wb / 2, bz - nz * wb / 2], [ax - nx * wa / 2, az - nz * wa / 2]], layerName, value, owner);
     }
-    for (let k = 1; k + 1 < pts.length; k++) this.fillCircle(pts[k][0], pts[k][1], width / 2, layerName, value, owner);
+    for (let k = 1; k + 1 < pts.length; k++) this.fillCircle(pts[k][0], pts[k][1], wAt(k) / 2, layerName, value, owner);
   }
 
   /**
@@ -375,6 +406,42 @@ export class NavGrid {
   elevAt(x, z) {
     const i = Math.floor(x / this.cell), j = Math.floor(z / this.cell);
     return this.inBounds(i, j) ? this.elev[this.idx(i, j)] : 0;
+  }
+
+  /**
+   * A stair / ramp whose graded `elev` cells step down a cell at a time: the unit on it takes the sloped height along
+   * its run instead (no 0.3-0.5 m snaps per cell). r: {ax, az (top), bx, bz (foot), w (width), ya, yb (heights)}.
+   */
+  addRamp(r) {
+    const dx = r.bx - r.ax, dz = r.bz - r.az, len = Math.hypot(dx, dz);
+    if (!(len > 0.1)) return;
+    (this.ramps ||= []).push({ ...r, ux: dx / len, uz: dz / len, len });
+  }
+
+  /**
+   * Height a walker stands at (m): the sloped line of a ramp he is on (within its width and a cell of its graded strip),
+   * else the cell's elev (elevAt).
+   */
+  surfaceY(x, z) {
+    const e = this.elevAt(x, z);
+    if (this.ramps) for (const r of this.ramps) {
+      // only over its own graded cells: strictly between its ends' heights (not the landing / a wall walk beside it)
+      if (e <= Math.min(r.ya, r.yb) + 0.01 || e >= Math.max(r.ya, r.yb) - 0.01) continue;
+      const px = x - r.ax, pz = z - r.az, t = px * r.ux + pz * r.uz;
+      if (t < -this.cell || t > r.len + this.cell || Math.abs(px * r.uz - pz * r.ux) > r.w / 2 + this.cell) continue;
+      const y = r.ya + (r.yb - r.ya) * Math.min(1, Math.max(0, t / r.len));
+      if (Math.abs(y - e) <= MAX_STEP) return y;
+    }
+    return e;
+  }
+
+  /** Is (x, z) on or within `m` m of a ramp (a walker there eases over the steps onto / off it)? */
+  nearRamp(x, z, m = 1) {
+    if (this.ramps) for (const r of this.ramps) {
+      const px = x - r.ax, pz = z - r.az, t = px * r.ux + pz * r.uz;
+      if (t >= -m && t <= r.len + m && Math.abs(px * r.uz - pz * r.ux) <= r.w / 2 + m) return true;
+    }
+    return false;
   }
 
   /** Can a unit step directly between adjacent cells ka and kb (elevation continuity)? */
@@ -653,10 +720,11 @@ export class NavGrid {
     const hy = Math.max(opts?.viewerY ?? 0, opts?.targetY ?? 0) + LOS_CLEAR;
     const block = this.block, dyn = this.dynamicBlock, elev = this.elev;
     const ownOwner = opts?.ownOwner || 0, owner = this.owner, pass = opts?.passOwners || null;
-    const blocked = this._traverse(ax, az, bx, bz, (k) => {
+    const over = overWallsTest(opts?.overWalls);
+    const blocked = this._traverse(ax, az, bx, bz, (k, t) => {
       // the viewer's own bunker: he looks out of its slit; a `passOwners` structure: the bullet goes through
       const b = (ownOwner && owner[k] === ownOwner) || (pass && owner[k] && pass.has(owner[k])) ? B.NONE : block[k];
-      if (b === B.HIGH || (lowBlocks && b === B.LOW)) return true;
+      if ((b === B.HIGH || (lowBlocks && b === B.LOW)) && !(over && over(k, t))) return true;
       if (elev[k] > hy) return true;
       if (useDyn) { const d = dyn[k]; if ((d === B.HIGH || (lowBlocks && d === B.LOW)) && !(own && own(k)) && !(tgt && tgt(k))) return true; }
       return false;
@@ -685,8 +753,10 @@ export class NavGrid {
     const dyn = this.dynamicBlock, elev = this.elev;
     const hy = (opts?.viewerY ?? 0) + LOS_CLEAR;
     const ownOwner = opts?.ownOwner || 0, owner = this.owner;
+    // a viewer high over a wall (overWalls): the cone runs on past walls under the sight line to its far end
+    const over = overWallsTest(opts?.overWalls && { ...opts.overWalls, scale: ext });
     this._traverse(ax, az, ex, ez, (k, t) => {
-      if ((block[k] === B.HIGH && !(ownOwner && owner[k] === ownOwner)) || elev[k] > hy || (useDyn && dyn[k] === B.HIGH && !(own && own(k)))) {
+      if ((block[k] === B.HIGH && !(ownOwner && owner[k] === ownOwner) && !(over && over(k, t))) || elev[k] > hy || (useDyn && dyn[k] === B.HIGH && !(own && own(k)))) {
         hitT = t * ext;
         return true;
       }

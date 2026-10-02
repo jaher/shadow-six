@@ -132,3 +132,24 @@ test('water: smooth bank carve — land cells stay dry, wet cells below the surf
   }
   assert.ok(Math.max(...cross) - Math.min(...cross) < 0.2, `bank distance steady along a diagonal: ${cross.map((v) => v.toFixed(2))}`);
 });
+
+test('water: a bank at a shallow angle to the grid (one jog every 4 cells) carves a straight line, not a sawtooth', async () => {
+  const { cellSignedDistance, carveDepth, sampleCells } = await import('../../src/art/terrain/terrain.js');
+  // water below the line j = 12 + i/4 (the M3 pool's near-N-S banks), deep 4 cells further in
+  const g = toyGrid(80, 40, (i, j) => (j < 12 + Math.floor(i / 4) - 4 ? T.WATER : j < 12 + Math.floor(i / 4) ? T.SHALLOW : 0));
+  const wet = sampleCells(cellSignedDistance(g, (t) => t === 5 || t === 6), g), deep = sampleCells(cellSignedDistance(g, (t) => t === 5), g);
+  const xs = [], zs = [];
+  for (let x = 8; x <= 30; x += 0.1) { // the shoreline z at each x (carve crossing the water surface)
+    let z = 2; while (carveDepth(wet(x, z), deep(x, z)) < WATER_LEVEL && z < 19) z += 0.005;
+    xs.push(x); zs.push(z);
+  }
+  const n = xs.length, mx = xs.reduce((a, b) => a + b) / n, mz = zs.reduce((a, b) => a + b) / n;
+  const k = xs.reduce((a, x, i) => a + (x - mx) * (zs[i] - mz), 0) / xs.reduce((a, x) => a + (x - mx) ** 2, 0);
+  const dev = Math.max(...zs.map((z, i) => Math.abs(z - (mz + k * (xs[i] - mx)))));
+  assert.ok(Math.abs(k - 0.25) < 0.02, `bank slope follows the cells (${k.toFixed(3)})`);
+  assert.ok(dev < 0.08, `shoreline within 8 cm of a straight line (max ${dev.toFixed(3)} m)`);
+  for (let j = 0; j < 40; j++) for (let i = 0; i < 80; i++) { // every cell keeps its side of the shoreline
+    const x = (i + 0.5) * 0.5, z = (j + 0.5) * 0.5, y = carveDepth(wet(x, z), deep(x, z)), c = g.terrain[j * 80 + i];
+    if (c === 0) assert.ok(y > WATER_LEVEL, `land cell (${i},${j}) dry`); else assert.ok(y < WATER_LEVEL, `wet cell (${i},${j}) under water`);
+  }
+});

@@ -97,5 +97,7 @@ test('loading: GitHub Pages limits — no asset file over 50 MB, assets well und
   };
   walk(P('assets').pathname);
   assert.ok(biggest[1] < 50e6, `${biggest[0]} ${(biggest[1] / 1e6).toFixed(1)} MB`);
-  assert.ok(total < 700e6, `assets ${(total / 1e6).toFixed(0)} MB`);
+  // project budget, kept well below the web build's hard 950 MB cap (tools/build/build.mjs) and Pages' 1 GB;
+  // raised 700 → 800 MB when the detailed fuel-tank kit (+13 MB of GLBs) landed
+  assert.ok(total < 800e6, `assets ${(total / 1e6).toFixed(0)} MB`);
 });

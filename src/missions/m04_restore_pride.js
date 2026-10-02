@@ -463,7 +463,7 @@ export default {
   size: [199, 171],
   seed: 1941_0310,
   briefing: {
-    historical: 'March 1941. Night after night the bombs fall on London, Liverpool and Glasgow, and Britain needs a blow of its own. The German command for the Trondheim region has moved into a requisitioned villa at Stokkan. Level it, and every garrison in Norway will learn that nowhere is out of reach.',
+    historical: 'March 1941. Night after night the bombs fall on British cities, and Britain needs a blow of its own. The German command for the Trondheim region has moved into a requisitioned villa at Stokkan. Level it, and every garrison in Norway will learn that nowhere is out of reach.',
     text: 'You come ashore in the south-west, across the inlet from the headquarters. The RAF dropped your extra kit and missed: the crate came down in the woods to the north-east, with the Sapper\'s charge, rounds for the Sniper and the Driver\'s machine pistol. Get it first, then get into the compound and blow the villa. A patrol boat is moored at the villa\'s jetty; it will take you out once everyone is aboard. They outnumber you badly. A lorry runs between the level crossing and the villa; wreck it in the inner gate and their garrison stays shut out. A vehicle left on the level crossing will stop the train. Good luck.',
     objectivesSummary: 'Recover the air-drop in the north-east woods. Blow up the HQ villa with a charge on its front steps. Leave aboard the patrol boat at the villa\'s jetty.',
     hints: [

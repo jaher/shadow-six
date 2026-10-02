@@ -1,6 +1,6 @@
 {
  "mission": "m01",
- "date": "2026-09-27T18:54:56.864Z",
+ "date": "2026-10-01T16:20:47.328Z",
  "static": {
   "mission": "m01",
   "items": 68,
@@ -20,8 +20,50 @@
    "emplacement": 1
   },
   "pairsTested": 13,
-  "ms": 169,
+  "ms": 205,
   "findings": [
+   {
+    "key": "m01:house_s|wall_s",
+    "a": {
+     "id": "house_s",
+     "type": "house",
+     "cat": "building",
+     "kind": "structure"
+    },
+    "b": {
+     "id": "wall_s",
+     "type": "wall",
+     "cat": "wall",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 25.263,
+     "y": 0.117,
+     "z": 117.678
+    },
+    "box": {
+     "min": [
+      24.919,
+      0.02,
+      117.31
+     ],
+     "max": [
+      25.504,
+      0.301,
+      118.258
+     ]
+    },
+    "contact": 1.7,
+    "segments": 13,
+    "depth": 0.05,
+    "depthAinB": 0.02,
+    "depthBinA": 0.05,
+    "insideA": 6,
+    "insideB": 4,
+    "volume": 0.013,
+    "allowed": true,
+    "reason": "joint"
+   },
    {
     "key": "m01:barr_L_a|barr_L_b",
     "a": {
@@ -88,8 +130,8 @@
    {
     "id": "e7",
     "t": 60,
-    "x": 37.01,
-    "z": 116.67
+    "x": 37.02,
+    "z": 117.25
    },
    {
     "id": "e13",
@@ -98,16 +140,16 @@
     "z": 39.5
    },
    {
-    "id": "e9",
+    "id": "e12",
     "t": 120,
-    "x": 35.89,
-    "z": 106.72
+    "x": 44.34,
+    "z": 33.4
    },
    {
     "id": "e11",
     "t": 120,
-    "x": 43.78,
-    "z": 33.99
+    "x": 43.38,
+    "z": 34.28
    }
   ],
   "notes": [],
@@ -128,42 +170,42 @@
      "kind": "structure"
     },
     "point": {
-     "x": 19.033,
-     "y": 0.929,
-     "z": 128.434
+     "x": 19.472,
+     "y": 1.152,
+     "z": 128.602
     },
     "box": {
      "min": [
-      18.887,
-      0.041,
-      128.011
+      18.9,
+      0.531,
+      128.402
      ],
      "max": [
-      19.594,
-      1.742,
-      128.628
+      19.623,
+      1.617,
+      128.931
      ]
     },
-    "contact": 4.695,
-    "segments": 363,
+    "contact": 4.97,
+    "segments": 387,
     "depth": 0.3,
     "depthAinB": 0.3,
     "depthBinA": 0,
-    "insideA": 2465,
+    "insideA": 1299,
     "insideB": 0,
-    "volume": 0.057,
+    "volume": 0.026,
     "allowed": false,
     "reason": null,
-    "t": 66,
+    "t": 76,
     "at": {
-     "x": 19.27,
-     "z": 128.51
+     "x": 19.41,
+     "z": 128.58
     },
     "unitState": "active",
     "speed": 0.5,
-    "firstT": 64.5,
-    "count": 24,
-    "shot": "../../../..<claude-tmp>"
+    "firstT": 65,
+    "count": 25,
+    "shot": "docs/screenshots/clip-m01-d1.jpg"
    },
    {
     "key": "m01:greenberet|pole_2",
@@ -181,42 +223,42 @@
      "kind": "structure"
     },
     "point": {
-     "x": 20.141,
-     "y": 1.192,
-     "z": 128.914
+     "x": 20.152,
+     "y": 1.101,
+     "z": 128.886
     },
     "box": {
      "min": [
       20.013,
-      0.634,
-      128.797
+      0.032,
+      128.795
      ],
      "max": [
-      20.256,
-      1.609,
-      129.042
+      20.258,
+      1.743,
+      129.039
      ]
     },
-    "contact": 4.748,
-    "segments": 441,
-    "depth": 0.115,
-    "depthAinB": 0.115,
+    "contact": 6.706,
+    "segments": 639,
+    "depth": 0.113,
+    "depthAinB": 0.113,
     "depthBinA": 0,
-    "insideA": 371,
+    "insideA": 797,
     "insideB": 0,
-    "volume": 0.017,
+    "volume": 0.013,
     "allowed": false,
     "reason": null,
-    "t": 77.5,
+    "t": 77,
     "at": {
-     "x": 19.99,
-     "z": 128.87
+     "x": 19.85,
+     "z": 128.8
     },
     "unitState": "active",
     "speed": 0.5,
     "firstT": 64,
     "count": 9,
-    "shot": "../../../..<claude-tmp>"
+    "shot": "docs/screenshots/clip-m01-d2.jpg"
    },
    {
     "key": "m01:diver|jetty_s",
@@ -234,30 +276,30 @@
      "kind": "structure"
     },
     "point": {
-     "x": 31.018,
-     "y": 0.608,
-     "z": 102.087
+     "x": 31.097,
+     "y": 0.575,
+     "z": 101.994
     },
     "box": {
      "min": [
-      30.937,
-      0.315,
-      101.978
+      30.94,
+      0.302,
+      101.929
      ],
      "max": [
-      31.109,
-      0.807,
-      102.173
+      31.17,
+      0.808,
+      102.128
      ]
     },
-    "contact": 2.498,
-    "segments": 251,
-    "depth": 0.085,
-    "depthAinB": 0.085,
+    "contact": 3.37,
+    "segments": 324,
+    "depth": 0.109,
+    "depthAinB": 0.109,
     "depthBinA": 0,
-    "insideA": 96,
+    "insideA": 204,
     "insideB": 0,
-    "volume": 0.003,
+    "volume": 0.001,
     "allowed": false,
     "reason": null,
     "t": 90.5,
@@ -268,9 +310,63 @@
     "unitState": "active",
     "speed": 2.25,
     "firstT": 65,
-    "count": 4
+    "count": 4,
+    "shot": "docs/screenshots/clip-m01-d3.jpg"
+   },
+   {
+    "key": "m01:e10|pier_n",
+    "a": {
+     "id": "e10",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "b": {
+     "id": "pier_n",
+     "type": "pier",
+     "cat": "pier",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 42.93,
+     "y": 0.589,
+     "z": 35.904
+    },
+    "box": {
+     "min": [
+      42.765,
+      0.332,
+      35.696
+     ],
+     "max": [
+      43.346,
+      0.812,
+      36.019
+     ]
+    },
+    "contact": 2.428,
+    "segments": 217,
+    "depth": 0.052,
+    "depthAinB": 0.052,
+    "depthBinA": 0.038,
+    "insideA": 85,
+    "insideB": 8,
+    "volume": 0.001,
+    "allowed": false,
+    "reason": null,
+    "t": 138.5,
+    "at": {
+     "x": 42.98,
+     "z": 35.93
+    },
+    "unitState": "active",
+    "speed": 1.8,
+    "firstT": 138.5,
+    "count": 1
    }
-  ]
+  ],
+  "unitOverlaps": []
  },
  "baseline": {
   "fresh": [],

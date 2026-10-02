@@ -181,6 +181,33 @@ html:has(.mk-credits) .bd-emblem { opacity: .25; transition: opacity 600ms; }
   .mk-spread::after { display: none; }
   .mk-indextabs { position: static; flex-direction: row; margin-bottom: 6px; }
 }
+/* touch (html.mk-touch): the folder fills the phone screen between the title and a bottom row of finger-sized
+   buttons (EXIT bottom-left closes, ◂ PREV n / N NEXT ▸ bottom-right); the paper scrolls with the finger (native
+   momentum: each page in landscape, the stacked spread upright), so every row is reachable and nothing is cut off.
+   Landscape keeps the index tabs as a column right of the folder; upright they are a row above it (as on desktop). */
+html.mk-touch .mk-help .mk-box { width: 100%; height: 100%; }
+html.mk-touch .mk-help .mk-folder {
+  --tabw: 108px; display: flex; flex-direction: column; width: auto; height: auto; transform: none;
+  left: calc(12px + env(safe-area-inset-left)); right: calc(12px + var(--tabw) + env(safe-area-inset-right));
+  top: calc(20 * var(--mr) + 40px); bottom: calc(66px + env(safe-area-inset-bottom));
+}
+html.mk-touch .mk-help .mk-spread { flex: 1 1 auto; min-height: 0; height: auto; }
+html.mk-touch .mk-help .mk-page { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+html.mk-touch .mk-help .mk-keys { grid-template-columns: minmax(calc(58 * var(--mr)), max-content) 1fr; } /* a long cap (NOTEBOOK) widens its column, never pokes out of the paper */
+html.mk-touch .mk-help .mk-indextabs { width: calc(var(--tabw) - 4px); }
+html.mk-touch .mk-help .mk-indextab { min-height: 44px; }
+html.mk-touch .mk-help .mk-pagenav { top: calc(100% + 8px); height: 44px; justify-content: flex-end; gap: 6px; }
+html.mk-touch .mk-help .mk-pagenav .mk-hint { min-height: 44px; min-width: 64px; justify-content: center; padding: 0 10px; }
+html.mk-touch .mk-help .mk-hints.touch { display: flex; right: auto; pointer-events: none; }
+html.mk-touch .mk-help .mk-hints.touch .mk-hint { pointer-events: auto; }
+html.mk-touch .mk-help .mk-note { pointer-events: none; } /* the (empty) note line must not catch a finger on the paper */
+@media (max-aspect-ratio: 1/1) {
+  html.mk-touch .mk-help .mk-folder { --tabw: 0px; }
+  html.mk-touch .mk-help .mk-indextabs { width: auto; flex: none; }
+  html.mk-touch .mk-help .mk-indextab { flex: 1 1 0; text-align: center; }
+  html.mk-touch .mk-help .mk-spread { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; grid-auto-rows: max-content; align-content: start; }
+  html.mk-touch .mk-help .mk-page { overflow: visible; }
+}
 
 /* ================================================================== S14 LOADING (the briefing geometry: photo x 12–390, text x 407–632) */
 .mk-loading .mk-box { overflow: visible; }
@@ -257,14 +284,47 @@ html:has(.mk-credits) .bd-emblem { opacity: .25; transition: opacity 600ms; }
 .part1 .place { margin: 0 0 calc(12 * var(--mr)); font: 400 max(12px, calc(11 * var(--mr) * var(--ts))) / 1.3 var(--f-body); color: var(--brief-white); opacity: .72; }
 .part1 .text p { margin: 0 0 calc(17 * var(--mr)); font: 400 max(12px, calc(12 * var(--mr) * var(--ts))) / calc(17 * var(--mr) * var(--ts)) var(--f-body); color: var(--brief-white); opacity: 0; animation: mk-fadein 300ms linear forwards; animation-delay: var(--d, 0ms); }
 @keyframes mk-fadein { to { opacity: 1; } }
+/* the wartime background (briefing-text.js briefingHistory): a typed news-wire slip under the place line, read by the
+   narrator right after the title card */
+.part1 .dispatch { position: relative; margin: 0 0 calc(16 * var(--mr)); padding: calc(7 * var(--mr)) calc(9 * var(--mr)) calc(9 * var(--mr)); background: #e6dec6; color: #23201a; transform: rotate(-.4deg); box-shadow: 0 1px 0 rgba(0, 0, 0, .4), 0 calc(3 * var(--mr)) calc(8 * var(--mr)) rgba(0, 0, 0, .45); opacity: 0; animation: mk-fadein 300ms linear 300ms forwards; }
+.part1 .dispatch::before { content: ''; position: absolute; inset: 0; background: var(--tex-grain); background-size: 200px; opacity: .2; mix-blend-mode: multiply; pointer-events: none; }
+.part1 .dispatch .rubric { display: inline-block; margin: 0 0 calc(5 * var(--mr)); padding: 1px calc(4 * var(--mr)) 0; border: max(1px, calc(.9 * var(--mr))) solid #a3201a; color: #a3201a; font: 400 max(10px, calc(9 * var(--mr) * var(--ts))) / 1.15 var(--f-title); letter-spacing: .14em; text-transform: uppercase; transform: rotate(-1.5deg); opacity: .85; }
+.part1 .text .dispatch p.hist { position: relative; margin: 0; font: 400 max(11px, calc(10.5 * var(--mr) * var(--ts))) / calc(15 * var(--mr) * var(--ts)) var(--f-typed); color: #23201a; opacity: 1; animation: none; }
+/* the newsreel narrator (docs/narration.md): words appear as they are read; lines already read dim a little */
+.ui-briefing.narrating .text p .w { transition: opacity 140ms linear; }
+.ui-briefing.narrating .text p .w:not(.on) { opacity: 0; }
+.ui-briefing.rm.narrating .text p .w:not(.on) { opacity: .35; }
+.ui-briefing.narrating .text p { transition: color 300ms; color: rgba(240, 240, 240, .62); }
+.ui-briefing.narrating .text p.speaking { color: var(--brief-white); }
+.ui-briefing.narrating .text .dispatch p.hist { color: rgba(35, 32, 26, .6); }
+.ui-briefing.narrating .text .dispatch p.hist.speaking { color: #23201a; }
+.ui-briefing.narrating .title.speaking .line { text-shadow: 0 0 calc(10 * var(--mr)) rgba(194, 20, 20, .35); }
+.part1 .narr { position: absolute; z-index: 3; right: calc(8 * var(--mr)); top: calc(4 * var(--mr)); width: max(26px, calc(20 * var(--mr))); height: max(26px, calc(20 * var(--mr))); padding: 3px; background: none; border: 0; border-radius: 3px; cursor: pointer; color: var(--brief-white); opacity: .8; }
+.part1 .narr svg { width: 100%; height: 100%; display: block; }
+.part1 .narr .cross, .part1 .narr.off .wave { display: none; }
+.part1 .narr.off .cross { display: inline; }
+.part1 .narr.off { opacity: .5; }
+.part1 .narr:hover, .part1 .narr:focus-visible { opacity: 1; outline: 1px solid var(--brass); }
+.ui-briefing.narrating:not(.rm) .narr .wave { animation: br-narr 1s ease-in-out infinite alternate; }
+@keyframes br-narr { from { opacity: .45; } to { opacity: 1; } }
 .part1 .skip { position: absolute; left: calc(407 * var(--mr)); right: calc(8 * var(--mr)); top: calc(452 * var(--mr)); padding: 4px 0; background: none; border: 0; cursor: pointer; text-align: left; font: 700 max(12px, calc(10 * var(--mr) * var(--ts))) / 1 var(--f-body); color: var(--brief-white); letter-spacing: 0; text-transform: none; }
 .part1 .skip:hover, .part1 .skip:focus-visible { color: #fff; text-decoration: underline var(--brass); outline: none; }
-.ui-briefing.rm .slide.on, .ui-briefing.rm .slide.on img, .ui-briefing.rm .slide.on svg, .ui-briefing.rm .title .line, .ui-briefing.rm .text p, .ui-briefing.rm .slide.map .arc { animation: none !important; clip-path: none; opacity: 1; stroke-dashoffset: 0; }
+.ui-briefing.rm .slide.on, .ui-briefing.rm .slide.on img, .ui-briefing.rm .slide.on svg, .ui-briefing.rm .title .line, .ui-briefing.rm .text p, .ui-briefing.rm .dispatch, .ui-briefing.rm .slide.map .arc { animation: none !important; clip-path: none; opacity: 1; stroke-dashoffset: 0; }
 @media (max-aspect-ratio: 1/1) {
   .brbox { width: 100%; height: 100%; padding: 16px; overflow-y: auto; }
   .part1 .head, .part1 .slides, .part1 .text, .part1 .pips, .part1 .skip { position: static; width: auto; height: auto; }
+  .part1 .narr { position: fixed; top: calc(12px + env(safe-area-inset-top)); right: 120px; }
   .part1 .slides { position: relative; aspect-ratio: 4 / 3; margin: 8px 0; }
   .part1 .skip { position: fixed; left: 16px; bottom: calc(12px + env(safe-area-inset-bottom)); top: auto; }
+  /* the fixed bottom row (skip + hint bar, or the PREV / NEXT / CONTINUE buttons) never covers the text: the scrolling
+     column ends above it, and a line scrolled into view (the narrator's) stops below the speaker button */
+  .ui-briefing.part1 { --br-row: 34px; }
+  html.mk-touch .ui-briefing.part1 { --br-row: 44px; }
+  .brbox { align-self: flex-start; height: calc(100% - var(--br-row) - 20px - env(safe-area-inset-bottom)); scroll-padding: calc(44px + env(safe-area-inset-top)) 0 12px; }
+}
+/* landscape phones: the touch buttons sit fixed at the screen's foot, over the text column's end: it stops above them */
+@media (min-aspect-ratio: 1/1) {
+  html.mk-touch .part1 .text { bottom: max(calc(36 * var(--mr)), calc(68px + env(safe-area-inset-bottom) - (100vh - 480 * var(--mr)) / 2)); }
 }
 
 /* ================================================================== S16 BRIEFING part 2: the Colonel's tour */

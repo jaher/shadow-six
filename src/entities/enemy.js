@@ -177,7 +177,8 @@ export const DEFAULT_WEAPON = {
  * spawn overrides (§4.2, §7.3). Angles are RADIANS at runtime (`fov` = full aperture, `sweep` = amplitude);
  * `fovDeg`/`sweepDeg` keep the degree values. `range`/`nearRange` are legacy aliases of far/near.
  * Spawn overrides: `vision:{fov°, near, far, sweep°, period, elliptical}`, `post:{sweep°, period}`,
- * `elevated`, `overlooks` (a balcony sentry who sees down past the roof rule, M12), `y`. ellipseMode 'short' scales ranges by CONFIG.stealth.shortRangeMul.
+ * `elevated`, `overlooks` (a balcony sentry who sees down past the roof rule, M12), `overWalls` (an MG gunner on an
+ * open platform sees over walls lower than his sight line, M2), `y`. ellipseMode 'short' scales ranges by CONFIG.stealth.shortRangeMul.
  * @param {string} soldierType
  * @param {object} [spawn]
  * @returns {object|null}
@@ -203,6 +204,7 @@ export function makeVision(soldierType, spawn = {}) {
     eyeHeight: S.eyeHeight,
     elevated: !!(spawn.elevated ?? o.elevated ?? false),
     overlooks: !!(spawn.overlooks ?? o.overlooks ?? false),
+    overWalls: !!(spawn.overWalls ?? o.overWalls ?? false), // sees (and fires) over walls under his sight line (open MG platforms)
     phase: 0, // φ (s): the AI seeds it from world.rng on attach (§4.2)
   };
 }

@@ -233,7 +233,7 @@ export class Input {
     if (ctrl || (portrait && already)) this.select([c], { toggle: true });
     else this.select([c]);
     if (!c.selected) return true;
-    if (already || !cam.isOnScreen(c.x, c.z, 0, 0.9)) cam.recenterOn(c.x, c.z);
+    if (already || !(cam.isVisible || cam.isOnScreen).call(cam, c.x, c.z, 0, 0.9)) cam.recenterOn(c.x, c.z);
     return true;
   }
 
@@ -258,12 +258,14 @@ export class Input {
     for (const e of w.entities) {
       if (e.removed || e.kind === 'prop' || e.kind === 'projectile') continue;
       if (filter && !filter(e)) continue;
-      const midY = e.pickHeight ?? (e.isLow || e.alive === false ? 0.25 : 0.9);
+      // a buried Green Beret is picked at his mound (§3.4 shovel): a low disc as wide as the mound
+      const mound = !!e.buried && e.kind === 'commando';
+      const midY = mound ? 0.1 : e.pickHeight ?? (e.isLow || e.alive === false ? 0.25 : 0.9);
       const p = cam.worldToScreen(e.x, (e.y || 0) + midY, e.z);
-      const r = Math.max(MOUSE.minPickPx, (e.pickRadius ?? CONFIG.units.pickRadius) * ppm);
+      const r = Math.max(MOUSE.minPickPx, (mound ? CONFIG.abilities.moundPickRadius : e.pickRadius ?? CONFIG.units.pickRadius) * ppm);
       // Standing humanoids: accept a vertical capsule from feet to head.
       const dx = clientX - p.x;
-      const halfH = e.kind === 'commando' || e.kind === 'enemy' ? (e.isLow || !e.alive ? 0.3 : 0.9) * ppm : 0;
+      const halfH = mound ? 0 : e.kind === 'commando' || e.kind === 'enemy' ? (e.isLow || !e.alive ? 0.3 : 0.9) * ppm : 0;
       const dy = Math.max(0, Math.abs(clientY - p.y) - halfH);
       const d = Math.hypot(dx, dy);
       if (d <= r && d < bestD) { best = e; bestD = d; }
@@ -391,23 +393,39 @@ export class Input {
 
   /**
    * Move the selection to a ground point (§5.2): each man paths independently; a group spreads around
-   * the click point with 1.2 m formation offsets (first man on the point, the rest on 1.2 m rings).
+   * the click point with 1.2 m formation offsets (first man on the point, the rest on 1.2 m rings; the ring is
+   * turned to straddle the group's approach and its slots go far-side-first to the men nearest the point, so
+   * nobody forms up in another man's way).
    * @returns {object[]} the orders issued
    */
   orderMove(x, z, run = false) {
     const sel = this.selection;
     const orders = [];
     const s = MOUSE.formationSpacing;
+    // the ring straddles the way the group comes in, so no ring man stands on the first man's line to the point
+    let phase = 0;
+    if (sel.length > 2) {
+      const cx = sel.reduce((a, c) => a + c.x, 0) / sel.length, cz = sel.reduce((a, c) => a + c.z, 0) / sel.length;
+      if (Math.hypot(cx - x, cz - z) > 1e-3) phase = Math.atan2(cz - z, cx - x) + Math.PI / Math.min(6, sel.length - 1);
+    }
+    const offs = sel.map((c, k) => {
+      if (k === 0) return [0, 0];
+      const ring = k <= 6 ? 1 : 2;
+      const slots = ring === 1 ? Math.min(6, sel.length - 1) : Math.max(1, sel.length - 7);
+      const idx = ring === 1 ? k - 1 : k - 7;
+      const a = phase + (idx / slots) * Math.PI * 2;
+      return [Math.cos(a) * s * ring, Math.sin(a) * s * ring];
+    });
+    // ring slots by arrival order (playtest: men walked through each other forming up): the man nearest the
+    // point takes the farthest slot from where the group comes, so early arrivals never stand in a later man's way
+    if (sel.length > 2) {
+      const cx = sel.reduce((a, c) => a + c.x, 0) / sel.length, cz = sel.reduce((a, c) => a + c.z, 0) / sel.length;
+      const men = sel.slice(1).map((c, i) => ({ i: i + 1, d: Math.hypot(c.x - x, c.z - z) })).sort((a, b) => a.d - b.d || a.i - b.i);
+      const ring = offs.slice(1).map((o, i) => ({ o, d: Math.hypot(x + o[0] - cx, z + o[1] - cz), i })).sort((a, b) => b.d - a.d || a.i - b.i);
+      men.forEach((m, k) => { offs[m.i] = ring[k].o; });
+    }
     sel.forEach((c, k) => {
-      let ox = 0, oz = 0;
-      if (k > 0) {
-        const ring = k <= 6 ? 1 : 2;
-        const slots = ring === 1 ? Math.min(6, sel.length - 1) : Math.max(1, sel.length - 7);
-        const idx = ring === 1 ? k - 1 : k - 7;
-        const a = (idx / slots) * Math.PI * 2;
-        ox = Math.cos(a) * s * ring;
-        oz = Math.sin(a) * s * ring;
-      }
+      const [ox, oz] = offs[k];
       const order = { type: 'move', x: x + ox, z: z + oz, run };
       orders.push(order);
       this.game.enqueue(() => c.issue(order));
@@ -672,7 +690,9 @@ export class Input {
     if (commando) {
       // A map click never recentres (§2.3). Click a selected man → deselect him; Ctrl → add/remove.
       const was = commando.selected;
-      if (mods.ctrl || was) this.select([commando], { toggle: true });
+      // a click on a buried man's mound always selects him (never toggles him off): the first step out of the hole
+      if (commando.buried && !mods.ctrl) this.select([commando]);
+      else if (mods.ctrl || was) this.select([commando], { toggle: true });
       else this.select([commando]);
       return commando.selected ? 'select' : 'deselect';
     }

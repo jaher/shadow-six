@@ -252,8 +252,11 @@ export default {
   coneColors: 'green',
   size: [87, 188],
   seed: 1944_0515,
+  // farmland fringe (art/terrain/bocage.js): field hedges, crops and orchards on the clear map edges, hedges
+  // backing walls (visual only: laid out clear of every gameplay point and route)
+  vegetation: { farmland: { crops: 'none', orchards: 0.3 } },
   briefing: {
-    historical: 'Three years ago the Bismarck, the pride of the German navy, went down in the North Atlantic on her first sortie. She had sunk the Hood and drawn half the Royal Navy after her. Now we learn that a copy of her has been completed in the port of Le Havre, and that she sails today to guard the Normandy coast. The Resistance can slip five of you into the harbour. If she reaches the open sea, every landing on this coast will be paid for twice. Stop her before the legend is born again.',
+    historical: 'May 1944. Three years ago the Bismarck sank the Hood and went down on her first sortie, with half the Royal Navy on her heels. Now a copy of her has been finished at Le Havre, and she sails today to guard the Normandy coast. If she reaches the open sea, every landing beach will pay for it.',
     text: 'You will be put ashore on the rocks below the southern jetty. Somewhere in the docks the enemy keeps a small, heavily armed submarine. Take it, bring it within range of the battleship and put a torpedo into the forward part of her hull. While you are there, the fuel tanks beside her berth must go up as well. Then take the inflatable south-west to the red buoy, where you will be picked up. This is a chance to make history. Good luck.',
     objectivesSummary: 'Sink the new battleship with a torpedo in the bow and blow up her fuel tanks. Then row everyone south-west to the red buoy.',
     hints: [

@@ -3,14 +3,15 @@
  * barrels (and hiding a body under a barrel): the hand (abilities/shared.js).
  *   decoyDrop   Q  plant the acoustic decoy at his feet (0.8 s); the activator replaces it in the knapsack
  *   decoyToggle I  beeping on/off from anywhere; a decoy noise every 1.5 s while on (each pulse is a stimulus)
- *   shovel      F  SNOW/SAND only (M1–M11 kit): dig 2.0 s → buried (hidden); F / right-click rises in 1.0 s.
+ *   shovel      F  SNOW/SAND only (M1–M11 kit): dig 2.0 s → buried (hidden); F / right-click / the shovel in the bag /
+ *                  a move order rises in 1.0 s (a move order then walks on). The dig and the rise are drawn by
+ *                  art/shovel-dig.js from `c.dig` (shovel in his hands, spoil, the hole and the mound).
  *                  Witness rule: enemies whose cone held him during the dig keep seeing him (near band).
  *   climb       (axe cursor) click near a climbable edge (mission climb link): he walks to the base and climbs
  *                  (0.5 m/s); right-click mid-climb hangs. Cannot climb while carrying.
  * @module abilities/greenberet
  */
 
-import * as THREE from 'three';
 import { registerAbility } from './registry.js';
 import { CONFIG } from '../config.js';
 import { T } from '../world/grid.js';
@@ -58,20 +59,22 @@ registerAbility({
   },
 });
 
-/** Burial mound decal (placeholder mesh; art may replace it). */
-function mound(x, z, snow) {
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.7, 12, 6), new THREE.MeshStandardMaterial({ color: snow ? 0xe8ecef : 0xc8b27a, roughness: 1 }));
-  m.scale.set(1, 0.18, 0.7);
-  m.position.set(x, 0.02, z);
-  m.name = 'mound';
-  return m;
+/**
+ * Dig state read by the visuals (art/shovel-dig.js): phase 'dig' | 'buried' | 'rise' | 'out' (risen: the patch
+ * fades) | 'abort' (dig cancelled), started at world time t0 for dur s, at the hole (x, z), surface 'snow' | 'sand'.
+ * Plain data (the sim never reads it back).
+ */
+function digState(c, world, phase, dur, surface = c.dig?.surface ?? 'snow') {
+  c.dig = { phase, t0: world.time ?? 0, dur, x: c.dig && phase !== 'dig' ? c.dig.x : c.x, z: c.dig && phase !== 'dig' ? c.dig.z : c.z, surface,
+    heading: phase === 'dig' ? c.heading : c.dig?.heading ?? c.heading };
+  return c.dig;
 }
 
 registerAbility({
   id: 'shovel', label: 'Shovel', icon: '⛏', hotkey: 'f', roles: ['greenberet'], item: 'shovel', targeting: 'self',
   order: 42, visibleToEnemies: true,
   canUse(c, t, world) {
-    if (c.buried) return true; // rise
+    if (c.buried) return c.currentActionId === 'shovel' ? 'Already digging out.' : true; // rise
     const f = freeToAct(c);
     if (f !== true) return f;
     if (c.carrying) return 'Drop it first.';
@@ -81,22 +84,28 @@ registerAbility({
   },
   start(c, t, world) {
     if (c.buried) {
+      // rising: he pushes up out of the mound (visible from the first frame), brushes off, shovel back on the pack.
+      // Not interruptible: a move order given meanwhile waits for him (Commando.issue → riseThen).
       c.playAction('use', A.rise);
-      return timedTask({ dur: A.rise, steps: [{ at: A.rise, fn: () => {
+      digState(c, world, 'rise', A.rise);
+      if (c.object3d) c.object3d.visible = true;
+      return timedTask({ dur: A.rise, interruptible: false, steps: [{ at: A.rise, fn: () => {
         c.buried = false;
         c.state = 'active';
         c.witnesses = null;
         if (c.object3d) c.object3d.visible = true;
-        if (c._mound) { world.scene?.remove(c._mound); c._mound = null; }
+        digState(c, world, 'out', A.rise);
         return true;
       } }] });
     }
     const seen = new Set();
-    const snow = world.groundAt(c.x, c.z).terrainCode === T.SNOW;
+    const surface = world.groundAt(c.x, c.z).terrainCode === T.SNOW ? 'snow' : 'sand';
     c.playAction('use', A.dig);
+    digState(c, world, 'dig', A.dig, surface);
     return timedTask({
       dur: A.dig,
       tick: () => { for (const e of witnessesOf(world, c)) seen.add(e); },
+      onCancel: () => { if (c.dig?.phase === 'dig') digState(c, world, 'abort', 0.4); },
       steps: [{ at: A.dig, fn: () => {
         for (const e of witnessesOf(world, c)) seen.add(e);
         c.stop();
@@ -105,8 +114,7 @@ registerAbility({
         c.state = 'hidden';
         c.witnesses = seen; // §3.4 witness rule (perception reads unit.witnesses)
         if (c.object3d) c.object3d.visible = false;
-        c._mound = mound(c.x, c.z, snow);
-        world.scene?.add(c._mound);
+        digState(c, world, 'buried', 0);
         return true;
       } }],
     });

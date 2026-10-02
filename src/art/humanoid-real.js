@@ -67,6 +67,8 @@ let LIB = null, loading = null;
 /** Below this many px/m (LOD1/LOD2 sizes) mixers step every 2nd frame with the accumulated dt. */
 const HALF_RATE_PX = 50;
 const CRAWLING = /^crawl(_unarmed|_knife)?$/;
+/** Idle loops that step at a quarter rate when zoomed out (breathing: nothing moves against the ground). */
+const IDLE_LOOP = /^(idle|crawl_idle|carry_idle|drag_idle|downed_idle)$/;
 const live = new Set();
 const view = { px: 40, frustum: null, tick: 0 };
 const _m4 = new THREE.Matrix4(), _sph = new THREE.Sphere(new THREE.Vector3(), 1.3);
@@ -339,9 +341,11 @@ export function createRealHumanoid(opts = {}) {
       body.visible = inView(root, DRAW_MARGIN);   // render culling of the whole skeleton subtree (all passes)
       if (st.frozen) return false;
       if (!inView(root) && (++st.n & 3)) return false;   // off screen: every 4th call, same total time
-      // zoomed out (LOD1/2): 30 Hz, same total time. Not while crawling: the planted elbows / boots move against the
-      // root every frame, and a pose that only catches up every other frame makes the crawl stutter (review)
-      if ((st.lodPx ?? view.px) < HALF_RATE_PX && !CRAWLING.test(model.anim) && (++st.h & 1)) return false;
+      // zoomed out (LOD1/2): 30 Hz, same total time. Not while moving (walk, run, crawl…): the planted feet / elbows
+      // move against the root every frame, and a pose that only catches up every other frame makes the planted foot
+      // slide on alternate frames — the walk reads as a jerk (playtest)
+      // (a standing idle — a breathing loop — at 15 Hz: it pays for the walkers' full rate)
+      if ((st.lodPx ?? view.px) < HALF_RATE_PX && !LOCO.has(model.anim) && !CRAWLING.test(model.anim) && (++st.h & (IDLE_LOOP.test(model.anim) ? 3 : 1))) return false;
       const step = st.acc; st.acc = 0;
       cur.update(step);
       if ((model.anim === 'dead' || model.anim === 'dead_prone') && (st.deadT += step) > 1.5) st.frozen = true;   // settled corpse: stop stepping its mixer
@@ -387,7 +391,12 @@ export function createRealHumanoid(opts = {}) {
     },
     dispose() {
       live.delete(model); root.removeFromParent();
-      for (const h of both()) { if (h.mixer) { h.mixer.stopAllAction(); h.mixer.uncacheRoot(h.object); } h.object.removeFromParent(); }
+      for (const h of both()) {
+        if (h.mixer) { h.mixer.stopAllAction(); h.mixer.uncacheRoot(h.object); }
+        h.object.removeFromParent();
+        // each clone has its own Skeleton: free its bone texture (the template's geometry / materials stay shared)
+        h.object.traverse((n) => { if (n.isSkinnedMesh) n.skeleton?.dispose(); });
+      }
       land = water = cur = null; model.inner = null;
     },
   };

@@ -29,6 +29,7 @@
 
 import * as THREE from 'three';
 import { BcdOverlay } from './bcd-overlay.js';
+import { NoiseRings } from './noise-rings.js';
 import { XRAY_LAYER } from '../engine/post-passes.js';
 import { reducedMotion } from './fx.js';
 import { CHESS_MARKER, CHESS_RING, RING_PROFILE_GLSL, ringShape } from './ring-pulse.js';
@@ -156,6 +157,8 @@ export class Selection {
     this.clock = () => performance.now() / 1000;
     /** tests: a fixed time-since-selection for every ring (null = live) */
     this.pulseT = null;
+    /** house rule runningNoise: a ring per running step, growing to its hearing radius (option "NOISE RINGS") */
+    this.noise = new NoiseRings(this.group);
   }
 
   /** Bind to a world's events (move markers). Call on every mission load. */
@@ -163,9 +166,11 @@ export class Selection {
     this.detach();
     this.world = world;
     this._offs.push(world.events.on('ui:move-marker', ({ x, z, run }) => this.marker(x, z, run)));
+    this.noise.attach(world);
   }
 
   detach() {
+    this.noise.detach();
     for (const off of this._offs) off();
     this._offs = [];
     this.world = null;
@@ -277,6 +282,7 @@ export class Selection {
     const w = this.world;
     if (w?.rules?.puppet) (this.bcd ||= new BcdOverlay(this.group, () => this.world)).update(w); // BCD puppet disc / knock-out arcs
     else this.bcd?.update(null);
+    this.noise.update(dt);
     const sel = w ? w.commandos.filter((c) => c.selected && c.alive) : [];
     const now = this.clock(), still = this._still();
     for (const c of this._selT.keys()) if (!sel.includes(c)) this._selT.delete(c);
@@ -334,6 +340,7 @@ export class Selection {
 
   dispose() {
     this.bcd?.dispose();
+    this.noise.dispose();
     this.detach();
     this.scene.remove(this.group);
     this.ringGeo.dispose();

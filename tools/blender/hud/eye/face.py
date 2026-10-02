@@ -89,15 +89,28 @@ class Surf:
         n = (b - a).cross(c - a).normalized(); t = (b - a).normalized(); return t, n.cross(t), n
 
     def bind(self, p):
+        """Nearest skin point as (triangle, barycentric weights). Solved in double precision relative to the triangle's
+        first corner, with the weights summing to exactly 1: the subdivided triangles are ~0.1 mm across and ~1.7 m
+        from the origin, so mathutils' single-precision barycentric_transform left weight sums of 1 +- 0.004, which
+        moved roots by millimetres (lashes rooted under the lid fold read as a second lash row)."""
         loc, nrm, ti, d = self.bvh.find_nearest(p)
-        a, b, c = (self.v[i] for i in self.t[ti])
-        from mathutils.geometry import barycentric_transform
-        bc = barycentric_transform(loc, a, b, c, Vector((1, 0, 0)), Vector((0, 1, 0)), Vector((0, 0, 1)))
-        return ti, tuple(bc)
+        a, b, c = (tuple(self.v[i]) for i in self.t[ti])
+        e0 = [b[k] - a[k] for k in range(3)]; e1 = [c[k] - a[k] for k in range(3)]; e2 = [loc[k] - a[k] for k in range(3)]
+        dot = lambda u, w: u[0] * w[0] + u[1] * w[1] + u[2] * w[2]
+        d00, d01, d11, d20, d21 = dot(e0, e0), dot(e0, e1), dot(e1, e1), dot(e2, e0), dot(e2, e1)
+        den = d00 * d11 - d01 * d01
+        if abs(den) < 1e-30: return ti, (1.0, 0.0, 0.0)
+        v = (d11 * d20 - d01 * d21) / den; w = (d00 * d21 - d01 * d20) / den
+        return ti, (1.0 - v - w, v, w)
 
     def at(self, bind):
-        ti, bc = bind; a, b, c = (self.v[i] for i in self.t[ti])
-        return a * bc[0] + b * bc[1] + c * bc[2]
+        ti, (_, v, w) = bind; a, b, c = (tuple(self.v[i]) for i in self.t[ti])
+        return Vector([a[k] + (b[k] - a[k]) * v + (c[k] - a[k]) * w for k in range(3)])
+
+    def visible(self, p, cam, eps=0.00005):
+        """True when nothing of the skin lies between the camera and the point p."""
+        O = cam.matrix_world.translation; d = p - O
+        return self.bvh.ray_cast(O, d.normalized(), max(0.0, d.length - eps))[0] is None
 
     def aperture(self, c, r, n=120):
         """Where the skin meets the globe (front half), ordered round the gaze axis: [(angle, point)]."""
@@ -239,56 +252,72 @@ def lids(surf, c, r, cam=None, n=64):
     return _resample(up, n), _resample(lo_, n)
 
 
-def _strand(root, d0, side, length, curl, n=7):
+def _strand(root, d0, side, length, curl, n=7, fix=None):
     pts, p, d = [root], root.copy(), d0.normalized()
     for k in range(1, n):
         d = (d + side * curl * 1.7 / n).normalized()
-        p = p + d * (length / (n - 1)); pts.append(p)
+        q = p + d * (length / (n - 1))
+        if fix: q = fix(q); d = (q - p).normalized() if (q - p).length > 1e-9 else d
+        p = q; pts.append(p)
     return pts
 
 
 def lash_spec(surf, c, r, seed=7):
-    """Lashes bound to the lid skin (rest pose): [(bind, [local offsets], radius0)]. Upper: ~180 in 2-3 staggered
-    rows, longest just lateral of centre, curling up and sweeping out at the lateral end; lower: ~35, shorter, finer,
-    pointing down and out. Clumps never mix the two lids."""
+    """Lashes bound to the lid skin (rest pose): [(bind, [local offsets], radius0)]. Upper: one row along the visible
+    margin (staggered a hair's breadth), denser and longer towards the lateral corner, curling up and sweeping out;
+    lower: ~30, shorter, finer, pointing out and down, sparse at the medial corner. Clumps never mix the two lids.
+    A root is kept only on the outer lid skin just past the margin as the camera sees it (a root on the inner margin
+    would show as a stub or a hair rising over the white of the eye), in view of the camera, and for the upper lid
+    within 0.8 mm of the margin (a root under the lid fold would put a second row of tips along the crease)."""
     rnd = random.Random(seed); spec = []
     import numpy as np
     from bpy_extras.object_utils import world_to_camera_view as w2c
     sc = bpy.context.scene; cam = sc.camera
     up, lo = lids(surf, c, r)
-    for lid, count, Lmax, sgn in ((up, 260, 0.0074, 1.0), (lo, 80, 0.0029, -1.0)):
+    for lid, count, Lmax, sgn in ((up, 215, 0.0074, 1.0), (lo, 80, 0.0031, -1.0)):
         dense = _resample(lid, 200)
         proj = sorted((w2c(sc, cam, q_).x, w2c(sc, cam, q_).y) for q_ in dense)
         edge_y = lambda x, P_=proj: float(np.interp(x, [a for a, _ in P_], [b for _, b in P_]))
+        def outside(q_):                                   # pushed back onto the skin surface when a hair dips into it
+            loc, nrm, _i, _d = surf.bvh.find_nearest(q_)
+            if nrm.dot(loc - c) < 0: nrm = -nrm
+            h = (q_ - loc).dot(nrm)
+            return q_ if h > 0.00004 else loc + nrm * 0.00004
         for k in range(count):
-            t = min(0.985, max(0.015, (k + rnd.random()) / count))
+            u = (k + rnd.random()) / count
+            t = min(0.985, max(0.015, u ** 1.18 if sgn > 0 else u))   # upper: denser towards the lateral corner (t~0)
             if t > (0.9 if sgn > 0 else 0.84) or t < 0.035: continue
+            if sgn < 0 and rnd.random() < 0.75 * t: continue           # lower: sparse towards the medial corner
             q = dense[int(t * 199)]
             radial = (q - c).normalized()
             vert = Vector((0, 0, sgn)); vert = (vert - radial * vert.dot(radial)).normalized()
             row = rnd.random()
-            # root on the outer lid skin, just past the visible margin as the camera sees it (a root on the inner
-            # margin would show as a stub or a hair rising over the white of the eye): nudged a little, else dropped
-            off = 0.00015 + 0.0005 * row
-            for _ in range(3):
+            off = 0.00012 + 0.00028 * row
+            for _ in range(4):
                 bind = surf.bind(q + radial * 0.0002 + vert * off); root = surf.at(bind)
-                v = w2c(sc, cam, root); ok = (v.y - edge_y(v.x)) * sgn > 0.001
+                v = w2c(sc, cam, root)
+                ok = (v.y - edge_y(v.x)) * sgn > 0.0002 and surf.visible(root, cam)
+                if sgn > 0 and min((root - e).length for e in dense) > 0.0008: ok = False   # under the fold: no 2nd row
                 if sgn < 0 and (root - q).length > 0.0009: ok = False          # bound onto the cheek side of the lid
                 if ok: break
                 off += 0.0001
             if not ok: continue
             prof = math.sin(math.pi * min(1.0, t * 1.05)) ** 0.55 * (0.55 + 0.45 * t if sgn > 0 else 1.0)   # lateral (t~0) shorter at the very corner
-            prof = max(0.28, prof) * (0.82 + 0.3 * rnd.random())
+            if sgn < 0: prof = math.sin(math.pi * min(1.0, t * 1.1)) ** 0.4 * (1.15 - 0.55 * t)
+            prof = max(0.28, prof) * (0.74 + 0.42 * rnd.random())
             length = Lmax * prof
             sweep = Vector((-1, 0, 0)) * (0.55 * (1 - t) ** 2 - 0.15 * t ** 2)          # lateral lashes fan outward
             if sgn > 0:
-                d0 = radial * 1.0 + vert * 0.05 + sweep + Vector((rnd.gauss(0, 0.08), 0, rnd.gauss(0, 0.06)))
+                d0 = radial * 1.0 + vert * 0.05 + sweep + Vector((rnd.gauss(0, 0.12), 0, rnd.gauss(0, 0.08)))
                 pts = _strand(root, d0, vert + sweep * 0.3, length, 1.15)
-            else:   # lower lashes: down and out, away from the globe, never back over the cornea
-                d0 = radial * 0.55 + vert * 0.85 + sweep * 1.2 + Vector((rnd.gauss(0, 0.06), 0, rnd.gauss(0, 0.04)))
-                pts = _strand(root, d0, vert * 0.6 + radial * 0.4, length, 0.35)
+            else:   # lower lashes: out of the lid and down, away from the globe, never back over the cornea or into the skin
+                d0 = radial * 1.0 + vert * 0.42 + sweep * 1.0 + Vector((rnd.gauss(0, 0.06), 0, rnd.gauss(0, 0.04)))
+                pts = _strand(root, d0, vert * 0.7 + radial * 0.3, length, 0.45, fix=outside)
+                seen = sum(1 for p_ in pts if surf.visible(p_, cam))
+                below = all((w2c(sc, cam, p_).y - edge_y(w2c(sc, cam, p_).x)) < 0 for p_ in pts)
+                if seen < 5 or not below: continue
             tt, bb, nn = surf.frame(bind[0])
-            spec.append((bind, pts, 0.00007 if sgn > 0 else 0.00005, (tt, bb, nn), root, sgn))
+            spec.append((bind, pts, 0.00007 if sgn > 0 else 0.000045, (tt, bb, nn), root, sgn))
     print('LASHES', sum(1 for x in spec if x[5] > 0), 'upper', sum(1 for x in spec if x[5] < 0), 'lower')
     # clumps of 3-5 neighbours on the same lid: tips drawn towards the clump's mean tip (real lashes clump)
     out = []

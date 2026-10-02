@@ -88,7 +88,8 @@ function inlineBoot(info) {
     // leaving the bar sweeping forever
     `addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SCRIPT'||t&&t.rel==='modulepreload'){` +
     `var x=document.getElementById('loading-text');if(x)x.textContent='Could not load the game \u2014 please reload the page.';}},true);` +
-    `if('serviceWorker'in navigator&&location.protocol==='https:'&&!/[?&]test=1/.test(location.search))` +
+    // secure origins only (https, or localhost for the dist tests); test pages opt in with &sw=1
+    `if('serviceWorker'in navigator&&isSecureContext&&(!/[?&]test=1/.test(location.search)||/[?&]sw=1/.test(location.search)))` +
     `addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){});});})();</script>`;
 }
 

@@ -7,7 +7,7 @@
  * Event wiring (all 19 library kinds):
  *  - 'explosion'      bomb → explosion_large · shell → explosion_small · grenade → grenade · barrel → barrel_explosion
  *                     (chained drums get the lighter chainFrom look) · structure → explosion_large + burning_wreck
- *                     (fuel tank: tanker_explosion + long fuel_pool_fire) · vehicle → handled by 'vehicle:destroyed'
+ *                     (fuel tank: fuel_tank_blast → licking fuel_tank_fire) · vehicle → handled by 'vehicle:destroyed'
  *                     · in water → water_splash (the water system spawns it when present)
  *  - 'vehicle:destroyed' explosion_small / tanker_explosion + a burning_wreck until the game's 'fire' off, then a
  *                     smouldering smoke_column for the rest of the mission
@@ -27,6 +27,8 @@
 import * as THREE from 'three';
 import { createVfx } from './vfx/index.js';
 import { T } from '../world/grid.js';
+import { mgMuzzle } from './mg-mount.js';
+import { fuelBlastScale, isFuelStructure } from '../art/fuel-tanks.js';
 import { buildingMeta } from '../art/building-library.js';
 import { assetExtents } from '../art/building-props.js';
 import { coneAt } from '../ai/perception.js';
@@ -200,12 +202,16 @@ export class FX {
   }
 
   _structureBlast(x, z, r, src) {
-    const def = src?.structure || src?.def || {};
+    const def = src?.structure || src?.params?.structure || src?.def || {};   // (Interactables keep the mission def in params)
     const type = def.type || src?.type || '';
-    if (type === 'fueltank' || def.explosive === 'fuel') {
-      this.spawn('tanker_explosion', x, z, { yaw: def.rot ?? 0, dur: 60 });
-      this.spawn('fuel_pool_fire', x, z, { radius: clamp((def.r ?? 2) * 1.6, 2.5, 5), dur: 90 });
-      this._afterFire(x, z, 90, 1.2);
+    if (isFuelStructure({ ...def, type }) || def.explosive === 'fuel') {
+      // scaled to the tank (art/fuel-tanks.js): ruptures run along the long axis (local +X = (cos rot, sin rot))
+      const k = fuelBlastScale(def), w = def.w ?? (def.r ?? 2) * 2, d = def.d ?? (def.r ?? 2) * 2;
+      const long = w >= d, yaw = Math.PI / 2 - (def.rot ?? 0) - (long ? 0 : Math.PI / 2);
+      // fireballs bursting along the shell, then licking flame tongues from the rupture and the pool (no spark comets)
+      this.spawn('fuel_tank_blast', x, z, { yaw, dur: 90, scale: k.scale, size: [Math.min(w, d) * 0.8, Math.max(w, d) * 0.85],
+        h: Math.min(4.2, (def.h ?? 3) * 0.6), poolR: k.fire, smokeK: k.smoke });
+      this._afterFire(x, z, 90, Math.min(1.4, 1.2 * k.smoke));
       return;
     }
     this.spawn('explosion_large', x, z, { scale: clamp(r / 10, 0.7, 1.4) });
@@ -268,6 +274,12 @@ export class FX {
 
   // ------------------------------------------------------------------ weapons
 
+  /** Night lighting (moonlit rig): muzzle flashes light the scene; by day they are small and barely light anything. */
+  _night() {
+    const L = this.world.game?.renderer?.theater;
+    return L ? !!L.night : this.theater === 'night';
+  }
+
   /** Muzzle height (m above ground) of a shooter: stance, emplacement / vehicle mounts. */
   _muzzleY(e) {
     const s = e.shooter || {};
@@ -282,12 +294,15 @@ export class FX {
     const f = e.from || e.shooter, t = e.to;
     if (!f || !t || NO_FLASH.has(e.weapon)) return;
     const dx = t.x - f.x, dz = t.z - f.z, d = Math.hypot(dx, dz) || 1;
-    const mu = e.muzzle; // vehicle guns: the model's muzzle (art/vehicle-model.js muzzleWorld)
-    const fy = mu ? mu.y : this._y(f.x, f.z) + this._muzzleY(e);
+    // vehicle guns: the model's muzzle (art/vehicle-model.js muzzleWorld); a gunner at a platform MG: its muzzle
+    const mu = e.muzzle || (e.shooter?.soldierType === 'mg' ? mgMuzzle(e.shooter, t, (x, z) => this._y(x, z)) : null);
+    // a man standing on a raised deck / wall walk (unit y: his floor above the ground) fires from, or is hit, up there
+    const up = (u) => ((u?.kind === 'enemy' || u?.kind === 'commando') && u.y > 0.05 ? u.y : 0);
+    const fy = mu ? mu.y : this._y(f.x, f.z) + up(e.shooter) + this._muzzleY(e);
     const tgt = e.target;
-    const ty = this._y(t.x, t.z) + (e.hit && tgt ? (tgt.kind === 'vehicle' ? 1.2 : tgt.stance === 'prone' ? 0.3 : 1.1) : 0.05);
+    const ty = this._y(t.x, t.z) + (e.hit && tgt ? up(tgt) + (tgt.kind === 'vehicle' ? 1.2 : tgt.stance === 'prone' ? 0.3 : 1.1) : 0.05);
     const mx = mu ? mu.x : f.x + (dx / d) * 0.7, mz = mu ? mu.z : f.z + (dz / d) * 0.7;
-    this.spawn('muzzle_flash', mx, mz, { y: fy, dir: V3(dx / d, (ty - fy) / d, dz / d), weapon: MUZZLE[e.weapon] || 'rifle', to: { x: t.x, y: ty, z: t.z } });
+    this.spawn('muzzle_flash', mx, mz, { y: fy, dir: V3(dx / d, (ty - fy) / d, dz / d), weapon: MUZZLE[e.weapon] || 'rifle', to: { x: t.x, y: ty, z: t.z }, day: !this._night() });
     const impact = () => {
       if (this.disposed) return;
       const dir = V3(dx / d, 0, dz / d);

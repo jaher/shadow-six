@@ -107,6 +107,9 @@ function tickEngineers(w) {
     if (!b || b.state !== 'ALARM_RUN' || !g || g.fired) continue;
     const blocker = coveringVehicle(w, g.x, g.z);
     if (blocker) {
+      // the plunger is under the lorry: he can never arrive, so the stock "stopped short" fire never comes (his body
+      // keeps clear of the hull, world/body-clearance.js, and his run may end a little short of STOP_AT)
+      b.pt = 0;
       // stuck against the hull: he stands at arm's length and waits (the plunger is under the lorry)
       if (hullDistance(blocker, e.x, e.z) <= STOP_AT) { if (e.isMoving) e.stop(); b.pt = 0; continue; }
       if (!e.isMoving) { b.pt = 0; repath(b, g); }

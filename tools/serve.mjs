@@ -9,6 +9,7 @@
  */
 import { createServer } from 'node:http';
 import { createGzip } from 'node:zlib';
+import { Transform } from 'node:stream';
 import { createReadStream, promises as fs } from 'node:fs';
 import { extname, join, normalize, resolve, sep, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -59,11 +60,25 @@ export const MIME = {
  * Start serving `root`.
  * @param {{port?: number, root?: string, host?: string, quiet?: boolean, base?: string}} [opts]
  *   gzip: compress text responses like GitHub Pages does (the static/--base mode turns it on).
+ *   pages: cache headers like GitHub Pages (`max-age=600` + ETag, 304 on If-None-Match) instead of `no-cache`.
  *   base: URL path prefix the site lives under (GitHub Pages project sites: '/shadow-six/'); other paths 404.
  * @returns {Promise<{server: import('node:http').Server, port: number, url: string, close: () => Promise<void>}>}
  */
-export function startServer({ port = 8080, root = ROOT, host = '127.0.0.1', quiet = true, base = '/', gzip = false } = {}) {
-  const rootAbs = resolve(root);
+export function startServer({ port = 8080, root = ROOT, host = '127.0.0.1', quiet = true, base = '/', gzip = false, pages = false, mbit = 0, latencyMs = 0 } = {}) {
+  let rootAbs = resolve(root);
+  const stats = { requests: 0, ok: 0, notModified: 0, bytes: 0, paths: [] };
+  // mbit: one shared link of that speed for every response (a throttled player connection, service worker fetches
+  // included — DevTools throttling only covers the page itself); latencyMs: added before each response
+  let linkFree = 0;
+  const throttle = () => new Transform({
+    transform(chunk, _enc, cb) {
+      stats.bytes += chunk.length;
+      if (!mbit) return cb(null, chunk);
+      const now = Date.now();
+      linkFree = Math.max(linkFree, now) + chunk.length / (mbit * 125);
+      setTimeout(() => cb(null, chunk), Math.max(0, linkFree - now));
+    },
+  });
   base = ('/' + base + '/').replace(/\/+/g, '/');
   /** 404 with the site's 404.html when it has one (GitHub Pages behaviour), else plain text. */
   const notFound = async (res, req) => {
@@ -74,6 +89,7 @@ export function startServer({ port = 8080, root = ROOT, host = '127.0.0.1', quie
   };
   const server = createServer(async (req, res) => {
     try {
+      if (latencyMs) await new Promise((r) => setTimeout(r, latencyMs));
       const url = new URL(req.url, 'http://x');
       if (base !== '/' && (url.pathname === '/' || url.pathname === base.slice(0, -1))) {
         res.writeHead(302, { Location: base }).end();
@@ -90,16 +106,26 @@ export function startServer({ port = 8080, root = ROOT, host = '127.0.0.1', quie
       const st = await fs.stat(file).catch(() => null);
       if (!st || !st.isFile()) return notFound(res, req);
       const type = MIME[extname(file).toLowerCase()] || 'application/octet-stream';
+      const etag = `"${st.size.toString(16)}-${Math.floor(st.mtimeMs).toString(16)}"`;
+      stats.requests++;
+      if (pages && req.headers['if-none-match'] === etag) {
+        stats.notModified++;
+        res.writeHead(304, { ETag: etag, 'Cache-Control': 'max-age=600' }).end();
+        return;
+      }
       const gz = gzip && /^(text\/|application\/(json|javascript)|image\/svg)/.test(type) && /\bgzip\b/.test(req.headers['accept-encoding'] || '');
       res.writeHead(200, {
         'Content-Type': type,
         ...(gz ? { 'Content-Encoding': 'gzip', Vary: 'Accept-Encoding' } : { 'Content-Length': st.size }),
-        'Cache-Control': 'no-cache',
+        'Cache-Control': pages ? 'max-age=600' : 'no-cache',
+        ...(pages ? { ETag: etag } : {}),
         'Cross-Origin-Opener-Policy': 'same-origin',
       });
       if (req.method === 'HEAD') return res.end();
-      if (gz) createReadStream(file).pipe(createGzip({ level: 6 })).pipe(res);
-      else createReadStream(file).pipe(res);
+      stats.ok++;
+      if (stats.paths.length < 1e6) stats.paths.push(rel); // tests and tools/perf read what was served
+      if (gz) createReadStream(file).pipe(createGzip({ level: 6 })).pipe(throttle()).pipe(res);
+      else createReadStream(file).pipe(throttle()).pipe(res);
     } catch (err) {
       res.writeHead(500).end(String(err));
     }
@@ -110,6 +136,9 @@ export function startServer({ port = 8080, root = ROOT, host = '127.0.0.1', quie
       const actual = server.address().port;
       resolveP({
         server,
+        stats,
+        /** Serve another directory from now on (tests: a new deploy on the same origin). */
+        setRoot(dir) { rootAbs = resolve(dir); },
         port: actual,
         url: `http://${host === '0.0.0.0' ? 'localhost' : host}:${actual}${base}`,
         close: () => new Promise((r) => { server.closeAllConnections?.(); server.close(() => r()); }),

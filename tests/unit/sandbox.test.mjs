@@ -75,7 +75,8 @@ test('fuel depot is a destructible interactable destroyed only by explosions', (
   assert.equal(fuel.destroyed, true);
   assert.equal(fuel.alive, false);
   assert.ok(boom >= 1);
-  assert.equal(world.grid.blockAt(52, 38), B.NONE);
+  // the burst tank still stands there (docs/fuel-tanks.md §7: a wreck keeps its footprint, ~60 % of h)
+  assert.equal(world.grid.blockAt(52, 38), B.HIGH);
 });
 
 test('vision cone fan clips on walls; fx spawns and expires; audio logs', () => {

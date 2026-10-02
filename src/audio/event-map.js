@@ -83,7 +83,7 @@ export function missionAudio(def = {}) {
   const water = !!def.water || terr.some((t) => t === 'water' || t === 'shallow');
   const ids = new Set();
   for (const [id, d] of Object.entries(SFX)) {
-    if (d.bed || /^step_/.test(id) || d.cls === 'vehicle') continue;
+    if (d.bed || /^step_/.test(id) || d.cls === 'vehicle' || (d.bus === 'ambience' && d.loop)) continue; // positional beds: below
     if (!water && /^(underwater|dive_|row_stroke|splash_|raft_|bullet_impact_water)/.test(id)) continue;
     ids.add(id);
   }
@@ -91,6 +91,7 @@ export function missionAudio(def = {}) {
   for (const t of terr) { const st = STEP_TERRAIN[t]; if (st) ids.add(st); }
   ['step_road', 'step_wood', 'crawl_rustle'].forEach((i) => ids.add(i));
   for (const v of def.vehicles || []) for (const i of vehicleSfx(v)) if (i) ids.add(i);
+  for (const [id] of def.ambience || []) if (SFX[id] && !SFX[id].bed) ids.add(id); // mission layers (M3 waterfall)
   if ((def.vehicles || []).some((v) => /train/.test(String(v.type || v.vehicleType)))) ids.add('train_pass');
   const roles = new Set((def.commandos || []).map((c) => c.role).filter((r) => ROLES.includes(r)));
   const speakers = [...(roles.size ? roles : ROLES), 'ger'];
@@ -171,7 +172,9 @@ export function installHandlers(a, events) {
   on('structure:destroyed', (e, t) => {
     if (e.cause === 'ram') return; // a gate smash: gate:smash plays the splintering, not a collapse boom
     const pos = e.x != null ? e : e.structure || e.prop;
-    if (/dam/.test(e.type || '')) { sfx('dam_burst', pos, t); a.startLoop(key(e, 'flood'), 'flood_rush', pos, { event: t }); } else sfx('collapse', pos, t);
+    if (/dam/.test(e.type || '') || e.id === 'dam') { sfx('dam_burst', pos, t); a.startLoop(key(e, 'flood'), 'flood_rush', pos, { event: t }); } else sfx('collapse', pos, t);
+    // positional ambience that belonged to the structure (the M3 dam's falling water) ends with it
+    for (const l of a.ambience || []) if (l.until && l.until === e.id) { l.handle?.stop?.(2.5); l.handle = null; l.ended = true; }
   });
   on('fire', (e, t) => (e.on === false ? a.stopLoop(key(e, 'fire'), 1) : a.startLoop(key(e, 'fire'), 'fire_loop', e, { event: t })));
   // Devices / doors / noises

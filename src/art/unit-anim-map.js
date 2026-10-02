@@ -61,7 +61,7 @@ function proneAnim(name, wc, c) {
  * Clip candidates for a gameplay animation.
  * @param {string} name gameplay name (ARCHITECTURE contract)
  * @param {{dog?:boolean, faction?:string, role?:string, actionId?:string|null, stance?:string, carried?:boolean,
- *   load?:'shoulder'|'drag'|null, weapon?:string|null, weaponClass?:string}} [c] load: how this man is being transported
+ *   load?:'shoulder'|'drag'|null, weapon?:string|null, weaponClass?:string, mounted?:boolean}} [c] mounted: at a platform MG load: how this man is being transported
  *   (bodies-design §C.10) — overrides his own clip; weapon: prop in hand (prone clips follow its carry class)
  * @returns {string[]} ordered candidates; the caller plays the first the character has (else 'idle')
  */
@@ -72,6 +72,8 @@ export function mapAnim(name, c = {}) {
   const a = c.actionId || null;
   const prone = c.stance === 'crawl';
   if (prone) { const p = proneAnim(name, c.weaponClass || weaponClass(c.weapon), c); if (p) return p; }
+  // a gunner at a platform MG (render/mg-mount.js) kneels behind its butt, hands on the grips, whatever he is doing there
+  if (c.mounted && !/^(die|dead|hit|knockback)/.test(name)) return ['mg_kneel', 'kneel_shoot', 'idle'];
   switch (name) {
     case 'die': return ['die'];
     case 'dead': return ['dead'];

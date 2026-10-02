@@ -8,7 +8,8 @@
  *   {type:'stance', stance}           'stand' | 'crawl' (0.5 s down / 0.6 s up, §3.2)
  *   {type:'ability', id, target, run} walk (or run) into the ability's range, re-check canUse(),
  *                                     then run def.start() → ActionTask until 'done'/'failed'
- *                                     (def.autoStand: a crawling commando stands up first, 0.6 s)
+ *                                     (def.autoStand: a crawling commando crawls in and stands up (0.6 s)
+ *                                      only when close; a double-click stands him up at once and runs in)
  *   {type:'cancel'}                   right-click (§3.3/§3.4): holster the pistol, drop the carried body/barrel,
  *                                     rise from the sand, hang on a climb, end a distraction
  *   {type:'exit'}                     click his photo in the knapsack: leave the building / vehicle / gun
@@ -27,6 +28,7 @@ import { installAbilitySystems } from '../abilities/system.js';
 import { dropCarried } from '../abilities/common.js';
 import { releasePuppet, installBcdSystems } from '../ai/bcd-enemy.js';
 import { isDownableHit, enterDowned, tickDowned, serializeDowned } from './downed.js';
+import { digFrame } from '../art/shovel-dig.js';
 
 export { dropCarried };
 
@@ -250,12 +252,7 @@ export class Commando extends Unit {
     if (this.downed) return; // §C.6: he stays down until revived
     if (stance === 'crawl' && (this.carrying || this.buried || this.hidden || this.noCrawl)) return;
     if (this.diving && stance !== 'dive') return; // gear on: only the dive ability changes stance
-    const prev = this.stance;
-    super.setStance(stance);
-    if (this.stance !== stance) return;
-    const U = CONFIG.units;
-    if (prev === 'stand' && stance === 'crawl') this._stanceT = U.stanceDown;
-    else if (prev === 'crawl' && stance === 'stand') this._stanceT = U.stanceUp;
+    super.setStance(stance); // stanceDown 0.5 s / stanceUp 0.6 s (Unit.setStance)
   }
 
   // ------------------------------------------------------------ orders
@@ -274,13 +271,15 @@ export class Commando extends Unit {
         if (this.vehicle?.handleOrder) { ok = this.vehicle.handleOrder(this, order); break; } // VEHICLES §3.7: drive / halt
         if (this.armed === 'pistol') break; // §3.2 pistol drawn: left-click fires, moves refused
         if (this.puppet?.puppetOf === this) { ok = this.puppet.moveTo(order.x, order.z, { run: !!order.run }); break; } // BCD §1.3
-        if (this.buried || this.hidden || this.state === 'inVehicle') break;
+        if (this.buried) { ok = this._riseThenMove(order); break; } // §3.4: a move order digs him out first
+        if (this.hidden || this.state === 'inVehicle') break;
         if (!this.cancelAction()) break;
         ok = this.moveTo(order.x, order.z, { run: !!order.run });
         if (!ok) w.events.emit('message', { text: `${this.nickname}: can't get there.`, kind: 'warn', unit: this });
         break;
       case 'stop':
         if (this.vehicle?.handleOrder) { ok = this.vehicle.handleOrder(this, order); break; }
+        this._afterRise = null; // also drops a walk queued behind the rise (_riseThenMove)
         ok = this.cancelAction();
         if (ok) this.stop();
         break;
@@ -318,9 +317,20 @@ export class Commando extends Unit {
     const wp = this.path?.[this.pathIndex];
     if (wp?.link && wp.link.kind === 'climb') { this.hanging = true; return true; }
     if (this.carrying) return this.useAbility('drop', this);
-    if (this.buried) return this.useAbility('shovel', this);
+    if (this.buried) return this.currentActionId === 'shovel' ? false : this.useAbility('shovel', this); // already rising: nothing more
     if (this.currentAction || this.pendingAbility) return this.cancelAction();
     return false;
+  }
+
+  /**
+   * A move order while buried (§3.4 shovel): he rises (1.0 s, one shovel action), then walks to the point. An order
+   * given while he is already rising only replaces the destination. @returns {boolean} accepted
+   */
+  _riseThenMove(order) {
+    const rising = this.currentActionId === 'shovel';
+    if (!rising && !this.useAbility('shovel', this)) return false;
+    this._afterRise = { x: order.x, z: order.z, run: !!order.run };
+    return true;
   }
 
   /** Leave the building he hides in, or the vehicle / gun he mans (photo click). */
@@ -350,9 +360,13 @@ export class Commando extends Unit {
     const ok = def.canUse ? def.canUse(this, target, w) : true;
     if (ok !== true) return fail(typeof ok === 'string' ? ok : `can't do that.`);
     if (!this.cancelAction()) return false;
-    if (def.autoStand && this.stance === 'crawl') this.setStance('stand'); // stand (0.6 s), then approach/act
+    // autoStand from a crawl: a single click crawls him in and he stands up (0.6 s) only within
+    // CONFIG.abilities.crawlStandLead of reach (_updatePending); a double-click (run order) is urgent: he stands
+    // up at once and runs in, as in BEL.
+    const crawlIn = !!def.autoStand && this.stance === 'crawl' && !run;
+    if (def.autoStand && this.stance === 'crawl' && !crawlIn) this.setStance('stand'); // stand (0.6 s), then approach/act
     const tp = targetPoint(target);
-    const pend = { def, target, run: run && !this.carrying, t: 0, repathT: 0, click: tp ? { ...tp } : null };
+    const pend = { def, target, run: run && !this.carrying, t: 0, repathT: 0, click: tp ? { ...tp } : null, crawlIn, crawled: crawlIn };
     this.pendingAbility = pend;
     this._updatePending(0);
     if (pend.refused) return fail(pend.refused);
@@ -396,7 +410,24 @@ export class Commando extends Unit {
       return;
     }
     const range = typeof p.def.range === 'function' ? p.def.range(this, p.target, w) : p.def.range ?? 1;
-    const d = Math.hypot(tp.x - this.x, tp.z - this.z);
+    let d = Math.hypot(tp.x - this.x, tp.z - this.z);
+    if (p.crawlIn) {
+      // crawling in (useAbility): he stays prone until close, then halts and stands up; once on his feet he
+      // walks the last step and acts. Anything that stood him up meanwhile (water → swim → stand) ends the crawl-in.
+      if (this.stance !== 'crawl') p.crawlIn = false;
+      else if (d <= range + CONFIG.abilities.crawlStandLead) {
+        p.crawlIn = false;
+        this.stop();
+        p.lastTp = null;
+        this.setStance('stand');
+        if (this.stance !== 'crawl') return; // getting up (0.6 s): the guard at the top of this method waits for it
+      }
+    }
+    // a crawler reaches with his hands, 0.8 m ahead of his hips: lying head-on against a drum or a wagon (his body
+    // keeps clear of solids, world/body-clearance.js) he is at it (the crawl-in above keeps the hip distance)
+    if (this.stance === 'crawl' && !self && !p.def.ranged) {
+      d = Math.min(d, Math.hypot(tp.x - this.x - Math.cos(this.heading) * 0.8, tp.z - this.z - Math.sin(this.heading) * 0.8));
+    }
     const inRange = d <= range && (!p.def.needsLOS || p.def.needsLOS(this, p.target, w));
     if (inRange) {
       // §3.2 "A unit already moving keeps moving and can fire when in range": a gun that fires on the move
@@ -411,7 +442,11 @@ export class Commando extends Unit {
       }
       if (d > 1e-3 && !self) this.faceTowards(tp.x, tp.z);
       w.events.emit('ability:start', { unit: this, id: p.def.id, target: p.target ?? null });
+      // the id is set before start(): the model picks the action's clip and hand prop as soon as start() plays it
+      // (unit-anim-map: shovel → dig, uniform → change_clothes, cutters → cut_wire …)
+      this.currentActionId = p.def.id;
       const task = p.def.start(this, p.target, w);
+      if (!task && !this.currentAction) this.currentActionId = null;
       if (task) {
         this.currentAction = task;
         this.currentActionId = p.def.id;
@@ -433,7 +468,9 @@ export class Commando extends Unit {
     }
     p.t += dt;
     p.repathT -= dt;
-    if (p.t > CONFIG.abilities.approachTimeout) {
+    // a crawl-in covers ground at crawl speed: the give-up time stretches by walk/crawl for the whole order
+    const timeout = CONFIG.abilities.approachTimeout * (p.crawled ? CONFIG.units.walk / CONFIG.units.crawl : 1);
+    if (p.t > timeout) {
       this.pendingAbility = null;
       this.stop();
       return;
@@ -477,6 +514,11 @@ export class Commando extends Unit {
           this.currentActionId = null;
           if (this.state === 'busy') this.state = 'active';
           this.world?.events.emit('ability:end', { unit: this, id, result: r });
+          const next = this._afterRise;
+          if (id === 'shovel' && next) { // risen out of the snow / sand: walk on (Commando._riseThenMove)
+            this._afterRise = null;
+            if (r === 'done' && !this.buried) this.issue({ type: 'move', ...next });
+          }
         }
       } else if (this.pendingAbility) {
         this._updatePending(dt);
@@ -492,6 +534,12 @@ export class Commando extends Unit {
     if (this.diving && this.alive) this.stance = 'dive';
     this._updateLinks();
     this._updateCarried(dt);
+  }
+
+  /** Per-frame visuals: the shovel dig / rise (art/shovel-dig.js) before the model update. */
+  renderUpdate(dt) {
+    if (this.dig || this._digVis) digFrame(this, dt);
+    super.renderUpdate(dt);
   }
 
   /** §3.5 single file: keep 1.0 m behind the unit ahead, running when it runs. */
@@ -526,14 +574,26 @@ export class Commando extends Unit {
     if (!c) { this._dragTrail = null; this._heelAt = null; return; }
     if (c.kind !== 'interactable' && this.carryMode === 'drag') {
       this._placeDragged(c, dt);
-      if (this.alive && !this._animOverride) this._setAnim(this._moving ? 'drag_walk' : 'drag_idle');
+      if (this.alive && !this._animOverride) this._setAnim(this._holdAnim(this._moving));
       return;
     }
     this._dragTrail = null;
     if (c.kind !== 'interactable') {
       c.x = this.x; c.z = this.z; c.y = (this.y || 0) + 1.2; c.heading = this.heading;
     }
-    if (this.alive && !this._animOverride) this._setAnim(this._moving ? 'carry_walk' : 'carry_idle');
+    if (this.alive && !this._animOverride) this._setAnim(this._holdAnim(this._moving));
+  }
+
+  /**
+   * Locomotion / idle clip while holding a load (Unit._updateAnim asks first): carry_walk / carry_idle on the shoulder,
+   * drag_walk / drag_idle when dragging. Unit picked plain walk / idle before _updateCarried picked these, so the clip
+   * flipped twice per tick and the mixer restarted every frame: the legs froze mid-stride (carry-legs fix).
+   */
+  _holdAnim(moving) {
+    const c = this.carrying;
+    if (!c) return null;
+    if (c.kind !== 'interactable' && this.carryMode === 'drag') return moving ? 'drag_walk' : 'drag_idle';
+    return moving ? 'carry_walk' : 'carry_idle';
   }
 
   /** Where the dragger's hands hold the man (collar / armpits): `drag.reach` m ahead of him. */
@@ -790,6 +850,11 @@ export class Commando extends Unit {
       this._bcdAttackedT = d.bcd.attackedT ?? undefined;
       this._bcdRefs = { puppet: d.bcd.puppet ?? null, lipstickTarget: d.bcd.lipstickTarget ?? null };
     }
+    // §3.4 shovel: a man saved buried is under his mound again (the dig state is derived, saves are unchanged)
+    this._afterRise = null;
+    this.dig = this.buried ? { phase: 'buried', t0: w?.time ?? 0, dur: 0, x: this.x, z: this.z, heading: this.heading,
+      surface: w?.groundAt?.(this.x, this.z)?.terrain === 'sand' ? 'sand' : 'snow' } : null;
+    if (this.buried && this.object3d) this.object3d.visible = false;
     this.refreshAbilities();
   }
 }

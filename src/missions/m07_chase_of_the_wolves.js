@@ -313,7 +313,7 @@ export default {
   size: [144, 195],
   seed: 1942_0207,
   briefing: {
-    historical: 'At the start of February 1942 the German navy changed the cipher it uses to talk to its submarines. Overnight we went deaf, and the Atlantic convoys lost their best protection. One of the last signals we managed to read says a U-boat flotilla is putting in at Arendal, on the southern coast of Norway. Those boats must never sail again.',
+    historical: 'February 1942. On the first of the month the German navy changed the cipher of its U-boat signals, and overnight we went deaf. The Atlantic convoys have lost their best protection. One of the last messages we could read says a flotilla is putting in at Arendal, on Norway\'s southern coast. Those boats must never sail again.',
     text: 'You go ashore in two parties. The Sapper, the Driver and the Spy land just north of the naval base in the west; the Green Beret and the Marine come down on the heights above the fishing village in the north-east. We have dropped your demolition charges by parachute near the hangar. Collect them, get aboard both submarines and send them to the bottom. Then take a boat out to the red buoy in the south-east, where you will be picked up. Good luck.',
     objectivesSummary: 'Sink both U-boats with a charge on the after deck, by the spare torpedoes. Then row everyone out to the red buoy in the south-east.',
     hints: [

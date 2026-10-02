@@ -18,6 +18,7 @@ import { SFX, MUSIC, ambienceFor } from './manifest.js';
 import { VoiceDirector, lineKey, speakerOf } from './voice-lines.js';
 import { installHandlers, missionAudio } from './event-map.js';
 import { MusicDirector } from './music-director.js';
+import { Narrator } from './narration.js';
 import { cueForState, startCueFor, endStinger } from './music-cues.js';
 
 const hashStr = (s) => { let h = 7; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; };
@@ -53,7 +54,7 @@ export function createAudio(events, opts = {}) {
   const audio = {
     unlocked: false,
     muted: !!saved.muted,
-    volumes: { master: CONFIG.audio?.masterVolume ?? 0.8, sfx: 1, voice: 1, ambience: 1, music: 0.6, ui: 0.8, ...(saved.volumes || {}) },
+    volumes: { master: CONFIG.audio?.masterVolume ?? 0.8, sfx: 1, voice: 1, ambience: 1, music: 0.6, ui: 0.8, narration: 1, ...(saved.volumes || {}) },
     options: { ...DEFAULT_OPTIONS, ...(saved.options || {}) },
     track: 'menu', // requested music cue (plays only outside missions; the game boots on the title screen)
     gameState: 'title',
@@ -97,6 +98,7 @@ export function createAudio(events, opts = {}) {
         if (!ctx) return false;
         this.engine = new AudioEngine(ctx, { fetch: opts.fetch, base: opts.base, rand, jitter: opts.jitter ?? !opts.createContext });
         this.engine.setListener(this.listener.x, this.listener.z, this.listener.viewWidth, this.listener.yaw);
+        this.narrator = new Narrator(this.engine); // the briefing's newsreel voice (audio/narration.js)
         this._applyVolumes();
         const eng = this.engine;
         this.musicDir = new MusicDirector({ ctx: eng.ctx, out: eng.bus.music,
@@ -124,6 +126,7 @@ export function createAudio(events, opts = {}) {
       if (!this.engine) return;
       this.engine.setBusGain('master', this.muted ? 0 : this.volumes.master);
       for (const b of ['sfx', 'voice', 'ambience', 'music', 'ui']) this.engine.setBusGain(b, this.volumes[b]);
+      this.narrator?.setVolume(this.volumes.narration);
     },
     /** Per-mission loading: decode this mission's SFX and voice packs, evict the rest (§1.5.0). */
     _preload() {
@@ -276,7 +279,7 @@ function addMethods(audio, events, rand) {
       if (!d) return;
       d.setAlarm(!!(this.siren.active || this.world?.alarm?.active));
       const voice = this.engine ? [...this.engine.active].some((h) => h.bus === 'voice' && !h.ended) : false;
-      d.setDuck(voice || !!globalThis.speechSynthesis?.speaking);
+      d.setDuck(voice || !!this.narrator?.ducking || !!globalThis.speechSynthesis?.speaking);
       d.update();
     },
 
@@ -289,12 +292,16 @@ function addMethods(audio, events, rand) {
         const night = !!def.night || (def.lighting?.sunElevDeg ?? 30) < 0;
         for (const [id, gain, o = {}] of ambienceFor(def)) {
           if ((o.day && night) || (o.night && !night)) continue;
-          this.ambience.push({ id, gain, sparse: o.sparse || 0, far: o.far || null, next: this.now() + (o.sparse ? o.sparse * rand() : 0), handle: null });
+          // `at` {x, z}: a positional layer (the M3 dam's falling water); `until`: structure id whose destruction ends it
+          this.ambience.push({ id, gain, sparse: o.sparse || 0, far: o.far || null, at: o.at || null, until: o.until || null, rate: o.rate || null,
+            next: this.now() + (o.sparse ? o.sparse * rand() : 0), handle: null });
         }
       }
       if (this.unlocked) {
         for (const l of this.ambience) {
-          if (!l.sparse && !l.handle) l.handle = this.playSfx(l.id, null, { loop: true, gain: l.gain, bus: 'ambience', fadeIn: A().bedFade ?? 4 });
+          if (!l.sparse && !l.handle && !l.ended && !(l.until && this.world?.byId?.(l.until)?.destroyed)) {
+            l.handle = this.playSfx(l.id, l.at, { loop: true, gain: l.gain, bus: 'ambience', fadeIn: A().bedFade ?? 4, ...(l.rate ? { rate: l.rate } : {}) });
+          }
         }
       }
     },

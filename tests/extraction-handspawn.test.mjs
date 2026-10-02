@@ -1,7 +1,7 @@
 /**
  * §7.6 / §8.1 regression (M3 evac_truck spawned by hand before its script ran, as in the play-review
  * probe): boarding alone must not win. The truck is adopted by the escape script, drives off north
- * once everyone is aboard and o3 completes only when it reaches `exit` (52,0,r3). A second run
+ * once everyone is aboard and o3 completes only when it reaches `exit` (60,0,r3). A second run
  * checks that ESC during the drive-off skips it (escape completes at once).
  */
 export default async function extractionHandspawn(page, t) {
@@ -15,7 +15,7 @@ export default async function extractionHandspawn(page, t) {
       const w = G.world;
       for (const e of [...w.enemies]) w.remove(e); // world.remove: a bare `removed` flag leaves them in play
       const ob = (id) => (G.world.objectives || []).find((o) => o.id === id);
-      const v = w.spawnVehicle('truck', { id: 'evac_truck', x: 52, z: 12, heading: Math.PI / 2, friendly: true, seats: 6 });
+      const v = w.spawnVehicle('truck', { id: 'evac_truck', x: 60, z: 10, heading: Math.PI / 2, friendly: true, seats: 6 }); // the M3 pickup
       ob('o1').done = true; ob('o2').done = true;
       g.advance(0.5);
       out.phase0 = G._endFlags?.evacPhase;

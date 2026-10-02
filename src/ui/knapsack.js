@@ -12,6 +12,25 @@ import { GLYPHS, ITEM_ICONS } from './icons.js';
 import { knapsackView, packLayout } from './knapsack-model.js';
 import { COUNT_ART, iconEntry, iconHTML, itemArt, toolHTML, wireToolStates } from './icon-art.js';
 import { CONFIG } from '../config.js';
+import { isTouchUI } from './touch.js';
+
+/** A finger tap on the bag between slots goes to the nearest slot within this many CSS px of the finger. */
+export const BAG_TAP_SLOP = 28;
+
+/**
+ * The button a finger tap at (x, y) on the bag means: the one under the finger, else the nearest one whose box is
+ * within `slop` px (padded hit areas that split the gaps between slots, never overlapping a slot's own box).
+ * @param {{el: any, left: number, top: number, right: number, bottom: number}[]} boxes
+ */
+export function nearestSlot(boxes, x, y, slop = BAG_TAP_SLOP) {
+  let best = null, bd = slop;
+  for (const b of boxes) {
+    const dx = Math.max(b.left - x, 0, x - b.right), dy = Math.max(b.top - y, 0, y - b.bottom);
+    const d = Math.hypot(dx, dy);
+    if (d <= bd) { bd = d; best = b.el; if (!d) break; }
+  }
+  return best;
+}
 
 /**
  * bodies-design §C.5 context pair while one man transports another: Lift (shoulder) or Drag (collar), and Put down.
@@ -63,6 +82,16 @@ export class Knapsack {
     if (iconEntry('tool/pack')) this.root.insertAdjacentHTML('afterbegin', iconHTML('tool/pack', { cls: 'packart' })); // rendered rucksack
     this.passengers = el('div', 'passengers', this.root);
     this.pack = el('div', 'pack', this.root);
+    // a finger on the canvas between slots means the nearest slot (the slots are small for a fingertip)
+    this.root.addEventListener('click', (e) => {
+      if (!isTouchUI() || e.target?.closest?.('button')) return;
+      const boxes = [...this.root.querySelectorAll('button')].map((b) => {
+        const r = b.getBoundingClientRect();
+        return { el: b, left: r.left, top: r.top, right: r.right, bottom: r.bottom };
+      }).filter((b) => b.right > b.left && b.bottom > b.top);
+      const hit = nearestSlot(boxes, e.clientX, e.clientY);
+      if (hit) { e.stopPropagation(); hit.click(); }
+    });
     this.sig = '';
     this.left = false;
     this.transport = el('div', 'hud-transport', parent);
@@ -106,7 +135,7 @@ export class Knapsack {
     this._updateTransport(sel, w);
     const view = knapsackView(sel, w);
     const tgt = this.hud.game.input?.targeting?.abilityId || '';
-    const sig = `${view.mode}|${sel.map((u) => u.id).join(',')}|${view.items.map((i) => `${i.id}:${i.count}:${i.disabled}`).join()}|${tgt}|${this._crewSig(sel)}`;
+    const sig = `${view.mode}|${sel.map((u) => u.id).join(',')}|${view.items.map((i) => `${i.id}:${i.count}:${i.disabled}:${i.rise ? 1 : 0}`).join()}|${tgt}|${this._crewSig(sel)}`;
     if (sig === this.sig) return;
     this.sig = sig;
     this.view = view;
@@ -122,6 +151,7 @@ export class Knapsack {
     this.pack.replaceChildren();
     this.passengers.replaceChildren();
     this.root.dataset.mode = view.mode;
+    this.root.classList.toggle('buried', !!view.buried); // §3.4: a buried GB's pack (the shovel is the DIG OUT slot)
     if (view.mode === 'occupant') {
       const u = view.units[0];
       const b = tip(el('button', 'occupant', this.pack), 'CLICK TO GET OUT');
@@ -161,7 +191,13 @@ export class Knapsack {
       if (it.ability && it.ability === targeting) b.classList.add('armed');
       b.innerHTML = arts[i] ? iconHTML(arts[i], { fb: `item/${it.id}` }) : ITEM_ICONS[it.id] || ITEM_ICONS[it.item] || GLYPHS.star;
       el('span', 'lbl', b, it.label);
-      tip(b, it.disabled ? `${it.label.toUpperCase()}: ${it.reason.toUpperCase()}` : `${it.label.toUpperCase()}${it.key ? ` (${it.key})` : ''}`);
+      if (it.rise) { // §3.4 shovel while buried: a stamped DIG OUT tag on the slot, one click / tap rises
+        b.classList.add('rise');
+        b.dataset.rise = it.disabled ? 'rising' : 'ready';
+        el('span', 'rise-tag', b, it.disabled ? 'RISING' : 'DIG OUT');
+      }
+      tip(b, it.rise && !it.disabled ? `DIG OUT${it.key ? ` (${it.key})` : ''} — COME OUT OF THE ${view.units[0]?.dig?.surface === 'sand' ? 'SAND' : 'SNOW'}`
+        : it.disabled ? `${it.label.toUpperCase()}: ${it.reason.toUpperCase()}` : `${it.label.toUpperCase()}${it.key ? ` (${it.key})` : ''}`);
       this._count(b, it);
       b.addEventListener('click', (e) => {
         e.stopPropagation();

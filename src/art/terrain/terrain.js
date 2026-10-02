@@ -9,12 +9,16 @@ import { PALETTES, buildSplat, splatAt, undulation } from './terrain-layers.js';
 import { COMMON, VERT_PARS, VERT_MAIN, VERT_WORLD, FRAG_MAIN, FRAG_ROUGH, FRAG_NORMAL, FRAG_EMIS, FRAG_AO } from './terrain-glsl.js';
 import { TrailSystem } from './trails.js';
 import { pfbm } from './noise.js';
-import { createGrass } from './grass.js';
+import { createGrass, grassPalette } from './grass.js';
+import { vegetationProfile, groundTint, swardOf } from './veg-profile.js';
+const seasonTint = (veg, layer) => new THREE.Vector3(...groundTint(veg, layer));
+import { placeScrub, nebkhaField, spawnClearance } from './scrub.js';
 import { createSnowFx, addSnowCover } from './snowfx.js';
 import { loadLayerArray } from './layer-image.js';
+import { sessionCache as cache, dataKey } from '../../engine/asset-cache.js';
 
-const WATER_DEPTH = { 5: -1.2, 6: -0.35 };
-const ICE_DEPTH = { 5: -0.06, 6: -0.04 }; // snow theater: frozen ponds sit just below the snow line (T-A)
+export const WATER_DEPTH = { 5: -1.2, 6: -0.35 };
+export const ICE_DEPTH = { 5: -0.06, 6: -0.04 }; // snow theater: frozen ponds sit just below the snow line (T-A)
 const Z8 = [0, 0, 0, 0, 0, 0, 0, 0];
 const TRAIL_PX = { low: 16, medium: 24, high: 32, ultra: 32 }; // trail RT texels per metre
 // per-layer-name gameplay/trail response
@@ -37,7 +41,11 @@ export const TERRAIN_QUALITY = {
 
 /** Layer strip → DataArrayTexture (art/terrain/layer-image.js; WebP strips, 2K ones as a 2-column grid). */
 function loadArray(url, srgb, anisotropy, tile) {
-  return loadLayerArray(url, { srgb, anisotropy, tile });
+  // session cache: a restart / the next mission in the theatre reuses the decoded, uploaded array (no decode,
+  // no getImageData, no texture upload); freed when the cache evicts it
+  return cache.memoAsync(`layer:${url}|${tile || 0}|${srgb ? 1 : 0}|${anisotropy}`, () => loadLayerArray(url, { srgb, anisotropy, tile }).then((t) => cache.retain(t)), {
+    bytes: (t) => t.image.width * t.image.height * t.image.depth * 4 * 1.34, dispose: (t) => t.dispose(),
+  });
 }
 
 function noiseTexture(size = 256) {
@@ -88,7 +96,34 @@ export function cellSignedDistance(grid, pred) {
   };
   const din = run(inside), dout = run(inside.map((v) => 1 - v)), sd = new Float32Array(N);
   for (let k = 0; k < N; k++) sd[k] = inside[k] ? Math.min(din[k], 1e4) - cell / 2 : -(Math.min(dout[k], 1e4) - cell / 2);
-  return sd;
+  return smoothSigned(sd, inside, cols, rows);
+}
+
+/**
+ * Bank smoothing of a cell signed distance: a ~1.5 m tent blur (three 3×3 box passes) evens out the staircase a
+ * shallow-angled bank leaves in the cells (one 0.5 m jog every few metres reads as a sawtooth rim), while every
+ * cell keeps its side of the line (inside ≥ +0.1, outside ≤ −0.1) so narrow channels and the nav grid's
+ * wet/dry split stay where they are. Only the cells along the edge change (channel depths keep).
+ */
+function smoothSigned(sd, inside, cols, rows) {
+  let a = sd, b = new Float32Array(a.length);
+  for (let pass = 0; pass < 3; pass++) {
+    for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) { // horizontal 3-tap
+      const k = j * cols + i;
+      b[k] = (a[i > 0 ? k - 1 : k] + a[k] + a[i < cols - 1 ? k + 1 : k]) / 3;
+    }
+    const c = new Float32Array(a.length);
+    for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) { // vertical 3-tap
+      const k = j * cols + i;
+      c[k] = (b[j > 0 ? k - cols : k] + b[k] + b[j < rows - 1 ? k + cols : k]) / 3;
+    }
+    a = c;
+  }
+  for (let k = 0; k < a.length; k++) {
+    const r = sd[k], t = Math.min(1, Math.max(0, (Math.abs(r) - 0.26) / 0.2)), v = a[k] + (r - a[k]) * t; // edge cells only
+    a[k] = inside[k] ? Math.max(v, Math.min(r, 0.1)) : Math.min(v, Math.max(r, -0.1));
+  }
+  return a;
 }
 
 /**
@@ -102,7 +137,29 @@ export function carveDepth(sdWet, sdDeep, depths = WATER_DEPTH) {
   return sh * ss(-0.3, 0.45, sdWet) + (dp - sh) * ss(-0.25, 0.9, sdDeep);
 }
 
-function splatTexture(arr, w, h) {
+/**
+ * The ground material: MeshStandardMaterial + the splat / hex-tiling / trail shader chunks bound to the uniform set `U`
+ * (createTerrain's; the scenery apron passes a copy sharing the layer arrays with its own splat maps and origin).
+ */
+export function terrainMaterial(U, key = 'terrainB') {
+  const mat = new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0, color: 0xffffff });
+  mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = VERT_PARS + sh.vertexShader
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + VERT_MAIN)
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n' + VERT_WORLD);
+    sh.fragmentShader = COMMON + sh.fragmentShader
+      .replace('#include <map_fragment>', FRAG_MAIN)
+      .replace('#include <roughnessmap_fragment>', FRAG_ROUGH)
+      .replace('#include <normal_fragment_maps>', FRAG_NORMAL)
+      .replace('#include <emissivemap_fragment>', FRAG_EMIS)
+      .replace('#include <aomap_fragment>', FRAG_AO);
+  };
+  mat.customProgramCacheKey = () => key;
+  return mat;
+}
+
+export function splatTexture(arr, w, h) {
   const t = new THREE.DataTexture(arr, w, h, THREE.RGBAFormat);
   t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = false;
   t.wrapS = t.wrapT = THREE.ClampToEdgeWrapping;
@@ -123,6 +180,17 @@ function splatTexture(arr, w, h) {
  *   queryTrails:(x:number,z:number,r:number,o?:object)=>object[], heightAt:(x:number,z:number)=>number,
  *   materialAt:(x:number,z:number)=>object, setQuality:(q:string)=>void, dispose:()=>void}>}
  */
+/**
+ * Short-sward ground layer (terrain-glsl uTurf): the turf colours come from the grass tufts' own palette for the
+ * season (meadow lush tip / dry tip), so the ground between the tufts is the same grass, not a darker paint.
+ */
+function turfUniforms(veg, on) {
+  const pal = grassPalette(veg), m = 0; // archetype 0 = meadow
+  const a = pal.uGRoot[m].clone().lerp(pal.uGTip[m], 0.62), b = pal.uDRoot[m].clone().lerp(pal.uDTip[m], 0.7);
+  const t = veg.src === 'temperate' || veg.src === 'coast' ? 1 : 0;
+  return { uTurf: { value: new THREE.Vector4(on ? t : 0, Math.min(1, veg.dry ?? 0), 0, 0) }, uTurfA: { value: a }, uTurfB: { value: b } };
+}
+
 export async function createTerrain(renderer, scene, grid, theater = 'temperate', opts = {}) {
   const gl = renderer.isWebGLRenderer ? renderer : renderer.renderer;
   const P = PALETTES[theater] || PALETTES.temperate;
@@ -146,19 +214,24 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
     loadArray(`${base}${src}_data.webp`, false, aniso),
   ]);
   let [tAlb, tNor] = pair;
-  const splat = buildSplat(grid, theater, opts);
-  const tSplatA = splatTexture(splat.a, splat.w, splat.h);
-  const tSplatB = splatTexture(splat.b, splat.w, splat.h);
-  const tNoise = noiseTexture();
+  // session cache: the splat and the heightfield are pure functions of the grid's terrain codes + these options, so
+  // a restart / reload of the mission reuses them (and their uploaded textures / buffers)
+  const gridKey = dataKey((h) => { h.num(grid.cols); h.num(grid.rows); h.num(grid.cell); h.words(new Uint8Array(grid.terrain.buffer, grid.terrain.byteOffset, grid.terrain.byteLength)); });
+  // a mission paint hook is a function: cacheable only with its identity (`paintKey`, e.g. the road network's hash)
+  const splatKey = opts.paint && opts.paintKey == null ? null : `terrain:splat:${gridKey}:${theater}:${opts.seed || 7}:${opts.splatRes || 4}:${opts.featherM ?? 1.5}:${opts.splatBlur ?? 0.5}:${!!opts.frozenWater}:${opts.paint ? opts.paintKey : '-'}`;
+  const makeSplat = () => {
+    const sp = buildSplat(grid, theater, opts);
+    return { splat: sp, tA: splatTexture(sp.a, sp.w, sp.h), tB: splatTexture(sp.b, sp.w, sp.h) };
+  };
+  const SP = splatKey ? cache.memo(splatKey, () => { const v = makeSplat(); cache.retain(v.tA); cache.retain(v.tB); return v; }, {
+    bytes: (v) => v.splat.a.length * 2 + v.splat.f32.byteLength, dispose: (v) => { v.tA.dispose(); v.tB.dispose(); },
+  }) : makeSplat();
+  const splat = SP.splat, tSplatA = SP.tA, tSplatB = SP.tB;
+  const tNoise = cache.memo('terrain:noise256', () => cache.retain(noiseTexture()), { bytes: 256 * 256 * 4 * 1.34, dispose: (t) => t.dispose() });
 
   // ---- geometry: undulating heightfield, water cells sunk -----------------------------------------
   const seg = opts.segPerM || 4;
   const sx = Math.round(W * seg), sz = Math.round(D * seg);
-  const geo = new THREE.PlaneGeometry(W, D, sx, sz);
-  geo.rotateX(-Math.PI / 2);
-  geo.translate(W / 2, 0, D / 2);
-  const pos = geo.attributes.position;
-  const hgt = new Float32Array(pos.count);
   // game integration: flatten the undulation under / around structures, raised decks, bridges and water
   // (buildFlatMask), and carve liquid water even in the snow theatre unless the mission's water is frozen
   const frozen = src === 'snow' && !!opts.frozenWater;
@@ -166,50 +239,95 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
   const wetAt = sampleCells(cellSignedDistance(grid, (t) => t === 5 || t === 6), grid);
   const deepAt = sampleCells(cellSignedDistance(grid, (t) => t === 5), grid);
   const depths = frozen ? ICE_DEPTH : WATER_DEPTH;
-  for (let v = 0; v < pos.count; v++) {
-    const x = pos.getX(v), z = pos.getZ(v);
-    let y = undulation(src, x, z, opts.seed || 7);
-    if (flatAt) y *= 1 - flatAt(x, z);
-    const sdW = wetAt(x, z);
-    if (sdW > -0.4) { // near / in water: smooth banks (bilinear signed distance, no cell staircase)
-      const wmin = carveDepth(sdW, deepAt(x, z), depths);
-      const w = Math.min(1, Math.max(0, (sdW + 0.4) / 0.4));
-      const carved = frozen ? wmin + y * 0.02 : Math.min(y * 0.3, 0) + wmin; // flat ice sheet / carved bed
-      y = y * (1 - w) + carved * w;
-    }
-    hgt[v] = y;
-    pos.setY(v, y);
+  // docs/vegetation.md §3.2: desert scrub is planned before the heightfield so each plant's nebkha (sand mound with a
+  // downwind tail) is real terrain: the plant sits in the ground, units walk over it, shadows fall on it
+  const veg = vegetationProfile(opts.mission || null, theater, src);
+  let scrubPlan = null, mound = null;
+  if (veg.scrub && opts.grass !== false && opts.clutter !== false) {
+    const L = (n) => P.layers.indexOf(n), w8 = new Float32Array(8);
+    const iRoad = L('road'), iRock = L('rock'), iDirt = L('dirt'), iDry = L('grassdry'), iMud = L('mud');
+    const road = (x, z) => (splatAt(splat, x, z, w8), w8[iRoad]);
+    const clearOfSpawns = spawnClearance(opts.mission || null);
+    const cellFree = (x, z) => {
+      const i0 = Math.floor(x / grid.cell), j0 = Math.floor(z / grid.cell);
+      for (let j = j0 - 3; j <= j0 + 3; j++) for (let i = i0 - 3; i <= i0 + 3; i++) {
+        if (i < 0 || j < 0 || i >= grid.cols || j >= grid.rows) return false;
+        const k = j * grid.cols + i;
+        if (grid.block[k] || grid.bridge[k] || grid.owner[k] || grid.elev[k] > 0) return false;
+      }
+      return true;
+    };
+    scrubPlan = placeScrub({
+      W, D,
+      runoff: (x, z) => {
+        splatAt(splat, x, z, w8);
+        const here = w8[iDirt] * 0.5 + w8[iDry] + w8[iMud];
+        let verge = 0; for (const [dx, dz] of [[2.5, 0], [-2.5, 0], [0, 2.5], [0, -2.5]]) verge = Math.max(verge, road(x + dx, z + dz));
+        splatAt(splat, x, z, w8);
+        return Math.min(1, here + verge * (1 - w8[iRoad]) * 0.6);
+      },
+      open: (x, z) => {
+        if (opts.exclude && opts.exclude(x, z)) return false;
+        splatAt(splat, x, z, w8);
+        if (w8[iRoad] > 0.25 || w8[iRock] > 0.5) return false;
+        if (wetAt(x, z) > -1.5) return false;
+        if (flatAt && flatAt(x, z) > 0.6) return false; // plants may stand near pads / roads; their mounds fade out there
+        if (!clearOfSpawns(x, z)) return false;
+        return cellFree(x, z);
+      },
+    }, { density: opts.scrubDensity ?? 1, seed: (opts.seed || 7) * 131 });
   }
-  geo.computeVertexNormals();
-  geo.computeBoundingBox();
-  geo.computeBoundingSphere();
+  // the mission's own desert bushes (art/terrain.js scrubHero): hero archetypes on their mounds; ambient plants give way
+  const heroes = opts.scrubHeroes || [];
+  if (heroes.length && opts.grass !== false) {
+    scrubPlan = (scrubPlan || []).filter((p) => !heroes.some((h) => Math.abs(h.x - p.x) < 4 && Math.hypot(h.x - p.x, h.z - p.z) < 0.6 + h.s * 0.9));
+    scrubPlan.push(...heroes);
+  }
+  if (scrubPlan) mound = nebkhaField(scrubPlan, { x: windDir.x, y: windDir.y });
+  // the nebkha mounds are part of the heightfield: key the cached geometry by the plan's mounds
+  const moundKey = scrubPlan ? dataKey((h) => { for (const p of scrubPlan) { h.num(p.x); h.num(p.z); h.num(p.s); h.num(p.mound); } }) : '-';
+  const geoKey = `terrain:height:${gridKey}:${W}:${D}:${seg}:${src}:${opts.seed || 7}:${frozen}:${opts.flatMask ? dataKey((h) => h.floats(opts.flatMask)) : '-'}:${moundKey}:${windDir.x.toFixed(4)}:${windDir.y.toFixed(4)}`;
+  const { geo, hgt } = cache.memo(geoKey, () => {
+    const geo = new THREE.PlaneGeometry(W, D, sx, sz);
+    geo.rotateX(-Math.PI / 2);
+    geo.translate(W / 2, 0, D / 2);
+    const pos = geo.attributes.position;
+    const hgt = new Float32Array(pos.count);
+    for (let v = 0; v < pos.count; v++) {
+      const x = pos.getX(v), z = pos.getZ(v);
+      let y = undulation(src, x, z, opts.seed || 7);
+      if (flatAt) y *= 1 - flatAt(x, z);
+      if (mound) y += mound(x, z) * (flatAt ? Math.max(0, 1 - flatAt(x, z) * 25) : 1); // footprints stay level
+      const sdW = wetAt(x, z);
+      if (sdW > -0.4) { // near / in water: smooth banks (bilinear signed distance, no cell staircase)
+        const wmin = carveDepth(sdW, deepAt(x, z), depths);
+        const w = Math.min(1, Math.max(0, (sdW + 0.4) / 0.4));
+        const carved = frozen ? wmin + y * 0.02 : Math.min(y * 0.3, 0) + wmin; // flat ice sheet / carved bed
+        y = y * (1 - w) + carved * w;
+      }
+      hgt[v] = y;
+      pos.setY(v, y);
+    }
+    geo.computeVertexNormals();
+    geo.computeBoundingBox();
+    geo.computeBoundingSphere();
+    cache.retain(geo);
+    return { geo, hgt };
+  }, { bytes: (v) => v.hgt.byteLength * 9, dispose: (v) => v.geo.dispose() });
 
   // ---- material ----------------------------------------------------------------------------------
   const layerInfo = P.layers.map((n) => LAYER_INFO[n] || { tau: 600, vis: 0.3 });
   const U = {
     tAlb: { value: tAlb }, tNor: { value: tNor }, tDat: { value: tDat },
     tSplatA: { value: tSplatA }, tSplatB: { value: tSplatB }, tNoise: { value: tNoise }, tTrail: { value: null }, tFlat: { value: null },
-    uMap: { value: new THREE.Vector4(W, D, 1 / W, 1 / D) }, uTrailTexel: { value: new THREE.Vector2() },
+    uMap: { value: new THREE.Vector4(W, D, 1 / W, 1 / D) }, uOrigin: { value: new THREE.Vector2(0, 0) }, uTrailTexel: { value: new THREE.Vector2() },
     uTile: { value: P.tile.map((t) => 1 / t) }, uSoft: { value: P.soft.slice() }, uWet: { value: P.wet.slice() },
     uSnow: { value: P.snow.slice() }, uGrass: { value: P.grass.slice() }, uIce: { value: (P.ice || Z8).slice() }, uSlush: { value: (P.slush || Z8).slice() },
-    uTintL: { value: (P.tint || []).concat(Array(8).fill([1, 1, 1])).slice(0, 8).map((t) => new THREE.Vector3(...t)) }, uGrassShade: { value: opts.grass === false ? 0 : 1 }, uDebug: { value: opts.debugTrail ? 1 : 0 }, uHexScale: { value: 1 / 1.6 }, uMacro: { value: 1 }, uSparkle: { value: 1 },
+    uTintL: { value: (P.tint || []).concat(Array(8).fill([1, 1, 1])).slice(0, 8).map((t, k) => new THREE.Vector3(...t).multiply(seasonTint(veg, P.layers[k]))) }, uGrassShade: { value: opts.grass === false ? 0 : 1 }, uSward: { value: new THREE.Vector2(...swardOf(veg, opts.mission?.date)) }, ...turfUniforms(veg, opts.grass !== false), uMeadowMacro: { value: veg.src === 'temperate' ? 1 : 0 }, uDebug: { value: opts.debugTrail ? 1 : 0 }, uHexScale: { value: 1 / 1.6 }, uMacro: { value: 1 }, uSparkle: { value: 1 },
     uHexOn: { value: 1 }, uSunDirW: { value: new THREE.Vector3(0.3, 0.8, 0.5).normalize() },
     uSunCol: { value: new THREE.Color(1, 1, 1) }, uWind: { value: windDir }, uTime: { value: 0 },
   };
-  const mat = new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0, color: 0xffffff });
-  mat.onBeforeCompile = (sh) => {
-    Object.assign(sh.uniforms, U);
-    sh.vertexShader = VERT_PARS + sh.vertexShader
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + VERT_MAIN)
-      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n' + VERT_WORLD);
-    sh.fragmentShader = COMMON + sh.fragmentShader
-      .replace('#include <map_fragment>', FRAG_MAIN)
-      .replace('#include <roughnessmap_fragment>', FRAG_ROUGH)
-      .replace('#include <normal_fragment_maps>', FRAG_NORMAL)
-      .replace('#include <emissivemap_fragment>', FRAG_EMIS)
-      .replace('#include <aomap_fragment>', FRAG_AO);
-  };
-  mat.customProgramCacheKey = () => 'terrainB';
+  const mat = terrainMaterial(U);
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = 'terrainB';
   mesh.receiveShadow = true;
@@ -245,7 +363,7 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
 
   // ---- grass, clutter, weather -------------------------------------------------------------------------
   let quality = TERRAIN_QUALITY[opts.quality] ? opts.quality : 'high';
-  const ctx = { gl, scene, sun: renderer.sun || null, grid, theater, src, P, splat, W, D, heightAt, materialAt, trails, windDir, tNoise, opts, addSnowCover };
+  const ctx = { gl, scene, sun: renderer.sun || null, grid, theater, src, P, splat, W, D, heightAt, materialAt, trails, windDir, tNoise, opts, addSnowCover, waterSD: wetAt, deepSD: deepAt, veg, scrubPlan };
   const grass = opts.grass === false ? null : createGrass(ctx, TERRAIN_QUALITY[quality]);
   const snowfx = src === 'snow' || opts.snowfall ? createSnowFx(ctx, TERRAIN_QUALITY[quality]) : null;
 
@@ -271,7 +389,7 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
   setQuality(quality);
 
   return {
-    mesh, trails, splat, grass, snowfx, uniforms: U, heightAt, materialAt, segPerM: seg,
+    mesh, trails, splat, grass, snowfx, uniforms: U, heightAt, materialAt, segPerM: seg, src, seed: opts.seed || 7, frozen,
     update(dt, camera) {
       time += dt;
       U.uTime.value = time;
@@ -327,16 +445,16 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
       texRes = res;
       try {
         const [a, n] = await loadRes(want);
-        if (texRes !== want) { a.dispose(); n.dispose(); return texRes; }
-        tAlb.dispose(); tNor.dispose();
+        if (texRes !== want) { cache.release(a); cache.release(n); return texRes; }
+        cache.release(tAlb); cache.release(tNor);
         tAlb = a; tNor = n; U.tAlb.value = a; U.tNor.value = n;
       } catch (e) { texRes = 1024; }
       return texRes;
     },
     dispose() {
       scene.remove(mesh);
-      geo.dispose(); mat.dispose();
-      [tAlb, tNor, tDat, tSplatA, tSplatB, tNoise].forEach((t) => t.dispose());
+      cache.release(geo); mat.dispose();
+      [tAlb, tNor, tDat, tSplatA, tSplatB, tNoise].forEach((t) => cache.release(t));
       trails.dispose(); grass?.dispose(); snowfx?.dispose();
     },
   };

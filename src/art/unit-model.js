@@ -21,12 +21,15 @@ import * as HR from './humanoid-real.js';
 import { applyRagdollPose, rememberIdle, captureBase } from './ragdoll-pose.js';
 import { liveView } from '../physics/ragdoll.js';
 import { mapAnim, LOCOMOTION, actionWeapon, CARRY_WEAPON, lookType, guestCharacter, missionNumber } from './unit-anim-map.js';
-import { transportState, transportClip, poseTransported, captureStart, groundDraggedLegs, localOf, localRot, setBody } from './transport-pose.js';
-import { carrierContact, loadSway } from './transport-contact.js';
+import { transportState, transportClip, poseTransported, captureStart, groundDraggedLegs, dragGroundWeight, localOf, localRot, setBody } from './transport-pose.js';
+import { carrierContact, loadSway, loadGait } from './transport-contact.js';
 import { BoneGuard, StickyGuard, capturePose, mixPose } from './pose-blend.js';
 import { proneGround, PRONE_CLIP } from './prone-ground.js';
 
 const PRONE_SHOT = /^prone_(shoot|shoot_smg|pistol_shoot)$/;
+/** Stance transitions play over exactly the sim's stance-change time (CONFIG.units.stanceDown / stanceUp). */
+const transitionTime = (tr) => (tr === 'go_prone' ? CONFIG.units.stanceDown : CONFIG.units.stanceUp);
+const TR_CLIP = /^(go_prone|get_up)$/;
 
 const ctx = { ready: false, missionId: null, missionNo: 0, theater: 'temperate' };
 /** Rendered-frame counter (charactersFrame): a character whose subtree matrices are current for this frame is
@@ -192,6 +195,8 @@ export class UnitModel {
     this.anim = 'idle'; this.clip = null; this.disguised = false; this.unit = null;
     this._o = {}; this._v = 0; this._sent = 0; this._last = null; this._idleN = 0; this._weapon = undefined; this._carried = false; this._stance = 'stand';
     this._guard = new BoneGuard(); this._rdGuard = new StickyGuard(); this._blend = null;
+    /** Optional procedural pose written after the mixer: (model, dt, guard) => pose changed (art/shovel-dig.js). */
+    this.overlay = null;
     this.ready = real.ready.then(() => this._onReady());
   }
 
@@ -223,7 +228,8 @@ export class UnitModel {
     const u = this.unit;
     const st = this.dog ? null : transportState(u);
     const c = { dog: this.dog, faction: this.opts.faction, role: this.opts.role, actionId: u?.currentActionId ?? null,
-      stance: u?.stance ?? 'stand', carried: u?.state === 'carried', tool: u?.readyTool ?? null, load: st ? transportClip(st) : null };
+      stance: u?.stance ?? 'stand', carried: u?.state === 'carried', tool: u?.readyTool ?? (u?.pendingAbility?.def?.id === 'knife' ? 'knife' : null), load: st ? transportClip(st) : null,
+      mounted: !!u?._mgManned };   // at a platform MG (render/mg-mount.js): kneeling behind it
     c.weapon = this._wantWeapon(c);   // prone clips follow the carry class of the weapon in hand (unit-anim-map proneAnim)
     return c;
   }
@@ -232,12 +238,15 @@ export class UnitModel {
   _wantWeapon(c) {
     if (!this.player) return this.real.inner?.weaponName || null;
     const idle = this.anim === 'idle' || LOCOMOTION.has(this.anim) || this.anim === 'crawl_idle';
-    // crawling with the knife selected (Green Beret, knife cursor up): crawl_knife, the knife in the fist
-    let want = idle ? (c.stance === 'crawl' && c.tool === 'knife' ? 'knife' : null) : actionWeapon(this.opts.role, c.actionId);
+    // crawling with the knife selected (Green Beret, knife cursor up) or crawling in on a knife order: crawl_knife, the knife in the fist
+    // a knife order keeps the knife in the fist from the crawl-in through getting up and the last steps to the stab
+    const knifeIn = c.tool === 'knife' && (c.stance === 'crawl' || this.unit?.pendingAbility?.def?.id === 'knife');
+    let want = idle ? (knifeIn ? 'knife' : null) : actionWeapon(this.opts.role, c.actionId);
     if (want === null) want = CARRY_WEAPON[this.opts.role] || false;
     // bodies-design §C.10: both hands on the load (slung weapon), none while down or carried
     const u = this.unit;
     if (u && ((u.carrying && u.carrying.kind !== 'interactable') || u.downed || u.state === 'carried' || u.pendingTransport)) want = false;
+    if (this.overlay) want = false; // a procedural overlay has his hands (the shovel: art/shovel-dig.js re-checks when it ends)
     return want;
   }
 
@@ -246,7 +255,7 @@ export class UnitModel {
 
   _apply(restart = false, instant = false) {
     const R = this.real, c = this._ctx();
-    this._carried = c.carried; this._stance = c.stance; this._load = c.load;
+    this._carried = c.carried; this._stance = c.stance; this._load = c.load; this._mounted = c.mounted;
     const cands = mapAnim(this.anim, c);
     const clip = R.inner ? (cands.find((n) => R.hasAnim(n)) || 'idle') : cands[0];
     const o = { loop: this._o.loop ?? (this.anim !== 'die'), restart };
@@ -263,10 +272,12 @@ export class UnitModel {
     const inner = R.inner, wasP = PRONE_CLIP.test(prev || ''), isP = PRONE_CLIP.test(clip);
     const tr = inner && !inner.ownTransitions && this._shown && prev && wasP !== isP && !c.carried
       && !/^(die|dead)/.test(clip) && !/^(die|dead)/.test(prev) ? (isP ? 'go_prone' : 'get_up') : null;
+    if (inner && !inner.trDur) inner.trDur = { go_prone: transitionTime('go_prone'), get_up: transitionTime('get_up') };   // own-transition runtimes retime theirs
     if (tr && R.hasAnim(tr)) {
-      const d = inner.clip?.(tr)?.duration ?? (isP ? 0.5 : 0.6);
-      R.setAnim(tr, { loop: false, restart: true, fade: isP ? 0.08 : 0.2 });   // go_prone starts on the idle frame: a long fade dipped the toes
-      this._tr = { left: d - 0.08, clip, o };
+      const d = inner.clip?.(tr)?.duration ?? (isP ? 0.5 : 0.6), T = transitionTime(tr);
+      // go_prone starts on the idle frame: a long fade dipped the toes; played over the sim's stance time exactly
+      R.setAnim(tr, { loop: false, restart: true, fade: isP ? 0.08 : 0.1, speed: d / T });
+      this._tr = { left: T - 0.08, clip, o };
     } else { this._tr = null; R.setAnim(clip, o); }
     // a prone shot plays to its end (bolt cycle 0.8 s, burst, pistol recover) although the sim's shoot state is
     // shorter (review: prone_shoot was cut after 0.3 s); setAnim defers the follow-up anim until then
@@ -299,9 +310,13 @@ export class UnitModel {
     if (R.inner && this.unit?.alive !== false && (this.unit?.blastReact || this._br)) this._blastReact(this.unit);
     this._rootMatrix();
     if (R.inner && this.unit && (this.unit.state === 'carried') !== this._carried) this._apply(false, true);
+    else if (R.inner && this.unit && !!this.unit._mgManned !== !!this._mounted) this._apply();   // takes / leaves a platform MG
     else if (R.inner && this.unit && !this.dog) { const st = transportState(this.unit); if ((st ? transportClip(st) : null) !== (this._load ?? null)) this._apply(false, true); }
     // a transporter's hands empty / fill again as the load comes and goes
     if (R.inner && this.player && this.unit && !!(this.unit.carrying && this.unit.carrying.kind !== 'interactable') !== !!this._handsFull) { this._handsFull = !this._handsFull; this._weaponFor(this._ctx()); }
+    // the ability's action id is set after its start() played the clip (Commando._updatePending): re-pick the weapon
+    // then, so the knife stab shows the knife (not the carry pistol)
+    if (R.inner && this.player && this.unit && (this.unit.currentActionId ?? null) !== (this._actId ?? null)) { this._actId = this.unit.currentActionId ?? null; this._weaponFor(this._ctx()); }
     if (R.inner && dt > 0 && LOCOMOTION.has(this.anim)) {
       const p = this.root.position;
       if (this._last) {
@@ -348,6 +363,8 @@ export class UnitModel {
       } else if (this._rdLast) { this._rdLast = null; this._rdBase = null; this._mwValid = false; this._rdGuard.release(); }
       else if (!this._idleSeen && this.anim === 'idle' && stepped && ++this._idleN > 4) { rememberIdle(this); this._idleSeen = true; }
     }
+    // procedural action overlay on the skeleton after the mixer (art/shovel-dig.js: digging, rising out of the snow)
+    if (R.inner && this.overlay && !tst && !this._rdLast) { try { stepped = this.overlay(this, dt, this._guard) || stepped; } catch (e) { console.warn('[unit-model] overlay', e?.stack || e); this.overlay = null; } }
     // prone bodies on the real terrain (art/prone-ground.js) — not while transported or in a physics/baked ragdoll pose
     if (R.inner && !this.dog && !tst && !this._carryOn && !this._rdLast && (stepped || this._pg?.active)) stepped = this._prone(dt) || stepped;
     if (stepped || !this._mwValid || !this._mw.equals(root.matrix)) {
@@ -365,7 +382,8 @@ export class UnitModel {
    */
   _prone(dt) {
     const R = this.real, inner = R.inner, u = this.unit;
-    const prone = PRONE_CLIP.test(this.clip || '') && !this._tr;
+    // not while a stance transition plays (own-transition runtimes report the target clip already)
+    const prone = PRONE_CLIP.test(this.clip || '') && !this._tr && !TR_CLIP.test(inner._clipName || inner.animClip || '');
     const st = this._pg || (this._pg = { active: false });
     if (!prone && !st.active) return false;
     const w = u?.world, ey = u?.y || 0;
@@ -387,7 +405,13 @@ export class UnitModel {
     if (!st || !this.real.inner || !u) return;
     const root = this.root, body = this._body();
     if (!poseTransported(this, st, this._guard)) return;
-    if (st.kind === 'hold' && st.from === 'drag') groundDraggedLegs(this, u, this._tstDt, this._guard); // heels on the ground (§C.2)
+    loadGait(this, st, this._tstDt, this._guard); // legs / arms swing with each of the transporter's steps (carry-legs)
+    // heels trail on the ground (§C.2), eased in / out of the drag; through the rest of a lift / lower the ankles are
+    // only kept out of the snow. Ground level: the transporter's in a transition (the load's y is still 1.2 m up).
+    if (st.kind !== 'hold' || st.from === 'drag') {
+      const ey = st.kind === 'hold' ? u.y || 0 : st.carrier?.y ?? u.y ?? 0;
+      groundDraggedLegs(this, u, this._tstDt, this._guard, dragGroundWeight(st), ey);
+    } else this._legLag = null;
     loadSway(this, st, this._tstDt, this._guard);
     baseUpdateMW.call(root, true);
     const cm = st.carrier?.model;

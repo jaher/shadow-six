@@ -237,6 +237,31 @@ export class Alarm {
     return w.grid.nearestWalkable?.(p.x, p.z, 4) || p;
   }
 
+  /**
+   * Where the n men of a released squad appear: the sergeant on the door, the others a body width apart around it
+   * on walkable ground (never stacked on one spot — they would walk out inside each other).
+   */
+  _doorSpots(door, n, s) {
+    const g = this.world.grid, out = [door], R = CONFIG.units.avoid.clear + 0.05;
+    const r0 = s.exitRoute?.[0], r1 = s.exitRoute?.[1];
+    let fx = r1 && r0 ? P(r1).x - P(r0).x : 0, fz = r1 && r0 ? P(r1).z - P(r0).z : 1;
+    const fl = Math.hypot(fx, fz) || 1; fx /= fl; fz /= fl;
+    const ok = (x, z) => g.walkableAt(x, z) && g.walkableLine(door.x, door.z, x, z) && out.every((q) => Math.hypot(q.x - x, q.z - z) >= R - 1e-6);
+    for (let k = 1; k < n; k++) {
+      let p = null;
+      for (const r of [R, 2 * R, 3 * R]) {
+        for (const a of [90, -90, 135, -135, 45, -45, 180, 0]) { // beside / behind the sergeant first
+          const c = Math.cos((a * Math.PI) / 180), sn = Math.sin((a * Math.PI) / 180);
+          const x = door.x + (fx * c - fz * sn) * r, z = door.z + (fz * c + fx * sn) * r;
+          if (ok(x, z)) { p = { x, z }; break; }
+        }
+        if (p) break;
+      }
+      out.push(p || door);
+    }
+    return out;
+  }
+
   _spawnSquad(b, s) {
     const w = this.world;
     const n = Math.min(s.size, b.pool);
@@ -249,9 +274,10 @@ export class Alarm {
     const door = sd ? (w.grid.nearestWalkable?.(sd.x, sd.z, 4) || sd) : this._barracksDoor(b);
     const squadId = `${b.id}#${s.k}`;
     const units = [];
+    const spots = this._doorSpots(door, n, s);
     for (let k = 0; k < n; k++) {
       const e = new Enemy({
-        soldierType: k === 0 ? 'sergeant' : 'trooper', x: door.x, z: door.z, heading: 0,
+        soldierType: k === 0 ? 'sergeant' : 'trooper', x: spots[k].x, z: spots[k].z, heading: 0,
         id: `${squadId}.${s.gen ?? 0}.${k}`, squad: { id: squadId, leader: k === 0 ? undefined : null, columns: s.columns ?? 1 },
         flags: { investigates: true, followsTracks: true, firesOnSight: false }, jail: s.jail ?? null,
       });

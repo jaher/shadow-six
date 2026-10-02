@@ -429,6 +429,10 @@ export function createVehicleVisual(type, opts = {}) {
       show();
     },
     setPart(name, t) { const p = inst().parts.get(name); if (p) setPartValue(p, t); },
+    /** Pose a part on every LOD: its rest rotation ∘ `q` (null = rest). Crew rigs: shipped paddles, oars (art/boat-crew.js). */
+    posePart(name, q = null) { const p = inst().parts.get(name); if (p) pose(p, q); },
+    /** Show / hide a part on every LOD (a paddle taken in hand). */
+    showPart(name, on) { const p = inst().parts.get(name); if (p) for (const n of p.nodes) n.visible = !!on; },
     setToggle(name, on) {
       const tg = inst().meta?.toggles?.[name];
       const nodes = tg?.node ? [tg.node] : Array.isArray(tg?.nodes) ? [...inst().parts.keys()].filter((k) => tg.nodes.some((s) => s.startsWith(k.split('_')[0] + '_'))) : [name];

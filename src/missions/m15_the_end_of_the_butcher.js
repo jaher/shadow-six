@@ -321,8 +321,11 @@ export default {
   coneColors: 'green',
   size: [81, 139],
   seed: 1944_0826,
+  // farmland fringe (art/terrain/bocage.js): field hedges, crops and orchards on the clear map edges, hedges
+  // backing walls (visual only: laid out clear of every gameplay point and route)
+  vegetation: { farmland: { crops: ['stubble', 'stubble', 'wheat'], orchards: 0.3 } },
   briefing: {
-    historical: 'August 1944. Paris is free again, and its people have poured into the streets to cheer General de Gaulle. The Germans are pulling back to the north-east as fast as they can. One of the first to leave was SS-Gruppenführer Helmut Schleper, the man Paris calls "the Butcher" for what he did to the men and women of the Resistance. He is hiding in Compiègne now. Tomorrow he goes on to Berlin, and he is taking a list of the German patriots who work for us inside the Reich.',
+    historical: 'August 1944. Paris is free, and its people are in the streets cheering General de Gaulle. The Germans are pulling back to the north-east. Among the first to go was SS-Gruppenführer Helmut Schleper, the man Paris calls the Butcher for what he did to the Resistance. He is hiding in Compiègne, and tomorrow he leaves for Berlin.',
     text: 'You go in from the southern edge of the town, officer. Every morning Schleper takes a walk in the garden of the house he has made his headquarters, and that is when he is most exposed. Kill him, and while you are about it, bring the headquarters down as well. A van will be waiting for you in the cemetery to the north. Remember that the whole town is watched. If anyone raises the alarm, anywhere, they will bundle him into a car and he will be gone, and with him your mission. Quietly, gentlemen.',
     objectivesSummary: 'Kill General Schleper and destroy his headquarters, without an alarm while he lives. Then everyone into the van in the cemetery and out by the north-west road.',
     hints: [

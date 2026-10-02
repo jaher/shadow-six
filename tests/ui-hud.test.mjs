@@ -131,6 +131,30 @@ export default async function uiHud(page, t) {
   await page.mouse.click(probeAt.x, probeAt.y);
   await page.keyboard.up('Shift');
   t(await page.evaluate(() => window.__game.game.world.enemies.find((e) => e.tag === 'sentry_bridge').coneVisible), 'Shift+click probe shows the covering cone');
+  // Notebook with a mouse (§6.4; unchanged by the touch tap toggle): hover opens it after 0.25 s, a click on the open
+  // sketch jumps the view there, leaving closes it after 0.4 s
+  const nbOpen = () => page.evaluate(() => window.__game.game.hud.notebook.open);
+  const nbBox = await page.locator('.hud-notebook').boundingBox();
+  await page.mouse.move(nbBox.x + nbBox.width / 2, nbBox.y + nbBox.height / 2);
+  await page.waitForTimeout(80);
+  const nbEarly = await nbOpen();
+  await page.waitForTimeout(450);
+  t(!nbEarly && (await nbOpen()), 'mouse: the notebook opens after the 0.25 s hover (not at once)');
+  const pg = await page.locator('.hud-notebook .page').boundingBox();
+  const at = { x: Math.round(pg.x + pg.width * 0.3), y: Math.round(pg.y + pg.height * 0.6) }; // whole px (a mouse event's clientX is)
+  const want = await page.evaluate(({ x, y }) => {
+    const nb = window.__game.game.hud.notebook, p = nb.toWorld({ clientX: x, clientY: y });
+    return window.__game.game.cameraController.focusTarget(p.x, p.z);
+  }, at);
+  await page.mouse.click(at.x, at.y);
+  const got = await page.evaluate(() => { const c = window.__game.game.cameraController.target; return { x: c.x, z: c.z }; });
+  const gotOpen = await nbOpen();
+  t(Math.hypot(got.x - want.x, got.z - want.z) < 0.01 && gotOpen, `mouse: a click on the open sketch jumps the view there and keeps it open (${JSON.stringify({ got, want, gotOpen, pg })})`);
+  await page.mouse.move(r.sentryScreen.x, r.sentryScreen.y);
+  await page.waitForTimeout(150);
+  const nbStill = await nbOpen();
+  await page.waitForTimeout(500);
+  t(nbStill && !(await nbOpen()), 'mouse: the notebook folds back 0.4 s after the pointer leaves');
   // Showcase frame: notebook open, a bark with subtitle + talking portrait, a message, a group selection.
   await page.evaluate(() => {
     const G = window.__game.game, w = G.world, hud = G.hud;

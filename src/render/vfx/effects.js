@@ -342,7 +342,9 @@ export const RECIPES = {
   },
 
   /** E5 muzzle flash: 2-3 frame HDR star (forward petal 0.6-1 m + 3 side petals) aligned to the
-   *  barrel, 1-frame light pool, small smoke puff, 260 m/s tracer. opts {dir, to, weapon, tracer} */
+   *  barrel, 1-frame light pool, small smoke puff, 260 m/s tracer. opts {dir, to, weapon, tracer, day}
+   *  day: in sunlight a muzzle flash is a small orange star that barely lights anything (no white bloom over the
+   *  shooter, no light pool on the tower legs / ground below): smaller, dimmer core, short weak light. */
   muzzle_flash(vfx, pos, o, rng) {
     const dir = (o.dir ?? (o.to ? V3(o.to.x - pos.x, (o.to.y ?? pos.y) - pos.y, o.to.z - pos.z) : V3(1, 0, 0))).clone().normalize();
     const W = { pistol: 0.65, rifle: 1, smg: 0.75, mg: 1.1, sniper: 1.05, cannon: 3 }[o.weapon || 'rifle'] ?? 1;
@@ -351,14 +353,20 @@ export const RECIPES = {
     const life = 0.045, rot = rng() * 6.283;
     const petal = (d, w, len, minW, minL, op) => vfx.emit({ hot: true, x: pos.x, y: pos.y, z: pos.z, vx: d.x, vy: d.y, vz: d.z, drag: 400, life,
       s0: w, s1: w * 0.9, stretch: len / w, mode: HOT.MUZZLE, op, seed: rng(), shape: minW, erode: minL });
-    petal(dir, 0.26 * W, rr(rng, 0.65, 0.95) * W, 7, 28, 1);
+    const day = !!o.day && o.weapon !== 'cannon', P = day ? 0.6 : 1;
+    petal(dir, 0.26 * W * (day ? 0.75 : 1), rr(rng, 0.65, 0.95) * W * (day ? 0.8 : 1), 7, 28, P);
     for (let i = 0; i < 3; i++) {
       const a = rot + i * 2.094 + rr(rng, -0.3, 0.3);
       const d = side1.clone().multiplyScalar(Math.cos(a)).addScaledVector(side2, Math.sin(a)).addScaledVector(dir, 0.35).normalize();
-      petal(d, 0.13 * W, rr(rng, 0.26, 0.38) * W, 4, 12, 0.85);
+      petal(d, 0.13 * W * (day ? 0.75 : 1), rr(rng, 0.26, 0.38) * W, 4, 12, 0.85 * P);
     }
-    flash(vfx, pos.clone().addScaledVector(dir, 0.12), 0.5 * W, [7, 4.6, 2], 0.045, 14);
-    light(vfx, pos.clone().addScaledVector(dir, 0.4).setY(pos.y + 0.4), [1, 0.72, 0.42], 7 * W, 0.02, () => 45 * W);
+    if (day) {   // the core a bit ahead of the muzzle (not over the gunner), no minimum pixel size: no bloom halo at zoom
+      flash(vfx, pos.clone().addScaledVector(dir, 0.18), 0.22 * W, [2.6, 1.6, 0.65], 0.035, 0);
+      light(vfx, pos.clone().addScaledVector(dir, 0.35), [1, 0.72, 0.42], 2.2 * W, 0.02, () => 4 * W);
+    } else {
+      flash(vfx, pos.clone().addScaledVector(dir, 0.12), 0.5 * W, [7, 4.6, 2], 0.045, 14);
+      light(vfx, pos.clone().addScaledVector(dir, 0.4).setY(pos.y + 0.4), [1, 0.72, 0.42], 7 * W, 0.02, () => 45 * W);
+    }
     RECIPES.smoke_puff(vfx, pos.clone().addScaledVector(dir, 0.3), { dir: dir.clone().multiplyScalar(0.8).setY(0.25), size: 0.8 * W, col: [0.62, 0.62, 0.62] }, rng);
     if (o.tracer !== false && o.weapon !== 'pistol') RECIPES.tracer(vfx, pos.clone().addScaledVector(dir, 0.5), { dir, to: o.to, range: o.range }, rng);
   },
@@ -372,9 +380,14 @@ export const RECIPES = {
       s0: 0.06, s1: 0.06, temp: o.temp ?? 2300, cool: 1e3, mode: HOT.TRACER, stretch: o.length ?? 6, wind: 0, seed: rng(), op: 1.6, shape: 2.5 });
   },
 
-  /** Bullet impact on the ground: small dirt spurt + dust wisp. opts {surface, dir} */
+  /** Bullet impact on the ground: small dirt spurt + dust wisp. opts {surface, dir, spoil (a shovel-load: one small puff)} */
   dust_kick(vfx, pos, o, rng) {
     const S = surf(o), n = vfx.n(6);
+    if (o.spoil) { // a shovel-load landing on the heap: a small, low, short puff of the surface (art/shovel-dig.js)
+      smokePuffs(vfx, pos, rng, vfx.n(3), { col: S.dust.map((c) => Math.min(1, c * 1.2)), spread: 0.08, ySpread: 0.5, lat: 0.6, vmin: 0.2, vmax: 0.6, vy: 0.25,
+        s0: 0.1, s1: 0.45, lmin: 0.35, lmax: 0.6, buoy: 0.02, drag: 3, op: 0.45, wisp: 1, erode: 0.3, fin: 0.04, wind: 0.15 });
+      return;
+    }
     for (let i = 0; i < n; i++) {
       const d = sph(rng); d.y = Math.abs(d.y) * 2.5 + 1; d.normalize(); const sp = rr(rng, 3, 7), c = mixCol(S.clod, rng, 0.25);
       vfx.emit({ x: pos.x, y: pos.y + 0.05, z: pos.z, vx: d.x * sp, vy: d.y * sp, vz: d.z * sp, life: rr(rng, 0.4, 0.8), s0: 0.12, s1: 0.35,
@@ -484,12 +497,64 @@ export const RECIPES = {
     vfx.blast(pos, (o.chainRadius ?? 7) * s, rng);
   },
 
+  /** Fuel-tank structure blast (docs/fuel-tanks.md, fx.js _structureBlast): the main explosion + sequential fireballs
+   *  bursting along the shell, few sparks (no comet streaks), then the licking `fuel_tank_fire`.
+   *  opts {size:[w,d] (m, long axis = d), yaw, h (top of the wreck), scale, dur, poolR, smokeK} */
+  fuel_tank_blast(vfx, pos, o, rng) {
+    const yaw = o.yaw ?? 0, ax = V3(Math.sin(yaw), 0, Math.cos(yaw)), s = o.scale ?? 1;
+    const size = o.size ?? [2.4, 7], span = Math.max(1.4, size[1] * 0.28), up = (h) => pos.clone().setY(pos.y + h);
+    RECIPES.explosion_large(vfx, up(1.2), { scale: 1.15 * s, dur: 20, surface: o.surface }, rng);
+    [-span, 0, span].forEach((k, i) => vfx.at(0.15 + i * 0.2, () => {
+      const p = pos.clone().addScaledVector(ax, k);
+      fireball(vfx, p.setY(pos.y + (o.h ?? 2) * 0.6), rng, { scale: s * 1.1, n: 40, speed: 9, upBias: 1.2, tmin: 1700, tmax: 2300, buoyK: 2.2, coolK: 1.4, lmin: 1.6, lmax: 2.8 });
+    }));
+    sparks(vfx, up(1.2), rng, Math.round(30 * s), { vmin: 5, vmax: 14, lmin: 0.3, lmax: 0.9, stretch: 0.012 });
+    embers(vfx, up(2), rng, Math.round(40 * s), 1.6 * s, { lmin: 3, lmax: 7 });
+    vfx.at(0.35, () => RECIPES.fuel_tank_fire(vfx, pos, o, rng));
+    vfx.decal(pos, Math.max(size[0], size[1]) * 0.9, 'scorch', { rot: yaw });
+    vfx.addShake(0.6 * s);
+    vfx.blast(pos, (o.chainRadius ?? 8) * s, rng);
+  },
+
+  /** Licking fire of a burst fuel tank: short, upright flame tongues (little wind lean, no streaks) rising from the
+   *  ruptured shell and from the burning pool around its base, wide flame sheets low in the fire for body, embers,
+   *  and the dark smoke column. opts {size:[w,d] (long axis d), yaw, h (top of the wreck), dur, poolR, smokeK} */
+  fuel_tank_fire(vfx, pos, o, rng) {
+    const [sw, sl] = o.size ?? [2.4, 7], dur = o.dur ?? 60, yaw = o.yaw ?? 0, cy = Math.cos(yaw), sy = Math.sin(yaw);
+    const fadeT = Math.min(6, dur * 0.25), fade = (a) => Math.min(1, a / 0.4) * (a < dur - fadeT ? 1 : Math.max(0, (dur - a) / fadeT));
+    const rot = (lx, lz) => [lx * cy + lz * sy, -lx * sy + lz * cy];
+    const ell = (kx, kz) => (r) => { const a = r() * 6.283, q = Math.sqrt(r()); return rot(Math.cos(a) * q * sw * kx, Math.sin(a) * q * sl * kz); };
+    const top = pos.clone().setY(pos.y + (o.h ?? 2) * 0.75), base = pos.clone();
+    const R = o.poolR ?? Math.max(sw, sl) * 0.4, k = Math.sqrt(Math.max(1, R) / 2);
+    const tongue = { lean: 0.12, tall: 0.42, w1: 1.35, tmin: 1700, tmax: 2150, puffFrac: 0.06, lifeK: 0.9 };
+    // tongues from the rupture along the shell top, and from the pool ring at the base
+    const e1 = vfx.addEmitter({ dur, rate: (a) => 40 * k * fade(a), fn: () => flames(vfx, top, rng, { ...tongue, sampler: ell(0.32, 0.4), size: 1.2 * k }) });
+    const e2 = vfx.addEmitter({ dur, rate: (a) => 46 * k * fade(a), fn: () => flames(vfx, base, rng, { ...tongue, sampler: ell(0.62, 0.58), size: 1.0 * k, tall: 0.38 }) });
+    // flame sheets: wide, slow, hot puffs low in the fire (the body the tongues lick out of)
+    const sheet = (at, smp, sz) => () => {
+      const [dx, dz] = smp(rng);
+      vfx.emit({ x: at.x + dx, y: at.y + 0.35 * sz, z: at.z + dz, vx: rr(rng, -0.15, 0.15), vy: rr(rng, 0.4, 1.0), vz: rr(rng, -0.15, 0.15),
+        life: rr(rng, 0.7, 1.2), s0: rr(rng, 0.9, 1.3) * sz, s1: rr(rng, 1.6, 2.2) * sz, drag: 2.2, buoy: rr(rng, 1.2, 2.0),
+        ...mixCol(SOOT, rng), op: 0.75, temp: rr(rng, 1650, 1950), cool: rr(rng, 0.5, 0.8), noise: 0.4, rot: rr(rng, -1, 1),
+        mode: MODE.FIRE, wind: 0.25, seed: rng(), erode: 0.12, fin: 0.12 });
+    };
+    const e3 = vfx.addEmitter({ dur, rate: (a) => 12 * k * fade(a), fn: sheet(top, ell(0.28, 0.35), 1.2 * k) });
+    const e4 = vfx.addEmitter({ dur, rate: (a) => 10 * k * fade(a), fn: sheet(base, ell(0.55, 0.5), 1.0 * k) });
+    const e5 = vfx.addEmitter({ dur, rate: (a) => 2.5 * k * fade(a), fn: () => embers(vfx, top, rng, 1, 0.8 * k, { lmin: 1.5, lmax: 3.5, size: 0.03 }) });
+    const e6 = smokeColumn(vfx, top.clone().setY(top.y + 1.6 * k), rng, { dur, rate: 3.2 * k * (o.smokeK ?? 1), decay: 1e9, fade, spread: 0.6 * k,
+      s0: 1.8 * k, s1: 9 * k, lmin: 12, lmax: 18, buoy: 2.7, vy: 3.5, op: 0.9, temp: 950, cool: 0.5, wisp: 0.25 });
+    const fl = fireLightAndHaze(vfx, top, rng, { intensity: 90 * k, dur, radius: 10 * k, fade, hazeR: 2.5 * k, h: 1.2 });
+    vfx.decal(base, R * 2.4, 'fuel', { rot: rng() * 6, fade: 2 });
+    return handle(e1, e2, e3, e4, e5, e6, fl);
+  },
+
   /** E6b: Opel Blitz fuel tanker (~3,000 L). Sequential ruptures along the tank + big spill + burning wreck. opts {yaw, dur} */
   tanker_explosion(vfx, pos, o, rng) {
     const yaw = o.yaw ?? 0, ax = V3(Math.sin(yaw), 0, Math.cos(yaw));
-    RECIPES.explosion_large(vfx, pos.clone().setY(pos.y + 1.5), { scale: 1.2, dur: 20, surface: o.surface }, rng);
-    [-1.6, 0, 1.6].forEach((k, i) => vfx.at(0.18 + i * 0.22, () => RECIPES.barrel_explosion(vfx, pos.clone().addScaledVector(ax, k), { scale: 1.7, poolDur: 16, color: 0x39402a, chainRadius: 10 }, rng)));
-    vfx.at(1.5, () => RECIPES.burning_wreck(vfx, pos, { size: [2.3, 6], dur: o.dur ?? 60, h: 1.4, yaw }, rng));
+    const size = o.size ?? [2.3, 6], span = Math.max(1.6, size[1] * 0.27);   // opts {scale, size, h}: fuel-tank structures (fx.js)
+    RECIPES.explosion_large(vfx, pos.clone().setY(pos.y + 1.5), { scale: o.scale ?? 1.2, dur: 20, surface: o.surface }, rng);
+    [-span, 0, span].forEach((k, i) => vfx.at(0.18 + i * 0.22, () => RECIPES.barrel_explosion(vfx, pos.clone().addScaledVector(ax, k), { scale: 1.7, poolDur: 16, color: 0x39402a, chainRadius: 10 }, rng)));
+    vfx.at(1.5, () => RECIPES.burning_wreck(vfx, pos, { size, dur: o.dur ?? 60, h: o.h ?? 1.4, yaw }, rng));
   },
 
   /** Debris smoke trails in flight; smouldering fire+smoke once resting. */

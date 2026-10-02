@@ -39,8 +39,9 @@ export function allAbilities() {
  *  group: multi-selection group — with several commandos selected, only abilities sharing a `group`
  *         (or the same id) across all of them are offered (group intersection, §5 action panel);
  *  hotkey: BEL key (§5.1); order: action-panel sort key;
- *  autoStand: a crawling commando first stands up (CONFIG.units.stanceUp, 0.6 s) and then approaches/acts
- *             instead of the order being refused (knife §3.3 "auto-walks", §3.4);
+ *  autoStand: ordered from a crawl, the commando crawls in and stands up (CONFIG.units.stanceUp, 0.6 s) only
+ *             within CONFIG.abilities.crawlStandLead of reach, then acts — instead of the order being refused
+ *             (knife §3.3 "auto-walks", §3.4); a run order (double-click) stands him up at once and runs in;
  *  ranged: a ranged ability (firearms, grenade, trap, vehicleFire) never auto-walks into range (§3.3
  *          "Auto-walk" is for melee abilities and `hand` only): its canUse refuses out-of-range / no-LOS
  *          targets (forbidden cursor), and a pending order whose target left range is dropped.

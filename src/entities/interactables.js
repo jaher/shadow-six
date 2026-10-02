@@ -30,6 +30,7 @@ import { canSee } from '../ai/perception.js';
 import { wardrobeOf, addToWardrobe } from './wardrobe.js';
 import { smashGate } from '../world/breakables.js';
 import { makeClothesline } from '../art/clothesline.js';
+import { fuelWreckNav, inLocalQuarter } from '../art/fuel-tanks.js';
 
 /** The breakable gate model under a structure group (art/breakable-gates.js userData.gate) or null. */
 const gateModelOf = (o) => o?.userData?.gate || o?.children?.find?.((c) => c.userData?.gate)?.userData.gate || null;
@@ -151,7 +152,7 @@ export class Interactable extends Entity {
         if (!e.alive) e.hiddenBody = true;
       }
       // anyone standing on a collapsing crest goes down with it
-      if (this._crestCells?.length) this._killOnCrest(source);
+      if (this._crestCells?.length || this._deckFell) this._killOnCrest(source);
       w.events.emit('explosion', { x: this.x, z: this.z, radius: Math.max(4, this.radius * 2), kind: 'structure', source: this });
       w.emitNoise?.(this.x, this.z, 40, 'explosion', this);
       w.events.emit('structure:destroyed', { id: this.tag ?? this.id, type: this.interactKind, owner: this.owner });
@@ -166,6 +167,7 @@ export class Interactable extends Entity {
    * while the grid still carries them (mission build, and a load rebuilds the mission before restoring the grid).
    */
   onAdded(world) {
+    this._recordWreckDeck(world);
     const fx = this.params?.structure?.destroyFx;
     if (!Array.isArray(fx) || !fx.includes('removeCrest') || !this.owner || !world?.grid) return;
     const g = world.grid, cells = [];
@@ -179,12 +181,14 @@ export class Interactable extends Entity {
     this.alive = false;
     this.hp = 0;
     const w = this.world;
-    if (w && this.owner) w.grid.clearOwner(this.owner);
+    const wreck = w && this.owner ? fuelWreckNav(this.params?.structure) : null;
+    if (wreck) this._stampWreck(w.grid, wreck); // §7 fuel tanks: the wreck still stands there (docs/fuel-tanks.md)
+    else if (w && this.owner) w.grid.clearOwner(this.owner);
     if (w && this._crestCells?.length) {
       // the crest is gone: its cells become the breach (deep water), so the two banks are split again and
       // every path over the dam is invalidated (replay m03: troops walked over the destroyed dam)
       const g = w.grid;
-      for (const k of this._crestCells) { g.terrain[k] = T.WATER; g.bridge[k] = 0; }
+      for (const k of this._crestCells) { g.terrain[k] = T.WATER; g.bridge[k] = 0; g.elev[k] = 0; } // a raised crest (M3) too
       // 'flood': the surge drowns the wadeable toe ledge below the dam (mission `floodPoly`)
       const S = this.params?.structure;
       if (S?.destroyFx?.includes('flood') && Array.isArray(S.floodPoly)) g.fillPoly(S.floodPoly, 'terrain', T.WATER);
@@ -200,8 +204,51 @@ export class Interactable extends Entity {
     }
   }
 
+  /**
+   * Fuel structures with a walkable deck (M8's mission walkways, a library deck such as M17's elevated grating):
+   * remember the raised cells over the footprint (cells standing > 1 m above the surrounding ground), so the deck goes
+   * with the tanks (§7).
+   */
+  _recordWreckDeck(world) {
+    const S = this.params?.structure, nav = fuelWreckNav(S);
+    if (!nav || !world?.grid || this._wreckDeck) return;
+    const g = world.grid, rot = S.rot ?? 0;
+    const w = S.w ?? (S.r ?? 2) * 2, d = S.d ?? (S.r ?? 2) * 2, inner = [], ring = [];
+    for (let k = 0; k < g.size; k++) {
+      const x = (k % g.cols + 0.5) * g.cell, z = (Math.floor(k / g.cols) + 0.5) * g.cell;
+      const dx = x - S.x, dz = z - S.z, lx = Math.abs(dx * Math.cos(rot) + dz * Math.sin(rot)), lz = Math.abs(-dx * Math.sin(rot) + dz * Math.cos(rot));
+      if (lx <= w / 2 && lz <= d / 2) inner.push(k);
+      else if (lx <= w / 2 + 1.5 && lz <= d / 2 + 1.5) ring.push(g.elev[k]);
+    }
+    ring.sort((a, b) => a - b);
+    const ground = ring.length ? ring[ring.length >> 1] : 0;
+    const cells = inner.filter((k) => g.elev[k] > ground + 1.0);
+    if (cells.length) this._wreckDeck = { cells, ground };
+  }
+
+  /** Destroyed fuel structure: keep its footprint blocked; a deck's raised cells fall to the ground (§7). */
+  _stampWreck(g, nav) {
+    const S = this.params.structure, cls = B[nav.block] ?? B.HIGH;
+    for (let k = 0; k < g.size; k++) if (g.owner[k] === this.owner && g.block[k] > cls) g.block[k] = cls;
+    const deck = this._wreckDeck;
+    if (deck?.cells.length) {
+      this._deckFell = true; // anyone on the deck goes down with it (destroy → _killOnCrest)
+      const set = new Set(deck.cells);
+      for (const k of deck.cells) {
+        const x = (k % g.cols + 0.5) * g.cell, z = (Math.floor(k / g.cols) + 0.5) * g.cell;
+        g.elev[k] = deck.ground;
+        g.bridge[k] = 0;
+        g.owner[k] = this.owner;
+        g.block[k] = nav.lowQuarter && inLocalQuarter(S, x, z, nav.lowQuarter) ? B.LOW : cls;
+      }
+      // the ladders up to the deck (mission or library) lead nowhere now
+      for (const l of g.links || []) if (l.enabled && (set.has(l.ka) || set.has(l.kb))) g.setLinkEnabled(l.id, false);
+    }
+    g.version++;
+  }
+
   _killOnCrest(source) {
-    const w = this.world, g = w.grid, set = new Set(this._crestCells);
+    const w = this.world, g = w.grid, set = new Set([...(this._crestCells || []), ...(this._deckFell ? this._wreckDeck.cells : [])]);
     for (const u of [...w.commandos, ...w.enemies]) {
       if (!u.alive || u.state === 'inVehicle') continue;
       const i = Math.floor(u.x / g.cell), j = Math.floor(u.z / g.cell);
@@ -490,6 +537,10 @@ export class Barrel extends Interactable {
     this.hidesBody = null;
     this.pickRadius = 0.6;
     this.pickHeight = 0.5;
+    if (o.keepWreck) {                                   // a process column (M11): the whole tank is the target
+      this.pickRadius = o.structure?.r ?? 1.5;
+      this.pickHeight = 3;
+    }
     if (!this.object3d) {
       const m = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.9, 12), new THREE.MeshStandardMaterial({ color: 0x7a2a1a, roughness: 0.6, metalness: 0.3 }));
       m.position.y = 0.45;
@@ -525,6 +576,11 @@ export class Barrel extends Interactable {
     const carrier = this.carriedBy;
     if (carrier) { carrier.carrying = null; this.carriedBy = null; }
     if (this.hidesBody) { this.hidesBody.hiddenUnderBarrel = false; this.hidesBody = null; }
+    if (this.params.keepWreck && this.object3d) {       // the column's wreck stays (library destroyed variant)
+      const o = this.object3d;
+      this.object3d = null;
+      o.userData.destroy?.();
+    }
     if (w) {
       this._navRest();
       explodeHook.fn?.(w, this.x, this.z, 'barrel', this, this.igniter);
@@ -562,6 +618,7 @@ export class Barrel extends Interactable {
   canUse(commando) {
     if (this.exploded) return 'Nothing there.';
     if (this.carriedBy) return 'Already carried.';
+    if (this.params.carriable === false) return 'Too heavy to move.';     // a fixed tank that bursts like a drum (M11)
     return canPickUp(commando?.role, 'barrel') ? true : "Can't pick that up.";
   }
 

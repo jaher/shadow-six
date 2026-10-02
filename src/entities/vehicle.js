@@ -30,6 +30,7 @@ import { createLibraryVehicleModel, seatSide } from '../art/vehicle-model.js';
 import { createCrewFigures } from '../art/vehicle-crew.js';
 import { angleTo, turnTowardsAngle, angleDiff } from '../core/math.js';
 import { B, T } from '../world/grid.js';
+import { hullRect, capsuleRectGap, bodyCapsule, isSolidHull, bodyShape, bodyGap } from '../world/body-clearance.js';
 import { makeVision } from './enemy.js';
 import { Projectile, explode, hitBarrel } from './projectile.js';
 import { createVehicleBrain } from '../ai/vehicle-ai.js';
@@ -465,6 +466,8 @@ export class Vehicle extends Entity {
     const enemyCrew = unit?.faction === 'enemy' && !this.destroyed && this.occupants.length < this.capacity;
     if (!enemyCrew && this.canEnter(unit) !== true) return false;
     if (unit.faction === 'player') this._checkTaint(unit);
+    // where he got in from (visual only: art/boat-crew.js draws him stepping / hoisting himself in from there)
+    if (Number.isFinite(unit.x)) unit.boardFrom = { x: unit.x, z: unit.z, t: this.world?.time ?? 0, swim: unit.stance === 'swim' || unit.stance === 'dive' };
     this.occupants.push(unit);
     if (!this.driver && this.canOperate(unit)) this.driver = unit;
     this.model.boarding?.(this.occupants.length - 1, 'enter'); // that seat's door / hatch opens and closes
@@ -805,7 +808,13 @@ export class Vehicle extends Entity {
     if (d < (g.strict ? 0.3 : 0.8)) return this._nextWaypoint();
     const want = angleTo(this.x, this.z, g.x, g.z);
     const diff = Math.abs(angleDiff(this.heading, want));
+    const h0 = this.heading;
     this.heading = turnTowardsAngle(this.heading, want, this.def.turn * dt);
+    // turning in place / in a bend never swings the hull over a man on the ground (body clearance)
+    if (this.heading !== h0 && !this._lethal() && this._stepAside(this._bodiesUnder(this.x, this.z, this.heading), this.x, this.z, this.heading).length) {
+      this.heading = h0;
+      return this._bodyBlocked(g, dt);
+    }
     // Player driving: turn in place first, then a straight line. Routes (AI) turn while rolling.
     if (g.strict && diff > CONFIG.vehicles.alignDeg * DEG) { this.speed = 0; return; }
     if (!g.strict && diff > Math.PI / 3) { this.speed = 0; return; } // routes: sharp bends / reversals turn in place
@@ -827,6 +836,13 @@ export class Vehicle extends Entity {
       this.speed = 0; // routes wait until the way is clear (e.g. a vehicle parked on the road)
       this.blockedT = (this.blockedT || 0) + dt;
       return;
+    }
+    // a man's body (a crawler's legs, a prone head) in the hull's way: at run-over speed he is run over (§3.7),
+    // otherwise the vehicle stops short of him — it never rolls over him and leaves him alive under the chassis
+    const under = this._bodiesUnder(nx, nz, h);
+    if (under.length) {
+      if (this._lethal()) for (const u of under) this._runoverKill(u);
+      else if (this._stepAside(under, nx, nz, h).length) return this._bodyBlocked(g, dt);
     }
     this.blockedT = 0;
     if (g.strict) this.heading = want;
@@ -907,15 +923,84 @@ export class Vehicle extends Entity {
         u.die?.('runover', this.driver || this);
         this.world.events.emit('vehicle:runover', { vehicle: this, victim: u });
       } else if (u.kind === 'enemy') {
+        if (u.stepAside && this.world.time < u.stepAside.until && u.path) continue; // already on his way out
         const side = this.heading + Math.PI / 2;
         const sgn = (-(u.x - this.x) * Math.sin(this.heading) + (u.z - this.z) * Math.cos(this.heading)) >= 0 ? 1 : -1;
         const D = CONFIG.vehicles.runoverDodge;
-        const nx = u.x + Math.cos(side) * D * sgn, nz = u.z + Math.sin(side) * D * sgn;
-        if (this.world.grid.walkableAt(nx, nz)) u.setPosition?.(nx, nz, angleTo(nx, nz, this.x, this.z));
+        const nx = u.x + Math.cos(side) * D * sgn, nz = u.z + Math.sin(side) * D * sgn, g = this.world.grid;
+        // he runs there (straight, over walkable ground), then turns to face it — never a jump
+        const hd = angleTo(nx, nz, this.x, this.z);
+        if (u.state === 'active' && g.walkableAt(nx, nz) && g.walkableLine(u.x, u.z, nx, nz)
+          && u.walkStraight?.(nx, nz, { run: true, onArrive: () => { u.heading = hd; } })) u.stepAside = { by: this, until: this.world.time + 2.5 };
         else u.heading = angleTo(u.x, u.z, this.x, this.z);
         if (this.driver && this.driver.faction === 'player') this.taint(u);
       }
     }
+  }
+
+  /** At run-over speed now (§3.7: a fast order AND the actual speed ≥ runoverSpeedFrac × fast)? */
+  _lethal() {
+    return !!this.def.runover && this.fast && this.speed >= (this.def.fast || 0) * CONFIG.vehicles.runoverSpeedFrac;
+  }
+
+  _runoverKill(u) {
+    if (!u.alive) return;
+    u.die?.(this.def.rail ? 'train' : 'runover', this.driver || this);
+    this.world.events.emit('vehicle:runover', { vehicle: this, victim: u });
+  }
+
+  /**
+   * A man in the way of a non-lethal move: the vehicle waits (blockedT); the player's straight drive gives up
+   * (halts) after 1.5 s so a man lying in the way does not leave the order hanging.
+   */
+  _bodyBlocked(g, dt) {
+    this.speed = 0;
+    this.blockedT = (this.blockedT || 0) + dt;
+    if (g?.strict && this.blockedT > 1.5) { this.blockedT = 0; this._halt(); }
+  }
+
+  /**
+   * §3.7 slow rule for men the hull would touch: an enemy of the other side on his feet steps aside — he walks
+   * (runs) straight to a free spot beside the hull placed at (x, z, h), over walkable ground, and turns to face it (a
+   * commando driver taints him); the vehicle waits for him meanwhile. Returns who is still in the way: friends, men
+   * lying down, men stepping aside and anyone with no free spot beside the hull — the vehicle stops for them.
+   */
+  _stepAside(under, x, z, h) {
+    if (!under.length) return under;
+    const R = hullRect(this, x, z, h), c = Math.cos(h), s = Math.sin(h), w = this.world;
+    const side = this.driver?.faction ?? this.faction ?? 'enemy';
+    return under.filter((u) => {
+      if (u.kind !== 'enemy' || u.faction === side || u.stance === 'crawl' || u.stance === 'downed' || u.state !== 'active') return true;
+      if (u.stepAside?.by === this && w.time < u.stepAside.until && u.path) return true; // on his way out
+      const dx = u.x - x, dz = u.z - z, along = dx * c + dz * s, lat = -dx * s + dz * c;
+      const off = R.hw + bodyShape(u.stance).r + 0.25;
+      for (const sg of lat >= 0 ? [1, -1] : [-1, 1]) {
+        const px = x + c * along - s * sg * off, pz = z + s * along + c * sg * off;
+        if (!w.grid.walkableAt(px, pz) || !w.grid.walkableLine(u.x, u.z, px, pz)) continue;
+        const hd = angleTo(px, pz, x, z);
+        if (capsuleRectGap(bodyCapsule(px, pz, hd, u.stance), R) < 0.1 || bodyGap(w, px, pz, hd, u.stance, this) < 0.1) continue;
+        if (!u.walkStraight?.(px, pz, { run: true, onArrive: () => { u.heading = hd; } })) continue;
+        u.stepAside = { by: this, until: w.time + 2.5 };
+        if (this.driver && this.driver.faction === 'player') this.taint(u);
+        return true;
+      }
+      return true;
+    });
+  }
+
+  /**
+   * Men on foot whose body (world/body-clearance.js: a disc standing, a capsule along the heading lying down) would be
+   * within `margin` of this hull placed at (x, z, h).
+   */
+  _bodiesUnder(x, z, h, margin = 0.05) {
+    const w = this.world;
+    if (!w || !isSolidHull(this)) return [];
+    const R = hullRect(this, x, z, h);
+    const reach = Math.hypot(R.hl, R.hw) + 1.2 + margin;
+    return w.entitiesInRadius(x, z, reach, (u) => (u.kind === 'commando' || u.kind === 'enemy') && u.alive
+      && !u.vehicle && u.state !== 'inVehicle' && u.state !== 'carried' && !u.underwater && !((u.y || 0) > 1.5)
+      && u.stance !== 'swim' && u.stance !== 'dive')
+      .filter((u) => capsuleRectGap(bodyCapsule(u.x, u.z, u.heading, u.stance), R) < margin);
   }
 
   /** Kill box of a rail vehicle (§3.7 [data] train: −31.5..+16 m along, ±3.4 m). */
@@ -975,6 +1060,8 @@ export class Vehicle extends Entity {
       u.die?.('train', this);
       this.world.events.emit('vehicle:runover', { vehicle: this, victim: u });
     }
+    // …and anyone whose body reaches under the hull (a crawler's legs beside the rails)
+    for (const u of this._bodiesUnder(this.x, this.z, this.heading, 0)) this._runoverKill(u);
     if (end) {
       if (S.mode === 'pingpong') { this.railDir = -this.railDir; this.waitT = S.endWait ?? 5; return; }
       this.railRunning = false;

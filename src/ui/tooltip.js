@@ -8,6 +8,7 @@
 import { el } from './dom.js';
 import { UI } from './ui-config.js';
 import { ENEMY_LABELS, THING_LABELS, ROLE_NAMES } from './catalogue.js';
+import { boardingHint } from '../abilities/drive.js';
 
 /** Tooltip label for a world entity (null = none). */
 export function entityLabel(e, world) {
@@ -20,6 +21,21 @@ export function entityLabel(e, world) {
   const ex = world?.extraction;
   if (base && ex && (ex.vehicleId === e.id || ex.vehicle === e.id || ex.target === e.tag)) return `ESCAPE: ${base}`;
   return base;
+}
+
+/**
+ * Tooltip over a vehicle while men are selected (§5.3): what a click does — "BOARD RAFT" (boats; "GET IN" land
+ * vehicles, "MAN" guns) — or, when nobody selected may get in, why not: "RAFT — THE MARINE MUST BOARD FIRST".
+ * @param {object} e vehicle @param {object} world @param {string} base its plain label
+ * @returns {string} the label (base unchanged when no one selected could try)
+ */
+export function vehicleOrderLabel(e, world, base) {
+  if (!base || e?.kind !== 'vehicle') return base;
+  const sel = (world?.commandos || []).filter((c) => c.selected && c.alive);
+  const hint = sel.length ? boardingHint(e, sel, world) : null;
+  if (!hint) return base;
+  const verb = e.vehicleKind === 'boat' ? 'BOARD' : e.vehicleKind === 'emplacement' ? 'MAN' : 'GET IN';
+  return hint.ok ? `${verb} ${base}` : `${base} — ${String(hint.reason || "can't").toUpperCase()}`;
 }
 
 export class Tooltips {
@@ -52,7 +68,7 @@ export class Tooltips {
       } catch {
         e = null;
       }
-      const text = entityLabel(e, this.hud.world);
+      const text = vehicleOrderLabel(e, this.hud.world, entityLabel(e, this.hud.world));
       if (e && text) return { key: e, text };
     }
     return { key: null, text: '' };
@@ -74,7 +90,9 @@ export class Tooltips {
       this.box.hidden = false;
       const s = this.hud.scale || 1;
       const bw = this.box.offsetWidth, bh = this.box.offsetHeight;
-      const x = Math.min(innerWidth - bw - 4, this.x + 14 * s), y = Math.min(innerHeight - bh - 4, this.y + 18 * s);
+      // the 88-px sniper scope (and its 2× lens) is centred on the pointer: put the tag outside its ring
+      const big = this.hud.cursor?.current === 'scope', ox = (big ? 40 : 14) * s, oy = (big ? 40 : 18) * s;
+      const x = Math.min(innerWidth - bw - 4, this.x + ox), y = Math.min(innerHeight - bh - 4, this.y + oy);
       this.box.style.left = `${Math.max(4, x)}px`;
       this.box.style.top = `${Math.max(4, y)}px`;
     }

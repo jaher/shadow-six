@@ -62,6 +62,7 @@ const FORCED_TEXT = {
   dropWhenShot: ['A man who is hit drops what he carries.', 'A man who is hit keeps his load.'],
   ragdollAllDeaths: ['The dead fall where they are struck.', 'The dead lie as they fell.'],
   physicsGameplay: ['A blast can throw bodies and shift cover.', 'Bodies and cover stay where they were.'],
+  runningNoise: ['The guards hear a man running near them.', 'The guards cannot hear a man running.'],
 };
 
 /**

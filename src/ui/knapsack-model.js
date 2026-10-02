@@ -5,6 +5,7 @@
  *   first aid = dose ticks; everything else is a single icon.
  * - Swaps: a sapper with a live remote bomb shows the detonator; a GB whose decoy is on the ground shows the activator.
  * - Occupant view: a man in a vehicle or building shows only his photo (click = exit).
+ * - Buried (GB shovel): his kit with the shovel as the DIG OUT slot (`rise`), everything else locked.
  * - Disabled items carry a tooltip reason ("Only in shallow water").
  * @module ui/knapsack-model
  */
@@ -79,11 +80,14 @@ function itemReason(id, units, world) {
  * Full knapsack view for the current selection.
  * @param {object[]} selected selected living commandos
  * @param {object} [world]
- * @returns {{mode:'empty'|'occupant'|'items', units:object[], items:{id,count,display,disabled,reason,ability,swapped}[]}}
+ * @returns {{mode:'empty'|'occupant'|'items', buried?:boolean, rising?:boolean, units:object[],
+ *   items:{id,count,display,disabled,reason,ability,swapped,rise?}[]}}
  */
 export function knapsackView(selected, world) {
   const units = (selected || []).filter((u) => u && u.alive !== false);
   if (!units.length) return { mode: 'empty', units, items: [] };
+  // buried in the snow / sand (§3.4 shovel): his own kit, the shovel turned into the DIG OUT button, the rest locked
+  if (units.length === 1 && units[0].buried) return buriedView(units[0], world);
   if (units.length === 1 && (units[0].state === 'inVehicle' || units[0].state === 'hidden' || units[0].hidden)) {
     return { mode: 'occupant', units, items: [] };
   }
@@ -109,6 +113,20 @@ export function knapsackView(selected, world) {
     };
   });
   return { mode: 'items', units, items };
+}
+
+/**
+ * Knapsack of a buried Green Beret: the shovel is the one live slot, in its 'rise' state (one click / tap digs him
+ * out, like F or a right-click); while he is already rising it shows that and does nothing more. Every other item
+ * waits until he is out.
+ */
+function buriedView(u, world) {
+  const rising = u.currentActionId === 'shovel';
+  const base = knapsackView([{ ...u, buried: false, state: 'active', selected: true, inventory: u.inventory, abilities: u.abilities }], world).items;
+  const items = base.map((it) => it.item === 'shovel'
+    ? { ...it, rise: true, label: rising ? 'Digging out' : 'Dig out', disabled: rising, reason: rising ? 'Digging out…' : null }
+    : { ...it, disabled: true, reason: 'Dig out first (F)' });
+  return { mode: 'items', buried: true, rising, units: [u], items };
 }
 
 /** Kit area of the rendered rucksack below the flap and its buckles (ref px of the 112×149 pack). */

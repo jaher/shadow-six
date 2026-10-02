@@ -31,7 +31,7 @@ import { Help } from './help.js';
 import { Loading } from './loading.js';
 import { Backdrop } from './backdrop.js';
 import { Boot } from './boot.js';
-import { installTouch } from './touch.js';
+import { installTouch, isTouchUI, touchHudScales } from './touch.js';
 import { PRESET_CHOSEN_KEY } from '../engine/device.js';
 import { KEY_BINDINGS } from '../engine/input.js';
 import { setInsignia } from '../art/insignia.js';
@@ -119,18 +119,37 @@ export class HUD {
     return !!this.world && (this.game.state === 'playing' || this.game.state === 'paused');
   }
 
+  /** CSS px the §6.1 top bar covers at the top of the screen (45 ref px + 2 px border, × UI scale); the camera clears it. */
+  get topBarHeight() {
+    return 47 * (this.scale || 1);
+  }
+
   _applyScale() {
     const byH = computeUiScale(innerHeight, this.options.uiScale);
     const byW = Math.max(0.6, innerWidth / 600); // phone-width tolerance: the bar must fit
     this.scale = Math.min(byH, byW);
-    document.documentElement.style.setProperty('--u', String(this.scale));
+    const rs = document.documentElement.style;
+    rs.setProperty('--u', String(this.scale));
+    // a finger: the top bar and the bag get finger-sized (--ut / --ub, html.mk-touch only; styles/ui.css)
+    const touch = isTouchUI(), men = this.topbar?.row?.childElementCount || 3;
+    this._touchKey = `${touch}|${men}`;
+    let iconScale = this.scale;
+    if (touch) {
+      const { ut, ub } = touchHudScales({ u: this.scale, byH, w: innerWidth, h: innerHeight, men });
+      rs.setProperty('--ut', String(ut));
+      rs.setProperty('--ub', String(ub));
+      iconScale = ut; // the icon tier follows the bar (the bag's ~1.15× needs no heavier tier preloaded at boot)
+    } else {
+      rs.removeProperty('--ut');
+      rs.removeProperty('--ub');
+    }
     // rendered icons: srcset x-descriptors depend on the UI scale; preload the tiers this scale × DPR will use
-    const key = `${this.scale}|${globalThis.devicePixelRatio || 1}`;
+    const key = `${iconScale}|${globalThis.devicePixelRatio || 1}`;
     if (key !== this._iconKey) {
       this._iconKey = key;
-      refreshIcons(this.root, this.scale);
-      this.topbar?.eyeAnim?.refresh(this.scale);
-      this.iconsReady = preloadIcons(this.scale);
+      refreshIcons(this.root, iconScale);
+      this.topbar?.eyeAnim?.refresh(iconScale);
+      this.iconsReady = preloadIcons(iconScale);
     }
   }
 
@@ -161,7 +180,7 @@ export class HUD {
     saveOptions(this.options);
     this._applyGameOptions();
     const a = this.game.audio;
-    const vol = { volMaster: 'master', volSfx: 'sfx', volVoice: 'voice', volMusic: 'music' }[key];
+    const vol = { volMaster: 'master', volSfx: 'sfx', volVoice: 'voice', volMusic: 'music', volNarration: 'narration' }[key];
     if (vol) a?.setVolume?.(vol, value);
     if (key === 'uiScale') this._applyScale();
     if (key === 'preset') {
@@ -200,6 +219,7 @@ export class HUD {
     const isCommando = (u) => u && (u.kind === 'commando' || u.faction === 'player');
     on('message', (m) => m?.kind !== 'bark' ? this.message(m?.text, m?.kind) : this.messages.bark({ unit: m.unit, text: m.text }));
     on('bark', (b) => this.messages.bark(b));
+    on('enemy:heard-steps', (p) => this.messages.mark(p?.enemy)); // house rule runningNoise: "?" over the guard
     on('mission:refused', (p) => this.message(p?.reason || 'ALL YOUR MEN MUST ESCAPE.', 'warn'));
     on('ui:warning', (p) => this.topbar.flag(p?.unit, p?.kind || 'seen'));
     on('unit:held', (p) => p?.held !== false && this.topbar.flag(p?.unit, 'held', 1.5));
@@ -456,6 +476,9 @@ export class HUD {
       } else if (this.briefing.part === 1 && (e.code === 'Space' || e.code === 'ArrowRight')) {
         consume();
         this.briefing.advance(); // S15: Space / → advance a slide
+      } else if (e.code === 'KeyN') {
+        consume();
+        this.briefing.toggleNarration(); // the newsreel narrator on / off (Options → Sound → NARRATION), both parts
       } else if (this.briefing.part === 1 && e.code === 'ArrowLeft') {
         consume();
         this.briefing.back(); // ← the previous slide
@@ -511,6 +534,8 @@ export class HUD {
       this.topbar.update(dt);
       this.knapsack.update();
       this.stance.update();
+      // touch mode toggled or the roster changed: refit the finger-sized HUD (cheap check, no layout read)
+      if (`${isTouchUI()}|${this.topbar.row?.childElementCount || 3}` !== this._touchKey) this._applyScale();
       this._nbT = (this._nbT || 0) - dt;
       if (this._nbT <= 0) {
         this._nbT = 0.1;

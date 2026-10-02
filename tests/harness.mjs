@@ -81,6 +81,8 @@ export async function startHarness(opts = {}) {
 
   const h = {
     url: baseUrl,
+    server, // .stats (requests / bytes / paths served), .setRoot(dir) (tools/serve.mjs)
+    dist,
     browser,
     mode: opts.swiftshader ? 'swiftshader' : 'gpu',
     async newPage(vp = viewport, extra = {}) { // extra: more Playwright page options (deviceScaleFactor, …)

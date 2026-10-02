@@ -24,6 +24,8 @@ with three.js. Six specialists, enemy vision cones, a fixed 3/4 camera and WWII 
   Sniper, Marine (harpoon, boat, diving gear), Sapper (time and remote bombs, grenades, traps), Driver and Spy
   (uniform, lethal injection); each carries only what he had in 1998.
 - **Talking portraits**: every commando speaks his lines in his own voice, with lip-synced portrait clips.
+- **Newsreel briefings**: a 1940s newsreel announcer reads each mission's briefing as its words appear on screen
+  (an original synthetic voice; Options → Sound → NARRATION, or N in the briefing).
 - **Enemies that see and hear**: vision cones you can inspect, noise, footprints in the snow, bodies that get
   found, alarms and reinforcements.
 - **A world that reacts**: snow with trails and footprints, rivers and fjords with swimmers and boat wakes, wind
@@ -137,8 +139,19 @@ real GPU (`--use-angle=gl`); `--swiftshader` uses software rendering. It fails o
 (`npm ci`, `npm run build`, see [tools/build/build.mjs](tools/build/build.mjs)) and deploys `dist/` to GitHub
 Pages. The build bundles `src/` with esbuild (code-split, content-hashed file names), keeps every URL relative so
 the site works under the `/shadow-six/` sub-path, adds `version.json`, a `404.html` that returns to the game and a
-small service worker that keeps the large assets cached between visits (code is never served from it).
+small service worker (`sw.js`).
 `SS_DIST=1 node tests/run.mjs webbuild` checks the build in headless Chromium.
+
+### Caching and offline play
+
+A mission is downloaded once (40–100 MB). Inside a session, RESTART MISSION, quick load and loading a save of a
+mission already played reuse what is in memory (textures, models, baked terrain and trees, shader programs): no
+download, no loading screen. Between visits the service worker keeps every downloaded asset in the browser's Cache
+Storage, keyed by content hash, so a new deploy only re-downloads the files that changed; code, HTML and manifests
+always come from the network first (never stale). After a mission loads, the next campaign mission is downloaded in
+the background when the connection is not metered or in data-saver mode. Once a mission is cached it also plays
+offline. OPTIONS → CLEAR CACHED GAME DATA deletes the cache. Details: `docs/ARCHITECTURE.md` § Asset cache;
+`node tools/perf/measure-restart.mjs` measures (re)load times on the build.
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs the unit tests and the web build.
 
 ## Layout

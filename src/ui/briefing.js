@@ -2,20 +2,23 @@
  * Briefing (design-spec §6.6), two parts; Esc skips.
  *  1. Historical slideshow framed 4:3 inside a black page: 4 rotating images crossfading every 6 s (a grey Europe
  *     map with the target circled, renders of our own scene graded B&W, a team photo), "Mission N" + date on top,
- *     the title in heavy red condensed type, 2–3 paragraphs of our own context, a faint SHADOW SIX watermark.
+ *     the title in heavy red condensed type, the mission's wartime background as a typed dispatch, 2–3 paragraphs of
+ *     our own context, a faint SHADOW SIX watermark. The newsreel narrator reads it all (docs/narration.md).
  *  2. The Colonel's tactical advice: a camera tour over the live map at 0.5× zoom stopping on start, objectives
- *     (red circle), dangers and extraction, with subtitles along the bottom (TTS when available). Esc starts.
+ *     (red circle), dangers and extraction, with subtitles along the bottom, read by the same narrator (recorded
+ *     clips; text only when he is off, muted or a caption has no clip). Esc starts.
  * @module ui/briefing
  */
 
-import { forcedRuleLines } from '../core/house-rules.js';
 import { getPortraitURL } from '../art/portraits.js';
 import { el, btn } from './dom.js';
 import { cap } from './menu-kit.js';
 import { UI } from './ui-config.js';
 import { catalogueEntry, formatMissionDate } from './catalogue.js';
 import { europeSVG, project } from './europe.js';
-import { tourStops } from './tour.js';
+import { tourStops, TOUR_SIGNOFF } from './tour.js';
+import { briefingParagraphs, briefingRulesLine, briefingHistory } from './briefing-text.js';
+import { NarrationTrack, NARRATION_TIMING, TOUR_TIMING, narrationAudible } from './briefing-narration.js';
 import { briefingCueFor } from '../audio/music-cues.js';
 import { isTouchUI } from './touch.js';
 
@@ -56,6 +59,8 @@ export class Briefing {
     this.def = def;
     this.cat = catalogueEntry(def);
     this.part = 1;
+    this.stops = null; // this mission's tour (openTour)
+    this._tourFetch = null;
     this.slide = 0;
     this.slideT = 0;
     this.root.hidden = false;
@@ -97,17 +102,37 @@ export class Briefing {
     });
     const place = def.location || this.cat?.place || def.subtitle || '';
     if (place) el('div', 'place', right, place);
+    // narration targets: line id → element (briefing-text.js ids: head, hist, p0.., rules)
+    this.narrEls = { head: title };
+    // the wartime background: a typed dispatch slip under the place line, read right after the title card
+    const hist = briefingHistory(def);
+    if (hist) {
+      const d = el('section', 'dispatch', right);
+      d.setAttribute('aria-label', 'Background');
+      el('div', 'rubric', d, 'Background').setAttribute('aria-hidden', 'true');
+      const p = el('p', 'hist', d, hist);
+      p.style.setProperty('--d', '350ms');
+      this.narrEls.hist = p;
+    }
     const paras = this._paragraphs(def);
     paras.forEach((t, i) => {
       const p = el('p', null, right, t);
       p.style.setProperty('--d', `${450 + i * 200}ms`);
+      this.narrEls[`p${i}`] = p;
     });
     // the mission's forced house rules (bodies-design §0.3), before the player commits
-    const rules = forcedRuleLines(def);
-    if (rules.length) {
-      const r = el('p', 'rules', right, `Standing orders: ${rules.join(' ')}`);
+    const rules = briefingRulesLine(def);
+    if (rules) {
+      const r = el('p', 'rules', right, rules);
       r.style.setProperty('--d', `${450 + paras.length * 200}ms`);
+      this.narrEls.rules = r;
     }
+    // the newsreel narrator's switch (Options → Sound → NARRATION, key N; the hint bar has no room for a third key)
+    this.narrBtn = el('button', 'narr', box);
+    this.narrBtn.type = 'button';
+    this.narrBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9h4l5-4v14l-5-4H3z" fill="currentColor"/><path class="wave" d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path class="cross" d="M16 9l6 6M22 9l-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+    this.narrBtn.addEventListener('click', (e) => { e.stopPropagation(); this.toggleNarration(); });
+    this._narrLabel();
     const touch = isTouchUI();
     const skip = el('button', 'skip', box, touch ? 'SKIP ›' : 'Press Escape to skip');
     skip.type = 'button';
@@ -128,11 +153,15 @@ export class Briefing {
     if (this.slides.some((f) => f.classList.contains('capture'))) this._captureLater(def);
     this.hud.sound?.play('projector');
     this.hud.game.audio?.music?.(briefingCueFor(def)); // the mission's briefing loop (ducks under the Colonel)
+    // the newsreel narrator: now, or as soon as audio unlocks (a first click) within the opening seconds
+    this._narrWait = this.narrationOn ? NARRATION_TIMING.wait : 0;
+    if (this._narrWait && this.startNarration()) this._narrWait = 0;
   }
 
   /** Space / → / click: the next slide now. */
   advance() {
     if (this.part !== 1 || !this.slides?.length) return;
+    if (this._narrSkip(1)) return; // while the narrator reads, a page turn skips to his next line
     this.slideT = UI.briefingSlide;
     this.update(0);
   }
@@ -140,6 +169,7 @@ export class Briefing {
   /** ←: the previous slide. */
   back() {
     if (this.part !== 1 || !this.slides?.length) return;
+    if (this._narrSkip(-1)) return;
     this._show((this.slide - 1 + this.slides.length) % this.slides.length);
   }
 
@@ -157,14 +187,9 @@ export class Briefing {
     [...(this.pips?.children || [])].forEach((p, k) => p.classList.toggle('on', k <= i));
   }
 
+  /** The part-1 paragraphs (briefing-text.js: the narration reads exactly these). */
   _paragraphs(def) {
-    const out = [];
-    if (this.cat?.context) out.push(this.cat.context);
-    if (def.briefing?.history) out.push(def.briefing.history);
-    if (def.briefing?.text) out.push(def.briefing.text);
-    const obj = (def.objectives || []).filter((o) => !o.hidden).map((o) => o.text);
-    if (obj.length && out.length < 3) out.push(`Orders: ${obj.join('; ')}.`);
-    return out.slice(0, 3);
+    return briefingParagraphs(def, this.cat);
   }
 
   /**
@@ -292,12 +317,13 @@ export class Briefing {
   }
 
   close() {
+    this.stopNarration();
     this.stopVoice();
-    const cc = this.hud.game.cameraController;
-    if (this.part === 2 && this._saved && cc) {
-      cc.centerOn(this._saved.x, this._saved.z);
-      cc.setZoom(this._saved.zoom);
-    }
+    const g = this.hud.game, cc = g.cameraController;
+    if (this.part === 2 && this._saved && cc) cc.setZoom(this._saved.zoom); // back from the tour's 0.5× framing
+    // the mission starts (tour finished / skipped, or the briefing closed by game.start()): look at the squad, not
+    // wherever the tour (or the mission's cameraStart) left the camera
+    if (this.part && cc && g.world && g.state !== 'title') g.focusSquad?.();
     this.part = 0;
     this.root.hidden = true;
     this.root.replaceChildren();
@@ -305,15 +331,182 @@ export class Briefing {
   }
 
   update(dt) {
+    if (this.part === 1 && this._narrWait > 0 && !this.narr) {
+      this._narrWait -= dt;
+      if (this.hud.game.audio?.unlocked && this.startNarration()) this._narrWait = 0;
+    }
+    if (this.part === 1 && this.narr && !this.narr.silent && !narrationAudible(this.hud.game.audio)) this.stopNarration(); // muted mid-read: show the text
+    if (this.part === 1 && this.narr) this._narrTick(dt);
+    if (this.part === 1 && this.narr?.started) return; // the slides follow the narrator's lines
     if (this.part === 1 && this.slides?.length > 1) {
       this.slideT += dt;
       if (this.slideT >= UI.briefingSlide) this._show((this.slide + 1) % this.slides.length);
     } else if (this.part === 2) this.updateTour(dt);
   }
 
+  // ------------------------------------------------------------ part 1: the newsreel narrator (docs/narration.md)
+
+  /** Options → Sound → NARRATION (on by default). */
+  get narrationOn() {
+    return this.hud.options?.narration !== false;
+  }
+
+  _narrLabel() {
+    const b = this.narrBtn, on = this.narrationOn;
+    if (!b) return;
+    b.setAttribute('aria-pressed', String(on));
+    b.setAttribute('aria-label', `Narration: ${on ? 'On' : 'Off'}`);
+    b.title = `Narration: ${on ? 'On' : 'Off'} (N)`;
+    b.classList.toggle('off', !on);
+  }
+
+  /**
+   * N / the speaker button: flip the option; on reads the briefing again from the top (on the tour: the current
+   * caption), off stops the voice.
+   */
+  toggleNarration() {
+    if (this.part !== 1 && this.part !== 2) return;
+    this._narrWait = 0;
+    const on = !this.narrationOn;
+    if (this.hud.setOption) this.hud.setOption('narration', on);
+    else if (this.hud.options) this.hud.options.narration = on;
+    this._narrLabel();
+    if (this.part === 2) {
+      if (on) this._tourSay(this.sub?.textContent || '');
+      else this.stopVoice();
+      return;
+    }
+    if (on) this.startNarration();
+    else this.stopNarration();
+  }
+
+  /**
+   * Read this briefing aloud: after the music intro, one clip per line (title card, then each paragraph); the words
+   * appear as they are read and the slides turn with the lines. `o.lines` (tests) runs the same timeline silently.
+   * No voice (audio locked, test mode, no clips for this mission, stale text) → the briefing behaves as before.
+   * @param {{lines?:object[]}} [o] @returns {boolean} started
+   */
+  startNarration(o = {}) {
+    this.stopNarration();
+    if (this.part !== 1) return false;
+    const audio = this.hud.game.audio, narrator = audio?.narrator;
+    if (!o.lines && (!narrator || !audio.unlocked || this.hud.game.manualTick || !narrationAudible(audio))) return false;
+    const n = { mid: this.def?.id, t: 0, i: -1, lineT: 0, handle: null, started: false, silent: !!o.lines, narrator, track: null };
+    this.narr = n;
+    const accept = (lines) => {
+      if (this.narr !== n) return;
+      // the voice must read exactly the words on screen: a stale manifest line stops the narration
+      const ok = lines?.length && lines.every((l) => !this.narrEls?.[l.id] || l.id === 'head' || this.narrEls[l.id].textContent === l.text);
+      if (ok) n.track = new NarrationTrack(lines);
+      else this.stopNarration();
+    };
+    this._narrPrepare();
+    this.root.classList.add('narrating');
+    if (o.lines) accept(o.lines);
+    else {
+      narrator.prefetch(n.mid).then((got) => accept(got ? narrator.lines(n.mid) : null), () => this.narr === n && this.stopNarration());
+      this._tourPrefetch(); // the Colonel's captions decode while the newsreel plays
+    }
+    return true;
+  }
+
+  /** Stop the voice and show the whole text (Esc, part 2, toggle off, the end of the last line). */
+  stopNarration() {
+    const n = this.narr;
+    if (!n) return;
+    this.narr = null;
+    n.handle?.stop(0.25);
+    if (!n.silent && n.narrator) n.narrator.session = false; // the music comes back up
+    this.root.classList.remove('narrating');
+    for (const e of Object.values(this.narrEls || {})) e.classList.remove('speaking');
+    this.slideT = 0;
+  }
+
+  /** Narration state for tests / debugging. */
+  narrationState() {
+    const n = this.narr;
+    return n ? { active: true, ready: !!n.track, started: n.started, line: n.i, id: n.track?.lines[n.i]?.id ?? null, silent: n.silent,
+      speaking: !!n.handle && !n.handle.ended } : { active: false };
+  }
+
+  /** Wrap each paragraph's words in spans (textContent unchanged) and hide them until read. */
+  _narrPrepare() {
+    for (const [id, p] of Object.entries(this.narrEls || {})) {
+      if (id === 'head') continue;
+      if (!p._words) {
+        const words = NarrationTrack.screenWords(p.textContent);
+        p.replaceChildren(...words.map((w) => el('span', 'w', null, w.text)));
+        p._words = words.map((w, k) => ({ at: w.at, el: p.children[k] }));
+      }
+      for (const w of p._words) w.el.classList.remove('on');
+    }
+  }
+
+  _narrReveal(i, share) {
+    const id = this.narr?.track?.lines[i]?.id;
+    for (const w of this.narrEls?.[id]?._words || []) w.el.classList.toggle('on', share >= 1 || w.at < share);
+  }
+
+  _narrTick(dt) {
+    const n = this.narr;
+    n.t += dt;
+    if (!n.track) {
+      if (n.t > NARRATION_TIMING.lead + NARRATION_TIMING.wait) this.stopNarration(); // clips never arrived
+      return;
+    }
+    if (!n.started) {
+      if (n.t >= n.track.timing.lead) this._narrLine(0);
+      return;
+    }
+    const L = n.track.lines[n.i];
+    n.lineT += dt;
+    const live = n.handle && !n.handle.ended;
+    this._narrReveal(n.i, n.track.share(n.i, live ? n.handle.elapsed() : n.lineT));
+    if (!live) n.after += dt; // the pause between lines runs from the clip's real end
+    if (!live && (n.handle ? n.after : n.lineT - L.duration) >= n.track.timing.gap) this._narrLine(n.i + 1);
+  }
+
+  /** Go to line i (past the end: done). `keepPrev` false hides the line being left (going back). */
+  _narrLine(i, keepPrev = true) {
+    const n = this.narr;
+    const prev = n.track.lines[n.i];
+    if (prev) {
+      this._narrReveal(n.i, keepPrev ? 1 : 0);
+      this.narrEls?.[prev.id]?.classList.remove('speaking');
+    }
+    n.handle?.stop(0.12);
+    n.handle = null;
+    if (i >= n.track.count) { this.stopNarration(); return; }
+    n.i = i;
+    n.lineT = 0;
+    n.after = 0;
+    n.started = true;
+    const L = n.track.lines[i];
+    this._narrReveal(i, 0);
+    const lineEl = this.narrEls?.[L.id];
+    lineEl?.classList.add('speaking');
+    // the text column scrolls: keep the line being read in view
+    try { lineEl?.scrollIntoView?.({ block: 'nearest', behavior: this.hud.kit?.reducedMotion ? 'auto' : 'smooth' }); } catch { /* old browsers */ }
+    if (this.slides?.length && this.slide !== i % this.slides.length) this._show(i % this.slides.length); // the page turns with the line
+    if (!n.silent && n.narrator) {
+      n.narrator.session = true; // keeps the music ducked through the pauses between lines
+      n.handle = n.narrator.play(n.mid, i) || null;
+    }
+  }
+
+  /** Space / → / tap while the narrator reads: his next line (← the previous one). @returns {boolean} handled */
+  _narrSkip(dir) {
+    const n = this.narr;
+    if (!n?.started) return false;
+    if (dir > 0) this._narrLine(n.i + 1);
+    else this._narrLine(Math.max(0, n.i - 1), false);
+    return true;
+  }
+
   // ------------------------------------------------------------ part 2: the Colonel
 
   openTour() {
+    this.stopNarration();
     const g = this.hud.game, cc = g.cameraController;
     this.part = 2;
     this.root.className = 'ui-briefing part2';
@@ -321,6 +514,7 @@ export class Briefing {
     this.root.replaceChildren();
     this.hud.root.classList.add('touring');
     this.stops = tourStops(g.world, this.def);
+    this._tourPrefetch();
     // S16: letterbox bars (black paper), header + stop pips, the Colonel's silhouette card, subtitles, hint row
     const top = el('div', 'bar top', this.root);
     const n = this.cat?.n;
@@ -366,8 +560,9 @@ export class Briefing {
     void this.sub.offsetWidth;
     this.sub.classList.add('in');
     if (!s) {
-      this.sub.textContent = 'That is all, officer. Good luck.';
+      this.sub.textContent = TOUR_SIGNOFF;
       this.marker.hidden = true;
+      this._tourSay(TOUR_SIGNOFF);
       return;
     }
     this.sub.textContent = s.text;
@@ -379,7 +574,7 @@ export class Briefing {
       : s.kind === 'danger' ? '<svg viewBox="-50 -50 100 100"><path class="ink x" pathLength="100" d="M-16 -16L16 16M16 -16L-16 16"/></svg>'
         : s.kind === 'extraction' ? '<svg viewBox="-50 -50 100 100"><path class="ink arrow" pathLength="100" d="M-40 30Q-30 -10 0 -12M-9 -20L2 -12L-8 -3"/></svg>' : '';
     if (label) el('span', 'mk-nametape tape', this.marker, label);
-    this.speak(s.text);
+    this._tourSay(s.text);
   }
 
   updateTour(dt) {
@@ -395,33 +590,88 @@ export class Briefing {
       this.marker.hidden = !show;
       if (show) this.marker.style.transform = `translate(${p.x}px, ${p.y}px)`;
     }
+    const v = this.tourVoice;
+    if (v && !narrationAudible(this.hud.game.audio)) this.stopVoice(); // muted mid-caption: the text carries on alone
+    if (this.tourVoice) {
+      // the tour is paced to the narrator: the camera holds on a stop until he has read it, then a breath
+      if (!this._tourVoiceTick(dt)) return;
+      if (!s) this.stopVoice(); // the sign-off has been read: the music comes back up under "Esc: start"
+      else if (this.stopT >= TOUR_TIMING.minStop) this.gotoStop(this.stopIx + 1);
+      return;
+    }
     const dur = Math.max(UI.briefingStop, (s?.text.length || 0) / UI.barkCharsPerSec);
     if (s && this.stopT > dur) this.gotoStop(this.stopIx + 1);
   }
 
-  /** TTS for the Colonel (British voice when present); skipped in deterministic test mode. */
-  speak(text) {
-    const ss = globalThis.speechSynthesis;
-    if (!ss || this.hud.game.manualTick || !text) return;
-    try {
-      ss.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      const v = ss.getVoices().find((x) => /en-GB/i.test(x.lang));
-      if (v) u.voice = v;
-      u.rate = 0.95;
-      u.pitch = 0.8;
-      u.volume = (this.hud.options.volMaster ?? 1) * (this.hud.options.volVoice ?? 1);
-      ss.speak(u);
-    } catch {
-      /* no TTS */
-    }
+  // ------------------------------------------------------------ part 2: the narrator reads the Colonel's captions
+
+  /**
+   * Can the narrator read the tour now? Option on, audible, audio unlocked, not deterministic test mode (unless a
+   * test sets `forceVoice` to hear the real clips).
+   */
+  _tourVoiceOk() {
+    const audio = this.hud.game.audio;
+    return this.narrationOn && !!audio?.narrator && audio.unlocked && (!this.hud.game.manualTick || !!this.forceVoice) && narrationAudible(audio);
   }
 
-  stopVoice() {
-    try {
-      globalThis.speechSynthesis?.cancel();
-    } catch {
-      /* ignore */
+  /** The captions of this briefing's tour (each stop, then the sign-off). */
+  _tourTexts() {
+    const stops = this.stops || tourStops(this.hud.game.world, this.def);
+    return [...stops.map((x) => x.text).filter(Boolean), TOUR_SIGNOFF];
+  }
+
+  /** Decode this tour's clips once per briefing (from the newsreel, else when the tour opens). */
+  _tourPrefetch() {
+    const narrator = this.hud.game.audio?.narrator;
+    if (!narrator || this._tourFetch?.def === this.def || !this._tourVoiceOk()) return;
+    let texts;
+    try { texts = this._tourTexts(); } catch { return; }
+    this._tourFetch = { def: this.def, p: narrator.prefetchTour(texts).catch(() => 0) };
+  }
+
+  /**
+   * Read a caption with the narrator's recorded clip: after a short lead (the camera sets off first), or once the clip
+   * has decoded. No clip for this text, the narrator off or inaudible → the caption shows alone (text-only pacing).
+   */
+  _tourSay(text) {
+    this.stopVoice();
+    if (!text || !this._tourVoiceOk()) return;
+    const narrator = this.hud.game.audio.narrator;
+    this._tourPrefetch();
+    const line = narrator.tourLine(text);
+    if (!line && narrator.manifest) return; // not recorded: text only
+    this.tourVoice = { text, line, handle: null, t: 0, after: 0, narrator };
+    narrator.session = true; // the music stays ducked from caption to caption
+  }
+
+  /** Advance the narrated caption. @returns {boolean} true when it has been read (and the pause after it is over) */
+  _tourVoiceTick(dt) {
+    const v = this.tourVoice;
+    v.t += dt;
+    if (!v.handle) {
+      v.line = v.line || v.narrator.tourLine(v.text); // the manifest may still have been loading
+      const st = v.line ? v.narrator.lineState(v.line) : (v.narrator.manifest ? 'failed' : 'pending');
+      if (st === 'ready' && v.t >= TOUR_TIMING.lead) v.handle = v.narrator.playLine(v.line);
+      else if (st === 'failed' || (st !== 'ready' && v.t > TOUR_TIMING.wait)) { this.stopVoice(); this.stopT = 0; return false; } // no voice: text pacing from here
+      return false;
     }
+    if (!v.handle.ended && v.handle.elapsed() < v.handle.duration) return false;
+    v.after += dt;
+    return v.after >= TOUR_TIMING.gap;
+  }
+
+  /** Tour voice state for tests / debugging. */
+  tourVoiceState() {
+    const v = this.tourVoice;
+    return v ? { active: true, text: v.text, playing: !!v.handle && !v.handle.ended, started: !!v.handle } : { active: false };
+  }
+
+  /** Stop the narrator on the tour (the caption stays on screen); the music comes back up. */
+  stopVoice() {
+    const v = this.tourVoice;
+    this.tourVoice = null;
+    if (!v) return;
+    v.handle?.stop(0.2);
+    v.narrator.session = false;
   }
 }

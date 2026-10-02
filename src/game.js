@@ -60,6 +60,10 @@ import * as HudMod from './ui/hud.js';
 import * as AudioMod from './audio/audio.js';
 import { quickSave, quickLoad, saveSlot, loadSlot, autoSave } from './save.js';
 import { probe as probeCone } from './ai/perception.js';
+import { mgMountFrame } from './render/mg-mount.js';
+import { ScopeMagnifier } from './render/scope-magnifier.js';
+import { sessionCache } from './engine/asset-cache.js';
+import { deferMaterialDisposal, flushMaterialDisposal, holdingMaterials } from './engine/program-keeper.js';
 
 /** Resolve the first function/class export among candidate names (stub modules may vary). */
 function pick(mod, ...names) {
@@ -104,7 +108,7 @@ export class Game {
     this.options = { activePause: false, edgeScroll: true, edgeScrollOverHud: true, warnings: true, cheats: false, ...(opts.options || {}) };
     this.renderer = new Renderer(container, { preset: opts.preset, preserveDrawingBuffer: opts.preserveDrawingBuffer });
     /** Multi-view camera rig (§2.3); `cameraController` is its active view. */
-    this.cameraRig = new CameraRig({ domElement: this.renderer.domElement, uiScale: () => this.hud?.uiScale || 1 });
+    this.cameraRig = new CameraRig({ domElement: this.renderer.domElement, uiScale: () => this.hud?.uiScale || 1, hudTop: () => this.hud?.topBarHeight || 0 });
     this.cameraRig.edgeScroll = this.options.edgeScroll;
     this.cameraRig.edgeOverHud = this.options.edgeScrollOverHud;
     // Keep the ortho frustums in sync with the canvas (else the view is stretched horizontally).
@@ -182,6 +186,17 @@ export class Game {
    * @param {string|number|object} idOrIndex
    */
   async loadMission(idOrIndex = 0) {
+    // `building`: the frame loop does not draw while a world is being built (cleared by the latest load only)
+    const token = (this._buildToken = {});
+    this.building = true;
+    try {
+      return await this._loadMission(idOrIndex);
+    } finally {
+      if (this._buildToken === token) this.building = false;
+    }
+  }
+
+  async _loadMission(idOrIndex) {
     const list = missionList();
     let def = idOrIndex;
     if (typeof idOrIndex === 'number') def = list[idOrIndex];
@@ -190,6 +205,7 @@ export class Game {
     this.events.emit('mission:loading', { id: def.id }); // UI releases the menu diorama (menus-art-direction §1.10)
     this.unloadMission();
     this.missionIndex = list.indexOf(def);
+    sessionCache.beginMission(def.id); // asset cache: tag what this load uses; keep this + the last mission (LRU budget)
     def = normalizeMission(def, { difficulty: this.difficulty ?? null }); // design-spec §7.3 defaults (throws on invalid data); BCD Easy/Hard variant
     this.missionDef = def;
     Entity.nextId = 1; // deterministic ids (save/load, tests)
@@ -209,10 +225,11 @@ export class Game {
     world.fx = safe(() => (FX ? new FX(world, r.scene) : null), 'fx');
 
     // x-ray: live commandos only (enemies are never x-rayed)
-    r.xrayTargets = () => (this.world === world ? world.commandos.filter((c) => c.alive && c.object3d).map((c) => c.object3d) : []);
+    r.xrayTargets = () => (this.world === world ? world.commandos.filter((c) => c.alive && c.object3d && !c.inGround).map((c) => c.object3d) : []);
     r.setMapBounds?.(def.size[0], def.size[1]);
     this.cameraRig.reset();
     this.cameraRig.setBounds(def.size[0], def.size[1]);
+    this.cameraRig.setApron(null); // set again once the map's scenery apron is built (below)
     this.pendingEnd = null;
     this._endFlags = {};
 
@@ -236,6 +253,9 @@ export class Game {
     const ready = this.mapHandle?.ready;
     if (ready) await safeAsync(() => Promise.race([ready, new Promise((ok) => setTimeout(ok, 20000))]), 'terrain');
     if (this.world !== world) return prog.cancel(), world; // unloaded / replaced while waiting
+    // scenery apron past the map edges (art/apron.js): the camera keeps its true footprint inside it at every zoom
+    const apron = this.mapHandle?.terrain?.apron;
+    if (apron) this.cameraRig.setApron(apron.field.A, apron.range);
     prog.stage('units');
     this._spawnUnits(world, def);
     await safeAsync(() => awaitUnitModels(world.entities.filter((e) => e.model?.ready)), 'character bodies');
@@ -311,6 +331,8 @@ export class Game {
 
   /** Dispose the current world and all per-mission render objects. */
   unloadMission() {
+    // keep the shader programs warm: the next mission's first frame reuses them (engine/program-keeper.js)
+    if (this.world) deferMaterialDisposal();
     safe(() => this.cones?.dispose?.(), 'cones dispose');
     this.cones = null;
     this.selection.detach();
@@ -347,6 +369,37 @@ export class Game {
       this._setState('playing');
       this.audio?.music?.(this.missionDef?.theater || 'mission');
     }
+  }
+
+  /**
+   * Mission start (briefing tour finished or skipped): centre the active view on the squad — its centroid (else the
+   * centre of its screen bounding box) when every live commando then fits clear of the screen edges and the HUD top
+   * bar (48 px inset, feet and head), else the selected commando (else the first live one). Clamped
+   * like any recentre (camera.focusTarget). @returns {{x:number, z:number}|null} the point looked at
+   */
+  focusSquad() {
+    const w = this.world, cc = this.cameraController;
+    if (!w || !cc) return null;
+    const alive = w.commandos.filter((c) => c.alive);
+    if (!alive.length) return null;
+    const sel = alive.filter((c) => c.selected);
+    // whole body (feet and head) clear of the screen edges and of the HUD top bar
+    const seen = (c) => cc.isVisible(c.x, c.z, 48, 0) && cc.isVisible(c.x, c.z, 48, 1.8);
+    cc.untrack?.();
+    const x = alive.reduce((s, c) => s + c.x, 0) / alive.length, z = alive.reduce((s, c) => s + c.z, 0) / alive.length;
+    const IN = 0.5; // keep the squad in the middle half of the play view where the clamp allows (apron past the edge)
+    cc.centerOn(x, z, IN);
+    if (alive.every(seen)) return { x, z };
+    // a lopsided squad: the centre of its screen-space bounding box fits more of it than the centroid
+    const ca = Math.cos(cc.azimuth), sa = Math.sin(cc.azimuth);
+    const us = alive.map((c) => c.x * ca - c.z * sa), vs = alive.map((c) => c.x * sa + c.z * ca);
+    const mu = (Math.min(...us) + Math.max(...us)) / 2, mv = (Math.min(...vs) + Math.max(...vs)) / 2;
+    const bx = mu * ca + mv * sa, bz = -mu * sa + mv * ca;
+    cc.centerOn(bx, bz, IN);
+    if (alive.every(seen)) return { x: bx, z: bz };
+    const c = sel[0] || alive[0];
+    cc.centerOn(c.x, c.z, IN);
+    return { x: c.x, z: c.z };
   }
 
   pause(on = true) {
@@ -585,7 +638,13 @@ export class Game {
       if (steps >= CONFIG.sim.maxStepsPerFrame) this.accumulator = Math.min(this.accumulator, simDt);
       alpha = this.accumulator / simDt;
     }
-    this.render(dt, alpha);
+    // a world being built is hidden by the loading screen (or holds the last frame of an instant restart): drawing
+    // it half-built only competes with the load for the main thread (and compiles programs one frame at a time)
+    if (!this.building) {
+      this.render(dt, alpha);
+      // the first frame after a (re)load has acquired its programs: the previous mission's materials may go now
+      if (holdingMaterials()) flushMaterialDisposal();
+    }
   }
 
   /**
@@ -608,6 +667,7 @@ export class Game {
       safe(() => tickVehicles(animDt, cam || this.renderer.camera, w.wind ?? null), 'vehicles view'); // LOD by zoom, windsocks
       for (const e of w.entities) {
         e.syncTransform?.(alpha);
+        if (e.soldierType === 'mg' && e.spawn?.tower != null) mgMountFrame(e); // platform MG laid along his facing (hand IK reads it)
         e.renderUpdate?.(animDt);
       }
       safe(() => transportFrame(), 'transport poses'); // carried / dragged men after both skeletons updated (§C.10)
@@ -628,8 +688,23 @@ export class Game {
     const scene = this.renderer.scene, autoMW = scene.matrixWorldAutoUpdate;
     scene.updateMatrixWorld();
     scene.matrixWorldAutoUpdate = false;
-    try { this.cameraRig.render(this.renderer, dt); } finally { scene.matrixWorldAutoUpdate = autoMW; }
+    try {
+      this.cameraRig.render(this.renderer, dt);
+      if (w) safe(() => this._scopeFrame(), 'scope magnifier'); // §5.3 sniper scope: 2× lens into the same canvas
+    } finally { scene.matrixWorldAutoUpdate = autoMW; }
     safe(() => this.hud?.update?.(dt), 'hud');
+  }
+
+  /** §5.3 sniper scope 2× magnifier: drawn into the canvas after the frame while the scope cursor is up. */
+  _scopeFrame() {
+    const s = this.hud?.cursor?.lensState?.() || null;
+    if (!s) {
+      if (this.scopeMagnifier) this.scopeMagnifier.stats.drawn = false;
+      return;
+    }
+    this.scopeMagnifier ||= new ScopeMagnifier(this.renderer);
+    const one = (this.cameraRig.count ?? 1) === 1; // one view: the frame's camera (with shake); several: the active view's
+    this.scopeMagnifier.frame(s, { view: this.cameraController, camera: one ? this.renderer.camera : null, water: this.world?.water?.system || null });
   }
 
   // ------------------------------------------------------------ vision cones
@@ -706,6 +781,7 @@ export class Game {
   dispose() {
     this.stop();
     this.unloadMission();
+    flushMaterialDisposal();
     document.removeEventListener('visibilitychange', this._onVisibility);
     window.removeEventListener('beforeunload', this._onUnload);
     safe(() => this.hud?.dispose?.(), 'hud');
@@ -713,6 +789,7 @@ export class Game {
     this.input.dispose?.();
     this.cameraRig.dispose();
     this.flow?.dispose?.();
+    this.scopeMagnifier?.dispose();
     this.renderer.dispose?.();
   }
 }

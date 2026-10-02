@@ -1,10 +1,11 @@
-// prone_trans.mjs - go_prone / get_up (FM 21-75 order), die_prone -> dead_prone, prone_turn_l/r (CC0 project code).
+// prone_trans.mjs - go_prone / get_up (stance_trans.mjs), die_prone -> dead_prone, prone_turn_l/r (CC0 project code).
 // Key poses built with the rig kit, blended per bone (slerp of local rotations, eased), no root motion: the pelvis
 // ends over the root like every prone clip.
 import * as THREE from 'three';
 import { V } from './rig.mjs';
-import { layTorso, legPose, legThrough, sstep, lerp } from './pose.mjs';
+import { layTorso, legPose, sstep } from './pose.mjs';
 import { crawlPose } from './crawl.mjs';
+import { stanceClips } from './stance_trans.mjs';
 
 const D2R = Math.PI / 180;
 
@@ -43,56 +44,13 @@ function standingIdle(R) {
   R.reset(); const mx = new THREE.AnimationMixer(R.scene); mx.clipAction(clip).play(); mx.setTime(0); R.update();
   const s = R.snap(); mx.stopAllAction(); mx.uncacheRoot(R.scene); return s;
 }
-const kneeLegs = (R, kz = 0.12, ax = 0.11) => { for (const [s, sx] of [['l', 1], ['r', -1]]) legThrough(R, s, V(sx * ax, 0.07, kz), V(sx * (ax + 0.02), 0.09, kz - 0.42), { T: V(0, -0.35, -1).normalize(), up: V(0, -1, 0.35) }); };
 
 export function transitionClips(ctx) {
   const { R, SH, sample } = ctx;
   const IDLE = standingIdle(R);
   crawlPose(R, 0, 'long', SH, {}); const PRONE = R.snap();
-  // --- go_prone 0.5 s: drop to both knees, the left palm plants ahead, chest lowers past it, legs slide back ---
-  const k = [];
-  R.apply(IDLE); upright(R, V(0, 0.46, 0.03), 12 * D2R, { headPitch: 0.25 }); kneeLegs(R);
-  R.handTo('l', V(0.2, 0.3, 0.35), V(0.1, -0.7, 0.7).normalize(), V(-0.7, 0, 0.3), V(0.5, -0.3, -0.6));
-  // right fist at the rifle's front swivel (the gun rides it through the whole drop: prone-grips crawl grip), muzzle low
-  R.handTo('r', V(-0.22, 0.36, 0.25), V(-0.05, -0.35, 0.94).normalize(), V(0.3, 1, 0), V(-0.6, -0.4, -0.5));
-  R.curl('l', 0.2, 0.2); R.curl('r', 1, 0.8); k.push([0.12, R.snap()]);
-  R.reset(); upright(R, V(0, 0.4, 0.02), 62 * D2R, { spineLean: 10 * D2R, headPitch: -0.2 }); kneeLegs(R, 0.1);
-  R.handTo('l', V(0.17, 0.03, 0.62), V(0, -0.2, 1).normalize(), V(-1, 0.1, 0), V(0.6, 0, -0.6));
-  R.handTo('r', V(-0.2, 0.2, 0.45), V(0.1, -0.25, 0.96).normalize(), V(0.3, 1, 0), V(-0.7, -0.3, -0.4));
-  R.curl('l', 0.1, 0.1); R.curl('r', 1, 0.8); k.push([0.25, R.snap()]);
-  R.reset(); layTorso(R, { hip: V(0, 0.2, -0.05), pitch: 12 * D2R, chest: 0.15, neck: 1.0, head: { pitch: 0.3 } });
-  R.handTo('l', V(0.13, 0.05, 0.72), V(-0.4, 0, 1).normalize(), V(-0.3, 1, 0), V(0.8, -0.5, -0.2));
-  R.handTo('r', V(-0.16, 0.08, 0.66), V(0.4, 0, 1).normalize(), V(0.3, 1, 0), V(-0.8, -0.5, -0.2));
-  R.curl('l', 0.5, 0.4); R.curl('r', 1, 0.8);
-  legPose(R, 'l', V(0.16, 0.09, -0.62), V(0.3, -1, 0), 0.9); legPose(R, 'r', V(-0.16, 0.09, -0.62), V(-0.3, -1, 0), 0.9);
-  k.push([0.38, R.snap()]);
-  sample('go_prone', 0.5, 30, keyed(R, [[0, IDLE], ...k, [0.5, PRONE]]), { loop: false, transition: true, prone: true, next: 'crawl_idle' });
-  // --- get_up 0.6 s: head up, arms in -> right knee forward, push up -> kneel on the right knee -> drive up ---
-  const g = [];
-  crawlPose(R, 0, 'long', SH, { headPitch: -0.25 });
-  // left palm flat under the shoulder, right fist still around the rifle at the swivel (thumb up)
-  R.handTo('l', V(0.2, 0.03, 0.62), V(0, -0.1, 1).normalize(), V(-1, 0.2, 0), V(1, -0.3, -0.8));
-  R.handTo('r', V(-0.2, 0.06, 0.6), V(0.1, -0.05, 1).normalize(), V(0.35, 1, 0), V(-1, -0.3, -0.8)); R.curl('r', 1, 0.8);
-  g.push([0.1, R.snap()]);
-  R.reset(); layTorso(R, { hip: V(0, 0.26, -0.05), pitch: 22 * D2R, chest: 0.2, neck: 0.8, head: { pitch: 0.2 } });
-  R.handTo('l', V(0.2, 0.03, 0.55), V(0, -0.1, 1).normalize(), V(-1, 0.2, 0), V(0.2, -0.2, -1));
-  R.handTo('r', V(-0.2, 0.06, 0.53), V(0.1, -0.05, 1).normalize(), V(0.35, 1, 0), V(-0.2, -0.2, -1)); R.curl('r', 1, 0.8);
-  legThrough(R, 'r', V(-0.13, 0.07, -0.05), V(-0.15, 0.09, -0.47), { T: V(0, -0.35, -1).normalize(), up: V(0, -1, 0.35) });
-  legPose(R, 'l', V(0.16, 0.08, -0.85), V(0.3, -1, 0), 0.9);
-  g.push([0.22, R.snap()]);
-  R.reset(); upright(R, V(0, 0.5, -0.05), 28 * D2R, { headPitch: 0.15 });
-  legThrough(R, 'r', V(-0.12, 0.07, -0.02), V(-0.13, 0.09, -0.44), { T: V(0, -0.35, -1).normalize(), up: V(0, -1, 0.35) });
-  legThrough(R, 'l', V(0.13, 0.46, 0.32), V(0.13, 0.1, 0.36), { T: V(0, -0.5, 1).normalize(), up: V(0, 1, 0.5) });
-  R.handTo('l', V(0.2, 0.52, 0.34), V(0, -0.8, 0.6).normalize(), V(-0.8, 0, 0.3), V(0.6, -0.2, -0.5));
-  R.handTo('r', V(-0.22, 0.45, 0.3), V(0.05, 0.3, 0.95).normalize(), V(0.3, 1, -0.3), V(-0.6, -0.3, -0.5)); R.curl('r', 1, 0.8);   // rifle carried low, muzzle forward-up
-  g.push([0.35, R.snap()]);
-  R.reset(); upright(R, V(0, 0.8, 0.05), 14 * D2R, { headPitch: 0.1 });
-  legThrough(R, 'l', V(0.12, 0.47, 0.2), V(0.12, 0.1, 0.12), { T: V(0, -0.5, 1).normalize(), up: V(0, 1, 0.5) });
-  legThrough(R, 'r', V(-0.12, 0.42, 0.02), V(-0.12, 0.16, -0.2), { T: V(0, -0.8, 0.5).normalize(), up: V(0, 0.5, 0.8) });
-  R.handTo('l', V(0.25, 0.8, 0.15), V(0, -1, 0.2).normalize(), V(0, 0, 1), V(0.5, 0, -0.8));
-  R.handTo('r', V(-0.25, 0.8, 0.3), V(0.05, 0.15, 0.99).normalize(), V(0.3, 1, 0), V(-0.5, 0, -0.8)); R.curl('r', 1, 0.8);
-  g.push([0.48, R.snap()]);
-  sample('get_up', 0.6, 30, keyed(R, [[0, PRONE], ...g, [0.6, IDLE]]), { loop: false, transition: true, prone: true, next: 'idle' });
+  // --- go_prone 0.5 s / get_up 0.6 s: one shared path, legs / hip / planted hands solved per frame (stance_trans.mjs) ---
+  stanceClips(ctx, { PRONE, IDLE, upright, crawlHandsIn: (r) => crawlPose(r, 0, 'long', SH, { headPitch: -0.25 }) });
   deathAndTurns(ctx, PRONE, keyed);
 }
 
@@ -124,8 +82,8 @@ function deathAndTurns(ctx, PRONE, keyed) {
     sample(name, 0.6, 30, (t) => {
       const u = t / 0.6, hip = 0.015 * Math.sin(Math.PI * Math.min(1, Math.max(0, (u - 0.5) / 0.5)));
       crawlPose(R, 0, 'long', SH, { roll: dir * 0.05 * Math.sin(2 * Math.PI * u), leg: { l: -0.03 * Math.sin(2 * Math.PI * u), r: 0.03 * Math.sin(2 * Math.PI * u) } });
-      // elbow stepping: the leading elbow lifts and steps 0.14 m toward the turn, then is planted as the body turns
-      for (const [s, sx, ph] of [['l', 1, 0], ['r', -1, 0.25]]) {
+      // elbow stepping: one elbow at a time lifts and steps 0.14 m toward the turn, then is planted as the body turns
+      for (const [s, sx, ph] of [['l', 1, 0], ['r', -1, 0.5]]) {   // the elbows step alternately, half a loop apart
         const w = ((u - ph) % 1 + 1) % 1, step = w < 0.3 ? sstep(w / 0.3) : 1 - (w - 0.3) / 0.7;
         const lift = w < 0.3 ? 0.022 * Math.sin(Math.PI * w / 0.3) : 0;
         const el = R.wp('lowerarm_' + s), hd = R.wp('hand_' + s).lerp(R.wp('middle_01_' + s), 0.55);

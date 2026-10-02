@@ -12,6 +12,8 @@ export default async function core2Camera(page, t) {
     const rig = G.cameraRig;
     const out = {};
     const cam = () => G.cameraController;
+    // the ground point at the centre of the play view (below the HUD top bar): what a recentre / track aims at
+    const aim = () => { const c = cam(), sh = c.usableShift(); return { x: c.target.x + sh.x, z: c.target.z + sh.z }; };
     // --- §2.1 projection: pitch 40°, default yaw +15° (Options → CAMERA ANGLE)
     const off = cam().viewOffset();
     out.offset = [off.x, off.y, off.z].map((v) => +v.toFixed(4));
@@ -85,7 +87,7 @@ export default async function core2Camera(page, t) {
     G.input.deselectAll();
     G.input.selectUnit(gb);
     for (let i = 0; i < 8; i++) rig.update(0.05);
-    out.recentreOff = Math.hypot(cam().target.x - gb.x, cam().target.z - gb.z);
+    out.recentreOff = Math.hypot(aim().x - gb.x, aim().z - gb.z);
     g.centerOn(sn.x + 3, sn.z - 2); // sniper on-screen, not selected
     const t0 = { x: cam().target.x, z: cam().target.z };
     G.input.selectUnit(sn);
@@ -93,7 +95,7 @@ export default async function core2Camera(page, t) {
     out.onScreenMoved = Math.hypot(cam().target.x - t0.x, cam().target.z - t0.z);
     G.input.selectUnit(sn); // already selected → always recentres
     for (let i = 0; i < 8; i++) rig.update(0.05);
-    out.againDist = Math.hypot(cam().target.x - sn.x, cam().target.z - sn.z);
+    out.againDist = Math.hypot(aim().x - sn.x, aim().z - sn.z);
     // a map click on a commando never recentres
     g.centerOn(gb.x + 3, gb.z - 2);
     const t1 = { x: cam().target.x, z: cam().target.z };
@@ -112,7 +114,7 @@ export default async function core2Camera(page, t) {
     // the tracked target may only differ from the unit where the map bounds clamp it
     const ex = cam().clampHalfExtents(), b = cam().bounds;
     const cx = Math.min(Math.max(patrol.x, b.minX + ex.x), b.maxX - ex.x), cz = Math.min(Math.max(patrol.z, b.minZ + ex.z), b.maxZ - ex.z);
-    out.track = { d: Math.hypot(cam().target.x - cx, cam().target.z - cz), moved: Math.hypot(patrol.x - p0.x, patrol.z - p0.z), at: [patrol.x, patrol.z] };
+    out.track = { d: Math.hypot(aim().x - cx, aim().z - cz), moved: Math.hypot(patrol.x - p0.x, patrol.z - p0.z), at: [patrol.x, patrol.z] };
     const badge = document.querySelector('.view-track-badge');
     out.badge = !!badge && badge.style.display === 'block';
     badge?.click();

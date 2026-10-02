@@ -17,8 +17,10 @@
  * @module ai/perception
  */
 
+import { ownerHeight } from '../world/placement.js';
 import { CONFIG } from '../config.js';
 import { recognises } from './bcd-ranks.js';
+import { stepHearingMul } from './running-noise.js';
 
 const TAU = Math.PI * 2;
 
@@ -74,7 +76,7 @@ export function coneAt(enemy, t) {
   const vy = enemy.y || 0;
   return {
     x: enemy.x, z: enemy.z, y: vy + (v.eyeHeight ?? CONFIG.stealth.eyeHeight), vy,
-    heading: enemy.heading + theta, theta, halfFov: v.fov / 2, near, far, elevated: !!(v.elevated || enemy.elevated), overlooks: !!v.overlooks,
+    heading: enemy.heading + theta, theta, halfFov: v.fov / 2, near, far, elevated: !!(v.elevated || enemy.elevated), overlooks: !!v.overlooks, overWalls: !!v.overWalls,
   };
 }
 
@@ -166,6 +168,8 @@ export function canSee(viewer, target, world, o = {}) {
   const los = world.grid.lineOfSight(cone.x, cone.z, target.x, target.z, {
     viewerElevated: cone.elevated, targetLow: low, viewerY: vy, targetY: ty, dynamic: o.dynamic ?? target.kind !== 'vehicle',
     ownHull: viewer.ownHull, ownOwner: postOwner(viewer, world),
+    // an MG gunner on an open platform sees over a wall lower than his sight line to the target's head
+    overWalls: cone.overWalls ? { heightOf: ownerHeight(world), eyeY: cone.y, targetTopY: ty + (low ? 0.4 : 1.5) } : undefined,
   });
   return los ? zone : 'none';
 }
@@ -273,8 +277,12 @@ export function hears(enemy, noise) {
   // map-wide reach for explosions (alarm.js, §4.9); without the rule nothing changes (§4.4 map-wide).
   const cap = noise.kind === 'explosion' ? enemy.world?.mission?.rules?.explosionHearing : null;
   if (cap > 0 && cap < r) r = cap;
+  // SHADOW SIX runningNoise: dogs hear a running man further; a man inside a vehicle hears no steps
+  // and a step is heard over its 3D distance (a guard on a roof or a plateau above a runner, or the reverse)
+  let dy = 0;
+  if (noise.kind === 'footsteps') { r *= stepHearingMul(enemy); dy = (noise.y ?? 0) - (enemy.y > 0 ? enemy.y : enemy.world?.grid?.elevAt(enemy.x, enemy.z) ?? 0); }
   const dx = noise.x - enemy.x, dz = noise.z - enemy.z;
-  return dx * dx + dz * dz <= r * r;
+  return dx * dx + dy * dy + dz * dz <= r * r;
 }
 
 /** Namespace object (ARCHITECTURE "Cross-team interfaces": perception.canSee / perception.coneAt). */

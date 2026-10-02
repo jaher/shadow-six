@@ -8,18 +8,27 @@ import { canSee } from '../../src/ai/perception.js';
 const pulses = (s) => s.events.filter((e) => e.name === 'noise' && e.p.kind === 'decoy');
 
 test('#11 knife: silent kill at 0.3 s — no noise event at all', () => {
-  const s = makeSim({ commandos: [{ role: 'greenberet', x: 10, z: 10 }], enemies: [guard('e1', 14, 10, 0)] }, { brains: false });
-  const gb = s.cmd('greenberet'), e = s.get('e1');
-  assert.ok(gb.issue({ type: 'ability', id: 'knife', target: e, run: true }));
-  s.run(3, () => !e.alive);
-  assert.equal(e.alive, false);
-  assert.equal(e.deathCause, 'knife');
-  assert.equal(s.count('noise'), 0, 'silent');
-  assert.equal(s.count('shot'), 0);
+  // SHADOW SIX: a walk-up stab; CLASSIC 1998 (house rule runningNoise off, BEL silent movement): a run-up stab. Running
+  // up under SHADOW SIX is heard (tests/unit/running-noise.test.mjs (c)); the stab itself never makes a noise.
+  for (const [preset, run] of [['shadowSix', false], ['classic1998', true]]) {
+    const s = makeSim({ commandos: [{ role: 'greenberet', x: 10, z: 10 }], enemies: [guard('e1', 14, 10, 0)] }, { brains: false });
+    if (preset === 'classic1998') s.world.house.runningNoise = false;
+    const gb = s.cmd('greenberet'), e = s.get('e1');
+    assert.ok(gb.issue({ type: 'ability', id: 'knife', target: e, run }));
+    s.run(3, () => !e.alive);
+    assert.equal(e.alive, false, preset);
+    assert.equal(e.deathCause, 'knife');
+    assert.equal(s.count('noise'), 0, `silent (${preset})`);
+    assert.equal(s.count('shot'), 0);
+  }
 });
 
-test('knife from a crawl: he stands up (0.6 s), walks up and stabs — never "Stand up first."', () => {
-  const s = makeSim({ commandos: [{ role: 'greenberet', x: 10, z: 10 }], enemies: [guard('e1', 14, 10, 0)] }, { brains: false });
+// User request 2026-10-01 (a deliberate change from BEL, which stood him up at the click): "When clicking a soldier to
+// kill when using the knife and crawling we should not stand up right away, only when we get close to the soldier
+// it stands up before stabbing it". This test used to assert "stands up at once"; it now asserts the crawl-in.
+test('knife from a crawl: he crawls in, stands up (0.6 s) only when close, then stabs — never "Stand up first."', () => {
+  const K = CONFIG.abilities.knife, standAt = K.reach + CONFIG.abilities.crawlStandLead;
+  const s = makeSim({ commandos: [{ role: 'greenberet', x: 10, z: 10 }], enemies: [guard('e1', 18, 10, 0)] }, { brains: false });
   const gb = s.cmd('greenberet'), e = s.get('e1');
   const msgs = [];
   s.world.events.on('message', (p) => msgs.push(p.text));
@@ -27,25 +36,95 @@ test('knife from a crawl: he stands up (0.6 s), walks up and stabs — never "St
   s.run(0.6);
   assert.equal(gb.stance, 'crawl');
   assert.ok(gb.issue({ type: 'ability', id: 'knife', target: e }), 'knife accepted from a crawl');
-  assert.equal(gb.stance, 'stand', 'stands up at once');
+  assert.equal(gb.stance, 'crawl', 'does not stand up at the click');
   const x0 = gb.x;
-  s.run(0.5);
-  near(gb.x, x0, 1e-6, 'no movement while getting up (0.6 s)');
+  s.run(1);
+  near(gb.x - x0, CONFIG.units.crawl, 0.05, 'crawls toward him at crawl speed (0.9 m/s)');
+  // crawl until he stands: every crawling frame is farther than the stand distance
+  let stoodAt = null;
+  s.run(12, () => {
+    const d = Math.hypot(e.x - gb.x, e.z - gb.z);
+    if (gb.stance === 'crawl') { assert.ok(d > standAt - 0.05, `still crawling at ${d.toFixed(2)} m`); return false; }
+    stoodAt = d;
+    return true;
+  });
+  assert.ok(stoodAt !== null, 'stood up');
+  assert.ok(stoodAt <= standAt + 1e-6 && stoodAt > K.reach, `stands up close (${stoodAt.toFixed(2)} m), outside reach`);
   assert.ok(e.alive);
-  s.run(4, () => !e.alive);
+  const x1 = gb.x;
+  s.run(0.55);
+  near(gb.x, x1, 1e-6, 'no movement while getting up (0.6 s)');
+  assert.ok(e.alive, 'no stab before he is on his feet');
+  s.run(2, () => !e.alive);
   assert.equal(e.alive, false);
   assert.equal(e.deathCause, 'knife');
+  assert.ok(Math.hypot(e.x - gb.x, e.z - gb.z) <= K.reach + 1e-6, 'stepped into reach standing');
+  assert.equal(gb.stance, 'stand');
   assert.deepEqual(msgs, [], 'no refusal / warning');
-  // already in reach while crawling: still waits for the stand before the stab
+  // already in reach while crawling: stands at once and still waits for the stand before the stab
   const s2 = makeSim({ commandos: [{ role: 'greenberet', x: 10, z: 10 }], enemies: [guard('e2', 11, 10, 0)] }, { brains: false });
   const gb2 = s2.cmd('greenberet'), e2 = s2.get('e2');
   gb2.issue({ type: 'stance', stance: 'crawl' });
   s2.run(0.6);
   assert.ok(gb2.issue({ type: 'ability', id: 'knife', target: e2 }));
+  assert.equal(gb2.stance, 'stand', 'within the stand distance: up at once');
   s2.run(0.55);
   assert.ok(e2.alive, 'no stab before he is on his feet');
   s2.run(1.5, () => !e2.alive);
   assert.equal(e2.alive, false);
+});
+
+test('knife from a crawl, double-click (run order): urgent — he stands up at once and runs in, as in BEL', () => {
+  const s = makeSim({ commandos: [{ role: 'greenberet', x: 10, z: 10 }], enemies: [guard('e1', 18, 10, 0)] }, { brains: false });
+  const gb = s.cmd('greenberet'), e = s.get('e1');
+  gb.issue({ type: 'stance', stance: 'crawl' });
+  s.run(0.6);
+  assert.ok(gb.issue({ type: 'ability', id: 'knife', target: e, run: true }));
+  assert.equal(gb.stance, 'stand', 'stands up at the click');
+  const x0 = gb.x;
+  s.run(0.5);
+  near(gb.x, x0, 1e-6, 'no movement while getting up');
+  s.run(0.3);
+  assert.equal(gb.moveMode, 'run', 'then runs in');
+  s.run(3, () => !e.alive);
+  assert.equal(e.alive, false);
+});
+
+test('knife standing: unchanged — walks in on his feet, never lies down', () => {
+  const s = makeSim({ commandos: [{ role: 'greenberet', x: 10, z: 10 }], enemies: [guard('e1', 16, 10, 0)] }, { brains: false });
+  const gb = s.cmd('greenberet'), e = s.get('e1');
+  assert.ok(gb.issue({ type: 'ability', id: 'knife', target: e }));
+  s.run(0.2);
+  assert.equal(gb.stance, 'stand');
+  assert.equal(gb.moveMode, 'walk');
+  assert.ok(gb.x - 10 > 0.4, 'walking at once (no stance delay)');
+  s.run(4, () => !e.alive);
+  assert.equal(e.alive, false);
+  assert.equal(gb.stance, 'stand');
+});
+
+test('knife crawl-in: a target that moves > 3 m from the click cancels it; he stays down; long crawls do not time out', () => {
+  const s = makeSim({ commandos: [{ role: 'greenberet', x: 10, z: 10 }], enemies: [guard('e1', 20, 10, 0)] }, { brains: false });
+  const gb = s.cmd('greenberet'), e = s.get('e1');
+  gb.issue({ type: 'stance', stance: 'crawl' });
+  s.run(0.6);
+  assert.ok(gb.issue({ type: 'ability', id: 'knife', target: e }));
+  s.run(1);
+  assert.ok(gb.pendingAbility, 'crawling in');
+  e.x += CONFIG.units.autoWalkCancel + 0.5; // he walked off
+  s.run(0.1);
+  assert.equal(gb.pendingAbility, null, 'auto-walk cancelled');
+  assert.equal(gb.stance, 'crawl', 'still prone');
+  assert.ok(e.alive);
+  // a crawl longer than approachTimeout (30 s at walking pace) still arrives: the give-up time scales by walk/crawl
+  const far = CONFIG.abilities.approachTimeout * CONFIG.units.crawl + 6; // ≈ 33 m: ~37 s of crawling
+  const s2 = makeSim({ size: [80, 30], commandos: [{ role: 'greenberet', x: 5, z: 10 }], enemies: [guard('e2', 5 + far, 10, 0)] }, { brains: false });
+  const gb2 = s2.cmd('greenberet'), e2 = s2.get('e2');
+  gb2.issue({ type: 'stance', stance: 'crawl' });
+  s2.run(0.6);
+  assert.ok(gb2.issue({ type: 'ability', id: 'knife', target: e2 }));
+  s2.run(50, () => !e2.alive);
+  assert.equal(e2.alive, false, 'crawled the whole way and stabbed');
 });
 
 test('knife: M7 Marine without knife has no knife action; knife cannot reach elevated/in-vehicle enemies', () => {
@@ -153,10 +232,75 @@ test('shovel: snow/sand only; buried = invisible; witness keeps him (near band);
   assert.equal(canSee(w, gb, s.world), 'none', 'out of the witness cone');
   w.heading = -Math.PI / 2; s.run(0.2);
   assert.equal(canSee(w, gb, s.world), 'none', 'witness lost him for good');
-  assert.equal(gb.issue({ type: 'move', x: 5, z: 5 }), false, 'buried: cannot move');
   assert.ok(gb.issue({ type: 'cancel' }), 'right-click rises');
-  s.run(1.05);
+  assert.equal(gb.issue({ type: 'cancel' }), false, 'a second right-click while rising does nothing more');
+  s.run(0.95);
+  assert.ok(gb.buried && !gb.isVisibleToEnemies, 'rising 1.0 s: still buried for the sim');
+  s.run(0.1);
   assert.ok(!gb.buried && gb.state === 'active' && gb.isVisibleToEnemies);
+  assert.ok(!gb.path, 'a right-click rise does not walk anywhere');
+});
+
+test('shovel: a move order while buried rises (one action, 1.0 s) then walks there; re-orders retarget, stop drops it', () => {
+  const s = makeSim({ terrain: [{ type: 'rect', terrain: 'snow', x: 0, z: 0, w: 30, d: 60 }],
+    commandos: [{ role: 'greenberet', x: 10, z: 10, inventory: { shovel: 1 } }] }, { brains: false });
+  const gb = s.cmd('greenberet');
+  const starts = () => s.events.filter((e) => e.name === 'ability:start' && e.p.id === 'shovel').length;
+  gb.issue({ type: 'ability', id: 'shovel', target: gb });
+  s.run(2.1);
+  assert.ok(gb.buried && gb.dig?.phase === 'buried', 'buried');
+  assert.equal(starts(), 1);
+  assert.ok(gb.issue({ type: 'move', x: 20, z: 10 }), 'move accepted while buried');
+  assert.equal(gb.currentActionId, 'shovel', 'he digs out first');
+  assert.equal(gb.dig.phase, 'rise');
+  assert.ok(!gb.path, 'no walking while rising');
+  assert.ok(gb.issue({ type: 'move', x: 20, z: 14, run: true }), 'a second order (double click) only retargets');
+  assert.equal(starts(), 2, 'exactly one rise');
+  s.run(0.5);
+  assert.ok(gb.buried, 'still rising');
+  near(gb.x, 10, 1e-6, 'in place');
+  s.run(0.55);
+  assert.ok(!gb.buried && gb.state === 'active', 'out');
+  assert.ok(gb.path && gb.moveMode === 'run', 'then runs to the last point');
+  s.run(10, () => !gb.path);
+  assert.ok(Math.hypot(gb.x - 20, gb.z - 14) < 0.3, `walked there (${gb.x.toFixed(2)}, ${gb.z.toFixed(2)})`);
+  assert.equal(starts(), 2);
+  // stop while rising: he rises and stays
+  gb.issue({ type: 'ability', id: 'shovel', target: gb });
+  s.run(2.1);
+  assert.ok(gb.buried);
+  gb.issue({ type: 'move', x: 5, z: 20 });
+  gb.issue({ type: 'stop' });
+  s.run(1.1);
+  assert.ok(!gb.buried && !gb.path, 'stop dropped the queued walk');
+});
+
+test('shovel: dig state for the visuals (dig → buried → rise → out; a cancelled dig aborts) and the model gets the dig clip', () => {
+  const s = makeSim({ terrain: [{ type: 'rect', terrain: 'sand', x: 0, z: 0, w: 30, d: 60 }],
+    commandos: [{ role: 'greenberet', x: 10, z: 10, inventory: { shovel: 1 } }] }, { brains: false });
+  const gb = s.cmd('greenberet');
+  let seen = null;
+  const play = gb.playAction.bind(gb);
+  gb.playAction = (n, d) => { seen = { n, id: gb.currentActionId }; return play(n, d); };
+  gb.issue({ type: 'ability', id: 'shovel', target: gb });
+  assert.deepEqual(seen, { n: 'use', id: 'shovel' }, 'the action id is set when start() plays the clip (→ dig, shovel in hand)');
+  assert.equal(gb.dig.phase, 'dig');
+  assert.equal(gb.dig.surface, 'sand');
+  assert.equal(gb.dig.dur, CONFIG.abilities.dig);
+  s.run(1);
+  gb.issue({ type: 'move', x: 15, z: 10 });
+  assert.equal(gb.dig.phase, 'abort', 'a move order mid-dig cancels it');
+  assert.ok(!gb.buried);
+  s.run(3, () => !gb.path);
+  gb.issue({ type: 'ability', id: 'shovel', target: gb });
+  s.run(2.1);
+  assert.equal(gb.dig.phase, 'buried');
+  near(gb.dig.x, 15, 0.3, 'the hole is where he dug');
+  gb.issue({ type: 'ability', id: 'shovel', target: gb });
+  assert.equal(gb.dig.phase, 'rise');
+  assert.equal(gb.object3d?.visible ?? true, true, 'visible from the first frame of the rise');
+  s.run(1.05);
+  assert.equal(gb.dig.phase, 'out');
 });
 
 test('climb: GB crosses a wall through a climb link (0.5 m/s, unit:climb); others cannot; not while carrying', () => {

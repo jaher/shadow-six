@@ -185,9 +185,14 @@ export class Help {
     put(L, groups[0][0], groups[0][1]);
     if (this.page === 0) {
       put(L, groups[1][0], groups[1][1]);
-      el('h4', null, R, 'MOUSE');
+      // a finger has no mouse: the touch gestures (design-spec §5.4) and the notebook map's tap toggle (§6.4)
+      const touch = this.hud.kit?.device === 'touch';
+      el('h4', null, R, touch ? 'TOUCH' : 'MOUSE');
       const dl = el('dl', 'mk-keys', R);
-      for (const [k, v] of [['LEFT', 'SELECT · MOVE · USE'], ['DOUBLE', 'RUN'], ['RIGHT', 'CANCEL · DESELECT'], ['DRAG', 'SELECT A GROUP'], ['SHIFT', 'WHO WATCHES THIS SPOT'], ['WHEEL', 'ZOOM']]) {
+      const rows = touch
+        ? [['TAP', 'SELECT · MOVE · USE'], ['DOUBLE', 'RUN'], ['HOLD', 'ADD A MAN · VISION CONE'], ['DRAG', 'PAN'], ['PINCH', 'ZOOM'], ['NOTEBOOK', 'TAP OPENS · TAP AGAIN CLOSES · DRAG MOVES THE VIEW']]
+        : [['LEFT', 'SELECT · MOVE · USE'], ['DOUBLE', 'RUN'], ['RIGHT', 'CANCEL · DESELECT'], ['DRAG', 'SELECT A GROUP'], ['SHIFT', 'WHO WATCHES THIS SPOT'], ['WHEEL', 'ZOOM']];
+      for (const [k, v] of rows) {
         el('dt', null, dl).append(cap(k));
         el('dd', 'mk-typed', dl, v);
       }

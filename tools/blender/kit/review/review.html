@@ -38,7 +38,8 @@ function libMat(id, tile, rep) {
   return m;
 }
 window.__K = { THREE, scene, renderer, S, sun, EffectComposer, RenderPass, GTAOPass, OutputPass };
-window.setup = async ({ glb, sidecar, theater = 'temperate', env = 1.0, tone = 'agx', sunEl = 42, figures = true }) => {
+window.setup = async ({ glb, sidecar, theater = 'temperate', env = 1.0, tone = 'agx', sunEl = 42, figures = true, yaw = 0 }) => {
+  S.yaw = yaw;   // game-view camera yaw (deg; the game's default is 15)
   const hdr = await new RGBELoader().loadAsync('/hdri/kloofendal_43d_clear_puresky_1k.hdr');
   hdr.mapping = THREE.EquirectangularReflectionMapping;
   const pm = new THREE.PMREMGenerator(renderer);

@@ -28,7 +28,8 @@ const FRICTION = { wood: 0.65, metal: 0.45 };
 export const HULL_CLEARANCE = 0.32;
 const P = () => CONFIG.physics.gates || DEFAULTS;
 const DEFAULTS = { settleV: 0.2, settleW: 0.5, settleHold: 0.35, timeout: 9, thudV: 2.2, thudGap: 0.07, maxThuds: 14, linDamp: 0.12, angDamp: 0.35,
-  upright: 0.7, toppleGap: 0.4, hingeDamp: 3.2, jamDepth: 0.015, jamTear: 0.15, tearDepth: 0.2, slowHold: 1 };
+  upright: 0.7, toppleGap: 0.4, hingeDamp: 3.2, jamDepth: 0.015, jamTear: 0.15, tearDepth: 0.2, slowHold: 1, jamWait: 1.2,
+  stickV: 1, stickMul: 3, restDrift: 0.05, restV: 1.5 };
 
 /** Gate frame (gate interactable → world): origin at the gate centre on the ground, yaw from the structure rot. */
 function frameOf(w, gate) {
@@ -343,8 +344,12 @@ Object.assign(GateDebris.prototype, {
       const hinged = plan.hinges.some((h) => ids.includes(h.piece));
       if (hinged) { body.setAngularDamping(C.hingeDamp); body.setLinearDamping(C.hingeDamp * 0.4); } // rusty pintles: the swing dies out
       const com = body.worldCom?.() || cW;
-      if (hinged) {
-        // the bumper shoves the hinged leaf / boom stub: an impulse at the contact point, the joint does the rest
+      if (hinged && L.kind === 'boom') {
+        // the boom stub left on the pivot pin: the snapped-off pole no longer balances the counterweight, which drops
+        // and swings the stub up (gravity on the revolute pin does it; a bumper impulse off the pin axis would only
+        // fight the joint and set the stub jittering)
+      } else if (hinged) {
+        // the bumper shoves the hinged leaf: an impulse at the contact point, the joint does the rest
         body.applyImpulseAtPoint({ x: dirW.x * mass * v * 0.9, y: mass * 0.4, z: dirW.z * mass * v * 0.9 }, cW, true);
       } else if (mass > 25) {
         // a torn-off leaf: struck at the bumper → thrown ahead, spinning about the contact point
@@ -480,6 +485,15 @@ Object.assign(GateDebris.prototype, {
           w.events.emit('gate:thud', { id: g.key, x: b.pose[0], z: b.pose[2], v: r4(-b.vy), heavy: b.mass > 20, material: g.layout.kind === 'wire' ? 'metal' : 'wood' });
         }
         b.vy = lv.y;
+        // pintle stiction: a hanging leaf swinging slower than stickV meets the hinge's static friction (a tilted leaf on
+        // its last pin is a pendulum the plain damping lets creep on for seconds)
+        if (b.hinged) {
+          const damp = Math.hypot(lv.x, lv.y, lv.z) < C.stickV ? C.hingeDamp * C.stickMul : C.hingeDamp;
+          if (b.damp !== damp) { body.setAngularDamping(damp); body.setLinearDamping(damp * 0.4); b.damp = damp; }
+        }
+        // rocking in place: the horizontal drift from where it last settled down (a board teetering on another's edge
+        // jitters at up to a few rad/s for seconds without going anywhere)
+        if (b.restX == null || Math.hypot(b.pose[0] - b.restX, b.pose[2] - b.restZ) > C.restDrift) { b.restX = b.pose[0]; b.restZ = b.pose[2]; b.held = 0; } else b.held += dt;
         // a hanging leaf crushed into a wall (the hull drives it deep into the palisade): the pintle gives way
         if (b.hinged) {
           b.jam = this._staticDepth(b) > C.tearDepth ? (b.jam || 0) + dt : 0; // a flank sweeping it flat against the palisade presses it a hand in: it holds
@@ -497,12 +511,17 @@ Object.assign(GateDebris.prototype, {
         if (b.slow >= 0.12 && !b.hinged && b.t < C.timeout && this._upright(g, b)) {
           if (b.t - (b.topple ?? -9) >= C.toppleGap) this._topple(g, b);
           b.still = 0;
-        } else if (b.still >= C.settleHold && b.t < C.timeout && this._staticDepth(b) > C.jamDepth) {
-          b.still = 0; // still but pressed into a wall: the contacts push it out first
-        } else if (b.still >= C.settleHold || b.t >= C.timeout) this._freeze(g, b);
+        } else if (b.still >= C.settleHold && b.t < C.timeout && (b.jamT ?? 0) < C.jamWait && this._staticDepth(b) > C.jamDepth) {
+          // still but pressed into a wall: the contacts push it out first; one they cannot free (a board the parked
+          // hull holds down into the ground) is frozen where it lies after jamWait instead of the 9 s timeout
+          b.jamT = (b.jamT ?? 0) + dt;
+          b.still = 0;
+        } else if (b.still >= C.settleHold || b.t >= C.timeout || (b.jamT ?? 0) >= C.jamWait) this._freeze(g, b);
         // creeping in place for a second (a thin board lying in a heightfield crease: a contact limit cycle kicks it a
         // few cm/s every third tick, so it is never `still` for settleHold): it is at rest — freeze it lying there
         else if (!b.hinged && b.slow >= C.slowHold && this._staticDepth(b) <= C.jamDepth) this._freeze(g, b);
+        // rocking on the spot for a second (lying, not pressed into a wall): it is at rest too
+        else if (!b.hinged && b.held >= C.slowHold && Math.hypot(lv.x, lv.y, lv.z) < C.restV && !this._upright(g, b) && this._staticDepth(b) <= C.jamDepth) this._freeze(g, b);
       }
       if (g.bodies.every((b) => b.fixed)) {
         g.active = false; g.frozen = true;
@@ -612,7 +631,7 @@ Object.assign(GateDebris.prototype, {
       gates: this.gates.map((g) => ({
         key: g.key, broken: g.broken, outcome: g.outcome, speed: g.speed ?? 0, active: g.active, frozen: g.frozen, t: g.t, thuds: g.thuds, lastThud: g.lastThud,
         torn: g.torn ?? null, hinges: g.hinges ?? [], posts: g.posts?.handle ?? null, intact: g.intact?.handle ?? null,
-        bodies: g.bodies.map((b) => ({ pieces: b.pieces, pose: b.pose, fixed: b.fixed, still: b.still, t: b.t, vy: b.vy, mass: b.mass, hinged: !!b.hinged, topple: b.topple ?? null, jam: b.jam ?? 0, slow: b.slow ?? 0, h: b.body.handle })),
+        bodies: g.bodies.map((b) => ({ pieces: b.pieces, pose: b.pose, fixed: b.fixed, still: b.still, t: b.t, vy: b.vy, mass: b.mass, hinged: !!b.hinged, topple: b.topple ?? null, jam: b.jam ?? 0, jamT: b.jamT ?? 0, slow: b.slow ?? 0, h: b.body.handle })),
         joints: g.joints.map((j) => ({ hinge: j.hinge, body: j.body, h: j.joint.handle })),
       })),
       hulls: [...this.hulls].map(([v, b]) => [v.id, b.handle]),
@@ -644,7 +663,7 @@ Object.assign(GateDebris.prototype, {
           body = rw.createRigidBody(R.RigidBodyDesc.fixed().setTranslation(sb.pose[0], sb.pose[1], sb.pose[2]).setRotation({ x: sb.pose[3], y: sb.pose[4], z: sb.pose[5], w: sb.pose[6] }));
           for (const id of sb.pieces) this._collider(body, g.byId.get(id), g.layout, true);
         }
-        return { body, pieces: sb.pieces, pose: sb.pose, fixed: snapshot ? sb.fixed : true, still: sb.still, t: sb.t, vy: sb.vy, mass: sb.mass, hinged: !!sb.hinged, topple: sb.topple ?? undefined, jam: sb.jam ?? 0, slow: sb.slow ?? 0 };
+        return { body, pieces: sb.pieces, pose: sb.pose, fixed: snapshot ? sb.fixed : true, still: sb.still, t: sb.t, vy: sb.vy, mass: sb.mass, hinged: !!sb.hinged, topple: sb.topple ?? undefined, jam: sb.jam ?? 0, jamT: sb.jamT ?? 0, slow: sb.slow ?? 0 };
       });
       g.joints = snapshot ? (s.joints || []).map((j) => ({ hinge: j.hinge, body: j.body, joint: rw.getImpulseJoint(j.h) })).filter((j) => j.joint) : [];
     }

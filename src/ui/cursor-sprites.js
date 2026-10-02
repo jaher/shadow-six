@@ -52,7 +52,7 @@ export const CURSORS = {
   crosshair: { hot: [16, 16], svg: S(`<circle cx="16" cy="16" r="9" fill="none" stroke="#e33" stroke-width="2"/><path d="M16 2v9M16 21v9M2 16h9M21 16h9" stroke="#e33" stroke-width="2"/>`) },
   scope: {
     hot: [44, 44], size: 88,
-    svg: S(`<circle cx="44" cy="44" r="40" fill="rgba(200,220,255,.08)" stroke="#111" stroke-width="5"/><circle cx="44" cy="44" r="40" fill="none" stroke="var(--scope,#39d353)" stroke-width="1.5"/><path d="M44 6v30M44 52v30M6 44h30M52 44h30" stroke="var(--scope,#39d353)" stroke-width="1.5"/><circle cx="44" cy="44" r="2" fill="var(--scope,#39d353)"/>`, 88),
+    svg: S(`<circle cx="44" cy="44" r="40" fill="rgba(200,220,255,.08)" stroke="#111" stroke-width="5"/><circle cx="44" cy="44" r="40" fill="none" stroke="var(--scope,#0d0e0c)" stroke-width="1.5"/><path d="M44 6v30M44 52v30M6 44h30M52 44h30" stroke="var(--scope,#0d0e0c)" stroke-width="1.5"/><circle cx="44" cy="44" r="2" fill="var(--scope,#0d0e0c)"/>`, 88),
   },
   syringe: { hot: [3, 29], svg: S(`<path d="M3 29l6-6" stroke="#bbb" stroke-width="1.5"/><rect x="9" y="9" width="7" height="17" transform="rotate(45 12 17)" fill="#cde" stroke="${D}"/><path d="M22 4l6 6M24 8l-3 3" stroke="${D}" stroke-width="2"/>`) },
   cap: { hot: [16, 20], svg: S(`<path d="M4 20c0-8 6-12 12-12s12 4 12 12z" fill="#51563f" stroke="${D}"/><path d="M2 20h28l-3 4H5z" fill="#1d1d18"/><path d="M13 12h6" stroke="${B}" stroke-width="2"/>`) },

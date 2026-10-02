@@ -4,7 +4,7 @@
 // weapon code (pipeline/weapons.js, commandos_b/weapons.js, guests/weapons.js, enemies/enemy_weapons.js).
 import * as THREE from 'three';
 
-export const GRIPS = {"crawl_long":{"hand":"r","socket":"sling_f","m":[-0.94452,0.05889,0.32315,0,0.32206,-0.02742,0.94632,0,0.06459,0.99789,0.00694,0,0.01162,0.06822,0.03593,1]},"crawl_smg":{"hand":"r","socket":"grip_l","roll":-90,"m":[-0.94452,0.05889,0.32315,0,0.31738,-0.08989,0.94403,0,0.08464,0.99421,0.06621,0,0.00836,0.06784,0.02648,1]},"crawl_mp40":{"hand":"r","at":[0,-0.15,0.19],"m":[-0.94452,0.05889,0.32315,0,0.32243,-0.02154,0.94635,0,0.06269,0.99803,0.00136,0,0.00022,0.06688,0.00286,1]},"crawl_knife":{"hand":"r","socket":"grip_r","m":[-0.96015,-0.00879,0.27935,0,0.27835,-0.12048,0.95289,0,0.02528,0.99268,0.11813,0,0.00022,0.06688,0.00286,1]},"aim_long":{"hand":"l","socket":"grip_r","m":[0.23017,-0.84066,0.49021,0,0.96561,0.2599,-0.00768,0,-0.12095,0.47512,0.87157,0,0.06693,-0.00643,-0.15438,1]},"aim_smg":{"hand":"l","socket":"grip_r","m":[0.23017,-0.84066,0.49021,0,0.96561,0.2599,-0.00768,0,-0.12095,0.47512,0.87157,0,0.1157,-0.00345,-0.17218,1]},"pistol":{"hand":"r","socket":"grip_r","m":[-0.93226,0.36173,-0.00648,0,-0.31719,-0.8086,0.49554,0,0.17401,0.46403,0.86856,0,0.00022,0.06688,0.00286,1]}};
+export const GRIPS = {"crawl_long":{"hand":"r","socket":"sling_f","m":[-0.94402,0.07456,0.32136,0,0.32019,-0.02749,0.94696,0,0.07944,0.99684,0.00208,0,0.01159,0.06822,0.03594,1]},"crawl_smg":{"hand":"r","socket":"grip_l","roll":-90,"m":[-0.94402,0.07456,0.32136,0,0.31457,-0.08995,0.94496,0,0.09936,0.99315,0.06146,0,0.00834,0.06784,0.02649,1]},"crawl_mp40":{"hand":"r","at":[0,-0.15,0.19],"m":[-0.94402,0.07456,0.32136,0,0.32066,-0.02148,0.94695,0,0.07751,0.99699,-0.00363,0,0.00022,0.06688,0.00286,1]},"crawl_knife":{"hand":"r","socket":"grip_r","m":[-0.96114,-0.00864,0.27592,0,0.27492,-0.12051,0.95388,0,0.02501,0.99267,0.1182,0,0.00022,0.06688,0.00286,1]},"aim_long":{"hand":"l","socket":"grip_r","m":[0.23017,-0.84066,0.49021,0,0.96561,0.2599,-0.00768,0,-0.12095,0.47512,0.87157,0,0.06693,-0.00643,-0.15438,1]},"aim_smg":{"hand":"l","socket":"grip_r","m":[0.23017,-0.84066,0.49021,0,0.96561,0.2599,-0.00768,0,-0.12095,0.47512,0.87157,0,0.1157,-0.00345,-0.17218,1]},"pistol":{"hand":"r","socket":"grip_r","m":[-0.93226,0.36173,-0.00648,0,-0.31719,-0.8086,0.49554,0,0.17401,0.46403,0.86856,0,0.00022,0.06688,0.00286,1]}};
 
 const LONG = new Set(['kar98k', 'no4_sniper', 'harpoon_gun', 'mg34', 'mg42']);
 const SMG = new Set(['thompson', 'mp40']);
@@ -20,8 +20,10 @@ const BY_CLIP = {
   prone_aim: { long: 'aim_long', smg: 'aim_smg' }, prone_shoot: { long: 'aim_long' }, prone_shoot_smg: { smg: 'aim_smg' },
   prone_pistol_aim: { pistol: 'pistol' }, prone_pistol_shoot: { pistol: 'pistol' },
   prone_turn_l: { long: 'crawl_long', smg: 'crawl_smg', mp40: 'crawl_mp40' }, prone_turn_r: { long: 'crawl_long', smg: 'crawl_smg', mp40: 'crawl_mp40' },
-  // stance changes: the right fist keeps the gun at the swivel (weapon-handover.js blends it off / onto the sling)
-  go_prone: { long: 'crawl_long', smg: 'crawl_smg', mp40: 'crawl_mp40' }, get_up: { long: 'crawl_long', smg: 'crawl_smg', mp40: 'crawl_mp40' },
+  // stance changes: the right fist keeps the gun at the swivel (weapon-handover.js blends it off / onto the sling), a
+  // knife (knife crawl-in) stays in the fist as in crawl_knife
+  go_prone: { long: 'crawl_long', smg: 'crawl_smg', mp40: 'crawl_mp40', knife: 'crawl_knife' },
+  get_up: { long: 'crawl_long', smg: 'crawl_smg', mp40: 'crawl_mp40', knife: 'crawl_knife' },
 };
 /** True when the clip is one of the prone set that carries its own weapon hold. */
 export const isProneHold = (clip) => !!BY_CLIP[clip];

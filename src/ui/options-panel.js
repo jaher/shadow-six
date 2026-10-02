@@ -12,9 +12,10 @@ import { el } from './dom.js';
 import { cap, keyName } from './menu-kit.js';
 import { OPTION_DEFAULTS } from './ui-config.js';
 import { CONFIG } from '../config.js';
+import { clearCachedGameData } from '../engine/offline-cache.js';
 
 /** bodies-design §D.3: the house-rule toggles a RULES preset sets. */
-export const HOUSE_KEYS = ['dragBodies', 'buddyRescue', 'dropWhenShot', 'ragdollAllDeaths', 'physicsGameplay'];
+export const HOUSE_KEYS = ['dragBodies', 'buddyRescue', 'dropWhenShot', 'ragdollAllDeaths', 'physicsGameplay', 'runningNoise'];
 
 /** The preset whose flags equal these options, else 'custom'. */
 export function matchingPreset(o) {
@@ -33,6 +34,8 @@ export const OPTION_ROWS = [
   ['missionMusic', 'MISSION MUSIC', ['suspense', 'classic']],
   ['volSfx', 'EFFECTS', 'vol'],
   ['volVoice', 'VOICES', 'vol'],
+  ['narration', 'NARRATION', 'bool'],
+  ['volNarration', 'NARRATION VOLUME', 'vol'],
   ['nature', 'NATURE SOUNDS', 'bool'],
   ['subtitles', 'SUBTITLES', 'bool'],
   ['subSize', 'SUBTITLE SIZE', ['S', 'M', 'L']],
@@ -57,6 +60,7 @@ export const OPTION_ROWS = [
   ['activePause', 'ACTIVE PAUSE', 'bool'],
   ['coneAlertTint', 'CONE ALERT TINT', 'bool'],
   ['selectionRing', 'SELECTION RING', 'bool'],
+  ['noiseRings', 'NOISE RINGS', 'bool'],
   ['edgeScroll', 'EDGE SCROLL', 'bool'],
   ['wheelZoom', 'WHEEL ZOOM', 'bool'],
   ['cameraAngle', 'CAMERA ANGLE', [0, 15, 45]],
@@ -68,6 +72,7 @@ export const OPTION_ROWS = [
   ['dropWhenShot', 'DROP BODIES WHEN HIT', 'bool'],
   ['ragdollAllDeaths', 'BODIES SETTLE WITH PHYSICS', 'bool'],
   ['physicsGameplay', 'PHYSICS MOVES BODIES AND COVER', 'bool'],
+  ['runningNoise', 'RUNNING IS HEARD', 'bool'],
   ['h', 'CONTROLS'],
   ['bindings', 'KEYBOARD', 'bindings'],
   ['h', 'ACCESSIBILITY'],
@@ -84,7 +89,7 @@ export const OPTION_ROWS = [
 export const OPTION_HELP = {
   volMaster: 'Every sound in the game.', volMusic: 'Orchestral score and stingers.',
   missionMusic: 'SUSPENSE: a quiet orchestral score under every mission that rises when the alarm sounds. CLASSIC 1998: no music during missions, only the start and end stingers.', volSfx: 'Weapons, engines, footsteps and alarms.',
-  volVoice: 'Your men and the enemy.', nature: 'Wind, surf, birds and crickets under the action.', subtitles: 'Show what is said, with the speaker\'s name.',
+  volVoice: 'Your men and the enemy.', narration: 'A 1940s newsreel announcer reads the briefing before each mission; the words appear as he reads them. N switches it in the briefing.', volNarration: 'The briefing announcer.', nature: 'Wind, surf, birds and crickets under the action.', subtitles: 'Show what is said, with the speaker\'s name.',
   subSize: 'Size of the subtitle text.', subBand: 'Darkness of the band behind subtitles.',
   preset: 'Shadows, water, grass and post-processing. Lower it on older hardware.', resScale: 'Render at a fraction of the screen resolution for speed.',
   uiScale: 'Size of the in-mission interface. AUTO follows the window height.', menuBg: 'LIVE shows the moving diorama behind the menus; STILL a painted frame.',
@@ -95,15 +100,16 @@ export const OPTION_HELP = {
   warnings: 'Your men call out when they are spotted.', blood: 'Blood effects on wounds and bodies.', censored: 'Replaces gore and harsh language.',
   insignia: 'HISTORICAL: enemy flagpoles fly the German national flag of 1935–45, as in the war. NEUTRAL: a field-grey banner with a cross. Vehicle crosses are the same in both.',
   activePause: 'Give orders while the game is paused. Off is faithful to 1998.', coneAlertTint: 'Vision cones tint as a guard grows suspicious.',
-  selectionRing: 'A ring under each selected man.', edgeScroll: 'Scroll the map when the mouse touches the screen edge.',
+  selectionRing: 'A ring under each selected man.', noiseRings: 'A faint ring spreads from a running commando\'s feet to show how far the guards hear his steps (RUNNING IS HEARD rule).', edgeScroll: 'Scroll the map when the mouse touches the screen edge.',
   wheelZoom: 'Zoom with the mouse wheel.',
   cameraAngle: 'CLASSIC looks straight up the map as in 1998. TILTED turns the view slightly so buildings show a side. ISOMETRIC turns it to a diagonal.', saveReminder: 'A gentle reminder when you have not saved for a while.',
-  rulesPreset: 'SHADOW SIX: any commando can drag a body, a man at 0 health is downed and can be rescued, a carrier drops his load when hit. CLASSIC 1998: exactly the 1998 rules — only the Green Beret and the Spy move bodies, and any death fails the mission. Applies from the next mission start or load.',
+  rulesPreset: 'SHADOW SIX: any commando can drag a body, a man at 0 health is downed and can be rescued, a carrier drops his load when hit, guards hear a man running near them. CLASSIC 1998: exactly the 1998 rules — only the Green Beret and the Spy move bodies, any death fails the mission, and movement is silent. Applies from the next mission start or load.',
   dragBodies: 'Any commando can drag a body, slowly and walking backwards. Not in the 1998 original.',
   buddyRescue: 'A commando at 0 health is downed for 60 s instead of dying. Drag or carry him to safety and revive him with the first aid kit. Not in the 1998 original.',
   dropWhenShot: 'A man carrying or dragging a body drops it when he is hit. Not in the 1998 original.',
   ragdollAllDeaths: 'Every death ends in a short physical settle on the ground.',
   physicsGameplay: 'Where a thrown body comes to rest and where a toppled crate lands count for the guards, paths and cover. Off: bodies and cover stay where they were, as in 1998. Not in the 1998 original.',
+  runningNoise: 'Guards hear a commando running nearby, louder on roads, decks and floors, quieter on grass, sand and mud. Walking and crawling stay silent. Not in the 1998 original.',
   bindings: 'Rebind the keyboard controls.', textScale: 'Size of all menu text.', reducedMotion: 'Replace slides, page turns and camera moves with fades.',
   highContrast: 'Brighter idle items, darker backgrounds, no grain, outlined focus.', holdConfirm: 'Hold (Y)ES to confirm quitting, overwriting or deleting.',
 };
@@ -320,6 +326,7 @@ export function buildOptions(hud) {
     { kind: 'rule' },
     { label: 'CONTROLS', onSelect: () => openControls(hud) },
     { label: 'ACCESSIBILITY', onSelect: () => openGroup(hud, 'ACCESSIBILITY') },
+    { label: 'CLEAR CACHED GAME DATA', id: 'clearcache', onSelect: () => clearCache(hud) },
     { label: 'EXIT', onSelect: () => kit.back() },
   ];
   kit.open({
@@ -327,6 +334,15 @@ export function buildOptions(hud) {
     keys: { KeyY: () => openGroup(hud, 'SOUND') },
     onBack: () => { kit.pop(); if (!kit.active) hud.menus.close(true); },
   });
+}
+
+/** CLEAR CACHED GAME DATA: the downloaded assets (service worker cache) + the in-memory cache, after a confirm. */
+async function clearCache(hud) {
+  const ok = await hud.kit.confirm({ id: 'clearcache', title: 'CACHED GAME DATA', lines: ['DELETE THE DOWNLOADED GAME DATA?', 'MISSIONS DOWNLOAD AGAIN WHEN NEXT PLAYED.'] });
+  if (!ok) return false;
+  await clearCachedGameData({ keepMission: hud.world ? hud.game.missionDef?.id ?? null : null }).catch(() => 0);
+  hud.message?.('CACHED GAME DATA CLEARED.', 'info');
+  return true;
 }
 
 /** USER PROFILE NAME → the S04 profile card: rename, switch or new user. */

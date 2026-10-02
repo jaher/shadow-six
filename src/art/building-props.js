@@ -15,6 +15,9 @@ import * as THREE from 'three';
 import { loadBuildingLibrary, preloadBuildings, createBuilding, buildingMeta, setBuildingZoom, expandBuildingNames } from './building-library.js';
 import { makeFlag, dressFlags, tickFlags } from './flags.js';
 import { B, T } from '../world/grid.js';
+import { fuelTankAsset, isFuelStructure, FUEL_VARIANTS } from './fuel-tanks.js';
+import { pipeRunPairs, buildPipeRun } from './fuel-pipes.js';
+import { attachFuelHooks, tickFuelHooks, resetFuelHooks } from './fuel-hooks.js';
 
 /** Catalogue type → library type (same name unless listed). `null` = no library visual (placeholder). */
 export const LIB_TYPE = { generator: null, telegraph_pole: null, radio_mast: null, sign: null, searchlight: null, lamp_post: null };
@@ -35,12 +38,12 @@ export const VARIANT_HINTS = {
     timber_2storey: ['house_timber_a', 'house_timber_b', 'house_timber_c'], admin_brick: ['dam_house_a', 'dam_house_b', 'house_timber_c'],
   },
   bunker: { surveillance: ['bunker'], mg_nest: ['mg_nest'] },
-  watchtower: { timber_mg: ['watchtower'] },
+  watchtower: { timber_mg: ['watchtower'], mg_platform: null }, // mg_platform: art/mg-platform.js (procedural)
   hangar: { shed: ['barn_b', 'barn_a'] },
   ruins: { rubble: null, wall_ruin: null },
   dam: { concrete_arch: ['dam_arch'] },
   gate: { barrier_boom: null, chainlink: null },
-  fueltank: { horizontal_cradle: null },
+  fueltank: {}, // the fuel-tank family resolves its own variants (art/fuel-tanks.js)
   tent: {}, well: {},
   // Atlantic Wall (M14 art pass; reusable by M6/M7/M8/M10/M11/M15): the fit ranks the sizes, so one hint list
   // serves the small H612-type and the wide H679-type casemate
@@ -73,7 +76,7 @@ export function libraryHinted(type, p = {}) {
 const MAIN_KINDS = new Set(['building', 'bunker', 'sentry_box', 'tower_leg', 'tent', 'curtain_wall', 'wall', 'wire_fence',
   'gatehouse', 'bridge_deck', 'turret', 'tower', 'well', 'tank', 'hut', 'pier', 'dolphin', 'abutment', 'gate_passage']);
 
-const S = { ready: false, failed: false, mission: null, log: [], live: new Set(), quality: 'default' };
+const S = { ready: false, failed: false, mission: null, structures: [], log: [], live: new Set(), quality: 'default' };
 
 /** FNV-1a string hash → [0, 1). */
 export function hash01(str) {
@@ -139,7 +142,10 @@ export function pickAsset(type, p = {}, ctx = {}) {
   if (!S.ready || S.disabled) return null;
   const M = S.manifest, theater = ctx.theater;
   let cands;
+  const fuel = !p.asset && isFuelStructure({ ...p, type }) ? fuelTankAsset({ ...p, type }, { theater, structures: ctx.structures ?? S.structures, has: (n) => !!M.assets[n] }) : null;
   if (p.asset && M.assets[p.asset]) cands = [p.asset];                      // explicit asset name (mission override)
+  else if (fuel) cands = [fuel];                                            // fuel-tank family (docs/fuel-tanks.md)
+  else if (isFuelStructure({ ...p, type }) && FUEL_VARIANTS.includes(p.variant)) return null; // modelled family, asset not shipped
   else {
     const lt = libTypeOf(type);
     const hints = VARIANT_HINTS[type];
@@ -236,7 +242,8 @@ export function libraryVisual(type, p = {}, ctx = {}) {
   if (!b) return null;
   const outer = new THREE.Group();
   outer.name = `prop:${type}${p.id ? ':' + p.id : ''}`;
-  outer.position.set(x, 0, z);
+  // `elev`: the visual stands that high (m) — a dam whose crest is a raised deck (M3: the downstream face shows)
+  outer.position.set(x, p.elev ?? 0, z);
   outer.rotation.y = -rot;
   const fit = new THREE.Group(); fit.name = 'fit';
   const turnG = new THREE.Group(); turnG.rotation.y = -pick.turn * Math.PI / 2;
@@ -295,19 +302,43 @@ export function libraryVisual(type, p = {}, ctx = {}) {
     pole.scale.set(1 / sx, 1 / sy, 1 / sz);
     fit.add(pole);
   }
+  let dressDam = null;
   if (type === 'dam') {
     // the mission's own cliffs/terrain make the gorge: the asset's rock walls and rim crags would float on flat ground
     // …and the snow draped over those crags goes with them (else it floats as sheets over the gorge)
-    const hideRock = () => { b.object3d.traverse((o) => { if (o.isMesh && [].concat(o.material).some((m) => /rock_cliff|scree/.test(m.name))) o.visible = false; }); stripDrape(b.object3d, /rock_cliff|scree/, /snow/); };
-    hideRock();
-    const prev = b.object3d.userData.onLodAttached;
-    b.object3d.userData.onLodAttached = (...args) => { prev?.(...args); hideRock(); };
+    // …and (raised dam, `elev`: the drape pieces float in the air) every snow triangle not lying on the concrete
+    dressDam = (bb) => {
+      const hideRock = () => {
+        bb.object3d.traverse((o) => { if (o.isMesh && [].concat(o.material).some((m) => /rock_cliff|scree/.test(m.name))) o.visible = false; });
+        stripDrape(bb.object3d, /rock_cliff|scree/, /snow/);
+        if (p.elev > 0) keepDrapeOnHosts(bb.object3d, /snow/, /rock_cliff|scree|decal|glass/);
+      };
+      hideRock();
+      const prev = bb.object3d.userData.onLodAttached;
+      bb.object3d.userData.onLodAttached = (...args) => { prev?.(...args); hideRock(); };
+    };
+    dressDam(b);
+  }
+  if (/^oil_tank_column/.test(b.asset)) {
+    // M11: the pale pipe run with red flanges and valves to the neighbouring column(s) (art/fuel-pipes.js)
+    const same = (q) => q === p || (q.id != null && q.id === p.id && q.x === p.x && q.z === p.z);
+    outer.updateMatrixWorld(true);
+    const inv = outer.matrixWorld.clone().invert();
+    for (const run of pipeRunPairs(ctx.structures ?? S.structures)) {
+      if (!same(run.owner)) continue;
+      const g = buildPipeRun(run);
+      g.applyMatrix4(inv);
+      outer.add(g);
+    }
   }
   outer.userData.libraryAsset = b.asset;
+  attachFuelHooks(outer, b, p, anchors);
   outer.userData.setDoorOpen = (id, t) => state.b.setDoorOpen(id, t);
   // explosiveTarget destroyed → swap to the modelled destroyed variant when there is one (else the caller burns it)
   outer.userData.destroy = () => {
-    const dn = a.destroyedVariant;
+    // a snow variant without its own ruin (dam_arch_snow) falls back on its base asset's (dam_arch_destroyed)
+    const base = type === 'dam' ? buildingMeta(b.asset)?.base : null;
+    const dn = a.destroyedVariant ?? (base ? buildingMeta(base)?.destroyedVariant : null);
     if (!dn || !buildingMeta(dn)) return false;
     const nb = createBuilding(dn, { x: 0, z: 0, rot: 0, id: p.id, theater });
     if (!nb) return false;
@@ -316,7 +347,9 @@ export function libraryVisual(type, p = {}, ctx = {}) {
     turnG.add(nb.object3d);
     S.live.delete(state.b); S.live.add(nb);
     state.b = nb;
+    outer.userData.libraryAsset = nb.asset;
     dressFlags(nb.object3d, nb.asset, { flag: false });
+    dressDam?.(nb);
     return true;
   };
   S.live.add(b);
@@ -366,6 +399,53 @@ export function stripDrape(root, hostRe, drapeRe, tol = 0.35) {
 }
 
 /**
+ * Keep only the `drape` triangles (snow cover) that lie on a visible host mesh of the same LOD: a triangle is dropped
+ * unless the top of some host triangle within one `cell` (plan) lies between `dy` m under and 0.6 m over its centroid
+ * (geometry cloned).
+ */
+export function keepDrapeOnHosts(root, drapeRe, skipRe, cell = 0.5, dy = 0.8) {
+  const lods = [];
+  root.traverse((n) => { if (/^lod\d$/.test(n.name)) lods.push(n); });
+  if (!lods.length) lods.push(root);
+  const matOf = (o, re) => [].concat(o.material).some((m) => re.test(m?.name || ''));
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  for (const lod of lods) {
+    const hosts = [], drapes = [];
+    lod.traverse((o) => { if (o.isMesh && !o.userData.drapeKept) { if (matOf(o, drapeRe)) drapes.push(o); else if (o.visible && !matOf(o, skipRe)) hosts.push(o); } });
+    if (!hosts.length || !drapes.length) continue;
+    lod.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(lod.matrixWorld).invert(), top = new Map();
+    const tri = (g, m, t, idx) => { const pos = g.attributes.position;
+      for (const [v, k] of [[a, 0], [b, 1], [c, 2]]) v.fromBufferAttribute(pos, idx ? idx.getX(t + k) : t + k).applyMatrix4(m); };
+    for (const h of hosts) {
+      const g = h.geometry, idx = g.index, n = idx ? idx.count : g.attributes.position.count, m = new THREE.Matrix4().multiplyMatrices(inv, h.matrixWorld);
+      for (let t = 0; t + 2 < n; t += 3) {
+        tri(g, m, t, idx);
+        const y = Math.max(a.y, b.y, c.y);
+        for (let i = Math.floor(Math.min(a.x, b.x, c.x) / cell); i <= Math.floor(Math.max(a.x, b.x, c.x) / cell); i++)
+          for (let j = Math.floor(Math.min(a.z, b.z, c.z) / cell); j <= Math.floor(Math.max(a.z, b.z, c.z) / cell); j++) {
+            const k = `${i},${j}`, l = top.get(k); if (l) l.push(y); else top.set(k, [y]);
+          }
+      }
+    }
+    for (const d of drapes) {
+      const g = d.geometry, idx = g.index, n = idx ? idx.count : g.attributes.position.count, m = new THREE.Matrix4().multiplyMatrices(inv, d.matrixWorld), keep = [];
+      for (let t = 0; t + 2 < n; t += 3) {
+        tri(g, m, t, idx);
+        const x = (a.x + b.x + c.x) / 3, y = (a.y + b.y + c.y) / 3, z = (a.z + b.z + c.z) / 3, i0 = Math.floor(x / cell), j0 = Math.floor(z / cell);
+        let ok = false;
+        for (let i = i0 - 1; i <= i0 + 1 && !ok; i++) for (let j = j0 - 1; j <= j0 + 1 && !ok; j++) { const l = top.get(`${i},${j}`); if (l && l.some((h) => h >= y - dy && h <= y + 0.6)) ok = true; }
+        if (ok) keep.push(idx ? idx.getX(t) : t, idx ? idx.getX(t + 1) : t + 1, idx ? idx.getX(t + 2) : t + 2);
+      }
+      d.userData.drapeKept = true;
+      if (keep.length === n) continue;
+      const ng = g.clone(); ng.setIndex(keep); d.geometry = ng;
+      if (!keep.length) d.visible = false;
+    }
+  }
+}
+
+/**
  * Load the library manifest and preload every asset the mission's structures resolve to (browser only).
  * Safe to call repeatedly; resolves false when the library is unavailable (node, fetch failure) → placeholders.
  * @param {object} mission normalized mission def
@@ -373,6 +453,7 @@ export function stripDrape(root, hostRe, drapeRe, tol = 0.35) {
  */
 export async function prepareMissionArt(mission, o = {}) {
   S.mission = mission?.id ?? null;
+  S.structures = mission?.structures || [];
   S.log = [];
   if (typeof fetch !== 'function' || typeof document === 'undefined' || S.failed) return false;
   // ?buildings=0 → placeholder boxes (A/B perf checks, fallback on weak machines)
@@ -405,7 +486,8 @@ export async function prepareMissionArt(mission, o = {}) {
 }
 
 /** Use an already parsed manifest (node tests / tools): variant choice and fitting without loading any GLB. */
-export async function useManifest(manifest, missionId = null) {
+export async function useManifest(manifest, missionId = null, structures = []) {
+  S.structures = structures;
   if (!manifest) { S.ready = false; S.manifest = null; return; } // back to placeholders
   const lib = await loadBuildingLibrary(null, { manifest });
   S.manifest = lib.manifest; S.ready = true; S.disabled = false; S.mission = missionId;
@@ -415,6 +497,7 @@ export async function useManifest(manifest, missionId = null) {
 export function tickBuildings(dt, camera, wind = null) {
   if (camera && camera.zoom !== S.zoom) { S.zoom = camera.zoom; setBuildingZoom(camera.zoom); }
   tickFlags(dt, wind, camera);
+  tickFuelHooks(dt);
 }
 
 /** Dispose every live library instance (mission unload). */
@@ -422,4 +505,5 @@ export function disposeMissionBuildings() {
   for (const b of S.live) b.dispose();
   S.live.clear();
   S.zoom = undefined;
+  resetFuelHooks();
 }

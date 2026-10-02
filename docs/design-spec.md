@@ -126,9 +126,13 @@
   - It is active whenever the pointer is inside the window, including over the HUD, as in BEL. The modern option disables it.
 - **Arrow keys:** same speed. **Middle-drag:** pans 1:1.
   - **WASD pan is disabled.** A, S, D and W are BEL action keys (§5; architecture delta §10.4).
-- **Bounds.** The camera target is clamped so that the view never shows more than 4 m beyond the map edge.
+- **Bounds.** The camera target is clamped so that the view never shows more than 4 m beyond the map edge (yaw 0). With the Options camera angle at 15° or 45°, the slanted view corners may reach a little further, so every map point can still be scrolled 2 m inside the view. A scroll that meets the limit slides along it. The HUD top bar counts as outside the view: the clamp works on the part of the view below the bar, so every map point, the north edge included, can be scrolled clear of the portraits (the ground under the bar is scenery apron).
+- **Never see the map boundary** (user request 2026-09-30). Every map is ringed by a non-playable **scenery apron** (`CONFIG.apron.width`, 90 m; per-mission `apron` overrides) — see ARCHITECTURE "Scenery apron".
+  - The ground continues with the theatre's own material and height noise. Rivers, roads, rail beds, lakes, fjords and the sea run on off-map along their course, with the same shore rims and ice. The forest thins outward from the map's own edge density. There is no seam at the map edge, and nothing out there is walkable.
+  - The camera keeps its **true ground footprint** inside the apron at every zoom, angle (0/15/45°) and aspect (4:3 … 32:9, phone portrait/landscape). The footprint is the four screen-corner rays, met with the lowest and highest apron ground. It includes the clamp margin, the slanted-corner overshoot and the height slack.
+  - Only if a view is too wide for that, the zoom floor is raised for that map, view size and angle, and logged once (`[camera] zoom floor …`). The floor is never raised above 0.5× on views up to 3840×1080. A flat far skirt (600 m) covers anything beyond, as a safety net.
 - **Selecting a commando** by portrait or key 1–7 recentres the view on him (0.35 s tween) **only if he is off-screen**. Pressing the key of an already-selected man always recentres. A map click never recentres.
-- **Mission start:** `cameraStart {x, z, zoom}` from the mission file.
+- **Mission start:** `cameraStart {x, z, zoom}` from the mission file frames the briefing. When the mission starts (the Colonel's tour finished or skipped, or the briefing skipped), the view goes **on the squad** (`Game.focusSquad`). It centres on the live commandos' centroid (else the centre of their screen bounding box) when they all fit on screen, feet and heads clear of the edges and of the HUD top bar, else on the selected commando. The play zoom is restored; the squad is kept in the middle half of the view below the bar as far as the clamp allows.
 - **Tracking camera.** Alt+click a unit, or the camera icon and then a unit, locks that view to the unit. A corner badge (the camera icon) shows in the view's lower-left.
   - Click the badge, or Alt+click the ground, to release.
   - Enemies and vehicles can be tracked.
@@ -330,6 +334,7 @@
 **Out-of-range feedback.** The targeting cursor shows the red **forbidden** overlay whenever the action is impossible at that spot: out of range, no LOS, wrong terrain or wrong target type. Right-click or Esc cancels targeting.
 
 **Auto-walk.** Melee abilities and `hand` make the unit walk into range first, or run on a double-click. They cancel if the target moves more than 3 m from where it was clicked [rec].
+- **From a crawl (knife, BCD knock-outs, handcuffs, hanger).** A click crawls him in at crawl speed; he stands up (0.6 s) only within 1.0 m of the ability's reach (`CONFIG.abilities.crawlStandLead`), then steps in and acts. A double-click is urgent: he stands up at once and runs in. The 3 m cancel rule is unchanged: a crawler cannot catch a walking guard anyway. The give-up time is stretched by walk/crawl speed. **Deliberate change from BEL**, which stood him up at the click (user request, 2026-10-01).
 
 ### 3.4 Per-commando behaviour details
 
@@ -338,6 +343,7 @@ The animation names are the humanoid names from ARCHITECTURE. Each voice cue is 
 **Green Beret: Tiny**
 - **Knife (X).**
   - Click an enemy: he walks up and stabs. Double-click: he runs up (the "sprint-kill").
+  - Clicked from a crawl: he crawls up and stands up only when close (reach + 1.0 m), then stabs. A double-click from a crawl stands him up at once and runs in (§3.3 Auto-walk; a deliberate change from BEL).
   - Animation `stab`, with the kill on frame 0.3 s. Blood decal, and the body drops with `die` → `dead`.
   - Works on any living enemy on foot at ground level. It cannot reach tower or bunker crews, vehicle crews or mounted gunners behind armour.
   - Voice `act_kill` (50% chance) [rec].
@@ -768,7 +774,11 @@ Every commando also carries a pistol. "(site)" marks items found on the map.
 
 - **The model.** `world.emitNoise(x, z, radius, kind, source)`. Every enemy whose position lies within `radius` hears it, with **no occlusion attenuation** (BEL `Oido01` has no parameters) [EXE].
 - **Levels** come from the original's emitter levels [EXE]; radii are [rec] where not stated.
-- **Movement is silent.** Footsteps, crawling, knives, syringes, harpoons, traps, sniper shots, body drops and raft rowing make **no noise** [manual; GameSpot; gap-8].
+- **Movement is silent in BEL.** Footsteps, crawling, knives, syringes, harpoons, traps, sniper shots, body drops and raft rowing make **no noise** [manual; GameSpot; gap-8]. The CLASSIC 1998 house-rule preset keeps this exactly.
+- **SHADOW SIX house rule `runningNoise` (on by default; a deliberate change from BEL).** Guards hear a commando **running**
+  near them, so running past a guard's back is no longer safe; it is not only his cone that matters. See "Running is
+  heard" below. OPTIONS → GAME PREFERENCES → RUNNING IS HEARD; CLASSIC 1998 turns it off; a mission can force it with
+  `houseRules: { runningNoise: false }` (docs/bodies-design.md §0.3).
 
 | `kind` | Level | Radius | Emitted by |
 |---|---|---|---|
@@ -785,6 +795,7 @@ Every commando also carries a pistol. "(site)" marks items found on the map.
 | `spyUnmask` | 1 | 9 m | Spy unmasked |
 | `phone` | 1 | 13.5 m, repeating every 2 s while ringing | Telephone (M5) |
 | `horn` | 1 | 22.5 m | Vehicle or ship horn (M13 supply boat) |
+| `footsteps` | 1 | 4.5–12 m by surface (below) | A commando running upright, every 2.7 m (house rule `runningNoise`; none in BEL) |
 | `siren` | – | cosmetic | The siren is audio only; the alarm itself travels through zone events |
 
 **Reaction to noise** (hearer in IDLE or SEARCH):
@@ -798,6 +809,50 @@ Every commando also carries a pistol. "(site)" marks items found on the map.
 
 - **Sound sensors of zones** (§4.9) fire when a hearer standing inside the zone hears a noise of **level ≥ 2**.
 - **Pistol lures outside zones.** A pistol shot fired outside any sensor zone only pulls the listeners within 18 m. This is Kildread's "pistol lure / corner camping" and must work.
+
+**Running is heard** (SHADOW SIX house rule `runningNoise`, `CONFIG.stealth.runNoise`; all values [rec]; not in BEL)
+
+- **Who.** A player commando, free (`state` active), on foot, standing, in run mode. Walking, crawling, swimming, diving,
+  vehicles and a **disguised Spy** (a German soldier running past is no news) make no step noise. Enemies' own running
+  never alerts each other.
+- **Walking stays silent on purpose.** The knife reaches 1.2 m and a walk covers 2.25 m/s, so any walking radius would
+  turn every guard before the walk-up stab. Walking is the stealthy approach; running up to stab is now a gamble.
+- **Cadence.** A `footsteps` noise (level 1) every **2.7 m** run (≈ 0.5 s at 5.4 m/s, 0.6 s at 4.5 m/s); the first after
+  1.35 m, so even a short dash is heard. Counted in the fixed-step sim (deterministic); the counter is saved with the
+  unit, so a game loaded mid-run makes the same steps.
+- **Radius by the surface underfoot** (grid data only: `src/ai/running-noise.js` `stepSurface`), × `rules.enemyHearingMul`.
+  Distance is 3D (runner's height vs the guard's), so a guard on a roof or plateau hears a runner below only within it.
+  Every radius is inside the 18 m near band, so a guard who turns can see the runner. Dogs hear steps as far as men
+  (`dogMul` 1: a dog that turns and sees a man goes straight for him with no "Halt!", so a longer reach would be an
+  instant alarm at 15–18 m);
+  a man inside a vehicle (tank crew, driver) hears none; an emplacement gunner does.
+
+  | Surface | Radius |
+  |---|---|
+  | Bridge deck (wood or metal) | 12 m |
+  | Built raised floor: roof, wall walk, deck, tower (`elev > 0.05`, not `grid.naturalElev`) | 12 m |
+  | Road, paving | 10 m |
+  | Shallow water (splashing) | 9 m |
+  | Ground (soil, gravel) | 7.5 m |
+  | Snow (it crunches) | 7.5 m |
+  | Grass, sand, mud | 6 m |
+
+  Raised natural ground (the `walkways` of a `cliff` plateau or terrace and of a `road` ramp: M5 summit, M8/M10/M11
+  plateaus, M14 ridge, M20 terraces) is marked `grid.naturalElev` and reads its terrain code like the ground below.
+
+- **Reaction** (enemy-brain `_hearSteps`; head turns are instant in BEL). A post-holder, gunner or crewman faces the
+  sound at once (a gunner within his traverse) and sweeps around it for 8 s; an investigator faces it and walks over at
+  1.8 m/s, re-aimed at each newer step. "Was war das?" at most every 6 s; a "?" over the guard and the cone flash
+  (`enemy:noise-turn`, `enemy:heard-steps`). Busy, distracted and lured men ignore steps as they ignore every level-1 noise;
+  a patrol member hands it to his leader, who reacts whatever his own distance to the step (a runner behind the tail of a
+  file is heard by the squad). A step counts once per man: a leader handed the same step by several squad members
+  (or hearing it himself too) adds 1, not one per hearer. The engineer and the general **ignore** steps (no detonator run).
+- **Escalation, never an alarm.** Each step heard adds 1 to his step suspicion (decaying 0.5/s): at 3, alertLevel 1; an
+  investigator who reached 6 SEARCHes around the last step instead of going home. Steps never give alertLevel 2,
+  combat-readiness, a zone `onHeard` sensor (level 1) or an alarm. Being **seen** still goes through the cone and §4.5
+  (a running man in view reaches T in one tick: "Halt!"); a commando who freezes outside 2.25 m is not challenged.
+- **Cue.** Display option NOISE RINGS (default on, off under reduced motion): a faint ring spreads from the runner's
+  feet to the step's hearing radius.
 
 ### 4.5 Nervousness, challenge ("Halt!") and when enemies fire [EXE gap-1]
 
@@ -1084,6 +1139,15 @@ A **software cursor** is drawn on a top overlay. CSS cursors cannot do the scope
 | Tracking pointer (4 orange arrows) | After clicking the camera icon |
 | Plain arrow | Nothing selected, and over the HUD |
 
+**Scope magnifier.** With the sniper rifle up, the 88-px scope's glass (r ≈ 36 ref px) shows a live **2×** view of the world under the cursor, not a drawing: a second orthographic camera with the game camera's yaw and pitch, centred on the cursor's ground point, so it works at every zoom level, yaw option and in multi-view. Over it: the clear brass ring, BEL's three heavy posts with a fine cross, mil-dots and holdover marks, a slight cool glass tint, chromatic fringe and vignette toward the rim, and a subtle breathing sway of the image (off with reduced motion; the shot still goes where the cursor is).
+- The reticle is always **dark** (near-black, like an etched optical reticle: thin cross lines with heavier outer posts), never green or red in any state.
+- **Valid shot** (an enemy in reach and in sight): the enemy gets a faint neutral rim inside the glass, and a tag above the ring gives the range (`14 m`).
+- **No shot**: a small dark circle-and-slash mark appears in the lower right of the glass, the glass dims and loses some colour, and the range tag turns grey. Over an enemy that cannot be hit (beyond 45 m, no line of sight, under cover) the tag reads `NO SHOT · 60 m`.
+- The hover name tag of the enemy under the scope sits outside the ring, below and to the right.
+- The magnified view includes water, smoke and ground decals. It skips the per-theatre grade, AO and bloom, so the glass reads slightly cooler than the frame around it, like real optics.
+- It is only rendered while the scope is up, into a target sized to the glass at HUD scale × pixel ratio (4K/HiDPI included). It costs **under 0.5 ms of CPU a frame**. The lens draws only what is inside its small window. When a single render still costs more than 0.4 ms (a slow or heavily loaded machine), the last image is reused, shifted under the cursor, for up to three frames, so the glass refreshes at least every fourth frame and the cost per frame stays under budget. A zoom, a rotation, a new target or a large cursor move always renders a fresh image. On the M2 test stage at 1280 × 720, on a test machine at load average ~30 on 24 cores, one render took 0.7–1.2 ms and the amortised cost was 0.40–0.45 ms a frame (tests/sniper-scope). Its GPU time stays well under half of the main frame's.
+- Screens: `docs/screenshots/sniper-scope-valid.jpg`, `-invalid.jpg`, `-zoom05.jpg`, `-zoom1.jpg`.
+
 ### 5.4 Touch (phones, tablets) [remake]
 
 Not in the 1998 game. A finger on the map is classified by `src/input/gestures.js` and acted on by
@@ -1099,6 +1163,7 @@ map.**
 | Two fingers | Pinch to zoom, continuous between 0.5× and 2×, about the fingers' midpoint (spread = zoom in); moving both fingers pans | Wheel, numpad + / − |
 | CANCEL button (bottom left, above MENU; only while an item or tool is armed or a man can cancel a context action) | Put the item / tool away, or cancel the context action | Right click |
 | MENU button (bottom left) | The in-mission menu (pauses) | Esc |
+| Tap the notebook (top right) | Open the map notebook; it stays open after the finger lifts. Tap it again to close it. On the open notebook a one-finger drag moves the view and a pinch zooms the sketch (§6.4) | Hover / leave, click |
 
 Rules: a gesture that ever became a drag, a pinch or a long press can no longer end as a tap; a second finger turns a
 drag into a pinch; after a pinch the finger left on the glass can pan but never taps. Panning follows the same pause rule
@@ -1161,8 +1226,9 @@ Every button has a hover state (BEL's `M_` sprites).
   | **Eye** | 52×45, flush top-right | Photo-real eye with a 2-frame blink. Click = eye cursor. **Right-click = hide the displayed cone** |
 
 - **Stance toggle** (SHADOW SIX: moved from the top bar to the bottom HUD, immediately left of the hand; the 1998
-  figurine was too small to recognise). A 64×48 brass-rimmed plaque showing the posture a click switches TO: a man
-  crawling while the selection stands, a man standing while it crawls. Click = C or S for the selection; greyed
+  figurine was too small to recognise). A 64×48 box with just the man, no plaque or frame (the game's own Green Beret model,
+  rendered in the pose the running game gives him), showing the posture a click switches TO: a man crawling while the
+  selection stands, a man standing while it crawls. Click = C or S for the selection; greyed
   when nobody selected can change stance (vehicle, hidden, carrying a body, in water…).
 
 - **Alarm lamp.** A 29×52 red siren lamp next to the eye flashes at 2 Hz while the siren runs (25 s) (BEL `ALMR`).
@@ -1184,6 +1250,12 @@ Every button has a hover state (BEL's `M_` sprites).
 - **Closed:** a 33×206 spiral-bound paper strip under the eye.
 - **Opening:** hovering it for 0.25 s, or clicking it, **unfolds it leftward** to **183×215** (or the per-mission art size, e.g. 185×229).
 - **Closing:** it folds back automatically 0.4 s after the pointer leaves. It cannot be pinned [BEL].
+- **With a finger or pen [remake]:** there is no hover (a phone fires enter / leave on finger down / up, which would
+  keep it open only while the finger is held), so it is a **tap toggle**: a tap on the closed strip opens it and it
+  **stays open after the finger lifts**; a **tap on the open notebook closes it again**. A one-finger drag on the open
+  sketch moves the view (the black rectangle follows the finger) and a pinch zooms the sketch (never the page); neither
+  closes it. The folded corner still opens Briefing Notes with one tap. Notebook touches never reach the game map (no
+  orders). `src/ui/notebook-touch.js`; the mouse keeps the hover rules above.
 - **Sketch.** A hand-drawn ink sketch generated from the mission data:
   - buildings as rectangles; rocks as circles; walls as double lines;
   - wire as `XXXX`; water as hatching; roads as double lines.
@@ -1192,7 +1264,7 @@ Every button has a hover state (BEL's `M_` sprites).
   - **red circles** on primary objectives;
   - **blue dots** for commandos and guests;
   - **red dots** for enemies.
-- **Click** the sketch to jump the active view there.
+- **Click** the sketch to jump the active view there (with a finger: drag the open sketch; a tap closes it).
 - **Folded corner** (23×22, highlighted green on hover): click, or **Ctrl+B**, to open **Briefing Notes**. This is a ruled notebook page with DATE / LOCATION / MISSION in red, then the objectives and hint bullets (§7.4–7.6). Any key or click closes it. The game pauses while it is open.
 
 **Hand button** (50×65, a photo-real open palm): same as **H**.
@@ -1508,12 +1580,12 @@ extraction: { vehicleId, exit:{x,z,r}, spawnWhen:[objectiveIds] }
 | Field | Value |
 |---|---|
 | id | `m02` |
-| size | **[82, 104]** |
+| size | **[82, 120]** (was [82, 104]: the river was widened to ~24 m and the SW bank moved 16 m south, 2026-09-30) |
 | theater | `snow`, green cones |
 | lighting | sun 16° from the NW, 6200 K, overcast; river colour #107083 |
 | water | velocity 0.6 m/s, angle 40° (flowing SE), turbulence 0.4 |
 | par | 480 s |
-| cameraStart | {x 16, z 92, zoom 1} |
+| cameraStart | {x 16, z 108, zoom 1} |
 | Date / place | 1 Mar 1941 · Stamsund, Lofoten (Operation Claymore) |
 
 **Briefing (ours).**
@@ -1531,13 +1603,13 @@ extraction: { vehicleId, exit:{x,z,r}, spawnWhen:[objectiveIds] }
 
 | # | Terrain | Shape |
 |---|---|---|
-| T1 | `water` (river) | path (0,36) (18,50) (36,64) (52,78) (64,92) (70,104), width 12 |
+| T1 | `water` (river) | `riverPath()`: Catmull-Rom through (−12,26.6) (0,36) (18,50) (36,64) (52,78) (64,92) (70,104) (73,116) (74,132), sampled every ~4 m, per-point `widths` ~20–28 m (mean 24; wide pools round the islets). The NE bank keeps the old 12 m river's NE edge (only nudged ≤ 0.9 m into the water); the SW bank is NE bank + width. Was: that polyline, width 12 |
 | T2 | `shallow` | auto rim 1.5 m |
 | T3 | `ground` | poly (16,33) (42,10) (71,35) (46,58): camp interior, packed and trampled |
 | T4 | `road` | path (56,49) (62,56) (70,62) (82,68), width 5 |
 
 - The river splits the map into the **SW bank** (start) and the **NE bank** (camp).
-- NE bank edge ≈ (0,28) (18,42) (36,56) (52,70) (64,84) (74,104). SW bank edge ≈ (0,44) (18,58) (36,72) (52,86) (60,104).
+- NE bank edge ≈ (0,28) (18,42) (36,56) (52,70) (64,84) (74,104) (78,120) (unchanged). SW bank edge ≈ (0,60) (16,73.5) (22,74.5) (31,85.5) (44,99.5) (54,103.5) (60,120) (shallow rim included).
 
 **Structures.**
 
@@ -1546,37 +1618,38 @@ extraction: { vehicleId, exit:{x,z,r}, spawnWhen:[objectiveIds] }
 | `camp_wall` | wall (`palisade_wire`) | closed poly W (16,33) → N (42,10) → E (71,35) → S (46,58) → W, with the gate gap on the SE edge | | | h 3.0 | `B.HIGH`. The SW edge from (22.5,38.4) to (29.5,44.3) is **`climbable`** (GB) |
 | `ladder_sw` | (ladder, `ladders[]`) | 27.4 | 43.0 | 130 | top (27,42.2), y 3.0 | **`raised:true`**; lowered from the top (1.0 s) |
 | `walk_sw` | (wall walkway, part of `camp_wall`) | 28.5 | 43.2 | | y 2.2 | Elevated standing spot for e5. Bodies and prone men on it are hidden from the camp interior (§4.7 deck-edge rule) |
-| `gate_se` | gate (`barrier_boom`) | 56 | 48.8 | 317 | opening 4 m | Operable (raise) and rammable at fast speed |
-| `sbox_se` | hut (`sentry_box`) | 54.4 | 52.3 | 317 | 1.6 × 1.6 | Just outside the gate on the SW verge of T4, clear of the straight truck line start → gate → exit (was (60,53), on the road: blocked the escape) |
+| `gate_se` | gate (`barrier_boom`, `gap` [−3.6, 4.05]) | 56 | 48.8 | 317 | boom 4 m; wall opening 7.65 m | **Boom barrier** as in the original (user request): red/white striped pole with a HALT plate, pivot post beside the pole on the sentry-box side (pin bearing, counterweight in an iron cage), fork rest, two log gate posts where the palisade ends. **Walkers go round it** by a 1.5 m footway between the fork rest and the E gate post (the pivot side stays blocked, raised or not). Operable (raise ~1.2 s); a slow vehicle stops at it (`gate:hold`), a fast one snaps the pole at the hit point: the stub stays on the pin with the counterweight, the outer pole flies |
+| `plat_sw` | timber_platform | 27.99 | 40.94 | 39.8 | 2.2 × 1.05, deck 2.2; stair 0.9 wide, run 3.2 | The original's timber scaffold inside the river wall: a plank landing off `walk_sw` (posts, joists, knee braces, hand rails) and a stair down along the wall into the camp (graded walkable cells; hand rail on the camp side only, `stair.outerRail: false`: the wall walk is its other side, and an outer rail would catch e5's falling body). The team's way in once the GB has lowered the ladder; replaces the old inner-steps link and the GB's drop link |
+| `sbox_se` | hut (`sentry_box`) | 52.87 | 53.67 | 317 | 1.6 × 1.6 | Just outside the gate on the SW verge of T4 beside the S gate post, SW of the boom's pivot (gate-local u −5.6: the pivot post and counterweight stay in view from the default camera; at (54.4, 52.3) the box hid them), clear of the straight truck line start → gate → exit (was (60,53), on the road: blocked the escape) |
 | `barr_camp` | barracks (`log_garrison`) + flag | 37.74 | 24.01 | 318.5 | 12 × 6 × 4.5 | **Garrison**, pool 10; **jail**. Runs along the NW edge (−41.5°), clear of p3's N-corner leg |
 | `cab1` | hut (`log_cabin`) | 29.26 | 36.77 | 219.8 | 5 × 4 × 3.5 | Parallel to the SW edge, door to the yard |
 | `depot_a` / `depot_b` | fueltank (`horizontal_cradle`) | 49.64 / 57.21 | 27.94 / 34.47 | 40.8 | 9 × 3.4 × 3.5 | **Objective**, `bombOnly:false` (bomb or barrel). End to end along the NE edge (strict alignment rule, §7.3) |
-| `t1` / `t2` | watchtower (`timber_mg`) | 30 / 56 | 20.6 / 22.1 | 228 / 311 | 3 × 3, deck at 5.5 m | Each with an MG gunner facing **outward** |
+| `t1` / `t2` | watchtower (`mg_platform`) | 30 / 56 | 20.6 / 22.1 | 228 / 311 | 3 × 3, deck at 5.5 m | **Open timber MG platforms** as in the original: splayed log legs with plank X-bracing, plank deck, sandbag parapet (open at the ladder), hand rail, ladder at the back, an MG 34 on its Lafette tripod laid over the parapet, ammo boxes at the back. Each with an MG gunner facing **outward**, visible on the open deck, **manning the gun**: he kneels behind the butt with his hands on its grips, the tripod and gun traverse with him (render/mg-mount.js; his own MG 34 stays put away), and his muzzle flash / tracer leave the MG muzzle (by day a small flash with a weak, short light: no bloom over the deck) |
 | `crates1` | crates | 46 | 48 | 317.4 | 2 × 2 × 1.2 | `B.LOW`; parallel to the SE edge |
 | barrels | barrels (`fuel_explosive`) | (25,33) (26,33) (48.5,36.2) (49.4,36.8) | | | | 4 barrels |
 | `barr_out` | barracks (`log_garrison`) + flagpole | 73.26 | 39.18 | 47.4 | 6 × 8 × 4 | **Garrison**, pool 5; parallel to the SE edge. The E-corner charge (within 6.75 m) razes it |
 | `rocks_n1..3` | rocks | (22,40.5) · (34,51) · (41,55.5) | | | 4×2.5×2.2 · 4×2.5×2.2 · 3×2×2 | Between the SW wall and the river: cover |
-| `islet1` / `islet2` | rocks + pine (island) | (24,58.5) / (48,78) | | | r 2.2 / r 2 | In the river |
-| `sw_wall` | wall (`palisade`) | S side (28,97)–(10,97) and (6,97)–(1,97); W side (1,97)–(1,70); N side (1,70)–(28,70); E side (28,70)–(28,76) and (28,80)–(28,97) | | | h 2.2 | SW settlement. **Openings:** S at x 6–10; E at z 76–80 |
-| `cabA` / `cabB` | hut (`log_cabin`, snowy roof) | (6,80) / (16,91) | | 0 | 7 × 5 × 4 | |
-| trees | pine | (4,50) (12,58) (36,76) (44,92) (60,70) (70,20) (78,8) (8,20) (20,6) | | | h 9–13 | occluders |
+| `islet1` / `islet2` | rocks + pine (island) | disc (16.9,63.7) / (40.6,83.0); rocks (16.0,64.2) / (39.8,83.5); pines (18.0,64.4) / (41.7,83.4) | | | r 3.0 / r 2.8 | In the river's SW half, ~17 m off the NE bank: a channel on both sides, ≥ 3.5 m from the boat lane |
+| `sw_wall` | wall (`palisade`) | S side (28,113)–(10,113) and (6,113)–(1,113); W side (1,113)–(1,86); N side (1,86)–(28,86); E side (28,86)–(28,92) and (28,96)–(28,113) | | | h 2.2 | SW settlement. **Openings:** S at x 6–10; E at z 92–96 |
+| `cabA` / `cabB` | hut (`log_cabin`, snowy roof) | (6.5,96) / (16,107) | | 0 | 7 × 5 × 4 | |
+| trees | pine | SW bank (4,72) (11,76) (33,96) (44,108); NE bank (60,70) (70,20) (78,8) (8,20) (20,6) | | | h 9–13 | occluders |
 
 **Vehicles.**
 
 | id | Type | Position / route | Notes |
 |---|---|---|---|
 | `truck` | truck | (50, 44), heading 47.4 | Faces the gate, square to the SE edge; **escape vehicle** |
-| `pboat` | patrol boat | PINGPONG (1,36.8) wait 15 → (18,50) → (36,64) → (52,78) → (66,95) wait 15, at **2.5 m/s** | Crew: `mg` gunner (vision `mg`, sweep 60, giro 180, facing travel). Engine audible at 60 m. About 103 s per cycle |
+| `pboat` | patrol boat | PINGPONG (1,41.3) wait 15 → (15.9,52.8) → (33.8,66.7) → (49.5,80.5) → (62.9,96.6) wait 15, at **2.5 m/s** (lane 9.5 m off the NE bank, deep water for a true-scale 13.6 m HS 114) | Crew: `mg` gunner (vision `mg`, sweep 60, giro 180, facing travel). Engine audible at 60 m. About 103 s per cycle |
 
 **Commandos** (behind the S palisade of the SW settlement).
 
 | Role | Position | Inventory |
 |---|---|---|
-| greenberet | (8, 101) | knife, pistol, decoy, shovel |
-| sniper | (11, 101) | pistol, rifle 5 |
-| diver | (14, 101) | knife, pistol, harpoon, divingGear, **raft (packed)** |
-| sapper | (17, 101) | pistol, trap, timeBomb 2 |
-| driver | (20, 101) | pistol, smg 100, firstAid 6 |
+| greenberet | (8, 117) | knife, pistol, decoy, shovel |
+| sniper | (11, 117) | pistol, rifle 5 |
+| diver | (14, 117) | knife, pistol, harpoon, divingGear, **raft (packed)** |
+| sapper | (17, 117) | pistol, trap, timeBomb 2 |
+| driver | (20, 117) | pistol, smg 100, firstAid 6 |
 
 All start at heading 270.
 
@@ -1584,9 +1657,9 @@ All start at heading 270.
 
 | id | # | soldierType, flags | Position | Behaviour |
 |---|---|---|---|---|
-| e1 | [1] | soldier, investigates, followsTracks | (4,73) | LOOP: (4,73) → (24,73) wait 3 look 0 → (24,85) → (11,85) wait 3 look 180 → (11,75) |
-| e2 | [2] | soldier, investigates, followsTracks | (14,78) | PINGPONG: (14,78) wait 4 look 90 ↔ (24,92) wait 4 look 180 |
-| e3 | [3] | soldier, investigates, followsTracks | (22,95) | PINGPONG: (22,95) wait 3 look 90 ↔ (22,76) wait 3 look 270 |
+| e1 | [1] | soldier, investigates, followsTracks | (4,89) | LOOP: (4,89) → (24,89) wait 3 look 0 → (24,101) → (11,101) wait 3 look 180 → (11,91) |
+| e2 | [2] | soldier, investigates, followsTracks | (14,94) | PINGPONG: (14,94) wait 4 look 90 ↔ (24,108) wait 4 look 180 |
+| e3 | [3] | soldier, investigates, followsTracks | (22,111) | PINGPONG: (22,111) wait 3 look 90 ↔ (22,92) wait 3 look 270 |
 | e4 | [4] | soldier, holdsPost | (20,42.5) | PINGPONG: (20,42.5) wait 3 look 135 ↔ (40,57.5) wait 3 look 135. Walks in front of the rocks (snipe him there) |
 | e5 | [5] | sentry, holdsPost, **elevated y 2.2** | (28.5,43.2) | Post heading 130 (over the river), sweep 35. On the wall walkway beside the ladder |
 | e6 | [6] | soldier, investigates | (30,31) | PINGPONG: (30,31) wait 3 look 180 ↔ (51,49.5) wait 5 look 40. Walks to the gate |
@@ -1599,7 +1672,7 @@ All start at heading 270.
 Kildread's count is 6 walkers, 1 sentry, patrols of 4 and 3, 2 towers, the boat and 2 garrisons. The table gives the walkers e1–e4 and e6–e7, sentry e5, p3 and p4, towers e8–e9, and the boat gunner e17.
 
 **Zones and alarm.**
-- `z_ne` = the NE bank: poly (0,0) (82,0) (82,104) (74,104) (64,84) (52,70) (36,56) (18,42) (0,28). `onSeen:'RINT'`, `onHeard:'RINT'`.
+- `z_ne` = the NE bank: poly (0,0) (82,0) (82,120) (78,120) (74,104) (64,84) (52,70) (36,56) (18,42) (0,28). `onSeen:'RINT'`, `onHeard:'RINT'`.
 - The SW bank has no zone, so pistol lures work there.
 - **RINT** fires the siren and releases:
   - `barr_camp`: a 4-man squad. Exit (41.04,27.71) → (46,40) → (52,48) at 2.7 m/s, then p3's loop at 1.8 m/s.
@@ -1650,21 +1723,25 @@ Kildread's count is 6 walkers, 1 sentry, patrols of 4 and 3, 2 towers, the boat 
 
 | # | Terrain | Shape |
 |---|---|---|
-| T1 | `water` (reservoir) | poly (0,0) (44,0) (47,16) (45,22) (25,40) (10,42) (0,41) |
-| T2 | `water` (river) | path (37,33) (60,54) (84,74) (108,94) (132,114) (150,129), width 20 |
-| T3 | `shallow` | auto rim 2 m, plus the dam-toe ledge poly (31,33) (39,26) (42,29) (34,36) |
+| T1 | `water` (reservoir, **raised**: `level` 5.8) | poly (0,0) (55,0) (56,10) (55,18), the dam's upstream arc (r 21.6) to (27.9,28.3), (25,27.4) (14,29) (0,30). Its own still water body 5.8 m up, held by the dam and two rock rims; nobody wades or swims in it; it drains to the river level when the dam falls |
+| T2 | `water` (river) | path (41,23) (44,35) (52,46) (60,54) (84,74) (108,94) (132,114) (150,129), width 20: from the foot of the dam towards the camera, bending SE |
+| T3 | `shallow` | auto rim 2 m, plus the dam-toe ledge along the foot of the face (arch radius 13.2–16.3, ±27°) |
 | T4 | `ground` | station yard poly = the fence polygon below; camp interior poly = the palisade below |
-| T5 | `road` | path (0,92) (4,92) (20,92) (26,88), width 5 (W gate). Dirt road (52,0) (52,14), width 4 (truck pickup) |
+| T5 | `road` | path (0,92) (4,92) (20,92) (26,88), width 5 (W gate). Dirt road (60,0) (60,12), width 4 (truck pickup) |
 
-- The dam crest is a `bridge` deck from the SW abutment (25,40) to the NE abutment (45,22).
-- NE bank edge ≈ (60,40.5) (84,60.5) (108,80.5) (132,100.5) (148,114).
-- SW bank edge ≈ (45,53.8) (60,67.5) (84,87.5) (108,107.5) (130,126).
+- **The dam faces the camera** (re-authored 2026-09-30, user request "show the dam from the front not behind"): rot 345° turns its downstream face to the default 15° camera yaw. The player sees the tall concrete face with the reservoir beyond it (top of the screen) and the river pouring towards the bottom of the screen.
+- The crest is a curved `bridge` deck **raised 7 m** (grid `elev` 7; the visual stands 7 m up, so 7 m of face show above the river). It runs from the W end (29.2,29.3) to the E end (53,22.9), reached only by two concrete stairs (`ramps`): the W stair from (22.85,40.3) and the E stair from (59.35,33.9).
+- Water runs down the face: spillway sheets from the two gate bays, trickles, frozen trickles and icicles, foam and spray at the foot, white water down the river, the sound of falling water (positional) — visual/audio only.
+- E bank edge ≈ (51,22) (54,32) (60,40) (67,47) (84,60.5) (108,80.5) (132,100.5) (148,114).
+- SW bank edge ≈ (31,26) (35,38) (44,52) (45,53.8) (60,67.5) (84,87.5) (108,107.5) (130,126).
 
 **Structures.**
 
 | id | type (variant) | x | z | rot | size | Notes |
 |---|---|---|---|---|---|---|
-| `dam` | dam (concrete arch) | 35 | 31 | 318 | 27 long × 4 crest × 14 high | **Objective.** `bombOnly`; demolition marker `dam_charge` at (37,31) on the toe ledge (the bomb must be within 3 m). Crest = `bridge` cells. On destruction: collapse FX, flood surge, crest removed |
+| `dam` | dam (concrete arch) | 40 | 22 | 345 | 27 long × 3 crest × 14 high, `elev` 7 | **Objective.** `bombOnly`; demolition marker `dam_charge` at (35.82,29.59) on the toe ledge at the foot of the face, W of the spillway (beside a frozen trickle, out of the churning water) (the bomb must be within 3 m). Crest = curved `bridge` cells at elev 7 (walking surface 7.28 on top of its snowy deck), two stairs (`ramps`, cells at the tread heights). `waterFx` (water down the face, white water streaming away downstream, spray mist at the foot). On destruction: collapse FX, flood surge over the whole foot of the face, crest removed, the falling water stops and the reservoir bursts through the breach: a torrent into the pool and a surge of white water down the river while it drains (40 s) |
+| `rim_s`, `rim_e` | cliff | S shore (−1,29.5)…(27.2,27.4)…(−1,35); E shore (55,−1)…(56.6,20.2)…(55,12) | | | h 7.6 | Rock rims holding the raised reservoir; `B.HIGH` |
+| `dam_crag` | cliff | poly (57,23.2) (61.4,22.8) (62,27.4) (57.4,27.8) | | | h 6.6 | Under the dam's gate-keeper hut (E end) |
 | `dam_bunker` | bunker (surveillance) | 19 | 46 | 315 | 5 × 4 × 2.4 | **Objective.** `bombOnly`. Crew `e34`: vision `bunker` (near 18, far 36, 40°, sweep 50) facing NE over the dam |
 | `st_fence` | fence (`electric`, chain-link) | closed poly (4,58) (34,58) (70,90) (70,126) (4,126) | | | h 2.5 | `B.FENCE` (see-through). **Powered** until `fence_switch` is used. **Gates:** N gap x 24–28 at z 58 (dam path); W gate (below) |
 | `gate_w` | gate (`chainlink`) | 4 | 92 | 270 | opening 4 m | Open; road enters here |
@@ -1678,7 +1755,7 @@ Kildread's count is 6 walkers, 1 sentry, patrols of 4 and 3, 2 towers, the boat 
 | `sign_w` | sign | 2 | 88 | 0 | | "SIMA KRAFTVERK" |
 | pylons | telegraph_pole (`lattice_pylon`) | (60,122) (80,100) (96,62) | | | h 18 | Wires cross the river toward the NE |
 | `cliff_e` | cliff | poly (84,20) (148,20) (148,34) (124,38) (84,42) | | | h 12 | `B.HIGH`; not climbable |
-| `cliff_w` | cliff | poly (56,18) (74,18) (74,34) (56,30) | | | h 10 | The **gully** (x 74–84) between the two cliffs leads from the plateau down to the river |
+| `cliff_w` | cliff | poly (63,17) (74,17) (74,34) (65,31) | | | h 10 | The **gully** (x 74–84) between the two cliffs leads from the plateau down to the river; its W end leaves the E bank path to the E stair open |
 | `start_wall` | ruins (`wall_ruin`) | 108 | 8 | 0 | 16 × 1.5 × 1.6 | `B.HIGH`; the team hides north of it |
 | `camp_wall` | wall (`palisade`) | closed poly (98,48) (142,48) (142,96) (126,90) (98,66) | | | h 2.4 | **Gates:** N at x 116–120 (z 48); W at z 55–59 (x 98) |
 | `camp_barr` | hut (`log_cabin`) + flag | 122 | 58 | 0 | 7 × 5 × 3.5 | **Garrison**, pool 10; **jail** for p1 |
@@ -1687,7 +1764,7 @@ Kildread's count is 6 walkers, 1 sentry, patrols of 4 and 3, 2 towers, the boat 
 | `spools` | crates (`cable_drum`) | 114 | 61 | 0 | Ø 1.5 | |
 | `camp_tent` | tent + flag | 132 | 43 | 0 | 4 × 4 | **Garrison**, pool 5 |
 | `tent2` | tent | 141 | 42 | 0 | 4 × 4 | |
-| trees | pine | (50,6) (58,8) (90,6) (130,6) (140,10) (6,50) (2,70) (90,48) (146,60) | | | h 9–14 | |
+| trees | pine | (66,5) (70.5,9) (90,6) (130,6) (140,10) (6,50) (2,70) (90,48) (146,60) | | | h 9–14 | |
 
 **Items.**
 - `timeBomb` ×2 at (40,85). The Sapper picks them up.
@@ -1698,7 +1775,7 @@ Kildread's count is 6 walkers, 1 sentry, patrols of 4 and 3, 2 towers, the boat 
 | id | Type | Position | Notes |
 |---|---|---|---|
 | `raft` | raft | (64,45), shallow, heading 90 | On site; unused, not suspicious |
-| `evac_truck` | truck, friendly | Spawns at (52,−6) when **o1 and o2** are done; drives to (52,12) at 6 m/s and waits | 6 seats. Once everyone is aboard it drives off north (ESC skips) |
+| `evac_truck` | truck, friendly | Spawns at (60,−6) when **o1 and o2** are done; drives to (60,10) at 6 m/s and waits | 6 seats. Once everyone is aboard it drives off north (ESC skips) |
 
 **Commandos** (behind `start_wall`, heading 90).
 
@@ -1757,11 +1834,11 @@ Kildread's count is 6 walkers, 1 sentry, patrols of 4 and 3, 2 towers, the boat 
 1. Trap one of p1; freeze the other two with the decoy for the Marine's harpoon.
 2. Lure e4 and e5 into the gully with the decoy and kill them; knife e6.
 3. The Marine clears the camp's river side and rows the Spy to the clothesline.
-4. The disguised Spy **walks across the dam crest** and past e18 into the station, flips `fence_switch`, and Distracts e17.
+4. The disguised Spy **walks across the dam crest** (up the E stair, along the crest 7 m above the river, down the W stair) and past e18 into the station, flips `fence_switch`, and Distracts e17.
 5. The Sapper cuts the fence. The GB knifes while the Spy distracts. The Sapper collects both bombs.
 6. Row to the bunker. Charge one goes behind it (o1). The alarm sounds; hide the raft and wait out the siren (25 s) and the searches.
    - The crew's `sweep 50` is the §4.2 amplitude A (±50° about heading 315, plus the 40° aperture: about −115° to +25°), like every other profile. It covers the NE side, the crest and the shore, so the gunner must be turned first: he faces any noise (the GB's decoy dug in near the bunker, or a thrown stone), which leaves the rear unwatched for the plant. The notebook hints at this (replay round 2).
-7. Row to the dam toe and plant charge two (o2).
+7. Row to the dam toe (the foot of the face, under the spillway) and plant charge two (o2).
 8. The truck arrives; everyone boards (the Spy crosses by raft or before the blast).
 
 ### 7.7 Prop, interactable and vehicle types needed later (not in the ARCHITECTURE catalogue yet)
@@ -2138,7 +2215,7 @@ CONFIG.rulesets = { BEL: { knockouts: false, handcuffs: false, stones: false, ci
 | Time bomb fuse | 10 s vs 11 s vs 7.5 s (M4 crate) | 10 s |
 | Uniform hotkey | U vs T (German) | U |
 | M2 exit | SW road vs SE gate | SE gate and road (Prima, Kildread) |
-| M3 exit | N vs E of the dam | Truck north-east of the dam, at (52,12) |
+| M3 exit | N vs E of the dam | Truck north-east of the dam (beyond the reservoir's E rim), at (60,10) |
 | M6 terrain | Snowy (visuals.md) vs green spring (missions.md) | Green spring |
 | M11 exit | E (TA) vs W/NW | W/NW |
 | M12 alarm at start | Already sounded vs off | Off, but hunted |

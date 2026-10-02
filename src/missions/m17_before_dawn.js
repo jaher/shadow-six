@@ -294,7 +294,7 @@ export default {
   size: [90, 185],
   seed: 1944_1128,
   briefing: {
-    historical: 'November 1944. The airborne gamble in Holland has failed, yet the Allied armies are still grinding towards the Rhine, and parts of France are still in German hands. In Riveauvillé, a small town north of Colmar, the Germans have caught Claude Gilbert, who runs the Resistance in the whole region, and four of his people. They are to face a firing squad at first light tomorrow.',
+    historical: 'November 1944. The airborne gamble in Holland has failed, yet the Allies are still grinding towards the Rhine. In a small town north of Colmar the Germans have caught Claude Gilbert, who leads the Resistance in the region, with four of his people. They face a firing squad at first light.',
     text: 'Easy to say, officer, and hard to do: get Gilbert and his four men out of that camp and bring them north. One of our lorries will be waiting in the north-west. Beside the camp a gorge cuts the road, and there is a sliding bridge over it; the lever that works it is on the north side. And if you cannot find a way in, remember that the Germans will gladly open the gate for a prisoner. Good luck.',
     objectivesSummary: 'Free Claude Gilbert and his four companions from the cage. Then everyone, all five of them included, into the lorry in the north-west.',
     hints: [

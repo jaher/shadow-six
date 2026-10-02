@@ -2,7 +2,7 @@
  * Low crawl / prone set in the game (docs/crawl-animation.md; user: "elbows on the ground, weapon in the hands"):
  * the Sniper crawls with the rifle in his fist (not on his back), his elbows stay on the real terrain (world.groundY)
  * through a cycle, the gait plays at 0.9 m/s, the Green Beret with the knife cursor up crawls knife in hand, a
- * crawling German dies prone (die_prone -> dead_prone), and the zoomed-out (LOD2) and X-ray renders still draw.
+ * crawling German dies prone (die_prone -> dead_prone), the elbows alternate (one forearm swings forward at a time), and the zoomed-out (LOD2) and X-ray renders still draw.
  * Saves tests/out/crawl-sniper.png (zoom 2).
  */
 export default async function crawl(page, t) {
@@ -35,16 +35,21 @@ export default async function crawl(page, t) {
     out.crawl = { clip: sn.model.clip, gait: +sn.model.gaitSpeed.toFixed(2), weapon: sn.model.real.weaponName(), parent: inner().weapon.parent?.name,
       elbowLo: +lo.toFixed(3), elbowHi: +hi.toFixed(3), grip: +grip.toFixed(3), n };
     // planted elbows stay put in the world (review: they slid 25-55 cm/s against the ground)
-    const prevE = {}; let slide = 0, ns = 0;
-    for (let i = 0; i < 40; i++) {
+    // alternating elbows (user: "alternate between left / right arm, don't use both arms"): a forearm swinging
+    // forward moves well above body speed; the two must never swing together, and each must swing
+    const prevE = {}; let slide = 0, ns = 0, both = 0; const swing = { l: 0, r: 0 };
+    for (let i = 0; i < 54; i++) {
       tick(1); sn.object3d.updateMatrixWorld(true);
+      const fast = {};
       for (const s of ['l', 'r']) {
         const e = B['lowerarm_' + s].getWorldPosition(new THREE.Vector3());
-        if (prevE[s]) { const sp = Math.hypot(e.x - prevE[s].x, e.z - prevE[s].z) * 60; if (sp < 0.6) { slide += sp; ns++; } }
+        if (prevE[s]) { const sp = Math.hypot(e.x - prevE[s].x, e.z - prevE[s].z) * 60; if (sp < 0.6) { slide += sp; ns++; } fast[s] = sp > 1.2; if (fast[s]) swing[s]++; }
         prevE[s] = e;
       }
+      if (fast.l && fast.r) both++;
     }
     out.crawl.plantSlide = +(slide / Math.max(1, ns)).toFixed(3);
+    out.crawl.alt = { both, swingL: swing.l, swingR: swing.r };
     // screenshot at zoom 2 on the crawling sniper
     g.setZoom(2); g.centerOn(sn.x, sn.z); G.render(0, 1);
     // a prone shot plays to its end (bolt cycle) although the sim goes back to idle at once, and the gun is handed from
@@ -84,6 +89,8 @@ export default async function crawl(page, t) {
   t.ok(r.crawl.elbowLo > -0.005, 'elbows never sink into the terrain (' + r.crawl.elbowLo + ')');
   t.ok(r.crawl.elbowHi < 0.11, 'elbows stay on the ground, not propped on the hands (' + r.crawl.elbowHi + ')');
   t.ok(r.crawl.plantSlide < 0.15, 'planted elbows stay put in the world (' + r.crawl.plantSlide + ' m/s)');
+  t.ok(r.crawl.alt.swingL >= 4 && r.crawl.alt.swingR >= 4, 'each forearm swings forward in turn (' + JSON.stringify(r.crawl.alt) + ')');
+  t.equal(r.crawl.alt.both, 0, 'the forearms never swing forward together (alternating crawl)');
   t.equal(r.shot.clips[0], 'prone_shoot', 'prone shot still playing after 0.33 s (bolt cycle)');
   t.equal(r.shot.clips[1], 'crawl_idle', 'then back to the prone idle');
   t.ok(r.shot.dyMin > -0.3, 'no vertical rifle pop on the hand-over (' + r.shot.dyMin + ')');

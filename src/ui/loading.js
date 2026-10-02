@@ -6,7 +6,10 @@
  * progress rule that never jumps backwards. The rule follows the real load (Game.loadMission 'mission:progress':
  * stages + bytes received, engine/load-progress.js), then waits (bounded) for the talking portraits and the mission's
  * sound pack, so the briefing / first frame does not stream them. Also fronts every normal mission start
- * (hud.startMission, `brief: true` → the briefing opens when it closes). DOM only.
+ * (hud.startMission, `brief: true` → the briefing opens when it closes). A warm load (the mission is in the session
+ * asset cache, engine/asset-cache.js: restart, quick load, a save of a mission already played) skips the card: a short
+ * black fade covers the rebuild, and the card only appears if it takes longer than WARM_CARD_MS. A cold load served
+ * from the browser / service worker cache says FROM CACHE beside the MB counter. DOM only.
  * @module ui/loading
  */
 
@@ -19,6 +22,15 @@ import { TIPS, loadSeen, markSeen } from './tips.js';
 import { drawEurope } from './europe.js';
 import { MISSIONS } from '../missions/index.js';
 import { isTouchUI } from './touch.js';
+import { sessionCache } from '../engine/asset-cache.js';
+
+/**
+ * A warm (cached) reload taking longer than this shows the loading card after all. Restarts take ~0.6–1 s on a desktop
+ * (more on a busy machine or a phone): a short black fade reads as instant, a card flashing up for a few frames does not.
+ */
+const WARM_CARD_MS = 1500;
+/** The loading card stays up at least this long once shown (a late warm card closes as soon as that is met). */
+const CARD_MIN_MS = 400;
 
 export class Loading {
   constructor(hud) {
@@ -75,66 +87,99 @@ export class Loading {
       last = now;
       if (!done && real) target = Math.max(target, Math.min(0.97, real.p)); // real stages + bytes (never backwards)
       else if (!done) target = Math.min(0.92, target + dt * 0.35 * (1 - target)); // no progress events: ease toward 92 %
-      if (size && real?.bytes) size.textContent = `${(real.bytes / 1e6).toFixed(1)} MB`;
+      if (size && real?.bytes) size.textContent = `${(real.bytes / 1e6).toFixed(1)} MB${real.files && real.cached >= real.files * 0.9 ? ' · FROM CACHE' : ''}`;
+      else if (size && warm && !real?.bytes) size.textContent = 'FROM CACHE';
       shown = easeProgress(shown, done ? 1 : target, dt);
       if (bar) bar.style.transform = `scaleX(${shown.toFixed(4)})`;
       if (pct) pct.textContent = `LOADING ${Math.round(shown * 100)}%`;
       tipT += dt;
       if (tipT > 8) showTip(false);
     };
+    // warm: this mission's assets are in the session cache (restart, quick load, load of the same mission). The card
+    // only appears if the rebuild turns out slow; otherwise a short fade covers the swap (no loading screen).
+    const warm = !!info.missionId && sessionCache.missions.includes(info.missionId);
+    let opened = false, veil = null;
     this.active = true;
-    kit.open({
-      id: 'loading', bg: 'paper', className: 'mk-loading', scrim: false, hints: false,
-      render: (box) => {
-        const ph = el('div', 'mk-brphoto', box);
-        const p = photoPrint(ph, { src: this.photo(def, c), grade: 'gray' });
-        p.classList.add('kenburns');
-        const col = el('div', 'mk-brtext', box);
-        const head = el('div', 'mk-brhead', box);
-        el('span', null, head, n ? `Mission ${n}` : (info.title || 'Operation'));
-        el('span', null, head, formatMissionDate(def?.date || c.date || ''));
-        const t = el('h1', 'mk-brtitle', col);
-        const words = String(def?.title || c.title || info.title || '').split(' ');
-        const cut = words.length > 2 ? Math.floor(words.length / 2) : 1; // the briefing's line break (S15: "Baptism / of Fire")
-        el('span', null, t, words.slice(0, cut).join(' '));
-        if (words.length > 1) el('span', null, t, words.slice(cut).join(' '));
-        tipHost = el('div', 'mk-tiphost', col);
-        showTip(true);
-        const nt = el('button', 'mk-hint mk-nexttip', col);
-        nt.type = 'button';
-        nt.append(cap('→'), 'NEXT TIP');
-        nt.addEventListener('click', (e) => { e.stopPropagation(); showTip(false); });
-        const foot = el('div', 'mk-loadbar', box);
-        const rule = el('div', 'rule', foot);
-        bar = el('div', 'fill', rule);
-        pct = el('span', 'pct', foot, 'LOADING 0%');
-        size = el('span', 'mb', foot);
-        prompt = el('span', 'press', foot);
-        el('div', 'mk-watermark', box.parentElement);
-      },
-      onKey: (e) => {
-        if (e.code === 'ArrowRight' || e.code === 'BracketRight') { showTip(false); return true; }
-        if (done && cont) cont();
-        return true;
-      },
-      onBack: () => { if (done && cont) cont(); return true; },
-      onClick: () => { if (done && cont) cont(); },
-    }, { reset: true });
-    hud.backdrop?.setMode('paper');
-    raf = requestAnimationFrame(tick);
+    this.lastRun = { warm, card: false };
+    const openCard = () => {
+      if (opened) return;
+      opened = performance.now() || 1;
+      veil?.remove(); // a slow warm load: the card replaces the fade
+      this.lastRun.card = true;
+      kit.open({
+        id: 'loading', bg: 'paper', className: 'mk-loading', scrim: false, hints: false,
+        render: (box) => {
+          const ph = el('div', 'mk-brphoto', box);
+          const p = photoPrint(ph, { src: this.photo(def, c), grade: 'gray' });
+          p.classList.add('kenburns');
+          const col = el('div', 'mk-brtext', box);
+          const head = el('div', 'mk-brhead', box);
+          el('span', null, head, n ? `Mission ${n}` : (info.title || 'Operation'));
+          el('span', null, head, formatMissionDate(def?.date || c.date || ''));
+          const t = el('h1', 'mk-brtitle', col);
+          const words = String(def?.title || c.title || info.title || '').split(' ');
+          const cut = words.length > 2 ? Math.floor(words.length / 2) : 1; // the briefing's line break (S15: "Baptism / of Fire")
+          el('span', null, t, words.slice(0, cut).join(' '));
+          if (words.length > 1) el('span', null, t, words.slice(cut).join(' '));
+          tipHost = el('div', 'mk-tiphost', col);
+          showTip(true);
+          const nt = el('button', 'mk-hint mk-nexttip', col);
+          nt.type = 'button';
+          nt.append(cap('→'), 'NEXT TIP');
+          nt.addEventListener('click', (e) => { e.stopPropagation(); showTip(false); });
+          const foot = el('div', 'mk-loadbar', box);
+          const rule = el('div', 'rule', foot);
+          bar = el('div', 'fill', rule);
+          pct = el('span', 'pct', foot, 'LOADING 0%');
+          size = el('span', 'mb', foot);
+          prompt = el('span', 'press', foot);
+          el('div', 'mk-watermark', box.parentElement);
+        },
+        onKey: (e) => {
+          if (e.code === 'ArrowRight' || e.code === 'BracketRight') { showTip(false); return true; }
+          if (done && cont) cont();
+          return true;
+        },
+        onBack: () => { if (done && cont) cont(); return true; },
+        onClick: () => { if (done && cont) cont(); },
+      }, { reset: true });
+      hud.backdrop?.setMode('paper');
+      raf = requestAnimationFrame(tick);
+    };
+    let slow = 0;
+    if (warm) {
+      veil = el('div', 'mk-veil', document.body);
+      veil.style.cssText = 'position:fixed;inset:0;background:#000;opacity:0;transition:opacity .12s linear;z-index:9000;pointer-events:none';
+      void veil.offsetWidth;
+      veil.style.opacity = '1';
+      slow = setTimeout(openCard, WARM_CARD_MS);
+    } else openCard();
     let result;
     try {
-      await new Promise((r) => setTimeout(r, 30)); // first paint before the heavy work
+      await new Promise((r) => setTimeout(r, warm ? 120 : 30)); // first paint (or the fade) before the heavy work
       result = await work();
-      if (result) await this.settle();
+      if (result) await this.settle(warm && !opened ? 2000 : 6000);
     } catch (err) {
       console.warn('[loading] failed', err);
       result = false;
     }
+    clearTimeout(slow);
+    if (!opened) {
+      // instant: no card, no key prompt — lift the fade over the rebuilt mission (or its briefing)
+      offProgress?.();
+      this.active = false;
+      if (result && info.brief && hud.game.state === 'briefing' && hud.def) hud.briefing.open(hud.def);
+      const v = veil;
+      v.style.opacity = '0';
+      setTimeout(() => v.remove(), 160);
+      return result;
+    }
+    veil?.remove();
     done = true;
     await new Promise((resolve) => {
       cont = resolve;
-      if (info.auto !== false || !result) setTimeout(resolve, 400);
+      // a cold load holds 100 % for a moment; a late warm card only stays until it has been up CARD_MIN_MS
+      if (info.auto !== false || !result) setTimeout(resolve, warm ? Math.max(0, CARD_MIN_MS - (performance.now() - opened)) : CARD_MIN_MS);
       else {
         prompt.textContent = isTouchUI() ? 'TAP TO CONTINUE' : 'PRESS ANY KEY';
         prompt.classList.add('mk-press');

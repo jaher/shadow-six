@@ -1,0 +1,15 @@
+{
+ "_": "clips shipped although the speech-recognition check failed, with the reason (from the recogniser's transcript: only these words differ)",
+ "m02_head": "place names: Stamsund, Lofoten transcribed 'Stamson-Lufoten'",
+ "m03_head": "place names: Sysendam, Eidfjord transcribed 'Cessendarm Aidfjord'",
+ "m03_p0": "re-rendered 8 % slower (NARR_SLOW 0.92): the place name Sysen is transcribed 'cease and' (small) or 'seas and' (medium.en), and small still hears 'Reich' as 'right'; medium.en hears 'Power from' and 'Reich' correctly (the 1.20x take was heard 'How often season damn')",
+ "m05_p0": "'Blind it and' transcribed 'Blinded and' (the same sounds in connected speech)",
+ "m08_head": "place name: Tell el Eisa transcribed 'Tel El Asa'",
+ "m08_p0": "names: Alamein 'Alamain', Afrika Korps 'Africa Corps'; 'forward fuel dump' transcribed 'forward-fueled dump'",
+ "m10_head": "place name: El Agheila transcribed 'Elegala'",
+ "m10_p2": "German aircraft names read with German vowels: Stukas 'stucas', Junkers 'Yunkas'",
+ "m13_head": "place name: Le Havre transcribed 'Loavre'",
+ "m13_p0": "place name: Le Havre transcribed 'Lavra'",
+ "m15_p2": "German rank and surname: Gruppenführer 'Gruppenfuhrer' (no umlaut), Schleper 'Schlapper'",
+ "m16_p0": "place name: Maas transcribed 'Moss'; 'Their detonators' transcribed 'The detonators'"
+}

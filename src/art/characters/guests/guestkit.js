@@ -48,6 +48,8 @@ export function createGuest(tpl, lib, opts = {}) {
   h.setFollowing = (on) => { h.following = !!on; };
   let queued = null;
   h.ownTransitions = true;   // go_prone / get_up handled here (unit-model does not insert them again)
+  // played over the game's stance-change time when the host sets h.trDur (unit-model: CONFIG.units.stanceDown / Up)
+  const trScale = (tr) => { const want = h.trDur && h.trDur[tr], d = h.clip(tr)?.duration; return want && d ? d / want : 1; };
   h.setAnim = (name, o = {}) => {
     if (h._settled && h._settled !== h.animClip) h._settled = null;
     let n = name;
@@ -58,10 +60,10 @@ export function createGuest(tpl, lib, opts = {}) {
     if (h.animClip === 'go_prone' && queued && /^crawl/.test(n)) { queued = { n, o }; return; }
     // posture change stand -> prone: play go_prone first, then the requested prone clip
     if (o.fade !== 0 && pf !== 'prone' && pf !== 'down' && /^crawl/.test(n) && lib.clips.has('go_prone')) {
-      queued = { n, o }; const a = base('go_prone', { loop: false, fade: 0.08 }); h._prone = true; return a;   // short fade: no toe dip
+      queued = { n, o }; const a = base('go_prone', { loop: false, fade: 0.08, timeScale: trScale('go_prone') }); h._prone = true; return a;   // short fade: no toe dip
     }
     if (o.fade !== 0 && pf === 'prone' && /^crawl/.test(from) && !/^(crawl|die|dead)/.test(n) && lib.clips.has('get_up')) {
-      queued = { n, o }; return base('get_up', { loop: false, fade: 0.2 });
+      queued = { n, o }; return base('get_up', { loop: false, fade: 0.1, timeScale: trScale('get_up') });
     }
     if ((lib.meta[h.animClip] || {}).travel && h._settled !== h.animClip && (n === 'dead' || n === (lib.meta[h.animClip] || {}).next)) { settle(); if (n === 'dead') return; }
     queued = null;

@@ -47,7 +47,8 @@ window.view = async (name, { w = 900, h = 700, zoom = 1, ao = true, dz = 0 } = {
   if (name === 'game') {
     cam = ortho(w, h, zoom);
     const t = new THREE.Vector3(c.x, S.box.min.y + sz.y * 0.3, c.z + sz.z * dz);
-    cam.position.set(t.x, t.y + Math.sin(PITCH) * 100, t.z + Math.cos(PITCH) * 100); cam.lookAt(t);
+    const yw = (S.yaw || 0) * Math.PI / 180;
+    cam.position.set(t.x + Math.sin(yw) * Math.cos(PITCH) * 100, t.y + Math.sin(PITCH) * 100, t.z + Math.cos(yw) * Math.cos(PITCH) * 100); cam.lookAt(t);
   } else if (name === 'front') {
     const z = Math.max(sz.x / w, sz.y / h) * 1.15; cam = ortho(w, h, 1 / (PX_PER_M * z));
     cam.position.set(c.x, c.y, c.z + 100); cam.lookAt(c.x, c.y, c.z);

@@ -9,3 +9,8 @@ __pycache__/
 tools/blender/vehicles/.work/
 tools/blender/vehicles/pydeps42/
 dist/
+
+# blender kit build link (tools/blender/relocate.sh)
+tools/blender/kit/lib/1k
+tools/blender/fueltanks/out/
+tools/blender/kit/review/hdri/

@@ -22,6 +22,7 @@ import { libraryVisual, libTypeOf } from './building-props.js';
 import { makeFlag } from './flags.js';
 import { wireTypeOf } from './wire-obstacles.js';
 import { buildBreakableGate } from './breakable-gates.js';
+import { buildMgPlatform } from './mg-platform.js';
 import { isBreakableGate } from '../world/breakables.js';
 import { buildRocks, buildCliff, buildWall, buildTent, buildRuins, buildSandbags, buildCrates, buildGenerator, buildLattice, buildPole } from './dressing.js';
 
@@ -196,7 +197,9 @@ const BUILDERS = {
     g.add(slit);
     return g;
   },
-  watchtower: (p, def) => {
+  watchtower: (p, def, ctx) => {
+    // the open timber MG stand (M2 towers after the original): sandbagged deck, MG 34 on its tripod, ladder
+    if (p.variant === 'mg_platform' && dressingOn(ctx)) return buildMgPlatform(p);
     const g = new THREE.Group();
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
       const leg = box(0.2, p.h, 0.2, def.mat);
@@ -257,30 +260,57 @@ const BUILDERS = {
 /** Round props (circle footprint). */
 const ROUND = {
   fueltank: (p, def) => {
+    // procedural fallback of the fuel-tank family (docs/fuel-tanks.md; the library GLBs replace it in the browser)
     const g = new THREE.Group();
-    if (p.variant === 'horizontal_cradle' || (p.w && p.d && p.w > p.d * 1.6)) {
-      // horizontal storage tank on concrete cradles (M2 depot), lying along +X, dished ends
-      const len = p.w ?? 9, r = Math.min((p.d ?? 3.4) / 2 * 0.86, (p.h ?? 3.5) / 2 * 0.9), cy = (p.h ?? 3.5) - r - 0.05;
-      const body = cyl(r, r, len - r * 0.6, 'olivePaint', 0, 28);
-      body.rotation.z = Math.PI / 2; body.position.y = cy;
-      g.add(body);
+    const vertical = p.variant === 'oil_tanks_vertical' || p.variant === 'fuel_tank_elevated' || (p.w == null && p.d == null);
+    if (!vertical && (p.variant === 'horizontal_cradle' || p.variant === 'fuel_tank_horizontal' || (p.w && p.d))) {
+      // horizontal tank along +X: shell + dished heads (~D/4 deep), two saddles at 0.2 L, crown catwalk + rail,
+      // vent, manhole and an end stand with its ladder (stand on the +X end)
+      const w = p.w ?? 9, d = p.d ?? 3.4, h = p.h ?? 3.5;
+      const R = Math.min(d * 0.34, (h - 0.75) / 2), hd = R * 0.36, cy = 0.45 + R;
+      const Lc = Math.max(1, Math.min(w * 0.8, w - 2.0) - 2 * hd), cx = -(w - (Lc + 2 * hd)) / 2 + 0.45;
+      const mat = p.mat && p.mat !== 'fuelRed' ? p.mat : 'tankCream';
+      const shell = cyl(R, R, Lc, mat, 0, 24);
+      shell.rotation.z = Math.PI / 2; shell.position.set(cx, cy, 0);
+      g.add(shell);
       for (const sgn of [-1, 1]) {
-        const cap = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), getMaterial('olivePaint'));
-        cap.scale.y = 0.3; cap.rotation.z = -sgn * Math.PI / 2; cap.position.set(sgn * (len - r * 0.6) / 2, cy, 0);
+        const cap = new THREE.Mesh(new THREE.SphereGeometry(R, 20, 6, 0, Math.PI * 2, 0, Math.PI / 2), getMaterial(mat));
+        cap.scale.y = hd / R; cap.rotation.z = -sgn * Math.PI / 2; cap.position.set(cx + sgn * Lc / 2, cy, 0);
         cap.castShadow = cap.receiveShadow = true;
         g.add(cap);
+        const sad = box(0.5, cy - R * 0.6, R * 1.6, 'woodDark', (cy - R * 0.6) / 2);
+        sad.position.x = cx + sgn * Lc * 0.3;
+        g.add(sad);
       }
-      for (const fx of [-0.33, 0, 0.33]) {
-        const cr = box(0.5, cy - r * 0.55, r * 1.7, 'concrete', (cy - r * 0.55) / 2);
-        cr.position.x = fx * len;
-        g.add(cr);
+      const walk = box(Lc * 0.75, 0.06, 0.55, 'planks', cy + R + 0.1); walk.position.set(cx + Lc * 0.12, walk.position.y, R * 0.35); g.add(walk);
+      const rail = box(Lc * 0.75, 0.05, 0.05, 'metal', cy + R + 0.7); rail.position.set(cx + Lc * 0.12, rail.position.y, R * 0.35 + 0.27); g.add(rail);
+      const vent = cyl(0.06, 0.06, 0.6, 'metal', cy + R + 0.3, 6); vent.position.x = cx - Lc * 0.4; g.add(vent);
+      const man = cyl(0.32, 0.32, 0.22, 'metal', cy + R + 0.05, 12); man.position.set(cx + Lc * 0.15, man.position.y, -R * 0.3); g.add(man);
+      const sx = cx + Lc / 2 + hd + 0.6;
+      if (sx + 0.5 <= w / 2 + 0.05) {
+        const stand = box(1.0, 0.08, 1.1, 'planks', cy + R + 0.08); stand.position.x = sx; g.add(stand);
+        for (const [ox, oz] of [[-0.45, -0.45], [0.45, -0.45], [-0.45, 0.45], [0.45, 0.45]]) {
+          const post = box(0.12, cy + R + 0.04, 0.12, 'woodDark'); post.position.set(sx + ox, post.position.y, oz); g.add(post);
+        }
       }
-      for (const fx of [-0.3, 0.3]) { const band = cyl(r * 1.02, r * 1.02, 0.12, 'metal', 0, 28); band.rotation.z = Math.PI / 2; band.position.set(fx * len, cy, 0); g.add(band); }
-      const hatch = cyl(0.35, 0.35, 0.25, 'metal', cy + r + 0.1, 16);
-      g.add(hatch);
       return g;
     }
-    g.add(cyl(p.r, p.r, p.h, def.mat, p.h / 2, 20));
+    // vertical: plinth + riveted shell + roof (squat or column), or the raised twin tanks on a deck
+    const r = p.r ?? 2, h = p.h ?? 4;
+    if (p.variant === 'fuel_tank_elevated') {
+      const w = p.w ?? 5, d = p.d ?? 3, deck = Math.min(2.6, h * 0.45);
+      const dk = box(w, 0.1, d, 'metal', deck - 0.05); g.add(dk);
+      for (const [ox, oz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { const leg = box(0.18, deck - 0.1, 0.18, 'metal'); leg.position.set(ox * (w / 2 - 0.15), leg.position.y, oz * (d / 2 - 0.15)); g.add(leg); }
+      for (const sx of [-1, 1]) {
+        const t = cyl(d * 0.32, d * 0.32, h * 0.4, 'greyPaint', deck + h * 0.2, 16); t.position.x = sx * w * 0.23; g.add(t);
+        const rf = cyl(0.15, d * 0.33, 0.35, 'metalRust', deck + h * 0.4 + 0.17, 16); rf.position.x = sx * w * 0.23; g.add(rf);
+      }
+      return g;
+    }
+    g.add(cyl(r, r, 0.3, 'concrete', 0.15, 20));
+    const sh = Math.max(1.5, h - 0.3 - r * 0.45);
+    g.add(cyl(r * 0.86, r * 0.86, sh, p.variant === 'oil_tanks_vertical' ? 'tankCream' : 'greyPaint', 0.3 + sh / 2, 20));
+    g.add(cyl(0.12, r * 0.88, r * 0.4, 'metalRust', 0.3 + sh + r * 0.2, 20));
     return g;
   },
   barrels: (p, def) => {

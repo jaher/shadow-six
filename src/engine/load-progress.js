@@ -43,10 +43,11 @@ export function createLoadProgress(o = {}) {
   const now = o.now || (() => (typeof performance !== 'undefined' ? performance.now() : Date.now()));
   const expected = expectedBytes(o.budget, o.id, o.preset);
   const t0 = now();
-  let bytes = 0, files = 0, p = 0, stage = 'lighting', closed = false;
+  let bytes = 0, files = 0, cached = 0, p = 0, stage = 'lighting', closed = false;
   let obs = null;
   const count = (list) => {
-    for (const e of list.getEntries()) { bytes += e.encodedBodySize || 0; files++; }
+    // cached: nothing crossed the network (HTTP / memory cache, or the service worker's Cache Storage)
+    for (const e of list.getEntries()) { bytes += e.encodedBodySize || 0; files++; if (e.transferSize === 0 || e.deliveryType === 'cache') cached++; }
     emit();
   };
   if (typeof PerformanceObserver === 'function') {
@@ -62,12 +63,13 @@ export function createLoadProgress(o = {}) {
     const byStage = lo + (hi - lo) * Math.max(0, Math.min(1, sub));
     const byBytes = Math.min(hi, bytes / expected);
     p = Math.max(p, byStage, byBytes);
-    o.events?.emit?.('mission:progress', { id: o.id, p, stage, bytes, expected, files });
+    o.events?.emit?.('mission:progress', { id: o.id, p, stage, bytes, expected, files, cached });
   }
   return {
     get p() { return p; },
     get bytes() { return bytes; },
     get files() { return files; },
+    get cached() { return cached; },
     expected,
     /** Enter a stage (the bar jumps to its start at least); `sub` 0..1 inside it. */
     stage(name, sub = 0) {
@@ -85,9 +87,9 @@ export function createLoadProgress(o = {}) {
       stage = 'finish';
       emit(1);
       p = 1;
-      o.events?.emit?.('mission:progress', { id: o.id, p: 1, stage: 'done', bytes, expected, files });
+      o.events?.emit?.('mission:progress', { id: o.id, p: 1, stage: 'done', bytes, expected, files, cached });
       closed = true;
-      return { bytes, files, ms: Math.round(now() - t0), expected };
+      return { bytes, files, cached, ms: Math.round(now() - t0), expected };
     },
   };
 }

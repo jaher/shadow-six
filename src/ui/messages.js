@@ -17,6 +17,7 @@ export class Messages {
     this.line.hidden = true;
     this.until = 0;
     this.tags = [];
+    this.marks = []; // "?" over a guard who heard a running commando (house rule runningNoise)
     this.layer = el('div', 'hud-subs', hud.root);
     this._n = 0;
     this.history = []; // last messages (tests / debugging)
@@ -66,7 +67,29 @@ export class Messages {
     const p = this.hud.game.cameraController?.worldToScreen?.(u.x, (u.y || 0) + 2.1, u.z);
     if (!p) return;
     const r = this.hud.root.getBoundingClientRect();
-    t.el.style.transform = `translate(${p.x - r.left}px, ${p.y - r.top}px) translate(-50%, -100%)`;
+    // a "?" mark sits above the guard's subtitle tag when he has one
+    const lift = t.mark ? (this.tags.find((s) => s.unit === u)?.el.offsetHeight ?? 0) : 0;
+    t.el.style.transform = `translate(${p.x - r.left}px, ${p.y - r.top - lift}px) translate(-50%, -100%)`;
+  }
+
+  /**
+   * A "?" over `unit` for UI.markTime s (house rule runningNoise: a guard heard a running commando's step). One mark
+   * per guard: a newer step restarts it.
+   */
+  mark(unit, text = '?') {
+    if (!unit || unit.removed || unit.alive === false) return null;
+    let m = this.marks.find((t) => t.unit === unit);
+    if (!m) {
+      m = { el: el('div', 'hud-mark', this.layer, text), unit, mark: true, until: 0 };
+      this.marks.push(m);
+    } else {
+      m.el.classList.remove('pop');
+      void m.el.offsetWidth;
+    }
+    m.el.classList.add('pop');
+    m.until = this.hud.clock + UI.markTime;
+    this._place(m);
+    return m;
   }
 
   update() {
@@ -80,11 +103,21 @@ export class Messages {
       this._place(t);
       return true;
     });
+    this.marks = this.marks.filter((t) => {
+      if (now > t.until || t.unit.removed || t.unit.alive === false) {
+        t.el.remove();
+        return false;
+      }
+      this._place(t);
+      return true;
+    });
   }
 
   clear() {
     this.line.hidden = true;
     for (const t of this.tags) t.el.remove();
+    for (const t of this.marks) t.el.remove();
     this.tags = [];
+    this.marks = [];
   }
 }

@@ -165,6 +165,13 @@ export function solveEnemyWeapon(h, dt = 0) {
   updBones(h);
   const rootQ = wqf(h.object);
   const fwd = V().set(0, 0, 1).applyQuaternion(rootQ), up = V().set(0, 1, 0).applyQuaternion(rootQ), left = V().set(1, 0, 0).applyQuaternion(rootQ);
+  // a gunner at a platform MG (render/mg-mount.js): his own gun stays put away (also when he falls there), his hands
+  // on the mount's pistol grip (right) and butt stock (left)
+  if (h.mount || h._mountedGun) {
+    w.visible = false; h._wKey = 'hide'; h._twoHand = false; h._dropM = null;
+    if (h.mount?.grip && !/^(die|dead)/.test(clip)) mountHands(h, B, h.mount);
+    return;
+  }
   w.visible = true; h._twoHand = false;
   // prone death (docs/crawl-animation.md §4.5): the gun stays in the fist while he is hit and the elbows give way, and is
   // released at 0.45 s (it then rolls off the forearm: weapon-handover.js blends it onto the ground beside him)
@@ -249,6 +256,16 @@ export function solveEnemyWeapon(h, dt = 0) {
   h.ikError = handTo(B, 'l', sp, gx.clone().multiplyScalar(-0.85).addScaledVector(dir, 0.45).addScaledVector(gy, 0.15), hw);
   h._twoHand = hw >= 0.999; h._support = g.support;
 }
+/** Both hands on a mounted gun (h.mount {grip, support, gun}: world markers, gun muzzle along its +x), elbows down-out. */
+function mountHands(h, B, mt) {
+  mt.gun.updateMatrixWorld(true);
+  const fwd = V().setFromMatrixColumn(mt.gun.matrixWorld, 0).setY(0).normalize(), up = V().set(0, 1, 0), right = V().crossVectors(fwd, up).normalize();
+  h.ikErrorR = handTo(B, 'r', wpos(mt.grip), fwd.clone().multiplyScalar(0.5).addScaledVector(up, -0.8).addScaledVector(right, -0.2));
+  swivel(B, 'r', up.clone().multiplyScalar(-0.8).addScaledVector(right, 0.6), 1);
+  h.ikError = handTo(B, 'l', wpos(mt.support), fwd.clone().multiplyScalar(0.55).addScaledVector(right, 0.6).addScaledVector(up, -0.35));
+  swivel(B, 'l', up.clone().multiplyScalar(-0.8).addScaledVector(right, -0.6), 1);
+}
+
 // shouldered long gun: neck and head set upright-ish (the rifle_aim clip + idle base bowed the head ~40 deg so the helmet
 // brim came down over the right hand): head pitched HEAD[0] deg down, canted HEAD[1] deg onto the stock, neck half of that
 export const HEAD = [8, 4];

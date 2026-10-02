@@ -343,7 +343,7 @@ export default {
   size: [151, 104],
   seed: 1945_0112,
   briefing: {
-    historical: 'January 1945. France is free, and the Red Army waits in the ruins of Warsaw with Berlin next on its list. Hitler has one card left to play: the V2. The rockets are already falling on London, and nothing can stop one once it is in the air. A reconnaissance flight has found a launch site hidden inside a small mining works at Oldenburg, west of Bremen.',
+    historical: 'January 1945. France is free, and the Red Army is on the Vistula with Berlin in its sights. Hitler has one card left to play: the V2. His rockets are already falling on London, and nothing can stop one once it is in the air. A reconnaissance flight has found a launch site hidden in a small mining works at Oldenburg.',
     text: 'You go in from the north edge, officer, and the job is simple to say: those three launch pads must never fire again. Mind the river. It runs so fast that nobody rows against it, so think about where you cross. The mine railway and the coal conveyor both lead into the base; either could get you inside. When the rockets are gone, get everybody to the boat by the north-east shore and let the current carry you out.',
     objectivesSummary: 'Destroy the three V2 rockets on their launch pads, then escape downstream in the rowboat.',
     hints: [

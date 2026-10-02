@@ -21,6 +21,8 @@ import { FFTOcean, FFT_PERIOD } from './fft.js';
 import { RippleSim } from './ripples.js';
 import { Caustics } from './caustics.js';
 import { bakeBody, bodyGrid } from './bake.js';
+import { sessionCache, dataKey } from '../../engine/asset-cache.js';
+import { sceneSignature } from '../../world/placement-visual.js';
 
 export { FX_LAYER };
 import { makeWaterMaterial, TIME_LOOP } from './material.js';
@@ -188,7 +190,7 @@ export class WaterSystem {
     const level = o.level ?? 0;
     const P = { ...WATER_PRESETS[o.preset || o.look || (type === 'sea' ? 'sea' : type)] || WATER_PRESETS.lake };
     if (o.absorb) P.absorb = o.absorb; if (o.scatter) P.scatter = o.scatter;
-    const bake = bakeBody({ ...o, level }, this.Q.bodyRes, o.capture === false ? null : this._capture(o, level));
+    const bake = bakeBody({ ...o, level }, o.bakeRes || this.Q.bodyRes, o.capture === false ? null : this._capture(o, level));
     const b = bake.bounds;
     const segLen = type === 'sea' ? 1 / this.Q.seaSeg : 0.75;
     const sx = Math.min(512, Math.max(2, Math.round(b.z / segLen))), sz = Math.min(512, Math.max(2, Math.round(b.w / segLen)));
@@ -210,6 +212,7 @@ export class WaterSystem {
       refrStrength: v(o.refraction ?? 0.035), roughness: v(o.roughness ?? P.roughness), sssStrength: v(o.sss ?? P.sss),
       foamScale: v(o.foamScale ?? 3.5), shoreFoamDepth: v(o.shoreFoamDepth ?? (type === 'sea' ? 0.5 : 0.15)), shoreFoam: v(o.shoreFoam ?? (type === 'sea' ? 1 : type === 'river' ? 0.35 : 0.5)), foamAmount: v(o.foam ?? 1), sheen: v(o.sheen ?? P.sheen ?? 1), iceWidth: v(o.frozen ? 1e4 : (o.ice || 0)),
       reflDistort: v(o.reflDistort ?? 0.06), maskCut: v(o.mask ? (o.maskCut ?? -0.35) : -1e9), fadeDepth: v(o.fadeDepth ?? 0.06),
+      iceFree: v(Array.from({ length: 4 }, (_, k) => { const f = o.iceFree?.[k]; return f ? new THREE.Vector3(f.x, f.z, f.r) : new THREE.Vector3(0, 0, 0); })),
       absorb: v(V3(P.absorb).addScalar(o.turbidity ?? P.turbidity ?? 0)), scatterColor: v(V3(P.scatter)), foamColor: v(V3(P.foam)), iceColor: v(V3(o.iceColor || [0.72, 0.80, 0.86])),
     };
     if (!this.caustics) uniforms.causticsTex = v(this._flat);
@@ -232,9 +235,27 @@ export class WaterSystem {
    * or opts.terrain. Returns null when the scene has nothing to capture.
    */
   _capture(o, level) {
-    const g = bodyGrid({ ...o, level }, this.Q.bodyRes), t0 = performance.now();
+    const g = bodyGrid({ ...o, level }, o.bakeRes || this.Q.bodyRes), t0 = performance.now();
     const hide = [], terr = [].concat(this.opts.terrain || []);
     this.scene.traverse((ob) => { const u = ob.userData || {}; if (u.waterIgnore || u.dynamic) hide.push(ob); else if (u.waterTerrain && !terr.includes(ob)) terr.push(ob); });
+    // session cache: the same body over the same drawn scene (a restart) captures the same heights — skip the three
+    // GPU passes and their read-backs. Key: the body + grid + a signature of everything the passes would draw.
+    let key = null;
+    try {
+      const sig = sceneSignature(this.scene, new Set(hide)), ts = terr.map((t) => sceneSignature(t));
+      if (sig && ts.every(Boolean)) key = `water:capture:${dataKey((h) => { h.num(level); h.str(JSON.stringify(g)); h.str(sig); h.str(ts.join(',')); })}`;
+    } catch { key = null; }
+    if (key) {
+      const hit = sessionCache.get(key);
+      if (hit !== undefined) { this.lastCaptureMs = performance.now() - t0; return hit && { hgt: hit.hgt.slice(), solid: hit.solid.slice() }; }
+    }
+    const res = this._captureNow(o, level, g, hide, terr);
+    if (key) sessionCache.set(key, res && { hgt: res.hgt.slice(), solid: res.solid.slice() }, { bytes: res ? res.hgt.byteLength + res.solid.byteLength : 0 });
+    this.lastCaptureMs = performance.now() - t0;
+    return res;
+  }
+
+  _captureNow(o, level, g, hide, terr) {
     const B = [g.minX, g.minZ, g.maxX, g.maxZ], clipY = level + 0.35, r = this.renderer;
     const hgt = captureHeights(r, this.scene, B, g.rx, g.rz, hide, clipY);
     const top = captureHeights(r, this.scene, B, g.rx, g.rz, hide);
@@ -245,7 +266,6 @@ export class WaterSystem {
       if (hgt[k] > 900 || sol[k] > 900) { solid[k] = 1; hgt[k] = clipY; }
       if (hgt[k] > -900) any = true;
     }
-    this.lastCaptureMs = performance.now() - t0;
     return any ? { hgt, solid } : null;
   }
 
@@ -257,6 +277,8 @@ export class WaterSystem {
 
   /** Push the water surface at (x,z): strength = metres (negative pushes down, |s|<1), radius in metres, foam 0..1 extra churn. */
   disturb(x, z, strength = 0.1, radius = 0.6, foam = 0) { this.ripples.disturb(x, z, strength, radius, foam); }
+  /** Boat wake crest dab: height (m) + crisp, short-lived crest foam 0..1 (the Kelvin V arms; see RippleSim.crest). */
+  crest(x, z, strength = 0.01, radius = 0.3, amount = 0.5, x1 = x, z1 = z) { this.ripples.crest(x, z, strength, radius, amount, x1, z1); }
 
   _syncRippleEnv() { this.ripples.setBodies(this.bodies.filter((b) => b.mesh.visible).map((b) => ({ texture: b.bake.texture, bounds: b.bake.bounds }))); }
 

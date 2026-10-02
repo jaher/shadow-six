@@ -4,6 +4,9 @@
  * the camera view (black rectangle), primary objectives (red circles), commandos (blue) and enemies (red dots).
  * Click = jump the view there; mouse wheel = zoom the sketch (it then scrolls with the camera). The folded corner
  * (or Ctrl+B) opens the Briefing Notes page, which pauses the game until any key or click.
+ * With a finger or pen there is no hover: a tap opens it and it stays open, a tap on it closes it again, a drag moves
+ * the view and a pinch zooms the sketch (notebook-touch.js). On a touch screen the open notebook shrinks to the free
+ * strip above the bag / hand / stance cluster (and the carry buttons), so nothing covers the map (fit(), --nbk).
  * @module ui/notebook
  */
 
@@ -11,10 +14,14 @@ import { forcedRuleLines } from '../core/house-rules.js';
 import { el, tip } from './dom.js';
 import { iconEntry, iconHTML, toolHTML, wireToolStates } from './icon-art.js';
 import { drawSketch } from './sketch.js';
+import { NotebookFingers, isFingerPointer } from './notebook-touch.js';
+import { isTouchUI } from './touch.js';
 import { UI } from './ui-config.js';
 import { catalogueEntry, formatMissionDate } from './catalogue.js';
 
 const RES = 2; // canvas px per ref px
+const FIT_GAP = 6; // CSS px between the open page and the bag on a phone
+const NB_MIN_K = 0.5;
 
 export class Notebook {
   constructor(hud, parent) {
@@ -42,20 +49,28 @@ export class Notebook {
     this._hoverT = null;
     this._leaveT = null;
     this._paper = null; // cached sketch canvas at full map size
-    this.root.addEventListener('pointerenter', () => {
+    // desktop hover (a mouse); a finger or pen fires these on touch down / up, so they are ignored (taps toggle)
+    this.root.addEventListener('pointerenter', (e) => {
+      if (isFingerPointer(e)) return;
       clearTimeout(this._leaveT);
       this._hoverT = setTimeout(() => this.setOpen(true), UI.notebook.openDelay * 1000);
     });
-    this.root.addEventListener('pointerleave', () => {
+    this.root.addEventListener('pointerleave', (e) => {
+      if (isFingerPointer(e)) return;
       clearTimeout(this._hoverT);
       this._leaveT = setTimeout(() => this.setOpen(false), UI.notebook.closeDelay * 1000);
     });
-    this.spiral.addEventListener('click', () => this.setOpen(!this.open));
+    this.spiral.addEventListener('click', (e) => {
+      if (this._fingerClick(e)) return;
+      this.setOpen(!this.open);
+    });
     this.page.addEventListener('click', (e) => {
+      if (this._fingerClick(e)) return;
       if (!this.open) return this.setOpen(true);
       const p = this.toWorld(e);
       if (p) hud.game.cameraController?.centerOn(p.x, p.z);
     });
+    this._wireFingers();
     this.page.addEventListener('wheel', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -70,6 +85,57 @@ export class Notebook {
     this.notes.addEventListener('click', () => this.hideNotes());
   }
 
+  /** Fingers / pen: tap toggles, drag moves the view, pinch zooms (notebook-touch.js). */
+  _wireFingers() {
+    this.fingers = new NotebookFingers();
+    this._fingerT = -Infinity; // performance.now() of the last finger event on the notebook
+    const act = (list) => {
+      for (const a of list) {
+        if (a.type === 'open') this.setOpen(true);
+        else if (a.type === 'close') this.setOpen(false);
+        else if (a.type === 'zoom') this.setZoom(this.zoom * a.k);
+        else if (a.type === 'pan') this.panView(a.dx, a.dy);
+      }
+    };
+    const mine = (e) => isFingerPointer(e) && this.fingers.ptrs.has(e.pointerId);
+    this.root.addEventListener('pointerdown', (e) => {
+      if (!isFingerPointer(e) || this.corner.contains(e.target)) return; // the dog-ear stays a plain button
+      this._fingerT = performance.now();
+      clearTimeout(this._hoverT);
+      clearTimeout(this._leaveT);
+      e.preventDefault();
+      try { this.root.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ }
+      act(this.fingers.down(e.pointerId, e.clientX, e.clientY, this.open));
+    });
+    this.root.addEventListener('pointermove', (e) => {
+      if (!mine(e)) return;
+      act(this.fingers.move(e.pointerId, e.clientX, e.clientY, this.open));
+    });
+    this.root.addEventListener('pointerup', (e) => {
+      if (!mine(e)) return;
+      this._fingerT = performance.now();
+      act(this.fingers.up(e.pointerId, e.clientX, e.clientY, this.open));
+    });
+    const cancel = (e) => { if (mine(e)) act(this.fingers.cancel(e.pointerId)); };
+    this.root.addEventListener('pointercancel', cancel);
+    this.root.addEventListener('lostpointercapture', cancel);
+  }
+
+  /** The click a finger / pen tap leaves behind: already handled on pointerup. */
+  _fingerClick(e) {
+    return isFingerPointer(e) || performance.now() - this._fingerT < 800;
+  }
+
+  /** Drag on the open sketch: move the view so its rectangle follows the finger (CSS px on the page). */
+  panView(dxPx, dyPx) {
+    const r = this.page.getBoundingClientRect();
+    const cam = this.hud.game.cameraController;
+    if (!r.width || !r.height || !cam?.panBy) return;
+    const v = this.window();
+    if (cam.tracking) cam.untrack(); // the finger takes the camera back (as a drag on the map does)
+    cam.panBy((dxPx / r.width) * v.w, (dyPx / r.height) * v.d);
+  }
+
   setZoom(z) {
     this.zoom = Math.max(1, Math.min(4, z));
     this.root.dataset.zoom = this.zoom.toFixed(2);
@@ -78,8 +144,37 @@ export class Notebook {
   setOpen(on) {
     if (this.open === on) return;
     this.open = on;
+    if (on) this.fit();
     this.root.classList.toggle('open', on);
     if (on) this.redraw();
+  }
+
+  /**
+   * Touch screens: the open size factor --nbk (styles/ui.css) so the open page ends FIT_GAP px above the highest
+   * bottom-right control under its column (a phone in landscape has ~200 px between the bar and the bag). 1 on
+   * desktop, with the bag on the left, or when there is room; never below NB_MIN_K. Reads layout only while open.
+   */
+  fit() {
+    let k = 1;
+    if (isTouchUI()) {
+      const r = this.root.getBoundingClientRect();
+      const s = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ut')) || this.hud.scale || 1;
+      const [ow, oh] = UI.notebook.open;
+      const left = r.right - ow * s;
+      let top = Infinity;
+      for (const e of this.hud.bottom?.children || []) { // bag, hand, stance, carry buttons (.hud-right-bottom)
+        if (!e || e.hidden) continue;
+        const b = e.getBoundingClientRect();
+        if (b.width && b.height && b.right > left && b.left < r.right) top = Math.min(top, b.top);
+      }
+      if (r.height && Number.isFinite(top)) k = Math.max(NB_MIN_K, Math.min(1, (top - FIT_GAP - r.top) / (oh * s)));
+    }
+    const v = k.toFixed(3);
+    if (v !== this._k) {
+      this._k = v;
+      if (k === 1) this.root.style.removeProperty('--nbk');
+      else this.root.style.setProperty('--nbk', v);
+    }
   }
 
   /** New mission: rebuild the cached sketch. */
@@ -128,6 +223,7 @@ export class Notebook {
   update() {
     const w = this.hud.world;
     if (!w || !this.open) return;
+    this.fit(); // a resize / rotation, or the carry buttons came up
     const v = this.window();
     if (`${v.x0.toFixed(1)},${v.z0.toFixed(1)},${this.zoom}` !== this._win) this.redraw();
     const ctx = this.ov.getContext('2d');

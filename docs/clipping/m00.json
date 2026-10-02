@@ -1,6 +1,6 @@
 {
  "mission": "m00",
- "date": "2026-09-27T18:53:52.424Z",
+ "date": "2026-10-01T16:19:36.053Z",
  "static": {
   "mission": "m00",
   "items": 29,
@@ -18,7 +18,7 @@
    "character": 8
   },
   "pairsTested": 16,
-  "ms": 75,
+  "ms": 137,
   "findings": []
  },
  "turrets": {
@@ -49,8 +49,14 @@
    {
     "id": "patrol_east",
     "t": 60,
-    "x": 49.78,
-    "z": 26.46
+    "x": 49.76,
+    "z": 26.5
+   },
+   {
+    "id": "guard_fuel",
+    "t": 120,
+    "x": 47.75,
+    "z": 29.37
    },
    {
     "id": "officer",
@@ -77,42 +83,94 @@
      "kind": "structure"
     },
     "point": {
-     "x": 35.26,
-     "y": 0.277,
-     "z": 32.211
+     "x": 35.267,
+     "y": 0.273,
+     "z": 32.214
     },
     "box": {
      "min": [
-      35.079,
-      0.225,
-      31.79
+      35.063,
+      0.2,
+      31.846
      ],
      "max": [
-      35.431,
-      0.353,
-      32.639
+      35.422,
+      0.48,
+      32.745
      ]
     },
-    "contact": 0.818,
-    "segments": 94,
-    "depth": 0.105,
-    "depthAinB": 0.105,
+    "contact": 2.806,
+    "segments": 279,
+    "depth": 0.123,
+    "depthAinB": 0.123,
     "depthBinA": 0,
-    "insideA": 182,
+    "insideA": 292,
     "insideB": 0,
     "volume": 0,
     "allowed": false,
     "reason": null,
-    "t": 55,
+    "t": 65,
     "at": {
      "x": 35.25,
-     "z": 32.24
+     "z": 32.23
     },
     "unitState": "active",
     "speed": 2.25,
     "firstT": 55,
-    "count": 2,
-    "shot": "../../../..<claude-tmp>"
+    "count": 4,
+    "shot": "docs/screenshots/clip-m00-d1.jpg"
+   },
+   {
+    "key": "m00:patrol_east|sandbags#7",
+    "a": {
+     "id": "patrol_east",
+     "type": "enemy",
+     "cat": "character",
+     "kind": "enemy",
+     "state": "active"
+    },
+    "b": {
+     "id": "sandbags#7",
+     "type": "sandbags",
+     "cat": "sandbags",
+     "kind": "structure"
+    },
+    "point": {
+     "x": 49.126,
+     "y": 0.729,
+     "z": 25.52
+    },
+    "box": {
+     "min": [
+      48.987,
+      0.162,
+      25.344
+     ],
+     "max": [
+      49.294,
+      0.877,
+      25.662
+     ]
+    },
+    "contact": 3.882,
+    "segments": 538,
+    "depth": 0.074,
+    "depthAinB": 0.069,
+    "depthBinA": 0.074,
+    "insideA": 229,
+    "insideB": 22,
+    "volume": 0.003,
+    "allowed": false,
+    "reason": null,
+    "t": 6,
+    "at": {
+     "x": 49.25,
+     "z": 25.51
+    },
+    "unitState": "active",
+    "speed": 1.8,
+    "firstT": 6,
+    "count": 1
    },
    {
     "key": "m00:greenberet|sandbags#7",
@@ -130,30 +188,30 @@
      "kind": "structure"
     },
     "point": {
-     "x": 49.212,
-     "y": 0.809,
-     "z": 25.527
+     "x": 49.206,
+     "y": 0.695,
+     "z": 25.53
     },
     "box": {
      "min": [
-      49.163,
-      0.732,
-      25.445
+      49.143,
+      0.465,
+      25.406
      ],
      "max": [
-      49.307,
+      49.29,
       0.876,
-      25.634
+      25.641
      ]
     },
-    "contact": 0.671,
-    "segments": 65,
-    "depth": 0.07,
-    "depthAinB": 0.054,
-    "depthBinA": 0.07,
-    "insideA": 6,
-    "insideB": 9,
-    "volume": 0.001,
+    "contact": 1.277,
+    "segments": 138,
+    "depth": 0.066,
+    "depthAinB": 0.066,
+    "depthBinA": 0.064,
+    "insideA": 12,
+    "insideB": 18,
+    "volume": 0.003,
     "allowed": false,
     "reason": null,
     "t": 100,
@@ -164,110 +222,6 @@
     "unitState": "active",
     "speed": 2.25,
     "firstT": 100,
-    "count": 1
-   },
-   {
-    "key": "m00:sandbags#8|sniper",
-    "a": {
-     "id": "sniper",
-     "type": "sniper",
-     "cat": "character",
-     "kind": "commando",
-     "state": "active"
-    },
-    "b": {
-     "id": "sandbags#8",
-     "type": "sandbags",
-     "cat": "sandbags",
-     "kind": "structure"
-    },
-    "point": {
-     "x": 49.191,
-     "y": 0.217,
-     "z": 34.418
-    },
-    "box": {
-     "min": [
-      49.109,
-      0.155,
-      34.342
-     ],
-     "max": [
-      49.276,
-      0.299,
-      34.536
-     ]
-    },
-    "contact": 1.341,
-    "segments": 164,
-    "depth": 0.07,
-    "depthAinB": 0.07,
-    "depthBinA": 0.022,
-    "insideA": 91,
-    "insideB": 4,
-    "volume": 0.001,
-    "allowed": false,
-    "reason": null,
-    "t": 108.5,
-    "at": {
-     "x": 49.12,
-     "z": 33.98
-    },
-    "unitState": "active",
-    "speed": 2.25,
-    "firstT": 108.5,
-    "count": 1
-   },
-   {
-    "key": "m00:bridge|sapper",
-    "a": {
-     "id": "sapper",
-     "type": "sapper",
-     "cat": "character",
-     "kind": "commando",
-     "state": "active"
-    },
-    "b": {
-     "id": "bridge",
-     "type": "bridge",
-     "cat": "bridge",
-     "kind": "structure"
-    },
-    "point": {
-     "x": 34.17,
-     "y": 0.092,
-     "z": 31.178
-    },
-    "box": {
-     "min": [
-      34.17,
-      0.067,
-      31.125
-     ],
-     "max": [
-      34.17,
-      0.12,
-      31.232
-     ]
-    },
-    "contact": 0.267,
-    "segments": 33,
-    "depth": 0.069,
-    "depthAinB": 0.069,
-    "depthBinA": 0,
-    "insideA": 158,
-    "insideB": 0,
-    "volume": 0,
-    "allowed": false,
-    "reason": null,
-    "t": 14,
-    "at": {
-     "x": 33.75,
-     "z": 31.14
-    },
-    "unitState": "active",
-    "speed": 2.25,
-    "firstT": 14,
     "count": 1
    },
    {
@@ -286,36 +240,36 @@
      "kind": "structure"
     },
     "point": {
-     "x": 49.13,
-     "y": 0.393,
-     "z": 34.444
+     "x": 49.132,
+     "y": 0.55,
+     "z": 34.435
     },
     "box": {
      "min": [
-      49.04,
-      0.151,
-      34.336
+      48.997,
+      0.149,
+      34.331
      ],
      "max": [
-      49.228,
-      0.84,
-      34.626
+      49.297,
+      0.87,
+      34.632
      ]
     },
-    "contact": 1.546,
-    "segments": 154,
-    "depth": 0.067,
-    "depthAinB": 0.067,
-    "depthBinA": 0.028,
-    "insideA": 40,
-    "insideB": 6,
-    "volume": 0.002,
+    "contact": 2.527,
+    "segments": 258,
+    "depth": 0.065,
+    "depthAinB": 0.065,
+    "depthBinA": 0.041,
+    "insideA": 61,
+    "insideB": 10,
+    "volume": 0.001,
     "allowed": false,
     "reason": null,
     "t": 6,
     "at": {
-     "x": 49.17,
-     "z": 34.15
+     "x": 49.22,
+     "z": 34.22
     },
     "unitState": "active",
     "speed": 1.8,
@@ -323,108 +277,158 @@
     "count": 1
    },
    {
-    "key": "m00:patrol_east|sandbags#7",
+    "key": "m00:sandbags#8|sniper",
     "a": {
-     "id": "patrol_east",
-     "type": "enemy",
-     "cat": "character",
-     "kind": "enemy",
-     "state": "active"
-    },
-    "b": {
-     "id": "sandbags#7",
-     "type": "sandbags",
-     "cat": "sandbags",
-     "kind": "structure"
-    },
-    "point": {
-     "x": 49.183,
-     "y": 0.837,
-     "z": 25.5
-    },
-    "box": {
-     "min": [
-      49.054,
-      0.788,
-      25.356
-     ],
-     "max": [
-      49.324,
-      0.877,
-      25.657
-     ]
-    },
-    "contact": 1.305,
-    "segments": 156,
-    "depth": 0.062,
-    "depthAinB": 0.062,
-    "depthBinA": 0.02,
-    "insideA": 49,
-    "insideB": 6,
-    "volume": 0,
-    "allowed": false,
-    "reason": null,
-    "t": 6,
-    "at": {
-     "x": 49.25,
-     "z": 25.56
-    },
-    "unitState": "active",
-    "speed": 1.8,
-    "firstT": 6,
-    "count": 1
-   },
-   {
-    "key": "m00:sandbags#7|sapper",
-    "a": {
-     "id": "sapper",
-     "type": "sapper",
+     "id": "sniper",
+     "type": "sniper",
      "cat": "character",
      "kind": "commando",
      "state": "active"
     },
     "b": {
-     "id": "sandbags#7",
+     "id": "sandbags#8",
      "type": "sandbags",
      "cat": "sandbags",
      "kind": "structure"
     },
     "point": {
-     "x": 46.078,
-     "y": 0.924,
-     "z": 25.536
+     "x": 49.189,
+     "y": 0.244,
+     "z": 34.426
     },
     "box": {
      "min": [
-      46.034,
-      0.871,
-      25.452
+      49.116,
+      0.153,
+      34.353
      ],
      "max": [
-      46.117,
-      1.003,
-      25.613
+      49.259,
+      0.299,
+      34.505
      ]
     },
-    "contact": 0.642,
-    "segments": 118,
-    "depth": 0.055,
-    "depthAinB": 0.055,
-    "depthBinA": 0.024,
-    "insideA": 32,
-    "insideB": 3,
-    "volume": 0,
+    "contact": 0.976,
+    "segments": 119,
+    "depth": 0.065,
+    "depthAinB": 0.065,
+    "depthBinA": 0.018,
+    "insideA": 42,
+    "insideB": 4,
+    "volume": 0.001,
     "allowed": false,
     "reason": null,
-    "t": 129.5,
+    "t": 108.5,
     "at": {
-     "x": 45.75,
-     "z": 25.67
+     "x": 49.12,
+     "z": 33.98
     },
     "unitState": "active",
-    "speed": 4.5,
-    "firstT": 129.5,
+    "speed": 2.25,
+    "firstT": 108.5,
     "count": 1
+   }
+  ],
+  "unitOverlaps": [
+   {
+    "key": "m00|unit:patrol_west|sapper",
+    "a": "sapper",
+    "b": "patrol_west",
+    "dist": 0.419,
+    "t": 128.5,
+    "at": {
+     "x": 46.05,
+     "z": 28.15
+    },
+    "moving": [
+     true,
+     false
+    ],
+    "states": [
+     "active",
+     "COMBAT"
+    ],
+    "n": 1
+   },
+   {
+    "key": "m00|unit:patrol_west|sniper",
+    "a": "sniper",
+    "b": "patrol_west",
+    "dist": 0.469,
+    "t": 114,
+    "at": {
+     "x": 41,
+     "z": 30.9
+    },
+    "moving": [
+     true,
+     false
+    ],
+    "states": [
+     "active",
+     "COMBAT"
+    ],
+    "n": 1
+   },
+   {
+    "key": "m00|unit:sapper|sniper",
+    "a": "sniper",
+    "b": "sapper",
+    "dist": 0.489,
+    "t": 136.5,
+    "at": {
+     "x": 46.51,
+     "z": 32.96
+    },
+    "moving": [
+     true,
+     true
+    ],
+    "states": [
+     "active",
+     "active"
+    ],
+    "n": 1
+   },
+   {
+    "key": "m00|unit:greenberet|patrol_west",
+    "a": "greenberet",
+    "b": "patrol_west",
+    "dist": 0.502,
+    "t": 113,
+    "at": {
+     "x": 41.57,
+     "z": 30.27
+    },
+    "moving": [
+     true,
+     false
+    ],
+    "states": [
+     "active",
+     "COMBAT"
+    ],
+    "n": 1
+   },
+   {
+    "key": "m00|unit:guard_fuel|sapper",
+    "a": "sapper",
+    "b": "guard_fuel",
+    "dist": 0.555,
+    "t": 20.5,
+    "at": {
+     "x": 48.19,
+     "z": 28.27
+    },
+    "moving": [
+     true,
+     true
+    ],
+    "states": [
+     "active",
+     "INVESTIGATE"
+    ],
+    "n": 1
    }
   ]
  },

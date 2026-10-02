@@ -295,7 +295,7 @@ export default {
   size: [134, 209],
   seed: 1944_0525,
   briefing: {
-    historical: 'May 1944. Overlord is ready down to the last landing craft, and Eisenhower is only waiting for the weather. The nerves on both sides of the Channel are stretched tight. New aerial photographs show four heavy guns dug into the shore near La Rivière, in the stretch of coast we have named Juno. If they are still firing on the day, they will cut the assault boats to pieces. Put them out of action and you will have written the opening line of the greatest landing in history.',
+    historical: 'May 1944. Overlord is ready down to the last landing craft, and Eisenhower waits only for the weather. New air photographs show four heavy guns dug in near La Rivière, where our beaches Gold and Juno meet. If they are still firing on the day, they will cut the assault boats to pieces.',
     text: 'You go in by boat, officer, from this corner. There are four guns, and every one of them must be silenced; not one may be left standing. Then get your men back into the boat and row out to the buoy. A great many soldiers are counting on you.',
     objectivesSummary: 'Destroy all four coastal guns, then row everyone out to the red buoy in the south-east.',
     hints: [
@@ -343,7 +343,8 @@ export default {
   ],
   // vegetation tags for the vegetation pass (docs/vegetation.md §1 M14): Normandy coast in late May
   vegetation: { region: 'normandy_coast', month: 5, dune: ['marram', 'sea_kale', 'sea_rocket'], trees: ['oak', 'ash', 'elm'],
-    shrubs: ['hawthorn', 'blackthorn', 'gorse'], meadow: ['cow_parsley', 'buttercup', 'red_campion'] },
+    shrubs: ['hawthorn', 'blackthorn', 'gorse'], meadow: ['cow_parsley', 'buttercup', 'red_campion'],
+    farmland: { crops: 'none', orchards: 0.25 } }, // bocage fringe (art/terrain/bocage.js), clear of gameplay
   structures: STRUCTURES,
   items: [],
   interactables: [],

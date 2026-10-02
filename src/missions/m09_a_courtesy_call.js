@@ -211,7 +211,7 @@ export default {
   size: [103, 122],
   seed: 1942_1020,
   briefing: {
-    historical: '20 October 1942. All along the El Alamein line the question is the same: why does Montgomery not attack? He will not move until his superiority in men and armour is overwhelming. Until that day Rommel\'s army must never be allowed to settle. Tonight you slip through the minefields at Bab el Qattara to a forward camp of the 21st Panzer Division. Lie low until first light, then tear the place apart and disappear.',
+    historical: 'October 1942. All along the Alamein line men ask when Montgomery will attack. He will not move until his lead in men and armour is overwhelming, and until then the enemy must get no rest. Tonight you cross the minefields to a forward camp of the 21st Panzer Division. Wait for first light, then wreck it and vanish.',
     text: 'Get into position round the camp before dawn, officer. And watch those Panzers: their crews sleep aboard and will roll the moment the camp wakes up. Your targets are the listening post, that is the radio hut and its aerial, the weapons store, the command post and the bunker. Once they are down, one of our lorries will come for you on the south-west side. A simple job. Good luck.',
     objectivesSummary: 'Destroy the radio hut, its aerial, the weapons store, the command post and the bunker, then board our lorry in the south-west.',
     hints: [

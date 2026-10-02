@@ -160,6 +160,12 @@ export function recipes(mirror = MIRROR) {
       { src: 'kneel_shoot', time: T.at(0.5, true) },
       { src: 'plant', bones: r.upper, time: T.at(0.45, true), w: W.k(0.85) },
     ] }],
+    // MG GUNNER at a platform MG (render/mg-mount.js): held down on one knee behind the butt (the kneeling shot's pose
+    // at mid-clip, not its stand-kneel-stand cycle), breathing; the arms are IK'd onto the gun's grips
+    ['mg_kneel', { dur: 2.4, loop: true, layers: [
+      { src: 'kneel_shoot', time: T.at(0.5, true) },
+      { add: { bone: 'spine_02', axis: 'z', deg: (τ) => 1.2 * Math.sin((τ / 2.4) * Math.PI * 2) } },
+    ] }],
     // kneel at his head (upright torso, one knee down), hook the armpits, then haul into the crouched hold
     ['drag_grab', { dur: 1.0, layers: [
       { src: 'idle', time: T.at(0) },

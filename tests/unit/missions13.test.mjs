@@ -115,7 +115,20 @@ test('m02: sealed camp — gate and raised ladder; wall walk; zones → alarm; g
   assert.ok(grid.elev[at(grid, 27.06, 26.49)] > 5, 't1 deck raised');
   const ladder = world.ladders.find((l) => l.id === 'ladder_sw');
   assert.ok(ladder && ladder.raised && !grid.links.find((l) => l.id === ladder.linkId).enabled);
-  assert.equal(findPath(grid, 23, 45, 40, 30, { role: 'sniper' }), null, 'no way in while the gate is shut and the ladder up');
+  // boom barrier (user request): walkers go round the lowered boom by the footway beside its fork rest — the camp's
+  // only way in on foot while the ladder is up; with the footway shut the palisade is sealed
+  const gdef = getMission('m02').structures.find((x) => x.id === 'gate_se'), gr = gdef.rot, mid = (gdef.w / 2 + gdef.gap[1]) / 2;
+  const fw = [gdef.x + Math.cos(gr) * mid, gdef.z + Math.sin(gr) * mid];
+  const foot = findPath(grid, 23, 45, 40, 30, { role: 'sniper' });
+  assert.ok(foot && foot.some((p) => Math.hypot(p.x - fw[0], p.z - fw[1]) < 1.2), 'on foot: round the lowered barrier by the footway');
+  assert.ok(!foot.some((p) => p.link), 'no ladder / climb on that way');
+  const shut = [];
+  for (let k = 0; k < grid.size; k++) {
+    const x = (k % grid.cols + 0.5) * grid.cell - fw[0], z = (Math.floor(k / grid.cols) + 0.5) * grid.cell - fw[1];
+    if (Math.hypot(x, z) < 1.3 && !grid.navBlock[k]) { grid.navBlock[k] = 1; shut.push(k); }
+  }
+  assert.equal(findPath(grid, 23, 45, 40, 30, { role: 'sniper' }), null, 'footway shut, boom down, ladder up: no way in');
+  for (const k of shut) grid.navBlock[k] = 0;
   assert.ok(findPath(grid, 23, 45, 40, 30, { role: 'greenberet' }), 'GB climbs the SW wall');
   applyIntendedAbilities(ctx);
   assert.ok(findPath(grid, 23, 45, 40, 30, { role: 'sniper' }), 'lowered ladder / raised barrier');
@@ -156,7 +169,8 @@ test('m02 escape (§7.5 solution 6): one double-click drives the truck from its 
 
 test('m03: dam crest deck, open W gate, fence switch, items, evac truck, zones', () => {
   const { grid, world, handle, def } = loadGrid(getMission('m03'));
-  assert.equal(grid.bridge[at(grid, 35, 31)], 1, 'crest is walkable');
+  assert.equal(grid.bridge[at(grid, 40, 22)], 1, 'crest is walkable');
+  assert.equal(Math.fround(grid.elev[at(grid, 40, 22)]), Math.fround(7.28), 'the crest is raised 7 m (the downstream face shows); units walk on top of its snowy deck at 7.28');
   assert.equal(grid.block[at(grid, 4, 92)], B.NONE, 'gate_w starts open');
   assert.equal(grid.block[at(grid, 4, 70)], B.FENCE, 'station fence');
   const sw = handle.interactables.find((i) => i.tag === 'fence_switch');

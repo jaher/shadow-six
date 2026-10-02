@@ -5,7 +5,9 @@
  *  - A7: the camo frame stays within ±8 L* of olive-800 and the diorama opening keeps the frame dark (≤ 36 L*);
  *  - S06b: the campaign tabs never sit under the map sheet (1280×720 and 400×860); on a phone the mission card
  *    never covers the (B)RIEFING / (S)TART footer, which stays on screen;
- *  - phone rows are ≥ 44 CSS px; SOUND's detail pane never covers its rows.
+ *  - phone rows are ≥ 44 CSS px; SOUND's detail pane never covers its rows;
+ *  - desktop 1080p / 1440p / 4K: the HELP folder and the open notebook keep their desktop geometry (the phone fits in
+ *    html.mk-touch never leak; tests/touch-game-flow.mjs covers the phones).
  */
 const HUD = 'window.__game.game.hud';
 
@@ -146,4 +148,39 @@ export default async function uiLayout(page, t) {
   await t.shot('ui-layout-phone-sound');
   await page.setViewportSize({ width: 1280, height: 720 });
   await page.evaluate(`${HUD}.kit.close()`);
+
+  // ---- desktop 1080p / 1440p / 4K: the phone fits (html.mk-touch: HELP fills the screen and scrolls; the open notebook
+  // shrinks above the bag) leave the desktop geometry alone: the folder is fw × 388 r, centred, the pages clip (no
+  // scroll), no touch bar; the open notebook is 183 × 215 × --u with no --nbk
+  await page.evaluate(async () => { const g = window.__game; await g.loadMission('m00'); g.start(); g.render(); });
+  for (const [w, h] of [[1920, 1080], [2560, 1440], [3840, 2160]]) {
+    await page.setViewportSize({ width: w, height: h });
+    await page.waitForTimeout(250);
+    const d = await page.evaluate(async () => {
+      const hud = window.__game.game.hud, nb = hud.notebook;
+      nb.root.style.transition = 'none';
+      nb.setOpen(true);
+      window.__game.render();
+      const r = nb.root.getBoundingClientRect(), u = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--u'));
+      const out = { touch: document.documentElement.classList.contains('mk-touch'), nb: [r.width, r.height], want: [183 * u, 215 * u], nbk: nb.root.style.getPropertyValue('--nbk') };
+      nb.setOpen(false);
+      nb.root.style.transition = '';
+      hud.help.open('controls', 0);
+      await new Promise((ok) => setTimeout(ok, 450));
+      const card = document.querySelector('.mk-host .mk-card.mk-help:not(.leaving)'), f = card.querySelector('.mk-folder').getBoundingClientRect();
+      const mr = Math.min(innerWidth / 640, innerHeight / 480), fw = innerWidth / innerHeight >= 1.6 ? 700 : 600;
+      out.folder = [f.width, f.height, f.left + f.width / 2 - innerWidth / 2];
+      out.folderWant = [fw * mr, 388 * mr, 0];
+      out.pages = [...card.querySelectorAll('.mk-page')].map((pg) => getComputedStyle(pg).overflowY);
+      out.hints = getComputedStyle(card.querySelector('.mk-hints')).display;
+      hud.kit.close();
+      return out;
+    });
+    t.log(`desktop ${w}×${h}`, JSON.stringify(d));
+    t(!d.touch, `${w}×${h}: desktop (no touch UI)`);
+    t(Math.abs(d.nb[0] - d.want[0]) < 1 && Math.abs(d.nb[1] - d.want[1]) < 1 && !d.nbk, `${w}×${h}: the open notebook keeps its desktop size (${d.nb.map(Math.round)} vs ${d.want.map(Math.round)})`);
+    t(d.folder.every((v, i) => Math.abs(v - d.folderWant[i]) < 1.5), `${w}×${h}: the HELP folder keeps its desktop geometry (${d.folder.map(Math.round)} vs ${d.folderWant.map(Math.round)})`);
+    t(d.pages.every((o) => o === 'hidden') && d.hints === 'none', `${w}×${h}: HELP pages clip and show no touch bar on desktop (${d.pages}, ${d.hints})`);
+  }
+  await page.setViewportSize({ width: 1280, height: 720 });
 }

@@ -68,6 +68,7 @@ uniform float rippleTexel, reflDistort, fadeDepth, envRot, night, shoreFoam, foa
 uniform vec2 flowDir; uniform int dbg;
 uniform vec3 plPos[4], plCol[4]; uniform int plCount;
 uniform vec3 sunDir, sunColor, skyIrr, absorb, scatterColor, foamColor, fogColor, iceColor;
+uniform vec3 iceFree[4]; // (x, z, radius m): open water kept free of the shore ice (M3: where the dam's water lands)
 vec3 worldAt(vec2 uv, float d){ vec4 v = projInv*vec4(uv*2.0-1.0, d*2.0-1.0, 1.0); v /= v.w; return (camWorld*v).xyz; }
 vec3 envLookup(vec3 r){
   float a = atan(r.z, r.x) + envRot;
@@ -131,7 +132,8 @@ void main(){
     vec2 edge = min(ruv, 1.0 - ruv);
     float win = smoothstep(0.0, 0.05, min(edge.x, edge.y));
     slope += clamp(vec2(hx, hz)/(2.0*cell), -1.5, 1.5)*win;
-    rFoam = texture(rippleTex, ruv).b*win;
+    vec4 rp = texture(rippleTex, ruv);
+    rFoam = (rp.b + rp.a*1.2)*win; // wash / splash foam + boat wake-crest lines (the Kelvin V arms)
   }
   // surf slope from the analytic shoaling wave (finite difference across the depth field)
   if (surfAmp > 0.0) {
@@ -283,6 +285,7 @@ void main(){
     float big = texture(foamTex, vXZ/23.0).g, small = texture(foamTex, vXZ/4.3).g;
     float iw = frozen ? 4.0 : iceWidth;
     float e = frozen ? 0.0 : shoreD + (big - 0.5)*iceWidth*1.1 + (small - 0.5)*0.6;
+    for (int k = 0; k < 4; k++) { vec3 f = iceFree[k]; if (f.z > 0.0) e += 12.0*(1.0 - smoothstep(f.z*0.55, f.z, distance(vXZ, f.xy) + (small - 0.5)*1.5)); }
     // floes: the outer third breaks into plates (cell pattern of the mask texture) before open water
     float floe = smoothstep(0.35, 0.55, texture(foamTex, vXZ/7.7).g + 0.35 - 0.7*smoothstep(iw*0.65, iw*1.25, e));
     float ice = frozen ? 1.0 : max(1.0 - smoothstep(iw*0.62 - 0.06, iw*0.62 + 0.06, e), floe*(1.0 - smoothstep(iw*1.2, iw*1.3, e)));
@@ -300,6 +303,9 @@ void main(){
     float Fi = 0.04 + 0.96*pow(1.0 - max(dot(iceN, V), 0.0), 5.0);
     iceLit += envLookup(reflect(-V, iceN))*Fi*(1.0 - snowCover);
     iceLit += sunColor*visS*ggx(max(dot(iceN, H), 0.0), 0.08)*Fi*0.25*(1.0 - snowCover)*max(dot(iceN, L), 0.0);
+    // the shelf ends where the bank rises out of the water (the per-pixel bed depth: the terrain's smooth contour),
+    // not at the body's cell mask, whose 0.5 m steps would show as a sawtooth rim where the bank is low and flat
+    ice *= smoothstep(0.0, 0.03, col0 + vSurfFoam*0.02);
     col = mix(col, iceLit, ice); iceA = ice;
   }
   // ---------------------------------------------------------------- soft shoreline + fog

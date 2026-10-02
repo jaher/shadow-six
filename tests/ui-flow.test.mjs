@@ -120,7 +120,7 @@ export default async function uiFlow(page, t) {
     return { top, ids, after, back: hud.options.voice, same: window.__game.game.options === hud.options };
   });
   t.log(JSON.stringify(o).slice(0, 300));
-  t(['SOUND VOLUME', 'VIDEO OPTIONS', 'GAME PREFERENCES', 'CONTROLS', 'ACCESSIBILITY'].every((k) => o.top.includes(k)), 'options top level');
+  t(['SOUND VOLUME', 'VIDEO OPTIONS', 'GAME PREFERENCES', 'CONTROLS', 'ACCESSIBILITY', 'CLEAR CACHED GAME DATA'].every((k) => o.top.includes(k)), 'options top level');
   t(['halt', 'voice', 'warnings'].every((k) => o.ids.includes(k)), 'the original three game preferences');
   t.equal(o.after, 'laconic', 'COMMANDOS: verbose → laconic');
   t.equal(o.back, 'verbose');

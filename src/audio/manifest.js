@@ -56,6 +56,10 @@ const ROWS = [
   [['debris_rain'], 'sfx', 'rustle', 0.5],
   [['fire_loop'], 'sfx', 'crackle', 0.35, { loop: true }],
   [['flood_rush'], 'sfx', 'noise_loop', 0.5, { loop: true }],
+  // water falling down the M3 dam: a positional ambience layer at its foot (ambienceFor `at`, stopped by `until`)
+  [['waterfall'], 'ambience', 'noise_loop', 1.0, { loop: true }],
+  // its layers: the low roar of the plunge (the surf sample pitched down) and the tailwater rushing away downstream
+  [['waterfall_roar', 'rapids'], 'ambience', 'noise_loop', 1.0, { loop: true }],
   // Devices
   [['decoy_beep'], 'sfx', 'beep', 0.45],
   [['electric_hum'], 'sfx', 'hum', 0.2, { loop: true }],
@@ -135,7 +139,7 @@ const ALIASES = {
   barrier_lift: ['k_creak'], gate_smash: ['gate_splinter'], gate_hinge_snap: ['k_metal_latch', 'k_hit_metal'],
   gate_thud: ['gate_debris', 'k_thud_wood'], gate_thud_metal: ['k_hit_metal', 'metal_small'], lock_gate: ['door_metal'], truck_idle: ['truck_engine'], truck_drive: ['truck_engine'],
   tank_engine: ['tank_engine'], tank_tracks: ['tank_engine'], boat_engine: ['truck_engine'], dog_bark: ['dog'], dog_growl: ['dog'],
-  wind: ['wind_snow'], wind_snow: ['wind_snow'], wind_desert: ['wind_desert'], surf: ['surf'], river: ['river'],
+  wind: ['wind_snow'], wind_snow: ['wind_snow'], wind_desert: ['wind_desert'], surf: ['surf'], river: ['river'], waterfall: ['river'], waterfall_roar: ['surf'], rapids: ['river'],
   birds: ['birds'], crickets: ['crickets'], artillery_far: ['artillery_period'],
   ui_click: ['k_ui_click'], ui_hover: ['k_ui_tick'], cursor_forbidden: ['k_ui_error'], knapsack_open: ['k_book_open', 'k_cloth'],
   notebook_flip: ['k_page'], pencil_scratch: ['k_ui_scratch'], stamp: ['k_stamp'], pause_on: ['k_ui_toggle'], pause_off: ['k_ui_switch'],
@@ -161,6 +165,8 @@ const CLASS_RULES = [
   [/(_shot$|^smg_burst|^mp40_burst|^harpoon_fire|^sniper_bolt)/, 'small'],
   [/(engine|^truck_|tank_tracks|motorbike|plane|autogyro|train|horn|brakes|turret|torpedo|cable_car|runover)/, 'vehicle'],
   [/^dog/, 'animal'],
+  [/^waterfall/, 'small'], // a steady roar heard across the gorge (ref 25 m)
+  [/^rapids/, 'vehicle'], // the tailwater: heard along the bank (ref 12 m)
 ];
 /** Distance class name for an SFX id (voices use 'voice'). */
 export function classOf(id) {

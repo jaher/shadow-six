@@ -8,12 +8,18 @@
 import { saveJpeg } from './bodies-physics.test.mjs';
 import { obbOverlap } from '../src/physics/debris.js';
 
+/** Loads M2 four times (fast / escape / close-up / slow rams): more than the runner's default 90 s on a busy machine. */
+export const timeout = 360_000;
+
 /** Page side: stage M2 (depot down, every commando in the truck, guards out of the way) and ram the gate. */
-async function ramScene(page, { slow = false, strip = false, close = false, exit = false } = {}) {
-  return page.evaluate(async ({ slow, strip, close, exit }) => {
+async function ramScene(page, { slow = false, strip = false, close = false, exit = false, plank = true } = {}) {
+  return page.evaluate(async ({ slow, strip, close, exit, plank }) => {
     const g = window.__game, G = g.game;
     const H = await import('/tests/bodies-page.mjs');
-    await g.loadMission('m02'); g.start(); await G.mapHandle?.ready;
+    // M2's gate_se is a boom barrier; the plank runs swap in the two-leaf plank gate on the same spot
+    const { getMission } = await import('/src/missions/index.js'), { m2PlankDef } = await import('/tests/m2-plank-def.mjs');
+    await g.loadMission(plank ? m2PlankDef(getMission('m02')) : 'm02');
+    g.start(); await G.mapHandle?.ready;
     g.setPreset('high');
     const W = G.world, out = { phys: !W.physics.isNull };
     const gate = W.interactables.find((i) => i.tag === 'gate_se'), truck = W.vehicles.find((v) => v.tag === 'truck');
@@ -21,8 +27,10 @@ async function ramScene(page, { slow = false, strip = false, close = false, exit
     for (const e of W.enemies) H.freeze(e);
     // staging: no reinforcements (the crash is heard in the RINT zone; squads would come for the parked truck)
     if (!exit && W.alarm) W.alarm.fireEvent = () => {};
-    // the escape run blows the depot first (o1); the others leave it (its alarm would send squads at the parked truck)
-    if (exit) for (const id of ['depot_a', 'depot_b']) W.interactables.find((i) => i.tag === id)?.takeDamage(1e6, null, 'explosion');
+    // the escape run blows the depot first (o1) and, as the §7.5 solution's step 5, the E-corner charge razes barr_out
+    // (through the boom barrier's open bars and footway its squad would see the truck coming); the others leave it
+    // (its alarm would send squads at the parked truck)
+    if (exit) for (const id of ['depot_a', 'depot_b', 'barr_out']) W.interactables.find((i) => i.tag === id)?.takeDamage(1e6, null, 'explosion');
     // its alarm squads are frozen like the garrison (this checks the smash and the drive out, not a firefight: whether
     // ~30 rounds land on the truck before it leaves the map is a coin toss of squad timing and the hull's length)
     const still = () => { if (exit) for (const e of W.enemies) if (!e.brain?.frozen) H.freeze(e); };
@@ -56,6 +64,7 @@ async function ramScene(page, { slow = false, strip = false, close = false, exit
     out.ev = ev.filter((e) => e.n !== 'gate:thud').map((e) => [e.n, +(e.t - (smashAt ?? 0)).toFixed(2), e.outcome]);
     out.thuds = ev.filter((e) => e.n === 'gate:thud').length;
     out.destroyed = gate.destroyed; out.state = G.state;
+    out.loose = pg ? pg.bodies.filter((b) => !b.fixed).map((b) => ({ p: b.pieces.join('+'), at: b.pose.slice(0, 3).map((v) => +v.toFixed(2)), hinged: !!b.hinged, t: +b.t.toFixed(2), topple: b.topple ?? null, still: b.still, slow: b.slow, jamT: b.jamT ?? 0, up: W.physics.gates._upright(pg, b), v: +Math.hypot(...Object.values(b.body.linvel())).toFixed(3), w: +Math.hypot(...Object.values(b.body.angvel())).toFixed(3) })) : [];
     out.bodies = pg ? pg.bodies.length : 0; out.hinges = pg?.hinges ?? []; out.frozen = pg ? pg.bodies.every((b) => b.fixed) : null;
     out.peakSpeed = maxSpeed.length ? Math.max(...maxSpeed) : 0;
     const D = await import('/src/physics/debris.js');
@@ -83,7 +92,7 @@ async function ramScene(page, { slow = false, strip = false, close = false, exit
     out.won = ev.some((e) => e.n === 'mission:won');
     if (close) { g.centerOn(gate.x + 3, gate.z + 3.5); G.render(0, 1); out.close = G.renderer.renderer.domElement.toDataURL('image/jpeg', 0.88); }
     return out;
-  }, { slow, strip, close, exit });
+  }, { slow, strip, close, exit, plank });
 }
 
 export default async function gateSmash(page, t) {
@@ -103,9 +112,9 @@ export default async function gateSmash(page, t) {
   t.equal(r.gateBlocked, 0, 'the gap is passable (gate cells clear)');
   t.ok(r.truck.past > 3, `the truck drove on through the gap (${r.truck.past.toFixed(1)} m past)`);
   // the real escape: one double-click from the start drives through the gate and out along the T4 road
-  const x = await ramScene(page, { exit: true });
+  const x = await ramScene(page, { exit: true, plank: false }); // the real M2: the boom barrier
   t.log('escape', JSON.stringify({ ev: x.ev, state: x.state, smash: x.smash?.outcome }));
-  t.ok(x.destroyed && x.won, `the truck smashes through and the mission completes (${x.state})`);
+  t.ok(x.destroyed && x.won && x.smash?.kind === 'boom', `the truck smashes through the boom barrier and the mission completes (${x.state})`);
   // no debris interpenetration after settle: pieces vs pieces, the ground, walls
   let worst = 0;
   for (let i = 0; i < r.boxes.length; i++) for (let j = i + 1; j < r.boxes.length; j++) {

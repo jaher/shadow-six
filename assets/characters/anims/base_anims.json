@@ -362,50 +362,6 @@
   "loop": true,
   "duration": 0.5
  },
- "crawl_unarmed": {
-  "source": "procedural keyframes (tools/characters/prone)",
-  "license": "CC0 (project-authored)",
-  "loop": true,
-  "loco": true,
-  "prone": true,
-  "groundSpeed": 0.9,
-  "strokesPerCycle": 2,
-  "stroke": 0.405,
-  "duty": 0.6,
-  "duration": 0.9,
-  "contacts": {
-   "el": "11 11 11 11 11 11 11 11 11 00 00 00 00 00 11 11 11 11 11 11 11 11 00 00 00 00 00 11",
-   "ft": "01 01 01 01 01 01 01 01 01 00 00 00 00 00 10 10 10 10 10 10 10 10 00 00 00 00 00 01"
-  }
- },
- "crawl_knife": {
-  "source": "procedural keyframes (tools/characters/prone)",
-  "license": "CC0 (project-authored)",
-  "loop": true,
-  "loco": true,
-  "prone": true,
-  "groundSpeed": 0.9,
-  "strokesPerCycle": 2,
-  "stroke": 0.405,
-  "duty": 0.6,
-  "hold": "crawl",
-  "duration": 0.9,
-  "contacts": {
-   "el": "11 11 11 11 11 11 11 11 11 00 00 00 00 00 11 11 11 11 11 11 11 11 00 00 00 00 00 11",
-   "ft": "01 01 01 01 01 01 01 01 01 00 00 00 00 00 10 10 10 10 10 10 10 10 00 00 00 00 00 01"
-  }
- },
- "crawl_idle_unarmed": {
-  "source": "procedural keyframes (tools/characters/prone)",
-  "license": "CC0 (project-authored)",
-  "loop": true,
-  "prone": true,
-  "duration": 8,
-  "contacts": {
-   "el": "11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11",
-   "ft": "11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11"
-  }
- },
  "prone_aim": {
   "source": "procedural keyframes (tools/characters/prone)",
   "license": "CC0 (project-authored)",
@@ -446,21 +402,12 @@
   "hold": "prone",
   "duration": 0.5
  },
- "prone_turn_l": {
+ "dead_prone": {
   "source": "procedural keyframes (tools/characters/prone)",
   "license": "CC0 (project-authored)",
   "loop": true,
   "prone": true,
-  "hold": "crawl",
-  "duration": 0.6
- },
- "prone_turn_r": {
-  "source": "procedural keyframes (tools/characters/prone)",
-  "license": "CC0 (project-authored)",
-  "loop": true,
-  "prone": true,
-  "hold": "crawl",
-  "duration": 0.6
+  "duration": 0.5
  },
  "crawl": {
   "source": "procedural keyframes (tools/characters/prone)",
@@ -475,7 +422,40 @@
   "hold": "crawl",
   "duration": 0.9,
   "contacts": {
-   "el": "11 11 11 11 11 11 11 11 11 00 00 00 00 00 11 11 11 11 11 11 11 11 00 00 00 00 00 11",
+   "el": "10 10 10 10 10 10 10 10 10 10 10 10 00 01 01 01 01 01 01 01 01 01 01 01 01 00 10 10",
+   "ft": "01 01 01 01 01 01 01 01 01 00 00 00 00 00 10 10 10 10 10 10 10 10 00 00 00 00 00 01"
+  }
+ },
+ "crawl_unarmed": {
+  "source": "procedural keyframes (tools/characters/prone)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "loco": true,
+  "prone": true,
+  "groundSpeed": 0.9,
+  "strokesPerCycle": 2,
+  "stroke": 0.405,
+  "duty": 0.6,
+  "duration": 0.9,
+  "contacts": {
+   "el": "10 10 10 10 10 10 10 10 10 10 10 10 00 01 01 01 01 01 01 01 01 01 01 01 01 00 10 10",
+   "ft": "01 01 01 01 01 01 01 01 01 00 00 00 00 00 10 10 10 10 10 10 10 10 00 00 00 00 00 01"
+  }
+ },
+ "crawl_knife": {
+  "source": "procedural keyframes (tools/characters/prone)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "loco": true,
+  "prone": true,
+  "groundSpeed": 0.9,
+  "strokesPerCycle": 2,
+  "stroke": 0.405,
+  "duty": 0.6,
+  "hold": "crawl",
+  "duration": 0.9,
+  "contacts": {
+   "el": "10 10 10 10 10 10 10 10 10 10 10 10 00 01 01 01 01 01 01 01 01 01 01 01 01 00 10 10",
    "ft": "01 01 01 01 01 01 01 01 01 00 00 00 00 00 10 10 10 10 10 10 10 10 00 00 00 00 00 01"
   }
  },
@@ -491,6 +471,17 @@
    "ft": "11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11"
   }
  },
+ "crawl_idle_unarmed": {
+  "source": "procedural keyframes (tools/characters/prone)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "prone": true,
+  "duration": 8,
+  "contacts": {
+   "el": "11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11",
+   "ft": "11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11 11"
+  }
+ },
  "go_prone": {
   "source": "procedural keyframes (tools/characters/prone)",
   "license": "CC0 (project-authored)",
@@ -498,7 +489,18 @@
   "transition": true,
   "prone": true,
   "next": "crawl_idle",
-  "duration": 0.5
+  "phases": [
+   0,
+   0.06,
+   0.14,
+   0.27,
+   0.42,
+   0.5
+  ],
+  "duration": 0.5,
+  "contacts": {
+   "hd": "00 00 00 00 00 00 00 22 99 99 99 99 99 66 00 00"
+  }
  },
  "get_up": {
   "source": "procedural keyframes (tools/characters/prone)",
@@ -507,7 +509,18 @@
   "transition": true,
   "prone": true,
   "next": "idle",
-  "duration": 0.6
+  "phases": [
+   0,
+   0.1,
+   0.25,
+   0.37,
+   0.47,
+   0.6
+  ],
+  "duration": 0.6,
+  "contacts": {
+   "hd": "00 00 11 99 99 99 99 99 66 00 00 00 00 00 00 00 00 00 00"
+  }
  },
  "die_prone": {
   "source": "procedural keyframes (tools/characters/prone)",
@@ -517,11 +530,20 @@
   "next": "dead_prone",
   "duration": 0.9
  },
- "dead_prone": {
+ "prone_turn_l": {
   "source": "procedural keyframes (tools/characters/prone)",
   "license": "CC0 (project-authored)",
   "loop": true,
   "prone": true,
-  "duration": 0.5
+  "hold": "crawl",
+  "duration": 0.6
+ },
+ "prone_turn_r": {
+  "source": "procedural keyframes (tools/characters/prone)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "prone": true,
+  "hold": "crawl",
+  "duration": 0.6
  }
 }

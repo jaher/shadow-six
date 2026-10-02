@@ -17,6 +17,7 @@ import * as THREE from 'three';
 import { getMaterial } from './materials.js';
 import { B, T } from '../world/grid.js';
 import { PROP_TYPES, PROP_DEFAULTS, LINEAR_PROPS } from './props.js';
+import { buildAccessPlatform, accessPlatformFootprints } from './access-platform.js';
 import { makeFlag } from './flags.js';
 import { libraryVisual, libraryHinted } from './building-props.js';
 
@@ -66,11 +67,15 @@ export const EXTRA_PROP_DEFAULTS = {
   mine: { w: 0.5, d: 0.5, h: 0, block: 0, hidden: true }, // invisible mine marker (logic: set-piece minefield)
   // M7: the conning tower of a moored Type VII (B.HIGH; the hull itself is `battleship` variant `uboat_docked`)
   uboat_tower: { w: 5, d: 2.4, h: 4, block: H, mat: 'greyPaint', kind: 'uboatTower' },
+  // M2: timber access platform + stair inside the river wall (art/access-platform.js): walkable deck, graded stair
+  timber_platform: { w: 2.2, d: 1.4, h: 2.2, block: 0, mat: 'planks', kind: 'platform' },
 };
 
 export const EXTRA_PROP_TYPES = Object.keys(EXTRA_PROP_DEFAULTS);
 const resolve = (t) => (EXTRA_PROP_DEFAULTS[t]?.alias ? EXTRA_PROP_DEFAULTS[t].alias : t);
 export const isExtraProp = (t) => !!EXTRA_PROP_DEFAULTS[t];
+/** A walkable platform (deck + stair men climb onto: `timber_platform`): never a body-clearance solid. */
+export const isPlatformProp = (t) => EXTRA_PROP_DEFAULTS[t]?.kind === 'platform';
 
 // catalogue registration (backwards compatible: props.js logic untouched)
 for (const t of EXTRA_PROP_TYPES) {
@@ -484,13 +489,14 @@ export function buildExtraProp(type, params = {}, ctx = {}) {
   const x = params.x ?? 0, z = params.z ?? 0, rot = params.rot ?? 0;
   const group = placed(x, z, rot);
   group.name = `prop:${type}${params.id ? ':' + params.id : ''}`;
-  group.add(meshFor(resolve(type), p));
+  const plat = base.kind === 'platform';
+  group.add(plat ? buildAccessPlatform(p) : meshFor(resolve(type), p));
   if (params.flag) { // garrison flag (design-spec §2.4 / §10.6) beside the placeholder, as props.js does
     const f = makeFlag({ pole: true, h: Math.max(5, (p.h ?? 3) + 2.5), theater: ctx.theater });
     f.position.set((p.w ?? 4) / 2 + 0.9, 0, (p.d ?? 4) / 2 - 0.2);
     group.add(f);
   }
-  const footprints = footprintsFor(resolve(type), p, x, z, rot);
+  const footprints = plat ? accessPlatformFootprints(p, x, z, rot) : footprintsFor(resolve(type), p, x, z, rot);
   let interactables;
   if (params.destructible) {
     const [lx, lz] = anchor(p, p.targetAt);

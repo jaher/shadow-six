@@ -7,6 +7,10 @@
  *     red forbidden overlay when `input.cursor === 'forbidden'`;
  *  3. hover context with men selected: activation (operable thing), climbing pick (GB over a climbable), move.
  * Also shows the 0.6 s twin-star destination sparkle for 'ui:move-marker'.
+ * The sniper scope is a live 2× magnifier (render/scope-magnifier.js draws the world into the glass right after
+ * the frame, from `lensState()`); this layer then swaps the scope sprite for the clear ring + the reticle and the
+ * range read-out. The reticle is always dark; no shot shows as a dark circle-and-slash mark, greyed "NO SHOT" range
+ * text and a dimmed, desaturated glass. Without WebGL the plain sprite stays.
  * @module ui/cursor
  */
 
@@ -15,7 +19,23 @@ import { el } from './dom.js';
 import { CURSORS, FORBIDDEN, SPARKLE, cursorArt, spriteFor } from './cursor-sprites.js';
 import { iconEntry, iconHTML } from './icon-art.js';
 import { UI } from './ui-config.js';
+import { boardingHint } from '../abilities/drive.js';
+import { glassRadius } from '../render/scope-magnifier.js';
 
+/** Scope reticle (88-unit box, glass r 36): BEL's three heavy posts, a fine cross with mil-dots and holdover marks.
+ *  Always near-black like an etched optical reticle (never tinted by the shot state; user request 2026-09-30). */
+export const RETICLE_INK = '#0d0e0c';
+const RETICLE = (() => {
+  const c = RETICLE_INK;
+  let d = '';
+  for (const k of [-10, -5, 5, 10]) d += `<circle cx="${44 + k}" cy="44" r="0.75"/><circle cx="44" cy="${44 + k}" r="0.75"/>`;
+  const marks = [[49, 3], [54, 2.2], [58, 1.5]].map(([y, w]) => `<path d="M${44 - w} ${y}h${2 * w}"/>`).join('');
+  return `<svg class="ret" viewBox="0 0 88 88" xmlns="http://www.w3.org/2000/svg" fill="${c}" stroke="${c}">`
+    + `<path d="M8 44h22M58 44h22M44 58v22" stroke-width="2.6" stroke-linecap="butt"/>`
+    + `<path d="M30 44h28M44 8v50" stroke-width="0.7"/><g stroke-width="0.6">${marks}</g><g stroke="none">${d}<circle cx="44" cy="44" r="0.9"/></g>`
+    // no shot: a small dark circle-and-slash etched in the lower-right of the glass (shown by .bad only)
+    + `<g class="ns" fill="none" stroke-width="1.3"><circle cx="63" cy="63" r="4.2"/><path d="M60 66l6-6"/></g></svg>`;
+})();
 const isView = (t) => !!t && (t.tagName === 'CANVAS' && !!t.closest?.('#view'));
 
 export class CursorLayer {
@@ -31,6 +51,8 @@ export class CursorLayer {
     this.pos = { x: -1, y: -1, over: false };
     this.shift = false;
     this.current = 'arrow';
+    this.lens = null; // scope magnifier DOM (ring, reticle, range), built on first use
+    this._pre = null; // resolve() result computed for the magnifier earlier in this frame
     this._on(window, 'pointermove', (e) => {
       this.pos = { x: e.clientX, y: e.clientY, over: isView(e.target) };
     }, true);
@@ -139,13 +161,58 @@ export class CursorLayer {
     const hover = this.pick((q) => q.kind === 'interactable' || q.kind === 'vehicle');
     if (hover) {
       if (hover.climbable || hover.type === 'climbable') return sel.some((c) => c.role === 'greenberet') ? { id: 'climb' } : { id: 'climb', forbidden: true };
+      // a vehicle nobody selected may get into (the Marine must board the raft first, full, crewed): refused cursor
+      if (hover.kind === 'vehicle') { const h = boardingHint(hover, sel, w); return { id: 'activate', forbidden: !!h && !h.ok }; }
       return { id: 'activate' };
     }
     return { id: 'move' };
   }
 
+  /**
+   * Scope magnifier input for this frame (game.render calls it right after the world frame, before the HUD
+   * update): null unless the sniper scope cursor is up over the game view. Valid shot → the enemy under the
+   * cursor is passed for the highlight. Touch (long-press aim) only needs `pos` set, like the pointer.
+   * @returns {{x:number, y:number, radius:number, bad:boolean, target:any, time:number, sway:boolean, range:number|null}|null}
+   */
+  lensState() {
+    const r = (this._pre = this.resolve());
+    if (r.id !== 'scope' || r.native) return (this._lens = null);
+    const input = this.hud.game.input, tg = input?.targeting;
+    let target = null;
+    try { target = tg ? input.resolveTarget?.(tg.def, this.pos.x, this.pos.y, tg.commando) || null : null; } catch { target = null; }
+    if (target && target.kind !== 'enemy') target = null;
+    const c = tg?.commando;
+    const gp = target || this.hud.game.cameraController?.screenToGround?.(this.pos.x, this.pos.y);
+    const range = c && gp ? Math.hypot(gp.x - c.x, gp.z - c.z) : null;
+    return (this._lens = {
+      x: this.pos.x, y: this.pos.y, radius: glassRadius(this.hud.scale || 1), bad: !!r.forbidden, target, range,
+      time: this.hud.clock || 0, sway: !this.hud.kit?.reducedMotion,
+    });
+  }
+
+  /**
+   * Aim point from a non-mouse source (touch long-press aim, gamepad): the scope, its magnifier and the hover
+   * cursors all read `pos`, so this is the whole API. @param {number} x client px @param {number} y client px
+   */
+  setAim(x, y, over = true) {
+    this.pos = { x, y, over: !!over };
+  }
+
+  /** Lens DOM: the clear scope ring, the reticle and the range read-out (shown while the magnifier draws). */
+  _lensDom() {
+    const s = this.hud.scale || 1;
+    if (this.lens?.scale === s) return this.lens;
+    this.lens?.root.remove(); // HUD scale changed: rebuild for the right ring srcset
+    const root = el('div', 'lens', this.root);
+    root.innerHTML = (iconHTML('cursor/scope.ring', { scale: s }) || '') + RETICLE;
+    const rng = el('div', 'rng', root);
+    this.lens = { root, rng, text: '', scale: s };
+    return this.lens;
+  }
+
   update() {
-    const r = this.resolve();
+    const r = this._pre || this.resolve();
+    this._pre = null;
     const show = !r.native;
     this.root.hidden = !show;
     document.body.classList.toggle('ui-softcursor', show);
@@ -158,9 +225,28 @@ export class CursorLayer {
       this.root.classList.toggle('bad', !!r.forbidden);
       this.forb.hidden = !r.forbidden || scope; // the scope turns red instead
       this.root.classList.toggle('blink', !!r.blink);
+      this._lensUpdate(scope);
       this.root.style.transform = `translate(${this.pos.x}px, ${this.pos.y}px)`;
-    } else this.current = 'arrow';
+    } else {
+      this.current = 'arrow';
+      this._lensUpdate(false);
+    }
     this._markers();
+  }
+
+  /** Magnifier on: ring + reticle replace the opaque scope sprite; range / NO SHOT read-out. */
+  _lensUpdate(scope) {
+    const L = this._lens, on = !!(scope && L && this.hud.game.scopeMagnifier?.stats?.drawn);
+    this.root.classList.toggle('lens', on);
+    if (!on) {
+      if (this.lens) this.lens.root.hidden = true;
+      return;
+    }
+    const d = this._lensDom();
+    d.root.hidden = false;
+    const m = L.range == null ? '' : `${Math.round(L.range)} m`;
+    const text = L.bad && L.target ? `NO SHOT${m ? ` · ${m}` : ''}` : m;
+    if (text !== d.text) d.rng.textContent = d.text = text;
   }
 
   /** Show sprite `id`: the rendered cursor (+ its blink / out-of-range frame), else the SVG sketch. */

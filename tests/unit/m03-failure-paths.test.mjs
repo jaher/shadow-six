@@ -5,7 +5,7 @@
  *  (a) the Diver RUNNING to the raft at (64,45) is challenged by e17 across the river. When he then boards, e17
  *      (standing in z_south) goes to COMBAT: RINT, siren, squads. CRAWLING there is unseen, with no alarm.
  *  (b) the bunker blast (step 6) breaks the Spy's Distract on e18, and e18 and the camp walkers converge on the
- *      dam. A Sapper still crawling on the crest ~17 m from the blast is shot; one who already left it is not.
+ *      dam. A Sapper still crawling on the (raised) crest ~24 m from the blast is shot; one who already left it is not.
  *  (c) the Spy injecting e18 at the N gate right after leaving e17 is witnessed (e17 in the review, p5 here —
  *      timing decides who): COMBAT, alarm, the Spy dies.
  *      Walking past e18 in uniform (step 4) raises nothing.
@@ -70,8 +70,10 @@ for (const where of ['crest', 'off']) {
     spy.disguised = true;
     s.run(1);
     assert.ok(e18.brain.distractBy(spy), 'the Spy holds e18 in Distract');
-    const [sx, sz] = where === 'crest' ? [28, 37] : [52, 15]; // crest: ~17 m from the charge; off: the N road
+    // crest: its W end (raised 7 m), ~24 m from the charge; off: the N road to the truck
+    const [sx, sz] = where === 'crest' ? [30.2, 28.6] : [60, 8];
     place(sap, sx, sz);
+    sap.y = w.grid.elevAt(sx, sz);
     sap.issue({ type: 'stance', stance: 'crawl' });
     s.run(1);
     const hits = [];

@@ -64,12 +64,56 @@ test('crawl: elbows / forearms within 3 cm of the ground while planted, no skate
   }
 });
 
+test('crawl: elbows ALTERNATE (contralateral leopard crawl) - forward peaks half a cycle apart, never pulling or reaching together', () => {
+  // user: "when crawling alternate between left / right arm, don't use both arms". Per cycle, each elbow's forward
+  // travel (relative to its shoulder) peaks once, the two peaks ~half a cycle apart; the planted (pulling) runs never
+  // overlap; both forearms never swing forward at once; the knee drawn up at an elbow's catch is the opposite one;
+  // and planted contacts (elbows, pushing boot) move with the ground (no slide).
+  for (const n of ['crawl', 'crawl_unarmed', 'crawl_knife']) {
+    const c = clipOf(n), m = meta[n], N = 91, T = c.duration, v = m.groundSpeed, dt = T / (N - 1);
+    const fwd = { l: [], r: [] }, wz = { l: [], r: [] }, knee = { l: [], r: [] }, pl = { l: [], r: [] }, foot = { l: [], r: [] };
+    for (let f = 0; f < N; f++) {
+      const t = f * dt; poseAt(c, Math.min(t, T - 1e-4));
+      for (const s of ['l', 'r']) {
+        const e = wp('lowerarm_' + s);
+        fwd[s].push(e.z - wp('upperarm_' + s).z); wz[s].push(e.z + v * t);
+        knee[s].push(wp('calf_' + s).z - wp('pelvis').z);
+        pl[s].push(planted(m, 'el', f, N, s));
+        foot[s].push({ p: wp('foot_' + s).add(new THREE.Vector3(0, 0, v * t)), pl: planted(m, 'ft', f, N, s) });
+      }
+    }
+    const peak = (a) => a.slice(0, N - 1).reduce((bi, x, i, arr) => (x > arr[bi] ? i : bi), 0);
+    const pL = peak(fwd.l), pR = peak(fwd.r), off = Math.abs(pL - pR) / (N - 1), d = Math.min(off, 1 - off);
+    assert.ok(Math.abs(d - 0.5) < 0.1, `${n}: L / R elbow forward peaks ${(pL * dt).toFixed(2)} / ${(pR * dt).toFixed(2)} s, offset ${d.toFixed(2)} cycle (want ~0.5)`);
+    const span = (s) => Math.max(...fwd[s]) - Math.min(...fwd[s]);
+    assert.ok(span('l') > 0.18 && span('r') > 0.18, `${n}: each elbow strokes (travel ${span('l').toFixed(2)} / ${span('r').toFixed(2)} m)`);
+    let both = 0, swing = 0;
+    for (let f = 0; f < N - 1; f++) {
+      if (pl.l[f] && pl.r[f]) both++;
+      const sl = (wz.l[f + 1] - wz.l[f]) / dt, sr = (wz.r[f + 1] - wz.r[f]) / dt;
+      if (sl > 0.5 * v && sr > 0.5 * v) swing++;
+    }
+    assert.ok(both <= 0.08 * (N - 1), `${n}: both elbows planted (pulling) together in ${both} / ${N - 1} samples`);
+    assert.equal(swing, 0, `${n}: both forearms swinging forward together in ${swing} samples`);
+    assert.ok(pl.l.some(Boolean) && pl.r.some(Boolean) && pl.l.some((x) => !x) && pl.r.some((x) => !x), n + ': each elbow plants and lifts');
+    // contralateral: at the left elbow's catch the RIGHT knee is the drawn-up one, and vice versa
+    assert.ok(knee.r[pL] > knee.l[pL] + 0.1 && knee.l[pR] > knee.r[pR] + 0.1,
+      `${n}: knee drawn opposite the reaching elbow (L catch: knees L ${knee.l[pL].toFixed(2)} R ${knee.r[pL].toFixed(2)})`);
+    // the pushing boot does not slide while planted
+    for (const s of ['l', 'r']) {
+      let a = null, slide = 0;
+      for (const { p, pl: on } of foot[s]) { if (!on) { a = null; continue; } if (!a) a = p.clone(); slide = Math.max(slide, Math.hypot(p.x - a.x, p.z - a.z)); }
+      assert.ok(slide < 0.03, `${n}: planted ${s} boot slides ${slide.toFixed(3)} m`);
+    }
+  }
+});
+
 test('crawl: flat low crawl - chest low and steady, smooth body speed (no stop-and-go), forearms reach past the head', () => {
   // review: shoulders ran 0.22-0.35 m and bobbed 13 cm (upper arm near vertical, a sphinx / high crawl), the pelvis
   // stopped in the reach and lunged in the pull, and the fists ended at the chin at the catch
   const c = clipOf('crawl'), m = meta.crawl, N = 46, v = m.groundSpeed;
   const sh = { l: [], r: [] }, pz = [];
-  let reach = 0, upright = 0;
+  let reach = 0, upright = 0; const rmax = { l: -1, r: -1 };
   for (let f = 0; f < N; f++) {
     const t = (f / (N - 1)) * c.duration; poseAt(c, Math.min(t, c.duration - 1e-4));
     for (const s of ['l', 'r']) {
@@ -77,8 +121,10 @@ test('crawl: flat low crawl - chest low and steady, smooth body speed (no stop-a
       upright = Math.max(upright, Math.asin(Math.min(1, (S.y - E.y) / S.distanceTo(E))) * 57.3);   // upper arm pitch below horizontal
     }
     pz.push(wp('pelvis').z + v * t);
-    if (f === 0) reach = Math.min(...['l', 'r'].map((s) => fist(s).z - wp('upperarm_' + s).z));
+    // alternating crawl: each fist reaches furthest at its own elbow's catch (half a cycle apart)
+    for (const s of ['l', 'r']) rmax[s] = Math.max(rmax[s], fist(s).z - wp('upperarm_' + s).z);
   }
+  reach = Math.min(rmax.l, rmax.r);
   for (const s of ['l', 'r']) {
     const lo = Math.min(...sh[s]), hi = Math.max(...sh[s]);
     assert.ok(hi < 0.28 && hi - lo < 0.065, `${s} shoulder ${lo.toFixed(3)}..${hi.toFixed(3)} m (flat, bob < 6.5 cm)`);

@@ -3,7 +3,7 @@
 // replacing the old procedural crawl / prone clips, with keyframe reduction and lossless EXT_meshopt_compression.
 //
 //   # deps outside the repo (as tools/perf/glb_meshopt.mjs): npm i @gltf-transform/core@4 @gltf-transform/extensions@4 meshoptimizer
-//   GLTF_DEPS=<that dir>/node_modules node tools/characters/prone/write_anims.mjs <prone_clips.json> [glb ...]
+//   GLTF_DEPS=<that dir>/node_modules node tools/characters/prone/write_anims.mjs <prone_clips.json> [--only=a,b] [glb ...]
 // Default targets: base_anims (enemies, commandos_a base), ca_anims (commandos_a overlay), commando_anims
 // (commandos_b), guest_anims (guests). Per-clip meta goes to the 'Scene' node extras (shadowSix.clips) and the .json sidecar.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
@@ -22,12 +22,16 @@ const { MeshoptEncoder, MeshoptDecoder } = await dep('meshoptimizer');
 await MeshoptEncoder.ready; await MeshoptDecoder.ready;
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.encoder': MeshoptEncoder, 'meshopt.decoder': MeshoptDecoder });
 
-const [src, ...targets] = process.argv.slice(2);
+//   --only=go_prone,get_up   replace just these clips (the rest of each library stays as it is)
+const argv = process.argv.slice(2), onlyArg = argv.find((a) => a.startsWith('--only='));
+const ONLY = onlyArg ? new Set(onlyArg.slice(7).split(',')) : null;
+const [src, ...targets] = argv.filter((a) => !a.startsWith('--'));
 const ANIMS = new URL('../../../assets/characters/anims/', import.meta.url).pathname;
 const files = targets.length ? targets : ['base_anims', 'ca_anims', 'commando_anims', 'guest_anims'].map((n) => ANIMS + n + '.glb');
 const J = JSON.parse(readFileSync(src, 'utf8'));
+if (ONLY) J.clips = J.clips.filter((c) => ONLY.has(c.name));
 // old procedural prone clips removed from every library (replaced by the new set)
-const OLD = new Set(['crawl', 'crawl_idle', 'die_prone', 'dead_prone', 'go_prone', 'get_up']);
+const OLD = ONLY || new Set(['crawl', 'crawl_idle', 'die_prone', 'dead_prone', 'go_prone', 'get_up']);
 const NEW = new Set(J.clips.map((c) => c.name));
 
 // ---- keyframe reduction: drop samples that the neighbours' interpolation reproduces within tol ----
@@ -90,7 +94,7 @@ for (const f of files) {
   for (const k of Object.keys(s6.clips || {})) if (OLD.has(k)) delete s6.clips[k];
   for (const c of J.clips) {
     const m = { ...c.meta, duration: c.duration };
-    if (c.perFrame) m.contacts = { el: c.perFrame.map((p) => p.el.join('')).join(' '), ft: c.perFrame.map((p) => p.ft.join('')).join(' ') };
+    if (c.perFrame) m.contacts = Object.fromEntries(Object.keys(c.perFrame[0]).map((k) => [k, c.perFrame.map((p) => p[k].join('')).join(' ')]));
     s6.clips[c.name] = m;
   }
   sceneNode.setExtras(ex);

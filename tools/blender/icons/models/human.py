@@ -291,44 +291,41 @@ def figure(name='mh_beret', pose='stand'):
 DEC = os.path.join(S.SCRATCH, 'dec')   # decoded (non-meshopt) copies of the game GLBs (see gt/decode.mjs)
 
 
-def load_commando(who='greenberet'):
-    """In-game commando GLB (decoded), LOD0 only."""
-    bpy.ops.import_scene.gltf(filepath=os.path.join(DEC, who + '.glb'))
-    chars = list(bpy.context.selected_objects)
-    arm = [o for o in chars if o.type == 'ARMATURE'][0]
-    for o in chars:
-        if o.type == 'MESH' and ('LOD1' in o.name or 'LOD2' in o.name or o.parent is None): bpy.data.objects.remove(o, do_unlink=True)
-    bpy.context.view_layer.update()
-    return arm
-
-
-def wrot(arm, bone, axis, deg):
-    """Rotate a pose bone about a WORLD axis through its head (children follow)."""
-    b = arm.pose.bones[bone]; aw = arm.matrix_world
-    head = aw @ b.head
-    R = Matrix.Translation(head) @ Matrix.Rotation(math.radians(deg), 4, axis) @ Matrix.Translation(-head)
-    b.matrix = aw.inverted() @ R @ aw @ b.matrix
-    bpy.context.view_layer.update()
-
-
-def aim(arm, bone, d):
-    """Rotate a pose bone about its head so it points along world direction d."""
-    b = arm.pose.bones[bone]; aw = arm.matrix_world
-    head, tail = aw @ b.head, aw @ b.tail
-    q = (tail - head).normalized().rotation_difference(Vector(d).normalized())
-    R = Matrix.Translation(head) @ q.to_matrix().to_4x4() @ Matrix.Translation(-head)
-    b.matrix = aw.inverted() @ R @ aw @ b.matrix
-    bpy.context.view_layer.update()
-
-
-# --- stance button (bottom HUD, left of the hand): a soldier CRAWLING (shown while upright) / STANDING (shown while
-# crawling). The old 40x41 top-bar figurines on plinths read as a knife at game size, so the stance button is a bigger
-# plaque in the "?" plaque's family (die-struck brass rim, vitreous enamel field) with the posed game commando in
-# strict profile in front of it: the crawler propped on his elbows, head up, legs out; the stander upright. Ivory
-# enamel behind the olive figure keeps the silhouette legible on snow, grass and dark ground alike.
+# --- stance button (bottom HUD, left of the hand): the game's own Green Beret CRAWLING (shown while upright) /
+# STANDING (shown while crawling) - just the man on transparency, no plaque, no frame (review: "Just the man, maybe use
+# the actual model"). The pose is the one the running game gives him (stance-pose.json from stance-pose.mjs: the
+# crawl_unarmed clip mid-stroke after the per-character prone fit, and idle), baked into the decoded GLB, so textures,
+# proportions and clips are exactly the in-game ones. Low side-3/4 tool camera (a prone man reads as lying, not
+# diving) and the hand's light rig; no catcher shadow (from this low a contact shadow detaches below the body).
 STANCE_BOX = (64, 48)
-STANCE_VIEW = dict(elev=float(os.environ.get('STANCE_ELEV', '6')), azim=float(os.environ.get('STANCE_AZIM', '4')))
-LIE = Matrix.Rotation(math.radians(90), 4, 'Z') @ Matrix.Rotation(math.radians(90), 4, 'X')   # standing -> face down, head +X, left side +Y
+POSE = os.environ.get('STANCE_POSE', os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'stance-pose.json'))
+STANCE_VIEW = dict(elev=float(os.environ.get('STANCE_ELEV', '12')), azim=float(os.environ.get('STANCE_AZIM', '-20')))
+STANCE_YAW = float(os.environ.get('STANCE_YAW', '90'))   # turn him to walk / crawl towards screen right
+
+
+def _glb(path):
+    import json, struct
+    b = open(path, 'rb').read(); n = struct.unpack('<I', b[12:16])[0]
+    j = json.loads(b[20:20 + n]); o = 20 + n
+    m = struct.unpack('<I', b[o:o + 4])[0]
+    return j, b[o + 8:o + 8 + m]
+
+
+def glb_pose(src, bones, out):
+    """Write the decoded character GLB `src` with its skeleton nodes set to `bones` ({name: {q, p}}: local quaternion
+    and position per bone, as dumped from the running game by stance-pose.mjs) -> `out`."""
+    import json, struct
+    j, b = _glb(src); n = 0
+    for nd in j['nodes']:
+        v = bones.get(nd.get('name'))
+        if v is None or 'matrix' in nd: continue
+        nd['rotation'] = v['q']; nd['translation'] = v['p']; n += 1
+    js = json.dumps(j, separators=(',', ':')).encode(); js += b' ' * (-len(js) % 4); b += b'\0' * (-len(b) % 4)
+    blob = struct.pack('<III', 0x46546C67, 2, 12 + 8 + len(js) + 8 + len(b)) + struct.pack('<II', len(js), 0x4E4F534A) + js \
+        + struct.pack('<II', len(b), 0x004E4942) + b
+    open(out, 'wb').write(blob)
+    print('POSED', n, 'bones')
+    return out
 
 
 def _fig_points():
@@ -342,76 +339,28 @@ def _fig_points():
     return pts
 
 
-def stance_plaque(pts, crawl):
-    """Brass-rimmed ivory enamel plaque in the XZ plane behind the figure (camera at -Y), box aspect, centred on it,
-    with an olive-earth enamel band below his lowest point: he visibly lies on / stands on the ground."""
-    x0, x1 = min(p.x for p in pts), max(p.x for p in pts); z0, z1 = min(p.z for p in pts), max(p.z for p in pts)
-    y1 = max(p.y for p in pts)
-    asp = STANCE_BOX[0] / STANCE_BOX[1]
-    # the ground line sits at GROUND of the plaque height for both icons; the crawler (long) sizes the plaque by his
-    # length (toes and fists just reach the rim), the stander by his height (beret just under the rim): the figure is
-    # as big as the plaque allows, which is what makes it legible at 64 ref px
-    GROUND = 0.24
-    zg = z0 + (0.09 if crawl else 0.015)   # crawler: belly on the ground line, elbows and toes dug in
-    if crawl: W = (x1 - x0) / 0.97; H = W / asp
-    else: H = (z1 - zg) / (1 - GROUND - 0.035); W = H * asp
-    cx, cz = (x0 + x1) / 2, zg - GROUND * H + H / 2
-    br = M.metal('stance_brass', M.lin((0.80, 0.63, 0.32)), rough=0.24, wear=0.9, wear_color=M.lin((0.98, 0.88, 0.6)), grain=0.3)
-    en = M.solid('stance_enamel', M.lin((0.80, 0.76, 0.60)), rough=0.14, coat=1.0, var=0.06, vscale=4.0, bevel=0.003)
-    earth = M.solid('stance_earth', M.lin((0.33, 0.29, 0.17)), rough=0.2, coat=1.0, var=0.10, vscale=6.0, bevel=0.003)
-    def rr(w, h):
-        r = [(cx - w / 2, cz - h / 2), (cx + w / 2, cz - h / 2), (cx + w / 2, cz + h / 2), (cx - w / 2, cz + h / 2)]
-        return [(v[0], v[1]) for v in D.chaikin(r, 4, True)]
-    rim = W * 0.04; t = W * 0.03
-    yb = y1 + 0.25
-    inner = rr(W - 2 * rim, H - 2 * rim)
-    plate = D.slab('stance_plate', rr(W, H), t, br, y=yb, bevel=t * 0.3, plane='XZ')
-    field = D.slab('stance_field', inner, t * 0.4, en, y=yb - t * 0.55, bevel=t * 0.1, plane='XZ')
-    band = []
-    for x, z in inner:
-        q = (x, min(z, zg))
-        if not band or (abs(band[-1][0] - q[0]) > 1e-4 or abs(band[-1][1] - q[1]) > 1e-4): band.append(q)
-    ground = D.slab('stance_ground', band, t * 0.4, earth, y=yb - t * 0.75, bevel=t * 0.1, plane='XZ')
-    return [plate, field, ground]
-
-
-def _crawl_pose(arm):
-    """Low crawl, propped on the elbows. Directions are given in the LYING frame (head +X, up +Z, his left +Y) and
-    mapped back to the standing rig, which is then laid down."""
-    Li = LIE.to_3x3().inverted()
-    def A(bone, d):
-        if bone in arm.pose.bones: aim(arm, bone, Li @ Vector(d))
-    for b in ('spine_01', 'spine_02', 'spine_03'): A(b, (1, 0, 0.42))
-    A('neck_01', (1, 0, 0.75)); A('Head', (0.45, 0, 1))
-    A('upperarm_l', (0.3, 0.12, -1)); A('upperarm_r', (0.3, -0.12, -1))
-    A('lowerarm_l', (1, -0.38, -0.04)); A('lowerarm_r', (1, 0.38, -0.04))
-    A('hand_l', (1, -0.3, -0.1)); A('hand_r', (1, 0.3, -0.1))
-    A('thigh_l', (-1, 0.13, -0.06)); A('calf_l', (-1, 0.08, 0.0)); A('foot_l', (-0.85, 0.05, -0.5))
-    A('thigh_r', (-0.7, -0.6, -0.04)); A('calf_r', (-0.8, 0.55, 0.0)); A('foot_r', (-0.8, 0.3, -0.5))
-    for side in ('l', 'r'):   # loose fists, not open palms (open hands read as swimming)
-        pose_hand(arm, side, curl=(20, 75, 80, 85, 85), thumb=(0, 0, 25), axis=os.environ.get('STANCE_FAXIS', 'Z'))
-    arm.matrix_world = LIE @ arm.matrix_world
-    bpy.context.view_layer.update()
-
-
 @S.shot('stance')
 def _stance(mode):
+    import json
     which = os.environ.get('STANCE_ONLY', 'crawl,stand').split(',')
     samples = int(os.environ['STANCE_SAMPLES']) if os.environ.get('STANCE_SAMPLES') else None
-    for k, tag in enumerate(which):
-        if k: S.reset()
-        arm = load_commando()
-        for o in [o for o in bpy.data.objects if o.type == 'MESH' and o.name.startswith('Icosphere')]:
-            bpy.data.objects.remove(o, do_unlink=True)   # invisible 2 m helper sphere in the GLB: would skew framing
-        if tag == 'stand':
-            for sd, sx in (('l', 1), ('r', -1)):   # at attention: arms straight down his sides (reads in profile)
-                aim(arm, f'upperarm_{sd}', (0.12 * sx, 0.02, -1)); aim(arm, f'lowerarm_{sd}', (0.05 * sx, -0.06, -1))
-                aim(arm, f'hand_{sd}', (0.02 * sx, -0.04, -1))
-                pose_hand(arm, sd, curl=(20, 60, 65, 70, 70), thumb=(0, 0, 20), axis=os.environ.get('STANCE_FAXIS', 'Z'))
-            arm.matrix_world = Matrix.Rotation(math.radians(-90), 4, 'Z') @ arm.matrix_world   # profile, facing +X
-            bpy.context.view_layer.update()
-        else:
-            _crawl_pose(arm)
-        stance_plaque(_fig_points(), tag == 'crawl')
-        S.shoot(f'stance.{tag}', 'tool', box=STANCE_BOX, preset='badge', margin=0.02, shadow=False, light={'rim': 1.3},
+    os.makedirs(os.path.join(S.SCRATCH, 'blend'), exist_ok=True)
+    for i, tag in enumerate(which):
+        if i: S.reset()
+        frames = json.load(open(POSE))[tag]   # STANCE_FC / STANCE_FS: frame index in a `stance-pose.mjs out all` dump
+        k = int(os.environ.get('STANCE_F' + tag[0].upper(), '0'))
+        posed = glb_pose(os.path.join(DEC, 'greenberet.glb'), frames[k]['bones'], os.path.join(S.SCRATCH, 'blend', f'stance_{tag}.glb'))
+        bpy.ops.import_scene.gltf(filepath=posed)
+        chars = list(bpy.context.selected_objects)
+        arm = [o for o in chars if o.type == 'ARMATURE'][0]
+        for o in chars:   # LOD0 + headgear only (LODs, the invisible 2 m helper sphere and unparented helpers out)
+            if o.type == 'MESH' and ('LOD1' in o.name or 'LOD2' in o.name or o.parent is None or o.name.startswith('Icosphere')):
+                bpy.data.objects.remove(o, do_unlink=True)
+        arm.matrix_world = Matrix.Rotation(math.radians(STANCE_YAW), 4, 'Z') @ arm.matrix_world
+        bpy.context.view_layer.update()
+        pts = _fig_points(); x0 = (min(p.x for p in pts) + max(p.x for p in pts)) / 2
+        y0 = (min(p.y for p in pts) + max(p.y for p in pts)) / 2
+        arm.location -= Vector((x0, y0, min(p.z for p in pts)))   # centred, lowest vertex on the ground plane
+        bpy.context.view_layer.update()
+        S.shoot(f'stance.{tag}', 'tool', box=STANCE_BOX, preset='tool', margin=0.03, shadow=False,
                 scale=12, samples=samples, **STANCE_VIEW)

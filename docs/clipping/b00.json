@@ -1,6 +1,6 @@
 {
  "mission": "b00",
- "date": "2026-09-27T19:02:13.444Z",
+ "date": "2026-10-01T16:34:50.632Z",
  "static": {
   "mission": "b00",
   "items": 39,
@@ -13,7 +13,7 @@
    "vehicle": 1
   },
   "pairsTested": 2,
-  "ms": 136,
+  "ms": 269,
   "findings": []
  },
  "turrets": {
@@ -44,24 +44,60 @@
    {
     "id": "dog1",
     "t": 60,
-    "x": 50.97,
+    "x": 50.96,
     "z": 44.19
    },
    {
     "id": "pack_guard",
     "t": 120,
-    "x": 47.45,
-    "z": 50.89
-   },
-   {
-    "id": "snitch1",
-    "t": 120,
-    "x": 45.85,
-    "z": 49.7
+    "x": 42.14,
+    "z": 43.34
    }
   ],
   "notes": [],
-  "findings": []
+  "findings": [],
+  "unitOverlaps": [
+   {
+    "key": "b00|unit:chicken1|chicken2",
+    "a": "chicken1",
+    "b": "chicken2",
+    "dist": 0.52,
+    "t": 152,
+    "at": {
+     "x": 65.79,
+     "z": 44.53
+    },
+    "moving": [
+     true,
+     true
+    ],
+    "states": [
+     "FLEE",
+     "FLEE"
+    ],
+    "n": 1
+   },
+   {
+    "key": "b00|unit:spy|stone_walker",
+    "a": "spy",
+    "b": "stone_walker",
+    "dist": 0.546,
+    "t": 103.5,
+    "at": {
+     "x": 49.6,
+     "z": 43.84
+    },
+    "moving": [
+     true,
+     true
+    ],
+    "states": [
+     "active",
+     "SEARCH"
+    ],
+    "n": 1
+   }
+  ]
  },
  "baseline": {
   "fresh": [],

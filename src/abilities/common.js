@@ -5,6 +5,8 @@
  */
 
 import { CONFIG } from '../config.js';
+import { ownerHeight } from '../world/placement.js';
+import { bodyGap, clearPose, hasObstacles, STOP_MARGIN } from '../world/body-clearance.js';
 
 /**
  * A timed ActionTask: runs `steps` (sorted by `at`, seconds from start) once each, then 'done' at `dur`.
@@ -133,6 +135,8 @@ export function inDeep(world, u) {
  */
 export function shotLosOpts(c, to, world = null, rifle = false) {
   const o = { viewerY: c.y || 0, targetY: to.y || 0 };
+  // an MG gunner on an open platform fires over walls under his line of fire (perception canSee's overWalls)
+  if (world && c.vision?.overWalls) o.overWalls = { heightOf: ownerHeight(world), eyeY: (c.y || 0) + 1.4, targetTopY: (to.y || 0) + 1.0 };
   const sz = to.kind === 'vehicle' && to.def?.size;
   if (sz) o.targetHull = { x: to.x, z: to.z, w: sz[0], d: sz[1], heading: to.heading || 0 };
   // `shotThrough` planks (M19's palisade) hide what is behind them from the guards, but a sniper's rifle round
@@ -173,9 +177,9 @@ export function inReach(world, c, to, range, los = false, rifle = false) {
 export function freeToAct(c) {
   if (!c.alive) return 'Dead.';
   if (c.downed) return "He's down."; // bodies-design §C.6
+  if (c.buried) return 'Dig out first (F).'; // before 'hidden': a buried man's state is 'hidden' too
   if (c.state === 'hidden' || c.hidden) return 'Leave the building first.';
   if (c.state === 'inVehicle') return 'Get out first.';
-  if (c.buried) return 'Rise first.';
   if (c.state === 'jailed' || c.state === 'captured') return 'Captured.';
   return true;
 }
@@ -209,6 +213,14 @@ export function dropSpot(c, how = 'gentle', it = c.carrying, mode = c.carryMode 
     if (!p && w && it.kind !== 'interactable' && mode === 'drag') p = { x: it.x, z: it.z };
     if (!p) p = w?.grid.walkableAt(c.x + Math.cos(a) * k, c.z + Math.sin(a) * k) ? { x: c.x + Math.cos(a) * k, z: c.z + Math.sin(a) * k } : { x: c.x, z: c.z };
   }
+  // a man never lies with his legs or head under a vehicle hull or in a crate (world/body-clearance.js): nearest clear pose
+  if (hasObstacles(w) && it.kind !== 'interactable') {
+    const h = mode === 'drag' ? it.heading ?? c.heading : c.heading + Math.PI, st = it.alive ? 'downed' : 'dead';
+    if (bodyGap(w, p.x, p.z, h, st) < STOP_MARGIN) {
+      const cp = clearPose(w, p.x, p.z, h, st, { sweep: false, maxDist: 1.5 });
+      if (cp) p = { x: cp.x, z: cp.z, heading: cp.heading };
+    }
+  }
   return p;
 }
 
@@ -231,6 +243,7 @@ export function dropCarried(c, how = 'gentle') {
   if (it.kind !== 'interactable' && mode !== 'drag' && how === 'gentle' && c.world?.house) it.heading = c.heading + Math.PI;
   // a live man knocked off the shoulder lies on his front as he hung: head towards the carrier's back
   else if (it.kind !== 'interactable' && it.alive && mode !== 'drag' && how === 'shot') it.heading = c.heading + Math.PI;
+  if (p.heading != null) it.heading = p.heading; // turned clear of a vehicle hull (dropSpot)
   if (it.kind !== 'interactable') {
     // BCD: a knocked-out man stays down (bcd-plan §1.2); a downed buddy is downed again (bodies-design §C.6)
     it.state = it.alive ? (it.downed ? 'downed' : it._bcdState || 'active') : 'dead';

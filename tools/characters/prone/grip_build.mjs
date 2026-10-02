@@ -1,7 +1,7 @@
 // grip_build.mjs - weapon grip frames (hand space) from the baked prone poses, and the generated runtime module.
 import * as THREE from 'three';
 import { V } from './rig.mjs';
-import { crawlPose } from './crawl.mjs';
+import { crawlPose, CRAWL } from './crawl.mjs';
 import { fistPoint, frameM, gripFrom, packM } from './grips.mjs';
 
 // weapon sockets (assets/characters/weapons/weapons.glb, weapon space: +Z muzzle, +Y up, origin = grip_r)
@@ -19,7 +19,7 @@ const dirOf = (yaw, pitch) => V(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch)
 export function buildGrips(ctx) {
   const { R, SH } = ctx, G = {};
   // crawl, long gun: the right fist around the sling at the front swivel, the handguard over the forearm, butt dragging
-  crawlPose(R, 0, 'long', SH);
+  crawlPose(R, CRAWL.T / 2, 'long', SH);   // the right elbow's catch (it pulls in the second half)
   let fp = fistPoint(R, 'r').add(V(0, 0.035, 0)), yawIn = 8 * Math.PI / 180;
   let th = pitchFor(SOCK.no4_sniper.sling_f, SOCK.no4_sniper.butt, fp.y - 0.03);
   G.crawl_long = { hand: 'r', socket: 'sling_f', m: packM(gripFrom(R, 'r', frameM(fp, dirOf(yawIn, th), V(0, 1, 0)))) };
@@ -30,7 +30,7 @@ export function buildGrips(ctx) {
   // holds the magazine instead, the gun upright above it, pointing forward with the muzzle off the ground
   G.crawl_mp40 = { hand: 'r', at: [0, -0.15, 0.19], m: packM(gripFrom(R, 'r', frameM(fistPoint(R, 'r'), dirOf(yawIn, 0.06), V(0, 1, 0)))) };
   // crawl, knife: blade forward along the fist, flat side up, tip clear of the ground
-  crawlPose(R, 0, 'knife', SH);
+  crawlPose(R, CRAWL.T / 2, 'knife', SH);
   const ha = R.axes('hand_r').along;
   G.crawl_knife = { hand: 'r', socket: 'grip_r', m: packM(gripFrom(R, 'r', frameM(fistPoint(R, 'r'), V(ha.x, 0, ha.z).normalize().add(V(0, 0.16, 0)), V(0, 1, 0)))) };
   Object.assign(G, ctx.grips || {});
@@ -61,8 +61,10 @@ const BY_CLIP = {
   prone_aim: { long: 'aim_long', smg: 'aim_smg' }, prone_shoot: { long: 'aim_long' }, prone_shoot_smg: { smg: 'aim_smg' },
   prone_pistol_aim: { pistol: 'pistol' }, prone_pistol_shoot: { pistol: 'pistol' },
   prone_turn_l: { long: 'crawl_long', smg: 'crawl_smg', mp40: 'crawl_mp40' }, prone_turn_r: { long: 'crawl_long', smg: 'crawl_smg', mp40: 'crawl_mp40' },
-  // stance changes: the right fist keeps the gun at the swivel (weapon-handover.js blends it off / onto the sling)
-  go_prone: { long: 'crawl_long', smg: 'crawl_smg', mp40: 'crawl_mp40' }, get_up: { long: 'crawl_long', smg: 'crawl_smg', mp40: 'crawl_mp40' },
+  // stance changes: the right fist keeps the gun at the swivel (weapon-handover.js blends it off / onto the sling), a
+  // knife (knife crawl-in) stays in the fist as in crawl_knife
+  go_prone: { long: 'crawl_long', smg: 'crawl_smg', mp40: 'crawl_mp40', knife: 'crawl_knife' },
+  get_up: { long: 'crawl_long', smg: 'crawl_smg', mp40: 'crawl_mp40', knife: 'crawl_knife' },
 };
 /** True when the clip is one of the prone set that carries its own weapon hold. */
 export const isProneHold = (clip) => !!BY_CLIP[clip];

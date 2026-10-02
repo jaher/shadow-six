@@ -32,6 +32,26 @@ export function narrowPortrait(w, h) {
   return h > w && w < 600;
 }
 
+/** Finger-size HUD (html.mk-touch): CSS px a control should cover (Apple 44 pt / Android 48 dp). */
+export const TOUCH_TARGET = 44;
+
+/**
+ * HUD scales for a touch screen. The desktop scale `u` shrinks the whole HUD to fit a 600-ref-px top bar into the
+ * window width, which leaves finger-hostile 18–30 px controls on a phone held upright. With a finger:
+ *   ut = the top bar (portraits + tool icons) and everything placed under it: as large as the bar's real content
+ *        (n portraits + the icon row) allows in this width, never above the height-based scale `byH`;
+ *   ub = the bag + hand cluster (bottom corner): at least ~1.15–1.2 so every item slot is finger sized.
+ * Neither is ever below `u`. @returns {{ut: number, ub: number}}
+ */
+export function touchHudScales({ u, byH, w, h, men = 3 }) {
+  // the bar: 8 + 65 ref px per portrait + the icon row (camera, lamp, eye, gaps: 144 ref px) + posture and ?,
+  // which are TOUCH_TARGET px wide on a touch screen (styles/ui.css)
+  const ut = Math.max(u, Math.min(byH, (w - 2 * TOUCH_TARGET) / (152 + 65 * Math.max(1, men))));
+  const ub = Math.max(ut, Math.min(1.2, h / 340, w / 330));
+  const r = (x) => Math.floor(x * 1000) / 1000;
+  return { ut: r(ut), ub: r(ub) };
+}
+
 const ROTATE_KEY = 'shadowsix.rotate.dismissed';
 
 /**
@@ -129,6 +149,14 @@ export function installTouch(hud) {
       const busy = show && !!inp && (!!inp.targeting || !!inp.mode || !!hud.cursor?.mode
         || inp.selection.some((c) => c.armed || c.carrying || c.buried));
       if (cancel.hidden === busy) cancel.hidden = !busy;
+      // §3.4: with only a buried Green Beret to cancel, the button says what it does: DIG OUT (= right-click, rises)
+      const dig = busy && !inp.targeting && !inp.mode && !hud.cursor?.mode && inp.selection.some((c) => c.buried)
+        && !inp.selection.some((c) => c.armed || c.carrying);
+      if (cancel.classList.contains('dig') !== dig) {
+        cancel.classList.toggle('dig', dig);
+        cancel.innerHTML = dig ? '<b aria-hidden="true">\u25B2</b><span>DIG OUT</span>' : '<b aria-hidden="true">\u2715</b><span>CANCEL</span>';
+        cancel.setAttribute('aria-label', dig ? 'Dig out' : 'Cancel');
+      }
     },
     dispose() { offs.forEach((f) => f()); hint.remove(); menu.remove(); cancel.remove(); },
   };

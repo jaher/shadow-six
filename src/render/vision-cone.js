@@ -16,6 +16,7 @@
  */
 
 import * as THREE from 'three';
+import { ownerHeight } from '../world/placement.js';
 import { CONFIG } from '../config.js';
 import { coneAt, probe as probeCone, postOwner } from '../ai/perception.js';
 
@@ -48,7 +49,8 @@ export function coneFan(enemy, grid, o = {}) {
   const base = Math.max(o.rays ?? S.coneRays, Math.ceil(fov / (0.75 * DEG)));
   const tol = o.tol ?? S.coneRayTol;
   const maxRays = o.maxRays ?? S.coneMaxRays;
-  const castOpts = { viewerElevated: cone.elevated, viewerY: cone.vy, ownHull: enemy.ownHull, ownOwner: postOwner(enemy, enemy.world) };
+  const castOpts = { viewerElevated: cone.elevated, viewerY: cone.vy, ownHull: enemy.ownHull, ownOwner: postOwner(enemy, enemy.world),
+    overWalls: cone.overWalls && enemy.world ? { heightOf: ownerHeight(enemy.world), eyeY: cone.y } : undefined };
   const cast = grid ? (a) => grid.castRay(cone.x, cone.z, a, cone.far, castOpts) : () => cone.far;
   const a0 = cone.heading - cone.halfFov;
   const angles = [], dists = [];

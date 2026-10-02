@@ -354,7 +354,7 @@ export default {
   size: [76, 120],
   seed: 1943_0315,
   briefing: {
-    historical: 'March 1943. Libya is behind us and the Allied armies are pushing into Tunisia, where the Mareth Line is holding them hard. A handful of our men slipped into Tunis to study the Axis defences, but a German sweep through the old town caught them. They got away, split up, and are now lying low in different corners of the quarter by the harbour. We are going to fetch them.',
+    historical: 'March 1943. The Allied armies are pressing into Tunisia, where the Mareth Line is holding them hard. A handful of our men slipped into Tunis to study the Axis defences, but a sweep through the old town scattered them and caught our local contact. They are lying low near the harbour, waiting for us.',
     text: 'There is no siren yet, officer, but they know you are here and they are searching street by street. Your three men are holed up apart from one another. The streets belong to the Germans; the rooftops can still be yours. Our local contact is locked in a cell on the courtyard. Get him out, gather everybody, and make for the car we have left on the quay in the south-east. And whatever you do down there, do it without a sound: there is a headquarters right beside that car.',
     objectivesSummary: 'Free the Informer from the courtyard cell. Then get all four men, the Informer included, into the car on the south-east quay.',
     hints: [

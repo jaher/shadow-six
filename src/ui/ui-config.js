@@ -35,6 +35,7 @@ export const UI = {
   briefingZoom: 0.5, // camera zoom factor for the tour
   barkCharsPerSec: 14, // subtitle duration estimate when a bark carries no duration
   barkMin: 1.6,
+  markTime: 1.5, // s: the "?" over a guard who heard a running commando (house rule runningNoise)
   saveSlots: 10, // §6.8 / §8.4
 };
 
@@ -51,6 +52,8 @@ export const OPTION_DEFAULTS = {
   volSfx: 1,
   volVoice: 1,
   volMusic: 0.6, // = audio.js volumes.music (the bus the music loudness targets were set at)
+  narration: true, // the briefing's newsreel narrator reads the text before each mission (docs/narration.md)
+  volNarration: 1,
   missionMusic: 'suspense', // 'suspense' (in-mission score, default) | 'classic' (1998: no in-mission music)
   halt: 'indifferent', // 'submissive' | 'indifferent' (§4.5 / §6.8)
   voice: 'verbose', // 'verbose' | 'laconic' (§6.3)
@@ -67,6 +70,7 @@ export const OPTION_DEFAULTS = {
   wheelZoom: true,
   cameraAngle: CONFIG.camera.yawDeg, // camera yaw (deg): 0 classic BEL / 15 tilted / 45 isometric
   selectionRing: true, // §6.1 ⚑
+  noiseRings: true, // house rule runningNoise: a ring shows how far a running man's steps carry (render/noise-rings.js)
   nature: true, // §9.2 ambience
   // docs/menus-art-direction.md S10 / §1.9 (menus, video, accessibility, controls)
   subSize: 'M', // subtitle size S / M / L
@@ -90,6 +94,7 @@ export const OPTION_DEFAULTS = {
   dropWhenShot: true,
   ragdollAllDeaths: true,
   physicsGameplay: true,
+  runningNoise: true, // guards hear a running commando (stealth.runNoise); off = 1998 silent movement
 };
 
 export const OPTIONS_KEY = 'shadowsix.options.v1';
@@ -103,6 +108,11 @@ export function loadOptions(storage = globalThis.localStorage) {
   }
   const out = { ...OPTION_DEFAULTS };
   for (const k of Object.keys(OPTION_DEFAULTS)) if (k in saved && typeof saved[k] === typeof OPTION_DEFAULTS[k]) out[k] = saved[k];
+  // a house rule added after these options were saved takes its value from the saved preset, not the SHADOW SIX
+  // default (a CLASSIC 1998 player keeps silent movement when runningNoise arrives; resolveHouseRules would read the
+  // default as his own override and switch him to CUSTOM)
+  const preset = CONFIG.houseRules.presets[saved.rulesPreset];
+  if (preset) for (const k of Object.keys(preset)) if (!(k in saved) && typeof preset[k] === 'boolean') out[k] = preset[k];
   return out;
 }
 

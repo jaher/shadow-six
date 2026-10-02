@@ -103,6 +103,8 @@ try {
       dyn = await page.evaluate(() => window.__game.clip.dynamicEnd());
       console.log(`   dynamic: ${dyn.samples} samples over ${dyn.t} s → ${dyn.findings.length} penetrations > 5 cm${dyn.notes.length ? ' (' + dyn.notes.join('; ') + ')' : ''}`);
       for (const f of dyn.findings.slice(0, 6)) console.log('   dyn ' + fmt(f));
+      const uo = dyn.unitOverlaps || [];
+      console.log(`   units: ${uo.length} pairs closer than 0.6 m${uo.length ? ' — worst ' + uo.slice(0, 4).map((f) => `${f.a}/${f.b} ${f.dist} m @${f.t}s (${f.states.join('/')})`).join(', ') : ''}`);
       let k = 0;
       for (const f of dyn.findings) {
         const file = tmp.get(f.key);

@@ -167,7 +167,8 @@
   box-shadow: calc(-2 * var(--r)) calc(2 * var(--r)) calc(5 * var(--r)) rgba(0, 0, 0, 0.55);
 }
 .hud-notebook .page canvas { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 0.15s; }
-.hud-notebook.open { width: calc(183 * var(--r)); height: calc(215 * var(--r)); }
+/* --nbk (touch screens only, notebook.js fit()): the open page shrinks to the strip above the bag so nothing covers the map */
+.hud-notebook.open { width: calc(183 * var(--r) * var(--nbk, 1)); height: calc(215 * var(--r) * var(--nbk, 1)); }
 .hud-notebook.open .page canvas { opacity: 1; }
 /* rendered notebook (review: no flat CSS strip): steel coil binding with the pencil tucked in it, real paper page */
 .hud-notebook.rendered .spiral { width: calc(16 * var(--r)); right: calc(-2 * var(--r)); background: none; border-radius: 0; }
@@ -176,6 +177,7 @@
 .hud-notebook.rendered .spiral > .ico[hidden] { display: none !important; }
 .hud-notebook.rendered .page { right: calc(8 * var(--r)); background: var(--paper); }
 .hud-notebook.rendered .page > .ico.paper { position: absolute; right: 0; top: 0; width: calc(177 * var(--r)); height: calc(215 * var(--r)); max-width: none; pointer-events: none; user-select: none; }
+.hud-notebook.rendered.open .page > .ico.paper { width: calc(177 * var(--r) * var(--nbk, 1)); height: calc(215 * var(--r) * var(--nbk, 1)); }
 .hud-notebook .corner {
   position: absolute; left: 0; bottom: 0; width: calc(23 * var(--r)); height: calc(22 * var(--r)); padding: 0; border: 0; cursor: pointer; z-index: 3;
   background: linear-gradient(45deg, #8f915f 50%, transparent 50%); display: none;
@@ -189,8 +191,8 @@
 .hud-hand:has(> .ico) { padding: 0; filter: none; }
 .hud-hand svg { width: 100%; height: 100%; }
 .hud-hand:not(:has(> .ico)):hover { filter: drop-shadow(0 0 calc(4 * var(--r)) var(--brass-hi)); }
-/* stance toggle (stance-button.js): brass-rimmed plaque left of the hand showing the posture a click switches TO
-   (crawling figure while upright, standing figure while crawling). Both renders share one 64x48 box: no shift on
+/* stance toggle (stance-button.js): just the man (the in-game Green Beret render, no plaque or frame) left of the hand,
+   showing the posture a click switches TO (crawling figure while upright, standing figure while crawling). Both renders share one 64x48 box: no shift on
    toggle. Sits on the hand's baseline; phones keep a >= 44 CSS px target whatever the UI scale. */
 .hud-stance { position: relative; flex: 0 0 auto; align-self: flex-end; width: calc(64 * var(--r)); height: calc(48 * var(--r)); margin-bottom: calc(4 * var(--r));
   padding: 0; border: 0; background: none; cursor: pointer; pointer-events: auto; touch-action: manipulation; filter: drop-shadow(0 calc(1.5 * var(--r)) calc(2 * var(--r)) rgba(0, 0, 0, 0.7)); }
@@ -226,6 +228,17 @@ html.mk-touch .hud-stance { min-width: 59px; min-height: 44px; }
 .hud-knapsack .item:hover { filter: drop-shadow(0 0 calc(3 * var(--r)) var(--brass-hi)); z-index: 2; }
 .hud-knapsack .item.armed { filter: drop-shadow(0 0 calc(4 * var(--r)) #f0e060); }
 .hud-knapsack .item.disabled { filter: grayscale(1) brightness(0.55); cursor: not-allowed; }
+/* §3.4 buried Green Beret: the shovel slot is the DIG OUT button (glowing, with a stamped tag); the rest is locked */
+.hud-knapsack .item.rise { z-index: 3; filter: drop-shadow(0 0 calc(3 * var(--r)) #f0e060); animation: risePulse 1.4s ease-in-out infinite; }
+.hud-knapsack .item.rise.disabled { filter: drop-shadow(0 0 calc(2 * var(--r)) #f0e060) brightness(0.85); animation: none; cursor: default; }
+.hud-knapsack .item .rise-tag {
+  position: absolute; left: 50%; bottom: calc(-7 * var(--r)); transform: translateX(-50%); white-space: nowrap; pointer-events: none;
+  padding: calc(1 * var(--r)) calc(3 * var(--r)); font: 400 calc(8 * var(--r)) / 1 var(--f-head); letter-spacing: 0.08em; color: #2a1d08;
+  background: linear-gradient(#f3d77a, #c9a03c); border: calc(0.8 * var(--r)) solid #5b4314; border-radius: calc(1.5 * var(--r));
+  box-shadow: 0 calc(0.6 * var(--r)) calc(1 * var(--r)) rgba(0, 0, 0, 0.7);
+}
+@keyframes risePulse { 50% { filter: drop-shadow(0 0 calc(5 * var(--r)) #ffe680) brightness(1.15); } }
+@media (prefers-reduced-motion: reduce) { .hud-knapsack .item.rise { animation: none; } }
 .hud-knapsack .count { position: absolute; left: 50%; bottom: calc(-4 * var(--r)); transform: translateX(-50%); display: flex; gap: calc(1 * var(--r)); pointer-events: none; }
 .hud-knapsack .item[data-icon] .count { top: auto; bottom: calc(-6 * var(--r)); align-items: flex-end; z-index: 1; }
 /* one period treatment for every count (review): a stamped brass tag with a rivet at each end (rendered, 9-slice) */
@@ -277,6 +290,14 @@ html.mk-touch .hud-stance { min-width: 59px; min-height: 44px; }
 .hud-sub.enemy { background: #e8d7cf; }
 .hud-sub.enemy::after { border-top-color: #e8d7cf; }
 .hud-sub .gloss { display: block; font-style: italic; font-weight: 400; opacity: 0.75; }
+/* house rule runningNoise: a guard heard a running commando */
+.hud-mark {
+  position: absolute; left: 0; top: 0; padding-bottom: calc(2 * var(--r));
+  font: 700 calc(16 * var(--r)) / 1 var(--f-ui); color: #f4d35e; text-shadow: 0 0 2px #000, 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+.hud-mark.pop { animation: markpop 0.3s ease-out; }
+@keyframes markpop { from { opacity: 0; margin-top: calc(4 * var(--r)); } }
+@media (prefers-reduced-motion: reduce) { .hud-mark.pop { animation: none; } }
 
 /* ---------------------------------------------------------------- §5.3 software cursor + tooltip */
 body.ui-softcursor #view canvas { cursor: none !important; }
@@ -291,9 +312,22 @@ body.ui-softcursor #view canvas { cursor: none !important; }
 .ui-sparkle.alt .ico:not(.alt) { visibility: hidden; }
 .ui-cursor .forb { position: absolute; left: calc(-16px * var(--cs, 1)); top: calc(-16px * var(--cs, 1)); width: calc(32px * var(--cs, 1)); height: calc(32px * var(--cs, 1)); }
 .ui-cursor svg { width: 100%; height: 100%; display: block; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.8)); }
-.ui-cursor[data-cursor="scope"] { --scope: #39d353; }
-.ui-cursor[data-cursor="scope"].bad { --scope: #ff2a2a; }
+.ui-cursor[data-cursor="scope"] { --scope: #0d0e0c; } /* the scope's cross lines are always dark (no red/green states) */
 .ui-cursor .lid { opacity: 0; }
+/* sniper scope 2x magnifier (render/scope-magnifier.js draws the glass into the canvas; this is the ring on top) */
+.ui-cursor.lens .spr, .ui-cursor:not(.lens) .lens { display: none; }
+.ui-cursor .lens { position: absolute; left: calc(-44px * var(--cs, 1)); top: calc(-44px * var(--cs, 1)); width: calc(88px * var(--cs, 1)); height: calc(88px * var(--cs, 1)); }
+.ui-cursor .lens .ico, .ui-cursor .lens .ret { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ui-cursor .lens .ret { filter: drop-shadow(0 0 0.6px rgba(232, 226, 210, 0.35)); } /* dark etched reticle, faint halo */
+.ui-cursor .lens .ret .ns { display: none; }
+.ui-cursor.bad .lens .ret .ns { display: inline; } /* no shot: dark circle-and-slash in the glass */
+.ui-cursor .lens .rng {
+  position: absolute; left: 50%; top: calc(-1px * var(--cs, 1)); transform: translate(-50%, -100%); white-space: nowrap;
+  padding: calc(1px * var(--cs, 1)) calc(3px * var(--cs, 1)); background: rgba(0, 0, 0, 0.55);
+  font: 700 calc(5.5px * var(--cs, 1)) / 1 var(--f-ui, sans-serif); letter-spacing: 0.06em; color: #e4dfd0;
+}
+.ui-cursor.bad .lens .rng { color: #8c8a84; } /* no shot: greyed range text */
+.ui-cursor .lens .rng:empty { display: none; }
 .ui-cursor.blink .lid { opacity: 1; }
 .ui-sparkle { position: fixed; left: calc(-14px * var(--u, 1)); top: calc(-14px * var(--u, 1)); width: calc(28px * var(--u, 1)); height: calc(28px * var(--u, 1)); z-index: 4; pointer-events: none; }
 .ui-sparkle svg { width: 100%; height: 100%; }
@@ -408,3 +442,26 @@ body.ui-softcursor #view canvas { cursor: none !important; }
 .hud-tbtn:hover:not(:disabled) { box-shadow: inset 0 0 0 calc(1 * var(--r)) var(--brass-hi); }
 .hud-tbtn:disabled { opacity: 0.45; cursor: default; filter: grayscale(0.7); }
 .hud-tbtn.not-original span::after { content: ' ✦'; color: var(--brass-hi, #e8c86a); }
+
+/* ---------------------------------------------------------------- touch (html.mk-touch: src/ui/touch.js)
+   Finger-sized in-mission HUD. The HUD (src/ui/hud.js) sets --ut (top bar + what hangs under it: as large as the
+   bar's real content allows in this width) and --ub (bag + hand: finger-sized slots) on a touch screen only; the
+   desktop scale --u is unchanged. Small top-bar controls also get an invisible hit pad (::after) reaching at least
+   TOUCH_TARGET = 44 px wide and 48 px down from the screen top; the pads sit under every control's own box, so a
+   finger on a control always gets that control. The in-mission chrome takes no browser gestures (iOS Safari ignores
+   user-scalable=no: a pinch starting on the bar or the bag must never zoom the page; input/touch-game.js zooms the map). */
+html.mk-touch .ui-hud { --r: calc(var(--ut, var(--u)) * 1px); }
+html.mk-touch .ui-hud .hud-right-bottom, html.mk-touch .ui-hud .hud-transport { --r: calc(var(--ub, var(--ut, var(--u))) * 1px); }
+html.mk-touch .hud-topbar, html.mk-touch .hud-right, html.mk-touch .hud-right-bottom, html.mk-touch .hud-transport,
+html.mk-touch .hud-speaker-card, html.mk-touch .touch-menu, html.mk-touch .touch-cancel,
+html.mk-touch :is(.hud-topbar, .hud-right, .hud-right-bottom, .hud-transport) * { touch-action: none; }
+html.mk-touch .hud-portraits { overflow: visible; clip-path: inset(0 0 -24px 0); }
+html.mk-touch .hud-portrait::after, html.mk-touch .hud-icon:not(.hud-lamp)::after {
+  content: ''; position: absolute; z-index: -1; top: 0; left: 50%; transform: translateX(-50%);
+  width: max(100%, 44px); height: max(100%, 48px);
+}
+html.mk-touch .hud-tbtn { min-height: 44px; min-width: 44px; justify-content: center; }
+html.mk-touch .hud-help { width: max(calc(24 * var(--r)), 44px); }
+/* the right column (notebook) starts below those 48 px pads, so no pad lies over the top edge of the open map */
+html.mk-touch .hud-right { top: max(calc(47 * var(--r)), 48px); }
+html.mk-touch .hud-posture { width: max(calc(40 * var(--r)), 44px); }

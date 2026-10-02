@@ -13,7 +13,7 @@
  * @module abilities/drive
  */
 
-import { registerAbility } from './registry.js';
+import { registerAbility, ABILITIES } from './registry.js';
 import { CONFIG } from '../config.js';
 import { freeToAct } from './common.js';
 
@@ -26,6 +26,30 @@ export function boardPoint(vehicle, unit) {
   const swim = !!unit.canSwim;
   const edge = vehicle.muzzleToward(unit.x, unit.z); // hull side facing the unit
   return vehicle._exitPoint(edge.x, edge.z, swim) || vehicle._exitPoint(edge.x, edge.z, false);
+}
+
+/**
+ * What a click on `vehicle` would do for the selected men (cursor + tooltip, §5.3): `ok` when at least one of them may
+ * get in, else the first refusal ("the Marine must board first", "full", …) so the player sees why not.
+ * @param {object} vehicle @param {object[]} selection selected commandos @param {object} [world]
+ * @returns {{ok: boolean, reason: string|null}|null} null when nobody selected could even try (none on foot)
+ */
+export function boardingHint(vehicle, selection, world = null) {
+  if (!vehicle || vehicle.kind !== 'vehicle' || vehicle.destroyed) return null;
+  const walkers = (selection || []).filter((c) => c?.alive !== false && !c.vehicle && c.abilities?.includes?.('enterVehicle'));
+  if (!walkers.length) return null;
+  // the cursor asks every frame: reuse the answer for the same men for 0.2 s (canUse may scan the bank cells)
+  const key = walkers.map((c) => c.id).join(','), now = globalThis.performance?.now?.() ?? 0, memo = vehicle._boardHint;
+  if (memo && memo.key === key && now - memo.at < 200 && memo.n === vehicle.occupants?.length) return memo.res;
+  const def = ABILITIES.enterVehicle;
+  let res = null;
+  for (const c of walkers) {
+    const ok = def.canUse(c, vehicle, world || vehicle.world);
+    if (ok === true) { res = { ok: true, reason: null }; break; }
+    res ??= { ok: false, reason: String(ok).replace(/^Can't get in: /, '').replace(/\.$/, '') };
+  }
+  vehicle._boardHint = { key, at: now, n: vehicle.occupants?.length, res };
+  return res;
 }
 
 /** Close enough to the hull to climb in? */

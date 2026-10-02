@@ -1,0 +1,201 @@
+{
+ "asset": "fuel_tank_quay_12",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "bitumen_felt": {
+   "source": "Poly Haven",
+   "id": "bitumen",
+   "url": "https://polyhaven.com/a/bitumen",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Bitumen",
+   "label": "Tarred roofing felt, sun-faded and dusty / bitumen patches",
+   "files": {
+    "diff": {
+     "2k": "2k/bitumen_felt_diff",
+     "1k": "1k/bitumen_felt_diff"
+    },
+    "nor": {
+     "2k": "2k/bitumen_felt_nor",
+     "1k": "1k/bitumen_felt_nor"
+    },
+    "arm": {
+     "2k": "2k/bitumen_felt_arm",
+     "1k": "1k/bitumen_felt_arm"
+    }
+   }
+  },
+  "boards_weathered": {
+   "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathered vertical boards 0.2 m, per-plank ageing + tar staining",
+   "files": {
+    "diff": {
+     "1k": "1k/boards_weathered_diff",
+     "2k": "2k/boards_weathered_diff"
+    },
+    "nor": {
+     "1k": "1k/boards_weathered_nor",
+     "2k": "2k/boards_weathered_nor"
+    },
+    "arm": {
+     "1k": "1k/boards_weathered_arm",
+     "2k": "2k/boards_weathered_arm"
+    }
+   }
+  },
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "concrete_slab": {
+   "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+   "license": "CC0-1.0",
+   "derived_from": {
+    "source": "Poly Haven",
+    "id": "concrete_wall_008",
+    "license": "CC0-1.0"
+   },
+   "label": "Weathered concrete slab (top surfaces)",
+   "files": {
+    "diff": {
+     "1k": "1k/concrete_slab_diff",
+     "2k": "2k/concrete_slab_diff"
+    },
+    "nor": {
+     "1k": "1k/concrete_slab_nor",
+     "2k": "2k/concrete_slab_nor"
+    },
+    "arm": {
+     "1k": "1k/concrete_slab_arm",
+     "2k": "2k/concrete_slab_arm"
+    }
+   }
+  },
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  },
+  "decals_dz": {
+   "source": "procedural (art/desert/scripts/make_decals_dz.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Desert weathering decal atlas (soft organic soot/grime/damp/stains/scorch, alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_dz_rgba",
+     "2k": "2k/decals_dz_rgba"
+    }
+   }
+  },
+  "fuel_stencils": {
+   "source": "procedural (tools/blender/fueltanks/make_stencils.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Fuel-tank stencil lettering + warning sign atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/fuel_stencils_rgba",
+     "2k": "1k/fuel_stencils_rgba"
+    }
+   }
+  },
+  "paint_metal": {
+   "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Smooth enamel-painted sheet metal (pale, tint per asset)",
+   "files": {
+    "diff": {
+     "1k": "1k/paint_metal_diff",
+     "2k": "2k/paint_metal_diff"
+    },
+    "nor": {
+     "1k": "1k/paint_metal_nor",
+     "2k": "2k/paint_metal_nor"
+    },
+    "arm": {
+     "1k": "1k/paint_metal_arm",
+     "2k": "2k/paint_metal_arm"
+    }
+   }
+  },
+  "steel_galv": {
+   "source": "Poly Haven",
+   "id": "rusty_painted_metal",
+   "url": "https://polyhaven.com/a/rusty_painted_metal",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Painted Metal",
+   "label": "Bare / galvanized steel (derived)",
+   "files": {
+    "diff": {
+     "2k": "2k/steel_galv_diff",
+     "1k": "1k/steel_galv_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_galv_nor",
+     "1k": "1k/steel_galv_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_galv_arm",
+     "1k": "1k/steel_galv_arm"
+    }
+   }
+  },
+  "timber_beam": {
+   "source": "Poly Haven",
+   "id": "wood_planks_grey",
+   "url": "https://polyhaven.com/a/wood_planks_grey",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Grey",
+   "label": "Grey structural timber (beams, rafters)",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_beam_diff",
+     "1k": "1k/timber_beam_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_beam_nor",
+     "1k": "1k/timber_beam_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_beam_arm",
+     "1k": "1k/timber_beam_arm"
+    }
+   }
+  }
+ }
+}

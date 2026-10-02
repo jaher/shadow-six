@@ -157,7 +157,10 @@ function endPlacement(model, st, place, o, rig) {
     // on his back with his own (eased) yaw, torso raised about the pelvis, the chest pulled towards the hands
     root.getWorldQuaternion(_q);
     o.q.copy(_q).multiply(_qr.setFromAxisAngle(X, DRAG_POSE.pitch));
-    o.p.set(root.position.x, root.position.y + DRAG_POSE.lift, root.position.z);
+    // in a transition the ground level is the transporter's: lowered from the shoulder (toDrag) the load's own y is
+    // still the carry height (1.2 m), which lifted the drag end key — he rose 1.2 m and snapped down at its end
+    const ly = st.kind === 'hold' || !c ? 0 : (c.y || 0) - (model.unit?.y || 0);
+    o.p.set(root.position.x, root.position.y + ly + DRAG_POSE.lift, root.position.z);
     const hl = socket(cm?.real, 'hand_l'), hr = socket(cm?.real, 'hand_r');
     const pel = rig.pelDrag, ch = rig.chestDrag;
     if (hl && hr && pel && ch) {
@@ -350,24 +353,86 @@ export function twoBoneIK(a, b, c, t) {
   return _C.distanceTo(_T);
 }
 
+/** Heel (ankle bone) height above the ground of a dragged man's trailing legs (m). */
+export const DRAG_HEEL = 0.08;
+
 /**
- * A dragged body's heels follow the ground (§C.2): each ankle is pulled to the terrain height under it (+ ankle
- * height) by two-bone IK, the offset easing in over ~0.4 s so the legs lag behind steps and slopes.
+ * How much the dragged man's heels are put on the ground in a phase (0..1): fully while dragged, eased in as he is
+ * lowered into the drag (grab, toDrag) and out as he is let go or hauled up (release, toShoulder).
  */
-export function groundDraggedLegs(model, u, dt, guard = null) {
-  const w = u?.world, gy = w?.groundY;
-  if (typeof gy !== 'function') return false;
-  const R = model.real, lag = model._legLag || (model._legLag = { l: 0, r: 0 });
-  const k = dt > 0 ? Math.min(1, dt / 0.4) : 0;
+export function dragGroundWeight(st) {
+  if (!st) return 0;
+  if (st.kind === 'hold') return st.from === 'drag' ? 1 : 0;
+  const ramp = (a, b) => smooth((st.k - a) / (b - a));
+  switch (st.kind) {
+    case 'grab': return ramp(0.62, 1);
+    case 'toDrag': return ramp(0.68, 1);
+    case 'release': return 1 - ramp(0.5, 0.9);
+    case 'toShoulder': return 1 - ramp(0, 0.3);
+    default: return 0;
+  }
+}
+
+const _H = new Vector3(), _K = new Vector3(), _F = new Vector3();
+
+/**
+ * A dragged body's heels follow the ground (§C.2). The hold pose pitches the torso up about the pelvis, which tips the
+ * straight legs down into the ground; each leg is swung back up by two-bone IK so the ankle trails at DRAG_HEEL above
+ * the terrain, keeping the pose's hip-to-ankle reach (its knee bend, and loadGait's knee bumps) and its sideways
+ * swing. A rise in the ground is followed at once (a heel never sinks); a dip is settled into over ~0.4 s (the legs
+ * lag behind). `w` < 1 (transitions, dragGroundWeight) blends from the pose towards that; at any `w` (0 included:
+ * the rest of a transition) an ankle is never left below the ground (floor: ground + DRAG_HEEL / 2, eased down to the
+ * bare ground over w < 0.25 so it meets the lying pose's ankles at w = 0 without a jump).
+ * `ey`: the elevation of the level he is on. During a transition that is the TRANSPORTER's (the load's own y is still
+ * the shoulder height of 1.2 m above it while he is lowered into a drag: the heels were aimed 1.2 m up in the air).
+ */
+export function groundDraggedLegs(model, u, dt, guard = null, w = 1, ey = u?.y || 0) {
+  const gy = u?.world?.groundY;
+  if (typeof gy !== 'function' || !(w >= 0)) return false;
+  w = Math.min(1, w);
+  const R = model.real, lag = model._legLag || (model._legLag = { l: null, r: null });
+  const k = dt > 0 ? Math.min(1, dt / 0.4) : 1, g = (x, z) => gy(x, z) + ey + DRAG_HEEL;
   let did = false;
   for (const s of ['l', 'r']) {
     const th = R.getSocket?.('thigh_' + s), ca = R.getSocket?.('calf_' + s), ft = R.getSocket?.('foot_' + s);
     if (!th || !ca || !ft) continue;
     th.updateMatrixWorld(true);
-    ft.getWorldPosition(_T);
-    const want = clamp(gy(_T.x, _T.z) + (u.y || 0) + 0.08 - _T.y, -0.25, 0.25);
-    lag[s] += (want - lag[s]) * k;
-    if (Math.abs(lag[s]) >= 0.01) { guard?.touch(th); guard?.touch(ca); _T.y += lag[s]; twoBoneIK(th, ca, ft, _T); did = true; }
+    if (w === 0) { // the rest of a lift / lower: only an ankle under the snow is lifted onto it (cheap: no IK otherwise)
+      lag[s] = null;
+      ft.getWorldPosition(_F);
+      const fl = gy(_F.x, _F.z) + ey;
+      if (_F.y > fl - 0.01) continue;
+      guard?.touch(th); guard?.touch(ca);
+      twoBoneIK(th, ca, ft, _T.set(_F.x, fl, _F.z));
+      did = true;
+      continue;
+    }
+    th.getWorldPosition(_H); ca.getWorldPosition(_K); ft.getWorldPosition(_F);
+    const len = _K.distanceTo(_H) + _F.distanceTo(_K);
+    const reach = clamp(_F.distanceTo(_H), 0.3 * len, 0.985 * len);
+    let hx = _F.x - _H.x, hz = _F.z - _H.z;
+    const hl = Math.hypot(hx, hz);
+    if (hl < 1e-4) continue;
+    hx /= hl; hz /= hl;
+    // the heel lands further out along the leg once it is raised: sample the ground there (two passes)
+    let ty = g(_F.x, _F.z);
+    for (let i = 0; i < 2; i++) {
+      const h = Math.sqrt(Math.max(0, reach * reach - (ty - _H.y) ** 2));
+      ty = g(_H.x + hx * h, _H.z + hz * h);
+    }
+    const prev = lag[s];
+    lag[s] = prev == null || ty > prev || prev - ty > 0.6 ? ty : prev + (ty - prev) * k;
+    ty = lag[s];
+    const h = Math.sqrt(Math.max(0, reach * reach - (ty - _H.y) ** 2));
+    _T.set(_H.x + hx * h, ty, _H.z + hz * h);
+    if (w < 1) {
+      _T.lerpVectors(_F, _T, w);
+      _T.y = Math.max(_T.y, g(_T.x, _T.z) - DRAG_HEEL * (1 - 0.5 * Math.min(1, w * 4))); // blending: never under the snow
+    }
+    if (_T.distanceToSquared(_F) < 1e-4) continue;
+    guard?.touch(th); guard?.touch(ca);
+    twoBoneIK(th, ca, ft, _T);
+    did = true;
   }
   return did;
 }

@@ -14,9 +14,14 @@ import { createTerrainHandle, tracksNear as trailsNear, dragHeels } from './terr
 import { buildFlatMask, PALETTES } from './terrain/terrain-layers.js';
 import { pretrampleRoads, terrainPainter } from '../world/roads.js';
 import { createVegetation } from './terrain/vegetation.js';
+import { vegetationProfile } from './terrain/veg-profile.js';
+import { fillForest, hedgerowPlacements, forestUnderstorey, forestFloorPainter } from './terrain/forest-fill.js';
 import { SPECIES } from './terrain/treegen.js';
+import { farmland } from './terrain/bocage.js';
 import { addSnowCover } from './terrain/snowfx.js';
 import { CONFIG } from '../config.js';
+import { dataKey } from '../engine/asset-cache.js';
+import { createApron } from './apron.js';
 
 /** Base colour per terrain code, per theater tint. */
 const TERRAIN_RGB = {
@@ -159,6 +164,26 @@ const seedOf = (def, k) => (def.seed ?? Math.floor(((def.x * 73856093) ^ (def.z 
 const pickBy = (seed, list) => list[seed % list.length];
 
 /**
+ * Mission `variant` → species pool (docs/vegetation.md §3.10, pass 2). Unknown variants keep the theatre defaults.
+ * The pool is a hint for the look only: footprints, cover and sight come from the structure, never the species.
+ */
+export const VARIANT_SPECIES = Object.freeze({
+  broadleaf_normandy: ['oak', 'ash', 'oak', 'hawthorn', 'apple', 'beech', 'ash'],     // bocage standards, orchards
+  broadleaf: ['oak', 'ash', 'poplar', 'beech', 'plane', 'birch', 'oak', 'horse_chestnut'],
+  deciduous_bare: ['oak', 'beech', 'ash', 'plane', 'birch', 'apple'],
+  plane_tree: ['plane'], horse_chestnut: ['horse_chestnut'], cypress: ['cypress'],
+  box_parterre: ['box'], scrub_desert: ['desert_shrub', 'desert_shrub', 'acacia_shrub'], camel_thorn: ['desert_shrub'],
+  date_palm: ['date_palm'],
+});
+/** Theatre defaults for a variant-less structure. */
+const DEFAULT_SPECIES = {
+  tree: { temperate: ['oak', 'beech', 'plane', 'birch', 'poplar', 'ash', 'horse_chestnut'], coast: ['oak', 'ash', 'hawthorn', 'beech', 'oak', 'apple'],
+    desert: ['olive', 'acacia', 'olive'], snow: ['birch', 'birch', 'birch', 'oak'] },
+  bush: { temperate: ['shrub', 'hedge', 'hazel', 'shrub'], coast: ['sea_buckthorn', 'gorse', 'shrub', 'hedge'], desert: ['desert_shrub', 'desert_shrub', 'acacia_shrub'], snow: ['shrub'] },
+};
+const pool = (type, theater) => DEFAULT_SPECIES[type]?.[theater === 'night' ? 'temperate' : theater] ?? DEFAULT_SPECIES[type]?.temperate;
+
+/**
  * Mission tree structure → seeded treegen placement (every tree unique: species variant, shape and tint come
  * from its own seed; `h` sets the scale). Returns null for non-tree types.
  * @param {{type:string, x:number, z:number, h?:number, seed?:number, variant?:string, burnt?:boolean}} def
@@ -170,22 +195,38 @@ export function treePlacement(def, theater = 'temperate', k = 0) {
   const seed = seedOf(def, k), snow = theater === 'snow', desert = theater === 'desert';
   let species;
   if (def.species && SPECIES[def.species]) species = def.species;
+  else if (VARIANT_SPECIES[def.variant]) species = pickBy(seed, VARIANT_SPECIES[def.variant]);
+  else if (def.variant === 'pine_frost' && seed % 10 < 3) species = pickBy(seed >>> 4, ['beech', 'oak']); // M20 Black Forest edge: mixed wood
   // pines by theater: Norway spruce + Scots pine in the snow, Aleppo pine in the desert, stone (umbrella) and Aleppo
   // pines on the coast, a Scots pine / spruce / Aleppo mix elsewhere
   else if (def.type === 'pine') species = snow ? (seed % 20 < 13 ? 'spruce' : 'scots_pine') : desert ? 'pine'
     : theater === 'coast' ? pickBy(seed, ['stone_pine', 'stone_pine', 'pine']) : pickBy(seed, ['scots_pine', 'spruce', 'pine']);
   else if (def.type === 'palm') species = 'date_palm';
-  else if (def.type === 'bush') species = desert ? 'desert_shrub' : snow ? 'shrub' : pickBy(seed, ['shrub', 'hedge']);
+  else if (def.type === 'bush') species = pickBy(seed, pool('bush', theater));
   else if (def.variant === 'dead' || def.variant === 'dead_tree') species = 'dead_tree';
-  else if (def.variant === 'bare_winter') species = pickBy(seed, ['birch', 'oak', 'beech']);
-  else species = desert ? 'olive' : snow ? pickBy(seed, ['birch', 'oak']) : pickBy(seed, ['oak', 'beech', 'plane', 'birch', 'poplar']);
+  else if (def.variant === 'bare_winter') species = pickBy(seed, snow ? ['birch', 'birch', 'birch', 'oak', 'birch'] : ['birch', 'oak', 'beech']); // Norway: birch
+  else species = pickBy(seed, pool('tree', theater));
   const H = SPECIES[species].H;
   const scale = def.h ? Math.max(0.35, Math.min(2.5, def.h / ((H[0] + H[1]) / 2))) : 1;
   return {
-    species, x: def.x, z: def.z, seed, scale, burnt: !!def.burnt, hero: true,
+    species, x: def.x, z: def.z, seed, scale, burnt: !!def.burnt, hero: true, riverside: def.type === 'tree' && !def.species && (!def.variant || def.variant === 'broadleaf'),
     leafless: def.variant === 'bare_winter' ? true : undefined,
     crownBase: def.crownBase, crownR: def.crownR, // placement pruning hints (world/placement.js)
   };
+}
+
+/** Archetype footprint (radius, height at scale 1; scrub-geo.js) for sizing a hero bush to its structure. */
+const SCRUB_DIM = { camelthorn: [0.9, 0.83], saltbush: [0.63, 0.85], retama: [1.4, 1.25] };
+/**
+ * A mission desert bush (structure def + its placement) → a scrub plan entry (scrub.js): the kind from the variant
+ * (camel_thorn → camel thorn; scrub_desert → mostly saltbush / retama), scaled to cover the structure's
+ * radius `r` and height `h`; `hero` keeps it out of vehicle crushing (the structure still stands there).
+ */
+export function scrubHero(def, p) {
+  const kind = def.variant === 'camel_thorn' ? 'camelthorn' : pickBy(p.seed >>> 5, ['saltbush', 'retama', 'saltbush', 'camelthorn', 'retama']); // the fuller kinds: a bush the player hides by
+  const [R, H] = SCRUB_DIM[kind];
+  const s = Math.max(0.8, Math.min(2.2, Math.max(((def.r ?? 0.9) * 1.1) / R, (def.h ?? 0.9) / H)));
+  return { x: def.x, z: def.z, kind, s, rot: ((p.seed >>> 3) % 628) / 100, variant: p.seed & 1, mound: 0.9, hero: true };
 }
 
 /** Mission `terrain[]` road paths → pre-trampled polylines (worn ruts / slush at mission start). */
@@ -256,44 +297,104 @@ export function buildMaskedWater(grid, theater) {
   return water;
 }
 
+/** Chain splat painters (forest floor first, roads over it); undefined when none. */
+const composePaint = (...fs) => { fs = fs.filter(Boolean); return fs.length ? (x, z, w) => { for (const f of fs) f(x, z, w); } : undefined; };
+
 const presetOf = (renderer) => QUALITY_OF[renderer?.presetName] || 'medium';
 
 /**
  * Build the ground for a finished grid.
  * @param {import('../world/grid.js').NavGrid} grid
  * @param {'desert'|'snow'|'temperate'|'coast'|'night'} theater
- * @param {{renderer?: object, scene?: THREE.Object3D, mission?: object, trees?: object[], onSpray?: Function,
+ * @param {{renderer?: object, scene?: THREE.Object3D, mission?: object, trees?: object[], forests?: object[], onSpray?: Function,
  *   real?: boolean, ownWater?: boolean}} [ctx] renderer = engine Renderer (null → placeholder); trees = mission tree structure defs
  * @returns {object} handle: {ground, water, ready, heightAt, groundY, materialAt, frame, stampTrail, recordTrail,
  *   queryTrails, tracksNear, setQuality, stats, dispose}
  */
+/** Content key of a road network (null when it cannot be serialised: the splat is then rebuilt every load). */
+function netKey(net) {
+  try { return dataKey((h) => h.str(JSON.stringify(net))); } catch { return undefined; }
+}
+
+/** Identity of the composed splat painter: road network + forest-floor polygons (undefined → not cacheable). */
+function paintKeyOf(ctx) {
+  const roads = ctx.roads ? netKey(ctx.roads.net) : '-';
+  if (roads === undefined) return undefined;
+  try { return dataKey((h) => { h.str(roads); h.str(JSON.stringify((ctx.forests || []).map((f) => [f.type, f.variant, f.points]))); }); } catch { return undefined; }
+}
+
 export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
   const R = ctx.renderer || null;
   if (!canBuildRealTerrain(R) || ctx.real === false) return buildPlaceholderTerrain(grid, theater);
   let quality = presetOf(R);
   const mission = ctx.mission || null;
+  // farmland fringe (bocage.js: mission.vegetation.farmland): field hedges, crops, orchards clear of gameplay
+  const farm = farmland(mission, grid);
+  // mission trees → treegen placements; desert bushes become hero instances of the 3D scrub archetypes instead
+  // (docs/vegetation.md §3.2: camel thorn / saltbush / retama with woody stems, on their own nebkha mound)
+  const scrubHeroes = [], placements = [];
+  (ctx.trees || []).forEach((d, k) => {
+    const p = treePlacement(d, theater, k);
+    if (!p) return;
+    const desertBush = d.type === 'bush' && !d.species && (d.variant === 'scrub_desert' || d.variant === 'camel_thorn' || (!d.variant && theater === 'desert'));
+    if (p.species === 'desert_shrub' || desertBush) scrubHeroes.push(scrubHero(d, p));
+    else placements.push(p);
+  });
   const inner = createTerrainHandle(R, new THREE.Group(), grid, theater, {
+    scrubHeroes,
+    fields: farm.fields,
     quality, flatMask: buildFlatMask(grid), frozenWater: !!mission?.water?.frozen,
     // step 3p: ctx.roads (world/roads.js RoadIndex) → soft roads pre-trampled + splat painter; else the legacy paths
     roads: ctx.roads ? pretrampleRoads(ctx.roads.net) : roadPolylines(mission),
-    paint: ctx.roads ? terrainPainter(ctx.roads, theater, (PALETTES[theater] || PALETTES.temperate).layers) ?? undefined : undefined,
+    paint: composePaint(forestFloorPainter(ctx.forests, (PALETTES[theater] || PALETTES.temperate).layers),
+      ctx.roads ? terrainPainter(ctx.roads, theater, (PALETTES[theater] || PALETTES.temperate).layers) : null),
+    // identity of the painter (road network + forest floor polygons): lets the session cache keep the painted splat
+    paintKey: paintKeyOf(ctx),
     exclude: ctx.roads && (ctx.roads.net.roads.some((r) => !r.legacy) || ctx.roads.net.areas.length) ? (x, z) => ctx.roads.covers(x, z) : undefined,
-    onSpray: ctx.onSpray, texRes: terrainTexRes(quality),
+    onSpray: ctx.onSpray, texRes: terrainTexRes(quality), mission, // mission → vegetation profile (season, mix)
   });
   const ground = inner.ground;
   ground.name = 'terrain:ground';
   ground.userData.terrain = true;
   const water = ctx.ownWater ? null : buildMaskedWater(grid, theater); // ownWater: src/art/water owns the surface
-  const placements = (ctx.trees || []).map((d, k) => treePlacement(d, theater, k)).filter(Boolean);
+  // visual: true → no gameplay footprint and no gun-arc branch stamp (map-builder stampTreeBranches)
+  const visual = (list) => list.map((p) => ({ ...p, visual: true }));
+  // forest AREAS (M04, M20): fill the polygon with a Poisson-disc wood (M20 Black Forest edge: mixed with beech/oak)
+  const mine = placements.slice(); // the mission's own trees: occupied seeds for the fill
+  for (const f of ctx.forests || []) {
+    const fv = theater !== 'snow' && f.type === 'pine' ? 'pine_frost' : f.variant;
+    placements.push(...fillForest({ ...f, forestVariant: fv }, (d, k) => treePlacement(d, theater, k), { spacing: theater === 'snow' ? 3.7 : 4.4, occupied: mine }));
+    placements.push(...visual(forestUnderstorey(f, theater))); // brambles, hazel, fallen boughs on the litter
+  }
+  // bocage hedgerows (visual; mission.vegetation.hedgerows: [{points, gaps?, h?, standards?}])
+  for (const hr of [...(mission?.vegetation?.hedgerows || []), ...farm.hedgerows]) placements.push(...visual(hedgerowPlacements(hr)));
+  placements.push(...visual(farm.orchard));
+  // riverside: willows, alders and poplars on the banks (any tree within ~8 m of water that the mission left generic)
+  const wetCell = (x, z) => {
+    const i = Math.floor(x / grid.cell), j = Math.floor(z / grid.cell);
+    return i >= 0 && j >= 0 && i < grid.cols && j < grid.rows && WET_CODES.has(grid.terrain[j * grid.cols + i]);
+  };
+  for (const p of placements) {
+    if (!p.riverside || theater === 'snow' || theater === 'desert') continue;
+    let wet = false;
+    for (let a = 0; a < 12 && !wet; a++) for (const d of [3, 5.5, 8]) if (wetCell(p.x + Math.cos(a * 0.5236) * d, p.z + Math.sin(a * 0.5236) * d)) { wet = true; break; }
+    if (wet) { p.species = pickBy(p.seed >>> 3, ['willow', 'alder', 'willow', 'poplar']); p.scale = Math.min(p.scale, 1.15); }
+  }
   const stats = { trees: placements.length, readyMs: 0 };
-  let veg = null, disposed = false;
+  let veg = null, disposed = false, apron = null, apronReady = Promise.resolve(null);
   const t0 = performance.now();
   const pitchDeg = CONFIG.camera?.pitchDeg ?? 40;
   const ready = inner.ready.then(async (t) => {
     if (disposed) return null;
+    // scenery past the map edges (art/apron.js): ground + water continuation + forest; before the water's bed capture
+    if (mission && ctx.apron !== false) {
+      try { apron = createApron(R, ground, t, grid, mission, theater, { trees: ctx.trees || [], quality, pitchDeg, createVegetation, treePlacement, season: vegetationProfile(mission, theater).trees, snow: mission?.treeSnow ?? undefined }); }
+      catch (e) { console.error('[apron] build failed', e); apron = null; }
+      apronReady = Promise.resolve(apron?.forest).then(() => apron);
+    }
     if (placements.length) {
       // snow load on the trees: per mission (`treeSnow`, 0..1.3), else 1 in the snow theater
-      veg = await createVegetation(ground, placements, theater, { quality, terrain: t, renderer: R, pitchDeg, snow: mission?.treeSnow ?? undefined });
+      veg = await createVegetation(ground, placements, theater, { quality, terrain: t, renderer: R, pitchDeg, snow: mission?.treeSnow ?? undefined, season: vegetationProfile(mission, theater).trees });
       if (disposed) { veg.dispose(); veg = null; return null; }
     }
     stats.readyMs = Math.round(performance.now() - t0);
@@ -306,6 +407,9 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
   };
   const h = {
     ground, water, ready, stats, real: true,
+    /** Scenery apron (art/apron.js) once built, else null; `apronReady` resolves with it (or null). */
+    get apron() { return apron; },
+    get apronReady() { return apronReady; },
     get terrain() { return inner.terrain; },
     get vegetation() { return veg; },
     get quality() { return quality; },
@@ -336,7 +440,9 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
       if (q !== quality) h.setQuality(q);
       inner.update(dt, camera);
       veg?.update(dt, camera);
+      apron?.update(dt, camera);
       if (world && inner.terrain) stampWorld(inner, world, grid);
+      if (world) brushWorld(veg, inner.terrain?.grass?.scrub, world, dt);
     },
     setQuality(q) {
       if (!QUALITY_OF[q]) return null;
@@ -348,6 +454,7 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
     dispose() {
       disposed = true;
       veg?.dispose(); veg = null;
+      apron?.dispose(); apron = null;
       inner.dispose();
       ground.parent?.remove(ground);
       if (water) { water.parent?.remove(water); water.geometry.dispose(); water.material.alphaMap?.dispose(); water.material.dispose(); }
@@ -409,6 +516,28 @@ export function stampWorld(t, world, grid) {
   }
 }
 const _contacts = [];
+const _movers = [];
+/**
+ * Interaction (docs/vegetation.md §4), visual only: walkers and vehicles moving through bushes part and shake them
+ * (vegetation.agitate); land vehicles crush the desert scrub under them (scrub.crush). Cover, sight and collision
+ * stay with the structures.
+ */
+export function brushWorld(veg, scrub, world, dt) {
+  _movers.length = 0;
+  for (const list of [world.commandos, world.enemies]) {
+    for (const u of list || []) {
+      if (u.removed || !u.alive || !u.path || u.state === 'inVehicle' || u.state === 'carried' || u.state === 'jailed') continue;
+      _movers.push({ id: 'u' + u.id, x: u.x, z: u.z, s: u.moveMode === 'run' ? 1.2 : u.stance === 'crawl' || u.stance === 'prone' ? 0.9 : 0.7, r: 1.1 });
+    }
+  }
+  for (const v of world.vehicles || []) {
+    if (v.removed || v.alive === false || !(Math.abs(v.speed || 0) > 0.05) || (v.y || 0) > GROUND_Y_MAX || v.def?.kind !== 'land') continue;
+    const rad = Math.max(1.4, (v.model?.dims?.w ?? 2.2) * 0.6);
+    _movers.push({ id: 'v' + v.id, x: v.x, z: v.z, s: 1.6, r: rad + 1 });
+    scrub?.crush?.(v.x, v.z, rad);
+  }
+  veg?.agitate?.(_movers, dt);
+}
 /** Rut depth factor per trail layout (trails.js VEHICLE_TYPES load): heavier vehicles cut deeper. */
 const TRAIL_LOAD = { car: 0.7, jeep: 0.6, truck: 1, motorcycle: 0.45, halftrack: 1.05, tank: 1.25 };
 

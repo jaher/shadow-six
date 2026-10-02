@@ -22,7 +22,7 @@ function scratch(tpl) {
   let mesh = null;
   root.traverse((o) => { if (o.isBone && !(o.name in B)) B[o.name] = o; if (o.isSkinnedMesh && /^LOD2/.test(o.name) && !mesh) mesh = o; });
   if (!mesh) root.traverse((o) => { if (o.isSkinnedMesh && !mesh) mesh = o; });
-  const reg = { trunk: [], fa_l: [], fa_r: [], leg_l: [], leg_r: [] };
+  const reg = { trunk: [], fa_l: [], fa_r: [], leg_l: [], leg_r: [], hd_l: [], hd_r: [], kn_l: [], kn_r: [] };
   if (mesh) {
     const si = mesh.geometry.attributes.skinIndex, sw = mesh.geometry.attributes.skinWeight, n = mesh.geometry.attributes.position.count;
     for (let i = 0; i < n; i++) {
@@ -31,7 +31,8 @@ function scratch(tpl) {
       const bn = mesh.skeleton.bones[bi].name;
       if (TRUNK.test(bn)) reg.trunk.push(i);
       let m = bn.match(/^lowerarm_(l|r)$/); if (m) reg['fa_' + m[1]].push(i);
-      m = bn.match(/^(thigh|calf|foot|ball)_(l|r)$/); if (m) reg['leg_' + m[2]].push(i);
+      m = bn.match(/^(thigh|calf|foot|ball)_(l|r)$/); if (m) { reg['leg_' + m[2]].push(i); if (/^(thigh|calf)$/.test(m[1])) reg['kn_' + m[2]].push(i); }
+      m = bn.match(/^(hand|(thumb|index|middle|ring|pinky)_0\d)_(l|r)$/); if (m) reg['hd_' + m[3]].push(i);
     }
   }
   return (tpl._proneScratch = { root, B, mesh, reg });
@@ -67,6 +68,26 @@ function ankleBy(B, s, dy) {
   const pb2 = wp(b), pc2 = wp(c);
   rotKeep(b, _q.setFromUnitVectors(pc2.clone().sub(pb2).normalize(), t.clone().sub(pb2).normalize()), [c]);
 }
+/** Two-bone IK: move the wrist of side s by dy (world up) keeping the elbow's bend plane and the hand's world rotation. */
+function wristBy(B, s, dy) {
+  const a = B['upperarm_' + s], b = B['lowerarm_' + s], c = B['hand_' + s];
+  const pa = wp(a), pb = wp(b), pc = wp(c), t = pc.clone().add(_v.set(0, dy, 0));
+  const l1 = pb.distanceTo(pa), l2 = pc.distanceTo(pb), D = THREE.MathUtils.clamp(t.distanceTo(pa), Math.abs(l1 - l2) + 1e-3, l1 + l2 - 1e-3);
+  const n = pb.clone().sub(pa).cross(pc.clone().sub(pb)); if (n.lengthSq() < 1e-10) n.set(0, 1, 0); n.normalize();
+  const u = t.clone().sub(pa).normalize(), cosA = (l1 * l1 + D * D - l2 * l2) / (2 * l1 * D), sinA = Math.sqrt(Math.max(0, 1 - cosA * cosA));
+  const k0 = pb.clone().sub(pa); k0.addScaledVector(u, -k0.dot(u));
+  const side = new THREE.Vector3().crossVectors(n, u).normalize(); if (side.dot(k0) < 0) side.negate();
+  const el = pa.clone().addScaledVector(u, l1 * cosA).addScaledVector(side, l1 * sinA);
+  rotKeep(a, _q.setFromUnitVectors(pb.clone().sub(pa).normalize(), el.clone().sub(pa).normalize()), [c]);
+  const pb2 = wp(b), pc2 = wp(c);
+  rotKeep(b, _q.setFromUnitVectors(pc2.clone().sub(pb2).normalize(), t.clone().sub(pb2).normalize()), [c]);
+}
+/** Hand plant weight (0..1) of side s at clip fraction u: meta.contacts.hd = per-frame digit pairs '99 50 00 ...'. */
+const handW = (meta, u, s) => {
+  const c = meta.contacts && meta.contacts.hd; if (!c) return 0;
+  const fr = c.split(' '), f = fr[Math.min(fr.length - 1, Math.round(u * (fr.length - 1)))];
+  return (+f[s === 'l' ? 0 : 1] || 0) / 9;
+};
 const planted = (meta, key, u, s) => {
   const c = meta.contacts && meta.contacts[key]; if (!c) return true;
   const fr = c.split(' '); const f = fr[Math.min(fr.length - 1, Math.round(u * (fr.length - 1)))];
@@ -163,12 +184,18 @@ export function fitProneClip(tpl, clip, meta = {}, ratio = 1) {
   for (let f = 0; f < n; f++) {
     poseAt(times[f]); const m = minOf(S, S.reg.trunk); d[f] = THREE.MathUtils.clamp((tr ? CLEAR : TRUNK_CLEAR) - m, -0.1, 0.14) * near(m, 0.06, 0.16);
     // transitions (go_prone / get_up): this body's longer shins / thighs must not put a knee through the ground while
-    // it drops to (or rises from) its knees - lift the whole body over its lowest limb (review: knee 10-14 cm under)
-    if (tr) { let lo = 9; for (const k of ['leg_l', 'leg_r', 'fa_l', 'fa_r']) lo = Math.min(lo, minOf(S, S.reg[k])); if (lo + d[f] < 0) d[f] = -lo; }
+    // it drops to (or rises from) its knees - lift the whole body over its lowest knee / shin (review: knee 10-14 cm
+    // under). Boots and forearms are fitted per limb below (a toe in the snow must not float the whole body)
+    // The knees win over the trunk: a greatcoat hem or a pack touching the ground while he kneels must not float the
+    // knees (trunk lift <= 2 cm above a kneeling knee), and the trunk never pushes a knee into the ground.
+    if (tr) { let lo = 9; for (const k of ['kn_l', 'kn_r']) lo = Math.min(lo, minOf(S, S.reg[k])); d[f] = Math.max(-lo, CLEAR - lo, Math.min(d[f], lo - CLEAR + 0.02)); }
   }
   const ds = d.map((_, f) => { const sm = (d[Math.max(0, f - 1)] + 2 * d[f] + d[Math.min(n - 1, f + 1)]) / 4; return tr ? Math.max(sm, d[f]) : sm; });
   const ARM = ['clavicle_l', 'upperarm_l', 'lowerarm_l', 'clavicle_r', 'upperarm_r', 'lowerarm_r'], LEG = ['thigh_l', 'calf_l', 'foot_l', 'thigh_r', 'calf_r', 'foot_r'];
-  const names = [...ARM, ...LEG].filter((k) => B[k]), EL = { l: [], r: [] }, Q = Object.fromEntries(names.map((k) => [k, new Float32Array(n * 4)])), P = new Float32Array(n * 3);
+  // transitions with planted hands (get_up / go_prone push-up): this body's trunk bends forward over the hips and the
+  // arms reach so the palms stay on the ground (longer legs lift the shoulders; the authored UAL arms fall short)
+  const HANDS = tr && !!(meta.contacts && meta.contacts.hd), HST = { pitch: 0, gap: 0 };
+  const names = [...(HANDS ? ['spine_01'] : []), ...ARM, ...LEG].filter((k) => B[k]), EL = { l: [], r: [] }, Q = Object.fromEntries(names.map((k) => [k, new Float32Array(n * 4)])), P = new Float32Array(n * 3);
   const par = B.pelvis.parent;
   for (let f = 0; f < n; f++) {
     poseAt(times[f]);
@@ -188,6 +215,34 @@ export function fitProneClip(tpl, clip, meta = {}, ratio = 1) {
       if (Math.abs(dy) < 0.002) break;
       ankleBy(B, s, dy); root.updateMatrixWorld(true);
     }
+    // 4h. planted hands (transitions): pitch the trunk forward (<= 25 deg) to bring the higher palm down, then each arm
+    //     reaches (two-bone IK, hand keeps its world rotation) so its palm touches the ground
+    if (HANDS) {
+      const w = { l: handW(meta, u, 'l'), r: handW(meta, u, 'r') };
+      if (w.l > 0 || w.r > 0) {
+        const gap = (s) => minOf(S, S.reg['hd_' + s]) - CLEAR;
+        let pitch = 0;
+        for (let it = 0; it < 4; it++) {
+          const g = Math.max(w.l * gap('l'), w.r * gap('r'));
+          // never into the ground: the chest / head keep CLEAR (a flat body only reaches with its arms)
+          if (g < 0.004 || minOf(S, S.reg.trunk) < CLEAR + 0.03) break;
+          const sp = wp(B.spine_01), sh = wp(B.upperarm_l).lerp(wp(B.upperarm_r), 0.5), r = Math.max(0.2, Math.hypot(sh.y - sp.y, sh.z - sp.z));
+          const a = Math.min(25 * Math.PI / 180 - pitch, g / r);
+          if (a <= 1e-4) break;
+          const ax = _w.set(sh.x - sp.x, 0, sh.z - sp.z); if (ax.lengthSq() < 1e-6) break;
+          ax.normalize().set(ax.z, 0, -ax.x);   // up x forward: a positive turn about it lowers the shoulders
+          rotKeep(B.spine_01, _q.setFromAxisAngle(ax, a), []); root.updateMatrixWorld(true);
+          if (minOf(S, S.reg.trunk) < CLEAR) { rotKeep(B.spine_01, _q.setFromAxisAngle(ax, -a), []); root.updateMatrixWorld(true); break; }
+          pitch += a;
+        }
+        for (const s of ['l', 'r']) for (let it = 0; w[s] > 0 && it < 3; it++) {
+          const dy = THREE.MathUtils.clamp(-gap(s), -0.2, 0.08) * w[s];
+          if (Math.abs(dy) < 0.003) break;
+          wristBy(B, s, dy); root.updateMatrixWorld(true);
+        }
+        HST.pitch = Math.max(HST.pitch, pitch); HST.gap = Math.max(HST.gap, w.l * gap('l'), w.r * gap('r'));
+      }
+    }
     for (const s of ['l', 'r']) EL[s].push(wp(B['lowerarm_' + s]));
     for (const k of names) B[k].quaternion.toArray(Q[k], f * 4);
     B.pelvis.position.toArray(P, f * 3);
@@ -206,6 +261,7 @@ export function fitProneClip(tpl, clip, meta = {}, ratio = 1) {
   tracks.push(new THREE.VectorKeyframeTrack('pelvis.position', times, P));
   for (const k of names) tracks.push(new THREE.QuaternionKeyframeTrack(k + '.quaternion', times, Q[k]));
   const out = new THREE.AnimationClip(clip.name, clip.duration, tracks);
-  out.userData = { ...(clip.userData || {}), proneFit: { trunk: [Math.min(...d), Math.max(...d)].map((x) => +x.toFixed(3)) } };
+  out.userData = { ...(clip.userData || {}), proneFit: { trunk: [Math.min(...d), Math.max(...d)].map((x) => +x.toFixed(3)),
+    ...(HANDS ? { hands: { pitchDeg: +(HST.pitch * 180 / Math.PI).toFixed(1), gap: +HST.gap.toFixed(3) } } : null) } };
   return out;
 }

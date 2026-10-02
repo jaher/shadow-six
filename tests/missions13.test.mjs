@@ -39,13 +39,22 @@ export default async function missions13(page, t) {
     t(!r.hurt, `${id}: no commando hurt at the start`);
     t(r.structures > 10, `${id} structures built`);
     if (id === 'm02') {
-      t.equal(r.ladders, 2, 'm02 ladders registered');
+      t.equal(r.ladders, 1, 'm02 ladder registered (ladder_sw; the way down inside is plat_sw\'s stair)');
       t.equal(r.barracks, 2, 'm02 garrisons registered');
       await page.evaluate(() => { const g = window.__game; g.setZoom(0.55); g.centerOn(42, 42); });
       await t.shot('missions13-m02-camp');
     }
     if (id === 'm03') {
       t.equal(r.barracks, 4, 'm03 garrisons registered');
+      // units on the dam crest stand on the grid's walking height: no relief / low surface under the deck is added
+      // (it floated them 0.25 m or sank them 8 cm into the snow before)
+      const gy = await page.evaluate(() => {
+        const w = window.__game.game.world, out = [];
+        for (const [x, z] of [[48.65, 21.62], [44, 21.9], [40, 22.1], [36, 23], [32.3, 26], [51.1, 22.75], [30.6, 28.3]])
+          out.push([x, z, w.grid.elevAt(x, z), +w.groundY(x, z).toFixed(3)]);
+        return out;
+      });
+      for (const [x, z, e, y] of gy) { t(e > 7, `m03 crest cell at (${x}, ${z}) raised (${e})`); t.equal(y, 0, `m03 crest (${x}, ${z}): no visual ground offset`); }
       await page.evaluate(() => { const g = window.__game; g.setZoom(0.5); g.centerOn(34, 52); });
       await t.shot('missions13-m03-dam');
     }

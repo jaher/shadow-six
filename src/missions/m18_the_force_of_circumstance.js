@@ -320,7 +320,7 @@ export default {
   size: [201, 150],
   seed: 1944_1216,
   briefing: {
-    historical: 'December 1944. Out of the fog of the Ardennes the Germans have thrown their last reserves at a thin Allied line, and the line has given way. Liège is threatened, and their columns need the Maas crossings to keep moving west. Three months ago we fought to keep one of those bridges standing. Now it has to come down.',
+    historical: 'December 1944. Out of the fog of the Ardennes the Germans have thrown their last reserves at a thin Allied line, and the line is giving way. Their columns need the Maas crossings to keep moving west. Three months ago we fought to keep one of those bridges standing. Now it has to come down.',
     text: 'You know this ground better than anyone, officer. The difference is that this time you are on the other side of the argument. We have no charges of our own anywhere near, so you will have to use theirs: they keep a case of explosives on the island under the bridge. Put a charge on each of the three weak points of the span and bring it down. A lorry of ours will be waiting by the south road. When the bridge is gone, everybody in and drive out.',
     objectivesSummary: 'Blow the Maas bridge at its three marked points, then get everyone into the lorry and out by the south road.',
     hints: [

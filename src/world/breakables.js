@@ -167,11 +167,17 @@ function boomLayout(def, rand) {
   }
   pieces.push(box('arm', 'weight', 0, [xp - 0.2, y, 0], [0.55, r * 1.1, r * 1.1], { round: true, rail: 'pole' }));
   pieces.push(box('weight', 'weight', 0, [xp - 0.62, y - 0.05, 0], [0.16, 0.2, 0.15], { rail: 'pole' }));
-  pieces.push(box('post0', 'post', -1, [xp, (y - 0.09) / 2, 0], [0.12, (y - 0.09) / 2, 0.12]));
+  // the pivot post stands BESIDE the pole (pin bearing on its face): the counterweight swings down past it when the
+  // boom is raised (or after the pole snapped) instead of into it
+  pieces.push(box('post0', 'post', -1, [xp, 0.625, -0.3], [0.12, 0.625, 0.12]));
   pieces.push(box('post1', 'post', -1, [xe - 0.2, (y - 0.08) / 2, 0], [0.07, (y - 0.08) / 2, 0.07]));
+  // a boom set in a wider wall opening (def.gap [lo, hi], local x): stout log gate posts where the palisade ends, the
+  // pivot side between the S post and the road, a pedestrian footway between the fork rest and the far post
+  const gap = Array.isArray(def.gap) ? def.gap : null, gh = def.gapPostH ?? 3.3;
+  if (gap) for (const [i, gx] of [[0, gap[0] + 0.15], [1, gap[1] - 0.15]]) pieces.push(box(`gpost${i}`, 'post', -1, [gx, gh / 2, 0], [0.15, gh / 2, 0.15], { round: true, gatePost: true }));
   hinges.push({ id: 'H00', leaf: 0, piece: 'pole0', at: [xp, y, 0] });
   for (const p of pieces) p.mass = p.kind === 'post' ? 0 : p.kind === 'weight' && p.id === 'weight' ? 60 : vol(p) * K.density;
-  return { kind: 'boom', w, h: y + r, pieces, hinges, leaves: 1, pivot: [xp, y, 0] };
+  return { kind: 'boom', w, h: y + r, pieces, hinges, leaves: 1, pivot: [xp, y, 0], gap, footway: gap ? [xe - 0.13, gap[1] - 0.3] : null };
 }
 
 /** Wire / frame gate: steel tube leaves (top/bottom rails, stiles, diagonal) with a mesh panel; steel posts. */
@@ -212,7 +218,7 @@ export function gateLayout(def) {
 const LAYOUT_CACHE = new Map();
 /** Cached gateLayout by structure id (layouts are immutable). */
 export function layoutOf(def) {
-  const key = `${def?.id ?? ''}|${def?.w}|${def?.h}|${def?.look ?? ''}|${def?.variant ?? ''}`;
+  const key = `${def?.id ?? ''}|${def?.w}|${def?.h}|${def?.look ?? ''}|${def?.variant ?? ''}|${def?.gap ?? ''}`;
   if (!LAYOUT_CACHE.has(key)) LAYOUT_CACHE.set(key, gateLayout(def));
   return LAYOUT_CACHE.get(key);
 }

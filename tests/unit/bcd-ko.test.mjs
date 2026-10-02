@@ -135,3 +135,23 @@ test('BCD KO: save/load round-trips a stunned man mid-KO', () => {
   assert.equal(e.koT, t0);
   assert.equal(e.brain.state, 'STUNNED');
 });
+
+test('BCD KO from a crawl: like the knife, he crawls in and stands up only when close (user request 2026-10-01)', () => {
+  const s = bcdSim({ commandos: [{ role: 'greenberet', x: 27, z: 20 }], enemies: [post('a', 20, 20, Math.PI)] }); // GB 7 m behind him
+  const gb = s.cmd('greenberet'), e = s.get('a');
+  gb.setStance('crawl');
+  s.run(0.6);
+  assert.equal(gb.useAbility('knockoutFist', e), true);
+  assert.equal(gb.stance, 'crawl', 'no stand-up at the click');
+  const standAt = CONFIG.bcd.koReach + CONFIG.abilities.crawlStandLead;
+  let stoodAt = null;
+  s.run(10, () => {
+    if (gb.stance === 'crawl') return false;
+    stoodAt = Math.hypot(e.x - gb.x, e.z - gb.z);
+    return true;
+  });
+  assert.ok(stoodAt !== null && stoodAt <= standAt + 1e-6 && stoodAt > CONFIG.bcd.koReach, `stood up close (${stoodAt})`);
+  s.run(3, () => e.ko === 'stunned');
+  assert.equal(e.ko, 'stunned', 'knocked out from behind');
+  assert.ok(!s.alarmed());
+});

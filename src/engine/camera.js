@@ -53,6 +53,21 @@ export class CameraController {
     this.zoom = this.cfg.defaultZoom;
     this.zoomTarget = this.zoom;
     this.bounds = { minX: 0, minZ: 0, maxX: 100, maxZ: 100 };
+    /**
+     * Scenery apron (m) drawn past every map edge (art/apron.js), or null (no guarantee: unit tests, placeholder
+     * ground). When set, the zoom floor keeps the view's true ground footprint inside it (see apronMinZoom): the
+     * player never sees the void past the map at any zoom / yaw / aspect.
+     */
+    this.apron = null;
+    /** Lowest / highest visual ground height (m) inside the apron (river beds, drifts): footprint slack. */
+    this.groundRange = [-1.6, 1.2];
+    /** Zoom floors already reported (one console line per map / view size / yaw). */
+    this._apronLogged = new Set();
+    /**
+     * Height (CSS px) of the HUD top bar over this view's top edge (0 = none). The clamp and the programmatic focus
+     * treat the view as the part BELOW it (usableHalf): every map point can be scrolled clear of the bar.
+     */
+    this.hudTop = 0;
     /** View rectangle inside the canvas, CSS px (multi-view). */
     this.rect = { x: 0, y: 0, w: 1, h: 1 };
     this.width = 1;
@@ -97,7 +112,7 @@ export class CameraController {
   }
 
   _applyTransform() {
-    const mz = this.minZoomForMap(); // a resize/new map may make the view larger than the map
+    const mz = Math.max(this.minZoomForMap(), this.apronMinZoom()); // a resize/new map may make the view larger than the map
     if (this.zoom < mz) this.zoom = mz;
     if (this.zoomTarget < mz) this.zoomTarget = mz;
     this._clamp(); // zoom/resize change the view extents → re-clamp the target
@@ -132,11 +147,85 @@ export class CameraController {
     this.resize(w, h);
   }
 
+  /** HUD top-bar height over this view (CSS px); re-clamps when it changes. */
+  setHudTop(px) {
+    const v = Math.max(0, Number(px) || 0);
+    if (Math.abs(v - this.hudTop) < 0.5) return;
+    this.hudTop = v;
+    this._applyTransform();
+  }
+
+  /**
+   * The view part below the HUD top bar in ground metres: half-width `hw` (screen x), half-depth `hh` (screen-down,
+   * foreshortened) and `sh`, how far its centre sits down-screen from the target. hudTop 0 → the whole view, sh 0.
+   */
+  usableHalf(zoom = this.zoom) {
+    const ppm = this.pxPerMeter(zoom), fore = Math.sin(this.elevation) || 1;
+    const top = Math.min(this.hudTop || 0, this.height * 0.5);
+    return { hw: this.width / 2 / ppm, hh: (this.height - top) / 2 / ppm / fore, sh: top / 2 / ppm / fore };
+  }
+
+  /** World offset (m) from the target to the usable view's centre (sh along screen-down = (sin yaw, cos yaw)). */
+  usableShift(zoom = this.zoom) {
+    const sh = this.usableHalf(zoom).sh;
+    return { x: sh * Math.sin(this.azimuth), z: sh * Math.cos(this.azimuth) };
+  }
+
   /** Map bounds (m); the VIEW may show up to CONFIG.camera.boundsMargin beyond them (§2.3). */
   setBounds(width, depth) {
     const m = this.cfg.boundsMargin ?? 0;
     this.bounds = { minX: -m, minZ: -m, maxX: width + m, maxZ: depth + m };
     this._applyTransform(); // clamps
+  }
+
+  /**
+   * Width (m) of the scenery apron past the map edges, or null; `range` = [lowest, highest] ground y in it.
+   * Re-applies the zoom floor (apronMinZoom) and the clamp.
+   */
+  setApron(width, range = null) {
+    this.apron = Number.isFinite(width) && width > 0 ? width : null;
+    if (range) this.groundRange = [Math.min(0, range[0]), Math.max(0, range[1])];
+    this._applyTransform();
+  }
+
+  /**
+   * How far (m) past the map edge the view's TRUE ground footprint can reach at this zoom: the clamp margin, the
+   * slanted-corner overshoot at the clamp limit, and the shift of the footprint when the screen-corner rays meet
+   * ground below / above y = 0 (an orthographic ray moves h·cot(pitch) along the view per metre of height).
+   */
+  voidReach(zoom = this.zoom) {
+    const M = this.cfg.boundsMargin ?? 0;
+    const [lo, hi] = this.groundRange, cot = 1 / Math.tan(this.elevation);
+    const slack = Math.max(-lo, hi) * cot;
+    return M + this.clampOvershoot(zoom) + slack;
+  }
+
+  /** Smallest zoom whose voidReach stays inside the apron (0 without an apron). */
+  apronMinZoom() {
+    if (!this.apron) return 0;
+    const ck = `${this.apron}|${this.width}|${this.height}|${this.hudTop}|${this.azimuth}|${this.groundRange}|${this.cfg.boundsMargin}`;
+    if (this._apronZ?.k === ck) return this._apronZ.z;
+    const z = this._apronMinZoom();
+    this._apronZ = { k: ck, z };
+    return z;
+  }
+
+  _apronMinZoom() {
+    if (this.voidReach(this._zoomFloor()) <= this.apron) return 0;
+    let lo = this._zoomFloor(), hi = Math.max(lo * 2, this.cfg.zoomLevels[this.cfg.zoomLevels.length - 1] * 2);
+    if (this.voidReach(hi) > this.apron) return hi; // a view this large never fits: the closest zoom we allow
+    for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (this.voidReach(m) > this.apron) lo = m; else hi = m; }
+    const key = `${Math.round(this.bounds.maxX)}x${Math.round(this.bounds.maxZ)}@${Math.round(this.width)}x${Math.round(this.height)}/${Math.round(this.yawDeg)}`;
+    if (!this._apronLogged.has(key)) {
+      this._apronLogged.add(key);
+      console.info(`[camera] zoom floor ${hi.toFixed(3)} (map ${key}): a wider view would show past the ${this.apron} m apron`);
+    }
+    return hi;
+  }
+
+  /** The lowest zoom setZoom accepts before the map / apron floors. */
+  _zoomFloor() {
+    return this.cfg.zoomLevels[0] * 0.5;
   }
 
   /** Half-extents (m, world x / z) of the visible ground footprint around the target. */
@@ -159,21 +248,25 @@ export class CameraController {
    * the margin (see clampOvershoot); the mid-points of the screen edges stay close to it.
    */
   clampHalfExtents(zoom = this.zoom) {
-    const e = this.viewHalfExtents(zoom);
+    const u = this.usableHalf(zoom);
     const ca = Math.abs(Math.cos(this.azimuth)), sa = Math.abs(Math.sin(this.azimuth));
+    const e = { x: u.hw * ca + u.hh * sa, z: u.hw * sa + u.hh * ca };
     if (sa < 1e-9) return e;
-    const M = this.cfg.boundsMargin ?? 0, r = Math.min(M, this.cfg.reachMargin ?? M), ppm = this.pxPerMeter(zoom);
-    const hw = Math.max(0, this.width / 2 / ppm - r);
-    const hh = Math.max(0, this.height / 2 / ppm / (Math.sin(this.elevation) || 1) - r);
+    const M = this.cfg.boundsMargin ?? 0, r = Math.min(M, this.cfg.reachMargin ?? M);
+    const hw = Math.max(0, u.hw - r);
+    const hh = Math.max(0, u.hh - r);
     const rx = hw * ca + hh * sa, rz = hw * sa + hh * ca;
     const k = Math.min(rx > 0 ? hw / rx : 1, rz > 0 ? hh / rz : 1);
     return { x: Math.min(e.x, M + hw * k), z: Math.min(e.z, M + hh * k) };
   }
 
-  /** How far (m) past the bounds the view's farthest corner may reach at the clamp limit (0 at yaw 0). */
+  /**
+   * How far (m) past the bounds the view's farthest corner may reach at the clamp limit (0 at yaw 0 without a HUD
+   * bar; with one, the bar's own depth at the north limit — the ground under the bar is drawn too).
+   */
   clampOvershoot(zoom = this.zoom) {
-    const e = this.viewHalfExtents(zoom), c = this.clampHalfExtents(zoom);
-    return Math.max(e.x - c.x, e.z - c.z);
+    const e = this.viewHalfExtents(zoom), c = this.clampHalfExtents(zoom), s = this.usableShift(zoom);
+    return Math.max(e.x - c.x + Math.abs(s.x), e.z - c.z + Math.abs(s.z));
   }
 
   /** Smallest zoom at which the view still fits inside the map bounds (a tiny map never shows past its margin). */
@@ -186,35 +279,47 @@ export class CameraController {
     return z;
   }
 
-  /** Keep the target inside the clamp rectangle (clampHalfExtents); centre when the map is smaller than the view. */
+  /**
+   * Keep the target inside the clamp rectangle (clampHalfExtents, applied to the usable view's centre — the target
+   * shifted down-screen past the HUD bar); centre when the map is smaller than the view.
+   */
   _clamp() {
+    const f = this._looseFit(this.target.x, this.target.z);
+    if (!f) return;
+    this.target.x = f.x;
+    this.target.z = f.z;
+  }
+
+  /** The manual-scroll clamp of a wanted target (x, z) (see _clamp), or null without bounds. */
+  _looseFit(x, z) {
     const b = this.bounds;
-    if (!b) return;
-    const e = this.clampHalfExtents();
+    if (!b) return null;
+    const e = this.clampHalfExtents(), s = this.usableShift();
     const fit = (v, lo, hi, half) => (hi - lo <= 2 * half ? (lo + hi) / 2 : clamp(v, lo + half, hi - half));
-    this.target.x = fit(this.target.x, b.minX, b.maxX, e.x);
-    this.target.z = fit(this.target.z, b.minZ, b.maxZ, e.z);
+    return { x: fit(x + s.x, b.minX, b.maxX, e.x) - s.x, z: fit(z + s.z, b.minZ, b.maxZ, e.z) - s.z };
   }
 
   /**
    * Target for a PROGRAMMATIC look at (x, z) (recentre, tracking, briefing tour, save restore): the strict clamp
    * (view wholly inside the bounds, as at yaw 0), loosened toward the manual-scroll clamp only as far as needed to
-   * bring the point focusInset (fraction of the half-view) inside the screen. With yaw this keeps the void wedges
-   * the loose clamp allows (clampHalfExtents) to deliberate pushes against the map edge. Yaw 0: plain clamp.
+   * bring the point `inset` (fraction of the half-view; CONFIG focusInset) inside the play view — the part below the
+   * HUD top bar (usableHalf), so the point never lands under the bar. With yaw this keeps the slanted wedges the
+   * loose clamp allows (clampHalfExtents) to deliberate pushes against the map edge. Yaw 0: plain clamp.
    */
-  focusTarget(x, z) {
+  focusTarget(x, z, inset = this.cfg.focusInset ?? 0.24) {
     const b = this.bounds;
     if (!b) return { x, z };
     const fit = (v, lo, hi, half) => (hi - lo <= 2 * half ? (lo + hi) / 2 : clamp(v, lo + half, hi - half));
-    const le = this.clampHalfExtents(), L = { x: fit(x, b.minX, b.maxX, le.x), z: fit(z, b.minZ, b.maxZ, le.z) };
+    const u = this.usableHalf(), s = this.usableShift();
+    const L = this._looseFit(x - s.x, z - s.z); // the point at the centre of the view part below the HUD bar
     if (Math.abs(Math.sin(this.azimuth)) < 1e-9) return L;
-    const se = this.viewHalfExtents(), S = { x: fit(x, b.minX, b.maxX, se.x), z: fit(z, b.minZ, b.maxZ, se.z) };
-    const ca = Math.cos(this.azimuth), sa = Math.sin(this.azimuth), ppm = this.pxPerMeter();
-    const k = 1 - (this.cfg.focusInset ?? 0.24);
-    const hw = (this.width / 2 / ppm) * k, hh = (this.height / 2 / ppm / (Math.sin(this.elevation) || 1)) * k;
+    const se = this.viewHalfExtents(), S = { x: fit(x - s.x, b.minX, b.maxX, se.x), z: fit(z - s.z, b.minZ, b.maxZ, se.z) };
+    const ca = Math.cos(this.azimuth), sa = Math.sin(this.azimuth);
+    const k = 1 - inset;
+    const hw = u.hw * k, hh = u.hh * k;
     const sees = (t) => {
       const dx = x - t.x, dz = z - t.z;
-      return Math.abs(dx * ca - dz * sa) <= hw + 1e-9 && Math.abs(dx * sa + dz * ca) <= hh + 1e-9;
+      return Math.abs(dx * ca - dz * sa) <= hw + 1e-9 && Math.abs(dx * sa + dz * ca - u.sh) <= hh + 1e-9;
     };
     if (sees(S)) return S;
     const at = (f) => ({ x: S.x + (L.x - S.x) * f, z: S.z + (L.z - S.z) * f });
@@ -224,10 +329,13 @@ export class CameraController {
     return at(hi);
   }
 
-  /** Centre the view on a ground point immediately (cancels a recentre tween); see focusTarget. */
-  centerOn(x, z) {
+  /**
+   * Centre the view on a ground point immediately (cancels a recentre tween); see focusTarget.
+   * @param {number} [inset] focusTarget's inset (fraction of the half-view kept clear around the point)
+   */
+  centerOn(x, z, inset) {
     this._panTween = null;
-    const f = this.focusTarget(x, z);
+    const f = this.focusTarget(x, z, inset);
     this.target.set(f.x, 0, f.z);
     this._applyTransform();
   }
@@ -245,6 +353,12 @@ export class CameraController {
   isOnScreen(x, z, marginPx = 0, y = 0) {
     const p = this.worldToView(x, y, z);
     return p.x >= marginPx && p.x <= this.width - marginPx && p.y >= marginPx && p.y <= this.height - marginPx;
+  }
+
+  /** Like isOnScreen, but the top limit is the HUD top bar's lower edge (+ margin): visible to the player. */
+  isVisible(x, z, marginPx = 0, y = 0) {
+    const p = this.worldToView(x, y, z);
+    return p.x >= marginPx && p.x <= this.width - marginPx && p.y >= this.hudTop + marginPx && p.y <= this.height - marginPx;
   }
 
   /** Pan by a world-space ground offset (m). */
@@ -290,7 +404,7 @@ export class CameraController {
    */
   setZoom(z, immediate = true) {
     const L = this.cfg.zoomLevels;
-    const to = Math.max(clamp(z, L[0] * 0.5, L[L.length - 1] * 2), this.minZoomForMap());
+    const to = Math.max(clamp(z, L[0] * 0.5, L[L.length - 1] * 2), this.minZoomForMap(), this.apronMinZoom());
     this.zoomTarget = to;
     if (immediate) {
       this._zoomTween = null;
@@ -336,7 +450,7 @@ export class CameraController {
   }
 
   _zoomTo(level, clientX, clientY) {
-    const to = Math.max(level, this.minZoomForMap());
+    const to = Math.max(level, this.minZoomForMap(), this.apronMinZoom());
     if (Math.abs(to - this.zoomTarget) < 1e-6 && !this._zoomTween) return;
     let anchor = null;
     if (clientX !== undefined && clientY !== undefined) {
@@ -480,13 +594,19 @@ export class CameraController {
   setState(s, resolve = null) {
     if (!s) return;
     if (Number.isFinite(s.zoom)) this.setZoom(s.zoom);
-    if (Number.isFinite(s.x)) this.centerOn(s.x, s.z);
+    if (Number.isFinite(s.x)) { // the saved target itself (re-clamped), not a recentre on it (focusTarget shifts past the HUD bar)
+      this._panTween = null;
+      this.target.set(s.x, 0, s.z);
+      this._applyTransform();
+    }
     this.tracking = s.track != null && resolve ? resolve(s.track) || null : null;
   }
 
   /** Copy target/zoom/bounds from another view (new multi-view panes start as a copy). */
   copyFrom(o) {
     this.bounds = { ...o.bounds };
+    this.apron = o.apron;
+    this.groundRange = o.groundRange.slice();
     this.azimuth = o.azimuth;
     this.zoom = this.zoomTarget = o.zoomTarget;
     this.target.copy(o.target);
@@ -536,12 +656,14 @@ export class CameraRig {
    * @param {object} [opts.input] Input (arrow keys via isDown('panLeft'…)); may be attached later
    * @param {object} [opts.config] overrides for CONFIG.camera
    * @param {() => number} [opts.uiScale] HUD scale (edge zone = edgePx × uiScale CSS px)
+   * @param {() => number} [opts.hudTop] height (CSS px) of the HUD top bar over the canvas top (views clear it)
    */
-  constructor({ domElement, input = null, config = {}, uiScale = null } = {}) {
+  constructor({ domElement, input = null, config = {}, uiScale = null, hudTop = null } = {}) {
     this.cfg = { ...CONFIG.camera, ...config };
     this.domElement = domElement;
     this.input = input;
     this.uiScale = uiScale || (() => 1);
+    this.hudTop = hudTop || (() => 0);
     this.views = [new CameraController({ domElement, config })];
     this.activeIndex = 0;
     this.count = 1;
@@ -716,6 +838,13 @@ export class CameraRig {
       const x = Math.round(fx * W), y = Math.round(fy * H);
       this.views[i].setRect(x, y, Math.round((fx + fw) * W) - x, Math.round((fy + fh) * H) - y);
     }
+    this._syncHud();
+  }
+
+  /** Tell each view how much of its top the HUD top bar covers (CameraController.setHudTop). */
+  _syncHud() {
+    const top = Math.max(0, Number(this.hudTop()) || 0);
+    for (let i = 0; i < this.count; i++) this.views[i].setHudTop(top - this.views[i].rect.y);
   }
 
   /** Canvas size in CSS px. */
@@ -727,6 +856,11 @@ export class CameraRig {
 
   setBounds(width, depth) {
     for (const v of this.views) v.setBounds(width, depth);
+  }
+
+  /** Scenery apron past the map edges for every view (CameraController.setApron). */
+  setApron(width, range = null) {
+    for (const v of this.views) v.setApron(width, range);
   }
 
   /** Options "Camera angle": yaw (deg) for every view, current and future. */
@@ -756,6 +890,7 @@ export class CameraRig {
    */
   update(dt) {
     const pan = this.enabled && !this.panLocked ? this.panInput() : null;
+    this._syncHud(); // the UI scale (and so the bar) follows the window / Options
     for (let i = 0; i < this.count; i++) this.views[i].update(dt, i === this.activeIndex ? pan : null);
     this._updateDom();
   }

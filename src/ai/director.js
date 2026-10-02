@@ -205,7 +205,10 @@ export class AIDirector {
   serialize() {
     // squads: leader + breadcrumb trail, so the followers' file comes back exactly after a load (§8.4 replay:
     // an empty trail after a quickload re-formed the file behind the leader's heading and the future diverged)
-    const squads = [...this.squads.values()].map((s) => ({ id: s.id, leader: s.leader?.id ?? null, trail: s.trail.map((p) => ({ x: p.x, z: p.z })) }));
+    // (+ the file's formation: its halt at a route wait, which way it faces after an about-turn, each man's column)
+    const squads = [...this.squads.values()].map((s) => ({ id: s.id, leader: s.leader?.id ?? null, trail: s.trail.map((p) => ({ x: p.x, z: p.z })),
+      ...(s.halt ? { halt: JSON.parse(JSON.stringify(s.halt)) } : null), ...(s.flip ? { flip: true } : null),
+      ...(s.cols ? { cols: [...s.cols], colsN: s.colsN } : null) }));
     return { footprints: this.footprints.serialize(), squads };
   }
 
@@ -215,6 +218,9 @@ export class AIDirector {
       const s = this.squad(q.id);
       s.trail = (q.trail || []).map((p) => ({ x: p.x, z: p.z }));
       s._leaderId = q.leader; // resolved on first use (the leader may be respawned after this runs)
+      s.halt = q.halt ? JSON.parse(JSON.stringify(q.halt)) : null;
+      s.flip = !!q.flip;
+      if (q.cols) { s.cols = new Map(q.cols); s.colsN = q.colsN; } else { delete s.cols; delete s.colsN; }
     }
   }
 
