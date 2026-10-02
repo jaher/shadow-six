@@ -453,3 +453,4 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 - 2026-10-01T20:50 PDT smooth noise turn MERGED 3caefcf5 (unit 1467/0 on merged master; running-noise + ai pass). debug-level-select merged dc6bc303 by missing-pieces. Publishing.
 - 2026-10-01T21:10 PDT vibrating sound MERGED 248b2566 (projector UI loop leaked into missions; zipper smoothing). Unit 1490/0 on merged master; audio-buzz + audio pass. Publishing.
 - 2026-10-01T21:22 PDT briefing jitter MERGED dcf1f718 (tour camera feedback loop; slides). Unit 1490/0 on merged master; briefing-steady, narration, audio-buzz pass. Publishing.
+- 2026-10-01T21:41 PDT body rest + floating corpses MERGED 88ee9ced. Unit 1496/0 on merged master; body-rest, body-ground, body-props pass. Publishing.

@@ -7,6 +7,9 @@
      dormers + eyebrow vents and snow hooks.
  c = Picard / Flemish border: square framing with brick nogging, deep jetty on a moulded bressummer + joist ends,
      slate roof with ridge tiles / repairs / dormer, downpipes that follow the jettied wall line.
+ d = Breisgau (Freiburg, M20 range barracks): red-sandstone ground floor, one jettied Fachwerk storey with Mann bracing,
+     dark slate roof with dormers, a round corner turret (stair tower) with a slate cone and the flag on its finial
+ e = Baden village house with a Dachreiter (small bell turret on the ridge, louvred, slate spire, weathervane)
  suffix '-ruin': shelled (stepped blast through the frame with broken studs + hanging nogging, splintered roof, heaps)
 usage: blender -b --python house_halftimber.py -- outdir variant seed"""
 import sys, os, math, random
@@ -33,6 +36,12 @@ CFG = {
     'c': dict(L=10.2, W=6.2, stor=[(0.0, 2.75, 0.0), (2.95, 5.35, 0.5)], masonry0=False, infill='brick_red', itint=None,
               wood=(0.30, 0.27, 0.24), style='square', gap=0.75, post=0.2, braces=True,
               roof='roof_slate', pitch=48, plinth='fieldstone_grey', shut='grey', door='black', dormers=(-2.2,)),
+    'd': dict(L=11.0, W=8.6, stor=[(0.0, 3.0, 0.0), (3.2, 5.8, 0.3)], masonry0=True, infill='plaster_limewash',
+              itint=(1.0, 0.94, 0.8), wood=(0.34, 0.22, 0.16), style='cross', gap=0.75, post=0.2, braces=True,
+              roof='roof_slate', pitch=52, plinth='ashlar', shut='green', door='brown', dormers=(-2.6, 1.4)),
+    'e': dict(L=10.0, W=7.0, stor=[(0.0, 2.9, 0.0), (3.1, 5.4, 0.3)], masonry0=False, infill='plaster_limewash',
+              itint=(0.98, 0.95, 0.88), wood=(0.3, 0.24, 0.19), style='square', gap=0.75, post=0.2, braces=True,
+              roof='roof_slate', pitch=50, plinth='fieldstone_grey', shut='oxblood', door='green', dormers=(2.4,)),
 }[base]
 L, W = CFG['L'], CFG['W']
 x0, x1, y0, y1 = -L / 2, L / 2, -W / 2, W / 2
@@ -116,6 +125,8 @@ for k, (z0, z1, _) in enumerate(ST):
         f[2] = [K.opening(P, 2, 2.2, 0.8, 1.0, sill + 0.1, TW), K.opening(P, 2, L - 2.2, 0.8, 1.0, sill + 0.1, TW)]
         if base == 'b':
             f[1] = [K.opening(P, 1, (W + JC[k]) / 2, 0.7, 1.0, sill, TW)]
+    if base == 'd':                                       # the SE corner turret takes the east bay of the front
+        f[0] = [x for x in f[0] if x.kind == 'door' or x.o.x < x1 - 2.2]
     FR[k] = f
     allf = f[0] + f[1] + f[2] + f[3]
     if k == 0 and CFG['masonry0']:                         # Alsace: pink sandstone ground floor with dressed quoins
@@ -348,6 +359,42 @@ else:
                crest=base == 'b', finials=True)
     roof_decals(R, 4, seed=SEED, avoid=CFG['dormers'])
 K.anchor('roof_ridge', (0, ycr, R.z_ridge))
+
+# ---- Breisgau corner turret (d) / Dachreiter on the ridge (e) ------------------------------------------------------
+if base == 'd' and not RUIN:
+    import bmesh as _bm
+    TC, TR, TZ = V((x1 + 0.35, y0 - JC[-1] - 0.35, 0)), 1.85, ZE + 1.6
+    bm = K.bm_new(); K.cyl_bm(bm, TC + V((0, 0, -0.1)), TC + V((0, 0, 3.1)), TR, 18); K.part(bm, 'ashlar', name='turret0', mat_tint=(1.0, 0.8, 0.72))
+    bm = K.bm_new(); K.cyl_bm(bm, TC + V((0, 0, 3.1)), TC + V((0, 0, TZ)), TR - 0.05, 18); K.part(bm, 'plaster_limewash', name='turret1', mat_tint=ITINT)
+    bm = K.bm_new()
+    for z in (3.05, TZ - 0.2):
+        K.cyl_bm(bm, TC + V((0, 0, z)), TC + V((0, 0, z + 0.22)), TR + 0.08, 18)
+    for k_ in range(8):
+        a = 2 * math.pi * k_ / 8
+        K.box_bm(bm, tuple(TC + V((math.cos(a) * (TR - 0.02), math.sin(a) * (TR - 0.02), (3.3 + TZ) / 2))), (0.18, 0.18, TZ - 3.3), a)
+    K.part(bm, 'timber_beam', name='turret_frame', tint=WOOD, uv='beam', axis=(0, 0, 1))
+    bm = K.bm_new(); K.cyl_bm(bm, TC + V((0, 0, TZ)), TC + V((0, 0, TZ + 4.6)), TR + 0.35, 18, r1=0.03); K.part(bm, 'roof_slate', name='turret_cone', smooth=True)
+    bm = K.bm_new()
+    for k_ in range(5):
+        a = -math.pi / 2 + (k_ - 2) * 0.6
+        for z in (1.3, 4.0):
+            K.box_bm(bm, tuple(TC + V((math.cos(a) * (TR + 0.01), math.sin(a) * (TR + 0.01), z + 0.5))), (0.5, 0.12, 1.0), a + math.pi / 2)
+    K.part(bm, 'interior_dark', name='turret_lights', bisect=False)
+    apex = TC + V((0, 0, TZ + 4.6))
+    bm = K.bm_new(); K.cyl_bm(bm, apex - V((0, 0, 0.2)), apex + V((0, 0, 3.2)), 0.04, 6); K.part(bm, 'cast_iron', name='turret_pole', bisect=False)
+    K.anchor('flag', tuple(apex + V((0.05, 0, 3.1))), (1, 0, 0), kind='flag', w=1.6, h=1.05)
+    K.footprint([(TC.x + TR * math.cos(a), TC.y + TR * math.sin(a)) for a in [2 * math.pi * i / 12 for i in range(12)]], 'HIGH', 'turret')
+if base == 'e' and not RUIN:
+    DC, DS = V((-2.2, ycr, R.z_ridge - 0.6)), 1.25
+    bm = K.bm_new(); K.box_bm(bm, tuple(DC + V((0, 0, 1.1))), (DS, DS, 2.2)); K.part(bm, 'timber_siding', name='dachreiter', mat_tint=(0.5, 0.4, 0.32))
+    bm = K.bm_new()
+    for (dx, dy) in ((0, -1), (0, 1), (1, 0), (-1, 0)):
+        K.box_bm(bm, tuple(DC + V((dx * (DS / 2 + 0.01), dy * (DS / 2 + 0.01), 1.55))), (0.5 if dx == 0 else 0.04, 0.04 if dx == 0 else 0.5, 0.75))
+    K.part(bm, 'interior_dark', name='dachreiter_louvres', bisect=False)
+    bm = K.bm_new(); K.cyl_bm(bm, DC + V((0, 0, 2.2)), DC + V((0, 0, 4.4)), DS * 0.8, 4, r1=0.02)
+    K.part(bm, 'roof_slate', name='dachreiter_spire')
+    bm = K.bm_new(); K.cyl_bm(bm, DC + V((0, 0, 4.3)), DC + V((0, 0, 5.4)), 0.03, 6)
+    K.box_bm(bm, tuple(DC + V((0.2, 0, 5.2))), (0.5, 0.02, 0.22)); K.part(bm, 'cast_iron', name='weathervane', bisect=False)
 
 # ---- Alsatian oriel (Erker) on a stone corbel, first floor --------------------------------------------------------------
 if base == 'b':

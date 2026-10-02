@@ -102,11 +102,12 @@ const TERRAIN = [
   { type: 'rect', terrain: 'mud', x: 40, z: 74, w: 22, d: 30 }, // the W quarter's yards
   { type: 'rect', terrain: 'road', x: 70, z: 33, w: 32, d: 29 }, // the N court's cobbles
   { type: 'rect', terrain: 'road', x: 104, z: 52, w: 16, d: 14 }, // the E road court
-  { type: 'path', terrain: 'road', width: 5, points: ROAD_SW_OUT },
-  { type: 'path', terrain: 'road', width: 5, points: ROAD_SE_OUT },
-  { type: 'path', terrain: 'road', width: 5, points: ROAD_IN },
-  { type: 'path', terrain: 'road', width: 4, points: ROAD_SE_IN },
-  { type: 'path', terrain: 'road', width: 4, points: ROAD_E },
+  // art pass: the castle's roads are granite setts, the approach roads domed cobbles (pavement pipeline 3p)
+  { type: 'path', terrain: 'road', width: 5, points: ROAD_SW_OUT, surface: 'belgian' },
+  { type: 'path', terrain: 'road', width: 5, points: ROAD_SE_OUT, surface: 'belgian' },
+  { type: 'path', terrain: 'road', width: 5, points: ROAD_IN, surface: 'setts' },
+  { type: 'path', terrain: 'road', width: 4, points: ROAD_SE_IN, surface: 'setts' },
+  { type: 'path', terrain: 'road', width: 4, points: ROAD_E, surface: 'setts' },
   // last: water over everything else
   { type: 'path', terrain: 'water', width: 4, points: MOAT },
   { type: 'circle', terrain: 'water', x: 143.5, z: 73, r: 3 },
@@ -114,18 +115,53 @@ const TERRAIN = [
   { type: 'rect', terrain: 'water', ...POOL },
 ];
 
+// ---------------------------------------------------------------- art pass: paving, street furniture, vegetation
+/** Paved courts (visual only: the grid keeps its road cells). */
+const PAVEMENTS = [
+  { id: 'n_court_setts', surface: 'setts', points: [[70, 33], [102, 33], [102, 62], [70, 62]], wear: 0.6, weeds: 0.25, puddles: 0.35, patches: 0.1, grid: false },
+  { id: 'erc_setts', surface: 'setts', points: [[104, 52], [120, 52], [120, 66], [104, 66]], wear: 0.5, weeds: 0.3, puddles: 0.3, grid: false },
+];
+/**
+ * Lamps, floodlights and signs (block: false: visual only, every route and sight line stays as tuned). Text only on
+ * the Wehrmacht boards (no insignia).
+ */
+const FURNITURE = [
+  { type: 'lamp', variant: 'platform', x: 65.6, z: 106.2, rot: deg(-135), block: false },
+  { type: 'lamp', variant: 'platform', x: 83.5, z: 89.5, rot: deg(160), block: false },
+  { type: 'lamp', variant: 'platform', x: 69.2, z: 77.5, rot: deg(20), block: false },
+  { type: 'lamp', variant: 'platform', x: 110.5, z: 57.5, rot: deg(200), hooded: true, block: false },
+  { type: 'lamp', variant: 'platform', x: 109.5, z: 104.5, rot: deg(135), block: false },
+  { type: 'floodlight', x: 101.5, z: 58.5, rot: deg(200), block: false },
+  { type: 'floodlight', x: 100.5, z: 69.5, rot: deg(120), block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 53.0, z: 130.5, rot: deg(-60), text: 'HALT!\nAUSWEIS VORZEIGEN', block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 124.5, z: 127.8, rot: deg(-135), text: 'HALT!\nSPERRGEBIET', block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 101.5, z: 72.5, rot: deg(180), text: 'SCHIESSSTAND\nBETRETEN VERBOTEN', block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 101.8, z: 45.5, rot: deg(180), text: 'RAUCHEN\nVERBOTEN', block: false },
+  { type: 'sign', variant: 'fingerpost', x: 27.5, z: 146.5, rot: deg(-30), text: 'FREIBURG 9 km', block: false },
+  { type: 'sign', variant: 'fingerpost', x: 145.5, z: 147.5, rot: deg(30), text: 'EMMENDINGEN 11 km', block: false },
+  { type: 'bench', x: 47.5, z: 88.5, rot: deg(-30), block: false },
+  { type: 'bench', x: 92.5, z: 98.0, rot: deg(-30), block: false },
+];
+/* Vegetation (art/terrain.js treePlacement + vegetation pass): the Black Forest edge in February — `pine_frost`
+ * gives a mixed wood (Norway spruce / pines with ~30 % bare beech and oak); every third stand tree is a silver fir. */
+
 // ---------------------------------------------------------------- structures (dossier §5)
 const rock = (id, x, z, r, h = 2.5) => ({ id, type: 'rocks', variant: 'rock_limestone_frost', x, z, rot: 0, w: 2 * r, d: 2 * r, h, block: 2 });
-const tree = (x, z, k) => ({ id: `pine_${k}`, type: 'pine', variant: 'pine_frost', x, z, r: 0.45, h: 11 + (k % 4), seed: 2000 + k });
+const tree = (x, z, k) => ({ id: `pine_${k}`, type: 'pine', variant: 'pine_frost', ...(k % 3 === 2 ? { species: 'fir' } : {}), x, z, r: 0.45, h: 11 + (k % 4), seed: 2000 + k });
 const level = (id, variant, points, y, holes = []) => ({ id, type: 'cliff', variant, mat: 'stone', points, h: y, block: 2,
   walkways: plateauWalkways(points, holes, y) });
 /** A curtain stretch: 5 m of limestone, its whole top a wall walk at y 7 (dossier §4.3 BAT). */
 const curtain = (id, points, h = Y.BAT) => ({ id, type: 'castle_wall', variant: 'curtain_limestone_crenellated', points, width: 5, h, mat: 'stone',
   walkways: [{ points, width: 5, y: Y.BAT }] });
-const hut = (id, x, z, rot, extra = {}) => ({ id, type: 'hut', variant: 'hut_timber_barrack', x, z, rot: deg(rot), w: 10, d: 6, h: 4, mat: 'planks', ...extra });
+/** Art: a thin wood-stove plume from the hut's modelled stovepipe (fx 'smoke' anchor) — only a few huts smoke, so the
+ *  quarter stays readable (a plume per hut pooled into one smoke bank). */
+// a hut's stovepipe (the model's 'smoke' anchor): always lit, faint (render/fx.js chimney activity)
+const STOVE = { activity: 0.5 };
+const hut = (id, x, z, rot, extra = {}) => ({ id, type: 'hut', variant: 'hut_timber_barrack', x, z, rot: deg(rot), w: 10, d: 6, h: 4, mat: 'planks', chimney: false, ...extra });
 const crates = (id, x, z, w = 1.4, d = 1.4, extra = {}) => ({ id, type: 'crates', variant: 'crates_ammo', x, z, rot: 0, w, d, h: 1.1, block: 1, ...extra });
 const bags = (id, x, z, rot, w) => ({ id, type: 'sandbags', x, z, rot: deg(rot), w, d: 0.8, h: 1.0 });
-const pole = (x, z, k) => ({ id: `pole_${k}`, type: 'telegraph_pole', x, z, r: 0.2, h: 7 });
+const POLE_WIRES = { 2: 'pole_0', 0: 'pole_1', 3: 'pole_4', 4: 'pole_5' }; // art pass: the two roadside lines carry wires
+const pole = (x, z, k) => ({ id: `pole_${k}`, type: 'telegraph_pole', x, z, r: 0.2, h: 7, wireTo: POLE_WIRES[k] ?? null });
 /** A gatehouse (two roofed towers, an open arch between them) with its tower tops on the wall walk. */
 const gatehouse = (id, label, x, z, rot) => {
   const r = deg(rot), c = Math.cos(r), s = Math.sin(r);
@@ -182,15 +218,15 @@ const BUILDINGS = [
   { id: 'bk_e', type: 'barracks', variant: 'house_half_timber_turret', label: 'Range barracks', x: 126, z: 62.5, rot: 0, w: 12, d: 11, h: 12,
     mat: 'plaster', roof: 'roofSlate', flag: true, garrison: true, door: deg(90), destructible: true },
   { id: 'bk_s', type: 'barracks', variant: 'hut_timber_barrack', label: 'Barracks', x: 76, z: 97, rot: deg(-30), w: 11, d: 7, h: 4.5,
-    mat: 'planks', flag: true, garrison: true, door: deg(270), destructible: true },
-  { id: 'h_st', type: 'house', variant: 'house_half_timber_steeple', x: 66, z: 86, rot: deg(-20), w: 10, d: 7, h: 7, mat: 'plaster', roof: 'roofSlate' },
-  hut('h_w1', 54, 82, -30), hut('h_w2', 50, 97, -45), hut('h_w3', 60, 100.5, -45, { w: 8, d: 5 }), // ∥ cw_sw
-  hut('h_s1', 88, 106, -30), hut('h_s2', 72, 110, -30),
+    mat: 'planks', flag: true, garrison: true, door: deg(270), destructible: true, chimney: STOVE },
+  { id: 'h_st', type: 'house', variant: 'house_half_timber_steeple', x: 66, z: 86, rot: deg(-20), w: 10, d: 7, h: 7, mat: 'plaster', roof: 'roofSlate', chimney: false },
+  hut('h_w1', 54, 82, -30, { chimney: STOVE }), hut('h_w2', 50, 97, -45, { artOffset: [0.5, -0.5] }), hut('h_w3', 60, 100.5, -45, { w: 8, d: 5 }), // ∥ cw_sw
+  hut('h_s1', 88, 106, -30, { chimney: STOVE }), hut('h_s2', 72, 110, -30),
   hut('h_s3', 88, 118, 15.6, { label: 'Hut', enterable: true, door: deg(270) }), // ∥ cw_s
-  hut('h_s4', 96, 106, -30, { w: 8 }), hut('h_s5', 105, 116, 20, { w: 8, d: 5 }),
-  { id: 'h_tur', type: 'house', variant: 'house_turret_small', x: 95, z: 118.5, rot: 0, w: 4, d: 4, h: 8, mat: 'plaster', roof: 'roofSlate' },
-  { id: 'outhouse', type: 'hut', variant: 'outhouse', x: 44, z: 78.5, rot: 0, w: 1.5, d: 1.5, h: 2.5, mat: 'planks' },
-  { id: 'shelter', type: 'hut', variant: 'open_shed_bench', x: 104.5, z: 89, rot: deg(-42.7), w: 4, d: 8, h: 3, mat: 'planks', block: 1 },
+  hut('h_s4', 96, 106, -30, { w: 8 }), hut('h_s5', 103.55, 114.1, 20, { w: 8, d: 5 }),
+  { id: 'h_tur', type: 'house', variant: 'house_turret_small', x: 95, z: 118.5, rot: 0, w: 4, d: 4, h: 8, mat: 'plaster', roof: 'roofSlate', chimney: false },
+  { id: 'outhouse', type: 'hut', variant: 'outhouse', x: 44, z: 78.5, rot: 0, w: 1.5, d: 1.5, h: 2.5, mat: 'planks', chimney: false },
+  { id: 'shelter', type: 'hut', variant: 'open_shed_bench', x: 104.5, z: 89, rot: deg(-42.7), w: 4, d: 8, h: 3, mat: 'planks', block: 1, chimney: false },
 ];
 
 /** §5.3 the two V2s on their trailers (o2) and the N court's hardware. */
@@ -241,7 +277,7 @@ const NATURE = [
   rock('rk_w5', 46, 140.5, 2.5), rock('rk_w6', 42, 150, 2),
   rock('rk_e1', 130, 27, 1.8), rock('rk_e2', 148, 34, 3), rock('rk_e3', 137, 40, 2.5), rock('rk_e4', 149, 50, 1.5),
   rock('rk_e5', 150, 68, 2.5), rock('rk_e6', 150, 98, 2.5), rock('rk_e7', 130, 128, 2.5),
-  ...[[33, 118], [37, 129], [146, 60], [152, 88], [134, 150], [152, 108], [145, 26], [153, 22], [6, 105]].map(([x, z], k) => tree(x, z, k)),
+  ...[[33, 118], [39, 125], [146, 60], [152, 88], [134, 150], [152, 108], [145, 26], [153, 22], [6, 105]].map(([x, z], k) => tree(x, z, k)),
 ];
 
 const STRUCTURES = [...CURTAIN, ...LEVELS, ...BUILDINGS, ...MILITARY, ...RANGE_PROPS, ...NATURE];
@@ -442,7 +478,9 @@ export default {
   seed: 1945_0211,
   // farmland fringe (art/terrain/bocage.js): field hedges, crops and orchards on the clear map edges, hedges
   // backing walls (visual only: laid out clear of every gameplay point and route)
-  vegetation: { farmland: { crops: 'none', orchards: 0.5 } },
+  // reeds: false — the castle's water is masonry-lined (the moat runs deep to the walls, the fire-water pool is a cut-stone
+  // basin): no reed beds on it (they hid the pool and the lever corner)
+  vegetation: { farmland: { crops: 'none', orchards: 0.5 }, reeds: false },
   briefing: {
     historical: 'February 1945. The Red Army is in East Prussia and the end of the Reich is in sight. But a coded signal has shaken Allied headquarters: an enemy agent has stolen plans from the Manhattan Project, our atomic bomb programme. They lie in Gundelfingen castle, north of Freiburg, waiting to go east to a hidden German laboratory.',
     text: 'Officer, this is the most important job we have ever handed you, and I can tell you almost nothing about it. You will be on your own. Get inside that fortress and leave nothing standing: the headquarters, and the two rockets parked in its courtyard. Then take the tank they keep there and drive out through the south-west gate. Do this and the war may be over. Fail, and heaven help us all. Every eye in London is on you and your men. Good luck, son.',
@@ -463,8 +501,16 @@ export default {
   rules: { roofRule: false }, // §4.4 / §14 E1: the wall walks and terraces are open ground, not roofs
   baseTerrain: 'grass',
   terrain: TERRAIN,
+  pavements: PAVEMENTS,
+  furniture: FURNITURE,
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
-  structures: joinStructures(STRUCTURES, [['gh_sw', 'br_sw'], ['gh_se', 'br_se'], ['gh_se', 'h_s5'], ['turret', 'hq'], ['turret', 'flak_hq'], ['hq', 'hq_wing'], ['hq_wing', 'n_range'], ['hq_wing', 'flak_hq'], ['n_range', 'blk_n'], ['n_range', 'flak_n'], ['h_s1', 'h_s4'], ['h_s3', 'h_tur']]),
+  structures: joinStructures(STRUCTURES, [['gh_sw', 'br_sw'], ['gh_se', 'br_se'], ['gh_se', 'h_s5'], ['turret', 'hq'], ['turret', 'flak_hq'], ['hq', 'hq_wing'], ['hq_wing', 'n_range'], ['hq_wing', 'flak_hq'], ['n_range', 'blk_n'], ['n_range', 'flak_n'], ['h_s1', 'h_s4'], ['h_s3', 'h_tur'],
+    // art pass: the masonry is one compound — curtains bond into the gatehouses, terraces abut the buildings and walls
+    // they retain, props stand on the levels (castle-kit draws each face once; these contacts are the bonds)
+    ['cw_sw', 'gh_sw'], ['cw_s', 'gh_sw'], ['cw_s', 'gh_se'], ['cw_e1', 'gh_se'], ['cw_w', 'crag'], ['cw_w', 't_hq'],
+    ['cw_w', 't_sw'], ['cw_w', 't_par_hq_s'], ['cw_sw', 't_sw'], ['cw_e2', 't_n'], ['crag', 'n_range'], ['gh_in', 't_wb'],
+    ['blk_ne', 't_ne'], ['n_range', 't_n'], ['n_range', 't_ne'], ['n_range', 't_nw'], ['n_range', 't_par_n'], ['hq', 't_hq'],
+    ['hq_wing', 't_hq'], ['turret', 't_hq'], ['flak_hq', 't_hq'], ['flak_n', 't_n'], ['sl_hq', 't_par_hq_e'], ['sl_t', 'turret']]),
   items: [],
   // §3.4 the Spy's uniform on the clothesline in the W quarter ('use' it: the uniform goes in his kit; he then puts it on)
   interactables: [{ id: 'uniform_line', interactKind: 'clothesline', x: 42.5, z: 87.5 }],

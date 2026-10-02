@@ -8,7 +8,8 @@
  *    block, the terrace Flak, guns, crates and searchlights) are lifted onto their level; every `ladders[]` entry
  *    gets a simple mesh: a stone flight (`kind: 'stairs'`), a timber plank over an arch (`kind: 'plank'`) or a
  *    ladder; the N court's two army wagons (`train_car` props) get a wagon mesh in place of the prop builder's
- *    hut. Everything is read from `world.mission`, so this module holds no layout of its own.
+ *    hut. Everything is read from `world.mission`, so this module holds no layout of its own. With the art pass on
+ *    (M20_ART) the prisms, flights, ladders and wagons are left to scripts/m20-art.js (detailed masonry, art/castle-kit.js).
  *  - the anti-tank gun (§6.2, §14 E5/E7): its linked gunner e55 is out of knife and syringe reach (`elevated`, set
  *    here: the engine does not read it from the spawn), and while he lives the gun fires its cannon at the Panzer III
  *    once a commando at its controls moves it and he sees it (a linked emplacement gunner's brain
@@ -20,8 +21,11 @@
 
 import * as THREE from 'three';
 import { canSee } from '../../ai/perception.js';
+import { buildM20Art } from './m20-art.js';
 
 const STONE_TOP = 0x8a8472, STONE_SIDE = 0x6f6a5a;
+/** Detailed castle art (m20-art.js) in place of the plain level prisms. */
+const M20_ART = true;
 
 /** An extruded polygon from y 0 to `h` (top and side materials). */
 function prism(poly, h, top = STONE_TOP, side = STONE_SIDE) {
@@ -48,6 +52,7 @@ function span(a, b, w, t, color) {
 function linkMeshes(root, ladders) {
   for (const l of ladders || []) {
     const a = { x: l.x, y: l.y ?? 0, z: l.z }, b = { x: l.top[0], y: l.top[2] ?? 0, z: l.top[1] };
+    if (M20_ART && l.kind !== 'plank') continue; // stone flights and timber ladders: m20-art.js
     if (l.kind === 'stairs') {
       const flight = span(a, b, 1.8, 0.5, 0x7d7766);
       root.add(flight);
@@ -102,14 +107,14 @@ export function buildCastleVisuals(w) {
   root.name = 'm20:castle';
   for (const s of m.structures || []) {
     if (s.type !== 'cliff' || !/^t_/.test(s.id || '')) continue;
-    root.add(prism(s.points, s.h - 0.02));
+    if (!M20_ART) root.add(prism(s.points, s.h - 0.02)); // the art pass (m20-art.js) draws the masonry
     const o = w.structures?.get?.(s.id)?.object3d;
     if (o) o.visible = false;
   }
   linkMeshes(root, m.ladders);
   for (const s of m.structures || []) {
     if (s.type !== 'train_car') continue;
-    root.add(wagonMesh(s));
+    if (!M20_ART) root.add(wagonMesh(s)); // the art pass draws army field wagons (castle-kit buildFieldWagon)
     const o = w.structures?.get?.(s.id)?.object3d;
     if (o) o.visible = false;
   }
@@ -117,8 +122,22 @@ export function buildCastleVisuals(w) {
   for (const s of m.structures || []) {
     if (!(s.baseY > 0)) continue;
     const o = w.structures?.get?.(s.id)?.object3d;
-    if (o && !o.userData.m20Lifted) { o.userData.m20Lifted = true; o.position.y += s.baseY; }
+    if (o) liftOnto(o, s.baseY);
   }
+  buildM20Art(w);
+}
+
+/**
+ * Lift a structure visual onto its level (once). The map builder hangs a timber deck (`dressing:walkway`) on a
+ * structure with `walkways` at the walkway's WORLD height, before this lift: lifted with the model it would float
+ * `baseY` above the walk (the HQ roof ledge: a plank deck at y 33 on 20 m posts over the y-20 roof). A lifted
+ * structure is a library model that carries its own walk surface, so the deck is dropped.
+ */
+export function liftOnto(o, baseY) {
+  if (o.userData.m20Lifted) return;
+  o.userData.m20Lifted = true;
+  for (const c of [...o.children]) if (c.name === 'dressing:walkway') o.remove(c);
+  o.position.y += baseY;
 }
 
 /** s: the AT gunner's reaction once the manned tank first moves. */

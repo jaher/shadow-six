@@ -82,8 +82,10 @@ and code are original or CC0/redistributable (see CREDITS.md).
 
 ### Buildings & bridges
 
-193 buildings and bridges (`assets/models/buildings/<theater>/`, `assets/models/bridges/`, 3 LODs each) are procedural
-geometry scripted in Blender with the SHADOW SIX kit (`tools/blender/`; own work, CC0). They share one texture library
+204 buildings and bridges (`assets/models/buildings/<theater>/`, `assets/models/bridges/`, 3 LODs each) are procedural
+geometry scripted in Blender with the SHADOW SIX kit (`tools/blender/`; own work, CC0). The M20 castle masonry, field
+guns and range props are procedural three.js geometry (`src/art/castle-kit.js`, `src/art/field-guns.js`; own work, CC0)
+textured from the same library. They share one texture library
 (`assets/textures/lib/1k` default, `2k` albedo for the ultra preset; metadata `assets/textures/lib/materials.json`).
 Every source is listed below; per-asset lists are in each `<asset>.credits.json`. Baked AO maps, decal/sign atlases
 and all lettering are own work. The review HDRI (Poly Haven `kloofendal_43d_clear_puresky`, CC0) is not shipped.

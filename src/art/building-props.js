@@ -29,18 +29,28 @@ export const LIB_TYPE = { generator: null, telegraph_pole: null, radio_mast: nul
 export const VARIANT_HINTS = {
   barracks: {
     timber_long: ['barracks_a', 'barracks_b', 'barracks_c'], log_garrison: ['barracks_b', 'barracks_c', 'barracks_a'],
+    // M20 (Germany): German plank barrack huts; the range barracks is a Fachwerk house (Breisgau / Alsatian)
+    hut_timber_barrack: ['hut_timber_barrack_a', 'hut_timber_barrack_b', 'hut_timber_barrack_c'],
+    house_half_timber_turret: ['house_halftimber_d'],
   },
   hut: {
     sentry_box: ['guard_hut_b'], log_cabin: ['log_cabin_a', 'log_cabin_b'], relay_station: ['guard_hut_a', 'log_cabin_a'],
     guard_hut: ['guard_hut_a'], fishing_shed: ['fishing_shed_a', 'fishing_shed_b'], boathouse: ['naust_a', 'naust_b'],
+    hut_timber_barrack: ['hut_timber_barrack_a', 'hut_timber_barrack_b', 'hut_timber_barrack_c', 'hut_timber_barrack_d'],
+    open_shed_bench: null, // M20's range bench: drawn by its art module (the outhouses of M5 / M19 keep their library pick)
   },
   house: {
     timber_2storey: ['house_timber_a', 'house_timber_b', 'house_timber_c'], admin_brick: ['dam_house_a', 'dam_house_b', 'house_timber_c'],
+    house_half_timber_steeple: ['house_halftimber_e'], house_half_timber_turret: ['house_halftimber_d'],
+    // M20 castle masonry drawn by the mission's art module (missions/scripts/m20-art.js → art/castle-kit.js)
+    castle_range_block: null, stair_tower: null, stair_block: null, chateau_wing: null, house_turret_small: null,
+    chateau_hq: ['chateau_hq'], // the Neo-Gothic chateau HQ (tools/blender/military/scripts/chateau_hq.py)
   },
   bunker: { surveillance: ['bunker'], mg_nest: ['mg_nest'] },
-  watchtower: { timber_mg: ['watchtower'], mg_platform: null }, // mg_platform: art/mg-platform.js (procedural)
+  watchtower: { timber_mg: ['watchtower'], turret_round_crenellated: null, bartizan_round_decor: null, mg_platform: null }, // mg_platform: art/mg-platform.js (procedural)
   hangar: { shed: ['barn_b', 'barn_a'] },
   ruins: { rubble: null, wall_ruin: null },
+  bridge: { bridge_timber_moat: null, bridge_timber_moat_lanterns: null },
   dam: { concrete_arch: ['dam_arch'] },
   gate: { barrier_boom: null, chainlink: null },
   fueltank: {}, // the fuel-tank family resolves its own variants (art/fuel-tanks.js)
@@ -237,7 +247,8 @@ export function libraryVisual(type, p = {}, ctx = {}) {
   const pick = pickAsset(type, p, ctx);
   if (!pick) return null;
   const theater = ctx.theater;
-  const x = p.x ?? 0, z = p.z ?? 0, rot = p.rot ?? 0;
+  // `artOffset: [dx, dz]` (m): the model only, nudged off a neighbour it would clip (the gameplay footprint stays)
+  const x = (p.x ?? 0) + (p.artOffset?.[0] ?? 0), z = (p.z ?? 0) + (p.artOffset?.[1] ?? 0), rot = p.rot ?? 0;
   const b = createBuilding(pick.name, { x: 0, z: 0, rot: 0, id: p.id, theater, destroyed: !!p.destroyed });
   if (!b) return null;
   const outer = new THREE.Group();

@@ -17,6 +17,7 @@ export const NULL_PHYSICS = Object.freeze({
   queueBlast: noop,
   activeCounts: () => ({ ragdolls: 0, props: 0, debris: 0 }),
   ragdollOf: () => null,
+  lyingFits: () => true,
   moving: () => false,
   serialize: () => null,
   restore: noop,

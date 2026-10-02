@@ -379,8 +379,9 @@ export class FX {
 
   /**
    * Chimney smoke (E4, ambient): emission points are the chimney tops of the ACTUAL model — the building library's
-   * `chimney` anchors (manifest sidecar, transformed by the placed instance, also for instanced repeats), a model child
-   * named /chimney/, or the mission's `chimney: {x, z, y}`. Library models without a chimney anchor never smoke (no smoke
+   * `chimney` anchors (and a hut's stovepipe `smoke` anchor; manifest sidecar, transformed by the placed instance, also
+   * for instanced repeats), a model child named /chimney/, or the mission's `chimney: {x, z, y}` (`chimney: {activity}`
+   * without x/z keeps the model's own anchors and only sets how busy the fire is). Library models without a chimney anchor never smoke (no smoke
    * from bare roofs); ruins / destroyed variants are cold. Only procedural placeholder houses/huts (no library model)
    * get a seeded brick stack, seated on the roof surface under it (raycast) so it never floats.
    * Per-chimney variety (seeded by id): cold / faint / normal / busy, theater-weighted, plus a slow draught variation.
@@ -389,7 +390,7 @@ export class FX {
     const def = s.def || {}, obj = s.object3d;
     if (def.chimney === false || s.destroyed) return;
     obj.updateMatrixWorld(true);
-    let pts = def.chimney && typeof def.chimney === 'object'
+    let pts = def.chimney && typeof def.chimney === 'object' && def.chimney.x != null
       ? [V3(def.chimney.x, def.chimney.y ?? this._y(def.chimney.x, def.chimney.z) + 6, def.chimney.z)] : FX.chimneyPoints(obj);
     if (pts === null) return; // library model without a chimney (or a ruin): no smoke
     pts = pts.map((q) => this._seatOnStack(q));
@@ -447,7 +448,7 @@ export class FX {
       if (name) {
         lib = true;
         if (/ruin|destroyed/.test(name)) return;
-        for (const an of buildingMeta(name)?.anchors || []) if (an.kind === 'chimney') pts.push(V3(an.pos[0], an.pos[1], an.pos[2]).applyMatrix4(o.matrixWorld));
+        for (const an of buildingMeta(name)?.anchors || []) if (an.kind === 'chimney' || an.kind === 'smoke') pts.push(V3(an.pos[0], an.pos[1], an.pos[2]).applyMatrix4(o.matrixWorld));
       } else if (!lib && /chimney/i.test(o.name || '') && o.name !== 'fx-chimney') {
         const b = new THREE.Box3().setFromObject(o);
         if (!b.isEmpty()) pts.push(V3((b.min.x + b.max.x) / 2, b.max.y + 0.05, (b.min.z + b.max.z) / 2));
@@ -459,7 +460,7 @@ export class FX {
       const fit = obj.children.find((c) => c.name === 'fit'), turn = fit?.children[0], ext = assetExtents(asset);
       if (turn && ext && !/ruin|destroyed/.test(asset)) {
         const M = new THREE.Matrix4().makeTranslation(-ext.cx, 0, -ext.cz).premultiply(turn.matrixWorld);
-        for (const an of buildingMeta(asset)?.anchors || []) if (an.kind === 'chimney') pts.push(V3(an.pos[0], an.pos[1], an.pos[2]).applyMatrix4(M));
+        for (const an of buildingMeta(asset)?.anchors || []) if (an.kind === 'chimney' || an.kind === 'smoke') pts.push(V3(an.pos[0], an.pos[1], an.pos[2]).applyMatrix4(M));
       }
     }
     return lib && !pts.length ? null : pts;

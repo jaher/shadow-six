@@ -22,6 +22,8 @@ import { addSnowCover } from './terrain/snowfx.js';
 import { CONFIG } from '../config.js';
 import { dataKey } from '../engine/asset-cache.js';
 import { createApron } from './apron.js';
+import { structureRecords, obstacle, pruneTree, OBSTACLE_H } from '../world/placement.js';
+import { polyDist } from '../world/placement-geom.js';
 
 /** Base colour per terrain code, per theater tint. */
 const TERRAIN_RGB = {
@@ -182,6 +184,47 @@ const DEFAULT_SPECIES = {
   bush: { temperate: ['shrub', 'hedge', 'hazel', 'shrub'], coast: ['sea_buckthorn', 'gorse', 'shrub', 'hedge'], desert: ['desert_shrub', 'desert_shrub', 'acacia_shrub'], snow: ['shrub'] },
 };
 const pool = (type, theater) => DEFAULT_SPECIES[type]?.[theater === 'night' ? 'temperate' : theater] ?? DEFAULT_SPECIES[type]?.temperate;
+
+/**
+ * Forest-fill trees vs the mission's masonry (rule b, as pruneTree does for the mission's own trees): a fill tree
+ * whose crown would reach into a tall structure (a castle range, a crag, a tower) is left out — the wood stops short
+ * of the wall like a cleared glacis — and one near a low obstacle gets its lowest branches lifted / crown narrowed.
+ * The forest polygon is gameplay data and often overlaps the masonry it backs (M20: crag and N range).
+ * @param {object[]} fill fillForest / forestUnderstorey placements ({species, x, z, scale})
+ * @param {object[]} [structures] mission structures
+ * @returns {object[]} the kept placements (pruning hints set)
+ */
+export function clearForestFill(fill, structures) {
+  if (!fill.length || !structures?.length) return fill;
+  const recs = structureRecords(structures.filter((d) => !TREE_TYPES.includes(d.type)));
+  const obs = recs.filter((r) => !r.ignored && !['tree', 'foliage', 'item', 'road', 'ground'].includes(r.cat) && r.polys.length)
+    .map((r) => obstacle(r.id, r.cat, r.polys, r.def, r.tall));
+  if (!obs.length) return fill;
+  const out = [];
+  for (const p of fill) {
+    const sp = SPECIES[p.species], sc = p.scale ?? 1, H = (sp?.H?.[1] ?? 12) * sc; // the tallest this seed can grow
+    // crown reach: conifers by their species width (radius ≈ width × H, +15 % seeded), broadleaves ≈ half the height;
+    // understorey: a fallen bough lies its whole length any way from its root, a bush spreads its radius
+    const reach = sp?.fallen ? H + 0.3 : sp?.kind === 'bush' ? (sp.R?.[1] ?? 1.2) * sc + 0.3
+      : (sp?.kind === 'conifer' ? (sp.width ?? 0.3) * 1.15 : 0.5) * H + 0.3;
+    let tall = false;
+    for (const o of obs) {
+      if (o.bb && (p.x < o.bb[0] - reach || p.z < o.bb[1] - reach || p.x > o.bb[2] + reach || p.z > o.bb[3] + reach)) continue;
+      const h = o.def?.h ?? OBSTACLE_H[o.cat] ?? 2;
+      // low (a wall, a fence, sandbags): pruneTree below lifts the lowest branches over it. Anything taller (a range,
+      // a terrace, a crag) keeps the whole crown off: lifted boughs would still overhang its roof / wall walk
+      if (h <= 3) continue;
+      let d = Infinity;
+      for (const q of o.tall) d = Math.min(d, polyDist(p.x, p.z, q));
+      if (d < reach) { tall = true; break; }
+    }
+    if (tall) continue; // a tall wall inside the crown: no tree here
+    if (p.understorey || sp?.fallen || sp?.kind === 'bush') { out.push(p); continue; }
+    const hint = pruneTree({ x: p.x, z: p.z, h: H }, obs);
+    out.push(hint ? { ...p, ...hint } : p);
+  }
+  return out;
+}
 
 /**
  * Mission tree structure → seeded treegen placement (every tree unique: species variant, shape and tint come
@@ -363,8 +406,8 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
   const mine = placements.slice(); // the mission's own trees: occupied seeds for the fill
   for (const f of ctx.forests || []) {
     const fv = theater !== 'snow' && f.type === 'pine' ? 'pine_frost' : f.variant;
-    placements.push(...fillForest({ ...f, forestVariant: fv }, (d, k) => treePlacement(d, theater, k), { spacing: theater === 'snow' ? 3.7 : 4.4, occupied: mine }));
-    placements.push(...visual(forestUnderstorey(f, theater))); // brambles, hazel, fallen boughs on the litter
+    placements.push(...clearForestFill(fillForest({ ...f, forestVariant: fv }, (d, k) => treePlacement(d, theater, k), { spacing: theater === 'snow' ? 3.7 : 4.4, occupied: mine }), mission?.structures));
+    placements.push(...visual(clearForestFill(forestUnderstorey(f, theater), mission?.structures))); // brambles, hazel, fallen boughs on the litter
   }
   // bocage hedgerows (visual; mission.vegetation.hedgerows: [{points, gaps?, h?, standards?}])
   for (const hr of [...(mission?.vegetation?.hedgerows || []), ...farm.hedgerows]) placements.push(...visual(hedgerowPlacements(hr)));

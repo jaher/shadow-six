@@ -27,7 +27,8 @@ test('body capsule: prone runs head to toes along the heading, standing is a dis
   assert.ok(C.az === 10 && C.bz === 10);
   const S = bodyCapsule(10, 10, 1.2, 'stand');
   assert.ok(Math.hypot(S.ax - S.bx, S.az - S.bz) < 1e-9, 'standing: a disc');
-  for (const st of ['crawl', 'downed', 'dead']) assert.equal(bodyShape(st), BODY.prone, st);
+  for (const st of ['crawl', 'downed', 'dead_prone']) assert.equal(bodyShape(st), BODY.prone, st);
+  assert.equal(bodyShape('dead'), BODY.dead, 'a corpse on his back: heels ahead, head and flung-out hands behind');
   assert.equal(bodyShape('crouch'), BODY.stand);
   // turned 90°: the long axis follows the heading
   const T = bodyCapsule(0, 0, Math.PI / 2, 'crawl');

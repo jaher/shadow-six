@@ -6,7 +6,7 @@
 
 import { CONFIG } from '../config.js';
 import { ownerHeight } from '../world/placement.js';
-import { bodyGap, clearPose, hasObstacles, STOP_MARGIN } from '../world/body-clearance.js';
+import { bodyGap, clearPose, hasObstacles, deadStance, STOP_MARGIN } from '../world/body-clearance.js';
 
 /**
  * A timed ActionTask: runs `steps` (sorted by `at`, seconds from start) once each, then 'done' at `dur`.
@@ -213,15 +213,31 @@ export function dropSpot(c, how = 'gentle', it = c.carrying, mode = c.carryMode 
     if (!p && w && it.kind !== 'interactable' && mode === 'drag') p = { x: it.x, z: it.z };
     if (!p) p = w?.grid.walkableAt(c.x + Math.cos(a) * k, c.z + Math.sin(a) * k) ? { x: c.x + Math.cos(a) * k, z: c.z + Math.sin(a) * k } : { x: c.x, z: c.z };
   }
-  // a man never lies with his legs or head under a vehicle hull or in a crate (world/body-clearance.js): nearest clear pose
-  if (hasObstacles(w) && it.kind !== 'interactable') {
-    const h = mode === 'drag' ? it.heading ?? c.heading : c.heading + Math.PI, st = it.alive ? 'downed' : 'dead';
-    if (bodyGap(w, p.x, p.z, h, st) < STOP_MARGIN) {
-      const cp = clearPose(w, p.x, p.z, h, st, { sweep: false, maxDist: 1.5 });
+  // a man never lies with his legs or head under a vehicle hull or in a crate (world/body-clearance.js), and a body
+  // has room for the physics' lying pose (a rock's collider is its nav footprint, larger than the rock; a crate stack's
+  // box is wider than the stack: a body laid into one was shoved out by the settle ragdoll — it slid, or thrashed for
+  // seconds). Nearest such pose, laid a little aside before being turned (the put-down lays him there directly).
+  if (it.kind !== 'interactable' && w) {
+    const h = mode === 'drag' ? it.heading ?? c.heading : c.heading + Math.PI, st = it.alive ? 'downed' : deadStance(it.stance);
+    const fits = how === 'shot' && mode !== 'drag' ? null : lyingRoom(w, it, c.y || 0); // knocked off a shoulder: the drape ragdoll
+    if ((hasObstacles(w) && bodyGap(w, p.x, p.z, h, st) < STOP_MARGIN) || (fits && !fits(p.x, p.z, h))) {
+      const cp = clearPose(w, p.x, p.z, h, st, { sweep: false, maxDist: 1.5, fits, shiftFirst: !!fits });
       if (cp) p = { x: cp.x, z: cp.z, heading: cp.heading };
     }
   }
   return p;
+}
+
+/**
+ * Room test for a body put down (a dead man only: he gets the settle ragdoll; a downed buddy does not), or null when
+ * no physics would push him: (x, z, h) → the physics' lying pose there (supine, or prone for a man who died crawling)
+ * starts inside no collider.
+ */
+function lyingRoom(w, it, y) {
+  const P = w.physics;
+  if (it.alive !== false || !P?.lyingFits || P.isNull || !w.house?.ragdollAllDeaths) return null;
+  const prone = it.stance === 'crawl' || it.stance === 'prone';
+  return (x, z, h) => P.lyingFits(x, z, y, h, prone);
 }
 
 /**

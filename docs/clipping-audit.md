@@ -226,7 +226,10 @@ normally set by the rules).
     still stops short of it; a crawler reaches it with his hands (range measured 0.8 m ahead of his hips).
   - *Stops*: a man lying down ends with the whole body ≥ 0.1 m clear: turned parallel in place when the turn sweeps
     clear, else a short crawl to the nearest free pose (`clearPose`); lying down beside a hull picks the nearest clear
-    heading; a corpse's fall and a dropped body (`dropSpot`) do the same.
+    heading; a corpse's fall and a dropped body (`dropSpot`) do the same. A corpse on his back has his own shape
+    (`BODY.dead`: heels 0.65 m ahead of where he stood, head 1.25 m behind it, hands flung out past the head — a cross
+    bar 1.45 m behind, 0.7 m to each side); one who died crawling lies like a crawler (`deadStance`). A dropped body
+    also needs room for the physics' lying pose (docs/bodies-design.md §A.11 "Room to lie").
   - *Moving vehicles* (`Vehicle._bodiesUnder`): before the hull would touch anyone on foot, at run-over speed he is run
     over (§3.7, kept: anyone, prone too, legs beside the rails of a train); slower, an enemy of the other side on his
     feet steps aside — he runs straight to a free spot beside the hull (walkable line checked) while the vehicle waits —

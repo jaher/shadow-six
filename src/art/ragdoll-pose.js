@@ -11,7 +11,8 @@
  * @module art/ragdoll-pose
  */
 
-import { Quaternion, Vector3, Matrix4 } from 'three';
+import { Quaternion, Vector3, Matrix4, Object3D } from 'three';
+import { clipPose, capturePose, bonesOf as kitBones } from './pose-blend.js';
 
 /** Bone → [segment index, blend segment index | -1, blend weight]. Segments follow physics/ragdoll-template PARTS. */
 const BONES = [
@@ -29,6 +30,8 @@ const IDLE = new Map();
 const _q = new Quaternion(), _q2 = new Quaternion(), _qa = new Quaternion(), _qr = new Quaternion();
 const _p = new Vector3(), _s = new Vector3(), _v = new Vector3(), _m = new Matrix4();
 const _up = new Vector3(0, 1, 0);
+/** World matrices of the model's subtree now (UnitModel's root skips a second update in the same frame). */
+const updateMW = (root) => Object3D.prototype.updateMatrixWorld.call(root, true);
 const D = Array.from({ length: NSEG }, () => new Quaternion());
 
 /** Bones of a real model in hierarchy order (parents first), cached on the model. */
@@ -48,7 +51,7 @@ export function captureBase(model) {
   const bones = bonesOf(model);
   if (!bones) return null;
   const root = model.root;
-  root.updateMatrixWorld(true);
+  updateMW(root);
   root.matrixWorld.decompose(_p, _qr, _s);
   _qr.invert();
   const base = { q: bones.map(() => new Quaternion()), pelvis: new Vector3(), scale: _s.x || 1 };
@@ -59,6 +62,57 @@ export function captureBase(model) {
   bones[0].b.getWorldPosition(base.pelvis);
   root.worldToLocal(base.pelvis);
   base.pelvis.multiplyScalar(base.scale);   // root-local metres (roots are unscaled in practice)
+  return base;
+}
+
+/** Lowest skinned vertex of the model's body (root-local y), every `stride`-th vertex of its lightest skinned mesh. */
+function lowestRootY(model, stride = 2) {
+  let mesh = null;
+  model.real.inner?.object?.traverse((m) => {
+    // the whole-body LOD meshes (LOD0 / LOD1 / LOD2 — not the small LOD0_alpha / headgear parts): the lightest one
+    if (m.isSkinnedMesh && /^LOD\d+$/.test(m.name) && (!mesh || m.geometry.attributes.position.count < mesh.geometry.attributes.position.count)) mesh = m;
+  });
+  if (!mesh) return null;
+  const pos = mesh.geometry.attributes.position;
+  let y0 = Infinity;
+  for (let k = 0; k < pos.count; k += stride) {
+    mesh.getVertexPosition(k, _v).applyMatrix4(mesh.matrixWorld);
+    model.root.worldToLocal(_v);
+    if (_v.y < y0) y0 = _v.y;
+  }
+  return Number.isFinite(y0) ? y0 : null;
+}
+
+/**
+ * Base pose of a LYING (settle) ragdoll: the last frame of the settled death clip `clip` ('dead' / 'dead_prone'),
+ * resting on the root's ground plane (its lowest skinned vertex 4 mm over it, as the kit runtimes ground the clip) —
+ * the pose the physics' lying template stands for (physics/ragdoll LIE), whatever the mixer happens to show. The
+ * settle ragdoll takes over while the die → dead cross-fade still runs; a base captured from that froze the corpse
+ * mid-fall, head and shoulders 0.3–0.7 m up in the air ("bodies kind of floating above the ground").
+ * The skeleton is put back exactly as it was. @returns {object|null} base for applyRagdollPose
+ */
+export function lyingBase(model, clip) {
+  const B = kitBones(model), pose = clipPose(model, clip, 1, true);
+  if (!B || !pose || !bonesOf(model)) return null;
+  const keep = capturePose(model), body = model._body?.(), root = model.root;
+  const bq = body?.quaternion.clone(), bp = body?.position.clone();
+  if (body && body !== root) { body.quaternion.identity(); body.position.set(0, 0, 0); }
+  for (const [k, q] of pose.q) if (B[k]) B[k].quaternion.copy(q);
+  const pel = B.pelvis;
+  if (pel && pose.pelvis) pel.position.copy(pose.pelvis);
+  updateMW(root);
+  const y0 = lowestRootY(model);
+  if (pel && y0 != null) {
+    // ground the clip on the root plane: move the pelvis (and everything under it) up / down in root space
+    pel.getWorldPosition(_p); root.worldToLocal(_p); _p.y += 0.004 - y0; root.localToWorld(_p);
+    pel.parent.worldToLocal(_p); pel.position.copy(_p);
+    updateMW(root);
+  }
+  const base = captureBase(model);
+  for (const [k, q] of keep.q) if (B[k]) B[k].quaternion.copy(q);
+  if (pel && keep.pelvis) pel.position.copy(keep.pelvis);
+  if (body && body !== root) { body.quaternion.copy(bq); body.position.copy(bp); }
+  updateMW(root);
   return base;
 }
 
@@ -94,6 +148,9 @@ export function applyRagdollPose(model, rec, now = 0, guard = null) {
   // visual nudge (settle moved the gameplay position off a blocker): blend in over 0.3 s
   let nx = 0, nz = 0;
   if (rec.n && (rec.n[0] || rec.n[1])) { const k = Math.min(1, Math.max(0, (now - (rec.tn ?? 0)) / 0.3)); nx = rec.n[0] * k; nz = rec.n[1] * k; }
+  // spawn glide (physics moved a body laid down without room to the nearest spot with room): drawn from where he was
+  // laid, eased onto the ragdoll over 0.3 s
+  if (rec.g && (rec.g[0] || rec.g[1])) { const k = 1 - Math.min(1, Math.max(0, (now - (rec.tg ?? 0)) / 0.3)); nx += rec.g[0] * k; nz += rec.g[1] * k; }
   for (let i = 0; i < NSEG; i++) {
     const o = i * 7, s = i * 4;
     _q.set(rec.b[o + 3], rec.b[o + 4], rec.b[o + 5], rec.b[o + 6]);

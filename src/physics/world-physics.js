@@ -13,7 +13,8 @@ import { CONFIG } from '../config.js';
 import { NULL_PHYSICS } from './null-physics.js';
 import { loadRapier } from './rapier-loader.js';
 import { buildStatics, groundAt, GROUPS } from './statics.js';
-import { spawnRagdoll, readPose, updateSettle, removeRagdoll, poseRecord } from './ragdoll.js';
+import { spawnRagdoll, readPose, updateSettle, removeRagdoll, poseRecord, lyingBlocked } from './ragdoll.js';
+import { bodyGap } from '../world/body-clearance.js';
 import { applyBlast, EXPLOSIVE_CAUSES } from './blast-apply.js';
 import { settleFeedback, trackInFlight } from './feedback.js';
 import { PropSystem, propSpec } from './props.js';
@@ -130,7 +131,14 @@ export class PhysicsWorld {
   startRagdoll(unit, mode, o = {}) {
     if (!this.eligible(unit) || this.ragdollOf(unit)) return null;
     const from = unit.bodyPose && (unit.bodyPose.b?.length === 77) ? unit.bodyPose : null;
+    // a body laid down where the lying template would start inside a collider (a rock's nav-footprint cuboid is
+    // larger than the rock, a crate stack's box wider than the stack): the solver would shove it out — a slide, or a
+    // thrash until the timeout. It starts on the nearest spot with room instead, and the model glides there.
+    const glide = mode === 'settle' && !from && !o.shoulder && unit.deathCause !== 'runover' && unit.deathCause !== 'train'
+      ? this._lyingRoom(unit, !!o.prone) : null;
+    if (glide) { unit.x += glide.x; unit.z += glide.z; }
     const rd = spawnRagdoll(this.R, this.rw, this.world, unit, from ? 'reuse' : mode, { prone: o.prone, from, lift: o.lift, vel: o.vel, fast: mode === 'blast', shoulder: o.shoulder });
+    if (glide) rd.glide = { x: -glide.x, z: -glide.z, t: this.world.time };
     this.ragdolls.push(rd);
     this.ragdolls.sort((a, b) => a.unit.id - b.unit.id);
     rd.t0 = this.world.time;
@@ -139,6 +147,35 @@ export class PhysicsWorld {
     unit._rd = rd;
     readPose(rd);
     return rd;
+  }
+
+  /**
+   * Is there room for a man lying at (x, z) with heading h (ground level y; supine, or prone) — no STATIC, PROP or
+   * VEHICLE collider inside the settle ragdoll's lying pose? (Deterministic Rapier query.)
+   */
+  lyingFits(x, z, y, h, prone = false) {
+    return !lyingBlocked(this.R, this.rw, this.world, x, z, y || 0, h || 0, prone);
+  }
+
+  /**
+   * Shift (dx, dz) to the nearest spot (rings of 0.1 m to 1.5 m, same heading) where the unit's lying pose fits, on
+   * walkable ground at his level and no deeper into a visible solid (world/body-clearance.js); null when it already
+   * fits or nothing near does.
+   */
+  _lyingRoom(u, prone) {
+    const w = this.world, g = w.grid, y = u.y || 0, h = u.heading || 0;
+    if (this.lyingFits(u.x, u.z, y, h, prone)) return null;
+    const ds = prone ? 'dead_prone' : 'dead', e0 = g.elevAt?.(u.x, u.z) ?? 0, gap0 = Math.min(0, bodyGap(w, u.x, u.z, h, ds));
+    for (let r = 0.1; r <= 1.5 + 1e-9; r += 0.1) {
+      const n = Math.max(8, Math.round((2 * Math.PI * r) / 0.15));
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * 2 * Math.PI, x = u.x + Math.cos(a) * r, z = u.z + Math.sin(a) * r;
+        if (!g.walkableAt(x, z) || Math.abs((g.elevAt?.(x, z) ?? 0) - e0) > 0.1) continue;
+        if (bodyGap(w, x, z, h, ds) < gap0 - 1e-6 || !this.lyingFits(x, z, y, h, prone)) continue;
+        return { x: x - u.x, z: z - u.z };
+      }
+    }
+    return null;
   }
 
   _endRagdoll(rd) {

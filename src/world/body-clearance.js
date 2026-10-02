@@ -18,10 +18,17 @@
  * @module world/body-clearance
  */
 
-/** Body shapes (m). `front`/`back`: capsule extent ahead / behind the unit position, `r`: capsule radius. */
+/**
+ * Body shapes (m). `front`/`back`: capsule extent ahead / behind the unit position, `r`: capsule radius; `arms`: a
+ * second capsule across the body, `at` m behind the unit position, reaching `half` m to each side.
+ */
 export const BODY = {
   stand: { front: 0.3, back: 0.3, r: 0.3 },
   prone: { front: 1.3, back: 0.92, r: 0.3 }, // front: the weapon held out ahead of the face when he stops (crawl-animation.md §4.1)
+  // a man lying dead on his back (the settled death pose: art 'dead' clip, physics/ragdoll LIE.supine): he fell
+  // backwards, so his heels are 0.65 m ahead of where he stood, his head 1.25 m behind it, and his hands flung out
+  // past the head, 1.45 m behind it and up to 0.7 m to each side (a man who died crawling lies like a crawler)
+  dead: { front: 0.65, back: 1.25, r: 0.3, arms: { at: 1.45, half: 0.7, r: 0.15 } },
 };
 /** Clearance kept at a stop / after lying down (m). */
 export const STOP_MARGIN = 0.1;
@@ -30,12 +37,15 @@ export const MOVE_MARGIN = 0.05;
 /** Half the diagonal of a 0.5 m cell: any point of a free cell is at least (inflation) from a hull. */
 const CELL_SLACK = 0.354;
 
-const PRONE_STANCES = new Set(['crawl', 'downed', 'prone', 'dead']);
+const PRONE_STANCES = new Set(['crawl', 'downed', 'prone', 'dead_prone']);
 
-/** Shape of a stance ('crawl' / 'downed' / 'prone' / 'dead' are lying down). */
+/** Shape of a stance ('crawl' / 'downed' / 'prone' / 'dead_prone' lie on the belly, 'dead' on the back). */
 export function bodyShape(stance) {
-  return PRONE_STANCES.has(stance) ? BODY.prone : BODY.stand;
+  return stance === 'dead' ? BODY.dead : PRONE_STANCES.has(stance) ? BODY.prone : BODY.stand;
 }
+
+/** Corpse stance of a man who died in stance `st` (a crawler dies on his belly, anyone else falls on his back). */
+export const deadStance = (st) => (st === 'crawl' || st === 'prone' ? 'dead_prone' : 'dead');
 
 /** Segment ends + radius of the body capsule at (x, z) facing `heading`. */
 export function bodyCapsule(x, z, heading, stance) {
@@ -43,6 +53,14 @@ export function bodyCapsule(x, z, heading, stance) {
   const c = Math.cos(heading), s = Math.sin(heading);
   const a = S.front - S.r, b = S.back - S.r;
   return { ax: x + c * a, az: z + s * a, bx: x - c * b, bz: z - s * b, r: S.r };
+}
+
+/** The flung-out arms of a body shape that has them (a corpse on his back), as a capsule across it, or null. */
+export function armsCapsule(x, z, heading, stance) {
+  const A = bodyShape(stance).arms;
+  if (!A) return null;
+  const c = Math.cos(heading), s = Math.sin(heading), mx = x - c * A.at, mz = z - s * A.at, l = A.half - A.r;
+  return { ax: mx - s * l, az: mz + c * l, bx: mx + s * l, bz: mz - c * l, r: A.r };
 }
 
 /**
@@ -232,11 +250,11 @@ export function hullsNear(world, x, z, reach, ignore = null) {
  */
 export function bodyGap(world, x, z, heading, stance, ignore = null) {
   const S = bodyShape(stance);
-  const hulls = hullsNear(world, x, z, Math.max(S.front, S.back) + 0.5, ignore);
+  const hulls = hullsNear(world, x, z, Math.max(S.front, S.back, S.arms ? Math.hypot(S.arms.at, S.arms.half) : 0) + 0.5, ignore);
   if (!hulls.length) return Infinity;
-  const C = bodyCapsule(x, z, heading, stance);
+  const C = bodyCapsule(x, z, heading, stance), A = armsCapsule(x, z, heading, stance);
   let g = Infinity;
-  for (const R of hulls) g = Math.min(g, capsuleRectGap(C, R));
+  for (const R of hulls) g = Math.min(g, capsuleRectGap(C, R), A ? capsuleRectGap(A, R) : Infinity);
   return g;
 }
 
@@ -245,9 +263,9 @@ export function unitGap(u, world = u.world) {
   return bodyGap(world, u.x, u.z, u.heading, unitStance(u), u.vehicle || null);
 }
 
-/** Body stance class of a unit: lying (crawl / downed / dead) or upright. */
+/** Body stance class of a unit: lying (crawl / downed / dead on his back / dead on his belly) or upright. */
 export function unitStance(u) {
-  if (u.alive === false || u.state === 'dead') return 'dead';
+  if (u.alive === false || u.state === 'dead') return deadStance(u.stance);
   return u.stance;
 }
 
@@ -315,35 +333,44 @@ export function sweepClear(world, x, z, h0, h1, stance, margin, ignore = null) {
  * Nearest pose where the whole body keeps `margin` from every hull: the same spot with the nearest heading that is
  * reachable by turning in place (sweep clear when `sweep`), else the nearest walkable spot (rings to `maxDist`) with
  * the heading closest to the current one. Returns null when nothing is free.
+ * `fits(x, z, h)`: an extra test every pose must pass (a body laid down: room for the physics' lying pose);
+ * `shiftFirst`: the nearest spot with the SAME heading is tried before any turn (a man put down is laid a little
+ * aside rather than swung round).
  * @returns {{x:number, z:number, heading:number, moved:boolean}|null}
  */
-export function clearPose(world, x, z, heading, stance, { margin = STOP_MARGIN, ignore = null, sweep = true, maxDist = 2, walkable = null } = {}) {
-  if (bodyGap(world, x, z, heading, stance, ignore) >= margin) return { x, z, heading, moved: false };
+export function clearPose(world, x, z, heading, stance, { margin = STOP_MARGIN, ignore = null, sweep = true, maxDist = 2, walkable = null, fits = null, shiftFirst = false } = {}) {
+  const free = (px, pz, h) => bodyGap(world, px, pz, h, stance, ignore) >= margin && (!fits || fits(px, pz, h));
+  if (free(x, z, heading)) return { x, z, heading, moved: false };
   const DH = Math.PI / 12;
   const order = [];
   for (let k = 1; k <= 12; k++) { order.push(heading + k * DH, heading - k * DH); }
+  const ok = walkable || ((px, pz) => world.grid?.walkableAt?.(px, pz) ?? true);
+  /** Nearest ring spot (to maxDist) where one of `hs` is free (the heading closest to the current one), or null. */
+  const rings = (hs) => {
+    for (let r = 0.25; r <= maxDist + 1e-6; r += 0.25) {
+      const n = Math.max(8, Math.round((2 * Math.PI * r) / 0.25));
+      let best = null;
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * 2 * Math.PI, px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
+        if (!ok(px, pz)) continue;
+        for (const h of hs) {
+          if (!free(px, pz, h)) continue;
+          const dh = Math.abs(Math.atan2(Math.sin(h - heading), Math.cos(h - heading)));
+          if (!best || dh < best.dh) best = { x: px, z: pz, heading: h, dh };
+          break;
+        }
+      }
+      if (best) return { x: best.x, z: best.z, heading: best.heading, moved: true };
+    }
+    return null;
+  };
+  if (shiftFirst) { const p = rings([heading]); if (p) return p; }
   for (const h of order) {
-    if (bodyGap(world, x, z, h, stance, ignore) < margin) continue;
+    if (!free(x, z, h)) continue;
     if (sweep && !sweepClear(world, x, z, heading, h, stance, Math.min(margin, MOVE_MARGIN), ignore)) continue;
     return { x, z, heading: h, moved: false };
   }
-  const ok = walkable || ((px, pz) => world.grid?.walkableAt?.(px, pz) ?? true);
-  for (let r = 0.25; r <= maxDist + 1e-6; r += 0.25) {
-    const n = Math.max(8, Math.round((2 * Math.PI * r) / 0.25));
-    let best = null;
-    for (let k = 0; k < n; k++) {
-      const a = (k / n) * 2 * Math.PI, px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
-      if (!ok(px, pz)) continue;
-      for (const h of [heading, ...order]) {
-        if (bodyGap(world, px, pz, h, stance, ignore) < margin) continue;
-        const dh = Math.abs(Math.atan2(Math.sin(h - heading), Math.cos(h - heading)));
-        if (!best || dh < best.dh) best = { x: px, z: pz, heading: h, dh };
-        break;
-      }
-    }
-    if (best) return { x: best.x, z: best.z, heading: best.heading, moved: true };
-  }
-  return null;
+  return rings([heading, ...order]);
 }
 
 /**

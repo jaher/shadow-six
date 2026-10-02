@@ -8,7 +8,7 @@
 
 import { CONFIG } from '../config.js';
 import { PARTS, NPARTS, TEMPLATE_MASS } from './ragdoll-template.js';
-import { GROUPS, groundAt } from './statics.js';
+import { G, GROUPS, groundAt } from './statics.js';
 import { qAxis, qHeading, qMul, qRot, v3, vAdd, vSub, r4 } from './qmath.js';
 
 /** Where a lying spawn puts the pelvis relative to the unit (m along its forward axis) and its rotation. */
@@ -27,6 +27,52 @@ function lowestY(p, q, c) {
 }
 
 /**
+ * Part origins of the lying template (a settle spawn) for a man at (x, z) on ground level `y` (m over the terrain)
+ * with heading h: the template turned about the pelvis joint and laid down supine (or prone), lifted so that every
+ * collider clears the ground under it (slopes: one end starts higher and the body slides).
+ * @returns {{pos: {x:number,y:number,z:number}[], rot: {x:number,y:number,z:number,w:number}}}
+ */
+export function lyingParts(world, x, z, y, h, prone = false, lifted = true) {
+  const lie = prone ? LIE.prone : LIE.supine, qs = qMul(qHeading(h), qAxis(1, 0, 0, lie.rx));
+  const gy = groundAt(world, x, z) + y, pelvisAt = v3(...PARTS[0].at);
+  const origin = v3(x + Math.cos(h) * lie.fwd, gy, z + Math.sin(h) * lie.fwd);
+  const pos = PARTS.map((p) => vAdd(origin, qRot(qs, vSub(v3(...p.at), pelvisAt))));
+  if (lifted) {
+    let lift = -Infinity;
+    PARTS.forEach((p, i) => {
+      for (const c of p.col) lift = Math.max(lift, groundAt(world, pos[i].x, pos[i].z) + y - lowestY(pos[i], qs, c) + 0.01);
+    });
+    for (const q of pos) q.y += lift;
+  }
+  return { pos, rot: qs };
+}
+
+/** Collision filter of the lying-room query: what a settling body is pushed out of (the terrain is the lift's job). */
+const ROOM_GROUPS = (((0xffff) << 16) | (G.STATIC | G.PROP | G.VEHICLE)) >>> 0;
+/** Lying-room query raised this much: a deck or floor collider's top (quantised to 0.1 m) is never "in" the body. */
+const ROOM_RAISE = 0.06;
+
+/**
+ * Would a man lying at (x, z) (heading h, ground level y, supine or prone) start inside a STATIC, PROP or VEHICLE
+ * collider? The settle ragdoll spawns in exactly this pose: a part inside a rock's nav-footprint cuboid, a crate
+ * stack's box or a hull is shoved out by the solver, so the corpse slides, or thrashes until the 6 s timeout.
+ * @returns {boolean}
+ */
+export function lyingBlocked(R, rw, world, x, z, y, h, prone = false) {
+  const { pos, rot } = lyingParts(world, x, z, y, h, prone);
+  for (let i = 0; i < PARTS.length; i++) {
+    for (const c of PARTS[i].col) {
+      const off = c.shape === 'cap' ? v3(0, -c.len / 2, 0) : v3(...(c.off || [0, 0, 0]));
+      const at = vAdd(pos[i], qRot(rot, off));
+      at.y += ROOM_RAISE;
+      const shape = c.shape === 'ball' ? new R.Ball(c.r) : c.shape === 'cap' ? new R.Capsule(Math.max(0.01, c.len / 2 - c.r), c.r) : new R.Cuboid(...c.h);
+      if (rw.intersectionWithShape(at, rot, shape, undefined, ROOM_GROUPS)) return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Spawn a ragdoll for `unit`.
  * @param {object} R RAPIER namespace @param {object} rw Rapier world @param {object} world game World
  * @param {object} unit @param {'blast'|'settle'} mode @param {{prone?: boolean}} [o]
@@ -37,19 +83,11 @@ export function spawnRagdoll(R, rw, world, unit, mode, o = {}) {
   const gy = groundAt(world, unit.x, unit.z) + (unit.y || 0);
   const anchor = { x: unit.x, y: gy, z: unit.z, h };
   const lie = mode === 'settle' ? (o.prone ? LIE.prone : LIE.supine) : null;
-  const qs = lie ? qMul(qa, qAxis(1, 0, 0, lie.rx)) : qa;
-  const pelvisAt = v3(...PARTS[0].at);
-  const origin = lie ? v3(unit.x + Math.cos(h) * lie.fwd, gy, unit.z + Math.sin(h) * lie.fwd) : v3(unit.x, gy, unit.z);
-  // body origins: lying → rotate the template about the pelvis joint and lay it down; standing → template at the feet
-  const pos = PARTS.map((p) => (lie ? vAdd(origin, qRot(qs, vSub(v3(...p.at), pelvisAt))) : vAdd(origin, qRot(qa, v3(...p.at)))));
-  if (lie && !o.shoulder) {
-    // lift so that every collider clears the ground under it (slopes: one end starts higher and the body slides)
-    let lift = -Infinity;
-    PARTS.forEach((p, i) => {
-      for (const c of p.col) lift = Math.max(lift, groundAt(world, pos[i].x, pos[i].z) + (unit.y || 0) - lowestY(pos[i], qs, c) + 0.01);
-    });
-    for (const q of pos) q.y += lift + (o.lift || 0); // o.lift: dropped from a carrier's shoulder (§C.4)
-  }
+  let qs = qa, pos;
+  if (lie) {
+    ({ pos, rot: qs } = lyingParts(world, unit.x, unit.z, unit.y || 0, h, !!o.prone, !o.shoulder));
+    if (!o.shoulder && o.lift) for (const q of pos) q.y += o.lift; // o.lift: dropped from a carrier's shoulder (§C.4)
+  } else pos = PARTS.map((p) => vAdd(v3(unit.x, gy, unit.z), qRot(qa, v3(...p.at)))); // standing: template at the feet
   // a settled corpse thrown again restarts from its baked pose (and keeps its spawn record for the model)
   const f = o.from, fn = f?.n || [0, 0];
   // bodies-design §C.4: knocked off a carrier's shoulder: he starts DRAPED over it, as the model drew him
@@ -93,7 +131,7 @@ export function spawnRagdoll(R, rw, world, unit, mode, o = {}) {
   const p0 = f ? v3(f.p0[0] + fn[0], f.p0[1], f.p0[2] + fn[1]) : { ...pos[0] };
   return {
     unit, mode: f ? f.mode : mode, bodies, joints, anchor: anc, spawnQ, spawnPelvis: p0,
-    pose: new Float64Array(NPARTS * 7), t: 0, still: 0, done: false, prone: f ? !!f.prone : !!o.prone,
+    pose: new Float64Array(NPARTS * 7), t: 0, still: 0, done: false, prone: f ? !!f.prone : !!o.prone, drape: f ? !!f.d : !!drape,
   };
 }
 
@@ -170,14 +208,18 @@ export function removeRagdoll(rw, rd) {
 export function poseRecord(rd, pose = rd.pose) {
   const a = rd.anchor;
   return { mode: rd.mode, prone: rd.prone, a: [a.x, a.y, a.z, a.h].map(r4), s: Array.from(rd.spawnQ, r4),
-    p0: [rd.spawnPelvis.x, rd.spawnPelvis.y, rd.spawnPelvis.z].map(r4), b: Array.from(pose, r4), t0: r4(rd.t0 ?? 0) };
+    p0: [rd.spawnPelvis.x, rd.spawnPelvis.y, rd.spawnPelvis.z].map(r4), b: Array.from(pose, r4), t0: r4(rd.t0 ?? 0), ...(rd.drape ? { d: 1 } : null) };
 }
 
 /** The live pose record a model draws while the ragdoll simulates (same shape as poseRecord, arrays by reference). */
 export function liveView(rd) {
   if (!rd.view) {
     const a = rd.anchor, p = rd.spawnPelvis;
-    rd.view = { mode: rd.mode, prone: rd.prone, a: [a.x, a.y, a.z, a.h], s: rd.spawnQ, p0: [p.x, p.y, p.z], b: rd.pose, t0: rd.t0 ?? null, live: true };
+    // a, s, p0 rounded exactly as poseRecord rounds them: the model keys its base pose on them, and a key that changed
+    // at the bake re-captured the base from the skeleton as last drawn (the settle rotation applied twice: the body
+    // popped 0.2–0.8 m on the frame it settled, and the baked pose hovered or sank)
+    rd.view = { mode: rd.mode, prone: rd.prone, a: [a.x, a.y, a.z, a.h].map(r4), s: Array.from(rd.spawnQ, r4), p0: [p.x, p.y, p.z].map(r4),
+      b: rd.pose, t0: rd.t0 ?? null, live: true, g: rd.glide ? [rd.glide.x, rd.glide.z] : null, tg: rd.glide?.t ?? null, ...(rd.drape ? { d: 1 } : null) };
   }
   return rd.view;
 }

@@ -180,7 +180,9 @@ function endPlacement(model, st, place, o, rig) {
   }
   const spot = st.spot || { x: root.position.x, z: root.position.z };
   const gy = c?.world?.groundY ? c.world.groundY(spot.x, spot.z) + (c.y || 0) : root.position.y;
-  if (st.kind === 'release') root.getWorldQuaternion(o.q);
+  // the spot's own heading when the drop turned him (abilities/common dropSpot: no room lying the natural way)
+  if (spot.heading != null) o.q.setFromAxisAngle(Y, Math.PI / 2 - spot.heading);
+  else if (st.kind === 'release') root.getWorldQuaternion(o.q);
   else { cm?.root?.getWorldQuaternion(_q); o.q.copy(_q).multiply(_qr.setFromAxisAngle(Y, Math.PI)); }
   o.p.set(spot.x, gy, spot.z);
   if (rig.pelDead) o.p.add(_a.copy(rig.pelDead).applyQuaternion(o.q));

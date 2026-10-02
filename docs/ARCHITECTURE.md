@@ -92,6 +92,8 @@ src/art/vehicle-crew.js               ART — crew figures at the library seats:
 src/art/vehicle-pennants.js           ART — cloth pennants on vehicles (patrol-boat masthead, staff-car wing flag), apparent wind
 src/art/props.js                      ART — building/prop builders (catalogue below)
 src/art/dressing.js                   ART — procedural realistic non-library props (palisade/stone walls, rocks, cliffs, tents, sandbags, crates, transformers, pylons, poles)
+src/art/castle-kit.js                 ART — procedural castle masonry fitted to gameplay data (curtains, terraces, parapets, gatehouses, towers, ranges, stairs, bridges, water gate, wagons, wells; merged per-material meshes)
+src/art/field-guns.js                 ART — procedural field guns and range props (Flakvierling 38 towed/emplaced, field gun, searchlight, targets, bullet stops)
 src/art/fuel-tanks.js                 ART — fuel-tank family resolution (docs/fuel-tanks.md): library asset per variant/footprint/theater, blast scale, wreck nav (pure)
 src/art/fuel-pipes.js                 ART — M11 oilfield pipe runs between neighbouring columns (pairs: pure; meshes: three.js)
 src/art/fuel-hooks.js                 ART — M17 valve hooks: `device` events turn the model's handwheel, the spout pours (wired by map-builder)
@@ -716,8 +718,10 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   `fx.shakeOffset()` → camera-plane Vector2 | null (reduced-motion option), `fx.stats()`, `fx.vfx` (library, null
   headless), `fx.items` (recent spawn log). Listens to `explosion`, `shot`, `unit:killed`, `vehicle:destroyed`,
   `vehicle:fire`, `fire`, `hit`, `structure:destroyed`; registers explosive drums (`vfx.addExplosive`, never armed:
-  the gameplay ignite chain decides), chimneys (model child named /chimney/, mission `chimney`, or placeholder
-  houses) and optional mission `fx: [{kind, x, z, ...opts}]`. Blood honours `options.blood` / `options.censored`.
+  the gameplay ignite chain decides), chimneys (model child named /chimney/, mission `chimney`, a library model's
+  `chimney` / `smoke` (hut stovepipe) anchors, or placeholder houses; `chimney: false` none, `chimney: {activity}` a
+  lit fire of that strength) and optional mission `fx: [{kind, x, z, ...opts}]`. Blood honours `options.blood` /
+  `options.censored`.
 - Dam water (`src/render/dam-water.js` + `-mats.js`, `-geom.js`, `-pool.js`, `-pool-glsl.js`, `-spray.js`,
   `dam-flow.js`; structures with `waterFx`, M3): built by the map handle with the ambient-life layer (after the
   water's bed capture) and ticked per displayed frame (frozen while paused). The face is sampled by raycasts on the

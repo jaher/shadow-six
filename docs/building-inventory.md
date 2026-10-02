@@ -77,7 +77,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `townhouse_corner_turret` | house | Second-Empire corner block: 4 storeys, **round corner turret**, slate mansard, **ground-floor shopfronts with red awnings**, balcony with ladder or fire escape | France | M15 (Sniper roof) | E, R, L | 20×15×16 | NEW |
 | `mansion_hq_mansard` | villa | HQ mansion: brick with stone quoins, slate mansard, dormers, tall chimneys, Nazi banners. Low wall with iron railings and gates, W parterre garden, E car yard | France | M15 | **D** (objective), E | 30×15×15 | NEW |
 | `house_half_timber` | house | Half-timbered (Fachwerk) house, red tile, 2-3 storeys | Germany | B5 (S village), B6 (village) | E | 9×8×10 | europe |
-| `house_half_timber_turret` | house | 2-storey half-timbered house with a round turret; also serves as a gate-tower house | Germany | M20 (by the range) | E | 12×9×12 | VAR:europe |
+| `house_half_timber_turret` | house | 2-storey half-timbered house with a round turret; also serves as a gate-tower house | Germany | M20 (by the range) | E | 12×9×12 | built: europe `house_halftimber_d` (Breisgau, corner turret, flag) |
 | `house_timber_hq_L` | house | Dark timber L-shaped 2-storey HQ house, porch stairs, flag | Alsace | M17 (N bank) [img] | E | 18×12×9 | VAR:norway |
 | `house_greek_whitewash` | house | Whitewashed Cretan house with terracotta roof; some have chimneys | Crete | B3 (13 `CASA`) | E | 7×6×5 | NEW |
 | `church_greek_white` | new | White Greek church with a Byzantine/baroque bell-gable facade; the start is inside it | Crete | B3 | E | 16×10×12 | NEW (europe church does not fit) |
@@ -102,7 +102,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `barracks_desert` | barracks | Flat-roof desert barracks. Some have guards on the roof | N. Africa | M8, M9, M10, M11, M12 | B, D, R | 18×8×4 | desert |
 | `barracks_corrugated_gable` | barracks | Long corrugated-iron gable barracks with a flag; brick or timber hipped corrugated in M19 | Desert/Germany | M10 (NE), M19 (×2-3) | B, D | 24×9×6 | VAR:military |
 | `barracks_concrete_2st` | barracks | 2-storey flat-roof grey concrete barracks/blockhouse with outside stairs | Atlantic Wall | M14 (4-5) | B, E, R, L | 16×10×7 | BUILT (M14 pass: `barracks_concrete_2st`, `barracks_concrete_1st`) |
-| `hut_timber_barrack` | hut | Small wooden barrack hut: plank walls, grey shingle roof | Germany | M20 (about 12, S courts), B5 (small wooden huts) | E | 10×5×4 | NEW |
+| `hut_timber_barrack` | hut | Small wooden barrack hut: plank walls, grey shingle roof | Germany | M20 (about 12, S courts), B5 (small wooden huts) | E | 10×5×4 | built: europe `hut_timber_barrack_a-d` |
 | `hut_pow_long` | hut | Long wooden prisoner hut on a raised floor, grey pitched roof. M17 variant: dark timber, one cross-gable | Germany/Alsace | B7 (about 10), M17 (5-6) | E | 30×8×5 | VAR:military (stockade) |
 | `nissen_hut` | hut | Corrugated half-cylinder (Nissen/Quonset) hut | Norway/France | M2 (in the camp), M13 (×3) | E | 10×6×4 | NEW |
 | `quonset_hangar` | hangar | Large Quonset arched hangar | Norway | M7 (NW) | E | 30×15×8 | VAR:military |
@@ -147,7 +147,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `gun_turret_block` | casemate_gun | Concrete block with a rotating gun turret | France | M14 | **D** | 10×10×5 | BUILT (M14 pass, + destroyed) |
 | `gun_pit_open` | new | Open circular concrete gun pit, for a coastal gun or a flak/AA gun | France/Guernsey/Norway/Desert | M14 (coastal), M7 (×2 210 mm coastal guns), M8 (210 mm on the escarpment), B1 (×5 AA `ANTI01-05`) | **D** | 10 Ø × 1.5 | BUILT (M14 pass: 155 mm GPF on a Kreisbettung, + destroyed) |
 | `aa_ring_sandbag` | aa_gun | Circular sandbag AA emplacement | Germany | B6, B5 (apron AA) | D | 7 Ø × 1.2 | VAR:military |
-| `flak_rampart` | aa_gun | Flakvierling on a castle rampart, with crates | Germany | M20 (N rampart) | D | 4×4×2 | VAR:military |
+| `flak_rampart` | aa_gun | Flakvierling on a castle rampart, with crates | Germany | M20 (N rampart) | D | 4×4×2 | built: M20 procedural (art/field-guns.js) |
 | `at_gun_emplacement` | new | Fixed anti-tank or pier gun emplacement: a sandbag or concrete gun position | France/Germany | M13 (pier gun by the floodgate), M20 (N rampart, covers the Panzer III) | — | 5×5×1.5 | NEW |
 | `blockhouse_wolfsschanze` | bunker | Flat-roofed camouflaged concrete blockhouse; one has a rooftop platform with stairs. Includes a long low concrete barracks | Prussia | B5 (SE compound) | R, L, B | 20×12×6 | NEW |
 | `bunker_cupola` | bunker | Round concrete bunker with an armoured cupola | Prussia | B5 | — | 8 Ø × 3 | NEW (shares a mesh with `pillbox_round`) |
@@ -159,16 +159,16 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `wire_on_stakes` | fence | Barbed wire on stakes, and wire belts | All | M4 (gorge rim), M6, M8, M10, M14 | cut | linear | VAR:military |
 | `trench_ruins` | trench | Trench with low ruined foundation walls | N. Africa | M10 (start) [img] | cover | area | VAR:desert |
 | `v2_pad_gantry` | new | V2 upright on a launch table, with a service gantry | Germany | M19 (×3, **objective**) | **D**, L | 6×6×16 | military |
-| `v2_meillerwagen` | new | V2 on its Meillerwagen trailer | Germany | M20 (×2, **objective**) | **D** | 14×3×3 | NEW |
-| `firing_range` | new | Dirt yard with wooden target frames, timber fences and benches | Germany | M20 | — | 30×20 | military |
+| `v2_meillerwagen` | new | V2 on its Meillerwagen trailer | Germany | M20 (×2, **objective**) | **D** | 14×3×3 | built: military `v2_meillerwagen` (+ `_b`, `_destroyed`) |
+| `firing_range` | new | Dirt yard with wooden target frames, timber fences and benches | Germany | M20 | — | 30×20 | built: military `firing_range(_b)`; M20 targets + bullet stops procedural (art/field-guns.js) |
 | `stockade_prison` | fence | Prison-camp enclosure. **M17**: low brick walls with an iron-railing top, zigzag inner divisions, iron gate, back gate with a wall control box, inner wire-mesh yard. **B7**: double barbed-wire fence with named gates N1/N2, S1/S2, E1/E2 | Alsace/Germany | M17, B7 | dr | area | VAR:military |
 | `palisade_log` | wall | Vertical-log palisade. **M2**: diamond camp, a ladder that can be raised or lowered, log gateway with sentry box and barrier; C, D at the E corner. **M3**: E-bank camp. **M6**: compounds and free-standing segments | Norway | M2, M3, M6 | C, D, L, dr | linear, 4 h | NEW |
 | `palisade_plank` | wall | Tall timber plank palisade fence with gate | Germany | M19 (V2 base) | dr | linear, 4 h | NEW |
 | `wall_mudbrick` | wall | Mud-brick perimeter wall with an arched gate (M10); octagonal adobe perimeter (M9); stone-wall lines with 2 gates (M11) | N. Africa | M9, M10, M11 | C | linear, 3 h | desert (octagonal wall) |
 | `fence_chainlink` | fence | Chain-link or wire-mesh fence on iron posts, including a mesh corridor with iron gates | Desert/Norway | M3 (electric, cuttable), M8 (perimeter), M9 (W gate corridor), M10 (compound/apron divider) [img] | cut, dr | linear, 2.5 h | NEW |
 | `prisoner_cage` | fence | Small mesh prisoner cage | N. Africa | M10 (holds McRae) | J, dr | 8×6×3 | VAR:military (stockade) |
-| `castle_fortress` | wall | Octagonal fortress: thick stone curtain walls with walkable rampart tops, several terrace levels joined by stair flights, arched gate tunnels, conical bartizans, moat, SW and SE gatehouses with moat bridges. There is **one C spot on the W wall** | Germany | M20 | R, L, C (1 spot) | 200×200 site | military (VAR: terrace stairs, gate tunnels, bartizans) |
-| `chateau_hq` | villa | Neo-Gothic château HQ: conical towers, slate mansard, dormers | Germany | M20 (**objective**) | **Db** | 30×20×20 | NEW |
+| `castle_fortress` | wall | Octagonal fortress: thick stone curtain walls with walkable rampart tops, several terrace levels joined by stair flights, arched gate tunnels, conical bartizans, moat, SW and SE gatehouses with moat bridges. There is **one C spot on the W wall** | Germany | M20 | R, L, C (1 spot) | 200×200 site | built: M20 procedural (art/castle-kit.js: curtains, terraces, gatehouses, towers, stairs, bridges, water gate) |
+| `chateau_hq` | villa | Neo-Gothic château HQ: conical towers, slate mansard, dormers | Germany | M20 (**objective**) | **Db** | 30×20×20 | built: military `chateau_hq` (+ `_destroyed`) |
 
 ### 1.4 Industrial and utility
 
@@ -204,7 +204,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `shed_timber_long` | hut | Long timber-roofed shed, open shelter or pergola | N. Africa/Netherlands | M11, B2 (ostrich paddock shed), B7 (bridge shed `CASA_COBERTIZO_PUENTE`) | E [inf] | 12×5×4 | NEW |
 | `henhouse` | hut | Henhouse/chicken coop (`GALLINERO`, `GALL`) | Norway/Prussia/Germany | M4 (D), B5, B6 | D | 3×2×2 | NEW |
 | `dog_kennel` | new | Dog cage/kennel pen | Germany | M19 | dr | 4×3×2 | NEW |
-| `outhouse` | hut | Latrine/outhouse | Germany | M19, M20 | E [inf] | 1.5×1.5×2.5 | NEW |
+| `outhouse` | hut | Latrine/outhouse | Germany | M19, M20 | E [inf] | 1.5×1.5×2.5 | built: M20 procedural (castle-kit buildOuthouse) |
 
 ### 1.5 Rail, harbour and airfield
 
@@ -248,8 +248,8 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `pier_timber` | pier | Wooden pier or jetty | Norway | M1 (N island SE shore, S bank), M4 (HQ pier with patrol boat), M16/M18 (island landing) | — | 15×3 | bridges |
 | `jetty_stone` | pier | Small stone landing or jetty | Guernsey | B1 | — | 10×4 | VAR:bridges |
 | `lock_gate` | lock_gate | Steel lock/flood gate leaves between mole heads; each has a `control_shack` with a glass window and a lattice beacon mast. They open and close, and stay open once the operator is dead | France | M13 (×2) | dr | 20×2×8 | bridges |
-| `moat_bridge` | bridge | Short bridge over the moat at a gatehouse | Germany | M20 (SW, SE) | — | 10×4 | bridges |
-| `water_gate_underwater` | new | Underwater gate in the E wall, opened by a lever with a flashing red light; the pool is fed by the moat | Germany | M20 | dr | 4×1×3 | VAR:military |
+| `moat_bridge` | bridge | Short bridge over the moat at a gatehouse | Germany | M20 (SW, SE) | — | 10×4 | built: M20 procedural timber moat bridges (castle-kit); bridges `moat_bridge_fixed/draw` |
+| `water_gate_underwater` | new | Underwater gate in the E wall, opened by a lever with a flashing red light; the pool is fed by the moat | Germany | M20 | dr | 4×1×3 | built: M20 procedural grated arch (castle-kit; the grate rises with the lever) |
 | `canal_basin_sunken` | new | Sunken canal basins: stone retaining walls, stair ramps, tree-lined park strips | France | M15 | — | area, 3 deep | NEW |
 | `underwater_pipe` | new | Underwater pipe used to cross the river | Germany | B7 | — | linear | NEW (minor) |
 | `sea_mine_chain` | new | Sea mines on chains; there are 22 | Guernsey | B1 | D | 1 Ø | NEW (minor) |

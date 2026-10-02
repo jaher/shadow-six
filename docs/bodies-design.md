@@ -344,8 +344,22 @@ browser `tests/bodies-physics*.test.mjs`; screenshots `docs/screenshots/bodies-p
   floors (road, rock, decks, roofs, structures) → a ragged soot burst with spatter and chips; water → the existing
   water column only. Saved with the game.
 - **Visual mapping** (instead of the PD drive): the model draws `bodyRot · spawnRot⁻¹ · base`, base = the character's
-  idle pose for a blast (the ragdoll template is that pose) or the frozen death-clip pose for a settle (the settle
-  ragdoll spawns lying supine 0.55 m behind the unit, measured on the UAL `die` clip), so the hand-off never pops.
+  idle pose for a blast (the ragdoll template is that pose) or, for a settle, the settled death clip (`dead` /
+  `dead_prone`, its last frame, grounded on the root plane like the kit runtimes ground it): the settle ragdoll spawns
+  lying supine 0.55 m behind the unit (measured on the UAL `die` clip end), which is that pose. *(Changed 2026-10-01,
+  user: "bodies kind of floating above the ground when killed": the base used to be captured from the skeleton as
+  drawn when the ragdoll took over — at 1.2 s the die → dead cross-fade is still running, so corpses froze half up,
+  jack-knifed 0.2–0.5 m in the air or half sunk.)* What is on screen at the takeover (the end of the fall, a put-down)
+  eases into the ragdoll's pose over 0.35 s. The live pose record keys its base exactly like the baked one (anchor,
+  spawn rotations and pelvis rounded alike): a key that changed at the bake re-captured the base from the posed
+  skeleton and applied the settle rotation twice — the body popped 0.2–0.8 m on the frame it settled.
+- **Room to lie** (2026-10-01, user: "When you leave a body close to a rock it starts moving/jerking"): the colliders a
+  settling body meets can be larger than what is drawn (a rock's STATIC cuboids are its nav footprint, a crate stack's
+  PROP box its def size), and a settle ragdoll spawned inside one was shoved out every step — a 0.25–0.8 m slide, or a
+  thrash to the 6 s timeout. A body put down or released (`dropSpot`) is laid where the lying pose starts inside no
+  STATIC / PROP / VEHICLE collider (`PhysicsWorld.lyingFits`, a Rapier shape query), shifted aside before it is ever
+  turned; any settle spawn without room still starts on the nearest spot with room (≤ 1.5 m, same heading) and the
+  model glides there over 0.3 s (not for a man run over, who lies where the wheels caught him).
 - **Blast fidelity (review fixes)**: a light vehicle wrecked by a close blast (Δv > `vehicles.flipDv` 3.5 m/s) is
   thrown onto its side, or its roof above 2× that, and stays there (`vehicle.blastFlip`, saved; visual); heavy and
   armoured vehicles only rock. Glass blows out **per pane**: each building glass mesh is split into its connected

@@ -18,7 +18,7 @@ import { applyClothWind } from './cloth-wind.js';
 import { createHumanoid } from './humanoid.js';
 import { CONFIG } from '../config.js';
 import * as HR from './humanoid-real.js';
-import { applyRagdollPose, rememberIdle, captureBase } from './ragdoll-pose.js';
+import { applyRagdollPose, rememberIdle, captureBase, lyingBase } from './ragdoll-pose.js';
 import { liveView } from '../physics/ragdoll.js';
 import { mapAnim, LOCOMOTION, actionWeapon, CARRY_WEAPON, lookType, guestCharacter, missionNumber } from './unit-anim-map.js';
 import { transportState, transportClip, poseTransported, captureStart, groundDraggedLegs, dragGroundWeight, localOf, localRot, setBody } from './transport-pose.js';
@@ -28,6 +28,9 @@ import { proneGround, PRONE_CLIP } from './prone-ground.js';
 import { turnStep } from './turn-step.js';
 
 const PRONE_SHOT = /^prone_(shoot|shoot_smg|pistol_shoot)$/;
+/** s: a lying ragdoll's takeover eases the pose on screen (end of the fall, of a put-down) into the ragdoll's — as
+ *  long as the kits cross-fade die → dead. */
+const SETTLE_EASE = 0.35;
 /** Stance transitions play over exactly the sim's stance-change time (CONFIG.units.stanceDown / stanceUp). */
 const transitionTime = (tr) => (tr === 'go_prone' ? CONFIG.units.stanceDown : CONFIG.units.stanceUp);
 const TR_CLIP = /^(go_prone|get_up)$/;
@@ -355,13 +358,18 @@ export class UnitModel {
       if (rec) {
         const now = u.world?.time ?? 0;
         const nudging = rec.n && now - (rec.tn ?? 0) < 0.35;
-        if (stepped || rec.live || nudging || rec !== this._rdLast || !this._mwValid) {
-          // a ragdoll taking over from a transport pose (knocked off a shoulder): its base is the pose he had there
-          if (this._blend && rec !== this._rdLast) { this._rdBase = captureBase(this); this._rdBaseKey = rec.mode + ':' + rec.a.join(','); this._endBlendOut(); }
+        const gliding = rec.g && now - (rec.tg ?? 0) < 0.35;
+        const fresh = rec !== this._rdLast, easing = !!this._rdFrom;
+        if (stepped || rec.live || nudging || gliding || easing || fresh || !this._mwValid) {
+          // a ragdoll taking over from a transport pose (knocked off a shoulder: the drape spawn; a blast): its base is
+          // the pose he had there
+          if (this._blend && fresh && (rec.d || rec.mode === 'blast')) { this._rdBase = captureBase(this); this._rdBaseKey = rec.mode + ':' + rec.a.join(','); this._endBlendOut(); }
+          else if (fresh && rec.mode !== 'blast' && !rec.d) this._lyingTakeover(rec, now);
           this._rdLast = rec;
           if (applyRagdollPose(this, rec, now, this._rdGuard)) stepped = true;
+          if (this._rdFrom) stepped = this._easeIntoRagdoll(now) || stepped;
         }
-      } else if (this._rdLast) { this._rdLast = null; this._rdBase = null; this._mwValid = false; this._rdGuard.release(); }
+      } else if (this._rdLast) { this._rdLast = null; this._rdBase = null; this._rdFrom = null; this._mwValid = false; this._rdGuard.release(); }
       else if (!this._idleSeen && this.anim === 'idle' && stepped && ++this._idleN > 4) { rememberIdle(this); this._idleSeen = true; }
     }
     // procedural action overlay on the skeleton after the mixer (art/shovel-dig.js: digging, rising out of the snow)
@@ -378,6 +386,32 @@ export class UnitModel {
   }
 
   _body() { return this.real.root.children.find((c) => c.name === 'body') || this.real.root; }
+
+  /**
+   * A lying (settle) ragdoll takes over this body: its base is the settled death clip as it lies on the ground (the
+   * pose the physics' lying template stands for), not whatever is on screen — the die → dead cross-fade, a put-down —
+   * and what is on screen eases into the ragdoll's pose over SETTLE_EASE s. A baked pose shown on a fresh model (a
+   * load) gets the same base at once. The same ragdoll live → baked, or a corpse thrown again, keeps its base.
+   */
+  _lyingTakeover(rec, now) {
+    const key = rec.mode + ':' + rec.a.join(',');
+    if (this._rdBase && this._rdBaseKey === key) return;
+    const c = { ...this._ctx(), carried: false, load: null, mounted: false, stance: rec.prone ? 'crawl' : 'stand' };
+    const clip = mapAnim('dead', c).find((n) => this.real.hasAnim(n));
+    const base = clip ? lyingBase(this, clip) : null;
+    if (!base) return; // no clip: applyRagdollPose captures the pose on screen (as before)
+    this._rdFrom = rec.live ? { pose: capturePose(this), t: now } : null;
+    if (this._blend) this._endBlendOut();
+    this._rdBase = base; this._rdBaseKey = key;
+  }
+
+  /** One frame of the ease from the pose on screen at a lying takeover into the ragdoll's. @returns {boolean} */
+  _easeIntoRagdoll(now) {
+    const F = this._rdFrom, k = Math.min(1, Math.max(0, (now - F.t) / SETTLE_EASE));
+    if (k >= 1) { this._rdFrom = null; return false; }
+    mixPose(this, F.pose, 1 - k * k * (3 - 2 * k), this._guard);
+    return true;
+  }
 
   /**
    * Prone bodies on the real terrain + prone turning (art/prone-ground.js): slope tilt, elbow / ankle relief, the

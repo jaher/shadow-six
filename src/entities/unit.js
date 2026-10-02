@@ -16,7 +16,7 @@ import { plan as avoidPlan, priority, blocks, givesWay } from './avoidance.js';
 /** Brain states in which a standing enemy steps aside for a mate who cannot get past him. */
 const YIELD_STATES = new Set(['IDLE', 'REINFORCE', 'RETURN', 'INVESTIGATE', 'SEARCH', 'TRACKS', 'BODY']);
 import { cornerOffset } from './path-curve.js';
-import { bodyGap, clearPose, avoidMask, inflationTiers, hasObstacles, pushedBy, MOVE_MARGIN, STOP_MARGIN } from '../world/body-clearance.js';
+import { bodyGap, clearPose, avoidMask, inflationTiers, hasObstacles, pushedBy, deadStance, MOVE_MARGIN, STOP_MARGIN } from '../world/body-clearance.js';
 import { pathLength } from '../world/pathfinding.js';
 import { runNoiseStep } from '../ai/running-noise.js';
 
@@ -412,8 +412,9 @@ export class Unit extends Entity {
       const off = settleSolid(w.grid, this.x, this.z, this.heading, { likely: fall });
       if (off) { this.x = off.x; this.z = off.z; }
       // …and never under a vehicle hull (world/body-clearance.js); a man run over lies where the wheels caught him
-      if (cause !== 'runover' && cause !== 'train' && hasObstacles(w) && bodyGap(w, this.x, this.z, this.heading, 'dead') < STOP_MARGIN) {
-        const cp = clearPose(w, this.x, this.z, this.heading, 'dead', { sweep: false, maxDist: 1.5 });
+      const ds = deadStance(this.stance); // on his back (his hands flung out past his head), or on his belly
+      if (cause !== 'runover' && cause !== 'train' && hasObstacles(w) && bodyGap(w, this.x, this.z, this.heading, ds) < STOP_MARGIN) {
+        const cp = clearPose(w, this.x, this.z, this.heading, ds, { sweep: false, maxDist: 1.5 });
         if (cp) { this.x = cp.x; this.z = cp.z; this.heading = cp.heading; this.prevHeading = cp.heading; }
       }
     }

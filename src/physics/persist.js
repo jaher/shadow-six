@@ -89,7 +89,7 @@ export function serializePhysics(pw) {
     ...(moving ? {
       snapshot: 'lz:' + toB64(lzPack(pw.rw.takeSnapshot())),
       ragdolls: pw.ragdolls.map((rd) => ({
-        id: rd.unit.id, mode: rd.mode, prone: rd.prone, anchor: rd.anchor, spawnQ: Array.from(rd.spawnQ), spawnPelvis: rd.spawnPelvis,
+        id: rd.unit.id, mode: rd.mode, prone: rd.prone, ...(rd.drape ? { drape: true } : null), anchor: rd.anchor, spawnQ: Array.from(rd.spawnQ), spawnPelvis: rd.spawnPelvis,
         t: rd.t, t0: rd.t0 ?? 0, still: rd.still, calm: !!rd.calm, calmT: rd.calmT ?? 0, calmAt: rd.calmAt ?? null, prevPose: rd.prevPose ? Array.from(rd.prevPose) : null, blast: rd.blast ?? null, bodies: rd.bodies.map((b) => b.handle), joints: rd.joints.map((j) => j.handle),
       })),
       active: pw.props.active.map((it) => ({ key: it.key, t: it.t, still: it.still })),
@@ -120,7 +120,7 @@ export function restorePhysics(pw, data) {
     pw.ragdolls = (data.ragdolls || []).map((r) => {
       const unit = w.byId(r.id);
       const rd = {
-        unit, mode: r.mode, prone: r.prone, anchor: r.anchor, spawnQ: Float64Array.from(r.spawnQ), spawnPelvis: r.spawnPelvis,
+        unit, mode: r.mode, prone: r.prone, drape: !!r.drape, anchor: r.anchor, spawnQ: Float64Array.from(r.spawnQ), spawnPelvis: r.spawnPelvis,
         t: r.t, t0: r.t0 ?? 0, still: r.still, calm: !!r.calm, calmT: r.calmT ?? 0, calmAt: r.calmAt ?? undefined, prevPose: r.prevPose ? Float64Array.from(r.prevPose) : undefined, blast: r.blast, bodies: r.bodies.map((h) => rw.getRigidBody(h)), joints: r.joints.map((h) => rw.getImpulseJoint(h)),
         pose: new Float64Array(NPARTS * 7), done: false,
       };
