@@ -11,7 +11,7 @@ import { MockAudioContext, EventBus } from './audio-mock.mjs';
 import { createAudio } from '../../src/audio/audio.js';
 import { AudioEngine } from '../../src/audio/engine.js';
 import { SFX } from '../../src/audio/manifest.js';
-import { LINES } from '../../src/audio/voice-lines.js';
+import { LINES, CRY_KEYS } from '../../src/audio/voice-lines.js';
 import { missionAudio } from '../../src/audio/event-map.js';
 import M01 from '../../src/missions/m01_baptism_of_fire.js';
 import M02 from '../../src/missions/m02_a_quiet_blow_up.js';
@@ -181,6 +181,43 @@ test('voice packs: recorded lines are chosen, German voice stable per soldier, s
   r.clock.t = 40; r.audio.say(sn, 'ack_move', { force: true });
   const alt = r.ctx.started.filter((s) => s.buffer?.url?.includes('voice/')).at(-1).buffer.url;
   assert.ok(/voice\/sniper\/alt\//.test(alt), `alt take while the alarm is up (${alt})`);
+});
+
+test('German pain cries: every guard voice has its own stab / shot / blast / ko takes; a knife kill plays his voice', () => {
+  const r = assetRig();
+  for (const [cat, key] of Object.entries(CRY_KEYS)) {
+    for (const line of LINES.ger[key]) {
+      const takes = voxMan.lines.filter((l) => l.speaker === 'ger' && l.rec === line.rec);
+      assert.deepEqual(takes.map((t) => t.voice).sort(), [1, 2, 3], `${line.rec}: guard voices 1-3`);
+      for (const t of takes) {
+        assert.ok(t.nonverbal && t.kind === `cry_${cat}` && t.text === '', `${t.files[0]} non-verbal ${cat}`);
+        assert.ok(t.files[0] === `german_${t.voice}/pain/${line.rec}.ogg` && t.files[1].endsWith('.mp3'), t.files[0]);
+        const max = { stab: 1.0, shot: 1.3, blast: 1.7, ko: 1.2 }[cat];
+        assert.ok(t.duration > 0.2 && t.duration <= max, `${t.files[0]} ${t.duration} s`);
+      }
+    }
+  }
+  const seen = [];
+  r.events.on('bark', (e) => seen.push(e));
+  const gb = { kind: 'commando', id: 'c1', role: 'greenberet', x: 0, z: 0, alive: true };
+  const g = { kind: 'enemy', id: 'e7', x: 5, z: 0, alive: true, soldierType: 'soldier' };
+  r.clock.t = 1; r.events.emit('bark', { unit: g, line: 'ger_halt' });
+  const voice = r.ctx.started.at(-1).buffer.url.split('/')[1]; // german_<n>: this guard's voice
+  r.clock.t = 2; g.alive = false; g.hp = 0;
+  r.events.emit('unit:killed', { unit: g, killer: gb, cause: 'knife' });
+  const cry = seen.at(-1);
+  assert.equal(cry.line, CRY_KEYS.stab);
+  assert.equal(cry.subtitle, false);
+  const url = r.ctx.started.filter((s) => s.buffer?.url?.includes('/pain/cry_')).at(-1)?.buffer.url;
+  assert.ok(url && url.startsWith(`voice/${voice}/pain/cry_stab_`), `the cry is in his own voice (${voice}): ${url}`);
+  // next knifed men: never the same take twice in a row
+  const recs = [cry.rec];
+  for (let k = 0; k < 6; k++) {
+    r.clock.t = 3 + k;
+    r.events.emit('unit:killed', { unit: { ...g, id: `e${20 + k}` }, killer: gb, cause: 'knife' });
+    recs.push(seen.at(-1).rec);
+  }
+  for (let k = 1; k < recs.length; k++) assert.notEqual(recs[k], recs[k - 1], `variants rotate (${recs})`);
 });
 
 test('recorded MG bursts: one sustained take per shooter while rounds come, fades after the last; far explosions', () => {

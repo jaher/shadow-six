@@ -1,5 +1,5 @@
 {
- "format": "rec lines: {speaker, voice, rec, text, files:[ogg,mp3], alt?, timing}; see src/audio/voice-lines.js REC ; v2: keys = game LINES keys served; alt_timing = timing of the alt take; nonverbal rows (kind pain_hit|pain_loop|death_gasp) live in <char>/pain/",
+ "format": "rec lines: {speaker, voice, rec, text, files:[ogg,mp3], alt?, timing}; see src/audio/voice-lines.js REC ; v2: keys = game LINES keys served; alt_timing = timing of the alt take; nonverbal rows (kind pain_hit|pain_loop|death_gasp) live in <char>/pain/ ; German pain cries: nonverbal rows kind cry_stab|cry_shot|cry_blast|cry_ko in german_<n>/pain/ (tools/audio/cries)",
  "engines": {
   "Kokoro-82M (hexgrad) weights+voicepacks": "Apache-2.0 - https://huggingface.co/hexgrad/Kokoro-82M",
   "Chatterbox-Multilingual (Resemble AI)": "MIT - https://huggingface.co/ResembleAI/chatterbox ; outputs carry an imperceptible PerTh watermark (disclose as AI-generated)",
@@ -11,7 +11,8 @@
   "VoxLingua107 ECAPA (QA)": "Apache-2.0",
   "ffmpeg 7.0.2 static via imageio-ffmpeg (rubberband, libopus, lame)": "GPL build used offline as a tool; outputs unencumbered",
   "generated audio": "Project-owned output of Apache-2.0/MIT models; no real person cloned. v2 commando cast: every timbre is a weighted blend of stock Kokoro-82M voicepacks, pitch/formant-shifted; Chatterbox refs are renders of those blends only (see CAST.md)",
-  "SpeechBrain spkrec-ecapa-voxceleb (QA)": "Apache-2.0"
+  "SpeechBrain spkrec-ecapa-voxceleb (QA)": "Apache-2.0",
+  "Praat via praat-parselmouth (PSOLA pitch bends of the German pain cries)": "GPL-3.0 (offline tool only; not shipped)"
  },
  "lines": [
   {
@@ -4870,6 +4871,630 @@
     "german_3/primary/haende_hoch.mp3"
    ],
    "timing": "german_3/primary/haende_hoch.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 1,
+   "rec": "cry_blast_1",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_blast",
+   "loop": false,
+   "duration": 1.173,
+   "files": [
+    "german_1/pain/cry_blast_1.ogg",
+    "german_1/pain/cry_blast_1.mp3"
+   ],
+   "timing": "german_1/pain/cry_blast_1.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 1,
+   "rec": "cry_blast_2",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_blast",
+   "loop": false,
+   "duration": 1.125,
+   "files": [
+    "german_1/pain/cry_blast_2.ogg",
+    "german_1/pain/cry_blast_2.mp3"
+   ],
+   "timing": "german_1/pain/cry_blast_2.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 1,
+   "rec": "cry_blast_3",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_blast",
+   "loop": false,
+   "duration": 1.276,
+   "files": [
+    "german_1/pain/cry_blast_3.ogg",
+    "german_1/pain/cry_blast_3.mp3"
+   ],
+   "timing": "german_1/pain/cry_blast_3.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 1,
+   "rec": "cry_ko_1",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_ko",
+   "loop": false,
+   "duration": 1.016,
+   "files": [
+    "german_1/pain/cry_ko_1.ogg",
+    "german_1/pain/cry_ko_1.mp3"
+   ],
+   "timing": "german_1/pain/cry_ko_1.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 1,
+   "rec": "cry_ko_2",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_ko",
+   "loop": false,
+   "duration": 0.659,
+   "files": [
+    "german_1/pain/cry_ko_2.ogg",
+    "german_1/pain/cry_ko_2.mp3"
+   ],
+   "timing": "german_1/pain/cry_ko_2.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 1,
+   "rec": "cry_ko_3",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_ko",
+   "loop": false,
+   "duration": 0.715,
+   "files": [
+    "german_1/pain/cry_ko_3.ogg",
+    "german_1/pain/cry_ko_3.mp3"
+   ],
+   "timing": "german_1/pain/cry_ko_3.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 1,
+   "rec": "cry_shot_1",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_shot",
+   "loop": false,
+   "duration": 0.843,
+   "files": [
+    "german_1/pain/cry_shot_1.ogg",
+    "german_1/pain/cry_shot_1.mp3"
+   ],
+   "timing": "german_1/pain/cry_shot_1.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 1,
+   "rec": "cry_shot_2",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_shot",
+   "loop": false,
+   "duration": 0.85,
+   "files": [
+    "german_1/pain/cry_shot_2.ogg",
+    "german_1/pain/cry_shot_2.mp3"
+   ],
+   "timing": "german_1/pain/cry_shot_2.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 1,
+   "rec": "cry_shot_3",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_shot",
+   "loop": false,
+   "duration": 0.81,
+   "files": [
+    "german_1/pain/cry_shot_3.ogg",
+    "german_1/pain/cry_shot_3.mp3"
+   ],
+   "timing": "german_1/pain/cry_shot_3.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 1,
+   "rec": "cry_stab_1",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_stab",
+   "loop": false,
+   "duration": 0.414,
+   "files": [
+    "german_1/pain/cry_stab_1.ogg",
+    "german_1/pain/cry_stab_1.mp3"
+   ],
+   "timing": "german_1/pain/cry_stab_1.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 1,
+   "rec": "cry_stab_2",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_stab",
+   "loop": false,
+   "duration": 0.599,
+   "files": [
+    "german_1/pain/cry_stab_2.ogg",
+    "german_1/pain/cry_stab_2.mp3"
+   ],
+   "timing": "german_1/pain/cry_stab_2.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 1,
+   "rec": "cry_stab_3",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_stab",
+   "loop": false,
+   "duration": 0.577,
+   "files": [
+    "german_1/pain/cry_stab_3.ogg",
+    "german_1/pain/cry_stab_3.mp3"
+   ],
+   "timing": "german_1/pain/cry_stab_3.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 1,
+   "rec": "cry_stab_4",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_stab",
+   "loop": false,
+   "duration": 0.527,
+   "files": [
+    "german_1/pain/cry_stab_4.ogg",
+    "german_1/pain/cry_stab_4.mp3"
+   ],
+   "timing": "german_1/pain/cry_stab_4.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 2,
+   "rec": "cry_blast_1",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_blast",
+   "loop": false,
+   "duration": 1.104,
+   "files": [
+    "german_2/pain/cry_blast_1.ogg",
+    "german_2/pain/cry_blast_1.mp3"
+   ],
+   "timing": "german_2/pain/cry_blast_1.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 2,
+   "rec": "cry_blast_2",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_blast",
+   "loop": false,
+   "duration": 0.936,
+   "files": [
+    "german_2/pain/cry_blast_2.ogg",
+    "german_2/pain/cry_blast_2.mp3"
+   ],
+   "timing": "german_2/pain/cry_blast_2.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 2,
+   "rec": "cry_blast_3",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_blast",
+   "loop": false,
+   "duration": 0.781,
+   "files": [
+    "german_2/pain/cry_blast_3.ogg",
+    "german_2/pain/cry_blast_3.mp3"
+   ],
+   "timing": "german_2/pain/cry_blast_3.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 2,
+   "rec": "cry_ko_1",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_ko",
+   "loop": false,
+   "duration": 0.599,
+   "files": [
+    "german_2/pain/cry_ko_1.ogg",
+    "german_2/pain/cry_ko_1.mp3"
+   ],
+   "timing": "german_2/pain/cry_ko_1.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 2,
+   "rec": "cry_ko_2",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_ko",
+   "loop": false,
+   "duration": 0.681,
+   "files": [
+    "german_2/pain/cry_ko_2.ogg",
+    "german_2/pain/cry_ko_2.mp3"
+   ],
+   "timing": "german_2/pain/cry_ko_2.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 2,
+   "rec": "cry_ko_3",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_ko",
+   "loop": false,
+   "duration": 0.719,
+   "files": [
+    "german_2/pain/cry_ko_3.ogg",
+    "german_2/pain/cry_ko_3.mp3"
+   ],
+   "timing": "german_2/pain/cry_ko_3.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 2,
+   "rec": "cry_shot_1",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_shot",
+   "loop": false,
+   "duration": 0.776,
+   "files": [
+    "german_2/pain/cry_shot_1.ogg",
+    "german_2/pain/cry_shot_1.mp3"
+   ],
+   "timing": "german_2/pain/cry_shot_1.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 2,
+   "rec": "cry_shot_2",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_shot",
+   "loop": false,
+   "duration": 0.597,
+   "files": [
+    "german_2/pain/cry_shot_2.ogg",
+    "german_2/pain/cry_shot_2.mp3"
+   ],
+   "timing": "german_2/pain/cry_shot_2.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 2,
+   "rec": "cry_shot_3",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_shot",
+   "loop": false,
+   "duration": 0.65,
+   "files": [
+    "german_2/pain/cry_shot_3.ogg",
+    "german_2/pain/cry_shot_3.mp3"
+   ],
+   "timing": "german_2/pain/cry_shot_3.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 2,
+   "rec": "cry_stab_1",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_stab",
+   "loop": false,
+   "duration": 0.478,
+   "files": [
+    "german_2/pain/cry_stab_1.ogg",
+    "german_2/pain/cry_stab_1.mp3"
+   ],
+   "timing": "german_2/pain/cry_stab_1.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 2,
+   "rec": "cry_stab_2",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_stab",
+   "loop": false,
+   "duration": 0.566,
+   "files": [
+    "german_2/pain/cry_stab_2.ogg",
+    "german_2/pain/cry_stab_2.mp3"
+   ],
+   "timing": "german_2/pain/cry_stab_2.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 2,
+   "rec": "cry_stab_3",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_stab",
+   "loop": false,
+   "duration": 0.497,
+   "files": [
+    "german_2/pain/cry_stab_3.ogg",
+    "german_2/pain/cry_stab_3.mp3"
+   ],
+   "timing": "german_2/pain/cry_stab_3.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 2,
+   "rec": "cry_stab_4",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_stab",
+   "loop": false,
+   "duration": 0.511,
+   "files": [
+    "german_2/pain/cry_stab_4.ogg",
+    "german_2/pain/cry_stab_4.mp3"
+   ],
+   "timing": "german_2/pain/cry_stab_4.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 3,
+   "rec": "cry_blast_1",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_blast",
+   "loop": false,
+   "duration": 0.94,
+   "files": [
+    "german_3/pain/cry_blast_1.ogg",
+    "german_3/pain/cry_blast_1.mp3"
+   ],
+   "timing": "german_3/pain/cry_blast_1.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 3,
+   "rec": "cry_blast_2",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_blast",
+   "loop": false,
+   "duration": 0.876,
+   "files": [
+    "german_3/pain/cry_blast_2.ogg",
+    "german_3/pain/cry_blast_2.mp3"
+   ],
+   "timing": "german_3/pain/cry_blast_2.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 3,
+   "rec": "cry_blast_3",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_blast",
+   "loop": false,
+   "duration": 1.047,
+   "files": [
+    "german_3/pain/cry_blast_3.ogg",
+    "german_3/pain/cry_blast_3.mp3"
+   ],
+   "timing": "german_3/pain/cry_blast_3.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 3,
+   "rec": "cry_ko_1",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_ko",
+   "loop": false,
+   "duration": 0.867,
+   "files": [
+    "german_3/pain/cry_ko_1.ogg",
+    "german_3/pain/cry_ko_1.mp3"
+   ],
+   "timing": "german_3/pain/cry_ko_1.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 3,
+   "rec": "cry_ko_2",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_ko",
+   "loop": false,
+   "duration": 0.565,
+   "files": [
+    "german_3/pain/cry_ko_2.ogg",
+    "german_3/pain/cry_ko_2.mp3"
+   ],
+   "timing": "german_3/pain/cry_ko_2.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 3,
+   "rec": "cry_ko_3",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_ko",
+   "loop": false,
+   "duration": 0.538,
+   "files": [
+    "german_3/pain/cry_ko_3.ogg",
+    "german_3/pain/cry_ko_3.mp3"
+   ],
+   "timing": "german_3/pain/cry_ko_3.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 3,
+   "rec": "cry_shot_1",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_shot",
+   "loop": false,
+   "duration": 0.68,
+   "files": [
+    "german_3/pain/cry_shot_1.ogg",
+    "german_3/pain/cry_shot_1.mp3"
+   ],
+   "timing": "german_3/pain/cry_shot_1.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 3,
+   "rec": "cry_shot_2",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_shot",
+   "loop": false,
+   "duration": 0.724,
+   "files": [
+    "german_3/pain/cry_shot_2.ogg",
+    "german_3/pain/cry_shot_2.mp3"
+   ],
+   "timing": "german_3/pain/cry_shot_2.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 3,
+   "rec": "cry_shot_3",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_shot",
+   "loop": false,
+   "duration": 0.687,
+   "files": [
+    "german_3/pain/cry_shot_3.ogg",
+    "german_3/pain/cry_shot_3.mp3"
+   ],
+   "timing": "german_3/pain/cry_shot_3.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 3,
+   "rec": "cry_stab_1",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_stab",
+   "loop": false,
+   "duration": 0.504,
+   "files": [
+    "german_3/pain/cry_stab_1.ogg",
+    "german_3/pain/cry_stab_1.mp3"
+   ],
+   "timing": "german_3/pain/cry_stab_1.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 3,
+   "rec": "cry_stab_2",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_stab",
+   "loop": false,
+   "duration": 0.509,
+   "files": [
+    "german_3/pain/cry_stab_2.ogg",
+    "german_3/pain/cry_stab_2.mp3"
+   ],
+   "timing": "german_3/pain/cry_stab_2.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 3,
+   "rec": "cry_stab_3",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_stab",
+   "loop": false,
+   "duration": 0.547,
+   "files": [
+    "german_3/pain/cry_stab_3.ogg",
+    "german_3/pain/cry_stab_3.mp3"
+   ],
+   "timing": "german_3/pain/cry_stab_3.json"
+  },
+  {
+   "speaker": "ger",
+   "voice": 3,
+   "rec": "cry_stab_4",
+   "text": "",
+   "lang": "",
+   "nonverbal": true,
+   "kind": "cry_stab",
+   "loop": false,
+   "duration": 0.507,
+   "files": [
+    "german_3/pain/cry_stab_4.ogg",
+    "german_3/pain/cry_stab_4.mp3"
+   ],
+   "timing": "german_3/pain/cry_stab_4.json"
   }
  ]
 }

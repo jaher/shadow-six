@@ -325,7 +325,8 @@ test('German barks: AI bark gets text + gloss subtitle, challenge duplicate supp
   r.events.emit('bark', drop);
   assert.equal(drop.suppressed, true, 'lower priority than both active voices → flagged for the UI');
   r.events.emit('unit:killed', { unit: e3, killer: commando('c1', 'greenberet'), cause: 'knife' });
-  assert.ok(!seen.some((s) => s.line === 'ger_death'), 'silent kill: no death cry');
+  assert.ok(!seen.some((s) => s.line === 'ger_death'), 'silent kill: no shouted death line');
+  assert.ok(seen.some((s) => s.line === 'ger_cry_stab' && s.unit === e3 && !s.subtitle), 'his choked stab cry instead (audio only, no subtitle)');
 });
 
 test('§9.2 ambience beds per theater on the ambience bus; "Nature sounds" toggle; far sweeteners', () => {

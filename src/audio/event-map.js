@@ -5,6 +5,8 @@
  */
 
 import { SFX } from './manifest.js';
+import { CRY_KEYS, cryOf, speakerOf } from './voice-lines.js';
+import { isAnimal } from '../ai/bcd-ranks.js';
 
 /** CONFIG.weapons keys (and vehicle weapons) → shot SFX. */
 export const WEAPON_SFX = Object.freeze({
@@ -104,10 +106,14 @@ export const STATE_BARK = Object.freeze({
   ARREST: 'ger_arrest', DISTRACTED: 'ger_distracted', ALARM_RUN: 'courier',
   suspicious: 'ger_suspicious', investigate: 'ger_suspicious', combat: 'ger_combat',
 });
-const SILENT_KILLS = new Set(['knife', 'syringe', 'strangle', 'garrote', 'harpoon', 'trap']);
+const SILENT_KILLS = new Set(['knife', 'syringe', 'injection', 'strangle', 'garrote', 'harpoon', 'trap']);
 const key = (o, p) => `${p}:${o?.id ?? o?.tag ?? `${Math.round(o?.x ?? 0)},${Math.round(o?.z ?? 0)}`}`;
 const isCommando = (u) => u?.kind === 'commando';
 const isEnemy = (u) => u?.kind === 'enemy';
+/** A German soldier who can cry out (not a dog or a BCD animal). */
+const crier = (u) => isEnemy(u) && speakerOf(u) === 'ger' && !isAnimal(u);
+/** Seconds a silent killer waits before his quip ("Sleep tight."): the victim's choked cry is heard first. */
+export const QUIP_AFTER_CRY = 0.5;
 
 /**
  * Subscribe every SFX/voice handler. Returns the unsubscribe functions.
@@ -252,16 +258,22 @@ export function installHandlers(a, events) {
   on('unit:damaged', (e) => {
     const u = e.unit;
     if (!u || (u.hp ?? 1) <= 0) return;
-    if (isEnemy(u)) { a.say(u, 'ger_hurt'); return; }
+    // a wounded German cries out in his own voice (the category of the wound); the lethal hit cries on unit:killed
+    if (isEnemy(u)) { if (crier(u)) a.say(u, CRY_KEYS[cryOf(e.cause)]); return; }
     const g = a.say(u, 'pain');
     if (g) a.after(Math.max(0.3, g.duration || 0.6), () => { if (u.alive !== false && (u.hp ?? 1) > 0) a.say(u, 'hurt'); });
   });
+  // A dying German's cry, at the moment of the kill (a knife: the stab's hit frame, knife.js) and at his body: positional
+  // on the voice bus (voices class: heard within 60 m of the view centre, the voice volume), no subtitle. It is audio
+  // only: no world noise is emitted (BEL: a knife kill is silent to the AI; guards only hear world.emitNoise).
   on('unit:killed', (e) => {
     const u = e.unit, silent = SILENT_KILLS.has(String(e.cause || ''));
-    if (isEnemy(u) && !silent) a.say(u, 'ger_death');
+    if (crier(u)) a.say(u, CRY_KEYS[cryOf(e.cause)], { force: true });
     else if (isCommando(u) || u?.kind === 'guest') a.say(u, 'death', { force: true });
-    if (isEnemy(u) && silent && isCommando(e.killer)) a.say(e.killer, 'act_kill');
+    if (isEnemy(u) && silent && isCommando(e.killer)) { const k = e.killer; a.after(QUIP_AFTER_CRY, () => a.say(k, 'act_kill')); }
   });
+  // BCD knock-out (bcd-enemy.knockOut): the wind knocked out of him
+  on('enemy:ko', (e) => { if (e.fresh !== false && crier(e.enemy)) a.say(e.enemy, CRY_KEYS.ko); });
   on('unit:held', (e) => { if (e.held !== false) a.say(e.unit, 'spotted'); });
   on('unit:captured', (e) => a.say(e.by?.[0] || e.by, 'ger_arrest'));
   on('enemy:challenge', (e) => { a.say(e.enemy, 'ger_halt'); if (isCommando(e.target)) a.after(0.5, () => a.say(e.target, 'spotted')); });

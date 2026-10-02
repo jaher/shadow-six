@@ -33,6 +33,9 @@ script and re-run it. Anything the manifests do not cover falls back to the proc
   `rec` matches the `rec` field of a line in `src/audio/voice-lines.js`; the `text` must equal that line's text
   (it is the subtitle). German guards have voices 1–3 (picked per soldier); commandos have a `primary` take
   and an urgent `alt` take (pain, or while the alarm is up).
+- Non-verbal rows (`nonverbal: true`, empty `text`, no subtitle): the commandos' pain grunts / breath / death gasp in
+  `<char>/pain/`, and the German guards' pain cries `german_<n>/pain/cry_<cat>_<i>` (`kind` `cry_stab` | `cry_shot` |
+  `cry_blast` | `cry_ko`, every guard voice 1–3; built by `tools/audio/cries`, played by `src/audio/event-map.js`).
 - `timing` JSON: `words`, `phones` and `visemes` (Oculus 15 set) in seconds, for the talking portraits.
 - Legacy rows `{speaker, key, n, file}` (index into the key's lines) are still accepted.
 - Engines: Kokoro-82M (Apache-2.0) and Chatterbox-Multilingual (MIT). No real person's voice is cloned.

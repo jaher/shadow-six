@@ -1088,8 +1088,8 @@ export const CREDITS_SECTIONS = [
     "project output of an Apache-2.0 model"
    ],
    [
-    "assets/audio/voice/ (voices v2: every commando line in his own voice, primary + urgent take, pain/death sounds; German barks; word/viseme timing JSON)",
-    "AI-generated: Kokoro-82M (hexgrad) and Chatterbox-Multilingual (Resemble AI, PerTh watermark); each commando is a distinct blend of stock Kokoro voicepacks (no pack shared between two men; the French Spy blends Romance-language packs), pitch/formant-shifted; Chatterbox takes are referenced only on those synthetic blends; no real person cloned",
+    "assets/audio/voice/ (voices v2: every commando line in his own voice, primary + urgent take, pain/death sounds; German barks and the guards' pain cries — stabbed, shot, blown up, knocked out; word/viseme timing JSON)",
+    "AI-generated: Kokoro-82M (hexgrad) and Chatterbox-Multilingual (Resemble AI, PerTh watermark); each commando is a distinct blend of stock Kokoro voicepacks (no pack shared between two men; the French Spy blends Romance-language packs), pitch/formant-shifted; Chatterbox takes are referenced only on those synthetic blends; the German guards are Chatterbox's own built-in synthetic voice (two of them tape-shifted), their cries shaped with Praat PSOLA bends and a synthetic choke / fry / breath chain (tools/audio/cries); no real person cloned",
     "project contributors",
     "project output of Apache-2.0 / MIT models"
    ],

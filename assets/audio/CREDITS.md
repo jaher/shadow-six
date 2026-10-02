@@ -85,14 +85,17 @@ am_onyx+em_santa, Sniper bm_george+bm_fable, Marine am_puck+am_fenrir, Sapper bm
 am_michael+am_adam, Spy im_nicola+ff_siwis+em_alex), pitch/formant-shifted; accents come from hand-written
 IPA (Hiberno-English, cut-glass RP, broad Australian, Scouse, New York, French L1). Urgent takes, pain sounds
 and the Spy's German use Chatterbox with references rendered from those synthetic blends only. German guards
-use Chatterbox's built-in synthetic voice (B and C tape-shifted).
+use Chatterbox's built-in synthetic voice (B and C tape-shifted); their pain cries (`german_<n>/pain/cry_*`: stabbed,
+shot, blown up, knocked out) are Chatterbox takes of non-verbal German interjections in each guard's own voice, shaped
+offline (`tools/audio/cries`: formant-preserving Praat PSOLA pitch bends, a glottal-stop choke with a low-pass sweep,
+synthetic glottal fry, breath noise through the man's own vocal tract).
 
 The briefing narrator (`narration/`) is a newsreel-style announcer made the same way: a blend of stock Kokoro
 voicepacks (am_onyx .4, bm_lewis .3, am_eric .3) read with British G2P at speed 1.20, widened in pitch with
 Praat PSOLA and passed through a synthetic 1940s film-sound chain (docs/narration.md). It is an original voice:
 no real person or announcer was cloned or imitated, and no reference recording was used.
 Offline tools (not shipped): misaki G2P (Apache-2.0), espeak-ng (GPL-3.0), wav2vec2 alignment (Apache-2.0),
-ffmpeg with rubberband (imageio-ffmpeg static build); QA only: faster-whisper (MIT), SpeechBrain
+ffmpeg with rubberband (imageio-ffmpeg static build), Praat via praat-parselmouth (GPL-3.0); QA only: faster-whisper (MIT), SpeechBrain
 spkrec-ecapa-voxceleb (Apache-2.0), CommonAccent ECAPA (MIT), VoxLingua107 ECAPA (Apache-2.0).
 
 ## Excluded (licence / provenance gate, realism-pipeline v2 §1.5.1)

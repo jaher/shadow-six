@@ -41,6 +41,28 @@ const withRec = (o) => ({ ...RESCUE, ...Object.fromEntries(Object.entries(o).map
  * Non-verbal: empty text (= the recording's), no subtitle, and no urgent alt take.
  */
 const PAIN = Object.freeze(['pain_hit_1', 'pain_hit_2', 'pain_hit_3'].map((rec) => Object.freeze({ text: '', rec, nonverbal: true })));
+/**
+ * German pain cries (tools/audio/cries: Chatterbox in each guard's own voice + vocal processing; recorded as
+ * `german_<n>/pain/cry_<cat>_<i>`, every guard voice 1–3 has every take). Non-verbal like PAIN: no text, no subtitle.
+ *   stab  — a knife / bayonet / syringe / harpoon kill: a short shocked cry the blade cuts off (glottal stop, the throat
+ *           closes: a low-pass sweep and a choked creak), voiced at the hit frame;
+ *   shot  — hit by a bullet (wounded or killed): a pained shout that sags into vocal fry;
+ *   blast — caught by an explosion, fire or a vehicle: a strained scream;
+ *   ko    — knocked out (BCD fist / club / chloroform): the wind knocked out of him.
+ */
+const cry = (cat, n) => Object.freeze(Array.from({ length: n }, (_, i) => Object.freeze({ text: '', rec: `cry_${cat}_${i + 1}`, nonverbal: true })));
+/** Cry category → German line key. */
+export const CRY_KEYS = Object.freeze({ stab: 'ger_cry_stab', shot: 'ger_cry_shot', blast: 'ger_cry_blast', ko: 'ger_cry_ko' });
+const STAB_CAUSES = new Set(['knife', 'bayonet', 'injection', 'syringe', 'strangle', 'garrote', 'harpoon', 'trap', 'bite', 'melee']);
+const BLAST_CAUSE = /explo|grenade|bomb|mine|barrel|shell|cannon|torpedo|blast|dynamite|charge|artillery|flak|fire|burn|runover|train|crush|vehicle|^ram$/i;
+/** Which cry a cause of damage / death draws (cause strings of Unit.takeDamage / die, e.g. 'knife', 'pistol', 'grenade'). */
+export function cryOf(cause) {
+  const c = String(cause ?? '');
+  if (STAB_CAUSES.has(c)) return 'stab';
+  if (c === 'ko' || c === 'knockout' || c === 'stunned') return 'ko';
+  if (BLAST_CAUSE.test(c)) return 'blast';
+  return 'shot';
+}
 
 /** speaker (commando role / 'ger' / guests / 'colonel') → key → [{text, gloss?}]. */
 export const LINES = Object.freeze({
@@ -101,6 +123,7 @@ export const LINES = Object.freeze({
     spy_unmask: L(['Das ist kein Offizier — ein Spion!', "That's no officer — a spy!"]),
     ger_hurt: L(['Ich bin getroffen!', "I'm hit!"], ['Argh!'], ['Ngh!']),
     ger_death: L(['Aaargh!'], ['Uhh…'], ['Nein…'], ['Ahh!'], ['Ghh…'], ['Oh…']),
+    ger_cry_stab: cry('stab', 4), ger_cry_shot: cry('shot', 3), ger_cry_blast: cry('blast', 3), ger_cry_ko: cry('ko', 3),
     courier: L(['Ich hole Verstärkung!', "I'll get reinforcements!"]),
     sergeant_order: L(['Ausschwärmen!', 'Spread out!'], ['Weitergehen!', 'Move on!']),
   },
@@ -124,7 +147,8 @@ export const LINE_ALIASES = Object.freeze({
  * higher-priority line interrupts at once); `laconic` = muted by the Verbose/Laconic option; `sub` = subtitle shown;
  * `first` = variant index of a speaker's first line (else random; then round-robin, so never an immediate repeat);
  * `newMan` = a different commando's line replaces a same-or-lower-priority one at once (selecting a new man
- * always gets his answer, and the `cd` only holds while re-selecting the man who answered last).
+ * always gets his answer, and the `cd` only holds while re-selecting the man who answered last); `own` = an enemy line
+ * that replaces the same man's playing line at once (a pain cry cuts his "Was war das?") instead of a free voice slot.
  */
 export const RULES = Object.freeze({
   select: { cd: 3, prio: 1, laconic: true, first: 0, newMan: true },
@@ -137,6 +161,9 @@ export const RULES = Object.freeze({
   ger_alarm: { cd: 5, global: 1.2, prio: 4, sub: true }, ger_combat: { cd: 4, global: 1, prio: 3, sub: true },
   ger_arrest: { cd: 5, global: 1, prio: 3, sub: true }, ger_distracted: { cd: 6, prio: 1, sub: true },
   spy_unmask: { cd: 5, prio: 5, sub: true }, ger_hurt: { cd: 1.5, prio: 4, sub: false }, ger_death: { cd: 0, prio: 6, sub: false },
+  // pain cries: a dying man's cry (force) always plays and cuts his own line (`own`); a wound's cry has a short cooldown
+  ger_cry_stab: { cd: 0, prio: 6, sub: false, own: true }, ger_cry_shot: { cd: 0.5, prio: 5, sub: false, own: true },
+  ger_cry_blast: { cd: 0.5, prio: 6, sub: false, own: true }, ger_cry_ko: { cd: 1, prio: 5, sub: false, own: true },
   courier: { cd: 10, prio: 4, sub: true },
   man_down: { cd: 4, global: 2, prio: 5, sub: true }, hurry: { cd: 10, prio: 4, sub: true }, revived: { cd: 3, prio: 3, sub: true },
   moan: { cd: 7, chance: 0.6, prio: 1, sub: false }, sergeant_order: { cd: 8, global: 3, prio: 2, sub: true }, dog: { cd: 1.5, prio: 1, sub: false },
@@ -204,6 +231,8 @@ export class VoiceDirector {
       const newMan = rule.newMan && cur && cur.id !== req.speakerId && cur.prio <= rule.prio;
       if (cur && rule.prio <= cur.prio && now - cur.start < REPLACE_AFTER && !newMan) return { ok: false, reason: 'busy' };
       replaces = cur;
+    } else if (rule.own && this.enemy.some((e) => e.id === req.speakerId && e.prio <= rule.prio)) {
+      replaces = this.enemy.find((e) => e.id === req.speakerId && e.prio <= rule.prio); // his cry cuts his own line
     } else if (this.enemy.length >= MAX_ENEMY_VOICES) {
       const low = this.enemy.reduce((a, b) => (a.prio <= b.prio ? a : b));
       if (low.prio >= rule.prio) return { ok: false, reason: 'busy' };
