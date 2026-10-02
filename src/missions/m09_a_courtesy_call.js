@@ -58,9 +58,9 @@ const WALLS = [
   mesh('f_fw', [[15, 62], [23.5, 88]]),
   // opening_w: (23.5,88)–(27.5,88), the forecourt's W opening; the W road, our lorry and a tank fit
   mesh('f_fse', [[27.5, 88], [37.5, 109]]),
-  mesh('f_fs', [[37.5, 109], [46, 104]]),
-  // the broken wall stub the Green Beret climbs (climb_s)
-  wall('stub_s', [[46, 104], [50.37, 100.72]], { variant: 'mudbrick_broken', h: 2.2, clipAllow: ['gate_s'] }), // joined to the gate's pier
+  mesh('f_fs', [[37.5, 109], [45.79, 103.69]]),
+  // the broken wall stub the Green Beret climbs (climb_s), in line with gate_s
+  wall('stub_s', [[45.79, 103.69], [50.37, 100.72]], { variant: 'mudbrick_broken', h: 2.2, clipAllow: ['gate_s'] }), // joined to the gate's pier
   // closed, not locked: any commando opens it (§5.2 [rec])
   { id: 'gate_s', type: 'gate', variant: 'mesh_iron_roofed', x: 54.25, z: 98.25, rot: Math.atan2(-5.5, 8.5), w: 10.1, h: 3, open: false, locked: false },
   mesh('f_fs2', [[58.5, 95.5], [61, 93.3]]),
@@ -109,7 +109,7 @@ const STRUCTURES = [
   { id: 'drums_y', type: 'barrels', variant: 'drum_stack_yellow', label: 'Yellow drums', x: 40.5, z: 100, rot: 0, w: 5, d: 4, h: 1.2, block: 1 },
   crate('crates_g1', 29, 52.5), crate('crates_g2', 31, 54.5), crate('crates_g3', 33.5, 57), crate('crates_g4', 36.5, 59.5),
   crate('drum_g', 38, 50.5, 0.8, 0.8, 1),
-  crate('box_gate', 25, 64, 1, 0.6, 0.6),
+  { ...crate('box_gate', 25, 64, 1, 0.6, 0.6), rot: deg(2.6) }, // ∥ f_in
   { id: 'debris_s1', type: 'sandbags', variant: 'sandbags_collapsed', x: 32, z: 105.5, rot: 0, w: 3, d: 1.5, h: 0.8, block: 1 },
   { id: 'debris_s2', type: 'sandbags', variant: 'sandbags_collapsed', x: 41, z: 108.5, rot: 0, w: 3, d: 1.5, h: 0.8, block: 1 },
   { id: 'flag_barr', type: 'sign', variant: 'flag_pole', x: 87.5, z: 43, r: 0.15, h: 7, block: 0 },
@@ -177,7 +177,7 @@ const panzer = (id, x, z) => ({ id, vehicleType: 'panzer4', variant: 'panzer4_de
 const VEHICLES = [
   panzer('pz1', 17.2, 27.8), panzer('pz2', 22.1, 22.9), panzer('pz3', 27.1, 17.9),
   // K's "Blitz Opel": the red fuel tanker by the bunker; one bullet or any blast explodes it (§3.6)
-  { id: 'tanker', vehicleType: 'opel_blitz_tanker', variant: 'opel_blitz_tanker_red', x: 13.5, z: 40, heading: deg(345), operators: ['driver'] },
+  { id: 'tanker', vehicleType: 'opel_blitz_tanker', variant: 'opel_blitz_tanker_red', x: 13.5, z: 40, heading: deg(0), operators: ['driver'] }, // square to w_w and the bunker
 ];
 /**
  * T2 fireball radius (m, to the tank's centre). The shed-front spot is 5.3–8.7 m from the three bays and a plain move

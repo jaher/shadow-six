@@ -76,7 +76,7 @@ const HQ = [
   // the garden wall: brick to 1.2 m with a railing above (blocks feet, not eyes); the gate gap at (40, 56.3)
   { id: 'garden_wall_n', type: 'fence', variant: 'wall_brick_railing', points: [[45, 39], [58, 42.5], [59.1, 45.6]], h: 2.2, width: 0.5, mat: 'brick' },
   { id: 'garden_wall_w', type: 'fence', variant: 'wall_brick_railing', points: [[45, 39], [40.4, 54.6]], h: 2.2, width: 0.5, mat: 'brick' },
-  { id: 'garden_wall_sw', type: 'fence', variant: 'wall_brick_railing', points: [[39.5, 57.9], [36, 69.5], [47.6, 72]], h: 2.2, width: 0.5, mat: 'brick' },
+  { id: 'garden_wall_sw', type: 'fence', variant: 'wall_brick_railing', points: [[39.5, 57.9], [36, 69.5], [47.5, 72.58]], h: 2.2, width: 0.5, mat: 'brick' }, // S run on the 15° grid, into hq_wing's W face
   // the E car yard; the rear gate gap (74.3, 49.6)–(79.7, 51.1) on the tram street
   { id: 'yard_wall_n', type: 'fence', variant: 'wall_brick_railing', points: [[72.6, 49.2], [74.3, 49.6]], h: 2.2, width: 0.5, mat: 'brick' },
   { id: 'yard_wall_e', type: 'fence', variant: 'wall_brick_railing', points: [[79.7, 51.1], [80.7, 51.4], [80.7, 83], [64.3, 80.5]], h: 2.2, width: 0.5, mat: 'brick' },
@@ -89,7 +89,7 @@ const GARDEN = [
   ...[[47.5, 50], [51.5, 50.5], [46.5, 57], [50.5, 57.5], [46.5, 63], [51, 62]].map(([x, z], k) => ({ id: `hedge_${k + 1}`, type: 'bush', variant: 'box_parterre', x, z, r: 0.8, h: 0.6 })),
   // DEVIATION (dossier §13 #18): the dossier's roadblock centre (77,77) falls inside our car yard (its wall runs to z 83),
   // so the roadblock, its 4 hedgehogs and sentry e31 sit ~10 m S, just outside the yard's SE corner; the Morris column moves with them
-  { id: 'roadblock_se', type: 'sandbags', variant: 'roadblock_sandbag_arc', x: 76, z: 88.5, rot: deg(15), w: 4, d: 0.8, h: 1.1 },
+  { id: 'roadblock_se', type: 'sandbags', variant: 'roadblock_sandbag_arc', x: 76, z: 88.5, rot: deg(8.7), w: 4, d: 0.8, h: 1.1 }, // ∥ yard_wall_e's S run
   ...[[72.5, 85], [79.3, 86], [70.5, 91], [80, 95]].map(([x, z], k) => ({ id: `hedgehog_${k + 1}`, type: 'sandbags', variant: 'czech_hedgehog', x, z, w: 1.4, d: 1.4, h: 1.2 })),
 ];
 
@@ -103,9 +103,9 @@ const NORTH = [
   { id: 'hydrant', type: 'sign', variant: 'fire_hydrant', x: 19.5, z: 16, h: 0.8 },
   // NW: the bombed block behind its railing (decoration, not enterable)
   { id: 'ruins_nw', type: 'ruins', variant: 'bombed_block', x: 3, z: 9, rot: deg(-20), w: 5, d: 16, h: 4, nav: false }, // no walkable library top over the railing
-  { id: 'ruins_nw_rail', type: 'fence', variant: 'iron_railing', points: [[10.5, 0], [6.2, 12], [1.5, 25], [0, 28]], h: 1.8, width: 0.3 },
+  { id: 'ruins_nw_rail', type: 'fence', variant: 'iron_railing', points: [[9.4, 0], [6.2, 12], [2.6, 25.4], [0, 28]], h: 1.8, width: 0.3 }, // runs on the 15° grid
   // the cemetery: railing on a kerb (blocks feet, not eyes), the gate gap (46.6, 22.6)–(51.8, 23.9) open, 5.4 m wide about the dossier's centre (49.2, 23.3) so the van can be driven out by clicks (fix pass 15)
-  { id: 'cem_fence_w', type: 'fence', variant: 'iron_railing_kerb', points: [[46, 0], [41.2, 21], [46.6, 22.6]], h: 1.8, width: 0.3 },
+  { id: 'cem_fence_w', type: 'fence', variant: 'iron_railing_kerb', points: [[46.83, 0], [41.2, 21], [46.6, 22.6]], h: 1.8, width: 0.3 }, // W run on the 15° grid
   { id: 'cem_fence_s', type: 'fence', variant: 'iron_railing_kerb', points: [[51.8, 23.9], [81, 31]], h: 1.8, width: 0.3 },
   { id: 'chapel', type: 'house', variant: 'mausoleum_chapel', x: 73, z: 12, rot: 0, w: 6, d: 5, h: 5, mat: 'stone', roof: 'roofTar' },
   ...[60, 62.4, 64.8, 67.2, 69.6].map((x, k) => tomb(`tomb_n${k + 1}`, x, 1.8)),
@@ -282,7 +282,7 @@ const VEHICLES = [
   { id: 'sdkfz', vehicleType: 'sdkfz', variant: 'sdkfz231_8rad', x: 29.5, z: 68, heading: deg(60), post: { sweep: 30 }, driveable: false,
     crew: [{ soldierType: 'crew' }, { soldierType: 'crew' }], behavior: 'standby' },
   // the escape vehicle: our van in the cemetery, nose at the gate
-  { id: 'van', vehicleType: 'van', variant: 'van_civilian_grey', x: 59, z: 16, heading: deg(190), driveable: true, operators: ['driver'], friendly: true, seats: 6 },
+  { id: 'van', vehicleType: 'van', variant: 'van_civilian_grey', x: 59, z: 16, heading: deg(193.7), driveable: true, operators: ['driver'], friendly: true, seats: 6 },
 ];
 
 // ---------------------------------------------------------------- commandos (§3.8 row 15, exact; dossier §7)

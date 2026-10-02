@@ -6,10 +6,10 @@ import { getMission } from '../../src/missions/index.js';
 /**
  * Missions whose STRICT items (fuel / storage / water tanks, cisterns, anything tagged `align: 'fence'`) must run
  * parallel to their fence/wall/road (≤ ALIGN.tolDeg). Everything else is advisory (aesthetic call, never fails);
- * near-misses (tolDeg < dev ≤ nearMissDeg) are listed by tools/layout/align-report.mjs for review by eye.
- * M4–M20 are added when they merge from feat/missions.
+ * near-misses (tolDeg < dev ≤ nearMissDeg) are listed by tools/layout/align-report.mjs for review by eye; every
+ * enforced layout has been reviewed, so none may carry one (make it parallel, clearly different, or `alignFree`).
  */
-const ENFORCED = ['m01', 'm02', 'm03'];
+const ENFORCED = Array.from({ length: 20 }, (_, k) => `m${String(k + 1).padStart(2, '0')}`);
 
 const deg = (d) => (d * Math.PI) / 180;
 const byId = (res, id) => res.entries.find((e) => e.id === id);
@@ -134,13 +134,13 @@ for (const id of ENFORCED) {
   test(`${id}: tanks (and align:'fence' items) run parallel to their fence/wall/road (≤ ${ALIGN.tolDeg}°)`, () => {
     const res = analyzeMission(getMission(id));
     assert.deepEqual(res.violations.map((v) => `${v.id} dev ${v.devDeg}° vs ${v.ref.kind}:${v.ref.id} → rot ${v.suggestedDeg}°`), []);
-    // advisory near-misses are for review by eye; the reviewed m01–m03 layouts carry none
-    if (['m01', 'm02', 'm03'].includes(id)) assert.deepEqual(res.nearMisses.map((v) => `${v.id} ${v.devDeg}°`), []);
+    // advisory near-misses are for review by eye; the reviewed layouts carry none
+    assert.deepEqual(res.nearMisses.map((v) => `${v.id} ${v.devDeg}° vs ${v.ref.kind}:${v.ref.id}`), []);
   });
 }
 
-test('suggestions are stable: turning every checked item of m01–m03 to its suggested rot leaves nothing off', () => {
-  for (const id of ['m01', 'm02', 'm03']) {
+test('suggestions are stable: turning every checked item of m01–m20 to its suggested rot leaves nothing off', () => {
+  for (const id of ENFORCED) {
     const def = getMission(id), res = analyzeMission(def);
     const sug = new Map(res.entries.filter((e) => e.suggestedDeg != null).map((e) => [`${e.what}:${e.id}`, deg(e.suggestedDeg)]));
     const fixed = {
@@ -161,4 +161,32 @@ test('debris / obstacle variants of catalogue props are exempt; plain crates are
     { id: 'stack', type: 'crates', variant: 'crate_stack', x: 46, z: 30, rot: 0, w: 2, d: 2 }]));
   for (const id of ['wreck', 'hh', 'rub']) assert.equal(byId(res, id).status, 'skip', id);
   assert.equal(byId(res, 'stack').status, 'angled');
+});
+
+test('rolling stock references its rail track, not the fence beside it', () => {
+  const res = analyzeMission(mission([
+    { id: 'rail', type: 'rail_track', points: [[0, 0], [40, 40]] }, // 45° track
+    { id: 'w', type: 'wall', points: [[0, 6], [40, 14]] }, // ~11° wall 3-4 m away
+    { id: 'car', type: 'train_car', x: 20, z: 20, rot: deg(45.5), w: 8, d: 3 },
+    { id: 'offCar', type: 'train_car', x: 10, z: 10, rot: deg(52), w: 8, d: 3 },
+    { id: 'hut', type: 'hut', x: 20, z: 12, rot: deg(11.3), w: 4, d: 4 }]));
+  const car = byId(res, 'car');
+  assert.equal(car.ref.kind, 'rail');
+  assert.equal(car.status, 'ok');
+  assert.equal(byId(res, 'offCar').status, 'near-miss'); // 7° off its track reads as a derailment
+  assert.equal(byId(res, 'hut').ref.kind, 'wall');
+});
+
+test('quay faces (quay_edge set-piece) are reference walls: a depot tank on a quay runs parallel to its face', () => {
+  const def = mission([
+    { id: 'tank', type: 'fueltank', variant: 'fuel_tank_horizontal', x: 20, z: 4, rot: deg(-10), w: 12, d: 4.5 },
+    { id: 'shed', type: 'hut', x: 20, z: 15, rot: 0, w: 4, d: 4 }]);
+  def.setpieces = [{ type: 'quay_edge', id: 'qe', rings: [[[0, 0], [40, 0], [40, 30], [0, 30]]], lines: [] }];
+  assert.ok(wallPolylines(def).some((p) => p.id === 'qe' && p.pts.length === 5), 'ring closed back to its first point');
+  const res = analyzeMission(def);
+  const tank = byId(res, 'tank');
+  assert.equal(tank.ref.kind, 'enclosure');
+  assert.equal(tank.status, 'violation');
+  assert.equal(tank.suggestedDeg, 0);
+  assert.equal(byId(res, 'shed').status, 'ok');
 });

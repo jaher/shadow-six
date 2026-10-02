@@ -3,9 +3,13 @@
  * started/stopped source so tests can assert what was scheduled. `ctx.currentTime` is writable.
  */
 class Param {
-  constructor(v = 0) { this.value = v; this.events = []; }
-  setValueAtTime(v, t) { this.value = v; this.events.push(['set', v, t]); }
-  linearRampToValueAtTime(v, t) { this.value = v; this.events.push(['ramp', v, t]); } // jump: tests read the target
+  constructor(v = 0) { this._v = v; this.events = []; }
+  get value() { return this._v; }
+  /** A direct `.value =` write is a step on a live voice (no ramp): logged as 'value' so tests can forbid it. */
+  set value(v) { this._v = v; this.events.push(['value', v]); }
+  setValueAtTime(v, t) { this._v = v; this.events.push(['set', v, t]); }
+  linearRampToValueAtTime(v, t) { this._v = v; this.events.push(['ramp', v, t]); } // jump: tests read the target
+  setTargetAtTime(v, t, tau) { this._v = v; this.events.push(['target', v, t, tau]); } // jump: tests read the target
   cancelScheduledValues(t) { this.events.push(['cancel', t]); }
 }
 class Node {

@@ -12,6 +12,8 @@
  *   3. road      — otherwise the nearest road centre line (tangent) or pavement edge within ALIGN.roadNear m of the
  *      road/pavement edge (world/roads.js network: `roads`, legacy terrain road paths, `pavements`);
  *   4. none      — no reference: not checked.
+ *   Rolling stock (RAIL_STOCK) first takes the nearest rail/tram track (or road with `rails`) within ALIGN.railNear m
+ *   of its centre ('rail'): a wagon runs along its track whatever fence stands beside it.
  * Angles use the renderer's convention (art/props.js `placed`): `rot` rad maps local +X to (cos rot, sin rot) in
  * (x, z), so a segment a→b has angle atan2(bz − az, bx − ax); vehicles' `heading` uses the same convention.
  * Opt-out: a structure/vehicle carrying `alignFree: '<reason>'` is reported as 'free' and never a violation.
@@ -27,7 +29,7 @@
 import { normalizeRoadNetwork, sampleCenterline, pointInPolygon } from '../world/roads.js';
 
 /** Tunables (metres / degrees). */
-export const ALIGN = Object.freeze({ tolDeg: 2, nearMissDeg: 15, wallNear: 12, roadNear: 10, closeGap: 12 });
+export const ALIGN = Object.freeze({ tolDeg: 2, nearMissDeg: 15, wallNear: 12, roadNear: 10, closeGap: 12, railNear: 4 });
 
 /** Structure types that are reference lines (wall-like linear props). */
 export const WALL_TYPES = Object.freeze(['wall', 'fence', 'castle_wall', 'sea_wall', 'palisade']);
@@ -123,7 +125,7 @@ const isWallType = (t) => WALL_TYPES.includes(t);
 
 /**
  * Wall/fence polylines of a mission: structure `points` / `segments`, rect-shaped wall props (long axis), and
- * street-furniture fences (`furniture[{type:'fence', points}]`).
+ * street-furniture fences (`furniture[{type:'fence', points}]`) and quay faces (`setpieces[{type:'quay_edge', rings, lines}]`).
  * @returns {{id: string, pts: number[][]}[]}
  */
 export function wallPolylines(def) {
@@ -141,6 +143,13 @@ export function wallPolylines(def) {
   });
   (def.furniture || []).forEach((f, i) => {
     if (f && f.type === 'fence' && Array.isArray(f.points) && f.points.length > 1) out.push({ id: f.id ?? `furniture#${i}`, pts: f.points.map(pt) });
+  });
+  // quay faces (the `quay_edge` set-piece, M13): each quay outline is the "wall" its depot, sheds and tanks line up with
+  (def.setpieces || []).forEach((sp, i) => {
+    if (!sp || sp.type !== 'quay_edge') return;
+    const id = sp.id ?? `quay_edge#${i}`;
+    for (const r of sp.rings || []) if (r.length > 2) out.push({ id, pts: [...r.map(pt), pt(r[0])] });
+    for (const l of sp.lines || []) if (l.length > 1) out.push({ id, pts: l.map(pt) });
   });
   return out;
 }
@@ -177,6 +186,27 @@ export function findEnclosures(polys, closeGap = ALIGN.closeGap) {
     const closed = chain.length >= 4 && d2(chain[0], chain[chain.length - 1]) <= closeGap;
     const ring = closed ? chain.filter((q, k) => k === 0 || d2(q, chain[k - 1]) > 1e-6) : null;
     if (ring && ring.length >= 3 && polyArea(ring) > 1) out.push({ ids: [...ids], ring, segs, area: polyArea(ring) });
+  }
+  return out;
+}
+
+/** Rail types: reference lines for rolling stock (a train car runs along its track, not the nearest fence). */
+export const RAIL_TYPES = Object.freeze(['rail_track', 'rail_line', 'tram_track']);
+/** Rolling-stock types that reference the nearest rail within ALIGN.railNear m (centre → track). */
+export const RAIL_STOCK = Object.freeze(new Set(['train_car', 'locomotive', 'tram', 'wagon', 'flatcar']));
+
+/** Rail centre lines: rail/tram track structures (`points` / `segments`) and roads carrying `rails`. */
+export function railSegs(def) {
+  const out = [];
+  const add = (id, P) => { for (let k = 0; k + 1 < P.length; k++) out.push({ id, a: pt(P[k]), b: pt(P[k + 1]) }); };
+  (def.structures || []).forEach((s, i) => {
+    if (!s || !RAIL_TYPES.includes(s.type)) return;
+    const id = s.id ?? `${s.type}#${i}`;
+    if (Array.isArray(s.segments)) for (const seg of s.segments) add(id, seg);
+    else if (Array.isArray(s.points)) add(id, s.points);
+  });
+  for (const r of normalizeRoadNetwork(def).roads) {
+    if (r.rails) { const S = sampleCenterline(r.points, 1, !!r.spline); add(r.id, S.map((q) => [q.x, q.z])); }
   }
   return out;
 }
@@ -253,11 +283,15 @@ function nearestSeg(fp, segs) {
 
 /**
  * Reference line for one footprint {x, z, w, d, rot, reach}.
- * @returns {{kind:'enclosure'|'wall'|'road'|'pavement', id:string, a:number[], b:number[], angle:number, dist:number}|null}
+ * @returns {{kind:'rail'|'enclosure'|'wall'|'road'|'pavement', id:string, a:number[], b:number[], angle:number, dist:number}|null}
  */
 export function referenceFor(fp, ctx, opts = {}) {
   const O = { ...ALIGN, ...opts };
   const ang = (a, b) => Math.atan2(b[1] - a[1], b[0] - a[0]);
+  if (fp.rail && ctx.rails?.length) {
+    const r = nearestSeg(fp, ctx.rails);
+    if (r && r.c <= O.railNear) return { kind: 'rail', id: r.id, a: r.a, b: r.b, angle: ang(r.a, r.b), dist: r.c };
+  }
   const inside = ctx.enclosures.filter((e) => pointInPolygon(fp.x, fp.z, e.ring)).sort((p, q) => p.area - q.area);
   if (inside.length) {
     let s = nearestSeg(fp, inside[0].segs);
@@ -308,11 +342,11 @@ export function analyzeMission(def, opts = {}) {
   const enclosures = findEnclosures(polys, O.closeGap);
   const wallSegs = [];
   for (const p of polys) for (let k = 0; k + 1 < p.pts.length; k++) wallSegs.push({ id: p.id, a: p.pts[k], b: p.pts[k + 1] });
-  const ctx = { enclosures, wallSegs, ...roadRefs(def) };
+  const ctx = { enclosures, wallSegs, rails: railSegs(def), ...roadRefs(def) };
   const entries = candidates(def).map((c) => {
     const e = { id: c.id, type: c.type, what: c.what, strict: !!c.strict, x: c.x, z: c.z, rotDeg: +norm360(c.rot * DEG).toFixed(2), ref: null, devDeg: null, suggestedDeg: null };
     if (c.skip) return { ...e, status: 'skip', skip: c.skip };
-    const fp = { x: c.x, z: c.z, w: c.w, d: c.d, rot: c.rot, reach: Math.max(c.w, c.d) / 2 };
+    const fp = { x: c.x, z: c.z, w: c.w, d: c.d, rot: c.rot, reach: Math.max(c.w, c.d) / 2, rail: RAIL_STOCK.has(c.type) };
     const ref = referenceFor(fp, ctx, O);
     if (!ref) return { ...e, status: c.alignFree ? 'free' : 'noref', alignFree: c.alignFree };
     const dev = modDev(c.rot, ref.angle);

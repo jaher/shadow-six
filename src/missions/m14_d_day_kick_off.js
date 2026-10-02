@@ -130,7 +130,7 @@ const STRUCTURES = [
   wire('wr_e', [[97, 90.5], [102, 92.5]]),
   wire('wr_ne1', [[87, 30], [93.5, 40], [95.5, 45]]), wire('wr_ne2', [[97, 47.5], [100, 55], [103.5, 62]]), wire('wr_ne3', [[105, 64.5], [106, 68], [108, 75]]),
   wire('wr_n1', [[18, 25], [37, 25.5]]), wire('wr_n2', [[5, 37], [17, 33]]), wire('wr_n3', [[1, 50.5], [18, 52]]), wire('wr_n4', [[22, 49], [33, 43.5]]),
-  wire('wr_n5', [[48, 41], [56, 40]]),
+  wire('wr_n5', [[48, 40.5], [56, 40.5]]), // square to the g4 group (gun pit, shed, van)
   // --- beach obstacles: tetrahedra (Patrol 1 turns round (12,163), P35 stands by (109,55)) and the dragon's teeth W of gun 4
   ...[[4, 162], [12, 163], [19, 153.5], [24, 161], [33, 157.5], [37, 163], [11, 175], [6, 177.5], [14, 173.5], [17, 171.5], [31, 168],
     [57, 140.5], [57, 151.5], [48, 153.5], [72, 136], [73, 143], [79, 127.5], [80, 139],
@@ -146,7 +146,7 @@ const STRUCTURES = [
   rock('rk_g3b', 92, 70.5, 3, 2), rock('rk_e1', 82, 72, 2.5, 2),
   // --- barrels (3, carriable), crates, trees
   drum('brl_1', 55, 53.3), drum('brl_2', 56.2, 54), drum('brl_3', 55.4, 54.8),
-  { id: 'cr_s1', type: 'crates', variant: 'crate_stack', x: 51.5, z: 110, rot: 0, w: 3, d: 2, h: 1.6, block: 2 },
+  { id: 'cr_s1', type: 'crates', variant: 'crate_stack', x: 51.5, z: 110, rot: deg(14.6), w: 3, d: 2, h: 1.6, block: 2 },
   { id: 'cr_s2', type: 'crates', variant: 'crate_stack', x: 62, z: 116, rot: 0, w: 4, d: 3, h: 1.6, block: 2 },
   { id: 'cr_g4', type: 'crates', variant: 'crate_stack', x: 46, z: 73, rot: 0, w: 6, d: 4, h: 1.5, block: 2 },
   ...[[3, 118], [8, 122], [5, 128], [12, 125], [30, 148], [32, 109], [45, 102.5], [15, 62], [37, 77], [2, 83], [15, 95], [22, 95], [55, 78], [66, 76]]

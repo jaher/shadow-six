@@ -162,7 +162,7 @@ export default {
     // --- walls (stone with an iron-railing top), barbed wire, the road barricade
     ...[
       ['w_x1', [[48, 17], [66, 37]]], ['w_x2', [[46, 37], [63, 24]]], ['w_n', [[55, 3], [65, 14]]], ['w_nn', [[30, 0], [35, 10]]],
-      ['w_sw', [[38, 53], [57, 77]]], ['w_s', [[61, 79.5], [72, 80]]], ['w_brk', [[70, 51], [74, 43], [78, 51]]], ['w_ch', [[86, 16], [92, 27]]],
+      ['w_sw', [[38, 53], [57, 77]]], ['w_s', [[61, 79.75], [72, 79.75]]], ['w_brk', [[70, 51], [74, 43], [78, 51]]], ['w_ch', [[86, 16], [92, 27]]],
       ['w_hq', [[100, 70], [106, 65]]], ['w_gun', [[120, 68], [126, 77]]], ['w_ne', [[113, 53], [114.9, 52]], [[130, 44.05], [132, 43]]], ['w_yard', [[0, 45], [9, 40], [10, 47]]],
     ].map(([id, points, rest]) => ({ id, type: 'wall', variant: 'stone_railing', mat: 'stone', ...(rest ? { segments: [points, rest] } : { points }), h: 2.2, width: 0.5 })),
     // (w_ne stops at ruin_ne's walls: inside, the ruin's upper floor is the way across)

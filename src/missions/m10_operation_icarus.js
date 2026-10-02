@@ -34,6 +34,7 @@ const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (enemy-brain)
 const Y = SHELF_Y;
 const ROT = 333; // the camp's isometric grid (dossier §5)
+const TENT_ROT = 327.6; // the N tent row, parallel to wall_n's E run and fence_mast
 
 // ---------------------------------------------------------------- terrain (dossier §4)
 /** T2 the airfield shelf (y 5); the notch at x 70–80 is the ramp head. */
@@ -135,24 +136,25 @@ const COMPOUND = [
     destructible: true, bombOnly: true, hp: 100, destroyFx: ['bigBlast', 'fire'] }),
   { id: 'windpump', type: 'radio_mast', variant: 'windpump', x: 35, z: 182, r: 1.5, h: 9 },
   camp('truck_wreck', 'ruins', 'vehicle_wreck', 38, 164, 7, 2.6, 2.4, { rot: deg(340), block: 2 }),
-  camp('crates_c1', 'crates', 'crates_big', 18, 162, 2.5, 2.5, 2, { block: 2 }),
-  camp('crates_c2', 'crates', 'crates', 32.8, 163, 2, 2, 1.1, { block: 1 }),
-  camp('crates_c3', 'crates', 'crates_pile', 20.5, 168.5, 3, 2, 1.4, { block: 1 }),
+  camp('crates_c1', 'crates', 'crates_big', 18, 162, 2.5, 2.5, 2, { block: 2, rot: deg(337.2) }), // ∥ wall_w
+  camp('crates_c2', 'crates', 'crates', 32.8, 163, 2, 2, 1.1, { block: 1, rot: deg(321.3) }), // ∥ the pen's S side
+  camp('crates_c3', 'crates', 'crates_pile', 20.5, 168.5, 3, 2, 1.4, { block: 1, rot: deg(337.2) }), // ∥ wall_w
   camp('crates_c4', 'crates', 'crates_pile', 41, 188, 3, 2, 1.4, { block: 1 }),
   camp('wreck_dismantled', 'ruins', 'vehicle_dismantled', 36.5, 171.5, 3, 2, 1.2, { block: 1 }),
-  camp('tent_1', 'tent', 'tent_pyramid_desert', 51, 144.5, 6, 5, 3),
-  camp('tent_2', 'tent', 'tent_pyramid_desert', 59, 139.5, 6, 5, 3),
-  camp('tent_3', 'tent', 'tent_pyramid_desert', 69, 142, 6, 5, 3),
+  // the tent row runs along wall_n's E run (−33.8°) and fence_mast (−31°): 327.6° is parallel to both (≤ 2°)
+  camp('tent_1', 'tent', 'tent_pyramid_desert', 51, 144.5, 6, 5, 3, { rot: deg(TENT_ROT) }),
+  camp('tent_2', 'tent', 'tent_pyramid_desert', 59, 139.5, 6, 5, 3, { rot: deg(TENT_ROT) }),
+  camp('tent_3', 'tent', 'tent_pyramid_desert', 69, 142, 6, 5, 3, { rot: deg(TENT_ROT) }),
 ];
 
 const APRON_S = [
-  { id: 'barracks', type: 'barracks', variant: 'barracks_corrugated_gable', label: 'Barracks', x: 88, z: 121, rot: deg(63), w: 22, d: 10, h: 6,
+  { id: 'barracks', type: 'barracks', variant: 'barracks_corrugated_gable', label: 'Barracks', x: 88, z: 121, rot: deg(66), w: 22, d: 10, h: 6,
     mat: 'greyPaint', flag: true, garrison: true, door: deg(90) }, // indestructible (§4)
   { id: 'mast', type: 'radio_mast', variant: 'lattice_crane', x: 74, z: 124, r: 1.5, h: 12 },
-  camp('mast_hut', 'crates', 'crate_big', 75, 129, 3, 2, 1.8, { block: 2 }),
+  camp('mast_hut', 'crates', 'crate_big', 75, 129, 3, 2, 1.8, { block: 2, rot: deg(329) }), // ∥ fence_mast
   SHED_1.def, SHED_2.def, SHED_3.def, SHED_4.def, SHED_5.def,
   // the gantry hoist over the tank under repair (static hull, not a unit)
-  camp('gantry', 'crates', 'gantry_hoist', 79, 157, 10, 5, 7, { block: 2 }),
+  camp('gantry', 'crates', 'gantry_hoist', 79, 157, 10, 5, 7, { block: 2, rot: deg(326.3) }), // ∥ fence_f2
   { id: 'tank_repair', type: 'ruins', variant: 'panzer4_hull', x: 78, z: 160, rot: deg(200), w: 5.9, d: 2.9, h: 2, block: 2 },
   // K's "inverted T wall" (A) and the wall by the vacant tank's shed (B)
   { id: 'wall_a', type: 'wall', variant: 'blast_wall_revetment', mat: 'concrete', h: 2.4, width: 1, segments: [[[86, 165], [91, 176]], [[87, 178], [98, 170]]] },
@@ -166,7 +168,7 @@ const APRON_S = [
   // f3 stops at shed_3's NW corner: from there the shed's own W wall is the divider (a fence laid over it made the wall see-through)
   { id: 'fence_f3', type: 'fence', variant: 'fence_chainlink', points: [[54, 168], [57.2, 174.6]], h: 2.4 },
   { id: 'fence_sw', type: 'fence', variant: 'fence_chainlink', points: [[62, 184], [79, 209]], h: 2.4 },
-  camp('crate_f2', 'crates', 'crates', 64, 159, 2, 2, 1.1, { block: 1 }),
+  camp('crate_f2', 'crates', 'crates', 64, 159, 2, 2, 1.1, { block: 1, rot: deg(326.3) }), // ∥ fence_f2
 ];
 
 // ---------------------------------------------------------------- the wire field and the road (dossier §5.6)

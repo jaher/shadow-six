@@ -99,10 +99,11 @@ const BUILDINGS = [
   { id: 'barr_vil', type: 'barracks', variant: 'house_norse_fishing', x: 134.8, z: 83.5, rot: 0, w: 8, d: 9, h: 6, mat: 'woodDark',
     flag: true, banners: true, garrison: true, destructible: true, hp: 100, door: Math.PI },
   house('house_mid', 50.4, 73.5, 11, 9, 6, [50.4, 78.8], 'barracks_rendered_hip'),
-  // the timber gantry over the slip rails: two portals (B.HIGH posts), open between them
+  // the timber gantry over the slip rails: two portals (B.HIGH posts), open between them; the square posts stand
+  // square to w_inner (41.7°) beside it
   ...[[-5, -3], [-5, 3], [5, -3], [5, 3]].map(([lx, lz], k) => {
     const c = Math.cos(deg(35)), s = Math.sin(deg(35));
-    return { id: `gantry_post_${k + 1}`, type: 'bunker', variant: 'gantry_timber', x: +(34 + lx * c - lz * s).toFixed(2), z: +(84 + lx * s + lz * c).toFixed(2), rot: deg(35), w: 0.8, d: 0.8, h: 6, mat: 'woodDark', block: 2 };
+    return { id: `gantry_post_${k + 1}`, type: 'bunker', variant: 'gantry_timber', x: +(34 + lx * c - lz * s).toFixed(2), z: +(84 + lx * s + lz * c).toFixed(2), rot: deg(41.7), w: 0.8, d: 0.8, h: 6, mat: 'woodDark', block: 2 };
   }),
   // the village (tarred / red-painted timber, all enterable)
   house('h_big', 107, 62.5, 13, 22, 8, [99.8, 66]),
@@ -142,7 +143,7 @@ const WATERSIDE = [
     .map(([x, z, r], k) => boat(`boat_m${k + 1}`, x, z, r)),
   // 14 hauled-up boats and dinghies on the beach and in the ruins field (low cover)
   ...[[74, 126], [78, 124], [80, 133], [86, 131], [73, 135], [89, 127], [94, 118], [97, 121], [99, 115], [104, 114], [110, 107], [118, 107], [120, 110], [123, 106]]
-    .map(([x, z], k) => boat(`boat_b${k + 1}`, x, z, 30 + 25 * (k % 4), 'boat_beached', 1)),
+    .map(([x, z], k) => boat(`boat_b${k + 1}`, x, z, k === 0 || k === 4 ? 37 : 30 + 25 * (k % 4), 'boat_beached', 1)), // b1/b5 lie along w_salient
 ];
 
 /** Walls and gates (dossier §5.3): fieldstone, 3 m, barbed-wire coping, not climbable. */
@@ -273,7 +274,7 @@ const ENEMIES = [
 // ---------------------------------------------------------------- vehicles (dossier §8.6)
 const VEHICLES = [
   // the vacant SdKfz 251 half-track in the dock: the Driver's. Parked out of both gun cones; too wide for gate_n
-  { id: 'halftrack', vehicleType: 'halftrack', variant: 'sdkfz251', x: 26.5, z: 120, heading: deg(40), driveable: true, behavior: 'parked' },
+  { id: 'halftrack', vehicleType: 'halftrack', variant: 'sdkfz251', x: 26.5, z: 120, heading: deg(42), driveable: true, behavior: 'parked' },
   // the rowboat at the tip of the marina's W jetty: rowed by the Marine; five seats so the whole team fits
   { id: 'rowboat', vehicleType: 'rowboat', x: 126, z: 129.5, heading: deg(45), seats: 5, operators: ['diver'], suspicious: false },
   // the two 210 mm guns (unmannable) and the Gatling (the Driver may take it once e_mg is dead)

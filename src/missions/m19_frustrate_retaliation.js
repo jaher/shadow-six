@@ -80,7 +80,7 @@ const TERRAIN = [
 const rock = (id, x, z, w, d, h = 2.5) => ({ id, type: 'rocks', variant: 'rock_temperate', x, z, rot: 0, w, d, h, block: 2 });
 const tree = (x, z, k, pre = '') => ({ id: `tree_${pre}${k}`, type: k % 4 === 3 ? 'pine' : 'tree', variant: 'deciduous_bare', x, z, r: 0.4, h: 8 + (k % 3), seed: 1919 + k + (pre === 's' ? 50 : 0) }); // the S belt seeds apart from the N one (unique trees)
 const coal = (id, x, z, r, h = 1.6) => ({ id, type: 'rocks', variant: 'coal_heap', x, z, rot: 0, w: 2 * r, d: 2 * r, h, mat: 'coal', block: 1 });
-const cart = (id, x, z, variant = 'mine_cart_loaded') => ({ id, type: 'train_car', variant, x, z, rot: deg(22), w: 1.8, d: 1.2, h: 1.3, block: 1 });
+const cart = (id, x, z, variant = 'mine_cart_loaded', rot = 15) => ({ id, type: 'train_car', variant, x, z, rot: deg(rot), w: 1.8, d: 1.2, h: 1.3, block: 1 });
 const ruin = (id, points, h = 1.4, block = 1) => ({ id, type: 'wall', variant: 'ruin_wall', points, h, width: 0.8, mat: 'stone', block });
 const bags = (id, x, z, rot, w) => ({ id, type: 'sandbags', x, z, rot: deg(rot), w, d: 0.8, h: 0.9 });
 /** An MG nest: sandbags on three sides, open towards the rear (`back`, degrees). */
@@ -111,8 +111,9 @@ const NORTH = [
   { id: 'shed', type: 'tank_shed', variant: 'tank_shed_open', label: 'Tank shed', x: 28, z: 17.5, rot: 0, w: 11, d: 12, h: 5, open: 'S', smokestack: true },
   { id: 'tank_small', type: 'fueltank', variant: 'water_tower_legs_small', x: 20.5, z: 22, r: 1.2, h: 3, block: 2 },
   { id: 'bunker_n', type: 'bunker', variant: 'bunker_concrete_round', x: 43, z: 18.5, rot: 0, w: 5, d: 5, h: 2.5, mat: 'concrete', bunker: true },
-  ...[[15, 35], [17, 35.8], [19, 36.6], [21, 37.4], [23, 38.2]].map(([x, z], k) => cart(`cart_n${k}`, x, z)),
-  cart('cart_empty', 27, 40, 'mine_cart_empty'),
+  // the carts stand on the rail, along it (RAIL's first leg 15°, the second 14°)
+  ...[[15, 36.55], [17, 37.09], [19, 37.62], [21, 38.16], [23, 38.7]].map(([x, z], k) => cart(`cart_n${k}`, x, z)),
+  cart('cart_empty', 27, 39.75, 'mine_cart_empty', 14),
   coal('coal_n', 18, 45, 3),
   { id: 'crates_coal', type: 'crates', variant: 'coal_crates', x: 12.5, z: 44, rot: 0, w: 2, d: 3, h: 1, block: 1 },
   ruin('ruins_a', [[46, 33], [50, 33]]),
@@ -136,7 +137,8 @@ const YARD = [
   { id: 'rail', type: 'rail_track', variant: 'mine_railway', points: RAIL, width: 1.2 },
   { id: 'bridge', type: 'rail_bridge', variant: 'rail_bridge_mine_low', label: 'Rail trestle', x: BRIDGE.x, z: BRIDGE.z, rot: deg(BRIDGE.rot),
     w: BRIDGE.w, d: BRIDGE.d, h: 1.5 },
-  { id: 'buffer_se', type: 'crates', variant: 'rail_buffer', x: 96, z: 64.8, rot: deg(12), w: 1.5, d: 2, h: 1, block: 1 },
+  { id: 'buffer_se', type: 'crates', variant: 'rail_buffer', x: 96, z: 64.8, rot: deg(13.1), w: 1.5, d: 2, h: 1, block: 1,
+    alignFree: 'the buffer stop squares to the end of the rail (13.1°), not to the palisade behind it' },
   { id: 'crane', type: 'radio_mast', variant: 'crane_tower_jib', x: 84.5, z: 65.5, rot: 0, w: 2.5, d: 2.5, h: 7, block: 2 },
   coal('coal_se', 90, 69.5, 2.5),
   { id: 'boiler', type: 'house', variant: 'boiler_house', label: 'Boiler house', x: 95.5, z: 52, rot: 0, w: 10, d: 11, h: 7, mat: 'brick',
@@ -146,7 +148,7 @@ const YARD = [
   { id: 'conv', type: 'conveyor', variant: 'conveyor_incline', label: 'Coal conveyor', x: 96, z: 75.75, rot: Math.atan2(-11.5, 15), w: 18.9, d: 1.6, h: 3, block: 0 },
   coal('coal_w', 96, 80.5, 2, 1.4),
   { id: 'white_wall', type: 'wall', variant: 'whitewashed_concrete', points: [[101.5, 82.5], [101.5, 89.5]], width: 5, h: 3, mat: 'plaster', block: 2 },
-  { id: 'crates_gate', type: 'crates', variant: 'crates_pile', x: 118, z: 86, rot: 0, w: 4, d: 5, h: 1.8, block: 2 },
+  { id: 'crates_gate', type: 'crates', variant: 'crates_pile', x: 117.5, z: 86, rot: deg(346), w: 4, d: 5, h: 1.8, block: 2 },
   { id: 'wreck_car', type: 'ruins', variant: 'car_wreck_burnt', x: 133.5, z: 84, rot: deg(20), w: 4.5, d: 2.5, h: 1.4, mat: 'metalRust' },
   // the SE bank's rocky cliffs (Phase 3) and the yard rocks
   rock('rock_se1', 63, 85, 3, 2.5), rock('rock_se2', 71, 92, 3, 2), rock('rock_se3', 66, 96.5, 2.5, 2.5), rock('rock_se4', 78, 82, 3, 3),
@@ -158,7 +160,7 @@ const YARD = [
 /** §5.3 the V2 base (the palisade; the W side straight at x 99 so the switch is inside) and its N shore. */
 const BASE = [
   palisade('pal_w', [[99, 83], [99, 61], [103.5, 55], [107, 47], [113, 30]]),
-  palisade('pal_n', [[113, 30], [151, 33]]),
+  palisade('pal_n', [[113, 30], [151, 30]]), // square to the pads, barr_n and the tower
   palisade('pal_s1', [[104, 86], [120, 82]]),
   palisade('pal_s2', [[124, 81], [137, 77], [143, 60], [151, 49]]),
   { id: 'gate_s', type: 'gate', variant: 'plank_double_gate', label: 'South gate', x: 122, z: 81.5, rot: Math.atan2(-1, 4), w: 4, h: 3, open: true },
@@ -174,9 +176,11 @@ const BASE = [
   { id: 'hut_n', type: 'house', variant: 'hut_timber_bigroof', x: 115, z: 51, rot: 0, w: 9, d: 8, h: 5, mat: 'woodDark', enterable: true, door: deg(90) },
   { id: 'crates_n', type: 'crates', variant: 'crates_pile', x: 120, z: 57, rot: 0, w: 4, d: 3, h: 1.5, block: 1 },
   { id: 'drums_conv', type: 'fueltank', variant: 'oil_drums_stack', x: 102, z: 62, rot: 0, w: 2.5, d: 5, h: 2, block: 2 },
-  { id: 'pen', type: 'prison_pen', variant: 'dog_kennel', label: 'Dog pen', x: 111.5, z: 74, rot: 0, w: 9, d: 10, h: 2, gateSide: 'W' },
+  { id: 'pen', type: 'prison_pen', variant: 'dog_kennel', label: 'Dog pen', x: 111.5, z: 74, rot: 0, w: 9, d: 10, h: 2, gateSide: 'W',
+    alignFree: 'on the base grid with pal_w and the huts; the S palisade runs a clear 14–17° off (the dog is shot through its rails)' },
   { id: 'pen_gate', type: 'gate', variant: 'plank_gate', x: 107, z: 74, rot: deg(90), w: 2.4, h: 2, locked: true },
-  { id: 'kennel', type: 'hut', variant: 'dog_kennel_box', x: 114, z: 77, rot: 0, w: 1.6, d: 1.4, h: 1.2, mat: 'planks' },
+  { id: 'kennel', type: 'hut', variant: 'dog_kennel_box', x: 114, z: 77, rot: 0, w: 1.6, d: 1.4, h: 1.2, mat: 'planks',
+    alignFree: 'inside the pen, square to it' },
   { id: 'wreck_ht', type: 'ruins', variant: 'tractor_wreck_burnt', x: 114.5, z: 63.5, rot: deg(30), w: 5, d: 3, h: 1.8, mat: 'metalRust', block: 2 },
   { id: 'crates_v2', type: 'crates', variant: 'crates_cable_drums', x: 124, z: 46.5, rot: 0, w: 3, d: 5, h: 1.2, block: 1 },
   { id: 'drum_rust', type: 'fueltank', variant: 'rusty_drum_upright', x: 116, z: 80, r: 1, h: 2, block: 2 },

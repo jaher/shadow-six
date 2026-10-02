@@ -92,9 +92,9 @@ export const LEVER = [135.8, 75.5];
 const ROAD_SW_OUT = [[54, 125.5], [48, 130], [32, 141], [0, 157]];
 const ROAD_SE_OUT = [[124.5, 122.5], [140, 138], [157, 147]];
 /** Inside: SW gate → junction → tunnel → N court; junction → SE gate; junction → the E road court. */
-export const ROAD_IN = [[58, 110], [66, 102], [80, 93], [76, 82], [72, 72], [72, 56], [80, 46]];
+export const ROAD_IN = [[58, 110], [66, 101.1], [80, 93], [76, 82], [72, 72], [72, 56], [80, 46]];
 const ROAD_SE_IN = [[80, 93], [98, 99], [113.5, 111.5]];
-const ROAD_E = [[80, 93], [95, 86], [108, 74], [116, 62], [104, 56]];
+const ROAD_E = [[80, 93], [95, 86], [108, 74], [116, 62], [104, 55.07]]; // last leg ∥ the V2 trailers (30°)
 export const RANGE = [[100, 68], [118, 68], [135, 72], [135, 106], [122, 106], [108, 104], [100, 98]];
 
 const TERRAIN = [
@@ -139,7 +139,8 @@ const CURTAIN = [
   curtain('cw_sw', [[33, 91], [52.3, 110.3]]),
   gatehouse('gh_sw', 'South-west gate', 57, 114, 15),
   curtain('cw_s', [[61.5, 117.5], [99, 128], [112, 117.8]]),
-  gatehouse('gh_se', 'South-east gate', 116, 114, -45),
+  { ...gatehouse('gh_se', 'South-east gate', 116, 114, -45),
+    alignFree: 'the corner gate between cw_s (−38°) and cw_e1 (−35°), square to its bridge and road (45°)' },
   // the timber bridges over the moat, on each gate's axis
   { id: 'br_sw', type: 'bridge', variant: 'bridge_timber_moat_lanterns', x: 55.06, z: 121.25, rot: deg(105), w: 9, d: 4.5, h: 0.5 },
   { id: 'br_se', type: 'bridge', variant: 'bridge_timber_moat', x: 121.3, z: 119.3, rot: deg(45), w: 9, d: 4.5, h: 0.5 },
@@ -155,7 +156,7 @@ const CURTAIN = [
 
 /** §4.3 the raised levels (prisms drawn by scripts/m20.js); the turret after T_hq (its deck wins). */
 const LEVELS = [
-  level('t_ne', 'terrace_limestone', T_NE, Y.NE, [{ poly: rectPoly(119, 42, 10, 6, deg(45)) }]), // blk_ne stands on it
+  level('t_ne', 'terrace_limestone', T_NE, Y.NE, [{ poly: rectPoly(119, 42, 10, 6, deg(42.7)) }]), // blk_ne stands on it
   level('t_wb', 'terrace_limestone', T_WB, Y.WB),
   level('t_nw', 'terrace_limestone', T_NW, Y.NW),
   level('t_n', 'range_roof_rampart', T_N, Y.N),
@@ -176,36 +177,37 @@ const BUILDINGS = [
   { id: 'hq_wing', type: 'house', variant: 'chateau_wing', x: 32.25, z: 42, rot: 0, w: 11.5, d: 20, h: 8, mat: 'stone', roof: 'roofSlate', baseY: Y.HQ },
   { id: 'n_range', type: 'house', variant: 'castle_range_block', x: 71, z: 23, rot: 0, w: 66, d: 18, h: Y.N, mat: 'stone' }, // T_n is its roof
   { id: 'blk_n', type: 'house', variant: 'stair_tower', x: 90, z: 35.5, rot: 0, w: 8, d: 5, h: Y.N, mat: 'stone', roof: 'roofSlate' },
-  { id: 'blk_ne', type: 'house', variant: 'stair_block', label: 'Stair block', x: 119, z: 42, rot: deg(45), w: 10, d: 6, h: 3.5, mat: 'stone',
+  { id: 'blk_ne', type: 'house', variant: 'stair_block', label: 'Stair block', x: 119, z: 42, rot: deg(42.7), w: 10, d: 6, h: 3.5, mat: 'stone',
     roof: 'roofSlate', baseY: Y.NE, enterable: true, door: deg(90) },
   { id: 'bk_e', type: 'barracks', variant: 'house_half_timber_turret', label: 'Range barracks', x: 126, z: 62.5, rot: 0, w: 12, d: 11, h: 12,
     mat: 'plaster', roof: 'roofSlate', flag: true, garrison: true, door: deg(90), destructible: true },
   { id: 'bk_s', type: 'barracks', variant: 'hut_timber_barrack', label: 'Barracks', x: 76, z: 97, rot: deg(-30), w: 11, d: 7, h: 4.5,
     mat: 'planks', flag: true, garrison: true, door: deg(270), destructible: true },
-  { id: 'h_st', type: 'house', variant: 'house_half_timber_steeple', x: 66, z: 86, rot: deg(-30), w: 10, d: 7, h: 7, mat: 'plaster', roof: 'roofSlate' },
-  hut('h_w1', 54, 82, -30), hut('h_w2', 50, 96, -30), hut('h_w3', 60, 100.5, -30, { w: 8, d: 5 }),
+  { id: 'h_st', type: 'house', variant: 'house_half_timber_steeple', x: 66, z: 86, rot: deg(-20), w: 10, d: 7, h: 7, mat: 'plaster', roof: 'roofSlate' },
+  hut('h_w1', 54, 82, -30), hut('h_w2', 50, 97, -45), hut('h_w3', 60, 100.5, -45, { w: 8, d: 5 }), // ∥ cw_sw
   hut('h_s1', 88, 106, -30), hut('h_s2', 72, 110, -30),
-  hut('h_s3', 88, 118, 20, { label: 'Hut', enterable: true, door: deg(270) }),
+  hut('h_s3', 88, 118, 15.6, { label: 'Hut', enterable: true, door: deg(270) }), // ∥ cw_s
   hut('h_s4', 96, 106, -30, { w: 8 }), hut('h_s5', 105, 116, 20, { w: 8, d: 5 }),
   { id: 'h_tur', type: 'house', variant: 'house_turret_small', x: 95, z: 118.5, rot: 0, w: 4, d: 4, h: 8, mat: 'plaster', roof: 'roofSlate' },
   { id: 'outhouse', type: 'hut', variant: 'outhouse', x: 44, z: 78.5, rot: 0, w: 1.5, d: 1.5, h: 2.5, mat: 'planks' },
-  { id: 'shelter', type: 'hut', variant: 'open_shed_bench', x: 104.5, z: 89, rot: deg(-30), w: 4, d: 8, h: 3, mat: 'planks', block: 1 },
+  { id: 'shelter', type: 'hut', variant: 'open_shed_bench', x: 104.5, z: 89, rot: deg(-42.7), w: 4, d: 8, h: 3, mat: 'planks', block: 1 },
 ];
 
 /** §5.3 the two V2s on their trailers (o2) and the N court's hardware. */
 export const V2S = ['v2a', 'v2b'];
 const v2 = (id, x, z) => ({ id, type: 'v2_rocket', variant: 'v2_meillerwagen_lying', label: 'V2 rocket', x, z, rot: deg(30), w: 14, d: 3, h: 3,
   destructible: true, grenadeDestructible: true });
+const WAGON_LINE = 'parked in line with the V2 trailers (30°); the inner road ends beside them at its own bend';
 const MILITARY = [
   v2('v2a', 96, 50), v2('v2b', 94, 65),
-  { id: 'wagon_ammo', type: 'train_car', variant: 'covered_wagon_shells', x: 84, z: 58, rot: deg(30), w: 5, d: 2.5, h: 2.5, block: 2 },
-  { id: 'wagon_crate', type: 'train_car', variant: 'covered_wagon', x: 85, z: 50, rot: deg(30), w: 5, d: 2.5, h: 2.5, block: 2 },
+  { id: 'wagon_ammo', type: 'train_car', variant: 'covered_wagon_shells', x: 84, z: 58, rot: deg(30), w: 5, d: 2.5, h: 2.5, block: 2, alignFree: WAGON_LINE },
+  { id: 'wagon_crate', type: 'train_car', variant: 'covered_wagon', x: 85, z: 50, rot: deg(30), w: 5, d: 2.5, h: 2.5, block: 2, alignFree: WAGON_LINE },
   crates('crates_n1', 93.5, 42.5), crates('crates_n2', 96, 43),
   { id: 'flak_court', type: 'aa_gun', variant: 'flak38_quad_towed', x: 86, z: 73.5, rot: 0, w: 4, d: 2.5, h: 2.2, block: 1 },
   { id: 'flak_road', type: 'aa_gun', variant: 'flak38_quad_towed', x: 111, z: 66.5, rot: 0, w: 4, d: 2.5, h: 2.2, block: 1 },
   // the AT gun's sandbag half-ring, open to the N (the gun faces the tank)
   bags('atgun_bag_w', 74.8, 51.5, 80, 2.6), bags('atgun_bag_s', 77, 52.9, 0, 2.6), bags('atgun_bag_e', 79.2, 51.5, 100, 2.6),
-  bags('sandbag_se', 108, 108, 45, 3), // the SE gate's inner corner [fd]
+  { ...bags('sandbag_se', 108, 108, 45, 3), alignFree: 'square to the SE gatehouse (−45°) whose inner corner it guards' }, // the SE gate's inner corner [fd]
   // on the terraces (visual only: lifted by the script; raised cells carry no block)
   { id: 'flak_hq', type: 'flak', variant: 'flak38_quad_round_emplacement', x: 35.5, z: 55, r: 2.2, h: 1, block: 0, baseY: Y.HQ },
   { id: 'flak_n', type: 'flak', variant: 'flak38_quad_round_emplacement', x: 88, z: 19, r: 2.2, h: 1, block: 0, baseY: Y.N },

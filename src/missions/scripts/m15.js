@@ -35,7 +35,7 @@ export const ARRIVE = 1.5;
 export const GARDEN = [[45, 39], [58, 42.5], [59.1, 45.6], [53.4, 66.8], [48.7, 66.7], [47.3, 72], [36, 69.5]];
 export const GENERAL = 'schleper';
 /** The cemetery (inside its railing): the van's berth. */
-export const CEMETERY = [[46, 0], [81, 0], [81, 31], [51, 23.7], [47.3, 22.8], [41.2, 21]];
+export const CEMETERY = [[46.83, 0], [81, 0], [81, 31], [51, 23.7], [47.3, 22.8], [41.2, 21]];
 const DT = 0.05;
 
 // ---------------------------------------------------------------- geometry

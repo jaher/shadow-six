@@ -3,8 +3,14 @@
  * (src/audio/manifest.js 'ui' bus), with the hover throttle (1 per 60 ms), pitch-graded hover ticks, and a 3 dB /
  * 150 ms music duck under every UI sound. Plays through `game.audio.playSfx` (the one audio engine); before the
  * first gesture the engine only logs, so nothing pops.
+ * Looped beds (the 16 mm `projector` whirr under the boot ident and briefing part 1) are keyed loops: `play()` of a
+ * looped id starts (or keeps) ONE instance and the screen that owns it calls `stop()`. (A fire-and-forget play of a
+ * looped SFX started an untracked loop nothing could stop: each briefing added another projector — a 96 Hz hum
+ * chopped at 24 Hz — that buzzed under the whole mission.)
  * @module ui/ui-sound
  */
+
+import { SFX } from '../audio/manifest.js';
 
 /** §1.8 id → [sfx id, gain, rate]. */
 export const UI_SOUNDS = Object.freeze({
@@ -45,6 +51,7 @@ export class UiSound {
   play(id, opts = {}) {
     const def = UI_SOUNDS[id];
     if (!def) return null;
+    if (SFX[def[0]]?.loop) return this.loop(id); // a looped bed: keyed (never stacked, always stoppable)
     const now = performance.now();
     if (id === 'hover') {
       if (now - this._lastHover < 60) return null;
@@ -60,19 +67,21 @@ export class UiSound {
     return h;
   }
 
-  /** Looped bed (`projector`); `stop(id)` fades it. */
+  /** Looped bed (`projector`): one keyed instance per id (a second call keeps it); `stop(id)` fades it. */
   loop(id) {
     const a = this.getAudio?.();
-    if (!a?.startLoop || !UI_SOUNDS[id]) return;
+    if (!UI_SOUNDS[id]) return null;
+    this.log.push(id);
+    if (this.log.length > 32) this.log.shift();
     this._loops.set(id, true);
-    a.startLoop(`ui:${id}`, UI_SOUNDS[id][0], null, { fadeIn: 0.4 });
+    if (!a?.startLoop) return null;
+    return a.startLoop(`ui:${id}`, UI_SOUNDS[id][0], null, { fadeIn: 0.4, gain: UI_SOUNDS[id][1] })?.handle ?? null;
   }
 
-  stop(id) {
-    const a = this.getAudio?.();
+  stop(id, fade = 0.4) {
     if (!this._loops.has(id)) return;
     this._loops.delete(id);
-    a?.stopLoop?.(`ui:${id}`, 0.4);
+    this.getAudio?.()?.stopLoop?.(`ui:${id}`, fade);
   }
 
   /** UI sounds duck the music by 3 dB for 150 ms. */

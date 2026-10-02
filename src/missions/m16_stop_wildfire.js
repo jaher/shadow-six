@@ -98,7 +98,8 @@ const BRIDGE_SET = [
   { id: 'D_W_bags_s', type: 'sandbags', x: 22.5, z: 79.2, rot: 0, w: 3.5, d: 0.8, h: 0.9 },
   { id: 'D_W_bags_w', type: 'sandbags', x: 20.4, z: 77.1, rot: deg(90), w: 3.4, d: 0.8, h: 0.9 },
   { id: 'D_I', type: 'detonator', x: DETONATORS.D_I.x, z: DETONATORS.D_I.z, rot: 0 },
-  { id: 'D_E', type: 'detonator', x: DETONATORS.D_E.x, z: DETONATORS.D_E.z, rot: BRIDGE_ROT },
+  { id: 'D_E', type: 'detonator', x: DETONATORS.D_E.x, z: DETONATORS.D_E.z, rot: BRIDGE_ROT,
+    alignFree: 'on the bridge deck, square to the bridge (BRIDGE_ROT), not to the wire belt beyond it' },
   { id: 'isl_hut', type: 'hut', variant: 'timber_shed', x: 57.2, z: 91.5, rot: deg(-30), w: 4, d: 4, h: 2.6 },
   { id: 'isl_jetty', type: 'pier', variant: 'pier_timber', x: 60, z: 101, rot: deg(-30), w: 5, d: 9 },
 ];

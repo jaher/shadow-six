@@ -1473,6 +1473,15 @@ extraction: { vehicleId, exit:{x,z,r}, spawnWhen:[objectiveIds] }
   `node tools/layout/align-report.mjs` lists STRICT violations and advisory near-misses; `tests/unit/alignment.test.mjs`
   enforces the strict set (and no near-misses) for the missions in its `ENFORCED` list. `alignFree: '<reason>'`
   opts a structure out.
+  All of M1–M20 are enforced. The M4–M20 pass (2026-09-30) turned M8's tank pair 17.5° to `wire_e`'s wadi leg (decks,
+  ladders and e26's walk with it) and settled every near-miss by the smallest change that reads right on screen:
+  straightening a wobbling fence/quay/railing to the buildings' grid (M6 `w_s`, M12 `quay_n`, M14 `wr_n5`, M15
+  railings and garden wall, M19 `pal_n`, M20 two road vertices), turning a prop/hut/vehicle onto its wall or road
+  (M7, M9, M10 camp props and tent row, M11, M15, M17, M19 carts onto their rail, M20), or `alignFree` with the reason
+  where the analyzer's reference is not the right one (a bridge plunger, a rail buffer, a corner gate, a dog pen).
+  Quay faces count as walls (the `quay_edge` set-piece's rings and lines): after the master merge of 2026-10-01 this
+  caught M13's depot, whose two fuel tanks stood at −10° on the 0° N quay (now 0°, `fuel_2` 0.3 m N), and the
+  launch, shacks and crates beside the quay faces; M14's `cr_s1` turned 14.6° along the art pass's supply track.
 
 ### 7.4 Mission 1: *Baptism of Fire* (buildable layout)
 

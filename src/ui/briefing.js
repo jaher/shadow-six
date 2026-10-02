@@ -151,7 +151,7 @@ export class Briefing {
       h.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
     }
     if (this.slides.some((f) => f.classList.contains('capture'))) this._captureLater(def);
-    this.hud.sound?.play('projector');
+    this.hud.sound?.loop('projector'); // part 1 bed under the briefing loop: stopped by openTour() / close()
     this.hud.game.audio?.music?.(briefingCueFor(def)); // the mission's briefing loop (ducks under the Colonel)
     // the newsreel narrator: now, or as soon as audio unlocks (a first click) within the opening seconds
     this._narrWait = this.narrationOn ? NARRATION_TIMING.wait : 0;
@@ -319,6 +319,7 @@ export class Briefing {
   close() {
     this.stopNarration();
     this.stopVoice();
+    this.hud.sound?.stop('projector');
     const g = this.hud.game, cc = g.cameraController;
     if (this.part === 2 && this._saved && cc) cc.setZoom(this._saved.zoom); // back from the tour's 0.5× framing
     // the mission starts (tour finished / skipped, or the briefing closed by game.start()): look at the squad, not
@@ -507,6 +508,7 @@ export class Briefing {
 
   openTour() {
     this.stopNarration();
+    this.hud.sound?.stop('projector'); // the projector whirr is part 1's bed only (menus-art-direction §1.8)
     const g = this.hud.game, cc = g.cameraController;
     this.part = 2;
     this.root.className = 'ui-briefing part2';

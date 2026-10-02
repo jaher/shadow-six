@@ -93,7 +93,7 @@ export class Boot {
       <path d="M0 150H400M200 0V300" stroke="#d8d2bd" stroke-width="1.5" opacity=".7"/>
       <text class="num" x="200" y="150" text-anchor="middle" dominant-baseline="central">3</text>
     </svg><div class="bt-dust"></div><div class="bt-burn"><img src="assets/ui/emblem.svg" alt=""><div class="mk-wm wm" role="img" aria-label="SHADOW SIX"></div></div>`;
-    this.hud.sound?.play('projector');
+    this.hud.sound?.loop('projector'); // the leader's bed: stopped when the ident ends
     const num = id.querySelector('.num');
     let skipped = false;
     for (const n of ['3', '2', '1']) {
@@ -107,6 +107,7 @@ export class Boot {
     id.classList.add('burn'); // 400 ms radial luminance wipe, the key light sweeps once
     if (!skipped) await this._beat(rm ? 900 : 1900);
     id.classList.add('out');
+    this.hud.sound?.stop('projector', rm ? 0.08 : 0.4);
     await wait(rm ? 80 : 400);
     id.remove();
   }

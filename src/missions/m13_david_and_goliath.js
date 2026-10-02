@@ -97,7 +97,7 @@ const SHIP_AND_GATES = [
   { id: 'gate_n', type: 'lock_gate', variant: 'lock_gates', x: 23.25, z: 48.5, rot: 0, w: 11.5, d: 1.4, h: 4 },
   { id: 'gate_s', type: 'lock_gate', variant: 'lock_gates', x: 30.75, z: 146.5, rot: 0, w: 9.5, d: 1.4, h: 4 },
   { id: 'shack_n', type: 'control_shack', variant: 'guard_hut_a', x: 32, z: 43, rot: 0, w: 3.5, d: 3, h: 2.6 },
-  { id: 'shack_s', type: 'control_shack', variant: 'guard_hut_a', x: 24.5, z: 142, rot: 0, w: 3, d: 3, h: 2.6 },
+  { id: 'shack_s', type: 'control_shack', variant: 'guard_hut_a', x: 24.5, z: 142, rot: deg(-2.2), w: 3, d: 3, h: 2.6 },
   mast('mast_nw', 16, 45.5), mast('mast_mw', 24, 83), mast('mast_mm', 36, 100.5), mast('mast_sw', 20, 142), mast('mast_sc', 44, 142),
   { id: 'buoy_sw', type: 'sign', variant: 'buoy_red', x: 2, z: 176, r: 0.8, h: 1.5, block: 0 },
   { id: 'rocks_se', type: 'cliff', variant: 'coastal_granite', points: T6_ROCKS, h: 6 },
@@ -105,8 +105,8 @@ const SHIP_AND_GATES = [
 
 const DOCK_N = [
   { id: 'crane_1', type: 'bunker', variant: 'crane_dock_portal', x: 32, z: 37, rot: deg(225), w: 1.2, d: 1.2, h: 18, mat: 'metalRust', block: 2 },
-  { id: 'fuel_1', type: 'fueltank', variant: 'fuel_tank_horizontal', label: 'Fuel tank', x: 76, z: 33.5, rot: deg(-10), w: 12, d: 4.5, h: 5, destructible: true, bombOnly: false, hp: 100 },
-  { id: 'fuel_2', type: 'fueltank', variant: 'fuel_tank_horizontal', label: 'Fuel tank', x: 77.5, z: 38.5, rot: deg(-10), w: 11, d: 4.5, h: 5, destructible: true, bombOnly: false, hp: 100 },
+  { id: 'fuel_1', type: 'fueltank', variant: 'fuel_tank_horizontal', label: 'Fuel tank', x: 76, z: 33.5, rot: 0, w: 12, d: 4.5, h: 5, destructible: true, bombOnly: false, hp: 100 },
+  { id: 'fuel_2', type: 'fueltank', variant: 'fuel_tank_horizontal', label: 'Fuel tank', x: 77.5, z: 38.2, rot: 0, w: 11, d: 4.5, h: 5, destructible: true, bombOnly: false, hp: 100 },
   crates('crates_n1', 48, 31.5, 4, 3), barrels('barrels_n1', 54, 33, 4, 5), crates('crates_n2', 54, 37.5, 4, 3),
   crates('crates_3box_1', 64.5, 38), crates('crates_3box_2', 66.5, 41.5), crates('crates_3box_3', 68.5, 44.5),
   crates('crates_n3a', 78, 42), crates('crates_n3b', 81, 42.5),
@@ -120,10 +120,10 @@ const DOCK_E = [
   nissen('hut_b', 80.5, 54, 12),
   nissen('hut_c', 84, 63.5, 10),
   { id: 'garage', type: 'garage', variant: 'garage_brick', x: 80, z: 97, rot: 0, w: 10, d: 10, h: 7, open: 'S' },
-  crates('sandbags_1', 71.5, 77), crates('crate_e1', 70, 87),
+  crates('sandbags_1', 71.5, 77), { ...crates('crate_e1', 70, 87), rot: deg(4.4) },
   { id: 'sandbags_2', type: 'sandbags', x: 72, z: 97.5, rot: 0, w: 4, d: 3, h: 1.2, block: 1 },
-  crates('crates_e2', 84.5, 108, 3, 4), crates('crates_e3', 78, 111, 4, 2),
-  { id: 'launch', type: 'train_car', variant: 'boat_on_cradle', x: 70, z: 70, rot: deg(80), w: 10, d: 5, h: 3, mat: 'greyPaint', block: 2 },
+  crates('crates_e2', 84.5, 108, 3, 4), { ...crates('crates_e3', 78, 111, 4, 2), alignFree: 'straddles the S quay kink: kept on the dock grid of the long 180° face' },
+  { id: 'launch', type: 'train_car', variant: 'boat_on_cradle', x: 70, z: 70, rot: deg(90), w: 10, d: 5, h: 3, mat: 'greyPaint', block: 2 },
   barrels('barrels_e', 65, 54),
   { id: 'pontoon', type: 'pier', variant: 'pontoon_minisub', x: 55.5, z: 68, rot: 0, w: 9, d: 6 },
   { id: 'crane_2', type: 'bunker', variant: 'crane_dock_portal', x: 53, z: 102, rot: deg(225), w: 1.2, d: 1.2, h: 18, mat: 'metalRust', block: 2 },
@@ -132,7 +132,7 @@ const DOCK_E = [
 
 const SOUTH = [
   crates('crate_s1', 75, 145, 4, 5), crates('crate_s2', 61.5, 143, 3, 4), crates('crate_s3', 52.5, 143.5, 3, 4), crates('crates_sc', 46.5, 144.5),
-  crates('crate_mw', 12.5, 83.5, 3, 5),
+  { ...crates('crate_mw', 12.5, 83.5, 3, 5), rot: deg(2.9) },
   // the two explosive barrels on the S central head (§3.8 row 13 "2 on site")
   { id: 'brl_1', type: 'barrels', variant: 'fuel_explosive', x: 44, z: 151.5, explosive: 'barrel', carriable: true },
   { id: 'brl_2', type: 'barrels', variant: 'fuel_explosive', x: 45.2, z: 152.2, explosive: 'barrel', carriable: true },

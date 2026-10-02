@@ -244,6 +244,7 @@ export class AudioEngine {
     const dur = buffer.duration ?? buffer.length / (buffer.sampleRate || this.sr);
     const h = {
       id, bus, loop, pos, base, range, cls, t0, ended: false, src, gainNode: g, panNode: p, lpNode: lp, duration: dur,
+      fadeEnd: t0 + (o.fadeIn || 0), applied: { gain: target, pan: sp.pan, lp: sp.lp },
       stop: (fade = 0) => this.stop(h, fade),
       setGain: (v) => { h.base = v; this._apply(h); },
       setPos: (q) => { h.pos = q ? { x: q.x, z: q.z } : null; this._apply(h); },
@@ -274,9 +275,11 @@ export class AudioEngine {
     g.connect(this.bus[bus]);
     const t0 = this.now;
     g.gain.value = 0;
-    ramp(g.gain, base, t0, o.fadeIn ?? A().bedFade ?? 4);
+    const fade = o.fadeIn ?? A().bedFade ?? 4;
+    ramp(g.gain, base, t0, fade);
     const h = {
       id, bus, loop: true, pos: null, base, t0, ended: false, stream: el, node, gainNode: g, url, duration: Infinity, src: { streamed: true },
+      fadeEnd: t0 + fade, applied: { gain: base, pan: 0, lp: 20000 },
       stop: (fade = 0) => this.stop(h, fade),
       setGain: (v) => { h.base = v; this._apply(h); },
       setPos: () => {},
@@ -303,6 +306,14 @@ export class AudioEngine {
     } catch { /* already stopped */ }
   }
 
+  /**
+   * Re-spatialize a live voice (listener moved, the source moved, or its base gain changed) — called every frame for
+   * every positional voice. Gain, pan and air-absorption cutoff GLIDE to their new values (glide(): a first-order
+   * setTargetAtTime chain, continuous on the audio thread). Stepping them per frame (pan/cutoff `.value =`, or a 50 ms
+   * ramp restarted every frame from the main thread's lagging `param.value`) modulated every moving loop at the frame /
+   * render-callback rate: audible zipper sidebands (±94 Hz on a test tone) while the camera or a vehicle moves.
+   * Unchanged targets schedule nothing; a fade-in still in progress (play `fadeIn`, beds) keeps its length.
+   */
   _apply(h) {
     if (h.ended) return;
     let gain = h.base, pan = 0, lp = 20000;
@@ -310,9 +321,15 @@ export class AudioEngine {
       const sp = spatialize(h.pos, this.listener.x, this.listener.z, this.listener.viewWidth, h.range, h.cls, this.listener.yaw);
       gain *= sp.gain; pan = sp.pan; lp = sp.lp;
     }
-    ramp(h.gainNode.gain, gain, this.now, 0.05);
-    if (h.panNode) h.panNode.pan.value = pan;
-    if (h.lpNode) h.lpNode.frequency.value = lp;
+    const a = h.applied || (h.applied = { gain: NaN, pan: NaN, lp: NaN });
+    const now = this.now;
+    const left = (h.fadeEnd ?? 0) - now;
+    if (!(Math.abs(gain - a.gain) <= 1e-5) || left > 0) {
+      glide(h.gainNode.gain, gain, now, left > 0 ? Math.max(GLIDE_TAU, left / 3) : GLIDE_TAU, left > -0.1);
+      a.gain = gain;
+    }
+    if (h.panNode && !(Math.abs(pan - a.pan) <= 1e-4)) { glide(h.panNode.pan, pan, now, GLIDE_TAU); a.pan = pan; }
+    if (h.lpNode && !(Math.abs(lp - a.lp) <= 0.5)) { glide(h.lpNode.frequency, lp, now, GLIDE_TAU); a.lp = lp; }
   }
 
   /** Move the listener to the active view centre (width = live frustum width); re-spatialize positional voices. */
@@ -448,6 +465,24 @@ function pickMusic(files = []) {
 }
 function addTo(map, id, file) { const a = map.get(id) || []; if (!a.includes(file)) a.push(file); map.set(id, a); }
 function hashId(s) { let h = 7; for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h || 1; }
+
+/** Time constant (s) of the per-frame spatial glides (≈ 95 % of a change within 3 τ = 90 ms). */
+export const GLIDE_TAU = 0.03;
+
+/**
+ * Steer an AudioParam towards v with a first-order glide (setTargetAtTime, time constant `tau` s). A setTarget chain
+ * continues from the value the audio thread holds at `t` — never from the main thread's `param.value`, which lags by
+ * up to a render buffer. `hold`: a ramp may still be in flight (a fade-in): it is cut where it is (cancelAndHoldAtTime;
+ * browsers without it: cancel + the timeline's current value) before the glide takes over. Mock params jump to v.
+ */
+export function glide(param, v, t, tau = GLIDE_TAU, hold = false) {
+  if (!param.setTargetAtTime) { param.value = v; return; }
+  if (hold) {
+    if (param.cancelAndHoldAtTime) param.cancelAndHoldAtTime(t);
+    else if (param.cancelScheduledValues) { param.cancelScheduledValues(t); param.setValueAtTime(param.value, t); }
+  }
+  param.setTargetAtTime(v, t, Math.max(0.005, tau));
+}
 
 /** Glide an AudioParam to v over `dur` s (works on mock params that only have .value). */
 export function ramp(param, v, t, dur) {

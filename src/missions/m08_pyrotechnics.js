@@ -88,11 +88,24 @@ const DEPOT_DRUMS = [drum('b4', 49.5, 48), drum('b5', 54.6, 47.3), drum('b6', 53
 // the walkway frame covers the whole top (a deck at y 4.5 over the twin tanks): a man on it is seen from the yard and
 // can be shot from it — NL/DE snipe a tank guard "from the small houses" — the tank body under him does not blind the
 // line (a 1.4 m strip left the rest of the footprint a sight-blocking HIGH box). `deck` = the guard's beat + ladder head.
-const fuelTank = (id, x, z, w, d, deck) => ({ id, type: 'fueltank', variant: 'fuel_tank_horizontal', label: 'Fuel tank', x, z, rot: 0, w, d, h: TANK_DECK_Y,
-  destructible: true, destroyedBy: ['explosion'], hp: 100, beat: deck,
-  walkways: [{ id: `${id}_deck`, points: [[x - w / 2 + 0.25, z], [x + w / 2 - 0.25, z]], width: d, y: TANK_DECK_Y }] });
+// The pair is turned TANK_ROT (17.5°) so it runs parallel to wire_e's slanted leg along the SE wadi (the strict
+// tank ↔ fence alignment, src/missions/alignment.js); deck, beat, ladders and the deck guard's walk turn with it.
+const TANK_ROT = 17.5;
+/** Tank-local point [x, z] (laid out as if rot 0) turned TANK_ROT about the tank centre (cx, cz). */
+const tankPt = (cx, cz, [x, z]) => {
+  const c = Math.cos(deg(TANK_ROT)), s = Math.sin(deg(TANK_ROT));
+  return [+(cx + (x - cx) * c - (z - cz) * s).toFixed(2), +(cz + (x - cx) * s + (z - cz) * c).toFixed(2)];
+};
+const fuelTank = (id, x, z, w, d, deck) => ({ id, type: 'fueltank', variant: 'fuel_tank_horizontal', label: 'Fuel tank', x, z, rot: deg(TANK_ROT), w, d, h: TANK_DECK_Y,
+  destructible: true, destroyedBy: ['explosion'], hp: 100, beat: deck.map((p) => tankPt(x, z, p)),
+  walkways: [{ id: `${id}_deck`, points: [tankPt(x, z, [x - w / 2 + 0.25, z]), tankPt(x, z, [x + w / 2 - 0.25, z])], width: d, y: TANK_DECK_Y }] });
 const TANK_B = fuelTank('tank_b', 58.5, 72.5, 9, 7, [[58.5, 69.8], [58.5, 75.3], [60.5, 75.3]]);
 const TANK_A = fuelTank('tank_a', 67.7, 65.5, 8.5, 6.3, [[67.7, 63.2], [67.7, 68], [70.5, 68]]);
+/** A tank's walkway ladder: foot and head laid out at rot 0, turned with the tank; it faces the tank's side. */
+const tankLadder = (id, cx, cz, foot, head) => {
+  const [x, z] = tankPt(cx, cz, foot);
+  return { id, x, z, y: 0, top: [...tankPt(cx, cz, head), TANK_DECK_Y], raised: false, heading: deg(270 + TANK_ROT) };
+};
 
 const house = (id, x, z, door) => ({ id, type: 'house', variant: 'house_adobe_redtile', x, z, rot: 0, w: 6, d: 5, h: 4, mat: 'plaster', enterable: true, door: deg(door) });
 const tent = (id, x, z) => ({ id, type: 'tent', variant: 'tent_pyramid_desert', x, z, rot: 0, w: 5, d: 5, h: 3 });
@@ -187,7 +200,7 @@ const ENEMIES = [
   sentry('e23', 23, 40, 66.7, 90, 60, true),
   walker('e24', 24, 'LOOP', [P(56, 55), P(58, 45, 3, 270), P(40, 50), P(37.5, 64, 3, 90), P(56, 55)]),
   walker('e25', 25, 'PINGPONG', [P(39, 49, 3, 270), P(50, 44.5, 3, 315)]), // just inside wire_n
-  walker('e26', 26, 'PINGPONG', [P(58.5, 70, 3, 270), P(58.5, 75, 3, 90)], { y: TANK_DECK_Y, elevated: true, structure: 'tank_b' }), // on tank_b (his own tank does not blind him)
+  walker('e26', 26, 'PINGPONG', [P(...tankPt(58.5, 72.5, [58.5, 70]), 3, 270), P(...tankPt(58.5, 72.5, [58.5, 75]), 3, 90)], { y: TANK_DECK_Y, elevated: true, structure: 'tank_b' }), // on tank_b (his own tank does not blind him)
   sentry('e27', 27, 67.7, 65.5, 180, 60, false, { y: TANK_DECK_Y, elevated: true, structure: 'tank_a' }), // on tank_a: the most dangerous post
   walker('e28', 28, 'PINGPONG', [P(45, 64, 2, 270), P(56, 66, 2, 0)]),
 
@@ -294,8 +307,8 @@ export default {
   ],
   // the fuel tanks' walkway ladders (anyone)
   ladders: [
-    { id: 'ladder_b', x: 60.5, z: 77, y: 0, top: [60.5, 75.3, TANK_DECK_Y], raised: false, heading: deg(270) },
-    { id: 'ladder_a', x: 70.5, z: 69.5, y: 0, top: [70.5, 68, TANK_DECK_Y], raised: false, heading: deg(270) },
+    tankLadder('ladder_b', 58.5, 72.5, [60.5, 77], [60.5, 75.3]),
+    tankLadder('ladder_a', 67.7, 65.5, [70.5, 69.5], [70.5, 68]),
   ],
   triplines: [],
   objectives: [

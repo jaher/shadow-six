@@ -162,7 +162,8 @@ const MOSQUE = [
 ];
 
 // ---------------------------------------------------------------- the harbour (dossier §4, §5.2)
-const QUAY_N = [[0, 46.9], [10, 46.4], [20, 46.9], [30, 46.4], [40, 45.9], [48, 47.4], [51.6, 51.9]];
+// the N quay runs straight W of x 40 (it wobbled ±3°: the quarter's 0° house fronts read as a mistake against it)
+const QUAY_N = [[0, 46.65], [40, 46.65], [48, 47.4], [51.6, 51.9]];
 const QUAY = [
   { id: 'quay_n', type: 'wall', variant: 'quay_granite_bollards', mat: 'stone', points: QUAY_N, h: 1.2, width: 0.6 },
   { id: 'quay_s', type: 'wall', variant: 'quay_granite_bollards', mat: 'stone', points: [[20, 90.5], [0.5, 114]], h: 1.2, width: 0.6 },
@@ -371,7 +372,7 @@ export default {
   baseTerrain: 'ground',
   terrain: [
     // T1 the harbour basin (deep; no boat in this mission)
-    { type: 'poly', terrain: 'water', points: [[0, 47.3], [10, 46.8], [20, 47.3], [30, 46.8], [40, 46.3], [48, 47.8], [52, 52.4], [50, 60], [46, 67], [20, 82], [20, 90], [0, 114]] },
+    { type: 'poly', terrain: 'water', points: [[0, 47.05], [40, 47.05], [48, 47.8], [52, 52.4], [50, 60], [46, 67], [20, 82], [20, 90], [0, 114]] },
     // T2 the courtyard cobbles, T3 the S quay street, T4 the alley (paint)
     { type: 'poly', terrain: 'road', points: [[0, 43], [44, 43], [44, 27], [58, 50], [52, 52], [48, 47.5], [0, 47]] },
     { type: 'poly', terrain: 'road', points: [[0, 114], [20, 92], [22, 100], [38, 113], [64, 98], [76, 98], [76, 120], [0, 120]] },

@@ -89,7 +89,7 @@ const holeOf = (s) => (s.w != null && s.d != null ? { poly: rectPoly(s.x, s.z, s
 /** A drilling rig: o_rigs target. Bomb (3 m of the skid), barrel / tanker blast, or grenade (eggie) fells it. */
 const rig = (id, x, z) => ({ id, type: 'drilling_rig', variant: 'drilling_rig', label: 'Drilling rig', x, z, rot: 0, w: 6.5, d: 6.5, h: 22,
   destructible: true, destroyedBy: ['explosion'], hp: 100, grenadeDestructible: true });
-const RIGS = [rig('rig_w', 30.5, 89), rig('rig_e', 95, 81.5), rig('rig_nw', 80, 33), rig('rig_ne', 91, 40)];
+const RIGS = [rig('rig_w', 30.5, 89), { ...rig('rig_e', 95, 81.5), rot: deg(5.7) }, rig('rig_nw', 80, 33), rig('rig_ne', 91, 40)]; // rig_e ∥ the E road's end
 /** Loose explosive drums (§3.8 row 11: five on site): two at the camp's S edge, three by rig_ne. */
 const drum = (id, x, z, extra = {}) => ({ id, type: 'barrels', variant: 'fuel_explosive', x, z, r: 0.3, h: 0.9, explosive: 'barrel', carriable: true, destructible: true, hp: 1, ...extra });
 const BARRELS = [drum('brl_s1', 35, 150), drum('brl_s2', 37.7, 150), drum('brl_q1', 94.2, 36), drum('brl_q2', 95.2, 37), drum('brl_q3', 95, 41.5)];
@@ -164,7 +164,7 @@ const STRUCTURES = [
   // --- the SE mesa top (y 4)
   ...MESA_PROPS,
   // --- the S lowlands: the little building (the Sniper's post), crates, the rocky hollow
-  flat('house_l', 'house_whitewash_flat', 62.5, 126, 5, 6, 3.5, [59.9, 126]),
+  flat('house_l', 'house_whitewash_flat', 62.5, 126, 5, 6, 3.5, [59.9, 126], 9.5), // ∥ the road beside it
   { id: 'crates_s', type: 'crates', variant: 'crate_stack', x: 56, z: 118, rot: 0, w: 4, d: 4, h: 2, block: 2 },
   { id: 'pit_se', type: 'crater', variant: 'crater_rocky', x: 78, z: 136, r: 4, h: 0.5, block: 1 },
   ...[[46, 125.3], [51.8, 126.5], [57, 131], [68, 143], [72, 112], [73, 120]].map(([x, z], k) => scrub(`bush_s${k + 1}`, x, z)),
@@ -178,7 +178,8 @@ const STRUCTURES = [
   // the camp's E edge: stores tents and crate stacks screen it from the S lowlands (the road passes between), so
   // Phase 1 can be played out of sight of e16, e19 and Patrol 14 [P Phase 1]
   tent('tent_6', 47.5, 129.5), tent('tent_7', 47.5, 142.5),
-  { id: 'crates_c1', type: 'crates', variant: 'crate_stack', x: 46.5, z: 133.7, rot: 0, w: 3, d: 3.8, h: 2, block: 2 },
+  { id: 'crates_c1', type: 'crates', variant: 'crate_stack', x: 46.5, z: 133.7, rot: 0, w: 3, d: 3.8, h: 2, block: 2,
+    alignFree: 'stacked square to the tent lines; the dirt road only curves past its corner' },
   { id: 'crates_c4', type: 'crates', variant: 'crate_stack', x: 43.5, z: 125, rot: 0, w: 2.4, d: 2.6, h: 2, block: 2 }, // SE corner of barracks_sw
   { id: 'crates_c3', type: 'crates', variant: 'crate_stack', x: 51.5, z: 137.8, rot: 0, w: 2.6, d: 4, h: 2.2, block: 2 }, // the road doglegs round it
   { id: 'crates_c2', type: 'crates', variant: 'crate_stack', x: 46.5, z: 148, rot: 0, w: 3, d: 3, h: 2, block: 2 },
@@ -330,9 +331,10 @@ export default {
   interactables: [],
   vehicles: [
     // the vacant SdKfz 251 (HUD "SdKfz 251"): the escape vehicle; seats all five; the Driver's MG for Phases 4–5
-    { id: 'ht_ours', vehicleType: 'sdkfz', variant: 'sdkfz251_desert', label: 'SdKfz 251', x: 90, z: 72, heading: deg(180), driveable: true, operators: ['driver'], seats: 10 },
+    { id: 'ht_ours', vehicleType: 'sdkfz', variant: 'sdkfz251_desert', label: 'SdKfz 251', x: 90, z: 72, heading: deg(180), driveable: true, operators: ['driver'], seats: 10,
+      alignFree: 'dossier heading kept: 5.7° onto road0 tips the drive-out under rifle fire past its hit budget (m11 drive-out test)' },
     // the SdKfz on standby on the HQ plateau (y 6): comes through the tunnel on a northern alarm (trigger below)
-    { id: 'ht_n', vehicleType: 'sdkfz', variant: 'sdkfz251_desert', label: 'SdKfz 251', x: 76, z: 11.5, heading: deg(180), behavior: 'standby',
+    { id: 'ht_n', vehicleType: 'sdkfz', variant: 'sdkfz251_desert', label: 'SdKfz 251', x: 76, z: 11.5, heading: deg(194), behavior: 'standby',
       crew: [{ id: 'htn_d', soldierType: 'crew' }, { id: 'htn_g', soldierType: 'crew' }] },
     // the Opel Blitz fuel truck shuttling in the sealed quarry; any hit blows it up (vehicle + barrel blast, §3.6).
     // At W_mid (88.5, 33.8) it is within reach of both N rigs and brl_q1 [P][K]; at the W stop only rig_nw [DE]

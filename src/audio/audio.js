@@ -212,6 +212,11 @@ function addMethods(audio, events, rand) {
       return rec;
     },
     after(sec, fn) { this.timers.push({ at: this.now() + sec, fn }); },
+    /** Fade out every looping voice on the UI bus (keyed `ui:*` loops and any untracked one). */
+    _stopUiLoops(fade = 0.5) {
+      for (const k of [...this.loops.keys()]) if (k.startsWith('ui:')) this.stopLoop(k, fade);
+      this.engine?.stopAll((h) => h.bus === 'ui' && h.loop, fade);
+    },
 
     // ---- music (§9.1 + suspense score): every music-bus sound goes through the MusicDirector ------------------
     /** Request a music cue: a bed outside missions; in missions loops are refused (the director owns the score). */
@@ -540,7 +545,10 @@ function wire(audio, events, subs, rand, opts) {
       if (audio.unlocked && audio.musicDir) audio.musicDir.endMission(st); // the end stinger is what stops the score
       else audio._push({ type: 'music', name: st, stinger: true });
     }
-    if (MISSION_STATES.has(to) && !MISSION_STATES.has(was)) audio._missionMusicStart(); // also a save restored paused
+    if (MISSION_STATES.has(to) && !MISSION_STATES.has(was)) {
+      audio._stopUiLoops(0.5); // no front-end bed (the briefing projector) survives into gameplay
+      audio._missionMusicStart(); // also a save restored paused
+    }
     if (!audio.inMission()) {
       audio._sirenStop(0.5); audio.bombs.clear();
       for (const k of [...audio.loops.keys()]) audio.stopLoop(k, 0.5);

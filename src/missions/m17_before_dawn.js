@@ -142,7 +142,7 @@ const OUTSIDE = [
   { id: 'mill_deck', type: 'pier', variant: 'pier_timber', x: 74, z: 55, rot: CAMP_ROT, w: 5, d: 5 },
   { id: 'mg_n_ring', type: 'sandbags', variant: 'mg_nest_sandbag', x: 45.9, z: 53.9, rot: deg(105), ring: { r: 1.6 }, h: 1.0, block: 1 },
   { id: 'crates_n1', type: 'crates', variant: 'crates', x: 33.5, z: 46.5, rot: deg(316), w: 2, d: 2, h: 1.1, block: 1 },
-  { id: 'crates_n2', type: 'crates', variant: 'crates', x: 22, z: 51.5, rot: 0, w: 2, d: 2, h: 1.1, block: 1 },
+  { id: 'crates_n2', type: 'crates', variant: 'crates', x: 22, z: 51.5, rot: deg(2.6), w: 2, d: 2, h: 1.1, block: 1 },
   // rocks named in the walkthroughs
   rock('rock_c1', 13, 14, 4, 5, 3), rock('rock_c2', 14, 21, 4, 5, 3), rock('rock_c3', 13.5, 28, 4, 5, 3), rock('rock_c4', 10, 31, 4, 5, 3),
   rock('rock_bn', 38, 59.5, 4, 3), rock('rock_mill', 59, 51, 5, 4, 3), rock('rock_ne', 82, 23, 4, 4),
