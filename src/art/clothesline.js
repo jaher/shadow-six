@@ -6,6 +6,7 @@
  */
 import * as THREE from 'three';
 import { VerletCloth, registerCloth } from './cloth.js';
+import { dressingMaterial } from './dressing.js';
 
 const C = {};
 const HAS_DOM = typeof document !== 'undefined';
@@ -89,8 +90,8 @@ function garment(kind, x, sag) {
   return mesh;
 }
 
-const _wood = () => (C.wood ??= new THREE.MeshStandardMaterial({ color: 0x5b4a38, roughness: 0.9 }));
-const _rope = () => (C.rope ??= new THREE.MeshStandardMaterial({ color: 0x8a7d62, roughness: 1 }));
+const _wood = () => (C.wood ??= dressingMaterial('beam')); // weathered timber (placeholder-art pass: was a flat colour)
+const _rope = () => (C.rope ??= dressingMaterial('burlap')); // hemp line (textured)
 
 /**
  * @param {{uniform?:boolean, span?:number, seed?:number}} [o] span: post spacing (m)

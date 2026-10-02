@@ -13,6 +13,7 @@
  * @module art/props-extra
  */
 
+import { buildWarship } from './warship.js';
 import * as THREE from 'three';
 import { getMaterial } from './materials.js';
 import { B, T } from '../world/grid.js';
@@ -20,6 +21,41 @@ import { PROP_TYPES, PROP_DEFAULTS, LINEAR_PROPS } from './props.js';
 import { buildAccessPlatform, accessPlatformFootprints } from './access-platform.js';
 import { makeFlag } from './flags.js';
 import { libraryVisual, libraryHinted } from './building-props.js';
+import { buildKitHouse, buildKitTower, buildKitShed, buildLighthouseTower, buildV2Rocket, buildFiringTable, buildMineHeadframe, buildConveyor } from './kit-buildings.js';
+import { dressingMaterial } from './dressing.js';
+import { buildGorge, buildRailBridge } from './kit-terrain.js';
+import { kitify } from './kit-materials.js';
+import { buildDetonator, buildLeverBox, paintedMaterial } from './kit-props.js';
+
+/**
+ * Placeholder-art pass: textured kit models (art/kit-buildings.js, art/kit-props.js) instead of the primitive boxes,
+ * on the same box / footprints (walkable roofs stay at `roofY ?? h`). null → the primitive placeholder.
+ */
+function kitExtraMesh(type, p, ctx) {
+  if (ctx.library === false || ctx.dressing === false) return null;
+  const th = ctx.theater || 'temperate';
+  switch (type) {
+    case 'flat_roof_house': return buildKitHouse(p, th);
+    case 'villa': return buildKitHouse({ ...p, roofWalk: false }, th);
+    case 'mosque': return buildKitHouse({ ...p, dome: true }, th);
+    case 'mine_building': if (/adit|head/.test(String(p.variant || ''))) return buildMineHeadframe(p, th);
+    // falls through
+    case 'cable_car_station': case 'control_shack': case 'watermill':
+      return buildKitHouse({ ...p, roofWalk: p.roofWalk ?? false }, th);
+    case 'minaret': return buildKitTower(p, th);
+    case 'lighthouse': return buildLighthouseTower(p);
+    case 'v2_rocket': return /lying|meiller/.test(String(p.variant || '')) ? null : buildV2Rocket(p);
+    case 'launch_pad': return /table|firing/.test(String(p.variant || '')) ? buildFiringTable(p) : null;
+    case 'conveyor': return buildConveyor(p);
+    case 'ravine': return buildGorge(p);
+    case 'rail_bridge': return buildRailBridge(p);
+    case 'garage': case 'tank_shed': return buildKitShed(p, th);
+    case 'battleship': return p.variant === 'uboat_docked' ? null : buildWarship(p); // art/warship.js (detailed Bismarck class)
+    case 'detonator': return buildDetonator(p);
+    case 'lever': case 'fuel_valve': return buildLeverBox(p);
+    default: return null;
+  }
+}
 
 const H = B.HIGH, L = B.LOW;
 /** type → defaults: w, d, h (m), r (round), block, mat, roof, kind ('box'|'round'|'linear'|'area'|custom). */
@@ -150,6 +186,7 @@ function buildLinearExtra(type, p, ctx = {}) {
   const footprints = [];
   if (p.block) footprints.push({ shape: 'line', points: pts, width: Math.max(width, 0.5), block: p.block });
   if (type === 'tram_track') footprints.push({ shape: 'line', points: pts, width, terrain: T.ROAD });
+  if (ctx.library !== false && ctx.dressing !== false) kitify(root); // placeholder-art pass: textured finishes
   return { object3d: root, footprints, castsShadow: type !== 'tram_track' };
 }
 
@@ -187,6 +224,37 @@ function slab(shape, y0, y1, mat) {
   m.position.y = y1;
   m.castShadow = m.receiveShadow = true;
   return m;
+}
+/**
+ * Battleship (M13 replica; placeholder-art pass: was a grey box with two blocks): a clipper-bowed hull with sheer,
+ * a planked main deck, stepped superstructure and bridge tower, funnel, fore and main masts, and four twin turrets
+ * (A/B forward, C/D aft) with their barrels; kitify() gives it painted steel / deck plank finishes. Bow at +X.
+ */
+function warshipMesh(p) {
+  const g = new THREE.Group();
+  const L = p.w / 2, B = p.d / 2, fb = Math.min(p.h ?? 12, 9) * 0.55; // freeboard above the waterline
+  g.add(slab(hullShape(L, B), -1.5, fb, 'greyPaint'));
+  g.add(slab(hullShape(L - 0.6, B - 0.5), fb, fb + 0.12, 'woodDark'));
+  const sx = L / 60; // layout in Bismarck-like proportions (120 m reference), scaled to the footprint
+  const blk = (w, h, d, x, y, mat = 'greyPaint') => { const b = box(w * sx, h, d, mat, y + h / 2); b.position.x = x * sx; g.add(b); return b; };
+  blk(34, 3, B * 1.1, -2, fb);           // superstructure deck 1
+  blk(24, 2.6, B * 0.85, 2, fb + 3);     // deck 2
+  blk(8, 7, 4, 10, fb + 5.6);            // bridge tower
+  blk(9, 1.2, 6, 10, fb + 12.6);         // fire-control top
+  const fun = cyl(2.2, 2.6, 6.5, 'greyPaint', fb + 5.6 + 3.25, 16); fun.position.x = -6 * sx; fun.scale.z = 1.4; g.add(fun);
+  const cap = cyl(2.3, 2.3, 0.5, 'black', fb + 12.3, 16); cap.position.x = -6 * sx; cap.scale.z = 1.4; g.add(cap);
+  for (const [x, h] of [[16, 22], [-20, 16]]) { const m = cyl(0.25, 0.4, h, 'metal', fb + 3 + h / 2, 8); m.position.x = x * sx; g.add(m); }
+  for (const [x, dir] of [[40, 1], [30, 1], [-32, -1], [-42, -1]]) {
+    const tur = new THREE.Group(); tur.position.set(x * sx, fb + (Math.abs(x) < 35 ? 1.6 : 0.2), 0); tur.rotation.y = dir > 0 ? 0 : Math.PI;
+    const base = cyl(3.4, 3.6, 1.0, 'greyPaint', 0.5, 20); tur.add(base);
+    const house = box(7.5, 2.4, 6.5, 'greyPaint', 1.0 + 1.2); house.position.x = 0.3; tur.add(house);
+    for (const zz of [-1.2, 1.2]) { const gun = cyl(0.28, 0.42, 14, 'metal', 0, 10); gun.rotation.z = -Math.PI / 2 + 0.03; gun.position.set(4 + 7, 2.2, zz); tur.add(gun); }
+    g.add(tur);
+  }
+  for (const s2 of [-1, 1]) for (const x of [-12, -4, 4]) { // secondary turrets either beam
+    const t = box(3.2, 1.6, 2.6, 'greyPaint', fb + 3 + 0.8); t.position.set(x * sx, t.position.y, s2 * B * 0.62); g.add(t);
+  }
+  return g;
 }
 /** A torpedo along local x (7 m, 53.3 cm), nose +x. */
 function torpedo(x, y, z) {
@@ -265,6 +333,7 @@ function uboatTowerMesh(p) {
 function meshFor(type, p) {
   const g = new THREE.Group();
   if (type === 'battleship' && p.variant === 'uboat_docked') return uboatMesh(p);
+  if (type === 'battleship') return warshipMesh(p);
   switch (p.kind) {
     case 'uboatTower':
       return uboatTowerMesh(p);
@@ -417,10 +486,12 @@ function wireSide(p, sx, sz, along, gate) {
   const runs = gate ? [[-along / 2, -1.2], [1.2, along / 2]] : [[-along / 2, along / 2]];
   for (const [a, b] of runs) {
     const len = b - a, mid = (a + b) / 2, posts = Math.max(1, Math.round(len / 2.5));
-    for (let q = 0; q <= posts; q++) { const post = box(0.1, p.h, 0.1, 'metal'); post.position.x = a + (q * len) / posts; side.add(post); }
-    for (const y of [0.08, p.h - 0.05]) { const r = box(len, 0.06, 0.06, 'metal', y); r.position.x = mid; side.add(r); }
-    for (let y = 0.35; y < p.h - 0.15; y += 0.3) { const w = box(len, 0.02, 0.02, 'wire', y); w.position.x = mid; w.castShadow = false; side.add(w); }
-    for (let x = a + 0.5; x < b - 0.2; x += 0.5) { const w = box(0.02, p.h - 0.1, 0.02, 'wire'); w.position.x = x; w.castShadow = false; side.add(w); }
+    // (placeholder-art pass: textured steel posts and rails; the mesh strands galvanised wire, dark with weather)
+    const steel = dressingMaterial('steel'), galv = paintedMaterial('galv', 0x55585a);
+    for (let q = 0; q <= posts; q++) { const post = box(0.1, p.h, 0.1, 'metal'); post.material = steel; post.position.x = a + (q * len) / posts; side.add(post); }
+    for (const y of [0.08, p.h - 0.05]) { const r = box(len, 0.06, 0.06, 'metal', y); r.material = steel; r.position.x = mid; side.add(r); }
+    for (let y = 0.35; y < p.h - 0.15; y += 0.3) { const w = box(len, 0.02, 0.02, 'wire', y); w.material = galv; w.position.x = mid; w.castShadow = false; side.add(w); }
+    for (let x = a + 0.5; x < b - 0.2; x += 0.5) { const w = box(0.02, p.h - 0.1, 0.02, 'wire'); w.material = galv; w.position.x = x; w.castShadow = false; side.add(w); }
   }
   return side;
 }
@@ -490,7 +561,10 @@ export function buildExtraProp(type, params = {}, ctx = {}) {
   const group = placed(x, z, rot);
   group.name = `prop:${type}${params.id ? ':' + params.id : ''}`;
   const plat = base.kind === 'platform';
-  group.add(plat ? buildAccessPlatform(p) : meshFor(resolve(type), p));
+  const kit = plat ? null : kitExtraMesh(resolve(type), p, ctx);
+  group.add(plat ? buildAccessPlatform(p) : kit || meshFor(resolve(type), p));
+  // no dedicated kit model: the primitive placeholder keeps its shape with textured finishes (art/kit-materials.js)
+  if (!kit && !plat && ctx.library !== false && ctx.dressing !== false) kitify(group);
   if (params.flag) { // garrison flag (design-spec §2.4 / §10.6) beside the placeholder, as props.js does
     const f = makeFlag({ pole: true, h: Math.max(5, (p.h ?? 3) + 2.5), theater: ctx.theater });
     f.position.set((p.w ?? 4) / 2 + 0.9, 0, (p.d ?? 4) / 2 - 0.2);

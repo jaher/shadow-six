@@ -15,6 +15,8 @@
  */
 import { NavGrid, T } from './grid.js';
 import { CONFIG } from '../config.js';
+import { sampleCenterline } from './roads.js';
+import { extendPolygonPastEdges, edgeStructureRuns, sidesOf, inPolygon as inPoly } from './edge-extend.js';
 
 const CODES = { ground: T.GROUND, road: T.ROAD, sand: T.SAND, snow: T.SNOW, grass: T.GRASS, water: T.WATER, shallow: T.SHALLOW, mud: T.MUD };
 const code = (n) => CODES[n] ?? T.GROUND;
@@ -72,20 +74,66 @@ export function buildApronField(grid, mission = {}, o = {}) {
 
   // features that leave the map, extended (paths) — also the "explained" mask: their edge cells are not extruded
   const feats = [];
+  // A water polygon whose every shore leaving the map ends at a wall that carries on over the apron (a quay, a canal
+  // parapet: edgeStructureRuns) follows those walls out (extendPolygonPastEdges) instead of the meandering edge
+  // extrusion, and is drawn over the land there, so the harbour keeps meeting its quay past the edge (M12).
+  const quayRuns = ap.extend === false ? [] : edgeStructureRuns(mission.structures, W, D, LEN);
+  const runEnds = quayRuns.map((r) => r.points[0]);
+  const quayBound = (P) => {
+    const n = P.length, S = P.map((q) => sidesOf(q, W, D, 1.6));
+    let any = false;
+    for (let i = 0; i < n; i++) {
+      if (!S[i] || ((S[(i + 1) % n] & S[i]) && (S[(i - 1 + n) % n] & S[i]))) continue; // off the edge, or mid-edge
+      if (!runEnds.some((e) => Math.hypot(e[0] - P[i][0], e[1] - P[i][1]) < 2)) return false;
+      any = true;
+    }
+    return any;
+  };
+  // Raised water (a `level` over the map's: the M3 reservoir held up by its dam and rock rims) whose every shore leaving
+  // the map ends at a rock massif on that edge: it carries on between those rocks, its shores running along their
+  // faces (which carry on too: edge-extend.js edgeCliffOutlines), so the raised lake meets its rock rims past the edge
+  // as it does inside the map (no low ground showing between a raised surface and the rock).
+  const cliffs = (mission.structures || []).filter((s) => s?.type === 'cliff' && s.points?.length >= 3).map((s) => pts2(s.points));
+  const cliffBound = (P) => {
+    const n = P.length, S = P.map((q) => sidesOf(q, W, D, 1.6)), dirs = new Map();
+    for (let i = 0; i < n; i++) {
+      if (!S[i] || ((S[(i + 1) % n] & S[i]) && (S[(i - 1 + n) % n] & S[i]))) continue; // off the edge, or mid-edge
+      let best = null, bd = 2.5;
+      for (const C of cliffs) for (let k = 0; k < C.length; k++) {
+        const c = C[k], dd = Math.hypot(c[0] - P[i][0], c[1] - P[i][1]);
+        if (dd >= bd || !(sidesOf(c, W, D, 1.6) & S[i])) continue;
+        // the rock's face that leaves the side at this vertex: its neighbour off the side
+        const a = C[(k + 1) % C.length], b = C[(k - 1 + C.length) % C.length];
+        const inn = !(sidesOf(a, W, D, 1.6) & S[i]) ? a : !(sidesOf(b, W, D, 1.6) & S[i]) ? b : null;
+        if (inn) { bd = dd; best = [c[0] - inn[0], c[1] - inn[1]]; }
+      }
+      if (!best) return null;
+      dirs.set(i, best);
+    }
+    return dirs.size ? dirs : null;
+  };
   if (ap.extend !== false) {
     for (const f of mission.terrain || []) {
       if (f.type === 'path' && f.points?.length > 1) {
         const hw = Math.max(...[].concat(f.widths ?? f.width ?? 3)) / 2;
         const e = extendPath(f.points, f.widths, W, D, hw + 2, LEN);
         feats.push({ type: 'path', c: code(f.terrain), points: e.points, widths: e.widths, width: f.width ?? 3 });
-      } else if (f.type === 'poly' && f.points) feats.push({ type: 'poly', c: code(f.terrain), points: pts2(f.points) });
+      } else if (f.type === 'poly' && f.points) {
+        const P = pts2(f.points), c = code(f.terrain), wet = c === T.WATER || c === T.SHALLOW;
+        const rock = wet && f.level > 0 && cliffs.length ? cliffBound(P) : null;
+        const q = !!rock || (runEnds.length > 0 && wet && quayBound(P));
+        feats.push({ type: 'poly', c, points: q ? extendPolygonPastEdges(P, W, D, LEN, 1.6, { dir: (i) => rock?.get(i) }) : P, quay: q });
+      }
       else if (f.type === 'rect') feats.push({ type: 'rect', c: code(f.terrain), x: f.x, z: f.z, w: f.w, d: f.d });
       else if (f.type === 'circle') feats.push({ type: 'circle', c: code(f.terrain), x: f.x, z: f.z, r: f.r });
     }
     for (const r of mission.roads || []) {
       if (!Array.isArray(r.points) || r.points.length < 2 || r.closed || r.area) continue;
-      const w = r.width ?? 3, e = extendPath(r.points, null, W, D, 1.5, LEN);
-      if (e.points.length > r.points.length) feats.push({ type: 'path', c: T.ROAD, points: e.points, width: w });
+      // the centre line the road is drawn / rutted along (world/roads.js pretrampleRoads), so the extension leaves in
+      // the direction the ruts do
+      const P = r.spline === false ? pts2(r.points) : sampleCenterline(r.points, 2, true).map((p) => [p.x, p.z]);
+      const w = r.width ?? 6, e = extendPath(P, null, W, D, 1.5, LEN); // world/roads.js ROAD_DEFAULTS.width
+      if (e.points.length > P.length) feats.push({ type: 'path', c: T.ROAD, points: e.points, width: w });
     }
   }
   for (const f of ap.terrain || []) feats.push({ ...f, c: code(f.terrain), points: f.points && pts2(f.points) });
@@ -98,6 +146,9 @@ export function buildApronField(grid, mission = {}, o = {}) {
   const explained = new NavGrid(W + 2 * A, D + 2 * A, cell);
   explained.terrain.fill(0);
   for (const f of feats) if (f.type === 'path') draw(explained, f, 1);
+  // a quay-bound basin is wholly its walled polygon past the edge: its edge cells are not extruded too (the warped
+  // extrusion meandered out past the quay walls and left water on the land side of them: M15 canal W1)
+  for (const f of feats) if (f.quay) draw(explained, f, 1);
 
   // 1. base + 2. edge extrusion. The edge is sampled with a lateral domain warp that grows with the distance past
   // the edge, so extruded shores meander and bays open up instead of running off as straight canals.
@@ -119,7 +170,27 @@ export function buildApronField(grid, mission = {}, o = {}) {
     if (d < lim) t[j * cols + i] = c === T.SHALLOW && d > 3 ? T.WATER : c;
   }
   // 3. extended / overhanging features, in mission order (later ones win, as on the map)
-  for (const f of feats) draw(ext, f);
+  for (const f of feats) if (!f.quay) draw(ext, f);
+  for (const f of feats) if (f.quay) draw(ext, f);
+  // ... and ends at its walls: the cells' staircase along a slanted wall poked out past its outer face (a dashed sliver
+  // of water on the land side, M15 W3 past the E edge). The outer half of each bounding wall run, from just inside its
+  // centre line, is land again.
+  for (const f of feats) {
+    if (!f.quay) continue;
+    for (const r of quayRuns) {
+      if (!f.points.some((q) => Math.hypot(q[0] - r.points[0][0], q[1] - r.points[0][1]) < 2.5)) continue;
+      const [a, b] = r.points, L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+      let nx = -(b[1] - a[1]) / L, nz = (b[0] - a[0]) / L;
+      const mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+      if (inPoly(mx + nx, mz + nz, f.points)) { nx = -nx; nz = -nz; } // n: away from the water
+      // the band [−1.5 cell, ww/2 + 2 cell] off the centre line (cell centres in it): the water cells end about a
+      // quarter metre inside the wall's inner face. The water surface is drawn up to 0.7 m past its cells
+      // (art/water maskCut) wherever the ground dips under it, and the apron's 1 m lattice lets a slanted bank's
+      // triangles dip just past the wall: from there it stays under the wall instead of showing outside it.
+      const ww = r.def.width ?? 0.5, lo = -1.5 * cell, hi = ww / 2 + 2 * cell, w = hi - lo, o = (hi + lo) / 2;
+      ext.fillLine(sh([[a[0] + nx * o, a[1] + nz * o], [b[0] + nx * o, b[1] + nz * o]]), w, 'terrain', base);
+    }
+  }
   // 4. the map itself, verbatim
   for (let gj = 0; gj < grows; gj++) t.set(grid.terrain.subarray(gj * gcols, (gj + 1) * gcols), (gj + icol) * cols + icol);
   // 5. shore shallows on apron water within shoreShallowWidth of apron land (as map-builder applyShoreShallows)

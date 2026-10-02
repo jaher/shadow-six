@@ -652,7 +652,9 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   ground. It is cached per view size, HUD bar, yaw and apron, and logged once when it lifts the floor.
   `setHudTop(px)` (the rig sets it from `hud.topBarHeight` = 47 ref px × UI scale, for views at the canvas top): the
   clamp, `focusTarget` and `isVisible` treat the view as the part below the HUD top bar (`usableHalf`), so every map
-  point can be scrolled clear of it. `centerOn(x, z, inset?)` / `focusTarget(x, z, inset?)` take the focus inset.
+  point can be scrolled clear of it (`clampOvershoot` = the whole screen's reach past the bounds, the strip under the
+  bar included; `playOvershoot` / `playFootprint` = the play view's, 0 past the margin at yaw 0, design-spec §2.3).
+  `centerOn(x, z, inset?)` / `focusTarget(x, z, inset?)` take the focus inset.
   `Game.focusSquad()` (called by `Briefing.close()` when the mission starts) recentres on the squad (inset 0.5, whole
   bodies clear of the bar). The pan/zoom API (`panBy`,
   `panScreen`, `setZoom`, `zoomStep`, `centerOn`) is unchanged.
@@ -664,6 +666,11 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
     - mission `terrain` paths and `roads` polylines that touch an edge are extended along their end direction
       (`extendPath`); polys, rects and circles are drawn whole;
     - other wet, road and patch edge cells are extruded outward with a lateral domain warp (meandering shores);
+    - a water polygon whose every edge exit ends at a wall run (a quay, a canal parapet) follows those walls out
+      (`extendPolygonPastEdges`), is not extruded, is drawn last and is cut back from the walls (no water on the land
+      side of a quay: M12 harbour, M15 canals); `apronHeights` gives such walls a quay bank (no carve under or behind
+      the wall, the full bed in front of it). Raised water (`level`, the M3 reservoir) whose exits end at rock
+      massifs carries on between them, its shores along their faces;
     - a shore-shallow rim is added;
     - `mission.apron` = `{width?, terrain?: [features, world coords], extend?: false, trees?: density×}`.
   - `createApron` is called by `art/terrain.js buildTerrain` once the map ground is ready (handle `terrain.apron`,
@@ -687,8 +694,15 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
       density, thinning (`treeFalloff`) to the theatre background, off water and roads.
     - the map's 3D grass continued past the edge (`grass.setApron`, own 8 m chunks from the apron splat), thinning
       out over `grassBand` (30 m) along a noisy line, so no edge shows as a straight grass line.
-  - `art/water.js extendBodiesOverApron` grows every edge-crossing water body to its apron component (same bake
-    texel density via `bakeRes`, capped at 768; bodies that meet out there merge). The water bed capture also sees
+  - What lies on an edge carries on past it (`src/world/edge-extend.js`, pure; visual only, the nav grid and footprints
+    keep the mission's): rock massifs (`edgeCliffOutlines`), road ruts and paint (`edgeCrossings` / `crossingSource`),
+    walls, fences, wire, rails and telegraph lines (`edgeStructureRuns` / `edgeLineExtensions`; a wall or fence that
+    crosses another one out there stops at it), and a street of flat-roofed houses flush on an edge
+    (`edgeBuildingRows` → `art/edge-buildings.js`, one merged mesh: rows of plain houses getting lower and sparser
+    outward, M12 east street). Their lines level the apron ground under them (`flatLines`) and keep trees off.
+  - `art/water.js extendBodiesOverApron` grows every edge-crossing water body over the apron water components (cells
+    past the map) that touch its edge cells (same bake texel density via `bakeRes`, capped at 768). A component two
+    bodies touch goes to the first; no body is dropped (the M3 raised reservoir stays its own body at its level). The water bed capture also sees
     the apron mesh.
   - Cost: about 6 draw calls over all passes and ≤ 335k triangles (M3). Ground ≈ 160 ms at load; the forest builds in
     the background (map `ready` waits for it).

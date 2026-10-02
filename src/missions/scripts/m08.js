@@ -13,6 +13,7 @@
  */
 
 import * as THREE from 'three';
+import { terrainPrism, terrainRamp, terrainBed } from '../../art/kit-terrain.js';
 import { rectPoly, plateauWalkways } from './m05.js';
 
 export const PLATEAU_Y = 4;
@@ -55,28 +56,18 @@ export function rampWalkways(a, b, width, steps) {
 
 // ------------------------------------------------------------------ visuals (browser only)
 
+/** Old flat colours of the prisms → [top, side] texture sets (art/dressing.js). */
+const PRISM_SETS = { 0x7d6a4c: ['sand', 'sandstone'], default: ['sand', 'sandstone'] };
+
 function prism(points, h, top, side) {
-  const shape = new THREE.Shape(points.map(([x, z]) => new THREE.Vector2(x, z)));
-  const g = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false });
-  g.rotateX(Math.PI / 2); // shape (x, z) → world (x, ·, z); extrusion along −y
-  g.translate(0, h, 0);
-  const m = new THREE.Mesh(g, [new THREE.MeshStandardMaterial({ color: top, roughness: 0.95 }), new THREE.MeshStandardMaterial({ color: side, roughness: 1 })]);
-  m.castShadow = true; m.receiveShadow = true;
-  return m;
+  // placeholder-art pass: textured escarpment (art/kit-terrain.js), same shape and height as the walk surface
+  const T = PRISM_SETS[top] || PRISM_SETS.default;
+  return terrainPrism(points, h, { top: T[0], side: T[1] });
 }
 
 /** A sloped road slab from a → b (x, z, y), `width` wide. */
 function rampMesh(a, b, width, color) {
-  const [ax, az, ay] = a, [bx, bz, by] = b;
-  const len = Math.hypot(bx - ax, bz - az), nx = -(bz - az) / len * (width / 2), nz = (bx - ax) / len * (width / 2);
-  const v = [ax + nx, ay, az + nz, ax - nx, ay, az - nz, bx - nx, by, bz - nz, bx + nx, by, bz + nz];
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
-  g.setIndex([0, 1, 2, 0, 2, 3]);
-  g.computeVertexNormals();
-  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color, roughness: 1, side: THREE.DoubleSide }));
-  m.receiveShadow = true;
-  return m;
+  return terrainRamp(a, b, width, { top: 'gravel', side: 'sandstone' }); // placeholder-art pass (art/kit-terrain.js)
 }
 
 /** Plateau prism, ramps and wadi beds; plateau props lifted to PLATEAU_Y; placeholder cliff meshes hidden. */
@@ -87,12 +78,7 @@ export function buildPlateauVisuals(world, spec) {
   root.name = 'm08:terrain';
   root.add(prism(spec.plateau, PLATEAU_Y - 0.02, 0x7d6a4c, 0x5e4e38));
   for (const r of spec.ramps || []) root.add(rampMesh(r.a, r.b, r.width, 0x74644a));
-  for (const poly of spec.wadis || []) {
-    const bed = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(poly.map(([x, z]) => new THREE.Vector2(x, z)))),
-      new THREE.MeshStandardMaterial({ color: 0x4f4030, roughness: 1 }));
-    bed.rotation.x = Math.PI / 2; bed.position.y = 0.03;
-    root.add(bed);
-  }
+  for (const poly of spec.wadis || []) root.add(terrainBed(poly, 0.03, 'gravel'));
   world.scene.add(root);
   for (const id of spec.hide || []) { const o = world.structures?.get(id)?.object3d; if (o) o.visible = false; }
   for (const id of spec.lift || []) {

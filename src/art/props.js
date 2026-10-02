@@ -17,6 +17,7 @@
 
 import * as THREE from 'three';
 import { getMaterial } from './materials.js';
+import { CONFIG } from '../config.js';
 import { B, T, CELL } from '../world/grid.js';
 import { libraryVisual, libTypeOf } from './building-props.js';
 import { makeFlag } from './flags.js';
@@ -25,6 +26,10 @@ import { buildBreakableGate } from './breakable-gates.js';
 import { buildMgPlatform } from './mg-platform.js';
 import { isBreakableGate } from '../world/breakables.js';
 import { buildRocks, buildCliff, buildWall, buildTent, buildRuins, buildSandbags, buildCrates, buildGenerator, buildLattice, buildPole } from './dressing.js';
+import { buildDrumCluster, buildWellVariant, buildGroundSearchlight, buildLampPost, buildSignVariant, buildFenceKit } from './kit-props.js';
+import { buildRailTrack, buildTrench, buildCraterKit } from './kit-terrain.js';
+import { buildKitHouse, buildNissenHut, buildDockCrane } from './kit-buildings.js';
+import { kitify } from './kit-materials.js';
 
 /** Prop catalogue (missions may only use these). */
 export const PROP_TYPES = ['barracks', 'house', 'hut', 'bunker', 'watchtower', 'wall', 'fence', 'gate', 'sandbags',
@@ -123,12 +128,24 @@ function buildLinear(type, p, def, ctx = {}) {
   const points = pts2(p.points || [[p.x ?? 0, p.z ?? 0], [(p.x ?? 0) + (p.w ?? 4), p.z ?? 0]]);
   const width = p.width ?? def.width;
   const h = p.h ?? def.h ?? 0;
-  const dressed = type === 'wall' && dressingOn(ctx);
-  const root = dressed ? buildWall(points, { variant: p.variant, mat: p.mat || def.mat, h, width, id: p.id, walkways: p.walkways }) : new THREE.Group();
+  // placeholder-art pass (art/kit-terrain.js): ballasted track, a dug trench; roads / rivers are drawn by the terrain
+  // (ROAD / MUD layers, the water system) — no flat strip over them
+  const ground = dressingOn(ctx) && (type === 'rail_track' || type === 'trench' || type === 'road' || type === 'river');
+  const dressed = (type === 'wall' && dressingOn(ctx)) || ground;
+  const root = ground ? (type === 'rail_track' ? buildRailTrack(points, { width, rusty: /rust|mine|siding/.test(String(p.variant ?? '')) })
+    : type === 'trench' ? buildTrench(points, { width, theater: ctx.theater, id: p.id ?? `trench@${points[0]}`, ruined: /ruin/.test(String(p.variant ?? '')) })
+      : new THREE.Group())
+    : dressed ? buildWall(points, { variant: p.variant, mat: p.mat || def.mat, h, width, id: p.id, walkways: p.walkways }) : new THREE.Group();
   // barbed wire (art/wire-obstacles.js): the map's wire layer draws this run; the footprints below are unchanged
   const wire = (type === 'fence' || type === 'wall') && dressingOn(ctx) ? wireTypeOf({ ...p, type, h }, ctx) : null;
+  let dressedFence = false;
+  // placeholder-art pass: textured fence kit (railings on dwarf walls, palisades, rock rims, post-and-rail)
+  if (type === 'fence' && !wire && dressingOn(ctx)) {
+    root.add(buildFenceKit(points, { variant: p.variant, h, width, id: p.id ?? `fence@${points[0]}` }));
+    dressedFence = true;
+  }
   if (wire && !root.userData.wireRun) root.userData.wireRun = { type: wire, def: { ...p, type, h, width }, points, coping: type === 'wall' ? { top: h } : null };
-  for (let k = 0; !dressed && !(wire && type === 'fence') && k + 1 < points.length; k++) {
+  for (let k = 0; !dressed && !dressedFence && !(wire && type === 'fence') && k + 1 < points.length; k++) {
     const [ax, az] = points[k], [bx, bz] = points[k + 1];
     const len = Math.hypot(bx - ax, bz - az);
     if (len < 1e-6) continue;
@@ -172,14 +189,18 @@ const rectFp = (x, z, w, d, rot, extra) => ({ shape: 'rect', x, z, w, d, rot, ..
 /** Mesh builders for non-linear props: (params with resolved w,d,h,r) → Object3D (local, at origin). */
 /** Procedural realistic dressing (art/dressing.js) instead of the placeholder primitives; off with the library. */
 const dressingOn = (ctx) => !!ctx && ctx.library !== false && ctx.dressing !== false;
+/** Rock massifs on a map edge carry on over the scenery apron (world/edge-extend.js); null without a map / apron. */
+const cliffEdge = (ctx) => (ctx?.world?.width > 0 && ctx.apron !== false ? { W: ctx.world.width, D: ctx.world.depth, out: (ctx.apronWidth ?? CONFIG.apron.width) + 12 } : null);
 
 const BUILDERS = {
-  cliff: (p, def, ctx) => (dressingOn(ctx) ? buildCliff(p) : box(p.w, p.h ?? 1, p.d, def.mat || 'rock')),
+  cliff: (p, def, ctx) => (dressingOn(ctx) ? buildCliff({ ...p, edge: cliffEdge(ctx) }) : box(p.w, p.h ?? 1, p.d, def.mat || 'rock')),
   ruins: (p, def, ctx) => (dressingOn(ctx) ? buildRuins(p) : box(p.w, p.h ?? 1, p.d, def.mat || 'stone')),
   sandbags: (p, def, ctx) => (dressingOn(ctx) ? buildSandbags(p) : box(p.w, p.h ?? 1, p.d, def.mat)),
   crates: (p, def, ctx) => (dressingOn(ctx) ? buildCrates(p) : box(p.w, p.h ?? 1, p.d, def.mat)),
   generator: (p, def, ctx) => (dressingOn(ctx) ? buildGenerator(p) : box(p.w, p.h ?? 1, p.d, def.mat)),
-  barracks: (p, def) => {
+  barracks: (p, def, ctx) => {
+    // placeholder-art pass: a textured kit building when the library has no fitting asset (art/kit-buildings.js)
+    if (dressingOn(ctx) && p.type !== 'train_car') return /nissen/.test(String(p.variant ?? '')) ? buildNissenHut(p, ctx.theater) : buildKitHouse({ ...p, roofWalk: p.roofWalk ?? (p.roofY != null || !!p.walkways?.length) }, ctx.theater);
     const g = new THREE.Group();
     g.add(box(p.w, p.h, p.d, p.mat || def.mat));
     const roof = box(p.w + 0.4, 0.25, p.d + 0.6, def.roof, p.h + 0.12);
@@ -189,7 +210,8 @@ const BUILDERS = {
     g.add(door);
     return g;
   },
-  bunker: (p, def) => {
+  bunker: (p, def, ctx) => {
+    if (dressingOn(ctx) && /crane/.test(String(p.variant ?? ''))) return buildDockCrane(p); // M13 dock portal cranes
     const g = new THREE.Group();
     g.add(box(p.w, p.h, p.d, def.mat));
     const slit = box(p.w * 0.6, 0.2, 0.1, 'black', p.h * 0.7);
@@ -313,7 +335,8 @@ const ROUND = {
     g.add(cyl(0.12, r * 0.88, r * 0.4, 'metalRust', 0.3 + sh + r * 0.2, 20));
     return g;
   },
-  barrels: (p, def) => {
+  barrels: (p, def, ctx) => {
+    if (dressingOn(ctx)) return buildDrumCluster(p);
     const g = new THREE.Group();
     const offs = [[-0.3, -0.2], [0.3, -0.2], [0, 0.32]];
     for (const [ox, oz] of offs) {
@@ -323,7 +346,10 @@ const ROUND = {
     }
     return g;
   },
-  well: (p, def) => { const g = new THREE.Group(); g.add(cyl(p.r, p.r, p.h, def.mat)); return g; },
+  well: (p, def, ctx) => {
+    if (dressingOn(ctx)) return buildWellVariant(p, ctx.theater);
+    const g = new THREE.Group(); g.add(cyl(p.r, p.r, p.h, def.mat)); return g;
+  },
   tree: (p) => {
     const g = new THREE.Group();
     g.add(cyl(p.r * 0.6, p.r, p.h * 0.55, 'bark'));
@@ -377,7 +403,8 @@ const ROUND = {
     if (dressingOn(ctx)) return buildLattice(p, { base: Math.min(1.4, (p.r ?? 0.6) * 2), top: 0.25, arms: false });
     const g = new THREE.Group(); g.add(cyl(0.08, p.r, p.h, def.mat, p.h / 2, 4)); return g;
   },
-  searchlight: (p, def) => {
+  searchlight: (p, def, ctx) => {
+    if (dressingOn(ctx)) return buildGroundSearchlight(p);
     const g = new THREE.Group();
     g.add(cyl(0.3, 0.4, 0.8, def.mat));
     const lamp = cyl(0.35, 0.35, 0.5, def.mat, 1.2);
@@ -385,7 +412,8 @@ const ROUND = {
     g.add(lamp);
     return g;
   },
-  lamp_post: (p, def) => {
+  lamp_post: (p, def, ctx) => {
+    if (dressingOn(ctx)) return buildLampPost(p, ctx.theater);
     const g = new THREE.Group();
     g.add(cyl(0.06, 0.08, p.h, def.mat));
     const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.15, 8, 6), getMaterial('lampGlow'));
@@ -404,12 +432,14 @@ const ROUND = {
     if (p.variant === 'flag_pole') return makeFlag({ pole: true, h: p.h ?? 7, theater: ctx?.theater }); // a free-standing enemy flagpole
     // flagpoles (garrison markers, e.g. M14 `flagpole_german`): the animated cloth flag of art/flags.js (browser)
     if (/flagpole/.test(String(p.variant ?? '')) && dressingOn(ctx) && typeof document !== 'undefined') return makeFlag({ pole: true, poleH: p.h ?? 6, theater: ctx?.theater });
+    if (dressingOn(ctx)) return buildSignVariant(p);
     const g = new THREE.Group();
     g.add(cyl(0.05, 0.05, p.h, def.mat));
     g.add(box(1, 0.5, 0.05, 'planks', p.h - 0.25));
     return g;
   },
-  crater: (p) => {
+  crater: (p, def, ctx) => {
+    if (dressingOn(ctx)) return buildCraterKit(p, ctx.theater);
     const g = new THREE.Group();
     const m = new THREE.Mesh(new THREE.CircleGeometry(p.r, 20), getMaterial('crater'));
     m.rotation.x = -Math.PI / 2;
@@ -430,10 +460,11 @@ export function buildProp(type, params = {}, ctx = {}) {
   const def = PROP_DEFAULTS[type];
   if (!def) return buildUnknownProp(type, params, ctx);
   if (LINEAR_PROPS.includes(type)) return buildLinear(type, params, def, ctx);
-  const res = buildPlaceholderProp(type, params, ctx, def);
   // realistic visual from the building library, fitted onto the placeholder's (gameplay) footprint
   const p = { ...def, ...params };
   const lib = ctx.library === false ? null : libraryVisual(type, { ...params, w: p.w, d: p.d, r: p.r }, ctx);
+  // (the library replaces the placeholder's meshes: skip building the procedural dressing for nothing)
+  const res = buildPlaceholderProp(type, params, lib ? { ...ctx, dressing: false } : ctx, def);
   if (lib) { res.object3d = lib.object3d; res.library = lib; res.castsShadow = true; }
   return res;
 }
@@ -496,7 +527,7 @@ function buildPlaceholderProp(type, params, ctx, def) {
     }
   } else {
     const build = BUILDERS[type] || BUILDERS[{ house: 'barracks', hut: 'barracks', hangar: 'barracks', train_car: 'barracks' }[type]];
-    if (build) group.add(build(p, def, ctx));
+    if (build) group.add(build({ ...p, type }, def, ctx));
     else group.add(box(p.w, p.h ?? 1, p.d, p.mat || def.mat || 'concrete')); // a spec's `mat` wins, as for barracks/walls
     if (p.block) footprints.push(rectFp(x, z, p.w, p.d, rot, { block: p.block }));
     if (type === 'watchtower') {
@@ -510,6 +541,8 @@ function buildPlaceholderProp(type, params, ctx, def) {
   }
   const castsShadow = type !== 'crater' && type !== 'sea' && type !== 'lake';
   group.traverse((o) => { if (o.isMesh) o.castShadow = o.castShadow && castsShadow; });
+  // placeholder-art pass: whatever is still a palette primitive gets its textured finish (art/kit-materials.js)
+  if (dressingOn(ctx)) kitify(group);
   if (params.flag) { // garrison flag (design-spec §2.4 / §10.6) beside the placeholder
     const f = makeFlag({ pole: true, h: Math.max(5, (p.h ?? 3) + 2.5), theater: ctx.theater });
     f.position.set((p.w ?? 4) / 2 + 0.9, 0, (p.d ?? 4) / 2 - 0.2);

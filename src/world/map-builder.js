@@ -17,8 +17,12 @@
 
 import * as THREE from 'three';
 import { terrainCode, LINK, T, B } from './grid.js';
+import { CONFIG } from '../config.js';
 import { normalizeMission } from '../missions/schema.js';
 import { buildProp, LINEAR_PROPS } from '../art/props.js';
+import { edgeStructureRuns, edgeLineExtensions, edgeBuildingRows } from './edge-extend.js';
+import { buildEdgeBuildings, edgeBuildingFlatLines } from '../art/edge-buildings.js';
+import { extendPath } from './apron-field.js';
 import { buildTerrain, canBuildRealTerrain, TREE_TYPES, coverPropsWithSnow, setPropSnow, wireTrailRecords, buildMaskedWater } from '../art/terrain.js';
 import { buildWater, raisedWaterMasks } from '../art/water.js';
 import { buildWalkDeck, WALK_SHIFT, dressingMaterial } from '../art/dressing.js';
@@ -29,12 +33,12 @@ import * as WaterModule from '../art/water/index.js';
 import { buildExtraProp, isExtraProp, isPlatformProp } from '../art/props-extra.js';
 import { installSetpieces } from '../missions/setpieces.js';
 import { Interactable, createInteractable, createPickup, createExtraction, spawnMissionInteractables } from '../entities/interactables.js';
-import { tickBuildings, buildingLog } from '../art/building-props.js';
+import { tickBuildings, buildingLog, libraryHinted } from '../art/building-props.js';
 import { wireFuelHooks } from '../art/fuel-hooks.js';
 import { isFuelStructure } from '../art/fuel-tanks.js';
 import { createWindFx } from '../render/wind-fx.js';
 import { createAmbientLife } from '../render/ambient-life.js';
-import { normalizeRoadNetwork, paintRoadGrid, RoadIndex, expandFurniture, FURNITURE_BLOCK } from './roads.js';
+import { normalizeRoadNetwork, paintRoadGrid, RoadIndex, expandFurniture, FURNITURE_BLOCK, SURFACES } from './roads.js';
 import { buildPavement } from '../art/pavement/index.js';
 import { buildFurniture } from '../art/furniture/index.js';
 import { createStreetLights } from '../render/street-lights.js';
@@ -758,9 +762,19 @@ export function buildMap(world, mission, opts = {}) {
   const realTerrain = meshes && canBuildRealTerrain(opts.renderer);
   // 1. base terrain + features
   grid.terrain.fill(terrainCode(mission.baseTerrain || 'ground'));
-  for (const t of mission.terrain || []) applyTerrainFeature(grid, t);
+  // a road that leaves the map is laid on past the edge (as world/apron-field.js carries it over the apron), so its
+  // end cap never cuts the carriageway short on the boundary where it crosses at a slant
+  const edgeOn = mission.apron?.extend !== false;
+  const pastEdge = (P, widths, hw, near) => (edgeOn ? extendPath(P, widths, grid.width, grid.depth, near, hw + 4) : { points: P, widths });
+  for (const t of mission.terrain || []) {
+    if (t.type !== 'path' || t.terrain !== 'road' || !(t.points?.length > 1)) { applyTerrainFeature(grid, t); continue; }
+    const hw = Math.max(...[].concat(t.widths ?? t.width ?? 3)) / 2, e = pastEdge(t.points, t.widths, hw, hw + 2);
+    applyTerrainFeature(grid, { ...t, points: e.points, ...(e.widths ? { widths: e.widths } : {}) });
+  }
   // 1b. step 3p road network: roads / pavements → grid codes; one spatial index for surface / raise queries
   const roadNet = normalizeRoadNetwork(mission);
+  // (soft roads without street lamps: the lamps are spaced from the road's start)
+  for (const r of roadNet.roads) if (!SURFACES[r.surface]?.hard && !r.lamps) r.points = pastEdge(r.points, null, r.width / 2, r.type === 'path' ? r.width / 2 + 2 : 1.5).points;
   paintRoadGrid(grid, roadNet, terrainCode);
   const roads = new RoadIndex(roadNet, grid.width, grid.depth);
   world.roads = roads;
@@ -768,7 +782,7 @@ export function buildMap(world, mission, opts = {}) {
   // 2. build every structure (meshes + footprints)
   // explosive fuel drums (`barrels` + explosive:'barrel') are dynamic Barrel entities (§3.4 carry, §3.6 barrel
   // class), not static props: no footprint (they can be carried away), spawned in step 4
-  const ctx = { theater, grid, world, missionId: mission.id };
+  const ctx = { theater, grid, world, missionId: mission.id, apronWidth: mission.apron?.width ?? CONFIG.apron.width };
   const first = (mission.structures || []).map((s) => (isExplosiveBarrel(s) ? null : buildStructure(s, ctx)));
   // terrain of every structure first (rivers, lakes): the placement rules keep scenery out of the water
   first.forEach((r, k) => { if (r) for (const fp of r.footprints) applyFootprint(grid, fp, 'terrain', STRUCTURE_OWNER_BASE + k); });
@@ -924,6 +938,26 @@ export function buildMap(world, mission, opts = {}) {
   world.structures = structures;
   installSetpieces(world, mission, { meshes });
 
+  // 6c. linear structures (walls, fences, wire, rails) that end on a map edge carry on over the scenery apron instead
+  // of stopping on the boundary line; visual only, the nav grid keeps the mission's runs (world/edge-extend.js)
+  const edgeRuns = realTerrain && mission.apron?.extend !== false
+    ? edgeStructureRuns(mission.structures, grid.width, grid.depth, (mission.apron?.width ?? CONFIG.apron.width) + 12) : [];
+  if (edgeRuns.length) {
+    const g = new THREE.Group();
+    g.name = 'props:edgeRuns';
+    for (const r of edgeRuns) {
+      const { type, segments, visualRuns, placementDropped, visualWalkways, walkways, ...params } = r.def;
+      try { g.add(buildProp(type, { ...params, id: r.id, points: r.points }, ctx).object3d); } catch (e) { console.warn('[map-builder] edge run', r.id, e); }
+    }
+    propsRoot.add(g);
+  }
+  // 6d. a street of flat-roofed houses ending flush on a map edge (M12 house_e1..e3) carries on as a town past it
+  const edgeHouses = realTerrain && mission.apron?.extend !== false
+    ? edgeBuildingRows(mission.structures, grid.width, grid.depth, { library: (s) => libraryHinted(s.type, s) }) : [];
+  if (edgeHouses.length && meshes) {
+    const m = buildEdgeBuildings(edgeHouses);
+    if (m) propsRoot.add(m);
+  }
   // 7. ground + water from the finished grid
   let terrain = null, unwire = null, pavedGroundY = null, wire = null;
   if (meshes) {
@@ -933,7 +967,8 @@ export function buildMap(world, mission, opts = {}) {
     const forests = realTerrain ? built.filter((b) => TREE_TYPES.includes(b.type) && Array.isArray(b.def?.points)).map((b) => b.def) : [];
     // real terrain: the water system (src/art/water) owns the surface → buildTerrain returns water: null
     // placeholder ground takes the mission's `groundPalette` (e.g. 'frost', M18 §2.4); real terrain keeps the theater
-    terrain = buildTerrain(grid, realTerrain ? theater : (mission.groundPalette || theater), realTerrain ? { renderer: opts.renderer, mission, trees, forests, ownWater: true, roads } : {});
+    terrain = buildTerrain(grid, realTerrain ? theater : (mission.groundPalette || theater), realTerrain ? { renderer: opts.renderer, mission, trees, forests, ownWater: true, roads,
+      edgeLines: [...edgeRuns.map((r) => ({ points: r.points, hw: (r.def.width ?? 0.5) / 2 + 0.6 })), ...edgeBuildingFlatLines(edgeHouses)] } : {});
     world.scene?.add(terrain.ground);
     if (terrain.water) world.scene?.add(terrain.water);
     wire = buildMissionWire(propsRoot, { terrain, theater, mission, world, renderer: opts.renderer, material: dressingMaterial, night: theater === 'night' || !!mission.lighting?.night });
@@ -1045,8 +1080,21 @@ export function buildMap(world, mission, opts = {}) {
     try {
       const groundAt = (x, z) => (typeof world.groundY === 'function' ? world.groundY.call(world, x, z) : 0);
       const poles = [...structures.values()].filter((q) => q.type === 'telegraph_pole' && q.def.wireTo !== undefined);
-      if (furn.items.length || poles.some((q) => q.def.wireTo)) {
-        furniture = buildFurniture(furn, { groundAt, poles });
+      // telegraph lines that end on a map edge run on over the apron (visual poles + wires, world/edge-extend.js)
+      let furnVis = furn;
+      if (mission.apron?.extend !== false) {
+        const len = (mission.apron?.width ?? CONFIG.apron.width) + 12, lines = [];
+        for (const f of roadNet.furniture) {
+          if (f.type !== 'telegraph' || !Array.isArray(f.points)) continue;
+          for (const e of edgeLineExtensions(f.points, grid.width, grid.depth, len)) {
+            // the run's first pole is the line's own end pole: not drawn twice, only its insulators are wired
+            for (const l of expandFurniture({ roads: [], furniture: [{ ...f, points: e, block: false }] }).lines) lines.push({ ...l, ghostFirst: true });
+          }
+        }
+        if (lines.length) furnVis = { ...furn, lines: [...furn.lines, ...lines] };
+      }
+      if (furnVis.items.length || poles.some((q) => q.def.wireTo)) {
+        furniture = buildFurniture(furnVis, { groundAt, poles });
         world.scene?.add(furniture.group);
         if (theater === 'snow' || mission.lighting?.snow) coverPropsWithSnow(furniture.group, theater === 'snow' ? 1 : mission.lighting.snow);
         let night = false;

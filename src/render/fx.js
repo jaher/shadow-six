@@ -30,6 +30,7 @@ import { T } from '../world/grid.js';
 import { mgMuzzle } from './mg-mount.js';
 import { fuelBlastScale, isFuelStructure } from '../art/fuel-tanks.js';
 import { buildingMeta } from '../art/building-library.js';
+import { dressingMaterial, boxUV } from '../art/dressing.js';
 import { assetExtents } from '../art/building-props.js';
 import { coneAt } from '../ai/perception.js';
 
@@ -486,8 +487,15 @@ export class FX {
     _ray.set(V3(cx, box.max.y + 5, cz), _down); _ray.far = Infinity;
     const hit = _ray.intersectObject(obj, true).find((h) => !h.object.isSprite && !h.object.isPoints);
     const roofY = hit ? hit.point.y : box.max.y, top = Math.max(roofY + 0.9, box.max.y + 0.35), base = roofY - 0.3;
-    const mesh = new THREE.Mesh(FX._stackGeo ||= new THREE.BoxGeometry(0.6, 1, 0.6), FX._stackMat ||= new THREE.MeshStandardMaterial({ color: 0x5b3a2e, roughness: 0.92 }));
-    mesh.scale.y = top - base; mesh.position.set(cx, (top + base) / 2, cz);
+    // placeholder-art pass: a textured stack (brick; rendered mud brick in the desert) with a cap slab (was a flat-colour
+    // box); unit-height geometry scaled to the stack height as before, its UVs laid out at the real height
+    const H = top - base, desert = this.theater === 'desert';
+    const geo = boxUV(new THREE.BoxGeometry(0.6, H, 0.6).toNonIndexed(), 1.2).scale(1, 1 / H, 1);
+    const capM = new THREE.Mesh(boxUV(new THREE.BoxGeometry(0.76, 0.1, 0.76).toNonIndexed(), 1.2), dressingMaterial(desert ? 'adobe' : 'concrete'));
+    capM.position.y = 0.5 - 0.06 / H; capM.scale.y = 1 / H; capM.name = 'fx-chimney'; capM.castShadow = true; // cap just under the stack top (smoke leaves at top + 0.02)
+    const mesh = new THREE.Mesh(geo, dressingMaterial(desert ? 'mudRender' : 'brick'));
+    mesh.add(capM);
+    mesh.scale.y = H; mesh.position.set(cx, (top + base) / 2, cz);
     mesh.castShadow = true; mesh.receiveShadow = true; mesh.name = 'fx-chimney';
     this.root.add(mesh);
     return { mesh, pos: V3(cx, top + 0.02, cz) };
@@ -599,7 +607,7 @@ export class FX {
     this.disposed = true;
     for (const u of this._unsub) if (typeof u === 'function') u();
     this._unsub = [];
-    for (const c of this._chimneys) c.mesh?.removeFromParent();
+    for (const c of this._chimneys) { c.mesh?.removeFromParent(); c.mesh?.traverse((o) => o.geometry?.dispose?.()); }
     this._chimneys = []; this._trails.clear(); this._wrecks.clear(); this._explosives.clear();
     this.vfx?.dispose();
     this.vfx = null;

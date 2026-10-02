@@ -14,6 +14,7 @@
 
 import * as THREE from 'three';
 import { LINK, B } from './grid.js';
+import { placeholderHinted } from '../art/building-props.js';
 
 const MIN_RAISE = 1.5; // m — lower walkable sidecar surfaces (quays, porches) stay ground level
 
@@ -41,6 +42,7 @@ function bboxOf(fps, pad = 1) {
 function navOverridden(b, mission) {
   const d = b.def;
   if (mission.libraryNav === false || d.nav === false || b.type === 'watchtower') return true;
+  if (placeholderHinted(b.type, d)) return true; // placeholder-art swap: visual only, the mission's nav stays
   // the mission authors its own upper floor / roof (walkways, decks, roofWalk / roofY + parapets): keep that nav
   if (d.walkways?.length || d.deck || d.deckY != null || d.roofWalk != null || d.roofY != null) return true;
   const bb = bboxOf(b.footprints);

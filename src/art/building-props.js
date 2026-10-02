@@ -73,6 +73,29 @@ Object.assign(VARIANT_HINTS.house, { house_concrete_2st: ['house_coastal_normand
 Object.assign(VARIANT_HINTS.bunker, { blockhouse_small: ['blockhouse_small'] });
 
 /**
+ * Placeholder-art pass (tools/audit/placeholder-audit.mjs): mission variants that drew as grey catalogue boxes and
+ * whose real-world counterpart the library models at a fitting size. Their gameplay nav stays the mission's
+ * (footprints, walk heights): the asset's own roofs / ladders / climb edges are not added (world/map-library.js
+ * `navOverridden`). Flat-roofed walkable houses keep the kit visual (art/kit-buildings.js): a library house of
+ * another height would put the roof walkers inside it.
+ */
+export const PLACEHOLDER_HINTS = {
+  villa: { hq_villa_brick: ['villa_hq'], mansion_hq_mansard: ['villa_hq_b', 'villa_hq'], mansion_hq_mansard_wing: ['villa_hq', 'villa_hq_b'] },
+  cable_car_station: { lower: ['cable_station_lower'], upper_blockhouse: ['cable_station_upper'] },
+  watermill: { watermill: ['watermill_a', 'watermill_b'] },
+  lock_gate: { lock_gates: ['lock_gates'] },
+  control_shack: { guard_hut_a: ['guard_hut_a'] },
+  truss_bridge: { truss_bridge_maas: ['bridge_truss_maas'] },
+  radio_mast: { wurzburg_dish: ['radar_dish_a'] },
+};
+for (const [type, hints] of Object.entries(PLACEHOLDER_HINTS)) {
+  VARIANT_HINTS[type] ??= {};
+  for (const [v, list] of Object.entries(hints)) if (!Object.prototype.hasOwnProperty.call(VARIANT_HINTS[type], v)) VARIANT_HINTS[type][v] = list;
+}
+/** Did this structure get its library visual through the placeholder-art hints (nav stays the mission's)? */
+export const placeholderHinted = (type, p = {}) => !p.asset && !!PLACEHOLDER_HINTS[type]?.[p.variant];
+
+/**
  * Does the mission opt this structure into a library visual by name (an explicit `asset`, or a `variant` the hints
  * map to assets)? Extra (§7.7) props only switch to the library on such an opt-in (art/props-extra.js).
  */

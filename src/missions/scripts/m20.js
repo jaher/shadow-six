@@ -22,6 +22,7 @@
 import * as THREE from 'three';
 import { canSee } from '../../ai/perception.js';
 import { buildM20Art } from './m20-art.js';
+import { dressingMaterial, boxUV } from '../../art/dressing.js';
 
 const STONE_TOP = 0x8a8472, STONE_SIDE = 0x6f6a5a;
 /** Detailed castle art (m20-art.js) in place of the plain level prisms. */
@@ -48,6 +49,22 @@ function span(a, b, w, t, color) {
   return m;
 }
 
+/**
+ * A gangway plank a → b (placeholder-art pass: was a flat-colour box): weathered boards across a pair of tarred
+ * stringers, cleats every 40 cm so boots grip on the slope. Textured, world-scale UVs.
+ */
+function plankSpan(a, b, w, t) {
+  const g = new THREE.Group(), L = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z) || 0.01;
+  const boards = dressingMaterial('planks'), tar = dressingMaterial('logsTarred');
+  const part = (geo, mat, x, y, z) => { const m = new THREE.Mesh(boxUV(geo.toNonIndexed(), 1), mat); m.position.set(x, y, z); m.castShadow = m.receiveShadow = true; g.add(m); };
+  part(new THREE.BoxGeometry(w, t * 0.45, L), boards, 0, t * 0.25, 0);
+  for (const sx of [-1, 1]) part(new THREE.BoxGeometry(0.12, t, L), tar, sx * (w / 2 - 0.08), 0, 0);
+  for (let z = -L / 2 + 0.3; z < L / 2 - 0.2; z += 0.4) part(new THREE.BoxGeometry(w * 0.86, 0.05, 0.06), tar, 0, t * 0.5, z);
+  g.position.set((a.x + b.x) / 2, (a.y + b.y) / 2, (a.z + b.z) / 2);
+  g.lookAt(b.x, b.y, b.z);
+  return g;
+}
+
 /** Stair flights, planks and ladders for every `ladders[]` entry. */
 function linkMeshes(root, ladders) {
   for (const l of ladders || []) {
@@ -59,7 +76,7 @@ function linkMeshes(root, ladders) {
       // a solid wedge under the flight so it reads as masonry
       const low = Math.min(a.y, b.y);
       if (Math.abs(b.y - a.y) > 0.5) root.add(span({ ...a, y: (a.y + low) / 2 }, { ...b, y: (b.y + low) / 2 }, 1.7, Math.abs(b.y - a.y) / 2, 0x6f6a5a));
-    } else if (l.kind === 'plank') root.add(span({ ...a, y: a.y - 0.1 }, { ...b, y: b.y - 0.1 }, 1.4, 0.2, 0x5b4a36));
+    } else if (l.kind === 'plank') root.add(plankSpan({ ...a, y: a.y - 0.1 }, { ...b, y: b.y - 0.1 }, 1.4, 0.2));
     else {
       for (const s of [-0.25, 0.25]) {
         const off = { x: Math.cos((l.heading ?? 0) + Math.PI / 2) * s, z: Math.sin((l.heading ?? 0) + Math.PI / 2) * s };

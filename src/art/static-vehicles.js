@@ -28,7 +28,7 @@ export function staticVehicleAsset(type, variant = '', def = null) {
   const v = String(variant || '').toLowerCase();
   switch (type) {
     case 'train_car':
-      if (/boat|cradle/.test(v)) return null;
+      if (/boat|cradle/.test(v)) return 'fishing_boat'; // M13 launch on its slipway cradle (placeholder-art pass)
       if (/loco/.test(v)) return 'loco_br52';
       if (/coach|passenger/.test(v)) return 'coach';
       if (/tip/.test(v)) return 'mine_tipper';
@@ -69,6 +69,9 @@ export function fitOnFootprint(model, fp) {
   return Math.max(0.6, Math.min(1, (fl * 1.1) / L, (fw * 1.1) / W));
 }
 
+/** Static gun variants with a procedural kit model (art/field-guns.js, placed by scripts/m20-art.js). */
+export const FIELD_GUN_VARIANTS = new Set(['flak38_quad_towed', 'flak38_quad_round_emplacement', 'towed_field_gun']);
+
 /**
  * Swap the placeholder meshes of every static vehicle structure for the library model.
  * @param {object} world (world.structures: Map id → {type, def, object3d}; world.wind for windsocks)
@@ -82,7 +85,12 @@ export function dressStaticVehicles(world, def) {
   for (const [id, s] of world.structures) {
     if (!isStaticVehicle(s.type, s.def) || !s.object3d) continue;
     const asset = staticVehicleAsset(s.type, s.def?.variant, s.def);
-    if (!asset || !resolveVehicle(asset)) { noteVehicleArt(`${id} (${s.type}${s.def?.variant ? ' ' + s.def.variant : ''}): no library model (placeholder)`); continue; }
+    if (!asset || !resolveVehicle(asset)) {
+      // the field guns the library lacks are drawn by art/field-guns.js (M20's art pass, the only mission using them)
+      const kit = FIELD_GUN_VARIANTS.has(s.def?.variant);
+      noteVehicleArt(`${id} (${s.type}${s.def?.variant ? ' ' + s.def.variant : ''}): ${kit ? 'kit model (art/field-guns.js)' : 'no library model (placeholder)'}`);
+      continue;
+    }
     const vis = createVehicleVisual(asset, { theater, seed: id.length * 31 + (s.def?.x | 0), paint: s.def?.paint, destroyed: !!s.def?.wreck });
     if (!vis) continue;
     const holder = new THREE.Group(); holder.name = `static-vehicle:${asset}`;

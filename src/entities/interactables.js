@@ -31,6 +31,8 @@ import { wardrobeOf, addToWardrobe } from './wardrobe.js';
 import { smashGate } from '../world/breakables.js';
 import { makeClothesline } from '../art/clothesline.js';
 import { fuelWreckNav, inLocalQuarter } from '../art/fuel-tanks.js';
+import { buildExplosiveDrum, buildMarkerProp } from '../art/kit-props.js';
+import { dressingMaterial, boxUV } from '../art/dressing.js';
 
 /** The breakable gate model under a structure group (art/breakable-gates.js userData.gate) or null. */
 const gateModelOf = (o) => o?.userData?.gate || o?.children?.find?.((c) => c.userData?.gate)?.userData.gate || null;
@@ -542,11 +544,8 @@ export class Barrel extends Interactable {
       this.pickHeight = 3;
     }
     if (!this.object3d) {
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.9, 12), new THREE.MeshStandardMaterial({ color: 0x7a2a1a, roughness: 0.6, metalness: 0.3 }));
-      m.position.y = 0.45;
-      m.castShadow = true;
-      const g = new THREE.Group();
-      g.add(m);
+      // a red-painted 200 l steel drum (art/kit-props.js; placeholder-art pass: was a plain red cylinder)
+      const g = buildExplosiveDrum(o.variant ?? o.structure?.variant);
       g.position.set(this.x, 0, this.z);
       this.object3d = g;
     }
@@ -645,7 +644,7 @@ export const explodeHook = { fn: null };
 
 /** Pickup marker mesh (small crate). */
 export function createPickup(itemId, x, z, count = 1, extra = {}) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.35, 0.4), new THREE.MeshStandardMaterial({ color: 0x6b5a3a, roughness: 0.8 }));
+  const m = new THREE.Mesh(boxUV(new THREE.BoxGeometry(0.5, 0.35, 0.4).toNonIndexed(), 0.5), dressingMaterial('planks')); // a plank crate (placeholder-art pass)
   m.position.set(x, 0.18, z);
   m.castShadow = true;
   return new Interactable({ interactKind: 'pickup', x, z, itemId, count, object3d: m, tag: extra.id ?? null, ...extra });
@@ -659,7 +658,6 @@ export function createExtraction(x, z, r) {
   return new Interactable({ interactKind: 'extraction', x, z, r, object3d: ring, tag: 'extraction' });
 }
 
-const MARKER_COLORS = { switch: 0xb0a040, lever: 0xb0a040, valve: 0x4080b0, phone: 0x202020, clothesline: 0x6a7050, ammo: 0x5a6a3a, crate: 0x8a7a50, jail: 0x505050, ladder: 0x7a5a30, door: 0x5a3a20 };
 
 /** Clothesline with the uniform on it (art/clothesline.js; Verlet laundry in the wind). */
 function clotheslineMesh(spec) {
@@ -671,9 +669,9 @@ function clotheslineMesh(spec) {
 
 /** Small placeholder marker mesh for a device (art replaces it through the prop interfaces). */
 function markerMesh(kind, x, z) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.8, 0.3), new THREE.MeshStandardMaterial({ color: MARKER_COLORS[kind] ?? 0x888888, roughness: 0.8 }));
-  m.position.set(x, 0.4, z);
-  m.castShadow = true;
+  const m = buildMarkerProp(kind); // placeholder-art pass: textured kit props (were flat-colour boxes, MARKER_COLORS)
+  m.position.set(x, 0, z);
+  m.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   return m;
 }
 

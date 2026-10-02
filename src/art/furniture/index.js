@@ -137,12 +137,21 @@ function buildLines(F, ctx, group, geos, stats, Y, extra = []) {
   const fenceWire = extra.length ? wireGeometry(extra, { sag: 0.05, r: 0.004, seg: 4 }) : null;
   if (fenceWire) { const m = new THREE.Mesh(fenceWire, furnitureMaterial('wire')); m.name = 'furniture:fence-wire'; geos.push(fenceWire); group.add(m); }
   for (const line of F.lines) {
-    line.poles.forEach((p) => {
-      const g = buildPole({ h: line.h }), y = Y(p.x, p.z);
+    line.poles.forEach((p, k) => {
+      const y = Y(p.x, p.z);
+      p.fix = insulators(p.x, y, p.z, p.rot, line.h, line.wires);
+      if (k === 0 && line.ghostFirst) {
+        // an edge run's first pole is the map line's own end pole: not drawn twice, its wires leave from that
+        // pole's insulators (nearest each)
+        const own = F.lines.find((l) => !l.ghostFirst && l.poles[0]?.fix && l.poles.some((q) => Math.hypot(q.x - p.x, q.z - p.z) < 0.5));
+        const q = own?.poles.find((r) => Math.hypot(r.x - p.x, r.z - p.z) < 0.5);
+        if (q?.fix) p.fix = p.fix.map((a) => q.fix.reduce((b, c) => (Math.hypot(c[0] - a[0], c[2] - a[2]) < Math.hypot(b[0] - a[0], b[2] - a[2]) ? c : b)));
+        return;
+      }
+      const g = buildPole({ h: line.h });
       g.position.set(p.x, y, p.z); g.rotation.y = -p.rot;
       g.traverse((o) => { if (o.isMesh) o.userData.ownGeo = true; });
       group.add(g); stats.poles++;
-      p.fix = insulators(p.x, y, p.z, p.rot, line.h, line.wires);
     });
     for (let k = 0; k < line.poles.length - 1; k++) for (let w = 0; w < line.wires; w++) spans.push({ a: line.poles[k].fix[w], b: line.poles[k + 1].fix[w] });
   }

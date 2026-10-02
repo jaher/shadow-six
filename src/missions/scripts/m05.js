@@ -14,6 +14,7 @@
  */
 
 import * as THREE from 'three';
+import { terrainPrism, terrainBed } from '../../art/kit-terrain.js';
 import { Enemy } from '../../entities/enemy.js';
 
 export const SUMMIT_Y = 16;
@@ -160,13 +161,8 @@ export function tickAutogyro(world, v, dt) {
 
 /** Mesh helpers (browser only). */
 function prism(points, h, top, side) {
-  const shape = new THREE.Shape(points.map(([x, z]) => new THREE.Vector2(x, z)));
-  const g = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false });
-  g.rotateX(Math.PI / 2); // shape (x, z) → world (x, ·, z); extrusion along −y
-  g.translate(0, h, 0);
-  const m = new THREE.Mesh(g, [new THREE.MeshStandardMaterial({ color: top, roughness: 0.95 }), new THREE.MeshStandardMaterial({ color: side, roughness: 1 })]);
-  m.castShadow = true; m.receiveShadow = true;
-  return m;
+  // placeholder-art pass: textured summit (art/kit-terrain.js): snow-covered top on the plateau, rock elsewhere
+  return terrainPrism(points, h, { top: top === 0xdfdfde ? 'snow' : 'rockDark', side: 'rock', tile: 4 });
 }
 
 /**
@@ -176,6 +172,9 @@ function prism(points, h, top, side) {
  */
 export function wurzburgDish(o) {
   if (!o || o.userData.m05Dish) return;
+  let lib = false;
+  o.traverse((n) => { if (n.userData?.libraryAsset) lib = true; });
+  if (lib) return; // the building library's Würzburg dish (art/building-props.js PLACEHOLDER_HINTS)
   o.userData.m05Dish = true;
   for (const c of o.children) c.visible = false;
   const steel = new THREE.MeshStandardMaterial({ color: 0x5d625c, roughness: 0.6, metalness: 0.5 });
@@ -209,10 +208,7 @@ export function buildSummitVisuals(world, spec) {
   root.name = 'm05:summit';
   root.add(prism(spec.plateau, SUMMIT_Y - 0.02, 0xdfdfde, 0x6a655a));
   root.add(prism(spec.massif, SUMMIT_Y - 0.4, 0x7a7466, 0x5a564c));
-  const valley = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(spec.valley.map(([x, z]) => new THREE.Vector2(x, z)))),
-    new THREE.MeshStandardMaterial({ color: 0x1f2c2a, roughness: 1 }));
-  valley.rotation.x = Math.PI / 2; valley.position.y = 0.04;
-  root.add(valley);
+  root.add(terrainBed(spec.valley, 0.04, 'rockDark')); // the deep valley floor: dark scree (was a flat colour)
   world.scene.add(root);
   for (const id of spec.hide || []) { const o = world.structures?.get(id)?.object3d; if (o) o.visible = false; }
   for (const id of spec.lift || []) {

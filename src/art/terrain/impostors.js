@@ -94,14 +94,16 @@ attribute vec4 iDat;   // proto index, scale, brightness, light gain (0 → 1)
 uniform sampler2D tImpA;
 uniform vec4 uAtlas;   // cols, rows, views, 1/views
 uniform vec2 uProto[64]; // S (m), v0
+uniform float uImpLift;   // 1: slide the card's bottom toward the camera until it clears the ground (apron forest)
+uniform vec3 uImpR, uImpU, uImpB; // view camera right / up / back (world), set in onBeforeRender (not in shadow passes)
 varying vec2 vAtlasUv;
 varying float vBright;
 varying float vGain;
 `;
 const IMP_VERT = /* glsl */ `
-vec3 camR = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
-vec3 camU = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
-vec3 camB = vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]);
+// the billboard faces the VIEW camera in every pass: in the shadow pass viewMatrix is the sun's, and a quad turned to
+// the sun (atlas baked at the game camera's pitch) cast cut-off crowns with straight horizontal edges
+vec3 camR = uImpR, camU = uImpU, camB = uImpB;
 int pi = int(iDat.x + 0.5);
 float S = uProto[pi].x * iDat.y, v0 = uProto[pi].y;
 float az = atan(camB.x, camB.z) - iPos.w;
@@ -112,6 +114,12 @@ vAtlasUv = (cell + uv) / uAtlas.xy;
 vBright = iDat.z;
 vGain = iDat.w > 0.0 ? iDat.w : 1.0;
 vec3 transformed = iPos.xyz + camR * ((uv.x - 0.5) * S) + camU * ((uv.y - v0) * S);
+// the image's part below the root (the near side of the crown, seen from above) leans under the ground and was cut
+// off by it along a straight line: the bottom edge slides toward the camera along the view ray (same screen spot,
+// orthographic) until it clears the ground; the slide fades out at the top edge
+// (uImpLift = 1 on the scenery apron only: in the map a lifted card would cover a unit standing just in front of it)
+float impLift = uImpLift * (v0 * S * max(camU.y, 0.0) / max(camB.y, 0.2) * 1.4 + 0.3);
+transformed += camB * impLift * (1.0 - uv.y);
 // step 4w: distant trees keep bending with the same wind as the unique ones (trunk lean + natural-frequency sway)
 vec4 iw = windSample(iPos.xz);
 float iws = windStr(iw), ihh = max(uv.y - v0, 0.0) * S / max(S * (1.0 - v0), 0.5);
@@ -148,6 +156,8 @@ export function createImpostorMesh(bank, inst) {
     tImpA: { value: bank.albedo.texture }, tImpN: { value: bank.normal.texture },
     uAtlas: { value: new THREE.Vector4(bank.cols, bank.rows, bank.views, 1 / bank.views) },
     uProto: { value: Array.from({ length: 64 }, (_, i) => new THREE.Vector2(bank.meta[i]?.S ?? 1, bank.meta[i]?.v0 ?? 0)) },
+    uImpLift: { value: 0 },
+    uImpR: { value: new THREE.Vector3(1, 0, 0) }, uImpU: { value: new THREE.Vector3(0, 1, 0) }, uImpB: { value: new THREE.Vector3(0, 0, 1) },
   };
   const vert = (sh) => {
     Object.assign(sh.uniforms, U);
@@ -175,13 +185,28 @@ export function createImpostorMesh(bank, inst) {
   const depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, side: THREE.DoubleSide });
   depth.onBeforeCompile = (sh) => {
     vert(sh);
+    // shadow caster: the card stands upright (camera right, world up). Leaning back like the view card (camera
+    // pitch), its crown lay over the ground behind the tree and the shadow began on a straight line at the card's base
+    // and its whole image stands above the root (the shadow's near edge is the crown's own ragged outline, not the
+    // straight base line where the image crosses the ground), at the tree's height
+    sh.vertexShader = sh.vertexShader.replace('camU = uImpU,', 'camU = vec3(0.0, 1.0, 0.0),')
+      .replace('camU * ((uv.y - v0) * S);', 'camU * (uv.y * (1.0 - v0) * S);')
+      .replace('transformed += camB * impLift * (1.0 - uv.y);', '');
     sh.fragmentShader = 'uniform sampler2D tImpA;\nvarying vec2 vAtlasUv;\n' + sh.fragmentShader.replace('void main() {', 'void main() {\n  if (texture2D(tImpA, vAtlasUv).a < 0.5) discard;');
   };
   depth.customProgramCacheKey = () => 'impostor-depth';
   const mesh = new THREE.Mesh(g, mat);
   mesh.customDepthMaterial = depth;
   mesh.castShadow = true; mesh.receiveShadow = true;
+  // the view camera's basis for the billboards, also in the shadow pass (the shadow map keeps the quads the player sees)
+  const basis = (cam) => {
+    const e = cam.matrixWorld.elements; // columns: right, up, back
+    U.uImpR.value.set(e[0], e[1], e[2]).normalize(); U.uImpU.value.set(e[4], e[5], e[6]).normalize(); U.uImpB.value.set(e[8], e[9], e[10]).normalize();
+  };
+  mesh.onBeforeRender = (_r, _s, cam) => basis(cam);
+  mesh.onBeforeShadow = (_r, _o, cam) => basis(cam); // `cam` = the view camera the shadow map is rendered for
   mesh.userData.aoExclude = true;
+  mesh.userData.impostorUniforms = U;
   mesh.name = 'vegImpostors';
   return mesh;
 }

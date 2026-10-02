@@ -11,6 +11,9 @@
  */
 
 import * as THREE from 'three';
+import { terrainPrism } from '../../art/kit-terrain.js';
+import { dressingMaterial } from '../../art/dressing.js';
+import { paintedMaterial } from '../../art/kit-props.js';
 import { B, MAX_STEP } from '../../world/grid.js';
 import { CONFIG } from '../../config.js';
 import { hears } from '../../ai/perception.js';
@@ -163,17 +166,12 @@ export function southHears(w, n, poly) {
 
 /** Extruded polygon (top at y, vertical sides down to 0). */
 function prism(poly, y, top, side) {
-  const shape = new THREE.Shape(poly.map(([x, z]) => new THREE.Vector2(x, z)));
-  const geo = new THREE.ExtrudeGeometry(shape, { depth: y, bevelEnabled: false });
-  geo.rotateX(Math.PI / 2); // shape (x, z) plane → XZ; extrusion goes down −y
-  geo.translate(0, y, 0);
-  const m = new THREE.Mesh(geo, [new THREE.MeshStandardMaterial({ color: top, roughness: 0.95 }), new THREE.MeshStandardMaterial({ color: side, roughness: 1 })]);
-  m.castShadow = true; m.receiveShadow = true;
-  return m;
+  return terrainPrism(poly, y, { top: 'screed', side: 'limewash', tile: 2.5 }); // placeholder-art pass (art/kit-terrain.js)
 }
 
 const ART = { stone: 0xd9cfbb, shade: 0x5a4a3a, trim: 0xb8986a, tile: 0x3f7a5a };
-const mat = (c, r = 0.9) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
+/** Kasbah finishes (placeholder-art pass): limewashed stone, sandstone trim, green glazed tile — textured PBR sets. */
+const mat = (c) => (c === ART.trim ? dressingMaterial('sandstone') : c === ART.tile ? paintedMaterial('plasterWhite', ART.tile) : dressingMaterial('limewash'));
 
 /** A horseshoe-arch outline (width w, height h to the crown) as a THREE.Shape, base at (0, 0). */
 function archShape(w, h) {
@@ -196,7 +194,7 @@ export function buildArcades(root, spec) {
   const colGeo = new THREE.CylinderGeometry(0.11, 0.13, 2.2, 8);
   const capGeo = new THREE.BoxGeometry(0.34, 0.14, 0.34);
   const merGeo = new THREE.BoxGeometry(0.42, 0.42, 0.3);
-  const mArch = new THREE.MeshStandardMaterial({ color: ART.shade, roughness: 1, side: THREE.DoubleSide }), mCol = mat(ART.trim), mMer = mat(ART.stone);
+  const mArch = paintedMaterial('plasterRough', ART.shade, { side: THREE.DoubleSide }), mCol = mat(ART.trim), mMer = mat(ART.stone); // shaded recess: rough render (was a flat colour)
   for (const l of spec.lines || []) {
     const half = (l.width ?? 0.8) / 2 + 0.03;
     for (let k = 0; k + 1 < l.points.length; k++) {
@@ -233,7 +231,7 @@ export function buildDome(root, d) {
   const g = new THREE.Group();
   const drum = new THREE.Mesh(new THREE.CylinderGeometry(d.r, d.r * 1.05, d.drum ?? 1.2, 8), mat(ART.stone));
   drum.position.y = (d.drum ?? 1.2) / 2; g.add(drum);
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(d.r * 0.96, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), mat(d.color ?? ART.stone, 0.8));
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(d.r * 0.96, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), mat(d.color ?? ART.stone));
   dome.position.y = d.drum ?? 1.2; dome.castShadow = true; g.add(dome);
   const ribM = mat(ART.trim);
   for (let k = 0; k < 12; k++) {
@@ -241,7 +239,7 @@ export function buildDome(root, d) {
     rib.position.y = d.drum ?? 1.2; rib.rotation.y = (k / 12) * Math.PI * 2; rib.rotation.x = 0;
     rib.rotateOnAxis(new THREE.Vector3(0, 1, 0), 0); g.add(rib);
   }
-  const fin = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.1, 6), mat(ART.trim, 0.4));
+  const fin = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.1, 6), mat(ART.trim));
   fin.position.y = (d.drum ?? 1.2) + d.r * 0.96 + 0.5; g.add(fin);
   g.position.set(d.x, d.y, d.z);
   root.add(g);

@@ -68,3 +68,23 @@ test('every shore crossing a map edge stays one smooth curve through the map / a
     assert.deepEqual(bad.map((c) => `${c.at} ${c.turn.toFixed(0)} deg`), [], `${id}: banks turn <= 25 deg per 0.5 m across the seam (a jog / notch / corner: 35-70)`);
   }
 });
+
+test('quay walls carried past the edge keep the bank smooth through the seam (M12 S quay, M15 canals)', async () => {
+  const { edgeStructureRuns } = await import('../../src/world/edge-extend.js');
+  for (const id of ['m12', 'm15']) {
+    const { t, shore } = seamCrossings(id);
+    const ctx = loadGrid(getMission(id)), ap = buildApronField(ctx.grid, ctx.def), W = ap.W, D = ap.D;
+    // the edge runs as map-builder passes them (ctx.edgeLines): wall half width + 0.6
+    const lines = edgeStructureRuns(ctx.def.structures, W, D, CONFIG.apron.width + 12).map((r) => ({ points: r.points, hw: (r.def.width ?? 0.5) / 2 + 0.6 }));
+    assert.ok(lines.length >= 2, `${id}: edge runs found (${lines.length})`);
+    const H = apronHeights(ap, t, CONFIG.apron, shore, lines);
+    const geo = apronGeometry(ap, H.heightAt, t.heightAt, CONFIG.apron.cell, H.fineAt);
+    const near = (x, z) => { const qx = Math.min(W, Math.max(0, x)), qz = Math.min(D, Math.max(0, z)); return Math.hypot(x - qx, z - qz) < 8; };
+    const mesh = meshSurface(geo.attributes.position.array, geo.index.array, (x, z) => near(x, z) && !(x > 0.5 && x < W - 0.5 && z > 0.5 && z < D - 0.5));
+    const G = (x, z) => (x >= 0 && x <= W && z >= 0 && z <= D ? t.heightAt(x, z) : mesh(x, z));
+    const out = seamTurns(W, D, G, shore.wetAt, WATER_DEPTH[6]);
+    assert.ok(out.length >= 2, `${id}: bank crossings found (${out.length})`);
+    const bad = out.filter((c) => c.turn > Math.max(25, c.ref + 10));
+    assert.deepEqual(bad.map((c) => `${c.at} ${c.turn.toFixed(0)} deg`), [], `${id}: no jog where a quay bank meets the apron`);
+  }
+});

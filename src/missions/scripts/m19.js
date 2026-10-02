@@ -17,6 +17,7 @@
  */
 
 import * as THREE from 'three';
+import { dressingMaterial } from '../../art/dressing.js';
 import { CONFIG } from '../../config.js';
 import { B } from '../../world/grid.js';
 import { canSee } from '../../ai/perception.js';
@@ -64,7 +65,7 @@ function showBrokenBridge(w) {
   s.object3d.visible = false;
   const parent = s.object3d.parent;
   if (!parent) return;
-  const mat = new THREE.MeshStandardMaterial({ color: 0x5c4b3a, roughness: 0.9 });
+  const mat = dressingMaterial('beam'); // placeholder-art pass: timber trestle stubs (was a flat colour)
   const len = BRIDGE.w / 2 - 4.5;
   for (const sgn of [-1, 1]) {
     const m = new THREE.Mesh(new THREE.BoxGeometry(len, 0.35, BRIDGE.d), mat);

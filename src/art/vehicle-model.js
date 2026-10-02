@@ -4,7 +4,7 @@
  * setGunLift, setDestroyed, dispose`) plus the hooks the rest of the game reads:
  *
  *   await prepareVehicleArt(missionDef, { assets, onProgress });  // Game.loadMission 'vehicles' stage (preload)
- *   const m = createLibraryVehicleModel(vehicle);                  // null → placeholder (van, atgunM20, cable_car …)
+ *   const m = createLibraryVehicleModel(vehicle);                  // null → kit model (art/kit-vehicles.js) or placeholder
  *   m.trailContacts(out)      // world-space wheel / track contacts → terrain trails (art/terrain.js stampWorld)
  *   m.seatExit(seat)          // {side: -1 left | 1 right, along} door side of a seat (LHD: driver on the left)
  *   m.boarding(seat, 'enter'|'exit')   // opens + closes that seat's door / hatch
@@ -26,13 +26,14 @@ import { resolveLighting } from '../engine/lighting.js';
 import { applyCanvasCover } from './cloth-wind.js';
 import { addPennants } from './vehicle-pennants.js';
 import { T, B } from '../world/grid.js';
+import { KIT_VEHICLES } from './kit-vehicles.js';
 
 /**
  * Registry type → library type where the names differ; `null` = the library has no model (placeholder, logged).
  * Every other registry type (truck, kubelwagen, panzer4, train …) uses the library type of the same name.
  */
 export const LIB_VEHICLE = Object.freeze({
-  van: null, atgunM20: null, atgun: null, cable_car: null,
+  van: 'citroen15', atgunM20: null, atgun: null, cable_car: null, // van: M15's civilian grey van → the Citroën Traction (placeholder-art pass)
 });
 /** Library asset per registry type when the type's first asset is not the right one for a game vehicle. */
 export const LIB_ASSET = Object.freeze({
@@ -138,7 +139,7 @@ export async function prepareVehicleArt(def, o = {}) {
     for (const [t, variant] of missionVehicleSpawns(def)) {
       const lt = libraryTypeFor(t, o.canon ? o.canon(t) : t, lib.manifest, variant);
       if (lt) want.add(LIB_ASSET[lt] || lt);
-      else S.log.push(`${t}: no library model (placeholder)`);
+      else S.log.push(KIT_VEHICLES[t] ? `${t}: kit model (art/kit-vehicles.js)` : `${t}: no library model (placeholder)`);
     }
     const amb = (o.ambient || []).filter((t) => !want.has(t)); // flyover aircraft: intact only, no wrecks
     let n0 = 0;
@@ -499,7 +500,7 @@ const TURRET_KINDS = /^(turret|turret_yaw|weapon_traverse|gun_yaw|gun_yaw_pitch)
 export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
   if (!vehicleArtReady()) return null;
   const lt = libraryTypeFor(type, def.type, { types: new Proxy({}, { get: (_, t) => has(t) }) }, spawn.variant);
-  if (!lt) { noteVehicleArt(`${type}: no library model (placeholder)`); return null; }
+  if (!lt) { if (!KIT_VEHICLES[type]) noteVehicleArt(`${type}: no library model (placeholder)`); return null; }
   const vis = createVehicleVisual(lt, { theater: S.theater, seed: hashId(spawn.id ?? type), paint: spawn.paint, asset: spawn.asset || LIB_ASSET[lt] });
   if (!vis) return null;
   const root = new THREE.Group(); root.name = `vehicle:${type}`;

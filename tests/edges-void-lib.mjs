@@ -5,9 +5,11 @@
  * portrait view; every frame is read back and must contain no magenta (void) pixel. Also: the apron meets the map
  * edge with no height step (seam), stays off the nav grid, and costs a bounded number of draw calls / triangles.
  */
-export const VIEWS = [['16:9', 1280, 720], ['32:9', 1920, 540], ['phone portrait', 390, 844]];
+// [name, width, height, zooms]: 'both' = the minimum and maximum zoom, 'min' = the minimum only (the widest view)
+export const VIEWS = [['16:9', 1280, 720, 'both'], ['32:9', 1920, 540, 'both'], ['phone portrait', 390, 844, 'both'],
+  ['phone landscape (Pixel 7)', 863, 360, 'min'], ['21:9', 2560, 1080, 'min']];
 export const PUSHES = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]];
-export const TIMEOUT = 240_000; // per-map budget (tests/run.mjs): 144 frames read back; the bigger maps take >90 s under shared load
+export const TIMEOUT = 480_000; // per-map budget (tests/run.mjs): 192 frames read back + a phone page with 24 touch flings; the bigger maps take >90 s under shared load
 
 export async function voidCheck(page, t, id) {
   const info = await page.evaluate(async (id) => {
@@ -55,10 +57,12 @@ export async function voidCheck(page, t, id) {
 
   const fails = [];
   let frames = 0;
-  for (const [vn, w, h] of VIEWS) {
+  let want = 0;
+  for (const [vn, w, h, zs] of VIEWS) {
+    want += 3 * (zs === 'min' ? 1 : 2) * PUSHES.length;
     await page.setViewportSize({ width: w, height: h });
     await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-    const r = await page.evaluate(async ({ PUSHES }) => {
+    const r = await page.evaluate(async ({ PUSHES, zs }) => {
       const THREE = await import('three');
       const g = window.__game, G = g.game, cc = G.cameraController, R = G.renderer, scene = R.scene;
       const bg0 = scene.background;
@@ -70,7 +74,7 @@ export async function voidCheck(page, t, id) {
       const L = cc.cfg.zoomLevels;
       for (const yaw of [0, 15, 45]) {
         G.cameraRig.setYaw(yaw);
-        for (const zoom of [L[0], L[L.length - 1]]) {
+        for (const zoom of zs === 'min' ? [L[0]] : [L[0], L[L.length - 1]]) {
           g.setZoom(zoom);
           for (const [sx, sy] of PUSHES) {
             cc.centerOn(G.world.width / 2, G.world.depth / 2);
@@ -87,20 +91,21 @@ export async function voidCheck(page, t, id) {
       scene.background = bg0;
       G.cameraRig.setYaw(15); g.setZoom(1);
       return out;
-    }, { PUSHES });
+    }, { PUSHES, zs });
     for (const c of r) {
       frames++;
       if (c.n > 0) fails.push(`${vn} yaw ${c.yaw} zoom ${c.zoom} push (${c.sx},${c.sy}): ${c.n} void pixels, footprint ${JSON.stringify(c.fp)}`);
     }
   }
-  t(frames === VIEWS.length * 3 * 2 * PUSHES.length, `${id}: ${frames} frames checked`);
+  t(frames === want, `${id}: ${frames} frames checked`);
   t(fails.length === 0, `${id}: no void at any edge / corner, zoom, angle, aspect${fails.length ? '\n         ' + fails.slice(0, 6).join('\n         ') : ''}`);
   await page.setViewportSize({ width: 1280, height: 720 });
 
   // cost: the apron is a handful of draws and a bounded triangle count
   const perf = await page.evaluate(() => {
     const g = window.__game, G = g.game, ap = G.mapHandle.terrain.apron;
-    g.centerOn(0, 0); g.render();
+    g.centerOn(0, 0);
+    for (let i = 0; i < 8; i++) g.render(); // settle after the 21:9 → 16:9 resize (render targets, queued GPU work)
     const on = g.renderStats();
     const t0 = performance.now(); for (let i = 0; i < 20; i++) g.render(); const msOn = (performance.now() - t0) / 20;
     ap.mesh.visible = ap.skirt.visible = false; if (ap.vegetation) ap.vegetation.group.visible = false;
@@ -114,4 +119,101 @@ export async function voidCheck(page, t, id) {
   t.log(`${id}: apron cost +${dCalls} draw calls, +${dTris} triangles, ${perf.msOff.toFixed(2)} → ${perf.msOn.toFixed(2)} ms/frame (CPU-side)`);
   t(dCalls <= 16, `${id}: apron adds at most 16 draw calls incl. shadow / depth passes (${dCalls})`);
   t(dTris <= 900000, `${id}: apron adds at most 900k triangles over all passes (${dTris})`);
+
+  await touchFlings(t, id);
+}
+
+/**
+ * Phone in landscape (Pixel 7, 863x360 CSS px, a real touch context): at the minimum zoom and 0 / 15 / 45° a
+ * one-finger drag then a fast fling (momentum, src/input/touch-game.js) into each edge and corner. Every coasting
+ * frame is read back (no void) and the camera target is checked against the manual-scroll clamp (no overshoot,
+ * not even for a frame); the fling ends AT the clamp.
+ */
+export async function touchFlings(t, id) {
+  const { openPhone } = await import('./touch-game-flow.mjs');
+  const P = await openPhone(t, 'Pixel 7');
+  const { page, drag } = P;
+  try {
+    await page.setViewportSize({ width: 863, height: 360 });
+    await page.evaluate(async (id) => {
+      const g = window.__game; await g.loadMission(id); g.start();
+      await g.game.mapHandle?.terrain?.apronReady;
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    }, id);
+    const fails = [];
+    let flings = 0, coastFrames = 0, injected = 0;
+    for (const yaw of [0, 15, 45]) {
+      for (const [sx, sy] of PUSHES) {
+        // a fling whose finger events reach the page late (shared machine) carries no velocity: up to 3 tries
+        let w = null, worstVoid = 0, worstOver = 0, frames = 0;
+        for (let tries = 0; tries < 3 && !w?.moving; tries++) {
+          // start 20 m short of the clamp in the push direction, then drag + fling the view on into it
+          await page.evaluate(({ yaw, sx, sy }) => {
+            const g = window.__game, G = g.game, cc = G.cameraController;
+            G.cameraRig.setYaw(yaw); g.setZoom(0.01);
+            if (G.input?.touch) G.input.touch.velocity.x = G.input.touch.velocity.y = 0;
+            cc.centerOn(G.world.width / 2, G.world.depth / 2);
+            for (let i = 0; i < 400; i++) cc._panScreenMetres(sx * 2, sy * 2);
+            cc._panScreenMetres(-sx * 20, -sy * 20);
+          }, { yaw, sx, sy });
+          const c = [431, 200], r = 150;
+          // the ground follows the finger: to see further east the finger moves west
+          await drag([c[0] + sx * r, c[1] + sy * r * 0.6], [c[0] - sx * r, c[1] - sy * r * 0.6], 6, 16);
+          const watch = page.evaluate(async () => { const THREE = await import('three'); return new Promise((res) => {
+            const g = window.__game, G = g.game, cc = G.cameraController, R = G.renderer, cv = R.domElement;
+            const bg0 = R.scene.background;
+            R.scene.background = new THREE.Color(1, 0, 1);
+            const sw = 192, sh = Math.max(16, Math.round(192 * cv.height / cv.width));
+            const c2 = document.createElement('canvas'); c2.width = sw; c2.height = sh;
+            const ctx = c2.getContext('2d', { willReadFrequently: true });
+            let frames = 0, voidMax = 0, over = 0, moving = 0;
+            const t0 = performance.now();
+            const tick = () => {
+              g.render();
+              ctx.drawImage(cv, 0, 0, sw, sh);
+              const px = ctx.getImageData(0, 0, sw, sh).data;
+              let n = 0;
+              for (let k = 0; k < px.length; k += 4) if (px[k] - px[k + 1] > 40 && px[k + 2] - px[k + 1] > 40) n++;
+              voidMax = Math.max(voidMax, n);
+              const f = cc._looseFit(cc.target.x, cc.target.z);
+              if (f) over = Math.max(over, Math.hypot(f.x - cc.target.x, f.z - cc.target.z));
+              const v = G.input?.touch?.velocity;
+              if (v && Math.hypot(v.x, v.y) > 0) moving++;
+              frames++;
+              if (performance.now() - t0 < 1600) requestAnimationFrame(tick);
+              else { R.scene.background = bg0; res({ frames, voidMax, over, moving }); }
+            };
+            requestAnimationFrame(tick);
+          }); });
+          if (tries < 2) await drag([c[0] + sx * r * 0.5, c[1] + sy * r * 0.3], [c[0] - sx * r * 0.5, c[1] - sy * r * 0.3], 3, 8); // fling
+          else {
+            // a loaded machine spaces the page's touch events > 90 ms apart (the release-velocity window: no coast);
+            // last try: the release a fast fling produces, through the same momentum path (touch-game.js _panend)
+            injected++;
+            await page.evaluate(({ sx, sy }) => window.__game.game.input.touch._panend({ vx: -sx * 3000, vy: -sy * 1800 }), { sx, sy });
+          }
+          w = await watch;
+          worstVoid = Math.max(worstVoid, w.voidMax); worstOver = Math.max(worstOver, w.over); frames += w.frames;
+        }
+        const end = await page.evaluate(({ sx, sy }) => {
+          const cc = window.__game.game.cameraController, x = cc.target.x, z = cc.target.z;
+          const ca = Math.cos(cc.azimuth), sa = Math.sin(cc.azimuth);
+          const f = cc._looseFit(x + (sx * ca + sy * sa) * 50, z + (-sx * sa + sy * ca) * 50); // pushing on: the limit
+          return { slack: Math.hypot(f.x - x, f.z - z), zoom: cc.zoom };
+        }, { sx, sy });
+        flings++; coastFrames += frames;
+        const tag = `yaw ${yaw} fling (${sx},${sy})`;
+        if (worstVoid > 0) fails.push(`${tag}: ${worstVoid} void pixels while coasting`);
+        if (worstOver > 1e-3) fails.push(`${tag}: camera ${worstOver.toFixed(3)} m past the clamp while coasting`);
+        if (end.slack > 1) fails.push(`${tag}: stopped ${end.slack.toFixed(1)} m short of the edge (no push into the clamp)`);
+        if (!w.moving) fails.push(`${tag}: no momentum after the fling`);
+      }
+    }
+    t.log(`${id}: ${flings} touch flings on Pixel 7 landscape (${injected} released by velocity after 2 slow-event tries), ${coastFrames} coasting frames read back`);
+    t(flings === 3 * PUSHES.length, `${id}: ${flings} touch flings`);
+    t(fails.length === 0, `${id}: touch flings into every edge / corner show no void and never pass the clamp${fails.length ? '\n         ' + fails.slice(0, 8).join('\n         ') : ''}`);
+    t(P.errs.length === 0, `${id}: phone page without errors${P.errs.length ? ': ' + P.errs.slice(0, 2).join(' | ') : ''}`);
+  } finally {
+    await P.ctx.close().catch(() => {});
+  }
 }

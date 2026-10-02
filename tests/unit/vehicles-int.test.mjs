@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test, assert } from './lib.mjs';
 import { MISSIONS } from '../../src/missions/index.js';
 import { loadVehicleLibrary, resolveVehicle } from '../../src/art/vehicle-library.js';
-import { libraryTypeFor, missionVehicleTypes, missionVehicleSpawns, seatSide, doorsForSeat, createLibraryVehicleModel, LIB_ASSET,
+import { libraryTypeFor, missionVehicleTypes, missionVehicleSpawns, seatSide, doorsForSeat, createLibraryVehicleModel, LIB_ASSET, LIB_VEHICLE,
   _setVehicleArt, _resetVehicleArt } from '../../src/art/vehicle-model.js';
 import { staticVehicleAsset, staticVehicleAssets, fitOnFootprint, overhangClear } from '../../src/art/static-vehicles.js';
 import { Vehicle, VEHICLE_TYPES, canonicalType, vehicleDef } from '../../src/entities/vehicle.js';
@@ -15,9 +15,9 @@ const meta = (model) => JSON.parse(readFileSync(new URL(MAN.models[model].meta, 
 const BEL_TYPES = ['atgunM20', 'autogyro', 'cable_car', 'cannon', 'car', 'citroen15', 'halftrack', 'horch', 'ju52', 'ju87',
   'kubelwagen', 'mgNest', 'mine_cart', 'minisub', 'mortar210', 'motorcycle', 'opel_blitz_tanker', 'panzer2', 'panzer3',
   'panzer4', 'patrolboat', 'raft', 'rowboat', 'sdkfz', 'train', 'tram', 'truck', 'van', 'willys'];
-const PLACEHOLDER = new Set(['van', 'atgunM20', 'cable_car']);
+const PLACEHOLDER = new Set(['atgunM20', 'cable_car']); // van → the Citroën Traction (placeholder-art pass)
 
-test('vehicles: every mission vehicle type maps to a library model (van, atgunM20, cable_car → placeholder)', async () => {
+test('vehicles: every mission vehicle type maps to a library model (atgunM20, cable_car → placeholder)', async () => {
   await loadVehicleLibrary(null, { manifest: MAN });
   const used = new Set(BEL_TYPES);
   for (const m of MISSIONS) for (const t of missionVehicleTypes(m)) used.add(t);
@@ -85,7 +85,7 @@ test('vehicles: door sides — LHD driver left, co-driver right, R75 sidecar rig
   assert.ok(meta('r75_sidecar_grey').contacts.find((c) => /wheel_s/.test(c.name)).pos[0] < 0, 'R75 sidecar on the right');
 });
 
-test('vehicles: Vehicle gets the library model; destroyed → wreck + scorch; van → placeholder', async () => {
+test('vehicles: Vehicle gets the library model; destroyed → wreck + scorch; van → Citroën Traction', async () => {
   await loadVehicleLibrary(null, { manifest: MAN });
   _setVehicleArt({ theater: 'snow' });
   try {
@@ -97,7 +97,7 @@ test('vehicles: Vehicle gets the library model; destroyed → wreck + scorch; va
     v.destroy();
     assert.equal(v.model.visual.destroyed, true, 'library handle swapped to the wreck');
     assert.equal(v.model.scorch?.visible, true, 'scorch decal under the wreck');
-    assert.equal(new Vehicle({ vehicleType: 'van', x: 1, z: 1 }).model.library, undefined, 'van: placeholder');
+    assert.equal(new Vehicle({ vehicleType: 'van', x: 1, z: 1 }).model.root.userData.library, 'citroen11', 'van: the Citroën Traction (M15 civilian van)');
     const m = new Vehicle({ vehicleType: 'motorcycle', x: 1, z: 1 }).model;
     assert.equal(m.root.userData.library, 'r75_sidecar');
     assert.ok(createLibraryVehicleModel('atgunM20', vehicleDef('atgunM20'), {}) === null);
@@ -108,7 +108,7 @@ test('vehicles: Vehicle gets the library model; destroyed → wreck + scorch; va
 test('vehicles: land registry footprints cover the real models (no hull poking through walls)', () => {
   for (const [t, d] of Object.entries(VEHICLE_TYPES)) {
     if (d.alias || d.kind !== 'land' || PLACEHOLDER.has(t)) continue;
-    const A = MAN.assets[MAN.types[t].assets[0]], dims = A.dims || {};
+    const A = MAN.assets[MAN.types[LIB_VEHICLE[t] ?? t].assets[0]], dims = A.dims || {}; // registry type → library type (van → citroen15)
     const L = dims.length, W = dims.width;
     if (!L || !W) continue;
     assert.ok(d.size[0] >= L - 0.15 && d.size[1] >= W - 0.15, `${t}: size ${d.size} vs model ${L} × ${W}`);
@@ -120,7 +120,7 @@ test('vehicles: static structures — wagons, K5, flak, aircraft, windsock; fit 
   assert.equal(staticVehicleAsset('train_car', 'rail_yard_derelict_loco'), 'loco_br52');
   assert.equal(staticVehicleAsset('train_car', 'flatcar_logs'), 'wagon_flat');
   assert.equal(staticVehicleAsset('train_car', 'tip_cart'), 'mine_tipper');
-  assert.equal(staticVehicleAsset('train_car', 'boat_on_cradle'), null);
+  assert.equal(staticVehicleAsset('train_car', 'boat_on_cradle'), 'fishing_boat'); // M13 launch on its cradle
   assert.equal(staticVehicleAsset('railway_gun', 'railway_gun_k5'), 'railgun_k5');
   assert.equal(staticVehicleAsset('aa_gun', 'flak38_quad_towed'), null, 'no quad 2 cm model yet');
   assert.equal(staticVehicleAsset('plane', 'storch'), 'fi156_storch');

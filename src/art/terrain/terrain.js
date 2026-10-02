@@ -6,7 +6,7 @@
  */
 import * as THREE from 'three';
 import { PALETTES, buildSplat, splatAt, undulation } from './terrain-layers.js';
-import { COMMON, VERT_PARS, VERT_MAIN, VERT_WORLD, FRAG_MAIN, FRAG_ROUGH, FRAG_NORMAL, FRAG_EMIS, FRAG_AO } from './terrain-glsl.js';
+import { COMMON, VERT_PARS, VERT_MAIN, VERT_WORLD, FRAG_MAIN, FRAG_ROUGH, FRAG_NORMAL, FRAG_EMIS, FRAG_AO, APRON_TRAIL, APRON_FLAT } from './terrain-glsl.js';
 import { TrailSystem } from './trails.js';
 import { pfbm } from './noise.js';
 import { createGrass, grassPalette } from './grass.js';
@@ -141,15 +141,17 @@ export function carveDepth(sdWet, sdDeep, depths = WATER_DEPTH) {
  * The ground material: MeshStandardMaterial + the splat / hex-tiling / trail shader chunks bound to the uniform set `U`
  * (createTerrain's; the scenery apron passes a copy sharing the layer arrays with its own splat maps and origin).
  */
-export function terrainMaterial(U, key = 'terrainB') {
+export function terrainMaterial(U, key = 'terrainB', o = {}) {
   const mat = new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0, color: 0xffffff });
+  // o.apronTrails: the trail field is read from the map's targets along the road crossings (APRON_TRAIL)
+  const tr = o.apronTrails ? (g) => g.replace(/texture\(tTrail, /g, 'apronTrail(').replace(/texture\(tFlat, /g, 'apronFlat(') : (g) => g;
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
-    sh.vertexShader = VERT_PARS + sh.vertexShader
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + VERT_MAIN)
+    sh.vertexShader = VERT_PARS + (o.apronTrails ? APRON_TRAIL : '') + sh.vertexShader
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + tr(VERT_MAIN))
       .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n' + VERT_WORLD);
-    sh.fragmentShader = COMMON + sh.fragmentShader
-      .replace('#include <map_fragment>', FRAG_MAIN)
+    sh.fragmentShader = COMMON + (o.apronTrails ? APRON_TRAIL + APRON_FLAT : '') + sh.fragmentShader
+      .replace('#include <map_fragment>', tr(FRAG_MAIN))
       .replace('#include <roughnessmap_fragment>', FRAG_ROUGH)
       .replace('#include <normal_fragment_maps>', FRAG_NORMAL)
       .replace('#include <emissivemap_fragment>', FRAG_EMIS)

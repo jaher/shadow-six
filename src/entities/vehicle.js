@@ -26,7 +26,8 @@ import * as THREE from 'three';
 import { Entity } from './entity.js';
 import { CONFIG, KILL } from '../config.js';
 import { createVehicleModel, VEHICLE_MODELS } from '../art/vehicles.js';
-import { createLibraryVehicleModel, seatSide } from '../art/vehicle-model.js';
+import { createLibraryVehicleModel, seatSide, vehicleArtContext } from '../art/vehicle-model.js';
+import { createKitVehicleModel } from '../art/kit-vehicles.js';
 import { createCrewFigures } from '../art/vehicle-crew.js';
 import { angleTo, turnTowardsAngle, angleDiff } from '../core/math.js';
 import { B, T } from '../world/grid.js';
@@ -265,6 +266,8 @@ function boxModel(type, def) {
 function modelFor(type, def, spawn = {}) {
   const real = createLibraryVehicleModel(type, def, spawn);
   if (real) return real;
+  const kit = createKitVehicleModel(type, def, spawn, vehicleArtContext().theater); // placeholder-art pass (art/kit-vehicles.js)
+  if (kit) return kit;
   if (VEHICLE_MODELS[def.model]) return createVehicleModel(def.model);
   if (VEHICLE_MODELS[type]) return createVehicleModel(type);
   return boxModel(type, def);

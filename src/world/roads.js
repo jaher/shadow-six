@@ -303,11 +303,12 @@ export function pretrampleRoads(net) {
     const S = SURFACES[r.surface];
     if (S.hard) return;
     if (r.legacy) {
-      out.push({ points: r.points.map((p) => [p[0], p[1]]), passes: 7, walkers: 3, seed: i + 1, spread: Math.min(1.2, (r.width ?? 3) * 0.2) });
+      out.push({ points: r.points.map((p) => [p[0], p[1]]), passes: 7, walkers: 3, seed: i + 1, spread: Math.min(1.2, (r.width ?? 3) * 0.2), width: r.width ?? 3, legacy: true, near: (r.width ?? 3) / 2 + 2 });
       return;
     }
     const pts = sampleCenterline(r.points, 2, r.spline).map((p) => [p.x, p.z]);
-    out.push({ points: pts, passes: Math.round(7 * (S.ruts ?? 1) * (0.5 + r.wear)), walkers: 3, seed: i + 1, spread: Math.min(1.4, r.width * 0.2), load: 1.1 * (S.ruts ?? 1) });
+    out.push({ points: pts, passes: Math.round(7 * (S.ruts ?? 1) * (0.5 + r.wear)), walkers: 3, seed: i + 1, spread: Math.min(1.4, r.width * 0.2), load: 1.1 * (S.ruts ?? 1), width: r.width,
+      near: r.type === 'path' ? r.width / 2 + 2 : 1.5 }); // as world/apron-field.js extends the road past the edge
   });
   return out;
 }

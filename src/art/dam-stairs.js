@@ -6,7 +6,7 @@
  */
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { getMaterial } from './materials.js';
+import { dressingMaterial, boxUV } from './dressing.js';
 
 /** Step height (m). */
 export const STAIR_RISE = 0.25;
@@ -32,7 +32,8 @@ export function stairTopAt(s, L, y0, y1, landing) {
 const RAIL_H = 1.0, POST_EVERY = 1.6, BAR = 0.05;
 
 let ironMat = null;
-const iron = () => ironMat || (ironMat = Object.assign(new THREE.MeshStandardMaterial({ color: 0x2b2d2f, roughness: 0.55, metalness: 0.6 }), { name: 'dam_stair_iron' }));
+// painted wrought iron with the cast-iron texture set (placeholder-art pass: was a flat colour)
+const iron = () => ironMat || (ironMat = Object.assign(dressingMaterial('castIron').clone(), { name: 'dam_stair_iron' }));
 
 /** Box (sx × sy × sz) whose local +X runs along (dx, dz), centred at (x, y, z). */
 function orientedBox(sx, sy, sz, x, y, z, dx, dz) {
@@ -105,9 +106,9 @@ export function buildDamStairs(ramps) {
         prev = post;
       }
     }
-    const stairs = new THREE.Mesh(mergeGeometries(steps.map((g) => g.toNonIndexed())), getMaterial('concrete'));
+    const stairs = new THREE.Mesh(boxUV(mergeGeometries(steps.map((g) => g.toNonIndexed())), 1.5), dressingMaterial('concrete')); // textured (placeholder-art pass)
     stairs.name = `dam-stair:${r.id ?? group.children.length}`;
-    const rail = new THREE.Mesh(mergeGeometries(rails.map((g) => g.toNonIndexed())), iron());
+    const rail = new THREE.Mesh(boxUV(mergeGeometries(rails.map((g) => g.toNonIndexed())), 0.5), iron());
     rail.name = `dam-stair-rail:${r.id ?? group.children.length}`;
     for (const m of [stairs, rail]) { m.castShadow = true; m.receiveShadow = true; group.add(m); }
   }

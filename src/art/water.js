@@ -329,20 +329,24 @@ export function windSpectra(wind) {
 }
 
 /**
- * Scenery apron (art/apron.js): every water body that reaches a map edge flows on over the apron. Its outline becomes
- * the apron code field's connected water component that contains it (rivers continue along their course, the sea and
- * lakes past the edge), its bake grows with it at the same texel density (`bakeRes`, capped). Bodies that meet in
- * the apron merge into the first (no water drawn twice). Inner bodies are unchanged. Pure (unit-tested).
+ * Scenery apron (art/apron.js): every water body that reaches a map edge flows on over the apron. It takes the apron
+ * code field's connected water components (cells past the map only) that touch its own edge cells (rivers continue
+ * along their course, the sea and lakes past the edge), and its bake grows with it at the same texel density
+ * (`bakeRes`, capped). A component touched by two bodies goes to the first (no water drawn twice); the second keeps
+ * its own water. No body is ever dropped: the in-map part of a body is its own (a raised reservoir joined to the
+ * river below its dam in the map stays a body of its own level, M3). Inner bodies are unchanged. Pure (unit-tested).
  * @param {object[]} descs waterBodyDescriptors() output (mutated copies returned)
  * @param {{grid:object, A:number, W:number, D:number}} f world/apron-field.js buildApronField()
  * @param {number} [res] the water quality's bodyRes
  */
 export function extendBodiesOverApron(descs, f, res = 256, cap = 768) {
   if (!f) return descs;
-  const g = f.grid, { cols, rows, terrain, cell } = g, A = f.A;
-  const isW = (k) => terrain[k] === 5 || terrain[k] === 6;
+  const g = f.grid, { cols, rows, terrain, cell } = g, A = f.A, W = f.W, D = f.D;
+  const i0 = Math.round(A / cell), j0 = i0, i1 = i0 + Math.round(W / cell), j1 = j0 + Math.round(D / cell); // the map's cells
+  const past = (i, j) => i < i0 || j < j0 || i >= i1 || j >= j1;
+  const isW = (k) => (terrain[k] === 5 || terrain[k] === 6) && past(k % cols, (k / cols) | 0);
   let comp = null, boxes = null;
-  const label = () => { // 4-connected components of the apron field's water (lazy: only when a body touches an edge)
+  const label = () => { // 4-connected components of the apron's water past the map (lazy: only when a body touches an edge)
     comp = new Int32Array(cols * rows).fill(-1); boxes = [];
     const st = [];
     for (let k0 = 0; k0 < cols * rows; k0++) {
@@ -365,22 +369,26 @@ export function extendBodiesOverApron(descs, f, res = 256, cap = 768) {
   for (const d of descs) {
     const P = d.polygon || [], xs = P.map((p) => p[0]), zs = P.map((p) => p[1]);
     const x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs);
-    const edge = x0 <= cell + 1e-6 || z0 <= cell + 1e-6 || x1 >= f.W - cell - 1e-6 || z1 >= f.D - cell - 1e-6;
+    const edge = x0 <= cell + 1e-6 || z0 <= cell + 1e-6 || x1 >= W - cell - 1e-6 || z1 >= D - cell - 1e-6;
     if (!edge || !d.mask) { out.push(d); continue; }
     if (!comp) label();
-    // the component(s) this body's edge cells belong to
-    let id = -1;
-    for (let z = z0 + cell / 2; z < z1 && id < 0; z += cell) for (const x of [x0 + cell / 2, x1 - cell / 2]) if (id < 0 && d.mask(x, z)) id = at(x, z);
-    for (let x = x0 + cell / 2; x < x1 && id < 0; x += cell) for (const z of [z0 + cell / 2, z1 - cell / 2]) if (id < 0 && d.mask(x, z)) id = at(x, z);
-    if (id < 0) { out.push(d); continue; }
-    if (taken.has(id)) continue; // merged into an earlier body through the apron
-    taken.add(id);
-    const b = boxes[id];
-    const nx0 = b[0] * cell - A, nz0 = b[1] * cell - A, nx1 = (b[2] + 1) * cell - A, nz1 = (b[3] + 1) * cell - A;
+    // the apron components just past this body's cells on the map's border rows / columns
+    const ids = new Set(), h = cell / 2, e = cell * 0.75;
+    const touch = (x, z, ox, oz) => { if (d.mask(x, z)) { const c = at(x + ox, z + oz); if (c >= 0 && !taken.has(c)) ids.add(c); } };
+    for (let z = h; z < D; z += cell) { if (x0 <= cell + 1e-6) touch(h, z, -e, 0); if (x1 >= W - cell - 1e-6) touch(W - h, z, e, 0); }
+    for (let x = h; x < W; x += cell) { if (z0 <= cell + 1e-6) touch(x, h, 0, -e); if (z1 >= D - cell - 1e-6) touch(x, D - h, 0, e); }
+    for (const [x, z, ox, oz] of [[h, h, -e, -e], [W - h, h, e, -e], [h, D - h, -e, e], [W - h, D - h, e, e]]) touch(x, z, ox, oz); // corners
+    if (!ids.size) { out.push(d); continue; }
+    let nx0 = x0, nz0 = z0, nx1 = x1, nz1 = z1;
+    for (const id of ids) {
+      taken.add(id);
+      const b = boxes[id];
+      nx0 = Math.min(nx0, b[0] * cell - A); nz0 = Math.min(nz0, b[1] * cell - A); nx1 = Math.max(nx1, (b[2] + 1) * cell - A); nz1 = Math.max(nz1, (b[3] + 1) * cell - A);
+    }
     const grow = Math.max(nx1 - nx0, nz1 - nz0) / Math.max(x1 - x0, z1 - z0, 1);
-    const inner = d.mask, W = f.W, D = f.D;
+    const inner = d.mask;
     out.push({ ...d, polygon: [[nx0, nz0], [nx1, nz0], [nx1, nz1], [nx0, nz1]],
-      mask: (x, z) => (x >= 0 && z >= 0 && x < W && z < D ? inner(x, z) : at(x, z) === id),
+      mask: (x, z) => (x >= 0 && z >= 0 && x < W && z < D ? inner(x, z) : ids.has(at(x, z))),
       bakeRes: Math.min(cap, Math.round(res * grow)), apron: true });
   }
   return out;

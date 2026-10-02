@@ -20,6 +20,8 @@ import { CONFIG } from '../config.js';
 import { explode } from './projectile.js';
 import { bodyCapsule, capsuleRectGap, unitStance } from '../world/body-clearance.js';
 import { FIXED_KIT, BCD_KIT } from '../items.js';
+import { dressingMaterial, boxUV } from '../art/dressing.js';
+import { paintedMaterial } from '../art/kit-props.js';
 import { T } from '../world/grid.js';
 
 /**
@@ -28,7 +30,9 @@ import { T } from '../world/grid.js';
  */
 const box = (w, h, d, color, x, z, y0 = 0) => {
   const g = new THREE.Group();
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color, roughness: 0.8 }));
+  // placeholder-art pass: a textured kit finish (art/dressing.js sets) instead of a flat colour; `color` may be a material
+  const mat = color?.isMaterial ? color : new THREE.MeshStandardMaterial({ color, roughness: 0.8 });
+  const m = new THREE.Mesh(boxUV(new THREE.BoxGeometry(w, h, d).toNonIndexed(), 1), mat);
   m.position.y = y0 + h / 2;
   m.castShadow = true;
   g.add(m);
@@ -40,7 +44,7 @@ const box = (w, h, d, color, x, z, y0 = 0) => {
 const faceHeading = (g) => { if (g?.userData.inner) g.userData.inner.rotation.y = -Math.PI / 2; return g; };
 /** Lift cage: a floor plate and four corner posts (riders stand inside it, not inside a solid block). */
 const cage = (x, z) => {
-  const g = box(1.8, 0.1, 1.8, 0x585858, x, z);
+  const g = box(1.8, 0.1, 1.8, dressingMaterial('galv'), x, z);
   for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
     const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.4, 0.1), g.userData.inner.material);
     post.position.set(sx * 0.85, 1.2, sz * 0.85); post.castShadow = true;
@@ -328,15 +332,43 @@ export class Knapsack extends Interactable {
 
 const DRAWBRIDGE_TOP = 0.03; // the span's boards (MESH.drawbridge: 0.3 m thick from -0.27)
 
+/** Moored contact mine: painted steel sphere with its Hertz horns and lifting eye. */
+function seaMineMesh(s) {
+  const paint = paintedMaterial('steel', 0x2a2a26), m = new THREE.Mesh(new THREE.SphereGeometry(0.5, 16, 12), paint);
+  m.position.set(s.x, 0.2, s.z);
+  for (const [a, b] of [[0, 0], [0, 1.2], [2.1, 1.2], [4.2, 1.2], [1.05, 0.55], [3.15, 0.55], [5.25, 0.55]]) {
+    const h = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.16, 8), dressingMaterial('castIron'));
+    const dir = new THREE.Vector3(Math.sin(b) * Math.cos(a), Math.cos(b), Math.sin(b) * Math.sin(a));
+    h.position.copy(dir).multiplyScalar(0.53); h.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir); m.add(h);
+  }
+  m.castShadow = true;
+  return m;
+}
+/** Pushable rail wagon (planked goods wagon) or tank wagon (olive steel), wheels and buffers on the inner box. */
+function pushableMesh(s) {
+  const tank = s.variant === 'tank', [w, h, d] = tank ? [3, 1.8, 1.6] : [5, 2.2, 2.4];
+  const g = faceHeading(box(w, h, d, tank ? paintedMaterial('steel', 0x4a5236) : paintedMaterial('weatherboard', 0x6a4a34), s.x, s.z));
+  const inner = g.userData.inner, iron = dressingMaterial('castIron');
+  for (const sx of [-0.3, 0.3]) for (const sz of [-1, 1]) {
+    const wh = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.1, 14), iron); wh.rotation.x = Math.PI / 2;
+    wh.position.set(sx * w, 0.4 - h / 2, sz * (d / 2 + 0.06)); inner.add(wh);
+  }
+  for (const sx of [-1, 1]) for (const sz of [-0.3, 0.3]) {
+    const bf = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.3, 10), iron); bf.rotation.z = Math.PI / 2;
+    bf.position.set(sx * (w / 2 + 0.15), 0.9 - h / 2, sz * d); inner.add(bf);
+  }
+  return g;
+}
+
 const MESH = {
-  seaMine: (s) => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 8), new THREE.MeshStandardMaterial({ color: 0x2a2a26, roughness: 0.6 })); m.position.set(s.x, 0.2, s.z); return m; },
-  pushable: (s) => faceHeading(s.variant === 'tank' ? box(3, 1.8, 1.6, 0x4a5236, s.x, s.z) : box(5, 2.2, 2.4, 0x5a3a26, s.x, s.z)),
+  seaMine: seaMineMesh,
+  pushable: pushableMesh,
   lift: (s) => cage(s.x, s.z),
   // the span matches its nav rect (w along `rot`, d across): the deck lies across the water, not along it, its
   // boards flush with the banks (walkers' feet stay on top)
-  drawbridge: (s) => { const m = box((s.rect?.w ?? 3), 0.3, (s.rect?.d ?? 8), 0x6b5030, s.rect?.x ?? s.x, s.rect?.z ?? s.z, -0.27); m.rotation.y = -(s.rect?.rot ?? 0); return m; },
-  drawbridgeSwitch: (s) => box(0.4, 0.9, 0.3, 0xb0a040, s.x, s.z),
-  knapsack: (s) => box(0.5, 0.35, 0.35, 0x4f5a34, s.x, s.z),
+  drawbridge: (s) => { const m = box((s.rect?.w ?? 3), 0.3, (s.rect?.d ?? 8), dressingMaterial('planks'), s.rect?.x ?? s.x, s.rect?.z ?? s.z, -0.27); m.rotation.y = -(s.rect?.rot ?? 0); return m; },
+  drawbridgeSwitch: (s) => box(0.4, 0.9, 0.3, paintedMaterial('steel', 0x8a7a30), s.x, s.z),
+  knapsack: (s) => box(0.5, 0.35, 0.35, paintedMaterial('canvas', 0x4f5a34), s.x, s.z),
 };
 const CLASS = { seaMine: SeaMine, pushable: Pushable, lift: Lift, drawbridge: Drawbridge, drawbridgeSwitch: DrawbridgeSwitch, knapsack: Knapsack };
 
@@ -345,7 +377,7 @@ for (const [kind, C] of Object.entries(CLASS)) {
 }
 INTERACTABLE_KINDS.penGate = (spec, opts = {}) => {
   // the leaf lies along its fence line (`rot`, set by world/placement.js from the nearest run when not authored)
-  const leaf = opts.meshes === false ? null : box(3, 1.6, 0.2, 0x6a5a3a, spec.x, spec.z);
+  const leaf = opts.meshes === false ? null : box(3, 1.6, 0.2, dressingMaterial('planks'), spec.x, spec.z);
   if (leaf) leaf.rotation.y = -(spec.rot ?? 0);
   return new Interactable({ ...spec, interactKind: 'door', label: 'Pen gate', object3d: leaf });
 };

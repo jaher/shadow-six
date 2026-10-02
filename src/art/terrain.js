@@ -22,7 +22,8 @@ import { addSnowCover } from './terrain/snowfx.js';
 import { CONFIG } from '../config.js';
 import { dataKey } from '../engine/asset-cache.js';
 import { createApron } from './apron.js';
-import { buildApronField } from '../world/apron-field.js';
+import { buildApronField, extendPath } from '../world/apron-field.js';
+import { edgeCrossings } from '../world/edge-extend.js';
 import { buildShoreField } from '../world/shore-field.js';
 import { structureRecords, obstacle, pruneTree, OBSTACLE_H } from '../world/placement.js';
 import { polyDist } from '../world/placement-geom.js';
@@ -278,7 +279,7 @@ export function scrubHero(def, p) {
 export function roadPolylines(mission) {
   return (mission?.terrain || [])
     .filter((t) => t.type === 'path' && t.terrain === 'road' && Array.isArray(t.points) && t.points.length > 1)
-    .map((t, i) => ({ points: t.points.map((p) => (Array.isArray(p) ? [p[0], p[1]] : [p.x, p.z])), passes: 7, walkers: 3, seed: i + 1, spread: Math.min(1.2, (t.width ?? 3) * 0.2) }));
+    .map((t, i) => ({ points: t.points.map((p) => (Array.isArray(p) ? [p[0], p[1]] : [p.x, p.z])), passes: 7, walkers: 3, seed: i + 1, spread: Math.min(1.2, (t.width ?? 3) * 0.2), width: t.width ?? 3, legacy: true, near: (t.width ?? 3) / 2 + 2 }));
 }
 
 /** One shared snow-cover uniform set for every patched prop material (materials are cached across missions). */
@@ -373,6 +374,15 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
   if (!canBuildRealTerrain(R) || ctx.real === false) return buildPlaceholderTerrain(grid, theater);
   let quality = presetOf(R);
   const mission = ctx.mission || null;
+  // step 3p: ctx.roads (world/roads.js RoadIndex) → soft roads pre-trampled + splat painter; else the legacy paths
+  let ruts = ctx.roads ? pretrampleRoads(ctx.roads.net) : roadPolylines(mission);
+  // a road that leaves the map is driven on past the edge (as world/apron-field.js lays it over the apron), so its
+  // ruts run to the boundary and the apron repeats them from there (art/apron.js) instead of stopping on a line
+  const apronOn = !!mission && ctx.apron !== false && mission.apron?.extend !== false;
+  if (apronOn) ruts = ruts.map((r) => ({ ...r, points: extendPath(r.points, null, grid.width, grid.depth, r.near ?? 1.5, 16).points }));
+  const crossings = apronOn ? edgeCrossings(ruts, grid.width, grid.depth) : [];
+  const paint = composePaint(forestFloorPainter(ctx.forests, (PALETTES[theater] || PALETTES.temperate).layers),
+    ctx.roads ? terrainPainter(ctx.roads, theater, (PALETTES[theater] || PALETTES.temperate).layers) : null) ?? undefined;
   // continuous shorelines (world/shore-field.js): one field over the map + apron drives both carves, the splat's
   // wet line and the water's shore distance (smooth banks instead of the 0.5 m cell staircase)
   let apronField = null, shore = null;
@@ -397,10 +407,7 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
     scrubHeroes,
     fields: farm.fields,
     quality, flatMask: buildFlatMask(grid), frozenWater: !!mission?.water?.frozen, shore,
-    // step 3p: ctx.roads (world/roads.js RoadIndex) → soft roads pre-trampled + splat painter; else the legacy paths
-    roads: ctx.roads ? pretrampleRoads(ctx.roads.net) : roadPolylines(mission),
-    paint: composePaint(forestFloorPainter(ctx.forests, (PALETTES[theater] || PALETTES.temperate).layers),
-      ctx.roads ? terrainPainter(ctx.roads, theater, (PALETTES[theater] || PALETTES.temperate).layers) : null),
+    roads: ruts, paint,
     // identity of the painter (road network + forest floor polygons): lets the session cache keep the painted splat
     paintKey: paintKeyOf(ctx),
     exclude: ctx.roads && (ctx.roads.net.roads.some((r) => !r.legacy) || ctx.roads.net.areas.length) ? (x, z) => ctx.roads.covers(x, z) : undefined,
@@ -441,7 +448,8 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
     if (disposed) return null;
     // scenery past the map edges (art/apron.js): ground + water continuation + forest; before the water's bed capture
     if (mission && ctx.apron !== false) {
-      try { apron = createApron(R, ground, t, grid, mission, theater, { trees: ctx.trees || [], quality, pitchDeg, createVegetation, treePlacement, season: vegetationProfile(mission, theater).trees, snow: mission?.treeSnow ?? undefined, field: apronField, shore }); }
+      try { apron = createApron(R, ground, t, grid, mission, theater, { trees: ctx.trees || [], quality, pitchDeg, createVegetation, treePlacement, crossings, paint, flatLines: ctx.edgeLines,
+        season: vegetationProfile(mission, theater).trees, snow: mission?.treeSnow ?? undefined, field: apronField, shore }); }
       catch (e) { console.error('[apron] build failed', e); apron = null; }
       apronReady = Promise.resolve(apron?.forest).then(() => apron);
     }
@@ -468,9 +476,10 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
     get terrain() { return inner.terrain; },
     get vegetation() { return veg; },
     get quality() { return quality; },
-    heightAt: (x, z) => inner.heightAt(x, z),
+    // past the map edge: the scenery apron's ground (edge runs, telegraph poles stand on it), else the map's
+    heightAt: (x, z) => (apron && (x < 0 || z < 0 || x > grid.width || z > grid.depth) ? apron.heightAt(x, z) : inner.heightAt(x, z)),
     /** Visual ground height for entity meshes: the undulating surface on land, 0 over water (swimmers, boats). */
-    groundY: (x, z) => (wetAt(x, z) ? 0 : inner.heightAt(x, z)),
+    groundY: (x, z) => (wetAt(x, z) ? 0 : h.heightAt(x, z)),
     materialAt: (x, z) => inner.materialAt(x, z),
     stampTrail: (...a) => inner.stampTrail(...a),
     recordTrail: (...a) => inner.recordTrail(...a),

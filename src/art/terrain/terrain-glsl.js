@@ -369,3 +369,54 @@ reflectedLight.indirectSpecular *= computeSpecularOcclusion(max(dot(geometryNorm
 reflectedLight.directDiffuse *= mix(1.0, tbAO, 0.35) * (1.0 - 0.8 * tbTrShadow);
 reflectedLight.directSpecular *= 1.0 - 0.9 * tbTrShadow;
 `;
+
+/** Max road crossings the apron repeats the map's trail field along (art/apron.js, world/edge-extend.js). */
+export const APRON_MAX_CROSSINGS = 16;
+/**
+ * Scenery apron only: the trail field (wheel ruts, berms, trampled grass) comes from the MAP's trail targets. A point
+ * on a road that leaves the map reads the map texel `crossingSource` (world/edge-extend.js) picks: mirrored back and
+ * forth over the last uXPeriod m inside the map along the road, at the same lateral offset; elsewhere nothing.
+ * uTrMap = map W, D, 1/W, 1/D; uXA[i] = boundary point xz + outward unit direction; uXB[i] = (half width, side, cos).
+ */
+export const APRON_TRAIL = /* glsl */ `
+uniform vec4 uTrMap;
+uniform vec4 uXA[${APRON_MAX_CROSSINGS}];
+uniform vec3 uXB[${APRON_MAX_CROSSINGS}];
+uniform int uXN;
+uniform float uXPeriod;
+// the mapping is found once per vertex / fragment (the first lookup) and applied as a local affine map to the
+// neighbour lookups (rut normals, self-shadow march): dsrc = dp - d * k * (g . dp)
+vec2 gXUV, gXSrc, gXD, gXG; float gXK, gXW; bool gXSet = false;
+void apronXMap(vec2 uv) {
+  vec2 p = uv * uMap.xy + uOrigin;
+  gXUV = uv; gXW = 0.0; gXSet = true;
+  // inside the map (the seam strip): the map's own texel, so the strip sinks into the map's ruts with it
+  vec2 inn = min(p, uTrMap.xy - p);
+  if (min(inn.x, inn.y) >= 0.0) { gXSrc = p; gXD = vec2(1.0, 0.0); gXG = vec2(0.0); gXK = 0.0; gXW = 1.0; return; }
+  for (int i = 0; i < ${APRON_MAX_CROSSINGS}; i++) {
+    if (i >= uXN) break;
+    vec2 e = uXA[i].xy, d = uXA[i].zw, r = p - e;
+    float l = d.x * r.y - d.y * r.x, hw = uXB[i].x;
+    if (abs(l) > hw) continue; // (a slanted road's band reaches past the edge behind e on one side)
+    float sd = uXB[i].y;
+    vec2 g = sd < 0.5 ? vec2(0.0, -1.0) : sd < 1.5 ? vec2(1.0, 0.0) : sd < 2.5 ? vec2(0.0, 1.0) : vec2(-1.0, 0.0);
+    float past = sd < 0.5 ? -p.y : sd < 1.5 ? p.x - uTrMap.x : sd < 2.5 ? p.y - uTrMap.y : -p.x;
+    float u = past / uXB[i].z;
+    if (u < 0.0) continue;
+    float m = mod(u, 2.0 * uXPeriod), t = uXPeriod - abs(m - uXPeriod);
+    gXSrc = p - (u + t) * d; gXD = d; gXG = g;
+    gXK = (m < uXPeriod ? 2.0 : 0.0) / uXB[i].z;
+    gXW = clamp(hw - abs(l), 0.0, 1.0);
+    return;
+  }
+}
+vec2 apronSrcUV(vec2 uv) {
+  if (!gXSet) apronXMap(uv);
+  vec2 dp = (uv - gXUV) * uMap.xy;
+  return (gXSrc + dp - gXD * gXK * dot(gXG, dp)) * uTrMap.zw;
+}
+vec4 apronTrail(vec2 uv) { vec2 t = apronSrcUV(uv); return gXW > 0.0 ? textureLod(tTrail, t, 0.0) * gXW : vec4(0.0); }
+`;
+export const APRON_FLAT = /* glsl */ `
+vec4 apronFlat(vec2 uv) { vec2 t = apronSrcUV(uv); return gXW > 0.0 ? textureLod(tFlat, t, 0.0) * gXW : vec4(0.0); }
+`;

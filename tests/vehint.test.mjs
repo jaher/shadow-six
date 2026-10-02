@@ -67,7 +67,7 @@ export default async function (page, t) {
   t.equal(r.m01[1], 'winter', 'M1 (snow) truck wears the winter whitewash');
   t.equal(r.desert[0], 'dak', 'desert truck is Afrika Korps tan');
   t.equal(r.desert[1], 'opel_blitz_tanker', 'tanker type gets the tank body');
-  t.equal(r.desert[2], false, 'van (no library model) keeps the placeholder');
+  t.equal(r.desert[2], true, 'van draws the library Citroën Traction (placeholder-art pass: LIB_VEHICLE van → citroen15)');
   t.ok(r.rolled > 1, `wheels roll when driving (${r.rolled})`);
   t.ok(r.contacts[0] === 4 && r.contacts[1] === 3 && r.contacts[2] >= 4, `trail contacts per wheel / track (${r.contacts})`);
   t.ok(r.kubExit < -0.5, `LHD: the driver steps out on the left (${r.kubExit?.toFixed(2)})`);

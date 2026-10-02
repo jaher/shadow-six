@@ -10,6 +10,7 @@
 
 import * as THREE from 'three';
 import { buildingMeta } from './building-library.js';
+import { dressingMaterial } from './dressing.js';
 import { VerletCloth, CLOTHS, registerCloth } from './cloth.js';
 import { WindField, resolveWind } from '../world/wind.js';
 import { FLAG_W, FLAG_H, DISC, paintFlag } from './flag-textures.js';
@@ -111,7 +112,9 @@ FABRIC_UNIFORMS.uFlagMirror.value = getInsignia() === 'neutral' ? 0 : 1;
 onInsignia(applyInsignia);
 
 function poleMaterial() {
-  return (C.poleMat ??= new THREE.MeshStandardMaterial({ color: 0x6f6a60, roughness: 0.55, metalness: 0.6 }));
+  // placeholder-art pass: the painted steel PBR set (art/dressing.js), tinted the old pole grey
+  if (!C.poleMat) { C.poleMat = dressingMaterial('steel').clone(); C.poleMat.color.set(0x8a857a); C.poleMat.name = 'flag:pole'; }
+  return C.poleMat;
 }
 
 /**

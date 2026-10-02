@@ -12,6 +12,7 @@
  */
 
 import * as THREE from 'three';
+import { terrainPrism, terrainRamp } from '../../art/kit-terrain.js';
 import { levelStrips, rampWalkways, rectPoly } from './m11.js';
 
 export { levelStrips, rampWalkways, rectPoly };
@@ -79,28 +80,18 @@ export function boardAll(world, boatId = 'boat') {
 
 // ------------------------------------------------------------------ visuals (browser only)
 
+/** Old flat colours of the prisms → [top, side] texture sets (art/dressing.js). */
+const PRISM_SETS = { 0x7d7262: ['sod', 'rock'], 0x756a5b: ['rockDark', 'rockDark'], default: ['sod', 'rock'] };
+
 function prism(points, h, top, side, y0 = 0) {
-  const shape = new THREE.Shape(points.map(([x, z]) => new THREE.Vector2(x, z)));
-  const g = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false });
-  g.rotateX(Math.PI / 2); // shape (x, z) → world (x, ·, z); extrusion along −y
-  g.translate(0, y0 + h, 0);
-  const m = new THREE.Mesh(g, [new THREE.MeshStandardMaterial({ color: top, roughness: 0.95 }), new THREE.MeshStandardMaterial({ color: side, roughness: 1 })]);
-  m.castShadow = true; m.receiveShadow = true;
-  return m;
+  // placeholder-art pass: textured escarpment (art/kit-terrain.js), same shape and height as the walk surface
+  const T = PRISM_SETS[top] || PRISM_SETS.default;
+  return terrainPrism(points, h, { y0, top: T[0], side: T[1] });
 }
 
 /** A sloped slab from a → b ([x, z, y]), `width` wide. */
 function rampMesh(a, b, width, color) {
-  const [ax, az, ay] = a, [bx, bz, by] = b;
-  const len = Math.hypot(bx - ax, bz - az), nx = (-(bz - az) / len) * (width / 2), nz = ((bx - ax) / len) * (width / 2);
-  const v = [ax + nx, ay + 0.05, az + nz, ax - nx, ay + 0.05, az - nz, bx - nx, by + 0.05, bz - nz, bx + nx, by + 0.05, bz + nz];
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
-  g.setIndex([0, 1, 2, 0, 2, 3, 0, 2, 1, 0, 3, 2]);
-  g.computeVertexNormals();
-  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color, roughness: 1, side: THREE.DoubleSide }));
-  m.receiveShadow = true;
-  return m;
+  return terrainRamp(a, b, width, { top: 'sand', side: 'rock' }); // placeholder-art pass (art/kit-terrain.js)
 }
 
 /** Ridge + rock prisms, the sand ramp; the placeholder cliff boxes hidden. */

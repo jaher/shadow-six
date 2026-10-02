@@ -269,6 +269,17 @@ export class CameraController {
     return Math.max(e.x - c.x + Math.abs(s.x), e.z - c.z + Math.abs(s.z));
   }
 
+  /**
+   * The same for the PLAY view only — the part below the HUD top bar, which design-spec §2.3 counts as the view:
+   * 0 at yaw 0 (the classic rule: the play view never shows more than boundsMargin past the map edge), the slanted
+   * corners' reach with yaw. clampOvershoot − playOvershoot is the strip under the bar.
+   */
+  playOvershoot(zoom = this.zoom) {
+    const u = this.usableHalf(zoom), c = this.clampHalfExtents(zoom);
+    const ca = Math.abs(Math.cos(this.azimuth)), sa = Math.abs(Math.sin(this.azimuth));
+    return Math.max(0, u.hw * ca + u.hh * sa - c.x, u.hw * sa + u.hh * ca - c.z);
+  }
+
   /** Smallest zoom at which the view still fits inside the map bounds (a tiny map never shows past its margin). */
   minZoomForMap() {
     const b = this.bounds;
@@ -571,11 +582,12 @@ export class CameraController {
   /**
    * The four corners of the view intersected with the horizontal plane at height `y` (shadow fit).
    * @param {number} [y=0]
+   * @param {number} [top=1] NDC y of the top corners (playFootprint: the HUD bar's lower edge)
    * @returns {{x:number, y:number, z:number}[]}
    */
-  groundFootprint(y = 0) {
+  groundFootprint(y = 0, top = 1) {
     const out = [];
-    for (const [nx, ny] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+    for (const [nx, ny] of [[-1, -1], [1, -1], [1, top], [-1, top]]) {
       _ndc.set(nx, ny);
       _ray.setFromCamera(_ndc, this.camera);
       _plane.constant = -y;
@@ -583,6 +595,12 @@ export class CameraController {
       if (hit) out.push({ x: hit.x, y, z: hit.z });
     }
     return out;
+  }
+
+  /** groundFootprint of the play view only: its top corners at the HUD top bar's lower edge (see usableHalf). */
+  playFootprint(y = 0) {
+    const top = Math.min(this.hudTop || 0, this.height * 0.5);
+    return this.groundFootprint(y, 1 - 2 * top / (this.height || 1));
   }
 
   /** Serializable view state (save games). */

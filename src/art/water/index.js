@@ -239,7 +239,14 @@ export class WaterSystem {
   _capture(o, level) {
     const g = bodyGrid({ ...o, level }, o.bakeRes || this.Q.bodyRes), t0 = performance.now();
     const hide = [], terr = [].concat(this.opts.terrain || []);
-    this.scene.traverse((ob) => { const u = ob.userData || {}; if (u.waterIgnore || u.dynamic) hide.push(ob); else if (u.waterTerrain && !terr.includes(ob)) terr.push(ob); });
+    // instanced meshes (grass, clutter stones, debris, wind particles) and points / lines / sprites (snowfall) are left
+    // out: the capture material has no per-instance or shader-driven placement, so they would all land on the world
+    // origin and bake a dry "floe" into any water at map corner (0, 0) (user request 2026-10-01: nothing may mark the
+    // map's corner)
+    this.scene.traverse((ob) => { const u = ob.userData || {};
+      if (u.waterIgnore || u.dynamic || ob.isInstancedMesh || ob.isBatchedMesh || ob.geometry?.isInstancedBufferGeometry
+        || ob.isPoints || ob.isLine || ob.isSprite) hide.push(ob);
+      else if (u.waterTerrain && !terr.includes(ob)) terr.push(ob); });
     // session cache: the same body over the same drawn scene (a restart) captures the same heights — skip the three
     // GPU passes and their read-backs. Key: the body + grid + a signature of everything the passes would draw.
     let key = null;

@@ -16,6 +16,7 @@
  */
 
 import * as THREE from 'three';
+import { terrainPrism, terrainRamp } from '../../art/kit-terrain.js';
 import { plateauWalkways } from './m05.js';
 import { normalizeVehicleRoute } from '../../ai/vehicle-ai.js';
 
@@ -125,26 +126,17 @@ export function startDrive(world, id, pts) {
 
 // ------------------------------------------------------------------ visuals (browser only)
 
+/** Old flat colours of the prisms → [top, side] texture sets (art/dressing.js). */
+const PRISM_SETS = { 0x9f8866: ['sand', 'sandstone'], default: ['sand', 'sandstone'] };
+
 function prism(points, h, top, side) {
-  const shape = new THREE.Shape(points.map(([x, z]) => new THREE.Vector2(x, z)));
-  const g = new THREE.ExtrudeGeometry(shape, { depth: h, bevelEnabled: false });
-  g.rotateX(Math.PI / 2);
-  g.translate(0, h, 0);
-  const m = new THREE.Mesh(g, [new THREE.MeshStandardMaterial({ color: top, roughness: 0.95 }), new THREE.MeshStandardMaterial({ color: side, roughness: 1 })]);
-  m.castShadow = true; m.receiveShadow = true;
-  return m;
+  // placeholder-art pass: textured escarpment (art/kit-terrain.js), same shape and height as the walk surface
+  const T = PRISM_SETS[top] || PRISM_SETS.default;
+  return terrainPrism(points, h, { top: T[0], side: T[1] });
 }
 
 function rampMesh(a, b, width, color) {
-  const [ax, az, ay] = a, [bx, bz, by] = b;
-  const len = Math.hypot(bx - ax, bz - az), nx = -(bz - az) / len * (width / 2), nz = (bx - ax) / len * (width / 2);
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute([ax + nx, ay, az + nz, ax - nx, ay, az - nz, bx - nx, by, bz - nz, bx + nx, by, bz + nz], 3));
-  g.setIndex([0, 1, 2, 0, 2, 3]);
-  g.computeVertexNormals();
-  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color, roughness: 1, side: THREE.DoubleSide }));
-  m.receiveShadow = true;
-  return m;
+  return terrainRamp(a, b, width, { top: 'gravel', side: 'sandstone' }); // placeholder-art pass (art/kit-terrain.js)
 }
 
 /** Shelf prism + ramp; shelf props lifted to SHELF_Y; the placeholder cliff mesh hidden. */

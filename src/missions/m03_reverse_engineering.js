@@ -117,8 +117,9 @@ export default {
     // T1 reservoir (N of the dam, held up at M3_RESERVOIR_LEVEL: `level` makes it its own raised water body)
     { type: 'poly', terrain: 'water', level: M3_RESERVOIR_LEVEL, drainOn: 'dam',
       points: [[0, 0], [55, 0], [56, 10], [55, 18], ...arc(21.6, 38, -38), [25, 27.4], [14, 29], [0, 30]] },
-    // T2 river from the foot of the dam (towards the camera), bending SE to the SE corner
-    { type: 'path', terrain: 'water', ...tailwaterPath([[41, 23], [44, 35], [52, 46], [60, 54], [84, 74], [108, 94], [132, 114], [150, 129]], 20) },
+    // T2 river from the foot of the dam (towards the camera), bending SE to the SE corner (its end runs past the corner: ending at (150, 129) left a snow
+    // triangle with an ice ring on the corner point itself, marking the map boundary)
+    { type: 'path', terrain: 'water', ...tailwaterPath([[41, 23], [44, 35], [52, 46], [60, 54], [84, 74], [108, 94], [132, 114], [153, 131.5]], 20) },
     // T3 dam-toe ledge along the foot of the face (the auto 2 m rim is added by the builder)
     { type: 'poly', terrain: 'shallow', points: TOE },
     // T4 station yard (= fence polygon) and camp interior (= palisade polygon)

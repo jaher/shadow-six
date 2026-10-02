@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { applyFlap, applySway, swayWeights, canvasAttributes, transformCanvasAttrs } from './cloth-wind.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { libTextureURL } from './building-library.js';
+import { extendPolygonPastEdges } from '../world/edge-extend.js';
 
 const HAS_DOM = typeof document !== 'undefined';
 
@@ -48,6 +49,41 @@ const SETS = {
   plinth: ['concrete_slab', 0xffffff, 0x8b8a86, 1.0],
   galv: ['steel_galv', 0xb0b3b5, 0x8a8d90, 0.6],
   creosote: ['timber_creosote', 0xffffff, 0x3f3226, 1.0],
+  // placeholder-art pass (art/kit-*.js): walls, roofs, ground and metal finishes of the procedural kit pieces
+  plaster: ['plaster_limewash', 0xffffff, 0xc9c1b0, 0.8],
+  plasterWhite: ['plaster_white', 0xffffff, 0xe0dccf, 0.7],
+  plasterRough: ['plaster_rough', 0xffffff, 0xb3a994, 0.9],
+  limewash: ['limewash_worn', 0xffffff, 0xd8d2c2, 0.8],
+  adobe: ['adobe_ochre', 0xffffff, 0xb08a5c, 1.0],
+  mudbrick: ['mudbrick', 0xffffff, 0x9c7b56, 1.0],
+  mudRender: ['mud_render2', 0xffffff, 0xa58866, 0.9],
+  sandstone: ['sandstone_ochre', 0xffffff, 0xb59468, 1.1],
+  ashlar: ['ashlar_limestone', 0xffffff, 0xb7ae9c, 1.0],
+  rubble: ['rubble_stone', 0xffffff, 0x8a8174, 1.2],
+  fieldstone: ['fieldstone', 0xffffff, 0x7e776c, 1.2],
+  logHewn: ['log_hewn', 0xffffff, 0x6e5a43, 1.0],
+  beam: ['timber_beam', 0xffffff, 0x5c4a36, 1.0],
+  door: ['door_planks', 0xffffff, 0x5b4632, 1.0],
+  roofTerracotta: ['roof_terracotta', 0xffffff, 0x8c4a32, 1.0],
+  roofShingle: ['roof_shingle', 0xffffff, 0x4d463f, 1.0],
+  roofSlate: ['roof_slate', 0xffffff, 0x4a4e52, 1.0],
+  tarPaper: ['tar_paper', 0xffffff, 0x353331, 0.8],
+  screed: ['screed_lime', 0xffffff, 0xb9b1a0, 0.8],
+  corrRust: ['corrugated_rust', 0xffffff, 0x6e4a33, 1.0],
+  corrGalv: ['corrugated_galv', 0xffffff, 0x8c9094, 1.0],
+  castIron: ['cast_iron', 0xffffff, 0x2a2c2a, 0.8],
+  ballast: ['gravel_grey', 0xffffff, 0x77736c, 1.2],
+  gravel: ['gravel', 0xffffff, 0x8a7f6d, 1.2],
+  mud: ['mud', 0xffffff, 0x4a3d2c, 1.0],
+  sand: ['sand', 0xffffff, 0xc2a77a, 0.8],
+  cobble: ['cobblestone', 0xffffff, 0x77736b, 1.1],
+  glassDirty: ['glass_dirty', 0xffffff, 0x2a3236, 0.5],
+  weatherboard: ['weatherboard_paint', 0xffffff, 0x8a8170, 0.9],
+  brickDark: ['brick_dark', 0xffffff, 0x5a3a30, 1.0],
+  granite: ['granite_polished', 0xffffff, 0x77777a, 0.6],
+  sod: ['turf_grass', 0xffffff, 0x4f5a34, 1.0],
+  concreteBunker: ['concrete_bunker', 0xffffff, 0x8b8a86, 1.0],
+  snow: ['snow_soft', 0xffffff, 0xdfdfde, 0.5],
 };
 
 /**
@@ -239,7 +275,11 @@ function offsetPoly(poly, dist) {
  */
 export function buildCliff(p) {
   const h = p.h ?? 6, ox = p.x ?? 0, oz = p.z ?? 0, rot = p.rot ?? 0, c = Math.cos(rot), s = Math.sin(rot);
-  const raw = (p.points || []).map((q) => (Array.isArray(q) ? q : [q.x, q.z]));
+  const own = (p.points || []).map((q) => (Array.isArray(q) ? q : [q.x, q.z]));
+  // p.edge = {W, D, out}: a massif on a map edge carries on over the apron (world/edge-extend.js) instead of ending
+  // in a straight wall along the map boundary; the batter / top inset keep the mission outline's proportions
+  const raw = p.edge && own.length >= 3 ? extendPolygonPastEdges(own, p.edge.W, p.edge.D, p.edge.out) : own;
+  const ownBox = own.length >= 3 ? [Math.max(...own.map((q) => q[0])) - Math.min(...own.map((q) => q[0])), Math.max(...own.map((q) => q[1])) - Math.min(...own.map((q) => q[1]))] : null;
   let poly = raw.length >= 3 ? raw.map(([x, z]) => { const dx = x - ox, dz = z - oz; return [dx * c + dz * s, -dx * s + dz * c]; })
     : [[-(p.w ?? 10) / 2, -(p.d ?? 4) / 2], [(p.w ?? 10) / 2, -(p.d ?? 4) / 2], [(p.w ?? 10) / 2, (p.d ?? 4) / 2], [-(p.w ?? 10) / 2, (p.d ?? 4) / 2]];
   let area = 0;
@@ -260,7 +300,8 @@ export function buildCliff(p) {
   const pos = [], uv = [], idx = [];
   let arc = 0;
   const arcs = ring.map((q, i) => { const a = arc; const nq = ring[(i + 1) % N]; arc += Math.hypot(nq[0] - q[0], nq[1] - q[1]); return a; });
-  const pw = Math.max(...poly.map((q) => q[0])) - Math.min(...poly.map((q) => q[0])), pd = Math.max(...poly.map((q) => q[1])) - Math.min(...poly.map((q) => q[1]));
+  const pw = ownBox && raw !== own ? ownBox[0] : Math.max(...poly.map((q) => q[0])) - Math.min(...poly.map((q) => q[0]));
+  const pd = ownBox && raw !== own ? ownBox[1] : Math.max(...poly.map((q) => q[1])) - Math.min(...poly.map((q) => q[1]));
   // a walkable massif (mission `walkways` on its top, e.g. the M14 ridge, or `flatTop`) keeps a near-flat top just under
   // the walking height h and steep faces, so units on it stand on rock, never in it or in the air
   const flat = !!(p.flatTop || p.walkways?.length);

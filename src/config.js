@@ -77,6 +77,7 @@ export const CONFIG = {
     fade: 24, // m: outer band where the apron relief settles to y = 0 (meets the flat skirt)
     treeFalloff: 45, // m: forest density thins to ~1/e at this distance past the edge
     grassBand: 30, // m: the map's 3D grass continues past the edge, thinning out (noisy line) over this band
+    rutPeriod: 14, // m: a road leaving the map repeats (mirrored to and fro) its last metres of ruts / paint past the edge
   },
 
   /** Humanoid units (commandos, guests; enemy movement speeds live in CONFIG.ai) (§3.1, §3.2). */

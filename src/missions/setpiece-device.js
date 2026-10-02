@@ -8,6 +8,7 @@
  */
 
 import * as THREE from 'three';
+import { dressingMaterial } from '../art/dressing.js';
 import { Interactable, ACTIVATABLE } from '../entities/interactables.js';
 
 ACTIVATABLE.add('device');
@@ -15,10 +16,10 @@ ACTIVATABLE.add('device');
 function deviceMesh(x, z, light) {
   const g = new THREE.Group();
   g.position.set(x, 0, z);
-  const post = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.3, 0.25), new THREE.MeshStandardMaterial({ color: 0x4a4a42, roughness: 0.8 }));
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.25, 1.3, 0.25), dressingMaterial('creosote'));
   post.position.y = 0.65;
   g.add(post);
-  const box = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.35, 0.3), new THREE.MeshStandardMaterial({ color: 0x5a6048, roughness: 0.7 }));
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.35, 0.3), dressingMaterial('steel'));
   box.position.y = 1.2;
   g.add(box);
   let lamp = null;

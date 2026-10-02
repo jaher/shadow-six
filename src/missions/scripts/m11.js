@@ -17,6 +17,9 @@
  */
 
 import * as THREE from 'three';
+import { terrainRamp, terrainRampChain } from '../../art/kit-terrain.js';
+import { dressingMaterial, boxUV, boulderGeometry } from '../../art/dressing.js';
+import { paintedMaterial } from '../../art/kit-props.js';
 import { plateauWalkways, rectPoly } from './m05.js';
 import { segmentHoles, rampWalkways } from './m08.js';
 
@@ -187,12 +190,13 @@ function prism(points, h, top, side, y0 = 0) {
 /** A white vertical oil-field tank (r, h): shell with weld rings, shallow cone roof, caged ladder, concrete plinth. */
 function oilTankMesh(r, h) {
   const grp = new THREE.Group();
-  const paint = new THREE.MeshStandardMaterial({ color: 0xe4ded0, roughness: 0.55, metalness: 0.15 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x5b554c, roughness: 0.8, metalness: 0.4 });
-  const stain = new THREE.MeshStandardMaterial({ color: 0x3a3128, roughness: 0.4 });
-  const plinth = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.35, r + 0.45, 0.35, 24), new THREE.MeshStandardMaterial({ color: 0x9d9689, roughness: 1 }));
+  // placeholder-art pass: textured paint / steel / concrete PBR sets (was flat colours)
+  const paint = paintedMaterial('steel', 0xe4ded0), dark = dressingMaterial('castIron'), stain = paintedMaterial('steel', 0x3a3128);
+  const plinth = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.35, r + 0.45, 0.35, 24), dressingMaterial('concrete'));
   plinth.position.y = 0.17; grp.add(plinth);
-  const shell = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 28), paint);
+  const shellGeo = new THREE.CylinderGeometry(r, r, h, 28), suv = shellGeo.attributes.uv;
+  for (let i = 0; i < suv.count; i++) suv.setXY(i, suv.getX(i) * (2 * Math.PI * r) / 2.5, suv.getY(i) * h / 2.5); // metres / 2.5 m
+  const shell = new THREE.Mesh(shellGeo, paint);
   shell.position.y = 0.35 + h / 2; grp.add(shell);
   for (let k = 1; k < 4; k++) { // weld seams
     const ring = new THREE.Mesh(new THREE.TorusGeometry(r + 0.02, 0.035, 4, 28), dark);
@@ -216,31 +220,22 @@ function oilTankMesh(r, h) {
 
 /** A sloped road slab from a → b ([x, z, y]), `width` wide. */
 function rampMesh(a, b, width, color) {
-  const [ax, az, ay] = a, [bx, bz, by] = b;
-  const len = Math.hypot(bx - ax, bz - az), nx = -(bz - az) / len * (width / 2), nz = (bx - ax) / len * (width / 2);
-  const v = [ax + nx, ay + 0.05, az + nz, ax - nx, ay + 0.05, az - nz, bx - nx, by + 0.05, bz - nz, bx + nx, by + 0.05, bz + nz];
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
-  g.setIndex([0, 1, 2, 0, 2, 3]);
-  g.computeVertexNormals();
-  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color, roughness: 1, side: THREE.DoubleSide }));
-  m.receiveShadow = true;
-  return m;
+  return terrainRamp(a, b, width, { top: 'gravel', side: 'sandstone' }); // placeholder-art pass (art/kit-terrain.js)
 }
 
 /** Arched masonry face of a tunnel portal at (x, z) facing `rot` (rad), opening 5 × 4.5 m, standing on y. */
 function portalMesh(x, z, rot, y) {
   const grp = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: 0x8c7a5e, roughness: 0.9 });
+  const mat = dressingMaterial('ashlar'); // placeholder-art pass: dressed-stone portal (was a flat colour)
   for (const s of [-1, 1]) {
-    const jamb = new THREE.Mesh(new THREE.BoxGeometry(2.2, 6, 1.2), mat);
+    const jamb = new THREE.Mesh(boxUV(new THREE.BoxGeometry(2.2, 6, 1.2).toNonIndexed(), 1.5), mat);
     jamb.position.set(s * 3.6, 3, 0);
     grp.add(jamb);
   }
-  const lintel = new THREE.Mesh(new THREE.BoxGeometry(9.4, 1.6, 1.2), mat);
+  const lintel = new THREE.Mesh(boxUV(new THREE.BoxGeometry(9.4, 1.6, 1.2).toNonIndexed(), 1.5), mat);
   lintel.position.set(0, 5.3, 0);
   grp.add(lintel);
-  const dark = new THREE.Mesh(new THREE.PlaneGeometry(5, 4.5), new THREE.MeshBasicMaterial({ color: 0x0b0906 }));
+  const dark = new THREE.Mesh(new THREE.PlaneGeometry(5, 4.5), paintedMaterial('rock', 0x0e0c0a)); // the tunnel's dark bore
   dark.position.set(0, 2.25, -0.7);
   grp.add(dark);
   grp.position.set(x, y, z);
@@ -257,11 +252,18 @@ export function buildVisuals(world, spec) {
   root.name = 'm11:terrain';
   for (const l of spec.levels || []) root.add(prism(l.poly, l.y - 0.02, l.top ?? 0x9c8461, l.side ?? 0x7a6448));
   for (const r of spec.rocks || []) root.add(prism(r.poly, r.h, 0x86705a, 0x6d5a45));
-  for (const p of spec.rampPads || []) { const m = rampMesh([...p.a, p.y - 0.01], [...p.b, p.y - 0.01], p.width, 0x8a7657); root.add(m); }
-  for (const r of spec.ramps || []) root.add(rampMesh(r.a, r.b, r.width, 0x8a7657));
+  // the switchback up the escarpment: one mitred road with landings over the joint pads and retaining walls
+  // (separate slabs crossed each other in blocky wedges at the joints)
+  const R = spec.ramps || [];
+  const chained = R.length > 1 && R.every((r, k) => k === 0 || (r.a[0] === R[k - 1].b[0] && r.a[1] === R[k - 1].b[1]));
+  if (chained) root.add(terrainRampChain(R, { top: 'gravel', side: 'sandstone', pads: spec.rampPads || [] }));
+  else {
+    for (const p of spec.rampPads || []) root.add(rampMesh([...p.a, p.y - 0.01], [...p.b, p.y - 0.01], p.width, 0x8a7657));
+    for (const r of R) root.add(rampMesh(r.a, r.b, r.width, 0x8a7657));
+  }
   if (spec.crater) {
     const pool = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(spec.crater.map(([x, z]) => new THREE.Vector2(x, z)))),
-      new THREE.MeshStandardMaterial({ color: 0x14110d, roughness: 0.15, metalness: 0.3 }));
+      paintedMaterial('mud', 0x1a1610, { roughness: 0.18, metalness: 0.25 })); // crude oil over the crater mud (textured, glossy)
     pool.rotation.x = Math.PI / 2; pool.position.y = 0.04;
     root.add(pool);
   }
@@ -295,11 +297,11 @@ export function buildVisuals(world, spec) {
 export function tunnelRubble(world, at) {
   if (!world.scene || world._m11Rubble) return;
   world._m11Rubble = true;
-  const mat = new THREE.MeshStandardMaterial({ color: 0x7b6750, roughness: 1 });
+  const mat = dressingMaterial('rock'); // placeholder-art pass: fractured boulders (were flat-colour dodecahedra)
   const grp = new THREE.Group();
   for (let k = 0; k < 9; k++) {
     const r = 0.9 + (k % 3) * 0.5;
-    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 0), mat);
+    const m = new THREE.Mesh(boulderGeometry(r, r * 0.8, r * 0.9, 311 + k * 17, 3), mat);
     m.position.set(at[0] + ((k * 37) % 7) - 3, PLATEAU_Y + r * 0.6, at[1] + ((k * 53) % 5) - 2.5);
     m.castShadow = true;
     grp.add(m);
