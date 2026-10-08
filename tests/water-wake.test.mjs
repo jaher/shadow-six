@@ -2,6 +2,9 @@
  * Boat wakes on the GPU (src/art/water.js WakeTracker + src/art/water/ripples.js crest channel): the Marine rows a
  * raft across the M2 river — the ripple sim holds crisp crest foam (.a) on the Kelvin arms and wash foam (.b)
  * astern, the crest foam fades within a second once the raft stops, and nothing raises a GL error.
+ * The river is cleared first: the soldiers AND the patrol boat (its MG crew is a crew record, not one of the enemies:
+ * since men in an open boat are seen in any cone it shot the Marine, the mission was lost and the frozen game left
+ * the last crest particle of the wake standing).
  */
 export default async function waterWake(page, t) {
   const r = await page.evaluate(async () => {
@@ -11,6 +14,8 @@ export default async function waterWake(page, t) {
     const W = G.world, wt = W.water, gl = G.renderer.renderer.getContext();
     if (!wt) return { built: false };
     for (const e of W.enemies || []) { e.alive = false; e.hp = 0; e.setPosition?.(-500, -500); }
+    for (const q of [...W.vehicles]) if (q.crew?.length) W.remove(q); // the patrol boat and its MG crew
+    W.flushRemovals?.();
     const v = W.spawnVehicle('raft', { x: 3.9, z: 36.5, heading: 0.66 });
     const c = W.commandos.find((k) => k.role === 'diver'); c.setPosition(v.x, v.z); v.enter(c);
     v.followPath([{ x: 22.5, z: 50.6 }], { fast: true });
@@ -34,10 +39,12 @@ export default async function waterWake(page, t) {
     out.afterStop = sample.map((p) => texel(p.x, p.z)[3]);
     out.armsLeft = (st?.arms || []).reduce((n, a) => n + a.length, 0);
     out.gl = gl.getError();
+    out.playing = G.state === 'playing' && c.alive; // nothing else (a hostile left on the river) cut the run short
     return out;
   });
   console.log('    [water-wake]', JSON.stringify(r, (k, v) => (typeof v === 'number' ? +v.toFixed(3) : v)));
   t.ok(r.built, 'water built for M2');
+  t.ok(r.playing, 'the run went on undisturbed: the Marine alive, the mission still playing');
   if (!r.built) return;
   t.ok(r.speed > 3, `raft rowing at speed (${r.speed})`);
   for (const [i, a] of r.armCrest.entries()) {
