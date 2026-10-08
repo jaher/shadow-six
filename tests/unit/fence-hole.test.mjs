@@ -10,10 +10,12 @@ import { test, assert } from './lib.mjs';
 import { makeSim } from './abilsim.mjs';
 import { B } from '../../src/world/grid.js';
 import { findPath } from '../../src/world/pathfinding.js';
-import { Parts, buildWireRun, assembleRibbons, panelGeometry, holeFlapGeometry, inHole, HOLE, flapOpen, buildWireLayer } from '../../src/art/wire-obstacles.js';
+import { Parts, buildWireRun, assembleRibbons, panelGeometry, holeFlapGeometry, holeShadeGeometry, holeHingeSide, inHole, HOLE, flapOpen, buildWireLayer } from '../../src/art/wire-obstacles.js';
+import { snipPoints, cutPose } from '../../src/art/wire-cut.js';
 import { World } from '../../src/world/world.js';
 import { buildMap } from '../../src/world/map-builder.js';
 import { getMission } from '../../src/missions/index.js';
+import { CONFIG } from '../../src/config.js';
 
 // a fence across the whole map (no way round) along x = 30
 const fenceSim = (commandos, extra = {}) => makeSim({
@@ -162,19 +164,51 @@ test('wire layer: the hole opens the strands and the chain-link mesh only round 
   const yc = HOLE.y0 + HOLE.h / 2;
   assert.ok(tri(pg0, 4.5, yc), 'intact mesh covers the spot');
   assert.ok(!tri(pg1, 4.5, yc), 'hole: open in the middle');
-  assert.ok(!tri(pg1, 4.5 + 0.3, yc), 'open 0.3 m to the side');
+  assert.ok(!tri(pg1, 4.5 + 0.3, yc) && !tri(pg1, 4.5 - 0.4, yc), 'open 0.3 m to the hinge side, 0.4 m to the other');
+  assert.ok(tri(pg1, 4.5 + HOLE.w / 2 * (HOLE.hinge + 0.1), yc), 'beyond the hinge chord the cut-out sliver stays joined');
   assert.ok(!tri(pg1, 4.5, HOLE.y0 + 0.05), 'open near the bottom');
   assert.ok(tri(pg1, 4.5, 1.4), 'mesh whole above the hole');
   assert.ok(tri(pg1, 4.5 + 0.6, yc), 'mesh whole beside the hole');
   assert.ok(tri(pg1, 8, yc) && tri(pg1, 1, yc), 'the rest of the fence stands');
   // the old gap would have taken the panel's full height away: the hole never does
   assert.ok(tri(pg1, 4.5, 2.2), 'full height kept');
-  // ellipse ~0.86 × 0.78 m
-  assert.ok(inHole(H, 4.5 + 0.38, yc) && !inHole(H, 4.5 + 0.5, yc) && inHole(H, 4.5, yc + 0.34) && !inHole(H, 4.5, yc + 0.46));
-  const flap = holeFlapGeometry(H);
-  flap.computeBoundingBox();
-  assert.ok(flap.boundingBox.max.y <= 1e-6 && flap.boundingBox.min.y < -0.5 && flap.boundingBox.max.x - flap.boundingBox.min.x > 0.7, 'flap hangs below its hinge');
+  // ellipse ~0.96 × 0.86 m, low (its bottom 5 cm up): a man on his belly fits
+  assert.ok(HOLE.w >= 0.9 && HOLE.w <= 1.0 && HOLE.y0 <= 0.06);
+  assert.ok(inHole(H, 4.5 + 0.43, yc) && !inHole(H, 4.5 + 0.54, yc) && inHole(H, 4.5, yc + 0.38) && !inHole(H, 4.5, yc + 0.48));
+  // the cut edge: a crumpled band of weave round the cut, bent out to the peel side (z > 0 here), not along the hinge
+  const P1 = pg1.attributes.position.array, rim = [];
+  for (let i = 0; i < P1.length; i += 3) if (P1[i + 2] > 0.02) rim.push([P1[i], P1[i + 1]]);
+  assert.ok(rim.length > 60, `rim band vertices (${rim.length})`);
+  assert.ok(rim.every(([x]) => x < 4.5 + HOLE.w / 2 * HOLE.hinge + 0.01), 'no rim along the hinge chord');
+  // the flap: a sheet the hole's size in the fence plane when shut; folded back past its hinge to the peel side when open
+  const bb = (g) => { g.computeBoundingBox(); return g.boundingBox; };
+  const shut = bb(holeFlapGeometry(H, 0.03, 0)), open = bb(holeFlapGeometry(H, 0.03, 1));
+  assert.ok(shut.max.x - shut.min.x > 0.8 && Math.abs(shut.max.z) < 1e-6 && Math.abs(shut.min.z) < 1e-6 && shut.max.y - shut.min.y > 0.8, `shut: the cut-out piece ${JSON.stringify(shut)}`);
+  assert.ok(open.max.x <= 1e-6 && open.min.x < -0.7 && open.max.z > 0.08 && open.max.z < 0.3 && open.min.z >= -1e-6, `open: folded back beside the hole ${JSON.stringify(open)}`);
   assert.equal(flapOpen(0), 0); assert.equal(flapOpen(Infinity), 1); assert.equal(flapOpen(HOLE.flapOpen + 0.01), 1);
+  // the fresh cut: bright tips on the weave's ends, bits of snipped wire on his side, a scuffed hollow under the hole
+  const Hp = { ...H, x: 4.5, z: 0, tx: 1, tz: 0, look: 'temperate' };
+  const a2 = assembleRibbons(P, new Map(), () => 0, { barbs: false, holes: new Map([['c#0', [Hp]]]) });
+  assert.ok(a2.bits >= 5, `snipped bits (${a2.bits})`);
+  const tips = [...a2.buffers.values()].reduce((n, b) => { const m = b.mat; let k = 0; for (let i = 1; i < m.length; i += 3) if (m[i] === 3) k++; return n + k; }, 0);
+  assert.ok(tips > 200, `bright cut tips (${tips} vertices)`);
+  for (const b of a2.buffers.values()) {   // the bits lie on his side (−n), on the ground
+    const p = b.pos, m = b.mat;
+    for (let i = 0; i < p.length / 3; i++) if (m[i * 3 + 1] === 3 && p[i * 3 + 1] < 0.02) assert.ok(p[i * 3 + 2] < 0, 'bits on his side');
+  }
+  assert.equal(holeShadeGeometry(holes), null, 'no position: no hollow');
+  const sh = holeShadeGeometry(new Map([['c#0', [Hp]]]));
+  assert.ok(sh && sh.attributes.position.count >= 25, 'the hollow under the hole');
+  // the hinge is on his left as he faces the wire, and the man's cutting pose agrees with the wire layer
+  assert.equal(holeHingeSide([0, 1], 1, 0), 1, 'facing +z his left is +x');
+  assert.equal(holeHingeSide([0, -1], 1, 0), -1);
+  for (const sL of [1, -1]) {
+    const pts = snipPoints(5, sL);
+    assert.ok(Math.sign(pts[0].u) === sL && Math.sign(pts[4].u) === sL && pts[0].y > pts[4].y, `snips start at the hinge's top, end at its foot (${sL})`);
+    assert.ok(pts.every((q) => q.u * sL <= HOLE.w / 2 * HOLE.hinge + 1e-6), 'never on the hinge chord');
+    const peel = cutPose('cut', CONFIG.abilities.cutHole.peel + 0.2, CONFIG.abilities.cutters, sL);
+    assert.ok(peel.R.out < -0.05 && peel.R.u * sL > 0, `hands push the flap through, round to his left (${JSON.stringify(peel.R)})`);
+  }
   // field fence: the low strands are cut, the top strand is not
   const F = new Parts();
   buildWireRun('field_fence', [[0, 0], [12, 0]], { id: 'f', type: 'fence', h: 1.2 }, { parts: F, runKey: 'f#0' });
@@ -210,13 +244,17 @@ test('wire layer (game path): the Sapper\'s hole is re-derived from the grid, fl
   w3.time = 100;
   w3.events.emit('structure:destroyed', { type: 'fence-gap', id: 'st_fence', hole: true, x: 57.6, z: 79 });
   assert.equal(W3.flaps.length, 1, 'one flap');
-  const fm = W3.flaps[0], e0 = new THREE.Vector3().setFromMatrixPosition(fm.matrix);
+  const fm = W3.flaps[0], [[, [H3]]] = [...W3.holes], hinge = new THREE.Vector3().setFromMatrixPosition(fm.matrix);
+  assert.ok(Number.isFinite(H3.x) && (H3.hs === 1 || H3.hs === -1) && H3.look, `the hole knows where it is ${JSON.stringify(H3)}`);
+  assert.ok(h3.wire.group.getObjectByName('wire:holeShade'), 'the hollow under it');
   W3.update(0);
-  const lowPt = () => new THREE.Vector3(0, -0.5, 0).applyMatrix4(fm.matrix);
-  const shut = lowPt();
+  // the free edge (the strip's last column): in the fence plane over the hole when shut, folded back to the peel side
+  const edge = () => { const a = fm.geometry.attributes.position; return new THREE.Vector3(a.getX(a.count - 1), a.getY(a.count - 1), a.getZ(a.count - 1)).applyMatrix4(fm.matrix); };
+  const off = (v) => (v.x - hinge.x) * H3.n[0] + (v.z - hinge.z) * H3.n[1], along = (v) => ((v.x - hinge.x) * H3.tx + (v.z - hinge.z) * H3.tz) * H3.hs;
+  const shut = edge();
+  assert.ok(Math.abs(off(shut)) < 0.02 && along(shut) < -0.6, `shut: across the hole (${off(shut).toFixed(2)}, ${along(shut).toFixed(2)})`);
   w3.time = 100 + HOLE.flapOpen + 0.1; W3.update(0);
-  const open = lowPt();
-  assert.ok(open.y > shut.y + 0.5, `flap peeled up (${shut.y.toFixed(2)} → ${open.y.toFixed(2)})`);
-  assert.ok(Math.hypot(open.x - e0.x, open.z - e0.z) > 0.3, 'and out');
+  const open = edge();
+  assert.ok(off(open) > 0.06 && along(open) > 0.6, `folded back beside the hole, past its hinge (${off(open).toFixed(2)}, ${along(open).toFixed(2)})`);
   h3.dispose();
 });

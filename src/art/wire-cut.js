@@ -7,9 +7,10 @@
  * mixer (UnitModel `overlay` hook, like art/shovel-dig.js): the spine bends down to each strand, the right hand takes
  * the cutters to it (two-bone arm IK, the jaws on the wire) and snips — a squeeze at each CONFIG cutHole.snips time,
  * when the sim plays the snip — while the left hand holds the weave beside the cut; the snips go round the hole's
- * outline (down one side, across the bottom, up the other), the top left joined as the flap's hinge. At `peel` both
- * hands take the flap's bottom edge and push it away and up (the wire layer turns the flap on the same clock,
- * wire-obstacles flapOpen), then let go and his arms come back to the clip.
+ * outline (from the top by his left hand over to his right, down and across the bottom), a chord on his left is
+ * left joined as the flap's hinge. At `peel` both hands take the flap by its free edge and push it through and round to
+ * his left (the wire layer bends the flap on the same clock, wire-obstacles flapOpen), then let go and his arms come
+ * back to the clip.
  *
  * Everything is a pure function of the phase time (sim time since `cutWire.t0`), so stepping the game gives the same
  * frames. Cost: two arm IK solves and a few bone turns per frame while he cuts; nothing otherwise.
@@ -32,16 +33,15 @@ const KNEEL = Object.freeze({ pelvis: 0.5, lean: 0.06, front: 0.3, knee: -0.02, 
 const JAWS = 0.11;
 
 /**
- * Snip points on the hole's outline as (u along the wire from the hole's centre, y above the ground): from the
- * hinge's left end down that side, across the bottom and up to the hinge's right end, one per snip.
+ * Snip points on the hole's outline as (u along the wire from the hole's centre, y above the ground), one per snip:
+ * from the top end of the flap's hinge chord (on his left: u sign `sL`) over the top, down his right side and across
+ * the bottom to the chord's bottom end.
  */
-export function snipPoints(n) {
-  const hw = HOLE.w / 2, hh = HOLE.h / 2, yc = HOLE.y0 + hh, hinge = HOLE.y0 + HOLE.h * HOLE.hinge;
-  const aTop = Math.asin(clamp((hinge - yc) / hh, -1, 1));   // the hinge's ends: angles aTop (right) and π − aTop (left)
-  const a0 = Math.PI - aTop, a1 = 2 * Math.PI + aTop;          // left end → bottom → right end (through 3π/2)
+export function snipPoints(n, sL = 1) {
+  const hw = HOLE.w / 2, hh = HOLE.h / 2, yc = HOLE.y0 + hh, ah = Math.acos(clamp(HOLE.hinge, -1, 1));
   const out = [];
   for (let i = 0; i < n; i++) {
-    const a = a0 + ((a1 - a0) * (i + 0.5)) / n;
+    const f = (i + 0.5) / n, a = sL > 0 ? ah + f * (2 * Math.PI - 2 * ah) : Math.PI - ah - f * (2 * Math.PI - 2 * ah);
     out.push({ u: Math.cos(a) * hw * 0.97, y: yc + Math.sin(a) * hh * 0.8 });   // (the bottom strand cut a little up)
   }
   return out;
@@ -51,8 +51,8 @@ export function snipPoints(n) {
  * Overlay state for a phase time: {w (weight over the clip), R / L (hand targets: {u, y, out} — along the wire, height,
  * towards him off the wire plane), squeeze (0..1 the jaws closing), bend (rad), look ({u, y})}. null = nothing to draw.
  */
-export function cutPose(phase, t, dur = CONFIG.abilities.cutters) {
-  const H = CONFIG.abilities.cutHole, S = H.snips, pts = snipPoints(S.length);
+export function cutPose(phase, t, dur = CONFIG.abilities.cutters, sL = 1) {
+  const H = CONFIG.abilities.cutHole, S = H.snips, pts = snipPoints(S.length, sL);
   if (phase === 'abort' || phase === 'shock') {
     // cancelled (or thrown back by the current): the arms come back over 0.3 s
     const w = 1 - ramp(t, 0, phase === 'shock' ? 0.2 : 0.3);
@@ -80,15 +80,16 @@ export function cutPose(phase, t, dur = CONFIG.abilities.cutters) {
   // the left hand holds the weave beside the cut, a little in from it and pulled back towards him
   const ref = R || at(S.length - 1);
   let L = { u: ref.u * 0.55 + (ref.u >= 0 ? -0.12 : 0.12), y: ref.y + 0.12, out: 0.03 };
-  // the peel: both hands on the flap's bottom edge, pushing it away and up as it turns (flapOpen on the sim clock)
+  // the peel: both hands on the flap near its free edge, pushing it through and round its hinge on his left as it
+  // swings (flapOpen on the sim clock) — as far as he reaches through the wire, then he lets go
   if (tt >= H.peel - 0.25) {
-    const reach = ramp(tt, H.peel - 0.25, H.peel), k2 = flapOpen(Math.max(0, tt - H.peel)) * HOLE.flapAngle;
-    const hinge = HOLE.y0 + HOLE.h * HOLE.hinge, r = hinge - HOLE.y0 - 0.04;
-    const edge = (u) => ({ u, y: hinge - r * Math.cos(k2), out: -r * Math.sin(k2) });   // away from him (out < 0)
+    const reach = ramp(tt, H.peel - 0.25, H.peel), hw = HOLE.w / 2, yc = HOLE.y0 + HOLE.h / 2, r = hw * (1 + HOLE.hinge) * 0.62;
+    const ph = flapOpen(Math.max(0, tt - H.peel)) * (HOLE.flapAngle + HOLE.flapCurl * 0.38), uh = sL * HOLE.hinge * hw;
+    const edge = (dy) => ({ u: uh - sL * r * Math.cos(ph), y: yc + dy, out: Math.max(-0.28, -r * Math.sin(ph)) });   // away from him (out < 0)
     const lift = 1 - ramp(tt, H.peel + 0.32, H.peel + 0.5);   // let go once it is past his reach
-    const eR = edge(0.13), eL = edge(-0.13);
+    const eR = edge(-0.1), eL = edge(0.12);
     const blend = (a, b, f) => ({ u: lerp(a.u, b.u, f), y: lerp(a.y, b.y, f), out: lerp(a.out, b.out, f) });
-    const back = { u: 0, y: hinge + 0.05, out: 0.12 };
+    const back = { u: 0, y: yc + 0.3, out: 0.12 };
     R = blend(R || back, lift > 0 ? eR : back, tt < H.peel ? reach : 1);
     L = blend(L, lift > 0 ? eL : back, tt < H.peel ? reach : 1);
     if (lift < 1) { R = blend(back, R, lift); L = blend(back, L, lift); }
@@ -200,7 +201,9 @@ export function cutFrame(u, dt) {
   let phase = c.phase, t = Math.max(0, now - c.t0);
   // a cut whose action ended without its last step (killed, knocked down, the order taken back): drawn as cancelled
   if (phase === 'cut' && (u.currentActionId !== 'cutters' || !u.alive)) { V.cut ??= now; phase = 'abort'; t = now - V.cut; } else V.cut = null;
-  const P = u.alive && !u.downed ? cutPose(phase, t, c.dur) : null;
+  // the flap's hinge on his left (wire-obstacles holeHingeSide): its sign along (tx, tz)
+  const sL = -c.nz * (c.tx ?? -c.nz) + c.nx * (c.tz ?? c.nx) >= 0 ? 1 : -1;
+  const P = u.alive && !u.downed ? cutPose(phase, t, c.dur, sL) : null;
   // kneeling square to the hole, his hips `standoff` from the wire: the sim stops him on the first walkable spot, up
   // to a cell further back — the body is drawn the rest of the way in (view only), and back out as he finishes
   const o3 = u.object3d, kIn = P ? clamp(P.w * 1.6, 0, 1) : 0;

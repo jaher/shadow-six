@@ -473,7 +473,7 @@ float wSnow = 0.6 * uLook.w * smoothstep(0.45, 0.9, wNw.y) * smoothstep(0.4, 0.6
 // a sub-pixel strand keeps a dark core (snow only on its upper rim): snowy wire still reads dark against snow
 wSnow *= mix(1.0, smoothstep(0.3, 0.8, wAa), clamp(vWire.z, 0.0, 1.0));
 if (wKind > 1.5 && wKind < 2.5) { wSnow = 1.0; wAlpha *= step(0.001, uLook.w); }
-if (wKind > 2.5 && wKind < 3.5) { wCol = vec3(0.75, 0.76, 0.78); wRough = 0.25; wMetal = 1.0; }  // bright cut steel
+if (wKind > 2.5 && wKind < 3.5) { wCol = vec3(0.86, 0.87, 0.88); wRough = 0.3; wMetal = 0.45; }  // bright fresh-cut steel (half metal: it must not mirror a dark sky)
 if (wKind > 3.5) { wCol *= 0.6; }
 if (wKind > 0.5 && wKind < 1.5) { wCol *= wKind > 1.1 ? 0.45 : 0.7; }   // barbs rust first; the wrap knot (wraps + grooves) darkest
 wCol = mix(wCol, vec3(0.9, 0.92, 0.95), wSnow);

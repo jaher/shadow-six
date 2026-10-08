@@ -2,9 +2,13 @@
  * Barbed wire in the running game (GPU, docs/barbed-wire.md §9): M2 camp coping renders at zoom 2 and the default
  * zoom; a slow sub-pixel pan does not make the wire shimmer (integrated wire coverage stays steady frame to frame,
  * against the old 3 cm box placeholder); the layer's frame-time and draw-call cost on M3; the M3 sparks stop when
- * the switch cuts the power; a Sapper's cutters open a crawl-only hole with frayed ends in m00; per theater (temperate, coast,
- * desert, snow) the barbs read as ~12 cm ticks at zoom 2 and every belt type stands out at zoom 1.
+ * the switch cuts the power; a Sapper's cutters open a crawl-only hole with frayed ends in m00, and the hole he cuts in
+ * M3's chain-link fence reads at the default zoom from both sides (a clear opening, its cut edge and folded-back flap
+ * standing out from the mesh); per theater (temperate, coast, desert, snow) the barbs read as ~12 cm ticks at zoom 2
+ * and every belt type stands out at zoom 1.
  */
+export const timeout = 240_000;   // six mission loads (and the cut in M3) under shared GPU load
+
 export default async function (page, t) {
   // ---- M2: the camp palisade coping at zoom 2 and the default zoom
   const m2 = await page.evaluate(async () => {
@@ -206,4 +210,73 @@ export default async function (page, t) {
   t(cut.path > 0 && cut.crawlLen < 5, `a crawler's path goes through the hole (${cut.crawlLen} m)`);
   t(cut.uprightLen > cut.crawlLen + 3, `nobody upright goes through it (${cut.uprightLen} m round)`);
   await t.shot('wire-m00-cut');
+
+  // ---- M3: the Sapper's hole in the station's chain-link fence reads at the default view (zoom 1, pitch 40°) from
+  // both sides (user: "make them stand out more"). On the fence plane round the hole (its ellipse, ρ = normalised
+  // radius): the opening (ρ < 0.7) must be clear — the snow behind shows through: brighter than the same pixels with
+  // the fence whole (no haze of mesh left in it) — and must stand out from the mesh beside it at the same heights (the
+  // crumpled cut edge, the bent-back ends, the flap folded back there): mean luminance contrast ≥ 36 (master: 22 / 31).
+  const vis = await page.evaluate(async () => {
+    const g = window.__game, G = g.game, THREE = await import('three');
+    const { HOLE } = await import('/src/art/wire-obstacles.js');
+    await g.loadMission('m03'); g.start(); g.advance(0.5); G.render(1 / 60, 1);
+    await G.mapHandle.ready;
+    const W = G.world, Wl = G.mapHandle.wire;
+    W.debug = { ...(W.debug || {}), noDetect: true, invulnerable: true };
+    W.fencePower?.set('st_fence', false);
+    const sap = W.commandos.find((c) => c.role === 'sapper');
+    sap.stop?.(); sap.x = 59.3; sap.z = 77.6;
+    const ok = g.useAbility(sap.id, 'cutters', { x: 57.6, z: 79.0 });
+    for (let i = 0; i < 12 * 30 && !Wl.holes.size; i++) { g.advance(1 / 30); if (i % 15 === 0) G.render(1 / 30, 1); }
+    g.advance(1.5); sap.x = 60.5; sap.z = 76.2; g.advance(0.5);   // the flap open; he steps out of the picture
+    Wl.finishBarbs();
+    if (!Wl.holes.size) return { ok, holes: 0 };
+    const [[key, [H]]] = [...Wl.holes], p = Wl.parts.panels.find((q) => q.runKey === key && H.d >= q.da && H.d <= q.db);
+    const f = (H.d - p.da) / (p.db - p.da), L = Math.hypot(p.b[0] - p.a[0], p.b[1] - p.a[1]);
+    const x0 = p.a[0] + (p.b[0] - p.a[0]) * f, z0 = p.a[1] + (p.b[1] - p.a[1]) * f, gy = p.ga + (p.gb - p.ga) * f, tx = (p.b[0] - p.a[0]) / L, tz = (p.b[1] - p.a[1]) / L;
+    const hw = HOLE.w / 2, hh = HOLE.h / 2, yc = HOLE.y0 + hh;
+    const cam = G.cameraController.camera, cnv = G.renderer.renderer.domElement;
+    const c2 = document.createElement('canvas'); c2.width = cnv.width; c2.height = cnv.height;
+    const ctx = c2.getContext('2d', { willReadFrequently: true }), Wd = c2.width, Hd = c2.height;
+    const grab = () => { g.render(); ctx.drawImage(cnv, 0, 0); const d = ctx.getImageData(0, 0, Wd, Hd).data, Lm = new Float32Array(d.length / 4);
+      for (let i = 0; i < Lm.length; i++) Lm[i] = 0.2126 * d[4 * i] + 0.7152 * d[4 * i + 1] + 0.0722 * d[4 * i + 2]; return Lm; };
+    const v = new THREE.Vector3(), scr = (u, y) => { v.set(x0 + tx * u, gy + y, z0 + tz * u).project(cam); return [Math.round((v.x * 0.5 + 0.5) * Wd), Math.round((0.5 - v.y * 0.5) * Hd)]; };
+    const mean = (A, S) => { let s = 0; for (const k of S) s += A[k]; return s / Math.max(1, S.size); };
+    const out = { ok, holes: Wl.holes.size, flaps: Wl.flaps.length, drawCalls: Wl.group.children.filter((o) => o.visible && o.layers.mask & 1).length };
+    for (const yaw of [0, 180]) {
+      G.cameraController.setYaw?.(yaw); G.cameraController.setZoom(1); G.cameraController.centerOn(57.6, 79.0); g.advance(0.1); g.render(); g.render();
+      // fence-plane samples every 1 cm → screen pixels: the opening, and the mesh beside the hole (1.35 hw … + 0.45 m)
+      const inner = new Set(), side = new Set();
+      for (let u = -1.4; u <= 1.4; u += 0.01) for (let y = 0.04; y <= 1.3; y += 0.01) {
+        const rho = Math.hypot(u / hw, (y - yc) / hh), [sx, sy] = scr(u, y);
+        if (sx < 0 || sy < 0 || sx >= Wd || sy >= Hd) continue;
+        const k = sy * Wd + sx;
+        if (rho < 0.7 && y > HOLE.y0 + 0.06) inner.add(k);
+        else if (Math.abs(u) > hw * 1.35 && Math.abs(u) < hw * 1.35 + 0.45 && y > 0.12 && y < yc + hh * 0.6) side.add(k);
+      }
+      for (const k of inner) side.delete(k);
+      const on = grab();
+      // the same pixels with the fence whole: the holes taken out of the layer, then put back
+      const saved = [...Wl.holes];
+      Wl.holes.clear(); Wl.rebuild(); Wl.finishBarbs();
+      const off = grab();
+      for (const [k2, v2] of saved) Wl.holes.set(k2, v2);
+      Wl.rebuild(); Wl.finishBarbs(); Wl.setFlaps(Infinity);
+      const [ca, cb] = [scr(-hw, yc), scr(hw, yc)];
+      out[yaw] = { Lin: +mean(on, inner).toFixed(1), Lside: +mean(on, side).toFixed(1), LinWhole: +mean(off, inner).toFixed(1), px: inner.size, widthPx: +Math.hypot(cb[0] - ca[0], cb[1] - ca[1]).toFixed(1) };
+      out[yaw].contrast = +(out[yaw].Lin - out[yaw].Lside).toFixed(1);
+    }
+    G.cameraController.setYaw?.(0); G.cameraController.setZoom(2); G.cameraController.centerOn(57.6, 79.0); g.advance(0.1); g.render();
+    return out;
+  });
+  t.log('M3 hole', JSON.stringify(vis));
+  t(vis.holes === 1 && vis.flaps === 1, `the cutters open one hole with its flap in the chain-link ${JSON.stringify(vis)}`);
+  t(vis.drawCalls <= 40, `M3 wire draw calls with the hole ${vis.drawCalls}`);
+  for (const yaw of [0, 180]) {
+    const r = vis[yaw];
+    t(r && r.px > 150 && r.widthPx >= 31, `yaw ${yaw}: the hole ~1 m wide on screen at zoom 1 ${JSON.stringify(r)}`);
+    t(r && r.Lin - r.LinWhole >= 15, `yaw ${yaw}: the opening is clear, the snow behind shows through (${r?.Lin} vs ${r?.LinWhole} with the fence whole)`);
+    t(r && r.contrast >= 36, `yaw ${yaw}: the hole stands out from the mesh round it at zoom 1: contrast ${r?.contrast} (≥ 36)`);
+  }
+  await t.shot('wire-m03-hole');
 }

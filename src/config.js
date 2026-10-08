@@ -333,7 +333,7 @@ export const CONFIG = {
     // the cutters open a round hole low in the wire (crawl only, grid crawlway): w × h m, bottom y0 above the ground
     // (art/wire-obstacles HOLE mirrors it); he kneels `standoff` m from the wire (hips; from a crawl too), snips at
     // `snips` (s into the cut; the first one finds out whether the wire is live) and pushes the flap away from `peel`
-    cutHole: { w: 0.86, h: 0.78, y0: 0.08, standoff: 0.6, snips: [0.75, 1.15, 1.5, 1.85, 2.2], peel: 2.45 },
+    cutHole: { w: 0.96, h: 0.86, y0: 0.05, standoff: 0.6, snips: [0.75, 1.15, 1.5, 1.85, 2.2], peel: 2.45 },
     raftDeploy: 2.0, // §3.3
     dive: 1.5, // §3.3 diving gear on/off
     uniform: 1.5, // §3.3 Spy re-dress

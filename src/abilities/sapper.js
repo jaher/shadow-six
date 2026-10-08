@@ -5,7 +5,7 @@
  *   remoteBomb B  at his feet (1.0 s); the knapsack gains the detonator
  *   detonate   A  the OLDEST planted remote bomb goes off after 0.2 s
  *   grenade    E  arc throw to a point within 13.5 m, over walls; flight 1.0 s; class `grenade`, friendly fire on
- *   cutters    W  3.0 s: a round hole (~0.86 × 0.78 m) low in the wire, crawl only (grid crawlway; the rest of the
+ *   cutters    W  3.0 s: a round hole (~0.96 × 0.86 m) low in the wire, crawl only (grid crawlway; the rest of the
  *                 fence stands); `reinforced` wire is immune; a powered `electric` fence shocks him at the first
  *                 snip (20 damage) and the cut fails
  * Missions never give both time and remote bombs (items.js normalizeSapperInventory).
