@@ -97,8 +97,9 @@ export const CONFIG = {
     radius: 0.45, // §3.1 collision cylinder R10 = 0.45 m [data]
     separation: 0.5, // §3.1 soft separation between units [rec]
     // local avoidance (src/entities/avoidance.js): lateral lane dodge layered on the path track (route progress and
-    // patrol timing unchanged) + lower-priority walkers wait for a crossing priority walker; clear = 2 × radius
-    avoid: { on: true, clear: 0.9, hyst: 0.15, moving: 0.15, together: 0.3, sameWay: 0.94, look: 4.0, horizon: 1.5, crossCos: 0.6, laneMax: 1.0, laneRate: 0.7, laneAccel: 3.0, ghostAfter: 1.5, dropBack: 0.6, brakeT: 0.6, arriveLook: 2.0, cornerR: 0.5, steerTurn: 9.4, wallR: 0.25, laneOut: 1.5, brake: 4.0 },
+    // patrol timing unchanged) + lower-priority walkers wait for a crossing priority walker; clear = 2 × radius;
+    // sep: the hard floor between two commandos walking whatever the plan, walls and lanes did (Unit._keepApart)
+    avoid: { on: true, clear: 0.9, sep: 0.8, hyst: 0.15, moving: 0.15, together: 0.3, sameWay: 0.94, look: 4.0, horizon: 1.5, crossCos: 0.6, laneMax: 1.0, laneRate: 0.7, laneAccel: 3.0, ghostAfter: 1.5, dropBack: 0.6, brakeT: 0.6, arriveLook: 2.0, cornerR: 0.5, steerTurn: 9.4, wallR: 0.25, laneOut: 1.5, brake: 4.0 },
     height: 1.8, // standing height (m): BEL 40 units
     pickRadius: 0.6, // generous screen picking radius (m)
     arriveEps: 0.08, // waypoint reached distance (m)

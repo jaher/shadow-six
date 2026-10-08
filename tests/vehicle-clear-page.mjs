@@ -43,7 +43,9 @@ export async function setup(mission = 'm01', { n = 3, R = 8, gap = 18 } = {}) {
  * Order unit `u` (in `stance`) from `dist` m out at `T` (or straight across it, `through`) from each angle in `ks`
  * (k × 45°, the first walkable start on that line): per run the smallest body gap on the way (body-clearance) and
  * the deepest posed-mesh overlap of `u` with anything static (clip audit `entity`, sampled every 5 steps and at the
- * stop), with what it hit.
+ * stop), with what it hit. Each run gets the time its path takes (`steps` at least: a start whose straight way is
+ * closed walks the way round), and `arrived` means the order finished — not that he gave up on a blocked way
+ * (Unit._guardBody stops him after three re-plans: on M1 the drums from 180° once "arrived" that way, 5 m short).
  */
 export function approachRuns(g, w, u, T, { ks = [0, 2, 4, 6], stance = 'crawl', dist = 3, through = false, steps = 900 } = {}) {
   const tick = (k) => { for (let i = 0; i < k; i++) g.step(); };
@@ -58,18 +60,26 @@ export function approachRuns(g, w, u, T, { ks = [0, 2, 4, 6], stance = 'crawl', 
     }
     if (!ok) { out.push({ k, skip: true }); continue; }
     u.stop?.(); u.setPosition(sx, sz, a + Math.PI); u.setStance(stance); tick(10);
+    let gaveUp = 0;
+    const own = Object.prototype.hasOwnProperty.call(u, 'stop'), stop = u.stop;
+    u.stop = function () { if (this.path) gaveUp++; return stop.call(this); }; // (a stop with an order on: given up)
     const took = through ? u.moveTo(2 * T.x - sx, 2 * T.z - sz) : u.moveTo(T.x, T.z);
+    const P = u.path || [];
+    let len = 0;
+    for (let i = Math.max(1, u.pathIndex); i < P.length; i++) len += Math.hypot(P[i].x - P[i - 1].x, P[i].z - P[i - 1].z);
+    const budget = Math.max(steps, Math.ceil((len / Math.max(0.3, u.speed || 1)) * 60 * 1.3) + 120);
     let minGap = Infinity, worst = { d: 0, b: '' };
-    for (let s = 0; s < steps && u.path; s += 5) {
+    for (let s = 0; s < budget && u.path; s += 5) {
       tick(5);
       minGap = Math.min(minGap, BC.unitGap(u));
       const f = depth();
       if (f.d > worst.d) worst = f;
     }
     tick(20);
+    if (own) u.stop = stop; else delete u.stop;
     const end = depth();
     if (end.d > worst.d) worst = end;
-    out.push({ k, took, arrived: !u.path, minGap: +minGap.toFixed(3), worst: +worst.d.toFixed(3), hit: worst.b, at: `${u.x.toFixed(1)},${u.z.toFixed(1)}` });
+    out.push({ k, took, arrived: !u.path && !gaveUp, len: +len.toFixed(1), minGap: +minGap.toFixed(3), worst: +worst.d.toFixed(3), hit: worst.b, at: `${u.x.toFixed(1)},${u.z.toFixed(1)}` });
   }
   return out;
 }

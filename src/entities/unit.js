@@ -29,7 +29,7 @@ const STEP_RISE = 0.35;
 /** Brain states in which a standing enemy steps aside for a mate who cannot get past him. */
 const YIELD_STATES = new Set(['IDLE', 'REINFORCE', 'RETURN', 'INVESTIGATE', 'SEARCH', 'TRACKS', 'BODY']);
 import { cornerOffset } from './path-curve.js';
-import { BODY, bodyGap, clearPose, avoidMask, inflationTiers, hasObstacles, pushedBy, deadStance, staticNear, rectSDF, MOVE_MARGIN, STOP_MARGIN } from '../world/body-clearance.js';
+import { BODY, bodyGap, clearPose, avoidMask, inflationTiers, hasObstacles, hullsNear, pushedBy, deadStance, staticNear, rectSDF, MOVE_MARGIN, STOP_MARGIN } from '../world/body-clearance.js';
 import { pathLength } from '../world/pathfinding.js';
 import { gateLayout } from '../world/breakables.js';
 import { runNoiseStep } from '../ai/running-noise.js';
@@ -508,7 +508,14 @@ export class Unit extends Entity {
       case 'swim': name = 'swim'; break;
       case 'dive': name = 'dive'; break;
       // a commando holding a load keeps its carry / drag clip (Commando._holdAnim): never walk ⇄ carry_walk per tick
-      default: name = this._holdAnim?.(moving) || (moving ? (this.moveMode === 'run' && !this._heelBlocked() ? 'run' : 'walk') : this.idleAnim || 'idle');
+      default: {
+        // (no headway — waiting, a lane sidestep while he waits — and a solid where his leading boot lands: he stands
+        // instead of striding in place into it, held a moment so the gait does not flick)
+        this._toeT = Math.max(0, (this._toeT || 0) - dt);
+        if (moving && !this._toeT && (this.trackV || 0) < 0.3 && this._toeBlocked()) this._toeT = 0.3;
+        const step = moving && !this._toeT;
+        name = this._holdAnim?.(moving) || (step ? (this.moveMode === 'run' && !this._heelBlocked() ? 'run' : 'walk') : this.idleAnim || 'idle');
+      }
     }
     this._setAnim(name);
   }
@@ -555,6 +562,24 @@ export class Unit extends Entity {
     let lift = 0;
     for (const d of [-reach, reach]) lift = Math.max(lift, (w.groundY(x + c * d, z + s * d) || 0) - g0 - heel);
     if (lift > 0) o.position.y += Math.min(lift, 0.3);
+  }
+
+  /**
+   * Placement rule (e) walking stride: the leading boot lands up to ~0.6 m ahead of the body. Is a wall, a structure's
+   * solid footprint, a solid prop (with the reach body-clearance gives it: a gate post, a crate) or a hull there?
+   * A man making no headway with one there stands rather than stride into it (M2 `barr_out` holding for a mate
+   * beside `gate_se`'s fork rest, sidestepping in a walk: his toe 6.6 cm into the rest, clipping seed 11).
+   */
+  _toeBlocked() {
+    const w = this.world, g = w?.grid;
+    if (!g) return false;
+    const c = Math.cos(this.heading), s = Math.sin(this.heading);
+    for (const d of [0.35, 0.5, 0.65]) for (const v of [-0.12, 0, 0.12]) {
+      const x = this.x + c * d - s * v, z = this.z + s * d + c * v, { i, j } = g.worldToCell(x, z);
+      if (g.inBounds(i, j) && (g.block[g.idx(i, j)] !== B.NONE || g.solidAt?.(x, z))) return true;
+      if (hullsNear(w, x, z, 0, this.vehicle || null).some((R) => rectSDF(x, z, R) < 0)) return true;
+    }
+    return false;
   }
 
   /**
@@ -809,6 +834,7 @@ export class Unit extends Entity {
         // eases it out: the body never jumps
         if (Math.hypot(this._curveX - cx0, this._curveZ - cz0) > 0.02) { this._laneX += cx0 - this._curveX; this._laneZ += cz0 - this._curveZ; }
         this._applyLane(av, dt);
+        this._keepApart(av, x0, z0, stride, dt);
       } else { this.x += lx0; this.z += lz0; }
     }
     this.vx = (this.x - x0) / dt; this.vz = (this.z - z0) / dt;
@@ -943,7 +969,8 @@ export class Unit extends Entity {
     if (cantPass && pl.block._yieldFor?.(this)) this._holdFor = pl.block.id;
     // a standing man right ahead and not yet beside me (setting off next to him): stand while the lane opens
     const tight = this.stance === 'stand' && !!pl.block && pl.blockAhead > 0 && pl.blockAhead < A.clear && Math.abs((pl.block.x - this.x) * -fz + (pl.block.z - this.z) * fx) < 0.9 * A.clear;
-    const stuck = pl.wait || cantPass || tight || (pl.block && Math.abs(this._laneSide(fx, fz)) >= A.laneMax - 1e-3);
+    // (held off a man by the hard floor, _keepApart, counts too: a man standing in the way is walked through in the end)
+    const stuck = pl.wait || cantPass || tight || this._apartHeld || (pl.block && Math.abs(this._laneSide(fx, fz)) >= A.laneMax - 1e-3);
     this._blockT = stuck ? this._blockT + dt : 0;
     // held up a while by teammates standing round him (a formation he has to cross): one of them steps aside
     // before he would walk through them
@@ -989,6 +1016,48 @@ export class Unit extends Entity {
     if (L < 1e-6) return true;
     const g = this.world.grid, k = 1 + CONFIG.units.avoid.wallR / L;
     return g.walkableLine(px, pz, px + ax * k, pz + az * k, { clearance: 0.3, dynamic: true, elevRef: g.elevAt(px, pz) });
+  }
+
+  /**
+   * The hard floor between the commandos of a group (CONFIG.units.avoid.sep), after the plan, the walls' cut of the
+   * lane and the corner curve: this tick's step may not take a commando nearer than `sep` to a teammate he keeps clear
+   * of (avoidance.blocks; not one he squeezes past, _ghostIds), and he closes in on one no faster than he can stop short
+   * of that floor at a walker's braking (CONFIG.units.avoid.brake) — the part of the step towards the man is cut to
+   * that, the part round him kept. Along his way it is walked less (the track gives it back, the pace eases off with
+   * it), across it the lane takes it. A dodge cut back by a wall, a lane reversing too late or a mate overtaken on a
+   * narrow deck never walks one man of a group into another (m00 bridge between its end posts, clip-2). The enemy's
+   * walkers keep their own tuned coordination (patrol timing, squads out of a door, couriers: mission scripts).
+   */
+  _keepApart(av, x0, z0, stride, dt) {
+    const A = CONFIG.units.avoid, w = this.world, sep = A.sep;
+    this._apartHeld = false;
+    if (!av || !sep || this.faction !== 'player' || !w?.entitiesInRadius) return;
+    let mx = this.x - x0, mz = this.z - z0;
+    const m = Math.hypot(mx, mz);
+    if (m < 1e-6) return;
+    const ghosts = this._ghostIds || [], v = m / dt;
+    const near = w.entitiesInRadius(x0, z0, sep + (v * v) / (2 * A.brake) + m + 0.05, (n) => n.faction === this.faction && blocks(this, n) && !ghosts.includes(n.id));
+    if (!near.length) return;
+    let hit = false;
+    for (const n of near) {
+      const rx = x0 - n.x, rz = z0 - n.z, r0 = Math.hypot(rx, rz);
+      if (r0 < 1e-6) continue;
+      // (inside the floor already: no closer at all)
+      const ux = rx / r0, uz = rz / r0, rad = mx * ux + mz * uz, gap = Math.max(0, r0 - sep);
+      const allow = -Math.min(gap, Math.sqrt(2 * A.brake * gap) * dt);
+      if (rad >= allow) continue;
+      mx += (allow - rad) * ux; mz += (allow - rad) * uz;
+      hit = true;
+    }
+    if (!hit) return;
+    const cx = x0 + mx - this.x, cz = z0 + mz - this.z, along = cx * av.fx + cz * av.fz;
+    this.x += cx; this.z += cz;
+    this._laneX += cx - along * av.fx; this._laneZ += cz - along * av.fz; // (the along part: the track walked less)
+    if (along < 0 && stride > 1e-6) {
+      const kept = Math.max(0, 1 + along / stride);
+      this._avScale *= kept; this.trackV *= kept;
+      this._apartHeld = kept < 0.5;
+    }
   }
 
   /** Path length (m) still to walk from his track point, counted up to `cap`. */
@@ -1241,7 +1310,7 @@ export class Unit extends Entity {
       held: this.held, buried: this.buried, disguised: this.disguised, underwater: this.underwater, hidden: this.hidden,
       carriedBy: this.carriedBy ? this.carriedBy.id : null,
       ...(this._laneX || this._laneZ || this._curveX || this._curveZ || this.vx || this.vz || this._avScale !== 1 || this._ghostIds || this._blockT || this._mdirX || this._mdirZ || this._holdFor != null || this._yieldAt != null || this._leanV || this.trackV || this._curveF != null
-        ? { avoid: [this._laneX, this._laneZ, this._laneV, this._avScale, this.vx, this.vz, this._blockT, this._ghostIds, this._curveX, this._curveZ, this._mdirX, this._mdirZ, this._holdFor, this._yieldAt, this._ghostT, this._leanV, this.trackV, this._curveF ?? null] } : null),
+        ? { avoid: [this._laneX, this._laneZ, this._laneV, this._avScale, this.vx, this.vz, this._blockT, this._ghostIds, this._curveX, this._curveZ, this._mdirX, this._mdirZ, this._holdFor, this._yieldAt, this._ghostT, this._leanV, this.trackV, this._curveF ?? null, !!this._apartHeld] } : null),
       // bodies-design §A.4 / §D.1 (optional): the settled ragdoll pose + flags
       ...(this.bodyPose ? { bodyPose: this.bodyPose } : null),
       ...(this.settled ? { settled: true } : null),
@@ -1258,7 +1327,7 @@ export class Unit extends Entity {
     this.state = d.state;
     this.path = d.path;
     this.pathIndex = d.pathIndex;
-    [this._laneX, this._laneZ, this._laneV, this._avScale, this.vx, this.vz, this._blockT, this._ghostIds, this._curveX = 0, this._curveZ = 0, this._mdirX = 0, this._mdirZ = 0, this._holdFor = null, this._yieldAt = null, this._ghostT = null, this._leanV = 0, this.trackV = 0, this._curveF = null] = d.avoid || [0, 0, 0, 1, 0, 0, 0, null];
+    [this._laneX, this._laneZ, this._laneV, this._avScale, this.vx, this.vz, this._blockT, this._ghostIds, this._curveX = 0, this._curveZ = 0, this._mdirX = 0, this._mdirZ = 0, this._holdFor = null, this._yieldAt = null, this._ghostT = null, this._leanV = 0, this.trackV = 0, this._curveF = null, this._apartHeld = false] = d.avoid || [0, 0, 0, 1, 0, 0, 0, null];
     if (this._curveF == null) this._curveF = undefined; // (never curved yet: eases in from full, as on a fresh start)
     this._footstepT = d.footstepT ?? 0;
     this._runNoiseD = d.runNoiseD ?? null;

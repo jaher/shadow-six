@@ -255,21 +255,45 @@ export function hullsNear(world, x, z, reach, ignore = null) {
  * @param {object|object[]} [ignore] entities to skip (the vehicle he is getting out of, the drum he picks up)
  */
 export function bodyGap(world, x, z, heading, stance, ignore = null) {
-  const S = bodyShape(stance);
-  const hulls = hullsNear(world, x, z, Math.max(S.front, S.back, S.arms ? Math.hypot(S.arms.at, S.arms.half) : 0) + 0.5, ignore);
+  const hulls = hullsNear(world, x, z, bodyReach(stance) + 0.5, ignore);
   if (!hulls.length) return Infinity;
-  const C = bodyCapsule(x, z, heading, stance), A = armsCapsule(x, z, heading, stance);
+  const B = bodyParts(x, z, heading, stance);
   let g = Infinity;
-  for (const R of hulls) g = Math.min(g, capsuleRectGap(C, R), A ? capsuleRectGap(A, R) : Infinity);
-  // a crawler's limbs reach out of the capsule: the drawn-up knee (one side, then the other) and the splayed toes
+  for (const R of hulls) g = Math.min(g, partsGap(B, R));
+  return g;
+}
+
+/** How far (m) any part of a body in this stance reaches from the unit position. */
+export function bodyReach(stance) {
+  const S = bodyShape(stance);
+  return Math.max(S.front, S.back, S.arms ? Math.hypot(S.arms.at, S.arms.half) : 0, CRAWL_LIMBS.has(stance) ? LIMB_REACH : 0);
+}
+
+/** The whole body at this pose: capsule, flung-out arms (a corpse on his back), a crawler's limb discs. */
+function bodyParts(x, z, heading, stance) {
+  const limbs = [];
   if (CRAWL_LIMBS.has(stance)) {
     const c = Math.cos(heading), s = Math.sin(heading);
-    for (const [a, l, r] of LIMBS) {
-      const px = x + c * a - s * l, pz = z + s * a + c * l;
-      for (const R of hulls) g = Math.min(g, (R.r != null ? Math.hypot(px - R.x, pz - R.z) - R.r : rectSDF(px, pz, R)) - r);
-    }
+    for (const [a, l, r] of LIMBS) limbs.push([x + c * a - s * l, z + s * a + c * l, r]);
   }
+  return { C: bodyCapsule(x, z, heading, stance), A: armsCapsule(x, z, heading, stance), limbs };
+}
+
+function partsGap(B, R) {
+  let g = Math.min(capsuleRectGap(B.C, R), B.A ? capsuleRectGap(B.A, R) : Infinity);
+  for (const [px, pz, r] of B.limbs) g = Math.min(g, (R.r != null ? Math.hypot(px - R.x, pz - R.z) - R.r : rectSDF(px, pz, R)) - r);
   return g;
+}
+
+/**
+ * Gap (m) between the whole body at this pose — the capsule, a corpse's flung-out arms and a crawler's limbs (the
+ * drawn-up knees, the splayed toes) — and ONE obstacle `R` (an oriented rect or a disc): > 0 clear, < 0 depth. What a
+ * moving hull or a pushed wagon checks against the men in its way (Vehicle._bodiesUnder, Pushable._bodyInWay): the
+ * same body bodyGap keeps off them, or a slow truck stopped short of a crawler's capsule with his knee under it
+ * (clip-2 gave the crawler his limbs).
+ */
+export function bodyRectGap(x, z, heading, stance, R) {
+  return partsGap(bodyParts(x, z, heading, stance), R);
 }
 
 /** Stances whose limbs splay out of the body capsule (crawl-animation.md §3: frog-legged low crawl). */
@@ -279,6 +303,7 @@ const CRAWL_LIMBS = new Set(['crawl', 'downed']);
  * drawn-up knee 0.64 m to his side just behind the hips, the toes of the straight leg up to 1.07 m behind, 0.37 m out.
  */
 const LIMBS = [[-0.15, 0.5, 0.17], [-0.15, -0.5, 0.17], [-0.95, 0.3, 0.17], [-0.95, -0.3, 0.17]];
+const LIMB_REACH = Math.max(...LIMBS.map(([a, l, r]) => Math.hypot(a, l) + r));
 
 /** Gap of a unit's current body (its stance and heading). */
 export function unitGap(u, world = u.world) {

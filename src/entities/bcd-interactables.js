@@ -19,7 +19,7 @@ import { Interactable, INTERACTABLE_KINDS, BCD_ACTIVATABLE } from './interactabl
 import { CONFIG } from '../config.js';
 import { explode } from './projectile.js';
 import { RULES } from '../world/placement.js';
-import { bodyCapsule, capsuleRectGap, unitStance } from '../world/body-clearance.js';
+import { bodyRectGap, bodyReach, unitStance } from '../world/body-clearance.js';
 import { FIXED_KIT, BCD_KIT } from '../items.js';
 import { dressingMaterial, boxUV } from '../art/dressing.js';
 import { paintedMaterial } from '../art/kit-props.js';
@@ -178,21 +178,21 @@ export class Pushable extends Interactable {
     if (d <= 0.05) { this.goal = null; this.pusher = null; this._navRest(); }
   }
   /**
-   * Would the box placed at (x, z, h) take any man's body (world/body-clearance.js: standing disc, lying capsule) to
-   * within 5 cm of it, or deeper than it is now? The pusher himself never counts.
+   * Would the box placed at (x, z, h) take any man's body (world/body-clearance.js bodyRectGap: standing disc, lying
+   * capsule with a crawler's limbs or a corpse's arms) to within 5 cm of it, or deeper than it is now? The pusher
+   * himself never counts.
    */
   _bodyInWay(x, z, h) {
     const w = this.world;
     if (!w?.entitiesInRadius) return false;
     const R = { x, z, h, hl: this.size[0] / 2, hw: this.size[1] / 2 };
     const R0 = { x: this.x, z: this.z, h: this.heading ?? 0, hl: R.hl, hw: R.hw };
-    const men = w.entitiesInRadius(x, z, Math.hypot(R.hl, R.hw) + 1.3, (u) => (u.kind === 'commando' || u.kind === 'enemy')
+    const men = w.entitiesInRadius(x, z, Math.hypot(R.hl, R.hw) + bodyReach('dead') + 0.05, (u) => (u.kind === 'commando' || u.kind === 'enemy')
       && u !== this.pusher && !u.removed && !u.vehicle && u.state !== 'inVehicle' && u.state !== 'carried' && u.state !== 'hidden'
       && !((u.y || 0) > 1.5) && u.stance !== 'swim' && u.stance !== 'dive');
     for (const u of men) {
-      const C = bodyCapsule(u.x, u.z, u.heading, unitStance(u));
-      const g = capsuleRectGap(C, R);
-      if (g < 0.05 && g < capsuleRectGap(C, R0) - 1e-3) return true;
+      const st = unitStance(u), g = bodyRectGap(u.x, u.z, u.heading, st, R);
+      if (g < 0.05 && g < bodyRectGap(u.x, u.z, u.heading, st, R0) - 1e-3) return true;
     }
     return false;
   }

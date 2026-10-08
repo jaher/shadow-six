@@ -31,7 +31,7 @@ import { createKitVehicleModel } from '../art/kit-vehicles.js';
 import { createCrewFigures } from '../art/vehicle-crew.js';
 import { angleTo, turnTowardsAngle, angleDiff } from '../core/math.js';
 import { B, T, MAX_STEP } from '../world/grid.js';
-import { hullRect, capsuleRectGap, bodyCapsule, isSolidHull, bodyShape, bodyGap } from '../world/body-clearance.js';
+import { hullRect, isSolidHull, bodyShape, bodyGap, bodyRectGap, bodyReach } from '../world/body-clearance.js';
 import { makeVision } from './enemy.js';
 import { Projectile, explode, hitBarrel } from './projectile.js';
 import { createVehicleBrain } from '../ai/vehicle-ai.js';
@@ -1081,7 +1081,7 @@ export class Vehicle extends Entity {
         const px = x + c * along - s * sg * off, pz = z + s * along + c * sg * off;
         if (!w.grid.walkableAt(px, pz) || !w.grid.walkableLine(u.x, u.z, px, pz)) continue;
         const hd = angleTo(px, pz, x, z);
-        if (capsuleRectGap(bodyCapsule(px, pz, hd, u.stance), R) < 0.1 || bodyGap(w, px, pz, hd, u.stance, this) < 0.1) continue;
+        if (bodyRectGap(px, pz, hd, u.stance, R) < 0.1 || bodyGap(w, px, pz, hd, u.stance, this) < 0.1) continue;
         if (!u.walkStraight?.(px, pz, { run: true, onArrive: () => { u.heading = hd; } })) continue;
         u.stepAside = { by: this, until: w.time + 2.5 };
         if (this.driver && this.driver.faction === 'player') this.taint(u);
@@ -1092,18 +1092,18 @@ export class Vehicle extends Entity {
   }
 
   /**
-   * Men on foot whose body (world/body-clearance.js: a disc standing, a capsule along the heading lying down) would be
-   * within `margin` of this hull placed at (x, z, h).
+   * Men on foot whose body (world/body-clearance.js: a disc standing; lying down a capsule along the heading and a
+   * crawler's knees and toes, bodyRectGap) would be within `margin` of this hull placed at (x, z, h).
    */
   _bodiesUnder(x, z, h, margin = 0.05) {
     const w = this.world;
     if (!w || !isSolidHull(this)) return [];
     const R = hullRect(this, x, z, h);
-    const reach = Math.hypot(R.hl, R.hw) + 1.2 + margin;
+    const reach = Math.hypot(R.hl, R.hw) + bodyReach('crawl') + 0.1 + margin;
     return w.entitiesInRadius(x, z, reach, (u) => (u.kind === 'commando' || u.kind === 'enemy') && u.alive
       && !u.vehicle && u.state !== 'inVehicle' && u.state !== 'carried' && !u.underwater && !((u.y || 0) > 1.5)
       && u.stance !== 'swim' && u.stance !== 'dive')
-      .filter((u) => capsuleRectGap(bodyCapsule(u.x, u.z, u.heading, u.stance), R) < margin);
+      .filter((u) => bodyRectGap(u.x, u.z, u.heading, u.stance, R) < margin);
   }
 
   /** Kill box of a rail vehicle (§3.7 [data] train: −31.5..+16 m along, ±3.4 m). */

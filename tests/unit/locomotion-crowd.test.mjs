@@ -102,6 +102,45 @@ test('M0: two commandos sent to one spot by the compound wall: one stops beside,
   assert.equal(r.off, 0, 'never on a blocked cell');
 });
 
+test('M0 bridge between its end posts (clip-2 deck cover): a group of three never walks into each other, smoothly', () => {
+  const scene = () => {
+    Entity.nextId = 1;
+    const sim = missionSim(getMission('m00')), w = sim.world, g = w.grid;
+    for (const e of [...w.enemies]) w.remove(e);
+    // the deck cells within the body clearance of the railing's end posts at x 37.25-37.5 (stampVisualNav deckCover
+    // on the GPU build: the 3 m deck is 2 m wide there)
+    g.navStamp('posts', [...g.rectCells(37.5, 28.75, 1, 0.5), ...g.rectCells(37.5, 31.25, 1, 0.5)]);
+    const men = w.commandos.slice(0, 3);
+    men.forEach((c, k) => c.setPosition(30 + (k % 2) * 0.8, 29 + k * 0.8));
+    // (the group order's formation slots, Input.orderMove)
+    [[52, 30], [51.99, 31.2], [52.01, 28.8]].forEach(([x, z], k) => men[k].issue({ type: 'move', x, z, run: false }));
+    // per tick: closest pair, ticks on blocked cells, and the largest one-tick speed blip (a jump that comes back)
+    let min = Infinity, minT = 0, off = 0, blip = 0;
+    const prev = men.map((u) => [u.x, u.z]), sp = men.map(() => [0, 0]);
+    for (let k = 0; k < 22 * 60; k++) {
+      sim.step();
+      men.forEach((u, i) => {
+        const s1 = Math.hypot(u.x - prev[i][0], u.z - prev[i][1]) * 60, [a, b] = sp[i];
+        if (a > 0.3 && b > 0.3 && s1 > 0.3 && (b - a) * (b - s1) > 0) blip = Math.max(blip, Math.min(Math.abs(b - a), Math.abs(b - s1)) * 60);
+        sp[i] = [b, s1]; prev[i] = [u.x, u.z];
+        if (u.path && !g.walkableAt(u.x, u.z)) off++;
+      });
+      for (let i = 0; i < 3; i++) for (let j = i + 1; j < 3; j++) {
+        const d = Math.hypot(men[i].x - men[j].x, men[i].z - men[j].z);
+        if (d < min) { min = d; minT = k / 60; }
+      }
+    }
+    return { min, minT, off, blip, arrived: men.every((u) => !u.path && u.x > 48) };
+  };
+  const r = scene();
+  // (was 0.07 on the GPU build, 0.62 here with the posts alone: dodges into the posts were cut back by the wall into
+  // the mate, a lane reversing too late overtook a mate slowed by the narrowing)
+  assert.ok(r.min >= 0.8, `closest ${r.min.toFixed(2)} m at ${r.minT.toFixed(2)} s`);
+  assert.ok(r.blip < 12, `no speed blip (${r.blip.toFixed(1)} m/s²): the floor brakes like a walker, no hard stop`);
+  assert.equal(r.off, 0, 'never on a blocked cell');
+  assert.ok(r.arrived, 'all through the gate');
+});
+
 test('M0: a patrol passes a commando standing by its waypoint at a body width (and keeps its timing alone)', () => {
   const stops = (withMan) => {
     Entity.nextId = 1;

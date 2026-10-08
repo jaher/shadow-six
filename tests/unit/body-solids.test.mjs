@@ -9,9 +9,10 @@ import { Commando } from '../../src/entities/commando.js';
 import { Enemy } from '../../src/entities/enemy.js';
 import { createInteractable } from '../../src/entities/interactables.js';
 import '../../src/entities/bcd-interactables.js';
+import { B } from '../../src/world/grid.js';
 import {
   STOP_MARGIN, bodyGap, unitGap, setStaticSolids, removeStaticSolids, staticNear, minAreaRect, isSolidHull, hasObstacles,
-  capsuleRectGap, bodyCapsule,
+  capsuleRectGap, bodyCapsule, bodyRectGap,
 } from '../../src/world/body-clearance.js';
 
 const DT = 1 / 60;
@@ -130,4 +131,56 @@ test('a pushed wagon stops against a man in its way (standing or prone), never r
     assert.ok(min >= 0, `${st}: min gap ${min}`);
     assert.ok(e.alive && Math.hypot(e.x - 27, e.z - 30.4) < 1e-6, `${st}: he is alive where he was`);
   }
+});
+
+test('a pushed wagon stops short of a crawler lying across its way: his knee too, not only his capsule (clip-2 limbs)', () => {
+  const w = mkWorld();
+  const p = w.add(createInteractable({ interactKind: 'pushable', id: 'wg', x: 20, z: 30, rail: [[10, 30], [50, 30]] }, { meshes: false }));
+  const gb = w.add(new Commando({ role: 'greenberet', x: 16.95, z: 30, heading: 0 }));
+  const e = freeze(w.add(new Enemy({ soldierType: 'soldier', x: 27, z: 30.4, heading: Math.PI / 2 })));
+  e.setStance('crawl'); step(w, 30);
+  p.goal = { x: 50, z: 30 }; p.pusher = gb; p._off = { x: gb.x - p.x, z: gb.z - p.z };
+  const R = () => ({ x: p.x, z: p.z, h: p.heading ?? 0, hl: p.size[0] / 2, hw: p.size[1] / 2 });
+  let min = Infinity;
+  for (let n = 0; n < 60 * 12 && p.goal; n++) { step(w); min = Math.min(min, bodyRectGap(e.x, e.z, e.heading, e.stance, R())); }
+  assert.ok(!p.goal && e.alive, 'the push stopped, he is alive');
+  assert.ok(min >= 0, `whole body clear of the wagon (min gap ${min.toFixed(3)})`);
+});
+
+test('fuel drums plugging the mouth of an alley: a soldier sent across them walks the way round and finishes (M1 drums)', () => {
+  // two buildings 3 m apart (the alley along x, z 28–31) and three drums across its east mouth, as M1's b1–b3 between
+  // barr_L_a and barr_L_b: no way past the drums with the body clear of them — the way round is the way
+  const w = mkWorld();
+  w.grid.fillRect(10, 22, 20, 6, 'block', B.HIGH);
+  w.grid.fillRect(10, 31, 20, 6, 'block', B.HIGH);
+  for (const [x, z] of [[29.6, 28.6], [30.2, 29.5], [29.6, 30.4]]) w.add(createInteractable({ interactKind: 'barrel', x, z }, { meshes: false }));
+  const e = freeze(w.add(new Enemy({ soldierType: 'soldier', x: 22, z: 29.5, heading: 0 })));
+  step(w, 10);
+  let gaveUp = 0;
+  const stop = e.stop.bind(e);
+  e.stop = () => { if (e.path) gaveUp++; stop(); };
+  assert.ok(e.moveTo(36, 29.5), 'order taken');
+  const P = e.path;
+  let len = 0;
+  for (let i = 1; i < P.length; i++) len += Math.hypot(P[i].x - P[i - 1].x, P[i].z - P[i - 1].z);
+  assert.ok(len > 20, `the way round, not through the drums (${len.toFixed(1)} m)`);
+  let min = Infinity;
+  for (let n = 0; n < Math.ceil((len / e.speed) * 60 * 1.3) && e.path; n++) { step(w); min = Math.min(min, unitGap(e)); }
+  // (the way through them was a stop against the drums and the order dropped after three re-plans, 5 m short)
+  assert.ok(!gaveUp && Math.hypot(e.x - 36, e.z - 29.5) < 0.6, `arrived, never gave up (${e.x.toFixed(2)}, ${e.z.toFixed(2)}, gave up ${gaveUp})`);
+  assert.ok(min >= 0, `body never in a drum (min gap ${min.toFixed(3)})`);
+});
+
+test('a man making no headway beside a post stands rather than stride his toe into it (M2 gate_se fork rest)', () => {
+  // the gate's fork rest as a body solid (0.07 m post with the 0.2 m reach body clearance gives it) 0.56 m ahead of a
+  // soldier who holds for a mate (no pace along his path) while his lane sidesteps: shown walking, the leading boot of
+  // the stride went 6.6 cm into the rest (clipping seed 11)
+  const w = mkWorld();
+  setStaticSolids(w, [{ owner: 9, R: { x: 30.56, z: 30, h: 0, hl: 0.27, hw: 0.27, top: 0.92 } }]);
+  const e = freeze(w.add(new Enemy({ soldierType: 'soldier', x: 30, z: 30, heading: 0 })));
+  step(w, 5);
+  const anim = (trackV, heading = 0) => { e.heading = heading; e._moving = true; e.trackV = trackV; e._toeT = 0; e._updateAnim(1 / 60); return e._anim; };
+  assert.notEqual(anim(0), 'walk', 'holding (no headway), a post where his boot lands: no stride');
+  assert.equal(anim(1.8), 'walk', 'walking on (headway): the stride as ever');
+  assert.equal(anim(0, Math.PI), 'walk', 'nothing at his toes: the sidestep is shown walking');
 });

@@ -423,7 +423,12 @@ aside (`Unit._yieldFor`, also for a teammate held up > 0.5 s crossing a formatio
 into a gap queues behind the man ahead when there is no room beside him (lead taken along the pair's mean heading,
 so never both wait); two men meeting where both half-dodges do not fit: the one giving way (`givesWay`) holds
 where his lane fits until the other is past. A man sent to a spot another holds stops beside it. Braking is a
-walker's (`brake` m/s²). Only then a walker stuck > 1.5 s squeezes past (no deadlock) — never onto a man standing on
+walker's (`brake` m/s²). Under all of it a hard floor between commandos (`Unit._keepApart`, `sep` 0.8 m): whatever
+the plan, a wall's cut of the lane or the corner curve did, a step never takes a commando nearer than `sep` to a
+teammate he keeps clear of, and he closes in on one no faster than he can stop short of it at `brake` (the part
+towards the man is cut, the part round him kept) — clip-2's posts at the m00 bridge's ends narrow its deck to 2 m, and
+a dodge cut back there walked one man of a group into another. (The enemy's walkers keep their tuned coordination:
+patrol timing, squads out of a door, couriers.) Only then a walker stuck > 1.5 s squeezes past (no deadlock) — never onto a man standing on
 his own goal, and only for a while: the men he squeezed past are forgotten once he is past them or after 3 s, so two
 men never walk on inside each other. Two men standing inside each other (a pile on a chase point) step apart: the
 one giving way takes a short step to a free spot (`Unit._settle`), or is eased off at a shuffle when his brain holds him

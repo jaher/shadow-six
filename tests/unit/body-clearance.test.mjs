@@ -6,6 +6,7 @@ import { Commando } from '../../src/entities/commando.js';
 import { Enemy } from '../../src/entities/enemy.js';
 import {
   BODY, STOP_MARGIN, bodyCapsule, bodyShape, rectSDF, capsuleRectGap, hullRect, bodyGap, unitGap, clearPose, avoidMask, sweepClear,
+  bodyRectGap, bodyReach,
 } from '../../src/world/body-clearance.js';
 
 const DT = 1 / 60;
@@ -156,4 +157,34 @@ test('a corpse never lies under a hull (fall turned / slid clear), but a man run
   step(w, 2);
   e.die('audit', null);
   assert.ok(unitGap(e) >= STOP_MARGIN - 0.01, `corpse gap ${unitGap(e)}`);
+});
+
+test('whole body vs one obstacle (bodyRectGap): a crawler\'s knees and a corpse\'s arms count, like bodyGap', () => {
+  const R = { x: 0, z: 0, h: 0, hl: 2, hw: 1 };
+  // lying across the rect's end 0.5 m off it (heading +z): the capsule clears it, the drawn-up knee towards it does not
+  const x = 2 + 0.5;
+  assert.ok(capsuleRectGap(bodyCapsule(x, 0, Math.PI / 2, 'crawl'), R) > 0.15, 'capsule clear');
+  const g = bodyRectGap(x, 0, Math.PI / 2, 'crawl', R);
+  assert.ok(g < 0, `knee under it (${g.toFixed(3)})`);
+  const w = mkWorld();
+  w.spawnVehicle('truck', { x: 30, z: 30, heading: 0 });
+  const H = hullRect(w.vehicles[0]);
+  for (const [st, px, h] of [['crawl', 30 + H.hl + 0.5, Math.PI / 2], ['dead', 30 + H.hl + 1.5, 0], ['stand', 30 + H.hl + 0.2, 0]]) {
+    assert.ok(Math.abs(bodyRectGap(px, 30, h, st, H) - bodyGap(w, px, 30, h, st)) < 1e-9, `${st}: the same body as bodyGap`);
+  }
+  assert.ok(bodyReach('crawl') >= BODY.prone.front && bodyReach('dead') > BODY.dead.back, 'reach covers every part');
+});
+
+test('a slow truck stops short of a crawler lying across its lane: his knee never under the hull (clip-2 limbs)', () => {
+  const w = mkWorld();
+  const c = w.add(new Commando({ role: 'greenberet', x: 31, z: 30.6, heading: Math.PI / 2 }));
+  c.takeDamage = () => 0; c.die = () => false;
+  c.setStance('crawl'); step(w, 20);
+  const tr = w.spawnVehicle('truck', { x: 24, z: 30, heading: 0, friendly: true });
+  tr.followPath([{ x: 39, z: 30 }], { fast: false });
+  let min = Infinity;
+  for (let n = 0; n < 420; n++) { step(w); min = Math.min(min, unitGap(c)); }
+  // (was −0.32: the truck stopped 5 cm off his capsule, the drawn-up knee 0.37 m further out under the bonnet)
+  assert.ok(c.alive && min >= 0, `whole body clear of the hull (min gap ${min.toFixed(3)})`);
+  assert.ok(tr.x < 31 - 1, `the truck waits short of him (${(tr.x - 31).toFixed(2)})`);
 });
