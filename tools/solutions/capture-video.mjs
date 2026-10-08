@@ -60,6 +60,7 @@ try {
 if (DRY) summarize();
 writeFileSync(join(OUT, DRY ? 'timeline-dry.json' : 'timeline.json'), JSON.stringify({ id, fps: FPS, size: [W, H], frames, ...result }, null, 1));
 console.log(`frames ${nFrames}; pass1 ${result.pass1.state} t=${result.pass1.time.toFixed(1)}; pass2 ${result.pass2.state} t=${result.pass2.time.toFixed(1)} detections=${result.pass2.detections} error=${result.pass2.error}`);
+console.log(`cone probe (every tick, every live cone): pass1 ${result.pass1.exposures.length} exposures, pass2 ${result.pass2.exposures.length}${[...result.pass1.exposures, ...result.pass2.exposures].slice(0, 6).map((x) => '\n  ' + x).join('')}`);
 
 /** --dry: video seconds per checkpoint step and the speeds used */
 function summarize() {
@@ -103,7 +104,7 @@ async function directorMain({ id, FPS, DRY, MAX_FRAMES }) {
   try { await solve(D1, { boardPoint, onStage: (s) => stages1.push({ id: s, t: D1.t }) }); } catch (e) { err1 = String(e?.message || e); }
   for (let i = 0; i < 600 && g.state === 'playing'; i++) g.step(dt);
   off1(); D1.dispose();
-  const pass1 = { error: err1, state: g.state, time: w.time, detections: D1.detections(), checkpoints: D1.checkpoints.map((c) => ({ name: c.name, t: c.t })), events: ev1, stages: stages1 };
+  const pass1 = { error: err1, state: g.state, time: w.time, detections: D1.detections(), exposures: D1.exposureReport(), checkpoints: D1.checkpoints.map((c) => ({ name: c.name, t: c.t })), events: ev1, stages: stages1 };
   console.log(`== pass 1: ${pass1.state} t=${pass1.time.toFixed(1)} detections=${pass1.detections} error=${err1}`);
 
   // ---------------------------------------------------------------- the cut: speed windows and camera shots (game time)
@@ -117,6 +118,7 @@ async function directorMain({ id, FPS, DRY, MAX_FRAMES }) {
   }
   for (const s of CUT.shots?.(cp, objT) ?? []) shots.push(s);
   for (const s of CUT.windows?.(cp, objT) ?? []) windows.push(s);
+  const follows = CUT.follows?.(cp, objT) ?? []; // { t0, t1, role, zoom }: the camera stays on that man (not the last one ordered)
 
   // ---------------------------------------------------------------- pass 2: the same run, filmed
   await G.loadMission(id);
@@ -213,9 +215,11 @@ async function directorMain({ id, FPS, DRY, MAX_FRAMES }) {
     const t = w.time;
     // camera
     const s = shotAt(t);
+    const fw = follows.find((f) => t >= f.t0 && t <= f.t1);
     if (pending && pending !== focusUnit && videoT - focusSince > 3.5) { focusUnit = pending; focusSince = videoT; pending = null; if (focusUnit?.role) G.select(focusUnit.role); }
     let tx, ty, tz, tzoom = 0.7;
     if (s) { tx = s.x; ty = s.y ?? w.groundY?.(s.x, s.z) ?? 0; tz = s.z; tzoom = s.zoom ?? 0.7; } // (no y: on the ground there)
+    else if (fw && D.c(fw.role)) { const u = D.c(fw.role), f = u.vehicle || u; tx = f.x; ty = f.y ?? 0; tz = f.z; tzoom = fw.zoom ?? 0.8; }
     else if (focusUnit) { const f = focusUnit.vehicle || focusUnit; tx = f.x; ty = f.y ?? 0; tz = f.z; tzoom = focusUnit.vehicle ? 0.62 : focusUnit.stance === 'crawl' || focusUnit.buried ? 0.8 : 0.7; }
     else { tx = 104; ty = 0; tz = 10; }
     if (camX == null || Math.hypot(tx - camX, tz - camZ) > 55) { camX = tx; camZ = tz; camY = ty; zoom = tzoom; }
@@ -229,6 +233,15 @@ async function directorMain({ id, FPS, DRY, MAX_FRAMES }) {
     cam.elevation = (pitch * Math.PI) / 180;
     cam.setZoom(zoom, true);
     look(camX, camY, camZ);
+    // the player's pointer: over the next victim for the 3 s before a kill (the eye cursor over a soldier, user
+    // 2026-10-07), parked off the view otherwise
+    const cur = g.hud?.cursor;
+    if (cur?.setAim) {
+      const k = ev1.find((e) => e.kind === 'kill' && t >= e.t - 3 && t <= e.t - 0.4);
+      const v = k && D.get(k.tag);
+      const p = v?.alive !== false && v ? cam.worldToScreen?.(v.x, (v.y || 0) + 1.0, v.z) : null;
+      if (p?.visible !== false && p) cur.setAim(p.x, p.y, true); else cur.setAim(-1, -1, false);
+    }
     // captions
     if (t > stepUntil) stepText = '';
     $('#capStep').textContent = stepText;
@@ -301,8 +314,8 @@ async function directorMain({ id, FPS, DRY, MAX_FRAMES }) {
   // frame index of each event: the first frame at or after its time
   return {
     pass1,
-    pass2: { error: stopped ? 'stopped at --max-frames' : err2, state: g.state, time: w.time, detections: D.detections(), checkpoints: D.checkpoints.map((c) => ({ name: c.name, t: c.t })), events: ev2, driverEvents: D.events },
-    cut: { windows, shots },
+    pass2: { error: stopped ? 'stopped at --max-frames' : err2, state: g.state, time: w.time, detections: D.detections(), exposures: D.exposureReport(), checkpoints: D.checkpoints.map((c) => ({ name: c.name, t: c.t })), events: ev2, driverEvents: D.events },
+    cut: { windows, shots, follows },
     ...(DRY ? { dryFrames } : {}),
   };
 }

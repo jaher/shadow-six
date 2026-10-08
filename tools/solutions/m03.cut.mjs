@@ -11,8 +11,9 @@ export const TITLES = {
   E: 'E · Over the dam crest: fence power off, chat up the guard',
   F: 'F · A decoy turns e12; e6 knifed from behind, carried off',
   G: 'G · The raft crosses unseen; the Sapper takes the charges',
-  H: 'H · Bunker and dam: a decoy behind the bunker, both charges in one go',
-  I: 'I · The truck (objective 3)',
+  H: 'H · The Sapper up on the crest, a decoy behind the bunker, the others to the truck road',
+  I: 'I · Bunker and dam: one charge inside the bunker, one on top of the dam',
+  J: 'J · Escape in the truck (objective 3)',
 };
 
 export const CAPTIONS = {
@@ -37,21 +38,22 @@ export const CAPTIONS = {
   F4: 'Decoy off and fetched back',
   G1: 'Green Beret, Sapper and Marine by the raft',
   G2: 'Across in a gap in every cone (a boat on the water is seen in the light band too)',
-  G3: 'The Marine packs the raft and dives (an empty raft in view is shot at); the Sapper cuts the dead fence',
+  G3: 'The Marine packs the raft and dives (an empty raft in view is shot at); the Sapper cuts a man-sized hole in the dead fence',
   G4: 'The Spy leaves e17 and chats up e20, his back to the shed',
-  G5: 'Both time bombs taken from the shed',
-  G6: 'The Spy back with e17; the Sapper out through the hole',
+  G5: 'In through the hole on his belly; both time bombs taken from the shed',
+  G5b: 'The Spy back with e17; nobody looking, the Sapper walks out through the hole upright',
+  G6: 'Down on his belly again, back to the strip',
   H1: 'The raft, deployed again, fetches the Sapper back across and is packed; up the east stair he waits on the dam crest',
   H2: 'The Spy now holds e18 at the north gate, from his south side',
   H3: 'Decoy behind the bunker, by the patrol’s path; the Green Beret back on the strip, in the snow',
   H4: 'The raft takes the Green Beret over to the truck road and is packed away',
   H5: 'The Spy walks over the crest to the truck road',
   I1: 'Decoy on, by radio: the gunner, the gate sentry and the patrol turn to it, their backs to the stair',
-  I2: 'Down the west stair, along its foot on his belly and into the bunker: charge one set inside',
-  I3: 'Charge two at the spillway gates in the middle of the crest; then off it',
-  I4: 'Bunker and dam destroyed (objectives 1 and 2)',
-  J1: 'The truck arrives north of the dam',
-  J2: 'All four aboard: mission complete',
+  I2: 'Down the west stair, along its foot on his belly, in through the bunker\u2019s doorway: charge one set inside',
+  I3: 'Charge two on top of the dam, at the spillway gates; then off the crest',
+  I4: 'The bunker gutted, the dam breached (objectives 1 and 2)',
+  J1: 'The truck backs in to the pickup north of the dam',
+  J2: 'Each man to his own door, the door pulled shut behind him: mission complete',
 };
 
 export const TITLE_CARD = `
@@ -108,4 +110,13 @@ export function windows(cp, objT) {
     if (t) w.push({ t0: t + a, t1: t + b, speed: sp });
   }
   return w;
+}
+
+/** the camera stays on one man (not the last one ordered): the Sapper at the fence — the cut, in through the hole, back out */
+export function follows(cp) {
+  const f = [];
+  const g3 = cp('G3'), g4 = cp('G4'), g5 = cp('G5'), g6 = cp('G6');
+  if (g3) f.push({ t0: g3 - 10, t1: g4 ? Math.min(g4, g3 + 40) : g3 + 15, role: 'sapper', zoom: 0.9 });
+  if (g5 && g6) f.push({ t0: g6 - Math.min(40, g6 - g5), t1: g6 + 1, role: 'sapper', zoom: 0.85 });
+  return f;
 }

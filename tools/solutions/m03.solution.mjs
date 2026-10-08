@@ -520,6 +520,19 @@ export const STAGES = [
     await D.sneak(...FENCE_IN, { mode: 'crawl', role: 'sapper', box: 12, keep: 1, edgePad: 0.5, crawlPad: 1, maxWait: 600, label: 'Sapper back to the fence' });
     // the Spy back to e17 (his W side), then the Sapper out through the hole and down to the strip
     await spyHolds(D, e17, E17_TALK);
+    // out through the man-sized hole upright (user 2026-10-08: the cut is walked through standing), the moment no cone
+    // would take in a standing man on his way through it; down on his belly again outside. If the hole stays watched,
+    // he crawls out as before.
+    const HOLE_OUT = [[57.6, 79.0], [59.3, 77.6, 0.4]];
+    // (standing up where he lies, ~1.5 s, then through: every moment of it unseen)
+    const upright = await D.until(() => D.clearAhead(sap.x, sap.z, 0.9, false)
+      && D.routeClear('sapper', HOLE_OUT, { speed: 1.9, low: false, delay: 0.7, step: 0.2 }), 90, 'the hole unwatched').then(() => true, () => false);
+    if (upright) {
+      await D.stance('sapper', 'stand');
+      D.checkpoint('G5b Sapper walks out through the hole upright');
+      await D.path('sapper', HOLE_OUT.map(([x, z]) => [x, z]), { tol: 0.4 });
+      await D.stance('sapper', 'crawl');
+    }
     for (const [x, z] of [[59.3, 77.6], [54.6, 64.5]]) await D.sneak(x, z, { mode: 'crawl', role: 'sapper', box: 10, keep: 1.5, edgePad: 1, crawlPad: 2, label: 'Sapper back out' });
     D.checkpoint('G6 Sapper back on the strip');
   }],
