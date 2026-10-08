@@ -170,7 +170,7 @@ export class TouchGame {
     }
     const tool = this.game.hud?.cursor;
     if (tool?.mode && tool.toolAt) return tool.toolAt(x, y);
-    return input.click(x, y, { double });
+    return input.click(x, y, { double, touch: true });
   }
 
   _longpress({ x, y }) {

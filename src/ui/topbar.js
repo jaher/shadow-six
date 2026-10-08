@@ -249,7 +249,7 @@ export class TopBar {
       this.card.classList.remove('on');
       this.card.hidden = true;
     }
-    this.lamp.classList.toggle('on', !!w.alarm?.active);
+    this.lamp.classList.toggle('on', !!(w.alarm?.lamp ?? w.alarm?.active));
     this._armed(this.eye, hud.cursor.mode === 'eye');
     this.eyeAnim?.tick();
     this._armed(this.camera, hud.cursor.mode === 'track');

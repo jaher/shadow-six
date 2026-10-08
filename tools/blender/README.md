@@ -36,6 +36,9 @@ switch to the library only for hinted variants; a hinted `sea_wall` tiles its 8 
 - M14 (Atlantic Wall, `manifest-atlantic-wall.json`): `military/q_m14.txt` lists the builds.
 - M13 (Le Havre docks, `manifest-le-havre.json`): `military/q_m13.txt` lists the builds (Nissen huts, brick tank garage, lock-control
   shacks, sea-lock gate with `leaf` doors, dockside jib crane, launch on its slip trolley, dock cargo stacks).
+- M15 (Compiegne, `manifest-compiegne.json`): `europe/q_m15.txt` lists the builds (`townhouse_fr.py` + `th_*.py` on `fr_common.py`:
+  the Second-Empire corner block in its three gameplay parts with mansard, lucarnes, shop fronts with striped awnings and 3D
+  lettering, terrace and iron balcony B, flat roof R, round turret; the cream townhouse; `cemetery_fr.py`: family chapel, chest tombs).
 - M8 (Tell el Eisa, `manifest-tell-el-eisa.json` + `manifest-tell-el-eisa-bridge.json`): `desert/q_m08.txt` lists the builds
   (red-tile adobe row houses with the door N / W, the riveted water reservoir and its burst ruin, jerrycan supply dumps,
   the desert timber trestle over the wadi).

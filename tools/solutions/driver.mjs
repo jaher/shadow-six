@@ -6,6 +6,8 @@
  *   - headless (node):  headlessDriver('m03')                      (tools/solutions/headless.mjs)
  *   - in the browser:   makeDriver(game.world, { step: () => { g.step(); G.render(1 / 60, 1); } })
  * `step` may return a promise (e.g. to hand a frame to a capture loop); the driver awaits it.
+ *   - live, in debug mode:  src/debug/solution-replay.js (the in-game SOLUTION replay: `aborted` stops it, `onOrder`
+ *     tells it which commando acts so the camera can follow him)
  *
  * Helpers that look ahead (seers, clearAhead, whoSees) read the same §4.2 cone rules the AI uses
  * (src/ai/perception.js): the script watches the cones like a player does before moving a man.
@@ -88,9 +90,13 @@ function alongPath(u, dist) {
 
 /**
  * @param {import('../../src/world/world.js').World} world
- * @param {{step: () => (void|Promise<void>), dt?: number, log?: (s: string) => void, quiet?: boolean}} o
+ * @param {{step: () => (void|Promise<void>), dt?: number, log?: (s: string) => void, quiet?: boolean,
+ *   aborted?: () => boolean, onOrder?: (role: string, unit: object, order: object) => void,
+ *   onCheckpoint?: (cp: object) => void}} o
+ *   aborted: once true, every tick and every order throws SolutionAborted (the replay was stopped: no order may
+ *   reach the game after that, even from a solution's own try/catch); onOrder: after each accepted player order.
  */
-export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet = false } = {}) {
+export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet = false, aborted = null, onOrder = null, onCheckpoint = null } = {}) {
   const w = world;
   const events = [];
   const offs = [];
@@ -111,7 +117,8 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
   rec('enemy:state', (p) => (p.to === 'COMBAT' || p.to === 'HOLD') ? `${tagOf(p.enemy)} ${p.from}->${p.to}` : null);
   rec('ability:refused', (p) => `${tagOf(p.unit)} ${p.id ?? p.ability ?? ''} ${p.reason ?? p.text ?? ''}`);
 
-  const tick = async () => { const r = step(); if (r && typeof r.then === 'function') await r; };
+  const halt = () => { if (aborted?.()) throw new SolutionAborted(); };
+  const tick = async () => { halt(); const r = step(); if (r && typeof r.then === 'function') await r; halt(); };
   const checkpoints = [];
 
   const D = {
@@ -142,11 +149,13 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
     },
     /** a player order (commando.issue); throws with the refusal text when the game refuses it */
     order(role, o) {
+      halt();
       const u = D.c(role) || D.get(role);
       if (!u.issue(o)) {
         const tgt = o.target?.tag ?? o.target?.id ?? o.target;
         throw new Error(`order refused ${role} ${JSON.stringify({ ...o, target: tgt })}: ${JSON.stringify(u.lastRefusal?.text ?? null)}`);
       }
+      onOrder?.(role, u, o);
       return true;
     },
     ability(role, id, target) { return D.order(role, { type: 'ability', id, target: target ?? D.c(role) }); },
@@ -157,7 +166,9 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
       const u = D.c(role);
       if (u.stance === st) return true;
       for (let i = 0; i < 180; i++) {
+        halt();
         if (u.issue({ type: 'stance', stance: st })) {
+          onOrder?.(role, u, { type: 'stance', stance: st });
           for (let k = 0; k < 120 && (u._stanceT ?? 0) > 0; k++) await tick(); // the get-up / get-down itself
           return true;
         }
@@ -267,6 +278,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
       const cp = { name, t: +w.time.toFixed(2), objectives: o, alarm: !!w.alarm?.active, detections: D.detections(),
         units: Object.fromEntries(w.commandos.map((c) => [c.role, { x: +c.x.toFixed(2), z: +c.z.toFixed(2), vehicle: c.vehicle ? tagOf(c.vehicle) : null }])) };
       checkpoints.push(cp);
+      onCheckpoint?.(cp);
       log(`CHECKPOINT ${name} t=${w.time.toFixed(1)} obj=${JSON.stringify(o)} alarm=${cp.alarm} detections=${cp.detections} ${units}`);
       return cp;
     },
@@ -275,11 +287,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
   return D;
 }
 
-/** Driver over a headless copy of mission `id` (node only). */
-export async function headlessDriver(id, o = {}) {
-  const { headlessMission } = await import('./headless.mjs');
-  const s = headlessMission(id);
-  const D = makeDriver(s.world, { step: s.step, dt: s.dt, ...o });
-  D.sim = s;
-  return D;
+/** Thrown by every tick / order of a driver whose `aborted()` turned true (a stopped replay). */
+export class SolutionAborted extends Error {
+  constructor() { super('solution replay stopped'); this.name = 'SolutionAborted'; }
 }

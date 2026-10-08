@@ -510,7 +510,7 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
   const [len, wid] = def.size || [4, 2];
   const dims = { l: len, w: wid, h: def.kind === 'emplacement' ? 1 : 2, library: vis.asset, paint: vis.paint };
   const st = { berth: 0, berthWant: 0, berthT: 0, berthy: false, destroyed: false, lastHeading: null, lastSpeed: 0, steer: 0, yawRate: 0, yaw: 0, lift: 0,
-    pitch: 0, pitchV: 0, holders: [], doors: new Map(), exT: Math.random() * 0.3, lamps: [], lampsOn: null, poolT: 0, scorch: null, t: 0, wb: len * 0.6 };
+    pitch: 0, pitchV: 0, roll: 0, rollV: 0, steerMax: 30 * DEG, holders: [], doors: new Map(), exT: Math.random() * 0.3, lamps: [], lampsOn: null, poolT: 0, scorch: null, t: 0, wb: len * 0.6 };
   const onWater = (v) => { const g = v.world?.grid; const t = g?.terrainAt?.(v.x, v.z); return t != null && (t === T_WATER || t === T_SHALLOW); };
 
   const model = {
@@ -551,9 +551,21 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
       }
       if (st.scorch) st.scorch.visible = st.destroyed;
     },
+    /**
+     * A seat's door through a boarding: 'open' (he stands at it: it swings open and stays open while he climbs in),
+     * 'enter' (he is in: the door stays open until he is seated, then shuts), 'exit' (open while he climbs out).
+     * Lorry passengers climb over the tailgate: it stays shut.
+     */
     boarding(seat, kind) {
-      for (const n of doorsForSeat(vis.meta, lt, def.kind, seat)) st.doors.set(n, { t: 0 });
-      void kind;
+      const ss = seatSide(lt, def.kind, seat);
+      if (ss?.back && TRUCKS.has(lt)) return;
+      // open: he stands at it 0.5 s, then climbs in (~1.45 s, art/vehicle-crew.js BOARD_TIMES) — it shuts as he sits
+      const hold = kind === 'open' ? DOOR_HOLD + 1.0 : kind === 'exit' ? DOOR_HOLD + 0.5 : DOOR_HOLD + 0.8;
+      for (const n of doorsForSeat(vis.meta, lt, def.kind, seat)) {
+        const d = st.doors.get(n);
+        if (d && d.t < DOOR_OPEN + d.hold) d.hold = Math.max(d.hold, d.t - DOOR_OPEN + (kind === 'enter' ? DOOR_HOLD + 0.4 : hold)); // already open: keep it open
+        else st.doors.set(n, { t: d ? DOOR_OPEN * Math.max(0, 1 - (d.t - DOOR_OPEN - d.hold) / DOOR_OPEN) : 0, hold });
+      }
     },
     seatExit: (seat) => seatSide(lt, def.kind, seat),
     trailContacts(v, out = []) {
@@ -628,6 +640,8 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
     if (b) Object.assign(dims, { w: md.width ?? md.span ?? md.beam ?? (b.max[0] - b.min[0]), l: md.length ?? md.length_over_fenders ?? (b.max[2] - b.min[2]), h: md.height ?? b.max[1] });
     const wheels = (vis.meta?.contacts || []).map((k) => k.pos?.[2]).filter(Number.isFinite);
     if (wheels.length > 1) st.wb = Math.max(...wheels) - Math.min(...wheels) || st.wb;
+    const lock = Math.max(0, ...(vis.meta?.parts || []).filter((p) => p.steer).map((p) => Math.abs(p.steer_limits_deg?.[1] ?? 30)));
+    if (lock > 0) st.steerMax = lock * DEG; // the model's own steering lock (Opel Blitz 35°)
     st.lamps = buildLamps(vis.lights, vis.object3d);
     st.beam = beamInfo(vis.meta?.lights);
     st.pennants = addPennants(vis, spawn, S.theater);
@@ -662,8 +676,12 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
     if (st.lastHeading != null && Number.isFinite(v.heading)) yawL = -wrapPi(v.heading - st.lastHeading) / dt; // + = left (CCW)
     st.lastHeading = v.heading;
     st.yawRate += (yawL - st.yawRate) * Math.min(1, dt * 12);
-    const target = Math.abs(speed) > 0.3 ? clamp(Math.atan((st.wb * st.yawRate) / speed) / (30 * DEG), -1, 1) : st.steer * 0.9;
-    st.steer += (target - st.steer) * Math.min(1, dt * 6);
+    // car-steered hulls (entities/vehicle-maneuver.js) carry the curvature they drive on (steerK, + = heading grows =
+    // a right turn): the front wheels take the matching lock (bicycle model, wheelbase from the wheel contacts), turn
+    // over while the hull stands at a change of gear, and keep their last lock when it stops; others: from the yaw rate
+    const target = v.arcDrive && Number.isFinite(v.steerK) ? clamp(Math.atan(-st.wb * v.steerK) / st.steerMax, -1, 1)
+      : Math.abs(speed) > 0.3 ? clamp(Math.atan((st.wb * st.yawRate) / speed) / (30 * DEG), -1, 1) : st.steer * 0.9;
+    st.steer += (target - st.steer) * Math.min(1, dt * (v.arcDrive ? 3.5 : 6));
     const accel = (speed - st.lastSpeed) / dt; st.lastSpeed = speed;
     const crewed = !!v.driver || (v.crew || []).some((c) => c?.alive !== false);
     const engine = !st.destroyed && (crewed || Math.abs(speed) > 0.05);
@@ -726,8 +744,20 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
     const want = soft ? clamp(-accel * 0.006 * soft, -0.035, 0.035) : 0;
     st.pitchV += ((want - st.pitch) * 90 - st.pitchV * 11) * dt;
     st.pitch += st.pitchV * dt;
-    body.position.y += (y - body.position.y) * Math.min(1, dt * 10);
-    body.rotation.set(pitch + st.pitch, bodyYaw(), roll, 'YXZ');
+    // body roll in a bend: the body leans out of the turn with the sideways acceleration (speed × yaw rate), sprung
+    const lat = (v.reversing ? -1 : 1) * (v.speed || 0) * st.yawRate;
+    const wantR = soft ? clamp(lat * 0.011 * soft, -0.045, 0.045) : 0;
+    st.rollV += ((wantR - st.roll) * 70 - st.rollV * 10) * dt;
+    st.roll += st.rollV * dt;
+    // the road under the wheels: a light, speed-scaled bounce and rock on the springs (the hull reads as rolling over
+    // ground, not sliding over it), phased by the distance driven so it stops when the wheels do
+    const sp = Math.abs((v.reversing ? -1 : 1) * (v.speed || 0));
+    st.odo = (st.odo || 0) + sp * dt;
+    const amp = soft ? Math.min(1, sp / 4) * soft : 0, o = st.odo;
+    const bump = amp * (Math.sin(o * 2.3) * 0.006 + Math.sin(o * 5.1 + 1.3) * 0.003);
+    const rock = amp * (Math.sin(o * 1.7 + 0.4) * 0.0045 + Math.sin(o * 3.9) * 0.002), nod = amp * Math.sin(o * 2.9 + 2.1) * 0.003;
+    body.position.y += (y + bump - body.position.y) * Math.min(1, dt * 10);
+    body.rotation.set(pitch + st.pitch + nod, bodyYaw(), roll + st.roll + rock, 'YXZ');
   }
 
   /**
@@ -819,7 +849,8 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
   function doors(dt) {
     for (const [n, d] of st.doors) {
       d.t += dt;
-      const open = d.t < DOOR_OPEN ? d.t / DOOR_OPEN : d.t < DOOR_OPEN + DOOR_HOLD ? 1 : 1 - (d.t - DOOR_OPEN - DOOR_HOLD) / DOOR_OPEN;
+      const hold = d.hold ?? DOOR_HOLD;
+      const open = d.t < DOOR_OPEN ? d.t / DOOR_OPEN : d.t < DOOR_OPEN + hold ? 1 : 1 - (d.t - DOOR_OPEN - hold) / DOOR_OPEN;
       const e = clamp(open, 0, 1);
       vis.setPart(n, e * e * (3 - 2 * e));
       if (open <= 0) { vis.setPart(n, 0); st.doors.delete(n); }

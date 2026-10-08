@@ -91,7 +91,7 @@ export function libTextureURL(file) {
 }
 
 /** Add-on manifests under assets/models/buildings/ (same schema, `assets` + `types` only), merged after manifest.json. */
-export const EXTRA_MANIFESTS = ['manifest-atlantic-wall', 'manifest-tunis', 'manifest-le-havre', 'manifest-tell-el-eisa', 'manifest-tell-el-eisa-bridge'];
+export const EXTRA_MANIFESTS = ['manifest-atlantic-wall', 'manifest-tunis', 'manifest-le-havre', 'manifest-compiegne', 'manifest-tell-el-eisa', 'manifest-tell-el-eisa-bridge'];
 
 /**
  * Merge an add-on manifest into `base` (in place): new assets; per type the variant / all / byTheater lists are
@@ -192,8 +192,13 @@ function loadLod(name, i) {
 /** A texture named after a shared-library albedo (GLTFLoader keeps the image name, e.g. 'ashlar_limestone_diff'). */
 const LIB_MAP = /^[a-z0-9_]+_diff$/;
 
-/** Baked kit flags (red field + white disc layout, against design-spec §10.6) — stripped on load; art/flags.js adds the spec banner. */
-const BAKED_FLAG = /^flag(\.?\d+)?$/;
+/**
+ * Baked kit flags (red field + white disc layout, against design-spec §10.6) — stripped on load; art/flags.js adds the
+ * spec banner. Every LOD: LOD0 names it `flag` / `flag.001`, the coarser LODs `flag_lod1` / `flag_lod2` — those were
+ * missed, so zoomed out (LOD1 at 0.5×) a static, dark kit flag hung behind the waving one (user 2026-10-07 "flags when
+ * you zoom out you can see a static black flag").
+ */
+export const BAKED_FLAG = /^flag(\.?\d+|_lod\d+)?$/;
 
 /** Shadows, decal layering, anisotropy, baked-flag removal. Runs once per loaded GLB (clones inherit it). */
 function prepareScene(root) {

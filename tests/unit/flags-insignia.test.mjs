@@ -71,3 +71,17 @@ test('flags: a staff car command flag wears the insignia-aware enemy flag cloth 
     assert.notEqual(mast.material.name, 'flag_cloth');
   } finally { p.dispose(); }
 });
+
+test('flags: every baked kit flag is stripped at every LOD (flag, flag.001, flag_lod1, flag_lod2), never the spec cloth', async () => {
+  const { BAKED_FLAG } = await import('../../src/art/building-library.js');
+  for (const n of ['flag', 'flag.001', 'flag001', 'flag_lod1', 'flag_lod2']) assert.ok(BAKED_FLAG.test(n), `${n} is a baked kit flag`);
+  for (const n of ['flag_cloth', 'flag_spec', 'flagpole', 'flag_pole', 'main_lod1', 'decals_lod1']) assert.ok(!BAKED_FLAG.test(n), `${n} is not`);
+  // the barracks kits do name their coarse-LOD flags that way (the static dark flag seen zoomed out)
+  const { readFileSync } = await import('node:fs');
+  const m = JSON.parse(readFileSync(new URL('../../assets/models/buildings/manifest.json', import.meta.url), 'utf8'));
+  const lod1 = m.assets.barracks_b_snow.lods[1].url;
+  const b = readFileSync(new URL(`../../assets/models/${lod1}`, import.meta.url));
+  const j = JSON.parse(b.subarray(20, 20 + b.readUInt32LE(12)).toString());
+  const baked = j.nodes.map((n) => n.name).filter((n) => /flag/.test(n || ''));
+  assert.ok(baked.length && baked.every((n) => BAKED_FLAG.test(n)), `barracks_b_snow LOD1 flags ${baked} all stripped`);
+});

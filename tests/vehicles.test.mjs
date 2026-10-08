@@ -11,7 +11,9 @@ export default async function vehicles(page, t) {
     const w = g.game.world;
     const { Commando } = await import('/src/entities/commando.js');
     const { Enemy } = await import('/src/entities/enemy.js');
-    const dr = w.add(new Commando({ role: 'driver', x: 12, z: 26, heading: 0 }));
+    // (beside the cab's right door — boarding is at a door since 2026-10-07: he climbs in there and slides across the
+    // bench to the wheel; the truck hides him from the patrol boat's MG, which covers its left side)
+    const dr = w.add(new Commando({ role: 'driver', x: 13.5, z: 29.2, heading: 0 }));
     const truck = w.spawnVehicle('truck', { x: 18, z: 27, heading: 0 });
     const boat = w.spawnVehicle('patrolboat', {
       x: 40, z: 8, heading: Math.PI / 2, crew: ['mg'],

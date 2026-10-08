@@ -13,6 +13,8 @@ import { validateMission } from '../../src/missions/schema.js';
 import { findPath } from '../../src/world/pathfinding.js';
 import { belLoadout, spawnInventory } from '../../src/items.js';
 import { makeSim } from '../unit/abilsim.mjs';
+import { takeSpot, coverSpot, lineFrame } from '../../src/abilities/spy-actions.js';
+import { LAUNDRY } from '../../src/art/clothesline.js';
 import { Alarm } from '../../src/ai/alarm.js';
 import { createObjectives, checkObjectives, updateExtractionVehicle } from '../../src/core/objectives.js';
 import { LEVEL, SNIPER_SPOT, UNIFORM, D1, D2, GENERAL_PAUSE, TANKER_ON_RAILS, S1, S2 } from '../../src/missions/m15_the_end_of_the_butcher.js';
@@ -351,4 +353,23 @@ test('m15: fix round 2 — the HQ ruin keeps smouldering (smoke over the block a
   assert.ok(fire.length >= 1, 'some fire');
   const wing = w.structures.get('hq_wing').def;
   assert.ok(smoke.some((e) => Math.hypot(e.x - wing.x, e.z - wing.z) < 5), 'over the wing too');
+});
+
+test('m15: the Spy takes the uniform where the rack is drawn (visualAt / visualRot), on the balcony', () => {
+  const m = M(), g = loadGrid(m).grid;
+  const spec = m.interactables.find((i) => i.interactKind === 'clothesline');
+  const line = { x: spec.x, z: spec.z, params: spec };
+  const F = lineFrame(line);
+  assert.ok(Math.hypot(F.x - spec.visualAt[0], F.z - spec.visualAt[1]) < 1e-9 && Math.abs(Math.atan2(F.az, F.ax) - spec.visualRot) < 1e-9, 'the frame is the drawn rack');
+  const spy = m.commandos.find((c) => c.role === 'spy');
+  const world = { grid: g, enemies: [] };
+  const take = takeSpot(world, { x: spec.x, z: spec.z }, line);
+  assert.ok(take, 'a take spot');
+  assert.equal(+g.elevAt(take.x, take.z).toFixed(2), LEVEL.B, 'on the balcony');
+  // in front of the cap, standOff off the drawn line, facing it
+  const lx = (take.x - F.x) * F.ax + (take.z - F.z) * F.az, lz = (take.x - F.x) * F.nx + (take.z - F.z) * F.nz;
+  assert.ok(Math.abs(lx - LAUNDRY.cap) < 1e-6 && Math.abs(Math.abs(lz) - LAUNDRY.standOff) < 1e-6, `line-local ${lx.toFixed(2)}, ${lz.toFixed(2)}`);
+  const cover = coverSpot(world, take, line);
+  if (cover) assert.equal(+g.elevAt(cover.x, cover.z).toFixed(2), LEVEL.B, 'dresses on the balcony');
+  assert.ok(spy, 'the Spy is in the mission');
 });

@@ -103,7 +103,7 @@ const NORTH = [
   { id: 'hydrant', type: 'sign', variant: 'fire_hydrant', x: 19.5, z: 16, h: 0.8 },
   // NW: the bombed block behind its railing (decoration, not enterable)
   { id: 'ruins_nw', type: 'ruins', variant: 'bombed_block', x: 3, z: 9, rot: deg(-20), w: 5, d: 16, h: 4, nav: false }, // no walkable library top over the railing
-  { id: 'ruins_nw_rail', type: 'fence', variant: 'iron_railing', points: [[9.4, 0], [6.2, 12], [2.6, 25.4], [0, 28]], h: 1.8, width: 0.3 }, // runs on the 15° grid
+  { id: 'ruins_nw_rail', type: 'fence', variant: 'iron_railing', points: [[9.4, 0], [6.2, 12], [3.97, 20.3], [0, 19.24]], h: 1.8, width: 0.3 }, // runs on the 15° grid; (fix round) turns W to the map edge short of the tram's terminus (it parked across the old last run)
   // the cemetery: railing on a kerb (blocks feet, not eyes), the gate gap (46.6, 22.6)–(51.8, 23.9) open, 5.4 m wide about the dossier's centre (49.2, 23.3) so the van can be driven out by clicks (fix pass 15)
   { id: 'cem_fence_w', type: 'fence', variant: 'iron_railing_kerb', points: [[46.83, 0], [41.2, 21], [46.6, 22.6]], h: 1.8, width: 0.3 }, // W run on the 15° grid
   { id: 'cem_fence_s', type: 'fence', variant: 'iron_railing_kerb', points: [[51.8, 23.9], [81, 31]], h: 1.8, width: 0.3 },
@@ -131,13 +131,16 @@ const CANAL = [
 ];
 const SOUTH = [
   { id: 'fountain', type: 'well', variant: 'fountain_statue', x: 24.5, z: 80, r: 5, h: 0.7, statueH: 6 },
-  { id: 'bridge_w', type: 'bridge', variant: 'bridge_stone_arch', x: 15.5, z: 100, rot: deg(95), w: 20, d: 9, h: 0.3 },
-  { id: 'bridge_e', type: 'bridge', variant: 'bridge_stone_arch', x: 57, z: 118, rot: deg(100), w: 24, d: 8, h: 0.3 },
+  // the street "bridges" between the basins (flat map, culverts closed): gameplay only, the basins' quay parapets are
+  // their parapets and the setts run across them (art pass: no castle drawbridge model stretched over the street)
+  { id: 'bridge_w', type: 'bridge', variant: 'bridge_stone_arch', x: 15.5, z: 100, rot: deg(95), w: 20, d: 9, h: 0.3, visual: false },
+  { id: 'bridge_e', type: 'bridge', variant: 'bridge_stone_arch', x: 57, z: 118, rot: deg(100), w: 24, d: 8, h: 0.3, visual: false },
   // the burned-out house (roofless, 3 m walls); its entrance is the gap in the E wall
   { id: 'ruin_s', type: 'wall', variant: 'ruin_burnt_walls', points: [[5, 139], [5, 123], [24, 123], [24, 129]], h: 3, width: 0.5, mat: 'stone' },
   { id: 'ruin_s_e', type: 'wall', variant: 'ruin_burnt_walls', points: [[24, 133], [24, 139]], h: 3, width: 0.5, mat: 'stone' },
-  { id: 'wreck_1', type: 'crates', variant: 'car_wreck_burnt', x: 33, z: 133.2, rot: deg(10), w: 4.2, d: 1.8, h: 1.4 },
-  { id: 'wreck_2', type: 'crates', variant: 'car_wreck_overturned', x: 29, z: 136.5, rot: deg(60), w: 4.2, d: 1.8, h: 1.2 },
+  { id: 'wreck_1', type: 'crates', variant: 'car_wreck_burnt', x: 33, z: 133.2, rot: deg(10), w: 4.2, d: 1.8, h: 1.4, vehicleArt: 'citroen11', wreck: true },
+  { id: 'wreck_2', type: 'crates', variant: 'car_wreck_overturned', x: 29, z: 136.5, rot: deg(60), w: 4.2, d: 1.8, h: 1.2, vehicleArt: 'horch901', wreck: true },
+  // (art pass: the junked cars are burnt-out library wrecks, a Citroen Traction and a Horch staff car; footprints unchanged)
   { id: 'wall_stub_se', type: 'wall', variant: 'ruin_wall_stub', points: [[45, 130.5], [49, 132]], h: 1.6, width: 0.5, mat: 'stone' },
   { id: 'roadblock_sw', type: 'sandbags', variant: 'sandbag_post', x: 2, z: 121.5, w: 2.4, d: 0.8, h: 1.1 },
   { id: 'sentry_box_sw', type: 'hut', variant: 'sentry_box', x: 2.2, z: 124.5, w: 1.5, d: 1.5, h: 2.4 },
@@ -179,6 +182,45 @@ const TERRAIN = [
   { type: 'poly', terrain: 'water', points: W3 },
   { type: 'poly', terrain: 'shallow', points: S1 },
   { type: 'poly', terrain: 'shallow', points: S2 },
+];
+
+// ---------------------------------------------------------------- art pass: paved streets (step 3p, visual only)
+// Granite setts laid along axis A over every street, square and yard (grid false: the cobble nav terrain, routes and
+// cones stay as tuned). The street area is split into pieces that border the lawns, the fuel lot, the ruins and the
+// basins exactly (no hole support in a pavement polygon); shared borders use hard edges so no seam shows. The streets
+// run on past the map edges (tram street W/E, NW road, E and S streets) so the town does not stop at a bare verge.
+const SETTS = { surface: 'setts', angle: deg(ROT), edge: 'hard', grid: false, wear: 0.55, weeds: 0.18, puddles: 0.22, patches: 0, cracks: 0.2 }; // (no repair patches: they drew as hard dark rectangles on the squares)
+const PAVEMENTS = [
+  // the tram street and the NW road, from the ruins / townhouse / fuel lot / cemetery down to the corner block and garden
+  { id: 'setts_n', ...SETTS, points: [[11, 0], [16, -20], [36, -20], [33, 0], [33, 17], [41, 20], [41, 22], [81, 31], [101, 36.2], [101, 57.2], [81, 52], [72.6, 49.2], [59.1, 45.6],
+    [58, 42.5], [45, 39], [1.26, 27.28]] }, // (the border with setts_m runs on the 15° grid, under the corner block)
+  // the W avenue, the garden street, the HQ yard and the E street down to the fountain square and the park strips
+  { id: 'setts_m', ...SETTS, points: [[1.26, 27.28], [45, 39], [36, 69.5], [47.3, 72], [48.7, 66.7], [53.4, 66.8], [59.1, 45.6], [72.6, 49.2], [81, 52], [101, 57.2], [101, 108], [81, 108],
+    [68, 106], [61, 100], [60, 95], [22, 90], [11, 88], [6, 88], [9, 76], [0, 74], [-20, 74], [-20, 22.64], [0, 28], [1, 28]] },
+  // the W bridge street, the S street and the E bridge street round the basins and the burned-out house
+  { id: 'setts_s', ...SETTS, points: [[0, 107], [8, 107], [11, 88], [22, 90], [22, 100], [19.7, 101.7], [19.7, 118.2], [49.1, 124.3], [54, 108], [54, 106],
+    [61, 100], [68, 106], [64, 114], [81, 117], [81, 119], [63, 116], [61, 129], [81, 134], [101, 139], [101, 159], [24, 159], [24, 123], [5, 123], [5, 159], [-20, 159], [-20, 107]] },
+  // the walk between the park strip and the central basin's N parapet, either side of the W stairs
+  { id: 'setts_c1', ...SETTS, points: [[19.7, 101.7], [22, 100], [26, 100.75], [26, 102.5]] },
+  { id: 'setts_c2', ...SETTS, points: [[31, 101.7], [54, 106], [53.9, 107.7], [50, 105.7], [31, 103.2]] },
+];
+
+// raked gravel walk (soft surface painted into the ground, visual only) round the HQ parterre
+const ROADS = [
+  // the parterre's raked walk: the general's morning round (GENERAL_WALK), from the garden door and back
+  { id: 'garden_walk', surface: 'gravel', points: [[GARDEN_DOOR.x, GARDEN_DOOR.z], [50, 66], [41.5, 63], [43.5, 52], [47, 44.5], [55, 45], [55.5, 53], [GARDEN_DOOR.x, GARDEN_DOOR.z]],
+    width: 1.8, wear: 0.25, weeds: 0.15, spline: false, grid: false },
+];
+
+// street furniture (visual only, block false: off every patrol route): park benches facing the basins, a second
+// Morris column on the fountain square, a French road sign at the NW road and the Feldkommandantur board by the yard
+const FURNITURE = [
+  { type: 'bench', x: 36, z: 101.5, rot: 0.185, block: false },
+  { type: 'bench', x: 45.5, z: 103.2, rot: 0.185, block: false },
+  { type: 'bench', x: 74.5, z: 113.1, rot: 0.175, block: false },
+  { type: 'morris_column', x: 14, z: 75.5, block: false },
+  { type: 'sign', variant: 'plate', x: 10.4, z: 7.5, rot: deg(285), text: 'NOYON 24\nSOISSONS 38', block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 80.2, z: 84.5, rot: deg(180), text: 'FELDKOMMANDANTUR\nCOMPIEGNE', block: false },
 ];
 
 // ---------------------------------------------------------------- ladders (dossier §5.2; everyone climbs)
@@ -323,7 +365,7 @@ export default {
   seed: 1944_0826,
   // farmland fringe (art/terrain/bocage.js): field hedges, crops and orchards on the clear map edges, hedges
   // backing walls (visual only: laid out clear of every gameplay point and route)
-  vegetation: { farmland: { crops: ['stubble', 'stubble', 'wheat'], orchards: 0.3 } },
+  vegetation: { farmland: { crops: ['stubble', 'stubble', 'wheat'], orchards: 0.3, walls: false } }, // (walls false: no trimmed hedge pressed into the W quay parapet)
   briefing: {
     historical: 'August 1944. Paris is free, and its people are in the streets cheering General de Gaulle. The Germans are pulling back to the north-east. Among the first to go was SS-Gruppenführer Helmut Schleper, the man Paris calls the Butcher for what he did to the Resistance. He is hiding in Compiègne, and tomorrow he leaves for Berlin.',
     text: 'You go in from the southern edge of the town, officer. Every morning Schleper takes a walk in the garden of the house he has made his headquarters, and that is when he is most exposed. Kill him, and while you are about it, bring the headquarters down as well. A van will be waiting for you in the cemetery to the north. Remember that the whole town is watched. If anyone raises the alarm, anywhere, they will bundle him into a car and he will be gone, and with him your mission. Quietly, gentlemen.',
@@ -344,12 +386,16 @@ export default {
   shoreShallowWidth: 0, // stone basin walls: the only ways in are the two stair flights
   baseTerrain: 'road',
   terrain: TERRAIN,
+  roads: ROADS,
+  pavements: PAVEMENTS,
+  furniture: FURNITURE,
   markers: [{ id: 'hq_point', x: HQ_POINT.x, z: HQ_POINT.z, r: 6.75, target: 'hq' }],
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
   structures: joinStructures(STRUCTURES, [['corner_block', 'corner_roof'], ['corner_roof', 'corner_turret'], ['hq', 'hq_wing']]),
   items: [],
   // §3.4 the Spy's uniform on the clothes rack on the balcony (level B)
-  interactables: [{ id: 'uniform_rack', interactKind: 'clothesline', x: UNIFORM[0], z: UNIFORM[1] }],
+  // (art pass: the rack's posts stand on the balcony at 4.5 m, 0.65 m in from the walkway's centre line, along the facade)
+  interactables: [{ id: 'uniform_rack', interactKind: 'clothesline', x: UNIFORM[0], z: UNIFORM[1], visualAt: cb(3.0, BAL_LZ - 0.65), visualY: LEVEL.B, visualRot: deg(ROT) }],
   vehicles: VEHICLES,
   commandos: COMMANDOS,
   enemies: ENEMIES,

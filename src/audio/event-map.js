@@ -224,6 +224,12 @@ export function installHandlers(a, events) {
     const v = e.vehicle, [, , drive] = vehicleSfx(v);
     if (drive) a.startLoop(key(v, 'veh'), drive, v, { follow: v, event: t, rate: 0.8 + Math.min(0.6, (e.speed || 0) / 15), range: engineRange(v) });
   });
+  // a multi-point turn (entities/vehicle-maneuver.js): the brakes at each change of gear, the engine lower in reverse
+  on('vehicle:gear', (e, t) => {
+    const v = e.vehicle, [, , drive] = vehicleSfx(v);
+    sfx('brakes', v, t);
+    if (drive) a.startLoop(key(v, 'veh'), drive, v, { follow: v, event: t, rate: e.reverse ? 0.7 : 0.82, range: engineRange(v) });
+  });
   on('vehicle:stop', (e, t) => {
     const v = e.vehicle, [, idle] = vehicleSfx(v);
     if (idle) { sfx('brakes', v, t); a.startLoop(key(v, 'veh'), idle, v, { follow: v, event: t, range: engineRange(v) }); }

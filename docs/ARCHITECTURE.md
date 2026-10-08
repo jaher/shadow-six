@@ -169,7 +169,8 @@ unsubscribe function and call it between scenarios. **Canonical events** (payloa
 | `enemy:unmasked-spy` | `{enemy, spy}` | AI → abilities (spy loses disguise), ui, audio |
 | `enemy:body-found` | `{enemy, body}` | perception → alarm |
 | `alarm:zone` | `{zone, event, cause, x, z}` | alarm (every zone/mission event: RINT, REXT, RPER, custom) → AI (barracks release), mission, tests |
-| `alarm:start` / `alarm:end` | `{x, z, cause, event?}` | alarm (siren on RINT / fade-out after 25 s) → audio (siren), ui (lamp), ai |
+| `alarm:start` / `alarm:end` | `{x, z, cause, event?}` | alarm (siren on RINT / fade-out after 25 s) → audio (siren), ai |
+| `alarm:lamp` | `{on}` | alarm (`world.alarm.lamp` switches: any alarm event lights it; dark once the siren is off, ≥ `lampHold` s passed and no enemy still answers the alarm, ≤ `lampMax` s) → ui (HUD lamp) |
 | `reinforcements` | `{barracksId, squad, units}` | AI (barracks release) → ui, audio |
 | `noise` | `{x, z, radius, kind, level, source}` | anyone (`world.emitNoise`) → perception (`brain.hear`) |
 | `shot` | `{from, to, shooter, target?, hit, weapon}` | weapons → audio, fx |
@@ -178,6 +179,7 @@ unsubscribe function and call it between scenarios. **Canonical events** (payloa
 | `door` / `device` | `{id, open}` / `{id, sfx, x, z, on}` | interactables → audio, AI (door seen used §4.6) |
 | `vehicle:enter`/`vehicle:exit` | `{vehicle, unit}` | vehicles → ui, AI (tainted §3.7) |
 | `vehicle:move` / `vehicle:stop` | `{vehicle, speed}` / `{vehicle}` | vehicles → audio |
+| `vehicle:gear` | `{vehicle, reverse}` | vehicles → audio (a change of gear in a multi-point turn) |
 | `vehicle:fire` | `{vehicle, target, weapon}` | vehicles (`fireAt`) → fx, audio |
 | `vehicle:runover` | `{vehicle, victim}` | vehicles → audio, mission |
 | `vehicle:tainted` | `{vehicle, by}` | AI → ui |

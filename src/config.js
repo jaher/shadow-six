@@ -262,6 +262,10 @@ export const CONFIG = {
     sirenFadePerSec: 0.03, // 0.0015 per 50 ms [EXE] → silent after 25 s
     sirenDur: 25, // HUD alarm lamp + siren (s); a new RINT restarts it
     sirenEvent: 'RINT', // the only event that starts the siren [EXE]
+    // HUD alarm lamp (alarm.js `lamp`): any alarm event lights it for at least lampHold s, then while the enemy
+    // still answers it (searches, investigations, fights, exit runs), never longer than lampMax s after the last event
+    lampHold: 25,
+    lampMax: 120,
     reinforceExit: 2.7, // squad exit-route speed (VEL 3)
     reinforceLoop: 1.8, // squad loop speed (VEL 2), forever
     regen: 20, // destroyed squad rebuilt from the pool 20 s after its last member dies [rec]

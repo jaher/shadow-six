@@ -511,3 +511,6 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 - 2026-10-08T00:24 PDT anti-tiling seams MERGED 562187e6 (GPU anti-tiling, render-frames, edges-void-m08 pass on merged master; unit anti-tiling + m11). Workflow merged M3 dam abutments bbec436e. Publishing.
 - 2026-10-08T00:26 PDT M1 alley crawl MERGED f82e5882 (barr_L_a turned 180°, crawl 18.8 m / 20.9 s through the alley, 0 clip; branch GPU: clipping, m03-solution, enclosure, edges-void-m01, smoke-missions, locomotion, body-wreck; unit crawl-steps + m01 on merged master). Publishing.
 - 2026-10-08T00:47 PDT hourly check: workflows active; m3-video-fixes merged walk-all-configurations 7cac6d2d → publishing.
+- 2026-10-08T00:48 PDT sent walk fire/dog before-after videos.
+- 2026-10-08T01:45 PDT flaps agent: feat/truck-rear-canvas 8e4e5bac works on the vehicle-realism base (straps + door hand), but the door-hand GPU check fails on merged master (hand never on the M2 door, seated head through roof) → resumed it to bisect + fix on latest master.
+- 2026-10-08T01:46 PDT workflows merged art/m15 53378be5, debug solution replay 48996547, HUD alarm/eye/flags/trap 22ee141d, vehicle realism 56d1ebd3 → publishing.

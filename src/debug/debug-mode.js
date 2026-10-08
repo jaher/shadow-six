@@ -2,7 +2,9 @@
  * Debug mode (`?debug`, `?debug=1`, `?debug=cones`, …): DEBUG LEVEL SELECT overlay (every mission of
  * missionList(), grouped BEL / BCD / test maps, keyboard + tap), inspection options (remembered in localStorage),
  * quick keys (F10 select, PageDown / PageUp next / previous level, Ctrl+R instant restart, F11 info HUD) and the
- * corner info HUD (mission, FPS, frame ms, draw calls, triangles, cursor x/z, camera zoom / yaw).
+ * corner info HUD (mission, FPS, frame ms, draw calls, triangles, cursor x/z, camera zoom / yaw), and the SOLUTION replay
+ * of missions with a saved solution (debug/solutions.js, debug/solution-replay.js: select section, in-game SOLUTION
+ * button, F9; Esc stops it).
  * main.js installs it only when the URL carries `debug`; nothing here exists otherwise. Pure logic: debug-options.js.
  * @module debug/debug-mode
  */
@@ -11,6 +13,8 @@ import {
   parseDebugParams, loadOptions, saveOptions, cycleOption, groupMissions, levelOrder, neighbourLevel, transformDef,
 } from './debug-options.js';
 import { getThumb, putThumb } from '../ui/thumbs.js';
+import { hasSolution, solutionIds, loadSolution } from './solutions.js';
+import { SolutionReplay } from './solution-replay.js';
 import { CONFIG } from '../config.js';
 
 const THEATER_COLORS = {
@@ -45,9 +49,12 @@ const CSS = `
 .dbg-act:focus,.dbg-act:hover{background:#4c545b}
 #dbg-info{position:fixed;left:8px;bottom:calc(52px + env(safe-area-inset-bottom));z-index:8000;pointer-events:none;font:11px/1.35 ui-monospace,monospace;
   color:#d6ffd0;background:rgba(0,0,0,.62);padding:5px 8px;border-radius:4px;white-space:pre}
-#dbg-btn{position:fixed;left:8px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:8001;min-width:56px;min-height:36px;
+#dbg-btn,#dbg-sol-btn{position:fixed;left:8px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:8001;min-width:56px;min-height:36px;
   font:700 11px/1 system-ui,sans-serif;letter-spacing:.1em;color:#ffcf4a;background:rgba(0,0,0,.6);border:1px solid #ffcf4a88;
   border-radius:4px;cursor:pointer;touch-action:manipulation}
+#dbg-sol-btn{left:72px;min-width:44px;color:#9fe39a;border-color:#9fe39a88}
+#dbg-select .dbg-sol{background:#24402a}
+#dbg-select .dbg-sol:focus,#dbg-select .dbg-sol:hover{background:#2f5636}
 `;
 
 function el(tag, cls, parent, text) {
@@ -89,6 +96,9 @@ export class DebugMode {
     this.missions = missions;
     this.history = history;
     this.options = loadOptions(storage, this.params.cones ? { cones: true } : {});
+    /** The running SOLUTION replay (SolutionReplay), or null. */
+    this.replay = null;
+    this._replayLaunch = false;
     /** Live flags read by the sim (world.debug): mutated in place so a running world follows the toggles. */
     this.flags = { invulnerable: false, noDetect: false };
     this.game = null;
@@ -111,7 +121,7 @@ export class DebugMode {
   attach(game, hooks = {}) {
     this.game = game;
     this.hooks = hooks;
-    game.debug = { flags: this.flags, transformDef: (def) => transformDef(def, this.options), mode: this };
+    game.debug = { flags: this.flags, transformDef: (def) => transformDef(def, this.effectiveOptions()), mode: this };
     const r = game.renderer?.renderer;
     const render = game.render.bind(game); // renderer.info already holds whole-frame stats (Renderer.render)
     game.render = (dt, alpha) => {
@@ -131,6 +141,12 @@ export class DebugMode {
     this.info = el('div', null, document.body);
     this.info.id = 'dbg-info';
     this.info.hidden = !this.options.infoHud;
+    this.solBtn = el('button', null, document.body, '▶ SOL');
+    this.solBtn.id = 'dbg-sol-btn';
+    this.solBtn.type = 'button';
+    this.solBtn.title = 'Replay the saved solution of this mission (F9)';
+    this.solBtn.hidden = true;
+    this.solBtn.addEventListener('click', () => this.startReplay(this.currentId));
     this._infoTimer = setInterval(() => this._updateInfo(), 250);
     return this;
   }
@@ -152,9 +168,19 @@ export class DebugMode {
     if (this.overlay) this._renderOptions();
   }
 
+  /**
+   * The options in force: a SOLUTION replay plays the mission as authored (no extra commandos, normal time of day and
+   * wind, enemies that see and hit), whatever the select's toggles say; they come back when it stops.
+   */
+  effectiveOptions() {
+    if (!this.replay && !this._replayLaunch) return this.options;
+    return { ...this.options, allCommandos: false, invulnerable: false, noDetect: false, timeOfDay: 'mission', weather: 'mission' };
+  }
+
   _syncFlags() {
-    this.flags.invulnerable = !!this.options.invulnerable;
-    this.flags.noDetect = !!this.options.noDetect;
+    const o = this.effectiveOptions();
+    this.flags.invulnerable = !!o.invulnerable;
+    this.flags.noDetect = !!o.noDetect;
   }
 
   /** Options that act on a running mission: time scale, camera, info HUD (cones follow in _frameApply). */
@@ -192,6 +218,10 @@ export class DebugMode {
     if (g.cones && this._conesFor !== g.cones) {
       this._conesFor = g.cones;
       g.cones.showAll = !!this.options.cones;
+    }
+    if (this.solBtn) {
+      const show = !this.replay && !this._replayLaunch && !!g.world && (g.state === 'playing' || g.state === 'paused') && hasSolution(this.currentId);
+      if (this.solBtn.hidden === show) this.solBtn.hidden = !show;
     }
     if (this._thumbAt && g.state === 'playing' && g.world && performance.now() > this._thumbAt) {
       this._thumbAt = 0;
@@ -252,6 +282,21 @@ export class DebugMode {
         getThumb(`dbg:${m.id}`).then((url) => { if (url) th.style.backgroundImage = `url("${url}")`; }).catch(() => {});
       }
     }
+    const sols = solutionIds();
+    if (sols.length) {
+      el('h2', null, root, `Solution replays (${sols.length})`);
+      const bar = el('div', 'dbg-bar dbg-sols', root);
+      bar.style.marginTop = '0';
+      const byId = new Map(this.missions().map((m) => [m.id, m]));
+      for (const id of sols) {
+        const m = byId.get(id);
+        const b = el('button', 'dbg-act dbg-sol', bar, `▶ ${m?.title || id} — play the solution`);
+        b.type = 'button';
+        b.dataset.solution = id;
+        b.title = 'Load the mission fresh and play its saved solution live (2× / 4× / 8×, pause, skip to a step; Esc stops)';
+        b.addEventListener('click', () => this.startReplay(id));
+      }
+    }
     el('h2', null, root, 'Options');
     this.optsEl = el('div', 'dbg-opts', root);
     this._renderOptions();
@@ -304,10 +349,11 @@ export class DebugMode {
    * Load mission `id` with the current options (loading screen unless `instant`), then skip the briefing when asked.
    * The URL becomes `?debug…&mission=<id>` so a reload / shared link lands on the same level.
    */
-  async launch(id, { instant = false } = {}) {
+  async launch(id, { instant = false, brief: forceBrief = null } = {}) {
     const g = this.game;
     if (!g || !id) return false;
-    if (this._launching) { this._pending = [id, { instant }]; return false; } // runs once the current load is done
+    if (this._launching) { this._pending = [id, { instant, brief: forceBrief }]; return false; } // runs once the current load is done
+    if (this.replay && !this._replayLaunch) this.stopReplay(); // another level: the replay ends here
     this.close();
     this._launching = true;
     this._lastId = id;
@@ -318,7 +364,7 @@ export class DebugMode {
         this.history?.replaceState?.(this.history.state, '', u.href);
       } catch { /* sandboxed history */ }
       const hud = g.hud;
-      const brief = !this.options.skipBriefing;
+      const brief = forceBrief ?? !this.options.skipBriefing;
       const load = () => (g.flow ? g.flow.startMission(id) : g.loadMission(id)).then(() => true);
       let ok;
       if (!hud && this.hooks.startMission) ok = await this.hooks.startMission(id, { brief });
@@ -348,6 +394,59 @@ export class DebugMode {
     }
   }
 
+  // ------------------------------------------------------------ SOLUTION replay
+
+  /**
+   * Load mission `id` fresh (briefing skipped, options as authored) and play its saved solution live. `toStage`:
+   * fast-forward to the start of that stage first. @returns {Promise<SolutionReplay|null>}
+   */
+  async startReplay(id, { toStage = null, speed = null } = {}) {
+    if (!hasSolution(id) || this._replayLaunch) return null;
+    const keepSpeed = speed ?? this.replay?.speed ?? 1;
+    this.stopReplay();
+    this._replayLaunch = true;
+    this._syncFlags();
+    try {
+      const sol = await loadSolution(id);
+      const ok = await this.launch(id, { instant: true, brief: false });
+      if (!ok || !this.game.world || this.currentId !== id) throw new Error(`mission ${id} did not load`);
+      if (this.game.state === 'paused') this.game.pause(false);
+      const r = new SolutionReplay(this.game, sol, {
+        speed: keepSpeed, toStage,
+        isFrozen: () => !!this.overlay,
+        onSkip: (stage) => { this.startReplay(id, { toStage: stage, speed: r.speed }); },
+        onEnd: (res) => {
+          if (this.replay === r) this.replay = null;
+          this._syncFlags();
+          this.lastReplay = res;
+          if (res.outcome === 'error') this.game.hud?.message?.(`SOLUTION REPLAY STOPPED: ${res.error}`, 'warn');
+          this.game.events?.emit?.('debug:replay-end', res);
+        },
+      });
+      this.replay = r;
+      this._replayLaunch = false;
+      this._syncFlags();
+      r.start();
+      this.game.renderer?.domElement?.focus?.();
+      return r;
+    } catch (err) {
+      console.warn('[debug] solution replay failed to start', err);
+      return null;
+    } finally {
+      this._replayLaunch = false;
+      this._syncFlags();
+    }
+  }
+
+  /** Stop the running replay (the player takes over where it stands). */
+  stopReplay() {
+    const r = this.replay;
+    this.replay = null;
+    r?.stop();
+    this._syncFlags();
+    if (this.game) this._applyLive();
+  }
+
   // ------------------------------------------------------------ keys (window capture, ahead of the HUD and Input)
 
   key(e) {
@@ -355,6 +454,16 @@ export class DebugMode {
     const consume = () => { e.preventDefault(); e.stopImmediatePropagation(); };
     if (e.code === 'F10') { consume(); if (!e.repeat) this.toggle(); return; }
     if (e.code === 'F11') { consume(); if (!e.repeat) this.setOption('infoHud', !this.options.infoHud); return; }
+    if (e.code === 'F9' && !this.overlay) {
+      consume();
+      if (!e.repeat) { if (this.replay) this.stopReplay(); else if (hasSolution(this.currentId)) this.startReplay(this.currentId); }
+      return;
+    }
+    if (this.replay && !this.overlay && e.code === 'Escape') {
+      consume();
+      if (this.replay.stepsOpen) this.replay._showSteps(false); else this.stopReplay();
+      return;
+    }
     if (this.overlay) {
       const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.code];
       if (e.code === 'Escape') { consume(); if (this.game.world) this.close(); else this.toMainMenu(); }
@@ -376,7 +485,7 @@ export class DebugMode {
 
   /** Arrow navigation: the nearest focusable in that direction (tiles, options, actions). */
   _moveFocus(dx, dy) {
-    const items = [...this.overlay.querySelectorAll('.dbg-tile, .dbg-opt, .dbg-act')];
+    const items = [...this.overlay.querySelectorAll('.dbg-tile, .dbg-opt, .dbg-act')]; // (.dbg-sol buttons are .dbg-act)
     if (!items.length) return;
     const cur = items.includes(document.activeElement) ? document.activeElement : null;
     if (!cur) { items[0].focus(); return; }
@@ -407,7 +516,10 @@ export class DebugMode {
     }
     const k = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n));
     const o = this.options;
-    const flags = [o.invulnerable && 'INVULN', o.noDetect && 'BLIND', o.cones && 'CONES', o.freeCamera && 'FREECAM'].filter(Boolean).join(' ');
+    const fo = this.effectiveOptions();
+    const flags = [fo.invulnerable && 'INVULN', fo.noDetect && 'BLIND', o.cones && 'CONES', o.freeCamera && 'FREECAM'].filter(Boolean).join(' ');
+    const r = this.replay;
+    const rep = r ? `REPLAY ${r.sol.id} step ${r.stage?.id ?? '-'} ${r.fastForward ? 'FF' : `x${r.speed}`}${r.paused ? ' paused' : ''} t=${(g.world?.time ?? 0).toFixed(0)}s` : '';
     const id = this.currentId;
     box.dataset.mission = id || '';
     box.textContent = [
@@ -416,6 +528,7 @@ export class DebugMode {
       `draws ${s.calls}  tris ${k(s.tris)}`,
       `cursor ${cur}`,
       `zoom ${(cc?.zoom ?? 0).toFixed(2)}  yaw ${(cc?.yawDeg ?? 0).toFixed(0)}°`,
+      rep,
       flags,
     ].filter(Boolean).join('\n');
   }

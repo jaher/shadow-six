@@ -42,6 +42,7 @@ import { realBody, contactMarks, setWQ, turn, setPelvisWorld, snap, writeBlend, 
   palmNormal, handQ, at, wp, wq, faceDir, finish } from './knife-kill.js';
 import { setSyringeFill, TIP_Z } from './syringe-prop.js';
 import { makeGarment as makeGarmentRef, makeOfficerCap as makeOfficerCapProp, hangCap, LAUNDRY } from './clothesline.js';
+import { lineFrame } from '../abilities/spy-actions.js';
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const smooth = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
@@ -1048,7 +1049,7 @@ function capHangWorld(rec) {
   const M = g.matrixWorld.clone().multiply(HG.local);
   return new Vector3(0, 0.07, 0.02).applyMatrix4(M);
 }
-const lineFrameArt = (line) => { const r = line.params?.rot ?? line.params?.heading ?? 0; return { x: line.x, z: line.z, ax: Math.cos(r), az: Math.sin(r) }; };
+const lineFrameArt = (line) => { const F = lineFrame(line); return { x: F.x, z: F.z, ax: F.ax, az: F.az }; }; // honours visualAt / visualRot
 
 /** Which hand takes which garment: from the take spot, the near corner on her left with her left hand. */
 function assignHands(rec, L, world) {

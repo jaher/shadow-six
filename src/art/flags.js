@@ -9,7 +9,7 @@
  */
 
 import * as THREE from 'three';
-import { buildingMeta } from './building-library.js';
+import { buildingMeta, BAKED_FLAG } from './building-library.js';
 import { dressingMaterial } from './dressing.js';
 import { VerletCloth, CLOTHS, registerCloth } from './cloth.js';
 import { WindField, resolveWind } from '../world/wind.js';
@@ -164,7 +164,7 @@ export function dressFlags(root, asset, o = {}) {
   const a = buildingMeta(asset);
   if (!a) return [];
   const hide = (n) => { n.traverse((c) => { if (c.isMesh) c.visible = false; }); n.userData.flagHidden = true; };
-  const sweep = () => root.traverse((n) => { if (/^flag(\.?\d+)?$/.test(n.name) && n.parent?.name !== 'flag_spec' && !n.userData.flagHidden) hide(n); });
+  const sweep = () => root.traverse((n) => { if (BAKED_FLAG.test(n.name) && n.parent?.name !== 'flag_spec' && !n.userData.flagHidden) hide(n); });
   sweep();
   // LODs attach asynchronously: sweep again whenever one lands
   root.userData.onLodAttached = sweep;

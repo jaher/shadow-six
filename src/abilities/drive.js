@@ -20,9 +20,21 @@ import { freeToAct } from './common.js';
 /** Everyone can ride; McRae is the BEL guest pilot (§3.5). */
 export const RIDER_ROLES = ['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy', 'mcrae', 'pilot', 'guest'];
 
-/** Point from which `unit` boards `vehicle` (a walkable cell by the hull; swimmers may use water). */
-export function boardPoint(vehicle, unit) {
+/** A land vehicle boarded through its doors (cars, lorries, the 251, the R75): not boats, guns, rail or planes. */
+export const doorBoarding = (vehicle) => vehicle?.vehicleKind === 'land' && !vehicle.def?.rail;
+
+/**
+ * Point from which `unit` boards `vehicle` (a walkable cell by the hull; swimmers may use water). A land vehicle is
+ * boarded at the door of the seat he will take (user request 2026-10-07 "when commandos enter the car it should be
+ * realistic"): LHD driver's door on the left, co-driver right, lorry passengers at the tailgate, the 251's rear doors.
+ * @param {number} [seat] seat index (default: the next free one)
+ */
+export function boardPoint(vehicle, unit, seat = null, anySide = false) {
   if (!vehicle.world) return { x: vehicle.x, z: vehicle.z };
+  if (doorBoarding(vehicle) && !anySide) {
+    const door = vehicle._exitPoint(undefined, undefined, false, unit, seat ?? vehicle.occupants.length);
+    if (door) return door;
+  }
   const swim = !!unit.canSwim;
   const edge = vehicle.muzzleToward(unit.x, unit.z); // hull side facing the unit
   return vehicle._exitPoint(edge.x, edge.z, swim) || vehicle._exitPoint(edge.x, edge.z, false);
@@ -52,8 +64,9 @@ export function boardingHint(vehicle, selection, world = null) {
   return res;
 }
 
-/** Close enough to the hull to climb in? */
-function atHull(vehicle, unit) {
+/** Close enough to the hull to climb in? A land vehicle: at the door (`door` = his boarding point). */
+function atHull(vehicle, unit, door = null, anySide = false) {
+  if (doorBoarding(vehicle) && !anySide) return !!door && Math.hypot(unit.x - door.x, unit.z - door.z) < 0.6;
   return vehicle._inHull(unit.x, unit.z, CONFIG.vehicles.exitRadius * 0.5 + 0.3);
 }
 
@@ -136,25 +149,34 @@ registerAbility({
     const V = CONFIG.vehicles;
     const load = liveLoad(commando);
     const board = load ? CONFIG.bodies.vehicleLoad : vehicle.vehicleKind === 'emplacement' ? V.gunMountTime : V.boardTime;
-    let t = 0, repath = 0, boarding = false, walked = 0, lastP = null;
+    let t = 0, repath = 0, boarding = false, walked = 0, lastP = null, noDoor = false;
+    queue(vehicle, commando, true);
     // BEL: a crawler told to board a boat gets up first — nobody crawls through the surf into a boat (M14 review:
     // the prone Driver stalled at the water's edge); land vehicles keep the crawl approach
     if (vehicle.vehicleKind === 'boat' && commando.stance === 'crawl') commando.setStance('stand');
-    const cant = () => { world.events.emit('message', { text: `${commando.nickname || commando.role}: can't reach it.`, kind: 'warn', unit: commando }); return 'failed'; };
+    const cant = () => { queue(vehicle, commando, false); world.events.emit('message', { text: `${commando.nickname || commando.role}: can't reach it.`, kind: 'warn', unit: commando }); return 'failed'; };
     return {
       interruptible: true,
       update(dt) {
-        if (vehicle.destroyed || !commando.alive) return 'failed';
+        if (vehicle.destroyed || !commando.alive) { queue(vehicle, commando, false); return 'failed'; }
         if (!boarding) {
           // walking to the hull: the unit only follows paths while 'active' (the Commando set 'busy')
           if (commando.state === 'busy') commando.state = 'active';
-          if (atHull(vehicle, commando)) {
+          if (atHull(vehicle, commando, lastP, noDoor || !!load)) {
             commando.stop();
             commando.state = 'busy';
             boarding = true;
-            commando.playAction?.('use', board);
+            if (doorBoarding(vehicle) && !load && !noDoor) {
+              // at the door: he faces it and opens it (the door swings open now; he climbs in once it is open, the seat
+              // figure carries the climb on — art/vehicle-crew.js — and the door shuts behind him)
+              commando.heading = Math.atan2(vehicle.z - commando.z, vehicle.x - commando.x);
+              vehicle.model.boarding?.(doorOf(vehicle, commando), 'open');
+              commando.playAction?.('open', board);
+            } else commando.playAction?.('use', board);
             return 'running';
           }
+          // his walk ended short of the door (no way round to it): he gets in from where he stands, by the hull
+          if (!commando.path && lastP && !noDoor && doorBoarding(vehicle) && walked > 0.5 && atHull(vehicle, commando, null, true)) { noDoor = true; return 'running'; }
           walked += dt;
           if (walked > CONFIG.abilities.approachTimeout) return cant(); // never end silently
           repath -= dt;
@@ -163,27 +185,69 @@ registerAbility({
           const onLink = !!commando.path?.[commando.pathIndex]?.link;
           if (!commando.path || (repath <= 0 && !onLink)) {
             repath = CONFIG.abilities.approachRepath;
-            const p = boardPoint(vehicle, commando);
+            const p = boardPoint(vehicle, commando, doorOf(vehicle, commando), noDoor || !!load);
             if (p && commando.path && lastP && Math.hypot(p.x - lastP.x, p.z - lastP.z) <= CONFIG.abilities.approachRepathMove) return 'running';
             lastP = p ? { x: p.x, z: p.z } : null;
-            if (!p || !commando.moveTo(p.x, p.z, {})) return cant();
+            if (p && commando.moveTo(p.x, p.z, {})) return 'running';
+            // his door can't be reached (a wall along that side): any side of the hull will do
+            if (doorBoarding(vehicle) && !noDoor) { noDoor = true; repath = 0; lastP = null; return 'running'; }
+            return cant();
           }
           return 'running';
         }
         t += dt;
         if (t < board) return 'running';
+        const seat = doorBoarding(vehicle) && !noDoor && !load ? seatFor(vehicle, commando) : null; // the seat promised him
+        const door = seat != null ? doorOf(vehicle, commando) : null; // and the door he stands at
+        queue(vehicle, commando, false);
         if (load) return loadIntoVehicle(commando, load, vehicle, world) ? 'done' : 'failed';
         const ok = vehicle.canEnter(commando);
         if (ok !== true) {
           world.events.emit('message', { text: `${commando.nickname || commando.role}: ${ok}.`, kind: 'warn', unit: commando });
           return 'failed';
         }
-        return vehicle.enter(commando) ? 'done' : 'failed';
+        return vehicle.enter(commando, seat, door) ? 'done' : 'failed';
       },
-      cancel() { commando.stop(); },
+      cancel() { queue(vehicle, commando, false); commando.stop(); },
     };
   },
 });
+
+/** Men on their way to board `vehicle` (each walks to the door of the seat promised to him). */
+function queue(vehicle, unit, on) {
+  const q = vehicle._boarders || (vehicle._boarders = new Map());
+  if (on) q.set(unit, null);
+  else q.delete(unit);
+}
+/** The door `unit` walks to: his promised seat's (the first man to the wheel may use the nearer cab door). */
+function doorOf(vehicle, unit) {
+  const seat = seatFor(vehicle, unit);
+  const q = vehicle._boarders, key = '_door';
+  if (typeof vehicle.doorFor !== 'function') return seat;
+  // chosen once with the seat (he does not switch doors half-way round the bonnet)
+  const memo = unit[key];
+  if (memo && memo.v === vehicle && memo.seat === seat) return memo.door;
+  const door = vehicle.doorFor(unit, seat);
+  unit[key] = { v: vehicle, seat, door };
+  void q;
+  return door;
+}
+
+/**
+ * The seat `unit` will take (vehicle.seatFor: the Driver the driver's seat, others the free seat whose door is
+ * nearest), promised once and kept while he walks there unless someone else takes it first.
+ */
+function seatFor(vehicle, unit) {
+  if (typeof vehicle.seatFor !== 'function') return vehicle.occupants.length;
+  const q = vehicle._boarders || (vehicle._boarders = new Map());
+  const free = vehicle.freeSeats();
+  const mine = q.get(unit);
+  if (mine != null && free.includes(mine)) return mine;
+  const promised = [...q].filter(([u, k]) => u !== unit && k != null && u.alive !== false && !u.vehicle).map(([, k]) => k);
+  const k = vehicle.seatFor(unit, promised);
+  if (q.has(unit)) q.set(unit, k);
+  return k;
+}
 
 registerAbility({
   id: 'leaveVehicle',

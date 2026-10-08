@@ -16,6 +16,7 @@ import { Interactable } from '../entities/interactables.js';
 import { CONFIG, KILL } from '../config.js';
 import { applyExplosion } from './explosions.js';
 import { systemsOf } from './system.js';
+import { makeBearTrap } from '../art/bear-trap.js';
 
 function blob(color, r = 0.18, h = 0.12) {
   const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 10), new THREE.MeshStandardMaterial({ color, roughness: 0.7 }));
@@ -74,14 +75,27 @@ export class Bomb extends Interactable {
 
 export class Trap extends Interactable {
   constructor(o) {
-    super({ interactKind: 'trap', x: o.x, z: o.z, dynamic: true, object3d: blob(0x404040, 0.25, 0.05) });
+    // a real jaw trap, half sunk in the ground while set (art/bear-trap.js; it was a flat dark disc), turned to the
+    // setter's facing so its springs lie across his path
+    super({ interactKind: 'trap', x: o.x, z: o.z, dynamic: true, object3d: makeBearTrap({ heading: o.heading ?? 0 }) });
     this.setter = o.owner ?? null;
     this.sprung = false;
     this.victim = null;
+    this.jaw = 0; // 0 set → 1 shut (visual)
+    this.trapHeading = o.heading ?? 0;
     this.object3d.position.set(this.x, 0, this.z);
   }
 
-  update() {
+  onAdded(world) {
+    super.onAdded?.(world);
+    this.object3d?.userData.setGround?.(world?.mission?.theater || 'temperate');
+  }
+
+  update(dt = 0) {
+    if (this.sprung && this.jaw < 1) { // the jaws snap shut in ~0.08 s
+      this.jaw = Math.min(1, this.jaw + (dt || 1 / 60) / 0.08);
+      this.object3d?.userData.setSprung?.(this.jaw);
+    }
     if (this.sprung || !this.world) return;
     const r = CONFIG.abilities.trap.trigger;
     for (const e of this.world.entitiesInRadius(this.x, this.z, r + 0.5, (u) => u.kind === 'enemy' && u.alive && u.state !== 'inVehicle')) {
@@ -107,7 +121,7 @@ export class Trap extends Interactable {
     return true;
   }
 
-  serialize() { return { ...super.serialize(), sprung: this.sprung, planter: this.setter?.id ?? null }; }
+  serialize() { return { ...super.serialize(), sprung: this.sprung, planter: this.setter?.id ?? null, trapHeading: this.trapHeading }; }
 }
 
 export class Decoy extends Interactable {

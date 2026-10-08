@@ -123,6 +123,16 @@ for (const t of EXTRA_PROP_TYPES) {
 }
 
 // ------------------------------------------------------------------ mesh helpers
+const TRAM_MATS = new Map();
+/** Tram rail head (worn dark steel) / flangeway groove: offset in front of the setts (pavement-material.js: -2). */
+function tramRailMat(kind) {
+  if (!TRAM_MATS.has(kind)) {
+    const head = kind === 'head';
+    TRAM_MATS.set(kind, new THREE.MeshStandardMaterial({ name: `tram-rail:${kind}`, color: head ? 0x3c3a37 : 0x0e0d0c,
+      roughness: head ? 0.42 : 0.95, metalness: head ? 0.7 : 0, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }));
+  }
+  return TRAM_MATS.get(kind);
+}
 function box(w, h, d, mat, y = h / 2) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, Math.max(h, 0.02), d), getMaterial(mat));
   m.position.y = y;
@@ -176,7 +186,15 @@ function buildLinearExtra(type, p, ctx = {}) {
     if (tile && tileRun(root, type, p, ctx, ax, az, bx, bz, len, rot)) continue;
     const seg = placed((ax + bx) / 2, (az + bz) / 2, rot);
     if (type === 'tram_track') {
-      for (const s of [-0.72, 0.72]) { const r = box(len, 0.05, 0.08, 'rail', 0.02); r.position.z = s; seg.add(r); }
+      // grooved girder rails laid flush in the setts (the pavement sits LIFT 0.035 above the ground): a polished head,
+      // the dark flangeway groove on the gauge side and a granite edging course either side
+      // (fix round: the head stands 2.5 cm proud of the setts and draws over them — polygonOffset beyond the pavement's
+      // -2 — so the route reads as two dark lines from the default camera, as before the setts went down)
+      for (const s of [-0.72, 0.72]) {
+        const r = new THREE.Mesh(new THREE.BoxGeometry(len, 0.04, 0.1), tramRailMat('head')); r.position.set(0, 0.04, s); seg.add(r);
+        const g = new THREE.Mesh(new THREE.BoxGeometry(len, 0.02, 0.06), tramRailMat('groove')); g.position.set(0, 0.045, s - Math.sign(s) * 0.08); seg.add(g);
+        for (const e of [-1, 1]) { const k = box(len, 0.02, 0.16, 'stone', 0.03); k.position.z = s + e * 0.2; seg.add(k); }
+      }
     } else {
       seg.add(box(len + width, p.h, width, p.mat));
       if (type === 'castle_wall') for (let q = -len / 2 + 1; q < len / 2; q += 2) { const c = box(0.9, 0.8, width + 0.1, p.mat, p.h + 0.4); c.position.x = q; seg.add(c); }

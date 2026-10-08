@@ -76,6 +76,7 @@ export function installTestApi(game) {
           nervousness: e.nervousness ?? 0, sawBody: !!e.sawBody, sawKill: !!e.sawKill, target: e.target ? e.target.id : null,
         })),
         alarm: !!w.alarm?.active,
+        lamp: !!(w.alarm?.lamp ?? w.alarm?.active),
         zonesFired: (w.alarm?.zonesFired || []).map((f) => ({ ...f })),
         siren: w.alarm?.siren ? { ...w.alarm.siren } : { active: false, gain: 0, t: 0 },
         clock: +(w.clock ?? w.time).toFixed(4),

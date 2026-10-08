@@ -7,9 +7,11 @@
  *   `plane`, `halftrack`) are aliases.
  * - Operators (§3.7): land → Driver (spawn `operators` overrides, e.g. the Spy in M16), water craft →
  *   Marine (`diver`), planes → McRae, fixed guns → Driver. Passengers fill the remaining seats (§3.2).
- * - Driving (§3.7): no pathfinding. `driveTo` turns in place (tank 45°/s, truck 60°/s) then drives a
- *   straight line at slow/fast speed and stops at the first blocking cell (checked every tick ahead of
- *   the nose, so other vehicles stop it too). `straightReach()` feeds the forbidden cursor.
+ * - Driving (§3.7 + 2026-10-07 car steering, entities/vehicle-maneuver.js): a land hull never pivots on the spot.
+ *   `driveTo` turns toward the point on its turning circle (`def.turnRadius`) — a multi-point turn, forward and
+ *   reverse, where there is no room — then drives a straight line at slow/fast speed and stops at the first blocking
+ *   cell (checked every tick ahead of the nose, so other vehicles stop it too). Every planned pose is the whole
+ *   footprint's. Scripted routes are planned leg by leg round what is in the way. Boats / planes keep the old rule.
  * - Run-over (§3.7 ATROPELLO): at fast speed anyone on foot in the front sensor box dies silently;
  *   at slow speed enemies step aside. Trains kill in their own box and stop for vehicles on the track.
  * - Damage (§3.7 .IMPACTOS, §3.6): bullets count hits vs the type's budget (tanks immune, tanker explodes
@@ -35,6 +37,7 @@ import { hullRect, isSolidHull, bodyShape, bodyGap, bodyRectGap, bodyReach } fro
 import { makeVision } from './enemy.js';
 import { Projectile, explode, hitBarrel } from './projectile.js';
 import { createVehicleBrain } from '../ai/vehicle-ai.js';
+import { arcStep, planManeuver, planReach, pursuitLegs, headingError } from './vehicle-maneuver.js';
 import { canSee as perceptionCanSee } from '../ai/perception.js';
 import { inContact, ramGate, applyRamResponse, bumpGate } from '../world/breakables.js';
 
@@ -44,6 +47,14 @@ const EXIT_SPACING = 0.9;
 const DEG = Math.PI / 180;
 /** Furthest (m) a driven hull backs up on its own to make room to turn in place (§3.7 + placement rule d). */
 const MAX_BACKUP = 3;
+/** Car-steered hulls (vehicle-maneuver.js): outline margin of a planned pose (m; the move itself is tested with the
+ *  smaller MOVE_MARGIN, so a hull following its plan never stops on a sample the plan skipped), maneuver speeds forward / reverse (m/s),
+ *  acceleration (m/s²), pause at a change of gear (s), sideways grip in bends (m/s², caps the speed on an arc). */
+/** Backing down a scripted leg (`reverse` route points): at most 4.5 m/s, the driver looking over his shoulder. */
+const REV_CRUISE = 4.5;
+/** Lorry cabs with a bench seat: whoever takes the wheel may get in by the nearer cab door and slide across. */
+const BENCH_CABS = new Set(['truck', 'opel_blitz_tanker']);
+const POSE_MARGIN = 0.15, MOVE_MARGIN = 0.05, MAN_FWD = 2.6, MAN_REV = 1.8, MAN_ACC = 2.2, GEAR_PAUSE = 0.45, LAT_ACC = 2.6;
 
 /**
  * Who may operate each vehicle kind by default (§3.7). Entries name a commando role, or a guest's
@@ -72,6 +83,8 @@ export function operatorMatches(ops, unit) {
  *  occludes: stamps grid.dynamicBlock (§4.2 OCLU); runover: kills in the front box at fast speed;
  *  tanker: any hit explodes it (§3.6); raft: deflates instead of being destroyed by bullets (§4.3);
  *  fastOnly: single speed (motorcycle); vision: profile when crewed (tank / sdkfz); legacy aliases via `alias`;
+ *  turnRadius (land): tightest turn of the hull centre, m (entities/vehicle-maneuver.js: wheeled hulls never pivot on
+ *  the spot — Opel Blitz ~14 m turning circle, Kübelwagen ~10 m; tracked hulls turn about a braked track);
  *  unmannable: no commando may ever man it (§3.4: the 210 mm mortar and the M20 anti-tank gun [guide]) — a
  *  mission can also set `unmannable: true` on any spawn.
  */
@@ -82,22 +95,22 @@ export const VEHICLE_TYPES = {
   patrolboat: { kind: 'boat', model: 'patrolboat', speed: 'boat', hits: 60, size: [8, 2.6], occludes: true, weapons: ['mg'], vision: 'mg' },
   minisub: { kind: 'boat', model: 'raft', speed: 'boat', hits: 30, size: [6, 1.4], occludes: false, weapons: ['torpedo'], torpedoes: 2 },
   // --- land (Driver) ---
-  truck: { kind: 'land', model: 'truck', speed: 'truck', hits: 30, size: [6.3, 2.4], occludes: true, runover: true, grenadeDestructible: true },
+  truck: { kind: 'land', model: 'truck', speed: 'truck', hits: 30, size: [6.3, 2.4], occludes: true, runover: true, grenadeDestructible: true, turnRadius: 5.6 },
   opel_blitz: { alias: 'truck' },
-  opel_blitz_tanker: { kind: 'land', model: 'fuel_truck', speed: 'truck', hits: 1, size: [6.3, 2.4], occludes: true, runover: true, tanker: true },
+  opel_blitz_tanker: { kind: 'land', model: 'fuel_truck', speed: 'truck', hits: 1, size: [6.3, 2.4], occludes: true, runover: true, tanker: true, turnRadius: 5.6 },
   fuel_truck: { alias: 'opel_blitz_tanker' },
-  kubelwagen: { kind: 'land', model: 'car', speed: 'car', hits: 20, size: [3.8, 1.6], occludes: true, runover: true },
-  willys: { kind: 'land', model: 'car', speed: 'car', hits: 30, size: [3.4, 1.6], occludes: true, runover: true },
-  horch: { kind: 'land', model: 'car', speed: 'car', hits: 30, size: [4.9, 1.9], occludes: true, runover: true },
-  citroen15: { kind: 'land', model: 'car', speed: 'car', hits: 60, size: [4.8, 1.9], occludes: true, runover: true },
-  van: { kind: 'land', model: 'truck', speed: 'car', hits: 60, size: [5, 2.1], occludes: true, runover: true },
-  car: { kind: 'land', model: 'car', speed: 'car', hits: 60, size: [4.8, 1.9], occludes: true, runover: true },
-  motorcycle: { kind: 'land', model: 'motorcycle', speed: 'motorcycle', hits: 20, size: [2.3, 1.7], occludes: false, runover: true, fastOnly: true },
-  panzer2: { kind: 'land', model: 'tank', speed: 'tank', hits: 1000, armor: 'light', size: [5, 2.8], occludes: true, runover: true, weapons: ['cannon', 'tankMg'], vision: 'tank', turret: true },
-  panzer3: { kind: 'land', model: 'tank', speed: 'tank', hits: 0, armor: 'heavy', size: [5.5, 2.9], occludes: true, runover: true, weapons: ['cannon', 'tankMg'], vision: 'tank', turret: true },
-  panzer4: { kind: 'land', model: 'tank', speed: 'tank', hits: 0, armor: 'heavy', size: [6.6, 2.9], occludes: true, runover: true, weapons: ['cannon', 'tankMg'], vision: 'tank', turret: true },
+  kubelwagen: { kind: 'land', model: 'car', speed: 'car', hits: 20, size: [3.8, 1.6], occludes: true, runover: true, turnRadius: 5.0 },
+  willys: { kind: 'land', model: 'car', speed: 'car', hits: 30, size: [3.4, 1.6], occludes: true, runover: true, turnRadius: 5.2 },
+  horch: { kind: 'land', model: 'car', speed: 'car', hits: 30, size: [4.9, 1.9], occludes: true, runover: true, turnRadius: 6.0 },
+  citroen15: { kind: 'land', model: 'car', speed: 'car', hits: 60, size: [4.8, 1.9], occludes: true, runover: true, turnRadius: 6.0 },
+  van: { kind: 'land', model: 'truck', speed: 'car', hits: 60, size: [5, 2.1], occludes: true, runover: true, turnRadius: 6.0 },
+  car: { kind: 'land', model: 'car', speed: 'car', hits: 60, size: [4.8, 1.9], occludes: true, runover: true, turnRadius: 6.0 },
+  motorcycle: { kind: 'land', model: 'motorcycle', speed: 'motorcycle', hits: 20, size: [2.3, 1.7], occludes: false, runover: true, fastOnly: true, turnRadius: 2.6 },
+  panzer2: { kind: 'land', model: 'tank', speed: 'tank', hits: 1000, armor: 'light', size: [5, 2.8], occludes: true, runover: true, weapons: ['cannon', 'tankMg'], vision: 'tank', turret: true, turnRadius: 1.5 },
+  panzer3: { kind: 'land', model: 'tank', speed: 'tank', hits: 0, armor: 'heavy', size: [5.5, 2.9], occludes: true, runover: true, weapons: ['cannon', 'tankMg'], vision: 'tank', turret: true, turnRadius: 1.6 },
+  panzer4: { kind: 'land', model: 'tank', speed: 'tank', hits: 0, armor: 'heavy', size: [6.6, 2.9], occludes: true, runover: true, weapons: ['cannon', 'tankMg'], vision: 'tank', turret: true, turnRadius: 1.7 },
   tank: { alias: 'panzer2' },
-  sdkfz: { kind: 'land', model: 'armoredcar', speed: 'halftrack', hits: 500, armor: 'light', size: [5.9, 2.2], occludes: true, runover: true, weapons: ['tankMg'], vision: 'sdkfz', turret: true },
+  sdkfz: { kind: 'land', model: 'armoredcar', speed: 'halftrack', hits: 500, armor: 'light', size: [5.9, 2.2], occludes: true, runover: true, weapons: ['tankMg'], vision: 'sdkfz', turret: true, turnRadius: 6.5 },
   armoredcar: { alias: 'sdkfz' },
   halftrack: { alias: 'sdkfz' },
   // --- planes (McRae) ---
@@ -467,15 +480,90 @@ export class Vehicle extends Entity {
    * Enemies who see the commando board mark the vehicle tainted (§3.7, §4.3).
    * @returns {boolean}
    */
-  enter(unit) {
+  /**
+   * The seat an occupant sits in (doors, exit side, seated figure): the one he was given when he got in — the Driver
+   * the driver's seat, a passenger the seat whose door he walked to — else his place in the list.
+   */
+  seatOf(unit) {
+    const s = this.seats?.get(unit);
+    return s != null ? s : this.occupants.indexOf(unit);
+  }
+
+  /** Free seats (no occupant in them), lowest first. */
+  freeSeats() {
+    const taken = new Set(this.occupants.map((u) => this.seatOf(u)));
+    const out = [];
+    for (let k = 0; k < this.capacity; k++) if (!taken.has(k)) out.push(k);
+    return out;
+  }
+
+  /**
+   * The seat `unit` would take now: the driver's seat (0) for the operator, or for the first man in when nobody
+   * in the team could drive it (someone takes the wheel); anyone else the free seat whose door is nearest
+   * him, the driver's seat last. `skip`: seats already promised to men on their way.
+   */
+  seatFor(unit, skip = []) {
+    const free = this.freeSeats().filter((k) => !skip.includes(k));
+    if (!free.length) return this.occupants.length;
+    // boats, guns, planes keep their own order; an enemy crewman takes the first seat (the lorry driver at the wheel)
+    if (this.isBoat || this.def.kind !== 'land' || !this.world || !Number.isFinite(unit?.x) || unit.faction !== 'player') return free[0];
+    if (free.includes(0) && !this.driver && this.canOperate(unit)) return 0;
+    // (a team with a Driver keeps the wheel for him: the others take the passenger seats)
+    const drivers = [...this.occupants, ...(this.world.commandos || [])].some((u) => u !== unit && u.alive !== false && this.canOperate(u));
+    if (free.includes(0) && !skip.includes(0) && !this.occupants.length && !drivers) return 0;
+    const pass = free.filter((k) => k !== 0);
+    if (!pass.length) return free[0];
+    let best = pass[0], bd = Infinity;
+    for (const k of pass) {
+      const p = this._doorSpot(k), q = this._exitPoint(undefined, undefined, false, unit, k);
+      // a door that opens onto a wall / cliff (no standing room by it) is the last choice
+      const shut = !q || Math.hypot(q.x - p.x, q.z - p.z) > 1.2 ? 100 : 0;
+      const d = Math.hypot(p.x - unit.x, p.z - unit.z) + shut;
+      if (d < bd - 1e-6) { bd = d; best = k; }
+    }
+    return best;
+  }
+
+  /**
+   * The door `unit` gets into seat `seat` by: its own, but whoever takes the wheel of a lorry climbs in by whichever
+   * cab door is clearly nearer him and slides across the bench.
+   */
+  doorFor(unit, seat) {
+    if (seat !== 0 || this.isBoat || this.def.kind !== 'land' || !Number.isFinite(unit?.x)) return seat;
+    if (!BENCH_CABS.has(this.def.type)) return seat; // separate front seats (cars): the driver walks round to his door
+    const s1 = seatSide(this.vehicleType, this.def.kind, 1);
+    if (!s1 || s1.back || s1.row !== 0 || this.capacity < 2 || this.occupants.some((u) => this.seatOf(u) === 1)) return seat;
+    const a = this._doorSpot(0), b = this._doorSpot(1), g = this.world?.grid;
+    // a door that opens against a wall / the rock (no room to stand beyond its swing) counts as 3 m further away
+    const room = (p, k) => {
+      if (!g) return 0;
+      const ss = seatSide(this.vehicleType, this.def.kind, k), side = this.heading + (ss ? ss.side : 1) * Math.PI / 2;
+      return g.walkableAt(p.x + Math.cos(side) * 0.8, p.z + Math.sin(side) * 0.8) && g.walkableAt(p.x, p.z) ? 0 : 3;
+    };
+    const da = Math.hypot(a.x - unit.x, a.z - unit.z) + room(a, 0), db = Math.hypot(b.x - unit.x, b.z - unit.z) + room(b, 1);
+    return db < da - 0.5 ? 1 : 0;
+  }
+
+  /** Where seat `k`'s door is, outside the hull (no walkability test: a quick distance probe). */
+  _doorSpot(k) {
+    const ss = seatSide(this.vehicleType, this.def.kind, k), [len, wid] = this.def.size;
+    const side = this.heading + (ss ? ss.side : 1) * Math.PI / 2, out = ss?.back ? 0.5 : wid / 2 + 1;
+    const along = ss ? (ss.back ? -(len / 2 + 1) : -ss.row * EXIT_SPACING) : 0;
+    return { x: this.x + Math.cos(side) * out + Math.cos(this.heading) * along, z: this.z + Math.sin(side) * out + Math.sin(this.heading) * along };
+  }
+
+  enter(unit, seat = null, door = null) {
     const enemyCrew = unit?.faction === 'enemy' && !this.destroyed && this.occupants.length < this.capacity;
     if (!enemyCrew && this.canEnter(unit) !== true) return false;
     if (unit.faction === 'player') this._checkTaint(unit);
     // where he got in from (visual only: art/boat-crew.js draws him stepping / hoisting himself in from there)
     if (Number.isFinite(unit.x)) unit.boardFrom = { x: unit.x, z: unit.z, t: this.world?.time ?? 0, swim: unit.stance === 'swim' || unit.stance === 'dive' };
+    const free = this.freeSeats();
+    const k = seat != null && free.includes(seat) ? seat : this.isBoat ? free[0] : this.seatFor(unit);
     this.occupants.push(unit);
+    (this.seats || (this.seats = new Map())).set(unit, k ?? this.occupants.length - 1);
     if (!this.driver && this.canOperate(unit)) this.driver = unit;
-    this.model.boarding?.(this.occupants.length - 1, 'enter'); // that seat's door / hatch opens and closes
+    this.model.boarding?.(door ?? this.seatOf(unit), 'enter'); // that seat's door / hatch opens and closes
     unit.stop?.();
     unit.state = 'inVehicle';
     unit.vehicle = this;
@@ -513,8 +601,8 @@ export class Vehicle extends Entity {
    * @returns {boolean}
    */
   exit(unit, x, z, o = {}) {
-    const k = this.occupants.indexOf(unit);
-    if (k < 0) return false;
+    if (this.occupants.indexOf(unit) < 0) return false;
+    const k = this.seatOf(unit);
     const w = this.world;
     let p = null;
     if (w) {
@@ -527,7 +615,8 @@ export class Vehicle extends Entity {
       if (doorFirst && p) o = { ...o, walkTo: { x, z } };
       if (!p && !o.force && !this.destroyed) return false;
     }
-    this.occupants.splice(k, 1);
+    this.occupants.splice(this.occupants.indexOf(unit), 1);
+    this.seats?.delete(unit);
     if (!this.destroyed) this.model.boarding?.(k, 'exit');
     if (this.driver === unit) this.driver = this.occupants.find((u) => this.canOperate(u)) || null;
     if (!this.driver) this._halt();
@@ -587,6 +676,21 @@ export class Vehicle extends Entity {
     return best || bestAny;
   }
 
+  /** Signed depth of (x, z) inside this hull's rectangle at pose (hx, hz, h): > 0 inside, < 0 the distance outside. */
+  _rectDepth(x, z, hx = this.x, hz = this.z, h = this.heading) {
+    const dx = x - hx, dz = z - hz, c = Math.cos(h), s = Math.sin(h);
+    const a = Math.abs(dx * c + dz * s) - this.def.size[0] / 2, b = Math.abs(-dx * s + dz * c) - this.def.size[1] / 2;
+    return a <= 0 && b <= 0 ? -Math.max(a, b) : -Math.hypot(Math.max(0, a), Math.max(0, b));
+  }
+
+  /** How deep this hull at pose (x, z, h) and hull `v` overlap (> 0), or minus their gap. */
+  _hullDepth(v, x, z, h) {
+    let d = -Infinity;
+    for (const [px, pz] of this._outline(x, z, h, 0)) d = Math.max(d, v._rectDepth(px, pz));
+    for (const [px, pz] of v._outline(v.x, v.z, v.heading, 0)) d = Math.max(d, this._rectDepth(px, pz, x, z, h));
+    return d;
+  }
+
   /** Point inside this hull's oriented rectangle (+margin)? */
   _inHull(x, z, margin = 0, hx = this.x, hz = this.z, h = this.heading) {
     const dx = x - hx, dz = z - hz;
@@ -617,6 +721,7 @@ export class Vehicle extends Entity {
       if (t === T.WATER && !g.bridge[k]) return false;
       if (g.elev && g.elev[k] > 0.3) return false;
     }
+    if (this._skipHulls) return true; // (a plan tests other hulls on its own)
     for (const v of w.vehicles) {
       if (v === this || v.removed || v.hiddenRail || (v.destroyed && v.wreckBaked)) continue;
       if (v._inHull(x, z, 0.1)) return false;
@@ -755,9 +860,304 @@ export class Vehicle extends Entity {
         prev = e;
       }
     }
+    if (this._skipHulls) return true;
     for (const v of w.vehicles) {
       if (v === this || v.removed || v.hiddenRail || (v.destroyed && v.wreckBaked)) continue;
       if (v._inHull(x, z, 0.1)) return false;
+    }
+    return true;
+  }
+
+  // ---------------------------------------------------------------- car-like steering (entities/vehicle-maneuver.js)
+
+  /** Land hull steered like a car (arcs no tighter than def.turnRadius, multi-point turns, never a pivot on the spot)? */
+  get arcDrive() { return this.def.kind === 'land' && !this.def.rail && this.def.turnRadius > 0; }
+
+  /** Wheel-contact probes along the centreline of the hull placed at (x, z, h): front axle, centre, rear axle. */
+  _wheelPoints(x, z, h) {
+    const a = this.def.size[0] * 0.32, c = Math.cos(h), s = Math.sin(h);
+    return [[x + c * a, z + s * a], [x, z], [x - c * a, z - s * a]];
+  }
+
+  /**
+   * Grid cells the hull already overlaps at pose (x, z, h) that a pose test would refuse (a parked spawn touching a
+   * wall or eaves): ignored by _poseFree so the hull can still pull away. @returns {Set<number>}
+   */
+  _hadCells(x = this.x, z = this.z, h = this.heading) {
+    const g = this.world.grid, had = new Set(), y0 = this.y || 0;
+    const cell = (px, pz) => { const { i, j } = g.worldToCell(px, pz); return g.inBounds(i, j) ? g.idx(i, j) : -1; };
+    this._skipHulls = true; // static cells only: another hull is never driven through
+    try {
+      for (const [px, pz] of this._outline(x, z, h, POSE_MARGIN)) if (!this._sweepFree(px, pz, x, z, y0)) had.add(cell(px, pz));
+      for (const [px, pz] of this._wheelPoints(x, z, h)) if (!this.passableAt(px, pz)) had.add(cell(px, pz));
+    } finally { this._skipHulls = false; }
+    return had;
+  }
+
+  /**
+   * Can the whole hull stand at pose (x, z, h)? Its outline (+POSE_MARGIN) clears everything standing there — cliffs,
+   * rocks, walls, posts, eaves lower than the hull, other hulls (_sweepFree) — and its wheels stand on drivable ground
+   * (passableAt: no water, no ledge). Cells in `had` (overlapped where the drive began) don't count.
+   */
+  _poseFree(x, z, h, had = null, margin = POSE_MARGIN) {
+    const g = this.world.grid, y0 = this.y || 0;
+    const ok = (px, pz, f) => {
+      if (f.call(this, px, pz, x, z, y0)) return true;
+      if (!had?.size) return false;
+      const { i, j } = g.worldToCell(px, pz);
+      return had.has(g.inBounds(i, j) ? g.idx(i, j) : -1);
+    };
+    for (const [px, pz] of this._wheelPoints(x, z, h)) if (!ok(px, pz, this.passableAt)) return false;
+    for (const [px, pz] of this._outline(x, z, h, margin)) if (!ok(px, pz, this._sweepFree)) return false;
+    return true;
+  }
+
+  /**
+   * Two route hulls holding each other up (two tanks out of one shed, nose to flank): the later one in the world's
+   * list gives way — it backs off up to 4 m along its heading and waits a moment — and the other drives on.
+   * @returns {boolean} true when it is giving way
+   */
+  _yield(q, m, g) {
+    const w = this.world;
+    const other = w.vehicles.find((v) => v !== this && !v.removed && !v.hiddenRail && !(v.destroyed && v.wreckBaked)
+      && this._outline(q.x, q.z, q.h, MOVE_MARGIN).some(([px, pz]) => v._inHull(px, pz, 0.1)));
+    this._blocker = other || null;
+    if (!other || !(other.blockedT > 0.5) || other._blocker !== this || w.vehicles.indexOf(this) < w.vehicles.indexOf(other)) return false;
+    if (g.yielded > 2) return false;
+    const leg = m.legs[m.i], back = -(leg?.dir || 1), c = Math.cos(this.heading) * back, s = Math.sin(this.heading) * back;
+    const free = this._planFree(this._hadCells());
+    let len = 0;
+    while (len < 4 && free(this.x + c * (len + 0.25), this.z + s * (len + 0.25), this.heading)) len += 0.25;
+    if (len < 0.5) return false;
+    g.yielded = (g.yielded || 0) + 1;
+    g.man = this._maneuver({ legs: [{ dir: back, k: 0, len }], had: [] });
+    g.dropped = true; // then plan the leg again from there
+    this.waitT = 0;
+    this.blockedT = 0;
+    this._yieldWait = 2.5;
+    return true;
+  }
+
+  /** Is the hull at pose (x, z, h) clear of what moves or shuts: other hulls, shut gates / doors / booms? */
+  _dynFree(x, z, h, had = null) {
+    const w = this.world, g = w.grid;
+    const others = w.vehicles.filter((v) => v !== this && !v.removed && !v.hiddenRail && !(v.destroyed && v.wreckBaked)
+      && Math.hypot(v.x - x, v.z - z) < (Math.hypot(...v.def.size) + Math.hypot(...this.def.size)) / 2 + 1);
+    const gates = w.interactables?.some((o) => o.open === false && !o.destroyed);
+    if (!others.length && !gates) return true;
+    // other hulls: kept 0.1 m clear; one it already touches (two tanks met nose to flank): it may move along it or away,
+    // never deeper into it
+    for (const v of others) {
+      const dq = this._hullDepth(v, x, z, h);
+      if (dq > -0.1 && dq > this._hullDepth(v, this.x, this.z, this.heading) - 1e-6) return false;
+    }
+    if (!gates) return true;
+    for (const [px, pz] of this._outline(x, z, h, MOVE_MARGIN)) {
+      if (!gates) continue;
+      const { i, j } = g.worldToCell(px, pz);
+      if (!g.inBounds(i, j)) continue;
+      const k = g.idx(i, j);
+      if (had?.has(k) || g.block[k] === B.NONE || !g.owner?.[k]) continue;
+      if (w.interactables.some((o) => o.owner === g.owner[k] && !o.destroyed && o.open === false && (o.barrier || o.interactKind === 'door' || o.gate)) && !this._rammable(px, pz)) return false;
+    }
+    return true;
+  }
+
+  /** What stops the hull at pose (x, z, h): 'gate' (a shut gate / door / boom), 'vehicle' (another hull) or 'static'. */
+  _blockedBy(x, z, h, had = null) {
+    const w = this.world, g = w.grid;
+    let why = 'static';
+    for (const [px, pz] of [...this._wheelPoints(x, z, h), ...this._outline(x, z, h, MOVE_MARGIN)]) {
+      const { i, j } = g.worldToCell(px, pz);
+      const k = g.inBounds(i, j) ? g.idx(i, j) : -1;
+      if (k >= 0 && had?.has(k)) continue;
+      if (w.vehicles.some((v) => v !== this && !v.removed && !v.hiddenRail && !(v.destroyed && v.wreckBaked) && v._inHull(px, pz, 0.1))) { why = 'vehicle'; continue; }
+      if (k >= 0 && g.block[k] !== B.NONE && g.owner?.[k] && w.interactables?.some((o) => o.owner === g.owner[k] && !o.destroyed && o.open === false && (o.barrier || o.interactKind === 'door' || o.gate))) return 'gate';
+    }
+    return why;
+  }
+
+  /**
+   * Fast pose test for planning (thousands of poses per plan): _poseFree's rules with the static part of each grid
+   * cell's answer cached for this one plan. `gatesOpen`: a shut gate / door / boom counts as open (a route waits at it
+   * instead of planning around it).
+   */
+  _planFree(had, { gatesOpen = false, men = false } = {}) {
+    const w = this.world, g = w.grid, y0 = this.y || 0, self = this;
+    // men on foot nearby are obstacles too when a route plans round one who stays in its way (a sentry on his post)
+    const crowd = men && isSolidHull(this) ? w.entitiesInRadius(this.x, this.z, 45, (u) => (u.kind === 'commando' || u.kind === 'enemy') && u.alive
+      && !u.vehicle && u.state !== 'inVehicle' && u.state !== 'carried' && !u.underwater && !((u.y || 0) > 1.5) && u.stance !== 'swim' && u.stance !== 'dive') : [];
+    const reachR = Math.hypot(this.def.size[0], this.def.size[1]) / 2 + 1.5;
+    // a man already close to the hull: it may not come closer to him than it is now, but it may pull away
+    const R0 = crowd.length ? hullRect(this, this.x, this.z, this.heading) : null;
+    const clear = crowd.map((u) => Math.max(0.07, Math.min(0.3, bodyRectGap(u.x, u.z, u.heading, u.stance, R0) - 0.01)));
+    const W = new Int8Array(g.size), O = new Int8Array(g.size);
+    const others = w.vehicles.filter((v) => v !== this && !v.removed && !v.hiddenRail && !(v.destroyed && v.wreckBaked));
+    // other hulls: kept 0.25 m clear, or — one this hull already touches — at least not driven deeper into
+    const d0 = others.map((v) => this._hullDepth(v, this.x, this.z, this.heading));
+    const near = others.map((v) => (Math.hypot(...v.def.size) + Math.hypot(...this.def.size)) / 2 + 0.5);
+    const hullHit = (x, z, h) => {
+      for (let n = 0; n < others.length; n++) {
+        const v = others[n];
+        if (Math.abs(v.x - x) > near[n] || Math.abs(v.z - z) > near[n]) continue;
+        const dq = this._hullDepth(v, x, z, h);
+        if (dq > -0.25 && dq > d0[n] - 1e-6) return true;
+      }
+      return false;
+    };
+    const statOnly = (f) => { this._skipHulls = true; try { return f(); } finally { this._skipHulls = false; } };
+    const gateCell = (k) => {
+      const own = g.owner?.[k];
+      return !!own && !!w.interactables?.some((o) => o.owner === own && !o.destroyed && (o.barrier || o.interactKind === 'door' || o.gate));
+    };
+    // (another hull is cached by the cell too: the plan margin covers a cell it only partly covers)
+    const wheel = (px, pz) => {
+      const { i, j } = g.worldToCell(px, pz);
+      if (!g.inBounds(i, j)) return !!this.offMapOK || !!had?.has(-1); // (a route starting past the map edge)
+      const k = g.idx(i, j);
+      if (had?.has(k)) return true;
+      if (!W[k]) W[k] = statOnly(() => self.passableAt(px, pz)) || (gatesOpen && g.block[k] !== B.NONE && gateCell(k)) ? 1 : 2;
+      return W[k] === 1;
+    };
+    const rim = (px, pz, x, z) => {
+      const { i, j } = g.worldToCell(px, pz);
+      if (!g.inBounds(i, j)) return !!this.offMapOK || !!had?.has(-1);
+      const k = g.idx(i, j);
+      if (had?.has(k)) return true;
+      if (g.elev && g.elev[k] > y0 + 0.3) return statOnly(() => self._sweepFree(px, pz, x, z, y0)); // ramp / ledge: depends on the centre
+      if (!O[k]) O[k] = statOnly(() => self._sweepFree(px, pz, x, z, y0)) || (gatesOpen && g.block[k] !== B.NONE && gateCell(k)) ? 1 : 2;
+      return O[k] === 1;
+    };
+    // the outline / wheel probes in the hull's own frame, placed per pose without allocating (thousands of poses)
+    const OL = this._outline(0, 0, 0, POSE_MARGIN), WP = this._wheelPoints(0, 0, 0);
+    return (x, z, h) => {
+      const c = Math.cos(h), sn = Math.sin(h);
+      for (let n = 0; n < WP.length; n++) { const u = WP[n][0], q = WP[n][1]; if (!wheel(x + c * u - sn * q, z + sn * u + c * q)) return false; }
+      for (let n = 0; n < OL.length; n++) { const u = OL[n][0], q = OL[n][1]; if (!rim(x + c * u - sn * q, z + sn * u + c * q, x, z)) return false; }
+      if (others.length && hullHit(x, z, h)) return false;
+      if (crowd.length) {
+        let R = null;
+        for (let n = 0; n < crowd.length; n++) {
+          const u = crowd[n];
+          if (Math.abs(u.x - x) > reachR || Math.abs(u.z - z) > reachR) continue;
+          R ||= hullRect(this, x, z, h);
+          if (bodyRectGap(u.x, u.z, u.heading, u.stance, R) < clear[n]) return false; // (a crawler's knees and toes too)
+        }
+      }
+      return true;
+    };
+  }
+
+  /**
+   * The player's drive toward (x, z) for a car-steered hull: the multi-point turn (possibly none) that leaves it facing
+   * the point with a clear straight line ahead, or null (no way within the leg budget → forbidden cursor). Memoised for
+   * the cursor, which asks every frame. `men`: men on foot count as obstacles too (replanning round a teammate who
+   * stands on the turning arc — a commando does not step aside for his own car).
+   */
+  _planDrive(x, z, { men = false } = {}) {
+    const key = `${x.toFixed(2)},${z.toFixed(2)}|${this.x.toFixed(3)},${this.z.toFixed(3)},${this.heading.toFixed(4)}|${this.fast ? 1 : 0}|${men ? 1 : 0}`;
+    const memo = this._planMemo || (this._planMemo = new Map());
+    if (memo.has(key)) return memo.get(key);
+    const had = this._hadCells();
+    const tol = CONFIG.vehicles.alignDeg * DEG, T = { x, z }, d0 = Math.hypot(x - this.x, z - this.z);
+    const plan = planManeuver({ x: this.x, z: this.z, h: this.heading }, {
+      R: this.def.turnRadius, target: T, tol,
+      free: this._planFree(had, { men }),
+      // facing it with a clear line, and that line brings it nearer than it is now (not back up only to hit the same wall)
+      goal: (p) => {
+        if (Math.abs(headingError(p, T)) > tol || Math.hypot(x - p.x, z - p.z) <= 0.5) return false;
+        const r = this.straightReach(x, z, p.x, p.z);
+        return r >= 0.5 && Math.hypot(x - p.x, z - p.z) - r < d0 - 0.5;
+      },
+      maxRev: Math.max(4, this.def.size[0] * 1.2), maxNodes: 2500, // (an unreachable click gives up in ~0.2 s)
+    });
+    const out = plan ? { legs: plan.legs, had: [...had] } : null;
+    if (memo.size > 24) memo.clear();
+    memo.set(key, out);
+    return out;
+  }
+
+  /** Maneuver state carried in `goal.man` (plain data: saved and restored with the goal). */
+  _maneuver(plan, cruise = false) {
+    if (!plan?.legs.length) return null;
+    const legs = plan.legs.map((l) => ({ ...l, done: 0 }));
+    // a route plan (cruise) drives its last run at route speed and rolls on into the next leg; shunting runs before
+    // the last change of gear go at maneuvering speed
+    let run = legs.length - 1;
+    while (run > 0 && legs[run - 1].dir === legs[run].dir) run--;
+    return { legs, i: 0, pause: 0, had: [...(plan.had || [])], blockedT: 0, cruise: cruise ? run : -1, replans: plan.replans || 0 };
+  }
+
+  /**
+   * One step of a multi-point turn: the current leg's arc, forward or in reverse, easing in and out; a short pause at
+   * each change of gear. Something new in the way (a man, another hull) holds it; after 1.5 s the plan is dropped and
+   * the caller plans again from where the hull stands.
+   * @returns {boolean} true while the maneuver is still running
+   */
+  _stepManeuver(dt, g) {
+    const m = g.man, leg = m?.legs[m.i];
+    if (!leg) { if (g) g.man = null; return false; }
+    if (m.pause > 0) { m.pause -= dt; this.speed = 0; this.steerK = leg.k; this.reversing = leg.dir < 0; return true; } // the wheel turns over
+    const cruise = m.cruise >= 0 && m.i >= m.cruise && (leg.dir > 0 || g.reverse);
+    const legMax = (l) => (cruise ? Math.min(this.maxSpeed || this.def.slow, l.dir < 0 ? REV_CRUISE : Infinity, Math.abs(l.k) > 1e-6 ? Math.sqrt(LAT_ACC / Math.abs(l.k)) : Infinity)
+      : Math.min(this.maxSpeed || this.def.slow, l.dir > 0 ? MAN_FWD : MAN_REV));
+    // brake for the end of the run in this gear (a change of lock alone happens on the move; a route plan rolls on)
+    // and ahead of a tighter bend coming up
+    const rollOn = cruise && m.rollOn !== false;
+    let vmax = legMax(leg), rem = rollOn ? Infinity : leg.len - leg.done, ahead = leg.len - leg.done;
+    for (let j = m.i + 1; j < m.legs.length && m.legs[j].dir === leg.dir; j++) {
+      if (!rollOn) rem += m.legs[j].len;
+      if (ahead < 12) vmax = Math.min(vmax, Math.sqrt(legMax(m.legs[j]) ** 2 + 2 * MAN_ACC * ahead));
+      ahead += m.legs[j].len;
+    }
+    const was = this.speed;
+    const acc = cruise ? Math.max(MAN_ACC, (this.maxSpeed || 3) * 2) : MAN_ACC;
+    this.speed = this.speed > vmax ? Math.max(vmax, this.speed - 6 * dt)
+      : Math.max(0.3, Math.min(vmax, Math.sqrt(2 * (cruise ? 3.5 : MAN_ACC) * rem), this.speed + acc * dt));
+    const ds = Math.min(leg.len - leg.done, this.speed * dt);
+    const q = arcStep(this.x, this.z, this.heading, leg.dir * ds, leg.k);
+    this.reversing = leg.dir < 0;
+    this.steerK = leg.k;
+    const had = m.hadSet || (m.hadSet = new Set(m.had));
+    // the plan already cleared the ground (cliffs, walls, eaves, ramps): on the move only what comes and goes is checked
+    let blocked = !this._dynFree(q.x, q.z, q.h, had), wait = 1.5;
+    this._blocker = null;
+    if (blocked && !g.strict) {
+      // a route: at a shut gate it waits for it to open; for another hull it waits a while before going round
+      const why = this._blockedBy(q.x, q.z, q.h, had);
+      wait = why === 'gate' ? Infinity : why === 'vehicle' ? 4 : 1;
+      if (why === 'vehicle' && this._yield(q, m, g)) return true;
+    }
+    if (!blocked) {
+      const under = this._bodiesUnder(q.x, q.z, q.h);
+      if (under.length) {
+        if (this._lethal()) for (const u of under) this._runoverKill(u);
+        else if (this._stepAside(under, q.x, q.z, q.h).length) { blocked = true; wait = g.strict ? 1.5 : 3; g.menInWay = true; }
+      }
+    }
+    if (blocked) {
+      this.speed = 0;
+      this.blockedT = (this.blockedT || 0) + dt;
+      if ((m.blockedT += dt) > wait) { g.man = null; g.replans = Math.max(g.replans || 0, m.replans || 0) + 1; g.dropped = true; } // replanned from here by the caller
+      return true;
+    }
+    this.blockedT = 0;
+    m.blockedT = 0;
+    if (was === 0 && m.i === 0 && leg.done === 0) this.world?.events.emit('vehicle:move', { vehicle: this, speed: this.speed, reverse: leg.dir < 0 });
+    this.x = q.x; this.z = q.z; this.heading = q.h;
+    if (leg.dir > 0) this._breakBarriers();
+    leg.done += ds;
+    if (leg.done >= leg.len - 1e-6) {
+      m.i++;
+      const next = m.legs[m.i];
+      if (next && next.dir !== leg.dir) { // stop, change gear (the wheel turns over meanwhile)
+        this.speed = 0;
+        m.pause = GEAR_PAUSE;
+        this.world?.events.emit('vehicle:gear', { vehicle: this, reverse: next.dir < 0 });
+      } else if (!next) {
+        g.man = null; this.reversing = false;
+        if (this._yieldWait) { this.waitT = this._yieldWait; this._yieldWait = 0; this.speed = 0; } // gave way: a moment's pause
+      }
     }
     return true;
   }
@@ -788,6 +1188,7 @@ export class Vehicle extends Entity {
   canDriveTo(x, z) {
     if (!this.driveable || this.destroyed || this.vehicleKind === 'emplacement') return false;
     if (this.world?.driveRules?.some((r) => r(this, x, z) === false)) return false; // MISSIONS rules (M19 no rowing upstream)
+    if (this.arcDrive && this.world) return !!this._planDrive(x, z); // car-steered: a multi-point turn, then the straight line
     const b = this.turnPlan(x, z);
     if (b == null) return false;
     const c = Math.cos(this.heading + Math.PI), s = Math.sin(this.heading + Math.PI); // (b < 0: pulled forward)
@@ -807,19 +1208,21 @@ export class Vehicle extends Entity {
     if (!this.canDriveTo(x, z)) { this.fast = wasFast; return false; }
     this.maxSpeed = this.fast ? this.def.fast : this.def.slow;
     this.path = null;
-    this.goal = { x, z, strict: true, back: this.turnPlan(x, z) || 0 };
+    this.goal = this.arcDrive ? { x, z, strict: true, man: this._maneuver(this._planDrive(x, z)) }
+      : { x, z, strict: true, back: this.turnPlan(x, z) || 0 };
     return true;
   }
 
   /**
    * Follow a scripted route of straight segments (AI patrols / exits; no A*). Each waypoint may carry
-   * `wait` (s). @param {{x:number,z:number,wait?:number}[]} pts @param {{fast?:boolean, speed?:number}} [o]
+   * `wait` (s), or `reverse` (that leg is driven backwards: a lorry backing down a dead end to its pickup).
+   * @param {{x:number,z:number,wait?:number,reverse?:boolean}[]} pts @param {{fast?:boolean, speed?:number, reverse?:boolean}} [o]
    */
   followPath(pts, o = {}) {
     if (!pts?.length || this.destroyed) return false;
     this.fast = !!o.fast;
     this.maxSpeed = o.speed ?? (this.fast ? this.def.fast : this.def.slow);
-    this.path = pts.map((p) => ({ ...p }));
+    this.path = pts.map((p) => ({ ...p, ...(o.reverse ? { reverse: true } : null) }));
     this.pathIndex = 0;
     this.goal = { ...this.path[0], strict: false };
     return true;
@@ -842,6 +1245,8 @@ export class Vehicle extends Entity {
     this.path = null;
     this.goal = null;
     this.speed = 0;
+    this.reversing = false;
+    this.steerK = 0;
     if (was && this.world) this.world.events.emit('vehicle:stop', { vehicle: this });
   }
 
@@ -892,6 +1297,7 @@ export class Vehicle extends Entity {
 
   /** One step of the straight-line drive / scripted route (§3.7). */
   _updateDrive(dt) {
+    if (this.arcDrive) return this._updateArcDrive(dt);
     if (this.waitT > 0) { this.waitT -= dt; this.speed = 0; return; }
     const g = this.goal;
     const d = Math.hypot(g.x - this.x, g.z - this.z);
@@ -955,6 +1361,140 @@ export class Vehicle extends Entity {
     if (was === 0 && this.speed > 0) this.world?.events.emit('vehicle:move', { vehicle: this, speed: this.maxSpeed });
   }
 
+  /**
+   * One step of a car-steered drive (arcDrive). The player's order: the planned multi-point turn (goal.man), then the
+   * straight line, the heading easing onto it no faster than the turning circle allows. A route: arcs through the
+   * waypoints (pure pursuit, the bend begun early enough that the turning circle joins the next leg), slowing in
+   * bends; a waypoint behind or inside the turning circle gets a multi-point turn. Every pose is the whole hull's.
+   */
+  _updateArcDrive(dt) {
+    if (this.waitT > 0) { this.waitT -= dt; this.speed = 0; return; }
+    const g = this.goal;
+    if (g.man && this._stepManeuver(dt, g)) return;
+    if (!g.strict && g.dropped && !g.man) { g.dropped = false; g.planned = false; } // dropped while stuck: plan again from here
+    const d = Math.hypot(g.x - this.x, g.z - this.z);
+    if (g.strict && d < 0.3) { this.reversing = false; this.steerK = 0; return this._nextWaypoint(); }
+    return g.strict ? this._arcStraight(dt, g, d) : this._arcRoute(dt, g, d);
+  }
+
+  /** The player's straight line after the turn (§3.7: stops at the first blocking cell). */
+  _arcStraight(dt, g, d) {
+    const R = this.def.turnRadius, want = angleTo(this.x, this.z, g.x, g.z);
+    if (Math.abs(angleDiff(this.heading, want)) > CONFIG.vehicles.alignDeg * DEG * 2.5 && this.speed < 0.05) {
+      // pushed off the line (a man in the way of the turn, a replanned turn): turn again from here — round the men
+      // who held it up; no way round them (or held up again and again): the order ends where it stands (§3.7)
+      if ((g.replans || 0) > 3) return this._halt();
+      g.man = this._maneuver(this._planDrive(g.x, g.z, { men: !!g.menInWay }));
+      if (!g.man) this._halt();
+      return;
+    }
+    this.reversing = false;
+    const was = this.speed;
+    const acc = this.ramDrag > 0 ? ((this.ramDrag = Math.max(0, this.ramDrag - dt)), 0.12) : 1;
+    this.speed = Math.min(this.maxSpeed, this.speed + this.maxSpeed * 2 * acc * dt);
+    const step = Math.min(d, this.speed * dt);
+    const h = turnTowardsAngle(this.heading, want, step / R);
+    this.steerK = step > 1e-6 ? angleDiff(this.heading, h) / step : 0;
+    const nx = this.x + Math.cos(h) * step, nz = this.z + Math.sin(h) * step, ahead = CONFIG.vehicles.probeStep;
+    if (!this._nosePoints(nx + Math.cos(h) * ahead, nz + Math.sin(h) * ahead, h).every(([px, pz]) => this.passableAt(px, pz))) {
+      if (this.speed > 0.5) bumpGate(this);
+      this._halt();
+      return;
+    }
+    const under = this._bodiesUnder(nx, nz, h);
+    if (under.length) {
+      if (this._lethal()) for (const u of under) this._runoverKill(u);
+      else if (this._stepAside(under, nx, nz, h).length) return this._bodyBlocked(g, dt);
+    }
+    this.blockedT = 0;
+    this.heading = h; this.x = nx; this.z = nz;
+    this._breakBarriers();
+    if (was === 0 && this.speed > 0) this.world?.events.emit('vehicle:move', { vehicle: this, speed: this.maxSpeed });
+  }
+
+  /** Cells the hull overlapped where this route leg began (a parked spawn by a wall), cached per goal. */
+  _goalHad(g) {
+    const m = this._hadMemo || (this._hadMemo = new WeakMap());
+    if (!m.has(g)) m.set(g, this._hadCells());
+    return m.get(g);
+  }
+
+  /**
+   * Plan the route leg to point `g` with the hull's real footprint and turning circle: the pursuit arc when it is clear,
+   * else a way round what is in the way, or a multi-point turn when the point lies behind (vehicle-maneuver.js).
+   * Shut gates count as open (the hull waits at them). `reach`: how close it must come (a corner is cut by the
+   * turning circle).
+   */
+  _planRoute(g, reach = 0.75) {
+    const had = this._hadCells(), R = this.def.turnRadius, tol = 5 * DEG;
+    const free = this._planFree(had, { gatesOpen: true, men: !!g.menInWay }), maxRev = Math.max(5, this.def.size[0] * 1.4);
+    if (g.reverse) {
+      // backing down to the point: the pursuit line in the hull's reversed frame (its tail leads)
+      const back = pursuitLegs({ x: this.x, z: this.z, h: this.heading + Math.PI }, { x: g.x, z: g.z }, { R, reach, free: (x, z, h) => free(x, z, h - Math.PI) });
+      if (back) return { legs: back.legs.map((l) => ({ dir: -1, k: -l.k, len: l.len })), had: [...had], replans: g.replans || 0 };
+    }
+    let start = { x: this.x, z: this.z, h: this.heading }, pre = null, T = { x: g.x, z: g.z };
+    // a route point laid for the hull centre too close to a wall (the end of a patrol): the driver stops short of it
+    const bh = angleTo(this.x, this.z, T.x, T.z), fits = (x, z) => [0, 1, -1, 2, -2, 3, -3, 4].some((k) => free(x, z, bh + (k * Math.PI) / 8));
+    if (!fits(T.x, T.z)) {
+      // the nearest spot round it where the hull fits (any heading), short of it along the way first
+      let best = null;
+      for (let r = 0.5; r <= 6 && !best; r += 0.5) {
+        for (let a = 0; a < 16; a++) {
+          const th = bh + Math.PI + (a % 2 ? 1 : -1) * Math.ceil(a / 2) * (Math.PI / 8), x = T.x + Math.cos(th) * r, z = T.z + Math.sin(th) * r;
+          if (fits(x, z)) { best = { x, z }; break; }
+        }
+      }
+      if (best) { T = best; g.short = { ...best }; }
+    }
+    // the point behind or inside the turning circle: turn round first (a multi-point turn), then drive to it
+    if (Math.abs(headingError(start, T)) > Math.PI / 2 || Math.abs(2 * Math.sin(headingError(start, T)) / Math.max(0.1, Math.hypot(T.x - start.x, T.z - start.z))) > 1 / R) {
+      pre = planManeuver(start, {
+        R, target: T, tol, free, maxRev, maxNodes: 6000,
+        goal: (p) => {
+          if (Math.abs(headingError(p, T)) > tol) return false;
+          const run = Math.min(3, Math.hypot(T.x - p.x, T.z - p.z) - reach), c = Math.cos(p.h), s = Math.sin(p.h);
+          for (let t = 0.5; t <= run + 1e-6; t += 0.5) if (!free(p.x + c * t, p.z + s * t, p.h)) return false;
+          return true;
+        },
+      });
+      if (pre) start = pre.end;
+    }
+    const rest = Math.hypot(T.x - start.x, T.z - start.z) <= reach ? { legs: [] } : planReach(start, {
+      R, target: T, reach, free, maxRev, maxNodes: 6000, revCost: 3, gearCost: 6,
+      h: (p) => Math.max(0, Math.hypot(T.x - p.x, T.z - p.z) - reach) + Math.max(0, Math.abs(headingError(p, T)) - Math.PI / 3) * R * 0.5,
+    });
+    if (!rest) return null;
+    return { legs: [...(pre?.legs || []), ...rest.legs], had: [...had], replans: g.replans || 0 };
+  }
+
+  /** A route leg (AI patrols, scripted escape vehicles): planned once, then driven; replanned when it gets stuck. */
+  _arcRoute(dt, g, d) {
+    const R = this.def.turnRadius;
+    // a corner is taken on the turning circle: the leg ends where the arc into the next one begins
+    const cur = this.path?.[this.pathIndex], next = this.path?.[this.pathIndex + 1];
+    let reach = g.reach ?? 0.75;
+    if (g.reach == null && next && !(cur?.wait > 0)) {
+      const th = Math.abs(angleDiff(angleTo(this.x, this.z, g.x, g.z), angleTo(g.x, g.z, next.x, next.z)));
+      if (th < 2.4) reach = Math.max(reach, Math.min(R * Math.tan(th / 2), 0.5 * Math.hypot(next.x - g.x, next.z - g.z)) + 0.3);
+    }
+    if (d <= reach + 0.05 || (g.short && Math.hypot(g.short.x - this.x, g.short.z - this.z) <= Math.max(0.8, reach + 0.05))) return this._nextWaypoint();
+    if (!g.planned && (g.replans || 0) < 4) {
+      g.planned = true;
+      g.reach = reach; // (fixed for this leg: the plan ends there)
+      const plan = this._planRoute(g, reach);
+      if (plan && !plan.legs.length) return this._nextWaypoint(); // already as close as it gets
+      g.man = this._maneuver(plan, true);
+      // it rolls on into the next leg, but brakes to a stop at the end of the route or at a halt
+      if (g.man) { g.man.rollOn = !!next && !(cur?.wait > 0); return; }
+    }
+    // no plan (nothing found yet): wait where it stands, try again every few seconds
+    this.speed = 0;
+    this.reversing = false;
+    this.blockedT = (this.blockedT || 0) + dt;
+    if (this.blockedT > 3) { this.blockedT = 0; g.planned = false; g.replans = (g.replans || 0) + 1; if (g.replans >= 4) g.replans = 0; }
+  }
+
   /** Advance a scripted route (followPath) or finish the drive. */
   _nextWaypoint() {
     if (!this.path) { this._halt(); return; }
@@ -971,7 +1511,7 @@ export class Vehicle extends Entity {
       return;
     }
     const p = this.path[this.pathIndex];
-    this.goal = { x: p.x, z: p.z, strict: false };
+    this.goal = { x: p.x, z: p.z, strict: false, ...(p.reverse ? { reverse: true } : null) };
   }
 
   /** §3.7 ramming: barriers and light gates in the nose break at fast speed. */
@@ -1495,12 +2035,13 @@ export class Vehicle extends Entity {
       wreckT: this.wreckT, burning: this.burning, ...(this.blastFlip ? { blastFlip: { ...this.blastFlip, t0: -1e3 } } : null), passedExit: !!this.passedExit, drivenOff: !!this.drivenOff, crew: this.crew.map((c) => c.alive),
       // a save taken after a load but before the first tick still carries the not-yet-relinked occupants
       occupants: this._pendingOccupants ? [...this._pendingOccupants.ids] : this.occupants.map((u) => u.id),
+      seats: this._pendingOccupants ? this._pendingOccupants.seats ?? null : this.occupants.map((u) => this.seatOf(u)),
       driver: this._pendingOccupants ? this._pendingOccupants.driver ?? null : this.driver?.id ?? null,
       rail: this.def.rail ? { s: this.railS, t: this.railT, dir: this.railDir, running: this.railRunning } : null,
       // drive state (§10 a quickload replays identically): the exact leg, waypoint, remaining wait, speed
       drive: {
         path: this.path ? this.path.map((p) => ({ ...p })) : null, pathIndex: this.pathIndex,
-        goal: this.goal ? { ...this.goal } : null, waitT: this.waitT, speed: this.speed, fast: this.fast,
+        goal: this.goal ? saveGoal(this.goal) : null, waitT: this.waitT, speed: this.speed, fast: this.fast,
         maxSpeed: this.maxSpeed ?? null, blockedT: this.blockedT || 0, ramDrag: this.ramDrag || 0, turretHeading: this.turretHeading,
         weaponCd: { ...this.weaponCd },
       },
@@ -1536,14 +2077,15 @@ export class Vehicle extends Entity {
     if (d.drive) this._restoreDrive(d.drive);
     if (d.brain) this.brain?.deserialize?.(d.brain, !!d.drive);
     // occupants are re-linked on the next update (the units may be deserialized after the vehicle)
-    this._pendingOccupants = Array.isArray(d.occupants) && d.occupants.length ? { ids: d.occupants, driver: d.driver } : null;
+    this._pendingOccupants = Array.isArray(d.occupants) && d.occupants.length ? { ids: d.occupants, driver: d.driver, seats: Array.isArray(d.seats) ? d.seats : null } : null;
   }
 
   /** Restore the exact scripted-route / drive state saved by serialize() (no re-planning). */
   _restoreDrive(D) {
     this.path = Array.isArray(D.path) ? D.path.map((p) => ({ ...p })) : null;
     this.pathIndex = D.pathIndex ?? 0;
-    this.goal = D.goal ? { ...D.goal } : null;
+    this.goal = D.goal ? saveGoal(D.goal) : null;
+    this.reversing = !!this.goal?.man?.legs?.[this.goal.man.i] && this.goal.man.legs[this.goal.man.i].dir < 0 && this.speed > 0;
     this.waitT = D.waitT ?? 0;
     this.speed = D.speed ?? 0;
     this.fast = !!D.fast;
@@ -1560,6 +2102,8 @@ export class Vehicle extends Entity {
     this._pendingOccupants = null;
     if (!p || !this.world) return;
     this.occupants = p.ids.map((id) => this.world.byId(id)).filter(Boolean);
+    this.seats = new Map();
+    p.ids.forEach((id, n) => { const u = this.world.byId(id); if (u && p.seats?.[n] != null) this.seats.set(u, p.seats[n]); });
     for (const u of this.occupants) {
       u.vehicle = this;
       u.state = 'inVehicle';
@@ -1567,6 +2111,13 @@ export class Vehicle extends Entity {
     }
     this.driver = this.occupants.find((u) => u.id === p.driver) || this.occupants.find((u) => this.canOperate(u)) || null;
   }
+}
+
+/** Deep copy of a drive goal (its multi-point turn is plain data; the cached cell set is rebuilt on demand). */
+function saveGoal(g) {
+  const { man, ...rest } = g;
+  if (!man) return { ...rest };
+  return { ...rest, man: { legs: man.legs.map((l) => ({ ...l })), i: man.i, pause: man.pause, had: [...man.had], blockedT: man.blockedT || 0, cruise: man.cruise ?? -1, rollOn: man.rollOn, replans: man.replans || 0 } };
 }
 
 /** Causes that are explosions (everything else hitting a vehicle is a bullet / MG round). */

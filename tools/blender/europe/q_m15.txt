@@ -1,0 +1,12 @@
+# M15 art pass (Compiegne): run.sh-style lines "script variant seed theater budget" (scripts take -- <outroot> <variant> <seed>);
+# ship with tools/blender/consolidate/addon_manifest.py <art_root> <repo> manifest-compiegne europe \
+#   townhouse_fr=townhouse_corner_w,townhouse_corner_flat,townhouse_corner_turret,townhouse_fr_stucco chapel_fr=mausoleum_chapel \
+#   tomb=tomb_chest_a,tomb_chest_b,tomb_chest_c
+townhouse_fr.py w 1501 temperate 30000
+townhouse_fr.py flat 1502 temperate 30000
+townhouse_fr.py turret 1503 temperate 15000
+townhouse_fr.py stucco 1504 temperate 25000
+cemetery_fr.py chapel 1511 temperate 8000
+cemetery_fr.py tomb_a 1512 temperate 1500
+cemetery_fr.py tomb_b 1513 temperate 1500
+cemetery_fr.py tomb_c 1514 temperate 1500

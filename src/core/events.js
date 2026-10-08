@@ -101,10 +101,10 @@ export const EVENT_NAMES = Object.freeze([
   // enemies / AI
   'enemy:state', 'enemy:spotted', 'enemy:challenge', 'enemy:held', 'enemy:body-found', 'enemy:distracted', 'enemy:unmasked-spy',
   'enemy:noise-turn', 'enemy:heard-steps',
-  'alarm:start', 'alarm:end', 'alarm:zone', 'reinforcements', 'noise',
+  'alarm:start', 'alarm:end', 'alarm:lamp', 'alarm:zone', 'reinforcements', 'noise',
   // world
   'shot', 'explosion', 'fire', 'structure:destroyed', 'door', 'device',
-  'vehicle:enter', 'vehicle:exit', 'vehicle:move', 'vehicle:stop', 'vehicle:fire', 'vehicle:runover', 'vehicle:destroyed',
+  'vehicle:enter', 'vehicle:exit', 'vehicle:move', 'vehicle:stop', 'vehicle:gear', 'vehicle:fire', 'vehicle:runover', 'vehicle:destroyed',
   'vehicle:tainted', 'train:pass', 'wind:gust', 'wind:flag',
   // mission / flow
   'objective:update', 'mission:loading', 'mission:progress', 'mission:loaded', 'mission:won', 'mission:lost', 'mission:refused', 'game:state', 'flow:state',

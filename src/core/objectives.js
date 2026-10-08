@@ -215,7 +215,8 @@ export function updateExtractionVehicle(world, flags) {
     flags.evacSpawned = true;
     flags.evacPhase = 'arrive';
     v.offMapOK = true;
-    if (ex.arrive) v.followPath([{ x: ex.arrive.x, z: ex.arrive.z }], { speed: ex.arrive.speed });
+    // (`arrive.reverse`: it backs down to the pickup, nose out, so it can drive straight off — no turn in a dead end)
+    if (ex.arrive) v.followPath([{ x: ex.arrive.x, z: ex.arrive.z }], { speed: ex.arrive.speed, reverse: !!ex.arrive.reverse });
     else flags.evacPhase = 'wait';
     return v;
   }
@@ -234,6 +235,8 @@ export function updateExtractionVehicle(world, flags) {
       const last = pts[pts.length - 1] || v;
       pts.push(ex.leave ? { x: ex.leave.x, z: ex.leave.z } : { x: last.x, z: -12 });
       v.followPath(pts, { speed: ex.arrive?.speed ?? ex.leave?.speed });
+      // the last man's door shuts and he sits down before it pulls away (art/vehicle-crew.js climb, ~1.5 s)
+      if (v.vehicleKind === 'land') v.waitT = Math.max(v.waitT || 0, 1.5);
       flags.evacPhase = 'leave';
     }
   }

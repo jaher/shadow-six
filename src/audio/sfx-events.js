@@ -38,6 +38,7 @@ export const SFX_EVENTS = Object.freeze([
   // Vehicles
   { event: 'vehicle:enter', sfx: ['truck_start', 'tank_engine', 'boat_engine', 'motorbike', 'plane_engine'] },
   { event: 'vehicle:move', sfx: ['truck_idle', 'truck_drive', 'tank_tracks', 'turret_whir', 'boat_engine', 'motorbike', 'plane_engine', 'autogyro'], pick: '{vehicle, speed} continuous loop while speed > 0' },
+  { event: 'vehicle:gear', sfx: ['brakes', 'truck_drive', 'tank_tracks'], pick: '{vehicle, reverse}: a change of gear in a multi-point turn; the engine loop runs lower in reverse' },
   { event: 'vehicle:stop', sfx: ['brakes'] },
   { event: 'vehicle:exit', sfx: [], pick: 'engine loop stops when the vehicle is empty' },
   { event: 'vehicle:fire', sfx: ['tank_mg', 'tank_cannon', 'mg_burst', 'boat_mg'], pick: 'payload.weapon' },

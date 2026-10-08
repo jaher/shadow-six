@@ -413,6 +413,7 @@ function logGeometry() {
 const WALL_KIND = (variant = '', mat = '') => {
   const v = String(variant);
   if (/palisade|stockade|log/.test(v)) return 'palisade';
+  if (/canal_parapet/.test(v)) return 'ashlar';
   if (/medina|mosque/.test(v)) return 'limewash'; // M12 art pass: Tunis lime-washed rubble walls (sandstone coping), not brick
   if (/ruins_mudbrick/.test(v)) return 'mudbrick'; // M8 art pass: the desert village ruins (ruinedMudWall; also M10's)
   if (/stone|dry|field/.test(v) || mat === 'stone') return 'stone';
@@ -499,6 +500,8 @@ export function buildWall(points, o) {
     if (/wire/.test(String(o.variant))) root.userData.wireRun = { type: 'coping_bracket', def: { id: o.id, variant: o.variant, type: 'wall', h }, points, coping: { stakes } };
     return root;
   }
+  // M15 art pass: the burned-out house's shell (brick with plaster and wallpaper remnants, charred joists, jagged tops)
+  if (/^ruin_(burnt_walls|wall_stub)$/.test(String(o.variant))) return buildBurntWall(points, o, h, width, R);
   if (kind === 'mudbrick' && /ruin/.test(String(o.variant))) return ruinedMudWall(points, { ...o, h, width }, R);
   const mat = dressingMaterial(kind);
   for (let k = 0; k + 1 < points.length; k++) {
@@ -509,7 +512,11 @@ export function buildWall(points, o) {
     seg.position.set((ax + bx) / 2, h / 2, (az + bz) / 2);
     seg.rotation.y = -Math.atan2(bz - az, bx - ax);
     root.add(seg);
-    if (kind === 'limewash') { // a crowned sandstone coping with a drip lip and a darker damp plinth
+    if (/canal_parapet/.test(String(o.variant))) { // M15 quay parapet: a projecting limestone coping on the dressed wall
+      const cap = mesh(boxUV(new THREE.BoxGeometry(L + width + 0.12, 0.14, width + 0.16), 1.4), dressingMaterial('ashlar'));
+      cap.position.set(seg.position.x, h, seg.position.z); cap.rotation.y = seg.rotation.y;
+      root.add(cap);
+    } else if (kind === 'limewash') { // a crowned sandstone coping with a drip lip and a darker damp plinth
       const cap = mesh(boxUV(new THREE.BoxGeometry(L + width + 0.08, 0.14, width + 0.12), 1.2), dressingMaterial('sandstone'));
       cap.position.set(seg.position.x, h + 0.07, seg.position.z); cap.rotation.y = seg.rotation.y;
       const plinth = mesh(boxUV(new THREE.BoxGeometry(L + width + 0.04, Math.min(0.5, h * 0.2), width + 0.06), 1.4), dressingMaterial('mudRender'));
@@ -520,6 +527,81 @@ export function buildWall(points, o) {
       const cap = mesh(boxUV(new THREE.BoxGeometry(L + width + 0.2, 0.1, width + 0.3), 2), dressingMaterial('planks'));
       cap.position.set(seg.position.x, h + 0.05, seg.position.z); cap.rotation.y = seg.rotation.y;
       root.add(cap);
+    }
+  }
+  return consolidate(root);
+}
+
+let BURNT = null;
+/** Charred brick + soot-stained plaster materials of the burnt shells (shared clones, darkened). */
+function burntMats() {
+  if (BURNT) return BURNT;
+  const dark = (m, c) => { const x = m.clone(); x.color = new THREE.Color(c); x.name = `${m.name || 'm'}:burnt`; return x; };
+  BURNT = { brick: dark(dressingMaterial('brick'), 0x7a625c), plaster: dark(dressingMaterial('plaster'), 0x9a9286),
+    soot: new THREE.MeshStandardMaterial({ color: 0x15130f, roughness: 1, transparent: true, opacity: 0.72, depthWrite: false, name: 'burnt:soot' }),
+    beam: dark(dressingMaterial('creosote'), 0x2a221c), rubble: dressingMaterial('rubble') };
+  return BURNT;
+}
+
+/**
+ * Burned-out house walls along a polyline (world frame): brick shell with jagged broken tops (never below 60 % of the
+ * gameplay height, so the wall still reads as the sight block it is), a ragged inner plaster skin with soot above it,
+ * charred joist stubs in their pockets at the first floor, broken bricks heaped at the foot within 0.5 m of the face.
+ */
+function buildBurntWall(points, o, h, width, R) {
+  const M = burntMats(), root = new THREE.Group(); root.name = 'dressing:wall:burnt';
+  const minF = h < 2 ? 0.78 : 0.6;
+  for (let k = 0; k + 1 < points.length; k++) {
+    const [ax, az] = points[k], [bx, bz] = points[k + 1], L = Math.hypot(bx - ax, bz - az);
+    if (L < 1e-3) continue;
+    const segs = Math.max(4, Math.round((L + width) / 0.45));
+    // broken top: a wandering line (runs of level courses, gentle slopes) with a few deep bites where floors fell in
+    const drop = [], deep = 1 - minF;
+    let cur = R() * 0.12, target = cur;
+    for (let i = 0; i <= segs; i++) {
+      if (R() < 0.22) target = R() < 0.4 ? 0.45 * deep + R() * 0.55 * deep : R() * 0.2;
+      cur += (target - cur) * (0.35 + R() * 0.3);
+      drop.push(Math.min(deep, Math.max(0, cur + (R() - 0.5) * 0.03)));
+    }
+    const jag = (geo, top) => {
+      const P = geo.attributes.position;
+      for (let i = 0; i < P.count; i++) if (P.getY(i) > 0) {
+        const t = Math.min(1, Math.max(0, P.getX(i) / (L + width) + 0.5));
+        P.setY(i, top / 2 - top * Math.min(1 - minF, drop[Math.round(t * segs)]));
+      }
+      geo.computeVertexNormals();
+      return geo;
+    };
+    const rot = -Math.atan2(bz - az, bx - ax), cx = (ax + bx) / 2, cz = (az + bz) / 2;
+    const place = (m, y, off = 0) => { m.position.set(cx - (bz - az) / L * off, y, cz + (bx - ax) / L * off); m.rotation.y = rot; root.add(m); return m; };
+    place(mesh(boxUV(jag(new THREE.BoxGeometry(L + width, h, width, segs, 1, 1), h).toNonIndexed(), 2.4), M.brick), h / 2);
+    // plaster skins on both faces (rooms were on both sides of party walls), ragged lower than the brick
+    for (const s of [-1, 1]) {
+      const ph = h * (0.55 + R() * 0.2);
+      const g = jag(new THREE.BoxGeometry(L + width - 0.3, ph, 0.03, segs, 1, 1), ph);
+      place(mesh(boxUV(g.toNonIndexed(), 2), M.plaster), ph / 2, s * (width / 2 + 0.016));
+      // soot licks above the window line: irregular patches, darkest at the broken top
+      for (let d = -L / 2 + 0.3; d < L / 2 - 0.3; d += 0.7 + R() * 1.6) {
+        if (R() < 0.35) continue;
+        const pw = 0.5 + R() * 1.3, phh = 0.4 + R() * 0.8, t = Math.min(1, Math.max(0, (d + L / 2) / L));
+        const top = h * (1 - Math.min(1 - minF, drop[Math.round(t * segs)])) - 0.05;
+        const m = mesh(new THREE.BoxGeometry(pw, Math.min(phh, top - ph * 0.6), 0.02), M.soot, false);
+        m.position.set(cx + (bx - ax) / L * d - (bz - az) / L * s * (width / 2 + 0.012), top - Math.min(phh, top - ph * 0.6) / 2,
+          cz + (bz - az) / L * d + (bx - ax) / L * s * (width / 2 + 0.012));
+        m.rotation.y = rot; root.add(m);
+      }
+    }
+    if (h > 2.4) for (let d = 0.8; d < L - 0.4; d += 0.9 + R() * 0.6) { // charred joist stubs at the first floor
+      const len = 0.3 + R() * 0.6, x = d - L / 2;
+      const b = mesh(new THREE.BoxGeometry(0.12, 0.18, len), M.beam);
+      b.position.set(cx + (bx - ax) / L * x + (bz - az) / L * -(width / 2 + len / 2), h * 0.8, cz + (bz - az) / L * x + (bx - ax) / L * (width / 2 + len / 2));
+      b.rotation.y = rot; b.rotation.x = (R() - 0.5) * 0.3; root.add(b);
+    }
+    for (let q = 0; q < Math.round(L * 2.5); q++) { // broken bricks and plaster lumps at the foot (low: no cover)
+      const sz = 0.08 + R() * 0.16, d = (R() - 0.5) * L, side = R() < 0.5 ? -1 : 1, off = side * (width / 2 + R() * 0.45);
+      const bl = mesh(boulderGeometry(sz, sz * 0.5, sz * 0.8, Math.floor(R() * 1e9), 1), R() < 0.6 ? M.brick : M.rubble);
+      bl.position.set(cx + (bx - ax) / L * d + (bz - az) / L * -off, 0, cz + (bz - az) / L * d + (bx - ax) / L * off);
+      bl.rotation.y = R() * 6.3; root.add(bl);
     }
   }
   return consolidate(root);

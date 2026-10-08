@@ -132,7 +132,8 @@ export function buildStructure(s, ctx) {
 /** Does a structure visual (library model) carry its own walkable deck (fuel tank farm grating)? */
 function ownDeck(o) {
   let own = false;
-  o.traverse((n) => { if (/^fuel_tank_farm/.test(n.userData?.libraryAsset || '')) own = true; });
+  // (M15: the corner block's W part carries its stone terrace and the E part its iron balcony = walkway B)
+  o.traverse((n) => { if (/^(fuel_tank_farm|townhouse_corner_w)/.test(n.userData?.libraryAsset || '')) own = true; });
   return own;
 }
 

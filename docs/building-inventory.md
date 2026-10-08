@@ -73,8 +73,8 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `palace_tiled_domes` | new | Palace with a tiled facade and green domes | Tunis | M12 | E, R | 25×20×12 | kit + medina-kit (M12 art pass) |
 | `farmhouse_normandy` | house | Normandy farmhouse | France/Belgium | M16/M18 (NE farm) | E | 12×8×8 | europe |
 | `house_belgian_brick` | house | Belgian brick house or townhouse, gabled or hipped, 2-3 storeys. Some are damaged | Belgium | M16/M18 (NE village) | E | 8×8×10 | europe |
-| `townhouse_stucco` | house | 3-4 storey stucco townhouse, grey (M16) or cream (M15) | France/Belgium | M15 (N), M16/M18 (NW) | E | 10×10×13 | NEW |
-| `townhouse_corner_turret` | house | Second-Empire corner block: 4 storeys, **round corner turret**, slate mansard, **ground-floor shopfronts with red awnings**, balcony with ladder or fire escape | France | M15 (Sniper roof) | E, R, L | 20×15×16 | NEW |
+| `townhouse_stucco` | house | 3-4 storey stucco townhouse, grey (M16) or cream (M15) | France/Belgium | M15 (N), M16/M18 (NW) | E | 10×10×13 | BUILT (M15 pass: `townhouse_fr_stucco`, cream render + wine shop) |
+| `townhouse_corner_turret` | house | Second-Empire corner block: 4 storeys, **round corner turret**, slate mansard, **ground-floor shopfronts with red awnings**, balcony with ladder or fire escape | France | M15 (Sniper roof) | E, R, L | 20×15×16 | BUILT (M15 pass: `townhouse_corner_w` / `_flat` / `_turret`, manifest-compiegne) |
 | `mansion_hq_mansard` | villa | HQ mansion: brick with stone quoins, slate mansard, dormers, tall chimneys, Nazi banners. Low wall with iron railings and gates, W parterre garden, E car yard | France | M15 | **D** (objective), E | 30×15×15 | NEW |
 | `house_half_timber` | house | Half-timbered (Fachwerk) house, red tile, 2-3 storeys | Germany | B5 (S village), B6 (village) | E | 9×8×10 | europe |
 | `house_half_timber_turret` | house | 2-storey half-timbered house with a round turret; also serves as a gate-tower house | Germany | M20 (by the range) | E | 12×9×12 | built: europe `house_halftimber_d` (Breisgau, corner turret, flag) |
@@ -260,8 +260,8 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 |---|---|---|---|---|---|---|---|
 | `mosque_minaret` | mosque | Great mosque on a raised platform with stair flights, a tall square/octagonal minaret with a balcony, a ribbed dome and arcaded courtyards | Tunis | M12 | E, R, L | 40×40×35 | desert |
 | `church_european` | new | Stone church | Europe | generic europe group; no confirmed BEL instance [inf] | E | 25×12×25 | europe |
-| `cemetery` | cemetery | Chest tombs/sarcophagi, cypresses, iron-railing fence with a cemetery gate, and a small chapel or kiosk | France | M15 (NE; the exit van waits here) | dr | 40×30 | europe (VAR: chapel/kiosk, chest tombs) |
-| `fountain_statue` | new | Fountain roundabout with a statue, monument, or plaza fountain with an iron-railing park and brick gate piers | Europe | M4 (drive monument), M15 (roundabout), B2 (garden courtyard), B8 (plaza) | — | 8-15 Ø | NEW |
+| `cemetery` | cemetery | Chest tombs/sarcophagi, cypresses, iron-railing fence with a cemetery gate, and a small chapel or kiosk | France | M15 (NE; the exit van waits here) | dr | 40×30 | europe (VAR: chapel/kiosk, chest tombs); M15 pass: `mausoleum_chapel`, `tomb_chest_a/b/c` |
+| `fountain_statue` | new | Fountain roundabout with a statue, monument, or plaza fountain with an iron-railing park and brick gate piers | Europe | M4 (drive monument), M15 (roundabout), B2 (garden courtyard), B8 (plaza) | — | 8-15 Ø | kit (art/kit-props.js fountain; `statueH` roundabout centrepiece, M15 pass) |
 | `tram_set` | tram | Tram car, tram track, overhead catenary poles, tram stop (`TRAMWAY` [STR]) | France | M15 | — | linear | NEW |
 | `street_furniture_fr` | lamp_post | Morris advertising column and cast-iron street lamps | France | M15; lamps in B2 and B4 | — | 1.2 Ø × 4 | NEW (minor) |
 | `temple_doric_ruin` | ruins | Classical Doric temple ruin: standing columns, pediment, stepped podium | Crete | B3 | — | 20×12×10 | NEW |

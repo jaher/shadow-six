@@ -30,7 +30,9 @@ export default async function extractionHandspawn(page, t) {
         out.skipped = G.skipExtraction();
         g.advance(0.2);
       } else {
-        for (let k = 0; k < 40 && G.state === 'playing'; k++) g.advance(0.25);
+        // (hand-spawned facing south, it has to turn round in the bay first: a multi-point turn since 2026-10-07 — no
+        // more pivoting on the spot through the rim — so the drive to the exit takes up to ~30 s, not 10)
+        for (let k = 0; k < 160 && G.state === 'playing'; k++) g.advance(0.25);
       }
       out.o3 = ob('o3').done;
       out.state = G.state;

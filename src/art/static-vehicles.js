@@ -95,13 +95,19 @@ export function dressStaticVehicles(world, def) {
     if (!vis) continue;
     const holder = new THREE.Group(); holder.name = `static-vehicle:${asset}`;
     holder.rotation.y = Math.PI / 2; // structure local +X = its heading; the library model faces +Z
-    holder.add(vis.object3d);
+    // an 'overturned' wreck (e.g. M15's car_wreck_overturned) lies on its roof: rolled 180 deg about its long axis
+    const flip = /overturned/.test(String(s.def?.variant || '')) ? new THREE.Group() : null;
+    if (flip) { flip.name = 'overturned'; flip.rotation.z = Math.PI; flip.add(vis.object3d); holder.add(flip); } else holder.add(vis.object3d);
     const rec = { id, asset, scale: 1, vis };
     vis.ready.then(() => {
       const md = vis.meta?.dims || {}, b = vis.meta?.bbox;
       const L = md.length ?? md.length_over_buffers_loco ?? (b ? b.max[2] - b.min[2] : 1);
       const W = md.width ?? md.span ?? md.beam ?? (b ? b.max[0] - b.min[0] : 1);
       const fp = [s.def?.w ?? L, s.def?.d ?? W];
+      if (flip) { // (roof down on the ground: lift by the model's height, less a crushed 8 cm of roof)
+        const top = b ? b.max[1] : new THREE.Box3().setFromObject(vis.object3d).max.y;
+        flip.position.y = Math.max(0, top - 0.08);
+      }
       // true scale when the overhang clears every other structure; else onto the footprint (windsocks never scale)
       const clear = asset === 'windsock' || overhangClear(world.grid, s.def, L, W);
       rec.scale = clear ? 1 : fitOnFootprint([L, W], fp);

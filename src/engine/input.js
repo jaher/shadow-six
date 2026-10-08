@@ -645,8 +645,9 @@ export class Input {
    * Handle a left click at a client-space point (also used by tests).
    * @param {number} clientX
    * @param {number} clientY
-   * @param {{shift?: boolean, ctrl?: boolean, alt?: boolean, double?: boolean}} [mods] `double` overrides the
-   *   double-click detection (touch: the gesture classifier's double tap, with a finger-sized radius)
+   * @param {{shift?: boolean, ctrl?: boolean, alt?: boolean, double?: boolean, touch?: boolean}} [mods] `double` overrides the
+   *   double-click detection (touch: the gesture classifier's double tap, with a finger-sized radius); `touch`: a
+   *   finger tap (an enemy under it shows his cone only when nobody is selected)
    * @returns {string} what the click did (for tests): 'track'|'untrack'|'ability'|'volley'|'select'|
    *   'deselect'|'cone'|'probe'|'move'|'run'|'refused'|'none'
    */
@@ -709,7 +710,9 @@ export class Input {
     }
     if (this.canOrder && this._vehicleClick(clientX, clientY)) return 'board'; // VEHICLES: click a vehicle = get in
     const enemy = this.pickEntity(clientX, clientY, (u) => u.kind === 'enemy' && u.alive);
-    if (enemy && !this.selection.length) {
+    // a click on an enemy soldier shows / hides his vision cone — with men selected too (the hover cursor is the eye
+    // there, user 2026-10-07); a touch tap with men selected still walks them there (the long-press shows the cone)
+    if (enemy && (!this.selection.length || !mods.touch)) {
       if (!this.canInspect) return 'refused'; // §6.8
       g.toggleCone(enemy);
       return 'cone';
@@ -792,6 +795,7 @@ export class Input {
     if (this.mode === 'track') c = 'track';
     else if (this.mods.shift) c = 'eye';
     else if (this.mods.ctrl && this._operator()) c = 'gunsight';
+    else if (h.inside && this.pickEntity(h.x, h.y, (u) => u.kind === 'enemy' && u.alive)) c = 'eye'; // click → his cone
     else if (!h.inside || !this.selection.length) c = 'arrow';
     else c = 'move';
     this.setCursor(c);

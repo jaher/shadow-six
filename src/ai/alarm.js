@@ -6,6 +6,7 @@
  *   world.alarm.fireEvent(eventName, {zoneId?, cause?, x?, z?})     → releases barracks squads / siren on 'RINT'
  *   world.alarm.zoneAt(x, z) → zone | null        world.alarm.zones  [{id, poly, onSeen, onHeard, reach?, heardLocal?, ignoreFrom?}]
  *   world.alarm.active (siren sounding)           world.alarm.siren {active, gain, t}
+ *   world.alarm.lamp (HUD alarm lamp: siren, any alarm event, or the enemy still answering one — see `lamp`)
  *   world.alarm.zonesFired [{zone, event, cause, t}]  (every zone event, in order)
  *   world.alarm.raiseUnzoned(cause, x, z, sensor)  sensor outside every zone: nothing — except on maps
  *        without any zones that opt in (mission.noZonesFallback, default: `zones` key absent — never an
@@ -14,7 +15,8 @@
  *
  * Events: 'alarm:zone' {zone, event, cause, x, z} for every event; 'alarm:start' {x, z, cause, event} when
  * the siren starts ('RINT' only; a new RINT restarts the 25 s fade); 'alarm:end' when it fades out;
- * 'reinforcements' {barracksId, squad, units} when a barracks releases a squad. No global all-clear.
+ * 'reinforcements' {barracksId, squad, units} when a barracks releases a squad; 'alarm:lamp' {on} when the HUD lamp
+ * switches. No global all-clear.
  * @module ai/alarm
  */
 
@@ -78,6 +80,13 @@ export function alarmRoutePlan(r, ownRoute) {
   return { exit: run, loop, loopVel: src?.vel };
 }
 
+/**
+ * Enemy states that are an answer to an alarm (the HUD lamp stays lit while anyone is in one after an alarm event):
+ * searching / investigating the blast or the shots, following prints, finding bodies, fighting, holding or running
+ * to the alarm. DECOY / DISTRACTED are not: a radio decoy left on would keep the lamp lit for ever.
+ */
+const ANSWERING = new Set(['INVESTIGATE', 'TRACKS', 'SEARCH', 'BODY', 'COMBAT', 'ALARM_RUN', 'CHALLENGE', 'HOLD', 'ARREST']);
+
 export class Alarm {
   /** @param {import('../world/world.js').World} world */
   constructor(world) {
@@ -89,6 +98,8 @@ export class Alarm {
     this.noZonesFallback = !!(m.noZonesFallback ?? m.zones === undefined);
     this.zonesFired = [];
     this.siren = { active: false, gain: 0, t: 0 };
+    /** HUD lamp hold: `t` s left of the minimum hold, `since` world time of the last alarm event */
+    this.alert = { on: false, t: 0, since: 0, event: null };
     this.origin = null;
     this.cause = null;
     this._lastFire = new Map(); // `${zone}|${event}` → time (dedupe: one event per zone per step)
@@ -112,6 +123,38 @@ export class Alarm {
   /** Siren sounding (the HUD lamp / legacy "alarm active"). */
   get active() {
     return this.siren.active;
+  }
+
+  /**
+   * HUD alarm lamp (user 2026-10-07 "make sure the alarm icon is on whenever it should"). On while the siren
+   * sounds; also from ANY alarm event — a non-siren zone (M3 camp RCAMP, M2 REXT …), a scripted / courier / collapse
+   * alarm, a heard explosion or gunshot tripping a zone — for at least CONFIG.alarm.lampHold s, and then for as
+   * long as the enemy is still answering it (searches, investigations of the blast, prints followed, fights, the exit
+   * run of released squads / reacting patrols), capped CONFIG.alarm.lampMax s after the last event. The old lamp
+   * (siren only) went dark 25 s after the M3 bunker blast while a dozen soldiers were still combing the south bank.
+   * Purely the indicator: `active` (the siren) still drives the AI.
+   */
+  get lamp() {
+    return this.siren.active || this.alert.on;
+  }
+
+  /** Is any living enemy still answering an alarm? (see ANSWERING; REINFORCE counts only on its exit run) */
+  _answering() {
+    for (const e of this.world.enemies || []) {
+      if (!e.alive || e.removed) continue;
+      const b = e.brain, s = b?.state;
+      if (ANSWERING.has(s)) return true;
+      if (s !== 'REINFORCE' || !(b.routeIndex < (b._loopStart ?? 0))) continue;
+      const lead = b._leader?.(); // squad followers keep routeIndex 0: their leader's run is the squad's
+      if (!lead || lead === e || !lead.alive) return true;
+    }
+    return false;
+  }
+
+  _setLamp(on) {
+    const was = this.lamp;
+    this.alert.on = on;
+    if (this.lamp !== was) this.world.events?.emit?.('alarm:lamp', { on: this.lamp });
   }
 
   /** Zone containing (x, z), or null (first match in mission order). */
@@ -183,6 +226,8 @@ export class Alarm {
   fireEvent(event, { zoneId = null, cause = null, x = 0, z = 0 } = {}) {
     const w = this.world;
     this.zonesFired.push({ zone: zoneId, event, cause, t: w.time });
+    const lampWas = this.lamp;
+    this.alert = { on: true, t: CONFIG.alarm.lampHold, since: w.time, event };
     w.events.emit('alarm:zone', { zone: zoneId, event, cause, x, z });
     if (event === CONFIG.alarm.sirenEvent) {
       const was = this.siren.active;
@@ -198,6 +243,7 @@ export class Alarm {
     }
     this._release(event);
     this._reactPatrols(event);
+    if (!lampWas) w.events.emit('alarm:lamp', { on: true });
     return event;
   }
 
@@ -332,15 +378,25 @@ export class Alarm {
       }
     }
     const s = this.siren;
-    if (!s.active) return;
-    s.t -= dt;
-    s.gain = Math.max(0, s.gain - CONFIG.alarm.sirenFadePerSec * dt);
-    if (s.t <= 0) {
-      s.active = false;
-      s.gain = 0;
-      const o = this.origin || { x: 0, z: 0 };
-      this.world.events.emit('alarm:end', { x: o.x, z: o.z, cause: this.cause });
+    if (s.active) {
+      s.t -= dt;
+      s.gain = Math.max(0, s.gain - CONFIG.alarm.sirenFadePerSec * dt);
+      if (s.t <= 0) {
+        const lampWas = this.lamp;
+        s.active = false;
+        s.gain = 0;
+        const o = this.origin || { x: 0, z: 0 };
+        this.world.events.emit('alarm:end', { x: o.x, z: o.z, cause: this.cause });
+        if (lampWas && !this.lamp) this.world.events.emit('alarm:lamp', { on: false });
+      }
     }
+    const a = this.alert;
+    if (!a.on) return;
+    a.t = Math.max(0, a.t - dt);
+    if (s.active || a.t > 0) return;
+    // after the minimum hold: lit while the enemy still answers the alarm, never past lampMax after the last event
+    if (this.world.time - a.since < CONFIG.alarm.lampMax && this._answering()) return;
+    this._setLamp(false);
   }
 
   serialize() {
@@ -348,7 +404,7 @@ export class Alarm {
     for (const [id, b] of Object.entries(this.barracks)) {
       barracks[id] = { pool: b.pool, destroyed: b.destroyed, squads: b.squads.map((s) => ({ released: s.released, regenT: s.regenT, gen: s.gen ?? 0, members: s.members.map((m) => m.id) })) };
     }
-    return { siren: { ...this.siren }, zonesFired: this.zonesFired.map((f) => ({ ...f })), origin: this.origin, cause: this.cause, barracks };
+    return { siren: { ...this.siren }, alert: { ...this.alert }, zonesFired: this.zonesFired.map((f) => ({ ...f })), origin: this.origin, cause: this.cause, barracks };
   }
 
   /** Restore state without side effects (no stats change). Emits 'alarm:end' {restored:true} when the
@@ -356,6 +412,8 @@ export class Alarm {
   deserialize(d) {
     if (d.siren) this.siren = { ...d.siren };
     else this.siren = { active: !!d.active, gain: d.active ? CONFIG.alarm.sirenGain : 0, t: d.timer ?? 0 }; // v1 saves
+    // older saves carry no lamp hold: the lamp then follows the siren alone until the next alarm event
+    this.alert = d.alert ? { ...d.alert } : { on: false, t: 0, since: 0, event: null };
     this.zonesFired = (d.zonesFired || []).map((f) => ({ ...f }));
     this.origin = d.origin ?? null;
     this.cause = d.cause ?? null;

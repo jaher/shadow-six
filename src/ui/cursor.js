@@ -5,7 +5,8 @@
  *     enemy), 'hand' (H: open hand with forbidden overlay → animated grab over something to take);
  *  2. the input's targeting ability (knife, pistol, scope 88 px red/ok, crosshair, syringe, cap, …) with the
  *     red forbidden overlay when `input.cursor === 'forbidden'`;
- *  3. hover context with men selected: activation (operable thing), climbing pick (GB over a climbable), move.
+ *  3. hover context: the eye over an enemy soldier (click → his vision cone, with or without men selected); with men
+ *     selected: activation (operable thing), climbing pick (GB over a climbable), move.
  * Also shows the 0.6 s twin-star destination sparkle for 'ui:move-marker'.
  * The sniper scope is a live 2× magnifier (render/scope-magnifier.js draws the world into the glass right after
  * the frame, from `lensState()`); this layer then swaps the scope sprite for the clear ring + the reticle and the
@@ -156,6 +157,10 @@ export class CursorLayer {
       if (id === 'fist') id = fistVariant(tg.abilityId); // BCD knock-outs: bare fist, the Driver's blackjack, the Spy's pad
       return { id, forbidden: input.cursor === 'forbidden' };
     }
+    // over an enemy soldier with no item armed: the eye — a click shows his vision cone (user 2026-10-07 "there should
+    // be an eye icon, when mouse is positioned over a soldier (the same way there is for knife, gun, etc)").
+    // Refused (forbidden overlay) where cone inspection is (§6.8 paused).
+    if (this.pick((q) => q.kind === 'enemy' && q.alive !== false)) return { id: 'eye', look: true, forbidden: input?.canInspect === false };
     const sel = w?.commandos.filter((c) => c.selected && c.alive) || [];
     if (!sel.length) return { id: 'arrow', native: true };
     const hover = this.pick((q) => q.kind === 'interactable' || q.kind === 'vehicle');

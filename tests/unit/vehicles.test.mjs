@@ -106,7 +106,7 @@ test('operators and capacity (§3.7, §3.2): Driver drives land, Marine boats fi
   assert.equal(t.canEnter(sp), 'enemy crew aboard');
 });
 
-test('driving (§3.7): turn in place, straight line, slow/fast, stops at the first blocking cell; forbidden target', () => {
+test('driving (§3.7 + 2026-10-07 car steering): no pivot on the spot — it turns on its turning circle, then a straight line, slow/fast, stops at the first blocking cell; forbidden target', () => {
   const w = mkWorld();
   w.grid.fillRect(50, 0, 2, 60, 'block', B.HIGH); // a wall across the map at x 50..52
   const dr = commando(w, 'driver', 10, 30);
@@ -115,16 +115,29 @@ test('driving (§3.7): turn in place, straight line, slow/fast, stops at the fir
   const moves = events(w, 'vehicle:move'), stops = events(w, 'vehicle:stop');
   assert.ok(dr.issue({ type: 'move', x: 40, z: 30 }), 'click = drive');
   assert.equal(tr.fast, false); assert.equal(tr.maxSpeed, 3);
-  step(w, 30); // 0.5 s: turning 90° at 60°/s takes 1.5 s; no forward motion yet
-  near(tr.x, 20, 1e-6, 'turns in place before moving');
-  step(w, secs(1.2));
-  assert.ok(Math.abs(tr.heading) < 0.06, `faces the target (${tr.heading})`);
-  step(w, secs(2));
-  assert.ok(tr.x > 22 && tr.x < 27, `slow ≈3 m/s (${tr.x.toFixed(2)})`);
-  near(tr.z, 30, 1e-6, 'straight line');
-  assert.equal(moves.length, 1);
-  step(w, secs(8));
+  // every tick: the heading turns only as far as the distance rolled allows (radius ≥ turnRadius) — never on the spot
+  const R = tr.def.turnRadius;
+  let px = tr.x, pz = tr.z, ph = tr.heading, turned = 0, line = null, off = 0, run = 0;
+  for (let k = 0; k < secs(14); k++) {
+    step(w);
+    const ds = Math.hypot(tr.x - px, tr.z - pz), dh = Math.abs(Math.atan2(Math.sin(tr.heading - ph), Math.cos(tr.heading - ph)));
+    assert.ok(dh <= ds / R + 1e-6, `pivot: turned ${(dh * 180 / Math.PI).toFixed(2)}° rolling ${ds.toFixed(3)} m (R ${R})`);
+    turned += dh;
+    // the turn done (its plan run out), the rest is the straight line to the point
+    if (!line && tr.goal && !tr.goal.man) line = { x: tr.x, z: tr.z, h: Math.atan2(30 - tr.z, 40 - tr.x) };
+    if (line && tr.goal) {
+      off = Math.max(off, Math.abs(-(tr.x - line.x) * Math.sin(line.h) + (tr.z - line.z) * Math.cos(line.h)));
+      if (k % 30 === 0 && Math.abs(Math.atan2(Math.sin(tr.heading - line.h), Math.cos(tr.heading - line.h))) < 0.06) run = Math.max(run, tr.speed);
+    }
+    px = tr.x; pz = tr.z; ph = tr.heading;
+  }
+  assert.ok(turned > 1.2, `it turned toward the point on the move (${turned.toFixed(2)} rad)`);
+  assert.ok(line && Math.hypot(line.x - 20, line.z - 30) > 2, `the turn carried it along its arc (${line && line.x.toFixed(2)},${line && line.z.toFixed(2)})`);
+  assert.ok(off < 0.1, `straight line after the turn (off by ${off.toFixed(3)} m)`);
+  near(run, 3, 0.05, 'slow = 3 m/s on the line');
+  assert.ok(moves.length >= 1);
   near(tr.x, 40, 0.35, 'arrived');
+  near(tr.z, 30, 0.35, 'arrived');
   assert.ok(stops.length >= 1);
   // double-click = fast; the wall stops it at the first blocking cell (nose at the wall)
   assert.ok(dr.issue({ type: 'move', x: 49.9, z: 30, run: true }));

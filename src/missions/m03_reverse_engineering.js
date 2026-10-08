@@ -350,11 +350,14 @@ export default {
     { id: 'o2', text: 'Demolish the dam', type: 'destroy', targets: ['dam'], marker: 'dam_charge', required: true, bombOnly: true },
     { id: 'o3', text: 'Escape in the truck north of the dam', type: 'escape', required: true, vehicleId: 'evac_truck' },
   ],
-  // the friendly truck spawns off-map when o1 and o2 are done, drives to (60,10) (NE of the reservoir) at 6 m/s
-  // and waits; once everyone is aboard it drives off north (ESC skips)
+  // the friendly truck spawns off-map when o1 and o2 are done and BACKS down the dead-end road to (60,10) (NE of the
+  // reservoir), nose north, and waits; once everyone is aboard it drives straight off north (ESC skips). (2026-10-07:
+  // it used to come in forwards and pivot round on the spot through the rock rim; a lorry turning round in that bay is
+  // hidden behind cliff_w from the camera — a driver backs in instead.)
   extraction: {
     vehicleId: 'evac_truck', vehicleType: 'truck', friendly: true, seats: 6, spawnWhen: ['o1', 'o2'],
-    spawnAt: { x: 60, z: -6, heading: deg(90) }, arrive: { x: 60, z: 10, speed: 6 }, exit: { x: 60, z: 0, r: 3 },
+    // (the lane at x 60.4: the hull clears the rim's edge posts by the road W of it and the gate-keeper shack E)
+    spawnAt: { x: 60.4, z: -6, heading: deg(270) }, arrive: { x: 60.4, z: 10, speed: 6, reverse: true }, exit: { x: 60.4, z: 0, r: 3 },
   },
   // the water falling down the dam, layered and positional (all stop when the dam is destroyed): the rush of the falls
   // at the face, the low roar of the plunge pool, and the tailwater rushing away downstream

@@ -112,6 +112,13 @@ export const PLACEHOLDER_HINTS = {
   control_shack: { guard_hut_a: ['guard_hut_a'] },
   truss_bridge: { truss_bridge_maas: ['bridge_truss_maas'] },
   radio_mast: { wurzburg_dish: ['radar_dish_a'] },
+  // Compiegne (M15 art pass, manifest-compiegne): the Second-Empire corner block in its three gameplay parts (W part
+  // with the y 4.5 terrace, flat-roofed E part, round turret), the cream townhouse with its wine shop, the cemetery's
+  // family chapel and chest tombs. Visual only: the balcony, roof R, ladders and doors stay the mission's
+  house: { townhouse_corner_turret: ['townhouse_corner_w'], townhouse_round_turret: ['townhouse_corner_turret'],
+    townhouse_stucco_shopfront: ['townhouse_fr_stucco'], mausoleum_chapel: ['mausoleum_chapel'] },
+  flat_roof_house: { townhouse_corner_flat_roof: ['townhouse_corner_flat'] },
+  crates: { sarcophagus: ['tomb_chest_a', 'tomb_chest_b', 'tomb_chest_c'] },
 };
 for (const [type, hints] of Object.entries(PLACEHOLDER_HINTS)) {
   VARIANT_HINTS[type] ??= {};

@@ -353,12 +353,77 @@ function well(g, p, theater) {
 }
 /** Town fountain: a stepped stone basin with water, a central column / statue pedestal. */
 function fountain(g, p) {
-  const r = Math.max(1.2, Math.min(p.w ?? 4, p.d ?? 4) / 2 - 0.1), stone = dressingMaterial('ashlar');
+  // (a round `well` gives its basin radius as `r`; else the w × d box)
+  const r = p.r ? Math.max(1.2, p.r - 0.1) : Math.max(1.2, Math.min(p.w ?? 4, p.d ?? 4) / 2 - 0.1), stone = dressingMaterial('ashlar');
   g.add(mesh(lathe([[r + 0.25, 0], [r + 0.25, 0.12], [r, 0.14], [r, 0.62], [r - 0.18, 0.62], [r - 0.18, 0.2], [0, 0.2]], 32), stone));
   const water = mesh(new THREE.CircleGeometry(r - 0.18, 32).rotateX(-Math.PI / 2).translate(0, 0.5, 0), new THREE.MeshStandardMaterial({ color: 0x2c3a3a, roughness: 0.08, metalness: 0.3, name: 'kit:water' }), false);
   g.add(water);
+  if (p.statueH) { statueFountain(g, p, r, stone); return; }
   const H = Math.max(1.6, Math.min(3.2, (p.h ?? 1.5) + 1.2));
   g.add(mesh(lathe([[0.42, 0.2], [0.42, 0.45], [0.3, 0.55], [0.22, 0.6], [0.2, H * 0.62], [0.55, H * 0.66], [0.6, H * 0.7], [0.18, H * 0.74], [0.16, H * 0.92], [0.24, H], [0, H]], 20), stone));
+}
+const bronzeMat = () => { // weathered bronze: brown metal under a grey-green patina (reads as bronze, not a black cut-out)
+  const m = new THREE.MeshStandardMaterial({ color: 0x66704f, roughness: 0.55, metalness: 0.45, name: 'kit:bronze' });
+  if (HAS_DOM) { m.map = dressingMaterial('castIron').map; m.normalMap = dressingMaterial('castIron').normalMap; }
+  return m;
+};
+/** A tapered limb (cylinder) from a to b ([x, y, z]), radii ra at a and rb at b. */
+function limb(a, b, ra, rb, mat, seg = 8) {
+  const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), d = B.clone().sub(A), L = d.length();
+  const m = mesh(new THREE.CylinderGeometry(rb, ra, L, seg), mat);
+  m.position.copy(A).addScaledVector(d, 0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+  return m;
+}
+/**
+ * Standing bronze figure fh tall, feet at y 0, facing +z: a striding figure in a tabard and a cloak, the right arm raised
+ * with a banner on its staff, the left hand on a sword hilt — a heroic Joan-of-Arc type (Compiegne), readable at zoom 1.
+ */
+function bronzeFigure(fh, bronze) {
+  const fig = new THREE.Group(), u = fh / 1.85, P = (x, y, z) => [x * u, y * u, z * u];
+  fig.add(tcyl(0.36 * u, 0.4 * u, 0.07 * u, bronze, 0, 0, 0, 16));                       // the cast ground plate
+  fig.add(limb(P(0.1, 0.07, 0.16), P(0.1, 0.5, 0.06), 0.075 * u, 0.09 * u, bronze));     // the striding legs (greaves)
+  fig.add(limb(P(-0.1, 0.07, -0.14), P(-0.1, 0.5, -0.04), 0.075 * u, 0.09 * u, bronze));
+  for (const [x, z] of [[0.1, 0.2], [-0.1, -0.1]]) fig.add(tbox(0.12 * u, 0.07 * u, 0.24 * u, bronze, x * u, 0.1 * u, z * u, 0.5)); // sabatons
+  const skirt = mesh(lathe([[0.3, 0.45], [0.27, 0.62], [0.2, 0.92], [0.17, 1.02], [0, 1.02]].map(([r, y]) => [r * u, y * u]), 14), bronze);
+  fig.add(skirt);                                                                       // the tabard over the hips
+  fig.add(mesh(lathe([[0.17, 1.0], [0.2, 1.22], [0.23, 1.4], [0.13, 1.47], [0.06, 1.5], [0, 1.5]].map(([r, y]) => [r * u, y * u]), 14), bronze));
+  for (const s of [-1, 1]) {                                                            // pauldrons
+    const pd = mesh(new THREE.SphereGeometry(0.09 * u, 10, 7), bronze); pd.position.set(s * 0.22 * u, 1.39 * u, 0); pd.scale.set(1, 0.75, 1); fig.add(pd);
+  }
+  fig.add(limb(P(0, 1.48, 0), P(0, 1.56, 0), 0.06 * u, 0.055 * u, bronze));             // neck
+  const head = mesh(new THREE.SphereGeometry(0.105 * u, 12, 9), bronze); head.position.set(0, 1.64 * u, 0.01 * u); head.scale.set(0.9, 1.05, 1); fig.add(head);
+  const hair = mesh(new THREE.SphereGeometry(0.11 * u, 12, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), bronze); hair.position.set(0, 1.66 * u, -0.01 * u); fig.add(hair);
+  const cloak = tbox(0.5 * u, 0.95 * u, 0.04 * u, bronze, 0, 0.98 * u, -0.2 * u, 0.6); cloak.rotation.x = 0.16; fig.add(cloak); // the cloak off the shoulders
+  // the right arm raised, the banner staff in the fist; the left hand on the sword hilt
+  fig.add(limb(P(0.24, 1.38, 0), P(0.34, 1.68, 0.06), 0.06 * u, 0.055 * u, bronze));
+  fig.add(limb(P(0.34, 1.68, 0.06), P(0.36, 1.98, 0.1), 0.055 * u, 0.045 * u, bronze));
+  fig.add(limb(P(0.36, 0.55, 0.1), P(0.36, 2.75, 0.1), 0.025 * u, 0.022 * u, bronze, 6));  // the staff
+  const flag = tbox(0.62 * u, 0.42 * u, 0.025 * u, bronze, 0.67 * u, 2.48 * u, 0.1 * u, 0.6); flag.rotation.y = 0.35; flag.rotation.z = -0.08; fig.add(flag);
+  fig.add(limb(P(0.36, 2.75, 0.1), P(0.36, 2.83, 0.1), 0.035 * u, 0.0, bronze, 6));      // the finial
+  fig.add(limb(P(-0.24, 1.38, 0), P(-0.3, 1.12, 0.04), 0.06 * u, 0.055 * u, bronze));
+  fig.add(limb(P(-0.3, 1.12, 0.04), P(-0.2, 0.98, 0.1), 0.055 * u, 0.045 * u, bronze));
+  fig.add(limb(P(-0.2, 1.02, 0.12), P(-0.3, 0.3, 0.02), 0.03 * u, 0.02 * u, bronze, 6));   // the sword in its scabbard
+  fig.add(limb(P(-0.27, 1.0, 0.06), P(-0.13, 1.04, 0.18), 0.02 * u, 0.02 * u, bronze, 6)); // its cross-guard
+  return fig;
+}
+/**
+ * Roundabout fountain centrepiece (M15 Compiegne, `statueH`): a stepped island in the basin, a lower vasque spilling
+ * into the pool, a fluted column with a capital and a bronze figure on top, `statueH` metres above the pavement.
+ */
+function statueFountain(g, p, r, stone) {
+  const H = p.statueH, bronze = bronzeMat();
+  const ri = Math.min(1.6, r * 0.32);
+  g.add(mesh(lathe([[ri + 0.3, 0.2], [ri + 0.3, 0.55], [ri, 0.6], [ri, 0.9], [ri * 0.7, 0.95], [ri * 0.7, 1.3], [0, 1.3]], 28), stone));
+  g.add(mesh(lathe([[0.35, 1.3], [0.3, 1.6], [0.5, 1.8], [Math.min(1.4, ri * 1.05), 2.0], [Math.min(1.45, ri * 1.08), 2.12], [Math.min(1.3, ri), 2.15], [0.4, 2.05], [0, 2.05]], 28), stone));
+  const vasqueWater = mesh(new THREE.CircleGeometry(Math.min(1.25, ri * 0.95), 24).rotateX(-Math.PI / 2).translate(0, 2.1, 0), new THREE.MeshStandardMaterial({ color: 0x2c3a3a, roughness: 0.08, metalness: 0.3, name: 'kit:water' }), false);
+  g.add(vasqueWater);
+  const colTop = Math.max(3, H - 2.3);
+  g.add(mesh(lathe([[0.32, 2.05], [0.32, 2.3], [0.24, 2.4], [0.22, colTop - 0.35], [0.36, colTop - 0.2], [0.42, colTop], [0, colTop]], 16), stone));
+  g.add(tbox(0.95, 0.18, 0.95, stone, 0, colTop + 0.09, 0, 1.0));
+  const fig = bronzeFigure(Math.max(1.4, H - colTop - 0.2), bronze);
+  fig.position.y = colTop + 0.18;
+  g.add(fig);
 }
 /** Monument / statue: a stepped plinth, a dado with its inscription panel and a bronze figure on top. */
 function monument(g, p) {
@@ -368,14 +433,8 @@ function monument(g, p) {
   const dh = H * 0.42;
   g.add(tbox(w * 0.5, dh, w * 0.5, stone, 0, 0.6 + dh / 2, 0, 1.0));
   g.add(tbox(w * 0.58, 0.16, w * 0.58, stone, 0, 0.6 + dh + 0.08, 0, 1.0));
-  const bronze = new THREE.MeshStandardMaterial({ color: 0x3e4a3c, roughness: 0.45, metalness: 0.75, name: 'kit:bronze' });
-  if (HAS_DOM) { bronze.map = dressingMaterial('castIron').map; bronze.normalMap = dressingMaterial('castIron').normalMap; }
   const y0 = 0.6 + dh + 0.16, fh = Math.max(1.1, H - y0 + 0.4);
-  // standing figure: legs, coat, torso, head, an arm raised
-  const fig = new THREE.Group(); fig.position.y = y0;
-  fig.add(mesh(lathe([[0.3, 0], [0.28, fh * 0.45], [0.22, fh * 0.55], [0.2, fh * 0.72], [0.24, fh * 0.78], [0.14, fh * 0.82], [0, fh * 0.83]], 12), bronze));
-  const head = mesh(new THREE.SphereGeometry(fh * 0.07, 12, 9), bronze); head.position.y = fh * 0.89; fig.add(head);
-  const arm = tbox(0.08, fh * 0.32, 0.08, bronze, 0.22, fh * 0.86, 0, 0.5); arm.rotation.z = -0.5; fig.add(arm);
+  const fig = bronzeFigure(fh, bronzeMat()); fig.position.y = y0;
   g.add(fig);
 }
 /** Riveted water tank on a steel trestle with a ladder (caged variant: a mesh guard round the ladder). */

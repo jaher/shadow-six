@@ -112,7 +112,12 @@ export default async function uiHud(page, t) {
   const tip2 = await page.evaluate(() => ({ tip: document.querySelector('.ui-tooltip').hidden ? '' : document.querySelector('.ui-tooltip').textContent, cursor: document.querySelector('.ui-cursor').dataset.cursor, soft: document.body.classList.contains('ui-softcursor') }));
   t.log(JSON.stringify(tip2));
   t.equal(tip2.tip, 'SENTRY', 'world tooltip names the enemy');
-  t(tip2.soft && tip2.cursor === 'move', 'software move cursor over the view with a man selected');
+  // over a soldier with no item armed: the eye (click → his cone, user 2026-10-07); over the ground: the move cursor
+  t(tip2.soft && tip2.cursor === 'eye', 'software eye cursor over an enemy soldier with a man selected');
+  await page.mouse.move(r.sentryScreen.x + 90, r.sentryScreen.y + 70);
+  await page.waitForTimeout(150);
+  const curGround = await page.evaluate(() => ({ cursor: document.querySelector('.ui-cursor').dataset.cursor, soft: document.body.classList.contains('ui-softcursor') }));
+  t(curGround.soft && curGround.cursor === 'move', `software move cursor over the view with a man selected (${JSON.stringify(curGround)})`);
   // Eye tool: click the sentry → its cone toggles on
   await page.evaluate(() => window.__game.game.hud.cursor.setMode('eye'));
   await page.mouse.click(r.sentryScreen.x, r.sentryScreen.y);

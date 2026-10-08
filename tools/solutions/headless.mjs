@@ -55,3 +55,12 @@ export function headlessMission(id) {
     },
   };
 }
+
+/** Driver (tools/solutions/driver.mjs) over a headless copy of mission `id` (node only). */
+export async function headlessDriver(id, o = {}) {
+  const { makeDriver } = await import('./driver.mjs');
+  const s = headlessMission(id);
+  const D = makeDriver(s.world, { step: s.step, dt: s.dt, ...o });
+  D.sim = s;
+  return D;
+}

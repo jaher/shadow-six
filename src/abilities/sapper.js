@@ -44,7 +44,7 @@ registerAbility({
       if (!c.consume('bearTrap')) return false;
       const d = Math.hypot(t.x - c.x, t.z - c.z);
       const p = d <= A.trap.range ? t : { x: c.x + ((t.x - c.x) / d) * A.trap.range, z: c.z + ((t.z - c.z) / d) * A.trap.range };
-      world.add(new Trap({ x: p.x, z: p.z, owner: c }));
+      world.add(new Trap({ x: p.x, z: p.z, owner: c, heading: d > 1e-3 ? Math.atan2(t.x - c.x, t.z - c.z) : 0 })); // jaws open towards him
       return true;
     } }] });
   },

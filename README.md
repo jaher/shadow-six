@@ -109,6 +109,28 @@ calls, triangles, cursor world x/z, camera zoom and yaw). The URL follows the le
 `?debug&mission=m05` reloads or shares that level directly, with the remembered options. Without the parameter none
 of this exists, and nothing in the normal menus leads to it.
 
+### Solution replays
+
+Missions with a saved full solution (today Mission 3, *Reverse Engineering*: `tools/solutions/m03.solution.mjs`, the
+same script the `m03-solution` regression test plays) can be watched being solved inside the game. In DEBUG LEVEL
+SELECT pick **▶ … — play the solution** under *Solution replays*; in a mission press **F9** or the small **▶ SOL**
+button beside DEBUG. The mission is loaded fresh, as authored (the select's *All commandos*, *Invulnerable*, *Enemies
+blind & deaf*, time of day and wind are ignored while it plays), and the solution's player orders are issued live in
+the real game loop, starting at 1× (real time). The bar at the top has:
+
+| Control | Effect |
+| --- | --- |
+| ■ STOP (or **Esc**, or F9 again) | Stops the replay; you take over the mission where it stands. |
+| ❚❚ / ▶ | The game's own pause (P works too). |
+| 1× 2× 4× 8× | Replay speed. |
+| STEPS ▾ | Skip to a step (stage) of the solution: a later one fast-forwards to it, an earlier one reloads the mission and fast-forwards. |
+| CAM | The camera follows the commando the last order went to (on), or is yours to scroll (off). |
+
+A caption shows the current step, each checkpoint as it is reached and the latest order. Your own orders are held
+while it plays. Adding a solution for another mission: write `tools/solutions/<id>.solution.mjs` (exports `solve(D,
+ctx)` and `STAGES`; driver API in `tools/solutions/driver.mjs`) and add its line to `src/debug/solutions.js`, which
+also makes the web build bundle it.
+
 ## Controls
 
 The controls follow the original game.

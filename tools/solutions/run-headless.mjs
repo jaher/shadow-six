@@ -6,7 +6,7 @@
  *   node tools/solutions/run-headless.mjs m03 [--quiet] [--json out.json]
  * Exit code 0 when every objective is done with no commando detected (enemy:spotted / challenge / unmasked / tainted).
  */
-import { headlessDriver } from './driver.mjs';
+import { headlessDriver } from './headless.mjs';
 import { boardPoint } from '../../src/abilities/drive.js';
 import { writeFileSync } from 'node:fs';
 

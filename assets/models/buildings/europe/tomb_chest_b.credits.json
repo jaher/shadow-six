@@ -1,0 +1,67 @@
+{
+ "asset": "tomb_chest_b",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  },
+  "granite_polished": {
+   "source": "procedural (own work, europe rework make_stone.py)",
+   "id": "granite_polished",
+   "url": null,
+   "authors": [
+    "SHADOW SIX art"
+   ],
+   "license": "CC0-1.0",
+   "name": "Polished granite, jointless (ledger slabs, steles)",
+   "label": "Polished granite, jointless (ledger slabs, steles)",
+   "files": {
+    "diff": {
+     "2k": "2k/granite_polished_diff",
+     "1k": "1k/granite_polished_diff"
+    },
+    "nor": {
+     "2k": "2k/granite_polished_nor",
+     "1k": "1k/granite_polished_nor"
+    },
+    "arm": {
+     "2k": "2k/granite_polished_arm",
+     "1k": "1k/granite_polished_arm"
+    }
+   }
+  }
+ }
+}

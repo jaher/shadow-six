@@ -477,6 +477,14 @@ export function buildProp(type, params = {}, ctx = {}) {
   if (LINEAR_PROPS.includes(type)) return buildLinear(type, params, def, ctx);
   // realistic visual from the building library, fitted onto the placeholder's (gameplay) footprint
   const p = { ...def, ...params };
+  // `visual: false`: gameplay only (footprints, bridge cells, rails), nothing drawn — e.g. M15's street "bridges"
+  // between the canal basins, whose parapets are the basins' own quay walls
+  if (params.visual === false) {
+    const res = buildPlaceholderProp(type, params, { ...ctx, dressing: false }, def);
+    res.object3d.clear();
+    res.castsShadow = false;
+    return res;
+  }
   const lib = ctx.library === false ? null : libraryVisual(type, { ...params, w: p.w, d: p.d, r: p.r }, ctx);
   // (the library replaces the placeholder's meshes: skip building the procedural dressing for nothing)
   const res = buildPlaceholderProp(type, params, lib ? { ...ctx, dressing: false } : ctx, def);

@@ -178,14 +178,14 @@ function respawn(world, d) {
     // ABILITIES charges placed during play (§3.4): time/remote bombs, bear traps, decoys
     const owner = world.byId(d.planter) || null;
     if (d.interactKind === 'bomb') e = new Bomb({ x: d.x, z: d.z, y: d.y ?? 0, bombKind: d.bombKind, owner, fuse: d.fuse ?? undefined, seq: d.seq });
-    else if (d.interactKind === 'trap') e = new Trap({ x: d.x, z: d.z, owner });
+    else if (d.interactKind === 'trap') e = new Trap({ x: d.x, z: d.z, owner, heading: d.trapHeading ?? 0 });
     else if (d.interactKind === 'decoy') e = new Decoy({ x: d.x, z: d.z, owner });
     else if (d.interactKind === 'pickup' && d.pack) { // BCD §1.5: a cigarette pack thrown during play
       e = createPickup(d.itemId || 'cigarettes', d.x, d.z, d.count ?? 1, { label: 'Cigarettes', pack: true });
       if (!world.scene) e.object3d = null;
     }
     if (e && d.interactKind === 'bomb') e._fresh = false;
-    if (e && d.interactKind === 'trap') e.sprung = !!d.sprung;
+    if (e && d.interactKind === 'trap') { e.sprung = !!d.sprung; if (e.sprung) { e.jaw = 1; e.object3d?.userData.setSprung?.(1); } }
     if (e && d.interactKind === 'decoy') {
       e.on = !!d.on;
       e.onTick = d.onTick ?? 0;

@@ -182,7 +182,9 @@ export function collectStatic(game, o = {}) {
     if (e.kind !== 'interactable' || !e.object3d || seen.has(e.object3d) || !attached(e.object3d, scene)) continue;
     if (e.interactKind === 'extraction') continue;
     const type = e.interactKind || 'interactable';
-    const it = mkItem({ id: String(e.tag ?? `${type}#${e.id}`), type, cat: categoryOf(type), kind: 'interactable' }, partsOf(e.object3d));
+    // (a prop the mission stands on a raised deck, e.g. M15's uniform rack on balcony B: `visualY` = its explicit height)
+    const def = e.params?.visualY != null ? { y: e.params.visualY } : undefined;
+    const it = mkItem({ id: String(e.tag ?? `${type}#${e.id}`), type, cat: categoryOf(type), kind: 'interactable', def }, partsOf(e.object3d));
     if (it) items.push(it);
   }
   return items;

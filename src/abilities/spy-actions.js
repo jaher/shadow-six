@@ -139,9 +139,16 @@ export const DRESS = Object.freeze({
 
 /** The clothesline's frame: position, line axis (local X) and normal (local Z) in world x/z. */
 export function lineFrame(line) {
-  const r = line.params?.rot ?? line.params?.heading ?? 0;
-  return { x: line.x, z: line.z, ax: Math.cos(r), az: Math.sin(r), nx: -Math.sin(r), nz: Math.cos(r) };
+  // where the line is drawn: a mission may stand the rack off its use point (`visualAt` [x, z] / `visualRot`, e.g. M15's
+  // rack on the balcony, interactables.js) — the Spy reaches for the garments where they hang
+  const p = line.params || {};
+  const r = p.visualRot ?? p.rot ?? p.heading ?? 0;
+  const x = p.visualAt?.[0] ?? line.x, z = p.visualAt?.[1] ?? line.z;
+  return { x, z, ax: Math.cos(r), az: Math.sin(r), nx: -Math.sin(r), nz: Math.cos(r) };
 }
+/** The height the line stands on: its explicit `visualY` (a raised deck), else the ground under it. */
+export const lineY = (world, line, F = lineFrame(line)) =>
+  line.params?.visualY ?? (world?.grid?.elevAt ? world.grid.elevAt(F.x, F.z) : 0);
 /** World point of line-local (lx along the line, lz off it). */
 export const linePoint = (F, lx, lz) => ({ x: F.x + F.ax * lx + F.nx * lz, z: F.z + F.az * lx + F.nz * lz });
 
@@ -161,7 +168,7 @@ function spotFree(world, x, z, h, y0) {
  * side when hers is blocked); null when neither is free. @returns {{x,z,h,side}|null}
  */
 export function takeSpot(world, c, line) {
-  const F = lineFrame(line), y0 = world?.grid?.elevAt ? world.grid.elevAt(line.x, line.z) : 0;
+  const F = lineFrame(line), y0 = lineY(world, line, F);
   const s0 = sideOf(F, c.x, c.z);
   for (const s of [s0, -s0]) {
     const p = linePoint(F, LAUNDRY.cap, s * LAUNDRY.standOff);
@@ -177,11 +184,11 @@ export function takeSpot(world, c, line) {
  * side. null: she dresses where she took it.
  */
 export function coverSpot(world, take, line) {
-  const F = lineFrame(line), y0 = world?.grid?.elevAt ? world.grid.elevAt(line.x, line.z) : 0;
+  const F = lineFrame(line), y0 = lineY(world, line, F);
   let best = null, bd = 40;
   for (const e of world?.enemies || []) {
     if (!e.alive || e.removed) continue;
-    const d = Math.hypot(e.x - line.x, e.z - line.z);
+    const d = Math.hypot(e.x - F.x, e.z - F.z);
     if (d < bd) { bd = d; best = e; }
   }
   const away = best ? -sideOf(F, best.x, best.z) : take.side;

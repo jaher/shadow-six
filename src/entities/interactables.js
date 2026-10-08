@@ -690,8 +690,10 @@ export function createExtraction(x, z, r) {
 /** Clothesline with the uniform on it (art/clothesline.js; Verlet laundry in the wind). */
 function clotheslineMesh(spec) {
   const g = makeClothesline({ uniform: true });
-  g.position.set(spec.x, 0, spec.z);
-  g.rotation.y = -(spec.rot ?? spec.heading ?? 0);
+  // (visual only: `visualAt` [x, z] / `visualY` / `visualRot` stand the rack where the mission's art puts it, e.g. on
+  // M15's balcony B at 4.5 m against the wall; the use point stays the spec's x, z)
+  g.position.set(spec.visualAt?.[0] ?? spec.x, spec.visualY ?? 0, spec.visualAt?.[1] ?? spec.z);
+  g.rotation.y = -(spec.visualRot ?? spec.rot ?? spec.heading ?? 0);
   return g;
 }
 

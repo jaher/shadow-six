@@ -349,7 +349,7 @@ export default {
     { id: 'tanker', vehicleType: 'opel_blitz_tanker', variant: 'opel_blitz_tanker_desert', label: 'Fuel truck', x: 72, z: 38.5, heading: deg(0), driveable: false,
       crew: [{ id: 'tank_drv', soldierType: 'truckDriver' }],
       route: { type: 'PINGPONG', speed: 2.5, points: [
-        { x: 72, z: 38.5, wait: 10 }, { x: 76, z: 39 }, { x: 84.5, z: 39 }, { x: 86, z: 35.8 },
+        { x: 72, z: 38.5, wait: 10 }, { x: 79, z: 42 }, { x: 85.7, z: 40 }, { x: 85.7, z: 35.5 },
         { x: 88.5, z: 33.8, wait: 4 }, { x: 93, z: 31.5 }, { x: 96, z: 32, wait: 8 }] } },
     // the Gatling guarding the half-track (e22 mans it; the Driver may take it once he is dead)
     { id: 'mg_e', vehicleType: 'mgNest', x: 80, z: 87.7, heading: deg(240), gunner: 'e22', driveable: false },
