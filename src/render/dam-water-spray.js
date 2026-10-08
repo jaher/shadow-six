@@ -107,7 +107,7 @@ const hash = (n) => { const x = Math.sin(n * 91.345 + 47.853) * 43758.5453; retu
  * @param {{x:number, z:number, y:number, s:number}[]} src emitters (world; s = strength 0..1): the sheets' impact line
  * @param {[number, number]} down world xz downstream unit vector
  * @param {object} U shared uniforms (uTime, uLight, uFade, uNight)
- * @param {{spray?:number, mist?:number, cloud?:number}} [n] particle counts
+ * @param {{spray?:number, mist?:number, cloud?:number}} [n] particle counts (0: that layer is left out)
  */
 export function createDamSpray(src, down, U, n = {}) {
   const wind = { value: new THREE.Vector2() }, viewH = { value: 720 }, tot = src.reduce((a, q) => a + q.s, 0) || 1;
@@ -136,7 +136,7 @@ export function createDamSpray(src, down, U, n = {}) {
     mesh.onBeforeRender = (r) => { viewH.value = r.getDrawingBufferSize(_v2).y || 720; };
     return mesh;
   };
-  const meshes = [make(n.spray ?? 380, 0), make(n.mist ?? 64, 1), make(n.cloud ?? 44, 2)];
+  const meshes = [n.spray ?? 380, n.mist ?? 64, n.cloud ?? 44].map((count, mode) => (count > 0 ? make(count, mode) : null)).filter(Boolean);
   return {
     meshes,
     /** Ease the drift towards the current wind (m/s, world xz). */

@@ -5,7 +5,8 @@
  * baked flow field (dam-water-pool.js), GPU spray and mist (dam-water-spray.js) and ripples in the water sim.
  * The sound is the mission's positional ambience layers `waterfall`, `waterfall_roar`, `rapids` (missions/m03).
  * Everything goes once the dam is destroyed (a short fade) and the burst takes over (render/dam-breach.js: the
- * reservoir pours through the breach, boils at the landing and surges down the river while it drains). Visual only.
+ * reservoir pours through the breach, boils at the landing and surges down the river; the lake behind keeps it
+ * running, strongest just after the blast and then steady). Visual only.
  *
  *   const fx = createDamWater(world, structures); fx?.frame(dt); fx?.dispose();
  * @module render/dam-water
@@ -154,8 +155,13 @@ export function createDamWater(world, structures, renderer = null) {
   let fading = false, disturbAcc = 0, gone = false, dseq = 0, burst = 0;
   const damIds = new Set(dams.map((s) => s.def.id).filter(Boolean));
   const off = (world.listen ? world.listen.bind(world) : world.events?.on?.bind(world.events))?.('structure:destroyed', (e) => { if (damIds.has(e?.id)) { fading = true; breach?.start(); } });
-  let over = false; // loaded with the dam already down: nothing at all (the reservoir is drained too)
-  for (const id of damIds) if (world.byId?.(id)?.destroyed) { gone = over = true; group.visible = false; }
+  let over = false; // the burst is over (no head left behind the breach): nothing at all
+  // loaded with the dam already down: the intact dam's water is gone and the breach runs in its settled outflow
+  for (const id of damIds) if (world.byId?.(id)?.destroyed) {
+    gone = fading = true;
+    for (const c of group.children) if (c !== breach?.group) c.visible = false;
+    breach?.start(true);
+  }
   const reservoir = () => world.water?.drains?.find?.((d) => damIds.has(d.id))?.body?.level ?? null;
   U.uFade.value = gone ? 0 : 1;
   U.uLight.value = world.mission?.theater === 'night' ? 0.35 : 0.82;
@@ -181,6 +187,7 @@ export function createDamWater(world, structures, renderer = null) {
       }
       burst = breach ? breach.frame(dt, reservoir()) : 0;
       if (gone && !breach?.active && breach?.surgeAt > 0) { over = true; group.visible = false; return; }
+      if (fading && world.wind?.sample && breach) { const w = world.wind.sample(breach.landing.x, breach.landing.z); breach.setWind(w.x || 0, w.z || 0, dt); }
       if (gone) { rippleBurst(dt); return; }
       if (spray && world.wind?.sample) { const w = world.wind.sample(mists[0].src[0].x, mists[0].src[0].z); spray.setWind(w.x || 0, w.z || 0, dt); }
       // the falling water keeps the pool rippling and foaming (water sim, ~10 Hz)

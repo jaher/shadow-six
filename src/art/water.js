@@ -22,6 +22,8 @@ import { rowPeriod, catchOffset, ROW } from './oars.js';
 
 /** World Y of the water surface. Terrain carves deep cells to -1.2 m and shallows to -0.35 m below it. */
 export const WATER_LEVEL = -0.1;
+/** How far a raised reservoir drops once its dam is breached (m) and how long that takes (s): see `drains` below. */
+export const RESERVOIR_DRAWDOWN = 0.8, DRAIN_S = 40;
 
 /** Late transparent FX layer (drawn after the water; see src/art/water/passes.js). */
 export const FX_LAYER = 11;
@@ -442,18 +444,19 @@ export function buildWater(R, world, grid, mission, theater, o = {}) {
     for (let k = 0; k < 4; k++) system.disturb(e.x + (k - 1.5) * r * 0.35, e.z + ((k * 7) % 3 - 1) * r * 0.3, 0.25, r * 0.4, 0.8);
     world.fx?.spawn?.('splash', e.x, e.z, { radius: r, water: true, big: true });
   });
-  // raised water (M3 reservoir): drains down to the river level once its dam is gone (`drainOn` = structure id)
+  // raised water (M3 reservoir): drawn down once its dam is gone (`drainOn` = structure id). The lake behind runs on
+  // far past the map and keeps feeding the breach: the level drops RESERVOIR_DRAWDOWN m (fast at first) and holds there,
+  // so the breach settles into a strong steady outflow (render/dam-breach.js reads the level) instead of running dry
   const drains = [];
-  bodies.forEach((b, k) => { const r = descs[k].raised; if (r?.drainOn) drains.push({ body: b, from: r.level, id: r.drainOn, t: -1 }); });
+  bodies.forEach((b, k) => { const r = descs[k].raised; if (r?.drainOn) drains.push({ body: b, from: r.level, to: Math.max(WATER_LEVEL, r.level - RESERVOIR_DRAWDOWN), id: r.drainOn, t: -1 }); });
   if (drains.length) on('structure:destroyed', (e) => { for (const d of drains) if (d.t < 0 && e?.id === d.id) d.t = 0; });
-  const DRAIN_S = 40;
   const drainStep = (dt) => {
     for (const d of drains) {
       if (d.t < 0 && world.byId?.(d.id)?.destroyed) d.t = DRAIN_S - 1e-3; // loaded with the dam already down
       if (d.t < 0 || d.t >= DRAIN_S) continue;
       d.t = Math.min(DRAIN_S, d.t + dt);
       const u = d.t / DRAIN_S, k = 1 - (1 - u) * (1 - u) * (1 - u); // fast at first, then settling
-      const y = d.from + (WATER_LEVEL - d.from) * k;
+      const y = d.from + (d.to - d.from) * k;
       d.body.mesh.position.y = y - d.from; d.body.uniforms.level.value = y; d.body.level = y;
     }
   };

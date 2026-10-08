@@ -388,6 +388,10 @@ export function libraryVisual(type, p = {}, ctx = {}) {
     dressDam = (bb) => {
       const hideRock = () => {
         bb.object3d.traverse((o) => { if (o.isMesh && [].concat(o.material).some((m) => /rock_cliff|scree/.test(m.name))) o.visible = false; });
+        // the ruin's static released-water sheet and boils: a dam with water FX draws its burst itself (render/dam-breach.js)
+        if (p.waterFx && /_destroyed/.test(bb.asset || '')) {
+          bb.object3d.traverse((o) => { if (o.isMesh && [].concat(o.material).some((m) => /water_flow/.test(m?.name || ''))) o.visible = false; });
+        }
         stripDrape(bb.object3d, /rock_cliff|scree/, /snow/);
         if (p.elev > 0) keepDrapeOnHosts(bb.object3d, /snow/, /rock_cliff|scree|decal|glass/);
       };

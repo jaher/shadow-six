@@ -807,10 +807,16 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   - **spray and mist**: stateless GPU droplets and mist drifting with `world.wind`.
 
   About 10 Hz of `water.disturb` keeps the pool rippling. When the dam is destroyed the intact water fades out and
-  `src/render/dam-breach.js` takes over: a thick tongue of water through the breach of dam_arch_destroyed (dam frame,
-  scaled by the remaining head), a boil at its landing and a surge front of white water running down the river
-  (`waterFx.surge` centreline, 7 m/s; geom `waterStrip`, mats `foamMaterial`); its strength follows the reservoir's
-  drain (`water.drains`, 40 s) and it is gone once the reservoir is down. The sound is
+  `src/render/dam-breach.js` takes over (shader `dam-breach-glsl.js`): one flow-aligned surface in the dam frame — a
+  funnel of flow lines and a glassy slick drawn in on the reservoir, the full width of the slot blown in
+  dam_arch_destroyed (`BREACH`: its cheeks, floor, pier stubs and where the reservoir's own water ends), bending down to
+  the lip, then a ballistic jet with side walls into the pool (`breachProfile(level, wall)`: drop ∝ the head over the
+  slot's floor) — white water torn off the cheeks and the pier stubs, a churning lip, spray off the lip, impact cloud /
+  spray / mist where it lands, a boil and a surge front of white water down the river (`waterFx.surge` centreline,
+  7 m/s; geom `waterStrip`, mats `foamMaterial`). Just after the blast the water stands near full height in the gap
+  (the dam-break wall, ~2 s) and races to the pool; then the drawdown develops and the reservoir (`water.drains`)
+  drops `RESERVOIR_DRAWDOWN` m over 40 s and holds: a strong steady outflow for good (also when a save is loaded with
+  the dam already down). The ruin's static released-water mesh (`water_flow`) is hidden on a dam with `waterFx`. The sound is
   three positional ambience layers (`waterfall`, `waterfall_roar`, `rapids`; `until: 'dam'`). See
   docs/water-pipeline.md §11.
 
@@ -987,8 +993,8 @@ width, y0, y1}]` = stairs whose cells take the height of the drawn tread under t
 which also draws them), `waterFx: {downstream?: [[x,z]…], surge?: [[x,z]…], streams?}` = the water running down its
 face and the burst's surge line (render/dam-water.js, dam-breach.js, below). Terrain features
 `{terrain:'water', level, drainOn?}` are raised water (the M3 reservoir): their own still water body at `level`
-(art/water.js `raisedWaterMasks`), nav-blocked for walkers and swimmers alike, drained to the river level over 40 s once
-the `drainOn` structure is destroyed. Mission `water.iceFree: [{x, z, r}]` keeps open water (no shore ice shelf) where
+(art/water.js `raisedWaterMasks`), nav-blocked for walkers and swimmers alike, drawn down `RESERVOIR_DRAWDOWN` (0.8 m)
+over 40 s once the `drainOn` structure is destroyed and held there (the lake behind keeps feeding the breach). Mission `water.iceFree: [{x, z, r}]` keeps open water (no shore ice shelf) where
 a fall lands; mission `ambience: [[sfxId, gain, {at:{x,z}, until: structureId}]]` adds a positional ambience layer
 (the dam's `waterfall`) that stops with that structure. Top-level `markers: [{id, x, z, r}]` (demolition markers). After building, the world carries
 `world.zones` (and `world.alarm.zones`), `world.barracks` (Map id → {x, z, door, pool, alive, squads, jail}),
