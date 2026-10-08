@@ -5,6 +5,7 @@
  *    per archetype), so neighbouring tufts tend to share a species and nothing repeats on a grid.
  *  - Dryness per tuft: season + dry splat + field-scale patches + verge, minus wetness near water.
  *  - Reeds: dense, sharp-edged stands on the water band (land 0–2.4 m from the shore and the shallows), outliers.
+ *    Nothing else grows in the water: sward and crop tufts keep GROUND_SHORE_MARGIN m of dry land (world/veg-shore.js).
  *  - Marram: clumps on coast sand above the tide line. Drinn: sparse tussocks on open desert sand.
  * Output per 16 m chunk: { cx, cz, lists: { [archetype]: number[] } } with 10 floats per instance
  * (x, y, z, rot, hScale, wScale, colourRand, type, rank, dryness); rank is set after a per-list shuffle so any
@@ -13,6 +14,7 @@
  */
 import { rng, fbm, vnoise } from './noise.js';
 import { GT, pickWeighted } from './veg-profile.js';
+import { onDryLand, GROUND_SHORE_MARGIN } from '../../world/veg-shore.js';
 
 export const STRIDE = 10;
 const ss = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -76,7 +78,7 @@ export function meadowMacro(x, z) {
  * @param {{perM2:number, chunk?:number, seed?:number}} o
  */
 export function placeGround(env, prof, o) {
-  const { W, D, grassW, heightAt } = env;
+  const { W, D, grassW, heightAt } = env, wet = env.waterSD || null;
   const CH = o.chunk || 16, r = rng(o.seed || 1234), out = [];
   // crop fields (bocage.js farmland): wheat / stubble polygons with their drill direction
   const crops = (env.fields || []).filter((f) => f.kind === 'wheat' || f.kind === 'stubble').map((f) => {
@@ -102,7 +104,14 @@ export function placeGround(env, prof, o) {
   if (!o.chunks) for (let cz = 0; cz < D; cz += CH) for (let cx = 0; cx < W; cx += CH) chunkList.push([cx, cz, Math.min(W, cx + CH), Math.min(D, cz + CH)]);
   for (const [cx, cz, x1, z1] of chunkList) {
     const lists = {};
-    const push = (name, x, z, h, dry) => (lists[name] || (lists[name] = [])).push(x, heightAt(x, z) - 0.01, z, r() * 6.283, h, 1, r(), GT[name], 0, clamp01(dry));
+    const push = (name, x, z, h, dry) => {
+      const rot = r() * 6.283, cr = r();
+      // the sward and the crops never grow in the water (world/veg-shore.js): the river / lake bed's mud and dry-grass
+      // splat planted tufts under it; reeds stand in the shallows on purpose (their random draws are still taken, so
+      // the rest of the chunk keeps its layout)
+      if (name !== 'reed' && wet && !onDryLand(wet, x, z, GROUND_SHORE_MARGIN)) return;
+      (lists[name] || (lists[name] = [])).push(x, heightAt(x, z) - 0.01, z, rot, h, 1, cr, GT[name], 0, clamp01(dry));
+    };
     // Neyman–Scott clumps: clump centres on a jittered grid, 2–6 tufts each scattered ~0.1–0.3 m around the centre,
     // mostly one species per clump (a tussock is one plant); bare gaps open between clumps
     if (cell > 0 && nk) {

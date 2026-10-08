@@ -30,6 +30,7 @@ import { edgeCrossings } from '../world/edge-extend.js';
 import { buildShoreField } from '../world/shore-field.js';
 import { structureRecords, obstacle, pruneTree, OBSTACLE_H } from '../world/placement.js';
 import { polyDist } from '../world/placement-geom.js';
+import { vegetationWetAt, onDryLand } from '../world/veg-shore.js';
 
 /** Base colour per terrain code, per theater tint. */
 const TERRAIN_RGB = {
@@ -299,6 +300,62 @@ export function scrubHero(def, p) {
   return { x: def.x, z: def.z, kind, s, rot: ((p.seed >>> 3) % 628) / 100, variant: p.seed & 1, mound: 0.9, hero: true };
 }
 
+/**
+ * Everything planted on the map (pure; buildTerrain draws it, tests check it): the mission's own trees and bushes
+ * (treePlacement; desert bushes become hero scrub archetypes on their nebkha mounds), the wood filling forest AREAS and
+ * its understorey, bocage hedgerows and the farmland's orchards (bocage.js farmland), generic trees by the water turned
+ * into willows / alders / poplars. Nothing planted stands in the water (world/veg-shore.js; user 2026-10-08 "giant tree
+ * standing on the water"): the mission's own trees and bushes were moved ashore by the placement rules
+ * (world/placement.js); the planting made here keeps SHORE_MARGIN m of dry land from the drawn waterline (`shore`: the
+ * continuous shore field, else the grid's wet cells).
+ * @param {import('../world/grid.js').NavGrid} grid
+ * @param {string} theater
+ * @param {{mission?:object|null, trees?:object[], forests?:object[], shore?:object|null}} [o] trees / forests: the
+ *   mission's point trees and forest areas (map-builder: resolved placement)
+ * @returns {{placements:object[], scrubHeroes:object[], farm:object}}
+ */
+export function plantingPlan(grid, theater, { mission = null, trees = [], forests = [], shore = null } = {}) {
+  // farmland fringe (bocage.js: mission.vegetation.farmland): field hedges, crops, orchards clear of gameplay
+  const farm = farmland(mission, grid);
+  // mission trees → treegen placements; desert bushes become hero instances of the 3D scrub archetypes instead
+  // (docs/vegetation.md §3.2: camel thorn / saltbush / retama with woody stems, on their own nebkha mound)
+  const scrubHeroes = [], placements = [];
+  (trees || []).forEach((d, k) => {
+    const p = treePlacement(d, theater, k);
+    if (!p) return;
+    const desertBush = d.type === 'bush' && !d.species && (d.variant === 'scrub_desert' || d.variant === 'camel_thorn' || (!d.variant && theater === 'desert'));
+    if (p.species === 'desert_shrub' || desertBush) scrubHeroes.push(scrubHero(d, p));
+    else placements.push(p);
+  });
+  // visual: true → no gameplay footprint and no gun-arc branch stamp (map-builder stampTreeBranches)
+  const visual = (list) => list.map((p) => ({ ...p, visual: true }));
+  // forest AREAS (M04, M20): fill the polygon with a Poisson-disc wood (M20 Black Forest edge: mixed with beech/oak)
+  const mine = placements.slice(); // the mission's own trees: occupied seeds for the fill
+  for (const f of forests || []) {
+    const fv = theater !== 'snow' && f.type === 'pine' ? 'pine_frost' : f.variant;
+    placements.push(...clearForestFill(fillForest({ ...f, forestVariant: fv }, (d, k) => treePlacement(d, theater, k), { spacing: theater === 'snow' ? 3.7 : 4.4, occupied: mine }), mission?.structures));
+    placements.push(...visual(clearForestFill(forestUnderstorey(f, theater), mission?.structures))); // brambles, hazel, fallen boughs on the litter
+  }
+  // bocage hedgerows (visual; mission.vegetation.hedgerows: [{points, gaps?, h?, standards?}])
+  for (const hr of [...(mission?.vegetation?.hedgerows || []), ...farm.hedgerows]) placements.push(...visual(hedgerowPlacements(hr)));
+  placements.push(...visual(farm.orchard));
+  // off the water: the planting made here (the mission's own trees and bushes were placed ashore by world/placement.js)
+  const wetAt = vegetationWetAt(shore, grid), own = new Set(mine);
+  for (let k = placements.length - 1; k >= 0; k--) if (!own.has(placements[k]) && !onDryLand(wetAt, placements[k].x, placements[k].z)) placements.splice(k, 1);
+  // riverside: willows, alders and poplars on the banks (any tree within ~8 m of water that the mission left generic)
+  const wetCell = (x, z) => {
+    const i = Math.floor(x / grid.cell), j = Math.floor(z / grid.cell);
+    return i >= 0 && j >= 0 && i < grid.cols && j < grid.rows && WET_CODES.has(grid.terrain[j * grid.cols + i]);
+  };
+  for (const p of placements) {
+    if (!p.riverside || theater === 'snow' || theater === 'desert') continue;
+    let wet = false;
+    for (let a = 0; a < 12 && !wet; a++) for (const d of [3, 5.5, 8]) if (wetCell(p.x + Math.cos(a * 0.5236) * d, p.z + Math.sin(a * 0.5236) * d)) { wet = true; break; }
+    if (wet) { p.species = pickBy(p.seed >>> 3, ['willow', 'alder', 'willow', 'poplar']); p.scale = Math.min(p.scale, 1.15); }
+  }
+  return { placements, scrubHeroes, farm };
+}
+
 /** Mission `terrain[]` road paths → pre-trampled polylines (worn ruts / slush at mission start). */
 export function roadPolylines(mission) {
   return (mission?.terrain || [])
@@ -417,18 +474,8 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
     shore = buildShoreField(apronField?.grid ?? grid, mission || {}, apronField
       ? { ox: apronField.ox, oz: apronField.oz, feats: apronField.feats, W: apronField.W, D: apronField.D } : { W: grid.width, D: grid.depth });
   } catch (e) { console.error('[shore] field failed', e); shore = null; }
-  // farmland fringe (bocage.js: mission.vegetation.farmland): field hedges, crops, orchards clear of gameplay
-  const farm = farmland(mission, grid);
-  // mission trees → treegen placements; desert bushes become hero instances of the 3D scrub archetypes instead
-  // (docs/vegetation.md §3.2: camel thorn / saltbush / retama with woody stems, on their own nebkha mound)
-  const scrubHeroes = [], placements = [];
-  (ctx.trees || []).forEach((d, k) => {
-    const p = treePlacement(d, theater, k);
-    if (!p) return;
-    const desertBush = d.type === 'bush' && !d.species && (d.variant === 'scrub_desert' || d.variant === 'camel_thorn' || (!d.variant && theater === 'desert'));
-    if (p.species === 'desert_shrub' || desertBush) scrubHeroes.push(scrubHero(d, p));
-    else placements.push(p);
-  });
+  // everything planted on the map (pure: plantingPlan) — the mission's trees, forest fill, hedgerows, orchards
+  const { placements, scrubHeroes, farm } = plantingPlan(grid, theater, { mission, trees: ctx.trees, forests: ctx.forests, shore });
   const inner = createTerrainHandle(R, new THREE.Group(), grid, theater, {
     scrubHeroes,
     fields: farm.fields,
@@ -443,29 +490,6 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
   ground.name = 'terrain:ground';
   ground.userData.terrain = true;
   const water = ctx.ownWater ? null : buildMaskedWater(grid, theater); // ownWater: src/art/water owns the surface
-  // visual: true → no gameplay footprint and no gun-arc branch stamp (map-builder stampTreeBranches)
-  const visual = (list) => list.map((p) => ({ ...p, visual: true }));
-  // forest AREAS (M04, M20): fill the polygon with a Poisson-disc wood (M20 Black Forest edge: mixed with beech/oak)
-  const mine = placements.slice(); // the mission's own trees: occupied seeds for the fill
-  for (const f of ctx.forests || []) {
-    const fv = theater !== 'snow' && f.type === 'pine' ? 'pine_frost' : f.variant;
-    placements.push(...clearForestFill(fillForest({ ...f, forestVariant: fv }, (d, k) => treePlacement(d, theater, k), { spacing: theater === 'snow' ? 3.7 : 4.4, occupied: mine }), mission?.structures));
-    placements.push(...visual(clearForestFill(forestUnderstorey(f, theater), mission?.structures))); // brambles, hazel, fallen boughs on the litter
-  }
-  // bocage hedgerows (visual; mission.vegetation.hedgerows: [{points, gaps?, h?, standards?}])
-  for (const hr of [...(mission?.vegetation?.hedgerows || []), ...farm.hedgerows]) placements.push(...visual(hedgerowPlacements(hr)));
-  placements.push(...visual(farm.orchard));
-  // riverside: willows, alders and poplars on the banks (any tree within ~8 m of water that the mission left generic)
-  const wetCell = (x, z) => {
-    const i = Math.floor(x / grid.cell), j = Math.floor(z / grid.cell);
-    return i >= 0 && j >= 0 && i < grid.cols && j < grid.rows && WET_CODES.has(grid.terrain[j * grid.cols + i]);
-  };
-  for (const p of placements) {
-    if (!p.riverside || theater === 'snow' || theater === 'desert') continue;
-    let wet = false;
-    for (let a = 0; a < 12 && !wet; a++) for (const d of [3, 5.5, 8]) if (wetCell(p.x + Math.cos(a * 0.5236) * d, p.z + Math.sin(a * 0.5236) * d)) { wet = true; break; }
-    if (wet) { p.species = pickBy(p.seed >>> 3, ['willow', 'alder', 'willow', 'poplar']); p.scale = Math.min(p.scale, 1.15); }
-  }
   const stats = { trees: placements.length, readyMs: 0 };
   let veg = null, disposed = false, apron = null, apronReady = Promise.resolve(null);
   const t0 = performance.now();

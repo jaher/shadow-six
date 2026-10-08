@@ -190,6 +190,17 @@ The pines branch owns the conifers. For everything else:
   - Density is driven by the splat, wetness, slope, distance to water, distance to walls and paths, and the
     wind shadow.
   - Plants avoid paths (the trail records already exist) and grow along fence lines, walls and building edges.
+  - **Nothing stands in the water** (user, 2026-10-08: *"mission 1 there is giant tree standing on the water, remove
+    it"*). `world/veg-shore.js` holds the rule. Every planted root keeps a strip of dry land from the drawn waterline,
+    measured with the continuous shore field, the same field that carves the banks and masks the water. This covers
+    the sea, lakes, rivers, the reservoir, and frozen water and ice. The margin is `SHORE_MARGIN` (1 m) on the map
+    and `APRON_SHORE_MARGIN` (2.5 m) for the scenery forest past the edge, so its big crowns stay off the water too.
+    The missions' own trees and bushes are moved ashore by the placement rules (`world/placement.js` rule b) or
+    dropped when no shore is within 4.5 m. Everything else planted on the map is filtered in
+    `art/terrain.js plantingPlan`. Apron trees also copy their map neighbour's size (`h`, ±15 %), not the species'
+    full natural height. Grass and crop tufts, wildflowers and weed rosettes keep `GROUND_SHORE_MARGIN` (0.5 m) of
+    dry land (`grass-place.js`, `clutter.js`). Before this, the bed splat of lakes, rivers and the sea (mud, dirt and
+    dry grass) planted them under the water. Reeds are the exception: they are placed in the shallows on purpose.
 - **Wind.** Every new plant gets an `aRoot`/`aInfo` (or grass-style) wind response from `WIND_GLSL`. Stiffness
   classes: grass 0.4, reed 0.6, marram 0.7, shrub 1.25, hedge 1.6 (a hedge barely moves as a mass; its outer
   sprays flutter), palm 1.35 with frond whip. Gust fronts must visibly travel across reed beds and dune grass.

@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { WIND_GLSL } from '../../world/wind.js';
 import { rng, fbm } from './noise.js';
 import { makeBuf, leaf, blade, panicle } from './grass-arch.js';
+import { onDryLand, GROUND_SHORE_MARGIN } from '../../world/veg-shore.js';
 
 function stoneGeo(seed) {
   const g = new THREE.IcosahedronGeometry(1, 1);
@@ -154,6 +155,9 @@ export function createClutter(ctx, q, group, U = null) {
   const { W, D, heightAt, materialAt, src } = ctx;
   const dens = q.clutter * (ctx.opts.clutter === false ? 0 : 1);
   const excl = ctx.opts.exclude || null; // step 3p: nothing on / through hard pavement
+  // flowers and weed rosettes never stand in the water (world/veg-shore.js; the river / lake bed's mud and dry-grass
+  // splat once planted them there): 1 / 0 so the counts add up
+  const dry = (x, z) => (ctx.waterSD && !onDryLand(ctx.waterSD, x, z, GROUND_SHORE_MARGIN) ? 0 : 1);
   const r = rng(4242);
   const meshes = [];
   const m4 = new THREE.Matrix4(), qt = new THREE.Quaternion(), e = new THREE.Euler(), sc = new THREE.Vector3(), ps = new THREE.Vector3();
@@ -217,16 +221,20 @@ export function createClutter(ctx, q, group, U = null) {
         const m = materialAt(x, z);
         const g = m.weights[0] + m.weights[1] * 0.6;
         if (r() > g * Math.max(0, (patch - 0.55) * 4) * (fi === 0 ? 0.25 : 0.12) * SEAS[fi] * prof.flowers) continue;
-        list.push([x, z]);
+        list.push([x, z, dry(x, z)]);
       }
-      if (!list.length) return;
+      const n = list.reduce((k, q) => k + q[2], 0);
+      if (!n) return;
       const hm = (f.h[0] + f.h[1]) / 2;
-      const im = new THREE.InstancedMesh(flowerGeo(f.petals, hm, f.r / 0.6, 0.9), fMat, list.length);
-      list.forEach(([x, z], i) => {
+      const im = new THREE.InstancedMesh(flowerGeo(f.petals, hm, f.r / 0.6, 0.9), fMat, n);
+      let i = 0;
+      list.forEach(([x, z, ok]) => {
         const h = f.h[0] + (f.h[1] - f.h[0]) * r();
         e.set((r() - 0.5) * 0.3, r() * 6.28, (r() - 0.5) * 0.3); qt.setFromEuler(e);
+        const c = col.set(f.col[(r() * 2) | 0]).multiplyScalar(0.85 + 0.3 * r());
+        if (!ok) return; // in the water: drawn nowhere (its random draws are still taken, so the rest stay put)
         im.setMatrixAt(i, m4.compose(ps.set(x, heightAt(x, z) - 0.01, z), qt, sc.set(0.6, h / hm, 0.6)));
-        im.setColorAt(i, col.set(f.col[(r() * 2) | 0]).multiplyScalar(0.85 + 0.3 * r()));
+        im.setColorAt(i++, c);
       });
       im.name = 'clutterFlowers_' + f.name; im.receiveShadow = true;
       group.add(im); meshes.push(im);
@@ -243,17 +251,22 @@ export function createClutter(ctx, q, group, U = null) {
       const x = r() * W, z = r() * D, m = materialAt(x, z);
       if (excl && excl(x, z)) continue;
       const g = (m.weights[0] * 0.5 + m.weights[2] * 0.6 + m.weights[1] * 0.4) * (1 - m.weights[7]); // not on beach sand
-      if (r() < g * (winter ? 0.5 : 1)) lists[r() < 0.5 ? 0 : 1].push([x, z]);
+      if (r() < g * (winter ? 0.5 : 1)) lists[r() < 0.5 ? 0 : 1].push([x, z, dry(x, z)]);
     }
     lists.forEach((list, v) => {
-      if (!list.length) return;
-      const im = new THREE.InstancedMesh(rosetteGeo(7 + v, v === 1), wMat, list.length);
-      list.forEach(([x, z], i) => {
+      const n = list.reduce((k, q) => k + q[2], 0);
+      if (!n) return;
+      const im = new THREE.InstancedMesh(rosetteGeo(7 + v, v === 1), wMat, n);
+      let i = 0;
+      list.forEach(([x, z, ok]) => {
         const s = 0.7 + 0.7 * r();
         e.set((r() - 0.5) * 0.15, r() * 6.28, (r() - 0.5) * 0.15); qt.setFromEuler(e);
-        im.setMatrixAt(i, m4.compose(ps.set(x, heightAt(x, z) - 0.005, z), qt, sc.set(s, s * (0.8 + 0.4 * r()), s)));
-        if (winter) im.setColorAt(i, col.setRGB(0.09 + 0.05 * r(), 0.075 + 0.03 * r(), 0.035)); // frost-browned
-        else im.setColorAt(i, col.setRGB(0.045 + 0.03 * r(), 0.085 + 0.045 * r(), 0.022 + 0.01 * r()));
+        const sy = s * (0.8 + 0.4 * r());
+        if (winter) col.setRGB(0.09 + 0.05 * r(), 0.075 + 0.03 * r(), 0.035); // frost-browned
+        else col.setRGB(0.045 + 0.03 * r(), 0.085 + 0.045 * r(), 0.022 + 0.01 * r());
+        if (!ok) return; // in the water (random draws still taken: the other rosettes stay put)
+        im.setMatrixAt(i, m4.compose(ps.set(x, heightAt(x, z) - 0.005, z), qt, sc.set(s, sy, s)));
+        im.setColorAt(i++, col);
       });
       im.name = 'clutterWeeds'; im.receiveShadow = true; im.castShadow = true; if (U) im.customDepthMaterial = wDepth;
       group.add(im); meshes.push(im);

@@ -24,6 +24,7 @@ import { buildProp, LINEAR_PROPS } from '../art/props.js';
 import { edgeStructureRuns, edgeLineExtensions, edgeBuildingRows } from './edge-extend.js';
 import { buildEdgeBuildings, edgeBuildingFlatLines } from '../art/edge-buildings.js';
 import { extendPath } from './apron-field.js';
+import { cellWetAt } from './veg-shore.js';
 import { buildTerrain, canBuildRealTerrain, TREE_TYPES, coverPropsWithSnow, setPropSnow, wireTrailRecords, buildMaskedWater } from '../art/terrain.js';
 import { buildWater, raisedWaterMasks } from '../art/water.js';
 import { buildWalkDeck, WALK_SHIFT, dressingMaterial } from '../art/dressing.js';
@@ -239,7 +240,9 @@ export function placeStructures(mission, first, { grid, meshes = false, realTerr
   const W = grid.width, D = grid.depth;
   const wet = (x, z) => { const t = grid.terrainAt?.(x, z); return t === T.WATER || t === T.SHALLOW; };
   const isFree = (x, z, cat, pt) => x > 0.5 && z > 0.5 && x < W - 0.5 && z < D - 0.5 && (!wet(x, z) || wet(pt.x, pt.z));
-  const res = resolvePlacement(mission.structures || [], { shapeOf, isFree, vehicles: mission.vehicles, terrain: mission.terrain, items: mission.items, interactables: mission.interactables,
+  // trees and bushes keep off the water (world/veg-shore.js; the drawn shore follows these cells within ~a cell)
+  const wetAt = cellWetAt(grid, RULES.shore + 0.5);
+  const res = resolvePlacement(mission.structures || [], { shapeOf, isFree, wetAt, vehicles: mission.vehicles, terrain: mission.terrain, items: mission.items, interactables: mission.interactables,
     links: { climbLinks: mission.climbLinks, ladders: mission.ladders } });
   const changed = new Set();
   res.structures.forEach((d, k) => {

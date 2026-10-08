@@ -25,6 +25,7 @@ import { APRON_MAX_CROSSINGS } from './terrain/terrain-glsl.js';
 import { apronBocage, bankField } from './terrain/bocage.js';
 import { missionCarves } from './terrain/carve.js';
 import { hedgerowPlacements } from './terrain/forest-fill.js';
+import { cellWetAt, onDryLand, keepOffWater, APRON_SHORE_MARGIN } from '../world/veg-shore.js';
 import { terrainMaterial, splatTexture, sampleCells, cellSignedDistance, carveDepth, WATER_DEPTH, ICE_DEPTH } from './terrain/terrain.js';
 
 const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -262,12 +263,23 @@ const hash2 = (i, j, s) => { let h = (i * 374761393 + j * 668265263 + s * 224682
 /**
  * Apron tree defs (mission-style {type, x, z, h?}): per map side, the density of the map's own trees in a 20 m band
  * along that edge, thinning (exp(-d / treeFalloff)) toward the theatre background; jittered 3 m lattice; nothing on
- * water, shallows or roads, nor within 3 m of the map. `mission.apron.trees` scales the whole forest (0 = none).
+ * roads nor within 3 m of the map, and no trunk within APRON_SHORE_MARGIN m of the water (`wetAt`: the drawn shore
+ * field, world coordinates; without it the field's wet cells). Each tree copies its map neighbour's kind AND size
+ * (`h`, ±15 %; a background tree takes the map's median size for its type): at the species' full natural height the
+ * scenery stood twice as tall as the map's own trees (M1: an 18 m spruce on the fjord's waterline beside 9 m map
+ * spruces, user 2026-10-08 "giant tree standing on the water"). `mission.apron.trees` scales the forest (0 = none).
  */
-export function apronTrees(f, mission = {}, trees = [], theater = 'temperate', cfg = CONFIG.apron, avoid = null) {
+export function apronTrees(f, mission = {}, trees = [], theater = 'temperate', cfg = CONFIG.apron, avoid = null, wetAt = null) {
   const A = f.A, W = f.W, D = f.D, bg = BACKGROUND[theater] || BACKGROUND.temperate;
   const k = mission.apron?.trees ?? 1;
   if (!(k > 0)) return [];
+  const wet = wetAt || cellWetAt(f.grid, APRON_SHORE_MARGIN + 0.5, f.ox, f.oz);
+  // the map's typical size per tree type (median authored height), for background trees with no neighbour to copy
+  const medH = {};
+  for (const type of new Set(trees.map((t) => t.type))) {
+    const hs = trees.filter((t) => t.type === type && t.h > 0).map((t) => t.h).sort((a, b) => a - b);
+    if (hs.length) medH[type] = hs[hs.length >> 1];
+  }
   const band = 20, side = (x, z) => { const d = [z, W - x, D - z, x]; return d.indexOf(Math.min(...d)); }; // N E S W
   const near = [[], [], [], []];
   for (const t of trees) if (Math.min(t.x, t.z, W - t.x, D - t.z) <= band) near[side(t.x, t.z)].push(t);
@@ -287,8 +299,8 @@ export function apronTrees(f, mission = {}, trees = [], theater = 'temperate', c
     if (d < 3) continue;
     const c = f.codeAt(px, pz);
     if (c === T.WATER || c === T.SHALLOW || c === T.ROAD) continue;
+    if (!onDryLand(wet, px, pz, APRON_SHORE_MARGIN)) continue;
     if (inRock(px, pz) || avoid?.(px, pz)) continue;
-    if (f.codeAt(px + 2, pz) === T.WATER || f.codeAt(px - 2, pz) === T.WATER || f.codeAt(px, pz + 2) === T.WATER || f.codeAt(px, pz - 2) === T.WATER) continue;
     const s = side(qx, qz), e = dens[s];
     // clumped: low-frequency noise gathers the background forest into stands and clearings
     const clump = 0.35 + 1.3 * hash2(Math.floor(px / 24), Math.floor(pz / 24), 3) * hash2(Math.floor(px / 11), Math.floor(pz / 11), 4);
@@ -296,7 +308,8 @@ export function apronTrees(f, mission = {}, trees = [], theater = 'temperate', c
     if (hash2(i, j, 5) >= rho * cell * cell) continue;
     const src = near[s].length ? near[s][Math.floor(hash2(i, j, 6) * near[s].length)] : null;
     const type = src ? src.type : bg.types[Math.floor(hash2(i, j, 7) * bg.types.length)];
-    out.push({ type, x: +px.toFixed(2), z: +pz.toFixed(2), ...(src?.variant ? { variant: src.variant } : {}), ...(src?.species ? { species: src.species } : {}) });
+    const h0 = src ? src.h : medH[type], h = h0 > 0 ? +(h0 * (0.85 + 0.3 * hash2(i, j, 8))).toFixed(2) : 0;
+    out.push({ type, x: +px.toFixed(2), z: +pz.toFixed(2), ...(h ? { h } : {}), ...(src?.variant ? { variant: src.variant } : {}), ...(src?.species ? { species: src.species } : {}) });
   }
   return out;
 }
@@ -371,11 +384,13 @@ export function createApron(R, parent, t, grid, mission, theater, o = {}) {
   const hedges = boc.hedgerows.flatMap((hr) => hedgerowPlacements(hr));
   const hCell = new Set(hedges.map((p) => Math.floor(p.x / 2.5) + ',' + Math.floor(p.z / 2.5)));
   const nearHedge = (x, z) => { const i = Math.floor(x / 2.5), j = Math.floor(z / 2.5); for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) if (hCell.has((i + a) + ',' + (j + b))) return true; return false; };
-  const defs = apronTrees(f, mission, o.trees || [], theater, CONFIG.apron, (x, z) => H.flatAt(x, z) > 0.2).filter((d) => !hedges.length || !nearHedge(d.x, d.z));
+  // the drawn water (the shore field the ground is carved with; else the field's wet cells): nothing planted in it
+  const wetAt = o.shore?.wetAt || cellWetAt(f.grid, APRON_SHORE_MARGIN + 0.5, f.ox, f.oz);
+  const defs = apronTrees(f, mission, o.trees || [], theater, CONFIG.apron, (x, z) => H.flatAt(x, z) > 0.2, wetAt).filter((d) => !hedges.length || !nearHedge(d.x, d.z));
   stats.treeDefs = defs.length; stats.hedges = boc.hedgerows.length; stats.hedgePlants = hedges.length;
   const forest = (async () => {
     if ((!defs.length && !hedges.length) || !o.createVegetation || !o.treePlacement) return null;
-    const placements = [...defs.map((d, k) => o.treePlacement(d, theater, 100000 + k)).filter(Boolean), ...hedges]
+    const placements = [...defs.map((d, k) => o.treePlacement(d, theater, 100000 + k)).filter(Boolean), ...keepOffWater(hedges, wetAt)]
       .map((p) => ({ ...p, hero: false, visual: true, y: H.heightAt(p.x, p.z) }));
     try {
       veg = await o.createVegetation(parent, placements, theater, { quality: o.quality, renderer: R, pitchDeg: o.pitchDeg, maxUnique: 0, terrain: { heightAt: H.heightAt }, season: o.season, snow: o.snow }); // the map's season: bare winter hedges

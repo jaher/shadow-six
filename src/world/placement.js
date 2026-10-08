@@ -12,7 +12,9 @@
  *  (b) point props (trees, bushes, rocks, crates, drums, poles, dressing, pickups): exclusion zones around solids
  *      (+ eaves / crown clearance per category), runs, bridges, vehicle routes, roads (trees/rocks), water, and each
  *      other (trees vs rocks/poles) → relocated to the nearest free spot within `maxMove` (seeded ring search,
- *      deterministic), else dropped (scenery) or kept with a log line (gameplay objects).
+ *      deterministic), else dropped (scenery) or kept with a log line (gameplay objects). A tree or bush keeps
+ *      `RULES.shore` m of dry land from the water (`o.wetAt`): one authored in or at the water is moved ashore, or
+ *      dropped when no shore is within reach (user 2026-10-08: "giant tree standing on the water").
  *  (c) spawns: ground units standing inside a solid are pushed out; elevated units on a wall walk keep their body
  *      clear of the wall.
  * Structure hooks: `fixed: true` (never moved), `onLine: 'gap'|'attach'` (towers), `clipAllow: [id|type|category]`
@@ -27,6 +29,7 @@ export const RULES = Object.freeze({
   linearGap: 0.06, // a cut visual run stops this far from the solid it meets
   towerGap: 0.08, // tower legs ↔ fence face
   step: 0.15, maxMove: 4.5, angles: 16, // relocation ring search
+  shore: 1.0, // trees and bushes: dry land kept between the trunk and the nav grid's wet cells (world/veg-shore.js)
   unitR: 0.35, // character body radius
   // nav clearance (rule e): a cell is blocked when a solid body comes this close to its centre, so a walker on the
   // nearest free centre keeps shoulders, boots and rifle out of it (the visual stamps, solid props and devices)
@@ -356,8 +359,10 @@ export function structureRecords(structures, shapeOf = null) {
  * @param {object[]} structures mission structures
  * @param {{shapeOf?: (def:object, k:number) => (number[][][]|null), isFree?: (x:number, z:number, cat:string) => boolean,
  *   vehicles?: object[], terrain?: object[], items?: object[], interactables?: object[], points?: boolean,
- *   links?: {climbLinks?: object[], ladders?: object[]}}} [o] links: climb / ladder landings keep points clear
- *   points: move point props (default: only when `shapeOf` gives the visual shapes)
+ *   links?: {climbLinks?: object[], ladders?: object[]}, wetAt?: (x:number, z:number) => number}} [o] links: climb /
+ *   ladder landings keep points clear; points: move point props (default: only when `shapeOf` gives the visual
+ *   shapes); wetAt: signed distance to the water (m, > 0 in it; world/veg-shore.js cellWetAt) — trees keep off it
+ *   whether or not other points move
  * @returns {{structures: object[], items: object[], interactables: object[], moves: Map<string, {dx:number, dz:number}>,
  *   dropped: string[], log: string[], records: object[]}}
  */
@@ -471,11 +476,18 @@ export function resolvePlacement(structures = [], o = {}) {
   // point rules need the visual shapes (the data footprints of rocks / dressing are only approximations): without
   // them (grid-only unit tests) points are checked (log) but not moved, unless `o.points` forces it
   const doPoints = o.points ?? !!o.shapeOf;
+  // trees and bushes: dry land between the trunk and the water (a trunk in the lake or the surf reads as a bug)
+  const ashore = (cat) => !!o.wetAt && cat === 'tree';
+  const dryAt = (x, z) => o.wetAt(x, z) <= -RULES.shore;
+  const freeAt = (x, z, cat, pt) => (!o.isFree || o.isFree(x, z, cat, pt)) && (!ashore(cat) || pt?.def?.points || dryAt(x, z));
   const place = (p, keep) => {
+    // (point trees only: a forest AREA is a polygon whose wood art/terrain/forest-fill.js plants on its dry ground)
+    const wet = ashore(p.cat) && Number.isFinite(p.def.x) && Number.isFinite(p.def.z) && !p.def.points && !dryAt(p.def.x, p.def.z);
     const hit = conflicts(p.polys, p.cat, obstacles, p);
-    if (hit.length && !doPoints) { log.push(`check ${p.cat} ${p.id}: near ${hit.slice(0, 3).map((h) => h.id).join(', ')} (data shapes; not moved)`); hit.length = 0; }
+    if (hit.length && !doPoints && !wet) { log.push(`check ${p.cat} ${p.id}: near ${hit.slice(0, 3).map((h) => h.id).join(', ')} (data shapes; not moved)`); hit.length = 0; }
+    if (wet) hit.unshift({ id: 'the water' });
     if (hit.length) {
-      const to = relocate({ ...p, x: p.def.x ?? 0, z: p.def.z ?? 0 }, obstacles, { isFree: o.isFree });
+      const to = relocate({ ...p, x: p.def.x ?? 0, z: p.def.z ?? 0 }, obstacles, { isFree: freeAt });
       const why = hit.slice(0, 3).map((h) => h.id).join(', ');
       if (to) {
         const dx = to.x - (p.def.x ?? 0), dz = to.z - (p.def.z ?? 0);
