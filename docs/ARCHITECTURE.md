@@ -90,6 +90,8 @@ src/art/unit-anim-map.js              ART — gameplay anim → clip candidates,
 src/art/humanoid-real.js              ART — character library facade (manifest, runtimes, LOD, culling, throttling)
 src/art/characters/                   ART — verified character runtimes (commandos_a/b, enemies, guests, pipeline)
 src/art/vehicle-crew.js               ART — crew figures at the library seats: crew records + occupants (cars, lorry cabs, R75, 251, hatches)
+src/art/door-hand.js                  ART — a man's hand on a vehicle door: door rigs, how far a door opens for a seat, pull / push / shut timelines, reach IK (lean, crouch, fist round the edge)
+src/art/strap-curtain.js              ART — rear strap curtain of a covered lorry: Verlet chains parted sideways by men climbing over the tailgate, pinned to the canvas roll
 src/art/vehicle-pennants.js           ART — cloth pennants on vehicles (patrol-boat masthead, staff-car wing flag), apparent wind
 src/art/props.js                      ART — building/prop builders (catalogue below)
 src/art/dressing.js                   ART — procedural realistic non-library props (palisade/stone walls, rocks, cliffs, tents, sandbags, crates, transformers, pylons, poles)
@@ -531,6 +533,24 @@ model = { root, turret /* LOD0 turret / gun-mount node (clipping audit), null un
   Citroën, canvas tops up); weapons put away. A figure goes when its record dies, its occupant gets out or the hull dies.
   **Scripted exits:** `Vehicle.exit(enemy, x, z, o)` on a land vehicle puts the rider at his seat's door
   (`seatSide`: LHD driver left) and then `moveTo(x, z)` — no one climbs through the body.
+- **Doors in hand** (`art/door-hand.js`, user request 2026-10-07 "Can we have the commando arm close the door of the
+  car"): `model.doorRigs(seat)` (door geometry measured from the door meshes, `frac` = how far it opens for that seat:
+  wide enough to climb through, no wider than he reaches from the seat), `claimDoor(node)` / `handDoor(node, frac|null)`
+  take a door off the boarding timer. A man getting into a cab / car seat sits, reaches out (leaning as far as his
+  fist needs, gripping further toward the hinge if he is short) and pulls the door shut — the door's angle is the
+  pull's, his fist on its edge every frame (< 1 cm); across a bench cab he pulls it from the near seat and slides
+  over. Getting out his hand pushes it open; the last man out by a door steps down by it, swings it shut by its outer
+  edge and walks to where he stands. Figures under a roof stoop (`stoopUnder`: bend ≤ 40°, then crouch with the feet
+  planted) to keep the crown, back and shoulders under the cab roof / canvas. The Sd.Kfz. 251's two rear doors (one
+  hand on each, `rearDoorMotion`): the last man in turns at them and pulls them shut, then walks up the floor to his
+  seat; the first man out pushes them open; the last man out shuts them from outside. A door nobody holds keeps the
+  timer (no figure: node, placeholders). The escape truck waits 2 s after the last man boards (objectives.js).
+- **Rear strap curtain** (`art/strap-curtain.js`, "make the stripes slide sideways as commandos enter the truck from
+  behind"): the Opel Blitz cargo's five leather straps hanging under the rolled-up canvas are chains (10 links,
+  Verlet, inextensible, a little bending stiffness) pinned to the roll (canvas CPU twin `canvasEval`). Men climbing
+  over the tailgate hand their body capsules (`bodyCapsules`) over each frame (`model.curtainPush`): every link inside
+  a body slides sideways to the strap's side of him, neighbours stack or slide past, the canvas walls stop them; they
+  swing back damped (~2 s), with wind, the hull's acceleration and gravity in the hull frame.
 - **Pennants** (`art/vehicle-pennants.js`): the patrol boat's masthead commissioning pennant (library `pennant` anchor)
   and, with spawn `pennant: true`, a staff car's command flag on the right front wing — Verlet cloth ticked by
   `art/flags.js tickFlags` with the WindField minus the vehicle's velocity (apparent wind; `CLOTHS[i].vel`).

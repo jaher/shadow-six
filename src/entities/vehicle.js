@@ -557,7 +557,7 @@ export class Vehicle extends Entity {
     if (!enemyCrew && this.canEnter(unit) !== true) return false;
     if (unit.faction === 'player') this._checkTaint(unit);
     // where he got in from (visual only: art/boat-crew.js draws him stepping / hoisting himself in from there)
-    if (Number.isFinite(unit.x)) unit.boardFrom = { x: unit.x, z: unit.z, t: this.world?.time ?? 0, swim: unit.stance === 'swim' || unit.stance === 'dive' };
+    if (Number.isFinite(unit.x)) unit.boardFrom = { x: unit.x, z: unit.z, t: this.world?.time ?? 0, swim: unit.stance === 'swim' || unit.stance === 'dive', door };
     const free = this.freeSeats();
     const k = seat != null && free.includes(seat) ? seat : this.isBoat ? free[0] : this.seatFor(unit);
     this.occupants.push(unit);

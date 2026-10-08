@@ -235,8 +235,9 @@ export function updateExtractionVehicle(world, flags) {
       const last = pts[pts.length - 1] || v;
       pts.push(ex.leave ? { x: ex.leave.x, z: ex.leave.z } : { x: last.x, z: -12 });
       v.followPath(pts, { speed: ex.arrive?.speed ?? ex.leave?.speed });
-      // the last man's door shuts and he sits down before it pulls away (art/vehicle-crew.js climb, ~1.5 s)
-      if (v.vehicleKind === 'land') v.waitT = Math.max(v.waitT || 0, 1.5);
+      // the last man sits down and has his door in hand before it pulls away (art/vehicle-crew.js climb ~1.45 s, then
+      // art/door-hand.js reach + pull: shut as it starts to roll)
+      if (v.vehicleKind === 'land') v.waitT = Math.max(v.waitT || 0, 2.0);
       flags.evacPhase = 'leave';
     }
   }

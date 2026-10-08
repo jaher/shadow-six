@@ -24,6 +24,8 @@ import * as THREE from 'three';
 import { loadVehicleLibrary, preloadVehicles, createVehicleVisual, vehicleLibraryReady, resolveVehicle, setVehicleZoom, setVehicleTextureQuality, liveVehicleVisuals } from './vehicle-library.js';
 import { resolveLighting } from '../engine/lighting.js';
 import { applyCanvasCover } from './cloth-wind.js';
+import { createStrapCurtain } from './strap-curtain.js';
+import { doorRig, boardFrac } from './door-hand.js';
 import { addPennants } from './vehicle-pennants.js';
 import { T, B } from '../world/grid.js';
 import { KIT_VEHICLES } from './kit-vehicles.js';
@@ -489,7 +491,7 @@ const wrapPi = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const hashId = (s) => { let h = 0x811c9dc5; for (const ch of String(s ?? '')) { h ^= ch.charCodeAt(0); h = Math.imul(h, 0x01000193); } return (h >>> 0) % 100003; };
 const has = (t) => { try { return !!resolveVehicle(t); } catch { return false; } };
-const DOOR_OPEN = 0.35, DOOR_HOLD = 0.8;
+const DOOR_OPEN = 0.35, DOOR_HOLD = 0.8, REAR_DOOR_FRAC = 0.55;
 const TURRET_KINDS = /^(turret|turret_yaw|weapon_traverse|gun_yaw|gun_yaw_pitch)$/;
 
 /**
@@ -563,10 +565,46 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
       const hold = kind === 'open' ? DOOR_HOLD + 1.0 : kind === 'exit' ? DOOR_HOLD + 0.5 : DOOR_HOLD + 0.8;
       for (const n of doorsForSeat(vis.meta, lt, def.kind, seat)) {
         const d = st.doors.get(n);
+        if (d?.claim || d?.hand != null) continue; // a man's hand has it (art/vehicle-crew.js)
+        // as far as he needs to climb through, and no further than he can reach to pull it shut from the seat
+        const max = rigOf(n, seat)?.frac ?? 1;
         if (d && d.t < DOOR_OPEN + d.hold) d.hold = Math.max(d.hold, d.t - DOOR_OPEN + (kind === 'enter' ? DOOR_HOLD + 0.4 : hold)); // already open: keep it open
-        else st.doors.set(n, { t: d ? DOOR_OPEN * Math.max(0, 1 - (d.t - DOOR_OPEN - d.hold) / DOOR_OPEN) : 0, hold });
+        else st.doors.set(n, { t: d ? DOOR_OPEN * Math.max(0, 1 - (d.t - DOOR_OPEN - d.hold) / DOOR_OPEN) : 0, hold, max });
       }
     },
+    /**
+     * The doors a seat uses, rigged for a man's hand (art/door-hand.js doorRig, model frame, door shut) with the fraction
+     * they open to for him (`frac`). [] without doors.
+     */
+    doorRigs(seat) { return doorsForSeat(vis.meta, lt, def.kind, seat).map((n) => rigOf(n, seat)).filter(Boolean); },
+    /**
+     * A figure takes door `node` in hand (art/vehicle-crew.js): it keeps opening as far as it was going and stays there —
+     * no timer shuts it — until his hand moves it (`handDoor`).
+     */
+    claimDoor(node) {
+      const d = st.doors.get(node);
+      if (d) { if (d.hand == null) d.claim = true; } else st.doors.set(node, { t: 0, hold: DOOR_HOLD, claim: true, hand: 0, max: 1 });
+    },
+    /**
+     * Door `node` where his hand has it: opening fraction 0..1 (posed at once), or null to let go — shut, it stays shut;
+     * left open (he was called away), it swings shut on its own a moment later.
+     */
+    handDoor(node, frac) {
+      let d = st.doors.get(node);
+      if (frac == null) {
+        if (!d) return;
+        const f = d.hand ?? d.cur ?? 0;
+        if (f <= 1e-3) { vis.setPart(node, 0); st.doors.delete(node); return; }
+        const m = Math.max(f, 1e-3);
+        st.doors.set(node, { t: DOOR_OPEN + 0.6, hold: 0.6, max: m }); // swings shut after a moment, from where it is
+        return;
+      }
+      if (!d) st.doors.set(node, (d = { t: 0, hold: DOOR_HOLD }));
+      d.hand = clamp(frac, 0, 1); d.claim = true; d.cur = d.hand;
+      vis.setPart(node, d.hand);
+    },
+    /** Opening fraction door `node` shows now (0 shut). */
+    doorFrac(node) { return st.doors.get(node)?.cur ?? 0; },
     seatExit: (seat) => seatSide(lt, def.kind, seat),
     trailContacts(v, out = []) {
       if (st.destroyed) return out;
@@ -631,7 +669,26 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
     },
     /** Night beam for the real-light pool: {on, kind, pos (model space), obj (the posed model)} or null. */
     get beam() { return st.beam && !st.destroyed ? { on: !!st.lampsOn, kind: st.beam.kind, pos: st.beam.pos, obj: vis.object3d } : null; },
-    dispose() { S.live.delete(model); st.pennants?.dispose(); vis.object3d.traverse((o) => { if (o.userData.ownCanvas) o.material.dispose(); }); vis.dispose(); st.scorch?.removeFromParent(); root.clear(); },
+    /**
+     * Men climbing over the tailgate this frame (art/vehicle-crew.js): their body capsules in `curtainFrame`'s space part
+     * the rear straps (art/strap-curtain.js). @param {object[]} caps
+     */
+    curtainPush(caps) { if (st.curtain && !st.destroyed) st.curtain.push(caps); },
+    /** The rear strap curtain's frame (the model instance), or null when the vehicle has none. */
+    get curtainFrame() { return st.curtain?.mesh.parent || null; },
+    /** The rear strap curtain (tests / tools) or null. */
+    get curtain() { return st.curtain || null; },
+    /**
+     * A covered lorry's canvas over the bay (model frame, m): rear / front ends, the roof's top, the underside of the
+     * rolled-up flap over the rear opening — men climbing in stoop under it (art/vehicle-crew.js). null when uncovered.
+     */
+    get canopy() {
+      const f = st.curtain?.found;
+      if (!f || st.destroyed) return null;
+      const b = f.coverBox, roll = Math.min(...f.defs.map((d) => d.y));
+      return { zRear: b.min.z, zFront: b.max.z, roof: b.max.y, roll };
+    },
+    dispose() { S.live.delete(model); st.pennants?.dispose(); st.curtain?.dispose(); vis.object3d.traverse((o) => { if (o.userData.ownCanvas) o.material.dispose(); }); vis.dispose(); st.scorch?.removeFromParent(); root.clear(); },
   };
 
   model.ready = vis.ready.then(() => {
@@ -648,7 +705,7 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
     clearGlass(vis.object3d);
     placePools(st.lamps, vis.object3d);
     for (const g of st.lamps) g.visible = false;
-    if (/opel_blitz_cargo/.test(vis.model || '')) canvasFlap(vis.object3d);
+    if (/opel_blitz_cargo/.test(vis.model || '')) st.curtain = rearCurtain(vis.object3d, canvasFlap(vis.object3d));
     if (st.destroyed) model.setDestroyed(true);
     markShared(vis.object3d);
     model.isReady = true;
@@ -694,6 +751,12 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
     lamps(v, crewed, speed);
     if (st.lampsOn && v.world?.groundY && (st.poolT -= dt) <= 0) { st.poolT = Math.abs(speed) > 0.2 ? 0.25 : 2; fitPools(v.world); }
     if (engine) exhaust(dt, v, speed, accel);
+    if (st.curtain && !st.destroyed) {
+      // the hull's acceleration in its own frame (x left, z forward): low-passed, clamped (a stop / start step is a jolt, not a fling)
+      const k = Math.min(1, dt / 0.15), ca = st.curtA || (st.curtA = [0, 0, 0]);
+      ca[0] += (clamp(speed * st.yawRate, -6, 6) - ca[0]) * k; ca[2] += (clamp(accel, -6, 6) - ca[2]) * k;
+      st.curtain.step(dt, { acc: ca });
+    }
   }
 
   /**
@@ -848,13 +911,53 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
 
   function doors(dt) {
     for (const [n, d] of st.doors) {
+      if (d.hand != null) { vis.setPart(n, d.hand); d.cur = d.hand; continue; } // in a man's hand (art/door-hand.js)
       d.t += dt;
-      const hold = d.hold ?? DOOR_HOLD;
+      const hold = d.claim ? Infinity : d.hold ?? DOOR_HOLD;
       const open = d.t < DOOR_OPEN ? d.t / DOOR_OPEN : d.t < DOOR_OPEN + hold ? 1 : 1 - (d.t - DOOR_OPEN - hold) / DOOR_OPEN;
       const e = clamp(open, 0, 1);
-      vis.setPart(n, e * e * (3 - 2 * e));
+      d.cur = e * e * (3 - 2 * e) * (d.max ?? 1);
+      vis.setPart(n, d.cur);
       if (open <= 0) { vis.setPart(n, 0); st.doors.delete(n); }
     }
+  }
+
+  /**
+   * Door `node` rigged for a hand (art/door-hand.js): its geometry measured once from the intact model's door meshes
+   * (door shut), and the fraction it opens to for a man in `seat`. null when the model has no such door part.
+   */
+  function rigOf(node, seat) {
+    st.rigs ||= new Map();
+    const key = `${node}|${seat}`;
+    if (st.rigs.has(key)) return st.rigs.get(key);
+    // hinged doors only (a vertical hinge): not a tailgate dropping down, not a roof hatch
+    const def = (vis.meta?.parts || []).find((p) => p.node === node && p.pivot && p.kind === 'door' && Math.abs(p.axis?.[1] ?? 1) > 0.9);
+    const obj = def && vis.parts[node];
+    let rig = null;
+    if (obj) {
+      const box = st.rigs.get(node) || doorBox(obj, def);
+      st.rigs.set(node, box);
+      if (box) {
+        rig = doorRig(def, box);
+        const sock = seatSockets(vis.meta)[seat];
+        // side doors: as far as he reaches from the seat; rear doors (the half-track's swing in): half-way, so a man
+        // inside or just outside them reaches their edges
+        rig.frac = rig.alongZ ? (sock?.pos ? boardFrac(rig, sock.pos) : 1) : REAR_DOOR_FRAC;
+        rig.seat = sock?.pos || null;
+      }
+    }
+    st.rigs.set(key, rig);
+    return rig;
+  }
+  /** Model-frame box of a door's meshes with the door shut (LOD0 node of the intact model). */
+  function doorBox(obj, def) {
+    const was = st.doors.get(def.node)?.cur ?? 0;
+    vis.setPart(def.node, 0);
+    vis.object3d.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(vis.object3d.matrixWorld).invert(), m = new THREE.Matrix4(), bb = new THREE.Box3();
+    obj.traverse((o) => { if (o.isMesh) { if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); bb.union(o.geometry.boundingBox.clone().applyMatrix4(m.multiplyMatrices(inv, o.matrixWorld))); } });
+    vis.setPart(def.node, was);
+    return bb.isEmpty() ? null : { min: bb.min.toArray(), max: bb.max.toArray() };
   }
 
   /** Ground pools follow the relief: each pool's centre is lifted / lowered onto the ground under it. */
@@ -1076,4 +1179,18 @@ function canvasFlap(root) {
     covers.push(o);
   });
   for (const o of covers) { applyCanvasCover(o, { rear: -1 }); o.userData.ownCanvas = true; }
+  return covers;
+}
+
+/**
+ * The rear strap curtain of a covered lorry (art/strap-curtain.js): on the intact model's most detailed cover (LOD0),
+ * the straps hanging in its rear opening replaced by chains men part as they climb over the tailgate. null when the
+ * cover has no straps.
+ */
+function rearCurtain(root, covers) {
+  const lod = (o) => { for (let p = o; p; p = p.parent) { const m = /_lod(\d+)$/.exec(p.name || ''); if (m) return +m[1]; } return 9; };
+  const cover = covers.slice().sort((a, b) => lod(a) - lod(b) || b.geometry.attributes.position.count - a.geometry.attributes.position.count)[0];
+  if (!cover) return null;
+  let inst = cover; while (inst.parent && inst.parent !== root) inst = inst.parent; // the instance root (model frame)
+  try { return createStrapCurtain(inst, cover); } catch (e) { console.warn('[vehicles] strap curtain', e?.message || e); return null; }
 }

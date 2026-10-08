@@ -436,7 +436,7 @@ const LEGS = ['thigh_l', 'calf_l', 'foot_l', 'thigh_r', 'calf_r', 'foot_r'];
  * −1 on the commandos' kits), the fallback when the thumb test is inconclusive.
  */
 const PSIGN = new WeakMap();
-function palmSign(B) {
+export function palmSign(B) {
   let ps = PSIGN.get(B);
   if (ps) return ps;
   ps = { l: 1, r: -1 };
@@ -513,7 +513,7 @@ export function gripPoint(B, s, out = new THREE.Vector3()) {
  * the palm, the thumb wrapped over the bar (a short CCD bringing its tip against the bar on the fingers' side) when
  * the bar (point g, axis a) is given.
  */
-function curlFingers(B, s, k = 1, g = null, a = null) {
+export function curlFingers(B, s, k = 1, g = null, a = null) {
   if (k <= 0.001 || !B['index_01_' + s]) return;
   const { f, n } = handFrame(B, s, palmSign(B)[s]);
   const ax = new THREE.Vector3().crossVectors(f, n).normalize();       // flexion turns the fingers toward the palm
