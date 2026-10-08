@@ -807,13 +807,17 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   - **spray and mist**: stateless GPU droplets and mist drifting with `world.wind`.
 
   About 10 Hz of `water.disturb` keeps the pool rippling. When the dam is destroyed the intact water fades out and
-  `src/render/dam-breach.js` takes over (shader `dam-breach-glsl.js`): one flow-aligned surface in the dam frame — a
-  funnel of flow lines and a glassy slick drawn in on the reservoir, the full width of the slot blown in
-  dam_arch_destroyed (`BREACH`: its cheeks, floor, pier stubs and where the reservoir's own water ends), bending down to
-  the lip, then a ballistic jet with side walls into the pool (`breachProfile(level, wall)`: drop ∝ the head over the
-  slot's floor) — white water torn off the cheeks and the pier stubs, a churning lip, spray off the lip, impact cloud /
-  spray / mist where it lands, a boil and a surge front of white water down the river (`waterFx.surge` centreline,
-  7 m/s; geom `waterStrip`, mats `foamMaterial`). Just after the blast the water stands near full height in the gap
+  `src/render/dam-breach.js` takes over (shader `dam-breach-glsl.js`): ONE flow-aligned mesh and one shader, rows across
+  the flow, so every piece meets the next edge to edge with the same streaks running through — a funnel of flow lines
+  and a glassy slick on the reservoir, the full width of the slot blown in dam_arch_destroyed (`BREACH`: its cheeks,
+  floor, pier stubs and where the reservoir's own water ends) bending down to the lip, over the brink and down the face
+  as a thick sheet clinging to the face's profile (`faceV`), its foot curving out into the pool, then the same surface
+  carried on down the river's centreline (`waterFx.surge`), widening to the banks: a churning boil, then marbled foam
+  thinning with distance (`breachProfile(level, wall)`: drop ∝ the head over the slot's floor). The pattern is advected
+  in travel time from one speed profile — slow on the lake, free fall down the face (~5 → 9.5 m/s), the river
+  `riverSpeed(d)` 3.4 → 1.2 m/s — so the fall is the fastest water on screen and the river calms with distance. Spray
+  off the lip, impact cloud / spray / mist where it lands; the flood front runs down the river at 2.2× the current.
+  Just after the blast the water stands near full height in the gap
   (the dam-break wall, ~2 s) and races to the pool; then the drawdown develops and the reservoir (`water.drains`)
   drops `RESERVOIR_DRAWDOWN` m over 40 s and holds: a strong steady outflow for good (also when a save is loaded with
   the dam already down). The ruin's static released-water mesh (`water_flow`) is hidden on a dam with `waterFx`. The sound is

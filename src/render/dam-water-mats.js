@@ -149,50 +149,6 @@ void main() {
   gl_FragColor = vec4(col * uLight, a);
 }`;
 
-/**
- * White water on the pool: foam streaks stretched along the flow (+y) and advected downstream at `uSpeed` m/s, a
- * churning boil where the water lands (first metres), densest at the plunge and breaking up into thinning streaks,
- * then sparse flecks, towards `uLen`. `uHot` (up to 8, x = metres across, y = half width, z = widening per metre,
- * w = strength) weights it across the stream; `uSurge` > 0: only the first `uSurge` metres are wet (a breach
- * surge front running down the river, with a bright crest at the front). x = metres across, y = metres along.
- */
-const FOAM_FRAG = /* glsl */`
-uniform float uTime, uSpeed, uAlpha, uLen, uWidth, uLight, uFade, uIn, uSurge, uBoil;
-uniform vec4 uHot[8];
-varying vec2 vF;
-${NOISE}
-void main() {
-  float x = vF.x, y = vF.y, hot = 0.0;
-  for (int k = 0; k < 8; k++) { vec4 h = uHot[k]; float d = (x - h.x) / max(0.3, h.y + y * h.z); hot += h.w * exp(-d * d); }
-  hot = clamp(hot, 0.0, 1.0);
-  float t = uTime * uSpeed, q = y - t;                     // advected coordinate: the pattern rides the current
-  float xs = x + (vnoise(vec2(x * 0.5 + 3.1, q * 0.15)) - 0.5) * 1.6; // the lines meander a little
-  // marbled foam lines (ridged noise stretched along the flow), a finer second set
-  float r1 = 1.0 - abs(2.0 * fbm(vec2(xs * 1.0, q * 0.16)) - 1.0);
-  float r2 = 1.0 - abs(2.0 * fbm(vec2(xs * 2.2 + 5.2, q * 0.34 + 2.0)) - 1.0);
-  float veins = max(smoothstep(0.82, 0.97, r1), 0.75 * smoothstep(0.86, 0.98, r2));
-  float dens = clamp(1.0 - y / max(uLen, 1.0), 0.0, 1.0);
-  // where foam survives downstream (rafts) — near the plunge it is everywhere
-  float raft = smoothstep(0.38, 0.62, fbm(vec2(x * 0.3 + 7.7, q * 0.09)));
-  float foam = veins * mix(raft, 1.0, dens * dens) * (0.3 + 0.7 * sqrt(dens));
-  // aerated water: a milky veil, thick at the plunge, thinning downstream
-  float veil = (0.2 + 0.5 * fbm(vec2(xs * 0.7, q * 0.22))) * pow(dens, 2.0) * 0.38 * hot;
-  // the boil where the water lands: churning cells, domain-warped
-  vec2 b = vec2(x * 1.1, y * 0.9 - uTime * uSpeed * 1.6);
-  float boilN = fbm(b + vec2(fbm(b * 0.7 + uTime * 0.5), fbm(b * 0.6 - uTime * 0.4)) * 1.5);
-  float boil = smoothstep(0.5, 0.72, boilN) * exp(-y / 2.2) * uBoil;
-  float cov = max(max(veil, foam), boil);
-  // ragged soft sides (metres from the strip's edge, wobbling along the flow)
-  float de = uWidth * 0.5 - abs(x), sideN = fbm(vec2(sign(x) * 3.0 + q * 0.25, uTime * 0.15));
-  float side = smoothstep(0.0, 1.5 + 3.0 * sideN, de);
-  float ends = smoothstep(0.0, max(uIn, 1e-3), y + (uIn > 0.0 ? 0.0 : 1.0)) * smoothstep(uLen, uLen * 0.75, y);
-  float front = 1.0;
-  if (uSurge > 0.0) { float d = uSurge - y + (fbm(vec2(x * 0.35, uTime * 0.3)) - 0.5) * 7.0; /* a ragged front */ front = smoothstep(-0.5, 1.5, d); boil = max(boil, smoothstep(5.0, 0.0, abs(d - 2.0)) * smoothstep(0.35, 0.6, boilN) * front); cov = max(cov, boil) * mix(0.5, 1.0, exp(-max(d, 0.0) / 14.0)); }
-  float a = uAlpha * clamp(cov, 0.0, 1.0) * mix(0.3, 1.0, hot) * side * ends * front * uFade;
-  vec3 col = mix(vec3(0.66, 0.77, 0.80), vec3(0.95, 0.97, 0.98), clamp((max(foam, boil) + 0.05) / max(cov, 0.05), 0.0, 1.0));
-  gl_FragColor = vec4(col * uLight, a);
-}`;
-
 const shared = { uTime: { value: 0 }, uLight: { value: 1 }, uFade: { value: 1 } };
 /** Lighting for the lit parts (pool, sheets): night factor, sun strength 0..1, world direction to the sun, sky radiance. */
 export const damLight = { uNight: { value: 0 }, uSunI: { value: 0.3 }, uSunDir: { value: new THREE.Vector3(0.3, 0.6, 0.3).normalize() }, uSky: { value: new THREE.Vector3(0.55, 0.6, 0.66) } };
@@ -213,5 +169,3 @@ export const crownMaterial = (o) => make('dam_splash_crown', CROWN_FRAG, { uAlph
 export const wetMaterial = (o) => make('dam_wet_streak', WET_FRAG, { uAlpha: o.alpha ?? 0.35, uLen: o.len ?? 6, uSeed: o.seed ?? 0 });
 export const splashMaterial = (o) => make('dam_splash_zone', SPLASH_FRAG, { uAlpha: o.alpha ?? 0.5, uLen: o.len ?? 2, uSeed: o.seed ?? 0 });
 export const iceMaterial = (o) => make('dam_ice_column', ICE_FRAG, { uAlpha: o.alpha ?? 0.85, uSeed: o.seed ?? 0, uLen: o.len ?? 3 });
-export const foamMaterial = (o) => make('dam_foam', FOAM_FRAG, { uSpeed: o.speed ?? 1, uAlpha: o.alpha ?? 0.9, uLen: o.len ?? 6, uWidth: o.width ?? 20, uIn: o.fadeIn ?? 0, uSurge: o.surge ?? 0, uBoil: o.boil ?? 1,
-  uHot: Array.from({ length: 8 }, (_, k) => (o.hot?.[k] ? new THREE.Vector4(...o.hot[k]) : new THREE.Vector4(0, 1, 0, 0))) });

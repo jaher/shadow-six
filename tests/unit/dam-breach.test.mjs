@@ -1,10 +1,10 @@
 /**
- * M3 dam (design-spec §7.6): the burst (render/dam-breach.js — one flow surface from the reservoir through the slot and
- * down into the pool, shaped by the reservoir's level; strongest just after the blast, then a steady outflow; surge
- * front down the river) and the crest stairs (art/dam-stairs.js stairTopAt = the grid's ramp cells = the drawn treads).
+ * M3 dam (design-spec §7.6): the burst (render/dam-breach.js — one flow surface from the reservoir through the slot,
+ * down the face and on down the river, shaped by the reservoir's level; strongest just after the blast, then a steady
+ * outflow; the fall the fastest water, the river slowing with distance; the flood front down the river) and the crest stairs (art/dam-stairs.js stairTopAt = the grid's ramp cells = the drawn treads).
  */
 import { test, assert, near } from './lib.mjs';
-import { createBreach, breachProfile, BREACH } from '../../src/render/dam-breach.js';
+import { createBreach, breachProfile, BREACH, faceV, riverSpeed } from '../../src/render/dam-breach.js';
 import { stairTopAt, STAIR_RISE } from '../../src/art/dam-stairs.js';
 import { WATER_LEVEL, RESERVOIR_DRAWDOWN, DRAIN_S } from '../../src/art/water.js';
 import { getMission } from '../../src/missions/index.js';
@@ -23,7 +23,13 @@ test('dam breach: nothing before the dam falls; full torrent while the reservoir
   for (let k = 0; k < 20; k++) a = b.frame(0.1, 5.8);
   near(a, 1, 1e-6, 'full strength 2 s in with the head still up');
   assert.ok(b.active);
-  near(b.surgeAt, 7 * (2 - 1.1), 0.05, 'the surge front leaves the landing once the water is there and runs 7 m/s down the river');
+  for (let k = 0; k < 10; k++) b.frame(0.1, 5.8);
+  assert.ok(b.surgeAt > 0, `the flood front is out on the river 3 s on (${b.surgeAt} m)`);
+  const s2 = b.surgeAt;
+  for (let k = 0; k < 20; k++) b.frame(0.1, 5.8);
+  const s4 = b.surgeAt;
+  for (let k = 0; k < 20; k++) b.frame(0.1, 5.8);
+  assert.ok(s4 > s2 && b.surgeAt - s4 < s4 - s2 + 0.6, `…and runs on down it, slowing (${s2} → ${s4} → ${b.surgeAt} m)`);
   const mid = b.frame(0.1, WATER_LEVEL + (5.8 - WATER_LEVEL) * 0.1);
   assert.ok(mid > 0.2 && mid < 0.6, `thinning with a tenth of the head left (${mid})`);
   for (let k = 0; k < 40; k++) a = b.frame(0.1, WATER_LEVEL);
@@ -53,7 +59,7 @@ test('dam breach: on its own drawdown curve it settles into a strong steady outf
   b.dispose(); c.dispose();
 });
 
-test('dam breach profile: on the reservoir up to where its water ends, then down to the lip, landing in the pool', () => {
+test('dam breach profile: on the reservoir up to where its water ends, down to the lip, over the brink and down the face, out into the pool', () => {
   for (const [L, w] of [[5.8, 1], [5.8, 0.4], [5.0, 0]]) {
     const P = breachProfile(L, w);
     near(P.ySlot(BREACH.vMouth), L + 0.05, 1e-9, 'the mouth sits on the reservoir');
@@ -61,18 +67,41 @@ test('dam breach profile: on the reservoir up to where its water ends, then down
     near(P.ySlot(BREACH.vLip), P.yLip, 1e-9);
     let prev = Infinity;
     for (let v = BREACH.vMouth; v <= BREACH.vLip; v += 0.1) { const y = P.ySlot(v); assert.ok(y <= prev + 1e-9, 'never rising'); prev = y; }
-    near(P.yJet(0), P.yLip, 1e-9, 'the jet leaves from the lip');
-    near(P.yJet(P.xLand), WATER_LEVEL, 1e-6, 'and lands on the pool');
-    assert.ok(P.xEnd > P.xLand && P.yJet(P.xEnd) < WATER_LEVEL - 0.4, 'its last rows run under the pool');
-    // the slope leaving the slot is the jet's starting slope (no kink at the lip)
-    const e = 1e-4;
-    near((P.ySlot(BREACH.vLip) - P.ySlot(BREACH.vLip - e)) / e, P.slope, 2e-3, 'smooth over the lip');
+    // the column: always going down and out, no step from the lip, clinging to the face's profile
+    let a = { v: BREACH.vLip, y: P.yLip };
+    for (const q of P.column) {
+      // (down the plumb face it thins as it speeds up: a few cm back in)
+      assert.ok(q.y <= a.y + 1e-9 && q.v >= a.v - 0.1, `${q.part} (${q.v.toFixed(2)}, ${q.y.toFixed(2)}): down and out`);
+      assert.ok(Math.hypot(q.v - a.v, q.y - a.y) < 0.5, 'no gap');
+      if (q.part === 'face') { const off = q.v - faceV(q.y); assert.ok(off > 0.5 && off < 0.9, `down the face ${off.toFixed(2)} m out from the concrete`); }
+      a = q;
+    }
+    const last = P.column.at(-1), prev2 = P.column.at(-2);
+    near(last.y, WATER_LEVEL + 0.04, 1e-9, 'its foot meets the pool\'s surface');
+    near(last.v, P.vLand, 1e-9);
+    assert.ok(Math.abs(last.y - prev2.y) / Math.abs(last.v - prev2.v) < 0.15, 'and flattens out into it (the river carries on from there)');
+    // the brink starts along the slot's slope (no kink at the lip)
+    const c0 = P.column[0], s0 = (c0.y - P.yLip) / (c0.v - BREACH.vLip);
+    assert.ok(Math.abs(Math.atan(s0) - Math.atan(P.slope)) < 0.35, `over the lip on the slot's slope (${s0.toFixed(2)} vs ${P.slope.toFixed(2)})`);
   }
   assert.ok(breachProfile(5.8, 1).yLip > breachProfile(5.8, 0).yLip + 1, 'the dam-break wall stands higher in the gap');
 });
 
-test('dam breach mesh: one continuous surface from the funnel\'s rim to under the pool, the full width of the slot', () => {
-  const b = createBreach(DEF, FX, 5.8);
+test('dam breach speeds: the fall is the fastest water, accelerating down the face; the river slows with distance', () => {
+  const P = breachProfile(5.0, 0);
+  assert.ok(P.speedAt(0.5) > P.speedAt(P.yB) && P.speedAt(P.yB) > P.speedAt(P.yLip), 'accelerating down the face');
+  near(P.speedAt(P.yLip), P.vh, 1e-9);
+  assert.ok(riverSpeed(0) < P.speedAt(P.yLip) && riverSpeed(4) > riverSpeed(12) && riverSpeed(12) > riverSpeed(30) && riverSpeed(80) > 1, 'the river: slower than the fall, calming down');
+  const b = createBreach(DEF, { surge: [[44, 35], [52, 46], [60, 54], [84, 74], [100, 87.5]] }, 5.8);
+  const { tau, speed } = b.rows;
+  for (let i = 1; i < tau.length; i++) assert.ok(tau[i] > tau[i - 1], 'travel time grows along the flow');
+  const max = Math.max(...speed), at = speed.indexOf(max), riverMax = Math.max(...Array.from(speed).slice(at + 12));
+  assert.ok(max > 7 && riverMax < 0.5 * max, `fastest down the face (${max.toFixed(1)} m/s), the river at most ${riverMax.toFixed(1)}`);
+  b.dispose();
+});
+
+test('dam breach mesh: one continuous surface from the funnel\'s rim down the river, widths and positions carried across every join', () => {
+  const b = createBreach(DEF, { surge: [[44, 35], [52, 46], [60, 54], [84, 74], [100, 87.5]] }, 5.8);
   b.start();
   for (let k = 0; k < 120; k++) b.frame(0.1, null);
   const g = b.flowMesh.geometry, pos = g.getAttribute('position'), aux = g.getAttribute('aux'), P = b.profile;
@@ -80,18 +109,23 @@ test('dam breach mesh: one continuous surface from the funnel\'s rim to under th
   for (let q = 0; q < pos.count; q += cols) {
     if (aux.getY(q) > 0.5) break; // the side walls follow the surface
     const m = q + (cols >> 1);
-    rows.push({ u0: pos.getX(q), u1: pos.getX(q + cols - 1), y: pos.getY(m), v: pos.getZ(m), z: aux.getX(m) });
+    const hw = 0.5 * Math.hypot(pos.getX(q + cols - 1) - pos.getX(q), pos.getZ(q + cols - 1) - pos.getZ(q));
+    rows.push({ u: pos.getX(m), y: pos.getY(m), v: pos.getZ(m), z: aux.getX(m), hw });
   }
   near(rows[0].y, P.L + 0.05, 1e-6, 'the rim lies on the reservoir');
   for (let i = 1; i < rows.length; i++) {
     const a = rows[i - 1], c = rows[i];
-    const d = Math.hypot(c.v - a.v, c.y - a.y), lim = c.z < -1 ? 1.3 : 0.6; // (the flat funnel is coarser out on the lake)
+    const d = Math.hypot(c.u - a.u, c.v - a.v, c.y - a.y), lim = c.z < -1 ? 1.3 : c.z > 1.6 ? 3.2 : 0.6; // (the flat funnel and the river further down are coarser)
     assert.ok(d < lim, `row ${i}: no gap along the flow (${d.toFixed(2)} m)`);
-    assert.ok(c.z >= a.z - 1e-6, 'the zones run funnel → slot → jet');
+    assert.ok(c.z >= a.z - 1e-6, 'the pieces run funnel → slot → column → river');
+    if (a.z >= -1 && c.z > -1) assert.ok(Math.abs(c.hw - a.hw) <= 0.08 + 0.35 * d, `row ${i} (z ${c.z.toFixed(2)}): the width tapers, no step (${a.hw.toFixed(2)} → ${c.hw.toFixed(2)} m)`);
   }
   const slot = rows.filter((r) => r.z > -1 && r.z < 0);
-  assert.ok(slot.length > 15 && slot.every((r) => r.u0 <= -BREACH.hw && r.u1 >= BREACH.hw), 'the slot rows span the gap from cheek to cheek');
-  assert.ok(rows.at(-1).y < WATER_LEVEL - 0.4, `the jet ends under the pool (${rows.at(-1).y.toFixed(2)})`);
+  assert.ok(slot.length > 15 && slot.every((r) => r.hw >= BREACH.hw), 'the slot rows span the gap from cheek to cheek');
+  const lip = rows.findIndex((r) => r.z >= 0);
+  near(rows[lip].hw, rows[lip + 1].hw, 0.05, 'the column starts at the slot\'s width at the lip');
+  const river = rows.filter((r) => r.z > 1);
+  assert.ok(river.length > 30 && Math.abs(river[0].y - (WATER_LEVEL + 0.04)) < 1e-6 && river.at(-1).hw > 8, 'the river: on the water, widening to the banks');
   b.dispose();
 });
 

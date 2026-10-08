@@ -533,34 +533,45 @@ motion at the right speed, stretching along the flow, a dark-to-white gradient d
     spray or mist was ever drawn.
 - **The burst (`dam-breach.js`, `dam-breach-glsl.js`).** Once the dam is destroyed the intact water fades out and
   the reservoir pours through the slot blown in dam_arch_destroyed (user: "The top part of the waterfall after making
-  the dam explode needs to cause more water to flow down"). The ruin's own static `water_flow` sheet (two thin striped
-  streams beside the central pier stub, the old "top of the waterfall") is hidden; everything is one flow-aligned
-  surface in the dam frame, rows across the flow, so nothing floats and nothing gaps:
+  the dam explode needs to cause more water to flow down"; then "Make the transition of the waterfall seamlessly cross
+  all segments, they should be aligned" and "The water on the river looks too fast after the dam explodes. Its not
+  going as fast when falling vertically"). The ruin's own static `water_flow` sheet is hidden. Everything is ONE
+  flow-aligned mesh and ONE shader — rows across the flow, the same across coordinate and travel time all the way —
+  so the pieces meet edge to edge at the same width with the same streaks running through, and nothing switches from
+  one piece to the next (every shading term is a smooth function of the position along the flow):
   - **funnel** on the reservoir (11 m, ±75°): each column a streamline from the rim to the slot's mouth; flow lines
-    (value-noise isolines drawn out along the streamlines, meandering where slow, pulled straight as they speed up)
     converge on the mouth, the chop smoothed into a darker glassy slick near it; it fades out at the rim, on the
     reservoir's level (+5 cm);
-  - **slot**: the full width between the cheeks (running 0.35 m into them: hidden in the concrete, so a jagged face
-    leaves no seam). It stays on the reservoir's level as long as the reservoir's own surface lies under it — the
-    body's mask is the continuous shore field, which runs ~1.5 m past its polygon over the tailwater cells under the
-    deck (`BREACH.vEdge`) — then bends down to the lip (`d = 0.2 × head over the slot's floor`); white water is torn
-    off the cheeks, piles against the central pier stub's upstream face and trails behind it and the side stubs;
-  - **lip and jet**: a ragged churning white band, then a ballistic nappe (`yLip + slope·x − g x²/2v²`, v from the
-    drop) with frayed edges shedding droplets, glassy windows near the top, an opaque crown where it lands, and
-    bulging side walls under its edges down into the pool (it reads as a thick column from 45° too); its last rows
-    run 0.5 m under the pool's surface;
-  - spray off the lip (170 GPU droplets/clumps), impact cloud / spray / mist at the landing (createDamSpray, moved
-    with the landing), the boil and the surge strip down the river (its sides now fade inside it from the start).
-  The pattern is advected in travel time computed once from the settled flow's speed profile (slow on the lake,
-  ~1.5 m/s at the mouth, free fall after the lip), so features crawl on the lake, race through the gap and stretch
-  down the fall; the vertex positions follow the profile on the CPU (~0.007 ms a frame while it changes). Timing:
-  the water front races from the mouth to the pool in ~1.3 s; the dam-break wall (`exp(−t/2.2 s)`) keeps the
-  surface near full height in the gap at first; the reservoir drops `RESERVOIR_DRAWDOWN` 0.8 m over 40 s
-  (art/water.js `drains`) and holds — the breach settles to a strong steady outflow and never stops (a save loaded
-  with the dam down starts it settled). Cost on the RTX 5090 dev GPU, drawn alone without occlusion (an upper
-  bound): 0.03 / 0.04 / 0.07 ms at zoom 0.5 / 1 / 2 on every preset (the tongue it replaced: 0.02 / 0.02 / 0.05;
-  the intact dam's water: 0.05 / 0.07–0.10 / 0.12–0.14). `tests/dam-blast-fx.test.mjs` checks the top band of the
-  fall (cover, brightness, row by row), the column to the pool and the funnel from 3 s to 45 s.
+  - **slot**: the full width between the cheeks (running 0.35 m into them, narrowing to the lip's width). It stays on
+    the reservoir's level as long as the reservoir's own surface lies under it — the body's mask is the continuous shore
+    field, which runs ~1.5 m past its polygon over the tailwater cells under the deck (`BREACH.vEdge`) — then bends
+    down to the lip (`d = 0.2 × head over the slot's floor`); white water is torn off the cheeks, piles against the
+    central pier stub's upstream face and trails behind it and the side stubs, handing over to the column's aeration
+    before the lip (no band at the lip);
+  - **column**: over the brink (a curve from the slot's slope round to the face) and down the face as a sheet 0.85 →
+    0.55 m out from the concrete, following its profile (`faceV`: plumb, then battered out to the waterline), bulging a
+    little in the middle, with side walls back to the concrete; white streaks over dark gaps, frayed edges shedding
+    droplets; its foot curves out and flattens onto the pool;
+  - **river**: the same surface carried on along the river's centreline (`waterFx.surge`), widening from the column's
+    width to the banks over ~12 m then to 18 m: a churning boil (cells warped in place) for the first ~6 m, then
+    marbled foam (veins, rafts where it survives, a milky veil) thinning with distance, soft ragged banks; it replaces
+    the old surge strip (foamMaterial / waterStrip are gone).
+  **Speeds.** The pattern is octaves of value noise in (across, τ − t), τ the travel time from the rim computed once
+  from the settled flow's speed profile — the lake ~0.4 → 1.5 m/s at the mouth, the slot accelerating, free fall down
+  the face (`speedAt`: ~5 → 9.5 m/s), slowing through the foot into the boil, then the river `riverSpeed(d)` =
+  1.2 + 2.2·e^(−d/12) m/s. Each octave is weighted by how close its feature length at the local speed is to ~1.6 m
+  (4.5 m down the river), so features keep a readable size everywhere and every one moves at the local speed. Measured
+  on screen at zoom 1 (profile cross-correlation, `tests/dam-blast-fx.test.mjs`): the fall ~290–340 px/s, the river
+  ~70–90 px/s by the pool, ~40–60 px/s 16–22 m down (before: the jet's streaks were so long they stood still, ~0 px/s,
+  while the old strip ran 80–130 px/s, faster further down). The flood front runs down the river at 2.2× the current.
+  Spray off the lip (170 GPU droplets/clumps), impact cloud / spray / mist at the foot (createDamSpray, moved with it).
+  Timing: the water front races from the mouth to the pool in ~1.7 s; the dam-break wall (`exp(−t/2.2 s)`) keeps the
+  surface near full height in the gap at first; the reservoir drops `RESERVOIR_DRAWDOWN` 0.8 m over 40 s (art/water.js
+  `drains`) and holds — the breach settles to a strong steady outflow and never stops (a save loaded with the dam down
+  starts it settled). Cost on the RTX 5090 dev GPU, drawn alone without occlusion (an upper bound): 0.04 / 0.06–0.08 /
+  0.08 ms at zoom 0.5 / 1 / 2 (the intact dam's water: 0.05 / 0.07 / 0.12). `tests/dam-blast-fx.test.mjs` checks the
+  top band of the fall, the column to the pool, the funnel, the speeds (fall > river by the pool > river further down)
+  and the seams (brightness jumps and edge kinks at each join, time-averaged) from 3 s to 45 s.
 - **Sound.** Three positional ambience layers stop when the dam is destroyed (`until: 'dam'`): `waterfall` (the
   rush at the face), `waterfall_roar` (the plunge's low roar: the surf sample at 0.62× rate, `small` distance class)
   and `rapids` (the tailwater, 15 m downstream, `vehicle` class). `audio.js` passes an ambience layer's `rate`.

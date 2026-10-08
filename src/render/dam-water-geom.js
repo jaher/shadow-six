@@ -1,6 +1,6 @@
 /**
  * Geometry of the dam water FX (render/dam-water.js): the face sampler (raycasts on the dam's finest LOD in the
- * dam's own frame), ribbons that follow the face down to the water, and flat strips on the water (the burst's surge).
+ * dam's own frame) and ribbons that follow the face down to the water.
  * @module render/dam-water-geom
  */
 import * as THREE from 'three';
@@ -78,31 +78,4 @@ export function faceRibbon(F, { u0, w, yTop, yBot, off = 0.05, step = 0.2, cols 
     g.computeBoundingSphere();
     return g;
   }
-}
-
-/**
- * Flat strip on the water along a centreline (world x/z, at height y): width w0 at the start → w1 at the end.
- * `flow` x = metres across (centred), y = metres along.
- */
-export function waterStrip(points, { y, w0, w1, step = 1, cols = 9 }) {
-  const P = points.map((q) => (Array.isArray(q) ? q : [q.x, q.z]));
-  let L = 0;
-  const seg = [];
-  for (let i = 0; i + 1 < P.length; i++) { const l = Math.hypot(P[i + 1][0] - P[i][0], P[i + 1][1] - P[i][1]); seg.push({ a: P[i], b: P[i + 1], l, s0: L }); L += l; }
-  const pos = [], flow = [], n = Math.max(2, Math.ceil(L / step) + 1);
-  for (let r = 0; r < n; r++) {
-    const s = (L * r) / (n - 1), g = seg.find((q) => s <= q.s0 + q.l + 1e-6) || seg[seg.length - 1];
-    const t = g.l ? (s - g.s0) / g.l : 0, x = g.a[0] + (g.b[0] - g.a[0]) * t, z = g.a[1] + (g.b[1] - g.a[1]) * t;
-    const dx = (g.b[0] - g.a[0]) / (g.l || 1), dz = (g.b[1] - g.a[1]) / (g.l || 1), w = w0 + (w1 - w0) * (s / L);
-    for (let k = 0; k < cols; k++) { const a = (k / (cols - 1) - 0.5) * w; pos.push(x - dz * a, y, z + dx * a); flow.push(a, s); }
-  }
-  const idx = [];
-  for (let r = 0; r + 1 < n; r++) for (let k = 0; k + 1 < cols; k++) { const a = r * cols + k; idx.push(a, a + cols, a + 1, a + 1, a + cols, a + cols + 1); }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('flow', new THREE.Float32BufferAttribute(flow, 2));
-  g.setIndex(idx);
-  g.userData.len = L;
-  g.computeBoundingSphere();
-  return g;
 }
