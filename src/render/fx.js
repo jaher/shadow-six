@@ -616,7 +616,7 @@ export class FX {
     }
     for (const e of w.enemies || []) {
       if (A.cones.length >= A.maxCones) break;
-      if (!(e.coneVisible || cones?.showAll) || e.alive === false) continue;
+      if (!(e.coneVisible || cones?.showAll || cones?.forced?.has?.(e)) || e.alive === false) continue;
       const c = coneAt(e);
       if (c && near(c.x, c.z, c.far)) A.cones.push({ x: c.x, z: c.z, heading: c.heading, halfFov: c.halfFov, far: c.far, top: this._y(c.x, c.z) + 2.5 });
     }

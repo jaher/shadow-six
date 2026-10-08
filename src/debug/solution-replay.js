@@ -23,10 +23,18 @@ export const TURBO_MS = 90;
  * Sim tick budget per displayed frame. Pure (no DOM / game): tests/unit/solution-replay.test.mjs.
  */
 export class TickPacer {
-  constructor({ simDt = 1 / 60, maxPerFrame = 8, speed = 1 } = {}) {
+  /**
+   * @param {{simDt?: number, maxPerFrame?: number, speed?: number, speeds?: number[], turboMs?: number}} o
+   *   speeds: the speeds setSpeed accepts; turboMs: wall-clock ms of ticks per frame while fast-forwarding
+   */
+  constructor({ simDt = 1 / 60, maxPerFrame = 8, speed = 1, speeds = SPEEDS, turboMs = TURBO_MS } = {}) {
     this.simDt = simDt;
     this.maxPerFrame = maxPerFrame;
-    this.speed = speed;
+    this.speeds = speeds;
+    this.speed = speeds.includes(+speed) ? +speed : speeds.includes(1) ? 1 : speeds[0];
+    this.turboMs = turboMs;
+    /** Extra multiplier on top of the speed (the walkthrough's "skip waits"); 1 = none. */
+    this.boost = 1;
     this.paused = false;
     this.turbo = false;
     this.budget = 0;
@@ -36,9 +44,10 @@ export class TickPacer {
   /** A displayed frame of `dt` real seconds at wall time `now` (ms). */
   frame(dt, now) {
     if (this.paused) { this.budget = 0; return; }
-    if (this.turbo) { this.deadline = now + TURBO_MS; return; }
+    if (this.turbo) { this.deadline = now + this.turboMs; return; }
     const d = Math.max(0, Math.min(dt, CONFIG.render?.maxDelta ?? 0.25));
-    this.budget = Math.min(this.budget + (d * this.speed) / this.simDt, this.maxPerFrame * this.speed);
+    const k = this.speed * this.boost;
+    this.budget = Math.min(this.budget + (d * k) / this.simDt, this.maxPerFrame * Math.max(1, k));
   }
 
   /** May a tick run now? */
@@ -53,7 +62,12 @@ export class TickPacer {
   }
 
   setSpeed(s) {
-    if (SPEEDS.includes(+s)) this.speed = +s;
+    if (this.speeds.includes(+s)) this.speed = +s;
+  }
+
+  /** Sim seconds per real second right now (fast-forward: an estimate). */
+  get rate() {
+    return this.turbo ? 8 : this.speed * this.boost;
   }
 
   setTurbo(on) {
@@ -119,16 +133,19 @@ export class SolutionReplay {
    * @param {{speed?: number, toStage?: string|null, isFrozen?: () => boolean, onEnd?: (r: object) => void,
    *   onSkip?: (stageId: string) => void}} o  isFrozen: the debug select is open (no ticks); onSkip: reload + fast-forward
    */
-  constructor(game, sol, { speed = 1, toStage = null, isFrozen = () => false, onEnd = null, onSkip = null } = {}) {
+  constructor(game, sol, { speed = 1, toStage = null, toMarker = null, speeds = SPEEDS, turboMs = TURBO_MS, isFrozen = () => false, onEnd = null, onSkip = null, manualTickAfter = null } = {}) {
     this.game = game;
     this.sol = sol;
     this.world = game.world;
     this.simDt = CONFIG.sim.dt;
-    this.pacer = new TickPacer({ simDt: this.simDt, maxPerFrame: CONFIG.sim.maxStepsPerFrame, speed });
+    this.pacer = new TickPacer({ simDt: this.simDt, maxPerFrame: CONFIG.sim.maxStepsPerFrame, speed, speeds, turboMs });
     this.isFrozen = isFrozen;
     this.onEnd = onEnd;
     this.onSkip = onSkip;
-    this.toStage = toStage;
+    /** Game.manualTick to restore at the end (the launcher may hold the clock from the load on: tick 0 is the solution's). */
+    this.manualTickAfter = manualTickAfter;
+    /** Fast-forward target: {kind: 'stage'|'cp', id} — the replay plays on normally right after that marker. */
+    this.toMarker = toMarker || (toStage ? { kind: 'stage', id: toStage } : null);
     this.stopped = false;
     this.finished = null;
     this.stage = null; // {id, title}
@@ -143,6 +160,8 @@ export class SolutionReplay {
   }
 
   get speed() { return this.pacer.speed; }
+  /** (the stage a fast-forward runs to, or null) */
+  get toStage() { return this.toMarker?.kind === 'stage' ? this.toMarker.id : null; }
   /** Paused = the game's own pause (P / the bar's ❚❚): the pause card shows and no tick runs. */
   get paused() { return this.game.state === 'paused'; }
   get fastForward() { return this.pacer.turbo; }
@@ -151,7 +170,7 @@ export class SolutionReplay {
   /** Take the clock, build the UI, play. Resolves when the solution ends (won / failed / stopped). */
   start() {
     const g = this.game;
-    this._saved = { manualTick: g.manualTick, frame: Object.prototype.hasOwnProperty.call(g, 'frame') ? g.frame : undefined,
+    this._saved = { manualTick: this.manualTickAfter ?? g.manualTick, frame: Object.prototype.hasOwnProperty.call(g, 'frame') ? g.frame : undefined,
       enqueue: Object.prototype.hasOwnProperty.call(g, 'enqueue') ? g.enqueue : undefined };
     const frame = (this._saved.frame || Object.getPrototypeOf(g).frame);
     g.manualTick = true;
@@ -159,16 +178,16 @@ export class SolutionReplay {
     g.frame = (dt) => {
       this._frame(dt);
       // animation time follows the sim speed (legs keep pace with the ground covered at 8×)
-      return frame.call(g, dt * (this.pacer.turbo ? 8 : this.pacer.speed));
+      return frame.call(g, dt * this._animScale());
     };
     g.enqueue = () => { this.dropped++; this._flash = performance.now() + 2500; }; // the replay plays: player orders wait
-    if (this.toStage) this.pacer.setTurbo(true);
+    if (this.toMarker) this.pacer.setTurbo(true);
     this._buildUi();
     const D = this.sol.makeDriver(this.world, {
       step: () => this._step(), dt: this.simDt, quiet: true, log: () => {},
       aborted: () => this.stopped,
-      onOrder: (role, u, o) => { this.focus = u; this.lastOrder = describeOrder(u, o); },
-      onCheckpoint: (cp) => { this.lastCheckpoint = { name: cp.name, t: cp.t }; },
+      onOrder: (role, u, o) => this._onOrder(role, u, o),
+      onCheckpoint: (cp) => this._onCheckpoint(cp),
     });
     this.driver = D;
     this.done = this._run(D);
@@ -186,18 +205,40 @@ export class SolutionReplay {
       else if (e instanceof this.sol.SolutionAborted || this.stopped) outcome = 'stopped';
       else { outcome = 'error'; error = String(e?.message || e); console.warn('[debug] solution replay failed:', error); }
     }
-    this.finished = { outcome, error, state: this.game.state, time: this.world.time, detections: D.detections(), checkpoints: D.checkpoints.map((c) => c.name) };
+    this.finished = { outcome, error, state: this.game.state, time: this.world.time, detections: D.detections(), checkpoints: D.checkpoints.map((c) => c.name),
+      marks: D.checkpoints.map((c) => ({ name: c.name, t: c.t })), exposures: D.exposures?.().length ?? null };
     this._release();
     this.onEnd?.(this.finished);
     return this.finished;
   }
 
+  /** Animation time per real second of the displayed frame (the sim's pace). */
+  _animScale() {
+    return this.pacer.turbo ? 8 : this.pacer.speed;
+  }
+
+  _onOrder(role, u, o) {
+    this.focus = u;
+    this.lastOrder = describeOrder(u, o);
+  }
+
+  _onCheckpoint(cp) {
+    this.lastCheckpoint = { name: cp.name, t: cp.t };
+    this._reached('cp', String(cp.name).trim().split(/\s+/)[0]);
+  }
+
   _onStage(id, title) {
     this.stageIndex = this.sol.stages.findIndex((s) => s.id === id);
     this.stage = { id, title };
-    if (this.toStage && id === this.toStage) { this.toStage = null; this.pacer.setTurbo(false); }
+    this._reached('stage', id);
     this._syncBar();
     this._renderSteps();
+  }
+
+  /** A marker was passed: the end of a fast-forward to it. */
+  _reached(kind, id) {
+    const m = this.toMarker;
+    if (m && m.kind === kind && m.id === id) { this.toMarker = null; this.pacer.setTurbo(false); this._fastForwardDone?.(kind, id); }
   }
 
   /** The driver's tick: run it now when the frame budget allows, else on a later frame. */
@@ -279,7 +320,7 @@ export class SolutionReplay {
     if (i < 0) return false;
     this._showSteps(false);
     if (i > this.stageIndex) {
-      this.toStage = id;
+      this.toMarker = { kind: 'stage', id };
       this.pacer.setTurbo(true);
       this._syncBar();
       return true;
@@ -397,7 +438,7 @@ export class SolutionReplay {
     const st = this.stage;
     const head = st ? `Step ${st.id} · ${st.title}` : 'Solution replay';
     let sub;
-    if (this.pacer.turbo) sub = `⏩ fast-forward to step ${this.toStage}…`;
+    if (this.pacer.turbo) sub = `⏩ fast-forward to step ${this.toMarker?.id ?? ''}…`;
     else if (this._flash && now < this._flash) sub = 'The replay is playing — Esc / STOP to take control';
     else if (this.lastCheckpoint && this.world.time - this.lastCheckpoint.t < 6) sub = `✔ ${this.lastCheckpoint.name}`;
     else sub = this.lastOrder || '';

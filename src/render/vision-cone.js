@@ -242,6 +242,8 @@ export class VisionCones {
     let dbg = false;
     try { dbg = typeof location !== 'undefined' && new URLSearchParams(location.search).get('debug') === 'cones'; } catch { dbg = false; }
     this.showAll = opts.showAll ?? dbg;
+    /** Extra cones on show (debug video mode: the guards that matter to the step), or null. Drawing only. */
+    this.forced = null;
     this.highlightUntil = new Map();
     this.probe = null;
     const offs = [
@@ -314,7 +316,7 @@ export class VisionCones {
     this._updateProbe();
     const now = w.time ?? 0;
     for (const e of w.enemies) {
-      const show = (e.coneVisible || this.showAll) && e.alive !== false && !e.removed && e.state !== 'dead' && !!e.vision && !e.incapacitated;
+      const show = (e.coneVisible || this.showAll || !!this.forced?.has(e)) && e.alive !== false && !e.removed && e.state !== 'dead' && !!e.vision && !e.incapacitated;
       let cone = this.cones.get(e);
       if (show) {
         if (!cone) { cone = new VisionCone(e, w, this.opts); this.cones.set(e, cone); this.scene.add(cone.group); }

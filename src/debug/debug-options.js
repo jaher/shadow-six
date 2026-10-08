@@ -51,7 +51,7 @@ export function parseDebugParams(search) {
   const value = has ? p.get('debug') : null;
   const enabled = has && !/^(0|false|off|no)$/i.test(value || '');
   const parts = (value || '').toLowerCase().split(/[,+ ]/).filter(Boolean);
-  return { enabled, value, cones: enabled && parts.includes('cones'), mission: p.get('mission') || null };
+  return { enabled, value, cones: enabled && parts.includes('cones'), mission: p.get('mission') || null, walkthrough: p.get('walkthrough') || null };
 }
 
 /** Coerce stored / partial options onto DEFAULT_OPTIONS (unknown keys dropped, bad values reset). */

@@ -42,13 +42,19 @@ function buildInfo() {
   return { sha: sha || 'local', short: sha ? sha.slice(0, 10) : 'local', devSha, date, built: new Date().toISOString() };
 }
 
+/** Debug solutions + walkthroughs (src/debug/solutions.js): the tools/solutions/ catalog, baked into the bundle. */
+async function solutionCatalog() {
+  const { catalogFromFiles } = await import('../../src/debug/solutions.js');
+  return catalogFromFiles(await readdir(join(ROOT, 'tools/solutions')));
+}
+
 async function buildJs(version) {
   const common = {
     absWorkingDir: ROOT, bundle: true, format: 'esm', platform: 'browser', target: ['es2022', 'chrome111', 'firefox115', 'safari16.4'],
     minify: MINIFY, sourcemap: false, legalComments: 'eof', metafile: true, write: true, logLevel: 'warning',
     logOverride: { 'import-is-undefined': 'silent' },   // game.js probes optional export names on purpose
     outdir: join(OUT, 'js'), entryNames: '[name]-[hash]', chunkNames: 'c-[hash]', assetNames: '[name]-[hash]',
-    define: { 'globalThis.__SS_BUNDLED__': 'true' },
+    define: { 'globalThis.__SS_BUNDLED__': 'true', 'globalThis.__SS_SOLUTIONS__': JSON.stringify(await solutionCatalog()) },
   };
   const w = await esbuild.build({ ...common, entryPoints: ['src/art/terrain/treegen.worker.js'], splitting: false,
     plugins: [shadowSixPlugin({ root: ROOT, version, worker: true })] });

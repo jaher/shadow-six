@@ -7,23 +7,32 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, assert, near } from './lib.mjs';
-import { SOLUTIONS, hasSolution, solutionIds } from '../../src/debug/solutions.js';
+import { catalogFromFiles, _setCatalog, hasSolution, solutionIds } from '../../src/debug/solutions.js';
 import { TickPacer, SPEEDS, TURBO_MS, describeOrder } from '../../src/debug/solution-replay.js';
 import { makeDriver, SolutionAborted } from '../../tools/solutions/driver.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-test('every saved solution is registered for the debug replay (and bundled: literal import paths)', async () => {
-  const files = readdirSync(join(ROOT, 'tools/solutions')).filter((f) => f.endsWith('.solution.mjs')).map((f) => f.replace('.solution.mjs', ''));
+test('every saved solution is in the debug catalog with nothing to register (the folder is the catalog; bundled by glob)', async () => {
+  const names = readdirSync(join(ROOT, 'tools/solutions'));
+  const files = names.filter((f) => f.endsWith('.solution.mjs')).map((f) => f.replace('.solution.mjs', ''));
   assert.ok(files.includes('m03'));
-  assert.deepEqual([...solutionIds()].sort(), files.sort());
-  const src = readFileSync(join(ROOT, 'src/debug/solutions.js'), 'utf8');
-  for (const id of files) assert.ok(src.includes(`import('../../tools/solutions/${id}.solution.mjs')`), `${id}: literal import() path`);
-  assert.ok(hasSolution('m03') && !hasSolution('m01') && !hasSolution(null) && !hasSolution('toString'));
-  const mod = await SOLUTIONS.m03.load();
-  assert.equal(typeof mod.solve, 'function');
-  assert.deepEqual(mod.STAGES.map((s) => s[0]).join(''), 'ABCDEFGHIJ');
-  for (const [, title, fn] of mod.STAGES) assert.ok(typeof title === 'string' && title && typeof fn === 'function');
+  const cat = catalogFromFiles(names);
+  assert.deepEqual(cat.map((e) => e.id), [...files].sort());
+  _setCatalog(cat);
+  try {
+    assert.deepEqual([...solutionIds()].sort(), [...files].sort());
+    assert.ok(hasSolution('m03') && !hasSolution('m01x') && !hasSolution(null) && !hasSolution('toString'));
+    const src = readFileSync(join(ROOT, 'src/debug/solutions.js'), 'utf8');
+    // esbuild bundles every file a template-literal import() can reach (glob import): one pattern covers them all
+    assert.ok(src.includes('import(`../../tools/solutions/${id}.solution.mjs`)'), 'glob import of the solutions');
+    assert.ok(src.includes('import(`../../tools/solutions/${id}.walkthrough.mjs`)'), 'glob import of the walkthroughs');
+    assert.ok(/__SS_SOLUTIONS__/.test(readFileSync(join(ROOT, 'tools/build/build.mjs'), 'utf8')), 'the web build bakes the catalog in');
+    const mod = await import('../../tools/solutions/m03.solution.mjs');
+    assert.equal(typeof mod.solve, 'function');
+    assert.ok(/^[A-Z]+$/.test(mod.STAGES.map((s) => s[0]).join('')));
+    for (const [, title, fn] of mod.STAGES) assert.ok(typeof title === 'string' && title && typeof fn === 'function');
+  } finally { _setCatalog(null); }
 });
 
 test('the driver is browser-pure: no node-only (headless) import left in driver.mjs', () => {

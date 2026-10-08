@@ -128,8 +128,39 @@ the real game loop, starting at 1× (real time). The bar at the top has:
 
 A caption shows the current step, each checkpoint as it is reached and the latest order. Your own orders are held
 while it plays. Adding a solution for another mission: write `tools/solutions/<id>.solution.mjs` (exports `solve(D,
-ctx)` and `STAGES`; driver API in `tools/solutions/driver.mjs`) and add its line to `src/debug/solutions.js`, which
-also makes the web build bundle it.
+ctx)` and `STAGES`; driver API in `tools/solutions/driver.mjs`). Nothing to register: the debug menu lists the folder
+(the dev server answers `tools/solutions/?ls`; the web build bakes the list in and bundles every solution as a lazy
+chunk).
+
+### Video mode: watch a walkthrough
+
+A guided film of a mission's solution, played live in the game. In DEBUG LEVEL SELECT pick **▶ … — watch the
+walkthrough** under *Watch walkthrough · video mode*; in a mission press **F8** or the small **▶ VIDEO** button; or
+open `?debug&walkthrough=m03` directly. Missions without a solution are listed under *No walkthrough yet* (their
+button says so). The mission loads fresh, as authored, on a title card (Start, Chapters, Exit); then:
+
+- **The director** frames the commando who acts with what matters to the step (his target, the guard he slips past,
+  the objective, a charge in its last seconds and the blast) in the part of the screen the walkthrough's bar and
+  caption and the HUD leave free, with smooth pans and zooms, the mission's camera pitch (M3 looks down steeper over
+  the plateau) and your camera angle, swung aside only while a building would hide the shot. The guards' cones that
+  matter to the step are drawn.
+- **The narration**: a chapter card at each stage, then one caption per step saying who does what and why
+  (`tools/solutions/<id>.walkthrough.mjs`, format in [docs/walkthrough-format.md](docs/walkthrough-format.md)).
+- **The bar** (finger-sized, under the HUD's top bar on every screen):
+
+| Control | Keys | Effect |
+| --- | --- | --- |
+| ✕ | Esc | Back to the debug menu. |
+| ⏮ / ⏭ | B / N | Previous / next step. Ahead fast-forwards from where you are; back reloads the mission and fast-forwards (the run is deterministic). ⏮ restarts the current step, or goes to the previous one in its first 4 s. |
+| ❚❚ / ▶ | Space | Pause / play. |
+| ☰ | L | Chapters and steps: jump to any of them. |
+| ½× 1× 2× 4× | 1–4 | Speed. |
+| ⏩ | W | Skip waits (on by default): while every commando waits, the pace rises up to 4× faster; it drops back the moment anything happens. |
+| CC | C | Captions on / off. |
+| CAM | F | Director on / off. Off is a free camera: scroll, drag and zoom as in the game; a drag or the wheel over the map also switches to it. CAM gives the camera back to the director. |
+
+The walkthrough never changes the simulation: it wins exactly like the scripted run, checkpoint for checkpoint
+(`tests/debug-walkthrough-sim.test.mjs`).
 
 ## Controls
 

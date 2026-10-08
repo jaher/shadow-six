@@ -1,7 +1,8 @@
 /**
  * Boot: WebGL check → Game → preload assets (loading screen) → title screen.
  * URL params: ?test=1 (manual ticking + window.__game), ?mission=<id> (skip title), ?preset=low|medium|high|ultra,
- * ?debug[=…] (debug level select + quick keys + info HUD, debug/debug-mode.js; `?debug&mission=m05` deep-links).
+ * ?debug[=…] (debug level select + quick keys + info HUD, debug/debug-mode.js; `?debug&mission=m05` deep-links,
+ * `?debug&walkthrough=m03` opens video mode).
  * @module main
  */
 
@@ -169,6 +170,10 @@ async function boot() {
   if (TEST) {
     showScreen('none');
     window.__gameReady = true;
+  } else if (dbg?.params.walkthrough) {
+    buildTitle(game); // ?debug&walkthrough=m03: straight into video mode (the debug menu when it exits)
+    showScreen('title');
+    dbg.startWalkthrough(dbg.params.walkthrough).then((r) => { if (!r && !document.getElementById('wt-card')) dbg.open(); });
   } else if (mission) {
     if (dbg) await dbg.launch(mission);
     else await startMission(game, mission);

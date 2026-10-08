@@ -2,9 +2,10 @@
  * Debug mode (`?debug`, `?debug=1`, `?debug=cones`, …): DEBUG LEVEL SELECT overlay (every mission of
  * missionList(), grouped BEL / BCD / test maps, keyboard + tap), inspection options (remembered in localStorage),
  * quick keys (F10 select, PageDown / PageUp next / previous level, Ctrl+R instant restart, F11 info HUD) and the
- * corner info HUD (mission, FPS, frame ms, draw calls, triangles, cursor x/z, camera zoom / yaw), and the SOLUTION replay
+ * corner info HUD (mission, FPS, frame ms, draw calls, triangles, cursor x/z, camera zoom / yaw), the SOLUTION replay
  * of missions with a saved solution (debug/solutions.js, debug/solution-replay.js: select section, in-game SOLUTION
- * button, F9; Esc stops it).
+ * button, F9; Esc stops it) and VIDEO MODE, the guided walkthrough of a solution (debug/walkthrough.js: the select's
+ * "Watch walkthrough" section, the in-game ▶ VIDEO button, F8, `?debug&walkthrough=m03`; Esc exits to this menu).
  * main.js installs it only when the URL carries `debug`; nothing here exists otherwise. Pure logic: debug-options.js.
  * @module debug/debug-mode
  */
@@ -13,8 +14,12 @@ import {
   parseDebugParams, loadOptions, saveOptions, cycleOption, groupMissions, levelOrder, neighbourLevel, transformDef,
 } from './debug-options.js';
 import { getThumb, putThumb } from '../ui/thumbs.js';
-import { hasSolution, solutionIds, loadSolution } from './solutions.js';
+import { hasSolution, solutionIds, loadSolution, loadCatalog, loadWalkthrough } from './solutions.js';
 import { SolutionReplay } from './solution-replay.js';
+
+/** Video mode is loaded on first use (a lazy chunk in the web build): nothing of it costs a normal debug session. */
+const walkthroughModule = () => import('./walkthrough.js');
+const closeCard = () => document.getElementById('wt-card')?.remove();
 import { CONFIG } from '../config.js';
 
 const THEATER_COLORS = {
@@ -53,6 +58,15 @@ const CSS = `
   font:700 11px/1 system-ui,sans-serif;letter-spacing:.1em;color:#ffcf4a;background:rgba(0,0,0,.6);border:1px solid #ffcf4a88;
   border-radius:4px;cursor:pointer;touch-action:manipulation}
 #dbg-sol-btn{left:72px;min-width:44px;color:#9fe39a;border-color:#9fe39a88}
+#dbg-wt-btn{position:fixed;left:130px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:8001;min-width:44px;min-height:36px;
+  font:700 11px/1 system-ui,sans-serif;letter-spacing:.08em;color:#7fd6ff;background:rgba(0,0,0,.6);border:1px solid #7fd6ff88;
+  border-radius:4px;cursor:pointer;touch-action:manipulation}
+#dbg-select .dbg-wt{background:#1f3442}
+#dbg-select .dbg-wt:focus,#dbg-select .dbg-wt:hover{background:#2a475a}
+#dbg-select .dbg-wt-none{all:unset;box-sizing:border-box;min-height:40px;padding:8px 12px;border-radius:20px;background:#22262a;cursor:pointer;
+  font-size:12px;opacity:.75;touch-action:manipulation;border:2px solid transparent}
+#dbg-select .dbg-wt-none:focus,#dbg-select .dbg-wt-none:hover{border-color:#7fd6ff;opacity:1}
+body.dbg-video #dbg-btn,body.dbg-video #dbg-sol-btn,body.dbg-video #dbg-wt-btn,body.dbg-video #dbg-info{display:none}
 #dbg-select .dbg-sol{background:#24402a}
 #dbg-select .dbg-sol:focus,#dbg-select .dbg-sol:hover{background:#2f5636}
 `;
@@ -115,6 +129,8 @@ export class DebugMode {
     this._onMove = (e) => { this.pointer.x = e.clientX; this.pointer.y = e.clientY; };
     window.addEventListener('pointermove', this._onMove, { passive: true });
     this._syncFlags();
+    // the solution catalog (tools/solutions/: listed by the dev server, baked into the web build)
+    this.catalogReady = loadCatalog().then(() => { if (this.overlay) this._renderSolutions(); });
   }
 
   /** Hook the Game: def transform + flags, render stats, per-load option application, the corner widgets. */
@@ -147,6 +163,12 @@ export class DebugMode {
     this.solBtn.title = 'Replay the saved solution of this mission (F9)';
     this.solBtn.hidden = true;
     this.solBtn.addEventListener('click', () => this.startReplay(this.currentId));
+    this.wtBtn = el('button', null, document.body, '▶ VIDEO');
+    this.wtBtn.id = 'dbg-wt-btn';
+    this.wtBtn.type = 'button';
+    this.wtBtn.title = 'Video mode: watch the walkthrough of this mission (F8)';
+    this.wtBtn.hidden = true;
+    this.wtBtn.addEventListener('click', () => this.startWalkthrough(this.currentId));
     this._infoTimer = setInterval(() => this._updateInfo(), 250);
     return this;
   }
@@ -223,6 +245,12 @@ export class DebugMode {
       const show = !this.replay && !this._replayLaunch && !!g.world && (g.state === 'playing' || g.state === 'paused') && hasSolution(this.currentId);
       if (this.solBtn.hidden === show) this.solBtn.hidden = !show;
     }
+    if (this.wtBtn) { // any mission: one without a solution says "No walkthrough yet"
+      const show = !this.replay && !this._replayLaunch && !!g.world && (g.state === 'playing' || g.state === 'paused');
+      if (this.wtBtn.hidden === show) this.wtBtn.hidden = !show;
+    }
+    const video = !!this.replay?.isWalkthrough;
+    if (document.body.classList.contains('dbg-video') !== video) document.body.classList.toggle('dbg-video', video);
     if (this._thumbAt && g.state === 'playing' && g.world && performance.now() > this._thumbAt) {
       this._thumbAt = 0;
       this._captureThumb(g.missionDef?.id);
@@ -282,21 +310,8 @@ export class DebugMode {
         getThumb(`dbg:${m.id}`).then((url) => { if (url) th.style.backgroundImage = `url("${url}")`; }).catch(() => {});
       }
     }
-    const sols = solutionIds();
-    if (sols.length) {
-      el('h2', null, root, `Solution replays (${sols.length})`);
-      const bar = el('div', 'dbg-bar dbg-sols', root);
-      bar.style.marginTop = '0';
-      const byId = new Map(this.missions().map((m) => [m.id, m]));
-      for (const id of sols) {
-        const m = byId.get(id);
-        const b = el('button', 'dbg-act dbg-sol', bar, `▶ ${m?.title || id} — play the solution`);
-        b.type = 'button';
-        b.dataset.solution = id;
-        b.title = 'Load the mission fresh and play its saved solution live (2× / 4× / 8×, pause, skip to a step; Esc stops)';
-        b.addEventListener('click', () => this.startReplay(id));
-      }
-    }
+    this.solsEl = el('div', 'dbg-sols-host', root);
+    this._renderSolutions();
     el('h2', null, root, 'Options');
     this.optsEl = el('div', 'dbg-opts', root);
     this._renderOptions();
@@ -307,6 +322,51 @@ export class DebugMode {
     const focus = root.querySelector('.dbg-tile.current') || root.querySelector('.dbg-tile');
     focus?.focus();
     return root;
+  }
+
+  /** The select's "Watch walkthrough" and "Solution replays" sections (filled once the catalog is loaded). */
+  _renderSolutions() {
+    const host = this.solsEl;
+    if (!host) return;
+    host.textContent = '';
+    const sols = solutionIds();
+    const all = this.missions();
+    el('h2', null, host, `Watch walkthrough · video mode (${sols.length})`);
+    const vbar = el('div', 'dbg-bar dbg-wts', host);
+    vbar.style.marginTop = '0';
+    for (const id of sols) {
+      const m = all.find((x) => x.id === id);
+      const b = el('button', 'dbg-act dbg-wt', vbar, `▶ ${m?.n != null ? `M${m.n} ` : ''}${m?.title || id} — watch the walkthrough`);
+      b.type = 'button';
+      b.dataset.walkthrough = id;
+      b.title = 'Guided film of the saved solution, live in the game: director camera, narration per step, chapters; pause, ½×–4×, previous / next step';
+      b.addEventListener('click', () => this.startWalkthrough(id));
+    }
+    const none = all.filter((m) => !sols.includes(m.id) && !m.dev);
+    if (none.length) {
+      el('p', 'dbg-hint', host, 'No walkthrough yet:').style.margin = '10px 0 6px';
+      const nb = el('div', 'dbg-opts dbg-wt-nones', host);
+      for (const m of none) {
+        const b = el('button', 'dbg-wt-none', nb, m.n != null ? `M${m.n}` : m.id.toUpperCase());
+        b.type = 'button';
+        b.dataset.walkthrough = m.id;
+        b.title = `${m.title}: no walkthrough yet`;
+        b.addEventListener('click', () => this.startWalkthrough(m.id));
+      }
+    }
+    if (!sols.length) return;
+    el('h2', null, host, `Solution replays (${sols.length})`);
+    const bar = el('div', 'dbg-bar dbg-sols', host);
+    bar.style.marginTop = '0';
+    const byId = new Map(this.missions().map((m) => [m.id, m]));
+    for (const id of sols) {
+      const m = byId.get(id);
+      const b = el('button', 'dbg-act dbg-sol', bar, `▶ ${m?.title || id} — play the solution`);
+      b.type = 'button';
+      b.dataset.solution = id;
+      b.title = 'Load the mission fresh and play its saved solution live (2× / 4× / 8×, pause, skip to a step; Esc stops)';
+      b.addEventListener('click', () => this.startReplay(id));
+    }
   }
 
   _renderOptions() {
@@ -331,6 +391,7 @@ export class DebugMode {
     this.overlay.remove();
     this.overlay = null;
     this.optsEl = null;
+    this.solsEl = null;
     if (this._frozen != null && this.game) { this._frozen = null; this.game.timeScale = this.options.timeScale; }
     this._frozen = null;
     this.game?.renderer?.domElement?.focus?.();
@@ -406,13 +467,16 @@ export class DebugMode {
     this.stopReplay();
     this._replayLaunch = true;
     this._syncFlags();
+    const mt = this.game.manualTick;
+    this.game.manualTick = true; // (tick 0 is the solution's: no frame ticks the fresh mission before the replay)
+    let started = false;
     try {
       const sol = await loadSolution(id);
       const ok = await this.launch(id, { instant: true, brief: false });
       if (!ok || !this.game.world || this.currentId !== id) throw new Error(`mission ${id} did not load`);
       if (this.game.state === 'paused') this.game.pause(false);
       const r = new SolutionReplay(this.game, sol, {
-        speed: keepSpeed, toStage,
+        speed: keepSpeed, toStage, manualTickAfter: mt,
         isFrozen: () => !!this.overlay,
         onSkip: (stage) => { this.startReplay(id, { toStage: stage, speed: r.speed }); },
         onEnd: (res) => {
@@ -427,15 +491,97 @@ export class DebugMode {
       this._replayLaunch = false;
       this._syncFlags();
       r.start();
+      started = true;
       this.game.renderer?.domElement?.focus?.();
       return r;
     } catch (err) {
       console.warn('[debug] solution replay failed to start', err);
       return null;
     } finally {
+      if (!started) this.game.manualTick = mt;
       this._replayLaunch = false;
       this._syncFlags();
     }
+  }
+
+  // ------------------------------------------------------------ VIDEO MODE (walkthrough)
+
+  /**
+   * Video mode: load mission `id` fresh (as authored) and play its solution as a guided walkthrough
+   * (debug/walkthrough.js). A mission without a solution gets the "No walkthrough yet" card. `toMarker`: fast-forward
+   * to that chapter / checkpoint first (a jump back reloads); `settings`: speed, captions, skip waits, free camera.
+   * @returns {Promise<Walkthrough|null>}
+   */
+  async startWalkthrough(id, { toMarker = null, settings = null } = {}) {
+    if (!id || this._replayLaunch) return null;
+    closeCard();
+    this.close();
+    const [W] = await Promise.all([walkthroughModule(), loadCatalog()]);
+    if (!hasSolution(id)) { this._noWalkthrough(W, id); return null; }
+    const keep = settings || {};
+    this.stopReplay();
+    this._replayLaunch = true;
+    this._syncFlags();
+    // the clock is held from the load on: the walkthrough's first tick is the mission's first (the scripted run's)
+    const mt = this.game.manualTick;
+    this.game.manualTick = true;
+    let started = false;
+    try {
+      const [sol, wtFile] = await Promise.all([loadSolution(id), loadWalkthrough(id).catch((e) => { console.warn(`[debug] ${id}.walkthrough.mjs failed to load`, e); return null; })]);
+      const ok = await this.launch(id, { instant: true, brief: false });
+      if (!ok || !this.game.world || this.currentId !== id) throw new Error(`mission ${id} did not load`);
+      if (this.game.state === 'paused') this.game.pause(false);
+      const r = new W.Walkthrough(this.game, sol, wtFile, {
+        speed: keep.speed ?? 1, captions: keep.captions ?? true, skipWaits: keep.skipWaits ?? true, free: !!keep.free,
+        toMarker, intro: !toMarker, manualTickAfter: mt,
+        isFrozen: () => !!this.overlay,
+        onSkip: (marker, s) => { this.startWalkthrough(id, { toMarker: marker, settings: s }); },
+        onExit: () => this.exitWalkthrough(),
+        onEnd: (res) => {
+          if (this.replay === r) this.replay = null;
+          this._syncFlags();
+          this.lastReplay = res;
+          this.lastWalkthrough = res;
+          this.game.events?.emit?.('debug:walkthrough-end', res);
+          if (res.outcome !== 'stopped') W.endCard(r, res, { onAgain: () => this.startWalkthrough(id, { settings: r.settings }), onExit: () => this.exitWalkthrough() });
+        },
+      });
+      this.replay = r;
+      this._replayLaunch = false;
+      this._syncFlags();
+      r.start();
+      started = true;
+      this.game.renderer?.domElement?.focus?.();
+      return r;
+    } catch (err) {
+      console.warn('[debug] walkthrough failed to start', err);
+      return null;
+    } finally {
+      if (!started) this.game.manualTick = mt;
+      this._replayLaunch = false;
+      this._syncFlags();
+    }
+  }
+
+  /** Leave video mode for the debug menu (the mission is unloaded). */
+  exitWalkthrough() {
+    closeCard();
+    if (this.replay?.isWalkthrough) this.stopReplay();
+    try {
+      const u = new URL(location.href);
+      if (u.searchParams.has('walkthrough')) { u.searchParams.delete('walkthrough'); this.history?.replaceState?.(this.history.state, '', u.href); }
+    } catch { /* sandboxed history */ }
+    if (this.game?.world) { if (this.game.hud?.quitToTitle) this.game.hud.quitToTitle(); else this.game.quitToTitle(); }
+    this.open();
+  }
+
+  _noWalkthrough(W, id) {
+    const m = this.missions().find((x) => x.id === id);
+    W.showCard({
+      kind: 'none', kicker: 'VIDEO MODE', title: m ? `${m.n != null ? `Mission ${m.n} · ` : ''}${m.title}` : id,
+      paras: ['No walkthrough yet.', 'This mission has no saved solution to play (tools/solutions/<id>.solution.mjs).'],
+      actions: [['OK', () => { closeCard(); if (!this.game?.world) this.open(); }, true]],
+    });
   }
 
   /** Stop the running replay (the player takes over where it stands). */
@@ -454,6 +600,22 @@ export class DebugMode {
     const consume = () => { e.preventDefault(); e.stopImmediatePropagation(); };
     if (e.code === 'F10') { consume(); if (!e.repeat) this.toggle(); return; }
     if (e.code === 'F11') { consume(); if (!e.repeat) this.setOption('infoHud', !this.options.infoHud); return; }
+    const card = document.getElementById('wt-card');
+    if (card && !this.overlay) { // a walkthrough card (intro, end, no walkthrough yet) has the keys
+      if (e.code === 'Escape') { consume(); if (this.replay?.isWalkthrough) this.replay.key(e); else if (card.dataset.kind === 'end') this.exitWalkthrough(); else closeCard(); }
+      else if (e.code === 'Enter' || e.code === 'Space') { consume(); (card.querySelector('.wt-go') || card.querySelector('button'))?.click(); }
+      return;
+    }
+    if (this.replay?.isWalkthrough && !this.overlay) {
+      if (this.replay.key(e)) consume();
+      else if (/^(Digit|Numpad|Key[A-Z]$|F\d)/.test(e.code) && e.code !== 'F11') e.stopImmediatePropagation(); // no game hotkey reaches the HUD
+      return;
+    }
+    if (e.code === 'F8' && !this.overlay) {
+      consume();
+      if (!e.repeat && this.currentId) this.startWalkthrough(this.currentId);
+      return;
+    }
     if (e.code === 'F9' && !this.overlay) {
       consume();
       if (!e.repeat) { if (this.replay) this.stopReplay(); else if (hasSolution(this.currentId)) this.startReplay(this.currentId); }

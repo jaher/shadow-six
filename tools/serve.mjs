@@ -5,6 +5,9 @@
  *   node tools/serve.mjs [port]        # default 8080; port 0 = pick a free port
  *   node tools/serve.mjs 8080 --root dist --base /shadow-six/   # the web build, as GitHub Pages serves it
  *
+ * Dev extra: `GET <dir>/?ls` answers the directory's file names as JSON (the debug walkthrough lists tools/solutions/;
+ * the web build bakes that list in instead, so the static site never needs it).
+ *
  * Also importable: `const { url, close } = await startServer({ port: 0 })` (used by tests/harness.mjs).
  */
 import { createServer } from 'node:http';
@@ -97,10 +100,21 @@ export function startServer({ port = 8080, root = ROOT, host = '127.0.0.1', quie
       }
       if (!url.pathname.startsWith(base)) return notFound(res, req);
       let rel = decodeURIComponent(url.pathname.slice(base.length - 1));
-      if (rel.endsWith('/')) rel += 'index.html';
+      // `<dir>/?ls`: the directory's file names as JSON (dev tools: the debug walkthrough lists tools/solutions/)
+      const list = rel.endsWith('/') && url.searchParams.has('ls');
+      if (rel.endsWith('/') && !list) rel += 'index.html';
       const file = normalize(join(rootAbs, rel));
       if (file !== rootAbs && !file.startsWith(rootAbs + sep)) {
         res.writeHead(403).end('forbidden');
+        return;
+      }
+      if (list) {
+        const names = await fs.readdir(file, { withFileTypes: true }).catch(() => null);
+        if (!names) return notFound(res, req);
+        const body = JSON.stringify(names.filter((d) => d.isFile() && !d.name.startsWith('.')).map((d) => d.name).sort());
+        stats.requests++;
+        stats.ok++;
+        res.writeHead(200, { 'Content-Type': MIME['.json'], 'Cache-Control': 'no-cache', 'Content-Length': Buffer.byteLength(body) }).end(body);
         return;
       }
       const st = await fs.stat(file).catch(() => null);
