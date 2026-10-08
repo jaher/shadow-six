@@ -510,3 +510,4 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 - 2026-10-08T00:16 PDT wire cost: interleaved bench e3ad728d 1.16 ms vs master 0.86 ms (pooled medians) → not a regression; test made robust (fix/fence-hole-cost MERGED). Workflow merged art/m08 ada3fd21. Publishing.
 - 2026-10-08T00:24 PDT anti-tiling seams MERGED 562187e6 (GPU anti-tiling, render-frames, edges-void-m08 pass on merged master; unit anti-tiling + m11). Workflow merged M3 dam abutments bbec436e. Publishing.
 - 2026-10-08T00:26 PDT M1 alley crawl MERGED f82e5882 (barr_L_a turned 180°, crawl 18.8 m / 20.9 s through the alley, 0 clip; branch GPU: clipping, m03-solution, enclosure, edges-void-m01, smoke-missions, locomotion, body-wreck; unit crawl-steps + m01 on merged master). Publishing.
+- 2026-10-08T00:47 PDT hourly check: workflows active; m3-video-fixes merged walk-all-configurations 7cac6d2d → publishing.

@@ -351,3 +351,33 @@ test('turn-step (view): a turning German keeps each foot planted, steps it round
   m.anim = 'idle'; m.unit.stance = 'crawl';
   assert.equal(frame(0.05), false, 'prone: prone-ground.js turns him');
 });
+
+test('turn-step (view): a man eased aside while standing (Unit._nudge, 0.6 m/s) steps after his body, planted feet do not glide — commandos too (M3 video "all soldiers should walk in all configurations")', () => {
+  for (const faction of ['enemy', 'player']) {
+    const m = fakeMan();
+    m.opts.faction = faction; m.player = faction === 'player';
+    const dt = 1 / 60;
+    const frame = (dx) => { m._guard.restore(); m.root.position.x += dx; m.root.updateMatrixWorld(true); return turnStep(m, dt, m._guard); };
+    for (let i = 0; i < 5; i++) frame(0);
+    // 0.6 s eased off sideways at 0.6 m/s (36 cm), then standing
+    let slide = 0, steps = 0, last = null;
+    const was = { l: false, r: false };
+    for (let i = 0; i < 36; i++) {
+      const before = { l: footAt(m, 'l'), r: footAt(m, 'r') };
+      frame(0.6 * dt);
+      const st = m._turnStep;
+      if (st.step && st.step.s !== last) steps++;
+      last = st.step?.s ?? null;
+      for (const s of ['l', 'r']) {
+        const p = footAt(m, s), now = !!st.feet && !(st.step && st.step.s === s);
+        if (now && was[s]) slide += Math.hypot(p.x - before[s].x, p.z - before[s].z);
+        was[s] = now;
+      }
+    }
+    assert.ok(m._turnStep.feet, `${faction}: the feet are planted while he is eased aside`);
+    assert.ok(steps >= 2, `${faction}: he steps after his body (${steps} steps for 36 cm)`);
+    assert.ok(slide < 0.01, `${faction}: planted feet stay put (${(slide * 1000).toFixed(1)} mm slid)`);
+    for (let i = 0; i < 90; i++) frame(0);
+    assert.equal(m._turnStep.feet, null, `${faction}: squared up and let go when he stands`);
+  }
+});

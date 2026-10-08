@@ -13,7 +13,7 @@
  * speed of the rendered root (no foot sliding at any speedMul / vel), commandos swap the weapon prop per action.
  * @module art/unit-model
  */
-import { MeshDepthMaterial, Object3D, Matrix4, Vector3, Quaternion, BufferAttribute } from 'three';
+import { MeshDepthMaterial, Object3D, Matrix4, Vector3, Quaternion, BufferAttribute, LoopOnce } from 'three';
 import { applyClothWind } from './cloth-wind.js';
 import { createHumanoid } from './humanoid.js';
 import { CONFIG } from '../config.js';
@@ -150,6 +150,12 @@ export function createUnitModel(opts = {}) {
 
 const _rq = new Quaternion(), _bq = new Quaternion(), _bq2 = new Quaternion(), _bq3 = new Quaternion(), _bq3b = new Quaternion(), _v1 = new Vector3(), _v2 = new Vector3();
 const SPEED_SEND = 0.04;   // re-time the gait when the measured speed moved by > 4 %
+/**
+ * A shot on the move (§3.2, Unit.playAction keeps the legs stepping): the action clip's arms, chest and head are layered
+ * over the walk / run — upper-body tracks only, at UPPER_W against the gait's weight 1 (~95 %), faded in / out.
+ */
+const UPPER_BONES = /^(spine_0[23]|neck_01|head|clavicle_|upperarm_|lowerarm_|hand_|thumb_|index_|middle_|ring_|pinky_)/i;
+const UPPER_W = 20;
 /** One shadow-depth material for every skinned character mesh: three's shared depth material would otherwise flip
  *  between skinned and static programs at every character in the shadow pass (program-parameter churn). */
 let SKIN_DEPTH = null;
@@ -243,7 +249,7 @@ export class UnitModel {
   /** Weapon prop the unit shows for the current gameplay anim (commandos: carry / action weapon; others: their own). */
   _wantWeapon(c) {
     if (!this.player) return this.real.inner?.weaponName || null;
-    const idle = this.anim === 'idle' || LOCOMOTION.has(this.anim) || this.anim === 'crawl_idle';
+    const idle = (this.anim === 'idle' || LOCOMOTION.has(this.anim) || this.anim === 'crawl_idle') && !this._upName;
     // crawling with the knife selected (Green Beret, knife cursor up) or crawling in on a knife order: crawl_knife, the knife in the fist
     // a knife order keeps the knife in the fist from the crawl-in through getting up and the last steps to the stab
     // …and a contact knife kill keeps it in his fist while his hands come off the victim (art/knife-kill.js)
@@ -255,6 +261,40 @@ export class UnitModel {
     if (u && ((u.carrying && u.carrying.kind !== 'interactable') || u.downed || u.state === 'carried' || u.pendingTransport)) want = false;
     if (this.overlay) want = false; // a procedural overlay has his hands (the shovel: art/shovel-dig.js re-checks when it ends)
     return want;
+  }
+
+  /**
+   * Upper-body action layer while a shot on the move plays (Unit._animOverride.walked): the shoot / aim clip's upper
+   * body over the stepping legs; faded out when the shot ends or he stops (the full action clip takes over then).
+   */
+  _upperLayer() {
+    const u = this.unit, inner = this.real.inner, o = u?._animOverride;
+    const want = inner?.mixer && inner.clip && !this.dog && o?.walked && o.t > 0 && (u.stance ?? 'stand') === 'stand'
+      && LOCOMOTION.has(this.anim) ? o.name : null;
+    if (want === (this._upName ?? null)) return;
+    if (this._upAct) this._upAct.fadeOut(0.12);
+    this._upAct = null; this._upName = want;
+    if (want) {
+      const c = this._ctx();
+      const name = mapAnim(want, { ...c, stance: 'stand' }).find((n) => this.real.hasAnim(n));
+      const src = name ? inner.clip(name) : null;
+      if (src) {
+        const cache = inner._upperClips || (inner._upperClips = new Map());
+        let clip = cache.get(name);
+        if (!clip) {
+          clip = src.clone(); clip.name = `${name}:upper`;
+          clip.tracks = clip.tracks.filter((t) => t.name.endsWith('.quaternion') && UPPER_BONES.test(t.name.slice(0, t.name.lastIndexOf('.')).split(/[/:]/).pop()));
+          cache.set(name, clip);
+        }
+        if (clip.tracks.length) {
+          const a = inner.mixer.clipAction(clip);
+          a.reset(); a.setLoop(LoopOnce, 1); a.clampWhenFinished = true;
+          a.setEffectiveWeight(UPPER_W); a.fadeIn(0.1); a.play();
+          this._upAct = a;
+        }
+      }
+    }
+    this._weapon = undefined; this._weaponFor(this._ctx());   // the action's weapon in hand while the layer shows
   }
 
   /** Nominal gameplay speed (m/s) of the unit right now. */
@@ -357,6 +397,7 @@ export class UnitModel {
       if (R.inner) this._weaponFor(this._ctx());
     }
     if (this._shot && dt > 0 && (this._shot.left -= dt) <= 0) { const nx = this._shot.next; this._shot = null; if (nx) this.setAnim(nx[0], nx[1]); }
+    if (R.inner && this.unit && (this._upName || this.unit._animOverride?.walked)) this._upperLayer();
     this._guard.restore();
     let stepped = R.update(dt);
     const root = this.root, u = this.unit;
@@ -389,8 +430,9 @@ export class UnitModel {
     if (R.inner && this.player && stepped && (pend === 'knife' || (u?.role === 'spy' && PRE_POSE.has(pend)))) this._preKnife = capturePose(this);
     // procedural action overlay on the skeleton after the mixer (art/shovel-dig.js: digging, rising out of the snow)
     if (R.inner && this.overlay && !tst && !this._rdLast) { try { stepped = this.overlay(this, dt, this._guard) || stepped; } catch (e) { console.warn('[unit-model] overlay', e?.stack || e); this.overlay = null; } }
-    // a standing German turning on the spot steps round, head leading (art/turn-step.js; SHADOW SIX smooth turn)
-    if (R.inner && !this.dog && !this.player && !tst && !this._carryOn && !this._rdLast && !this._blend) stepped = turnStep(this, dt, this._guard) || stepped;
+    // a standing man turning on the spot steps round, head leading; one eased aside steps after his body
+    // (art/turn-step.js; SHADOW SIX smooth turn, M3 video "all soldiers should walk in all configurations")
+    if (R.inner && !this.dog && !tst && !this._carryOn && !this._rdLast && !this._blend) stepped = turnStep(this, dt, this._guard) || stepped;
     // prone bodies on the real terrain (art/prone-ground.js) — not while transported or in a physics/baked ragdoll pose
     if (R.inner && !this.dog && !tst && !this._carryOn && !this._rdLast && (stepped || this._pg?.active)) stepped = this._prone(dt) || stepped;
     if (stepped || !this._mwValid || !this._mw.equals(root.matrix)) {

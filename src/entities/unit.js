@@ -60,6 +60,8 @@ function boomLines(w) {
 const PRONE_TURN = (112 * Math.PI) / 180;
 /** Every Unit.state value (§10.4 #2). BEL never enters 'stunned'/'bound' (BCD rulesets only). */
 export const UNIT_STATES = Object.freeze(['active', 'dead', 'stunned', 'hidden', 'inVehicle', 'carried', 'busy', 'bound', 'held', 'captured', 'jailed', 'downed']);
+/** One-shot actions a man may play while still moving (a shot on the move, §3.2): his legs keep stepping. */
+const MOVE_ACTIONS = new Set(['shoot', 'aim']);
 /** A man stopped in place: not walking, not carried along on a conveyor belt (moved at the 20 Hz BEL tick: 3 sim steps). */
 const stopped = (n, A, w) => Math.hypot(n.vx || 0, n.vz || 0) < A.moving && !(n._beltTick >= w.tick - 3);
 /** (x, z) is in a burning wreck's flames or within 1 m of them (§3.6: a step aside never ends, or passes, there). */
@@ -518,6 +520,8 @@ export class Unit extends Entity {
    */
   playAction(name, duration) {
     this._animOverride = { name, t: duration };
+    // a shot on the move (§3.2): his legs keep their stepping clip (Unit._updateAnim brings the pose if he stops)
+    if (MOVE_ACTIONS.has(name) && this._moving && this.alive) { this._animOverride.walked = true; return; }
     this._anim = null;
     this._setAnim(name, { loop: false, restart: true });
   }
@@ -527,13 +531,27 @@ export class Unit extends Entity {
       if (this._anim === 'die' && this.world && this.world.time - this.deathTime > 1.2) this._setAnim('dead');
       return;
     }
+    const moving = this._moving;
     if (this._animOverride) {
-      this._animOverride.t -= dt;
-      if (this._animOverride.t > 0) return;
+      const o = this._animOverride;
+      o.t -= dt;
+      if (o.t > 0) {
+        // §3.2 a man who fires on the move keeps walking (crawling, running): his legs keep their stepping clip while
+        // the shot goes off (the shoot / aim pose over a gliding body read as "he does not walk"); standing still
+        // again inside the window, the pose comes back
+        if (!MOVE_ACTIONS.has(o.name)) return;
+        if (moving) { o.walked = true; this._setAnim(this._locoAnim(true, dt)); }
+        else if (o.walked && this._anim !== o.name) { o.walked = false; this._setAnim(o.name, { loop: false, restart: true }); }
+        return;
+      }
       this._animOverride = null;
     }
+    this._setAnim(this._locoAnim(moving, dt));
+  }
+
+  /** Locomotion / idle clip name for his stance (a commando's load first: Commando._holdAnim). */
+  _locoAnim(moving, dt) {
     let name;
-    const moving = this._moving;
     switch (this.stance) {
       case 'crawl': name = moving ? 'crawl' : 'crawl_idle'; break;
       case 'downed': name = moving ? 'downed_crawl' : this.reviving ? 'revive_receive' : 'downed_idle'; break;
@@ -549,7 +567,7 @@ export class Unit extends Entity {
         name = this._holdAnim?.(moving) || (step ? (this.moveMode === 'run' && !this._heelBlocked() ? 'run' : 'walk') : this.idleAnim || 'idle');
       }
     }
-    this._setAnim(name);
+    return name;
   }
 
   // ------------------------------------------------------------ update
@@ -1219,7 +1237,8 @@ export class Unit extends Entity {
    */
   _nudge(dt) {
     const A = CONFIG.units.avoid, w = this.world, g = w.grid;
-    if (!A.on || this.state === 'dead' || this.carriedBy || this.vehicle || (this.stance !== 'stand' && this.stance !== 'crouch')) return;
+    // (a Green Beret dug in with the shovel cannot move: §3.4 — he was shoved through the snow by men walking over him)
+    if (!A.on || this.state === 'dead' || this.carriedBy || this.vehicle || this.buried || (this.stance !== 'stand' && this.stance !== 'crouch')) return;
     const on = w.entitiesInRadius(this.x, this.z, 0.6, (n) => n !== this && stopped(n, A, w) && blocks(this, n) && givesWay(this, n));
     if (!on.length) return;
     const n = on[0], ax = this.x - n.x, az = this.z - n.z, al = Math.hypot(ax, az), step = Math.min(0.6 * dt, 0.62 - al);

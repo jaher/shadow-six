@@ -1,13 +1,14 @@
 /**
- * Turning on the spot, view side (SHADOW SIX smooth turn, enemy-brain _turnTo): a standing German whose displayed
- * heading turns while he stands steps round instead of spinning on his soles.
+ * Turning on the spot, view side (SHADOW SIX smooth turn, enemy-brain _turnTo): a standing man whose displayed
+ * heading turns while he stands steps round instead of spinning on his soles; one eased aside while standing
+ * (Unit._nudge, 0.6 m/s) steps after his body instead of gliding.
  *  - feet: each foot stays planted on the ground (two-bone IK, its world yaw kept) until the turn has twisted it out of
  *    the clip's stance (> STEP.yaw or > STEP.dist), then lifts and steps over STEP.dur s to where the stance will put it
  *    (a little ahead of the turn); the feet take turns. When he stops, a last step squares the feet up, then the clip
  *    has them again.
  *  - head: leads the turn by up to STEP.headMax (neck 40 %, head 60 %), from the turn's angular speed.
  * Pure view-side: the sim heading and the cone are untouched; bones are written after the mixer through the model's
- * BoneGuard (put back before the next mixer update), so nothing accumulates. Real enemy characters only.
+ * BoneGuard (put back before the next mixer update), so nothing accumulates. Real characters (not dogs).
  * @module art/turn-step
  */
 import { Vector3, Quaternion, MathUtils } from 'three';
@@ -19,7 +20,7 @@ const DEG = Math.PI / 180;
  *  lead = how far ahead of the turn a foot lands (s of turn, ≤ leadMax), head lead (s of turn, ≤ headMax), start =
  *  turn speed (rad/s) that plants the feet, still = s without turning before the squaring-up step. on: kill switch. */
 export const STEP = { on: true, dur: 0.3, lift: 0.075, yaw: 22 * DEG, dist: 0.09, settleYaw: 4 * DEG, settleDist: 0.025, lead: 0.12,
-  leadMax: 20 * DEG, head: 0.12, headMax: 18 * DEG, start: 0.3, still: 0.15 };
+  leadMax: 20 * DEG, head: 0.12, headMax: 18 * DEG, start: 0.3, still: 0.15, slide: 0.15 };
 const UP = new Vector3(0, 1, 0);
 const SIDES = ['l', 'r'];
 const _a = new Vector3(), _t = new Vector3(), _q = new Quaternion(), _pq = new Quaternion();
@@ -42,10 +43,15 @@ function rotAbout(cx, cz, x, z, a) {
   return { x: cx + c * dx + s * dz, z: cz - s * dx + c * dz };
 }
 
-/** Is the model a standing man turning on the spot (not walking, lying, dying, carried, posed by an overlay)? */
+/**
+ * Is the model a standing man turning (or being eased aside) on the spot — not walking, lying, dying, carried, posed by
+ * an overlay? Every standing man: the enemies turn round, anybody standing inside another man is eased off him at a
+ * shuffle's pace (Unit._nudge) and steps there instead of gliding in his idle pose (M3 video: "all soldiers should
+ * walk in all configurations").
+ */
 function eligible(m) {
   const u = m.unit;
-  if (!u || m.dog || m.player || m.opts?.faction !== 'enemy' || u.alive === false) return false;
+  if (!u || m.dog || u.alive === false) return false;
   if ((u.stance ?? 'stand') !== 'stand' || u.state === 'carried' || u.state === 'inVehicle' || u._mgManned) return false;
   if (LOCOMOTION.has(m.anim) || /^(die|dead)/.test(m.anim || '') || m.overlay || m._tr || m._br || u.blastReact) return false;
   return true;
@@ -68,9 +74,12 @@ export function turnStep(m, dt, guard) {
   // (a dt = 0 frame — paused, or Game.advance's own render after a tick — keeps the turn it saw for the next real frame)
   if (dt > 0 || st.yaw == null) { st.yaw = yaw; st.x = px; st.z = pz; }
   if (dt > 0) st.wv += (dyaw / dt - st.wv) * Math.min(1, dt * 12);
-  if (!STEP.on || !eligible(m) || moved > 0.1) { st.feet = null; st.step = null; st.wv = 0; st.lead = 0; return false; }
-  if (dt > 0) st.still = Math.abs(st.wv) < 0.15 ? st.still + dt : 0;
-  if (!st.feet && dt > 0 && (Math.abs(st.wv) > STEP.start || Math.abs(dyaw) > 0.05)) st.feet = {}; // starts turning
+  if (!STEP.on || !eligible(m) || moved > 0.1) { st.feet = null; st.step = null; st.wv = 0; st.lead = 0; st.sv = 0; return false; }
+  // sliding without a stepping clip (eased aside at a shuffle's pace): the feet stay planted and step after him
+  if (dt > 0) st.sv = (st.sv || 0) + (moved / dt - (st.sv || 0)) * Math.min(1, dt * 12);
+  const sliding = (st.sv || 0) > STEP.slide;
+  if (dt > 0) st.still = Math.abs(st.wv) < 0.15 && !sliding ? st.still + dt : 0;
+  if (!st.feet && dt > 0 && (Math.abs(st.wv) > STEP.start || Math.abs(dyaw) > 0.05 || sliding || moved > STEP.slide * dt * 1.5)) st.feet = {}; // starts turning / sliding
   if (!st.feet) return false;
 
   // clip foot positions this frame (after the mixer): where the stance puts each foot under the turned body
