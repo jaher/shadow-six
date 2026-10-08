@@ -102,6 +102,8 @@ src/art/fuel-tanks.js                 ART — fuel-tank family resolution (docs/
 src/art/fuel-pipes.js                 ART — M11 oilfield pipe runs between neighbouring columns (pairs: pure; meshes: three.js)
 src/art/fuel-hooks.js                 ART — M17 valve hooks: `device` events turn the model's handwheel, the spout pours (wired by map-builder)
 src/art/characters/skin-min.js        ART — fast lowest-point query on skinned meshes (clip ground curves)
+src/art/body-kit.js                   ART — which vertices of a body mesh are the man and which his belt kit (bread bag, canteen, pouches: small components off the trunk bones); a lying man rests on the man
+src/art/corpse-ground.js              ART — a dead man's drawn body laid on the drawn ground (after the ragdoll pose / death clip): trunk shifted and tipped, back, head, arms, legs turned until each part's lowest point touches; cached per settled pose
 src/art/vehicles.js                   ART — placeholder vehicle models (types without a library model, `?vehicles=0`)
 src/art/vehicle-library.js            ART — realistic vehicle library (manifest, LODs, paints, wrecks, parts, sockets)
 src/art/vehicle-model.js              ART — library → entity model contract (motion, doors, lamps, trails, wrecks, exhaust)

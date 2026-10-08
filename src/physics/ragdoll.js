@@ -8,11 +8,22 @@
 
 import { CONFIG } from '../config.js';
 import { PARTS, NPARTS, TEMPLATE_MASS } from './ragdoll-template.js';
-import { G, GROUPS, groundAt } from './statics.js';
+import { G, GROUPS, groundAt, fieldAt } from './statics.js';
 import { qAxis, qHeading, qMul, qRot, v3, vAdd, vSub, r4 } from './qmath.js';
 
 /** Where a lying spawn puts the pelvis relative to the unit (m along its forward axis) and its rotation. */
 const LIE = { supine: { fwd: -0.55, rx: -Math.PI / 2 }, prone: { fwd: 0.1, rx: Math.PI / 2 } };   // measured on the UAL 'die' clip end
+
+/**
+ * The surface a lying body rests on at (x, z): world.lyingY (the drawn ground right under the point, world/map-builder.js)
+ * when the map has one, else world.groundY (whose feet ring reaches up onto a kerb or a crate top 0.36 m away). The
+ * heightfield is built from it (physics/statics.js) and the drawn pose is the base pose at the anchor moved as the
+ * pelvis body moved since the spawn, so anchor, spawn and heightfield must all use it: a spawn lifted off a surface
+ * the body then fell from was drawn that much into the ground.
+ */
+export function lyingAt(world, x, z) {
+  return typeof world.lyingY === 'function' ? world.lyingY(x, z) || 0 : groundAt(world, x, z);
+}
 
 /** Lowest world y of collider spec `c` on a body at p with rotation q. */
 function lowestY(p, q, c) {
@@ -34,13 +45,26 @@ function lowestY(p, q, c) {
  */
 export function lyingParts(world, x, z, y, h, prone = false, lifted = true) {
   const lie = prone ? LIE.prone : LIE.supine, qs = qMul(qHeading(h), qAxis(1, 0, 0, lie.rx));
-  const gy = groundAt(world, x, z) + y, pelvisAt = v3(...PARTS[0].at);
+  const gy = lyingAt(world, x, z) + y, pelvisAt = v3(...PARTS[0].at);
   const origin = v3(x + Math.cos(h) * lie.fwd, gy, z + Math.sin(h) * lie.fwd);
   const pos = PARTS.map((p) => vAdd(origin, qRot(qs, vSub(v3(...p.at), pelvisAt))));
   if (lifted) {
+    // clear of the drawn ground under the part (world.lyingY: no walkers' feet ring) and of the TERRAIN heightfield as
+    // built (by a step or a plinth the heightfield ramps over the ground beside it: a part started under it fell
+    // through, the legs hanging 0.6 m into the ground), under every collider's ends (a part's origin is at its joint,
+    // its collider runs ~0.45 m from it)
+    const field = world.physics?.statics?.field;
+    const under = (px, pz) => Math.max(lyingAt(world, px, pz), field ? fieldAt(field, px, pz) : -Infinity);
     let lift = -Infinity;
     PARTS.forEach((p, i) => {
-      for (const c of p.col) lift = Math.max(lift, groundAt(world, pos[i].x, pos[i].z) + y - lowestY(pos[i], qs, c) + 0.01);
+      for (const c of p.col) {
+        let g = under(pos[i].x, pos[i].z);
+        if (field) {
+          const o = qRot(qs, c.shape === 'cap' ? v3(0, -c.len, 0) : v3(...(c.off || [0, 0, 0])));
+          g = Math.max(g, under(pos[i].x + o.x, pos[i].z + o.z), under(pos[i].x + o.x / 2, pos[i].z + o.z / 2));
+        }
+        lift = Math.max(lift, g + y - lowestY(pos[i], qs, c) + 0.01);
+      }
     });
     for (const q of pos) q.y += lift;
   }
@@ -80,7 +104,7 @@ export function lyingBlocked(R, rw, world, x, z, y, h, prone = false) {
 export function spawnRagdoll(R, rw, world, unit, mode, o = {}) {
   const C = CONFIG.physics.ragdoll;
   const h = unit.heading || 0, qa = qHeading(h);
-  const gy = groundAt(world, unit.x, unit.z) + (unit.y || 0);
+  const gy = lyingAt(world, unit.x, unit.z) + (unit.y || 0);
   const anchor = { x: unit.x, y: gy, z: unit.z, h };
   const lie = mode === 'settle' ? (o.prone ? LIE.prone : LIE.supine) : null;
   let qs = qa, pos;

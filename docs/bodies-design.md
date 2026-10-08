@@ -320,6 +320,27 @@ Every response below is delayed by the shock front `t = r / 340 m/s` and scaled 
   difference.
 - The mapping of rigid-body handles to entity ids and bones is saved with the snapshot.
 
+### A.10b Corpses on the drawn ground (2026-10-08: "bodies of dead soldiers are still floating on the ground")
+- The drawn corpse is the death clip's last frame turned by the ragdoll's segments. Three things held bodies in the
+  air: the clip was grounded on its lowest vertex, which for a German rifleman on his back is his belt kit (bread bag,
+  canteen: 15–20 cm under his back, merged into the body mesh); the clip's head is propped 13–22 cm up; and the
+  physics heightfield (1 m samples of `world.groundY`) is not the drawn ground (snow ripples; by a plinth, a step or a
+  snow skirt it ramps 0.2–0.3 m over the ground beside it, and a lying ragdoll lifted to clear only `world.groundY`
+  started under it: its legs fell through).
+- `art/body-kit.js` tells the kit from the man (small welded components off the pelvis / spine / clavicles / thighs);
+  `lyingBase` and the enemy runtime's die / dead ground curves rest on the man. `art/corpse-ground.js` lays the drawn
+  body on the drawn ground every time the ragdoll pose (live or baked) or the death clip (no physics) is drawn: the
+  trunk shifted (not when it is 0.3–0.6 m up: thrown, on a crate) and tipped about its contact, then the back, neck,
+  head, arms and legs turned about level axes until each part's lowest point touches (kit left under him). Reused
+  while the pose under it does not change; a frame budget (1.5 ms) lets a dozen ragdolls settling at once reuse their
+  last solve's corrections for a few frames. The ground is `world.lyingY` (map-builder: the surface right under the
+  point; `world.groundY`'s feet ring steps a walker up onto a kerb or a crate top 0.36 m away), which also builds the
+  physics heightfield and places the ragdoll's anchor and lying spawn (`ragdoll.js lyingAt`): the drawn pose is the base
+  at the anchor moved as the pelvis body moved since the spawn, so a spawn lifted off a ring-raised surface was drawn
+  that much into the ground. `lyingParts` clears the heightfield as built (`statics.fieldAt`) under every collider.
+- Test: `tests/body-float.test.mjs` (GPU; hips, chest, head, hands, feet against the rendered ground, M1 snow slopes
+  and a plinth edge, a restart, the tutorial after M1, M1 after the tutorial); `tests/unit/corpse-ground.test.mjs`.
+
 ### A.11 Implementation status (work order steps 4–6, commit "Bodies: physics")
 Code: `src/physics/` (`world-physics`, `statics`, `ragdoll`, `ragdoll-template`, `blast`, `blast-apply`, `feedback`,
 `props`, `persist`, `rapier-loader`, `null-physics`, `qmath`), `src/core/house-rules.js`, `src/art/ragdoll-pose.js`,

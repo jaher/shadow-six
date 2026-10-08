@@ -2,8 +2,8 @@
 // enemy_runtime.js - enemy-side runtime fixes layered on pipeline charkit (the pipeline files are shared and left untouched):
 //   fixLibMeta   anims GLBs keep userData.shadowSix on the child node 'Scene' -> charkit.loadAnimLibrary sees empty meta
 //                (no groundSpeed => no foot-slide timeScale, no loop flags, pelvis track not retargeted)
-//   ground clamp die/dead: per template, the lowest skinned vertex (body + kit + helmet) over the clip is measured once and
-//                the pelvis is lifted so nothing sinks under the ground (a body lying on a barrel case rests on it)
+//   ground clamp die/dead: per template, the lowest skinned vertex (body + helmet; not the belt kit, art/body-kit.js) over
+//                the clip is measured once and the pelvis is lifted so the body does not sink under the ground
 //   stride warp  run/sprint: UAL Jog/Sprint feet sweep back at ~2x the root speed; the feet are pulled towards the hips
 //                along the travel direction (factor = planted-foot speed / clip foot speed) and the legs two-bone IK'd
 //   perf         static bounding sphere + frustum culling on; one Skeleton shared by all skinned meshes of a unit
@@ -13,6 +13,7 @@ import * as THREE from 'three';
 import { twoBoneIK } from '../pipeline/weapons.js';
 import { bindInfo } from './enemy_weapons.js';
 import { skinnedMinY } from '../skin-min.js';
+import { bodyVertexList } from '../../body-kit.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const V = () => new THREE.Vector3(), Q = () => new THREE.Quaternion();
@@ -55,15 +56,19 @@ export function perfSetup(h) {
   });
 }
 
-// lowest point of the unit (object space) while `clip` plays, sampled on a scratch instance at identity transform
+// lowest point of the unit (object space) while `clip` plays, sampled on a scratch instance at identity transform.
+// A lying man (die / dead clips) rests on his body, not on his belt kit (art/body-kit.js): on his back the bread bag and
+// canteen hang 15-20 cm below it, and lifting the clip onto them held the whole corpse up in the air.
+const LYING = /^(die|dead)(_prone)?$/;
 export function groundCurve(scratch, clipName, n = 24, stride = 2) {
   const c = scratch.clip(clipName); if (!c) return null;
   const meshes = []; scratch.object.traverse(o => { if (o.isSkinnedMesh && (/^LOD1/.test(o.name) || /headgear/.test(o.name))) meshes.push(o); });
+  const lists = LYING.test(clipName) ? meshes.map((m) => bodyVertexList(m, stride)) : null;
   const a = scratch.setAnim(clipName, { fade: 0, loop: false }); const lift = new Float32Array(n + 1);
   for (let k = 0; k <= n; k++) {
     a.time = c.duration * k / n; scratch.mixer.update(0); scratch.object.updateMatrixWorld(true);
     let ymin = 9;
-    for (const m of meshes) ymin = Math.min(ymin, skinnedMinY(m, { stride }));
+    meshes.forEach((m, i) => { ymin = Math.min(ymin, lists ? skinnedMinY(m, { list: lists[i] }) : skinnedMinY(m, { stride })); });
     lift[k] = Math.max(0, 0.004 - ymin);
   }
   return { dur: c.duration, lift };

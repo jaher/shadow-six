@@ -13,6 +13,7 @@
 
 import { Quaternion, Vector3, Matrix4, Object3D } from 'three';
 import { clipPose, capturePose, bonesOf as kitBones } from './pose-blend.js';
+import { bodyKit } from './body-kit.js';
 
 /** Bone → [segment index, blend segment index | -1, blend weight]. Segments follow physics/ragdoll-template PARTS. */
 const BONES = [
@@ -65,7 +66,11 @@ export function captureBase(model) {
   return base;
 }
 
-/** Lowest skinned vertex of the model's body (root-local y), every `stride`-th vertex of its lightest skinned mesh. */
+/**
+ * Lowest skinned vertex of the model's body (root-local y), every `stride`-th vertex of its lightest skinned mesh — the
+ * man, not his belt kit (art/body-kit.js: lying on his back a rifleman's bread bag and canteen hang 15–20 cm below his
+ * back; grounded on them, the whole corpse lay in the air).
+ */
 function lowestRootY(model, stride = 2) {
   let mesh = null;
   model.real.inner?.object?.traverse((m) => {
@@ -73,10 +78,10 @@ function lowestRootY(model, stride = 2) {
     if (m.isSkinnedMesh && /^LOD\d+$/.test(m.name) && (!mesh || m.geometry.attributes.position.count < mesh.geometry.attributes.position.count)) mesh = m;
   });
   if (!mesh) return null;
-  const pos = mesh.geometry.attributes.position;
+  const list = bodyKit(mesh).body;
   let y0 = Infinity;
-  for (let k = 0; k < pos.count; k += stride) {
-    mesh.getVertexPosition(k, _v).applyMatrix4(mesh.matrixWorld);
+  for (let k = 0; k < list.length; k += stride) {
+    mesh.getVertexPosition(list[k], _v).applyMatrix4(mesh.matrixWorld);
     model.root.worldToLocal(_v);
     if (_v.y < y0) y0 = _v.y;
   }
@@ -85,7 +90,7 @@ function lowestRootY(model, stride = 2) {
 
 /**
  * Base pose of a LYING (settle) ragdoll: the last frame of the settled death clip `clip` ('dead' / 'dead_prone'),
- * resting on the root's ground plane (its lowest skinned vertex 4 mm over it, as the kit runtimes ground the clip) —
+ * resting on the root's ground plane (the lowest skinned vertex of the man, not of his belt kit, 4 mm over it) —
  * the pose the physics' lying template stands for (physics/ragdoll LIE), whatever the mixer happens to show. The
  * settle ragdoll takes over while the die → dead cross-fade still runs; a base captured from that froze the corpse
  * mid-fall, head and shoulders 0.3–0.7 m up in the air ("bodies kind of floating above the ground").

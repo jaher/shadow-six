@@ -2,8 +2,10 @@
  * Bodies lie on the ground (the user, 2026-10-01: "When doing the tutorial I see bodies kind of floating above the
  * ground when killed"). The tutorial map (m00): guards killed by knife, pistol and rifle on grass, the road, a slope,
  * the compound's earth, the bridge deck, by the crates and by the rocks, and one by a grenade. Once each body has
- * settled, the lowest point of its drawn (skinned) body is within 4.5 cm of the ground under it, its hips touch the
- * ground and neither its heels nor its head are held up in the air.
+ * settled, the lowest point of its drawn (skinned) body — his belt kit apart — is within 4.5 cm of the ground under
+ * it, its hips touch the ground and neither its heels nor its head are held up in the air (5 cm; the user, 2026-10-08:
+ * "bodies of dead soldiers are still floating on the ground" — the death clip's propped head and the bread bag a
+ * rifleman lay on held them 9 / 25 cm up; tests/body-float.test.mjs measures against the rendered ground).
  * Old code: the settle ragdoll took the death clip's pose as it stood when the ragdoll began (the die → dead cross-fade
  * mid-way: the man still half up) and the bake re-captured it from the drawn skeleton: corpses lay jack-knifed in the
  * air (hips 17 cm, heels 49 cm, head 38 cm up on the road) or half sunk (hips 21–24 cm under the slope and the crates'
@@ -67,7 +69,7 @@ export default async function bodyGround(page, t) {
     if (c.mode === 'blast') continue; // thrown by the blast: the ragdoll's own pose (not the settled death clip)
     t.ok(c.all >= -0.045, `${c.name}: not sunk into the ground (lowest point ${c.all} m)`);
     t.ok(c.hips >= -0.045, `${c.name}: hips not under the ground (${c.hips} m)`);
-    t.ok(c.feet <= 0.15, `${c.name}: heels not held up in the air (${c.feet} m)`);
-    t.ok(c.head <= 0.32, `${c.name}: head not held up in the air (${c.head} m)`);
+    t.ok(c.feet <= 0.05, `${c.name}: heels not held up in the air (${c.feet} m)`);
+    t.ok(c.head <= 0.05, `${c.name}: head not held up in the air (${c.head} m)`);
   }
 }

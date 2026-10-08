@@ -51,8 +51,12 @@ export function buildStatics(R, rw, world, skipOwners = null) {
   const W = world.width, D = world.depth;
   const ncols = Math.max(1, Math.ceil(W / step)), nrows = Math.max(1, Math.ceil(D / step));
   const heights = new Float32Array((nrows + 1) * (ncols + 1));
+  // the surface right under each sample (world.lyingY): world.groundY's feet ring steps a walker up onto a kerb or a
+  // crate top 0.36 m away, which raised the heightfield round every low surface (a body put down against a crate
+  // stack was spawned 0.3 m up and drawn that much into the ground once it fell)
+  const at = (x, z) => (typeof world.lyingY === 'function' ? world.lyingY(x, z) || 0 : groundAt(world, x, z));
   for (let c = 0; c <= ncols; c++) {
-    for (let r = 0; r <= nrows; r++) heights[c * (nrows + 1) + r] = groundAt(world, Math.min(W, c * step), Math.min(D, r * step));
+    for (let r = 0; r <= nrows; r++) heights[c * (nrows + 1) + r] = at(Math.min(W, c * step), Math.min(D, r * step));
   }
   const sx = ncols * step, sz = nrows * step;
   const tb = rw.createRigidBody(R.RigidBodyDesc.fixed().setTranslation(sx / 2, 0, sz / 2));
@@ -92,5 +96,23 @@ export function buildStatics(R, rw, world, skipOwners = null) {
       cuboids++;
     }
   }
-  return { colliders: cuboids + 2, cuboids, samples: heights.length };
+  return { colliders: cuboids + 2, cuboids, samples: heights.length, field: { heights, step, ncols, nrows } };
+}
+
+/**
+ * Height of the TERRAIN heightfield as built (its `field` record: 1 m samples of world.groundY, triangulated) at
+ * (x, z): the higher of the cell's two triangulations, so a body placed over it is never under it. The heightfield is
+ * not the drawn ground: by a step, a plinth or a snow skirt (world.groundY's sharp low surfaces) it ramps up to 0.45 m
+ * over the ground beside them; a lying ragdoll lifted to clear only world.groundY there started under it and its legs
+ * fell through (heightfields are one-sided). null without a field.
+ */
+export function fieldAt(field, x, z) {
+  if (!field) return null;
+  const { heights: H, step, ncols, nrows } = field;
+  const fx = Math.min(ncols - 1e-6, Math.max(0, x / step)), fz = Math.min(nrows - 1e-6, Math.max(0, z / step));
+  const c = Math.floor(fx), r = Math.floor(fz), u = fx - c, v = fz - r, R1 = nrows + 1;
+  const h00 = H[c * R1 + r], h10 = H[(c + 1) * R1 + r], h01 = H[c * R1 + r + 1], h11 = H[(c + 1) * R1 + r + 1];
+  const a = u > v ? h00 + (h10 - h00) * u + (h11 - h10) * v : h00 + (h01 - h00) * v + (h11 - h01) * u;
+  const b = u + v < 1 ? h00 + (h10 - h00) * u + (h01 - h00) * v : h11 + (h01 - h11) * (1 - u) + (h10 - h11) * (1 - v);
+  return Math.max(a, b);
 }

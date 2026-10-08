@@ -25,6 +25,7 @@ import { transportState, transportClip, poseTransported, captureStart, groundDra
 import { carrierContact, loadSway, loadGait } from './transport-contact.js';
 import { BoneGuard, StickyGuard, capturePose, mixPose } from './pose-blend.js';
 import { proneGround, PRONE_CLIP } from './prone-ground.js';
+import { restOnGround, corpseGround, warmCorpse, CORPSE_BONES } from './corpse-ground.js';
 import { turnStep } from './turn-step.js';
 import { stairGait, stairGround } from './stair-gait.js';
 import { ladderClimb } from './ladder-climb.js';
@@ -38,6 +39,13 @@ const SETTLE_EASE = 0.35;
 /** Stance transitions play over exactly the sim's stance-change time (CONFIG.units.stanceDown / stanceUp). */
 const transitionTime = (tr) => (tr === 'go_prone' ? CONFIG.units.stanceDown : CONFIG.units.stanceUp);
 const TR_CLIP = /^(go_prone|get_up)$/;
+/** world/grid.js T.WATER, T.SHALLOW: a body in the water floats. */
+const WATER_CODES = [5, 6];
+/** ms of corpse solves per rendered frame (art/corpse-ground.js; ~0.5 ms each while a ragdoll moves); frames a body
+ *  may keep its last solve's corrections while over it. */
+const CORPSE_BUDGET_MS = 1.5, CORPSE_STALE = 6, CORPSE_BUDGET = { frame: -1, ms: 0 };
+/** s after death: the death clip (no ragdoll) is laid on the ground from here, eased in over CORPSE_REST_EASE s. */
+const CORPSE_REST_AT = 1.2, CORPSE_REST_EASE = 0.35;
 
 const ctx = { ready: false, missionId: null, missionNo: 0, theater: 'temperate' };
 /** Rendered-frame counter (charactersFrame): a character whose subtree matrices are current for this frame is
@@ -112,6 +120,13 @@ export function warmUnitModels(units, budgetMs = 1200) {
       if (H.warmGround) H.warmGround(names);
       else for (const n of names) R.hasAnim(n);
     } catch (e) { console.warn('[unit-model] warm', e); }
+  }
+  // the belt kit and the samples a corpse is laid on the ground with (art/corpse-ground.js): once per template
+  // (5-60 ms), not at the first death of each in combat
+  const t1 = performance.now();
+  for (const u of units) {
+    if (performance.now() - t1 > budgetMs / 2) break;
+    try { if (u.model?.real?.inner && !u.model.dog) warmCorpse(u.model); } catch (e) { console.warn('[unit-model] warm corpse', e); }
   }
   return performance.now() - t0;
 }
@@ -209,6 +224,7 @@ export class UnitModel {
     this.anim = 'idle'; this.clip = null; this.disguised = false; this.unit = null;
     this._o = {}; this._v = 0; this._sent = 0; this._last = null; this._idleN = 0; this._weapon = undefined; this._carried = false; this._stance = 'stand';
     this._guard = new BoneGuard(); this._rdGuard = new StickyGuard(); this._blend = null;
+    this._guardWriter = { before: (b) => this._guard.touch(b), after() {} };
     /** Optional procedural pose written after the mixer: (model, dt, guard) => pose changed (art/shovel-dig.js). */
     this.overlay = null;
     this.ready = real.ready.then(() => this._onReady());
@@ -423,10 +439,13 @@ export class UnitModel {
           if (this._blend && fresh && (rec.d || rec.mode === 'blast')) { this._rdBase = captureBase(this); this._rdBaseKey = rec.mode + ':' + rec.a.join(','); this._endBlendOut(); }
           else if (fresh && rec.mode !== 'blast' && !rec.d) this._lyingTakeover(rec, now);
           this._rdLast = rec;
-          if (applyRagdollPose(this, rec, now, this._rdGuard)) stepped = true;
+          if (applyRagdollPose(this, rec, now, this._rdGuard)) {
+            stepped = true;
+            this._restCorpse(this._rdGuard); // laid on the drawn ground (art/corpse-ground.js)
+          }
           if (this._rdFrom) stepped = this._easeIntoRagdoll(now) || stepped;
         }
-      } else if (this._rdLast) { this._rdLast = null; this._rdBase = null; this._rdFrom = null; this._mwValid = false; this._rdGuard.release(); }
+      } else if (this._rdLast) { this._rdLast = null; this._rdBase = null; this._rdFrom = null; this._cgCache = null; this._mwValid = false; this._rdGuard.release(); }
       else if (!this._idleSeen && this.anim === 'idle' && stepped && ++this._idleN > 4) { rememberIdle(this); this._idleSeen = true; }
     }
     // walking in on a knife / syringe order (or up to a clothesline): the pose shown, for the contact kill / the Spy's
@@ -444,6 +463,13 @@ export class UnitModel {
     // ladder: hands and feet on its rungs (art/ladder-climb.js)
     if (R.inner && !this.dog && !tst && !this._carryOn && !this._rdLast && (this._sg || u?.world?.stairs?.size)) stepped = stairGait(this, dt, this._guard) || stepped;
     if (R.inner && !this.dog && !tst && (this._lc || u?._ladder)) stepped = ladderClimb(this, dt, this._guard) || stepped;
+    // no ragdoll (physics off / failed): the settled death clip, laid on the drawn ground as it eases in after the fall
+    // (with physics a settle ragdoll always follows — after the fall, after a put-down — and lays the body down itself)
+    if (R.inner && !this.dog && !tst && !this._rdLast && u && u.alive === false && u.state === 'dead' && this.anim === 'dead' && !u.vehicle
+      && (!u.world?.physics || u.world.physics.isNull)) {
+      const k = Math.min(1, Math.max(0, ((u.world?.time ?? 0) - (u.deathTime ?? 0) - CORPSE_REST_AT) / CORPSE_REST_EASE));
+      if (k > 0 && this._restCorpse(this._guardWriter, k)) stepped = true;
+    }
     if (stepped || !this._mwValid || !this._mw.equals(root.matrix)) {
       baseUpdateMW.call(root, true);
       this._mw.copy(root.matrix); this._mwValid = true;
@@ -477,6 +503,60 @@ export class UnitModel {
     if (k >= 1) { this._rdFrom = null; return false; }
     mixPose(this, F.pose, 1 - k * k * (3 - 2 * k), this._guard);
     return true;
+  }
+
+  /**
+   * A dead man's drawn body laid on the drawn ground (art/corpse-ground.js: the trunk onto it, the head, arms and legs
+   * turned onto it) — not in the water (a body there floats; on a bridge's deck over it, yes). The result is reused while the pose under it does not
+   * change (a settled corpse: no work per frame). `k` < 1 eases it in.
+   * @param {{before:Function, after:Function}} writer guard around the bone writes @returns {boolean} posed
+   */
+  _restCorpse(writer, k = 1) {
+    const u = this.unit, B = this.real?.inner?.bones;
+    if (!u || !B || this.dog || u.vehicle) return false;
+    const g = u.world?.grid, t = g?.terrainAt ? g.terrainAt(u.x, u.z) : null;
+    const c = (t === WATER_CODES[0] || t === WATER_CODES[1]) && g.worldToCell ? g.worldToCell(u.x, u.z) : null;
+    const deck = c && g.inBounds(c.i, c.j) && (g.bridge?.[g.idx(c.i, c.j)] || (g.elev?.[g.idx(c.i, c.j)] || 0) > 0.05);
+    if ((c && !deck) || u.underwater || u.swimming) return false; // (on a bridge over the river: laid on its deck)
+    // (one ground function per world: the pass keeps its ground lattice while it is the same)
+    if (this._cgWorld !== u.world || this._cgWorldGY !== (u.world?.lyingY || u.world?.groundY)) { this._cgWorld = u.world; this._cgWorldGY = u.world?.lyingY || u.world?.groundY; this._cgGround = corpseGround(u); }
+    const ground = this._cgGround;
+    if (!ground) return false;
+    const list = this._cgBones || (this._cgBones = CORPSE_BONES.map((n) => B[n]).filter(Boolean));
+    const root = this.root, sig = this._cgSigArr || (this._cgSigArr = new Float64Array(list.length * 7 + 7));
+    // the pose this pass starts from: the written bones' local values + the root
+    let same = !!this._cgCache && k === this._cgCache.k, j = 0;
+    const put = (v) => { if (sig[j] !== v) { same = false; sig[j] = v; } j++; };
+    for (const b of list) { put(b.quaternion.x); put(b.quaternion.y); put(b.quaternion.z); put(b.quaternion.w); put(b.position.x); put(b.position.y); put(b.position.z); }
+    put(root.position.x); put(root.position.y); put(root.position.z); put(root.quaternion.x); put(root.quaternion.y); put(root.quaternion.z); put(root.quaternion.w);
+    if (same && this._cgCache.solved) {
+      for (let i = 0; i < list.length; i++) { const b = list[i], c = this._cgCache.v[i]; writer?.before(b); b.quaternion.copy(c.q); b.position.copy(c.p); writer?.after(b); }
+      baseUpdateMW.call(root, true);
+      return true;
+    }
+    // a frame budget for the solves (a grenade among a squad: a dozen ragdolls moving at once): over it, a body whose
+    // pose moved on since its last solve keeps that solve's corrections (each bone turned / moved by the same amount
+    // relative to the new pose), and solves again within a few frames
+    const C = this._cgCache, now = FRAME.n;
+    if (CORPSE_BUDGET.frame !== now) { CORPSE_BUDGET.frame = now; CORPSE_BUDGET.ms = 0; }
+    if (C?.d && k === C.k && CORPSE_BUDGET.ms > CORPSE_BUDGET_MS && now - C.at < CORPSE_STALE) {
+      for (let i = 0; i < list.length; i++) {
+        const b = list[i], d = C.d[i];
+        writer?.before(b); b.quaternion.premultiply(d.q).normalize(); b.position.add(d.p); writer?.after(b);
+      }
+      C.solved = false; // (the pose under it is not the one solved: a later frame solves it)
+      baseUpdateMW.call(root, true);
+      return true;
+    }
+    const t0 = performance.now();
+    const raw = list.map((b) => ({ q: b.quaternion.clone(), p: b.position.clone() }));
+    const pre = k < 1 ? capturePose(this) : null;
+    const res = restOnGround(this, ground, writer, this._cgLog || null);
+    if (pre) { mixPose(this, pre, 1 - k, null); baseUpdateMW.call(root, true); }
+    this._cgCache = { k, at: now, solved: true, v: list.map((b) => ({ q: b.quaternion.clone(), p: b.position.clone() })),
+      d: list.map((b, i) => ({ q: b.quaternion.clone().multiply(raw[i].q.invert()), p: b.position.clone().sub(raw[i].p) })) };
+    CORPSE_BUDGET.ms += performance.now() - t0;
+    return !!res;
   }
 
   /**

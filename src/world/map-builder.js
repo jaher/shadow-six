@@ -1630,7 +1630,7 @@ export function buildMap(world, mission, opts = {}) {
     const cat = placeCat(b.def);
     if (b.object3d && (cat === 'bridge' || cat === 'pier')) lowSurfaces(b.object3d, { maxY: 2.0, cell: SURF_CELL, flat: 0.8 }, laneSurf);
   }
-  let deckGroundY = null;
+  let deckGroundY = null, lyingGroundY = null;
   if (decks.length || surf?.size || laneSurf?.size || world.surfaces?.length) {
     const base = world.groundY;
     const wetAt = (x, z) => { const t = grid.terrainAt?.(x, z); return t === T.WATER || t === T.SHALLOW; };
@@ -1643,6 +1643,25 @@ export function buildMap(world, mission, opts = {}) {
     deckGroundY = (x, z) => {
       const e = grid.elevAt(x, z), y = groundBelowDeck(x, z);
       return e > 0.05 ? Math.max(0, y - e) : y;
+    };
+    // a man lying there (art/corpse-ground.js): the surface right under the point — no feet ring stepping up onto a
+    // kerb, a plinth or a crate top 0.36 m away, and a low surface only inside its edge (its 0.2 m cells reach past the
+    // drawn edge: a corpse put down against a crate stack was lifted 0.3 m towards its top)
+    lyingGroundY = (x, z) => {
+      const e = grid.elevAt(x, z);
+      let g = null, onDeck = false;
+      if (onBridgeCell(grid, x, z)) {
+        for (const d of decks) { const h = d.heightAt(x, z); if (h != null) { g = h; break; } }
+        if (g == null) for (const q of world.surfaces || []) { const h = q.heightAt(x, z); if (h != null) { g = h; break; } }
+        onDeck = g != null;
+      }
+      if (g == null) g = typeof base === 'function' ? base.call(world, x, z) : 0;
+      if (surfN) {
+        const i = Math.floor(x / SURF_CELL), j = Math.floor(z / SURF_CELL), v = surfN.get(i * 131072 + j);
+        if (v !== undefined && v > g && !(onDeck && v - g > STEP_MAX)
+          && surfN.has((i + 1) * 131072 + j) && surfN.has((i - 1) * 131072 + j) && surfN.has(i * 131072 + j + 1) && surfN.has(i * 131072 + j - 1)) g = v;
+      }
+      return e > 0.05 ? Math.max(0, g - e) : g;
     };
     const groundBelowDeck = (x, z) => {
       // on a deck (a bridge, a dam crest, a lowered drawbridge span: world.surfaces[i].heightAt → y or null) the
@@ -1678,6 +1697,7 @@ export function buildMap(world, mission, opts = {}) {
       return sy !== undefined && sy > g ? sy : g;
     };
     world.groundY = deckGroundY;
+    world.lyingY = lyingGroundY;
     // modelled plank / snow-cap height (deck_top is the bare structure): measured once the meshes are in
     if (meshes) {
       for (const d of decks) {
@@ -1847,6 +1867,7 @@ export function buildMap(world, mission, opts = {}) {
       for (const b of batches) b.then?.((h) => h?.dispose());
       world.waterObstacles = null;
       if (world.groundY === terrain?.groundY || (deckGroundY && world.groundY === deckGroundY) || (pavedGroundY && world.groundY === pavedGroundY)) world.groundY = null;
+      if (lyingGroundY && world.lyingY === lyingGroundY) world.lyingY = null;
       world.scene?.remove(propsRoot);
       if (terrain) { world.scene?.remove(terrain.ground); if (terrain.water) world.scene?.remove(terrain.water); terrain.dispose(); }
       propsRoot.traverse((o) => { if (o.isMesh) o.geometry.dispose(); });
