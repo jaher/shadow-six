@@ -1,5 +1,51 @@
 # How to resume the SHADOW SIX build
 
+## CURRENT (2026-10-08 ~13:40 PDT): pending tasks to resume after a usage limit
+
+The user said: "Save all these pending tasks so I can resume them after I hit the token limit".
+Live on GitHub Pages: everything merged through `6865a556` (M3 video done). Work in progress is saved in each worktree
+(commits) plus `refs/wip/<branch>` snapshots of uncommitted changes, written every 10 min by the user's crontab
+(`commandos-rnd-backup/backup.sh`). Each task's agent notes live in `<projects>/commandos-shots/notes/<key>.notes.md`.
+The live queue (with agent ids) is `<projects>/commandos-shots/notes/resume-queue.md`.
+
+**How to resume.** In the SAME Claude session: SendMessage to the agent id, asking it to continue where it stopped.
+In a NEW session (agent ids no longer valid): spawn a fresh agent per task. Give it the user's exact words, the
+worktree and branch, and its notes file; tell it to read the notes, run `git status` / `git log`, and restore uncommitted
+work from `refs/wip/<branch>` if the worktree lost it. Never use `git stash`. Merge into master only after tests;
+publish with `tools/publish/sync-public.sh`.
+
+### In progress when this was written (finish these first)
+| Task | User's words | Worktree / branch | Notes | Agent id |
+|---|---|---|---|---|
+| M3 shed: charges inside, up the ramp; nothing under the ramp; re-adapt solution stage G | "The sappler goes under the bridge of the house, why? Does it need to inside through the ramp?" | commandos-wt-m3bunkermove / fix/m3-shed-charges | m3bunkermove.notes.md | acac4e3ea7b375893 |
+| Ladder climb gap | "Commando still too close to vertical ladder when climbing" | commandos-wt-stairs / fix/ladder-climb-offset | stairs.notes.md | a0de6b6620251f834 |
+| M14 D-Day solution + video (one late, minimal alarm allowed in the north push; no harpoon-range bug) | "Make a video of d-day solution when you can" | commandos-wt-m14sol / feat/m14-solution | m14sol.notes.md | aff322b4a9d9bb7d8 |
+
+After the shed fix merges, **re-record the M3 solution video** (tools/solutions m03 film tools; previous film:
+commandos-shots/m3video/m03-solution-v2.mp4 + 7 parts). The new film should also show the dam burst with the merged
+flow-speed/seamless fix (fbcdab23), which the current film predates. Send it in parts under 8 MB.
+
+### Paused (resume all together once the three above are done)
+| # | Task | User's words | Worktree / branch | Notes | Agent id |
+|---|---|---|---|---|---|
+| 1 | HD icons (was about to commit) | "also make the icons better quality / resolution, they look pixelated" | commandos-wt-iconshd / feat/icons-hd | iconshd.notes.md | a0d6aab9244e903a4 |
+| 2 | Audio size + decoded-audio memory (re-encoded files uncommitted; snapshot in refs/wip/perf-audio-footprint) | "Looks like sound is way too large? Can we reduce the size and also make it not use a lot of memory footprint when playing missions" | commandos-wt-memory / perf/audio-footprint | memory.notes.md | adecb966e888e220a |
+| 3 | Realistic ducks (M1) | "make the  ducks more realistic (as seen in mission 1)" | commandos-wt-ducks / feat/realistic-ducks | ducks.notes.md | a997b94aa62e5f75d |
+| 4 | Detailed title-screen commando (keep pose B) | "The commando in the main screen, can you make it more detailed.  It looks too sketchy" | commandos-wt-herohd / feat/hero-detailed | herohd.notes.md | a8f595d3b4d7b5a4e |
+| 5 | README screenshots (+ an explosion) and up-to-date README facts | "In the reader file I would like the best screenshots possible,  you will need to redo the existing ones" / "Maybe worth adding an explosion too" | commandos-wt-readme / docs/readme-screenshots | readme.notes.md | a0c23716080732562 |
+| 6 | Art pass, remaining missions: M19 (verified OK, merge pending), M6, M9 (in progress), then M10 M18 M4 M11 M17 M5 M7 | the art-pass requests (see the AUTH text in the script) | lanes commandos-wt-art1/2/3, branches art/mNN | art_mNN.notes.md | workflow: relaunch FRESH `Workflow({scriptPath: "<projects>/commandos-shots/workflows/mission-art-pass-finish.js"})` (skips merged missions) |
+| 7 | Scripted solutions for every mission (tutorial m00, M1, M2, M4–M13, M15–M20) for debug video mode | "And you will need to create a solution for all missions being built" | lanes commandos-wt-sol1/2/3, branches sol/mNN (m00, m01, m08 started) | sol_mNN.notes.md | workflow: relaunch FRESH by scriptPath `~/.claude/projects/-home-jaherrero-projects-commandos-threejs/17913ec6-c68c-4443-a67c-6ea1cf8f568f/workflows/scripts/mission-solutions-all-wf_d062a6f1-78e.js` (skips merged) |
+| 8 | Game-rule fixes found by the M14 agent: (a) the harpoon sets off barrels up to 45 m away (uses the sniper range); (b) a crawler lying still inside a near band is never noticed (contradicts "no commando goes inside the field of view of a solider before being spotted"); (c) the exposure watch lacks the rowed-boat hull rule (it's on feat/m14-solution) | (found while solving M14; user's cone rule) | new agent | — | — |
+| 9 | M3 issues seen in the video: the trap kill makes e2/e3 go into combat and find a body (no alarm); a false "CAN'T GET THERE IN A STRAIGHT LINE" message during the raft crossing (stuck-orders feedback); a pop-up portrait sometimes blank for a frame | (from the M3 film review) | new agent | m3fix_video.notes.md | — |
+
+Recovery cron (session-only): hourly at :23. It reads resume-queue.md and resumes stopped RUNNING items. Recreate it
+after a session restart (CronList / CronCreate).
+
+---
+
+## Older content (2026-09-27 … 09-30)
+
+
 Written 2026-09-27 for the case where the weekly Claude usage limit runs out mid-build
 (weekly reset: **Wed Sep 30, 6 pm America/Los_Angeles**; session limit resets every ~5 h).
 Nothing is lost when a limit hits: work is saved in five layers.
