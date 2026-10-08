@@ -34,11 +34,16 @@ Paths: `ICON_SCRATCH` (default `~/.cache/shadow-six/icons`) holds `tex/`, `hdri/
 `dec/greenberet.glb` and `tools/blender/icons/stance-pose.json` for the stance figures. That file is the game's commando with the meshopt compression removed; make it with `scratch/gt/decode.mjs`.
 
 ## Conventions
-- A master is the ref box × 8 (cursors: 256 px, scope: 704 px). Tiers are ref × 2/3/4/6 for items, tools and stamps, and 32 ref px × 1/1.5/2/3/4
-  for cursors (cursors are sized in ref px and scale with the HUD). Knapsack items get their final ref box from post.py's visual-mass rule.
+- A master is the ref box × 8 (cursors: 256 px, scope: 704 px; the pack and the notebook binding × 6, the notebook page × 6). Tiers are
+  ref × 1/1.5/2/3/4/6 for every class (`post.LADDER`, up to what the master holds; stamps 1–16× from a 48× drawing), cursors sized in ref
+  px too (they scale with the HUD). The HUD picks a tier in JS by the device pixels an icon covers (`src/ui/icon-art.js` fitIcon), so a
+  tier must exist for uiScale 1–3 × DPR 1–2 and the phones' 0.7–1.2 × DPR 3 (up to 6×). Every file is lossless WebP (lossy WebP is
+  4:2:0: half-resolution colour on an icon drawn 1:1). Knapsack items get their final ref box from post.py's visual-mass rule.
+- The catcher shadow fades out towards the master's frame (`SHADOW_FADE`) instead of ending in the hard edge where the render cut it;
+  framing and the ref box still come from the unfaded composite.
 - Every knapsack item uses the one `item` camera; pose the prop instead (stand guns and tools upright, tilt flat kit towards the camera,
   yaw for a diagonal). The top-bar tools share one 41-ref-px slot height. `masters/raw/` holds intermediate renders post.py skips.
-  PNG fallbacks are written only for the two smallest tiers. The larger tiers are WebP only.
+  PNG fallbacks are written only for the `PNG_TIERS` (2×/3×, cursors 1×/1.5×). The other tiers are WebP only.
 - Long props are built along +X, muzzle or tip at +X, with the side profile in XZ. `D.group(rot=(-90, 0, 0))` lays a prop flat with its right side up.
 - Don't give a group a studio rig name (`cam`, `key`, `fill`, `rim`, `top`, `shadow_catcher`). The rig cleanup deletes objects with those names.
 - Mix nodes are wired by socket index (6/7 → 2). Procedural meshes have no UVs, so detail comes from bump maps, never tangent-space normal maps.

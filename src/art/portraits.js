@@ -85,6 +85,10 @@ export function portraitPhotoURL(role) {
   return _photos.get(role) || null;
 }
 
+/** Procedural portrait bitmap: `size` × this, at most PORTRAIT_MAX_PX (the photo portraits are 256 px). */
+export const PORTRAIT_SUPERSAMPLE = 3;
+export const PORTRAIT_MAX_PX = 384;
+
 /**
  * Portrait as a data URL (cached per role/size/variant). Returns '' outside the browser.
  * @param {string} role
@@ -96,9 +100,14 @@ export function getPortraitURL(role, opts = {}) {
   const size = opts.size ?? 96;
   const key = `${role}|${size}|${!!opts.disguised}|${!!opts.dead}`;
   if (_cache.has(key)) return _cache.get(key);
+  // `size` is the HUD's nominal px (the 40-ref-px face at uiScale 2); the bitmap carries PORTRAIT_SUPERSAMPLE × that so
+  // the face stays sharp at uiScale 3 or on a 2-3× screen (a size-px canvas there was upscaled 1.5-3×: pixelated)
+  const px = Math.min(PORTRAIT_MAX_PX, Math.round(size * PORTRAIT_SUPERSAMPLE));
   const c = document.createElement('canvas');
-  c.width = c.height = size;
-  drawPortrait(c.getContext('2d'), role, { ...opts, size });
+  c.width = c.height = px;
+  const ctx = c.getContext('2d');
+  ctx.scale(px / size, px / size);
+  drawPortrait(ctx, role, { ...opts, size });
   const url = c.toDataURL('image/png');
   _cache.set(key, url);
   return url;

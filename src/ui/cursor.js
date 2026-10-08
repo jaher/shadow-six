@@ -219,7 +219,7 @@ export class CursorLayer {
   _lensDom() {
     const s = this.hud.scale || 1;
     if (this.lens?.scale === s) return this.lens;
-    this.lens?.root.remove(); // HUD scale changed: rebuild for the right ring srcset
+    this.lens?.root.remove(); // HUD scale changed: rebuild at the new size (the ring's file follows it: icon-art.js fitIcon)
     const root = el('div', 'lens', this.root);
     root.innerHTML = (iconHTML('cursor/scope.ring', { scale: s }) || '') + RETICLE;
     const rng = el('div', 'rng', root);

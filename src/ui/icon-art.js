@@ -1,8 +1,13 @@
 /**
  * Rendered HUD icons (tools/blender/icons → assets/ui/icons): knapsack items, top-right tools with their state
  * variants, portrait stamps and cursors. Each icon ships at several pixel densities over its reference box
- * (items/tools/stamps 2×–6× ref px, cursors 1×–3× CSS px); `<img srcset>` lists them as x-descriptors for the
- * current UI scale, so the browser picks the tier for the screen's DPR (1080p, 1440p, 4K, zoom).
+ * (1×–6× ref px, stamps to 16×), lossless WebP. The tier is picked in JS by the pixels the icon covers: drawn CSS px
+ * per ref px × devicePixelRatio, the smallest tier at or above that (pickTier). Not by `srcset`: Chrome's x-descriptor
+ * choice takes the lower of two candidates up to their geometric mean (a 3× tier on a 3.4× need: 0.87 of the pixels).
+ * The markup starts from the UI scale (`--u` × `mult`); once laid out, fitIcon() measures the real drawn size (touch
+ * HUD scales --ut / --ub, a knapsack slot smaller than the ref box, the open notebook, a stamp over a portrait) and
+ * switches the file (installIconFit: one ResizeObserver over every icon, and a DPR watch for zoom / a monitor
+ * change). Never nearest-neighbour scaling (no pixelated image-rendering).
  * WebP first; if a file fails the image falls back to the PNG tier, then to the old inline SVG sketch.
  * @module ui/icon-art
  */
@@ -42,12 +47,15 @@ function tiers(e) {
   return Object.keys(e.t).sort((a, b) => tierDensity(a) - tierDensity(b));
 }
 
+/** Pixel rounding slack: a tier within 1 % of the need covers it (a 49.5-px box ships as 49 or 50 px). */
+export const FIT_SLACK = 0.99;
+
 /** Smallest tier whose density ≥ `need` (else the largest). `png`: only tiers with a PNG fallback. */
 export function pickTier(id, need, png = false) {
   const e = ICON_MANIFEST[id];
   if (!e) return null;
   const ks = tiers(e).filter((k) => !png || e.t[k][2]);
-  return ks.find((k) => tierDensity(k) >= need - 1e-6) || ks[ks.length - 1] || null;
+  return ks.find((k) => tierDensity(k) >= need * FIT_SLACK - 1e-6) || ks[ks.length - 1] || null;
 }
 
 /** URL of one file. */
@@ -60,13 +68,9 @@ export function needDensity(scale = 1, dpr = 1) {
   return Math.max(0.5, scale) * Math.max(1, dpr);
 }
 
-/** srcset (x-descriptors relative to CSS px at `scale`) + default src for an art id. */
-export function srcsetFor(id, scale = 1, dpr = 1) {
-  const e = ICON_MANIFEST[id];
-  if (!e) return null;
-  const s = Math.max(0.5, scale);
-  const set = tiers(e).map((k) => `${iconURL(id, k)} ${+(tierDensity(k) / s).toFixed(3)}x`).join(', ');
-  return { src: iconURL(id, pickTier(id, needDensity(s, dpr))), srcset: set };
+/** The tier for an icon drawn at `scale` CSS px per ref px on a `dpr` screen. */
+export function tierFor(id, scale = 1, dpr = 1) {
+  return pickTier(id, needDensity(scale, dpr));
 }
 
 /** Current UI scale (--u on :root) and device pixel ratio. */
@@ -75,7 +79,7 @@ export function currentScale() {
   const u = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--u'));
   return u > 0 ? u : 1;
 }
-const dprNow = () => (typeof devicePixelRatio === 'number' && devicePixelRatio > 0 ? devicePixelRatio : 1);
+export const dprNow = () => (typeof devicePixelRatio === 'number' && devicePixelRatio > 0 ? devicePixelRatio : 1);
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
@@ -89,9 +93,9 @@ export function iconHTML(id, { cls = '', fb = '', v = '', scale, mult = 1 } = {}
   if (!e) return fallbackFor(fb || id) || '';
   const cursor = id.startsWith('cursor/');
   const s = (scale ?? currentScale()) * mult;
-  const { src, srcset } = srcsetFor(id, s, dprNow());
+  const t = tierFor(id, s, dprNow());
   const [w, h] = e.b;
-  const attrs = [`class="ico${cls ? ` ${cls}` : ''}"`, `data-icon="${esc(id)}"`, `src="${esc(src)}"`, `srcset="${esc(srcset)}"`,
+  const attrs = [`class="ico${cls ? ` ${cls}` : ''}"`, `data-icon="${esc(id)}"`, `src="${esc(iconURL(id, t))}"`, `data-tier="${t}"`,
     `width="${w}" height="${h}"`, 'alt=""', 'draggable="false"', 'decoding="async"'];
   if (fb) attrs.push(`data-fb="${esc(fb)}"`);
   if (v) attrs.push(`data-v="${esc(v)}"`);
@@ -144,7 +148,7 @@ export function onIconError(img) {
   const id = img?.dataset?.icon;
   if (!id || !ICON_MANIFEST[id]) return false;
   const cursor = id.startsWith('cursor/');
-  const need = needDensity((cursor ? 1 : currentScale()) * (Number(img.dataset.mult) || 1), dprNow());
+  const need = needDensity(drawnScale(img) || (cursor ? 1 : currentScale()) * (Number(img.dataset.mult) || 1), dprNow());
   if (!img.dataset.png) {
     const t = pickTier(id, need, true);
     if (t) {
@@ -178,19 +182,119 @@ export function installIconFallback(doc = typeof document !== 'undefined' ? docu
   }, true);
 }
 
-/** Re-point every rendered icon under `root` at the tiers for a new UI scale (x-descriptors depend on it). */
+/** Point every rendered icon under `root` at the tier for a new UI scale: by its measured drawn size when laid out
+ *  (fitIcon), else by `scale` × its `mult`. */
 export function refreshIcons(root, scale = currentScale()) {
   if (!root?.querySelectorAll) return 0;
   let n = 0;
   for (const img of root.querySelectorAll('img.ico[data-icon]')) {
-    if (img.dataset.png || img.dataset.cursorArt) continue;
-    const r = srcsetFor(img.dataset.icon, scale * (Number(img.dataset.mult) || 1), dprNow());
-    if (!r || img.getAttribute('srcset') === r.srcset) continue;
-    img.setAttribute('srcset', r.srcset);
-    img.src = r.src;
-    n++;
+    if (img.dataset.png) continue;
+    if (drawnScale(img)) { if (fitIcon(img)) n++; continue; }
+    if (img.dataset.cursorArt) continue; // the cursor layer re-renders its sprite for a new scale
+    if (setTier(img, tierFor(img.dataset.icon, scale * (Number(img.dataset.mult) || 1), dprNow()))) n++;
   }
   return n;
+}
+
+/** Show tier `t` of an icon <img> (no-op when it already does). */
+function setTier(img, t) {
+  if (!t || img.dataset.tier === t) return false;
+  img.dataset.tier = t;
+  img.removeAttribute('srcset');
+  img.src = iconURL(img.dataset.icon, t);
+  return true;
+}
+
+/** Content box of a laid-out element in CSS px, or null: the larger of its layout box and its box on screen (an
+ *  enlarging transform counts; a card still scaling in from 0.96 does not shrink it, as nothing re-measures after). */
+function contentBox(el) {
+  const r = el?.getBoundingClientRect?.();
+  const w = Math.max(r?.width || 0, el?.offsetWidth || 0), h = Math.max(r?.height || 0, el?.offsetHeight || 0);
+  if (!(w > 0 && h > 0)) return null;
+  const cs = getComputedStyle(el);
+  const pw = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+  const ph = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+  return w - pw > 0 && h - ph > 0 ? [w - pw, h - ph] : null;
+}
+
+/**
+ * CSS px per ref px at which an icon <img> draws its art: its content box over the manifest ref box, by its
+ * object-fit (contain: the smaller ratio; cover / fill: the larger, so a stretched axis is never short of pixels).
+ * A state variant that is not laid out (`hidden`) takes the box of a laid-out sibling with the same ref box (the
+ * button's other states); null when neither is laid out.
+ */
+export function drawnScale(img) {
+  const e = ICON_MANIFEST[img?.dataset?.icon];
+  if (!e || typeof getComputedStyle !== 'function') return null;
+  let box = contentBox(img);
+  if (!box) {
+    for (const sib of img.parentElement?.children || []) {
+      const se = sib !== img && ICON_MANIFEST[sib.dataset?.icon];
+      if (se && se.b[0] === e.b[0] && se.b[1] === e.b[1] && (box = contentBox(sib))) break;
+    }
+  }
+  if (!box) return null;
+  const kx = box[0] / e.b[0], ky = box[1] / e.b[1];
+  const fit = getComputedStyle(img).objectFit;
+  const k = fit === 'contain' || fit === 'scale-down' ? Math.min(kx, ky) : Math.max(kx, ky);
+  return k > 0 && Number.isFinite(k) ? k : null;
+}
+
+/**
+ * Show the tier that covers every device pixel the icon is drawn over (drawnScale × DPR). Returns true when the file
+ * changed. Until the new file has loaded the browser keeps showing the old one (no blank frame).
+ */
+export function fitIcon(img) {
+  const id = img?.dataset?.icon;
+  if (!id || img.dataset.png || !ICON_MANIFEST[id]) return false;
+  const k = drawnScale(img);
+  if (!k) return false;
+  img.dataset.fit = k.toFixed(3);
+  return setTier(img, tierFor(id, k, dprNow()));
+}
+
+let fitRO = null;
+/**
+ * Fit every rendered icon in the document to its drawn size, now and whenever it is added or resized (UI scale,
+ * touch HUD scales, the notebook opening, a knapsack re-layout) or the DPR changes (browser zoom, another monitor).
+ * One ResizeObserver + one MutationObserver (idempotent). Swapping the file never changes layout (every icon has
+ * width/height attributes and a CSS box), so there is no resize loop.
+ */
+export function installIconFit(doc = typeof document !== 'undefined' ? document : null) {
+  if (fitRO || !doc?.documentElement || typeof ResizeObserver === 'undefined' || typeof MutationObserver === 'undefined') return false;
+  const refit = (img) => {
+    fitIcon(img);
+    // hidden state variants share the button box: they follow the laid-out one
+    for (const sib of img.parentElement?.children || []) if (sib !== img && sib.tagName === 'IMG' && sib.dataset?.icon) fitIcon(sib);
+  };
+  fitRO = new ResizeObserver((entries) => { for (const en of entries) refit(en.target); });
+  const each = (n, fn) => {
+    if (n?.nodeType !== 1) return;
+    if (n.matches('img.ico[data-icon]')) fn(n);
+    else if (n.firstElementChild) for (const i of n.querySelectorAll('img.ico[data-icon]')) fn(i);
+  };
+  const watch = (img) => fitRO.observe(img);
+  const unwatch = (img) => fitRO.unobserve(img);
+  new MutationObserver((recs) => {
+    for (const r of recs) {
+      for (const n of r.removedNodes) if (!n.isConnected) each(n, unwatch);
+      for (const n of r.addedNodes) if (n.isConnected) each(n, watch);
+    }
+  }).observe(doc.documentElement, { childList: true, subtree: true });
+  each(doc.documentElement, watch);
+  // a DPR change (zoom, a window dragged to another screen) resizes nothing in CSS px: refit everything on it
+  const watchDpr = () => {
+    if (typeof matchMedia !== 'function') return;
+    const mq = matchMedia(`(resolution: ${dprNow()}dppx)`);
+    const on = () => {
+      mq.removeEventListener?.('change', on);
+      for (const img of doc.querySelectorAll('img.ico[data-icon]')) refit(img);
+      watchDpr();
+    };
+    mq.addEventListener?.('change', on);
+  };
+  watchDpr();
+  return true;
 }
 
 const keep = new Map(); // url → HTMLImageElement (kept alive so the cache holds the decoded bitmaps)

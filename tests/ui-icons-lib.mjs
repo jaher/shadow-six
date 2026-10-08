@@ -31,8 +31,14 @@ export async function kitUp(page, role, inv) {
     hud.knapsack.sig = '';
     hud.update(0.01);
     g.render();
-    const imgs = [...document.querySelectorAll('.ui-hud img.ico')];
-    await Promise.all(imgs.map((i) => (i.decode ? i.decode().catch(() => null) : null)));
+    // each icon then switches to the file for the size it is drawn at (icon-art.js fitIcon, after layout): let that
+    // settle and the new files decode
+    for (let k = 0; k < 4; k++) {
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const imgs = [...document.querySelectorAll('.ui-hud img.ico')];
+      await Promise.all(imgs.map((i) => (i.decode ? i.decode().catch(() => null) : null)));
+      if (imgs.every((i) => i.complete)) break;
+    }
     return [...document.querySelectorAll('.hud-knapsack .item')].map((b) => b.dataset.icon);
   }, [role, inv]);
 }
@@ -45,10 +51,17 @@ export async function probeIcons(page) {
       const r = img.getBoundingClientRect();
       if (img.hidden || !r.width || getComputedStyle(img).visibility === 'hidden') continue;
       const box = img.parentElement.getBoundingClientRect();
+      const cs = getComputedStyle(img);
+      const cw = r.width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), ch = r.height - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+      const nw = img.naturalWidth, nh = img.naturalHeight;
+      // drawn size of the art inside the box (object-fit), and how many bitmap px it has per device px drawn
+      const k = !nw ? 0 : cs.objectFit === 'contain' ? Math.min(cw / nw, ch / nh) : cs.objectFit === 'cover' ? Math.max(cw / nw, ch / nh) : 0;
+      const dw = k ? nw * k : cw, dh = k ? nh * k : ch;
       out.push({
         icon: img.dataset?.icon || '', tag: img.tagName, fallback: img.classList.contains('ico-fallback'), mult: Number(img.dataset?.mult || 1),
         ok: img.tagName === 'IMG' && img.complete && img.naturalWidth > 0, src: img.currentSrc || img.src || '',
-        w: r.width, h: r.height, pw: box.width, ph: box.height, nat: [img.naturalWidth, img.naturalHeight],
+        w: r.width, h: r.height, pw: box.width, ph: box.height, nat: [nw, nh], tier: img.dataset?.tier || '',
+        cover: nw ? Math.min(nw / (dw * devicePixelRatio), nh / (dh * devicePixelRatio)) : 0,
       });
     }
     return out;
@@ -83,9 +96,13 @@ export function checkProbe(t, probe, tier, label) {
   t(probe.length >= 8, `${label}: ${probe.length} icons visible`);
   const bad = probe.filter((p) => !p.ok || p.fallback);
   t(!bad.length, `${label}: every icon loaded as an image (bad: ${JSON.stringify(bad.slice(0, 3))})`);
-  const scaled = probe.filter((p) => p.mult === 1 && /\/(item|tool)\//.test(p.src) && !/\.(mini)|cartridge/.test(p.icon));
-  const wrong = scaled.filter((p) => !p.src.includes(`@${tier}.`) && !(tier === '6x' && p.src.includes('@4x.')));
-  t(scaled.length > 5 && !wrong.length, `${label}: items/tools use the @${tier} files (${scaled.length} checked; wrong: ${wrong.map((p) => p.src.split('/').pop()).join(', ')})`);
+  // top-bar / bottom tools are drawn at their ref box × the UI scale: exactly the @tier file; knapsack items sit in
+  // smaller slots and take the smallest tier that covers the size they are drawn at (icon-art.js fitIcon)
+  const tools = probe.filter((p) => /^tool\/(camera|help|lamp|eye|hand|stance|pack)/.test(p.icon) && !p.fallback);
+  const wrong = tools.filter((p) => !p.src.includes(`@${tier}.`));
+  t(tools.length >= 5 && !wrong.length, `${label}: tools use the @${tier} files (${tools.length} checked; wrong: ${wrong.map((p) => p.src.split('/').pop()).join(', ')})`);
+  const low = probe.filter((p) => p.ok && !p.fallback && p.cover < 0.98);
+  t(!low.length, `${label}: every icon has ≥ the device px it covers (low: ${low.map((p) => `${p.src.split('/').pop()} ${p.cover.toFixed(2)}`).join(', ')})`);
   // the notebook page is one full-size sheet clipped by the folding page element (by design)
   const off = probe.filter((p) => p.pw && Math.abs(p.w - p.pw) > 1.5 && !/count/.test(p.icon) && !p.icon.includes('.mini') && !p.icon.includes('cartridge') && !p.icon.startsWith('stamp/') && p.icon !== 'tool/notebook.page');
   t(!off.length, `${label}: icons fill their CSS box (no intrinsic-size layout) ${JSON.stringify(off.slice(0, 2))}`);

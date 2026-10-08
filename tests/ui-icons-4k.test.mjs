@@ -30,13 +30,14 @@ export default async function uiIcons4k(page0, t) {
         await kitUp(page, role, inv);
         checkProbe(t, await probeIcons(page), c.tier, `${c.name} ${role}`);
       }
-      // the DPR-2 page must actually draw more pixels than 1080p: naturalWidth ≥ 2 × CSS width for items
-      // (naturalWidth of a srcset image is already divided by its x-descriptor, so reload the chosen file bare)
+      // the DPR-2 page must actually draw more pixels than 1080p: bitmap px ≥ DPR × the CSS px the item is drawn over
+      // (object-fit: contain inside its slot)
       const dens = await page.evaluate(() => Promise.all([...document.querySelectorAll('.hud-knapsack .item img.ico')].map(async (i) => {
         const im = new Image();
         im.src = i.currentSrc;
         await im.decode();
-        return im.naturalWidth / i.getBoundingClientRect().width;
+        const r = i.getBoundingClientRect(), k = Math.min(r.width / im.naturalWidth, r.height / im.naturalHeight);
+        return 1 / k;
       })));
       t(dens.length && dens.every((d) => d >= c.dpr - 0.05), `${c.name}: item bitmaps ≥ ${c.dpr}× their CSS size (${dens.map((d) => d.toFixed(2)).join(', ')})`);
       await page.mouse.move(c.vp.width * 0.4, c.vp.height * 0.6);

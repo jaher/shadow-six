@@ -19,7 +19,8 @@ import { isTouchUI } from './touch.js';
 import { UI } from './ui-config.js';
 import { catalogueEntry, formatMissionDate } from './catalogue.js';
 
-const RES = 2; // canvas px per ref px
+const RES = 2; // canvas px per ref px at the least (the overlay strokes below are sized for it)
+const RES_MAX = 6; // the open page's drawn ref px × DPR, up to this (uiScale 3 at DPR 2)
 const FIT_GAP = 6; // CSS px between the open page and the bag on a phone
 const NB_MIN_K = 0.5;
 
@@ -37,11 +38,8 @@ export class Notebook {
     }
     this.cv = el('canvas', 'sketch', this.page);
     this.ov = el('canvas', 'marks', this.page);
-    const [ow, oh] = UI.notebook.open;
-    for (const c of [this.cv, this.ov]) {
-      c.width = ow * RES;
-      c.height = oh * RES;
-    }
+    this.res = 0;
+    this._sizeCanvases(RES);
     this.corner = tip(el('button', 'corner', this.root), 'BRIEFING NOTES (CTRL+B)');
     this.corner.type = 'button';
     this.zoom = 1;
@@ -146,7 +144,33 @@ export class Notebook {
     this.open = on;
     if (on) this.fit();
     this.root.classList.toggle('open', on);
-    if (on) this.redraw();
+    if (on) {
+      this._sizeCanvases();
+      this.redraw();
+    }
+  }
+
+  /**
+   * Canvas px per ref px for the open page: the size it is drawn at (the paper render is 177 ref px wide at the open
+   * size, × --u / --ut and the touch fit --nbk) × DPR, never below RES. A fixed 2 left the map upscaled 1.5× on a 3×
+   * phone and 2× on a 4K-at-200 % screen (blurry sketch, soft dots). Resizes both canvases when it changes.
+   */
+  _sizeCanvases(res) {
+    if (!res) {
+      const paper = this.page?.querySelector?.(':scope > .ico.paper');
+      const k = (paper?.clientWidth || 0) / 177 || (this.hud.scale || 1) * (Number(this._k) || 1);
+      const dpr = typeof devicePixelRatio === 'number' && devicePixelRatio > 0 ? devicePixelRatio : 1;
+      res = Math.max(RES, Math.min(RES_MAX, Math.ceil(k * dpr * 4) / 4));
+    }
+    if (res === this.res) return false;
+    this.res = res;
+    const [ow, oh] = UI.notebook.open;
+    for (const c of [this.cv, this.ov]) {
+      c.width = Math.round(ow * res);
+      c.height = Math.round(oh * res);
+    }
+    this._win = null; // the sketch must be drawn again
+    return true;
   }
 
   /**
@@ -224,26 +248,27 @@ export class Notebook {
     const w = this.hud.world;
     if (!w || !this.open) return;
     this.fit(); // a resize / rotation, or the carry buttons came up
+    this._sizeCanvases();
     const v = this.window();
     if (`${v.x0.toFixed(1)},${v.z0.toFixed(1)},${this.zoom}` !== this._win) this.redraw();
     const ctx = this.ov.getContext('2d');
-    const cw = this.ov.width, ch = this.ov.height;
+    const cw = this.ov.width, ch = this.ov.height, q = this.res / RES; // strokes and dots keep their ref size
     const map = (x, z) => [((x - v.x0) / v.w) * cw, ((z - v.z0) / v.d) * ch];
     ctx.clearRect(0, 0, cw, ch);
     const fp = this.hud.game.cameraController?.groundFootprint?.(0) || [];
     if (fp.length === 4) {
       ctx.strokeStyle = '#000';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 2 * q;
       ctx.beginPath();
       fp.forEach((p, i) => ctx[i ? 'lineTo' : 'moveTo'](...map(p.x, p.z)));
       ctx.closePath();
       ctx.stroke();
     }
     ctx.strokeStyle = '#b01818';
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 2.5 * q;
     for (const p of this.objectivePoints(w)) {
       ctx.beginPath();
-      ctx.arc(...map(p.x, p.z), 9, 0, Math.PI * 2);
+      ctx.arc(...map(p.x, p.z), 9 * q, 0, Math.PI * 2);
       ctx.stroke();
     }
     const dot = (list, color, r) => {
@@ -251,7 +276,7 @@ export class Notebook {
       for (const u of list) {
         if (u.alive === false || u.removed || u.state === 'inVehicle') continue;
         ctx.beginPath();
-        ctx.arc(...map(u.x, u.z), r, 0, Math.PI * 2);
+        ctx.arc(...map(u.x, u.z), r * q, 0, Math.PI * 2);
         ctx.fill();
       }
     };

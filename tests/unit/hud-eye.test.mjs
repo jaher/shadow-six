@@ -46,7 +46,7 @@ test('eye sheets: one per tool tier, grid × cell sized exactly, cell inside the
     assert.equal(h, EYE_ANIM.rows * Math.round((y1 - y0) * d), `${k} height`);
     bytes += statSync(f).size;
   }
-  assert.ok(bytes < 1.5e6, `sheets ${(bytes / 1e6).toFixed(2)} MB`);
+  assert.ok(bytes < 2.6e6, `sheets ${(bytes / 1e6).toFixed(2)} MB (lossless, 1×–6×; a session loads one)`);
 });
 
 test('eye frames: centre + 16 gaze directions at both pupil sizes, and blink stages over every gaze', () => {
@@ -74,7 +74,8 @@ test('eye frames: centre + 16 gaze directions at both pupil sizes, and blink sta
 });
 
 test('HiDPI sheet selection: the smallest tier that covers UI scale × DPR, else the largest', () => {
-  assert.equal(eyeSheetTier(1, 1), '2x');
+  assert.equal(eyeSheetTier(1, 1), '1x', '720p');
+  assert.equal(eyeSheetTier(1.5, 1), '1p5x', '768p laptops');
   assert.equal(eyeSheetTier(2, 1), '2x', '1080p');
   assert.equal(eyeSheetTier(2.25, 1), '3x');
   assert.equal(eyeSheetTier(3, 1), '3x', '1440p');

@@ -152,10 +152,13 @@ export class EyeAnimator {
     return typeof performance !== 'undefined' ? performance.now() : Date.now();
   }
 
-  /** Point the sheet at the tier for this UI scale; the eye animates once that sheet has loaded. */
+  /** Point the sheet at the tier for the size the eye is drawn at (the button is the 52×41 tool box: its measured
+   *  width over 52 when laid out, which follows the touch bar scale --ut too; else `scale`); the eye animates once that
+   *  sheet has loaded. */
   refresh(scale = 1) {
     if (!this.el) return null;
-    const tier = eyeSheetTier(scale, this.dpr());
+    const w = this.btn?.clientWidth;
+    const tier = eyeSheetTier(w > 0 ? w / EYE_ANIM.box[0] : scale, this.dpr());
     if (tier === this.tier) return tier;
     this.tier = tier;
     const url = eyeSheetURL(tier);

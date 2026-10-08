@@ -194,7 +194,7 @@ def _nbpage(mode):
     red = M.solid('margin_red', M.lin((0.62, 0.18, 0.15)), rough=0.8)
     P = [pg, D.box('margin', (0.5 * MM, 0.2 * MM, 215 * MM), red, loc=(-60 * MM, -0.45 * MM, 0), bevel=0)]
     D.group('pageg', P)
-    S.shoot('notebook.page', 'tool', box=(177, 215), preset='front', margin=0.0, shadow=False, scale=4, extra={'nocrop': True, 'tiers': [2, 3, 4]},
+    S.shoot('notebook.page', 'tool', box=(177, 215), preset='front', margin=0.0, shadow=False, scale=6, extra={'nocrop': True},
             light={'rim': 0.0})
 
 

@@ -1,12 +1,14 @@
 # vector.py - pure-graphic cursors (arrow, crosshair, target, tracking arrows, forbidden overlay, move sparkle, scope
-# reticle) and portrait-state ink stamps, drawn at 16x and Lanczos-downsampled. Writes out/<cls>/<id>@<tier>.webp|png
-# and merges entries into out/manifest.json.  usage: python3 vector.py
+# reticle) and portrait-state ink stamps, drawn at 16x (stamps 48x) and Lanczos-downsampled. Writes
+# out/<cls>/<id>@<tier>.webp|png (lossless WebP) and merges entries into out/manifest.json.  usage: python3 vector.py
 import os, json, math, random
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageChops
 import post as P
 
 SS = 16            # supersampling per ref px
+STAMP_SS = 48      # stamps: a 16-ref-px stamp is drawn up to 40 ref px (the dead man's skull, the cell bars: 2.5x) -> tiers to 16x
+STAMP_TIERS = [1, 1.5, 2, 3, 4, 6, 8, 12, 16]
 OUT = P.OUT
 
 
@@ -129,12 +131,12 @@ def reticle(col):
 
 
 def distress(im, seed, amount=0.28):
-    """Rubber-stamp ink: uneven density + speckle voids + slightly rough edges."""
-    rnd = np.random.default_rng(seed); w, h = im.size
-    n = rnd.random((h // 48 + 1, w // 48 + 1)).astype(np.float32)
+    """Rubber-stamp ink: uneven density + speckle voids + slightly rough edges (the same pattern at any SS)."""
+    rnd = np.random.default_rng(seed); w, h = im.size; q = SS / 16
+    n = rnd.random((int(h // (48 * q)) + 1, int(w // (48 * q)) + 1)).astype(np.float32)
     n = np.asarray(Image.fromarray((n * 255).astype(np.uint8)).resize((w, h), Image.BICUBIC), np.float32) / 255
-    sp = (rnd.random((h // 6, w // 6)) > 0.992).astype(np.uint8) * 255
-    sp = np.asarray(Image.fromarray(sp).resize((w, h), Image.NEAREST).filter(ImageFilter.GaussianBlur(4)), np.float32) / 255
+    sp = (rnd.random((int(h // (6 * q)), int(w // (6 * q)))) > 0.992).astype(np.uint8) * 255
+    sp = np.asarray(Image.fromarray(sp).resize((w, h), Image.NEAREST).filter(ImageFilter.GaussianBlur(4 * q)), np.float32) / 255
     a = np.asarray(im.split()[3], np.float32) / 255
     a = a * np.clip(1 - amount * (1 - n) - 0.8 * sp, 0, 1)
     im = im.copy(); im.putalpha(Image.fromarray((a * 255).astype(np.uint8)))
@@ -143,6 +145,7 @@ def distress(im, seed, amount=0.28):
 
 def stamp(name, ink=(34, 28, 24)):
     im = canvas(16); d = ImageDraw.Draw(im); f = ink + (240,)
+    qw = lambda v: int(v * 16) * SS // 16   # line widths quantised as at 16x: the same stamps at any supersampling
     if name == 'vehicle':
         d.polygon(S([(1, 10), (1, 5), (9, 5), (9, 7), (12, 7), (15, 9.5), (15, 12), (1, 12)]), fill=f)
         for x in (4, 12): d.ellipse(S([(x - 2, 10.5), (x + 2, 14.5)]), fill=f)
@@ -155,33 +158,36 @@ def stamp(name, ink=(34, 28, 24)):
         d.rectangle(S([(7.4, 2.5), (8.6, 9)]), fill=f); d.rectangle(S([(5.5, 1), (10.5, 2.8)]), fill=f)
     elif name == 'bubbles':
         for cx, cy, r in ((6, 11, 3.2), (11, 6, 2.4), (5, 4, 1.6), (12, 12, 1.3)):
-            d.ellipse(S([(cx - r, cy - r), (cx + r, cy + r)]), outline=f, width=int(1.3 * SS))
+            d.ellipse(S([(cx - r, cy - r), (cx + r, cy + r)]), outline=f, width=qw(1.3))
             d.ellipse(S([(cx - r * 0.45, cy - r * 0.6), (cx - r * 0.05, cy - r * 0.2)]), fill=f)      # ink highlight tick
     elif name == 'skull':
         d.ellipse(S([(2.5, 1), (13.5, 11.5)]), fill=f); d.rectangle(S([(5, 9), (11, 14)]), fill=f)
         for x in (4.5, 8.8): d.ellipse(S([(x, 5), (x + 2.8, 8.2)]), fill=(0, 0, 0, 0))
         d.polygon(S([(8, 8.6), (7, 10.4), (9, 10.4)]), fill=(0, 0, 0, 0))
-        for x in (6.2, 8.0, 9.8): d.line(S([(x, 11.6), (x, 14)]), fill=(0, 0, 0, 0), width=int(0.6 * SS))
+        for x in (6.2, 8.0, 9.8): d.line(S([(x, 11.6), (x, 14)]), fill=(0, 0, 0, 0), width=qw(0.6))
     elif name == 'bars':      # cell window: frame + bars, stamped in the same black ink
-        d.rectangle(S([(0.5, 0.5), (15.5, 15.5)]), outline=f, width=int(1.6 * SS))
+        d.rectangle(S([(0.5, 0.5), (15.5, 15.5)]), outline=f, width=qw(1.6))
         for x in (4.2, 7.3, 10.4):
             d.rectangle(S([(x, 0.5), (x + 1.5, 15.5)]), fill=f)
         d.rectangle(S([(0.5, 7.0), (15.5, 8.6)]), fill=f)
     return distress(im, sum(map(ord, name)))
 
 
-def emit(cls, iid, im, box, hot=None, tiers=None):
+def emit(cls, iid, im, box, hot=None, tiers=None, ss_min=2):
     """Downsample the SS-res drawing to each tier (Lanczos, linear light) and save + manifest entry."""
     arr = np.asarray(im, np.float32) / 255
     tiers = tiers or P.TIERS[cls if cls in P.TIERS else 'item']
+    top = min(im.width / box[0], im.height / box[1]) / ss_min + 0.02     # ImageDraw is aliased: keep >= 2x supersampling
+    tiers = [t for t in tiers if t <= top]
     os.makedirs(os.path.join(OUT, cls), exist_ok=True); res = []
     for t in tiers:
-        w, h = int(round(box[0] * t)), int(round(box[1] * t))
+        w, h = P.tier_px(box[0], t), P.tier_px(box[1], t)
         pim = P.to_pil(P.resize(arr, w, h), sharpen=False)
-        tag = ('%gx' % t).replace('.', 'p'); base = os.path.join(OUT, cls, f'{iid}@{tag}')
-        pim.save(base + '.webp', 'WEBP', quality=92, method=6)
-        png = t in sorted(tiers)[:2]
+        tag = P.tier_tag(t); base = os.path.join(OUT, cls, f'{iid}@{tag}')
+        P.save_webp(pim, base + '.webp')
+        png = t in P.PNG_TIERS.get(cls if cls in P.PNG_TIERS else 'item', ())
         if png: P.save_png(pim, base + '.png')
+        elif os.path.exists(base + '.png'): os.remove(base + '.png')
         res.append((tag, w, h, os.path.getsize(base + '.webp'), os.path.getsize(base + '.png') if png else 0))
     meta = {'cls': cls, 'box': list(box), 'master': [im.width, im.height]}
     if hot: meta['hot'] = [hot[0] * im.width / box[0], hot[1] * im.height / box[1]]
@@ -207,7 +213,7 @@ def scope(col, tag):
     m = Image.fromarray(((d < 0.80) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.5))
     ra = ImageChops.multiply(ret.split()[3], m); ret.putalpha(ra)
     base.alpha_composite(ret)
-    return emit('cursor', f'scope.{tag}', base, (88, 88), hot=(44, 44))
+    return emit('cursor', f'scope.{tag}', base, (88, 88), hot=(44, 44), ss_min=1)   # rendered ring: already anti-aliased
 
 
 if __name__ == '__main__':
@@ -218,7 +224,8 @@ if __name__ == '__main__':
         im, hot = sparkle(fr); man[f'cursor/sparkle.{fr}'] = emit('cursor', f'sparkle.{fr}', im, (28, 28), hot)
     man['cursor/scope.ok'] = scope((57, 211, 83, 255), 'ok')
     man['cursor/scope.bad'] = scope((226, 40, 34, 255), 'bad')
+    SS = STAMP_SS
     for s_ in ('vehicle', 'house', 'shovel', 'bubbles', 'skull', 'bars'):
-        man[f'stamp/{s_}'] = emit('stamp', s_, stamp(s_), (16, 16), tiers=[2, 3, 4, 6])
+        man[f'stamp/{s_}'] = emit('stamp', s_, stamp(s_), (16, 16), tiers=STAMP_TIERS)
     json.dump(man, open(mpath, 'w'), indent=1, sort_keys=True)
     print('vector icons ->', OUT)

@@ -1,13 +1,20 @@
 # post.py - masters (Blender renders) -> shipped icons: grade, contact shadow, soft dark halo, Lanczos in linear light,
-# unsharp per tier, WebP (alpha) + PNG fallback.  usage: python3 post.py [id-glob ...]   (system python: numpy + Pillow)
-import os, sys, json, glob, fnmatch
+# unsharp per tier, lossless WebP (alpha) + PNG fallback.  usage: python3 post.py [id-glob ...]   (system python: numpy + Pillow)
+import os, sys, json, glob, fnmatch, math
 import numpy as np
 from PIL import Image, ImageFilter
 
 SCRATCH = os.environ.get('ICON_SCRATCH', os.path.expanduser('~/.cache/shadow-six/icons'))
 MASTERS = os.path.join(SCRATCH, 'masters'); OUT = os.path.join(SCRATCH, 'out')
-TIERS = {'item': [2, 3, 4, 6], 'tool': [2, 3, 4, 6], 'badge': [2, 3, 4, 6], 'cursor': [1, 1.5, 2, 3, 4]}   # cursors scale with the UI
+# Pixel densities over the ref box. The HUD picks the tier by the size an icon is actually drawn at (icon-art.js
+# fitIcon): uiScale 1-3 x DPR 1-2 on desktops (1366x768 = 1.5, 1080p = 2, 4K@150 % = 4.5, 5K = 6), 0.7-1.2 x DPR 2.6-3 on
+# phones (up to 3.6); knapsack items draw at ~0.65 of their box. 1x/1.5x keep 720p / 768p laptops prefiltered instead of
+# browser-downscaled. A tier is only written when the master holds that many pixels (MAX_TIER: never upsampled).
+LADDER = [1, 1.5, 2, 3, 4, 6]
+TIERS = {'item': LADDER, 'tool': LADDER, 'badge': LADDER, 'cursor': LADDER}   # cursors scale with the UI
+PNG_TIERS = {'item': (2, 3), 'tool': (2, 3), 'badge': (2, 3), 'cursor': (1, 1.5)}   # fallbacks for browsers without WebP
 SHADOW = {'item': 0.42, 'tool': 0.30, 'badge': 0.0, 'cursor': 0.30}
+SHADOW_FADE = 0.16   # the catcher shadow fades out over this share of the master's short side before the master's edge
 
 
 def s2l(x): return np.where(x <= 0.04045, x / 12.92, ((x + 0.055) / 1.055) ** 2.4)
@@ -62,15 +69,28 @@ EDGE = {  # (dark contour width, opacity) in @2x device px; light outer contour 
 }
 
 
-def compose(meta, obj, sh, cls, px_per_ref, halo=None):
+def edge_fade(h, w, frac=SHADOW_FADE):
+    """1 inside, smoothstep to 0 at the frame edge over `frac` of the short side: a shadow the render frame cut off
+    fades out instead of ending in a hard straight edge."""
+    f = max(1.0, frac * min(h, w))
+    y = np.minimum(np.arange(h), np.arange(h)[::-1]).astype(np.float32)
+    x = np.minimum(np.arange(w), np.arange(w)[::-1]).astype(np.float32)
+    d = np.minimum(y[:, None], x[None, :]) / f
+    d = np.clip(d, 0, 1)
+    return d * d * (3 - 2 * d)
+
+
+def compose(meta, obj, sh, cls, px_per_ref, halo=None, fade=True):
     """Object over (contact shadow + crisp dark contour [+ light outer contour for cursors]).
-    Straight-alpha sRGB float arrays at master size. `halo` = (width, opacity) overrides the dark contour."""
+    Straight-alpha sRGB float arrays at master size. `halo` = (width, opacity) overrides the dark contour.
+    `fade`: the shadow fades out towards the master's frame (no hard edge where the render cut it)."""
     rgb, a = grade(obj[..., :3]), obj[..., 3]
     unit = meta['master'][0] / meta['box'][0] / 2.0         # master px per @2x device px (ref px / 2)
     if cls in ('item', 'tool', 'cursor') and not meta.get('vignette'):
         rgb = edge_light(rgb, a, unit, meta.get('edge_light', 0.22 if cls != 'tool' else 0.16))
     if sh is not None:
         s = np.clip((sh[..., 3] - a) / np.maximum(1 - a, 1e-3), 0, 1) * SHADOW[cls]
+        if fade: s = s * edge_fade(*s.shape)
     else:
         s = np.zeros_like(a)
     (dw, do), light = EDGE.get(cls, EDGE['item'])
@@ -113,10 +133,11 @@ def to_pil(img, sharpen=True):
     return im
 
 
-def autocrop(img, meta, margin=0.035):
+def autocrop(img, meta, margin=0.035, ref=None):
     """Crop to the alpha bbox and pad back to the box aspect with a uniform margin (consistent framing for every icon).
-    Knapsack items (meta.slot) keep their own tight aspect instead; mass_box then sizes their ref box."""
-    a = img[..., 3]; ys, xs = np.nonzero(a > 0.02)
+    Knapsack items (meta.slot) keep their own tight aspect instead; mass_box then sizes their ref box.
+    `ref`: take the bbox from this image's alpha instead (the unfaded shadow: framing and box stay as they were)."""
+    a = (img if ref is None else ref)[..., 3]; ys, xs = np.nonzero(a > 0.02)
     if len(xs) == 0: return img, meta
     x0, x1, y0, y1 = xs.min(), xs.max() + 1, ys.min(), ys.max() + 1
     bw, bh = meta['box']; asp = bw / bh
@@ -191,8 +212,29 @@ STATEFUL = ('camera', 'help', 'hand', 'notebook', 'stance.crawl', 'stance.stand'
 
 
 def save_png(im, path):
-    """PNG fallback (8-bit RGBA). WebP is primary; fallbacks ship only for the two base tiers (see build)."""
+    """PNG fallback (8-bit RGBA). WebP is primary; fallbacks ship only for the PNG_TIERS (see build)."""
     im.save(path, optimize=True)
+
+
+def save_webp(im, path):
+    """Lossless WebP: lossy WebP is always 4:2:0, which halves the colour resolution of a 1:1 icon (smeared brass rims,
+    grey irises, blocky edges). Lossless keeps every pixel; the icons stay small (a few KB to a few tens of KB)."""
+    im.save(path, 'WEBP', lossless=True, quality=100, method=6, exact=False)
+
+
+def tier_tag(t):
+    return ('%gx' % t).replace('.', 'p')
+
+
+def tier_px(ref, t):
+    """Pixels of a ref-px length at density t, half up (Python's round(10.5) is 10: a 7-ref-px glyph at 1.5x would
+    ship 10 px for 10.5 device px)."""
+    return int(math.floor(ref * t + 0.5))
+
+
+def max_tier(img, meta):
+    """Highest density the master supports (master px per ref px)."""
+    return min(img.shape[1] / meta['box'][0], img.shape[0] / meta['box'][1])
 
 
 def build(meta_path, variant_fx=None, suffix='', tiers=None):
@@ -205,23 +247,29 @@ def build(meta_path, variant_fx=None, suffix='', tiers=None):
         d = np.sqrt(((xx - w_ / 2) / (w_ / 2)) ** 2 + ((yy - h_ / 2) / (h_ / 2)) ** 2)
         obj = obj.copy(); fall = np.clip((1.0 - d) / 0.55, 0, 1) ** 1.3
         obj[..., :3] *= fall[..., None]; obj[..., 3] *= np.clip((1.0 - d) / 0.06, 0, 1)
-    full = compose(meta, obj, sh, cls, None, meta.get('halo') or ((0.0, 0.0) if meta.get('vignette') else None))
+    halo = meta.get('halo') or ((0.0, 0.0) if meta.get('vignette') else None)
+    full = compose(meta, obj, sh, cls, None, halo)
     if not meta.get('vignette') and not meta.get('nocrop'):
-        full, meta = autocrop(full, meta, 0.07 if cls == 'tool' else 0.035)
-        meta = mass_box(full, meta)
+        ref = compose(meta, obj, sh, cls, None, halo, fade=False) if sh is not None else None
+        m0 = meta
+        full, meta = autocrop(full, m0, 0.07 if cls == 'tool' else 0.035, ref)
+        # framing and ref box from the unfaded composite: every icon keeps its box and placement
+        meta = mass_box(full if ref is None else autocrop(ref, m0, 0.07 if cls == 'tool' else 0.035)[0], meta)
     if meta.get('glow'):
         full = glow(full, meta['glow'], full.shape[1] * 0.05, 0.9)
     if variant_fx: full = variant_fx(full)
     os.makedirs(os.path.join(OUT, cls), exist_ok=True)
+    top = max_tier(full, meta) + 0.02
+    want = tiers or TIERS[cls]
+    tl = [t for t in want if t <= top] or [min(want)]
     res = []
-    for t in tiers or meta.get('tiers', TIERS[cls]):
-        w, h = int(round(meta['box'][0] * t)), int(round(meta['box'][1] * t))
+    for t in tl:
+        w, h = tier_px(meta['box'][0], t), tier_px(meta['box'][1], t)
         im = to_pil(resize(full, w, h))
-        tag = ('%gx' % t).replace('.', 'p')
+        tag = tier_tag(t)
         base = os.path.join(OUT, cls, f'{iid}{suffix}@{tag}')
-        im.save(base + '.webp', 'WEBP', quality=90, method=6, exact=False)
-        tl = tiers or meta.get('tiers', TIERS[cls])
-        png = t in sorted(tl)[:2]
+        save_webp(im, base + '.webp')
+        png = t in PNG_TIERS.get(cls, ())
         if png: save_png(im, base + '.png')
         elif os.path.exists(base + '.png'): os.remove(base + '.png')
         res.append((tag, w, h, os.path.getsize(base + '.webp'), os.path.getsize(base + '.png') if png else 0))
@@ -254,7 +302,7 @@ if __name__ == '__main__':
             if meta['cls'] == 'tool' and iid in STATEFUL:
                 u = meta['master'][0] / meta['box'][0] / 2.0
                 for vn, fx in VARIANTS.items():
-                    m2, r2 = build(mp, lambda im, fx=fx: fx(im, u), suffix='.' + vn, tiers=[2, 3, 4])
+                    m2, r2 = build(mp, lambda im, fx=fx: fx(im, u), suffix='.' + vn)
                     man[f"tool/{iid}.{vn}"] = manifest_entry(m2, r2)
             print(meta['cls'], iid, ' '.join(f'{t}:{w}x{h}:{wb // 1024}k' for t, w, h, wb, pb in res))
     json.dump(man, open(mpath, 'w'), indent=1, sort_keys=True)

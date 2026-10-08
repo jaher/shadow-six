@@ -4,7 +4,7 @@ import { existsSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { ITEMS, BCD_ITEMS } from '../../src/items.js';
 import { ICON_MANIFEST } from '../../src/ui/icon-manifest.js';
-import { itemArt, pickTier, iconURL, srcsetFor, tierDensity, fallbackFor, COUNT_ART, toolHTML, iconHTML } from '../../src/ui/icon-art.js';
+import { itemArt, pickTier, iconURL, tierFor, tierDensity, fallbackFor, COUNT_ART, toolHTML, iconHTML } from '../../src/ui/icon-art.js';
 import { packLayout, PACK_AREA } from '../../src/ui/knapsack-model.js';
 import { CURSOR_ART, cursorArt } from '../../src/ui/cursor-sprites.js';
 
@@ -35,7 +35,7 @@ test('every inventory item id resolves to a rendered image at every UI scale × 
   for (const a of Object.values(COUNT_ART)) assert.ok(ICON_MANIFEST[a], `count glyph ${a}`);
 });
 
-test('every manifest file exists, is small, and the srcset covers 1080p and 4K', () => {
+test('every manifest file exists, is small, and the tiers cover 1080p and 4K', () => {
   let bytes = 0;
   for (const [id, e] of Object.entries(ICON_MANIFEST)) {
     for (const [k, [w, h, png]] of Object.entries(e.t)) {
@@ -45,10 +45,10 @@ test('every manifest file exists, is small, and the srcset covers 1080p and 4K',
       if (png) bytes += statSync(file(iconURL(id, k, 'png'))).size;
       assert.ok(Math.abs(w - e.b[0] * tierDensity(k)) <= 1 && Math.abs(h - e.b[1] * tierDensity(k)) <= 1, `${id}@${k} is ${w}×${h}`);
     }
-    const { srcset } = srcsetFor(id, 2, 1);
-    assert.ok(srcset.split(',').length === Object.keys(e.t).length, `${id} srcset lists every tier`);
+    assert.ok(e.t[tierFor(id, 2, 1)], `${id} has a tier for 1080p`);
   }
-  assert.ok(bytes < 6e6, `icon set ${(bytes / 1e6).toFixed(2)} MB < 6 MB`);
+  // lossless WebP 1×–6× (stamps to 16×) + PNG fallbacks for 2×/3× (cursors 1×/1.5×); a session loads one tier per icon
+  assert.ok(bytes < 16e6, `icon set ${(bytes / 1e6).toFixed(2)} MB < 16 MB`);
   // 1080p: uiScale 2 at DPR 1 → the 2× tier; 4K: uiScale 3 at DPR 1 → 3×, or uiScale 2 at DPR 2 → 4×
   assert.equal(pickTier('item/knife', 2), '2x');
   assert.equal(pickTier('item/knife', 3), '3x');
@@ -64,16 +64,18 @@ test('tool buttons carry every state variant; markup has intrinsic size (no layo
   const img = iconHTML('item/sniperRifle', { scale: 2 });
   const [bw, bh] = ICON_MANIFEST['item/sniperRifle'].b;
   assert.match(img, new RegExp(`width="${bw}" height="${bh}"`));
-  assert.match(img, /srcset="[^"]*sniperRifle@6x\.webp 3x/);
+  assert.match(img, /src="[^"]*sniperRifle@2x\.webp" data-tier="2x"/, 'uiScale 2 at DPR 1: the 2× file (fitIcon then follows the drawn size)');
   // one slot height on the top bar (41 ref px): nothing hangs over the game view
   for (const t of ['camera', 'help', 'eye.open', 'eye.closed', 'lamp.off', 'lamp.on']) {
     assert.equal(ICON_MANIFEST[`tool/${t}`].b[1], 41, `${t} is 41 ref px tall`);
   }
   // the stance toggle moved to the bottom HUD (left of the hand): its two figures share one box (no shift on toggle)
   assert.deepEqual(ICON_MANIFEST['tool/stance.crawl'].b, ICON_MANIFEST['tool/stance.stand'].b, 'stance states share one box');
-  // cursors are authored in ref px and ship a tier for uiScale 2 at DPR 2
+  // cursors are authored in ref px and ship a tier for uiScale 2 at DPR 2 (and uiScale 3 at DPR 2: 6×)
   assert.equal(pickTier('cursor/knife', 4), '4x');
-  assert.match(iconHTML('cursor/knife', { scale: 2 }), /knife@4x\.webp 2x/);
+  assert.equal(pickTier('cursor/knife', 6), '6x');
+  assert.equal(tierFor('cursor/knife', 2, 2), '4x');
+  assert.match(iconHTML('cursor/knife', { scale: 2 }), /knife@2x\.webp/);
 });
 
 test('cursor sprites map to rendered cursors with hotspots inside the sprite', () => {

@@ -23,6 +23,14 @@
   --canvas-tex: repeating-linear-gradient(0deg, rgba(255,255,255,0.035) 0 1px, transparent 1px 3px),
     repeating-linear-gradient(90deg, rgba(0,0,0,0.18) 0 1px, transparent 1px 4px);
 }
+/* the same webbing on a 1.5-3x screen: 1-CSS-px hard lines there became 2-3 device px wide blocks (a coarse grid that
+   reads as pixels behind the icons); soft-edged threads at the same pitch and the same average tone instead */
+@media (min-resolution: 1.5dppx), (-webkit-min-device-pixel-ratio: 1.5) {
+  :root {
+    --canvas-tex: repeating-linear-gradient(0deg, rgba(255,255,255,0) 0, rgba(255,255,255,0.05) 0.5px, rgba(255,255,255,0) 1px, transparent 3px),
+      repeating-linear-gradient(90deg, rgba(0,0,0,0.05) 0, rgba(0,0,0,0.24) 0.5px, rgba(0,0,0,0.05) 1px, rgba(0,0,0,0) 1.6px, rgba(0,0,0,0) 3.4px, rgba(0,0,0,0.05) 4px);
+  }
+}
 
 .ui-hud { font-family: var(--f-ui); }
 .ui-hud button { font-family: var(--f-ui); }

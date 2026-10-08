@@ -16,7 +16,7 @@ import { Notebook } from './notebook.js';
 import { Knapsack } from './knapsack.js';
 import { StanceButton } from './stance-button.js';
 import { CursorLayer } from './cursor.js';
-import { installIconFallback, preloadIcons, refreshIcons } from './icon-art.js';
+import { installIconFallback, installIconFit, preloadIcons, refreshIcons } from './icon-art.js';
 import { Tooltips } from './tooltip.js';
 import { Messages } from './messages.js';
 import { Briefing } from './briefing.js';
@@ -60,6 +60,7 @@ export class HUD {
     this.showsTitle = true;
     ensureStylesheet();
     installIconFallback();
+    installIconFit(); // every icon's file follows the device px it is drawn over (touch --ut / --ub, knapsack slots, stamps, DPR)
     root.classList.add('ui-hud');
     // keep the Game's defaults (edgeScrollOverHud, warnings, cheats…) and overlay the saved §6.8 options
     this.options = Object.assign(game.options || {}, loadOptions());
@@ -143,7 +144,7 @@ export class HUD {
       rs.removeProperty('--ut');
       rs.removeProperty('--ub');
     }
-    // rendered icons: srcset x-descriptors depend on the UI scale; preload the tiers this scale × DPR will use
+    // rendered icons: re-pick each file for the new scale (by its measured size; fitIcon) and preload this scale × DPR's tiers
     const key = `${iconScale}|${globalThis.devicePixelRatio || 1}`;
     if (key !== this._iconKey) {
       this._iconKey = key;
