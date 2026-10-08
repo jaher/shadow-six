@@ -3939,6 +3939,72 @@
    "alpha": "MASK",
    "alphaCutoff": 0.4,
    "specular": 0.4
+  },
+  "paint_rust_ochre": {
+   "label": "Faded yellow-ochre enamel on plant steel, worn through to red-oxide primer and rust (chips, rust patches, rain runs)",
+   "tile_m": 1.6,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.62,
+   "metallic": 0.1,
+   "grime": 0.5,
+   "mean": [
+    0.5787,
+    0.4124,
+    0.1763
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/paint_rust_ochre_diff"
+    },
+    "nor": {
+     "1k": "1k/paint_rust_ochre_nor"
+    },
+    "arm": {
+     "1k": "1k/paint_rust_ochre_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (europe/scripts/make_rust_tex.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "texel_density_px_per_m": {
+    "1k": 640
+   }
+  },
+  "rust_heavy": {
+   "label": "Steel corroded right through: orange-brown scale, flaking crust, pits, black mill-scale remnants",
+   "tile_m": 1.2,
+   "grain": "u",
+   "rot90": false,
+   "roughness": 0.88,
+   "metallic": 0.1,
+   "grime": 0.5,
+   "mean": [
+    0.4651,
+    0.2509,
+    0.13
+   ],
+   "normalScale": 1.0,
+   "maps": {
+    "diff": {
+     "1k": "1k/rust_heavy_diff"
+    },
+    "nor": {
+     "1k": "1k/rust_heavy_nor"
+    },
+    "arm": {
+     "1k": "1k/rust_heavy_arm"
+    }
+   },
+   "source": {
+    "source": "procedural (europe/scripts/make_rust_tex.py, own work)",
+    "license": "CC0-1.0"
+   },
+   "texel_density_px_per_m": {
+    "1k": 853
+   }
   }
  }
 }

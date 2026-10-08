@@ -86,6 +86,12 @@ export class XRayPass extends Pass {
   render(renderer, writeBuffer, readBuffer) {
     this.drawn = 0;
     const roots = this.getTargets?.() || [];
+    // a root dropped from the targets (dead, buried, a Sapper in a bunker's open trench) leaves the x-ray layer: the
+    // layer bit set on his meshes would draw him on (the pass renders by layer, not by the target list)
+    const now = new Set();
+    for (const r of roots) if (r) now.add(r);
+    if (this._live) for (const r of this._live) if (!now.has(r)) { r.traverse((o) => { if (o.isMesh) o.layers.disable(XRAY_LAYER); }); this.hidden.delete(r); }
+    this._live = now;
     let n = 0;
     for (const r of roots) {
       if (!r || !chainVisible(r)) continue;

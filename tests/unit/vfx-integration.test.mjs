@@ -46,8 +46,15 @@ test('vfx: explosion classes map to bombs / shells / grenades / drums (chain loo
   // fuel-tank structures: fireballs along the shell, then licking tongues from the rupture + pool (docs/fuel-tanks.md)
   assert.deepEqual(kinds(n), ['fuel_tank_blast']);
   n = fx.items.length;
-  world.emit('explosion', { x: 90, z: 60, radius: 8, kind: 'structure', source: { structure: { type: 'bunker', w: 5, d: 5, h: 2 } } });
+  world.emit('explosion', { x: 90, z: 60, radius: 8, kind: 'structure', source: { structure: { type: 'barracks', w: 10, d: 6, h: 4 } } });
   assert.deepEqual(kinds(n), ['explosion_large', 'burning_wreck']);
+  // concrete bunkers (M3 review: no blazing black hulk): the blast at the charge inside, a small fire in the doorway,
+  // a smoke column out of the caved-in roof
+  n = fx.items.length;
+  world.emit('explosion', { x: 90, z: 60, radius: 8, kind: 'structure', source: { structure: { type: 'bunker', w: 5, d: 5, h: 2, entry: { path: [[93, 57], [92, 58]], charge: [91, 59] } } } });
+  assert.deepEqual(kinds(n), ['explosion_large', 'fire_small', 'smoke_column']);
+  assert.deepEqual([fx.items[n].x, fx.items[n].z], [91, 59], 'the blast goes up at the charge inside');
+  assert.deepEqual([fx.items[n + 1].x, fx.items[n + 1].z], [92, 58], 'the fire is in the doorway');
   fx.dispose();
 });
 

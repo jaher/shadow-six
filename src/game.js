@@ -232,7 +232,7 @@ export class Game {
     world.fx = safe(() => (FX ? new FX(world, r.scene) : null), 'fx');
 
     // x-ray: live commandos only (enemies are never x-rayed)
-    r.xrayTargets = () => (this.world === world ? world.commandos.filter((c) => c.alive && c.object3d && !c.inGround).map((c) => c.object3d) : []);
+    r.xrayTargets = () => (this.world === world ? world.commandos.filter((c) => c.alive && c.object3d && !c.inGround && !c.scripted?.noXray).map((c) => c.object3d) : []);
     r.setMapBounds?.(def.size[0], def.size[1]);
     this.cameraRig.reset();
     this.cameraRig.setBounds(def.size[0], def.size[1]);

@@ -18,6 +18,7 @@ import { B } from '../world/grid.js';
 import { timedTask, freeToAct, inReach } from './common.js';
 import { pathLength } from '../world/pathfinding.js';
 import { Bomb, Trap, Grenade } from './charges.js';
+import { bunkerEntryNear, bunkerApproach, entryTask, ENTRY_REACH } from './bunker-entry.js';
 
 const A = CONFIG.abilities;
 const W = CONFIG.weapons;
@@ -54,18 +55,36 @@ let bombSeq = 0;
 
 function plantBomb(kind) {
   const item = kind === 'time' ? 'timeBomb' : 'remoteBomb';
-  return function start(c, t, world) {
+  const place = (c, world, x, z, y) => {
+    if (!c.consume(item)) return false;
+    // per-mission time-bomb fuse (M4's retail file: 7.5 s); default CONFIG.weapons.timeBomb.fuse
+    const mf = world.mission?.timeBombFuse;
+    const bomb = world.add(new Bomb({ x, z, y, bombKind: kind, owner: c, seq: ++bombSeq,
+      ...(kind === 'time' && Number.isFinite(mf) ? { fuse: mf } : {}) }));
+    world.events.emit('bomb:armed', { bomb, kind, fuse: Number.isFinite(bomb.fuse) ? bomb.fuse : null, unit: c });
+    return true;
+  };
+  const start = function start(c, t, world) {
+    // at a bunker's entrance (structure `entry`): he goes in and sets the charge inside (abilities/bunker-entry.js)
+    const near = bunkerEntryNear(world, c);
+    if (near) return entryTask(c, world, near.it, near.entry, (x, z) => place(c, world, x, z, 0));
     const plant = (kind === 'time' ? W.timeBomb : W.remoteBomb).plant;
     c.playAction('plant', plant);
-    return timedTask({ dur: plant, steps: [{ at: plant, fn: () => {
-      if (!c.consume(item)) return false;
-      // per-mission time-bomb fuse (M4's retail file: 7.5 s); default CONFIG.weapons.timeBomb.fuse
-      const mf = world.mission?.timeBombFuse;
-      const bomb = world.add(new Bomb({ x: c.x + Math.cos(c.heading) * 0.4, z: c.z + Math.sin(c.heading) * 0.4, y: c.y || 0, bombKind: kind, owner: c, seq: ++bombSeq,
-        ...(kind === 'time' && Number.isFinite(mf) ? { fuse: mf } : {}) }));
-      world.events.emit('bomb:armed', { bomb, kind, fuse: Number.isFinite(bomb.fuse) ? bomb.fuse : null, unit: c });
-      return true;
-    } }] });
+    return timedTask({ dur: plant, steps: [{ at: plant, fn: () => place(c, world, c.x + Math.cos(c.heading) * 0.4, c.z + Math.sin(c.heading) * 0.4, c.y || 0) }] });
+  };
+  start.place = place;
+  return start;
+}
+
+/** Save / load: a charge being set inside a bunker is picked up again where it was (plain plants are not resumed). */
+function resumeBomb(kind) {
+  const start = plantBomb(kind);
+  return (c, t, world, a) => {
+    const id = a?.data?.bunker;
+    const it = id != null ? world.interactables.find((i) => (i.tag ?? i.id) === id) : null;
+    const entry = it && !it.destroyed ? it.params?.structure?.entry : null;
+    if (!entry) return null;
+    return entryTask(c, world, it, entry, (x, z) => start.place(c, world, x, z, 0), { t0: a.t ?? 0, data: a.data });
   };
 }
 
@@ -73,14 +92,20 @@ registerAbility({
   id: 'timeBomb', label: 'Time bomb', icon: '⏲', hotkey: 'b', roles: ['sapper'], item: 'timeBomb', targeting: 'self',
   order: 31, visibleToEnemies: true, noiseRadius: W.timeBomb.noise, noiseKind: 'explosion',
   canUse: (c) => onFoot(c),
+  // next to a bunker with an entrance (abilities/bunker-entry.js): he walks round to it first and sets it inside
+  selfApproach: (c, world) => bunkerApproach(world, c), range: ENTRY_REACH - 0.2,
   start: plantBomb('time'),
+  resume: resumeBomb('time'),
 });
 
 registerAbility({
   id: 'remoteBomb', label: 'Remote bomb', icon: '📡', hotkey: 'b', roles: ['sapper'], item: 'remoteBomb', targeting: 'self',
   order: 32, visibleToEnemies: true,
   canUse: (c) => onFoot(c),
+  // next to a bunker with an entrance (abilities/bunker-entry.js): he walks round to it first and sets it inside
+  selfApproach: (c, world) => bunkerApproach(world, c), range: ENTRY_REACH - 0.2,
   start: plantBomb('remote'),
+  resume: resumeBomb('remote'),
 });
 
 /** Remote bombs planted by `c` still waiting, oldest first. */

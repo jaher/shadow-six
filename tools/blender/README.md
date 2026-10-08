@@ -42,6 +42,10 @@ switch to the library only for hinted variants; a hinted `sea_wall` tiles its 8 
 - M8 (Tell el Eisa, `manifest-tell-el-eisa.json` + `manifest-tell-el-eisa-bridge.json`): `desert/q_m08.txt` lists the builds
   (red-tile adobe row houses with the door N / W, the riveted water reservoir and its burst ruin, jerrycan supply dumps,
   the desert timber trestle over the wadi).
+- M16 (the Maas bridge, Belgium; `manifest-maas.json`, M18 shares the map): `europe/q_m16.txt` lists the builds (Mosan brick
+  houses with bluestone trims and wall anchors, one with the door on the W gable, whitewashed / brick farmhouses, grey rendered
+  townhouses, the village railway halt with its platform canopy, a brick field hut, the island's tarred plank shed, the round
+  camouflaged pillbox, the ridge field tent, an abandoned crawler bulldozer). Own types only; M16 picks them by `asset`.
 
 ## Conventions
 - Blender Z-up, 1 unit = 1 m. The pivot is the ground centre and the front faces Blender −Y, which is glTF +Z (game south at `rot` 0).

@@ -406,7 +406,10 @@ export class Commando extends Unit {
     if (p.def.autoStand && this._stanceT > 0) return; // still getting up: approach/act once he is on his feet
     const w = this.world;
     const self = p.def.targeting === 'self' || p.def.targeting === 'none';
-    const tp = self ? { x: this.x, z: this.z } : (p.def.approachPoint?.(this, p.target, w) ?? targetPoint(p.target, this));
+    // a self-targeted ability may still name a walk-up point, fixed when ordered (a bomb planted next to a bunker:
+    // round to its entrance, abilities/bunker-entry.js); none → at his feet
+    if (self && p.selfTp === undefined) p.selfTp = p.def.selfApproach?.(this, w) ?? null;
+    const tp = self ? (p.selfTp ?? { x: this.x, z: this.z }) : (p.def.approachPoint?.(this, p.target, w) ?? targetPoint(p.target, this));
     if (!tp) {
       this.pendingAbility = null;
       return;

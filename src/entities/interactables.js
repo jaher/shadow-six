@@ -22,6 +22,7 @@
  */
 
 import * as THREE from 'three';
+import { wreckBunker } from '../art/bunker-ruin.js';
 import { Entity } from './entity.js';
 import { B, T } from '../world/grid.js';
 import { CONFIG } from '../config.js';
@@ -218,7 +219,16 @@ export class Interactable extends Entity {
     }
     // library buildings swap to their modelled destroyed variant (art/building-props.js); breakable gates break apart
     // (render/gate-smash-visuals.js); others burn + slump
-    if (gateModelOf(this.object3d)) { /* smash visuals */ } else if (this.object3d?.userData?.destroy?.()) { /* swapped */ } else if (this.object3d) {
+    if (gateModelOf(this.object3d)) { /* smash visuals */ } else if (this.object3d?.userData?.destroy?.()) { /* swapped */ } else if (this.object3d && this.bunker) {
+      // a procedural bunker / casemate: a ruin of the model itself (caved-in roof, rubble, soot at the blast), not black
+      const S = this.params?.structure || {};
+      if (!this.object3d.userData.wrecked) {
+        this.object3d.userData.wrecked = true;
+        wreckBunker(this.object3d, this.object3d, { id: S.id ?? this.tag ?? String(this.id), centre: S.entry?.charge ?? [this.x, this.z], x0: this.x, z0: this.z,
+          w: S.w ?? this.radius * 2, d: S.d ?? this.radius * 2, rot: S.rot ?? 0, theater: w?.mission?.theater, height: S.h,
+          groundY: w?.groundY ? (gx, gz) => w.groundY(gx, gz) : null });
+      }
+    } else if (this.object3d) {
       const burnt = new THREE.MeshStandardMaterial({ color: 0x1d1a17, roughness: 1 });
       burnt.userData.shared = false;
       this.object3d.traverse((o) => { if (o.isMesh) o.material = burnt; });

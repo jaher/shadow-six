@@ -1,0 +1,21 @@
+# M16 art pass (the Maas bridge north of Liege, Belgium 1944; M18 reuses the map): "script -- outroot variant seed"
+# (europe family, eu_common helpers; each build writes <outroot>/<asset>/). Ship with tools/blender/consolidate/addon_manifest.py:
+#   <art_root> <repo> manifest-maas europe house_mosan=house_belgian_brick_a,house_belgian_brick_b,house_belgian_brick_c,
+#     house_belgian_brick_w,farmhouse_mosan_a,farmhouse_mosan_b,townhouse_stucco_be_a,townhouse_stucco_be_b station_halt=station_halt_be
+#     hut_brick=hut_brick_be shed_tarred=shed_tarred_be pillbox_round=pillbox_round_be tent_ridge=tent_ridge_field bulldozer=bulldozer_rusty
+# maps first: python3 europe/scripts/make_rust_tex.py <out> (paint_rust_ochre, rust_heavy -> assets/textures/lib/1k + 512 twins);
+#   maas_mil.py d imports maas_dozer.py (the crawler is built there)
+maas_house.py <out> a 1
+maas_house.py <out> b 2
+maas_house.py <out> c 3
+maas_house.py <out> w 2
+maas_house.py <out> f 4
+maas_house.py <out> g 5
+maas_house.py <out> s 6
+maas_house.py <out> q 7
+maas_small.py <out> h 1
+maas_small.py <out> p 2
+maas_small.py <out> t 3
+maas_mil.py <out> r 1
+maas_mil.py <out> n 2
+maas_mil.py <out> d 3

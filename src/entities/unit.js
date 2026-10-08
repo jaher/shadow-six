@@ -580,6 +580,13 @@ export class Unit extends Entity {
     }
     this._moving = false;
     this.vx = 0; this.vz = 0; this.trackV = 0;
+    // moved by an ability task, off the grid (abilities/bunker-entry.js: into a bunker under its roof cells)
+    if (this.scripted) {
+      if (this._stanceT > 0) this._stanceT -= dt;
+      this._moving = this._walkAnim = !!this.scripted.moving;
+      this._updateAnim(dt);
+      return;
+    }
     if (this._stanceT > 0) {
       this._stanceT -= dt;
     } else if (this.path && (this.state === 'active' || this.state === 'hidden' || this.state === 'captured' || this.state === 'downed')) {

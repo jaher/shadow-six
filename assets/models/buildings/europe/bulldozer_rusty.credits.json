@@ -1,0 +1,144 @@
+{
+ "asset": "bulldozer_rusty",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  },
+  "foliage_atlas": {
+   "source": "procedural (own work, europe rework rw/make_foliage.py)",
+   "id": "foliage_atlas",
+   "url": null,
+   "authors": [
+    "SHADOW SIX art"
+   ],
+   "license": "CC0-1.0",
+   "name": "Foliage clump atlas",
+   "label": "Foliage clump atlas 2x2 (iris | grass tuft | broadleaf weeds | fern), alpha-tested cross cards",
+   "files": {
+    "diff": {
+     "1k": "1k/foliage_atlas_diff",
+     "2k": "2k/foliage_atlas_diff"
+    },
+    "nor": {
+     "1k": "1k/foliage_atlas_nor",
+     "2k": "2k/foliage_atlas_nor"
+    },
+    "arm": {
+     "1k": "1k/foliage_atlas_arm",
+     "2k": "2k/foliage_atlas_arm"
+    }
+   }
+  },
+  "hessian": {
+   "source": "Poly Haven",
+   "id": "hessian_230",
+   "url": "https://polyhaven.com/a/hessian_230",
+   "authors": [
+    "colormass",
+    "Rico Cilliers"
+   ],
+   "license": "CC0-1.0",
+   "name": "Hessian 230",
+   "label": "Hessian sandbag cloth",
+   "files": {
+    "diff": {
+     "2k": "2k/hessian_diff",
+     "1k": "1k/hessian_diff"
+    },
+    "nor": {
+     "2k": "2k/hessian_nor",
+     "1k": "1k/hessian_nor"
+    },
+    "arm": {
+     "2k": "2k/hessian_arm",
+     "1k": "1k/hessian_arm"
+    }
+   }
+  },
+  "interior_dark": {
+   "source": "procedural (tools/make_procedural.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Interior darkness card",
+   "files": {
+    "diff": {
+     "1k": "1k/interior_dark_diff",
+     "2k": "2k/interior_dark_diff"
+    },
+    "nor": {
+     "1k": "1k/interior_dark_nor",
+     "2k": "2k/interior_dark_nor"
+    },
+    "arm": {
+     "1k": "1k/interior_dark_arm",
+     "2k": "2k/interior_dark_arm"
+    }
+   }
+  },
+  "paint_rust_ochre": {
+   "source": "procedural (europe/scripts/make_rust_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Faded yellow-ochre enamel on plant steel, worn through to red-oxide primer and rust (chips, rust patches, rain runs)",
+   "files": {
+    "diff": {
+     "1k": "1k/paint_rust_ochre_diff"
+    },
+    "nor": {
+     "1k": "1k/paint_rust_ochre_nor"
+    },
+    "arm": {
+     "1k": "1k/paint_rust_ochre_arm"
+    }
+   }
+  },
+  "rust_heavy": {
+   "source": "procedural (europe/scripts/make_rust_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Steel corroded right through: orange-brown scale, flaking crust, pits, black mill-scale remnants",
+   "files": {
+    "diff": {
+     "1k": "1k/rust_heavy_diff"
+    },
+    "nor": {
+     "1k": "1k/rust_heavy_nor"
+    },
+    "arm": {
+     "1k": "1k/rust_heavy_arm"
+    }
+   }
+  }
+ }
+}

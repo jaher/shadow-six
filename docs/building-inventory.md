@@ -73,7 +73,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `palace_tiled_domes` | new | Palace with a tiled facade and green domes | Tunis | M12 | E, R | 25×20×12 | kit + medina-kit (M12 art pass) |
 | `farmhouse_normandy` | house | Normandy farmhouse | France/Belgium | M16/M18 (NE farm) | E | 12×8×8 | europe |
 | `house_belgian_brick` | house | Belgian brick house or townhouse, gabled or hipped, 2-3 storeys. Some are damaged | Belgium | M16/M18 (NE village) | E | 8×8×10 | europe |
-| `townhouse_stucco` | house | 3-4 storey stucco townhouse, grey (M16) or cream (M15) | France/Belgium | M15 (N), M16/M18 (NW) | E | 10×10×13 | BUILT (M15 pass: `townhouse_fr_stucco`, cream render + wine shop) |
+| `townhouse_stucco` | house | 3-4 storey stucco townhouse, grey (M16) or cream (M15) | France/Belgium | M15 (N), M16/M18 (NW) | E | 10×10×13 | BUILT (M15 pass: `townhouse_fr_stucco`, cream render + wine shop; M16 art pass: `townhouse_stucco_be_a/_b`, grey) |
 | `townhouse_corner_turret` | house | Second-Empire corner block: 4 storeys, **round corner turret**, slate mansard, **ground-floor shopfronts with red awnings**, balcony with ladder or fire escape | France | M15 (Sniper roof) | E, R, L | 20×15×16 | BUILT (M15 pass: `townhouse_corner_w` / `_flat` / `_turret`, manifest-compiegne) |
 | `mansion_hq_mansard` | villa | HQ mansion: brick with stone quoins, slate mansard, dormers, tall chimneys, Nazi banners. Low wall with iron railings and gates, W parterre garden, E car yard | France | M15 | **D** (objective), E | 30×15×15 | NEW |
 | `house_half_timber` | house | Half-timbered (Fachwerk) house, red tile, 2-3 storeys | Germany | B5 (S village), B6 (village) | E | 9×8×10 | europe |
@@ -116,7 +116,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `weapons_store` | house | Weapons or bomb store: a small, heavy flat-roof store with a door | N. Africa | M9 (the team hides in it), M10 (**objective**, S edge) | **D**, E | 10×8×4 | VAR:desert |
 | `warehouse_large` | house | Large brick or corrugated warehouse with a huge black door | Europe | B4 (`E`), M12 (corrugated harbour shed) | E | 30×15×10 | NEW |
 | `ammo_house` | house | Ammunition house (`CASA_MUNICION`) | Germany | B7 | E, D [inf] | 8×6×4 | NEW |
-| `tent_ridge_field` | tent | European grey/dark ridge tent, alone or in rows | All | M3, M6 (about 15), M16/M18 (about 6), B3 (camps), B4 (forecourt, about 12) | D (`LONA`) | 4×3×2.2 | NEW |
+| `tent_ridge_field` | tent | European grey/dark ridge tent, alone or in rows | All | M3, M6 (about 15), M16/M18 (about 6), B3 (camps), B4 (forecourt, about 12) | D (`LONA`) | 4×3×2.2 | europe (M16 art pass: `tent_ridge_field`) |
 | `tent_pyramid_desert` | tent | Tan pyramid or square tent | N. Africa | M8, M10 (×3), M11 | D | 5×5×3 | desert |
 | `tent_large_barrack` | tent | Large "barrack tent" or tarp shelter over equipment; covers the HS 293 bomb in B3 | Crete/Norway | B3, M4 (`LONA1-4`) | D | 12×6×4 | NEW |
 | `guard_hut` | hut | Timber guard hut | All | M1, M2, M4 | E | 3×3×3 | norway |
@@ -140,7 +140,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `searchlight_tower` | searchlight | Searchlight on a tower, with an interrupter (`FOCO`, `FOCODEST`, `INTERFOC`) | Germany | BCD extra map `MAPA0009` (a B7 variant) | D | 3×3×7 | VAR:military |
 | `mg_nest_sandbag` | sandbags | Sandbag MG/Gatling nest ring, open behind (`NIDOMET`/`METRBASE`) | All | M1, M4 (×3), M6, M10 (×3), M14 (×5), B1 (×3), B4 (×2), B5 (×4) | — | 4 Ø × 1.2 | military |
 | `bunker_concrete` | bunker | Flat concrete bunker, flagged in places, releases patrols | All | M3 (dam abutment + about 4 garrison bunkers), M5 (SE, D), M8 (SW), M10 (airfield), M19 | D (M3, M5) | 8×6×3 | military |
-| `pillbox_round` | bunker | Round concrete pillbox, possibly with a cupola | Belgium/Alsace/Prussia/Desert | M16/M18 (both bridge ends, D in M18), M17 (riverside, D), M8 (SW, with cupola) [img], B5 | D | 6 Ø × 3 | NEW |
+| `pillbox_round` | bunker | Round concrete pillbox, possibly with a cupola | Belgium/Alsace/Prussia/Desert | M16/M18 (both bridge ends, D in M18), M17 (riverside, D), M8 (SW, with cupola) [img], B5 | D | 6 Ø × 3 | europe (M16 art pass: `pillbox_round_be`, no cupola; no destroyed variant yet) |
 | `bunker_sandbag_thatch` | bunker | Sandbag bunker with a thatch or timber roof | N. Africa | M9 (**objective**) | **D** | 8×6×2.5 | VAR:military |
 | `dugout_airfield` | bunker | Long, low, log/sandbag-roofed dugout bunker | N. Africa | M10 (airfield NW; it releases patrols) [img] | — | 14×6×2.5 | NEW |
 | `casemate_embrasure` | casemate_gun | Concrete casemate/blockhouse with a gun embrasure (Atlantic Wall) | France | M14 (×2) | **D** | 12×10×5 | BUILT (M14 pass: `casemate_h612` 8×9, `casemate_h679` 12×9, + destroyed) |

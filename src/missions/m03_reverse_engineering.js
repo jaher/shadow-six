@@ -113,6 +113,8 @@ const AB_W = abutment(W_STAIR, -1), AB_E = abutment(E_STAIR, 1);
  */
 const DAM_FRONT = [...arc(19.2, -45, 45, 18), stairPt(E_STAIR, 0.5, 0.5), ...arc(10.5, 50, -36, 18), arc(12.5, -40, -40, 1)[0],
   stairPt(W_STAIR, 0.4, 0.5)];
+/** The o1 charge spot on the dam bunker's floor, just inside its doorway (marker `bunker_charge`). */
+const BUNKER_CHARGE = [18.63, 44.93];
 /**
  * The dam's own control shack (dam_arch BL.control_shack, sidecar footprint x 16.0–19.4, z 6.6–9.4, door on its
  * W face, HALT sign on its S face) stood on a 6.6 m crag right beside the E stair and read as a tank from the camera
@@ -146,7 +148,7 @@ export default {
       'The explosives are in the station shed.',
       'A uniform hangs outside the east camp, by the river.',
       'Anything suspicious in the east camp or south of the river raises the alarm.',
-      'The bunker gunner turns towards any noise. Give him something to look at before you go behind him.',
+      'The bunker\'s door is in the trench on its river side, right under the gunner\'s nose. Draw his eyes away with a noise, then plant next to the bunker: your Sapper goes in through that trench and sets the charge inside.',
       'The dam\'s weak point is the spillway gates in the middle of the crest. Light the fuse and get off the crest.',
       'The truck will wait north of the dam.',
     ],
@@ -200,6 +202,9 @@ export default {
     // (the face's foot is out of bounds, `noWalk`): the gate piers and their hoists are the arch's weak section, and
     // dam_arch_destroyed breaks open right there (gap_x ±4.6; render/dam-breach BREACH u0 0)
     { id: 'dam_charge', x: damPt(0, 0)[0], z: damPt(0, 0)[1], r: 3, target: 'dam' },
+    // demolition marker for o1: the charge goes INSIDE the bunker, on its floor behind the doorway (review: "when
+    // placing the bomb in the bunker the commando should go inside"); the Sapper walks in along `entry` to set it
+    { id: 'bunker_charge', x: BUNKER_CHARGE[0], z: BUNKER_CHARGE[1], r: 1.0, target: 'dam_bunker' },
   ],
   structures: [
     // --- dam and bunker (objectives, bomb only). The crest is a walkable deck (bridge cells).
@@ -226,8 +231,13 @@ export default {
     // its faces by the truck road, where the escape truck turns, keep their shape)
     { id: 'abut_e', type: 'cliff', points: [[55.9, 15.2], [57.25, 16.4], [58.4, 22], [58.4, 26.3], AB_E.low, AB_E.top, AB_E.cut, AB_E.end, AB_E.water, [55.2, 17.2]], h: 7.6, climbable: false,
       abut: [[AB_E.low, AB_E.top], [AB_E.top, AB_E.cut], [AB_E.cut, AB_E.end]] },
-    { id: 'dam_bunker', type: 'bunker', variant: 'surveillance', x: 19, z: 46, rot: deg(315), w: 5, d: 4, h: 2.4,
-      destructible: true, bombOnly: true, hp: 100, crew: ['e34'] },
+    // its front (firing slit + the entrance trench behind its baffle wall) faces NE over the river, the way the gunner
+    // looks; `entry` (abilities/bunker-entry.js): in front of the gap between the wire and the baffle → through the
+    // gap → into the trench → the entrance face → the doorway, the charge spot inside (the library model's door:
+    // bunker_snow `main`; its sidecar points fitted 0.72 × 0.74). Past the gap (`face` 1) the baffle walls hide him.
+    { id: 'dam_bunker', type: 'bunker', variant: 'surveillance', x: 19, z: 46, rot: deg(225), w: 4, d: 5, h: 2.4,
+      destructible: true, bombOnly: true, hp: 100, crew: ['e34'], marker: 'bunker_charge',
+      entry: { path: [[23.09, 42.0], [22.13, 42.96], [21.07, 42.12], [19.87, 43.32], [19.04, 44.15]], face: 1, charge: BUNKER_CHARGE } },
     // --- the power station (S bank): electrified chain-link fence with a N gap (x 24–28) and the W gate
     { id: 'st_fence', type: 'fence', variant: 'electric', h: 2.5, powered: true, poweredBy: 'fence_switch', cuttable: true,
       segments: [[[28, 58], [34, 58], [70, 90], [70, 126], [4, 126], [4, 94]], [[4, 90], [4, 58], [24, 58]]] },

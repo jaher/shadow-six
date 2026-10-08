@@ -229,6 +229,17 @@ export class FX {
       this._afterFire(x, z, 90, Math.min(1.4, 1.2 * k.smoke));
       return;
     }
+    if (src?.bunker || type === 'bunker' || type === 'casemate_gun') {
+      // concrete does not burn (M3 review: no blazing black hulk): the blast at the charge inside, a small fire in
+      // the doorway for half a minute, thick smoke out of the caved-in roof for two minutes, then a thin grey thread
+      const c = def.entry?.charge, bx = c ? c[0] : x, bz = c ? c[1] : z, door = def.entry?.path?.at(-1) ?? c ?? [x, z];
+      const top = this._y(bx, bz) + Math.max(1.6, (def.h ?? 2.5) * 0.85);
+      this.spawn('explosion_large', bx, bz, { scale: clamp(r / 10, 0.7, 1.4) });
+      this.spawn('fire_small', door[0], door[1], { scale: 1.1, dur: 30 });
+      this.spawn('smoke_column', bx, bz, { y: top, color: 'black', rate: 3.6, scale: 1.15, op: 0.8, dur: 120 });
+      if (this.vfx) this.vfx.at(118, () => { if (!this.disposed) this.spawn('smoke_column', bx, bz, { y: top, color: 'grey', rate: 1.2, scale: 0.7, op: 0.45, dur: 240 }); });
+      return;
+    }
     this.spawn('explosion_large', x, z, { scale: clamp(r / 10, 0.7, 1.4) });
     if (['sandbags', 'fence', 'gate', 'wall', 'bridge', 'crater', 'sign', 'lamp_post', 'telegraph_pole'].includes(type)) return;
     const w = def.w ?? (r * 0.9), d = def.d ?? (r * 0.9), h = Math.max(0.6, (def.h ?? 3) * 0.35);

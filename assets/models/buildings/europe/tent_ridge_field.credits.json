@@ -1,0 +1,145 @@
+{
+ "asset": "tent_ridge_field",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "hessian": {
+   "source": "Poly Haven",
+   "id": "hessian_230",
+   "url": "https://polyhaven.com/a/hessian_230",
+   "authors": [
+    "colormass",
+    "Rico Cilliers"
+   ],
+   "license": "CC0-1.0",
+   "name": "Hessian 230",
+   "label": "Hessian sandbag cloth",
+   "files": {
+    "diff": {
+     "2k": "2k/hessian_diff",
+     "1k": "1k/hessian_diff"
+    },
+    "nor": {
+     "2k": "2k/hessian_nor",
+     "1k": "1k/hessian_nor"
+    },
+    "arm": {
+     "2k": "2k/hessian_arm",
+     "1k": "1k/hessian_arm"
+    }
+   }
+  },
+  "interior_dark": {
+   "source": "procedural (tools/make_procedural.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Interior darkness card",
+   "files": {
+    "diff": {
+     "1k": "1k/interior_dark_diff",
+     "2k": "2k/interior_dark_diff"
+    },
+    "nor": {
+     "1k": "1k/interior_dark_nor",
+     "2k": "2k/interior_dark_nor"
+    },
+    "arm": {
+     "1k": "1k/interior_dark_arm",
+     "2k": "2k/interior_dark_arm"
+    }
+   }
+  },
+  "mud": {
+   "source": "Poly Haven",
+   "id": "brown_mud_02",
+   "url": "https://polyhaven.com/a/brown_mud_02",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Brown Mud 02",
+   "label": "Mud / dirt",
+   "files": {
+    "diff": {
+     "2k": "2k/mud_diff",
+     "1k": "1k/mud_diff"
+    },
+    "nor": {
+     "2k": "2k/mud_nor",
+     "1k": "1k/mud_nor"
+    },
+    "arm": {
+     "2k": "2k/mud_arm",
+     "1k": "1k/mud_arm"
+    }
+   }
+  },
+  "steel_painted": {
+   "source": "Poly Haven",
+   "id": "rusty_painted_metal",
+   "url": "https://polyhaven.com/a/rusty_painted_metal",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Painted Metal",
+   "label": "Painted riveted steel (bridge grey-green)",
+   "files": {
+    "diff": {
+     "2k": "2k/steel_painted_diff",
+     "1k": "1k/steel_painted_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_painted_nor",
+     "1k": "1k/steel_painted_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_painted_arm",
+     "1k": "1k/steel_painted_arm"
+    }
+   }
+  },
+  "tent_canvas": {
+   "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Tent / hangar canvas: 1 m sewn cloths, lap seams, repairs, rain streaks",
+   "files": {
+    "diff": {
+     "1k": "1k/tent_canvas_diff",
+     "2k": "2k/tent_canvas_diff"
+    },
+    "nor": {
+     "1k": "1k/tent_canvas_nor",
+     "2k": "2k/tent_canvas_nor"
+    },
+    "arm": {
+     "1k": "1k/tent_canvas_arm",
+     "2k": "2k/tent_canvas_arm"
+    }
+   }
+  },
+  "timber_beam": {
+   "source": "Poly Haven",
+   "id": "wood_planks_grey",
+   "url": "https://polyhaven.com/a/wood_planks_grey",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Grey",
+   "label": "Grey structural timber (beams, rafters)",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_beam_diff",
+     "1k": "1k/timber_beam_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_beam_nor",
+     "1k": "1k/timber_beam_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_beam_arm",
+     "1k": "1k/timber_beam_arm"
+    }
+   }
+  }
+ }
+}

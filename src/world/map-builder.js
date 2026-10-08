@@ -1457,7 +1457,8 @@ export function buildMap(world, mission, opts = {}) {
       addIt(new Interactable({ interactKind: 'switch', x: sw.x, z: sw.z, id: sw.id, tag: sw.id, on: sw.on ?? true, powers: sw.powers ?? true, controls: sw.controls ?? null, targets, activation: sw.activation ?? 1.0, roles: sw.roles ?? null }));
     }
     if (!ownedByEntity && meshes && !(realTerrain && TREE_TYPES.includes(b.type))) propsRoot.add(b.object3d);
-    structures.set(b.def.id ?? `${b.type}#${b.owner - STRUCTURE_OWNER_BASE}`, { type: b.type, def: b.def, owner: b.owner, object3d: b.object3d, footprints: b.footprints });
+    structures.set(b.def.id ?? `${b.type}#${b.owner - STRUCTURE_OWNER_BASE}`, { type: b.type, def: b.def, owner: b.owner, object3d: b.object3d, footprints: b.footprints,
+      ...(b.library?.doors?.length ? { doors: b.library.doors } : null) }); // the asset's doors (world coords: a bunker's entrance)
     // crest stairs of a raised dam (`ramps`): their own world-space meshes, outside the structure (they outlive its
     // destruction and stay out of its visual nav stamp)
     if (meshes && b.def.ramps?.length) propsRoot.add(buildDamStairs(b.def.ramps));

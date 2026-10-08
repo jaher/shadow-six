@@ -157,6 +157,10 @@ export function canSee(viewer, target, world, o = {}) {
   const cone = o.cone || coneAt(viewer, world?.time);
   const zone = pointInCone(cone, target.x, target.z);
   if (!zone || (zone === 'far' && cls === 'near')) return 'none';
+  // inside a bunker (abilities/bunker-entry.js: a Sapper setting a charge in there): behind its concrete, only its own
+  // crew sees him, in their cone (the roof / slit grid cells say nothing about the room under them)
+  const inside = target.insideStructure;
+  if (inside) return inside.owner && postOwner(viewer, world) === inside.owner ? zone : 'none';
   // Roof rule (§4.2): a unit on a roof is invisible to viewers more than rooftopDelta lower, and vice versa.
   // A mission whose raised levels are open terraces and wall walks turns it off (`rules.roofRule: false`, M20).
   const S = CONFIG.stealth, vy = cone.vy ?? (viewer.y || 0), ty = target.y || 0;

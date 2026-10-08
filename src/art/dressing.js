@@ -506,6 +506,7 @@ export function buildWall(points, o) {
   // M15 art pass: the burned-out house's shell (brick with plaster and wallpaper remnants, charred joists, jagged tops)
   if (/^ruin_(burnt_walls|wall_stub)$/.test(String(o.variant))) return buildBurntWall(points, o, h, width, R);
   if (kind === 'mudbrick' && /ruin/.test(String(o.variant))) return ruinedMudWall(points, { ...o, h, width }, R);
+  if (kind === 'stone' && /ruined_stone_low/.test(String(o.variant))) return ruinedFieldWall(points, { ...o, h, width }, R);
   const mat = dressingMaterial(kind);
   for (let k = 0; k + 1 < points.length; k++) {
     const [ax, az] = points[k], [bx, bz] = points[k + 1], L = Math.hypot(bx - ax, bz - az);
@@ -626,6 +627,47 @@ function mudBrickGeometry(R, half = 1) {
   }
   geo.computeVertexNormals();
   return boxUV(geo, 1.6);
+}
+
+/**
+ * M16 / M18 art pass: a shelled field wall of grey Mosan rubble stone (`ruined_stone_low`): a ragged crest about the
+ * gameplay height (breaches down to half of it), a darker damp foot, moss on the crest and flat fallen stones along
+ * both feet (under 0.14 m: they never stamp the walk grid beside the wall).
+ */
+function ruinedFieldWall(points, o, R) {
+  const h = o.h, width = o.width, root = new THREE.Group(); root.name = 'dressing:wall:stone_ruin';
+  const stone = dressingMaterial('stone'), moss = dressingMaterial('sod'), damp = dressingMaterial('rubble');
+  for (let k = 0; k + 1 < points.length; k++) {
+    const [ax, az] = points[k], [bx, bz] = points[k + 1], L = Math.hypot(bx - ax, bz - az);
+    if (L < 1e-3) continue;
+    const rot = -Math.atan2(bz - az, bx - ax), cx = (ax + bx) / 2, cz = (az + bz) / 2, Lw = L + width;
+    const segs = Math.max(4, Math.round(Lw / 0.35));
+    const crest = Array.from({ length: segs + 1 }, () => (R() < 0.18 ? -0.35 - R() * 0.15 : R() * 0.16 - 0.06));
+    for (let i = 1; i < segs; i++) crest[i] = (crest[i - 1] + 2 * crest[i] + crest[i + 1]) / 4;
+    const geo = new THREE.BoxGeometry(Lw, h, width, segs, 3, 1), P = geo.attributes.position;
+    for (let i = 0; i < P.count; i++) {
+      const t = P.getX(i) / Lw + 0.5, y = P.getY(i);
+      if (y > h / 2 - 1e-3) { P.setY(i, h / 2 + h * crest[Math.round(t * segs)]); P.setZ(i, P.getZ(i) * (0.8 + R() * 0.12)); }
+      else if (y > -h / 2 + 1e-3) P.setZ(i, P.getZ(i) * (0.96 + R() * 0.07)); // bulging rubble faces
+    }
+    geo.computeVertexNormals();
+    const wall = mesh(boxUV(geo.toNonIndexed(), 1.6), stone); wall.position.set(cx, h / 2, cz); wall.rotation.y = rot; root.add(wall);
+    const foot = mesh(boxUV(new THREE.BoxGeometry(Lw + 0.02, 0.32, width + 0.04), 1.4), damp);
+    foot.position.set(cx, 0.16, cz); foot.rotation.y = rot; root.add(foot);
+    const tx = Math.cos(-rot), tz = Math.sin(-rot), nx = -tz, nz = tx;
+    for (let n = 0; n < Math.round(L * 0.8); n++) {   // moss cushions on the surviving crest
+      const u = (R() - 0.5) * (L - 0.4), top = h + h * crest[Math.round((u / Lw + 0.5) * segs)];
+      if (top < h * 0.8) continue;
+      const m = mesh(boulderGeometry(0.35 + R() * 0.3, 0.06, width * 0.7, Math.floor(R() * 1e9), 1), moss);
+      m.position.set(cx + tx * u, top - 0.02, cz + tz * u); m.rotation.y = rot; root.add(m);
+    }
+    for (let n = 0; n < Math.round(L * 1.4); n++) {   // flat fallen stones along both feet (kept low)
+      const sd = R() < 0.5 ? -1 : 1, u = (R() - 0.5) * L, off = width / 2 + 0.1 + R() * 0.5, s = 0.14 + R() * 0.16;
+      const b = mesh(boulderGeometry(s * 1.4, Math.min(0.12, s * 0.45), s, Math.floor(R() * 1e9), 1), stone);
+      b.position.set(cx + tx * u + nx * sd * off, 0, cz + tz * u + nz * sd * off); b.rotation.y = R() * 6.3; root.add(b);
+    }
+  }
+  return consolidate(root);
 }
 
 function ruinedMudWall(points, o, R) {

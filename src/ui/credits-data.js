@@ -629,6 +629,12 @@ export const CREDITS_SECTIONS = [
     "CC0 1.0"
    ],
    [
+    "paint_rust_ochre, rust_heavy",
+    "Procedural (tools/blender/europe/scripts/make_rust_tex.py, own work)",
+    "SHADOW SIX project (own work)",
+    "CC0 1.0"
+   ],
+   [
     "palm_frond_dz",
     "Procedural (tools/blender/desert/scripts/make_fronds.py, own work)",
     "SHADOW SIX project (own work)",

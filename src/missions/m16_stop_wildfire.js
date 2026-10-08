@@ -63,9 +63,9 @@ const TERRAIN = [
   { type: 'poly', terrain: 'grass', points: ISLAND_N },
   { type: 'circle', terrain: 'grass', x: 86.5, z: 55, r: 2 },        // T6 islets
   { type: 'poly', terrain: 'ground', points: [[109, 0], [120, 0], [120, 4], [109, 4]] },
-  { type: 'path', terrain: 'road', width: 6, points: ROADS.nw },
-  { type: 'path', terrain: 'road', width: 6.5, points: ROADS.bridgehead },
-  { type: 'path', terrain: 'road', width: 6.5, points: ROADS.ne },
+  { type: 'path', terrain: 'road', width: 6, points: ROADS.nw, surface: 'belgian' },
+  { type: 'path', terrain: 'road', width: 6.5, points: ROADS.bridgehead, surface: 'belgian' },
+  { type: 'path', terrain: 'road', width: 6.5, points: ROADS.ne, surface: 'belgian' },
   { type: 'path', terrain: 'road', width: 6.5, points: ROADS.south },
   // T12 ploughed field SE; T13 bare earth round the station, the fountain, the NW houses and the tent camp
   { type: 'poly', terrain: 'ground', points: [[171, 103], [201, 98], [201, 150], [160, 150]] },
@@ -80,7 +80,7 @@ const BRIDGE_ROT = deg(39.6);
 const house = (id, variant, x, z, w, d, h, extra = {}) => ({ id, type: 'house', variant, x, z, rot: deg(-45), w, d, h, ...extra });
 const tree = (x, z, k) => ({ id: `tree_${k}`, type: 'tree', variant: 'broadleaf', x, z });
 const rock = (id, x, z) => ({ id, type: 'rocks', x, z, r: 1.5 });
-const tent = (x, z, k) => ({ id: `tent_${k}`, type: 'tent', variant: 'tent_ridge_field', x, z, rot: deg(-25), w: 5, d: 3.5, h: 2.2 });
+const tent = (x, z, k) => ({ id: `tent_${k}`, type: 'tent', variant: 'tent_ridge_field', asset: 'tent_ridge_field', x, z, rot: deg(-25), w: 5, d: 3.5, h: 2.2 });
 const lowWall = (id, points) => ({ id, type: 'wall', variant: 'ruined_stone_low', points, h: 1.2, width: 0.6, mat: 'stone', block: 1 });
 /** Czech hedgehogs + barbed wire along the E bank top: stops feet, not eyes (B.FENCE), with three gaps. */
 const belt = (id, points) => ({ id, type: 'fence', variant: 'czech_hedgehog_wire', points, h: 1.4, width: 1.2 });
@@ -90,8 +90,11 @@ const BRIDGE_SET = [
   // (open Pratt truss 6 m high, bowstring arch to 14 m over the main span P1–P3; ART: truss_bridge_maas model)
   { id: 'bridge', type: 'truss_bridge', variant: 'truss_bridge_maas', x: 58.6, z: 81.25, rot: BRIDGE_ROT, w: 85.4, d: 9, h: 14,
     trussH: 6, arch: [-16.5, 14], mat: 'metalRust', indestructible: true, charges: CHARGES.map(([x, z]) => ({ x, z })) },
-  { id: 'pb_w', type: 'bunker', variant: 'pillbox_round', x: 21, z: 56, rot: 0, w: 5, d: 5, h: 3, mat: 'concrete' },
-  { id: 'pb_e', type: 'bunker', variant: 'pillbox_round', x: 87.5, z: 113, rot: 0, w: 5, d: 5, h: 3, mat: 'concrete' },
+  // the round pillboxes turn their three embrasures (model front ±45°, local +z) onto their crew's watch: rot = heading − 90°;
+  // pb_w stands on the bank S of the W ramp, 7 m from the dossier's (21,56): its 5 m drum (and sandbags) clears the NW road's
+  // setts and the ramp parapet's end (it used to sit on both), and the W-road patrol still passes 5 m off its W side
+  { id: 'pb_w', type: 'bunker', variant: 'pillbox_round', asset: 'pillbox_round_be', x: 21.6, z: 62.8, rot: deg(110), w: 5, d: 5, h: 3, mat: 'concrete' },
+  { id: 'pb_e', type: 'bunker', variant: 'pillbox_round', asset: 'pillbox_round_be', x: 87.5, z: 113, rot: deg(20), w: 5, d: 5, h: 3, mat: 'concrete' },
   // the three plungers (visual boxes; the sappers' `detonator` spawns hold the logic)
   { id: 'D_W', type: 'detonator', x: DETONATORS.D_W.x, z: DETONATORS.D_W.z, rot: deg(45) },
   { id: 'D_W_bags_n', type: 'sandbags', x: 22.5, z: 75, rot: 0, w: 3.5, d: 0.8, h: 0.9 },
@@ -100,26 +103,26 @@ const BRIDGE_SET = [
   { id: 'D_I', type: 'detonator', x: DETONATORS.D_I.x, z: DETONATORS.D_I.z, rot: 0 },
   { id: 'D_E', type: 'detonator', x: DETONATORS.D_E.x, z: DETONATORS.D_E.z, rot: BRIDGE_ROT,
     alignFree: 'on the bridge deck, square to the bridge (BRIDGE_ROT), not to the wire belt beyond it' },
-  { id: 'isl_hut', type: 'hut', variant: 'timber_shed', x: 57.2, z: 91.5, rot: deg(-30), w: 4, d: 4, h: 2.6 },
+  { id: 'isl_hut', type: 'hut', variant: 'timber_shed', asset: 'shed_tarred_be', x: 57.2, z: 91.5, rot: deg(-30), w: 4, d: 4, h: 2.6 },
   { id: 'isl_jetty', type: 'pier', variant: 'pier_timber', x: 60, z: 101, rot: deg(-30), w: 5, d: 9 },
 ];
 
 const EAST = [
   // zone A: the station (garrison g_station) and its plank platform
-  { id: 'station', type: 'barracks', variant: 'station_building', x: 182, z: 28.6, rot: deg(-45), w: 12, d: 7, h: 7, mat: 'brick',
+  { id: 'station', type: 'barracks', variant: 'station_building', asset: 'station_halt_be', x: 182, z: 28.6, rot: deg(-45), w: 12, d: 7, h: 7, mat: 'brick',
     flag: true, garrison: true, door: deg(90) },
   { id: 'platform', type: 'pier', variant: 'station_platform_planks', x: 188, z: 33.5, rot: deg(-45), w: 22, d: 3.5 },
   // zone B: the timber house by the road (hideout), the house block round its yard, the grey townhouse, the fountain
-  house('house_road', 'farmhouse_normandy', 177, 59, 10, 8, 9, { mat: 'woodDark', enterable: true, door: deg(90) }),
-  house('blk_n', 'house_belgian_brick', 188, 73, 8, 8, 10, { mat: 'brick' }),
-  house('blk_w', 'house_belgian_brick', 182, 85, 10, 8, 10, { mat: 'brick' }),
-  house('blk_e', 'house_belgian_brick', 192, 82, 8, 10, 10, { mat: 'brick', enterable: true, door: deg(180) }),
-  { id: 'town_grey', type: 'house', variant: 'townhouse_stucco', x: 198, z: 80, rot: 0, w: 6, d: 10, h: 12, mat: 'plaster' },
+  house('house_road', 'farmhouse_normandy', 177, 59, 10, 8, 9, { asset: 'farmhouse_mosan_a', mat: 'woodDark', enterable: true, door: deg(90) }),
+  house('blk_n', 'house_belgian_brick', 188, 73, 8, 8, 10, { asset: 'house_belgian_brick_a', mat: 'brick' }),
+  house('blk_w', 'house_belgian_brick', 182, 85, 10, 8, 10, { asset: 'house_belgian_brick_b', mat: 'brick' }),
+  house('blk_e', 'house_belgian_brick', 192, 82, 8, 10, 10, { asset: 'house_belgian_brick_w', mat: 'brick', enterable: true, door: deg(180) }),
+  { id: 'town_grey', type: 'house', variant: 'townhouse_stucco', asset: 'townhouse_stucco_be_a', x: 198, z: 80, rot: 0, w: 6, d: 10, h: 12, mat: 'plaster' },
   { id: 'fountain_e', type: 'well', variant: 'fountain_statue', x: 177, z: 95, r: 2, h: 1.5 },
   // zone C: the fields hut (garrison g_fields), the rusty bulldozer, the ruined field walls
-  { id: 'hut_fields', type: 'barracks', variant: 'brick_hut', x: 173, z: 109, rot: deg(-45), w: 6, d: 5, h: 3.2, mat: 'brick',
+  { id: 'hut_fields', type: 'barracks', variant: 'brick_hut', asset: 'hut_brick_be', x: 173, z: 109, rot: deg(-45), w: 6, d: 5, h: 3.2, mat: 'brick',
     flag: true, garrison: true, door: deg(90) },
-  { id: 'bulldozer', type: 'ruins', variant: 'bulldozer_rusty', x: 178, z: 122, rot: deg(-30), w: 4.5, d: 2.6, h: 2.2, mat: 'metalRust' },
+  { id: 'bulldozer', type: 'ruins', variant: 'bulldozer_rusty', asset: 'bulldozer_rusty', x: 178, z: 122, rot: deg(-30), w: 4.5, d: 2.6, h: 2.2, mat: 'metalRust' },
   lowWall('wall_f1', [[189, 105], [193, 109]]),
   lowWall('wall_f2', [[180, 112], [184, 114], [184, 117]]),
   lowWall('wall_f3', [[188, 125], [194, 129]]),
@@ -138,21 +141,22 @@ const EAST = [
   { id: 'brl_2', type: 'barrels', variant: 'fuel_explosive', x: 105.4, z: 147.6, explosive: 'barrel', carriable: true },
   { id: 'brl_3', type: 'barrels', variant: 'fuel_explosive', x: 106.8, z: 147, explosive: 'barrel', carriable: true },
   // the burnt car lies half in the E-bank shallows (the dossier's (123,51.5) is deep water on this flat river; r2)
-  { id: 'wreck_car', type: 'ruins', variant: 'car_wreck_burnt', x: 125.5, z: 50, rot: deg(20), w: 4, d: 2, h: 1.4, mat: 'metalRust' },
+  { id: 'wreck_car', type: 'ruins', variant: 'car_wreck_burnt', x: 125.5, z: 50, rot: deg(20), w: 4, d: 2, h: 1.4, mat: 'metalRust',
+    vehicleArt: 'citroen11', wreck: true }, // art pass: a burnt-out Traction Avant (was a shrunken bombed house)
   // the NE wood (the start) and scattered trees
   ...[[164.5, 23.5], [171, 26.5], [157, 30.6], [159, 36.7], [150, 41.8], [179.6, 6.1], [186.8, 2], [190.8, 3], [198, 8.2], [194, 1],
     [160, 70.6], [170.4, 96.1]].map(([x, z], k) => tree(x, z, `e${k}`)),
-  // telegraph poles along the NE road (S side)
-  ...[[140, 119], [153, 106.5], [166, 94], [179, 81.5], [192, 69]].map(([x, z], k) => ({ id: `pole_${k}`, type: 'telegraph_pole', x, z })),
+  // telegraph poles along the NE road (S side; pole_3 stands 0.7 m nearer the road, clear of blk_w's eave since the art pass)
+  ...[[140, 119], [153, 106.5], [166, 94], [178.5, 81], [192, 69]].map(([x, z], k) => ({ id: `pole_${k}`, type: 'telegraph_pole', x, z })),
 ];
 
 const WEST = [
   // zone G: the NW town (the grey shop-front house is garrison g_town), the monument, the tent camp
-  house('nw_h1', 'house_belgian_brick', 6.5, 5.5, 9, 8, 9, { mat: 'brick' }),
-  house('nw_h2', 'house_belgian_brick', 15, 7, 8, 8, 9, { mat: 'brick' }),
-  { id: 'nw_grey', type: 'barracks', variant: 'townhouse_stucco', x: 17, z: 16.5, rot: deg(-45), w: 8, d: 8, h: 12, mat: 'plaster',
+  house('nw_h1', 'house_belgian_brick', 6.5, 5.5, 9, 8, 9, { asset: 'house_belgian_brick_c', mat: 'brick' }),
+  house('nw_h2', 'house_belgian_brick', 15, 7, 8, 8, 9, { asset: 'house_belgian_brick_a', mat: 'brick' }),
+  { id: 'nw_grey', type: 'barracks', variant: 'townhouse_stucco', asset: 'townhouse_stucco_be_b', x: 17, z: 16.5, rot: deg(-45), w: 8, d: 8, h: 12, mat: 'plaster',
     flag: true, garrison: true, door: deg(90) },
-  house('nw_h3', 'farmhouse_normandy', 30, 6.5, 9, 8, 9, { mat: 'woodDark' }),
+  house('nw_h3', 'farmhouse_normandy', 30, 6.5, 9, 8, 9, { asset: 'farmhouse_mosan_b', mat: 'woodDark' }),
   { id: 'monument', type: 'well', variant: 'fountain_statue', x: 22.5, z: 2.5, r: 1.5, h: 2.5 },
   ...[[47.4, 6.5], [53.6, 13.1], [42.8, 22], [37.5, 28], [31.4, 34.5]].map(([x, z], k) => tent(x, z, k)),
   rock('rock_w1', 12.6, 53.6), rock('rock_w2', 8, 62),
@@ -163,7 +167,46 @@ const RAILWAY = [
   { id: 'rail_main', type: 'rail_track', points: [[201, 24.1], [139.5, 84.3], [103, 120.3], [73.2, 150]] },
 ];
 
-const STRUCTURES = [...BRIDGE_SET, ...EAST, ...WEST, ...RAILWAY];
+// ---------------------------------------------------------------- art pass: set dressing (visual only, clear of every
+// route, post, cone and the solution's spots; furniture and paving never touch the walk grid: block false / grid false)
+/** A point in a structure's local frame (+x along `rot`, +z its door side) → world [x, z]. */
+const local = (cx, cz, rot, lx, lz) => [cx + lx * Math.cos(rot) - lz * Math.sin(rot), cz + lx * Math.sin(rot) + lz * Math.cos(rot)];
+const ST = (lx, lz) => local(182, 28.6, deg(-45), lx, lz);
+/** Two parked machines on free ground: a BMW R75 combination behind the station, a Kübelwagen by the town garrison. */
+const PARKED = [
+  { id: 'moto_station', type: 'crates', variant: 'vehicle_parked', label: 'Motorcycle', x: ST(-3.5, -7.6)[0], z: ST(-3.5, -7.6)[1], rot: deg(-45),
+    w: 2.4, d: 1.7, h: 1.1, block: 1, vehicleArt: 'r75_sidecar' },
+  { id: 'kubel_town', type: 'crates', variant: 'vehicle_parked', label: 'Car', x: 5, z: 17.5, rot: Math.atan2(29, 25.7), // parallel to the NW road
+    w: 3.8, d: 1.7, h: 1.4, block: 1,
+    vehicleArt: 'kubelwagen' },
+];
+/** Belgian setts (pavés): the station forecourt on the road side, the little square round the NW monument. */
+const PAVEMENTS = [
+  { id: 'pave_station', surface: 'belgian', points: [ST(-7.5, -3.6), ST(7.5, -3.6), ST(7.5, -9.5), ST(-7.5, -9.5)],
+    wear: 0.6, weeds: 0.4, cracks: 0.3, puddles: 0.15, edge: 'ragged', grid: false },
+  { id: 'pave_monument', surface: 'belgian', points: [[19, 0], [26, 0], [26.5, 4.5], [24.5, 6.5], [20.5, 6.5], [18.5, 4.5]],
+    wear: 0.5, weeds: 0.45, cracks: 0.3, puddles: 0.1, edge: 'ragged', grid: false },
+];
+const FURNITURE = [
+  // platform lamps at both ends of the plank platform, a lamp on the station forecourt
+  { type: 'lamp', variant: 'platform', x: local(188, 33.5, deg(-45), 8.5, 0.6)[0], z: local(188, 33.5, deg(-45), 8.5, 0.6)[1], rot: deg(45), block: false },
+  { type: 'lamp', variant: 'platform', x: local(188, 33.5, deg(-45), -8.5, 0.6)[0], z: local(188, 33.5, deg(-45), -8.5, 0.6)[1], rot: deg(45), block: false },
+  { type: 'lamp', variant: 'paris_single', x: ST(5.5, -8.8)[0], z: ST(5.5, -8.8)[1], rot: deg(-135), block: false },
+  // St Andrew's crosses on the verge of each approach to the level crossing, a fingerpost in the SW corner of the
+  // S-road junction, kilometre stones on the NE road (all clear of the carriageway: art-m16 test)
+  { type: 'sign', variant: 'andreaskreuz', x: 96.0, z: 120.1, rot: deg(-45), block: false },
+  { type: 'sign', variant: 'andreaskreuz', x: 110.0, z: 119.6, rot: deg(135), block: false },
+  { type: 'sign', variant: 'fingerpost', x: 116.2, z: 134.9, rot: deg(-40), text: 'LIEGE 9 km', block: false },
+  { type: 'milestone', x: 153.1, z: 106.1, rot: deg(-44), text: 'N 2\nLIEGE 11', block: false },
+  { type: 'milestone', x: 182.4, z: 77.7, rot: deg(-44), text: 'N 2\nVISE 6', block: false },
+  // the NW town square: a lamp and two benches by the monument; a bench by the village fountain
+  { type: 'lamp', variant: 'paris_single', x: 26.2, z: 6.2, rot: deg(-90), block: false },
+  { type: 'bench', x: 19.6, z: 4.2, rot: deg(-90), block: false },
+  { type: 'bench', x: 25.6, z: 2.4, rot: deg(90), block: false },
+  { type: 'bench', x: 180.6, z: 92.4, rot: deg(-135), block: false },
+];
+
+const STRUCTURES = [...BRIDGE_SET, ...EAST, ...WEST, ...RAILWAY, ...PARKED];
 
 // ---------------------------------------------------------------- enemies (dossier §8; Prima numbers 1–26)
 /** Lone walker: PINGPONG between a and b (1.0 m/s), starting at a facing b. */
@@ -235,7 +278,7 @@ const SAPPER_LIST = [ // §8.4 the objective: "they watch one another"
 const ZONE_F = [ // the W bridgehead
   sentry('e18', 18, 16, 79, 45, 90),
   ...patrol(['e51', 'e52', 'e53', 'e54', 'e55'], null, 'pw', 'PINGPONG', [P(4, 30, 5, 225), P(21, 47), P(14, 70, 5, 45)]),
-  bunkerCrew('e56', 'pb_w', 21, 56, 200),
+  bunkerCrew('e56', 'pb_w', 21.6, 62.8, 200),
   sentry('e28', null, 19, 36, 45, 60),
 ];
 const ZONE_G = [ // NW town, tent camp and the N island (optional)
@@ -319,6 +362,8 @@ export default {
   water: { velocity: 0.2, angleDeg: 225, turbulence: 0.2, color: '#1f5f60' },
   baseTerrain: 'grass',
   terrain: TERRAIN,
+  pavements: PAVEMENTS,
+  furniture: FURNITURE,
   markers: [
     { id: 'plunger_w', ...DETONATORS.D_W, r: 2 },
     { id: 'plunger_i', ...DETONATORS.D_I, r: 2 },

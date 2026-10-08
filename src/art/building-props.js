@@ -14,6 +14,7 @@
 import * as THREE from 'three';
 import { loadBuildingLibrary, preloadBuildings, createBuilding, buildingMeta, setBuildingZoom, expandBuildingNames } from './building-library.js';
 import { makeFlag, dressFlags, tickFlags } from './flags.js';
+import { wreckBunker } from './bunker-ruin.js';
 import { B, T } from '../world/grid.js';
 import { fuelTankAsset, isFuelStructure, FUEL_VARIANTS } from './fuel-tanks.js';
 import { pipeRunPairs, buildPipeRun } from './fuel-pipes.js';
@@ -206,6 +207,9 @@ export function libTypeOf(type) {
  */
 export function pickAsset(type, p = {}, ctx = {}) {
   if (!S.ready || S.disabled) return null;
+  // a structure drawn as a library vehicle (`vehicleArt`, art/static-vehicles.js) never takes a building as well
+  // (M16's burnt car was a shrunken bombed house with ladders and roofs before the vehicle hid it)
+  if (p.vehicleArt) return null;
   const M = S.manifest, theater = ctx.theater;
   let cands;
   const fuel = !p.asset && isFuelStructure({ ...p, type }) ? fuelTankAsset({ ...p, type }, { theater, structures: ctx.structures ?? S.structures, has: (n) => !!M.assets[n] }) : null;
@@ -425,11 +429,56 @@ export function libraryVisual(type, p = {}, ctx = {}) {
   attachFuelHooks(outer, b, p, anchors);
   outer.userData.setDoorOpen = (id, t, sign = 1) => state.b.setDoorOpen(id, t, sign);
   // explosiveTarget destroyed → swap to the modelled destroyed variant when there is one (else the caller burns it)
+  // bunkers, blockhouses, casemates: blown up they are a ruin with a caved-in roof, slabs, rebar, rubble and soot round
+  // the blast and the openings (art/bunker-ruin.js) — on the modelled ruin when there is one, else on the model itself
+  const ruinable = /^(bunker|blockhouse|casemate)/.test(b.asset) && !part; // (an MG nest is sandbags: its modelled ruin only)
+  const wreck = (bb, reskin) => {
+    outer.updateMatrixWorld(true);
+    const openings = [...doors.map((dd) => [dd.x, 1.0, dd.z]), ...anchors.filter((an) => an.kind === 'embrasure').map((an) => [an.pos.x, an.pos.y, an.pos.z])];
+    const mm = buildingMeta(bb.asset), H = ((mm?.roofElev > 0 ? mm.roofElev : null) ?? mm?.height ?? 3) * sy; // its roof slab
+    const r = wreckBunker(bb.object3d, outer, { id: p.id ?? `${type}@${p.x},${p.z}`, centre: p.entry?.charge ?? [x, z], x0: x, z0: z,
+      w: w ?? ew * sx, d: d ?? ed * sz, rot, openings, theater, height: H, reskin, groundY: ctx.world?.groundY ? (gx, gz) => ctx.world.groundY(gx, gz) : null });
+    const prev = bb.object3d.userData.onLodAttached;
+    bb.object3d.userData.onLodAttached = (...args) => { prev?.(...args); r.deform(args[1]); };
+    return r;
+  };
+  // explosiveTarget destroyed → swap to the modelled destroyed variant when there is one (else the caller burns it)
   outer.userData.destroy = () => {
-    // a snow variant without its own ruin (dam_arch_snow) falls back on its base asset's (dam_arch_destroyed)
-    const base = type === 'dam' ? buildingMeta(b.asset)?.base : null;
-    const dn = a.destroyedVariant ?? (base ? buildingMeta(base)?.destroyedVariant : null);
-    if (!dn || !buildingMeta(dn)) return false;
+    // a snow / desert / camouflaged variant without its own ruin (dam_arch_snow, bunker_snow, bunker_desert) falls back
+    // on its base asset's (dam_arch_destroyed, bunker_destroyed): never the burnt-black slump of a model with no ruin
+    const dn = ruinVariant(b.asset, a);
+    if (!dn || !buildingMeta(dn)) {
+      if (!ruinable || state.wrecked) return false;
+      state.wrecked = wreck(state.b, null);
+      return true;
+    }
+    // the ruin of a temperate model on snow / sand: its turf is snow / sand (an untextured copy of the turf material,
+    // keeping its baked vertex AO; the intact model's drape materials read uv channels the ruin's turf lacks)
+    // Best: the intact model's own textured cover material (bunker_snow `kit:snow`), so the ruin's apron reads like the
+    // intact one's and the snow round it — a flat untextured white sheet read as a slab round the wreck (M3 review)
+    const cover = { snow: 0xe9edf2, desert: 0xcdb48a }[theater];
+    const coverRe = { snow: /^kit:snow/, desert: /^kit:(sand|desert)/ }[theater];
+    let coverMat = null;
+    if (coverRe) state.b.object3d.traverse((o) => {
+      for (const m of [].concat(o.material || [])) if (!coverMat && m?.map && coverRe.test(m.name || '')) coverMat = m;
+    });
+    const turfs = new Map();
+    const reskin = cover != null && !buildingMeta(dn)?.theaters?.includes(theater) ? (m) => {
+      if (!/^kit:(sod|grass|turf)/.test(m?.name || '')) return m;
+      if (!turfs.has(m)) {
+        let t;
+        if (coverMat) {
+          // its texture set, with the ruin's own baked AO (uv1 atlas: the intact model's AO map is laid out for the
+          // intact mesh — on the ruin's uv1 it painted the apron black in patches) and vertex colours
+          t = coverMat.clone(); t.name = `${m.name}#${theater}`; t.vertexColors = m.vertexColors;
+          t.aoMap = m.aoMap ?? null; t.aoMapIntensity = m.aoMapIntensity ?? 1; t.lightMap = m.lightMap ?? null;
+        }
+        else { t = m.clone(); t.name = `${m.name}#${theater}`; t.map = null; t.normalMap = null; t.color.setHex(cover); t.roughness = 0.92; }
+        t.userData.shared = false;
+        turfs.set(m, t);
+      }
+      return turfs.get(m);
+    } : null;
     const nb = createBuilding(dn, { x: 0, z: 0, rot: 0, id: p.id, theater });
     if (!nb) return false;
     nb.object3d.position.copy(state.b.object3d.position);
@@ -441,12 +490,27 @@ export function libraryVisual(type, p = {}, ctx = {}) {
     dressFlags(nb.object3d, nb.asset, { flag: false });
     dressDam?.(nb);
     dressParts?.(nb);
+    if (ruinable) state.wrecked = wreck(nb, reskin);
     return true;
   };
   S.live.add(b);
   const dispose = () => { if (state.disposed) return; state.disposed = true; state.b.dispose(); S.live.delete(state.b); outer.removeFromParent(); };
   return { object3d: outer, asset: b.asset, scale: [sx, sy, sz], matrix: M, footprints, doors, ladders, roofs, climbEdges, anchors, bridge, piers,
     ready: b.ready, setDoorOpen: outer.userData.setDoorOpen, dispose };
+}
+
+/**
+ * The modelled ruin of library asset `name` (meta `a`): its own `destroyedVariant`, else its base asset's (the snow
+ * version of a temperate model), else that of the plain asset its name extends (bunker_desert → bunker,
+ * casemate_camo → casemate). null when the family has none.
+ */
+export function ruinVariant(name, a = buildingMeta(name)) {
+  if (!a) return null;
+  if (a.destroyedVariant) return a.destroyedVariant;
+  const base = a.base && a.base !== name ? buildingMeta(a.base) : null;
+  if (base?.destroyedVariant) return base.destroyedVariant;
+  const plain = String(name).replace(/_(snow|desert|camo)$/, '');
+  return plain !== name ? buildingMeta(plain)?.destroyedVariant ?? null : null;
 }
 
 /**

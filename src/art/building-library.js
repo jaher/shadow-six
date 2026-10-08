@@ -114,7 +114,7 @@ export function libTextureURL(file) {
 }
 
 /** Add-on manifests under assets/models/buildings/ (same schema, `assets` + `types` only), merged after manifest.json. */
-export const EXTRA_MANIFESTS = ['manifest-atlantic-wall', 'manifest-tunis', 'manifest-le-havre', 'manifest-compiegne', 'manifest-tell-el-eisa', 'manifest-tell-el-eisa-bridge'];
+export const EXTRA_MANIFESTS = ['manifest-atlantic-wall', 'manifest-tunis', 'manifest-le-havre', 'manifest-compiegne', 'manifest-tell-el-eisa', 'manifest-tell-el-eisa-bridge', 'manifest-maas'];
 
 /**
  * Merge an add-on manifest into `base` (in place): new assets; per type the variant / all / byTheater lists are
@@ -171,6 +171,8 @@ export function expandBuildingNames(list, theater) {
     out.add(n);
     if (a.snowVariant && (!theater || theater === 'snow')) add(a.snowVariant);
     if (a.destroyedVariant) out.add(a.destroyedVariant);
+    // a snow version without its own ruin is blown up into its base asset's (art/building-props.js ruinVariant)
+    else if (a.base && M.assets[a.base]?.destroyedVariant) out.add(M.assets[a.base].destroyedVariant);
   };
   for (const x of list) {
     if (M.assets[x]) add(x);

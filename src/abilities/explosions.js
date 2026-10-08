@@ -49,7 +49,8 @@ export function explosionDestroysVehicle(cls, v) {
 
 /**
  * Does class `cls` destroy destructible interactable/prop `it` whose centre is `dCenter` metres away?
- * `ctx` {world, x, z} (the blast point) enforces demolition markers (`it.marker` → `world.markers`).
+ * `ctx` {world, x, z} (the blast point) enforces demolition markers (`it.marker` → `world.markers`); `ignoreMarker`
+ * answers "would it, were the charge on the marker".
  */
 export function explosionDestroysStructure(cls, it, dCenter, ctx = null) {
   const E = CONFIG.weapons.explosions[cls];
@@ -59,7 +60,7 @@ export function explosionDestroysStructure(cls, it, dCenter, ctx = null) {
   const edge = Math.max(0, dCenter - (it.radius || 0));
   if (cls === 'bomb') {
     // demolition marker (§7.6 M3 `dam_charge`): the bomb must sit within the marker's r of its point
-    const mk = it.marker && ctx?.world?.markers?.get?.(it.marker);
+    const mk = !ctx?.ignoreMarker && it.marker && ctx?.world?.markers?.get?.(it.marker);
     if (mk && ctx.x != null) return Math.hypot(ctx.x - mk.x, ctx.z - mk.z) <= (mk.r ?? E.targetRadius);
     // a structure def's explicit `targetRadius` (m from the target point) replaces the prop-sized reach (M14 guns: §3.3's 3 m)
     const tr = p.structure?.targetRadius;
@@ -143,6 +144,13 @@ export function applyExplosion(world, x, z, cls, source = null, opts = {}) {
       } else if (explosionDestroysStructure(cls, e, d, { world, x, z })) {
         e.destroy(killer, cls);
         out.structures.push(e);
+      } else if (cls === 'bomb' && e.marker && !e.destroyed && explosionDestroysStructure(cls, e, d, { ignoreMarker: true })) {
+        // a charge that would have brought it down but is not on its demolition marker: say so (a spent bomb must
+        // never fail silently — M3 has two and needs both)
+        const inside = e.bunker && e.params?.structure?.entry;
+        world.events.emit('message', { kind: 'warn', text: `${e.bunker ? 'The bunker' : e.displayName ?? 'The target'} still stands: ${inside
+          ? 'the charge has to be set inside it (plant next to it and the Sapper goes in).'
+          : 'the charge has to go on the marked spot.'}` });
       }
     } else if (isBarrel(e)) {
       // barrel-flagged props (VEHICLES' duck-typed barrels, e.g. propType 'barrels')

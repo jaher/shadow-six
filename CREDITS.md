@@ -134,6 +134,7 @@ Poly Haven maps were regraded, tiled and resized; procedural maps are generated 
 | `mud` | [Poly Haven `brown_mud_02` (Brown Mud 02)](https://polyhaven.com/a/brown_mud_02) | Rob Tuytel | CC0 1.0 |
 | `mud_render2` | [Poly Haven `dirt_floor` (Dirt Floor)](https://polyhaven.com/a/dirt_floor) | eye-candy.xyz | CC0 1.0 |
 | `mudbrick` | [Poly Haven `clay_block_wall` (Clay Block Wall)](https://polyhaven.com/a/clay_block_wall) | Amal Kumar | CC0 1.0 |
+| `paint_rust_ochre`, `rust_heavy` | Procedural (tools/blender/europe/scripts/make_rust_tex.py, own work) | SHADOW SIX project (own work) | CC0 1.0 |
 | `palm_frond_dz` | Procedural (tools/blender/desert/scripts/make_fronds.py, own work) | SHADOW SIX project (own work) | CC0 1.0 |
 | `palm_log` | [Poly Haven `bark_brown_01` (Bark Brown 01)](https://polyhaven.com/a/bark_brown_01) | Rob Tuytel | CC0 1.0 |
 | `patio_flags` | [Poly Haven `floor_tiles_04` (Floor Tiles 04)](https://polyhaven.com/a/floor_tiles_04) | Rob Tuytel | CC0 1.0 |
