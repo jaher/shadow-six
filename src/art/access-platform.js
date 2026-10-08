@@ -97,7 +97,8 @@ export function accessPlatformFootprints(p, x, z, rot) {
   const L2W = (lx, lz) => [x + lx * c - lz * s, z + lx * s + lz * c];
   // `ramp` (world/map-builder.js → grid.addRamp): walkers on the stair follow the line of its nosings, top → foot
   const [ax, az] = L2W(S.x0, S.z), [bx, bz] = L2W(S.x1, S.z);
-  const out = [{ shape: 'rect', x, z, w, d, rot, elev: h, ramp: { ax, az, bx, bz, w: S.w, ya: h, yb: 0 } }];
+  // (`stairs`: its treads, for world/stairs.js: a riser every `tread` m from the foot, `n` of them up to the deck)
+  const out = [{ shape: 'rect', x, z, w, d, rot, elev: h, ramp: { ax, az, bx, bz, w: S.w, ya: h, yb: 0, stairs: { n: S.n, tread: S.tread } } }];
   for (let u = 0.12; u < S.run; u += 0.2) {
     const [cx, cz] = L2W(S.x0 + u, S.z), e = +(h * (1 - u / S.run)).toFixed(3);
     if (e < 0.12) break;

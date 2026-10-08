@@ -52,7 +52,8 @@ test('m02: enterVehicle from the wall walk (walk_sw) comes down plat_sw\'s stair
   s.run(1);
   assert.ok(sn.y > 2, 'starts up on the walk');
   assert.ok(sn.useAbility('enterVehicle', truck), 'order accepted');
-  const boarded = s.run(25, () => sn.state === 'inVehicle');
+  // (≈26 s: a crawl to the truck's driver door; the stairs are crawled at the stair pace, world/stairs.js STAIR_PACE)
+  const boarded = s.run(30, () => sn.state === 'inVehicle');
   assert.ok(boarded, `sniper never boarded (at ${sn.x.toFixed(1)},${sn.z.toFixed(1)} y${sn.y.toFixed(1)}, pending ${!!sn.pendingAbility})`);
 });
 

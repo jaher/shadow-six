@@ -279,10 +279,11 @@ export class World {
 
   /**
    * Path from (fromX, fromZ) to (toX, toZ) on the NavGrid.
-   * @param {{swim?: boolean, allowWater?: boolean, maxNodes?: number, role?: string, dynamic?: boolean, noLinks?: boolean, avoid?: Uint8Array, nearRadius?: number}} [opts]
+   * @param {{swim?: boolean, allowWater?: boolean, maxNodes?: number, role?: string, dynamic?: boolean, noLinks?: boolean, noWalkLinks?: boolean, avoid?: Uint8Array, nearRadius?: number}} [opts]
    *   avoid: keep-out cell mask (body clearance around vehicle hulls, world/body-clearance.js avoidMask)
    *   role: who walks (off-grid climb/ladder links are role-gated, see NavGrid.linkAllowed)
-   *   noLinks: ignore every off-grid link (grid steps only; e.g. a commando carrying a body, §3.4)
+   *   noLinks: no climbing over off-grid links (e.g. a commando carrying a body, §3.4); the walked ones (stair links,
+   *   planks) stay open unless noWalkLinks
    * @returns {{x:number, z:number, y?:number, link?:{id:number, kind:string}}[] | null}
    */
   findPath(fromX, fromZ, toX, toZ, opts = {}) {
@@ -290,6 +291,7 @@ export class World {
       role: opts.role,
       dynamic: !!opts.dynamic,
       noLinks: !!opts.noLinks,
+      noWalkLinks: !!opts.noWalkLinks,
       swim: !!(opts.swim || opts.allowWater),
       dive: !!opts.dive,
       crawl: !!opts.crawl,

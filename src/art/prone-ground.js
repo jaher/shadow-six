@@ -48,7 +48,8 @@ function ankleBy(B, s, dy) {
  * Per-frame prone grounding / turning for one UnitModel. Call after the mixer stepped.
  * @param {object} st persistent state object of the model
  * @param {{root:object, body:object, bones:object, groundY:(x:number,z:number)=>number, prone:boolean, dt:number, moving:boolean,
- *   pivot?:number, done?:Function}} o pivot: where along the body the lagging heading turns (PIVOT m ahead: the chest);
+ *   pivot?:number, done?:Function, maxTilt?:number}} o pivot: where along the body the lagging heading turns (PIVOT m ahead: the chest);
+ *   maxTilt: pitch limit (rad; MAX_TILT by default, a flight of stairs' slope on one)
  *   done: called once the shown heading has caught up
  * @returns {{turnDir:number, active:boolean}}
  */
@@ -73,7 +74,8 @@ export function proneGround(st, o) {
     const h = st.visYaw, fx = Math.sin(h), fz = Math.cos(h), lx = Math.cos(h), lz = -Math.sin(h);
     const p = root.position, g = (a, l) => o.groundY(p.x + fx * a + lx * l, p.z + fz * a + lz * l);
     const gc = g(0.45, 0), gf = g(-0.85, 0), gl = g(0, 0.3), gr = g(0, -0.3);
-    pitch = MathUtils.clamp(-Math.atan2(gc - gf, 1.3), -MAX_TILT, MAX_TILT);   // head end up = negative x rotation
+    const mt = o.maxTilt ?? MAX_TILT; // (lying on a flight of stairs: up to its slope)
+    pitch = MathUtils.clamp(-Math.atan2(gc - gf, 1.3), -mt, mt);   // head end up = negative x rotation
     roll = MathUtils.clamp(Math.atan2(gl - gr, 0.6), -MAX_TILT, MAX_TILT);
   }
   const k = o.dt > 0 ? Math.min(1, o.dt * 8) : 1;

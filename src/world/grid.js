@@ -470,6 +470,9 @@ export class NavGrid {
    */
   surfaceY(x, z) {
     const e = this.elevAt(x, z);
+    // stair flights (world/stairs.js StairField, attached by map-builder): the nosing line of the M3 dam stairs and the
+    // access platform stairs, so a walker climbs smoothly instead of a graded cell's height at a time
+    if (this.flights?.size) { const y = this.flights.simY(x, z, e, MAX_STEP); if (y != null) return y; }
     if (this.ramps) for (const r of this.ramps) {
       // only over its own graded cells: strictly between its ends' heights (not the landing / a wall walk beside it)
       if (e <= Math.min(r.ya, r.yb) + 0.01 || e >= Math.max(r.ya, r.yb) - 0.01) continue;
@@ -618,8 +621,9 @@ export class NavGrid {
    * @param {'climb'|'ladder'} kind
    * @param {{x:number, z:number, y?:number}} a
    * @param {{x:number, z:number, y?:number}} b
-   * @param {{roles?: string[]|null, enabled?: boolean, cost?: number, id?: number}} [opts]
-   *   roles default: climb → ['greenberet'] (spec §3.3), ladder → null (everyone)
+   * @param {{roles?: string[]|null, enabled?: boolean, cost?: number, id?: number, walk?: 'stairs'|'plank', heading?: number}} [opts]
+   *   roles default: climb → ['greenberet'] (spec §3.3), ladder → null (everyone); walk: a ladder link walked as a
+   *   stair flight / plank (pathfinding keeps it for a man who may not climb); heading: a ladder's climbing facing
    * @returns {GridLink}
    */
   addLink(kind, a, b, opts = {}) {
@@ -632,6 +636,10 @@ export class NavGrid {
       b: { x: b.x, z: b.z, y: b.y ?? this.elevAt(b.x, b.z) },
       roles: opts.roles !== undefined ? opts.roles : kind === LINK.CLIMB ? ['greenberet'] : null,
       enabled: opts.enabled ?? true,
+      // a ladder link that is walked, not climbed: a flight of stairs or a plank (mission `ladders[].kind`)
+      ...(opts.walk ? { walk: opts.walk } : null),
+      // the facing of a ladder's climber (mission `ladders[].heading`: the ladder faces the other way)
+      ...(opts.heading != null ? { heading: opts.heading } : null),
       cost: 0,
       ka: this.idx(ca.i, ca.j),
       kb: this.idx(cb.i, cb.j),

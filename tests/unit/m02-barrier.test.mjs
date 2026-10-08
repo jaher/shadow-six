@@ -59,9 +59,14 @@ test('m02 plat_sw: the stair is a graded walkable strip from the landing (2.2 m)
   const up = findPath(grid, 33.5, 42.2, 28.3, 42.9, { role: 'sniper' });
   assert.ok(down && up, 'paths both ways');
   assert.ok(![...down, ...up].some((p) => p.link), 'no ladder / climb link: the stair is walked');
-  // along the downward path the floor falls in steps no taller than MAX_STEP
-  const ys = down.map((p) => grid.elevAt(p.x, p.z));
-  assert.ok(Math.abs(ys[0] - 2.2) < 0.05 && ys[ys.length - 1] < 0.05, `from the landing to the floor (${ys.map((y) => y.toFixed(2))})`);
+  // along the downward path the floor falls in steps no taller than MAX_STEP (sampled every 5 cm: down the stair the
+  // path runs straight, world/pathfinding.js straightenFlights)
+  const ys = [];
+  for (let i = 1; i < down.length; i++) {
+    const a = down[i - 1], b = down[i], n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 0.05));
+    for (let q = i === 1 ? 0 : 1; q <= n; q++) ys.push(grid.elevAt(a.x + ((b.x - a.x) * q) / n, a.z + ((b.z - a.z) * q) / n));
+  }
+  assert.ok(Math.abs(ys[0] - 2.2) < 0.05 && ys[ys.length - 1] < 0.05, `from the landing to the floor (${ys[0].toFixed(2)} → ${ys[ys.length - 1].toFixed(2)})`);
   for (let i = 1; i < ys.length; i++) assert.ok(Math.abs(ys[i] - ys[i - 1]) <= MAX_STEP + 1e-6, `step ${i}: ${ys[i - 1].toFixed(2)} → ${ys[i].toFixed(2)}`);
   assert.ok(ys.filter((y) => y > 0.3 && y < 1.9).length >= 2, 'it goes through the stair cells');
   assert.ok(!getMission('m02').ladders.some((l) => l.id === 'ladder_sw_in'), 'the old inner-steps link is gone');

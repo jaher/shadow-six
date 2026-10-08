@@ -5,7 +5,7 @@
  * @module world/pathfinding
  */
 
-import { T, B } from './grid.js';
+import { T, B, MAX_STEP } from './grid.js';
 
 const SQRT2 = Math.SQRT2;
 /** Extra cost factor for wading through shallow water / swimming, so land & bridges are preferred. */
@@ -102,15 +102,16 @@ const DJ = [0, 0, 1, -1, 1, -1, 1, -1];
  * @param {number} sz start z (m)
  * @param {number} tx target x (m)
  * @param {number} tz target z (m)
- * @param {{swim?: boolean, maxNodes?: number, smooth?: boolean, role?: string, dynamic?: boolean, noLinks?: boolean, dive?: boolean, avoid?: Uint8Array, nearRadius?: number, crawl?: boolean}} [opts]
+ * @param {{swim?: boolean, maxNodes?: number, smooth?: boolean, role?: string, dynamic?: boolean, noLinks?: boolean, noWalkLinks?: boolean, dive?: boolean, avoid?: Uint8Array, nearRadius?: number, crawl?: boolean}} [opts]
  *   crawl: a man who can crawl, who also passes grid `crawlway` cells (holes cut low in a fence) — on his belly.
  *   dive: a submerged diver, who also passes grid `underpass` cells (NavGrid.isWalkable).
  *   avoid: extra keep-out mask (grid.isWalkable opts.avoid; body clearance around vehicles). nearRadius: how far (m) a
  *   blocked start / goal looks for a walkable substitute (default 3).
  *   role: unit role for off-grid links (grid.linkAllowed; undefined → only links open to everyone,
  *   '*' → every enabled link). noLinks: plan on grid steps only (no climb edges / ladders — §3.4 a
- *   commando carrying a body or barrel walks around them). dynamic: treat grid.dynamicBlock as blocking (vehicles this step).
- * @returns {{x:number, z:number, y?:number, link?:{id:number, kind:string}}[] | null} waypoints
+ *   commando carrying a body or barrel walks around them); the walked links (a stair link, a plank: `walk`) stay
+ *   open unless noWalkLinks too. dynamic: treat grid.dynamicBlock as blocking (vehicles this step).
+ * @returns {{x:number, z:number, y?:number, link?:{id:number, kind:string, walk?:string}}[] | null} waypoints
  *   including the (possibly substituted) start and goal, or null when unreachable. A waypoint reached by
  *   traversing an off-grid link carries `link` (and `y`, the link end height): the unit must climb /
  *   use the ladder from the previous waypoint (the link's other end) to this one.
@@ -163,7 +164,8 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
   const walkOpts = { swim, dynamic: !!opts.dynamic, dive: !!opts.dive, avoid: opts.avoid || null, crawl: !!opts.crawl };
   const nearR = opts.nearRadius ?? NEAREST_WALKABLE_RADIUS;
   const role = opts.role;
-  const hasLinks = !opts.noLinks && grid.links && grid.links.length > 0;
+  // (noLinks: no climbing — a walked link, a flight of stairs or a plank, stays open unless noWalkLinks too)
+  const hasLinks = (!opts.noLinks || !opts.noWalkLinks) && grid.links && grid.links.length > 0;
   const maxNodes = opts.maxNodes ?? 40000;
   const c = grid.cell;
   const cols = grid.cols;
@@ -242,7 +244,7 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
     // Off-grid links (climb edges, ladders) touching this cell.
     if (hasLinks) {
       for (const L of grid.linksAt(k)) {
-        if (!grid.linkAllowed(L, role)) continue;
+        if (!grid.linkAllowed(L, role) || (opts.noLinks && !L.walk)) continue;
         const nk = L.ka === k ? L.kb : L.ka;
         if (closed[nk] === id) continue;
         const ni = nk % cols, nj = (nk - ni) / cols;
@@ -273,7 +275,7 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
     if (via[k]) {
       const L = grid.links.find((l) => l.id === via[k]);
       const end = L.ka === k ? L.a : L.b;
-      pts[n] = { x: end.x, z: end.z, y: end.y, link: { id: L.id, kind: L.kind } };
+      pts[n] = { x: end.x, z: end.z, y: end.y, link: { id: L.id, kind: L.kind, ...(L.walk ? { walk: L.walk } : null) } };
       const prev = L.ka === k ? L.b : L.a;
       if (n > 0) pts[n - 1] = { ...pts[n - 1], x: prev.x, z: prev.z, y: prev.y };
       linkAt.push(n);
@@ -283,7 +285,7 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
   const last = pts.length - 1;
   if (!pts[last].link) pts[last] = goal;
   if (opts.smooth === false) return pts;
-  if (!linkAt.length) return smoothPath(grid, pts, walkOpts);
+  if (!linkAt.length) return straightenFlights(grid, smoothPath(grid, pts, walkOpts), walkOpts);
   // Smooth each grid-only run separately; links are kept verbatim.
   const out = [];
   let from = 0;
@@ -291,6 +293,36 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
     const seg = smoothPath(grid, pts.slice(from, n), walkOpts);
     for (const p of seg) out.push(p);
     from = n;
+  }
+  return straightenFlights(grid, out, walkOpts);
+}
+
+/**
+ * Up / down a flight of stairs (world/stairs.js, grid.flights) a man walks straight: the string pulling above stops at
+ * a climb of MAX_STEP from where it starts, which left a cell-by-cell zigzag up the M3 dam stairs. Consecutive
+ * waypoints on one flight's run (within its width) whose straight line stays walkable are joined.
+ */
+export function straightenFlights(grid, pts, walkOpts = {}) {
+  const F = grid.flights;
+  if (!F?.size || pts.length < 3) return pts;
+  const on = (p) => {
+    for (const f of F.near(p.x, p.z, 0.3)) {
+      if (f.link) continue;
+      const dx = p.x - f.ox, dz = p.z - f.oz, s = dx * f.ux + dz * f.uz, v = -dx * f.uz + dz * f.ux;
+      if (Math.abs(v) <= f.w / 2 && s >= f.sFoot - 0.3 && s <= f.sTop + 0.3) return f;
+    }
+    return null;
+  };
+  const fl = pts.map(on), out = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const f = fl[i];
+    if (f && !pts[i].link && i + 1 < pts.length && !pts[i + 1].link && fl[i - 1] === f && fl[i + 1] === f) {
+      // drop it when the line from the last kept point to the next one stays walkable, over cells at the flight's
+      // own height (not the ground-level cells along its sides)
+      const a = out[out.length - 1], b = pts[i + 1];
+      if (grid.walkableLine(a.x, a.z, b.x, b.z, { ...walkOpts, clearance: SMOOTH_CLEARANCE }) && onFlightLine(grid, f, a, b)) continue;
+    }
+    out.push(pts[i]);
   }
   return out;
 }
@@ -323,6 +355,22 @@ export function smoothPath(grid, pts, walkOpts) {
     anchor = next;
   }
   return out;
+}
+
+/** Does the line a → b (and its clearance offsets) run over cells within MAX_STEP of flight f's nosing line? */
+function onFlightLine(grid, f, a, b) {
+  const L = Math.hypot(b.x - a.x, b.z - a.z), n = Math.max(1, Math.ceil(L / 0.1));
+  const nx = L > 1e-6 ? (-(b.z - a.z) / L) * SMOOTH_CLEARANCE : 0, nz = L > 1e-6 ? ((b.x - a.x) / L) * SMOOTH_CLEARANCE : 0;
+  for (let q = 0; q <= n; q++) {
+    const t = q / n;
+    for (const k of [-1, 0, 1]) {
+      const x = a.x + (b.x - a.x) * t + nx * k, z = a.z + (b.z - a.z) * t + nz * k;
+      const s = (x - f.ox) * f.ux + (z - f.oz) * f.uz;
+      const y = Math.min(f.yMax, Math.max(f.yMin, f.lineY0 + (s - f.lineS0) * f.slope));
+      if (Math.abs(grid.elevAt(x, z) - y) > MAX_STEP) return false;
+    }
+  }
+  return true;
 }
 
 /** Total length of a polyline path (m). */

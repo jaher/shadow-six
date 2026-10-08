@@ -29,6 +29,7 @@ import { dropCarried } from '../abilities/common.js';
 import { releasePuppet, installBcdSystems } from '../ai/bcd-enemy.js';
 import { isDownableHit, enterDowned, tickDowned, serializeDowned } from './downed.js';
 import { digFrame } from '../art/shovel-dig.js';
+import { pathOnStairs } from './stair-walk.js';
 import { cutFrame } from '../art/wire-cut.js';
 
 export { dropCarried };
@@ -195,7 +196,8 @@ export class Commando extends Unit {
   get speed() {
     const U = CONFIG.units;
     const wp = this.path?.[this.pathIndex];
-    if (wp?.link) return wp.link.kind === 'climb' ? CONFIG.abilities.climbSpeed : CONFIG.abilities.ladderSpeed;
+    // (a walked link — a flight of stairs, a plank — at his own pace: Unit._followPath slows it on the stairs)
+    if (wp?.link && !wp.link.walk) return wp.link.kind === 'climb' ? CONFIG.abilities.climbSpeed : CONFIG.abilities.ladderSpeed;
     if (this.carrying && this.carryMode === 'drag' && this.stance === 'stand') return CONFIG.bodies.drag.speed * this.speedMul; // §C.2
     if (this.carrying && this.stance === 'stand') return U.carry * this.speedMul;
     let s = super.speed;
@@ -208,7 +210,8 @@ export class Commando extends Unit {
     const q = super.pathQuery();
     if (this.carrying) q.noLinks = true;
     if (this.carrying && this.carrying.kind !== 'interactable') q.swim = false; // §C.1: no swimming with a man
-    if (this.downed) { q.noLinks = true; q.swim = false; } // §C.6: he crawls on the flat
+    if (this.downed) { q.noLinks = true; q.noWalkLinks = true; q.swim = false; } // §C.6: he crawls on the flat
+    if (this.carrying && this.carrying.kind !== 'interactable' && this.carryMode === 'drag') q.noWalkLinks = true; // §C.2 not dragged up / down stairs
     // a hole cut low in a fence (grid crawlway): on his belly — not with a load on his back, not a guest who cannot crawl
     q.crawl = this.downed || (!this.carrying && !this.noCrawl && !this.diving);
     // §3.4 diving gear: plan through open water and under decks (grid.underpass, M16/M18 bridge spans); a target
@@ -235,7 +238,12 @@ export class Commando extends Unit {
     if (!ok && this.diving) { this._diveFallback = true; try { ok = super.moveTo(x, z, { ...opts, run }); } finally { this._diveFallback = false; } }
     // §3.4: no climbing (walls or ladders) while carrying a body or barrel — pathQuery() already
     // plans link-free, so this only guards a path that somehow still holds a link.
-    if (ok && this.carrying && this.path.some((p) => p.link)) { this.stop(); return false; }
+    if (ok && this.carrying && this.path.some((p) => p.link && !p.link.walk)) { this.stop(); return false; }
+    // §C.2 a man is not dragged up or down a flight of stairs (his body would bump down every tread): the move is
+    // refused (the Green Beret and the Spy can shoulder him and carry him up; entities/stair-walk.js)
+    if (ok && this.carrying && this.carrying.kind !== 'interactable' && this.carryMode === 'drag' && pathOnStairs(this, this.path)) {
+      this.stop(); this._moveRefusal = "can't drag a man on the stairs."; return false;
+    }
     // §3.4 diving gear: he stays in WATER/SHALLOW cells — the path ends at the last water waypoint
     if (ok && this.diving) {
       const w = this.world;
@@ -282,8 +290,9 @@ export class Commando extends Unit {
         if (this.buried) { ok = this._riseThenMove(order); break; } // §3.4: a move order digs him out first
         if (this.hidden || this.state === 'inVehicle') break;
         if (!this.cancelAction()) break;
+        this._moveRefusal = null;
         ok = this.moveTo(order.x, order.z, { run: !!order.run });
-        if (!ok) w.events.emit('message', { text: `${this.nickname}: can't get there.`, kind: 'warn', unit: this });
+        if (!ok) w.events.emit('message', { text: `${this.nickname}: ${this._moveRefusal || "can't get there."}`, kind: 'warn', unit: this });
         break;
       case 'stop':
         if (this.vehicle?.handleOrder) { ok = this.vehicle.handleOrder(this, order); break; }
@@ -626,15 +635,20 @@ export class Commando extends Unit {
     if (!super.moveTo(lead.x + ux * gap, lead.z + uz * gap, { run: lead.moveMode === 'run' && !!lead.path }) && this.path) this.stop();
   }
 
-  /** Emit unit:climb when a path segment through a climb/ladder link starts (§3.4 climb, §3.2 ladders). */
+  /**
+   * Emit unit:climb when a path segment through a climb/ladder link starts (§3.4 climb, §3.2 ladders). A walked link
+   * (a flight of stairs, a plank) is walked: no climb (art/stair-gait.js shows the stairs); a ladder shows the
+   * procedural climb (art/ladder-climb.js) over the 'ladder' pose.
+   */
   _updateLinks() {
-    const wp = this.path?.[this.pathIndex];
+    const wp0 = this.path?.[this.pathIndex], wp = wp0?.link?.walk ? null : wp0;
+    const anim = wp?.link?.kind === 'ladder' ? 'ladder' : 'climb';
     if (wp?.link && this._linkIdx !== this.pathIndex) {
       this._linkIdx = this.pathIndex;
       this.world?.events.emit('unit:climb', { unit: this, kind: wp.link.kind, link: wp.link });
-      this.playAction?.('climb', 0.2);
+      this.playAction?.(anim, 0.2);
     } else if (!wp?.link) this._linkIdx = -1;
-    if (wp?.link) this._animOverride = { name: 'climb', t: 0.1 };
+    if (wp?.link) this._animOverride = { name: anim, t: 0.1 };
   }
 
   /** Carried body follows on the shoulder (§3.4); carry animations. */

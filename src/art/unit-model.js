@@ -26,6 +26,8 @@ import { carrierContact, loadSway, loadGait } from './transport-contact.js';
 import { BoneGuard, StickyGuard, capturePose, mixPose } from './pose-blend.js';
 import { proneGround, PRONE_CLIP } from './prone-ground.js';
 import { turnStep } from './turn-step.js';
+import { stairGait, stairGround } from './stair-gait.js';
+import { ladderClimb } from './ladder-climb.js';
 
 const PRONE_SHOT = /^prone_(shoot|shoot_smg|pistol_shoot)$/;
 /** The Spy's pending orders whose action blends in from the last pose shown (art/spy-actions.js). */
@@ -260,6 +262,7 @@ export class UnitModel {
     const u = this.unit;
     if (u && ((u.carrying && u.carrying.kind !== 'interactable') || u.downed || u.state === 'carried' || u.pendingTransport)) want = false;
     if (this.overlay) want = false; // a procedural overlay has his hands (the shovel: art/shovel-dig.js re-checks when it ends)
+    if (u?._ladder) want = false; // both hands on the rungs (art/ladder-climb.js), the weapon slung
     return want;
   }
 
@@ -367,6 +370,8 @@ export class UnitModel {
     // the ability's action id is set after its start() played the clip (Commando._updatePending): re-pick the weapon
     // then, so the knife stab shows the knife (not the carry pistol)
     if (R.inner && this.player && this.unit && (this.unit.currentActionId ?? null) !== (this._actId ?? null)) { this._actId = this.unit.currentActionId ?? null; this._weaponFor(this._ctx()); }
+    // on / off a ladder: the weapon slung / back in hand
+    if (R.inner && this.player && this.unit && !!this.unit._ladder !== !!this._onLadder) { this._onLadder = !!this.unit._ladder; this._weaponFor(this._ctx()); }
     // the contact knife kill's blend-out (abilities/knife.js sets knifeShow): the knife stays in his fist until it ends
     if (R.inner && this.player && this.unit) {
       const ks = (this.unit.knifeShow ?? -1) > (this.unit.world?.time ?? 0);
@@ -385,7 +390,7 @@ export class UnitModel {
         }
       } else this._last = { x: 0, z: 0 };
       this._last.x = p.x; this._last.z = p.z;
-    } else this._last = null;
+    } else if (dt > 0 || !LOCOMOTION.has(this.anim)) this._last = null; // (a 0-dt frame — paused, Game.advance's own render — keeps the last sample)
     // bodies-design §C.10 transport visuals: the pose he lay in when the hands take him, or the last transport pose
     // when it ends (both read before the mixer update), then last frame's direct bone writes are put back for the mixer
     const tst = R.inner && this.unit && !this.dog ? transportState(this.unit) : null;
@@ -435,6 +440,10 @@ export class UnitModel {
     if (R.inner && !this.dog && !tst && !this._carryOn && !this._rdLast && !this._blend) stepped = turnStep(this, dt, this._guard) || stepped;
     // prone bodies on the real terrain (art/prone-ground.js) — not while transported or in a physics/baked ragdoll pose
     if (R.inner && !this.dog && !tst && !this._carryOn && !this._rdLast && (stepped || this._pg?.active)) stepped = this._prone(dt) || stepped;
+    // on a flight of stairs: each foot on a tread, the body rising / sinking tread by tread (art/stair-gait.js); on a
+    // ladder: hands and feet on its rungs (art/ladder-climb.js)
+    if (R.inner && !this.dog && !tst && !this._carryOn && !this._rdLast && (this._sg || u?.world?.stairs?.size)) stepped = stairGait(this, dt, this._guard) || stepped;
+    if (R.inner && !this.dog && !tst && (this._lc || u?._ladder)) stepped = ladderClimb(this, dt, this._guard) || stepped;
     if (stepped || !this._mwValid || !this._mw.equals(root.matrix)) {
       baseUpdateMW.call(root, true);
       this._mw.copy(root.matrix); this._mwValid = true;
@@ -486,7 +495,7 @@ export class UnitModel {
     // a settle turn (Unit._arrive / _guardBody: turned clear of a hull in place) pivots about his hips, as its sweep was
     // checked, not about the chest
     const res = proneGround(st, { root: this.root, body: this._body(), bones: inner.bones, dt, prone, pivot: u?._turnInPlace ? 0 : undefined, done: u?._turnInPlace ? () => { u._turnInPlace = false; } : undefined,
-      moving: LOCOMOTION.has(this.anim) && this._v > 0.1, groundY: w?.groundY ? (x, z) => w.groundY(x, z) + ey : null });
+      moving: LOCOMOTION.has(this.anim) && this._v > 0.1, ...this._proneGround(w, u, ey) });
     st.active = res.active;
     const turn = prone && res.turnDir && this.anim === 'crawl_idle' ? (res.turnDir > 0 ? 'prone_turn_l' : 'prone_turn_r') : null;
     if (turn !== this._turnClip && (!turn || R.hasAnim(turn))) {
@@ -494,6 +503,17 @@ export class UnitModel {
       R.setAnim(turn || this.clip, { fade: 0.15 });
     }
     return true;
+  }
+
+  /**
+   * Ground under a lying man for prone-ground: the world's (his level + the relief), or on a flight of stairs its
+   * nosing line (he lies along the steps' edges, pitched up to the stair's slope: art/stair-gait.js stairGround).
+   */
+  _proneGround(w, u, ey) {
+    if (!w?.groundY) return { groundY: null };
+    const sg = stairGround(u);
+    if (!sg) return { groundY: (x, z) => w.groundY(x, z) + ey };
+    return { groundY: (x, z) => sg(x, z) ?? w.groundY(x, z) + ey, maxTilt: sg.maxTilt };
   }
 
   /** Post pass of a transported man (transportFrame): paired track / hold, sway, the transporter's hands. */

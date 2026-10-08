@@ -35,6 +35,7 @@ import { BODY, bodyGap, clearPose, avoidMask, inflationTiers, hasObstacles, hull
 import { pathLength } from '../world/pathfinding.js';
 import { gateLayout } from '../world/breakables.js';
 import { runNoiseStep } from '../ai/running-noise.js';
+import { stairSpeed, linkWalkY, isLadderLeg, ladderTrack, ladderSpeed, onStairRun } from './stair-walk.js';
 
 const LOW_STANCES = new Set(['crawl', 'swim', 'dive', 'downed']);
 /**
@@ -206,14 +207,15 @@ export class Unit extends Entity {
   moveTo(x, z, { run = false, onArrive = null } = {}) {
     if (!this.alive || !this.world || IMMOBILE_STATES.has(this.state) || this.buried) return false;
     // from the path track: a dodging walker keeps its lane (avoidance.js), so re-paths do not shift the route
-    const path = this._planPath(x, z);
+    // (halfway up / down a ladder: planned from its end, which he climbs on to first)
+    const path = this._onLadder() ? this._planFromLadder(x, z) : this._planPath(x, z);
     if (!path) return false;
     this._bodyBlockT = 0;
     this._bodyProg = null;
     this._settled = false;
     this._settleHeading = null;
     this.path = path;
-    this.pathIndex = path.length > 1 ? 1 : 0;
+    this.pathIndex = path.length > 1 && path[0] !== this._ladder?.wp ? 1 : 0;
     this.moveTarget = path[path.length - 1];
     this.moveMode = run && this.stance === 'stand' ? 'run' : 'walk';
     this._onArrive = onArrive;
@@ -230,6 +232,7 @@ export class Unit extends Entity {
    */
   steerTo(x, z) {
     if (!this.alive || !this.world || IMMOBILE_STATES.has(this.state) || this.buried) return false;
+    if (this._onLadder()) return true; // (he climbs on to the ladder's end first)
     const p = this.path;
     if (p && p.length === 1 && p[0].steer) { p[0].x = x; p[0].z = z; this.pathIndex = 0; return true; }
     this._bodyBlockT = 0;
@@ -252,6 +255,7 @@ export class Unit extends Entity {
    */
   walkStraight(x, z, { run = false, onArrive = null } = {}) {
     if (!this.alive || !this.world || IMMOBILE_STATES.has(this.state) || this.buried) return false;
+    if (this._onLadder()) return false;
     this._bodyBlockT = 0;
     this._bodyProg = null;
     this._settled = false;
@@ -264,6 +268,18 @@ export class Unit extends Entity {
     this._onArrive = onArrive;
     this._pathGridVersion = this.world.grid.version;
     return true;
+  }
+
+  /** Is he halfway up / down a ladder (entities/stair-walk.js)? */
+  _onLadder() { const L = this._ladder; return !!(L && this.path?.[this.pathIndex] === L.wp); }
+
+  /** A path to (x, z) that first climbs on to the end of the ladder he is on (moveTo mid-ladder). */
+  _planFromLadder(x, z) {
+    const L = this._ladder, at = { x: this.x, z: this.z, y: this.y };
+    this.x = L.wp.x; this.z = L.wp.z; this.y = L.wp.y ?? this.y;
+    let p;
+    try { p = this._planPath(x, z); } finally { this.x = at.x; this.z = at.z; this.y = at.y; }
+    return p ? [L.wp, ...p.slice(1)] : null;
   }
 
   /** Where he is on his path track (position minus the avoidance lane and corner curve): route progress. */
@@ -344,9 +360,15 @@ export class Unit extends Entity {
     return { swim: this.canSwim, role: this.role };
   }
 
-  /** Stop moving (keeps stance). */
+  /** Stop moving (keeps stance). Halfway up / down a ladder he climbs on to its end first (art/ladder-climb.js). */
   stop() {
     this._bakeLane();
+    const L = this._ladder;
+    if (L && this.alive && this.path?.[this.pathIndex] === L.wp) { // (not hanging off it in mid-air)
+      this.path = [L.wp]; this.pathIndex = 0; this.moveTarget = L.wp; this._onArrive = null;
+      return;
+    }
+    this._ladder = null;
     this.path = null;
     this._climb = null;
     this.pathIndex = 0;
@@ -613,7 +635,7 @@ export class Unit extends Entity {
     const o = this.object3d, w = this.world;
     if (o && this._pitched) { o.rotation.x = 0; this._pitched = false; }
     if (o && (this.stance === 'crawl' || this.stance === 'downed') && this.alive && typeof w?.groundY === 'function' && !this.vehicle) return this._crawlOverSteps(o, w);
-    if (!o || typeof w?.groundY !== 'function' || !this._moving || LOW_STANCES.has(this.stance) || this._climb) return;
+    if (!o || typeof w?.groundY !== 'function' || !this._moving || LOW_STANCES.has(this.stance) || this._climb || this._ladder) return;
     const run = this.moveMode === 'run', reach = run ? RUN_REACH : WALK_REACH, heel = run ? RUN_HEEL : WALK_HEEL;
     const x = o.position.x, z = o.position.z, c = Math.cos(this.heading), s = Math.sin(this.heading), g0 = w.groundY(x, z) || 0;
     let lift = 0;
@@ -642,11 +664,13 @@ export class Unit extends Entity {
   /**
    * Placement rule (e) running stride: the trailing heel kicks up to 0.85 m behind a runner; while a wall, a stake
    * or a building stands there (running off a post with his back to the palisade: M2 e5), his first strides are shown
-   * as a walk at the same pace.
+   * as a walk at the same pace. Up / down a flight of stairs a run is a careful jog (STAIR_PACE), shown as a brisk
+   * walk, two treads a stride (art/stair-gait.js: a run's flight phase has no tread to land on).
    */
   _heelBlocked() {
     const g = this.world?.grid;
     if (!g) return false;
+    if (g.flights?.size && onStairRun(this)) return true;
     const c = Math.cos(this.heading), s = Math.sin(this.heading);
     for (const d of [0.45, 0.65, 0.85]) for (const v of [-0.15, 0, 0.15]) {
       const x = this.x - c * d - s * v, z = this.z - s * d + c * v, { i, j } = g.worldToCell(x, z);
@@ -696,7 +720,7 @@ export class Unit extends Entity {
    */
   _keepWeaponRoom(dt) {
     const w = this.world;
-    if (!w?.grid || LOW_STANCES.has(this.stance) || this.vehicle || this._climb) return;
+    if (!w?.grid || LOW_STANCES.has(this.stance) || this.vehicle || this._climb || this._ladder) return;
     const left = 0.6 - (this._weaponBack || 0); // per aim (≤ 0.6 m in all)
     // parked hulls and wagons count too (taller than the shoulder: a vehicle's own height, a wagon's box)
     const solidAt = (x, z, y) => (w.vehicles || []).some((v) => v !== this.vehicle && !v.removed && !v.hiddenRail && v._inHull?.(x, z, 0) && (v.hullHeight?.() ?? 2) > y)
@@ -807,7 +831,7 @@ export class Unit extends Entity {
     const w = this.world;
     // Re-path if the grid changed under us (door closed, bridge destroyed…).
     // (not halfway over a wall: the climb finishes first)
-    if (w && this._pathGridVersion !== w.grid.version && this.moveTarget && !this._climb) {
+    if (w && this._pathGridVersion !== w.grid.version && this.moveTarget && !this._climb && !this._ladder) {
       const t = this.moveTarget, cb = this._onArrive, run = this.moveMode === 'run';
       if (!this.moveTo(t.x, t.z, { run, onArrive: cb })) {
         this.stop();
@@ -821,7 +845,9 @@ export class Unit extends Entity {
     const lx0 = this._laneX + this._curveX, lz0 = this._laneZ + this._curveZ, cx0 = this._curveX, cz0 = this._curveZ;
     this.x -= lx0; this.z -= lz0; this._curveX = this._curveZ = 0;
     this._trackOff = { x: lx0, z: lz0 }; // (an arrival this step puts it back: _arrive)
-    let step = this.speed * dt * this._avScale;
+    // (on a flight of stairs a little slower, a careful jog when running; up / down a ladder at the ladder pace:
+    // entities/stair-walk.js)
+    let step = (isLadderLeg(this.path[this.pathIndex]) ? ladderSpeed(this) : stairSpeed(this, this.speed)) * dt * this._avScale;
     this.trackV = step / dt; // pace along the path (route progress; the lane and curve ride on top)
     const stride = step, running = this.moveMode === 'run'; // (an arrival this step resets moveMode / path)
     let dirX = 0, dirZ = 0;
@@ -845,6 +871,24 @@ export class Unit extends Entity {
     } else { this._mdirX = 0; this._mdirZ = 0; }
     while (step > 1e-9 && this.path) {
       const wp = this.path[this.pathIndex];
+      if (isLadderLeg(wp) && w) {
+        // §3.2 ladders: up / down the ladder's line (the link's foot → its top) at the ladder pace, facing the ladder
+        // all the way (going down he backs down it); the view puts his hands and feet on its rungs
+        let C = this._ladder;
+        if (!C || C.wp !== wp) C = this._ladder = ladderTrack(this, wp);
+        const use = Math.max(0, Math.min(step, C.len - C.s));
+        C.s += use; step -= use;
+        const t = C.len > 1e-6 ? C.s / C.len : 1;
+        this.x = C.from.x + (C.to.x - C.from.x) * t; this.z = C.from.z + (C.to.z - C.from.z) * t; this.y = C.from.y + (C.to.y - C.from.y) * t;
+        dirX = C.fx; dirZ = C.fz;
+        climbing = true;
+        if (C.s < C.len - 1e-9) break;
+        this.x = wp.x; this.z = wp.z;
+        if (wp.y !== undefined) this.y = wp.y;
+        this._ladder = null; climbing = false;
+        if (++this.pathIndex >= this.path.length) { this._arrive(); break; }
+        continue;
+      }
       if (wp.link?.kind === 'climb' && w) {
         // rule (e) climbs: over the wall's real top (placement.climbTrack), same duration as the flat crossing
         let C = this._climb;
@@ -917,11 +961,15 @@ export class Unit extends Entity {
     // On a stair (grid ramps) he follows its slope rather than the cell steps, and steps on / off it (from the wall walk
     // beside it, the landing, the floor) ease over ~0.15 s instead of snapping a cell's height in one tick.
     // (On arrival he stands at the surface height.)
+    // A walked link (a flight of stairs, a plank: entities/stair-walk.js) has its own line; a flight's nosing line is
+    // the grid's surfaceY (world/stairs.js), eased onto / off like a ramp's.
     if (w && !climbing) {
-      const g = w.grid, e = g.surfaceY ? g.surfaceY(this.x, this.z) : g.elevAt(this.x, this.z);
+      const g = w.grid, lw = this.path ? linkWalkY(this, this.path[this.pathIndex]) : null;
+      const e = lw ?? (g.surfaceY ? g.surfaceY(this.x, this.z) : g.elevAt(this.x, this.z));
       if (e > 0 || this.y > 0) {
         const d = e - this.y;
-        this.y = this.path && g.ramps && Math.abs(d) > 0.06 && Math.abs(d) <= MAX_STEP + 1e-3 && g.nearRamp(this.x, this.z) ? this.y + Math.sign(d) * Math.min(Math.abs(d), 4 * dt) : e;
+        const slope = lw != null || (g.ramps && g.nearRamp(this.x, this.z)) || g.flights?.nearRun(this.x, this.z);
+        this.y = this.path && slope && Math.abs(d) > 0.06 && Math.abs(d) <= MAX_STEP + 1e-3 ? this.y + Math.sign(d) * Math.min(Math.abs(d), 4 * dt) : e;
       }
     }
     // a sidestep turns the body a little toward it (from the accel-limited lane speed: smooth, no twitch from the

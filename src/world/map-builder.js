@@ -28,6 +28,7 @@ import { buildTerrain, canBuildRealTerrain, TREE_TYPES, coverPropsWithSnow, setP
 import { buildWater, raisedWaterMasks } from '../art/water.js';
 import { buildWalkDeck, WALK_SHIFT, dressingMaterial } from '../art/dressing.js';
 import { buildDamStairs, stairTopAt } from '../art/dam-stairs.js';
+import { StairField, damFlights, platformFlight, linkFlight } from './stairs.js';
 import { createDamWater, hasDamWater, loadDamPoolTextures } from '../render/dam-water.js';
 import { buildMissionWire } from '../art/wire-obstacles.js';
 import * as WaterModule from '../art/water/index.js';
@@ -1320,6 +1321,27 @@ function raiseRamp(grid, scratch, pts, w, y0, y1, landing) {
   return n;
 }
 
+/**
+ * Every stair flight of the map (world/stairs.js): structures' `ramps` (dam stairs), access platform stairs (their
+ * `ramp` footprint's `stairs`), `ladders[]` links of kind 'stairs'.
+ * @returns {StairField}
+ */
+export function buildStairField(built, grid, links = []) {
+  const flights = [];
+  for (const b of built) {
+    for (const r of b.def?.ramps || []) flights.push(...damFlights(r));
+    for (const f of b.footprints || []) if (f.ramp?.stairs) flights.push(platformFlight(f.ramp, b.def?.id ?? null));
+  }
+  // stair links: laid out from the mission's own ends (where the flight's mesh stands; the link's are snapped)
+  for (const l of grid.links || []) {
+    if (l.walk !== 'stairs') continue;
+    const d = links.find((r) => r.link === l)?.def;
+    const ends = d ? { a: { x: d.x, z: d.z, y: d.y ?? 0 }, b: { x: d.top[0], z: d.top[1], y: d.top[2] ?? 0 } } : {};
+    flights.push(linkFlight(l, { id: d?.id ?? `link${l.id}`, ...ends }));
+  }
+  return new StairField(flights);
+}
+
 /** Standing point in front of a structure's door (local direction `door` rad from `rot`; default: +90° = south face at rot 0). */
 export function doorPoint(def) {
   const rot = def.rot ?? 0;
@@ -1513,6 +1535,10 @@ export function buildMap(world, mission, opts = {}) {
   // 5b''. `noWalk` areas (M3: the foot of the dam's face): nobody walks, wades, swims or is sent there; before the
   // visual nav pass, so its keep-the-ways-open rules never count on them
   stampNoWalk(grid, mission.noWalk);
+  // 5b'''. stair flights (world/stairs.js): the dam stairs, the access platform stairs and the stair links — the sim
+  // walks their nosing line (grid.surfaceY), the view puts the feet on their treads (art/stair-gait.js). Attached after
+  // every nav stamp above, which knows nothing of them.
+  world.stairs = grid.flights = buildStairField(built, grid, links);
 
   // 5c. placement rule (e): what the visuals occupy outside their gameplay footprints blocks walking (browser)
   let visNavOff = null, deckLanes = null;
@@ -1900,7 +1926,8 @@ export function addMissionLinks(grid, mission, o = {}) {
     out.push({ kind: LINK.CLIMB, link, def: l });
   }
   for (const l of mission.ladders || []) {
-    const link = grid.addLink(LINK.LADDER, end([l.x, l.z, l.y ?? 0]), end(l.top), { roles: l.roles ?? null, enabled: !l.raised });
+    const walk = l.kind === 'stairs' || l.kind === 'plank' ? l.kind : undefined; // walked, not climbed (world/stairs.js)
+    const link = grid.addLink(LINK.LADDER, end([l.x, l.z, l.y ?? 0]), end(l.top), { roles: l.roles ?? null, enabled: !l.raised, walk, heading: l.heading });
     out.push({ kind: LINK.LADDER, link, def: l });
   }
   return o.records ? out : out.length;
