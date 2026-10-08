@@ -204,7 +204,7 @@ export default async function (page, t) {
   t(m3.sparks[1] - m3.sparks[0] >= 3, `sparks while powered ${m3.sparks}`);
   t(m3.sparks[2] === m3.sparks[1], `no sparks after the switch ${m3.sparks}`);
 
-  // ---- m00: the Sapper cuts the sandbox fence → a crawl-only hole with frayed ends, a crawler's path goes through
+  // ---- m00: the Sapper cuts the sandbox fence → a walk-through hole with chaotic ends; paths go through on foot
   const cut = await page.evaluate(async () => {
     const g = window.__game, G = g.game;
     await g.loadMission('m00'); g.start(); g.advance(0.5); G.render(1 / 60, 1);
@@ -215,23 +215,22 @@ export default async function (page, t) {
     const ok = g.useAbility(sap.id, 'cutters', { x: 26, z: 40 });
     for (let i = 0; i < 40 * 30 && !W.stats.cuts; i++) { g.advance(1 / 30); if (i % 10 === 0) G.render(1 / 30, 1); }
     G.cameraController.setZoom(2); G.cameraController.centerOn(26, 40); g.advance(0.1); g.render(); g.render();
-    const path = G.world.findPath(26, 38.5, 26, 41.5, { crawl: true });
-    const upright = G.world.findPath(26, 38.5, 26, 41.5);
+    const upright = G.world.findPath(26, 38.5, 26, 41.5), enemy = G.world.findPath(26, 38.5, 26, 41.5, { role: 'enemy' });
     const len = (p) => (p ? p.slice(1).reduce((a, q, i) => a + Math.hypot(q.x - p[i].x, q.z - p[i].z), 0) : Infinity);
-    return { ok, cuts: W.stats.cuts, gaps: [...W.gaps], holes: [...W.holes], path: path?.length ?? 0, crawlLen: +len(path).toFixed(1), uprightLen: +len(upright).toFixed(1) };
+    return { ok, cuts: W.stats.cuts, gaps: [...W.gaps], holes: [...W.holes].map(([k, v]) => [k, v.map((H) => ({ d: H.d, side: H.side }))]), uprightLen: +len(upright).toFixed(1), enemyLen: +len(enemy).toFixed(1) };
   });
   t.log('cut', JSON.stringify(cut));
-  // a round hole low in the wire (the strands through it cut, their ends bent back), not a full-height gap
-  t(cut.ok !== false && cut.cuts >= 2 && cut.holes.length === 1 && cut.gaps.length === 0, `cutters open a hole with frayed ends ${JSON.stringify(cut)}`);
-  t(cut.path > 0 && cut.crawlLen < 5, `a crawler's path goes through the hole (${cut.crawlLen} m)`);
-  t(cut.uprightLen > cut.crawlLen + 3, `nobody upright goes through it (${cut.uprightLen} m round)`);
+  // a man-sized hole (the strands through it cut up to ~1.95 m, their ends sprung back), not a full-height gap
+  t(cut.ok !== false && cut.cuts >= 6 && cut.holes.length === 1 && cut.gaps.length === 0, `cutters open a hole with cut ends ${JSON.stringify(cut)}`);
+  t(cut.uprightLen < 4 && cut.enemyLen < 4, `a man on his feet (an enemy too) goes through the hole (${cut.uprightLen} / ${cut.enemyLen} m)`);
   await t.shot('wire-m00-cut');
 
   // ---- M3: the Sapper's hole in the station's chain-link fence reads at the default view (zoom 1, pitch 40°) from
-  // both sides (user: "make them stand out more"). On the fence plane round the hole (its ellipse, ρ = normalised
-  // radius): the opening (ρ < 0.7) must be clear — the snow behind shows through: brighter than the same pixels with
-  // the fence whole (no haze of mesh left in it) — and must stand out from the mesh beside it at the same heights (the
-  // crumpled cut edge, the bent-back ends, the flap folded back there): mean luminance contrast ≥ 36 (master: 22 / 31).
+  // both sides (user: "make them stand out more"). On the fence plane round the hole (u along the wire from its
+  // centre, y over the ground): the opening (|u| < 0.35, 0.15–1.75 m) must be clear — the snow behind shows through:
+  // brighter than the same pixels with the fence whole (no haze of mesh left in it) — and must stand out from the mesh
+  // beside it at the same heights (the crumpled cut edge, the cut ends, the flaps folded back there): mean luminance
+  // contrast ≥ 36 (the crawl hole before 2026-10-07: 22 / 31).
   const vis = await page.evaluate(async () => {
     const g = window.__game, G = g.game, THREE = await import('three');
     const { HOLE } = await import('/src/art/wire-obstacles.js');
@@ -250,7 +249,7 @@ export default async function (page, t) {
     const [[key, [H]]] = [...Wl.holes], p = Wl.parts.panels.find((q) => q.runKey === key && H.d >= q.da && H.d <= q.db);
     const f = (H.d - p.da) / (p.db - p.da), L = Math.hypot(p.b[0] - p.a[0], p.b[1] - p.a[1]);
     const x0 = p.a[0] + (p.b[0] - p.a[0]) * f, z0 = p.a[1] + (p.b[1] - p.a[1]) * f, gy = p.ga + (p.gb - p.ga) * f, tx = (p.b[0] - p.a[0]) / L, tz = (p.b[1] - p.a[1]) / L;
-    const hw = HOLE.w / 2, hh = HOLE.h / 2, yc = HOLE.y0 + hh;
+    const hw = HOLE.w / 2;
     const cam = G.cameraController.camera, cnv = G.renderer.renderer.domElement;
     const c2 = document.createElement('canvas'); c2.width = cnv.width; c2.height = cnv.height;
     const ctx = c2.getContext('2d', { willReadFrequently: true }), Wd = c2.width, Hd = c2.height;
@@ -260,15 +259,15 @@ export default async function (page, t) {
     const mean = (A, S) => { let s = 0; for (const k of S) s += A[k]; return s / Math.max(1, S.size); };
     const out = { ok, holes: Wl.holes.size, flaps: Wl.flaps.length, drawCalls: Wl.group.children.filter((o) => o.visible && o.layers.mask & 1).length };
     for (const yaw of [0, 180]) {
-      G.cameraController.setYaw?.(yaw); G.cameraController.setZoom(1); G.cameraController.centerOn(57.6, 79.0); g.advance(0.1); g.render(); g.render();
+      G.cameraController.setYaw?.(yaw); G.cameraController.setZoom(1); G.cameraController.centerOn(H.x, H.z); g.advance(0.1); g.render(); g.render();
       // fence-plane samples every 1 cm → screen pixels: the opening, and the mesh beside the hole (1.35 hw … + 0.45 m)
       const inner = new Set(), side = new Set();
-      for (let u = -1.4; u <= 1.4; u += 0.01) for (let y = 0.04; y <= 1.3; y += 0.01) {
-        const rho = Math.hypot(u / hw, (y - yc) / hh), [sx, sy] = scr(u, y);
+      for (let u = -1.4; u <= 1.4; u += 0.01) for (let y = 0.04; y <= 1.8; y += 0.01) {
+        const [sx, sy] = scr(u, y);
         if (sx < 0 || sy < 0 || sx >= Wd || sy >= Hd) continue;
         const k = sy * Wd + sx;
-        if (rho < 0.7 && y > HOLE.y0 + 0.06) inner.add(k);
-        else if (Math.abs(u) > hw * 1.35 && Math.abs(u) < hw * 1.35 + 0.45 && y > 0.12 && y < yc + hh * 0.6) side.add(k);
+        if (Math.abs(u) < 0.35 && y > 0.15 && y < 1.75) inner.add(k);
+        else if (Math.abs(u) > hw * 1.35 && Math.abs(u) < hw * 1.35 + 0.45 && y > 0.15 && y < 1.75) side.add(k);
       }
       for (const k of inner) side.delete(k);
       const on = grab();
@@ -278,11 +277,11 @@ export default async function (page, t) {
       const off = grab();
       for (const [k2, v2] of saved) Wl.holes.set(k2, v2);
       Wl.rebuild(); Wl.finishBarbs(); Wl.setFlaps(Infinity);
-      const [ca, cb] = [scr(-hw, yc), scr(hw, yc)];
+      const [ca, cb] = [scr(-hw, 1.0), scr(hw, 1.0)];
       out[yaw] = { Lin: +mean(on, inner).toFixed(1), Lside: +mean(on, side).toFixed(1), LinWhole: +mean(off, inner).toFixed(1), px: inner.size, widthPx: +Math.hypot(cb[0] - ca[0], cb[1] - ca[1]).toFixed(1) };
       out[yaw].contrast = +(out[yaw].Lin - out[yaw].Lside).toFixed(1);
     }
-    G.cameraController.setYaw?.(0); G.cameraController.setZoom(2); G.cameraController.centerOn(57.6, 79.0); g.advance(0.1); g.render();
+    G.cameraController.setYaw?.(0); G.cameraController.setZoom(2); G.cameraController.centerOn(H.x, H.z); g.advance(0.1); g.render();
     return out;
   });
   t.log('M3 hole', JSON.stringify(vis));

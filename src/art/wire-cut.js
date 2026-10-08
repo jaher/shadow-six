@@ -4,13 +4,13 @@
  * the wire, nx / nz = towards him, tx / tz = along the wire) by `cutFrame(unit, dt)` (Commando.renderUpdate).
  *
  * Over the kneeling cut_wire clip (the mixer: legs folded, cutters in the right fist), a procedural overlay after the
- * mixer (UnitModel `overlay` hook, like art/shovel-dig.js): the spine bends down to each strand, the right hand takes
- * the cutters to it (two-bone arm IK, the jaws on the wire) and snips — a squeeze at each CONFIG cutHole.snips time,
- * when the sim plays the snip — while the left hand holds the weave beside the cut; the snips go round the hole's
- * outline (from the top by his left hand over to his right, down and across the bottom), a chord on his left is
- * left joined as the flap's hinge. At `peel` both hands take the flap by its free edge and push it through and round to
- * his left (the wire layer bends the flap on the same clock, wire-obstacles flapOpen), then let go and his arms come
- * back to the clip.
+ * mixer (UnitModel `overlay` hook, like art/shovel-dig.js): kneeling (pelvis dropped, front foot planted, rear knee
+ * down) he snips up the slit between the two flaps — the spine bent to each strand, the right hand taking the cutters
+ * to it (two-bone arm IK, the jaws on the wire, a squeeze at each CONFIG cutHole.snips time, when the sim plays the
+ * snip), the left hand holding the weave beside the cut — then gets up (CONFIG cutHole.stand: the legs straighten
+ * under the rising pelvis) for the upper part of the slit and the top cut. At `peel` his hands take the slit's two
+ * edges and pull the flaps aside towards him, each round its fold (the wire layer bends them on the same clock,
+ * wire-obstacles flapOpen), let go, and his arms come back to the clip.
  *
  * Everything is a pure function of the phase time (sim time since `cutWire.t0`), so stepping the game gives the same
  * frames. Cost: two arm IK solves and a few bone turns per frame while he cuts; nothing otherwise.
@@ -33,23 +33,20 @@ const KNEEL = Object.freeze({ pelvis: 0.5, lean: 0.06, front: 0.3, knee: -0.02, 
 const JAWS = 0.11;
 
 /**
- * Snip points on the hole's outline as (u along the wire from the hole's centre, y above the ground), one per snip:
- * from the top end of the flap's hinge chord (on his left: u sign `sL`) over the top, down his right side and across
- * the bottom to the chord's bottom end.
+ * Snip points (u along the wire from the hole's centre, y above the ground), one per snip: up the slit between the
+ * two flaps — the lower ones kneeling, then standing — and across the top cut, from one side to the other.
  */
 export function snipPoints(n, sL = 1) {
-  const hw = HOLE.w / 2, hh = HOLE.h / 2, yc = HOLE.y0 + hh, ah = Math.acos(clamp(HOLE.hinge, -1, 1));
-  const out = [];
-  for (let i = 0; i < n; i++) {
-    const f = (i + 0.5) / n, a = sL > 0 ? ah + f * (2 * Math.PI - 2 * ah) : Math.PI - ah - f * (2 * Math.PI - 2 * ah);
-    out.push({ u: Math.cos(a) * hw * 0.97, y: yc + Math.sin(a) * hh * 0.8 });   // (the bottom strand cut a little up)
-  }
+  const h = HOLE.h, nSlit = Math.max(1, Math.ceil(n * 0.6)), nTop = n - nSlit, out = [];
+  for (let i = 0; i < nSlit; i++) out.push({ u: 0, y: lerp(0.3, 1.35, nSlit > 1 ? i / (nSlit - 1) : 0) });
+  for (let i = 0; i < nTop; i++) out.push({ u: sL * lerp(0.28, -0.28, nTop > 1 ? i / (nTop - 1) : 0.5), y: h - 0.03 });   // (his left side first)
   return out;
 }
 
 /**
- * Overlay state for a phase time: {w (weight over the clip), R / L (hand targets: {u, y, out} — along the wire, height,
- * towards him off the wire plane), squeeze (0..1 the jaws closing), bend (rad), look ({u, y})}. null = nothing to draw.
+ * Overlay state for a phase time: {w (weight over the clip), stand (0 kneeling … 1 on his feet), R / L (hand targets:
+ * {u, y, out} — along the wire, height, towards him off the wire plane), squeeze (0..1 the jaws closing), bend (rad),
+ * look ({u, y})}. null = nothing to draw. sL: the u sign of his left.
  */
 export function cutPose(phase, t, dur = CONFIG.abilities.cutters, sL = 1) {
   const H = CONFIG.abilities.cutHole, S = H.snips, pts = snipPoints(S.length, sL);
@@ -58,12 +55,13 @@ export function cutPose(phase, t, dur = CONFIG.abilities.cutters, sL = 1) {
     const w = 1 - ramp(t, 0, phase === 'shock' ? 0.2 : 0.3);
     if (w <= 0.001) return null;
     const p = pts[0];
-    return { w, R: { u: p.u, y: p.y, out: 0.08 + (phase === 'shock' ? 0.25 * ramp(t, 0, 0.12) : 0) }, L: { u: p.u * 0.5, y: p.y + 0.1, out: 0.1 }, squeeze: 0, bend: 0.35, look: p };
+    return { w, stand: 0, R: { u: p.u, y: p.y, out: 0.08 + (phase === 'shock' ? 0.25 * ramp(t, 0, 0.12) : 0) }, L: { u: p.u * 0.5, y: p.y + 0.1, out: 0.1 }, squeeze: 0, bend: 0.35, look: p };
   }
   const done = phase === 'done';
   const tt = done ? dur + t : t;
   const w = ramp(tt, 0.1, 0.62) * (1 - ramp(tt, dur - 0.1, dur + 0.5));
   if (w <= 0.001 && tt > 1) return null;
+  const stand = ramp(tt, H.stand[0], H.stand[1]);   // he gets up for the upper snips and stays up to pull the flaps aside
   // the right hand: to each snip point by its time (arriving 0.12 s early), an arc 6 cm off the wire between them
   let R, squeeze = 0, k = 0;
   while (k < S.length && tt > S[k]) k++;
@@ -77,26 +75,25 @@ export function cutPose(phase, t, dur = CONFIG.abilities.cutters, sL = 1) {
     for (const s of S) squeeze = Math.max(squeeze, 1 - Math.abs(tt - s) / 0.09);
     squeeze = clamp(squeeze, 0, 1);
   }
-  // the left hand holds the weave beside the cut, a little in from it and pulled back towards him
+  // the left hand holds the weave beside the cut, a little to his left of it and pulled back towards him
   const ref = R || at(S.length - 1);
-  let L = { u: ref.u * 0.55 + (ref.u >= 0 ? -0.12 : 0.12), y: ref.y + 0.12, out: 0.03 };
-  // the peel: both hands on the flap near its free edge, pushing it through and round its hinge on his left as it
-  // swings (flapOpen on the sim clock) — as far as he reaches through the wire, then he lets go
+  let L = { u: ref.u + sL * 0.14, y: ref.y + (ref.y > HOLE.h - 0.2 ? -0.12 : 0.1), out: 0.03 };
+  // the flaps: both hands on the slit's two edges, pulling them aside, each round its fold (flapOpen on the sim
+  // clock) — as far as his arms reach towards him, then he lets go
   if (tt >= H.peel - 0.25) {
-    const reach = ramp(tt, H.peel - 0.25, H.peel), hw = HOLE.w / 2, yc = HOLE.y0 + HOLE.h / 2, r = hw * (1 + HOLE.hinge) * 0.62;
-    const ph = flapOpen(Math.max(0, tt - H.peel)) * (HOLE.flapAngle + HOLE.flapCurl * 0.38), uh = sL * HOLE.hinge * hw;
-    const edge = (dy) => ({ u: uh - sL * r * Math.cos(ph), y: yc + dy, out: Math.max(-0.28, -r * Math.sin(ph)) });   // away from him (out < 0)
+    const reach = ramp(tt, H.peel - 0.25, H.peel), hw = HOLE.w / 2, ph = flapOpen(Math.max(0, tt - H.peel)) * HOLE.flapAngle;
+    const edge = (f, y) => ({ u: f * Math.min(0.55, hw * (1 - Math.cos(ph))), y, out: Math.min(0.32, hw * Math.sin(ph)) });   // flap f folds at u = f·hw, towards him (as far as he reaches)
     const lift = 1 - ramp(tt, H.peel + 0.32, H.peel + 0.5);   // let go once it is past his reach
-    const eR = edge(-0.1), eL = edge(0.12);
+    const eL = edge(sL, 1.2), eR = edge(-sL, 1.05);
     const blend = (a, b, f) => ({ u: lerp(a.u, b.u, f), y: lerp(a.y, b.y, f), out: lerp(a.out, b.out, f) });
-    const back = { u: 0, y: yc + 0.3, out: 0.12 };
+    const back = { u: 0, y: 1.25, out: 0.2 };
     R = blend(R || back, lift > 0 ? eR : back, tt < H.peel ? reach : 1);
     L = blend(L, lift > 0 ? eL : back, tt < H.peel ? reach : 1);
     if (lift < 1) { R = blend(back, R, lift); L = blend(back, L, lift); }
   }
   const tgt = R || L;
-  const bend = clamp(0.25 + (0.8 - tgt.y) * 0.75, 0.2, 0.75);
-  return { w, R, L, squeeze, bend, look: tgt };
+  const bend = clamp(0.25 + (0.8 - tgt.y) * 0.75, 0.2, 0.75) * (1 - 0.7 * stand);
+  return { w, stand, R, L, squeeze, bend, look: tgt };
 }
 
 // ------------------------------------------------------------------ skeleton overlay
@@ -134,20 +131,25 @@ export function applyCutPose(m, P, W, guard) {
   // the kneel (whatever the clip does with its legs): pelvis down to KNEEL.pelvis over the ground, the left foot
   // planted ahead, the right knee on the ground with the shin back along it, toes tucked
   if (B.pelvis && B.thigh_l && B.calf_l && B.foot_l && B.thigh_r && B.calf_r && B.foot_r) {
-    const g = W.gyMe ?? W.gy, pel = B.pelvis, par = pel.parent;
+    const g = W.gyMe ?? W.gy, pel = B.pelvis, par = pel.parent, s = P.stand || 0;
     const pw = wpos(pel), base = new THREE.Vector3(pw.x, g, pw.z);
-    const target = base.clone().addScaledVector(_u, KNEEL.pelvis).addScaledVector(fwd, KNEEL.lean);
+    // on his feet: the legs nearly straight under the pelvis (their length from the skeleton, the hips under the pelvis)
+    const legLen = wpos(B.thigh_l).distanceTo(wpos(B.calf_l)) + wpos(B.calf_l).distanceTo(wpos(B.foot_l)), hipDrop = pw.y - wpos(B.thigh_l).y;
+    const pelY = lerp(KNEEL.pelvis, KNEEL.ankle + legLen * 0.97 + hipDrop, s);
+    const target = base.clone().addScaledVector(_u, pelY).addScaledVector(fwd, KNEEL.lean * (1 - s));
     par.updateWorldMatrix(true, false);
     pel.position.copy(par.worldToLocal(target.clone()));
     pel.updateMatrixWorld(true);
     const fq = B.foot_l.getWorldQuaternion(new THREE.Quaternion());
-    const footL = base.clone().addScaledVector(fwd, KNEEL.front).addScaledVector(left, 0.13).addScaledVector(_u, KNEEL.ankle);
+    const footL = base.clone().addScaledVector(fwd, lerp(KNEEL.front, 0.08, s)).addScaledVector(left, lerp(0.13, 0.12, s)).addScaledVector(_u, KNEEL.ankle);
     twoBoneIKPole(B.thigh_l, B.calf_l, B.foot_l, footL, footL.clone().addScaledVector(fwd, 0.8).addScaledVector(_u, 0.5), fq);
     const knee = base.clone().addScaledVector(fwd, KNEEL.knee).addScaledVector(left, -0.12).addScaledVector(_u, 0.07);
-    const footR = knee.clone().addScaledVector(fwd, -0.4).addScaledVector(_u, 0.07);
-    twoBoneIKPole(B.thigh_r, B.calf_r, B.foot_r, footR, knee.clone().addScaledVector(_u, -0.3).addScaledVector(fwd, 0.2));
-    // toes tucked under: the foot pitched down behind the knee
-    if (B.ball_r) { const f = wpos(B.ball_r).sub(wpos(B.foot_r)).normalize(), want = fwd.clone().multiplyScalar(-0.75).addScaledVector(_u, -0.65).normalize(); rotWorld(B.foot_r, new THREE.Quaternion().setFromUnitVectors(f, want)); }
+    const footRk = knee.clone().addScaledVector(fwd, -0.4).addScaledVector(_u, 0.07);
+    const footRs = base.clone().addScaledVector(fwd, -0.05).addScaledVector(left, -0.12).addScaledVector(_u, KNEEL.ankle);
+    const poleK = knee.clone().addScaledVector(_u, -0.3).addScaledVector(fwd, 0.2), poleS = base.clone().addScaledVector(fwd, 0.8).addScaledVector(_u, 0.5).addScaledVector(left, -0.12);
+    twoBoneIKPole(B.thigh_r, B.calf_r, B.foot_r, footRk.clone().lerp(footRs, s), poleK.clone().lerp(poleS, s));
+    // toes tucked under: the foot pitched down behind the knee (kneeling only)
+    if (B.ball_r && s < 0.99) { const f = wpos(B.ball_r).sub(wpos(B.foot_r)).normalize(), want = fwd.clone().multiplyScalar(-0.75).addScaledVector(_u, -0.65).normalize(); rotWorld(B.foot_r, new THREE.Quaternion().setFromUnitVectors(f, want).slerp(new THREE.Quaternion(), s)); }
   }
   // spine: bend forward towards the wire (about his right-hand axis)
   for (const [n, k] of SPINE) turnWorld(B[n], bendAxis, -P.bend * k);
@@ -201,7 +203,7 @@ export function cutFrame(u, dt) {
   let phase = c.phase, t = Math.max(0, now - c.t0);
   // a cut whose action ended without its last step (killed, knocked down, the order taken back): drawn as cancelled
   if (phase === 'cut' && (u.currentActionId !== 'cutters' || !u.alive)) { V.cut ??= now; phase = 'abort'; t = now - V.cut; } else V.cut = null;
-  // the flap's hinge on his left (wire-obstacles holeHingeSide): its sign along (tx, tz)
+  // his left: its sign along (tx, tz) — the flap on that side is his left hand's
   const sL = -c.nz * (c.tx ?? -c.nz) + c.nx * (c.tz ?? c.nx) >= 0 ? 1 : -1;
   const P = u.alive && !u.downed ? cutPose(phase, t, c.dur, sL) : null;
   // kneeling square to the hole, his hips `standoff` from the wire: the sim stops him on the first walkable spot, up

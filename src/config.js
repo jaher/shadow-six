@@ -334,10 +334,12 @@ export const CONFIG = {
     moundPickRadius: 0.85, // a buried GB is clicked / tapped at his mound (engine/input.js pickEntity), m
     cutters: 3.0, // §3.3 cut time [rec]
     cutGap: 1.5, // §3.3 1.5 m gap in fence cells (legacy: a hole is cut now, cutHole)
-    // the cutters open a round hole low in the wire (crawl only, grid crawlway): w × h m, bottom y0 above the ground
-    // (art/wire-obstacles HOLE mirrors it); he kneels `standoff` m from the wire (hips; from a crawl too), snips at
-    // `snips` (s into the cut; the first one finds out whether the wire is live) and pushes the flap away from `peel`
-    cutHole: { w: 0.96, h: 0.86, y0: 0.05, standoff: 0.6, snips: [0.75, 1.15, 1.5, 1.85, 2.2], peel: 2.45 },
+    // the cutters open a man-sized hole (grid fenceHole: walked through upright): w × h m from the ground (art/wire-obstacles
+    // HOLE mirrors it), centred off any fence post by postClear m (posts' own `clear` when the wire layer gives one: room
+    // for the folded-back flaps); he kneels `standoff` m from the wire (hips; from a crawl too) to snip the lower strands
+    // at `snips` (s into the cut; the first one finds out whether the wire is live), stands up over `stand` for the top
+    // ones, and pulls the flaps aside from `peel`
+    cutHole: { w: 1.0, h: 1.95, y0: 0, standoff: 0.6, snips: [0.6, 0.95, 1.55, 1.85, 2.15], stand: [1.05, 1.4], peel: 2.45, postClear: 0.6 },
     raftDeploy: 2.0, // §3.3
     dive: 1.5, // §3.3 diving gear on/off
     uniform: 1.5, // §3.3 Spy re-dress

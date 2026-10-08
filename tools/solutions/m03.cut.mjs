@@ -11,7 +11,7 @@ export const TITLES = {
   E: 'E · Over the dam crest: fence power off, chat up the guard',
   F: 'F · A decoy turns e12; e6 knifed from behind, carried off',
   G: 'G · The raft crosses unseen; the Sapper takes the charges',
-  H: 'H · Bunker and dam: a decoy by the north gate, both charges in one go',
+  H: 'H · Bunker and dam: a decoy behind the bunker, both charges in one go',
   I: 'I · The truck (objective 3)',
 };
 
@@ -43,11 +43,11 @@ export const CAPTIONS = {
   G6: 'The Spy back with e17; the Sapper out through the hole',
   H1: 'The raft, deployed again, fetches the Sapper back across and is packed; up the east stair he waits on the dam crest',
   H2: 'The Spy now holds e18 at the north gate, from his south side',
-  H3: 'Decoy by the north gate; the Green Beret back on the strip, in the snow',
+  H3: 'Decoy behind the bunker, by the patrol’s path; the Green Beret back on the strip, in the snow',
   H4: 'The raft takes the Green Beret over to the truck road and is packed away',
   H5: 'The Spy walks over the crest to the truck road',
-  I1: 'Decoy on, by radio: the gunner turns to it, his back to the stair',
-  I2: 'Down the west stair and into the bunker: charge one set inside',
+  I1: 'Decoy on, by radio: the gunner, the gate sentry and the patrol turn to it, their backs to the stair',
+  I2: 'Down the west stair, along its foot on his belly and into the bunker: charge one set inside',
   I3: 'Charge two at the spillway gates in the middle of the crest; then off it',
   I4: 'Bunker and dam destroyed (objectives 1 and 2)',
   J1: 'The truck arrives north of the dam',
@@ -81,14 +81,14 @@ export const pitchAt = (x, z) => (x > 60 && z < 44 ? 64 : 40);
 export function shots(cp, objT) {
   const s = [];
   const o1 = objT('o1'), o2 = objT('o2');
-  if (o1) s.push({ t0: o1 - 6, t1: o1 + 7, x: 22, y: 0, z: 46, zoom: 0.6, prio: 2 });
+  if (o1) s.push({ t0: o1 - 6, t1: o1 + 7, x: 18, y: 0, z: 42, zoom: 0.6, prio: 2 }); // the bunker (10, 44) and the W stair
   if (o2) { // the blast and the burst, then the escape: the truck at the pickup north of the dam, the men climbing in
     s.push({ t0: o2 - 4, t1: o2 + 2, x: 47, y: 0, z: 25, zoom: 0.55, prio: 2 });
     s.push({ t0: o2 + 2, t1: o2 + 60, x: 59.5, z: 10.5, zoom: 0.85, prio: 2 }); // the truck stops at (60, 9.2)
   }
   const h2 = cp('H2'); if (h2) s.push({ t0: h2 - 2, t1: h2 + 3, x: 26, y: 0, z: 62, zoom: 0.8, prio: 1 }); // the Spy and e18
   const a3 = cp('A3'); if (a3) s.push({ t0: a3 - 4, t1: a3 + 4, x: 101, y: 0, z: 11, zoom: 0.7, prio: 1 }); // p1 stare at the decoy
-  const i1 = cp('I1'); if (i1) s.push({ t0: i1 - 3.5, t1: i1 + 0.5, x: 25, y: 0, z: 52, zoom: 0.6, prio: 1 }); // the gunner turns
+  const i1 = cp('I1'); if (i1) s.push({ t0: i1 - 3.5, t1: i1 + 0.5, x: 15, y: 0, z: 50, zoom: 0.6, prio: 1 }); // the gunner turns, the decoy S of him
   const c0 = cp('C0'); if (c0) s.push({ t0: c0 - 3, t1: c0 + 2, x: 126, y: 0, z: 46, zoom: 0.7, prio: 1 }); // e8 knifed
   const d1 = cp('D1'); if (d1) s.push({ t0: d1 - 3, t1: d1 + 3, x: 101, y: 0, z: 75, zoom: 0.7, prio: 1 }); // e14 harpooned
   const f1 = cp('F1'); if (f1) s.push({ t0: f1 - 1, t1: f1 + 4, x: 95, y: 0, z: 52, zoom: 0.7, prio: 1 }); // e12 turns to the decoy

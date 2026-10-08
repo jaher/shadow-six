@@ -1596,6 +1596,8 @@ export function buildMap(world, mission, opts = {}) {
     world.scene?.add(terrain.ground);
     if (terrain.water) world.scene?.add(terrain.water);
     wire = buildMissionWire(propsRoot, { terrain, theater, mission, world, renderer: opts.renderer, material: dressingMaterial, night: theater === 'night' || !!mission.lighting?.night });
+    // the cuttable fences' posts, as drawn: the cutters keep a hole clear of them (abilities/sapper.js planHole)
+    world.fencePosts = wire?.posts?.length ? wire.posts : null;
     world.scene?.add(propsRoot);
     if (realTerrain) {
       // top-facing snow on props (shared uniform: cached materials reused by a later non-snow mission get 0)

@@ -30,8 +30,9 @@
  *   H  the Marine deploys the raft again and fetches the Sapper to the E stair (raft packed again): he waits on the
  *      dam crest. The GB digs in on the strip; the Spy
  *      holds e18 at the N gate while the GB drops the decoy by it, then goes back to e17; the raft (deployed below the
- *      E stair) takes the GB to the E stair and is packed. Decoy on (by radio): the gunner turns to it; the Sapper comes down the W stair, goes in
- *      through the bunker's NE entrance and sets charge one inside, walks back up and along the crest to the spillway
+ *      E stair) takes the GB to the E stair and is packed. (The bunker stands W of the W stair: the decoy goes down S of
+ *      it, by p5's W leg.) Decoy on (by radio): the gunner, e18 and p5 turn to it; the Sapper comes down the W stair,
+ *      crawls W along its foot to the bunker's NE entrance, goes in and sets charge one inside, walks back up and along the crest to the spillway
  *      gates (charge two) and off down the E stair: bunker and dam blow (o1, o2)
  *   I  the truck comes for them north of the dam; all four get in (o3)
  * Orders only (move / run / crawl / stance / ability / leave & board vehicles); timing reads what a player sees.
@@ -166,11 +167,7 @@ async function crawlCautiously(D, pts, { finalPause = 0, maxWait = 900, lastWhen
       await D.until(() => { why.length = 0; return when() && D.routeClear('greenberet', leg, { delay: 1.5, why }); }, maxWait, `clear leg to (${pts[k]})`)
         .catch((e) => { throw new Error(`${e.message} [${why.join(' ')}]`); });
     }
-    if (gb.buried) {
-      D.order('greenberet', { type: 'move', x: gb.x, z: gb.z }); // digs himself out
-      await D.until(() => !gb.buried && !gb.currentAction, 5, 'GB out of the snow');
-      await D.stance('greenberet', 'crawl');
-    }
+    if (gb.buried) await gbRise(D); // (up out of the snow only when nobody looks there either)
     await D.go('greenberet', pts[k][0], pts[k][1], { tol: 0.35 });
   }
 }
@@ -190,10 +187,14 @@ const E_STAIR_RAFT = [56.3, 37.6]; // where the raft lies afterwards (the shallo
 const GB_PICKUP = [63.5, 69.6]; // where the GB waits for the raft on the S bank, across from RAFT_HIDE
 const RAFT_HIDE = [66.5, 69.5]; // a lie off the S bank just beyond e12's and p5's reach (while the Spy holds e17)
 const GB_WAIT = [41, 56.5]; // the GB's place in the snow on the strip, 20 m from e17
-const N_DECOY_WAIT = [34, 56.2]; // the GB's place in the snow 5 m E of the decoy spot (p5 halts 1.5 m from it)
-const N_DECOY = [28.9, 55.0]; // the decoy by the N gate: 13 m from the bunker, its gunner hears it and turns SE
-const GB_W_OF_BUNKER = [13.6, 46.4]; // the gunner's blind W side: the GB waits here dug in
-const GB_UP_W_STAIR = [[15.5, 41.5], [19.5, 39.6], [22.85, 40.3], [25.3, 36.0]]; // round its N side and up the stair
+// the dam bunker stands W of the W stair (10, 44; 2026-10-08 "The bunker in mission 3 is too close to the stairs"), its
+// front (slit, entrance trench) NE: the decoy goes down S of it, by p5's W leg, where the gunner (12.7 m), e18 (12.4 m)
+// and e19 at the N end of his beat (12.4 m) all hear it — each turns to it with the stair, its foot and the trench's
+// mouth N of him, out of his eyes
+const N_DECOY_WAIT = [34, 56.2]; // the GB's place in the snow E of p5's halt (30, 54): he goes on from here behind p5
+const N_DECOY_FENCE = [15.4, 57.3]; // his place in the snow by the fence S of the decoy spot (2.5 m off p5's W leg)
+const N_DECOY = [15.1, 56.1]; // where he drops the decoy (facing NW, it lands 0.4 m ahead of him)
+const FENCE_W = [[29.5, 56.9], [25.5, 57.1], [21.5, 57.2], [18.5, 57.3]]; // his crawl along the fence behind p5's beat
 // the truck road N of the dam, out of every cone: where the four wait for the truck
 const E_STAIR_FOOT = [59.35, 34.3];
 const TRUCK_WAIT = { diver: [63.5, 5.5], spy: [64.5, 7.5], greenberet: [66, 5], sapper: [63, 9.5] }; // beside the truck road's end (it stops at (60, 9.2))
@@ -411,6 +412,16 @@ export const STAGES = [
     D.ability('spy', 'use', D.item('fence_switch'));
     await D.until(() => D.world.fencePower?.get?.('st_fence') === false, 40, 'fence power off');
     D.checkpoint('E2 fence switched off');
+    // e19's beat and p5's round take the same ~70 s: where they stand to each other decides when the raft may land on
+    // the S bank (from the N end of his beat e19 looks along it, at the far edge of his cone). She holds e19 at the N
+    // end of his beat until p5 leaves its E halt: from then on he walks off S as p5 walks off W (as in H)
+    const e19 = D.get('e19');
+    await D.go('spy', ...E19_TALK, { tol: 0.3 });
+    await D.until(() => Math.hypot(e19.x - 24, e19.z - 64) < 0.6 && !e19.isMoving, 120, 'e19 at the N end of his beat');
+    D.ability('spy', 'distract', e19);
+    await D.until(() => e19.brain.state === 'DISTRACTED', 10, 'e19 distracted');
+    await D.until(() => p5Departed(D), 120, 'p5 off W from its halt');
+    D.order('spy', { type: 'stop' });
     await D.go('spy', 48.5, 74.0, { tol: 0.4 }); // e17's W side: he turns his back on the river and the shed
     D.ability('spy', 'distract', e17);
     await D.until(() => e17.brain.state === 'DISTRACTED', 10, 'e17 distracted');
@@ -512,7 +523,7 @@ export const STAGES = [
     for (const [x, z] of [[59.3, 77.6], [54.6, 64.5]]) await D.sneak(x, z, { mode: 'crawl', role: 'sapper', box: 10, keep: 1.5, edgePad: 1, crawlPad: 2, label: 'Sapper back out' });
     D.checkpoint('G6 Sapper back on the strip');
   }],
-  ['H', 'Sapper on the crest, decoy by the N gate, everyone else to the truck road', async (D, { boardPoint }) => {
+  ['H', 'Sapper on the crest, decoy behind the bunker, everyone else to the truck road', async (D, { boardPoint }) => {
     const gb = D.c('greenberet'), sap = D.c('sapper'), dv = D.c('diver');
     const e17 = D.get('e17'), e18 = D.get('e18'), e19 = D.get('e19'), e34 = D.get('e34');
     // the Marine (gear off, aboard) takes the Sapper back across (the Spy still holds e17) and drops him at the foot of
@@ -552,17 +563,32 @@ export const STAGES = [
     await D.until(() => p5Departed(D), 120, 'p5 off W from its halt');
     await spyHolds(D, e18, [26.2, 62.5]);
     D.checkpoint('H2 Spy holds e18 at the N gate');
-    // while p5 is off on the W of its round: along the fence to 13 m from the bunker, the decoy down (off), and back
-    // (the spot is a step off p5's halt: he waits in the snow 5 m short of it and goes the moment p5 has left W)
+    // along the fence to 13 m S of the bunker, the decoy down (off), and back (the spot is by p5's W leg: he waits in
+    // the snow E of p5's halt and follows p5 W along the fence the moment it has left the halt, its backs to him)
     await gbSneak(D, ...N_DECOY_WAIT, { box: 12 });
     if (!gb.buried) await digIn(D);
+    // (e19, in step with p5 since H2, stands at the N end of his beat looking E as p5 leaves its halt: he goes once
+    // e19 walks off S)
     await D.until(() => p5Departed(D), 300, 'p5 off W from its halt');
-    await gbSneak(D, ...N_DECOY, { box: 8 });
+    await D.until(() => Math.sin(e19.heading) > 0.5 && e19.z > 66, 30, 'e19 off S');
+    // behind p5 along the fence to the snow S of the spot (dug in whenever a cone would come over him) and under it
+    await crawlCautiously(D, [...FENCE_W, N_DECOY_FENCE], { finalPause: 3 });
+    if (!gb.buried) await digIn(D);
+    // out the moment p5 has walked past him off W (its backs to him till it turns at the W end of its round): 1.2 m
+    // out, the decoy down facing NW, back and under the snow again
+    await D.until(() => P5.every((t) => { const e = D.get(t); return !e.alive || (e.x < 12.5 && Math.cos(e.heading) < -0.3); }), 300, 'p5 past the decoy spot, off W');
+    await gbRise(D);
+    await D.go('greenberet', ...N_DECOY, { tol: 0.25 });
+    await D.face('greenberet', N_DECOY[0] - 1, N_DECOY[1] - 1);
     D.ability('greenberet', 'decoyDrop');
     await D.until(() => !gb.has('decoy'), 5, 'decoy down');
+    await D.go('greenberet', ...N_DECOY_FENCE, { tol: 0.3 });
+    await digIn(D);
+    // back along the fence (dug in whenever a cone would come over him) and on to the strip
+    await crawlCautiously(D, [...FENCE_W].reverse().concat([N_DECOY_WAIT]), { finalPause: 1 });
     await gbSneak(D, ...GB_WAIT, { box: 12 }); // (back E before the Spy leaves e18: he looks over this stretch)
     if (!gb.buried) await digIn(D);
-    D.checkpoint('H3 decoy by the N gate; the GB back on the strip');
+    D.checkpoint('H3 decoy S of the bunker; the GB back on the strip');
     // the Spy back to e17 (his W side: his back to the river); the raft comes for the GB and takes him to the E stair
     await D.go('spy', 48.5, 74.0, { tol: 0.4 });
     D.ability('spy', 'distract', e17);
@@ -597,21 +623,24 @@ export const STAGES = [
   }],
   ['I', 'Bunker and dam: charge one inside the bunker, charge two at the spillway gates', async (D) => {
     const sap = D.c('sapper'), e34 = D.get('e34');
-    // the Sapper to the top of the W stair; the decoy on (by radio, from the truck road) once e19 is off down his beat
-    // and the camp's walkers e7 / e10 will be off at the far E end of their rounds when the bunker goes (the blast sends
-    // them running over to the ruin by the E stair, which he must be off by then): the gunner turns to it
+    // the Sapper to the top of the W stair; the decoy on (by radio, from the truck road) once e19 is off down his beat,
+    // p5 is within its call (not on its E halt, from where it looks up the stair) and the camp's walkers e7 / e10 will
+    // be off at the far E end of their rounds when the bunker goes (the blast sends them running over to the ruin by the
+    // E stair, which he must be off by then): the gunner, e18 and p5 turn to it, S of the bunker
     // charge one goes INSIDE the bunker (abilities/bunker-entry.js): from the outer end of its entrance path (the gap in
-    // the wire on its NE front, by the W stair's foot) he walks in through the trench, sets it on the floor and walks
-    // back out; past the gap he is behind concrete (only the gunner, staring at the decoy, could see him in there)
+    // the wire on its NE front, 9 m W of the W stair's foot) he walks in through the trench, sets it on the floor and
+    // walks back out; past the gap he is behind concrete (only the gunner, staring at the decoy, could see him in there)
     const entry = D.world.interactables.find((i) => i.tag === 'dam_bunker').params.structure.entry;
     const P0 = entry.path[0], PLANT2 = [41.0, 22.4];
     await D.go('sapper', 27.4, 32.4, { tol: 0.5 });
     await D.stance('sapper', 'crawl');
-    await D.until(() => P5.every((t) => { const e = D.get(t); return !e?.alive || e.brain.state !== 'DECOY'; })
-      && staysAway(D, 'e19', N_DECOY, 15, 40) && staysAway(D, 'e7', E_STAIR_FOOT, 64, 42, 20) && staysAway(D, 'e10', E_STAIR_FOOT, 60, 42, 20),
-    1200, 'e19 down his beat, e7 / e10 off E');
+    const dec = D.c('greenberet').decoy, decHear = (e) => !e?.alive || Math.hypot(e.x - dec.x, e.z - dec.z) < 12;
+    await D.until(() => P5.every((t) => { const e = D.get(t); return !e?.alive || (e.brain.state !== 'DECOY' && decHear(e) && e.x < 24); })
+      && staysAway(D, 'e19', [dec.x, dec.z], 14, 45) && staysAway(D, 'e7', E_STAIR_FOOT, 64, 42, 20) && staysAway(D, 'e10', E_STAIR_FOOT, 60, 42, 20),
+    1200, 'e19 down his beat, p5 by the decoy, e7 / e10 off E');
     D.ability('greenberet', 'decoyToggle'); // on
-    await D.until(() => Math.abs(deg(e34.heading) - 45) < 30, 10, 'gunner turns to the decoy');
+    const toDecoy = (e) => { const a = Math.atan2(dec.z - e.z, dec.x - e.x) - e.heading; return Math.abs(Math.atan2(Math.sin(a), Math.cos(a))); };
+    await D.until(() => toDecoy(e34) < 0.4, 10, 'gunner turns to the decoy');
     await D.wait(1);
     D.checkpoint('I1 decoy on: the gunner turns to it');
     // down the W stair to the gap in the bunker's wire (crawling, on the planner's cone gaps), charge one inside; back up
@@ -620,12 +649,17 @@ export const STAGES = [
     // He crawls down the stair (too narrow for the sneak planner's 1 m cells: a straight crawl, timed whole), stands
     // up at the gap and walks in (about a second in the open), is in there ~IN s, then comes back out on his feet and
     // walks straight up the stair (the fuse burns: no time to lie down). He sets off only when nobody will see any of it.
-    const DOWN = [[25.1, 36.4], [22.85, 40.3], P0], UP = [[22.85, 40.3], [25.1, 36.4]], IN = 6.5, CRAWL = 0.75;
+    // (the entrance is 9 m W of the stair's foot: back to it he walks out of the gunner's earshot, 8.5 m, and runs)
+    // (the entrance is 9 m W of the stair's foot. Back to it he runs — the men at the decoy are deaf to steps — and his
+    // boot prints on the snow end at the foot: up its first 5 m he crawls (no prints, nobody near enough to see a man
+    // lying there), so whoever follows them on the siren loses the trail there; from 2.5 m up nobody below sees him)
+    const DOWN = [[25.1, 36.4], [22.85, 40.3], P0], UP = [[22.85, 40.3], [25.3, 36.0]], IN = 6.5, CRAWL = 0.75;
     let len = 0;
     for (let k = 0, q = [sap.x, sap.z]; k < DOWN.length; q = DOWN[k++]) len += Math.hypot(DOWN[k][0] - q[0], DOWN[k][1] - q[1]);
     const tDown = len / CRAWL, why = [];
     const inOut = (delay) => D.routeClear('sapper', [[...P0, 1.5]], { from: P0, speed: 2.0, low: false, delay, why })
-      && D.routeClear('sapper', [[...P0, 1.0], ...UP], { from: P0, speed: 2.0, low: false, delay: delay + IN, why });
+      && D.routeClear('sapper', [[...P0, 1.0], UP[0]], { from: P0, speed: 3.5, low: false, delay: delay + IN, why })
+      && D.routeClear('sapper', [UP[1]], { from: UP[0], speed: CRAWL, low: true, delay: delay + IN + 4, why });
     await D.until(() => { why.length = 0; return D.routeClear('sapper', DOWN, { speed: CRAWL, low: true, why }) && inOut(tDown + 0.5); },
       600, 'nobody to see him crawl down, go in and come back out').catch((e) => { throw new Error(`${e.message} [${why.join(' ')}]`); });
     await D.path('sapper', DOWN, { tol: 0.4 });
@@ -639,8 +673,17 @@ export const STAGES = [
     D.log(`  (bunker: in and out in ${(D.t - tIn).toFixed(1)} s)`);
     D.checkpoint('I2 charge one set inside the bunker behind the gunner');
     await D.stance('sapper', 'stand');
-    await D.path('sapper', UP, { tol: 0.5 });
+    await D.go('sapper', ...UP[0], { tol: 0.5, run: true });
+    await D.stance('sapper', 'crawl');
+    await D.go('sapper', ...UP[1], { tol: 0.4 });
+    await D.stance('sapper', 'stand');
     await D.path('sapper', [[27.4, 32.4], CREST_PATH[0], CREST_PATH[1], PLANT2], { tol: 0.4, run: true });
+    // (the bunker 9 m W of the stair's foot makes his round trip longer: p5, running back E on the siren, reaches its E
+    // halt (30, 54) and looks up at the E stair for 4 s while he would run down it — he waits up here, out of sight,
+    // until it walks off W again and the way off the crest is unwatched; the camp's walkers are on their way over: not long)
+    const p5Off = () => { const e = D.get('e29'); return !e?.alive || e.x < 20 || (e.x < 28.5 && Math.cos(e.heading) < -0.3 && !e.brain?.wait); };
+    await D.until(() => p5Off() && D.routeClear('sapper', [[...PLANT2, 1.2], CREST_PATH[2], CREST_PATH[3], [59.2, 22], TRUCK_WAIT.sapper], { speed: 4.5, low: false }), 14, 'p5 off W, the way off the crest unwatched')
+      .catch(() => {});
     D.ability('sapper', 'timeBomb');
     await D.until(() => (sap.inventory.get('timeBomb') ?? 0) === 0, 5, 'charge two planted');
     D.checkpoint('I3 charge two planted at the spillway gates');

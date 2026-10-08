@@ -10,6 +10,9 @@ import { applyExplosion } from '../../src/abilities/explosions.js';
 import { canSee } from '../../src/ai/perception.js';
 
 const bunkerOf = (w) => w.interactables.find((i) => (i.tag ?? i.id) === 'dam_bunker');
+/** The bunker's centre (mission def) and a point `dx`, `dz` m off it (it moved W of the W stair: positions are relative). */
+const centreOf = (it) => [it.params.structure.x, it.params.structure.z];
+const off = (it, dx, dz) => [centreOf(it)[0] + dx, centreOf(it)[1] + dz];
 const o1Done = (w) => w.objectives.find((o) => o.id === 'o1').done === true;
 
 function setup() {
@@ -32,10 +35,11 @@ test('m03: the dam bunker is bound to the bunker_charge marker inside it', () =>
   assert.ok(mk.r <= 1.2, `the marker is the room's floor, not the ground around the walls (r ${mk.r})`);
 });
 
-test('m03: a bomb at the old NE-corner charge spot (22.3, 43.2) leaves the bunker standing', () => {
+test('m03: a bomb at the old NE-corner charge spot (centre + (3.3, -2.8)) leaves the bunker standing', () => {
   const { w, it } = setup();
-  const a = Math.atan2(46 - 43.2, 19 - 22.3); // he faced the bunker centre; the charge went 0.4 m ahead of him
-  applyExplosion(w, 22.3 + 0.4 * Math.cos(a), 43.2 + 0.4 * Math.sin(a), 'bomb', null);
+  const [cx, cz] = centreOf(it), [px, pz] = off(it, 3.3, -2.8);
+  const a = Math.atan2(cz - pz, cx - px); // he faced the bunker centre; the charge went 0.4 m ahead of him
+  applyExplosion(w, px + 0.4 * Math.cos(a), pz + 0.4 * Math.sin(a), 'bomb', null);
   assert.equal(it.destroyed, false);
 });
 
@@ -142,9 +146,9 @@ test('m03: a bomb planted anywhere next to the bunker walls: he goes round to th
     const { sim, w, sap, it } = setup();
     const e34 = w.enemies.find((e) => e.tag === 'e34' || e.spawn?.id === 'e34');
     e34.alive = false; e34.removed = true; // (the walk-up is in front of his slit: the test is the route, not stealth)
-    const a = (deg * Math.PI) / 180, R = deg % 90 ? 4.0 : 3.2, x = 19 + R * Math.cos(a), z = 46 + R * Math.sin(a);
+    const [cx, cz] = centreOf(it), a = (deg * Math.PI) / 180, R = deg % 90 ? 4.0 : 3.2, x = cx + R * Math.cos(a), z = cz + R * Math.sin(a);
     sap.setPosition(x, z); sap.y = 0;
-    sap.heading = Math.atan2(46 - z, 19 - x);
+    sap.heading = Math.atan2(cz - z, cx - x);
     assert.ok(sap.issue({ type: 'ability', id: 'timeBomb', target: sap }), `${deg}°: ${sap.lastRefusal?.text}`);
     let inside = false;
     for (let i = 0; i < 60 * 40 && !it.destroyed; i++) {
@@ -161,7 +165,7 @@ test('m03: a charge that would have reached the bunker but is not inside says so
   const { w, it } = setup();
   const msgs = [];
   w.events.on('message', (m) => msgs.push(m.text));
-  applyExplosion(w, 22.3, 43.4, 'bomb', null);
+  applyExplosion(w, ...off(it, 3.3, -2.6), 'bomb', null);
   assert.equal(it.destroyed, false);
   assert.ok(msgs.some((t) => /bunker still stands.*inside/i.test(t)), msgs.join(' | '));
 });

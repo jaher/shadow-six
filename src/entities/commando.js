@@ -212,8 +212,6 @@ export class Commando extends Unit {
     if (this.carrying && this.carrying.kind !== 'interactable') q.swim = false; // §C.1: no swimming with a man
     if (this.downed) { q.noLinks = true; q.noWalkLinks = true; q.swim = false; } // §C.6: he crawls on the flat
     if (this.carrying && this.carrying.kind !== 'interactable' && this.carryMode === 'drag') q.noWalkLinks = true; // §C.2 not dragged up / down stairs
-    // a hole cut low in a fence (grid crawlway): on his belly — not with a load on his back, not a guest who cannot crawl
-    q.crawl = this.downed || (!this.carrying && !this.noCrawl && !this.diving);
     // §3.4 diving gear: plan through open water and under decks (grid.underpass, M16/M18 bridge spans); a target
     // beyond the water falls back to the plain swim path, cut at the last wet waypoint below (moveTo)
     if (this.diving && !this._diveFallback && !q.noLinks && q.swim !== false) q.dive = true;
@@ -261,11 +259,6 @@ export class Commando extends Unit {
   setStance(stance) {
     if (!this.alive || stance === this.stance) return;
     if (this.downed) return; // §C.6: he stays down until revived
-    if (!this._holeSet) {
-      // a hole cut in a fence is no place to stand up in: he gets up once through (_holeStance)
-      if (stance === 'stand' && this.stance === 'crawl' && this._bodyInCrawlway()) return;
-      this._holeCrawl = null; // an order of his own: no automatic getting up after the hole
-    }
     if (stance === 'crawl' && (this.carrying || this.buried || this.hidden || this.noCrawl)) return;
     if (this.diving && stance !== 'dive') return; // gear on: only the dive ability changes stance
     super.setStance(stance); // stanceDown 0.5 s / stanceUp 0.6 s (Unit.setStance)
@@ -556,67 +549,10 @@ export class Commando extends Unit {
       return;
     }
     if (this.downed) tickDowned(this, dt);
-    this._holeStance();
     super.update(dt);
     if (this.diving && this.alive) this.stance = 'dive';
     this._updateLinks();
     this._updateCarried(dt);
-  }
-
-  /**
-   * Holes cut low in a fence (grid `crawlway`, abilities/sapper.js cutters): a man walking or running into one goes
-   * down on his belly just before it (0.5 s), crawls through, and gets up again (0.6 s) once his whole body — toes
-   * included — is clear of it, running on if he ran. A man who was crawling anyway stays down. Before the step.
-   */
-  _holeStance() {
-    const g = this.world?.grid;
-    if (!g?.crawlwayCount || !this.alive || this.downed || this.vehicle || this._stanceT > 0) return;
-    const st = this.stance;
-    if (st === 'stand' && this.path && this.state === 'active' && !this.carrying && !this.noCrawl && this._crawlwayAhead(0.9)) {
-      this._holeSet = true;
-      const run = this.moveMode === 'run';
-      this.setStance('crawl');
-      this._holeSet = false;
-      if (this.stance === 'crawl') this._holeCrawl = { run };
-      return;
-    }
-    if (this._holeCrawl && st === 'crawl' && !this._bodyInCrawlway() && !(this.path && this._crawlwayAhead(1.4))) { // (beyond the 0.9 m lie-down lead: no flicker)
-      const run = this._holeCrawl.run;
-      this._holeCrawl = null;
-      this._holeSet = true;
-      this.setStance('stand');
-      this._holeSet = false;
-      if (run && this.path && this.stance === 'stand') this.moveMode = 'run';
-    }
-  }
-
-  /** Does his path within `dist` m ahead (from where he is) cross a crawlway cell? */
-  _crawlwayAhead(dist) {
-    const g = this.world.grid, p = this.path;
-    if (!p) return false;
-    let x = this.x, z = this.z, left = dist;
-    if (g.crawlwayNear(x, z)) return true;
-    for (let i = this.pathIndex; i < p.length && left > 0; i++) {
-      const wp = p[i], d = Math.hypot(wp.x - x, wp.z - z);
-      if (d > 1e-6) {
-        const n = Math.ceil(Math.min(d, left) / 0.2);
-        for (let s = 1; s <= n; s++) {
-          const f = Math.min(d, left) * (s / n) / d;
-          if (g.crawlwayNear(x + (wp.x - x) * f, z + (wp.z - z) * f)) return true;
-        }
-      }
-      left -= d; x = wp.x; z = wp.z;
-    }
-    return false;
-  }
-
-  /** Is any part of him lying (hands to toes, world/body-clearance BODY.prone) or standing at a crawlway cell (≤ 0.45 m)? */
-  _bodyInCrawlway() {
-    const g = this.world?.grid;
-    if (!g?.crawlwayCount) return false;
-    const c = Math.cos(this.heading), s = Math.sin(this.heading);
-    for (const d of [0.5, 0.25, 0, -0.25, -0.5, -0.75, -1.0]) if (g.crawlwayNear(this.x + c * d, this.z + s * d)) return true;
-    return false;
   }
 
   /** Per-frame visuals: the shovel dig / rise (art/shovel-dig.js), the wire cut (art/wire-cut.js) before the model update. */

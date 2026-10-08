@@ -5,9 +5,9 @@
  *   remoteBomb B  at his feet (1.0 s); the knapsack gains the detonator
  *   detonate   A  the OLDEST planted remote bomb goes off after 0.2 s
  *   grenade    E  arc throw to a point within 13.5 m, over walls; flight 1.0 s; class `grenade`, friendly fire on
- *   cutters    W  3.0 s: a round hole (~0.96 × 0.86 m) low in the wire, crawl only (grid crawlway; the rest of the
- *                 fence stands); `reinforced` wire is immune; a powered `electric` fence shocks him at the first
- *                 snip (20 damage) and the cut fails
+ *   cutters    W  3.0 s: a man-sized opening (~1.0 × 1.95 m from the ground) a man walks through upright (grid
+ *                 fenceHole: open to everyone on foot; the rest of the fence stands); `reinforced` wire is immune; a
+ *                 powered `electric` fence shocks him at the first snip (20 damage) and the cut fails
  *   takeCharge    (SHADOW SIX house rule recoverCharges) H, or a click / tap on the charge: he walks to one of the placed
  *                 time / remote bombs, kneels and takes it back (1.0 s; at 0.5 s the clock stops and it goes into his
  *                 knapsack, ready to set again); one set inside a bunker: he goes in again for it
@@ -324,7 +324,7 @@ function fenceAt(world, t) {
   return cells[0] || null;
 }
 
-/** Sign of a horizontal normal, the same whichever code computes it: by x, else by z (grid crawlway side 1 / 2). */
+/** Sign of a horizontal normal, the same whichever code computes it: by x, else by z (grid fenceHole side 1 / 2). */
 export const normalSign = (nx, nz) => (nx > 1e-3 ? 1 : nx < -1e-3 ? -1 : nz >= 0 ? 1 : -1);
 
 /**
@@ -355,18 +355,55 @@ export function holeSite(world, cell, click, from) {
 }
 
 /**
- * Open the hole in the nav grid: the fence cells round the site become crawlway (crawlers only), widening a little
- * (0.5 → 1.0 m) until a man on his belly gets from one side to the other. Side 1 / 2 = which way the flap was peeled
- * (normalSign of the normal away from him: he pushes it through; art/wire-obstacles.js). @returns {number[]} the cells opened
+ * Where the hole goes and which fence cells it opens. The site (holeSite) moves along the wire, at most 1 m, until no
+ * fence post (world.fencePosts {x, z, r, clear}: the wire layer's posts, map-builder) stands within the hole or where
+ * its flaps fold back (the post's `clear`, else A.cutHole.postClear, of its centre). The hole opens the fence cell nearest the site; it is then centred on that
+ * cell, so a man walking through on his path (through the cell) stays inside the drawn opening, ~1 m wide.
+ * @returns {{site: {x, z, tx, tz, nx, nz}, cells: {k, x, z}[]}} cells: nearest first
  */
-export function cutHoleCells(world, site) {
-  const g = world.grid, side = normalSign(-site.nx, -site.nz) > 0 ? 1 : 2, opened = [];   // (peeled away from him)
-  for (let r = 0.5; r <= 1.0 + 1e-9; r += 0.1) {
-    for (const f of fenceCells(g, site.x, site.z, r)) { g.setCrawlway(f.k, side); opened.push(f.k); }
+export function planHole(world, cell, click, from) {
+  const g = world.grid, H = A.cutHole;
+  let site = holeSite(world, cell, click, from);
+  const s0 = site;
+  const posts = (world.fencePosts || []).map((p) => ({ u: (p.x - site.x) * site.tx + (p.z - site.z) * site.tz, v: (p.x - site.x) * site.nx + (p.z - site.z) * site.nz, c: (p.clear ?? H.postClear) + (p.r ?? 0.05) }))
+    .filter((p) => Math.abs(p.v) < 0.35 && Math.abs(p.u) < p.c + 1.2);
+  // the free stretch of wire round the site (along the wire from it): between the nearest posts below and above it
+  const lo = Math.max(-Infinity, ...posts.filter((p) => p.u <= 0).map((p) => p.u + p.c));
+  const hi = Math.min(Infinity, ...posts.filter((p) => p.u > 0).map((p) => p.u - p.c));
+  if (posts.length) {
+    const du = lo <= hi ? Math.min(Math.max(0, lo), hi) : (lo + hi) / 2;
+    const shift = Math.max(-1, Math.min(1, du));
+    if (shift) site = { ...site, x: site.x + site.tx * shift, z: site.z + site.tz * shift };
+  }
+  const uOf = (c) => (c.x - s0.x) * s0.tx + (c.z - s0.z) * s0.tz;
+  const cells = fenceCells(g, site.x, site.z, 1.0).sort((a, b) => Math.hypot(a.x - site.x, a.z - site.z) - Math.hypot(b.x - site.x, b.z - site.z));
+  // (the nearest cell still on the free stretch, when there is one: the hole is centred on it)
+  const i = lo <= hi ? cells.findIndex((c) => uOf(c) >= lo - 1e-6 && uOf(c) <= hi + 1e-6) : -1;
+  if (i > 0) cells.unshift(...cells.splice(i, 1));
+  if (cells.length) {   // centred on that cell (projected on the wire)
+    const c = cells[0], u = (c.x - site.x) * site.tx + (c.z - site.z) * site.tz;
+    site = { ...site, x: site.x + site.tx * u, z: site.z + site.tz * u };
+  }
+  return { site, cells };
+}
+
+/**
+ * Open the hole in the nav grid: the planned fence cells (planHole), nearest first, become fenceHole cells — open to
+ * anyone on foot — until a man walks upright from one side to the other (one cell, most often; never more than three).
+ * Side 1 / 2 = which way the flaps were folded (normalSign of the normal towards him: he pulls them aside;
+ * art/wire-obstacles.js).
+ * @returns {number[]} the cells opened
+ */
+export function cutHoleCells(world, site, cells = null) {
+  const g = world.grid, side = normalSign(site.nx, site.nz) > 0 ? 1 : 2, opened = [];   // (pulled aside towards him)
+  const list = cells || fenceCells(g, site.x, site.z, 1.0).sort((a, b) => Math.hypot(a.x - site.x, a.z - site.z) - Math.hypot(b.x - site.x, b.z - site.z));
+  for (const f of list.slice(0, 3)) {
+    if (g.block[f.k] !== B.FENCE) continue;
+    g.setFenceHole(f.k, side); opened.push(f.k);
     g.version++;
     const a = { x: site.x + site.nx * 1.1, z: site.z + site.nz * 1.1 }, b = { x: site.x - site.nx * 1.1, z: site.z - site.nz * 1.1 };
-    const p = world.findPath(a.x, a.z, b.x, b.z, { crawl: true, maxNodes: 4000, nearRadius: 0.8 });
-    if (p && pathLength(p) < 4 && opened.length) break;
+    const p = world.findPath(a.x, a.z, b.x, b.z, { maxNodes: 4000, nearRadius: 0.8 });
+    if (p && pathLength(p) < 3.5) break;
   }
   return opened;
 }
@@ -386,10 +423,10 @@ registerAbility({
   approachPoint(c, t, world) {
     const f = t && fenceAt(world, t);
     if (!f) return t;
-    const s = holeSite(world, f, t, c);
+    const s = planHole(world, f, t, c).site;
     for (let o = A.cutHole.standoff; o <= 2; o += 0.25) {
       const p = { x: s.x + s.nx * o, z: s.z + s.nz * o };
-      if (world.grid.walkableAt(p.x, p.z, { crawl: true })) return p;
+      if (world.grid.walkableAt(p.x, p.z)) return p;
     }
     return { x: f.x, z: f.z };
   },
@@ -404,13 +441,13 @@ registerAbility({
     if (s?.def?.reinforced) return 'Reinforced wire: the cutters are useless.';
     return true;
   },
-  // He settles at the wire (kneeling, or lying if he crawled up), snips the strands one by one — the first snip
-  // finds out whether it is live — and peels the cut flap back: the hole opens then, a round hole low in the wire
-  // that only a man on his belly gets through (grid crawlway). The rest of the fence stands.
+  // He settles at the wire and kneels (or comes up onto his knees if he crawled up), snips the lower strands, stands
+  // up for the top ones — the first snip finds out whether it is live — and pulls the cut flaps aside: the hole opens
+  // then, an opening a man walks through upright (grid fenceHole). The rest of the fence stands.
   start(c, t, world) {
     const dur = A.cutters, H = A.cutHole;
     const cell = fenceAt(world, t);
-    const site = holeSite(world, cell, t, c);
+    const plan = planHole(world, cell, t, c), site = plan.site;
     const prone = c.stance === 'crawl';
     const off = H.standoff;
     const from = { x: c.x, z: c.z, h: c.heading };
@@ -452,8 +489,10 @@ registerAbility({
         ...H.snips.map((at, i) => ({ at, fn: snip(i) })),
         { at: H.peel, fn: () => {
           const s = structureAtCell(world, cell.k);
-          cutHoleCells(world, site);
-          world.events.emit('structure:destroyed', { id: s?.id ?? 'fence', type: 'fence-gap', hole: true, owner: world.grid.owner[cell.k], x: site.x, z: site.z });
+          cutHoleCells(world, site, plan.cells);
+          // (no `owner`: the fence stands — its nav, overhead, standing and body stamps stay; map-builder clears an
+          // owner's stamps on structure:destroyed. The hole's cells are open whatever the stamps: grid.isWalkable)
+          world.events.emit('structure:destroyed', { id: s?.id ?? 'fence', type: 'fence-gap', hole: true, x: site.x, z: site.z });
           return true;
         } },
         { at: dur, fn: () => { cutState(c, world, 'done', c.cutWire); return true; } },

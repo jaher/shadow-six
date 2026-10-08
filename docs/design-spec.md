@@ -322,7 +322,7 @@
 | `detonate` | A | Sapper | none | anywhere | Detonates the **next** remote bomb, in placement order | instant | explosion |
 | `takeCharge` ⚑ | H on the charge, or click / tap it | Sapper (house rule `recoverCharges`) | a placed time / remote bomb | walks up; kneels 0.45 m from it (reach 0.9) | Takes it back into the knapsack: a time bomb's clock stops (§3.4 "Taking a charge back") | 1.0 s; taken at 0.5 s | none |
 | `grenade` | E | Sapper | point | throw **13.5**, lobbed over walls | Explodes on landing (flight about 1.0 s). Class `grenade` (§3.6). Can hurt the thrower and friends | Throw 0.7 s | explosion |
-| `cutters` | W | Sapper | fence | 1.0 | Cuts a round hole (~0.96 × 0.86 m) low in the wire: crawl-only `fence` cells (grid crawlway), the rest of the fence stands (SHADOW SIX; BEL: a 1.5 m gap). Fails on `reinforced` wire. On a live `electric` fence: 20 electric damage at the first snip and the cut fails | 3.0 s [rec] | none |
+| `cutters` | W | Sapper | fence | 1.0 | Cuts a man-sized opening (~1.0 × 1.95 m from the ground) a man walks through upright: walkable `fence` cells for anyone on foot (grid fenceHole), the rest of the fence stands (SHADOW SIX; BEL: a 1.5 m gap). Fails on `reinforced` wire. On a live `electric` fence: 20 electric damage at the first snip and the cut fails | 3.0 s [rec] | none |
 | `firstAid` | K | medic | commando | 1.2 | +34 HP, one dose | 1.5 s | none |
 | `syringe` | L | Spy | enemy | 1.2 (double-click = run) | Kill, no blood | 0.9 s; kill at 0.5 s [rec: "slightly slower than the knife"] | none |
 | `uniform` | U | Spy | self | — | Re-dress. Only when **no enemy currently has him inside a cone** | 1.5 s | none |
@@ -1816,7 +1816,7 @@ Kildread's count is 6 walkers, 1 sentry, patrols of 4 and 3, 2 towers, the boat 
 | `dam` | dam (concrete arch) | 40 | 22 | 345 | 27 long × 3 crest × 14 high, `elev` 7 | **Objective.** `bombOnly`; demolition marker `dam_charge` at (40,22): the spillway gates in the middle of the crest, the arch's weak section, where dam_arch_destroyed breaks open (the bomb must be within 3 m; the original's charge at the dam base is out of bounds here). Its control shack (part of the asset) is hidden (`hideParts`) and stands as `dam_shack` by the truck road. Crest = curved `bridge` cells at elev 7 (walking surface 7.28 on top of its snowy deck), two stairs (`ramps`, cells at the tread heights). `waterFx` (water down the face, white water streaming away downstream, spray mist at the foot). On destruction: collapse FX, flood surge over the whole foot of the face, crest removed, the falling water stops and the reservoir bursts through the breach: a torrent into the pool and a surge of white water down the river while it drains (40 s) |
 | `rim_s`, `rim_e`, `abut_e` | cliff | S shore (−1,29.5)…(25,26.6)…(−1,35); E shore (55,−1)…(56.6,20.2)…(55,12); E abutment (55.9,15.2)…(58.4,26.3)…(55.2,17.2), merging into rim_e (rim_e itself unchanged by the truck road, where the escape truck turns) | | | h 7.6 | Rock rims holding the raised reservoir; `B.HIGH`. `rim_s` and `abut_e` are the dam's **abutments** (user request 2026-10-07 "dam should be connected to the edges of the side mountains"): each closes on its end of the arch (the radial end at ±38°, from the crest lane's corner out to the upstream face, just inside the concrete) and runs down the outer side of that end's crest stair to half its length, so the stair climbs a cut in the rock and no gap shows the valley floor; `abut` faces stand plumb on the outline (recessed, never bulging through the concrete or over the treads). The little corner between each stair's head, the rock and the crest's end (under the dam's end block) is `noWalk` (`dam_end_w`, `dam_end_e`) |
 | `dam_shack` | hut (`assetPart` of dam_arch: its control shack) | 64.4 | 2.6 | 0 | 3.4 × 2.8 × 2.95 | The dam's gate-keeper shack on the ground E of the truck road at the N edge, door to the road, parallel to it, HALT sign to the camera; `nav: false`. It stood on a 6.6 m crag (`dam_crag`, removed) 2 m from the E stair, where it read as a tank (user request 2026-10-02) |
-| `dam_bunker` | bunker (surveillance) | 19 | 46 | 315 | 5 × 4 × 2.4 | **Objective.** `bombOnly`. Crew `e34`: vision `bunker` (near 18, far 36, 40°, sweep 50) facing NE over the dam |
+| `dam_bunker` | bunker (surveillance) | 10 | 44 | 315 | 5 × 4 × 2.4 | **Objective.** `bombOnly`. W of the W stair, on the open snow between the rock rim and p5's beat (user request 2026-10-08 "The bunker in mission 3 is too close to the stairs": it stood at (19,46), its trench's baffle wall 1 m from the stair's rails); its whole works (berm, wire, entrance trench) keep 6 m+ of open ground from the stair's treads and foot (unit test m03-bunker-site). Front (slit, entrance trench, door) NE; the charge goes inside (marker `bunker_charge`). Crew `e34`: vision `bunker` (40°, sweep 50) facing NE over the dam, near 22.5 / far 45 (the profile's 18 / 36 plus the 9 m move, so his cone still ends on the river and the W shore) |
 | `st_fence` | fence (`electric`, chain-link) | closed poly (4,58) (34,58) (70,90) (70,126) (4,126) | | | h 2.5 | `B.FENCE` (see-through). **Powered** until `fence_switch` is used. **Gates:** N gap x 24–28 at z 58 (dam path); W gate (below) |
 | `gate_w` | gate (`chainlink`) | 4 | 92 | 270 | opening 4 m | Open; road enters here |
 | `st_admin` | house (`admin_brick`) | 14 | 68 | 0 | 10 × 7 × 6 | Carries `fence_switch` on its E wall at (19.5,68): activation 1.0 s, any commando |
@@ -1838,7 +1838,7 @@ Kildread's count is 6 walkers, 1 sentry, patrols of 4 and 3, 2 towers, the boat 
 | `spools` | crates (`cable_drum`) | 114 | 61 | 0 | Ø 1.5 | |
 | `camp_tent` | tent + flag | 132 | 43 | 0 | 4 × 4 | **Garrison**, pool 5 |
 | `tent2` | tent | 141 | 42 | 0 | 4 × 4 | |
-| trees | pine | (70.2,4.2) (70.5,9) (90,6) (130,6) (140,10) (6,50) (2,70) (90,48) (146,60) | | | h 9–14 | |
+| trees | pine | (70.2,4.2) (70.5,9) (90,6) (130,6) (140,10) (4,53) (2,70) (90,48) (146,60) | | | h 9–14 | The one by the dam bunker's back stands at (4,53), off p5's beat (at (6,50) its crown touched the moved bunker) |
 
 **Items.**
 - `timeBomb` ×2 at (40,85). The Sapper picks them up.
@@ -1888,14 +1888,14 @@ Kildread's count is 6 walkers, 1 sentry, patrols of 4 and 3, 2 towers, the boat 
 | e24–e27 | [24–27] | sentry (e24, e26 investigate) | (14,87) · (6,104) · (12,108) · (8,116) | Posts 200 · 180 · 180 · 135; sweeps 40 |
 | e28 | – | mg (`mg_gate`) | (10,99) | Post 180, sweep 50, giro 180 |
 | e29–e33 | – | sergeant + 4 troopers, squad `p5` (columns 2), jail `st_barr1`, reactEvents [RINT] | (2,49) | LOOP: (2,49) → (14,52) → (30,54) wait 4 look 270 → (10,55) → (2,49). Circles the NW by the N gate and sees the gate area. **Alarm:** run to (26,56), then resume |
-| e34 | – | mg crew of `dam_bunker` | (19,46) | See Structures |
+| e34 | – | mg crew of `dam_bunker` | (10,44) | See Structures |
 
 **Zones and alarm.**
 
 | Zone | Poly | Event | Releases |
 |---|---|---|---|
 | `z_camp` (E camp outskirts) | (86,40) (148,36) (148,110) (128,102) (90,76) | onSeen and onHeard `RCAMP` (no siren) | `camp_barr`: 3-man squad, exit (122,61), then e7's loop. `camp_tent`: 2-man squad, loop (124,46.5) (147,46.5) (147,70) (144,70) |
-| `z_south` (the whole S bank, including the dam-bunker area) | (0,44) (24,42) (30,50) (45,53.8) (60,67.5) (84,87.5) (108,107.5) (120,117.5) (136,133) (0,133) | onSeen and onHeard `RINT` (siren) | `st_barr1`: 3-man squad, loop (24,61) (6,61) (6,76) (28,76). `st_barr2`: 3-man squad, loop (69,96) (69,124.5) (16,124.5) (16,96). Plus p5's alarm route |
+| `z_south` (the whole S bank, including the dam-bunker area) | (0,40) (24,42) (30,50) (45,53.8) (60,67.5) (84,87.5) (108,107.5) (120,117.5) (136,133) (0,133) | onSeen and onHeard `RINT` (siren) | `st_barr1`: 3-man squad, loop (24,61) (6,61) (6,76) (28,76). `st_barr2`: 3-man squad, loop (69,96) (69,124.5) (16,124.5) (16,96). Plus p5's alarm route |
 
 - The plateau, the gully and the NE bank west of the camp have **no zone**.
 

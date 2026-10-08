@@ -79,7 +79,8 @@ for (const where of ['crest', 'off']) {
     const hits = [];
     w.events.on('unit:damaged', (p) => { if (p.unit === sap && (p.source || p.by)?.faction === 'enemy') hits.push(w.time); });
     const from = Object.fromEntries(WALKERS.map((t) => [t, [s.get(t).x, s.get(t).z]]));
-    applyExplosion(w, 17, 49.8, 'bomb', null); // charge one behind the bunker (o1)
+    const bk = getMission('m03').structures.find((q) => q.id === 'dam_bunker');
+    applyExplosion(w, bk.x - 2, bk.z + 3.8, 'bomb', null); // charge one behind the bunker (o1)
     const states = [];
     s.run(40, () => { const st = e18.brain.state; if (states.at(-1) !== st) states.push(st); return false; });
     assert.equal(states[0], 'INVESTIGATE', `e18 drops the Distract and investigates (${states.join('>')})`);

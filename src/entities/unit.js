@@ -14,8 +14,6 @@ import { T, B, MAX_STEP } from '../world/grid.js';
 import { plan as avoidPlan, priority, blocks, givesWay } from './avoidance.js';
 
 /** Body reach (m) kept over a wall while climbing it: torso + pack / slung rifle. */
-/** isWalkable options of a man on his belly: holes cut low in a fence (grid crawlway) are open to him. */
-const CRAWL_WALK = Object.freeze({ crawl: true });
 const CLIMB_R = 0.45;
 
 /** Running stride (rule e): how far the boots reach from the body, and how high the heel rises on its own (m). */
@@ -824,10 +822,9 @@ export class Unit extends Entity {
     }
     if (!turning) cands.push(...turns);
     let pick = null;
-    const wo = front ? CRAWL_WALK : undefined; // a crawler is through a hole cut in a fence (grid crawlway)
     for (const [x, z, h, moved, slide] of cands) {
-      if (moved || front) { if (!w.grid.walkableAt(x, z, wo)) continue; }
-      if (slide && !w.grid.walkableLine?.(P.x, P.z, x, z, wo)) continue;
+      if (moved || front) { if (!w.grid.walkableAt(x, z)) continue; }
+      if (slide && !w.grid.walkableLine?.(P.x, P.z, x, z)) continue;
       if (bodyGap(w, x, z, h, st, ign) >= need) { pick = [x, z, h, moved, slide]; break; }
     }
     if (pick?.[4]) {

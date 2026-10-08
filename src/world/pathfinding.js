@@ -10,12 +10,6 @@ import { T, B, MAX_STEP } from './grid.js';
 const SQRT2 = Math.SQRT2;
 /** Extra cost factor for wading through shallow water / swimming, so land & bridges are preferred. */
 const WATER_COST = 1.8;
-/**
- * Path cost through a hole cut in a fence (grid `crawlway`, crawlers only): crawl pace (walk / crawl ≈ 2.5) plus the
- * time to lie down and get up, so a walker goes through only when going round is much longer.
- */
-export const CRAWLWAY_COST = 3;
-export const CRAWLWAY_ENTRY = 2.5;
 /** Max distance (m) to look for a walkable substitute when the goal (or start) cell is blocked. */
 export const NEAREST_WALKABLE_RADIUS = 3;
 /** Clearance used by string pulling (m, < CELL/2) so smoothed paths don't graze wall corners. */
@@ -102,8 +96,7 @@ const DJ = [0, 0, 1, -1, 1, -1, 1, -1];
  * @param {number} sz start z (m)
  * @param {number} tx target x (m)
  * @param {number} tz target z (m)
- * @param {{swim?: boolean, maxNodes?: number, smooth?: boolean, role?: string, dynamic?: boolean, noLinks?: boolean, noWalkLinks?: boolean, dive?: boolean, avoid?: Uint8Array, nearRadius?: number, crawl?: boolean}} [opts]
- *   crawl: a man who can crawl, who also passes grid `crawlway` cells (holes cut low in a fence) — on his belly.
+ * @param {{swim?: boolean, maxNodes?: number, smooth?: boolean, role?: string, dynamic?: boolean, noLinks?: boolean, noWalkLinks?: boolean, dive?: boolean, avoid?: Uint8Array, nearRadius?: number}} [opts]
  *   dive: a submerged diver, who also passes grid `underpass` cells (NavGrid.isWalkable).
  *   avoid: extra keep-out mask (grid.isWalkable opts.avoid; body clearance around vehicles). nearRadius: how far (m) a
  *   blocked start / goal looks for a walkable substitute (default 3).
@@ -161,7 +154,7 @@ export function hugsObstacle(grid, i, j) {
 
 export function findPath(grid, sx, sz, tx, tz, opts = {}) {
   const swim = !!opts.swim;
-  const walkOpts = { swim, dynamic: !!opts.dynamic, dive: !!opts.dive, avoid: opts.avoid || null, crawl: !!opts.crawl };
+  const walkOpts = { swim, dynamic: !!opts.dynamic, dive: !!opts.dive, avoid: opts.avoid || null };
   const nearR = opts.nearRadius ?? NEAREST_WALKABLE_RADIUS;
   const role = opts.role;
   // (noLinks: no climbing — a walked link, a flight of stairs or a plank, stays open unless noWalkLinks too)
@@ -207,7 +200,7 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
   heap.push(startK);
   let expanded = 0;
   let found = false;
-  const terrain = grid.terrain, bridge = grid.bridge, crawlway = grid.crawlway;
+  const terrain = grid.terrain, bridge = grid.bridge;
 
   while (heap.size > 0) {
     const k = heap.pop();
@@ -230,7 +223,6 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
       if ((t === T.WATER || t === T.SHALLOW) && !bridge[nk]) step *= WATER_COST;
       // clearance (placement rule e): a body is ~0.35 m wide with arms and rifle — prefer cells not touching a wall
       else if (hugsObstacle(grid, ni, nj)) step *= HUG_COST;
-      if (crawlway && crawlway[nk]) step = step * CRAWLWAY_COST + (crawlway[k] ? 0 : CRAWLWAY_ENTRY); // (walkOpts.crawl only)
       const ng = g[k] + step;
       if (stamp[nk] !== id || ng < g[nk]) {
         stamp[nk] = id;

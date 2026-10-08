@@ -96,15 +96,15 @@ export class NavGrid {
      */
     this.underpass = new Uint8Array(n);
     /**
-     * ≠ 0 = a hole cut low in a wire fence (Sapper's cutters, abilities/sapper.js): open ground (block B.NONE) that only a
-     * man on his belly gets through — isWalkable() passes it only with opts.crawl (commandos who can crawl; a standing
-     * one goes prone at the hole, Commando._holeStance). Vehicles, enemies and anyone carrying a load go round. The
-     * value (1 / 2) is the side its cut flap was peeled to (abilities/sapper.js normalSign). Saved.
+     * ≠ 0 = a hole cut through a wire fence (Sapper's cutters, abilities/sapper.js): an opening a man walks through
+     * upright — open ground (block B.NONE) for everyone on foot, standing, crouched or crawling; the fence's visual nav
+     * stamp (navBlock) does not close it. The value (1 / 2) is the side its cut flaps were folded back to
+     * (abilities/sapper.js normalSign); the wire layer draws the hole from these cells. Saved.
      * @type {Uint8Array}
      */
-    this.crawlway = new Uint8Array(n);
-    /** Number of crawlway cells (0: nothing to look for). */
-    this.crawlwayCount = 0;
+    this.fenceHole = new Uint8Array(n);
+    /** Number of fenceHole cells (0: nothing to look for). */
+    this.fenceHoleCount = 0;
     /**
      * Dynamic occluders (§4.2 OCLU, §10.2): B.* per cell, CLEARED AND RE-STAMPED EVERY SIM STEP by the
      * vehicles/trains system (clearDynamic() + stampDynamic()). Blocks sight (lineOfSight/castRay, unless
@@ -223,8 +223,7 @@ export class NavGrid {
    * @param {{swim?: boolean, dynamic?: boolean, dive?: boolean, avoid?: Uint8Array}} [opts] swim: deep water is walkable (the diver);
    *   dynamic: also treat dynamicBlock (vehicles/trains this step) as blocking; dive: a submerged diver keeps to
    *   open water (WATER/SHALLOW, no deck, no obstacle) plus the `underpass` cells under a deck and its girders;
-   *   avoid: Uint8Array mask (1 = keep out), e.g. body-clearance.avoidMask around vehicle hulls;
-   *   crawl: a man who can crawl — the `crawlway` cells (holes cut in a fence) are open to him
+   *   avoid: Uint8Array mask (1 = keep out), e.g. body-clearance.avoidMask around vehicle hulls
    */
   isWalkable(i, j, opts) {
     if (i < 0 || j < 0 || i >= this.cols || j >= this.rows) return false;
@@ -235,8 +234,7 @@ export class NavGrid {
       if ((t !== T.WATER && t !== T.SHALLOW) || this.bridge[k] || this.block[k] !== B.NONE || this.navBlock[k]) return false;
       return !(opts.dynamic && this.dynamicBlock[k] !== B.NONE);
     }
-    if (this.block[k] !== B.NONE || this.navBlock[k]) return false;
-    if (this.crawlway[k] && !(opts && opts.crawl)) return false; // a hole cut low in a fence: on the belly only
+    if (this.block[k] !== B.NONE || (this.navBlock[k] && !this.fenceHole[k])) return false; // (a cut fence hole: open)
     if (opts && opts.dynamic && this.dynamicBlock[k] !== B.NONE) return false;
     if (opts && opts.avoid && opts.avoid[k]) return false; // body clearance around vehicle hulls (world/body-clearance.js)
     if (this.bridge[k]) return true;
@@ -251,31 +249,20 @@ export class NavGrid {
   }
 
   /**
-   * Make cell k a crawlway (a hole cut low in a fence): open ground for crawlers only (block → B.NONE). The caller bumps
-   * `version` once it is done.
+   * Make cell k part of a hole cut through a fence: open ground for anyone on foot (block → B.NONE; its visual nav
+   * stamp no longer counts). `side` (1 / 2): where its flaps were folded back. The caller bumps `version` once done.
    */
-  setCrawlway(k, side = 1) {
+  setFenceHole(k, side = 1) {
     if (k < 0 || k >= this.size) return;
     this.block[k] = B.NONE;
-    if (!this.crawlway[k]) this.crawlwayCount++;
-    this.crawlway[k] = side === 2 ? 2 : 1;
+    if (!this.fenceHole[k]) this.fenceHoleCount++;
+    this.fenceHole[k] = side === 2 ? 2 : 1;
   }
 
-  /** Is (x, z) a `crawlway` cell (a hole cut low in a fence: crawlers only)? */
-  crawlwayAt(x, z) {
+  /** Is (x, z) a `fenceHole` cell (a hole cut through a fence)? */
+  fenceHoleAt(x, z) {
     const i = Math.floor(x / this.cell), j = Math.floor(z / this.cell);
-    return this.inBounds(i, j) && this.crawlway[this.idx(i, j)] !== 0;
-  }
-
-  /** Is a crawlway cell's centre within r (≤ 1 m) of (x, z)? (A diagonal hole is crossed at its cells' corner.) */
-  crawlwayNear(x, z, r = 0.45) {
-    if (!this.crawlwayCount) return false;
-    const c = this.cell, i0 = Math.floor((x - r) / c), i1 = Math.floor((x + r) / c), j0 = Math.floor((z - r) / c), j1 = Math.floor((z + r) / c);
-    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
-      if (!this.inBounds(i, j) || !this.crawlway[this.idx(i, j)]) continue;
-      if (Math.hypot((i + 0.5) * c - x, (j + 0.5) * c - z) <= r) return true;
-    }
-    return false;
+    return this.inBounds(i, j) && this.fenceHole[this.idx(i, j)] !== 0;
   }
 
   /** isWalkable() at a world point. */
@@ -890,12 +877,12 @@ export class NavGrid {
   /** Plain-object snapshot of all layers (for save games of destructible maps). */
   serialize() {
     const enc = (a) => Array.from(a);
-    const crawl = [];
-    for (let k = 0; k < this.size; k++) if (this.crawlway[k]) crawl.push(this.crawlway[k] === 2 ? -1 - k : k); // (side 2: −1 − k)
+    const hole = [];
+    for (let k = 0; k < this.size; k++) if (this.fenceHole[k]) hole.push(this.fenceHole[k] === 2 ? -1 - k : k); // (side 2: −1 − k)
     return {
       width: this.width, depth: this.depth, cell: this.cell, block: enc(this.block), bridge: enc(this.bridge), owner: enc(this.owner),
       links: this.links.map((l) => ({ id: l.id, enabled: l.enabled })), // geometry comes from mission data
-      crawl, // holes cut in fences (sparse)
+      hole, // holes cut through fences (sparse)
     };
   }
 
@@ -904,11 +891,12 @@ export class NavGrid {
     if (data.block) this.block.set(data.block);
     if (data.bridge) this.bridge.set(data.bridge);
     if (data.owner) this.owner.set(data.owner);
-    this.crawlway.fill(0);
-    this.crawlwayCount = 0;
-    if (data.crawl) for (const v of data.crawl) {
+    this.fenceHole.fill(0);
+    this.fenceHoleCount = 0;
+    // (`crawl`: a save from when the cutters opened a crawl-only hole — the same cells are a walk-through hole now)
+    for (const v of data.hole || data.crawl || []) {
       const k = v < 0 ? -1 - v : v;
-      if (k < this.size && !this.crawlway[k]) { this.crawlway[k] = v < 0 ? 2 : 1; this.crawlwayCount++; }
+      if (k < this.size && !this.fenceHole[k]) { this.fenceHole[k] = v < 0 ? 2 : 1; this.fenceHoleCount++; }
     }
     if (data.links) for (const l of data.links) { const x = this.links.find((y) => y.id === l.id); if (x) x.enabled = l.enabled; }
     this.version++;

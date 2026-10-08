@@ -419,48 +419,56 @@ pattern with a pitch of 8 cm, which tells the eye "twisted" at zoom 2.
 
 ### 4.9 Cut state (sapper hole)
 
-The Sapper's cutters cut a **round hole low in the wire**, not a gap (user, M3 video review, 2026-10-07: "the fence
-we should open a round hole not make the fence disappear … you should crawl to go through the fence").
+The Sapper's cutters cut a **man-sized opening** through the wire, walked through upright (user, 2026-10-08: "The
+fence cut we should make the whole bigger do a commando can walk through standing up. May the broken wire around the
+edges of the cuts more kind of chaotic"; before it, 2026-10-07: a round crawl-only hole low in the wire).
 
-**Sim (abilities/sapper.js):** he kneels square to the wire (CONFIG `abilities.cutHole.standoff`), snips at
-`cutHole.snips` (each a `device` event, sfx `cutters_snip`; the first finds out whether the wire is live) and pushes
-the flap through at `cutHole.peel`: the fence cells round the hole become **crawlway** cells (`grid.crawlway`, value
-1 / 2 = the side the flap was pushed to), widened 0.5 → 1.0 m until a crawler gets through. A crawlway cell is open
-ground for `isWalkable(…, {crawl: true})` only: commandos who can crawl (`Commando.pathQuery`; not with a load on their
-back), never enemies or vehicles. A standing commando whose path crosses one lies down 0.9 m before it, crawls through
-and gets up once his toes are clear (running on if he ran: `Commando._holeStance`); he cannot stand up inside it.
-`structure:destroyed {type:'fence-gap', hole: true, x, z}` (silent; the HUD does not count it as a building lost).
+**Sim (abilities/sapper.js):** `planHole` puts the hole where he clicked, moved along the wire (≤ 1 m) until no fence
+post stands within it or where its flaps fold back (`world.fencePosts`: the wire layer's posts with their `clear`, 1 m
+for chain-link, 0.6 m for strand fences; map-builder), then centred on the nearest fence cell. He kneels square to
+the wire (CONFIG `abilities.cutHole.standoff`), snips at `cutHole.snips` (each a `device` event, sfx `cutters_snip`;
+the first finds out whether the wire is live) — the lower ones kneeling, then standing (`cutHole.stand`) — and pulls
+the flaps aside at `cutHole.peel`: that cell (one, most often; up to three until a man walks upright from one side to
+the other) becomes a **fenceHole** cell (`grid.fenceHole`, value 1 / 2 = the side the flaps were pulled to, his):
+open ground for anyone on foot — standing, crouched, crawling, carrying, enemies too (vehicles keep their clearance) —
+whatever the fence's visual nav stamp says (`isWalkable`). One 0.5 m cell centred in the 1 m opening keeps a man
+walking through on his path inside it (shoulders clear). `structure:destroyed {type:'fence-gap', hole: true, x, z}`
+carries **no owner**: map-builder clears an owner's nav / overhead / standing / body stamps on that event, and the
+rest of the fence stands (silent; the HUD does not count it as a building lost).
 
-**Visual (art/wire-obstacles.js):** the hole is an ellipse `HOLE` (0.96 × 0.86 m, bottom 0.05 m over the ground,
-a little ragged): strands through it are cut (`cutPath` with a hole predicate) and their ends sprung back out of it
-and over to the flap's side, curling at the end, with bright fresh-cut tips (`peelTail`, 10–22 cm); coils keep the
-curled tails. A chain-link panel is cut in 3 cm columns round it (`panelGeometry`), leaving the opening truly empty
-(the ground behind shows through, no veil). The cut edge is made to read at the default zoom (user, 2026-10-07:
-"make them stand out more"):
-- **crumpled rim** (`holeRim`, in the panel mesh): a 9 cm band of the snipped weave bent back over the mesh along the
-  cut, its edge 3.5 cm out to the peel side, its diamonds squeezed — a second, denser layer that draws the outline;
-- **ragged ring of cut ends** (`holeFray`): every ~3.5 cm two snipped wires bent back (mostly to the peel side), their
-  last centimetres bright steel (`KIND.tip`: fresh cut, half metal so it never mirrors a dark sky), one in seven a
-  longer end sprung into a curl;
-- **the flap** (`holeFlapGeometry`): the cut-out piece stays joined on a vertical chord on his LEFT as he faces the
-  wire (`holeHingeSide`, `HOLE.hinge` = 80 % of the half-width out) and is swung through to the far side by
-  `flapOpen` (0.5 s from the cut, on the sim clock), bending round the hinge (`flapAngle` 166°, `flapCurl` more at its
-  free edge) until it lies folded back almost flat beside the hole — a sheet standing out at an angle is edge-on from
-  half the camera yaws. Its material (`flapMaterial`) is the weave crumpled (denser) and freshly bent (lighter,
-  glossier galvanising), and the fold along the hinge is a bright line (every wire bent double there). The strip is
-  re-bent in place while it opens (≈30 columns, only during those 0.5 s);
-- **under it** (`holeShadeGeometry`): a soft dark hollow across the fence line where the wire was pushed through and
-  a man crawls (snow / sand pressed down), and a few **snipped bits** of bright wire in the snow on his side (`holeBits`).
+**Visual (art/wire-obstacles.js):** the opening is `HOLE` (1.0 × 1.95 m from the ground): two folds at its sides,
+where the mesh beside them tore open in snatches (`holeShape.side`: two 3 cm columns, the outline stepping in and out,
+broken wires sticking into each snatch), a **jagged top cut** (`holeShape.top`: snipped diamond by diamond, ±4 cm, a wide snip now and then, turning down into the
+folds at its corners) and a wandering slit up the middle (`holeShape.slit`). Strands through it (up to the top cut, a
+little wide of the opening) are cut and their ends spring back out and over to either face, 6–30 cm: kinked, curled,
+a few dangling, bright tips (`peelTail`); coils keep the curled tails. A chain-link panel is cut in 3 cm columns from
+the ground to the top cut (`panelGeometry`), the opening truly empty. Chaotic edges:
+- **crumpled band** along the top cut (`holeRim`, in the panel mesh): the snipped diamonds bent back over the mesh,
+  unevenly lifted — a denser layer that draws the cut;
+- **cut ends** (`wireEnd`, `holeFray`): every ~3 cm of the top cut two snipped wires, by chance a stub (1–8 cm) bent
+  back over either face, a kinked one, a curl, or at the corners a dangling one (15–38 cm); the same along the flaps'
+  slit and top edges once they have settled (`H.settled`: the layer rebuilds once, 0.5 s after the cut); bright
+  fresh-cut tips (`KIND.tip`, half metal); a bright fold line down each side. Nothing reaches into the way of a man
+  walking through (`holeWalkway`: shapes that would are drawn again or cut short);
+- **two flaps** (`holeFlapPoints` / `holeFlapGeometry`, one mesh): the halves either side of the slit, hinged on the
+  folds, pulled aside towards him by `flapOpen` (0.5 s from the cut, on the sim clock) round their folds (`flapAngle`
+  160°, `flapCurl` more at the free edge, each row unevenly), folded back almost flat beside the opening and
+  **crumpled** (three creases at random slants, sharp along their line, a ripple; the top sags). Material
+  `flapMaterial`: the weave denser and freshly bent;
+- **under it**: a trodden hollow across the fence line (`holeShadeGeometry`) and 8–12 snipped **bits** of bright wire
+  in the snow, mostly on his side (`holeBits`).
 
-Cost after a cut: the flap and the hollow are one draw each per hole; everything else rides in the existing strand and
-panel meshes. The rest of the fence stands. The man: art/wire-cut.js (kneel, arm IK on each strand, the snips round
-the outline from the top of the hinge over to his right and across the bottom, both hands pushing the flap through and
-round to his left). GPU test (tests/barbed-wire.test.mjs, M3): at zoom 1 from both sides the opening is clear (brighter
-than the same pixels with the fence whole) and its luminance contrast with the mesh beside it is ≥ 36 (before: 22 / 31).
+Cost after a cut: the flaps and the hollow are one draw each per hole (~1.3 k + 72 triangles); the ends ride in the
+strand mesh. The uncut fence costs what it did. The man: art/wire-cut.js (kneels for the lower snips up the slit, gets
+up — the legs straighten under the rising pelvis — for the upper ones and the top cut, then both hands take the slit's
+edges and pull the flaps aside). Tests: unit fence-hole (size, upright passage incl. the real M3 nav, posts, save /
+load, an edge-variety metric: length CV ≥ 0.6, ≥ 3 ends ≥ 0.17 m, ≥ 15 % kinked, top cut jag ≥ 6 mm — the crawl
+hole's fringe scored 0.43 / 0 / 0 / 4 mm — and the walkway kept clear); GPU barbed-wire: at zoom 1 from both sides the
+opening is clear and stands out from the mesh beside it (luminance contrast ≥ 36).
 
-**Persistence:** `grid.serialize()` writes the crawlway cells (`crawl`, sparse); after a load the wire module
-re-derives the holes from them (flaps open). Grid cells cleared without crawlway (older saves) still draw as the
-old full-height gap with curled tails.
+**Persistence:** `grid.serialize()` writes the hole cells (`hole`, sparse; a save from the crawl-hole days, `crawl`,
+loads as a walk-through hole); after a load the wire module re-derives the holes from them (flaps open, ends drawn).
+Grid cells cleared without a hole mark (older saves) still draw as the old full-height gap with curled tails.
 
 ---
 

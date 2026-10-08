@@ -113,8 +113,18 @@ const AB_W = abutment(W_STAIR, -1), AB_E = abutment(E_STAIR, 1);
  */
 const DAM_FRONT = [...arc(19.2, -45, 45, 18), stairPt(E_STAIR, 0.5, 0.5), ...arc(10.5, 50, -36, 18), arc(12.5, -40, -40, 1)[0],
   stairPt(W_STAIR, 0.4, 0.5)];
+/**
+ * The dam bunker stands W of the W stair's foot, on the open snow between the rock rim and p5's beat (user request
+ * 2026-10-08: "The bunker in mission 3 is too close to the stairs"): it stood at (19, 46) with its baffle wall 1 m and
+ * its wire 1.4 m from the stair's rails; 9 m W and 2 m N, its whole works (berm, wire, entrance trench) keep 6 m+ of
+ * open ground from the stair's foot and rails. Same facing (front NE over the stair and the dam); its gunner's cone
+ * reaches 9 m further (`e34` vision) so it still ends on the river and the W shore where it did.
+ * `bunkerPt(dx, dz)`: a point `dx`, `dz` m off the bunker's centre (world axes; the bunker keeps its 225° rot).
+ */
+const BUNKER = { x: 10, z: 44 };
+const bunkerPt = (dx, dz) => [r2(BUNKER.x + dx), r2(BUNKER.z + dz)];
 /** The o1 charge spot on the dam bunker's floor, just inside its doorway (marker `bunker_charge`). */
-const BUNKER_CHARGE = [18.63, 44.93];
+const BUNKER_CHARGE = bunkerPt(-0.37, -1.07);
 /**
  * The dam's own control shack (dam_arch BL.control_shack, sidecar footprint x 16.0–19.4, z 6.6–9.4, door on its
  * W face, HALT sign on its S face) stood on a 6.6 m crag right beside the E stair and read as a tank from the camera
@@ -235,9 +245,9 @@ export default {
     // looks; `entry` (abilities/bunker-entry.js): in front of the gap between the wire and the baffle → through the
     // gap → into the trench → the entrance face → the doorway, the charge spot inside (the library model's door:
     // bunker_snow `main`; its sidecar points fitted 0.72 × 0.74). Past the gap (`face` 1) the baffle walls hide him.
-    { id: 'dam_bunker', type: 'bunker', variant: 'surveillance', x: 19, z: 46, rot: deg(225), w: 4, d: 5, h: 2.4,
+    { id: 'dam_bunker', type: 'bunker', variant: 'surveillance', x: BUNKER.x, z: BUNKER.z, rot: deg(225), w: 4, d: 5, h: 2.4,
       destructible: true, bombOnly: true, hp: 100, crew: ['e34'], marker: 'bunker_charge',
-      entry: { path: [[23.09, 42.0], [22.13, 42.96], [21.07, 42.12], [19.87, 43.32], [19.04, 44.15]], face: 1, charge: BUNKER_CHARGE } },
+      entry: { path: [bunkerPt(4.09, -4.0), bunkerPt(3.13, -3.04), bunkerPt(2.07, -3.88), bunkerPt(0.87, -2.68), bunkerPt(0.04, -1.85)], face: 1, charge: BUNKER_CHARGE } },
     // --- the power station (S bank): electrified chain-link fence with a N gap (x 24–28) and the W gate
     { id: 'st_fence', type: 'fence', variant: 'electric', h: 2.5, powered: true, poweredBy: 'fence_switch', cuttable: true,
       segments: [[[28, 58], [34, 58], [70, 90], [70, 126], [4, 126], [4, 94]], [[4, 90], [4, 58], [24, 58]]] },
@@ -267,7 +277,9 @@ export default {
     { id: 'spools', type: 'crates', variant: 'cable_drum', x: 114, z: 61, rot: 0, w: 1.5, d: 1.5, h: 1.5, block: 1 },
     { id: 'camp_tent', type: 'tent', x: 132, z: 43, rot: 0, w: 4, d: 4, flag: true, garrison: true },
     { id: 'tent2', type: 'tent', x: 141, z: 42, rot: 0, w: 4, d: 4 },
-    ...[[70.2, 4.2], [70.5, 9], [90, 6], [130, 6], [140, 10], [6, 50], [2, 70], [90, 48], [146, 60]]
+    // (the pine by the dam bunker's back stands at (4, 53), off p5's beat: at (6, 50) its needles touched the moved
+    // bunker's camouflage net)
+    ...[[70.2, 4.2], [70.5, 9], [90, 6], [130, 6], [140, 10], [4, 53], [2, 70], [90, 48], [146, 60]]
       .map(([x, z], k) => ({ type: 'pine', x, z, r: 0.6, h: 9 + (k % 6), seed: 401 + k })),
   ],
   items: [
@@ -335,13 +347,16 @@ export default {
       route: { type: 'LOOP', vel: 1.0, points: [P(2, 49), P(14, 52), P(30, 54, 4, 270), P(10, 55), P(2, 49)] },
       alarmRoute: { run: { x: 26, z: 56, vel: 3 }, resume: true },
     })),
-    // the dam bunker's crew (vision `bunker`: near 18, far 36, 40°, sweep 50) facing NE over the dam
-    { id: 'e34', soldierType: 'crew', x: 19, z: 46, heading: deg(315), structure: 'dam_bunker', firesOnSight: true,
-      vision: { fov: 40, near: 18, far: 36, sweep: 50 }, post: { heading: deg(315), sweep: 50 } },
+    // the dam bunker's crew (vision `bunker`: 40°, sweep 50) facing NE over the dam. Near 22.5 / far 45 (the profile's
+    // 18 / 36 + the bunker's 9 m move W, same 1:2): his cone still reaches the W shore, the stair and the river below
+    // the dam where it did from the old spot by the stair's foot
+    { id: 'e34', soldierType: 'crew', x: BUNKER.x, z: BUNKER.z, heading: deg(315), structure: 'dam_bunker', firesOnSight: true,
+      vision: { fov: 40, near: 22.5, far: 45, sweep: 50 }, post: { heading: deg(315), sweep: 50 } },
   ],
   zones: [
     { id: 'z_camp', poly: [[86, 40], [148, 36], [148, 110], [128, 102], [90, 76]], onSeen: 'RCAMP', onHeard: 'RCAMP', siren: false },
-    { id: 'z_south', poly: [[0, 44], [24, 42], [30, 50], [45, 53.8], [60, 67.5], [84, 87.5], [108, 107.5], [120, 117.5], [136, 133], [0, 133]],
+    // (its NW corner at (0, 40): the dam bunker W of the stair stands well inside it)
+    { id: 'z_south', poly: [[0, 40], [24, 42], [30, 50], [45, 53.8], [60, 67.5], [84, 87.5], [108, 107.5], [120, 117.5], [136, 133], [0, 133]],
       onSeen: 'RINT', onHeard: 'RINT', siren: true },
   ],
   jails: ['camp_barr', 'st_barr1'],

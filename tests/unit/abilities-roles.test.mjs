@@ -435,7 +435,7 @@ test('grenade: lobbed over a wall to ≤ 13.5 m, 1.0 s flight, class grenade; fr
   assert.equal(gb.hp, 0, 'friend at 4 m takes 200 too');
 });
 
-test('wire cutters: a crawl-only hole in fence cells; reinforced wire immune; live electric fence shocks (20) until switched off', () => {
+test('wire cutters: a walk-through hole in fence cells; reinforced wire immune; live electric fence shocks (20) until switched off', () => {
   const s = makeSim({
     structures: [
       { type: 'fence', id: 'f1', points: [[30, 0], [30, 20]] },
@@ -448,9 +448,10 @@ test('wire cutters: a crawl-only hole in fence cells; reinforced wire immune; li
   const sp = s.cmd('sapper'), g = s.world.grid;
   assert.equal(g.blockAt(30, 10), B.FENCE);
   assert.ok(sp.issue({ type: 'ability', id: 'cutters', target: { x: 30, z: 10 } }));
-  s.run(8, () => g.blockAt(30, 10) !== B.FENCE);
-  assert.equal(g.blockAt(30, 10), B.NONE, 'cut');
-  assert.ok(g.crawlwayAt(30, 10), 'a hole: crawl only');
+  s.run(8, () => g.fenceHoleCount > 0);
+  const cut = [9.75, 10.25].filter((z) => g.blockAt(30, z) === B.NONE && g.fenceHoleAt(30, z));
+  assert.ok(cut.length >= 1, 'cut: a hole at the click');
+  assert.ok(s.world.findPath(25, 10, 35, 10), 'walked through on foot');
   assert.equal(g.blockAt(30, 11.25), B.FENCE, 'the hole is under 1.5 m wide');
   assert.equal(g.blockAt(30, 12), B.FENCE, 'gap is only 1.5 m');
   assert.equal(sp.issue({ type: 'ability', id: 'cutters', target: { x: 30, z: 30 } }), false, 'reinforced');
@@ -462,7 +463,8 @@ test('wire cutters: a crawl-only hole in fence cells; reinforced wire immune; li
   s.run(10, () => s.world.fencePower.get('f3') === false);
   assert.equal(s.world.fencePower.get('f3'), false, 'power off');
   sp.issue({ type: 'ability', id: 'cutters', target: { x: 30, z: 50 } });
-  s.run(20, () => g.blockAt(30, 50) !== B.FENCE);
-  assert.equal(g.blockAt(30, 50), B.NONE);
+  const n0 = g.fenceHoleCount;
+  s.run(20, () => g.fenceHoleCount > n0);
+  assert.ok([49.75, 50.25].some((z) => g.blockAt(30, z) === B.NONE), 'cut once the power is off');
   assert.equal(sp.maxHp - sp.hp, 20, 'no second shock');
 });
