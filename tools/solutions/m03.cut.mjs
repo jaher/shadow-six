@@ -85,8 +85,12 @@ export function shots(cp, objT) {
   const o1 = objT('o1'), o2 = objT('o2');
   if (o1) s.push({ t0: o1 - 6, t1: o1 + 7, x: 18, y: 0, z: 42, zoom: 0.6, prio: 2 }); // the bunker (10, 44) and the W stair
   if (o2) { // the blast and the burst, then the escape: the truck at the pickup north of the dam, the men climbing in
-    s.push({ t0: o2 - 4, t1: o2 + 2, x: 47, y: 0, z: 25, zoom: 0.55, prio: 2 });
-    s.push({ t0: o2 + 2, t1: o2 + 60, x: 59.5, z: 10.5, zoom: 0.85, prio: 2 }); // the truck stops at (60, 9.2)
+    // the breach held until the truck comes in (it backs in from the map's N edge ~4.5 s after the blast), then the
+    // truck backing in to its pickup (60.4, 9.5), then closer for the men at its doors
+    const j1 = cp('J1') ?? o2 + 9;
+    s.push({ t0: o2 - 4, t1: o2 + 4.5, x: 47, y: 0, z: 25, zoom: 0.55, prio: 2 });
+    s.push({ t0: o2 + 4.5, t1: j1 + 0.5, x: 60, z: 4, zoom: 0.8, prio: 2 });
+    s.push({ t0: j1 + 0.5, t1: o2 + 60, x: 60, z: 10, zoom: 1.25, prio: 2 });
   }
   const h2 = cp('H2'); if (h2) s.push({ t0: h2 - 2, t1: h2 + 3, x: 26, y: 0, z: 62, zoom: 0.8, prio: 1 }); // the Spy and e18
   const a3 = cp('A3'); if (a3) s.push({ t0: a3 - 4, t1: a3 + 4, x: 101, y: 0, z: 11, zoom: 0.7, prio: 1 }); // p1 stare at the decoy
@@ -104,7 +108,7 @@ export function windows(cp, objT) {
   if (o1) w.push({ t0: o1 - 3, t1: o1 + 5, speed: 1 });
   if (o2) w.push({ t0: o2 - 3, t1: o2, speed: 1 }, { t0: o2, t1: o2 + 60, speed: 0.5 }); // the blast and the escape at half speed
   for (const [k, a, b, sp] of [['A3', -4, 1, 2], ['C0', -4, 2, 1], ['C3', -5, 1, 1.5], ['D1', -3, 2, 1], ['E2', -3, 1, 1.5],
-    ['E3', -2, 2, 2], ['F2', -4, 2, 1], ['F3', -3, 1, 1.5], ['G2', -20, 1, 2], ['G3', -4, 1, 1.5], ['G5', -3, 1, 1.5],
+    ['E3', -2, 2, 2], ['F2', -4, 2, 1], ['F3', -3, 1, 1.5], ['G2', -20, 1, 2], ['G3', -4, 1, 1.5], ['G5b', -1, 4, 1], ['G5', -3, 1, 1.5],
     ['H2', -2, 3, 2], ['I1', -4, 1, 1.5], ['I2', -8, 1, 1.5], ['I3', -3, 1, 1.5]]) {
     const t = cp(k);
     if (t) w.push({ t0: t + a, t1: t + b, speed: sp });
