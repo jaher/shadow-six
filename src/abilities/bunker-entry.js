@@ -39,10 +39,27 @@ const KNEEL = 0.35;
 /** m: he kneels this far short of the charge point, facing it. */
 const KNEEL_OFF = 0.45;
 
-/** The entry def of bunker interactable `it` (structure def `entry`), or null. */
+/**
+ * The entry def of bunker interactable `it` (structure def `entry`), or null. A building's entry (M3's station shed)
+ * names its spot inside `at` instead of `charge`; `y` is the floor the walk is on (the shed's threshing floor, up its
+ * ramp) and `door` the asset door it goes through (swung open while he passes, map-library wireLibraryDoors).
+ */
 export function entryOf(it) {
   const e = it?.params?.structure?.entry;
-  return e && Array.isArray(e.path) && e.path.length >= 1 && Array.isArray(e.charge) ? e : null;
+  return e && Array.isArray(e.path) && e.path.length >= 1 && (Array.isArray(e.charge) || Array.isArray(e.at)) ? e : null;
+}
+
+/**
+ * Walk-in of a mission structure that is no interactable (a building with an `entry`, M3's station shed): an
+ * interactable-like handle for entryTask (`params.structure`, its grid `owner` for perception's insideStructure rule,
+ * `destroyed` live from world.structures). @returns {{it: object, entry: object}|null}
+ */
+export function structureEntry(world, id) {
+  const S = id != null ? world?.structures?.get?.(id) : null;
+  const entry = S?.def?.entry;
+  if (!entry || !Array.isArray(entry.path) || !entry.path.length) return null;
+  const it = { tag: id, id, owner: S.owner, params: { structure: S.def }, get destroyed() { return !!S.destroyed || !!S.def.destroyed; } };
+  return { it, entry };
 }
 
 /**
@@ -120,8 +137,11 @@ export function entryTask(c, world, it, entry, place, { t0 = 0, data = null, ani
   const start = data?.start ?? [c.x, c.z];
   const stand = data ? data.stand ?? 0 : c.stance === 'stand' ? 0 : CONFIG.units.stanceUp;
   if (!data && c.stance !== 'stand') c.setStance('stand');
+  // the floor of the walk (`entry.y`: a building's upper floor, up its ramp) and his height where he set off (on that
+  // ramp, a step or two short of the outer end)
+  const Y = entry.y ?? 0, y0 = data?.y0 ?? (c.y || 0);
   // in: from where he stands to the outer end, through the trench to the doorway, then to his kneeling spot
-  const [cx, cz] = entry.charge, door = entry.path[entry.path.length - 1];
+  const [cx, cz] = entry.charge ?? entry.at, door = entry.path[entry.path.length - 1];
   const dx = cx - door[0], dz = cz - door[1], dl = Math.hypot(dx, dz) || 1;
   const kneel = [cx - (dx / dl) * KNEEL_OFF, cz - (dz / dl) * KNEEL_OFF];
   const inPts = [start, ...entry.path, kneel];
@@ -143,9 +163,13 @@ export function entryTask(c, world, it, entry, place, { t0 = 0, data = null, ani
     if (t < tOut1) return { s: R.len - (t - tOut0) * ENTRY_SPEED, moving: true, fwd: false };
     return { s: R.cum[1], moving: false, fwd: false };
   };
+  // a door of the asset he goes through (`entry.door`): swung open while he is within a stride of the doorway
+  const doorAt = entry.door != null ? inPts[faceIdx] : null;
   const apply = (t) => {
     const p = pose(t), q = R.at(p.s);
-    c.x = q.x; c.z = q.z; c.y = 0;
+    // (his height eases from where he set off to the floor by the doorway: up the last of a ramp, level indoors)
+    c.x = q.x; c.z = q.z; c.y = p.s < sFace ? y0 + (Y - y0) * (sFace > 1e-6 ? p.s / sFace : 1) : Y;
+    if (doorAt && Math.hypot(q.x - doorAt[0], q.z - doorAt[1]) < 1.6) world.events?.emit?.('door', { id: it.tag ?? it.id, door: entry.door, unit: c });
     if (p.moving) c.heading = p.fwd ? q.heading : q.heading + Math.PI;
     else if (t >= tIn1 && t < tOut0) c.heading = Math.atan2(cz - q.z, cx - q.x);
     // in the open-topped entrance trench (past the gap, short of its covered end) the baffle walls and the roof edge
@@ -156,7 +180,7 @@ export function entryTask(c, world, it, entry, place, { t0 = 0, data = null, ani
     if (inside !== !!c.insideStructure) c.insideStructure = inside ? it : null;
   };
   const end = () => {
-    c.scripted = null; c.insideStructure = null; c.y = 0;
+    c.scripted = null; c.insideStructure = null; c.y = Y;
   };
   let playedKneel = t0 >= tIn1;
   apply(t0);
@@ -171,7 +195,7 @@ export function entryTask(c, world, it, entry, place, { t0 = 0, data = null, ani
     },
     onEnd: end,
     onCancel: end,
-    save: () => ({ bunker: it.tag ?? it.id, start, stand, planted, ...(save?.() ?? null) }),
+    save: () => ({ bunker: it.tag ?? it.id, start, stand, planted, y0, ...(save?.() ?? null) }),
   });
   task.keepsState = false;
   return task;

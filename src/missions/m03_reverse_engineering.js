@@ -132,6 +132,8 @@ const BUNKER_CHARGE = bunkerPt(-0.37, -1.07);
  * (`hideParts`) and `dam_shack` rebuilds that very part (`assetPart`) on the ground by the truck road N of the dam.
  */
 const SHACK_PART = { asset: 'dam_arch', box: [16.0, 6.6, 19.4, 9.4], pad: 0.7, y: [-0.8, 4.6] };
+/** The station shed's loft floor (its threshing door's sill, up the ramp) and where the two charges lie on it. */
+const SHED_LOFT = 2.47, SHED_CHARGES = [40, 82.3];
 /** Water surface of the raised reservoir (the asset's reservoir sits 1.2 m under its deck). */
 export const M3_RESERVOIR_LEVEL = DAM.elev - 1.2;
 
@@ -255,7 +257,15 @@ export default {
     { id: 'st_admin', type: 'house', variant: 'admin_brick', x: 14, z: 68, rot: 0, w: 10, d: 7, h: 6,
       switches: [{ id: 'fence_switch', x: 19.5, z: 68, activation: 1.0, controls: 'st_fence', on: true, roles: null }] },
     { id: 'st_barr1', type: 'barracks', x: 16, z: 82, rot: 0, w: 12, d: 6, h: 4.5, flag: true, garrison: true },
-    { id: 'st_shed', type: 'hangar', variant: 'shed', x: 40, z: 80, rot: 0, w: 12, d: 8, h: 6, doorSide: 'S' },
+    // the station shed (library barn_a_snow: a Norwegian barn, its threshing ramp up to the loft door on the S side).
+    // The ramp is a walkable slope (`ramps`, smooth: nav only, the model draws it) from its foot up to the threshing
+    // door, its cells raised over their whole width right to the wall: nobody walks or crawls under its bridge (user
+    // 2026-10-08: "The sappler goes under the bridge of the house, why? Does it need to inside through the ramp?").
+    // `entry` (abilities/bunker-entry.js, as the dam bunker's): the walk in through the threshing door to the charges
+    // on the loft floor (`bombs_shed`, inside) and back out onto the ramp
+    { id: 'st_shed', type: 'hangar', variant: 'shed', x: 40, z: 80, rot: 0, w: 12, d: 8, h: 6, doorSide: 'S',
+      ramps: [{ id: 'shed_ramp', points: [[40, 92.0], [40, 84.05]], width: 2.85, y0: 0, y1: SHED_LOFT, smooth: true }],
+      entry: { path: [[40, 84.7], [40, 84.0], [40, 83.1]], face: 1, at: SHED_CHARGES, y: SHED_LOFT, door: 'threshing' } },
     { id: 'st_barr2', type: 'barracks', x: 64, z: 108, rot: deg(90), w: 12, d: 7, h: 4.5, flag: true, garrison: true },
     // 12 transformer cages (5 × 5 fence + a transformer each; sparking FX, hum SFX)
     ...CAGES.map(([x, z], k) => ({ id: `cage_${k + 1}`, type: 'fence', variant: 'square', points: square(x, z), h: 2.2, sparks: true })),
@@ -283,7 +293,8 @@ export default {
       .map(([x, z], k) => ({ type: 'pine', x, z, r: 0.6, h: 9 + (k % 6), seed: 401 + k })),
   ],
   items: [
-    { id: 'bombs_shed', itemId: 'timeBomb', x: 37.58, z: 86.17, count: 2 }, // beside the shed's ramp, not on it
+    // in the station shed, on its loft floor behind the threshing door (up the ramp: st_shed `entry`)
+    { id: 'bombs_shed', itemId: 'timeBomb', x: SHED_CHARGES[0], z: SHED_CHARGES[1], y: SHED_LOFT, count: 2, inside: 'st_shed' },
   ],
   // §3.4/§7.6 the Spy's uniform hangs on a clothesline: 'use' it (1.5 s activation) and she is dressed at once
   interactables: [

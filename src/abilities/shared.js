@@ -21,6 +21,7 @@ import { tryDress, dressIn, dressTask } from './spy.js';
 import { takeSpot } from './spy-actions.js';
 import { reviveDowned } from '../entities/downed.js';
 import { isTransportable, liveLoadNear, transportMode, takeLoad, carriesMan, transportTimes, DRAG_ROLES, liftHint } from './bodies.js';
+import { structureEntry, entryTask, ENTRY_REACH } from './bunker-entry.js';
 
 const A = CONFIG.abilities;
 
@@ -57,6 +58,27 @@ export function handTarget(c, t, world) {
   return raft ? { kind: 'raft', ent: raft } : null;
 }
 
+/**
+ * An item lying inside a building with a walk-in (item `inside`: the structure id; M3's station shed: the charges on
+ * its threshing floor, up the ramp and through the barn door): its entry (abilities/bunker-entry.js), or null. Such an
+ * item is only reached through that entry — from the outer end of its path he walks in, kneels, takes it, walks out.
+ */
+export function insideEntry(world, ent) {
+  const id = ent?.params?.inside;
+  return id != null && ent.interactKind !== 'bomb' ? structureEntry(world, id) : null;
+}
+
+/** The walk in for an item inside a building (start, or resume from `a`): in, kneel, take it, out. */
+function insideTakeTask(c, ent, world, ie, a = null) {
+  const T = A.chargeTake ?? { grab: 0.5, dur: 1.0 }, n0 = a?.data?.n ?? ent.count ?? 1;
+  return entryTask(c, world, ie.it, ie.entry, () => {
+    if (ent.alive !== false && ent.count > 0 && (ent.canUse ? ent.canUse(c) === true : true)) { if (ent.pickUp) ent.pickUp(c); else ent.interact(c); }
+    return true; // whatever he found, he walks back out
+    // (a take per piece: the M3 shed's two charges, one after the other)
+  }, { t0: a?.t ?? 0, data: a?.data ?? null, anim: 'take_charge', actAt: T.grab, actDur: T.dur * Math.max(1, Math.min(3, a?.data?.n ?? ent.count ?? 1)),
+    save: () => ({ inside: ie.it.tag, item: ent.id, n: n0 }) });
+}
+
 /** Why `c` can't pick up what handTarget found (role table §3.2), or true. */
 function handAllowed(c, h, world) {
   switch (h.kind) {
@@ -79,16 +101,23 @@ function handAllowed(c, h, world) {
 registerAbility({
   id: 'hand', label: 'Hand', icon: '✋', hotkey: 'h', roles: ['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy'],
   targeting: 'point', cursor: 'hand', order: 80, group: 'hand', visibleToEnemies: false,
-  range: A.hand.reach,
+  // an item inside a building: to the outer end of its walk-in (abilities/bunker-entry.js), not to the item
+  range: (c, t, world) => { const w = world ?? c.world; return w && insideEntry(w, handTarget(c, t, w)?.ent) ? ENTRY_REACH - 0.2 : A.hand.reach; },
   canUse(c, t, world) {
     const f = freeToAct(c);
     if (f !== true) return f;
     if (c.stance === 'dive') return 'Surface first.';
     const h = handTarget(c, t, world);
     if (!h) return 'Nothing to pick up.';
+    const ie = insideEntry(world, h.ent);
+    if (ie?.it.destroyed) return 'Nothing left in there.';
     return handAllowed(c, h, world);
   },
-  approachPoint(c, t, world) { return handTarget(c, t, world)?.ent ?? t; },
+  approachPoint(c, t, world) {
+    const ent = handTarget(c, t, world)?.ent;
+    const ie = insideEntry(world, ent);
+    return ie ? { x: ie.entry.path[0][0], z: ie.entry.path[0][1] } : ent ?? t;
+  },
   // H on a placed charge: the Sapper's takeCharge does it (its walk-up, kneel and timing; Commando.useAbility `forward`)
   forward(c, t, world) {
     const ent = handTarget(c, t, world)?.ent;
@@ -100,12 +129,19 @@ registerAbility({
   redirect: (c) => (carriesMan(c) && c.carryMode === 'drag' && c.world?.house?.dragBodies ? { id: 'carryToggle', target: c } : null),
   // §D.1: a lift / grab in progress is picked up again after a load with its elapsed time (bodies only)
   resume(c, t, world, a) {
+    // a walk into a building for an item: back on its way (he must not be left in there)
+    if (a?.data?.inside != null) {
+      const it = a.data.item != null ? world.byId(a.data.item) : null, ie = structureEntry(world, a.data.inside);
+      return it && ie ? insideTakeTask(c, it, world, ie, a) : null;
+    }
     const ent = a?.data?.load != null ? world.byId(a.data.load) : null;
     if (!ent || !isTransportable(ent, world) || !a.data.mode) return null;
     return handTask(c, { kind: 'body', ent }, world, a.data.mode, a.t || 0);
   },
   start(c, t, world) {
     const h = handTarget(c, t, world);
+    const ie = h.kind === 'item' ? insideEntry(world, h.ent) : null;
+    if (ie) return insideTakeTask(c, h.ent, world, ie);
     return handTask(c, h, world, h.kind === 'body' ? transportMode(c, null, world) : null, 0);
   },
 });

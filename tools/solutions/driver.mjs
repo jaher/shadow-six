@@ -281,7 +281,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
      * Will (x, z) stay unseen for the next `dur` s? Static enemies: their cones are predicted (the sweep is a function
      * of time). Walking ones: predicted along their heading (patrol legs are straight over a few seconds).
      */
-    clearAhead(x, z, dur = 2, low = false, why = null, except = null, pad = 0) {
+    clearAhead(x, z, dur = 2, low = false, why = null, except = null, pad = 0, from = 0) { // (`from`: the window starts that many s from now)
       const dummy = { x, z, y: w.grid.elevAt?.(x, z) ?? 0, isLow: low, isVisibleToEnemies: true };
       for (const e of w.enemies) {
         if (!e.alive || e.removed || !e.vision || except?.includes?.(e)) continue;
@@ -290,7 +290,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
           if (d > far + 3 * dur) continue;
           // walking: predicted along his current path (straight on past its end), at his speed
           const farE = e.vision.far ?? 36, edge = low ? (e.vision.near ?? farE / 2) : farE;
-          for (let t = 0; t <= dur + 1e-6; t += 0.1) {
+          for (let t = from; t <= dur + 1e-6; t += 0.1) {
             const q = predictEnemy(e, t);
             if (walkerSees(e, q, dummy, w, w.time + t)) { if (why) why.push(`${e.tag}~@+${t.toFixed(1)}`); return false; }
             // (a squad's man wheeling where the file turns: any heading, as in planSneak)
@@ -308,7 +308,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
           continue;
         }
         if (d > far) continue;
-        for (let t = 0; t <= dur + 1e-6; t += 0.1) {
+        for (let t = from; t <= dur + 1e-6; t += 0.1) {
           if (canSee(e, dummy, w, { cone: coneAt(e, w.time + t) }) !== 'none') { if (why) why.push(`${e.tag}@+${t.toFixed(1)}`); return false; }
         }
       }

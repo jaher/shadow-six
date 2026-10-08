@@ -1821,7 +1821,7 @@ Kildread's count is 6 walkers, 1 sentry, patrols of 4 and 3, 2 towers, the boat 
 | `gate_w` | gate (`chainlink`) | 4 | 92 | 270 | opening 4 m | Open; road enters here |
 | `st_admin` | house (`admin_brick`) | 14 | 68 | 0 | 10 × 7 × 6 | Carries `fence_switch` on its E wall at (19.5,68): activation 1.0 s, any commando |
 | `st_barr1` | barracks + flag | 16 | 82 | 0 | 12 × 6 × 4.5 | **Garrison**, pool 10; **jail** for p5 |
-| `st_shed` | hangar (`shed`) | 40 | 80 | 0 | 12 × 8 × 6 | Door S; 2 time bombs at (40,85) |
+| `st_shed` | hangar (`shed`) | 40 | 80 | 0 | 12 × 8 × 6 | A Norwegian barn: its ramp (the barn's bridge) climbs from (40,92) to the threshing door on the S wall (loft floor 2.47 m up). The ramp is a walkable slope (`ramps`, smooth) raised over its whole width right to the wall, so nobody walks or crawls under it (user request 2026-10-08: "The sappler goes under the bridge of the house, why? Does it need to inside through the ramp?"); `entry`: the walk in through the threshing door to the charges on the loft and back out (as the dam bunker's) |
 | `st_barr2` | barracks + flag | 64 | 108 | 90 | 12 × 7 × 4.5 | **Garrison**, pool 10 |
 | cages | fence (`square`, 5×5) + generator (`transformer`) | grid x ∈ {20, 32, 44, 56} × z ∈ {100, 110, 120} (12 cages) | | | h 2.2 / 2.0 | Sparking FX, hum SFX |
 | `mg_gate` | sandbags (`mg_ring`) | 10 | 99 | 180 | r 1.8 | e28 |
@@ -1841,7 +1841,7 @@ Kildread's count is 6 walkers, 1 sentry, patrols of 4 and 3, 2 towers, the boat 
 | trees | pine | (70.2,4.2) (70.5,9) (90,6) (130,6) (140,10) (4,53) (2,70) (90,48) (146,60) | | | h 9–14 | The one by the dam bunker's back stands at (4,53), off p5's beat (at (6,50) its crown touched the moved bunker) |
 
 **Items.**
-- `timeBomb` ×2 at (40,85). The Sapper picks them up.
+- `timeBomb` ×2 inside the shed, on its loft at (40,82.3) (`inside: 'st_shed'`). Hand on them sends the Sapper up the ramp and in through the threshing door: he kneels, takes both and comes back out onto the ramp; nothing else reaches them.
 - `uniform` (clothesline) at **(114,82.5)**, on the strip between the camp palisade and the river.
 
 **Vehicles.**

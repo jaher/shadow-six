@@ -40,7 +40,7 @@ export const CAPTIONS = {
   G2: 'Across in a gap in every cone (a boat on the water is seen in the light band too)',
   G3: 'The Marine packs the raft and dives (an empty raft in view is shot at); the Sapper cuts a man-sized hole in the dead fence',
   G4: 'The Spy leaves e17 and chats up e20, his back to the shed',
-  G5: 'In through the hole on his belly; both time bombs taken from the shed',
+  G5: 'In through the hole, up the barn’s ramp on his belly, in at the threshing door: both time bombs taken inside',
   G5b: 'The Spy back with e17; nobody looking, the Sapper walks out through the hole upright',
   G6: 'Down on his belly again, back to the strip',
   H1: 'The raft, deployed again, fetches the Sapper back across and is packed; up the east stair he waits on the dam crest',
@@ -108,7 +108,7 @@ export function windows(cp, objT) {
   if (o1) w.push({ t0: o1 - 3, t1: o1 + 5, speed: 1 });
   if (o2) w.push({ t0: o2 - 3, t1: o2, speed: 1 }, { t0: o2, t1: o2 + 60, speed: 0.5 }); // the blast and the escape at half speed
   for (const [k, a, b, sp] of [['A3', -4, 1, 2], ['C0', -4, 2, 1], ['C3', -5, 1, 1.5], ['D1', -3, 2, 1], ['E2', -3, 1, 1.5],
-    ['E3', -2, 2, 2], ['F2', -4, 2, 1], ['F3', -3, 1, 1.5], ['G2', -20, 1, 2], ['G3', -4, 1, 1.5], ['G5b', -1, 4, 1], ['G5', -3, 1, 1.5],
+    ['E3', -2, 2, 2], ['F2', -4, 2, 1], ['F3', -3, 1, 1.5], ['G2', -20, 1, 2], ['G3', -4, 1, 1.5], ['G5b', -1, 4, 1], ['G5', -8, 1, 1.5],
     ['H2', -2, 3, 2], ['I1', -4, 1, 1.5], ['I2', -8, 1, 1.5], ['I3', -3, 1, 1.5]]) {
     const t = cp(k);
     if (t) w.push({ t0: t + a, t1: t + b, speed: sp });
@@ -116,11 +116,12 @@ export function windows(cp, objT) {
   return w;
 }
 
-/** the camera stays on one man (not the last one ordered): the Sapper at the fence — the cut, in through the hole, back out */
+/** the camera stays on one man (not the last one ordered): the Sapper at the fence — the cut, in through the hole, up the shed's ramp and in at its door, back out */
 export function follows(cp) {
   const f = [];
   const g3 = cp('G3'), g4 = cp('G4'), g5 = cp('G5'), g6 = cp('G6');
   if (g3) f.push({ t0: g3 - 10, t1: g4 ? Math.min(g4, g3 + 40) : g3 + 15, role: 'sapper', zoom: 0.9 });
+  if (g4 && g5) f.push({ t0: g4, t1: g5 + 1, role: 'sapper', zoom: 0.9 }); // up the shed's ramp, in at its door and out
   if (g5 && g6) f.push({ t0: g6 - Math.min(40, g6 - g5), t1: g6 + 1, role: 'sapper', zoom: 0.85 });
   return f;
 }

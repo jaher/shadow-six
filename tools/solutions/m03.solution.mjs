@@ -26,7 +26,8 @@
  *      GB knifes e6 from behind and carries him down the strip to e14; decoy off and fetched back
  *   G  with e6 gone and e17 held the raft crosses unseen (boarding in a quiet moment, p5 on the W of its round): GB and
  *      Sapper land on the S bank; the Marine packs the raft (an empty raft in view is shot at, whoever hides beside it)
- *      and dives; the Sapper cuts the dead fence, takes both charges from the shed and comes back out
+ *      and dives; the Sapper cuts the dead fence, crawls up the shed's ramp (the barn's bridge), goes in at its threshing
+ *      door for both charges (they lie on the loft inside) and comes back out
  *   H  the Marine deploys the raft again and fetches the Sapper to the E stair (raft packed again): he waits on the
  *      dam crest. The GB digs in on the strip; the Spy
  *      holds e18 at the N gate while the GB drops the decoy by it, then goes back to e17; the raft (deployed below the
@@ -182,7 +183,7 @@ const FENCE_IN = [55.5, 80.6]; // inside the cut fence, out of e17's and e20's s
 const E17_TALK = [48.5, 74.0]; // e17's W side: he turns his back on the river and the shed
 const E19_TALK = [22.6, 63.4]; // W of the N end of e19's beat: he turns his back on the strip
 const E20_TALK = [26.9, 78.9]; // e20's NW side: he turns his back on the shed
-const SHED_W = [36.9, 85.6]; // the Sapper's place by the shed's door when he takes the charges (1.2 m reach)
+const SHED_RAMP_FOOT = [39.6, 92.9]; // the foot of the station shed's ramp (the barn's bridge up to its threshing door)
 const E_STAIR_RAFT = [56.3, 37.6]; // where the raft lies afterwards (the shallows below the E stair)
 const GB_PICKUP = [63.5, 69.6]; // where the GB waits for the raft on the S bank, across from RAFT_HIDE
 const RAFT_HIDE = [66.5, 69.5]; // a lie off the S bank just beyond e12's and p5's reach (while the Spy holds e17)
@@ -508,15 +509,30 @@ export const STAGES = [
     await D.until(() => !sap.currentAction && !sap.pendingAbility, 10, 'fence cut');
     D.checkpoint('G3 fence cut');
     await D.sneak(...FENCE_IN, { mode: 'crawl', role: 'sapper', box: 10, keep: 1.5, edgePad: 1, crawlPad: 2, label: 'Sapper in by the fence' });
-    // the shed's door is reached only from its W side (crates stand E of it), where e20 looks all the time: the Spy
-    // leaves e17 (nobody of ours is in his sight now) and holds e20 from his NW side — his back to the shed
+    // the shed's ramp lies where e20 looks all the time: the Spy leaves e17 (nobody of ours is in his sight now) and
+    // holds e20 from his NW side — his back to the shed
     await spyHolds(D, e20, E20_TALK);
     D.checkpoint('G4 Spy holds e20');
-    await D.sneak(...SHED_W, { mode: 'crawl', role: 'sapper', box: 12, keep: 1, edgePad: 0.5, crawlPad: 1, maxWait: 600, label: 'Sapper to the shed door' });
+    // the charges lie inside the shed, on its loft floor behind the threshing door at the top of the ramp (the barn's
+    // bridge; user 2026-10-08: "Does it need to inside through the ramp?"): on his belly up the ramp to the door; when
+    // nobody would see a man stand there, in through it, kneel, take both and back out (abilities/bunker-entry.js walk
+    // in), down on his belly again and back down the ramp
+    const SHED = D.world.structures.get('st_shed').def.entry, TOP = SHED.path[0];
+    await D.sneak(...SHED_RAMP_FOOT, { mode: 'crawl', role: 'sapper', box: 12, keep: 1, edgePad: 0.5, crawlPad: 1, maxWait: 600, label: 'Sapper to the shed ramp' });
+    await D.sneak(...TOP, { mode: 'crawl', role: 'sapper', box: 6, keep: 1, edgePad: 0.5, crawlPad: 1, maxWait: 600, label: 'Sapper up the shed ramp' });
+    // (on his feet there twice: getting up and through the doorway, ~1 s, and 4 s later back out until he is down on
+    // his belly again, ~1 s; in between the barn's walls hide him. e21, across the yard, sweeps over the door)
+    const whyTop = [], atTop = (t0, t1) => D.clearAhead(TOP[0], TOP[1], t1, false, whyTop, null, 1, t0);
+    // (and e23, pacing the W gate's road 30 m off, set off W: facing E, at the E end of his beat above all, he looks
+    // straight up at the door — and turning there his glance is no sure prediction)
+    const e23 = D.get('e23'), e23W = () => !e23?.alive || (Math.cos(e23.heading) < -0.5 && e23.x > 12.5 && e23.isMoving);
+    await D.until(() => { whyTop.length = 0; return e23W() && atTop(0, 1.1) && atTop(4.7, 6.1); }, 300, 'nobody to see him at the threshing door')
+      .catch((e) => { throw new Error(`${e.message} [${whyTop.join(' ')}]`); });
     D.ability('sapper', 'hand', D.world.interactables.find((i) => i.spawn?.id === 'bombs_shed' || i.tag === 'bombs_shed'));
-    await D.until(() => (sap.inventory.get('timeBomb') ?? 0) >= 2, 30, 'charges taken');
+    await D.until(() => (sap.inventory.get('timeBomb') ?? 0) >= 2 && !sap.currentAction && !sap.pendingAbility && !sap.scripted, 30, 'charges taken');
     await D.stance('sapper', 'crawl');
     D.checkpoint('G5 Sapper has both charges');
+    await D.sneak(...SHED_RAMP_FOOT, { mode: 'crawl', role: 'sapper', box: 6, keep: 1, edgePad: 0.5, crawlPad: 1, maxWait: 600, label: 'Sapper down the shed ramp' });
     await D.sneak(...FENCE_IN, { mode: 'crawl', role: 'sapper', box: 12, keep: 1, edgePad: 0.5, crawlPad: 1, maxWait: 600, label: 'Sapper back to the fence' });
     // the Spy back to e17 (his W side), then the Sapper out through the hole and down to the strip
     await spyHolds(D, e17, E17_TALK);

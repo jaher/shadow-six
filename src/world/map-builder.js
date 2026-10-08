@@ -1282,7 +1282,8 @@ export function applyElevation(grid, built) {
       for (let k = 0; k < grid.size; k++) if (grid.owner[k] === b.owner && grid.bridge[k]) { grid.elev[k] = y; n++; }
     }
     // `ramps: [{points:[bottom, …, top], width?, y0, y1}]`: stairs whose cells climb linearly along the polyline
-    for (const r of b.def.ramps || []) n += raiseRamp(grid, scratch, pts2(r.points), r.width ?? 1.6, r.y0 ?? 0, r.y1, r.landing);
+    // (`smooth`: a plain ramp, no treads — M3's barn ramp up to the shed's threshing door)
+    for (const r of b.def.ramps || []) n += raiseRamp(grid, scratch, pts2(r.points), r.width ?? 1.6, r.y0 ?? 0, r.y1, r.smooth ? 'smooth' : r.landing);
     // walkable roofs / decks declared by a footprint (`elev` m, props-extra flat roofs, rail bridge decks)
     for (const fp of b.footprints || []) if (fp.elev > 0) raise(fp, fp.elev);
     if (b.type === 'watchtower') {
@@ -1319,7 +1320,8 @@ function raiseRamp(grid, scratch, pts, w, y0, y1, landing) {
       const d = Math.hypot(g.ax + (g.bx - g.ax) * t - x, g.az + (g.bz - g.az) * t - z);
       if (d < best) { best = d; s = g.s0 + t * g.L; }
     }
-    grid.elev[k] = Math.max(grid.elev[k], stairTopAt(s, total, y0, y1, landing)); grid.block[k] = B.NONE; grid.owner[k] = 0; n++;
+    const y = landing === 'smooth' ? y0 + (y1 - y0) * Math.min(1, Math.max(0, s / total)) : stairTopAt(s, total, y0, y1, landing);
+    grid.elev[k] = Math.max(grid.elev[k], y); grid.block[k] = B.NONE; grid.owner[k] = 0; n++;
   }
   return n;
 }
@@ -1332,7 +1334,7 @@ function raiseRamp(grid, scratch, pts, w, y0, y1, landing) {
 export function buildStairField(built, grid, links = []) {
   const flights = [];
   for (const b of built) {
-    for (const r of b.def?.ramps || []) flights.push(...damFlights(r));
+    for (const r of b.def?.ramps || []) if (!r.smooth) flights.push(...damFlights(r));
     for (const f of b.footprints || []) if (f.ramp?.stairs) flights.push(platformFlight(f.ramp, b.def?.id ?? null));
   }
   // stair links: laid out from the mission's own ends (where the flight's mesh stands; the link's are snapped)
@@ -1486,7 +1488,8 @@ export function buildMap(world, mission, opts = {}) {
       ...(b.library?.doors?.length ? { doors: b.library.doors } : null) }); // the asset's doors (world coords: a bunker's entrance)
     // crest stairs of a raised dam (`ramps`): their own world-space meshes, outside the structure (they outlive its
     // destruction and stay out of its visual nav stamp)
-    if (meshes && b.def.ramps?.length) propsRoot.add(buildDamStairs(b.def.ramps));
+    // (a `smooth` ramp is part of its building's own model: nav only)
+    if (meshes && b.def.ramps?.some((r) => !r.smooth)) propsRoot.add(buildDamStairs(b.def.ramps.filter((r) => !r.smooth)));
   }
   for (const d of drums) {
     const s = d.def;
@@ -1514,6 +1517,11 @@ export function buildMap(world, mission, opts = {}) {
     const p = createPickup(it.itemId, it.x, it.z, it.count ?? 1);
     if (it.id) p.tag = it.id;
     if (it.variant) p.params.variant = it.variant;
+    // `inside`: it lies in a building with a walk-in (`entry`: M3's station shed), on its floor at `y` — reached only
+    // through that entry (abilities/shared.js hand)
+    if (it.inside != null) p.params.inside = it.inside;
+    // (`visualY`: placed on that floor on purpose — the clip audit's floating check leaves it be)
+    if (it.y != null) { p.y = it.y; p.params.visualY = it.y; if (p.object3d) p.object3d.position.y += it.y; }
     addIt(p);
   }
   const ex = mission.extraction;
@@ -1535,6 +1543,12 @@ export function buildMap(world, mission, opts = {}) {
   stampBarrierGaps(world, built);
   stampNavFootprints(world, built);
   for (const b of built) for (const f of b.footprints || []) if (f.ramp) grid.addRamp(f.ramp);   // stairs: sloped walker height
+  // a structure's `smooth` ramp (no treads): walkers on it take its sloped line too (grid.surfaceY)
+  for (const b of built) for (const r of b.def.ramps || []) {
+    if (!r.smooth || !(r.points?.length >= 2)) continue;
+    const [bot, top] = [r.points[0], r.points[r.points.length - 1]];
+    grid.addRamp({ ax: top[0], az: top[1], bx: bot[0], bz: bot[1], w: r.width ?? 1.6, ya: r.y1, yb: r.y0 ?? 0 });
+  }
   // 5b''. `noWalk` areas (M3: the foot of the dam's face): nobody walks, wades, swims or is sent there; before the
   // visual nav pass, so its keep-the-ways-open rules never count on them
   stampNoWalk(grid, mission.noWalk);

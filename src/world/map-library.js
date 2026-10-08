@@ -44,7 +44,8 @@ function navOverridden(b, mission) {
   if (mission.libraryNav === false || d.nav === false || b.type === 'watchtower') return true;
   if (placeholderHinted(b.type, d)) return true; // placeholder-art swap: visual only, the mission's nav stays
   // the mission authors its own upper floor / roof (walkways, decks, roofWalk / roofY + parapets): keep that nav
-  if (d.walkways?.length || d.deck || d.deckY != null || d.roofWalk != null || d.roofY != null) return true;
+  // (or its own `ramps`: M3's barn, whose threshing ramp is a walkable slope, not the asset's ladder link)
+  if (d.walkways?.length || d.ramps?.length || d.deck || d.deckY != null || d.roofWalk != null || d.roofY != null) return true;
   const bb = bboxOf(b.footprints);
   const hit = (x, z) => x >= bb.x0 && x <= bb.x1 && z >= bb.z0 && z <= bb.z1;
   for (const l of mission.ladders || []) if (hit(l.x, l.z) || (l.top && hit(l.top[0], l.top[1]))) return true;
@@ -231,8 +232,14 @@ export function wireLibraryDoors(world, built) {
   world.brokenPanes = world.brokenPanes || [];
   if ((!byId.size && !panes.length) || !world.events) return { frame() {}, dispose() {} };
   const off = world.events.on('door', (ev) => {
-    const e = byId.get(String(ev?.id));
+    let e = byId.get(String(ev?.id));
     if (!e) return;
+    // another door of the asset than its main one (`door`: its id — M3's barn threshing door, the shed walk-in)
+    if (ev.door != null && ev.door !== e.door && !e.leaves) {
+      const key = `${ev.id}|${ev.door}`;
+      if (!byId.has(key)) byId.set(key, { ...e, door: ev.door, t: 0, target: 0, hold: 0, blast: null, ajar: undefined });
+      e = byId.get(key);
+    }
     if (ev.unit) { e.target = 1; e.hold = 1.2; } else e.target = ev.open ? 1 : 0;
   });
   // bodies-design §A.8: a blast front swings the doors of nearby buildings open (damped hinge, overshoot, left ajar);

@@ -506,7 +506,8 @@ export function resolvePlacement(structures = [], o = {}) {
   const keepOf = (d) => d.id != null || !['tree', 'rocks'].includes(placeCat(d));
   for (const p of points.filter((q) => !q.def.fixed)) place(p, keepOf(p.def));
   const extra = (list, kind) => (list || []).map((it, k) => {
-    if (it.x == null || it.z == null || it.fixed || FIXED_INTERACTABLE(it)) return it;
+    // (an item lying inside a building with a walk-in, `inside`: M3's shed charges on its loft floor, stays put)
+    if (it.x == null || it.z == null || it.fixed || it.inside != null || FIXED_INTERACTABLE(it)) return it;
     const d = { ...it };
     const rec = { k, def: d, id: String(it.id ?? `${kind}#${k}`), cat: 'item', polys: [circlePoly(it.x, it.z, it.r ?? 0.35)] };
     place(rec, true);
