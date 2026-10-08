@@ -155,7 +155,7 @@ unsubscribe function and call it between scenarios. **Canonical events** (payloa
 | `unit:step` | `{unit, terrain, stance}` | anim/renderer (optional) → audio (footsteps) |
 | `unit:climb` | `{unit, kind:'climb'|'ladder', link}` | abilities → audio, anim |
 | `unit:water` | `{unit, what:'enter'|'exit'|'dive'|'surface'|'row'}` | unit/abilities → audio, fx |
-| `footprint` | `{x, z, heading, t, owner, aiVisible, terrain}` | unit (SNOW/SAND/MUD, every 0.75/1.6 m) → AI (TRACKS §4.8), render (trail), audio |
+| `footprint` | `{x, z, heading, t, owner, aiVisible, terrain, foot}` | unit (SNOW/SAND/MUD, every 0.75/1.6 m; `foot` 'boot' or the animal's, `ai/footprints.js footOf`) → AI (TRACKS §4.8), render (trail), audio |
 | `dragmark` | `{x, z, heading, t, owner, load}` | dragger (Commando._placeDragged, every 0.5 m of heel travel) → terrain trail records ('drag', not AI-visible) |
 | `ability:start` / `ability:end` | `{unit, id, target}` / `{unit, id, result}` | commando → audio, ui, AI (suspicious acts) |
 | `ability:refused` | `{unit, id, target, reason}` | commando (useAbility: canUse/item/ability gate said no; also a warn `message` + `cant` bark) → replay logs, tests |
@@ -835,6 +835,9 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   (gameplay tree structures stay the occluders; their meshes are hidden), deformable trails; otherwise a placeholder.
   map-builder stamps trails every frame for footsteps, crawl furrows, dragged bodies and land-vehicle wheels/tracks
   (`stampWorld`), and `world.ai.footprints.tracksNear(x,z,r)` annotates AI prints with `printVisibility` (§4.8).
+  Animals print their own feet, never boots (trail kind `paw`, `trails.js PAW_STYLE`): the real guard dog one print
+  per paw touchdown of the gait clip playing (`dogkit.measurePawContacts` at load → `UnitModel.pawFalls`), the BCD
+  animals (and a dog not built yet) by `ANIMAL_GAITS`, walking crows / gulls via the bird sim's `env.footfall`.
   Real path: `water: null` (`ctx.ownWater`) — the water system below owns the surface; river banks are carved
   from a bilinear signed distance to the wet cells (`cellSignedDistance`/`carveDepth`, edge cells smoothed, no 0.5 m staircase).
   Dry carves (`src/art/terrain/carve.js`, mission `carves: [{points, depth, bank}]`, M8's wadi): the heightfield and the

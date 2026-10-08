@@ -12,6 +12,7 @@
  */
 import * as THREE from 'three';
 import { createTerrain } from './terrain.js';
+import { footOf } from '../../ai/footprints.js';
 
 /** Engine vehicleType → trail layout (trails.js VEHICLE_TYPES). Boats/planes leave no ground trail. */
 export const VEHICLE_TRAIL = {
@@ -57,16 +58,20 @@ export function createTerrainHandle(renderer, scene, grid, theater, opts = {}) {
  * @returns {() => void} unsubscribe
  */
 export function wireFootprints(events, terrain) {
-  const fn = (e) => terrain.recordTrail('foot', e.x, e.z, e.heading, e.owner?.id ?? e.owner, { aiVisible: e.aiVisible, t0: e.t });
+  const fn = (e) => {
+    const animal = e.foot && e.foot !== 'boot';
+    terrain.recordTrail(animal ? 'paw' : 'foot', e.x, e.z, e.heading, e.owner?.id ?? e.owner, { aiVisible: e.aiVisible, t0: e.t, ...(animal ? { foot: e.foot } : null) });
+  };
   events.on('footprint', fn);
   return () => events.off?.('footprint', fn);
 }
 
-/** Per-frame visual stamping for moving units: boot prints (alternating), crawl furrows, body drags. */
+/** Per-frame visual stamping for moving units: boot prints (alternating), an animal's own prints, crawl furrows, body drags. */
 export function stampUnits(terrain, units) {
   for (const u of units || []) {
     if (!u.alive || u.y > 0.3 || u.inVehicle || u.stance === 'swim' || u.stance === 'dive') continue;
-    const id = 'u' + (u.id ?? u.name);
+    const id = 'u' + (u.id ?? u.name), foot = footOf(u);
+    if (foot !== 'boot') { terrain.stampTrail('animal', u.x, u.z, u.heading, { id, foot, run: u.moveMode === 'run', speed: u.speed, record: false }); continue; }
     if (u.stance === 'crawl' || u.stance === 'prone') terrain.stampTrail('crawl', u.x, u.z, u.heading, { id, record: false });
     else terrain.stampTrail('walker', u.x, u.z, u.heading, { id, run: u.moveMode === 'run', record: false });
     const heels = dragHeels(u);

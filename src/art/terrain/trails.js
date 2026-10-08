@@ -12,7 +12,7 @@
 import * as THREE from 'three';
 import { STAMP_VERT, STAMP_FRAG, FADE_VERT, FADE_FRAG } from './trails-glsl.js';
 
-export const TRAIL_KINDS = { tire: 0, track: 1, foot: 2, crawl: 3, drag: 4, crater: 5, flatten: 6, melt: 5 }; // melt = a soft bowl, no berm (blood on snow)
+export const TRAIL_KINDS = { tire: 0, track: 1, foot: 2, crawl: 3, drag: 4, crater: 5, flatten: 6, melt: 5, paw: 7 }; // melt = a soft bowl, no berm (blood on snow)
 // defaults per kind: feature width (m), quad width factor, depth, berm, min spacing for CPU records (m)
 const KIND_DEF = {
   tire: { fw: 0.26, qw: 1.9, depth: 0.85, berm: 0.8, rec: 0.6 },
@@ -23,7 +23,38 @@ const KIND_DEF = {
   crater: { fw: 2.0, qw: 1.8, depth: 1.4, berm: 1.0, rec: 0 },
   flatten: { fw: 0.8, qw: 1.0, depth: 0, berm: 0, rec: 1e9 },
   melt: { fw: 0.5, qw: 1.8, depth: 0.1, berm: 0, rec: 1e9 },
+  paw: { fw: 0.06, qw: 1.5, len: 0.07, depth: 0.7, berm: 0.4, rec: 0 },
 };
+/**
+ * Animal prints (kind 'paw'; user: "Dog is leaving human footprints"). Style → the shader's print shape (trails-glsl.js):
+ * 1 dog (four oval toe pads + claw marks round a rounded-triangle main pad), 2 big cat (no claws, three-lobed main
+ * pad, wider than long), 3 bird (three thin toes forward, a hind toe), 4 ostrich (two toes).
+ */
+export const PAW_STYLE = { dog: 1, lion: 2, cat: 2, bird: 3, chicken: 3, crow: 3, gull: 3, ostrich: 4 };
+/**
+ * Gaits of the animals that have no measured skeleton (the BCD placeholders; a dog before its GLB is built): one cycle
+ * of `L` m, each footfall [cycle phase, right offset (m), forward offset (m) of the print from the body centre, fore],
+ * and the print size (m, width × length; fore / hind). The dog's are its real clips' (dogkit measurePawContacts on
+ * dog_a: the walk's hind paw lands ~13 cm past its fore print, the trot in diagonal pairs with each hind paw ~8 cm
+ * behind its fore print, the gallop's four in a group).
+ */
+export const ANIMAL_GAITS = {
+  dog: {
+    walk: { L: 0.51, feet: [[0.01, -0.074, -0.155, 0], [0.43, 0.068, 0.27, 1], [0.51, 0.076, -0.155, 0], [0.93, -0.065, 0.269, 1]] },
+    trot: { L: 0.86, feet: [[0.04, 0.076, -0.149, 0], [0.07, -0.065, 0.331, 1], [0.54, -0.074, -0.151, 0], [0.57, 0.068, 0.331, 1]] },
+    run: { L: 1.35, feet: [[0, 0.076, -0.169, 0], [0.06, -0.074, -0.147, 0], [0.49, 0.068, 0.364, 1], [0.56, -0.065, 0.377, 1]] },
+    fore: [0.055, 0.068], hind: [0.062, 0.066], trotAt: 0.8, runAt: 2,
+  },
+  lion: {
+    walk: { L: 1.05, feet: [[0, -0.13, -0.3, 0], [0.27, 0.12, 0.6, 1], [0.5, 0.13, -0.3, 0], [0.77, -0.12, 0.6, 1]] },
+    run: { L: 3.2, feet: [[0, -0.13, -0.15, 0], [0.42, 0.12, 0.8, 1], [0.5, -0.12, 0.8, 1], [0.92, 0.13, -0.15, 0]] },
+    fore: [0.125, 0.115], hind: [0.11, 0.105],
+  },
+  ostrich: { walk: { L: 1.8, feet: [[0, -0.12, 0, 1], [0.5, 0.12, 0, 1]] }, run: { L: 5, feet: [[0, -0.1, 0, 1], [0.5, 0.1, 0, 1]] }, fore: [0.11, 0.19] },
+  chicken: { walk: { L: 0.26, feet: [[0, -0.035, 0, 1], [0.5, 0.035, 0, 1]] }, run: { L: 0.5, feet: [[0, -0.03, 0, 1], [0.5, 0.03, 0, 1]] }, fore: [0.06, 0.065] },
+};
+/** Quad margin round an animal print (its berm), × the print size. */
+const PAW_PAD = 1.5;
 const MAX_BATCH = 4096;
 /** Vehicle layouts: track (m, wheel centre to centre), wheelbase, tyre width, rear dual tyres, tracked rear. */
 export const VEHICLE_TYPES = {
@@ -72,7 +103,8 @@ export class TrailSystem {
     g.instanceCount = 0;
     this.stampMat = new THREE.ShaderMaterial({
       vertexShader: STAMP_VERT, fragmentShader: STAMP_FRAG,
-      uniforms: { uMapSize: { value: new THREE.Vector2(this.W, this.D) }, uFlat: { value: 0 } },
+      // uTexelM: the RT texel (m, coarser axis): an animal print smaller than a few texels is stamped as its outline
+      uniforms: { uMapSize: { value: new THREE.Vector2(this.W, this.D) }, uFlat: { value: 0 }, uTexelM: { value: Math.max(this.W / w, this.D / h) } },
       blending: THREE.CustomBlending, blendEquation: THREE.MaxEquation, blendEquationAlpha: THREE.MaxEquation,
       blendSrc: THREE.OneFactor, blendDst: THREE.OneFactor, depthTest: false, depthWrite: false, side: THREE.DoubleSide,
     });
@@ -154,6 +186,8 @@ export class TrailSystem {
     if (kind === 'walker' || kind === 'walk' || kind === 'run' || kind === 'crouch') {
       return this._steps(params.run ? 'run' : kind === 'walker' ? 'walk' : kind, x, z, heading, params, mat);
     }
+    if (kind === 'paw') return this._paw(x, z, heading, params, mat);
+    if (kind === 'animal') return this._animalSteps(x, z, heading, params, mat);
     const d = KIND_DEF[kind];
     if (!d) throw new Error('unknown trail kind ' + kind);
     const k = TRAIL_KINDS[kind];
@@ -236,6 +270,48 @@ export class TrailSystem {
       this._record('foot', px, pz, heading, id, mat, { side: src.side });
       this.stats.stamps++;
       this.onStep?.({ id, x: px, z: pz, yaw, side: src.side, length: (params.length ?? 0.34) * sc, width: 0.2 * sc, material: mat.name, snow: mat.snow ?? 0 });
+    }
+    return mat;
+  }
+
+  /**
+   * One animal print (kind 'paw') where a paw / foot touches down: {id, foot: 'dog'|'lion'|'ostrich'|'chicken'|'crow'…,
+   * side: +1 right / −1 left, width, length (m), yaw?: offset from `heading`, depth?}. In deep soft snow the paw sinks
+   * and the walls collapse outward: the hole grows to 1.5× the pad (as a boot's, _steps). The real dog stamps one per
+   * measured footfall of its clip (art/unit-model.js); animals without a skeleton step by ANIMAL_GAITS (_animalSteps).
+   */
+  _paw(x, z, heading, p, mat) {
+    const side = p.side < 0 ? -1 : 1, style = PAW_STYLE[p.foot] ?? 1, d = KIND_DEF.paw;
+    const sc = 1 + 0.5 * Math.min(1, (mat.snow ?? 0) * Math.min(1, (mat.soft ?? 0) / 0.12));
+    const len = (p.length ?? d.len) * sc, w = (p.width ?? d.fw) * sc;
+    const yaw = heading + (p.yaw ?? 0) + (Math.random() - 0.5) * 0.12;   // a paw lands a little askew
+    const depth = (p.depth ?? d.depth) * (0.9 + 0.2 * Math.random());
+    this._push(7, x, z, Math.cos(yaw), Math.sin(yaw), len * PAW_PAD, w * PAW_PAD, w, 0, depth, d.berm, side * style, mat.coh ?? 0.7, Math.random() * 97);
+    this._record('paw', x, z, heading, p.owner ?? p.id ?? null, mat, { side, foot: p.foot ?? 'dog' });
+    this.stats.stamps++;
+    this.onStep?.({ id: p.id, x, z, yaw, side, length: len, width: w, material: mat.name, snow: mat.snow ?? 0, foot: p.foot ?? 'dog' });
+    return mat;
+  }
+
+  /**
+   * Prints of an animal with no measured paw contacts, stepped by its ANIMAL_GAITS table along the distance it walks
+   * ({id, foot, run?, speed?}): each footfall of the cycle at its phase, offset from the body centre (a dog: walk, trot
+   * or gallop by speed).
+   */
+  _animalSteps(x, z, heading, p, mat) {
+    const G = ANIMAL_GAITS[p.foot] || ANIMAL_GAITS.dog, id = p.id ?? 'anon';
+    const sp = p.speed ?? 0, gait = (p.run || (G.runAt && sp >= G.runAt)) && G.run ? G.run : G.trot && sp >= (G.trotAt ?? Infinity) ? G.trot : G.walk;
+    let src = this.sources.get(id);
+    if (!src || Math.hypot(x - src.x, z - src.z) > 4) { src = { x, z, ph: 0 }; this.sources.set(id, src); }
+    const d = Math.hypot(x - src.x, z - src.z), o0 = src.ph, o1 = src.ph + d / gait.L;   // cycles walked (a gait change keeps the phase)
+    src.ph = o1; src.x = x; src.z = z;
+    if (!(d > 0)) return mat;
+    const c = Math.cos(heading), s = Math.sin(heading);
+    for (const [ph, right, fwd, fore] of gait.feet) {
+      if (Math.floor(o1 - ph) <= Math.floor(o0 - ph)) continue;     // this footfall's phase not crossed
+      const back = (o1 - ph - Math.floor(o1 - ph)) * gait.L;          // m walked since it touched down
+      const a = fwd - back, [w, len] = (fore ? G.fore : G.hind) || G.fore;
+      this._paw(x + c * a - s * right, z + s * a + c * right, heading, { ...p, side: right < 0 ? -1 : 1, width: w, length: len }, mat);
     }
     return mat;
   }

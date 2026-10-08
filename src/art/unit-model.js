@@ -248,6 +248,7 @@ export class UnitModel {
       return this;
     }
     prepareMeshes(R.root);
+    if (this.dog && R.inner.footfallsMeasured) this.pawFalls = [];   // its prints come from its paws (_footfalls)
     if (this.opts.role === 'sapper') for (const p of ['time_bomb', 'mills_bomb', 'wire_cutters']) R.equipProp(p);
     this._weapon = undefined;
     this._apply(true);
@@ -475,6 +476,22 @@ export class UnitModel {
       this._mw.copy(root.matrix); this._mwValid = true;
     }
     root._mwTok = FRAME.n;
+    if (this.pawFalls && R.inner?.takeFootfalls) this._footfalls(R.inner);
+  }
+
+  /**
+   * A dog's footfalls this frame (dogkit measurePawContacts: the touchdowns of the gait clip playing) as world prints
+   * for the terrain trails (art/terrain.js stampWorld drains `pawFalls`): {x, z, fore, side, w, l, gait}.
+   */
+  _footfalls(inner) {
+    const q = inner.takeFootfalls();
+    if (!q.length) return;
+    const m = inner.object.matrixWorld, out = this.pawFalls;
+    for (const f of q) {
+      _v1.set(f.x, 0, f.z).applyMatrix4(m);
+      out.push({ x: _v1.x, z: _v1.z, fore: f.fore, side: f.side, w: f.w, l: f.l, gait: f.gait, paw: f.paw });
+    }
+    if (out.length > 64) out.splice(0, out.length - 64);
   }
 
   _body() { return this.real.root.children.find((c) => c.name === 'body') || this.real.root; }

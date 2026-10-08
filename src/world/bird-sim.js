@@ -68,7 +68,8 @@ export const windAtHeight = (y) => clamp(Math.log(Math.max(0.3, y) / 0.03) / Mat
 
 /**
  * The birds of one mission. `env`: {wind(x, z, out2), water(x, z) → sample|null, ground(x, z) → y, blocked?(x, z) → bool,
- * fields: [x, z][], perches: {x, y, z}[], splash?(x, z, size), ripple?(x, z, s), flush?(bird)}.
+ * fields: [x, z][], perches: {x, y, z}[], splash?(x, z, size), ripple?(x, z, s), flush?(bird),
+ * footfall?(x, z, yaw, species, side) — a footed bird's foot set down on the ground (side: the trail stamp's, +1 = foot 0)}.
  */
 export class BirdSim {
   constructor(plan, env, seed = 17) {
@@ -88,6 +89,8 @@ export class BirdSim {
       cx: p.x, cz: p.z, R: 7 + r() * 8, th: r() * TAU, dir: r() < 0.5 ? -1 : 1, alt: S.alt[0] + r() * (S.alt[1] - S.alt[0]),
       tx: 0, ty: 0, tz: 0, perch: null, pref: r(), body: p.body, v: 0, yr: 0, crouch: 0, act: '', at: 0, launch: 0 };
     if (FOOTED[p.sp]) { b.G = legDims(S); b.gf = (x, z) => (b.perch ? b.perch.y : e.ground(x, z)); }
+    // a foot set down on the ground (not on a perch: a pier deck, a post) leaves its print (env.footfall: the terrain)
+    if (FOOTED[p.sp] && e.footfall) b.onFoot = (bb, i, f) => { if (!bb.perch) e.footfall(f.x, f.z, bb.yaw, bb.sp, i ? -1 : 1); };
     this.birds.push(b);
     if (p.kind === 'gull') { // most on the wing, some sitting on a pier or on the water
       const pc = this._freePerch(b);

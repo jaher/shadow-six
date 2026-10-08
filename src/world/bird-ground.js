@@ -38,9 +38,12 @@ export function feetInit(b, ground) {
   b.tuck = 0; b.bob = 0; b.bobv = 0; b.bph = null; b.bw = 0; b.bpc = 0; b.look = 0; b.lookT = 0; b.sway = 0; b.lastFoot = 1; b.stepAge = 1; b.stepDt = 0.3;
 }
 
-/** Touch down: every foot (in the air or mid-swing) is planted where it is, on the ground. */
+/**
+ * Touch down: every foot (in the air or mid-swing) is planted where it is, on the ground. Every planting of a foot
+ * that was off the ground calls `b.onFoot(b, i, foot)` when set (its print: render/ambient-life.js).
+ */
 export function feetPlant(b, ground) {
-  for (const f of b.feet) { f.air = false; f.s = -1; f.y = ground(f.x, f.z); }
+  b.feet.forEach((f, i) => { const lifted = f.air || f.s >= 0; f.air = false; f.s = -1; f.y = ground(f.x, f.z); if (lifted) b.onFoot?.(b, i, f); });
   b.wasMoving = false; b.pend = -1; // feet side by side: a landing run-out starts stepping at once (gait clock restarts)
 }
 
@@ -143,7 +146,7 @@ export function feetGait(b, h, ground) {
     const u = smooth(f.s), gy = ground(_r.x, _r.z), q = 4 * f.s * (1 - f.s);
     f.x = f.ox + (_r.x - f.ox) * u; f.z = f.oz + (_r.z - f.oz) * u;
     f.y = f.oy + (gy - f.oy) * u + G.lift * q * q * (moving ? 1 : 0.5);
-    if (f.s >= 1) { f.s = -1; f.x = _r.x; f.z = _r.z; f.y = gy; } else swing = i;
+    if (f.s >= 1) { f.s = -1; f.x = _r.x; f.z = _r.z; f.y = gy; b.onFoot?.(b, i, f); } else swing = i;
   });
   let due = -1;
   if (moving) {

@@ -499,7 +499,7 @@ export class BloodSystem {
     }
   }
 
-  /** Terrain footfall hook (trails.onStep): a bloody boot print at the print, fading over 6 steps. */
+  /** Terrain footfall hook (trails.onStep): a bloody boot (paw: blot) print at the print, fading over 6 steps. */
   onStep(e) {
     if (!this.on) return;
     const id = typeof e.id === 'string' && e.id[0] === 'u' ? +e.id.slice(1) : null;
@@ -507,7 +507,9 @@ export class BloodSystem {
     if (!u) return;
     const op = bloodyStep(u);
     if (op <= 0) return;
-    this._decal(e.side > 0 ? DK.bootR : DK.bootL, e.x, e.z, Math.max(0.3, e.length || 0.3), e.yaw ?? u.heading, op * 0.85);
+    // a dog's paw (an animal's foot): a small blot the size of the pad, never a boot sole
+    if (e.foot && e.foot !== 'boot') this._decal(DK.drop + ((e.x * 37 + e.z * 11) & 3), e.x, e.z, Math.max(0.05, e.length || 0.07), e.yaw ?? u.heading, op * 0.85);
+    else this._decal(e.side > 0 ? DK.bootR : DK.bootL, e.x, e.z, Math.max(0.3, e.length || 0.3), e.yaw ?? u.heading, op * 0.85);
   }
 
   // ------------------------------------------------------------------ per displayed frame

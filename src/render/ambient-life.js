@@ -73,6 +73,9 @@ const QUALITY = { low: 'low', medium: 'medium', high: 'high', ultra: 'ultra' };
 /** Fish threat radii (m) by what is in the water. */
 export const FISH_THREAT = { dive: 4.5, swim: 3.5, wade: 2.5, boat: 6 };
 
+/** Bird print size (m, width × length, toes to hind toe). */
+const BIRD_PRINT = { crow: [0.045, 0.06], gull: [0.055, 0.06] };
+
 /**
  * @param {import('../world/world.js').World} world (world.water = the water handle, world.wind, world.grid)
  * @param {object} [renderer] engine Renderer (presetName, scene) — null → sims only (tests)
@@ -101,6 +104,11 @@ export function createAmbientLife(world, renderer = null, o = {}) {
     splash: (x, z, s) => water?.wakes?.splash?.(x, z, s),
     ripple: (x, z, s) => water?.disturb?.(x, z, s, 0.35, 0.02),
     flush: (b) => world.events?.emit?.('ambient:flush', { x: b.x, z: b.z, species: b.sp }),
+    // a crow / gull walking on snow, sand or mud leaves its small three-toed prints (visual only, art/terrain/trails.js)
+    footfall: (x, z, yaw, sp, side) => {
+      const T = world.terrain, [w, l] = BIRD_PRINT[sp] || BIRD_PRINT.crow;
+      if (T?.terrain && T.stampTrail) T.stampTrail('paw', x, z, yaw, { foot: 'bird', side, width: w, length: l, depth: 0.45, record: false, id: null });
+    },
   };
   const birds = new BirdSim(A.birds === false ? [] : birdPlan({ theater, night, bodies, fields: env.fields, perches: env.perches }, seed + 2, quality), env, seed + 3);
   const stats = { fish: fish?.fish.length || 0, birds: birds.birds.length, drawnFish: 0, drawnBirds: 0, rings: 0, ms: 0, schools: fish?.schools.length || 0 };

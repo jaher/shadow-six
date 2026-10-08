@@ -1,10 +1,12 @@
 /**
  * Footprints — gameplay side (design-spec §4.8). Owned by AI.
  *
- * Units emit 'footprint' {x, z, heading, t, owner, aiVisible, terrain} every 0.75 m walked / 1.6 m run on
+ * Units emit 'footprint' {x, z, heading, t, owner, aiVisible, terrain, foot} every 0.75 m walked / 1.6 m run on
  * SNOW/SAND (and visual-only MUD). This tracker keeps the list: AI-visible prints live CONFIG.stealth.
  * footprint.life (90 s) for the AI; every print (enemy and MUD ones too) is kept for the same time for the
- * trail renderer, whose visual fades over the last `fade` (30) s.
+ * trail renderer, whose visual fades over the last `fade` (30) s. `foot` is what made it ('boot', or the animal:
+ * footOf). AI-visible = an intruder's: only the player's side (a German's own prints and his guard dog's paw prints
+ * never raise TRACKS), as before.
  *
  * Query hooks (render/trail layer, AI):
  *   world.ai.footprints.query(x, z, r)        → AI-visible live prints within r (kind 'footprint')
@@ -19,6 +21,17 @@
 import { CONFIG } from '../config.js';
 
 const BUCKET = 8; // m
+
+/**
+ * What a unit's feet print (user: "Dog is leaving human footprints"): boots for men, the animal's own feet for the
+ * guard dog and the BCD animals. The trail renderer (art/terrain.js stampWorld) stamps paw / bird prints for them, the
+ * 'footprint' event and the stored prints carry it as `foot`.
+ */
+export const FOOT_OF = Object.freeze({ dog: 'dog', lion: 'lion', ostrich: 'ostrich', chicken: 'chicken' });
+/** @returns {'boot'|'dog'|'lion'|'ostrich'|'chicken'} */
+export function footOf(u) {
+  return u?.foot ?? FOOT_OF[u?.soldierType] ?? 'boot';
+}
 
 export class Footprints {
   /** @param {import('../world/world.js').World} world */
@@ -42,7 +55,7 @@ export class Footprints {
     const fp = {
       kind: 'footprint', id, x: p.x, z: p.z, y: 0, heading: p.heading ?? 0, t: p.t ?? this.world.time,
       owner: p.owner ?? null, ownerId: p.owner?.id ?? p.ownerId ?? null, aiVisible: p.aiVisible !== false,
-      terrain: p.terrain ?? null,
+      terrain: p.terrain ?? null, foot: p.foot ?? 'boot',
     };
     this.list.push(fp);
     if (fp.aiVisible) {

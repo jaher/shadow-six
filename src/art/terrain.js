@@ -12,6 +12,7 @@ import { missionCarves, carvePainter } from './terrain/carve.js';
 import * as THREE from 'three';
 import { T } from '../world/grid.js';
 import { createTerrainHandle, tracksNear as trailsNear, dragHeels } from './terrain/game-adapter.js';
+import { footOf } from '../ai/footprints.js';
 import { buildFlatMask, PALETTES } from './terrain/terrain-layers.js';
 import { pretrampleRoads, terrainPainter } from '../world/roads.js';
 import { createVegetation } from './terrain/vegetation.js';
@@ -565,10 +566,13 @@ export function vehicleTrailType(v) {
 }
 
 const GROUND_Y_MAX = 0.4;
+/** A paw's print in soft ground is a little bigger than the skin that made it (toes spread, the edges crumble). */
+const PAW_SPREAD = 1.2;
 /**
  * Visual trail stamping for one displayed frame (docs/terrain-pipeline.md §4.3): boot prints of every walking
- * commando and enemy, crawl furrows, bodies dragged behind their carrier, and every wheel / track of moving land
- * vehicles. Visual only (`record:false`); gameplay prints come from the 'footprint' event (wireFootprints).
+ * commando and enemy, a guard dog's paw prints where its paws touch down (the BCD animals: their own feet, by gait),
+ * crawl furrows, bodies dragged behind their carrier, and every wheel / track of moving land vehicles. Visual only
+ * (`record:false`); gameplay prints come from the 'footprint' event (wireFootprints).
  */
 export function stampWorld(t, world, grid) {
   const wet = (x, z) => {
@@ -577,9 +581,17 @@ export function stampWorld(t, world, grid) {
   };
   for (const list of [world.commandos, world.enemies]) {
     for (const u of list || []) {
+      // a real dog's footfalls (art/unit-model.js _footfalls: its paws' touchdowns in the clip playing), drained every frame
+      const paws = Array.isArray(u.model?.pawFalls) && u.model.pawFalls.length ? u.model.pawFalls.splice(0) : null;
       if (u.removed || !u.alive || !u.path || u.y > GROUND_Y_MAX || u.state === 'inVehicle' || u.state === 'carried' || u.state === 'jailed') continue;
       if (u.stance === 'swim' || u.stance === 'dive' || wet(u.x, u.z)) continue;
-      const id = 'u' + u.id;
+      const id = 'u' + u.id, foot = footOf(u);
+      if (foot !== 'boot') { // animals leave their own prints, never boots (user: "Dog is leaving human footprints")
+        if (Array.isArray(u.model?.pawFalls)) {
+          for (const f of paws || []) if (!wet(f.x, f.z)) t.stampTrail('paw', f.x, f.z, u.heading, { id, foot, side: f.side, width: f.w * PAW_SPREAD, length: f.l * PAW_SPREAD, record: false });
+        } else t.stampTrail('animal', u.x, u.z, u.heading, { id, foot, run: u.moveMode === 'run', speed: u.speed, record: false }); // no skeleton: its gait table
+        continue;
+      }
       if (u.stance === 'crawl' || u.stance === 'prone') t.stampTrail('crawl', u.x, u.z, u.heading, { id, record: false });
       else t.stampTrail('walker', u.x, u.z, u.heading, { id, run: u.moveMode === 'run', record: false });
       // bodies-design §B.5: only a DRAG furrows (heels); a shoulder carry leaves the carrier's prints only
@@ -633,7 +645,8 @@ const TRAIL_LOAD = { car: 0.7, jeep: 0.6, truck: 1, motorcycle: 0.45, halftrack:
 /** Gameplay 'footprint' events → terrain trail records (queryTrails / QA). The AI list stays world.ai.footprints. */
 export function wireTrailRecords(events, handle) {
   if (!events?.on) return () => {};
-  const off1 = events.on('footprint', (e) => handle.recordTrail('foot', e.x, e.z, e.heading, e.owner?.id ?? e.ownerId ?? null, { aiVisible: e.aiVisible !== false, t0: e.t }));
+  const off1 = events.on('footprint', (e) => handle.recordTrail(e.foot && e.foot !== 'boot' ? 'paw' : 'foot', e.x, e.z, e.heading, e.owner?.id ?? e.ownerId ?? null,
+    { aiVisible: e.aiVisible !== false, t0: e.t, ...(e.foot && e.foot !== 'boot' ? { foot: e.foot } : null) }));
   // bodies-design §B.5: the heel furrow of a dragged man, recorded by the sim every 0.5 m (render-rate independent)
   const off2 = events.on('dragmark', (e) => handle.recordTrail('drag', e.x, e.z, e.heading, e.owner?.id ?? null, { aiVisible: false, t0: e.t }));
   return () => { (typeof off1 === 'function' ? off1 : () => {})(); (typeof off2 === 'function' ? off2 : () => events.off?.('dragmark'))(); };

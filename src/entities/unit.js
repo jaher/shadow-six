@@ -35,6 +35,7 @@ import { BODY, bodyGap, clearPose, avoidMask, inflationTiers, hasObstacles, hull
 import { pathLength } from '../world/pathfinding.js';
 import { gateLayout } from '../world/breakables.js';
 import { runNoiseStep } from '../ai/running-noise.js';
+import { footOf } from '../ai/footprints.js';
 import { stairSpeed, linkWalkY, isLadderLeg, ladderTrack, ladderSpeed, onStairRun } from './stair-walk.js';
 
 const LOW_STANCES = new Set(['crawl', 'swim', 'dive', 'downed']);
@@ -1054,7 +1055,7 @@ export class Unit extends Entity {
         // the name — audio's stepSfx and the trail renderer key on it).
         const g = w.groundAt(this.x, this.z), c = g.terrainCode;
         if (c === T.SNOW || c === T.SAND || c === T.MUD) {
-          w.events.emit('footprint', { x: this.x, z: this.z, heading: this.heading, t: w.time, owner: this, aiVisible: (c !== T.MUD || !!w.rules?.mudTracks) && this.faction === 'player' && !this.disguised, terrain: g.terrain }); // §4.8: a disguised Spy's boot prints read as a German's; BCD §1.10: soft paths leave tracks
+          w.events.emit('footprint', { x: this.x, z: this.z, heading: this.heading, t: w.time, owner: this, aiVisible: (c !== T.MUD || !!w.rules?.mudTracks) && this.faction === 'player' && !this.disguised, terrain: g.terrain, foot: footOf(this) }); // §4.8: a disguised Spy's boot prints read as a German's; BCD §1.10: soft paths leave tracks; a guard dog's paws are its own side's
         }
       }
     }

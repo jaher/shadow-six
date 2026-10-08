@@ -33,9 +33,12 @@ varying vec4 vSize;
 varying vec4 vParam;
 varying vec2 vExtra;
 uniform float uFlat;      // 1 = writing the flatten RT
+uniform float uTexelM;    // RT texel (m): animal prints only show their pads where a texel resolves them
 float h1(float n) { return fract(sin(n * 91.345) * 47453.5453); }
 float n1(float x) { float i = floor(x); float f = fract(x); f = f * f * (3.0 - 2.0 * f); return mix(h1(i), h1(i + 1.0), f); }
 float ellipse(vec2 p, vec2 c, vec2 r) { vec2 d = (p - c) / r; return 1.0 - dot(d, d); }
+float blob(vec2 p, vec2 c, vec2 r, float e) { return smoothstep(0.0, e, ellipse(p, c, r)); }
+float seg(vec2 p, vec2 a, vec2 b) { vec2 pa = p - a, ba = b - a; return length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0)); }
 float h2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float n2(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   return mix(mix(h2(i), h2(i + vec2(1.0, 0.0)), f.x), mix(h2(i + vec2(0.0, 1.0)), h2(i + vec2(1.0, 1.0)), f.x), f.y); }
@@ -45,7 +48,7 @@ void main() {
   float u = vLocal.x, v = vLocal.y, L = vSize.x, fw = vSize.z;
   float coh = vExtra.x, sd = vExtra.y;
   float odo = vSize.w + v;
-  float ends = smoothstep(0.5 * L, 0.5 * L - 0.04, abs(v));
+  float ends = kind == 7 ? 1.0 : smoothstep(0.5 * L, 0.5 * L - 0.04, abs(v));
   float R = 0.0, G = 0.0, A = 0.0;
   // track wander + width breathing (steering corrections, load shifts) and depth noise
   float wob = (n1(odo * 0.45 + sd * 7.0) - 0.5) * 0.09 + (n1(odo * 4.3 + sd * 3.0) - 0.5) * 0.03 * (1.0 - coh);
@@ -118,6 +121,40 @@ void main() {
     R = smoothstep(1.0, 0.1, rr);
     G = smoothstep(0.85, 1.05, rr) * smoothstep(1.7, 1.1, rr);
     A = smoothstep(1.8, 1.0, rr);
+  } else if (kind == 7) {                   // animal print (trails.js _paw): |side| = style, its sign mirrors left feet
+    float st = floor(abs(side) + 0.5), sg = side < 0.0 ? -1.0 : 1.0, Lp = L / 1.5;   // the quad has a berm margin (PAW_PAD)
+    vec2 q = vec2(u * sg / fw, v / Lp);                  // print units: ±0.5 across / along, toes forward
+    // the pads show only where a texel is well under a pad (~1/5 of the print); a smaller print is its outline
+    float det = smoothstep(0.32, 0.12, uTexelM / min(fw, Lp)), e = 0.6, pad, env;
+    if (st < 1.5) {                         // dog: four oval toe pads, claw marks ahead of the middle two, a rounded-triangle main pad
+      float mp = max(blob(q, vec2(0.0, -0.2), vec2(0.27, 0.19), e), blob(q, vec2(0.0, -0.09), vec2(0.16, 0.13), e));
+      float tp = max(max(blob(q, vec2(-0.115, 0.2), vec2(0.105, 0.14), e), blob(q, vec2(0.115, 0.2), vec2(0.105, 0.14), e)),
+                     max(blob(q, vec2(-0.315, 0.03), vec2(0.1, 0.13), e), blob(q, vec2(0.315, 0.03), vec2(0.1, 0.13), e)));
+      float cl = max(max(blob(q, vec2(-0.1, 0.43), vec2(0.035, 0.05), e), blob(q, vec2(0.1, 0.43), vec2(0.035, 0.05), e)),
+                     0.7 * max(blob(q, vec2(-0.37, 0.23), vec2(0.03, 0.04), e), blob(q, vec2(0.37, 0.23), vec2(0.03, 0.04), e)));
+      pad = max(max(mp, tp), 0.8 * cl);
+      env = blob(q, vec2(0.0, 0.0), vec2(0.45, 0.5), 0.5);
+    } else if (st < 2.5) {                  // big cat: no claws, a three-lobed main pad, the toes in a lopsided arc
+      float mp = max(blob(q, vec2(0.0, -0.17), vec2(0.3, 0.19), e), max(max(blob(q, vec2(-0.17, -0.3), vec2(0.13, 0.11), e),
+                     blob(q, vec2(0.0, -0.33), vec2(0.12, 0.1), e)), blob(q, vec2(0.17, -0.3), vec2(0.13, 0.11), e)));
+      float tp = max(max(blob(q, vec2(-0.37, 0.08), vec2(0.1, 0.12), e), blob(q, vec2(-0.13, 0.27), vec2(0.105, 0.13), e)),
+                     max(blob(q, vec2(0.12, 0.3), vec2(0.105, 0.13), e), blob(q, vec2(0.36, 0.13), vec2(0.1, 0.12), e)));
+      pad = max(mp, tp);
+      env = blob(q, vec2(0.0, -0.02), vec2(0.5, 0.48), 0.5);
+    } else if (st < 3.5) {                  // bird: three thin toes forward, one back
+      vec2 hb = vec2(0.0, -0.1);
+      float d = min(min(seg(q, hb, vec2(0.0, 0.5)), seg(q, hb, vec2(-0.42, 0.3))), min(seg(q, hb, vec2(0.42, 0.3)), seg(q, hb, vec2(0.0, -0.46))));
+      pad = smoothstep(0.1, 0.04, d);
+      env = 0.45 * blob(q, vec2(0.0, 0.05), vec2(0.35, 0.42), 0.6);
+    } else {                                // ostrich: a big inner toe with its nail, a small outer one
+      float d1 = seg(q, vec2(-0.04, -0.36), vec2(0.0, 0.4)), d2 = seg(q, vec2(0.1, -0.12), vec2(0.34, 0.16));
+      pad = max(max(smoothstep(0.17, 0.09, d1), 0.8 * smoothstep(0.1, 0.05, d2)), blob(q, vec2(0.0, 0.46), vec2(0.04, 0.05), e));
+      env = blob(q, vec2(0.05, 0.0), vec2(0.3, 0.5), 0.5);
+    }
+    R = mix(env, max(pad, 0.3 * env), det) * (0.85 + 0.15 * coh) * dnz;
+    // berm: what the paw pushed aside, a low ring round the print (looser ground spills more)
+    G = blob(q * 0.78, vec2(0.0), vec2(0.5), 0.9) * (1.0 - smoothstep(0.0, 0.25, env)) * (0.5 + 0.5 * (1.0 - coh));
+    A = env * (st > 2.5 && st < 3.5 ? 0.1 : 0.6);       // a bird hardly bends the grass
   } else {                                  // 6: flatten only (grass push-down)
     float rr = length(vec2(u / (0.5 * fw), v / (0.5 * L)));
     A = smoothstep(1.0, 0.6, rr);
