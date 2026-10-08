@@ -35,6 +35,7 @@ import * as THREE from 'three';
 import { twoBoneIKPole, wpos, wquat, handFrame, handQuat } from './characters/commandos_a/ca_ik.js';
 import { T as TERRAIN } from '../world/grid.js';
 import { OAR, ROW, EASY, TRAIL, rowKey, backKey, mixOar, oarPoints, oarDir, oarAnglesThrough } from './oars.js';
+import { groundOf } from './boat-rest.js';
 
 export { ROW, rowKey, OAR } from './oars.js';
 
@@ -699,7 +700,7 @@ export function applyRowPose(m, hullObj, oars, bend, guard, w = 1) {
 // ------------------------------------------------------------------ the crew
 
 const HIP_ABOVE_SEAT = 0.1;
-const _v = new THREE.Vector3(), _w = new THREE.Vector3();
+const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _lq = new THREE.Quaternion();
 /**
  * The raft's starboard paddle stowed (raft.py: the paddle node pivots at its rowlock, its shaft along d from the
  * T-grip end 0.55 inboard to the tip 1.05 outboard, the blade flat): lifted out of the rowlock and laid along the
@@ -723,6 +724,64 @@ export const STOW = (() => {
   return { q, off, d0, at };
 })();
 
+/** Clearance a paddle blade in its rowlock keeps over the ground under it (m). */
+export const BLADE_CLEAR = 0.012;
+
+/**
+ * A paddle in its rowlock on a boat resting on the ground (art/boat-rest.js): at rest its blade hangs over the side
+ * into the water, so on a bank or a beach it would go into the ground. The paddle swings up about its rowlock (an
+ * axis across its shaft) just far enough for every point of the blade to clear the ground under it: the blade lies
+ * on the bank. Measured once from the node at rest (LOD0); posed on every LOD through `vis.posePart`.
+ * @param {object} vis vehicle visual (parts, posePart) @param {string} name paddle part node
+ * @returns {{name:string, lift:(groundAt:(x:number,z:number)=>number) => number}|null} lift → the angle (rad) needed
+ */
+export function rowlockFit(vis, name) {
+  const node = vis?.parts?.[name];
+  if (!node) return null;
+  const restQ = node.quaternion.clone(), restP = node.position.clone();
+  node.updateWorldMatrix(true, true);
+  const inv = new THREE.Matrix4().copy(node.matrixWorld).invert(), m = new THREE.Matrix4(), p = new THREE.Vector3(), all = [];
+  node.traverse((o) => {
+    if (!o.isMesh || !o.geometry?.attributes?.position) return;
+    m.multiplyMatrices(inv, o.matrixWorld);
+    const pos = o.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i++) all.push(p.fromBufferAttribute(pos, i).applyMatrix4(m).clone());
+  });
+  if (!all.length) return null;
+  // the blade: the far end of the shaft from the rowlock (node origin)
+  const far = all.reduce((a, b) => (b.lengthSq() > a.lengthSq() ? b : a)), d = far.clone().normalize(), reach = far.length();
+  const blade = all.filter((q) => q.dot(d) > reach * 0.6);
+  const up = new THREE.Vector3(0, 1, 0).applyQuaternion(restQ.clone().invert());
+  const axis = new THREE.Vector3().crossVectors(d, up);
+  if (axis.lengthSq() < 1e-8) return null;
+  axis.normalize();
+  const q = new THREE.Quaternion(), w = new THREE.Vector3();
+  /** lowest clearance of the blade over the ground with the paddle swung up by `a` rad */
+  const clear = (a, groundAt) => {
+    q.setFromAxisAngle(axis, a).premultiply(restQ);
+    let c = Infinity;
+    for (const b of blade) {
+      w.copy(b).applyQuaternion(q).add(restP).applyMatrix4(node.parent.matrixWorld);
+      const g = groundAt(w.x, w.z);
+      if (g > -1e6) c = Math.min(c, w.y - g);
+    }
+    return c;
+  };
+  return {
+    name, axis, blade: blade.length,
+    lift(groundAt) {
+      node.parent.updateWorldMatrix(true, false);
+      if (clear(0, groundAt) >= BLADE_CLEAR) return 0;
+      let lo = 0, hi = 0.05;
+      while (hi < 1.4 && clear(hi, groundAt) < BLADE_CLEAR) { lo = hi; hi += 0.05; }
+      for (let k = 0; k < 7; k++) { const mid = (lo + hi) / 2; if (clear(mid, groundAt) < BLADE_CLEAR) lo = mid; else hi = mid; }
+      return hi;
+    },
+    /** the rotation (node-local) for a lift angle */
+    quat(a, out = new THREE.Quaternion()) { return out.setFromAxisAngle(axis, a); },
+  };
+}
+
 /**
  * Boat crew figures for a vehicle (or null when there is nothing to draw: no seats, library model missing).
  * @param {object} v Vehicle entity (boat without crew records)
@@ -741,6 +800,9 @@ export function createBoatCrew(v, deps) {
   const figs = new Map(); // unit → figure (aboard, or stepping out)
   let seats = new Map();
   const rig = { paddleT: 0, rowT: 0, act: 0, lastH: v.heading, yawRate: 0, takenL: false, rowAct: 0, hold: 0, ship: null };
+  // the raft's paddles in their rowlocks (posed at rest now): swung up off the ground when the raft lies on a bank
+  const locks = model.libType === 'raft' ? ['paddle_l', 'paddle_r'].map((n) => rowlockFit(vis, n)).filter(Boolean) : [];
+  rig.lift = Object.fromEntries(locks.map((f) => [f.name, 0]));
   const open0 = !v.driveable || !(v.def.operators || []).length;
   // the rowboat's oars: ours (between the thole pins aft of the oarsman), the model's own pair hidden
   const oars = model.libType === 'rowboat' && vis.parts?.oar_r ? [1, -1].map((s) => {
@@ -920,6 +982,18 @@ export function createBoatCrew(v, deps) {
     if (takeL !== rig.takenL) {
       rig.takenL = takeL; vis.showPart?.('paddle_l', !takeL);
       vis.posePart?.('paddle_r', takeL ? STOW.q : null, takeL ? STOW.off : null);
+      if (takeL) for (const f of locks) rig.lift[f.name] = 0;
+    }
+    // paddles left in their rowlocks: the blade lies on the ground instead of going into it (rises at once, settles back)
+    if (!takeL && locks.length && v.world) {
+      const groundAt = groundOf(v.world);
+      for (const f of locks) {
+        const want = f.lift(groundAt), cur = rig.lift[f.name];
+        const a = want >= cur ? want : Math.max(want, cur - dt * 0.8);
+        if (a !== cur || (a > 0 && !rig.liftPosed)) vis.posePart?.(f.name, a > 0 ? f.quat(a, _lq) : null, null);
+        rig.lift[f.name] = a;
+      }
+      rig.liftPosed = true;
     }
     if (!oars) return;
     const rf = [...figs.values()].find((f) => f.pose === 'row' && f.u === v.driver && !f.out);

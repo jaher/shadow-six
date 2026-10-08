@@ -24,6 +24,10 @@
  * see the bed through that gap), always under the tube whatever the water does. The rowboat
  * follows its hull lines (rowboat.py stations) from 10 cm below to 25 cm above the waterline, 1–2 cm inside the
  * skin; the decked patrol and fishing boats keep the section 8 cm down. The mini-sub runs awash and stays wet.
+ *
+ * A boat resting on a bank or a beach (art/boat-rest.js) is lifted clear of the water under it: the water below its
+ * bottom is not inside it, so the open boats' plans stop `under` m below their waterline (the raft's tubes 8 cm, the
+ * rowboat's keel 20 cm, plus a centimetre): the water stays drawn under a beached hull instead of a dry hole round it.
  * @module art/water/hulls
  */
 import * as THREE from 'three';
@@ -45,8 +49,8 @@ export function calmAt(d, x, y, z) {
 
 /** Waterline plans by library type (model space, metres). */
 export const HULL_PLANS = Object.freeze({
-  raft: { aF: 1.1, aA: 1.16, b: 0.46, pu: 5.7, pv: 2.5 },
-  rowboat: { aF: 1.74, aA: 1.74, b: 0.475, pu: 2, pv: 1, z0: -0.1, z1: 0.25, aLo: 1, aHi: 0.6, bLo: 1.4, bHi: 0.72 },
+  raft: { aF: 1.1, aA: 1.16, b: 0.46, pu: 5.7, pv: 2.5, under: 0.09 },
+  rowboat: { aF: 1.74, aA: 1.74, b: 0.475, pu: 2, pv: 1, z0: -0.1, z1: 0.25, aLo: 1, aHi: 0.6, bLo: 1.4, bHi: 0.72, under: 0.22 },
   patrolboat: { aF: 5.6, aA: 6.6, b: 1.3, pu: 2.5, pv: 1.5 },
   fishing_boat: { aF: 5.6, aA: 5.6, b: 1.75, pu: 2.2, pv: 1.5 },
 });
@@ -60,6 +64,7 @@ export function planAt(P, z = 0) {
 
 /** Is (u, v, z) (hull frame) inside `plan`? JS twin of the shader's dryHull() (unit tests). */
 export function inPlan(P, u, v, z = 0) {
+  if (P.under != null && z < -P.under) return false; // below the hull's bottom: under it, not in it
   const [aF, aA, b] = planAt(P, z);
   return Math.abs(u / (u >= 0 ? aF : aA)) ** P.pu + Math.abs(v / b) ** P.pv <= 1;
 }
@@ -95,7 +100,8 @@ const reach = (P) => Math.max(...[P.z0 ?? 0, P.z1 ?? 0].map((z) => { const [aF, 
 
 /**
  * Pack up to MAX_DRY_HULLS plans (nearest (cx, cz) first) into the water's shared uniforms: dryM (world → hull frame),
- * dryA (aF, aA, b, bounding radius), dryB (pu, pv, z0, z1), dryC (aLo, aHi, bLo, bHi), dryN.
+ * dryA (aF, aA, b, bounding radius), dryB (pu, pv, z0, z1), dryC (aLo, aHi, bLo, bHi), dryU (under: the plan's depth
+ * below the waterline, 1e3 = unbounded), dryN.
  */
 export function packDryHulls(list, U, cx = 0, cz = 0) {
   const L = list.length > MAX_DRY_HULLS ? list.slice().sort((p, q) => Math.hypot(p.x - cx, p.z - cz) - Math.hypot(q.x - cx, q.z - cz)) : list;
@@ -106,6 +112,7 @@ export function packDryHulls(list, U, cx = 0, cz = 0) {
     U.dryA.value[k].set(P.aF, P.aA, P.b, P.reach ?? reach(P));
     U.dryB.value[k].set(P.pu, P.pv, P.z0 ?? 0, P.z1 ?? 0);
     U.dryC.value[k].set(P.aLo ?? 0, P.aHi ?? 0, P.bLo ?? 0, P.bHi ?? 0);
+    U.dryU.value[k] = P.under ?? 1e3;
   }
   U.dryN.value = n;
   return n;
@@ -115,19 +122,20 @@ export function packDryHulls(list, U, cx = 0, cz = 0) {
 export function dryHullUniforms() {
   const arr = (f) => Array.from({ length: MAX_DRY_HULLS }, f);
   return { dryM: { value: arr(() => new THREE.Matrix4()) }, dryA: { value: arr(() => new THREE.Vector4()) },
-    dryB: { value: arr(() => new THREE.Vector4()) }, dryC: { value: arr(() => new THREE.Vector4()) }, dryN: { value: 0 } };
+    dryB: { value: arr(() => new THREE.Vector4()) }, dryC: { value: arr(() => new THREE.Vector4()) }, dryU: { value: arr(() => 1e3) }, dryN: { value: 0 } };
 }
 
 /** GLSL: dryHull(world position) — true inside a cut-out hull plan (layout: packDryHulls). */
 export const DRY_HULL_GLSL = /* glsl */`
 uniform mat4 dryM[${MAX_DRY_HULLS}];
 uniform vec4 dryA[${MAX_DRY_HULLS}], dryB[${MAX_DRY_HULLS}], dryC[${MAX_DRY_HULLS}];
+uniform float dryU[${MAX_DRY_HULLS}];
 uniform int dryN;
 bool dryHull(vec3 wp){
   for (int i = 0; i < ${MAX_DRY_HULLS}; i++) {
     if (i >= dryN) break;
     vec3 p = (dryM[i]*vec4(wp, 1.0)).xyz;                 // hull frame: x side, y up, z bow
-    if (dot(p.xz, p.xz) > dryA[i].w*dryA[i].w) continue;
+    if (dot(p.xz, p.xz) > dryA[i].w*dryA[i].w || p.y < -dryU[i]) continue; // (below a beached hull's bottom: drawn)
     float z = clamp(p.y, dryB[i].z, dryB[i].w);
     vec2 g = z < 0.0 ? dryC[i].xz : dryC[i].yw;            // flare: (da/dz, db/dz) below / above the waterline
     float a = (p.z >= 0.0 ? dryA[i].x : dryA[i].y) + z*g.x, b = dryA[i].z + z*g.y;

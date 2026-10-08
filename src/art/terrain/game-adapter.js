@@ -24,7 +24,7 @@ export const VEHICLE_TRAIL = {
  * Synchronous handle around the async createTerrain (T-A style `.ready`). Calls made before the terrain is ready
  * (stampTrail/recordTrail) are queued; queries return [] / flat ground until then.
  * @returns {{ground:THREE.Group, water:null, ready:Promise<object>, terrain:object|null, update:Function,
- *   stampTrail:Function, recordTrail:Function, queryTrails:Function, heightAt:Function, materialAt:Function, dispose:Function}}
+ *   stampTrail:Function, recordTrail:Function, queryTrails:Function, heightAt:Function, surfaceAt:Function, materialAt:Function, dispose:Function}}
  */
 export function createTerrainHandle(renderer, scene, grid, theater, opts = {}) {
   const ground = new THREE.Group();
@@ -38,6 +38,7 @@ export function createTerrainHandle(renderer, scene, grid, theater, opts = {}) {
     recordTrail(...a) { if (h.terrain) return h.terrain.recordTrail(...a); queue.push(['recordTrail', a]); return null; },
     queryTrails(...a) { return h.terrain ? h.terrain.queryTrails(...a) : []; },
     heightAt(x, z) { return h.terrain ? h.terrain.heightAt(x, z) : 0; },
+    surfaceAt(x, z) { return h.terrain ? h.terrain.surfaceAt(x, z) : 0; },
     materialAt(x, z) { return h.terrain ? h.terrain.materialAt(x, z) : null; },
     dispose() { h.terrain?.dispose(); scene.remove(ground); },
   };

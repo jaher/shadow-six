@@ -420,8 +420,24 @@ tools/check.sh                                                          # syntax
   the decked patrol / fishing boats 8 cm down; the mini-sub runs awash and stays wet), and (b) lays the wave / surf
   displacement down round each hull in the vertex stage (still within 0.3 m of its waterline box, full waves 1.8 m
   out; the normals keep the waves' shading), since the hulls do not heave with the sea — no crest stands over a side
-  tube. Wrecked or deflated hulls take water. GPU test: `tests/boat-dry-hull.test.mjs` (flat-magenta water, floor
-  pixels read back every frame: M2 raft, M13 raft at sea, M14 rowboat).
+  tube. Wrecked or deflated hulls take water. The open boats' plans stop just under their bottom (raft 9 cm, rowboat
+  22 cm below the waterline, `under`): a hull resting on a bank is lifted clear of the water, which stays drawn
+  under it. GPU test: `tests/boat-dry-hull.test.mjs` (flat-magenta water, floor pixels read back every frame: M2 raft,
+  M13 raft at sea, M14 rowboat).
+- **Boats on the ground** (`src/art/boat-rest.js`, posed in `art/vehicle-model.js`). A boat used to float flat at the
+  water level whenever its centre was over a wet cell, so a hull half on the bank (the M1 raft on the peninsula's west
+  shore, M3's and M18's rafts, a raft the Marine inflates at the water's edge) had the snow or mud come up through it,
+  and on dry land it sank by its draft. Now the hull's underside (the lowest point of every 10 cm column of its drawn
+  mesh, every LOD, intact or the deflated wreck; ≤ ~400 columns on big hulls) rests on the drawn ground under it (the
+  terrain mesh's own triangle, `terrain.surfaceAt`: bank, beach, shallow bed) and, where there is water, on its
+  floating height (level + the bob of a boat at rest): the pose minimising the height of its centre of mass over those
+  supports (a convex energy with stiff contacts, damped Newton). Afloat that is the old floating pose; half beached
+  the land end lies on the shore and the water end floats, tilted between; on a slope it pitches and rolls onto its
+  contacts. The raft's tubes flatten 6 mm where they touch; the bob dies away as more of the hull lies on the ground.
+  Deep keels (patrol / fishing boat, mini-sub) only rest on ground standing out of the water. The raft's paddles left
+  in their rowlocks swing up so the blade lies on the bank (`art/boat-crew.js rowlockFit`). Visual only: driving keeps
+  the hull's footprint on wet cells as before. Tests: `tests/unit/boat-rest.test.mjs`, GPU `tests/boat-rest.test.mjs`
+  (every mission's boats against the terrain mesh, M1 beached / inflated at the shore / deflated on the bank).
 - **Layering.** `lateDecals: true` moves the ground-decal pass after the water (vision cones and markers stay readable
   over rivers); FX spawn on `FX_LAYER` (`world.fx.lateLayer = 11`); `LateFxPass.roots` scans registered roots
   (`handle.addLateRoot`) every frame so a splash or smoke puff over the water draws on its first frame.

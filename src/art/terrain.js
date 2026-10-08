@@ -134,6 +134,7 @@ export function buildPlaceholderTerrain(grid, theater = 'temperate') {
     water,
     ready: Promise.resolve(null),
     heightAt: () => 0,
+    surfaceAt: () => 0,
     groundY: () => 0,
     printVisibility: () => 1,
     /** Refresh the painted texture after grid.terrain changes (e.g. craters). */
@@ -435,7 +436,7 @@ const presetOf = (renderer) => QUALITY_OF[renderer?.presetName] || 'medium';
  * @param {'desert'|'snow'|'temperate'|'coast'|'night'} theater
  * @param {{renderer?: object, scene?: THREE.Object3D, mission?: object, trees?: object[], forests?: object[], onSpray?: Function,
  *   real?: boolean, ownWater?: boolean}} [ctx] renderer = engine Renderer (null → placeholder); trees = mission tree structure defs
- * @returns {object} handle: {ground, water, ready, heightAt, groundY, materialAt, frame, stampTrail, recordTrail,
+ * @returns {object} handle: {ground, water, ready, heightAt, surfaceAt, groundY, materialAt, frame, stampTrail, recordTrail,
  *   queryTrails, tracksNear, setQuality, stats, dispose}
  */
 /** Content key of a road network (null when it cannot be serialised: the splat is then rebuilt every load). */
@@ -528,6 +529,8 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
     get quality() { return quality; },
     // past the map edge: the scenery apron's ground (edge runs, telegraph poles stand on it), else the map's
     heightAt: (x, z) => (apron && (x < 0 || z < 0 || x > grid.width || z > grid.depth) ? apron.heightAt(x, z) : inner.heightAt(x, z)),
+    /** The drawn ground under (x, z): the terrain mesh's own triangle (heightAt blends its quad), the apron past the edge. */
+    surfaceAt: (x, z) => (apron && (x < 0 || z < 0 || x > grid.width || z > grid.depth) ? apron.heightAt(x, z) : inner.surfaceAt(x, z)),
     /** Visual ground height for entity meshes: the undulating surface on land, 0 over water (swimmers, boats). */
     groundY: (x, z) => (wetAt(x, z) ? 0 : h.heightAt(x, z)),
     materialAt: (x, z) => inner.materialAt(x, z),

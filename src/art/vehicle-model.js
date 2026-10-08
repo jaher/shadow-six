@@ -29,6 +29,7 @@ import { doorRig, boardFrac } from './door-hand.js';
 import { addPennants } from './vehicle-pennants.js';
 import { T, B } from '../world/grid.js';
 import { KIT_VEHICLES } from './kit-vehicles.js';
+import { BEACHED, REST, hullUndersideTris, sampleXZ, boatRest, groundOf, waterOf, terrainReady } from './boat-rest.js';
 
 /**
  * Registry type → library type where the names differ; `null` = the library has no model (placeholder, logged).
@@ -519,6 +520,8 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
     dims, library: true, visual: vis, ready: null, isReady: false,
     /** Library type drawn (e.g. 'raft', 'rowboat', 'minisub' for registry model key 'raft'): boat crew layouts (art/boat-crew.js). */
     libType: lt,
+    /** Boats: the underside samples (model space) and the last rest pose (art/boat-rest.js boatRest result) — tests. */
+    get rest() { return def.kind === 'boat' ? { pts: st.under?.pts || null, pose: st.restInfo || null } : null; },
     root,
     /** The traversing turret / gun mount node (LOD0; the clipping audit sweeps it), null until loaded or when wrecked. */
     get turret() {
@@ -790,6 +793,14 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
   function suspension(dt, v, accel) {
     const w = v.world, gy = w?.groundY ? (x, z) => w.groundY(x, z) || 0 : null;
     let pitch = 0, roll = 0, y = 0;
+    const rest = def.kind === 'boat' ? boatPose(dt, v) : null;
+    if (rest) {
+      // boats: afloat the bob is eased in as before; on the ground posed outright (a lag would let a bank paddled onto
+      // come up through the hull for a moment)
+      body.position.y = rest.afloat ? body.position.y + (rest.y - body.position.y) * Math.min(1, dt * 10) : rest.y;
+      body.rotation.set(rest.pitch, bodyYaw(), rest.roll, 'YXZ');
+      return;
+    }
     if (def.kind === 'boat' && onWater(v)) {
       const t = (w?.time ?? st.t) + (hashId(spawn.id) % 17);
       const k = def.raft ? 1.4 : clamp(6 / (dims.l || 6), 0.4, 1.2);
@@ -821,6 +832,106 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
     const rock = amp * (Math.sin(o * 1.7 + 0.4) * 0.0045 + Math.sin(o * 3.9) * 0.002), nod = amp * Math.sin(o * 2.9 + 2.1) * 0.003;
     body.position.y += (y + bump - body.position.y) * Math.min(1, dt * 10);
     body.rotation.set(pitch + st.pitch + nod, bodyYaw(), roll + st.roll + rock, 'YXZ');
+  }
+
+  /**
+   * A boat at rest (art/boat-rest.js): afloat, the gentle bob, pitch and roll on the water; wherever the drawn ground
+   * under its hull comes up to it (a bank, a beach, the shallow bed, dry land) it rests on the ground instead — the land
+   * end on the shore, the water end afloat, pitched and rolled to the slope, never into it. The underside is sampled
+   * from the model drawn (intact or wreck); the ground and water under it are read again whenever the hull moves.
+   * @returns {{y:number, pitch:number, roll:number}|null} body pose (y above the entity's root), null = not loaded yet
+   */
+  function boatPose(dt, v) {
+    const w = v.world;
+    if (!w || !model.isReady || !vis.meta) return null;
+    const t = (w.time ?? st.t) + (hashId(spawn.id) % 17);
+    const k = def.raft ? 1.4 : clamp(6 / (dims.l || 6), 0.4, 1.2);
+    const R = st.rest || (st.rest = { key: '', near: false, pts: null, ground: null, water: null, q: null, level: -0.1 });
+    // ground / water under the hull: read again when the hull has moved (or the terrain mesh came in)
+    const ready = terrainReady(w), dx = body.position.x, h = v.heading || 0;
+    const inst = shownInstance(); // (the intact model, or the wreck once it is in)
+    const key = `${v.x.toFixed(3)},${v.z.toFixed(3)},${h.toFixed(4)},${dx.toFixed(3)},${ready ? 1 : 0},${inst?.id ?? 0}`;
+    if (key !== R.key) {
+      R.key = key;
+      const G = groundOf(w), Wl = waterOf(w), beach = BEACHED.has(lt), xz = { x: 0, z: 0 };
+      R.level = Wl(v.x, v.z) ?? (Number.isFinite(w.water?.level) ? w.water.level : -0.1);
+      // open water (no ground within reach of the keel anywhere round the hull's box): afloat, nothing more to read
+      const b = vis.meta.bbox, deep = Math.max(0.1, -(b?.min?.[1] ?? -0.3)) + 0.3;
+      R.near = !b;
+      if (b) {
+        for (let e = 0; e <= 4; e++) for (let f = 0; f <= 8 && !R.near; f++) {
+          sampleXZ({ x: b.min[0] + ((b.max[0] - b.min[0]) * e) / 4, z: b.min[2] + ((b.max[2] - b.min[2]) * f) / 8 }, v.x, v.z, h, dx, xz);
+          const g = G(xz.x, xz.z), l = Wl(xz.x, xz.z);
+          if (l == null ? g > -1e6 : g > l - (beach ? deep : 0.3)) R.near = true;
+        }
+      }
+      if (R.near) {
+        const pts = underside(inst);
+        if (pts?.length) {
+          if (R.pts !== pts) { R.pts = pts; R.ground = new Float64Array(pts.length); R.water = new Array(pts.length).fill(null); }
+          for (let i = 0; i < pts.length; i++) {
+            sampleXZ(pts[i], v.x, v.z, h, dx, xz);
+            const g = G(xz.x, xz.z), l = Wl(xz.x, xz.z);
+            // a deep keel only rests on ground standing out of the water (its keel at a mooring is under the surface)
+            R.ground[i] = beach || l == null || g >= l ? g : -Infinity;
+            R.water[i] = l;
+          }
+        } else R.near = false;
+        R.fk = null;
+      }
+    }
+    // the bob of a hull at rest on the water, gentler the more of it lies on the ground
+    const q = R.near ? R.q ?? 1 : 1;
+    const float = { h: R.level + Math.sin(t * 1.7) * 0.04 * k * q, pitch: Math.sin(t * 1.1) * 0.012 * k * q, roll: Math.sin(t * 0.83 + 1) * 0.02 * k * q };
+    let r;
+    if (!R.near) r = { h: float.h, pitch: float.pitch, roll: float.roll, grounded: 0, afloat: true };
+    else {
+      // (solved again only when the hull moved or its floating pose changed by a tenth of a millimetre)
+      const fk = `${R.key}|${float.h.toFixed(4)}|${float.pitch.toFixed(5)}|${float.roll.toFixed(5)}`;
+      if (fk !== R.fk) { R.fk = fk; R.r = boatRest(R.pts, float, R.ground, R.water, { squash: REST.squash[lt] ?? 0, com: [0, -0.03 * (dims.l || 3)] }); }
+      r = R.r;
+    }
+    const want = clamp(1 - 2 * r.grounded, 0, 1);
+    R.q = R.q == null ? want : R.q + (want - R.q) * Math.min(1, dt * 2);
+    st.restInfo = r;
+    const base = (typeof w.groundY === 'function' ? w.groundY(v.x, v.z) || 0 : 0) + (v.y || 0); // the root's height (Entity.syncTransform)
+    return { y: r.h - base, pitch: r.pitch, roll: r.roll, afloat: r.afloat };
+  }
+
+  /** The model instance shown (intact or wreck root: the visual's child holding the LOD groups), or null. */
+  function shownInstance() {
+    for (const c of vis.object3d.children) if (c.visible && c.children.some((q) => /_lod\d+$/.test(q.name))) return c;
+    return null;
+  }
+
+  /**
+   * Underside samples of the model drawn now (intact or wreck: every LOD of it, as any may be shown, without the
+   * paddles / oars, which swing on their own), model space; cached per model instance.
+   */
+  function underside(inst = shownInstance()) {
+    const o = vis.object3d;
+    if (!inst) return st.under?.pts || null;
+    if (st.under?.inst === inst) return st.under.pts;
+    o.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(o.matrixWorld).invert(), m = new THREE.Matrix4();
+    const loose = (q) => { for (let a = q; a && a !== inst; a = a.parent) if (/paddle|oar|splash/i.test(a.name)) return true; return false; };
+    const tris = []; // model-space triangles of every LOD's hull meshes
+    for (const lod of inst.children) {
+      if (!/_lod\d+$/.test(lod.name)) continue;
+      lod.traverse((q) => {
+        if (!q.isMesh || !q.geometry?.attributes?.position || loose(q)) return;
+        m.multiplyMatrices(inv, q.matrixWorld);
+        const pos = q.geometry.attributes.position, idx = q.geometry.index, n = idx ? idx.count : pos.count, e = m.elements;
+        const put = (t, o, k) => {
+          const i = idx ? idx.getX(k) : k, x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+          t[o] = e[0] * x + e[4] * y + e[8] * z + e[12]; t[o + 1] = e[1] * x + e[5] * y + e[9] * z + e[13]; t[o + 2] = e[2] * x + e[6] * y + e[10] * z + e[14];
+        };
+        for (let k = 0; k + 2 < n; k += 3) { const t = new Float64Array(9); put(t, 0, k); put(t, 3, k + 1); put(t, 6, k + 2); tris.push(t); }
+      });
+    }
+    const pts = hullUndersideTris(tris);
+    st.under = { inst, pts };
+    return pts;
   }
 
   /**

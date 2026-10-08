@@ -197,7 +197,7 @@ export function splatTexture(arr, w, h) {
  * @returns {Promise<{mesh:THREE.Mesh, trails:TrailSystem, update:(dt:number,camera?:THREE.Camera)=>void,
  *   stampTrail:(kind:string,x:number,z:number,heading:number,params?:object)=>object,
  *   queryTrails:(x:number,z:number,r:number,o?:object)=>object[], heightAt:(x:number,z:number)=>number,
- *   materialAt:(x:number,z:number)=>object, setQuality:(q:string)=>void, dispose:()=>void}>}
+ *   surfaceAt:(x:number,z:number)=>number, materialAt:(x:number,z:number)=>object, setQuality:(q:string)=>void, dispose:()=>void}>}
  */
 /**
  * Short-sward ground layer (terrain-glsl uTurf): the turf colours come from the grass tufts' own palette for the
@@ -387,6 +387,17 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
     const a = hgt[j * r + i], b = hgt[j * r + i + 1], c = hgt[(j + 1) * r + i], d = hgt[(j + 1) * r + i + 1];
     return (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
   }
+  /**
+   * The drawn surface itself: the height on the mesh triangle under (x, z) (PlaneGeometry splits every quad along
+   * its (i, j+1)–(i+1, j) diagonal), where heightAt blends the four corners. Up to |a − b − c + d| / 4 apart on a
+   * curved bank: what a hull resting on the ground is fitted to (art/boat-rest.js).
+   */
+  function surfaceAt(x, z) {
+    const fx = Math.min(sx - 1e-3, Math.max(0, (x / W) * sx)), fz = Math.min(sz - 1e-3, Math.max(0, (z / D) * sz));
+    const i = Math.floor(fx), j = Math.floor(fz), tx = fx - i, tz = fz - j, r = sx + 1;
+    const a = hgt[j * r + i], b = hgt[j * r + i + 1], c = hgt[(j + 1) * r + i], d = hgt[(j + 1) * r + i + 1];
+    return tx + tz <= 1 ? a + (b - a) * tx + (c - a) * tz : d + (c - d) * (1 - tx) + (b - d) * (1 - tz);
+  }
 
   // ---- grass, clutter, weather -------------------------------------------------------------------------
   let quality = TERRAIN_QUALITY[opts.quality] ? opts.quality : 'high';
@@ -416,7 +427,7 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
   setQuality(quality);
 
   return {
-    mesh, trails, splat, grass, snowfx, uniforms: U, heightAt, materialAt, segPerM: seg, src, seed: opts.seed || 7, frozen,
+    mesh, trails, splat, grass, snowfx, uniforms: U, heightAt, surfaceAt, materialAt, segPerM: seg, src, seed: opts.seed || 7, frozen,
     update(dt, camera) {
       time += dt;
       U.uTime.value = time;
