@@ -9,7 +9,7 @@ import { settleBody, fallHeading, settleSolid, settleHands, climbTrack, climbAt,
 import { Entity } from './entity.js';
 import { createUnitModel } from '../art/unit-model.js';
 import { CONFIG, velToSpeed } from '../config.js';
-import { angleTo, turnTowardsAngle, angleDiff, dist } from '../core/math.js';
+import { angleTo, turnTowardsAngle, angleDiff, wrapAngle, dist } from '../core/math.js';
 import { T, B, MAX_STEP } from '../world/grid.js';
 import { plan as avoidPlan, priority, blocks, givesWay } from './avoidance.js';
 
@@ -870,6 +870,18 @@ export class Unit extends Entity {
         this._keepApart(av, x0, z0, stride, dt);
       } else { this.x += lx0; this.z += lz0; }
     }
+    // a mission `noWalk` area (M3: the foot of the dam) is never stepped into, not even by a hair over a deck's edge: a
+    // squad follower steered at a slot 2 mm past the E crest stair's landing dropped 7 m onto the ground in front of
+    // the dam. The step is undone; a goal that lies in it counts as reached.
+    const nw = w?.grid?.noWalk;
+    if (nw && !climbing) {
+      const g = w.grid, at = (x, z) => { const c = g.worldToCell(x, z); return g.inBounds(c.i, c.j) && nw[g.idx(c.i, c.j)] === 1; };
+      if (at(this.x, this.z) && !at(x0, z0)) {
+        this.x = x0; this.z = z0;
+        const goal = this.path?.[this.path.length - 1];
+        if (this.path && (!goal || at(goal.x, goal.z))) this._arrive();
+      }
+    }
     this.vx = (this.x - x0) / dt; this.vz = (this.z - z0) / dt;
     // waiting: he shows walking while he still moves (hysteresis — a pace hovering near zero, or a sidestep while he
     // waits, must not flick walk / idle every few frames)
@@ -900,7 +912,25 @@ export class Unit extends Entity {
     // (a crawler turns no faster than his body is shown turning, art/prone-ground.js: a shown body lagging a quick turn
     // swept its legs through what the sim had checked clear — M2 diver at the barrier's pivot post)
     const tRate = this.moveTurnRate ?? this.turnRate, lying = this.stance === 'crawl' || this.stance === 'downed';
-    if (dirX || dirZ) this.heading = turnTowardsAngle(this.heading, Math.atan2(dirZ, dirX) + lean + (this.moveHeadingOffset || 0), (lying ? Math.min(tRate, PRONE_TURN) : tRate) * dt);
+    if (dirX || dirZ) {
+      const want = Math.atan2(dirZ, dirX) + lean + (this.moveHeadingOffset || 0), rate = (lying ? Math.min(tRate, PRONE_TURN) : tRate) * dt;
+      let h = turnTowardsAngle(this.heading, want, rate);
+      // lying on raised ground (a dam crest, a wall walk: _guardBody does not watch up there) he turns only with his
+      // head and feet over the walk — about the other way when the short way swings his head over the parapet (an
+      // about-turn on the M3 crest, clipping seed 7), not at all while neither way is clear
+      if (lying && (this.y || 0) > 1 && h !== this.heading && this._lyingOnDeck(this.heading)) {
+        const d = angleDiff(this.heading, want), wide = Math.abs(d) > Math.PI / 2;
+        const turn = (s) => (s === Math.sign(d) ? h : wrapAngle(this.heading + s * rate));
+        let sgn = wide && this._deckTurn ? this._deckTurn : Math.sign(d);
+        h = turn(sgn);
+        if (!this._lyingOnDeck(h)) {
+          const o = turn(-sgn);
+          if (wide && this._lyingOnDeck(o)) { h = o; sgn = -sgn; } else h = this.heading;
+        }
+        this._deckTurn = sgn;
+      } else this._deckTurn = 0;
+      this.heading = h;
+    }
     // Swimmers switch stance automatically in deep water.
     if (this.canSwim && w) {
       const g = w.groundAt(this.x, this.z);
@@ -1205,7 +1235,11 @@ export class Unit extends Entity {
       }
       a0 = Math.cos(axis) * Math.cos(a0) + Math.sin(axis) * Math.sin(a0) >= 0 ? axis : axis + Math.PI;
       const x = this.x + Math.cos(a0) * step, z = this.z + Math.sin(a0) * step;
-      if (same(x, z)) { this.x = x; this.z = z; }
+      // (his body, not just his centre, stays on the deck: on a stair the level run is across the treads, and a man
+      // eased that way stopped with his centre on the last tread cell's edge and his shoulder in the rock beside the M3
+      // dam's E stair — clipping seed 7)
+      const reach = BODY.stand.r + STOP_MARGIN;
+      if (same(x, z) && same(x + Math.cos(a0) * reach, z + Math.sin(a0) * reach)) { this.x = x; this.z = z; }
       return;
     }
     for (const da of [0, 45, -45, 90, -90]) {
@@ -1214,6 +1248,21 @@ export class Unit extends Entity {
       this.x = x; this.z = z;
       return;
     }
+  }
+
+  /**
+   * Lying at heading h on raised ground, are his head and feet (BODY.prone front / back) over walkable cells of his
+   * deck (no drop of a metre or more: a stair's slope passes, the crest's edge over the dam face does not)?
+   */
+  _lyingOnDeck(h) {
+    const g = this.world?.grid;
+    if (!g) return true;
+    const S = BODY.prone, e0 = g.elevAt(this.x, this.z), c = Math.cos(h), s = Math.sin(h);
+    for (const d of [S.front, -S.back]) {
+      const x = this.x + c * d, z = this.z + s * d;
+      if (!g.walkableAt(x, z) || Math.abs(g.elevAt(x, z) - e0) >= 1) return false;
+    }
+    return true;
   }
 
   /** Lateral component (m, + = left of travel fx, fz) of the current lane offset. */

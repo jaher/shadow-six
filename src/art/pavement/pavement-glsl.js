@@ -225,7 +225,7 @@ if (uPvKind.y > 0.5 && uPvShuf.w > 1.5 && uPvSlab.x <= 0.0) { // tar macadam: he
   vec3 a2 = textureGrad(tPvDiff, atUV2(hx, pvUV), hx.r2 * pvDx, hx.r2 * pvDy).rgb;
   vec3 a3 = textureGrad(tPvDiff, atUV3(hx, pvUV), hx.r3 * pvDx, hx.r3 * pvDy).rgb;
   vec3 W = atHexW(hx, a1, a2, a3);
-  pvD = vec4(W.x * a1 + W.y * a2 + W.z * a3, 1.0);
+  pvD = vec4(atVP(vec4(a1, 1.0), vec4(a2, 1.0), vec4(a3, 1.0), W, atMean(tPvDiff)).rgb, 1.0);
   pvNt = atNor3(tPvNor, hx, W, pvUV, pvDx, pvDy);
   pvA = atTex3(tPvArd, hx, W, pvUV, pvDx, pvDy).xyz;
 } else {

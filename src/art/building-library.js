@@ -210,7 +210,7 @@ function prepareScene(root) {
       if (decal || m.transparent) { m.depthWrite = false; m.polygonOffset = true; m.polygonOffsetFactor = -1; m.polygonOffsetUnits = -2; o.renderOrder = 1; }
       for (const k of ['map', 'normalMap', 'roughnessMap']) if (m[k]) m[k].anisotropy = 4;
       // shared-library finishes: hex tiling / per-building offset + macro variation (art/anti-tiling.js)
-      if (!decal && !m.transparent && m.map && LIB_MAP.test(m.map.name || '')) antiTile(m, { lib: m.map.name, perObject: false });
+      if (!decal && !m.transparent && m.map && LIB_MAP.test(m.map.name || '')) antiTile(m, { lib: m.map.name });
     }
   });
 }

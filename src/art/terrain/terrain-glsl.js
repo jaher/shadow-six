@@ -1,7 +1,8 @@
 /**
  * GLSL for the splat terrain (injected into MeshStandardMaterial via onBeforeCompile).
  * Hex-tiling after Mikkelsen, "Practical Real-Time Hex-Tiling" (JCGT 2022): 3 randomly offset+rotated
- * samples per layer on a shared world-space triangle grid, blended with contrast-preserving weights.
+ * samples per layer on a shared world-space triangle grid, smooth weights and a variance-preserving blend about each
+ * layer's mean (no straight cell edges, full contrast).
  * @module terrain-b/terrain-glsl
  */
 
@@ -18,7 +19,6 @@ uniform vec4 uMap;          // W, D, 1/W, 1/D
 uniform vec2 uOrigin;       // world xz of the splat/trail maps' (0,0) texel corner (map 0,0; the apron: -width)
 uniform vec2 uTrailTexel;   // 1/trail RT size
 uniform float uTile[8];     // 1/tile metres
-uniform float uHMean[8];    // mean height (data B) per layer
 uniform float uSoft[8];
 uniform float uWet[8];
 uniform float uSnow[8];
@@ -134,24 +134,23 @@ void tbLayer(TbHex h, vec2 p, vec2 dx, vec2 dy, int L, out vec3 alb, out vec3 nr
   vec3 a1 = textureGrad(tAlb, vec3(u1, fl), dx1, dy1).rgb;
   vec3 a2 = textureGrad(tAlb, vec3(u2, fl), dx2, dy2).rgb;
   vec3 a3 = textureGrad(tAlb, vec3(u3, fl), dx3, dy3).rgb;
-  vec3 lw = vec3(tbLum(a1), tbLum(a2), tbLum(a3));
-  lw /= (dot(lw, vec3(1.0 / 3.0)) + 1e-4);
-  vec3 W = h.w * mix(vec3(1.0), lw, 0.55);
-  W = pow(max(W, 1e-4), vec3(5.0));
+  // smooth weights + a variance-preserving blend about the layer's mean (its coarsest mip), for albedo, normal slope and
+  // data alike. The paper's luminance-weighted pow-5 weights switched taps along the hex cells' straight Voronoi edges:
+  // straight-edged patches on low-contrast layers (snow, sand, old snow); flattened heights at the cell edges made the
+  // layers' height blend follow the lattice.
+  vec3 W = h.w * h.w;
   W /= dot(W, vec3(1.0));
-  alb = W.x * a1 + W.y * a2 + W.z * a3;
+  float k = inversesqrt(dot(W, W));
+  vec3 am = textureLod(tAlb, vec3(0.5, 0.5, fl), 16.0).rgb, dm = textureLod(tDat, vec3(0.5, 0.5, fl), 16.0).rgb;
+  alb = clamp(am + (W.x * (a1 - am) + W.y * (a2 - am) + W.z * (a3 - am)) * k, 0.0, 1.0);
   vec3 n1 = textureGrad(tNor, vec3(u1, fl), dx1, dy1).rgb * 2.0 - 1.0;
   vec3 n2 = textureGrad(tNor, vec3(u2, fl), dx2, dy2).rgb * 2.0 - 1.0;
   vec3 n3 = textureGrad(tNor, vec3(u3, fl), dx3, dy3).rgb * 2.0 - 1.0;
   n1.xy = transpose(h.r1) * n1.xy; n2.xy = transpose(h.r2) * n2.xy; n3.xy = transpose(h.r3) * n3.xy;
   nrm = W.x * n1 + W.y * n2 + W.z * n3;
-  dat = W.x * textureGrad(tDat, vec3(u1, fl), dx1, dy1).rgb + W.y * textureGrad(tDat, vec3(u2, fl), dx2, dy2).rgb
-      + W.z * textureGrad(tDat, vec3(u3, fl), dx3, dy3).rgb;
-  // variance-preserving height: blending three taps flattens the height where cells meet, and the layers' height
-  // blend then followed the hex lattice (a regular pattern of blotches on rocky ground). Restore the spread about the
-  // layer's mean height (its 1 x 1 mip).
-  float hMean = uHMean[L];
-  dat.b = clamp(hMean + (dat.b - hMean) * inversesqrt(max(dot(W, W), 0.3)), 0.0, 1.0);
+  nrm.xy *= k;
+  vec3 d1 = textureGrad(tDat, vec3(u1, fl), dx1, dy1).rgb, d2 = textureGrad(tDat, vec3(u2, fl), dx2, dy2).rgb, d3 = textureGrad(tDat, vec3(u3, fl), dx3, dy3).rgb;
+  dat = clamp(dm + (W.x * (d1 - dm) + W.y * (d2 - dm) + W.z * (d3 - dm)) * k, 0.0, 1.0);
 }
 `;
 

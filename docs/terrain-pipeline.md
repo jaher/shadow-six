@@ -60,8 +60,11 @@ clutter, and crown density. Every item on the judge's must-fix list has been add
   at its repeat (5.3 m tussocks, 23 m macro): regular stripes over the meadows. It is now seed 207, rescaled to the
   old mean and sd. Small-scale lookups (`tbNz`) read two copies at incommensurate scales and angles, contrast restored,
   so none has a visible period.
-- **Variance-preserving height.** The hex blend flattens a layer's height where cells meet. Its spread about the
-  layer's mean height (`uHMean`, computed on load) is restored, so the layers' height blend does not follow the lattice.
+- **Smooth, variance-preserving hex blend** (fix/anti-tiling-seams). The paper's luminance-weighted pow-5 weights
+  switched from one tap to the next along the straight Voronoi edges of the hex lattice, which showed as straight-edged
+  patches on low-contrast layers. Its blend also flattened heights where cells meet, so the layers' height blend
+  followed the lattice. The weights are now barycentric², and albedo, normal slope and data blend about each layer's
+  mean (its coarsest mip), scaled by 1/√Σw² (Heitz & Neyret 2018). Contrast is kept, and no cell edge shows.
 - **Low preset** (one sample per layer): a slow domain warp (±0.8 m over about 13 m), so the repeats no longer sit on a
   lattice. On M1's rocky ground on low, the correlation at the 3 m texture period fell from 0.88 to 0.10.
 

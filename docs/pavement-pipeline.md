@@ -93,7 +93,8 @@ streets.
     unique for every stone in the world. Each stone gets its own tone (a few darker ones), hue, roughness and, from
     about 6 px, a settle tilt. The scan's own per-stone tones (which repeat with the tile) are divided out
     (`STONES.norm`). Stones under about 3 px fade to their mean, so panning never glitters.
-  - *Hex tiling* (tar macadam): three rotated and offset taps, contrast-preserving (`art/anti-tiling-glsl.js`). On low
+  - *Hex tiling* (tar macadam): three rotated and offset taps, smooth weights and a variance-preserving blend about the
+    texture's mean, so no straight cell edge shows (`art/anti-tiling-glsl.js`). On low
     it is a rotated second sample under a noise mask. Concrete slabs keep a random piece of the scan each, now with a
     per-slab tone.
   - *Macro variation* everywhere: colour drift (about 12 m), grime (about 3 m), clustered oil and damp stains, and

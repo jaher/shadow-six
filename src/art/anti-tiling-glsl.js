@@ -3,8 +3,8 @@
  * the generic material patch (art/anti-tiling.js). The splat terrain keeps its own copy (art/terrain/terrain-glsl.js).
  *
  *  - Hex tiling in texture UV, after Mikkelsen, "Practical Real-Time Hex-Tiling" (JCGT 2022): three samples per map on
- *    a triangle grid, each with its own random offset and (optionally) rotation, blended with luminance-weighted,
- *    contrast-preserving weights. Cell size: `cells` grid steps per texture repeat (2√3 → vertices 0.29 repeat apart).
+ *    a triangle grid, each with its own random offset and (optionally) rotation, blended with smooth weights and a
+ *    variance-preserving blend about the texture's mean (Heitz & Neyret 2018), so no cell edge ever shows. Cell size: `cells` grid steps per texture repeat (2√3 → vertices 0.29 repeat apart).
  *  - Hash-based value noise and fbm that never repeat (no periodic noise texture): macro variation, stains, grime.
  * @module art/anti-tiling-glsl
  */
@@ -55,23 +55,31 @@ AtHex atHex(vec2 uv, float cells, float rot, float seed) {
 vec2 atUV1(AtHex h, vec2 uv) { return h.r1 * (uv - h.c1) + h.c1 + h.o1; }
 vec2 atUV2(AtHex h, vec2 uv) { return h.r2 * (uv - h.c2) + h.c2 + h.o2; }
 vec2 atUV3(AtHex h, vec2 uv) { return h.r3 * (uv - h.c3) + h.c3 + h.o3; }
-/** Albedo-luminance-weighted, sharpened blend weights (contrast preserving: no washed-out averages). */
-vec3 atHexW(AtHex h, vec3 a1, vec3 a2, vec3 a3) {
-  vec3 lw = vec3(atLum(a1), atLum(a2), atLum(a3));
-  lw /= dot(lw, vec3(1.0 / 3.0)) + 1e-4;
-  vec3 W = pow(max(h.w * mix(vec3(1.0), lw, 0.55), 1e-4), vec3(5.0));
-  return W / dot(W, vec3(1.0));
+/**
+ * Smooth hex weights (barycentric², normalised). The paper's luminance-weighted pow-5 sharpening switched from one tap to
+ * the next along the Voronoi edges of the hex lattice: on low-contrast finishes (plaster, screed, sand) those switches
+ * read as hexagonal patches with straight edges. Contrast is kept instead by the variance-preserving blend below.
+ * (The colour arguments are unused; the signature is kept for the callers.)
+ */
+vec3 atHexW(AtHex h, vec3 a1, vec3 a2, vec3 a3) { vec3 W = h.w * h.w; return W / dot(W, vec3(1.0)); }
+/** The texture's mean (its coarsest mip). */
+vec4 atMean(sampler2D t) { return textureLod(t, vec2(0.5), 16.0); }
+/** Variance-preserving blend about the mean: full contrast inside the blend zones, no washed-out average, no edges. */
+vec4 atVP(vec4 a1, vec4 a2, vec4 a3, vec3 W, vec4 m) {
+  return clamp(m + (W.x * (a1 - m) + W.y * (a2 - m) + W.z * (a3 - m)) * inversesqrt(dot(W, W)), 0.0, 1.0);
 }
 vec4 atTex3(sampler2D t, AtHex h, vec3 W, vec2 uv, vec2 dx, vec2 dy) {
-  return W.x * textureGrad(t, atUV1(h, uv), h.r1 * dx, h.r1 * dy) + W.y * textureGrad(t, atUV2(h, uv), h.r2 * dx, h.r2 * dy)
-       + W.z * textureGrad(t, atUV3(h, uv), h.r3 * dx, h.r3 * dy);
+  return atVP(textureGrad(t, atUV1(h, uv), h.r1 * dx, h.r1 * dy), textureGrad(t, atUV2(h, uv), h.r2 * dx, h.r2 * dy),
+    textureGrad(t, atUV3(h, uv), h.r3 * dx, h.r3 * dy), W, atMean(t));
 }
-/** Tangent-space normal map (0..1 encoded) through the hex tiler, each tap's xy rotated back. */
+/** Tangent-space normal map (0..1 encoded) through the hex tiler, each tap's xy rotated back, slope variance kept. */
 vec3 atNor3(sampler2D t, AtHex h, vec3 W, vec2 uv, vec2 dx, vec2 dy) {
   vec3 n1 = textureGrad(t, atUV1(h, uv), h.r1 * dx, h.r1 * dy).xyz * 2.0 - 1.0;
   vec3 n2 = textureGrad(t, atUV2(h, uv), h.r2 * dx, h.r2 * dy).xyz * 2.0 - 1.0;
   vec3 n3 = textureGrad(t, atUV3(h, uv), h.r3 * dx, h.r3 * dy).xyz * 2.0 - 1.0;
   n1.xy = transpose(h.r1) * n1.xy; n2.xy = transpose(h.r2) * n2.xy; n3.xy = transpose(h.r3) * n3.xy;
-  return W.x * n1 + W.y * n2 + W.z * n3;
+  vec3 n = W.x * n1 + W.y * n2 + W.z * n3;
+  n.xy *= inversesqrt(dot(W, W));
+  return n;
 }
 `;

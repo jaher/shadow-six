@@ -84,6 +84,26 @@ const stairPt = ([[bx, bz], [tx, tz]], f, off) => {
   const s = ((px - tx) * -uz + (pz - tz) * ux) > 0 ? 1 : -1; // the normal (-uz, ux) or its opposite: the pool side
   return [r2(tx + ux * L * f - s * uz * off), r2(tz + uz * L * f + s * ux * off)];
 };
+/** Point at radius r about the arch's centre (20 m downstream of the crest's middle), angle a degrees (+ = towards the E end). */
+const polar = (r, a) => arc(r, a, a, 1)[0];
+/**
+ * The dam is keyed into the valley's rock (user request 2026-10-07: "dam should be connected to the edges of the side
+ * mountains and there should be water behind the dam"): a rock massif (rim_s W, abut_e E) closes on each end of the
+ * dam (the radial end of the arch at ±38°: from the crest lane's corner out to its upstream face, just inside its
+ * concrete) and runs down the outer side of that end's crest stair to half its length, so the stair climbs a cut in
+ * the rock; no pocket of open ground is left between the crest, the stair and the rock (they showed the valley floor
+ * 7 m down through the gap). `abut` keeps those faces plumb on the outline.
+ */
+const STAIR_OUT = 0.8; // the rock face beside a stair: on the edge of its 1.6 m treads (the rails stand 8 cm in)
+const ABUT_F = 0.5; // how far down its stair (fraction from the top) the rock runs
+const abutment = (stair, sign) => {
+  // (`head`: the middle of the stair's head, where it meets the arch's end. The little corner between the head, the
+  // rock and the crest's end lies under the dam's end block; its ground is out of bounds: `noWalk` dam_end_w / _e.
+  // The rock does not wrap round the head: a reflex corner there folded its top cap out over the landing)
+  const top = stairPt(stair, 0, -STAIR_OUT), low = stairPt(stair, ABUT_F, -STAIR_OUT);
+  return { low, top, head: stairPt(stair, 0, 0), cut: polar(20.97, sign * 38), end: polar(22.3, sign * 37.6), water: polar(24, sign * 37.6) };
+};
+const AB_W = abutment(W_STAIR, -1), AB_E = abutment(E_STAIR, 1);
 /**
  * Nobody walks in front of the dam (user request 2026-10-02: "people should not be able to walk right in front of
  * the dam"): the face, the toe ledge (T3) with its rim and the snow at the feet of the face, from the crest's
@@ -138,8 +158,11 @@ export default {
   baseTerrain: 'snow',
   terrain: [
     // T1 reservoir (N of the dam, held up at M3_RESERVOIR_LEVEL: `level` makes it its own raised water body)
+    // `iceFree`: open water right up to the dam's upstream face (the shore ice stays on the rock shores)
     { type: 'poly', terrain: 'water', level: M3_RESERVOIR_LEVEL, drainOn: 'dam',
-      points: [[0, 0], [55, 0], [56, 10], [55, 18], ...arc(21.6, 38, -38), [25, 27.4], [14, 29], [0, 30]] },
+      iceFree: [-26, 0, 26].map((a) => { const [x, z] = polar(22, a); return { x, z, r: 9 }; }),
+      // (against the dam it runs under its upstream parapet from the crest's edge, its ends inside the rock abutments: no dry seam)
+      points: [[0, 0], [55, 0], [56, 10], [55, 18], ...arc(20.97, 38.5, -38.5), [25, 27.4], [14, 29], [0, 30]] },
     // T2 river from the foot of the dam (towards the camera), bending SE to the SE corner (its end runs past the corner: ending at (150, 129) left a snow
     // triangle with an ice ring on the corner point itself, marking the map boundary)
     { type: 'path', terrain: 'water', ...tailwaterPath([[41, 23], [44, 35], [52, 46], [60, 54], [84, 74], [108, 94], [132, 114], [153, 131.5]], 20) },
@@ -191,12 +214,18 @@ export default {
       // the surge drowns the toe ledge (T3) + its rim: with the crest gone the two banks are split
       floodPoly: [...arc(18, -42, 42, 12), ...arc(10.5, 42, -42, 12)] }, // the whole foot of the face, abutment to abutment
     // rock rims holding the raised reservoir (S and E shores)
-    { id: 'rim_s', type: 'cliff', points: [[-1, 29.5], [14, 28.5], [25, 26.6], [27.2, 27.4], [26.6, 31.5], [14, 34], [-1, 35]], h: 7.6, climbable: false },
+    // (rim_s and abut_e close on the dam's ends and run down beside its stairs: `abutment` above)
+    { id: 'rim_s', type: 'cliff', points: [[-1, 29.5], [14, 28.5], [25, 26.6], AB_W.water, AB_W.end, AB_W.cut, AB_W.top, AB_W.low, [14, 34.4], [-1, 35]], h: 7.6, climbable: false,
+      abut: [[AB_W.end, AB_W.cut], [AB_W.cut, AB_W.top], [AB_W.top, AB_W.low]] },
     // the dam's gate-keeper shack (its own part of the dam asset, `assetPart`) on the ground E of the truck road at the
     // N edge, door to the road, parallel to it, its HALT sign to the camera (12 m clear of cliff_w, which would hide
     // it); nav: false (no climbable roof)
     { id: 'dam_shack', type: 'hut', variant: 'dam_shack', x: 64.4, z: 2.6, rot: 0, w: 3.4, d: 2.8, h: 2.95, assetPart: SHACK_PART, nav: false },
     { id: 'rim_e', type: 'cliff', points: [[55, -1], [58.4, -1], [58, 9], [57.4, 15.5], [56.6, 20.2], [55, 21.2], [54.6, 18], [55, 12]], h: 7.6, climbable: false },
+    // its S end grows into the dam's E abutment: a massif of its own merging into rim_e (rim_e itself is left as it was:
+    // its faces by the truck road, where the escape truck turns, keep their shape)
+    { id: 'abut_e', type: 'cliff', points: [[55.9, 15.2], [57.25, 16.4], [58.4, 22], [58.4, 26.3], AB_E.low, AB_E.top, AB_E.cut, AB_E.end, AB_E.water, [55.2, 17.2]], h: 7.6, climbable: false,
+      abut: [[AB_E.low, AB_E.top], [AB_E.top, AB_E.cut], [AB_E.cut, AB_E.end]] },
     { id: 'dam_bunker', type: 'bunker', variant: 'surveillance', x: 19, z: 46, rot: deg(315), w: 5, d: 4, h: 2.4,
       destructible: true, bombOnly: true, hp: 100, crew: ['e34'] },
     // --- the power station (S bank): electrified chain-link fence with a N gap (x 24–28) and the W gate
@@ -315,7 +344,7 @@ export default {
   climbLinks: [],
   ladders: [],
   triplines: [],
-  noWalk: [{ id: 'dam_front', points: DAM_FRONT }],
+  noWalk: [{ id: 'dam_front', points: DAM_FRONT }, ...[AB_W, AB_E].map((a, k) => ({ id: `dam_end_${'we'[k]}`, points: [a.top, a.head, a.cut] }))],
   objectives: [
     { id: 'o1', text: 'Destroy the dam bunker', type: 'destroy', targets: ['dam_bunker'], required: true, bombOnly: true },
     { id: 'o2', text: 'Demolish the dam', type: 'destroy', targets: ['dam'], marker: 'dam_charge', required: true, bombOnly: true },

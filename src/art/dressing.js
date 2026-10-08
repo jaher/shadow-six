@@ -107,7 +107,7 @@ export function dressingMaterial(name) {
       normalScale: new THREE.Vector2(nrm, nrm), roughnessMap: arm, metalnessMap: arm, aoMap: arm, aoMapIntensity: 0.8,
       roughness: 1, metalness: 1,
     });
-    antiTile(m, { lib: file });   // hex tiling / per-object offset + macro variation (art/anti-tiling.js)
+    antiTile(m, { lib: file });   // hex tiling / low-frequency swap + world-space macro variation (art/anti-tiling.js)
   }
   m.name = `dressing:${name}`;
   MATS.set(key, m);
@@ -276,7 +276,10 @@ function offsetPoly(poly, dist) {
  * Rock massif from a mission polygon: walls resampled every ~1.6 m, stacked rings up to `h` (plus 1.5 m buried),
  * displaced along the outward normal by vertically-stretched fbm (fractured faces, ledges), battered inwards with
  * height; a separate broken top cap (own UVs → sharp rim, snow collects on it).
- * @param {object} p prop params: points (world [x,z] or {x,z}), x, z (group origin), rot, h, id
+ * `abut`: world segments [[[x0, z0], [x1, z1]], …] lying on the outline where the rock meets built work (M3: the dam's
+ * ends and its crest stairs): the face along them stands plumb on the outline and is only ever recessed by the noise,
+ * so it closes on the concrete with no bulge through it and no gap opening up the face.
+ * @param {object} p prop params: points (world [x,z] or {x,z}), x, z (group origin), rot, h, id, abut?
  */
 export function buildCliff(p) {
   const h = p.h ?? 6, ox = p.x ?? 0, oz = p.z ?? 0, rot = p.rot ?? 0, c = Math.cos(rot), s = Math.sin(rot);
@@ -297,6 +300,14 @@ export function buildCliff(p) {
     for (let k = 0; k < n; k++) { ring.push([ax + (bx - ax) * k / n, az + (bz - az) * k / n]); edgeOf.push([i, k / n]); }
   }
   const N = ring.length, seed = seedOf(p.id ?? 'cliff') & 0xffff;
+  // ring vertices on an `abut` segment (local frame; within 2 cm of it)
+  const toLocal = ([x, z]) => { const dx = x - ox, dz = z - oz; return [dx * c + dz * s, -dx * s + dz * c]; };
+  const abutSegs = (p.abut || []).map(([a, b]) => [toLocal(a), toLocal(b)]);
+  const onSeg = ([x, z], [[ax, az], [bx, bz]]) => {
+    const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L2));
+    return Math.hypot(ax + dx * t - x, az + dz * t - z) < 0.02;
+  };
+  const abut = ring.map((q) => abutSegs.some((sg) => onSeg(q, sg)));
   const nrm = ring.map((_, i) => {
     const [ax, az] = ring[(i - 1 + N) % N], [bx, bz] = ring[(i + 1) % N], l = Math.hypot(bx - ax, bz - az) || 1;
     return [(bz - az) / l, -(bx - ax) / l];
@@ -327,8 +338,11 @@ export function buildCliff(p) {
         : Math.min(y + (l > 0 ? 0.35 * fine : 0), flat ? h - 0.1 : Infinity);
       // batter through a mitred inset of the polygon (per-vertex normals pushed the corners past their neighbours);
       // the noise alone goes along the vertex normal
-      const O = offs[l] || (offs[l] = offsetPoly(poly, bat)), [e, t] = edgeOf[k], A = O[e], B = O[(e + 1) % O.length];
-      const px = A[0] + (B[0] - A[0]) * t + nx * (d + bat), pz = A[1] + (B[1] - A[1]) * t + nz * (d + bat);
+      const O = offs[l] || (offs[l] = offsetPoly(poly, bat)), [e, t] = edgeOf[k];
+      // an abutting face: plumb on the outline (no batter), the noise only recessing it (never through the concrete)
+      const A = abut[k] ? poly[e] : O[e], B = abut[k] ? poly[(e + 1) % poly.length] : O[(e + 1) % O.length];
+      const dd = abut[k] ? Math.min(0, 0.5 * (2.1 * col + 0.35 * fine)) - 0.03 : d + bat;
+      const px = A[0] + (B[0] - A[0]) * t + nx * dd, pz = A[1] + (B[1] - A[1]) * t + nz * dd;
       pos.push(px, yy, pz);
       uv.push((i === N ? arc : arcs[k]) / 5, yy / 5);
       if (l === levels && i < N) top.push([px, yy, pz]);

@@ -74,7 +74,7 @@ export function waterBodyDescriptors(grid, mission = {}, theater = 'temperate', 
     for (let k = 0; k < t.length; k++) if (r.mask[k]) t[k] = grid.terrain[k];
     const still = { ...mission, theater, water: W ? { ...W, velocity: 0 } : null };
     for (const b of fromGrid({ cols: grid.cols, rows: grid.rows, cell: grid.cell, terrain: t }, still, { cell: grid.cell, level: r.level, minCells: 4, type: 'lake' })) {
-      bodies.push({ ...b, raised: { level: r.level, drainOn: r.drainOn ?? null, id: r.id ?? null }, flow: undefined });
+      bodies.push({ ...b, raised: { level: r.level, drainOn: r.drainOn ?? null, id: r.id ?? null, iceFree: r.iceFree ?? null }, flow: undefined });
     }
   }
   return bodies.map((b) => {
@@ -84,13 +84,15 @@ export function waterBodyDescriptors(grid, mission = {}, theater = 'temperate', 
     if (b.type === 'sea' && !frozen && theater !== 'snow') d.surf = { amp: 0.18, length: 7, period: 6.4 };
     if (b.type === 'river') d.sheen = 1.6;
     if (W?.iceFree?.length && !b.raised) d.iceFree = W.iceFree; // open water where a fall lands (M3 dam foot)
+    if (b.raised?.iceFree?.length) d.iceFree = b.raised.iceFree; // open water against a dam's upstream face (M3 reservoir)
     return d;
   });
 }
 
 /**
- * Cell masks of the mission's raised water (terrain features `{terrain:'water', level, drainOn?}`): wet cells whose
- * centre lies in the feature's polygon. @returns {{level:number, drainOn?:string, mask:Uint8Array}[]}
+ * Cell masks of the mission's raised water (terrain features `{terrain:'water', level, drainOn?, iceFree?}`): wet cells
+ * whose centre lies in the feature's polygon (`iceFree`: [{x, z, r}] ≤ 4 spots kept clear of the shore ice).
+ * @returns {{level:number, drainOn?:string, iceFree?:object[], mask:Uint8Array}[]}
  */
 export function raisedWaterMasks(grid, mission = {}) {
   const out = [];
@@ -108,7 +110,7 @@ export function raisedWaterMasks(grid, mission = {}) {
       }
       if (inside) { mask[k] = 1; n++; }
     }
-    if (n) out.push({ level: f.level, drainOn: f.drainOn, id: f.id, mask });
+    if (n) out.push({ level: f.level, drainOn: f.drainOn, id: f.id, iceFree: f.iceFree, mask });
   }
   return out;
 }

@@ -72,19 +72,6 @@ function noiseTexture(size = 256) {
   return t;
 }
 
-/** Mean height (data B, 0..1) of each layer of the data array: the hex tiler's variance-preserving height blend. */
-function layerHeightMeans(t) {
-  const out = new Array(8).fill(0.5), im = t?.image;
-  if (!im?.data) return out;
-  const per = im.width * im.height * 4;
-  for (let l = 0; l < Math.min(8, im.depth); l++) {
-    let s = 0, n = 0;
-    for (let o = l * per + 2; o < (l + 1) * per; o += 4 * 7) { s += im.data[o]; n++; }
-    out[l] = n ? s / n / 255 : 0.5;
-  }
-  return out;
-}
-
 /** Bilinear sampler over a per-grid-cell Float32Array (cell centres). */
 export function sampleCells(arr, grid) {
   const { cols, rows, cell } = grid;
@@ -349,7 +336,7 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
     tAlb: { value: tAlb }, tNor: { value: tNor }, tDat: { value: tDat },
     tSplatA: { value: tSplatA }, tSplatB: { value: tSplatB }, tNoise: { value: tNoise }, tTrail: { value: null }, tFlat: { value: null },
     uMap: { value: new THREE.Vector4(W, D, 1 / W, 1 / D) }, uOrigin: { value: new THREE.Vector2(0, 0) }, uTrailTexel: { value: new THREE.Vector2() },
-    uTile: { value: P.tile.map((t) => 1 / t) }, uHMean: { value: layerHeightMeans(tDat) }, uSoft: { value: P.soft.slice() }, uWet: { value: P.wet.slice() },
+    uTile: { value: P.tile.map((t) => 1 / t) }, uSoft: { value: P.soft.slice() }, uWet: { value: P.wet.slice() },
     uSnow: { value: P.snow.slice() }, uGrass: { value: P.grass.slice() }, uIce: { value: (P.ice || Z8).slice() }, uSlush: { value: (P.slush || Z8).slice() },
     uTintL: { value: (P.tint || []).concat(Array(8).fill([1, 1, 1])).slice(0, 8).map((t, k) => new THREE.Vector3(...t).multiply(seasonTint(veg, P.layers[k]))) }, uGrassShade: { value: opts.grass === false ? 0 : 1 }, uSward: { value: new THREE.Vector2(...swardOf(veg, opts.mission?.date)) }, ...turfUniforms(veg, opts.grass !== false), uMeadowMacro: { value: veg.src === 'temperate' ? 1 : 0 }, uDebug: { value: opts.debugTrail ? 1 : 0 }, uHexScale: { value: 1 / 1.6 }, uMacro: { value: 1 }, uSparkle: { value: 1 },
     uHexOn: { value: 1 }, uSunDirW: { value: new THREE.Vector3(0.3, 0.8, 0.5).normalize() },

@@ -151,17 +151,21 @@ function desertTexture(strata, seed) {
   const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
   const bands = Array.from({ length: 24 }, () => 0.82 + rnd() * 0.3);
   const noise = Float32Array.from({ length: 64 * 64 }, () => rnd());
-  const vn = (x, y) => { // value noise on a 64-cell lattice (tiling)
-    const xi = Math.floor(x) & 63, yi = Math.floor(y) & 63, fx = x - Math.floor(x), fy = y - Math.floor(y);
-    const q = (i, j) => noise[((j & 63) << 6) | (i & 63)];
-    const a = q(xi, yi) + (q(xi + 1, yi) - q(xi, yi)) * fx, b = q(xi, yi + 1) + (q(xi + 1, yi + 1) - q(xi, yi + 1)) * fx;
-    return a + (b - a) * fy;
+  // value noise with a smooth (C1) fade, tiling over the texture: the lattice wraps every `p` cells (p = n / cell size).
+  // (A linear fade creased the ripples along straight lattice lines every 1.5 m, and the coarse lattice wrapped at 64
+  // cells instead of 8, so every 12 m repeat ended in a straight seam; hex tiling then cut those seams up into more.)
+  const vn = (x, y, p) => {
+    const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+    const q = (i, j) => noise[((((j % p) + p) % p) << 6) | (((i % p) + p) % p)];
+    const a = q(xi, yi) + (q(xi + 1, yi) - q(xi, yi)) * ux, b = q(xi, yi + 1) + (q(xi + 1, yi + 1) - q(xi, yi + 1)) * ux;
+    return a + (b - a) * uy;
   };
+  const K = (2 * Math.PI * 14) / n; // ripple frequency: a whole number of ripples per repeat (was 0.35 rad/px)
   for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
-    const big = vn(x / 32, y / 32), fine = vn(x / 4, y / 4);
+    const big = vn(x / 32, y / 32, n / 32), fine = vn(x / 4, y / 4, n / 4);
     const v = strata
       ? bands[Math.floor((y + big * 18) / (n / 24)) % 24] * (0.78 + 0.22 * fine) * (0.9 + 0.1 * big)
-      : (0.9 + 0.06 * Math.sin((x + big * 40) * 0.35)) * (0.86 + 0.14 * fine) * (0.94 + 0.12 * big);
+      : (0.9 + 0.06 * Math.sin((x + big * 40) * K)) * (0.86 + 0.14 * fine) * (0.94 + 0.12 * big);
     const c = Math.max(0, Math.min(255, Math.round(v * 225)));
     data.set([c, c, c, 255], (y * n + x) * 4);
   }

@@ -10,6 +10,10 @@
  *    variation), Belgian blocks, tar macadam (hex tiling)
  *  - ground (M1, low preset: a single texture sample): the 3 m repeat of the rocky / old-snow layers (domain warp)
  *  - kit terrain (M11 plateau, high): the sand prism's 12 m procedural texture (generic material hex tiling)
+ * Seams (fix/anti-tiling-seams): two abutting pieces of plaster floor and brick wall (separate meshes with continuous
+ * world-scale uvs) must show no luminance step along their shared edge beyond the texture's own step inside a piece
+ * (a per-object uv offset / tone did); the M11 procedural textures must tile and be crease-free (their straight seams
+ * were cut up by hex tiling into straight seams all over the plateau).
  * Perf: the paving's anti-tiling (gallery) and the kit materials' hex tiling (M12 rooftops) are toggled on / off in
  * the same page; each costs well under a millisecond per frame on high.
  */
@@ -114,6 +118,51 @@ export default async function (page, t) {
     out.setts = measure({ zoom: 1, cx: 30, cz: 40, rect: [2, 37.5, 38, 42.5], T: 2.4 });
     out.belgian = measure({ zoom: 1, cx: 9, cz: 9, rect: [3, 3, 15, 15], T: 2.0 });
     out.tarmac = measure({ zoom: 1, cx: 55, cz: 10, rect: [53, 2, 57, 18], T: 2.2 });
+    // ---- seams: two abutting pieces (separate meshes, continuous world-scale uvs) must join without a step ------
+    {
+      const { dressingMaterial, boxUV } = await import('/src/art/dressing.js');
+      const pieces = [];
+      // a = piece origin (x, y, z), size, horizontal (floor / roof) or vertical (wall facing the camera, +z)
+      const piece = (mat, cx, cy, cz, w, h, flat) => {
+        const geo = new THREE.PlaneGeometry(w, h);
+        if (flat) geo.rotateX(-Math.PI / 2);
+        geo.translate(cx, cy, cz); boxUV(geo, 2.5); geo.translate(-cx, -cy, -cz); // uvs from world position
+        const m = new THREE.Mesh(geo, mat); m.position.set(cx, cy, cz); m.name = 'seam-probe';
+        G.renderer.scene.add(m); pieces.push(m);
+      };
+      const plaster = dressingMaterial('plasterWhite'), brick = dressingMaterial('brick');
+      piece(plaster, 85, 3, 16, 6, 8, true); piece(plaster, 91, 3, 16, 6, 8, true);        // floor: shared edge x = 88
+      piece(brick, 65, 3.5, 30, 6, 4, false); piece(brick, 71, 3.5, 30, 6, 4, false);      // wall: shared edge x = 68
+      G.render(1 / 60, 1);
+      for (let k = 0; k < 50 && ![plaster, brick].every((m) => m.map?.image && m.normalMap?.image); k++) await new Promise((res) => setTimeout(res, 100));
+      await new Promise((res) => setTimeout(res, 500)); // decoded + uploaded
+      const step = (cx, cz, y, X, along) => { // mean |L(X + d) - L(X - d)| along the line x = X, vs the same across lines inside the pieces
+        G.cameraController.setZoom(2, true); G.cameraController.centerOn(cx, cz);
+        for (let k = 0; k < 3; k++) G.render(1 / 60, 1);
+        const gl = G.renderer.renderer.getContext();
+        G.render(1 / 60, 1);
+        const W = gl.drawingBufferWidth, H = gl.drawingBufferHeight, buf = new Uint8Array(W * H * 4);
+        gl.readPixels(0, 0, W, H, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+        const cam = G.cameraController.camera, v = new THREE.Vector3();
+        const L = (x, yy, z) => {
+          v.set(x, yy, z).project(cam);
+          const px = Math.round((v.x + 1) / 2 * W), py = Math.round((v.y + 1) / 2 * H), o = (py * W + px) * 4;
+          return px < 0 || py < 0 || px >= W || py >= H ? NaN : 0.2126 * buf[o] + 0.7152 * buf[o + 1] + 0.0722 * buf[o + 2];
+        };
+        const across = (x) => {
+          let s = 0, n = 0;
+          for (const [yy, z] of along) { const d = Math.abs(L(x + 0.04, yy, z) - L(x - 0.04, yy, z)); if (d === d) { s += d; n++; } }
+          return s / n;
+        };
+        const ref = [-2.6, -2.2, -1.8, -1.4, -1.0, -0.6, 0.6, 1.0, 1.4, 1.8, 2.2, 2.6].map((o) => across(X + o));
+        return { edge: +across(X).toFixed(2), inside: +(ref.reduce((a, b) => a + b, 0) / ref.length).toFixed(2), ratio: +(across(X) / (ref.reduce((a, b) => a + b, 0) / ref.length)).toFixed(2) };
+      };
+      const zs = (z0, z1, y) => Array.from({ length: 160 }, (_, i) => [y, z0 + (z1 - z0) * (i + 0.5) / 160]);
+      const ys = (y0, y1, z) => Array.from({ length: 160 }, (_, i) => [y0 + (y1 - y0) * (i + 0.5) / 160, z]);
+      out.seamFloor = step(88, 16, 3, 88, zs(12.4, 19.6, 3));
+      out.seamWall = step(68, 30, 3.5, 68, ys(1.7, 5.3, 30.001));
+      for (const m of pieces) { m.removeFromParent(); m.geometry.dispose(); }
+    }
     // perf: the paving's anti-tiling on / off (slab shuffle, course shuffle, stone IDs, hex tar → plain sampling)
     restore();
     G.cameraController.setZoom(0.8, true); G.cameraController.centerOn(40, 45);
@@ -138,6 +187,25 @@ export default async function (page, t) {
     await load('m11', 'high');
     for (const u of [...G.world.commandos, ...G.world.enemies]) if (u.object3d) u.object3d.visible = false;
     out.m11 = measure({ zoom: 0.5, cx: 26, cz: 26, rect: [6, 16, 40, 38], y: 6, T: 12 });
+    // its procedural sand / strata textures tile (no step where a repeat ends) and have no creases (smooth noise fade):
+    // a straight seam in the texture becomes a straight seam on the plateau every 12 m, and more under hex tiling
+    {
+      const texs = [];
+      G.renderer.scene.getObjectByName('m11:terrain')?.traverse((o) => { if (o.isMesh) for (const m of [].concat(o.material)) if (m.map?.isDataTexture && !texs.includes(m.map)) texs.push(m.map); });
+      out.m11tex = texs.slice(0, 2).map((t) => {
+        const { data, width: n } = t.image, px = (x, y) => data[((y % n) * n + (x % n)) * 4];
+        let wrap = 0, inner = 0, crease = 0, flat = 0, nc = 0, nf = 0;
+        for (let y = 0; y < n; y++) {
+          wrap += Math.abs(px(n - 1, y) - px(0, y)) + Math.abs(px(y, n - 1) - px(y, 0));
+          for (let x = 1; x < n - 1; x++) {
+            inner += Math.abs(px(x, y) - px(x + 1, y)) + Math.abs(px(y, x) - px(y, x + 1));
+            const d2 = Math.abs(px(x - 1, y) - 2 * px(x, y) + px(x + 1, y));
+            if (x % 32 === 0) { crease += d2; nc++; } else { flat += d2; nf++; }
+          }
+        }
+        return { wrapStep: +(wrap / (2 * n) / (inner / (2 * n * (n - 2)))).toFixed(2), crease: +((crease / nc) / (flat / nf)).toFixed(2) };
+      });
+    }
 
     // ---- kit / library materials: hex tiling on / off (M12 rooftops, zoom 0.5, high) --------------------
     await load('m12', 'high');
@@ -158,6 +226,9 @@ export default async function (page, t) {
   t.ok(r.m01lowPreset === 'low' && r.m01low.RT < 0.35, `M1 rocky ground on low does not repeat at 3 m (R_T ${r.m01low.RT}; single sample 0.88)`);
   t.ok(r.m11.RT < 0.35, `M11 plateau sand does not repeat at 12 m (R_T ${r.m11.RT}; tiled 1.0)`);
   t.ok(r.m12patched > 50, `M12 kit / library materials carry the anti-tiling patch (${r.m12patched} mesh materials)`);
+  t.ok(r.seamFloor.ratio < 1.4, `no seam where two plaster floor pieces abut (edge step ${r.seamFloor.edge} vs ${r.seamFloor.inside} inside: ${r.seamFloor.ratio}×)`);
+  t.ok(r.seamWall.ratio < 1.4, `no seam where two brick wall pieces abut (edge step ${r.seamWall.edge} vs ${r.seamWall.inside} inside: ${r.seamWall.ratio}×)`);
+  t.ok(r.m11tex.length === 2 && r.m11tex.every((x) => x.wrapStep < 1.6 && x.crease < 1.6), `M11 plateau textures tile without seams or creases ${JSON.stringify(r.m11tex)}`);
   // budget: under 0.8 ms or 8 % of the frame (GPU timer; wall clock when the timer query is not exposed). A frame
   // over 60 ms with the feature off means the GPU is shared with other work: the difference is noise, not cost.
   const within = (p) => { const gc = p.gpuOn - p.gpuOff; return Number.isFinite(gc) ? gc < Math.max(0.8, p.gpuOff * 0.08) : p.wallOn - p.wallOff < Math.max(1.2, p.wallOff * 0.1); };

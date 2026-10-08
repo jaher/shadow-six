@@ -3,14 +3,14 @@
  * PBR maps on world-scale UVs). One shader patch, chained onto any existing onBeforeCompile:
  *
  *  - 'iso' finishes (plaster, render, screed, concrete tops, sand, gravel, rock, mud …): hex tiling on medium and up
- *    (art/anti-tiling-glsl.js: 3 randomly offset + rotated albedo taps, contrast-preserving blend; the normal and ARM
- *    maps read the dominant tap only, normals rotated back); a per-object UV offset on low,
+ *    (art/anti-tiling-glsl.js: 3 randomly offset + rotated taps of every map, smooth weights, variance-preserving
+ *    blend, normals rotated back); low keeps one plain sample,
  *  - 'shift' finishes (bricks, ashlar, planks, roof tiles, corrugated sheet … whose courses must stay straight): the
  *    courses repeat as laid, but the texture's low frequencies (stains, patches: a coarse mip) are hex-tiled and
- *    swapped in (medium and up); one random UV offset per object (procedural kit pieces, whose boxes have their own uvs anyway), so two identical
- *    pieces never show the same texture detail; library GLBs (several meshes per building sharing continuous uvs)
- *    keep their uvs and rely on the world-space variation below,
- *  - both: macro variation in world space that never repeats — per-building tone / hue, a 10-30 m colour drift, grime
+ *    swapped in (medium and up),
+ *  - no per-object uv offset or tone: pieces that abut (plateau slabs, roofs, walls built from several boxes or GLB
+ *    meshes) keep continuous texturing across their shared edges; buildings differ through the world-space variation,
+ *  - both: macro variation in world space that never repeats — building-scale tone / hue, a 10-30 m colour drift, grime
  *    patches, rain streaks and rising damp on walls, dust on roofs — with roughness and normal strength following.
  * The preset only switches a shared uniform (setAntiTilingQuality): one program per material for every preset.
  * @module art/anti-tiling
@@ -70,18 +70,17 @@ export function antiTilingClass(name) {
 
 const VERT_PARS = /* glsl */ `
 varying vec3 vAtW;
-varying vec3 vAtO;
 `;
 const VERT_MAIN = /* glsl */ `
 {
-  vec4 atP = vec4(transformed, 1.0), atO = vec4(0.0, 0.0, 0.0, 1.0);
+  vec4 atP = vec4(transformed, 1.0);
   #ifdef USE_INSTANCING
-    atP = instanceMatrix * atP; atO = instanceMatrix * atO;
+    atP = instanceMatrix * atP;
   #endif
   #ifdef USE_BATCHING
-    atP = batchingMatrix * atP; atO = batchingMatrix * atO;
+    atP = batchingMatrix * atP;
   #endif
-  vAtW = (modelMatrix * atP).xyz; vAtO = (modelMatrix * atO).xyz;
+  vAtW = (modelMatrix * atP).xyz;
 }
 `;
 const FRAG_PARS = /* glsl */ `
@@ -89,39 +88,30 @@ uniform float uAtMode;
 uniform float uAtMacro;
 uniform sampler2D tAtNoise;
 uniform vec4 uAtCfg;   // hex (0/1), rotation 0..1, macro strength, grime
-uniform float uAtObj;  // per-object uv offset + tone (0 for library GLBs: one building is several meshes sharing uvs)
 varying vec3 vAtW;
-varying vec3 vAtO;
 ${AT_COMMON}
-vec4 atSeed;           // per object: uv offset (xy), tone, hue
 AtHex atH;
 vec3 atW3 = vec3(1.0, 0.0, 0.0);
 bool atHexOn = false;
 vec4 atArm = vec4(1.0);
-vec2 atUVo(vec2 uv) { return uv + atSeed.xy; }
-// normal / ARM maps on hex: only the dominant tap (the albedo blend is sharp, so its seams never show in the
-// lighting detail): 1 fetch each instead of 3
-vec2 atCd = vec2(0.0), atOd = vec2(0.0);
-mat2 atRd = mat2(1.0);
+// normal / ARM maps on hex: the same three taps and weights as the albedo. (Reading only the dominant tap switched the
+// lighting detail and roughness abruptly where the dominant tap changed: on low-contrast finishes those lines are the
+// hex cells' straight edges, i.e. straight seams across every plaster roof and floor.)
 vec4 atSample(sampler2D t, vec2 uv) {
-  uv = atUVo(uv);
   if (!atHexOn) return texture(t, uv);
-  return textureGrad(t, atRd * (uv - atCd) + atCd + atOd, atRd * dFdx(uv), atRd * dFdy(uv));
+  return atTex3(t, atH, atW3, uv, dFdx(uv), dFdy(uv));
 }
 vec3 atSampleN(sampler2D t, vec2 uv) {
-  vec3 n = atSample(t, uv).xyz * 2.0 - 1.0;
-  if (atHexOn) n.xy = transpose(atRd) * n.xy;
-  return n;
+  if (!atHexOn) return texture(t, uv).xyz * 2.0 - 1.0;
+  return atNor3(t, atH, atW3, uv, dFdx(uv), dFdy(uv));
 }
 `;
 // map_fragment: set up the hex cells + weights from the albedo, then sample it
 const MAP = /* glsl */ `
-atSeed = atHash4(floor(vAtO.xz * 4.0 + vAtO.y * 1.7) + 0.5);
-atSeed = mix(vec4(0.0, 0.0, 0.5, 0.5), atSeed, uAtObj);
 atHexOn = uAtCfg.x > 0.5 && uAtMode > 0.5;
 #ifdef USE_MAP
 {
-  vec2 uv = atUVo(vMapUv);
+  vec2 uv = vMapUv;
   vec4 sampledDiffuseColor;
   if (atHexOn) {
     atH = atHex(uv, 3.4641016, uAtCfg.y, 0.0);
@@ -130,10 +120,7 @@ atHexOn = uAtCfg.x > 0.5 && uAtMode > 0.5;
     vec4 a2 = textureGrad(map, atUV2(atH, uv), atH.r2 * dx, atH.r2 * dy);
     vec4 a3 = textureGrad(map, atUV3(atH, uv), atH.r3 * dx, atH.r3 * dy);
     atW3 = atHexW(atH, a1.rgb, a2.rgb, a3.rgb);
-    sampledDiffuseColor = atW3.x * a1 + atW3.y * a2 + atW3.z * a3;
-    if (atW3.x >= atW3.y && atW3.x >= atW3.z) { atCd = atH.c1; atOd = atH.o1; atRd = atH.r1; }
-    else if (atW3.y >= atW3.z) { atCd = atH.c2; atOd = atH.o2; atRd = atH.r2; }
-    else { atCd = atH.c3; atOd = atH.o3; atRd = atH.r3; }
+    sampledDiffuseColor = atVP(a1, a2, a3, atW3, atMean(map));
   } else {
     sampledDiffuseColor = texture(map, uv);
     if (uAtMode > 0.5) {
@@ -143,8 +130,8 @@ atHexOn = uAtCfg.x > 0.5 && uAtMode > 0.5;
       float L = log2(float(textureSize(map, 0).x)) - 3.0;
       vec3 lo = textureLod(map, uv, L).rgb;
       AtHex hl = atHex(uv, 2.0, 1.0, 5.0);
-      vec3 lw = hl.w * hl.w * hl.w; lw /= dot(lw, vec3(1.0));
-      vec3 lh = lw.x * textureLod(map, atUV1(hl, uv), L).rgb + lw.y * textureLod(map, atUV2(hl, uv), L).rgb + lw.z * textureLod(map, atUV3(hl, uv), L).rgb;
+      vec3 lw = hl.w * hl.w; lw /= dot(lw, vec3(1.0));
+      vec3 lh = atVP(textureLod(map, atUV1(hl, uv), L), textureLod(map, atUV2(hl, uv), L), textureLod(map, atUV3(hl, uv), L), lw, atMean(map)).rgb;
       sampledDiffuseColor.rgb *= clamp(lh / max(lo, vec3(0.015)), vec3(0.6), vec3(1.6));
     }
   }
@@ -168,7 +155,6 @@ float atGrime = 0.0, atNrmK = 1.0, atRoughD = 0.0;
   vec4 n2 = texture(tAtNoise, mat2(0.8, -0.6, 0.6, 0.8) * (wp.xz + wp.y * 0.61) / 11.3 + 0.37); // ~3 m: grime, dust
   vec4 n3 = texture(tAtNoise, vec2((wp.x + wp.z) / 7.0, wp.y / 41.0));               // vertical rain streaks
   vec3 tone = vec3(0.92 + 0.16 * n1.r) * mix(vec3(0.97, 0.99, 1.03), vec3(1.03, 1.0, 0.965), n1.g);
-  tone *= (1.0 + (atSeed.z - 0.5) * 0.05) * mix(vec3(0.99, 1.0, 1.01), vec3(1.01, 1.0, 0.99), atSeed.w);
   tone *= 0.96 + 0.08 * n2.a;
   diffuseColor.rgb *= mix(vec3(1.0), tone, k);
   float g = smoothstep(0.52, 0.78, n2.r * 0.6 + n1.b * 0.4);
@@ -219,9 +205,8 @@ const keep = (inc) => `\n// ${inc}`;   // the include stays visible (commented) 
 /**
  * Patch a material in place (idempotent). Chains any existing onBeforeCompile and program key.
  * @param {THREE.Material} mat MeshStandardMaterial / MeshPhysicalMaterial
- * @param {{kind?: 'iso'|'shift'|'none', rot?: number, macro?: number, grime?: number, lib?: string, perObject?: boolean}} [o]
- *   lib = library finish name (sets kind / rot); macro 0..1 strength of the tone / colour drift; grime 0..1;
- *   perObject false = no per-object uv offset / tone (meshes that continue one another's uvs, e.g. library GLBs)
+ * @param {{kind?: 'iso'|'shift'|'none', rot?: number, macro?: number, grime?: number, lib?: string}} [o]
+ *   lib = library finish name (sets kind / rot); macro 0..1 strength of the tone / colour drift; grime 0..1
  * @returns {THREE.Material}
  */
 const PATCHED = new WeakSet();
@@ -249,7 +234,6 @@ export function antiTile(mat, o = {}) {
     const defs = def('R', 'AT_ARM_RM') + def('A', 'AT_ARM_AO') + def('n', 'AT_PLAIN_N') + def('r', 'AT_PLAIN_R') + def('m', 'AT_PLAIN_M');
     sh.fragmentShader = defs + sh.fragmentShader;
     sh.uniforms.uAtCfg = { value: cfg };
-    sh.uniforms.uAtObj = { value: o.perObject === false ? 0 : 1 };
     sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\n' + VERT_PARS)
       .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\n' + VERT_MAIN);
     sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\n' + FRAG_PARS)
