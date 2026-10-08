@@ -16,7 +16,8 @@ import { canPickUp } from '../items.js';
 import { timedTask, bodyNear, interactableNear, freeToAct, inShallow, dropCarried, dropSpot, enemyNear } from './common.js';
 import { suspiciousAct } from './system.js';
 import { ACTIVATABLE, BCD_ACTIVATABLE } from '../entities/interactables.js';
-import { tryDress, dressIn } from './spy.js';
+import { tryDress, dressIn, dressTask } from './spy.js';
+import { takeSpot } from './spy-actions.js';
 import { reviveDowned } from '../entities/downed.js';
 import { isTransportable, liveLoadNear, transportMode, takeLoad, carriesMan, transportTimes, DRAG_ROLES, liftHint } from './bodies.js';
 
@@ -247,9 +248,15 @@ function reviveTask(c, t, world, t0 = 0) {
   });
 }
 
+/** The Spy taking a uniform off a clothesline: she walks to the spot in front of it (abilities/spy-actions.js). */
+const lineTake = (c, t, world) => (t?.interactKind === 'clothesline' && c?.role === 'spy' && t.count > 0 ? takeSpot(world ?? c.world, c, t) : null);
+
 registerAbility({
   id: 'use', label: 'Use', icon: '⚙', hotkey: null, roles: ['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy'],
-  targeting: 'interactable', cursor: 'lever', order: 90, group: 'use', visibleToEnemies: false, range: 1.2,
+  targeting: 'interactable', cursor: 'lever', order: 90, group: 'use', visibleToEnemies: false,
+  // a clothesline: to the spot in front of the uniform (she settles into it as she reaches up), anything else 1.2 m
+  range: (c, t, world) => (lineTake(c, t, world) ? 0.45 : 1.2),
+  approachPoint(c, t, world) { return lineTake(c, t, world) ?? undefined; }, // else the usual target point
   canUse(c, t, world) {
     const f = freeToAct(c);
     if (f !== true) return f;
@@ -259,6 +266,11 @@ registerAbility({
     return t.canUse(c);
   },
   start(c, t, world) {
+    // §3.4 the Spy at a clothesline: takes the uniform off the line piece by piece and puts it on (spy.js dressTask)
+    if (t.interactKind === 'clothesline' && c.role === 'spy' && !c.carrying && (c.stance ?? 'stand') === 'stand' && t.canUse(c) === true) {
+      const task = dressTask(world, c, t);
+      if (task) return task;
+    }
     const dur = t.activationTime;
     c.playAction('use', dur);
     return timedTask({

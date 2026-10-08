@@ -47,7 +47,7 @@ export function knifeSide(a, v) {
 }
 
 /** Is the forward fall line from (x, z) along h clear (no wall / building / standing visual / ledge)? */
-function fallClear(grid, x, z, h, len) {
+export function fallClear(grid, x, z, h, len) {
   const c = grid.cell, y0 = grid.elevAt ? grid.elevAt(x, z) : 0, ca = Math.cos(h), sa = Math.sin(h), px = -sa * 0.25, pz = ca * 0.25;
   for (let d = 0.3; d <= len + 1e-9; d += 0.2) {
     for (const s of [-1, 0, 1]) {
@@ -74,12 +74,16 @@ export function stepAt(plan, t) {
 /**
  * Plan the contact kill of `victim` by `attacker` (both where they stand now), or null when contact is not possible
  * (the classic stab at arm's length then plays, as before).
+ * `o` (the Spy's injection, abilities/spy-actions.js): {behind, front} contact distances (m, default CONTACT's),
+ * `falls: false` = no forward-fall / stagger-back line checks (the caller checks the ground its own way), `off` = the
+ * caller's own kill switch (default CONFIG.abilities.knife.contact).
  * @returns {null | {side:'behind'|'front', v:{x,z,h}, from:{x,z,h}, to:{x,z,h}, close:number, vh:number, fall:number|null,
  *   back?:number, dist:number}} (dist: root-to-root contact distance; fall: heading he pitches forward along (behind);
  *   back: m he staggers back off the blade (front, 0 with no room behind him))
  */
-export function contactPlan(world, attacker, victim) {
-  if (CONFIG.abilities.knife.contact === false) return null;
+export function contactPlan(world, attacker, victim, o = {}) {
+  if (o.off ?? (CONFIG.abilities.knife.contact === false)) return null;
+  const dBehind = o.behind ?? CONTACT.behind, dFront = o.front ?? CONTACT.front, falls = o.falls !== false;
   if (!world || !attacker || !victim || victim.kind !== 'enemy' || victim.soldierType === 'dog' || victim.animal) return null;
   if ((victim.stance && victim.stance !== 'stand') || (attacker.stance && attacker.stance !== 'stand')) return null;
   if (attacker.underwater || attacker.diving || victim.vehicle || attacker.vehicle) return null;
@@ -89,12 +93,12 @@ export function contactPlan(world, attacker, victim) {
   const v = { x: victim.x, z: victim.z, h: victim.heading || 0 };
   let to, vh = v.h, fall = null;
   if (side === 'behind') {
-    to = { x: v.x - Math.cos(v.h) * CONTACT.behind, z: v.z - Math.sin(v.h) * CONTACT.behind, h: v.h };
+    to = { x: v.x - Math.cos(v.h) * dBehind, z: v.z - Math.sin(v.h) * dBehind, h: v.h };
   } else {
     const dx = attacker.x - v.x, dz = attacker.z - v.z, d = Math.hypot(dx, dz);
     const ux = d > 1e-6 ? dx / d : Math.cos(v.h), uz = d > 1e-6 ? dz / d : Math.sin(v.h);
     vh = Math.atan2(uz, ux); // he turns to face the attacker (startled)
-    to = { x: v.x + ux * CONTACT.front, z: v.z + uz * CONTACT.front, h: Math.atan2(-uz, -ux) };
+    to = { x: v.x + ux * dFront, z: v.z + uz * dFront, h: Math.atan2(-uz, -ux) };
   }
   if (g) {
     const e0 = g.elevAt ? g.elevAt(v.x, v.z) : 0;
@@ -105,7 +109,7 @@ export function contactPlan(world, attacker, victim) {
   }
   const from = { x: attacker.x, z: attacker.z, h: attacker.heading || 0 };
   const dist = Math.hypot(to.x - from.x, to.z - from.z);
-  const plan = { side, v, from, to, vh, fall, dist: side === 'behind' ? CONTACT.behind : CONTACT.front,
+  const plan = { side, v, from, to, vh, fall, dist: side === 'behind' ? dBehind : dFront,
     close: Math.min(CONTACT.close[1], Math.max(CONTACT.close[0], dist / CONTACT.speed)) };
   if (g) {
     // the step itself (a few points along the arc): on walkable ground on his level, his body clear of solids
@@ -114,6 +118,7 @@ export function contactPlan(world, attacker, victim) {
       if (!g.walkableAt(p.x, p.z)) return null;
       if (hasObstacles(world) && bodyGap(world, p.x, p.z, p.h, 'stand') < 0) return null;
     }
+    if (!falls) return plan;
     if (side === 'behind') {
       // he pitches forward onto his face (away from the attacker): straight ahead, else a diagonal that is clear
       for (const off of [0, Math.PI / 4, -Math.PI / 4]) {
@@ -122,7 +127,8 @@ export function contactPlan(world, attacker, victim) {
       }
       if (plan.fall == null) return null;
     } else plan.back = fallClear(g, v.x, v.z, vh + Math.PI, CONTACT.backLine) ? CONTACT.back : 0;
-  } else if (side === 'behind') plan.fall = v.h;
+  } else if (!falls) return plan;
+  else if (side === 'behind') plan.fall = v.h;
   else plan.back = CONTACT.back;
   return plan;
 }

@@ -1,8 +1,14 @@
 /**
  * Spy: Spooky (design-spec §3.4) — owned by ABILITIES. Carrying bodies: the hand (shared.js); disguise
  * unmasking rules: abilities/system.js.
- *   syringe  L  melee 1.2 m (double-click runs up): 0.9 s, kill at 0.5 s, NO blood, unlimited.
- *   uniform  U  re-dress (1.5 s) only when no enemy cone currently contains him.
+ *   syringe  L  melee 1.2 m (double-click runs up): NO blood, unlimited. A contact kill (abilities/spy-actions.js; user
+ *               2026-10-07 "as realistic as possible"): she steps in (0.1–0.3 s), a hand over his mouth from behind /
+ *               on his collar from the front, the needle into his neck, the kill at 0.5 s as before, then she lowers
+ *               him (ends hit + 1.25 / 0.95 s, interruptible from hit + 0.15 s). No room for contact: the classic
+ *               jab, 0.9 s, kill at 0.5 s.
+ *   uniform  U  re-dress only when no enemy cone currently contains him: the bundle out of the kit, cap, tunic (the
+ *               disguise on at 1.06 s, checked unwatched then), buttons, hem; 1.58 s. A clothesline (shared.js 'use'):
+ *               take it off the line, step behind the laundry, dress (spy-actions.js DRESS).
  *   distract D  in uniform: walks to 1.5 m, talks (`spy_distract`); the target stops and faces him (a patrol
  *               leader freezes his whole squad, facing the leader). Lasts until right-click / new order, the Spy
  *               > 3 m away, the target hearing a level ≥ 2 noise, an alarm reaching the target, the Spy unmasked.
@@ -16,6 +22,7 @@ import { meleeReachable } from './knife.js';
 import { witnessesOf } from './system.js';
 import { wardrobeOf } from './bcd-melee.js';
 import { distractable } from '../ai/bcd-ranks.js';
+import { injectionPlan, injectTimes, injectAt, pushSpyAct, takeSpot, coverSpot, dressTimes, dressAt, DRESS } from './spy-actions.js';
 
 const A = CONFIG.abilities;
 const S = CONFIG.weapons.syringe;
@@ -32,6 +39,9 @@ registerAbility({
     return meleeReachable(c, t);
   },
   start(c, t, world) {
+    const plan = injectionPlan(world, c, t);
+    if (plan) return injectionTask(c, t, world, plan);
+    // no room for contact: the classic jab at arm's length
     c.playAction('stab', S.dur);
     return timedTask({
       dur: S.dur, interruptible: false,
@@ -43,6 +53,40 @@ registerAbility({
     });
   },
 });
+
+/**
+ * The contact injection (abilities/spy-actions.js): the step in, the victim held where he stands, the kill at the hit,
+ * his body laid where the plan put it (from behind: on his back, his hips where his feet were; from the front: 0.3 m
+ * back), her step back as she lowers him. The record for art/spy-actions.js goes on world.spyActs.
+ */
+function injectionTask(c, t, world, plan) {
+  const T = injectTimes(plan);
+  t.knifeHold = { by: c.id, x: t.x, z: t.z, h: t.heading, until: world.time + T.hit + 0.05 };
+  t.stop?.();
+  const rec = pushSpyAct(world, { kind: 'inject', a: c, v: t, side: plan.side, plan, T, t0: world.time + CONFIG.sim.dt });
+  c.playAction('stab', T.dur);
+  let tt = 0, struck = false;
+  return {
+    get interruptible() { return struck && tt >= T.free - 1e-9; }, // she can let go once he is dead
+    get t() { return tt; },
+    update(dt) {
+      tt += dt;
+      const p = injectAt(plan, T, tt);
+      c.x = p.x; c.z = p.z; c.heading = p.h;
+      if (!struck && tt >= T.hit) {
+        struck = true;
+        if (!t.alive) { rec.missed = true; return 'failed'; }
+        t.heading = plan.vh; // a frontal kill: he had turned to her
+        t.x = plan.lie.x; t.z = plan.lie.z; // where his body will lie (laid on his back)
+        t.muffledCry = true; // her hand / the needle in his throat: the cry is choked (audio/event-map.js)
+        t.die('injection', c, { fall: -1 }); // no blood decal (§3.4); a seen kill unmasks him (system.js unit:killed)
+        t.muffledCry = false;
+      }
+      return tt >= T.dur - 1e-9 ? 'done' : 'running';
+    },
+    cancel() { rec.cancelled = tt; },
+  };
+}
 
 /** Is `spy` inside any living enemy's cone right now (with LOS, disguise ignored)? */
 export function inAnyCone(world, spy) {
@@ -83,10 +127,56 @@ registerAbility({
       c.playAction('use', T);
       return timedTask({ dur: T, steps: [{ at: T, fn: () => cycleUniform(world, c) }] });
     }
-    c.playAction('use', A.uniform);
-    return timedTask({ dur: A.uniform, steps: [{ at: A.uniform, fn: () => tryDress(world, c) }] });
+    if (c.stance && c.stance !== 'stand') { // prone: changed lying down, as before (the dressing is drawn standing)
+      c.playAction('use', A.uniform);
+      return timedTask({ dur: A.uniform, steps: [{ at: A.uniform, fn: () => tryDress(world, c) }] });
+    }
+    return dressTask(world, c, null);
   },
 });
+
+/** Is anybody watching her right now (§3.4: she never changes in view)? */
+const watched = (world, c) => inAnyCone(world, c);
+
+/**
+ * Taking the uniform off a clothesline and putting it on (abilities/spy-actions.js DRESS): `line` = the clothesline
+ * (shared.js 'use'), or null for U (the uniform out of her kit). The disguise goes on at the swap (arms in the sleeves),
+ * if nobody watches then; watched when she has taken it or at the swap: she stops, the uniform stays in her kit.
+ * Interruptible throughout, as before. Falls back to the plain 1.5 s activation when there is no spot to take it from.
+ */
+export function dressTask(world, c, line) {
+  const bcd = !!world.rules?.spyUniformFromCaptives;
+  const dress = () => (bcd ? (line ? dressIn(world, c, line.params?.uniform ?? 'soldier') : false) : tryDress(world, c));
+  let plan = null;
+  if (line) {
+    const take = takeSpot(world, c, line);
+    if (!take) return null;
+    plan = { from: { x: c.x, z: c.z, h: c.heading || 0 }, take, cover: coverSpot(world, take, line) };
+  }
+  const T = dressTimes(line ? 'line' : 'kit', plan?.cover, plan?.take);
+  const rec = pushSpyAct(world, { kind: 'dress', mode: line ? 'line' : 'kit', a: c, line, plan, T, t0: world.time + CONFIG.sim.dt });
+  c.playAction('use', T.dur);
+  let tt = 0, end = T.dur;
+  const stop = (why) => { rec.abort = tt; rec.why = why; end = Math.min(end, tt + DRESS.abort); };
+  return {
+    interruptible: true,
+    get t() { return tt; },
+    update(dt) {
+      tt += dt;
+      if (plan && !rec.abort) { const p = dressAt(rec, tt); c.x = p.x; c.z = p.z; c.heading = p.h; }
+      if (line && rec.taken == null && tt >= T.take - 1e-9) {
+        if (line.canUse(c) !== true || !line.interact(c)) return 'failed'; // the uniform in her kit (BCD: the wardrobe)
+        rec.taken = tt;
+        if (watched(world, c)) stop('watched');
+      }
+      if (rec.abort == null && rec.swapped == null && tt >= T.swap - 1e-9) {
+        if (dress()) rec.swapped = tt; else stop('watched');
+      }
+      return tt >= end - 1e-9 ? 'done' : 'running';
+    },
+    cancel() { rec.cancelled = tt; },
+  };
+}
 
 /** BCD wardrobe (§1.6): U is usable with any uniform held, unseen, hands free. */
 function wardrobeCanUse(c, world) {

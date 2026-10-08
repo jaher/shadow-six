@@ -75,6 +75,37 @@ export class VerletCloth {
   reset() { this.x.set(this.rest); this.px.set(this.rest); }
 
   /**
+   * Hold exactly the particles in `ks` (indices j * nx + i; every other one free) — a garment taken off its pegs, held
+   * by a hand (art/spy-actions.js). Tethers are re-derived on the rest layout (nearest held particle). `mass`: per free
+   * particle (kg; default the mean of the free ones before).
+   */
+  setPinned(ks) {
+    const n = this.nx * this.ny, held = new Set(ks);
+    let m = this._m;
+    if (!m) { let s = 0, c = 0; for (let k = 0; k < n; k++) if (this.inv[k]) { s += 1 / this.inv[k]; c++; } m = this._m = c ? s / c : 0.01; }
+    for (let k = 0; k < n; k++) this.inv[k] = held.has(k) ? 0 : 1 / m;
+    const R = this.rest;
+    for (let k = 0; k < n; k++) {
+      this.tether[k] = -1;
+      if (!this.inv[k] || !held.size) continue;
+      let best = -1, bd = Infinity;
+      for (const q of held) { const d = Math.hypot(R[k * 3] - R[q * 3], R[k * 3 + 1] - R[q * 3 + 1], R[k * 3 + 2] - R[q * 3 + 2]); if (d < bd) { bd = d; best = q; } }
+      this.tether[k] = best; this.tetherL[k] = bd * 1.02;
+    }
+    this.pinned = [...held];
+  }
+
+  /** Move held particle `k` to the local point (x, y, z) (its previous position kept as the Verlet history). */
+  movePin(k, x, y, z) {
+    const o = k * 3;
+    this.px[o] = this.x[o]; this.px[o + 1] = this.x[o + 1]; this.px[o + 2] = this.x[o + 2];
+    this.x[o] = x; this.x[o + 1] = y; this.x[o + 2] = z;
+  }
+
+  /** Write the particles to the geometry now (after pins moved without a step). */
+  write() { this._write(); }
+
+  /**
    * Advance by `dt` seconds of sim time with a LOCAL-frame wind (m/s) and gravity (m/s²).
    * @param {number} dt @param {number[]} wind [x,y,z] @param {number[]} g [x,y,z] @param {number} [gust] 0..1
    */

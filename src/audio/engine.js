@@ -220,7 +220,7 @@ export class AudioEngine {
       if (def?.far && !loop && !o.buffer && sp.d > (A().farLayerAt ?? 160) && this.files.has(def.far)) return this.play(def.far, o);
     }
     const jit = this.jitter && bus === 'sfx' && !loop && !o.buffer;
-    const base = (o.gain ?? 1) * (def?.gain ?? 1) * (jit ? 10 ** ((this.rand() - 0.5) * 0.15) : 1);
+    const base = (o.gain ?? 1) * (def?.gain ?? 1) * (jit ? 10 ** ((this.rand() - 0.5) * 0.15) : 1) * (o.muffle ? 0.6 : 1);
     if (def?.bed && !o.buffer && this.media && (this.pinned.get(id) || this.files.get(id))?.length) return this._stream(id, bus, base, o);
     const buffer = o.buffer || this.bufferFor(id);
     if (!buffer) return null;
@@ -233,7 +233,10 @@ export class AudioEngine {
     const g = ctx.createGain();
     const lp = pos && ctx.createBiquadFilter ? ctx.createBiquadFilter() : null;
     const p = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
-    src.connect(g);
+    // `muffle`: a voice through a hand / a closed throat — a fixed 650 Hz low-pass in front of the distance filter
+    const mu = o.muffle && ctx.createBiquadFilter ? ctx.createBiquadFilter() : null;
+    src.connect(mu || g);
+    if (mu) { mu.type = 'lowpass'; mu.Q.value = 0.9; mu.frequency.value = 650; mu.connect(g); }
     let tail = g;
     if (lp) { lp.type = 'lowpass'; lp.Q.value = 0.5; lp.frequency.value = sp.lp; tail.connect(lp); tail = lp; }
     if (p) { tail.connect(p); p.pan.value = sp.pan; tail = p; }

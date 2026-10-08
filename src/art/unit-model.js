@@ -28,6 +28,8 @@ import { proneGround, PRONE_CLIP } from './prone-ground.js';
 import { turnStep } from './turn-step.js';
 
 const PRONE_SHOT = /^prone_(shoot|shoot_smg|pistol_shoot)$/;
+/** The Spy's pending orders whose action blends in from the last pose shown (art/spy-actions.js). */
+const PRE_POSE = new Set(['syringe', 'use']);
 /** s: a lying ragdoll's takeover eases the pose on screen (end of the fall, of a put-down) into the ragdoll's — as
  *  long as the kits cross-fade die → dead. */
 const SETTLE_EASE = 0.35;
@@ -298,6 +300,9 @@ export class UnitModel {
     this._weapon = want;
     const w = this.real.setWeapon(want || null);
     if (w && !w.userData.prepared) { w.userData.prepared = true; prepareMeshes(w); }
+    // commandos_b (Spy, Sapper, Driver): setWeapon shows the prop; the runtime's hold for the clip playing decides (a
+    // pistol stays out of her hand in idle — it showed in her fist after the syringe was put away)
+    if (w && this.real.entry?.runtime === 'commandos_b') this.real.inner?.solveWeapon?.(this.real.inner.animClip || this.clip);
   }
 
   setAnim(name, o = {}) {
@@ -378,9 +383,10 @@ export class UnitModel {
       } else if (this._rdLast) { this._rdLast = null; this._rdBase = null; this._rdFrom = null; this._mwValid = false; this._rdGuard.release(); }
       else if (!this._idleSeen && this.anim === 'idle' && stepped && ++this._idleN > 4) { rememberIdle(this); this._idleSeen = true; }
     }
-    // walking in on a knife order: the pose shown, for the contact kill to blend from (art/knife-kill.js; the stab
-    // clip's first frame would jump)
-    if (R.inner && this.player && u?.pendingAbility?.def?.id === 'knife' && stepped) this._preKnife = capturePose(this);
+    // walking in on a knife / syringe order (or up to a clothesline): the pose shown, for the contact kill / the Spy's
+    // action to blend from (art/knife-kill.js, art/spy-actions.js; the action clip's first frame would jump)
+    const pend = u?.pendingAbility?.def?.id;
+    if (R.inner && this.player && stepped && (pend === 'knife' || (u.role === 'spy' && PRE_POSE.has(pend)))) this._preKnife = capturePose(this);
     // procedural action overlay on the skeleton after the mixer (art/shovel-dig.js: digging, rising out of the snow)
     if (R.inner && this.overlay && !tst && !this._rdLast) { try { stepped = this.overlay(this, dt, this._guard) || stepped; } catch (e) { console.warn('[unit-model] overlay', e?.stack || e); this.overlay = null; } }
     // a standing German turning on the spot steps round, head leading (art/turn-step.js; SHADOW SIX smooth turn)

@@ -239,13 +239,13 @@ export function createHumanoid(tpl, lib, { lod = 'LOD0', disguise = null } = {})
     update(dt) { mixer.update(dt); for (const f of h._post) f(dt); weaponHandover(h, dt); },
     _post: [],
     autoLOD(pxPerMetre) { h.setLOD(lodFor(pxPerMetre)); },
-    _lod: lod, _disg: false, _hg: true,
+    _lod: lod, _disg: false, _hg: true, _hgMode: null,
     setLOD(name) {
       h._lod = name;
       for (const [n, m] of Object.entries(parts)) {
         const d = n.startsWith('disguise:'); const base = d ? n.slice(9) : n; const active = d === h._disg;
         if (/^LOD\d/.test(base.split('_')[0])) m.visible = active && base.startsWith(name);
-        else if (base.startsWith('headgear')) m.visible = active && h._hg;
+        else if (base.startsWith('headgear')) m.visible = (h._hgMode ? h._hgMode === (d ? 'disg' : 'base') : active) && h._hg;
       }
     },
     show(part, v) { if (part === 'headgear') { h._hg = v; h.setLOD(h._lod); return; } for (const [n, m] of Object.entries(parts)) if (n.includes(part)) m.visible = v; },
@@ -254,6 +254,9 @@ export function createHumanoid(tpl, lib, { lod = 'LOD0', disguise = null } = {})
     },
     hasDisguise: !!disguise,
     setDisguise(on) { h._disg = !!on && !!disguise; h.setLOD(h._lod); },
+    // which outfit's headgear shows whatever the outfit (the Spy changing caps, art/spy-actions.js): 'base' | 'disg' |
+    // 'none'; null = the outfit's own
+    showHeadgear(mode = null) { h._hgMode = mode && (mode !== 'disg' || disguise) ? mode : null; h.setLOD(h._lod); },
   };
   h.setLOD(lod);
   return h;

@@ -492,3 +492,6 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 - 2026-10-07 ~21:45 user: "In the tailgate or the truck can we make the stripes slide sideways as commandos enter the truck from behind" → background agent (waits for fix/vehicle-realism to merge, then worktree commandos-wt-flaps / feat/truck-rear-canvas: rear canvas parts sideways as men climb in/out). Publish after merge.
 - 2026-10-07 ~21:50 user: "Can we have the commando arm close the door of the car" → added to the flaps agent (hand IK pulls the door shut; pushes it open on exit).
 - 2026-10-07T21:56 PDT merged by workflows: art/m13 a7a24ad0, art/m12 4f152e80, fence-cut-hole 4d12f4ce. User: 'Remember to incrementally push to github functional changes' → publishing.
+- 2026-10-07 ~22:20 user: "Yes make them stand out more" (fence-cut hole) → background agent in worktree commandos-wt-fencehole / fix/fence-hole-visible. Publish after merge.
+- 2026-10-07 ~22:30 user: "If for whatever reason you run out of tokens for the hourly reset just recover from it" → recurring cron d0a0ca16 (hourly at :23, session-only, expires 2026-10-14): resume stopped workflows/agents, publish if master ahead, send new media. Memory reschedule-on-usage-limit updated.
+- 2026-10-07T22:39 PDT spy actions MERGED e14e3568 (spy-actions, m03-solution, knife-contact pass on merged master). Publishing.

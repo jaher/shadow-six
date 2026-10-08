@@ -129,7 +129,7 @@ test('clothesline (M3): uniform + laundry are simulated cloth; canvas tents carr
   CLOTHS.length = 0;
   const line = makeClothesline();
   const uni = line.getObjectByName('clothesline_uniform');
-  assert.ok(uni && uni.children.length === 2, 'tunic + trousers');
+  assert.ok(uni && uni.children.length === 3 && uni.getObjectByName('laundry_cap'), 'tunic + trousers + the officer\'s cap (pegged between them)');
   assert.equal(CLOTHS.length, 4, 'four pegged garments on the wind tick');
   const tent = buildTent({ w: 4, d: 4, h: 2.2 });
   let flap = null;

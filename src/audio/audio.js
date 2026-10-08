@@ -421,7 +421,8 @@ function addVoiceSiren(audio, events, rand) {
           const urgent = this._urgent(req.key);
           const buffer = this.engine.voiceBuffer(req.speaker, req.key, res.n, e.text, { rec: res.line.rec, voice, urgent });
           e.take = res.line.rec && this.engine.hasVoice(req.speaker, res.line.rec) ? (urgent ? 'alt' : 'primary') : null;
-          h = buffer ? this.engine.play(`voice:${req.key}`, { buffer, bus: 'voice', pos: req.commando ? null : posOf(e.unit), cls: 'voice' }) : null;
+          // muffled (a hand over his mouth): low-passed, quieter, a touch lower (audio/engine.js play `muffle`)
+          h = buffer ? this.engine.play(`voice:${req.key}`, { buffer, bus: 'voice', pos: req.commando ? null : posOf(e.unit), cls: 'voice', ...(e.muffle ? { muffle: true, rate: 0.94 } : null) }) : null;
         }
         if (h) dur = Math.max(0.4, h.duration);
       }

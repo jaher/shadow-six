@@ -10,7 +10,7 @@
  *   lever / valve   same as switch (device)
  *   phone           rings for CONFIG.abilities.phoneRing s: phone noise pulses lure guards (§4.4)
  *   ladder          raised ladder (grid link disabled); lowered from the top (§3.2)
- *   clothesline     German uniform for the Spy (§3.4, 1.5 s)
+ *   clothesline     German uniform for the Spy (§3.4; the Spy takes it piece by piece and dresses: abilities/spy.js dressTask)
  *   ammo            sniper ammo box (+3 rounds, §3.4) — a pickup with itemId 'sniperRifle'
  *   crate           air-drop crate: `contents` {itemId: count}, each role takes what it may carry
  *   barrel          explosive fuel drum (Barrel subclass): carried by the Green Beret, chain reactions (§3.6)
@@ -537,6 +537,10 @@ export class Interactable extends Entity {
     if (this.open && Array.isArray(d.savedCells)) this._savedCells = d.savedCells.slice();
     this.on = !!d.on;
     this.count = d.count ?? this.count;
+    if (this.interactKind === 'clothesline' && this.count <= 0) { // a load after she took it: the line stays bare
+      const u = this.object3d?.getObjectByName?.('clothesline_uniform');
+      if (u) u.visible = false;
+    }
     if (d.contents) this.contents = { ...d.contents };
     this.lowered = !!d.lowered;
     this.ringing = d.ringing ?? 0;

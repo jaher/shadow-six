@@ -26,6 +26,7 @@
  */
 import * as THREE from 'three';
 import { addBodyClips } from './body-clips.js';
+import { syringeWeapon } from './syringe-prop.js';
 
 const ROOT = new URL('../../assets/characters/', import.meta.url);
 const url = (p) => new URL(p, ROOT).href;
@@ -98,6 +99,8 @@ async function initCommandos(L) {
   const [caLib, caW, bLib, bW] = await Promise.all([CA.loadCALib(), PW.loadWeapons(url('weapons/weapons.glb')), cbLib(),
     CBW.loadWeapons(url('weapons/weapons_b.glb'))]);
   bodyClips(caLib, 'commandos_a'); bodyClips(bLib, 'commandos_b');
+  // the Spy's syringe: the detailed glass-and-nickel model with a moving plunger (art/syringe-prop.js)
+  try { if (bW) bW.syringe = syringeWeapon(); } catch (e) { console.warn('[humanoid-real] syringe prop', e); }
   L.rt.commandos_a = {
     load: (e) => PK.loadCharacter(url(e.glb)),
     create: (tpl) => CA.createCommando(tpl, caLib),

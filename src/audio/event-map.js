@@ -277,7 +277,8 @@ export function installHandlers(a, events) {
   // only: no world noise is emitted (BEL: a knife kill is silent to the AI; guards only hear world.emitNoise).
   on('unit:killed', (e) => {
     const u = e.unit, silent = SILENT_KILLS.has(String(e.cause || ''));
-    if (crier(u)) a.say(u, CRY_KEYS[cryOf(e.cause)], { force: true });
+    // a man held with a hand over his mouth / a needle in his throat (the Spy's injection, abilities/spy.js): choked
+    if (crier(u)) a.say(u, CRY_KEYS[cryOf(e.cause)], u?.muffledCry ? { force: true, muffle: true } : { force: true });
     else if (isCommando(u) || u?.kind === 'guest') a.say(u, 'death', { force: true });
     if (isEnemy(u) && silent && isCommando(e.killer)) { const k = e.killer; a.after(QUIP_AFTER_CRY, () => a.say(k, 'act_kill')); }
   });

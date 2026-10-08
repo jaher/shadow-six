@@ -623,3 +623,6 @@ export function pairMetrics(a, v) {
     aFacing: Math.atan2(aF.f.z, aF.f.x), vFacing: Math.atan2(vF.f.z, vF.f.x),
   };
 }
+
+/** Pose helpers shared with the Spy's paired actions (art/spy-actions.js). */
+export { setWQ, turn, setPelvisWorld, snap, writeBlend, limbIK, frameOf, legsTo, feetOf, alignHand, palmNormal, handQ, at, wp, wq, faceDir, finish, ORDER };
