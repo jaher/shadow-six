@@ -499,6 +499,9 @@ export class EnemyBrain {
         const d = dm / unit; // BEL units
         let add = Math.floor(NV.dispMul * d * d);
         if (s.dist <= NV.closeRange || c.held || c.carrying || this._sawDeed(c)) add = Math.max(add, held);
+        // a boat on open water stands out, rowing or lying still: noticed within about half a second (user, M3:
+        // "the raft boat in the light shaded field of view of a soldier makes the soldier see it")
+        else if (c.state === 'inVehicle' && c.vehicle?.isOpenBoat) add = Math.max(add, Math.ceil(T / NV.boatNoticeDiv));
         if (add >= held) N = Math.max(N, held);
         else N += add;
         if (add > best) { best = add; pick = c; }

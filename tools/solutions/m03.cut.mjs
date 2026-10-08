@@ -6,14 +6,13 @@
 export const TITLES = {
   A: 'A · The plateau: trap the sergeant, harpoon the troopers',
   B: 'B · The gully: knife the two sentries, hide the bodies',
-  C: 'C · The raft: the Spy fetches a uniform',
-  D: 'D · Over the dam crest: fence power off, chat up the guard',
-  E: 'E · The Sapper cuts in and takes the charges',
-  F: 'F · A decoy by the north gate',
-  G: 'G · The bunker (objective 1)',
-  H: 'H · Move the decoy, cross back over the crest',
-  I: 'I · The dam (objective 2)',
-  J: 'J · Escape in the truck (objective 3)',
+  C: 'C · The Spy crawls round the camp to a uniform',
+  D: 'D · The Marine, under water, harpoons the river post e14',
+  E: 'E · Over the dam crest: fence power off, chat up the guard',
+  F: 'F · A decoy turns e12; e6 knifed from behind, carried off',
+  G: 'G · The raft crosses unseen; the Sapper takes the charges',
+  H: 'H · Bunker and dam: a decoy by the north gate, both charges in one go',
+  I: 'I · The truck (objective 3)',
 };
 
 export const CAPTIONS = {
@@ -24,30 +23,33 @@ export const CAPTIONS = {
   B1: 'The Green Beret knifes e5 from behind',
   B2: '… then e4',
   B3: 'Both bodies carried up onto the plateau, out of sight',
-  C1: 'The Marine and the Spy crawl down the gully to the raft',
-  C2: 'Both aboard in a gap in e17’s sweep',
-  C3: 'The Spy takes a uniform from the clothesline',
-  D1: 'Disguised, he walks over the crest: nobody below can see up there',
-  D2: 'Fence power off at the admin-block switch',
-  D3: 'He chats up e17 from his west side: his back is to the river and the shed',
-  E1: 'Decoy at the gully mouth: e6 turns away from the river',
-  E2: 'The Sapper cuts the dead fence',
-  E3: 'Both time bombs taken from the shed',
-  E4: 'Back the same way and aboard, unseen',
-  E5: 'The Green Beret fetches his decoy',
-  F1: 'The Spy now holds e18 at the north gate',
-  F2: 'Ashore unseen; decoy 13 m from the bunker; the Green Beret digs into the snow',
-  G1: 'Decoy on, by radio: the gunner and the five-man patrol turn to it',
-  G2: 'Charge one on the bunker’s blind side',
-  G3: 'Bunker destroyed (objective 1); the alarm from the blast is expected',
-  G4: 'The alarm dies down',
-  H1: 'Decoy moved 9 m west of e18; the Green Beret digs in beside it',
-  H2: 'From the west stair he switches the decoy on for good',
-  H3: 'Green Beret over the crest to the truck road',
-  H4: 'The Spy crawls to the stair (no footprints to follow) and crosses too',
-  I1: 'Marine and Sapper land by the east stair in a clear moment',
-  I2: 'Charge two at the spillway gates in the middle of the crest; then off the crest before it blows',
-  I3: 'The dam is down (objective 2)',
+  C0: 'The Green Beret, dug in at the end of e8\u2019s beat, knifes him from behind',
+  C1: 'e8 carried into the gap between the rocks under the cliff; the Green Beret digs in again',
+  C2: 'The Spy crawls round the camp — behind e9, down its east side, along the strip outside the palisade',
+  C3: 'Nobody looking: she takes a uniform from the clothesline',
+  D1: 'Under water down the river; he surfaces on e14\u2019s blind side for one shot',
+  E1: 'Disguised, she walks over the crest: nobody below can see up there',
+  E2: 'Fence power off at the admin-block switch',
+  E3: 'She chats up e17 from his west side: his back is to the river',
+  F1: 'Decoy north of the camp: e12 turns his back on the west gate',
+  F2: 'e6 knifed from behind',
+  F3: '… and carried down the strip to e14, out of every cone',
+  F4: 'Decoy off and fetched back',
+  G1: 'Green Beret, Sapper and Marine by the raft',
+  G2: 'Across in a gap in every cone (a boat on the water is seen in the light band too)',
+  G3: 'The Marine packs the raft and dives (an empty raft in view is shot at); the Sapper cuts the dead fence',
+  G4: 'The Spy leaves e17 and chats up e20, his back to the shed',
+  G5: 'Both time bombs taken from the shed',
+  G6: 'The Spy back with e17; the Sapper out through the hole',
+  H1: 'The raft, deployed again, fetches the Sapper back across and is packed; up the east stair he waits on the dam crest',
+  H2: 'The Spy now holds e18 at the north gate, from his south side',
+  H3: 'Decoy by the north gate; the Green Beret back on the strip, in the snow',
+  H4: 'The raft takes the Green Beret over to the truck road and is packed away',
+  H5: 'The Spy walks over the crest to the truck road',
+  I1: 'Decoy on, by radio: the gunner turns to it, his back to the stair',
+  I2: 'Down the west stair and into the bunker: charge one set inside',
+  I3: 'Charge two at the spillway gates in the middle of the crest; then off it',
+  I4: 'Bunker and dam destroyed (objectives 1 and 2)',
   J1: 'The truck arrives north of the dam',
   J2: 'All four aboard: mission complete',
 };
@@ -84,10 +86,12 @@ export function shots(cp, objT) {
     s.push({ t0: o2 - 4, t1: o2 + 2, x: 47, y: 0, z: 25, zoom: 0.55, prio: 2 });
     s.push({ t0: o2 + 2, t1: o2 + 60, x: 59.5, z: 10.5, zoom: 0.85, prio: 2 }); // the truck stops at (60, 9.2)
   }
-  const f1 = cp('F1'); if (f1) s.push({ t0: f1 - 2, t1: f1 + 3, x: 24.6, y: 0, z: 62, zoom: 0.8, prio: 1 }); // the Spy and e18
+  const h2 = cp('H2'); if (h2) s.push({ t0: h2 - 2, t1: h2 + 3, x: 26, y: 0, z: 62, zoom: 0.8, prio: 1 }); // the Spy and e18
   const a3 = cp('A3'); if (a3) s.push({ t0: a3 - 4, t1: a3 + 4, x: 101, y: 0, z: 11, zoom: 0.7, prio: 1 }); // p1 stare at the decoy
-  const g1 = cp('G1'); if (g1) s.push({ t0: g1 - 3.5, t1: g1 + 0.5, x: 25, y: 0, z: 52, zoom: 0.6, prio: 1 });
-  const h2 = cp('H2'); if (h2) s.push({ t0: h2, t1: h2 + 6, x: 19, y: 0, z: 52, zoom: 0.6, prio: 1 });
+  const i1 = cp('I1'); if (i1) s.push({ t0: i1 - 3.5, t1: i1 + 0.5, x: 25, y: 0, z: 52, zoom: 0.6, prio: 1 }); // the gunner turns
+  const c0 = cp('C0'); if (c0) s.push({ t0: c0 - 3, t1: c0 + 2, x: 126, y: 0, z: 46, zoom: 0.7, prio: 1 }); // e8 knifed
+  const d1 = cp('D1'); if (d1) s.push({ t0: d1 - 3, t1: d1 + 3, x: 101, y: 0, z: 75, zoom: 0.7, prio: 1 }); // e14 harpooned
+  const f1 = cp('F1'); if (f1) s.push({ t0: f1 - 1, t1: f1 + 4, x: 95, y: 0, z: 52, zoom: 0.7, prio: 1 }); // e12 turns to the decoy
   return s;
 }
 
@@ -97,8 +101,9 @@ export function windows(cp, objT) {
   const o1 = objT('o1'), o2 = objT('o2');
   if (o1) w.push({ t0: o1 - 3, t1: o1 + 5, speed: 1 });
   if (o2) w.push({ t0: o2 - 3, t1: o2, speed: 1 }, { t0: o2, t1: o2 + 60, speed: 0.5 }); // the blast and the escape at half speed
-  for (const [k, a, b, sp] of [['A3', -4, 1, 2], ['C3', -5, 1, 1.5], ['D2', -3, 1, 1.5], ['D3', -2, 2, 2], ['E2', -4, 1, 1.5],
-    ['E3', -3, 1, 1.5], ['F1', -2, 3, 2], ['F2', -4, 1, 2], ['G1', -4, 1, 1.5], ['G2', -3, 1, 1.5], ['H2', -1, 6, 2], ['I2', -3, 1, 1.5]]) {
+  for (const [k, a, b, sp] of [['A3', -4, 1, 2], ['C0', -4, 2, 1], ['C3', -5, 1, 1.5], ['D1', -3, 2, 1], ['E2', -3, 1, 1.5],
+    ['E3', -2, 2, 2], ['F2', -4, 2, 1], ['F3', -3, 1, 1.5], ['G2', -20, 1, 2], ['G3', -4, 1, 1.5], ['G5', -3, 1, 1.5],
+    ['H2', -2, 3, 2], ['I1', -4, 1, 1.5], ['I2', -8, 1, 1.5], ['I3', -3, 1, 1.5]]) {
     const t = cp(k);
     if (t) w.push({ t0: t + a, t1: t + b, speed: sp });
   }

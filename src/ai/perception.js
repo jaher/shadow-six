@@ -135,7 +135,22 @@ export function targetClass(target, o = {}, viewer = null) {
     return null;
   }
   if (target.disguised && !o.ignoreDisguise && !(viewer && recognises(viewer, target))) return null; // BCD §1.6 ranks (BEL: never)
+  // a man aboard an open boat (Unit.isVisibleToEnemies) is in plain view, whatever stance he climbed in with: a boat
+  // on open water is seen anywhere in the cone, the light far band too (user, M3 2026-10-08: "Even the raft boat in the
+  // light shaded field of view of a soldier makes the soldier see it") — §4.2 band table. Men sitting in a raft or
+  // rowboat (`seated`) are still low behind cover on the bank (canSee: low LOS); men on a deck are not.
+  if (target.state === 'inVehicle' && target.vehicle?.isOpenBoat) return 'full';
   return target.isLow ? 'near' : 'full';
+}
+
+/**
+ * The open boat a target is aboard (Unit.isVisibleToEnemies), or null: the boat's own occluder stamp (the patrol
+ * boat's hull) never hides the men on its deck (targetHull). Men sitting in a raft / rowboat are seen in both bands
+ * but are low behind cover (canSee).
+ */
+function openBoatOf(target) {
+  const v = target.state === 'inVehicle' ? target.vehicle : null;
+  return v?.isOpenBoat ? v : null;
 }
 
 /**
@@ -168,7 +183,8 @@ export function canSee(viewer, target, world, o = {}) {
   // the lower level"); the men below still cannot see him, and he never sees up.
   if ((vy >= S.roofY || ty >= S.roofY) && Math.abs(vy - ty) > S.rooftopDelta && world?.mission?.rules?.roofRule !== false
     && !(cone.overlooks && vy > ty)) return 'none';
-  const low = isBody(target) || cls === 'near';
+  const boat = openBoatOf(target);
+  const low = isBody(target) || cls === 'near' || !!boat?.def?.seated; // seated in a raft: low behind cover, any band
   // Deck-edge rule (§4.7): a body or a low (prone) unit lying on a raised surface above the viewer's eye
   // (a wall walk, a deck) is hidden by the surface edge — the low-surface case of the roof rule (M2 walk_sw).
   // `falling`: the victim of a kill seen as he drops (notifyKill) is still upright, so the rule waits.
@@ -176,6 +192,7 @@ export function canSee(viewer, target, world, o = {}) {
   const los = world.grid.lineOfSight(cone.x, cone.z, target.x, target.z, {
     viewerElevated: cone.elevated, targetLow: low, viewerY: vy, targetY: ty, dynamic: o.dynamic ?? target.kind !== 'vehicle',
     ownHull: viewer.ownHull, ownOwner: postOwner(viewer, world),
+    targetHull: boat?.def?.occludes ? { x: boat.x, z: boat.z, w: boat.def.size[0], d: boat.def.size[1], heading: boat.heading || 0 } : undefined,
     // an MG gunner on an open platform sees over a wall lower than his sight line to the target's head
     overWalls: cone.overWalls ? { heightOf: ownerHeight(world), eyeY: cone.y, targetTopY: ty + (low ? 0.4 : 1.5) } : undefined,
   });

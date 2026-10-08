@@ -101,14 +101,14 @@ for (const o of ['o1', 'o2']) {
 }
 if (alarmOn != null) clip(S('siren_handcrank', 'siren_handcrank_239498_0.ogg'), alarmOn + 1.5, { len: Math.max(2, Math.min(20, (alarmOff ?? alarmOn + 20) - alarmOn - 1.5)), vol: 0.35, fin: 1, fout: 3 });
 const at = (key, f, o) => { const t = cpT(key); if (t != null) clip(f, vt(t), o); };
-at('C3', S('k_cloth', 'cloth2.ogg'), { vol: 1 });
-at('D2', S('k_ui_switch', 'switch_004.ogg'), { vol: 1 });
-at('E2', S('k_metal_click', 'metalClick.ogg'), { vol: 1 });
+at('C3', S('k_cloth', 'cloth2.ogg'), { vol: 1 }); // the Spy dresses
+at('E2', S('k_ui_switch', 'switch_004.ogg'), { vol: 1 }); // fence power off
+at('G3', S('k_metal_click', 'metalClick.ogg'), { vol: 1 }); // the wire cut
 at('E3', S('k_cloth', 'cloth3.ogg'), { vol: 0.9 });
-at('F2', S('k_dig', 'impactMining_001.ogg'), { vol: 0.8 });
-at('H1', S('k_dig', 'impactMining_002.ogg'), { vol: 0.8 });
-at('G2', S('bomb_tick1', 'bomb_tick1_487730_0.ogg'), { vol: 0.8 });
-at('I2', S('bomb_tick1', 'bomb_tick1_487730_1.ogg'), { vol: 0.8 });
+at('C1', S('k_dig', 'impactMining_001.ogg'), { vol: 0.8 }); // the GB digs in
+at('H3', S('k_dig', 'impactMining_002.ogg'), { vol: 0.8 });
+at('I2', S('bomb_tick1', 'bomb_tick1_487730_0.ogg'), { vol: 0.8 }); // charge one
+at('I3', S('bomb_tick1', 'bomb_tick1_487730_1.ogg'), { vol: 0.8 }); // charge two
 if (cpT('J1') != null) {
   const t0 = Math.max(0, vt(cpT('J1')) - 4), t1 = winAt != null ? vt(winAt) + 3 : t0 + 8;
   clip(S('truck_engine', 'truck_engine_405086_0.ogg'), t0, { len: t1 - t0, loop: true, vol: 0.6, fin: 2, fout: 2 });

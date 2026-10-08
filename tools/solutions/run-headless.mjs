@@ -31,10 +31,12 @@ try {
   await solve(D, { boardPoint, onStage: (s, title) => console.log(`== stage ${s}: ${title} (t=${D.t.toFixed(1)})`) });
 } catch (e) { error = e; console.error(e.stack || e); }
 const obj = Object.fromEntries(D.world.objectives.map((o) => [o.id, o.done]));
-const ok = !error && Object.values(obj).every(Boolean) && D.detections() === 0;
+const exposed = D.exposureReport();
+if (exposed.length) console.log(`EXPOSED ${exposed.length}:\n  ${exposed.join('\n  ')}`);
+const ok = !error && Object.values(obj).every(Boolean) && D.detections() === 0 && !exposed.length;
 const report = { mission: id, ok, error: error ? String(error.message || error) : null, time: +D.t.toFixed(2), objectives: obj,
-  detections: D.detections(), kills: D.events.filter((e) => e.name === 'unit:killed').map((e) => e.line), alarms: D.events.filter((e) => e.name === 'alarm:zone').map((e) => `${e.t.toFixed(1)} ${e.line}`),
+  detections: D.detections(), exposures: exposed, kills: D.events.filter((e) => e.name === 'unit:killed').map((e) => e.line), alarms: D.events.filter((e) => e.name === 'alarm:zone').map((e) => `${e.t.toFixed(1)} ${e.line}`),
   checkpoints: D.checkpoints, wallMs: Date.now() - t0 };
-console.log(`${ok ? 'WIN' : 'FAIL'} ${id} t=${report.time}s objectives=${JSON.stringify(obj)} detections=${report.detections} (${report.wallMs} ms)`);
+console.log(`${ok ? 'WIN' : 'FAIL'} ${id} t=${report.time}s objectives=${JSON.stringify(obj)} detections=${report.detections} exposures=${exposed.length} (${report.wallMs} ms)`);
 if (jsonAt >= 0) writeFileSync(args[jsonAt + 1], JSON.stringify(report, null, 1));
 process.exit(ok ? 0 : 1);

@@ -215,7 +215,7 @@ export const CONFIG = {
 
   /** Enemy AI (§4.1, §4.3–§4.7). */
   ai: {
-    nervousness: { T: 50, decayPerTick: 1, closeRange: 2.25, heldValue: 1000, bodyBonusDiv: 25, dispMul: 2 }, // §4.5 [EXE]: N += floor(dispMul·d²), d in BEL units
+    nervousness: { T: 50, decayPerTick: 1, closeRange: 2.25, heldValue: 1000, bodyBonusDiv: 25, dispMul: 2, boatNoticeDiv: 8 }, // §4.5 [EXE]: N += floor(dispMul·d²), d in BEL units
     investigate: { speed: 1.8, look: 4.0, runSpeed: 3.8, arrive: 1.5, lookSweep: 90, mateShot: 8 }, // §4.6 INVESTIGATE
     decoy: { radius: 13.5, pulse: 1.5, giveUp: 5.0, standOff: 2.0, shockIgnore: 20, maxDwell: null }, // §4.6 DECOY [rec]; shockIgnore: s deaf to lures after a level-3 shock / broken lure; maxDwell: s (null = none; missions: rules.decoyMaxDwell)
     search: { time: 20, points: 3, radius: 8, look: 2 }, // §4.6 SEARCH
@@ -246,7 +246,7 @@ export const CONFIG = {
     body: { arrive: 1.5, kneel: 1.0, alarmDelay: 1.0 }, // §4.6 BODY
     noiseTurnHold: 8, // §4.4 holdsPost: sweep re-centred on a level-1 noise for 8 s
     arrest: { arrive: 1.5, escortSpeed: 1.8, rescueTime: 1.5 }, // §4.10
-    raftShots: 3, raftUnattended: 3, // §4.3 raft seen unattended (no commando within 3 m) deflates after 3 hits
+    raftShots: 3, raftUnattended: 3, // §4.3 raft seen unattended (no commando within 3 m whom the viewer sees) deflates after 3 hits
     engineerRun: 4.5, // §4.1 M16 engineer runs to his detonator
     courierSpeed: 9, // §4.6 ALARM_RUN motorbike
     // --- AI team additions (Stage 1) ---

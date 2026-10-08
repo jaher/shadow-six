@@ -285,7 +285,10 @@ export class Commando extends Unit {
     switch (order.type) {
       case 'move':
         if (this.vehicle?.handleOrder) { ok = this.vehicle.handleOrder(this, order); break; } // VEHICLES §3.7: drive / halt
-        if (this.armed === 'pistol') break; // §3.2 pistol drawn: left-click fires, moves refused
+        if (this.armed === 'pistol') { // §3.2 pistol drawn: left-click fires, moves refused — never silently
+          w.events.emit('message', { text: `${this.nickname}: holster the pistol first (right-click).`, kind: 'warn', unit: this });
+          break;
+        }
         if (this.puppet?.puppetOf === this) { ok = this.puppet.moveTo(order.x, order.z, { run: !!order.run }); break; } // BCD §1.3
         if (this.buried) { ok = this._riseThenMove(order); break; } // §3.4: a move order digs him out first
         if (this.hidden || this.state === 'inVehicle') break;

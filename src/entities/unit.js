@@ -180,8 +180,12 @@ export class Unit extends Entity {
     return LOW_STANCES.has(this.stance);
   }
 
-  /** False when hidden, inside a vehicle, carried or diving underwater. */
+  /**
+   * False when hidden, inside a closed vehicle, carried or diving underwater. A man aboard an OPEN boat (raft,
+   * rowboat, a boat's deck) is in plain view (§4.2): his own stance (a diver who hoisted himself in) does not hide him.
+   */
   get isVisibleToEnemies() {
+    if (this.state === 'inVehicle' && this.vehicle?.isOpenBoat) return this.alive && !this.hidden;
     return this.alive && !HIDDEN_STATES.has(this.state) && this.stance !== 'dive' && !this.buried && !this.underwater && !this.hidden;
   }
 
@@ -212,6 +216,7 @@ export class Unit extends Entity {
     if (!path) return false;
     this._bodyBlockT = 0;
     this._bodyProg = null;
+    this._bodyRepaths = 0; // (a fresh order gets its three tries; the step guard's own re-path sets its count after)
     this._settled = false;
     this._settleHeading = null;
     this.path = path;
@@ -775,12 +780,18 @@ export class Unit extends Entity {
     if (g >= gPrev - 1e-3) return keep(); // not deeper (a vehicle came to him, or he is getting out)
     const need = Math.min(MOVE_MARGIN, gPrev);
     const c = Math.cos(P.heading), s = Math.sin(P.heading), front = st === 'crawl' || st === 'downed' ? 0.6 : 0;
-    const cands = [
-      [this.x, this.z, P.heading, true],
+    const cands = [[this.x, this.z, P.heading, true]];
+    const turns = [
       // a prone traverse rotates about the elbows: the legs sweep, the chest stays (crawl-animation.md §3.6)
       [P.x + c * front - Math.cos(this.heading) * front, P.z + s * front - Math.sin(this.heading) * front, this.heading, false],
       [P.x, P.z, this.heading, false],
     ];
+    // (only a real turn of a lying body: on his feet the body is a disc, and with no turn this step either way the "turn"
+    // is standing still — always as clear as where he stood — so it comes after the slides below, or a man whose way
+    // grazes a solid never slid along it: blocked, re-planned the same way three times, stopped. Stuck-orders soak, M2:
+    // the Marine between gate_se's boom post and fork rest on his feet, and crawling past the two drums by the dock)
+    const turning = !!front && Math.abs(angleDiff(this.heading, P.heading)) > 1e-4;
+    if (turning) cands.push(...turns);
     // sliding along it: the same step turned 35° / 70° either way (lying down the body turns with it); not for
     // ever — 3 s of sliding without getting 0.3 m nearer the goal and he counts as blocked (re-plan)
     const sx = this.x - P.x, sz = this.z - P.z, sl = Math.hypot(sx, sz), mt = this.moveTarget;
@@ -793,6 +804,24 @@ export class Unit extends Entity {
         cands.push([P.x + dx, P.z + dz, front ? turnTowardsAngle(P.heading, Math.atan2(dz, dx), PRONE_TURN * dt) : this.heading, true, true]);
       }
     }
+    // edging off it to turn: a man facing well away from his way on, whose turn toward it swings his head or legs into
+    // the solid (lying with his head at a sandbag line, the way east behind him: both ways round sweep the bags), gives
+    // ground first — a step straight away from it (the gap's gradient), turning as far as that leaves room, else not
+    // turning. Without it no step or turn was ever clear: the order was taken and he never moved (stuck-orders soak,
+    // m00 seed 3, the Sapper south of the compound sandbags). Counted as a slide (the 3 s no-progress rule).
+    const wp = this.path?.[this.pathIndex];
+    if (wp && mt && !(pr && pr.t > 3)) {
+      const want = Math.atan2(wp.z - P.z, wp.x - P.x) + (this.moveHeadingOffset || 0);
+      if (Math.hypot(wp.x - P.x, wp.z - P.z) > 0.05 && Math.abs(angleDiff(P.heading, want)) > 0.35) {
+        const e = 0.05, gg = (dx, dz) => bodyGap(w, P.x + dx, P.z + dz, P.heading, st, ign);
+        const gx = gg(e, 0) - gg(-e, 0), gz = gg(0, e) - gg(0, -e), gl = Math.hypot(gx, gz), bs = Math.max(sl, this.speed * dt);
+        if (gl > 1e-4) {
+          const bx = P.x + (gx / gl) * bs, bz = P.z + (gz / gl) * bs;
+          cands.push([bx, bz, this.heading, true, true], [bx, bz, P.heading, true, true]);
+        }
+      }
+    }
+    if (!turning) cands.push(...turns);
     let pick = null;
     const wo = front ? CRAWL_WALK : undefined; // a crawler is through a hole cut in a fence (grid crawlway)
     for (const [x, z, h, moved, slide] of cands) {
@@ -820,6 +849,8 @@ export class Unit extends Entity {
           this._bodyRepaths = 0;
           const cp = st === 'crawl' || st === 'downed' ? clearPose(w, this.x, this.z, this.heading, st, { maxDist: 0, ignore: ign }) : null;
           if (cp) { this.heading = cp.heading; this._turnInPlace = true; } // given up: at least lie clear of it where he is
+          // a commando's walk order that ends here says so (never a man who just stops: "can't get there", Commando.issue)
+          if (this.faction === 'player' && !this.pendingAbility && !this.currentAction) w.events?.emit('message', { text: `${this.nickname || this.role}: can't get there.`, kind: 'warn', unit: this });
         }
         else this._bodyRepaths = n;
       }

@@ -16,7 +16,7 @@
  * CONFIG.vehicles.loseTarget s after losing sight. They also attack tainted vehicles.
  *
  * World-level (installed lazily once per world, 20 Hz BEL tick): enemies on foot with a gun attack any
- * tainted vehicle they see until it is destroyed (§3.7), and fire at deployed rafts seen unattended
+ * tainted vehicle they see until it is destroyed (§3.7), and fire at deployed rafts seen unattended (nobody of ours in sight beside them)
  * (no commando within 3 m) until they deflate (§4.3).
  * @module ai/vehicle-ai
  */
@@ -89,7 +89,7 @@ function spotCommando(vehicle, world) {
   const eye = viewerFor(vehicle);
   let best = null, bd = Infinity;
   for (const c of world.commandos) {
-    if (!c.alive || c.vehicle) continue;
+    if (!c.alive || (c.vehicle && !c.vehicle.isOpenBoat)) continue; // men in an open boat are in plain view (§4.2)
     if (canSee(eye, c, world) === 'none') continue;
     const d = Math.hypot(c.x - vehicle.x, c.z - vehicle.z);
     if (d < bd) { bd = d; best = c; }
@@ -284,13 +284,22 @@ export function installVehicleAI(world) {
   world._vehicleAI = { off: world.onBelTick((dt20) => tick(world, dt20, cd)), cd };
 }
 
-function unattendedRaft(v, world) {
-  if (!v.def.raft || !v.used || v.destroyed || v.occupants.length) return false;
-  return !world.commandos.some((c) => c.alive && Math.hypot(c.x - v.x, c.z - v.z) <= 3);
+/** A deployed (used) raft with nobody aboard: suspicious unless `viewer` sees a man of ours beside it (§4.3). */
+function emptyUsedRaft(v) {
+  return !!v.def.raft && !!v.used && !v.destroyed && !v.occupants.length;
+}
+/**
+ * Is the empty raft `v` unattended for `viewer`? Attended = a commando within 3 m whom this viewer can see. A man he
+ * cannot see (under water beside it, buried, crawling unseen in the light band, behind a rock) attends nothing: to
+ * him the raft lies there alone ("even the raft in the light shaded field of view makes the soldier see it").
+ */
+function unattendedFor(viewer, v, world) {
+  const R = CONFIG.ai.raftUnattended ?? 3;
+  return !world.commandos.some((c) => c.alive && Math.hypot(c.x - v.x, c.z - v.z) <= R && canSee(viewer, c, world, { ignoreDisguise: true }) !== 'none');
 }
 
 function tick(world, dt, cd) {
-  const targets = world.vehicles.filter((v) => !v.removed && !v.destroyed && (v.tainted || unattendedRaft(v, world)));
+  const targets = world.vehicles.filter((v) => !v.removed && !v.destroyed && (v.tainted || emptyUsedRaft(v)));
   if (!targets.length) return;
   for (const e of world.enemies) {
     if (!e.alive || !e.vision || !GUNS.has(e.weapon) || e.held || ['stunned', 'bound', 'dead', 'captured'].includes(e.state)) continue;
@@ -306,7 +315,8 @@ function tick(world, dt, cd) {
     let left = (cd.get(e) || 0) - dt;
     cd.set(e, left);
     const wd = CONFIG.weapons[e.weapon];
-    const v = (t0 && targets.includes(t0) && canSeeVehicle(e, t0, world)) ? t0 : targets.find((x) => canSeeVehicle(e, x, world));
+    const shootable = (x) => canSeeVehicle(e, x, world) && (x.tainted || unattendedFor(e, x, world));
+    const v = (t0 && targets.includes(t0) && shootable(t0)) ? t0 : targets.find(shootable);
     if (!v) { if (t0 && t0.kind === 'vehicle' && t0.destroyed) e.target = null; continue; }
     const d = Math.hypot(v.x - e.x, v.z - e.z) - Math.min(...v.def.size) / 2;
     e.target = v;

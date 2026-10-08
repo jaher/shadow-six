@@ -27,7 +27,7 @@ test('CONFIG implements the design-spec §10.3 mapping', () => {
   assert.deepEqual(CONFIG.stealth.vision.soldier, { fov: 70, near: 18, far: 36, sweep: 50, period: 5.0, elliptical: true });
   assert.equal(CONFIG.stealth.vision.tank.sweep, 155);
   assert.equal(CONFIG.stealth.noise.pistol.radius, 18); assert.equal(CONFIG.stealth.noise.explosion.radius, MAP_WIDE);
-  assert.deepEqual(CONFIG.ai.nervousness, { T: 50, decayPerTick: 1, closeRange: 2.25, heldValue: 1000, bodyBonusDiv: 25, dispMul: 2 });
+  assert.deepEqual(CONFIG.ai.nervousness, { T: 50, decayPerTick: 1, closeRange: 2.25, heldValue: 1000, bodyBonusDiv: 25, dispMul: 2, boatNoticeDiv: 8 });
   assert.equal(CONFIG.alarm.sirenDur, 25); near(CONFIG.alarm.sirenGain / CONFIG.alarm.sirenFadePerSec, 25, 1e-9);
   assert.equal(CONFIG.weapons.pistol.dmg, 80); assert.equal(CONFIG.weapons.pistol.damage, 80, 'legacy alias');
   assert.equal(CONFIG.weapons.sniperRifle, CONFIG.weapons.sniper); assert.equal(CONFIG.weapons.sniper.dmg, KILL);

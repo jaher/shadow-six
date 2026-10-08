@@ -196,9 +196,16 @@ export class Input {
     if (next.size > 1) for (const c of [...next]) if (!multiSelectable(c)) next.delete(c);
     for (const c of w.commandos) c.selected = next.has(c);
     if (this.targeting) {
-      this.targeting.commandos = this.targeting.commandos.filter((c) => c.selected);
-      if (!this.targeting.commandos.length) this.cancelTargeting();
-      else this.targeting.commando = this.targeting.commandos[0];
+      const t = this.targeting, keep = t.commandos.filter((c) => c.selected);
+      if (!keep.length) this.cancelTargeting(); // (a drawn pistol is holstered with its cursor)
+      else {
+        // a man taken out of the cursor (another man picked) puts his item away as when the cursor goes (§3.2)
+        const left = t.commandos.filter((c) => !c.selected);
+        for (const c of left) { if (c.armed === 'syringe') c.armed = null; c.readyTool = null; }
+        if (left.length && t.def && isWeapon(t.def)) this._holster(left);
+        t.commandos = keep;
+        t.commando = keep[0];
+      }
     }
     w.events.emit('unit:selected', { units: this.selection });
   }
@@ -329,6 +336,9 @@ export class Input {
       for (const c of commandos) this.game.enqueue(() => c.issue({ type: 'ability', id: abilityId, target: c }));
       return true;
     }
+    // another item's cursor replaces this one: the old one is left as Esc leaves it (a drawn pistol holstered — pistol,
+    // then the knife: after the kill he would not walk, §3.2 — the syringe put away); the same item again keeps it
+    if (this.targeting && this.targeting.abilityId !== abilityId) this.cancelTargeting();
     this.targeting = { abilityId, def, commando: commandos[0], commandos };
     // §3.4: the Spy moving with the syringe cursor up is a suspicious act (ABILITIES reads commando.armed).
     // The pistol sets `armed` itself when drawn (its draw time depends on it), so only the syringe here.
@@ -339,11 +349,27 @@ export class Input {
     return true;
   }
 
+  /**
+   * Leave the item cursor (Esc, the bag icon again, another item, the men deselected, right-click). A drawn pistol goes
+   * back in its holster with its cursor (§3.2: while it is drawn, left-click fires and move orders are refused — with
+   * no pistol cursor left, every ground click after that was silently ignored: "they can stand and crawl but they
+   * don't go where I tell them", user in the tutorial after the pistol).
+   */
   cancelTargeting() {
     if (!this.targeting) return;
-    for (const c of this.targeting.commandos || []) { if (c.armed === 'syringe') c.armed = null; c.readyTool = null; }
+    const t = this.targeting;
+    for (const c of t.commandos || []) { if (c.armed === 'syringe') c.armed = null; c.readyTool = null; }
     this.targeting = null;
+    if (t.def && isWeapon(t.def)) this._holster(t.commandos || []); // (a bare {abilityId} set by a script: nothing drawn)
     this.setCursor(this.selection.length ? 'move' : '');
+  }
+
+  /**
+   * Holster the drawn pistol of each of `men` (their {type:'cancel'} order: right-click's first effect, Commando.rightClick),
+   * checked when the queue runs: a shot queued just before is fired first, then the gun goes away.
+   */
+  _holster(men) {
+    for (const c of men) this.game.enqueue(() => { if (c.alive && c.armed === 'pistol') (c.holster ? c.holster() : c.issue?.({ type: 'cancel' })); });
   }
 
   /** Enter the HUD camera-icon mode: the next unit click is tracked (§2.3). */
@@ -428,7 +454,12 @@ export class Input {
       const [ox, oz] = offs[k];
       const order = { type: 'move', x: x + ox, z: z + oz, run };
       orders.push(order);
-      this.game.enqueue(() => c.issue(order));
+      // a ground click with the move cursor up is a move: a pistol still drawn (no pistol cursor — a shot queued as
+      // the cursor went) is holstered first, never a click silently ignored (§3.2 refuses moves while it is drawn)
+      this.game.enqueue(() => {
+        if (c.alive && c.armed === 'pistol' && !this.targeting?.commandos?.includes(c)) (c.holster ? c.holster() : c.issue?.({ type: 'cancel' }));
+        c.issue(order);
+      });
     });
     return orders;
   }
@@ -733,10 +764,7 @@ export class Input {
    */
   rightClick() {
     if (this.targeting) {
-      const t = this.targeting;
-      this.cancelTargeting();
-      // holster (§3.2): the commando's {type:'cancel'} order puts a drawn pistol away
-      if (isWeapon(t.def)) for (const c of t.commandos) if (c.armed) this.game.enqueue(() => (c.holster ? c.holster() : c.issue?.({ type: 'cancel' })));
+      this.cancelTargeting(); // (a weapon's cursor: the drawn pistol is holstered, §3.2 — cancelTargeting)
       return 'cancel';
     }
     if (this.mode) {

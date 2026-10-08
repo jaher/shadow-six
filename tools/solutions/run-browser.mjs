@@ -41,14 +41,15 @@ try {
     // let the game's own end check run (win screen state)
     for (let i = 0; i < 600 && G.game.state === 'playing'; i++) G.game.step(dt);
     const obj = Object.fromEntries(D.world.objectives.map((o) => [o.id, o.done]));
-    return { error, time: D.t, objectives: obj, detections: D.detections(), state: G.game.state, checkpoints: D.checkpoints,
+    return { error, time: D.t, objectives: obj, detections: D.detections(), exposures: D.exposureReport(), state: G.game.state, checkpoints: D.checkpoints,
       kills: D.events.filter((e) => e.name === 'unit:killed').map((e) => e.line), wallMs: performance.now() - t0 };
   }, [id, !!process.env.M3DBG, jitter]);
   report.errors = h.errors(page).slice(0, 20);
 } finally {
   await h.close();
 }
-const ok = !report.error && Object.values(report.objectives).every(Boolean) && report.detections === 0;
+const ok = !report.error && Object.values(report.objectives).every(Boolean) && report.detections === 0 && !report.exposures.length;
 console.log(`${ok ? 'WIN' : 'FAIL'} ${id} (browser) t=${report.time.toFixed(2)} state=${report.state} objectives=${JSON.stringify(report.objectives)} detections=${report.detections} error=${report.error} (${Math.round(report.wallMs)} ms)`);
+for (const l of report.exposures) console.log(`EXPOSED ${l}`);
 if (jsonAt >= 0) writeFileSync(args[jsonAt + 1], JSON.stringify({ ok, ...report }, null, 1));
 process.exit(ok ? 0 : 1);

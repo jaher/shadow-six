@@ -398,7 +398,7 @@ The animation names are the humanoid names from ARCHITECTURE. Each voice cue is 
   - Only he rows it. Capacity 3 (him plus 2). Rowing speed 2.5 m/s, with the river current added (`water.velocity`, §7.3).
   - He boards first. Others board by clicking the raft while it sits in shallow water.
   - **H on the raft** from shallow water or the bank deflates and packs it (2.0 s). Carrying it slows him (see §3.1).
-  - **An unattended deployed raft is suspicious.** Enemies who see it shoot it; it deflates (it is not destroyed) and becomes a pickup on the spot. On-site rafts that nobody has used yet are not suspicious.
+  - **An unattended deployed raft is suspicious.** Enemies who see it shoot it; it deflates (it is not destroyed) and becomes a pickup on the spot. On-site rafts that nobody has used yet are not suspicious. Attended means a commando within 3 m whom that enemy can see: a Marine under water beside it, a buried GB or a man crawling unseen in the light band attends nothing — to that enemy the raft lies there alone (seen in any band of his cone, like a raft with men in it). Pack it (H) rather than leave it in view.
 - **Other craft.** He is the only operator of water craft: patrol boat (M4, auto), rowboats (M7, M14, M19), and the mini-sub (M13; 2 torpedoes, §7.1).
 - He **cannot carry bodies**.
 
@@ -745,8 +745,10 @@ Every commando also carries a pistol. "(site)" marks items found on the map.
 |---|---|---|
 | Commando standing, walking, running, kneeling, climbing, or manning a gun | seen | seen |
 | Commando crawling, or swimming at the surface | seen | **not seen** |
+| Commando sitting in an open boat (raft, rowboat): a boat on open water is seen in the light band too (user 2026-10-08); low cover on the bank hides him | seen | **seen** |
+| Commando standing on an open boat's deck (patrol / escape boat) | seen | seen |
 | Marine submerged, Green Beret buried | not seen (witness rule, §3.4) | not seen |
-| Commando hidden in a building, or in a closed vehicle | not seen | not seen |
+| Commando hidden in a building, or in a closed vehicle (truck cab, car, tank, the mini-sub) | not seen | not seen |
 | Disguised Spy | ignored (seen only for suspicious-act checks, full cone) | ignored |
 | **Body** (German or allied) | seen | **seen** [EXE: bodies are not in the near-only mask] |
 | **Footprint** (AI-visible) | seen | not seen [EXE flag PISADA] |
@@ -779,7 +781,7 @@ Every commando also carries a pistol. "(site)" marks items found on the map.
 - **Seen list.** Each enemy tracks at most 16 seen objects per tick [EXE]. Commandos come first, then bodies, then footprints.
 - **Witness memory.** Each enemy remembers `lastSeen {target, x, z, t}`. It is used by CHALLENGE, COMBAT and SEARCH, and by the dig and dive witness rules.
 - **Boarding a vehicle.** An enemy who sees a commando board a vehicle: the vehicle becomes `tainted` (§3.7), the enemy enters COMBAT against the vehicle, and he shouts `ger_alarm`.
-- **Deployed raft seen unattended** (no commando within 3 m): the enemy fires at it until it deflates (3 hits) [guide].
+- **Deployed raft seen unattended** (no commando within 3 m whom this enemy sees — a hidden man, submerged or crawling unseen, does not count): the enemy fires at it until it deflates (3 hits) [guide].
 - **Wounded comrade seen** (below 200 HP and alive): the viewer runs (3.8 m/s) to INVESTIGATE the last known shooter position with alertLevel 2, and goes to COMBAT on sight (§4.6).
 - **Kill seen** (any commando kill inside the viewer's cone, full cone): the viewer sets `sawKill`, goes to COMBAT against the killer, and raises the alarm (§4.9) [guide: "Killing a man in view of another guard raises the alarm"].
 
@@ -884,6 +886,7 @@ Each non-MG soldier has a **nervousness N** and a **threshold T = 50** (`.NERVIO
      | Standing still | 0 | never |
 
    - `N = 20·T = 1000` at once if the target is **within 2.25 m** (50 u), is already held, or was seen killing, carrying a body or boarding a vehicle.
+   - SHADOW SIX boat rule (user 2026-10-08): a commando aboard an open boat (raft, rowboat, deck) adds at least `ceil(T / 8)` = +7 per tick, rowing or lying still: a boat in view is noticed within about half a second (`CONFIG.ai.nervousness.boatNoticeDiv`).
    - If the enemy has `sawBody`: `N += max(1, T/25)` = +2 per tick while any commando is seen.
 3. **If N ≥ T:** enter **CHALLENGE** against that commando.
 
@@ -2151,7 +2154,7 @@ CONFIG.stealth  = { vision: {soldier: {fov: 70, near: 18, far: 36, sweep: 50, pe
                              cannon: {...}, tank: {...}, sdkfz: {...}},
                     ellipseMode: 'classic', eyeHeight: 1.65, footprint: {walkStep: 0.75, runStep: 1.6, life: 90, fade: 30},
                     rooftopDelta: 2.0 }
-CONFIG.ai       = { nervousness: {T: 50, decayPerTick: 1, closeRange: 2.25, heldValue: 1000, bodyBonusDiv: 25},
+CONFIG.ai       = { nervousness: {T: 50, decayPerTick: 1, closeRange: 2.25, heldValue: 1000, bodyBonusDiv: 25, dispMul: 2, boatNoticeDiv: 8},
                     investigate: {speed: 1.8, look: 4.0}, decoy: {radius: 13.5, pulse: 1.5, giveUp: 5.0, standOff: 2.0},
                     search: {time: 20, points: 3, radius: 8}, lostTarget: 3.0, chaseSpeed: 3.8, halt: {cooldown: 3, moveTol: 0.3},
                     partnerGlance: {every: 25, dur: 2.5}, panic: {stuck: 5, wander: 2}, aim: 0.5, enemyHP: 200 }

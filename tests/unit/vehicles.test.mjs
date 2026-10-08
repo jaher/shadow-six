@@ -10,6 +10,7 @@ import { Enemy } from '../../src/entities/enemy.js';
 import { fireFromVehicle } from '../../src/abilities/operate.js';
 import { leaveVehicle, routeVehicleOrder } from '../../src/abilities/drive.js';
 import { ABILITIES } from '../../src/abilities/index.js';
+import { canSee } from '../../src/ai/perception.js';
 
 const DT = 1 / 60;
 
@@ -500,6 +501,40 @@ test('raft unattended (§4.3): a used raft seen with no commando within 3 m is s
   assert.equal(d[0].cause, 'deflated');
   const booms = events(w, 'explosion');
   assert.equal(booms.length, 0, 'deflating is not an explosion');
+});
+
+test('raft unattended (§4.3): a man the guard cannot see (under water beside it, crawling in the light band) attends nothing', () => {
+  // user, M3 2026-10-08: "Even the raft boat in the light shaded field of view of a soldier makes the soldier see it"
+  // — the empty raft lay in e17's cone with the Marine submerged beside it, and nobody shot it
+  const w = mkWorld({ river: true });
+  const raft = w.spawnVehicle('raft', { x: 30, z: 31, heading: 0, used: true });
+  const ma = commando(w, 'diver', 31.5, 32);
+  ma.diving = true; ma.stance = 'dive';
+  enemy(w, 20, 24, 0.6);
+  step(w, secs(5));
+  assert.equal(raft.destroyed, true, `a submerged Marine 1.8 m off does not attend it (hits ${raft.raftHits})`);
+  // the far band: a man crawling there is unseen, so the raft (seen in any band) lies there alone to the guard
+  const w2 = mkWorld({ river: true });
+  const e2 = enemy(w2, 4, 30, 0);
+  const far = e2.vision.near + 3; // 3 m into the light band
+  const r2 = w2.spawnVehicle('raft', { x: 4 + far + 0.5, z: 30.8, heading: 0, used: true });
+  const cr = commando(w2, 'greenberet', 4 + far, 28.5);
+  cr.setStance('crawl');
+  step(w2, secs(1));
+  assert.equal(canSee(e2, cr, w2), 'none', 'the crawler in the light band is unseen');
+  step(w2, secs(5));
+  assert.equal(r2.destroyed, true, 'a raft attended only by an unseen crawler is shot');
+});
+
+test('raft attended (§4.3): a man the guard sees beside it keeps it from being shot as abandoned', () => {
+  const w = mkWorld({ river: true });
+  const raft = w.spawnVehicle('raft', { x: 30, z: 31, heading: 0, used: true });
+  const sp = commando(w, 'spy', 30.5, 29.2);
+  sp.disguised = true; // (in uniform: seen and not suspicious — he attends the raft in the guard's eyes)
+  const e = enemy(w, 20, 24, 0.6);
+  assert.ok(canSee(e, sp, w, { ignoreDisguise: true }) !== 'none', 'the guard has the Spy in sight');
+  step(w, secs(5));
+  assert.equal(raft.destroyed, false, `not shot (hits ${raft.raftHits})`);
 });
 
 test('save/load round-trip keeps hits, taint, torpedoes, rail state', () => {

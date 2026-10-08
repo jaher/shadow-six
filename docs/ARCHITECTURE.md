@@ -290,6 +290,9 @@ Input (§5): `input.selectUnit(c, {ctrl})` (keys 1–7 / portraits: recentre onl
 `input.click(x, y, {shift, ctrl, alt})`, `input.rightClick()`, `input.boxSelect(...)` (right-drag),
 `input.beginTargeting(id)` (hotkeys A–X via the registry; G with a group = volley), `input.beginTrackPick()`
 (HUD camera icon), `input.toggleMenu()`. Optional commando hooks used by right-click: `rightClickCancel()`, `holster()`.
+A drawn pistol (§3.2: left-click fires, moves refused) never outlives its cursor: the cursor leaving any way (right-click,
+Esc, the bag icon again, another item, the man deselected) holsters it, and a ground click holsters one still drawn
+before the move; a move order refused while it is drawn says so.
 Tick order in `step(dt)`: `input commands → world.refreshDynamicOccluders() → commandos.update →
 enemies.update (brain, perception at 60 Hz) → world.runBelTicks(dt) (20 Hz tick-integer rules, §10.1) →
 vehicles.update → projectiles.update → interactables.update → alarm.update → mission.checkObjectives →

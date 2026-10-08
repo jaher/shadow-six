@@ -154,6 +154,7 @@
  "stab-cry.test.mjs": 17,
  "stance-button.test.mjs": 17,
  "stance-transitions.test.mjs": 156,
+ "stuck-orders.test.mjs": 24000,
  "sw-cache.test.mjs": 113,
  "talking-portraits.test.mjs": 6,
  "terrain-integration.test.mjs": 9,

@@ -83,6 +83,9 @@ export function operatorMatches(ops, unit) {
  *  occludes: stamps grid.dynamicBlock (§4.2 OCLU); runover: kills in the front box at fast speed;
  *  tanker: any hit explodes it (§3.6); raft: deflates instead of being destroyed by bullets (§4.3);
  *  fastOnly: single speed (motorcycle); vision: profile when crewed (tank / sdkfz); legacy aliases via `alias`;
+ *  seated: open boat whose men sit low on the floor / thwarts — seen in both bands like any open boat's crew, but
+ *  their line of sight is a low target's (low cover hides them, §4.2; ai/perception.canSee);
+ *  enclosed: a boat whose men sit under a hatch (the mini-sub) — every other boat is OPEN: its men are seen (§4.2);
  *  turnRadius (land): tightest turn of the hull centre, m (entities/vehicle-maneuver.js: wheeled hulls never pivot on
  *  the spot — Opel Blitz ~14 m turning circle, Kübelwagen ~10 m; tracked hulls turn about a braked track);
  *  unmannable: no commando may ever man it (§3.4: the 210 mm mortar and the M20 anti-tank gun [guide]) — a
@@ -90,10 +93,10 @@ export function operatorMatches(ops, unit) {
  */
 export const VEHICLE_TYPES = {
   // --- water craft (Marine) ---
-  raft: { kind: 'boat', model: 'raft', speed: 'raft', hits: null, size: [2.6, 1.3], occludes: false, raft: true },
-  rowboat: { kind: 'boat', model: 'raft', speed: 'boat', hits: 30, size: [3.6, 1.5], occludes: false },
+  raft: { kind: 'boat', model: 'raft', speed: 'raft', hits: null, size: [2.6, 1.3], occludes: false, raft: true, seated: true },
+  rowboat: { kind: 'boat', model: 'raft', speed: 'boat', hits: 30, size: [3.6, 1.5], occludes: false, seated: true },
   patrolboat: { kind: 'boat', model: 'patrolboat', speed: 'boat', hits: 60, size: [8, 2.6], occludes: true, weapons: ['mg'], vision: 'mg' },
-  minisub: { kind: 'boat', model: 'raft', speed: 'boat', hits: 30, size: [6, 1.4], occludes: false, weapons: ['torpedo'], torpedoes: 2 },
+  minisub: { kind: 'boat', model: 'raft', speed: 'boat', hits: 30, size: [6, 1.4], occludes: false, weapons: ['torpedo'], torpedoes: 2, enclosed: true },
   // --- land (Driver) ---
   truck: { kind: 'land', model: 'truck', speed: 'truck', hits: 30, size: [6.3, 2.4], occludes: true, runover: true, grenadeDestructible: true, turnRadius: 5.6 },
   opel_blitz: { alias: 'truck' },
@@ -369,6 +372,13 @@ export class Vehicle extends Entity {
   }
 
   get isBoat() { return !!this.def.boat; }
+
+  /**
+   * An open boat (raft, rowboat, the patrol / escape boat's deck): the men aboard are in plain view, so enemies see
+   * them like men on land (§4.2 band table: only a building or a CLOSED vehicle hides a commando). The mini-sub is
+   * enclosed; land vehicles keep hiding their occupants (perception.targetClass).
+   */
+  get isOpenBoat() { return !!this.def.boat && !this.def.enclosed && !this.destroyed; }
 
   /** Per-frame visuals: enemy crew figures on open vehicles (art/vehicle-crew.js; built on the first frame). */
   renderUpdate(dt) {
