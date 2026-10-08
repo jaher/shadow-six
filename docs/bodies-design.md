@@ -53,6 +53,7 @@ Contents: §0 hard rules and rule layering · §1 module map and data flow · §
 | `ragdollAllDeaths` | on | on | Every death ends in a short ragdoll settle on the terrain (§A.4) |
 | `physicsGameplay` | **on** | off | A thrown / settled body's resting place, a toppled prop's nav / LOS footprint and a guard knocked off his feet (§A.5) count for gameplay. Off = the 1998 behaviour: physics is drawn but bodies keep their death spot, cover keeps its footprint, blast throws are a slump |
 | `runningNoise` | **on** | off | Guards hear a commando running upright near them: a level-1 `footsteps` noise every 2.7 m, its radius by the surface underfoot (design-spec §4.4 "Running is heard"). Walking, crawling, swimming and a disguised Spy stay silent. Off = BEL: movement is silent |
+| `recoverCharges` | **on** | off | The Sapper can take a time / remote bomb he has set back into his knapsack before it goes off (`takeCharge`, design-spec §3.4 "Taking a charge back"): H on it, or a click / tap on it with him selected. Off = BEL: a charge once set stays where it is |
 
 - A house rule is read at mission load and stays fixed until the mission ends. The save file stores `world.house`, so
   loading a save restores the rules it was made with. Changing the option mid-mission takes effect at the next load or
@@ -932,6 +933,9 @@ GAME PREFERENCES gains a **RULES** group:
 - `runningNoise`: RUNNING IS HEARD. Description: "Guards hear a commando running nearby, louder on roads, decks and
   floors, quieter on grass, sand and mud. Walking and crawling stay silent. Not in the 1998 original." Its companion
   display option `noiseRings` (NOISE RINGS, default on) draws a faint ring from the runner's feet to the hearing radius.
+- `recoverCharges`: SAPPER TAKES CHARGES BACK. Description: "The Sapper can take a time bomb or remote charge he has set
+  back into his knapsack before it goes off (hand, or click the charge), to set it again in the right place. A ticking
+  clock stops when he takes it. Not in the 1998 original."
 
 The existing `blood` and `censored` options gate §B. The options take effect at the next mission start or load; the
 panel says so while a mission is running.

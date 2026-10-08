@@ -176,6 +176,13 @@ export function installHandlers(a, events) {
     if ((e.kind || b.kind) !== 'remote') a.bombs.set(key(b, 'bomb'), { bomb: b, start: a.simNow(), fuse: e.fuse ?? b.fuse ?? 10, next: a.simNow() });
   });
   on('bomb:detonate', (e, t) => sfx('detonator_click', e.unit, t));
+  // the Sapper takes a placed charge back (house rule recoverCharges): the latch as the clock / arming switch goes off,
+  // then the charge into the knapsack (the plant's leather pouch); a time bomb's tick loop ends with it
+  on('bomb:disarmed', (e, t) => {
+    a.bombs.delete(key(e.bomb || e, 'bomb'));
+    sfx('bomb_disarm', e, t);
+    a.after(0.35, () => sfx('bomb_plant', e.unit || e, t));
+  });
   on('bomb:exploded', (e, t) => { a.bombs.delete(key(e.bomb || e, 'bomb')); sfx('explosion_big', e, t); });
   on('explosion', (e, t) => {
     const k = String(e.kind || '');

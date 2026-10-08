@@ -437,7 +437,8 @@ export class HUD {
     // ABILITIES' `hand` (H: pick up / carry / hand over, §3.2) first; any pick-up style ability otherwise
     const owns = (d) => d && sel.some((c) => c.abilities?.includes(d.id));
     const def = owns(ABILITIES.hand) ? ABILITIES.hand : owns(ABILITIES.handGuest) ? ABILITIES.handGuest : Object.values(ABILITIES).find((d) => /pick|grab|carry|take/i.test(d.id) && owns(d));
-    const c = def && sel.find((u) => u.abilities.includes(def.id));
+    // the man the target is for first (a placed charge: the Sapper, not the first of the group), else the first owner
+    const c = def && (sel.find((u) => u.abilities.includes(def.id) && def.canUse?.(u, target, this.world) === true) || sel.find((u) => u.abilities.includes(def.id)));
     if (c) this.game.enqueue(() => c.issue({ type: 'ability', id: def.id, target }));
     else this.message("Can't do that.", 'info');
   }

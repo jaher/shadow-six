@@ -120,8 +120,14 @@ function twoBoneIKPole(a, b, c, target, pole) {
 
 // ---- rework: hand props shown ONLY while their clips play (sapper bomb/grenade/cutters, officer cigarette) ----------
 // equipProp(h, lib, 'time_bomb', ['plant','set_trap']) ; opts {hideAfter: fraction of the clip (throw release), twoHand}
-export const PROPS = { time_bomb: ['plant', 'set_trap'], remote_bomb: ['plant'], mills_bomb: ['throw'], stick_grenade: ['throw'], wire_cutters: ['cut_wire'], cigarette: ['smoke'] };
-const PROP_OPTS = { mills_bomb: { hideAfter: 0.47 }, stick_grenade: { hideAfter: 0.47 }, wire_cutters: { twoHand: true }, cigarette: { fingers: true } };
+export const PROPS = { time_bomb: ['plant', 'set_trap', 'take_charge'], remote_bomb: ['plant', 'take_charge'], mills_bomb: ['throw'], stick_grenade: ['throw'], wire_cutters: ['cut_wire'], cigarette: ['smoke'] };
+// the two charge props share their clips: `h.chargeProp` (art/unit-model.js, unit-anim-map chargeProp) picks the one the
+// action sets / takes back, none at all for the trap
+const CHARGES = new Set(['time_bomb', 'remote_bomb']);
+// showFrom: per clip, the fraction of it before which the prop stays hidden (take_charge: in his hand from the grab on,
+// abilities/sapper.js CONFIG.abilities.chargeTake.grab / dur)
+const PROP_OPTS = { mills_bomb: { hideAfter: 0.47 }, stick_grenade: { hideAfter: 0.47 }, wire_cutters: { twoHand: true }, cigarette: { fingers: true },
+  time_bomb: { showFrom: { take_charge: 0.5 } }, remote_bomb: { showFrom: { take_charge: 0.5 } } };
 export function equipProp(h, lib, name, clips = PROPS[name]) {
   if (!lib || !lib[name]) return null;
   const o = lib[name].root.clone(true); o.name = 'prop_' + name; o.visible = false;
@@ -134,7 +140,10 @@ export function equipProp(h, lib, name, clips = PROPS[name]) {
     h._post.push(() => {
       for (const p of h.props) {
         let on = p.clips.has(h.animClip) || p.clips.has(h.anim);
+        if (on && CHARGES.has(p.name) && h.chargeProp !== undefined && h.chargeProp !== p.name) on = false;
         if (on && p.opts.hideAfter != null) { const a = h.mixer.existingAction(h.clip(h.animClip)); if (a && a.time / a.getClip().duration > p.opts.hideAfter) on = false; }
+        const from = on ? p.opts.showFrom?.[h.animClip] : null;
+        if (from != null) { const a = h.mixer.existingAction(h.clip(h.animClip)); if (!a || a.time / a.getClip().duration < from) on = false; }
         if (on && !p.placed) placeProp(h, p);
         p.obj.visible = on;
         if (on && p.opts.twoHand && p.obj.userData.sockets.grip_l) {   // left hand on the second handle; if out of reach, bring the right hand in toward the chest line

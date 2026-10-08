@@ -291,6 +291,7 @@
 | Explosive barrels | Green Beret |
 | Raft | Marine |
 | Grenades, time/remote bombs, air-dropped explosives | Sapper |
+| A time / remote bomb he has placed, not yet gone off (house rule `recoverCharges`, §3.4) ⚑ | Sapper |
 | Sprung trap | Sapper |
 | Decoy | Green Beret |
 | Sniper ammo box (+3) | Sniper |
@@ -319,6 +320,7 @@
 | `timeBomb` | B | Sapper | self | at feet | Explodes **10.0 s** after release [manual/data] | Plant 1.0 s | explosion |
 | `remoteBomb` | B | Sapper | self | at feet | Armed; a detonator appears | Plant 1.0 s | — |
 | `detonate` | A | Sapper | none | anywhere | Detonates the **next** remote bomb, in placement order | instant | explosion |
+| `takeCharge` ⚑ | H on the charge, or click / tap it | Sapper (house rule `recoverCharges`) | a placed time / remote bomb | walks up; kneels 0.45 m from it (reach 0.9) | Takes it back into the knapsack: a time bomb's clock stops (§3.4 "Taking a charge back") | 1.0 s; taken at 0.5 s | none |
 | `grenade` | E | Sapper | point | throw **13.5**, lobbed over walls | Explodes on landing (flight about 1.0 s). Class `grenade` (§3.6). Can hurt the thrower and friends | Throw 0.7 s | explosion |
 | `cutters` | W | Sapper | fence | 1.0 | Cuts a round hole (~0.96 × 0.86 m) low in the wire: crawl-only `fence` cells (grid crawlway), the rest of the fence stands (SHADOW SIX; BEL: a 1.5 m gap). Fails on `reinforced` wire. On a live `electric` fence: 20 electric damage at the first snip and the cut fails | 3.0 s [rec] | none |
 | `firstAid` | K | medic | commando | 1.2 | +34 HP, one dose | 1.5 s | none |
@@ -415,14 +417,57 @@ The animation names are the humanoid names from ARCHITECTURE. Each voice cue is 
 - **Remote bomb (B then A).**
   - Plant: the knapsack gains the **detonator**, which shows a count of bombs planted.
   - Each **A** press detonates the **oldest** remaining planted bomb, after a 0.2 s radio delay. SFX `detonator_click`.
+- **The charges as drawn** (`src/art/demolition-charge.js`; user 2026-10-08: "The explosive looks like a circle, make it
+  look realistic"; the knapsack icons, rendered by `tools/blender/icons/models/boxes.py`, were already this design). A
+  WWII commando demolition charge: two olive-khaki canvas-wrapped slabs of plastic explosive (Nobel 808) tied with pale
+  webbing, an aluminium detonator with a red cap pushed into the top slab, about 0.31 × 0.18 × 0.11 m (≈ 400 triangles,
+  geometry and materials shared by every charge). The **time bomb** carries a brass pocket-watch delay with a cream
+  dial and red and black leads; its red hand sweeps once round the dial over the fuse and the dial flashes at each
+  tick (2 Hz speeding to 4 Hz, as `bomb_tick`). The **remote bomb** carries an olive-drab receiver box (bakelite knob,
+  nickel telescopic aerial) wired to the detonator; its red pilot lamp winks once a second, and burns steady once the
+  detonator has fired it. A charge lies along the planter's heading, on the drawn ground relief under it, tilted to its
+  slope (at most 30°; flat on decks, roofs and floors). The same model is in the Sapper's right hand while he plants it
+  and from the grab on when he takes one back (clip-bound props `time_bomb` / `remote_bomb`); the bear trap is set
+  empty-handed. Mission charges (M3's dam and bunker charges, M7, M18 …) are the same objects.
+- **Taking a charge back** ⚑ (SHADOW SIX house rule `recoverCharges`, on by default; **not in BEL**, where a charge once
+  set stays where it is; CLASSIC 1998 turns it off; user request 2026-10-08: "there should be a way for sapper to
+  collect back the explosives if not placed in the right place").
+  - **How.** With the Sapper selected, the cursor over one of the placed time / remote bombs is the grabbing hand:
+    click it (tap it on a touch screen) and he walks (double-click: runs) to it and takes it back. **H** (the hand) on
+    the charge does the same. A charge set inside a bunker (its entrance, §7.6 M3) is fetched the way it was set: he
+    goes in along the entry path, kneels, takes it and walks back out.
+  - **The take** (`takeCharge`, 1.0 s): he steps onto a spot 0.45 m short of the charge, square to it, and kneels
+    (`take_charge`: the plant played back, down on one knee, both hands to it). At **0.5 s** he has it: a time bomb's
+    clock stops, the charge leaves the ground and goes into his knapsack at once (so it is never both lost and kept);
+    he is on his feet again at 1.0 s with it in his hand. Interrupted before 0.5 s (a new order, a hit), it stays where
+    it is, still ticking. Feedback: the message "time bomb back in the knapsack — the clock is stopped" (or "remote
+    charge back in the knapsack"), his "Sorted, that.", and the latch + pouch sounds (`bomb_disarm`, `bomb_plant`).
+  - **Rules.** Only the Sapper handles explosives (§3.2): anyone else's hand is refused ("Only the Sapper can handle
+    explosives."). He must be on foot (not swimming, in a vehicle or hidden), have his hands free and be on the
+    charge's level. There is nothing to take while a charge is still being planted (it is in his hands until the plant
+    ends), after it has gone off, or once a remote charge has been fired (its 0.2 s radio delay: "Too late — it's going
+    off!"). The knapsack has no capacity limit: the item count just goes up. Taking a charge is as visible as setting
+    one (`visibleToEnemies`): a guard who sees him sees him, and a held man (§4.5) doing it is attacking. BEL has no
+    rule for enemies finding or removing charges, so none is added.
+  - **Objectives.** Demolition objectives complete only when the charge goes off, so a charge taken back leaves its
+    objective to do and its target standing; set again on the mark, it counts as normal. The missions' charge counts
+    (M4 `timeBombLeft`, M7 `chargesLeft`, M14 `meansLeft`, M20 `checkCharges`) count the knapsack and the ground, so a
+    take never lowers them and no mission can fail or soft-lock over it; re-set remote charges join the detonator's
+    order as the newest.
+  - **Off the mark.** A charge set near a demolition target bound to a marker (§3.6; M3 `dam_charge`, M4 `villa_steps`,
+    M7 U-boats) but off that marker says so at once: "off the mark — that charge won't bring it down. Take it back (H)
+    and set it on the mark." (the second sentence only under `recoverCharges`).
+  - **Save / load.** Placed charges keep their fuse, planter and bunker; a take in progress resumes (before the grab in
+    the open; inside a bunker, the whole walk in and out); a charge already taken is in the knapsack.
 - **Grenade (E).**
-  - Arc throw to a point within 13.5 m, over walls; flight 1.0 s; bursts on landing.
+  - Arc throw to a point within 13.5 m, over walls; flight 1.0 s; bursts on landing. Drawn as a Mills bomb (No. 36)
+    tumbling end over end, ×1.6 so it reads in the air.
   - Class `grenade`. Friendly fire is on.
   - Loud: noise class `explosion`.
 - **Wire cutters (W).**
   - Click a fence segment: he kneels 3.0 s, then the `B.FENCE` cells in a 1.5 m-wide gap become passable. A hole mesh swaps in.
   - Variants: `reinforced` is immune. On `electric` while powered: 20 damage (`ELECTRICO`), sparks and failure.
-- He is the **only** one who picks up explosives.
+- He is the **only** one who picks up explosives, including a charge he has set (house rule `recoverCharges`, above).
 
 **Driver: Tread**
 - **SMG (M).** Only in the missions whose loadout lists it (§3.8).
@@ -1122,6 +1167,7 @@ Defaults mirror the BEL manual. Browser adaptations are marked ⚑. All keys use
 | **Double-click ground** | Run (if able). Window 350 ms, 6 px |
 | Double-click with a melee cursor on a target | Run to it, then act |
 | Left-click with an item cursor | Use the item there. Weapons fire one shot or burst per click |
+| **Left-click a placed charge with the Sapper selected** ⚑ | He takes it back (§3.4, house rule `recoverCharges`); the hover cursor over it is the grabbing hand. Without the Sapper the click walks there |
 | **Right-click** | Cancel the item cursor. A weapon is holstered; a carried body or barrel is dropped; a buried GB rises; a distraction ends; a climbing GB hangs. Otherwise, with nothing to cancel: nothing (BEL did not deselect on right-click) |
 | **Left-click an enemy soldier (no item cursor)** | Show / hide his cone; the hover cursor over him is the **eye** ⚑ (user 2026-10-07). With men selected too — they do not walk. A touch tap with men selected still walks them (long-press shows the cone) |
 | **Shift + click an enemy / vehicle / bunker** | Show its cone (one at a time) |
@@ -1148,7 +1194,7 @@ A **software cursor** is drawn on a top overlay. CSS cursors cannot do the scope
 | Move pointer (brass double chevron with a small star) | Default with a man selected |
 | Destination marker | 27-px twin-star sparkle for 0.6 s at each move target (BEL `ESTRELLA1/2`) |
 | Activation (hand on a lever) | Hover over an operable thing for the selected man |
-| Pick-up hand (open with a forbidden overlay → animated grab) | H mode |
+| Pick-up hand (open with a forbidden overlay → animated grab) | H mode; also over a placed charge with the Sapper selected ⚑ (forbidden overlay when he can't take it now) |
 | Climbing pick | GB over a `climbable` edge |
 | Body-in-barrel | GB carrying a barrel over a body |
 | Knife / pistol / scope (88 px, 2× magnifier) / crosshair (SMG, vehicle, manned gun) / syringe (K, L) / officer's cap (Distract) / harpoon / grenade / pliers / trap / bomb | Matching action |
@@ -1173,7 +1219,7 @@ map.**
 
 | Gesture | Action | Desktop equivalent |
 |---|---|---|
-| Tap (moves < 10 px, lifts within 500 ms) | Select a commando (tap a selected man to deselect him); walk to the ground; use the armed item on a target; get into a vehicle; with the eye / camera / hand tool armed, use the tool | Left click |
+| Tap (moves < 10 px, lifts within 500 ms) | Select a commando (tap a selected man to deselect him); walk to the ground; use the armed item on a target; get into a vehicle; with the Sapper selected, take back a placed charge; with the eye / camera / hand tool armed, use the tool | Left click |
 | Double tap (second tap ≤ 350 ms and ≤ 32 px from the first) | Run; with a melee item, run to the target | Double-click |
 | Long press (held still 550 ms) | On a commando: add / remove him from the selection. On an enemy: his vision cone. On the ground: the probe marker (§4.2) | Ctrl+click / Shift+click |
 | One-finger drag | Pan the map 1:1 under the finger; a flick coasts (velocity decays at e^(−5t)). **Never an order**, keeps the selection and the armed item | Middle drag, edges, arrows |
@@ -2056,7 +2102,7 @@ Positional loops, sparse, gain 0.1–0.2 [the demo's "noisy mother nature"]:
 | Movement | `step_snow`, `step_sand`, `step_grass`, `step_road`, `step_wood`, `step_water` (PASOS, PASOSAGU); `crawl_rustle`; `climb_scrape`; `ladder`; `dig_snow`, `dig_sand`; `body_drag`, `body_drop`; `barrel_lift`, `barrel_set` (ESFUERZO grunt) |
 | Water | `splash_in`, `splash_out` (SPLASH); `dive_bubbles`, `underwater_loop` (BUZO); `row_stroke` (REMADA); `raft_inflate`, `raft_deflate`; `raft_hit_hiss` |
 | Weapons | `knife_stab` (CUCHI); `pistol_shot`, `pistol_draw`, `pistol_holster` (PISTOLA); `sniper_shot`, `sniper_bolt` (FRANCO, CARGAFUSI); `smg_burst` (METRALL0); `harpoon_fire`, `harpoon_hit`; `syringe`; `trap_set`, `trap_snap` (CEPO); `grenade_pin`, `grenade_throw`, `grenade_bounce`; `cutters_snip`; `rifle_shot` (FUSIL); `mp40_burst`; `mg_burst` (AMETRALL); `tank_mg` (TANQMETR); `boat_mg` (METRLANC); `tank_cannon`; `torpedo_launch`, `torpedo_run` (SUBMISIL); `bullet_impact_{dirt,wood,metal,water,flesh}` |
-| Explosives | `bomb_plant`; `bomb_tick` loop, 2 Hz speeding to 4 Hz (TICTAC); `detonator_click`; `explosion_small` (EXPLOSI); `explosion_big` (MEGAEXPL); `barrel_explode` (BARRIL); `collapse` (DERRUMBE); `fire_loop` (LLAMAS); `debris_rain`; `dam_burst` + `flood_rush` |
+| Explosives | `bomb_plant`; `bomb_tick` loop, 2 Hz speeding to 4 Hz (TICTAC); `detonator_click`; `bomb_disarm` (a charge taken back, ⚑); `explosion_small` (EXPLOSI); `explosion_big` (MEGAEXPL); `barrel_explode` (BARRIL); `collapse` (DERRUMBE); `fire_loop` (LLAMAS); `debris_rain`; `dam_burst` + `flood_rush` |
 | Devices | `decoy_beep` (SEGNUELO); `switch_throw` (SWITCH); `electric_hum` (ELECTRO); `electric_zap` (ELECSHOK); `power_down` (APAGELEC); `telephone_ring` (TELEFONO); `gate_creak`, `barrier_lift`; `lock_gate` (ESCLUSA); `water_pressure` (AGUAPRES), `water_jet` (CHORRO); `valve_turn`; `cable_car_motor` |
 | Vehicles | `truck_start`, `truck_idle`, `truck_drive` (CAMION); `brakes` (FRENADA); `horn_car`, `horn_train`, `horn_ship` (BOCINA, BOCITREN, BOCIBARC); `train_pass` (TREN); `tank_engine`, `tank_tracks`, `turret_whir`; `motorbike`; `boat_engine`; `plane_engine` (AVION); `autogyro` (AUTOGIRO); `hangar_door` (HANGAR); `runover_thud` |
 | Alarm | `siren` (SIRENA01): a hand-cranked air-raid wail rising over about 3 s, looping; gain envelope 0.75 → 0 over 25 s (§4.9); positional at each garrison in the event, plus a non-positional 30% bed |
@@ -2092,7 +2138,7 @@ Positional loops, sparse, gain 0.1–0.2 [the demo's "noisy mother nature"]:
 | **Tiny** (Irish, gruff) | select: "Aye?" · "McHale." · "What'll it be?" — ack_move: "On me way." · "Right so." · "Movin'." · "Grand." — ack_act: "Leave him to me." · "Quiet as a church mouse." — act_kill: "Sleep tight." — special_decoy: "That'll turn a few heads." · special_dig: "Snug as a bug." · special_barrel: "Heavy wee thing." — cant: "Can't do that one, sir." · "Not with these hands." — hurt: "Argh! I'm grand, I'm grand!" · "They've nicked me!" — spotted: "Ah, feck." — death: "Tell me mam…" |
 | **Duke** (upper-class RP) | select: "Woolridge." · "At your disposal." · "Yes?" — ack_move: "Very well." · "If I must." · "Quite." — ack_act: "One shot will suffice." · "Hold still, there's a good fellow." — act_kill: "Clean." — cant: "Hardly my department, old boy." — cant_noammo: "I'm afraid I'm out of rounds." — hurt: "Blast. I'm hit." · "Rather inconvenient." — spotted: "Ah. We've been noticed." — death: "Most… unsporting." |
 | **Fins** (sarcastic Australian) | select: "Blackwood." · "Yeah, what now?" · "Mm?" — ack_move: "Righto… sir." · "Off I go, then." · "No worries." — ack_act: "Into the drink." · "Nice and quiet." — special_raft: "Hop in, mind the paint." · special_dive: "See you on the other side." — cant: "Not without a boat, mate." · "In this? You're joking." — hurt: "Strewth! That stings!" — spotted: "Oh, bloody marvellous." — death: "Should've… stayed in the water." |
-| **Inferno** (dry northern English) | select: "Hancock." · "Sapper here." — ack_move: "On it." · "Right you are." · "Moving." — ack_act: "Charge set — ten seconds, run!" · "This'll make a lovely bang." · "Wire's no bother." — special_detonate: "Fire in the hole." — cant: "Wrong tool for that." · "Wire's live — not touching it." — hurt: "Ahh! I'm hit!" — spotted: "They've clocked me!" — death: "Should've… cut the other one." |
+| **Inferno** (dry northern English) | select: "Hancock." · "Sapper here." — ack_move: "On it." · "Right you are." · "Moving." — ack_act: "Charge set — ten seconds, run!" · "This'll make a lovely bang." · "Wire's no bother." — special_detonate: "Fire in the hole." — act_ok: "Sorted, that." (also a charge taken back) — cant: "Wrong tool for that." · "Wire's live — not touching it." — hurt: "Ahh! I'm hit!" — spotted: "They've clocked me!" — death: "Should've… cut the other one." |
 | **Tread** (Brooklyn) | select: "Yeah, boss?" · "Tread here." · "Whaddaya need?" — ack_move: "You got it." · "On my way, boss." · "Easy money." — ack_act: "Time to make some noise." — special_drive: "Hop in, fellas." · "Hold onto your helmets." · special_heal: "Hold still, this'll pinch." — cant: "Not my line of work, boss." — hurt: "Ow! They winged me!" — spotted: "Uh-oh." — death: "Aw, this ain't good…" |
 | **Spooky** (French) | select: "Oui?" · "Duchamp." · "Mon capitaine?" — ack_move: "D'accord." · "Bien sûr." · "I go." — ack_act: "A small prick… et voilà." · "Nobody will notice." — special_uniform: "Now I am one of them." — special_distract *(German, to the guard)*: "Guten Tag, Soldat. Alles ruhig?" · "Na, Kamerad — wie läuft der Dienst?" · "Stehen Sie bequem." — cant: "Non. That, I cannot do." — hurt: "Aïe! Merde…" — spotted: "Zut, they know me." — death: "Pour… la France…" |
 | **Guests** | McRae (RAF, Scottish): "Get me to that kite and I'll fly her home." · "About time, lads." — Informer: "Thank God you came." — Gilbert (French): "Mes hommes vous suivront." · "Allez, vite!" |

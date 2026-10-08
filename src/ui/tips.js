@@ -22,6 +22,7 @@ export const TIPS = [
   T('diver', 'The Marine swims under the surface and paddles the inflatable raft. Water is his road.'),
   T('sapper-bomb', 'The Sapper\'s time bomb gives you a count to get clear. The remote charge waits for your word.'),
   T('sapper-cutters', 'Wire cutters snip a hole low in a fence, quietly. Only a man on his belly gets through it.'),
+  T('sapper-takeback', 'Charge in the wrong spot? With the Sapper selected, click it (or use the hand): he takes it back before it goes off.'),
   T('driver', 'The Driver can use any vehicle and man a machine-gun nest. A truck at speed is a weapon too.'),
   T('spy', 'In uniform the Spy walks past soldiers. Officers and anyone who sees him act suspiciously will see through it.'),
   T('spy-distract', 'The Spy can distract a soldier face to face. While they talk, the guard looks only at him.'),

@@ -20,7 +20,7 @@ import { CONFIG } from '../config.js';
 import * as HR from './humanoid-real.js';
 import { applyRagdollPose, rememberIdle, captureBase, lyingBase } from './ragdoll-pose.js';
 import { liveView } from '../physics/ragdoll.js';
-import { mapAnim, LOCOMOTION, actionWeapon, CARRY_WEAPON, lookType, guestCharacter, missionNumber } from './unit-anim-map.js';
+import { mapAnim, LOCOMOTION, actionWeapon, CARRY_WEAPON, lookType, guestCharacter, missionNumber, chargeProp } from './unit-anim-map.js';
 import { transportState, transportClip, poseTransported, captureStart, groundDraggedLegs, dragGroundWeight, localOf, localRot, setBody } from './transport-pose.js';
 import { carrierContact, loadSway, loadGait } from './transport-contact.js';
 import { BoneGuard, StickyGuard, capturePose, mixPose } from './pose-blend.js';
@@ -249,7 +249,7 @@ export class UnitModel {
     }
     prepareMeshes(R.root);
     if (this.dog && R.inner.footfallsMeasured) this.pawFalls = [];   // its prints come from its paws (_footfalls)
-    if (this.opts.role === 'sapper') for (const p of ['time_bomb', 'mills_bomb', 'wire_cutters']) R.equipProp(p);
+    if (this.opts.role === 'sapper') for (const p of ['time_bomb', 'remote_bomb', 'mills_bomb', 'wire_cutters']) R.equipProp(p);
     this._weapon = undefined;
     this._apply(true);
     return this;
@@ -386,7 +386,12 @@ export class UnitModel {
     if (R.inner && this.player && this.unit && !!(this.unit.carrying && this.unit.carrying.kind !== 'interactable') !== !!this._handsFull) { this._handsFull = !this._handsFull; this._weaponFor(this._ctx()); }
     // the ability's action id is set after its start() played the clip (Commando._updatePending): re-pick the weapon
     // then, so the knife stab shows the knife (not the carry pistol)
-    if (R.inner && this.player && this.unit && (this.unit.currentActionId ?? null) !== (this._actId ?? null)) { this._actId = this.unit.currentActionId ?? null; this._weaponFor(this._ctx()); }
+    if (R.inner && this.player && this.unit && (this.unit.currentActionId ?? null) !== (this._actId ?? null)) {
+      this._actId = this.unit.currentActionId ?? null;
+      // which charge (if any) the plant / take clips put in his hand: the one he sets or takes back, none for the trap
+      R.inner.chargeProp = chargeProp(this._actId, this.unit.currentActionTarget);
+      this._weaponFor(this._ctx());
+    }
     // on / off a ladder: the weapon slung / back in hand
     if (R.inner && this.player && this.unit && !!this.unit._ladder !== !!this._onLadder) { this._onLadder = !!this.unit._ladder; this._weaponFor(this._ctx()); }
     // the contact knife kill's blend-out (abilities/knife.js sets knifeShow): the knife stays in his fist until it ends

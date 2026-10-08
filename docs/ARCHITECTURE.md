@@ -162,6 +162,7 @@ unsubscribe function and call it between scenarios. **Canonical events** (payloa
 | `bomb:armed` | `{bomb, kind:'time'|'remote', fuse, unit}` | abilities → audio (tick loop), ui |
 | `bomb:detonate` | `{unit}` | abilities (detonator) → audio |
 | `bomb:exploded` | `{bomb, x, z, kind}` | projectile → mission (demolition objectives), audio |
+| `bomb:disarmed` | `{bomb, kind:'time'|'remote', unit, x, z, fuse}` (`fuse`: seconds that were left on a time bomb, else null) | abilities (the Sapper takes a placed charge back, house rule `recoverCharges`) → audio (tick loop stops, latch + pouch), ui |
 | `trap:sprung` / `projectile:bounce` / `hit` | `{trap, victim}` / `{projectile, x, z}` / `{x, z, surface, target, weapon}` | abilities/weapons → audio, fx |
 | `enemy:state` | `{enemy, from, to}` | brain → audio (barks), ui |
 | `enemy:spotted` | `{enemy, target, vehicle?, gunner?, vehicleType?}` (a fire-on-sight vehicle: `enemy` = the vehicle) | perception → audio, ui (spotter highlight §4.2) |
@@ -1290,7 +1291,9 @@ Def fields added (defaults in `ABILITY_DEFAULTS`): `campaigns` (null = all; `['B
 `noiseRadius` + `noiseKind` (§4.4; 0 = silent), `visibleToEnemies` (a *suspicious act*: a disguised Spy seen doing it
 is unmasked, §3.4), `group` (multi-selection: `groupIntersection([ids of each selected commando]) → ids` offers only
 abilities whose `group` (or id) all selected commandos share). Abilities emit `ability:start`/`ability:end`, and
-the specific events (`bomb:armed`, `bomb:detonate`, `trap:sprung`, `unit:climb`, `unit:water`, `unit:freed`).
+the specific events (`bomb:armed`, `bomb:detonate`, `bomb:disarmed`, `trap:sprung`, `unit:climb`, `unit:water`, `unit:freed`).
+`forward(commando, target, world) → {id, target} | null` hands an order on to another ability the commando has (H on a
+placed charge → the Sapper's `takeCharge`, house rule `recoverCharges`).
 Climb/ladder traversal: path waypoints with `link` (see Pathfinding). Unit flags to set: `buried`, `disguised`,
 `underwater`, `hidden`, `carriedBy`, `held` (read by perception through `isVisibleToEnemies` / `disguised`).
 
@@ -1364,7 +1367,7 @@ helpers (implemented, §8.2): `timeStars(t, par)`, `damageLoss(commandos)`, `dam
 `src/audio/sfx-events.js` `SFX_EVENTS` is the contract: every event the audio system reacts to, the §9.3 SFX ids it
 plays and how the payload picks one (`AUDIO_EVENT_NAMES` = the names). Summary: movement `footprint`, `unit:step`,
 `unit:stance`, `unit:climb`, `unit:water`, `ability:start|end`; weapons `shot` (by `weapon`), `hit`,
-`projectile:bounce`, `trap:sprung`; explosives `bomb:armed` (tick loop 2→4 Hz), `bomb:detonate`, `bomb:exploded`,
+`projectile:bounce`, `trap:sprung`; explosives `bomb:armed` (tick loop 2→4 Hz), `bomb:detonate`, `bomb:exploded`, `bomb:disarmed`,
 `explosion` (by `kind`), `structure:destroyed`, `fire`; devices `device`, `door`, `noise` (decoy/phone/horn/bark);
 vehicles `vehicle:enter|move|stop|fire|runover|destroyed`, `train:pass`; alarm `alarm:start` (siren, gain from
 `world.alarm.siren`), `alarm:end`; voice `bark`, `unit:selected`, `unit:order`, `enemy:challenge`, `enemy:state`,

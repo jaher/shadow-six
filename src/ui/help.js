@@ -23,7 +23,7 @@ export const DOSSIERS = [
   { role: 'diver', no: 3, name: 'JAMES BLACKWOOD', code: 'FINS', born: '3 AUG 1911, MELBOURNE', spec: 'MARINE — WATER OPERATIONS', kit: ['knife', 'harpoon', 'divingGear', 'inflatableBoat'],
     notes: 'The youngest-looking of the six and at home in the water. He swims under the surface, rows the inflatable, and fires a harpoon gun silently from the shore.' },
   { role: 'sapper', no: 4, name: 'THOMAS HANCOCK', code: 'INFERNO', born: '14 JAN 1911, LIVERPOOL', spec: 'SAPPER — EXPLOSIVES', kit: ['timeBomb', 'remoteBomb', 'grenade', 'wireCutters', 'bearTrap'],
-    notes: 'Explosives are his trade: time bombs, remote charges, grenades and traps. His wire cutters open a fence without a sound.' },
+    notes: 'Explosives are his trade: time bombs, remote charges, grenades and traps. A charge in the wrong place can be taken back before it goes off (SHADOW SIX rules). His wire cutters open a fence without a sound.' },
   { role: 'driver', no: 5, name: 'SID PERKINS', code: 'TREAD', born: '4 APR 1910, BROOKLYN', spec: 'DRIVER — VEHICLES AND GUNS', kit: ['smg', 'pistol', 'firstAid'],
     notes: 'He drives anything with an engine and mans any gun. His submachine gun is loud; his getaway driving is the team\'s way home.' },
   { role: 'spy', no: 6, name: 'RENÉ DUCHAMP', code: 'SPOOKY', born: '20 NOV 1911, LYON', spec: 'SPY — INFILTRATION', kit: ['uniform', 'lethalInjection', 'firstAid'],

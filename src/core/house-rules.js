@@ -32,7 +32,7 @@ export function tierFromPreset(presetName) {
  *   options: player options (per-rule booleans override the preset); mission: its `houseRules` object wins;
  *   tier: physics tier (quality preset at mission load)
  * @returns {{preset: string, physicsTier: string, dragBodies: boolean, buddyRescue: boolean, dropWhenShot: boolean,
- *   ragdollAllDeaths: boolean}}
+ *   ragdollAllDeaths: boolean, physicsGameplay: boolean, runningNoise: boolean, recoverCharges: boolean}}
  */
 export function resolveHouseRules(o = {}) {
   const H = CONFIG.houseRules;
@@ -63,6 +63,7 @@ const FORCED_TEXT = {
   ragdollAllDeaths: ['The dead fall where they are struck.', 'The dead lie as they fell.'],
   physicsGameplay: ['A blast can throw bodies and shift cover.', 'Bodies and cover stay where they were.'],
   runningNoise: ['The guards hear a man running near them.', 'The guards cannot hear a man running.'],
+  recoverCharges: ['The Sapper can take a charge he has set back before it goes off.', 'A charge once set stays where it is.'],
 };
 
 /**

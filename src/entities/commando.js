@@ -375,6 +375,9 @@ export class Commando extends Unit {
       return false;
     };
     if (!def) return fail(`unknown action "${id}".`);
+    // an order handed on to another ability (def.forward → {id, target}): H on a placed charge → the Sapper's takeCharge
+    const fwd = def.forward?.(this, target, w);
+    if (fwd && fwd.id !== id && ABILITIES[fwd.id] && this.abilities.includes(fwd.id)) return this.useAbility(fwd.id, fwd.target ?? target, { run });
     if (!this.abilities.includes(id) && !def.always) return fail(`can't do that (${def.label}).`);
     if (def.item && !this.has(def.item)) return fail(`no ${def.item} left.`);
     const ok = def.canUse ? def.canUse(this, target, w) : true;

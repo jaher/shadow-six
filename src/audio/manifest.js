@@ -48,7 +48,7 @@ const ROWS = [
   [['bullet_impact_dirt', 'bullet_impact_wood', 'bullet_impact_metal', 'bullet_impact_flesh'], 'sfx', 'impact', 0.4],
   [['bullet_impact_water'], 'sfx', 'splash_small', 0.35],
   // Explosives
-  [['bomb_plant', 'detonator_click', 'switch_throw', 'valve_turn'], 'sfx', 'click', 0.5],
+  [['bomb_plant', 'detonator_click', 'switch_throw', 'valve_turn', 'bomb_disarm'], 'sfx', 'click', 0.5],
   [['bomb_tick'], 'sfx', 'tick', 0.45],
   [['explosion_small', 'barrel_explode'], 'sfx', 'boom', 0.9, { far: 'explosion_far' }],
   [['explosion_big', 'collapse', 'dam_burst'], 'sfx', 'boom_big', 1.0, { far: 'explosion_far' }],
@@ -134,7 +134,7 @@ const ALIASES = {
   mp40_burst: ['mg_period_craigsmith'], tank_mg: ['mg_heavy'], boat_mg: ['mg_heavy'],
   bullet_impact_metal: ['ricochet', 'k_hit_metal'], bullet_impact_wood: ['k_hit_wood'], bullet_impact_dirt: ['k_hit_soft'],
   bullet_impact_flesh: ['k_hit_flesh'], grenade_bounce: ['k_hit_soft'], harpoon_hit: ['k_hit_wood'],
-  bomb_plant: ['k_pouch'], detonator_click: ['k_metal_click'], switch_throw: ['metal_small'], valve_turn: ['metal_small'],
+  bomb_plant: ['k_pouch'], bomb_disarm: ['k_metal_latch'], detonator_click: ['k_metal_click'], switch_throw: ['metal_small'], valve_turn: ['metal_small'],
   bomb_tick: ['bomb_tick1'], explosion_small: ['explosion_grenade'], barrel_explode: ['explosion_grenade'],
   explosion_big: ['explosion_large', 'explosion_grenade'], collapse: ['explosion_large'], dam_burst: ['explosion_large'],
   explosion_far: ['explosion_distant'], tank_cannon: ['explosion_grenade'],
@@ -163,7 +163,7 @@ export const DISTANCE = Object.freeze({
   heavy: { ref: 40, max: 1500 }, // MG, explosions, cannon, siren
 });
 const CLASS_RULES = [
-  [/^(step_|crawl|body_|climb|ladder|dig_|barrel_|knife|syringe|cutters|pistol_draw|pistol_holster|grenade_pin|trap_set|bomb_plant|detonator|row_stroke|dive_|underwater|raft_|splash)/, 'foley'],
+  [/^(step_|crawl|body_|climb|ladder|dig_|barrel_|knife|syringe|cutters|pistol_draw|pistol_holster|grenade_pin|trap_set|bomb_plant|bomb_disarm|detonator|row_stroke|dive_|underwater|raft_|splash)/, 'foley'],
   [/^(mg_burst|tank_mg|boat_mg|explosion|collapse|dam_burst|tank_cannon|siren|debris|flood|artillery)/, 'heavy'],
   [/(_shot$|^smg_burst|^mp40_burst|^harpoon_fire|^sniper_bolt)/, 'small'],
   [/(engine|^truck_|tank_tracks|motorbike|plane|autogyro|train|horn|brakes|turret|torpedo|cable_car|runover)/, 'vehicle'],

@@ -15,7 +15,7 @@ import { CONFIG } from '../config.js';
 import { clearCachedGameData } from '../engine/offline-cache.js';
 
 /** bodies-design §D.3: the house-rule toggles a RULES preset sets. */
-export const HOUSE_KEYS = ['dragBodies', 'buddyRescue', 'dropWhenShot', 'ragdollAllDeaths', 'physicsGameplay', 'runningNoise'];
+export const HOUSE_KEYS = ['dragBodies', 'buddyRescue', 'dropWhenShot', 'ragdollAllDeaths', 'physicsGameplay', 'runningNoise', 'recoverCharges'];
 
 /** The preset whose flags equal these options, else 'custom'. */
 export function matchingPreset(o) {
@@ -74,6 +74,7 @@ export const OPTION_ROWS = [
   ['ragdollAllDeaths', 'BODIES SETTLE WITH PHYSICS', 'bool'],
   ['physicsGameplay', 'PHYSICS MOVES BODIES AND COVER', 'bool'],
   ['runningNoise', 'RUNNING IS HEARD', 'bool'],
+  ['recoverCharges', 'SAPPER TAKES CHARGES BACK', 'bool'],
   ['h', 'CONTROLS'],
   ['bindings', 'KEYBOARD', 'bindings'],
   ['h', 'ACCESSIBILITY'],
@@ -104,13 +105,14 @@ export const OPTION_HELP = {
   selectionRing: 'A ring under each selected man.', noiseRings: 'A faint ring spreads from a running commando\'s feet to show how far the guards hear his steps (RUNNING IS HEARD rule).', edgeScroll: 'Scroll the map when the mouse touches the screen edge.',
   wheelZoom: 'Zoom with the mouse wheel.',
   cameraAngle: 'CLASSIC looks straight up the map as in 1998. TILTED turns the view slightly so buildings show a side. ISOMETRIC turns it to a diagonal.', saveReminder: 'A gentle reminder when you have not saved for a while.',
-  rulesPreset: 'SHADOW SIX: any commando can drag a body, a man at 0 health is downed and can be rescued, a carrier drops his load when hit, guards hear a man running near them. CLASSIC 1998: exactly the 1998 rules — only the Green Beret and the Spy move bodies, any death fails the mission, and movement is silent. Applies from the next mission start or load.',
+  rulesPreset: 'SHADOW SIX: any commando can drag a body, a man at 0 health is downed and can be rescued, a carrier drops his load when hit, guards hear a man running near them, the Sapper can take a charge back. CLASSIC 1998: exactly the 1998 rules — only the Green Beret and the Spy move bodies, any death fails the mission, movement is silent and a charge once set stays put. Applies from the next mission start or load.',
   dragBodies: 'Any commando can drag a body, slowly and walking backwards. Not in the 1998 original.',
   buddyRescue: 'A commando at 0 health is downed for 60 s instead of dying. Drag or carry him to safety and revive him with the first aid kit. Not in the 1998 original.',
   dropWhenShot: 'A man carrying or dragging a body drops it when he is hit. Not in the 1998 original.',
   ragdollAllDeaths: 'Every death ends in a short physical settle on the ground.',
   physicsGameplay: 'Where a thrown body comes to rest and where a toppled crate lands count for the guards, paths and cover. Off: bodies and cover stay where they were, as in 1998. Not in the 1998 original.',
   runningNoise: 'Guards hear a commando running nearby, louder on roads, decks and floors, quieter on grass, sand and mud. Walking and crawling stay silent. Not in the 1998 original.',
+  recoverCharges: 'The Sapper can take a time bomb or remote charge he has set back into his knapsack before it goes off (hand, or click the charge), to set it again in the right place. A ticking clock stops when he takes it. Not in the 1998 original.',
   bindings: 'Rebind the keyboard controls.', textScale: 'Size of all menu text.', reducedMotion: 'Replace slides, page turns and camera moves with fades.',
   highContrast: 'Brighter idle items, darker backgrounds, no grain, outlined focus.', holdConfirm: 'Hold (Y)ES to confirm quitting, overwriting or deleting.',
 };

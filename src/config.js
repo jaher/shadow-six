@@ -346,6 +346,10 @@ export const CONFIG = {
     climbSpeed: 0.5, // §3.3 vertical m/s [rec]
     carry: { pick: 1.0, drop: 0.8, reach: 1.2 }, // §3.3 carryBody / carryBarrel
     trap: { set: 1.0, pick: 1.0, trigger: 0.5, range: 1.5 }, // §3.3 bear trap
+    // SHADOW SIX house rule recoverCharges (§3.4 amendment; not in BEL): the Sapper takes a placed time / remote bomb back.
+    // The plant played back: he kneels to it (reach: his hips this close to the charge), takes it at `grab` s — the clock
+    // stops, it leaves the ground and goes into the knapsack at once — and is on his feet again at `dur` s.
+    chargeTake: { dur: 1.0, grab: 0.5, reach: 0.9 },
     decoyPlant: 0.8, // §3.3 decoyDrop
     hand: { reach: 1.2, min: 0.6, max: 1.0 }, // §3.3 role-gated pick-up
     jailOpen: 1.5, // §4.10 rescue: activate the jail door
@@ -493,8 +497,10 @@ export const CONFIG = {
       // physicsGameplay: a thrown / settled body's resting place and a toppled prop's footprint feed back to gameplay
       // (AI body discovery, nav, cover). Off = the 1998 behaviour: physics is drawn but gameplay positions stay put.
       // runningNoise: guards hear a commando running nearby (stealth.runNoise). Off = the 1998 rule: movement is silent.
-      shadowSix: { dragBodies: true, buddyRescue: true, dropWhenShot: true, ragdollAllDeaths: true, physicsGameplay: true, runningNoise: true },
-      classic1998: { dragBodies: false, buddyRescue: false, dropWhenShot: false, ragdollAllDeaths: true, physicsGameplay: false, runningNoise: false },
+      // recoverCharges: the Sapper can take a placed, unexploded charge back into his knapsack. Off = the 1998 rule: a charge
+      // once set stays where it is until it goes off.
+      shadowSix: { dragBodies: true, buddyRescue: true, dropWhenShot: true, ragdollAllDeaths: true, physicsGameplay: true, runningNoise: true, recoverCharges: true },
+      classic1998: { dragBodies: false, buddyRescue: false, dropWhenShot: false, ragdollAllDeaths: true, physicsGameplay: false, runningNoise: false, recoverCharges: false },
     },
     labels: { shadowSix: 'SHADOW SIX', classic1998: 'CLASSIC 1998', custom: 'CUSTOM' },
   },

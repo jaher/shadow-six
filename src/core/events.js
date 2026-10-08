@@ -97,7 +97,7 @@ export const EVENT_NAMES = Object.freeze([
   'unit:selected', 'unit:order', 'unit:damaged', 'unit:killed', 'unit:stance', 'unit:captured', 'unit:jailed',
   'unit:freed', 'unit:held', 'unit:step', 'unit:climb', 'unit:water', 'footprint', 'dragmark',
   // abilities / items
-  'ability:start', 'ability:end', 'ability:refused', 'bomb:armed', 'bomb:detonate', 'bomb:exploded', 'trap:sprung', 'projectile:bounce', 'hit',
+  'ability:start', 'ability:end', 'ability:refused', 'bomb:armed', 'bomb:detonate', 'bomb:exploded', 'bomb:disarmed', 'trap:sprung', 'projectile:bounce', 'hit',
   // enemies / AI
   'enemy:state', 'enemy:spotted', 'enemy:challenge', 'enemy:held', 'enemy:body-found', 'enemy:distracted', 'enemy:unmasked-spy',
   'enemy:noise-turn', 'enemy:heard-steps',

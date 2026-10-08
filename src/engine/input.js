@@ -13,7 +13,8 @@
  * right-click cancels the item cursor (or asks the selected men to cancel their context action) and
  * never deselects; Shift+click an enemy/vehicle shows its cone (one at a time), Shift+click ground
  * places the probe marker; Alt+click a unit tracks it, Alt+click ground stops tracking; Ctrl+click as
- * the operator of an armed vehicle/gun fires a volley. Clicking an inactive view activates it.
+ * the operator of an armed vehicle/gun fires a volley. Clicking an inactive view activates it. With the Sapper
+ * selected, a click on a placed charge sends him to take it back (house rule recoverCharges).
  * Orders cannot be given while paused unless `game.options.activePause` (§5.2, §6.8).
  * @module engine/input
  */
@@ -662,6 +663,20 @@ export class Input {
     this.click(e.clientX, e.clientY, mods);
   }
 
+  /**
+   * House rule recoverCharges: the placed charge (time / remote bomb) under a client point and the selected Sapper who
+   * would take it back (abilities/sapper.js takeCharge) — the hover hand (ui/cursor.js) and a click / tap on it.
+   * @returns {{charge: any, sapper: any}|null}
+   */
+  chargeAt(clientX, clientY) {
+    const w = this.world;
+    if (!w?.house?.recoverCharges) return null;
+    const sapper = this.selection.find((c) => c.abilities?.includes('takeCharge'));
+    if (!sapper) return null;
+    const charge = this.pickEntity(clientX, clientY, (e) => e.kind === 'interactable' && e.interactKind === 'bomb' && e.placed);
+    return charge ? { charge, sapper } : null;
+  }
+
   /** Units that can be tracked / Alt+clicked (§2.3: commandos, enemies and vehicles). */
   _pickTrackable(x, y) {
     return this.pickEntity(x, y, (u) => u.kind === 'commando' || u.kind === 'enemy' || u.kind === 'vehicle');
@@ -680,7 +695,7 @@ export class Input {
    *   double-click detection (touch: the gesture classifier's double tap, with a finger-sized radius); `touch`: a
    *   finger tap (an enemy under it shows his cone only when nobody is selected)
    * @returns {string} what the click did (for tests): 'track'|'untrack'|'ability'|'volley'|'select'|
-   *   'deselect'|'cone'|'probe'|'move'|'run'|'refused'|'none'
+   *   'deselect'|'cone'|'probe'|'move'|'run'|'take'|'refused'|'none'
    */
   click(clientX, clientY, mods = {}) {
     const now = performance.now();
@@ -717,6 +732,18 @@ export class Input {
         g.enqueue(() => op.issue({ type: 'ability', id: 'vehicleFire', target }));
         return 'volley';
       }
+    }
+    // a placed charge with the Sapper selected (house rule recoverCharges): he goes to take it back — the hand without
+    // pressing H (the hover cursor is the grabbing hand there); before the man picks: the charge often lies at his feet
+    const ch = mods.shift ? null : this.chargeAt(clientX, clientY);
+    if (ch) {
+      if (!this.canOrder) return 'refused';
+      g.enqueue(() => {
+        const c = ch.sapper; // (a pistol still drawn without its cursor goes away first, as for a move click)
+        if (c.alive && c.armed === 'pistol') (c.holster ? c.holster() : c.issue?.({ type: 'cancel' }));
+        c.issue({ type: 'ability', id: 'takeCharge', target: ch.charge, run: isDouble });
+      });
+      return 'take';
     }
     const commando = this.pickEntity(clientX, clientY, (u) => u.kind === 'commando' && u.alive);
     if (commando) {
@@ -823,6 +850,7 @@ export class Input {
     if (this.mode === 'track') c = 'track';
     else if (this.mods.shift) c = 'eye';
     else if (this.mods.ctrl && this._operator()) c = 'gunsight';
+    else if (h.inside && this.chargeAt(h.x, h.y)) c = 'hand'; // click → the Sapper takes the charge back
     else if (h.inside && this.pickEntity(h.x, h.y, (u) => u.kind === 'enemy' && u.alive)) c = 'eye'; // click → his cone
     else if (!h.inside || !this.selection.length) c = 'arrow';
     else c = 'move';

@@ -8,6 +8,9 @@
  *   cutters    W  3.0 s: a round hole (~0.96 × 0.86 m) low in the wire, crawl only (grid crawlway; the rest of the
  *                 fence stands); `reinforced` wire is immune; a powered `electric` fence shocks him at the first
  *                 snip (20 damage) and the cut fails
+ *   takeCharge    (SHADOW SIX house rule recoverCharges) H, or a click / tap on the charge: he walks to one of the placed
+ *                 time / remote bombs, kneels and takes it back (1.0 s; at 0.5 s the clock stops and it goes into his
+ *                 knapsack, ready to set again); one set inside a bunker: he goes in again for it
  * Missions never give both time and remote bombs (items.js normalizeSapperInventory).
  * @module abilities/sapper
  */
@@ -15,10 +18,11 @@
 import { registerAbility } from './registry.js';
 import { CONFIG } from '../config.js';
 import { B } from '../world/grid.js';
-import { timedTask, freeToAct, inReach } from './common.js';
+import { timedTask, freeToAct, inReach, say, bark } from './common.js';
 import { pathLength } from '../world/pathfinding.js';
 import { Bomb, Trap, Grenade } from './charges.js';
-import { bunkerEntryNear, bunkerApproach, entryTask, ENTRY_REACH } from './bunker-entry.js';
+import { bunkerEntryNear, bunkerApproach, entryTask, entryOf, ENTRY_REACH } from './bunker-entry.js';
+import { explosionDestroysStructure } from './explosions.js';
 
 const A = CONFIG.abilities;
 const W = CONFIG.weapons;
@@ -53,21 +57,40 @@ registerAbility({
 
 let bombSeq = 0;
 
+/**
+ * A charge set where it cannot bring its demolition target down — near a target bound to a demolition marker (§7.6 M3
+ * `dam_charge`, M4 `villa_steps`, M7 U-boats) but off that marker: say so at once, while it can still be taken back
+ * (house rule recoverCharges), instead of only when it goes off (applyExplosion's "still stands" warning).
+ * @returns {boolean} a hint was given
+ */
+export function offMarkHint(world, c, bomb) {
+  for (const it of world.interactables || []) {
+    if (!it.marker || it.destroyed || it.removed || it.kind !== 'interactable') continue;
+    const d = Math.hypot(it.x - bomb.x, it.z - bomb.z);
+    if (!explosionDestroysStructure('bomb', it, d, { ignoreMarker: true })) continue; // nowhere near it
+    if (explosionDestroysStructure('bomb', it, d, { world, x: bomb.x, z: bomb.z })) continue; // on the mark
+    say(world, c, `off the mark — that charge won't bring it down.${world.house?.recoverCharges ? ' Take it back (H) and set it on the mark.' : ''}`);
+    return true;
+  }
+  return false;
+}
+
 function plantBomb(kind) {
   const item = kind === 'time' ? 'timeBomb' : 'remoteBomb';
-  const place = (c, world, x, z, y) => {
+  const place = (c, world, x, z, y, insideOf = null) => {
     if (!c.consume(item)) return false;
     // per-mission time-bomb fuse (M4's retail file: 7.5 s); default CONFIG.weapons.timeBomb.fuse
     const mf = world.mission?.timeBombFuse;
-    const bomb = world.add(new Bomb({ x, z, y, bombKind: kind, owner: c, seq: ++bombSeq,
+    const bomb = world.add(new Bomb({ x, z, y, heading: c.heading, bombKind: kind, owner: c, seq: ++bombSeq, insideOf,
       ...(kind === 'time' && Number.isFinite(mf) ? { fuse: mf } : {}) }));
     world.events.emit('bomb:armed', { bomb, kind, fuse: Number.isFinite(bomb.fuse) ? bomb.fuse : null, unit: c });
+    if (insideOf == null) offMarkHint(world, c, bomb);
     return true;
   };
   const start = function start(c, t, world) {
     // at a bunker's entrance (structure `entry`): he goes in and sets the charge inside (abilities/bunker-entry.js)
     const near = bunkerEntryNear(world, c);
-    if (near) return entryTask(c, world, near.it, near.entry, (x, z) => place(c, world, x, z, 0));
+    if (near) return entryTask(c, world, near.it, near.entry, (x, z) => place(c, world, x, z, 0, near.it.tag ?? near.it.id));
     const plant = (kind === 'time' ? W.timeBomb : W.remoteBomb).plant;
     c.playAction('plant', plant);
     return timedTask({ dur: plant, steps: [{ at: plant, fn: () => place(c, world, c.x + Math.cos(c.heading) * 0.4, c.z + Math.sin(c.heading) * 0.4, c.y || 0) }] });
@@ -84,7 +107,7 @@ function resumeBomb(kind) {
     const it = id != null ? world.interactables.find((i) => (i.tag ?? i.id) === id) : null;
     const entry = it && !it.destroyed ? it.params?.structure?.entry : null;
     if (!entry) return null;
-    return entryTask(c, world, it, entry, (x, z) => start.place(c, world, x, z, 0), { t0: a.t ?? 0, data: a.data });
+    return entryTask(c, world, it, entry, (x, z) => start.place(c, world, x, z, 0, it.tag ?? it.id), { t0: a.t ?? 0, data: a.data });
   };
 }
 
@@ -108,9 +131,9 @@ registerAbility({
   resume: resumeBomb('remote'),
 });
 
-/** Remote bombs planted by `c` still waiting, oldest first. */
+/** Remote bombs planted by `c` still waiting (not gone off, taken back or already fired), oldest first. */
 export function plantedRemotes(world, c) {
-  return world.interactables.filter((b) => b.interactKind === 'bomb' && b.bombKind === 'remote' && !b.exploded && !b.removed && b.planter === c && b.fuse === Infinity)
+  return world.interactables.filter((b) => b.interactKind === 'bomb' && b.bombKind === 'remote' && b.placed && b.planter === c && b.fuse === Infinity)
     .sort((a, b) => a.seq - b.seq);
 }
 
@@ -124,6 +147,131 @@ registerAbility({
     bomb.detonate(A.remoteDelay);
     world.events.emit('bomb:detonate', { unit: c });
     return null; // instant (the charge keeps its own 0.2 s radio delay)
+  },
+});
+
+// ---------------------------------------------------------------- taking a charge back (house rule recoverCharges)
+
+const TK = A.chargeTake;
+/** m: he kneels this far short of the charge, facing it (as at a bunker's charge spot, bunker-entry KNEEL_OFF). */
+const TAKE_KNEEL = 0.45;
+/** s: his short shuffle onto the kneeling spot, inside the take (cutters: 0.35 s). */
+const TAKE_SETTLE = 0.3;
+
+/** A placed charge (the Bomb interactable) or null. */
+export const chargeOf = (t) => (t?.kind === 'interactable' && t.interactKind === 'bomb' ? t : null);
+
+/** The bunker a charge was set inside and its entry, while the bunker stands; null for a charge in the open. */
+export function chargeBunker(world, bomb) {
+  if (bomb?.insideOf == null || !world) return null;
+  const it = (world.interactables || []).find((i) => i.bunker && !i.destroyed && !i.removed && (i.tag ?? i.id) === bomb.insideOf);
+  const entry = it ? entryOf(it) : null;
+  return entry ? { it, entry } : null;
+}
+
+/** Why `c` cannot take charge `b` back (now, or by walking there), or true. */
+export function takeAllowed(c, b, world = c.world) {
+  if (!chargeOf(b)) return 'Nothing to take.';
+  const f = onFoot(c);
+  if (f !== true) return f;
+  if (c.carrying) return 'Drop it first.';
+  const u = b.canUse(c); // only the Sapper, only under recoverCharges, only while it is there and not going off
+  if (u !== true) return u;
+  // right below / above it (a charge on the dam crest, he at its foot): not from here
+  if (!chargeBunker(world, b) && Math.hypot(b.x - c.x, b.z - c.z) <= TK.reach + 0.3 && Math.abs((b.y || 0) - (c.y || 0)) > 1.0) return "Can't reach it from here.";
+  return true;
+}
+
+/** The charge is back in his knapsack: the HUD line and his "Sorted, that." (the sound: audio bomb:disarmed). */
+function recovered(world, c, bomb) {
+  say(world, c, `${bomb.bombKind === 'time' ? 'time bomb back in the knapsack — the clock is stopped' : 'remote charge back in the knapsack'}.`, 'info');
+  bark(world, c, 'act_ok');
+}
+
+/** Take it now (the grab frame): false when it went (off) in the meantime. */
+function grab(c, bomb, world) {
+  const ok = takeAllowed(c, bomb, world);
+  if (ok !== true) {
+    if (bomb.placed) say(world, c, ok);
+    return false;
+  }
+  if (!bomb.take(c)) return false;
+  recovered(world, c, bomb);
+  return true;
+}
+
+/**
+ * The take in the open (or resumed at `t0`): he shuffles onto a spot TAKE_KNEEL short of the charge, square to it,
+ * kneels (`take_charge`: the plant played back), takes it at TK.grab — the clock stops, it leaves the ground and goes
+ * into his knapsack in the same instant — and stands up again by TK.dur. Interrupted before the grab, it stays (ticking).
+ */
+function takeTask(c, bomb, world, t0 = 0) {
+  const from = { x: c.x, z: c.z, h: c.heading };
+  const dx = bomb.x - c.x, dz = bomb.z - c.z, d = Math.hypot(dx, dz);
+  let to = { x: c.x, z: c.z };
+  if (d > TAKE_KNEEL + 0.05) {
+    const p = { x: bomb.x - (dx / d) * TAKE_KNEEL, z: bomb.z - (dz / d) * TAKE_KNEEL };
+    if (world.grid.walkableAt(p.x, p.z) && Math.hypot(p.x - c.x, p.z - c.z) <= 0.8) to = p;
+  }
+  const face = d > 1e-3 ? Math.atan2(dz, dx) : c.heading;
+  if (t0 < TK.dur) c.playAction('take_charge', TK.dur - t0);
+  return timedTask({
+    dur: TK.dur, t0,
+    tick: (dt, tt) => {
+      if (tt > TAKE_SETTLE + 0.05) return undefined;
+      const k = Math.min(1, tt / TAKE_SETTLE), e = k * k * (3 - 2 * k);
+      if (from.x !== to.x || from.z !== to.z) { c.x = from.x + (to.x - from.x) * e; c.z = from.z + (to.z - from.z) * e; }
+      const dh = Math.atan2(Math.sin(face - from.h), Math.cos(face - from.h));
+      c.heading = from.h + dh * e;
+      return undefined;
+    },
+    steps: [{ at: TK.grab, fn: () => grab(c, bomb, world) }],
+    save: () => ({ charge: bomb.id }),
+  });
+}
+
+/** A charge set inside a bunker: he goes in again the way he went in to set it, kneels, takes it and comes out. */
+function bunkerTakeTask(c, bomb, world, b, { t0 = 0, data = null } = {}) {
+  return entryTask(c, world, b.it, b.entry, () => {
+    if (!grab(c, bomb, world) && !bomb.taken) say(world, c, 'nothing to take — it is gone.');
+    return true; // whatever he found, he walks back out
+  }, { t0, data, anim: 'take_charge', actAt: TK.grab, actDur: TK.dur, save: () => ({ charge: bomb.id }) });
+}
+
+registerAbility({
+  id: 'takeCharge', label: 'Take back charge', icon: '✋', hotkey: null, roles: ['sapper'], houseRule: 'recoverCharges', notOriginal: true,
+  targeting: 'interactable', cursor: 'hand', order: 36, group: 'hand',
+  // taking a charge back is handling explosives, as visible as setting one (a held man doing it attacks, §4.5)
+  visibleToEnemies: true,
+  // in the open: to the charge (his hands within reach of it); set inside a bunker: to the outer end of its entry path
+  range: (c, t, world) => (chargeBunker(world ?? c.world, t) ? ENTRY_REACH - 0.2 : TK.reach),
+  hipsReach: true, // a crawler comes up with his hips to it (he kneels beside it, not 0.8 m short of his hands' reach)
+  approachPoint(c, t, world) {
+    if (!t?.placed) return { x: c.x, z: c.z }; // gone off (or taken) on his way: he stops there, and canUse says why
+    const b = chargeBunker(world, t);
+    return b ? { x: b.entry.path[0][0], z: b.entry.path[0][1] } : t;
+  },
+  canUse: (c, t, world) => takeAllowed(c, t, world ?? c.world),
+  start(c, t, world) {
+    const b = chargeBunker(world, t);
+    return b ? bunkerTakeTask(c, t, world, b) : takeTask(c, t, world);
+  },
+  // save / load: a take inside a bunker resumes its walk (he must not be left in there); in the open it resumes too,
+  // before the grab (after it the charge is already in the knapsack)
+  resume(c, t, world, a) {
+    const bomb = chargeOf(a?.data?.charge != null ? world.byId(a.data.charge) : t);
+    if (a?.data?.bunker != null) {
+      const it = world.interactables.find((i) => (i.tag ?? i.id) === a.data.bunker);
+      const entry = it && !it.destroyed ? entryOf(it) : null;
+      if (!entry) return null;
+      // (taken before the save: the step is past, he only walks back out)
+      return entryTask(c, world, it, entry, () => {
+        if (bomb?.placed) grab(c, bomb, world);
+        return true;
+      }, { t0: a.t ?? 0, data: a.data, anim: 'take_charge', actAt: TK.grab, actDur: TK.dur, save: () => ({ charge: a.data.charge }) });
+    }
+    if (!bomb?.placed || (a.t ?? 0) >= TK.grab) return null;
+    return takeTask(c, bomb, world, a.t ?? 0);
   },
 });
 

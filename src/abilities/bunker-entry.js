@@ -112,9 +112,11 @@ function route(pts) {
 /**
  * The go-in-and-plant task. `place(x, z)` creates the charge (the caller's bomb factory; false = failed).
  * `t0` / `data`: resumed after a load (the same route from the saved start point).
+ * The same walk in and out takes a charge back (house rule recoverCharges, abilities/sapper.js takeCharge): `anim` is the
+ * kneeling clip, `actAt` s into the kneel (after getting down) the act runs, `actDur` s he stays at it, `save` extra data.
  * @returns {object} a timedTask
  */
-export function entryTask(c, world, it, entry, place, { t0 = 0, data = null } = {}) {
+export function entryTask(c, world, it, entry, place, { t0 = 0, data = null, anim = 'plant', actAt = null, actDur = null, save = null } = {}) {
   const start = data?.start ?? [c.x, c.z];
   const stand = data ? data.stand ?? 0 : c.stance === 'stand' ? 0 : CONFIG.units.stanceUp;
   if (!data && c.stance !== 'stand') c.setStance('stand');
@@ -126,10 +128,10 @@ export function entryTask(c, world, it, entry, place, { t0 = 0, data = null } = 
   const R = route(inPts);
   const faceIdx = Math.min(inPts.length - 2, 1 + (entry.face ?? Math.max(0, entry.path.length - 2))); // past it: inside
   const sFace = R.cum[faceIdx];
-  const plant = CONFIG.weapons.timeBomb.plant;
+  const plant = actDur ?? CONFIG.weapons.timeBomb.plant;
   const tIn0 = stand, tIn1 = tIn0 + R.len / ENTRY_SPEED;
-  const tPlant = tIn1 + KNEEL + plant; // the charge is set here
-  const tOut0 = tPlant + KNEEL;
+  const tPlant = tIn1 + KNEEL + (actAt ?? plant); // the charge is set (taken) here
+  const tOut0 = tIn1 + KNEEL + plant + KNEEL;
   // out: back along the same way to the outer end of the path (not to where he started)
   const outLen = R.len - R.cum[1];
   const tOut1 = tOut0 + outLen / ENTRY_SPEED;
@@ -164,12 +166,12 @@ export function entryTask(c, world, it, entry, place, { t0 = 0, data = null } = 
     tick: (dt, t) => {
       if (!c.alive || it.destroyed) { end(); return 'failed'; }
       apply(t);
-      if (!playedKneel && t >= tIn1) { playedKneel = true; c.playAction('plant', KNEEL * 2 + plant); }
+      if (!playedKneel && t >= tIn1) { playedKneel = true; c.playAction(anim, KNEEL * 2 + plant); }
       return 'running';
     },
     onEnd: end,
     onCancel: end,
-    save: () => ({ bunker: it.tag ?? it.id, start, stand, planted }),
+    save: () => ({ bunker: it.tag ?? it.id, start, stand, planted, ...(save?.() ?? null) }),
   });
   task.keepsState = false;
   return task;

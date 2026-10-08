@@ -96,6 +96,7 @@ export const OPTION_DEFAULTS = {
   ragdollAllDeaths: true,
   physicsGameplay: true,
   runningNoise: true, // guards hear a running commando (stealth.runNoise); off = 1998 silent movement
+  recoverCharges: true, // the Sapper takes a placed charge back (abilities/sapper.js takeCharge); off = 1998: it stays put
 };
 
 /** Volume options → audio.setVolume channel (the busses of audio/engine.js, plus the briefing narrator). */

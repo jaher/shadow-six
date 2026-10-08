@@ -18,6 +18,8 @@ const HUMAN = {
   put_down: ['put_down', 'plant'], downed_fall: ['downed_fall', 'die'], downed_idle: ['downed_idle', 'crawl_idle'],
   downed_crawl: ['downed_crawl', 'crawl'], revive_give: ['revive_give', 'use'], revive_receive: ['downed_idle', 'crawl_idle'],
   stand_up: ['stand_up', 'idle'], revive_up: ['get_up', 'stand_up', 'idle'], blast_fall: ['blast_fall', 'knockback', 'hit'], hit: ['hit', 'idle'],
+  // the Sapper takes a placed charge back (house rule recoverCharges): the plant played back (art/body-clips.js)
+  take_charge: ['take_charge', 'kneel_reach', 'plant'],
 };
 
 /** Gameplay names a transported man plays whatever he was doing (dead, dying or downed). */
@@ -113,9 +115,22 @@ export function actionWeapon(role, actionId) {
     case 'smg': return 'thompson';
     case 'harpoon': return 'harpoon_gun';
     case 'grenade': case 'timeBomb': case 'remoteBomb': case 'trap': case 'cutters': case 'shovel': case 'uniform':
-    case 'firstAid': case 'decoyDrop': case 'detonate': return false;   // clip-bound props (commandos_b) or empty hands
+    case 'firstAid': case 'decoyDrop': case 'detonate': case 'takeCharge': return false;   // clip-bound props (commandos_b) or empty hands
     default: return null;
   }
+}
+
+/**
+ * The charge prop (commandos_b clip-bound: plant / take_charge) a Sapper's action puts in his hand: the time or remote
+ * charge he sets (timeBomb / remoteBomb) or takes back (takeCharge: the kind of its target); null for anything else
+ * (the bear trap is set with the same plant clip, empty-handed).
+ * @param {string|null} actionId @param {any} [target] @returns {'time_bomb'|'remote_bomb'|null}
+ */
+export function chargeProp(actionId, target = null) {
+  if (actionId === 'timeBomb') return 'time_bomb';
+  if (actionId === 'remoteBomb') return 'remote_bomb';
+  if (actionId === 'takeCharge') return target?.bombKind === 'remote' ? 'remote_bomb' : 'time_bomb';
+  return null;
 }
 
 /** fnv1a 32-bit (same as the character pipeline's variety.js). */

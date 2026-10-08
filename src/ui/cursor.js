@@ -5,8 +5,9 @@
  *     enemy), 'hand' (H: open hand with forbidden overlay → animated grab over something to take);
  *  2. the input's targeting ability (knife, pistol, scope 88 px red/ok, crosshair, syringe, cap, …) with the
  *     red forbidden overlay when `input.cursor === 'forbidden'`;
- *  3. hover context: the eye over an enemy soldier (click → his vision cone, with or without men selected); with men
- *     selected: activation (operable thing), climbing pick (GB over a climbable), move.
+ *  3. hover context: with the Sapper selected, the grabbing hand over a placed charge (click → he takes it back, house
+ *     rule recoverCharges); the eye over an enemy soldier (click → his vision cone, with or without men selected); with
+ *     men selected: activation (operable thing), climbing pick (GB over a climbable), move.
  * Also shows the 0.6 s twin-star destination sparkle for 'ui:move-marker'.
  * The sniper scope is a live 2× magnifier (render/scope-magnifier.js draws the world into the glass right after
  * the frame, from `lensState()`); this layer then swaps the scope sprite for the clear ring + the reticle and the
@@ -16,6 +17,7 @@
  */
 
 import { perception } from '../ai/perception.js';
+import { ABILITIES } from '../abilities/index.js';
 import { el } from './dom.js';
 import { CURSORS, FORBIDDEN, SPARKLE, cursorArt, spriteFor } from './cursor-sprites.js';
 import { iconEntry, iconHTML } from './icon-art.js';
@@ -149,7 +151,9 @@ export class CursorLayer {
     }
     if (mode === 'hand') {
       const t = this.pick(grabbable);
-      return t ? { id: Math.floor(now * 4) % 2 ? 'grab' : 'hand' } : { id: 'hand', forbidden: true };
+      // a placed charge: only a selected Sapper may take it back (house rule recoverCharges)
+      const ok = t && (t.interactKind !== 'bomb' || (w?.commandos || []).some((c) => c.selected && c.alive && ABILITIES.takeCharge?.canUse?.(c, t, w) === true));
+      return ok ? { id: Math.floor(now * 4) % 2 ? 'grab' : 'hand' } : { id: 'hand', forbidden: true };
     }
     const tg = input?.targeting;
     if (tg) {
@@ -157,13 +161,21 @@ export class CursorLayer {
       if (id === 'fist') id = fistVariant(tg.abilityId); // BCD knock-outs: bare fist, the Driver's blackjack, the Spy's pad
       return { id, forbidden: input.cursor === 'forbidden' };
     }
+    // over a placed charge with the Sapper selected (house rule recoverCharges): the grabbing hand — a click sends him to
+    // take it back (engine/input.js chargeAt; the same order as H on it); refused (forbidden overlay) when he can't now
+    const ch = input?.chargeAt?.(this.pos.x, this.pos.y);
+    if (ch) {
+      const ok = ABILITIES.takeCharge?.canUse?.(ch.sapper, ch.charge, w);
+      return ok === true ? { id: Math.floor(now * 4) % 2 ? 'grab' : 'hand' } : { id: 'hand', forbidden: true };
+    }
     // over an enemy soldier with no item armed: the eye — a click shows his vision cone (user 2026-10-07 "there should
     // be an eye icon, when mouse is positioned over a soldier (the same way there is for knife, gun, etc)").
     // Refused (forbidden overlay) where cone inspection is (§6.8 paused).
     if (this.pick((q) => q.kind === 'enemy' && q.alive !== false)) return { id: 'eye', look: true, forbidden: input?.canInspect === false };
     const sel = w?.commandos.filter((c) => c.selected && c.alive) || [];
     if (!sel.length) return { id: 'arrow', native: true };
-    const hover = this.pick((q) => q.kind === 'interactable' || q.kind === 'vehicle');
+    // (a charge is no lever: without the Sapper a click on it only walks there)
+    const hover = this.pick((q) => (q.kind === 'interactable' && q.interactKind !== 'bomb') || q.kind === 'vehicle');
     if (hover) {
       if (hover.climbable || hover.type === 'climbable') return sel.some((c) => c.role === 'greenberet') ? { id: 'climb' } : { id: 'climb', forbidden: true };
       // a vehicle nobody selected may get into (the Marine must board the raft first, full, crewed): refused cursor

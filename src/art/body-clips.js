@@ -160,6 +160,14 @@ export function recipes(mirror = MIRROR) {
       { src: 'kneel_shoot', time: T.at(0.5, true) },
       { src: 'plant', bones: r.upper, time: T.at(0.45, true), w: W.k(0.85) },
     ] }],
+    // TAKING A CHARGE BACK (house rule recoverCharges, abilities/sapper.js takeCharge; CONFIG.abilities.chargeTake 1.0 s,
+    // the grab at 0.5 s): the plant played back — down on one knee over the charge, both hands to it, the plant's hands
+    // working it loose (its fixing frames run backwards), and up again with it (the time_bomb prop shows from the grab)
+    ['take_charge', { dur: 1.0, ground: true, layers: [
+      { src: 'idle', time: T.at(0) },
+      { src: 'kneel_reach', time: T.at(0), w: W.hump(0, 0.32, 0.62, 1.0) },
+      { src: 'plant', bones: r.arms, time: T.span(0.5, 0.4, 0.3, 0.6), w: W.hump(0.28, 0.38, 0.52, 0.66, 0.6) },
+    ] }],
     // MG GUNNER at a platform MG (render/mg-mount.js): held down on one knee behind the butt (the kneeling shot's pose
     // at mid-clip, not its stand-kneel-stand cycle), breathing; the arms are IK'd onto the gun's grips
     ['mg_kneel', { dur: 2.4, loop: true, layers: [
@@ -250,6 +258,7 @@ export function addBodyClips(lib, { mirror = MIRROR, force = false } = {}) {
     if (!c) continue;
     lib.clips.set(name, c);
     const m = { source: 'spliced (art/body-clips.js)', license: 'CC0 (project-authored from UAL / keyed poses)', loop: !!r.loop, duration: dur };
+    if (r.ground) m.ground = true; // per-character grounding at adapt time (commandos_b / guests ground.js): the knee on the ground
     const sm = r.speedOf && lib.meta?.[r.speedOf];
     if (sm?.groundSpeed) { m.groundSpeed = sm.groundSpeed; m.loco = true; if (sm.moveDir) m.moveDir = sm.moveDir; if (sm.reverse) m.reverse = sm.reverse; }
     if (lib.meta) lib.meta[name] = m;

@@ -2,7 +2,8 @@
  * Shared actions (design-spec §3.2) — owned by ABILITIES:
  *   hand     H  role-gated pick-up (§3.2 table): bodies (GB, Spy), barrels (GB), items/ammo/crates, the decoy (GB),
  *               a sprung trap (Sapper), the deployed raft (Marine, packs it 2.0 s); carrying a barrel + click a body
- *               = hide the body under the barrel (§3.4). 0.6 s items, 1.0 s bodies/barrels.
+ *               = hide the body under the barrel (§3.4). 0.6 s items, 1.0 s bodies/barrels. On a placed time / remote
+ *               bomb the order goes on to the Sapper's takeCharge (house rule recoverCharges, abilities/sapper.js).
  *   drop     right-click while carrying: 0.8 s, the body lies down / the barrel stands upright.
  *   firstAid K  medic (Driver → Spy → Sniper): +34 HP at 0.5 s of 1.5 s, 6 doses, walks to 1.2 m.
  *   use      (lever cursor) doors/hideouts, switches, valves, phones, ladders, clotheslines, jail doors (§3.2 durations).
@@ -45,7 +46,8 @@ export function handTarget(c, t, world) {
   if (t.kind === 'commando' && t.alive && isTransportable(t, world)) return { kind: 'body', ent: t }; // §C.1 downed buddy / cannotWalk guest
   if (t.kind === 'vehicle') return t.vehicleType === 'raft' ? { kind: 'raft', ent: t } : null;
   if (t.kind === 'interactable') return t.interactKind === 'barrel' ? { kind: 'barrel', ent: t } : { kind: 'item', ent: t };
-  const it = interactableNear(world, x, z, 1.2, (i) => i.interactKind === 'barrel' || ['pickup', 'ammo', 'crate', 'decoy', 'trap'].includes(i.interactKind));
+  const it = interactableNear(world, x, z, 1.2, (i) => i.interactKind === 'barrel' || ['pickup', 'ammo', 'crate', 'decoy', 'trap'].includes(i.interactKind)
+    || (i.interactKind === 'bomb' && i.placed));
   if (it) return it.interactKind === 'barrel' ? { kind: 'barrel', ent: it } : { kind: 'item', ent: it };
   const b = bodyNear(world, x, z, 1.2) || (ko ? enemyNear(world, x, z, 1.2, (q) => !!q.ko && !q.puppetOf && q.state !== 'carried') : null);
   if (b) return packOf(b) ? { kind: 'loot', ent: b } : { kind: 'body', ent: b };
@@ -87,6 +89,11 @@ registerAbility({
     return handAllowed(c, h, world);
   },
   approachPoint(c, t, world) { return handTarget(c, t, world)?.ent ?? t; },
+  // H on a placed charge: the Sapper's takeCharge does it (its walk-up, kneel and timing; Commando.useAbility `forward`)
+  forward(c, t, world) {
+    const ent = handTarget(c, t, world)?.ent;
+    return ent?.interactKind === 'bomb' ? { id: 'takeCharge', target: ent } : null;
+  },
   // the result would be a drag (not GB/Spy, dragBodies on) → the collar-pulling hand (§C.5)
   cursorFor: (c, t, world) => (handTarget(c, t, world)?.kind === 'body' && transportMode(c, null, world) === 'drag' ? 'hand_drag' : null),
   // H while dragging a man lifts him to the shoulder (§C.5)

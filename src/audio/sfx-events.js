@@ -26,6 +26,7 @@ export const SFX_EVENTS = Object.freeze([
   { event: 'bomb:armed', sfx: ['bomb_plant', 'bomb_tick'], pick: '{bomb, kind: time|remote, fuse} — tick loop 2 Hz → 4 Hz until bomb:exploded' },
   { event: 'bomb:detonate', sfx: ['detonator_click'] },
   { event: 'bomb:exploded', sfx: ['explosion_big'] },
+  { event: 'bomb:disarmed', sfx: ['bomb_disarm', 'bomb_plant'], pick: '{bomb, kind, unit, x, z} — the Sapper takes a charge back: latch, then the pouch 0.35 s later; ends the tick loop' },
   { event: 'explosion', sfx: ['explosion_small', 'explosion_big', 'barrel_explode', 'debris_rain'], pick: 'payload.kind: grenade|shell → small; bomb|vehicle → big; barrel → barrel_explode' },
   { event: 'structure:destroyed', sfx: ['collapse', 'fire_loop', 'dam_burst', 'flood_rush'], pick: '{id, type, cause} (cause ram: silent here, the gate:smash sounds play; type fence-gap: silent, the cutters snipped)' },
   { event: 'gate:smash', sfx: ['gate_smash', 'gate_hinge_snap', 'gate_thud', 'gate_thud_metal'], pick: '{x, z, outcome, kind}: the crack, then the hinges snapping (the heavier the hit, the more)' },

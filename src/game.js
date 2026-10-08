@@ -275,6 +275,9 @@ export class Game {
     world.physics = (await safeAsync(() => createPhysics(world, { tier: world.house.physicsTier }), 'physics')) || NULL_PHYSICS;
     // no physics on this machine: play by the rule the null object can honour (saved, so a load keeps it)
     if (world.physics.isNull) world.house.physicsGameplay = false;
+    // the men were spawned under the default layer: their house-rule actions follow the one resolved now (drag,
+    // takeCharge — a CLASSIC 1998 Sapper must not keep SHADOW SIX's takeCharge)
+    for (const c of world.commandos) c.refreshAbilities?.();
     if (this.world !== world) { world.physics.dispose(); return prog.cancel(), world; }
     this.physicsVisuals = safe(() => new PhysicsVisuals(world, r.scene), 'physics visuals');
     world.marks = safe(() => new BlastMarks(world, r.scene), 'blast marks'); // craters / scorch (saved, visual only)

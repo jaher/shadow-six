@@ -28,6 +28,7 @@ import * as THREE from 'three';
 import { addBodyClips } from './body-clips.js';
 import { scoped, touch, sceneBytes, disposeScene } from '../engine/scoped-assets.js';
 import { syringeWeapon } from './syringe-prop.js';
+import { chargeWeapon } from './demolition-charge.js';
 
 const ROOT = new URL('../../assets/characters/', import.meta.url);
 const url = (p) => new URL(p, ROOT).href;
@@ -102,6 +103,8 @@ async function initCommandos(L) {
   bodyClips(caLib, 'commandos_a'); bodyClips(bLib, 'commandos_b');
   // the Spy's syringe: the detailed glass-and-nickel model with a moving plunger (art/syringe-prop.js)
   try { if (bW) bW.syringe = syringeWeapon(); } catch (e) { console.warn('[humanoid-real] syringe prop', e); }
+  // the Sapper's charges in his hand (plant / take_charge): the same models as on the ground (art/demolition-charge.js)
+  try { if (bW) { bW.time_bomb = chargeWeapon('time'); bW.remote_bomb = chargeWeapon('remote'); } } catch (e) { console.warn('[humanoid-real] charge props', e); }
   L.rt.commandos_a = {
     load: (e) => PK.loadCharacter(url(e.glb)),
     create: (tpl) => CA.createCommando(tpl, caLib),
