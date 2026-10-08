@@ -16,6 +16,7 @@ import { applyFlap, applySway, swayWeights, canvasAttributes, transformCanvasAtt
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { libTextureURL } from './building-library.js';
 import { extendPolygonPastEdges } from '../world/edge-extend.js';
+import { MEDINA_GOODS_RX, buildMedinaGoods } from './medina-kit.js';
 
 const HAS_DOM = typeof document !== 'undefined';
 
@@ -394,6 +395,7 @@ function logGeometry() {
 const WALL_KIND = (variant = '', mat = '') => {
   const v = String(variant);
   if (/palisade|stockade|log/.test(v)) return 'palisade';
+  if (/medina|mosque/.test(v)) return 'limewash'; // M12 art pass: Tunis lime-washed rubble walls (sandstone coping), not brick
   if (/stone|dry|field/.test(v) || mat === 'stone') return 'stone';
   if (mat === 'concrete' || /concrete/.test(v)) return 'concrete';
   return 'brick';
@@ -487,6 +489,13 @@ export function buildWall(points, o) {
     seg.position.set((ax + bx) / 2, h / 2, (az + bz) / 2);
     seg.rotation.y = -Math.atan2(bz - az, bx - ax);
     root.add(seg);
+    if (kind === 'limewash') { // a crowned sandstone coping with a drip lip and a darker damp plinth
+      const cap = mesh(boxUV(new THREE.BoxGeometry(L + width + 0.08, 0.14, width + 0.12), 1.2), dressingMaterial('sandstone'));
+      cap.position.set(seg.position.x, h + 0.07, seg.position.z); cap.rotation.y = seg.rotation.y;
+      const plinth = mesh(boxUV(new THREE.BoxGeometry(L + width + 0.04, Math.min(0.5, h * 0.2), width + 0.06), 1.4), dressingMaterial('mudRender'));
+      plinth.position.set(seg.position.x, Math.min(0.5, h * 0.2) / 2, seg.position.z); plinth.rotation.y = seg.rotation.y;
+      root.add(cap, plinth);
+    }
     if (/plank|roof|cap/.test(String(o.variant))) {
       const cap = mesh(boxUV(new THREE.BoxGeometry(L + width + 0.2, 0.1, width + 0.3), 2), dressingMaterial('planks'));
       cap.position.set(seg.position.x, h + 0.05, seg.position.z); cap.rotation.y = seg.rotation.y;
@@ -600,6 +609,7 @@ export function buildSandbags(p) {
 /** Crates: stacked wooden crates; 'cable_drum' → wooden cable drum; 'timber_debris' → loose planks and beams. */
 export function buildCrates(p) {
   const w = p.w ?? 2, d = p.d ?? 2, h = p.h ?? 1.1, R = rng(seedOf(p.id ?? `${p.x},${p.z}`)), v = String(p.variant ?? '');
+  if (MEDINA_GOODS_RX.test(v)) return consolidate(buildMedinaGoods(p)); // M12 art pass: carts, sacks, baskets (art/medina-kit.js)
   const g = new THREE.Group(); g.name = 'dressing:crates';
   const wood = dressingMaterial('planks');
   if (/drum/.test(v)) {

@@ -480,7 +480,7 @@ function chainlink(C) {
   const live = electric ? [0.55, 1.05, 1.55, 2.0].filter((y) => y < meshTop - 0.1) : [];
   for (let k = 1; k < posts.length; k++) {
     const A = posts[k - 1], B = posts[k], a = run.at(A.d), b = run.at(B.d);
-    C.P.panel([a.x, a.z], [b.x, b.z], C.G(a.x, a.z), C.G(b.x, b.z), 0.03, meshTop, { runKey: C.runKey, da: A.d, db: B.d, cuttable: C.cut });
+    C.P.panel([a.x, a.z], [b.x, b.z], C.G(a.x, a.z), C.G(b.x, b.z), 0.03, meshTop, { runKey: C.runKey, da: A.d, db: B.d, cuttable: C.cut, look: C.look });
     C.span(A.at(meshTop), B.at(meshTop), A.d, B.d, { sag: 0.008, barbs: null, sway: 0.05, r: 0.0022 });   // tension wire
     for (let j = 0; j < A.arm.length; j++) C.span(A.arm[j], B.arm[j], A.d, B.d, { sag: 0.015, sway: 0.12 });
     for (const y of live) {
@@ -545,40 +545,110 @@ export function buildWireRun(type, points, def, o = {}) {
 // ------------------------------------------------------------------------------------------------ cut gaps
 
 /**
- * Split a wire path at the gaps (run-arc intervals [s0, s1]): the pieces outside every gap, plus one cut per
- * severed end {p, dir (unit, pointing into the gap)}. Pure.
+ * Split a wire path at the gaps (run-arc intervals [s0, s1]) and the holes cut low in it (`hole(s, p)` → the hole
+ * object when path point p at run arc s lies inside one, else null): the pieces outside every gap and hole, plus one
+ * cut per severed end {p, dir (unit, pointing into the gap), hole (the hole it opens on, or undefined)}. Pure.
  */
-export function cutPath(path, sArr, gaps) {
-  if (!gaps?.length || !sArr) return { pieces: [{ path, sArr }], cuts: [] };
-  const inGap = (s) => gaps.some((g) => s > g[0] && s < g[1]);
+export function cutPath(path, sArr, gaps, hole = null) {
+  if ((!gaps?.length && !hole) || !sArr) return { pieces: [{ path, sArr }], cuts: [] };
+  const inGap = (s) => !!gaps && gaps.some((g) => s > g[0] && s < g[1]);
+  const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const holeAt = (i) => (hole && !inGap(sArr[i]) ? hole(sArr[i], path[i]) : null);
+  const inside = path.map((_, i) => inGap(sArr[i]) || !!holeAt(i));
+  if (!inside.some(Boolean)) return { pieces: [{ path, sArr }], cuts: [] };
   const pieces = [], cuts = [];
   let cur = null;
-  const lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
   const dirOf = (a, b) => { const l = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]) || 1; return [(b[0] - a[0]) / l, (b[1] - a[1]) / l, (b[2] - a[2]) / l]; };
+  // the edge between an outside point o and an inside point n: a gap's exact arc, else the hole outline (bisection)
+  const edge = (o, n) => {
+    const e = gaps && gaps.find((q) => sArr[n] > q[0] && sArr[n] < q[1]);
+    if (e) {
+      const at = sArr[o] <= e[0] ? e[0] : e[1], den = sArr[n] - sArr[o];
+      const t = Math.abs(den) > 1e-9 ? (at - sArr[o]) / den : 0;
+      return { t: Math.min(1, Math.max(0, t)), s: at, h: undefined };
+    }
+    const h = holeAt(n);
+    let lo = 0, hi = 1;
+    for (let it = 0; it < 14; it++) {
+      const m = (lo + hi) / 2, sm = sArr[o] + (sArr[n] - sArr[o]) * m;
+      if (hole(sm, lerp(path[o], path[n], m))) hi = m; else lo = m;
+    }
+    return { t: lo, s: sArr[o] + (sArr[n] - sArr[o]) * lo, h };
+  };
   for (let i = 0; i < path.length; i++) {
-    const g = inGap(sArr[i]);
-    if (!g) {
+    if (!inside[i]) {
       if (!cur) {
         cur = { path: [], sArr: [] };
-        if (i > 0) {   // entering from a gap: the cut point at the gap edge
-          const e = gaps.find((q) => sArr[i - 1] > q[0] && sArr[i - 1] < q[1]), edge = sArr[i] >= e[1] ? e[1] : e[0];
-          const t = Math.abs(sArr[i] - sArr[i - 1]) > 1e-9 ? (edge - sArr[i - 1]) / (sArr[i] - sArr[i - 1]) : 0;
-          const p = lerp(path[i - 1], path[i], Math.min(1, Math.max(0, t)));
-          cur.path.push(p); cur.sArr.push(edge); cuts.push({ p, dir: dirOf(path[i], path[i - 1]) });
+        if (i > 0) {   // coming out of a gap / hole: the cut point at its edge
+          const E = edge(i, i - 1), p = lerp(path[i], path[i - 1], E.t);
+          cur.path.push(p); cur.sArr.push(E.s); cuts.push({ p, dir: dirOf(path[i], path[i - 1]), hole: E.h });
         }
       }
       cur.path.push(path[i]); cur.sArr.push(sArr[i]);
-    } else if (cur) {   // leaving into a gap
-      const e = gaps.find((q) => sArr[i] > q[0] && sArr[i] < q[1]), edge = sArr[i - 1] <= e[0] ? e[0] : e[1];
-      const t = Math.abs(sArr[i] - sArr[i - 1]) > 1e-9 ? (edge - sArr[i - 1]) / (sArr[i] - sArr[i - 1]) : 1;
-      const p = lerp(path[i - 1], path[i], Math.min(1, Math.max(0, t)));
-      cur.path.push(p); cur.sArr.push(edge); cuts.push({ p, dir: dirOf(path[i - 1], path[i]) });
+    } else if (cur) {   // going into a gap / hole
+      const E = edge(i - 1, i), p = lerp(path[i - 1], path[i], E.t);
+      cur.path.push(p); cur.sArr.push(E.s); cuts.push({ p, dir: dirOf(path[i - 1], path[i]), hole: E.h });
       if (cur.path.length >= 2) pieces.push(cur);
       cur = null;
     }
   }
   if (cur && cur.path.length >= 2) pieces.push(cur);
   return { pieces, cuts };
+}
+
+// ------------------------------------------------------------------------------------------------ holes
+
+/**
+ * Hole cut by the Sapper (CONFIG.abilities.cutHole, mirrored here: art never waits on the sim): an ellipse w × h,
+ * its bottom y0 above the ground, centred on run arc `d`; the chain-link flap is hinged on the chord at HINGE of the
+ * height (from the bottom) and peeled back FLAP_ANGLE towards the side he cut from, over FLAP_OPEN s.
+ */
+export const HOLE = Object.freeze({ w: 0.86, h: 0.78, y0: 0.08, hinge: 0.82, flapAngle: 2.0, flapOpen: 0.5 });
+
+/** Opening of a hole's flap (0 shut … 1 peeled back) `t` s after the hole was opened: eased, a little overshoot. */
+export function flapOpen(t) {
+  if (!(t > 0)) return t === Infinity ? 1 : 0;
+  const k = Math.min(1, t / HOLE.flapOpen);
+  return k >= 1 ? 1 : 1 - Math.pow(1 - k, 3) + 0.08 * Math.sin(Math.PI * k) * k;
+}
+
+/**
+ * Is a point at run arc s, height y above the ground, inside hole `H` ({d, w?, h?, y0?})? The cut outline is a little
+ * ragged (± 1.5 cm, fixed per hole): snipped strand by strand, not punched.
+ */
+export function inHole(H, s, y) {
+  const hw = (H.w ?? HOLE.w) / 2, hh = (H.h ?? HOLE.h) / 2, yc = (H.y0 ?? HOLE.y0) + hh;
+  const u = (s - H.d) / hw;
+  if (u <= -1.04 || u >= 1.04) return false;
+  const v = (y - yc) / hh, a = Math.atan2(v, u), r = 1 + 0.035 * Math.sin(a * 7 + (H.seed ?? 0)) + 0.02 * Math.sin(a * 13 + 2 * (H.seed ?? 0));
+  return u * u + v * v < r * r;
+}
+
+/** The hole outline's height interval [lo, hi] (above the ground, below the flap hinge) at run arc s, or null. */
+export function holeSpan(H, s) {
+  const hw = (H.w ?? HOLE.w) / 2, hh = (H.h ?? HOLE.h) / 2, yc = (H.y0 ?? HOLE.y0) + hh, u = (s - H.d) / hw;
+  if (Math.abs(u) >= 1) return null;
+  const dy = hh * Math.sqrt(1 - u * u), hinge = (H.y0 ?? HOLE.y0) + (H.h ?? HOLE.h) * HOLE.hinge;
+  const lo = yc - dy, hi = Math.min(yc + dy, hinge);
+  return hi > lo + 1e-3 ? [lo, hi] : null;
+}
+
+/**
+ * A frayed end where a strand was snipped at a hole: a short stub bent back out of the hole and towards the side he
+ * cut from (`H.n` = [nx, nz], the peel side), sprung a little (0.07–0.16 m). Returns the path.
+ */
+export function peelTail(cut, H, rnd = Math.random, groundAt = () => 0) {
+  const n = H?.n || [0, 1], L = 0.07 + rnd() * 0.09, out = [];
+  const back = [-cut.dir[0], -cut.dir[1], -cut.dir[2]];   // out of the hole, along the wire
+  const up = (rnd() - 0.45) * 0.6;
+  for (let i = 0; i <= 5; i++) {
+    const f = i / 5, bend = Math.sin(f * Math.PI / 2);   // first along the wire into the hole a hair, then bent out
+    const along = 0.025 * (1 - bend) - 0.35 * L * bend * bend;
+    const p = [cut.p[0] - back[0] * along + n[0] * L * bend, cut.p[1] - back[1] * along + up * L * bend * f, cut.p[2] - back[2] * along + n[1] * L * bend];
+    p[1] = Math.max(p[1], groundAt(p[0], p[2]) + 0.012);
+    out.push(p);
+  }
+  return out;
 }
 
 /**
@@ -609,12 +679,21 @@ export function curlTail(cut, kind = 'soft', rnd = Math.random, groundAt = () =>
 
 /**
  * Turn the wire items into ribbon buffers (one WireBuffer per look), applying the cut gaps (Map runKey →
- * [[s0, s1], …]) and the ground clearance. Pure (no GPU): returns {buffers: Map look → WireBuffer, cuts, tails}.
+ * [[s0, s1], …]), the holes cut low in the wire (o.holes: Map runKey → [{d, n, seed}], see inHole) and the ground
+ * clearance. Pure (no GPU): returns {buffers: Map look → WireBuffer, cuts, tails}.
  */
-export function assembleRibbons(parts, gaps = new Map(), groundAt = () => 0, o = {}) {
+export function assembleRibbons(parts, gaps = new Map(), groundAt = () => 0, o = {}) {   // o.holes: Map runKey → [hole]
   const buffers = new Map(), stat = { cuts: 0, tails: 0 };
   const bufOf = (look) => { if (!buffers.has(look)) buffers.set(look, new WireBuffer(groundAt)); return buffers.get(look); };
   for (let k = 0; k < parts.items.length; k++) assembleItem(parts.items[k], k, bufOf, gaps, groundAt, o, stat);
+  // the snipped weave round each hole in a chain-link panel
+  if (o.holes?.size && o.strands !== false) {
+    let q = 0;
+    for (const p of parts.panels) {
+      const hs = p.cuttable ? o.holes.get(p.runKey) : null;
+      if (hs) for (const H of hs) if (H.d + HOLE.w / 2 > p.da && H.d - HOLE.w / 2 < p.db) stat.fray = (stat.fray || 0) + holeFray(bufOf(p.look || 'temperate'), p, H, groundAt, wireRng(0xf4a7 + 31 * q++));
+    }
+  }
   return { buffers, ...stat };
 }
 
@@ -635,7 +714,15 @@ export function assembleItem(it, k, bufOf, gaps, groundAt, o, stat) {
     for (let i = 0; i < it.path.length; i++) { const p = it.path[i]; gs[i] = groundAt(p[0], p[2]); if (!it.tie && !it.noClamp) p[1] = Math.max(p[1], gs[i] + clear); }
   }
   const g = it.cuttable && it.runKey != null ? gaps.get(it.runKey) : null;
-  const { pieces, cuts } = cutPath(it.path, it.sArr, g);
+  const hs = it.cuttable && it.runKey != null && it.sArr ? o.holes?.get(it.runKey) : null;
+  let hole = null;
+  if (hs?.length) {
+    let a = Infinity, b = -Infinity;
+    for (const v of it.sArr) { if (v < a) a = v; if (v > b) b = v; }
+    const near = hs.filter((H) => H.d + HOLE.w > a && H.d - HOLE.w < b);
+    if (near.length) hole = (sv, p) => { for (const H of near) if (Math.abs(sv - H.d) < HOLE.w * 0.53 && inHole(H, sv, p[1] - groundAt(p[0], p[2]))) return H; return null; };
+  }
+  const { pieces, cuts } = cutPath(it.path, it.sArr, g, hole);
   for (const pc of pieces) {
     const swayFn = it.swayFn ? it.swayFn : null, s = arcLengths(pc.path), L = s[s.length - 1];
     if (strands) buf.strand(pc.path, { s, g: pc.path === it.path ? gs : null, r: it.r, rust: it.rust, kind: it.kind ?? KIND.strand, sway: it.sway, phase: it.phase, swayFn, arc0: pc.sArr?.[0] ?? 0 });
@@ -643,7 +730,7 @@ export function assembleItem(it, k, bufOf, gaps, groundAt, o, stat) {
     if (strands && it.snow > 0 && !it.tie) buf.snowBeads(pc.path, { s, cover: 0.55 * it.snow, rnd, sway: it.sway, phase: it.phase });
   }
   cuts.forEach((c, ci) => {
-    const rt = wireRng(0x7a11 + k * 131 + ci), tail = curlTail(c, it.tails, rt, groundAt), n = tail.length - 1, ph = rt();
+    const rt = wireRng(0x7a11 + k * 131 + ci), tail = c.hole && !it.coil ? peelTail(c, c.hole, rt, groundAt) : curlTail(c, it.tails, rt, groundAt), n = tail.length - 1, ph = rt();
     if (strands) {
       buf.strand(tail, { r: it.r ?? 0.0026, rust: it.rust, sway: 1, phase: ph, swayFn: (u) => 0.15 + 0.85 * u });
       const a = tail[n - 1], b = tail[n];
@@ -656,9 +743,22 @@ export function assembleItem(it, k, bufOf, gaps, groundAt, o, stat) {
 
 const PANEL_TILE = 0.11;   // two 55 mm diamonds per texture tile
 
-/** Chain-link panel geometry (one quad per span, the cut gaps removed; uv in tiles). Pure. */
-export function panelGeometry(panels, gaps = new Map()) {
+/**
+ * Chain-link panel geometry (one quad per span, the cut gaps removed; uv in tiles). A hole cut in a span (holes: Map
+ * runKey → [{d, …}]) is left open: the span is cut in narrow columns round it, each one's quads stopping at the hole's
+ * outline (holeSpan: below the flap's hinge — the flap is its own mesh, holeFlapGeometry). Pure.
+ */
+export function panelGeometry(panels, gaps = new Map(), holes = new Map()) {
   const pos = [], uv = [], idx = [];
+  const quad = (p, L, f0, f1, y00, y01, y10, y11) => {   // columns f0..f1: bottom y00 / y10, top y01 / y11 (above the ground)
+    const k = pos.length / 3;
+    for (const [f, y] of [[f0, y00], [f1, y10], [f0, y01], [f1, y11]]) {
+      const x = p.a[0] + (p.b[0] - p.a[0]) * f, z = p.a[1] + (p.b[1] - p.a[1]) * f, g0 = p.ga + (p.gb - p.ga) * f;
+      pos.push(x, g0 + y, z);
+      uv.push((f * L) / PANEL_TILE, (y - p.bottom) / PANEL_TILE);
+    }
+    idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2);
+  };
   for (const p of panels) {
     const L = Math.hypot(p.b[0] - p.a[0], p.b[1] - p.a[1]);
     let spans = [[0, 1]];
@@ -667,14 +767,28 @@ export function panelGeometry(panels, gaps = new Map()) {
       const f0 = (s0 - p.da) / (p.db - p.da), f1 = (s1 - p.da) / (p.db - p.da);
       spans = spans.flatMap(([a, b]) => (f1 <= a || f0 >= b ? [[a, b]] : [[a, Math.max(a, f0)], [Math.min(b, f1), b]].filter(([x, y]) => y - x > 0.01)));
     }
+    const hs = p.cuttable ? (holes.get(p.runKey) || []).filter((H) => H.d + HOLE.w / 2 > p.da && H.d - HOLE.w / 2 < p.db) : [];
+    const sOf = (f) => p.da + (p.db - p.da) * f, fOf = (sv) => (sv - p.da) / (p.db - p.da);
     for (const [fa, fb] of spans) {
-      const k = pos.length / 3;
-      for (const [f, top] of [[fa, 0], [fb, 0], [fa, 1], [fb, 1]]) {
-        const x = p.a[0] + (p.b[0] - p.a[0]) * f, z = p.a[1] + (p.b[1] - p.a[1]) * f, g0 = p.ga + (p.gb - p.ga) * f;
-        pos.push(x, g0 + (top ? p.top : p.bottom), z);
-        uv.push((f * L) / PANEL_TILE, ((top ? p.top : p.bottom) - p.bottom) / PANEL_TILE);
+      if (!hs.length) { quad(p, L, fa, fb, p.bottom, p.top, p.bottom, p.top); continue; }
+      // break points: the span ends, and 3 cm columns across every hole
+      const br = new Set([fa, fb]);
+      for (const H of hs) {
+        const n = Math.ceil(HOLE.w / 0.03);
+        for (let i = 0; i <= n; i++) { const f = fOf(H.d - HOLE.w / 2 + (HOLE.w * i) / n); if (f > fa && f < fb) br.add(f); }
       }
-      idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2);
+      const fs = [...br].sort((x, y) => x - y);
+      for (let i = 1; i < fs.length; i++) {
+        const f0 = fs[i - 1], f1 = fs[i];
+        const sp = (f) => { for (const H of hs) { const q = holeSpan(H, sOf(f)); if (q) return q; } return null; };
+        const q0 = sp(f0), q1 = sp(f1), qm = sp((f0 + f1) / 2);
+        if (!qm) { quad(p, L, f0, f1, p.bottom, p.top, p.bottom, p.top); continue; }
+        // the outline's ends (no span on one edge): close the column at the hole's middle height there
+        const mid = qm || q0 || q1, a0 = q0 || [(mid[0] + mid[1]) / 2, (mid[0] + mid[1]) / 2], a1 = q1 || [(mid[0] + mid[1]) / 2, (mid[0] + mid[1]) / 2];
+        const lo0 = Math.max(p.bottom, a0[0]), lo1 = Math.max(p.bottom, a1[0]), hi0 = Math.min(p.top, a0[1]), hi1 = Math.min(p.top, a1[1]);
+        if (lo0 > p.bottom + 1e-3 || lo1 > p.bottom + 1e-3) quad(p, L, f0, f1, p.bottom, lo0, p.bottom, lo1);
+        if (hi0 < p.top - 1e-3 || hi1 < p.top - 1e-3) quad(p, L, f0, f1, hi0, p.top, hi1, p.top);
+      }
     }
   }
   if (!idx.length) return null;
@@ -685,6 +799,68 @@ export function panelGeometry(panels, gaps = new Map()) {
   geo.computeVertexNormals();
   geo.computeBoundingSphere();
   return geo;
+}
+
+/**
+ * The cut flap of a hole in a chain-link panel, in its hinge frame: x along the run (0 = the hole's centre), y down
+ * from the hinge (≤ 0), z = 0 (the mesh is turned about x to peel it back). uv continue the panel's diamonds. Pure.
+ */
+export function holeFlapGeometry(H, bottom = 0.03) {
+  const pos = [], uv = [], idx = [], hinge = (H.y0 ?? HOLE.y0) + (H.h ?? HOLE.h) * HOLE.hinge, hw = (H.w ?? HOLE.w) / 2;
+  const n = Math.ceil((2 * hw) / 0.03);
+  for (let i = 0; i < n; i++) {
+    const x0 = -hw + (2 * hw * i) / n, x1 = -hw + (2 * hw * (i + 1)) / n, xm = (x0 + x1) / 2;
+    const q0 = holeSpan(H, H.d + x0), q1 = holeSpan(H, H.d + x1), qm = holeSpan(H, H.d + xm);
+    if (!qm) continue;
+    const m = [(qm[0] + qm[1]) / 2, (qm[0] + qm[1]) / 2], a = q0 || m, b = q1 || m, k = pos.length / 3;
+    for (const [x, y] of [[x0, a[0]], [x1, b[0]], [x0, a[1]], [x1, b[1]]]) {
+      pos.push(x, y - hinge, 0);
+      uv.push((H.d + x) / PANEL_TILE, (y - bottom) / PANEL_TILE);
+    }
+    idx.push(k, k + 1, k + 2, k + 1, k + 3, k + 2);
+  }
+  if (!idx.length) return null;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  return geo;
+}
+
+/**
+ * Snipped mesh wires round a hole in a chain-link panel (and along the flap's free edge): every ~4.5 cm of the cut
+ * outline two short ends of the diamond weave (± 45°), bent back towards the peel side. Strands into `buf`.
+ */
+export function holeFray(buf, p, H, groundAt = () => 0, rnd = Math.random) {
+  const hw = (H.w ?? HOLE.w) / 2, hh = (H.h ?? HOLE.h) / 2, yc = (H.y0 ?? HOLE.y0) + hh, hinge = (H.y0 ?? HOLE.y0) + (H.h ?? HOLE.h) * HOLE.hinge;
+  const L = Math.hypot(p.b[0] - p.a[0], p.b[1] - p.a[1]) || 1, tx = (p.b[0] - p.a[0]) / L, tz = (p.b[1] - p.a[1]) / L, n = H.n || [0, 1];
+  let count = 0;
+  const per = 2 * Math.PI * Math.sqrt((hw * hw + hh * hh) / 2), steps = Math.ceil(per / 0.045);
+  for (let i = 0; i < steps; i++) {
+    const a = ((i + (rnd() - 0.5) * 0.7) / steps) * Math.PI * 2, su = Math.cos(a) * hw, y = yc + Math.sin(a) * hh;
+    if (y > hinge + 0.005) continue;   // the hinge chord: the flap is still joined there
+    const sv = H.d + su;
+    if (sv < p.da || sv > p.db) continue;
+    const f = (sv - p.da) / (p.db - p.da), x = p.a[0] + (p.b[0] - p.a[0]) * f, z = p.a[1] + (p.b[1] - p.a[1]) * f;
+    const g0 = groundAt(x, z), P0 = [x, g0 + y, z];
+    // inward (into the hole) in the panel plane: −(cos a, sin a) in (run, up)
+    const ix = -Math.cos(a), iy = -Math.sin(a);
+    for (const sg of [1, -1]) {
+      if (rnd() < 0.3) continue;   // some ends snapped short against the knuckle: nothing to see
+      const c = Math.SQRT1_2, w = (rnd() - 0.5) * 0.5, dx = (ix * c - iy * c * sg) + w * iy, dy = (ix * c * sg + iy * c) - w * ix;
+      const len = 0.012 + Math.pow(rnd(), 1.6) * 0.06, bend = (rnd() - 0.25) * 1.4, droop = (rnd() - 0.6) * 0.5;
+      const path = [P0];
+      for (let k = 1; k <= 3; k++) {
+        const t = k / 3, out = len * bend * t * t;
+        path.push([P0[0] + tx * dx * len * t + n[0] * out, P0[1] + (dy + droop * t) * len * t, P0[2] + tz * dx * len * t + n[1] * out]);
+      }
+      buf.strand(path, { r: 0.0017, rust: 0.1 + rnd() * 0.2, sway: 0, kind: KIND.strand });
+      count++;
+    }
+  }
+  return count;
 }
 
 // ------------------------------------------------------------------------------------------------ GPU side
@@ -862,7 +1038,22 @@ export function buildWireLayer(root, opts = {}) {
   // when complete, typically before the map's async textures are ready; until then the previous
   // barb meshes stay (a cut's gap keeps its old barbs for a few frames, never a bare strand flicker).
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
-  let ribbons = [], barbMeshes = [], job = null, stats = {};
+  let ribbons = [], barbMeshes = [], job = null, stats = {}, flaps = [];
+  const holes = new Map();   // runKey → [{d, side, n, seed, born}] (attachRuntime scanGaps)
+  const _rx = new THREE.Matrix4(), _fl = new THREE.Matrix4().makeScale(-1, 1, 1);
+  /** Turn each flap open by flapOpen(now − born) (born: sim time the hole was cut; −∞ = a loaded save: open). */
+  const setFlaps = (now = opts.world?.time ?? Infinity) => {
+    let moving = false;
+    for (const fm of flaps) {
+      const H = fm.userData.hole, k = flapOpen(H.born == null || !Number.isFinite(H.born) ? Infinity : Math.max(0, now - H.born));
+      if (fm.userData.k === k) continue;
+      fm.userData.k = k; moving ||= k < 1;
+      fm.matrix.copy(fm.userData.frame).multiply(_rx.makeRotationX(-HOLE.flapAngle * k));
+      if (fm.userData.flip < 0) fm.matrix.multiply(_fl);
+      fm.matrixWorldNeedsUpdate = true;
+    }
+    return moving;
+  };
   const swapBarbs = (buffers) => {
     for (const m of barbMeshes) { group.remove(m); m.geometry.dispose(); }
     barbMeshes = [];
@@ -878,7 +1069,7 @@ export function buildWireLayer(root, opts = {}) {
     if (!job) return false;
     const t = now(), items = parts.items;
     while (job.k < items.length) {
-      assembleItem(items[job.k], job.k, job.bufOf, gaps, G, { strands: false }, job.stat);
+      assembleItem(items[job.k], job.k, job.bufOf, gaps, G, { strands: false, holes }, job.stat);
       if ((++job.k & 31) === 0 && now() - t > budget) break;
     }
     job.ms += now() - t;
@@ -891,7 +1082,7 @@ export function buildWireLayer(root, opts = {}) {
   const rebuild = () => {
     for (const m of ribbons) { group.remove(m); m.geometry.dispose(); }
     ribbons = [];
-    const asm = assembleRibbons(parts, gaps, G, { barbs: false });
+    const asm = assembleRibbons(parts, gaps, G, { barbs: false, holes });
     let tris = 0, verts = 0;
     for (const [look, buf] of asm.buffers) {
       const geo = buf.geometry();
@@ -906,8 +1097,33 @@ export function buildWireLayer(root, opts = {}) {
         group.add(im); ribbons.push(im); tris += ig.instanceCount * 2;
       }
     }
-    const pg = panelGeometry(parts.panels, gaps);
+    const pg = panelGeometry(parts.panels, gaps, holes);
     if (pg) { const pm = new THREE.Mesh(pg, chainMaterial()); pm.name = 'wire:chainlink'; pm.receiveShadow = true; pm.userData.aoExclude = true; group.add(pm); ribbons.push(pm); }
+    // the peeled-back flap of each hole cut in a chain-link panel (turned open by update(): flapOpen since it was cut)
+    flaps = [];
+    for (const [key, hs] of holes) {
+      const r = runs.find((q) => q.key === key);
+      if (!r) continue;
+      for (const H of hs) {
+        const pnl = parts.panels.find((q) => q.runKey === key && q.cuttable && H.d >= q.da - 0.2 && H.d <= q.db + 0.2);
+        if (!pnl) continue;
+        const geo = holeFlapGeometry(H, pnl.bottom);
+        if (!geo) continue;
+        const a = r.run.at(Math.min(r.run.length, Math.max(0, H.d))), n = H.n || [a.nx, a.nz];
+        // frame: x along the run, y up, z = the peel side (right-handed: x flipped when the run's left normal is not it)
+        let tx = a.tx, tz = a.tz;
+        if (-tz * n[0] + tx * n[1] < 0) { tx = -tx; tz = -tz; }
+        const fm = new THREE.Mesh(geo, chainMaterial());
+        fm.name = 'wire:flap'; fm.receiveShadow = true; fm.userData.aoExclude = true;
+        const hinge = G(a.x, a.z) + (H.y0 ?? HOLE.y0) + (H.h ?? HOLE.h) * HOLE.hinge;
+        fm.userData.frame = new THREE.Matrix4().makeBasis(new THREE.Vector3(tx, 0, tz), new THREE.Vector3(0, 1, 0), new THREE.Vector3(n[0], 0, n[1])).setPosition(a.x, hinge, a.z);
+        fm.userData.flip = tx !== a.tx ? -1 : 1;   // (x flipped: the flap's own x runs the other way)
+        fm.userData.hole = H;
+        fm.matrixAutoUpdate = false;
+        group.add(fm); ribbons.push(fm); flaps.push(fm);
+      }
+    }
+    setFlaps();
     stats = { runs: runs.length, ribbonTris: tris, strandTris: tris, barbs: stats.barbs ?? 0, ribbonVerts: verts, instances: inst.reduce((a, m) => a + m.count, 0), instanceKinds: inst.length,
       panels: parts.panels.length, cuts: asm.cuts, drawCalls: group.children.filter((o) => o.layers.mask & 1).length, barbsPending: true, buildMs: stats.buildMs, ...parts.counts };
     const buffers = new Map();
@@ -918,7 +1134,7 @@ export function buildWireLayer(root, opts = {}) {
   const tick = () => { timer = 0; if (stepBarbs(4)) kick(); };
   function kick() { if (!timer && typeof setTimeout === 'function') timer = setTimeout(tick, 0); }
   rebuild();
-  const handle = { group, runs, parts, gaps, rebuild, standing, stepBarbs, finishBarbs: () => stepBarbs(), stopBarbs: () => { clearTimeout(timer); timer = 0; job = null; }, get stats() { return stats; } };
+  const handle = { group, runs, parts, gaps, holes, setFlaps, get flaps() { return flaps; }, rebuild, standing, stepBarbs, finishBarbs: () => stepBarbs(), stopBarbs: () => { clearTimeout(timer); timer = 0; job = null; }, get stats() { return stats; } };
   stats.buildMs = +(now() - t0).toFixed(1);
   return attachRuntime(handle, opts);
 }
@@ -942,22 +1158,53 @@ function attachRuntime(h, opts) {
     }
   }
   let ver = grid?.version ?? 0;
+  // where the cutters actually went in (structure:destroyed hole x / z) and when: the cell clusters only place a
+  // hole to the half cell, and a loaded save has no time (its flaps are open already)
+  const hints = [];
   h.scanGaps = () => {
-    const found = new Map();
+    const found = new Map(), holeSamples = new Map();
     for (const s of samples) if (grid.block[s.k] !== 3) {
+      if (grid.crawlway?.[s.k]) {   // a hole cut low in the wire (crawl only): the rest of the fence stands
+        const list = holeSamples.get(s.key) || [];
+        const last = list[list.length - 1];
+        if (last && s.d - last.d1 < 0.6) { last.d1 = s.d; last.side[grid.crawlway[s.k]]++; } else list.push({ d0: s.d, d1: s.d, side: [0, grid.crawlway[s.k] === 1 ? 1 : 0, grid.crawlway[s.k] === 2 ? 1 : 0] });
+        holeSamples.set(s.key, list);
+        continue;
+      }
       const list = found.get(s.key) || [];
       const last = list[list.length - 1];
       if (last && s.d - last[1] < 0.6) last[1] = s.d + 0.2; else list.push([s.d - 0.2, s.d + 0.2]);
       found.set(s.key, list);
     }
+    const holes = new Map();
+    for (const [key, list] of holeSamples) {
+      const r = h.runs.find((q) => q.key === key);
+      holes.set(key, list.map((c) => {
+        let d = (c.d0 + c.d1) / 2, born = -Infinity;
+        const a = r.run.at(d);
+        const hint = hints.find((q) => Math.hypot(q.x - a.x, q.z - a.z) < 1.0);
+        if (hint) { const pr = r.run.project(hint.x, hint.z); if (pr.dist < 0.8) d = pr.d; born = hint.t; }
+        const b = r.run.at(d), side = c.side[2] > c.side[1] ? 2 : 1;
+        // peel side: the normal whose normalSign (abilities/sapper.js) is the cell's side value
+        const sg = b.nx > 1e-3 ? 1 : b.nx < -1e-3 ? -1 : b.nz >= 0 ? 1 : -1, k = (side === 1 ? 1 : -1) * sg;
+        return { d: +d.toFixed(3), side, n: [b.nx * k, b.nz * k], seed: Math.round(d * 7) % 7, born };
+      }));
+    }
     const sig = (m) => JSON.stringify([...m].sort());
-    if (sig(found) === sig(h.gaps)) return false;
+    const hsig = (m) => JSON.stringify([...m].sort().map(([k, v]) => [k, v.map((H) => [H.d, H.side])]));
+    if (sig(found) === sig(h.gaps) && hsig(holes) === hsig(h.holes)) return false;
     h.gaps.clear();
     for (const [k, v] of found) h.gaps.set(k, v);
+    h.holes.clear();
+    for (const [k, v] of holes) h.holes.set(k, v);
     h.rebuild();
     return true;
   };
-  const off = world?.events?.on?.('structure:destroyed', (e) => { if (e?.type === 'fence-gap') h.scanGaps(); });
+  const off = world?.events?.on?.('structure:destroyed', (e) => {
+    if (e?.type !== 'fence-gap') return;
+    if (e.hole && Number.isFinite(e.x)) hints.push({ x: e.x, z: e.z, t: world?.time ?? 0 });
+    h.scanGaps();
+  });
   // sparks: per structure id, a rate (bursts / s) and its spark points
   const byId = new Map();
   for (const s of h.parts.sparks) { if (!byId.has(s.id)) byId.set(s.id, []); byId.get(s.id).push(s); }
@@ -977,6 +1224,7 @@ function attachRuntime(h, opts) {
     h.stepBarbs?.(3);
     if (opts.sunDir) WIRE_UNIFORMS.uSunDir.value.copy(opts.sunDir);
     if (grid && grid.version !== ver) { ver = grid.version; h.scanGaps(); }
+    if (h.flaps.length) h.setFlaps(world?.time ?? Infinity);
     const t = world?.time ?? simT + dt, step = Math.max(0, Math.min(0.5, t - simT));
     simT = t;
     if (!step || !world?.fx?.spawn) return;

@@ -417,23 +417,31 @@ pattern with a pitch of 8 cm, which tells the eye "twisted" at zoom 2.
   `wire_cage`;
 - M3 transformer cages: chain-link with a barbed top.
 
-### 4.9 Cut state (sapper gap)
+### 4.9 Cut state (sapper hole)
 
-**On `fence-gap`:**
-- the visual removes every strand and mesh section inside the 1.5 m gap;
-- each cut strand end becomes a **curled tail**: a helix of 1.5–3 turns, 0.25–0.45 m across, decaying, ends
-  drooping 20–40 cm. It sways (weight 1).
+The Sapper's cutters cut a **round hole low in the wire**, not a gap (user, M3 video review, 2026-10-07: "the fence
+we should open a round hole not make the fence disappear … you should crawl to go through the fence").
 
-**Mesh:**
-- the cut edges peel back as two flaps (a quad with a bend), with bright cut tips;
-- concertina: the loops in the gap are pushed apart and sag flat.
+**Sim (abilities/sapper.js):** he kneels square to the wire (CONFIG `abilities.cutHole.standoff`), snips at
+`cutHole.snips` (each a `device` event, sfx `cutters_snip`; the first finds out whether the wire is live) and pushes
+the flap through at `cutHole.peel`: the fence cells round the hole become **crawlway** cells (`grid.crawlway`, value
+1 / 2 = the side the flap was pushed to), widened 0.5 → 1.0 m until a crawler gets through. A crawlway cell is open
+ground for `isWalkable(…, {crawl: true})` only: commandos who can crawl (`Commando.pathQuery`; not with a load on their
+back), never enemies or vehicles. A standing commando whose path crosses one lies down 0.9 m before it, crawls through
+and gets up once his toes are clear (running on if he ran: `Commando._holeStance`); he cannot stand up inside it.
+`structure:destroyed {type:'fence-gap', hole: true, x, z}` (silent; the HUD does not count it as a building lost).
 
-**Persistence:** saved through the existing fence-cell save, since the gap is re-derived from the grid cells on
-load; no new save fields.
+**Visual (art/wire-obstacles.js):** the hole is an ellipse `HOLE` (0.86 × 0.78 m, bottom 0.08 m over the ground,
+a little ragged): strands through it are cut (`cutPath` with a hole predicate) and their ends bent back towards the
+flap's side (`peelTail`, 7–16 cm); coils keep the curled tails. A chain-link panel is cut in 3 cm columns round it
+(`panelGeometry`), the snipped weave frays round the outline (`holeFray`), and the cut-out piece stays hinged on a
+chord at 82 % of the hole's height as a **flap** (`holeFlapGeometry`) turned away from him by `flapOpen` (0.5 s from
+the cut, on the sim clock). The rest of the fence stands. The man: art/wire-cut.js (kneel, arm IK on each strand,
+the snips round the outline, both hands pushing the flap).
 
-> Load path: `save.js` restores `grid` (`w.grid.deserialize`). After a load, the wire module re-derives cut gaps by
-> scanning each wire run's footprint cells for `B.FENCE` → `B.NONE` and applies §4.9 to those runs. The save format
-> does not change.
+**Persistence:** `grid.serialize()` writes the crawlway cells (`crawl`, sparse); after a load the wire module
+re-derives the holes from them (flaps open). Grid cells cleared without crawlway (older saves) still draw as the
+old full-height gap with curled tails.
 
 ---
 

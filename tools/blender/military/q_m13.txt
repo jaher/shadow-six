@@ -1,0 +1,17 @@
+# M13 art pass (Le Havre docks): run.sh-style lines "script variant seed theater budget"; ship with
+# tools/blender/consolidate/addon_manifest.py -> assets/models/buildings/manifest-le-havre.json (group military)
+nissen_hut.py a 1301 coast 15000
+nissen_hut.py b 1302 coast 15000
+garage_brick.py a 1311 coast 15000
+lock_shack.py a 1321 coast 8000
+lock_shack.py b 1322 coast 8000
+crane_pillar.py a 1331 coast 15000
+sea_lock_gate.py a 1341 coast 15000
+boat_cradle.py a 1351 coast 12000
+dock_cargo.py a 1361 coast 12000
+dock_cargo.py b 1362 coast 12000
+dock_cargo.py c 1363 coast 12000
+dock_cargo.py d 1365 coast 12000
+dock_cargo.py e 1366 coast 12000
+dock_cargo.py f 1367 coast 12000
+dock_cargo.py row 1364 coast 12000

@@ -320,7 +320,7 @@
 | `remoteBomb` | B | Sapper | self | at feet | Armed; a detonator appears | Plant 1.0 s | — |
 | `detonate` | A | Sapper | none | anywhere | Detonates the **next** remote bomb, in placement order | instant | explosion |
 | `grenade` | E | Sapper | point | throw **13.5**, lobbed over walls | Explodes on landing (flight about 1.0 s). Class `grenade` (§3.6). Can hurt the thrower and friends | Throw 0.7 s | explosion |
-| `cutters` | W | Sapper | fence | 1.0 | Cuts a 1.5 m gap in `fence` cells. Fails on `reinforced` wire. On a live `electric` fence: 20 electric damage and the cut fails | 3.0 s [rec] | none |
+| `cutters` | W | Sapper | fence | 1.0 | Cuts a round hole (~0.86 × 0.78 m) low in the wire: crawl-only `fence` cells (grid crawlway), the rest of the fence stands (SHADOW SIX; BEL: a 1.5 m gap). Fails on `reinforced` wire. On a live `electric` fence: 20 electric damage at the first snip and the cut fails | 3.0 s [rec] | none |
 | `firstAid` | K | medic | commando | 1.2 | +34 HP, one dose | 1.5 s | none |
 | `syringe` | L | Spy | enemy | 1.2 (double-click = run) | Kill, no blood | 0.9 s; kill at 0.5 s [rec: "slightly slower than the knife"] | none |
 | `uniform` | U | Spy | self | — | Re-dress. Only when **no enemy currently has him inside a cone** | 1.5 s | none |

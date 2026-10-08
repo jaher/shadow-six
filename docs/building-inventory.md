@@ -69,8 +69,8 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `house_stone_pitched` | house | Stone house with a pitched roof, desert village | N. Africa | M9 | E | 7×6×5 | VAR:desert |
 | `house_domed_arcade` | house | White domed house with an arcaded courtyard and flag | N. Africa | M8 (the "whitewashed domed barracks") | E, D | 14×12×7 | VAR:desert |
 | `medina_block` | flat_roof_house | Dense medina block: 2-4 storeys, white or ochre render, parapets, roof terraces, **roof ladders, exterior stairs, arched balconies, pergolas**, small green-tiled **qubba** roof domes. Continuous rooftop routes | Tunis | M12 | E, R, L | 10-20 × 10-20 × 7-14 | VAR:desert |
-| `souk_arcade` | new | Arcaded souk colonnade with shopfronts | Tunis | M12 | — | 30×6×6 | NEW |
-| `palace_tiled_domes` | new | Palace with a tiled facade and green domes | Tunis | M12 | E, R | 25×20×12 | NEW |
+| `souk_arcade` | new | Arcaded souk colonnade with shopfronts | Tunis | M12 | — | 30×6×6 | kit + medina-kit (M12 art pass) |
+| `palace_tiled_domes` | new | Palace with a tiled facade and green domes | Tunis | M12 | E, R | 25×20×12 | kit + medina-kit (M12 art pass) |
 | `farmhouse_normandy` | house | Normandy farmhouse | France/Belgium | M16/M18 (NE farm) | E | 12×8×8 | europe |
 | `house_belgian_brick` | house | Belgian brick house or townhouse, gabled or hipped, 2-3 storeys. Some are damaged | Belgium | M16/M18 (NE village) | E | 8×8×10 | europe |
 | `townhouse_stucco` | house | 3-4 storey stucco townhouse, grey (M16) or cream (M15) | France/Belgium | M15 (N), M16/M18 (NW) | E | 10×10×13 | NEW |
@@ -104,7 +104,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `barracks_concrete_2st` | barracks | 2-storey flat-roof grey concrete barracks/blockhouse with outside stairs | Atlantic Wall | M14 (4-5) | B, E, R, L | 16×10×7 | BUILT (M14 pass: `barracks_concrete_2st`, `barracks_concrete_1st`) |
 | `hut_timber_barrack` | hut | Small wooden barrack hut: plank walls, grey shingle roof | Germany | M20 (about 12, S courts), B5 (small wooden huts) | E | 10×5×4 | built: europe `hut_timber_barrack_a-d` |
 | `hut_pow_long` | hut | Long wooden prisoner hut on a raised floor, grey pitched roof. M17 variant: dark timber, one cross-gable | Germany/Alsace | B7 (about 10), M17 (5-6) | E | 30×8×5 | VAR:military (stockade) |
-| `nissen_hut` | hut | Corrugated half-cylinder (Nissen/Quonset) hut | Norway/France | M2 (in the camp), M13 (×3) | E | 10×6×4 | NEW |
+| `nissen_hut` | hut | Corrugated half-cylinder (Nissen/Quonset) hut | Norway/France | M2 (in the camp), M13 (×3) | E | 10×6×4 | BUILT (M13 pass: `nissen_hut` 12 m, `nissen_hut_b` 10 m; manifest-le-havre) |
 | `quonset_hangar` | hangar | Large Quonset arched hangar | Norway | M7 (NW) | E | 30×15×8 | VAR:military |
 | `hq_villa_brick` | villa | Red-brick 2-3 storey HQ (`JEFATURA`): stone steps, circular drive around a fountain or monument, double walls with gatehouses, inner-court barracks, steps down to a pier | Norway | M4 | **D** (charge on steps), E | 22×14×12 | military |
 | `hq_log_flatroof` | house | Log HQ with a flat roof section, rooftop gear and flag; a guard stands on the roof | Norway | M6 | R, L | 14×10×6 | VAR:norway |
@@ -190,10 +190,10 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `power_pylon` | new | Lattice power-line pylon | Norway | M3 (crosses the river) | — | 6×6×25 | NEW |
 | `tunnel_portal` | new | Rock-cut tunnel portal with an arched masonry face; it collapses on a charge | N. Africa | M11 (N cliff) | **Db** | 10×4×7 | NEW |
 | `tank_shed_open` | new | Open-front multi-bay tank shed or garage: timber or corrugated, some with broken roofs | N. Africa/Germany | M9 (3 bays, 3 Panzer IVs roll out), M10 (about 5 sheds), M19 (with smokestack) | — | 8×12×5 per bay | NEW |
-| `garage_brick` | house | Brick garage/warehouse with a big door (the Panzer II garage); a truck can block it | France | M13 | dr | 14×10×7 | NEW |
+| `garage_brick` | house | Brick garage/warehouse with a big door (the Panzer II garage); a truck can block it | France | M13 | dr | 14×10×7 | BUILT (M13 pass: `garage_brick`, open S door, tile roof) |
 | `gantry_hoist` | new | Lattice A-frame gantry hoist over a tank under repair | N. Africa | M9, M10 [img] | — | 8×4×7 | NEW |
 | `crane_tower_jib` | new | Lattice steel tower or jib crane | Alsace/Germany | M17 (outside the NW camp wall) [img], M19 (rail base) | — | 4×4×14 | NEW |
-| `crane_dock_portal` | new | Dockside portal jib crane, on rails in one case | France/Germany | M13 (×2), B4 (yard cranes), M7 (dock crane) | — | 8×8×18 | NEW |
+| `crane_dock_portal` | new | Dockside portal jib crane, on rails in one case | France/Germany | M13 (×2), B4 (yard cranes), M7 (dock crane) | — | 8×8×18 | BUILT as a lattice-pillar jib crane (M13 pass: `crane_pillar`; keeps the 1.2 m crane foot of the layout) |
 | `gantry_crane_overhead` | new | Overhead travelling gantry crane over tracks | Germany | B4 | — | 25×6×10 | NEW |
 | `coal_mine_complex` | new | Timber pithead/headframe on a cliff with an exterior stair and ramps; adit entrance; coal heaps and mine carts; brick boiler/pump house with chimney | Germany | M19 (NW) | L | 20×15×15 | NEW |
 | `mining_office` | house | Brick mining office with a flag | Germany | M19 | E | 10×8×7 | NEW |
@@ -221,7 +221,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `road_barrier` | new | Boom barrier (`BRRE`, `BARRIERE`) | All | M1, M2 (gate), B5 (gatehouses) | dr | 5×0.3×1.2 | NEW |
 | `rail_yard_derelict` | train_car | Derelict freight wagons and carriages, sidings, rubble, buffer stops, stacks of sleepers and rails | Norway/Germany | M4 (SW yard), B4 | — | 12×3×4 per wagon | VAR (catalogue `train_car`) |
 | `mine_railway` | rail_track | Narrow-gauge mine railway with mine carts | Germany | M19 | — | linear | NEW |
-| `quay_granite` | new | Cut-granite quays and moles: bollards, iron railings, quay-face stairs, slipways, and a lattice beacon mast on each mole head | France/Norway/Tunis | M13, M7 (stone mole with lighthouse, U-boat ramp), M12 (quay basin) | — | linear, 3 h | NEW |
+| `quay_granite` | new | Cut-granite quays and moles: bollards, iron railings, quay-face stairs, slipways, and a lattice beacon mast on each mole head | France/Norway/Tunis | M13, M7 (stone mole with lighthouse, U-boat ramp), M12 (quay basin) | — | linear, 3 h | BUILT (M13 pass: step-3p `quay` / `belgian` pavements with coping, masonry faces, bollards and rings) |
 | `quay_brick_canal` | new | Brick canal quay walls with water stairs | Netherlands | B8 | — | linear | NEW |
 | `pontoon_minisub` | pier | Floating pontoon/pad reached by 2 ladders | France | M13 | L | 10×6 | VAR:bridges |
 | `marina_jetties` | pier | Many small timber finger jetties with fishing boats and a rowboat | Norway | M7 (about 20 boats) | — | 15×2 each | VAR:bridges |
@@ -247,7 +247,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `footbridge_plank` | bridge | Small plank footbridge | All | B7, B8 (2-3) | — | 8×1.5 | bridges |
 | `pier_timber` | pier | Wooden pier or jetty | Norway | M1 (N island SE shore, S bank), M4 (HQ pier with patrol boat), M16/M18 (island landing) | — | 15×3 | bridges |
 | `jetty_stone` | pier | Small stone landing or jetty | Guernsey | B1 | — | 10×4 | VAR:bridges |
-| `lock_gate` | lock_gate | Steel lock/flood gate leaves between mole heads; each has a `control_shack` with a glass window and a lattice beacon mast. They open and close, and stay open once the operator is dead | France | M13 (×2) | dr | 20×2×8 | bridges |
+| `lock_gate` | lock_gate | Steel lock/flood gate leaves between mole heads; each has a `control_shack` with a glass window and a lattice beacon mast. They open and close, and stay open once the operator is dead | France | M13 (×2) | dr | 20×2×8 | BUILT (M13 pass: `sea_lock_gate`, two `leaf` doors swung by the lock set-piece; `lock_control_shack` a/b) |
 | `moat_bridge` | bridge | Short bridge over the moat at a gatehouse | Germany | M20 (SW, SE) | — | 10×4 | built: M20 procedural timber moat bridges (castle-kit); bridges `moat_bridge_fixed/draw` |
 | `water_gate_underwater` | new | Underwater gate in the E wall, opened by a lever with a flashing red light; the pool is fed by the moat | Germany | M20 | dr | 4×1×3 | built: M20 procedural grated arch (castle-kit; the grate rises with the lever) |
 | `canal_basin_sunken` | new | Sunken canal basins: stone retaining walls, stair ramps, tree-lined park strips | France | M15 | — | area, 3 deep | NEW |
@@ -448,7 +448,13 @@ Each mission lists the §1 ids it needs, with counts. **Bold** marks an objectiv
   - `shed_timber_long`/pergola.
   - `house_whitewash_flat`.
   - `czech_hedgehog`, palms.
-- **M12 Up on the Roof (Tunis)** [i]:
+- **M12 Up on the Roof (Tunis)** [i] — art pass done (`manifest-tunis.json`: `hq_colonial_tunis` = the SE harbour HQ, a
+  French-protectorate office block with a rooftop flag; `warehouse_harbour_tunis` = the corrugated harbour shed; the minaret
+  takes `minaret_tunis`, the N backdrop houses `house_flat_white_a/b/c`; the walkable medina houses, souk and palace keep
+  their kit bodies with Tunis facade dressing from `src/art/medina-kit.js` (horseshoe studded doors, tile hoods, iron
+  grilles, mashrabiya, spouts, fallen render, laundry, striped souk awnings and arched shopfronts, the palace's zellige
+  dado / green balcony, green glazed qubba domes); lime-washed mosque and lane walls; setts paving; market carts and
+  goods; harbour lamps, telephone line, a parked Opel Blitz / Citroën 11 / R75):
   - `medina_block` ×many.
   - `souk_arcade`.
   - `palace_tiled_domes`.

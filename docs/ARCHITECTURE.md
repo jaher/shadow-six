@@ -93,6 +93,7 @@ src/art/vehicle-pennants.js           ART — cloth pennants on vehicles (patrol
 src/art/props.js                      ART — building/prop builders (catalogue below)
 src/art/dressing.js                   ART — procedural realistic non-library props (palisade/stone walls, rocks, cliffs, tents, sandbags, crates, transformers, pylons, poles)
 src/art/castle-kit.js                 ART — procedural castle masonry fitted to gameplay data (curtains, terraces, parapets, gatehouses, towers, ranges, stairs, bridges, water gate, wagons, wells; merged per-material meshes)
+src/art/medina-kit.js                 ART — Tunis medina facade dressing on the kit houses (M12): horseshoe studded doors, tile hoods, grilles, mashrabiya, spouts, fallen render, laundry, souk shopfronts and awnings, palace zellige / balcony; market carts and goods
 src/art/field-guns.js                 ART — procedural field guns and range props (Flakvierling 38 towed/emplaced, field gun, searchlight, targets, bullet stops)
 src/art/fuel-tanks.js                 ART — fuel-tank family resolution (docs/fuel-tanks.md): library asset per variant/footprint/theater, blast scale, wreck nav (pure)
 src/art/fuel-pipes.js                 ART — M11 oilfield pipe runs between neighbouring columns (pairs: pure; meshes: three.js)

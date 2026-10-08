@@ -198,6 +198,17 @@ export function wireLibraryDoors(world, built) {
     if (!b.library?.doors.length || b.def.id == null) continue;
     const main = b.library.doors.find((q) => q.id === 'main') ?? b.library.doors[0];
     const e = { lib: b.library, door: main.id, t: 0, target: 0, hold: 0, x: b.def.x ?? 0, z: b.def.z ?? 0, blast: null };
+    // gate leaves (kind 'leaf', e.g. M13's sea lock gates): every leaf swings with the set-piece's door event
+    // (`doorEvent` = the set-piece id), mirrored about the gate's centre; blasts never swing them
+    const leaves = b.library.doors.filter((q) => q.kind === 'leaf');
+    if (leaves.length) {
+      // which half of the gate a leaf hangs on: its hinge's offset along the gate's own x axis (doors are in world coords)
+      const c = Math.cos(b.def.rot ?? 0), sn = Math.sin(b.def.rot ?? 0);
+      const side = (q) => ((q.x - (b.def.x ?? 0)) * c + (q.z - (b.def.z ?? 0)) * sn < 0 ? 1 : -1);
+      e.lib = { setDoorOpen: (_id, t) => { for (const q of leaves) b.library.setDoorOpen(q.id, t, side(q)); } };
+      e.leaves = true; e.speed = 0.14; // a heavy lock gate takes ~7 s to swing
+      if (b.def.doorEvent != null) byId.set(String(b.def.doorEvent), e);
+    }
     byId.set(`${b.def.id}:door`, e); byId.set(String(b.def.id), e);
   }
   // window glass of every library building (not instanced repeats): blown out PANE BY PANE by a close blast (§A.8):
@@ -244,6 +255,7 @@ export function wireLibraryDoors(world, built) {
       if (ev.restore) breakPane(p); else { p.delay = r / 340; p.bx = ev.x; p.bz = ev.z; }
     }
     for (const e of new Set(byId.values())) {
+      if (e.leaves) continue;
       const r = Math.hypot(e.x - ev.x, e.z - ev.z);
       if (r > 1.5 * ev.Rk + 3) continue;
       const rest = 0.35 + 0.2 * (Math.abs(e.x * 0.37 + e.z * 0.61) % 1);
@@ -271,7 +283,7 @@ export function wireLibraryDoors(world, built) {
         }
         if (e.hold > 0 && (e.hold -= dt) <= 0) e.target = e.ajar ?? 0;
         if (e.t === e.target) continue;
-        e.t = e.target > e.t ? Math.min(e.target, e.t + dt * 1.6) : Math.max(e.target, e.t - dt * 1.6);
+        e.t = e.target > e.t ? Math.min(e.target, e.t + dt * (e.speed ?? 1.6)) : Math.max(e.target, e.t - dt * (e.speed ?? 1.6));
         e.lib.setDoorOpen(e.door, e.t);
       }
     },

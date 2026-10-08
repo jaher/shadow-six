@@ -435,7 +435,7 @@ test('grenade: lobbed over a wall to ≤ 13.5 m, 1.0 s flight, class grenade; fr
   assert.equal(gb.hp, 0, 'friend at 4 m takes 200 too');
 });
 
-test('wire cutters: 1.5 m gap in fence cells; reinforced wire immune; live electric fence shocks (20) until switched off', () => {
+test('wire cutters: a crawl-only hole in fence cells; reinforced wire immune; live electric fence shocks (20) until switched off', () => {
   const s = makeSim({
     structures: [
       { type: 'fence', id: 'f1', points: [[30, 0], [30, 20]] },
@@ -450,6 +450,8 @@ test('wire cutters: 1.5 m gap in fence cells; reinforced wire immune; live elect
   assert.ok(sp.issue({ type: 'ability', id: 'cutters', target: { x: 30, z: 10 } }));
   s.run(8, () => g.blockAt(30, 10) !== B.FENCE);
   assert.equal(g.blockAt(30, 10), B.NONE, 'cut');
+  assert.ok(g.crawlwayAt(30, 10), 'a hole: crawl only');
+  assert.equal(g.blockAt(30, 11.25), B.FENCE, 'the hole is under 1.5 m wide');
   assert.equal(g.blockAt(30, 12), B.FENCE, 'gap is only 1.5 m');
   assert.equal(sp.issue({ type: 'ability', id: 'cutters', target: { x: 30, z: 30 } }), false, 'reinforced');
   sp.issue({ type: 'ability', id: 'cutters', target: { x: 30, z: 50 } });

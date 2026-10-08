@@ -1,0 +1,161 @@
+{
+ "asset": "dock_cargo_e",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "boards_weathered": {
+   "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathered vertical boards 0.2 m, per-plank ageing + tar staining",
+   "files": {
+    "diff": {
+     "1k": "1k/boards_weathered_diff",
+     "2k": "2k/boards_weathered_diff"
+    },
+    "nor": {
+     "1k": "1k/boards_weathered_nor",
+     "2k": "2k/boards_weathered_nor"
+    },
+    "arm": {
+     "1k": "1k/boards_weathered_arm",
+     "2k": "2k/boards_weathered_arm"
+    }
+   }
+  },
+  "burlap_bag": {
+   "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+   "license": "CC0-1.0",
+   "derived_from": {
+    "source": "Poly Haven",
+    "id": "hessian_230",
+    "license": "CC0-1.0"
+   },
+   "label": "Sandbag burlap (light khaki, soiled)",
+   "files": {
+    "diff": {
+     "1k": "1k/burlap_bag_diff",
+     "2k": "2k/burlap_bag_diff"
+    },
+    "nor": {
+     "1k": "1k/burlap_bag_nor",
+     "2k": "2k/burlap_bag_nor"
+    },
+    "arm": {
+     "1k": "1k/burlap_bag_arm",
+     "2k": "2k/burlap_bag_arm"
+    }
+   }
+  },
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  },
+  "steel_galv": {
+   "source": "Poly Haven",
+   "id": "rusty_painted_metal",
+   "url": "https://polyhaven.com/a/rusty_painted_metal",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Painted Metal",
+   "label": "Bare / galvanized steel (derived)",
+   "files": {
+    "diff": {
+     "2k": "2k/steel_galv_diff",
+     "1k": "1k/steel_galv_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_galv_nor",
+     "1k": "1k/steel_galv_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_galv_arm",
+     "1k": "1k/steel_galv_arm"
+    }
+   }
+  },
+  "steel_painted": {
+   "source": "Poly Haven",
+   "id": "rusty_painted_metal",
+   "url": "https://polyhaven.com/a/rusty_painted_metal",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Painted Metal",
+   "label": "Painted riveted steel (bridge grey-green)",
+   "files": {
+    "diff": {
+     "2k": "2k/steel_painted_diff",
+     "1k": "1k/steel_painted_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_painted_nor",
+     "1k": "1k/steel_painted_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_painted_arm",
+     "1k": "1k/steel_painted_arm"
+    }
+   }
+  },
+  "timber_beam": {
+   "source": "Poly Haven",
+   "id": "wood_planks_grey",
+   "url": "https://polyhaven.com/a/wood_planks_grey",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Grey",
+   "label": "Grey structural timber (beams, rafters)",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_beam_diff",
+     "1k": "1k/timber_beam_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_beam_nor",
+     "1k": "1k/timber_beam_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_beam_arm",
+     "1k": "1k/timber_beam_arm"
+    }
+   }
+  },
+  "timber_grey": {
+   "source": "Poly Haven",
+   "id": "weathered_planks",
+   "url": "https://polyhaven.com/a/weathered_planks",
+   "authors": [
+    "Dario Barresi",
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Planks",
+   "label": "Weathered grey timber",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_grey_diff",
+     "1k": "1k/timber_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_grey_nor",
+     "1k": "1k/timber_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_grey_arm",
+     "1k": "1k/timber_grey_arm"
+    }
+   }
+  }
+ }
+}

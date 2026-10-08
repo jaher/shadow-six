@@ -292,6 +292,7 @@ export class World {
       noLinks: !!opts.noLinks,
       swim: !!(opts.swim || opts.allowWater),
       dive: !!opts.dive,
+      crawl: !!opts.crawl,
       maxNodes: opts.maxNodes ?? Math.max(40000, this.grid.size),
       smooth: opts.smooth,
       avoid: opts.avoid,

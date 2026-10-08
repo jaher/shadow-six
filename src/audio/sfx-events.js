@@ -27,13 +27,13 @@ export const SFX_EVENTS = Object.freeze([
   { event: 'bomb:detonate', sfx: ['detonator_click'] },
   { event: 'bomb:exploded', sfx: ['explosion_big'] },
   { event: 'explosion', sfx: ['explosion_small', 'explosion_big', 'barrel_explode', 'debris_rain'], pick: 'payload.kind: grenade|shell → small; bomb|vehicle → big; barrel → barrel_explode' },
-  { event: 'structure:destroyed', sfx: ['collapse', 'fire_loop', 'dam_burst', 'flood_rush'], pick: '{id, type, cause} (cause ram: silent here, the gate:smash sounds play)' },
+  { event: 'structure:destroyed', sfx: ['collapse', 'fire_loop', 'dam_burst', 'flood_rush'], pick: '{id, type, cause} (cause ram: silent here, the gate:smash sounds play; type fence-gap: silent, the cutters snipped)' },
   { event: 'gate:smash', sfx: ['gate_smash', 'gate_hinge_snap', 'gate_thud', 'gate_thud_metal'], pick: '{x, z, outcome, kind}: the crack, then the hinges snapping (the heavier the hit, the more)' },
   { event: 'gate:hold', sfx: ['gate_creak', 'gate_thud'], pick: '{x, z}: the bumper against a gate that holds' },
   { event: 'gate:thud', sfx: ['gate_thud', 'gate_thud_metal'], pick: '{x, z, v, heavy, material}' },
   { event: 'fire', sfx: ['fire_loop'], pick: '{x, z, on}' },
   // Devices
-  { event: 'device', sfx: ['switch_throw', 'electric_hum', 'electric_zap', 'power_down', 'telephone_ring', 'gate_creak', 'barrier_lift', 'lock_gate', 'water_pressure', 'water_jet', 'valve_turn', 'cable_car_motor'], pick: '{id, sfx, x, z, on}' },
+  { event: 'device', sfx: ['switch_throw', 'electric_hum', 'electric_zap', 'power_down', 'telephone_ring', 'gate_creak', 'barrier_lift', 'lock_gate', 'water_pressure', 'water_jet', 'valve_turn', 'cable_car_motor', 'cutters_snip'], pick: '{id, sfx, x, z, on} (cutters_snip: each strand the Sapper cuts)' },
   { event: 'noise', sfx: ['decoy_beep', 'telephone_ring', 'horn_car', 'horn_ship', 'dog_bark'], pick: 'kind: decoy | phone | horn | bark (others are silent: the gunshot SFX comes from shot)' },
   // Vehicles
   { event: 'vehicle:enter', sfx: ['truck_start', 'tank_engine', 'boat_engine', 'motorbike', 'plane_engine'] },

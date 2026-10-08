@@ -166,7 +166,7 @@ export function southHears(w, n, poly) {
 
 /** Extruded polygon (top at y, vertical sides down to 0). */
 function prism(poly, y, top, side) {
-  return terrainPrism(poly, y, { top: 'screed', side: 'limewash', tile: 2.5 }); // placeholder-art pass (art/kit-terrain.js)
+  return terrainPrism(poly, y, { top: 'ashlar', side: 'limewash', tile: 1.8 }); // placeholder-art pass (art/kit-terrain.js); art pass: dressed stone terrace
 }
 
 const ART = { stone: 0xd9cfbb, shade: 0x5a4a3a, trim: 0xb8986a, tile: 0x3f7a5a };

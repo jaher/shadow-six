@@ -69,7 +69,7 @@ const backdrop = (id, variant, x, z, w, d, h, extra = {}) => flat(id, variant, x
 const walk = (points, y, width = 1.4) => ({ points, width, y });
 
 const BACKDROP = [
-  { id: 'shed_harbour', type: 'house', variant: 'warehouse_corrugated', x: 5, z: 11, rot: 0, w: 10, d: 18, h: 7, mat: 'greyPaint', roof: 'roofTin' },
+  { id: 'shed_harbour', type: 'house', variant: 'warehouse_corrugated', x: 5, z: 11, rot: 0, w: 10, d: 18, h: 7, mat: 'greyPaint', roof: 'roofTin', nav: false },
   backdrop('house_nw', 'medina_block_qubba', 15.5, 10, 11, 12, 11, { dome: true }),
   backdrop('n_row_1', 'medina_facade_shutters', 23.5, 7, 7, 10, 11),
   backdrop('n_row_2', 'medina_facade_shutters', 31.5, 7, 9, 10, 11),
@@ -112,11 +112,11 @@ const EAST = [
 
 // ---------------------------------------------------------------- the mosque complex and the HQ (dossier §5.1)
 const HALL = { id: 'mosque_hall', type: 'mosque', variant: 'prayer_hall_ribbed_dome', label: 'Mosque', x: 34.5, z: 79, rot: R30, w: 10, d: 10, h: 7, mat: 'plaster', dome: true, roofWalk: false };
-const MINARET = { id: 'minaret', type: 'minaret', variant: 'minaret_octagonal', x: 22.5, z: 83, r: 3, h: 24, mat: 'plaster' };
+const MINARET = { id: 'minaret', type: 'minaret', variant: 'minaret_octagonal', x: 22.5, z: 83, r: 3, h: 24, mat: 'plaster', nav: false }; // not climbable (dossier)
 const PAV = { id: 'mosque_pav_n', type: 'flat_roof_house', variant: 'mosque_tower_pavilion', x: 47, z: 70, rot: R30, w: 7, d: 7, h: LEVEL.PAV, mat: 'plaster', roofWalk: true };
 // garrison 2: the harbour HQ, built into the platform's S corner; its door opens onto the S quay. NEVER alarm it.
 const HQ = { id: 'hq_se', type: 'barracks', variant: 'barracks_desert_hq', label: 'Harbour HQ', x: 47, z: 103.5, rot: R30, w: 10, d: 7, h: 5,
-  mat: 'plaster', roof: 'roofTar', flag: true, garrison: true, door: deg(90) };
+  mat: 'plaster', roof: 'roofTar', flag: true, garrison: true, door: deg(90), nav: false };
 const ARCADE = flat('arcade_house', 'medina_ruined_arcade', 59.5, 91.5, 9, 11, LEVEL.ARC);
 /**
  * The arcade roof's N and W parapet (fix round 2): a 1.2 m wall that turns [29]'s back on the town. Without it he
@@ -184,6 +184,11 @@ const PROPS = [
   crate('cart_q2', 'barrel_cart', 48, 111, 2.6, 1.6, 1.6),
   crate('cart_q3', 'bale_cart', 62, 99.5, 2.6, 1.6, 1.6),
   ...[[66, 4], [75, 5]].map(([x, z], k) => ({ id: `palm_${k + 1}`, type: 'palm', x, z, r: 0.5, h: 8 })),
+  // art pass: the harbour command's motor pool at the W end of the S quay (library vehicles, decor + cover), two quay palms
+  { id: 'truck_q', type: 'crates', variant: 'truck_parked', label: 'Truck', x: 11.5, z: 118, rot: 0, w: 6, d: 2.3, h: 2.6, block: 2, vehicleArt: 'opel_blitz_cargo' },
+  { id: 'car_q', type: 'crates', variant: 'car_parked', label: 'Car', x: 26, z: 118.4, rot: 0, w: 4.6, d: 1.8, h: 1.6, block: 2, vehicleArt: 'citroen11' },
+  { id: 'moto_q', type: 'crates', variant: 'moto_parked', label: 'Motorcycle', x: 19.2, z: 117.8, rot: 0, w: 2.4, d: 1.7, h: 1.1, block: 1, vehicleArt: 'r75_sidecar' },
+  ...[[2.5, 116.5], [50.5, 118.8]].map(([x, z], k) => ({ id: `palm_q${k + 1}`, type: 'palm', x, z, r: 0.5, h: 9 })),
 ];
 /** Props standing on roofs: cosmetic (raised cells lose their block), lifted by the script to their level. */
 const ROOF_PROPS = [
@@ -377,6 +382,25 @@ export default {
     { type: 'poly', terrain: 'road', points: [[0, 43], [44, 43], [44, 27], [58, 50], [52, 52], [48, 47.5], [0, 47]] },
     { type: 'poly', terrain: 'road', points: [[0, 114], [20, 92], [22, 100], [38, 113], [64, 98], [76, 98], [76, 120], [0, 120]] },
     { type: 'rect', terrain: 'road', x: 52.5, z: 92, w: 3, d: 12 },
+  ],
+  // art pass: the old town's stone paving over the painted roads (visual only, grid:false: the nav keeps its codes).
+  // Its edges run under the wall bases (the palace front, the mosque platform up to the minaret) so no sand wedge shows,
+  // and the quay's carries on past the S / E map edges (the apron), like the road under it, instead of stopping there.
+  pavements: [
+    { id: 'pave_court', surface: 'setts', points: [[0, 37], [20, 37], [30.8, 36.5], [30.8, 29.1], [31.4, 29.1], [32.9, 31.9], [46.75, 23.9], [50, 26.5], [58, 50], [52, 52.4], [48, 47.6], [0, 47.05]], wear: 0.6, weeds: 0.25, cracks: 0.3, patches: 0, puddles: 0.05, grid: false },
+    { id: 'pave_quay', surface: 'setts', points: [[-6, 121.2], [0, 114], [20, 90.6], [20.1, 84.5], [22.2, 80.9], [38.15, 108.7], [52.2, 100.3], [52.2, 91.2], [55.5, 91.2], [55.5, 97], [64, 97], [64, 86], [76, 86], [84, 86], [84, 128], [-6, 128]], wear: 0.7, weeds: 0.3, cracks: 0.35, patches: 0, puddles: 0.05, grid: false },
+  ],
+  // bracket lamps on the courtyard houses, globe lamps on the S shore, the harbour command's telephone line along the S
+  // quay, its board; all visual only (block:false) so no route or sight line changes
+  furniture: [
+    { type: 'lamp', variant: 'wall_bracket', x: 13.6, z: 43.05, rot: Math.PI / 2, block: false },
+    { type: 'lamp', variant: 'wall_bracket', x: 22.6, z: 38.05, rot: Math.PI / 2, block: false },
+    { type: 'lamp', variant: 'wall_bracket', x: 3.2, z: 46.05, rot: Math.PI / 2, block: false },
+    { type: 'lamp', variant: 'harbour', x: 12.9, z: 100.4, rot: deg(40), block: false },
+    { type: 'lamp', variant: 'harbour', x: 4.6, z: 110.2, rot: deg(40), block: false },
+    { type: 'lamp', variant: 'harbour', x: 40.5, z: 118.6, rot: deg(-90), block: false },
+    { type: 'telegraph', points: [[1, 119], [30, 119], [56, 118.9], [75.5, 117.5]], spacing: 13, h: 7, wires: 3, block: false },
+    { type: 'sign', variant: 'wehrmacht', x: 34.2, z: 118.9, rot: deg(-90), text: 'HAFENKOMMANDANTUR\nTUNIS', block: false },
   ],
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
   structures: joinStructures(STRUCTURES, [['shed_harbour', 'house_nw'], ['house_nw', 'n_row_1'], ['house_nw', 'mid_block'], ['n_row_1', 'n_row_2'], ['n_row_2', 'n_row_3'], ['n_row_3', 'n_terrace'], ['house_tile', 'w_block_front'], ['house_tile', 'w_block_rear'], ['w_block_front', 'w_block_rear'], ['w_block_front', 'jail_block'], ['w_block_rear', 'jail_block'], ['w_block_rear', 'mid_block'], ['jail_block', 'mid_block'], ['jail_block', 'palace'], ['mid_block', 'palace'], ['palace', 'palace_c'], ['palace', 'n_terrace'], ['n_terrace', 'sn_hut'], ['n_terrace', 'souk'], ['l2_hut', 'souk'], ['souk', 'house_e1'], ['souk', 'house_e2'], ['souk', 'kiosk'], ['house_e1', 'house_e2'], ['house_e1', 'kiosk'], ['house_e2', 'kiosk'], ['house_e2', 'house_e3'], ['house_e3', 'arcade_house']]),

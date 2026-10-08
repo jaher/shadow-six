@@ -2,7 +2,7 @@
  * Barbed wire in the running game (GPU, docs/barbed-wire.md §9): M2 camp coping renders at zoom 2 and the default
  * zoom; a slow sub-pixel pan does not make the wire shimmer (integrated wire coverage stays steady frame to frame,
  * against the old 3 cm box placeholder); the layer's frame-time and draw-call cost on M3; the M3 sparks stop when
- * the switch cuts the power; a Sapper's cutters open a gap with curled tails in m00; per theater (temperate, coast,
+ * the switch cuts the power; a Sapper's cutters open a crawl-only hole with frayed ends in m00; per theater (temperate, coast,
  * desert, snow) the barbs read as ~12 cm ticks at zoom 2 and every belt type stands out at zoom 1.
  */
 export default async function (page, t) {
@@ -184,7 +184,7 @@ export default async function (page, t) {
   t(m3.sparks[1] - m3.sparks[0] >= 3, `sparks while powered ${m3.sparks}`);
   t(m3.sparks[2] === m3.sparks[1], `no sparks after the switch ${m3.sparks}`);
 
-  // ---- m00: the Sapper cuts the sandbox fence → gap with curled tails, the path goes through
+  // ---- m00: the Sapper cuts the sandbox fence → a crawl-only hole with frayed ends, a crawler's path goes through
   const cut = await page.evaluate(async () => {
     const g = window.__game, G = g.game;
     await g.loadMission('m00'); g.start(); g.advance(0.5); G.render(1 / 60, 1);
@@ -195,11 +195,15 @@ export default async function (page, t) {
     const ok = g.useAbility(sap.id, 'cutters', { x: 26, z: 40 });
     for (let i = 0; i < 40 * 30 && !W.stats.cuts; i++) { g.advance(1 / 30); if (i % 10 === 0) G.render(1 / 30, 1); }
     G.cameraController.setZoom(2); G.cameraController.centerOn(26, 40); g.advance(0.1); g.render(); g.render();
-    const path = G.world.findPath(26, 38.5, 26, 41.5);
-    return { ok, cuts: W.stats.cuts, gaps: [...W.gaps], path: path?.length ?? path?.points?.length ?? (path ? 1 : 0) };
+    const path = G.world.findPath(26, 38.5, 26, 41.5, { crawl: true });
+    const upright = G.world.findPath(26, 38.5, 26, 41.5);
+    const len = (p) => (p ? p.slice(1).reduce((a, q, i) => a + Math.hypot(q.x - p[i].x, q.z - p[i].z), 0) : Infinity);
+    return { ok, cuts: W.stats.cuts, gaps: [...W.gaps], holes: [...W.holes], path: path?.length ?? 0, crawlLen: +len(path).toFixed(1), uprightLen: +len(upright).toFixed(1) };
   });
   t.log('cut', JSON.stringify(cut));
-  t(cut.ok !== false && cut.cuts >= 6 && cut.gaps.length === 1, `cutters open a gap with curled tails ${JSON.stringify(cut)}`);
-  t(cut.path > 0, `the path goes through the gap (${cut.path})`);
+  // a round hole low in the wire (the strands through it cut, their ends bent back), not a full-height gap
+  t(cut.ok !== false && cut.cuts >= 2 && cut.holes.length === 1 && cut.gaps.length === 0, `cutters open a hole with frayed ends ${JSON.stringify(cut)}`);
+  t(cut.path > 0 && cut.crawlLen < 5, `a crawler's path goes through the hole (${cut.crawlLen} m)`);
+  t(cut.uprightLen > cut.crawlLen + 3, `nobody upright goes through it (${cut.uprightLen} m round)`);
   await t.shot('wire-m00-cut');
 }

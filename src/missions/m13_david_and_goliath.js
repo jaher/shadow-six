@@ -85,8 +85,69 @@ const QUAY_EDGE = {
   ],
 };
 
+// ---------------------------------------------------------------- art pass: granite quays (step 3p pavements, visual only)
+/** Land masses the outward test treats as "not water" (a face against the rocks or another quay is no quay wall). */
+const LAND = [T1_DOCK, T2_JETTY, T3_SW, T4_MW, T5_NW, T6_ROCKS, T7_LEDGE];
+const inPoly = (x, z, pts) => {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, zi] = pts[i], [xj, zj] = pts[j];
+    if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+};
+const inGapRect = (x, z) => QUAY_EDGE.gaps.some((q) => x >= q.x - 0.25 && x <= q.x + q.w + 0.25 && z >= q.z - 0.25 && z <= q.z + q.d + 0.25);
+/**
+ * One quay outline → a paved area whose water faces carry the granite coping, the masonry wall, bollards and rings.
+ * Edges are split where a slipway / gangway gap cuts them (no wall across a ramp); faces on the map edge or against
+ * land (the rocks, the start ledge) stay plain.
+ */
+function quayArea(id, ring, surface, extra = {}) {
+  const [W, D] = [87, 188];
+  const area = ring.reduce((s, [x, z], i) => { const [x2, z2] = ring[(i + 1) % ring.length]; return s + x * z2 - x2 * z; }, 0);
+  const pts = [], wet = [];
+  // land running off the map edge is paved on past it (edge-extend ground beyond the border; no seam at x 0 / 87): each
+  // border vertex stays put and gains a twin 10 m out, square to the border, so the faces that end on the border keep
+  // their own direction (snapping the vertex itself skewed the SW mole's diagonal faces by 5-6 m)
+  const side = ([x]) => (x <= 0 ? -1 : x >= W ? 1 : 0);
+  ring = ring.flatMap((v, i) => {
+    const s = side(v);
+    if (!s) return [v];
+    const ext = [s < 0 ? -10 : W + 10, v[1]], prevOn = side(ring[(i + ring.length - 1) % ring.length]) === s;
+    const nextOn = side(ring[(i + 1) % ring.length]) === s;
+    if (prevOn && nextOn) return [ext];
+    if (prevOn) return [ext, v];
+    if (nextOn) return [v, ext];
+    return [v];
+  });
+  ring.forEach(([x0, z0], i) => {
+    const [x1, z1] = ring[(i + 1) % ring.length], len = Math.hypot(x1 - x0, z1 - z0), n = Math.max(1, Math.ceil(len / 0.25));
+    // outward normal (the ring's winding decides the side)
+    let nx = (z1 - z0) / len, nz = -(x1 - x0) / len;
+    if (area < 0) { nx = -nx; nz = -nz; }
+    const onEdge = (x, z) => x < 0.6 || z < 0.6 || x > W - 0.6 || z > D - 0.6; // the map border: no quay wall
+    const water = (t) => {
+      const x = x0 + (x1 - x0) * t, z = z0 + (z1 - z0) * t, ox = x + nx * 1.5, oz = z + nz * 1.5;
+      return !onEdge(x, z) && !inGapRect(x, z) && !LAND.some((p) => p !== ring && inPoly(ox, oz, p)) && !inPoly(ox, oz, ring);
+    };
+    let prev = water(0.5 / n);
+    pts.push([x0, z0]); wet.push(prev);
+    for (let k = 1; k < n; k++) {
+      const w = water((k + 0.5) / n);
+      if (w !== prev) { pts.push([+(x0 + (x1 - x0) * k / n).toFixed(2), +(z0 + (z1 - z0) * k / n).toFixed(2)]); wet.push(w); prev = w; }
+    }
+  });
+  const edges = wet.map((w, i) => (w ? i : -1)).filter((i) => i >= 0);
+  return { id, surface, points: pts, edge: 'hard', grid: false, quay: { edges, bollards: 9, rings: true }, wear: 0.45, cracks: 0.35,
+    patches: 0, weeds: 0.25, puddles: 0.1, ...extra };
+}
+const QUAYS = [
+  quayArea('quay_dock', T1_DOCK, 'belgian'), quayArea('quay_jetty_s', T2_JETTY, 'quay'),
+  quayArea('quay_mole_sw', T3_SW, 'quay'), quayArea('quay_mole_mw', T4_MW, 'quay'), quayArea('quay_mole_nw', T5_NW, 'quay'),
+];
+
 // ---------------------------------------------------------------- structures (dossier §5)
-const crates = (id, x, z, w = 3, d = 3, h = 1.6) => ({ id, type: 'crates', x, z, rot: 0, w, d, h, block: 1 });
+const crates = (id, x, z, w = 3, d = 3, h = 1.6) => ({ id, type: 'crates', variant: 'dock_cargo', x, z, rot: 0, w, d, h, block: 1 });
 const barrels = (id, x, z, w = 2, d = 2) => ({ id, type: 'barrels', x, z, rot: 0, w, d, h: 1.2, block: 1 });
 const mast = (id, x, z) => ({ id, type: 'radio_mast', variant: 'quay_beacon_lattice', x, z, r: 0.8, h: 6, block: 2 });
 const nissen = (id, x, z, w, extra = {}) => ({ id, type: 'barracks', variant: 'nissen_hut', x, z, rot: deg(-30), w, d: 6, h: 4, mat: 'metal', ...extra });
@@ -94,10 +155,10 @@ const nissen = (id, x, z, w, extra = {}) => ({ id, type: 'barracks', variant: 'n
 const SHIP_AND_GATES = [
   { id: SHIP.id, type: 'battleship', variant: 'battleship_replica', x: SHIP.x, z: SHIP.z, rot: deg(180), w: SHIP.w, d: SHIP.d, h: 12,
     destructible: true, bombOnly: true, targetAt: 'bow', marker: BOW_HIT.id, hp: 100, destroyFx: ['explode', 'sinkBow'] },
-  { id: 'gate_n', type: 'lock_gate', variant: 'lock_gates', x: 23.25, z: 48.5, rot: 0, w: 11.5, d: 1.4, h: 4 },
-  { id: 'gate_s', type: 'lock_gate', variant: 'lock_gates', x: 30.75, z: 146.5, rot: 0, w: 9.5, d: 1.4, h: 4 },
-  { id: 'shack_n', type: 'control_shack', variant: 'guard_hut_a', x: 32, z: 43, rot: 0, w: 3.5, d: 3, h: 2.6 },
-  { id: 'shack_s', type: 'control_shack', variant: 'guard_hut_a', x: 24.5, z: 142, rot: deg(-2.2), w: 3, d: 3, h: 2.6 },
+  { id: 'gate_n', type: 'lock_gate', variant: 'sea_lock_gate', doorEvent: 'lock_n', x: 23.25, z: 48.5, rot: 0, w: 11.5, d: 1.4, h: 4 },
+  { id: 'gate_s', type: 'lock_gate', variant: 'sea_lock_gate', doorEvent: 'lock_s', x: 30.75, z: 146.5, rot: 0, w: 9.5, d: 1.4, h: 4 },
+  { id: 'shack_n', type: 'control_shack', variant: 'lock_control_shack', x: 32, z: 43, rot: 0, w: 3.5, d: 3, h: 2.6 },
+  { id: 'shack_s', type: 'control_shack', variant: 'lock_control_shack', asset: 'lock_control_shack_b', x: 24.5, z: 142, rot: deg(-2.2), w: 3, d: 3, h: 2.6 },
   mast('mast_nw', 16, 45.5), mast('mast_mw', 24, 83), mast('mast_mm', 36, 100.5), mast('mast_sw', 20, 142), mast('mast_sc', 44, 142),
   { id: 'buoy_sw', type: 'sign', variant: 'buoy_red', x: 2, z: 176, r: 0.8, h: 1.5, block: 0 },
   { id: 'rocks_se', type: 'cliff', variant: 'coastal_granite', points: T6_ROCKS, h: 6 },
@@ -123,7 +184,9 @@ const DOCK_E = [
   crates('sandbags_1', 71.5, 77), { ...crates('crate_e1', 70, 87), rot: deg(4.4) },
   { id: 'sandbags_2', type: 'sandbags', x: 72, z: 97.5, rot: 0, w: 4, d: 3, h: 1.2, block: 1 },
   crates('crates_e2', 84.5, 108, 3, 4), { ...crates('crates_e3', 78, 111, 4, 2), alignFree: 'straddles the S quay kink: kept on the dock grid of the long 180° face' },
-  { id: 'launch', type: 'train_car', variant: 'boat_on_cradle', x: 70, z: 70, rot: deg(90), w: 10, d: 5, h: 3, mat: 'greyPaint', block: 2 },
+  // the grey harbour launch hauled out on its slip trolley (library boat_on_cradle; a `crates`-type cover prop so the
+  // parked-vehicle pass does not swap in a fishing boat whose keel would sink 1.5 m into the quay)
+  { id: 'launch', type: 'crates', variant: 'boat_on_cradle', x: 70, z: 70, rot: deg(90), w: 10, d: 5, h: 3, mat: 'greyPaint', block: 2 },
   barrels('barrels_e', 65, 54),
   { id: 'pontoon', type: 'pier', variant: 'pontoon_minisub', x: 55.5, z: 68, rot: 0, w: 9, d: 6 },
   { id: 'crane_2', type: 'bunker', variant: 'crane_dock_portal', x: 53, z: 102, rot: deg(225), w: 1.2, d: 1.2, h: 18, mat: 'metalRust', block: 2 },
@@ -284,6 +347,25 @@ export default {
   shoreShallowWidth: 0,
   baseTerrain: 'water',
   terrain: TERRAIN,
+  // art pass (step 3p, visual only: grid false keeps the quays' road cells as the nav terrain): pavé on the main dock,
+  // granite slabs on the moles and the jetty, coping + masonry faces with bollards and rings on every water face
+  pavements: QUAYS,
+  // dock furniture (visual only, block false: routes, cones and footprints stay as tuned): blackout-hooded harbour
+  // lamps on the quay heads, a yard floodlight over the fuel depot, the garage's wall lamp, the depot's field-telephone
+  // line along the E fence, Kriegsmarine notice boards
+  furniture: [
+    { type: 'lamp', variant: 'harbour', x: 35, z: 32.6, rot: deg(90), hooded: true, block: false },
+    { type: 'lamp', variant: 'harbour', x: 59, z: 32.4, rot: deg(90), hooded: true, block: false },
+    { type: 'lamp', variant: 'harbour', x: 16, z: 79.6, rot: deg(90), hooded: true, block: false },
+    { type: 'lamp', variant: 'harbour', x: 14.5, z: 138.5, rot: deg(-45), hooded: true, block: false },
+    { type: 'lamp', variant: 'harbour', x: 66, z: 140.6, rot: deg(90), hooded: true, damaged: true, block: false },
+    { type: 'floodlight', x: 85.8, z: 47, rot: deg(225), block: false },
+    { type: 'lamp', variant: 'wall_lamp', x: 75.45, z: 102.25, rot: deg(90), hooded: true, block: false }, // on the W door pier, clear of the tank's exit
+    { type: 'telegraph', points: [[86.3, 99], [86.3, 70]], spacing: 12, h: 7, wires: 2, block: false },
+    { type: 'sign', variant: 'wehrmacht', x: 69.5, z: 41, rot: 0, text: 'RAUCHEN\nVERBOTEN!', block: false },
+    { type: 'sign', variant: 'wehrmacht', x: 78.5, z: 141, rot: 0, text: 'HAFEN LE HAVRE\nSPERRGEBIET', block: false },
+    { type: 'sign', variant: 'wehrmacht', x: 37.5, z: 140.6, rot: 0, text: 'SCHLEUSE\nDURCHFAHRT VERBOTEN', block: false },
+  ],
   markers: [
     // the torpedo must strike the forward hull (bow tip to x 28, S side)
     { ...BOW_HIT, target: SHIP.id },

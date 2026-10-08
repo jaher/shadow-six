@@ -1,0 +1,194 @@
+{
+ "asset": "boat_on_cradle",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "canvas": {
+   "source": "Poly Haven",
+   "id": "rough_linen",
+   "url": "https://polyhaven.com/a/rough_linen",
+   "authors": [
+    "colormass",
+    "Rico Cilliers"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rough Linen",
+   "label": "Army canvas / tent duck (khaki-sand)",
+   "files": {
+    "diff": {
+     "2k": "2k/canvas_diff",
+     "1k": "1k/canvas_diff"
+    },
+    "nor": {
+     "2k": "2k/canvas_nor",
+     "1k": "1k/canvas_nor"
+    },
+    "arm": {
+     "2k": "2k/canvas_arm",
+     "1k": "1k/canvas_arm"
+    }
+   }
+  },
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  },
+  "deck_planks": {
+   "source": "Poly Haven",
+   "id": "wood_planks_dirt",
+   "url": "https://polyhaven.com/a/wood_planks_dirt",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Dirt",
+   "label": "Deck / floor planks",
+   "files": {
+    "diff": {
+     "2k": "2k/deck_planks_diff",
+     "1k": "1k/deck_planks_diff"
+    },
+    "nor": {
+     "2k": "2k/deck_planks_nor",
+     "1k": "1k/deck_planks_nor"
+    },
+    "arm": {
+     "2k": "2k/deck_planks_arm",
+     "1k": "1k/deck_planks_arm"
+    }
+   }
+  },
+  "hessian": {
+   "source": "Poly Haven",
+   "id": "hessian_230",
+   "url": "https://polyhaven.com/a/hessian_230",
+   "authors": [
+    "colormass",
+    "Rico Cilliers"
+   ],
+   "license": "CC0-1.0",
+   "name": "Hessian 230",
+   "label": "Hessian sandbag cloth",
+   "files": {
+    "diff": {
+     "2k": "2k/hessian_diff",
+     "1k": "1k/hessian_diff"
+    },
+    "nor": {
+     "2k": "2k/hessian_nor",
+     "1k": "1k/hessian_nor"
+    },
+    "arm": {
+     "2k": "2k/hessian_arm",
+     "1k": "1k/hessian_arm"
+    }
+   }
+  },
+  "steel_painted": {
+   "source": "Poly Haven",
+   "id": "rusty_painted_metal",
+   "url": "https://polyhaven.com/a/rusty_painted_metal",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Painted Metal",
+   "label": "Painted riveted steel (bridge grey-green)",
+   "files": {
+    "diff": {
+     "2k": "2k/steel_painted_diff",
+     "1k": "1k/steel_painted_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_painted_nor",
+     "1k": "1k/steel_painted_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_painted_arm",
+     "1k": "1k/steel_painted_arm"
+    }
+   }
+  },
+  "timber_beam": {
+   "source": "Poly Haven",
+   "id": "wood_planks_grey",
+   "url": "https://polyhaven.com/a/wood_planks_grey",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Grey",
+   "label": "Grey structural timber (beams, rafters)",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_beam_diff",
+     "1k": "1k/timber_beam_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_beam_nor",
+     "1k": "1k/timber_beam_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_beam_arm",
+     "1k": "1k/timber_beam_arm"
+    }
+   }
+  },
+  "timber_tarred": {
+   "source": "Poly Haven",
+   "id": "dark_wooden_planks",
+   "url": "https://polyhaven.com/a/dark_wooden_planks",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Dark Wooden Planks",
+   "label": "Dark tarred timber",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_tarred_diff",
+     "1k": "1k/timber_tarred_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_tarred_nor",
+     "1k": "1k/timber_tarred_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_tarred_arm",
+     "1k": "1k/timber_tarred_arm"
+    }
+   }
+  }
+ }
+}

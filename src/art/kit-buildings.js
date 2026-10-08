@@ -14,6 +14,7 @@
 import * as THREE from 'three';
 import { dressingMaterial, boxUV, consolidate, rng, seedOf, boulderGeometry } from './dressing.js';
 import { paintedMaterial } from './kit-props.js';
+import { MEDINA_RX, glazedTile, medinaDoor, medinaWindow, medinaFacade, medinaAwning, medinaShop, palaceFront } from './medina-kit.js';
 
 function mesh(geo, mat, shadow = true) {
   const m = new THREE.Mesh(geo, mat);
@@ -135,6 +136,10 @@ export function buildKitHouse(p, theater = 'temperate') {
   if (floors > 1) for (let f = 1; f < floors; f++) g.add(tbox(w + 0.1, 0.14, d + 0.1, trim, 0, (h / floors) * f, 0, 1.5));
   // windows and the door
   const F = facades(w, d), fh = h / floors;
+  // M12 art pass: Tunis medina facades (art/medina-kit.js) on the desert kit houses that ask for it by variant
+  const medina = theater === 'desert' && MEDINA_RX.test(v), shops = medina && /souk|shop/.test(v);
+  // facade openings (x centre, half width, y span incl. frames / grilles / hoods): medinaFacade keeps its patches off them
+  const holes = { front: [], back: [], east: [], west: [] };
   for (const [name, f] of Object.entries(F)) {
     const n = Math.max(1, Math.floor((f.len - 1.2) / 2.8));
     for (let fl = 0; fl < floors; fl++) {
@@ -144,10 +149,29 @@ export function buildKitHouse(p, theater = 'temperate') {
         if (R() < 0.12 && name !== 'front') continue;
         const wh = Math.min(1.3, fh * 0.42), y = fh * fl + Math.max(1.0, fh * 0.5);
         if (y + wh / 2 > h - 0.25) continue;
+        if (medina && fl === 0 && name === 'front' && shops) continue; // the souk's ground floor is shopfronts
         windowAt(g, S, f.place, x, y, theater === 'desert' ? 0.7 : 0.95, theater === 'desert' ? wh * 0.85 : wh, theater !== 'snow' || R() < 0.7);
+        if (medina) { medinaWindow(g, f.place, x, y, 0.7, wh * 0.85, fl, R); holes[name].push({ x, hw: 0.75, y0: y - wh / 2 - 0.4, y1: y + wh / 2 + 0.5 }); }
       }
     }
-    if (name === 'front' && p.door !== false) doorAt(g, S, f.place, (n % 2 ? 0 : 0), Math.min(1.2, w * 0.25), Math.min(2.2, h - 0.4));
+    if (name === 'front' && p.door !== false) (medina ? (gg, _S, pl, x, dw, dh) => medinaDoor(gg, pl, x, dw, dh, seed) : doorAt)(g, S, f.place, (n % 2 ? 0 : 0), Math.min(1.2, w * 0.25), Math.min(2.2, h - 0.4));
+  }
+  if (medina) {
+    if (p.door !== false) holes.front.push({ x: 0, hw: Math.min(1.2, w * 0.25) / 2 + 0.85, y0: 0, y1: 3.4 });
+    const shopN = Math.max(2, Math.floor(w / 3.4)), shopW = (w - 1.2) / shopN, shopH = Math.min(2.3, h * 0.4);
+    if (shops) for (let k = 0; k < shopN; k++) holes.front.push({ x: -w / 2 + 0.6 + shopW * (k + 0.5), hw: shopW * 0.45 + 0.3, y0: 0, y1: shopH + shopW * 0.31 + 0.9 });
+    if (/palace/.test(v) && h >= 6) holes.front.push({ x: 0, hw: w / 2, y0: 0, y1: 1.9 }, { x: 0, hw: w * 0.3 + 0.3, y0: 3.4, y1: h });
+    medinaFacade(g, F, { w, d, h, floors, fh, variant: v, walkable: !!p.roofWalk, seed, roofY: top, openings: holes });
+    if (shops) {
+      const n = shopN, sw = shopW, hs = shopH;
+      for (let k = 0; k < n; k++) {
+        const x = -w / 2 + 0.6 + sw * (k + 0.5);
+        if (p.door !== false && Math.abs(x) < 1.0) continue;
+        medinaShop(g, F.front.place, x, sw * 0.62, hs);
+        medinaAwning(g, F.front.place, x, sw * 0.9, hs + sw * 0.31 + 0.55, 1.2);
+      }
+    }
+    if (/palace/.test(v) && h >= 6) palaceFront(g, F.front.place, w, h, 4);
   }
   // roof
   if (p.roofWalk || /flat|terrace|medina|souk|whitewash|bunkhouse|block|hq_domed|stepped|jail|palace|pavilion|corner/.test(v) || theater === 'desert') {
@@ -161,7 +185,7 @@ export function buildKitHouse(p, theater = 'temperate') {
     if (!p.roofWalk && (p.dome || /dome|qubba/.test(v))) {
       const r = Math.min(w, d) * 0.22;
       g.add(tbox(r * 2.1, 0.5, r * 2.1, wallMat, w * 0.18, h + 0.25, -d * 0.15, 2));
-      const dome = tlathe(Array.from({ length: 9 }, (_, k) => { const a = (k / 8) * Math.PI / 2; return [Math.cos(a) * r, h + 0.5 + Math.sin(a) * r * 0.95]; }), 20, dressingMaterial(/green/.test(v) ? 'roofTerracotta' : S.wall));
+      const dome = tlathe(Array.from({ length: 9 }, (_, k) => { const a = (k / 8) * Math.PI / 2; return [Math.cos(a) * r, h + 0.5 + Math.sin(a) * r * 0.95]; }), 20, /green/.test(v) ? glazedTile() : dressingMaterial(S.wall));
       dome.position.set(w * 0.18, 0, -d * 0.15); g.add(dome);
     }
     // a stairhead / water tank on desert roofs, a chimney in Europe
@@ -178,7 +202,7 @@ export function buildKitHouse(p, theater = 'temperate') {
     g.add(tbox(0.5, 1.0, 0.5, dressingMaterial(theater === 'snow' ? 'fieldstone' : 'brick'), (along ? 1 : 0) * w * 0.25, h + rise * 0.6, (along ? 0 : 1) * d * 0.25, 1.2));
   }
   // variant accents
-  if (/awning|souk|shop/.test(v)) {
+  if (/awning|souk|shop/.test(v) && !medina) {
     const aw = tbox(Math.min(w * 0.6, 4), 0.05, 1.3, paintedMaterial('canvas', 0xb8865a), 0, Math.min(2.8, h * 0.6), d / 2 + 0.65, 1.5);
     aw.rotation.x = 0.25; g.add(aw);
   }
@@ -187,11 +211,13 @@ export function buildKitHouse(p, theater = 'temperate') {
     for (let x = -w * 0.3; x <= w * 0.3 + 1e-6; x += 0.35) g.add(tbox(0.05, 0.9, 0.05, dressingMaterial('beam'), x, fh * fl + 0.5, d / 2 + 0.88, 0.6));
     g.add(tbox(w * 0.6, 0.07, 0.07, dressingMaterial('beam'), 0, fh * fl + 0.95, d / 2 + 0.88, 0.6));
   }
-  if (/arcade|souk/.test(v)) {
+  if (/arcade|souk/.test(v) && !medina) {
     const n = Math.max(2, Math.floor(w / 3.2)), aw2 = (w - 0.8) / n;
     for (let k = 0; k < n; k++) g.add(tbox(aw2 * 0.7, Math.min(2.8, h * 0.55), 0.05, new THREE.MeshStandardMaterial({ color: 0x15120e, roughness: 1, name: 'kit:recess' }), -w / 2 + 0.4 + aw2 * (k + 0.5), Math.min(2.8, h * 0.55) / 2 + 0.4, d / 2 + 0.03, 1));
   }
-  return consolidate(g);
+  const out = consolidate(g);
+  if (medina) out.traverse((o) => { if (o.material?.userData?.noRecv) o.receiveShadow = false; });
+  return out;
 }
 
 // ------------------------------------------------------------------------------------------ towers

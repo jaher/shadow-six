@@ -71,6 +71,25 @@ Object.assign(VARIANT_HINTS.barracks, { barracks_concrete_2st: ['barracks_concre
 Object.assign(VARIANT_HINTS.hut, { shed_concrete: ['shed_concrete'] });
 Object.assign(VARIANT_HINTS.house, { house_concrete_2st: ['house_coastal_normandy'] });
 Object.assign(VARIANT_HINTS.bunker, { blockhouse_small: ['blockhouse_small'] });
+// M12 art pass (Tunis, manifest-tunis.json + the M12 desert set): the harbour HQ is a French-protectorate office block, the
+// NW shed a corrugated dock warehouse, the minaret the Zitouna-style square shaft; the backdrop medina houses along the
+// N edge (not walkable) take the lime-washed Tunis houses. Walkable medina houses keep the kit body (art/medina-kit.js).
+Object.assign(VARIANT_HINTS.barracks, { barracks_desert_hq: ['hq_colonial_tunis'] });
+Object.assign(VARIANT_HINTS.house, { warehouse_corrugated: ['warehouse_harbour_tunis'] });
+VARIANT_HINTS.minaret = { minaret_octagonal: ['minaret_tunis'] };
+Object.assign(VARIANT_HINTS.flat_roof_house, {
+  medina_block_qubba: ['house_flat_white_c'], medina_facade_shutters: ['house_flat_white_a', 'house_flat_white_b'],
+  medina_facade_awning: ['house_flat_white_b', 'house_flat_white_a'],
+});
+// Le Havre docks (M13 art pass, manifest-le-havre): Nissen huts, the brick tank garage, the brick lock-control shacks,
+// the riveted sea-lock gate leaves and the dockside jib crane (a lattice pillar keeps the mission's 1.2 m crane foot)
+Object.assign(VARIANT_HINTS.barracks, { nissen_hut: ['nissen_hut', 'nissen_hut_b'] });
+VARIANT_HINTS.garage = { garage_brick: ['garage_brick'] };
+VARIANT_HINTS.control_shack = { lock_control_shack: ['lock_control_shack', 'lock_control_shack_b'] };
+VARIANT_HINTS.lock_gate = { sea_lock_gate: ['sea_lock_gate'] };
+Object.assign(VARIANT_HINTS.bunker, { crane_dock_portal: ['crane_pillar'] });
+Object.assign(VARIANT_HINTS.crates, { dock_cargo: ['dock_cargo_a', 'dock_cargo_b', 'dock_cargo_c', 'dock_cargo_d', 'dock_cargo_e', 'dock_cargo_f'], crates_barrels_row: ['dock_cargo_row'],
+  boat_on_cradle: ['boat_on_cradle'] });
 
 /**
  * Placeholder-art pass (tools/audit/placeholder-audit.mjs): mission variants that drew as grey catalogue boxes and
@@ -390,7 +409,7 @@ export function libraryVisual(type, p = {}, ctx = {}) {
   }
   outer.userData.libraryAsset = b.asset;
   attachFuelHooks(outer, b, p, anchors);
-  outer.userData.setDoorOpen = (id, t) => state.b.setDoorOpen(id, t);
+  outer.userData.setDoorOpen = (id, t, sign = 1) => state.b.setDoorOpen(id, t, sign);
   // explosiveTarget destroyed → swap to the modelled destroyed variant when there is one (else the caller burns it)
   outer.userData.destroy = () => {
     // a snow variant without its own ruin (dam_arch_snow) falls back on its base asset's (dam_arch_destroyed)

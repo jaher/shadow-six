@@ -185,6 +185,7 @@ export function installHandlers(a, events) {
   });
   on('structure:destroyed', (e, t) => {
     if (e.cause === 'ram') return; // a gate smash: gate:smash plays the splintering, not a collapse boom
+    if (e.type === 'fence-gap') return; // a hole cut in the wire: silent (each snip played as a device event)
     const pos = e.x != null ? e : e.structure || e.prop;
     if (/dam/.test(e.type || '') || e.id === 'dam') { sfx('dam_burst', pos, t); a.startLoop(key(e, 'flood'), 'flood_rush', pos, { event: t }); } else sfx('collapse', pos, t);
     // positional ambience that belonged to the structure (the M3 dam's falling water) ends with it

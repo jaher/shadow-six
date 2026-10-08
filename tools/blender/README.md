@@ -34,6 +34,8 @@ merges every name in `EXTRA_MANIFESTS` after `manifest.json`. Missions reach the
 so unhinted structures of other missions keep their looks. §7.7 extra props (`casemate_gun`, `flat_roof_house`, `sea_wall`)
 switch to the library only for hinted variants; a hinted `sea_wall` tiles its 8 m section along the run.
 - M14 (Atlantic Wall, `manifest-atlantic-wall.json`): `military/q_m14.txt` lists the builds.
+- M13 (Le Havre docks, `manifest-le-havre.json`): `military/q_m13.txt` lists the builds (Nissen huts, brick tank garage, lock-control
+  shacks, sea-lock gate with `leaf` doors, dockside jib crane, launch on its slip trolley, dock cargo stacks).
 
 ## Conventions
 - Blender Z-up, 1 unit = 1 m. The pivot is the ground centre and the front faces Blender −Y, which is glTF +Z (game south at `rot` 0).

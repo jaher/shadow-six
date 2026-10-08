@@ -1,0 +1,5 @@
+# M12 art pass (Tunis harbour, "Up on the Roof"): "script -- outdir variant seed" (desert family, dz.py helpers);
+# ship with tools/blender/consolidate/addon_manifest.py <art_root> <repo> manifest-tunis desert
+#   hq_colonial=hq_colonial_tunis warehouse_harbour=warehouse_harbour_tunis  -> assets/models/buildings/manifest-tunis.json
+hq_colonial_tunis.py <out>/hq_colonial_tunis a 1943
+warehouse_harbour_tunis.py <out>/warehouse_harbour_tunis a 1907

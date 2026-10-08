@@ -230,7 +230,7 @@ export class HUD {
       if (p?.unit?.kind === 'enemy' || p?.unit?.faction === 'enemy') this._losses.soldiers++;
     });
     on('vehicle:destroyed', () => this._losses.vehicles++);
-    on('structure:destroyed', () => this._losses.buildings++);
+    on('structure:destroyed', (e) => { if (e?.type !== 'fence-gap') this._losses.buildings++; }); // (a hole cut in the wire is no building)
     on('objective:update', ({ objective } = {}) => objective?.done && !objective.hidden && this.message(`OBJECTIVE COMPLETED: ${objective.text}`.toUpperCase(), 'info'));
     on('game:state', ({ to } = {}) => this.onState(to));
     on('mission:won', (p) => this.debrief.won(p));
