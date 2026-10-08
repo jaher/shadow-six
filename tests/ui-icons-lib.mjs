@@ -61,6 +61,8 @@ export async function probeIcons(page) {
         icon: img.dataset?.icon || '', tag: img.tagName, fallback: img.classList.contains('ico-fallback'), mult: Number(img.dataset?.mult || 1),
         ok: img.tagName === 'IMG' && img.complete && img.naturalWidth > 0, src: img.currentSrc || img.src || '',
         w: r.width, h: r.height, pw: box.width, ph: box.height, nat: [nw, nh], tier: img.dataset?.tier || '',
+        // a knapsack item's button is its drawn box: the render hangs over it by its transparent margins (knapsackLayout)
+        pack: !!img.closest('.hud-knapsack .item'), covers: r.left <= box.left + 0.5 && r.top <= box.top + 0.5 && r.right >= box.right - 0.5 && r.bottom >= box.bottom - 0.5,
         cover: nw ? Math.min(nw / (dw * devicePixelRatio), nh / (dh * devicePixelRatio)) : 0,
       });
     }
@@ -104,6 +106,9 @@ export function checkProbe(t, probe, tier, label) {
   const low = probe.filter((p) => p.ok && !p.fallback && p.cover < 0.98);
   t(!low.length, `${label}: every icon has ≥ the device px it covers (low: ${low.map((p) => `${p.src.split('/').pop()} ${p.cover.toFixed(2)}`).join(', ')})`);
   // the notebook page is one full-size sheet clipped by the folding page element (by design)
-  const off = probe.filter((p) => p.pw && Math.abs(p.w - p.pw) > 1.5 && !/count/.test(p.icon) && !p.icon.includes('.mini') && !p.icon.includes('cartridge') && !p.icon.startsWith('stamp/') && p.icon !== 'tool/notebook.page');
+  const off = probe.filter((p) => !p.pack && p.pw && Math.abs(p.w - p.pw) > 1.5 && !/count/.test(p.icon) && !p.icon.includes('.mini') && !p.icon.includes('cartridge') && !p.icon.startsWith('stamp/') && p.icon !== 'tool/notebook.page');
   t(!off.length, `${label}: icons fill their CSS box (no intrinsic-size layout) ${JSON.stringify(off.slice(0, 2))}`);
+  const pack = probe.filter((p) => p.pack && p.ok && !p.icon.includes('.mini') && !p.icon.includes('cartridge'));
+  const loose = pack.filter((p) => !p.covers || Math.abs(p.w / p.h - p.nat[0] / p.nat[1]) > 0.03);
+  t(pack.length && !loose.length, `${label}: knapsack renders cover their item's drawn box at their own aspect ${JSON.stringify(loose.slice(0, 2))}`);
 }

@@ -189,7 +189,7 @@ def emit(cls, iid, im, box, hot=None, tiers=None, ss_min=2):
         if png: P.save_png(pim, base + '.png')
         elif os.path.exists(base + '.png'): os.remove(base + '.png')
         res.append((tag, w, h, os.path.getsize(base + '.webp'), os.path.getsize(base + '.png') if png else 0))
-    meta = {'cls': cls, 'box': list(box), 'master': [im.width, im.height]}
+    meta = {'cls': cls, 'box': list(box), 'master': [im.width, im.height], 'content': P.content_box(arr)}
     if hot: meta['hot'] = [hot[0] * im.width / box[0], hot[1] * im.height / box[1]]
     e = P.manifest_entry(meta, res); e['vector'] = True
     return e

@@ -129,8 +129,123 @@ function buriedView(u, world) {
   return { mode: 'items', buried: true, rising, units: [u], items };
 }
 
-/** Kit area of the rendered rucksack below the flap and its buckles (ref px of the 112×149 pack). */
-export const PACK_AREA = Object.freeze({ x: 7, y: 39, w: 98, h: 99, gap: 2, rowGap: 0, cols: 2, minRows: 3 });
+/**
+ * §6.4 count tag geometry (ref px), the same numbers as styles/ui.css `.hud-knapsack .count`: a stamped brass tag `h`
+ * tall with `chrome` px of rivet ends and padding; its glyphs stand in it side by side (`w` + `gap`), the cartridges
+ * `up` px above its top edge (a round in its loop). `max`: glyphs shown at most. Numbers are engraved text.
+ */
+export const TAG = Object.freeze({ h: 9, chrome: 12.4, minW: 20, digit: 4.4 });
+export const TAG_GLYPHS = Object.freeze({
+  cartridges: { w: 3.6, gap: 1, up: 2, max: 12 },
+  'item/grenade.mini': { w: 7, gap: 1, up: 0.875, max: 8 },
+  'item/charge.mini': { w: 8, gap: 1, up: 0, max: 8 },
+  icons: { w: 4, gap: 1, up: 0, max: 8 }, // plain dots when an item has no glyph render
+  ticks: { w: 1, gap: 1.6, up: 0, max: 8 },
+});
+/** The buried Green Beret's DIG OUT / RISING tag under the shovel (styles/ui.css `.rise-tag`). */
+export const RISE_TAG = Object.freeze({ w: 38, h: 12 });
+
+/**
+ * Size of an item's count tag (or DIG OUT tag): {w, h, up, n, gw, gap, glyph} in ref px, or null (no count).
+ * `glyph`: the count glyph's art id (COUNT_ART: cartridge, grenade / charge minis), when the item has one.
+ */
+export function tagSpec(it, glyph = null) {
+  if (it?.rise) return { w: RISE_TAG.w, h: RISE_TAG.h, up: 0, n: 0, kind: 'rise' };
+  if (!it || it.display === 'single' || !it.display || it.count == null) return null;
+  if (it.display === 'number' || it.display === 'infinite') {
+    const chars = it.display === 'infinite' ? 1 : String(it.count).length;
+    return { w: Math.max(TAG.minW, TAG.chrome + chars * TAG.digit), h: TAG.h, up: 0, n: 0, kind: it.display };
+  }
+  const g = TAG_GLYPHS[it.display === 'cartridges' ? 'cartridges' : it.display === 'ticks' ? 'ticks' : glyph && TAG_GLYPHS[glyph] ? glyph : 'icons'];
+  const n = Math.max(0, Math.min(it.count, g.max));
+  const w = Math.max(TAG.minW, TAG.chrome + n * g.w + Math.max(0, n - 1) * g.gap);
+  return { w, h: TAG.h, up: g.up, n, gw: g.w, gap: g.gap, kind: it.display };
+}
+
+/**
+ * The pack's kit area and spacing (ref px of the 112×149 rendered rucksack): `gap` between any two things drawn on it
+ * (items, count tags), `attach` between an item and its own tag (it hangs right under its weapon), `kMax` the most an
+ * icon is enlarged over its box.
+ */
+export const PACK_LAYOUT = Object.freeze({ x: 7, y: 39, w: 98, h: 99, gap: 2.5, attach: 0.75, kMax: 1.12, cols: 2 });
+
+/**
+ * Lay the kit out on the pack with nothing drawn over anything else (user 2026-10-08: "The bullets of sniper rifle
+ * overlap gun?"). Rows as PACK_ORDER gives them (a long gun fills a row, then two items a row, an odd last one centred);
+ * each item is sized by its DRAWN box (the render's visible pixels, `content` fractions of its icon box, shadow
+ * included) with its count tag right under it, inside its own column. Rows are as tall as their tallest item + tag and
+ * `gap` apart; the whole kit shrinks by one common factor only when the rows would not fit the pack, and the spare
+ * height is spread evenly above, between and below the rows.
+ * @param {{id?:string, box:number[], content?:number[], span?:number, tag?:{w:number,h:number,up:number}|null}[]} entries
+ * @returns {{item:Rect, icon:Rect, tag:Rect|null, slot:Rect, k:number}[]} item = drawn box, icon = the full image box,
+ *   tag = the tag's drawn box (glyphs standing above it included); Rect = {x, y, w, h} in ref px; same order as entries
+ */
+export function knapsackLayout(entries, area = PACK_LAYOUT) {
+  if (!entries.length) return [];
+  const cols = area.cols || 2;
+  const span = (i) => Math.min(cols, entries[i].span || (entries[i].box[0] >= 60 ? 2 : 1));
+  const rank = (i) => {
+    const r = PACK_ORDER.indexOf(entries[i].id);
+    return r < 0 ? PACK_ORDER.length + i : r;
+  };
+  const order = entries.map((_, i) => i).sort((a, b) => (span(b) >= cols) - (span(a) >= cols) || rank(a) - rank(b) || a - b);
+  const rows = [];
+  for (const i of order) {
+    let r = rows.find((q) => q.used + span(i) <= cols && !(span(i) >= cols && q.used));
+    if (!r || (span(i) >= cols && r.used)) rows.push((r = { items: [], used: 0 }));
+    r.items.push(i);
+    r.used += span(i);
+  }
+  const colW = (area.w - area.gap * (cols - 1)) / cols;
+  const slotW = (i) => colW * span(i) + area.gap * (span(i) - 1);
+  const cbox = (i) => {
+    const [bw, bh] = entries[i].box, c = entries[i].content || [0, 0, 1, 1];
+    return { w: bw * (c[2] - c[0]), h: bh * (c[3] - c[1]), c };
+  };
+  const foot = (i) => (entries[i].tag ? area.attach + entries[i].tag.up + entries[i].tag.h : 0);
+  const kOf = (i, s) => s * Math.min(area.kMax, slotW(i) / cbox(i).w);
+  const rowH = (r, s) => Math.max(...r.items.map((i) => cbox(i).h * kOf(i, s) + foot(i)));
+  const total = (s) => rows.reduce((t, r) => t + rowH(r, s), 0) + area.gap * (rows.length - 1);
+  let s = 1;
+  if (total(1) > area.h) { // one common factor for the whole kit (the tags keep their size)
+    let lo = 0.2, hi = 1;
+    for (let k = 0; k < 40; k++) { const m = (lo + hi) / 2; if (total(m) <= area.h) lo = m; else hi = m; }
+    s = lo;
+  }
+  const spare = Math.max(0, area.h - total(s)) / (rows.length + 1);
+  const out = new Array(entries.length);
+  const r2 = (v) => Math.round(v * 1000) / 1000;
+  const rect = (x, y, w, h) => ({ x: r2(x), y: r2(y), w: r2(w), h: r2(h) });
+  let y = area.y + spare;
+  for (const r of rows) {
+    const h = rowH(r, s);
+    let x = area.x + (r.used < cols ? (area.w - colW * r.used - area.gap * (r.used - 1)) / 2 : 0);
+    for (const i of r.items) {
+      const sw = slotW(i), k = kOf(i, s), cb = cbox(i), [bw, bh] = entries[i].box;
+      const dw = cb.w * k, dh = cb.h * k, top = y + (h - dh - foot(i)) / 2;
+      const ix = x + (sw - dw) / 2;
+      const t = entries[i].tag;
+      let tag = null;
+      if (t) {
+        const tw = Math.min(t.w, sw);
+        const tx = Math.max(x, Math.min(x + sw - tw, ix + dw / 2 - tw / 2));
+        tag = rect(tx, top + dh + area.attach, tw, t.up + t.h);
+      }
+      out[i] = {
+        k: r2(k), slot: rect(x, y, sw, h), item: rect(ix, top, dw, dh), tag,
+        icon: rect(ix - cb.c[0] * bw * k, top - cb.c[1] * bh * k, bw * k, bh * k),
+      };
+      x += sw + area.gap;
+    }
+    y += h + area.gap + spare;
+  }
+  return out;
+}
+
+/** Do two rects overlap (touching edges do not)? */
+export function rectsOverlap(a, b, eps = 1e-6) {
+  return a.x < b.x + b.w - eps && b.x < a.x + a.w - eps && a.y < b.y + b.h - eps && b.y < a.y + a.h - eps;
+}
 
 /**
  * Canonical slot order (review: the same item keeps the same place in every kit): long guns first (a full row each),
@@ -139,49 +254,3 @@ export const PACK_AREA = Object.freeze({ x: 7, y: 39, w: 98, h: 99, gap: 2, rowG
 export const PACK_ORDER = ['sniperRifle', 'leeEnfield', 'smg', 'harpoon', 'pistol', 'beretta', 'knife', 'lethalInjection', 'uniform',
   'decoy', 'decoyActivator', 'shovel', 'divingGear', 'inflatableBoat', 'timeBomb', 'remoteBomb', 'detonator', 'grenade', 'bearTrap',
   'wireCutters', 'firstAid', 'stones', 'handcuffs', 'hanger', 'knuckles', 'blackjack', 'chloroform', 'cigarettes', 'lipstick', 'climbAxe'];
-
-/**
- * Lay the item icons out on the pack in a fixed slot grid (2 columns, at least 3 rows): items take their slots in
- * PACK_ORDER, a long gun (span 2) fills a whole row, an odd last item is centred in its row. Each icon is scaled to
- * fit its slot (never above its own box, which already carries the equal-visual-mass size) and centred in it.
- * `boxes`: [[w, h]] ref-px boxes (icon + count foot) in DOM order; `spans`: 1|2 per item (default: 2 when w ≥ 60);
- * `ids`: item ids for PACK_ORDER (default: DOM order).
- * @returns {{x:number, y:number, w:number, h:number}[]} top-left + size in ref px, same order as `boxes`
- */
-export function packLayout(boxes, area = PACK_AREA, spans = null, ids = null) {
-  if (!boxes.length) return [];
-  const cols = area.cols || 2;
-  const span = (i) => Math.min(cols, spans?.[i] || (boxes[i][0] >= 60 ? 2 : 1));
-  const rank = (i) => {
-    const r = ids ? PACK_ORDER.indexOf(ids[i]) : -1;
-    return r < 0 ? PACK_ORDER.length + i : r;
-  };
-  const order = boxes.map((_, i) => i).sort((a, b) => (span(b) >= cols) - (span(a) >= cols) || rank(a) - rank(b) || a - b);
-  const rows = [];
-  for (const i of order) {
-    let r = rows.find((q) => q.used + span(i) <= cols && !(span(i) >= cols && q.used));
-    if (!r || (span(i) >= cols && r.used)) rows.push((r = { items: [], used: 0 }));
-    r.items.push(i);
-    r.used += span(i);
-  }
-  const n = Math.max(area.minRows || 1, rows.length);
-  const ch = (area.h - area.rowGap * (n - 1)) / n;
-  const cw = (area.w - area.gap * (cols - 1)) / cols;
-  const out = new Array(boxes.length);
-  // fewer rows than the grid: spread the used rows over the area (no empty band at the bottom)
-  const pitch = rows.length < n ? (area.h - ch * rows.length) / (rows.length + 1) : area.rowGap;
-  let y = area.y + (rows.length < n ? pitch : 0);
-  for (const r of rows) {
-    const odd = r.used < cols;
-    let x = area.x + (odd ? (area.w - cw * r.used - area.gap * (r.used - 1)) / 2 : 0);
-    for (const i of r.items) {
-      const sw = cw * span(i) + area.gap * (span(i) - 1);
-      const k = Math.min(1.12, sw / boxes[i][0], ch / boxes[i][1]);
-      const w = boxes[i][0] * k, h = boxes[i][1] * k;
-      out[i] = { x: +(x + (sw - w) / 2).toFixed(2), y: +(y + (ch - h) / 2).toFixed(2), w: +w.toFixed(2), h: +h.toFixed(2) };
-      x += sw + area.gap;
-    }
-    y += ch + pitch;
-  }
-  return out;
-}

@@ -239,16 +239,17 @@ html.mk-touch .hud-stance { min-width: 59px; min-height: 44px; }
 /* §3.4 buried Green Beret: the shovel slot is the DIG OUT button (glowing, with a stamped tag); the rest is locked */
 .hud-knapsack .item.rise { z-index: 3; filter: drop-shadow(0 0 calc(3 * var(--r)) #f0e060); animation: risePulse 1.4s ease-in-out infinite; }
 .hud-knapsack .item.rise.disabled { filter: drop-shadow(0 0 calc(2 * var(--r)) #f0e060) brightness(0.85); animation: none; cursor: default; }
-.hud-knapsack .item .rise-tag {
-  position: absolute; left: 50%; bottom: calc(-7 * var(--r)); transform: translateX(-50%); white-space: nowrap; pointer-events: none;
-  padding: calc(1 * var(--r)) calc(3 * var(--r)); font: 400 calc(8 * var(--r)) / 1 var(--f-head); letter-spacing: 0.08em; color: #2a1d08;
+.hud-knapsack .item .rise-tag { /* placed right under the shovel by knapsack.js (left / top / width / height: knapsackLayout) */
+  position: absolute; box-sizing: border-box; display: flex; align-items: center; justify-content: center; white-space: nowrap; pointer-events: none;
+  padding: 0 calc(3 * var(--r)); font: 400 calc(8 * var(--r)) / 1 var(--f-head); letter-spacing: 0.08em; color: #2a1d08;
   background: linear-gradient(#f3d77a, #c9a03c); border: calc(0.8 * var(--r)) solid #5b4314; border-radius: calc(1.5 * var(--r));
   box-shadow: 0 calc(0.6 * var(--r)) calc(1 * var(--r)) rgba(0, 0, 0, 0.7);
 }
 @keyframes risePulse { 50% { filter: drop-shadow(0 0 calc(5 * var(--r)) #ffe680) brightness(1.15); } }
 @media (prefers-reduced-motion: reduce) { .hud-knapsack .item.rise { animation: none; } }
-.hud-knapsack .count { position: absolute; left: 50%; bottom: calc(-4 * var(--r)); transform: translateX(-50%); display: flex; gap: calc(1 * var(--r)); pointer-events: none; }
-.hud-knapsack .item[data-icon] .count { top: auto; bottom: calc(-6 * var(--r)); align-items: flex-end; z-index: 1; }
+/* the count tag hangs right under its item, in its own column (knapsack.js sets left / top / width: knapsackLayout,
+   whose TAG / TAG_GLYPHS numbers are the sizes below) */
+.hud-knapsack .count { position: absolute; display: flex; gap: calc(1 * var(--r)); pointer-events: none; z-index: 1; }
 /* one period treatment for every count (review): a stamped brass tag with a rivet at each end (rendered, 9-slice) */
 .hud-knapsack .count.tag {
   box-sizing: border-box; height: calc(9 * var(--r)); min-width: calc(20 * var(--r)); align-items: center; justify-content: center;

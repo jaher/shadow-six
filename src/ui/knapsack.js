@@ -9,7 +9,7 @@ import { getPortraitURL } from '../art/portraits.js';
 import { ABILITIES } from '../abilities/index.js';
 import { el, fromHTML, tip } from './dom.js';
 import { GLYPHS, ITEM_ICONS } from './icons.js';
-import { knapsackView, packLayout } from './knapsack-model.js';
+import { TAG, knapsackView, knapsackLayout, tagSpec } from './knapsack-model.js';
 import { COUNT_ART, iconEntry, iconHTML, itemArt, toolHTML, wireToolStates } from './icon-art.js';
 import { CONFIG } from '../config.js';
 import { isTouchUI } from './touch.js';
@@ -53,24 +53,6 @@ export function transportButtons(c, world) {
 }
 
 const R = (n) => `calc(${n} * var(--r))`;
-
-/**
- * Foot [min width, height] in ref px a count badge needs under its icon (§6.4 counts). Every count sits on the same
- * stamped brass tag (review: one period treatment): engraved digits, engraved dose notches, or the rendered minis
- * (cartridges, grenades, charges) resting on it.
- */
-export function countFoot(it) {
-  if (it.display === 'single' || it.count == null || !it.display) return [0, 0];
-  const n = Math.min(it.count, it.display === 'cartridges' ? 12 : 8);
-  // the tag hangs over the lower edge of the icon (like a tag tied on the kit): it reserves only a little height,
-  // so a counted item (rifle + rounds, SMG + bursts) is drawn as large as the same item without a count
-  switch (it.display) {
-    case 'cartridges': return [n * 4.2 + 9, 4];
-    case 'icons': return [n * 8 + 9, 4];
-    case 'ticks': return [n * 3 + 10, 3];
-    default: return [20, 3]; // number / infinite
-  }
-}
 
 export class Knapsack {
   constructor(hud, parent) {
@@ -168,20 +150,21 @@ export class Knapsack {
       }
       return;
     }
-    // rendered icons keep their own proportions (long guns are long): shelf-pack their ref boxes on the pack
+    // rendered icons keep their own proportions (long guns are long); nothing drawn on the pack overlaps anything else:
+    // each item by its drawn box with its count tag right under it (knapsack-model.js knapsackLayout)
     const roles = view.units.map((u) => u.role);
     const arts = view.items.map((it) => itemArt(it.id, roles) || itemArt(it.item, roles));
-    // each slot reserves a foot under the icon for its count badge (cartridge row, glyphs, number, ticks)
-    const icons = arts.map((a) => iconEntry(a)?.b || [34, 34]);
-    const feet = view.items.map((it) => countFoot(it));
-    const spans = arts.map((a) => iconEntry(a)?.s || 1);
-    const layout = packLayout(icons.map(([w, h], i) => [Math.max(w, feet[i][0]), h + feet[i][1]]), undefined, spans, view.items.map((it) => it.item || it.id));
+    const specs = view.items.map((it) => tagSpec(it, COUNT_ART[it.item || it.id] || null));
+    const layout = knapsackLayout(view.items.map((it, i) => {
+      const e = iconEntry(arts[i]);
+      return { id: it.item || it.id, box: e?.b || [34, 34], content: e?.c || null, span: e?.s || 1, tag: specs[i] };
+    }));
     view.items.forEach((it, i) => {
-      const L = layout[i], k = L.h / (icons[i][1] + feet[i][1]);
-      const w = icons[i][0] * k, h = icons[i][1] * k;
+      const L = layout[i], at = (r) => ({ left: R(+(r.x - L.item.x).toFixed(3)), top: R(+(r.y - L.item.y).toFixed(3)) });
+      // the button is the item's drawn box (its hit area is what you see); the render hangs over it by its margins
       const b = el('button', 'item', this.pack);
       b.type = 'button';
-      Object.assign(b.style, { left: R(+(L.x + (L.w - w) / 2).toFixed(2)), top: R(L.y), width: R(+w.toFixed(2)), height: R(+h.toFixed(2)) });
+      Object.assign(b.style, { left: R(L.item.x), top: R(L.item.y), width: R(L.item.w), height: R(L.item.h) });
       b.dataset.item = it.id;
       b.dataset.display = it.display;
       if (arts[i]) b.dataset.icon = arts[i];
@@ -190,15 +173,18 @@ export class Knapsack {
       b.setAttribute('aria-disabled', String(it.disabled));
       if (it.ability && it.ability === targeting) b.classList.add('armed');
       b.innerHTML = arts[i] ? iconHTML(arts[i], { fb: `item/${it.id}` }) : ITEM_ICONS[it.id] || ITEM_ICONS[it.item] || GLYPHS.star;
+      const art = b.firstElementChild;
+      if (art) Object.assign(art.style, { position: 'absolute', ...at(L.icon), width: R(L.icon.w), height: R(L.icon.h) });
       el('span', 'lbl', b, it.label);
-      if (it.rise) { // §3.4 shovel while buried: a stamped DIG OUT tag on the slot, one click / tap rises
+      if (it.rise) { // §3.4 shovel while buried: a stamped DIG OUT tag under the slot, one click / tap rises
         b.classList.add('rise');
         b.dataset.rise = it.disabled ? 'rising' : 'ready';
-        el('span', 'rise-tag', b, it.disabled ? 'RISING' : 'DIG OUT');
+        const t = el('span', 'rise-tag', b, it.disabled ? 'RISING' : 'DIG OUT');
+        Object.assign(t.style, { ...at(L.tag), width: R(L.tag.w), height: R(L.tag.h) });
       }
       tip(b, it.rise && !it.disabled ? `DIG OUT${it.key ? ` (${it.key})` : ''} — COME OUT OF THE ${view.units[0]?.dig?.surface === 'sand' ? 'SAND' : 'SNOW'}`
         : it.disabled ? `${it.label.toUpperCase()}: ${it.reason.toUpperCase()}` : `${it.label.toUpperCase()}${it.key ? ` (${it.key})` : ''}`);
-      this._count(b, it);
+      if (!it.rise) this._count(b, it, specs[i], L);
       b.addEventListener('click', (e) => {
         e.stopPropagation();
         this.activate(it);
@@ -206,10 +192,16 @@ export class Knapsack {
     });
   }
 
-  /** §6.4 counts on a stamped brass tag: cartridges row, engraved number, individual icons, dose notches. */
-  _count(b, it) {
-    if (it.display === 'single' || it.count == null) return;
+  /**
+   * §6.4 counts on a stamped brass tag hanging right under the item (its own column, clear of every other item):
+   * cartridges row, engraved number, individual icons, dose notches. A row wider than the column closes up (the
+   * glyphs overlap a little) instead of reaching into the next item.
+   */
+  _count(b, it, spec, L) {
+    if (!spec || !L.tag) return;
     const c = el('span', `count tag ${it.display}`, b);
+    // the plate sits `up` below the tag box's top (the cartridges stand that much above it)
+    Object.assign(c.style, { left: R(+(L.tag.x - L.item.x).toFixed(3)), top: R(+(L.tag.y + spec.up - L.item.y).toFixed(3)), width: R(L.tag.w) });
     if (it.display === 'number') {
       c.textContent = String(it.count);
       return;
@@ -218,12 +210,14 @@ export class Knapsack {
       c.textContent = '∞';
       return;
     }
-    const n = Math.min(it.count, it.display === 'cartridges' ? 12 : 8);
     const glyph = COUNT_ART[it.item || it.id];
-    for (let k = 0; k < n; k++) {
+    const close = spec.n > 1 && L.tag.w < spec.w - 1e-6 ? (L.tag.w - TAG.chrome - spec.gw) / (spec.n - 1) - spec.gw : null; // margin between glyphs
+    if (close != null) c.style.gap = '0';
+    for (let k = 0; k < spec.n; k++) {
       if (glyph) c.insertAdjacentHTML('beforeend', iconHTML(glyph, { fb: it.display === 'cartridges' ? 'item/cartridge' : '' }));
       else if (it.display === 'cartridges') c.insertAdjacentHTML('beforeend', ITEM_ICONS.cartridge);
       else el('i', null, c);
+      if (close != null && k) c.lastElementChild.style.marginLeft = R(+close.toFixed(3));
     }
   }
 

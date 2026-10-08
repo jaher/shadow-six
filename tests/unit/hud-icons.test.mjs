@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { ITEMS, BCD_ITEMS } from '../../src/items.js';
 import { ICON_MANIFEST } from '../../src/ui/icon-manifest.js';
 import { itemArt, pickTier, iconURL, tierFor, tierDensity, fallbackFor, COUNT_ART, toolHTML, iconHTML } from '../../src/ui/icon-art.js';
-import { packLayout, PACK_AREA } from '../../src/ui/knapsack-model.js';
+import { knapsackLayout, PACK_LAYOUT as PACK_AREA, rectsOverlap } from '../../src/ui/knapsack-model.js';
 import { CURSOR_ART, cursorArt } from '../../src/ui/cursor-sprites.js';
 
 const file = (url) => fileURLToPath(url);
@@ -94,15 +94,12 @@ test('knapsack layout: icons stay on the pack, do not overlap, keep their aspect
     ['pistol', 'knife', 'unif', 'fa', 'cap', 'stones', 'gr', 'tb']];
   for (const set of sets) {
     const boxes = set.map((k) => B[k]);
-    const L = packLayout(boxes);
+    const L = knapsackLayout(boxes.map((box) => ({ box }))).map((l) => l.item);
     L.forEach((r, i) => {
       assert.ok(r.x >= PACK_AREA.x - 0.01 && r.x + r.w <= PACK_AREA.x + PACK_AREA.w + 0.01, `${set[i]} inside horizontally`);
       assert.ok(r.y >= PACK_AREA.y - 0.01 && r.y + r.h <= PACK_AREA.y + PACK_AREA.h + 0.01, `${set[i]} inside vertically`);
       assert.ok(Math.abs(r.w / r.h - boxes[i][0] / boxes[i][1]) < 0.02, `${set[i]} aspect`);
-      for (let j = 0; j < i; j++) {
-        const q = L[j];
-        assert.ok(r.x >= q.x + q.w || q.x >= r.x + r.w || r.y >= q.y + q.h || q.y >= r.y + r.h, `${set[i]} / ${set[j]} overlap`);
-      }
+      for (let j = 0; j < i; j++) assert.ok(!rectsOverlap(r, L[j], 0.01), `${set[i]} / ${set[j]} overlap`);
     });
   }
 });
@@ -113,7 +110,7 @@ test('knapsack: one visual-mass rule, long guns span two slots, the same item ke
   for (const id of ['knife', 'pistol.colt1911', 'firstAid', 'stones', 'lipstick', 'grenade']) assert.equal(E(id).s, 1, `${id} one slot`);
   const place = (ids) => {
     const arts = ids.map((i) => itemArt(i));
-    return packLayout(arts.map((a) => ICON_MANIFEST[a].b), PACK_AREA, arts.map((a) => ICON_MANIFEST[a].s || 1), ids);
+    return knapsackLayout(arts.map((a, i) => ({ id: ids[i], box: ICON_MANIFEST[a].b, content: ICON_MANIFEST[a].c, span: ICON_MANIFEST[a].s || 1 }))).map((l) => l.item);
   };
   const cx = (r) => r.x + r.w / 2;
   // the pistol is the first one-slot item: left column of the first free row, in any DOM order
@@ -124,7 +121,7 @@ test('knapsack: one visual-mass rule, long guns span two slots, the same item ke
   // a long gun takes the whole first row, the pistol comes right under it
   const sn = place(['pistol', 'sniperRifle', 'firstAid']);
   assert.ok(sn[1].w > PACK_AREA.w * 0.7 && sn[1].y < sn[0].y, 'rifle spans the top row');
-  // slot sizes are the same whatever the kit (3-row grid): the pistol is drawn at one size
+  // the pistol is drawn at one size in every kit that fits the pack at full size
   assert.ok(Math.abs(gb[2].h - sp[2].h) < 0.01 && Math.abs(gb[2].h - sn[0].h) < 0.01, 'pistol drawn at the same size in every kit');
   assert.ok(ICON_MANIFEST['tool/pack'] && ICON_MANIFEST['tool/tag'], 'rendered rucksack + brass count tag ship');
 });

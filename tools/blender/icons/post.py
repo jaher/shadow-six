@@ -222,6 +222,18 @@ def save_webp(im, path):
     im.save(path, 'WEBP', lossless=True, quality=100, method=6, exact=False)
 
 
+CONTENT_ALPHA = 0.02   # what the eye sees of an icon (prop, keyline, contact shadow): the HUD lays the kit out by it
+
+
+def content_box(img, th=CONTENT_ALPHA):
+    """Drawn box of an icon: the bbox of alpha > th as fractions [x0, y0, x1, y1] of the image (knapsack-model.js
+    knapsackLayout keeps these from touching each other or a count tag)."""
+    a = img[..., 3]; ys, xs = np.nonzero(a > th)
+    if not len(xs): return [0, 0, 1, 1]
+    h, w = a.shape
+    return [round(xs.min() / w, 4), round(ys.min() / h, 4), round((xs.max() + 1) / w, 4), round((ys.max() + 1) / h, 4)]
+
+
 def tier_tag(t):
     return ('%gx' % t).replace('.', 'p')
 
@@ -259,6 +271,7 @@ def build(meta_path, variant_fx=None, suffix='', tiers=None):
         full = glow(full, meta['glow'], full.shape[1] * 0.05, 0.9)
     if variant_fx: full = variant_fx(full)
     os.makedirs(os.path.join(OUT, cls), exist_ok=True)
+    meta = dict(meta); meta['content'] = content_box(full)
     top = max_tier(full, meta) + 0.02
     want = tiers or TIERS[cls]
     tl = [t for t in want if t <= top] or [min(want)]
@@ -279,6 +292,7 @@ def build(meta_path, variant_fx=None, suffix='', tiers=None):
 def manifest_entry(meta, res):
     e = {'class': meta['cls'], 'box': meta['box'], 'files': {}}
     if meta.get('slot'): e['slot'] = meta['slot']
+    if meta.get('content'): e['content'] = meta['content']
     for tag, w, h, wb, pb in res:
         f = {'w': w, 'h': h, 'webp': wb}
         if pb: f['png'] = pb
