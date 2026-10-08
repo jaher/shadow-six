@@ -386,7 +386,7 @@ export class UnitModel {
     // walking in on a knife / syringe order (or up to a clothesline): the pose shown, for the contact kill / the Spy's
     // action to blend from (art/knife-kill.js, art/spy-actions.js; the action clip's first frame would jump)
     const pend = u?.pendingAbility?.def?.id;
-    if (R.inner && this.player && stepped && (pend === 'knife' || (u.role === 'spy' && PRE_POSE.has(pend)))) this._preKnife = capturePose(this);
+    if (R.inner && this.player && stepped && (pend === 'knife' || (u?.role === 'spy' && PRE_POSE.has(pend)))) this._preKnife = capturePose(this);
     // procedural action overlay on the skeleton after the mixer (art/shovel-dig.js: digging, rising out of the snow)
     if (R.inner && this.overlay && !tst && !this._rdLast) { try { stepped = this.overlay(this, dt, this._guard) || stepped; } catch (e) { console.warn('[unit-model] overlay', e?.stack || e); this.overlay = null; } }
     // a standing German turning on the spot steps round, head leading (art/turn-step.js; SHADOW SIX smooth turn)

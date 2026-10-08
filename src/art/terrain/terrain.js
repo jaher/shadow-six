@@ -50,10 +50,17 @@ function loadArray(url, srgb, anisotropy, tile) {
 
 function noiseTexture(size = 256) {
   const d = new Uint8Array(size * size * 4);
+  // G: seed 207, rescaled to the old seed-202 statistics (mean 0.459, sd 0.132). Seed 202 ran ~1 sd darker along the
+  // texture's border, so every lookup drew a dark grid at its repeat (5.3 m tussocks, 23 m macro): regular stripes
+  // across meadows and dunes.
+  const g = new Float32Array(size * size);
+  let gm = 0, gs = 0;
+  for (let k = 0; k < size * size; k++) { const v = pfbm(k % size, Math.floor(k / size), size, 3, 3, 207); g[k] = v; gm += v; gs += v * v; }
+  gm /= size * size; gs = Math.sqrt(Math.max(1e-6, gs / (size * size) - gm * gm));
   for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
     const o = (j * size + i) * 4;
     d[o] = pfbm(i, j, size, 4, 4, 101) * 255;
-    d[o + 1] = pfbm(i, j, size, 3, 3, 202) * 255;
+    d[o + 1] = Math.max(0, Math.min(255, (0.459 + (g[j * size + i] - gm) / gs * 0.132) * 255));
     d[o + 2] = pfbm(i, j, size, 6, 3, 303) * 255;
     d[o + 3] = pfbm(i, j, size, 8, 5, 404) * 255;
   }
@@ -62,6 +69,19 @@ function noiseTexture(size = 256) {
   t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = true;
   t.needsUpdate = true;
   return t;
+}
+
+/** Mean height (data B, 0..1) of each layer of the data array: the hex tiler's variance-preserving height blend. */
+function layerHeightMeans(t) {
+  const out = new Array(8).fill(0.5), im = t?.image;
+  if (!im?.data) return out;
+  const per = im.width * im.height * 4;
+  for (let l = 0; l < Math.min(8, im.depth); l++) {
+    let s = 0, n = 0;
+    for (let o = l * per + 2; o < (l + 1) * per; o += 4 * 7) { s += im.data[o]; n++; }
+    out[l] = n ? s / n / 255 : 0.5;
+  }
+  return out;
 }
 
 /** Bilinear sampler over a per-grid-cell Float32Array (cell centres). */
@@ -229,7 +249,7 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
     bytes: (v) => v.splat.a.length * 2 + v.splat.f32.byteLength, dispose: (v) => { v.tA.dispose(); v.tB.dispose(); },
   }) : makeSplat();
   const splat = SP.splat, tSplatA = SP.tA, tSplatB = SP.tB;
-  const tNoise = cache.memo('terrain:noise256', () => cache.retain(noiseTexture()), { bytes: 256 * 256 * 4 * 1.34, dispose: (t) => t.dispose() });
+  const tNoise = cache.memo('terrain:noise256b', () => cache.retain(noiseTexture()), { bytes: 256 * 256 * 4 * 1.34, dispose: (t) => t.dispose() });
 
   // ---- geometry: undulating heightfield, water cells sunk -----------------------------------------
   const seg = opts.segPerM || 4;
@@ -325,7 +345,7 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
     tAlb: { value: tAlb }, tNor: { value: tNor }, tDat: { value: tDat },
     tSplatA: { value: tSplatA }, tSplatB: { value: tSplatB }, tNoise: { value: tNoise }, tTrail: { value: null }, tFlat: { value: null },
     uMap: { value: new THREE.Vector4(W, D, 1 / W, 1 / D) }, uOrigin: { value: new THREE.Vector2(0, 0) }, uTrailTexel: { value: new THREE.Vector2() },
-    uTile: { value: P.tile.map((t) => 1 / t) }, uSoft: { value: P.soft.slice() }, uWet: { value: P.wet.slice() },
+    uTile: { value: P.tile.map((t) => 1 / t) }, uHMean: { value: layerHeightMeans(tDat) }, uSoft: { value: P.soft.slice() }, uWet: { value: P.wet.slice() },
     uSnow: { value: P.snow.slice() }, uGrass: { value: P.grass.slice() }, uIce: { value: (P.ice || Z8).slice() }, uSlush: { value: (P.slush || Z8).slice() },
     uTintL: { value: (P.tint || []).concat(Array(8).fill([1, 1, 1])).slice(0, 8).map((t, k) => new THREE.Vector3(...t).multiply(seasonTint(veg, P.layers[k]))) }, uGrassShade: { value: opts.grass === false ? 0 : 1 }, uSward: { value: new THREE.Vector2(...swardOf(veg, opts.mission?.date)) }, ...turfUniforms(veg, opts.grass !== false), uMeadowMacro: { value: veg.src === 'temperate' ? 1 : 0 }, uDebug: { value: opts.debugTrail ? 1 : 0 }, uHexScale: { value: 1 / 1.6 }, uMacro: { value: 1 }, uSparkle: { value: 1 },
     uHexOn: { value: 1 }, uSunDirW: { value: new THREE.Vector3(0.3, 0.8, 0.5).normalize() },

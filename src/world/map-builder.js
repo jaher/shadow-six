@@ -41,6 +41,7 @@ import { createWindFx } from '../render/wind-fx.js';
 import { createAmbientLife } from '../render/ambient-life.js';
 import { normalizeRoadNetwork, paintRoadGrid, RoadIndex, expandFurniture, FURNITURE_BLOCK, SURFACES } from './roads.js';
 import { buildPavement } from '../art/pavement/index.js';
+import { setAntiTilingQuality } from '../art/anti-tiling.js';
 import { buildFurniture } from '../art/furniture/index.js';
 import { createStreetLights } from '../render/street-lights.js';
 import { resolveLighting } from '../engine/lighting.js';
@@ -1717,6 +1718,7 @@ export function buildMap(world, mission, opts = {}) {
     frame(dt, camera) {
       terrain?.frame?.(dt, camera, world); water?.frame(dt, camera);
       if (pavement && pavement.quality !== terrain?.quality) { pavement.quality = terrain.quality; pavement.setQuality(terrain.quality); }
+      setAntiTilingQuality(opts.renderer?.presetName); // kit / building materials: hex tiling on medium and up
       streetLights?.frame(dt, camera); tickBuildings(dt, camera, world.wind ?? null); doors.frame(dt);
       if (windFx === undefined) windFx = opts.meshes === false ? null : createWindFx(world, realTerrain ? opts.renderer : null); // step 4w
       windFx?.frame(dt, camera); wire?.update(dt);

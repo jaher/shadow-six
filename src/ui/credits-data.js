@@ -137,6 +137,12 @@ export const CREDITS_SECTIONS = [
     "CC0"
    ],
    [
+    "assets/textures/pavement/512/{setts,belgian,pave_fan,brick}_sid.png (stone-ID maps for anti-tiling: segmented from the CC0 height maps above by tools/render/pave_stones.py)",
+    "SHADOW SIX (derived from the Poly Haven scans above)",
+    "SHADOW SIX contributors",
+    "CC0"
+   ],
+   [
     "assets/hdri/snowy_park_01_1k.hdr (IBL, Snowy Park 01; 1k, unmodified)",
     "Poly Haven",
     "Oliksiy Yakovlyev",

@@ -12,6 +12,7 @@
  * @module art/dressing
  */
 import * as THREE from 'three';
+import { antiTile } from './anti-tiling.js';
 import { applyFlap, applySway, swayWeights, canvasAttributes, transformCanvasAttrs } from './cloth-wind.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { libTextureURL } from './building-library.js';
@@ -104,6 +105,7 @@ export function dressingMaterial(name) {
       normalScale: new THREE.Vector2(nrm, nrm), roughnessMap: arm, metalnessMap: arm, aoMap: arm, aoMapIntensity: 0.8,
       roughness: 1, metalness: 1,
     });
+    antiTile(m, { lib: file });   // hex tiling / per-object offset + macro variation (art/anti-tiling.js)
   }
   m.name = `dressing:${name}`;
   MATS.set(key, m);

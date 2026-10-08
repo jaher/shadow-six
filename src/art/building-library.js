@@ -21,6 +21,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { applyAssetFixups, DROP_LODS } from './building-fixups.js';
+import { antiTile } from './anti-tiling.js';
 
 const BLOCK = { NONE: 0, LOW: 1, HIGH: 2, FENCE: 3 }; // == world/grid.js B
 const BRIDGE_KINDS = new Set(['bridge_deck', 'drawbridge', 'quay', 'footboard', 'landing']);
@@ -188,6 +189,9 @@ function loadLod(name, i) {
   return p;
 }
 
+/** A texture named after a shared-library albedo (GLTFLoader keeps the image name, e.g. 'ashlar_limestone_diff'). */
+const LIB_MAP = /^[a-z0-9_]+_diff$/;
+
 /** Baked kit flags (red field + white disc layout, against design-spec §10.6) — stripped on load; art/flags.js adds the spec banner. */
 const BAKED_FLAG = /^flag(\.?\d+)?$/;
 
@@ -205,6 +209,8 @@ function prepareScene(root) {
     for (const m of mats) {
       if (decal || m.transparent) { m.depthWrite = false; m.polygonOffset = true; m.polygonOffsetFactor = -1; m.polygonOffsetUnits = -2; o.renderOrder = 1; }
       for (const k of ['map', 'normalMap', 'roughnessMap']) if (m[k]) m[k].anisotropy = 4;
+      // shared-library finishes: hex tiling / per-building offset + macro variation (art/anti-tiling.js)
+      if (!decal && !m.transparent && m.map && LIB_MAP.test(m.map.name || '')) antiTile(m, { lib: m.map.name, perObject: false });
     }
   });
 }

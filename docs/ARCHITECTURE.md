@@ -83,6 +83,7 @@ src/render/selection.js               foundation — selection rings, move marke
 src/render/scope-magnifier.js         foundation — sniper scope 2× magnifier (lens camera → small RT → glass composite in the canvas)
 src/render/noise-rings.js             AI — runningNoise cue: a ring per running step growing to its hearing radius (ground decal)
 src/art/materials.js                  ART
+src/art/anti-tiling.js                ART — anti-tiling patch for kit / dressing / castle / library-building finishes: hex tiling (iso finishes, medium+), per-object UV offset (structured ones), world-space macro tone / grime / streaks / damp / dust; anti-tiling-glsl.js: shared hex + noise GLSL
 src/art/humanoid.js                   ART — placeholder capsule soldier (fallback: ?chars=0, node tests, load failure)
 src/art/unit-model.js                 ART — Unit model factory: real character (humanoid-real) or placeholder; anim/weapon mapping, gait from ground speed
 src/art/unit-anim-map.js              ART — gameplay anim → clip candidates, action → weapon prop, theater looks, guests (pure)

@@ -20,6 +20,7 @@ import * as THREE from 'three';
 import { terrainRamp, terrainRampChain } from '../../art/kit-terrain.js';
 import { dressingMaterial, boxUV, boulderGeometry } from '../../art/dressing.js';
 import { paintedMaterial } from '../../art/kit-props.js';
+import { antiTile } from '../../art/anti-tiling.js';
 import { plateauWalkways, rectPoly } from './m05.js';
 import { segmentHoles, rampWalkways } from './m08.js';
 
@@ -181,8 +182,8 @@ function prism(points, h, top, side, y0 = 0) {
   g.rotateX(Math.PI / 2); // shape (x, z) → world (x, ·, z); extrusion along −y
   g.translate(0, y0 + h, 0);
   const tx = textures();
-  const m = new THREE.Mesh(g, [new THREE.MeshStandardMaterial({ color: top, map: tx.sand, roughness: 0.95 }),
-    new THREE.MeshStandardMaterial({ color: side, map: tx.rock, roughness: 1 })]);
+  const m = new THREE.Mesh(g, [antiTile(new THREE.MeshStandardMaterial({ color: top, map: tx.sand, roughness: 0.95 }), { kind: 'iso', rot: 0.12, grime: 0 }),
+    antiTile(new THREE.MeshStandardMaterial({ color: side, map: tx.rock, roughness: 1 }), { kind: 'shift', grime: 0.3 })]); // art/anti-tiling.js
   m.castShadow = true; m.receiveShadow = true;
   return m;
 }

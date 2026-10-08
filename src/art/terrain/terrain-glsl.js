@@ -18,6 +18,7 @@ uniform vec4 uMap;          // W, D, 1/W, 1/D
 uniform vec2 uOrigin;       // world xz of the splat/trail maps' (0,0) texel corner (map 0,0; the apron: -width)
 uniform vec2 uTrailTexel;   // 1/trail RT size
 uniform float uTile[8];     // 1/tile metres
+uniform float uHMean[8];    // mean height (data B) per layer
 uniform float uSoft[8];
 uniform float uWet[8];
 uniform float uSnow[8];
@@ -43,27 +44,35 @@ uniform float uTime;
 varying vec3 vWPos;
 varying vec3 vWNrm;
 
+// sin-free hashes (Hoskins): fract(sin(x) * 43758) loses precision on the GPU once x reaches ~1e5 (16 turf cells per
+// metre across a 200 m map), and its errors line up into regular stripes several metres apart across the meadows
+vec3 tbH3(vec2 p) {
+  vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+  q += dot(q, q.yxz + 33.33);
+  return fract((q.xxy + q.yzz) * q.zyx);
+}
 // one short blade bundle per cell (cell = 1/s m): a tapered streak at a random angle; returns coverage 0..1
 float turfBlade(vec2 wp, float s, float sd, float lean) {
   vec2 q = wp * s, c = floor(q), f = q - c - 0.5;
-  vec3 h = fract(sin(vec3(dot(c + sd, vec2(127.1, 311.7)), dot(c + sd, vec2(269.5, 183.3)), dot(c + sd, vec2(419.2, 371.9)))) * 43758.5453);
+  vec3 h = tbH3(c + sd * 17.0);
   float a = lean + (h.x - 0.5) * 1.3;                      // blades lie in swathes (a local lean), not at random
   vec2 d = vec2(cos(a), sin(a)), p = f - (h.yz - 0.5) * 0.16;
   float t = clamp(dot(p, d), -0.4, 0.4), w = 0.1 * (1.0 - 0.6 * abs(t) / 0.4);
   return (1.0 - smoothstep(w * 0.55, w, length(p - d * t))) * (0.55 + 0.45 * h.y);
 }
-vec2 tbHash2(vec2 p) {
-  vec2 r = mat2(127.1, 311.7, 269.5, 183.3) * p;
-  return fract(sin(r) * 43758.5453);
+vec2 tbHash2(vec2 p) { return tbH3(p + 0.71).xy; }
+float tbHash1(vec2 p) { return tbH3(p + 3.17).z; }
+vec3 tbHash3(vec2 p) { return tbH3(p); }
+// sin-free hash of a hex vertex (stable on every GPU; large world indices stay random)
+vec3 tbVHash(ivec2 v) {
+  vec3 q = fract(vec3(vec2(v).xyx) * vec3(0.1031, 0.1030, 0.0973) + 0.37);
+  q += dot(q, q.yzx + 33.33);
+  return fract((q.xxy + q.yzz) * q.zyx);
 }
-float tbHash1(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
-vec3 tbHash3(vec2 p) {
-  return fract(sin(vec3(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)), dot(p, vec2(419.2, 371.9)))) * 43758.5453);
-}
+// random rotation per hex vertex. (The paper's |x·y| + |x+y| angle advances by ~whole radians per vertex, which
+// wrapped into a ~2π-vertex (~3 m) beat: a regular pattern of rings on rocky / patchy snow layers.)
 mat2 tbRot(ivec2 idx) {
-  float a = abs(float(idx.x * idx.y)) + abs(float(idx.x + idx.y)) + 3.14159265;
-  a = mod(a, 6.2831853);
-  if (a > 3.14159265) a -= 6.2831853;
+  float a = (tbVHash(idx).z - 0.5) * 6.2831853;
   float c = cos(a), s = sin(a);
   return mat2(c, -s, s, c);
 }
@@ -92,17 +101,25 @@ TbHex tbHex(vec2 p) {
   tbTriGrid(p * uHexScale, h.w, v1, v2, v3);
   h.c1 = tbCen(v1) / uHexScale; h.c2 = tbCen(v2) / uHexScale; h.c3 = tbCen(v3) / uHexScale;
   h.r1 = tbRot(v1); h.r2 = tbRot(v2); h.r3 = tbRot(v3);
-  h.o1 = tbHash2(vec2(v1)); h.o2 = tbHash2(vec2(v2)); h.o3 = tbHash2(vec2(v3));
+  h.o1 = tbVHash(v1).xy; h.o2 = tbVHash(v2).xy; h.o3 = tbVHash(v3).xy;
   return h;
 }
 float tbLum(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+// anti-tiling: the noise texture repeats every \`s\` m, so every small-scale lookup reads two copies at incommensurate
+// scales and angles (no visible period), contrast restored to one lookup's
+vec4 tbNz(vec2 p, float s) {
+  vec4 a = texture(tNoise, p / s);
+  vec4 b = texture(tNoise, mat2(0.8, -0.6, 0.6, 0.8) * p / (s * 1.618) + 0.37);
+  return clamp(0.5 + (a + b - 1.0) * 0.72, 0.0, 1.0);
+}
+vec2 tbWarp = vec2(0.0);   // low preset (single sample): a slow domain warp so the repeats do not sit on a lattice
 
 // One layer through the hex tiler → albedo (linear), world-ish normal xy (tangent = +x, bitangent = -z), data
 void tbLayer(TbHex h, vec2 p, vec2 dx, vec2 dy, int L, out vec3 alb, out vec3 nrm, out vec3 dat) {
   float t = uTile[L];
   float fl = float(L);
   if (uHexOn < 0.5) {
-    vec2 uv = p * t;
+    vec2 uv = (p + tbWarp) * t;
     alb = textureGrad(tAlb, vec3(uv, fl), dx * t, dy * t).rgb;
     nrm = textureGrad(tNor, vec3(uv, fl), dx * t, dy * t).rgb * 2.0 - 1.0;
     dat = textureGrad(tDat, vec3(uv, fl), dx * t, dy * t).rgb;
@@ -130,6 +147,11 @@ void tbLayer(TbHex h, vec2 p, vec2 dx, vec2 dy, int L, out vec3 alb, out vec3 nr
   nrm = W.x * n1 + W.y * n2 + W.z * n3;
   dat = W.x * textureGrad(tDat, vec3(u1, fl), dx1, dy1).rgb + W.y * textureGrad(tDat, vec3(u2, fl), dx2, dy2).rgb
       + W.z * textureGrad(tDat, vec3(u3, fl), dx3, dy3).rgb;
+  // variance-preserving height: blending three taps flattens the height where cells meet, and the layers' height
+  // blend then followed the hex lattice (a regular pattern of blotches on rocky ground). Restore the spread about the
+  // layer's mean height (its 1 x 1 mip).
+  float hMean = uHMean[L];
+  dat.b = clamp(hMean + (dat.b - hMean) * inversesqrt(max(dot(W, W), 0.3)), 0.0, 1.0);
 }
 `;
 
@@ -164,13 +186,14 @@ export const FRAG_MAIN = /* glsl */ `
 vec2 tuv = (vWPos.xz - uOrigin) * uMap.zw;
 vec2 p = vec2(vWPos.x, -vWPos.z);
 vec2 pdx = dFdx(p), pdy = dFdy(p);
-vec4 nz = texture(tNoise, vWPos.xz / 23.0);
+vec4 nz = tbNz(vWPos.xz, 23.0);
 vec4 nzL = texture(tNoise, vWPos.xz / 97.0 + 0.37);
 vec4 sa = texture(tSplatA, tuv), sb = texture(tSplatB, tuv);
 float Wt[8];
 Wt[0] = sa.r; Wt[1] = sa.g; Wt[2] = sa.b; Wt[3] = sa.a; Wt[4] = sb.r; Wt[5] = sb.g; Wt[6] = sb.b; Wt[7] = sb.a;
 // organic break-up of splat borders (different noise phase per layer)
-vec4 nzF = texture(tNoise, vWPos.xz / 3.1);
+vec4 nzF = tbNz(vWPos.xz, 3.1);
+tbWarp = uHexOn < 0.5 ? (tbNz(vWPos.xz, 13.0).xy - 0.5) * 1.6 : vec2(0.0);
 for (int k = 0; k < 8; k++) Wt[k] *= 0.6 + 0.8 * fract(nzF.r + nzF.g * 1.7 + float(k) * 0.37) * 0.5 + 0.2 * nz[k & 3];
 int i0 = 0, i1 = 1, i2 = 2; float w0 = -1.0, w1 = -1.0, w2 = -1.0;
 for (int k = 0; k < 8; k++) {
@@ -187,7 +210,7 @@ if (w2 > 0.04) tbLayer(hx, p, pdx, pdy, i2, A2, N2, D2); else w2 = 0.0;
 // height blend
 vec3 ws = vec3(w0, w1, w2) / (w0 + w1 + w2 + 1e-5);
 // height blend with the layers' own height maps + a 0.5–1 m noise so borders break up around stones/clumps
-float hbN = texture(tNoise, vWPos.xz / 1.9).g - 0.5;
+float hbN = tbNz(vWPos.xz, 1.9).g - 0.5;
 vec3 ha = vec3(D0.b, D1.b, D2.b) * 0.9 + ws * 1.25 + vec3(hbN, -hbN, hbN * 0.5) * 0.35;
 float hm = max(ha.x, max(ha.y, ha.z)) - 0.22;
 vec3 bw = max(ha - hm, 0.0) * step(0.001, ws);
@@ -241,7 +264,7 @@ if (uTurf.x > 0.0) {
     float bl = clamp(mix(0.3, b1, l1) * 0.65 + mix(0.18, b2, l2) * 0.55, 0.0, 1.0);
     // tussock / matted-clump scale (5-40 cm, mip-filtered noise: never aliases): light and dark, green and dry
     // patches of the sward that still read from the zoom-0.5 / 1 cameras where the bundles average out
-    vec4 c1 = texture(tNoise, wp / 1.7), c2 = texture(tNoise, wp / 5.3 + 0.31);
+    vec4 c1 = tbNz(wp, 1.7), c2 = tbNz(wp + 1.63, 5.3);
     float cl = smoothstep(0.22, 0.78, c1.r * 0.55 + c2.g * 0.45);
     float dryL = clamp(uTurf.y + (nz.g - 0.5) * 0.5 + (nzF.b - 0.5) * 0.35 + (c2.b - 0.5) * 0.55, 0.0, 1.0);
     vec3 swC = mix(uTurfA, uTurfB, dryL) * mix(0.8, 1.15, nzF.r) * mix(0.62, 1.28, cl);
@@ -328,7 +351,7 @@ albT *= mix(vec3(1.0), vec3(0.72, 0.74, 0.62), clamp(tr.a, 0.0, 1.0) * grassF * 
 // snow prints: compacted, blue shadowed interior
 albT *= mix(vec3(1.0), vec3(0.6, 0.7, 0.88), clamp(rut * 1.2, 0.0, 1.0) * snowF * (1.0 - slushF)); // art review: prints read at zoom 1
 // trampled road slush (T-A graft): churned ruts turn wet brown-grey, berms stay dirty white
-float slN = texture(tNoise, vWPos.xz / 2.3).b, slN2 = texture(tNoise, vWPos.xz / 0.7 + 0.3).a;
+float slN = tbNz(vWPos.xz, 2.3).b, slN2 = tbNz(vWPos.xz + 0.21, 0.7).a;
 float sl = slushF * smoothstep(0.1, 0.5, rut + 0.45 * (slN - 0.5) + 0.2 * (slN2 - 0.5)) * smoothstep(0.2, 0.55, slN * 0.7 + slN2 * 0.3 + 0.15);
 albT = mix(albT, vec3(0.36, 0.34, 0.31) * mix(0.75, 1.2, slN2), sl * 0.7);
 albT *= mix(1.0, 0.86, slushF * smoothstep(0.1, 0.5, tr.g));
@@ -337,7 +360,7 @@ rough = mix(rough, 0.28, sl);
 float wetRut = clamp(rut * 1.4, 0.0, 1.0) * wetF;
 albT *= mix(1.0, 0.62, wetRut);
 rough = mix(rough, rough * 0.45, wetRut);
-float puddle = smoothstep(0.38, 0.62, rut + (texture(tNoise, vWPos.xz / 3.7).r - 0.5) * 0.35) * smoothstep(0.3, 0.6, wetF);
+float puddle = smoothstep(0.38, 0.62, rut + (tbNz(vWPos.xz, 3.7).r - 0.5) * 0.35) * smoothstep(0.3, 0.6, wetF);
 albT *= mix(1.0, 0.55, puddle);
 rough = mix(rough, 0.04, puddle);
 nW = normalize(mix(nW, Ng, puddle * 0.92));

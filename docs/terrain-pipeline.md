@@ -50,6 +50,21 @@ clutter, and crown density. Every item on the judge's must-fix list has been add
 
 ## 2. Techniques per feature
 
+### 2.0 Anti-tiling (feat/anti-tiling)
+- **Hex rotations are hashed.** The paper's rotation, angle = |x·y| + |x+y| + π, advances by about a whole radian per
+  vertex. Wrapped, it beat every ~2π vertices (about 3 m) into a regular lattice of rings on high-contrast layers (the
+  rocky and old-snow patches of M1). Rotations and offsets now come from a sin-free hash.
+- **Sin-free hashes.** `fract(sin(x) · 43758)` loses precision on the GPU once x reaches about 10⁵ (the 16-per-metre
+  turf cells across a 200 m map), so every terrain hash is a Hoskins hash.
+- **The noise texture's G channel** (seed 202) ran about 1 sd darker along its border, so each lookup drew a dark grid
+  at its repeat (5.3 m tussocks, 23 m macro): regular stripes over the meadows. It is now seed 207, rescaled to the
+  old mean and sd. Small-scale lookups (`tbNz`) read two copies at incommensurate scales and angles, contrast restored,
+  so none has a visible period.
+- **Variance-preserving height.** The hex blend flattens a layer's height where cells meet. Its spread about the
+  layer's mean height (`uHMean`, computed on load) is restored, so the layers' height blend does not follow the lattice.
+- **Low preset** (one sample per layer): a slow domain warp (±0.8 m over about 13 m), so the repeats no longer sit on a
+  lattice. On M1's rocky ground on low, the correlation at the 3 m texture period fell from 0.88 to 0.10.
+
 ### 2.1 Alpha-tested foliage in GTAO (must-fix 1)
 `engine/gtao-alpha.js` subclasses `GTAOPass`. For the normal/depth prepass it no longer sets
 `scene.overrideMaterial`. It swaps the material of each object instead:

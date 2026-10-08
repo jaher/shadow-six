@@ -11,6 +11,7 @@
 import * as THREE from 'three';
 import { libTextureURL } from './building-library.js';
 import { rng, seedOf, fbm } from './dressing.js';
+import { antiTile } from './anti-tiling.js';
 
 const HAS_DOM = typeof document !== 'undefined';
 
@@ -69,6 +70,7 @@ export function castleMaterial(name) {
       normalScale: new THREE.Vector2(nrm, nrm), roughnessMap: arm, metalnessMap: arm, aoMap: null,
       roughness: 1, metalness: name === 'iron' || name === 'paint' || name === 'signal' ? 0.6 : 0.0, vertexColors: true,
     });
+    antiTile(m, { lib: file, grime: 0.35 });   // the castle's own grime field is in the vertex colours
   }
   m.name = `castle:${name}`;
   MATS.set(key, m);

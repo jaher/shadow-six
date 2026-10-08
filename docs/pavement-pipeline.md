@@ -77,8 +77,31 @@ streets.
 - **Steep parallax occlusion mapping.** The shader ray-marches the CC0 height map (`ard.b`) with relief interpolation.
   Because the camera is orthographic, the view vector is constant. Steps per preset are low 0, medium 8, high 14 and
   ultra 24. Steps change as a uniform, so there is no recompile.
-- **Anti-tiling.** Concrete slabs each take a random piece of the scan. Asphalt adds a rotated second sample under a
-  low-frequency mask. Patterned stone gets macro tint variation only, so its joints stay intact.
+- **Anti-tiling** (feat/anti-tiling). The paving pattern stays regular; the texture's own repeat does not show.
+  - *Slab shuffle* (`flags`, `quay`). The world slab grid (`tile / 4`; running bond on quays) has procedural joints
+    that breathe a little, a rounded arris and chipped corners. Every slab takes one of the scan's own 16 slabs at
+    random (`SLAB_SRC`: its joint centres, measured on the height map), turned by a random quarter turn or mirrored,
+    with its own tone, hue, settle tilt and roughness; about 6 % are paler replacements or older, darker slabs. No POM.
+  - *Block shuffle* (`setts`, `belgian`). Courses stay continuous, but every run of about four stones along a course
+    shows a random piece of a random course of the scan (`COURSES`: the scan's course boundaries).
+    `tools/render/pave_stones.py` segments each height map into stones and writes a stone-ID map
+    (`512/<set>_sid.png`, RGB, NEAREST): the stone's centre, its wrap offset, and its share of the scan's mean
+    tone. A texel belongs to the block that holds its stone's centre. Otherwise it is looked up through the
+    neighbouring block across the nearest run end or course edge, and the joint widens where neither has a stone.
+    Cuts therefore always fall between stones.
+  - *Per-stone variation* (`setts`, `belgian`, `pave_fan`, `brick`). The stone ID plus its world block is a key that is
+    unique for every stone in the world. Each stone gets its own tone (a few darker ones), hue, roughness and, from
+    about 6 px, a settle tilt. The scan's own per-stone tones (which repeat with the tile) are divided out
+    (`STONES.norm`). Stones under about 3 px fade to their mean, so panning never glitters.
+  - *Hex tiling* (tar macadam): three rotated and offset taps, contrast-preserving (`art/anti-tiling-glsl.js`). On low
+    it is a rotated second sample under a noise mask. Concrete slabs keep a random piece of the scan each, now with a
+    per-slab tone.
+  - *Macro variation* everywhere: colour drift (about 12 m), grime (about 3 m), clustered oil and damp stains, and
+    sun-bleached patches. It comes from three fetches of a small tileable noise at incommensurate scales and angles.
+  - Measured on the rendered frame (`tests/anti-tiling.test.mjs`, `tools/perf/tilemetric.py`): the correlation of the
+    high-passed luminance with itself one texture period away fell from 0.85-0.91 to 0.12-0.18 on flags and quays,
+    from 0.68 to 0.30 on setts and from 0.88 to 0.36 on Belgian blocks, which equals the regular course grid's own
+    baseline.
 - **Wear.** Polished wheel lanes (one or two lanes depending on width), oil streaks between the wheels, and dirt in
   joints and at the edges.
 - **Cracks and seams.** A Voronoi crack network appears only where a noise mask allows. On asphalt, some cracks are
