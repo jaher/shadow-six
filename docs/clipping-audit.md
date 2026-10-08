@@ -218,7 +218,9 @@ normally set by the rules).
   leave the ground open: a door's steps, kept open for its way) is a solid to a crawler's path (`avoidMask` `prone`),
   and a man who lies down on a path across one is re-pathed round it (`Unit._crawlRepath`). A man on his feet still
   steps up onto it; berms and drifts are crawled over; a destroyed structure's steps go with it.
-  M1's alley is walked end to end; a crawler goes round `barr_L_a`'s door steps at its W mouth.
+  M1's alley is walked and crawled end to end: `barr_L_a` turned 180° (its door and stoop face N, its gable door E), so
+  no door steps stand in the alley's W mouth any more (`tests/unit/crawl-steps.test.mjs` crawls it: 18.8 m straight
+  through, where the steps sent a crawler 31–37 m round `barr_L_b`).
 - **Kerbs and plinths**: the feet stand on the highest low surface within 0.18 m of the body's centre, plus two stride
   rings (0.27 m and 0.36 m) that count lower, less so for a low lip, so a boot steps up onto a kerb, a bridge abutment,
   a drawbridge's boards or a snow skirt instead of pushing into its side. Running, the body rides up over a step 0.6 m

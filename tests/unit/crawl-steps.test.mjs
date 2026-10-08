@@ -6,11 +6,14 @@
  * the ground the visual nav stamps already close are no crawl steps; a destroyed structure's steps go with it.
  */
 import * as THREE from 'three';
+import { readFileSync } from 'node:fs';
 import { test, assert } from './lib.mjs';
 import { NavGrid } from '../../src/world/grid.js';
 import { stampCrawlSteps, CRAWL_STEP } from '../../src/world/map-builder.js';
 import { avoidMask } from '../../src/world/body-clearance.js';
 import { makeSim } from './abilsim.mjs';
+import { useManifest, pickAsset, fitScale } from '../../src/art/building-props.js';
+import { getMission } from '../../src/missions/index.js';
 
 /** A structure record (map-builder `built` entry) holding one mesh (upward-facing top + sides). */
 function rec(owner, mesh, def = { type: 'house', x: 0, z: 0 }) {
@@ -86,4 +89,62 @@ test('crawl steps: a crawler\'s path goes round them; a man lying down on a path
   assert.ok(Math.hypot(u.moveTarget.x - 30, u.moveTarget.z - 30) < 0.8, 'to the same goal');
   u.stop?.(); u.setStance('stand'); u.setStance('crawl');
   assert.ok(u.moveTo(30, 30) && !crosses(u.path), 'a crawler ordered across it goes round');
+});
+
+/**
+ * The door stoops of a mission's library buildings as the browser sees them (their visual is not loaded in node): from
+ * the door's wall out to the outer edge of the asset's `stairs` footprint, 0.5 m high (the door sill), placed like
+ * building-props libraryVisual (position, −rot, fitScale, the asset's turn, its centre).
+ */
+function doorStoops(def, manifest) {
+  const built = [];
+  let owner = 1;
+  for (const st of def.structures) {
+    const pick = pickAsset(st.type, st, { theater: def.theater, missionId: def.id });
+    const A = pick && manifest.assets[pick.name];
+    if (!A) continue;
+    const bld = A.footprints.find((f) => f.kind === 'building'), stairs = A.footprints.filter((f) => f.kind === 'stairs');
+    if (!bld || !stairs.length) continue;
+    const bb = (pts) => [Math.min(...pts.map((q) => q[0])), Math.min(...pts.map((q) => q[1])), Math.max(...pts.map((q) => q[0])), Math.max(...pts.map((q) => q[1]))];
+    const B0 = bb(bld.points), ext = pick.ext, ew = pick.turn ? ext.d : ext.w, ed = pick.turn ? ext.w : ext.d;
+    const { sx, sy, sz } = fitScale(st.w ? st.w / ew : 1, st.d ? st.d / ed : 1, 0);
+    const outer = new THREE.Group(), fit = new THREE.Group(), turn = new THREE.Group(), asset = new THREE.Group();
+    outer.position.set(st.x, 0, st.z); outer.rotation.y = -(st.rot ?? 0);
+    fit.scale.set(sx, sy, sz); turn.rotation.y = -pick.turn * Math.PI / 2; asset.position.set(-ext.cx, 0, -ext.cz);
+    outer.add(fit); fit.add(turn); turn.add(asset);
+    for (const f of stairs) {
+      let [x0, z0, x1, z1] = bb(f.points);
+      if (z0 >= B0[3]) z0 = B0[3]; else if (z1 <= B0[1]) z1 = B0[1]; // (out from the wall the door is in)
+      if (x0 >= B0[2]) x0 = B0[2]; else if (x1 <= B0[0]) x1 = B0[0];
+      const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, 0.5, z1 - z0, Math.ceil((x1 - x0) / 0.2), 1, Math.ceil((z1 - z0) / 0.2)), new THREE.MeshBasicMaterial({ name: 'kit:concrete' }));
+      m.position.set((x0 + x1) / 2, 0.25, (z0 + z1) / 2);
+      asset.add(m);
+    }
+    outer.updateMatrixWorld(true);
+    built.push({ owner: owner++, type: st.type, def: st, object3d: outer });
+  }
+  return built;
+}
+
+test('crawl steps: M1 — a commando crawls the barracks alley end to end (barr_L_a\'s door steps are not in it)', async () => {
+  const manifest = JSON.parse(readFileSync(new URL('../../assets/models/buildings/manifest.json', import.meta.url)));
+  const def = getMission('m01'), s = makeSim(def, { brains: false }), w = s.world; // (the grid-only map, no library)
+  await useManifest(manifest, 'm01');
+  let built;
+  try { built = doorStoops(def, manifest); } finally { await useManifest(null); }
+  {
+    assert.ok(built.some((b) => b.def.id === 'barr_L_a'), 'barr_L_a has door steps');
+    assert.ok(stampCrawlSteps(w, built, () => 0).cells > 0, 'their sides are crawl steps');
+    const gb = s.cmd('greenberet');
+    gb.setPosition(27.5, 24.15, 0); gb.setStance('crawl'); s.run(1);
+    assert.ok(gb.moveTo(46, 24.15), 'order taken');
+    const P = gb.path;
+    let len = 0;
+    for (let i = 1; i < P.length; i++) len += Math.hypot(P[i].x - P[i - 1].x, P[i].z - P[i - 1].z);
+    // (with the door steps in the alley's W mouth, rot 0, a crawler went round barr_L_b: ~37 m)
+    assert.ok(len < 21, `straight through the alley (${len.toFixed(1)} m: ${P.map((p) => `${p.x.toFixed(1)},${p.z.toFixed(1)}`).join(' ')})`);
+    assert.ok(P.every((p) => p.x < 33 || p.x > 40 || (p.z > 22.5 && p.z < 25.7)), 'between the two barracks all the way');
+    s.run(30, () => !gb.path);
+    assert.ok(Math.hypot(gb.x - 46, gb.z - 24.15) < 0.8, `crawled out at the E end (${gb.x.toFixed(2)}, ${gb.z.toFixed(2)})`);
+  }
 });

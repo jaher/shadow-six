@@ -77,7 +77,9 @@ export default {
       destructible: true, destroyedBy: ['explosion'], debris: true, fire: true, hp: 100 },
     { id: 'relay_mast', type: 'radio_mast', x: 16.08, z: 6.4, // legs clear of the hut's eaves (placement rule b)
       rot: 0, r: 0.5, h: 18, destructible: true, destroyedBy: ['explosion'], collapses: true, hp: 100 },
-    { id: 'barr_L_a', type: 'barracks', variant: 'timber_long', x: 32, z: 19, rot: 0, w: 16, d: 7, h: 4.5 },
+    // door to the N (rot 180°: its stoop and steps no longer stand in the alley between the two barracks, which a
+    // commando crawls through as well as walks: user 2026-10-07 "Yes reopen it"); gable door E
+    { id: 'barr_L_a', type: 'barracks', variant: 'timber_long', x: 32, z: 19, rot: deg(180), w: 16, d: 7, h: 4.5 },
     // turned E-W and 3.5 m clear of barr_L_a (placement rule c: its roof and snow skirt crossed barr_L_a's; porch E)
     { id: 'barr_L_b', type: 'barracks', variant: 'timber_long', x: 37, z: 29, rot: 0, w: 8, d: 6, h: 4.5 },
     { id: 'barr_2', type: 'barracks', variant: 'timber_long', x: 14, z: 32, rot: 0, w: 12, d: 6, h: 4.5 },
