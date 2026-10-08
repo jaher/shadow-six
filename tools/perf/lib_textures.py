@@ -2,6 +2,7 @@
 """Building texture library housekeeping (art integration 2, step 4 — asset size).
 
   python3 tools/perf/lib_textures.py            # 512 set for preset 'low' + dedupe identical 1k files
+  python3 tools/perf/lib_textures.py --tiers    # 256 + 128 sets (texel-density tiers, src/engine/texel-budget.js)
 
 - assets/textures/lib/512/<name>: every 1k map downscaled (Lanczos) to 512, same name and format (JPEG q85, PNG
   optimised). src/art/building-library.js swaps 1k → 512 URIs at quality 'low' (buildings then fetch a quarter).
@@ -44,5 +45,28 @@ def main():
     tot = sum(os.path.getsize(os.path.join(out, f)) for f in os.listdir(out))
     print(f'512 set: {len(os.listdir(out))} files, {tot / 1e6:.1f} MB; aliases {aliases}')
 
+def tiers(sizes=(256, 128)):
+    """Smaller copies of every 1k map (Lanczos from the 1k original, same name / format / encoder settings as the 512
+    set). The loaders pick, per map, the smallest size whose texels per metre on its most stretched surface still
+    cover the closest view (assets/textures/lib/density.json), so these draw the same picture as the 1k map."""
+    src = os.path.join(LIB, '1k')
+    for size in sizes:
+        out = os.path.join(LIB, str(size))
+        os.makedirs(out, exist_ok=True)
+        for n in sorted(os.listdir(src)):
+            im = Image.open(os.path.join(src, n))
+            if im.width > size:
+                im = im.resize((size, max(1, im.height * size // im.width)), Image.LANCZOS)
+            if n.endswith('.png'):
+                im.save(os.path.join(out, n), 'PNG', optimize=True)
+            else:
+                im.convert('RGB').save(os.path.join(out, n), 'JPEG', quality=85, optimize=True, subsampling=2)
+        tot = sum(os.path.getsize(os.path.join(out, f)) for f in os.listdir(out))
+        print(f'{size} set: {len(os.listdir(out))} files, {tot / 1e6:.1f} MB')
+
 if __name__ == '__main__':
-    main()
+    import sys
+    if '--tiers' in sys.argv:
+        tiers()
+    else:
+        main()

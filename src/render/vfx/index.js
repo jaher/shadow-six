@@ -17,6 +17,9 @@ import { WIND_UNIFORMS } from '../../world/wind.js';
 import { sessionCache } from '../../engine/asset-cache.js';
 import { AMBIENT_RULES } from './ambient.js';
 
+/** Cache-entry dispose at module level (a callback made inside the FX builder would keep its scope — pools, world — alive). */
+const disposeVfxTextures = (t) => t.dispose();
+
 export const FIXED_DT = 1 / 60;
 /** VFX quality tiers, keyed like engine QUALITY_PRESETS. */
 export const VFX_QUALITY = {
@@ -38,7 +41,7 @@ export function createVfx(scene, camera, renderer, opts = {}) {
   if (gl && !RENDERER_ID.has(gl)) RENDERER_ID.set(gl, RENDERER_ID.n = (RENDERER_ID.n || 0) + 1);
   const texKey = `vfx:textures:${RENDERER_ID.get(gl)}`;
   const textures = gl ? sessionCache.memo(texKey, () => bakeVfxTextures(gl), {
-    bytes: (1024 * 1024 + 256 * 256 + 512 * 512) * 4 * 1.34, dispose: (t) => t.dispose(),
+    bytes: (1024 * 1024 + 256 * 256 + 512 * 512) * 4 * 1.34, dispose: disposeVfxTextures,
   }) : bakeVfxTextures(gl);
   const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
   const u = {

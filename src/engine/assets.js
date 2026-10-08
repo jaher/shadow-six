@@ -12,6 +12,7 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { keepEncodedImages } from './texture-memory.js';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
@@ -39,7 +40,7 @@ export class Assets {
     this.textureLoader = new THREE.TextureLoader(this.manager);
     this.hdrLoader = new HDRLoader(this.manager);
     this.exrLoader = new EXRLoader(this.manager);
-    this.gltfLoader = new GLTFLoader(this.manager);
+    this.gltfLoader = new GLTFLoader(this.manager).register(keepEncodedImages); // engine/texture-memory.js
     this._draco = null;
     this._ktx2 = null;
   }

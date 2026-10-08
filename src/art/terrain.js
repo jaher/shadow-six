@@ -22,6 +22,7 @@ import { farmland } from './terrain/bocage.js';
 import { addSnowCover } from './terrain/snowfx.js';
 import { CONFIG } from '../config.js';
 import { dataKey } from '../engine/asset-cache.js';
+import { screenDensity } from '../engine/texel-budget.js';
 import { createApron } from './apron.js';
 import { buildApronField, extendPath } from '../world/apron-field.js';
 import { edgeCrossings } from '../world/edge-extend.js';
@@ -162,8 +163,19 @@ const QUALITY_OF = { low: 'low', medium: 'medium', high: 'high', ultra: 'ultra' 
 export const TEX_2K_PRESETS = Object.freeze(['ultra']);
 /** Presets that load the 512 albedo + normal arrays (smaller download and VRAM; the data array stays 1K). */
 export const TEX_512_PRESETS = Object.freeze(['low']);
-/** Terrain layer-array resolution for a quality preset. */
-export const terrainTexRes = (q) => (TEX_2K_PRESETS.includes(q) ? 2048 : TEX_512_PRESETS.includes(q) ? 512 : 1024);
+/**
+ * Terrain layer-array resolution for a quality preset. 'medium' / 'high' also take the 512 arrays when every layer of
+ * the theatre's palette keeps at least the preset's screen density at 512 (texels per metre = size ÷ layer tile;
+ * engine/texel-budget.js): the same picture at a quarter of the memory and download.
+ * @param {string} q preset @param {string} [theater] mission theatre (palette)
+ */
+export const terrainTexRes = (q, theater) => {
+  if (TEX_2K_PRESETS.includes(q)) return 2048;
+  if (TEX_512_PRESETS.includes(q)) return 512;
+  const P = PALETTES[theater] || PALETTES.temperate; // createTerrain's palette
+  if (P && (q === 'medium' || q === 'high') && 512 / Math.max(...P.tile) >= screenDensity(q)) return 512;
+  return 1024;
+};
 
 const WET_CODES = new Set([T.WATER, T.SHALLOW]);
 const seedOf = (def, k) => (def.seed ?? Math.floor(((def.x * 73856093) ^ (def.z * 19349663) ^ (k * 83492791)) >>> 0)) >>> 0;
@@ -424,7 +436,7 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
     // identity of the painter (road network + forest floor polygons): lets the session cache keep the painted splat
     paintKey: paintKeyOf(ctx),
     exclude: ctx.roads && (ctx.roads.net.roads.some((r) => !r.legacy) || ctx.roads.net.areas.length) ? (x, z) => ctx.roads.covers(x, z) : undefined,
-    onSpray: ctx.onSpray, texRes: terrainTexRes(quality), mission, // mission → vegetation profile (season, mix)
+    onSpray: ctx.onSpray, texRes: terrainTexRes(quality, theater), mission, // mission → vegetation profile (season, mix)
   });
   const ground = inner.ground;
   ground.name = 'terrain:ground';
@@ -525,7 +537,7 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
       if (!QUALITY_OF[q]) return null;
       quality = q;
       inner.terrain?.setQuality(q);
-      inner.terrain?.setTextureRes?.(terrainTexRes(q));
+      inner.terrain?.setTextureRes?.(terrainTexRes(q, theater));
       return veg?.setQuality(q) ?? null;
     },
     dispose() {

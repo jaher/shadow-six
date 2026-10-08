@@ -5,11 +5,12 @@
 //   clips: idle walk sniff_walk trot run sniff bark attack die dead sit   (meta: loop, duration, groundSpeed, events)
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { keepEncodedImages } from '../../../engine/texture-memory.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 export async function loadDog(url) {
-  const g = await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url);
+  const g = await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).register(keepEncodedImages).loadAsync(url);
   let meta = {};
   try { meta = await (await fetch(url.replace(/\.glb$/, '.sidecar.json'))).json(); } catch (e) { /* optional */ }
   const tpl = { gltf: g, clips: new Map(g.animations.map(c => [c.name, c])), meta };

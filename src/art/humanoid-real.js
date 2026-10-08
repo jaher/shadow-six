@@ -26,6 +26,7 @@
  */
 import * as THREE from 'three';
 import { addBodyClips } from './body-clips.js';
+import { scoped, touch, sceneBytes, disposeScene } from '../engine/scoped-assets.js';
 import { syringeWeapon } from './syringe-prop.js';
 
 const ROOT = new URL('../../assets/characters/', import.meta.url);
@@ -181,7 +182,16 @@ function template(id) {
   const e = LIB.manifest.characters[id];
   if (!e) return Promise.reject(new Error('unknown character ' + id));
   if (e.group === 'enemies') return Promise.resolve(null);   // enemykit caches its own templates (E.templates)
-  if (!LIB.tpl.has(id)) LIB.tpl.set(id, LIB.rt[e.runtime].load(e));
+  const ck = `chr:${id}`;
+  if (!LIB.tpl.has(id)) {
+    const p = LIB.rt[e.runtime].load(e);
+    LIB.tpl.set(id, p);
+    // mission-scoped (engine/scoped-assets.js): a body no kept mission uses is freed after the next mission loads
+    p.then((tpl) => scoped(ck, tpl, { bytes: sceneBytes(tpl.gltf.scene), free: (t) => {
+      if (LIB.tpl.get(id) === p) LIB.tpl.delete(id);
+      disposeScene(t.gltf.scene);
+    } }), () => { if (LIB.tpl.get(id) === p) LIB.tpl.delete(id); });
+  } else touch(ck);
   return LIB.tpl.get(id);
 }
 

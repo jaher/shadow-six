@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { SURFACES } from '../../world/roads.js';
 import { injectPavement } from './pavement-glsl.js';
+import { scopedMemo, pendingTextureBytes } from '../../engine/scoped-assets.js';
 import { AT_UNIFORMS, atNoiseTexture } from '../anti-tiling.js';
 
 const HAS_DOM = typeof document !== 'undefined';
@@ -49,14 +50,14 @@ export const THEATER_PAVE = {
 const TEX = new Map();
 function tex(set, map, tier) {
   const url = `${BASE}${tier}/${set}_${map}.jpg`;
-  if (!TEX.has(url)) {
+  // mission-scoped (engine/scoped-assets.js): freed once no kept mission uses it
+  return scopedMemo('pavement:tex', TEX, url, () => {
     const t = new THREE.TextureLoader().load(url);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = 8;
     if (map === 'diff') t.colorSpace = THREE.SRGBColorSpace;
-    TEX.set(url, t);
-  }
-  return TEX.get(url);
+    return t;
+  }, { bytes: pendingTextureBytes, free: (t) => t.dispose() });
 }
 
 /** Course boundaries → the shader's 12-float array ([n] = [0] + 1, the rest padded). */

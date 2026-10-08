@@ -40,6 +40,15 @@ export const TERRAIN_QUALITY = {
   ultra: { hex: true, sparkle: 1.0, grassDensity: 1.15, grassBlades: 10, clutter: 1.3, snowFlakes: 20000, shadowsGrass: true },
 };
 
+/*
+ * Session-cache dispose callbacks live at module level: a callback created inside createTerrain would share that
+ * function's closure context (trails → their onStep → the World), so a cached entry would keep the whole previous
+ * mission alive until it is evicted.
+ */
+const disposeTexture = (t) => t.dispose();
+const disposeSplatEntry = (v) => { v.tA.dispose(); v.tB.dispose(); };
+const disposeHeightEntry = (v) => v.geo.dispose();
+
 /** Layer strip → DataArrayTexture (art/terrain/layer-image.js; WebP strips, 2K ones as a 2-column grid). */
 function loadArray(url, srgb, anisotropy, tile) {
   // session cache: a restart / the next mission in the theatre reuses the decoded, uploaded array (no decode,
@@ -210,8 +219,9 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
   const W = grid.width, D = grid.depth;
   const windDir = new THREE.Vector2(opts.wind?.x ?? 1, opts.wind?.z ?? 0.25).normalize();
 
-  // texRes 2048 (ultra): 2K albedo + normal arrays (`*_2k.webp`, 2 x 4 grid); 512 (low): `*_512.webp`; 1K data
-  // always. A missing 2K / 512 pair falls back to 1K.
+  // texRes 2048 (ultra): 2K albedo + normal arrays (`*_2k.webp`, 2 x 4 grid), 1K data; 512 (art/terrain.js
+  // terrainTexRes: 'low', and 'medium' / 'high' where the palette allows): `*_512.webp` albedo, normal and data.
+  // A missing 2K / 512 file falls back to 1K.
   const sfx = (res) => (res >= 2048 ? '_2k' : res <= 512 ? '_512' : '');
   const loadRes = (res) => Promise.all([
     loadArray(`${base}${src}_albedo${sfx(res)}.webp`, true, aniso, res),
@@ -219,9 +229,11 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
   ]);
   const norm = (r) => (r >= 2048 ? 2048 : r > 0 && r <= 512 ? 512 : 1024);
   let texRes = norm(opts.texRes);
-  const [pair, tDat] = await Promise.all([
+  const dataUrl = `${base}${src}_data.webp`;
+  const loadData = (res) => (res <= 512 ? loadArray(`${base}${src}_data_512.webp`, false, aniso).catch(() => loadArray(dataUrl, false, aniso)) : loadArray(dataUrl, false, aniso));
+  let [pair, tDat] = await Promise.all([
     loadRes(texRes).catch(() => { texRes = 1024; return loadRes(1024); }),
-    loadArray(`${base}${src}_data.webp`, false, aniso),
+    loadData(texRes),
   ]);
   let [tAlb, tNor] = pair;
   // session cache: the splat and the heightfield are pure functions of the grid's terrain codes + these options, so
@@ -234,10 +246,10 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
     return { splat: sp, tA: splatTexture(sp.a, sp.w, sp.h), tB: splatTexture(sp.b, sp.w, sp.h) };
   };
   const SP = splatKey ? cache.memo(splatKey, () => { const v = makeSplat(); cache.retain(v.tA); cache.retain(v.tB); return v; }, {
-    bytes: (v) => v.splat.a.length * 2 + v.splat.f32.byteLength, dispose: (v) => { v.tA.dispose(); v.tB.dispose(); },
+    bytes: (v) => v.splat.a.length * 2 + v.splat.f32.byteLength, dispose: disposeSplatEntry,
   }) : makeSplat();
   const splat = SP.splat, tSplatA = SP.tA, tSplatB = SP.tB;
-  const tNoise = cache.memo('terrain:noise256b', () => cache.retain(noiseTexture()), { bytes: 256 * 256 * 4 * 1.34, dispose: (t) => t.dispose() });
+  const tNoise = cache.memo('terrain:noise256b', () => cache.retain(noiseTexture()), { bytes: 256 * 256 * 4 * 1.34, dispose: disposeTexture });
 
   // ---- geometry: undulating heightfield, water cells sunk -----------------------------------------
   const seg = opts.segPerM || 4;
@@ -328,7 +340,7 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
     geo.computeBoundingSphere();
     cache.retain(geo);
     return { geo, hgt };
-  }, { bytes: (v) => v.hgt.byteLength * 9, dispose: (v) => v.geo.dispose() });
+  }, { bytes: (v) => v.hgt.byteLength * 9, dispose: disposeHeightEntry });
 
   // ---- material ----------------------------------------------------------------------------------
   const layerInfo = P.layers.map((n) => LAYER_INFO[n] || { tau: 600, vis: 0.3 });
@@ -459,9 +471,10 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
       const want = res;
       texRes = res;
       try {
-        const [a, n] = await loadRes(want);
-        if (texRes !== want) { cache.release(a); cache.release(n); return texRes; }
+        const [[a, n], d] = await Promise.all([loadRes(want), loadData(want)]);
+        if (texRes !== want) { cache.release(a); cache.release(n); if (d !== tDat) cache.release(d); return texRes; }
         cache.release(tAlb); cache.release(tNor);
+        if (d !== tDat) { cache.release(tDat); tDat = d; U.tDat.value = d; }
         tAlb = a; tNor = n; U.tAlb.value = a; U.tNor.value = n;
       } catch (e) { texRes = 1024; }
       return texRes;

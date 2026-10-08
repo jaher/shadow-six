@@ -2,10 +2,13 @@
 """Recompress the terrain layer strips to WebP (art integration 2, step 4 — asset size).
 
   python3 tools/perf/terrain_webp.py [--keep]     # from assets/terrain/*.jpg|png, deletes the sources unless --keep
+  python3 tools/perf/terrain_webp.py --data512    # <theatre>_data_512.webp from the shipped 1K data strips
 
 Layer arrays are vertical strips of square tiles (1024 x 8192 = 8 layers). WebP is limited to 16383 px per side, so
 the 2K strips (2048 x 16384) are stored as a 2-column grid (4096 x 8192); the runtime (src/art/terrain/layer-image.js)
-reads any row-major grid given the tile size. `_512` strips (preset 'low') are downscaled from the 1K ones (Lanczos).
+reads any row-major grid given the tile size. `_512` strips are downscaled from the 1K ones (Lanczos): preset 'low', and
+'medium' / 'high' where every layer of the theatre keeps the preset's screen density at 512 (src/art/terrain.js
+terrainTexRes; the data strip follows the albedo / normal pair).
 Qualities were picked by image diff (in-game A/B at the default camera stays at the noise floor of two identical runs).
 """
 import os, sys
@@ -52,5 +55,13 @@ def main(keep):
     if not keep:
         for s in done: os.remove(s)
 
+def data512():
+    for th in ('temperate', 'desert', 'snow'):
+        src = os.path.join(D, f'{th}_data.webp')
+        if not os.path.exists(src): continue
+        im = Image.open(src).convert('RGB')
+        save(im.resize((512, im.height // 2), Image.LANCZOS), f'{th}_data_512.webp', Q['data'])
+
 if __name__ == '__main__':
-    main('--keep' in sys.argv)
+    if '--data512' in sys.argv: data512()
+    else: main('--keep' in sys.argv)

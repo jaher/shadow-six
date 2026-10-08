@@ -17,6 +17,7 @@ import { applyFlap, applySway, swayWeights, canvasAttributes, transformCanvasAtt
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { libTextureURL } from './building-library.js';
 import { extendPolygonPastEdges } from '../world/edge-extend.js';
+import { scopedMemo, pendingTextureBytes } from '../engine/scoped-assets.js';
 import { MEDINA_GOODS_RX, buildMedinaGoods } from './medina-kit.js';
 
 const HAS_DOM = typeof document !== 'undefined';
@@ -24,15 +25,14 @@ const HAS_DOM = typeof document !== 'undefined';
 const TEX = new Map(), MATS = new Map();
 function tex(file, srgb) {
   const { url } = libTextureURL(file);
-  const key = url + (srgb ? '|s' : '');
-  if (!TEX.has(key)) {
+  // mission-scoped (engine/scoped-assets.js): freed once no kept mission uses it
+  return scopedMemo('dressing:tex', TEX, url + (srgb ? '|s' : ''), () => {
     const t = new THREE.TextureLoader().load(url);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = 8;
     if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-    TEX.set(key, t);
-  }
-  return TEX.get(key);
+    return t;
+  }, { bytes: pendingTextureBytes, free: (t) => t.dispose() });
 }
 
 /** PBR set name → [colour tint, fallback colour, normal strength]. */
@@ -96,7 +96,10 @@ const SETS = {
  */
 export function dressingMaterial(name) {
   const key = `${name}|${HAS_DOM ? libTextureURL(`${(SETS[name] || SETS.concrete)[0]}_diff.jpg`).url : 'node'}`;   // per preset tier
-  if (MATS.has(key)) return MATS.get(key);
+  return scopedMemo('dressing:mat', MATS, key, () => makeDressingMaterial(name), { free: (m) => m.dispose() });
+}
+
+function makeDressingMaterial(name) {
   const [file, tint, flat, nrm] = SETS[name] || SETS.concrete;
   let m;
   if (!HAS_DOM) m = new THREE.MeshStandardMaterial({ color: flat, roughness: 0.9 });
@@ -110,7 +113,7 @@ export function dressingMaterial(name) {
     antiTile(m, { lib: file });   // hex tiling / low-frequency swap + world-space macro variation (art/anti-tiling.js)
   }
   m.name = `dressing:${name}`;
-  MATS.set(key, m);
+  m.userData.dressing = true;
   return m;
 }
 

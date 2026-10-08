@@ -9,9 +9,12 @@
  *   cache.retain(texture);              // unloadMission skips disposing it (isRetained)
  *   cache.beginMission('m01');          // tags every entry used from now on; keeps current + last mission
  *
- * Memory: a byte budget (from navigator.deviceMemory: phones keep less) with LRU eviction; entries used by the current
- * or the previous mission are never evicted, the rest go oldest first, and `dispose(value)` runs on eviction (GPU
- * resources are freed then, not when a mission unloads). `clear()` drops everything (Options → clear cached data).
+ * Memory: while a mission loads, entries used by it or by the previous mission are never evicted (a byte budget from
+ * navigator.deviceMemory evicts the rest, least recently used first); once it has loaded, `settle()` frees whatever the
+ * current mission did not use beyond a small `spare` (none on phones) — so one mission's data is resident, not every
+ * mission played this session. `dispose(value)` runs on eviction (GPU resources are freed then, not when a mission
+ * unloads). The art libraries register their GLB templates here too (engine/scoped-assets.js). `clear()` drops
+ * everything (Options → clear cached data).
  * @module engine/asset-cache
  */
 
@@ -34,18 +37,31 @@ export function hasher() {
 /** 64-bit hex key of whatever `fill(h)` feeds the hasher (h.str / h.num / h.floats / h.words). */
 export function dataKey(fill) { const h = hasher(); fill(h); return h.hex(); }
 
+const isMobile = (nav) => /Android|iPhone|iPad|Mobile/i.test(nav?.userAgent || '') || (nav?.maxTouchPoints > 1 && /Macintosh/.test(nav?.userAgent || ''));
+
 /** Byte budget for a device: ~1/6 of its RAM, clamped to 256 MB … 1.5 GB (deviceMemory is capped at 8 by browsers). */
 export function defaultBudget(nav = typeof navigator !== 'undefined' ? navigator : null) {
   const gb = Number(nav?.deviceMemory) || 4;
-  const mobile = /Android|iPhone|iPad|Mobile/i.test(nav?.userAgent || '');
-  return Math.round(Math.min(mobile ? 512 : 1536, Math.max(256, (gb * 1024) / 6)) * MB);
+  return Math.round(Math.min(isMobile(nav) ? 512 : 1536, Math.max(256, (gb * 1024) / 6)) * MB);
+}
+
+/**
+ * Other missions' data kept after a load (`settle`), for a quick return: none on phones / tablets (memory is shared
+ * with the GPU and tabs get killed), ~1/32 of RAM on desktop (≤ 256 MB).
+ */
+export function defaultSpare(nav = typeof navigator !== 'undefined' ? navigator : null) {
+  if (isMobile(nav)) return 0;
+  const gb = Number(nav?.deviceMemory) || 4;
+  return Math.round(Math.min(256, (gb * 1024) / 32) * MB);
 }
 
 export class SessionCache {
-  /** @param {{budget?: number, keepMissions?: number, now?: () => number}} [o] */
+  /** @param {{budget?: number, keepMissions?: number, keepAfterLoad?: number, spare?: number, now?: () => number}} [o] */
   constructor(o = {}) {
     this.budget = o.budget ?? defaultBudget();
-    this.keepMissions = o.keepMissions ?? 2; // current + last
+    this.keepMissions = o.keepMissions ?? 2; // pinned while a mission loads: current + last (what it reuses stays)
+    this.keepAfterLoad = o.keepAfterLoad ?? 1; // pinned once it has loaded (settle): the current one (instant restart)
+    this.spare = o.spare ?? defaultSpare(); // bytes of unpinned entries settle() may keep (LRU)
     this.now = o.now || (() => (typeof performance !== 'undefined' ? performance.now() : Date.now()));
     this.entries = new Map(); // key → {value, bytes, dispose, missions:Set, used}
     this.pending = new Map(); // key → Promise
@@ -149,6 +165,21 @@ export class SessionCache {
   }
 
   /**
+   * The current mission has loaded: everything it did not use goes, beyond `spare` bytes (least recently used first),
+   * and the missions after the first `keepAfterLoad` leave the history (a later load of them is cold). Call it once the
+   * mission's world is built (Game.loadMission); a restart of the same mission keeps everything.
+   * @returns {string[]} evicted keys
+   */
+  settle(spare = this.spare) {
+    const keep = this.missions.slice(0, Math.max(1, this.keepAfterLoad));
+    let pinnedBytes = 0;
+    for (const e of this.entries.values()) if (this.pinned(e, keep)) pinnedBytes += e.bytes;
+    const out = this.evict(Math.min(this.budget, pinnedBytes + Math.max(0, spare)), keep);
+    this.missions = keep;
+    return out;
+  }
+
+  /**
    * Keep only what the `keep` missions use: every other entry is dropped (disposed) and the other missions leave the
    * history, so a later load of one of them is cold again (ui/loading.js reads `missions` to pick the warm path).
    * @param {string|string[]} keep @returns {string[]} evicted keys
@@ -175,7 +206,7 @@ export class SessionCache {
   release(obj) { if (obj && !this._retained.has(obj)) obj.dispose?.(); }
 
   stats() {
-    return { entries: this.entries.size, bytes: this.bytes, budget: this.budget, hits: this.hits, misses: this.misses, missions: [...this.missions] };
+    return { entries: this.entries.size, bytes: this.bytes, budget: this.budget, spare: this.spare, hits: this.hits, misses: this.misses, missions: [...this.missions] };
   }
 }
 

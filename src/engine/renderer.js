@@ -35,6 +35,7 @@ import { CONFIG } from '../config.js';
 import { THEATER_LIGHTING, resolveLighting, analyzeHDR, autoEnvIntensity } from './lighting.js';
 import { gradeFor, bakeLUTData } from './grade.js';
 import { SanitizePass, XRayPass, makeLUTTexture } from './post-passes.js';
+import { installTextureMemory } from './texture-memory.js';
 
 /**
  * Quality presets. pixelRatio is a cap on window.devicePixelRatio.
@@ -76,6 +77,23 @@ const TONE_MAPPINGS = {
 /** Per-theater lighting defaults: see engine/lighting.js (re-exported for existing importers). */
 export { THEATER_LIGHTING };
 
+/**
+ * The PCF shadow map samples only its depth texture, yet three gives the shadow render target an RGBA8 colour
+ * attachment it never reads (64 MB at 4096², 256 MB at 8192²): every map assigned to `shadow` gets a one-byte red
+ * attachment instead (three assigns a new target and allocates it on first use, so the format is set before anything
+ * is uploaded). Same depth, same shadows. Point-light cube maps are left alone.
+ */
+export function slimShadowMap(shadow) {
+  let map = shadow.map;
+  const slim = (rt) => {
+    const t = rt?.isWebGLRenderTarget && !rt.isWebGLCubeRenderTarget && rt.depthTexture !== undefined ? rt.texture : null;
+    if (t && t.format === THREE.RGBAFormat && t.type === THREE.UnsignedByteType) t.format = THREE.RedFormat;
+    return rt;
+  };
+  Object.defineProperty(shadow, 'map', { configurable: true, enumerable: true, get: () => map, set: (v) => { map = slim(v); } });
+  return shadow;
+}
+
 const _v = new THREE.Vector3();
 const _m = new THREE.Matrix4();
 const _up = new THREE.Vector3(0, 1, 0);
@@ -106,6 +124,7 @@ export class Renderer {
     /** @type {THREE.WebGLRenderer} */
     this.renderer = r;
     this.domElement = r.domElement;
+    installTextureMemory(r); // a restored context refills the textures whose page copy was released
 
     /** Main world scene (lit, shadowed, post-processed). */
     this.scene = new THREE.Scene();
@@ -128,6 +147,7 @@ export class Renderer {
     this.sun.shadow.normalBias = 0.03;
     this.sun.shadow.camera.near = 1;
     this.sun.shadow.camera.far = 600;
+    slimShadowMap(this.sun.shadow);
     this.scene.add(this.sun, this.sun.target);
     this.hemi = new THREE.HemisphereLight(0xbfd4ee, 0x5a5236, 0.5);
     this.hemi.name = 'hemi';

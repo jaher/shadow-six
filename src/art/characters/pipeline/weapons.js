@@ -2,6 +2,7 @@
 // weapons.js — weapon props (out/weapons.glb) with sockets, auto attachment per clip and left-hand two-bone IK.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { keepEncodedImages } from '../../../engine/texture-memory.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { proneGrip } from '../prone-grips.js';
 
@@ -17,7 +18,7 @@ const HAND_CLIPS = { knife: ['stab', 'aim', 'crouch_walk', 'crouch_idle', 'idle'
   colt1911: ['aim', 'shoot', 'pistol_idle', 'reload'] };
 
 export async function loadWeapons(url) {
-  const g = await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(url);
+  const g = await new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).register(keepEncodedImages).loadAsync(url);
   const lib = {};
   for (const o of [...g.scene.children]) {
     if (!o.isMesh && !o.isGroup && !o.isObject3D) continue;

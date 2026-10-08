@@ -22,7 +22,10 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { keepEncodedImages } from '../engine/texture-memory.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { scoped, touch, sceneBytes, disposeScene, textureBytes } from '../engine/scoped-assets.js';
+import { libTier, loadLibDensity, setLibPreset } from './lib-tiers.js';
 
 const DEG = Math.PI / 180;
 const YAW_KINDS = new Set(['turret', 'turret_yaw', 'gun_yaw', 'weapon_traverse', 'gun_yaw_pitch']);
@@ -33,7 +36,16 @@ const WHEEL_KINDS = new Set(['wheel', 'wheel_free']);
 const V = {
   manifest: null, base: 'assets/', manager: null, loaders: new Map(), gltf: new Map(), meta: new Map(),
   pending: new Map(), texCache: new Map(), live: new Set(), zoom: 1, quality: 'default',
+  deps: new Map(), shared: new WeakSet(), sharedSrc: new WeakSet(), // model#lod#paint → its shared texture cache keys; the shared textures
 };
+
+/** Session-cache keys (engine/scoped-assets.js): a loaded LOD scene and a shared texture. */
+const lodKey = (key) => `veh:${key}`;
+const texKey = (key) => `vehtex:${key}`;
+const isShared = (t) => V.shared.has(t); // the shared texture object itself (its own cache entry)
+const isSharedImage = (t) => V.sharedSrc.has(t.source); // …or a glTF clone of it (same GPU image)
+/** This mission uses a loaded LOD (and the shared textures it draws with). */
+function touchLod(key) { touch(lodKey(key), V.deps.get(key) || []); }
 
 /** GLTFLoader plugin: one Texture per external image URL across every vehicle GLB (shared lib + armour atlases). */
 class SharedTextures {
@@ -45,7 +57,17 @@ class SharedTextures {
     const mgr = this.parser.options.manager;
     const url = new URL(img.uri, new URL(this.parser.options.path || '', globalThis.location?.href ?? 'http://localhost/')).href;
     const key = `${mgr ? mgr.resolveURL(url) : url}|${def.sampler ?? -1}`;
-    if (!V.texCache.has(key)) V.texCache.set(key, this.parser.loadTextureImage(index, def.source, this.parser.textureLoader));
+    if (!V.texCache.has(key)) {
+      const p = this.parser.loadTextureImage(index, def.source, this.parser.textureLoader);
+      V.texCache.set(key, p);
+      // one session-cache entry per shared map: freed once no kept mission draws a GLB that uses it
+      p.then((t) => {
+        if (!t || V.texCache.get(key) !== p) return;
+        V.shared.add(t); V.sharedSrc.add(t.source);
+        scoped(texKey(key), t, { bytes: textureBytes(t), free: (tt) => { if (V.texCache.get(key) === p) V.texCache.delete(key); tt.dispose(); } });
+      }, () => {});
+    } else touch(texKey(key));
+    (this.parser.shadowLibKeys ||= new Set()).add(texKey(key));
     return V.texCache.get(key);
   }
 }
@@ -59,6 +81,7 @@ function loaderFor(swap) {
   mgr.setURLModifier((u) => (/\.(jpe?g|png|webp)(\?|$)/i.test(u) ? libTexture(swap ? u.split(swap[0]).join(swap[1]) : u) : u));
   const l = new GLTFLoader(mgr);
   l.setMeshoptDecoder(MeshoptDecoder);
+  l.register(keepEncodedImages); // decoded images leave page memory once on the GPU (engine/texture-memory.js)
   l.register((parser) => new SharedTextures(parser));
   V.loaders.set(key, l);
   return l;
@@ -74,12 +97,19 @@ function libTexture(u) {
   const name = u.slice(u.lastIndexOf('/') + 1).split('?')[0];
   const kept = T.aliases?.[name];
   let out = kept ? u.slice(0, u.lastIndexOf('/') + 1) + kept : u;
-  if (V.quality === 'low' && T.low) out = out.replace('/textures/lib/1k/', `/textures/lib/${T.low}/`);
+  const tier = libTier(kept || name, { low: V.quality === 'low' && !!T.low }); // art/lib-tiers.js
+  if (tier !== '1k') out = out.replace('/textures/lib/1k/', `/textures/lib/${tier}/`);
   return out;
 }
 
-/** Texture set for the next loads: 'low' → the 512 library maps (the engine 'low' preset), else 1k. */
-export function setVehicleTextureQuality(q) { V.quality = q === 'low' ? 'low' : 'default'; }
+/**
+ * Texture set for the next loads (the engine preset): per map the smallest library copy that covers the preset's
+ * closest view (art/lib-tiers.js); 'low' → at most the 512 maps.
+ */
+export function setVehicleTextureQuality(q) {
+  V.quality = q === 'low' ? 'low' : 'default';
+  if (q === 'low' || q === 'medium' || q === 'high' || q === 'ultra') setLibPreset(q);
+}
 
 const isBrowser = () => typeof window !== 'undefined' && typeof document !== 'undefined';
 
@@ -93,6 +123,7 @@ export async function loadVehicleLibrary(assets = null, opts = {}) {
   V.base = opts.base ?? assets?.manifest?.base ?? 'assets/';
   V.manager = assets?.manager || null;
   if (opts.manifest) V.manifest = opts.manifest;
+  else await loadLibDensity(V.base); // per-map texture tiers (art/lib-tiers.js)
   if (!V.manifest) {
     const res = await fetch(`${V.base}models/vehicles/manifest.json`);
     if (!res.ok) throw new Error(`[vehicle-library] manifest ${res.status}`);
@@ -157,7 +188,7 @@ function loadMeta(model) {
 /** LOD scene (shared; instances clone it). Missing LODs (LOD1 is not shipped) resolve to null. */
 function loadLod(model, i, swap) {
   const key = `${model}#${i}#${swap ? swap[1] : ''}`;
-  if (V.gltf.has(key)) return Promise.resolve(V.gltf.get(key));
+  if (V.gltf.has(key)) { if (V.gltf.get(key)) touchLod(key); return Promise.resolve(V.gltf.get(key)); }
   if (V.pending.has(key)) return V.pending.get(key);
   const file = V.manifest.models[model]?.lods[i];
   if (!file || !isBrowser()) { V.gltf.set(key, null); return Promise.resolve(null); }
@@ -165,6 +196,14 @@ function loadLod(model, i, swap) {
   const p = loaderFor(swap).loadAsync(url).then((g) => {
     prepareScene(g.scene);
     V.gltf.set(key, g.scene); V.pending.delete(key);
+    const deps = [...(g.parser?.shadowLibKeys || [])];
+    V.deps.set(key, deps);
+    touch(deps);
+    // the mission scope owns the template: freed (GPU too) once no kept mission uses it (engine/scoped-assets.js)
+    scoped(lodKey(key), g.scene, { bytes: sceneBytes(g.scene, isSharedImage), free: (sc) => {
+      if (V.gltf.get(key) === sc) { V.gltf.delete(key); V.deps.delete(key); }
+      disposeScene(sc, isShared);
+    } });
     return g.scene;
   }).catch((e) => {
     console.warn(`[vehicle-library] ${url} failed:`, e?.message || e);
@@ -262,6 +301,7 @@ function buildInstance(model, swap, meta) {
   for (const i of shippedLods(model)) {
     const src = V.gltf.get(`${model}#${i}#${swap ? swap[1] : ''}`);
     if (!src) continue;
+    touchLod(`${model}#${i}#${swap ? swap[1] : ''}`);
     const c = src.clone(true); c.name = `${model}_lod${i}`; c.visible = false;
     root.add(c); lods.set(i, c);
   }
@@ -490,6 +530,6 @@ function createConsist(type, T, opts) {
 export function liveVehicleVisuals() { return [...V.live]; }
 
 /** Drop cached GLBs/sidecars (tests, mission unload). Live visuals keep their clones. */
-export function clearVehicleCache() { V.gltf.clear(); V.meta.clear(); V.pending.clear(); V.texCache.clear(); }
+export function clearVehicleCache() { V.gltf.clear(); V.meta.clear(); V.pending.clear(); V.texCache.clear(); V.deps.clear(); }
 
 export default createVehicleVisual;

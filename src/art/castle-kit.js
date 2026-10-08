@@ -11,6 +11,7 @@
 import * as THREE from 'three';
 import { libTextureURL } from './building-library.js';
 import { rng, seedOf, fbm } from './dressing.js';
+import { scopedMemo, pendingTextureBytes } from '../engine/scoped-assets.js';
 import { antiTile } from './anti-tiling.js';
 
 const HAS_DOM = typeof document !== 'undefined';
@@ -44,22 +45,24 @@ let FROST = 0;
 export function setCastleFrost(v) { FROST = Math.max(0, Math.min(1, v || 0)); }
 function tex(file, srgb) {
   const { url } = libTextureURL(file);
-  const key = url + (srgb ? '|s' : '');
-  if (!TEX.has(key)) {
+  // mission-scoped (engine/scoped-assets.js): freed once no kept mission uses it
+  return scopedMemo('castle:tex', TEX, url + (srgb ? '|s' : ''), () => {
     const t = new THREE.TextureLoader().load(url);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = 8;
     if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-    TEX.set(key, t);
-  }
-  return TEX.get(key);
+    return t;
+  }, { bytes: pendingTextureBytes, free: (t) => t.dispose() });
 }
 
 /** Shared castle material (vertex colours on: the grime field multiplies the albedo). */
 export function castleMaterial(name) {
   const set = CASTLE_SETS[name] || CASTLE_SETS.ashlar;
   const key = `${name}|${HAS_DOM ? libTextureURL(`${set[0]}_diff.jpg`).url : 'node'}`;
-  if (MATS.has(key)) return MATS.get(key);
+  return scopedMemo('castle:mat', MATS, key, () => makeCastleMaterial(name, set), { free: (m) => m.dispose() });
+}
+
+function makeCastleMaterial(name, set) {
   const [file, tint, flat, , nrm] = set;
   let m;
   if (!HAS_DOM) m = new THREE.MeshStandardMaterial({ color: flat, roughness: 0.9, vertexColors: true });
@@ -73,7 +76,6 @@ export function castleMaterial(name) {
     antiTile(m, { lib: file, grime: 0.35 });   // the castle's own grime field is in the vertex colours
   }
   m.name = `castle:${name}`;
-  MATS.set(key, m);
   return m;
 }
 

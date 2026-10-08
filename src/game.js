@@ -66,6 +66,7 @@ import { mgMountFrame } from './render/mg-mount.js';
 import { ScopeMagnifier } from './render/scope-magnifier.js';
 import { sessionCache } from './engine/asset-cache.js';
 import { deferMaterialDisposal, flushMaterialDisposal, holdingMaterials } from './engine/program-keeper.js';
+import { TextureWarmer } from './engine/texture-memory.js';
 
 /** Resolve the first function/class export among candidate names (stub modules may vary). */
 function pick(mod, ...names) {
@@ -209,7 +210,7 @@ export class Game {
     this.events.emit('mission:loading', { id: def.id }); // UI releases the menu diorama (menus-art-direction §1.10)
     this.unloadMission();
     this.missionIndex = list.indexOf(def);
-    sessionCache.beginMission(def.id); // asset cache: tag what this load uses; keep this + the last mission (LRU budget)
+    sessionCache.beginMission(def.id); // asset cache: tag what this load uses; the last mission's data stays until settle()
     if (this.debug?.transformDef) def = this.debug.transformDef(def); // ?debug inspection options (debug/debug-options.js)
     def = normalizeMission(def, { difficulty: this.difficulty ?? null }); // design-spec §7.3 defaults (throws on invalid data); BCD Easy/Hard variant
     this.missionDef = def;
@@ -241,7 +242,7 @@ export class Game {
 
     // realistic buildings & bridges (art/building-props.js): manifest + this mission's GLBs before the map builds
     prog.stage('buildings');
-    await safeAsync(() => prepareMissionArt(def, { assets, quality: r.presetName === 'ultra' ? 'ultra' : r.presetName === 'low' ? 'low' : 'default' }), 'buildings');
+    await safeAsync(() => prepareMissionArt(def, { assets, quality: r.presetName === 'ultra' ? 'ultra' : r.presetName === 'low' ? 'low' : 'default', preset: r.presetName }), 'buildings');
     // realistic characters (art/unit-model.js): library + squad-aware enemy looks; placeholder capsules on failure
     prog.stage('characters');
     await safeAsync(() => prepareCharacters(def), 'characters');
@@ -301,6 +302,12 @@ export class Game {
     if (first) this.input.select([first]);
     this.accumulator = 0;
     const lp = prog.done();
+    // the world is built: free what earlier missions loaded and this one does not use (GPU textures, templates…)
+    sessionCache.settle();
+    // what the first view does not draw is uploaded a few textures per frame during the briefing (releases its page copy)
+    this.textureWarmer ||= new TextureWarmer(r.renderer);
+    this.textureWarmer.clear();
+    this.textureWarmer.add(r.scene);
     this.lastLoad = { id: def.id, preset: r.presetName, ...lp };
     if (!this.manualTick) console.info(`[load] ${def.id} (${r.presetName}): ${(lp.bytes / 1e6).toFixed(1)} MB in ${lp.files} files, ${(lp.ms / 1000).toFixed(1)} s`);
     this._setState('briefing');
@@ -339,6 +346,7 @@ export class Game {
   unloadMission() {
     // keep the shader programs warm: the next mission's first frame reuses them (engine/program-keeper.js)
     if (this.world) deferMaterialDisposal();
+    this.textureWarmer?.clear();
     safe(() => this.cones?.dispose?.(), 'cones dispose');
     this.cones = null;
     this.selection.detach();
@@ -650,6 +658,8 @@ export class Game {
       this.render(dt, alpha);
       // the first frame after a (re)load has acquired its programs: the previous mission's materials may go now
       if (holdingMaterials()) flushMaterialDisposal();
+      // textures not drawn yet go to the GPU a few per frame, and their decoded page copy goes (engine/texture-memory.js)
+      if (this.textureWarmer?.queue.length) this.textureWarmer.step(3); // ms a frame
     }
   }
 

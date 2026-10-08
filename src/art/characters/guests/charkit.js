@@ -3,6 +3,7 @@
 // Implements the ARCHITECTURE.md humanoid interface: setAnim(name,{loop,speed}), update(dt), setColors(opts), setDisguise(bool).
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { keepEncodedImages } from '../../../engine/texture-memory.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { groundClip, GROUND_CLIPS, footLift, STAND_CLIPS } from './ground.js';
@@ -10,7 +11,7 @@ import { fitProneClip } from '../prone-fit.js';
 import { weaponHandover } from '../weapon-handover.js';
 import { twoBoneIK } from './weapons.js';
 
-const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder); // GLBs carry EXT_meshopt_compression (lossless)
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).register(keepEncodedImages); // GLBs carry EXT_meshopt_compression (lossless)
 const load = (url) => new Promise((res, rej) => loader.load(url, res, undefined, rej));
 
 // ---------------- animation library ----------------

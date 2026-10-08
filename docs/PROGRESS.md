@@ -514,3 +514,6 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 - 2026-10-08T00:48 PDT sent walk fire/dog before-after videos.
 - 2026-10-08T01:45 PDT flaps agent: feat/truck-rear-canvas 8e4e5bac works on the vehicle-realism base (straps + door hand), but the door-hand GPU check fails on merged master (hand never on the M2 door, seated head through roof) → resumed it to bisect + fix on latest master.
 - 2026-10-08T01:46 PDT workflows merged art/m15 53378be5, debug solution replay 48996547, HUD alarm/eye/flags/trap 22ee141d, vehicle realism 56d1ebd3 → publishing.
+- 2026-10-08T01:46 PDT sent trap + zoomed-out flag before/after.
+- 2026-10-08T01:48 PDT hourly check: workflows active; 34806583 deploying (published 01:46). Memory footprint MERGED 46fdaa15 (branch had master 34806583; GPU memory/anti-tiling/terrain/pavement/render-frames/loading/smoke/edges m12 m13/webbuild/cache-sw on the branch). Verifying merged master (unit 4 shards + memory, loading, m03-solution, vehicles) in commandos-wt-verify before publishing.
+- 2026-10-08T01:52 PDT merged master 46fdaa15 verified: unit 1722/0 (4 shards), GPU memory, loading, m03-solution, vehicles pass. Publishing memory footprint.

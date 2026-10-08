@@ -15,6 +15,7 @@ import { assignEnemyVariants } from './enemy_variety.js';
 import { loadWeapons } from '../pipeline/weapons.js';
 import { equipEnemy, LONG } from './enemy_weapons.js';
 import { fixLibMeta, installRuntime, enemyLodFor } from './enemy_runtime.js';
+import { scoped, touch, sceneBytes, disposeScene } from '../../../engine/scoped-assets.js';
 export { enemyLodFor };
 export { assignEnemyVariants, instanceJitter };
 
@@ -43,8 +44,23 @@ function tintCloth(mesh, tint) {
   mesh.material = m;
 }
 
+/**
+ * Load a variant's template, scoped to the missions that use it (engine/scoped-assets.js): a variant no kept mission
+ * uses is freed after the next mission loads. Module level, so the callbacks hold only (E, id, p).
+ */
+function loadTemplate(E, variant) {
+  const id = variant.id, p = loadCharacter(variant.url);
+  E.templates.set(id, p);
+  p.then((tpl) => scoped(`chr:enemy:${id}`, tpl, { bytes: sceneBytes(tpl.gltf.scene), free: (t) => {
+    if (E.templates.get(id) === p) { E.templates.delete(id); E.runtime.delete(id); }
+    disposeScene(t.gltf.scene);
+  } }), () => { if (E.templates.get(id) === p) E.templates.delete(id); });
+  return p;
+}
+
 export async function spawnEnemy(E, missionId, spawn, variant) {
-  if (!E.templates.has(variant.id)) E.templates.set(variant.id, loadCharacter(variant.url));
+  if (!E.templates.has(variant.id)) loadTemplate(E, variant);
+  else touch(`chr:enemy:${variant.id}`);
   const tpl = await E.templates.get(variant.id);
   const h = createHumanoid(tpl, E.lib);
   if (!E.runtime.has(variant.id)) E.runtime.set(variant.id, { scratch: createHumanoid(tpl, E.lib) });

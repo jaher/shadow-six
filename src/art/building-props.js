@@ -18,6 +18,7 @@ import { B, T } from '../world/grid.js';
 import { fuelTankAsset, isFuelStructure, FUEL_VARIANTS } from './fuel-tanks.js';
 import { pipeRunPairs, buildPipeRun } from './fuel-pipes.js';
 import { attachFuelHooks, tickFuelHooks, resetFuelHooks } from './fuel-hooks.js';
+import { setLibPreset } from './lib-tiers.js';
 
 /** Catalogue type → library type (same name unless listed). `null` = no library visual (placeholder). */
 export const LIB_TYPE = { generator: null, telegraph_pole: null, radio_mast: null, sign: null, searchlight: null, lamp_post: null };
@@ -635,6 +636,7 @@ export function keepDrapeOnHosts(root, drapeRe, skipRe, cell = 0.5, dy = 0.8) {
  */
 export async function prepareMissionArt(mission, o = {}) {
   S.mission = mission?.id ?? null;
+  if (o.preset) setLibPreset(o.preset); // per-map library texture tiers for this preset (art/lib-tiers.js)
   S.structures = mission?.structures || [];
   S.log = [];
   if (typeof fetch !== 'function' || typeof document === 'undefined' || S.failed) return false;

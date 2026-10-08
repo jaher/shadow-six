@@ -6,6 +6,7 @@
  */
 
 import * as THREE from 'three';
+import { releaseDataAfterUpload } from '../../engine/texture-memory.js';
 
 /** Load an image element (rejects on a 404 / decode error). */
 export function loadImage(url) {
@@ -20,7 +21,8 @@ export function loadImage(url) {
 
 /**
  * @param {string} url
- * @param {{tile?: number, srgb?: boolean, anisotropy?: number, wrap?: THREE.Wrapping}} [o]
+ * @param {{tile?: number, srgb?: boolean, anisotropy?: number, wrap?: THREE.Wrapping, release?: boolean}} [o] release
+ *   (default true): drop the pixel array after the first upload
  * @returns {Promise<THREE.DataArrayTexture>}
  */
 export async function loadLayerArray(url, o = {}) {
@@ -42,5 +44,8 @@ export async function loadLayerArray(url, o = {}) {
   t.generateMipmaps = true; t.anisotropy = o.anisotropy ?? 4;
   t.colorSpace = o.srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
   t.needsUpdate = true;
+  // the array is only read by the upload: drop it then (the session cache keeps the GPU copy for restarts); a restored
+  // WebGL context decodes the strip again (engine/texture-memory.js)
+  if (o.release !== false) releaseDataAfterUpload(t, () => loadLayerArray(url, { ...o, release: false }));
   return t;
 }

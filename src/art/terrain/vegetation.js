@@ -61,6 +61,9 @@ function loadStrip(url, srgb, alpha, tile) {
   });
 }
 
+/** Impostor-bank cache entry dispose (module level: a callback made inside the builder would keep its whole scope — and the mission — alive). */
+const disposeImpostorEntry = (b) => { b.bank.albedo.dispose(); b.bank.normal.dispose(); };
+
 /** Bytes of a worker chunk result (typed arrays). */
 const chunkBytes = (out) => out.reduce((n, r) => n + [r.bark, r.leaf].reduce((m, a) => m + (a ? Object.values(a).reduce((k, v) => k + (v?.byteLength || 0), 0) : 0), 0), 0);
 
@@ -579,7 +582,7 @@ export async function createVegetation(scene, placements, theater = 'temperate',
         for (const pr of protos) { pr.bark?.dispose(); pr.leaf?.dispose(); pr.needle?.dispose(); }
         cache.retain(bank.albedo); cache.retain(bank.normal);
         return { bank, heights: protos.map((pr) => pr.info.height) };
-      }, { bytes: (b) => b.bank.bytes || 0, dispose: (b) => { b.bank.albedo.dispose(); b.bank.normal.dispose(); } });
+      }, { bytes: (b) => b.bank.bytes || 0, dispose: disposeImpostorEntry });
       impBank = baked.bank;
       if (prev && prev !== impBank) { cache.release(prev.albedo); cache.release(prev.normal); }
       const protos = baked.heights.map((height) => ({ info: { height } }));

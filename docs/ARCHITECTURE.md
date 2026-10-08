@@ -857,6 +857,35 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   textures: `textures/lib/1k` (default), `512` (low), `2k` WebP albedo (ultra), byte-identical maps aliased away
   (`manifest.textures.aliases`). Tools: `tools/perf/measure-load.mjs` (bytes per mission/preset, `--budget`),
   `tools/perf/shot.mjs` (A/B screenshot), `tools/perf/terrain_webp.py`, `tools/perf/lib_textures.py`.
+- **Texture tiers by texel density** (`engine/texel-budget.js`, `art/lib-tiers.js`): the camera is orthographic with
+  a fixed scale, so a preset never draws more than `screenDensity(preset)` = 40 CSS px/m × zoom 2 × its pixel-ratio cap
+  (low 80, medium 100, high 120, ultra 160 physical px per metre). A map whose texels per metre on its most stretched
+  surfaces stay at or above that never has its level 0 magnified, and a smaller copy that still clears the bar draws
+  the same picture. Library maps ship at 1k / 512 / 256 / 128 (`lib_textures.py --tiers`); `assets/textures/lib/density.json`
+  (`tools/perf/texel-density.mjs` over every mission → `tools/perf/lib-density.mjs`: area-weighted 1st percentile of the
+  smaller singular value of the world → texel Jacobian, close LODs) gives per map the density at 1k, and
+  `libTier(file)` the smallest copy ≥ the preset's density (building GLB image URIs, the vehicle URL modifier, dressing /
+  castle `libTextureURL`). Maps not listed and every map on 'ultra' stay 1k; 'low' stays ≤ 512 as before. Terrain arrays
+  (`art/terrain.js terrainTexRes(preset, theater)`): 'medium' / 'high' take the 512 albedo / normal / data strips when
+  512 ÷ the palette's largest layer tile clears the preset (temperate on both, snow and desert on medium).
+- **Page memory after upload** (`engine/texture-memory.js`): three keeps `texture.image` for re-uploads. GLB images
+  decode through `EncodedBitmapLoader` (GLTFLoader plugin `keepEncodedImages`, registered on every GLTFLoader): after a
+  texture's first upload its ImageBitmap (a full RGBA decode) is closed and `source.data` becomes an `<img>` of the same
+  file bytes — three can upload from it again at any time (same pixels: no flip / premultiply / colour conversion on
+  either path; the browser decodes on demand into a purgeable cache). Terrain / vegetation layer arrays
+  (`layer-image.js`) drop their Uint8Array after the upload (`source.dataReady = false`) and are decoded again when
+  three has to upload them again — a restored WebGL context (`installTextureMemory(renderer)`), or a texture disposed
+  by a cache eviction while still drawn (`texture.needsUpdate` after the refill: three compares the texture version). `TextureWarmer` (Game, after each load) uploads the
+  scene's not-yet-drawn textures ≤ 3 ms a frame during the briefing, so their page copy goes too and the first pan onto
+  them does not stall a frame. The PCF shadow map's unused RGBA8 colour attachment is one byte per texel
+  (`renderer.js slimShadowMap`: −48 MB on high, −192 MB on ultra).
+- **Memory tools / test**: `tools/perf/mem-probe.js` (page probe: every live GL texture / buffer / renderbuffer counted at
+  allocation with mips, layers and MSAA, attributed to the three object and its file; live ImageBitmaps; decoded audio),
+  `tools/perf/measure-memory.mjs` (per mission and config: JS heap, ArrayBuffer stores, GPU, audio, bitmaps, cache,
+  renderer / GPU process PSS, VRAM, load peaks, download, load and frame time; `--cycle` M1→M2→M3→M1),
+  `tools/perf/heap-arraybuffers.mjs` (heap snapshot: ArrayBuffer retainers, `--count` live instances, `--path` GC-root
+  path of a class — how the World leak below was found), `tools/perf/memshot.mjs` + `memshot-diff.py` (A/B frames);
+  `tests/memory.test.mjs` (per-mission budget, no growth over a mission cycle, warm restart).
 
 ### Asset cache (`src/engine/asset-cache.js`, `engine/program-keeper.js`, `engine/offline-cache.js`, `tools/build/sw.mjs`)
 Two layers, both generic (keyed by URL / asset id / content signature, never per feature):
@@ -867,9 +896,21 @@ Two layers, both generic (keyed by URL / asset id / content signature, never per
   vegetation strips, generated tree chunks (`trees:<quality>:<hash of the placements>`) and impostor bakes,
   the placement-visual analyses (`visual:<kind>:<signature>`: node names, visibility, content-hashed geometry,
   world matrices — `visualSignature`), the renderer's filtered environment (`_envKey`, same HDRI + lighting).
-  `Game.loadMission` calls `beginMission(id)`: entries used from then on are tagged with the mission; a byte budget
-  (`defaultBudget()`: ~1/6 of `navigator.deviceMemory`, 256 MB–1.5 GB, ≤ 512 MB on phones) evicts least-recently-used
-  entries not used by the current or the last mission, calling their `dispose` (GPU resources are freed then).
+  `Game.loadMission` calls `beginMission(id)`: entries used from then on are tagged with the mission; while it loads, a
+  byte budget (`defaultBudget()`: ~1/6 of `navigator.deviceMemory`, 256 MB–1.5 GB, ≤ 512 MB on phones) evicts
+  least-recently-used entries not used by the current or the last mission (what the new mission reuses stays), and once
+  its world is built `settle()` frees every entry the current mission did not use beyond `spare` bytes
+  (`defaultSpare()`: none on phones / tablets, ≤ 256 MB on desktop) and leaves only the current mission in the history —
+  one mission's data is resident, not every mission played this session (going back to a mission played two loads
+  earlier is a cold load again — from the HTTP / service-worker cache; `keepAfterLoad` / `spare` are the knobs). `dispose` runs on eviction (GPU resources are
+  freed then). The art libraries register their templates here too (`engine/scoped-assets.js`: `scoped(key, value,
+  {bytes, free})`, `touch(...keys)` on a library cache hit, `scopedMemo(ns, map, key, make)` for module caches, whose hits
+  also touch what the value was built from): building and vehicle LOD scenes + their shared library textures
+  (`bld:` / `bldtex:` / `veh:` / `vehtex:`), character templates (`chr:`), dressing / castle / pavement textures and
+  materials — evicting one disposes its geometries, materials and textures (`disposeScene`; glTF clones of a shared map
+  go with the scene, the shared texture with its own entry). Dispose callbacks of entries live at module level: one
+  created inside a builder function shares that function's closure context (e.g. terrain → trails → onStep → the World),
+  which kept every previous World alive (4 Worlds after a 4-mission cycle before the fix, 1 after).
   Cached GPU objects are `retain()`ed: their owners call `sessionCache.release(obj)` instead of `obj.dispose()` (a
   no-op for retained ones), and `Game.unloadMission` keeps them. Results handed out are copies (or immutable).
   Shader programs: `Game.unloadMission` starts `deferMaterialDisposal()` (Material#dispose calls are queued) and the

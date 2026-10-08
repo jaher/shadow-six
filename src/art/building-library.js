@@ -19,8 +19,11 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { keepEncodedImages } from '../engine/texture-memory.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { applyAssetFixups, DROP_LODS } from './building-fixups.js';
+import { scoped, touch, sceneBytes, disposeScene, textureBytes } from '../engine/scoped-assets.js';
+import { libTier, loadLibDensity } from './lib-tiers.js';
 import { antiTile } from './anti-tiling.js';
 
 const BLOCK = { NONE: 0, LOW: 1, HIGH: 2, FENCE: 3 }; // == world/grid.js B
@@ -32,12 +35,22 @@ const SWITCH_KINDS = { interact_switch: 'switch', interact_lever: 'switch', inte
 const L = {
   manifest: null, base: 'assets/', quality: 'default', loader: null, ultra: new Set(),
   texCache: new Map(), gltf: new Map(), pending: new Map(), live: new Set(), zoom: 1, lodBias: 0,
+  deps: new Map(), shared: new WeakSet(), sharedSrc: new WeakSet(), // name#lod → its shared texture cache keys; the shared library textures
 };
+
+/** Session-cache keys (engine/scoped-assets.js): a loaded LOD scene and a shared library texture. */
+const lodKey = (key) => `bld:${key}`;
+const texKey = (key) => `bldtex:${key}`;
+const isShared = (t) => L.shared.has(t); // the shared texture object itself (its own cache entry)
+const isSharedImage = (t) => L.sharedSrc.has(t.source); // …or a glTF clone of it (same GPU image)
+/** This mission uses a loaded LOD (and the shared textures it draws with). */
+function touchLod(key) { touch(lodKey(key), L.deps.get(key) || []); }
 
 /**
  * GLTFLoader plugin: one Texture (→ one GPU upload) per shared-library image across all GLBs. Image URIs are rewritten
- * before parsing: byte-identical maps → their survivor (manifest textures.aliases), 'ultra' → 2k WebP albedo,
- * 'low' → the 512 set (tools/perf/lib_textures.py).
+ * before parsing: byte-identical maps → their survivor (manifest textures.aliases), 'ultra' → 2k WebP albedo, else
+ * the smallest library copy that covers the preset's closest view (art/lib-tiers.js: 512 / 256 / 128 sets, 'low' ≤ 512;
+ * tools/perf/lib_textures.py).
  */
 class SharedLibTextures {
   constructor(parser) { this.parser = parser; this.name = 'SHADOW_shared_lib_textures'; }
@@ -49,7 +62,7 @@ class SharedLibTextures {
       let file = `${m[2]}.${m[3]}`;
       if (alias[file]) { file = alias[file]; im.uri = `${m[1]}1k/${file}`; }
       if (L.quality === 'ultra' && L.ultra.has(file)) im.uri = `${m[1]}2k/${file.replace(/\.(jpg|png)$/, '')}.webp`;
-      else if (L.quality === 'low' && L.manifest?.textures?.low) im.uri = `${m[1]}${L.manifest.textures.low}/${file}`;
+      else { const t = libTier(file, { low: L.quality === 'low' }); if (t !== '1k') im.uri = `${m[1]}${t}/${file}`; } // art/lib-tiers.js
     }
     return null;
   }
@@ -58,7 +71,17 @@ class SharedLibTextures {
     const img = def && json.images[def.source];
     if (!img || !img.uri || !/textures\/lib\//.test(img.uri)) return null; // embedded AO etc.: default path
     const key = `${new URL(img.uri, new URL(this.parser.options.path || '', globalThis.location?.href ?? 'http://localhost/')).href}|${def.sampler ?? -1}`;
-    if (!L.texCache.has(key)) L.texCache.set(key, this.parser.loadTextureImage(index, def.source, this.parser.textureLoader));
+    if (!L.texCache.has(key)) {
+      const p = this.parser.loadTextureImage(index, def.source, this.parser.textureLoader);
+      L.texCache.set(key, p);
+      // one session-cache entry per shared map: freed once no kept mission draws a GLB that uses it
+      p.then((t) => {
+        if (!t || L.texCache.get(key) !== p) return;
+        L.shared.add(t); L.sharedSrc.add(t.source);
+        scoped(texKey(key), t, { bytes: textureBytes(t), free: (tt) => { if (L.texCache.get(key) === p) L.texCache.delete(key); tt.dispose(); } });
+      }, () => {});
+    } else touch(texKey(key));
+    (this.parser.shadowLibKeys ||= new Set()).add(texKey(key));
     return L.texCache.get(key);
   }
 }
@@ -86,8 +109,8 @@ export function libTextureURL(file) {
   const alias = L.manifest?.textures?.aliases || {};
   const f = alias[file] || file, root = `${L.base}textures/lib/`;
   if (L.quality === 'ultra' && L.ultra.has(f)) return { url: `${root}2k/${f.replace(/\.(jpg|png)$/, '')}.webp`, tier: '2k' };
-  if (L.quality === 'low' && L.manifest?.textures?.low) return { url: `${root}${L.manifest.textures.low}/${f}`, tier: L.manifest.textures.low };
-  return { url: `${root}1k/${f}`, tier: '1k' };
+  const tier = libTier(f, { low: L.quality === 'low' && !!L.manifest?.textures?.low });
+  return { url: `${root}${tier}/${f}`, tier };
 }
 
 /** Add-on manifests under assets/models/buildings/ (same schema, `assets` + `types` only), merged after manifest.json. */
@@ -117,9 +140,11 @@ export async function loadBuildingLibrary(assets = null, opts = {}) {
   if (!L.loader && !opts.manifest) {
     L.loader = new GLTFLoader(assets?.manager);
     L.loader.setMeshoptDecoder(MeshoptDecoder);
+    L.loader.register(keepEncodedImages); // decoded images leave page memory once on the GPU (engine/texture-memory.js)
     L.loader.register((parser) => new SharedLibTextures(parser));
   }
   if (opts.manifest) L.manifest = opts.manifest; // injected (node tests / tools)
+  else await loadLibDensity(L.base); // per-map texture tiers (art/lib-tiers.js)
   if (!L.manifest) {
     const res = await fetch(`${L.base}models/buildings/manifest.json`);
     if (!res.ok) throw new Error(`[building-library] manifest ${res.status}`);
@@ -172,7 +197,7 @@ export async function preloadBuildings(list, { theater, lods = L.lodBias ? [1, 2
 
 function loadLod(name, i) {
   const key = `${name}#${i}`;
-  if (L.gltf.has(key)) return Promise.resolve(L.gltf.get(key));
+  if (L.gltf.has(key)) { touchLod(key); return Promise.resolve(L.gltf.get(key)); }
   if (L.pending.has(key)) return L.pending.get(key);
   if (DROP_LODS[name]?.includes(i)) { L.gltf.set(key, null); return Promise.resolve(null); } // broken LOD → next finer
   const url = L.base + 'models/' + L.manifest.assets[name].lods[i].url;
@@ -180,6 +205,14 @@ function loadLod(name, i) {
     prepareScene(g.scene);
     g.scene.userData.fixups = applyAssetFixups(g.scene, name, i, L.base);
     L.gltf.set(key, g.scene); L.pending.delete(key);
+    const deps = [...(g.parser?.shadowLibKeys || [])];
+    L.deps.set(key, deps);
+    touch(deps);
+    // the mission scope owns the template: freed (GPU too) once no kept mission uses it (engine/scoped-assets.js)
+    scoped(lodKey(key), g.scene, { bytes: sceneBytes(g.scene, isSharedImage), free: (sc) => {
+      if (L.gltf.get(key) === sc) { L.gltf.delete(key); L.deps.delete(key); }
+      disposeScene(sc, isShared);
+    } });
     return g.scene;
   }).catch((e) => {
     console.warn(`[building-library] ${url} failed:`, e?.message || e);
@@ -347,7 +380,7 @@ export function createBuilding(type, params = {}, rng = null) {
   };
   const jobs = a.lods.map((_, i) => {
     const cached = L.gltf.get(`${name}#${i}`);
-    if (cached !== undefined) { attach(i, cached); return null; }
+    if (cached !== undefined) { if (cached) touchLod(`${name}#${i}`); attach(i, cached); return null; }
     return loadLod(name, i).then((s) => attach(i, s));
   }).filter(Boolean);
   L.live.add(entry);
@@ -437,7 +470,8 @@ export function buildingTypes() {
 /** Drop cached scenes/textures (e.g. between missions). Live instances keep working until disposed. */
 export function clearBuildingCache() {
   L.gltf.clear();
-  for (const p of L.texCache.values()) p.then((t) => t?.dispose());
+  L.deps.clear();
+  for (const p of L.texCache.values()) p.then((t) => t?.dispose(), () => {});
   L.texCache.clear();
 }
 

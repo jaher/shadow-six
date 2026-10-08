@@ -6,20 +6,20 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { dressingMaterial } from '../dressing.js';
+import { scopedMemo, pendingTextureBytes } from '../../engine/scoped-assets.js';
 
 const HAS_DOM = typeof document !== 'undefined';
 const BASE = new URL('../../../assets/textures/pavement/', import.meta.url).href;
 const M = new Map();
 const T = new Map();
 function tex(file, srgb, rep = 1) {
-  const k = file + rep;
-  if (!T.has(k)) {
+  // mission-scoped (engine/scoped-assets.js): freed once no kept mission uses it
+  return scopedMemo('pavement:detailtex', T, file + rep, () => {
     const t = new THREE.TextureLoader().load(BASE + file);
     t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; t.repeat.set(rep, rep);
     if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-    T.set(k, t);
-  }
-  return T.get(k);
+    return t;
+  }, { bytes: pendingTextureBytes, free: (t) => t.dispose() });
 }
 
 /**
@@ -27,8 +27,11 @@ function tex(file, srgb, rep = 1) {
  * paint), steel (rail heads), groove (dark rail groove), grate (drain / manhole cover), timber (creosote).
  */
 export function detailMaterial(name, tier = '1k') {
-  const key = name + tier;
-  if (M.has(key)) return M.get(key);
+  // the shared dressing materials (wall, timber) belong to dressing.js's own cache
+  return scopedMemo('pavement:detail', M, name + tier, () => makeDetailMaterial(name, tier), { free: (m) => { if (!m.userData.dressing) m.dispose(); } });
+}
+
+function makeDetailMaterial(name, tier) {
   let m;
   const std = (o) => new THREE.MeshStandardMaterial(o);
   if (!HAS_DOM) m = std({ color: 0x808080 });
@@ -48,7 +51,6 @@ export function detailMaterial(name, tier = '1k') {
   else if (name === 'rubble') m = std({ color: 0x6d6a66, map: tex(`${tier}/setts_diff.jpg`, true), roughness: 0.95 });
   else m = std({ color: 0x808080 });
   m.name = `pavement-detail:${name}`;
-  M.set(key, m);
   return m;
 }
 
