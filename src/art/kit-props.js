@@ -108,11 +108,34 @@ export function fuelDrum(color = 0x7a2a1a, rustOnly = false) {
 export function buildExplosiveDrum(variant = '') {
   const g = new THREE.Group(); g.name = 'kit:explosive_drum';
   const v = String(variant || '');
+  if (/rack/.test(v)) return buildDrumRack(g);
   const d = fuelDrum(/blue/.test(v) ? 0x2c4a6e : /yellow/.test(v) ? 0xb8942c : /green|olive/.test(v) ? 0x4a5038 : 0x8a2c1c);
   d.scale.set(1.1, 1.02, 1.1);   // r 0.32, h 0.9 like the gameplay barrel
   d.rotation.y = 0.6;
   g.add(d);
   return g;
+}
+
+/**
+ * M8 art pass: an oil-barrel store rack (the `barrel_rack` chain node, r 0.8, h 1.6): a timber pallet on bearers with
+ * four red drums upright, two more lying across them in timber chocks, a lashing strap; inside a 1.3 m square so it
+ * stays within the node's blocking circle.
+ */
+function buildDrumRack(g) {
+  g.name = 'kit:barrel_rack';
+  const wood = dressingMaterial('planks');
+  for (const z of [-0.5, 0, 0.5]) { const b = mesh(new THREE.BoxGeometry(1.3, 0.08, 0.1), wood); b.position.set(0, 0.04, z); g.add(b); }
+  for (let k = 0; k < 7; k++) { const b = mesh(new THREE.BoxGeometry(0.16, 0.035, 1.25), wood); b.position.set(-0.57 + k * 0.19, 0.098, 0); g.add(b); }
+  const reds = [0x8a2c1c, 0x7e2a1c, 0x8f3322, 0x84301e];
+  [[-0.32, -0.32], [0.32, -0.32], [-0.32, 0.32], [0.32, 0.32]].forEach(([x, z], k) => {
+    const d = fuelDrum(reds[k]); d.scale.set(1.05, 1.0, 1.05); d.position.set(x, 0.115, z); d.rotation.y = k * 1.3; g.add(d);
+  });
+  for (const z of [-0.32, 0.32]) {
+    const d = fuelDrum(z < 0 ? 0x8a2c1c : 0x7a3020); d.rotation.set(0, 0, Math.PI / 2); d.position.set(0.44, 1.31, z); g.add(d);
+  }
+  for (const x of [-0.3, 0.3]) { const c = mesh(new THREE.BoxGeometry(0.12, 0.1, 1.25), wood); c.position.set(x, 1.06, 0); g.add(c); }
+  const strap = mesh(new THREE.BoxGeometry(0.04, 0.6, 1.3), dressingMaterial('steel')); strap.position.set(0, 1.3, 0); g.add(strap);
+  return consolidate(g);
 }
 
 /** `barrels` cluster: three drums (or casks) inside the 1.2 × 1.1 footprint, seeded tilt / turn. */

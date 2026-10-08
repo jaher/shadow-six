@@ -1,0 +1,15 @@
+# M8 art pass (Tell el Eisa, "Pyrotechnics"): "script -- outdir variant seed" (desert family, dz.py helpers; the bridge is
+# in bridges/, brlib.py, writes to its own out/). Ship with tools/blender/consolidate/addon_manifest.py:
+#   <art_root> <repo> manifest-tell-el-eisa desert house_adobe_redtile=house_adobe_redtile_n1,house_adobe_redtile_n2,house_adobe_redtile_n3,house_adobe_redtile_w1,house_adobe_redtile_w2
+#     water_reservoir=water_reservoir_round supply_dump=supply_dump_desert_a,supply_dump_desert_b
+#   <art_root> <repo> manifest-tell-el-eisa-bridge bridges bridge_timber_trestle=bridge_timber_trestle
+house_adobe_redtile.py <out>/house_adobe_redtile_n1 n1 811
+house_adobe_redtile.py <out>/house_adobe_redtile_n2 n2 813
+house_adobe_redtile.py <out>/house_adobe_redtile_n3 n3 815
+house_adobe_redtile.py <out>/house_adobe_redtile_w1 w1 812
+house_adobe_redtile.py <out>/house_adobe_redtile_w2 w2 814
+water_reservoir_round.py <out>/water_reservoir_round a 808
+water_reservoir_round.py <out>/water_reservoir_round_destroyed ruin 808
+supply_dump_desert.py <out>/supply_dump_desert_a a 821
+supply_dump_desert.py <out>/supply_dump_desert_b b 822
+../bridges/scripts/bridge_timber_trestle.py bridge_timber_trestle

@@ -8,6 +8,7 @@
  * @module art/terrain
  */
 
+import { missionCarves, carvePainter } from './terrain/carve.js';
 import * as THREE from 'three';
 import { T } from '../world/grid.js';
 import { createTerrainHandle, tracksNear as trailsNear, dragHeels } from './terrain/game-adapter.js';
@@ -376,7 +377,7 @@ function netKey(net) {
 function paintKeyOf(ctx) {
   const roads = ctx.roads ? netKey(ctx.roads.net) : '-';
   if (roads === undefined) return undefined;
-  try { return dataKey((h) => { h.str(roads); h.str(JSON.stringify((ctx.forests || []).map((f) => [f.type, f.variant, f.points]))); }); } catch { return undefined; }
+  try { return dataKey((h) => { h.str(roads); h.str(JSON.stringify((ctx.forests || []).map((f) => [f.type, f.variant, f.points]))); h.str(JSON.stringify(ctx.mission?.carves || null)); }); } catch { return undefined; }
 }
 
 export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
@@ -391,7 +392,9 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
   const apronOn = !!mission && ctx.apron !== false && mission.apron?.extend !== false;
   if (apronOn) ruts = ruts.map((r) => ({ ...r, points: extendPath(r.points, null, grid.width, grid.depth, r.near ?? 1.5, 16).points }));
   const crossings = apronOn ? edgeCrossings(ruts, grid.width, grid.depth) : [];
+  const dry = missionCarves(mission); // dry wadis cut into the ground (art/terrain/carve.js): rock banks, gravel bed
   const paint = composePaint(forestFloorPainter(ctx.forests, (PALETTES[theater] || PALETTES.temperate).layers),
+    carvePainter(dry, (PALETTES[theater] || PALETTES.temperate).layers),
     ctx.roads ? terrainPainter(ctx.roads, theater, (PALETTES[theater] || PALETTES.temperate).layers) : null) ?? undefined;
   // continuous shorelines (world/shore-field.js): one field over the map + apron drives both carves, the splat's
   // wet line and the water's shore distance (smooth banks instead of the 0.5 m cell staircase)

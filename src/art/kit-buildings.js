@@ -97,6 +97,55 @@ function facades(w, d) {
   return { front: mk(w, 0, 0, d / 2 + 0.01), back: mk(w, Math.PI, 0, -d / 2 - 0.01), east: mk(d, Math.PI / 2, w / 2 + 0.01, 0), west: mk(d, -Math.PI / 2, -w / 2 - 0.01, 0) };
 }
 
+/** Facade name of the mission's door heading (radians, world) on a box turned `rot`: front (+Z) | back | east | west. */
+function doorSide(p) {
+  if (typeof p.door !== 'number') return 'front';
+  const a = p.door - (p.rot ?? 0), cx = Math.cos(a), cz = Math.sin(a);
+  return Math.abs(cx) > Math.abs(cz) ? (cx > 0 ? 'east' : 'west') : (cz > 0 ? 'front' : 'back');
+}
+
+/**
+ * M8 art pass: the whitewashed domed arcade house (the Tell el Eisa barracks, building-inventory `house_domed_arcade`):
+ * a three-bay arcade in relief on the door facade (pilasters, round arches on imposts, shadowed loggia, the plank door in
+ * the middle bay), a moulded band over it, drain spouts on the parapet and a plastered dome on an octagonal drum over the
+ * corner bay. The dome stands clear of a walkable roof's centre line (the roof guard's beat runs along the long axis).
+ */
+function domedArcade(g, S, f, o) {
+  const { w, d, h, top, side } = o, len = f.len, n = 3, bay = (len - 0.8) / n, ah = Math.min(3.1, h - 0.9), r = bay * 0.3;
+  const trim = dressingMaterial(S.trim), wall = dressingMaterial(S.wall);
+  const dark = new THREE.MeshStandardMaterial({ color: 0x241f19, roughness: 1, name: 'kit:loggia' });
+  const put = (m) => { f.place(m); g.add(m); };
+  for (let k = 0; k <= n; k++) put(tbox(0.42, ah + 0.25, 0.32, wall, -len / 2 + 0.4 + bay * k, (ah + 0.25) / 2, 0.16, 2));          // pilasters
+  for (let k = 0; k < n; k++) {
+    const x = -len / 2 + 0.4 + bay * (k + 0.5), ow = bay - 0.42, spring = ah - ow / 2;
+    const sh = new THREE.Shape(); sh.moveTo(-ow / 2, 0); sh.lineTo(ow / 2, 0); sh.lineTo(ow / 2, spring); sh.absarc(0, spring, ow / 2, 0, Math.PI, false); sh.lineTo(-ow / 2, 0);
+    const rec = mesh(new THREE.ShapeGeometry(sh, 16), dark, false); rec.position.set(x, 0, 0.02); put(rec);                        // shadowed loggia
+    const ring = mesh(new THREE.TorusGeometry(ow / 2 + 0.09, 0.1, 6, 18, Math.PI), trim); ring.position.set(x, spring, 0.28); put(ring); // arch ring
+    for (const s of [-1, 1]) put(tbox(0.5, 0.12, 0.36, trim, x + s * (ow / 2 + 0.05), spring, 0.18, 0.8));                         // imposts
+    if (k === 1 && o.door) doorAt(g, S, (m) => { m.position.z += 0.03; f.place(m); }, x, Math.min(1.25, ow * 0.6), Math.min(2.3, spring + 0.2));
+    else {
+      put(tbox(ow - 0.1, 0.5, 0.06, wall, x, 0.25, 0.05, 2));                                                               // low loggia wall
+      windowAt(g, S, (m) => { m.position.z += 0.04; f.place(m); }, x, Math.min(1.7, spring * 0.62), 0.75, 1.15, true);         // window in the bay
+    }
+  }
+  put(tbox(len + 0.1, 0.16, 0.42, trim, 0, ah + 0.42, 0.2, 1.2));                                                                // band over the arcade
+  for (let x = -len / 2 + 1.2; x < len / 2 - 0.6; x += 2.4) put(tbox(0.16, 0.14, 0.75, dressingMaterial('beam'), x, h + 0.2, 0.37, 0.6)); // spouts
+  if (!o.dome) return;
+  // dome on an octagonal drum over the corner bay (front-left of the arcade side), clear of the roof's long-axis beat
+  const dr = Math.min(1.55, Math.min(w, d) * 0.18), cx = side === 'west' ? -w / 2 + dr + 0.45 : side === 'east' ? w / 2 - dr - 0.45 : 0;
+  const cz = d / 2 - dr - 0.45;
+  const drum = tlathe([[dr + 0.15, 0], [dr + 0.15, 0.7], [dr + 0.22, 0.78], [dr + 0.22, 0.86], [0, 0.86]], 8, wall, 2);
+  drum.position.set(cx, top, cz); g.add(drum);
+  const dome = tlathe(Array.from({ length: 10 }, (_, k) => { const a = (k / 9) * Math.PI / 2; return [Math.cos(a) * dr, 0.86 + Math.sin(a) * dr * 1.05]; }), 22, wall, 2.2);
+  dome.position.set(cx, top, cz); g.add(dome);
+  const fin = tlathe([[0.12, 0], [0.08, 0.25], [0.14, 0.4], [0.03, 0.75], [0, 0.8]], 10, dressingMaterial('castIron'), 1);
+  fin.position.set(cx, top + 0.86 + dr * 1.05 - 0.04, cz); g.add(fin);
+  for (let k = 0; k < 8; k += 2) {                                                                                                  // drum lights
+    const a = (k / 8) * Math.PI * 2 + Math.PI / 8, win = tbox(0.3, 0.42, 0.05, dark, Math.cos(a) * (dr + 0.16), top + 0.36, Math.sin(a) * (dr + 0.16), 1);
+    win.position.x += cx; win.position.z += cz; win.rotation.y = -a + Math.PI / 2; g.add(win);
+  }
+}
+
 // ------------------------------------------------------------------------------------------ houses
 
 /**
@@ -136,6 +185,8 @@ export function buildKitHouse(p, theater = 'temperate') {
   if (floors > 1) for (let f = 1; f < floors; f++) g.add(tbox(w + 0.1, 0.14, d + 0.1, trim, 0, (h / floors) * f, 0, 1.5));
   // windows and the door
   const F = facades(w, d), fh = h / floors;
+  // M8 art pass: the domed arcade house (the Tell el Eisa barracks): its arcade and door face the mission's door side
+  const arcade = /domed_arcade/.test(v) ? doorSide(p) : null, frontDoor = p.door !== false && !arcade;
   // M12 art pass: Tunis medina facades (art/medina-kit.js) on the desert kit houses that ask for it by variant
   const medina = theater === 'desert' && MEDINA_RX.test(v), shops = medina && /souk|shop/.test(v);
   // facade openings (x centre, half width, y span incl. frames / grilles / hoods): medinaFacade keeps its patches off them
@@ -145,7 +196,8 @@ export function buildKitHouse(p, theater = 'temperate') {
     for (let fl = 0; fl < floors; fl++) {
       for (let k = 0; k < n; k++) {
         const x = -f.len / 2 + (f.len / n) * (k + 0.5);
-        if (fl === 0 && name === 'front' && p.door !== false && Math.abs(x) < (n % 2 ? 1.6 : 0.8) + 0.2) continue;
+        if (fl === 0 && name === 'front' && frontDoor && Math.abs(x) < (n % 2 ? 1.6 : 0.8) + 0.2) continue;
+        if (fl === 0 && arcade && (name === arcade || name === 'front')) continue; // the arcades' bays take the ground floor
         if (R() < 0.12 && name !== 'front') continue;
         const wh = Math.min(1.3, fh * 0.42), y = fh * fl + Math.max(1.0, fh * 0.5);
         if (y + wh / 2 > h - 0.25) continue;
@@ -154,7 +206,7 @@ export function buildKitHouse(p, theater = 'temperate') {
         if (medina) { medinaWindow(g, f.place, x, y, 0.7, wh * 0.85, fl, R); holes[name].push({ x, hw: 0.75, y0: y - wh / 2 - 0.4, y1: y + wh / 2 + 0.5 }); }
       }
     }
-    if (name === 'front' && p.door !== false) (medina ? (gg, _S, pl, x, dw, dh) => medinaDoor(gg, pl, x, dw, dh, seed) : doorAt)(g, S, f.place, (n % 2 ? 0 : 0), Math.min(1.2, w * 0.25), Math.min(2.2, h - 0.4));
+    if (name === 'front' && frontDoor) (medina ? (gg, _S, pl, x, dw, dh) => medinaDoor(gg, pl, x, dw, dh, seed) : doorAt)(g, S, f.place, (n % 2 ? 0 : 0), Math.min(1.2, w * 0.25), Math.min(2.2, h - 0.4));
   }
   if (medina) {
     if (p.door !== false) holes.front.push({ x: 0, hw: Math.min(1.2, w * 0.25) / 2 + 0.85, y0: 0, y1: 3.4 });
@@ -211,9 +263,13 @@ export function buildKitHouse(p, theater = 'temperate') {
     for (let x = -w * 0.3; x <= w * 0.3 + 1e-6; x += 0.35) g.add(tbox(0.05, 0.9, 0.05, dressingMaterial('beam'), x, fh * fl + 0.5, d / 2 + 0.88, 0.6));
     g.add(tbox(w * 0.6, 0.07, 0.07, dressingMaterial('beam'), 0, fh * fl + 0.95, d / 2 + 0.88, 0.6));
   }
-  if (/arcade|souk/.test(v) && !medina) {
+  if (/arcade|souk/.test(v) && !medina && !arcade) {
     const n = Math.max(2, Math.floor(w / 3.2)), aw2 = (w - 0.8) / n;
     for (let k = 0; k < n; k++) g.add(tbox(aw2 * 0.7, Math.min(2.8, h * 0.55), 0.05, new THREE.MeshStandardMaterial({ color: 0x15120e, roughness: 1, name: 'kit:recess' }), -w / 2 + 0.4 + aw2 * (k + 0.5), Math.min(2.8, h * 0.55) / 2 + 0.4, d / 2 + 0.03, 1));
+  }
+  if (arcade) {
+    domedArcade(g, S, F[arcade], { w, d, h, top, side: arcade, door: p.door !== false, dome: true });
+    if (arcade !== 'front') domedArcade(g, S, F.front, { w, d, h, top, side: 'front', door: false, dome: false }); // the camera-side face too
   }
   const out = consolidate(g);
   if (medina) out.traverse((o) => { if (o.material?.userData?.noRecv) o.receiveShadow = false; });

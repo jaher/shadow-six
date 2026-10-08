@@ -764,7 +764,11 @@ feat/vehicle-integration stay trivial.
 - **Snow:** with `PROP_SNOW` = 1, wire top pixels are brighter than its bottom; with 0, they are not.
 - **Power:** M3 sparks stop after the switch; the hum source is removed.
 - **Cut:** in m00, a Sapper cuts the fence; the screenshot shows the gap; the pathfinder passes through it.
-- **Perf:** `__game.bench` at M3 zoom 0.5 `high` changes by ≤ 0.3 ms GPU versus the placeholder.
+- **Perf:** `__game.bench` at M3 zoom 0.5 `high` changes by ≤ 0.3 ms GPU versus the placeholder. Measured as the
+  median of 4 ABBA rounds (wire shown, hidden, hidden, shown); when the hidden frames alone spread by more than 1 ms
+  the GPU is shared with other work and the budget is not measurable: the test reports it inconclusive and only fails
+  a gross regression (over 3 ms, or 25 % of the frame when that is more). A single shown / hidden pair swings by
+  ±2 ms on a loaded machine.
 
 Screenshots are reviewed visually at zoom 0.5, 1 and 2 on M2 (snow coping), M3 (electric chain-link, cages) and
 m00 (field fence, cut gap). After the merge they are also reviewed on M8 (desert apron), M10 (belts and cage),

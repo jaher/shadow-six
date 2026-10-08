@@ -88,6 +88,12 @@ VARIANT_HINTS.garage = { garage_brick: ['garage_brick'] };
 VARIANT_HINTS.control_shack = { lock_control_shack: ['lock_control_shack', 'lock_control_shack_b'] };
 VARIANT_HINTS.lock_gate = { sea_lock_gate: ['sea_lock_gate'] };
 Object.assign(VARIANT_HINTS.bunker, { crane_dock_portal: ['crane_pillar'] });
+// Tell el Eisa (M8 art pass, manifest-tell-el-eisa + -bridge): the red-tile adobe row houses (door N / door W builds),
+// the squat riveted water reservoir (with its burst ruin) and the desert timber trestle over the wadi
+Object.assign(VARIANT_HINTS.house, { house_adobe_redtile: ['house_adobe_redtile_n1', 'house_adobe_redtile_n2', 'house_adobe_redtile_n3', 'house_adobe_redtile_w1', 'house_adobe_redtile_w2'] });
+Object.assign(VARIANT_HINTS.fueltank, { water_reservoir_round: ['water_reservoir_round'] });
+Object.assign(VARIANT_HINTS.bridge, { bridge_timber_trestle: ['bridge_timber_trestle'] });
+Object.assign(VARIANT_HINTS.crates, { supply_dump_desert: ['supply_dump_desert_a', 'supply_dump_desert_b'] });
 Object.assign(VARIANT_HINTS.crates, { dock_cargo: ['dock_cargo_a', 'dock_cargo_b', 'dock_cargo_c', 'dock_cargo_d', 'dock_cargo_e', 'dock_cargo_f'], crates_barrels_row: ['dock_cargo_row'],
   boat_on_cradle: ['boat_on_cradle'] });
 

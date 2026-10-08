@@ -39,6 +39,7 @@ function tex(file, srgb) {
 const SETS = {
   rock: ['rock_cliff', 0xb8b4ac, 0x77746d, 1.2],
   rockDark: ['rock_cliff', 0x8c8984, 0x5f5c57, 1.3],   // (lib 'granite' is a log-wall texture)
+  rockOchre: ['rock_cliff', 0xe0c497, 0x9a7a52, 1.3], // M8 art pass: the desert escarpment (warm eroded rock, not dressed sandstone)
   logs: ['timber_grey', 0xc9c2b4, 0x6b6153, 1.0],
   logsTarred: ['timber_tarred', 0xffffff, 0x3c342c, 1.0],
   stone: ['fieldstone_grey', 0xffffff, 0x807b72, 1.2],
@@ -65,6 +66,7 @@ const SETS = {
   fieldstone: ['fieldstone', 0xffffff, 0x7e776c, 1.2],
   logHewn: ['log_hewn', 0xffffff, 0x6e5a43, 1.0],
   beam: ['timber_beam', 0xffffff, 0x5c4a36, 1.0],
+  palmLog: ['palm_log', 0xffffff, 0x6b5640, 1.0],
   door: ['door_planks', 0xffffff, 0x5b4632, 1.0],
   roofTerracotta: ['roof_terracotta', 0xffffff, 0x8c4a32, 1.0],
   roofShingle: ['roof_shingle', 0xffffff, 0x4d463f, 1.0],
@@ -398,6 +400,7 @@ const WALL_KIND = (variant = '', mat = '') => {
   const v = String(variant);
   if (/palisade|stockade|log/.test(v)) return 'palisade';
   if (/medina|mosque/.test(v)) return 'limewash'; // M12 art pass: Tunis lime-washed rubble walls (sandstone coping), not brick
+  if (/ruins_mudbrick/.test(v)) return 'mudbrick'; // M8 art pass: the desert village ruins (ruinedMudWall; also M10's)
   if (/stone|dry|field/.test(v) || mat === 'stone') return 'stone';
   if (mat === 'concrete' || /concrete/.test(v)) return 'concrete';
   return 'brick';
@@ -482,6 +485,7 @@ export function buildWall(points, o) {
     if (/wire/.test(String(o.variant))) root.userData.wireRun = { type: 'coping_bracket', def: { id: o.id, variant: o.variant, type: 'wall', h }, points, coping: { stakes } };
     return root;
   }
+  if (kind === 'mudbrick' && /ruin/.test(String(o.variant))) return ruinedMudWall(points, { ...o, h, width }, R);
   const mat = dressingMaterial(kind);
   for (let k = 0; k + 1 < points.length; k++) {
     const [ax, az] = points[k], [bx, bz] = points[k + 1], L = Math.hypot(bx - ax, bz - az);
@@ -502,6 +506,87 @@ export function buildWall(points, o) {
       const cap = mesh(boxUV(new THREE.BoxGeometry(L + width + 0.2, 0.1, width + 0.3), 2), dressingMaterial('planks'));
       cap.position.set(seg.position.x, h + 0.05, seg.position.z); cap.rotation.y = seg.rotation.y;
       root.add(cap);
+    }
+  }
+  return consolidate(root);
+}
+
+/**
+ * M8 art pass: a ruined mud-brick wall run (the Tell el Eisa plateau village): crumbled, rain-rounded crests about the
+ * gameplay height (never far below it: the wall still blocks sight), the render surviving in patches low down, fallen
+ * bricks slumped along both feet, the odd palm-log beam end left in the wall head.
+ */
+/** One sun-dried mud brick (≈ 34 × 17 × 9 cm, `half` = a broken half): squared, its corners chipped and rounded. */
+function mudBrickGeometry(R, half = 1) {
+  const geo = new THREE.BoxGeometry(0.34 * half, 0.09, 0.17), P = geo.attributes.position, off = new Map();
+  for (let i = 0; i < P.count; i++) {
+    const k = `${Math.sign(P.getX(i))}${Math.sign(P.getY(i))}${Math.sign(P.getZ(i))}`;
+    if (!off.has(k)) off.set(k, [(R() - 0.5) * 0.05, (R() - 0.7) * 0.03, (R() - 0.5) * 0.04]);
+    const o = off.get(k);
+    P.setXYZ(i, P.getX(i) * (1 - Math.abs(o[0]) * 2) + o[0] * 0.3, P.getY(i) + o[1], P.getZ(i) + o[2] * 0.5);
+  }
+  geo.computeVertexNormals();
+  return boxUV(geo, 1.6);
+}
+
+function ruinedMudWall(points, o, R) {
+  const h = o.h, width = o.width, root = new THREE.Group(); root.name = 'dressing:wall:mudbrick_ruin';
+  const brick = dressingMaterial('mudbrick'), render = dressingMaterial('adobe'), palm = dressingMaterial('palmLog');
+  for (let k = 0; k + 1 < points.length; k++) {
+    const [ax, az] = points[k], [bx, bz] = points[k + 1], L = Math.hypot(bx - ax, bz - az);
+    if (L < 1e-3) continue;
+    const rot = -Math.atan2(bz - az, bx - ax), cx = (ax + bx) / 2, cz = (az + bz) / 2, Lw = L + width;
+    const segs = Math.max(4, Math.round(Lw / 0.45));
+    const crest = Array.from({ length: segs + 1 }, () => (R() < 0.25 ? -0.14 - R() * 0.1 : R() * 0.22 - 0.05));
+    for (let i = 1; i < segs; i++) crest[i] = (crest[i - 1] + 2 * crest[i] + crest[i + 1]) / 4;
+    const geo = new THREE.BoxGeometry(Lw, h, width, segs, 2, 1), P = geo.attributes.position;
+    for (let i = 0; i < P.count; i++) {
+      const t = P.getX(i) / Lw + 0.5, y = P.getY(i);
+      if (y > 0) { P.setY(i, h / 2 + h * crest[Math.round(t * segs)]); P.setZ(i, P.getZ(i) * (0.78 + R() * 0.12)); }
+      else if (y > -h / 2 + 1e-3) P.setZ(i, P.getZ(i) * (0.97 + R() * 0.05));
+      if (Math.abs(P.getX(i)) > Lw / 2 - 1e-3 && y > 0) P.setX(i, P.getX(i) * (0.97 - R() * 0.05)); // eroded ends
+    }
+    geo.computeVertexNormals();
+    const wall = mesh(boxUV(geo.toNonIndexed(), 1.6), brick); wall.position.set(cx, h / 2, cz); wall.rotation.y = rot; root.add(wall);
+    const tx = Math.cos(-rot), tz = Math.sin(-rot), nx = -tz, nz = tx;
+    // surviving render: patches on both faces, low down
+    for (let n = 0; n < Math.max(1, Math.round(L / 2.2)); n++) for (const sd of [-1, 1]) {
+      if (R() < 0.3) continue;
+      const pw = 0.6 + R() * 1.4, ph = 0.5 + R() * Math.min(1.1, h * 0.5), u = (R() - 0.5) * (L - pw);
+      const pl = mesh(boxUV(new THREE.BoxGeometry(pw, ph, 0.03), 1.4), render);
+      pl.position.set(cx + tx * u + nx * sd * (width / 2 + 0.005), 0.15 + ph / 2 + R() * 0.3, cz + tz * u + nz * sd * (width / 2 + 0.005));
+      pl.rotation.y = rot; root.add(pl);
+    }
+    // fallen bricks in small heaps along both feet (squared, chipped, some half bricks, a few on edge) and the odd
+    // low slump of washed-down mud
+    for (let n = 0; n < Math.round(L * 1.2); n++) {
+      const sd = R() < 0.5 ? -1 : 1, u = (R() - 0.5) * L, off = width / 2 + 0.12 + R() * 0.45;
+      const hx = cx + tx * u + nx * sd * off, hz = cz + tz * u + nz * sd * off, nb = 2 + Math.floor(R() * 4);
+      for (let q = 0; q < nb; q++) {
+        const b = mesh(mudBrickGeometry(R, R() < 0.3 ? 0.5 : 1), R() < 0.85 ? brick : render);
+        const a = R() * 6.3, rr = R() * 0.32, up = q > 1 && R() < 0.5;
+        b.position.set(hx + Math.cos(a) * rr, 0.045 + (up ? 0.09 : 0) + (q > 2 ? 0.08 : 0), hz + Math.sin(a) * rr);
+        b.rotation.set((R() - 0.5) * 0.5 + (R() < 0.15 ? Math.PI / 2 : 0), R() * 6.3, (R() - 0.5) * 0.4);
+        root.add(b);
+      }
+    }
+    for (let n = 0; n < Math.round(L * 0.35); n++) {
+      const sd = R() < 0.5 ? -1 : 1, u = (R() - 0.5) * L, off = width / 2 + 0.05 + R() * 0.2, s = 0.25 + R() * 0.25;
+      const b = mesh(boulderGeometry(s * 1.6, s * 0.22, s, Math.floor(R() * 1e9), 1), render);
+      b.position.set(cx + tx * u + nx * sd * off, 0.0, cz + tz * u + nz * sd * off); b.rotation.y = rot + (R() - 0.5) * 0.4; root.add(b);
+    }
+    // palm-log joist ends left in the wall head (and an empty socket where one rotted out)
+    const nlog = L > 2 ? Math.min(3, Math.floor(L / 2.2)) : 0;
+    for (let n = 0; n < nlog; n++) {
+      if (R() < 0.35) continue;
+      const u = (n + 0.5) / nlog * (L - 0.8) - (L - 0.8) / 2 + (R() - 0.5) * 0.4, top = h + h * crest[Math.round((u / Lw + 0.5) * segs)];
+      if (top < 1.2) continue;
+      const len = width + 0.5 + R() * 0.4, r0 = 0.1 + R() * 0.03;
+      const lg = mesh(new THREE.CylinderGeometry(r0 * 0.92, r0, len, 8, 1), palm);
+      lg.rotation.set(Math.PI / 2 + (R() - 0.5) * 0.12, 0, (R() - 0.5) * 0.1);
+      const piv = new THREE.Group(); piv.add(lg); piv.rotation.y = rot;
+      piv.position.set(cx + tx * u + nx * (R() - 0.5) * 0.2, top - 0.22 - R() * 0.12, cz + tz * u + nz * (R() - 0.5) * 0.2);
+      root.add(piv);
     }
   }
   return consolidate(root);
@@ -547,6 +632,11 @@ export function buildTent(p) {
 export function buildRuins(p) {
   const w = p.w ?? 4, d = p.d ?? 3, h = p.h ?? 1.2, R = rng(seedOf(p.id ?? `${p.x},${p.z}`));
   const g = new THREE.Group(); g.name = 'dressing:ruins';
+  if (/ruins_mudbrick/.test(String(p.variant ?? ''))) { // M8 art pass: a low ruined mud-brick stub along local X
+    const r = ruinedMudWall([[-w / 2 + Math.min(d, 0.8) / 2, 0], [w / 2 - Math.min(d, 0.8) / 2, 0]], { h, width: Math.min(d, 0.8) }, R);
+    g.add(r);
+    return consolidate(g);
+  }
   if (/wall/.test(String(p.variant ?? ''))) {
     const segs = Math.max(4, Math.round(w / 0.7));
     const geo = new THREE.BoxGeometry(w, h, Math.min(d, 0.7), segs, 1, 1);

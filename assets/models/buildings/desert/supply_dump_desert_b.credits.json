@@ -1,0 +1,67 @@
+{
+ "asset": "supply_dump_desert_b",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "decals_dz": {
+   "source": "procedural (art/desert/scripts/make_decals_dz.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Desert weathering decal atlas (soft organic soot/grime/damp/stains/scorch, alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_dz_rgba",
+     "2k": "2k/decals_dz_rgba"
+    }
+   }
+  },
+  "steel_painted": {
+   "source": "Poly Haven",
+   "id": "rusty_painted_metal",
+   "url": "https://polyhaven.com/a/rusty_painted_metal",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Painted Metal",
+   "label": "Painted riveted steel (bridge grey-green)",
+   "files": {
+    "diff": {
+     "2k": "2k/steel_painted_diff",
+     "1k": "1k/steel_painted_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_painted_nor",
+     "1k": "1k/steel_painted_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_painted_arm",
+     "1k": "1k/steel_painted_arm"
+    }
+   }
+  },
+  "timber_beam": {
+   "source": "Poly Haven",
+   "id": "wood_planks_grey",
+   "url": "https://polyhaven.com/a/wood_planks_grey",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Grey",
+   "label": "Grey structural timber (beams, rafters)",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_beam_diff",
+     "1k": "1k/timber_beam_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_beam_nor",
+     "1k": "1k/timber_beam_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_beam_arm",
+     "1k": "1k/timber_beam_arm"
+    }
+   }
+  }
+ }
+}

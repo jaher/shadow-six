@@ -23,6 +23,7 @@ import { edgeCliffOutlines, inPolygon, crossingSource } from '../world/edge-exte
 import { buildSplat, buildFlatMask, undulation, PALETTES as LAYER_PALETTES } from './terrain/terrain-layers.js';
 import { APRON_MAX_CROSSINGS } from './terrain/terrain-glsl.js';
 import { apronBocage, bankField } from './terrain/bocage.js';
+import { missionCarves } from './terrain/carve.js';
 import { hedgerowPlacements } from './terrain/forest-fill.js';
 import { terrainMaterial, splatTexture, sampleCells, cellSignedDistance, carveDepth, WATER_DEPTH, ICE_DEPTH } from './terrain/terrain.js';
 
@@ -76,7 +77,8 @@ export function apronHeights(f, t, cfg = CONFIG.apron, shore = null, flatLines =
   };
   const own = (x, z, flat = 0) => {
     let y = undulation(t.src, x, z, t.seed) * (1 - flat) * (1 - mask(x + A, z + A))
-      + (t.bank ? t.bank(x, z) : 0); // + bocage earth banks (bocage.js)
+      + (t.bank ? t.bank(x, z) : 0) // + bocage earth banks (bocage.js)
+      + (t.dry ? t.dry(x, z) : 0); // + dry wadis crossing the edge, at their edge depth (terrain/carve.js)
     let sdW = wet(x + A, z + A);
     const q = quays.length && sdW > -2.5 ? quayAt(x, z) : null;
     if (q && q.e >= -q.ww) return y; // under the quay wall or behind it: no bank
@@ -318,7 +320,8 @@ export function createApron(R, parent, t, grid, mission, theater, o = {}) {
   const f = o.field || buildApronField(grid, mission);
   // bocage past the edges (Normandy / Belgium / Germany farmland): hedges on raised earth banks with bare soil flanks
   const boc = apronBocage(f, mission), bank = bankField(boc.banks);
-  const H = apronHeights(f, bank ? { ...t, bank } : t, CONFIG.apron, o.shore || null, o.flatLines);
+  const dry = missionCarves(mission);
+  const H = apronHeights(f, bank || dry ? { ...t, ...(bank ? { bank } : {}), ...(dry ? { dry: dry.at } : {}) } : t, CONFIG.apron, o.shore || null, o.flatLines);
   // roads that leave the map (art/terrain.js edgeCrossings): their paint and wheel ruts carry on along the road,
   // repeated from the map's last metres (world/edge-extend.js crossingSource) instead of stopping on the edge line
   const X = (o.crossings || []).slice(0, APRON_MAX_CROSSINGS), period = CONFIG.apron.rutPeriod;

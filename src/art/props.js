@@ -15,6 +15,7 @@
  * @module art/props
  */
 
+import { makeClothesline } from './clothesline.js';
 import * as THREE from 'three';
 import { getMaterial } from './materials.js';
 import { CONFIG } from '../config.js';
@@ -123,6 +124,19 @@ function placed(x, z, rot) {
 
 const pts2 = (points) => points.map((p) => (Array.isArray(p) ? p : [p.x, p.z]));
 
+/** M8 art pass: a `clothesline_sheets` wall (a sight screen of washing): posts, line and sheets / blankets per segment. */
+function clotheslineRun(points) {
+  const g = new THREE.Group(); g.name = 'kit:clothesline_run';
+  for (let k = 0; k + 1 < points.length; k++) {
+    const [ax, az] = points[k], [bx, bz] = points[k + 1], L = Math.hypot(bx - ax, bz - az);
+    if (L < 0.5) continue;
+    const c = makeClothesline({ uniform: false, sheets: true, span: L });
+    c.position.set((ax + bx) / 2, 0, (az + bz) / 2); c.rotation.y = -Math.atan2(bz - az, bx - ax);
+    g.add(c);
+  }
+  return g;
+}
+
 /** Build a linear prop mesh: one stretched box (or flat strip) per segment + joints. */
 function buildLinear(type, p, def, ctx = {}) {
   const points = pts2(p.points || [[p.x ?? 0, p.z ?? 0], [(p.x ?? 0) + (p.w ?? 4), p.z ?? 0]]);
@@ -135,7 +149,8 @@ function buildLinear(type, p, def, ctx = {}) {
   const root = ground ? (type === 'rail_track' ? buildRailTrack(points, { width, rusty: /rust|mine|siding/.test(String(p.variant ?? '')) })
     : type === 'trench' ? buildTrench(points, { width, theater: ctx.theater, id: p.id ?? `trench@${points[0]}`, ruined: /ruin/.test(String(p.variant ?? '')) })
       : new THREE.Group())
-    : dressed ? buildWall(points, { variant: p.variant, mat: p.mat || def.mat, h, width, id: p.id, walkways: p.walkways }) : new THREE.Group();
+    : dressed && type === 'wall' && /clothesline/.test(String(p.variant ?? '')) ? clotheslineRun(points)
+      : dressed ? buildWall(points, { variant: p.variant, mat: p.mat || def.mat, h, width, id: p.id, walkways: p.walkways }) : new THREE.Group();
   // barbed wire (art/wire-obstacles.js): the map's wire layer draws this run; the footprints below are unchanged
   const wire = (type === 'fence' || type === 'wall') && dressingOn(ctx) ? wireTypeOf({ ...p, type, h }, ctx) : null;
   let dressedFence = false;

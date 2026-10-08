@@ -57,7 +57,7 @@ export function rampWalkways(a, b, width, steps) {
 // ------------------------------------------------------------------ visuals (browser only)
 
 /** Old flat colours of the prisms → [top, side] texture sets (art/dressing.js). */
-const PRISM_SETS = { 0x7d6a4c: ['sand', 'sandstone'], default: ['sand', 'sandstone'] };
+const PRISM_SETS = { 0x7d6a4c: ['sand', 'rockOchre'], default: ['sand', 'rockOchre'] }; // art pass: an eroded rock face, not ashlar
 
 function prism(points, h, top, side) {
   // placeholder-art pass: textured escarpment (art/kit-terrain.js), same shape and height as the walk surface
@@ -67,7 +67,7 @@ function prism(points, h, top, side) {
 
 /** A sloped road slab from a → b (x, z, y), `width` wide. */
 function rampMesh(a, b, width, color) {
-  return terrainRamp(a, b, width, { top: 'gravel', side: 'sandstone' }); // placeholder-art pass (art/kit-terrain.js)
+  return terrainRamp(a, b, width, { top: 'gravel', side: 'rockOchre' }); // placeholder-art pass (art/kit-terrain.js)
 }
 
 /** Plateau prism, ramps and wadi beds; plateau props lifted to PLATEAU_Y; placeholder cliff meshes hidden. */

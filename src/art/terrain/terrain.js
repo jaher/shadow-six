@@ -4,6 +4,7 @@
  * per-material deformable trails, 3D instanced grass + clutter, snow glints/sastrugi/falling snow, icy edges.
  * @module terrain-b/terrain
  */
+import { missionCarves } from './carve.js';
 import * as THREE from 'three';
 import { PALETTES, buildSplat, splatAt, undulation } from './terrain-layers.js';
 import { COMMON, VERT_PARS, VERT_MAIN, VERT_WORLD, FRAG_MAIN, FRAG_ROUGH, FRAG_NORMAL, FRAG_EMIS, FRAG_AO, APRON_TRAIL, APRON_FLAT } from './terrain-glsl.js';
@@ -310,7 +311,9 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
   if (scrubPlan) mound = nebkhaField(scrubPlan, { x: windDir.x, y: windDir.y });
   // the nebkha mounds are part of the heightfield: key the cached geometry by the plan's mounds
   const moundKey = scrubPlan ? dataKey((h) => { for (const p of scrubPlan) { h.num(p.x); h.num(p.z); h.num(p.s); h.num(p.mound); } }) : '-';
-  const geoKey = `terrain:height:${gridKey}:${W}:${D}:${seg}:${src}:${opts.seed || 7}:${frozen}:${opts.flatMask ? dataKey((h) => h.floats(opts.flatMask)) : '-'}:${moundKey}:${windDir.x.toFixed(4)}:${windDir.y.toFixed(4)}`;
+  // dry wadis / gullies cut into the heightfield (art/terrain/carve.js, mission `carves`)
+  const dryCarve = missionCarves(opts.mission || null);
+  const geoKey = `terrain:height:${gridKey}:${W}:${D}:${seg}:${src}:${opts.seed || 7}:${frozen}:${dryCarve ? dataKey((h) => h.str(dryCarve.key)) : '-'}:${opts.flatMask ? dataKey((h) => h.floats(opts.flatMask)) : '-'}:${moundKey}:${windDir.x.toFixed(4)}:${windDir.y.toFixed(4)}`;
   const { geo, hgt } = cache.memo(geoKey, () => {
     const geo = new THREE.PlaneGeometry(W, D, sx, sz);
     geo.rotateX(-Math.PI / 2);
@@ -329,6 +332,7 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
         const carved = frozen ? wmin + y * 0.02 : Math.min(y * 0.3, 0) + wmin; // flat ice sheet / carved bed
         y = y * (1 - w) + carved * w;
       }
+      if (dryCarve) y += dryCarve.at(x, z);
       hgt[v] = y;
       pos.setY(v, y);
     }

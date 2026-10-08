@@ -65,9 +65,9 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `house_norse_fishing` | house | Dark-tarred and red-painted Norwegian coastal houses, some with boat-shed annexes | Norway coast | M7 (E village) | E; the village barracks is D, B | 9×6×7 | VAR:norway |
 | `house_bombed_log` | ruins | Roofless, bombed-out 2-storey log house. **Interior** needed: floors, chequer-tile floor, white interior stairs, interior ladder, grandfather clock, round log corner turret, exterior stairs, a C broken wall | Norway | **M6 (×2)** | E, C, L | 16×12×8 | VAR:europe (ruined houses) |
 | `house_whitewash_flat` | flat_roof_house | Whitewashed flat-roof house with parapet | N. Africa | M8, M9, M11 | E, R | 8×7×4 | desert |
-| `house_adobe_redtile` | house | Adobe row house with a red-tile pent roof | N. Africa | M8 (×6) | E | 6×5×4 | VAR:desert |
+| `house_adobe_redtile` | house | Adobe row house with a red-tile pent roof | N. Africa | M8 (×6) | E | 6×5×4 | BUILT (M8 pass: five builds `house_adobe_redtile_n1`-`_n3` door N, `_w1` / `_w2` door W, door centred; awning / annex + stair / lean-to / dovecote / water-jar stand on the S and E faces) |
 | `house_stone_pitched` | house | Stone house with a pitched roof, desert village | N. Africa | M9 | E | 7×6×5 | VAR:desert |
-| `house_domed_arcade` | house | White domed house with an arcaded courtyard and flag | N. Africa | M8 (the "whitewashed domed barracks") | E, D | 14×12×7 | VAR:desert |
+| `house_domed_arcade` | house | White domed house with an arcaded courtyard and flag | N. Africa | M8 (the "whitewashed domed barracks") | E, D | 14×12×7 | KIT (M8 pass: art/kit-buildings.js `domedArcade`, walkable terrace kept) |
 | `medina_block` | flat_roof_house | Dense medina block: 2-4 storeys, white or ochre render, parapets, roof terraces, **roof ladders, exterior stairs, arched balconies, pergolas**, small green-tiled **qubba** roof domes. Continuous rooftop routes | Tunis | M12 | E, R, L | 10-20 × 10-20 × 7-14 | VAR:desert |
 | `souk_arcade` | new | Arcaded souk colonnade with shopfronts | Tunis | M12 | — | 30×6×6 | kit + medina-kit (M12 art pass) |
 | `palace_tiled_domes` | new | Palace with a tiled facade and green domes | Tunis | M12 | E, R | 25×20×12 | kit + medina-kit (M12 art pass) |
@@ -178,7 +178,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `fuel_tank_elevated` | fueltank | Twin cylinder tanks on a raised frame, with a ladder and an **oil valve** (spills oil to be ignited) | Alsace | M17 [img] | D, L, dr | 5×3×6 | NEW |
 | `fuel_tank_pushable` | fueltank | Wheeled fuel bowser that can be pushed (`DEPOSEMP`) | Germany | B6 (×4) | D | 5×2×2.5 | NEW |
 | `oil_tanks_vertical` | fueltank | White vertical process tanks with pipework (`TUBO`) | N. Africa | M11 (2 clusters at the rigs) | D | 5 Ø × 7 | NEW |
-| `water_reservoir_round` | new | Squat riveted round water reservoir on a low base | N. Africa | M8 (**objective**) [img] | **D** | 10 Ø × 6 | NEW |
+| `water_reservoir_round` | new | Squat riveted round water reservoir on a low base | N. Africa | M8 (**objective**) [img] | **D** | 10 Ø × 6 | BUILT (M8 pass, + burst `_destroyed`) |
 | `water_tower_legs` | new | Tank on a lattice or timber-leg tower | Desert/Germany | M11 (SW camp), B7 (timber, in the yard), M19 (small cylindrical tank at the mine) | D [inf] | 4 Ø × 10 | NEW |
 | `windpump` | new | Lattice windmill water pump | N. Africa | M10 (in the compound; A mistook it for a radio mast), M11 | — | 3×3×9 | NEW |
 | `drilling_rig` | drilling_rig | Lattice pyramidal oil derrick on a pump skid | N. Africa | M11 (×4, **objective**) | **D** | 6×6×25 | desert |
@@ -237,7 +237,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | id | base | Description, style, materials | Theater | Missions | Flags | Size (m) | Status |
 |---|---|---|---|---|---|---|---|
 | `bridge_stone_arch` | bridge | Stone arch bridge with 1, 3 or 5 arches | Europe | M15 (E and W canal bridges) [txt]; generic | — | 10-50 long | bridges |
-| `bridge_timber_trestle` | bridge | Timber plank trestle road bridge | All | **M8** (over the N-S wadi; the extraction point; a Gatling guards it). The critic's image check shows timber, not stone. Also B3 (gorge), B7 (road bridge, bridge house `CASA_PUENTE`) | — | 20×5 | bridges |
+| `bridge_timber_trestle` | bridge | Timber plank trestle road bridge | All | **M8** (over the N-S wadi; the extraction point; a Gatling guards it). The critic's image check shows timber, not stone. Also B3 (gorge), B7 (road bridge, bridge house `CASA_PUENTE`) | — | 20×5 | BUILT (M8 pass: desert trestle, 19 m, over the carved wadi) |
 | `bridge_timber_deck_long` | bridge | Long timber-deck road bridge with railings on piles over a wide river | Alsace | M17 (main river, N side) [img, critic] | — | 60×5 | VAR:bridges |
 | `rail_trestle_timber` | rail_bridge | Tall timber trestle railroad bridge over a gorge; ladder on a pier; a steam train crosses | Norway | M4 | L | 80×5×30 | bridges |
 | `rail_bridge_mine_low` | rail_bridge | Low, long mine-rail trestle over a fast river; the only bridge on the map | Germany | M19 | — | 40×3×3 | VAR:bridges |
@@ -297,7 +297,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `wall_drystone_leanto` | wall | Low dry-stone wall with a plank lean-to roof; guards stand in its shadow; it ends in a sentry box | M1 | VAR:europe (garden walls) |
 | `wall_stone_zigzag` | wall | Long zigzag stone wall that splits the alarm zones, with a timber gateway and dockyard gate | M7 | VAR:military |
 | `wall_ruined_stone` | ruins | Ruined stone wall, including arched gateways | M3 (start), M4 (arch at the camp entrance), M11 (ridge) | VAR:europe |
-| `ruins_mudbrick` | ruins | Mud-brick ruins used as cover | M8 (N plateau), M10, M11 | VAR:desert |
+| `ruins_mudbrick` | ruins | Mud-brick ruins used as cover | M8 (N plateau), M10, M11 | KIT (M8 pass: art/dressing.js `ruinedMudWall`) |
 | `wall_field_stone` | wall | Stone field walls and terraces | B3, B6 | europe |
 | `fence_picket_timber` | fence | Timber picket fence with openings | M2, M16/M18, B5, B8 | europe |
 | `wall_timber` | wall | Wooden walls | B5 | VAR |

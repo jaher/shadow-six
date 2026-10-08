@@ -810,6 +810,9 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   (`stampWorld`), and `world.ai.footprints.tracksNear(x,z,r)` annotates AI prints with `printVisibility` (§4.8).
   Real path: `water: null` (`ctx.ownWater`) — the water system below owns the surface; river banks are carved
   from a bilinear signed distance to the wet cells (`cellSignedDistance`/`carveDepth`, edge cells smoothed, no 0.5 m staircase).
+  Dry carves (`src/art/terrain/carve.js`, mission `carves: [{points, depth, bank}]`, M8's wadi): the heightfield and the
+  apron (`t.dry`, the edge depth carried off-map) sink inside the outline with eroded banks, and a splat painter lays rock
+  banks and a gravel bed. Visual only — the outline must lie in non-walkable or bridged cells.
 - **Barbed wire** (`src/art/barbed-wire.js` strand primitive + `src/art/wire-obstacles.js` recipes / layer,
   docs/barbed-wire.md): `props.js` tags every wire `fence` run (and wire-coped walls) with `userData.wireRun` instead of
   drawing boxes (footprints unchanged), `dressing.js` records the palisade stake tops for the coping; map-builder builds

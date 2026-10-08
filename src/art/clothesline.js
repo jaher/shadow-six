@@ -77,6 +77,21 @@ export const GARMENTS = {
     g.fillStyle = '#cfc7b3'; g.fillRect(0, 0, W, H);
     g.fillStyle = '#7a5040'; g.fillRect(0, H * 0.08, W, H * 0.04); g.fillRect(0, H * 0.88, W, H * 0.04);
   } },
+  // M8 art pass (the depot's washing line, K's "curtain" that blocks sight): bed sheets, a striped blanket, a galabiya
+  sheet: { w: 1.05, h: 1.5, col: '#e4dfd2', density: 2.2, pegs: true, flutter: 0.2, draw(g, W, H) {
+    g.fillStyle = '#e4dfd2'; g.fillRect(0, 0, W, H);
+    g.fillStyle = 'rgba(160,150,128,0.35)'; g.fillRect(0, H * 0.94, W, H * 0.06); // dust-dulled hem
+    g.strokeStyle = 'rgba(150,140,120,0.35)'; g.lineWidth = 2; g.beginPath(); g.moveTo(W * 0.5, 0); g.lineTo(W * 0.52, H); g.stroke(); // fold crease
+  } },
+  blanket: { w: 0.95, h: 1.35, col: '#8a5a3a', density: 3.0, pegs: true, flutter: 0.15, draw(g, W, H) {
+    g.fillStyle = '#9a6a44'; g.fillRect(0, 0, W, H);
+    for (const [y, c] of [[0.1, '#3c3a50'], [0.16, '#d9c9a4'], [0.8, '#d9c9a4'], [0.86, '#3c3a50']]) { g.fillStyle = c; g.fillRect(0, H * y, W, H * 0.04); }
+  } },
+  galabiya: { w: 0.7, h: 1.3, col: '#b9c3c4', density: 1.6, flutter: 0.3, draw(g, W, H) {
+    g.fillStyle = '#b9c3c4';
+    g.beginPath(); g.moveTo(0, 0); g.lineTo(W, 0); g.lineTo(W, H * 0.3); g.lineTo(W * 0.8, H * 0.32); g.lineTo(W * 0.86, H);
+    g.lineTo(W * 0.14, H); g.lineTo(W * 0.2, H * 0.32); g.lineTo(0, H * 0.3); g.closePath(); g.fill();
+  } },
 };
 /** Particle grid of a garment (columns × rows; PlaneGeometry order: row-major from the top row). */
 export const GRID = Object.freeze({ nx: 7, ny: 9 });
@@ -108,9 +123,10 @@ export function makeGarment(kind, x = 0, sag = 0) {
   mesh.customDepthMaterial = d;
   mesh.castShadow = true; mesh.receiveShadow = true;
   mesh.name = 'laundry_' + kind;
-  const pegs = new Set(PEGS);
-  const cloth = new VerletCloth(geo.attributes, { nx, ny, pinned: (i, j) => j === 0 && pegs.has(i), density: G.density, damping: 0.02, flutter: 0.5 });
-  mesh.userData.cloth = cloth; mesh.userData.kind = kind; mesh.userData.pegs = PEGS.map((i) => i);
+  const pegList = G.pegs ? Array.from({ length: nx }, (_, i) => i) : PEGS; // sheets: pegged along the whole hem
+  const pegs = new Set(pegList);
+  const cloth = new VerletCloth(geo.attributes, { nx, ny, pinned: (i, j) => j === 0 && pegs.has(i), density: G.density, damping: 0.02, flutter: G.flutter ?? 0.5 }); // (heavy cotton sheets hang, they do not fly)
+  mesh.userData.cloth = cloth; mesh.userData.kind = kind; mesh.userData.pegs = pegList.map((i) => i);
   return mesh;
 }
 
@@ -191,12 +207,14 @@ export function hangCap(cap, x) {
 }
 
 /**
- * @param {{uniform?:boolean, span?:number, seed?:number}} [o] span: post spacing (m)
+ * @param {{uniform?:boolean, sheets?:boolean, span?:number, seed?:number}} [o] span: post spacing (m); sheets: a line of
+ *   sheets and blankets (no uniform)
  * @returns {THREE.Group} line along local X, posts at ±span/2; child 'clothesline_uniform' holds the uniform
  *   ('laundry_tunic', 'laundry_trousers' cloths and 'laundry_cap')
  */
 export function makeClothesline(o = {}) {
-  const span = o.span ?? LAUNDRY.span, H = LAUNDRY.H, g = new THREE.Group();
+  const span = o.span ?? LAUNDRY.span, H = o.sheets ? 2.0 : LAUNDRY.H, g = new THREE.Group();
+  const lineAt = (x) => H - 0.05 - sagAt(x, span); // = lineY(x, span) at the standard height
   g.name = 'clothesline';
   for (const sx of [-1, 1]) {
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, H + 0.1, 6), _wood());
@@ -206,17 +224,17 @@ export function makeClothesline(o = {}) {
     g.add(post, bar);
   }
   const pts = [];
-  for (let k = 0; k <= 12; k++) { const x = -span / 2 + (span * k) / 12; pts.push(new THREE.Vector3(x, lineY(x, span), 0)); }
+  for (let k = 0; k <= 12; k++) { const x = -span / 2 + (span * k) / 12; pts.push(new THREE.Vector3(x, lineAt(x), 0)); }
   const line = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.006, 4), _rope());
   line.name = 'clothesline_rope';
   g.add(line);
   const pegAt = [];
   const hang = (kind, x, parent) => {
     const m = garment(kind, x, 0);
-    m.position.y = lineY(x, span);
+    m.position.y = lineAt(x);
     parent.add(m);
     const G = GARMENTS[kind];
-    for (const i of PEGS) { const px = x - G.w / 2 + (G.w * i) / (GRID.nx - 1); pegAt.push([px, lineY(px, span)]); }
+    for (const i of m.userData.pegs) { const px = x - G.w / 2 + (G.w * i) / (GRID.nx - 1); pegAt.push([px, lineAt(px)]); }
     return m;
   };
   const uni = new THREE.Group(); uni.name = 'clothesline_uniform';
@@ -224,10 +242,14 @@ export function makeClothesline(o = {}) {
     hang('tunic', LAUNDRY.tunic, uni); hang('trousers', LAUNDRY.trousers, uni);
     const cap = hangCap(makeOfficerCap(), LAUNDRY.cap); cap.name = 'laundry_cap';
     uni.add(cap);
-    pegAt.push([LAUNDRY.cap, lineY(LAUNDRY.cap, span)]);
+    pegAt.push([LAUNDRY.cap, lineAt(LAUNDRY.cap)]);
   }
   g.add(uni);
-  hang('towel', LAUNDRY.towel, g); hang('shirt', LAUNDRY.shirt, g);
+  if (o.sheets) { // a full line of sheets and blankets edge to edge (a sight screen)
+    const kinds = ['sheet', 'blanket', 'sheet', 'galabiya', 'sheet'];
+    let x = -span / 2 + 0.15, k = 0;
+    while (x < span / 2 - 0.4) { const kind = kinds[k++ % kinds.length], w = GARMENTS[kind].w; hang(kind, Math.min(x + w / 2, span / 2 - w / 2 - 0.1), g); x += w + 0.06; }
+  } else { hang('towel', LAUNDRY.towel, g); hang('shirt', LAUNDRY.shirt, g); }
   g.add(pegMesh(pegAt));
   return g;
 }

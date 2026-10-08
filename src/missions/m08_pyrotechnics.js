@@ -41,6 +41,14 @@ const WADI_N = [[79, 0], [96, 0], [95, 30.2], [79, 30.2]];
 const WADI_MID = [[78.6, 35.8], [95.6, 35.8], [96, 37], [97, 50], [99, 60], [97, 66], [92, 62], [85, 55], [80, 40], [78, 37]];
 /** T7 the SE wadi round the depot's E side (±5 m about (88,58) (84,70) (78,82) (70,93) (62,105)). */
 const WADI_SE = [[84, 56], [79.5, 69], [74, 80], [66, 90], [57, 105], [67, 105], [74, 96], [82, 84], [88.5, 71], [92, 60]];
+/**
+ * Art pass: the wadi system as ONE carved outline (art/terrain/carve.js; visual only, inside the ravine cells above and
+ * under the bridge deck): the N gully, the stretch under the trestle, its bend and the SE arm to the S edge. One
+ * outline (the union of WADI_N / WADI_MID / WADI_SE and the deck), so the joins carry no ridge; 2.6 m deep (the
+ * trestle's bents stand on the bed). The rim starts 0.5 m inside it (`inset`): no walkable cell sinks.
+ */
+const WADI_CARVE = [[79, 0], [96, 0], [95, 30.2], [95.6, 35.8], [96, 37], [97, 50], [99, 60], [97, 66], [91.52, 61.52], [88.5, 71], [82, 84],
+  [74, 96], [67, 105], [57, 105], [66, 90], [74, 80], [79.5, 69], [84, 56], [88, 58], [85, 55], [80, 40], [78, 37], [78.6, 35.8], [79, 30.2]];
 /** T8 the terrace drop S of the camp (map-edge scenery). */
 const DROP_S = [[0, 98], [12, 96.5], [20, 103], [30, 98], [41, 94], [70, 93], [74, 96], [74, 105], [0, 105]];
 
@@ -107,7 +115,10 @@ const tankLadder = (id, cx, cz, foot, head) => {
   return { id, x, z, y: 0, top: [...tankPt(cx, cz, head), TANK_DECK_Y], raised: false, heading: deg(270 + TANK_ROT) };
 };
 
-const house = (id, x, z, door) => ({ id, type: 'house', variant: 'house_adobe_redtile', x, z, rot: 0, w: 6, d: 5, h: 4, mat: 'plaster', enterable: true, door: deg(door) });
+// art pass: each hideout its own library build (`build` n1-n3 door N, w1-w2 door W), the plank door centred on the
+// hideout's door side where doorPoint() stands; the yard life (awning, annex, dovecote, lean-to ...) on the S / E faces
+const house = (id, x, z, door, build) => ({ id, type: 'house', variant: 'house_adobe_redtile', asset: `house_adobe_redtile_${build}`,
+  x, z, rot: 0, w: 6, d: 5, h: 4, mat: 'plaster', enterable: true, door: deg(door) });
 const tent = (id, x, z) => ({ id, type: 'tent', variant: 'tent_pyramid_desert', x, z, rot: 0, w: 5, d: 5, h: 3 });
 const hedgehog = (id, x, z) => ({ id, type: 'crates', variant: 'czech_hedgehog', x, z, rot: deg(45), w: 1.4, d: 1.4, h: 1.2, block: 1 });
 const wire = (id, points) => ({ id, type: 'fence', variant: 'wire_on_stakes', points, h: 1.2 });
@@ -145,7 +156,8 @@ const STRUCTURES = [
     destructible: true, destroyedBy: ['explosion'], hp: 100 },
   // --- the south: tents, the five houses (hideouts), the clothesline, the SW pillbox (garrison B)
   tent('tent_w', 9, 78), tent('tent_e', 17.5, 74.5),
-  house('house_1', 25, 86, 270), house('house_2', 28.7, 82, 270), house('house_3', 33.6, 78.5, 270), house('house_4', 42.7, 78, 180), house('house_5', 46.5, 83, 180),
+  house('house_1', 25, 86, 270, 'n1'), house('house_2', 28.7, 82, 270, 'n2'), house('house_3', 33.6, 78.5, 270, 'n3'), house('house_4', 42.7, 78, 180, 'w1'),
+  house('house_5', 46.5, 83, 180, 'w2'),
   { id: 'clothesline', type: 'wall', variant: 'clothesline_sheets', mat: 'canvas', points: [[33.3, 88.5], [37.3, 88.5]], h: 2, width: 0.3 },
   { id: 'bunker_sw', type: 'bunker', variant: 'pillbox_round', label: 'Pillbox', x: 11.5, z: 92, rot: 0, w: 11, d: 6, h: 3, mat: 'concrete', flag: true, garrison: true, door: deg(270) },
   { id: 'crates_sw', type: 'crates', x: 3.5, z: 92.5, rot: 0, w: 1.5, d: 1.2, h: 1, block: 1 },
@@ -216,8 +228,34 @@ const A1_LOOP = [P(14, 29), P(30, 24.5), P(50, 20), P(60, 18.5), P(50, 20), P(30
 const A2_LOOP = [P(38, 66), P(56, 64), P(66, 58), P(60, 44), P(40, 50), P(24, 66), P(38, 66)];
 const B1_LOOP = [P(20, 82), P(32, 91), P(48, 88), P(46, 70), P(22, 70), P(12, 84), P(20, 82)];
 
-/** Plateau structures and drums lifted to y 4 by the script (meshes; drum entities). */
-const LIFT = [...RUINS, GUN_PARAPET, WIRE_GUN, ...PLATEAU_DRUMS].map((s) => s.id);
+// ---------------------------------------------------------------- art pass: set dressing (clear of every route,
+// cone, chain distance and the §11 solution spots; the furniture is visual only, block false)
+/** Afrika Korps field supply dumps (jerrycan pallets, crates) and a parked Opel Blitz fuel tanker in the depot's free
+ * E yard and by the W tents; an old well in the plateau village. */
+const DRESSING = [
+  { id: 'dump_e1', type: 'crates', variant: 'supply_dump_desert', asset: 'supply_dump_desert_b', label: 'Supplies', x: 75.8, z: 61, rot: deg(90), w: 3.2, d: 1.4, h: 1.2, block: 2 },
+  { id: 'dump_w1', type: 'crates', variant: 'supply_dump_desert', asset: 'supply_dump_desert_a', label: 'Supplies', x: 2.5, z: 71.6, rot: 0, w: 2.6, d: 1.6, h: 1.4, block: 2 },
+  { id: 'tanker_e', type: 'crates', variant: 'truck_parked', label: 'Fuel truck', x: 73.2, z: 53.5, rot: deg(90), w: 7.4, d: 2.4, h: 2.6, block: 2, vehicleArt: 'opel_blitz_tanker' },
+  { id: 'well_p', type: 'well', variant: 'well_desert', x: 31, z: 3.1, r: 0.8, h: 0.9, block: 1 },
+];
+/** Concrete standings under the two tank blocks (visual only: grid false keeps the yard's sand codes). */
+const tankPad = (cx, cz, w, d) => [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sz]) => tankPt(cx, cz, [cx + sx * (w / 2 + 0.8), cz + sz * (d / 2 + 0.8)]));
+const PAVEMENTS = [
+  { id: 'pad_tank_b', surface: 'concrete', points: tankPad(58.5, 72.5, 9, 7), wear: 0.8, cracks: 0.5, weeds: 0.05, puddles: 0, grid: false },
+  { id: 'pad_tank_a', surface: 'concrete', points: tankPad(67.7, 65.5, 8.5, 6.3), wear: 0.8, cracks: 0.5, weeds: 0.05, puddles: 0, grid: false },
+];
+const FURNITURE = [
+  { type: 'telegraph', points: [[14, 48.5], [30, 42.2], [48, 38.2], [64, 36.6], [76, 36.6]], spacing: 12, h: 6.5, wires: 2, block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 21, z: 50.5, rot: deg(-90), text: 'BETRIEBSSTOFF-\nLAGER', block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 36.5, z: 49.2, rot: deg(-90), text: 'RAUCHEN\nVERBOTEN!', block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 75.6, z: 44, rot: deg(-90), text: 'TRINKWASSER', block: false },
+  { type: 'floodlight', x: 24.5, z: 67.5, rot: deg(-45), block: false },
+  { type: 'floodlight', x: 63, z: 58.5, rot: deg(-90), block: false },
+  { type: 'floodlight', x: 52, z: 88, rot: deg(-120), block: false },
+];
+
+/** Plateau structures and drums lifted to y 4 by the script (meshes; drum entities); the village well too. */
+const LIFT = [...RUINS, GUN_PARAPET, WIRE_GUN, ...PLATEAU_DRUMS, DRESSING[3]].map((s) => s.id);
 
 // ---------------------------------------------------------------- barbed wire (docs/barbed-wire.md §12)
 /** The M4–M20 wire pass: see-through, uncrossable (B.FENCE) runs added where the wire belongs; none crosses a route
@@ -268,7 +306,11 @@ export default {
     { type: 'path', terrain: 'road', points: [[72, 29], [69, 22], [66.2, 17.4]], width: 3 },
   ],
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
-  structures: joinStructures([...STRUCTURES, ...WIRE_PASS], [['house_1', 'house_2'], ['house_2', 'house_3'], ['house_4', 'house_5']]),
+  // art pass: the dry wadi cut 2.6 m into the terrain (visual only: its cells are ravine / bridge deck)
+  carves: [{ id: 'wadi', points: WADI_CARVE, depth: 2.6, bank: 1.7, inset: 0.5 }],
+  pavements: PAVEMENTS,
+  furniture: FURNITURE,
+  structures: joinStructures([...STRUCTURES, ...WIRE_PASS, ...DRESSING], [['house_1', 'house_2'], ['house_2', 'house_3'], ['house_4', 'house_5'], ['rw11', 'rw12']]), // rw12's stub abuts rw11 (a T in the ruins)
   items: [],
   interactables: [],
   vehicles: [
@@ -343,7 +385,7 @@ export default {
   script: m08Script({
     plateau: PLATEAU,
     ramps: [RAMP_W, RAMP_NE],
-    wadis: [WADI_N, WADI_MID, WADI_SE],
+    wadis: [], // art pass: the wadis are carved into the terrain (`carves`), no painted bed
     hide: ['plateau', 'wadi_n', 'wadi_mid', 'wadi_se'],
     lift: LIFT,
     liftVehicles: ['gun210', 'truck_p'],
