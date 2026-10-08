@@ -198,6 +198,27 @@ normally set by the rules).
   visual comes within 0.3 m of its centre (decks too, their ends kept reachable), so a walker on the nearest free cell
   keeps shoulders and boots off a post, a log end or a kerb. The same margin is used by solid devices, knapsacks on the
   ground and idle pushables.
+- **Snow drifts are walked over** (user, 2026-10-07: "Yes reopen it"): the snow the `_snow` library variants pile against
+  their walls (`kit:snow` triangles, `placement-visual` `SNOW_WADE`) lower than 0.6 m is neither a visual nav block, a
+  low part, a standing visual nor part of a solid prop's body; the wall or post under it keeps its own 0.3 m clearance
+  and deeper snow keeps blocking. The feet still ride the drift (low surfaces), and the audit wades too: a knee, an
+  elbow or a wheel in that snow is no clipping (`partsOf(…, { wade })` cuts the static drifts at 0.6 m). This
+  reopened M1's alley between `barr_L_a` and `barr_L_b` (the drums `b1`–`b3` moved 1.5 m N, 1 m E to its E mouth's
+  side), the lane behind M3's `st_barr2` (the RINT squad's authored loop at x 69), M7's `e7` loop between `barr_vil`
+  and `h_5` and `e9`'s yard; no wall or fence end was closed by a drift alone (every enclosure of M1–M7 checked with
+  its gates shut).
+- **Stair foot** (M2 `plat_sw`, found when the reopened camp sent `e10` running up it in the seed-7 audit): the cell in
+  front of the first step lay further out than the 0.3 m kept free round the stair, so the stringers' ends closed it and
+  the only step-on left was beside the rail's foot post — a man coming from the camp side ran through the post (0.10 m).
+  The way onto a stair's foot is kept straight on (0.9 m out, between the stringers) and the cells beside the foot post
+  are walk-only (`access-platform` footprints).
+- **Crawlers go round steps** (found the same way, M1 seed 11: a crawler along `house_s`'s front, the drifts beside its
+  door steps now crawled over, lay across the side of the steps, 0.10 m): the side of a step, a porch or a plinth
+  standing ≥ 0.25 m over open ground as a riser (`stampCrawlSteps` → `grid.crawlStep`, only where the visual nav stamps
+  leave the ground open: a door's steps, kept open for its way) is a solid to a crawler's path (`avoidMask` `prone`),
+  and a man who lies down on a path across one is re-pathed round it (`Unit._crawlRepath`). A man on his feet still
+  steps up onto it; berms and drifts are crawled over; a destroyed structure's steps go with it.
+  M1's alley is walked end to end; a crawler goes round `barr_L_a`'s door steps at its W mouth.
 - **Kerbs and plinths**: the feet stand on the highest low surface within 0.18 m of the body's centre, plus two stride
   rings (0.27 m and 0.36 m) that count lower, less so for a low lip, so a boot steps up onto a kerb, a bridge abutment,
   a drawbridge's boards or a snow skirt instead of pushing into its side. Running, the body rides up over a step 0.6 m

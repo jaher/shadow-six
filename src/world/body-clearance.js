@@ -331,10 +331,12 @@ function stampObstacle(g, mask, R, pad) {
  * Avoid mask for NavGrid paths (grid.isWalkable opts.avoid): 1 on every cell whose centre is closer than
  * `inflate + CELL_SLACK` to a solid obstacle, so every point of a free cell keeps `inflate` from it. The static
  * solids' part is cached per inflation (until one is destroyed); hulls and movers are stamped on a copy.
+ * `prone`: a crawler's path — the steps, porches and plinths he does not lie across (grid.crawlStep, map-builder
+ * stampCrawlSteps) are solids too.
  * @param {object|object[]} [ignore] entities left out (see bodyGap)
  * @returns {Uint8Array|null} null when the world has no solid obstacles
  */
-export function avoidMask(world, inflate, ignore = null) {
+export function avoidMask(world, inflate, ignore = null, prone = false) {
   const g = world?.grid;
   if (!g) return null;
   const pad = inflate + CELL_SLACK;
@@ -348,6 +350,22 @@ export function avoidMask(world, inflate, ignore = null) {
       for (const o of S.list) if (!o.gone) stampObstacle(g, base, o.R, pad);
       S.masks.set(key, base);
     }
+  }
+  if (prone && g.crawlStep) {
+    const C = world._crawlStepMasks?.src === g.crawlStep ? world._crawlStepMasks : (world._crawlStepMasks = { src: g.crawlStep, m: new Map() });
+    const key = `${inflate}|${g.cols}x${g.rows}|${S?.version ?? 0}|${S?.list.length ?? 0}`; // (the solids' part changes when one goes)
+    let steps = C.m.get(key);
+    if (!steps) {
+      steps = base ? base.slice() : new Uint8Array(g.cols * g.rows);
+      const h = g.cell / 2;
+      for (let k = 0; k < g.crawlStep.length; k++) {
+        if (!g.crawlStep[k]) continue;
+        const c = g.cellCenter(k % g.cols, (k / g.cols) | 0);
+        stampObstacle(g, steps, { x: c.x, z: c.z, h: 0, hl: h, hw: h }, pad);
+      }
+      C.m.set(key, steps);
+    }
+    base = steps;
   }
   const dyn = dynamicObstacles(world, ignore);
   if (!dyn.length) return base;

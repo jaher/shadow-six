@@ -51,7 +51,7 @@ import { convexHull } from './placement-geom.js';
 import { gateLayout } from './breakables.js';
 import { categoryOf } from '../debug/clip-rules.js';
 import { setStaticSolids, removeStaticSolids, minAreaRect } from './body-clearance.js';
-import { planHull, planCells, finestMeshes, measureTop, deckField, lowSurfaces, overheadCells, standingCells, dataKey } from './placement-visual.js';
+import { planHull, planCells, finestMeshes, measureTop, deckField, lowSurfaces, overheadCells, standingCells, dataKey, SNOW_WADE } from './placement-visual.js';
 import { applyLibraryNav, libraryDoorPoints, wireLibraryDoors, libraryDecks, calibrateDeck, libraryWaterObstacles } from './map-library.js';
 import '../entities/bcd-interactables.js'; // registers the BCD mechanics' interactable kinds (docs/bcd-plan.md §1.10)
 
@@ -424,8 +424,14 @@ export function stampHeadroom(world, built) {
 
 export function stampVisualNav(world, built, points = []) {
   const grid = world.grid, keep = navKeepPoints(world, built), lanes = new Set();
-  // (a stair's graded run and the step onto it at either end stay open: its hand rails are walk-only footprints)
-  const free = (x, z) => keep.some(([kx, kz, r = 0.9]) => Math.hypot(kx - x, kz - z) < r) || !!(grid.ramps && grid.nearRamp(x, z, 0.3));
+  // (a stair's graded run and the step onto it at either end stay open: its hand rails are walk-only footprints; and
+  // the way onto its foot straight on, between the stringers' ends: 0.9 m out — a cell centre in front of the first
+  // step is further out than the 0.3 m round the run, which left only the step-on beside the rail's foot post, M2 plat_sw)
+  const footLane = (x, z) => grid.ramps.some((r) => {
+    const px = x - r.ax, pz = z - r.az, t = px * r.ux + pz * r.uz;
+    return t >= r.len && t <= r.len + 0.9 && Math.abs(px * r.uz - pz * r.ux) <= r.w / 2 - 0.15;
+  });
+  const free = (x, z) => keep.some(([kx, kz, r = 0.9]) => Math.hypot(kx - x, kz - z) < r) || !!(grid.ramps && (grid.nearRamp(x, z, 0.3) || footLane(x, z)));
   let cells = 0, n = 0;
   // the ways to keep: walkable pieces before the stamps, and the points they join
   const labels0 = walkPieces(grid), stamps = [];
@@ -463,11 +469,12 @@ export function stampVisualNav(world, built, points = []) {
         }
       }
     }
-    const rects = planCells(b.object3d, { minY: 0.3, maxY: 1.8, cell: 0.25, close: deck || cat === 'wall' ? 0 : 3 });
+    // (snow drifts against the walls lower than SNOW_WADE are walked over: neither a body part nor a low part)
+    const rects = planCells(b.object3d, { minY: 0.3, maxY: 1.8, cell: 0.25, close: deck || cat === 'wall' ? 0 : 3, wade: SNOW_WADE });
     if (!rects) continue;
     // low parts (0.12–0.3 m: a ramp's side, a step's face, a plinth, a kerb): the ground beside them keeps the body
     // clearance too (a boot at the end of a stride would kick their face), but not their own tops (walked on)
-    const lowRects = planCells(b.object3d, { minY: 0.12, maxY: 0.3, cell: 0.25, close: 0 }) || [];
+    const lowRects = planCells(b.object3d, { minY: 0.12, maxY: 0.3, cell: 0.25, close: 0, wade: SNOW_WADE }) || [];
     const tops = lowRects.length ? lowSurfaces(b.object3d, { maxY: 0.6, cell: 0.25, flat: 0.8 }) : null;
     const onTop = (x, z) => (tops.get(`${Math.floor(x / 0.25)},${Math.floor(z / 0.25)}`) ?? 0) >= 0.08;
     const deckTops = deck ? lowSurfaces(b.object3d, { maxY: 2.5, cell: 0.25, flat: 0.8 }) : null;
@@ -889,6 +896,57 @@ export function stampTreeBranches(world, root, trees = null) {
  * a bridge railing. Cleared when the structure is destroyed.
  * @returns {{cells: number, off: Function|null}}
  */
+/** A step a crawler does not lie across (m over the ground): the prone body's thickness. */
+export const CRAWL_STEP = 0.25;
+/** …when its side is a riser: this much lower a sample (0.2 m) away. A berm or a ramp rising slower is crawled up. */
+const CRAWL_RISER = 0.2;
+/**
+ * Rule (e) crawlers: the edges of low walkable surfaces of the visuals — a step's side, a porch's edge, a plinth — that
+ * stand at least CRAWL_STEP over the ground and drop as a riser (CRAWL_RISER within a 0.2 m sample) on ground cells
+ * (not a deck, not a raised walk) the visual nav stamps leave open (a door's steps: their way is kept) → grid.crawlStep.
+ * A man on his feet steps up onto it; a crawler's body would lie
+ * into its side (the prone body follows the ground's slope under it, not a 0.6 m stair), so his path keeps his body
+ * clear of it like a solid (world/body-clearance.js avoidMask `prone`). Slopes (a bunker's berm) are crawled over;
+ * snow drifts are no steps (SNOW_WADE: waded through). Found by the clipping audit (M1 seed 11): with the drifts walked
+ * over, a crawler along house_s's front lay across the side of its door steps.
+ * @returns {{cells: number, off: Function|null}}
+ */
+export function stampCrawlSteps(world, built, groundAt = null) {
+  const grid = world.grid, SURF = 0.2, gAt = (x, z) => (groundAt ? groundAt(x, z) : 0), per = new Map();
+  for (const b of built) {
+    if (!b.object3d || TREE_TYPES.includes(b.type) || LINEAR_PROPS.includes(b.type) || b.def.clip === false) continue;
+    const cat = placeCat(b.def);
+    if (cat === 'bridge' || cat === 'pier') continue; // decks: their own landings
+    const surf = lowSurfaces(b.object3d, { maxY: 0.8, cell: SURF, wade: SNOW_WADE }), cells = new Set();
+    for (const [key, y] of surf) {
+      const c = key.indexOf(','), si = +key.slice(0, c), sj = +key.slice(c + 1), x = (si + 0.5) * SURF, z = (sj + 0.5) * SURF;
+      if (y - gAt(x, z) < CRAWL_STEP) continue;
+      // (a riser: a neighbouring sample — or the ground where there is none — that much lower)
+      const riser = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([di, dj]) => y - (surf.get(`${si + di},${sj + dj}`) ?? gAt(x + di * SURF, z + dj * SURF)) >= CRAWL_RISER);
+      if (!riser) continue;
+      const i = Math.floor(x / grid.cell), j = Math.floor(z / grid.cell);
+      if (!grid.inBounds(i, j)) continue;
+      const k = grid.idx(i, j);
+      // (only where the visual nav stamps leave the ground open beside it — a door's steps, kept open for its way —
+      // a plinth along a wall is inside the wall's own clearance already)
+      if (grid.bridge[k] || grid.elev[k] > 0.05 || grid.block[k] !== B.NONE || grid.navBlock[k]) continue;
+      cells.add(k);
+    }
+    if (cells.size) per.set(b.owner, cells);
+  }
+  // (a fresh array on every change: the crawlers' avoid masks are cached per array)
+  const union = () => {
+    let out = null;
+    for (const cells of per.values()) for (const k of cells) (out ||= new Uint8Array(grid.cols * grid.rows))[k] = 1;
+    grid.crawlStep = out;
+    return out ? out.reduce((a, v) => a + v, 0) : 0;
+  };
+  const n = union();
+  // a destroyed structure's steps go with it (its ruin, like its visual nav stamps, stamps none)
+  const off = world.events?.on?.('structure:destroyed', (e) => { if (e?.owner != null && per.delete(e.owner)) union(); });
+  return { cells: n, off: typeof off === 'function' ? off : null };
+}
+
 export function stampStanding(world, built) {
   const grid = world.grid, h = grid.cell / 2, cache = new Map();
   let maxElev = 0;
@@ -913,7 +971,7 @@ export function stampStanding(world, built) {
   let cells = 0;
   for (const b of built) {
     if (!b.object3d || TREE_TYPES.includes(b.type) || b.def.clip === false || b.type === 'road' || b.type === 'river') continue;
-    const set = standingCells(b.object3d, surf, { lo: 0.15, hi: 1.2, cell: h, maxY: maxElev + 2, surfKey });
+    const set = standingCells(b.object3d, surf, { lo: 0.15, hi: 1.2, cell: h, maxY: maxElev + 2, surfKey, wade: SNOW_WADE });
     if (!set.size) continue;
     grid.solidStamp(`solid:${b.owner}`, set);
     cells += set.size;
@@ -1024,13 +1082,13 @@ export function stampBodySolids(world, built, groundAt = null) {
     const top = new THREE.Box3().setFromObject(b.object3d).max.y - gy;
     if (BODY_SOLID_OUTLINE.has(categoryOf(b.type, b.def))) {
       for (const R of instanceRects(b.object3d, 0.15, 1.2, gy)) list.push({ owner: b.owner, R: { ...R, top } });
-      for (const q of planCells(b.object3d, { minY: 0.15, maxY: 1.2, groundY: gy, cell: 0.25, close: 0, fit: true }) || []) {
+      for (const q of planCells(b.object3d, { minY: 0.15, maxY: 1.2, groundY: gy, cell: 0.25, close: 0, fit: true, wade: SNOW_WADE }) || []) {
         const [p0, p1, , p3] = q, hl = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) / 2, hw = Math.hypot(p3[0] - p0[0], p3[1] - p0[1]) / 2;
         if (hl > 0.01 && hw > 0.01) list.push({ owner: b.owner, R: { x: (q[0][0] + q[2][0]) / 2, z: (q[0][1] + q[2][1]) / 2, h: Math.atan2(p1[1] - p0[1], p1[0] - p0[0]), hl, hw, top } });
       }
       continue;
     }
-    const hull = planHull(b.object3d, { minY: 0.15, maxY: 1.6, groundY: gy });
+    const hull = planHull(b.object3d, { minY: 0.15, maxY: 1.6, groundY: gy, wade: SNOW_WADE }); // (not the drift round its foot)
     const R = hull && minAreaRect(hull);
     if (R) list.push({ owner: b.owner, R: { ...R, top } });
   }
@@ -1534,6 +1592,9 @@ export function buildMap(world, mission, opts = {}) {
       lowSurfaces(b.object3d, { maxY: 0.8, cell: SURF_CELL }, surf); // (up to a door sill: the top step of a porch)
     }
     if (surf.size) libLog.push(`low surfaces: ${surf.size} samples`);
+    const cs = stampCrawlSteps(world, built, terrain?.groundY ? (x, z) => terrain.groundY(x, z) : null);
+    if (cs.off) { const a = visNavOff; visNavOff = () => { a?.(); cs.off(); }; }
+    if (cs.cells) libLog.push(`crawl steps: ${cs.cells} cells (the sides of steps, porches, plinths: a crawler goes round)`);
   }
   // deck landings: the way on / off a bridge or dam follows its abutment's top (up to 2 m on this flat ground)
   const laneSurf = meshes && deckLanes?.size ? new Map() : null;

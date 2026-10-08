@@ -104,8 +104,9 @@ export default {
     // bare deciduous trees (occluder r 0.7)
     ...[[12, 118], [20, 114], [58, 118], [62, 124], [54, 122]].map(([x, z], k) => ({ type: 'tree', variant: 'bare_winter', x, z, r: 0.7, h: 7 + (k % 3), seed: 201 + k })),
     // explosive fuel drums (class `barrel`, GB can carry them)
-    // placed clear of the barracks' steps and snow skirts (placement rule b)
-    ...[['b1', 41.8, 23.5], ['b2', 42.46, 23.81], ['b3', 41.05, 23.79], ['b4', 21.95, 32.95], ['b5', 21.94, 34.09]]
+    // placed clear of the barracks' steps and snow skirts (placement rule b); b1–b3 stand by barr_L_a's SE corner,
+    // 1.5 m N of the alley's line (1 m E): the walk between the two barracks comes out past them (user 2026-10-07)
+    ...[['b1', 42.8, 22.0], ['b2', 43.46, 22.31], ['b3', 42.05, 22.29], ['b4', 21.95, 32.95], ['b5', 21.94, 34.09]]
       .map(([id, x, z]) => ({ id, type: 'barrels', variant: 'fuel_explosive', x, z, r: 0.3, h: 0.9, explosive: 'barrel', carriable: true, destructible: true, hp: 1 })),
   ],
   vehicles: [

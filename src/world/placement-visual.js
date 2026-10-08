@@ -12,6 +12,30 @@ import { sessionCache, hasher, dataKey } from '../engine/asset-cache.js';
 export { dataKey };
 
 const SKIP = /shadow|proxy|collider|collision|occluder|decal|selection|marker|halo|glow|blob|impostor/i;
+
+/**
+ * Snow a man wades through or walks over (m above the ground): the drifts the snow variants of the library assets
+ * pile against their walls, ramps and posts below this height are never an obstacle — the nav grid, the standing
+ * visuals and the solid-prop bodies leave them out when a caller passes `wade` (the wall or post under the snow
+ * still blocks, with its own clearance). Deeper snow, that a man would have to climb, keeps blocking. The feet still
+ * stand on the drift (lowSurfaces keeps it). User 2026-10-07: M1's barracks alley reopened.
+ */
+export const SNOW_WADE = 0.6;
+const SNOW_MAT = /^(kit|dressing):snow(_soft)?(~|#|$)/;
+/** Is `m` a snow cover material (library kit `kit:snow…`, dressing `dressing:snow`)? */
+export const isSnowMaterial = (m) => !!m && SNOW_MAT.test(m.name || '');
+/**
+ * Snow triangles of a mesh: null when none of its materials is snow, else a test of a triangle by the index of its
+ * first corner (multi-material meshes: the geometry group holding it).
+ */
+export function snowTris(nd) {
+  const mat = nd.material;
+  if (!Array.isArray(mat)) return isSnowMaterial(mat) ? () => true : null;
+  if (!mat.some(isSnowMaterial)) return null;
+  const groups = nd.geometry?.groups || [];
+  if (!groups.length) return isSnowMaterial(mat[0]) ? () => true : null;
+  return (t) => { for (const g of groups) if (t >= g.start && t < g.start + g.count) return isSnowMaterial(mat[g.materialIndex ?? 0]); return false; };
+}
 /** World matrices of a mesh: its own, or one per instance of an InstancedMesh (sandbag courses, stake rows…). */
 export function meshMatrices(nd) {
   if (!nd.isInstancedMesh) return [nd.matrixWorld];
@@ -23,11 +47,12 @@ const _v = new THREE.Vector3();
 
 /**
  * @param {THREE.Object3D} root built structure
- * @param {{minY?: number, maxY?: number, groundY?: number, maxVerts?: number}} [o] band relative to `groundY`
+ * @param {{minY?: number, maxY?: number, groundY?: number, maxVerts?: number, wade?: number}} [o] band relative to
+ *   `groundY`; `wade`: snow lower than this is left out (SNOW_WADE)
  * @returns {number[][]|null} hull polygon [[x, z], …] or null (no vertices in the band)
  */
 function planHullRaw(root, o = {}) {
-  const minY = o.minY ?? -Infinity, maxY = o.maxY ?? Infinity, gy = o.groundY ?? 0, maxVerts = o.maxVerts ?? 60000;
+  const minY = o.minY ?? -Infinity, maxY = o.maxY ?? Infinity, gy = o.groundY ?? 0, maxVerts = o.maxVerts ?? 60000, wade = o.wade ?? 0;
   root.updateMatrixWorld(true);
   const pts = [];
   const visit = (n) => {
@@ -40,12 +65,14 @@ function planHullRaw(root, o = {}) {
     if (n.isMesh && !SKIP.test(n.name || '') && n.geometry?.attributes?.position) {
       const pos = n.geometry.attributes.position, stride = Math.max(1, Math.ceil(pos.count / maxVerts));
       const inst = n.isInstancedMesh ? n.count : 0, im = new THREE.Matrix4(), m = new THREE.Matrix4();
+      // (a vertex has no triangle of its own: a mesh counts as snow when its material — every one of them — is snow)
+      const lo = wade > minY && [].concat(n.material).every(isSnowMaterial) ? wade : minY;
       for (let q = 0; q < Math.max(1, inst); q++) {
         if (inst) { n.getMatrixAt(q, im); m.multiplyMatrices(n.matrixWorld, im); } else m.copy(n.matrixWorld);
         for (let i = 0; i < pos.count; i += stride) {
           _v.fromBufferAttribute(pos, i).applyMatrix4(m);
           const y = _v.y - gy;
-          if (y >= minY && y <= maxY) pts.push([_v.x, _v.z]);
+          if (y >= lo && y <= maxY) pts.push([_v.x, _v.z]);
         }
       }
     }
@@ -65,11 +92,12 @@ const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3
  * `fit: true` rasterizes in the structure's own frame (its world position and yaw) and trims each row's end
  * rectangles to the real geometry, so a rotated gate or wall-side hut is not padded by up to a diagonal cell at each
  * end (the shape that cuts fence runs: an inflated one left see-through slots beside M2's camp gate).
- * @param {THREE.Object3D} root @param {{minY?: number, maxY?: number, groundY?: number, cell?: number, close?: number, fit?: boolean}} [o]
+ * `wade`: snow lying lower than this (m over `groundY`) is no occupancy (SNOW_WADE: drifts a man walks over).
+ * @param {THREE.Object3D} root @param {{minY?: number, maxY?: number, groundY?: number, cell?: number, close?: number, fit?: boolean, wade?: number}} [o]
  * @returns {number[][][]|null} rectangles [[x, z] × 4][] or null when empty
  */
 function planCellsRaw(root, o = {}) {
-  const minY = o.minY ?? -Infinity, maxY = o.maxY ?? Infinity, gy = o.groundY ?? 0, cell = o.cell ?? 0.25;
+  const minY = o.minY ?? -Infinity, maxY = o.maxY ?? Infinity, gy = o.groundY ?? 0, cell = o.cell ?? 0.25, wade = o.wade ?? 0;
   root.updateMatrixWorld(true);
   const cells = new Set(), rowLo = new Map(), rowHi = new Map();
   // frame: world (x, z) → local (lx, lz) about the root's origin and yaw (identity unless `fit`)
@@ -86,15 +114,16 @@ function planCellsRaw(root, o = {}) {
     cells.add(`${Math.floor(lx / cell)},${j}`);
     if (o.fit) { rowLo.set(j, Math.min(rowLo.get(j) ?? Infinity, lx)); rowHi.set(j, Math.max(rowHi.get(j) ?? -Infinity, lx)); }
   };
-  const tri = (a, b, c) => {
-    const ya = a.y - gy, yb = b.y - gy, yc = c.y - gy;
-    if (Math.min(ya, yb, yc) > maxY || Math.max(ya, yb, yc) < minY) return;
+  // (`snow`: a snow triangle, whose part below `wade` is waded through: no occupancy)
+  const tri = (a, b, c, snow = false) => {
+    const ya = a.y - gy, yb = b.y - gy, yc = c.y - gy, deep = snow && wade > minY;
+    if (Math.min(ya, yb, yc) > maxY || Math.max(ya, yb, yc) < (deep ? wade : minY)) return;
     const L = Math.max(a.distanceTo(b), b.distanceTo(c), c.distanceTo(a));
     const n = Math.min(400, Math.max(1, Math.ceil(L / (cell * 0.5))));
     for (let i = 0; i <= n; i++) for (let j = 0; j <= n - i; j++) {
       const u = i / n, v = j / n, w = 1 - u - v;
       const y = a.y * u + b.y * v + c.y * w - gy;
-      if (y < minY - 0.05 || y > maxY + 0.05) continue;
+      if (y < (deep ? wade : minY - 0.05) || y > maxY + 0.05) continue;
       mark(a.x * u + b.x * v + c.x * w, a.z * u + b.z * v + c.z * w);
     }
   };
@@ -106,11 +135,11 @@ function planCellsRaw(root, o = {}) {
     }
     if (nd.isMesh && !SKIP.test(nd.name || '') && nd.geometry?.attributes?.position) for (const m of meshMatrices(nd)) {
       const pos = nd.geometry.attributes.position, idx = nd.geometry.index;
-      const count = idx ? idx.count : pos.count;
+      const count = idx ? idx.count : pos.count, snow = wade > minY ? snowTris(nd) : null;
       for (let t = 0; t + 2 < count; t += 3) {
         const i0 = idx ? idx.getX(t) : t, i1 = idx ? idx.getX(t + 1) : t + 1, i2 = idx ? idx.getX(t + 2) : t + 2;
         _a.fromBufferAttribute(pos, i0).applyMatrix4(m); _b.fromBufferAttribute(pos, i1).applyMatrix4(m); _c.fromBufferAttribute(pos, i2).applyMatrix4(m);
-        tri(_a, _b, _c);
+        tri(_a, _b, _c, !!snow?.(t));
       }
     }
     for (const c of nd.children) visit(c);
@@ -186,11 +215,12 @@ function overheadCellsRaw(root, o = {}, into = new Map()) {
  * palisade stakes along a wall walk, a railing on a bridge, a crate beside a wall. Deck boards (≈ 0) and what
  * hangs below a deck (< 0) do not count.
  * @param {THREE.Object3D} root @param {(x:number, z:number) => number} surf
- * @param {{lo?: number, hi?: number, cell?: number, maxY?: number}} [o] maxY: skip triangles wholly above it
+ * @param {{lo?: number, hi?: number, cell?: number, maxY?: number, wade?: number, groundY?: number}} [o] maxY: skip
+ *   triangles wholly above it; wade: snow lower than this over `groundY` (SNOW_WADE) stands nowhere
  * @param {Set<string>} [into] "i,j" at `cell`
  */
 function standingCellsRaw(root, surf, o = {}, into = new Set()) {
-  const lo = o.lo ?? 0.15, hi = o.hi ?? 1.2, cell = o.cell ?? 0.25;
+  const lo = o.lo ?? 0.15, hi = o.hi ?? 1.2, cell = o.cell ?? 0.25, wade = o.wade ?? 0, gy = o.groundY ?? 0;
   root.updateMatrixWorld(true);
   const visit = (nd) => {
     if (nd.userData?.clip === false || (!nd.visible && !/^lod\d$/.test(nd.name))) return;
@@ -200,16 +230,19 @@ function standingCellsRaw(root, surf, o = {}, into = new Set()) {
     }
     if (nd.isMesh && !SKIP.test(nd.name || '') && nd.geometry?.attributes?.position) for (const m of meshMatrices(nd)) {
       const pos = nd.geometry.attributes.position, idx = nd.geometry.index;
-      const count = idx ? idx.count : pos.count;
+      const count = idx ? idx.count : pos.count, snow = wade > 0 ? snowTris(nd) : null;
       for (let t = 0; t + 2 < count; t += 3) {
         const i0 = idx ? idx.getX(t) : t, i1 = idx ? idx.getX(t + 1) : t + 1, i2 = idx ? idx.getX(t + 2) : t + 2;
         _a.fromBufferAttribute(pos, i0).applyMatrix4(m); _b.fromBufferAttribute(pos, i1).applyMatrix4(m); _c.fromBufferAttribute(pos, i2).applyMatrix4(m);
         if (o.maxY != null && Math.min(_a.y, _b.y, _c.y) > o.maxY) continue; // above any surface + hi (roofs)
+        const sl = snow?.(t) ? gy + wade : -Infinity; // (a drift: only what rises above the wading depth stands)
+        if (Math.max(_a.y, _b.y, _c.y) < sl) continue;
         const L = Math.max(_a.distanceTo(_b), _b.distanceTo(_c), _c.distanceTo(_a));
         const n = Math.min(400, Math.max(1, Math.ceil(L / (cell * 0.5))));
         for (let i = 0; i <= n; i++) for (let j = 0; j <= n - i; j++) {
           const u = i / n, v = j / n, w = 1 - u - v;
           const x = _a.x * u + _b.x * v + _c.x * w, z = _a.z * u + _b.z * v + _c.z * w, y = _a.y * u + _b.y * v + _c.y * w;
+          if (y < sl) continue;
           const r = y - surf(x, z);
           if (r >= lo && r <= hi) into.add(`${Math.floor(x / cell)},${Math.floor(z / cell)}`);
         }
@@ -389,12 +422,13 @@ const _n = new THREE.Vector3(), _e1 = new THREE.Vector3(), _e2 = new THREE.Vecto
 /**
  * Low walkable surfaces of a structure's visual (steps, ramps, porch boards, snow skirts, berms): the highest
  * upward-facing triangle point per `cell` (m) square, for triangles lying entirely below `maxY` m. Feeds the
- * visual ground height (units' feet stand on these instead of sinking through them).
+ * visual ground height (units' feet stand on these instead of sinking through them). `wade`: leave out the snow lying
+ * lower than this (SNOW_WADE: the steps and porches themselves, not the drifts on them).
  * @param {THREE.Object3D} root @param {Map<string, number>} [into] accumulates across structures
  * @returns {Map<string, number>} "i,j" → world y
  */
 function lowSurfacesRaw(root, o = {}, into = new Map()) {
-  const maxY = o.maxY ?? 0.6, cell = o.cell ?? 0.2, gy = o.groundY ?? 0;
+  const maxY = o.maxY ?? 0.6, cell = o.cell ?? 0.2, gy = o.groundY ?? 0, wade = o.wade ?? 0;
   root.updateMatrixWorld(true);
   const put = (x, z, y) => { const k = `${Math.floor(x / cell)},${Math.floor(z / cell)}`; const p = into.get(k); if (p === undefined || y > p) into.set(k, y); };
   const visit = (nd) => {
@@ -405,18 +439,21 @@ function lowSurfacesRaw(root, o = {}, into = new Map()) {
     }
     if (nd.isMesh && !SKIP.test(nd.name || '') && nd.geometry?.attributes?.position) for (const m of meshMatrices(nd)) {
       const pos = nd.geometry.attributes.position, idx = nd.geometry.index;
-      const count = idx ? idx.count : pos.count;
+      const count = idx ? idx.count : pos.count, snow = wade > 0 ? snowTris(nd) : null;
       for (let t = 0; t + 2 < count; t += 3) {
         const i0 = idx ? idx.getX(t) : t, i1 = idx ? idx.getX(t + 1) : t + 1, i2 = idx ? idx.getX(t + 2) : t + 2;
         _a.fromBufferAttribute(pos, i0).applyMatrix4(m); _b.fromBufferAttribute(pos, i1).applyMatrix4(m); _c.fromBufferAttribute(pos, i2).applyMatrix4(m);
         if (Math.max(_a.y, _b.y, _c.y) - gy > maxY || Math.max(_a.y, _b.y, _c.y) - gy < 0.02) continue;
+        // (`wade`: a drift's top below the wading depth is no step)
+        const sl = snow?.(t) ? gy + wade : -Infinity;
+        if (Math.max(_a.y, _b.y, _c.y) < sl) continue;
         _n.crossVectors(_e1.subVectors(_b, _a), _e2.subVectors(_c, _a));
         const L = _n.length();
         if (L < 1e-9 || Math.abs(_n.y / L) < (o.flat ?? 0.5)) continue; // walls / risers: not a surface to stand on
         const len = Math.max(_a.distanceTo(_b), _b.distanceTo(_c), _c.distanceTo(_a)), n = Math.min(200, Math.max(1, Math.ceil(len / (cell * 0.5))));
         for (let i = 0; i <= n; i++) for (let j = 0; j <= n - i; j++) {
-          const u = i / n, v = j / n, w = 1 - u - v;
-          put(_a.x * u + _b.x * v + _c.x * w, _a.z * u + _b.z * v + _c.z * w, _a.y * u + _b.y * v + _c.y * w);
+          const u = i / n, v = j / n, w = 1 - u - v, y = _a.y * u + _b.y * v + _c.y * w;
+          if (y >= sl) put(_a.x * u + _b.x * v + _c.x * w, _a.z * u + _b.z * v + _c.z * w, y);
         }
       }
     }
@@ -469,6 +506,7 @@ export function visualSignature(root) {
       const g = n.geometry, pos = g?.attributes?.position;
       const gh = pos ? geometryHash(g) : null;
       if (!gh) ok = false; else h.str(gh);
+      h.num(snowTris(n) ? 1 : 0); // (snow cover: what a `wade` analysis leaves out)
       h.num(n.isInstancedMesh ? n.count : -1);
       if (n.isInstancedMesh) h.floats(n.instanceMatrix.array.subarray(0, n.count * 16));
       h.floats(n.matrixWorld.elements);

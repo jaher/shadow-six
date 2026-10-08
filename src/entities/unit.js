@@ -71,10 +71,10 @@ const IMMOBILE_STATES = new Set(['dead', 'inVehicle', 'carried', 'stunned', 'bou
 const HIDDEN_STATES = new Set(['hidden', 'inVehicle', 'carried', 'jailed']);
 
 /** Avoid masks per (sim time, inflation, ignored vehicle): every unit planning in the same step shares them. */
-function cachedAvoid(w, inf, ignore) {
+function cachedAvoid(w, inf, ignore, prone = false) {
   const c = w._avoidCache && w._avoidCache.t === w.time ? w._avoidCache : (w._avoidCache = { t: w.time, m: new Map() });
-  const key = `${inf}|${ignore ? [].concat(ignore).map((e) => e?.id ?? '').join(',') : ''}`;
-  if (!c.m.has(key)) c.m.set(key, avoidMask(w, inf, ignore));
+  const key = `${inf}|${prone ? 'p' : ''}|${ignore ? [].concat(ignore).map((e) => e?.id ?? '').join(',') : ''}`;
+  if (!c.m.has(key)) c.m.set(key, avoidMask(w, inf, ignore, prone));
   return c.m.get(key);
 }
 
@@ -275,11 +275,13 @@ export class Unit extends Entity {
    */
   _planPath(x, z) {
     const w = this.world, q = this.pathQuery(), tr = this.track; // (from his path track, see moveTo)
-    if (!hasObstacles(w) || this.y > 1) return w.findPath(tr.x, tr.z, x, z, q);
+    // (a crawler also goes round steps, porches and plinths: his body would lie into their sides, grid.crawlStep)
+    const prone = this.stance === 'crawl' && !!w.grid?.crawlStep;
+    if ((!hasObstacles(w) && !prone) || this.y > 1) return w.findPath(tr.x, tr.z, x, z, q);
     const ignore = this._bodyIgnore(true);
     let best = null;
     for (const inf of inflationTiers(this.stance)) {
-      const avoid = cachedAvoid(w, inf, ignore);
+      const avoid = cachedAvoid(w, inf, ignore, prone);
       // a click on / under a hull: the free spot nearest it on the way from him (he stops on his side of it)
       const t = this._freeToward(x, z, avoid, q.swim);
       const p = w.findPath(tr.x, tr.z, t.x, t.z, { ...q, avoid, nearRadius: 3 + inf });
@@ -366,7 +368,35 @@ export class Unit extends Entity {
     if (stance !== 'stand') this.moveMode = 'walk';
     if (prev === 'stand' && stance === 'crawl') this._stanceT = CONFIG.units.stanceDown;
     else if (prev === 'crawl' && stance === 'stand') this._stanceT = CONFIG.units.stanceUp;
+    if (stance === 'crawl') this._crawlRepath();
     this.world?.events.emit('unit:stance', { unit: this, stance });
+  }
+
+  /**
+   * A man lying down on his way: when the rest of his path runs across the side of a step, a porch or a plinth
+   * (grid.crawlStep: a crawler's body follows the ground, not a stair), he is re-pathed round it to the same goal.
+   */
+  _crawlRepath() {
+    const w = this.world, P = this.path, cs = w?.grid?.crawlStep;
+    if (!cs || !P?.length || P[0].steer) return;
+    const g = w.grid, near = (x, z) => {
+      for (let dz = -0.5; dz <= 0.5; dz += 0.25) for (let dx = -0.5; dx <= 0.5; dx += 0.25) {
+        const i = Math.floor((x + dx) / g.cell), j = Math.floor((z + dz) / g.cell);
+        if (g.inBounds(i, j) && cs[g.idx(i, j)]) return true;
+      }
+      return false;
+    };
+    let ax = this.x, az = this.z, hit = false;
+    for (let k = Math.max(0, this.pathIndex); k < P.length && !hit; k++) {
+      const L = Math.hypot(P[k].x - ax, P[k].z - az), n = Math.max(1, Math.ceil(L / 0.25));
+      for (let q = 1; q <= n && !hit; q++) hit = near(ax + ((P[k].x - ax) * q) / n, az + ((P[k].z - az) * q) / n);
+      ax = P[k].x; az = P[k].z;
+    }
+    if (!hit) return;
+    const goal = P[P.length - 1], p = this._planPath(goal.x, goal.z);
+    if (!p) return;
+    this.path = p; this.pathIndex = p.length > 1 ? 1 : 0; this.moveTarget = p[p.length - 1];
+    this._pathGridVersion = w.grid.version;
   }
 
   /** Face a point instantly. */

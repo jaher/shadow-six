@@ -17,6 +17,7 @@ import { setCharacterView } from '../art/humanoid-real.js';
 import { liftAt } from '../world/placement.js';
 import { T } from '../world/grid.js';
 import { isSolidHull, hullsNear, dynamicObstacles } from '../world/body-clearance.js';
+import { SNOW_WADE, snowTris } from '../world/placement-visual.js';
 
 const SKIP_NAME = /shadow|proxy|collider|collision|occluder|decal|selection|select_ring|ring_sel|vision|cone|marker|halo|glow|blob|water|impostor/i;
 
@@ -29,28 +30,76 @@ function meshOk(o) {
 }
 
 const _im = new THREE.Matrix4(), _mw = new THREE.Matrix4();
+
+const WADED = new WeakMap(); // geometry → Map(height key → BVH record without its wadeable snow, or null)
+/**
+ * BVH record of a snow-covered mesh (the `_snow` library variants' drifts) without the snow lower than `wade` m over
+ * `base` (world y of the structure's ground): a man wades through that snow or walks over it (world/placement-visual
+ * SNOW_WADE), so feet, knees and wheels in it are no clipping; snow triangles crossing the wading depth are cut there.
+ * Undefined when the mesh has no snow (use its own BVH); null when nothing is left.
+ */
+function wadedBVH(n, m, base, wade) {
+  const snow = snowTris(n);
+  if (!snow) return undefined;
+  const e = m.elements, geo = n.geometry;
+  const key = `${e[1].toFixed(4)},${e[5].toFixed(4)},${e[9].toFixed(4)},${(e[13] - base).toFixed(3)},${wade}`;
+  let per = WADED.get(geo);
+  if (!per) WADED.set(geo, (per = new Map()));
+  if (per.has(key)) return per.get(key);
+  const pos = geo.attributes.position, idx = geo.index, count = idx ? idx.count : pos.count;
+  const h = (v) => e[1] * v.x + e[5] * v.y + e[9] * v.z + e[13] - base - wade; // height over the wading depth (affine)
+  const out = [], P = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+  const push = (...vs) => { for (const v of vs) out.push(v.x, v.y, v.z); };
+  for (let t = 0; t + 2 < count; t += 3) {
+    for (let q = 0; q < 3; q++) P[q].fromBufferAttribute(pos, idx ? idx.getX(t + q) : t + q);
+    if (!snow(t)) { push(...P); continue; }
+    // the part of the triangle above the wading depth (Sutherland–Hodgman against h ≥ 0, winding kept)
+    const poly = [];
+    for (let q = 0; q < 3; q++) {
+      const a = P[q], b = P[(q + 1) % 3], ha = h(a), hb = h(b);
+      if (ha >= 0) poly.push(a.clone());
+      if ((ha >= 0) !== (hb >= 0)) poly.push(a.clone().lerp(b, ha / (ha - hb)));
+    }
+    for (let q = 1; q + 1 < poly.length; q++) push(poly[0], poly[q], poly[q + 1]);
+  }
+  let rec = null;
+  if (out.length >= 9) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(out, 3));
+    rec = geometryBVH(g);
+  }
+  per.set(key, rec);
+  return rec;
+}
+
 /**
  * Mesh parts of a subtree (LOD0 of library assets, visible meshes only; skinned/morphed meshes posed).
- * @param {THREE.Object3D} root @param {{instance?: number}} [o] instance: only that InstancedMesh instance
+ * @param {THREE.Object3D} root @param {{instance?: number, wade?: number}} [o] instance: only that InstancedMesh
+ *   instance; wade: leave out snow lower than this over the structure's ground (`root`'s, an instance's own)
  */
 export function partsOf(root, o = {}) {
   const parts = [];
+  const rootY = root.matrixWorld.elements[13]; // (collectStatic has updated the scene's matrices)
   const visit = (n) => {
     if (n.userData?.clip === false) return;
     if (/^lod[12]$/.test(n.name) && n.parent?.children.some((c) => c.name === 'lod0')) return;
     if (!n.visible && n.name !== 'lod0') return;
     if (n.isMesh && meshOk(n)) {
       if (n.isInstancedMesh) {
-        const rec = geometryBVH(n.geometry);
+        const rec0 = geometryBVH(n.geometry);
         const ks = o.instance != null ? [o.instance] : Array.from({ length: n.count }, (_, k) => k);
         for (const k of ks) {
-          if (!rec || k >= n.count) continue;
+          if (!rec0 || k >= n.count) continue;
           n.getMatrixAt(k, _im);
-          parts.push(makePart(rec, _mw.multiplyMatrices(n.matrixWorld, _im), { name: n.name }));
+          _mw.multiplyMatrices(n.matrixWorld, _im);
+          const w = o.wade ? wadedBVH(n, _mw, _mw.elements[13], o.wade) : undefined; // (an instance stands on its own ground)
+          const rec = w === undefined ? rec0 : w;
+          if (rec) parts.push(makePart(rec, _mw, { name: n.name }));
         }
       } else {
         const posed = n.isSkinnedMesh || (n.morphTargetInfluences?.length > 0);
-        const rec = posed ? posedBVH(n) : geometryBVH(n.geometry);
+        const w = !posed && o.wade ? wadedBVH(n, n.matrixWorld, rootY, o.wade) : undefined;
+        const rec = w !== undefined ? w : posed ? posedBVH(n) : geometryBVH(n.geometry);
         if (rec) parts.push(makePart(rec, n.matrixWorld, { name: n.name }));
       }
     }
@@ -82,7 +131,8 @@ export function collectStatic(game, o = {}) {
     if (GROUND_LAYER.has(cat)) continue;
     if (!attached(s.object3d, scene)) { detached.push({ key, s, cat }); continue; }
     seen.add(s.object3d);
-    const it = mkItem({ id: String(s.def?.id ?? key), type: s.type, cat, def: s.def, kind: 'structure' }, partsOf(s.object3d));
+    // (snow drifts lower than SNOW_WADE are waded through, as in the nav: not a solid a body or a wheel may clip)
+    const it = mkItem({ id: String(s.def?.id ?? key), type: s.type, cat, def: s.def, kind: 'structure' }, partsOf(s.object3d, { wade: SNOW_WADE }));
     if (it) items.push(it);
   }
   // instanced repeats (map-builder batchLibraryRepeats): one item per instance, matched back to its structure
@@ -104,7 +154,7 @@ export function collectStatic(game, o = {}) {
         ? { id: String(best.s.def?.id ?? best.key), type: best.s.type, cat: best.cat, def: best.s.def }
         : { id: `${asset}#${k}`, type: asset, cat: categoryOf(asset) };
       if (best && bd < 12) cands.splice(cands.indexOf(best), 1);
-      const it = mkItem({ ...base, kind: 'instance' }, partsOf(lod0, { instance: k }));
+      const it = mkItem({ ...base, kind: 'instance' }, partsOf(lod0, { instance: k, wade: SNOW_WADE }));
       if (it) items.push(it);
     }
   });

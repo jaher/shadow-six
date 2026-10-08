@@ -107,6 +107,11 @@ export function accessPlatformFootprints(p, x, z, rot) {
     const side = p.stair?.railSide ?? -1, zr = S.z + side * (S.w / 2 + 0.3);
     const a = L2W(S.x0 + 0.6, zr), b = L2W(S.x1 - 0.4, zr);
     out.push({ shape: 'line', points: [a, b], width: 0.3, navOnly: true }); // an open rail: walk-only, see-through
+    // …and beside the rail's foot post (S.x1 − 0.1, on the stair's edge): the cells there are kept open as the stair
+    // foot's step-on (nav: near the ramp), so a man coming from the rail side cut onto the stair through the post
+    // (clipping audit, M2 seed 7: a runner up plat_sw's stair from the camp side) — walk-only too: he steps on at the foot
+    const zf = S.z + side * (S.w / 2 + 0.12), f0 = L2W(S.x1 - 0.4, zf), f1 = L2W(S.x1 + 0.35, zf);
+    out.push({ shape: 'line', points: [f0, f1], width: 0.3, navOnly: true });
   }
   return out;
 }
