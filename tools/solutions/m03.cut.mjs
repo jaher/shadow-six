@@ -83,7 +83,7 @@ export const pitchAt = (x, z) => (x > 60 && z < 44 ? 64 : 40);
 export function shots(cp, objT) {
   const s = [];
   const o1 = objT('o1'), o2 = objT('o2');
-  if (o1) s.push({ t0: o1 - 6, t1: o1 + 7, x: 18, y: 0, z: 42, zoom: 0.6, prio: 2 }); // the bunker (10, 44) and the W stair
+  if (o1) s.push({ t0: o1 - 6, t1: o1 + 5.5, x: 18, y: 0, z: 42, zoom: 0.6, prio: 2 }); // the bunker (10, 44) and the W stair
   if (o2) { // the blast and the burst, then the escape: the truck at the pickup north of the dam, the men climbing in
     // the breach held until the truck comes in (it backs in from the map's N edge ~4.5 s after the blast), then the
     // truck backing in to its pickup (60.4, 9.5), then closer for the men at its doors
@@ -108,20 +108,23 @@ export function windows(cp, objT) {
   if (o1) w.push({ t0: o1 - 3, t1: o1 + 5, speed: 1 });
   if (o2) w.push({ t0: o2 - 3, t1: o2, speed: 1 }, { t0: o2, t1: o2 + 60, speed: 0.5 }); // the blast and the escape at half speed
   for (const [k, a, b, sp] of [['A3', -4, 1, 2], ['C0', -4, 2, 1], ['C3', -5, 1, 1.5], ['D1', -3, 2, 1], ['E2', -3, 1, 1.5],
-    ['E3', -2, 2, 2], ['F2', -4, 2, 1], ['F3', -3, 1, 1.5], ['G2', -20, 1, 2], ['G3', -4, 1, 1.5], ['G5b', -1, 4, 1], ['G5', -8, 1, 1.5],
-    ['H2', -2, 3, 2], ['I1', -4, 1, 1.5], ['I2', -8, 1, 1.5], ['I3', -3, 1, 1.5]]) {
+    ['E3', -2, 2, 2], ['F2', -4, 2, 1], ['F3', -3, 1, 1.5], ['G2', -20, 1, 2], ['G3', -4, 1, 1.5], ['G5b', -1, 4, 1], ['G5', -24, -7, 2], ['G5', -7, 1, 1],
+    ['H2', -2, 3, 2], ['I1', -4, 1, 1.5], ['I2', -8, 1, 1.5], ['I3', -4.5, 2, 1]]) {
     const t = cp(k);
     if (t) w.push({ t0: t + a, t1: t + b, speed: sp });
   }
   return w;
 }
 
-/** the camera stays on one man (not the last one ordered): the Sapper at the fence — the cut, in through the hole, up the shed's ramp and in at its door, back out */
+/** the camera stays on one man (not the last one ordered): the Sapper at the fence — the cut, in through the hole, up the shed's ramp and in at its door, back out — and on the dam crest */
 export function follows(cp) {
   const f = [];
   const g3 = cp('G3'), g4 = cp('G4'), g5 = cp('G5'), g6 = cp('G6');
   if (g3) f.push({ t0: g3 - 10, t1: g4 ? Math.min(g4, g3 + 40) : g3 + 15, role: 'sapper', zoom: 0.9 });
-  if (g4 && g5) f.push({ t0: g4, t1: g5 + 1, role: 'sapper', zoom: 0.9 }); // up the shed's ramp, in at its door and out
+  // to the barn's ramp, then closer: up the ramp on his belly, in at the threshing door and out again (the shed's charges)
+  if (g4 && g5) f.push({ t0: g4, t1: Math.max(g4, g5 - 26), role: 'sapper', zoom: 0.9 }, { t0: Math.max(g4, g5 - 26), t1: g5 + 1, role: 'sapper', zoom: 1.3 });
   if (g5 && g6) f.push({ t0: g6 - Math.min(40, g6 - g5), t1: g6 + 1, role: 'sapper', zoom: 0.85 });
+  // close on the crest for charge two: at the game's zoom the Sapper and the canvas charge are lost between the gate hoists
+  const i3 = cp('I3'); if (i3) f.push({ t0: i3 - 4.5, t1: i3 + 2, role: 'sapper', zoom: 1.6 });
   return f;
 }
