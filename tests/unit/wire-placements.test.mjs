@@ -33,13 +33,14 @@ for (const m of withWire) {
   });
 }
 
-test('wire pass: every wired M4–M20 map stays inside the wire budget, and the added wire stays out of solids', async () => {
+// one case per map (the unit runner can then spread the maps over parallel CI shards)
+for (const def of withWire) test(`wire pass: ${def.id} stays inside the wire budget, and its added wire stays out of solids`, async () => {
   const THREE = await import('three');
   const { World } = await import('../../src/world/world.js');
   const { buildMap } = await import('../../src/world/map-builder.js');
   const { B } = await import('../../src/world/grid.js');
   const inSolid = new Map(); // one line per run and solid (the runner prints the first lines of a failure)
-  for (const def of withWire) {
+  {
     const world = new World({ size: def.size, scene: new THREE.Scene(), mission: def });
     const handle = buildMap(world, def);
     const W = handle.wire;

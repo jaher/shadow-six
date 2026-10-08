@@ -9,8 +9,15 @@ permissions:
 
 jobs:
   unit-tests:
+    # the suite (~1650 cases, per-mission simulations) is split over parallel shards, balanced by the measured
+    # per-file timings in tests/unit/durations.json (refresh with `node tests/unit/run.mjs --write-durations`)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    name: unit-tests (shard ${{ matrix.shard }}/4)
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,7 +28,7 @@ jobs:
           node-version: 20
 
       - name: Unit tests (pure simulation, no GPU)
-        run: node tests/unit/run.mjs
+        run: node tests/unit/run.mjs --shard=${{ matrix.shard }}/4
 
   web-build:
     runs-on: ubuntu-latest
