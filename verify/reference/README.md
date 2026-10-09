@@ -4,16 +4,8 @@ Captured on the DGX Spark (spark-dgx-1) with Playwright headless Chromium
 (`~/pwenv`, `--use-angle=vulkan` on the GB10 GPU) against the JS original
 served at `http://127.0.0.1:8124/` from `~/shadow-six`. All at 1280×720.
 
-| File | What it shows |
-|---|---|
-| `title.png` | Title splash: olive backdrop, winged-bird emblem over a "VI" roundel, "SHADOW SIX" plaque and large weathered SHADOW SIX logotype. This is the deterministic first screen after the boot ident (the mission menu sits behind a first-run profile prompt, so the splash is the stable title reference). |
-| `gameplay-m00.png` | Real in-mission gameplay, mission `m00` ("Sandbox" training ground): top-down terrain with grass tufts and a large tree shadow, three commandos (selected one ringed in green), top HUD bar with portraits 1/2/4 + red health bars, right-edge notebook, bottom-right backpack panel (pistol/knife/radio/shovel), hand cursor. Reached via `?mission=m00`, then Enter to leave the briefing (state `briefing` → `playing`). |
-| `briefing-m00.png` | Mission briefing slide 1 for `m00`: sepia photo of a wrecked propeller aircraft, "Sandbox / Training ground — test map", orders text, SLIDE / NEXT PART controls. |
-| `new-user-prompt.png` | First-run profile prompt ("NEW USER — CREATE NEW USER? (Y)ES (N)O") shown when a key is pressed at the splash with no profile. Not a diff target; kept for reference. |
-
 Capture scripts are kept on the DGX at `/tmp/capture_ref.py` and
-`/tmp/capture_ref2.py` (title + briefing, and title-menu probe + Escape/Enter
-gameplay respectively). The comparison harness that consumes these references
+`/tmp/capture_ref2.py`. The comparison harness that consumes these references
 lives with the C++ port, not in this repository; re-capture the references
 after any web-build art/UI change.
 
@@ -25,8 +17,7 @@ headless Chromium on spark-dgx-1, `--use-angle=vulkan`, 1280×720, JS build at
 (`?test=1`, `window.__game`): missions were loaded directly, and for ACTION
 shots the Sapper was staged at the objective with a planted charge (time or
 remote bomb) and the frame taken mid-detonation; other frames are settled
-gameplay after the sim had run for a few seconds. `gameplay-m00.png` above is
-unchanged — the original sandbox frame remains the best m00 reference.
+gameplay after the sim had run for a few seconds.
 
 | File | Mission | What it shows |
 |---|---|---|
