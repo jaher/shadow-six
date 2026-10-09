@@ -16,6 +16,22 @@ with three.js. Six specialists, enemy vision cones, a fixed 3/4 camera and WWII 
 | ![Title splash](docs/screenshots/menus-s03-title-splash.jpg) | ![Mission 2: the walled camp](docs/screenshots/yaw-level-m02-walled-camp-z1.jpg) |
 | ![Mission 2: a boat on the river](docs/screenshots/int-water-m2-river-boat-wake.jpg) | ![The six commandos: talking portraits and their pain sheet](docs/screenshots/portrait-pain-sheet.jpg) |
 
+## Mission reference screenshots
+
+Reference frames from the web build: the dam breach in mission 3, a U-boat at
+the pier in mission 7, the battleship at Le Havre in mission 13, and the V2
+rockets on their pads in mission 19.
+
+| | |
+| --- | --- |
+| ![Mission 3: the Sysendam dam explodes](verify/reference/gameplay-m03.png) | ![Mission 7: U-boat at the pier](verify/reference/scene-m07-uboat-pier.png) |
+| ![Mission 13: battleship at Le Havre](verify/reference/scene-m13-battleship.png) | ![Mission 19: V2 rockets on their pads](verify/reference/scene-m19-v2-pads.png) |
+
+The complete per-mission set — action frames plus non-explosion scene
+references for missions 1–20, with the earlier title, briefing and sandbox
+references — is catalogued in
+[verify/reference/README.md](verify/reference/README.md).
+
 ## What you get
 
 - **The Behind Enemy Lines campaign**, rebuilt mission by mission from the original's 20 missions: missions 1–3
