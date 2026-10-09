@@ -140,8 +140,8 @@ export default {
     tower('ruin_ne_tw', 107.5, 44.5, 2.5, 8),
     tower('ruin_ne_te', 132, 42, 2, 8),
     // --- the three garrisons (Kildread's "3 Bunkers"): chapel (N), central barracks, HQ (S of the gun)
-    { id: 'chapel', type: 'barracks', variant: 'stone_chapel_tower', x: 75, z: 18, rot: 0, w: 14, d: 8, h: 8, mat: 'stone', flag: true, garrison: true, destructible: true, hp: 100 },
-    tower('chapel_tower', 84, 19.5, 2.5, 10, 'stone', 'tower_round_stone'),
+    { id: 'chapel', type: 'barracks', variant: 'stone_chapel_tower', x: 75, z: 12.5, rot: 0, w: 14, d: 8, h: 8, mat: 'stone', flag: true, garrison: true, destructible: true, hp: 100 },
+    tower('chapel_tower', 84, 14, 2.5, 10, 'stone', 'tower_round_stone'),
     { id: 'barr_c', type: 'barracks', variant: 'hq_log_flatroof', x: 59, z: 48, rot: 0, w: 14, d: 10, h: 5, flag: true, garrison: true, destructible: true, hp: 100 },
     { id: 'hq', type: 'flat_roof_house', variant: 'fortified_block_tower', x: 90, z: 77, rot: 0, w: 16, d: 12, h: HQ_ROOF, roofY: HQ_ROOF, mat: 'stone', roofWalk: true, flag: true, garrison: true, destructible: true, hp: 100 },
     tower('hq_tower', 100, 76, 2.5, 10, 'stone', 'tower_round_stone'),
@@ -301,7 +301,7 @@ export default {
   jails: ['barr_c', 'hq', 'chapel'],
   // garrisons (all on RINT; exit at 2.7 m/s, loop at 1.8 m/s). Pools 5/10/10 [rec, Dutch FAQ's 5-man waves]
   barracks: {
-    chapel: { pool: 5, squads: [{ event: 'RINT', size: 3, exitVel: 2.7, exitRoute: [P(73, 23), P(78, 28)], loopVel: 1.8, loop: CHAPEL_LOOP }] },
+    chapel: { pool: 5, squads: [{ event: 'RINT', size: 3, exitVel: 2.7, exitRoute: [P(73, 17.5), P(78, 28)], loopVel: 1.8, loop: CHAPEL_LOOP }] },
     barr_c: { pool: 10, squads: [{ event: 'RINT', size: 4, exitVel: 2.7, exitRoute: [P(59, 54), P(60.5, 58)], loopVel: 1.8, loop: BARRC_LOOP }] },
     hq: { pool: 10, squads: [{ event: 'RINT', size: 4, exitVel: 2.7, exitRoute: [P(97, 85), P(103, 81)], loopVel: 1.8, loop: HQ_LOOP }] },
   },
