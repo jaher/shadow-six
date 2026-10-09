@@ -11,11 +11,6 @@ with three.js. Six specialists, enemy vision cones, a fixed 3/4 camera and WWII 
 > No assets from the original game are used; all art, audio and code are original or CC0/redistributable
 > (see [CREDITS.md](CREDITS.md)).
 
-| | |
-| --- | --- |
-| ![Title splash](docs/screenshots/menus-s03-title-splash.jpg) | ![Mission 2: the walled camp](docs/screenshots/yaw-level-m02-walled-camp-z1.jpg) |
-| ![Mission 2: a boat on the river](docs/screenshots/int-water-m2-river-boat-wake.jpg) | ![The six commandos: talking portraits and their pain sheet](docs/screenshots/portrait-pain-sheet.jpg) |
-
 ## Mission reference screenshots
 
 Reference frames from the web build: the dam breach in mission 3, a U-boat at
