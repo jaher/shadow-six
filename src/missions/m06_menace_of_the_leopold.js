@@ -140,8 +140,11 @@ export default {
     tower('ruin_ne_tw', 107.5, 44.5, 2.5, 8),
     tower('ruin_ne_te', 132, 42, 2, 8),
     // --- the three garrisons (Kildread's "3 Bunkers"): chapel (N), central barracks, HQ (S of the gun)
-    { id: 'chapel', type: 'barracks', variant: 'stone_chapel_tower', x: 75, z: 12.5, rot: 0, w: 14, d: 8, h: 8, mat: 'stone', flag: false, flagPole: false, garrison: true, destructible: true, hp: 100 },
-    { id: 'chapel_flag', type: 'sign', variant: 'flagpole_german', x: 82.6, z: 17.35, rot: 0, w: 0.3, d: 0.3, h: 6, block: 0 }, // sign anchor renders the pole at (78.6, 18.6): E of the chapel door, 8.5 m / 7.9 m clear of the main / spur centrelines
+    // the chapel's kit flag anchor (69.87, 20.77) stands on the main line: the whole wired pole assembly
+    // shifts E of the door instead (flagShift, art/flags.js) — pole axis lands at (78.6, 18.6), 8.5 m clear
+    // of the main-line centreline, 7.9 m clear of the spur; the assembly's ground ribbons reach <=4.2 m
+    // from the axis, on the side away from the spur, so every wire and peg stays off both tracks
+    { id: 'chapel', type: 'barracks', variant: 'stone_chapel_tower', x: 75, z: 12.5, rot: 0, w: 14, d: 8, h: 8, mat: 'stone', flag: true, flagShift: [8.73, -2.17], garrison: true, destructible: true, hp: 100 },
     tower('chapel_tower', 84, 14, 2.5, 10, 'stone', 'tower_round_stone'),
     { id: 'barr_c', type: 'barracks', variant: 'hq_log_flatroof', x: 59, z: 48, rot: 0, w: 14, d: 10, h: 5, flag: true, garrison: true, destructible: true, hp: 100 },
     { id: 'hq', type: 'flat_roof_house', variant: 'fortified_block_tower', x: 90, z: 77, rot: 0, w: 16, d: 12, h: HQ_ROOF, roofY: HQ_ROOF, mat: 'stone', roofWalk: true, flag: true, garrison: true, destructible: true, hp: 100 },

@@ -157,6 +157,8 @@ export function makeFlag(o = {}) {
 /**
  * Replace every baked flag of a library building (the kit's own flag meshes) with the spec flag (current insignia).
  * `flag:false` (no garrison) → bare pole, unless `stripPole` hides the pole primitive too.
+ * `flagShift: [dx, dz]` (world metres) instead moves the whole wired pole assembly — and the spec
+ * cloth with it — to stand at the offset anchor: triangles translated, none dropped.
  * Returns the added flag groups.
  * @param {THREE.Object3D} root the createBuilding() group (sidecar-local coords)
  * @param {string} asset asset name
@@ -165,63 +167,121 @@ export function dressFlags(root, asset, o = {}) {
   const a = buildingMeta(asset);
   if (!a) return [];
   const hide = (n) => { n.traverse((c) => { if (c.isMesh) c.visible = false; }); n.userData.flagHidden = true; };
-  // `stripPole` (mission opt-in, e.g. a garrison whose kit pole would stand on a track): with `flag:false`
-  // the kit normally keeps a bare pole — hide that pole primitive too (thin tall mesh on the flag anchor axis).
-  const stripPoles = () => {
-    const anchors = a.anchors.filter((an) => an.name === 'flag');
-    if (!anchors.length) return;
+  const flagAnchors = a.anchors.filter((an) => an.name === 'flag');
+  // `flagShift` (mission opt-in): a world XZ offset (m) that moves the whole kit flag-pole assembly —
+  // pole, wires, footing — as one unit, with the spec cloth flying from the shifted anchor (m06's chapel
+  // pole stood on the main line). Given in world metres; converted to the root-local frame here.
+  const localShift = () => {
+    if (!o.flagShift) return null;
+    root.updateMatrixWorld(true);
+    const lin = new THREE.Matrix4().copy(root.matrixWorld).invert().setPosition(0, 0, 0);
+    const v = new THREE.Vector3(o.flagShift[0], 0, o.flagShift[1]).applyMatrix4(lin);
+    return [v.x, v.z];
+  };
+  // One triangle of a merged chunk (root-local vertex offsets ia/ib/ic into `local`): part of the
+  // flag-pole assembly? Tight, ground-anchored rules only (broad shape tests ate the door canopy):
+  // pole cylinder, footing, wire segments touching the pole, yardarm band, and the wires' flat ground
+  // shadow-ribbons + anchor pegs (all within 1.6 m of the axis). The guy wires' bottom tails escape
+  // those: too far from the axis to touch it, hovering at cy ~1.0 (above the flat-ribbon band) — caught
+  // by the thin/low/near tail rule instead. Shared by the strip and shift surgeries below.
+  const poleTri = (local, ia, ib, ic, near) => {
+    let cx = 0, cy = 0, cz = 0;
+    for (const ii of [ia, ib, ic]) { cx += local[ii]; cy += local[ii + 1]; cz += local[ii + 2]; }
+    cx /= 3; cy /= 3; cz /= 3;
+    const ux = local[ib] - local[ia], uy = local[ib + 1] - local[ia + 1], uz = local[ib + 2] - local[ia + 2];
+    const vx = local[ic] - local[ia], vy = local[ic + 1] - local[ia + 1], vz = local[ic + 2] - local[ia + 2];
+    const e1 = Math.hypot(ux, uy, uz);
+    const e2 = Math.hypot(local[ic] - local[ib], local[ic + 1] - local[ib + 1], local[ic + 2] - local[ib + 2]);
+    const e3 = Math.hypot(vx, vy, vz);
+    const area = 0.5 * Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx);
+    const maxE = Math.max(e1, e2, e3);
+    return near.some((an) => { const dc = Math.hypot(cx - an.pos[0], cz - an.pos[2]); let dmin = 1e9; for (const ii of [ia, ib, ic]) dmin = Math.min(dmin, Math.hypot(local[ii] - an.pos[0], local[ii + 2] - an.pos[2])); return (dc < 0.35 && cy < an.pos[1] + 0.6) || (dc < 0.7 && cy < 1.0) || (dmin < 0.35 && dc < 2.6 && cy < an.pos[1] + 0.6) || (Math.abs(cy - an.pos[1]) < 0.35 && dc < 1.1) || (cy < 0.5 && dc < 2.8 && area / (maxE * maxE) < 0.28) || (dc < 2.8 && cy < 1.6 && area / (maxE * maxE) < 0.05) || (cy < 0.65 && dc < 2.3 && maxE < 0.5 && area < 0.02); });
+  };
+  // Visit every mesh with its mesh→root-local matrix `m`, the flag anchors within 2.8 m of its bounds
+  // (`near`), and whether the whole mesh is the pole itself: a thin tall ground-based mesh on the
+  // anchor axis (the coarsest LOD models the pole as its own primitive; finer LODs merge it).
+  const scanAssembly = (fn) => {
+    if (!flagAnchors.length) return;
     root.updateMatrixWorld(true);
     const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
     const m = new THREE.Matrix4(); const bb = new THREE.Box3();
     root.traverse((n) => {
-      if (!n.isMesh || !n.geometry || n.userData.flagPoleHidden) return;
+      if (!n.isMesh || !n.geometry) return;
       if (!n.geometry.boundingBox) n.geometry.computeBoundingBox();
       if (!n.geometry.boundingBox) return;
       m.multiplyMatrices(inv, n.matrixWorld);
       bb.copy(n.geometry.boundingBox).applyMatrix4(m);
       const sx = bb.max.x - bb.min.x, sy = bb.max.y - bb.min.y, sz = bb.max.z - bb.min.z;
       const cx = (bb.min.x + bb.max.x) / 2, cz = (bb.min.z + bb.max.z) / 2;
+      const wholePole = sx <= 0.45 && sz <= 0.45 && sy >= 3 && bb.min.y <= 1.2 && flagAnchors.some((an) => Math.hypot(cx - an.pos[0], cz - an.pos[2]) < 3.0);
+      const near = flagAnchors.filter((an) => bb.min.x < an.pos[0] + 2.8 && bb.max.x > an.pos[0] - 2.8 && bb.min.z < an.pos[2] + 2.8 && bb.max.z > an.pos[2] - 2.8);
+      fn(n, { m, wholePole, near });
+    });
+  };
+  // Root-local vertex positions of geometry `g` under mesh matrix `m`.
+  const localVerts = (g, m) => {
+    const gp = g.attributes.position;
+    const v = new THREE.Vector3(); const local = new Float32Array(gp.count * 3);
+    for (let i = 0; i < gp.count; i++) { v.fromBufferAttribute(gp, i).applyMatrix4(m); local[i * 3] = v.x; local[i * 3 + 1] = v.y; local[i * 3 + 2] = v.z; }
+    return local;
+  };
+  // `stripPole` (mission opt-in, e.g. a garrison whose kit pole would stand on a track): with `flag:false`
+  // the kit normally keeps a bare pole — hide that pole primitive too (thin tall mesh on the flag anchor axis).
+  const stripPoles = () => {
+    scanAssembly((n, { m, wholePole, near }) => {
+      if (n.userData.flagPoleHidden) return;
       // a whole thin tall ground-based mesh on the anchor axis is the pole itself: hide it
-      if (sx <= 0.45 && sz <= 0.45 && sy >= 3 && bb.min.y <= 1.2 && anchors.some((an) => Math.hypot(cx - an.pos[0], cz - an.pos[2]) < 3.0)) { n.visible = false; n.userData.flagPoleHidden = true; return; }
+      if (wholePole) { n.visible = false; n.userData.flagPoleHidden = true; return; }
       // coarser LODs merge the pole into a bigger chunk: drop just the pole's triangles
       // (a vertical cylinder on the anchor axis, plus the yardarm band at cloth height)
       if (n.userData.flagPoleStripped || Array.isArray(n.material)) return;
-      const near = anchors.filter((an) => bb.min.x < an.pos[0] + 2.8 && bb.max.x > an.pos[0] - 2.8 && bb.min.z < an.pos[2] + 2.8 && bb.max.z > an.pos[2] - 2.8);
       if (!near.length) return;
-      const pos = n.geometry.attributes?.position;
-      if (!pos) return;
+      if (!n.geometry.attributes?.position) return;
       const g = n.geometry.clone();
       const gp = g.attributes.position;
-      const v = new THREE.Vector3(); const local = new Float32Array(gp.count * 3);
-      for (let i = 0; i < gp.count; i++) { v.fromBufferAttribute(gp, i).applyMatrix4(m); local[i * 3] = v.x; local[i * 3 + 1] = v.y; local[i * 3 + 2] = v.z; }
+      const local = localVerts(g, m);
       const idx = g.index ? Array.from(g.index.array) : Array.from({ length: gp.count }, (_, i) => i);
       const kept = [];
-      for (let f = 0; f + 2 < idx.length; f += 3) {
-        let cx = 0, cy = 0, cz = 0;
-        for (let k = 0; k < 3; k++) { const vi = idx[f + k] * 3; cx += local[vi]; cy += local[vi + 1]; cz += local[vi + 2]; }
-        cx /= 3; cy /= 3; cz /= 3;
-        // Tight, ground-anchored rules only (broad shape tests ate the door canopy):
-        // pole cylinder, footing, wire segments touching the pole, yardarm band, and the
-        // wires' flat ground shadow-ribbons + anchor pegs (all within 1.6 m of the axis).
-        // The guy wires' bottom tails escape those: too far from the axis to touch it, hovering at
-        // cy ~1.0 (above the flat-ribbon band) -- caught by the thin/low/near tail rule instead.
-        const a = idx[f] * 3, b = idx[f + 1] * 3, c = idx[f + 2] * 3;
-        const e1 = Math.hypot(local[a] - local[b], local[a + 1] - local[b + 1], local[a + 2] - local[b + 2]);
-        const e2 = Math.hypot(local[b] - local[c], local[b + 1] - local[c + 1], local[b + 2] - local[c + 2]);
-        const e3 = Math.hypot(local[c] - local[a], local[c + 1] - local[a + 1], local[c + 2] - local[a + 2]);
-        const ux = local[b] - local[a], uy = local[b + 1] - local[a + 1], uz = local[b + 2] - local[a + 2];
-        const vx = local[c] - local[a], vy = local[c + 1] - local[a + 1], vz = local[c + 2] - local[a + 2];
-        const area = 0.5 * Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx);
-        const maxE = Math.max(e1, e2, e3);
-        const onPole = near.some((an) => { const dc = Math.hypot(cx - an.pos[0], cz - an.pos[2]); let dmin = 1e9; for (let k = 0; k < 3; k++) { const vi = idx[f + k] * 3; dmin = Math.min(dmin, Math.hypot(local[vi] - an.pos[0], local[vi + 2] - an.pos[2])); } return (dc < 0.35 && cy < an.pos[1] + 0.6) || (dc < 0.7 && cy < 1.0) || (dmin < 0.35 && dc < 2.6 && cy < an.pos[1] + 0.6) || (Math.abs(cy - an.pos[1]) < 0.35 && dc < 1.1) || (cy < 0.5 && dc < 2.8 && area / (maxE * maxE) < 0.28) || (dc < 2.8 && cy < 1.6 && area / (maxE * maxE) < 0.05) || (cy < 0.65 && dc < 2.3 && maxE < 0.5 && area < 0.02); });
-        if (!onPole) kept.push(idx[f], idx[f + 1], idx[f + 2]);
-      }
+      for (let f = 0; f + 2 < idx.length; f += 3) if (!poleTri(local, idx[f] * 3, idx[f + 1] * 3, idx[f + 2] * 3, near)) kept.push(idx[f], idx[f + 1], idx[f + 2]);
       if (kept.length === idx.length) return;
       g.setIndex(kept); g.clearGroups();
       n.geometry = g; n.userData.flagPoleStripped = true;
     });
   };
-  const sweep = () => { root.traverse((n) => { if (BAKED_FLAG.test(n.name) && n.parent?.name !== 'flag_spec' && !n.userData.flagHidden) hide(n); }); if (o.stripPole && !o.flag) stripPoles(); };
+  // `flagShift`: translate the whole wired assembly by the root-local offset instead of cutting it
+  // out. Merged chunks are de-indexed first so the assembly's vertices tear free of the geometry that
+  // stays behind; no triangle is dropped — the census count is unchanged, the assembly stands moved.
+  const shiftPoles = (off) => {
+    scanAssembly((n, { m, wholePole, near }) => {
+      if (n.userData.flagPoleShifted || Array.isArray(n.material)) return;
+      if (!wholePole && !near.length) return;
+      if (!n.geometry.attributes?.position) return;
+      // clone before touching vertices: the LOD clones share the cached GLB buffers
+      const g = n.geometry.index ? n.geometry.toNonIndexed() : n.geometry.clone();
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(g.attributes.position.array), 3));
+      g.clearGroups(); // toNonIndexed() carries group ranges over unscaled; single material here
+      const gp = g.attributes.position;
+      const local = localVerts(g, m);
+      const minv = new THREE.Matrix4().copy(m).invert();
+      const v = new THREE.Vector3();
+      let moved = 0;
+      for (let f = 0; f + 2 < gp.count; f += 3) {
+        if (!wholePole && !poleTri(local, f * 3, (f + 1) * 3, (f + 2) * 3, near)) continue;
+        for (let k = 0; k < 3; k++) {
+          const i3 = (f + k) * 3;
+          v.set(local[i3] + off[0], local[i3 + 1], local[i3 + 2] + off[1]).applyMatrix4(minv);
+          gp.setXYZ(f + k, v.x, v.y, v.z);
+        }
+        moved++;
+      }
+      if (!moved) return;
+      gp.needsUpdate = true;
+      g.computeBoundingBox(); g.computeBoundingSphere();
+      n.geometry = g; n.userData.flagPoleShifted = true;
+    });
+  };
+  const shift = localShift();
+  const sweep = () => { root.traverse((n) => { if (BAKED_FLAG.test(n.name) && n.parent?.name !== 'flag_spec' && !n.userData.flagHidden) hide(n); }); if (o.stripPole && !o.flag) stripPoles(); else if (shift) shiftPoles(shift); };
   sweep();
   // LODs attach asynchronously: sweep again whenever one lands
   root.userData.onLodAttached = sweep;
@@ -232,7 +292,7 @@ export function dressFlags(root, asset, o = {}) {
     const fw = an.width ?? 1.6; // 3:5 cloth, never taller than the kit's flag anchor
     const f = makeFlag({ w: fw, h: Math.min(an.height ?? 1.07, fw * FLAG_ASPECT), theater: o.theater });
     f.name = 'flag_spec';
-    f.position.set(an.pos[0], an.pos[1], an.pos[2]);
+    f.position.set(an.pos[0] + (shift?.[0] ?? 0), an.pos[1], an.pos[2] + (shift?.[1] ?? 0));
     f.rotation.y = -(an.heading ?? 0);
     root.add(f);
     out.push(f);
