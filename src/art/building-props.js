@@ -372,7 +372,7 @@ export function libraryVisual(type, p = {}, ctx = {}) {
     return fp;
   });
   const state = { b, disposed: false };
-  const flags = dressFlags(b.object3d, b.asset, { flag: !!p.flag, theater });
+  const flags = dressFlags(b.object3d, b.asset, { flag: !!p.flag, stripPole: p.flagPole === false, theater });
   if (p.flag && !flags.length) {
     // garrison marker (§ barracks flags) on an asset without its own pole: a pole at the east gable
     const pole = makeFlag({ pole: true, h: 6.5, theater });

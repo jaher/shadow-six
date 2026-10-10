@@ -156,7 +156,8 @@ export function makeFlag(o = {}) {
 
 /**
  * Replace every baked flag of a library building (the kit's own flag meshes) with the spec flag (current insignia).
- * `flag:false` (no garrison) → bare pole. Returns the added flag groups.
+ * `flag:false` (no garrison) → bare pole, unless `stripPole` hides the pole primitive too.
+ * Returns the added flag groups.
  * @param {THREE.Object3D} root the createBuilding() group (sidecar-local coords)
  * @param {string} asset asset name
  */
@@ -164,7 +165,61 @@ export function dressFlags(root, asset, o = {}) {
   const a = buildingMeta(asset);
   if (!a) return [];
   const hide = (n) => { n.traverse((c) => { if (c.isMesh) c.visible = false; }); n.userData.flagHidden = true; };
-  const sweep = () => root.traverse((n) => { if (BAKED_FLAG.test(n.name) && n.parent?.name !== 'flag_spec' && !n.userData.flagHidden) hide(n); });
+  // `stripPole` (mission opt-in, e.g. a garrison whose kit pole would stand on a track): with `flag:false`
+  // the kit normally keeps a bare pole — hide that pole primitive too (thin tall mesh on the flag anchor axis).
+  const stripPoles = () => {
+    const anchors = a.anchors.filter((an) => an.name === 'flag');
+    if (!anchors.length) return;
+    root.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+    const m = new THREE.Matrix4(); const bb = new THREE.Box3();
+    root.traverse((n) => {
+      if (!n.isMesh || !n.geometry || n.userData.flagPoleHidden) return;
+      if (!n.geometry.boundingBox) n.geometry.computeBoundingBox();
+      if (!n.geometry.boundingBox) return;
+      m.multiplyMatrices(inv, n.matrixWorld);
+      bb.copy(n.geometry.boundingBox).applyMatrix4(m);
+      const sx = bb.max.x - bb.min.x, sy = bb.max.y - bb.min.y, sz = bb.max.z - bb.min.z;
+      const cx = (bb.min.x + bb.max.x) / 2, cz = (bb.min.z + bb.max.z) / 2;
+      // a whole thin tall ground-based mesh on the anchor axis is the pole itself: hide it
+      if (sx <= 0.45 && sz <= 0.45 && sy >= 3 && bb.min.y <= 1.2 && anchors.some((an) => Math.hypot(cx - an.pos[0], cz - an.pos[2]) < 3.0)) { n.visible = false; n.userData.flagPoleHidden = true; return; }
+      // coarser LODs merge the pole into a bigger chunk: drop just the pole's triangles
+      // (a vertical cylinder on the anchor axis, plus the yardarm band at cloth height)
+      if (n.userData.flagPoleStripped || Array.isArray(n.material)) return;
+      const near = anchors.filter((an) => bb.min.x < an.pos[0] + 2.8 && bb.max.x > an.pos[0] - 2.8 && bb.min.z < an.pos[2] + 2.8 && bb.max.z > an.pos[2] - 2.8);
+      if (!near.length) return;
+      const pos = n.geometry.attributes?.position;
+      if (!pos) return;
+      const g = n.geometry.clone();
+      const gp = g.attributes.position;
+      const v = new THREE.Vector3(); const local = new Float32Array(gp.count * 3);
+      for (let i = 0; i < gp.count; i++) { v.fromBufferAttribute(gp, i).applyMatrix4(m); local[i * 3] = v.x; local[i * 3 + 1] = v.y; local[i * 3 + 2] = v.z; }
+      const idx = g.index ? Array.from(g.index.array) : Array.from({ length: gp.count }, (_, i) => i);
+      const kept = [];
+      for (let f = 0; f + 2 < idx.length; f += 3) {
+        let cx = 0, cy = 0, cz = 0;
+        for (let k = 0; k < 3; k++) { const vi = idx[f + k] * 3; cx += local[vi]; cy += local[vi + 1]; cz += local[vi + 2]; }
+        cx /= 3; cy /= 3; cz /= 3;
+        // Tight, ground-anchored rules only (broad shape tests ate the door canopy):
+        // pole cylinder, footing, wire segments touching the pole, yardarm band, and the
+        // wires' flat ground shadow-ribbons + anchor pegs (all within 1.6 m of the axis).
+        const a = idx[f] * 3, b = idx[f + 1] * 3, c = idx[f + 2] * 3;
+        const e1 = Math.hypot(local[a] - local[b], local[a + 1] - local[b + 1], local[a + 2] - local[b + 2]);
+        const e2 = Math.hypot(local[b] - local[c], local[b + 1] - local[c + 1], local[b + 2] - local[c + 2]);
+        const e3 = Math.hypot(local[c] - local[a], local[c + 1] - local[a + 1], local[c + 2] - local[a + 2]);
+        const ux = local[b] - local[a], uy = local[b + 1] - local[a + 1], uz = local[b + 2] - local[a + 2];
+        const vx = local[c] - local[a], vy = local[c + 1] - local[a + 1], vz = local[c + 2] - local[a + 2];
+        const area = 0.5 * Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx);
+        const maxE = Math.max(e1, e2, e3);
+        const onPole = near.some((an) => { const dc = Math.hypot(cx - an.pos[0], cz - an.pos[2]); let dmin = 1e9; for (let k = 0; k < 3; k++) { const vi = idx[f + k] * 3; dmin = Math.min(dmin, Math.hypot(local[vi] - an.pos[0], local[vi + 2] - an.pos[2])); } return (dc < 0.35 && cy < an.pos[1] + 0.6) || (dc < 0.7 && cy < 1.0) || (dmin < 0.35 && dc < 2.6 && cy < an.pos[1] + 0.6) || (Math.abs(cy - an.pos[1]) < 0.35 && dc < 1.1) || (cy < 0.5 && dc < 2.3 && area / (maxE * maxE) < 0.28) || (cy < 0.65 && dc < 2.3 && maxE < 0.5 && area < 0.02); });
+        if (!onPole) kept.push(idx[f], idx[f + 1], idx[f + 2]);
+      }
+      if (kept.length === idx.length) return;
+      g.setIndex(kept); g.clearGroups();
+      n.geometry = g; n.userData.flagPoleStripped = true;
+    });
+  };
+  const sweep = () => { root.traverse((n) => { if (BAKED_FLAG.test(n.name) && n.parent?.name !== 'flag_spec' && !n.userData.flagHidden) hide(n); }); if (o.stripPole && !o.flag) stripPoles(); };
   sweep();
   // LODs attach asynchronously: sweep again whenever one lands
   root.userData.onLodAttached = sweep;

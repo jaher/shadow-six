@@ -35,27 +35,52 @@ const pts2 = (points) => points.map((p) => (Array.isArray(p) ? p : [p.x, p.z]));
  * every 0.65 m, two rails at standard gauge. `rusty` sidings: browner rails, sparser ballast.
  */
 export function buildRailTrack(points, { width = 2.4, rusty = false } = {}) {
-  const pts = pts2(points), g = new THREE.Group(); g.name = 'kit:rail_track';
-  const bal = [], sl = [], rl = [];
-  const gauge = 1.435, top = 0.03, bw = Math.max(2.6, width + 0.6);   // low bed: rail heads at 0.16 m like the old strip (rolling stock stands on y = 0)
-  const M = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), s1 = new THREE.Vector3(1, 1, 1);
-  for (let k = 0; k + 1 < pts.length; k++) {
-    const [ax, az] = pts[k], [bx, bz] = pts[k + 1], L = Math.hypot(bx - ax, bz - az);
-    if (L < 1e-3) continue;
-    const yaw = -Math.atan2(bz - az, bx - ax), mx = (ax + bx) / 2, mz = (az + bz) / 2;
-    q.setFromAxisAngle(up, yaw);
-    const place = (geo, lx, ly, lz) => geo.applyMatrix4(M.compose(new THREE.Vector3(mx, 0, mz).add(new THREE.Vector3(lx, ly, lz).applyQuaternion(q)), q, s1));
-    // ballast: trapezoid prism along local X (joint overlap 0.6 m)
-    const shape = new THREE.Shape([new THREE.Vector2(-bw / 2, 0), new THREE.Vector2(bw / 2, 0), new THREE.Vector2(bw / 2 - 0.3, top), new THREE.Vector2(-bw / 2 + 0.3, top)]);
-    const pr = new THREE.ExtrudeGeometry(shape, { depth: L + 0.6, bevelEnabled: false });
-    pr.translate(0, 0, -(L + 0.6) / 2); pr.rotateY(Math.PI / 2);   // shape (across, up) → extrude along X
-    bal.push(boxUV(place(pr, 0, 0, 0), 1.6));
-    for (let t = 0.3; t < L; t += 0.65) sl.push(boxUV(place(new THREE.BoxGeometry(0.24, 0.08, 2.5).toNonIndexed(), -L / 2 + t, 0.04, 0), 0.8));
-    for (const s of [-1, 1]) {
-      rl.push(boxUV(place(new THREE.BoxGeometry(L + 0.02, 0.016, 0.12).toNonIndexed(), 0, 0.088, s * gauge / 2), 1.2));   // foot
-      rl.push(boxUV(place(new THREE.BoxGeometry(L + 0.02, 0.045, 0.03).toNonIndexed(), 0, 0.118, s * gauge / 2), 1.2));  // web
-      rl.push(boxUV(place(new THREE.BoxGeometry(L + 0.02, 0.025, 0.065).toNonIndexed(), 0, 0.1475, s * gauge / 2), 1.2)); // head
+  const raw = pts2(points), cp = [];
+  for (const q of raw) if (!cp.length || Math.hypot(q[0] - cp[cp.length - 1][0], q[1] - cp[cp.length - 1][1]) > 1e-6) cp.push(q);
+  const g = new THREE.Group(); g.name = 'kit:rail_track';
+  if (cp.length < 2) return g;
+  const gauge = 1.435, top = 0.03, bw = Math.max(2.6, width + 0.6);   // low bed: rail heads at 0.16 m
+  // Interpolating centripetal Catmull-Rom through every centreline point, resampled by arc length.
+  // A 0.18 m chord keeps even the tight junction curve faceting below screenshot visibility.
+  const curve = new THREE.CatmullRomCurve3(cp.map(([x, z]) => new THREE.Vector3(x, 0, z)), false, 'centripetal');
+  const L = curve.getLength(); if (!(L > 1e-3)) return g;
+  const divisions = Math.max(16, Math.ceil(L / 0.18)), samples = curve.getSpacedPoints(divisions);
+  const frames = samples.map((v, i) => {
+    const a = samples[Math.max(0, i - 1)], b = samples[Math.min(samples.length - 1, i + 1)];
+    let tx = b.x - a.x, tz = b.z - a.z; const m = Math.hypot(tx, tz) || 1; tx /= m; tz /= m;
+    return { x: v.x, z: v.z, tx, tz };
+  });
+  // Short tangent extensions weld adjoining track ribbons through shared joints instead of butt gaps.
+  const joint = 0.38, first = frames[0], last = frames[frames.length - 1];
+  const ribbonFrames = [{ x: first.x - first.tx * joint, z: first.z - first.tz * joint, tx: first.tx, tz: first.tz },
+    ...frames, { x: last.x + last.tx * joint, z: last.z + last.tz * joint, tx: last.tx, tz: last.tz }];
+  const ribbon = (profile) => {
+    const pos = [], uv = [];
+    const vert = (f, a, y) => [f.x + f.tz * a, y, f.z - f.tx * a];
+    for (let i = 0; i + 1 < ribbonFrames.length; i++) for (let j = 0; j + 1 < profile.length; j++) {
+      const A = vert(ribbonFrames[i], profile[j][0], profile[j][1]), B = vert(ribbonFrames[i], profile[j + 1][0], profile[j + 1][1]);
+      const C = vert(ribbonFrames[i + 1], profile[j + 1][0], profile[j + 1][1]), D = vert(ribbonFrames[i + 1], profile[j][0], profile[j][1]);
+      for (const v of [A, D, C, A, C, B]) { pos.push(...v); uv.push(0, 0); }
     }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.computeVertexNormals();
+    return geo;
+  };
+  const bal = [boxUV(ribbon([[-bw / 2, 0], [-bw / 2 + 0.3, top], [bw / 2 - 0.3, top], [bw / 2, 0]]), 1.6)], sl = [], rl = [];
+  const M = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), s1 = new THREE.Vector3(1, 1, 1);
+  for (let d = 0.3; d < L; d += 0.65) {
+    const u = Math.min(1, d / L), pt = curve.getPointAt(u), tn = curve.getTangentAt(u);
+    q.setFromAxisAngle(up, -Math.atan2(tn.z, tn.x));
+    const geo = new THREE.BoxGeometry(0.24, 0.08, 2.5).toNonIndexed();
+    geo.applyMatrix4(M.compose(new THREE.Vector3(pt.x, 0.04, pt.z), q, s1));
+    sl.push(boxUV(geo, 0.8));
+  }
+  for (const s of [-1, 1]) {
+    const oc = s * gauge / 2;
+    for (const [w, y0, y1] of [[0.12, 0.08, 0.096], [0.03, 0.096, 0.141], [0.065, 0.135, 0.16]])
+      rl.push(boxUV(ribbon([[oc - w / 2, y0], [oc - w / 2, y1], [oc + w / 2, y1], [oc + w / 2, y0]]), 1.2));
   }
   const strip = (list) => { for (const q2 of list) for (const a of Object.keys(q2.attributes)) if (!['position', 'normal', 'uv'].includes(a)) q2.deleteAttribute(a); return mergeGeometries(list, false); };
   if (bal.length) g.add(mesh(strip(bal), rusty ? dressingMaterial('gravel') : dressingMaterial('ballast'), false));
