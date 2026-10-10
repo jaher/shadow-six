@@ -251,26 +251,70 @@ export function dressFlags(root, asset, o = {}) {
   // `flagShift`: translate the whole wired assembly by the root-local offset instead of cutting it
   // out. Merged chunks are de-indexed first so the assembly's vertices tear free of the geometry that
   // stays behind; no triangle is dropped — the census count is unchanged, the assembly stands moved.
+  // Two escape classes are closed here (either could strand the guy-wires at the old site):
+  //  - multi-material chunks: a mesh whose material is an array carries its assembly triangles in a
+  //    material group; de-indexing maps group ranges 1:1 (indices → vertices, same order), so the
+  //    groups are kept and the triangles classify like any other. (Skipping such meshes wholesale —
+  //    as this used to — leaves the whole wired assembly behind.)
+  //  - torn wire components: the per-triangle rules can catch only part of one wire (a segment whose
+  //    own centroid/edges miss every test). A connected component that contains a classified
+  //    triangle and lies entirely within 2.6 m of the anchor axis is assembly by construction —
+  //    the building shell and the front walkway all reach past that radius — so it moves whole.
   const shiftPoles = (off) => {
     scanAssembly((n, { m, wholePole, near }) => {
-      if (n.userData.flagPoleShifted || Array.isArray(n.material)) return;
+      if (n.userData.flagPoleShifted) return;
       if (!wholePole && !near.length) return;
       if (!n.geometry.attributes?.position) return;
       // clone before touching vertices: the LOD clones share the cached GLB buffers
       const g = n.geometry.index ? n.geometry.toNonIndexed() : n.geometry.clone();
       g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(g.attributes.position.array), 3));
-      g.clearGroups(); // toNonIndexed() carries group ranges over unscaled; single material here
+      if (!Array.isArray(n.material)) g.clearGroups(); // single material: groups meaningless; multi-material groups carry over 1:1
       const gp = g.attributes.position;
       const local = localVerts(g, m);
+      const triCount = Math.floor(gp.count / 3);
+      const move = new Uint8Array(triCount);
+      for (let f = 0; f < triCount; f++) if (wholePole || poleTri(local, f * 9, f * 9 + 3, f * 9 + 6, near)) move[f] = 1;
+      if (!wholePole) {
+        // connected-component completion (see header): group triangles sharing a vertex,
+        // then move every component that a classified triangle seeds and that fits inside
+        // the assembly radius — a wire can no longer be left half behind, segment by segment.
+        const byVert = new Map();
+        for (let f = 0; f < triCount; f++) for (let k = 0; k < 3; k++) {
+          const i3 = (f * 3 + k) * 3;
+          const key = Math.round(local[i3] * 5000) + ',' + Math.round(local[i3 + 1] * 5000) + ',' + Math.round(local[i3 + 2] * 5000);
+          const l = byVert.get(key); if (l) l.push(f); else byVert.set(key, [f]);
+        }
+        const seen = new Uint8Array(triCount);
+        for (let f0 = 0; f0 < triCount; f0++) {
+          if (seen[f0]) continue;
+          const comp = []; const stack = [f0]; seen[f0] = 1;
+          while (stack.length) {
+            const f = stack.pop(); comp.push(f);
+            for (let k = 0; k < 3; k++) {
+              const i3 = (f * 3 + k) * 3;
+              const key = Math.round(local[i3] * 5000) + ',' + Math.round(local[i3 + 1] * 5000) + ',' + Math.round(local[i3 + 2] * 5000);
+              for (const q of byVert.get(key) || []) if (!seen[q]) { seen[q] = 1; stack.push(q); }
+            }
+          }
+          if (!comp.some((f) => move[f])) continue;
+          let inside = true;
+          for (const f of comp) for (let k = 0; k < 3 && inside; k++) {
+            const i3 = (f * 3 + k) * 3;
+            let d = 1e9; for (const an of near) d = Math.min(d, Math.hypot(local[i3] - an.pos[0], local[i3 + 2] - an.pos[2]));
+            if (d > 2.6) inside = false;
+          }
+          if (inside) for (const f of comp) move[f] = 1;
+        }
+      }
       const minv = new THREE.Matrix4().copy(m).invert();
       const v = new THREE.Vector3();
       let moved = 0;
-      for (let f = 0; f + 2 < gp.count; f += 3) {
-        if (!wholePole && !poleTri(local, f * 3, (f + 1) * 3, (f + 2) * 3, near)) continue;
+      for (let f = 0; f < triCount; f++) {
+        if (!move[f]) continue;
         for (let k = 0; k < 3; k++) {
-          const i3 = (f + k) * 3;
+          const i3 = (f * 3 + k) * 3;
           v.set(local[i3] + off[0], local[i3 + 1], local[i3 + 2] + off[1]).applyMatrix4(minv);
-          gp.setXYZ(f + k, v.x, v.y, v.z);
+          gp.setXYZ(f * 3 + k, v.x, v.y, v.z);
         }
         moved++;
       }
