@@ -203,6 +203,8 @@ export function dressFlags(root, asset, o = {}) {
         // Tight, ground-anchored rules only (broad shape tests ate the door canopy):
         // pole cylinder, footing, wire segments touching the pole, yardarm band, and the
         // wires' flat ground shadow-ribbons + anchor pegs (all within 1.6 m of the axis).
+        // The guy wires' bottom tails escape those: too far from the axis to touch it, hovering at
+        // cy ~1.0 (above the flat-ribbon band) -- caught by the thin/low/near tail rule instead.
         const a = idx[f] * 3, b = idx[f + 1] * 3, c = idx[f + 2] * 3;
         const e1 = Math.hypot(local[a] - local[b], local[a + 1] - local[b + 1], local[a + 2] - local[b + 2]);
         const e2 = Math.hypot(local[b] - local[c], local[b + 1] - local[c + 1], local[b + 2] - local[c + 2]);
@@ -211,7 +213,7 @@ export function dressFlags(root, asset, o = {}) {
         const vx = local[c] - local[a], vy = local[c + 1] - local[a + 1], vz = local[c + 2] - local[a + 2];
         const area = 0.5 * Math.hypot(uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx);
         const maxE = Math.max(e1, e2, e3);
-        const onPole = near.some((an) => { const dc = Math.hypot(cx - an.pos[0], cz - an.pos[2]); let dmin = 1e9; for (let k = 0; k < 3; k++) { const vi = idx[f + k] * 3; dmin = Math.min(dmin, Math.hypot(local[vi] - an.pos[0], local[vi + 2] - an.pos[2])); } return (dc < 0.35 && cy < an.pos[1] + 0.6) || (dc < 0.7 && cy < 1.0) || (dmin < 0.35 && dc < 2.6 && cy < an.pos[1] + 0.6) || (Math.abs(cy - an.pos[1]) < 0.35 && dc < 1.1) || (cy < 0.5 && dc < 2.3 && area / (maxE * maxE) < 0.28) || (cy < 0.65 && dc < 2.3 && maxE < 0.5 && area < 0.02); });
+        const onPole = near.some((an) => { const dc = Math.hypot(cx - an.pos[0], cz - an.pos[2]); let dmin = 1e9; for (let k = 0; k < 3; k++) { const vi = idx[f + k] * 3; dmin = Math.min(dmin, Math.hypot(local[vi] - an.pos[0], local[vi + 2] - an.pos[2])); } return (dc < 0.35 && cy < an.pos[1] + 0.6) || (dc < 0.7 && cy < 1.0) || (dmin < 0.35 && dc < 2.6 && cy < an.pos[1] + 0.6) || (Math.abs(cy - an.pos[1]) < 0.35 && dc < 1.1) || (cy < 0.5 && dc < 2.8 && area / (maxE * maxE) < 0.28) || (dc < 2.8 && cy < 1.6 && area / (maxE * maxE) < 0.05) || (cy < 0.65 && dc < 2.3 && maxE < 0.5 && area < 0.02); });
         if (!onPole) kept.push(idx[f], idx[f + 1], idx[f + 2]);
       }
       if (kept.length === idx.length) return;
