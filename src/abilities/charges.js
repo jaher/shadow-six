@@ -20,14 +20,7 @@ import { applyExplosion } from './explosions.js';
 import { systemsOf } from './system.js';
 import { makeBearTrap } from '../art/bear-trap.js';
 import { makeCharge, makeMillsBomb } from '../art/demolition-charge.js';
-
-function blob(color, r = 0.18, h = 0.12) {
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 10), new THREE.MeshStandardMaterial({ color, roughness: 0.7 }));
-  m.position.y = h / 2;
-  const g = new THREE.Group();
-  g.add(m);
-  return g;
-}
+import { makeDecoy } from '../art/decoy.js';
 
 /** tan 30°: the steepest ground a placed charge is drawn lying on (Bomb.syncTransform). */
 const MAX_SLOPE = Math.tan(Math.PI / 6);
@@ -211,7 +204,7 @@ export class Trap extends Interactable {
 
 export class Decoy extends Interactable {
   constructor(o) {
-    super({ interactKind: 'decoy', x: o.x, z: o.z, dynamic: true, object3d: blob(0x556b2f, 0.12, 0.2) });
+    super({ interactKind: 'decoy', x: o.x, z: o.z, heading: o.heading ?? o.owner?.heading ?? 0, dynamic: true, object3d: makeDecoy() });
     this.planter = o.owner ?? null;
     this.on = false;
     this.onTick = 0;
@@ -227,6 +220,7 @@ export class Decoy extends Interactable {
   setOn(on) {
     const w = this.world;
     this.on = !!on;
+    this.object3d?.userData.decoy?.setOn(this.on);
     this.onTick = w?.belTick ?? 0;
     if (this.on) this.pulse();
     w?.events.emit('device', { id: this.id, sfx: 'decoy_beep', x: this.x, z: this.z, on: this.on });
