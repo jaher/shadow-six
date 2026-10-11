@@ -9,11 +9,19 @@
  * on at the chosen speed). The camera follows the commando the last order went to (his vehicle while he rides),
  * captions show the stage, the latest checkpoint and the latest order. Player orders (game.enqueue) are dropped while
  * it runs; Esc (or STOP) stops it and gives the game back to the player where it stands.
+ *
+ * While CAM follow is on, the camera is VIDEO MODE's (debug/walkthrough-director.js): a Director fed by this
+ * replay's own composeShot() frames the acting commando with the mission's `pitchAt` tilt and a yaw swung away
+ * from whatever building would hide the men — the plain follow track runs only until the director attaches
+ * (the walkthrough data loads async); on stop, Director.detach hands the player's own pitch / yaw back.
  * @module debug/solution-replay
  */
 
 import { ROLE_NAMES } from '../ui/catalogue.js';
 import { CONFIG } from '../config.js';
+import { loadWalkthrough } from './solutions.js';
+import { normalizeWalkthrough } from './walkthrough-data.js';
+import { Director, freeRect } from './walkthrough-director.js';
 
 export const SPEEDS = Object.freeze([1, 2, 4, 8]);
 /** Wall-clock ms of ticks per frame while fast-forwarding to a stage (the view still updates ~8 times a second). */
@@ -154,6 +162,16 @@ export class SolutionReplay {
     this.lastOrder = '';
     this.follow = true;
     this.focus = null;
+    /** The mission's walkthrough data (normalizeWalkthrough), once _smartCam loads it: its pitchAt tilts the camera. */
+    this.wt = null;
+    /** The smart camera (a Director, as in VIDEO MODE) once attached; `_smart` marks it as this class's own. */
+    this.director = null;
+    this._smart = false;
+    /** The last ability order's target ({u, t, until}), a subject of the shot while the action runs. */
+    this._action = null;
+    this._dt = 0;
+    this._safe = null;
+    this._safeAt = 0;
     this._waiter = null;
     this.ticks = 0;
     this.dropped = 0;
@@ -191,7 +209,26 @@ export class SolutionReplay {
     });
     this.driver = D;
     this.done = this._run(D);
+    this._smartCam();
     return this.done;
+  }
+
+  /**
+   * Load the mission's walkthrough data and hand the camera to a Director fed by this replay's composeShot().
+   * Async: the plain follow track runs until it attaches. VIDEO MODE (the Walkthrough subclass) brings its own
+   * director and is skipped — its camera behaviour is unchanged.
+   */
+  async _smartCam() {
+    if (this.isWalkthrough || this.director) return;
+    let wtFile = null;
+    try { wtFile = await loadWalkthrough(this.sol.id); } catch { wtFile = null; }
+    if (this.stopped || this._released || this.director) return;
+    this.wt = normalizeWalkthrough(wtFile, { id: this.sol.id, stages: this.sol.stages, missionTitle: this.game.missionDef?.title });
+    const d = new Director(this);
+    d.on = this.follow;
+    this.director = d;
+    this._smart = true;
+    d.attach();
   }
 
   async _run(D) {
@@ -220,6 +257,8 @@ export class SolutionReplay {
   _onOrder(role, u, o) {
     this.focus = u;
     this.lastOrder = describeOrder(u, o);
+    const tgt = o?.type === 'ability' && o.target && o.target !== u && typeof o.target === 'object' ? o.target : null;
+    if (tgt && (Number.isFinite(tgt.x) || tgt.kind)) this._action = { u, t: tgt, until: this.world.time + 6 };
   }
 
   _onCheckpoint(cp) {
@@ -273,12 +312,15 @@ export class SolutionReplay {
       if (g.state === 'won' || g.state === 'lost') w.rej(new this.sol.SolutionAborted());
       else w.res();
     }
+    this._dt = dt;
     this._camera();
     if (this._wasPaused !== this.paused) { this._wasPaused = this.paused; this._syncBar(); } // P pauses too
     this._caption();
   }
 
   _camera() {
+    // the smart camera owns the view while it is attached (its Director restores the player's camera at the end)
+    if (this._smart && this.director) { if (this.follow) this.director.update(this._dt); return; }
     const cc = this.game.cameraController;
     if (!cc || !this.follow || !this.focus) return;
     const t = this.focus.vehicle && !this.focus.vehicle.removed ? this.focus.vehicle : this.focus;
@@ -294,10 +336,90 @@ export class SolutionReplay {
     } else if (!this._trackPending && cc.tracking !== t) cc.track?.(t);
   }
 
+  // ------------------------------------------------------------ what the smart camera frames
+
+  /** A camera point for a unit (his vehicle while he rides), `unseen` when hidden by design — as the walkthrough's resolve(). */
+  _pointOf(u) {
+    const w = this.world;
+    const e = u?.vehicle && !u.vehicle.removed ? u.vehicle : u;
+    if (!e || e.removed) return null;
+    const p = { x: e.x, z: e.z, y: e.y ?? (w.grid?.elevAt?.(e.x, e.z) ?? 0) };
+    if (u.insideStructure || u.buried || u.underwater || u.diving || u.object3d?.visible === false) p.unseen = true;
+    return p;
+  }
+
+  /** The acting commandos' points: the last ordered man, plus the men near him (the walkthrough's _actors shape). */
+  _actors() {
+    const w = this.world;
+    let lead = this.focus && !this.focus.removed && this.focus.alive !== false ? this.focus : null;
+    if (!lead) lead = w.commandos.find((c) => c.alive) || (this.focus && !this.focus.removed ? this.focus : null);
+    if (!lead) return [];
+    const lp = this._pointOf(lead);
+    if (!lp) return [];
+    const out = [lp];
+    for (const c of w.commandos) {
+      if (c === lead || !c.alive) continue;
+      const q = this._pointOf(c);
+      if (q && Math.hypot(q.x - lp.x, q.z - lp.z) < 26) out.push(q);
+    }
+    return out;
+  }
+
+  /** The walkthrough's pitchAt at the points' centroid (degrees), or null (keep the player's own pitch). */
+  _pitch(pts) {
+    const f = this.wt?.pitchAt;
+    if (!f || !pts.length) return null;
+    const x = pts.reduce((s, p) => s + p.x, 0) / pts.length, z = pts.reduce((s, p) => s + p.z, 0) / pts.length;
+    const v = +f(x, z);
+    return Number.isFinite(v) ? v : null;
+  }
+
+  /** What the smart camera should show now: the acting commando, the men near him, and his order's target. */
+  composeShot() {
+    const w = this.world, now = w.time;
+    if (this.pacer.turbo) {
+      const a = this._actors();
+      return a.length ? { pts: a, must: a.length, cut: true, frame: { minSpan: [26, 16] }, pitch: this._pitch(a) } : null;
+    }
+    const actors = this._actors();
+    const pts = [...actors];
+    const a0 = actors[0];
+    const act = this._action;
+    if (act && now <= act.until && !act.u.removed) {
+      const busy = act.u.currentAction || act.u.pendingAbility || now < act.until - 4;
+      const p = busy && act.t && Number.isFinite(act.t.x) ? { x: act.t.x, z: act.t.z, y: act.t.y ?? 0 } : null;
+      if (p && (!a0 || Math.hypot(p.x - a0.x, p.z - a0.z) < 40)) pts.push(p);
+    }
+    if (!pts.length) return null;
+    return { pts, must: Math.max(1, actors.length), frame: { minSpan: [16, 10] }, pitch: this._pitch(actors.length ? actors : pts) };
+  }
+
+  /** The free part of the view (view px) for the director: below the replay bar, above its caption. */
+  safeRect() {
+    const now = performance.now();
+    if (this._safe && now - this._safeAt < 300) return this._safe;
+    this._safeAt = now;
+    const cc = this.game.cameraController;
+    const canvas = this.game.renderer?.domElement?.getBoundingClientRect?.() || { left: 0, top: 0 };
+    const W = cc?.width || innerWidth, H = cc?.height || innerHeight;
+    const ox = canvas.left + (cc?.rect?.x || 0), oy = canvas.top + (cc?.rect?.y || 0);
+    const rectOf = (e) => { const r = e?.getBoundingClientRect?.(); return r && (r.width || r.height) ? r : null; };
+    let top = Math.max(0, this.game.cameraRig?.hudTop?.() || 0);
+    const bar = rectOf(this._ui);
+    if (bar) top = Math.max(top, bar.bottom - oy);
+    let bottom = 0;
+    const cap = rectOf(this._cap);
+    if (cap) bottom = Math.max(bottom, H - (cap.top - oy));
+    const r = freeRect({ width: W, height: H, top: top + 6, bottom: bottom + 6, left: 6, right: 6 });
+    this._safe = r;
+    return r;
+  }
+
   setFollow(on) {
     this.follow = !!on;
     this._tracked = null;
     this._trackPending = null;
+    if (this._smart && this.director) this.director.setOn(this.follow); // follow off: no smart framing (free camera)
     if (!this.follow) this.game.cameraController?.untrack?.();
     this._syncBar();
   }
@@ -350,6 +472,7 @@ export class SolutionReplay {
       if (s.enqueue) g.enqueue = s.enqueue; else delete g.enqueue;
       g.accumulator = 0;
     }
+    if (this._smart && this.director) { this.director.detach(); this.director = null; } // the player's pitch / yaw / bounds back
     if (this._trackPending || this._tracked) g.cameraController?.untrack?.();
     this._ui?.remove();
     this._steps?.remove();

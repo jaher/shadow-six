@@ -1,5 +1,6 @@
 /**
- * Camera director of debug VIDEO MODE (debug/walkthrough.js): frames the acting commando together with what matters
+ * Camera director of debug VIDEO MODE (debug/walkthrough.js) and of the SOLUTION replay's smart camera
+ * (debug/solution-replay.js, whose host composes simpler shots and forces no cones): frames the acting commando together with what matters
  * to the step (his target, the guard whose cone he slips past, the objective, the charge about to blow) in the part of
  * the screen the walkthrough's bar and caption leave free, with smooth pans and zooms, the mission's camera pitch
  * (walkthrough `pitchAt`) and the player's own yaw — swung by up to 55° only while a building would hide the men or
@@ -137,7 +138,7 @@ export class Director {
       cc._applyTransform?.();
     }
     if (rig) rig.scripted = s.scripted;
-    if (this.game.cones) this.game.cones.forced = null;
+    if (this.game.cones && this._forcedCones) this.game.cones.forced = null; // only what this director forced
   }
 
   /** Director on (it flies the camera, user scrolling locked) or off (free camera: the user looks around). */
@@ -237,14 +238,16 @@ export class Director {
     return s;
   }
 
-  /** The step's cones (render only: VisionCones.forced). */
+  /** The step's cones (render only: VisionCones.forced). A host without conesNow (the SOLUTION replay) forces none. */
   _cones() {
     const cones = this.game.cones;
     if (!cones || !('forced' in cones)) return;
+    if (typeof this.wk.conesNow !== 'function') return;
     const list = this.wk.conesNow();
     const key = list.map((e) => e.id).join(',');
     if (key === this._lastForced && cones.forced) return;
     this._lastForced = key;
     cones.forced = new Set(list);
+    this._forcedCones = true;
   }
 }
