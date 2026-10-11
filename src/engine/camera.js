@@ -697,6 +697,13 @@ export class CameraRig {
     this.enabled = true;
     /** §6.8 faithful pause: user scrolling (arrows, edge, middle-drag) is frozen; tweens and zoom still run. */
     this.panLocked = false;
+    /** Hold-to-rotate hold state from the touch TURN buttons ({l, r}); the keys are read via input.isDown. */
+    this._touchRot = { l: false, r: false };
+    /** Called with the settled yaw (deg, rounded) after hold-to-rotate turns: fn(deg). The HUD wires this to
+     *  the persisted Options CAMERA ANGLE so the menu never shows a stale angle. */
+    this.onUserYaw = null;
+    this._yawDirty = false; // a turn since the last onUserYaw report
+    this._yawSettle = 0; // s turned since the last report (reports are throttled to 4/s, plus one on release)
     /** A scripted camera move owns the view (the briefing tour): Game.render locks user scrolling while it is set. */
     this.scripted = false;
     /** Called after views/layout/active change: fn(rig). */
@@ -889,6 +896,43 @@ export class CameraRig {
     for (const v of this.views) v.setYaw(this.cfg.yawDeg);
   }
 
+  /** Touch TURN buttons (ui/touch.js): the hold state of one side ('l' | 'r'). */
+  touchRotate(side, down) {
+    if (side === 'l' || side === 'r') this._touchRot[side] = !!down;
+  }
+
+  /** Hold-to-rotate direction (-1 left, 0, +1 right): the touch TURN buttons + the rotLeft / rotRight keys. */
+  rotateInput() {
+    let dir = (this._touchRot.r ? 1 : 0) - (this._touchRot.l ? 1 : 0);
+    const inp = this.input;
+    if (inp?.isDown) {
+      if (inp.isDown('rotLeft')) dir -= 1;
+      if (inp.isDown('rotRight')) dir += 1;
+    }
+    return clamp(dir, -1, 1);
+  }
+
+  /**
+   * One frame of hold-to-rotate: yaw turns at cfg.rotateDegPerSec while a key / TURN button is held,
+   * wrapped 0-360 and applied through setYaw, so every view re-aims and re-clamps exactly like the
+   * Options path (no void wedge at any angle). User input: update() calls this only while user
+   * scrolling is live (not the faithful pause, not a scripted camera).
+   */
+  _rotateStep(dt) {
+    const dir = this.rotateInput();
+    if (!dir) {
+      if (this._yawDirty) { this._yawDirty = false; this.onUserYaw?.(Math.round(this.cfg.yawDeg)); }
+      this._yawSettle = 0;
+      return;
+    }
+    const rate = this.cfg.rotateDegPerSec || 50;
+    const yaw = (((this.active.yawDeg + dir * rate * dt) % 360) + 360) % 360;
+    this.setYaw(yaw);
+    this._yawDirty = true;
+    this._yawSettle += dt;
+    if (this._yawSettle >= 0.25) { this._yawSettle = 0; this._yawDirty = false; this.onUserYaw?.(Math.round(yaw)); }
+  }
+
   /** Back to one untracked view (mission load). */
   reset() {
     for (const v of this.views) v.untrack();
@@ -910,6 +954,7 @@ export class CameraRig {
    */
   update(dt) {
     const pan = this.enabled && !this.panLocked ? this.panInput() : null;
+    if (this.enabled && !this.panLocked && dt > 0) this._rotateStep(dt); // freezes with user scrolling (§6.8 / scripted)
     this._syncHud(); // the UI scale (and so the bar) follows the window / Options
     for (let i = 0; i < this.count; i++) this.views[i].update(dt, i === this.activeIndex ? pan : null);
     this._updateDom();

@@ -571,4 +571,14 @@ html.mk-touch .ui-cursor { display: none !important; }
 .touch-cancel[hidden] { display: none !important; }
 .touch-cancel b { font-size: 18px; line-height: 1; font-weight: 400; }
 .touch-cancel span { font: 500 8px/1 var(--f-item, sans-serif); letter-spacing: .1em; }
+/* hold-to-rotate TURN buttons (touch only; src/ui/touch.js): the bottom-left stack, above CANCEL */
+.touch-rot { position: fixed; z-index: 24; bottom: calc(130px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 52px; height: 52px; padding: 0; pointer-events: auto;
+  border: 1px solid rgba(201, 162, 74, .7); border-radius: 4px; background: rgba(12, 12, 7, .78); color: var(--cream, #efe6c8); touch-action: none; }
+.touch-rot[hidden] { display: none !important; }
+.touch-rot b { font-size: 18px; line-height: 1; font-weight: 400; }
+.touch-rot span { font: 500 8px/1 var(--f-item, sans-serif); letter-spacing: .1em; }
+.touch-rot.l { left: calc(10px + env(safe-area-inset-left)); }
+.touch-rot.r { left: calc(70px + env(safe-area-inset-left)); }
+.touch-rot.on { background: rgba(201, 162, 74, .38); }
 html.mk-touch .mk-confirm .mk-hints.touch { display: none; } /* (Y)ES (N)O are the buttons */

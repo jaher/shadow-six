@@ -102,6 +102,11 @@ export class HUD {
     this.backdrop = new Backdrop(this);
     this.boot = new Boot(this);
     if (typeof window !== 'undefined' && typeof document !== 'undefined') this.touch = installTouch(this); // phones: taps everywhere
+    // hold-to-rotate (engine/camera.js) reports the yaw it settles on: keep the persisted CAMERA ANGLE
+    // truthful (Options formats a non-preset value as CUSTOM n°; a preset pick re-applies as usual)
+    if (game.cameraRig) game.cameraRig.onUserYaw = (deg) => {
+      if (this.options.cameraAngle !== deg) { this.options.cameraAngle = deg; saveOptions(this.options); }
+    };
     this.toastEl = el('div', 'mk-toast', root);
     this.toastEl.hidden = true;
     this._applyScale();

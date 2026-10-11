@@ -55,6 +55,7 @@ export const CONFIG = {
     pxPerMeterAt1x: 40, // §2.2 screen pixels per metre at zoom 1 (1080p reference)
     edgePx: 8, // §2.3 pointer within this many px of the edge scrolls
     scrollSpeed: 30, // §2.3 edge/arrow pan speed at zoom 1 (m/s), scaled by 1/zoom
+    rotateDegPerSec: 50, // hold-to-rotate yaw speed (Comma / Period keys, touch TURN buttons)
     zoomTween: 0.25, // §2.2 zoom tween duration (s)
     recenterTween: 0.35, // §2.3 recentre-on-unit tween (s)
     boundsMargin: 4, // §2.3 how far (m) the view edge may go beyond the map edge

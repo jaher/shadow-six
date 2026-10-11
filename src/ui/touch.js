@@ -139,9 +139,37 @@ export function installTouch(hud) {
   });
   cancel.addEventListener('pointerdown', (e) => e.stopPropagation());
   (hud.root || doc.body).appendChild(cancel);
+  // hold-to-rotate: TURN buttons in the bottom-left stack (above CANCEL). A finger on one never pans or
+  // pinches: the buttons are not the canvas and not TouchGame HUD_CHROME, so the gesture classifier never
+  // sees the finger; each button eats its own pointer events and only flips the rig's rotate hold state
+  // (CameraRig.touchRotate), which turns the view while held and stops on release.
+  const mkRot = (side, glyph, label) => {
+    const b = doc.createElement('button');
+    b.type = 'button';
+    b.className = `touch-rot ${side}`;
+    b.hidden = true;
+    b.setAttribute('aria-label', label);
+    b.innerHTML = `<b aria-hidden="true">${glyph}</b><span>TURN</span>`;
+    const set = (down) => {
+      hud.game?.cameraRig?.touchRotate(side, down);
+      b.classList.toggle('on', down);
+    };
+    b.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); set(true); });
+    const off = (e) => { e.stopPropagation(); set(false); };
+    b.addEventListener('pointerup', off);
+    b.addEventListener('pointercancel', off);
+    b.addEventListener('pointerleave', off);
+    b.addEventListener('click', (e) => e.stopPropagation());
+    (hud.root || doc.body).appendChild(b);
+    return b;
+  };
+  const rotL = mkRot('l', '\u21BA', 'Turn camera left');
+  const rotR = mkRot('r', '\u21BB', 'Turn camera right');
   return {
     menu,
     cancel,
+    rotL,
+    rotR,
     hint,
     /** Per frame (HUD.update): the MENU button only while a mission is on screen with no card over it. */
     update() {
@@ -149,6 +177,14 @@ export function installTouch(hud) {
       const show = root.classList.contains('mk-touch') && !!g?.world && (g.state === 'playing' || g.state === 'paused')
         && !hud.kit?.active && !hud.briefing?.active && !hud.debrief?.active && !hud.boot?.active && !hud.loading?.active;
       if (menu.hidden === show) menu.hidden = !show;
+      if (rotL.hidden === show) rotL.hidden = !show;
+      if (rotR.hidden === show) rotR.hidden = !show;
+      if (!show) { // a card opened / the mission ended mid-hold: never leave the camera turning
+        hud.game?.cameraRig?.touchRotate('l', false);
+        hud.game?.cameraRig?.touchRotate('r', false);
+        rotL.classList.remove('on');
+        rotR.classList.remove('on');
+      }
       const inp = g?.input;
       const busy = show && !!inp && (!!inp.targeting || !!inp.mode || !!hud.cursor?.mode
         || inp.selection.some((c) => c.armed || c.carrying || c.buried));
@@ -162,6 +198,6 @@ export function installTouch(hud) {
         cancel.setAttribute('aria-label', dig ? 'Dig out' : 'Cancel');
       }
     },
-    dispose() { offs.forEach((f) => f()); hint.remove(); menu.remove(); cancel.remove(); },
+    dispose() { offs.forEach((f) => f()); hint.remove(); menu.remove(); cancel.remove(); rotL.remove(); rotR.remove(); },
   };
 }

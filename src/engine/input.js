@@ -33,6 +33,8 @@ export const KEY_BINDINGS = {
   zoomIn: ['NumpadAdd', 'Equal'], // §5.1 numpad + (laptop alias = / +)
   zoomOut: ['NumpadSubtract', 'Minus'],
   zoomReset: ['NumpadMultiply', 'Backspace'], // numpad * (laptop alias Backspace)
+  rotLeft: ['Comma'], // hold: swing the camera left (yaw -)
+  rotRight: ['Period'], // hold: swing the camera right (yaw +)
   crawl: ['KeyC'], // C = lie down / crawl
   stand: ['KeyS'], // S = stand up
   select1: ['Digit1'],
