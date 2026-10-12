@@ -112,6 +112,31 @@ const RECIPES = {
     return (Math.sin(TAU * f * t) + 0.35 * Math.sin(TAU * 2 * f * t)) * loopFade(t, 8);
   }),
   bird: (sr) => render(sr, 0.5, (t) => Math.sin(TAU * (2600 + 900 * Math.sin(TAU * 18 * t)) * t) * ((t % 0.16) < 0.09 ? 1 : 0) * dec(t, 3)),
+  // ambient ducks (src/world/duck-water.js), quiet: the drake eider's soft cooing "ah-OOO" (a short low note, then a
+  // rising, falling croon with a little vibrato; three soft harmonics, dark), the hen eider's low "kok-kok-kok" grunts,
+  // the mallard hen's falling "quack quack quack" (a nasal buzz through a formant band), and a flock taking off:
+  // wings whirring at their own beat (5–9 Hz each, staggered starts) over the patter and slap of feet and wingtips
+  eider_coo: (sr, s) => render(sr, 0.9, (t) => {
+    const ah = t < 0.16 ? Math.sin(Math.PI * t / 0.16) : 0, u = (t - 0.24) / 0.6, oo = u > 0 && u < 1 ? Math.sin(Math.PI * Math.min(1, u * 1.6)) ** 0.7 * (1 - u) ** 0.4 : 0;
+    const f = t < 0.2 ? 205 : 215 + 85 * Math.sin(Math.PI * Math.min(1, Math.max(0, u) * 1.3)) + 4 * Math.sin(TAU * 6 * t), w = TAU * f * t;
+    return (Math.sin(w) + 0.45 * Math.sin(2 * w) + 0.18 * Math.sin(3 * w)) * (0.55 * ah + oo);
+  }, { seed: s, lp: 900 }),
+  eider_grunt: (sr, s) => render(sr, 0.55, (t, i, r) => [0, 0.17, 0.32].reduce((a, k, j) => {
+    const u = t - k; return a + (u > 0 && u < 0.08 ? (Math.sign(Math.sin(TAU * (150 - 30 * u) * u)) * 0.7 + 0.3 * r()) * Math.sin(Math.PI * u / 0.08) * (1 - 0.2 * j) : 0);
+  }, 0), { seed: s, lp: 700, hp: 90 }),
+  quack: (sr, s) => render(sr, 0.95, (t, i, r) => [0, 0.27, 0.5, 0.7].reduce((a, k, j) => {
+    const u = t - k, d = 0.16 - 0.02 * j; return a + (u > 0 && u < d ? (Math.sign(Math.sin(TAU * (420 - 260 * u - 25 * j) * u)) + 0.15 * r()) * Math.min(1, u / 0.012) * (1 - u / d) ** 0.6 * (1 - 0.22 * j) : 0);
+  }, 0), { seed: s, lp: 2200, hp: 480, poles: 2 }),
+  wing_flurry: (sr, s) => {
+    const W = Array.from({ length: 7 }, (_, k) => ({ f: 5 + ((k * 37) % 9) * 0.5, p: (k * 1.7) % TAU, t0: ((k * 53) % 7) * 0.05, g: 0.6 + ((k * 29) % 5) * 0.1 }));
+    const P = Array.from({ length: 14 }, (_, k) => ({ t: 0.04 + ((k * 61) % 23) * 0.04, g: 0.3 + ((k * 13) % 7) * 0.1 }));
+    return render(sr, 1.6, (t, i, r) => {
+      let w = 0;
+      for (const q of W) { const u = t - q.t0; if (u > 0) w += q.g * Math.max(0, Math.sin(TAU * q.f * u + q.p)) ** 3 * Math.min(1, u / 0.15) * Math.min(1, (1.6 - t) / 0.7); }
+      let sp = 0; for (const q of P) { const u = t - q.t; if (u > 0) sp += q.g * Math.exp(-u * 45); }
+      return r() * (0.55 * w + 0.8 * sp);
+    }, { seed: s, lp: 2600, hp: 220 });
+  },
   dog: (sr, s) => render(sr, 0.3, (t, i, r) => (Math.sign(Math.sin(TAU * (380 - 300 * t) * t)) + 0.4 * r()) * att(t, 0.01) * dec(t, 10), { seed: s, lp: 1600 }),
   fanfare: (sr) => notes(sr, [[523, 0.18], [659, 0.18], [784, 0.18], [1047, 0.6]], 'brass'),
 };

@@ -2,7 +2,8 @@
  * Ambient birds (PROGRESS step 4f extras): herring gulls wheeling over harbours / coasts / fjords (land on piers or
  * the water, flush at gunshots), crows in open fields (hooded crows in Norway; walk and peck, flush when anyone
  * comes close; on the ground they walk with alternating steps and a head-bob, hop, peck and look round: see
- * bird-ground.js), ducks on ponds and quiet rivers (mallards; common eiders on northern seas). Pure and deterministic
+ * bird-ground.js), ducks on ponds and quiet rivers (mallards; common eiders on northern seas: swimming, flocks,
+ * diving, take-off runs, formation flight and skid landings in duck-water.js). Pure and deterministic
  * on SIM time (frozen while paused), wind-aware: every bird flies through the air mass (ground velocity = air
  * velocity + wind at its height, so gulls crab and hang into a gale), lands and settles facing into the wind, and
  * sitting ducks drift downwind. No gameplay effect. Rendering: src/art/bird-model.js; director:
@@ -11,6 +12,7 @@
  */
 import { makeRng, fishHabitat } from './fish-sim.js';
 import { legDims, feetInit, feetPlant, feetAir, feetGait, turnTo, peckCurve, smooth, restFoot } from './bird-ground.js';
+import { duckSpawn, duckSwim, duckFlee, duckAir, duckApproach, duckFinal, duckSkid } from './duck-water.js';
 
 const _R = { x: 0, z: 0 };
 const HOP_RAMP = 0.06; // s over which a hop's forward speed builds (push-off) and dies (landing)
@@ -77,6 +79,7 @@ export class BirdSim {
     this.birds = []; this.threats = []; this.t = 0;
     this.stats = { flushes: 0, landings: 0, splashes: 0 };
     this._w = [0, 0];
+    this.flocks = []; this._flockOf = new Map(); // duck flocks (src/world/duck-water.js), one per plan entry
     this._fh = new Map(); // fields spatial hash (4 m buckets): crows only walk where the field is open
     for (const q of env.fields || []) { const k = `${Math.floor(q[0] / 4)},${Math.floor(q[1] / 4)}`; (this._fh.get(k) || this._fh.set(k, []).get(k)).push(q); }
     for (const p of plan) for (let i = 0; i < p.n; i++) this._spawn(p, i);
@@ -99,6 +102,7 @@ export class BirdSim {
     } else if (p.kind === 'duck') {
       const s = e.water(b.x, b.z);
       if (!s) { b.x = p.x; b.z = p.z; }
+      duckSpawn(this, b, p, i);
       this._settle(b, 'swim', null, true);
     } else {
       for (let k = 0; k < 8; k++) { b.x = p.x + (r() - 0.5) * 6; b.z = p.z + (r() - 0.5) * 6; if (!this._blocked(b.x, b.z) && !e.water(b.x, b.z)) break; if (k === 7) { b.x = p.x; b.z = p.z; } }
@@ -134,6 +138,9 @@ export class BirdSim {
     else if (spawn) feetAir(b, 1, 1);
   }
 
+  /** Is (x, z) inside the map, `m` m in from its edge (env.bounds; no bounds: everywhere)? */
+  _inBounds(x, z, m = 2) { const B = this.env.bounds; return !B || (x > B[0] + m && z > B[1] + m && x < B[2] - m && z < B[3] - m); }
+
   /** Units / vehicles that make birds nervous this frame: [{x, z, moving}]. */
   setThreats(list) { this.threats = list || []; }
 
@@ -151,14 +158,15 @@ export class BirdSim {
   _flee(b, x, z) {
     const was = b.st, grounded = was === 'perched' || was === 'float' || was === 'swim' || was === 'ground' || was === 'final';
     if (was === 'flee' || was === 'takeoff') return false;
+    if (b.kind === 'duck') return duckFlee(this, b, x, z);
     if (b.perch) { b.perch.bird = null; b.perch = null; }
     const a = Math.atan2(b.z - z, b.x - x) + (this.rnd() - 0.5) * 0.8, d = 25 + this.rnd() * 25;
     b.tx = b.x + Math.cos(a) * d; b.tz = b.z + Math.sin(a) * d; b.ty = b.S.alt[1] + 3;
     b.st = 'flee'; b.tt = 4 + this.rnd() * 3; b.act = ''; b.hop = null;
     if (grounded) {
       this.stats.flushes++; this.env.flush?.(b);
-      if (b.kind === 'duck' || was === 'float') { this.env.splash?.(b.x, b.z, 0.35); this.stats.splashes++; }
-      b.vy = b.kind === 'duck' && b.sp === 'mallard' ? 3.2 : 1.8; // mallards spring straight up, eiders patter off
+      if (was === 'float') { this.env.splash?.(b.x, b.z, 0.35); this.stats.splashes++; }
+      b.vy = 1.8;
       if (b.G && (was === 'ground' || was === 'perched')) this._beginLaunch(b, 0.09); // crouch, then spring
     }
     return grounded;
@@ -234,7 +242,7 @@ export class BirdSim {
     }
     for (let k = 0; k < 10; k++) {
       const a = r() * TAU, d = 2 + r() * (b.kind === 'duck' ? 10 : 20), x = b.hx + Math.cos(a) * d, z = b.hz + Math.sin(a) * d, s = e.water(x, z);
-      if (s && !s.ice && s.depth > 0.3 && (b.kind !== 'duck' || s.shore < 9)) return [x, s.level, z, b.kind === 'duck' ? 'swim' : 'float'];
+      if (s && !s.ice && s.depth > 0.3 && (b.kind !== 'duck' || ((b.sp === 'eider' || s.shore < 9) && this._inBounds(x, z)))) return [x, s.level, z, b.kind === 'duck' ? 'swim' : 'float'];
     }
     return null;
   }
@@ -288,7 +296,7 @@ export class BirdSim {
     if (b.y < b.ty) b.y = b.ty;
     if (b.y - b.ty < 0.006 && (!perch || Math.hypot(ex, ez) < 0.04) || b.tt < -6) {
       this.stats.landings++;
-      if (b.land === 'swim' || b.land === 'float') { e.ripple?.(b.x, b.z, 0.05); if (b.kind === 'duck') { e.splash?.(b.x, b.z, 0.25); this.stats.splashes++; } }
+      if (b.land === 'swim' || b.land === 'float') e.ripple?.(b.x, b.z, 0.05);
       if (b.tt < -6 && !perch) b.y = b.ty;
       this._settle(b, b.land, perch ? b.perch : null);
     }
@@ -312,6 +320,7 @@ export class BirdSim {
         break;
       }
       case 'fly': { // crows / ducks commuting: steady flapping (crows with short glides), low
+        if (b.kind === 'duck') { duckAir(this, b, h); break; }
         b.gy = e.ground(b.x, b.z);
         const d = this._fly(b, h, b.tx, b.ty, b.tz, S.air);
         this._wings(b, h, S.glide > 0.2 && Math.sin(this.t * 1.3 + b.pref * 6) > 0.6 ? 0 : 0.9);
@@ -320,6 +329,7 @@ export class BirdSim {
         break;
       }
       case 'flee': case 'takeoff': { // explosive take-off, climb away (flee) or into the wind (takeoff)
+        if (b.kind === 'duck') { duckAir(this, b, h); break; }
         b.gy = e.ground(b.x, b.z);
         if (b.st === 'takeoff') { const u = this._upwind(b); b.tx = b.x + Math.cos(u) * 20; b.tz = b.z + Math.sin(u) * 20; }
         if (b.launch > 0) { this._launch(b, h); break; }
@@ -330,18 +340,18 @@ export class BirdSim {
           if (b.kind === 'gull') { b.st = 'soar'; b.tt = 25 + r() * 40; b.alt = S.alt[0] + r() * (S.alt[1] - S.alt[0]); }
           else {
             b.st = 'fly'; b.ty = S.alt[0] + r() * (S.alt[1] - S.alt[0]);
-            const a = r() * TAU, d = b.kind === 'duck' ? 25 : 15 + r() * 15; // ducks circuit and come back home
-            b.tx = (b.kind === 'duck' ? b.hx : b.x) + Math.cos(a) * d; b.tz = (b.kind === 'duck' ? b.hz : b.z) + Math.sin(a) * d;
+            const a = r() * TAU, d = 15 + r() * 15;
+            b.tx = b.x + Math.cos(a) * d; b.tz = b.z + Math.sin(a) * d;
             const F = e.fields || [];
             if (b.kind === 'crow' && F.length) { // crows commute to another bit of the same fields
               for (let k = 0; k < 6; k++) { const q = F[(r() * F.length) | 0]; if (Math.hypot(q[0] - b.x, q[1] - b.z) < 45) { b.tx = q[0]; b.tz = q[1]; break; } }
             }
-            if (b.kind === 'duck') b.tt = 20 + r() * 20;
           }
         }
         break;
       }
       case 'approach': { // swing round to come in from downwind, then a braking final into the wind
+        if (b.kind === 'duck') { duckApproach(this, b, h); break; }
         b.gy = e.ground(b.x, b.z);
         const u = this._upwind(b), ax = b.tx - Math.cos(u) * 7, az = b.tz - Math.sin(u) * 7;
         const d = this._fly(b, h, ax, b.ty + 2.5, az, S.air * 0.9);
@@ -351,6 +361,7 @@ export class BirdSim {
         break;
       }
       case 'final': { // braking final with a flare, then a touchdown that converges smoothly onto the spot
+        if (b.kind === 'duck') { duckFinal(this, b, h); break; }
         if (b.land === 'ground') b.ty = e.ground(b.x, b.z) + (b.G ? b.G.stand : 0);
         const d3 = Math.hypot(b.tx - b.x, b.ty - b.y, b.tz - b.z);
         if (!b.td) {
@@ -362,12 +373,14 @@ export class BirdSim {
         if (b.G && b.st === 'final') feetAir(b, h, d3 < 4 ? 0 : 1); // legs come down and reach forward for the ground
         break;
       }
+      case 'skid': duckSkid(this, b, h); break; // ducks: the run-out along the water after touchdown
       default: this._idle(b, h);
     }
   }
 
   /** Sitting birds: face into the wind, preen / peck / dabble, drift on the water, flush when approached. */
   _idle(b, h) {
+    if (b.kind === 'duck' && b.st === 'swim') { duckSwim(this, b, h); return; }
     const S = b.S, r = this.rnd, e = this.env;
     b.amp += (0 - b.amp) * Math.min(1, 5 * h); b.fold += (1 - b.fold) * Math.min(1, 4 * h);
     b.bank *= 1 - Math.min(1, 4 * h); if (b.st !== 'ground') b.pitch *= 1 - Math.min(1, 3 * h);
@@ -379,20 +392,12 @@ export class BirdSim {
       const s = e.water(b.x, b.z);
       if (!s) { b.st = 'takeoff'; b.tt = 3; b.ty = b.y + 4; return; }
       b.gy = s.level;
-      // wind drift (~2.5 % of the wind) + current; ducks paddle back towards home water and wander
-      let px = 0, pz = 0;
-      if (b.kind === 'duck') {
-        if (b.tt <= 0 || !b.wx) { b.tt = 6 + r() * 10; const a = r() * TAU, d = r() * 7; b.wx = b.hx + Math.cos(a) * d; b.wz = b.hz + Math.sin(a) * d; }
-        const dx = b.wx - b.x, dz = b.wz - b.z, d = Math.hypot(dx, dz);
-        if (d > 0.6) { px = (dx / d) * 0.28; pz = (dz / d) * 0.28; face = Math.atan2(pz, px); }
-        b.dab = Math.max(0, Math.sin(this.t * 0.31 + b.pref * 17) * 3 - 2.2); // tail-up dabbling now and then
-        if (d > 0.6 && r() < h * 1.2) e.ripple?.(b.x, b.z, 0.012);
-      } else if (b.tt <= 0) { b.st = 'takeoff'; b.tt = 3; b.ty = b.y + 4; return; }
-      const nx = b.x + (W[0] * 0.025 + s.flow[0] * 0.9 + px) * h, nz = b.z + (W[1] * 0.025 + s.flow[1] * 0.9 + pz) * h;
+      // gulls sitting on the water: wind drift (~2.5 % of the wind) + current (ducks: duck-water.js)
+      if (b.tt <= 0) { b.st = 'takeoff'; b.tt = 3; b.ty = b.y + 4; return; }
+      const nx = b.x + (W[0] * 0.025 + s.flow[0] * 0.9) * h, nz = b.z + (W[1] * 0.025 + s.flow[1] * 0.9) * h;
       const q = e.water(nx, nz);
       if (q && !q.ice) { b.x = nx; b.z = nz; b.y = q.level; }
-      else { b.wx = b.hx; b.wz = b.hz; }
-      if (ws < 0.5 && !px) face = b.yaw;
+      if (ws < 0.5) face = b.yaw;
     } else if (b.st === 'ground') { // crows: walk, hop, peck, look round
       if (b.tt <= 0 && !b.hop && b.act !== 'peck' && b.peck < 0.05 && b.feet.every((f) => f.s < 0)) { b.st = 'takeoff'; b.tt = 2; b.ty = b.y + 3; b.hx = b.x; b.hz = b.z; this._beginLaunch(b, 0.16); return; }
       this._ground(b, h, up, ws);

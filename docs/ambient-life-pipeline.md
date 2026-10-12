@@ -10,8 +10,11 @@ in fields and ducks on ponds. None of this affects gameplay and none of it is sa
 | `src/world/fish-sim.js` | Pure, deterministic fish boids: `FISH_SPECIES`, `FISH_HABITATS`, `fishHabitat()`, `fishPlan()`, `FishSim` |
 | `src/world/bird-sim.js` | Pure bird behaviour: `BIRD_SPECIES`, `birdPlan()`, `BirdSim`, `windAtHeight()` |
 | `src/world/bird-ground.js` | Feet and gait of the birds that stand (crows, gulls): `legDims`, `feetGait`, `feetAir`, `turnTo`, `peckCurve` |
+| `src/world/duck-water.js` | Ducks (eiders, mallards): flock, swimming activities, chop, alarm, take-off run, formation flight, glide-in and skid (`DUCK_HABITS`, `duckSwim`, `duckFlee`, `duckRun`, `duckAir`, `duckFinal`, `duckSkid`, `chop`) |
+| `src/art/duck-model.js` | Duck hull, head and wings with per-fragment plumage (drake / hen), GPU wing flap / fold, head, neck and tail poses (`duckGeometry`, `createDuckMesh`, `writeDucks`) |
+| `src/art/duck-wake.js` | V wakes and take-off wash behind the ducks: one dynamic ribbon mesh on the late FX layer (`createDuckWakes`) |
 | `src/art/fish-model.js` | Procedural fish body, instanced swimming shader, soft bed shadows (`createFishMesh`, `writeFish`, `createFishShadows`) |
-| `src/art/bird-model.js` | Low-poly birds with GPU wing flap, fold and peck, two plumages per species (`createBirdMesh`, `writeBirds`) |
+| `src/art/bird-model.js` | Low-poly birds with GPU wing flap, fold and peck, two plumages per species (`createBirdMesh`, `writeBirds`; ducks dispatch to duck-model.js) |
 | `src/render/ambient-life.js` | Per-mission director `createAmbientLife(world, renderer)`: plans the life, wires events, and each frame steps the sims, culls and uploads instances |
 | `src/world/map-builder.js` | Creates the director on the first frame after `handle.ready` (so the water's bed capture never sees it) as `mapHandle.life`, and disposes it |
 
@@ -118,8 +121,8 @@ The fish model:
 |---|---|---|
 | herring gull | Seas, harbours, fjords, big rivers. About 35 % are first-winter brown birds. | They wheel on 7–15 m circles in flap-and-glide bouts. They land on pier deck edges and pier heads (`lifePerches` from the mission's `pier` / `jetty` structures, with y from `world.groundY`) or on the water, and sit 15–50 s. |
 | hooded crow (black carrion crow on the alternate plumage) | Open snow, grass, ground or mud fields (`lifeFields`: obstacle-free 2 m grid) | They walk with alternating steps and a head-bob, hop, peck and look round (see *On the ground*), then commute between patches of the same fields. |
-| mallard (drakes and ducks) | Ponds, lakes, rivers slower than 1.1 m/s | They paddle around home water near the bank, dabble tail-up, and leave faint ripples (`water.disturb`). |
-| common eider | Northern seas and fjords (M1) | Rafts of 4–8. Eiders patter off the water to take off, while mallards spring straight up. |
+| mallard (drakes and hens, half each) | Ponds, lakes, rivers slower than 1.1 m/s (M2–M4, M15, M17, M20) | A loose flock near the bank; they paddle, preen, rest, up-end to feed, and spring straight up off the water when flushed. See *Ducks*. |
+| common eider (55 % drakes) | Northern seas and fjords (M1, M3, M7) | Rafts of 4–8 offshore; they dive for mussels, and run across the water to take off. See *Ducks*. |
 
 - **Wind.** Every bird flies *through the air mass*. Its ground velocity is its air velocity plus the WindField
   wind at its height (log profile, z0 = 3 cm), capped at 1.05 × the species airspeed, because birds keep low in a
@@ -181,13 +184,70 @@ The fish model:
   lagging about 50°. Folded wings sweep back along the flank with the primaries just past the tail. A
   `customDepthMaterial` runs the same animation, so the shadows match.
 
+## Ducks
+
+User request: *"make the ducks more realistic (as seen in mission 1)"*. Before, they were the generic bird spindle
+(117 triangles, two vertex colours per sex) sitting half sunk, paddling at a constant 0.28 m/s to random points
+with an instant start and stop, overlapping, with a plain splash and the generic flee / land of the other birds.
+
+- **Species and plumage** (`src/art/duck-model.js`). Common eiders on the Norway fjords and seas (M1), mallards on
+  ponds and rivers. The plumage is painted per fragment from the rest-pose position and a pattern coordinate per part,
+  so boundaries are crisp and follow the moving head, tail and wings, and fine barring fades out (fwidth) where it
+  would alias at zoom 1.
+  - Drake eider: white back and upper flanks, cream-pink breast, black flanks, belly, rump and tail, the white
+    rear-flank spot, white head with a black cap and pale green nape, olive bill; in flight white forewing and back
+    against black flight feathers.
+  - Hen eider: warm rufous brown, densely barred dark; dark speculum between thin white bars.
+  - Drake mallard: bottle-green head, white collar, chestnut breast, pale grey flanks, black rear, whitish tail,
+    yellow bill. Hen mallard: scalloped buff-brown, dark crown and eye stripe, orange bill with a dark saddle. Both:
+    the blue speculum bordered white.
+- **Proportions and posture.** A lofted hull (~300 triangles with head, neck, tail and wings) whose origin is the
+  waterline: ~45 % of the body depth rides under the surface. Broad back, full breast, short thick neck; the eider's
+  wedge head (forehead straight into the bill), the mallard's round head and flat bill; tail flat on the water
+  (eider) or cocked (mallard). Folded wings lie tucked in the flank feathers with the primaries crossed over the rump.
+- **Swimming** (`src/world/duck-water.js`). Every duck rides a small wind-driven chop (two travelling wave
+  trains: 3–16 mm heave, a few degrees of pitch and roll, neighbours out of step) and drifts with 2.5 % of the wind
+  and the current. Activities: paddle to a spot round the flock centre (speed eased ≤ 0.3 m/s² with a surge on each
+  ~1.8 Hz stroke, turns eased ≤ 0.9 rad/s), drift and look round (head saccades), preen (back, flank, breast, the
+  bill working), rest with the head laid back, the wing-flap display (rise up, a few deep beats, settle), a tail wag
+  after settling. Eiders dive for mussels in water over 1 m deep (a forward plunge with the tail flicked up, 8–17 s
+  under water, surfacing 2–6 m on with a ring; ~15 % of the time under); mallards up-end (tail in the air).
+- **Flock.** One flock per plan entry; its centre wanders over open water within 8 m of home every 25–50 s (eiders
+  off the shore); members keep ~1.5 body lengths apart (sideways sculling), stragglers paddle back.
+- **Alarm and flush.** Someone moving inside 1.6 × the wary radius: necks up, heads to the danger, the flock swims off
+  bunched. Inside the wary radius, or a gunshot / explosion / loud noise: the flock flushes, one way out (away from the
+  danger, turned into a strong wind), each member after a 0.04–0.44 s startle. A diver under water hears nothing.
+- **Take-off.** Eiders run across the surface for 1.1–1.6 s to ~7 m/s: wings at full beat slapping the water at the
+  bottom of each downstroke, feet pattering left / right, the hull lifting out, a splash at the start. Mallards spring
+  straight up (3.4 m/s). One `ambient:flush` per bird; the audio plays one flurry per flock.
+- **Flight.** Steady fast beats, neck stretched forward; eiders 2–4 m over the water, mallards 5–9 m. The first bird
+  up leads; the others hold slots off its heading (a line / loose V, 1.7 m back and 1.15 m out per rank), aiming
+  where the slot will be.
+- **Landing.** The leader swings round to come in from downwind 14 m out, then a long straight glide on set wings
+  (a shallow V, small whiffling beats) down a 9° (eider) / 12° (mallard) path, braking beats over the last 3 m,
+  and touches down 1.5 m short of the spot at 2.6–4 m/s: a **skid** along the water (spray every 0.05 s, the wings
+  held up, then folded), then a tail wag. The others peel off and land beside it.
+- **Wakes** (`src/art/duck-wake.js`). Every duck making way on the water leaves a trail of bow points (every 0.12 s
+  or 0.3 m); each point's crest spreads sideways at v·tan 22°, so two arms open behind the duck, bend with its
+  track and stay on the water when it stops (fading over 3.6 s). The crests are light (the sky's colour from the
+  water's sky irradiance) with a darker trough inside, broken into short wavelets. At speed (run, skid) a dashed
+  foam wash runs down the middle (the feet's splashes, left, right). One ribbon mesh on the late FX layer, after the
+  water: no ripple-sim drops are spent (the boat wakes keep the 48 per frame). Paddling still drops a faint ring in
+  the ripple sim now and then, take-offs and landings splash (`WakeTracker.splash`).
+- **Sound** (`src/audio`). Quiet and rare, on the ambience bus, gated by *Nature sounds*: a drake eider's soft
+  "ah-OOO" coo, a hen eider's low grunts, a mallard's falling quacks (each duck every 25–80 s, the audio skips any
+  call within 5 s of the last), and one flurry of wings and splashes when a flock takes off. Synth recipes
+  (`eider_coo`, `eider_grunt`, `quack`, `wing_flurry`), ~12 dB under a footstep at the same distance, heard within
+  ~60 m of the view centre.
+
 ## Budget and performance
 
 Per displayed frame, the director steps both sims on the sim-time delta, gathers threats from `world.entities`,
 culls to the ortho view rectangle (the camera frustum projected onto y = −0.5, with birds shifted along the view
 ray by their height), and uploads only the visible instances.
 
-- **Draw calls:** one per fish species (up to 3), one for all bed shadows, and one per bird species (up to 3).
+- **Draw calls:** one per fish species (up to 3), one for all bed shadows, one per bird species (up to 4), and one
+  for all the duck wakes.
 - **Measured cost.** Recorded on an RTX 5090 in headless Chromium at 1280×720, M1 framed on a herring school at
   zoom 2, with `tools/perf/fishshot.mjs --perf=1`.
   - *Director CPU* is the mean over 300 `frame()` calls at a 60 Hz sim step: sims, threats, culling and instance
@@ -205,6 +265,13 @@ ray by their height), and uploads only the visible instances.
 
 The ground gait (feet, head-bob, hops) raised the bird sim from about 0.014 to 0.056 ms per 60 Hz step for 20
 birds (12 crows + 8 gulls, node on a loaded machine), still well inside the 0.3 ms budget.
+
+Realistic ducks (M1, 8 eiders, measured on a heavily shared machine, so only the CPU figures are meaningful): the bird
+sim went from 0.030 to 0.057 ms per 60 Hz step for 20 birds (node, M1-like plan: 8 eiders, 6 gulls, 6 crows); the wake
+ribbons cost 0.05–0.08 ms per displayed frame with all 8 eiders making way (worst case; ~1.1k vertices, ≤ 2.5k
+triangles, uploaded only when present); the director (sims, threats, culling, instance + wake upload) measured
+0.21–0.29 ms against 0.07–0.22 ms before at zoom 1–2. GPU: an eider is 304 triangles (was 117) and the wakes are one
+more draw call; frame time with the bird meshes shown / hidden stayed inside the ±5 ms noise of the shared GPU.
 
 The GPU work is small: at most about 173 fish × under 260 triangles, plus 1 shadow quad each, in 3–7 instanced draws.
 It sits inside the measurement noise, and the whole feature stays within the 0.3 ms budget on every preset.
@@ -226,6 +293,16 @@ It sits inside the measurement noise, and the whole feature stays within the 0.3
   head-bob, hops and pecks, landing / take-off blends (height, pitch, fold, flap amplitude), determinism, the
   rendered foot landing exactly on the sim foot, a palisade across the field (never entered, bill kept out, eased
   braking), no timed take-off mid-peck, and no jerk when a gull settles on a post.
+- `tests/unit/ducks.test.mjs`: the flock spawn and spacing, eased paddling and turns, activities (preen, dive /
+  up-end, flap), riding the chop, alarm then flush, the eider's take-off run (distance, lift-off speed, splashes,
+  wing slaps, foot patter), formation flight and the glide-in → skid → swim landings, mallards' up-ending and jump,
+  determinism, the model (budget, span, folded wings on the body, divers hidden, plumage per sex), the V wakes and the
+  sounds (rare calls, one flurry per flock, silent with Nature sounds off).
+- `tests/ducks-m1.test.mjs` (GPU): M1 eiders drawn with drakes and hens, wakes on the late FX layer, a gunshot makes
+  the flock run off and fly, director cost, no black frame.
+- `node tools/perf/duckclip.mjs --mission=m01 --zoom=2 --secs=8 --fps=30 --out=<dir> [--startle=shot] [--follow=0.1]
+  [--zoomTo=1@0.4] [--perf=1] [--lineup=1 --zoom=4 --dpr=2 --at=x:z]` records duck frames, a trace (with the sound
+  events), the cost, or a frozen line-up of poses for model close-ups.
 - `node tools/perf/birdclip.mjs --mission=m01 --sp=crow --zoom=2 --secs=8 --fps=30 --out=<dir>` records frames and a
   per-frame trace of the ground birds (60 Hz sim, rendered every step) for motion review.
 - `tests/p3-fish.test.mjs` runs in the real game on the GPU: M1 species and birds, meshes tagged, fish under the
@@ -240,6 +317,10 @@ It sits inside the measurement noise, and the whole feature stays within the 0.3
   it is about 26 px. A school reads as moving dark slivers with silver glints. At the zoom-1 overview, in deep or
   choppy water, fish are hard to see; this is on purpose.
 - **No underwater camera and no fish–fish predation.** Gulls do not yet dive for stunned fish.
-- **No bird calls.** Audio could hook `ambient:flush`.
+- **Only the ducks call.** Gulls and crows are silent (the theatre's bird bed covers them); ducks coo / grunt /
+  quack now and then and a flushed flock makes one flurry (`ambient:call`, `ambient:flush`).
+- **Ducks never leave the water.** They do not haul out on the shore ice or the rocks, so they never walk (no
+  waddle; the model has no legs: the feet are under the water or tucked in flight). They stay 2 m inside the map
+  edge (`env.bounds`).
 - **Birds do not avoid buildings in flight.** Their flight bands, 3–15 m, clear most roofs, and they land only on
   piers, open water and open fields.

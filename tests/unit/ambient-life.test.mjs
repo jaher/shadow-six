@@ -155,8 +155,8 @@ test('birds fly through the moving air, settle facing into the wind, flush at a 
   assert.ok(g0 >= 4, `sitting birds ${g0}`);
   const n = sim.noise(30, 45, 120);
   assert.ok(n >= g0 * 0.8 && flushed === n, `flushed ${n}/${g0}`);
-  assert.ok(env.splashes > 0, 'ducks splash off the water');
   run(sim, 1.5);
+  assert.ok(env.splashes > 0, 'ducks splash off the water');
   assert.ok(sim.birds.filter((b) => b.st === 'flee').every((b) => b.vy > 0 || b.y > 2), 'climbing away');
   run(sim, 120);
   assert.ok(grounded() >= g0 * 0.5, `settled again: ${grounded()} (landings ${sim.stats.landings})`);
@@ -212,7 +212,8 @@ test('director over a real World: M1 perches, fields, bodies; explosion in the w
 
 test('instanced models: geometry budgets, capture tags, culling, soft bed shadows', () => {
   for (const sp of Object.keys(FISH_SPECIES)) assert.ok(fishGeometry(FISH_SPECIES[sp]).index.count / 3 < 260, `${sp} fish triangles`);
-  for (const sp of ['gull', 'crow', 'mallard', 'eider']) assert.ok(birdGeometry(sp).index.count / 3 < 200, `${sp} triangles`);
+  for (const sp of ['gull', 'crow']) assert.ok(birdGeometry(sp).index.count / 3 < 200, `${sp} triangles`);
+  for (const sp of ['mallard', 'eider']) assert.ok(birdGeometry(sp).index.count / 3 < 360, `${sp} triangles`);
   const sim = new FishSim(fishPlan([{ type: 'sea', spots, area: 2200 }], 'snow', 5), pond(), 2);
   const her = sim.fish.filter((f) => f.sp === 'herring'), h = createFishMesh('herring', her.length);
   assert.ok(h.mesh.userData.waterIgnore && h.mesh.userData.dynamic && !h.mesh.castShadow);

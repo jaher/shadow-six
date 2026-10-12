@@ -94,6 +94,12 @@ const ROWS = [
   [['wind_gust'], 'ambience', 'gust', 0.03],
   [['flag_clank'], 'sfx', 'halyard', 0.35],
   [['dog_bark', 'dog_growl'], 'sfx', 'dog', 0.6],
+  // ambient ducks (render/ambient-life.js 'ambient:call' / 'ambient:flush'): soft, rare (≥ 5 s apart), ~12 dB under a
+  // footstep at the same distance, gated by "Nature sounds"; a flock taking off is a short flurry of wings and splashes
+  [['eider_coo'], 'ambience', 'eider_coo', 0.08],
+  [['eider_grunt'], 'ambience', 'eider_grunt', 0.06],
+  [['mallard_quack'], 'ambience', 'quack', 0.07],
+  [['duck_takeoff'], 'ambience', 'wing_flurry', 0.16],
   // UI
   [['ui_click', 'ui_hover', 'cursor_forbidden'], 'ui', 'click', 0.4],
   [['knapsack_open', 'notebook_flip', 'pencil_scratch'], 'ui', 'rustle', 0.4],
@@ -168,6 +174,7 @@ const CLASS_RULES = [
   [/(_shot$|^smg_burst|^mp40_burst|^harpoon_fire|^sniper_bolt)/, 'small'],
   [/(engine|^truck_|tank_tracks|motorbike|plane|autogyro|train|horn|brakes|turret|torpedo|cable_car|runover)/, 'vehicle'],
   [/^dog/, 'animal'],
+  [/^(eider_|mallard_|duck_)/, 'voice'], // quiet birds on the water: heard within ~60 m
   [/^waterfall/, 'small'], // a steady roar heard across the gorge (ref 25 m)
   [/^rapids/, 'vehicle'], // the tailwater: heard along the bank (ref 12 m)
 ];

@@ -1,16 +1,21 @@
 /**
- * Ambient birds rendering (step 4f): one InstancedMesh per species (gull, crow, mallard, eider), low-poly bodies
- * (~150 triangles) sized from the species span/length, two-panel wings (arm + hand) flapped on the GPU about the
- * shoulder and wrist with the hand lagging, wings folded back along the body when sitting, head pecking (crows).
- * Two baked plumages per species (aCol / aCol2: adult / first-winter gull, drake / duck mallard and eider, grey
- * hooded crow / black carrion crow) picked per instance. Pose values (flap phase, amplitude, fold, peck) come from
- * the CPU sim on sim time (frozen while paused). Crows and gulls have legs whose feet follow the sim's world-space
- * feet (iLeg0 / iLeg1, with the head-bob and look), so planted feet stay put on screen.
+ * Ambient birds rendering (step 4f): one InstancedMesh per species. Gulls and crows are built here; the ducks
+ * (mallard, eider) by src/art/duck-model.js, dispatched from birdGeometry / createBirdMesh / writeBirds. Low-poly
+ * bodies (~150 triangles) sized from the species span/length, two-panel wings (arm + hand) flapped on the GPU about
+ * the shoulder and wrist with the hand lagging, wings folded back along the body when sitting, head pecking (crows).
+ * Two baked plumages per species (aCol / aCol2: adult / first-winter gull, grey hooded crow / black carrion crow)
+ * picked per instance. Pose values (flap phase, amplitude, fold, peck) come from the CPU sim on sim time (frozen
+ * while paused). Crows and gulls have legs whose feet follow the sim's world-space feet (iLeg0 / iLeg1, with the
+ * head-bob and look), so planted feet stay put on screen.
  * @module art/bird-model
  */
 import * as THREE from 'three';
 import { BIRD_SPECIES } from '../world/bird-sim.js';
 import { legDims } from '../world/bird-ground.js';
+import { animDepthMaterial } from './anim-depth.js';
+import { DUCK_SPECIES, duckGeometry, createDuckMesh, writeDucks } from './duck-model.js';
+
+export { animDepthMaterial };
 
 const C = (h) => new THREE.Color(h).convertSRGBToLinear();
 
@@ -20,10 +25,6 @@ const PLUMAGE = {
     { body: 0xb4a898, back: 0x8c7c68, tip: 0x3a3028, bill: 0x2a2624, head: 0xc0b4a4, tail: 0x5a4e44, leg: 0xc49a8c }],
   crow: [{ body: 0x8d8e8c, back: 0x86888a, tip: 0x18181b, bill: 0x141416, head: 0x19191c, tail: 0x19191c, wing: 0x1c1c20, leg: 0x161618 },
     { body: 0x19191c, back: 0x1c1c20, tip: 0x121214, bill: 0x121214, head: 0x151518, tail: 0x151518, leg: 0x161618 }],
-  mallard: [{ body: 0x9c9a92, back: 0x7a7266, tip: 0x5a544c, bill: 0xd4b43a, head: 0x1b4a2a, tail: 0x202020, breast: 0x6a3a24, spec: 0x2a3f8a },
-    { body: 0x8c6c4c, back: 0x6e5238, tip: 0x4c3a2a, bill: 0xb07a3a, head: 0x7c6248, tail: 0x5a4432, spec: 0x2a3f8a }],
-  eider: [{ body: 0x1c1c1e, back: 0xf0eee6, tip: 0x1a1a1c, bill: 0x9aa088, head: 0xf0eee6, tail: 0x1a1a1c, breast: 0xe8dcc8, cap: 0x141416 },
-    { body: 0x7a5a3c, back: 0x6c4e34, tip: 0x3c2c1e, bill: 0x6a6a5a, head: 0x7c5c3e, tail: 0x4c3a28 }],
 };
 
 /**
@@ -31,6 +32,7 @@ const PLUMAGE = {
  * side ±1, hand panel 0/1, shoulder distance from the axis).
  */
 export function birdGeometry(sp) {
+  if (DUCK_SPECIES[sp]) return duckGeometry(sp);
   const S = BIRD_SPECIES[sp], L = S.len, half = S.span / 2, P = [], N = [], W = [], C1 = [], C2 = [], I = [];
   const pal = PLUMAGE[sp];
   const push = (x, y, z, nx, ny, nz, w, part) => {
@@ -40,7 +42,7 @@ export function birdGeometry(sp) {
     return P.length / 3 - 1;
   };
   // body: spindle of rings along X, part colour by ring position and height
-  const duck = sp === 'mallard' || sp === 'eider', ry = L * (duck ? 0.17 : 0.12), rz = L * (duck ? 0.19 : 0.12), R = 7, SEG = 7;
+  const ry = L * 0.12, rz = L * 0.12, R = 7, SEG = 7;
   const x0 = -L * 0.38, x1 = L * 0.3;
   for (let i = 0; i <= SEG; i++) {
     const t = i / SEG, x = x0 + (x1 - x0) * t, pr = Math.pow(Math.sin(Math.PI * (0.08 + 0.84 * t)), 0.6);
@@ -60,16 +62,16 @@ export function birdGeometry(sp) {
     for (let k = 1; k + 1 < pts.length; k++) I.push(b0, b0 + k, b0 + k + 1);
   };
   // head (a small diamond) + bill; aWing.x = −1 marks the head for pecking
-  const hr = L * (duck ? 0.095 : 0.085), hx = x1 + hr * (duck ? 0.35 : 0.6), hy = ry * (duck ? 1.05 : 0.5), H = [-1, 0, 0, 0];
+  const hr = L * 0.085, hx = x1 + hr * 0.6, hy = ry * 0.5, H = [-1, 0, 0, 0];
   const hp = [[hx + hr, hy, 0], [hx, hy + hr, 0], [hx - hr, hy, 0], [hx, hy - hr * 0.8, 0], [hx, hy, hr * 0.8], [hx, hy, -hr * 0.8]];
   const hc = pal[0].cap ? ['head', 'cap', 'head', 'head', 'head', 'head'] : 'head';
   for (const [a, b, c] of [[0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4], [1, 0, 5], [2, 1, 5], [3, 2, 5], [0, 3, 5]]) tri([hp[a], hp[b], hp[c]], Array.isArray(hc) ? [hc[a], hc[b], hc[c]] : hc, H);
-  const bl = L * (sp === 'gull' ? 0.1 : sp === 'crow' ? 0.11 : 0.12), bw = L * (duck ? 0.04 : 0.022);
+  const bl = L * (sp === 'gull' ? 0.1 : 0.11), bw = L * 0.022;
   tri([[hx + hr * 0.8, hy + bw, -bw], [hx + hr * 0.8 + bl, hy - bw * 0.3, 0], [hx + hr * 0.8, hy + bw, bw]], 'bill', H);
   tri([[hx + hr * 0.8, hy - bw, 0], [hx + hr * 0.8 + bl, hy - bw * 0.3, 0], [hx + hr * 0.8, hy + bw, -bw]], 'bill', H);
   tri([[hx + hr * 0.8, hy + bw, bw], [hx + hr * 0.8 + bl, hy - bw * 0.3, 0], [hx + hr * 0.8, hy - bw, 0]], 'bill', H);
   // tail fan
-  const tl = L * (sp === 'crow' ? 0.3 : duck ? 0.14 : 0.2);
+  const tl = L * (sp === 'crow' ? 0.3 : 0.2);
   tri([[x0 + L * 0.06, ry * 0.2, -rz * 0.5], [x0 + L * 0.06, ry * 0.2, rz * 0.5], [x0 - tl, ry * 0.25, rz * 0.7], [x0 - tl, ry * 0.25, -rz * 0.7]], 'tail');
   // wings: arm panel (shoulder → wrist) and hand panel (wrist → tip, swept back), both sides
   const root = rz * 0.7, wrist = half * 0.45, cr = L * (sp === 'gull' ? 0.32 : 0.36), xs = L * 0.08;
@@ -142,15 +144,15 @@ vBCol = mix(aCol, aCol2, iPlum);
 
 /** Instanced birds of one species (cap instances). */
 export function createBirdMesh(sp, cap, o = {}) {
+  if (DUCK_SPECIES[sp]) return createDuckMesh(sp, cap, o);
   const g = birdGeometry(sp), U = g.userData, S = BIRD_SPECIES[sp];
   const pose = new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4), plum = new THREE.InstancedBufferAttribute(new Float32Array(cap), 1);
   pose.setUsage(THREE.DynamicDrawUsage);
   const leg0 = new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4), leg1 = new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4);
   leg0.setUsage(THREE.DynamicDrawUsage); leg1.setUsage(THREE.DynamicDrawUsage);
   g.setAttribute('iPose', pose); g.setAttribute('iPlum', plum); g.setAttribute('iLeg0', leg0); g.setAttribute('iLeg1', leg1);
-  const duck = sp === 'mallard' || sp === 'eider';
   const uni = { uWrist: { value: U.wrist }, uWingY: { value: S.len * 0.04 }, uNeck: { value: new THREE.Vector2(S.len * 0.3, S.len * 0.05) },
-    uBody: { value: new THREE.Vector4(-S.len * 0.38, S.len * 0.3, S.len * (duck ? 0.17 : 0.12), S.len * (duck ? 0.19 : 0.12)) } }; // body spindle x0, x1, half-height, half-width
+    uBody: { value: new THREE.Vector4(-S.len * 0.38, S.len * 0.3, S.len * 0.12, S.len * 0.12) } }; // body spindle x0, x1, half-height, half-width
   const m = new THREE.MeshStandardMaterial({ roughness: 0.82, metalness: 0, side: THREE.DoubleSide });
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, uni);
@@ -165,17 +167,6 @@ export function createBirdMesh(sp, cap, o = {}) {
   mesh.castShadow = o.shadows !== false; mesh.receiveShadow = false;
   mesh.userData.waterIgnore = true; mesh.userData.dynamic = true; mesh.userData.ambientLife = 'bird';
   return { mesh, pose, plum, leg0, leg1, cap, sp, G: S && legDims(S) };
-}
-
-/** Shadow depth material that runs the same vertex animation (injected at begin_vertex; no normals needed). */
-export function animDepthMaterial(pars, main, uni, key) {
-  const d = new THREE.MeshDepthMaterial({ side: THREE.DoubleSide });
-  d.onBeforeCompile = (sh) => {
-    Object.assign(sh.uniforms, uni);
-    sh.vertexShader = pars + sh.vertexShader.replace('#include <begin_vertex>', main);
-  };
-  d.customProgramCacheKey = () => key;
-  return d;
 }
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _qi = new THREE.Quaternion(), _e = new THREE.Euler(0, 0, 0, 'YZX'), _p = new THREE.Vector3(), _s = new THREE.Vector3(1, 1, 1);
@@ -196,6 +187,7 @@ function footOffset(b, G, i, out, o) {
 
 /** Write the visible birds into the instance buffers; returns the count. */
 export function writeBirds(h, birds, inView) {
+  if (h.duck) return writeDucks(h, birds, inView);
   let n = 0;
   const A = h.pose.array, Pl = h.plum.array, L0 = h.leg0?.array, L1 = h.leg1?.array;
   for (const b of birds) {

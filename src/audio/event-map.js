@@ -136,6 +136,21 @@ export function installHandlers(a, events) {
     sfx('wind_gust', null, t, { bus: 'ambience', gain, dedupe: 0 });
   });
   on('wind:flag', (e, t) => sfx('flag_clank', e, t, { gain: 0.6 + 0.4 * Math.min(1, e.gust || 0) }));
+  // Ambient ducks (ambience bus, "Nature sounds"): a quiet call now and then (≥ 5 s apart whoever calls, pitch varied a
+  // little per bird), and one flurry of wings and splashes when a flock takes off (the members flush a beat apart)
+  on('ambient:call', (e, t) => {
+    if (a.options?.natureSounds === false) return;
+    const id = e.species === 'eider' ? (e.hen ? 'eider_grunt' : 'eider_coo') : e.species === 'mallard' ? 'mallard_quack' : null;
+    if (!id || a.now() - (a._duckCallAt ?? -1e9) < 5) return;
+    a._duckCallAt = a.now();
+    const v = Math.abs(Math.sin((e.x || 0) * 12.9898 + (e.z || 0) * 78.233)) % 1;
+    sfx(id, e, t, { bus: 'ambience', dedupe: 0, rate: 0.93 + 0.14 * v });
+  });
+  on('ambient:flush', (e, t) => {
+    if (e.kind !== 'duck' || a.options?.natureSounds === false || a.now() - (a._duckFlushAt ?? -1e9) < 1.5) return;
+    a._duckFlushAt = a.now();
+    sfx('duck_takeoff', e, t, { bus: 'ambience', dedupe: 0 });
+  });
   // Movement / bodies
   on('unit:step', (e, t) => { a.lastStepEvent = a.now(); sfx(stepSfx(e.terrain, e.stance ?? e.unit?.stance), e.unit, t); });
   on('footprint', (e, t) => { if (a.now() - a.lastStepEvent > 2) sfx(stepSfx(e.terrain), e, t, { gain: 0.8 }); });

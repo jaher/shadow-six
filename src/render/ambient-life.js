@@ -18,6 +18,7 @@ import { FishSim, fishPlan } from '../world/fish-sim.js';
 import { BirdSim, birdPlan } from '../world/bird-sim.js';
 import { createFishMesh, writeFish, createFishShadows, writeFishShadows } from '../art/fish-model.js';
 import { createBirdMesh, writeBirds } from '../art/bird-model.js';
+import { createDuckWakes } from '../art/duck-wake.js';
 
 /** Water bodies of the map as sim inputs: open-water sample spots (every other cell) + area, per water body. */
 export function lifeBodies(grid, water) {
@@ -100,10 +101,14 @@ export function createAmbientLife(world, renderer = null, o = {}) {
     // obstacles a crow must not walk into: blocked cells (walls, palisades, rocks) and standing visuals
     blocked: (x, z) => { const G = world.grid; return !!G?.block && (G.blockAt(x, z) > 0 || !!G.solidAt?.(x, z)); },
     fields: lifeFields(world.grid),
+    // the playable map (birds that sit on the water keep inside it, off the apron beyond the edge)
+    bounds: world.grid?.cols ? [0, 0, world.grid.cols * world.grid.cell, world.grid.rows * world.grid.cell] : null,
     perches: lifePerches(mission, gY),
     splash: (x, z, s) => water?.wakes?.splash?.(x, z, s),
     ripple: (x, z, s) => water?.disturb?.(x, z, s, 0.35, 0.02),
-    flush: (b) => world.events?.emit?.('ambient:flush', { x: b.x, z: b.z, species: b.sp }),
+    disturb: (x, z, s, r, foam) => water?.disturb?.(x, z, s, r, foam),
+    flush: (b) => world.events?.emit?.('ambient:flush', { x: b.x, z: b.z, species: b.sp, kind: b.kind }),
+    call: (b) => world.events?.emit?.('ambient:call', { x: b.x, z: b.z, species: b.sp, hen: !!b.hen }),
     // a crow / gull walking on snow, sand or mud leaves its small three-toed prints (visual only, art/terrain/trails.js)
     footfall: (x, z, yaw, sp, side) => {
       const T = world.terrain, [w, l] = BIRD_PRINT[sp] || BIRD_PRINT.crow;
@@ -114,7 +119,8 @@ export function createAmbientLife(world, renderer = null, o = {}) {
   const stats = { fish: fish?.fish.length || 0, birds: birds.birds.length, drawnFish: 0, drawnBirds: 0, rings: 0, ms: 0, schools: fish?.schools.length || 0 };
   // meshes: one InstancedMesh per species present
   const scene = o.scene || renderer?.scene || world.scene || null, meshes = [], fishH = [], birdH = [];
-  let shadowH = null;
+  const ducks = birds.birds.filter((b) => b.kind === 'duck');
+  let shadowH = null, wakes = null;
   // clear-sky share of the bed light (soft, centred fish shadows under an overcast sky)
   const direct = /overcast|fog|storm/.test(String(mission.lighting?.hdri || '')) ? 0.15 : Math.min(1, Math.max(0.2, ((mission.lighting?.sunElevDeg ?? 35) - 2) / 25));
   if (scene && renderer) {
@@ -124,6 +130,12 @@ export function createAmbientLife(world, renderer = null, o = {}) {
     for (const [sp, n] of count(fish?.fish || [])) { const h = createFishMesh(sp, n, { shadows, envMap: scene.environment || null, envIntensity: o.fishEnv ?? 0.3 }); h.list = fish.fish.filter((f) => f.sp === sp); fishH.push(h); root.add(h.mesh); }
     if (fish?.fish.length) { shadowH = createFishShadows(fish.fish.length); root.add(shadowH.mesh); }
     for (const [sp, n] of count(birds.birds)) { const h = createBirdMesh(sp, n, { shadows: quality !== 'low' }); h.list = birds.birds.filter((b) => b.sp === sp); birdH.push(h); root.add(h.mesh); }
+    if (ducks.length) { // V wakes behind the swimming ducks (late FX layer, over the water)
+      wakes = createDuckWakes(ducks.length);
+      const sky = water?.system?.shared?.skyIrr?.value;
+      wakes.setLight(sky ? [sky.x, sky.y, sky.z] : [0.8, 0.85, 0.9], night ? 0.25 : 1);
+      root.add(wakes.mesh);
+    }
     scene.add(root); meshes.push(root);
   }
   // ---- events → fright / stun / flush
@@ -146,7 +158,7 @@ export function createAmbientLife(world, renderer = null, o = {}) {
   if (wk) wk.onSplash = (x, z, s) => { prevSplash?.(x, z, s); fish?.impulse(x, z, 2 + 2.5 * s, 1); };
   const last = new WeakMap(), drift = (x, z) => { const w = [0, 0]; env.wind(x, z, w); return [w[0] * 0.03, w[1] * 0.03]; };
   let lastT = null;
-  return { fish, birds, stats, meshes, fishH, birdH, env, frame: (dt, camera) => frame(camera), dispose };
+  return { fish, birds, stats, meshes, fishH, birdH, env, get wakes() { return wakes; }, frame: (dt, camera) => frame(camera), dispose };
 
   function dispose() {
     offs.forEach((f) => f()); offs.length = 0;
@@ -208,6 +220,7 @@ export function createAmbientLife(world, renderer = null, o = {}) {
     let nf = 0, nb = 0;
     for (const h of fishH) nf += writeFish(h, h.list, inView);
     for (const h of birdH) nb += writeBirds(h, h.list, inView);
+    if (wakes) stats.wakeTris = wakes.update(ducks, birds.t, water?.level ?? -0.1, inView);
     if (shadowH) writeFishShadows(shadowH, fish.fish, inView, renderer?.sunDir || SUN, direct);
     stats.drawnFish = nf; stats.drawnBirds = nb;
     stats.ms = performance.now() - t0;

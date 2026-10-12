@@ -12,7 +12,7 @@
  */
 import * as THREE from 'three';
 import { FISH_SPECIES } from '../world/fish-sim.js';
-import { animDepthMaterial } from './bird-model.js';
+import { animDepthMaterial } from './anim-depth.js';
 
 // body half-depth profile along u (0 snout … 1 tail tip); the body ends at u = 0.88 (caudal peduncle)
 const PROF = [[0, 0.06], [0.04, 0.45], [0.12, 0.78], [0.26, 0.98], [0.4, 1], [0.55, 0.85], [0.7, 0.55], [0.82, 0.28], [0.88, 0.17]];

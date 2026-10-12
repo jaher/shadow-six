@@ -72,6 +72,8 @@ export const SFX_EVENTS = Object.freeze([
   { event: 'mission:won', sfx: ['stamp', 'promotion'], pick: 'stars/rank change' },
   { event: 'mission:lost', sfx: [], pick: 'failure stinger (music channel)' },
   { event: 'objective:update', sfx: ['pencil_scratch'] },
+  { event: 'ambient:call', sfx: ['eider_coo', 'eider_grunt', 'mallard_quack'], pick: '{x, z, species, hen}: a duck on the water calls now and then (drake eider coo, hen eider grunts, mallard quack; ≥ 5 s apart, "Nature sounds")' },
+  { event: 'ambient:flush', sfx: ['duck_takeoff'], pick: '{x, z, species, kind}: a duck flock takes off (one flurry per 1.5 s; other birds silent)' },
   { event: 'wind:gust', sfx: ['wind_gust'], pick: 'strong gust front at the view centre (world/wind.js; ≥ 45 s apart, soft: audio/wind-bed.js)' },
   { event: 'wind:flag', sfx: ['flag_clank'], pick: 'gust filling a flag: halyard snap-hook on the pole' },
 ]);
