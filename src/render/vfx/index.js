@@ -252,6 +252,42 @@ function makeRuntime(vfx, { eng, gl, u, smoke, hot, amb, lights, decals, debris,
       return q;
     },
     setDecalScene(s) { decals.clear(); decals.scene = s; },
+    /**
+     * Compile every VFX program at mission load (smoke, hot, ambient pools, decals, debris + its shadow depth, the
+     * pass's composite / copy quads): the first explosion otherwise stalls the frame while they link (a 0.3–1 s
+     * hitch under load). Parallel compile where available. @param {THREE.WebGLRenderer} renderer @param {THREE.Camera} cam
+     */
+    async warm(renderer, cam) {
+      if (!renderer?.compile) return;
+      const p = this.pass;
+      // the pass's full-screen quads: drawn once into a 1×1 target (their exact draw path)
+      const rt1 = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: false });
+      const prev = renderer.getRenderTarget();
+      try {
+        renderer.setRenderTarget(rt1);
+        for (const q of [p.quad, p.copyQuad, p.depthCopy].filter(Boolean)) q.render(renderer);
+      } finally { renderer.setRenderTarget(prev); rt1.dispose(); }
+      const scenes = [p.smokeScene, p.hotScene, p.ambScene];
+      if (decals.mesh) scenes.push(decals.mesh);
+      if (debris.mesh) scenes.push(debris.mesh);
+      const flip = [];
+      for (const sc of scenes) sc.traverse((o) => { if (o.isMesh && !o.visible) { flip.push(o); o.visible = true; } });
+      // the pass draws into render targets (no tone mapping, linear output): compile for that, not for the canvas
+      try {
+        for (const sc of scenes) {
+          // a bare object is compiled against the main scene's lights (debris is lit); programs are created
+          // synchronously inside compile*, so the target only needs binding around that call
+          const prevRT = renderer.getRenderTarget();
+          renderer.setRenderTarget(p.fxRT);
+          let pr;
+          try { pr = renderer.compileAsync ? renderer.compileAsync(sc, cam, sc.isScene ? null : this.scene) : renderer.compile(sc, cam, sc.isScene ? null : this.scene); }
+          finally { renderer.setRenderTarget(prevRT); }
+          await pr;
+        }
+      } finally {
+        for (const o of flip) o.visible = false;
+      }
+    },
     /** Deterministic camera-shake offset (m, camera plane) for the host camera controller. */
     shakeOffset() { const t = this.time, a = this.shake * this.shake * 0.35;
       return new THREE.Vector2(Math.sin(t * 61.3) * 0.6 + Math.sin(t * 37.1), Math.cos(t * 53.7) * 0.6 + Math.sin(t * 29.3 + 1)).multiplyScalar(a); },

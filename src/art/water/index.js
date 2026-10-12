@@ -22,6 +22,7 @@ import { RippleSim } from './ripples.js';
 import { Caustics } from './caustics.js';
 import { bakeBody, bodyGrid } from './bake.js';
 import { sessionCache, dataKey } from '../../engine/asset-cache.js';
+import { withExtraCull, WorldBoxes } from '../../engine/cull-hooks.js';
 import { sceneSignature } from '../../world/placement-visual.js';
 
 export { FX_LAYER };
@@ -79,6 +80,20 @@ function skyIrradiance(tex) {
     }
   }
   return out.multiplyScalar(Math.PI / wsum); // E = pi * <L cos>/<cos>... (irradiance)
+}
+
+/**
+ * Orthographic camera: make its near clip plane the world plane y = h (keeps y > h) with a depth range of `range` m from
+ * it. Depth stays affine and increasing along every view ray (same visibility order); x/y rows are untouched.
+ */
+const _clipPlane = new THREE.Plane();
+const _vp = new THREE.Matrix4(), _vpInv = new THREE.Matrix4(), _wb = new THREE.Box3(), _wp = new THREE.Vector3(), _wd = new THREE.Vector3();
+function obliqueNear(cam, h, range) {
+  cam.updateMatrixWorld();
+  _clipPlane.set(new THREE.Vector3(0, 1, 0), -h).applyMatrix4(cam.matrixWorldInverse);
+  const n = _clipPlane.normal, k = 2 / Math.max(1, range), e = cam.projectionMatrix.elements;
+  e[2] = n.x * k; e[6] = n.y * k; e[10] = n.z * k; e[14] = _clipPlane.constant * k - 1;
+  cam.projectionMatrixInverse.copy(cam.projectionMatrix).invert();
 }
 
 export class WaterSystem {
@@ -165,6 +180,14 @@ export class WaterSystem {
       }
       return [this.pass, this.fxPass];
     };
+    // the mirrors receive sun shadows too: their views keep the casters they show (engine/shadow-cull.js); 3 m slack for
+    // the camera moving before the next reflection samples this frame's shadow map
+    if (Array.isArray(eng.shadowViews)) {
+      const out = [];
+      const views = () => { out.length = 0; for (const R of this.reflections.values()) if (R.cam) out.push(R.view ||= { camera: R.cam, pad: 3 }); return out; };
+      eng.shadowViews.push(views);
+      this._unviews = () => { const i = eng.shadowViews.indexOf(views); if (i >= 0) eng.shadowViews.splice(i, 1); };
+    }
     if (typeof eng.addPostHook === 'function') {
       this.hookMode = 'official';
       this._unhook = [eng.addPostHook('afterWorld', world), eng.addPostHook('afterAO', late)];
@@ -487,6 +510,157 @@ export class WaterSystem {
     return out;
   }
 
+  /**
+   * Reflection texels the visible water of `level` can sample: the screen box of its bodies (clipped to the view) mapped
+   * through the mirror matrix, widened by the shader's ripple distortion (reflDistort, UV) and a texel. Pixel rect
+   * {x, y, w, h} in the mirror target (y up), or null when no such water is on screen.
+   */
+  _reflWindow(level, R) {
+    const cam = this.camera, W = R.rt.width, H = R.rt.height;
+    _vp.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, dist = 0;
+    for (const b of this.bodies) {
+      if (b.o.reflect === false || !b.mesh.visible || Math.round(b.level * 100) / 100 !== level) continue;
+      const g = b.mesh.geometry;
+      if (!g.boundingBox) g.computeBoundingBox();
+      b.mesh.updateWorldMatrix(true, false);
+      _wb.copy(g.boundingBox).applyMatrix4(b.mesh.matrixWorld);
+      let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+      for (let k = 0; k < 4; k++) {
+        _wp.set(k & 1 ? _wb.max.x : _wb.min.x, level, k & 2 ? _wb.max.z : _wb.min.z).applyMatrix4(_vp);
+        bx0 = Math.min(bx0, _wp.x); bx1 = Math.max(bx1, _wp.x); by0 = Math.min(by0, _wp.y); by1 = Math.max(by1, _wp.y);
+      }
+      // clip to the screen
+      bx0 = Math.max(bx0, -1); by0 = Math.max(by0, -1); bx1 = Math.min(bx1, 1); by1 = Math.min(by1, 1);
+      if (bx0 >= bx1 || by0 >= by1) continue;
+      x0 = Math.min(x0, bx0); y0 = Math.min(y0, by0); x1 = Math.max(x1, bx1); y1 = Math.max(y1, by1);
+      dist = Math.max(dist, b.uniforms.reflDistort?.value ?? 0.06);
+    }
+    if (!(x0 < x1 && y0 < y1)) return null;
+    // screen corners → the water plane → mirror UV (the mirror flips x: map every corner)
+    _vpInv.copy(_vp).invert();
+    let u0 = Infinity, v0 = Infinity, u1 = -Infinity, v1 = -Infinity;
+    const fwd = _wd.set(0, 0, -1).transformDirection(cam.matrixWorld);
+    for (let k = 0; k < 4; k++) {
+      _wp.set(k & 1 ? x1 : x0, k & 2 ? y1 : y0, -1).applyMatrix4(_vpInv);
+      if (Math.abs(fwd.y) > 1e-6) _wp.addScaledVector(fwd, (level - _wp.y) / fwd.y);
+      _wp.y = level;
+      _wp.applyMatrix4(R.matrix);
+      u0 = Math.min(u0, _wp.x); u1 = Math.max(u1, _wp.x); v0 = Math.min(v0, _wp.y); v1 = Math.max(v1, _wp.y);
+    }
+    const m = dist + 1.5 / Math.min(W, H);
+    const px0 = Math.max(0, Math.floor((u0 - m) * W)), px1 = Math.min(W, Math.ceil((u1 + m) * W));
+    const py0 = Math.max(0, Math.floor((v0 - m) * H)), py1 = Math.min(H, Math.ceil((v1 + m) * H));
+    if (px1 <= px0 || py1 <= py0) return null;
+    return { x: px0, y: py0, w: px1 - px0, h: py1 - py0 };
+  }
+
+  /**
+   * Water footprint of a mirror level: a 2 m grid over its bodies (their polygons, dilated), as a summed-area table
+   * (rebuilt when that level's bodies change). @returns {{x0, z0, cell, nx, nz, sat}|null}
+   */
+  _waterMask(level) {
+    // the bodies of this level (a draining reservoir keeps its mesh while its level moves: same mask)
+    const bodies = (this._lvlBodies ||= []);
+    bodies.length = 0;
+    for (const b of this.bodies) if (b.o.reflect !== false && Math.round(b.level * 100) / 100 === level) bodies.push(b);
+    if (!bodies.length) return null;
+    const masks = (this._masks ||= []);
+    const fits = (m) => m.bodies.length === bodies.length && m.bodies.every((b, i) => {
+      const e = b.mesh.matrixWorld.elements, s = m.sig, k = i * 5;
+      return b === bodies[i] && s[k] === b.mesh.geometry.id && s[k + 1] === b.mesh.geometry.attributes.position.version && s[k + 2] === e[12] && s[k + 3] === e[14] && s[k + 4] === e[0];
+    });
+    for (const m of masks) if (fits(m)) return m.mask;
+    const sig = [];
+    for (const b of bodies) { b.mesh.updateWorldMatrix(true, false); const e = b.mesh.matrixWorld.elements; sig.push(b.mesh.geometry.id, b.mesh.geometry.attributes.position.version, e[12], e[14], e[0]); }
+    const entry = { bodies: bodies.slice(), sig, mask: null };
+    masks.push(entry);
+    if (masks.length > 4) masks.shift();
+    const cell = 2, box = new THREE.Box3();
+    for (const b of bodies) {
+      const g = b.mesh.geometry;
+      if (!g.boundingBox) g.computeBoundingBox();
+      box.union(_wb.copy(g.boundingBox).applyMatrix4(b.mesh.matrixWorld));
+    }
+    const x0 = Math.floor(box.min.x / cell) * cell, z0 = Math.floor(box.min.z / cell) * cell;
+    const nx = Math.max(1, Math.ceil((box.max.x - x0) / cell) + 1), nz = Math.max(1, Math.ceil((box.max.z - z0) / cell) + 1);
+    if (nx * nz > 4e6) return null; // absurd extent: no mask (entry.mask stays null)
+    const occ = new Uint8Array(nx * nz), cellIn = (x, z, poly) => {
+      let c = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [xi, zi] = poly[i], [xj, zj] = poly[j];
+        if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) c = !c;
+      }
+      return c;
+    };
+    for (const b of bodies) {
+      // the surface mesh is the body's whole bake rectangle (shore masked in the shader): the water is its wet mask or
+      // polygon, dilated 2 cells (the shore band drawn just outside it, the bake's 2 m pad); neither → the rectangle
+      const poly = b.o.polygon?.length >= 3 ? b.o.polygon : null, wet = typeof b.o.mask === 'function' ? b.o.mask : null;
+      _wb.copy(b.mesh.geometry.boundingBox).applyMatrix4(b.mesh.matrixWorld);
+      const i0 = Math.max(0, Math.floor((_wb.min.x - x0) / cell)), i1 = Math.min(nx - 1, Math.floor((_wb.max.x - x0) / cell));
+      const j0 = Math.max(0, Math.floor((_wb.min.z - z0) / cell)), j1 = Math.min(nz - 1, Math.floor((_wb.max.z - z0) / cell));
+      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+        if (wet) { // the body's wet-cell mask (raised water, apron components): 4 × 4 samples a cell (0.5 m)
+          let any = false;
+          for (let q = 0; q < 16 && !any; q++) any = !!wet(x0 + (i + ((q & 3) + 0.5) / 4) * cell, z0 + (j + ((q >> 2) + 0.5) / 4) * cell);
+          if (!any) continue;
+        } else if (poly && !cellIn(x0 + (i + 0.5) * cell, z0 + (j + 0.5) * cell, poly)) continue;
+        for (let dj = -2; dj <= 2; dj++) for (let di = -2; di <= 2; di++) {
+          const ii = i + di, jj = j + dj;
+          if (ii >= 0 && jj >= 0 && ii < nx && jj < nz) occ[jj * nx + ii] = 1;
+        }
+      }
+    }
+    const sat = new Int32Array((nx + 1) * (nz + 1));
+    for (let j = 0; j < nz; j++) {
+      let row = 0;
+      for (let i = 0; i < nx; i++) { row += occ[j * nx + i]; sat[(j + 1) * (nx + 1) + i + 1] = sat[j * (nx + 1) + i + 1] + row; }
+    }
+    return (entry.mask = { x0, z0, cell, nx, nz, sat });
+  }
+
+  /**
+   * Extra cull for a mirror render (engine/cull-hooks.js): an object can show in the mirror only where its reflection
+   * lands on this level's water. A point h m above the water reflects on the plane h·cot(pitch) m towards the camera,
+   * so the object's footprint swept that far towards the camera, widened by the shader's ripple distortion reach
+   * (reflDistort × the view extent) and 1 m, must touch a water cell. Returns null (no extra cull) without a mask.
+   */
+  _mirrorReach(level, win) {
+    const mask = this._waterMask(level);
+    if (!mask) return null;
+    const cam = this.camera, f = _wd.set(0, 0, -1).transformDirection(cam.matrixWorld);
+    const hl = Math.hypot(f.x, f.z);
+    if (!(f.y < -0.05) || hl < 1e-4) return null; // not looking down: no simple sweep
+    const cot = hl / -f.y, ux = -f.x / hl, uz = -f.z / hl;
+    const viewW = cam.isOrthographicCamera ? (cam.right - cam.left) / cam.zoom : 100, viewH = cam.isOrthographicCamera ? (cam.top - cam.bottom) / cam.zoom / -f.y : 100;
+    let dist = 0;
+    for (const b of this.bodies) if (Math.round(b.level * 100) / 100 === level) dist = Math.max(dist, b.uniforms.reflDistort?.value ?? 0.06);
+    const margin = dist * Math.max(viewW, viewH) + 1;
+    if (this._reach?.size > 8) this._reach.clear(); // a draining level walks through many values
+    const P = ((this._reach ||= new Map()).get(level)) || {};
+    P.mask = mask; P.cot = cot; P.ux = ux; P.uz = uz; P.margin = margin;
+    if (P.fn) return P.fn;
+    this._reach.set(level, P);
+    const boxes = (this._wboxes ||= new WorldBoxes()), tmp = (this._tmpBox ||= new THREE.Box3());
+    return (P.fn = (o) => {
+      const { mask, cot, ux, uz, margin } = P, { x0, z0, cell, nx, nz, sat } = mask, W1 = nx + 1;
+      const b = boxes.getOrSphere(o, tmp);
+      if (!b) return true;
+      const h = b.max.y - level;
+      if (h <= 0) return true; // below the plane: the oblique near plane decides
+      const t = h * cot;
+      let ax = b.min.x, bx = b.max.x, az = b.min.z, bz = b.max.z;
+      const sx = ux * t, sz = uz * t;
+      if (sx < 0) ax += sx; else bx += sx;
+      if (sz < 0) az += sz; else bz += sz;
+      const i0 = Math.max(0, Math.floor((ax - margin - x0) / cell)), i1 = Math.min(nx - 1, Math.floor((bx + margin - x0) / cell));
+      const j0 = Math.max(0, Math.floor((az - margin - z0) / cell)), j1 = Math.min(nz - 1, Math.floor((bz + margin - z0) / cell));
+      if (i1 < i0 || j1 < j0) return false;
+      return sat[(j1 + 1) * W1 + i1 + 1] - sat[j0 * W1 + i1 + 1] - sat[(j1 + 1) * W1 + i0] + sat[j0 * W1 + i0] > 0;
+    });
+  }
+
   _renderReflections() {
     const Q = this.Q, r = this.renderer, cam = this.camera;
     // perf review (art integration 2): the mirror is a second full scene render (~2 ms CPU on M3). With a still
@@ -531,11 +705,29 @@ export class WaterSystem {
       rc.position.copy(p); rc.up.copy(up); rc.lookAt(target); rc.updateMatrixWorld(true);
       if (rc.isPerspectiveCamera || rc.isOrthographicCamera) rc.projectionMatrix.copy(cam.projectionMatrix), rc.projectionMatrixInverse.copy(cam.projectionMatrixInverse);
       R.matrix.set(0.5, 0, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0, 0.5, 0.5, 0, 0, 0, 1).multiply(rc.projectionMatrix).multiply(rc.matrixWorldInverse);
-      r.clippingPlanes = [new THREE.Plane(new THREE.Vector3(0, 1, 0), -(level - 0.05))];
+      // keep only what lies above y = level - 0.05. Orthographic game camera: the mirror projection's near plane IS that
+      // plane (oblique depth row, still monotonic along every view ray), so nothing below it is drawn and the frustum
+      // culls it. A global clipping plane did the same per fragment but switched every material to its clipped
+      // program variant and back in the main pass, every reflection frame (three re-derives the program each switch).
+      // only the texels the visible water can sample (its screen box + the ripple distortion reach) are rendered: the
+      // mirror camera is cut to that window (same projection inside it, so the same texels) and culls the rest
+      const win = this._reflWindow(level, R);
+      if (!win) continue; // no water of this level on screen: nothing samples the mirror (reflEnabled stays 0)
+      if (win.w < R.rt.width || win.h < R.rt.height) {
+        rc.setViewOffset(R.rt.width, R.rt.height, win.x, R.rt.height - win.y - win.h, win.w, win.h);
+        rc.updateProjectionMatrix();
+      }
+      if (rc.isOrthographicCamera) obliqueNear(rc, level - 0.05, rc.far - rc.near);
+      else r.clippingPlanes = [new THREE.Plane(new THREE.Vector3(0, 1, 0), -(level - 0.05))];
+      R.rt.viewport.set(win.x, win.y, win.w, win.h); R.rt.scissor.copy(R.rt.viewport); R.rt.scissorTest = true;
       r.setRenderTarget(R.rt); r.clear();
       const culled = this._reflectCull();
-      r.render(this.scene, rc);
+      const reach = this._mirrorReach(level, win);
+      if (reach) withExtraCull(reach, () => r.render(this.scene, rc));
+      else r.render(this.scene, rc);
       for (const o of culled) o.visible = true;
+      R.rt.viewport.set(0, 0, R.rt.width, R.rt.height); R.rt.scissor.copy(R.rt.viewport); R.rt.scissorTest = false;
+      if (rc.view) { rc.clearViewOffset(); rc.projectionMatrix.copy(cam.projectionMatrix); rc.projectionMatrixInverse.copy(cam.projectionMatrixInverse); }
       for (const b of this.bodies) if (Math.round(b.level * 100) / 100 === level && b.o.reflect !== false) {
         b.uniforms.reflTex.value = R.rt.texture; b.uniforms.reflMatrix.value.copy(R.matrix); b.uniforms.reflEnabled.value = 1;
       }
@@ -595,6 +787,7 @@ export class WaterSystem {
   dispose() {
     for (const b of this.bodies.slice()) this.removeBody(b);
     this._disposeInternals();
+    this._unviews?.(); this._unviews = null;
     if (this._unhook) { this._unhook.forEach((f) => f()); this._unhook = null; }
     else if (this.composer) { const i = this.composer.passes.indexOf(this.pass); if (i >= 0) this.composer.passes.splice(i, 1); }
     this.pass.dispose();

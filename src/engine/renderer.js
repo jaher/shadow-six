@@ -36,6 +36,8 @@ import { THEATER_LIGHTING, resolveLighting, analyzeHDR, autoEnvIntensity } from 
 import { gradeFor, bakeLUTData } from './grade.js';
 import { SanitizePass, XRayPass, makeLUTTexture } from './post-passes.js';
 import { installTextureMemory } from './texture-memory.js';
+import { assignShadowVariants, checkShadowVariants } from './program-variants.js';
+import { ShadowReachCull } from './shadow-cull.js';
 import { installGpuCompressor } from './gpu-compress.js';
 
 /**
@@ -182,6 +184,13 @@ export class Renderer {
     /** Unit vector pointing from the ground TOWARDS the sun. */
     this.sunDir = new THREE.Vector3(0.3, 0.7, 0.6).normalize();
     this.shadowCasterHeight = 16; // tallest expected caster (m) for shadow fitting
+    /** Sun shadow casters whose shadow cannot land in a receiving view are skipped (engine/shadow-cull.js). */
+    this.shadowCull = new ShadowReachCull(this.sun);
+    /**
+     * Extra receiving views of the frame's sun shadow map: functions returning cameras or {camera, pad} (the water
+     * mirrors: next frame's reflection samples this frame's map). The frame camera is always one.
+     */
+    this.shadowViews = [];
     this.mapCenter = new THREE.Vector3();
     this.theater = null;
 
@@ -641,11 +650,22 @@ export class Renderer {
 
   // ------------------------------------------------------------------ frame
 
+  /**
+   * Dynamic resolution (engine/dynamic-res.js): render at `scale` × the preset's pixel ratio (1 = full). Resizes the
+   * canvas and every post target, so it changes rarely (steps). @param {number} scale
+   */
+  setDynamicScale(scale) {
+    const s = Math.max(0.25, Math.min(1, +scale || 1));
+    if (s === (this.dynamicScale ?? 1)) return;
+    this.dynamicScale = s;
+    this.resize();
+  }
+
   /** Resize canvas, composer and passes to the container. */
   resize() {
     const w = Math.max(1, this.container.clientWidth || window.innerWidth);
     const h = Math.max(1, this.container.clientHeight || window.innerHeight);
-    const pr = Math.min(window.devicePixelRatio || 1, this.preset.pixelRatio);
+    const pr = Math.min(window.devicePixelRatio || 1, this.preset.pixelRatio) * (this.dynamicScale ?? 1);
     this.renderer.setPixelRatio(pr);
     this.renderer.setSize(w, h, false);
     this.renderer.domElement.style.width = '100%';
@@ -666,9 +686,30 @@ export class Renderer {
   render(dt = 1 / 60) {
     if (!this.camera) return;
     this.frame++;
+    // shadow casters by program variant (instanced, skinned…): no depth-program churn in the shadow pass
+    if (this.preset.shadows && (this.frame % 30 === 1 || this.scene.children.length !== this._variantScan)) {
+      this._variantScan = this.scene.children.length;
+      assignShadowVariants(this.scene, this.renderer);
+    } else if (this.preset.shadows) checkShadowVariants(this.renderer);
     // whole-frame stats: the composer + overlay call render() many times per frame
     this.renderer.info.autoReset = false;
     this.renderer.info.reset();
+    // shadow casters are culled by reach into this frame's views (off after the frame: other renders draw them all)
+    if (this.preset.shadows && this.shadowCull && CONFIG.render.shadowReachCull !== false) {
+      const views = (this._shadowViewList ||= []);
+      views.length = 0;
+      views.push(this.camera);
+      for (const fn of this.shadowViews) { try { const vs = fn(); if (vs) for (let i = 0; i < vs.length; i++) views.push(vs[i]); } catch { views.length = 0; break; } }
+      this.shadowCull.setViews(views.length ? views : null, this.sunDir);
+    }
+    try {
+      this._renderFrame(dt);
+    } finally {
+      if (this.shadowCull) this.shadowCull.enabled = false;
+    }
+  }
+
+  _renderFrame(dt) {
     if (this.composer) this.composer.render(dt);
     else {
       this.renderer.render(this.scene, this.camera);

@@ -4,6 +4,8 @@
  * briefing opens. `?preset=low` asks for the 512 terrain strips and 512 building textures, and does not preload the
  * destroyed variants' LOD0.
  */
+/** Six / two mission loads, each ending with the program warm-up frame (Game._warmFrame): headroom on a shared machine. */
+export const timeout = 180_000;
 export default async function (page, t) {
   const r = await page.evaluate(async () => {
     const G = window.__game.game;

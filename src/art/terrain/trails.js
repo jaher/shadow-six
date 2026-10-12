@@ -381,6 +381,19 @@ export class TrailSystem {
     gl.autoClear = prevAuto;
   }
 
+  /**
+   * Compile the stamp and fade programs now (mission load) for the targets they draw into: the first footprint batch
+   * and the first fade otherwise link them mid-play. Nothing is drawn.
+   */
+  warm() {
+    const gl = this.gl, prev = gl.getRenderTarget();
+    try {
+      gl.setRenderTarget(this.rtDef);
+      gl.compile(this.stampScene, this.cam);
+      gl.compile(this.fadeScene, this.cam);
+    } finally { gl.setRenderTarget(prev); }
+  }
+
   /** Zero both render targets, restoring the renderer's target and clear colour (the game's composer relies on them). */
   _clearTargets() {
     const gl = this.gl, prev = gl.getRenderTarget(), cc = gl.getClearColor(new THREE.Color()), ca = gl.getClearAlpha();

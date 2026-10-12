@@ -12,7 +12,7 @@ import { installTestApi } from './debug/test-api.js';
 import { hasQuickSave } from './save.js';
 import { installDebugMode } from './debug/debug-mode.js';
 import { installOfflineCache } from './engine/offline-cache.js';
-import { PRESET_CHOSEN_KEY, bootPreset, gpuName } from './engine/device.js';
+import { PRESET_CHOSEN_KEY, bootPreset, gpuName, mobilePreset } from './engine/device.js';
 import { touchFirst } from './ui/touch.js';
 import { loadOptions } from './ui/ui-config.js';
 
@@ -128,7 +128,11 @@ async function boot() {
     preserveDrawingBuffer: TEST,
     hudRoot: $('hud'),
   });
-  const want = bootPreset({ ...dev, gpu: gpuName(game.renderer.renderer?.getContext?.()) });
+  const gpu = gpuName(game.renderer.renderer?.getContext?.());
+  const want = bootPreset({ ...dev, gpu });
+  // phones / tablets: dynamic resolution holds the frame rate when the GPU is the bottleneck (CONFIG 'auto')
+  game.mobileDevice = !!mobilePreset({ touch: dev.touch, gpu });
+  game.setDynamicResolution(game.dynresMode);
   if (want && want !== game.renderer.presetName) game.renderer.setPreset(want);
   if (want && game.hud?.options) game.hud.options.preset = game.renderer.presetName; // OPTIONS shows what runs
   window.shadowSix = game;

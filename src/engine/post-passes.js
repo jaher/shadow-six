@@ -111,9 +111,12 @@ export class XRayPass extends Pass {
     if (!this._noQueries) this._probe = { gl, list: [], active: null };
     // the scene lights join the x-ray layer: a light set that differs from the main pass bumps three's lights-state
     // version, and every lit material then recomputes its program parameters in the next pass (per frame, per material)
-    if (!this._lightScan || ++this._lightScan > 30) {
+    if (!this._lightScan || ++this._lightScan > 30 || this.scene.children.length !== this._lightKids) {
       this._lightScan = 1;
-      this.scene.traverse((o) => { if (o.isLight) o.layers.enable(XRAY_LAYER); });
+      this._lightKids = this.scene.children.length;
+      const lit = (this._litTops ||= new Set());
+      lit.clear();
+      for (const top of this.scene.children) top.traverse((o) => { if (o.isLight) { o.layers.enable(XRAY_LAYER); lit.add(top); } });
     }
     const cam = this.camera;
     // margin in depth-buffer units (24-bit, linear depth for the orthographic game camera)
@@ -130,9 +133,17 @@ export class XRayPass extends Pass {
     renderer.setRenderTarget(this.renderToScreen ? null : readBuffer);
     // decal ghosts first (the selection ring under a hidden commando), so his silhouette draws over them
     if (this.decalScene?.children.length) renderer.render(this.decalScene, cam);
+    // only the targets' top-level subtrees (and those holding lights: same light set as the main pass) are walked:
+    // three would otherwise visit every node of the scene to find the few on the x-ray layer
+    const keep = (this._keep ||= new Set()), hid = (this._hid ||= []);
+    keep.clear(); hid.length = 0;
+    for (const r of roots) { let t = r; while (t?.parent && t.parent !== s) t = t.parent; if (t?.parent === s) keep.add(t); }
+    for (const top of s.children) if (top.visible && !keep.has(top) && !top.isLight && !this._litTops?.has(top)) { top.visible = false; hid.push(top); }
     try {
       renderer.render(s, cam);
     } finally {
+      for (const top of hid) top.visible = true;
+      hid.length = 0;
       const p = this._probe;
       if (p) {
         if (p.active) gl.endQuery(gl.ANY_SAMPLES_PASSED_CONSERVATIVE); // a draw threw between the hooks

@@ -116,6 +116,21 @@ export class RippleSim {
     r.setClearColor(cc, ca);
   }
 
+  /**
+   * Compile the step and environment programs now (mission load): the first ripple step otherwise links them mid-play.
+   * The step is drawn into the spare target only (no swap): the simulation state is untouched.
+   */
+  warm() {
+    const r = this.renderer, prev = r.getRenderTarget();
+    try {
+      if (this.envRT) { r.setRenderTarget(this.envRT); r.compile(this.envScene, this.envCam); }
+      r.setRenderTarget(this.b);
+      this.mat.uniforms.nDrops.value = 0;
+      this.mat.uniforms.src.value = this.a.texture;
+      this.quad.render(r);
+    } finally { r.setRenderTarget(prev); }
+  }
+
   _clear() { const r = this.renderer, p = r.getRenderTarget(); for (const t of [this.a, this.b]) { r.setRenderTarget(t); r.setClearColor(0, 0); r.clear(); } r.setRenderTarget(p); }
 
   /** foam 0..1 is packed into the integer part of |strength| (strength itself is clamped to < 1 m). */

@@ -45,6 +45,16 @@ export const CONFIG = {
     xray: { enabled: true, color: 0x1d3d12, rim: 0xc8ff90, opacity: 0.95, margin: 1.0 }, // dark team-green fill + bright rim (art review); margin 1.0 m: a long gun aimed at the camera must not x-ray its owner's chest
     exposure: 1.0,
     maxDelta: 0.25, // clamp frame delta after tab switches (s)
+    /**
+     * Spatial chunks for big static meshes (engine/chunking.js): terrain, apron… drawn as rows of square cells of about
+     * `cellTris` triangles (`cell`–`maxCell` m), each row cut to the cells in view.
+     */
+    chunking: { enabled: true, cell: 24, maxCell: 96, cellTris: 20000, minTris: 20000, pad: 1 },
+    /**
+     * Dynamic resolution (engine/dynamic-res.js): 'auto' = on for phones / tablets (the mobile presets), off on desktop;
+     * true / false force it. Lowers the pixel ratio in `steps` (× the preset's) while GPU-bound frames miss `target` fps.
+     */
+    dynamicResolution: { enabled: 'auto', target: 60, steps: [1, 0.85, 0.7] },
   },
 
   /** Camera: fixed 3/4 view (§2). */

@@ -14,6 +14,7 @@
  */
 import * as THREE from 'three';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { VariantCache, variantKey } from './program-variants.js';
 
 const CUTOUT_PARS = /* glsl */ `
 #include <map_pars_fragment>
@@ -50,6 +51,7 @@ export class AlphaAwareGTAOPass extends GTAOPass {
     super(...args);
     this._aoAuto = new WeakMap();
     this._swap = [];
+    this._variants = new VariantCache(); // one normal material per program variant (instanced, skinned, …): no program churn
   }
 
   /** @returns {THREE.Material|null|undefined} material for the prepass; null = exclude; undefined = stock */
@@ -59,17 +61,13 @@ export class AlphaAwareGTAOPass extends GTAOPass {
     if (mat.alphaTest > 0 && (mat.map || mat.alphaMap)) {
       let m = this._aoAuto.get(mat);
       if (!m) { m = makeCutoutNormalMaterial(mat); this._aoAuto.set(mat, m); }
+      m = this._variants.get(m, variantKey(obj));
       m.map = mat.map || null; m.alphaMap = mat.alphaMap || null; m.alphaTest = mat.alphaTest; m.side = mat.side;
       return m;
     }
-    return obj.isSkinnedMesh ? this._skinnedNormal() : this.normalMaterial;
-  }
-
-  /** Own normal material for skinned meshes: sharing one material between skinned and static meshes makes three
-   *  recompute the program parameters at every switch (getProgram churn with dozens of characters). */
-  _skinnedNormal() {
-    if (!this._normalSkinned) this._normalSkinned = this.normalMaterial.clone();
-    return this._normalSkinned;
+    // sharing one material between static, instanced, skinned … meshes makes three recompute the program parameters at
+    // every switch (getProgram churn): one clone per program variant (engine/program-variants.js)
+    return this._variants.get(this.normalMaterial, variantKey(obj));
   }
 
   _renderOverride(renderer, overrideMaterial, renderTarget, clearColor, clearAlpha) {
@@ -77,6 +75,8 @@ export class AlphaAwareGTAOPass extends GTAOPass {
     const swap = this._swap;
     swap.length = 0;
     this.scene.traverseVisible((o) => {
+      // points / lines never write AO normals (GTAOPass._overrideVisibility, done here in the same walk)
+      if (o.isPoints || o.isLine || o.isLine2) { swap.push(o, o.material, 1); o.visible = false; return; }
       if (!(o.isMesh || o.isInstancedMesh || o.isBatchedMesh || o.isSkinnedMesh)) return;
       const ud = o.userData;
       if (ud.aoExclude) { swap.push(o, o.material, 1); o.visible = false; return; }
@@ -111,6 +111,12 @@ export class AlphaAwareGTAOPass extends GTAOPass {
     }
     swap.length = 0;
   }
+
+  /** The stock pass hides points / lines with a whole-scene traverse() every frame (invisible subtrees and every bone
+   *  included): `_renderOverride` hides them during its own traverseVisible instead. */
+  _overrideVisibility() {}
+
+  _restoreVisibility() {}
 
   dispose() {
     super.dispose();

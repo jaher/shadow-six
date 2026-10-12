@@ -5,6 +5,8 @@
  * quicksave + quickload and rendering every simulated second. Fails on any page error, console.error, a
  * `[game] … failed` warning from Game's safe() wrappers, or a non-finite unit position.
  */
+/** Six / two mission loads, each ending with the program warm-up frame (Game._warmFrame): headroom on a shared machine. */
+export const timeout = 180_000;
 const MISSIONS = ['m01', 'm02', 'm03'];
 
 export default async function smokeMissions(page, t) {

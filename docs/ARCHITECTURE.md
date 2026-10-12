@@ -1482,6 +1482,39 @@ Emitters add the events they own; AUDIO never needs another team to call it.
   Nothing is created until the scope first shows. Touch / gamepad aim: `hud.cursor.setAim(x, y)`.
 - Off-map surround: `setFog` sets `scene.background` to the fog colour × 0.07 — a dark slate border (the original's
   black surround) where the widest zoom shows past a narrow map's edge.
+- **Render efficiency** (perf/render-efficiency; nothing here changes a pixel — every change was A/B diffed against
+  master at the noise floor):
+  - Chunking (`engine/chunking.js`, `Game._loadMission` once the map is ready, `CONFIG.render.chunking`): opaque static
+    meshes of ≥ 20k triangles spanning ≥ 2 cells (terrain, apron ring) get their index reordered by (group, cell row,
+    cell column) and are drawn as one child Mesh per row of cells (shared attributes + index); a row is culled by its box
+    and, in onBeforeRender / onBeforeShadow, cut to the span of its cells inside the drawing camera's frustum. Cell size
+    ~20k triangles (24–96 m). The original mesh stays as a proxy (`isMesh = false`, setters forwarded, raycasts through
+    the cells the ray crosses); a geometry swap unchunks it.
+  - Program variants (`engine/program-variants.js`): one override material per object kind (static / instanced /
+    skinned / batched / morph) for the GTAO normals and the sun shadow depth (`assignShadowVariants` every 30 frames,
+    `checkShadowVariants` every frame), so three never re-derives a program between kinds.
+  - Shadow reach (`engine/shadow-cull.js`, `renderer.shadowCull`, `renderer.shadowViews`): a caster is drawn into the
+    sun shadow map only if its world box, swept along the sun direction to y = −3, meets a receiving view (the frame
+    camera + 1.5 m, the water mirror cameras + 3 m). Instance overrides on the sun shadow's own Frustum.
+  - Water mirror (`art/water/index.js`): oblique near plane at the water instead of a clipping plane (no program
+    variant flip), the mirror camera cut to the screen window the visible water can sample, and `withExtraCull`
+    (`engine/cull-hooks.js`) drops objects whose reflection (footprint swept h·cot(pitch) towards the camera + the
+    ripple distortion reach) misses the level's water footprint mask.
+  - x-ray / late-FX passes hide the top-level groups that hold neither their objects nor lights; the GTAO prepass hides
+    points / lines in its own walk.
+  - Load-time warm-up (`Game._warmFrame`, `CONFIG.render.warmFrame`): one frame of the whole map (frustum widened, shadow
+    fitted to the map, every man on screen, one instance per instanced mesh) so every pass's programs are compiled and
+    the textures uploaded at load; `vfx.warm`, `TrailSystem.warm`, `RippleSim.warm` do the same for their targets.
+  - Render on demand: `Game.frame` skips the GPU frame after two frames under an opaque full-screen layer (boot
+    screens, the menus' backdrop without its live diorama).
+  - Dynamic resolution (`engine/dynamic-res.js`, `Renderer.setDynamicScale`, `Game.setDynamicResolution`,
+    `CONFIG.render.dynamicResolution`): 'auto' = phones / tablets only; GPU-bound frames missing 60 fps step the pixel
+    ratio down to 0.85 / 0.7 of the preset's, headroom steps it back.
+  - Tools: `tools/perf/render-probe.js` (draws / triangles per pass and subsystem, GPU per pass, program switches),
+    `measure-render.mjs`, `ab-render.mjs` (+ `ab-table.mjs`: two checkouts, process CPU, pixel diff vs noise floor),
+    `longtasks.mjs` (long tasks in a walkthrough, programs linked during play with their JS stack). Tests:
+    `render-budget` (draws / triangles / frame time per mission vs `tests/render-budgets.json`), `render-on-demand`,
+    `dynamic-res`, unit `render-culling`, `dynamic-res`.
 - QA: `renderer.frameStats()` / `__game.frameStats()` (mean/std RGB, saturation, black fraction, context lost)
   and `await __game.bench(n)` (wall + `EXT_disjoint_timer_query_webgl2` GPU medians); `renderer.stats().passes`
   and `.lighting`. `tests/render-frames.test.mjs` is the CI frame-stats smoke test.

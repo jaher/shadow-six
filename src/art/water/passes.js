@@ -97,20 +97,29 @@ export class LateFxPass extends Pass {
     // re-scan every 30 frames: lights must be visible on the FX layer too, and skip the pass when nothing is there
     // `roots` (optional array of Object3D, e.g. the FX root): scanned every frame, so a new effect draws at once
     const isFx = (o) => o.layers.isEnabled(this.layer) && (o.isMesh || o.isPoints || o.isSprite || o.isLine);
-    if (this._tick++ % 30 === 0) {
+    // the scan also notes which top-level groups hold FX objects or lights: the render walks only those (and the
+    // roots'), not every node of the scene; a new top-level object triggers a rescan
+    const tops = (this._tops ||= new Set());
+    if (this._tick++ % 30 === 0 || this.scene.children.length !== this._kids) {
       this._has = false;
-      this.scene.traverse((o) => { if (o.isLight) o.layers.enable(this.layer); else if (isFx(o)) this._has = true; });
+      this._kids = this.scene.children.length;
+      tops.clear();
+      for (const top of this.scene.children) top.traverse((o) => { if (o.isLight) { o.layers.enable(this.layer); tops.add(top); } else if (isFx(o)) { this._has = true; tops.add(top); } });
     }
     let has = this._has;
     if (!has && this.roots) for (const r of this.roots) { r.traverseVisible((o) => { if (!has && isFx(o)) has = true; }); if (has) break; }
     if (!has) return;
+    const keep = (this._keep ||= new Set()), hid = (this._hid ||= []);
+    keep.clear(); hid.length = 0;
+    for (const r of this.roots || []) { let t = r; while (t?.parent && t.parent !== this.scene) t = t.parent; if (t?.parent === this.scene) keep.add(t); }
+    for (const top of this.scene.children) if (top.visible && !tops.has(top) && !keep.has(top)) { top.visible = false; hid.push(top); }
     const c = this.camera;
     this.cam = this.cam && this.cam.type === c.type ? this.cam : c.clone();
     this.cam.copy(c); this.cam.layers.set(this.layer);
     const r = renderer, ac = r.autoClear, sa = r.shadowMap.autoUpdate, bg = this.scene.background;
     r.autoClear = false; r.shadowMap.autoUpdate = false; this.scene.background = null;
     r.setRenderTarget(this.renderToScreen ? null : readBuffer);
-    r.render(this.scene, this.cam);
+    try { r.render(this.scene, this.cam); } finally { for (const top of hid) top.visible = true; hid.length = 0; }
     r.autoClear = ac; r.shadowMap.autoUpdate = sa; this.scene.background = bg;
   }
 }

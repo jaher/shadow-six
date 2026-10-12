@@ -24,6 +24,7 @@ const spawnFree = (world) => (x, z, s) => {
   return !!g && g.walkableAt(x, z) && Math.abs((g.elevAt?.(x, z) ?? 0) - (s.y ?? 0)) < 0.3;
 };
 import { Flow } from './core/flow.js';
+import * as THREE from 'three';
 import { CONFIG } from './config.js';
 import { EventBus } from './core/events.js';
 import { checkObjectives, createObjectives, extractionStatus, skipExtractionDrive, updateExtractionVehicle } from './core/objectives.js';
@@ -64,6 +65,8 @@ import { quickSave, quickLoad, saveSlot, loadSlot, autoSave } from './save.js';
 import { probe as probeCone } from './ai/perception.js';
 import { mgMountFrame } from './render/mg-mount.js';
 import { ScopeMagnifier } from './render/scope-magnifier.js';
+import { chunkLargeMeshes } from './engine/chunking.js';
+import { DynamicResolution } from './engine/dynamic-res.js';
 import { sessionCache } from './engine/asset-cache.js';
 import { deferMaterialDisposal, flushMaterialDisposal, holdingMaterials } from './engine/program-keeper.js';
 import { TextureWarmer } from './engine/texture-memory.js';
@@ -119,6 +122,10 @@ export class Game {
     // Keep the ortho frustums in sync with the canvas (else the view is stretched horizontally).
     this.renderer.onResize = (w, h) => this.cameraRig.resize(w, h);
     this.renderer.setCamera(this.cameraRig.mainCamera);
+    /** Dynamic resolution controller (engine/dynamic-res.js) or null; see setDynamicResolution. */
+    this.dynres = null;
+    this.mobileDevice = !!opts.mobile;
+    this.setDynamicResolution(CONFIG.render.dynamicResolution?.enabled ?? 'auto');
     // explosion camera shake (VFX), off with the reduced-motion option (FX.shakeOffset returns null)
     this.cameraRig.shake = () => (this.world?.fx?.shakeOffset ? this.world.fx.shakeOffset() : null);
     this.input = new Input(this, this.renderer.domElement);
@@ -263,6 +270,9 @@ export class Game {
     // scenery apron past the map edges (art/apron.js): the camera keeps its true footprint inside it at every zoom
     const apron = this.mapHandle?.terrain?.apron;
     if (apron) this.cameraRig.setApron(apron.field.A, apron.range);
+    // big static meshes (terrain, apron ring…) → culled spatial chunks: the view draws only the part it sees
+    const ck = CONFIG.render.chunking;
+    if (ck?.enabled !== false) this.chunkStats = safe(() => chunkLargeMeshes(r.scene, ck), 'chunking');
     prog.stage('units');
     this._spawnUnits(world, def);
     await safeAsync(() => awaitUnitModels(world.entities.filter((e) => e.model?.ready)), 'character bodies');
@@ -287,7 +297,11 @@ export class Game {
     // first-hit hitch: compile the stain / spatter programs now (bounded; a slow driver just finishes later)
     if (world.blood?.warm) await safeAsync(() => Promise.race([world.blood.warm(r.renderer, r.camera), new Promise((ok) => setTimeout(ok, 4000))]), 'blood warm-up');
     if (world.marks?.warm) await safeAsync(() => Promise.race([world.marks.warm(r.renderer, r.camera), new Promise((ok) => setTimeout(ok, 4000))]), 'blast marks warm-up'); // crater decal program + atlas
+    if (world.fx?.vfx?.warm) await safeAsync(() => Promise.race([world.fx.vfx.warm(r.renderer, r.camera), new Promise((ok) => setTimeout(ok, 4000))]), 'vfx warm-up'); // smoke / fire / debris programs
     if (this.world !== world) return prog.cancel(), world;
+    // every pass's programs for everything on the map (shadow depth, AO normals, mirror, x-ray variants): compiled now,
+    // not as first-sight hitches when the camera reaches them during play
+    if (CONFIG.render.warmFrame !== false) this.warmFrameMs = safe(() => this._warmFrame(), 'program warm-up frame');
     prog.stage('finish');
     world.objectives = createObjectives(def.objectives || []);
     if (!world.extraction) world.extraction = def.extraction || null;
@@ -317,6 +331,53 @@ export class Game {
     this.hud?.onMissionLoaded?.(world, def);
     this.events.emit('mission:loaded', { mission: def, world });
     return world;
+  }
+
+  /**
+   * One frame of the whole map (load time): the frame camera keeps the game's orientation with its frustum widened to
+   * the map and a margin, the sun shadow fitted to the whole map, the characters all on screen, the water mirror
+   * updated for it. Every material then acquires its programs in every pass now (three compiles on first use).
+   * Restores the view; the next real frame refits everything. @returns {number} ms
+   */
+  _warmFrame() {
+    const t0 = performance.now(), r = this.renderer, rig = this.cameraRig, def = this.missionDef, w = this.world;
+    if (!r.camera || !w || !def?.size) return 0;
+    const [W, D] = def.size, m = 12, cam = rig.mainCamera, saved = cam.clone();
+    cam.copy(rig.active?.camera || cam);
+    cam.updateMatrixWorld();
+    const v = new THREE.Vector3();
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const x of [-m, W + m]) for (const z of [-m, D + m]) for (const y of [-3, 24]) {
+      v.set(x, y, z).applyMatrix4(cam.matrixWorldInverse);
+      x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y);
+    }
+    cam.left = x0; cam.right = x1; cam.bottom = y0; cam.top = y1; cam.zoom = 1; cam.clearViewOffset?.();
+    cam.updateProjectionMatrix();
+    const corners = (y) => [[-m, -m], [W + m, -m], [W + m, D + m], [-m, D + m]].map(([x, z]) => ({ x, y, z }));
+    const scene = r.scene, autoMW = scene.matrixWorldAutoUpdate, few = [];
+    try {
+      safe(() => charactersFrame(cam, 40), 'warm characters'); // all on screen, the zoom-1 LOD
+      safe(() => this.mapHandle?.frame?.(0, cam), 'warm terrain / water');
+      r.fitShadowToView({ groundFootprint: corners });
+      scene.updateMatrixWorld();
+      scene.matrixWorldAutoUpdate = false;
+      // programs are acquired before the instance count matters: one instance each (grass, trees, clutter…) keeps the
+      // whole-map frame light on a phone GPU
+      scene.traverse((o) => {
+        if (o.isInstancedMesh && o.count > 1) { few.push(o, 'count', o.count); o.count = 1; }
+        else if (o.geometry?.isInstancedBufferGeometry && o.geometry.instanceCount > 1) { few.push(o.geometry, 'instanceCount', o.geometry.instanceCount); o.geometry.instanceCount = 1; }
+      });
+      r.render(0);
+      // render-to-texture programs of the map's systems (footprint trails, water ripples)
+      safe(() => w.terrain?.terrain?.trails?.warm?.(), 'warm trails');
+      safe(() => w.water?.system?.ripples?.warm?.(), 'warm ripples');
+    } finally {
+      for (let i = few.length - 3; i >= 0; i -= 3) few[i][few[i + 1]] = few[i + 2];
+      scene.matrixWorldAutoUpdate = autoMW;
+      cam.copy(saved);
+      cam.updateProjectionMatrix();
+    }
+    return Math.round(performance.now() - t0);
   }
 
   /** Spawn commandos (with BEL first-aid kit rule), enemies and vehicles from the mission def. */
@@ -640,8 +701,36 @@ export class Game {
     this._raf = 0;
   }
 
-  /** One displayed frame: accumulate sim ticks (unless manualTick), then render. */
+  /**
+   * Dynamic resolution on / off: true, false, or 'auto' (phones and tablets only; never in test mode unless forced).
+   * @param {boolean|'auto'} mode
+   */
+  setDynamicResolution(mode) {
+    const on = mode === true || (mode === 'auto' && this.mobileDevice && !this.manualTick);
+    if (on && !this.dynres) this.dynres = new DynamicResolution(CONFIG.render.dynamicResolution || {});
+    if (!on && this.dynres) { this.dynres = null; this.renderer.setDynamicScale(1); }
+    this.dynresMode = mode;
+    return !!this.dynres;
+  }
+
+  /** One displayed frame (rAF): run it, then feed its timing to the dynamic resolution controller. */
   frame(dt) {
+    const t0 = performance.now();
+    this._frame(dt);
+    const d = this.dynres;
+    if (!d) return;
+    // only frames that drew a playing / paused world count: menus, loads and covered views say nothing about the GPU
+    if (this.building || !this.world || this._coveredFrames > 2) { this._dynLast = 0; return; }
+    const now = performance.now();
+    if (this._dynLast) {
+      const s = d.sample(now - this._dynLast, now - t0);
+      if (s != null) this.renderer.setDynamicScale(s);
+    }
+    this._dynLast = now;
+  }
+
+  /** One displayed frame: accumulate sim ticks (unless manualTick), then render. */
+  _frame(dt) {
     const simDt = CONFIG.sim.dt;
     let alpha = 1;
     if (this.world && this.state === 'playing' && !this.manualTick) {
@@ -658,7 +747,10 @@ export class Game {
     // a world being built is hidden by the loading screen (or holds the last frame of an instant restart): drawing
     // it half-built only competes with the load for the main thread (and compiles programs one frame at a time)
     if (!this.building) {
-      this.render(dt, alpha);
+      // the view hidden behind an opaque menu layer (the menus' backdrop, its live diorama off): no GPU work for it
+      const covered = this._viewCovered();
+      this._coveredFrames = covered ? (this._coveredFrames || 0) + 1 : 0;
+      this.render(dt, alpha, this._coveredFrames <= 2);
       // the first frame after a (re)load has acquired its programs: the previous mission's materials may go now
       if (holdingMaterials()) flushMaterialDisposal();
       // textures not drawn yet go to the GPU a few per frame, and their decoded page copy goes (engine/texture-memory.js)
@@ -670,8 +762,9 @@ export class Game {
    * Draw a frame: interpolated entity transforms, camera, cones, overlays, HUD. Never advances the sim.
    * @param {number} [dt] real frame delta (visual animation)
    * @param {number} [alpha] interpolation factor between the previous and current tick
+   * @param {boolean} [draw] false: update everything but skip the GPU frame (view covered by a menu, see frame())
    */
-  render(dt = 0, alpha = 1) {
+  render(dt = 0, alpha = 1, draw = true) {
     const w = this.world;
     const animDt = this.state === 'playing' ? dt : 0;
     // §6.8: faithful pause freezes scrolling (arrows, edge, middle-drag); the ⚑ active-pause option allows it. The
@@ -708,13 +801,28 @@ export class Game {
     // world matrices once per frame, not once per render pass (main, GTAO normals, x-ray, water, …): with 46 skinned
     // characters (~100 nodes each) the per-pass scene.updateMatrixWorld was the single largest CPU cost
     const scene = this.renderer.scene, autoMW = scene.matrixWorldAutoUpdate;
-    scene.updateMatrixWorld();
-    scene.matrixWorldAutoUpdate = false;
-    try {
-      this.cameraRig.render(this.renderer, dt);
-      if (w) safe(() => this._scopeFrame(), 'scope magnifier'); // §5.3 sniper scope: 2× lens into the same canvas
-    } finally { scene.matrixWorldAutoUpdate = autoMW; }
+    if (draw) {
+      scene.updateMatrixWorld();
+      scene.matrixWorldAutoUpdate = false;
+      try {
+        this.cameraRig.render(this.renderer, dt);
+        if (w) safe(() => this._scopeFrame(), 'scope magnifier'); // §5.3 sniper scope: 2× lens into the same canvas
+      } finally { scene.matrixWorldAutoUpdate = autoMW; }
+    }
     safe(() => this.hud?.update?.(dt), 'hud');
+  }
+
+  /**
+   * Is the 3D view hidden behind an opaque full-screen layer? The boot screens (ui/boot.js) and the menus' backdrop
+   * (ui/backdrop.js: fixed, opaque, above the canvas) while its live diorama is not running — the diorama draws through
+   * the renderer itself.
+   */
+  _viewCovered() {
+    // the boot screens (disclaimer, ident, title splash: fixed, opaque black) until their fade-out starts
+    const bt = this.hud?.boot?.root;
+    if (bt?.isConnected && !bt.hidden && !bt.classList.contains('leaving')) return true;
+    const bd = this.hud?.backdrop;
+    return !!(bd?.root && !bd.root.hidden && !bd.dio && bd.root.isConnected);
   }
 
   /** §5.3 sniper scope 2× magnifier: drawn into the canvas after the frame while the scope cursor is up. */

@@ -5,6 +5,8 @@
  * X-ray silhouettes for commandos behind a building (never for enemies); post-hook slots.
  */
 const ok = (f) => f && !f.contextLost && f.luma > 25 && f.luma < 200 && f.std.every((s) => s > 15);
+/** Three mission loads: each now ends with the program warm-up frame (Game._warmFrame), seconds on a loaded machine. */
+export const timeout = 180_000;
 
 export default async function renderFrames(page, t) {
   const r = await page.evaluate(async () => {
