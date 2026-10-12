@@ -153,8 +153,9 @@ export class Walkthrough extends SolutionReplay {
    * @param {object|null} wtFile the mission's WALKTHROUGH (or null: chapters / captions from the solution itself)
    * @param {{speed?: number, toMarker?: {kind: string, id: string}|null, isFrozen?: () => boolean, onEnd?: Function,
    *   onSkip?: (marker: object, settings: object) => void, onExit?: () => void, captions?: boolean, skipWaits?: boolean,
-   *   free?: boolean, intro?: boolean}} o  onSkip: reload + fast-forward to that marker (a jump back);
-   *   intro: show the opening card (a fresh start)
+   *   free?: boolean, intro?: boolean, introWait?: boolean, onSpeed?: (s: number) => void}} o  onSkip: reload +
+   *   fast-forward to that marker (a jump back); intro: show the opening card (a fresh start); introWait: the card waits
+   *   for ▶ Start (a shared link: nobody may be watching yet, and the click lets the sound play); onSpeed: speed changed
    */
   constructor(game, sol, wtFile, o = {}) {
     super(game, sol, { ...o, speeds: WALK_SPEEDS, turboMs: o.turboMs ?? WALK_TURBO_MS, onSkip: null });
@@ -178,6 +179,8 @@ export class Walkthrough extends SolutionReplay {
     this.director.on = !o.free;
     this.hold = null;
     this.showIntro = o.intro ?? !o.toMarker;
+    this.introWait = !!o.introWait;
+    this.onSpeed = o.onSpeed || null;
     this._jumpFrom = this.toMarker ? -1 : null;
     this._bombs = [];
     this._blasts = [];
@@ -546,6 +549,7 @@ export class Walkthrough extends SolutionReplay {
   setSpeed(s) {
     this.pacer.setSpeed(s);
     this._syncBar();
+    this.onSpeed?.(this.pacer.speed);
   }
 
   setCaptions(on) {
@@ -646,7 +650,7 @@ export class Walkthrough extends SolutionReplay {
       paras: [this.wt.intro || m?.briefing?.objectivesSummary || '', `${chapters} chapters${this.wt.steps.length ? `, ${this.wt.steps.length} steps` : ''}. The solution plays live in the game: pause, change the speed, skip to any step.`],
       actions: [['▶ Start', () => this._endIntro(), true], ['Chapters', () => { this._endIntro(true); this.setPaused(true); this._showMenu(true); }], ['Exit', () => this.exit()]],
     });
-    this._introTimer = setTimeout(() => { if (this._introOn) this._endIntro(); }, 9000);
+    if (!this.introWait) this._introTimer = setTimeout(() => { if (this._introOn) this._endIntro(); }, 9000);
   }
 
   _endIntro(silent = false) {

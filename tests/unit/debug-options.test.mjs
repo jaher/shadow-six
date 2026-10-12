@@ -13,6 +13,11 @@ test('debug: ?debug / ?debug=1 / ?debug=cones enable; absent / 0 / off do not', 
   assert.equal(parseDebugParams('?debug=cones').cones, true);
   assert.equal(parseDebugParams('?debug=1').cones, false);
   assert.equal(parseDebugParams('?debug&mission=m05').mission, 'm05');
+  // a shared video-mode link: ?debug&walkthrough=m03&speed=4 (4x and ½ read too; junk = no speed)
+  assert.equal(parseDebugParams('?debug&walkthrough=m03&speed=4').walkthrough, 'm03');
+  for (const [q, v] of [['speed=4', 4], ['speed=4x', 4], ['speed=0.5', 0.5], ['speed=½', 0.5], ['speed=2', 2], ['speed=', null], ['speed=fast', null], ['speed=-1', null], ['', null]]) {
+    assert.equal(parseDebugParams(`?debug&walkthrough=m03&${q}`).speed, v, q);
+  }
   assert.equal(parseDebugParams(new URLSearchParams('debug=cones,x')).cones, true);
 });
 

@@ -43,7 +43,7 @@ export const ALL_ROLES = Object.freeze({
 /**
  * Is debug mode on for this query string? `?debug`, `?debug=1`, `?debug=cones`, any value except 0/false/off.
  * @param {string|URLSearchParams} search
- * @returns {{enabled: boolean, value: string|null, cones: boolean, mission: string|null}}
+ * @returns {{enabled: boolean, value: string|null, cones: boolean, mission: string|null, walkthrough: string|null, speed: number|null}}
  */
 export function parseDebugParams(search) {
   const p = search instanceof URLSearchParams ? search : new URLSearchParams(search || '');
@@ -51,7 +51,10 @@ export function parseDebugParams(search) {
   const value = has ? p.get('debug') : null;
   const enabled = has && !/^(0|false|off|no)$/i.test(value || '');
   const parts = (value || '').toLowerCase().split(/[,+ ]/).filter(Boolean);
-  return { enabled, value, cones: enabled && parts.includes('cones'), mission: p.get('mission') || null, walkthrough: p.get('walkthrough') || null };
+  // `&speed=4` (or 4x, 0.5, ½): video mode's starting speed; the Walkthrough keeps it only if it is one of its speeds
+  const sp = parseFloat(String(p.get('speed') || '').replace('½', '0.5'));
+  return { enabled, value, cones: enabled && parts.includes('cones'), mission: p.get('mission') || null, walkthrough: p.get('walkthrough') || null,
+    speed: sp > 0 ? sp : null };
 }
 
 /** Coerce stored / partial options onto DEFAULT_OPTIONS (unknown keys dropped, bad values reset). */

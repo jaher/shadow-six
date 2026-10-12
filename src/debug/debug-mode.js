@@ -5,7 +5,9 @@
  * corner info HUD (mission, FPS, frame ms, draw calls, triangles, cursor x/z, camera zoom / yaw), the SOLUTION replay
  * of missions with a saved solution (debug/solutions.js, debug/solution-replay.js: select section, in-game SOLUTION
  * button, F9; Esc stops it) and VIDEO MODE, the guided walkthrough of a solution (debug/walkthrough.js: the select's
- * "Watch walkthrough" section, the in-game ▶ VIDEO button, F8, `?debug&walkthrough=m03`; Esc exits to this menu).
+ * "Watch walkthrough" section, the in-game ▶ VIDEO button, F8, `?debug&walkthrough=m03[&speed=4]`, which is also what the
+ * address bar shows in video mode, so it can be shared: the link opens on the title card, waiting for ▶ Start; Esc exits
+ * to this menu).
  * main.js installs it only when the URL carries `debug`; nothing here exists otherwise. Pure logic: debug-options.js.
  * @module debug/debug-mode
  */
@@ -419,11 +421,7 @@ export class DebugMode {
     this._launching = true;
     this._lastId = id;
     try {
-      try {
-        const u = new URL(location.href);
-        u.searchParams.set('mission', id);
-        this.history?.replaceState?.(this.history.state, '', u.href);
-      } catch { /* sandboxed history */ }
+      this._setUrl((q) => { q.set('mission', id); q.delete('walkthrough'); q.delete('speed'); }); // video mode sets its own after
       const hud = g.hud;
       const brief = forceBrief ?? !this.options.skipBriefing;
       const load = () => (g.flow ? g.flow.startMission(id) : g.loadMission(id)).then(() => true);
@@ -492,6 +490,8 @@ export class DebugMode {
       this._syncFlags();
       r.start();
       started = true;
+      // the address bar is now a shareable video-mode link: ?debug&mission=m03&walkthrough=m03[&speed=4]
+      this._setUrl((q) => { q.set('walkthrough', id); if (r.pacer.speed === 1) q.delete('speed'); else q.set('speed', String(r.pacer.speed)); });
       this.game.renderer?.domElement?.focus?.();
       return r;
     } catch (err) {
@@ -512,7 +512,7 @@ export class DebugMode {
    * to that chapter / checkpoint first (a jump back reloads); `settings`: speed, captions, skip waits, free camera.
    * @returns {Promise<Walkthrough|null>}
    */
-  async startWalkthrough(id, { toMarker = null, settings = null } = {}) {
+  async startWalkthrough(id, { toMarker = null, settings = null, introWait = false } = {}) {
     if (!id || this._replayLaunch) return null;
     closeCard();
     this.close();
@@ -533,7 +533,8 @@ export class DebugMode {
       if (this.game.state === 'paused') this.game.pause(false);
       const r = new W.Walkthrough(this.game, sol, wtFile, {
         speed: keep.speed ?? 1, captions: keep.captions ?? true, skipWaits: keep.skipWaits ?? true, free: !!keep.free,
-        toMarker, intro: !toMarker, manualTickAfter: mt,
+        toMarker, intro: !toMarker, introWait, manualTickAfter: mt,
+        onSpeed: (s) => this._setUrl((q) => (s === 1 ? q.delete('speed') : q.set('speed', String(s)))),
         isFrozen: () => !!this.overlay,
         onSkip: (marker, s) => { this.startWalkthrough(id, { toMarker: marker, settings: s }); },
         onExit: () => this.exitWalkthrough(),
@@ -551,6 +552,8 @@ export class DebugMode {
       this._syncFlags();
       r.start();
       started = true;
+      // the address bar is now a shareable video-mode link: ?debug&mission=m03&walkthrough=m03[&speed=4]
+      this._setUrl((q) => { q.set('walkthrough', id); if (r.pacer.speed === 1) q.delete('speed'); else q.set('speed', String(r.pacer.speed)); });
       this.game.renderer?.domElement?.focus?.();
       return r;
     } catch (err) {
@@ -563,14 +566,20 @@ export class DebugMode {
     }
   }
 
+  /** Edit the page URL's query in place (no reload, no history entry): `edit(searchParams)`. */
+  _setUrl(edit) {
+    try {
+      const u = new URL(location.href);
+      edit(u.searchParams);
+      if (u.href !== location.href) this.history?.replaceState?.(this.history.state, '', u.href);
+    } catch { /* sandboxed history */ }
+  }
+
   /** Leave video mode for the debug menu (the mission is unloaded). */
   exitWalkthrough() {
     closeCard();
     if (this.replay?.isWalkthrough) this.stopReplay();
-    try {
-      const u = new URL(location.href);
-      if (u.searchParams.has('walkthrough')) { u.searchParams.delete('walkthrough'); this.history?.replaceState?.(this.history.state, '', u.href); }
-    } catch { /* sandboxed history */ }
+    this._setUrl((q) => { q.delete('walkthrough'); q.delete('speed'); });
     if (this.game?.world) { if (this.game.hud?.quitToTitle) this.game.hud.quitToTitle(); else this.game.quitToTitle(); }
     this.open();
   }
