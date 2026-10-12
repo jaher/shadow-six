@@ -36,22 +36,74 @@ test('diving gear: only in shallow water; submerged = invisible except to witnes
   assert.ok(!d.diving && !d.underwater && d.stance === 'stand');
 });
 
-test('raft: T deploys in shallow water only (2.0 s) and he boards; H packs it (2.0 s); packed raft slows him', () => {
+test('raft: T inflates it on the bank at the water\'s edge (2.0 s), in the water beside him, and he boards; H packs it (2.0 s); packed raft slows him', () => {
   const s = makeSim({ ...RIVER, commandos: [{ role: 'diver', x: 30, z: 10, inventory: { inflatableBoat: 1 } }] });
   const d = s.cmd('diver');
   near(d.speed, 2.25 - 0.9, 1e-9, 'walk 1.35 with the packed raft');
-  assert.equal(d.issue({ type: 'ability', id: 'raft', target: d }), false, 'not on land');
-  d.setPosition(36.9, 10);
+  assert.equal(d.issue({ type: 'ability', id: 'raft', target: d }), false, 'not away from the water');
+  assert.equal(d.lastRefusal?.text, "Only at the water's edge.");
+  d.setPosition(36.2, 10, 0); // on the bank, the shallows from 36.5
   assert.ok(d.issue({ type: 'ability', id: 'raft', target: d }));
   s.run(2.1);
   const raft = s.world.vehicles.find((v) => v.vehicleType === 'raft');
   assert.ok(raft && raft.occupants.includes(d) && raft.operator === d);
   assert.ok(!d.has('inflatableBoat'));
+  const g = s.world.groundAt(raft.x, raft.z);
+  assert.ok(g.water || g.shallow, `the raft in the water (${raft.x.toFixed(2)}, ${raft.z.toFixed(2)})`);
+  assert.ok(raft.x > 36.5 + 0.4, 'out in the water off the bank');
   assert.ok(d.issue({ type: 'exit' }));
   d.setPosition(36.9, 12);
   assert.ok(d.issue({ type: 'ability', id: 'hand', target: raft }));
   s.run(5, () => raft.removed);
   assert.ok(d.has('inflatableBoat') && raft.removed, 'packed');
+});
+
+test('raft ordered from the water: he swims / wades out onto the bank, stands there, then inflates it into the water beside him', () => {
+  // user 2026-10-11: "If it's swimming in the water it should come out first to the ground, then deploy the raft"
+  for (const [x, label] of [[40, 'swimming in the deep channel'], [37, 'wading in the shallows']]) {
+    const s = makeSim({ ...RIVER, commandos: [{ role: 'diver', x, z: 10, inventory: { inflatableBoat: 1 } }] });
+    const d = s.cmd('diver'), w = s.world;
+    s.run(0.2);
+    assert.ok(d.issue({ type: 'ability', id: 'raft', target: d }), `${label}: accepted`);
+    let deploying = 0, wetDeploy = 0, wetSpawn = null;
+    w.events.on('vehicle:enter', () => { const g = w.groundAt(d.x, d.z); wetSpawn = g; });
+    s.run(25, () => {
+      if (d.currentActionId === 'raft') {
+        deploying++;
+        const g = w.groundAt(d.x, d.z);
+        if (g.water || g.shallow) wetDeploy++;
+      }
+      return !!d.vehicle;
+    });
+    const raft = w.vehicles.find((v) => v.vehicleType === 'raft');
+    assert.ok(raft && d.vehicle === raft, `${label}: the raft is out and he is in it`);
+    assert.ok(deploying > 60, `${label}: he inflated it (${deploying} ticks)`);
+    assert.equal(wetDeploy, 0, `${label}: never inflating it standing in the water (${wetDeploy} ticks)`);
+    const rg = w.groundAt(raft.x, raft.z);
+    assert.ok(rg.water || rg.shallow, `${label}: the raft is in the water`);
+    assert.ok(wetSpawn && !wetSpawn.water && !wetSpawn.shallow, `${label}: he boarded it from the bank`);
+  }
+  // with the diving gear on: off in the shallows by the bank first, then out and launch it
+  const s = makeSim({ ...RIVER, commandos: [{ role: 'diver', x: 36.9, z: 10, inventory: { inflatableBoat: 1 } }] });
+  const d = s.cmd('diver');
+  assert.ok(d.issue({ type: 'ability', id: 'dive', target: d })); s.run(1.6);
+  d.issue({ type: 'move', x: 40, z: 20 }); s.run(8);
+  assert.ok(d.diving && d.underwater);
+  assert.ok(d.issue({ type: 'ability', id: 'raft', target: d }), 'diving: accepted');
+  let wet = 0;
+  s.run(30, () => { if (d.currentActionId === 'raft' && d.stance !== 'dive') { const g = s.world.groundAt(d.x, d.z); if (g.water || g.shallow) wet++; } return !!d.vehicle; });
+  assert.ok(!d.diving && d.vehicle?.vehicleType === 'raft', 'gear off, raft out, aboard');
+  assert.equal(wet, 0, 'inflated on the bank');
+});
+
+test('raft: nowhere to launch it from — refused', () => {
+  // a pond too small for the hull: the bank is there, the water is not wide enough for the raft
+  const s = makeSim({ shoreShallowWidth: 0, terrain: [{ type: 'path', terrain: 'shallow', points: [[20, 20], [20, 21]], width: 1.2 }],
+    commandos: [{ role: 'diver', x: 20, z: 20.5, inventory: { inflatableBoat: 1 } }] });
+  const d = s.cmd('diver');
+  assert.ok(s.world.groundAt(d.x, d.z).shallow);
+  assert.equal(d.issue({ type: 'ability', id: 'raft', target: d }), false);
+  assert.equal(d.lastRefusal?.text, 'No bank to launch it from.');
 });
 
 test('#12 disguised Spy: unseen walking past a guard; injecting in view unmasks him (uniform back, noise 9 m, N=1000)', () => {

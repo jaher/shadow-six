@@ -328,7 +328,7 @@
 | `uniform` | U | Spy | self | — | Re-dress. Only when **no enemy currently has him inside a cone** | 1.5 s | none |
 | `distract` | D | Spy, in uniform | enemy | walks to within 1.5 m | Talks to the target (§3.4) | Until released | none |
 | `dive` | D | Marine | self | — | Diving gear on or off. The icon appears only in shallow water or aboard a boat | 1.5 s | none |
-| `raft` | T | Marine | self | — | Deploys the raft; **shallow water only** | 2.0 s | none |
+| `raft` | T | Marine | self | — | Deploys the raft **from the bank** (dry ground or a low deck at the water's edge); from the water he makes for the bank first | 2.0 s | none |
 | `crawl` / `stand` | C / S | all | self | — | Stance change | 0.5 s / 0.6 s | none |
 | `hand` | H | all | item/body/barrel/raft | 1.2 | Role-gated pick-up | 0.6–1.0 s | none |
 | `vehicleFire` | Ctrl+click | the operator of an armed vehicle or manned gun | point | per weapon (§4.1) | Fires a volley; turrets rotate first (90°/s) | per weapon | mg or cannon |
@@ -396,7 +396,7 @@ The animation names are the humanoid names from ARCHITECTURE. Each voice cue is 
   - No oxygen limit [inf: none mentioned in BEL].
 - **Knife from the water.** He can knife an enemy standing within 1.2 m of the shoreline; he surfaces for 0.6 s to do it.
 - **Raft (T / H).**
-  - **T deploys it only when he stands in `SHALLOW` water** (2.0 s): an inflation animation, then a `raft` vehicle.
+  - **T deploys it only from the bank** (2.0 s; user 2026-10-11 "he can only deploy the boat on the ground"): he stands on dry ground (or a low deck: a pier, a landing stage, the M4 wreck) at the water's edge, inflates it and puts it in the water beside him as a `raft` vehicle. Ordered from the water he first swims / wades to the nearest bank he can launch it from and climbs out (with the diving gear on he takes it off in the shallows there first); no such bank within 30 m: refused. Away from the water: refused ("Only at the water's edge.").
   - Only he rows it. Capacity 3 (him plus 2). Rowing speed 2.5 m/s, with the river current added (`water.velocity`, §7.3).
   - He boards first. Others board by clicking the raft while it sits in shallow water.
   - **H on the raft** from shallow water or the bank deflates and packs it (2.0 s). Carrying it slows him (see §3.1).
@@ -1135,7 +1135,7 @@ Defaults mirror the BEL manual. Browser adaptations are marked ⚑. All keys use
 | **Q** | Drop the decoy | GB | |
 | **R** | Sniper rifle | Sniper | |
 | **S** | Stand up | all | |
-| **T** | Inflate / launch the raft (shallow water only) | Marine | |
+| **T** | Inflate / launch the raft (from the bank; from the water he climbs out first) | Marine | |
 | **U** | Put the uniform back on (only when no enemy sees him) | Spy | The German release used T; not adopted |
 | **W** | Wire cutters | Sapper | |
 | **X** | Knife | GB, Marine | |

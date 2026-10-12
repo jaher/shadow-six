@@ -84,7 +84,8 @@ test('m02 §7.5 step 3–4 scripted: after the boat passes, the Marine rafts the
   const watch = () => { if (boat.brain?.state === 'attack') attacked = attacked ?? w.time; return false; };
   place(ma, 19.5, 73.2); place(gb, 18.8, 73.4); // SW shallows across the (24 m) river from the climb base
   assert.ok(ma.issue({ type: 'ability', id: 'raft', target: ma }), 'Marine: deploy the raft');
-  s.run(2.2, watch);
+  // (he wades out onto the bank and inflates it there, into the water beside him: abilities/marine.js raft)
+  s.run(8, () => watch() || w.vehicles.find((v) => v.vehicleType === 'raft')?.operator === ma);
   const raft = w.vehicles.find((v) => v.vehicleType === 'raft');
   assert.ok(raft && raft.operator === ma, 'raft deployed, Marine aboard');
   assert.ok(gb.issue({ type: 'ability', id: 'enterVehicle', target: raft }), 'GB: board');

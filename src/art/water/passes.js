@@ -48,16 +48,31 @@ export class WaterPass extends Pass {
     super();
     this.system = system; this.stash = stash;
     this.needsSwap = true;
+    // a submerged diver (WaterSystem.setSubmerged) where he is the nearest surface: his depth goes 1 m further back,
+    // so the water surface is drawn over all of him — a fin or the tank poking out of 25 cm shallows included
     this.copy = new FullScreenQuad(new THREE.ShaderMaterial({ vertexShader: FSQ_VS,
-      fragmentShader: `varying vec2 vUv; uniform sampler2D tColor, tDepth;
-        void main(){ gl_FragColor = texture2D(tColor, vUv); gl_FragDepth = texture2D(tDepth, vUv).r; }`,
-      uniforms: { tColor: { value: null }, tDepth: { value: null } }, depthTest: true, depthFunc: THREE.AlwaysDepth, depthWrite: true }));
+      fragmentShader: `varying vec2 vUv; uniform sampler2D tColor, tDepth, tMask; uniform float maskOn, camNear, camFar, ortho;
+        float viewZ(float d){ return ortho > 0.5 ? -(camNear + d*(camFar - camNear)) : (camNear*camFar)/((camFar - camNear)*d - camFar); }
+        float depthOf(float z){ return ortho > 0.5 ? (-z - camNear)/(camFar - camNear) : ((camNear + z)*camFar)/((camFar - camNear)*z); }
+        void main(){
+          gl_FragColor = texture2D(tColor, vUv);
+          float d = texture2D(tDepth, vUv).r;
+          if (maskOn > 0.5 && d < 1.0) {
+            float m = texture2D(tMask, vUv).r;
+            if (m < 1.0 && abs(viewZ(m) - viewZ(d)) < 0.06) d = clamp(depthOf(viewZ(d) - 1.0), 0.0, 1.0);
+          }
+          gl_FragDepth = d; }`,
+      uniforms: { tColor: { value: null }, tDepth: { value: null }, tMask: { value: null }, maskOn: { value: 0 }, camNear: { value: 0.1 },
+        camFar: { value: 1000 }, ortho: { value: 1 } }, depthTest: true, depthFunc: THREE.AlwaysDepth, depthWrite: true }));
   }
   depthTexture(readBuffer) { return this.stash ? this.stash.texture : readBuffer.depthTexture; }
   render(renderer, writeBuffer, readBuffer) {
     const s = this.system, u = this.copy.material.uniforms;
     const depth = this.depthTexture(readBuffer);
     u.tColor.value = readBuffer.texture; u.tDepth.value = depth;
+    const mask = depth && s.frames > 0 && s.renderSubmergedMask ? s.renderSubmergedMask(renderer, readBuffer) : null;
+    u.tMask.value = mask; u.maskOn.value = mask ? 1 : 0;
+    if (mask) { const c = s.camera; u.camNear.value = c.near; u.camFar.value = c.far; u.ortho.value = c.isOrthographicCamera ? 1 : 0; }
     renderer.setRenderTarget(this.renderToScreen ? null : writeBuffer);
     const ac = renderer.autoClear; renderer.autoClear = false;
     renderer.clear(true, true, false);

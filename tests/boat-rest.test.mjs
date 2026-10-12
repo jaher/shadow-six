@@ -185,7 +185,9 @@ export default async function (page, t) {
     ma.gainItem('inflatableBoat', 1);
     await R.idle(10);
     const ok = ma.issue({ type: 'ability', id: 'raft', target: ma });
-    await R.idle(200);
+    // (he steps out of the shallows onto the bank and inflates it there, into the water beside him: abilities/marine.js)
+    for (let i = 0; i < 25 && !ma.vehicle; i++) await R.idle(30);
+    await R.idle(60);
     const raft = w.vehicles.find((v) => v.vehicleType === 'raft');
     for (let i = 0; i < 60 && !raft?.model?.isReady; i++) { await new Promise((r) => setTimeout(r, 100)); await R.idle(3); }
     await R.idle(30);
@@ -200,7 +202,8 @@ export default async function (page, t) {
   t.ok(inflated.ok && inflated.aboard === 1, 'the Marine inflated the raft at the shore and got in');
   check('raft inflated at the shore, Marine aboard', inflated.aboardM);
   check('raft inflated at the shore, empty', inflated.empty);
-  t.ok(inflated.empty.land > 3, `the inflated raft's bow lies over the bank (${inflated.empty.land} samples)`);
+  // (user 2026-10-11: he inflates it on the bank and puts it in the water beside him, all of it afloat)
+  t.ok(inflated.empty.land <= inflated.empty.samples / 4, `the inflated raft lies in the water by the bank, its edge at most touching it (${inflated.empty.land} of ${inflated.empty.samples} samples over land)`);
   await shot('m01-inflated', inflated.x, inflated.z);
 
   // ---- the raft shot until it deflates on the bank: the wreck lies on the ground

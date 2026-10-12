@@ -33,6 +33,7 @@ import { NoiseRings } from './noise-rings.js';
 import { XRAY_LAYER } from '../engine/post-passes.js';
 import { reducedMotion } from './fx.js';
 import { CHESS_MARKER, CHESS_RING, RING_PROFILE_GLSL, ringShape } from './ring-pulse.js';
+import { waterColumn } from '../art/swim-pose.js';
 
 /**
  * Linear HDR colours fed to AgX + the theater LUT (they are decals, tone-mapped with the world). AgX desaturates
@@ -297,7 +298,8 @@ export class Selection {
       const o = c.object3d?.position;
       const x = o ? o.x : c.x;
       const z = o ? o.z : c.z;
-      const y = o ? o.y : surfaceY(w, x, z) + (c.y || 0);
+      // (a man in the water is drawn standing on its bed, art/swim-pose.js wadeOffset: his ring stays on the surface)
+      const y = o ? (waterColumn(w, x, z) ? Math.max(o.y, surfaceY(w, x, z) + (c.y || 0)) : o.y) : surfaceY(w, x, z) + (c.y || 0);
       const r = this._ring(i);
       r.visible = true;
       r.position.set(x, y + RING_LIFT, z);

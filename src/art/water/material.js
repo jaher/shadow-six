@@ -72,7 +72,12 @@ uniform vec2 flowDir; uniform int dbg;
 uniform vec3 plPos[4], plCol[4]; uniform int plCount;
 uniform vec3 sunDir, sunColor, skyIrr, absorb, scatterColor, foamColor, fogColor, iceColor;
 uniform vec3 iceFree[4]; // (x, z, radius m): open water kept free of the shore ice (M3: where the dam's water lands)
+// submerged divers (WaterSystem.setSubmerged): depth mask (R = their gl_FragCoord.z, 1 = none; G = selected), on/off,
+// look (absorption scale, view-path cap m, rim strength, blur px at zoom 1), screen box (uv min / max) they are in
+uniform sampler2D subMask; uniform float subOn; uniform vec4 subLook, subBox;
 vec3 worldAt(vec2 uv, float d){ vec4 v = projInv*vec4(uv*2.0-1.0, d*2.0-1.0, 1.0); v /= v.w; return (camWorld*v).xyz; }
+// view-space z of a depth-buffer value (the water pass compares a diver's mask depth with the scene's)
+float viewZOf(float d){ return uOrtho > 0.5 ? -(camNear + d*(camFar - camNear)) : (camNear*camFar)/((camFar - camNear)*d - camFar); }
 vec3 envLookup(vec3 r){
   float a = atan(r.z, r.x) + envRot;
   vec2 uv = vec2(a/(2.0*PI) + 0.5, asin(clamp(r.y, -1.0, 1.0))/PI + 0.5);
@@ -172,6 +177,7 @@ void main(){
   float colR = dR >= 0.99999 ? 50.0 : max(level - bedR.y, 0.0);
   float pathR = dR >= 0.99999 ? 50.0 : length(bedR - vWorld);
   vec3 bed = texture(sceneColor, ruvR).rgb;
+  float causF = 1.0;   // the caustic light on what is seen there (the bed, a fish's back, the diver's)
   vec3 bedRaw = bed;
   float sunUp = max(sunDir.y, 0.05);
   float visS = sunVis(vWorld, 1.5);                                           // surface in the shadow of piers, hulls, cliffs
@@ -194,7 +200,8 @@ void main(){
     float visB = sunVis(bedR + sunDir*0.15, 2.5);
     float amt = causticsStrength*smoothstep(0.03, 0.35, colR)*exp(-colR*0.25)*smoothstep(0.02, 0.2, sunDir.y)*visB
       *directFrac*(1.0 - 0.85*night);   // caustics modulate only the direct (sun/moon) share of the bed light
-    bed *= 1.0 + amt*(c - 1.0);
+    causF = 1.0 + amt*(c - 1.0);
+    bed *= causF;
   }
   // Beer-Lambert: light goes down the column (sun path) and back up the view path
   // night murk (art direction): the bed fades faster at night so harbours read as dark mirrors with lamp glints
@@ -204,6 +211,44 @@ void main(){
   vec3 lightIn = (skyIrr + sunColor*sunUp*mix(0.4, 1.0, visS))/PI;
   vec3 inscatter = scatterColor*lightIn*(1.0 - Tv);
   vec3 refr = bed*T + inscatter;
+  // ---------------------------------------------------------------- a diver under the surface (art/swim-pose.js)
+  // Seen through the water like the bed (refracted, tinted, a slight blur) but as if under at most subLook.y m of it,
+  // with the absorption scaled by subLook.x — readable at game zoom (user 2026-10-11 "he should be visible clearly
+  // when under water") — plus a soft rim of scattered light round his silhouette (stronger while he is selected).
+  float subCov = 0.0, subRim = 0.0, subSel = 0.0, subHere = 0.0; vec3 subCol = vec3(0.0);
+  if (subOn > 0.5 && all(greaterThan(suv, subBox.xy)) && all(lessThan(suv, subBox.zw))) {
+    // (his depth matches the scene's there: nothing else in front of him; view-space z, cheaper than world points)
+    float m0 = texture(subMask, suv).r;   // he is the nearest thing right under this surface point (no refraction)
+    subHere = m0 < 1.0 && abs(viewZOf(m0) - viewZOf(d0)) < 0.08 ? 1.0 : 0.0;
+    vec2 px = 1.0/resolution;
+    float rpx = subLook.w*clamp(0.035/max(footprint, 1e-4), 0.5, 3.0);
+    vec3 dsum = vec3(0.0); float dn = 0.0, ring = 0.0, mdep = 0.0, c0 = 0.0;
+    for (int i = 0; i < 17; i++) {
+      float a = float(i)*0.7853982, r = i == 0 ? 0.0 : i < 9 ? rpx : rpx*2.6;
+      vec2 uv = ruvR + vec2(cos(a), sin(a))*r*px;
+      vec2 m = texture(subMask, uv).rg;
+      if (m.r >= 1.0) continue;
+      if (abs(viewZOf(m.r) - viewZOf(texture(sceneDepth, uv).r)) > 0.08) continue;   // something else in front of him
+      if (i == 0) c0 = 1.0;
+      if (i < 9) { dsum += texture(sceneColor, uv).rgb; dn += 1.0; mdep += m.r; subSel = max(subSel, m.g); }
+      else ring += 1.0;
+    }
+    float under = dn > 0.0 ? max(level - worldAt(ruvR, mdep/dn).y, 0.0) : 0.0;   // how deep that part of him is
+    subCov = dn/9.0;
+    // only round him: not on him, and not in the narrow gaps between his own legs / arm and body (both sides covered)
+    float rr = ring/8.0;
+    subRim = (1.0 - c0)*clamp(rr + subCov, 0.0, 1.0)*(1.0 - smoothstep(0.45, 0.7, rr));
+    if (dn > 0.0) {
+      float pathD = max(min(under/max(abs(V.y), 0.35), subLook.y), 0.12);  // even a fin out of 25 cm shallows: in the water
+      vec3 sa = sig_a*subLook.x;
+      vec3 Td = exp(-sa*(pathD + min(under, subLook.y)/sunUp*0.5));
+      // (a dark shape under the water: his own colour taken down, so the black suit reads against a dark river bed)
+      // (the same composite as the bed and the fish — refraction, caustics, absorption, in-scatter — but as if under at
+      // most subLook.y m of water, so the player can follow him wherever he swims)
+      subCol = dsum/dn*causF*Td*0.42 + scatterColor*lightIn*(1.0 - exp(-sa*pathD*1.3));
+      refr = mix(refr, subCol, subCov);
+    }
+  }
   // ---------------------------------------------------------------- reflection
   // three sub-pixel facets (N and N tilted by ±sig toward/away from the viewer and sideways): unresolved ripples
   // reflect brighter sky from lower elevations — rivers at game distance read as water, not flat paint
@@ -219,7 +264,7 @@ void main(){
   vec3 col = vec3(0.0), refl = vec3(0.0); float Favg = 0.0;
   for (int i = 0; i < 3; i++) {
     float NVi = max(dot(Ns[i], V), 0.0);
-    float Fi = 0.02 + 0.98*pow(1.0 - NVi, 5.0);
+    float Fi = (0.02 + 0.98*pow(1.0 - NVi, 5.0))*(1.0 - 0.85*subCov);   // (his dark shape not washed out by the sky)
     vec3 Ri = reflect(-V, Ns[i]); Ri.y = abs(Ri.y);
     vec3 ri = mix(envLookup(Ri), planar, planarA);
     col += mix(refr, ri, Fi)/3.0; refl += ri/3.0; Favg += Fi/3.0;
@@ -321,7 +366,7 @@ void main(){
   // across the shelf instead of two flat bands — snow-covered ice at the bank, wind-swept grey-white ice with drifted
   // snow streaks, thin clear dark ice (bubbles, cracks, gloss), a raised edge with a thin dark wet lip, then slush,
   // frazil and pans breaking into open water; every boundary is warped at three scales so no band keeps a width
-  float iceA = 0.0;
+  float iceA = 0.0, slushA = 0.0;
   if (iceWidth > 0.0) {
     bool frozen = iceWidth >= 1000.0;
     float big = texture(foamTex, vXZ/23.0).g, small = texture(foamTex, vXZ/4.3).g;
@@ -347,6 +392,7 @@ void main(){
     float frazil = frozen ? 0.0 : smoothstep(0.62, 0.8, texture(foamTex, vXZ/1.3 + 0.7).g*0.7 + nS*0.3)*(1.0 - smoothstep(0.66, 1.5, u))*(1.0 - ice);
     col = mix(col, col*0.78 + foamColor*skyIrr/PI*0.2, slush*0.55);
     col = mix(col, foamColor*skyIrr/PI*0.75, frazil*0.5);
+    slushA = max(slush*0.55, frazil*0.5);
     // crack network: cell walls of the lace texture at a large scale, only where a noise mask allows (not a grid)
     float cracks = smoothstep(0.93, 0.985, texture(foamTex, vXZ/11.0 + 0.2).r)*smoothstep(0.45, 0.7, texture(foamTex, vXZ/37.0).b)*0.55;
     float ridges = smoothstep(0.96, 0.99, texture(foamTex, sq/vec2(6.0, 23.0) + 0.83).r)*smoothstep(0.5, 0.75, nB); // pressure ridges
@@ -381,8 +427,18 @@ void main(){
   }
   // ---------------------------------------------------------------- soft shoreline + fog
   vec3 under = texture(sceneColor, suv).rgb;
-  float fade = smoothstep(0.0, fadeDepth, col0 + vSurfFoam*0.02);
+  float fade = max(smoothstep(0.0, fadeDepth, col0 + vSurfFoam*0.02), subHere);   // (a diver near the surface: water over him)
   col = mix(under, col, max(fade, iceA));
+  // the diver under the shore ice: a faint shape through it, and his rim of light round it everywhere
+  if (subOn > 0.5) {
+    col = mix(col, mix(col*0.35, subCol, 0.4), subCov*min(1.0, iceA*0.6 + slushA));   // (under ice / slush: a dark shape)
+    // the rim: scattered light round him on dark water; a soft dark edge on bright ice / foam (no light halo on white)
+    vec3 rimLight = max((skyIrr + sunColor*sunUp)/PI, vec3(0.1, 0.14, 0.16));   // (a floor: dusk, night)
+    // (the background's albedo: its luminance over a white surface's under this light — ice / foam ~0.6, water ~0.1)
+    float bright = smoothstep(0.2, 0.4, dot(col, vec3(0.2126, 0.7152, 0.0722))/max(dot(rimLight, vec3(0.2126, 0.7152, 0.0722)), 1e-3));
+    float rk = subRim*subLook.z*(1.0 + 0.6*subSel)*(1.0 + 0.8*night);
+    col = mix(col + mix(vec3(0.42, 0.62, 0.66), vec3(0.32, 0.8, 0.5), subSel)*rimLight*rk, col*(1.0 - 0.55*rk), bright);
+  }
   if (dbg == 1) col = under; else if (dbg == 2) col = bed; else if (dbg == 3) col = refl; else if (dbg == 6) col = bedRaw*T + inscatter;
   else if (dbg == 7) col = vec3(foam); else if (dbg == 12) col = vec3(rFoam, cover, fdens); else if (dbg == 8) col = vec3(visS);
   else if (dbg == 9) col = spec; else if (dbg == 10) col = refr; else if (dbg == 11) col = foamLit*foam;

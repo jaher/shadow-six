@@ -34,6 +34,12 @@ import { dryHullUniforms, packDryHulls } from './hulls.js';
  * (M13-M15 at yaw 45 under the 40° NW sun). opts.sheenCap / opts.glitter override them.
  */
 export const SUN_SHEEN_CAP = 0.025, SUN_GLITTER = 110;
+/**
+ * A diver under the surface (user 2026-10-11 "he should be visible clearly when under water"): seen through the
+ * surface with the water's own tint, refraction and a slight blur, but as if under at most SUBMERGED_LOOK[1] m of it,
+ * absorption × [0], plus a soft rim of scattered light round his silhouette ([2]); blur radius [3] px at zoom 1.
+ */
+export const SUBMERGED_LOOK = [0.55, 0.3, 0.5, 1.2];
 /** Characters farther than this (m, XZ) from every reflecting water body are left out of the mirror render. */
 const REFLECT_REACH = 6;
 
@@ -106,6 +112,8 @@ export class WaterSystem {
       fogOn: v(0), fogNear: v(100), fogFar: v(300), fogColor: v(new THREE.Vector3()),
       directFrac: v(1), sunShadow: v(null), sunShadowMat: v(new THREE.Matrix4()), shadowOn: v(0), shadowBias: v(0.0015), shadowTexel: v(new THREE.Vector2(1 / 4096, 1 / 4096)), dbg: v(this.opts.dbg | 0), flowPeriod: v(1.6), night: v(0),
       sheenCap: v(this.opts.sheenCap ?? SUN_SHEEN_CAP), glitter: v(SUN_GLITTER),
+      // submerged divers (setSubmerged): their depth mask, on/off, look (absorption scale, view-path cap m, rim, blur px)
+      subMask: v(null), subOn: v(0), subLook: v(new THREE.Vector4(...SUBMERGED_LOOK)), subBox: v(new THREE.Vector4(0, 0, 1, 1)),
       ...dryHullUniforms(),
     };
   }
@@ -292,6 +300,77 @@ export class WaterSystem {
     const i = this.bodies.indexOf(body); if (i < 0) return;
     this.bodies.splice(i, 1); this.waterScene.remove(body.mesh); this._syncRippleEnv();
     body.mesh.geometry.dispose(); body.mesh.material.dispose(); body.bake.texture.dispose(); body.bake.texture2.dispose();
+  }
+
+  /**
+   * Units shown under the water this frame (art/swim-pose.js: the diving Marine): [{root: Object3D, sel: boolean,
+   * x, y, z: his body's centre}].
+   * The water pass draws its surface over them even where a fin or the tank pokes out of very shallow water, and
+   * keeps them readable (shader `subMask`). Empty / null: no mask pass.
+   */
+  setSubmerged(list = null) { this._sub = list && list.length ? list : null; }
+
+  /**
+   * Render the submerged units' depth mask (R = gl_FragCoord.z of the nearest diver fragment, 1 = none; G = selected)
+   * at the post chain's resolution. Called by WaterPass before it draws. @returns {THREE.Texture|null}
+   */
+  renderSubmergedMask(renderer, readBuffer) {
+    const s = this.shared, L = this._sub;
+    s.subOn.value = 0;
+    if (!L) return null;
+    const w = readBuffer.width, h = readBuffer.height;
+    let rt = this._subRT;
+    if (!rt) {
+      rt = this._subRT = new THREE.WebGLRenderTarget(w, h, { type: THREE.FloatType, format: THREE.RGFormat, depthBuffer: true,
+        minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
+      const m = this._subMat = new THREE.MeshBasicMaterial();
+      m.userData.sel = { value: 0 };
+      m.onBeforeCompile = (sh) => {
+        sh.uniforms.subSel = m.userData.sel;
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float subSel;')
+          .replace(/}\s*$/, '  gl_FragColor = vec4(gl_FragCoord.z, subSel, 0.0, 1.0);\n}');
+      };
+      m.customProgramCacheKey = () => 's6subMask';
+      this._subScene = new THREE.Scene();
+      this._subScene.matrixWorldAutoUpdate = false;
+      this._subScene.overrideMaterial = m;
+    }
+    // on screen? the screen box the shader looks for each in: ±1.6 m round him, through the refraction (+ the rim)
+    const box = [1, 1, 0, 0], p = this._subP || (this._subP = new THREE.Vector3()), show = this._subShow || (this._subShow = []);
+    show.length = 0;
+    for (const it of L) {
+      if (!it.root?.visible) continue;
+      const cx = it.x ?? it.root.position.x, cy = it.y ?? it.root.position.y, cz = it.z ?? it.root.position.z;
+      let x0 = 1, y0 = 1, x1 = 0, y1 = 0;
+      for (let k = 0; k < 8; k++) {
+        p.set(cx + (k & 1 ? 1.6 : -1.6), cy + (k & 2 ? 0.7 : -0.7), cz + (k & 4 ? 1.6 : -1.6)).project(this.camera);
+        x0 = Math.min(x0, p.x * 0.5 + 0.5); y0 = Math.min(y0, p.y * 0.5 + 0.5); x1 = Math.max(x1, p.x * 0.5 + 0.5); y1 = Math.max(y1, p.y * 0.5 + 0.5);
+      }
+      if (x1 < -0.05 || y1 < -0.05 || x0 > 1.05 || y0 > 1.05) continue;   // off screen: nothing to draw
+      box[0] = Math.min(box[0], x0); box[1] = Math.min(box[1], y0); box[2] = Math.max(box[2], x1); box[3] = Math.max(box[3], y1);
+      show.push(it);
+    }
+    if (!show.length) return null;
+    if (rt.width !== w || rt.height !== h) rt.setSize(w, h);
+    const prevT = renderer.getRenderTarget(), ac = renderer.autoClear, sa = renderer.shadowMap.autoUpdate;
+    const cc = renderer.getClearColor(this._cc || (this._cc = new THREE.Color())), ca = renderer.getClearAlpha();
+    renderer.setRenderTarget(rt);
+    renderer.setClearColor(0xff0000, 1);   // R = 1: no diver; G = 0: not selected
+    renderer.clear(true, true, false);
+    renderer.autoClear = false; renderer.shadowMap.autoUpdate = false;
+    // (the roots stay in the world scene: the mask scene only borrows them as children for this draw)
+    const sc = this._subScene, kids = sc.children;
+    for (const it of show) {
+      this._subMat.userData.sel.value = it.sel ? 1 : 0;
+      kids.length = 0; kids.push(it.root);
+      renderer.render(sc, this.camera);
+    }
+    kids.length = 0;
+    renderer.setRenderTarget(prevT); renderer.setClearColor(cc, ca);
+    renderer.autoClear = ac; renderer.shadowMap.autoUpdate = sa;
+    s.subBox.value.set(box[0] - 0.03, box[1] - 0.03, box[2] + 0.03, box[3] + 0.03);
+    s.subMask.value = rt.texture; s.subOn.value = 1;
+    return rt.texture;
   }
 
   /** Push the water surface at (x,z): strength = metres (negative pushes down, |s|<1), radius in metres, foam 0..1 extra churn. */
@@ -507,6 +586,7 @@ export class WaterSystem {
   setDetail(o) { Object.assign(this.detail, o); this.detailOcean.set(this.detail); }
 
   _disposeInternals() {
+    if (this._subRT) { this._subRT.dispose(); this._subMat.dispose(); this._subRT = null; }
     this.detailOcean.dispose(); this.seaOcean && this.seaOcean.dispose(); this.ripples.dispose(); this.caustics && this.caustics.dispose();
     for (const R of this.reflections.values()) R.rt.dispose();
     this.reflections.clear();

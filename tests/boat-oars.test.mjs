@@ -232,7 +232,9 @@ export default async function (page, t) {
     G.cameraController.setZoom(5); G.cameraController.centerOn(19.5, 73);
     await S.run(20);
     ma.issue({ type: 'ability', id: 'raft', target: ma });
-    await S.run(150);
+    // (he wades out onto the bank and inflates it there, into the water beside him: abilities/marine.js raft)
+    for (let i = 0; i < 40 && !ma.vehicle; i++) await S.run(15);
+    await S.run(30);
     const b = S.b = w.vehicles.find((v) => v.vehicleType === 'raft');
     for (const c of w.commandos) if (c !== ma && c.alive && b.occupants.length < 3) b.enter(c);
     const ok = await S.ready(b, 3);

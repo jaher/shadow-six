@@ -513,8 +513,10 @@ test('m04: the Marine launches the raft from the sunken tank, ferries the GB to 
   const ma = s.cmd('diver'), gb = s.cmd('greenberet');
   ma.setPosition(115.6, 144.6); // the wading rim of the wreck
   gb.setPosition(118.8, 145.5); // on the wreck (down ladder_br)
+  // (user 2026-10-11: he inflates it on the ground, not standing in the water: he steps up onto the wreck and launches
+  // it from there into the water beside it — abilities/marine.js raft)
   assert.ok(ma.issue({ type: 'ability', id: 'raft', target: ma }), 'raft out');
-  s.run(3);
+  s.run(8, () => !!ma.vehicle);
   const raft = w.vehicles.find((v) => v.vehicleType === 'raft');
   assert.ok(raft && ma.vehicle === raft, 'Marine at the oars');
   assert.ok(gb.issue({ type: 'ability', id: 'enterVehicle', target: raft }));

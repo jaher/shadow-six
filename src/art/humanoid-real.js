@@ -315,7 +315,8 @@ export function createRealHumanoid(opts = {}) {
   };
   const play = (name, o = {}) => {
     if (water) {                                  // the Marine swaps to the wetsuit body in water (manifest.roles.diver)
-      const next = WATER.has(name) ? water : land;
+      // (setWet: the host says when he is in the water — an action there, the harpoon shot, keeps the wetsuit on)
+      const next = (st.wet ?? WATER.has(name)) ? water : land;
       if (next !== cur) { cur.object.visible = false; next.object.visible = true; cur = next; model.inner = cur; applyLOD(); }
     }
     const n = hasClip(cur, name) ? name : 'idle';
@@ -349,6 +350,17 @@ export function createRealHumanoid(opts = {}) {
       if (name === model.anim && !o.restart && o.moveSpeed == null && cur) return;
       model.anim = name; st.anim = name; st.o = o;
       if (cur) play(name, o);
+    },
+    /**
+     * In the water or not (the Marine's wetsuit body, manifest.roles.diver): overrides the clip-name rule (swim / dive
+     * clips → wetsuit), so an action played in the water (the harpoon shot, the knife, gear on / off) keeps it on.
+     * null = back to the clip-name rule.
+     */
+    setWet(on) {
+      const v = on == null ? null : !!on;
+      if (v === (st.wet ?? null)) return;
+      st.wet = v;
+      if (cur && water) play(st.anim, { ...st.o, fade: 0 });
     },
     /** Step the animation. @returns {boolean} true when the pose changed (the mixer stepped) */
     update(dt) {

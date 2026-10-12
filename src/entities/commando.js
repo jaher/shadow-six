@@ -528,11 +528,14 @@ export class Commando extends Unit {
           r = 'failed';
         }
         if (r !== 'running') {
-          const id = this.currentActionId;
+          const id = this.currentActionId, act = this.currentAction;
           this.currentAction = null;
           this.currentActionId = null;
           if (this.state === 'busy') this.state = 'active';
           this.world?.events.emit('ability:end', { unit: this, id, result: r });
+          // a task that hands on to a next order when it is done (abilities/marine.js raft: the gear off, then out of
+          // the water and launch it)
+          if (r === 'done' && typeof act.after === 'function') act.after();
           const next = this._afterRise;
           if (id === 'shovel' && next) { // risen out of the snow / sand: walk on (Commando._riseThenMove)
             this._afterRise = null;

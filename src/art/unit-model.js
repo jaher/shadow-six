@@ -29,6 +29,7 @@ import { restOnGround, corpseGround, warmCorpse, CORPSE_BONES } from './corpse-g
 import { turnStep } from './turn-step.js';
 import { stairGait, stairGround } from './stair-gait.js';
 import { ladderClimb } from './ladder-climb.js';
+import { swimFrame, wadeOffset, waterColumn } from './swim-pose.js';
 
 const PRONE_SHOT = /^prone_(shoot|shoot_smg|pistol_shoot)$/;
 /** The Spy's pending orders whose action blends in from the last pose shown (art/spy-actions.js). */
@@ -221,6 +222,8 @@ export class UnitModel {
     };
     this.dog = real.entry?.group === 'dogs';
     this.player = opts.faction === 'player' && opts.role !== 'guest';
+    /** The Marine: swims and dives (art/swim-pose.js poses him in the water; his wetsuit body while he is in it). */
+    this.swimmer = this.player && opts.role === 'diver';
     this.anim = 'idle'; this.clip = null; this.disguised = false; this.unit = null;
     this._o = {}; this._v = 0; this._sent = 0; this._last = null; this._idleN = 0; this._weapon = undefined; this._carried = false; this._stance = 'stand';
     this._guard = new BoneGuard(); this._rdGuard = new StickyGuard(); this._blend = null;
@@ -260,7 +263,8 @@ export class UnitModel {
     const st = this.dog ? null : transportState(u);
     const c = { dog: this.dog, faction: this.opts.faction, role: this.opts.role, actionId: u?.currentActionId ?? null,
       stance: u?.stance ?? 'stand', carried: u?.state === 'carried', tool: u?.readyTool ?? (u?.pendingAbility?.def?.id === 'knife' ? 'knife' : null), load: st ? transportClip(st) : null,
-      mounted: !!u?._mgManned };   // at a platform MG (render/mg-mount.js): kneeling behind it
+      mounted: !!u?._mgManned,   // at a platform MG (render/mg-mount.js): kneeling behind it
+      waterLayer: this.swimmer };   // the Marine's swim / dive poses (art/swim-pose.js)
     c.weapon = this._wantWeapon(c);   // prone clips follow the carry class of the weapon in hand (unit-anim-map proneAnim)
     return c;
   }
@@ -378,6 +382,13 @@ export class UnitModel {
     if (this.fallback) { this.fallback.update(dt); return; }
     const R = this.real;
     if (R.inner && this.unit?.alive !== false && (this.unit?.blastReact || this._br)) this._blastReact(this.unit);
+    // standing / walking in the water: on the bed under it, not on its surface (art/swim-pose.js)
+    if (R.inner && this.unit) wadeOffset(this, this.unit);
+    // the Marine in the water wears the wetsuit body, whatever he plays there (the harpoon shot, gear on / off)
+    if (this.swimmer && this.unit) {
+      const u = this.unit, wet = !u.vehicle && u.state !== 'inVehicle' && (u.stance === 'swim' || u.stance === 'dive' || !!u.diving);
+      if (wet !== !!this._wet) { this._wet = wet; R.setWet?.(wet ? true : null); }
+    }
     this._rootMatrix();
     if (R.inner && this.unit && (this.unit.state === 'carried') !== this._carried) this._apply(false, true);
     else if (R.inner && this.unit && !!this.unit._mgManned !== !!this._mounted) this._apply();   // takes / leaves a platform MG
@@ -469,6 +480,8 @@ export class UnitModel {
     // ladder: hands and feet on its rungs (art/ladder-climb.js)
     if (R.inner && !this.dog && !tst && !this._carryOn && !this._rdLast && (this._sg || u?.world?.stairs?.size)) stepped = stairGait(this, dt, this._guard) || stepped;
     if (R.inner && !this.dog && !tst && (this._lc || u?._ladder)) stepped = ladderClimb(this, dt, this._guard) || stepped;
+    // the Marine swimming / diving: the procedural water poses (art/swim-pose.js)
+    if (R.inner && this.swimmer && !tst && !this._rdLast) stepped = swimFrame(this, dt, this._guard) || stepped;
     // no ragdoll (physics off / failed): the settled death clip, laid on the drawn ground as it eases in after the fall
     // (with physics a settle ragdoll always follows — after the fall, after a put-down — and lays the body down itself)
     if (R.inner && !this.dog && !tst && !this._rdLast && u && u.alive === false && u.state === 'dead' && this.anim === 'dead' && !u.vehicle
@@ -613,6 +626,8 @@ export class UnitModel {
    */
   _proneGround(w, u, ey) {
     if (!w?.groundY) return { groundY: null };
+    // lying in the shallows: on the bed under the water, like the root (art/swim-pose.js wadeOffset)
+    if (this._wade) return { groundY: (x, z) => { const c = waterColumn(w, x, z); return c ? c.bed : w.groundY(x, z) + ey; } };
     const sg = stairGround(u);
     if (!sg) return { groundY: (x, z) => w.groundY(x, z) + ey };
     return { groundY: (x, z) => sg(x, z) ?? w.groundY(x, z) + ey, maxTilt: sg.maxTilt };

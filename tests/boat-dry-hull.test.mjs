@@ -110,7 +110,8 @@ export default async function (page, t) {
     const idle = async (n) => { for (let k = 0; k < n; k++) { g.step(); g.step(); G.render(1 / 30, 1); if (k % 10 === 9) await new Promise((r) => setTimeout(r, 0)); } };
     await idle(15);
     ma.issue({ type: 'ability', id: 'raft', target: ma });
-    await idle(72);
+    // (he wades out onto the bank and inflates it there, into the water beside him: abilities/marine.js raft)
+    for (let i = 0; i < 40 && !ma.vehicle; i++) await idle(6);
     const raft = D.boat = w.vehicles.find((v) => v.vehicleType === 'raft');
     for (let i = 0; i < 60 && !raft?.model?.isReady; i++) { await idle(6); await new Promise((r) => setTimeout(r, 50)); }
     gb.issue({ type: 'ability', id: 'enterVehicle', target: raft });

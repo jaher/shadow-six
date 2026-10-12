@@ -1,5 +1,5 @@
 /**
- * Men in the boat, drawn (GPU, M2): the Marine deploys the raft in the shallows and is seen kneeling in it, the Green
+ * Men in the boat, drawn (GPU, M2): the Marine deploys the raft from the bank by the shallows and is seen kneeling in it, the Green
  * Beret steps in from the bank over the side tube and sits down facing the bow, the Marine paddles across — the blade
  * dips on alternating sides in step with the wake's strokes — and the Green Beret steps out on the far bank, where his
  * own model takes over. Frames: tests/out/boat-boarding-*.png (docs/screenshots/boat-boarding.jpg is cut from them).
@@ -24,7 +24,8 @@ export default async function (page, t) {
     G.cameraController.centerOn(19.5, 73);
     await S.run(0.5);
     const ok = ma.issue({ type: 'ability', id: 'raft', target: ma });
-    await S.run(2.4);
+    // (he wades out onto the bank and inflates it there, into the water beside him: abilities/marine.js raft)
+    for (let i = 0; i < 40 && !ma.vehicle; i++) await S.run(0.2);
     S.raft = w.vehicles.find((v) => v.vehicleType === 'raft');
     // wait for the hull and the men's character models
     for (let i = 0; i < 60 && !(S.raft?._crewFig?.occupants?.get(ma)?.ready && !S.raft._crewFig.occupants.get(ma).tr); i++) { await S.run(0.2); await new Promise((r) => setTimeout(r, 50)); }

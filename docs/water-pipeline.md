@@ -455,6 +455,22 @@ tools/check.sh                                                          # syntax
   2.6 → 5.5 (the planar reflection re-renders the map, grass included); ultra 3.4 → 3.6, 4.3 → 4.9. CPU
   `frame()` 0.1–1.0 ms; build (capture + bake) 50–125 ms at load.
 
+- **The diver under the surface** (user 2026-10-11 "he should be visible clearly when under water"). The Marine's
+  swim / dive poses are `src/art/swim-pose.js` (procedural, after the mixer: prone and fully submerged with a flutter
+  kick, breaststroke at the surface, standing / treading idle; anyone on a water / shallow cell is drawn standing on
+  the bed, `wadeOffset`). While he is shown under water, `handle.frame()` hands him to `WaterSystem.setSubmerged`;
+  `WaterPass` first draws him alone into a depth mask (`renderSubmergedMask`: R = his nearest `gl_FragCoord.z`, G =
+  selected) and, where he is the nearest surface, its copy step pushes his depth 1 m back, so the water surface is
+  drawn over all of him — a fin or his tank breaking 25 cm shallows included. The shader (`subMask`, `subLook`,
+  `subBox`) shows him through it like the bed (refracted, tinted, a 9-tap blur ~1.2 px at zoom 1) but as if under at
+  most 0.3 m of water with ×0.55 absorption, his colour taken down (×0.42) and the sky's reflection over him cut
+  (×0.15), plus a rim of scattered light round the silhouette (a dark edge on bright ice / foam; stronger selected
+  and at night); under the shore ice a dark shape. Cost: one extra draw of his body into a float target and 17 mask
+  taps per water pixel inside his screen box, only while he is submerged and on screen. Exhaled bubbles: a few
+  foam specks over his head every 0.6–1.6 s (`WakeTracker._bubbles`). Test: `tests/marine-swim.test.mjs`
+  (`tests/swim-page.mjs diverContrast`: ΔE of his median colour against the water's, and how many of his pixels
+  stand out).
+
 ## 11. Water down the M3 dam (`src/render/dam-water*.js`, `src/render/dam-flow.js`)
 
 The dam's falling water is drawn on the late FX layer on top of the water surface (the river body stays the

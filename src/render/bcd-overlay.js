@@ -10,6 +10,7 @@
  * @module render/bcd-overlay
  */
 
+import { waterColumn } from '../art/swim-pose.js';
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 
@@ -90,7 +91,8 @@ export class BcdOverlay {
   update(world) {
     const ctl = world ? world.commandos.filter((c) => c.alive && c.puppet?.puppetOf === c) : [];
     const ko = world ? world.enemies.filter((e) => e.alive && e.ko === 'stunned' && e.state !== 'carried') : [];
-    const feet = (u) => u.object3d?.position.y ?? (u.y || 0);
+    // (in the water the drawn body stands on the bed, art/swim-pose.js: the disc stays on the surface)
+    const feet = (u) => (u.object3d ? (waterColumn(world, u.x, u.z) ? Math.max(u.object3d.position.y, u.y || 0) : u.object3d.position.y) : u.y || 0);
     for (let i = 0; i < Math.max(ctl.length, this.discs.length); i++) {
       const c = ctl[i];
       const d = this._pool(this.discs, i, () => this._flat(this.discGeo, DISC, 0.12));

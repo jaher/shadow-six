@@ -19,6 +19,7 @@
 import { T } from '../world/grid.js';
 import { dryHullOf } from './water/hulls.js';
 import { rowPeriod, catchOffset, ROW } from './oars.js';
+import { shownSubmerged } from './swim-pose.js';
 
 /** World Y of the water surface. Terrain carves deep cells to -1.2 m and shallows to -0.35 m below it. */
 export const WATER_LEVEL = -0.1;
@@ -212,9 +213,25 @@ export class WakeTracker {
         st.acc = 0;
         st.flip = !st.flip; this._emit(e.x, e.z, (st.flip ? -1 : 0.6) * W.s * Math.min(2, 0.6 + v / 2), W.r, W.foam); // strokes
       }
+      if (cls === 'dive' && wet && alive) this._bubbles(e, st, dt);
       st.x = e.x; st.z = e.z; st.wet = wet; st.alive = alive;
     }
     for (const e of [...this.state.keys()]) if (!seen.has(e)) this.state.delete(e);
+  }
+
+  /**
+   * A diver's exhaled bubbles (design-spec §3.4 "bubble trail"): every 0.6-1.6 s a little cluster of boils breaks the
+   * surface over his head (≈0.7 m ahead of his hips), a few small foam specks that fade — while he swims or hovers.
+   */
+  _bubbles(e, st, dt) {
+    st.bub = (st.bub ?? 0.3 + this._rand()) - dt;
+    if (st.bub > 0) return;
+    st.bub = 0.6 + this._rand();
+    const h = e.heading || 0, fx = Math.cos(h), fz = Math.sin(h), n = 2 + Math.floor(this._rand() * 2);
+    for (let k = 0; k < n; k++) {
+      const a = this._rand() * Math.PI * 2, r = 0.05 + this._rand() * 0.18;
+      this._emit(e.x + fx * 0.7 + Math.cos(a) * r, e.z + fz * 0.7 + Math.sin(a) * r, 0.006, 0.12 + this._rand() * 0.08, 0.45 + this._rand() * 0.3);
+    }
   }
 
   /**
@@ -472,7 +489,7 @@ export function buildWater(R, world, grid, mission, theater, o = {}) {
     else if (e.what === 'row') system.disturb(u.x, u.z, 0.05, 0.9, 0.35);
   });
 
-  const dry = [], dryPool = [];
+  const dry = [], dryPool = [], sub = [];
   const handle = {
     system, bodies, stats, level: WATER_LEVEL, real: true, drains, dry,
     sample: (x, z) => system.sample(x, z),
@@ -495,6 +512,14 @@ export function buildWater(R, world, grid, mission, theater, o = {}) {
         if (d) dry.push(d);
       }
       system.setDryHulls(dry);
+      // the diving Marine shown under the surface: drawn through it, readable (WaterSystem.setSubmerged)
+      sub.length = 0;
+      for (const c of world.commandos || []) {
+        const m = c.model;
+        if (!m || !shownSubmerged(m)) continue;
+        sub.push({ root: m.root, sel: !!c.selected, x: m.root.position.x, y: m._swim.level - m._swim.depth, z: m.root.position.z });
+      }
+      system.setSubmerged?.(sub);
       if (drains.length) drainStep(dt);
       const t = performance.now();
       system.update(dt);

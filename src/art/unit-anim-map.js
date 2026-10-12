@@ -63,7 +63,8 @@ function proneAnim(name, wc, c) {
  * Clip candidates for a gameplay animation.
  * @param {string} name gameplay name (ARCHITECTURE contract)
  * @param {{dog?:boolean, faction?:string, role?:string, actionId?:string|null, stance?:string, carried?:boolean,
- *   load?:'shoulder'|'drag'|null, weapon?:string|null, weaponClass?:string, mounted?:boolean}} [c] mounted: at a platform MG load: how this man is being transported
+ *   load?:'shoulder'|'drag'|null, weapon?:string|null, weaponClass?:string, mounted?:boolean, waterLayer?:boolean}} [c]
+ *   mounted: at a platform MG; waterLayer: the swim layer poses him in the water (art/swim-pose.js); load: how this man is being transported
  *   (bodies-design §C.10) — overrides his own clip; weapon: prop in hand (prone clips follow its carry class)
  * @returns {string[]} ordered candidates; the caller plays the first the character has (else 'idle')
  */
@@ -72,6 +73,9 @@ export function mapAnim(name, c = {}) {
   if (c.load === 'drag' && LOAD_NAMES.has(name)) return ['being_dragged', 'dead'];
   if ((c.load === 'shoulder' || (c.carried && c.load == null)) && LOAD_NAMES.has(name)) return ['carried', 'dead'];
   const a = c.actionId || null;
+  // the Marine's swim / dive pose is procedural (art/swim-pose.js): under it the mixer holds the upright treading
+  // loop (its fingers, the harpoon gun on his back), not the UAL front crawl
+  if (c.waterLayer && (name === 'swim' || name === 'dive')) return ['swim_idle', name];
   const prone = c.stance === 'crawl';
   if (prone) { const p = proneAnim(name, c.weaponClass || weaponClass(c.weapon), c); if (p) return p; }
   // a gunner at a platform MG (render/mg-mount.js) kneels behind its butt, hands on the grips, whatever he is doing there

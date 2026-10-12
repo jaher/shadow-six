@@ -59,7 +59,8 @@ test('m02 wide river: the Marine ferries all four across (two per trip) between 
   assert.ok(ma.issue({ type: 'move', x: 19.5, z: 73.2 }), 'Marine: into the shallows');
   s.run(4, () => watch() || !ma.path);
   assert.ok(ma.issue({ type: 'ability', id: 'raft', target: ma }), `Marine: deploy the raft (${ma.lastRefusal?.text || ''} ${ma.stance} ${ma.x.toFixed(1)},${ma.z.toFixed(1)})`);
-  s.run(2.2, watch);
+  // (he wades out onto the bank and inflates it there, into the water beside him: abilities/marine.js raft)
+  s.run(8, () => watch() || w.vehicles.find((v) => v.vehicleType === 'raft')?.operator === ma);
   const raft = w.vehicles.find((v) => v.vehicleType === 'raft');
   assert.ok(raft && raft.operator === ma, 'raft deployed, Marine aboard');
   // trip 1: GB + Sniper
