@@ -993,7 +993,9 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   renderer / GPU process PSS, VRAM, load peaks, download, load and frame time; `--cycle` M1→M2→M3→M1),
   `tools/perf/heap-arraybuffers.mjs` (heap snapshot: ArrayBuffer retainers, `--count` live instances, `--path` GC-root
   path of a class — how the World leak below was found), `tools/perf/memshot.mjs` + `memshot-diff.py` (A/B frames);
-  `tests/memory.test.mjs` (per-mission budget, no growth over a mission cycle, warm restart).
+  `tests/memory.test.mjs` (per-mission budget, no growth over a mission cycle, warm restart). In game, `?debug`'s info HUD
+  shows the same GPU total live (`src/debug/gpu-mem-counter.js`: totals only, allocation / delete calls only; equal to
+  the probe's `gpu.total`, `tests/debug-stats.test.mjs`).
 
 ### Asset cache (`src/engine/asset-cache.js`, `engine/program-keeper.js`, `engine/offline-cache.js`, `tools/build/sw.mjs`)
 Two layers, both generic (keyed by URL / asset id / content signature, never per feature):

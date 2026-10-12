@@ -40,7 +40,7 @@ export default async function debugSelect(page, t) {
   t(!(await page.evaluate(() => !!document.getElementById('dbg-select'))), 'overlay closed after launch');
   await page.waitForTimeout(400);
   const info = await page.evaluate(() => ({ text: document.getElementById('dbg-info')?.textContent || '', hidden: document.getElementById('dbg-info')?.hidden }));
-  t(!info.hidden && /m00/.test(info.text) && /FPS/.test(info.text) && /draws \d+/.test(info.text), `info HUD (${info.text})`);
+  t(!info.hidden && /m00/.test(info.text) && /FPS/.test(info.text) && /draws\s+\d+/.test(info.text) && /GPU \d+ MB/.test(info.text), `info HUD (${info.text})`);
   await t.shot('debug-ingame');
   await page.keyboard.press('F11');
   t(await page.evaluate(() => document.getElementById('dbg-info').hidden), 'F11 hides the info HUD');

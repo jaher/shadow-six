@@ -129,13 +129,28 @@ Options in the overlay, remembered in `localStorage` (those marked * apply on th
 | Free camera | No scroll clamp at the map edge and zoom from 0.125× to 4×. |
 | Time ×0.5 / ×1 / ×2 / ×4 | Simulation speed. |
 | Time of day * / Wind * | Dawn, noon, dusk or overcast lighting; any wind preset. |
-| Info HUD | The corner readout (also F11). |
+| Info HUD | The corner readout of latency, triangles and memory (also F11). |
 
 Keys while `?debug` is on: **F10** level select (also the small DEBUG button, bottom left), **PageDown / PageUp**
-next / previous level, **Ctrl+R** instant restart, **F11** info HUD (mission, state, FPS, frame and CPU ms, draw
-calls, triangles, cursor world x/z, camera zoom and yaw). The URL follows the level you are in, so
+next / previous level, **Ctrl+R** instant restart, **F11** info HUD (below). The URL follows the level you are in, so
 `?debug&mission=m05` reloads or shares that level directly, with the remembered options. Without the parameter none
 of this exists, and nothing in the normal menus leads to it.
+
+The **info HUD** sits in the bottom-left corner above the DEBUG buttons (with a finger: right of the MENU / TURN
+buttons, or above them on a phone held upright). Frame numbers are the average, 95th percentile and worst of the last
+2 seconds, so a single hitch stays readable for 2 s:
+
+| Row | What it measures |
+| --- | --- |
+| frame, FPS | Time between two displayed frames (one `requestAnimationFrame` to the next). |
+| main cpu | Main-thread ms of each frame: simulation ticks, render, texture uploads (`Game.frame`). |
+| render cpu | The `Game.render` part of it: scene updates and the WebGL calls (not the GPU's own time). |
+| input→frame | From a click, tap, key or wheel (the event's timestamp) to the end of the next frame drawn after it, over the last 32 inputs, plus the last one. GPU, compositor and display time come on top. |
+| draws, tris | Draw calls and triangles of the whole frame, including the offscreen passes (water mirror, ocean / ripple / trail maps) drawn before the main view, whose share is shown as *offscreen*. |
+| GPU MB | Live GPU allocations counted as they happen (`src/debug/gpu-mem-counter.js`, same rules as `tools/perf/mem-probe.js`): textures with every mip / face / layer, vertex and index buffers, renderbuffers, plus the canvas (estimated). |
+| three.js, JS heap | The renderer's live texture and geometry counts; the JS heap in use (Chrome / Edge only). |
+
+Sampling runs only while the HUD is shown. In video mode it starts hidden, so recordings stay clean; F11 shows it there.
 
 ### Solution replays
 

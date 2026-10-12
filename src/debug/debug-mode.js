@@ -2,7 +2,9 @@
  * Debug mode (`?debug`, `?debug=1`, `?debug=cones`, …): DEBUG LEVEL SELECT overlay (every mission of
  * missionList(), grouped BEL / BCD / test maps, keyboard + tap), inspection options (remembered in localStorage),
  * quick keys (F10 select, PageDown / PageUp next / previous level, Ctrl+R instant restart, F11 info HUD) and the
- * corner info HUD (mission, FPS, frame ms, draw calls, triangles, cursor x/z, camera zoom / yaw), the SOLUTION replay
+ * corner info HUD (mission; frame time, main-thread and render CPU, input → frame latency over a rolling 2 s / last 32
+ * inputs; whole-frame draw calls and triangles; GPU memory from debug/gpu-mem-counter.js, three's object counts, JS heap;
+ * cursor x/z, camera zoom / yaw: debug/debug-stats.js), the SOLUTION replay
  * of missions with a saved solution (debug/solutions.js, debug/solution-replay.js: select section, in-game SOLUTION
  * button, F9; Esc stops it) and VIDEO MODE, the guided walkthrough of a solution (debug/walkthrough.js: the select's
  * "Watch walkthrough" section, the in-game ▶ VIDEO button, F8, `?debug&walkthrough=m03[&speed=4]`, which is also what the
@@ -18,6 +20,8 @@ import {
 import { getThumb, putThumb } from '../ui/thumbs.js';
 import { hasSolution, solutionIds, loadSolution, loadCatalog, loadWalkthrough } from './solutions.js';
 import { SolutionReplay } from './solution-replay.js';
+import { RollingWindow, FrameDraws, InputLatency, statsLines } from './debug-stats.js';
+import { installGpuMemCounter } from './gpu-mem-counter.js';
 
 /** Video mode is loaded on first use (a lazy chunk in the web build): nothing of it costs a normal debug session. */
 const walkthroughModule = () => import('./walkthrough.js');
@@ -54,13 +58,21 @@ const CSS = `
 .dbg-bar{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
 .dbg-act{all:unset;min-height:44px;padding:10px 18px;border-radius:6px;background:#3a4046;cursor:pointer;font-weight:600}
 .dbg-act:focus,.dbg-act:hover{background:#4c545b}
-#dbg-info{position:fixed;left:8px;bottom:calc(52px + env(safe-area-inset-bottom));z-index:8000;pointer-events:none;font:11px/1.35 ui-monospace,monospace;
-  color:#d6ffd0;background:rgba(0,0,0,.62);padding:5px 8px;border-radius:4px;white-space:pre}
-#dbg-btn,#dbg-sol-btn{position:fixed;left:8px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:8001;min-width:56px;min-height:36px;
+/* the debug corner (DEBUG / ▶ SOL / ▶ VIDEO, the info HUD above them) on a 16 px gutter. With a finger the game's
+   bottom-left touch stack (MENU, CANCEL, TURN: 10..122 px wide, up to 182 px high, styles/menus.css) keeps its place:
+   the corner goes right of it (landscape) or above it (a phone held upright: the stance hand and the bag fill the
+   bottom row) */
+:root{--dbg-x:calc(16px + env(safe-area-inset-left));--dbg-y:calc(8px + env(safe-area-inset-bottom))}
+html.mk-touch{--dbg-x:calc(130px + env(safe-area-inset-left))}
+@media (orientation:portrait){html.mk-touch{--dbg-x:calc(16px + env(safe-area-inset-left));--dbg-y:calc(190px + env(safe-area-inset-bottom))}}
+#dbg-info{position:fixed;left:var(--dbg-x);bottom:calc(var(--dbg-y) + 44px);z-index:8000;pointer-events:none;
+  font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#d6ffd0;background:rgba(0,0,0,.66);padding:5px 8px;
+  border-radius:4px;white-space:pre-wrap;box-sizing:border-box;max-width:calc(100vw - var(--dbg-x) - 16px - env(safe-area-inset-right))}
+#dbg-btn,#dbg-sol-btn{position:fixed;left:var(--dbg-x);bottom:var(--dbg-y);z-index:8001;min-width:56px;min-height:36px;
   font:700 11px/1 system-ui,sans-serif;letter-spacing:.1em;color:#ffcf4a;background:rgba(0,0,0,.6);border:1px solid #ffcf4a88;
   border-radius:4px;cursor:pointer;touch-action:manipulation}
-#dbg-sol-btn{left:72px;min-width:44px;color:#9fe39a;border-color:#9fe39a88}
-#dbg-wt-btn{position:fixed;left:130px;bottom:calc(8px + env(safe-area-inset-bottom));z-index:8001;min-width:44px;min-height:36px;
+#dbg-sol-btn{left:calc(var(--dbg-x) + 64px);min-width:44px;color:#9fe39a;border-color:#9fe39a88}
+#dbg-wt-btn{position:fixed;left:calc(var(--dbg-x) + 122px);bottom:var(--dbg-y);z-index:8001;min-width:44px;min-height:36px;
   font:700 11px/1 system-ui,sans-serif;letter-spacing:.08em;color:#7fd6ff;background:rgba(0,0,0,.6);border:1px solid #7fd6ff88;
   border-radius:4px;cursor:pointer;touch-action:manipulation}
 #dbg-select .dbg-wt{background:#1f3442}
@@ -68,7 +80,9 @@ const CSS = `
 #dbg-select .dbg-wt-none{all:unset;box-sizing:border-box;min-height:40px;padding:8px 12px;border-radius:20px;background:#22262a;cursor:pointer;
   font-size:12px;opacity:.75;touch-action:manipulation;border:2px solid transparent}
 #dbg-select .dbg-wt-none:focus,#dbg-select .dbg-wt-none:hover{border-color:#7fd6ff;opacity:1}
-body.dbg-video #dbg-btn,body.dbg-video #dbg-sol-btn,body.dbg-video #dbg-wt-btn,body.dbg-video #dbg-info{display:none}
+body.dbg-video #dbg-btn,body.dbg-video #dbg-sol-btn,body.dbg-video #dbg-wt-btn{display:none}
+/* video mode records clean: the info HUD only after F11 there (DebugMode._syncInfo) */
+body.dbg-video:not(.dbg-video-info) #dbg-info{display:none}
 #dbg-select .dbg-sol{background:#24402a}
 #dbg-select .dbg-sol:focus,#dbg-select .dbg-sol:hover{background:#2f5636}
 `;
@@ -97,6 +111,10 @@ function optLabel(key, o) {
     default: return key;
   }
 }
+/** Rolling window of the info HUD's frame numbers (ms): a spike stays in the max this long. */
+const STATS_SPAN = 2000;
+/** Discrete inputs timed to the next drawn frame (moves fire every frame and would swamp the average). */
+const INPUT_EVENTS = ['pointerdown', 'keydown', 'wheel'];
 const TOGGLES = ['skipBriefing', 'allCommandos', 'invulnerable', 'noDetect', 'cones', 'freeCamera', 'infoHud'];
 const CYCLERS = ['timeScale', 'timeOfDay', 'weather'];
 /** Options that only take effect on the next launch (they change the mission def). */
@@ -120,16 +138,33 @@ export class DebugMode {
     this.game = null;
     this.hooks = {};
     this.overlay = null;
-    this.stats = { cpuMs: 0, calls: 0, tris: 0 };
+    // info HUD numbers: GPU bytes are counted from the first allocation on (the counter wraps the WebGL2 prototype
+    // before the Game creates its context); the frame / input samples only while the HUD is shown (_statsOn)
+    try { this.gpuMem = installGpuMemCounter(); } catch (err) { this.gpuMem = null; console.warn('[debug] GPU memory counter', err); }
+    this.win = { frame: new RollingWindow(STATS_SPAN), cpu: new RollingWindow(STATS_SPAN), render: new RollingWindow(STATS_SPAN), calls: new RollingWindow(STATS_SPAN),
+      tris: new RollingWindow(STATS_SPAN), preCalls: new RollingWindow(STATS_SPAN), preTris: new RollingWindow(STATS_SPAN) };
+    this.draws = new FrameDraws();
+    this.latency = new InputLatency();
+    /** Latest info HUD numbers (plain object; also for tests). */
+    this.stats = null;
+    this._statsOn = false;
+    this._lastFrameT = 0;
+    this._videoInfo = false;
     this.pointer = { x: -1, y: -1 };
     this._frozen = null;
     this._style = el('style', null, document.head, CSS);
     this._style.id = 'dbg-style';
+    // input → frame latency: registered ahead of the key handler below (which may stop a key's propagation)
+    this._onInput = (e) => { if (this._statsOn) this.latency.input(e.timeStamp, performance.now()); };
+    for (const type of INPUT_EVENTS) window.addEventListener(type, this._onInput, { capture: true, passive: true });
+    // a hidden tab gets no frames: its gap is not a frame time, its inputs no frame latency
+    document.addEventListener('visibilitychange', () => { this._lastFrameT = 0; this.latency.drop(); });
     this._onKey = (e) => this.key(e);
     // registered before the Game (and its HUD) exist: this capture listener runs first and can swallow keys
     window.addEventListener('keydown', this._onKey, true);
     this._onMove = (e) => { this.pointer.x = e.clientX; this.pointer.y = e.clientY; };
     window.addEventListener('pointermove', this._onMove, { passive: true });
+    window.addEventListener('pointerdown', this._onMove, { passive: true }); // a tap moves no pointer first
     this._syncFlags();
     // the solution catalog (tools/solutions/: listed by the dev server, baked into the web build)
     this.catalogReady = loadCatalog().then(() => { if (this.overlay) this._renderSolutions(); });
@@ -140,14 +175,43 @@ export class DebugMode {
     this.game = game;
     this.hooks = hooks;
     game.debug = { flags: this.flags, transformDef: (def) => transformDef(def, this.effectiveOptions()), mode: this };
-    const r = game.renderer?.renderer;
-    const render = game.render.bind(game); // renderer.info already holds whole-frame stats (Renderer.render)
-    game.render = (dt, alpha) => {
+    const W = this.win;
+    // Game.render: render CPU ms, whole-frame draws / triangles (FrameDraws: Renderer.render resets renderer.info at its
+    // start, after the water mirror / FFT / trail passes of the map frame), and the end of the frame for input latency
+    const render = game.render.bind(game);
+    game.render = (dt, alpha, draw) => {
+      if (!this._statsOn) {
+        const out = render(dt, alpha, draw);
+        this._frameApply();
+        return out;
+      }
+      const info = game.renderer?.renderer?.info;
+      if (info && info !== this.draws.info) this.draws.attach(info); // three makes a new info on a restored context
+      this.draws.begin();
       const t0 = performance.now();
-      const out = render(dt, alpha);
-      this.stats.cpuMs = this.stats.cpuMs * 0.9 + (performance.now() - t0) * 0.1;
-      if (r?.info) { this.stats.calls = r.info.render.calls; this.stats.tris = r.info.render.triangles; }
+      const out = render(dt, alpha, draw);
+      const t1 = performance.now();
+      const d = this.draws.end();
+      W.render.push(t1, t1 - t0);
+      W.calls.push(t1, d.calls);
+      W.tris.push(t1, d.tris);
+      W.preCalls.push(t1, d.preCalls);
+      W.preTris.push(t1, d.preTris);
+      if (draw !== false) this.latency.frame(t1); // the view covered by a menu draws nothing: not a reaction yet
       this._frameApply();
+      return out;
+    };
+    // Game.frame (one per requestAnimationFrame): the interval between frames and the main-thread ms of each
+    // (sim ticks + render + texture uploads)
+    const frame = game.frame.bind(game);
+    game.frame = (dt) => {
+      if (!this._statsOn) { this._lastFrameT = 0; return frame(dt); }
+      const t0 = performance.now();
+      if (this._lastFrameT) W.frame.push(t0, t0 - this._lastFrameT);
+      this._lastFrameT = t0;
+      const out = frame(dt);
+      const t1 = performance.now();
+      W.cpu.push(t1, t1 - t0);
       return out;
     };
     game.events.on('mission:loaded', () => this._onLoaded());
@@ -158,7 +222,7 @@ export class DebugMode {
     this.button.addEventListener('click', () => this.toggle());
     this.info = el('div', null, document.body);
     this.info.id = 'dbg-info';
-    this.info.hidden = !this.options.infoHud;
+    this._syncInfo();
     this.solBtn = el('button', null, document.body, '▶ SOL');
     this.solBtn.id = 'dbg-sol-btn';
     this.solBtn.type = 'button';
@@ -212,9 +276,25 @@ export class DebugMode {
     const g = this.game;
     if (!g) return;
     if (this._frozen == null) g.timeScale = this.options.timeScale;
-    if (this.info) this.info.hidden = !this.options.infoHud;
+    this._syncInfo();
     this._applyCamera();
     this._conesFor = null;
+  }
+
+  /**
+   * Info HUD shown or not: the F11 option, except in video mode, where it starts hidden (clean recordings) and F11
+   * shows it for that walkthrough only. Sampling (frame / input / draw windows) runs only while it is shown.
+   */
+  _syncInfo() {
+    const box = this.info;
+    if (!box) return;
+    const video = document.body.classList.contains('dbg-video');
+    const show = video ? this._videoInfo : !!this.options.infoHud;
+    if (document.body.classList.contains('dbg-video-info') !== (video && show)) document.body.classList.toggle('dbg-video-info', video && show);
+    if (box.hidden === show) box.hidden = !show;
+    if (show && !this._statsOn) { for (const w of Object.values(this.win)) w.clear(); this.latency.drop(); this._lastFrameT = 0; }
+    this._statsOn = show;
+    if (show) this._updateInfo();
   }
 
   _applyCamera() {
@@ -252,7 +332,10 @@ export class DebugMode {
       if (this.wtBtn.hidden === show) this.wtBtn.hidden = !show;
     }
     const video = !!this.replay?.isWalkthrough;
-    if (document.body.classList.contains('dbg-video') !== video) document.body.classList.toggle('dbg-video', video);
+    if (document.body.classList.contains('dbg-video') !== video) {
+      document.body.classList.toggle('dbg-video', video);
+      this._syncInfo();
+    }
     if (this._thumbAt && g.state === 'playing' && g.world && performance.now() > this._thumbAt) {
       this._thumbAt = 0;
       this._captureThumb(g.missionDef?.id);
@@ -520,6 +603,7 @@ export class DebugMode {
     if (!hasSolution(id)) { this._noWalkthrough(W, id); return null; }
     const keep = settings || {};
     this.stopReplay();
+    this._videoInfo = false; // every walkthrough starts with a clean frame (F11 shows the info HUD)
     this._replayLaunch = true;
     this._syncFlags();
     // the clock is held from the load on: the walkthrough's first tick is the mission's first (the scripted run's)
@@ -611,7 +695,13 @@ export class DebugMode {
     if (!this.game || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName || '')) return;
     const consume = () => { e.preventDefault(); e.stopImmediatePropagation(); };
     if (e.code === 'F10') { consume(); if (!e.repeat) this.toggle(); return; }
-    if (e.code === 'F11') { consume(); if (!e.repeat) this.setOption('infoHud', !this.options.infoHud); return; }
+    if (e.code === 'F11') {
+      consume();
+      if (e.repeat) return;
+      if (document.body.classList.contains('dbg-video')) { this._videoInfo = !this._videoInfo; this._syncInfo(); } // this walkthrough only
+      else this.setOption('infoHud', !this.options.infoHud);
+      return;
+    }
     const card = document.getElementById('wt-card');
     if (card && !this.overlay) { // a walkthrough card (intro, end, no walkthrough yet) has the keys
       if (e.code === 'Escape') { consume(); if (this.replay?.isWalkthrough) this.replay.key(e); else if (card.dataset.kind === 'end') this.exitWalkthrough(); else closeCard(); }
@@ -682,29 +772,51 @@ export class DebugMode {
   _updateInfo() {
     const g = this.game, box = this.info;
     if (!g || !box || box.hidden) return;
-    const cc = g.cameraController, s = this.stats, fps = g.fps || 0;
+    const cc = g.cameraController;
     let cur = '-';
     if (cc?.screenToGround && this.pointer.x >= 0 && g.world) {
       const p = cc.screenToGround(this.pointer.x, this.pointer.y);
       if (p) cur = `${p.x.toFixed(1)}, ${p.z.toFixed(1)}`;
     }
-    const k = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}k` : String(n));
     const o = this.options;
     const fo = this.effectiveOptions();
     const flags = [fo.invulnerable && 'INVULN', fo.noDetect && 'BLIND', o.cones && 'CONES', o.freeCamera && 'FREECAM'].filter(Boolean).join(' ');
     const r = this.replay;
     const rep = r ? `REPLAY ${r.sol.id} step ${r.stage?.id ?? '-'} ${r.fastForward ? 'FF' : `x${r.speed}`}${r.paused ? ' paused' : ''} t=${(g.world?.time ?? 0).toFixed(0)}s` : '';
     const id = this.currentId;
+    const s = this.sampleStats();
     box.dataset.mission = id || '';
     box.textContent = [
       `${id || 'no mission'}  ${g.state}  x${g.timeScale}`,
-      `FPS ${fps.toFixed(0)}  frame ${fps > 0 ? (1000 / fps).toFixed(1) : '-'} ms  cpu ${s.cpuMs.toFixed(1)} ms`,
-      `draws ${s.calls}  tris ${k(s.tris)}`,
-      `cursor ${cur}`,
-      `zoom ${(cc?.zoom ?? 0).toFixed(2)}  yaw ${(cc?.yawDeg ?? 0).toFixed(0)}°`,
+      ...statsLines(s),
+      `cursor ${cur}  zoom ${(cc?.zoom ?? 0).toFixed(2)}  yaw ${(cc?.yawDeg ?? 0).toFixed(0)}°`,
       rep,
       flags,
     ].filter(Boolean).join('\n');
+  }
+
+  /**
+   * The info HUD's numbers now (also `this.stats`): frame interval, main-thread and render ms, draws and triangles of
+   * the whole frame (+ the offscreen part) over the last STATS_SPAN ms; input → frame latency of the last inputs; GPU
+   * bytes (gpu-mem-counter), three's live geometry / texture counts, the JS heap (Chromium only).
+   */
+  sampleStats() {
+    const now = performance.now(), W = this.win, g = this.game;
+    const pc = W.preCalls.stats(now), pt = W.preTris.stats(now);
+    const mem = g?.renderer?.renderer?.info?.memory;
+    const pm = typeof performance !== 'undefined' ? performance.memory : null;
+    let gpu = null;
+    try { gpu = this.gpuMem?.totals() || null; } catch { gpu = null; }
+    this.stats = {
+      span: STATS_SPAN,
+      frame: W.frame.stats(now), cpu: W.cpu.stats(now), render: W.render.stats(now),
+      input: this.latency.stats(),
+      calls: W.calls.stats(now), tris: W.tris.stats(now), pre: pc && pt ? { calls: pc.avg, tris: pt.avg } : null,
+      gpu,
+      three: mem ? { textures: mem.textures, geometries: mem.geometries } : null,
+      heap: pm && pm.usedJSHeapSize > 0 ? { used: pm.usedJSHeapSize, total: pm.totalJSHeapSize, limit: pm.jsHeapSizeLimit } : null,
+    };
+    return this.stats;
   }
 }
 
