@@ -17,6 +17,7 @@
 import { canSee as canSee0, coneAt, pointInCone } from '../../src/ai/perception.js';
 import { CONFIG } from '../../src/config.js';
 import { T } from '../../src/world/grid.js';
+import { viewerFor } from '../../src/ai/vehicle-ai.js';
 
 const TURN = 3; // s: at a halt he turns to its look over a couple of seconds (until then he may face the way he came)
 
@@ -34,7 +35,53 @@ function canSee(e, d, w, o = {}) {
 }
 
 export function viewersOf(w) {
-  return w.enemies.filter((e) => e.alive && !e.removed && e.vision && !e.incapacitated && e.brain?.arch?.reacts !== false);
+  const out = w.enemies.filter((e) => e.alive && !e.removed && e.vision && !e.incapacitated && e.brain?.arch?.reacts !== false);
+  // (`w.sneakVehicleEyes`, opt-in) an armed crewed vehicle with its own cone (M2's patrol boat: vehicle-ai spotCommando)
+  // sees too: its eye (viewerFor) is a viewer, predicted along its route (predictVehicle)
+  if (w.sneakVehicleEyes) for (const v of w.vehicles || []) if (v.vision && !v.removed && !v.destroyed && !v.driver && v.crewed && v.def?.weapons?.length) out.push(vehicleEye(v));
+  return out;
+}
+
+/** A vehicle's eye as a viewer: the live proxy (vehicle-ai viewerFor) plus a tag and a stable id for the planners. */
+function vehicleEye(v) {
+  return Object.assign(Object.create(viewerFor(v)), { tag: v.tag ?? v.spawn?.id ?? `veh${v.id}`, id: `veh${v.id}`, vehEye: true, vehicle: v });
+}
+
+/**
+ * Where vehicle `v` driving its route will be (and face) `t` s from now: the rest of its wait, then waypoint to
+ * waypoint (its path, then the route on: PINGPONG / LOOP as its brain advances it), pivoting at its turn rate where the
+ * route turns sharply, at its route speed, with each waypoint's wait. Approximate (no acceleration, bends taken on the
+ * spot): about a metre off on a 2.5 m/s boat — callers pad.
+ */
+export function predictVehicle(v, t) {
+  const b = v.brain, R = b?.route;
+  const sp = v.maxSpeed || R?.speed || v.def?.slow || 2.5, rate = v.def?.turn || Math.PI / 4; // (def.turn: rad/s)
+  let x = v.x, z = v.z, h = v.heading, left = t;
+  const wt = Math.max(0, v.waitT || 0);
+  if (left <= wt) return { x, z, heading: h };
+  left -= wt;
+  const queue = v.path ? v.path.slice(v.pathIndex ?? 0) : [];
+  if (R && b?.state === 'route') {
+    let dir = b.dir ?? 1;
+    for (let k = 0; k < 4; k++) {
+      if (R.type === 'PINGPONG') { dir = -dir; queue.push(...(dir > 0 ? R.points : [...R.points].reverse()).slice(1)); }
+      else if (R.type === 'LOOP') queue.push(...R.points);
+    }
+  }
+  for (const p of queue) {
+    const dx = p.x - x, dz = p.z - z, L = Math.hypot(dx, dz);
+    if (L > 1e-3) {
+      const want = Math.atan2(dz, dx), dh = Math.atan2(Math.sin(want - h), Math.cos(want - h));
+      const tt = Math.abs(dh) > 0.35 ? Math.abs(dh) / rate : 0;
+      // (an about-turn may go either way round: `alt`, the other way)
+      if (left <= tt) return { x, z, heading: h + Math.sign(dh) * rate * left, ...(Math.abs(dh) > 2.8 ? { alt: h - Math.sign(dh) * rate * left } : null) };
+      left -= tt; h = want;
+      if (left * sp <= L) return { x: x + (dx / L) * left * sp, z: z + (dz / L) * left * sp, heading: h };
+      left -= L / sp; x = p.x; z = p.z;
+    }
+    if (p.wait > 0) { if (left <= p.wait) return { x, z, heading: h }; left -= p.wait; }
+  }
+  return { x, z, heading: h };
 }
 
 /** Metres left on a walking unit's current path. */
@@ -67,6 +114,10 @@ function alongPath(u, dist, stopAtEnd = false) {
  * path and stops at its end (a lure, a body, a noise); a man standing still keeps his place and heading.
  */
 export function predict(e, t, depth = 0) {
+  if (e.vehEye) { // a vehicle's eye: along its route, `mount` m ahead of its centre (viewerFor)
+    const q = predictVehicle(e.vehicle, t), m = e.vehicle.def?.turret ? 0 : (e.vehicle.def?.mount || 0);
+    return { x: q.x + Math.cos(q.heading) * m, z: q.z + Math.sin(q.heading) * m, heading: q.heading, alt: q.alt };
+  }
   const b = e.brain, r = e.route;
   const lead = depth === 0 && b?._leader?.();
   if (lead && lead !== e && lead.alive && b.state !== 'DISTRACTED' && b.state === lead.brain?.state) {
@@ -176,6 +227,14 @@ function turnHeadings(q) {
  * head is tried at the predicted heading and at both ends of his sweep (and at the heading he came with, at a halt).
  */
 export function walkerSees(e, q, dummy, w, tAbs) {
+  if (e.vehEye) { // a vehicle's eye sweeps on its own clock (phase known): its predicted heading, ± a little
+    for (const hd of q.alt != null ? [q.heading, q.alt] : [q.heading]) for (const dh of [0, 0.15, -0.15]) {
+      const g = Object.create(e);
+      g.x = q.x; g.z = q.z; g.heading = hd + dh;
+      if (canSee(g, dummy, w, { cone: coneAt(g, tAbs) }) !== 'none') return true;
+    }
+    return false;
+  }
   // a man walking his beat looks straight ahead (the brain sweeps his head only at a halt: patrolWatch); one walking
   // anywhere else, or halted, is tried at both ends of his sweep too (walking men glance about). With
   // `w.sneakHaltExact` (s) a halted man's head is where his sweep puts it at tAbs (its phase is his own and the clock's),
@@ -204,6 +263,7 @@ export function walkerSees(e, q, dummy, w, tAbs) {
 /** A guard on the move, or one with a route he walks (a man staring at a lure stands still). */
 const lastMoved = new WeakMap();
 export function walking(e) {
+  if (e.vehEye) return true;
   const b = e.brain, now = e.world?.time ?? 0;
   if (e.isMoving || e.path || b?.atWait || !lastMoved.has(e)) lastMoved.set(e, now);
   if (e.isMoving || e.path) return true;
@@ -277,7 +337,7 @@ export function clearFor(D, pts, dur = 2, { mode = 'walk', except = null, why = 
     const far = (e.vision.far ?? 36) + 1;
     const moving = walking(e);
     for (const [x, z] of pts) {
-      if (Math.hypot(e.x - x, e.z - z) > far + (mode === 'boat' ? HULL : 0) + (moving ? 1.2 * dur + 2 : 0)) continue;
+      if (Math.hypot(e.x - x, e.z - z) > far + (mode === 'boat' ? HULL : 0) + (moving ? (e.vehEye ? 3 : 1.2) * dur + 2 : 0)) continue;
       for (let t = 0; t <= dur + 1e-6; t += step) {
         let seen;
         if (moving) {
@@ -377,7 +437,7 @@ export function bodySeen(D, x, z, dur = 120, { step = 0.5, except = [] } = {}) {
   const w = D.world, out = new Set();
   const d = dummyAt(w, 'body', x, z);
   for (const e of viewersOf(w)) {
-    if (except.includes(e)) continue;
+    if (except.includes(e) || e.vehEye) continue; // (a vehicle's eye looks for men only: vehicle-ai spotCommando)
     const moving = walking(e), far = (e.vision.far ?? 36) + 1;
     for (let t = 0; t <= dur; t += step) {
       if (moving) { const q = predict(e, t); if (Math.hypot(q.x - x, q.z - z) > far) continue; if (walkerSees(e, q, d, w, w.time + t)) { out.add(e.tag); break; } }
@@ -399,7 +459,7 @@ export function alarmEtaInfo(D, x, z, horizon = 30, { step = 0.5, except = [] } 
   const w = D.world, d = dummyAt(w, 'body', x, z);
   let best = { t: Infinity, x, z, tag: null };
   for (const e of viewersOf(w)) {
-    if (except.includes(e)) continue;
+    if (except.includes(e) || e.vehEye) continue;
     const moving = walking(e), far = (e.vision.far ?? 36) + 1, post = e.flags?.holdsPost || !e.flags?.investigates;
     for (let t = 0; t <= Math.min(horizon, best.t); t += step) {
       let seen = false, q = null;

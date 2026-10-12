@@ -429,12 +429,16 @@ export class Interactable extends Entity {
       case 'door':
         if (this.enterable) return this.admit(commando);
         return this.setOpen(!this.open);
-      case 'switch': case 'lever': case 'valve':
+      case 'switch': case 'lever': case 'valve': {
+        const live = () => this.targets.filter((k) => w?.fencePower?.get(k)).length;
+        const was = live();
         this.on = !this.on;
         this._applyTargets();
         w?.events.emit('device', { id, sfx: this.interactKind === 'valve' ? 'valve_turn' : 'switch_throw', x: this.x, z: this.z, on: this.on });
+        if (live() < was) w?.events.emit('device', { id, sfx: 'power_down', x: this.x, z: this.z, on: true }); // a fence goes dead: its hum dies
         w?.events.emit('message', { text: `${this.interactKind === 'switch' ? 'Switch' : 'Lever'} ${this.on ? 'on' : 'off'}.`, kind: 'info' });
         return true;
+      }
       case 'phone':
         this.ringing = CONFIG.abilities.phoneRing ?? 10;
         this._pulseT = 0;

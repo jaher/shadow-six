@@ -293,13 +293,23 @@ function reviveTask(c, t, world, t0 = 0) {
 
 /** The Spy taking a uniform off a clothesline: she walks to the spot in front of it (abilities/spy-actions.js). */
 const lineTake = (c, t, world) => (t?.interactKind === 'clothesline' && c?.role === 'spy' && t.count > 0 ? takeSpot(world ?? c.world, c, t) : null);
+/**
+ * A switch station's lever (world/switch-station.js): the spot in front of it the operator stands on, facing the kiosk
+ * (his left hand on the lever), when it is free to stand on; else null (the switch point, as any device).
+ */
+const standSpot = (c, t, world) => {
+  const s = t?.params?.stand, g = (world ?? c?.world)?.grid;
+  return s && (!g?.walkableAt || g.walkableAt(s.x, s.z)) ? s : null;
+};
 
 registerAbility({
   id: 'use', label: 'Use', icon: '⚙', hotkey: null, roles: ['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy'],
   targeting: 'interactable', cursor: 'lever', order: 90, group: 'use', visibleToEnemies: false,
-  // a clothesline: to the spot in front of the uniform (she settles into it as she reaches up), anything else 1.2 m
-  range: (c, t, world) => (lineTake(c, t, world) ? 0.45 : 1.2),
-  approachPoint(c, t, world) { return lineTake(c, t, world) ?? undefined; }, // else the usual target point
+  // a clothesline: to the spot in front of the uniform (she settles into it as she reaches up); a switch station: onto
+  // the spot in front of its lever; anything else 1.2 m
+  // (onto the stand spot while walking; once he has stopped, a step short of it is close enough)
+  range: (c, t, world) => (lineTake(c, t, world) ? 0.45 : standSpot(c, t, world) ? (c.path || c.isMoving ? 0.05 : 0.4) : 1.2),
+  approachPoint(c, t, world) { return lineTake(c, t, world) ?? standSpot(c, t, world) ?? undefined; }, // else the usual target point
   canUse(c, t, world) {
     const f = freeToAct(c);
     if (f !== true) return f;
@@ -314,9 +324,16 @@ registerAbility({
       const task = dressTask(world, c, t);
       if (task) return task;
     }
-    const dur = t.activationTime;
+    // at a switch station he faces the kiosk, on his feet (a crawler stands up first: the lever is at chest height)
+    const spot = standSpot(c, t, world);
+    let up = 0;
+    if (spot) {
+      c.heading = spot.h;
+      if (c.stance === 'crawl') { c.setStance('stand'); up = CONFIG.units.stanceUp; }
+    }
+    const dur = up + t.activationTime;
     c.playAction('use', dur);
-    return timedTask({
+    const task = timedTask({
       dur,
       steps: [{ at: dur, fn: () => {
         if (t.canUse(c) !== true) return false;
@@ -329,6 +346,8 @@ registerAbility({
         return ok;
       } }],
     });
+    if (up) task.leverDelay = up; // (art/switch-station.js: the lever's clock starts once he is up)
+    return task;
   },
 });
 

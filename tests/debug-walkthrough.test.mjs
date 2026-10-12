@@ -54,11 +54,12 @@ export default async function debugWalkthrough(page, t) {
     none: [...document.querySelectorAll('#dbg-select .dbg-wt-none')].map((b) => b.dataset.walkthrough),
   }));
   t(listed.wt.includes('m03'), `M3 has a walkthrough (${listed.wt})`);
-  // (M0, M1, M3 and M14 have walkthroughs now: M2 stands for a mission without one)
-  t(listed.none.includes('m02') && !listed.none.includes('m03') && !listed.none.includes('m01'), `M2 is listed without one (${listed.none.length} missions)`);
-  await click('#dbg-select .dbg-wt-none[data-walkthrough="m02"]');
+  // (more missions get walkthroughs as their solutions land: the first one still listed without one stands for them)
+  const noneId = listed.none[0];
+  t(!!noneId && !listed.none.includes('m03') && !listed.none.includes('m01') && !listed.none.includes('m02'), `${noneId} is listed without one (${listed.none.length} missions)`);
+  await click(`#dbg-select .dbg-wt-none[data-walkthrough="${noneId}"]`);
   await page.waitForFunction(() => document.querySelector('#wt-card[data-kind=none]'));
-  t(/No walkthrough yet/.test(await page.locator('#wt-card').textContent()), 'M2: "No walkthrough yet"');
+  t(/No walkthrough yet/.test(await page.locator('#wt-card').textContent()), `${noneId}: "No walkthrough yet"`);
   await click('#wt-card [data-act=ok]');
   await page.waitForFunction(() => !document.getElementById('wt-card') && !!document.getElementById('dbg-select'));
   t(true, 'OK goes back to the debug menu');

@@ -211,11 +211,13 @@ export default {
       route: { type: 'PINGPONG', speed: 2.5, points: [P(1, 41.3, 15), P(15.9, 52.8), P(33.8, 66.7), P(49.5, 80.5), P(62.9, 96.6, 15)] } },
   ],
   commandos: [
-    { role: 'greenberet', x: 8, z: 101 + DZ, heading: deg(270), inventory: { knife: 1, pistol: 1, decoy: 1, shovel: 1 } },
-    { role: 'sniper', x: 11, z: 101 + DZ, heading: deg(270), inventory: { pistol: 1, sniperRifle: 5 } },
-    { role: 'diver', x: 14, z: 101 + DZ, heading: deg(270), inventory: { knife: 1, pistol: 1, harpoon: 1, divingGear: 1, inflatableBoat: 1 } },
-    { role: 'sapper', x: 17, z: 101 + DZ, heading: deg(270), inventory: { pistol: 1, bearTrap: 1, timeBomb: 2 } },
-    { role: 'driver', x: 20, z: 101 + DZ, heading: deg(270), inventory: { pistol: 1, smg: 20, firstAid: 6 } },
+    // behind the S palisade, east of its south gap (x 6–10): the old line (x 8–20) put the Green Beret in the gap's
+    // line from e2's beat (seen standing in the far band from t=0; M2 solution review 2026-10-12)
+    { role: 'greenberet', x: 12, z: 101 + DZ, heading: deg(270), inventory: { knife: 1, pistol: 1, decoy: 1, shovel: 1 } },
+    { role: 'sniper', x: 15, z: 101 + DZ, heading: deg(270), inventory: { pistol: 1, sniperRifle: 5 } },
+    { role: 'diver', x: 18, z: 101 + DZ, heading: deg(270), inventory: { knife: 1, pistol: 1, harpoon: 1, divingGear: 1, inflatableBoat: 1 } },
+    { role: 'sapper', x: 21, z: 101 + DZ, heading: deg(270), inventory: { pistol: 1, bearTrap: 1, timeBomb: 2 } },
+    { role: 'driver', x: 24, z: 101 + DZ, heading: deg(270), inventory: { pistol: 1, smg: 20, firstAid: 6 } },
   ],
   enemies: [
     // SW settlement: three walkers that support each other (trap + footprint lures)
@@ -226,8 +228,10 @@ export default {
     { id: 'e3', prima: 3, soldierType: 'soldier', x: 22.13, z: 95.08 + DZ, heading: deg(270), flags: { investigates: true, followsTracks: true },
       route: { type: 'PINGPONG', vel: 1.0, points: [Q(22, 95, 3, 90), Q(22, 76, 3, 270)] } },
     // NE bank outside the SW wall, in front of the rocks (snipe him there)
-    { id: 'e4', prima: 4, soldierType: 'soldier', x: 20, z: 42.5, heading: deg(37), flags: { holdsPost: true, investigates: false },
-      route: { type: 'PINGPONG', vel: 1.0, points: [P(20, 42.5, 3, 135), P(40, 57.5, 3, 135)] } },
+    // (west halt 0.3 m off the old (20, 42.5): that spot is 0.5 m from rocks_n1, inside a soldier's body clearance, so
+    // with the game's mesh clearance he could never reach it and jittered there for good, never halting)
+    { id: 'e4', prima: 4, soldierType: 'soldier', x: 19.75, z: 42.75, heading: deg(37), flags: { holdsPost: true, investigates: false },
+      route: { type: 'PINGPONG', vel: 1.0, points: [P(19.75, 42.75, 3, 135), P(40, 57.5, 3, 135)] } },
     // on the wall walk beside the (raised) ladder, watching the river
     { id: 'e5', prima: 5, soldierType: 'sentry', x: 28.60, z: 43.08, // on the walk's deck, 0.3 m off the palisade line (≥ 0.32 m: e7 finds the body, §7.5 step 2)
       heading: deg(130), elevated: true, y: 2.2,

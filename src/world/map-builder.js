@@ -38,6 +38,8 @@ import { installSetpieces } from '../missions/setpieces.js';
 import { Interactable, createInteractable, createPickup, createExtraction, spawnMissionInteractables } from '../entities/interactables.js';
 import { tickBuildings, buildingLog, libraryHinted } from '../art/building-props.js';
 import { wireFuelHooks } from '../art/fuel-hooks.js';
+import { buildSwitchStation } from '../art/switch-station.js';
+import { hasStation, stationLayout, stampStation } from './switch-station.js';
 import { isFuelStructure } from '../art/fuel-tanks.js';
 import { createWindFx } from '../render/wind-fx.js';
 import { createAmbientLife } from '../render/ambient-life.js';
@@ -325,7 +327,10 @@ export function missionWayPoints(mission, interactables = []) {
   const out = [];
   const add = (x, z) => { if (Number.isFinite(x) && Number.isFinite(z)) out.push([x, z]); };
   for (const u of [...(mission.commandos || []), ...(mission.enemies || [])]) if (!u.vehicle && !u.elevated) add(u.x, u.z);
-  for (const it of [...(mission.items || []), ...interactables]) add(it.x, it.z);
+  for (const it of [...(mission.items || []), ...interactables]) {
+    add(it.x, it.z);
+    if (it.params?.stand) add(it.params.stand.x, it.params.stand.z); // where a switch station's operator stands
+  }
   for (const z of [mission.extraction, mission.rendezvous]) if (z) add(z.x, z.z);
   return out;
 }
@@ -1116,6 +1121,8 @@ export function stampBodySolids(world, built, groundAt = null) {
       list.push({ owner: `${b.owner}:posts`, R: { x: (d.x ?? 0) + u * tx - v * tz, z: (d.z ?? 0) + u * tz + v * tx, h: rot, hl: (u1 - u0) / 2 + m, hw: p.h[2] + m, top } });
     }
   }
+  // switch stations (world/switch-station.js): the kiosk and its operating housing
+  for (const st of world.switchStations || []) if (st.L?.solid) list.push({ owner: `station:${st.sw?.tag ?? st.sw?.id}`, R: { ...st.L.solid } });
   setStaticSolids(world, list);
   if (world._bodySolidsOff) return { count: list.length, off: null };
   const gone = world.bodySolidsGone || (world.bodySolidsGone = new Set());
@@ -1510,6 +1517,7 @@ export function buildMap(world, mission, opts = {}) {
   const structures = new Map();
   const interactables = [];
   const addIt = (it) => { world.add(it); interactables.push(it); return it; };
+  world.switchStations = []; // structure switches' stations (world/switch-station.js; drawn by art/switch-station.js)
   for (const b of built) {
     let ownedByEntity = false;
     for (const spec of b.interactables || []) {
@@ -1528,7 +1536,17 @@ export function buildMap(world, mission, opts = {}) {
       // `on` = the controlled fence is powered: `powers:true` maps the switch state straight onto
       // world.fencePower (ABILITIES' Interactable switch semantics; `targets` = the ids it controls)
       const targets = sw.targets ?? (sw.controls != null ? [].concat(sw.controls) : []);
-      addIt(new Interactable({ interactKind: 'switch', x: sw.x, z: sw.z, id: sw.id, tag: sw.id, on: sw.on ?? true, powers: sw.powers ?? true, controls: sw.controls ?? null, targets, activation: sw.activation ?? 1.0, roles: sw.roles ?? null }));
+      // its switch station (world/switch-station.js): a kiosk at the switch point, its back to the host, the lever on
+      // its front; it blocks its cells and the operator works it from the stand spot in front of it
+      const L = hasStation(sw) ? stationLayout(sw, b.def) : null;
+      if (L) stampStation(grid, L);
+      const it = addIt(new Interactable({ interactKind: 'switch', x: sw.x, z: sw.z, id: sw.id, tag: sw.id, on: sw.on ?? true, powers: sw.powers ?? true, controls: sw.controls ?? null, targets, activation: sw.activation ?? 1.0, roles: sw.roles ?? null,
+        ...(L ? { stand: L.stand, label: sw.label ?? 'Switch station' } : null) }));
+      if (L) {
+        const vis = meshes ? buildSwitchStation(L, { name: `switch-station:${sw.id ?? b.owner}` }) : null;
+        if (vis) propsRoot.add(vis.group);
+        world.switchStations.push({ sw: it, L, vis });
+      }
     }
     if (!ownedByEntity && meshes && !(realTerrain && TREE_TYPES.includes(b.type))) propsRoot.add(b.object3d);
     structures.set(b.def.id ?? `${b.type}#${b.owner - STRUCTURE_OWNER_BASE}`, { type: b.type, def: b.def, owner: b.owner, object3d: b.object3d, footprints: b.footprints,
@@ -1642,7 +1660,7 @@ export function buildMap(world, mission, opts = {}) {
     const vn = stampVisualNav(world, built, missionWayPoints(mission, interactables));
     visNavOff = vn.off; deckLanes = vn.lanes;
     if (vn.cells) libLog.push(`visual nav: ${vn.cells} cells blocked (${vn.structures} structures${vn.relaxed ? `, ${vn.relaxed} relaxed to keep ways open` : ''})`);
-    const fl = stampFlatBase(world, built, interactables);
+    const fl = stampFlatBase(world, built, [...interactables, ...(world.switchStations || []).map((st) => ({ object3d: st.vis?.group }))]);
     if (fl) libLog.push(`levelled: ${fl} cells under prop bases`);
     const ov = stampOverhead(world, built);
     if (ov.off) { const a = visNavOff; visNavOff = () => { a?.(); ov.off(); }; }

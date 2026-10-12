@@ -1713,15 +1713,15 @@ extraction: { vehicleId, exit:{x,z,r}, spawnWhen:[objectiveIds] }
 | `truck` | truck | (50, 44), heading 47.4 | Faces the gate, square to the SE edge; **escape vehicle** |
 | `pboat` | patrol boat | PINGPONG (1,41.3) wait 15 → (15.9,52.8) → (33.8,66.7) → (49.5,80.5) → (62.9,96.6) wait 15, at **2.5 m/s** (lane 9.5 m off the NE bank, deep water for a true-scale 13.6 m HS 114) | Crew: `mg` gunner (vision `mg`, sweep 60, giro 180, facing travel). Engine audible at 60 m. About 103 s per cycle |
 
-**Commandos** (behind the S palisade of the SW settlement).
+**Commandos** (behind the S palisade of the SW settlement, east of its south gap (x 6–10): no settlement guard sees anyone there through the gap, whatever his stance).
 
 | Role | Position | Inventory |
 |---|---|---|
-| greenberet | (8, 117) | knife, pistol, decoy, shovel |
-| sniper | (11, 117) | pistol, rifle 5 |
-| diver | (14, 117) | knife, pistol, harpoon, divingGear, **raft (packed)** |
-| sapper | (17, 117) | pistol, trap, timeBomb 2 |
-| driver | (20, 117) | pistol, smg 100, firstAid 6 |
+| greenberet | (12, 117) | knife, pistol, decoy, shovel |
+| sniper | (15, 117) | pistol, rifle 5 |
+| diver | (18, 117) | knife, pistol, harpoon, divingGear, **raft (packed)** |
+| sapper | (21, 117) | pistol, trap, timeBomb 2 |
+| driver | (24, 117) | pistol, smg 100, firstAid 6 |
 
 All start at heading 270.
 
@@ -1732,7 +1732,7 @@ All start at heading 270.
 | e1 | [1] | soldier, investigates, followsTracks | (4,89) | LOOP: (4,89) → (24,89) wait 3 look 0 → (24,101) → (11,101) wait 3 look 180 → (11,91) |
 | e2 | [2] | soldier, investigates, followsTracks | (14,94) | PINGPONG: (14,94) wait 4 look 90 ↔ (24,108) wait 4 look 180 |
 | e3 | [3] | soldier, investigates, followsTracks | (22,111) | PINGPONG: (22,111) wait 3 look 90 ↔ (22,92) wait 3 look 270 |
-| e4 | [4] | soldier, holdsPost | (20,42.5) | PINGPONG: (20,42.5) wait 3 look 135 ↔ (40,57.5) wait 3 look 135. Walks in front of the rocks (snipe him there) |
+| e4 | [4] | soldier, holdsPost | (19.75,42.75) | PINGPONG: (19.75,42.75) wait 3 look 135 ↔ (40,57.5) wait 3 look 135. Walks in front of the rocks (snipe him there). West halt 0.3 m off the old (20,42.5), which lay inside a soldier's body clearance from `rocks_n1`: in the game he could never reach it and jittered there instead of halting |
 | e5 | [5] | sentry, holdsPost, **elevated y 2.2** | (28.5,43.2) | Post heading 130 (over the river), sweep 35. On the wall walkway beside the ladder |
 | e6 | [6] | soldier, investigates | (30,31) | PINGPONG: (30,31) wait 3 look 180 ↔ (51,49.5) wait 5 look 40. Walks to the gate |
 | e7 | [7] | soldier, holdsPost | (47.28,21.41) | LOOP around the depot, parallel to the NE edge: (47.28,21.41) wait 2 look 41 → (63.98,35.81) wait 2 look 315 → (59.01,41.57) → (42.31,27.17) wait 2 look 180 |

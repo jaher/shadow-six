@@ -64,6 +64,7 @@ src/world/world.js                    foundation — World container + spatial q
 src/world/grid.js                     foundation — NavGrid layers, LOS, cover queries
 src/world/pathfinding.js              foundation — A* + smoothing
 src/world/body-clearance.js           body vs solids: vehicle hulls, wrecks, drums, pushables, props (disc / prone capsule, keep-out mask, clear poses)
+src/world/switch-station.js           a structure switch's station layout (pure): where the kiosk stands, the cells it blocks, the operator's stand spot, the lever timeline
 src/world/map-builder.js              MISSIONS — fills grid + registries from mission data (ART props for meshes)
 src/entities/entity.js                foundation
 src/entities/unit.js                  foundation — humanoid movement/stance/health/anim hooks
@@ -91,6 +92,7 @@ src/art/humanoid-real.js              ART — character library facade (manifest
 src/art/characters/                   ART — verified character runtimes (commandos_a/b, enemies, guests, pipeline)
 src/art/vehicle-crew.js               ART — crew figures at the library seats: crew records + occupants (cars, lorry cabs, R75, 251, hatches)
 src/art/door-hand.js                  ART — a man's hand on a vehicle door: door rigs, how far a door opens for a seat, pull / push / shut timelines, reach IK (lean, crouch, fist round the edge)
+src/art/switch-station.js             ART — a structure switch's station (concrete kiosk, steel door, lever, roof disconnector) and the pass posing its lever, blades and the operator's fist
 src/art/strap-curtain.js              ART — rear strap curtain of a covered lorry: Verlet chains parted sideways by men climbing over the tailgate, pinned to the canvas roll
 src/art/vehicle-pennants.js           ART — cloth pennants on vehicles (patrol-boat masthead, staff-car wing flag), apparent wind
 src/art/props.js                      ART — building/prop builders (catalogue below)
@@ -568,6 +570,18 @@ model = { root, turret /* LOD0 turret / gun-mount node (clipping audit), null un
   hand on each, `rearDoorMotion`): the last man in turns at them and pulls them shut, then walks up the floor to his
   seat; the first man out pushes them open; the last man out shuts them from outside. A door nobody holds keeps the
   timer (no figure: node, placeholders). The escape truck waits 2 s after the last man boards (objectives.js).
+- **Switch stations** (`world/switch-station.js` + `art/switch-station.js`, user 2026-10-12 "in mission 3 there should be
+  small station with a lever to deactivate the electricity from the fence. Right now the spy pulls a lever in the void"):
+  every structure switch (`switches: [{id, x, z, controls, …}]`; opt out with `station: false`, `face` overrides the
+  facing) is a small concrete switch kiosk at its point, its back to the host, its front away from it: steel door with
+  the Hochspannung plate, the cast-iron operating housing with a big red lever on its +v side (up = on, down = off), a
+  two-pole roof disconnector whose blades open with the lever, conduits for the feed and the fence line. Its cells are
+  blocked (HIGH) and it is a body solid; the switch carries `params.stand` (in front of the lever, facing the kiosk):
+  'use' walks the operator onto it (a crawler stands up first, `task.leverDelay`). The lever is drawn from the switch:
+  at rest at its state's stop (so a load shows it as saved), during a 'use' on the action clock (reach, grip, the
+  throw ending as the switch flips at the end of the action; broken off, it springs back), sparks at the blades; the
+  operator's left fist on the crossbar (two-bone IK through the BoneGuard, leaning in for the low end), eyes on it.
+  A switch that cuts a fence's power also emits `device` `power_down`.
 - **Rear strap curtain** (`art/strap-curtain.js`, "make the stripes slide sideways as commandos enter the truck from
   behind"): the Opel Blitz cargo's five leather straps hanging under the rolled-up canvas are chains (10 links,
   Verlet, inextensible, a little bending stiffness) pinned to the roll (canvas CPU twin `canvasEval`). Men climbing
