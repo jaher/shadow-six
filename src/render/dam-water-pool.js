@@ -6,6 +6,7 @@
  *   const pool = createDamPool(world, F, { sources, boilV, uniforms }); group.add(pool.mesh); pool.field.sample(u, v)
  * @module render/dam-water-pool
  */
+import { releaseGpuOnUnload } from '../engine/texture-memory.js';
 import * as THREE from 'three';
 import { bakeDamFlow } from './dam-flow.js';
 import { POOL_VERT, POOL_FRAG } from './dam-water-pool-glsl.js';
@@ -21,7 +22,7 @@ function textures() {
   const mk = (f) => {
     let t;
     waits.push(new Promise((ok) => { t = ld.load(TEX_BASE + f, ok, undefined, (e) => { console.error('[dam-water] texture', f, e); ok(); }); }));
-    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return t;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; return releaseGpuOnUnload(t); // GPU copy per mission
   };
   texCache = { lace: mk('foam2.png'), norm: mk('waternormals.jpg') };
   texCache.ready = Promise.all(waits).then(() => undefined);

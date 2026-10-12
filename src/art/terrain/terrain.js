@@ -4,6 +4,7 @@
  * per-material deformable trails, 3D instanced grass + clutter, snow glints/sastrugi/falling snow, icy edges.
  * @module terrain-b/terrain
  */
+import { packNormals } from '../../engine/vertex-pack.js';
 import { missionCarves } from './carve.js';
 import * as THREE from 'three';
 import { PALETTES, buildSplat, splatAt, undulation } from './terrain-layers.js';
@@ -337,11 +338,15 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
       pos.setY(v, y);
     }
     geo.computeVertexNormals();
+    // what the material reads, compactly (engine/vertex-pack.js): its shader maps world xz itself (no uv: 8 bytes a
+    // vertex), normals as normalized Int16 × 4 (8 instead of 12 bytes) — before chunking, which shares these attributes
+    geo.deleteAttribute('uv');
+    packNormals(THREE, geo);
     geo.computeBoundingBox();
     geo.computeBoundingSphere();
     cache.retain(geo);
     return { geo, hgt };
-  }, { bytes: (v) => v.hgt.byteLength * 9, dispose: disposeHeightEntry });
+  }, { bytes: (v) => v.hgt.byteLength + v.geo.attributes.position.array.byteLength + v.geo.attributes.normal.array.byteLength, dispose: disposeHeightEntry });
 
   // ---- material ----------------------------------------------------------------------------------
   const layerInfo = P.layers.map((n) => LAYER_INFO[n] || { tau: 600, vis: 0.3 });

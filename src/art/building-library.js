@@ -22,8 +22,9 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { keepEncodedImages } from '../engine/texture-memory.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { applyAssetFixups, DROP_LODS } from './building-fixups.js';
-import { scoped, touch, sceneBytes, disposeScene, textureBytes } from '../engine/scoped-assets.js';
+import { scoped, touch, sceneBytes, disposeScene } from '../engine/scoped-assets.js';
 import { libTier, loadLibDensity } from './lib-tiers.js';
+import { sharedLibTexture, isLibTexture, isLibImage } from './lib-textures.js';
 import { antiTile } from './anti-tiling.js';
 
 const BLOCK = { NONE: 0, LOW: 1, HIGH: 2, FENCE: 3 }; // == world/grid.js B
@@ -34,15 +35,14 @@ const SWITCH_KINDS = { interact_switch: 'switch', interact_lever: 'switch', inte
 
 const L = {
   manifest: null, base: 'assets/', quality: 'default', loader: null, ultra: new Set(),
-  texCache: new Map(), gltf: new Map(), pending: new Map(), live: new Set(), zoom: 1, lodBias: 0,
-  deps: new Map(), shared: new WeakSet(), sharedSrc: new WeakSet(), // name#lod → its shared texture cache keys; the shared library textures
+  gltf: new Map(), pending: new Map(), live: new Set(), zoom: 1, lodBias: 0,
+  deps: new Map(), // name#lod → its shared texture cache keys (art/lib-textures.js)
 };
 
 /** Session-cache keys (engine/scoped-assets.js): a loaded LOD scene and a shared library texture. */
 const lodKey = (key) => `bld:${key}`;
-const texKey = (key) => `bldtex:${key}`;
-const isShared = (t) => L.shared.has(t); // the shared texture object itself (its own cache entry)
-const isSharedImage = (t) => L.sharedSrc.has(t.source); // …or a glTF clone of it (same GPU image)
+const isShared = isLibTexture; // a shared library texture object itself (its own cache entry: art/lib-textures.js)
+const isSharedImage = isLibImage; // …or a glTF clone of it (same GPU image)
 /** This mission uses a loaded LOD (and the shared textures it draws with). */
 function touchLod(key) { touch(lodKey(key), L.deps.get(key) || []); }
 
@@ -70,19 +70,8 @@ class SharedLibTextures {
     const json = this.parser.json, def = json.textures[index];
     const img = def && json.images[def.source];
     if (!img || !img.uri || !/textures\/lib\//.test(img.uri)) return null; // embedded AO etc.: default path
-    const key = `${new URL(img.uri, new URL(this.parser.options.path || '', globalThis.location?.href ?? 'http://localhost/')).href}|${def.sampler ?? -1}`;
-    if (!L.texCache.has(key)) {
-      const p = this.parser.loadTextureImage(index, def.source, this.parser.textureLoader);
-      L.texCache.set(key, p);
-      // one session-cache entry per shared map: freed once no kept mission draws a GLB that uses it
-      p.then((t) => {
-        if (!t || L.texCache.get(key) !== p) return;
-        L.shared.add(t); L.sharedSrc.add(t.source);
-        scoped(texKey(key), t, { bytes: textureBytes(t), free: (tt) => { if (L.texCache.get(key) === p) L.texCache.delete(key); tt.dispose(); } });
-      }, () => {});
-    } else touch(texKey(key));
-    (this.parser.shadowLibKeys ||= new Set()).add(texKey(key));
-    return L.texCache.get(key);
+    const url = new URL(img.uri, new URL(this.parser.options.path || '', globalThis.location?.href ?? 'http://localhost/')).href;
+    return sharedLibTexture(this.parser, index, url); // one GPU image per map, with the vehicle library too
   }
 }
 
@@ -473,8 +462,7 @@ export function buildingTypes() {
 export function clearBuildingCache() {
   L.gltf.clear();
   L.deps.clear();
-  for (const p of L.texCache.values()) p.then((t) => t?.dispose(), () => {});
-  L.texCache.clear();
+  // the shared library maps are the session cache's (art/lib-textures.js): the vehicles may draw them too
 }
 
 export default createBuilding;

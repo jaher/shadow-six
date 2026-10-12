@@ -499,7 +499,7 @@ export function buildWater(R, world, grid, mission, theater, o = {}) {
     addLateRoot: (root) => system.addLateRoot(root),
     wakes,
     /** Per displayed frame, BEFORE engine.render(): quality follows the preset, wakes, simulation, reflections. */
-    frame(dt, camera) {
+    frame(dt, camera, draw = true) {
       const q = QUALITY_OF[R.presetName];
       if (q && q !== system.qualityName) system.setQuality(q);
       if (camera && system.camera !== camera) system.camera = camera;
@@ -522,7 +522,7 @@ export function buildWater(R, world, grid, mission, theater, o = {}) {
       system.setSubmerged?.(sub);
       if (drains.length) drainStep(dt);
       const t = performance.now();
-      system.update(dt);
+      system.update(dt, draw);
       stats.updateMs = performance.now() - t;
     },
     dispose() {

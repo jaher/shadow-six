@@ -17,6 +17,7 @@
  * Geometry is merged per material (art/dressing.js consolidate). Plain colours in node (unit tests).
  * @module art/warship
  */
+import { releaseGpuOnUnload } from '../engine/texture-memory.js';
 import * as THREE from 'three';
 import { dressingMaterial, boxUV, consolidate, rng } from './dressing.js';
 import { paintedMaterial } from './kit-props.js';
@@ -82,7 +83,7 @@ function hullTexture() {
   }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping; t.anisotropy = 8;
-  return (TEX.hull = t);
+  return (TEX.hull = releaseGpuOnUnload(t)); // kept for the session; its GPU copy only while a mission draws it
 }
 
 /** Superstructure canvas: u = 12 m, v = 13 m (five 2.6 m tiers from the main deck): seams, scuttles, doors. */
@@ -116,7 +117,7 @@ function wallTexture() {
   for (let k = 0; k < 60; k++) { const u = R() * W, t = R() * H; x.fillStyle = `rgba(45,42,38,${0.05 + R() * 0.08})`; x.fillRect(u, t, 1 + R() * 2, (0.5 + R() * 2) * ppm); }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
-  return (TEX.wall = t);
+  return (TEX.wall = releaseGpuOnUnload(t));
 }
 
 let MATS = null;

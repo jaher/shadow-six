@@ -737,11 +737,14 @@ export class WaterSystem {
   }
 
   /** Advance simulation and render the off-screen inputs; call once per frame BEFORE the world render. */
-  update(dt = 1 / 60) {
+  update(dt = 1 / 60, draw = true) {
     dt = Math.min(Math.max(dt, 0), 0.1);
     this.time += dt;
     const s = this.shared, t0 = performance.now();
     s.time.value = this.time % TIME_LOOP;
+    // nothing drawn this frame (a menu covers the view): no FFT, caustics, ripple or mirror passes — the clock runs on,
+    // and the next drawn frame computes them all (at its time) before it renders
+    if (!draw) { this.skipped = (this.skipped || 0) + 1; this.lastUpdateMs = performance.now() - t0; return; }
     this.detailOcean.update(this.time % FFT_PERIOD, dt);
     s.dispB.value = this.detailOcean.displacementTexture; s.nrmB.value = this.detailOcean.normalTexture;
     if (this.seaOcean && this.bodies.some((b) => b.o.type === 'sea')) {

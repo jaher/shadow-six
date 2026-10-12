@@ -965,8 +965,8 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   three has to upload them again — a restored WebGL context (`installTextureMemory(renderer)`), or a texture disposed
   by a cache eviction while still drawn (`texture.needsUpdate` after the refill: three compares the texture version). `TextureWarmer` (Game, after each load) uploads the
   scene's not-yet-drawn textures ≤ 3 ms a frame during the briefing, so their page copy goes too and the first pan onto
-  them does not stall a frame. The PCF shadow map's unused RGBA8 colour attachment is one byte per texel
-  (`renderer.js slimShadowMap`: −48 MB on high, −192 MB on ultra). Once a glTF's scene exists, `keepEncodedImages`
+  them does not stall a frame. The PCF shadow map's unused RGBA8 colour attachment went to one byte per texel
+  (`renderer.js slimShadowMap`: −48 MB on high, −192 MB on ultra), then away (`dropShadowColour`, below). Once a glTF's scene exists, `keepEncodedImages`
   also empties its parser (`releaseGltfParser`: the GLB binary chunk, raw buffers / views, texture promises) — libraries
   keep load results to clone from, and with them every parsed file (M1: −25 MB of ArrayBuffers).
 - **Lost WebGL context**: on `webglcontextrestored` three re-creates every GL object; what lived only on the GPU is
@@ -996,13 +996,21 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   tier. Measured on every mission: material textures −73 %, GPU total −56 % (desktop high) … −63 % (phone medium);
   RGB PSNR vs the uncompressed maps 45–55 dB albedo, 36–41 dB normal maps. Tools: `tools/perf/gpu-compress-quality.mjs`,
   `abdiff.py`, `load-ab.mjs`, `gpumem-table.py`; tests `tests/gpu-compress.test.mjs`, `tests/unit/gpu-compress.test.mjs`.
-- **Baked atlases and tree arrays** (perf/gpu-memory): the tree impostor atlases are encoded straight from their render
-  targets (`GpuCompressor.compressTarget`) and the targets — colour and the depth buffers only the bake needed — are
-  freed (`vegetation.js compactImpostorBank`; M16 −99 MB). Generated tree vertex arrays (`treegen.js GeoAcc.toArrays`)
-  keep normals and `aExt` as normalized Int16 and `aTint` as half floats (rounded to nearest): −16 of 84 bytes a vertex
-  on the GPU and in the session cache; positions, uv, `aInfo` and `aRoot` stay Float32.
+- **Baked atlases and compact vertex arrays** (perf/gpu-memory): the tree impostor atlases are encoded straight from
+  their render targets (`GpuCompressor.compressTarget`) and the targets — colour and the depth buffers only the bake
+  needed — are freed (`vegetation.js compactImpostorBank`; M16 −99 MB). Vertex data that draws the same in fewer bytes
+  goes through `engine/vertex-pack.js`: values in [−1, 1] as normalized Int16, colours as half floats rounded to
+  nearest, and 3-vectors always padded to 4 components (D3D11 has no 3-component 16-bit vertex format and Metal wants
+  4-byte strides: ANGLE would keep a converted copy). Tree arrays (`treegen.js GeoAcc.toArrays`): normals / `aExt`
+  Int16, `aTint` half — 72 of 84 bytes a vertex, on the GPU and in the session cache; positions, uv, `aInfo` (per-leaf
+  phases) and `aRoot` (world roots) stay Float32. Terrain mesh (`createTerrain`, before chunking): no uv (its shader maps
+  world xz), normals Int16 × 4 (−21 % of its buffers); apron normals Int16 × 4. Not packed: kit / dressing geometry
+  (merged in many places — a packed and a float normal cannot merge).
 - **Render-target formats** (perf/gpu-memory): the sun shadow map's depth texture is 16-bit (`slimShadowMap`: the ortho
-  depth range is footprint + 80 m, a 16-bit step is mm against a cm bias), SMAA edges / weights and the GTAO / denoise
+  depth range is footprint + 80 m, a 16-bit step is mm against a cm bias) and its colour attachment, which three
+  allocates but never samples, is detached and freed once three set the target up (`dropShadowColour`: 4 / 16 / 64 MB at
+  medium / high / ultra; a depth-only framebuffer is complete in WebGL 2); the load-time encoder frees its block target
+  when idle; SMAA edges / weights and the GTAO / denoise
   buffers are RGBA8 (`eightBitTargets`: 0..1 factors; SMAA's reference formats), the PMREM generator is disposed after each
   environment build (its ping-pong target).
 - **Memory tools / test**: `tools/perf/mem-probe.js` (page probe: every live GL texture / buffer / renderbuffer counted at
@@ -1011,7 +1019,13 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   renderer / GPU process PSS, VRAM, load peaks, download, load and frame time; `--cycle` M1→M2→M3→M1),
   `tools/perf/heap-arraybuffers.mjs` (heap snapshot: ArrayBuffer retainers, `--count` live instances, `--path` GC-root
   path of a class — how the World leak below was found), `tools/perf/memshot.mjs` + `memshot-diff.py` (A/B frames);
-  `tests/memory.test.mjs` (per-mission budget, no growth over a mission cycle, warm restart). In game, `?debug`'s info HUD
+  `tests/memory.test.mjs` (per-mission budget, no growth over a mission cycle, warm restart), `tests/memory-cycle.test.mjs`
+  (M16, every map, M16 again: within 5 % + 8 MB of the first). Across missions nothing drawn stays on the GPU by
+  accident: three keeps a drawn geometry's vertex arrays (and its buffers) until the geometry is disposed, and the
+  browser never frees a garbage-collected WebGL buffer — so `Game.unloadMission` disposes the chunk rows
+  (`releaseAllChunks`), chunking rewrites an index in place (the water bakes upload the scene before it), session-long
+  module textures register with `releaseGpuOnUnload` (GPU copy dropped at unload, uploaded again on use) and a theatre
+  change drops the previous HDR's GPU copy. In game, `?debug`'s info HUD
   shows the same GPU total live (`src/debug/gpu-mem-counter.js`: totals only, allocation / delete calls only; equal to
   the probe's `gpu.total`, `tests/debug-stats.test.mjs`).
 
@@ -1568,7 +1582,9 @@ Emitters add the events they own; AUDIO never needs another team to call it.
     fitted to the map, every man on screen, one instance per instanced mesh) so every pass's programs are compiled and
     the textures uploaded at load; `vfx.warm`, `TrailSystem.warm`, `RippleSim.warm` do the same for their targets.
   - Render on demand: `Game.frame` skips the GPU frame after two frames under an opaque full-screen layer (boot
-    screens, the menus' backdrop without its live diorama).
+    screens, the menus' backdrop without its live diorama). Such a frame (`Game.render(…, draw = false)`) also skips
+    the water's offscreen passes (`WaterSystem.update(dt, draw)`: FFT ocean, caustics, ripples, mirror reflection; its
+    clock runs on) — the next drawn frame computes them before it renders (`tests/water-covered.test.mjs`).
   - Dynamic resolution (`engine/dynamic-res.js`, `Renderer.setDynamicScale`, `Game.setDynamicResolution`,
     `CONFIG.render.dynamicResolution`): 'auto' = phones / tablets only; GPU-bound frames missing 60 fps step the pixel
     ratio down to 0.85 / 0.7 of the preset's, headroom steps it back.

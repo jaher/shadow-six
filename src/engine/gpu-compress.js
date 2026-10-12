@@ -1564,6 +1564,19 @@ export class GpuCompressor {
     }
     if (this._queue.length && this._inflight.length < this.maxPending) this._kick(); // more to issue: after a yield
     else if (this._inflight.length || this._queue.length) this._kick(1); // waiting on the GPU
+    else this._idleSoon();
+  }
+
+  /** Nothing left to encode: free the block target (sized for the largest map: MBs) once the pump has been idle a moment. */
+  _idleSoon() {
+    clearTimeout(this._idleTimer);
+    this._idleTimer = setTimeout(() => {
+      if (this._queue.length || this._inflight.length || this._tick || !this.rt || this.gl.isContextLost()) return;
+      // the framebuffer goes too: a texture still attached to an unbound framebuffer would stay allocated
+      if (this.fbo) this.gl.deleteFramebuffer(this.fbo);
+      this.gl.deleteTexture(this.rt);
+      this.fbo = this.rt = null; this.rtSize = [0, 0];
+    }, 1500);
   }
 
   /** Resolves once every queued encode and readback has finished. */

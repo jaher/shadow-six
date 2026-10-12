@@ -15,6 +15,7 @@
  * Never walkable: the nav grid is not touched. Built once, after the map's terrain (art/terrain.js buildTerrain).
  * @module art/apron
  */
+import { packNormals } from '../engine/vertex-pack.js';
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
 import { T } from '../world/grid.js';
@@ -227,6 +228,7 @@ export function apronGeometry(f, heightAt, mapHeightAt, step = CONFIG.apron.cell
   geo.setIndex(pos.length / 3 > 65535 ? new THREE.Uint32BufferAttribute(idx, 1) : new THREE.Uint16BufferAttribute(idx, 1));
   // normals from the undropped surface: the steep strip would tilt the edge-line normals and light every map edge up
   geo.computeVertexNormals();
+  packNormals(THREE, geo); // normalized Int16 × 4: 8 instead of 12 bytes a vertex (engine/vertex-pack.js)
   const P = geo.attributes.position.array;
   for (let k = 0; k < P.length; k += 3) if (inMap(P[k], P[k + 2])) P[k + 1] -= INNER_DROP;
   geo.computeBoundingBox(); geo.computeBoundingSphere();

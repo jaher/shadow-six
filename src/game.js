@@ -66,11 +66,11 @@ import { quickSave, quickLoad, saveSlot, loadSlot, autoSave } from './save.js';
 import { probe as probeCone } from './ai/perception.js';
 import { mgMountFrame } from './render/mg-mount.js';
 import { ScopeMagnifier } from './render/scope-magnifier.js';
-import { chunkLargeMeshes } from './engine/chunking.js';
+import { chunkLargeMeshes, releaseAllChunks } from './engine/chunking.js';
 import { DynamicResolution } from './engine/dynamic-res.js';
 import { sessionCache } from './engine/asset-cache.js';
 import { deferMaterialDisposal, flushMaterialDisposal, holdingMaterials } from './engine/program-keeper.js';
-import { TextureWarmer } from './engine/texture-memory.js';
+import { TextureWarmer, releaseUnloadTextures } from './engine/texture-memory.js';
 
 /** Resolve the first function/class export among candidate names (stub modules may vary). */
 function pick(mod, ...names) {
@@ -417,6 +417,9 @@ export class Game {
     this.selection.detach();
     this._queue = [];
     if (this.world) {
+      // chunk rows first (engine/chunking.js): the map's dispose takes the chunked meshes out of the scene
+      safe(() => releaseAllChunks(this.renderer.scene), 'chunk rows');
+      safe(() => releaseUnloadTextures(), 'module textures'); // GPU copies of session-long module textures
       safe(() => this.mapHandle?.dispose?.(), 'map dispose');
       safe(() => this.world.fx?.dispose?.(), 'fx dispose');
       safe(() => this.physicsVisuals?.dispose?.(), 'physics visuals dispose');
@@ -789,7 +792,8 @@ export class Game {
       if (w.spyActs?.length) safe(() => spyActionsFrame(w, alpha, CONFIG.sim.dt), 'spy action poses'); // the Spy's injection / dressing
       if (w.switchStations?.length) safe(() => switchStationsFrame(w, alpha, CONFIG.sim.dt), 'switch stations'); // levers + the operator's hand
       if (this.physicsVisuals) safe(() => this.physicsVisuals.frame(), 'physics visuals'); // props, vehicle rock, censored bodies
-      safe(() => this.mapHandle?.frame?.(animDt, this.renderer.camera), 'terrain frame'); // trails, grass, trees
+      // trails, grass, trees; the water's offscreen passes (FFT, caustics, ripples, mirror) only for a drawn frame
+      safe(() => this.mapHandle?.frame?.(animDt, this.renderer.camera, draw), 'terrain frame');
       this._updateCones();
       this.renderer.fitShadowToView?.(this.cameraRig);
       const cc = this.cameraController;

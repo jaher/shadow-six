@@ -114,6 +114,30 @@ export function slimShadowMap(shadow) {
 }
 
 /**
+ * The PCF shadow map's colour attachment is never read (three samples its depth texture), yet three allocates one as
+ * large as the map (R8 since slimShadowMap: 4 MB at 2048², 16 MB at 4096², 64 MB at 8192²). Once three has set the
+ * target up, detach and free it: a depth-only framebuffer is complete in WebGL 2 and the shadow pass's colour writes
+ * are discarded — the depth it writes is the same. Checked after every frame (a lookup); a resized map or a restored
+ * context brings a new framebuffer, freed again. @returns {boolean} freed now
+ */
+export function dropShadowColour(renderer, shadow) {
+  const rt = shadow?.map;
+  if (!rt?.isWebGLRenderTarget || rt.isWebGLCubeRenderTarget || !rt.depthTexture || !renderer?.properties) return false;
+  const fb = renderer.properties.get(rt).__webglFramebuffer;
+  if (!fb || rt.userData?.colourFreed === fb) return false;
+  const tp = renderer.properties.get(rt.texture), tex = tp.__webglTexture, gl = renderer.getContext();
+  (rt.userData ||= {}).colourFreed = fb;
+  if (!tex || gl.isContextLost()) return false;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, null, 0);
+  const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+  if (!ok) gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0); // keep it (never seen)
+  else { gl.deleteTexture(tex); tp.__webglTexture = undefined; }
+  renderer.resetState(); // three's cached framebuffer binding no longer matches
+  return ok;
+}
+
+/**
  * Post-pass targets whose values are 0..1 factors (SMAA edges + blend weights — the formats of the reference SMAA —
  * and the GTAO / denoised AO buffers) need no half floats: 8 bits per channel, half the memory. Set before their
  * first use (three allocates on first render; setSize keeps the type).
@@ -383,7 +407,7 @@ export class Renderer {
   setTheater(theater, overrides = null, opts = {}) {
     const L = resolveLighting(theater, overrides);
     this.theater = L;
-    this.theaterHdr = opts.hdrTexture || null;
+    this._swapHdr(opts.hdrTexture || null);
     if (this.theaterHdr) {
       const a = analyzeHDR(this.theaterHdr);
       if (a) {
@@ -470,13 +494,20 @@ export class Renderer {
     this.sun.intensity = intensity;
   }
 
+  /** The theatre's HDR changes: the previous one leaves the GPU (assets keeps its data: it uploads again if it returns). */
+  _swapHdr(tex) {
+    const old = this.theaterHdr;
+    this.theaterHdr = tex;
+    if (old && old !== tex) old.dispose();
+  }
+
   /**
    * Image based lighting from an equirectangular HDR texture (null → procedural sky → RoomEnvironment).
    * @param {THREE.Texture|null} hdrTexture
    * @param {{intensity?: number, background?: boolean}} [opts]
    */
   setEnvironment(hdrTexture, opts = {}) {
-    this.theaterHdr = hdrTexture;
+    this._swapHdr(hdrTexture);
     const L = { ...(this.theater || THEATER_LIGHTING.temperate) };
     if (opts.intensity !== undefined) L.envIntensity = opts.intensity;
     L.envBackground = !!opts.background;
@@ -715,6 +746,7 @@ export class Renderer {
     } finally {
       if (this.shadowCull) this.shadowCull.enabled = false;
     }
+    if (this.preset.shadows) dropShadowColour(this.renderer, this.sun.shadow);
   }
 
   _renderFrame(dt) {

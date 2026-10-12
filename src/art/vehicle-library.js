@@ -24,8 +24,9 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { keepEncodedImages } from '../engine/texture-memory.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { scoped, touch, sceneBytes, disposeScene, textureBytes } from '../engine/scoped-assets.js';
+import { scoped, touch, sceneBytes, disposeScene } from '../engine/scoped-assets.js';
 import { libTier, loadLibDensity, setLibPreset } from './lib-tiers.js';
+import { sharedLibTexture, isLibTexture, isLibImage } from './lib-textures.js';
 
 const DEG = Math.PI / 180;
 const YAW_KINDS = new Set(['turret', 'turret_yaw', 'gun_yaw', 'weapon_traverse', 'gun_yaw_pitch']);
@@ -35,15 +36,14 @@ const WHEEL_KINDS = new Set(['wheel', 'wheel_free']);
 
 const V = {
   manifest: null, base: 'assets/', manager: null, loaders: new Map(), gltf: new Map(), meta: new Map(),
-  pending: new Map(), texCache: new Map(), live: new Set(), zoom: 1, quality: 'default',
-  deps: new Map(), shared: new WeakSet(), sharedSrc: new WeakSet(), // model#lod#paint → its shared texture cache keys; the shared textures
+  pending: new Map(), live: new Set(), zoom: 1, quality: 'default',
+  deps: new Map(), // model#lod#paint → its shared texture cache keys (art/lib-textures.js)
 };
 
 /** Session-cache keys (engine/scoped-assets.js): a loaded LOD scene and a shared texture. */
 const lodKey = (key) => `veh:${key}`;
-const texKey = (key) => `vehtex:${key}`;
-const isShared = (t) => V.shared.has(t); // the shared texture object itself (its own cache entry)
-const isSharedImage = (t) => V.sharedSrc.has(t.source); // …or a glTF clone of it (same GPU image)
+const isShared = isLibTexture; // a shared texture object itself (its own cache entry: art/lib-textures.js)
+const isSharedImage = isLibImage; // …or a glTF clone of it (same GPU image)
 /** This mission uses a loaded LOD (and the shared textures it draws with). */
 function touchLod(key) { touch(lodKey(key), V.deps.get(key) || []); }
 
@@ -56,19 +56,7 @@ class SharedTextures {
     if (!img || !img.uri) return null; // embedded AO: default path
     const mgr = this.parser.options.manager;
     const url = new URL(img.uri, new URL(this.parser.options.path || '', globalThis.location?.href ?? 'http://localhost/')).href;
-    const key = `${mgr ? mgr.resolveURL(url) : url}|${def.sampler ?? -1}`;
-    if (!V.texCache.has(key)) {
-      const p = this.parser.loadTextureImage(index, def.source, this.parser.textureLoader);
-      V.texCache.set(key, p);
-      // one session-cache entry per shared map: freed once no kept mission draws a GLB that uses it
-      p.then((t) => {
-        if (!t || V.texCache.get(key) !== p) return;
-        V.shared.add(t); V.sharedSrc.add(t.source);
-        scoped(texKey(key), t, { bytes: textureBytes(t), free: (tt) => { if (V.texCache.get(key) === p) V.texCache.delete(key); tt.dispose(); } });
-      }, () => {});
-    } else touch(texKey(key));
-    (this.parser.shadowLibKeys ||= new Set()).add(texKey(key));
-    return V.texCache.get(key);
+    return sharedLibTexture(this.parser, index, mgr ? mgr.resolveURL(url) : url); // one GPU image per map, buildings too
   }
 }
 
@@ -530,6 +518,6 @@ function createConsist(type, T, opts) {
 export function liveVehicleVisuals() { return [...V.live]; }
 
 /** Drop cached GLBs/sidecars (tests, mission unload). Live visuals keep their clones. */
-export function clearVehicleCache() { V.gltf.clear(); V.meta.clear(); V.pending.clear(); V.texCache.clear(); V.deps.clear(); }
+export function clearVehicleCache() { V.gltf.clear(); V.meta.clear(); V.pending.clear(); V.deps.clear(); }
 
 export default createVehicleVisual;

@@ -333,6 +333,25 @@ export function releasedDataTextures() {
   return out;
 }
 
+// ------------------------------------------------------------------ module-cached textures across missions
+
+const UNLOAD_RELEASE = new Set();
+/**
+ * A texture a module keeps for the whole session (a procedural canvas, a shared water map): its GPU copy is freed when
+ * a mission unloads (`releaseUnloadTextures`, Game.unloadMission) and comes back from the kept image on its next use —
+ * so a map one mission drew does not stay on the GPU through every later mission. @returns {THREE.Texture} tex
+ */
+export function releaseGpuOnUnload(tex) {
+  if (tex?.isTexture) UNLOAD_RELEASE.add(tex);
+  return tex;
+}
+
+/** Free the GPU copies of the textures registered with releaseGpuOnUnload (their images stay). @returns {number} */
+export function releaseUnloadTextures() {
+  for (const t of UNLOAD_RELEASE) t.dispose();
+  return UNLOAD_RELEASE.size;
+}
+
 /** Listen for a restored WebGL context on the renderer's canvas. @returns {() => void} uninstall */
 export function installTextureMemory(renderer) {
   const el = renderer?.domElement;

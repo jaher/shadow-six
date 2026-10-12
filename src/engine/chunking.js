@@ -150,9 +150,20 @@ export function chunkMesh(mesh, { cell = 24, pad = 1 } = {}) {
     }
   }
   chunks.forEach((c, i) => c.box.set(new THREE.Vector3(mn[i * 3], mn[i * 3 + 1], mn[i * 3 + 2]), new THREE.Vector3(mx[i * 3], mx[i * 3 + 1], mx[i * 3 + 2])));
-  // the shared index (the proxy's geometry keeps raycasting / measuring the same triangles)
-  const newIndex = new THREE.BufferAttribute(out, 1);
-  geo.setIndex(newIndex);
+  // the shared index (the proxy's geometry keeps raycasting / measuring the same triangles). Rewritten in place when it
+  // fits (same type and size): the geometry may already be on the GPU (the water bakes draw the scene before chunking),
+  // and a replaced index attribute keeps its buffer for good — three frees a buffer only when its geometry is disposed,
+  // and a garbage-collected WebGLBuffer is not freed by the browser
+  let newIndex;
+  if (index && !index.isInterleavedBufferAttribute && index.array.constructor === IA && index.count === at && index.array.length === at) {
+    index.array.set(out);
+    index.needsUpdate = true;
+    newIndex = index;
+  } else {
+    geo.dispose(); // (the rows upload it again) its GPU copies — old index, attributes, vertex arrays — go now
+    newIndex = new THREE.BufferAttribute(out, 1);
+    geo.setIndex(newIndex);
+  }
   if (multi && geo.groups.length) {
     geo.clearGroups();
     let gStart = -1, gi = -1;
@@ -255,7 +266,8 @@ export function chunkMesh(mesh, { cell = 24, pad = 1 } = {}) {
 export function unchunkMesh(mesh) {
   const c = mesh?.__chunks;
   if (!c) return false;
-  for (const m of c.meshes) mesh.remove(m);
+  // the rows' vertex-array states (three keeps one per drawn geometry until it is disposed): the proxy draws itself again
+  for (const m of c.meshes) { mesh.remove(m); m.geometry.dispose(); }
   delete mesh.raycast; // Mesh.prototype.raycast again
   for (const k of FORWARD) { const v = mesh[k]; delete mesh[k]; mesh[k] = v; }
   mesh.isMesh = true;
@@ -265,6 +277,26 @@ export function unchunkMesh(mesh) {
 
 /** Is this object a chunk proxy (a chunked mesh drawn through its children)? */
 export const isChunked = (o) => !!o?.__chunks;
+
+/**
+ * Free the GPU side of a chunk proxy's rows (mission unload): three keeps a drawn geometry's vertex arrays — and through
+ * them its attributes' buffers — until that geometry is disposed, and the rows are per-load objects nobody else
+ * disposes (the proxy's own geometry may live on in the session cache: its GPU copy then goes too and comes back on its
+ * next draw, from the kept arrays). The rows stay usable: drawn again, they upload again. @returns {number} rows
+ */
+export function releaseChunks(mesh) {
+  const c = mesh?.__chunks;
+  if (!c) return 0;
+  for (const m of c.meshes) m.geometry.dispose();
+  return c.meshes.length;
+}
+
+/** releaseChunks for every chunk proxy under `root`. @returns {number} rows released */
+export function releaseAllChunks(root) {
+  let n = 0;
+  root?.traverse?.((o) => { if (o.__chunks) n += releaseChunks(o); });
+  return n;
+}
 
 /**
  * Chunk every big static mesh under `root` (load time, once the map is built): at least `minTris` triangles and a

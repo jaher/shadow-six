@@ -1945,9 +1945,13 @@ export function buildMap(world, mission, opts = {}) {
     ready: Promise.all([Promise.resolve(terrain?.ready).then(() => { if (!gone && meshes && terrain?.ground) stampTreeBranches(world, terrain.ground, terrain.vegetation?.trees); }).then(buildPavementNow).then(buildWaterNow).then(() => water?.system.texturesReady), Promise.resolve(terrain?.ready).then(() => terrain?.apronReady), libReady,
       // the dam pool's lace / normal textures (render/dam-water-pool.js): decoded before the first frame draws the pool
       meshes && realTerrain && hasDamWater(structures) ? loadDamPoolTextures() : null]).then(() => { lifeReady = true; }),
-    /** Per displayed frame: trails, grass/snow/tree animation, preset follow; water sim + reflections (before render). */
-    frame(dt, camera) {
-      terrain?.frame?.(dt, camera, world); water?.frame(dt, camera);
+    /**
+     * Per displayed frame: trails, grass/snow/tree animation, preset follow; water sim + reflections (before render).
+     * `draw` false (the view is covered by a menu): the water skips its offscreen passes — the next drawn frame makes
+     * them again before it renders, so nothing stale shows.
+     */
+    frame(dt, camera, draw = true) {
+      terrain?.frame?.(dt, camera, world); water?.frame(dt, camera, draw);
       if (pavement && pavement.quality !== terrain?.quality) { pavement.quality = terrain.quality; pavement.setQuality(terrain.quality); }
       setAntiTilingQuality(opts.renderer?.presetName); // kit / building materials: hex tiling on medium and up
       streetLights?.frame(dt, camera); tickBuildings(dt, camera, world.wind ?? null); doors.frame(dt);

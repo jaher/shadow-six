@@ -10,7 +10,7 @@ import { test, assert } from './lib.mjs';
 import { astcUnq192, astcUnq48, astcUnq160, astcQuints, astcTrits, astcTables, astcPatterns2, astcSeedTable, astcSeedTableAsync, chooseTier, blockBytes, mipLevels, GpuCompressor, GpuCompressedTexture, applyCompressed, COMPRESSED_HOOKS, keepImage } from '../../src/engine/gpu-compress.js';
 import { gltfColorSpaces, textureMemoryStats, reloadReleased } from '../../src/engine/texture-memory.js';
 import { textureBytes } from '../../src/engine/scoped-assets.js';
-import { slimShadowMap, eightBitTargets } from '../../src/engine/renderer.js';
+import { slimShadowMap, eightBitTargets, dropShadowColour } from '../../src/engine/renderer.js';
 
 test('ASTC QUANT_192: 192 distinct values spread over 0..255 (spec C.2.13 unquantization)', () => {
   const v = Array.from({ length: 192 }, (_, i) => astcUnq192(i));
@@ -250,6 +250,32 @@ test('shadow map: one-byte colour attachment and a 16-bit depth texture', () => 
   const vsm = new THREE.DepthTexture(64, 64, THREE.FloatType);
   const rt2 = new THREE.WebGLRenderTarget(64, 64); shadow.map = rt2; shadow.map.depthTexture = vsm;
   assert.equal(vsm.type, THREE.FloatType, 'other depth types are left alone');
+});
+
+test('shadow map: its unused colour attachment is detached and freed once three set the target up', () => {
+  const calls = [], props = new WeakMap(), FB = { fb: 1 }, TEX = { tex: 1 };
+  let status = 0x8CD5; // FRAMEBUFFER_COMPLETE
+  const gl = {
+    FRAMEBUFFER: 0x8D40, COLOR_ATTACHMENT0: 0x8CE0, TEXTURE_2D: 0x0DE1, FRAMEBUFFER_COMPLETE: 0x8CD5,
+    isContextLost: () => false, bindFramebuffer: (...a) => calls.push(['bind', ...a]), checkFramebufferStatus: () => status,
+    framebufferTexture2D: (...a) => calls.push(['attach', a[3]]), deleteTexture: (t) => calls.push(['delete', t]),
+  };
+  const R = { getContext: () => gl, properties: { get: (o) => { if (!props.has(o)) props.set(o, {}); return props.get(o); } }, resetState: () => calls.push(['reset']) };
+  const shadow = new THREE.DirectionalLight().shadow;
+  assert.equal(dropShadowColour(R, shadow), false, 'no map yet');
+  shadow.map = new THREE.WebGLRenderTarget(64, 64); shadow.map.depthTexture = new THREE.DepthTexture(64, 64);
+  assert.equal(dropShadowColour(R, shadow), false, 'not set up by three yet');
+  R.properties.get(shadow.map).__webglFramebuffer = FB; R.properties.get(shadow.map.texture).__webglTexture = TEX;
+  assert.equal(dropShadowColour(R, shadow), true);
+  assert.deepEqual(calls.filter((c) => c[0] !== 'bind'), [['attach', null], ['delete', TEX], ['reset']]);
+  assert.equal(R.properties.get(shadow.map.texture).__webglTexture, undefined);
+  assert.equal(dropShadowColour(R, shadow), false, 'once per framebuffer');
+  // a new framebuffer (resized map, restored context) whose depth-only form would be incomplete: kept as it is
+  calls.length = 0; status = 0x8CD6;
+  R.properties.get(shadow.map).__webglFramebuffer = { fb: 2 }; R.properties.get(shadow.map.texture).__webglTexture = TEX;
+  assert.equal(dropShadowColour(R, shadow), false);
+  assert.deepEqual(calls.filter((c) => c[0] === 'attach'), [['attach', null], ['attach', TEX]]);
+  assert.ok(!calls.some((c) => c[0] === 'delete'));
 });
 
 test('post targets holding 0..1 factors go 8-bit (SMAA edges / weights, GTAO)', () => {
