@@ -423,7 +423,10 @@ const _n = new THREE.Vector3(), _e1 = new THREE.Vector3(), _e2 = new THREE.Vecto
  * Low walkable surfaces of a structure's visual (steps, ramps, porch boards, snow skirts, berms): the highest
  * upward-facing triangle point per `cell` (m) square, for triangles lying entirely below `maxY` m. Feeds the
  * visual ground height (units' feet stand on these instead of sinking through them). `wade`: leave out the snow lying
- * lower than this (SNOW_WADE: the steps and porches themselves, not the drifts on them).
+ * lower than this (SNOW_WADE: the steps and porches themselves, not the drifts on them). Subtrees marked
+ * `userData.surface === false` are left out: parts that move (a gate's leaves, a boom's pole with its HALT plate and
+ * counterweight) are nobody's ground (the plate's underside, 0.66 m up under a shut boom, was: the M2 / M4 booms sat
+ * on it, 0.66 m in the air, and a man passing under an open boom stepped up onto it).
  * @param {THREE.Object3D} root @param {Map<string, number>} [into] accumulates across structures
  * @returns {Map<string, number>} "i,j" → world y
  */
@@ -432,7 +435,7 @@ function lowSurfacesRaw(root, o = {}, into = new Map()) {
   root.updateMatrixWorld(true);
   const put = (x, z, y) => { const k = `${Math.floor(x / cell)},${Math.floor(z / cell)}`; const p = into.get(k); if (p === undefined || y > p) into.set(k, y); };
   const visit = (nd) => {
-    if (nd.userData?.clip === false || (!nd.visible && !/^lod\d$/.test(nd.name))) return;
+    if (nd.userData?.clip === false || nd.userData?.surface === false || (!nd.visible && !/^lod\d$/.test(nd.name))) return;
     if (/^lod[12]$/.test(nd.name)) {
       const sib = nd.parent?.children || [];
       if (nd.name !== ['lod0', 'lod1', 'lod2'].find((nm) => sib.some((c) => c.name === nm))) return;
@@ -501,7 +504,7 @@ export function visualSignature(root) {
   const h = hasher();
   let ok = true;
   const visit = (n) => {
-    h.str(n.name); h.num(n.visible ? 1 : 0); h.num(n.userData?.clip === false ? 1 : 0); h.num(n.children.length);
+    h.str(n.name); h.num(n.visible ? 1 : 0); h.num(n.userData?.clip === false ? 1 : 0); h.num(n.userData?.surface === false ? 1 : 0); h.num(n.children.length);
     if (n.isMesh) {
       const g = n.geometry, pos = g?.attributes?.position;
       const gh = pos ? geometryHash(g) : null;

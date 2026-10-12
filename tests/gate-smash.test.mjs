@@ -106,7 +106,10 @@ export default async function gateSmash(page, t) {
   t.ok(r.bodies >= 12, `the gate broke into pieces (${r.bodies} bodies)`);
   t.ok(r.peakSpeed > 4, `pieces fly (peak ${r.peakSpeed.toFixed(1)} m/s)`);
   const settled = r.ev.find((e) => e[0] === 'gate:settled');
-  t.ok(settled && settled[1] <= 4.5, `pieces settle within ~4 s (${settled?.[1]} s)`);
+  // (5 s: the 4.5 s bound was measured with this plank gate seated 0.68 m up on its own leaves' rails, taken for ground
+  // by the low surfaces until fix/m02-gate-clip; on the ground the struck leaf's bottom-rail chunk lands on the truck's
+  // hull, rides it till the truck stops (2.1 s), is tipped off its end (3.4 s) and lies still at 4.8 s)
+  t.ok(settled && settled[1] <= 5, `pieces settle within ~4 s (${settled?.[1]} s)`);
   t.ok(r.frozen, 'every piece frozen into static wreckage');
   t.ok(r.thuds > 0, `landing thuds (${r.thuds})`);
   t.equal(r.gateBlocked, 0, 'the gap is passable (gate cells clear)');

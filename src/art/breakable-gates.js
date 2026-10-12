@@ -180,7 +180,9 @@ function boomPost(p) {
   if (p.gatePost) { // log gate post: tapering trunk, axe-pointed top, two iron bands, a tarred foot
     add(new THREE.CylinderGeometry(hx * 0.9, hx, 2 * hy - 0.22, 12), dressingMaterial('logs'), 0, -0.11, 0);
     add(new THREE.ConeGeometry(hx * 0.9, 0.22, 12), dressingMaterial('logs'), 0, hy - 0.11, 0);
-    add(new THREE.CylinderGeometry(hx * 1.02, hx * 1.04, 0.5, 12), dressingMaterial('logsTarred'), 0, -hy + 0.25, 0);
+    // (the tarred band's top cap, 0.5 m up inside its rim round the log, is no step: a man in M2's footway beside the
+    // far post was lifted 0.5 m onto it, placement-visual lowSurfaces)
+    add(new THREE.CylinderGeometry(hx * 1.02, hx * 1.04, 0.5, 12), dressingMaterial('logsTarred'), 0, -hy + 0.25, 0).userData.surface = false;
     for (const y of [hy - 0.55, -hy + 1.0]) add(new THREE.CylinderGeometry(hx * 0.95, hx * 0.95, 0.05, 12), ironMat(), 0, y, 0);
     return g;
   }
@@ -301,6 +303,11 @@ export function buildBreakableGate(def) {
     g.position.set(piv[0], layout.pivot ? piv[1] : 0, piv[2]);
     g.userData.pivot = piv;
     g.userData.side = hinge && !layout.pivot ? Math.sign(hinge.at[0]) || -1 : -1;
+    // a leaf swings (a boom rises): never ground to stand on (placement-visual lowSurfaces). The HALT plate's underside
+    // under a shut boom, 0.66 m up, was: world.groundY at the gate centre read 0.66, so the model (seated there,
+    // render/gate-smash-visuals.js, and its physics frame) stood 0.66 m in the air, its posts stretched to the ground
+    // (M2 e15 aiming beside gate_se: his rifle 6.5 cm into a fork rest that reached 1.9 m, clipping seed 11)
+    g.userData.surface = false;
     leaves.push(g); root.add(g);
   }
   for (const p of layout.pieces) {

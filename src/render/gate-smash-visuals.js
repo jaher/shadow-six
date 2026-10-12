@@ -62,8 +62,11 @@ export class GateSmashVisuals {
   _groundY(x, z) { const g = this.world.groundY; return typeof g === 'function' ? (g.call(this.world, x, z) || 0) : 0; }
 
   /**
-   * Intact gate on the ground at its centre (the physics frame uses the same height); each post is set into the ground
-   * under it (25 cm deep), so on a slope the downhill post does not hang in the air.
+   * Intact gate on the ground at its centre (the physics frame uses the same height: world.groundY, which never counts
+   * the gate's own moving parts — art/breakable-gates.js `userData.surface`); a post standing where the bare terrain
+   * drops away is stretched down into the ground under it (25 cm deep), so on a slope the downhill post does not hang in
+   * the air. On level ground the posts stay as built (a stretch scaled their fittings too: the fork rest's fork 5 cm
+   * taller than the layout the body-clearance rules read, the pivot pin 5 cm under the pole's axis, the footings buried).
    */
   _seat(rec) {
     const gy = this._groundY(rec.gate.x, rec.gate.z), rot = rec.gate.params?.rot ?? 0, c = Math.cos(rot), s = Math.sin(rot);
@@ -72,7 +75,9 @@ export class GateSmashVisuals {
       const m = rec.model.pieces.get(p.id);
       if (p.kind !== 'post' || !m) continue;
       const x = rec.gate.x + c * p.c[0], z = rec.gate.z + s * p.c[0], T = this.world.terrain; // the bare terrain under it
-      const top = p.c[1] + p.h[1], bot = Math.min(0, (T?.groundY ? T.groundY(x, z) : this._groundY(x, z)) - gy) - 0.25;
+      const drop = gy - (T?.groundY ? T.groundY(x, z) : this._groundY(x, z));
+      if (drop <= 0.02) { m.scale.y = 1; m.position.y = p.c[1]; continue; }
+      const top = p.c[1] + p.h[1], bot = -drop - 0.25;
       m.scale.y = (top - bot) / (2 * p.h[1]);
       m.position.y = (top + bot) / 2;
     }
