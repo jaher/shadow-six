@@ -1,0 +1,23 @@
+# M9 art pass (Bab el Qattara, "A Courtesy Call"): "script -- outdir variant seed" (desert family; bq_common.py on the
+# dz.py kit helpers). Ship with tools/blender/consolidate/addon_manifest.py:
+#   <art_root> <repo> manifest-bab-el-qattara desert tank_shed_bq=tank_shed_open_bq house_stone_bq=house_stone_bq_a,house_stone_bq_b,house_stone_store_bq
+#     house_flat_bq=house_flat_white_bq command_post_bq=command_post_white_bq hq_domed_bq=hq_domed_terraced_bq comms_hut_bq=comms_hut_antenna_bq
+#     bunker_sandbag_bq=sandbag_bunker_thatch_bq gantry_bq=gantry_hoist_bq drum_dump_bq=drum_dump_yellow_bq ammo_boxes_bq=ammo_boxes_bq_a,ammo_boxes_bq_b
+bq_shed.py <out> a 1
+bq_house.py <out> s1 1
+bq_house.py <out> s1_destroyed 1
+bq_house.py <out> s2 1
+bq_house.py <out> s3 2
+bq_house.py <out> ne 1
+bq_house.py <out> cp 1
+bq_house.py <out> cp_destroyed 1
+bq_hq.py <out> hq 1
+bq_hq.py <out> hq_destroyed 1
+bq_mil.py <out> bunker 1
+bq_mil.py <out> bunker_destroyed 1
+bq_mil.py <out> comms 1
+bq_mil.py <out> comms_destroyed 1
+bq_props.py <out> y 1
+bq_props.py <out> a 1
+bq_props.py <out> b 1
+bq_props.py <out> g 1

@@ -1,0 +1,101 @@
+{
+ "asset": "ammo_boxes_bq_a",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "hessian": {
+   "source": "Poly Haven",
+   "id": "hessian_230",
+   "url": "https://polyhaven.com/a/hessian_230",
+   "authors": [
+    "colormass",
+    "Rico Cilliers"
+   ],
+   "license": "CC0-1.0",
+   "name": "Hessian 230",
+   "label": "Hessian sandbag cloth",
+   "files": {
+    "diff": {
+     "2k": "2k/hessian_diff",
+     "1k": "1k/hessian_diff"
+    },
+    "nor": {
+     "2k": "2k/hessian_nor",
+     "1k": "1k/hessian_nor"
+    },
+    "arm": {
+     "2k": "2k/hessian_arm",
+     "1k": "1k/hessian_arm"
+    }
+   }
+  },
+  "paint_metal": {
+   "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Smooth enamel-painted sheet metal (pale, tint per asset)",
+   "files": {
+    "diff": {
+     "1k": "1k/paint_metal_diff",
+     "2k": "2k/paint_metal_diff"
+    },
+    "nor": {
+     "1k": "1k/paint_metal_nor",
+     "2k": "2k/paint_metal_nor"
+    },
+    "arm": {
+     "1k": "1k/paint_metal_arm",
+     "2k": "2k/paint_metal_arm"
+    }
+   }
+  },
+  "sand": {
+   "source": "Poly Haven",
+   "id": "dense_sand",
+   "url": "https://polyhaven.com/a/dense_sand",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Dense Sand",
+   "label": "Desert sand drift",
+   "files": {
+    "diff": {
+     "2k": "2k/sand_diff",
+     "1k": "1k/sand_diff"
+    },
+    "nor": {
+     "2k": "2k/sand_nor",
+     "1k": "1k/sand_nor"
+    },
+    "arm": {
+     "2k": "2k/sand_arm",
+     "1k": "1k/sand_arm"
+    }
+   }
+  },
+  "wood_paint": {
+   "source": "Poly Haven",
+   "id": "weathered_peeling_timber",
+   "url": "https://polyhaven.com/a/weathered_peeling_timber",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Peeling Timber",
+   "label": "Pale painted wood base (tint via kit_tint for shutters/frames)",
+   "files": {
+    "diff": {
+     "2k": "2k/wood_paint_diff",
+     "1k": "1k/wood_paint_diff"
+    },
+    "nor": {
+     "2k": "2k/wood_paint_nor",
+     "1k": "1k/wood_paint_nor"
+    },
+    "arm": {
+     "2k": "2k/wood_paint_arm",
+     "1k": "1k/wood_paint_arm"
+    }
+   }
+  }
+ }
+}

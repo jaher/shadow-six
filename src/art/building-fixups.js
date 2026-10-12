@@ -6,6 +6,8 @@
  *    snow → the turf faces take the asset's own snow material
  *  - bunker nets: the desert/snow drapes were opaque hessian sheets → real alpha-tested camouflage netting
  *    (tinted to the theatre); the temperate net gets the same cut-out
+ *  - desert palm-frond shades/thatch (kit:palm_frond_dz): exported without alphaMode MASK → the leaf cards drew as
+ *    opaque black squares → alpha-tested (cut-out), double-sided
  *  - uboat_pen: Fangrost rib tops had their concrete stretched along 50 m ribs (striped) → object-space triplanar
  * @module art/building-fixups
  */
@@ -71,6 +73,24 @@ function fixBunkerNet(root, base, name) {
   return n;
 }
 
+/** Palm-frond leaf cards: the RGBA albedo carries the cut-out but the GLB material is OPAQUE → alpha test in place. */
+export function fixPalmFrond(root) {
+  let n = 0;
+  const done = new Set();
+  for (const o of meshesOf(root)) {
+    for (const m of matsOf(o)) {
+      if (!/kit:palm_frond/.test(m.name) || !m.map || done.has(m)) continue;
+      done.add(m);
+      m.alphaTest = 0.5;
+      m.transparent = false;
+      m.side = THREE.DoubleSide;
+      m.needsUpdate = true;
+      n++;
+    }
+  }
+  return n;
+}
+
 /** Concrete of the U-boat pen: object-space triplanar albedo/ARM (world space, 2.5 m tiles) instead of the stretched rib UVs. */
 function fixUboatConcrete(root) {
   const cache = new Map();
@@ -108,6 +128,7 @@ export function applyAssetFixups(root, name, lod, base = 'assets/') {
   const out = [];
   if (/_snow$/.test(name) && fixSnowTurf(root)) out.push('snow-turf');
   if (fixBunkerNet(root, base, name)) out.push('camo-net'); // every kit camo net; the desert/snow bunker hessian drapes
+  if (fixPalmFrond(root)) out.push('palm-frond-cutout'); // every desert asset with frond shades/thatch
   if (/^uboat_pen/.test(name) && fixUboatConcrete(root)) out.push('uboat-triplanar');
   return out;
 }

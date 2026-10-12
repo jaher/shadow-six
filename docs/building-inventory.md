@@ -64,9 +64,9 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `house_timber_farm` | house | 2-storey timber farmhouse, snowy roof | Norway | M1 (rendezvous, `ALBERGUE01-03`) | E, C | 10×7×8 | norway |
 | `house_norse_fishing` | house | Dark-tarred and red-painted Norwegian coastal houses, some with boat-shed annexes | Norway coast | M7 (E village) | E; the village barracks is D, B | 9×6×7 | VAR:norway |
 | `house_bombed_log` | ruins | Roofless, bombed-out 2-storey log house. **Interior** needed: floors, chequer-tile floor, white interior stairs, interior ladder, grandfather clock, round log corner turret, exterior stairs, a C broken wall | Norway | **M6 (×2)** | E, C, L | 16×12×8 | VAR:europe (ruined houses) |
-| `house_whitewash_flat` | flat_roof_house | Whitewashed flat-roof house with parapet | N. Africa | M8, M9, M11 | E, R | 8×7×4 | desert |
+| `house_whitewash_flat` | flat_roof_house | Whitewashed flat-roof house with parapet | N. Africa | M8, M9, M11 | E, R | 8×7×4 | desert (M9 pass: `house_flat_white_bq` door W, `command_post_white_bq` + destroyed) |
 | `house_adobe_redtile` | house | Adobe row house with a red-tile pent roof | N. Africa | M8 (×6) | E | 6×5×4 | BUILT (M8 pass: five builds `house_adobe_redtile_n1`-`_n3` door N, `_w1` / `_w2` door W, door centred; awning / annex + stair / lean-to / dovecote / water-jar stand on the S and E faces) |
-| `house_stone_pitched` | house | Stone house with a pitched roof, desert village | N. Africa | M9 | E | 7×6×5 | VAR:desert |
+| `house_stone_pitched` | house | Stone house with a pitched roof, desert village | N. Africa | M9 | E | 7×6×5 | VAR:desert (M9 pass: `house_stone_bq_a/_b`, `house_stone_store_bq` + destroyed) |
 | `house_domed_arcade` | house | White domed house with an arcaded courtyard and flag | N. Africa | M8 (the "whitewashed domed barracks") | E, D | 14×12×7 | KIT (M8 pass: art/kit-buildings.js `domedArcade`, walkable terrace kept) |
 | `medina_block` | flat_roof_house | Dense medina block: 2-4 storeys, white or ochre render, parapets, roof terraces, **roof ladders, exterior stairs, arched balconies, pergolas**, small green-tiled **qubba** roof domes. Continuous rooftop routes | Tunis | M12 | E, R, L | 10-20 × 10-20 × 7-14 | VAR:desert |
 | `souk_arcade` | new | Arcaded souk colonnade with shopfronts | Tunis | M12 | — | 30×6×6 | kit + medina-kit (M12 art pass) |
@@ -110,7 +110,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `hq_log_flatroof` | house | Log HQ with a flat roof section, rooftop gear and flag; a guard stands on the roof | Norway | M6 | R, L | 14×10×6 | VAR:norway |
 | `stone_chapel_tower` | house | Stone building with a round tower, slate roof, arched door and flag | Norway | M6 (NW) [img, critic] | E | 16×8×10 | NEW |
 | `fortified_block_tower` | house | Stone-and-timber block with a round stone tower, flag, lean-to open canopy, ladder and platform | Norway | M6 (the "NE fortified block") [img, critic] | L, R | 16×12×10 | NEW |
-| `hq_domed_terraced` | new | Whitewashed, flagged command post: terraced, with a dome and outside stairs | N. Africa | M9, M11 (central garrison, guards on the roof) | **D**, R, L | 16×12×8 | NEW |
+| `hq_domed_terraced` | new | Whitewashed, flagged command post: terraced, with a dome and outside stairs | N. Africa | M9, M11 (central garrison, guards on the roof) | **D**, R, L | 16×12×8 | BUILT (M9 pass: `hq_domed_terraced_bq` 12×15, arcade W, dome, roof terrace + outside stair, + destroyed; manifest-bab-el-qattara) |
 | `domed_block` | house | Flat-roof block with an observatory-like dome | N. Africa | M10 (walled compound) [img] | E | 10×10×7 | VAR:desert |
 | `warehouse_adobe` | house | Flat-roof adobe warehouse with a large door | N. Africa | M9 (E and W) | D, E | 16×10×6 | VAR:desert |
 | `weapons_store` | house | Weapons or bomb store: a small, heavy flat-roof store with a door | N. Africa | M9 (the team hides in it), M10 (**objective**, S edge) | **D**, E | 10×8×4 | VAR:desert |
@@ -122,7 +122,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `guard_hut` | hut | Timber guard hut | All | M1, M2, M4 | E | 3×3×3 | norway |
 | `sentry_box` | hut | Sentry box (guérite, `GARI`/`GARE`, tooltip `GUERITE`): 1-man upright box | All | M1 (end of the stone wall), M2 (gate), B5 (×12) | — | 1.2×1.2×2.4 | VAR:norway (guard hut) |
 | `jail_cell` | new | Small jail cell or cell block with a barred door. It can be a room in a building (`CARCEL`) | All | M4, M12 (off the courtyard), M17 (cage-type gate), B5 (×2), B7 (punishment cells `CELDAS_CASTIGO`) | J, dr | 6×4×3 | NEW |
-| `comms_hut_antenna` | hut | Small communications hut cabled to a lattice antenna mast; in M9 the mast stands in a sandbag ring | N. Africa/Norway | M5 (antenna), M9 (**2 objectives**: mast and hut) | **D** | hut 4×3×3; mast 18 h | NEW |
+| `comms_hut_antenna` | hut | Small communications hut cabled to a lattice antenna mast; in M9 the mast stands in a sandbag ring | N. Africa/Norway | M5 (antenna), M9 (**2 objectives**: mast and hut) | **D** | hut 4×3×3; mast 18 h | BUILT (M9 pass: `comms_hut_antenna_bq` board-and-batten hut, whips, S blast wall, generator, + destroyed) |
 | `relay_station` | hut | Timber radio relay hut with a tall lattice radio mast and a parked vehicle (`RADI0000-2`, `RADIOEXP`) | Norway | M1 (**objective**, NW island) | **D** | hut 5×4×3; mast 20 h | NEW |
 | `radar_station` | new | Radar building with a Würzburg dish and antenna mast (`CASA04`) | Norway/Guernsey | M5 (summit, **objective**), B1 (**objective**) | **D** | bldg 10×6×4; dish 7.5 Ø | norway (building); VAR for the dish |
 | `hangar_metal` | hangar | Metal hangar with a corrugated gable roof | Desert/Germany | M10, B6 (×2, `CASA_HANGAR`) | E | 35×30×10 | military |
@@ -141,7 +141,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `mg_nest_sandbag` | sandbags | Sandbag MG/Gatling nest ring, open behind (`NIDOMET`/`METRBASE`) | All | M1, M4 (×3), M6, M10 (×3), M14 (×5), B1 (×3), B4 (×2), B5 (×4) | — | 4 Ø × 1.2 | military |
 | `bunker_concrete` | bunker | Flat concrete bunker, flagged in places, releases patrols | All | M3 (dam abutment + about 4 garrison bunkers), M5 (SE, D), M8 (SW), M10 (airfield), M19 | D (M3, M5) | 8×6×3 | military |
 | `pillbox_round` | bunker | Round concrete pillbox, possibly with a cupola | Belgium/Alsace/Prussia/Desert | M16/M18 (both bridge ends, D in M18), M17 (riverside, D), M8 (SW, with cupola) [img], B5 | D | 6 Ø × 3 | europe (M16 art pass: `pillbox_round_be`, no cupola; no destroyed variant yet) |
-| `bunker_sandbag_thatch` | bunker | Sandbag bunker with a thatch or timber roof | N. Africa | M9 (**objective**) | **D** | 8×6×2.5 | VAR:military |
+| `bunker_sandbag_thatch` | bunker | Sandbag bunker with a thatch or timber roof | N. Africa | M9 (**objective**) | **D** | 8×6×2.5 | VAR:military (M9 pass: `sandbag_bunker_thatch_bq` + destroyed) |
 | `dugout_airfield` | bunker | Long, low, log/sandbag-roofed dugout bunker | N. Africa | M10 (airfield NW; it releases patrols) [img] | — | 14×6×2.5 | NEW |
 | `casemate_embrasure` | casemate_gun | Concrete casemate/blockhouse with a gun embrasure (Atlantic Wall) | France | M14 (×2) | **D** | 12×10×5 | BUILT (M14 pass: `casemate_h612` 8×9, `casemate_h679` 12×9, + destroyed) |
 | `gun_turret_block` | casemate_gun | Concrete block with a rotating gun turret | France | M14 | **D** | 10×10×5 | BUILT (M14 pass, + destroyed) |
@@ -189,9 +189,9 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `electric_fence_switch` | fence | Powered chain-link fence (`ALAM` ×12) with a fence switch box or switch tower | Norway | M3 | cut, dr | linear | NEW |
 | `power_pylon` | new | Lattice power-line pylon | Norway | M3 (crosses the river) | — | 6×6×25 | NEW |
 | `tunnel_portal` | new | Rock-cut tunnel portal with an arched masonry face; it collapses on a charge | N. Africa | M11 (N cliff) | **Db** | 10×4×7 | NEW |
-| `tank_shed_open` | new | Open-front multi-bay tank shed or garage: timber or corrugated, some with broken roofs | N. Africa/Germany | M9 (3 bays, 3 Panzer IVs roll out), M10 (about 5 sheds), M19 (with smokestack) | — | 8×12×5 per bay | NEW |
+| `tank_shed_open` | new | Open-front multi-bay tank shed or garage: timber or corrugated, some with broken roofs | N. Africa/Germany | M9 (3 bays, 3 Panzer IVs roll out), M10 (about 5 sheds), M19 (with smokestack) | — | 8×12×5 per bay | BUILT (M9 pass: `tank_shed_open_bq` 3 bays 21×9, corrugated, torn roof over the E bay, rolled camouflage net) |
 | `garage_brick` | house | Brick garage/warehouse with a big door (the Panzer II garage); a truck can block it | France | M13 | dr | 14×10×7 | BUILT (M13 pass: `garage_brick`, open S door, tile roof) |
-| `gantry_hoist` | new | Lattice A-frame gantry hoist over a tank under repair | N. Africa | M9, M10 [img] | — | 8×4×7 | NEW |
+| `gantry_hoist` | new | Lattice A-frame gantry hoist over a tank under repair | N. Africa | M9, M10 [img] | — | 8×4×7 | BUILT (M9 pass: `gantry_hoist_bq` A-frames, beam, chain block, engine on its stand) |
 | `crane_tower_jib` | new | Lattice steel tower or jib crane | Alsace/Germany | M17 (outside the NW camp wall) [img], M19 (rail base) | — | 4×4×14 | NEW |
 | `crane_dock_portal` | new | Dockside portal jib crane, on rails in one case | France/Germany | M13 (×2), B4 (yard cranes), M7 (dock crane) | — | 8×8×18 | BUILT as a lattice-pillar jib crane (M13 pass: `crane_pillar`; keeps the 1.2 m crane foot of the layout) |
 | `gantry_crane_overhead` | new | Overhead travelling gantry crane over tracks | Germany | B4 | — | 25×6×10 | NEW |

@@ -61,6 +61,7 @@ const SETS = {
   adobe: ['adobe_ochre', 0xffffff, 0xb08a5c, 1.0],
   mudbrick: ['mudbrick', 0xffffff, 0x9c7b56, 1.0],
   mudRender: ['mud_render2', 0xffffff, 0xa58866, 0.9],
+  mudCap: ['plaster_rough', 0xe9d3ad, 0xb39a74, 0.9],        // M9 art pass: the camp wall's sun-bleached crown
   sandstone: ['sandstone_ochre', 0xffffff, 0xb59468, 1.1],
   ashlar: ['ashlar_limestone', 0xffffff, 0xb7ae9c, 1.0],
   rubble: ['rubble_stone', 0xffffff, 0x8a8174, 1.2],
@@ -507,6 +508,8 @@ export function buildWall(points, o) {
   // M15 art pass: the burned-out house's shell (brick with plaster and wallpaper remnants, charred joists, jagged tops)
   if (/^ruin_(burnt_walls|wall_stub)$/.test(String(o.variant))) return buildBurntWall(points, o, h, width, R);
   if (kind === 'mudbrick' && /ruin/.test(String(o.variant))) return ruinedMudWall(points, { ...o, h, width }, R);
+  if (/^mudbrick_broken$/.test(String(o.variant))) return ruinedMudWall(points, { ...o, h, width }, R); // M9 art pass: the broken stub
+  if (/^mudbrick_wire$/.test(String(o.variant))) return campMudWall(points, { ...o, h, width }, R);     // M9 art pass: the octagon
   if (kind === 'stone' && /ruined_stone_low/.test(String(o.variant))) return ruinedFieldWall(points, { ...o, h, width }, R);
   const mat = dressingMaterial(kind);
   for (let k = 0; k + 1 < points.length; k++) {
@@ -666,6 +669,92 @@ function ruinedFieldWall(points, o, R) {
       const sd = R() < 0.5 ? -1 : 1, u = (R() - 0.5) * L, off = width / 2 + 0.1 + R() * 0.5, s = 0.14 + R() * 0.16;
       const b = mesh(boulderGeometry(s * 1.4, Math.min(0.12, s * 0.45), s, Math.floor(R() * 1e9), 1), stone);
       b.position.set(cx + tx * u + nx * sd * off, 0, cz + tz * u + nz * sd * off); b.rotation.y = R() * 6.3; root.add(b);
+    }
+  }
+  return consolidate(root);
+}
+
+/** Irregular flat patch outline (ShapeGeometry, local XY, centred), `n` jittered points. */
+function blobShape(w, h, R, n = 9) {
+  const sh = new THREE.Shape();
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2, k = 0.72 + R() * 0.3;
+    const x = Math.cos(a) * (w / 2) * k, y = Math.sin(a) * (h / 2) * k;
+    if (i === 0) sh.moveTo(x, y); else sh.lineTo(x, y);
+  }
+  sh.closePath();
+  return new THREE.ShapeGeometry(sh);
+}
+
+/**
+ * M9 art pass: the camp's octagonal perimeter (dossier §5.2 `wall_mudbrick`, mud brick under a worn mud render).
+ * A battered wall (the crest ~72 % of the foot's thickness) with a hand-rounded crown, a little plan wobble and a
+ * ragged crest, an exposed mud-brick foot where the render has eroded, ragged patches of fallen render showing the
+ * bricks on both faces, rain gullies under the crest and tapering buttresses on the inner face (`o.inside: [x, z]`, a
+ * point inside the enclosure; default the left side) every ~7 m. The crest stays within 8 cm of the gameplay height
+ * (the wire layer's concertina sits on it). Mesh only — the footprint is the run's own line.
+ */
+function campMudWall(points, o, R) {
+  const h = o.h, width = o.width, root = new THREE.Group(); root.name = 'dressing:wall:mudbrick_camp';
+  const render = dressingMaterial('adobe'), brick = dressingMaterial('mudbrick'), cope = dressingMaterial('mudCap');
+  for (let k = 0; k + 1 < points.length; k++) {
+    const [ax, az] = points[k], [bx, bz] = points[k + 1], L = Math.hypot(bx - ax, bz - az);
+    if (L < 1e-3) continue;
+    const rot = -Math.atan2(bz - az, bx - ax), cx = (ax + bx) / 2, cz = (az + bz) / 2, Lw = L + width * 0.9;
+    const tx = (bx - ax) / L, tz = (bz - az) / L, nx = -tz, nz = tx; // local +z of the rotated box = (nx, nz)
+    const inSide = o.inside ? Math.sign((o.inside[0] - cx) * nx + (o.inside[1] - cz) * nz) || 1 : 1;
+    const segs = Math.max(4, Math.round(Lw / 0.6)), ph = R() * 10;
+    const geo = new THREE.BoxGeometry(Lw, h - 0.1, width, segs, 3, 1), P = geo.attributes.position;
+    for (let i = 0; i < P.count; i++) {
+      const u = P.getX(i) / Lw + 0.5, y = P.getY(i) + (h - 0.1) / 2, f = y / (h - 0.1);
+      const wob = 0.035 * Math.sin(u * L * 0.9 + ph) + 0.02 * Math.sin(u * L * 2.3 + ph * 2);
+      P.setZ(i, P.getZ(i) * (1 - 0.28 * f) + wob * (0.4 + f));
+      if (f > 0.99) P.setY(i, P.getY(i) - R() * 0.05);
+    }
+    geo.computeVertexNormals();
+    const wall = mesh(boxUV(geo.toNonIndexed(), 1.8), render); wall.position.set(cx, (h - 0.1) / 2, cz); wall.rotation.y = rot; root.add(wall);
+    // hand-rounded crown: a low crowned cap along the crest
+    const cg = new THREE.BoxGeometry(Lw, 0.16, width * 0.74, segs, 1, 2), C = cg.attributes.position;
+    for (let i = 0; i < C.count; i++) {
+      const u = C.getX(i) / Lw + 0.5, wob = 0.035 * Math.sin(u * L * 0.9 + ph) + 0.02 * Math.sin(u * L * 2.3 + ph * 2);
+      if (C.getY(i) > 0) C.setZ(i, C.getZ(i) * (Math.abs(C.getZ(i)) > 1e-3 ? 0.45 : 1));
+      C.setZ(i, C.getZ(i) + wob * 1.4);
+    }
+    cg.computeVertexNormals();
+    const cap = mesh(boxUV(cg.toNonIndexed(), 1.4), cope); cap.position.set(cx, h - 0.09, cz); cap.rotation.y = rot; root.add(cap);
+    // eroded foot: bare mud brick to ~0.45 m, slightly proud of the render
+    const fh = 0.32 + R() * 0.16;
+    const foot = mesh(boxUV(new THREE.BoxGeometry(Lw - 0.05, fh, width + 0.05), 1.6), brick); foot.position.set(cx, fh / 2, cz); foot.rotation.y = rot; root.add(foot);
+    // fallen render: ragged brick patches on both faces, gullies under the crest
+    const face = (sd, y) => width / 2 * (1 - 0.28 * y / h) + 0.012;
+    const tilt = Math.atan2(0.28 * width / 2, h);
+    for (let n = 0; n < Math.max(1, Math.round(L / 2.4)); n++) for (const sd of [-1, 1]) {
+      if (R() < 0.35) continue;
+      const pw = 0.5 + R() * 1.3, phh = 0.35 + R() * 0.9, u = (R() - 0.5) * (L - pw), y = 0.6 + R() * (h - 1.3);
+      const pm = mesh(blobShape(pw, phh, R), brick, false); const off = face(sd, y);
+      pm.position.set(cx + tx * u + nx * sd * off, y, cz + tz * u + nz * sd * off);
+      pm.rotation.set(-tilt, rot + (sd < 0 ? Math.PI : 0), 0, 'YXZ'); root.add(pm);
+    }
+    for (let n = 0; n < Math.round(L / 3); n++) {
+      const sd = R() < 0.5 ? -1 : 1, u = (R() - 0.5) * (L - 0.6), gh = 0.6 + R() * 0.8, y = h - 0.12 - gh / 2;
+      const gm = mesh(blobShape(0.18 + R() * 0.12, gh, R, 7), brick, false); const off = face(sd, y) + 0.002;
+      gm.position.set(cx + tx * u + nx * sd * off, y, cz + tz * u + nz * sd * off);
+      gm.rotation.set(-tilt, rot + (sd < 0 ? Math.PI : 0), 0, 'YXZ'); root.add(gm);
+    }
+    // buttresses on the inner face, tapering to the crest
+    const nb = Math.floor(L / 7);
+    for (let n = 1; n <= nb; n++) {
+      const u = -L / 2 + (L * n) / (nb + 1), bh = h * (0.78 + R() * 0.08);
+      const bg = new THREE.BoxGeometry(0.7, bh, 0.55, 1, 2, 1), Bp = bg.attributes.position;
+      for (let i = 0; i < Bp.count; i++) {
+        const f = (Bp.getY(i) + bh / 2) / bh;
+        if (Bp.getZ(i) > 0) Bp.setZ(i, Bp.getZ(i) - 0.5 * f * 0.9);
+        Bp.setX(i, Bp.getX(i) * (1 - 0.18 * f));
+      }
+      bg.computeVertexNormals();
+      const bt = mesh(boxUV(bg.toNonIndexed(), 1.6), render); const off = width / 2 * (1 - 0.28 * 0.4) - 0.05 + 0.275;
+      bt.position.set(cx + tx * u + nx * inSide * off, bh / 2, cz + tz * u + nz * inSide * off);
+      bt.rotation.y = rot + (inSide < 0 ? Math.PI : 0); root.add(bt);
     }
   }
   return consolidate(root);

@@ -33,7 +33,7 @@ const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (§4.1)
 
 // ---------------------------------------------------------------- walls, fences, gates (dossier §5.2)
-const wall = (id, points, extra = {}) => ({ id, type: 'wall', variant: 'mudbrick_wire', mat: 'plaster', points, h: 3, width: 0.8, ...extra });
+const wall = (id, points, extra = {}) => ({ id, type: 'wall', variant: 'mudbrick_wire', mat: 'plaster', points, h: 3, width: 0.8, inside: [51, 62], ...extra });
 const mesh = (id, points) => ({ id, type: 'fence', variant: 'mesh_iron', points, h: 3 });
 
 /** The octagon's inside (hardpan decal; also used by tests). */
@@ -78,36 +78,42 @@ const BUSHES = [[29.5, 10.5], [48.5, 49], [37, 71.5], [44.5, 82], [47.5, 85], [5
   .map(([x, z], k) => bush(k + 1, x, z));
 const crate = (id, x, z, w = 2, d = 2, h = 1.1) => ({ id, type: 'crates', x, z, rot: 0, w, d, h, block: 1 });
 
-/** Gantry hoist (D6 fallback): two lattice posts 7 m high with the engine block between them (open under the beam). */
+/** Gantry hoist (D6 fallback): two lattice posts 7 m high with the engine block between them (open under the beam).
+ * Art pass: the posts are gameplay only (`visual: false`, footprints unchanged: a deeper post re-routed the Sapper's
+ * walk); `gantry_art` draws the library hoist (A-frames, beam, chain block, the engine on its stand) with no footprint. */
 const GANTRY = [-1, 1].map((s) => ({ id: `gantry_${s < 0 ? 'a' : 'b'}`, type: 'ruins', variant: 'gantry_hoist_post', mat: 'metal',
-  x: +(35 + s * 3.5 * Math.cos(deg(30))).toFixed(2), z: +(49 + s * 3.5 * Math.sin(deg(30))).toFixed(2), rot: deg(30), w: 0.6, d: 0.6, h: 7, block: 2 }));
+  x: +(35 + s * 3.5 * Math.cos(deg(30))).toFixed(2), z: +(49 + s * 3.5 * Math.sin(deg(30))).toFixed(2), rot: deg(30), w: 0.6, d: 0.6, h: 7, block: 2,
+  visual: false }));
+const GANTRY_ART = { id: 'gantry_art', type: 'crates', variant: 'gantry_hoist_bq', asset: 'gantry_hoist_bq', x: 35, z: 49, rot: deg(30), w: 7.6, d: 4.2, h: 7,
+  block: 0, nav: false, clipAllow: ['gantry_a', 'gantry_b', 'gantry_engine'] };
 
 const STRUCTURES = [
   ...WALLS,
   // --- the NW tank shed: 3 open bays (open side SE), pz1–pz3 inside; not destructible
-  { id: 'shed', type: 'tank_shed', variant: 'tank_shed_open', label: 'Tank shed', x: 20.9, z: 21.6, rot: deg(315), w: 21, d: 9, h: 5, open: 'S' },
+  { id: 'shed', type: 'tank_shed', variant: 'tank_shed_open', asset: 'tank_shed_open_bq', nav: false, label: 'Tank shed', x: 20.9, z: 21.6, rot: deg(315), w: 21, d: 9, h: 5, open: 'S' },
   // --- the five targets
-  house('wstore', 50, 43.5, 8, 7.5, [52, 47.3], { label: 'Weapons store', destructible: true, hp: 100 }),
-  flat('cp', 62.5, 58.5, 9, 7, [65, 62], { label: 'Command post', flag: true, destructible: true, hp: 100 }),
-  { id: 'bunker', type: 'bunker', variant: 'bunker_sandbag_thatch', label: 'Bunker', x: 18.5, z: 50.5, rot: 0, w: 8, d: 7, h: 2.5, mat: 'sandbag',
+  house('wstore', 50, 43.5, 8, 7.5, [52, 47.3], { label: 'Weapons store', destructible: true, hp: 100, asset: 'house_stone_store_bq', nav: false }),
+  flat('cp', 62.5, 58.5, 9, 7, [65, 62], { label: 'Command post', flag: true, destructible: true, hp: 100, asset: 'command_post_white_bq', nav: false }),
+  { id: 'bunker', type: 'bunker', variant: 'bunker_sandbag_thatch', asset: 'sandbag_bunker_thatch_bq', nav: false, label: 'Bunker', x: 18.5, z: 50.5, rot: 0, w: 8, d: 7, h: 2.5, mat: 'sandbag',
     destructible: true, bombOnly: false, hp: 100 },
   { id: 'ant', type: 'radio_mast', variant: 'wurzburg_dish', label: 'Aerial', x: 79.5, z: 71, rot: 0, w: 7, d: 7, r: 3.5, h: 7, destructible: true, hp: 100 },
   { id: 'ant_ring', type: 'sandbags', variant: 'sandbag_ring', x: 79.5, z: 71, rot: deg(45), ring: { r: 4.5, arc: 300 }, h: 1.2, block: 1 },
-  { id: 'comms', type: 'hut', variant: 'comms_hut_antenna', label: 'Radio hut', x: 70.5, z: 79.5, rot: 0, w: 8, d: 6, h: 4.5, mat: 'wood', destructible: true, hp: 100 },
+  { id: 'comms', type: 'hut', variant: 'comms_hut_antenna', asset: 'comms_hut_antenna_bq', nav: false, label: 'Radio hut', x: 70.5, z: 79.5, rot: 0, w: 8, d: 6, h: 4.5, mat: 'wood', destructible: true, hp: 100 },
   // --- the garrison: the domed two-storey block with its roof terrace (y 4) and outside stairs; NOT a target
-  { id: 'barr', type: 'flat_roof_house', variant: 'hq_domed_terraced', label: 'Barracks', x: 87, z: 52.5, rot: 0, w: 12, d: 15, h: 4, roofY: 4,
+  { id: 'barr', type: 'flat_roof_house', variant: 'hq_domed_terraced', asset: 'hq_domed_terraced_bq', nav: false, label: 'Barracks', x: 87, z: 52.5, rot: 0, w: 12, d: 15, h: 4, roofY: 4,
     roofWalk: true, dome: true, flag: true, mat: 'plaster', garrison: true, destructible: true, hp: 100, door: deg(90) }, // S face (a side angle: map-builder doorPoint)
   // --- hideouts
-  house('house_n1', 50, 13.5, 7, 7, [48.5, 17]),
-  house('house_n2', 57, 21, 7, 7, [54.5, 24.5]),
-  flat('house_ne', 64.5, 28, 7, 6, [61, 28]),
+  house('house_n1', 50, 13.5, 7, 7, [48.5, 17], { asset: 'house_stone_bq_a', nav: false }),
+  house('house_n2', 57, 21, 7, 7, [54.5, 24.5], { asset: 'house_stone_bq_b', nav: false }),
+  flat('house_ne', 64.5, 28, 7, 6, [61, 28], { asset: 'house_flat_white_bq', nav: false }),
   { id: 'house_ne_annex', type: 'hut', variant: 'lean_to_mudbrick', x: 69, z: 30.5, rot: 0, w: 2.5, d: 3, h: 2.6, mat: 'plaster' },
-  ...GANTRY,
-  crate('gantry_engine', 35, 49, 1.6, 1.2, 1.2),
+  ...GANTRY, GANTRY_ART,
+  { ...crate('gantry_engine', 35, 49, 1.6, 1.2, 1.2), visual: false },
   // --- props
   ...DRUMS,
-  { id: 'drums_y', type: 'barrels', variant: 'drum_stack_yellow', label: 'Yellow drums', x: 40.5, z: 100, rot: 0, w: 5, d: 4, h: 1.2, block: 1 },
-  crate('crates_g1', 29, 52.5), crate('crates_g2', 31, 54.5), crate('crates_g3', 33.5, 57), crate('crates_g4', 36.5, 59.5),
+  { id: 'drums_y', type: 'barrels', variant: 'drum_stack_yellow', asset: 'drum_dump_yellow_bq', label: 'Yellow drums', x: 40.5, z: 100, rot: 0, w: 5, d: 4, h: 1.2, block: 1 },
+  ...[['crates_g1', 29, 52.5], ['crates_g2', 31, 54.5], ['crates_g3', 33.5, 57], ['crates_g4', 36.5, 59.5]] // art pass: Afrika Korps ammunition stacks
+    .map(([id, x, z], k) => ({ ...crate(id, x, z), asset: `ammo_boxes_bq_${'ab'[k % 2]}` })),
   crate('drum_g', 38, 50.5, 0.8, 0.8, 1),
   { ...crate('box_gate', 25, 64, 1, 0.6, 0.6), rot: deg(2.6) }, // ∥ f_in
   { id: 'debris_s1', type: 'sandbags', variant: 'sandbags_collapsed', x: 32, z: 105.5, rot: 0, w: 3, d: 1.5, h: 0.8, block: 1 },
@@ -116,6 +122,30 @@ const STRUCTURES = [
   ...BUSHES,
   // --- the minefield edge behind the team (decor only: no live mines, dossier §12 #8)
   ...Array.from({ length: 8 }, (_, k) => ({ id: `mine_sign_${k + 1}`, type: 'sign', variant: 'minefield_warning', x: 6 + k * 12.5, z: 118, r: 0.15, h: 1.2, block: 0, text: 'Achtung Minen' })),
+];
+
+// ---------------------------------------------------------------- art pass: set dressing (visual only, clear of every
+// route, post, cone and the solution's spots; furniture and paving never touch the walk grid: block false / grid false)
+/** A point in a structure's local frame (+x along `rot`, +z its open / door side) → world [x, z]. */
+const local = (cx, cz, rot, lx, lz) => [+(cx + lx * Math.cos(rot) - lz * Math.sin(rot)).toFixed(2), +(cz + lx * Math.sin(rot) + lz * Math.cos(rot)).toFixed(2)];
+const SHED = (lx, lz) => local(20.9, 21.6, deg(315), lx, lz);
+/** The workshop's oil-stained concrete apron in front of the three bays (the Panzers stand on it when they roll out). */
+const PAVEMENTS = [
+  { id: 'apron_shed', surface: 'concrete', points: [SHED(-10.5, 4.6), SHED(10.5, 4.6), SHED(9.5, 9.5), SHED(-9.5, 9.5)],
+    wear: 0.7, weeds: 0.05, cracks: 0.2, puddles: 0, edge: 'ragged', grid: false },
+];
+const FURNITURE = [
+  // the camp's telephone line comes in along the NE road (W verge) to the E gate; a field line runs from the command
+  // post's SW corner to the radio hut's NW corner (poles off the courtyard patrol's walk)
+  { type: 'telegraph', points: [[81, 6], [77, 15.5], [72.5, 25]], spacing: 10, h: 6, block: false },
+  { type: 'telegraph', points: [[58.2, 62.6], [66.1, 76.1]], spacing: 16, h: 5, block: false },
+  // camp floodlights on poles: the yard by the command post, the workshop's NE end
+  { type: 'floodlight', x: 67.6, z: 54.4, rot: deg(135), block: false },
+  { type: 'floodlight', x: 30.5, z: 12.5, rot: deg(135), block: false },
+  // Wehrmacht direction boards (black on yellow): workshop and command post inside the gates, a fingerpost on the W road
+  { type: 'sign', variant: 'wehrmacht', x: 80.6, z: 37.2, rot: deg(195), text: 'PZ.-\nWERKSTATT', block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 34.4, z: 75.6, rot: deg(-45), text: 'KDO.-\nSTELLE', block: false },
+  { type: 'sign', variant: 'fingerpost', x: 19.5, z: 95.6, rot: deg(-20), text: 'EL ALAMEIN 40 km', block: false },
 ];
 
 // ---------------------------------------------------------------- enemies (dossier §8; Prima's numbers)
@@ -242,6 +272,8 @@ export default {
     { type: 'path', terrain: 'road', points: [[88, 0], [83, 12], [77, 24], [75, 31]], width: 5 }, // road_ne → the E gate
     { type: 'path', terrain: 'road', points: [[0, 95], [12, 93.5], [25.5, 89], [33, 82], [40, 74], [48, 60]], width: 5 }, // road_w
   ],
+  pavements: PAVEMENTS,
+  furniture: FURNITURE,
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
   structures: joinStructures([...STRUCTURES, ...WIRE_PASS], [['house_n1', 'house_n2'], ['house_n2', 'house_ne'], ['house_ne', 'house_ne_annex']]),
   items: [],

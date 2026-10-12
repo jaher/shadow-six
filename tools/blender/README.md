@@ -46,6 +46,12 @@ switch to the library only for hinted variants; a hinted `sea_wall` tiles its 8 
   houses with bluestone trims and wall anchors, one with the door on the W gable, whitewashed / brick farmhouses, grey rendered
   townhouses, the village railway halt with its platform canopy, a brick field hut, the island's tarred plank shed, the round
   camouflaged pillbox, the ridge field tent, an abandoned crawler bulldozer). Own types only; M16 picks them by `asset`.
+- M9 (Bab el Qattara, `manifest-bab-el-qattara.json`): `desert/q_m09.txt` lists the builds (`bq_*.py` on `bq_common.py`: the open
+  three-bay corrugated tank shed with its torn roof and rolled camouflage net, sandstone houses under Marseille tiles and the
+  weapons store with its porch, the whitewashed NE hideout, the command post with its mud-brick annex, the domed garrison block
+  with arcade and roof terrace, the board-and-batten radio hut behind its blast wall, the sandbag bunker under palm thatch, the
+  A-frame engine hoist, the yellow drum dump, Afrika Korps ammunition stacks; destroyed twins of the five targets). Own `*_bq`
+  types only; M9 picks them by `asset` with `nav: false` (gameplay footprints unchanged).
 
 ## Conventions
 - Blender Z-up, 1 unit = 1 m. The pivot is the ground centre and the front faces Blender −Y, which is glTF +Z (game south at `rot` 0).

@@ -43,7 +43,7 @@ export default {
     // from it — and the E eaves stay clear of the E wall)
     { type: 'barracks', id: 'barracks1', x: 52.5, z: 11, rot: 0, w: 9.6, d: 6, reinforcementSpawn: true },
     { type: 'fueltank', id: 'fuel_depot', x: 52, z: 38, destructible: true, hp: 100 },
-    { type: 'hut', id: 'hut1', x: 53, z: 49, rot: 0 },
+    { type: 'hut', id: 'hut1', x: 53, z: 50, rot: 0 }, // (z 50: its porch posts stand clear of patrol_east's corner (55, 46) — at z 49 they blocked it)
     { type: 'sandbags', x: 47.5, z: 25.5, rot: 0, w: 3 },
     { type: 'sandbags', x: 47.5, z: 34.5, rot: 0, w: 3 },
     { type: 'barrels', x: 55.76, z: 6.62 }, // clear of barracks1's steps (placement rule b)
