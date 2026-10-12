@@ -192,6 +192,7 @@ unsubscribe function and call it between scenarios. **Canonical events** (payloa
 | `train:pass` | `{train}` | vehicles → audio |
 | `wind:gust` / `wind:flag` | `{x, z, gust, speed}` / `{x, z, gust}` | wind (render/wind-fx.js at the view centre / art/flags.js at a flag) → audio (gust whoosh, halyard clank) |
 | `ambient:flush` | `{x, z, species, kind}` | ambient life (render/ambient-life.js: a sitting gull / crow / duck takes off at a gunshot, explosion, loud noise or someone walking up) → audio: a duck flock's take-off flurry (no gameplay effect) |
+| `ambient:fishjump` | `{x, z, species, size}` | ambient life (world/fish-sim.js: a leaping salmon / trout / mullet / carp / chub falls back in) → audio: a quiet splash (no gameplay effect) |
 | `ambient:call` | `{x, z, species, hen}` | ambient life (world/duck-water.js: a duck on the water calls now and then) → audio: a quiet eider coo / grunt or mallard quack (no gameplay effect) |
 | `objective:update` | `{objective}` | mission → ui, audio |
 | `mission:loading` | `{id}` | game → ui (menu diorama releases the scene before a mission builds) |

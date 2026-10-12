@@ -35,16 +35,24 @@ test('fish habitats and species per theatre / body; quality scales the populatio
   assert.equal(fishHabitat({ type: 'sea', preset: 'sea' }, 'coast'), 'sea');
   assert.equal(fishHabitat({ type: 'lake', preset: 'harbor' }, 'night'), 'sea');
   assert.equal(fishHabitat({ type: 'river' }, 'snow'), 'river');
-  assert.equal(fishHabitat({ type: 'lake', preset: 'lake' }, 'temperate'), 'lake');
+  assert.equal(fishHabitat({ type: 'lake', preset: 'lake' }, 'temperate'), 'lowlake');
+  assert.equal(fishHabitat({ type: 'river' }, 'temperate'), 'lowriver');
+  assert.equal(fishHabitat({ type: 'lake', preset: 'lake' }, 'snow'), 'lake');
+  assert.equal(fishHabitat({ type: 'lake', preset: 'lake' }, 'desert'), 'medsea');
   assert.equal(fishHabitat({ type: 'sea', frozen: true }, 'snow'), null);
   const sp = (b, th, q) => new Set(fishPlan([{ ...b, spots, area: 2200 }], th, 3, q).map((p) => p.sp));
-  assert.deepEqual([...sp({ type: 'sea' }, 'snow')].sort(), ['cod', 'herring', 'pollock']);
-  assert.deepEqual([...sp({ type: 'sea', preset: 'sea' }, 'coast')].sort(), ['mullet', 'seabass']);
-  assert.ok(sp({ type: 'river' }, 'snow').has('trout'));
-  assert.ok(sp({ type: 'lake', preset: 'lake' }, 'temperate').has('perch'));
+  // per theatre (user: "You can add some fish in the water too"): Norway fjords and rivers, lowland Europe, the Mediterranean
+  assert.deepEqual([...sp({ type: 'sea' }, 'snow')].sort(), ['cod', 'herring', 'pollock', 'seatrout', 'sprat']);
+  assert.deepEqual([...sp({ type: 'sea', preset: 'sea' }, 'coast')].sort(), ['mullet', 'sandsmelt', 'seabass']);
+  assert.deepEqual([...sp({ type: 'sea', preset: 'sea' }, 'desert')].sort(), ['bream', 'mullet', 'sandsmelt']);
+  assert.deepEqual([...sp({ type: 'lake', preset: 'lake' }, 'desert')].sort(), ['bream', 'mullet', 'sandsmelt'], 'Tunis harbour');
+  assert.deepEqual([...sp({ type: 'river' }, 'snow')].sort(), ['grayling', 'minnow', 'salmon', 'trout']);
+  assert.deepEqual([...sp({ type: 'river' }, 'temperate')].sort(), ['chub', 'minnow', 'pike', 'roach', 'trout']);
+  assert.deepEqual([...sp({ type: 'lake', preset: 'lake' }, 'temperate')].sort(), ['carp', 'minnow', 'perch', 'pike', 'roach']);
+  assert.deepEqual([...sp({ type: 'lake', preset: 'fjord', raised: true }, 'snow')].sort(), ['minnow', 'perch', 'pike', 'trout'], 'a mountain reservoir is a lake');
   const n = (q) => fishPlan([{ type: 'sea', spots, area: 2200 }], 'snow', 3, q).reduce((a, p) => a + p.n, 0);
   assert.ok(n('low') > 0 && n('low') < n('high') && n('high') <= n('ultra'), `population low ${n('low')} high ${n('high')}`);
-  for (const S of Object.values(FISH_SPECIES)) assert.ok(S.len[0] > 0.1 && S.len[1] < 1 && S.band[0] < S.band[1]);
+  for (const S of Object.values(FISH_SPECIES)) assert.ok(S.len[0] > 0.04 && S.len[1] <= 1 && S.band[0] < S.band[1]);
 });
 
 test('schools stay in the water and in their depth band; deterministic; frozen at dt 0', () => {

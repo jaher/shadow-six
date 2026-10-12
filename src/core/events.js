@@ -105,7 +105,7 @@ export const EVENT_NAMES = Object.freeze([
   // world
   'shot', 'explosion', 'fire', 'structure:destroyed', 'door', 'device',
   'vehicle:enter', 'vehicle:exit', 'vehicle:move', 'vehicle:stop', 'vehicle:gear', 'vehicle:fire', 'vehicle:runover', 'vehicle:destroyed',
-  'vehicle:tainted', 'train:pass', 'wind:gust', 'wind:flag', 'ambient:flush', 'ambient:call',
+  'vehicle:tainted', 'train:pass', 'wind:gust', 'wind:flag', 'ambient:flush', 'ambient:call', 'ambient:fishjump',
   // mission / flow
   'objective:update', 'mission:loading', 'mission:progress', 'mission:loaded', 'mission:won', 'mission:lost', 'mission:refused', 'game:state', 'flow:state',
   'mission:countdown', 'mission:escaped', 'camera:views',

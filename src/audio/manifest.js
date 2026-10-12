@@ -100,6 +100,8 @@ const ROWS = [
   [['eider_grunt'], 'ambience', 'eider_grunt', 0.06],
   [['mallard_quack'], 'ambience', 'quack', 0.07],
   [['duck_takeoff'], 'ambience', 'wing_flurry', 0.16],
+  // a fish falling back in after a leap ('ambient:fishjump'): a small splash, quiet, heard close to the view only
+  [['fish_splash'], 'ambience', 'splash_small', 0.12],
   // UI
   [['ui_click', 'ui_hover', 'cursor_forbidden'], 'ui', 'click', 0.4],
   [['knapsack_open', 'notebook_flip', 'pencil_scratch'], 'ui', 'rustle', 0.4],
@@ -132,7 +134,7 @@ const ALIASES = {
   step_road: ['fs_gravel', 'k_step_concrete'], step_wood: ['fs_wood', 'k_step_wood'], step_metal: ['fs_metal'],
   crawl_rustle: ['k_cloth'], body_drag: ['crawl'], body_drop: ['body_fall'], barrel_set: ['k_barrel_set'],
   climb_scrape: ['k_thud_wood'], ladder: ['k_thud_wood'], dig_snow: ['k_dig'], dig_sand: ['k_dig'],
-  splash_in: ['splash'], splash_out: ['splash'], underwater_loop: ['swim'],
+  splash_in: ['splash'], splash_out: ['splash'], fish_splash: ['splash'], underwater_loop: ['swim'],
   knife_stab: ['knife_stab', 'k_knife'], syringe: ['k_metal_click'], cutters_snip: ['k_metal_latch'],
   pistol_shot: ['pistol'], rifle_shot: ['rifle_lee_enfield', 'rifle_m1'], sniper_shot: ['sniper_echo'],
   sniper_bolt: ['rifle_bolt_cycle'], pistol_draw: ['k_draw'], pistol_holster: ['k_belt'], grenade_pin: ['k_metal_latch'],
@@ -175,6 +177,7 @@ const CLASS_RULES = [
   [/(engine|^truck_|tank_tracks|motorbike|plane|autogyro|train|horn|brakes|turret|torpedo|cable_car|runover)/, 'vehicle'],
   [/^dog/, 'animal'],
   [/^(eider_|mallard_|duck_)/, 'voice'], // quiet birds on the water: heard within ~60 m
+  [/^fish_/, 'foley'], // a fish's splash: heard within ~30 m
   [/^waterfall/, 'small'], // a steady roar heard across the gorge (ref 25 m)
   [/^rapids/, 'vehicle'], // the tailwater: heard along the bank (ref 12 m)
 ];

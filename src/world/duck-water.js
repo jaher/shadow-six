@@ -55,7 +55,7 @@ export function duckSpawn(sim, b, p, i) {
     b.x = x; b.z = z; break;
   }
   Object.assign(b, { act: '', at: r() * 4, v: 0, yr: 0, sph: r() * TAU, look: 0, lookT: 0, lt: 0, peck: 0, bob: 0, neckF: 0, neckU: 0, wag: 0, cock: 0,
-    wset: 0, roll: 0, wp: 0, dab: 0, dv: 0, hidden: false, run: null, callT: H.callEvery[0] * r() + 5, cooT: 0, slot: 0, slotLead: null, sprayT: 0 });
+    wset: 0, roll: 0, wp: 0, dab: 0, dv: 0, hidden: false, sub: 0, run: null, callT: H.callEvery[0] * r() + 5, cooT: 0, slot: 0, slotLead: null, sprayT: 0 });
 }
 
 /** Small wind-driven chop at (x, z): heave (m) and the surface slope (∂h/∂x, ∂h/∂z), two wave trains. */
@@ -188,8 +188,10 @@ export function duckSwim(sim, b, h) {
       if (u >= 1) { b.act = 'settle'; b.at = 1.1; b.st0 = sim.t; }
       break;
     }
-    case 'settle': { // tail wag after a landing / dive / flap: a quick shake that dies away
+    case 'settle': { // tail wag after a landing / dive / flap: a quick shake that dies away (after a dive the head too)
       const t = sim.t - (b.st0 ?? sim.t); wag = 0.35 * Math.sin(t * 42) * Math.exp(-t * 3.5);
+      if (b.shake) { yawLook = 0.45 * Math.sin(t * 38) * Math.exp(-t * 4); lookRate = 4; if (t > 0.9) b.shake = false; }
+      if (b.off) { vt = 0.2; if (t > 1.5) b.off = false; } // just up from a dive: paddles off
       break;
     }
     case 'upend': { // mallard dabbling: tail up, head under, paddling to hold the pose
@@ -245,6 +247,13 @@ export function duckSwim(sim, b, h) {
   b.roll += (b.rollT || 0) * Math.min(1, 3 * h);
 }
 
+/**
+ * How far a diving duck has sunk out of sight, 0 … 1: it darkens into the water between 8 cm (the back just under)
+ * and 48 cm below the surface (the water's own absorption already dims it there), so a dive is seen to
+ * go down and a duck coming up is seen to rise; never a pop (user: "one duck appears out of nowhere").
+ */
+export const subFade = (level, y) => { const t = Math.min(1, Math.max(0, (level - y - 0.08) / 0.4)); return t * t * (3 - 2 * t); };
+
 /** The plunge (eider): nose down, a little forward leap with the tail flicked up, gone with a ring. */
 function diveStart(sim, b, h, s) {
   const e = sim.env, L = b.S.len;
@@ -254,6 +263,7 @@ function diveStart(sim, b, h, s) {
   b.pitch = -1.15 * smooth(u); b.cock = 0.45 * Math.sin(Math.PI * u); b.peck = 0.3 * u; b.neckF = 0.04 * u;
   b.fold = 1 - 0.3 * Math.sin(Math.PI * u); b.look *= 1 - Math.min(1, 8 * h);
   b.y = s.level + L * (0.06 * Math.sin(Math.PI * Math.min(1, u * 1.6)) - 0.3 * Math.max(0, u - 0.55) / 0.45);
+  b.sub = subFade(s.level, b.y);
   if (u >= 1) {
     b.dv = 1; b.dt = 0; e.disturb?.(b.x, b.z, -0.04, 0.35, 0.35);
     // where it will come up: 2–6 m on, in water deep enough to dive
@@ -265,23 +275,37 @@ function diveStart(sim, b, h, s) {
   }
 }
 
-/** Under water: hidden once deep, swims to the surfacing spot; pops up (nose up), a ring, a shake. */
+/**
+ * Under water: sinks out of sight (dissolving through the water colour, then hidden), swims to the surfacing spot;
+ * rises nose-up through the water colour, head and neck first, breaks the surface with a ring and a few droplets,
+ * shakes, and paddles off leaving a small wake.
+ */
 function underwater(sim, b, h, s) {
   const e = sim.env, L = b.S.len;
   b.dt += h;
   const T = b.dur, dx = b.wx - b.x, dz = b.wz - b.z, d = Math.hypot(dx, dz);
   if (b.dt < T) {
-    if (d > 0.1) { b.yaw = Math.atan2(dz, dx); const v = Math.min(0.6, d); b.x += (dx / d) * v * h; b.z += (dz / d) * v * h; }
-    b.y = s.level - Math.min(0.9, 0.18 * L + 0.8 * b.dt); b.hidden = b.y < s.level - 0.3; b.v = 0;
+    if (d > 0.1) { // swims on under water, turning gently towards where it will come up
+      b.yaw = wrapA(b.yaw + clamp(wrapA(Math.atan2(dz, dx) - b.yaw), -2.5 * h, 2.5 * h));
+      const v = Math.min(0.6, d) * Math.max(0, Math.cos(wrapA(Math.atan2(dz, dx) - b.yaw))); b.x += Math.cos(b.yaw) * v * h; b.z += Math.sin(b.yaw) * v * h;
+    }
+    b.y = s.level - Math.min(0.9, 0.18 * L + 1.1 * b.dt); b.v = 0; // driving down ~1 m/s
+    b.sub = subFade(s.level, b.y); b.hidden = b.sub >= 0.999;
     b.pitch = -0.4;
     return;
   }
-  // back up: buoyant, from the depth it swam at (unseen below 0.3 m), breaking the surface nose-up with a ring
-  if (b.y0 == null) b.y0 = b.y;
-  const u = Math.min(1, (b.dt - T) / 0.7), y = s.level + (b.y0 - s.level) * (1 - smooth(u));
-  if (b.hidden && y > s.level - 0.3) { b.hidden = false; e.disturb?.(b.x, b.z, 0.05, 0.4, 0.25); }
-  b.y = y; b.pitch = 0.4 * (1 - u); b.cock = 0; b.peck = -0.1 * (1 - u); b.fold = 1;
-  if (u >= 1) { b.dv = 0; b.y0 = null; b.act = 'settle'; b.at = 1.1; b.st0 = sim.t; if (sim.rnd() < 0.3) { b.act = 'flap'; b.at = 1.5; b.ft = 0; } }
+  // back up: buoyant, from the depth it swam at, nose-up (the head leads), fading in through the water colour
+  if (b.y0 == null) { b.y0 = b.y; b.broke = false; }
+  const u = Math.min(1, (b.dt - T) / 1.1), y = s.level + (b.y0 - s.level) * (1 - u) * (1 - u); // slowing as it nears the top
+  b.y = y; b.sub = subFade(s.level, y); b.hidden = b.sub >= 0.999;
+  b.pitch = 0.45 * (1 - u); b.cock = 0; b.peck = -0.15 * (1 - u); b.neckU = 0.04 * (1 - u); b.fold = 1;
+  if (!b.broke && y > s.level - 0.16) { // the head breaks the surface: a ring and a few droplets
+    b.broke = true; e.disturb?.(b.x + Math.cos(b.yaw) * L * 0.3, b.z + Math.sin(b.yaw) * L * 0.3, 0.05, 0.4, 0.5); // ring + shed droplets (foam)
+  }
+  if (u >= 1) { // a shake of the head and tail, then it paddles off (a small wake)
+    b.dv = 0; b.y0 = null; b.sub = 0; b.hidden = false; b.act = 'settle'; b.at = 1.6; b.st0 = sim.t; b.shake = true; b.off = true;
+    if (sim.rnd() < 0.3) { b.act = 'flap'; b.at = 1.5; b.ft = 0; }
+  }
 }
 
 /**
@@ -307,7 +331,7 @@ export function duckFlee(sim, b, x, z) {
   }
   if (sim.t - F.alarmT > 3) { F.alarmT = sim.t; F.ax = x; F.az = z; } // the rest of the flock follows on its next step
   const a = F.fleeA + (r() - 0.5) * 0.35, d = 30 + r() * 20;
-  b.st = 'flee'; b.tt = 4 + r() * 3; b.act = ''; b.dab = 0; b.dv = 0; b.hidden = false; b.slotLead = null;
+  b.st = 'flee'; b.tt = 4 + r() * 3; b.act = ''; b.dab = 0; b.dv = 0; b.hidden = false; b.sub = 0; b.slotLead = null;
   b.tx = b.x + Math.cos(a) * d; b.tz = b.z + Math.sin(a) * d; b.ty = (b.gy ?? 0) + H.alt[0] + r() * (H.alt[1] - H.alt[0]);
   b.run = { t: -(0.04 + r() * 0.4), dur: H.run ? H.runT[0] + r() * (H.runT[1] - H.runT[0]) : 0, a, pat: 0, side: 1, started: false, lvl: b.y };
   b.vx = b.vz = 0; b.vy = 0;

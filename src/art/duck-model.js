@@ -17,7 +17,8 @@
  *   stripe, orange bill with a dark saddle. Both: the blue, white-bordered speculum. Fine barring fades out where it
  *   would alias (fwidth), so the zoom-1 view gets the average colour.
  * - **Pose** (per instance, from the sim, src/world/duck-water.js): iPose = (flap phase, amplitude, fold, head
- *   pitch), iLeg0 = (wing set / dihedral, tail wag, tail cock, head fore-aft), iLeg1 = (neck forward, neck up, -,
+ *   pitch), iLeg0 = (wing set / dihedral, tail wag, tail cock, head fore-aft), iLeg1 = (neck forward, neck up,
+ *   submerged 0 … 1 — a diving duck darkens into the water and dissolves at the end, a surfacing one comes up out of it,
  *   head yaw). Folded wings blend to an authored folded pose lying on the back and upper flanks (aFold), with the
  *   primaries crossed over the rump; flapping turns the arm about the shoulder and the hand about the wrist (the hand
  *   lags). The head turns about the top of the neck (looks, preening on the back, the tucked-in resting pose), the neck
@@ -182,12 +183,12 @@ const VPARS = /* glsl */ `
 attribute vec4 aWing; attribute vec3 aFold; attribute vec2 aPat; attribute float aPart;
 attribute vec4 iPose, iLeg0, iLeg1; attribute float iPlum;
 uniform float uWrist, uWingY, uL; uniform vec2 uNeck, uTail;
-varying vec3 vRest; varying vec2 vPat; varying float vPart, vPlum;
+varying vec3 vRest; varying vec2 vPat; varying float vPart, vPlum, vSub;
 vec2 bRot(vec2 v, float a) { float c = cos(a), s = sin(a); return vec2(v.x * c - v.y * s, v.x * s + v.y * c); }
 `;
 const VMAIN = /* glsl */ `
 vec3 bp = position; vec3 objectNormal = normal;
-vRest = position / uL; vPat = aPat; vPart = aPart; vPlum = iPlum;
+vRest = position / uL; vPat = aPat; vPart = aPart; vPlum = iPlum; vSub = iLeg1.z;
 if (aWing.y != 0.0) {                                         // wings: flap about shoulder + wrist, blend to the folded pose
   float sd = aWing.y, o = bp.z * sd - aWing.w, wr = uWrist - aWing.w, set = iLeg0.x;
   float a1 = iPose.y * 0.95 * sin(iPose.x) + set + 0.08, a2 = iPose.y * 0.6 * sin(iPose.x - 0.9) - set * 0.45;
@@ -211,7 +212,10 @@ if (aWing.y != 0.0) {                                         // wings: flap abo
 
 // plumage (sRGB hex → linear in the shader), per species; e = 1 inside a region, edges anti-aliased with fwidth
 const FPARS = /* glsl */ `
-varying vec3 vRest; varying vec2 vPat; varying float vPart, vPlum;
+varying vec3 vRest; varying vec2 vPat; varying float vPart, vPlum, vSub;
+// a diving duck sinks into the dark of the water (and a surfacing one rises out of it): its colour goes to the deep
+// water's near-black (the water pass then tints it like the bed), and only the last, nearly black stretch dissolves
+void subFadeOut() { if (vSub > 0.8) { float n = fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))); if (n < (vSub - 0.8) * 5.0) discard; } }
 vec3 sl(float r, float g, float b) { return pow(vec3(r, g, b) / 255.0, vec3(2.2)); }
 float inside(float d) { float w = max(fwidth(d), 1e-4); return smoothstep(-w, w, d); }
 // dark crescent bars every period in ph (period units), faded out when finer than ~2.5 px
@@ -309,7 +313,7 @@ export function createDuckMesh(sp, cap, o = {}) {
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, uni);
     sh.vertexShader = VPARS + sh.vertexShader.replace('#include <beginnormal_vertex>', VMAIN).replace('#include <begin_vertex>', 'vec3 transformed = bp;');
-    sh.fragmentShader = def + FPARS + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb = duckPaint();');
+    sh.fragmentShader = def + FPARS + sh.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\nsubFadeOut();\ndiffuseColor.rgb = duckPaint() * pow(1.0 - 0.97 * vSub, 1.6);');
   };
   m.customProgramCacheKey = () => `duck1_${sp}`;
   const mesh = new THREE.InstancedMesh(g, m, cap);
@@ -338,7 +342,7 @@ export function writeDucks(h, birds, inView) {
     const k = n * 4;
     A[k] = b.ph; A[k + 1] = b.amp; A[k + 2] = b.fold; A[k + 3] = b.peck || 0;
     L0[k] = b.wset || 0; L0[k + 1] = b.wag || 0; L0[k + 2] = b.cock || 0; L0[k + 3] = b.bob || 0;
-    L1[k] = b.neckF || 0; L1[k + 1] = b.neckU || 0; L1[k + 2] = 0; L1[k + 3] = b.look || 0;
+    L1[k] = b.neckF || 0; L1[k + 1] = b.neckU || 0; L1[k + 2] = b.sub || 0; L1[k + 3] = b.look || 0;
     Pl[n] = b.hen ? 1 : 0;
     n++;
   }

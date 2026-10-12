@@ -5,7 +5,7 @@
  *
  *   node tools/perf/duckclip.mjs --mission=m01 --zoom=1 --secs=8 --fps=30 --out=/tmp/ducks [--w=1280 --h=720]
  *     [--warm=8] [--startle=shot|walk|''] [--startleAt=0.5] [--hud=0] [--perf=1] [--follow=0.1] [--sp=eider] [--dpr=1]
- *     [--lineup=1 --zoom=4 --dpr=2] [--at=x:z] [--zoomTo=1@0.4]
+ *     [--lineup=1 --zoom=4 --dpr=2] [--at=x:z] [--zoomTo=1@0.4] [--dive=2@0.05:4.5]
  *
  * Loads the mission in test mode, lets the life settle (`warm` s), centres the camera on the duck flock, then steps
  * the SIM at 60 Hz (rendering every sim step so the ambient-life director runs per displayed frame) and writes
@@ -83,11 +83,14 @@ if (arg('perf', '0') === '1') {
 }
 const trace = [], N = Math.round(secs * fps), startle = arg('startle', ''), sAt = Math.floor(N * Number(arg('startleAt', 0.5)));
 const [zTo, zAtF] = arg('zoomTo', '').split('@').map(Number), zAt = zTo ? Math.floor(N * (zAtF || 0)) : -1; // --zoomTo=1@0.4: zoom out at 40 %
+// --dive=2@0.05:4.5 → duck 2 starts a dive at 5 % of the clip, staying under 4.5 s (a natural act, triggered on cue)
+const [dvI, dvRest] = arg('dive', '').split('@'), [dvF, dvDur] = (dvRest || '').split(':').map(Number), dvAt = dvI ? Math.floor(N * dvF) : -1;
 for (let i = 0; i < N; i++) {
-  const fr = await page.evaluate(({ sub, i, sAt, startle, zAt, zTo }) => {
+  const fr = await page.evaluate(({ sub, i, sAt, startle, zAt, zTo, dvAt, dvI, dvDur }) => {
     const g = window.__game, G = g.game, L = G.mapHandle.life, C = window.__clip;
     window.__clipFrame = i;
     if (i === zAt) G.cameraController.setZoom(zTo, false); // eased zoom (0.25 s tween)
+    if (i === dvAt) { const q = L.birds.birds.filter((o) => o.sp === C.sp)[dvI]; if (q && q.st === 'swim') Object.assign(q, { act: 'dive', at: 99, dv: 0, dt: 0, dur: dvDur || 5 }); }
     if (startle === 'shot' && i === sAt) G.world.events.emit('shot', { from: { x: C.x + 22, z: C.z + 12 }, to: { x: C.x + 30, z: C.z + 20 }, hit: false, weapon: 'rifle' });
     if (startle === 'walk' && i === sAt) { const c = G.world.commandos[0]; c.x = C.x - 16; c.z = C.z; }
     for (let k = 0; k < sub; k++) {
@@ -104,9 +107,9 @@ for (let i = 0; i < N; i++) {
     const cam = G.renderer.camera, cv = G.renderer.renderer.domElement, V = C.V || (C.V = new cam.position.constructor());
     return D.map((q) => {
       V.set(q.x, q.y, q.z).project(cam);
-      return [+q.x.toFixed(3), +q.y.toFixed(3), +q.z.toFixed(3), +q.yaw.toFixed(3), q.st, Math.round((V.x + 1) / 2 * cv.clientWidth), Math.round((1 - V.y) / 2 * cv.clientHeight), q.act || ''];
+      return [+q.x.toFixed(3), +q.y.toFixed(3), +q.z.toFixed(3), +q.yaw.toFixed(3), q.st, Math.round((V.x + 1) / 2 * cv.clientWidth), Math.round((1 - V.y) / 2 * cv.clientHeight), q.act || '', q.hidden ? 0 : +(1 - (q.sub || 0)).toFixed(3)];
     });
-  }, { sub, i, sAt, startle, zAt, zTo });
+  }, { sub, i, sAt, startle, zAt, zTo, dvAt, dvI: Number(dvI), dvDur });
   trace.push(fr);
   await page.screenshot({ path: join(out, `f${String(i).padStart(4, '0')}.jpg`), type: 'jpeg', quality: 88 });
 }

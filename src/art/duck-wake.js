@@ -78,7 +78,7 @@ export function createDuckWakes(cap, o = {}) {
         if (S.length > MAXS) S.shift();
       }
       if (!S.length) { if (v <= 0.03) trails.delete(b); continue; }
-      if (inView && !inView(b.x, b.z, level)) continue;
+      if (inView && !inView(b.x, b.z, level) && !inView(S[0].x, S[0].z, level)) continue; // the duck or its trail's far end
       stats.ducks++;
       const half = L * 0.13, y = S[S.length - 1].y + 0.012, live = v > 0.03;
       for (const sd of SIDES) {

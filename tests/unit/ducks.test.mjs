@@ -295,3 +295,36 @@ test('a flock flushed near the map edge flies out over the map, not off its edge
   assert.equal(off, 0, 'never more than 6 m past the edge');
   assert.ok(D.every((b) => b.x > 2), `landed inside the map (${D.map((b) => b.x.toFixed(1))})`);
 });
+
+test('no duck pops in or out: what is drawn of each bird changes gradually, frame by frame (dives, surfacing, flushes, landings)', () => {
+  // user: "In the duck video it feels like one duck appears out of nowhere" (an eider coming up from a dive was drawn
+  // all at once 26 cm under the surface). Visibility of a bird = drawn ? 1 − its submerged fade : 0, from the
+  // instance buffers writeDucks fills (no view culling here: every bird is on screen).
+  const env = fjord(2), sim = new BirdSim(eiders(8), env, 77), D = sim.birds, h = createDuckMesh('eider', 8);
+  const P = new Float32Array(3), M = h.mesh.instanceMatrix.array;
+  const visible = () => {
+    const n = writeDucks(h, D, null), out = new Map();
+    for (let i = 0; i < n; i++) {
+      const x = M[i * 16 + 12], y = M[i * 16 + 13], z = M[i * 16 + 14];
+      const b = D.find((q) => Math.abs(q.x - x) < 1e-4 && Math.abs(q.y - y) < 1e-4 && Math.abs(q.z - z) < 1e-4);
+      if (b) out.set(b, 1 - h.leg1.array[i * 4 + 2]);
+    }
+    return D.map((b) => out.get(b) ?? 0);
+  };
+  let prev = visible(), worst = 0, dives = 0, ups = 0, at = '';
+  const was = D.map(() => false);
+  const check = (k) => {
+    const v = visible();
+    v.forEach((q, i) => {
+      const d = Math.abs(q - prev[i]);
+      if (d > worst) { worst = d; at = `bird ${i} frame ${k}: ${prev[i].toFixed(2)} → ${q.toFixed(2)} (${D[i].st}/${D[i].act})`; }
+      const under = q < 0.01; if (under && !was[i]) dives++; if (!under && was[i]) ups++; was[i] = under;
+    });
+    prev = v;
+  };
+  step(sim, 150, check);
+  sim.noise(D[0].x - 20, D[0].z, 60); // the flock flushes, flies round and lands again
+  step(sim, 60, check);
+  assert.ok(dives >= 2 && ups >= 2, `eiders went under (${dives}) and came back up (${ups})`);
+  assert.ok(worst <= 0.2, `largest change in one 60 Hz frame ${worst.toFixed(2)} (${at})`);
+});

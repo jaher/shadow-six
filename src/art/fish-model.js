@@ -97,7 +97,10 @@ if (uPattern > 0.5 && uPattern < 1.5) fc *= 1.0 - 0.5 * smoothstep(0.3, 0.6, sin
 if (uPattern > 1.5 && uPattern < 2.5) { float sp = step(0.8, fHash(floor(pq))) * smoothstep(-0.5, 0.0, hv); fc = mix(fc, fHash(floor(pq) + 3.0) > 0.8 ? vec3(0.55, 0.12, 0.06) : fc * 0.35, sp * step(length(fract(pq) - 0.5), 0.3)); }
 if (uPattern > 2.5 && uPattern < 3.5) fc *= 0.72 + 0.5 * fNoise(pq * 1.3) * smoothstep(-0.5, 0.3, hv);
 if (uPattern > 2.5 && uPattern < 4.5) fc = mix(fc, uBelly, 0.55 * (1.0 - smoothstep(0.0, 0.08, abs(hv - 0.15))) * step(0.15, u));
-if (uPattern > 4.5) fc *= 1.0 - 0.18 * smoothstep(0.6, 1.0, sin(hv * 22.0)) * smoothstep(-0.6, 0.0, hv) * (1.0 - smoothstep(0.6, 0.8, hv));
+if (uPattern > 4.5 && uPattern < 5.5) fc *= 1.0 - 0.18 * smoothstep(0.6, 1.0, sin(hv * 22.0)) * smoothstep(-0.6, 0.0, hv) * (1.0 - smoothstep(0.6, 0.8, hv));
+if (uPattern > 5.5 && uPattern < 6.5) fc *= 1.0 - 0.7 * step(0.86, fHash(floor(pq))) * step(length(fract(pq) - 0.5), 0.28) * smoothstep(0.0, 0.3, hv); // salmon: black x-spots above the lateral line
+if (uPattern > 6.5 && uPattern < 7.5) fc = mix(fc, uFlank * 1.7 + 0.04, 0.8 * smoothstep(0.55, 0.7, fNoise(vec2(u * 34.0, hv * 5.0) + vSeed * 9.0)) * smoothstep(-0.5, -0.1, hv) * (1.0 - smoothstep(0.6, 0.85, hv))); // pike: pale bean spots
+if (uPattern > 7.5) { float sc = fract(u * 26.0 + 0.5 * floor(hv * 7.0)), sr = fract(hv * 7.0); fc *= 1.0 - 0.22 * max(smoothstep(0.82, 1.0, sc), smoothstep(0.86, 1.0, sr)) * smoothstep(-0.6, -0.2, hv) * step(0.1, u) * step(u, 0.82); } // carp, chub: big scales
 fc = mix(fc, vec3(0.02), (1.0 - smoothstep(0.018, 0.028, length(vec2(u - 0.07, (abs(hv) - 0.35) * 0.12)))) * step(abs(vFU.w), 1.5) * (1.0 - vFU.z));
 fc = mix(fc, uBack * 0.8, vFU.z * 0.85);                                          // fins
 diffuseColor.rgb = fc;
@@ -160,7 +163,7 @@ export function writeFish(h, fish, inView) {
   const A = h.anim.array;
   for (const f of fish) {
     if (n >= h.cap) break;
-    if (inView && !inView(f.x, f.z)) continue;
+    if (f.gone || (inView && !inView(f.x, f.z))) continue;
     _e.set(f.roll, -f.yaw, f.pitch);
     _q.setFromEuler(_e);
     _m.compose(_p.set(f.x, f.y, f.z), _q, _s.setScalar(f.len));
@@ -207,7 +210,7 @@ export function writeFishShadows(h, fish, inView, sun, direct = 1) {
   let n = 0;
   for (const f of fish) {
     if (n >= h.cap) break;
-    if (inView && !inView(f.x, f.z)) continue;
+    if (f.gone || f.y > f.level || (inView && !inView(f.x, f.z))) continue; // none for a fish in the air on a leap
     const bed = f.level - f.depth, ht = Math.max(0, f.y - bed);
     const blur = ht * (0.25 + 0.35 * (1 - direct));
     _e.set(0, -f.yaw, 0);

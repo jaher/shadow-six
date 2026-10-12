@@ -87,7 +87,7 @@ export function missionAudio(def = {}) {
   const ids = new Set();
   for (const [id, d] of Object.entries(SFX)) {
     if (d.bed || /^step_/.test(id) || d.cls === 'vehicle' || (d.bus === 'ambience' && d.loop)) continue; // positional beds: below
-    if (!water && /^(underwater|dive_|row_stroke|splash_|raft_|bullet_impact_water)/.test(id)) continue;
+    if (!water && /^(underwater|dive_|row_stroke|splash_|raft_|bullet_impact_water|fish_)/.test(id)) continue;
     ids.add(id);
   }
   ids.add(THEATER_STEP[def.theater] || 'step_grass');
@@ -145,6 +145,11 @@ export function installHandlers(a, events) {
     a._duckCallAt = a.now();
     const v = Math.abs(Math.sin((e.x || 0) * 12.9898 + (e.z || 0) * 78.233)) % 1;
     sfx(id, e, t, { bus: 'ambience', dedupe: 0, rate: 0.93 + 0.14 * v });
+  });
+  on('ambient:fishjump', (e, t) => {
+    if (a.options?.natureSounds === false || a.now() - (a._fishJumpAt ?? -1e9) < 2) return;
+    a._fishJumpAt = a.now();
+    sfx('fish_splash', e, t, { bus: 'ambience', dedupe: 0, rate: Math.max(0.75, Math.min(1.35, 1.25 - (e.size || 0.3))) });
   });
   on('ambient:flush', (e, t) => {
     if (e.kind !== 'duck' || a.options?.natureSounds === false || a.now() - (a._duckFlushAt ?? -1e9) < 1.5) return;

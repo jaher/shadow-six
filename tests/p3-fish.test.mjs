@@ -1,8 +1,9 @@
 /**
  * Phase 3 step 4f — ambient life in the running game (GPU): M1 fjord herring / saithe / cod schools under the
- * surface (instanced, vertex-animated, culled to the view, drawn before the water composite), gulls / eiders / hooded
- * crows; an underwater grenade stuns fish and flushes the birds; pause freezes everything; M2 / M3 river trout;
- * the menu-free coast sandbox gets mullet + sea bass; no GL errors, disposal on mission change.
+ * surface (instanced, vertex-animated, culled to the view, drawn before the water composite) with sprat shoals in the
+ * shallows, gulls / eiders / hooded crows; an underwater grenade stuns fish and flushes the birds; pause freezes
+ * everything; M2 / M3 river trout; the menu-free coast sandbox gets mullet + sea bass; no GL errors, disposal on
+ * mission change.
  */
 export default async function (page, t) {
   const r = await page.evaluate(async () => {
@@ -52,7 +53,7 @@ export default async function (page, t) {
     return out;
   });
   t.ok(r.has, 'ambient life director built');
-  t.ok(r.species?.join() === 'cod,herring,pollock', `M1 fjord fish ${r.species}`);
+  t.ok(r.species?.join() === 'cod,herring,pollock,seatrout,sprat', `M1 fjord fish ${r.species}`);
   t.ok(r.birds?.includes('gull') && r.birds.includes('eider'), `M1 birds ${r.birds}`);
   t.ok(r.meshes >= 4 && r.tagged === r.meshes, `life meshes ${r.meshes} (waterIgnore ${r.tagged})`);
   t.ok(r.drawn > 10 && r.under, `fish drawn in view ${r.drawn}, all under the surface`);

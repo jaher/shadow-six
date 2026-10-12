@@ -14,7 +14,7 @@
  */
 import * as THREE from 'three';
 import { T } from '../world/grid.js';
-import { FishSim, fishPlan } from '../world/fish-sim.js';
+import { FishSim, fishPlan, FISH_SPECIES } from '../world/fish-sim.js';
 import { BirdSim, birdPlan } from '../world/bird-sim.js';
 import { createFishMesh, writeFish, createFishShadows, writeFishShadows } from '../art/fish-model.js';
 import { createBirdMesh, writeBirds } from '../art/bird-model.js';
@@ -22,7 +22,7 @@ import { createDuckWakes } from '../art/duck-wake.js';
 
 /** Water bodies of the map as sim inputs: open-water sample spots (every other cell) + area, per water body. */
 export function lifeBodies(grid, water) {
-  const bodies = (water?.bodies || []).map((b) => ({ type: b.o?.type, preset: b.o?.preset, frozen: !!b.o?.frozen,
+  const bodies = (water?.bodies || []).map((b) => ({ type: b.o?.type, preset: b.o?.preset, frozen: !!b.o?.frozen, raised: !!b.o?.raised,
     velocity: Math.hypot(...(b.o?.flow?.dir || [0, 0])) * (b.o?.flow?.speed || 0), spots: [], area: 0, ref: b }));
   if (!grid?.terrain || !bodies.length) return bodies;
   const idx = new Map(bodies.map((b, i) => [b.ref, i])), c = grid.cell;
@@ -127,7 +127,12 @@ export function createAmbientLife(world, renderer = null, o = {}) {
     const root = new THREE.Group(); root.name = 'ambientLife'; root.userData.waterIgnore = true; root.userData.dynamic = true;
     const count = (arr) => arr.reduce((m, a) => m.set(a.sp, (m.get(a.sp) || 0) + 1), new Map());
     const shadows = false; // fish: no shadow-map casting (the map ignores refraction: underwater sun is far steeper, shadows soft)
-    for (const [sp, n] of count(fish?.fish || [])) { const h = createFishMesh(sp, n, { shadows, envMap: scene.environment || null, envIntensity: o.fishEnv ?? 0.3 }); h.list = fish.fish.filter((f) => f.sp === sp); fishH.push(h); root.add(h.mesh); }
+    // small shoal fish get a lighter body (7 × 6 rings: at 3–5 px long nobody sees more); the mirror flanks get the
+    // environment at 0.65 so a turning shoal flashes silver at game zoom
+    for (const [sp, n] of count(fish?.fish || [])) {
+      const small = FISH_SPECIES[sp]?.small, h = createFishMesh(sp, n, { shadows, envMap: scene.environment || null, envIntensity: o.fishEnv ?? 0.65, segs: small ? 7 : 12, ring: small ? 6 : 8 });
+      h.list = fish.fish.filter((f) => f.sp === sp); fishH.push(h); root.add(h.mesh);
+    }
     if (fish?.fish.length) { shadowH = createFishShadows(fish.fish.length); root.add(shadowH.mesh); }
     for (const [sp, n] of count(birds.birds)) { const h = createBirdMesh(sp, n, { shadows: quality !== 'low' }); h.list = birds.birds.filter((b) => b.sp === sp); birdH.push(h); root.add(h.mesh); }
     if (ducks.length) { // V wakes behind the swimming ducks (late FX layer, over the water)
@@ -153,6 +158,12 @@ export function createAmbientLife(world, renderer = null, o = {}) {
   });
   on('noise', (n) => { if ((n.radius || 0) >= 10 && n.kind !== 'footsteps') birds.noise(n.x, n.z, Math.min(70, n.radius * 1.3)); });
   on('projectile:bounce', (e) => { if (fish && wet(e.x, e.z)) fish.impulse(e.x, e.z, 3.5, 1); });
+  // a dam breached (M3): the burst stuns a few fish by the breach and scatters the rest; the reservoir then drains
+  on('structure:destroyed', (e) => {
+    if (!fish || !water?.drains?.some((d) => d.id === e?.id)) return;
+    const S = world.byId?.(e.id) || e; if (S?.x == null) return;
+    fish.impulse(S.x, S.z, 16, 1, { blast: true, stun: 3 });
+  });
   on('unit:water', (e) => { const u = e.unit; if (fish && u && (e.what === 'dive' || e.what === 'surface')) fish.impulse(u.x, u.z, 4, 1); });
   const wk = water?.wakes, prevSplash = wk?.onSplash;
   if (wk) wk.onSplash = (x, z, s) => { prevSplash?.(x, z, s); fish?.impulse(x, z, 2 + 2.5 * s, 1); };
@@ -207,10 +218,20 @@ export function createAmbientLife(world, renderer = null, o = {}) {
       const [ft, bt] = threats(step);
       if (fish) {
         fish.setThreats(ft);
+        // simulation LOD: schools more than 12 m outside the view are stepped at 5 Hz (fish-sim setFocus)
+        const V = viewRect(camera);
+        fish.setFocus(V ? (x, z) => x > V.x0 - 12 && x < V.x1 + 12 && z > V.z0 - 12 && z < V.z1 + 12 : null);
         for (let r = step; r > 1e-6; r -= 0.5) fish.step(Math.min(r, 0.5), drift);
         // rises / dimples → faint rings in the ripple sim (normals only), capped per frame
         for (let k = 0; k < fish.rings.length && k < 6; k++) { const q = fish.rings[k]; water?.disturb?.(q.x, q.z, -0.035 * q.s, 0.22 + 0.2 * q.s, 0.04); stats.rings++; }
         fish.rings.length = 0;
+        // leaps: a small splash out, a bigger one back in (the FX spray + a ripple ring), and a quiet plop
+        for (const q of fish.splashes) {
+          if (q.out) water?.disturb?.(q.x, q.z, -0.06, 0.3, 0.55);
+          else water?.wakes?.splash?.(q.x, q.z, q.s);
+          if (!q.out) world.events?.emit?.('ambient:fishjump', { x: q.x, z: q.z, species: q.fish.sp, size: q.s });
+        }
+        fish.splashes.length = 0;
       }
       birds.setThreats(bt);
       for (let r = step; r > 1e-6; r -= 0.5) birds.step(Math.min(r, 0.5));

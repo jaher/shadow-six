@@ -30,12 +30,23 @@ therefore frozen while paused and advances in step with the game. Their RNGs are
 sets the species. Group counts scale with water area (groups per 1000 m², capped) and with the quality preset
 (`FISH_DENSITY`: low 0.45, medium 0.7, high 1, ultra 1.25).
 
+User request (2026-10-11): *"You can add some fish in the water too"*: the fish were there but rarely seen (two
+herring schools in M1 half a metre down, dark backs over a dark bed, cod at the bottom). Now every habitat also has
+fish where they show: shoals of small fish over the shallows, big fish cruising high, leaps with splashes, shoals
+dimpling the surface and flashing as they wheel; herring, sprat and mullet have steel-blue backs (lighter than the old
+navy, which matched the dark water) and the herring ride higher (5–35 % of the column). In M1 the fish now change
+~3× as many pixels plainly at zoom 1 (1220 vs 413 pixels changed by > 45 of 765, median over 10 s on the biggest
+school; `tools/perf/fishclip.mjs --vis=1`).
+
 | habitat | when | species (adult sizes, behaviour) |
 |---|---|---|
-| fjord | `fjord` preset or a snow-theatre sea (M1's still fjord) | Norwegian spring-spawning herring (0.29–0.37 m, schools of 45–75, upper water column), saithe / pollock (0.5–0.75 m, schools of 10–16, mid-water, along banks and piers), coastal cod (0.55–0.9 m, 2–4 near the bed) |
-| sea | other seas, harbour presets | thick-lipped grey mullet (schools of 14–24 just under the surface, hugging piers and quays), European sea bass (4–7, mid-water) |
-| river | river bodies | brown trout (singles and pairs) and grayling shoals, **holding station head-upstream** (rheotaxis) at lies they change now and then |
-| lake | lakes and ponds | perch shoals (barred flanks) and a few trout |
+| fjord | `fjord` preset or a snow-theatre sea (M1, M3, M7) | Norwegian spring-spawning herring (0.29–0.37 m, schools of 45–75, upper water), saithe / pollock (0.5–0.75 m, 10–16, mid-water, along banks and piers), coastal cod (0.55–0.9 m, 2–4 near the bed), **sprat** shoals (8–13 cm, 35–60, in 0.7 m of water), **sea trout** (0.4–0.7 m, singles, leaping) |
+| sea | other seas, harbour presets (M13, M14, M16, M18) | thick-lipped grey mullet (14–24 just under the surface, hugging piers and quays, now and then leaping), European sea bass (4–7, mid-water), **sand smelt** shoals over the shallows |
+| medsea | the desert theatre's seas and harbours (M12 Tunis) | mullet, **gilthead bream** (0.25–0.45 m, 4–9, round the quays), sand smelt |
+| river | Norway rivers (M2, M3, M4) | brown trout (singles and pairs) and grayling shoals **holding station head-upstream** (rheotaxis) at lies they change now and then, **Atlantic salmon** in the pools (0.6–0.9 m, leaping), **minnow** shoals in the shallows |
+| lowriver | lowland rivers (M17, M19) | **chub** under the banks near the surface, **roach** shoals, **pike**, trout, minnows |
+| lake | Norway lakes, a raised reservoir (M3) | perch shoals (barred flanks), trout, pike, minnows |
+| lowlake | lowland lakes and ponds (M15, M20) | perch, roach, **carp** (0.5–0.8 m, 2–4, bronze, scaled, cruising and slurping just under the surface, now and then a heavy leap), **pike** (0.6–1 m, alone, lying still at the margins, darting), minnows |
 
 Frozen bodies get no fish. Missions may override this with the optional field
 `ambient: {fish?: false, birds?: false, habitat?: 'fjord'|'sea'|'river'|'lake', density?: 0..2}`, which
@@ -63,6 +74,21 @@ Frozen bodies get no fish. Missions may override this with the optional field
   Frightened fish do a C-start burst (acceleration ×4, up to 2–2.6 m/s) away from the source and sound 12 cm
   deeper. Schools flash-expand, the school goal flees, and the alarm decays over about 3 s before the school
   regroups.
+- **Showing themselves** (the visible-fish pass).
+  - **Shallows.** Sprat, sand smelt and minnows prefer a water depth (`dPref` 0.45–0.7 m) near the banks, close
+    under the surface: dark, shifting clouds over the light shallow bed, where fish are easiest to see from above.
+  - **Big fish high.** Carp and chub cruise 0.1–0.45 m down; pike hold a lie at the margin, motionless for long
+    spells (≥ 70 % of the time), glide slowly to a new lie every 40–90 s, and dart (3.6 m/s, 0.35 s) now and then
+    — never into the bank — scattering the small fish round them.
+  - **Leaps.** Salmon, sea trout, trout, mullet, carp and chub leap (per fish per minute 0.03–0.35): a fast swim up
+    through the column, out on a ballistic arc (up to ~0.5 m for a salmon, low and long for a mullet, a twisting flop
+    for a carp), back in nose first. A small splash and ripple going out, a bigger splash (the WakeTracker spray) and
+    a ring going in, and a quiet splash sound (`ambient:fishjump` → `fish_splash`, ambience bus, ≥ 2 s apart).
+  - **Nervous water.** A shoal riding high (rise ≥ 0.25 / min, within 40 cm of the surface) dimples the surface
+    above it: a small ring every 0.25–0.75 s.
+  - **Flash wave.** When a shoal wheels (a goal turn over 0.8 rad) or is startled, all its members flash their
+    silver flanks within 0.35 s, front to back: the glint that gives a shoal away from above. The mirror flanks get
+    the scene environment at 0.65 (was 0.3).
 - **Feeding cues.**
   - **Flank flashes:** feeding fish roll 0.6–1 rad for about 0.35 s, turning the mirror flank to the sky. The rate
     is set per species, from herring at 10 per minute down to cod at 1.
@@ -70,6 +96,9 @@ Frozen bodies get no fish. Missions may override this with the optional field
     The fish swims up to the surface film, and the director hands a faint ring to the water's ripple sim
     (`water.disturb`, normals only, at most 6 per frame). So a river shows its fish by their rise rings even where
     the bodies are too deep to see.
+- **The M3 dam.** When a draining reservoir's dam is destroyed (`structure:destroyed` of a body's `drainOn`), the
+  burst stuns up to 3 fish by the breach and scatters the rest. Fish left on dry bed as the reservoir drains leave the
+  sim (stranded fish are never drawn); there are never fish in the breach's surge (it is not a water body).
 - **Underwater blasts** (`explosion` on a wet cell) stun 2–4 fish inside 0.6 r. A stunned fish:
   1. rolls belly-up and floats to 3.5 cm under the surface, where its silver belly shows;
   2. drifts with the current and 3 % of the wind, with weak twitches;
@@ -211,7 +240,13 @@ with an instant start and stop, overlapping, with a plain splash and the generic
   ~1.8 Hz stroke, turns eased ≤ 0.9 rad/s), drift and look round (head saccades), preen (back, flank, breast, the
   bill working), rest with the head laid back, the wing-flap display (rise up, a few deep beats, settle), a tail wag
   after settling. Eiders dive for mussels in water over 1 m deep (a forward plunge with the tail flicked up, 8–17 s
-  under water, surfacing 2–6 m on with a ring; ~15 % of the time under); mallards up-end (tail in the air).
+  under water, surfacing 2–6 m on; ~15 % of the time under); mallards up-end (tail in the air). A diving duck is
+  seen to go down (driving down at ~1 m/s): between 8 and 48 cm under the surface it darkens into the water (its colour goes to the deep
+  water's near-black, which the water pass tints like the bed; only the last, nearly black stretch dissolves) and is
+  only then left out; coming up it rises nose-up for 1 s, fading in the same way,
+  the head breaks the surface with a ring of shed droplets, it shakes its head and tail and paddles off with a
+  small wake. (User: *"In the duck video it feels like one duck appears out of nowhere"*: an eider surfacing was
+  drawn all at once 26 cm under the surface.)
 - **Flock.** One flock per plan entry; its centre wanders over open water within 8 m of home every 25–50 s (eiders
   off the shore); members keep ~1.5 body lengths apart (sideways sculling), stragglers paddle back.
 - **Alarm and flush.** Someone moving inside 1.6 × the wary radius: necks up, heads to the danger, the flock swims off
@@ -266,6 +301,19 @@ ray by their height), and uploads only the visible instances.
 The ground gait (feet, head-bob, hops) raised the bird sim from about 0.014 to 0.056 ms per 60 Hz step for 20
 birds (12 crows + 8 gulls, node on a loaded machine), still well inside the 0.3 ms budget.
 
+Visible fish (2026-10-11): the fish population went up (M1 175 → 539 fish: four herring schools, sprat shoals, sea
+trout; a lowland lake ~70 → ~330 with minnows, roach, carp, pike), and stays cheap:
+- **Simulation LOD.** The director passes its view rectangle to `FishSim.setFocus`; schools more than 12 m outside it
+  are stepped at 5 Hz with the time they missed (alarmed schools always at full rate). Big shoals look at 14 members a
+  step for their separation (a different stretch each step), not all of them.
+- **One object shape** for every species (all optional keys filled, same order) and every fish (all fields set at
+  spawn), and no allocation in the per-fish fright path: a mixed lake was 3× slower per fish with mixed shapes.
+- **Render LOD.** Small shoal fish (sprat, sand smelt, minnows: 3–5 px long at zoom 1) use a 7 × 6-ring body (< 120
+  triangles) instead of 12 × 8.
+- Measured (node, loaded machine): a full lowland lake (331 fish, every school at full rate) 0.23 ms per 60 Hz step,
+  vs 0.02 ms for master's 72 perch and trout; in the game most schools are off screen. The GPU test's director time
+  for M1 (539 fish, sims + threats + culling + upload) is ~0.12 ms per frame.
+
 Realistic ducks (M1, 8 eiders, measured on a heavily shared machine, so only the CPU figures are meaningful): the bird
 sim went from 0.030 to 0.057 ms per 60 Hz step for 20 birds (node, M1-like plan: 8 eiders, 6 gulls, 6 crows); the wake
 ribbons cost 0.05–0.08 ms per displayed frame with all 8 eiders making way (worst case; ~1.1k vertices, ≤ 2.5k
@@ -293,6 +341,16 @@ It sits inside the measurement noise, and the whole feature stays within the 0.3
   head-bob, hops and pecks, landing / take-off blends (height, pitch, fold, flap amplitude), determinism, the
   rendered foot landing exactly on the sim foot, a palisade across the field (never entered, bill kept out, eased
   braking), no timed take-off mid-peck, and no jerk when a gull settles on a post.
+- `tests/unit/fish.test.mjs`: small shoals in the shallows near the banks, big fish high, leaps (out and in, clear of
+  the water, never left in the air), pike lurking ≥ 70 % of the time and darting, nervous-water dimples, a swimmer
+  scattering a minnow shoal, stranded fish out of the sim and not drawn, no fish in puddles, the M3 dam burst stunning
+  fish (director), the cost of a full lake.
+- `tests/fish-visible.test.mjs` (GPU): M1 fish plainly visible at zoom 1 (pixels changed by > 45 of 765 with the fish
+  shown vs hidden: 986 vs 425 on master, must be > 700), species per theatre (M1, M2, M15, M12), leaps on M2, a swimmer scattering a
+  shoal, the director cost.
+- `node tools/perf/fishclip.mjs --mission=m01 --zoom=1 --secs=8 --fps=30 --out=<dir> [--sp=carp] [--vis=1]
+  [--startle=blast|swim] [--leap=salmon@0.4] [--follow=0.05] [--calm=1]` records fish frames, a trace (leaps, the
+  screen position of fish in the air, scared fish) and the visibility measure.
 - `tests/unit/ducks.test.mjs`: the flock spawn and spacing, eased paddling and turns, activities (preen, dive /
   up-end, flap), riding the chop, alarm then flush, the eider's take-off run (distance, lift-off speed, splashes,
   wing slaps, foot patter), formation flight and the glide-in → skid → swim landings, mallards' up-ending and jump,
