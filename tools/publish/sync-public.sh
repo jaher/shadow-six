@@ -126,6 +126,20 @@ git -C "$PUB" config user.name "$AUTHOR_NAME"
 git -C "$PUB" config user.email "$AUTHOR_EMAIL"
 git -C "$PUB" remote get-url origin >/dev/null 2>&1 || git -C "$PUB" remote add origin "$REMOTE_URL"
 
+# commits made directly on the public repo (e.g. by the owner on GitHub) must be imported into dev master first,
+# or this snapshot would silently revert them: fetch, refuse if origin has non-sync commits we have not seen.
+if [ "$PUSH" = 1 ] && git -C "$PUB" rev-parse -q --verify HEAD >/dev/null && git -C "$PUB" fetch -q origin master 2>/dev/null; then
+  if ! git -C "$PUB" merge-base --is-ancestor FETCH_HEAD HEAD; then
+    FOREIGN="$(git -C "$PUB" log --format='%h %s' HEAD..FETCH_HEAD | grep -v ' Sync from dev master ' || true)"
+    if [ -n "$FOREIGN" ]; then
+      echo "[sync-public] ERROR: the public repo has commits that are not in dev master:" >&2
+      echo "$FOREIGN" >&2
+      echo "[sync-public] import them first, e.g.: git -C \"$PUB\" merge --ff-only FETCH_HEAD; git -C <dev> fetch public; git -C <dev> cherry-pick -x <old>..public/master" >&2
+      exit 1
+    fi
+    git -C "$PUB" merge -q --ff-only FETCH_HEAD
+  fi
+fi
 rsync -a --delete --exclude='/.git' "$STAGE/" "$PUB/"
 
 # ---- (c) commit ------------------------------------------------------------
