@@ -3,6 +3,9 @@
  * the late FX layer, the white water is brightest at the plunge, its foam pattern is carried DOWNSTREAM on screen
  * (cross-correlation of a luminance profile along the jet between two moments), it freezes while paused, and the
  * whole dam-water layer (sheets, pool, spray, mist) costs ≤ 1.5 ms of render time (visible vs hidden, gl.finish).
+ * Every falling sheet down the face (the spillway sheets and the flowing trickles) lands in the water: the ground in
+ * front of its foot is a wet nav cell (user: "the dam in mission 3 has a stream of water on the side which falls on the
+ * ground, remove that stream" — the trickles at the face's two ends fell on the snow beside the stairs).
  */
 export default async function damWater(page, t) {
   const r = await page.evaluate(async () => {
@@ -15,6 +18,19 @@ export default async function damWater(page, t) {
     if (!D?.pool) return out;
     out.layer = D.pool.mesh.layers.mask; out.bakeMs = D.pool.field.ms;
     const dam = G.world.mission.structures.find((s) => s.id === 'dam'), c = Math.cos(dam.rot), s = Math.sin(dam.rot);
+    // where each falling sheet lands: the bottom row of every 'dam_water_sheet' ribbon (world positions), 0.4 m out
+    // from the face (downstream), on the nav grid's water
+    const { wetAt } = await import('/src/art/water.js');
+    out.falls = [];
+    D.group.traverse((o) => {
+      if (!o.isMesh || o.material?.name !== 'dam_water_sheet') return;
+      const p = o.geometry.getAttribute('position'); let yMin = Infinity;
+      for (let i = 0; i < p.count; i++) yMin = Math.min(yMin, p.getY(i));
+      let x = 0, z = 0, n = 0;
+      for (let i = 0; i < p.count; i++) if (p.getY(i) < yMin + 0.05) { x += p.getX(i); z += p.getZ(i); n++; }
+      x = x / n - s * 0.4; z = z / n + c * 0.4;
+      out.falls.push({ x: +x.toFixed(1), z: +z.toFixed(1), y: +yMin.toFixed(2), wet: wetAt(G.world.grid, x, z) });
+    });
     const W = (u, v) => [dam.x + u * c - v * s, dam.z + u * s + v * c];
     const mid = D.pool.mesh.material.uniforms.uBoilV.value - 1.6;
     const [cx, cz] = W(0, mid + 9);
@@ -80,5 +96,7 @@ export default async function damWater(page, t) {
   t.ok(r.boil > r.side + 25 && r.boil > r.far + 15, `white water brightest at the plunge (boil ${r.boil?.toFixed(0)}, side pool ${r.side?.toFixed(0)}, 20 m down ${r.far?.toFixed(0)})`);
   t.ok(r.speed > 0.4 * r.current && r.speed < 2 * r.current && r.corr > 0.5, `foam carried downstream on screen at ${r.speed?.toFixed(2)} m/s (current ${r.current?.toFixed(2)} m/s, corr ${r.corr?.toFixed(2)})`);
   t.ok(r.frozen, 'frozen while paused');
+  const dry = (r.falls || []).filter((q) => !q.wet || q.y > 0.3);
+  t.ok(r.falls?.length >= 4 && !dry.length, `every falling sheet lands in the water (${r.falls?.length} sheets; on dry ground: ${JSON.stringify(dry)})`);
   t.ok(r.gpuDelta <= 1.5, `dam water render cost ${r.gpuDelta?.toFixed(2)} ms (vis ${r.renderVis?.toFixed(2)} / hid ${r.renderHid?.toFixed(2)}; budget 1.5)`);
 }

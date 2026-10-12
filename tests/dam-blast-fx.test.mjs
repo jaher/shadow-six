@@ -11,7 +11,8 @@
  * - the column under it runs on without a gap down to the pool;
  * - the reservoir upstream of the gap shows the flow drawn in (the funnel's slick and flow lines);
  * - strongest just after the blast and still a strong steady outflow 45 s on (the lake keeps feeding it);
- * - the reservoir has dropped and holds (art/water.js `drains`), the flow surface sits on it.
+ * - the reservoir has dropped and holds (art/water.js `drains`), the flow surface sits on it;
+ * - the falling column lands in the water: its foot and its side walls' bottoms over the nav grid's wet cells.
  * Mid-burst (12 s) and settled (45 s), two more (user: "The water on the river looks too fast after the dam explodes.
  * Its not going as fast when falling vertically" and "Make the transition of the waterfall seamlessly cross all
  * segments, they should be aligned"):
@@ -84,6 +85,7 @@ export default async function damBlastFx(page, t) {
       return { cover: ch / Math.max(1, n), lum: ch ? l / ch : 0, rowMed: sorted[sorted.length >> 1], rowMin: sorted[0], gap, rows: rows.length };
     };
     const out = { at: [], speed: {}, seams: {} };
+    const { wetAt } = await import('/src/art/water.js');
     let el = 0; // (seconds of the dam water's own clock since the blast: the renders above ran with dt 0)
     const step = (n) => { for (let i = 0; i < n; i++) { G.step(); g.render(1 / 60, 1); } el += n / 60; }; // (the render's dt drives the dam water + drain)
     const home = () => { g.cameraController.setYaw(15); G.setZoom(1); G.centerOn(...W(0, 2)); g.render(0, 1); };
@@ -175,6 +177,20 @@ export default async function damBlastFx(page, t) {
       const B2 = D.breach, dr = w.water?.drains?.[0];
       out.at.push({ T, top, col, fun, amt: B2.active, level: dr?.body?.level, yTop: B2.profile?.yTop, yLip: B2.profile?.yLip });
       if (T === 12 || T === 45) { out.speed[T] = speeds(); out.seams[T] = seams(); }
+      if (T === 12) {
+        // where the burst's falling water lands: the column's foot and the bottoms of its side walls (world positions),
+        // all on the nav grid's water
+        const fm = D.breach.flowMesh, pp = fm.geometry.getAttribute('position'), ax = fm.geometry.getAttribute('aux'), v3 = new V3();
+        fm.updateMatrixWorld(true);
+        let n = 0; const dry = [];
+        for (let i = 0; i < pp.count; i++) {
+          const zz = ax.getX(i), isWall = ax.getY(i) > 0.5;
+          if (!(zz > 0.6 && zz <= 1.0 + 1e-6) || (isWall && ax.getZ(i) < 0.99) || pp.getY(i) > 0.4) continue;
+          v3.set(pp.getX(i), pp.getY(i), pp.getZ(i)).applyMatrix4(fm.matrixWorld); n++;
+          if (!wetAt(w.grid, v3.x, v3.z)) dry.push([+v3.x.toFixed(1), +v3.z.toFixed(1)]);
+        }
+        out.fallFeet = { n, dry: dry.slice(0, 6), nDry: dry.length };
+      }
     }
     out.from = w.water?.drains?.[0]?.from;
     return out;
@@ -199,6 +215,7 @@ export default async function damBlastFx(page, t) {
   t.ok(f.from - at(45).level > 0.5 && at(45).level > f.from - 1.2 && Math.abs(at(45).level - at(30).level) < 0.05,
     `the reservoir drops and holds (${fx(f.from)} → ${fx(at(30).level)} → ${fx(at(45).level)})`);
   t.ok(Math.abs(at(45).yTop - at(45).level - 0.05) < 0.01, 'the flow surface sits on the reservoir (no step at its top)');
+  t.ok(f.fallFeet?.n > 20 && f.fallFeet.nDry === 0, `the burst's falling water lands in the water (${f.fallFeet?.n} points at its foot; on dry ground: ${f.fallFeet?.nDry} ${JSON.stringify(f.fallFeet?.dry)})`);
   for (const T of [12, 45]) {
     const sp = f.speed[T], sj = f.seams[T];
     t.log(`${T} s speeds (px/s, zoom 1): fall ${sp.face}, river near the pool ${sp.near}, river 16 m down ${sp.far}`);

@@ -12,7 +12,7 @@
  * @module render/dam-water
  */
 import * as THREE from 'three';
-import { FX_LAYER, WATER_LEVEL } from '../art/water.js';
+import { FX_LAYER, WATER_LEVEL, wetAt } from '../art/water.js';
 import { faceSampler, faceRibbon } from './dam-water-geom.js';
 import { sheetMaterial, crownMaterial, splashMaterial, wetMaterial, iceMaterial, damWaterUniforms as U, damLight } from './dam-water-mats.js';
 import { createDamSpray } from './dam-water-spray.js';
@@ -25,10 +25,15 @@ export function hasDamWater(structures) {
 }
 export { loadDamPoolTextures } from './dam-water-pool.js';
 
-/** Default trickles [u, yTop, width, kind] in the dam frame (u along the crest, m; y world). */
+/**
+ * Default trickles [u, yTop, width, kind, seed] in the dam frame (u along the crest, m; y world). Only where the face's
+ * foot stands in the pool: the two at the face's ends (u -11.0 and 12.2) fell onto the snow beside the stairs (user:
+ * "the dam in mission 3 has a stream of water on the side which falls on the ground, remove that stream"), and
+ * createDamWater drops any flowing trickle whose foot is not over water. `seed` keeps each one's look.
+ */
 export const DAM_STREAMS = [
-  [-11.0, 6.9, 0.22, 'flow'], [-9.2, 5.2, 0.3, 'ice'], [-7.4, 6.3, 0.16, 'flow'], [-5.6, 4.6, 0.35, 'ice'], [-3.6, 6.9, 0.2, 'flow'],
-  [3.4, 5.8, 0.18, 'flow'], [5.2, 6.9, 0.32, 'ice'], [6.9, 4.1, 0.2, 'flow'], [8.8, 6.6, 0.26, 'flow'], [10.8, 5.0, 0.28, 'ice'], [12.2, 6.8, 0.15, 'flow'],
+  [-9.2, 5.2, 0.3, 'ice', 1], [-7.4, 6.3, 0.16, 'flow', 2], [-5.6, 4.6, 0.35, 'ice', 3], [-3.6, 6.9, 0.2, 'flow', 4],
+  [3.4, 5.8, 0.18, 'flow', 5], [5.2, 6.9, 0.32, 'ice', 6], [6.9, 4.1, 0.2, 'flow', 7], [8.8, 6.6, 0.26, 'flow', 8], [10.8, 5.0, 0.28, 'ice', 9],
 ];
 /** Spillway gate bays (u range) and the height the water leaves them at. */
 const BAYS = [[-1.55, -0.45], [0.45, 1.55]], BAY_TOP = 4.3;
@@ -57,6 +62,14 @@ export function createDamWater(world, structures, renderer = null) {
     return mesh;
   };
   const yW = WATER_LEVEL;
+  /** Is there water (the nav grid's wet cells) in front of the face's foot at u? (its lowest point the ribbons reach) */
+  const footInWater = (F, u) => {
+    let vEnd = null;
+    for (let y = 7.2; y >= yW - 1e-6; y -= 0.2) { const v = F.v(u, y); if (v != null) vEnd = v; else if (vEnd != null) break; }
+    if (vEnd == null || !world.grid) return true;
+    const [x, z] = F.world(u, vEnd + 0.4);
+    return wetAt(world.grid, x, z);
+  };
   for (const S of dams) {
     const def = S.def, F = faceSampler(S.object3d, def);
     if (!F.meshes) continue;
@@ -80,7 +93,10 @@ export function createDamWater(world, structures, renderer = null) {
     const sz = faceRibbon(F, { u0: 0, w: 10, yTop: yW + 2.4, yBot: yW, off: 0.025, cols: 9, seed: 31 });
     add(sz, splashMaterial({ alpha: 0.55, len: sz?.userData.len, seed: 3 }));
     // 2. trickles (flowing or frozen) with their wet streaks, and old dry streaks from the crest
-    streams.forEach(([u, yTop, w, kind], k) => {
+    streams.forEach(([u, yTop, w, kind, seed], i) => {
+      const k = seed ?? i;
+      // falling water lands in the pool or not at all: a flowing trickle whose foot is on dry ground is left out
+      if (kind !== 'ice' && !footInWater(F, u)) { stats.dryLeftOut = (stats.dryLeftOut || 0) + 1; return; }
       const wet = faceRibbon(F, { u0: u, w: w * 3.2, yTop: yTop + 0.35, yBot: yW, off: 0.03, cols: 3, wobble: 0.03, seed: k });
       add(wet, wetMaterial({ alpha: 0.42, len: wet?.userData.len, seed: k }));
       if (kind === 'ice') {
