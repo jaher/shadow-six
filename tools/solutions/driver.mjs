@@ -810,7 +810,10 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
         for (const s of segs) {
           if (s.wait) { while (D.t < s.until - 1e-6) await tick(); continue; }
           while (D.t < s.start - 1e-6) await tick();
-          try { go(s.x, s.z); } catch (e) {
+          // (a leg end the raft has already reached — it glided onto or just past it — is not clicked: a player clicks
+          // the next one, as for a click the raft cannot take; the M3 film flashed "can't get there in a straight line"
+          // for that click, refused by the game then — it takes it now, as done, and stops there)
+          try { if (mode === 'raft' && Math.hypot(raft.x - s.x, raft.z - s.z) < 0.5) throw new Error('there already'); go(s.x, s.z); } catch (e) {
             // (a raft against the bank cannot pivot that way: the next click further on, else back off the bank)
             if (globalThis.process?.env?.SNEAKDBG) log(`    [${D.t.toFixed(2)}] sneak: ${e.message}`);
             let ok = false;

@@ -103,8 +103,11 @@ export function sampleXZ(p, vx, vz, h, dx = 0, out = { x: 0, z: 0 }) {
  * the origin (`com`) tips a hull perched on a single hump under its middle onto its stern, as its weight would.
  * @param {{x:number, y:number, z:number}[]} pts underside samples
  * @param {ArrayLike<number>} sup support height per sample (world m; −Infinity = nothing under it)
- * @param {{A0?: number, B0?: number, com?: number[], k?: number, rho?: number, maxTilt?: number, iters?: number}} [o]
- *   com = [xc, zc] model-space centre of mass (default the origin)
+ * @param {{A0?: number, B0?: number, com?: number[], k?: number, rho?: number, maxTilt?: number, iters?: number,
+ *   warm?: {h:number, A:number, B:number}}} [o]
+ *   com = [xc, zc] model-space centre of mass (default the origin); warm = the last solve of this hull (a boat bobbing
+ *   half beached is solved again every tick: from there the Newton steps are a hair long, not a fall from the highest
+ *   support — the same minimum, E being strictly convex)
  * @returns {{h:number, A:number, B:number, iters:number, contacts:number}|null} null when nothing supports it
  */
 export function restPose(pts, sup, o = {}) {
@@ -114,8 +117,10 @@ export function restPose(pts, sup, o = {}) {
   for (let i = 0; i < n; i++) { s[i] = sup[i] - pts[i].y; if (s[i] > -1e6) live.push(i); }
   if (!live.length) return null;
   const clampT = (v) => Math.max(-M, Math.min(M, v));
-  let A = clampT(A0), B = clampT(B0), h = -Infinity;
-  for (const i of live) h = Math.max(h, s[i] - A * pts[i].z - B * pts[i].x); // touching at the highest support
+  const W = o.warm, warm = W && Number.isFinite(W.h) && Number.isFinite(W.A) && Number.isFinite(W.B);
+  let A = clampT(warm ? W.A : A0), B = clampT(warm ? W.B : B0), h = -Infinity;
+  if (warm) h = W.h;
+  else for (const i of live) h = Math.max(h, s[i] - A * pts[i].z - B * pts[i].x); // touching at the highest support
   const energy = (h, A, B) => {
     let e = h + A * zc + B * xc + 0.5 * rho * ((A - A0) ** 2 + (B - B0) ** 2);
     for (const i of live) { const d = s[i] - h - A * pts[i].z - B * pts[i].x; if (d > 0) e += 0.5 * k * d * d; }
@@ -164,7 +169,8 @@ export function restPose(pts, sup, o = {}) {
  * @param {{h:number, pitch:number, roll:number}} float the floating pose (origin height = waterline, bob, tilts)
  * @param {ArrayLike<number>} ground ground height under each sample (−Infinity: none it can rest on)
  * @param {ArrayLike<number|null>} water water level over each sample (null: no water there)
- * @param {{squash?: number, com?: number[]}} [o] squash: how far soft tubes flatten into the ground (m); com: restPose
+ * @param {{squash?: number, com?: number[], warm?: object}} [o] squash: how far soft tubes flatten into the ground (m);
+ *   com: restPose; warm: this hull's previous boatRest result (restPose warm start)
  * @returns {{h:number, pitch:number, roll:number, grounded:number, afloat:boolean}} grounded = share of the samples the
  *   ground holds above their floating height (0 afloat … 1 on dry land)
  */
@@ -180,11 +186,12 @@ export function boatRest(pts, float, ground, water, o = {}) {
     if (sup[i] > -1e6) any = true;
   }
   if (!lifted || !any) return { h: float.h, pitch: float.pitch, roll: float.roll, grounded: 0, afloat: true };
-  const r = restPose(pts, sup, { A0, B0, com: o.com });
+  const wr = o.warm && !o.warm.afloat && Number.isFinite(o.warm.A) ? o.warm : null;
+  const r = restPose(pts, sup, { A0, B0, com: o.com, warm: wr });
   if (!r) return { h: float.h, pitch: float.pitch, roll: float.roll, grounded: 0, afloat: true };
   const pitch = -Math.asin(Math.max(-1, Math.min(1, r.A)));
   const roll = Math.asin(Math.max(-1, Math.min(1, r.B / Math.cos(pitch))));
-  return { h: r.h, pitch, roll, grounded: lifted / n, afloat: false, contacts: r.contacts };
+  return { h: r.h, pitch, roll, grounded: lifted / n, afloat: false, contacts: r.contacts, A: r.A, B: r.B };
 }
 
 /** Is the world's drawn terrain built (art/terrain.js handle with its mesh ready)? Until then surfaceAt reads 0. */

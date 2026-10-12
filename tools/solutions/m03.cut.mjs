@@ -4,7 +4,7 @@
  * checkpoint k, objT(o) = time objective o was done).
  */
 export const TITLES = {
-  A: 'A · The plateau: trap the sergeant, harpoon the troopers',
+  A: 'A · The plateau: harpoon the troopers, trap the sergeant',
   B: 'B · The gully: knife the two sentries, hide the bodies',
   C: 'C · The Spy crawls round the camp to a uniform',
   D: 'D · The Marine, under water, harpoons the river post e14',
@@ -17,10 +17,10 @@ export const TITLES = {
 };
 
 export const CAPTIONS = {
-  A1: 'Bear trap on the patrol path; the decoy goes down beside it, switched off',
-  A2: 'Sergeant e1 steps into the bear trap',
-  A3: 'Decoy on: the two troopers stop and stare at it',
-  A4: 'The Marine harpoons both of them; the Green Beret takes his decoy back',
+  A1: 'The decoy goes down beside the patrol path, switched off; a bear trap west of it, off the beat',
+  A2: 'Decoy on: the sergeant stares at it, his two troopers stopped behind him',
+  A3: 'The Marine harpoons both troopers behind the sergeant\u2019s back',
+  A4: 'Decoy off: the sergeant walks back west into the bear trap; the Green Beret takes his decoy back',
   B1: 'The Green Beret knifes e5 from behind',
   B2: '… then e4',
   B3: 'Both bodies carried up onto the plateau, out of sight',
@@ -93,7 +93,8 @@ export function shots(cp, objT) {
     s.push({ t0: j1 + 0.5, t1: o2 + 60, x: 60, z: 10, zoom: 1.25, prio: 2 });
   }
   const h2 = cp('H2'); if (h2) s.push({ t0: h2 - 2, t1: h2 + 3, x: 26, y: 0, z: 62, zoom: 0.8, prio: 1 }); // the Spy and e18
-  const a3 = cp('A3'); if (a3) s.push({ t0: a3 - 4, t1: a3 + 4, x: 101, y: 0, z: 11, zoom: 0.7, prio: 1 }); // p1 stare at the decoy
+  const a2 = cp('A2'); if (a2) s.push({ t0: a2 - 4, t1: a2 + 2, x: 99, y: 0, z: 12, zoom: 0.7, prio: 1 }); // p1 walks up to the decoy
+  const a4 = cp('A4'); if (a4) s.push({ t0: a4 - 3, t1: a4 + 2, x: 94, y: 0, z: 13, zoom: 0.75, prio: 1 }); // e1 into the trap
   const i1 = cp('I1'); if (i1) s.push({ t0: i1 - 3.5, t1: i1 + 0.5, x: 15, y: 0, z: 50, zoom: 0.6, prio: 1 }); // the gunner turns, the decoy S of him
   const c0 = cp('C0'); if (c0) s.push({ t0: c0 - 3, t1: c0 + 2, x: 126, y: 0, z: 46, zoom: 0.7, prio: 1 }); // e8 knifed
   const d1 = cp('D1'); if (d1) s.push({ t0: d1 - 3, t1: d1 + 3, x: 101, y: 0, z: 75, zoom: 0.7, prio: 1 }); // e14 harpooned
@@ -107,7 +108,7 @@ export function windows(cp, objT) {
   const o1 = objT('o1'), o2 = objT('o2');
   if (o1) w.push({ t0: o1 - 3, t1: o1 + 5, speed: 1 });
   if (o2) w.push({ t0: o2 - 3, t1: o2, speed: 1 }, { t0: o2, t1: o2 + 60, speed: 0.5 }); // the blast and the escape at half speed
-  for (const [k, a, b, sp] of [['A3', -4, 1, 2], ['C0', -4, 2, 1], ['C3', -5, 1, 1.5], ['D1', -3, 2, 1], ['E2', -3, 1, 1.5],
+  for (const [k, a, b, sp] of [['A2', -4, 1, 2], ['A3', -4, 1, 1.5], ['A4', -3, 1, 1.5], ['C0', -4, 2, 1], ['C3', -5, 1, 1.5], ['D1', -3, 2, 1], ['E2', -3, 1, 1.5],
     ['E3', -2, 2, 2], ['F2', -4, 2, 1], ['F3', -3, 1, 1.5], ['G2', -20, 1, 2], ['G3', -4, 1, 1.5], ['G5b', -1, 4, 1], ['G5', -24, -7, 2], ['G5', -7, 1, 1],
     ['H2', -2, 3, 2], ['I1', -4, 1, 1.5], ['I2', -8, 1, 1.5], ['I3', -4.5, 2, 1]]) {
     const t = cp(k);

@@ -5,7 +5,7 @@
  * The replay owns the simulation clock while it runs: Game.manualTick is set (the game's own accumulator stops) and a
  * frame hook grants the driver `dt × speed / simDt` ticks per displayed frame (TickPacer); the driver's `step` runs a
  * granted tick at once or waits for the next frame. Speeds 1× / 2× / 4× / 8×, pause, and skip-to-stage (the mission is
- * reloaded and fast-forwarded — as fast as ~90 ms of ticks per frame allows — to the start of that stage, then plays
+ * reloaded and fast-forwarded — ~90 ms of ticks per frame, the view drawn twice a second — to the start of that stage, then plays
  * on at the chosen speed). The camera follows the commando the last order went to (his vehicle while he rides),
  * captions show the stage, the latest checkpoint and the latest order. Player orders (game.enqueue) are dropped while
  * it runs; Esc (or STOP) stops it and gives the game back to the player where it stands.
@@ -24,8 +24,16 @@ import { normalizeWalkthrough } from './walkthrough-data.js';
 import { Director, freeRect } from './walkthrough-director.js';
 
 export const SPEEDS = Object.freeze([1, 2, 4, 8]);
-/** Wall-clock ms of ticks per frame while fast-forwarding to a stage (the view still updates ~8 times a second). */
+/** Wall-clock ms of ticks per frame while fast-forwarding to a stage. */
 export const TURBO_MS = 90;
+/**
+ * While fast-forwarding the view is drawn at most every TURBO_VIEW_MS (twice a second) — and never more often than
+ * TURBO_VIEW_SHARE of the wall clock allows (a slow draw on a loaded machine spaces the next one out): the frames
+ * between only grant the next ticks. Drawing every frame took about half the wall clock of a fast-forward (45–120 ms a
+ * draw against 90 ms of ticks), and M3's ~50 minutes no longer reached their last stage in time (debug-solution step 9).
+ */
+export const TURBO_VIEW_MS = 500;
+export const TURBO_VIEW_SHARE = 0.15;
 
 /**
  * Sim tick budget per displayed frame. Pure (no DOM / game): tests/unit/solution-replay.test.mjs.
@@ -193,10 +201,22 @@ export class SolutionReplay {
     const frame = (this._saved.frame || Object.getPrototypeOf(g).frame);
     g.manualTick = true;
     g.accumulator = 0;
+    this._viewAt = -Infinity;
+    this._viewDt = 0;
+    this._viewMs = 0;
     g.frame = (dt) => {
       this._frame(dt);
+      // fast-forward: the view only every TURBO_VIEW_MS; the frames between just grant ticks (and wake the driver)
+      this._viewDt += dt;
+      const now = performance.now();
+      if (this.pacer.turbo && !this.stopped && now - this._viewAt < Math.max(TURBO_VIEW_MS, this._viewMs / TURBO_VIEW_SHARE)) return undefined;
+      this._viewAt = now;
+      const vdt = Math.min(this._viewDt, CONFIG.render?.maxDelta ?? 0.25);
+      this._viewDt = 0;
       // animation time follows the sim speed (legs keep pace with the ground covered at 8×)
-      return frame.call(g, dt * this._animScale());
+      const out = frame.call(g, vdt * this._animScale());
+      this._viewMs = performance.now() - now; // (how long a draw takes here: the fast-forward's next view waits for it)
+      return out;
     };
     g.enqueue = () => { this.dropped++; this._flash = performance.now() + 2500; }; // the replay plays: player orders wait
     if (this.toMarker) this.pacer.setTurbo(true);

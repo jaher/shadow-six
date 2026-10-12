@@ -8,7 +8,7 @@ import { test, assert } from './lib.mjs';
 import * as THREE from 'three';
 import { makeBearTrap, BEAR_TRAP } from '../../src/art/bear-trap.js';
 import { Trap } from '../../src/abilities/charges.js';
-import { makeWorld, addEnemy, step } from './ai-harness.mjs';
+import { makeWorld, addEnemy, addCommando, step } from './ai-harness.mjs';
 
 const box = (o) => { o.updateWorldMatrix(true, true); return new THREE.Box3().setFromObject(o); };
 const byName = (root, n) => { let r = null; root.traverse((o) => { if (!r && o.name === n) r = o; }); return r; };
@@ -69,4 +69,32 @@ test('bear trap: the Trap entity carries the model, snaps shut on its victim, ke
   assert.ok(t.sprung && !e.alive, 'sprung on the enemy');
   assert.equal(t.object3d.userData.sprung, 1, 'jaws shut within 0.2 s');
   assert.equal(t.serialize().trapHeading, 1.2);
+});
+
+// M3 film review: the trap that took p1's sergeant put his two troopers into combat. Not a rule bug: the trap kills in
+// silence (no noise: nobody hears it) but not unseen (research.md: "silent, not invisible: a kill inside someone's
+// cone is still seen") — the troopers walk 1.2 m behind their sergeant, looking at him. The solution now traps the
+// sergeant alone, his men harpooned first behind his back (tools/solutions/m03.solution.mjs stage A).
+test('bear trap: the kill makes no noise and nobody with his back to it notices; mates walking behind the victim see him fall', () => {
+  const route = { type: 'PINGPONG', vel: 1.0, points: [{ x: 20, z: 20 }, { x: 60, z: 20 }] };
+  const w = makeWorld({ enemies: [
+    ...['s', 'a', 'b'].map((id, k) => ({ id, soldierType: k ? 'trooper' : 'sergeant', x: 20 - 1.5 * k, z: 20, heading: 0, squad: { id: 'p1', leader: 's', columns: 1 }, route })),
+    // a sentry 4 m off the trap, his back to it
+    { id: 'g', soldierType: 'sentry', x: 30, z: 24, heading: Math.PI / 2, post: { heading: Math.PI / 2, sweep: 0 } },
+  ] });
+  const sapper = addCommando(w, 'sapper', 5, 70);
+  const noises = [];
+  w.events.on('noise', (n) => noises.push({ t: w.time, kind: n.kind, src: n.source?.faction }));
+  const trap = new Trap({ x: 30, z: 20, owner: sapper });
+  w.add(trap);
+  const [s, a, b, g] = ['s', 'a', 'b', 'g'].map((id) => w.enemies.find((e) => e.tag === id || e.id === id || e.spawn?.id === id));
+  let tk = null;
+  w.events.on('trap:sprung', () => { tk = w.time; });
+  for (let i = 0; i < 60 * 20 && tk == null; i++) { step(w); trap.update(1 / 60); }
+  assert.ok(tk != null && !s.alive, 'the sergeant, in front, steps in it');
+  for (let i = 0; i < 30; i++) { step(w); trap.update(1 / 60); }
+  assert.deepEqual(noises.filter((n) => n.t >= tk - 1e-6), [], 'no noise from the kill');
+  assert.equal(g.brain.state, 'IDLE', 'the sentry with his back to it never knew');
+  assert.ok(a.sawKill && b.sawKill, 'the troopers behind him saw him fall');
+  assert.ok(['COMBAT', 'SEARCH'].includes(a.brain.state) && ['COMBAT', 'SEARCH'].includes(b.brain.state), `…and fight (${a.brain.state}, ${b.brain.state})`);
 });

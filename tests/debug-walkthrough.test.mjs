@@ -54,10 +54,11 @@ export default async function debugWalkthrough(page, t) {
     none: [...document.querySelectorAll('#dbg-select .dbg-wt-none')].map((b) => b.dataset.walkthrough),
   }));
   t(listed.wt.includes('m03'), `M3 has a walkthrough (${listed.wt})`);
-  t(listed.none.includes('m01') && !listed.none.includes('m03'), `M1 is listed without one (${listed.none.length} missions)`);
-  await click('#dbg-select .dbg-wt-none[data-walkthrough="m01"]');
+  // (M0, M1, M3 and M14 have walkthroughs now: M2 stands for a mission without one)
+  t(listed.none.includes('m02') && !listed.none.includes('m03') && !listed.none.includes('m01'), `M2 is listed without one (${listed.none.length} missions)`);
+  await click('#dbg-select .dbg-wt-none[data-walkthrough="m02"]');
   await page.waitForFunction(() => document.querySelector('#wt-card[data-kind=none]'));
-  t(/No walkthrough yet/.test(await page.locator('#wt-card').textContent()), 'M1: "No walkthrough yet"');
+  t(/No walkthrough yet/.test(await page.locator('#wt-card').textContent()), 'M2: "No walkthrough yet"');
   await click('#wt-card [data-act=ok]');
   await page.waitForFunction(() => !document.getElementById('wt-card') && !!document.getElementById('dbg-select'));
   t(true, 'OK goes back to the debug menu');
@@ -131,7 +132,8 @@ export default async function debugWalkthrough(page, t) {
   await click('#wt-menu [data-chapter="B"]');
   await page.waitForFunction(() => { const r = window.shadowSix.debug.mode.replay; return r && window.shadowSix.world !== window.__w0 && r.chapterId === 'B' && !r.pacer.turbo; }, null, { timeout: 180000 });
   s = await S();
-  t(s.time > 200 && s.time < 330 && !s.done.includes('B1') && s.done.includes('A4'), `B by reload + fast-forward (t=${s.time.toFixed(1)}, ${s.done.join(',')})`);
+  // (stage B starts at ~188 s since the plateau patrol is harpooned before its sergeant is trapped: M3 film review)
+  t(s.time > 150 && s.time < 330 && !s.done.includes('B1') && s.done.includes('A4'), `B by reload + fast-forward (t=${s.time.toFixed(1)}, ${s.done.join(',')})`);
   t(s.speed === 4 && s.captions, 'speed and captions carried over the reload');
 
   step('7. previous step: back to the start of this step (reload)');

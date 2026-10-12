@@ -12,7 +12,11 @@
  *
  * Outline (design-spec §7.6 "Intended solution", adapted: e17's sweep covers the raft where it lies, so the uniform
  * cannot come by raft first):
- *   A  plateau: the Sapper's bear trap takes the p1 sergeant (e1); the GB's decoy freezes e2/e3 for the Marine's harpoon
+ *   A  plateau: the GB's decoy stops p1 on its way back west, the sergeant (e1) in front staring at it; the Marine
+ *      harpoons his two troopers behind his back (the tail man first), then, decoy off, e1 walks back west into the
+ *      Sapper's bear trap. Nobody sees a man die: a trap kill is silent, not invisible (research.md: "a kill inside
+ *      someone's cone is still seen") — trapped first, the sergeant fell before the eyes of his troopers walking 1.2 m
+ *      behind him, who fought, searched and found him (M3 film review)
  *   B  gully: the GB knifes e5 and e4 from behind and carries both bodies up onto the plateau
  *   C  e8 walks the strip N of the camp end to end: the GB ambushes him at the W end of his beat (dug in by the
  *      palisade), knifes him and carries him into the niche between the rocks under the cliff (seen from nowhere, not
@@ -173,6 +177,9 @@ async function crawlCautiously(D, pts, { finalPause = 0, maxWait = 900, lastWhen
   }
 }
 
+// the bear trap: on the line from where the decoy (96, 15.6) holds p1's sergeant (98, 15.1) back to his W turning point
+// (62, 13), 5 m on — 1.8 m N of the beat, which never comes this way
+const TRAP = [93, 14.8];
 // the Spy's way to the uniform (round the E camp, out of every near band): gully, then the camp's N, E and SW sides
 const CAMP = [[98, 48], [142, 48], [142, 96], [126, 90], [98, 66]]; // inside the E camp's palisade
 const SPY_GULLY = [[86, 16], [83, 22], [82.5, 30], [83, 44]];
@@ -229,7 +236,9 @@ async function gbRise(D) {
     return a && b;
   }, 300, 'nobody looking where the GB comes up')
     .catch((e) => { throw new Error(`${e.message} at (${gb.x.toFixed(1)},${gb.z.toFixed(1)}) [${why.join(' ')}]`); });
-  D.order('greenberet', { type: 'move', x: gb.x, z: gb.z });
+  // the shovel again (F), not a move order: a move would walk him to his own spot once he is out — a step on his
+  // feet that could leave a boot print in the snow where he lay, which the passing p5 then followed (TRACKS)
+  D.ability('greenberet', 'shovel');
   await D.until(() => !gb.buried && !gb.currentAction, 5, 'GB out of the snow');
   await D.stance('greenberet', 'crawl');
 }
@@ -267,40 +276,47 @@ async function gbSneak(D, x, z, o = {}) {
 export const CREST_PATH = [[29.8, 29.7], [40, 22.4], [52.5, 23.6], [59.35, 34.3]]; // W end → middle → E end → E stair foot
 
 export const STAGES = [
-  ['A', 'Plateau: trap the sergeant, decoy + harpoon the troopers', async (D) => {
+  ['A', 'Plateau: decoy + harpoon the troopers, trap the sergeant', async (D) => {
     const e1 = D.get('e1'), e2 = D.get('e2'), e3 = D.get('e3'), gb = D.c('greenberet'), dv = D.c('diver');
     for (const r of ['sapper', 'greenberet', 'diver', 'spy']) await D.stance(r, 'crawl'); // down at once: p1 sees the start at 36 m
     D.order('greenberet', { type: 'move', x: 108, z: 2.5 });
     D.order('diver', { type: 'move', x: 110, z: 2.5 });
     D.order('spy', { type: 'move', x: 113, z: 2.4 }); // (at 112, 3.5 p1's near band grazes her as it comes back)
     await D.until(() => e1.x > 124, 120, 'p1 walks off east');
-    // Sapper sets the bear trap on the patrol path west of the wall; the GB drops the decoy (off) beside the path
+    // the GB drops the decoy (off) N of the patrol path, W of the wall; the Sapper sets the bear trap W of it, on the
+    // line p1's sergeant will walk back to his W turning point (62, 13) from where the decoy will hold him: off the path
+    // itself (1.8 m N of it), so nobody steps in it on the beat
     await D.stance('sapper', 'crawl');
-    D.order('sapper', { type: 'move', x: 97, z: 12.2 });
-    await D.go('greenberet', 102, 15.1, { tol: 0.3 });
-    await D.face('greenberet', 102, 17);
+    D.order('sapper', { type: 'move', x: TRAP[0], z: TRAP[1] - 0.9 });
+    await D.go('greenberet', 96, 15.1, { tol: 0.3 });
+    await D.face('greenberet', 96, 17);
     D.ability('greenberet', 'decoyDrop');
-    await D.until(() => Math.hypot(D.c('sapper').x - 97, D.c('sapper').z - 12.2) < 0.3, 60, 'Sapper at the trap spot');
-    D.ability('sapper', 'trap', { x: 97, z: 13 });
+    await D.until(() => Math.hypot(D.c('sapper').x - TRAP[0], D.c('sapper').z - TRAP[1] + 0.9) < 0.3, 60, 'Sapper at the trap spot');
+    D.ability('sapper', 'trap', { x: TRAP[0], z: TRAP[1] });
     await D.wait(1.5);
     D.order('greenberet', { type: 'move', x: 107, z: 3 });
     await D.go('sapper', 109, 4.2);
     D.checkpoint('A1 trap and decoy set');
-    await D.until(() => !e1.alive, 150, 'e1 steps in the trap');
-    D.checkpoint('A2 sergeant e1 trapped');
-    await D.until(() => e2.brain.state === 'IDLE' && e3.brain.state === 'IDLE' && e2.x < 70, 120, 'p1 calm again');
-    await D.until(() => e2.x > 89, 200, 'p1 back near the decoy');
+    // p1 comes back west: decoy on while it is still E of it — the sergeant walks up to it and stares at it from its E
+    // side, his two troopers stopping behind him (E of him)
+    await D.until(() => e1.x < 107 && Math.cos(e1.heading) < -0.5, 200, 'p1 back west near the decoy');
     D.ability('greenberet', 'decoyToggle');
-    await D.until(() => e2.brain.state === 'DECOY' && !e2.isMoving && !e3.isMoving, 30, 'p1 staring at the decoy');
-    D.checkpoint('A3 e2/e3 frozen by the decoy');
+    await D.until(() => e1.brain.state === 'DECOY' && e1.brain.phase === 'stare' && !e1.isMoving && !e2.isMoving && !e3.isMoving, 30, 'p1 staring at the decoy');
+    D.checkpoint('A2 p1 frozen by the decoy, the sergeant in front');
+    // the Marine harpoons the troopers from the wall's W end: the tail man first (the one in front of him does not
+    // see him fall behind his back), then the other; the sergeant stares on at the decoy, both behind him
+    const [tail, mid] = [e2, e3].sort((a, b) => Math.hypot(b.x - e1.x, b.z - e1.z) - Math.hypot(a.x - e1.x, a.z - e1.z));
     await D.go('diver', 99.3, 6.4, { tol: 0.3 });
-    D.ability('diver', 'harpoon', e3);
-    await D.until(() => !e3.alive, 10, 'e3 harpooned');
+    D.ability('diver', 'harpoon', tail);
+    await D.until(() => !tail.alive, 10, `${tail.tag} harpooned`);
     await D.until(() => D.world.time >= (dv._harpoonT ?? 0) + 0.05, 5, 'reload');
-    D.ability('diver', 'harpoon', e2);
-    await D.until(() => !e2.alive, 10, 'e2 harpooned');
+    D.ability('diver', 'harpoon', mid);
+    await D.until(() => !mid.alive, 10, `${mid.tag} harpooned`);
+    D.checkpoint('A3 e2 and e3 harpooned behind the sergeant\'s back');
+    // decoy off: the sergeant gives it up and walks back W to his beat's end, his back to the bodies — into the trap
     D.ability('greenberet', 'decoyToggle');
-    D.checkpoint('A4 patrol p1 gone');
+    await D.until(() => !e1.alive, 60, 'e1 walks back into the trap');
+    D.checkpoint('A4 sergeant e1 trapped: patrol p1 gone');
     D.order('diver', { type: 'move', x: 104, z: 2.5 }); // out of the gap at the wall's end
     await D.wait(2);
     await D.stance('greenberet', 'stand');

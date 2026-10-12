@@ -208,3 +208,30 @@ test('raft paddles in their rowlocks: the blade swings up onto the bank, never i
   assert.ok(lowest(a) >= bank + BLADE_CLEAR - 0.004, `blade on the bank (${(lowest(a) - bank).toFixed(4)} m over it)`);
   assert.ok(lowest(a * 0.8) < bank + BLADE_CLEAR, 'no higher than it needs');
 });
+
+// A hull half on the bank bobs at its water end, so it is solved again every tick (art/vehicle-model.js boatPose):
+// warm-started from its last pose it lands on the same pose (E strictly convex) in a fraction of the work — that solve
+// was a fifth of the CPU of a debug SOLUTION replay's fast-forward through M3, the raft lying at the bank for 25 minutes.
+test('boat rest: solved again from its last pose (warm start), a half-beached raft gets the same pose in fewer steps', () => {
+  const pts = raftPts(), G = (p) => (p.z > 0.2 ? -0.05 + 0.2 * p.z : -1.5), W = () => -0.1;
+  let prev = null, coldIters = 0, warmIters = 0;
+  for (let k = 0; k < 40; k++) {
+    const t = k / 60, float = { h: -0.1 + Math.sin(t * 1.7) * 0.04, pitch: Math.sin(t * 1.1) * 0.017, roll: Math.sin(t * 0.83 + 1) * 0.028 };
+    const g = pts.map(G), w = pts.map(W);
+    const cold = boatRest(pts, float, g, w, { com: [0, -0.09] });
+    const warm = boatRest(pts, float, g, w, { com: [0, -0.09], warm: prev });
+    assert.ok(!cold.afloat && cold.grounded > 0 && cold.grounded < 1, 'half beached');
+    near(warm.h, cold.h, 2e-5, `tick ${k}: height`); near(warm.pitch, cold.pitch, 2e-5, 'pitch'); near(warm.roll, cold.roll, 2e-5, 'roll');
+    // (the solver's own count: restPose on the same supports)
+    const A0 = -Math.sin(float.pitch), B0 = Math.sin(float.roll) * Math.cos(float.pitch);
+    const sup = pts.map((p, i) => Math.max(w[i] != null ? float.h + p.y + A0 * p.z + B0 * p.x : -Infinity, g[i]));
+    coldIters += restPose(pts, sup, { A0, B0, com: [0, -0.09] }).iters;
+    if (prev) warmIters += restPose(pts, sup, { A0, B0, com: [0, -0.09], warm: prev }).iters;
+    prev = warm;
+  }
+  assert.ok(warmIters < coldIters * 0.6, `fewer Newton steps warm (${warmIters}) than cold (${coldIters})`);
+  // a warm start from a pose that is no use (afloat, or nothing) is a cold start
+  const g = pts.map(G), w = pts.map(W);
+  const a = boatRest(pts, FLOAT, g, w, { warm: { afloat: true, h: 5, A: 0, B: 0 } }), b = boatRest(pts, FLOAT, g, w, {});
+  near(a.h, b.h, 1e-12); near(a.pitch, b.pitch, 1e-12);
+});

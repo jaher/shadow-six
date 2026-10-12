@@ -47,6 +47,12 @@ const EXIT_SPACING = 0.9;
 const DEG = Math.PI / 180;
 /** Furthest (m) a driven hull backs up on its own to make room to turn in place (§3.7 + placement rule d). */
 const MAX_BACKUP = 3;
+/**
+ * A drive order must move the hull at least this far (m) to be taken (§3.7 forbidden cursor) — and a click closer than
+ * this to the hull's centre is where it already is: the order is done, it stops there (never "can't get there in a
+ * straight line" for a click on the spot the boat has just reached; the M3 film's raft crossing).
+ */
+const DRIVE_MIN = 0.5;
 /** Car-steered hulls (vehicle-maneuver.js): outline margin of a planned pose (m; the move itself is tested with the
  *  smaller MOVE_MARGIN, so a hull following its plan never stops on a sample the plan skipped), maneuver speeds forward / reverse (m/s),
  *  acceleration (m/s²), pause at a change of gear (s), sideways grip in bends (m/s², caps the speed on an arc). */
@@ -1198,12 +1204,16 @@ export class Vehicle extends Entity {
   canDriveTo(x, z) {
     if (!this.driveable || this.destroyed || this.vehicleKind === 'emplacement') return false;
     if (this.world?.driveRules?.some((r) => r(this, x, z) === false)) return false; // MISSIONS rules (M19 no rowing upstream)
+    if (this._there(x, z)) return true; // already there: the order is done (driveTo stops it)
     if (this.arcDrive && this.world) return !!this._planDrive(x, z); // car-steered: a multi-point turn, then the straight line
     const b = this.turnPlan(x, z);
     if (b == null) return false;
     const c = Math.cos(this.heading + Math.PI), s = Math.sin(this.heading + Math.PI); // (b < 0: pulled forward)
-    return this.straightReach(x, z, this.x + c * b, this.z + s * b) >= 0.5;
+    return this.straightReach(x, z, this.x + c * b, this.z + s * b) >= DRIVE_MIN;
   }
+
+  /** Is (x, z) where the hull already is (closer than DRIVE_MIN to its centre)? */
+  _there(x, z) { return Math.hypot(x - this.x, z - this.z) < DRIVE_MIN; }
 
   /**
    * §3.7 drive: turn in place toward (x, z), then drive in a STRAIGHT line at slow (click) or fast
@@ -1216,6 +1226,7 @@ export class Vehicle extends Entity {
     const wasFast = this.fast;
     this.fast = !!fast || !!this.def.fastOnly;
     if (!this.canDriveTo(x, z)) { this.fast = wasFast; return false; }
+    if (this._there(x, z)) { this._halt(); return true; } // a click on the spot it has reached: it stops there
     this.maxSpeed = this.fast ? this.def.fast : this.def.slow;
     this.path = null;
     this.goal = this.arcDrive ? { x, z, strict: true, man: this._maneuver(this._planDrive(x, z)) }

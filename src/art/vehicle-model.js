@@ -888,7 +888,8 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
     else {
       // (solved again only when the hull moved or its floating pose changed by a tenth of a millimetre)
       const fk = `${R.key}|${float.h.toFixed(4)}|${float.pitch.toFixed(5)}|${float.roll.toFixed(5)}`;
-      if (fk !== R.fk) { R.fk = fk; R.r = boatRest(R.pts, float, R.ground, R.water, { squash: REST.squash[lt] ?? 0, com: [0, -0.03 * (dims.l || 3)] }); }
+      // (warm: from its last rest pose while it lies on the same spot — R.fk is cleared when it moves)
+      if (fk !== R.fk) { R.r = boatRest(R.pts, float, R.ground, R.water, { squash: REST.squash[lt] ?? 0, com: [0, -0.03 * (dims.l || 3)], warm: R.fk ? R.r : null }); R.fk = fk; }
       r = R.r;
     }
     const want = clamp(1 - 2 * r.grounded, 0, 1);

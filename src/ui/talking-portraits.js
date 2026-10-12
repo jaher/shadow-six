@@ -103,10 +103,11 @@ const THEMES = Object.freeze({ // CSS-only grade over the baked studio backgroun
   none: { tint: '#000', a: 0, f: 'contrast(1.04) saturate(0.92)' },
 });
 const CSS = `
-.tp-host{position:absolute;inset:0;overflow:hidden;pointer-events:none;background:#1b1712}
+.tp-host{position:absolute;inset:0;overflow:hidden;pointer-events:none}
 .tp-host video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 28%;filter:var(--tp-f,none);opacity:0;transition:opacity .12s}
 .tp-host video.on{opacity:1}
-.tp-host .tp-tint{position:absolute;inset:0;background:var(--tp-tint,#000);opacity:var(--tp-a,0);mix-blend-mode:soft-light}
+.tp-host .tp-tint{position:absolute;inset:0;background:var(--tp-tint,#000);opacity:0;mix-blend-mode:soft-light;transition:opacity .12s}
+.tp-host video.on~.tp-tint,.tp-host img.tp-still.on~.tp-tint{opacity:var(--tp-a,0)}
 .tp-host .tp-vig{position:absolute;inset:0;background:radial-gradient(ellipse 72% 78% at 50% 42%,transparent 55%,rgba(10,7,4,.55) 100%);box-shadow:inset 0 0 0 1px rgba(236,208,138,.22),inset 0 0 6px rgba(0,0,0,.7)}
 .hud-portrait:not(.selected) .tp-host video{filter:var(--tp-f,none) grayscale(1) brightness(.8)}
 .tp-host img.tp-still{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 28%;filter:var(--tp-f,none);opacity:0;transition:opacity .08s}
@@ -122,6 +123,11 @@ const CSS = `
 const CSS_Z = '.hud-portrait-slot{z-index:0}.hud-portrait .skull,.hud-portrait .glyph{z-index:1}' +
   // the speaker card keeps its name strip above the clip; the placeholder mouths retire while clips are live
   '.hud-speaker-card .tp-host{z-index:0}.hud-speaker-card .name{z-index:1}' +
+  // the host is see-through (its soft-light tint only over a clip or a pain still, which it grades): until the
+  // clip's first frame is on screen — and after it fades out while the card lingers, or for a line with no clip —
+  // the speaker's photo still under it shows, never a blank card (M3 film); framed like the clip, so the clip fades
+  // in over the same face without a jump
+  '.tp-on .hud-speaker-card>img{object-position:50% 28%}' +
   '.tp-on .hud-portrait .mouth,.tp-on .hud-speaker-card .mouth{display:none}' +
   // stills while no clip is on screen: the same grade as the video (theme set on the HUD root)
   '.tp-on .hud-portrait.selected .face img,.tp-on .hud-speaker-card img{filter:var(--tp-f,none)}' +

@@ -11,7 +11,7 @@ export const WALKTHROUGH = {
   title: 'Reverse Engineering',
   intro: 'Sysendam, Norway. Destroy the dam bunker, demolish the dam and escape in the truck: player orders only, and no commando ever inside a guard\'s field of view.',
   chapters: [
-    { id: 'A', title: 'The plateau', say: 'Patrol p1 (sergeant e1, troopers e2 and e3) walks the plateau path above the start. All three must go, silently.' },
+    { id: 'A', title: 'The plateau', say: 'Patrol p1 (sergeant e1, troopers e2 and e3) walks the plateau path above the start. All three must go, and none may see another fall.' },
     { id: 'B', title: 'The gully', say: 'Two sentries, e4 and e5, hold the gully that leads down to the river.' },
     { id: 'C', title: 'A uniform for the Spy', say: 'Only the Spy can walk among the guards, and she needs a German uniform: one hangs on a clothesline behind the east camp.' },
     { id: 'D', title: 'The Marine under water', say: 'e14 guards the river strip by the clothesline. The Marine takes him from the water.' },
@@ -24,15 +24,15 @@ export const WALKTHROUGH = {
   ],
   steps: [
     // A · the plateau
-    { cp: 'A1', who: ['sapper', 'greenberet'], look: [[97, 13], [102, 15]], cones: ['e1', 'e2', 'e3'],
-      say: 'While p1 walks off east, the Sapper crawls onto its path and sets a bear trap. The Green Beret lays his decoy beside the path, switched off for now.' },
-    { cp: 'A2', look: ['e1', [97, 13]], cones: ['e1', 'e2', 'e3'],
-      say: 'The patrol comes back, the sergeant in front: e1 steps into the bear trap. His troopers search, find no one and calm down.' },
-    { cp: 'A3', who: 'greenberet', look: ['e2', 'e3'], cones: ['e2', 'e3'],
-      say: 'When the troopers walk back past it, the Green Beret switches the decoy on by radio. Both stop and stare at it, their backs to the Marine.',
-      beats: [{ on: 'greenberet:decoyToggle', look: ['decoy', 'e2', 'e3'], shot: true }] },
-    { cp: 'A4', who: 'diver', look: ['e3', 'e2'], cones: ['e2', 'e3'],
-      say: 'Frozen by the decoy, they never turn round: the Marine crawls up behind them and harpoons both. Patrol p1 is gone without a sound.' },
+    { cp: 'A1', who: ['sapper', 'greenberet'], look: [[93, 14.8], [96, 15.6]], cones: ['e1', 'e2', 'e3'],
+      say: 'While p1 walks off east, the Green Beret lays his decoy beside the path, switched off, and the Sapper sets a bear trap west of it, off the beat.' },
+    { cp: 'A2', who: 'greenberet', look: ['decoy', 'e1'], cones: ['e1', 'e2', 'e3'],
+      say: 'As p1 comes back west, the Green Beret switches the decoy on by radio. The sergeant walks up to it and stares; his troopers stop behind him.',
+      beats: [{ on: 'greenberet:decoyToggle', look: ['decoy', 'e1', 'e2', 'e3'], shot: true }] },
+    { cp: 'A3', who: 'diver', look: ['e2', 'e3', 'e1'], cones: ['e1', 'e2', 'e3'],
+      say: 'From the end of the wall the Marine harpoons the last trooper, then the other: the sergeant, staring at the decoy, has his back to both.' },
+    { cp: 'A4', look: ['e1', [93, 14.8]], cones: ['e1'],
+      say: 'Decoy off: the sergeant gives up and walks back west, his back to the bodies, straight into the bear trap. Patrol p1 is gone and nobody saw a thing.' },
     // B · the gully
     { cp: 'B1', who: 'greenberet', look: ['e5'], cones: ['e4', 'e5', 'e6'],
       say: 'The Green Beret takes his decoy back, crawls down the gully behind e5 and knifes him from behind.' },
