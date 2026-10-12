@@ -261,7 +261,7 @@ export const GENERAL_PAUSE = { x: 55, z: 45 };
 const ENEMIES = [
   // ===== the S bank (Phase 1)
   walker('e1', 1, [P(21, 136, 8, 270), P(25, 131), P(26, 124), P(8, 121.5, 4, 180)], { h: 270 }),
-  walker('e2', 2, [P(46, 125.2, 5, 90), P(22, 121, 5, 270)]),
+  walker('e2', 2, [P(46, 125.2, 5, 270), P(22, 121, 5, 270)]), // E halt looks N over the canal (idle start unseen, rules R2)
   walker('e3', 3, [P(62.5, 131.5, 4, 180), P(77, 134.8, 4, 0)]),
   walker('e5', 5, [P(4, 108.5, 3, 270), P(5, 119.5, 6, 90)]),
   walker('e8', 8, [P(61, 104, 3, 270), P(58.5, 125, 3, 90)]),

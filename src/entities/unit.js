@@ -174,9 +174,10 @@ export class Unit extends Entity {
     return s * this.speedMul;
   }
 
-  /** Crawling/swimming/diving: counts as a low target for LOS (B.LOW cover hides it). */
+  /** Crawling/swimming/diving: counts as a low target for LOS (B.LOW cover hides it). A Sniper up on one knee to fire
+   * (`kneeling`, the rifle's aim and shot) counts as standing (§3.4), whatever stance he fires from. */
   get isLow() {
-    return LOW_STANCES.has(this.stance);
+    return LOW_STANCES.has(this.stance) && !this.kneeling;
   }
 
   /**

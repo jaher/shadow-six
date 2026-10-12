@@ -8,7 +8,7 @@ import { test, assert, near } from './lib.mjs';
 import { makeWorld, addEnemy, addCommando, run, first } from './ai-harness.mjs';
 import { makeSim, guard } from './abilsim.mjs';
 import { CONFIG } from '../../src/config.js';
-import { T } from '../../src/world/grid.js';
+import { T, B } from '../../src/world/grid.js';
 import { angleDiff, angleTo } from '../../src/core/math.js';
 import { hears } from '../../src/ai/perception.js';
 import { stepSurface, runNoiseRadius, makesRunNoise } from '../../src/ai/running-noise.js';
@@ -157,8 +157,12 @@ test('running noise (e): CLASSIC 1998 (house rule off) — the same road run mak
   assert.equal(cw.house.runningNoise, false);
 });
 
-test('running noise (f): a commando who freezes outside 2.25 m is not challenged — the guard investigates, looks round and goes home', () => {
+test('running noise (f): the steps alone never challenge — heard running behind a wall, he freezes and slips behind a hut; the guard investigates, looks round and goes home', () => {
+  // (SHADOW SIX still rule: a commando frozen in the guard's VIEW is noticed by sight — (f2). Here a wall hides him from
+  // the post and a hut from the spot the guard investigates, so only the noise acts: hearing makes a search, not a "Halt!")
   const w = world(T.ROAD, { enemies: [{ id: 'p', soldierType: 'soldier', x: 30, z: 30, heading: 0 }] });
+  w.grid.fillRect(24, 10, 0.5, 30, 'block', B.HIGH); // a wall between the post and the lane he runs down
+  w.grid.fillRect(12, 15, 6, 10, 'block', B.HIGH); // a hut west of the lane
   const g = w.enemies[0];
   const c = addCommando(w, 'greenberet', 22, 18, Math.PI / 2);
   let froze = null;
@@ -174,18 +178,35 @@ test('running noise (f): a commando who freezes outside 2.25 m is not challenged
   run(w, 1.3, () => g.brain.phase !== 'turn');
   assert.ok(facing(g, c.x, c.z, 0.6), 'he faces the sound');
   near(Math.hypot(g.x - at.x, g.z - at.z), 0, 0.05, 'turned on the spot');
-  // a still man more than 2.25 m off scores no nervousness
-  const d = Math.hypot(c.x - g.x, c.z - g.z);
-  assert.ok(d > CONFIG.ai.nervousness.closeRange, `${d.toFixed(2)} m`);
-  // walk him away (a crawl) so the investigator does not walk into him
-  c.setStance('crawl');
-  run(w, 0.7);
-  c.moveTo(10, 50);
-  run(w, 20, () => g.brainState === 'RETURN');
+  assert.equal(g.nervousness, 0, 'the wall hides the frozen man: nothing builds N');
+  // he walks off (walking is silent) behind the hut before the investigator comes round the wall
+  c.moveTo(10, 27);
+  run(w, 40, () => g.brainState === 'RETURN');
   assert.equal(first(w, 'enemy:challenge'), null, 'never challenged');
   assert.equal(g.brainState, 'RETURN', 'looked round, then home');
   assert.ok(first(w, 'bark', (p) => p.unit === g && p.line === 'ger_suspicious'));
   assert.equal(w.alarm.active, false);
+});
+
+test('running noise (f2): a commando who freezes where the guard turns to look is noticed by SIGHT (still rule), not by the steps', () => {
+  const w = world(T.ROAD, { enemies: [{ id: 'p', soldierType: 'soldier', x: 30, z: 30, heading: 0 }] });
+  const g = w.enemies[0];
+  const c = addCommando(w, 'greenberet', 22, 18, Math.PI / 2);
+  let froze = null, seen = null;
+  w.events.on('enemy:heard-steps', () => { if (!froze) { c.stop(); froze = w.time; } });
+  c.moveTo(22, 45, { run: true });
+  run(w, 3, () => froze != null);
+  assert.ok(froze != null, 'heard');
+  const at = { x: c.x, z: c.z };
+  assert.equal(first(w, 'enemy:challenge'), null, 'the steps make no challenge');
+  run(w, 6, () => {
+    if (seen == null && g.brain._seen.some((q) => q.unit === c)) seen = w.time;
+    return !!first(w, 'enemy:challenge');
+  });
+  const ch = first(w, 'enemy:challenge');
+  assert.ok(seen != null && ch && ch.p.target === c, 'frozen in his view: challenged');
+  assert.ok(ch.t - seen >= 2.0 && ch.t - seen <= 2.8, `noticed like a crawler, ${(ch.t - seen).toFixed(2)} s after he came into view`);
+  assert.ok(Math.hypot(c.x - at.x, c.z - at.z) < 0.3, 'he never moved after freezing');
 });
 
 test('running noise (g): steps every 0.5 s — alert boost once suspicion reaches 3, a SEARCH at 6; never alert 2, never an alarm or a zone onHeard', () => {

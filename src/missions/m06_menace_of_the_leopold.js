@@ -207,7 +207,7 @@ export default {
   ],
   commandos: [
     // behind (N/W of) the start rocks in the NW corner
-    { role: 'greenberet', x: 2, z: 11.5, heading: deg(0), inventory: { knife: 1, pistol: 1, decoy: 1, shovel: 1 } },
+    { role: 'greenberet', x: 1.5, z: 12.5, heading: deg(0), inventory: { knife: 1, pistol: 1, decoy: 1, shovel: 1 } },
     { role: 'sniper', x: 3.5, z: 13, heading: deg(0), inventory: { pistol: 1, sniperRifle: 5, firstAid: 6 } },
     { role: 'sapper', x: 1.5, z: 14.5, heading: deg(0), inventory: { pistol: 1, bearTrap: 1, remoteBomb: 2, detonator: 1 } },
   ],

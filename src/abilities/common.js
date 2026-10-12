@@ -149,6 +149,48 @@ export function shotLosOpts(c, to, world = null, rifle = false) {
   return o;
 }
 
+/** Height above a target's feet a commando's shot must reach (m): a man as perception sees him (chest and head, or a
+ * low man's back), a barrel's body, a vehicle above its hull. */
+export function shotTargetHeight(to) {
+  const T = CONFIG.stealth.sight;
+  if (to.interactKind === 'barrel') return 0.8;
+  if (to.kind === 'vehicle') return T.stand;
+  return to.isLow ? T.low : T.stand;
+}
+
+/** A shooter's eye above his feet (m): the Sniper kneeling to fire (`kneel`: §3.4, he counts as standing) at a standing
+ * man's sight height, a swimmer at the surface, a man down on his belly, else the standing eye. */
+export function shooterEye(c, kneel = false) {
+  if (kneel) return CONFIG.stealth.sight.stand;
+  if (c.stance === 'swim' || c.stance === 'dive') return 0.3;
+  if (c.stance === 'crawl') return 0.5;
+  return CONFIG.stealth.eyeHeight;
+}
+
+/**
+ * A commando's line of fire from `c` to `to` by the §4.2 height sight line — the rule the guards' fire follows
+ * (enemy fire hits only whom canSee sees), so a crate low enough for a guard to shoot over is low enough for the
+ * commando too: from his eye to the target's height (shotTargetHeight), every crossed cell's top below the line. Low
+ * cover between two men hides them from each other when either lies low (the guard's view of a man prone behind
+ * sandbags, and that man's pistol shot back over them); from a raised post it is a height. `rifle` (the Sniper's
+ * rifle): he kneels to fire (§3.4) — his line from a standing man's sight height, and he counts as standing while he
+ * kneels (Unit.isLow), so the guards see him over that cover too; the round goes through `shotThrough` planks. A
+ * vehicle never hides itself (targetHull).
+ * @returns {boolean}
+ */
+export function shotSight(world, c, to, rifle = false) {
+  const g = world.grid;
+  if (!g.sightLine) return g.lineOfSight(c.x, c.z, to.x, to.z, shotLosOpts(c, to, world, rifle));
+  const o = shotLosOpts(c, to, world, rifle);
+  const kneel = rifle || !!c.kneeling;
+  const vy = c.y || 0, ty = to.y || 0, low = to.kind !== 'vehicle' && to.interactKind !== 'barrel' && !!to.isLow;
+  const shooterLow = !kneel && (c.stance === 'crawl' || c.stance === 'swim' || c.stance === 'dive');
+  return g.sightLine(c.x, c.z, to.x, to.z, {
+    eyeY: vy + shooterEye(c, kneel), targetY: ty + shotTargetHeight(to), targetLow: low || shooterLow, viewerY: vy, targetBaseY: ty,
+    lowCover: vy >= 1 ? 'height' : 'block', heightOf: ownerHeight(world), targetHull: o.targetHull, passOwners: o.passOwners,
+  });
+}
+
 /** Grid owner ids of the structures flagged `shotThrough` (cached per world, rebuilt when the map changes). */
 export function shotThroughOwners(world) {
   const S = world?.structures;
@@ -170,7 +212,7 @@ export function shotThroughOwners(world) {
 export function inReach(world, c, to, range, los = false, rifle = false) {
   if (!to) return 'Pick a target.';
   if (Math.hypot(to.x - c.x, to.z - c.z) > range) return 'Out of range.';
-  if (los && !world.grid.lineOfSight(c.x, c.z, to.x, to.z, shotLosOpts(c, to, world, rifle))) return 'No line of sight.';
+  if (los && !shotSight(world, c, to, rifle)) return 'No line of sight.';
   return true;
 }
 

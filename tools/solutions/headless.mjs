@@ -29,7 +29,9 @@ export function headlessMission(id) {
   for (const c of mission.commandos) {
     const s = { ...c, campaign: mission.campaign, inventory: c.inventory ? { ...c.inventory } : undefined };
     if (c.role === medic && s.inventory?.firstAid === undefined && mission.firstAid !== false) s.inventory = { ...(s.inventory || defaultInventory(c.role)), firstAid: FIRST_AID_DOSES };
-    world.add(new Commando(s));
+    const cmd = world.add(new Commando(s)) || world.commandos.at(-1);
+    // §7.3 `stance: 'crawl'`: the mission starts him prone (as Game: already down, no stance-change lockout)
+    if (c.stance === 'crawl') { cmd.setStance('crawl'); cmd._stanceT = 0; }
   }
   for (const e of mission.enemies) world.add(new Enemy(e));
   for (const v of mission.vehicles) world.spawnVehicle(v.vehicleType || 'truck', v);

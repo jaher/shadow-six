@@ -1,7 +1,8 @@
 /**
  * BCD firearms and Natasha's kit (docs/bcd-plan.md §1.7, §1.8) — `campaigns: ['BCD']`, never under BEL:
  *   rifle     E  Driver's Lee-Enfield: 27 m hitscan, one shot kills, 0.6 s aim, 2.5 s bolt reload, pistol-loud
- *                (18 m); hidden count 50 (HUD shows ∞). CONFIG.weapons.leeEnfield.
+ *                (18 m); hidden count 50 (HUD shows ∞). CONFIG.weapons.leeEnfield. Like every bullet (§3.6) it sets
+ *                off an explosive barrel or a fuel tanker — within its own 27 m, in sight (weapons.explosiveInReach).
  *   beretta   Q  Natasha's Beretta 1935: the BEL pistol's stats and rules.
  *   lipstick  D  Natasha: any rank but the Gestapo stares at her; his cone follows her until she leaves his far
  *                band, is attacked, or the player right-clicks her (ai/bcd-reactions.startLipstick).
@@ -12,7 +13,7 @@
 import { registerAbility, ABILITIES } from './registry.js';
 import { CONFIG, KILL } from '../config.js';
 import { timedTask, freeToAct, inReach, bark } from './common.js';
-import { fireBullet, shotClear } from './weapons.js';
+import { fireBullet, shotClear, isShootableExplosive, explosiveInReach } from './weapons.js';
 import { startLipstick } from '../ai/bcd-reactions.js';
 import { distractable } from '../ai/bcd-ranks.js';
 
@@ -22,12 +23,14 @@ const LE = CONFIG.weapons.leeEnfield;
 registerAbility({
   id: 'rifle', label: 'Lee-Enfield', icon: '🎯', hotkey: null, roles: ['driver'], item: 'leeEnfield',
   targeting: 'enemy', cursor: 'crosshair', order: 21, campaigns: BCD, ranged: true, range: LE.range,
+  hitsBarrels: true, hitsTankers: true, // §3.6 "any bullet" sets a barrel / tanker off: within the rifle's own 27 m
   noiseRadius: LE.noise, noiseKind: 'pistol', visibleToEnemies: true,
   canUse(c, t, world) {
     if (!world.rules?.driverRifle) return 'Not in this campaign.';
     const f = c.state === 'inVehicle' ? 'Get out first.' : freeToAct(c);
     if (f !== true) return f;
     if (c.stance === 'swim' || c.stance === 'dive') return 'Not from the water.';
+    if (isShootableExplosive(t)) return explosiveInReach(world, c, t, LE.range, c._rifleT ?? -1);
     if (!t || t.kind !== 'enemy' || !t.alive) return 'Pick an enemy.';
     if (t.covered || t.vehicle?.def?.armored) return "Can't hit him in there.";
     if (world.time < (c._rifleT ?? -1)) return 'Reloading.';
@@ -38,7 +41,7 @@ registerAbility({
     return timedTask({
       dur: LE.aim + 0.1,
       steps: [{ at: LE.aim, fn: () => {
-        if (!t.alive || Math.hypot(t.x - c.x, t.z - c.z) > LE.range + 0.3 || !shotClear(world, c, t)) return false;
+        if (!(isShootableExplosive(t) || t.alive) || Math.hypot(t.x - c.x, t.z - c.z) > LE.range + 0.3 || !shotClear(world, c, t)) return false;
         if (!c.consume('leeEnfield')) { bark(world, c, 'cant_noammo'); return false; }
         c.faceTowards(t.x, t.z);
         c.playAction('shoot', 0.3);

@@ -288,10 +288,10 @@ const VEHICLES = [
 
 // ---------------------------------------------------------------- commandos (§3.8 row 18, exact): prone behind the SE wall
 const COMMANDOS = [
-  { role: 'greenberet', x: 192, z: 132, heading: deg(270), stance: 'crawl', inventory: { knife: 1, pistol: 1, decoy: 1 } },
-  { role: 'diver', x: 188.5, z: 131, heading: deg(270), stance: 'crawl', inventory: { knife: 1, pistol: 1, harpoon: 1, divingGear: 1, inflatableBoat: 0 } },
-  { role: 'sapper', x: 190.5, z: 133.5, heading: deg(270), stance: 'crawl', inventory: { pistol: 1, bearTrap: 1, grenade: 2 } },
-  { role: 'driver', x: 194, z: 134.5, heading: deg(270), stance: 'crawl', inventory: { pistol: 1, firstAid: 6 } },
+  { role: 'greenberet', x: 194.5, z: 132, heading: deg(270), stance: 'crawl', inventory: { knife: 1, pistol: 1, decoy: 1 } },
+  { role: 'diver', x: 195, z: 130.75, heading: deg(270), stance: 'crawl', inventory: { knife: 1, pistol: 1, harpoon: 1, divingGear: 1, inflatableBoat: 0 } },
+  { role: 'sapper', x: 196, z: 133.5, heading: deg(270), stance: 'crawl', inventory: { pistol: 1, bearTrap: 1, grenade: 2 } },
+  { role: 'driver', x: 197.5, z: 134.75, heading: deg(270), stance: 'crawl', inventory: { pistol: 1, firstAid: 6 } },
 ];
 
 // ---------------------------------------------------------------- zones and garrisons (dossier §9)

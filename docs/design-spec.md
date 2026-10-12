@@ -309,7 +309,7 @@
 | `pistol` | G | all | point/enemy | 13.5 | 80 damage per hit | see §3.2 | pistol |
 | `sniper` | R | Sniper | enemy/point | **45** | Kill, one shot | Kneel and aim 0.6 s; shot; **0.5 s reload**; limited ammo | none |
 | `smg` | M | Driver (M1, M2, M10; M4 from the air-drop) | point/enemy | **18** | Burst of **5 rounds × 200 damage** (a round that hits kills a soldier: "kills in one hit" [guide: Kildread, CommandosHQ]), fan of 5 rays over ±15° [inf] | Burst 0.25 s; next burst after 0.8 s | smg |
-| `harpoon` | J | Marine | enemy | **9** (200 u; a patched value may be 4.5) | Kill; works from land or from the water surface | Shot, then **3.0 s reload**; unlimited | none |
+| `harpoon` | J | Marine | enemy (or a barrel / fuel tanker, §3.6) | **9** (200 u; a patched value may be 4.5) | Kill; works from land or from the water surface | Shot, then **3.0 s reload**; unlimited | none |
 | `decoyDrop` | Q | GB | self | at feet | Places the acoustic decoy; an activator replaces it in the knapsack | Plant 0.8 s | — |
 | `decoyToggle` | I | GB (holding the activator) | none | anywhere (radio) | Toggles beeping on or off | instant | decoy pulse |
 | `shovel` | F | GB (M1–M11 only) | self | — | Buries himself: invisible (§3.4) | Dig 2.0 s; rise on right-click, 1.0 s | none |
@@ -377,7 +377,7 @@ The animation names are the humanoid names from ARCHITECTURE. Each voice cue is 
   - Scope cursor: an 88-reference-px circular lens with a thick bezel and hair crosshairs. It shows the view under it **magnified 2×** (render-to-texture). A green corner-bracket box with a red dot marks an enemy under the crosshair.
   - The lens turns red with the forbidden slash when the target is beyond 45 m or out of LOS.
   - Click: he **kneels** (`aim`, 0.6 s), fires (`shoot`), and the target dies instantly. Faint tracer and sharp crack SFX; **no noise event**. Then 0.5 s bolt-cycle before he can shoot again.
-  - A kneeling Sniper counts as *standing*: he is visible in the far band.
+  - A kneeling Sniper counts as *standing*: he is visible in the far band and over low cover (`kneeling`, from the aim to the shot), and his line of fire starts there (§4.2).
   - He can fire from a boat.
   - He can kill tower and elevated MG gunners and open bunker crews, but **not** covered towers or bunkers, which need explosives [guide].
 - **Ammo.** Limited per mission and shown as a row of brass cartridges on the knapsack. At 0 rounds the R icon greys out and he says `cant_noammo`.
@@ -538,7 +538,7 @@ The animation names are the humanoid names from ARCHITECTURE. Each voice cue is 
 | `shell` (tank cannon) | 2.25 m instant death | 4.5 m: 150 damage | Destroys anything but bunkers | explosion | Yes |
 
 - **Fuel tanker (Opel Blitz):** any hit explodes it as `vehicle` + `barrel`.
-- **Shooting a barrel** with any bullet or vehicle weapon detonates it.
+- **Shooting a barrel** with any bullet or vehicle weapon detonates it. A barrel or a fuel tanker is in reach of a weapon at that weapon's **own** range, in line of sight, exactly as a man would be: pistol 13.5 m, SMG 18 m, sniper rifle 45 m, harpoon 9 m, Lee-Enfield (BCD) 27 m; a grenade sets off barrels within 4.5 m of where it lands (13.5 m throw). Each of these weapons' cursors can pick a barrel or a tanker.
 - **Fire:** burning wrecks and oil deal 100 damage per second (`FUEGO`) inside their fire cells [EXE: fire = 100].
 - Bunkers and covered towers are `bombOnly`.
 - Barracks are destructible unless flagged `indestructible` (M2 and M10 barracks per fandom).
@@ -773,12 +773,18 @@ Every commando also carries a pistol. "(site)" marks items found on the map.
   These match the demo's skill-dependent branches; the retail value is unknown.
 - Off for `mg`, `bunker`, `cannon`, `tank` and `sdkfz`.
 
-**Occlusion** [EXE, grid API]:
-- Line of sight is a grid DDA from the viewer's cell to the target's cell.
-  - `B.HIGH` (walls, buildings, rocks, trees marked `occluder`, cliffs) blocks sight **at every height, towers included**.
+**Occlusion by height** (SHADOW SIX, user 2026-10-11: "it looks like when there is a small elevation on the ground the cone of visibility excludes that area, even if within the field of vision. If the elevation resides below the eyes that area should be visible"; grid API `sightLine` / `sightRay`):
+- Line of sight is a grid DDA from the viewer's cell to the target's cell along a **straight 3D sight line**: from the viewer's eye (his feet `y` + 1.65 m: a tower, wall walk or deck guard looks from his platform) to the point of the target that must be seen — a standing man's chest and head (feet + **1.4 m**) or a low man's back (feet + **0.3 m**: crawling, swimming, seated in a boat, a body, a footprint) (`CONFIG.stealth.sight`).
+- A crossed cell blocks only when **its top rises above that line** where the line passes over it. A cell's top is its surface (`elev`: ground, ramp, deck, plateau, roof) or what stands on it:
+  - `B.HIGH`: the surface + the owning structure's height (`h`, else the category default, `placement.OBSTACLE_H`); a blocking cell of no known height blocks at every height. So a wall, a building or a rock taller than a man hides him; a bump, a drift, a low wall, sandbags or a crate below the line does not — and the ground just behind it is dead ground only where the line really passes under its top. A guard high on a tower or roof sees over lower walls, with their shadow behind them.
+  - `B.LOW` is **low cover** (sandbags, hedges, rims, ruined field walls, tank traps), BEL's rule kept: it never hides a standing man; from the ground it hides a low target (crawling, swimming, seated, a body) wherever he lies behind it; a viewer on a raised post (`elevated`, or standing 1 m or more up: a tower, a roof, a plateau) looks down over it by height (its top: the surface + min(h, 1.0 m)), so only right behind it.
   - `B.FENCE` never blocks.
-  - `B.LOW` blocks only when the target is low (crawling, swimming, or a body) **and** the viewer is not elevated (`elevated:true` for towers, walls and roofs).
-  - A 2 m bush blocks only low targets [rec].
+  - The open floor of either man's own level (within 0.5 m of his feet: the deck he stands on, the wall walk the target stands on) never occludes; whether men on different levels see each other is the roof rule's and the deck-edge rule's call, as in BEL.
+- Vehicles are seen by the same rules (`vehicle-ai.canSeeVehicle`: the hull edge nearest the guard, the roof rule, the sight line to a man's height over it).
+- **A commando's line of fire is the same line** (`abilities/common.shotSight`, used by every aimed shot, throw-in-sight and its cursor), symmetric with the guards' fire (they fire only at whom `canSee` sees): from the shooter's eye (standing 1.65 m, prone 0.5 m, swimming 0.3 m) to the target's height (a standing man 1.4 m, a low man 0.3 m, a barrel 0.8 m, a vehicle 1.4 m over its hull). A crate or bump below that line is shot over both ways; a taller wall stops both. Low cover between two men, either of them low, stops the shot from the ground (a man prone behind sandbags is neither seen nor hit, nor can he shoot back through them with his pistol); from a raised post it is a height. The Sniper kneels to fire (§3.4): his rifle's line starts at a standing man's sight height (1.4 m) whatever stance he fires from, and from the aim to the shot he counts as standing for the guards (`Unit.isLow` is false while `kneeling`), so the sandbags he shoots over do not hide him either. Rifle rounds pass `shotThrough` planks as before.
+- A structure's top is measured from the ground it stands on (`grid.blockBase`): a natural level (a cliff's plateau or terrace) stamps `elev` on its open cells only, so a wall, hut or tree standing on it keeps elev 0 under its cells; when at least half the open ground within 1 m of the structure is that raised natural ground, it stands on the level and its cells take their base from the highest of it within 1 m. Without it a 2.2 m wall on a 4 m plateau (M8) topped out at 2.2 m and hid nothing from a man up there. Cliffs and the structures that raise a level keep measuring from the ground, and a structure at a level's foot, or beside a built deck, is not lifted.
+- The drawn cone runs the same test ray by ray and is draped over the drawn ground (raised cells + the terrain's visual relief), so relief never hides it. Where a standing man is seen but a crawler is not (behind low cover, inside the near band) it is drawn in the light far-band shade.
+- The terrain's visual relief (`world.groundY`: ±0.2–0.35 m undulation, drift ridges, dune ripples, nebkha mounds) is cosmetic: below every eye and every standing man's sight line, absent in the headless sims and on placeholder terrain, it is not an occluder (gameplay does not depend on the renderer).
 - **Vehicles occlude** (`OCLU`): trucks, tanks, trains and boats stamp their footprint into a dynamic `occluder` layer every tick. They hide units behind them even though the drawn cone may pass through them (the manual's own caveat). The drawn cone must also be cut by them (§10.2).
 - **Roof levels (M12):** a unit on a roof (`y ≥ 2.5 m`) is invisible to viewers below who are more than 2 m lower, and vice versa. This is the rule that "silent actions on the roofs will not be seen by guards on the lower levels" [guide].
 
@@ -910,7 +916,8 @@ Every commando also carries a pistol. "(site)" marks items found on the map.
 - **Escalation, never an alarm.** Each step heard adds 1 to his step suspicion (decaying 0.5/s): at 3, alertLevel 1; an
   investigator who reached 6 SEARCHes around the last step instead of going home. Steps never give alertLevel 2,
   combat-readiness, a zone `onHeard` sensor (level 1) or an alarm. Being **seen** still goes through the cone and §4.5
-  (a running man in view reaches T in one tick: "Halt!"); a commando who freezes outside 2.25 m is not challenged.
+  (a running man in view reaches T in one tick: "Halt!"); a commando who freezes out of the guard's view is not
+  challenged (frozen in view, the §4.5 still rule notices him in about 2.5 s).
 - **Cue.** Display option NOISE RINGS (default on, off under reduced motion): a faint ring spreads from the runner's
   feet to the step's hearing radius.
 
@@ -928,15 +935,16 @@ Each non-MG soldier has a **nervousness N** and a **threshold T = 50** (`.NERVIO
      | Walking (0.1125 m/tick, d = 2.5) | +12 | about 0.25 s |
      | Running | +50 to +72 | immediate |
      | Crawling (d ≈ 1.0) | +2, net +1 | about 2.5 s |
-     | Standing still | 0 | never |
+     | Standing or lying still | 0 in BEL; **+2, net +1** in SHADOW SIX (still rule, below) | never in BEL; **about 2.5 s** |
 
    - `N = 20·T = 1000` at once if the target is **within 2.25 m** (50 u), is already held, or was seen killing, carrying a body or boarding a vehicle.
    - SHADOW SIX boat rule (user 2026-10-08): a commando aboard an open boat (raft, rowboat, deck) adds at least `ceil(T / 8)` = +7 per tick, rowing or lying still: a boat in view is noticed within about half a second (`CONFIG.ai.nervousness.boatNoticeDiv`).
+   - SHADOW SIX still rule (user 2026-10-07: "no commando goes inside the field of view of a solider before being spotted"; M14 finding 2026-10-11): every seen commando (valid under the band rule: a prone man in the near band, a standing man anywhere in the cone) adds at least `stillAdd` = **+2 per tick (a crawler's add), moving or not**. A man who freezes in plain view is noticed like a crawler, about 2.5 s after he comes into view (T 50; T/20 s in general); several men in view add up, as walkers and crawlers do. The timing model is otherwise BEL's: N still decays 1 per tick, so a glimpse shorter than the threshold time is forgotten. The legitimately hidden never reach the seen list: buried, submerged, inside a building or a closed vehicle, the disguised Spy, a prone man in the far band, anyone out of LOS (`CONFIG.ai.nervousness.stillAdd`).
    - If the enemy has `sawBody`: `N += max(1, T/25)` = +2 per tick while any commando is seen.
 3. **If N ≥ T:** enter **CHALLENGE** against that commando.
 
 **Consequences.**
-- A commando who **freezes the instant he is seen never triggers a challenge**. Even a challenged, held commando does **not** trip a zone's `onSeen` sensor (§4.9). This is why eggie's "under shot" trick works even in whole-map silent zones (M5, M8, M12).
+- BEL: a commando who **freezes the instant he is seen never triggers a challenge** (eggie's "under shot" trick). SHADOW SIX's still rule removes that: a man frozen in view is challenged after about 2.5 s. Stopping once challenged still leaves him **held** at gunpoint, and a challenged, held commando does **not** trip a zone's `onSeen` sensor (§4.9), even in whole-map silent zones (M5, M8, M12).
 - After losing sight, N decays from 1000 to below T in about **47.5 s**. That is the guard's lingering alertness (alertLevel stays 1 while N > 0).
 
 **CHALLENGE** [manual, guide, EXE]:
@@ -1855,10 +1863,13 @@ Kildread's count is 6 walkers, 1 sentry, patrols of 4 and 3, 2 towers, the boat 
 
 | Role | Position | Inventory |
 |---|---|---|
-| greenberet | (103, 3.5) | knife, pistol, decoy, shovel |
-| diver | (106, 3.5) | knife, pistol, harpoon, divingGear |
-| sapper | (110, 3.5) | pistol, trap, cutters |
-| spy | (113, 3.5) | pistol, syringe, firstAid 6 |
+| greenberet | (102.5, 6.75) | knife, pistol, decoy, shovel |
+| diver | (105.5, 6.75) | knife, pistol, harpoon, divingGear |
+| sapper | (108.5, 6.75) | pistol, trap, cutters |
+| spy | (111.5, 6.75) | pistol, syringe, firstAid 6 |
+
+The team lies against the wall's N face (z 6.75; it was z 3.5, where the patrol e1–e3, walking E along z 13, saw the GB at 13 s once the
+§4.5 still rule noticed men standing still in view; rules R2, 2026-10-12: an idle team at the start is unseen for 120 s+ under the §4.5 still rule).
 
 **Enemies** (Kildread: 7 walkers, 17 sentries, patrols of 5 and 3, 1 MG, 1 surveillance bunker, 4 garrisons).
 
@@ -2199,9 +2210,9 @@ CONFIG.units    = { walk: 2.25, run: {greenberet: 5.4, driver: 5.4, default: 4.5
 CONFIG.stealth  = { vision: {soldier: {fov: 70, near: 18, far: 36, sweep: 50, period: 5.0, elliptical: true},
                              patrolWatch: {sweep: 50, period: 2.5}, dog: {...}, mg: {...}, bunker: {...},
                              cannon: {...}, tank: {...}, sdkfz: {...}},
-                    ellipseMode: 'classic', eyeHeight: 1.65, footprint: {walkStep: 0.75, runStep: 1.6, life: 90, fade: 30},
+                    ellipseMode: 'classic', eyeHeight: 1.65, sight: {stand: 1.4, low: 0.3}, footprint: {walkStep: 0.75, runStep: 1.6, life: 90, fade: 30},
                     rooftopDelta: 2.0 }
-CONFIG.ai       = { nervousness: {T: 50, decayPerTick: 1, closeRange: 2.25, heldValue: 1000, bodyBonusDiv: 25, dispMul: 2, boatNoticeDiv: 8},
+CONFIG.ai       = { nervousness: {T: 50, decayPerTick: 1, closeRange: 2.25, heldValue: 1000, bodyBonusDiv: 25, dispMul: 2, boatNoticeDiv: 8, stillAdd: 2},
                     investigate: {speed: 1.8, look: 4.0}, decoy: {radius: 13.5, pulse: 1.5, giveUp: 5.0, standOff: 2.0},
                     search: {time: 20, points: 3, radius: 8}, lostTarget: 3.0, chaseSpeed: 3.8, halt: {cooldown: 3, moveTol: 0.3},
                     partnerGlance: {every: 25, dur: 2.5}, panic: {stuck: 5, wander: 2}, aim: 0.5, enemyHP: 200 }

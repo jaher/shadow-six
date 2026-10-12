@@ -502,6 +502,13 @@ export class EnemyBrain {
         // a boat on open water stands out, rowing or lying still: noticed within about half a second (user, M3:
         // "the raft boat in the light shaded field of view of a soldier makes the soldier see it")
         else if (c.state === 'inVehicle' && c.vehicle?.isOpenBoat) add = Math.max(add, Math.ceil(T / NV.boatNoticeDiv));
+        // SHADOW SIX still rule (user 2026-10-07: "no commando goes inside the field of view of a solider before being
+        // spotted"): whoever is on the seen list — the band rule lets him see this man (a prone man in the near band, a
+        // standing one anywhere in the cone) — builds N, moving or not, at least as a crawler does (+2, net +1 a tick:
+        // 2.5 s at T = 50). BEL's freeze (standing still: +0, never challenged) no longer hides a man in plain view. Who
+        // is legitimately hidden never reaches this list (canSee: buried, submerged, in a building or a closed vehicle,
+        // the disguised Spy, out of the band / LOS).
+        if (add < held) add = Math.max(add, NV.decayPerTick + 1, NV.stillAdd ?? 2);
         if (add >= held) N = Math.max(N, held);
         else N += add;
         if (add > best) { best = add; pick = c; }

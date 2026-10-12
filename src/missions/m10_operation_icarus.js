@@ -338,10 +338,10 @@ const VEHICLES = [
 
 // ---------------------------------------------------------------- commandos (§3.8 row 10; W of the start wall rw1)
 const COMMANDOS = [
-  { role: 'greenberet', x: 11.5, z: 58, heading: deg(0), inventory: { knife: 1, pistol: 1, decoy: 1, shovel: 1 } },
-  { role: 'sniper', x: 10.5, z: 60.5, heading: deg(0), inventory: { pistol: 1, sniperRifle: 3 } },
-  { role: 'sapper', x: 11.5, z: 55.5, heading: deg(0), inventory: { pistol: 1, bearTrap: 1, grenade: 4, timeBomb: 1 } },
-  { role: 'driver', x: 11.5, z: 63, heading: deg(0), inventory: { pistol: 1, smg: 20, firstAid: 6 } }, // inside 18 m of e1 and Patrol 4's N end: the lure shot
+  { role: 'greenberet', x: 11.5, z: 58, heading: deg(0), stance: 'crawl', inventory: { knife: 1, pistol: 1, decoy: 1, shovel: 1 } },
+  { role: 'sniper', x: 11.75, z: 59.5, heading: deg(0), stance: 'crawl', inventory: { pistol: 1, sniperRifle: 3 } },
+  { role: 'sapper', x: 11.5, z: 55.5, heading: deg(0), stance: 'crawl', inventory: { pistol: 1, bearTrap: 1, grenade: 4, timeBomb: 1 } },
+  { role: 'driver', x: 12.5, z: 60.75, heading: deg(0), stance: 'crawl', inventory: { pistol: 1, smg: 20, firstAid: 6 } }, // inside 18 m of e1 and Patrol 4's N end: the lure shot
   // the guest: Capt. Gregor McRae, RAF, locked in the pen (character-bible §6.1). Unarmed; the only pilot.
   { role: 'guest', id: 'mcrae', guestId: 'mcrae', name: 'Capt. Gregor McRae', nickname: 'McRae', x: 31, z: 151, heading: deg(90),
     jailed: true, jailId: 'pen', inventory: {} },

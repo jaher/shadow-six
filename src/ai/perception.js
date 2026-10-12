@@ -178,25 +178,55 @@ export function canSee(viewer, target, world, o = {}) {
   if (inside) return inside.owner && postOwner(viewer, world) === inside.owner ? zone : 'none';
   // Roof rule (§4.2): a unit on a roof is invisible to viewers more than rooftopDelta lower, and vice versa.
   // A mission whose raised levels are open terraces and wall walks turns it off (`rules.roofRule: false`, M20).
-  const S = CONFIG.stealth, vy = cone.vy ?? (viewer.y || 0), ty = target.y || 0;
   // `overlooks` (spawn flag): a sentry on a balcony or ledge looks DOWN past the rule (M12 jail ledge, ooc "overlooking
-  // the lower level"); the men below still cannot see him, and he never sees up.
-  if ((vy >= S.roofY || ty >= S.roofY) && Math.abs(vy - ty) > S.rooftopDelta && world?.mission?.rules?.roofRule !== false
-    && !(cone.overlooks && vy > ty)) return 'none';
+  // the lower level"); the men below still cannot see him, and he never sees up. (levelHides: shared with the drawn cone)
+  const ty = target.y || 0;
+  if (levelHides(cone, ty, false, world)) return 'none';
   const boat = openBoatOf(target);
   const low = isBody(target) || cls === 'near' || !!boat?.def?.seated; // seated in a raft: low behind cover, any band
   // Deck-edge rule (§4.7): a body or a low (prone) unit lying on a raised surface above the viewer's eye
   // (a wall walk, a deck) is hidden by the surface edge — the low-surface case of the roof rule (M2 walk_sw).
   // `falling`: the victim of a kill seen as he drops (notifyKill) is still upright, so the rule waits.
   if (low && ty > cone.y && !target.falling) return 'none';
-  const los = world.grid.lineOfSight(cone.x, cone.z, target.x, target.z, {
-    viewerElevated: cone.elevated, targetLow: low, viewerY: vy, targetY: ty, dynamic: o.dynamic ?? target.kind !== 'vehicle',
-    ownHull: viewer.ownHull, ownOwner: postOwner(viewer, world),
-    targetHull: boat?.def?.occludes ? { x: boat.x, z: boat.z, w: boat.def.size[0], d: boat.def.size[1], heading: boat.heading || 0 } : undefined,
-    // an MG gunner on an open platform sees over a wall lower than his sight line to the target's head
-    overWalls: cone.overWalls ? { heightOf: ownerHeight(world), eyeY: cone.y, targetTopY: ty + (low ? 0.4 : 1.5) } : undefined,
-  });
+  const targetHull = boat?.def?.occludes ? { x: boat.x, z: boat.z, w: boat.def.size[0], d: boat.def.size[1], heading: boat.heading || 0 } : undefined;
+  const dynamic = o.dynamic ?? target.kind !== 'vehicle';
+  // §4.2 occlusion by height: the straight sight line from his eye to the target (a standing man's chest and head, a low
+  // man's back) clears every bump, drift, low wall or crate below it; low cover hides a crawler only where the line
+  // really passes under it. The drawn cone runs the same test ray by ray (sightRay, render/vision-cone.js).
+  const los = world.grid.sightLine
+    ? world.grid.sightLine(cone.x, cone.z, target.x, target.z, {
+      eyeY: cone.y, targetY: ty + targetHeight(low), targetLow: low, viewerY: cone.vy, targetBaseY: ty, lowCover: lowCoverMode(cone), heightOf: ownerHeight(world), dynamic, ownHull: viewer.ownHull, ownOwner: postOwner(viewer, world), targetHull,
+    })
+    : world.grid.lineOfSight(cone.x, cone.z, target.x, target.z, { viewerElevated: cone.elevated, targetLow: low, viewerY: cone.vy ?? 0, targetY: ty, dynamic, ownHull: viewer.ownHull, ownOwner: postOwner(viewer, world), targetHull });
   return los ? zone : 'none';
+}
+
+/**
+ * §4.2 low cover (B.LOW) and a low target, BEL's rule: from the ground it hides him wherever he lies behind it
+ * ('block'); a viewer on a raised post (`elevated`, or standing ≥ 1 m up: a tower, a roof, a plateau) looks down over it
+ * — by height, so only right behind it ('height'). Shared with the drawn cone.
+ */
+export function lowCoverMode(cone) {
+  return cone.elevated || (cone.vy ?? 0) >= 1 ? 'height' : 'block';
+}
+
+/** §4.2 sight-line target point above the man's feet (m): a standing man's chest and head (1.4), or a low one's back
+ * (0.3: crawling, swimming, seated in a boat, a body, a footprint). CONFIG.stealth.sight. */
+export function targetHeight(low) {
+  const T = CONFIG.stealth.sight;
+  return low ? T.low : T.stand;
+}
+
+/**
+ * Perception's per-point rules beyond the cone and the sight line, for the drawn cone (render/vision-cone.js sightRay
+ * `hide`): would a target standing at height `ty` (m) — low or not — be ruled out by the roof rule or the deck-edge
+ * rule (canSee)? Same tests, same order.
+ */
+export function levelHides(cone, ty, low, world) {
+  const S = CONFIG.stealth, vy = cone.vy ?? 0;
+  if ((vy >= S.roofY || ty >= S.roofY) && Math.abs(vy - ty) > S.rooftopDelta && world?.mission?.rules?.roofRule !== false
+    && !(cone.overlooks && vy > ty)) return true;
+  return !!(low && ty > cone.y);
 }
 
 /**
@@ -314,5 +344,5 @@ export function hears(enemy, noise) {
 }
 
 /** Namespace object (ARCHITECTURE "Cross-team interfaces": perception.canSee / perception.coneAt). */
-export const perception = { canSee, coneAt, pointInCone, sweepOffset, ellipseFar, probe, perceive, headTheta };
+export const perception = { canSee, coneAt, pointInCone, sweepOffset, ellipseFar, probe, perceive, headTheta, targetHeight, levelHides, lowCoverMode };
 export default perception;

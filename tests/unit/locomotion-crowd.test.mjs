@@ -188,6 +188,7 @@ test('M1–M3 patrols and squads over 120 s: no walk / idle flicker (animation s
   const where = [];
   for (const m of ['m01', 'm02', 'm03']) {
     const sim = missionSim(getMission(m));
+    sim.world.debug = { noDetect: true }; // walking only (the idle team at the M3 start is in the plateau patrol's view: §4.5 still rule)
     const U = sim.world.enemies.filter((e) => e.squad?.id || e.route);
     const st = new Map(U.map((u) => [u, { a: u._anim, k0: 0 }]));
     for (let k = 0; k < 120 * 60; k++) {

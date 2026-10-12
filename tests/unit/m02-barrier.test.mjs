@@ -47,10 +47,11 @@ test('m02 MG platforms: the gunner on t2 (deck 5.5 m) sees a man in his arc beyo
   assert.ok(!c.alive || c.hp < c.maxHp, 'the man is hit');
 });
 
-test('m02 MG platforms: without overWalls the same gunner is blind behind his own palisade (the flag is what lets him see)', () => {
+test('m02 MG platforms: §4.2 height sight — the gunner sees over his palisade whatever the overWalls flag (a wall under his sight line hides nobody)', () => {
+  // the flag was what let him see before every sight line was tested by height; it now only shapes his gun's line of fire
   const { s, ev } = gunnerScene(20, { overWalls: false });
   s.run(6);
-  assert.equal(ev.length, 0, JSON.stringify(ev));
+  assert.ok(ev.some((e) => e[0] === 'spotted'), `spotted over the palisade (${JSON.stringify(ev.slice(0, 4))})`);
 });
 
 test('m02 plat_sw: the stair is a graded walkable strip from the landing (2.2 m) to the camp floor; walkers use it both ways', () => {

@@ -347,7 +347,17 @@ Typed-array layers, size `cols × rows` where `cols = ceil(W/CELL)`:
 - **LOS**: `lineOfSight(ax, az, bx, bz, {viewerElevated=false, targetLow=false}) → boolean` — DDA over
   cells between the two points (excluding the endpoints' own cells). Blocked by any `B.HIGH`. `B.LOW` blocks
   only when `targetLow && !viewerElevated`. `B.FENCE` never blocks sight.
-- `castRay(ax, az, angle, maxDist, {viewerElevated, dynamic, viewerY}) → distance` to first `B.HIGH` cell (used by cone meshes).
+- `castRay(ax, az, angle, maxDist, {viewerElevated, dynamic, viewerY}) → distance` to first `B.HIGH` cell (legacy; the cone uses sightRay).
+- **Sight by height** (design-spec §4.2 "Occlusion by height"): `sightTop(k, o, own, tgt, low)` (the height a sight line
+  must clear over cell k: surface, B.HIGH = surface + `o.heightOf(k)` (structure height; unknown → Infinity), B.LOW = low
+  cover only for low targets — `o.lowCover` 'block' from the ground (BEL), 'height' from a raised post — vehicles), `sightLine(ax, az, bx, bz, {eyeY, targetY, targetLow, viewerY, targetBaseY,
+  heightOf, ownOwner, ownHull, targetHull, dynamic}) → boolean` (perception.canSee, vehicle-ai.canSeeVehicle) and
+  `sightRay(ax, az, angle, maxDist, heights, o) → intervals per height` (the drawn cone: the same test, one march per ray).
+  Open floors within `LEVEL_TOL` of either man's feet never occlude (`sightSlope(rise, d0, d1)` is the shared cell test).
+  A B.HIGH / B.LOW top is measured from `blockBase(k)` (its elev, or for an elev-0 blocked cell the highest open cell
+  within 1 m: walls on a plateau). `sightLine` also takes `passOwners`. Commando shots: `abilities/common.shotSight(world,
+  c, to, rifle)` (inReach, weapons.shotClear) runs `sightLine` from the shooter's eye (`shooterEye`) to `shotTargetHeight(to)`
+  with `shotLosOpts` (targetHull, passOwners) — the guards' canSee rule, so lines of fire are symmetric.
 - Both take `ownOwner` (grid owner id): cells of the structure the viewer is posted in do not block
   (bunker crews look out of the slit; `perception.postOwner(enemy, world)` resolves mission `structure`).
   `lineOfSight` also takes `passOwners` (Set of owner ids whose static cells do not block): `abilities/common.js
@@ -787,10 +797,18 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   - The nav grid is unchanged: a nav cell centre can disagree with the drawn shore only within 0.5 m of it.
   - Tests: `tests/unit/shore-field.test.mjs` and `tests/shores.test.mjs`. Details are in
     `docs/water-pipeline.md` §10, "Banks".
-- `VisionCone` (`src/render/vision-cone.js`): per enemy fan mesh (≥48 rays) built from `grid.castRay`, two
-  zones (near/far) with different alpha — geometry = `perception.coneAt(enemy)` (§10.2); faithful BEL flat colours
+- `VisionCone` (`src/render/vision-cone.js`): per enemy fan mesh (≥96 rays) built from `grid.sightRay` spans, two
+  kinds (near: a crawler is seen too / far: only a standing man), draped over grid elev + `world.groundY` — geometry = `perception.coneAt(enemy)` (§10.2); faithful BEL flat colours
   (`CONFIG.stealth.coneColors`), tint by `alertLevel` only with the `alertTint` option (§10.4 #5); `update(enemy)`; drawn slightly above ground,
   `depthWrite:false`, rendered in a transparent pass. Only built for enemies whose cone is shown.
+  Cost: one SECTOR mesh per post (the head's whole sweep + 10°), the shader cuts this frame's window (uniforms only);
+  rebuilt when the grid / dynamic occluders change, the head leaves the sector or a walker has moved 0.3 m (the mesh
+  rides along in between). `VisionCones.update` gives the shown cones' rebuilds one frame budget
+  (`CONFIG.stealth.coneBudgetMs`, 0.5 ms, round robin, at least one step a frame): `coneFanSteps` / `_meshSteps` are
+  generators (a base ray, a ray pair a step) building into a staging buffer swapped in when done, so a rebuild lands a
+  few frames late instead of a hitch; a cone's first build is whole. While a budgeted walker walks his sector is built
+  coarse (1.5° base rays, 0.25 m edges, 0.15 m corners, 2 m drape); standing still, the exact sector (== canSee,
+  tests/unit/cone-height). `groundSampler` fills its 1 m lattice point by point as cones first reach it.
 - `Selection` (`src/render/selection.js`): selection rings under selected commandos, move-target markers,
   optional dashed path preview — all ground decals in `renderer.decalScene` (depth-tested like the vision cones:
   the soldier, his weapon, vehicles, trees and roofs are drawn over the ring). They sit on the surface at the unit's
@@ -1279,7 +1297,8 @@ perception.probe(world, x, z) → enemy | null                     // §4.2 prob
   `makeVision(soldierType, spawn)` (`src/entities/enemy.js`: radians, `near/far`, `sweep`, `period`, `elliptical`,
   `phase`, `eyeHeight`). `target` = unit, body (`kind:'body'` or dead unit) or footprint (`kind:'footprint'`).
 - **One geometry for display and detection** (§10.2): `render/vision-cone.js` draws `coneAt(enemy)`; detection uses
-  `canSee`, which applies `pointInCone(coneAt(...))` + band rule + roof rule + `grid.lineOfSight` (static + dynamic).
+  `canSee`, which applies `pointInCone(coneAt(...))` + band rule + roof rule (`levelHides`, shared with the cone) +
+  `grid.sightLine` (height sight, static + dynamic).
 - Head yaw: the brain sets `enemy.sweepActive = true` (sentries, waits) or `enemy.headOffset` (rad); `coneAt` derives
   θ from them. `enemy.vision.phase` (s) is seeded by the brain from `world.rng`.
 
@@ -1329,8 +1348,9 @@ Legacy `raise(x, z, cause)` still works (= `'global'`). Emits `alarm:zone` for e
   every zone). The schema resolves the flag into `mission.noZonesFallback`.
 - `game.cones` (`VisionCones`, `src/render/vision-cone.js`): one cone shown at a time (`CONFIG.stealth.multiCone`),
   `spotted(enemy)` (auto on `enemy:spotted` and `enemy:noise-turn`: 75% alpha for 1 s), `setProbe(x, z)` / `clearProbe()` (red 0.6 m ring;
-  the UI calls it on Shift+click), `showAll` (`?debug=cones`). Exports `coneFan(enemy, grid)` / `conePolygons(fan)`
-  (the drawn geometry, used by the §10.2 acceptance test `tests/unit/cone-fidelity.test.mjs`).
+  the UI calls it on Shift+click), `showAll` (`?debug=cones`). Exports `coneFan(enemy, grid)` (per-ray spans by
+  grid.sightRay: where a standing man / a crawler is seen) / `coneRegions(fan)` + `inRegion(quads, x, z)` (the drawn geometry,
+  used by the §10.2 acceptance tests `tests/unit/cone-fidelity.test.mjs` and `cone-height.test.mjs`).
 - Barks emitted by the AI (`bark {unit, line}`): `ger_halt`, `ger_alarm`, `ger_mandown`, `ger_suspicious`,
   `ger_hurt`, `ger_arrest`, `dog_bark`.
 

@@ -1282,6 +1282,10 @@ export function applyElevation(grid, built) {
   for (const b of built) {
     // a cliff's plateau / terrace or a road ramp is raised ground (its terrain code holds); anything else is a built floor
     const natural = NATURAL_LEVELS.has(b.type) ? 1 : 0;
+    // a structure that raises a level, or a cliff / rock face of any kind, measures its own height from the ground
+    // (grid.blockBase leaves it alone)
+    if (b.owner && (natural || b.def.walkways?.length || (b.def.deck && b.def.elev > 0) || b.def.ramps?.length || b.type === 'watchtower'
+      || (b.footprints || []).some((fp) => fp.elev > 0))) grid.levelOwners?.add(b.owner);
     for (const w of b.def.walkways || []) raise({ shape: 'line', points: pts2(w.points), width: w.width ?? 1.2 }, w.y, b.owner, natural);
     // a raised deck (dam crest, `deck` + `elev`): its bridge cells stand at `elev`, keeping their owner (removeCrest)
     if (b.def.deck && b.def.elev > 0) {

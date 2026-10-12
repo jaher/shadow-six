@@ -226,7 +226,7 @@ test('§4.8 regression: a commando walking on SNOW emits footprints into world.a
   assert.equal(walk(T.GROUND).evs.length, 0, 'no prints on plain ground');
 });
 
-test('§4.5 sawBody bonus is +max(1,T/25) once per tick, not once per seen commando', () => {
+test('§4.5 sawBody bonus is +max(1,T/25) once per tick, not once per seen commando (still men in view: +2 each, the still rule)', () => {
   const deltas = (n) => {
     const w = makeWorld({ enemies: [GUARD] });
     const g = w.enemies[0];
@@ -238,11 +238,12 @@ test('§4.5 sawBody bonus is +max(1,T/25) once per tick, not once per seen comma
     run(w, 1.2);
     off();
     assert.ok(cs.every((c) => g.brain._seen.some((s) => s.unit === c)), 'all commandos seen');
-    return Ns.slice(6, 16).map((v, i, a) => (i ? v - a[i - 1] : null)).slice(1);
+    return Ns.slice(2, 9).map((v, i, a) => (i ? v - a[i - 1] : null)).slice(1);
   };
   const one = deltas(1), two = deltas(2);
-  assert.ok(one.every((x) => x === 1), `1 seen: +2 − 1 decay per tick (${one})`);
-  assert.ok(two.every((x) => x === 1), `2 seen: still +2 − 1 decay per tick (${two})`);
+  // each still man adds the still rule's +2; the body bonus +2 comes once a tick whatever the number of men
+  assert.ok(one.every((x) => x === 3), `1 seen: +2 (him) + 2 (bonus) − 1 decay per tick (${one})`);
+  assert.ok(two.every((x) => x === 5), `2 seen: +2 + 2 (them) + 2 (bonus, once) − 1 decay per tick (${two})`);
 });
 
 test('§4.5 per-spawn T: close commando → N = 20·T (not a fixed 1000); cap 20·T; decays below T in (20T−T)/20 s', () => {

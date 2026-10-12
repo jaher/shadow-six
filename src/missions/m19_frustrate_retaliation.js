@@ -317,10 +317,10 @@ const VEHICLES = [
 
 // ---------------------------------------------------------------- commandos (§3.8 row 19, exact): prone behind the rock mound
 const COMMANDOS = [
-  { role: 'greenberet', x: 37.5, z: 2.5, heading: deg(90), stance: 'crawl', inventory: { knife: 1, pistol: 1, decoy: 1 } },
-  { role: 'sniper', x: 39, z: 1.5, heading: deg(90), stance: 'crawl', inventory: { pistol: 1, sniperRifle: 7, firstAid: 6 } },
-  { role: 'diver', x: 40.5, z: 2.5, heading: deg(90), stance: 'crawl', inventory: { knife: 1, pistol: 1, harpoon: 1, divingGear: 1, inflatableBoat: 0 } },
-  { role: 'sapper', x: 42, z: 1.5, heading: deg(90), stance: 'crawl', inventory: { pistol: 1, bearTrap: 1, remoteBomb: 2 } },
+  { role: 'greenberet', x: 36.25, z: 2, heading: deg(90), stance: 'crawl', inventory: { knife: 1, pistol: 1, decoy: 1 } },
+  { role: 'sniper', x: 38, z: 1, heading: deg(90), stance: 'crawl', inventory: { pistol: 1, sniperRifle: 7, firstAid: 6 } },
+  { role: 'diver', x: 40.5, z: 2.75, heading: deg(90), stance: 'crawl', inventory: { knife: 1, pistol: 1, harpoon: 1, divingGear: 1, inflatableBoat: 0 } },
+  { role: 'sapper', x: 42, z: 2.5, heading: deg(90), stance: 'crawl', inventory: { pistol: 1, bearTrap: 1, remoteBomb: 2 } },
 ];
 
 // ---------------------------------------------------------------- zones and garrisons (dossier §9)

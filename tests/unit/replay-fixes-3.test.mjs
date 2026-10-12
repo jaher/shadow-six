@@ -55,6 +55,7 @@ test('§3.3 ranged refusals: out of range is reported before line of sight (m02 
   const { inReach } = await import('../../src/abilities/common.js');
   const w = makeWorld();
   w.grid.lineOfSight = () => false;
+  w.grid.sightLine = () => false; // (shots test the §4.2 height line: common.shotSight)
   assert.equal(inReach(w, { x: 0, z: 0 }, { x: 30, z: 0 }, 18, true), 'Out of range.', 'both fail → range first');
   assert.equal(inReach(w, { x: 0, z: 0 }, { x: 10, z: 0 }, 18, true), 'No line of sight.');
   const s = await missionSim('m02'), d = s.cmd('driver');

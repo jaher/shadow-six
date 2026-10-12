@@ -318,10 +318,10 @@ export default {
     { id: 'raft', vehicleType: 'raft', x: 64, z: 45, heading: deg(90), inflated: true, suspicious: false, operators: ['diver'] },
   ],
   commandos: [
-    { role: 'greenberet', x: 103, z: 3.5, heading: deg(90), inventory: { knife: 1, pistol: 1, decoy: 1, shovel: 1 } },
-    { role: 'diver', x: 106, z: 3.5, heading: deg(90), inventory: { knife: 1, pistol: 1, harpoon: 1, divingGear: 1, inflatableBoat: 0 } },
-    { role: 'sapper', x: 110, z: 3.5, heading: deg(90), inventory: { pistol: 1, bearTrap: 1, wireCutters: 1, timeBomb: 0 } },
-    { role: 'spy', x: 113, z: 3.5, heading: deg(90), inventory: { pistol: 1, lethalInjection: 1, firstAid: 6 } },
+    { role: 'greenberet', x: 102.5, z: 6.75, heading: deg(90), inventory: { knife: 1, pistol: 1, decoy: 1, shovel: 1 } },
+    { role: 'diver', x: 105.5, z: 6.75, heading: deg(90), inventory: { knife: 1, pistol: 1, harpoon: 1, divingGear: 1, inflatableBoat: 0 } },
+    { role: 'sapper', x: 108.5, z: 6.75, heading: deg(90), inventory: { pistol: 1, bearTrap: 1, wireCutters: 1, timeBomb: 0 } },
+    { role: 'spy', x: 111.5, z: 6.75, heading: deg(90), inventory: { pistol: 1, lethalInjection: 1, firstAid: 6 } },
   ],
   enemies: [
     // patrol p1 along the plateau, 4 m in front of the start wall

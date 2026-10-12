@@ -36,24 +36,29 @@ test('#2 crawling commando in the far band → never seen', () => {
   assert.equal(w.enemies[0].alertLevel, 0);
 });
 
-test('#3 crawling commando in the near band → challenge in 2.5 s ± 0.2', () => {
+test('#3 crawling commando in the near band → challenge in 2.5 s ± 0.2 (from when he is in view: lying down there counts)', () => {
   const w = makeWorld({ enemies: [GUARD] });
   const c = addCommando(w, 'greenberet', 32, 34);
+  const t0 = w.time; // in the near band from the start (SHADOW SIX still rule: the second he lies down there counts too)
   c.setStance('crawl');
   run(w, 1);
-  const t0 = w.time;
   c.moveTo(32, 46);
   run(w, 5, () => challengeTime(w, c) != null);
   const dt = challengeTime(w, c) - t0;
   near(dt, 2.5, 0.2, 'crawl challenge time');
 });
 
-test('#4 frozen commando never challenged; stopping once challenged = held forever, no fire, no zone event', () => {
+test('#4 frozen commando in plain view is challenged like a crawler (SHADOW SIX still rule); stopping once challenged = held forever, no fire, no zone event', () => {
+  // BEL's freeze (standing still: +0 a tick, never challenged) is gone: user 2026-10-07, "no commando goes inside the
+  // field of view of a solider before being spotted" — a still man in view builds N like a crawler (net +1 a tick)
+  const w0 = makeWorld({ enemies: [GUARD], zones: [ZONE] });
+  const c0 = addCommando(w0, 'greenberet', 30, 40);
+  run(w0, 20, () => challengeTime(w0, c0) != null);
+  near(challengeTime(w0, c0), 2.5, 0.2, 'frozen in the near band: challenged as a crawler would be');
+  assert.ok(Math.hypot(c0.x - 30, c0.z - 40) < 1e-9, 'he never moved');
+  assert.equal(first(w0, 'shot'), null, 'held, not fired at');
   const w = makeWorld({ enemies: [GUARD], zones: [ZONE] });
   const c = addCommando(w, 'greenberet', 30, 40);
-  run(w, 20);
-  assert.equal(challengeTime(w, c), null, 'frozen: never challenged');
-  assert.equal(first(w, 'shot'), null);
   // walk → challenged → stop at once (option Indifferent: the player stops him)
   w.events.on('enemy:challenge', (p) => { if (p.target === c) c.stop(); });
   c.moveTo(30, 50);

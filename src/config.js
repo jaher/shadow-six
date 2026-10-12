@@ -173,6 +173,12 @@ export const CONFIG = {
     ellipseRatio: 1 / 3, // §4.2 b = a/3 [EXE VISTAELIPTICA]
     shortRangeMul: 0.75, // §4.2 'short' mode range multiplier
     eyeHeight: 1.65, // §4.2 [EXE]
+    // §4.2 occlusion by height (user 2026-10-11: "If the elevation resides below the eyes that area should be visible"):
+    // the sight line runs from the eye (vy + eyeHeight) to the man it must reach: a standing man's chest and head
+    // (stand, feet + 1.4 m: anything lower than that in front of him — a bump, a drift, a low wall, sandbags, a crate —
+    // never hides him; a wall or rock at man height still does, as M3's 1.6 m start wall) or a low man's back (low,
+    // 0.3 m: crawling, swimming, seated in a boat, a body). world/grid.js LOW_TOP is the top of low cover
+    sight: { stand: 1.4, low: 0.3 },
     sweepPhaseMax: 1.0, // §4.2 per-enemy random phase φ in 0–1.0 s (seeded) [EXE]
     footprint: { walkStep: 0.75, runStep: 1.6, life: 90, fade: 30, trailFollow: 4, trailMax: 40, minVisibility: 0.15 }, // §4.8 [rec]; §4.6 TRACKS
     rooftopDelta: 2.0, // §4.2 roof rule: invisible to viewers more than 2 m lower (and vice versa)
@@ -221,12 +227,16 @@ export const CONFIG = {
     alertTintColors: { 1: '#E0C030', 2: '#E04030' },
     coneRayTol: 0.08, // §10.2 cone mesh: adaptive ray refinement until the fan edge is within this (m)
     coneMaxRays: 1200, // cap on refined rays per cone rebuild
+    coneBudgetMs: 0.5, // VisionCones: ms a frame for the shown cones' sector rebuilds (spread over frames, round robin)
     multiCone: 1, // cones shown at once (BEL: 1; "multi-view" up to 6)
   },
 
   /** Enemy AI (§4.1, §4.3–§4.7). */
   ai: {
-    nervousness: { T: 50, decayPerTick: 1, closeRange: 2.25, heldValue: 1000, bodyBonusDiv: 25, dispMul: 2, boatNoticeDiv: 8 }, // §4.5 [EXE]: N += floor(dispMul·d²), d in BEL units
+    // §4.5 [EXE]: N += floor(dispMul·d²), d in BEL units. SHADOW SIX still rule (user 2026-10-07: "no commando goes inside the
+    // field of view of a solider before being spotted"): a man the band rule lets him see adds at least stillAdd = +2 a
+    // tick (a crawler's floor(2·1²)), moving or not — a still man is noticed like a crawler (T 50: 2.5 s)
+    nervousness: { T: 50, decayPerTick: 1, closeRange: 2.25, heldValue: 1000, bodyBonusDiv: 25, dispMul: 2, boatNoticeDiv: 8, stillAdd: 2 },
     investigate: { speed: 1.8, look: 4.0, runSpeed: 3.8, arrive: 1.5, lookSweep: 90, mateShot: 8 }, // §4.6 INVESTIGATE
     decoy: { radius: 13.5, pulse: 1.5, giveUp: 5.0, standOff: 2.0, shockIgnore: 20, maxDwell: null }, // §4.6 DECOY [rec]; shockIgnore: s deaf to lures after a level-3 shock / broken lure; maxDwell: s (null = none; missions: rules.decoyMaxDwell)
     search: { time: 20, points: 3, radius: 8, look: 2 }, // §4.6 SEARCH

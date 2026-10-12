@@ -209,6 +209,10 @@ test('m11 hook: EV_N sends the N half-track through the bore; the tunnel bomb cr
 /** Everyone aboard ht_ours, driven out through arch_e, the yard, gate 1 and up the W road. */
 function driveOut(s) {
   const w = s.world, v = w.byId('ht_ours');
+  // boarded unseen (e23 watches the bay; boarding in his view taints it, and since §4.2 height sight lets the ridge and
+  // mesa guards see a vehicle below them — vehicle-ai.canSeeVehicle had no heights — they would shoot it to pieces)
+  const e23 = w.byId('e23');
+  if (e23) { e23.alive = false; e23.state = 'dead'; e23.removed = true; }
   for (const c of w.commandos) { c.x = v.x - 3; c.z = v.z + 2; assert.ok(v.enter(c), `${c.role} boards`); }
   const route = [[80, 74.5], [72.3, 69.1], [63, 72.9], [29.2, 60.6], [21.8, 53.9], [17.5, 57], [8, 56.5], [3, 50.5], [4, 44.5], [1.5, 41]];
   v.followPath(route.map(([x, z]) => ({ x, z })), { speed: 5 });

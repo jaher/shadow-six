@@ -58,6 +58,9 @@ test('pass-through route waypoints do not stop the walker (no one-tick idle at c
 test('M1–M3 patrols and squads: nobody overlaps another man while walking (≥ 0.6 m centre to centre after the start)', () => {
   for (const m of ['m01', 'm02', 'm03']) {
     const def = getMission(m), sim = missionSim(def);
+    // walking only: nobody sees the team idling at its start (M3: the plateau patrol walks past it, and under the §4.5
+    // still rule a man frozen in plain view is challenged — the patrol would stop to aim)
+    sim.world.debug = { noDetect: true };
     const ids = def.enemies.filter((e) => e.route || e.squad).map((e) => e.id);
     const tr = trace(sim, ids, 150);
     const b = minPair(tr, ids, 2);

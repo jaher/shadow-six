@@ -285,11 +285,11 @@ const PBOAT_SPAWN = {
 
 // ---------------------------------------------------------------- commandos (§3.8 row 13, exact)
 const COMMANDOS = [
-  { role: 'greenberet', x: 79, z: 152.5, heading: deg(270), inventory: { knife: 1, pistol: 1, decoy: 1 } },
-  { role: 'sniper', x: 77, z: 154.5, heading: deg(270), inventory: { pistol: 1, sniperRifle: 4 } },
-  { role: 'diver', x: 75.5, z: 153, heading: deg(180), inventory: { knife: 1, pistol: 1, harpoon: 1, divingGear: 1 } },
-  { role: 'sapper', x: 80.5, z: 156, heading: deg(270), inventory: { pistol: 1, bearTrap: 1, remoteBomb: 1 } },
-  { role: 'driver', x: 82.5, z: 154.5, heading: deg(270), inventory: { pistol: 1, firstAid: 6 } },
+  { role: 'greenberet', x: 80, z: 158.25, heading: deg(270), stance: 'crawl', inventory: { knife: 1, pistol: 1, decoy: 1 } },
+  { role: 'sniper', x: 78.5, z: 158.25, heading: deg(270), stance: 'crawl', inventory: { pistol: 1, sniperRifle: 4 } },
+  { role: 'diver', x: 77.25, z: 157.75, heading: deg(180), stance: 'crawl', inventory: { knife: 1, pistol: 1, harpoon: 1, divingGear: 1 } },
+  { role: 'sapper', x: 81.5, z: 158.75, heading: deg(270), stance: 'crawl', inventory: { pistol: 1, bearTrap: 1, remoteBomb: 1 } },
+  { role: 'driver', x: 83, z: 158.25, heading: deg(270), stance: 'crawl', inventory: { pistol: 1, firstAid: 6 } },
 ];
 
 // ---------------------------------------------------------------- zones and garrison (dossier §9)

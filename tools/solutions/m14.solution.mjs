@@ -974,7 +974,7 @@ async function killFile(D, tags, { end, startAt = 6, maxSec = 300 } = {}) {
   for (let k = 0; k < men.length; k++) {
     const e = men[k];
     await D.until(() => D.world.time >= (dv._harpoonT ?? -1) && Math.hypot(e.x - dv.x, e.z - dv.z) < 8.8
-      && unwitnessed(D, e, dv, { except: men.slice(0, k) }), 6, `harpoon ${e.tag} in the file`);
+      && ABILITIES.harpoon.canUse(dv, e, D.world) === true && unwitnessed(D, e, dv, { except: men.slice(0, k) }), 6, `harpoon ${e.tag} in the file`);
     D.ability('diver', 'harpoon', e);
     await D.until(() => !e.alive, 3, `${e.tag} harpooned`);
   }
@@ -992,6 +992,8 @@ async function harpoon(D, victim, { maxSec = 60, give = null } = {}) {
     const d = Math.hypot(victim.x - dv.x, victim.z - dv.z);
     if (d > 8.6) return false;
     if (D.world.time < (dv._harpoonT ?? -1)) return false;
+    // (the line of fire: from the water his harpoon clears low cover no better than the guard's eyes would see him)
+    if (ABILITIES.harpoon.canUse(dv, victim, D.world) !== true) { why.push('no line of fire'); return false; }
     return unwitnessed(D, victim, dv, { why, ahead: 0.6, strict: true });
   }, maxSec, `harpoon ${victim.tag}`).catch((e) => { throw new Error(`${e.message} [${why.join(' ')}] d=${Math.hypot(victim.x - dv.x, victim.z - dv.z).toFixed(1)}`); });
   if (!victim.alive) return;

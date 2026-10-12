@@ -28,7 +28,9 @@ test('§4.2 band rule: standing full cone; crawler/footprint near only; body ful
 });
 
 test('§4.2 occlusion: B.HIGH blocks all, B.LOW hides low targets from ground viewers only, FENCE never', () => {
-  const w = makeWorld({ enemies: [GUARD, { id: 'tower', soldierType: 'sentry', x: 20, z: 60, heading: 0, elevated: true, post: { heading: 0, sweep: 0 } }] });
+  // (low cover keeps BEL's rule from the ground; a viewer on a raised post — here a 2.2 m platform — looks down over it
+  // by height: §4.2 occlusion by height)
+  const w = makeWorld({ enemies: [GUARD, { id: 'tower', soldierType: 'sentry', x: 20, z: 60, y: 2.2, heading: 0, elevated: true, post: { heading: 0, sweep: 0 } }] });
   const [g, tw] = w.enemies;
   w.grid.fillRect(25, 39, 1, 2, 'block', B.LOW);
   assert.equal(canSee(g, T({ x: 30, z: 40 }), w), 'near', 'standing over sandbags');

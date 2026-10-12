@@ -22,7 +22,8 @@
  */
 
 import { CONFIG, velToSpeed } from '../config.js';
-import { canSee, coneAt, pointInCone } from './perception.js';
+import { canSee, coneAt, pointInCone, targetHeight, postOwner, levelHides } from './perception.js';
+import { ownerHeight } from '../world/placement.js';
 import { angleTo, angleDiff } from '../core/math.js';
 
 const ROUTE_TYPES = ['PINGPONG', 'LOOP', 'EXIT', 'STOPPED'];
@@ -75,13 +76,21 @@ export function viewerFor(vehicle) {
   return p;
 }
 
-/** Can `viewer` (enemy or proxy) see vehicle `v`? Cone on the nearest hull point + LOS to its edge. */
+/**
+ * Can `viewer` (enemy or proxy) see vehicle `v`? Cone on the nearest hull point, the §4.2 roof rule (perception.levelHides:
+ * a guard on a roof no more sees a boat on the sea below than the men in it) and the height sight line from his eye to a
+ * man's height over that hull edge (as perception.canSee: low cover and bumps below the line do not hide it).
+ */
 export function canSeeVehicle(viewer, v, world) {
   if (!viewer.vision || v.destroyed || v.hiddenRail || v.removed) return false;
   const edge = v.muzzleToward(viewer.x, viewer.z);
   const cone = coneAt(viewer, world.time);
   if (!cone || !pointInCone(cone, edge.x, edge.z)) return false;
-  return world.grid.lineOfSight(viewer.x, viewer.z, edge.x, edge.z, { viewerElevated: !!viewer.vision.elevated, ownHull: viewer.ownHull });
+  if (levelHides(cone, v.y || 0, false, world)) return false;
+  if (!world.grid.sightLine) return world.grid.lineOfSight(viewer.x, viewer.z, edge.x, edge.z, { viewerElevated: !!viewer.vision.elevated, ownHull: viewer.ownHull });
+  return world.grid.sightLine(viewer.x, viewer.z, edge.x, edge.z, {
+    eyeY: cone.y, targetY: (v.y || 0) + targetHeight(false), viewerY: cone.vy, targetBaseY: v.y || 0, heightOf: ownerHeight(world), ownHull: viewer.ownHull, ownOwner: postOwner(viewer, world),
+  });
 }
 
 /** Nearest commando `vehicle` can see right now (through its proxy cone), or null. */

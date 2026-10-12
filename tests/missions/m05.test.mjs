@@ -290,6 +290,10 @@ test('m05: a drum carried to the dish destroys the radar (o1); the escape needs 
   assert.ok(!o.o2.done && !o.o3.done);
   const v = s.get('autogyro');
   const [gb, spy] = [s.cmd('greenberet'), s.cmd('spy')];
+  // the summit patrol p18 is dealt with first: boarding in its view taints the autogyro and, now that a guard on the
+  // summit sees a vehicle on the summit (§4.2 height sight: vehicle-ai.canSeeVehicle had no heights, so nobody up there
+  // ever saw it), they would shoot it to pieces
+  for (const e of w.enemies) if (String(e.tag).startsWith('p18')) { e.alive = false; e.state = 'dead'; e.removed = true; }
   gb.x = 78; gb.z = 28; spy.x = 80; spy.z = 28; gb.y = spy.y = 16;
   assert.ok(v.enter(gb), 'GB boards');
   for (let k = 0; k < 60; k++) { s.run(0.05); checkObjectives(w); }

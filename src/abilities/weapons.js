@@ -6,18 +6,21 @@
  *   smg     M  Driver: 18 m, 5 rounds × 100 in a ±15° fan, burst 0.25 s, next after 0.8 s, smg noise; count = bursts.
  *   harpoon J  Marine: 9 m, silent kill, 3.0 s reload, unlimited; surfaces to fire from the water.
  * Hits emit `shot` {from, to, shooter, target, hit, weapon}; bullets that reach a barrel detonate it (§3.6).
+ * Explosives (a barrel, a fuel tanker) are in reach of each weapon at that weapon's OWN range, as a man is: pistol
+ * 13.5 m, SMG 18 m, sniper 45 m, harpoon 9 m (and the BCD Lee-Enfield 27 m, abilities/bcd-guns.js) — explosiveInReach.
  * @module abilities/weapons
  */
 
 import { registerAbility } from './registry.js';
 import { CONFIG, KILL } from '../config.js';
-import { timedTask, enemyNear, freeToAct, bark, inReach, shotLosOpts } from './common.js';
+import { timedTask, enemyNear, freeToAct, bark, inReach, shotSight } from './common.js';
 
 const W = CONFIG.weapons;
 
-/** Shooter eye/target LOS through the grid (static + dynamic occluders); `rifle`: through `shotThrough` planks. */
+/** Line of fire from the shooter to the target by the §4.2 height sight line (common.shotSight: the rule the guards'
+ * fire follows); `rifle`: through `shotThrough` planks. */
 export function shotClear(world, from, to, rifle = false) {
-  return world.grid.lineOfSight(from.x, from.z, to.x, to.z, shotLosOpts(from, to, world, rifle));
+  return shotSight(world, from, to, rifle);
 }
 
 /** Resolve a clicked point/entity into a shot target: enemy near the point, barrel near the point, or the point. */
@@ -74,6 +77,22 @@ function isShootableBarrel(t) {
   return !!t && t.interactKind === 'barrel' && !t.exploded && !t.destroyed && !t.carriedBy && !t.removed;
 }
 
+/** An explosive a round sets off (§3.6): a shootable barrel or an intact fuel tanker. */
+export function isShootableExplosive(t) {
+  return isShootableBarrel(t) || isShootableTanker(t);
+}
+
+/**
+ * §3.3 / §3.6 an explosive aimed at with a weapon of `range` m: in reach and in sight exactly like a man would be
+ * (`rifle`: the round goes through `shotThrough` planks), else the reason. `reloadUntil`: that weapon's own reload
+ * clock (a harpoon never waits on the rifle bolt). M14 finding: the harpoon reached barrels at the sniper's 45 m.
+ * @returns {true|string}
+ */
+export function explosiveInReach(world, c, t, range, reloadUntil = -1, rifle = false) {
+  if (world.time < reloadUntil) return 'Reloading.';
+  return inReach(world, c, t, range, true, rifle);
+}
+
 // ---------------------------------------------------------------- pistol (G)
 
 registerAbility({
@@ -122,7 +141,7 @@ registerAbility({
     const f = canFireFrom(c, true);
     if (f !== true) return f;
     if (!c.has('sniperRifle')) { bark(world, c, 'cant_noammo'); return 'No rounds left.'; }
-    if (isShootableBarrel(t) || isShootableTanker(t)) return world.time < (c._boltT ?? -1) ? 'Reloading.' : inReach(world, c, t, W.sniper.range, true, true);
+    if (isShootableExplosive(t)) return explosiveInReach(world, c, t, W.sniper.range, c._boltT ?? -1, true);
     if (!t || t.kind !== 'enemy' || !t.alive) return 'Pick an enemy.';
     if (t.covered || t.vehicle?.def?.covered || t.vehicle?.def?.armored) return "Can't hit him in there.";
     if (world.time < (c._boltT ?? -1)) return 'Reloading.';
@@ -132,10 +151,13 @@ registerAbility({
   start(c, t, world) {
     const A = W.sniper;
     c.playAction('aim', A.aim);
+    // §3.4 he kneels to fire: seen as a standing man (Unit.isLow) until the shot is off, his line of fire from there
+    c.kneeling = true;
+    const up = () => { c.kneeling = false; };
     return timedTask({
-      dur: A.aim + 0.1, interruptible: true,
+      dur: A.aim + 0.1, interruptible: true, onEnd: up, onCancel: up,
       steps: [{ at: A.aim, fn: () => {
-        if (!(isShootableBarrel(t) || isShootableTanker(t) || t.alive) || Math.hypot(t.x - c.x, t.z - c.z) > A.range + 0.5 || !shotClear(world, c, t, true)) return false;
+        if (!(isShootableExplosive(t) || t.alive) || Math.hypot(t.x - c.x, t.z - c.z) > A.range + 0.5 || !shotClear(world, c, t, true)) return false;
         if (!c.consume('sniperRifle')) return false;
         c.faceTowards(t.x, t.z);
         c.playAction('shoot', 0.3);
@@ -215,12 +237,12 @@ registerAbility({
 registerAbility({
   id: 'harpoon', label: 'Harpoon gun', icon: '🔱', hotkey: 'j', roles: ['diver'], item: 'harpoon',
   targeting: 'enemy', cursor: 'harpoon', order: 13, noiseRadius: 0, visibleToEnemies: true,
-  range: W.harpoon.range, ranged: true, hitsTankers: true,
+  range: W.harpoon.range, ranged: true,
+  hitsBarrels: true, hitsTankers: true, // §3.6 a barrel / tanker within the harpoon's own 9 m (not the rifle's 45 m)
   canUse(c, t, world) {
     const f = freeToAct(c);
     if (f !== true) return f;
-    if (isShootableBarrel(t)) return world.time < (c._boltT ?? -1) ? 'Reloading.' : inReach(world, c, t, W.sniper.range, true);
-    if (isShootableTanker(t)) return world.time < (c._harpoonT ?? -1) ? 'Reloading.' : inReach(world, c, t, W.harpoon.range, true);
+    if (isShootableExplosive(t)) return explosiveInReach(world, c, t, W.harpoon.range, c._harpoonT ?? -1);
     if (!t || t.kind !== 'enemy' || !t.alive) return 'Pick an enemy.';
     if (world.time < (c._harpoonT ?? -1)) return 'Reloading.';
     if (t.covered || t.vehicle?.def?.armored) return "Can't hit him in there.";
@@ -234,7 +256,8 @@ registerAbility({
     return timedTask({
       dur: 0.4,
       steps: [{ at: 0.2, fn: () => {
-        if (!(t.alive || isShootableTanker(t)) || !shotClear(world, c, t)) return false;
+        // checked again at the trigger, like the rifle: the target must still be alive / intact and within 9 m
+        if (!(isShootableExplosive(t) || (t.alive && t.kind === 'enemy')) || Math.hypot(t.x - c.x, t.z - c.z) > W.harpoon.range + 0.5 || !shotClear(world, c, t)) return false;
         c.faceTowards(t.x, t.z);
         fireBullet(world, c, t, KILL, 'harpoon', 'harpoon');
         world.events.emit('hit', { x: t.x, z: t.z, surface: t.kind === 'vehicle' ? 'metal' : 'flesh', target: t, weapon: 'harpoon' });

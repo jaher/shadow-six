@@ -12,7 +12,6 @@ export default async function ai(page, t) {
     const w = G.world;
     g.start();
     const { canSee } = await import('./src/ai/perception.js');
-    const { conePolygons } = await import('./src/render/vision-cone.js');
     const e = w.enemies.find((q) => q.tag === 'guard_fuel');
     for (const q of [...w.enemies]) if (q !== e) w.remove(q);
     for (const c of w.commandos) c.hidden = true;
@@ -28,18 +27,19 @@ export default async function ai(page, t) {
     G.render(0, 1);
     const vc = G.cones.cones.get(e);
     const fan = vc.fan;
-    const poly = conePolygons(fan);
-    const inside = (P, x, z) => { let c = false; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const [xi, zi] = P[i], [xj, zj] = P[j]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c; } return c; };
-    const dist = (P, x, z) => { let m = Infinity; for (let i = 0, j = P.length - 1; i < P.length; j = i++) { const [x0, z0] = P[j], [x1, z1] = P[i]; const ex = x1 - x0, ez = z1 - z0, L = ex * ex + ez * ez; let u = L ? ((x - x0) * ex + (z - z0) * ez) / L : 0; u = Math.max(0, Math.min(1, u)); m = Math.min(m, Math.hypot(x - x0 - ex * u, z - z0 - ez * u)); } return m; };
+    // what the cone shader draws (its sector mesh under this frame's window: drawnAt), clearly inside / outside (the 8
+    // points 0.25 m round it agree; else null)
+    const drawn = (x, z) => vc.drawnAt(x, z) != null;
+    const clearly = (x, z) => { const at = drawn(x, z); for (let k = 0; k < 8; k++) if (drawn(x + 0.25 * Math.cos(k * Math.PI / 4), z + 0.25 * Math.sin(k * Math.PI / 4)) !== at) return null; return at; };
     let checked = 0, bad = 0, occluded = 0;
     const gr = w.grid;
     for (let k = 0; k < 3000; k++) {
       const x = e.x - 38 + w.rng.next() * 76, z = e.z - 38 + w.rng.next() * 76;
       const i = Math.floor(x / gr.cell), j = Math.floor(z / gr.cell);
       if (!gr.inBounds(i, j) || gr.block[gr.idx(i, j)] === 2 || gr.dynamicBlock[gr.idx(i, j)] === 2) continue;
-      if (dist(poly.far, x, z) <= 0.25) continue;
-      const seen = canSee(e, { x, z, isLow: false, isVisibleToEnemies: true }, w) !== 'none';
-      const inPoly = inside(poly.far, x, z);
+      const inPoly = clearly(x, z);
+      if (inPoly == null) continue;
+      const seen = canSee(e, { x, z, y: gr.elev[gr.idx(i, j)], isLow: false, isVisibleToEnemies: true }, w) !== 'none';
       if (seen !== inPoly) bad++;
       if (!inPoly && Math.hypot(x - e.x, z - e.z) < fan.cone.far - 1 && Math.abs(Math.atan2(z - e.z, x - e.x) - Math.PI) < 0.5) occluded++;
       checked++;
@@ -51,7 +51,7 @@ export default async function ai(page, t) {
   });
   t.log(JSON.stringify(r));
   t(r.checked > 1000, 'sampled points');
-  t.equal(r.bad, 0, 'drawn far polygon == standing detection (house + truck occlusion)');
+  t.equal(r.bad, 0, 'drawn cone (stand region) == standing detection (house + truck occlusion)');
   t(r.occluded > 20, 'occluders cut the cone');
   t(r.rays >= 96, 'at least 96 rays');
   t.equal(r.shown, 1, 'one cone shown');

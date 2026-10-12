@@ -33,8 +33,19 @@ export function terrainCode(t) {
 
 /** Max height difference (m) between two adjacent cells that units can step across (§10.2 elev). */
 export const MAX_STEP = 0.6;
-/** A raised cell blocks sight when its elev exceeds both endpoint heights by more than this (m). */
+/** A raised cell blocks sight when its elev exceeds both endpoint heights by more than this (m) (legacy lineOfSight). */
 export const LOS_CLEAR = 1.0;
+/**
+ * Height sight (sightLine / sightRay, §4.2 "Occlusion by height"): the top of a B.LOW cell above its surface (m). Low
+ * cover is low by class: a crawler's sight line passes under it near him, a standing man's never does.
+ */
+export const LOW_TOP = 1.0;
+/**
+ * Height sight: an open raised floor (a deck, a wall walk, a roof terrace, a plateau, a ramp) within this of the
+ * viewer's or the target's own feet is that man's level, not an occluder between them — whether men on different levels
+ * see each other is the §4.2 roof and deck-edge rules' call (perception.levelHides), as in BEL.
+ */
+export const LEVEL_TOL = 0.5;
 /** Link kinds (§7.3 climbLinks / ladders). */
 const EMPTY = Object.freeze([]);
 export const LINK = Object.freeze({ CLIMB: 'climb', LADDER: 'ladder' });
@@ -64,6 +75,15 @@ export function overWallsTest(ow) {
     const h = ow.heightOf(k);
     return h != null && h < y0 + (y1 - y0) * Math.min(1, t * s);
   };
+}
+
+/**
+ * Steepest sight slope (height over distance) a cell blocks: a top `rise` m above the eye over the stretch [d0, d1] of
+ * the line hides every target whose sight slope is below it (highest at the near edge for a top above the eye, at the
+ * far edge for one below it). Shared by sightLine and sightRay so the drawn cone and detection agree.
+ */
+export function sightSlope(rise, d0, d1) {
+  return rise > 0 ? rise / Math.max(d0, 1e-6) : rise / Math.max(d1, 1e-6);
 }
 
 export class NavGrid {
@@ -109,11 +129,14 @@ export class NavGrid {
      * Dynamic occluders (§4.2 OCLU, §10.2): B.* per cell, CLEARED AND RE-STAMPED EVERY SIM STEP by the
      * vehicles/trains system (clearDynamic() + stampDynamic()). Blocks sight (lineOfSight/castRay, unless
      * opts.dynamic === false); blocks movement only when isWalkable() gets opts.dynamic = true.
-     * Writes bump `dynamicVersion`, never `version` (so static caches survive).
+     * `dynamicVersion` changes only when what is stamped changes (a parked truck re-stamped on the same cells every
+     * step leaves it alone), never `version` (so static caches survive).
      * @type {Uint8Array}
      */
     this.dynamicBlock = new Uint8Array(n);
-    this.dynamicVersion = 0;
+    this._dynVer = 0;
+    this._dynSig = 0; // order-free signature of this step's stamps (stampDynamic)
+    this._dynSigSeen = 0;
     this._dynamicDirty = false;
     /**
      * Surface height per cell (m) for roofs, wall tops, towers, platforms (§10.2, roof rule §4.2).
@@ -130,6 +153,13 @@ export class NavGrid {
      * @type {Uint8Array}
      */
     this.naturalElev = new Uint8Array(n);
+    /**
+     * Grid owner ids of the structures that RAISE a level (walkways, decks, ramps, raised footprints, tower decks) and of
+     * every cliff / road (map-builder applyElevation): their own blocked cells measure their height from the ground (a
+     * cliff's h is the plateau's), so blockBase never lifts them. Static, not saved.
+     * @type {Set<number>}
+     */
+    this.levelOwners = new Set();
     /**
      * Nav-only blocks (placement rule e, world/placement.js): cells where a structure's VISUAL stands outside its
      * gameplay footprint (steps, porches' posts, woodpiles, splayed tower legs) or where an idle movable prop
@@ -627,13 +657,24 @@ export class NavGrid {
 
   // ---------------------------------------------------------------- dynamic occluders (§4.2 OCLU)
 
+  /**
+   * Version of the dynamic layer's content: bumped when the stamps differ from those last read (sight caches, the drawn
+   * cones key on it), not merely because the layer was cleared and stamped again the same.
+   */
+  get dynamicVersion() {
+    if (this._dynSig !== this._dynSigSeen) { this._dynSigSeen = this._dynSig; this._dynVer++; }
+    return this._dynVer;
+  }
+
+  set dynamicVersion(v) { this._dynVer = v; this._dynSigSeen = this._dynSig; }
+
   /** Zero the dynamic layer. Called once per sim step before vehicles/trains re-stamp themselves. */
   clearDynamic() {
     if (this._dynamicDirty) {
       this.dynamicBlock.fill(0);
       this._dynamicDirty = false;
-      this.dynamicVersion++;
     }
+    this._dynSig = 0;
   }
 
   /**
@@ -658,7 +699,14 @@ export class NavGrid {
         }
       }
     }
-    if (n) { this._dynamicDirty = true; this.dynamicVersion++; }
+    if (n) {
+      this._dynamicDirty = true;
+      // (order-free: a sum of per-stamp hashes of the rounded footprint)
+      let h = Math.imul(Math.round(cx * 1000) | 0, 0x9e3779b1) ^ Math.imul(Math.round(cz * 1000) | 0, 0x85ebca77);
+      h = Math.imul(h ^ (Math.round(w * 1000) | 0), 0xc2b2ae3d) ^ Math.imul(Math.round(d * 1000) | 0, 0x27d4eb2f);
+      h = Math.imul(h ^ (Math.round(rotHeading * 10000) | 0), 0x165667b1) ^ value;
+      this._dynSig = (this._dynSig + (h | 0)) | 0;
+    }
     return n;
   }
 
@@ -834,7 +882,8 @@ export class NavGrid {
 
   /**
    * Visit the cells crossed by segment A→B (Amanatides–Woo DDA), in order, excluding A's cell and
-   * B's cell. `visit(k, tEnter)` returns true to stop; tEnter is the parametric entry (0..1).
+   * B's cell. `visit(k, tEnter, tExit)` returns true to stop; tEnter / tExit are the parametric entry and exit
+   * (0..1; a side cell touched exactly at a corner has tExit = tEnter).
    * @returns {boolean} true if stopped by the visitor
    */
   _traverse(ax, az, bx, bz, visit) {
@@ -856,8 +905,8 @@ export class NavGrid {
         t = tMaxX;
         if (t > 1) return false;
         const ni = i + stepI, nj = j + stepJ;
-        if (!(ni === ti && j === tj) && this.inBounds(ni, j) && visit(this.idx(ni, j), t)) return true;
-        if (!(i === ti && nj === tj) && this.inBounds(i, nj) && visit(this.idx(i, nj), t)) return true;
+        if (!(ni === ti && j === tj) && this.inBounds(ni, j) && visit(this.idx(ni, j), t, t)) return true;
+        if (!(i === ti && nj === tj) && this.inBounds(i, nj) && visit(this.idx(i, nj), t, t)) return true;
         i = ni; j = nj;
         tMaxX += tDeltaX; tMaxZ += tDeltaZ;
       } else if (tMaxX < tMaxZ) {
@@ -871,7 +920,7 @@ export class NavGrid {
       }
       if (i === ti && j === tj) return false;
       if (!this.inBounds(i, j)) return false;
-      if (visit(this.idx(i, j), t)) return true;
+      if (visit(this.idx(i, j), t, Math.min(1, tMaxX, tMaxZ))) return true;
     }
     return false;
   }
@@ -911,6 +960,260 @@ export class NavGrid {
       return false;
     });
     return !blocked;
+  }
+
+  // ---------------------------------------------------------------- sight by height (§4.2 "Occlusion by height")
+
+  /**
+   * The height (m, absolute) a sight line has to clear over cell k: its surface (elev: ground, ramp, deck, plateau,
+   * roof) or the top of what stands on it. B.HIGH: surface + the owning structure's height (`o.heightOf(k)`; a cell
+   * with no known height blocks at any height — Infinity). B.LOW is LOW COVER, BEL's rule kept (§4.2): it only ever
+   * hides a low target (`low`: crawling, swimming, seated, a body) and is open ground for a standing one; from the
+   * ground (`o.lowCover` 'block', the default) it hides that low man wherever he lies behind it, as in BEL; from a
+   * raised post (`o.lowCover` 'height': a tower, a roof, a plateau) by height — surface + min(height, LOW_TOP), so
+   * only right behind it. B.FENCE and open cells: the surface. The dynamic layer (vehicles, OCLU) blocks at any height
+   * (B.HIGH) or as low cover (B.LOW). `ownOwner` cells (the viewer's own bunker), `passOwners` cells (a round through
+   * `shotThrough` planks) and `ownHull` / `targetHull` stamps are open.
+   * @param {number} k @param {{heightOf?: (k: number) => number|null, ownOwner?: number, passOwners?: Set<number>, dynamic?: boolean, lowCover?: 'block'|'height'}} o
+   * @param {((k: number) => boolean)|null} [own] @param {((k: number) => boolean)|null} [tgt] @param {boolean} [low]
+   * @returns {number}
+   */
+  sightTop(k, o, own = null, tgt = null, low = false) {
+    const e = this.elev[k];
+    let top = e;
+    const ow = this.owner[k];
+    const b = ow && ((o?.ownOwner && ow === o.ownOwner) || o?.passOwners?.has(ow)) ? B.NONE : this.block[k];
+    if (b === B.HIGH) {
+      const h = o?.heightOf ? o.heightOf(k) : null;
+      top = h == null ? Infinity : this.blockBase(k) + h;
+    } else if (b === B.LOW && low) {
+      if (o?.lowCover !== 'height') return Infinity;
+      const h = o?.heightOf ? o.heightOf(k) : null;
+      top = this.blockBase(k) + Math.min(h ?? LOW_TOP, LOW_TOP);
+    }
+    if (!(o && o.dynamic === false)) {
+      const d = this.dynamicBlock[k];
+      if (d && !(own && own(k)) && !(tgt && tgt(k))) {
+        if (d === B.HIGH) return Infinity;
+        if (d === B.LOW && low) top = o?.lowCover !== 'height' ? Infinity : Math.max(top, e + LOW_TOP);
+      }
+    }
+    return top;
+  }
+
+  /**
+   * The ground a blocked cell's structure stands on (m): its own elev, or — a natural level (a cliff's plateau or
+   * terrace, naturalElev) stamps elev on its open cells only, so a ruin wall standing on it (M8: its strips leave
+   * holes for the walls) keeps elev 0 under it — the highest natural-level open cell within 1 m of it. A wall on a 4 m
+   * plateau tops out at 4 m + its height, not at its height (else a guard on the plateau saw through every wall up
+   * there). Not lifted: the level's own structure and every cliff (levelOwners: their h is from the ground), and
+   * anything beside a BUILT floor only (a palisade at the foot of an MG deck stands on the ground). Memoised until the
+   * grid changes.
+   * @param {number} k @returns {number}
+   */
+  blockBase(k) {
+    const e = this.elev[k];
+    if (e > 0) return e;
+    const ow = this.owner[k];
+    if (this.levelOwners.has(ow)) return e;
+    if (this._bbVer !== this.version || !this._bb) {
+      if (!this._bb || this._bb.length !== this.size) { this._bb = new Float32Array(this.size); this._bbOn = null; }
+      this._bb.fill(-1);
+      this._bbVer = this.version;
+    }
+    let b = this._bb[k];
+    if (b >= 0) return b;
+    b = 0;
+    // a structure stands ON the level when most of the open ground round it (1 m) is that natural level (M8's walls,
+    // M5's hilltop station: ~100 %); one at its foot or built into its edge (M12's harbour HQ, M11's walls below the
+    // mesa: <= 47 %) stands on the ground. Anonymous blocks (owner 0) by their own cell's ring.
+    if (ow ? this._onLevel().get(ow) : this._ringShare(k) >= 0.5) {
+      const cols = this.cols, i0 = k % cols, j0 = (k - i0) / cols;
+      for (let dj = -2; dj <= 2; dj++) for (let di = -2; di <= 2; di++) {
+        const i = i0 + di, j = j0 + dj;
+        if (!this.inBounds(i, j)) continue;
+        const q = this.idx(i, j);
+        if (this.naturalElev[q] && (this.block[q] === B.NONE || this.block[q] === B.FENCE)) b = Math.max(b, this.elev[q]);
+      }
+    }
+    this._bb[k] = b;
+    return b;
+  }
+
+  /** Share (0..1) of the open cells within 1 m of cell k that are raised natural ground. @param {number} k */
+  _ringShare(k) {
+    const cols = this.cols, i0 = k % cols, j0 = (k - i0) / cols;
+    let n = 0, nat = 0;
+    for (let dj = -2; dj <= 2; dj++) for (let di = -2; di <= 2; di++) {
+      const i = i0 + di, j = j0 + dj;
+      if (!this.inBounds(i, j)) continue;
+      const q = this.idx(i, j);
+      if (this.block[q] !== B.NONE && this.block[q] !== B.FENCE) continue;
+      n++;
+      if (this.naturalElev[q] && this.elev[q] > 0) nat++;
+    }
+    return n ? nat / n : 0;
+  }
+
+  /** owner → stands on a natural level (blockBase): >= half its 1 m ring is raised natural ground. One pass over the
+   * map, kept for the mission (a door opening or a hut blown up moves no structure on or off a plateau; a whole-map
+   * pass after every grid change was a 3-9 ms hitch). @returns {Map<number, boolean>} */
+  _onLevel() {
+    if (this._bbOn) return this._bbOn;
+    const tot = new Map(), nat = new Map(), cols = this.cols;
+    for (let k = 0; k < this.size; k++) {
+      const ow = this.owner[k];
+      if (!ow || this.elev[k] > 0 || (this.block[k] !== B.HIGH && this.block[k] !== B.LOW) || this.levelOwners.has(ow)) continue;
+      const i0 = k % cols, j0 = (k - i0) / cols;
+      let n = 0, m = 0;
+      for (let dj = -2; dj <= 2; dj++) for (let di = -2; di <= 2; di++) {
+        const i = i0 + di, j = j0 + dj;
+        if (!this.inBounds(i, j)) continue;
+        const q = this.idx(i, j);
+        if (this.block[q] !== B.NONE && this.block[q] !== B.FENCE) continue;
+        n++;
+        if (this.naturalElev[q] && this.elev[q] > 0) m++;
+      }
+      if (n) { tot.set(ow, (tot.get(ow) || 0) + n); nat.set(ow, (nat.get(ow) || 0) + m); }
+    }
+    const on = new Map();
+    for (const [ow, n] of tot) on.set(ow, nat.get(ow) / n >= 0.5);
+    return (this._bbOn = on);
+  }
+
+  /**
+   * Line of sight by HEIGHT (§4.2): from an eye at `o.eyeY` over (ax, az) to a target point `o.targetY` high over
+   * (bx, bz) (`o.targetLow`: a low target, whom low cover hides). A crossed cell blocks only when its sightTop rises
+   * above the straight sight line where the line passes over it (anywhere between the cell's entry and exit) — a bump,
+   * a drift, a low wall or a crate below the line does not; the ground just behind it is hidden only where the line
+   * really passes under its top. A's and B's own cells never block (as lineOfSight), nor does the open floor of either
+   * man's own level (LEVEL_TOL of `o.viewerY` / `o.targetBaseY`: the deck he stands on, the wall walk the target stands
+   * on). The same rule, ray by ray, is sightRay (the drawn cone).
+   * @param {{eyeY: number, targetY: number, targetLow?: boolean, viewerY?: number, targetBaseY?: number, heightOf?: Function, ownOwner?: number, ownHull?: object, targetHull?: object, dynamic?: boolean}} o
+   * @returns {boolean} true when visible
+   */
+  sightLine(ax, az, bx, bz, o) {
+    const D = Math.hypot(bx - ax, bz - az);
+    if (!(D > 1e-9)) return true;
+    const eye = o.eyeY, s = (o.targetY - eye) / D, low = !!o.targetLow;
+    const useDyn = o.dynamic !== false;
+    const own = useDyn && o.ownHull ? this._hullTest(o.ownHull) : null;
+    const tgt = useDyn && o.targetHull ? this._hullTest(o.targetHull) : null;
+    const vy = o.viewerY ?? null, ty = o.targetBaseY ?? null, elev = this.elev;
+    const blocked = this._traverse(ax, az, bx, bz, (k, t0, t1) => {
+      const top = this.sightTop(k, o, own, tgt, low);
+      if (top === Infinity) return true;
+      if (top === elev[k] && ((vy != null && Math.abs(top - vy) <= LEVEL_TOL) || (ty != null && Math.abs(top - ty) <= LEVEL_TOL))) return false; // a man's own floor
+      return s < sightSlope(top - eye, t0 * D, t1 * D);
+    });
+    return !blocked;
+  }
+
+  /**
+   * The drawn cone's ray (§10.2: the cone IS the detection geometry): where along the ray from (ax, az) at `angle`
+   * sightLine reaches a target standing on the surface, for each target height in `heights` (m above the surface;
+   * `o.lowOf[i]`: height i is a low target, whom low cover hides): per height the sorted, disjoint [d0, d1] distance
+   * intervals within min(maxDist, map edge). One DDA march: the steepest blocking slope of the cells crossed so far
+   * (A's cell excluded) decides each cell's visible part exactly (a target in a cell is seen when its sight slope ≥ that
+   * maximum, as sightLine; the open floors are kept by level so a target never counts his own floor, nor the viewer
+   * his — `o.viewerY`). A cell that blocks at any height (a wall, a building, a vehicle) ends the ray. `o.hide(k, base,
+   * i)` → true hides target height i standing in cell k (perception's roof and deck-edge rules); options as sightLine
+   * (eyeY, viewerY, heightOf, ownOwner, ownHull, dynamic).
+   * @param {number[]} heights
+   * @returns {number[][][]} intervals[i] = [[d0, d1], …]
+   */
+  sightRay(ax, az, angle, maxDist, heights, o) {
+    const out = heights.map(() => []);
+    const dx = Math.cos(angle), dz = Math.sin(angle);
+    let L = maxDist;
+    if (dx > 1e-12) L = Math.min(L, (this.width - ax) / dx);
+    if (dx < -1e-12) L = Math.min(L, -ax / dx);
+    if (dz > 1e-12) L = Math.min(L, (this.depth - az) / dz);
+    if (dz < -1e-12) L = Math.min(L, -az / dz);
+    if (!(L > 0)) return out;
+    const eye = o.eyeY, vy = o.viewerY ?? null;
+    const lowOf = heights.map((_, n) => !!o.lowOf?.[n]);
+    const useDyn = o.dynamic !== false;
+    const own = useDyn && o.ownHull ? this._hullTest(o.ownHull) : null;
+    const hide = o.hide || null;
+    const c = this.cell;
+    let i = Math.floor(ax / c), j = Math.floor(az / c);
+    const stepI = dx > 1e-12 ? 1 : dx < -1e-12 ? -1 : 0, stepJ = dz > 1e-12 ? 1 : dz < -1e-12 ? -1 : 0;
+    const tDeltaX = stepI ? Math.abs(c / dx) : Infinity, tDeltaZ = stepJ ? Math.abs(c / dz) : Infinity;
+    let tMaxX = stepI > 0 ? ((i + 1) * c - ax) / dx : stepI < 0 ? (i * c - ax) / dx : Infinity;
+    let tMaxZ = stepJ > 0 ? ((j + 1) * c - az) / dz : stepJ < 0 ? (j * c - az) / dz : Infinity;
+    const push = (n, d0, d1) => {
+      if (!(d1 > d0)) return;
+      const iv = out[n], last = iv[iv.length - 1];
+      if (last && d0 - last[1] <= 1e-9) last[1] = Math.max(last[1], d1); else iv.push([d0, d1]);
+    };
+    // what the cells crossed so far block, for a standing (0) and a low (1) target: M = the steepest blocking slope of
+    // the obstacles; the open floors (top = surface) by level, so a target never counts his own floor (sightLine's
+    // LEVEL_TOL rule) and the viewer's floor is left out altogether
+    const st = [{ M: -Infinity, floors: [] }, { M: -Infinity, floors: [] }];
+    const slopeFor = (S, base) => {
+      let m = S.M;
+      for (const f of S.floors) if (Math.abs(f.e - base) > LEVEL_TOL && f.M > m) m = f.M;
+      return m;
+    };
+    const cross = (S, k, top, d0, d1) => {
+      const sl = top === Infinity ? Infinity : sightSlope(top - eye, d0, d1);
+      if (top !== this.elev[k]) { if (sl > S.M) S.M = sl; return; } // an obstacle
+      if (vy != null && Math.abs(top - vy) <= LEVEL_TOL) return; // the viewer's own floor
+      let f = null;
+      for (const g of S.floors) if (g.e === top) { f = g; break; }
+      if (!f) S.floors.push(f = { e: top, M: -Infinity });
+      if (sl > f.M) f.M = sl;
+    };
+    // a target standing in cell k between d0 and d1 (perception's per-level rules memoised by the surface height: a
+    // ray crosses few distinct levels)
+    let hBase = NaN;
+    const hidden = heights.map(() => false);
+    const reach = (k, d0, d1) => {
+      const base = this.elev[k];
+      if (hide && base !== hBase) { hBase = base; for (let n = 0; n < heights.length; n++) hidden[n] = !!hide(k, base, n); }
+      const m0 = slopeFor(st[0], base), m1 = slopeFor(st[1], base);
+      for (let n = 0; n < heights.length; n++) {
+        if (hide && hidden[n]) continue;
+        const M = lowOf[n] ? m1 : m0;
+        if (M === -Infinity) { push(n, d0, d1); continue; }
+        const a = base + heights[n] - eye; // visible at d ⇔ a / d ≥ M
+        if (a >= 0) { if (M <= 0) push(n, d0, d1); else push(n, d0, Math.min(d1, a / M)); }
+        else if (M < 0) push(n, Math.max(d0, a / M), d1);
+      }
+    };
+    const block = this.block, dyn = this.dynamicBlock;
+    const lowAt = (k) => block[k] === B.LOW || (useDyn && dyn[k] === B.LOW);
+    // the cell's top for a standing target (ts) and for a low one (low cover counts only there)
+    const crossBoth = (k, d0, d1, ts = this.sightTop(k, o, own, null, false)) => {
+      const tl = ts !== Infinity && lowAt(k) ? this.sightTop(k, o, own, null, true) : ts;
+      cross(st[0], k, ts, d0, d1); cross(st[1], k, tl, d0, d1);
+      return ts === Infinity;
+    };
+    let d = 0, first = true;
+    for (let guard = 0; guard < 1e6 && d < L; guard++) {
+      if (!this.inBounds(i, j)) break;
+      const k = this.idx(i, j);
+      const corner = Math.abs(tMaxX - tMaxZ) < 1e-12;
+      const dExit = Math.min(tMaxX, tMaxZ, L);
+      // a wall / building / hull face: nothing beyond, nobody stands in it
+      const ts = first ? 0 : this.sightTop(k, o, own, null, false);
+      if (ts === Infinity) break;
+      reach(k, d, dExit);
+      if (!first) crossBoth(k, d, dExit, ts);
+      first = false;
+      if (dExit >= L) break;
+      d = dExit;
+      if (corner) {
+        // exactly through a corner: both side cells are crossed at that point (as _traverse: a corner can't be peeked through)
+        const ni = i + stepI, nj = j + stepJ;
+        let wall = false;
+        for (const [si, sj] of [[ni, j], [i, nj]]) if (this.inBounds(si, sj) && crossBoth(this.idx(si, sj), d, d)) wall = true;
+        if (wall) break;
+        i = ni; j = nj; tMaxX += tDeltaX; tMaxZ += tDeltaZ;
+      } else if (tMaxX < tMaxZ) { i += stepI; tMaxX += tDeltaX; } else { j += stepJ; tMaxZ += tDeltaZ; }
+    }
+    return out;
   }
 
   /**
