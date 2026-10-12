@@ -361,7 +361,8 @@ export class Unit extends Entity {
 
   /** Options for this unit's NavGrid path queries (World.findPath); subclasses add restrictions. */
   pathQuery() {
-    return { swim: this.canSwim, role: this.role };
+    // (`lying`: a crawler comes on and off ramps and stairs head-on and keeps to their middle, pathfinding alignRuns)
+    return { swim: this.canSwim, role: this.role, lying: this.stance === 'crawl' };
   }
 
   /** Stop moving (keeps stance). Halfway up / down a ladder he climbs on to its end first (art/ladder-climb.js). */
@@ -405,9 +406,12 @@ export class Unit extends Entity {
    * (grid.crawlStep: a crawler's body follows the ground, not a stair), he is re-pathed round it to the same goal.
    */
   _crawlRepath() {
-    const w = this.world, P = this.path, cs = w?.grid?.crawlStep;
-    if (!cs || !P?.length || P[0].steer) return;
+    const w = this.world, P = this.path, cs = w?.grid?.crawlStep, runs = w?.grid?.runs?.filter((R) => R.align);
+    if ((!cs && !runs?.length) || !P?.length || P[0].steer) return;
+    // (or onto / along a ramp or stair: a crawler comes on head-on and keeps to its middle, pathfinding alignRuns)
     const g = w.grid, near = (x, z) => {
+      if (runs?.length && g.runAt(x, z, 1.0)) return true;
+      if (!cs) return false;
       for (let dz = -0.5; dz <= 0.5; dz += 0.25) for (let dx = -0.5; dx <= 0.5; dx += 0.25) {
         const i = Math.floor((x + dx) / g.cell), j = Math.floor((z + dz) / g.cell);
         if (g.inBounds(i, j) && cs[g.idx(i, j)]) return true;
@@ -625,7 +629,9 @@ export class Unit extends Entity {
     this._guardBody(dt);
     if (!this._moving) this._runNoiseD = null; // a new run starts its running-noise counter afresh
     this._updateAnim(dt);
-    if (!this._moving && (this._anim === 'aim' || this._anim === 'shoot')) this._keepWeaponRoom(dt);
+    // (also while the aim is his idle pose on a way his boot is blocked on — a soldier in COMBAT stood at a pine on M3's
+    // W edge, his rifle up into its trunk: _locoAnim's toe block)
+    if (this._anim === 'aim' || this._anim === 'shoot') this._keepWeaponRoom(dt);
     else this._weaponBack = 0;
   }
 
@@ -737,9 +743,14 @@ export class Unit extends Entity {
         return Math.abs(v) < 0.15 && u > L.u0 && u < L.u1 && y - (this.y || 0) > L.y; });
     const b = left > 1e-3 ? weaponRoom(w.grid, this.x, this.z, this.heading, this.y ?? 0, { heightOf: ownerHeight(w), max: Math.min(0.5, left), solidAt }) : null;
     if (!b) return;
-    const st = Math.min(b, 1.6 * dt);
+    const st = Math.min(b, 1.6 * dt), nx = this.x - Math.cos(this.heading) * st, nz = this.z - Math.sin(this.heading) * st;
+    // (never back into a solid prop, hull or crate: the step guard has already run this step)
+    if (hasObstacles(w)) {
+      const ig = this._bodyIgnore(), g0 = bodyGap(w, this.x, this.z, this.heading, this.stance, ig);
+      if (bodyGap(w, nx, nz, this.heading, this.stance, ig) < Math.min(MOVE_MARGIN, g0)) return;
+    }
     this._weaponBack = (this._weaponBack || 0) + st;
-    this.x -= Math.cos(this.heading) * st; this.z -= Math.sin(this.heading) * st;
+    this.x = nx; this.z = nz;
   }
 
   /**
@@ -980,6 +991,20 @@ export class Unit extends Entity {
         if (this.path && (!goal || at(goal.x, goal.z))) this._arrive();
       }
     }
+    // lying on a ramp / stair run (grid.addRun): his body never edges out toward its sides beyond where it clears them
+    // (a crawler sent along a line that is not its axis — a captive led off it, a lane dodge — slid his legs over the
+    // M3 E stair's side into the abutment rock); toward its middle he may (user 2026-10-08, "In the video the rapper
+    // crosses the slide when crawling, fix to make it work properly")
+    if ((this.stance === 'crawl' || this.stance === 'downed') && w?.grid?.runs) {
+      const R = this._lyingRun();
+      if (R) {
+        const g = w.grid, q0 = g.runLocal(R, x0, z0), q1 = g.runLocal(R, this.x, this.z);
+        const lim = Math.max(Math.abs(q0.v), R.lane / 2 - BODY.prone.r - 0.05);
+        // (from on it only: a man lying beside it with his feet over its edge crawls off any way he likes)
+        const on = q0.s >= 0 && q0.s <= R.L && Math.abs(q0.v) <= R.w / 2;
+        if (on && Math.abs(q1.v) > lim && q1.s >= -BODY.prone.front && q1.s <= R.L + BODY.prone.front) { const p = g.runPoint(R, q1.s, Math.sign(q1.v) * lim); this.x = p.x; this.z = p.z; }
+      }
+    }
     this.vx = (this.x - x0) / dt; this.vz = (this.z - z0) / dt;
     // waiting: he shows walking while he still moves (hysteresis — a pace hovering near zero, or a sidestep while he
     // waits, must not flick walk / idle every few frames)
@@ -1019,8 +1044,20 @@ export class Unit extends Entity {
       let h = turnTowardsAngle(this.heading, want, rate);
       // lying on raised ground (a dam crest, a wall walk: _guardBody does not watch up there) he turns only with his
       // head and feet over the walk — about the other way when the short way swings his head over the parapet (an
-      // about-turn on the M3 crest, clipping seed 7), not at all while neither way is clear
-      if (lying && (this.y || 0) > 1 && h !== this.heading && this._lyingOnDeck(this.heading)) {
+      // about-turn on the M3 crest, clipping seed 7), not at all while neither way is clear. On a ramp / stair run
+      // (grid.addRun: the M3 barn ramp, between its curbs) only as far as his whole body stays between its sides: sent
+      // back the way he came, he goes feet first until he is off it (user 2026-10-08, "In the video the rapper crosses
+      // the slide when crawling, fix to make it work properly")
+      const run = lying ? this._lyingRun() : null;
+      if (run) {
+        // (the whole turn, not just this step: no heading on the way round may put any of him over a side)
+        if (h !== this.heading && this._lyingOnRun(this.heading, run)) {
+          const d = angleDiff(this.heading, want);
+          const clear = (sgn, span) => { for (let a = 0; ; a = Math.min(span, a + Math.PI / 36)) { if (!this._lyingOnRun(this.heading + sgn * a, run)) return false; if (a >= span) return true; } };
+          if (!clear(Math.sign(d), Math.abs(d))) h = clear(-Math.sign(d), 2 * Math.PI - Math.abs(d)) ? wrapAngle(this.heading - Math.sign(d) * rate) : this.heading;
+        }
+        this._deckTurn = 0;
+      } else if (lying && (this.y || 0) > 1 && h !== this.heading && this._lyingOnDeck(this.heading)) {
         const d = angleDiff(this.heading, want), wide = Math.abs(d) > Math.PI / 2;
         const turn = (s) => (s === Math.sign(d) ? h : wrapAngle(this.heading + s * rate));
         let sgn = wide && this._deckTurn ? this._deckTurn : Math.sign(d);
@@ -1364,6 +1401,28 @@ export class Unit extends Entity {
     for (const d of [S.front, -S.back]) {
       const x = this.x + c * d, z = this.z + s * d;
       if (!g.walkableAt(x, z) || Math.abs(g.elevAt(x, z) - e0) >= 1) return false;
+    }
+    return true;
+  }
+
+  /** The ramp / stair run (grid.addRun, `align`) any of his lying body is on — pelvis, head or feet — or null. */
+  _lyingRun() {
+    const g = this.world?.grid;
+    if (!g?.runs) return null;
+    const S = BODY.prone, c = Math.cos(this.heading), s = Math.sin(this.heading);
+    for (const d of [0, S.front, -S.back]) { const R = g.runAt(this.x + c * d, this.z + s * d); if (R?.align) return R; }
+    return null;
+  }
+
+  /**
+   * Lying at heading h on ramp / stair run R (grid.addRun), is his whole body — head, feet and both sides of them
+   * (BODY.prone) — between its sides (within its lane: the M3 barn ramp's curbs)? Parts past its foot or head are clear.
+   */
+  _lyingOnRun(h, R) {
+    const g = this.world.grid, S = BODY.prone, c = Math.cos(h), s = Math.sin(h), half = R.lane / 2 + 0.02;
+    for (const d of [S.front - S.r, -(S.back - S.r)]) for (const k of [-S.r, 0, S.r]) {
+      const q = g.runLocal(R, this.x + c * d - s * k, this.z + s * d + c * k);
+      if (q.s >= 0 && q.s <= R.L && Math.abs(q.v) > half) return false;
     }
     return true;
   }

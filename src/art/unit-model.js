@@ -27,7 +27,7 @@ import { BoneGuard, StickyGuard, capturePose, mixPose } from './pose-blend.js';
 import { proneGround, PRONE_CLIP } from './prone-ground.js';
 import { restOnGround, corpseGround, warmCorpse, CORPSE_BONES } from './corpse-ground.js';
 import { turnStep } from './turn-step.js';
-import { stairGait, stairGround } from './stair-gait.js';
+import { stairGait, stairGround, rampGround } from './stair-gait.js';
 import { ladderClimb } from './ladder-climb.js';
 import { swimFrame, wadeOffset, waterColumn } from './swim-pose.js';
 
@@ -628,7 +628,8 @@ export class UnitModel {
     if (!w?.groundY) return { groundY: null };
     // lying in the shallows: on the bed under the water, like the root (art/swim-pose.js wadeOffset)
     if (this._wade) return { groundY: (x, z) => { const c = waterColumn(w, x, z); return c ? c.bed : w.groundY(x, z) + ey; } };
-    const sg = stairGround(u);
+    // (on a smooth ramp, the M3 barn's: its slope under him — rampGround)
+    const sg = stairGround(u) || rampGround(u);
     if (!sg) return { groundY: (x, z) => w.groundY(x, z) + ey };
     return { groundY: (x, z) => sg(x, z) ?? w.groundY(x, z) + ey, maxTilt: sg.maxTilt };
   }

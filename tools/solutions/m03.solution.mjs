@@ -190,7 +190,10 @@ const FENCE_IN = [55.5, 80.6]; // inside the cut fence, out of e17's and e20's s
 const E17_TALK = [48.5, 74.0]; // e17's W side: he turns his back on the river and the shed
 const E19_TALK = [22.6, 63.4]; // W of the N end of e19's beat: he turns his back on the strip
 const E20_TALK = [26.9, 78.9]; // e20's NW side: he turns his back on the shed
-const SHED_RAMP_FOOT = [39.6, 92.9]; // the foot of the station shed's ramp (the barn's bridge up to its threshing door)
+// in front of the station shed's ramp (the barn's bridge up to its threshing door), lined up on its axis 1.6 m out from
+// its foot: a man gets on to it head-on there, never over its curbs (pathfinding RUN_APPROACH; user 2026-10-08, "In
+// the video the rapper crosses the slide when crawling, fix to make it work properly")
+const SHED_RAMP_FOOT = [40, 93.9];
 const E_STAIR_RAFT = [56.3, 37.6]; // where the raft lies afterwards (the shallows below the E stair)
 const GB_PICKUP = [63.5, 69.6]; // where the GB waits for the raft on the S bank, across from RAFT_HIDE
 const RAFT_HIDE = [66.5, 69.5]; // a lie off the S bank just beyond e12's and p5's reach (while the Spy holds e17)
@@ -698,13 +701,21 @@ export const STAGES = [
     // (the entrance is 9 m W of the stair's foot. Back to it he runs — the men at the decoy are deaf to steps — and his
     // boot prints on the snow end at the foot: up its first 5 m he crawls (no prints, nobody near enough to see a man
     // lying there), so whoever follows them on the siren loses the trail there; from 2.5 m up nobody below sees him)
-    const DOWN = [[25.1, 36.4], [22.85, 40.3], P0], UP = [[22.85, 40.3], [25.3, 36.0]], IN = 6.5, CRAWL = 0.75;
+    // (on his belly he comes on and off the stair head-on: lined up on its axis 1.6 m out from its foot, W_FOOT_OUT —
+    // pathfinding RUN_APPROACH; user 2026-10-08, "In the video the rapper crosses the slide when crawling, fix to make it
+    // work properly")
+    const WR = D.world.grid.runs?.find((r) => /stair_w/.test(r.id)), wf = WR && D.world.grid.runPoint(WR, -1.6, 0);
+    const W_FOOT_OUT = wf ? [+wf.x.toFixed(2), +wf.z.toFixed(2)] : [22.85, 40.3];
+    // (back: on his feet out to W_FOOT_OUT and up to the foot along the stair, so he lies down at its foot facing up it,
+    // his legs off it — then the crawl up its first 5 m)
+    const W_FOOT = [22.85, 40.3];
+    const DOWN = [[25.1, 36.4], W_FOOT_OUT, P0], UP = [W_FOOT_OUT, W_FOOT, [25.3, 36.0]], IN = 6.5, CRAWL = 0.75;
     let len = 0;
     for (let k = 0, q = [sap.x, sap.z]; k < DOWN.length; q = DOWN[k++]) len += Math.hypot(DOWN[k][0] - q[0], DOWN[k][1] - q[1]);
     const tDown = len / CRAWL, why = [];
     const inOut = (delay) => D.routeClear('sapper', [[...P0, 1.5]], { from: P0, speed: 2.0, low: false, delay, why })
-      && D.routeClear('sapper', [[...P0, 1.0], UP[0]], { from: P0, speed: 3.5, low: false, delay: delay + IN, why })
-      && D.routeClear('sapper', [UP[1]], { from: UP[0], speed: CRAWL, low: true, delay: delay + IN + 4, why });
+      && D.routeClear('sapper', [[...P0, 1.0], UP[0], UP[1]], { from: P0, speed: 3.5, low: false, delay: delay + IN, why })
+      && D.routeClear('sapper', [UP[2]], { from: UP[1], speed: CRAWL, low: true, delay: delay + IN + 4, why });
     await D.until(() => { why.length = 0; return D.routeClear('sapper', DOWN, { speed: CRAWL, low: true, why }) && inOut(tDown + 0.5); },
       600, 'nobody to see him crawl down, go in and come back out').catch((e) => { throw new Error(`${e.message} [${why.join(' ')}]`); });
     await D.path('sapper', DOWN, { tol: 0.4 });
@@ -718,9 +729,9 @@ export const STAGES = [
     D.log(`  (bunker: in and out in ${(D.t - tIn).toFixed(1)} s)`);
     D.checkpoint('I2 charge one set inside the bunker behind the gunner');
     await D.stance('sapper', 'stand');
-    await D.go('sapper', ...UP[0], { tol: 0.5, run: true });
+    await D.path('sapper', [UP[0], UP[1]], { tol: 0.4, run: true });
     await D.stance('sapper', 'crawl');
-    await D.go('sapper', ...UP[1], { tol: 0.4 });
+    await D.go('sapper', ...UP[2], { tol: 0.4 });
     await D.stance('sapper', 'stand');
     await D.path('sapper', [[27.4, 32.4], CREST_PATH[0], CREST_PATH[1], PLANT2], { tol: 0.4, run: true });
     // (the bunker 9 m W of the stair's foot makes his round trip longer: p5, running back E on the siren, reaches its E

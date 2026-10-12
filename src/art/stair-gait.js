@@ -858,3 +858,41 @@ export function stairGround(u) {
   fn.maxTilt = Math.min(40 * DEG, Math.atan(Math.abs(f.slope)) + 4 * DEG);
   return fn;
 }
+
+/**
+ * Ground under a man lying on a smooth ramp (grid.ramps: the M3 barn ramp, user 2026-10-08 "In the video the rapper
+ * crosses the slide when crawling, fix to make it work properly"): its walking line under each part of his body (grid
+ * rampY: its measured profile), so prone-ground pitches him up / down its slope instead of laying him flat at his
+ * height, his head end in the stone and his feet in the air; the pitch allowed up to its slope. Past the ramp's foot
+ * (or off its sides) the world's ground. null when he is not on or at a ramp, or on a flight of stairs (stairGround).
+ * @returns {((x:number, z:number) => number|null) & {maxTilt?:number} | null}
+ */
+export function rampGround(u) {
+  const g = u?.world?.grid;
+  if (!g?.ramps) return null;
+  let r = null;
+  for (const q of g.ramps) {
+    if (q.stairs) continue; // (a flight: its nosing line, stairGround)
+    const px = u.x - q.ax, pz = u.z - q.az, t = px * q.ux + pz * q.uz;
+    if (t >= -0.3 && t <= q.len + 1.2 && Math.abs(px * q.uz - pz * q.ux) <= q.w / 2) { r = q; break; }
+  }
+  if (!r) return null;
+  const fn = (x, z) => {
+    const px = x - r.ax, pz = z - r.az, t = px * r.ux + pz * r.uz;
+    if (Math.abs(px * r.uz - pz * r.ux) > r.w / 2 + 0.6 || t > r.len + 1.5) return null; // (off its side, well past its foot)
+    return lineY(r, t); // (past its foot: the ground it starts from)
+  };
+  let steep = 0;
+  for (let t = 0; t + 0.5 <= r.len; t += 0.5) steep = Math.max(steep, Math.abs(lineY(r, t + 0.5) - lineY(r, t)) / 0.5);
+  fn.maxTilt = Math.min(40 * DEG, Math.atan(steep) + 4 * DEG);
+  return fn;
+}
+
+/** Ramp r's walking line at t (from its top), clamped (world/grid.js NavGrid.rampLineY). */
+function lineY(r, t) {
+  const P = r.prof;
+  if (!P) return r.ya + (r.yb - r.ya) * Math.min(1, Math.max(0, t / r.len));
+  if (t <= P[0][0]) return P[0][1];
+  for (let k = 1; k < P.length; k++) if (t <= P[k][0]) return P[k - 1][1] + ((P[k][1] - P[k - 1][1]) * (t - P[k - 1][0])) / (P[k][0] - P[k - 1][0] || 1);
+  return P[P.length - 1][1];
+}

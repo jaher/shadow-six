@@ -132,8 +132,19 @@ const BUNKER_CHARGE = bunkerPt(-0.37, -1.07);
  * (`hideParts`) and `dam_shack` rebuilds that very part (`assetPart`) on the ground by the truck road N of the dam.
  */
 const SHACK_PART = { asset: 'dam_arch', box: [16.0, 6.6, 19.4, 9.4], pad: 0.7, y: [-0.8, 4.6] };
-/** The station shed's loft floor (its threshing door's sill, up the ramp) and where the two charges lie on it. */
-const SHED_LOFT = 2.47, SHED_CHARGES = [40, 82.3];
+/** The station shed's loft floor (the plank deck at the ramp's head, through the threshing door: measured off the
+ * barn model, 2.53-2.55 m) and where the two charges lie on it. */
+const SHED_LOFT = 2.54, SHED_CHARGES = [40, 82.3];
+/**
+ * The barn ramp's walking line, foot → head, [x, z, y], measured off barn_a_snow (raycasts down its model, 10 cm
+ * apart, 2026-10-08): a lip 12-16 cm high at its mouth, the stone slope (0.43 m per m) between its curbs, the plank
+ * deck before the threshing door. A man standing or lying on it is on the stone, never into it (it was the straight
+ * line 0 → 2.47 m from z 92 to 84, up to 0.4 m under the slope).
+ */
+const SHED_RAMP = [[40, 92.3, 0], [40, 92.0, 0.125], [40, 91.45, 0.16], [40, 86.05, 2.47], [40, 85.85, SHED_LOFT], [40, 84.05, SHED_LOFT]];
+/** Its side walls' faces off its band and their stone ends flared out at its foot (x 37.9-38.6 / 41.45-42.2 at z 92). */
+const SHED_RAMP_WALLS = [[[37.95, 84.05], [38.6, 84.05], [38.6, 92.8], [37.55, 92.8], [37.55, 90.9], [37.95, 90.9]],
+  [[41.45, 84.05], [42.1, 84.05], [42.1, 90.9], [42.45, 90.9], [42.45, 92.8], [41.45, 92.8]]];
 /** Water surface of the raised reservoir (the asset's reservoir sits 1.2 m under its deck). */
 export const M3_RESERVOIR_LEVEL = DAM.elev - 1.2;
 
@@ -264,7 +275,10 @@ export default {
     // `entry` (abilities/bunker-entry.js, as the dam bunker's): the walk in through the threshing door to the charges
     // on the loft floor (`bombs_shed`, inside) and back out onto the ramp
     { id: 'st_shed', type: 'hangar', variant: 'shed', x: 40, z: 80, rot: 0, w: 12, d: 8, h: 6, doorSide: 'S',
-      ramps: [{ id: 'shed_ramp', points: [[40, 92.0], [40, 84.05]], width: 2.85, y0: 0, y1: SHED_LOFT, smooth: true }],
+      // (`curb`: its stone curbs, 0.42 m each side of a 2 m lane: nav-blocked; a man gets on at its foot or head only,
+      // head-on along it — user 2026-10-08, watching the film: "In the video the rapper crosses the slide when
+      // crawling, fix to make it work properly")
+      ramps: [{ id: 'shed_ramp', points: SHED_RAMP, width: 2.85, curb: 0.42, walls: SHED_RAMP_WALLS, y0: 0, y1: SHED_LOFT, smooth: true }],
       entry: { path: [[40, 84.7], [40, 84.0], [40, 83.1]], face: 1, at: SHED_CHARGES, y: SHED_LOFT, door: 'threshing' } },
     { id: 'st_barr2', type: 'barracks', x: 64, z: 108, rot: deg(90), w: 12, d: 7, h: 4.5, flag: true, garrison: true },
     // 12 transformer cages (5 × 5 fence + a transformer each; sparking FX, hum SFX)

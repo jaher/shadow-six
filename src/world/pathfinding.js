@@ -96,8 +96,9 @@ const DJ = [0, 0, 1, -1, 1, -1, 1, -1];
  * @param {number} sz start z (m)
  * @param {number} tx target x (m)
  * @param {number} tz target z (m)
- * @param {{swim?: boolean, maxNodes?: number, smooth?: boolean, role?: string, dynamic?: boolean, noLinks?: boolean, noWalkLinks?: boolean, dive?: boolean, avoid?: Uint8Array, nearRadius?: number}} [opts]
+ * @param {{swim?: boolean, maxNodes?: number, smooth?: boolean, role?: string, dynamic?: boolean, noLinks?: boolean, noWalkLinks?: boolean, dive?: boolean, avoid?: Uint8Array, nearRadius?: number, lying?: boolean}} [opts]
  *   dive: a submerged diver, who also passes grid `underpass` cells (NavGrid.isWalkable).
+ *   lying: a crawler's path — on and off ramps and stairs head-on, along their middle (alignRuns).
  *   avoid: extra keep-out mask (grid.isWalkable opts.avoid; body clearance around vehicles). nearRadius: how far (m) a
  *   blocked start / goal looks for a walkable substitute (default 3).
  *   role: unit role for off-grid links (grid.linkAllowed; undefined → only links open to everyone,
@@ -277,7 +278,9 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
   const last = pts.length - 1;
   if (!pts[last].link) pts[last] = goal;
   if (opts.smooth === false) return pts;
-  if (!linkAt.length) return straightenFlights(grid, smoothPath(grid, pts, walkOpts), walkOpts);
+  // (a crawler, `lying`: on and off the ramps and stairs head-on, along their middle — alignRuns)
+  const aligned = (p) => (opts.lying ? alignRuns(grid, p, walkOpts) : p);
+  if (!linkAt.length) return aligned(straightenFlights(grid, smoothPath(grid, pts, walkOpts), walkOpts));
   // Smooth each grid-only run separately; links are kept verbatim.
   const out = [];
   let from = 0;
@@ -286,7 +289,106 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
     for (const p of seg) out.push(p);
     from = n;
   }
-  return straightenFlights(grid, out, walkOpts);
+  return aligned(straightenFlights(grid, out, walkOpts));
+}
+
+/** How far out (m) a path lines up on a ramp / stair run's axis before its foot / after its head (alignRuns). */
+export const RUN_APPROACH = 1.6;
+
+/**
+ * A crawler's path (findPath `lying`) on and off a ramp / stair run head-on, along its axis (grid.addRun `align`: the M3
+ * barn ramp and dam stairs, the access platform stairs). A man on his feet keeps his own line (the runs' side rules hold
+ * for him too: grid.canStep, walkableLine). User 2026-10-08, watching the M3 film: "In the video the rapper crosses the slide when
+ * crawling, fix to make it work properly" — the Sapper came at the barn ramp's foot from beside it and crawled up it on
+ * the slant, his body over its curbs. Every point of the path on a run moves onto its axis (centred between its sides);
+ * where the path comes on at an end it first lines up on the axis RUN_APPROACH m out (shorter when that is not
+ * walkable), unless it already comes in along it; going off, it carries on along the axis that far before it turns.
+ * The loose points next to such an approach point are pulled out (no going out past it and back). A crawler's body
+ * (2.35 m long) is straight along the run before any of it is on it and until all of it is off.
+ */
+export function alignRuns(grid, pts, walkOpts = {}) {
+  const runs = grid.runs?.filter((R) => R.align);
+  if (!runs?.length || pts.length < 2) return pts;
+  const lOpts = { ...walkOpts, clearance: SMOOTH_CLEARANCE };
+  const lineOk = (a, b) => grid.walkableLine(a.x, a.z, b.x, b.z, lOpts);
+  /** a straight walkable line on one level (string pulling's rule: no climb but by a ramp) */
+  const levelOk = (a, b) => grid.walkableLine(a.x, a.z, b.x, b.z, { ...lOpts, elevRef: grid.elevAt(a.x, a.z) });
+  const cellOk = (p) => grid.walkableAt(p.x, p.z, walkOpts);
+  const near = (R, p, m = 0.5) => p.x >= R.box[0] - m && p.x <= R.box[2] + m && p.z >= R.box[1] - m && p.z <= R.box[3] + m;
+  const onRun = (p) => runs.find((R) => { if (!near(R, p, 0)) return false; const q = grid.runLocal(R, p.x, p.z); return q.s >= 0 && q.s <= R.L && Math.abs(q.v) <= R.w / 2; });
+  const onAxis = (p) => { const R = !p.link && onRun(p); if (!R) return p; const q = grid.runLocal(R, p.x, p.z); return { ...p, ...grid.runPoint(R, q.s, 0) }; };
+  /** lined up past end sEnd of R, heading in along its axis (within ~15°), or right at it on its axis */
+  const lined = (q, sEnd, out1) => (q.s - sEnd) * out1 > -0.05 && Math.abs(q.v) <= 0.15 + 0.27 * Math.abs(q.s - sEnd);
+  const loose = (p) => !p.fix && !p.link && !onRun(p);
+  const out = [pts[0]]; // (where he is)
+  let pull = null; // (an approach point just put down going off a run: the loose points after it are pulled to it)
+  for (let n = 1; n < pts.length; n++) {
+    const a = pts[n - 1], b = onAxis(pts[n]);
+    if (a.link || pts[n].link) { out.push(pts[n]); pull = null; continue; }
+    // the run ends this leg crosses, in order along it
+    const hits = [];
+    for (const R of runs) {
+      if (!near(R, a, 3) && !near(R, b, 3)) continue;
+      const qa = grid.runLocal(R, a.x, a.z), qb = grid.runLocal(R, b.x, b.z);
+      for (const sEnd of [0, R.L]) {
+        const da = qa.s - sEnd, db = qb.s - sEnd;
+        if (!(da * db < 0 || (da === 0 && db !== 0) || (db === 0 && da !== 0))) continue;
+        const t = da / (da - db), v = qa.v + (qb.v - qa.v) * t;
+        if (Math.abs(v) > R.w / 2 + 0.25) continue;
+        hits.push({ t, R, sEnd, on: sEnd === 0 ? db > da : db < da, qb });
+      }
+    }
+    hits.sort((p, q) => p.t - q.t);
+    if (hits.length) pull = null;
+    // this leg, lined up: its points, each line between them walkable (else the leg as it was)
+    const from = out[out.length - 1], seg = [];
+    let lead = null; // (an approach point coming on: loose points before it may be pulled out)
+    for (const h of hits) {
+      const { R, sEnd } = h, out1 = sEnd === 0 ? -1 : 1; // (outward along s at this end)
+      const endP = { ...grid.runPoint(R, sEnd, 0), fix: true };
+      const last = () => (seg.length ? seg[seg.length - 1] : from);
+      const approachTo = (p, q) => { // a point on the axis out past the end, walkable from p and to q
+        for (const D of [RUN_APPROACH, 1.2, 0.8, 0.5]) {
+          const A = { ...grid.runPoint(R, sEnd + out1 * D, 0), fix: true };
+          if (cellOk(A) && lineOk(p, A) && lineOk(A, q)) return A;
+        }
+        return null;
+      };
+      if (h.on) {
+        const prev = last();
+        if (!lined(grid.runLocal(R, prev.x, prev.z), sEnd, out1)) { const A = approachTo(prev, endP); if (A) { seg.push(A); if (!lead && seg.length === 1) lead = A; } }
+        seg.push(endP);
+      } else {
+        seg.push(endP);
+        // (none when the leg ends at the end itself: he stops there, the next leg goes on from it)
+        const stop = Math.abs(h.qb.s - sEnd) <= 0.05, A = stop || (lined(h.qb, sEnd, out1) && (h.qb.s - sEnd) * out1 >= RUN_APPROACH - 0.3) ? null : approachTo(endP, b);
+        if (A) { seg.push(A); pull = A; }
+      }
+    }
+    seg.push(b);
+    let ok = true;
+    for (let k = 0, p = from; k < seg.length && ok; p = seg[k++]) ok = cellOk(seg[k]) && (Math.hypot(seg[k].x - p.x, seg[k].z - p.z) < 1e-6 || lineOk(p, seg[k]));
+    if (!ok) { // (back on the leg as planned: by its start point when the line from where he got to is not clear)
+      const l = out[out.length - 1];
+      if (Math.hypot(l.x - a.x, l.z - a.z) > 1e-3 && !lineOk(l, pts[n])) out.push(a);
+      out.push(pts[n]); pull = null; continue;
+    }
+    // (straight to the approach point from further back when he can: not past it and back)
+    if (lead) while (out.length >= 2 && loose(out[out.length - 1]) && levelOk(out[out.length - 2], lead)) out.pop();
+    // (off a run: the loose points after its approach point are left out while the next one is in line from it)
+    const skipB = pull && loose(b) && n + 1 < pts.length && !pts[n + 1].link && levelOk(pull, onAxis(pts[n + 1]));
+    if (skipB) seg.pop(); else pull = null;
+    for (const p of seg) out.push(p);
+  }
+  // (no repeated points: one that coincides with the last kept is merged into it)
+  const res = [out[0]];
+  for (let k = 1; k < out.length; k++) {
+    const l = res[res.length - 1];
+    if (!out[k].link && !l.link && Math.hypot(out[k].x - l.x, out[k].z - l.z) <= 0.1) res[res.length - 1] = { ...l, ...out[k] };
+    else res.push(out[k]);
+  }
+  for (const p of res) delete p.fix;
+  return res;
 }
 
 /**

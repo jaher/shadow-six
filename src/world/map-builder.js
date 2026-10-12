@@ -319,7 +319,7 @@ const VIS_NAV_CATS = new Set(['building', 'tower', 'tent', 'ruins', 'prop', 'roc
  */
 /** The mission's points whose ways the nav stamps keep open: spawns, posts, pickups, devices, exits. @returns {number[][]} */
 /** Both ends of every stair / ramp on the grid (grid.addRamp: top a, foot b), [x, z] each. */
-export const rampEnds = (grid) => (grid.ramps || []).flatMap((r) => [[r.ax, r.az], [r.bx, r.bz]]);
+export const rampEnds = (grid) => (grid.ramps || []).filter((r) => !r.viewOnly).flatMap((r) => [[r.ax, r.az], [r.bx, r.bz]]);
 
 export function missionWayPoints(mission, interactables = []) {
   const out = [];
@@ -433,6 +433,7 @@ export function stampVisualNav(world, built, points = []) {
   // the way onto its foot straight on, between the stringers' ends: 0.9 m out — a cell centre in front of the first
   // step is further out than the 0.3 m round the run, which left only the step-on beside the rail's foot post, M2 plat_sw)
   const footLane = (x, z) => grid.ramps.some((r) => {
+    if (r.viewOnly) return false;
     const px = x - r.ax, pz = z - r.az, t = px * r.ux + pz * r.uz;
     return t >= r.len && t <= r.len + 0.9 && Math.abs(px * r.uz - pz * r.ux) <= r.w / 2 - 0.15;
   });
@@ -1283,7 +1284,7 @@ export function applyElevation(grid, built) {
     }
     // `ramps: [{points:[bottom, …, top], width?, y0, y1}]`: stairs whose cells climb linearly along the polyline
     // (`smooth`: a plain ramp, no treads — M3's barn ramp up to the shed's threshing door)
-    for (const r of b.def.ramps || []) n += raiseRamp(grid, scratch, pts2(r.points), r.width ?? 1.6, r.y0 ?? 0, r.y1, r.smooth ? 'smooth' : r.landing);
+    for (const r of b.def.ramps || []) n += raiseRamp(grid, scratch, pts2(r.points), r.width ?? 1.6, r.y0 ?? 0, r.y1, r.smooth ? smoothProfile(r) : r.landing);
     // walkable roofs / decks declared by a footprint (`elev` m, props-extra flat roofs, rail bridge decks)
     for (const fp of b.footprints || []) if (fp.elev > 0) raise(fp, fp.elev);
     if (b.type === 'watchtower') {
@@ -1296,9 +1297,55 @@ export function applyElevation(grid, built) {
 }
 
 /**
+ * A `smooth` ramp's walking line as [[s, y], …], s the arc length from its foot: its points' own heights ([x, z, y]:
+ * the M3 barn ramp, measured off its model — a lip at the foot, the slope, the plank deck at its head) or the straight
+ * line y0 → y1.
+ */
+export function smoothProfile(r) {
+  const P = pts2(r.points || []), out = [];
+  let s = 0;
+  P.forEach((p, i) => { if (i) s += Math.hypot(p[0] - P[i - 1][0], p[1] - P[i - 1][1]); out.push([s, p[2]]); });
+  return out.length >= 2 && out.every(([, y]) => Number.isFinite(y)) ? out : [[0, r.y0 ?? 0], [s, r.y1]];
+}
+
+/**
+ * A terrain road ramp's slab line, for the view only (grid.addRamp `viewOnly`): a `road` whose `walkways` are strips
+ * stepping up a slope along it (M8's and M10's ramps to the plateau / shelf, M11's switchback legs, M14's sand drift;
+ * missions/scripts/m08.js rampWalkways), top → foot, or null. A man lying on one is pitched to its slab
+ * (art/stair-gait.js rampGround) instead of lying flat on a strip, his head end in the slope. Its nav and the heights
+ * the sim gives men on it stay the strips' (graded earth or sand, no curbs or rails: got on to from any side; the M14
+ * solution is timed on them).
+ */
+function roadRampLine(d) {
+  const ws = (d.walkways || []).filter((q) => q.points?.length === 2 && Number.isFinite(q.y));
+  if (d.type !== 'road' || ws.length < 3) return null;
+  const ys = ws.map((q) => q.y), lo = ws[ys.indexOf(Math.min(...ys))], hi = ws[ys.indexOf(Math.max(...ys))];
+  if (Math.max(...ys) - Math.min(...ys) < 0.6) return null;
+  // the strips' outer ends: the low strip's end away from the high one, the high strip's end away from the low one
+  const mid = (q) => [(q.points[0][0] + q.points[1][0]) / 2, (q.points[0][1] + q.points[1][1]) / 2];
+  const far = (q, o) => { const m = mid(o); return q.points.reduce((a, p) => (Math.hypot(p[0] - m[0], p[1] - m[1]) > Math.hypot(a[0] - m[0], a[1] - m[1]) ? p : a)); };
+  const pts = [far(lo, hi), far(hi, lo)], L = Math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]);
+  // its slab's line (art/kit-terrain.js terrainRamp: straight from end to end): the strips' heights at their middles,
+  // fitted along it
+  const ux = (pts[1][0] - pts[0][0]) / L, uz = (pts[1][1] - pts[0][1]) / L;
+  let n = 0, ss = 0, sy = 0, sss = 0, ssy = 0;
+  for (const q of ws) { const [mx, mz] = mid(q), t = (mx - pts[0][0]) * ux + (mz - pts[0][1]) * uz; n++; ss += t; sy += q.y; sss += t * t; ssy += t * q.y; }
+  const k1 = (n * ssy - ss * sy) / (n * sss - ss * ss || 1), k0 = (sy - k1 * ss) / n;
+  return { ax: pts[1][0], az: pts[1][1], ya: k0 + k1 * L, bx: pts[0][0], bz: pts[0][1], yb: k0, w: lo.width ?? d.width ?? 3, viewOnly: true };
+}
+
+/** Height of a profile [[s, y], …] (s increasing) at s, clamped to its ends. */
+const profileAt = (P, s) => {
+  if (s <= P[0][0]) return P[0][1];
+  for (let k = 1; k < P.length; k++) if (s <= P[k][0]) return P[k - 1][1] + ((P[k][1] - P[k - 1][1]) * (s - P[k - 1][0])) / (P[k][0] - P[k - 1][0] || 1);
+  return P[P.length - 1][1];
+};
+
+/**
  * One ramp/stair of `applyElevation`: every cell under the polyline band (width w) gets the top of the stair tread at
  * its arc-length position along the line (art/dam-stairs stairTopAt: y0 at the first point … y1 at the last, the
- * visual treads' own heights); block cleared, owner 0.
+ * visual treads' own heights), or (`landing` a profile, smoothProfile) the height of a smooth ramp's line; block
+ * cleared, owner 0.
  */
 function raiseRamp(grid, scratch, pts, w, y0, y1, landing) {
   scratch.block.fill(0);
@@ -1320,7 +1367,7 @@ function raiseRamp(grid, scratch, pts, w, y0, y1, landing) {
       const d = Math.hypot(g.ax + (g.bx - g.ax) * t - x, g.az + (g.bz - g.az) * t - z);
       if (d < best) { best = d; s = g.s0 + t * g.L; }
     }
-    const y = landing === 'smooth' ? y0 + (y1 - y0) * Math.min(1, Math.max(0, s / total)) : stairTopAt(s, total, y0, y1, landing);
+    const y = Array.isArray(landing) ? profileAt(landing, s) : stairTopAt(s, total, y0, y1, landing);
     grid.elev[k] = Math.max(grid.elev[k], y); grid.block[k] = B.NONE; grid.owner[k] = 0; n++;
   }
   return n;
@@ -1543,11 +1590,43 @@ export function buildMap(world, mission, opts = {}) {
   stampBarrierGaps(world, built);
   stampNavFootprints(world, built);
   for (const b of built) for (const f of b.footprints || []) if (f.ramp) grid.addRamp(f.ramp);   // stairs: sloped walker height
-  // a structure's `smooth` ramp (no treads): walkers on it take its sloped line too (grid.surfaceY)
+  // a structure's `smooth` ramp (no treads): walkers on it take its sloped line too (grid.surfaceY), its profile when its
+  // points carry their heights (the M3 barn ramp: the cells' height and the line a man stands and lies on)
   for (const b of built) for (const r of b.def.ramps || []) {
     if (!r.smooth || !(r.points?.length >= 2)) continue;
-    const [bot, top] = [r.points[0], r.points[r.points.length - 1]];
-    grid.addRamp({ ax: top[0], az: top[1], bx: bot[0], bz: bot[1], w: r.width ?? 1.6, ya: r.y1, yb: r.y0 ?? 0 });
+    const P = pts2(r.points), [bot, top] = [P[0], P[P.length - 1]], prof = smoothProfile(r), L = prof[prof.length - 1][0];
+    grid.addRamp({ ax: top[0], az: top[1], bx: bot[0], bz: bot[1], w: r.width ?? 1.6, ya: prof[prof.length - 1][1], yb: prof[0][1],
+      ...(prof.length > 2 ? { prof: prof.map(([s, y]) => [L - s, y]).reverse() } : null) });
+  }
+  // ramp / stair runs (grid.addRun): got on to only at their foot or head, head-on, never over their sides (user
+  // 2026-10-08: "In the video the rapper crosses the slide when crawling, fix to make it work properly"). The
+  // structures' `ramps` (the M3 barn ramp: `curb` m of stone each side; the dam stairs: railings) and the access
+  // platform stairs. (The terrain road ramps of M8 / M10 / M11 / M14 — graded earth, no curbs — keep their nav: only a
+  // man lying on one is pitched to its slab, roadRampLine.)
+  for (const b of built) {
+    for (const r of b.def.ramps || []) {
+      if (!(r.points?.length >= 2)) continue;
+      const w = r.width ?? 1.6;
+      const run = grid.addRun({ id: `${b.def.id ?? b.type}:${r.id ?? 'ramp'}`, pts: pts2(r.points), w, lane: r.curb ? w - 2 * r.curb : undefined, align: true });
+      // `walls`: polygons off its band — its side walls' faces and their ends flared out at its foot — nobody walks
+      // over (nav-only; the library's visual nav does the same in the browser, from the model)
+      if (run && r.walls?.length) {
+        const cells = [];
+        for (let k = 0; k < grid.size; k++) {
+          if (grid.runOf?.[k] || grid.elev[k] > 0.3) continue;
+          const x = ((k % grid.cols) + 0.5) * grid.cell, z = (Math.floor(k / grid.cols) + 0.5) * grid.cell;
+          if (x < run.box[0] - 2 || x > run.box[2] + 2 || z < run.box[1] - 2 || z > run.box[3] + 2) continue;
+          if (r.walls.some((poly) => pointInPolygon(x, z, poly))) cells.push(k);
+        }
+        grid.navStamp(`run-walls:${run.id}`, cells);
+      }
+    }
+    for (const f of b.footprints || []) {
+      const R = f.ramp;
+      if (R?.stairs) grid.addRun({ id: `${b.def.id ?? b.type}:stair`, pts: [[R.bx, R.bz], [R.ax, R.az]], w: R.w, align: true });
+    }
+    const rl = roadRampLine(b.def);
+    if (rl) grid.addRamp(rl);
   }
   // 5b''. `noWalk` areas (M3: the foot of the dam's face): nobody walks, wades, swims or is sent there; before the
   // visual nav pass, so its keep-the-ways-open rules never count on them

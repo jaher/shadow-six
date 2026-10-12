@@ -14,6 +14,7 @@ import { pointInPolygon } from '../../src/core/math.js';
 import { findPath } from '../../src/world/pathfinding.js';
 import { headlessMission } from '../../tools/solutions/headless.mjs';
 import { loadGrid } from './mission-check.mjs';
+import { smoothProfile } from '../../src/world/map-builder.js';
 
 const def = getMission('m03');
 const SHED = def.structures.find((s) => s.id === 'st_shed');
@@ -24,9 +25,15 @@ const deck = () => {
   const [[bx, bz], [tx, tz]] = [RAMP.points[0], RAMP.points[RAMP.points.length - 1]], L = Math.hypot(tx - bx, tz - bz);
   const ux = (tx - bx) / L, uz = (tz - bz) / L, hw = RAMP.width / 2;
   const along = (x, z) => (x - bx) * ux + (z - bz) * uz, across = (x, z) => Math.abs(-(x - bx) * uz + (z - bz) * ux);
+  // (its measured walking line when its points carry their heights: map-builder smoothProfile)
+  const P = smoothProfile(RAMP), at = (s) => {
+    if (s <= P[0][0]) return P[0][1];
+    for (let k = 1; k < P.length; k++) if (s <= P[k][0]) return P[k - 1][1] + ((P[k][1] - P[k - 1][1]) * (s - P[k - 1][0])) / (P[k][0] - P[k - 1][0]);
+    return P[P.length - 1][1];
+  };
   return {
     under: (x, z, m = 0) => { const s = along(x, z); return s >= m && s <= L - m && across(x, z) <= hw - m; },
-    y: (x, z) => RAMP.y0 + (RAMP.y1 - RAMP.y0) * Math.min(1, Math.max(0, along(x, z) / L)),
+    y: (x, z) => at(along(x, z)),
   };
 };
 const footprint = (s) => {

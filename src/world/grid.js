@@ -446,9 +446,143 @@ export class NavGrid {
    * its run instead (no 0.3-0.5 m snaps per cell). r: {ax, az (top), bx, bz (foot), w (width), ya, yb (heights)}.
    */
   addRamp(r) {
+    // (`viewOnly`: a terrain road ramp's slab, for a lying man's pose alone — surfaceY / nearRamp leave it out)
     const dx = r.bx - r.ax, dz = r.bz - r.az, len = Math.hypot(dx, dz);
     if (!(len > 0.1)) return;
     (this.ramps ||= []).push({ ...r, ux: dx / len, uz: dz / len, len });
+  }
+
+  /**
+   * Height of ramp r's walking line at arc length t from its top (a) toward its foot (b), clamped to its ends: its
+   * measured `prof` ([[t, y], …], t increasing: the M3 barn ramp, a flat lip at its foot, a slope, the plank deck at
+   * its head) or the straight line from ya to yb.
+   */
+  static rampLineY(r, t) {
+    const P = r.prof;
+    if (!P) return r.ya + (r.yb - r.ya) * Math.min(1, Math.max(0, t / r.len));
+    if (t <= P[0][0]) return P[0][1];
+    for (let k = 1; k < P.length; k++) if (t <= P[k][0]) return P[k - 1][1] + ((P[k][1] - P[k - 1][1]) * (t - P[k - 1][0])) / (P[k][0] - P[k - 1][0] || 1);
+    return P[P.length - 1][1];
+  }
+
+  /**
+   * The walking line of the ramp (grid.ramps) under (x, z): within `m` m of its width, between `m` m before its foot and
+   * after its top (clamped to their heights there), or null. For a man lying on it (art/stair-gait.js rampGround):
+   * the slope his body pitches to, not the cells' steps nor the flat ground beside it.
+   */
+  rampY(x, z, m = 0.6) {
+    if (this.ramps) for (const r of this.ramps) {
+      const px = x - r.ax, pz = z - r.az, t = px * r.ux + pz * r.uz;
+      if (t < -m || t > r.len + m || Math.abs(px * r.uz - pz * r.ux) > r.w / 2 + m) continue;
+      return NavGrid.rampLineY(r, t);
+    }
+    return null;
+  }
+
+  /**
+   * A ramp / stair RUN (user 2026-10-08, watching the M3 solution film: "In the video the rapper crosses the slide when
+   * crawling, fix to make it work properly": the Sapper got onto the barn's ramp from beside its foot and crawled up it
+   * on the slant, his body across its stone curbs). A man gets on to a run only at its foot or its head, head-on,
+   * never across its sides (curbs, railings, stringers, the faces of a road cut):
+   *  - canStep: a step between a cell of the run and one off it must cross one of its ends, from straight in front of it;
+   *  - walkableLine (path smoothing): a line never crosses its sides;
+   *  - `lane` (m, < w): the walkable width between its curbs, centred; the band's cells outside it are nav-blocked;
+   *  - `align`: paths on it keep to its axis, centred between its sides, and come on and off it head-on, lined up from
+   *    APPROACH m out (pathfinding alignRuns): a crawler's body lies along it, clear of the curbs.
+   * r: {id?, pts: [[x, z], …] (foot → head), w: width (m), lane?, align?}. Cells whose centre lies on its band are
+   * marked in `runOf` (index + 1). The M3 barn ramp and dam stairs (structures' `ramps`) and the access platform
+   * stairs. @returns {object|null} the run
+   */
+  addRun(r) {
+    const P = (r.pts || []).map((q) => (Array.isArray(q) ? [q[0], q[1]] : [q.x, q.z]));
+    const segs = [];
+    let L = 0;
+    for (let i = 0; i + 1 < P.length; i++) {
+      const [ax, az] = P[i], [bx, bz] = P[i + 1], l = Math.hypot(bx - ax, bz - az);
+      if (l > 1e-6) { segs.push({ ax, az, ux: (bx - ax) / l, uz: (bz - az) / l, l, s0: L }); L += l; }
+    }
+    if (!(L > 0.3) || !(r.w > 0)) return null;
+    const hw = r.w / 2, lane = Math.min(r.w, r.lane ?? r.w);
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (const [x, z] of P) { x0 = Math.min(x0, x - hw); z0 = Math.min(z0, z - hw); x1 = Math.max(x1, x + hw); z1 = Math.max(z1, z + hw); }
+    const run = { id: r.id ?? `run${(this.runs || []).length}`, pts: P, w: r.w, lane, align: !!r.align, segs, L, box: [x0, z0, x1, z1] };
+    (this.runs ||= []).push(run);
+    this.runOf ||= new Uint16Array(this.cols * this.rows);
+    const n = this.runs.length, c = this.cell, curb = [];
+    const i0 = Math.max(0, Math.floor(x0 / c)), i1 = Math.min(this.cols - 1, Math.floor(x1 / c));
+    const j0 = Math.max(0, Math.floor(z0 / c)), j1 = Math.min(this.rows - 1, Math.floor(z1 / c));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const q = this.runLocal(run, (i + 0.5) * c, (j + 0.5) * c);
+      if (q.s < 0 || q.s > L || Math.abs(q.v) > hw) continue;
+      const k = j * this.cols + i;
+      this.runOf[k] = n;
+      if (Math.abs(q.v) > lane / 2) curb.push(k);
+    }
+    if (curb.length) this.navStamp(`run-curb:${run.id}`, curb);
+    this.version++;
+    return run;
+  }
+
+  /**
+   * (s, v) of (x, z) in run R's frame: s the arc length from its foot (negative before it, past L beyond its head), v
+   * the signed distance to the left of its axis (nearest leg).
+   */
+  runLocal(R, x, z) {
+    let best = null;
+    const last = R.segs.length - 1;
+    for (let n = 0; n <= last; n++) {
+      const g = R.segs[n], dx = x - g.ax, dz = z - g.az, t = dx * g.ux + dz * g.uz, v = -dx * g.uz + dz * g.ux;
+      const tc = t < 0 ? 0 : t > g.l ? g.l : t, d = Math.hypot(dx - g.ux * tc, dz - g.uz * tc);
+      if (best && d >= best.d) continue;
+      best = { d, s: g.s0 + ((n === 0 && t < 0) || (n === last && t > g.l) ? t : tc), v };
+    }
+    return best;
+  }
+
+  /** World (x, z) at run coordinates (s, v) (s < 0 / > L: on its axis carried on past its foot / head). */
+  runPoint(R, s, v = 0) {
+    const n = s <= 0 ? 0 : s >= R.L ? R.segs.length - 1 : R.segs.findIndex((g) => s <= g.s0 + g.l);
+    const g = R.segs[Math.max(0, n)], t = s - g.s0;
+    return { x: g.ax + g.ux * t - g.uz * v, z: g.az + g.uz * t + g.ux * v };
+  }
+
+  /** The run whose band (x, z) is on (between its ends, within its width + `m`), or null. */
+  runAt(x, z, m = 0) {
+    if (this.runs) for (const R of this.runs) {
+      if (x < R.box[0] - m || x > R.box[2] + m || z < R.box[1] - m || z > R.box[3] + m) continue;
+      const q = this.runLocal(R, x, z);
+      if (q.s >= 0 && q.s <= R.L && Math.abs(q.v) <= R.w / 2 + m) return R;
+    }
+    return null;
+  }
+
+  /** Does cell k (off run #ri) lie past one of that run's ends, straight in front of it (within its width + half a cell)? */
+  _pastRunEnd(ri, k) {
+    const R = this.runs[ri], c = this.cell, i = k % this.cols, q = this.runLocal(R, (i + 0.5) * c, ((k - i) / this.cols + 0.5) * c);
+    return (q.s < 0 || q.s > R.L) && Math.abs(q.v) <= R.w / 2 + c / 2;
+  }
+
+  /**
+   * Does the line a → b cross the side of a run (its band's long edges, between its ends)? A line coming on at its
+   * foot or head crosses an end, not a side.
+   */
+  crossesRunSide(ax, az, bx, bz) {
+    if (!this.runs) return false;
+    const lx0 = Math.min(ax, bx), lx1 = Math.max(ax, bx), lz0 = Math.min(az, bz), lz1 = Math.max(az, bz);
+    for (const R of this.runs) {
+      if (lx1 < R.box[0] || lx0 > R.box[2] || lz1 < R.box[1] || lz0 > R.box[3]) continue;
+      const h = R.w / 2;
+      for (const g of R.segs) {
+        const ta = (ax - g.ax) * g.ux + (az - g.az) * g.uz, va = -(ax - g.ax) * g.uz + (az - g.az) * g.ux;
+        const tb = (bx - g.ax) * g.ux + (bz - g.az) * g.uz, vb = -(bx - g.ax) * g.uz + (bz - g.az) * g.ux;
+        for (const e of [h, -h]) {
+          if ((va - e) * (vb - e) >= 0) continue;
+          const t = ta + ((tb - ta) * (e - va)) / (vb - va);
+          if (t > 1e-6 && t < g.l - 1e-6) return true;
+        }
+      }
+    }
+    return false;
   }
 
   /**
@@ -461,11 +595,12 @@ export class NavGrid {
     // access platform stairs, so a walker climbs smoothly instead of a graded cell's height at a time
     if (this.flights?.size) { const y = this.flights.simY(x, z, e, MAX_STEP); if (y != null) return y; }
     if (this.ramps) for (const r of this.ramps) {
+      if (r.viewOnly) continue; // (a terrain road ramp's slab: the view's, map-builder roadRampLine)
       // only over its own graded cells: strictly between its ends' heights (not the landing / a wall walk beside it)
       if (e <= Math.min(r.ya, r.yb) + 0.01 || e >= Math.max(r.ya, r.yb) - 0.01) continue;
       const px = x - r.ax, pz = z - r.az, t = px * r.ux + pz * r.uz;
       if (t < -this.cell || t > r.len + this.cell || Math.abs(px * r.uz - pz * r.ux) > r.w / 2 + this.cell) continue;
-      const y = r.ya + (r.yb - r.ya) * Math.min(1, Math.max(0, t / r.len));
+      const y = NavGrid.rampLineY(r, t);
       if (Math.abs(y - e) <= MAX_STEP) return y;
     }
     return e;
@@ -474,6 +609,7 @@ export class NavGrid {
   /** Is (x, z) on or within `m` m of a ramp (a walker there eases over the steps onto / off it)? */
   nearRamp(x, z, m = 1) {
     if (this.ramps) for (const r of this.ramps) {
+      if (r.viewOnly) continue;
       const px = x - r.ax, pz = z - r.az, t = px * r.ux + pz * r.uz;
       if (t >= -m && t <= r.len + m && Math.abs(px * r.uz - pz * r.ux) <= r.w / 2 + m) return true;
     }
@@ -482,7 +618,11 @@ export class NavGrid {
 
   /** Can a unit step directly between adjacent cells ka and kb (elevation continuity)? */
   canStep(ka, kb) {
-    return Math.abs(this.elev[ka] - this.elev[kb]) <= MAX_STEP;
+    if (Math.abs(this.elev[ka] - this.elev[kb]) > MAX_STEP) return false;
+    // a ramp / stair run (addRun): on and off it only across its foot or its head, never over its side
+    const ro = this.runOf;
+    if (!ro || ro[ka] === ro[kb]) return true;
+    return (!ro[ka] || this._pastRunEnd(ro[ka] - 1, kb)) && (!ro[kb] || this._pastRunEnd(ro[kb] - 1, ka));
   }
 
   // ---------------------------------------------------------------- dynamic occluders (§4.2 OCLU)
@@ -835,6 +975,7 @@ export class NavGrid {
       return !this.isWalkable(i, (k - i) / cols, opts);
     };
     if (this._traverse(ax, az, bx, bz, blocked)) return false;
+    if (this.runs && this.crossesRunSide(ax, az, bx, bz)) return false; // (on to a ramp / stair over its side)
     const r = opts && opts.clearance;
     if (r) {
       const len = Math.hypot(bx - ax, bz - az);

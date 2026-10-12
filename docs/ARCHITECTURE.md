@@ -363,6 +363,17 @@ Typed-array layers, size `cols × rows` where `cols = ceil(W/CELL)`:
   - `naturalElev: Uint8Array` — 1 = a raised cell is natural ground (walkways of a `cliff` or `road` structure,
     map-builder `applyElevation`), 0 = a built floor (roof, deck, wall walk, tower). Static, not saved; read by
     `ai/running-noise.js stepSurface` (raised snow is still snow underfoot).
+  - **Ramp / stair runs** (`addRun({id, pts: [[x,z]…] foot→head, w, lane?, align?})`, `runOf: Uint16Array`,
+    `runLocal / runPoint / runAt / crossesRunSide`): the built slopes and flights a man gets on to only at their foot
+    or head, head-on — never over their sides (curbs, railings, stringers, the faces of a road cut). Registered by
+    map-builder for every structure's `ramps` (the M3 barn ramp — `curb` m of stone each side, its band outside the
+    lane nav-blocked; its `walls` polygons off the band — and the dam stairs) and the access platform stairs.
+    `canStep` refuses a step between a run's cell and
+    one off it unless that one lies past an end, in front of it; `walkableLine` refuses a line over a side. A smooth
+    ramp's points may carry their heights (`[x, z, y]`: its measured profile, `addRamp({…, prof})`): `surfaceY` /
+    `rampY` give the slope a man stands and lies on (art/stair-gait `rampGround` pitches a lying body to it). The
+    terrain road ramps (M8 / M10 / M11 / M14: graded earth, no curbs) keep their nav and strip heights; their slab line
+    is a `viewOnly` grid ramp, for a lying man's pitch alone.
   - **Links** (`LINK.CLIMB` / `LINK.LADDER`): `addLink(kind, a{x,z,y?}, b{x,z,y?}, {roles, enabled, cost, id}) → link`,
     `removeLink(id)`, `setLinkEnabled(id, on)`, `linksAt(cellIndex)`, `linkAllowed(link, role)`. Bidirectional
     off-grid A* edges. Default roles: climb `['greenberet']`, ladder `null` (everyone, enemies included); role `'*'`
@@ -376,7 +387,11 @@ walkable with `swim: true` (the diver) — bridges are always walkable. Neighbou
 (elevation). Off-grid links touching a cell are expanded when `grid.linkAllowed(link, opts.role)`; the waypoint
 reached through a link carries `link: {id, kind}` and `y` (the previous waypoint is the link's other end) — the unit
 walking the path must play climb/ladder there (ABILITIES); the foundation `Unit` just moves and takes `y`.
-Smoothing runs per grid-only run and never across a link or a level change. `avoid` (a cell mask, 1 = keep out) and
+Smoothing runs per grid-only run and never across a link or a level change. `lying` (a crawler's path, from
+`Unit.pathQuery`): `alignRuns` puts every point on an `align` run on its axis and lines the path up on it 1.6 m out from
+the end it comes on or off at (`RUN_APPROACH`), so his whole body is straight along the ramp / stair before any of it is
+on it; lying on one, he turns only through headings that keep his body between its sides and never edges out toward
+them (`Unit._lyingOnRun`). `avoid` (a cell mask, 1 = keep out) and
 `nearRadius` (substitute goal search, default 3 m) are extra options: `Unit.moveTo` passes the body-clearance mask
 around vehicle hulls, wrecks, fuel drums, pushables and solid props (`src/world/body-clearance.js`,
 docs/clipping-audit.md "Characters and vehicles": standing disc / prone capsule vs oriented rects and discs, per-step

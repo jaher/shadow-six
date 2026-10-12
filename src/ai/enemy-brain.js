@@ -1113,6 +1113,9 @@ export class EnemyBrain {
       c.state = 'captured';
       c.held = false;
       c.captured = true;
+      // (a man taken lying down gets up: he is marched off on his feet, not slid along on his belly at a walk — a
+      // captive led across the M3 E stair on his belly lay across it, his legs in the abutment rock)
+      if (c.stance === 'crawl') c.setStance?.('stand');
       c.playAction?.('surrender', 2);
       c._escortMul = c.speedMul;
       const cs = c.speed / (c.speedMul || 1);

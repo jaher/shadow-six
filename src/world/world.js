@@ -298,6 +298,7 @@ export class World {
       smooth: opts.smooth,
       avoid: opts.avoid,
       nearRadius: opts.nearRadius,
+      lying: !!opts.lying,
     });
   }
 
