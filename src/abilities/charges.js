@@ -232,6 +232,12 @@ export class Decoy extends Interactable {
     this.world?.emitNoise(this.x, this.z, N.radius, 'decoy', this, N.level);
   }
 
+  /** The radio's indicator lamp blinks while it is on (art/decoy.js tick). */
+  update(dt) {
+    super.update(dt);
+    this.object3d?.userData.decoy?.tick?.(dt, this.on);
+  }
+
   canUse(c) { return c.role === 'greenberet' ? true : "Can't pick that up."; }
 
   /** H: pick it up again → the Q item returns, the activator goes (§3.4). */

@@ -12,6 +12,8 @@
  *   centre cap r = 0.006 at z = 0.0375
  *   top knob r = 0.009 at (-0.030, 0.125, -0.010), washer r = 0.011 at y = 0.1205
  *   toggle switch at (0.022, ~0.124, +0.006), lever length 0.022
+ *   indicator lamp jewel r = 0.0068 on the top panel front-centre (0, ~0.124, +0.020),
+ *     on its own washer; red, blinks while the decoy is on (see tick below)
  *   whip aerial base r = 0.005 at (0.040, 0.125, -0.022), whip to y ~ 0.234
  *
  * Local frame (three.js): x right, y up, z FRONT. The speaker faces +z.
@@ -22,8 +24,12 @@
  * API:
  *   export const DECOY_SCALE = 1.5;
  *   export function makeDecoy() -> THREE.Group   // group.name === 'decoy'
- *   group.userData.decoy = { setOn(on) }         // flips the toggle lever
+ *   group.userData.decoy = { setOn(on), tick(dt, on) }
+ *                                                // setOn flips the toggle lever
  *                                                // OFF = +25 deg (front), ON = -25 deg (back)
+ *                                                // tick drives the indicator lamp: dark while off,
+ *                                                // 0.5 s lit/dark phases while on (the blink of
+ *                                                // missions/setpiece-device.js)
  *
  * @module art/decoy
  */
@@ -100,6 +106,8 @@ function geos() {
   G.lever = new THREE.CylinderGeometry(0.0016, 0.0016, 0.022, 5);
 
   G.aerialBase = new THREE.CylinderGeometry(0.005, 0.005, 0.010, 6);
+
+  G.lamp = new THREE.SphereGeometry(0.0068, 12, 10);
 
   const whipCurve = new THREE.CatmullRomCurve3([
     new THREE.Vector3(0.040, 0.128, -0.022),
@@ -185,6 +193,29 @@ export function makeDecoy() {
   toggle.rotation.x = THREE.MathUtils.degToRad(25);
   group.add(toggle);
 
+  // --- Indicator lamp -----------------------------------------------------
+  // A red jewel on the top panel, front-centre (the knob's washer seats it).
+  // Its material is deliberately NOT one of the shared singletons above: each
+  // decoy blinks on its own state, so each radio gets its own lamp material
+  // (missions/setpiece-device.js builds its lamp the same way).
+  const lampWasher = new THREE.Mesh(g.washer, m.nickel);
+  lampWasher.position.set(0, 0.1205, 0.020);
+  group.add(lampWasher);
+
+  const lampMat = new THREE.MeshStandardMaterial({
+    name: 'decoy:lamp',
+    color: 0x551010,
+    emissive: 0xff2010,
+    emissiveIntensity: 0.1, // dark (off)
+    roughness: 0.4,
+    metalness: 0.0,
+  });
+  const lamp = new THREE.Mesh(g.lamp, lampMat);
+  lamp.name = 'decoy_lamp';
+  lamp.scale.y = 0.7; // a squat dome, seated on the washer
+  lamp.position.set(0, 0.1235, 0.020);
+  group.add(lamp);
+
   // --- Whip aerial --------------------------------------------------------
   const aerialBase = new THREE.Mesh(g.aerialBase, m.nickel);
   aerialBase.position.set(0.040, 0.125, -0.022);
@@ -206,9 +237,24 @@ export function makeDecoy() {
   // --- API ----------------------------------------------------------------
   const OFF_TILT = THREE.MathUtils.degToRad(25);
   const ON_TILT = -OFF_TILT;
+  const LAMP_OFF = 0.1; // emissiveIntensity while dark (setpiece-device lamp)
+  const LAMP_ON = 1.5;  // emissiveIntensity while lit
+  let blinkT = 0;
   group.userData.decoy = {
     setOn(on) {
       toggle.rotation.x = on ? ON_TILT : OFF_TILT;
+      blinkT = 0;
+      lampMat.emissiveIntensity = on ? LAMP_ON : LAMP_OFF;
+    },
+    /** Advance the lamp: dark while off; while on, the setpiece-device blink
+     *  (missions/setpiece-device.js Device.update): a phase flips every 0.5 s. */
+    tick(dt, on) {
+      if (!on) {
+        lampMat.emissiveIntensity = LAMP_OFF;
+        return;
+      }
+      blinkT += dt;
+      lampMat.emissiveIntensity = Math.floor(blinkT * 2) % 2 ? LAMP_OFF : LAMP_ON;
     },
   };
 
