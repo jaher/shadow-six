@@ -11,6 +11,8 @@ import { el } from './dom.js';
 import { DISCLAIMER } from './screens.js';
 import { SplashFx } from './splash-fx.js';
 import { pressPrompt, isTouchUI } from './touch.js';
+import { heroHeight, heroUrl, skyWidth, skyUrl } from './hero-art.js';
+import { dprNow } from './icon-art.js';
 
 const SEEN_KEY = 'shadowsix.intro.seen';
 const VERSION = 'v0.9';
@@ -130,9 +132,17 @@ export class Boot {
     this.root.replaceChildren();
     const sp = el('div', 'bt-splash', this.root);
     const art = el('div', 'bt-art', sp);
-    const sky = el('img', 'bt-l sky', art);
+    // the background: the rendered plate (burning tank, field, sky) in two widths, AVIF / WebP; sky.svg if it fails
+    const skyPic = el('picture', null, art);
+    const skyAvif = el('source', null, skyPic);
+    skyAvif.type = 'image/avif';
+    const sky = el('img', 'bt-l sky', skyPic);
     sky.alt = '';
-    sky.src = 'assets/ui/keyart/sky.svg';
+    sky.decoding = 'async';
+    sky.addEventListener('error', () => { if (!sky.src.endsWith('.svg')) { skyAvif.remove(); sky.src = 'assets/ui/keyart/sky.svg'; } }, { once: true });
+    const sw = skyWidth(innerWidth, innerHeight, dprNow());
+    skyAvif.srcset = skyUrl(sw, 'avif');
+    sky.src = skyUrl(sw, 'webp');
     // live fire + volumetric searchlight (WebGL2); the painted fire is the fallback
     const fxc = el('canvas', 'bt-l fx', art);
     this.fx?.dispose();
@@ -144,12 +154,41 @@ export class Boot {
       f.alt = '';
       f.src = 'assets/ui/keyart/fire.svg';
     }
-    // the hero: an offline render of the Green Beret model (tools/ui/keyart); the SVG only if it fails to load
-    const hero = el('img', 'bt-l hero', art);
+    // the hero: an offline Cycles render (tools/ui/keyart/herohd) in four heights, AVIF with a WebP fallback, the
+    // smallest one at least as tall as the viewport in device pixels (hero-art.js); a resize (rotation, fullscreen)
+    // only ever upgrades it; the SVG only if it fails to load
+    const pic = el('picture', null, art);
+    const avif = el('source', null, pic);
+    avif.type = 'image/avif';
+    const hero = el('img', 'bt-l hero', pic);
     hero.alt = 'A commando stands before a burning gun emplacement';
     hero.decoding = 'async';
-    hero.addEventListener('error', () => { if (!hero.src.endsWith('.svg')) { hero.classList.add('svg'); hero.src = 'assets/ui/keyart/hero.svg'; } }, { once: true });
-    hero.src = 'assets/ui/keyart/hero.webp';
+    hero.addEventListener('error', () => {
+      if (hero.src.endsWith('.svg')) return;
+      avif.remove();
+      hero.classList.add('svg');
+      hero.src = 'assets/ui/keyart/hero.svg';
+    }, { once: true });
+    this._heroH = 0;
+    const pick = () => {
+      const h = heroHeight(innerHeight, dprNow());
+      if (h <= this._heroH || hero.classList.contains('svg')) return;
+      this._heroH = h;
+      avif.srcset = heroUrl(h, 'avif');
+      hero.src = heroUrl(h, 'webp');
+    };
+    pick();
+    removeEventListener('resize', this._heroPick);
+    this._heroPick = pick;
+    addEventListener('resize', pick);
+    // a DPR change without a resize (a window dragged to a denser screen), as icon-art.js does for the icons
+    const watchDpr = () => {
+      if (typeof matchMedia !== 'function') return;
+      const mq = matchMedia(`(resolution: ${dprNow()}dppx)`);
+      const on = () => { mq.removeEventListener?.('change', on); if (this._heroPick === pick) { pick(); watchDpr(); } };
+      mq.addEventListener?.('change', on);
+    };
+    watchDpr();
     const embers = el('div', 'bt-embers', art);
     if (!this.hud.kit.reducedMotion) {
       for (let i = 0; i < 30; i++) { // B12: ≤ 30 sprites
@@ -227,6 +266,8 @@ export class Boot {
   }
 
   hide() {
+    removeEventListener('resize', this._heroPick);
+    this._heroPick = null;
     this.active = false;
     this.root.style.pointerEvents = '';
     this.phase = null;

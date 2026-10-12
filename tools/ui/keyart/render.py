@@ -1,4 +1,5 @@
 """Menu key art (review fix: the S03 hero and the S20 figure were flat SVG clip-art): offline Cycles renders of the
+(The S03 title hero is now the detailed build in tools/ui/keyart/herohd/; this script keeps the S20 portrait.)
 project's Green Beret character model (the character pipeline's chars/commandos_a/out/greenberet.blend, CPU Cycles,
 Blender 4.0; reproduces the shipped tiny-portrait.webp bit for bit).
   blender -b <greenberet.blend> --python tools/ui/keyart/render.py -- hero <out.png> 1800 2700 160 tools/ui/keyart/pose_hero.json

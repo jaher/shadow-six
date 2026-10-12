@@ -18,7 +18,7 @@ import { createHash } from 'node:crypto';
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 
-const CACHEABLE = /\.(glb|webp|jpe?g|png|hdr|ogg|m4a|mp3|webm|mp4|woff2?|ttf|cube|wasm|svg)$/i;
+const CACHEABLE = /\.(glb|webp|avif|jpe?g|png|hdr|ogg|m4a|mp3|webm|mp4|woff2?|ttf|cube|wasm|svg)$/i;
 
 async function walk(dir) {
   const out = [];

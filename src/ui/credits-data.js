@@ -299,8 +299,26 @@ export const CREDITS_SECTIONS = [
     "ours"
    ],
    [
-    "assets/ui/keyart/hero.webp (S03 title-splash hero), assets/ui/keyart/tiny-portrait.webp (S20 debrief figure, Help dossier print)",
-    "offline Cycles renders of the project's Green Beret character model (MakeHuman / MPFB base mesh and skin, CC0; outfit textures from ambientCG, CC0), posed, lit and graded by tools/ui/keyart/render.py + grade.py; the hero's Colt M1911A1 modelled procedurally by tools/ui/keyart/colt1911.py",
+    "assets/ui/keyart/hero-{900,1350,1800,2700}.{avif,webp} (S03 title-splash hero, picked by screen size)",
+    "offline Blender 4.5 Cycles render of a detailed Green Beret built by tools/ui/keyart/herohd/ (make.sh): a fictional face shaped from MakeHuman targets and expression units on the MakeHuman base mesh with its CC0 middle-aged light-skinned male skin, high-poly eyes and eyelashes (no scan or photo of a real person; curve hair, stubble and brows grown procedurally); the Denison smock and battledress trousers cloth-simulated round him, their brushstroke camouflage, serge, webbing, felt, brass and leather shaders, the beret and generic cap badge, the 1937-pattern webbing, Fairbairn–Sykes knife and sheath, Mills bomb and water bottle all modelled procedurally (own work, no real insignia); the Colt M1911A1 by tools/ui/keyart/colt1911.py",
+    "SHADOW SIX contributors; MakeHuman community (base mesh, targets, skin, eyes)",
+    "ours (CC0 inputs)"
+   ],
+   [
+    "assets/ui/keyart/sky-{1600,3200}.{avif,webp} (S03 splash background: the burning tank and its field)",
+    "procedural tank wreck and terrain rendered by tools/ui/keyart/herohd/backdrop.py over our sky.svg",
+    "SHADOW SIX contributors",
+    "ours (MIT project licence)"
+   ],
+   [
+    "MakeHuman data used by the hero build (base mesh hm08, macro / face / expression targets, game_engine rig and weights, skins, eyes, eyelashes; not shipped as files)",
+    "MakeHuman data/, MPFB 2 data/ (rig + weights JSON) and the MakeHuman system assets, downloaded 2026-10-08",
+    "MakeHuman community",
+    "CC0 1.0 (assets; the program code is not used)"
+   ],
+   [
+    "assets/ui/keyart/tiny-portrait.webp (S20 debrief figure, Help dossier print)",
+    "offline Cycles render of the project's Green Beret character model (MakeHuman / MPFB base mesh and skin, CC0; outfit textures from ambientCG, CC0), posed, lit and graded by tools/ui/keyart/render.py + grade.py",
     "SHADOW SIX contributors",
     "ours (CC0 inputs)"
    ],

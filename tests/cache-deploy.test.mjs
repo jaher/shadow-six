@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { OUT_DIR, ROOT } from './harness.mjs';
 
-const CACHEABLE = /\.(glb|webp|jpe?g|png|hdr|ogg|mp3|webm|mp4|woff2?|ttf|cube|wasm|svg)$/i;
+const CACHEABLE = /\.(glb|webp|avif|jpe?g|png|hdr|ogg|mp3|webm|mp4|woff2?|ttf|cube|wasm|svg)$/i;
 
 export default async function (page, t) {
   const h = t.harness;
