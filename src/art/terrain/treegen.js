@@ -171,20 +171,25 @@ export class GeoAcc {
       t.fromArray(this.n, i * 3).applyMatrix3(nm).normalize().toArray(this.n, i * 3);
     }
   }
-  /** Plain typed arrays (transferable from a worker). */
+  /**
+   * Plain typed arrays (transferable from a worker), compact where it is exact enough to draw the same: normals and
+   * aExt (AO 0..1, snow catch −1..1) as normalized Int16 (steps of 1/32767), aTint as half floats (0.05 % steps).
+   * Positions, uv, aInfo (layer ids, per-leaf phases) and aRoot (world roots) stay Float32. −16 of 84 bytes a vertex,
+   * on the GPU and in the session cache that keeps these arrays for restarts (perf/gpu-memory).
+   */
   toArrays() {
-    return { p: new Float32Array(this.p), n: new Float32Array(this.n), uv: new Float32Array(this.uv), info: new Float32Array(this.info),
-      tint: new Float32Array(this.tint), root: new Float32Array(this.root), ext: new Float32Array(this.ext), idx: this.count > 65535 ? new Uint32Array(this.idx) : new Uint16Array(this.idx) };
+    return { p: new Float32Array(this.p), n: snorm16(this.n), uv: new Float32Array(this.uv), info: new Float32Array(this.info),
+      tint: half16(this.tint), root: new Float32Array(this.root), ext: snorm16(this.ext), idx: this.count > 65535 ? new Uint32Array(this.idx) : new Uint16Array(this.idx) };
   }
   static arraysToGeometry(a) {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(a.p, 3));
-    g.setAttribute('normal', new THREE.BufferAttribute(a.n, 3));
+    g.setAttribute('normal', compactAttr(a.n, 3));
     g.setAttribute('uv', new THREE.BufferAttribute(a.uv, 2));
     g.setAttribute('aInfo', new THREE.BufferAttribute(a.info, 4));
-    g.setAttribute('aTint', new THREE.BufferAttribute(a.tint, 3));
+    g.setAttribute('aTint', compactAttr(a.tint, 3));
     if (a.root) g.setAttribute('aRoot', new THREE.BufferAttribute(a.root, 4));
-    if (a.ext) g.setAttribute('aExt', new THREE.BufferAttribute(a.ext, 2));
+    if (a.ext) g.setAttribute('aExt', compactAttr(a.ext, 2));
     g.setIndex(new THREE.BufferAttribute(a.idx, 1));
     g.computeBoundingSphere();
     return g;
@@ -202,6 +207,48 @@ export class GeoAcc {
     g.computeBoundingSphere();
     return g;
   }
+}
+
+/** Values in [−1, 1] as normalized Int16 (a Float32Array when any lies outside, so nothing is ever clamped). */
+function snorm16(v) {
+  for (let i = 0; i < v.length; i++) if (!(v[i] >= -1 && v[i] <= 1)) return new Float32Array(v);
+  const o = new Int16Array(v.length);
+  for (let i = 0; i < v.length; i++) o[i] = Math.round(v[i] * 32767);
+  return o;
+}
+const F32 = new Float32Array(1), U32 = new Uint32Array(F32.buffer);
+/** IEEE binary16 bits of v, rounded to nearest even (three's DataUtils.toHalfFloat truncates: twice the error). */
+function toHalf(v) {
+  F32[0] = v;
+  const x = U32[0], sign = (x >>> 16) & 0x8000, e = ((x >>> 23) & 0xff) - 112;
+  let m = x & 0x7fffff;
+  if (e >= 31) return sign | 0x7bff; // past the half range (never for tints): the largest half
+  if (e <= 0) { // subnormal half
+    if (e < -10) return sign;
+    m |= 0x800000;
+    const sh = 14 - e, h = m >>> sh, rest = m & ((1 << sh) - 1), halfway = 1 << (sh - 1);
+    return sign | (h + (rest > halfway || (rest === halfway && (h & 1)) ? 1 : 0));
+  }
+  let h = sign | (e << 10) | (m >>> 13);
+  const rest = m & 0x1fff;
+  if (rest > 0x1000 || (rest === 0x1000 && (h & 1))) h++; // a carry rolls into the exponent, as it should
+  return h;
+}
+/** Half floats (Uint16Array of IEEE binary16 bits). */
+function half16(v) {
+  const o = new Uint16Array(v.length);
+  for (let i = 0; i < v.length; i++) o[i] = toHalf(v[i]);
+  return o;
+}
+/** Attribute for an array from toArrays: Int16 → normalized, Uint16 → half float, Float32 as it is. */
+function compactAttr(arr, size) {
+  if (arr instanceof Int16Array) return new THREE.BufferAttribute(arr, size, true);
+  if (arr instanceof Uint16Array) { // (its constructor copies the array: attach the cached one instead)
+    const at = new THREE.Float16BufferAttribute(new Uint16Array(size), size);
+    at.array = arr; at.count = arr.length / size;
+    return at;
+  }
+  return new THREE.BufferAttribute(arr, size);
 }
 
 function perp(d) {

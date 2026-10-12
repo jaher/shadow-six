@@ -12,7 +12,7 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { keepEncodedImages } from './texture-memory.js';
+import { keepEncodedImages, compressImageTexture } from './texture-memory.js';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
@@ -148,7 +148,7 @@ export class Assets {
         tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
         if (o.repeat) tex.repeat.set(o.repeat[0], o.repeat[1]);
         tex.anisotropy = o.anisotropy ?? (this.renderer ? Math.min(8, this.renderer.capabilities.getMaxAnisotropy()) : 4);
-        return tex;
+        return tex.isCompressedTexture ? tex : await compressImageTexture(tex); // BC7 / ASTC (engine/gpu-compress.js)
       } catch (err) {
         this._warn(key, err);
         return this.placeholderTexture();

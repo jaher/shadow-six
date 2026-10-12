@@ -36,6 +36,7 @@ import { THEATER_LIGHTING, resolveLighting, analyzeHDR, autoEnvIntensity } from 
 import { gradeFor, bakeLUTData } from './grade.js';
 import { SanitizePass, XRayPass, makeLUTTexture } from './post-passes.js';
 import { installTextureMemory } from './texture-memory.js';
+import { installGpuCompressor } from './gpu-compress.js';
 
 /**
  * Quality presets. pixelRatio is a cap on window.devicePixelRatio.
@@ -82,16 +83,41 @@ export { THEATER_LIGHTING };
  * attachment it never reads (64 MB at 4096², 256 MB at 8192²): every map assigned to `shadow` gets a one-byte red
  * attachment instead (three assigns a new target and allocates it on first use, so the format is set before anything
  * is uploaded). Same depth, same shadows. Point-light cube maps are left alone.
+ * Its depth texture is 16-bit instead of 24 (padded to 32: half the memory — 32 MB at 4096², 128 MB at 8192²): the
+ * sun's orthographic depth range is the fitted footprint + 80 m (fitShadowToView), so a 16-bit step is a few mm, far
+ * below the depth bias (4e-4 of the range = cm) and below a pixel at the closest zoom (12 mm) — the same comparisons.
  */
+const RT_DEPTH = Object.getOwnPropertyDescriptor(THREE.RenderTarget.prototype, 'depthTexture');
 export function slimShadowMap(shadow) {
   let map = shadow.map;
   const slim = (rt) => {
     const t = rt?.isWebGLRenderTarget && !rt.isWebGLCubeRenderTarget && rt.depthTexture !== undefined ? rt.texture : null;
     if (t && t.format === THREE.RGBAFormat && t.type === THREE.UnsignedByteType) t.format = THREE.RedFormat;
+    // three sets the depth texture right after assigning the target (and allocates it on the first shadow render)
+    if (t && RT_DEPTH?.set && !Object.prototype.hasOwnProperty.call(rt, 'depthTexture')) {
+      Object.defineProperty(rt, 'depthTexture', {
+        configurable: true, enumerable: true,
+        get() { return RT_DEPTH.get.call(this); },
+        set(d) {
+          if (d?.isDepthTexture && !d.isCubeDepthTexture && d.format === THREE.DepthFormat && d.type === THREE.UnsignedIntType) d.type = THREE.UnsignedShortType;
+          RT_DEPTH.set.call(this, d);
+        },
+      });
+      if (rt.depthTexture) rt.depthTexture = rt.depthTexture; // eslint-disable-line no-self-assign
+    }
     return rt;
   };
   Object.defineProperty(shadow, 'map', { configurable: true, enumerable: true, get: () => map, set: (v) => { map = slim(v); } });
   return shadow;
+}
+
+/**
+ * Post-pass targets whose values are 0..1 factors (SMAA edges + blend weights — the formats of the reference SMAA —
+ * and the GTAO / denoised AO buffers) need no half floats: 8 bits per channel, half the memory. Set before their
+ * first use (three allocates on first render; setSize keeps the type).
+ */
+export function eightBitTargets(...rts) {
+  for (const rt of rts) if (rt?.texture && rt.texture.type === THREE.HalfFloatType) { rt.texture.type = THREE.UnsignedByteType; rt.dispose(); }
 }
 
 const _v = new THREE.Vector3();
@@ -125,6 +151,7 @@ export class Renderer {
     this.renderer = r;
     this.domElement = r.domElement;
     installTextureMemory(r); // a restored context refills the textures whose page copy was released
+    installGpuCompressor(r); // material maps go to the GPU as BC7 / ASTC (engine/gpu-compress.js)
 
     /** Main world scene (lit, shadowed, post-processed). */
     this.scene = new THREE.Scene();
@@ -288,6 +315,7 @@ export class Renderer {
       passes.ao.blendIntensity = p.aoBlend ?? 1;
       passes.ao.updateGtaoMaterial({ radius: p.aoRadius ?? 0.8, distanceExponent: 1.5, thickness: 1.2, scale: 1.0, samples: p.aoSamples ?? 12 });
       passes.ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
+      eightBitTargets(passes.ao.gtaoRenderTarget, passes.ao.pdRenderTarget); // AO factor in [0, 1]
       composer.addPass(passes.ao);
     }
     // water surface, late transparent FX etc.: after AO (never darkened by it), before bloom/tone mapping
@@ -315,6 +343,7 @@ export class Renderer {
     // Anti-aliasing runs on the display-referred (tone-mapped) image, as SMAA/FXAA expect.
     if (p.aa === 'smaa') {
       passes.aa = new SMAAPass();
+      eightBitTargets(passes.aa._edgesRT, passes.aa._weightsRT); // SMAA's own formats (edges 0/1, blend weights)
       composer.addPass(passes.aa);
     } else if (p.aa === 'fxaa') {
       passes.aa = new FXAAPass();
@@ -476,6 +505,9 @@ export class Renderer {
       room.dispose?.();
     }
     this._envRT = rt;
+    // the generator keeps its ping-pong target (as large as the result: 6 MB at 256, 25 MB at 512) for the next
+    // build: free it now (and its blur shader); the next build (a new theatre / preset) makes them again
+    this.pmrem.dispose();
     this.scene.environment = rt.texture;
     this.scene.environmentIntensity = L.envIntensity ?? 0.5;
     this._rebindEnvironment();

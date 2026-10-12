@@ -3,7 +3,7 @@
  * Play a mission solution headless (no renderer) and report its checkpoints. APPROXIMATE: the headless grid has no
  * library-mesh nav clearance (buildMap meshes:false), so paths and timings drift from the game; the reference run is
  * tools/solutions/run-browser.mjs.
- *   node tools/solutions/run-headless.mjs m03 [--quiet] [--json out.json]
+ *   node tools/solutions/run-headless.mjs m03 [--quiet] [--json out.json] [--until <stage id>]
  * Exit code 0 when every objective is done with no commando detected (enemy:spotted / challenge / unmasked / tainted).
  */
 import { headlessDriver } from './headless.mjs';
@@ -28,7 +28,8 @@ if (ji >= 0) {
 const di = args.indexOf('--delay'); // robustness probe: start the solution N ticks late
 if (di >= 0) await D.wait(+args[di + 1] * D.dt);
 try {
-  await solve(D, { boardPoint, onStage: (s, title) => console.log(`== stage ${s}: ${title} (t=${D.t.toFixed(1)})`) });
+  const ui = args.indexOf('--until'); // debugging: stop after stage X (an incomplete run reports FAIL)
+  await solve(D, { boardPoint, until: ui >= 0 ? args[ui + 1] : undefined, onStage: (s, title) => console.log(`== stage ${s}: ${title} (t=${D.t.toFixed(1)})`) });
 } catch (e) { error = e; console.error(e.stack || e); }
 const obj = Object.fromEntries(D.world.objectives.map((o) => [o.id, o.done]));
 const exposed = D.exposureReport();

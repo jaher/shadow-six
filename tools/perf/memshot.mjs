@@ -5,6 +5,7 @@
  *
  *   node tools/perf/memshot.mjs --root=<checkout> --tag=before|after [--missions=m01,m05,m14] [--preset=high]
  *        [--out=<projects>/commandos-shots/memory/shots] [--w=1920 --h=1080] [--views=m13/quay:65:145,…]
+ *        [--query=gpucompress=0]  (extra URL parameters) [--freeze-water] (same water phase in every run) [--zooms=1,2]
  * Writes <out>/<mission>-<preset>-<view>-z<zoom>-<tag>.png. Compare with tools/perf/memshot-diff.py.
  */
 import { mkdirSync } from 'node:fs';
@@ -26,7 +27,7 @@ for (const m of arg('missions', 'm01,m05,m14').split(',')) {
   const page = await browser.newPage({ viewport: { width: +arg('w', 1920), height: +arg('h', 1080) } });
   const errs = [];
   page.on('pageerror', (e) => errs.push(e.message));
-  await page.goto(`${server.url.replace(/\/$/, '')}/index.html?test=1&preset=${preset}`, { timeout: 180000 });
+  await page.goto(`${server.url.replace(/\/$/, '')}/index.html?test=1&preset=${preset}${arg('query', '') ? '&' + arg('query', '') : ''}`, { timeout: 180000 });
   await page.waitForFunction(() => document.body.dataset.ready === '1', null, { timeout: 180000 });
   const views = await page.evaluate(async (mid) => {
     const g = window.__game, G = g.game;
@@ -42,16 +43,23 @@ for (const m of arg('missions', 'm01,m05,m14').split(',')) {
   // --views=m13/quay:65:145,m13/dock:45:40 : extra fixed views (mission/name:x:z)
   for (const v of arg('views', '').split(',').filter(Boolean)) { const [mn, rest] = v.split('/'); const [name, x, z] = rest.split(':'); if (mn === m) views[name] = [+x, +z]; }
   for (const [view, [x, z]] of Object.entries(views)) {
-    for (const zoom of [1, 2]) {
-      await page.evaluate(({ x, z, zoom }) => {
+    for (const zoom of arg('zooms', '1,2').split(',').map(Number)) {
+      await page.evaluate(({ x, z, zoom, freeze }) => {
         const g = window.__game, G = g.game;
+        // --freeze-water: the same water phase in every run (its time otherwise depends on how many frames ran)
+        const ws = freeze ? G.world?.water?.system : null;
+        if (ws) { ws.time = 100; ws.update(0); }
         G.cameraController.setZoom(zoom);
         G.cameraController.centerOn(x, z);
         G.cameraController.zoom = zoom; G.cameraController.zoomTarget = zoom;
         for (let k = 0; k < 4; k++) g.render();
-      }, { x, z, zoom });
+      }, { x, z, zoom, freeze: process.argv.includes('--freeze-water') });
       await page.waitForTimeout(400); // lazily uploaded textures / released images settle
-      await page.evaluate(() => { for (let k = 0; k < 2; k++) window.__game.render(); });
+      await page.evaluate((freeze) => {
+        const ws = freeze ? window.__game.game.world?.water?.system : null;
+        if (ws) { ws.time = 100; ws.update(0); }
+        for (let k = 0; k < 2; k++) window.__game.render();
+      }, process.argv.includes('--freeze-water'));
       const f = join(OUT, `${m}-${preset}-${view}-z${zoom}-${tag}.png`);
       await page.screenshot({ path: f });
       console.log('saved', f);

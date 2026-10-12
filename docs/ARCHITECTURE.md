@@ -920,6 +920,33 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   scene's not-yet-drawn textures ≤ 3 ms a frame during the briefing, so their page copy goes too and the first pan onto
   them does not stall a frame. The PCF shadow map's unused RGBA8 colour attachment is one byte per texel
   (`renderer.js slimShadowMap`: −48 MB on high, −192 MB on ultra).
+- **GPU texture compression** (`engine/gpu-compress.js`, perf/gpu-memory): material maps go to the GPU as BC7
+  (desktop, `EXT_texture_compression_bptc`) or ASTC 4×4 (phones / iPads / Apple silicon, `WEBGL_compressed_texture_astc`):
+  1 byte per texel instead of 4, nothing changes in what is downloaded. At load, three uploads the decoded image exactly
+  as before (same flags, internal format and generated mips) into a temporary texture, a fragment shader encodes every
+  4×4 block of every level into an RGBA32UI target, `readPixels` copies the blocks into a pixel buffer and, after a fence,
+  the texture becomes a `CompressedTexture` / `CompressedArrayTexture` in place (same object: materials, caches and clones
+  keep working). BC7: modes 6, 5 (rotations) and 1 (two subsets, turned off on GPUs slower than 8 ms / Mtexel) — the
+  quality of bc7enc's modes 1/5/6/7; ASTC: one partition, one or two weight planes. Callers: every GLTFLoader
+  (`keepEncodedImages` wraps `parser.loadTextureImage`; colour space from the material slots), `loadCompressedTexture`
+  (library / dressing / castle / pavement maps), `assets.loadTexture`, terrain + vegetation layer arrays. Left as they are
+  on purpose: the water foam / detail normals (thresholded by the shader), `foliage_n` (leaf ids in alpha), stone-ID maps
+  (NEAREST), data / canvas / render-target textures. The compressed levels leave page memory after their upload and are
+  encoded again from the kept file bytes when three uploads without them (another sampler, a restored context). The encode
+  runs in ~10 ms slices with ≤ 24 readbacks in flight; the shaders compile in the background at start
+  (`KHR_parallel_shader_compile`). `?gpucompress=0` turns it off, `=astc|bc7` forces a codec, `?gpumode1=0|1` forces BC7
+  mode 1. Measured on every mission: material textures −73 %, GPU total −56 % (desktop high) … −63 % (phone medium);
+  RGB PSNR vs the uncompressed maps 45–55 dB albedo, 36–41 dB normal maps. Tools: `tools/perf/gpu-compress-quality.mjs`,
+  `abdiff.py`, `load-ab.mjs`, `gpumem-table.py`; tests `tests/gpu-compress.test.mjs`, `tests/unit/gpu-compress.test.mjs`.
+- **Baked atlases and tree arrays** (perf/gpu-memory): the tree impostor atlases are encoded straight from their render
+  targets (`GpuCompressor.compressTarget`) and the targets — colour and the depth buffers only the bake needed — are
+  freed (`vegetation.js compactImpostorBank`; M16 −99 MB). Generated tree vertex arrays (`treegen.js GeoAcc.toArrays`)
+  keep normals and `aExt` as normalized Int16 and `aTint` as half floats (rounded to nearest): −16 of 84 bytes a vertex
+  on the GPU and in the session cache; positions, uv, `aInfo` and `aRoot` stay Float32.
+- **Render-target formats** (perf/gpu-memory): the sun shadow map's depth texture is 16-bit (`slimShadowMap`: the ortho
+  depth range is footprint + 80 m, a 16-bit step is mm against a cm bias), SMAA edges / weights and the GTAO / denoise
+  buffers are RGBA8 (`eightBitTargets`: 0..1 factors; SMAA's reference formats), the PMREM generator is disposed after each
+  environment build (its ping-pong target).
 - **Memory tools / test**: `tools/perf/mem-probe.js` (page probe: every live GL texture / buffer / renderbuffer counted at
   allocation with mips, layers and MSAA, attributed to the three object and its file; live ImageBitmaps; decoded audio),
   `tools/perf/measure-memory.mjs` (per mission and config: JS heap, ArrayBuffer stores, GPU, audio, bitmaps, cache,

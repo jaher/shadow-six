@@ -20,6 +20,7 @@
  */
 
 import * as THREE from 'three';
+import { COMPRESSED_HOOKS, compressTexture, keepImage } from './gpu-compress.js';
 
 const encoded = new WeakMap(); // ImageBitmap → Blob (its file bytes)
 const swapping = new WeakSet(); // sources whose <img> stand-in is loading
@@ -28,7 +29,7 @@ const holding = new WeakSet(); // sources still holding a decoded copy that goes
 const reloadOf = new WeakMap(); // data texture → reload()
 const released = new Set(); // WeakRef<Texture>: data textures whose array was dropped (reloaded on a restored context)
 const listed = new WeakSet();
-export const textureMemoryStats = { bitmapsReleased: 0, bitmapBytes: 0, dataReleased: 0, dataBytes: 0, reloaded: 0 };
+export const textureMemoryStats = { bitmapsReleased: 0, bitmapBytes: 0, dataReleased: 0, dataBytes: 0, reloaded: 0, compressedReleased: 0, compressedBytes: 0, compressedRefills: 0 };
 
 const hasBitmap = () => typeof ImageBitmap !== 'undefined';
 const isBitmap = (x) => hasBitmap() && x instanceof ImageBitmap;
@@ -109,6 +110,15 @@ export function keepEncodedImages(parser) {
     if (l.path !== undefined) e.setPath(l.path);
     parser.textureLoader = e;
   }
+  // GPU compression (engine/gpu-compress.js): every texture the parser makes goes through loadTextureImage; it is
+  // compressed there, before any material holds it, in the colour space its material slots give it
+  const load = parser.loadTextureImage;
+  if (typeof load === 'function' && !parser._ssCompress) {
+    parser._ssCompress = true;
+    parser.loadTextureImage = function (textureIndex, sourceIndex, loader) {
+      return load.call(this, textureIndex, sourceIndex, loader).then((tex) => compressGltfTexture(parser, tex, textureIndex));
+    };
+  }
   return {
     name: 'SHADOW_keep_encoded_images',
     afterRoot(result) {
@@ -116,6 +126,131 @@ export function keepEncodedImages(parser) {
       for (const s of result.scenes || []) if (s !== result.scene) watchScene(s);
     },
   };
+}
+
+/** glTF material slots sampled as sRGB colour (everything else is linear data: normals, ORM, masks…). */
+const SRGB_SLOTS = new Set(['baseColorTexture', 'emissiveTexture', 'diffuseTexture', 'specularGlossinessTexture', 'specularColorTexture', 'sheenColorTexture']);
+
+/** Colour space of each texture index of a glTF from the slots that use it ('mixed' when used both ways). */
+export function gltfColorSpaces(json) {
+  const out = new Map();
+  const note = (info, slot) => {
+    if (!info || typeof info.index !== 'number') return;
+    const cs = SRGB_SLOTS.has(slot) ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+    const prev = out.get(info.index);
+    out.set(info.index, prev === undefined || prev === cs ? cs : 'mixed');
+  };
+  const walk = (o, depth) => {
+    if (!o || typeof o !== 'object' || depth > 4) return;
+    for (const [k, v] of Object.entries(o)) {
+      if (k.endsWith('Texture') && v && typeof v.index === 'number') note(v, k);
+      else if (v && typeof v === 'object') walk(v, depth + 1);
+    }
+  };
+  for (const m of json?.materials || []) walk(m, 0);
+  return out;
+}
+
+/** Compress a texture the glTF parser just made (its sampler set, its colour space from the material slots). */
+function compressGltfTexture(parser, tex, textureIndex) {
+  if (!tex?.isTexture || tex.isCompressedTexture) return tex;
+  const spaces = (parser._ssSpaces ||= gltfColorSpaces(parser.json));
+  const cs = spaces.get(textureIndex);
+  // unreferenced, or sampled both as colour and as data: stays a plain texture — and its image stays open for it even
+  // when a sibling texture of the same image goes compressed
+  if (cs === undefined || cs === 'mixed') { keepImage(tex.source); return tex; }
+  tex.colorSpace = cs; // assignTexture sets the same value later; the mip chain depends on it
+  const img = tex.image;
+  const blob = isBitmap(img) ? encoded.get(img) : null;
+  const o = blob
+    ? { reload: () => createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' }) }
+    : (typeof HTMLImageElement !== 'undefined' && img instanceof HTMLImageElement) ? { reload: () => Promise.resolve(img) } : {};
+  return compressTexture(tex, o);
+}
+
+/**
+ * Compress a texture from a TextureLoader / <img> (not yet drawn) in place; an upload without its released levels
+ * (another sampler, a restored context) encodes them again from the same <img>.
+ * @returns {Promise<THREE.Texture>}
+ */
+export function compressImageTexture(tex) {
+  const img = tex?.image;
+  const o = (typeof HTMLImageElement !== 'undefined' && img instanceof HTMLImageElement) ? { reload: () => Promise.resolve(img) } : {};
+  return compressTexture(tex, o);
+}
+
+/**
+ * TextureLoader.load() for material maps: the texture comes back at once (set its wrap / colour space / flipY / filters
+ * now) and its image goes to the GPU compressed (engine/gpu-compress.js) — it stays un-uploaded (version 0) until then,
+ * so no uncompressed copy is ever made. Without BC7 / ASTC it is a plain image texture, as before.
+ * @param {string} url @param {(t: THREE.Texture) => void} [onLoad] @param {(e: unknown) => void} [onError]
+ * @returns {THREE.Texture}
+ */
+export function loadCompressedTexture(url, onLoad, onError) {
+  const t = new THREE.Texture();
+  new THREE.ImageLoader().load(url, (img) => {
+    t.image = img;
+    compressImageTexture(t).then(() => {
+      if (!t.isCompressedTexture) t.needsUpdate = true;
+      onLoad?.(t);
+    });
+  }, undefined, (e) => { if (onError) onError(e); else console.error('[texture-memory] load', url, e); });
+  return t;
+}
+
+// ------------------------------------------------------------------ compressed textures (engine/gpu-compress.js)
+
+const compressedInfo = new WeakMap(); // Source → { reload, waiting: Set<Texture>, refilling, listed }
+
+COMPRESSED_HOOKS.track = (source, { reload, drop = false }) => {
+  compressedInfo.set(source, { reload, drop, waiting: new Set(), refilling: null, listed: false });
+  holding.add(source); // TextureWarmer uploads it early; its levels leave page memory after that upload
+};
+
+/**
+ * After three uploaded a compressed texture: the first upload with its levels drops them (unless another texture of
+ * the same image still waits for them, or they could not be made again); an upload without them (a sampler variant,
+ * a restored context) encodes them again and uploads every texture that waited.
+ */
+COMPRESSED_HOOKS.upload = (t) => {
+  const s = t.source, info = compressedInfo.get(s);
+  if (!info) return;
+  if (s.dataReady) {
+    info.waiting.delete(t);
+    if (info.waiting.size || (!info.reload && !info.drop)) return; // drop: nothing can make it again (a baked target)
+    let bytes = 0;
+    for (const m of t.mipmaps || []) { bytes += m.data?.byteLength || 0; m.data = null; }
+    s.dataReady = false;
+    holding.delete(s);
+    textureMemoryStats.compressedReleased++;
+    textureMemoryStats.compressedBytes += bytes;
+    if (!info.listed) { info.listed = true; released.add(new WeakRef(t)); }
+  } else {
+    info.waiting.add(t);
+    refillCompressed(t, info);
+  }
+};
+
+const refills = new Set(); // compressed levels being made again
+
+/** Resolves once no compressed texture is being encoded again (tests: a restored context has come back). */
+export async function compressedRefillsIdle() {
+  while (refills.size) await Promise.all([...refills]);
+}
+
+function refillCompressed(t, info) {
+  if (info.refilling || !info.reload) return info.refilling || Promise.resolve();
+  info.refilling = Promise.resolve().then(info.reload).then((levels) => {
+    if (!levels?.length) return;
+    t.mipmaps.forEach((m, i) => { m.data = levels[i]; });
+    t.source.dataReady = true;
+    for (const w of info.waiting) w.needsUpdate = true;
+    if (!info.waiting.size) t.needsUpdate = true;
+    textureMemoryStats.compressedRefills++;
+  }).catch((err) => console.warn('[texture-memory] compressed reload failed', err)).finally(() => { info.refilling = null; refills.delete(p); });
+  const p = info.refilling;
+  refills.add(p);
+  return p;
 }
 
 /**
@@ -167,6 +302,8 @@ export async function reloadReleased() {
   for (const ref of [...released]) {
     const t = ref.deref();
     if (!t) { released.delete(ref); continue; }
+    const info = t.isCompressedTexture ? compressedInfo.get(t.source) : null;
+    if (info) { if (!t.source.dataReady) { info.waiting.add(t); jobs.push(refillCompressed(t, info)); } continue; }
     jobs.push(refill(t));
   }
   await Promise.all(jobs);

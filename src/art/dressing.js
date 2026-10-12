@@ -19,6 +19,7 @@ import { libTextureURL } from './building-library.js';
 import { extendPolygonPastEdges } from '../world/edge-extend.js';
 import { scopedMemo, pendingTextureBytes } from '../engine/scoped-assets.js';
 import { MEDINA_GOODS_RX, buildMedinaGoods } from './medina-kit.js';
+import { loadCompressedTexture } from '../engine/texture-memory.js';
 
 const HAS_DOM = typeof document !== 'undefined';
 
@@ -27,7 +28,7 @@ function tex(file, srgb) {
   const { url } = libTextureURL(file);
   // mission-scoped (engine/scoped-assets.js): freed once no kept mission uses it
   return scopedMemo('dressing:tex', TEX, url + (srgb ? '|s' : ''), () => {
-    const t = new THREE.TextureLoader().load(url);
+    const t = loadCompressedTexture(url); // BC7 / ASTC on the GPU (engine/gpu-compress.js)
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = 8;
     if (srgb) t.colorSpace = THREE.SRGBColorSpace;

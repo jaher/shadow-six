@@ -11,6 +11,7 @@
  * @module engine/scoped-assets
  */
 import { sessionCache } from './asset-cache.js';
+import { gpuCompressor } from './gpu-compress.js';
 
 const depsOf = new Map(); // cache key → keys it was built from (touched with it)
 
@@ -41,6 +42,8 @@ function eachMaterialTexture(m, fn) {
 
 /** GPU bytes of a texture (RGBA8 + mip chain, layers). */
 export function textureBytes(t) {
+  // compressed (engine/gpu-compress.js: 4×4 blocks of 16 bytes per level, every layer)
+  if (t?.isCompressedTexture && t.mipmaps?.length) return t.mipmaps.reduce((a, m) => a + Math.ceil(m.width / 4) * Math.ceil(m.height / 4) * 16, 0) * (t.image?.depth || 1);
   const im = t?.image || {};
   const w = im.width || im.naturalWidth || 0, h = im.height || im.naturalHeight || 0, d = im.depth || 1;
   return w * h * d * 4 * (t?.generateMipmaps === false ? 1 : 4 / 3);
@@ -113,5 +116,5 @@ export function scopedMemo(ns, map, key, make, { bytes = 0, free = null } = {}) 
   return v;
 }
 
-/** Bytes of a texture still loading (TextureLoader): its size once known, else a 1k map. */
-export const pendingTextureBytes = (t) => textureBytes(t) || 1024 * 1024 * 4 * (4 / 3);
+/** Bytes of a texture still loading (TextureLoader): its size once known, else a 1k map (compressed when it will be). */
+export const pendingTextureBytes = (t) => textureBytes(t) || (gpuCompressor() ? 1024 * 1024 : 1024 * 1024 * 4) * (4 / 3);

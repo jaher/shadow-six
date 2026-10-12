@@ -159,6 +159,7 @@ export function createImpostorMesh(bank, inst) {
     uImpLift: { value: 0 },
     uImpR: { value: new THREE.Vector3(1, 0, 0) }, uImpU: { value: new THREE.Vector3(0, 1, 0) }, uImpB: { value: new THREE.Vector3(0, 0, 1) },
   };
+  if (!bank.compacted) (bank.users ||= new Set()).add(U); // the atlases may still be swapped for compressed copies (vegetation.js)
   const vert = (sh) => {
     Object.assign(sh.uniforms, U);
     sh.vertexShader = IMP_PARS + sh.vertexShader.replace('#include <begin_vertex>', IMP_VERT);

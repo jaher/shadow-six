@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { dressingMaterial } from '../dressing.js';
 import { scopedMemo, pendingTextureBytes } from '../../engine/scoped-assets.js';
+import { loadCompressedTexture } from '../../engine/texture-memory.js';
 
 const HAS_DOM = typeof document !== 'undefined';
 const BASE = new URL('../../../assets/textures/pavement/', import.meta.url).href;
@@ -15,7 +16,7 @@ const T = new Map();
 function tex(file, srgb, rep = 1) {
   // mission-scoped (engine/scoped-assets.js): freed once no kept mission uses it
   return scopedMemo('pavement:detailtex', T, file + rep, () => {
-    const t = new THREE.TextureLoader().load(BASE + file);
+    const t = loadCompressedTexture(BASE + file); // BC7 / ASTC (engine/gpu-compress.js)
     t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; t.repeat.set(rep, rep);
     if (srgb) t.colorSpace = THREE.SRGBColorSpace;
     return t;

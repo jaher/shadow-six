@@ -200,14 +200,16 @@ export function canSee(viewer, target, world, o = {}) {
 }
 
 /**
- * Grid owner id of the structure an enemy is posted inside (mission `structure`, e.g. the M3 dam bunker crew):
+ * Grid owner id of the structure an enemy is posted inside (mission `structure`, e.g. the M3 dam bunker crew, the
+ * M1 MG gunner e13 in his sandbag ring mg1):
  * its block cells must not blind him — he looks out through the firing slit (replay m03: e34 saw nothing).
  * @returns {number} 0 = none
  */
 export function postOwner(viewer, world) {
   if (viewer._postOwner !== undefined) return viewer._postOwner;
   const id = viewer.spawn?.structure;
-  const it = id != null && world?.byId ? world.byId(id) : null;
+  // an entity (a bunker interactable) or a static map structure (a sandbag MG ring: world.structures, map-builder)
+  const it = id != null ? (world?.byId?.(id) || world?.structures?.get?.(id) || null) : null;
   const own = it?.owner || 0;
   if (it || id == null) viewer._postOwner = own; // cache once the structure is known
   return own;

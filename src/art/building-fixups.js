@@ -11,11 +11,12 @@
  */
 
 import * as THREE from 'three';
+import { loadCompressedTexture } from '../engine/texture-memory.js';
 
 const C = { net: null, netNor: null };
 
 function libTex(base, file, srgb) {
-  const t = new THREE.TextureLoader().load(`${base}textures/lib/1k/${file}`);
+  const t = loadCompressedTexture(`${base}textures/lib/1k/${file}`); // BC7 / ASTC (engine/gpu-compress.js)
   t.flipY = false; // glTF convention (the GLB UVs)
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.anisotropy = 4;

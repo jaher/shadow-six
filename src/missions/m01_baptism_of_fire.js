@@ -156,8 +156,10 @@ export default {
       squad: { id: 'p3', leader: 'e10', columns: 1 }, flags: { followsTracks: true },
       route: { type: 'LOOP', vel: 1.0, points: [P(5, 36), P(5, 6), P(26, 3, 4, 270), P(46, 8), P(48, 18), P(46, 33, 4, 90), P(28, 37.5), P(5, 36)] },
     })),
-    // MG gunner in the mg1 nest, covering the southern approach across the fjord
-    { id: 'e13', prima: 13, soldierType: 'mg', x: 22, z: 39.5, heading: deg(90), emplacement: 'mg1_gun',
+    // MG gunner in the mg1 nest, covering the southern approach across the fjord. `structure: 'mg1'`: he looks out
+    // over his own sandbag ring (verify m01: the ring sat in the first metre of every sight line, so he never saw a
+    // seated raft crew or a crawling man at any range while his cone was drawn over the water)
+    { id: 'e13', prima: 13, soldierType: 'mg', x: 22, z: 39.5, heading: deg(90), emplacement: 'mg1_gun', structure: 'mg1',
       post: { heading: deg(90), sweep: 35, giro: 180 } },
   ],
   items: [],

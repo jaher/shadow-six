@@ -52,17 +52,40 @@ async function genInWorkers(chunkList, q, nW) {
 import { SNOW_COVER_GLSL } from './snowfx.js';
 import { hash2 } from './noise.js';
 import { loadLayerArray } from './layer-image.js';
+import { compressRenderTarget } from '../../engine/gpu-compress.js';
 import { sessionCache as cache, dataKey } from '../../engine/asset-cache.js';
+import { textureBytes } from '../../engine/scoped-assets.js';
 
+/** GPU compression per strip (engine/gpu-compress.js): the *_n maps carry the alpha-tested coverage in blue (weighted
+ * up); foliage_n's alpha holds per-leaf ids read as exact values (autumn turning, twig = 255) → stays uncompressed. */
+const STRIP_COMPRESS = { 'foliage_n.webp': { compress: false }, 'needles_n.webp': { weights: [1, 1, 3, 1] } };
 function loadStrip(url, srgb, alpha, tile) {
+  const cmp = STRIP_COMPRESS[url.split('/').pop()] || {};
   // session cache (engine/asset-cache.js): decoded + uploaded once per page, freed on eviction
-  return cache.memoAsync(`strip:${url}|${srgb ? 1 : 0}|${alpha ? 1 : 0}|${tile || '-'}`, () => loadLayerArray(url, { srgb, anisotropy: 4, wrap: alpha ? THREE.ClampToEdgeWrapping : THREE.RepeatWrapping, tile }).then((t) => cache.retain(t)), {
-    bytes: (t) => t.image.width * t.image.height * t.image.depth * 4 * 1.34, dispose: (t) => t.dispose(),
+  return cache.memoAsync(`strip:${url}|${srgb ? 1 : 0}|${alpha ? 1 : 0}|${tile || '-'}`, () => loadLayerArray(url, { srgb, anisotropy: 4, wrap: alpha ? THREE.ClampToEdgeWrapping : THREE.RepeatWrapping, tile, ...cmp }).then((t) => cache.retain(t)), {
+    bytes: textureBytes, dispose: (t) => t.dispose(),
   });
 }
 
 /** Impostor-bank cache entry dispose (module level: a callback made inside the builder would keep its whole scope — and the mission — alive). */
-const disposeImpostorEntry = (b) => { b.bank.albedo.dispose(); b.bank.normal.dispose(); };
+const disposeImpostorEntry = (b) => { b.bank.disposed = true; b.bank.albedo.dispose(); b.bank.normal.dispose(); };
+
+/**
+ * The baked impostor atlases go to the GPU compressed (engine/gpu-compress.js), straight from their render targets;
+ * the targets — colour and the depth buffers only the bake needed — are freed then (m16: 122 → 31 MB). The materials
+ * made from the bank (`bank.users`) switch to the compressed atlases; a later mesh takes them from the bank.
+ */
+async function compactImpostorBank(bank) {
+  const [a, n] = await Promise.all([compressRenderTarget(bank.albedo), compressRenderTarget(bank.normal)]);
+  if (!a || !n || bank.disposed) { a?.dispose(); n?.dispose(); return; }
+  const wrap = (t) => ({ texture: t, width: t.image.width, height: t.image.height, dispose: () => t.dispose() });
+  const oldA = bank.albedo, oldN = bank.normal;
+  bank.albedo = cache.retain(wrap(a)); bank.normal = cache.retain(wrap(n));
+  for (const U of bank.users || []) { U.tImpA.value = a; U.tImpN.value = n; }
+  bank.users = null; bank.compacted = true;
+  bank.bytes = [a, n].reduce((s, t) => s + Math.ceil(t.image.width / 4) * Math.ceil(t.image.height / 4) * 16, 0);
+  oldA.dispose(); oldN.dispose();
+}
 
 /** Bytes of a worker chunk result (typed arrays). */
 const chunkBytes = (out) => out.reduce((n, r) => n + [r.bark, r.leaf].reduce((m, a) => m + (a ? Object.values(a).reduce((k, v) => k + (v?.byteLength || 0), 0) : 0), 0), 0);
@@ -581,6 +604,7 @@ export async function createVegetation(scene, placements, theater = 'temperate',
         const bank = bakeImpostors(gl, protos, { barkMat: barkM.mat, leafMat: leafM.mat, leafNormalMat: aoMat, needleMat: needleM.mat, needleNormalMat: needleM.aoMat, U }, { views: 6, tile, pitch });
         for (const pr of protos) { pr.bark?.dispose(); pr.leaf?.dispose(); pr.needle?.dispose(); }
         cache.retain(bank.albedo); cache.retain(bank.normal);
+        compactImpostorBank(bank);
         return { bank, heights: protos.map((pr) => pr.info.height) };
       }, { bytes: (b) => b.bank.bytes || 0, dispose: disposeImpostorEntry });
       impBank = baked.bank;

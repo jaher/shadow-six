@@ -138,6 +138,9 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
   rec('shot', (p) => (p.target?.kind === 'vehicle' ? `${tagOf(p.shooter)} at ${p.target.vehicleType} ${tagOf(p.target)}` : null));
   rec('enemy:state', (p) => (p.to === 'COMBAT' || p.to === 'HOLD') ? `${tagOf(p.enemy)} ${p.from}->${p.to}` : null);
   rec('ability:refused', (p) => `${tagOf(p.unit)} ${p.id ?? p.ability ?? ''} ${p.reason ?? p.text ?? ''}`);
+  // (not detections, but a clean solution leaves no body to be found and makes no footsteps anyone hears)
+  rec('enemy:body-found', (p) => `${tagOf(p.enemy)} found ${tagOf(p.body?.unit ?? p.body)} at ${p.body?.x?.toFixed?.(1)},${p.body?.z?.toFixed?.(1)}`);
+  rec('enemy:heard-steps', (p) => `${tagOf(p.enemy)} at ${(+p.x).toFixed(1)},${(+p.z).toFixed(1)}`);
 
   // Exposure watch (user, M3 2026-10-08: "make sure no commando goes inside the field of view of a solider before being
   // spotted. Even the raft boat in the light shaded field of view of a soldier makes the soldier see it"): after every
@@ -169,8 +172,11 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
     // a used raft lying empty is evidence too (§4.3): in any live cone with a clear line of sight, any band, it is seen
     // — whoever lies hidden beside it (under water, crawling unseen) does not make it innocent
     const rafts = (w.vehicles || []).filter((v) => v.def?.raft && v.used && !v.removed && !v.destroyed && !v.occupants?.length);
+    // a boat rowed by the team is seen by its hull (ai/director _rowedBoats: the hull edge nearest the guard in his cone)
+    const rowed = (w.vehicles || []).filter((v) => v.def?.boat && !v.def.raft && !v.removed && !v.destroyed && v.driver?.faction === 'player');
     for (const e of viewers()) {
       for (const v of rafts) if (canSeeVehicle(e, v, w)) note(e, `empty ${tagOf(v)}`, 'raft', v.x, v.z);
+      for (const v of rowed) if (canSeeVehicle(e, v, w)) note(e, `${tagOf(v)} hull`, 'boat', v.x, v.z);
       const cone = coneAt(e, w.time);
       for (const c of cs) {
         const band = canSee(e, c, w, { cone });
@@ -264,9 +270,9 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
       await D.until(() => !u.path && !u.isMoving, 5, `${role} faces (${x},${z})`);
     },
     /** row the raft (the Marine at the oars) to (x, z) and wait until it stops */
-    async row(x, z, max = 90) {
+    async row(x, z, max = 90, { fast = false } = {}) {
       const raft = D.raft();
-      D.order('diver', { type: 'move', x, z });
+      D.order('diver', { type: 'move', x, z, run: fast }); // (fast: paddled hard, §3.7 fast speed)
       const t0 = D.t;
       await D.until(() => (Math.hypot(raft.x - x, raft.z - z) < 1.2 && (raft.speed || 0) < 0.1) || (D.t > t0 + 1 && !raft.goal && (raft.speed || 0) < 0.05), max, `raft -> (${x},${z})`);
       const d = Math.hypot(raft.x - x, raft.z - z);
@@ -281,7 +287,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
      * Will (x, z) stay unseen for the next `dur` s? Static enemies: their cones are predicted (the sweep is a function
      * of time). Walking ones: predicted along their heading (patrol legs are straight over a few seconds).
      */
-    clearAhead(x, z, dur = 2, low = false, why = null, except = null, pad = 0, from = 0) { // (`from`: the window starts that many s from now)
+    clearAhead(x, z, dur = 2, low = false, why = null, except = null, pad = 0, from = 0) { // (`from`: the window starts that many s from now; it still ends `dur` s from now)
       const dummy = { x, z, y: w.grid.elevAt?.(x, z) ?? 0, isLow: low, isVisibleToEnemies: true };
       for (const e of w.enemies) {
         if (!e.alive || e.removed || !e.vision || except?.includes?.(e)) continue;
@@ -352,10 +358,14 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
      * the raft drives (pivot on the spot at its turn rate, then straight off), each tried over `slack` s around its
      * moment. Cones are predicted as in routeClear; a walker within `minDist` m of the route at any moment fails it.
      */
-    rowClear(pts, { delay = 0, slack = [-0.1, 0.25], step = 0.5, minDist = 6, why = null } = {}) {
-      const raft = D.raft(), sp = raft.def?.slow || 2.5, rate = raft.def?.turn || Math.PI / 2;
+    rowClear(pts, { delay = 0, slack = [-0.1, 0.25], step = 0.5, minDist = 6, why = null, fast = false, from = null, hold = 0, pad = 0, except = null } = {}) {
+      // (`fast`: paddled at fast speed; `from` [x, z, heading]: a later leg, from where an earlier one ends; `hold` s:
+      // the raft then lies at the last point that long, crewed; `pad` m: each sample also tried that much nearer each
+      // guard and to either side, a margin at the edges of his cone; `except`: guards left out, e.g. a posted MG whose
+      // sweep is checked apart with a tighter slack)
+      const raft = D.raft(), sp = (fast ? raft.def?.fast : raft.def?.slow) || 2.5, rate = raft.def?.turn || Math.PI / 2;
       const samples = [];
-      let x = raft.x, z = raft.z, h = raft.heading, t = delay + 2 * dt; // the order lands next tick
+      let [x, z, h] = from ?? [raft.x, raft.z, raft.heading], t = delay + 2 * dt; // the order lands next tick
       for (const [px, pz] of pts) {
         // §3.7 he pivots on the spot (not noticed), then paddles off straight, at full speed within half a second
         const want = Math.atan2(pz - z, px - x);
@@ -366,9 +376,10 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
         for (let k = 0; k <= n; k++) for (let o = slack[0]; o <= slack[1] + 1e-6; o += 0.1) samples.push([x + ((px - x) * k) / n, z + ((pz - z) * k) / n, Math.max(0, t + o + (L * k) / n / sp)]);
         t += L / sp; x = px; z = pz;
       }
+      for (let o = 0; o <= hold + 1e-6; o += 0.25) samples.push([x, z, t + o]);
       const boat = { isOpenBoat: true, def: { seated: true, occludes: false } };
       for (const e of w.enemies) {
-        if (!e.alive || e.removed || !e.vision) continue;
+        if (!e.alive || e.removed || !e.vision || except?.includes?.(e)) continue;
         const moving = e.isMoving || e.path || (e.route && e.route.length > 1), far = (e.vision.far ?? 36) + 1;
         for (const [sx, sz, st] of samples) {
           const q = moving ? predictEnemy(e, st) : { x: e.x, z: e.z, heading: e.heading };
@@ -378,8 +389,11 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
           const dummy = { x: sx, z: sz, y: 0, state: 'inVehicle', vehicle: boat, isVisibleToEnemies: true, alive: true };
           // a patrol squad's man standing at a halt looks his own way (the prediction gives him his leader's heading)
           const still = moving && e.squad?.id != null && Math.hypot(q.x - e.x, q.z - e.z) < 1;
-          const sees = moving ? walkerSees(e, q, dummy, w, w.time + st) || (still && walkerSees(e, { x: q.x, z: q.z, heading: e.heading }, dummy, w, w.time + st))
-            : canSee(e, dummy, w, { cone: coneAt(e, w.time + st) }) !== 'none';
+          const sees1 = (d) => moving ? walkerSees(e, q, d, w, w.time + st) || (still && walkerSees(e, { x: q.x, z: q.z, heading: e.heading }, d, w, w.time + st))
+            : canSee(e, d, w, { cone: coneAt(e, w.time + st) }) !== 'none';
+          // (`pad`: the hull and the men in it stand a little off its centre — tried `pad` m nearer and to either side too)
+          const ux = (q.x - sx) / (dd || 1), uz = (q.z - sz) / (dd || 1);
+          const sees = sees1(dummy) || (pad > 0 && dd > pad && [[ux, uz], [-uz, ux], [uz, -ux]].some(([ox, oz]) => sees1({ ...dummy, x: sx + ox * pad, z: sz + oz * pad })));
           if (sees) { if (why) why.push(`${e.tag}@(${sx.toFixed(1)},${sz.toFixed(1)})+${st.toFixed(1)}`); return false; }
         }
       }

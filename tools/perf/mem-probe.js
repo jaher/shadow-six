@@ -272,7 +272,7 @@
       items.push({ gl: 'tex', bytes: r.bytes, w: r.w, h: r.h, d: r.d, fmt: fmtName(r.fmt), levels: r.nlev || r.levels.size, ...d });
     }
     for (const r of P.buf.values()) { buf += r.bytes; const d = describe(r.owner?.deref?.()); items.push({ gl: 'buf', bytes: r.bytes, ...d }); }
-    for (const r of P.rb.values()) { rb += r.bytes; items.push({ gl: 'rb', bytes: r.bytes, w: r.w, h: r.h, fmt: fmtName(r.fmt), samples: r.samples, label: 'renderbuffer', kind: 'rt' }); }
+    for (const r of P.rb.values()) { rb += r.bytes; const d = describe(r.owner?.deref?.()); items.push({ gl: 'rb', bytes: r.bytes, w: r.w, h: r.h, fmt: fmtName(r.fmt), samples: r.samples, label: 'renderbuffer ' + (d.label || ''), name: d.name, kind: 'rt' }); }
     let canvas = 0;
     for (const ref of P.canvases) { const c = ref.deref(); if (!c) { P.canvases.delete(ref); continue; } canvas += c.width * c.height * 4 * 3; } // colour (×2 swap) + depth
     const buckets = {};
@@ -314,6 +314,7 @@
       buckets: Object.entries(buckets).sort((a, b) => b[1].bytes - a[1].bytes).map(([k, v]) => ({ k, ...v })),
       topTex: items.filter((x) => x.gl === 'tex').sort((a, b) => b.bytes - a.bytes).slice(0, top),
       topBuf: items.filter((x) => x.gl === 'buf').sort((a, b) => b.bytes - a.bytes).slice(0, Math.ceil(top / 2)),
+      topRb: items.filter((x) => x.gl === 'rb').sort((a, b) => b.bytes - a.bytes).slice(0, 20),
       dups: dups.slice(0, 20),
       audio: { total: audio, n: live.length, buckets: Object.entries(aBuckets).sort((a, b) => b[1].bytes - a[1].bytes).map(([k, v]) => ({ k, ...v })),
         top: live.sort((a, b) => b.bytes - a.bytes).slice(0, 12).map((a) => ({ url: bucket(a.url) === a.url ? a.url : String(a.url).replace(/^.*\/assets\//, 'assets/'), bytes: a.bytes, kind: a.kind, sec: +a.sec.toFixed(1), sr: a.sr, ch: a.ch })) },

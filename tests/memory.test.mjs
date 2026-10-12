@@ -6,15 +6,21 @@
  *    memory (engine/texture-memory.js), the layer arrays too, and the GPU holds no more than the budget;
  *  - M1 → M2 → M3 → M1 with no spare: the last M1 holds what the first did (art libraries and module texture caches
  *    are scoped to the missions that use them, engine/scoped-assets.js), and the restart of M1 stays warm;
- *  - a lost and restored WebGL context draws the mission again (released arrays are decoded again).
+ *  - a lost and restored WebGL context draws the mission again (released arrays are decoded again, compressed maps
+ *    encoded again).
  */
 import { join } from 'node:path';
 import { ROOT } from './harness.mjs';
 
 export const timeout = 600_000;
 const MB = 1048576;
-/** Budgets (preset medium, 1280×720): measured after the memory work + headroom (before: GPU ≈ 1.4 GB, bitmaps 757 MB, ArrayBuffers 371 MB). */
-const BUDGET = { gpu: 1400 * MB, bitmaps: 200 * MB, backing: 260 * MB };
+/**
+ * Budgets (preset medium, 1280×720) + headroom. History: master before the memory work GPU ≈ 1.4 GB, bitmaps 757 MB,
+ * ArrayBuffers 371 MB; after it (texel tiers, released decodes) GPU ≈ 1.0 GB; with the GPU texture compression and the
+ * slimmer render targets (perf/gpu-memory: engine/gpu-compress.js) GPU ≈ 400 MB, of which textures ≈ 345 MB.
+ * The texture budget only applies where the GPU samples BC7 or ASTC (else the maps stay RGBA8, as before).
+ */
+const BUDGET = { gpu: 1400 * MB, gpuCompressed: 600 * MB, texCompressed: 480 * MB, bitmaps: 200 * MB, backing: 260 * MB };
 
 export default async function (page, t) {
   await page.addInitScript({ path: join(ROOT, 'tools/perf/mem-probe.js') });
@@ -47,7 +53,10 @@ export default async function (page, t) {
     return r;
   };
   const a = await measure('m01');
-  t.ok(a.gpu.total <= BUDGET.gpu, `M1 GPU ${(a.gpu.total / MB).toFixed(0)} MB ≤ ${BUDGET.gpu / MB} MB`);
+  const codec = await page.evaluate(async () => (await import('/src/engine/gpu-compress.js')).gpuCompressor()?.codec ?? null);
+  const gpuBudget = codec ? BUDGET.gpuCompressed : BUDGET.gpu;
+  t.ok(a.gpu.total <= gpuBudget, `M1 GPU ${(a.gpu.total / MB).toFixed(0)} MB ≤ ${gpuBudget / MB} MB (textures ${codec || 'uncompressed'})`);
+  if (codec) t.ok(a.gpu.tex <= BUDGET.texCompressed, `M1 textures ${(a.gpu.tex / MB).toFixed(0)} MB ≤ ${BUDGET.texCompressed / MB} MB (${codec})`);
   t.ok(a.bitmaps.bytes <= BUDGET.bitmaps, `M1 decoded images kept ${(a.bitmaps.bytes / MB).toFixed(0)} MB ≤ ${BUDGET.bitmaps / MB} MB (before: 757 MB)`);
   if (a.backing != null) t.ok(a.backing <= BUDGET.backing, `M1 ArrayBuffers ${(a.backing / MB).toFixed(0)} MB ≤ ${BUDGET.backing / MB} MB`);
   await measure('m02');
@@ -79,12 +88,20 @@ export default async function (page, t) {
     await new Promise((ok) => setTimeout(ok, 300));
     await frames(90);
     await new Promise((ok) => setTimeout(ok, 2500)); // the layer strips decode again
-    await frames(10);
     const TM = await import('/src/engine/texture-memory.js');
-    return { before, after: g.frameStats().luma, reloaded: TM.textureMemoryStats.reloaded };
+    const GC = await import('/src/engine/gpu-compress.js');
+    const t0 = performance.now();
+    // compressed maps (engine/gpu-compress.js) are encoded again as three re-uploads them: draw until nothing is left
+    for (let i = 0; i < 40; i++) {
+      await frames(5);
+      await TM.compressedRefillsIdle();
+      await GC.gpuCompressor()?.idle();
+    }
+    await frames(10);
+    return { before, after: g.frameStats().luma, reloaded: TM.textureMemoryStats.reloaded, refills: TM.textureMemoryStats.compressedRefills, refillMs: performance.now() - t0 };
   });
   if (lost) {
-    t.log(`context restored: luma ${lost.before} → ${lost.after}, ${lost.reloaded} arrays decoded again`);
-    t.ok(lost.reloaded > 0 && lost.after >= lost.before * 0.75, `the frame comes back after a lost context (luma ${lost.before} → ${lost.after})`);
+    t.log(`context restored: luma ${lost.before} → ${lost.after}, ${lost.reloaded} arrays decoded again, ${lost.refills} compressed maps encoded again (${lost.refillMs.toFixed(0)} ms)`);
+    t.ok((lost.reloaded > 0 || lost.refills > 0) && lost.after >= lost.before * 0.75, `the frame comes back after a lost context (luma ${lost.before} → ${lost.after})`);
   }
 }

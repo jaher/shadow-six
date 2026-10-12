@@ -17,6 +17,7 @@ import { placeScrub, nebkhaField, spawnClearance } from './scrub.js';
 import { createSnowFx, addSnowCover } from './snowfx.js';
 import { loadLayerArray } from './layer-image.js';
 import { sessionCache as cache, dataKey } from '../../engine/asset-cache.js';
+import { textureBytes } from '../../engine/scoped-assets.js';
 
 export const WATER_DEPTH = { 5: -1.2, 6: -0.35 };
 export const ICE_DEPTH = { 5: -0.06, 6: -0.04 }; // snow theater: frozen ponds sit just below the snow line (T-A)
@@ -54,7 +55,7 @@ function loadArray(url, srgb, anisotropy, tile) {
   // session cache: a restart / the next mission in the theatre reuses the decoded, uploaded array (no decode,
   // no getImageData, no texture upload); freed when the cache evicts it
   return cache.memoAsync(`layer:${url}|${tile || 0}|${srgb ? 1 : 0}|${anisotropy}`, () => loadLayerArray(url, { srgb, anisotropy, tile }).then((t) => cache.retain(t)), {
-    bytes: (t) => t.image.width * t.image.height * t.image.depth * 4 * 1.34, dispose: (t) => t.dispose(),
+    bytes: textureBytes, dispose: (t) => t.dispose(),
   });
 }
 

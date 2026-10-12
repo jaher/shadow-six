@@ -1628,7 +1628,7 @@ extraction: { vehicleId, exit:{x,z,r}, spawnWhen:[objectiveIds] }
 | e9 | [9] | trooper, squad `p2` | behind e8 | columns 1 |
 | e10 | [10] | sergeant, squad `p3` leader, followsTracks | (5,36) | LOOP VEL 1.0: (5,36) → (5,6) → (26,3) wait 4 look 270 → (46,8) → (48,18) → (46,33) wait 4 look 90 → (28,37.5) → (5,36). Circles the relay and the barracks |
 | e11, e12 | [11–12] | trooper, squad `p3` | behind e10 | columns 1 |
-| e13 | [13] | mg (nest `mg1`) | (22,39.5) | Post heading 90 (covers the south approach across the fjord), sweep 35, giro 180 |
+| e13 | [13] | mg (nest `mg1`) | (22,39.5) | Post heading 90 (covers the south approach across the fjord), sweep 35, giro 180. `structure: 'mg1'`: he looks out over his own sandbags (they never hide a raft crew or a crawler from him) |
 
 **Other data.**
 - **Zones:** none. Kildread: "the entire map is safe". Shouts and bodies still trigger local reactions, but there are no barracks.

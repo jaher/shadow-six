@@ -7,6 +7,7 @@
 
 import * as THREE from 'three';
 import { releaseDataAfterUpload } from '../../engine/texture-memory.js';
+import { compressArrayTexture } from '../../engine/gpu-compress.js';
 
 /** Load an image element (rejects on a 404 / decode error). */
 export function loadImage(url) {
@@ -21,8 +22,9 @@ export function loadImage(url) {
 
 /**
  * @param {string} url
- * @param {{tile?: number, srgb?: boolean, anisotropy?: number, wrap?: THREE.Wrapping, release?: boolean}} [o] release
- *   (default true): drop the pixel array after the first upload
+ * @param {{tile?: number, srgb?: boolean, anisotropy?: number, wrap?: THREE.Wrapping, release?: boolean, compress?: boolean, weights?: number[]}} [o]
+ *   release (default true): drop the pixel array after the first upload; compress (default true): BC7 / ASTC when the
+ *   device has it (engine/gpu-compress.js); weights: its per-channel error weights
  * @returns {Promise<THREE.DataArrayTexture>}
  */
 export async function loadLayerArray(url, o = {}) {
@@ -43,9 +45,17 @@ export async function loadLayerArray(url, o = {}) {
   t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter;
   t.generateMipmaps = true; t.anisotropy = o.anisotropy ?? 4;
   t.colorSpace = o.srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+  t.userData.url = url;
   t.needsUpdate = true;
+  // BC7 / ASTC on the GPU (engine/gpu-compress.js): a quarter of the memory; its levels leave page memory after the
+  // upload and a restored context decodes + encodes the strip again
+  if (o.compress !== false) {
+    if (o.weights) t.userData.compressWeights = o.weights;
+    await compressArrayTexture(t, { reload: () => loadLayerArray(url, { ...o, release: false, compress: false }) });
+    if (t.isCompressedTexture) return t;
+  }
   // the array is only read by the upload: drop it then (the session cache keeps the GPU copy for restarts); a restored
   // WebGL context decodes the strip again (engine/texture-memory.js)
-  if (o.release !== false) releaseDataAfterUpload(t, () => loadLayerArray(url, { ...o, release: false }));
+  if (o.release !== false) releaseDataAfterUpload(t, () => loadLayerArray(url, { ...o, release: false, compress: false }));
   return t;
 }

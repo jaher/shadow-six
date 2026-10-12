@@ -120,6 +120,8 @@ export class WaterSystem {
     s.rippleTexel.value = 1 / Q.ripple;
     s.causticsPatch.value = this.detail.patch;
     this.reflections = new Map(); // level → {rt, cam, matrix}
+    // plain (uncompressed) maps on purpose: the shader thresholds foam and detail-normal glints, which would magnify
+    // block-compression error (engine/gpu-compress.js compresses the material maps only)
     const loader = new THREE.TextureLoader();
     const base = this.opts.textureBase || new URL('../../../assets/water/', import.meta.url).href;
     if (!s.detailTex.value) {

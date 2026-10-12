@@ -270,7 +270,7 @@ if (flag('cycle')) {
         const r = row(cfg, id, s, l, b);
         r.bootGpu = boot.rep.gpu.total; r.bootHeap = boot.heap?.usedSize; r.startGpu = s0.rep.gpu.total; r.startTex = s0.rep.gpu.tex;
         rows.push(r);
-        details[id] = { bitmaps: s.rep.bitmaps, buckets: s.rep.buckets, topTex: s.rep.topTex, topBuf: s.rep.topBuf, dups: s.rep.dups, audio: s.rep.audio, info: s.info, cache: s.cache, errs: run.errs, bench: b, lastLoad: l.lastLoad };
+        details[id] = { bitmaps: s.rep.bitmaps, buckets: s.rep.buckets, topTex: s.rep.topTex, topBuf: s.rep.topBuf, topRb: s.rep.topRb, dups: s.rep.dups, audio: s.rep.audio, info: s.info, cache: s.cache, errs: run.errs, bench: b, lastLoad: l.lastLoad };
         printRow(r);
         break;
       } catch (e) {

@@ -13,6 +13,7 @@ import { libTextureURL } from './building-library.js';
 import { rng, seedOf, fbm } from './dressing.js';
 import { scopedMemo, pendingTextureBytes } from '../engine/scoped-assets.js';
 import { antiTile } from './anti-tiling.js';
+import { loadCompressedTexture } from '../engine/texture-memory.js';
 
 const HAS_DOM = typeof document !== 'undefined';
 
@@ -47,7 +48,7 @@ function tex(file, srgb) {
   const { url } = libTextureURL(file);
   // mission-scoped (engine/scoped-assets.js): freed once no kept mission uses it
   return scopedMemo('castle:tex', TEX, url + (srgb ? '|s' : ''), () => {
-    const t = new THREE.TextureLoader().load(url);
+    const t = loadCompressedTexture(url); // BC7 / ASTC on the GPU (engine/gpu-compress.js)
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = 8;
     if (srgb) t.colorSpace = THREE.SRGBColorSpace;
