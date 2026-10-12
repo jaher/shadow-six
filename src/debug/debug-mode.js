@@ -528,7 +528,10 @@ export class DebugMode {
     let started = false;
     try {
       const [sol, wtFile] = await Promise.all([loadSolution(id), loadWalkthrough(id).catch((e) => { console.warn(`[debug] ${id}.walkthrough.mjs failed to load`, e); return null; })]);
-      const ok = await this.launch(id, { instant: true, brief: false });
+      // a fresh start shows the LOADING screen and its progress bar (a shared link opens on a cold load: user
+      // 2026-10-12 "Add a quick way to see the state of loading with a loading bar when sending that link");
+      // a jump back reloads instantly (warm, from the session cache) and fast-forwards
+      const ok = await this.launch(id, { instant: !!toMarker, brief: false });
       if (!ok || !this.game.world || this.currentId !== id) throw new Error(`mission ${id} did not load`);
       if (this.game.state === 'paused') this.game.pause(false);
       const r = new W.Walkthrough(this.game, sol, wtFile, {
