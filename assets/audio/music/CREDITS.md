@@ -8,7 +8,9 @@ AI-generated audio, no third-party recordings. Nothing quotes or paraphrases the
 motif M4 was rewritten in STYLE rev 2 after it matched a famous film head). A human listen against the Commandos
 albums is still recommended. Licence of the music: same as the project.
 
-Formats: `<cue>.ogg` (Vorbis q5, 48 kHz) and `<cue>.mp3` (128 kb/s, Safari). WAV masters stay outside the repo.
+Formats: each cue streams as 8 s chunks `<cue>/<k>.ogg` (Opus 96 kb/s stereo) and `<cue>/<k>.m4a` (AAC-LC 128 kb/s,
+Safari / iOS), encoded from the 24-bit WAV masters by `tools/audio/web_formats.py` (mission_tension_a, whose master
+was not kept, from its Vorbis q5 release at Opus 128 / AAC 160 kb/s). WAV masters stay outside the repo.
 Loudness: front end −18 LUFS, briefings −20, stingers −16, mission score −22 (alert −19); true peak ≤ −1 dBTP.
 `manifest.json` lists every cue's files, loop points (seconds and samples @ 48 kHz), category, gain, key and tempo.
 

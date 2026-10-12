@@ -42,6 +42,8 @@ export default async function stabCry(page, t) {
   t.ok(setup.ok !== false && setup.stab != null, 'knife order accepted, stab started');
   t.ok(setup.decoded?.every((d) => d > 0.2), `stab cries decoded for the mission (${setup.decoded})`);
   await page.waitForTimeout(1200); // let anything still sounding on the voice bus die away
+  // …including a line that started a few ms late (spoken lines decode on first use: engine.playVoice)
+  await page.waitForFunction(() => { const e = window.__game.game.audio.engine; return ![...e.active, ...e.pending].some((h) => h.bus === 'voice' && !h.ended); }, null, { timeout: 8000 });
   const r = await page.evaluate(async () => {
     const g = window.__game, a = g.game.audio, S = window.__sc, ctx = a.engine.ctx;
     const code = `class Tap extends AudioWorkletProcessor {
@@ -73,9 +75,11 @@ export default async function stabCry(page, t) {
     node.port.postMessage('stop');
     a.engine.bus.voice.disconnect(node);
     // analysis: 1024-pt frames, hop 10 ms; level (dBFS RMS) and the 250 Hz–4 kHz share of the energy
+    // each 128-frame block at its own render time (the worklet can skip a block or two: placing them by index would
+    // shift everything after the gap ~10 ms early, enough to read the cry's first samples as "before the hit")
     const sr = ctx.sampleRate, t0 = chunks[0].t;
-    const x = new Float32Array(chunks.length * 128);
-    chunks.forEach((c, i) => x.set(c.d, i * 128));
+    const x = new Float32Array(Math.round((chunks.at(-1).t - t0) * sr) + 128);
+    for (const c of chunks) x.set(c.d, Math.min(x.length - 128, Math.round((c.t - t0) * sr)));
     const N = 1024, hop = Math.round(sr * 0.01), frames = [];
     const re = new Float64Array(N), im = new Float64Array(N);
     const fft = () => {

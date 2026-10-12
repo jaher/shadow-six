@@ -4,17 +4,22 @@
  * one per caption of the Colonel's map tour (shared by all missions, found by text). Clips run
  * through their own gain (Options → Sound → NARRATION VOLUME) into the voice bus, so VOICES and MASTER also apply,
  * and while one plays the music director ducks the score (audio.js _musicTick).
+ * Memory: a briefing's clips are downloaded compressed; only the clip being read and the next one are decoded (at
+ * NARRATION_RATE), and everything goes when the briefing is over (release).
  * @module audio/narration
  */
 
-export const NARRATION_MANIFEST = 'narration/manifest.json';
+import { pickAudio, aacTwin, useAacAfterFailure } from './formats.js';
 
-/** Opus/OGG where the browser plays it, else MP3 (Safari). */
-export function pickNarrationFile(files = [], canOgg = defaultCanOgg()) {
-  return files.find((f) => (canOgg ? /\.ogg$/ : /\.mp3$/).test(f)) || files[0] || null;
-}
-function defaultCanOgg() {
-  try { return typeof Audio === 'undefined' || !!new Audio().canPlayType?.('audio/ogg; codecs=opus'); } catch { return false; }
+export const NARRATION_MANIFEST = 'narration/manifest.json';
+/** Clips decode at this rate (the period-processed voice holds nothing above 11 kHz; 32 kHz keeps images above 20 kHz). */
+export const NARRATION_RATE = 32000;
+/** Clips decoded past the one being read (the rest of the reading is kept compressed: a few hundred KB). */
+export const NARRATION_AHEAD = 1;
+
+/** This browser's file of a clip's [ogg, m4a] (audio/formats.js). */
+export function pickNarrationFile(files = []) {
+  return pickAudio(files);
 }
 
 export class Narrator {
@@ -23,11 +28,14 @@ export class Narrator {
     this.engine = engine;
     this.manifest = null;
     this.loading = null;
-    this.buffers = new Map(); // url → AudioBuffer | 'pending' | 'failed'
+    this.buffers = new Map(); // url → AudioBuffer | 'pending' | 'failed' (only the clip being read and the next one)
+    this.packed = new Map(); // url → Promise<ArrayBuffer|null>: this briefing's clips, compressed
+    this.decoding = new Map(); // url → Promise<boolean>
     this.volume = 1;
     this.cur = null; // the playing clip handle
     this.session = false; // a briefing reading is under way (set by the briefing): the music stays ducked between lines
-    this._tour = []; // the current briefing's tour captions (their PCM is kept with the mission's)
+    this._mission = []; // the current briefing's lines
+    this._tour = []; // the current briefing's tour captions
     const ctx = engine.ctx;
     this.gain = ctx.createGain();
     this.gain.connect(engine.bus.voice);
@@ -57,49 +65,109 @@ export class Narrator {
     return this.manifest?.tour?.lines?.find((l) => l.text === text) || null;
   }
 
-  /** Decode every clip of a mission. @returns {Promise<boolean>} true when all decoded */
+  /**
+   * Get a mission's reading ready: every clip downloaded (compressed), the first ones decoded; the others decode one
+   * line ahead of the voice. @returns {Promise<boolean>} true when the first clip is ready
+   */
   async prefetch(missionId) {
     await this.load();
     const ls = this.lines(missionId);
     if (!ls?.length) return false;
-    this._retain(ls, this._tour);
-    const ok = await Promise.all(ls.map((l) => this._decode(pickNarrationFile(l.files))));
-    return ok.every(Boolean);
+    this._mission = ls;
+    this._retain();
+    await Promise.all(ls.map((l) => this._pack(pickNarrationFile(l.files))));
+    return this._ahead(ls, 0);
   }
 
   /**
-   * Decode the clips of a briefing's tour captions (those that were recorded). The mission's own clips stay.
-   * @param {string[]} texts @returns {Promise<number>} how many of the captions have a decoded clip
+   * The same for a briefing's tour captions (those that were recorded). The mission's own clips stay.
+   * @param {string[]} texts @returns {Promise<number>} how many of the captions have a clip
    */
   async prefetchTour(texts) {
     await this.load();
     const ls = texts.map((t) => this.tourLine(t)).filter(Boolean);
     this._tour = ls;
-    const ok = await Promise.all(ls.map((l) => this._decode(pickNarrationFile(l.files))));
-    return ok.filter(Boolean).length;
+    this._retain();
+    const got = await Promise.all(ls.map((l) => this._pack(pickNarrationFile(l.files))));
+    if (ls.length) await this._ahead(ls, 0);
+    return got.filter(Boolean).length;
   }
 
-  /** Keep only these lines' decoded PCM (one briefing at a time). */
-  _retain(...sets) {
-    const keep = new Set(sets.flat().filter(Boolean).map((l) => pickNarrationFile(l.files)));
-    for (const k of [...this.buffers.keys()]) if (!keep.has(k)) this.buffers.delete(k);
+  /** Keep only this briefing's clips (one briefing at a time). */
+  _retain() {
+    const keep = new Set([...this._mission, ...this._tour].map((l) => pickNarrationFile(l.files)));
+    for (const m of [this.buffers, this.packed]) for (const k of [...m.keys()]) if (!keep.has(k)) m.delete(k);
+  }
+
+  /** The briefing is over (the mission plays, or back to the menus): every clip goes. */
+  release() {
+    this.stop(0.05);
+    this._mission = []; this._tour = [];
+    this.buffers.clear(); this.packed.clear();
+  }
+
+  /** Line i of `list` is being read: decode it and the next NARRATION_AHEAD, free the others. @returns {Promise<boolean>} */
+  _ahead(list, i) {
+    const keep = new Set();
+    for (let k = i; k <= i + NARRATION_AHEAD && k < list.length; k++) keep.add(pickNarrationFile(list[k].files));
+    for (const l of list) {
+      const f = pickNarrationFile(l.files);
+      if (!keep.has(f) && typeof this.buffers.get(f) === 'object') this.buffers.delete(f);
+    }
+    const first = list[i] ? this._decode(pickNarrationFile(list[i].files)) : Promise.resolve(false);
+    for (const f of keep) this._decode(f);
+    return first;
+  }
+
+  /** Compressed bytes of a clip (cached). */
+  _pack(file) {
+    if (!file) return Promise.resolve(null);
+    let p = this.packed.get(file);
+    if (!p) {
+      const e = this.engine;
+      p = (async () => {
+        try {
+          const r = await e.fetch(e.base + file);
+          return r.ok ? await r.arrayBuffer() : null;
+        } catch { return null; }
+      })();
+      this.packed.set(file, p);
+    }
+    return p;
   }
 
   async _decode(file) {
     if (!file) return false;
     const got = this.buffers.get(file);
     if (got && got !== 'pending') return got !== 'failed';
+    if (this.decoding.has(file)) return this.decoding.get(file);
     const e = this.engine;
     this.buffers.set(file, 'pending');
-    try {
-      const r = await e.fetch(e.base + file);
-      if (!r.ok) throw new Error(r.status);
-      this.buffers.set(file, await e.ctx.decodeAudioData(await r.arrayBuffer()));
-      return true;
-    } catch {
-      this.buffers.set(file, 'failed');
-      return false;
+    const p = (async () => {
+      let buf = null;
+      try { buf = await this._decodeBytes(await this._pack(file)); } catch { buf = null; }
+      const bytes = this.packed.get(file) ? await this.packed.get(file) : null;
+      if (!buf && bytes) { // an Ogg that downloaded but did not decode: its AAC twin (when that decodes, the page switches to AAC)
+        const twin = aacTwin(e.base + file);
+        if (twin) { try { const r = await e.fetch(twin); if (r.ok) { buf = await this._decodeBytes(await r.arrayBuffer()); useAacAfterFailure(); } } catch { buf = null; } }
+      }
+      this.decoding.delete(file);
+      if (this.buffers.get(file) !== 'pending') return !!buf; // released meanwhile
+      this.buffers.set(file, buf || 'failed');
+      return !!buf;
+    })();
+    this.decoding.set(file, p);
+    return p;
+  }
+
+  async _decodeBytes(ab) {
+    if (!ab) throw new Error('no clip');
+    const ctx = this.engine.ctx;
+    const OAC = globalThis.OfflineAudioContext || globalThis.webkitOfflineAudioContext;
+    if (OAC && NARRATION_RATE < (ctx.sampleRate || 48000)) {
+      try { return await new OAC(1, 1, NARRATION_RATE).decodeAudioData(ab.slice(0)); } catch { /* the context's rate */ }
     }
+    return ctx.decodeAudioData(ab.slice(0));
   }
 
   /** True when clip i of a mission is decoded and can start now. */
@@ -107,55 +175,80 @@ export class Narrator {
     return this.lineState(this.lines(missionId)?.[i]) === 'ready';
   }
 
-  /** A line's clip: 'ready' (decoded), 'pending' (decoding), 'failed', or 'none' (not requested / no line). */
+  /**
+   * A line's clip: 'ready' (decoded), 'pending' (decoding), 'failed', or 'none' (not part of this briefing). Asking
+   * about a clip of this briefing that is not decoded starts its decode.
+   */
   lineState(line) {
-    const b = line && this.buffers.get(pickNarrationFile(line.files));
-    if (!b) return 'none';
+    const f = line && pickNarrationFile(line.files);
+    const b = f && this.buffers.get(f);
+    if (!b) {
+      if (f && this.packed.has(f)) { this._decode(f); return 'pending'; }
+      return 'none';
+    }
     return typeof b === 'object' ? 'ready' : b;
   }
 
   /**
    * Start clip i of a mission (stopping any other). @returns {{t0:number, duration:number, ended:boolean,
-   * elapsed:()=>number, stop:(fade?:number)=>void}|null} null when the clip is not decoded
+   * elapsed:()=>number, stop:(fade?:number)=>void}|null} null when the clip has no recording
    */
   play(missionId, i) {
-    return this.playLine(this.lines(missionId)?.[i]);
+    const ls = this.lines(missionId);
+    if (ls && ls === this._mission) this._ahead(ls, i);
+    return this.playLine(ls?.[i]);
   }
 
-  /** Start a manifest line's clip (a mission line or a tour caption), stopping any other; null when not decoded. */
+  /**
+   * Start a manifest line's clip (a mission line or a tour caption), stopping any other. A clip still decoding (the
+   * reader skipped ahead) starts as soon as it has decoded: the handle's `elapsed()` stays 0 until then.
+   * null when the clip has no recording or failed to decode.
+   */
   playLine(l) {
     this.cur?.stop(0.05); // the reading (session) goes on: the music stays ducked from one line to the next
     this.cur = null;
-    const buf = l && this.buffers.get(pickNarrationFile(l.files));
-    if (!buf || typeof buf !== 'object') return null;
+    if (!l) return null;
+    const ti = this._tour.indexOf(l);
+    if (ti >= 0) this._ahead(this._tour, ti);
+    const file = pickNarrationFile(l.files);
+    const buf = this.buffers.get(file);
+    if (!file || buf === 'failed') return null;
     const ctx = this.engine.ctx;
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
     const g = ctx.createGain();
-    src.connect(g);
     g.connect(this.gain);
-    const t0 = ctx.currentTime ?? 0;
     const h = {
-      t0, duration: buf.duration ?? l.duration, ended: false, src, g,
-      elapsed: () => (ctx.currentTime ?? 0) - t0,
+      t0: null, duration: l.duration, ended: false, src: null, g,
+      elapsed: () => (h.t0 == null ? 0 : (ctx.currentTime ?? 0) - h.t0),
       stop: (fade = 0.15) => {
         if (h.ended) return;
         h.ended = true;
+        if (!h.src) return;
         const now = ctx.currentTime ?? 0;
         try {
           g.gain.setValueAtTime?.(g.gain.value, now);
           g.gain.linearRampToValueAtTime?.(0, now + fade);
-          src.stop(now + fade + 0.02);
+          h.src.stop(now + fade + 0.02);
         } catch { /* already stopped */ }
       },
     };
-    src.onended = () => { h.ended = true; if (this.cur === h) this.cur = null; };
-    src.start?.(t0);
+    const start = (b) => {
+      if (h.ended) return;
+      const src = ctx.createBufferSource();
+      src.buffer = b;
+      src.connect(g);
+      h.src = src;
+      h.t0 = ctx.currentTime ?? 0;
+      h.duration = b.duration ?? l.duration;
+      src.onended = () => { h.ended = true; if (this.cur === h) this.cur = null; };
+      src.start?.(h.t0);
+    };
+    if (buf && typeof buf === 'object') start(buf);
+    else this._decode(file).then((ok) => { const b = this.buffers.get(file); if (ok && typeof b === 'object') start(b); else h.ended = true; });
     this.cur = h;
     return h;
   }
 
-  /** True while a clip is sounding. */
+  /** True while a clip is sounding (or about to: decoding). */
   get speaking() {
     const h = this.cur;
     return !!h && !h.ended && h.elapsed() < h.duration;

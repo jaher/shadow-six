@@ -7,8 +7,11 @@ Inputs (the R&D scratchpad; restore from commandos-rnd-backup if /tmp was cleare
     realism/audio/out/web/sfx/   sfx_build.py output: 512 CC0 files + manifest.json (Freesound CC0 + Kenney CC0)
     voices/final/ + manifest.json  Kokoro-82M (Apache-2.0) / Chatterbox (MIT) barks with word/viseme timing
 Outputs:
-    assets/audio/sfx/manifest.json + <category>/*.{ogg,mp3}   one-shots, loops, streamed beds (mode 'bed')
-    assets/audio/voice/lines.json + <speaker>/<take>/*.{ogg,mp3,json}
+    assets/audio/sfx/manifest.json + <category>/*.{ogg,m4a}   one-shots, loops, streamed beds (mode 'bed')
+    assets/audio/voice/lines.json + <speaker>/<take>/*.{ogg,m4a,json}
+Formats (audio footprint pass): Opus .ogg for Chrome / Firefox / Android, AAC-LC .m4a for WebKit (src/audio/formats.js).
+Then run tools/audio/web_formats.py --only sfxsrc (with the R&D venv python): it re-encodes the SFX from their lossless
+sources (one channel where the two are the same, silence trimmed, the Opus rate matched to each sound).
     assets/audio/CREDITS.md                                     one row per shipped source sound
 Licence gate (realism-pipeline v2 §1.5.1 "Provenance rejects"): EXCLUDE_IDS never ship.
 """
@@ -46,6 +49,7 @@ KENNEY = {
     'select': 'k_ui_select', 'error': 'k_ui_error', 'toggle': 'k_ui_toggle', 'switch': 'k_ui_switch',
     'tick': 'k_ui_tick', 'scratch': 'k_ui_scratch', 'confirmation': 'k_ui_confirm', 'click': 'k_ui_click',
 }
+ENC = None  # the encoder (main)
 VOICE_SPEAKERS = {'green_beret': 'greenberet', 'sniper': 'sniper', 'marine': 'diver', 'sapper': 'sapper',
                   'driver': 'driver', 'spy': 'spy', 'german_1': 'ger', 'german_2': 'ger', 'german_3': 'ger'}
 
@@ -75,12 +79,15 @@ class Enc:
         subprocess.run([self.ff, '-hide_banner', '-loglevel', 'error', '-y', *args], check=True)
 
     def encode(self, src, dst_base, stereo=False, kbps=None):
-        """src (any format) → dst_base.ogg (Opus) + dst_base.mp3; returns [ogg, mp3] basenames."""
+        """src (any format) → dst_base.ogg (Opus) + dst_base.m4a (AAC, WebKit); returns [ogg, m4a] basenames."""
         ch = '2' if stereo else '1'
         ob = kbps or (96 if stereo else 64)
         self.run('-i', src, '-ac', ch, '-ar', '48000', '-c:a', 'libopus', '-b:a', f'{ob}k', '-vbr', 'on', dst_base + '.ogg')
-        self.run('-i', src, '-ac', ch, '-ar', '44100', '-c:a', 'libmp3lame', '-b:a', f'{ob + (32 if stereo else 0)}k', dst_base + '.mp3')
-        return [os.path.basename(dst_base) + '.ogg', os.path.basename(dst_base) + '.mp3']
+        self.aac(src, dst_base + '.m4a', 128 if stereo else 96, ch)
+        return [os.path.basename(dst_base) + '.ogg', os.path.basename(dst_base) + '.m4a']
+
+    def aac(self, src, dst, kbps, ch='1', sr=48000):
+        self.run('-i', src, '-ac', str(ch), '-ar', str(sr), '-c:a', 'aac', '-b:a', f'{kbps}k', '-movflags', '+faststart', dst)
 
     def decode(self, src):
         p = subprocess.run([self.ff, '-hide_banner', '-loglevel', 'error', '-i', src, '-ac', '1', '-ar', str(SR),
@@ -125,14 +132,10 @@ def build_sfx(src, out, enc, credits):
             e = {'id': f'{kcat}/{name}', 'category': kcat, 'mode': 'shot', 'files': [f'{kcat}/{f}' for f in files]}
         else:
             os.makedirs(os.path.join(out, cat), exist_ok=True)
-            files = []
-            for f in s['files']:
-                shutil.copyfile(os.path.join(src, f), os.path.join(out, f))
-                files.append(f)
-            if not any(f.endswith('.mp3') for f in files):
-                base = os.path.join(out, ogg[:-4])
-                enc.run('-i', os.path.join(src, ogg), '-ar', '44100', '-c:a', 'libmp3lame', '-b:a', '96k', base + '.mp3')
-                files.append(ogg[:-4] + '.mp3')
+            shutil.copyfile(os.path.join(src, ogg), os.path.join(out, ogg))
+            stereo = s.get('channels') == 2
+            enc.aac(os.path.join(src, ogg), os.path.join(out, ogg[:-4] + '.m4a'), 128 if stereo else 96, 2 if stereo else 1)
+            files = [ogg, ogg[:-4] + '.m4a']
             mode = 'bed' if cat in BED_CATEGORIES else s['mode']
             e = {'id': s['id'], 'category': cat, 'mode': mode, 'files': files, 'loop': mode in ('loop', 'bed')}
         e['duration'] = s.get('duration')
@@ -210,16 +213,20 @@ def build_voices(src, out, credits):
                     continue
                 d = os.path.join(out, char, take)
                 os.makedirs(d, exist_ok=True)
-                for k in ('ogg', 'mp3', 'timing'):
+                for k in ('ogg', 'timing'):
                     shutil.copyfile(os.path.join(base, ff[k]), os.path.join(d, os.path.basename(ff[k])))
+                # AAC twin for WebKit: from the WAV master when there is one, else the Opus take (speech: < 12 kHz)
+                stem = os.path.basename(ff['ogg'])[:-4]
+                wav = os.path.join(base, ff['ogg'][:-4] + '.wav')
+                ENC.aac(wav if os.path.exists(wav) else os.path.join(base, ff['ogg']), os.path.join(d, stem + '.m4a'), 40, 1, 24000)
                 key = 'files' if take == 'primary' else 'alt'
-                row[key] = [f'{char}/{take}/{os.path.basename(ff["ogg"])}', f'{char}/{take}/{os.path.basename(ff["mp3"])}']
+                row[key] = [f'{char}/{take}/{stem}.ogg', f'{char}/{take}/{stem}.m4a']
                 if take == 'primary':
                     row['timing'] = f'{char}/{take}/{os.path.basename(ff["timing"])}'
             lines.append(row)
         credits.append({'site': 'tts', 'title': f'{c["name"]}: {c.get("voice", "")}', 'author': 'SHADOW SIX (TTS)',
                         'license': 'project output of Apache-2.0 / MIT models', 'url': 'docs/realism-pipeline.md §1.5.2'})
-    return {'format': 'rec lines: {speaker, voice, rec, text, files:[ogg,mp3], alt?, timing}; see src/audio/voice-lines.js REC',
+    return {'format': 'rec lines: {speaker, voice, rec, text, files:[ogg,m4a], alt?, timing}; see src/audio/voice-lines.js REC',
             'engines': man.get('licenses', {}), 'lines': lines}
 
 
@@ -254,7 +261,8 @@ def write_credits(path, sfx_sounds, dropped):
     L = ['# Audio credits (generated by tools/audio/build_assets.py)', '',
          'Every shipped sound, one row per source recording. All sources are CC0-1.0 (Freesound pages were',
          're-checked live on 2026-09-26, including the description for derived material) or project output.',
-         'Freesound files are the HQ previews, trimmed / split / loudness-normalised and re-encoded to Opus + MP3.', '',
+         'Freesound files are the HQ previews, trimmed / split / loudness-normalised and encoded to Opus + AAC',
+         '(one format per browser; tools/audio/web_formats.py).', '',
          '| Categories | Files | Title | Author | Source | Licence |', '| --- | --- | --- | --- | --- | --- |']
     L += credit_rows(sfx_sounds)
     L += ['', '## Voices', '',
@@ -310,7 +318,8 @@ def main():
     ap.add_argument('--ffmpeg')
     ap.add_argument('--proc-only', nargs='*', metavar='BED', help='re-render only these procedural beds (tools/audio/procedural_beds.py; none listed = all)')
     a = ap.parse_args()
-    enc = Enc(find_ffmpeg(a.ffmpeg))
+    global ENC
+    enc = ENC = Enc(find_ffmpeg(a.ffmpeg))
     out = os.path.join(REPO, 'assets', 'audio')
     if a.proc_only is not None:
         return proc_only(out, enc, a.proc_only)

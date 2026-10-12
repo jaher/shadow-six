@@ -186,6 +186,8 @@ async function loadMission(run, id) {
     await window.__game.loadMission(m);
     const loadMs = performance.now() - t;
     await Promise.race([Promise.all([G.hud?.portraitsReady, G.audio?.preloading].filter(Boolean)), new Promise((ok) => setTimeout(ok, 10000))]);
+    // the briefing's newsreel narration (what the briefing screen prefetches before it reads)
+    await Promise.race([G.audio?.narrator?.prefetch?.(m), new Promise((ok) => setTimeout(ok, 10000))]);
     return { loadMs, lastLoad: G.lastLoad || null };
   }, id);
   r.wallMs = Date.now() - t0;
@@ -195,7 +197,8 @@ async function loadMission(run, id) {
   polling = false;
   await poll;
   const bytes = run.rec.filter((x) => x.phase === 'mission:' + id).reduce((a, x) => a + x.bytes, 0);
-  return { ...r, peak, downloadBytes: bytes, files: run.rec.filter((x) => x.phase === 'mission:' + id).length };
+  const audioBytes = run.rec.filter((x) => x.phase === 'mission:' + id && /\/assets\/audio\//.test(x.url)).reduce((a, x) => a + x.bytes, 0);
+  return { ...r, peak, downloadBytes: bytes, audioDownload: audioBytes, files: run.rec.filter((x) => x.phase === 'mission:' + id).length };
 }
 
 async function bench(page) {
@@ -213,7 +216,7 @@ async function bench(page) {
 const MB = (b) => (b == null ? '—' : (b / 1048576).toFixed(0));
 function row(cfg, id, s, l, b) {
   const h = s.heap || {};
-  return { cfg, id, jsHeap: h.usedSize, backing: h.backingStorageSize, gpu: s.rep.gpu.total, gpuTex: s.rep.gpu.tex, gpuBuf: s.rep.gpu.buf, gpuRb: s.rep.gpu.rb + s.rep.gpu.canvas, audio: s.rep.audio.total, bitmaps: s.rep.bitmaps?.bytes,
+  return { cfg, id, jsHeap: h.usedSize, backing: h.backingStorageSize, gpu: s.rep.gpu.total, gpuTex: s.rep.gpu.tex, gpuBuf: s.rep.gpu.buf, gpuRb: s.rep.gpu.rb + s.rep.gpu.canvas, audio: s.rep.audio.total, audioBy: Object.fromEntries((s.rep.audio.buckets || []).map((b) => [b.k, b.bytes])), audioDownload: l?.audioDownload, bitmaps: s.rep.bitmaps?.bytes,
     cache: s.cache.bytes, cacheEntries: s.cache.entries, rendererPss: s.proc?.rendererPss, gpuPss: s.proc?.gpuPss, vram: s.proc?.vram, peak: l?.peak, download: l?.downloadBytes, loadMs: l?.loadMs, frame: b?.z1?.wall, frameZ05: b?.z05?.wall, gpuMs: b?.z1?.gpu, bitmaps: s.rep.bitmaps?.bytes, ntex: s.rep.gpu.ntex, infoTex: s.info.textures, infoGeo: s.info.geometries };
 }
 function printRow(r) {

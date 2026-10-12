@@ -16,10 +16,11 @@ export default async function musicFront(page, t) {
 
   // ---- audio assets budget (node side) ----
   const dir = new URL('../assets/audio/music/', import.meta.url);
+  const files = readdirSync(dir, { recursive: true }).map(String).filter((f) => /\.\w+$/.test(f));
   let total = 0;
-  for (const f of readdirSync(dir)) total += statSync(new URL(f, dir)).size;
+  for (const f of files) total += statSync(new URL(f, dir)).size;
   t.ok(total < 80e6, `music folder ${(total / 1e6).toFixed(1)} MB < 80 MB`);
-  t.ok(!readdirSync(dir).some((f) => /\.wav$/i.test(f)), 'no WAV masters shipped');
+  t.ok(!files.some((f) => /\.(wav|mp3)$/i.test(f)), 'no WAV masters / MP3 shipped');
 
   // ---- campaign map theme by theater ----
   const map = await poll(async () => {
@@ -27,8 +28,8 @@ export default async function musicFront(page, t) {
     await a.engine?.ready;
     a.music('campaign_africa');
     const d = a.musicDir.debug();
-    const buf = a.musicDir.ready?.get('campaign_africa')?.buffer;
-    return { ok: d.bed === 'campaign_africa' && d.playing.includes('campaign_africa') && !!buf, bed: d.bed, playing: d.playing, dur: buf?.duration };
+    const cue = [...a.musicDir.handles].find((h) => h.id === 'campaign_africa' && !h.ended)?.stream?.cue;
+    return { ok: d.bed === 'campaign_africa' && d.playing.includes('campaign_africa') && !!cue?.decoded.size, bed: d.bed, playing: d.playing, dur: cue?.duration };
   });
   t.log(JSON.stringify(map));
   t.ok(map.ok, 'campaign map plays the North Africa theme');
@@ -42,9 +43,9 @@ export default async function musicFront(page, t) {
   });
   const brief = await poll((mark) => {
     const g = window.__game.game, a = g.audio, d = a.musicDir.debug();
-    const src = [...a.musicDir.handles].find((h) => h.id === 'briefing_1' && !h.ended)?.src;
-    return { ok: g.flow.state === 'briefing' && d.bed === 'briefing_1' && d.playing.includes('briefing_1') && !!src?.loop,
-      state: g.flow.state, bed: d.bed, playing: d.playing, loop: src && [src.loopStart, src.loopEnd],
+    const v = [...a.musicDir.handles].find((h) => h.id === 'briefing_1' && !h.ended)?.stream; // streamed: audio/music-stream.js
+    return { ok: g.flow.state === 'briefing' && d.bed === 'briefing_1' && d.playing.includes('briefing_1') && !!v?.loop,
+      state: g.flow.state, bed: d.bed, playing: d.playing, loop: v && [v.cue.loopStart, v.cue.loopEnd],
       asked: a.log.slice(mark).filter((l) => l.type === 'music').map((l) => l.name) };
   }, 20000, mark);
   t.log(JSON.stringify(brief));

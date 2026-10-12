@@ -36,20 +36,21 @@ def clip(info):
     """copy one clip's 256 tier; returns the trimmed manifest entry"""
     base = info['clip'].replace('{size}', str(SIZE))
     n = sum(copy(f'{base}.{ext}') for ext in ('webm', 'mp4', 'jpg'))
-    out = {k: v for k, v in info.items() if k not in ('kb', 'voice', 'voice_mp3', 'alt')}
+    out = {k: v for k, v in info.items() if k not in ('kb', 'voice', 'voice_mp3', 'voice_m4a', 'alt')}
     out['kb'] = {str(SIZE): info['kb'][str(SIZE)]}
     return out, n
 
 
 def voice(char, take, line, info, out):
     """point the entry's voice at the audio pack when identical, else ship a copy"""
-    for key, ext in (('voice', 'ogg'), ('voice_mp3', 'mp3')):
-        if key not in info: continue
-        pack = f'{VOICE}/{char}/{take}/{line}.{ext}'
-        if md5(pack) and md5(pack) == md5(f"{SRC}/{info[key]}"):
-            out[key] = f'../audio/voice/{char}/{take}/{line}.{ext}'
-        else:
-            copy(info[key]); out[key] = info[key]
+    if 'voice' not in info: return
+    pack = f'{VOICE}/{char}/{take}/{line}.ogg'
+    if md5(pack) and md5(pack) == md5(f"{SRC}/{info['voice']}"):
+        # the pack's Opus take, and its AAC twin for WebKit (tools/audio/web_formats.py)
+        out['voice'] = f'../audio/voice/{char}/{take}/{line}.ogg'
+        out['voice_m4a'] = f'../audio/voice/{char}/{take}/{line}.m4a'
+    else:
+        copy(info['voice']); out['voice'] = info['voice']
 
 
 def main():

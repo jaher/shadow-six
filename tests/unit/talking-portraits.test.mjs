@@ -53,7 +53,7 @@ test('portraits: every rendered take has its clip (primary + urgent alt); other 
 
 test('portraits: voice paths resolve (audio pack, identical files) and the set fits its budget', () => {
   for (const e of Object.values(man.characters)) for (const x of Object.values(e.lines)) for (const y of [x, x.alt].filter(Boolean)) {
-    for (const k of ['voice', 'voice_mp3']) assert.ok(existsSync(join(P, y[k])), `${y[k]}`);
+    for (const k of ['voice', 'voice_m4a']) assert.ok(existsSync(join(P, y[k])), `${y[k]}`);
     assert.ok(y.lead > 0 && y.voice_seconds > 0.3 && y.seconds > y.voice_seconds, `${y.clip} timing`);
   }
   const mb = du(P) / 1048576;

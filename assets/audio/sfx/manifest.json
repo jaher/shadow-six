@@ -7,7 +7,7 @@
    "mode": "bed",
    "files": [
     "artillery_period/artillery_period_438693_0.ogg",
-    "artillery_period/artillery_period_438693_0.mp3"
+    "artillery_period/artillery_period_438693_0.m4a"
    ],
    "loop": true,
    "duration": 30.0,
@@ -22,7 +22,9 @@
     "fetched": "https://cdn.freesound.org/previews/438/438693_2524442-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 700724
+   "bytes": 355277,
+   "mono": true,
+   "opus_kbps": 40
   },
   {
    "id": "artillery_period/artillery_period_675609_0",
@@ -30,7 +32,7 @@
    "mode": "bed",
    "files": [
     "artillery_period/artillery_period_675609_0.ogg",
-    "artillery_period/artillery_period_675609_0.mp3"
+    "artillery_period/artillery_period_675609_0.m4a"
    ],
    "loop": true,
    "duration": 30.0,
@@ -45,7 +47,9 @@
     "fetched": "https://cdn.freesound.org/previews/675/675609_2524442-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 707464
+   "bytes": 447861,
+   "mono": true,
+   "opus_kbps": 48
   },
   {
    "id": "birds/birds_466073_0",
@@ -53,14 +57,14 @@
    "mode": "bed",
    "files": [
     "birds/birds_466073_0.ogg",
-    "birds/birds_466073_0.mp3"
+    "birds/birds_466073_0.m4a"
    ],
    "loop": true,
    "duration": 30.0,
    "source": {
     "site": "freesound.org",
     "id": 466073,
-    "title": "BIRDS IN COUNTRYSIDE \u2013 2",
+    "title": "BIRDS IN COUNTRYSIDE – 2",
     "author": "SamuelGremaud",
     "url": "https://freesound.org/people/SamuelGremaud/sounds/466073/",
     "license": "CC0-1.0",
@@ -68,7 +72,8 @@
     "fetched": "https://cdn.freesound.org/previews/466/466073_8031303-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 803945
+   "bytes": 810967,
+   "opus_kbps": 96
   },
   {
    "id": "body_fall/body_fall_264062_0",
@@ -76,7 +81,7 @@
    "mode": "shot",
    "files": [
     "body_fall/body_fall_264062_0.ogg",
-    "body_fall/body_fall_264062_0.mp3"
+    "body_fall/body_fall_264062_0.m4a"
    ],
    "loop": false,
    "duration": 1.328,
@@ -91,7 +96,8 @@
     "fetched": "https://cdn.freesound.org/previews/264/264062_2971294-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 27113
+   "bytes": 27842,
+   "opus_kbps": 64
   },
   {
    "id": "body_fall/body_fall_454418_0",
@@ -99,7 +105,7 @@
    "mode": "shot",
    "files": [
     "body_fall/body_fall_454418_0.ogg",
-    "body_fall/body_fall_454418_0.mp3"
+    "body_fall/body_fall_454418_0.m4a"
    ],
    "loop": false,
    "duration": 0.716,
@@ -114,7 +120,8 @@
     "fetched": "https://cdn.freesound.org/previews/454/454418_612689-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 15641
+   "bytes": 16561,
+   "opus_kbps": 64
   },
   {
    "id": "body_fall/body_fall_853591_0",
@@ -122,7 +129,7 @@
    "mode": "shot",
    "files": [
     "body_fall/body_fall_853591_0.ogg",
-    "body_fall/body_fall_853591_0.mp3"
+    "body_fall/body_fall_853591_0.m4a"
    ],
    "loop": false,
    "duration": 0.847,
@@ -137,7 +144,8 @@
     "fetched": "https://cdn.freesound.org/previews/853/853591_6775466-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 17412
+   "bytes": 18047,
+   "opus_kbps": 64
   },
   {
    "id": "body_fall/body_fall_853591_1",
@@ -145,7 +153,7 @@
    "mode": "shot",
    "files": [
     "body_fall/body_fall_853591_1.ogg",
-    "body_fall/body_fall_853591_1.mp3"
+    "body_fall/body_fall_853591_1.m4a"
    ],
    "loop": false,
    "duration": 0.576,
@@ -160,7 +168,8 @@
     "fetched": "https://cdn.freesound.org/previews/853/853591_6775466-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 12321
+   "bytes": 13105,
+   "opus_kbps": 64
   },
   {
    "id": "body_fall/body_fall_853591_2",
@@ -168,7 +177,7 @@
    "mode": "shot",
    "files": [
     "body_fall/body_fall_853591_2.ogg",
-    "body_fall/body_fall_853591_2.mp3"
+    "body_fall/body_fall_853591_2.m4a"
    ],
    "loop": false,
    "duration": 0.61,
@@ -183,7 +192,8 @@
     "fetched": "https://cdn.freesound.org/previews/853/853591_6775466-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 13210
+   "bytes": 13907,
+   "opus_kbps": 64
   },
   {
    "id": "crawl/crawl_389794_0",
@@ -191,7 +201,7 @@
    "mode": "loop",
    "files": [
     "crawl/crawl_389794_0.ogg",
-    "crawl/crawl_389794_0.mp3"
+    "crawl/crawl_389794_0.m4a"
    ],
    "loop": true,
    "duration": 6.0,
@@ -206,7 +216,9 @@
     "fetched": "https://cdn.freesound.org/previews/389/389794_6136319-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 149933
+   "bytes": 124174,
+   "mono": true,
+   "opus_kbps": 64
   },
   {
    "id": "crickets/crickets_522299_0",
@@ -214,7 +226,7 @@
    "mode": "bed",
    "files": [
     "crickets/crickets_522299_0.ogg",
-    "crickets/crickets_522299_0.mp3"
+    "crickets/crickets_522299_0.m4a"
    ],
    "loop": true,
    "duration": 30.0,
@@ -229,7 +241,8 @@
     "fetched": "https://cdn.freesound.org/previews/522/522299_9084007-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 825001
+   "bytes": 832395,
+   "opus_kbps": 96
   },
   {
    "id": "dog/dog_431354_0",
@@ -237,7 +250,7 @@
    "mode": "shot",
    "files": [
     "dog/dog_431354_0.ogg",
-    "dog/dog_431354_0.mp3"
+    "dog/dog_431354_0.m4a"
    ],
    "loop": false,
    "duration": 0.413,
@@ -252,7 +265,8 @@
     "fetched": "https://cdn.freesound.org/previews/431/431354_2394357-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 9220
+   "bytes": 9758,
+   "opus_kbps": 64
   },
   {
    "id": "dog/dog_431354_1",
@@ -260,7 +274,7 @@
    "mode": "shot",
    "files": [
     "dog/dog_431354_1.ogg",
-    "dog/dog_431354_1.mp3"
+    "dog/dog_431354_1.m4a"
    ],
    "loop": false,
    "duration": 0.395,
@@ -275,7 +289,8 @@
     "fetched": "https://cdn.freesound.org/previews/431/431354_2394357-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 8820
+   "bytes": 9525,
+   "opus_kbps": 64
   },
   {
    "id": "dog/dog_431354_2",
@@ -283,7 +298,7 @@
    "mode": "shot",
    "files": [
     "dog/dog_431354_2.ogg",
-    "dog/dog_431354_2.mp3"
+    "dog/dog_431354_2.m4a"
    ],
    "loop": false,
    "duration": 0.391,
@@ -298,7 +313,8 @@
     "fetched": "https://cdn.freesound.org/previews/431/431354_2394357-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 8813
+   "bytes": 9360,
+   "opus_kbps": 64
   },
   {
    "id": "dog/dog_431354_3",
@@ -306,7 +322,7 @@
    "mode": "shot",
    "files": [
     "dog/dog_431354_3.ogg",
-    "dog/dog_431354_3.mp3"
+    "dog/dog_431354_3.m4a"
    ],
    "loop": false,
    "duration": 0.45,
@@ -321,7 +337,8 @@
     "fetched": "https://cdn.freesound.org/previews/431/431354_2394357-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 9742
+   "bytes": 10347,
+   "opus_kbps": 64
   },
   {
    "id": "dog/dog_485961_0",
@@ -329,10 +346,10 @@
    "mode": "shot",
    "files": [
     "dog/dog_485961_0.ogg",
-    "dog/dog_485961_0.mp3"
+    "dog/dog_485961_0.m4a"
    ],
    "loop": false,
-   "duration": 0.601,
+   "duration": 0.583,
    "source": {
     "site": "freesound.org",
     "id": 485961,
@@ -344,7 +361,8 @@
     "fetched": "https://cdn.freesound.org/previews/485/485961_6150892-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 12990
+   "bytes": 8702,
+   "opus_kbps": 40
   },
   {
    "id": "dog/dog_625501_0",
@@ -352,7 +370,7 @@
    "mode": "shot",
    "files": [
     "dog/dog_625501_0.ogg",
-    "dog/dog_625501_0.mp3"
+    "dog/dog_625501_0.m4a"
    ],
    "loop": false,
    "duration": 2.406,
@@ -367,7 +385,8 @@
     "fetched": "https://cdn.freesound.org/previews/625/625501_13366994-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 46342
+   "bytes": 47217,
+   "opus_kbps": 64
   },
   {
    "id": "door_metal/door_metal_15316_0",
@@ -375,7 +394,7 @@
    "mode": "shot",
    "files": [
     "door_metal/door_metal_15316_0.ogg",
-    "door_metal/door_metal_15316_0.mp3"
+    "door_metal/door_metal_15316_0.m4a"
    ],
    "loop": false,
    "duration": 4.0,
@@ -390,7 +409,8 @@
     "fetched": "https://cdn.freesound.org/previews/15/15316_45698-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 76124
+   "bytes": 77562,
+   "opus_kbps": 64
   },
   {
    "id": "door_metal/door_metal_336660_0",
@@ -398,7 +418,7 @@
    "mode": "shot",
    "files": [
     "door_metal/door_metal_336660_0.ogg",
-    "door_metal/door_metal_336660_0.mp3"
+    "door_metal/door_metal_336660_0.m4a"
    ],
    "loop": false,
    "duration": 4.0,
@@ -413,7 +433,8 @@
     "fetched": "https://cdn.freesound.org/previews/336/336660_1738686-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 80607
+   "bytes": 85401,
+   "opus_kbps": 64
   },
   {
    "id": "door_wood/door_wood_125958_0",
@@ -421,7 +442,7 @@
    "mode": "shot",
    "files": [
     "door_wood/door_wood_125958_0.ogg",
-    "door_wood/door_wood_125958_0.mp3"
+    "door_wood/door_wood_125958_0.m4a"
    ],
    "loop": false,
    "duration": 0.978,
@@ -436,7 +457,8 @@
     "fetched": "https://cdn.freesound.org/previews/125/125958_981397-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 20206
+   "bytes": 20857,
+   "opus_kbps": 64
   },
   {
    "id": "door_wood/door_wood_125958_1",
@@ -444,7 +466,7 @@
    "mode": "shot",
    "files": [
     "door_wood/door_wood_125958_1.ogg",
-    "door_wood/door_wood_125958_1.mp3"
+    "door_wood/door_wood_125958_1.m4a"
    ],
    "loop": false,
    "duration": 1.763,
@@ -459,7 +481,8 @@
     "fetched": "https://cdn.freesound.org/previews/125/125958_981397-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 35182
+   "bytes": 36153,
+   "opus_kbps": 64
   },
   {
    "id": "explosion_distant/explosion_distant_320788_0",
@@ -467,7 +490,7 @@
    "mode": "shot",
    "files": [
     "explosion_distant/explosion_distant_320788_0.ogg",
-    "explosion_distant/explosion_distant_320788_0.mp3"
+    "explosion_distant/explosion_distant_320788_0.m4a"
    ],
    "loop": false,
    "duration": 4.0,
@@ -482,7 +505,8 @@
     "fetched": "https://cdn.freesound.org/previews/320/320788_1134415-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 74566
+   "bytes": 49988,
+   "opus_kbps": 40
   },
   {
    "id": "explosion_distant/explosion_distant_320788_1",
@@ -490,7 +514,7 @@
    "mode": "shot",
    "files": [
     "explosion_distant/explosion_distant_320788_1.ogg",
-    "explosion_distant/explosion_distant_320788_1.mp3"
+    "explosion_distant/explosion_distant_320788_1.m4a"
    ],
    "loop": false,
    "duration": 2.699,
@@ -505,7 +529,8 @@
     "fetched": "https://cdn.freesound.org/previews/320/320788_1134415-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 50956
+   "bytes": 34296,
+   "opus_kbps": 40
   },
   {
    "id": "explosion_distant/explosion_distant_320788_2",
@@ -513,7 +538,7 @@
    "mode": "shot",
    "files": [
     "explosion_distant/explosion_distant_320788_2.ogg",
-    "explosion_distant/explosion_distant_320788_2.mp3"
+    "explosion_distant/explosion_distant_320788_2.m4a"
    ],
    "loop": false,
    "duration": 4.0,
@@ -528,7 +553,8 @@
     "fetched": "https://cdn.freesound.org/previews/320/320788_1134415-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 74385
+   "bytes": 49838,
+   "opus_kbps": 40
   },
   {
    "id": "explosion_distant/explosion_distant_320788_3",
@@ -536,7 +562,7 @@
    "mode": "shot",
    "files": [
     "explosion_distant/explosion_distant_320788_3.ogg",
-    "explosion_distant/explosion_distant_320788_3.mp3"
+    "explosion_distant/explosion_distant_320788_3.m4a"
    ],
    "loop": false,
    "duration": 4.0,
@@ -551,7 +577,8 @@
     "fetched": "https://cdn.freesound.org/previews/320/320788_1134415-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 75357
+   "bytes": 50151,
+   "opus_kbps": 40
   },
   {
    "id": "explosion_distant/explosion_distant_324277_0",
@@ -559,7 +586,7 @@
    "mode": "shot",
    "files": [
     "explosion_distant/explosion_distant_324277_0.ogg",
-    "explosion_distant/explosion_distant_324277_0.mp3"
+    "explosion_distant/explosion_distant_324277_0.m4a"
    ],
    "loop": false,
    "duration": 4.0,
@@ -574,7 +601,8 @@
     "fetched": "https://cdn.freesound.org/previews/324/324277_1134415-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 76576
+   "bytes": 50494,
+   "opus_kbps": 40
   },
   {
    "id": "explosion_grenade/explosion_grenade_165911_0",
@@ -582,7 +610,7 @@
    "mode": "shot",
    "files": [
     "explosion_grenade/explosion_grenade_165911_0.ogg",
-    "explosion_grenade/explosion_grenade_165911_0.mp3"
+    "explosion_grenade/explosion_grenade_165911_0.m4a"
    ],
    "loop": false,
    "duration": 3.119,
@@ -597,7 +625,8 @@
     "fetched": "https://cdn.freesound.org/previews/165/165911_1445941-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 60590
+   "bytes": 61924,
+   "opus_kbps": 64
   },
   {
    "id": "explosion_grenade/explosion_grenade_609587_0",
@@ -605,7 +634,7 @@
    "mode": "shot",
    "files": [
     "explosion_grenade/explosion_grenade_609587_0.ogg",
-    "explosion_grenade/explosion_grenade_609587_0.mp3"
+    "explosion_grenade/explosion_grenade_609587_0.m4a"
    ],
    "loop": false,
    "duration": 1.73,
@@ -620,7 +649,8 @@
     "fetched": "https://cdn.freesound.org/previews/609/609587_1038806-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 32629
+   "bytes": 33280,
+   "opus_kbps": 64
   },
   {
    "id": "explosion_large/explosion_large_156500_0",
@@ -628,10 +658,10 @@
    "mode": "long",
    "files": [
     "explosion_large/explosion_large_156500_0.ogg",
-    "explosion_large/explosion_large_156500_0.mp3"
+    "explosion_large/explosion_large_156500_0.m4a"
    ],
    "loop": false,
-   "duration": 9.0,
+   "duration": 7.15,
    "source": {
     "site": "freesound.org",
     "id": 156500,
@@ -643,7 +673,8 @@
     "fetched": "https://cdn.freesound.org/previews/156/156500_1038806-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 246515
+   "bytes": 164626,
+   "opus_kbps": 64
   },
   {
    "id": "fs_grass/fs_grass_521587_0",
@@ -651,10 +682,10 @@
    "mode": "shot",
    "files": [
     "fs_grass/fs_grass_521587_0.ogg",
-    "fs_grass/fs_grass_521587_0.mp3"
+    "fs_grass/fs_grass_521587_0.m4a"
    ],
    "loop": false,
-   "duration": 0.426,
+   "duration": 0.42,
    "source": {
     "site": "freesound.org",
     "id": 521587,
@@ -666,7 +697,8 @@
     "fetched": "https://cdn.freesound.org/previews/521/521587_9395330-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 9092
+   "bytes": 9751,
+   "opus_kbps": 64
   },
   {
    "id": "fs_grass/fs_grass_521587_1",
@@ -674,7 +706,103 @@
    "mode": "shot",
    "files": [
     "fs_grass/fs_grass_521587_1.ogg",
-    "fs_grass/fs_grass_521587_1.mp3"
+    "fs_grass/fs_grass_521587_1.m4a"
+   ],
+   "loop": false,
+   "duration": 0.296,
+   "source": {
+    "site": "freesound.org",
+    "id": 521587,
+    "title": "Hiking Boot Footsteps on Grass",
+    "author": "Fission9",
+    "url": "https://freesound.org/people/Fission9/sounds/521587/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/521/521587_9395330-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 7839,
+   "opus_kbps": 64
+  },
+  {
+   "id": "fs_grass/fs_grass_521587_2",
+   "category": "fs_grass",
+   "mode": "shot",
+   "files": [
+    "fs_grass/fs_grass_521587_2.ogg",
+    "fs_grass/fs_grass_521587_2.m4a"
+   ],
+   "loop": false,
+   "duration": 0.327,
+   "source": {
+    "site": "freesound.org",
+    "id": 521587,
+    "title": "Hiking Boot Footsteps on Grass",
+    "author": "Fission9",
+    "url": "https://freesound.org/people/Fission9/sounds/521587/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/521/521587_9395330-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 8120,
+   "opus_kbps": 64
+  },
+  {
+   "id": "fs_grass/fs_grass_521587_3",
+   "category": "fs_grass",
+   "mode": "shot",
+   "files": [
+    "fs_grass/fs_grass_521587_3.ogg",
+    "fs_grass/fs_grass_521587_3.m4a"
+   ],
+   "loop": false,
+   "duration": 0.465,
+   "source": {
+    "site": "freesound.org",
+    "id": 521587,
+    "title": "Hiking Boot Footsteps on Grass",
+    "author": "Fission9",
+    "url": "https://freesound.org/people/Fission9/sounds/521587/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/521/521587_9395330-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 10378,
+   "opus_kbps": 64
+  },
+  {
+   "id": "fs_grass/fs_grass_521587_4",
+   "category": "fs_grass",
+   "mode": "shot",
+   "files": [
+    "fs_grass/fs_grass_521587_4.ogg",
+    "fs_grass/fs_grass_521587_4.m4a"
+   ],
+   "loop": false,
+   "duration": 0.343,
+   "source": {
+    "site": "freesound.org",
+    "id": 521587,
+    "title": "Hiking Boot Footsteps on Grass",
+    "author": "Fission9",
+    "url": "https://freesound.org/people/Fission9/sounds/521587/",
+    "license": "CC0-1.0",
+    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "fetched": "https://cdn.freesound.org/previews/521/521587_9395330-hq.mp3",
+    "note": "HQ preview (no-login CDN) of CC0 sound"
+   },
+   "bytes": 8315,
+   "opus_kbps": 64
+  },
+  {
+   "id": "fs_grass/fs_grass_521587_5",
+   "category": "fs_grass",
+   "mode": "shot",
+   "files": [
+    "fs_grass/fs_grass_521587_5.ogg",
+    "fs_grass/fs_grass_521587_5.m4a"
    ],
    "loop": false,
    "duration": 0.32,
@@ -689,99 +817,8 @@
     "fetched": "https://cdn.freesound.org/previews/521/521587_9395330-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 7500
-  },
-  {
-   "id": "fs_grass/fs_grass_521587_2",
-   "category": "fs_grass",
-   "mode": "shot",
-   "files": [
-    "fs_grass/fs_grass_521587_2.ogg",
-    "fs_grass/fs_grass_521587_2.mp3"
-   ],
-   "loop": false,
-   "duration": 0.332,
-   "source": {
-    "site": "freesound.org",
-    "id": 521587,
-    "title": "Hiking Boot Footsteps on Grass",
-    "author": "Fission9",
-    "url": "https://freesound.org/people/Fission9/sounds/521587/",
-    "license": "CC0-1.0",
-    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-    "fetched": "https://cdn.freesound.org/previews/521/521587_9395330-hq.mp3",
-    "note": "HQ preview (no-login CDN) of CC0 sound"
-   },
-   "bytes": 7328
-  },
-  {
-   "id": "fs_grass/fs_grass_521587_3",
-   "category": "fs_grass",
-   "mode": "shot",
-   "files": [
-    "fs_grass/fs_grass_521587_3.ogg",
-    "fs_grass/fs_grass_521587_3.mp3"
-   ],
-   "loop": false,
-   "duration": 0.473,
-   "source": {
-    "site": "freesound.org",
-    "id": 521587,
-    "title": "Hiking Boot Footsteps on Grass",
-    "author": "Fission9",
-    "url": "https://freesound.org/people/Fission9/sounds/521587/",
-    "license": "CC0-1.0",
-    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-    "fetched": "https://cdn.freesound.org/previews/521/521587_9395330-hq.mp3",
-    "note": "HQ preview (no-login CDN) of CC0 sound"
-   },
-   "bytes": 9759
-  },
-  {
-   "id": "fs_grass/fs_grass_521587_4",
-   "category": "fs_grass",
-   "mode": "shot",
-   "files": [
-    "fs_grass/fs_grass_521587_4.ogg",
-    "fs_grass/fs_grass_521587_4.mp3"
-   ],
-   "loop": false,
-   "duration": 0.352,
-   "source": {
-    "site": "freesound.org",
-    "id": 521587,
-    "title": "Hiking Boot Footsteps on Grass",
-    "author": "Fission9",
-    "url": "https://freesound.org/people/Fission9/sounds/521587/",
-    "license": "CC0-1.0",
-    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-    "fetched": "https://cdn.freesound.org/previews/521/521587_9395330-hq.mp3",
-    "note": "HQ preview (no-login CDN) of CC0 sound"
-   },
-   "bytes": 7879
-  },
-  {
-   "id": "fs_grass/fs_grass_521587_5",
-   "category": "fs_grass",
-   "mode": "shot",
-   "files": [
-    "fs_grass/fs_grass_521587_5.ogg",
-    "fs_grass/fs_grass_521587_5.mp3"
-   ],
-   "loop": false,
-   "duration": 0.338,
-   "source": {
-    "site": "freesound.org",
-    "id": 521587,
-    "title": "Hiking Boot Footsteps on Grass",
-    "author": "Fission9",
-    "url": "https://freesound.org/people/Fission9/sounds/521587/",
-    "license": "CC0-1.0",
-    "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
-    "fetched": "https://cdn.freesound.org/previews/521/521587_9395330-hq.mp3",
-    "note": "HQ preview (no-login CDN) of CC0 sound"
-   },
-   "bytes": 7903
+   "bytes": 7903,
+   "opus_kbps": 64
   },
   {
    "id": "fs_gravel/fs_gravel_521588_0",
@@ -789,10 +826,10 @@
    "mode": "shot",
    "files": [
     "fs_gravel/fs_gravel_521588_0.ogg",
-    "fs_gravel/fs_gravel_521588_0.mp3"
+    "fs_gravel/fs_gravel_521588_0.m4a"
    ],
    "loop": false,
-   "duration": 0.428,
+   "duration": 0.421,
    "source": {
     "site": "freesound.org",
     "id": 521588,
@@ -804,7 +841,8 @@
     "fetched": "https://cdn.freesound.org/previews/521/521588_9395330-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 9555
+   "bytes": 10112,
+   "opus_kbps": 64
   },
   {
    "id": "fs_gravel/fs_gravel_521588_1",
@@ -812,10 +850,10 @@
    "mode": "shot",
    "files": [
     "fs_gravel/fs_gravel_521588_1.ogg",
-    "fs_gravel/fs_gravel_521588_1.mp3"
+    "fs_gravel/fs_gravel_521588_1.m4a"
    ],
    "loop": false,
-   "duration": 0.418,
+   "duration": 0.393,
    "source": {
     "site": "freesound.org",
     "id": 521588,
@@ -827,7 +865,8 @@
     "fetched": "https://cdn.freesound.org/previews/521/521588_9395330-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 9505
+   "bytes": 9206,
+   "opus_kbps": 64
   },
   {
    "id": "fs_gravel/fs_gravel_521588_2",
@@ -835,10 +874,10 @@
    "mode": "shot",
    "files": [
     "fs_gravel/fs_gravel_521588_2.ogg",
-    "fs_gravel/fs_gravel_521588_2.mp3"
+    "fs_gravel/fs_gravel_521588_2.m4a"
    ],
    "loop": false,
-   "duration": 0.429,
+   "duration": 0.392,
    "source": {
     "site": "freesound.org",
     "id": 521588,
@@ -850,7 +889,8 @@
     "fetched": "https://cdn.freesound.org/previews/521/521588_9395330-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 10204
+   "bytes": 9987,
+   "opus_kbps": 64
   },
   {
    "id": "fs_gravel/fs_gravel_521588_3",
@@ -858,10 +898,10 @@
    "mode": "shot",
    "files": [
     "fs_gravel/fs_gravel_521588_3.ogg",
-    "fs_gravel/fs_gravel_521588_3.mp3"
+    "fs_gravel/fs_gravel_521588_3.m4a"
    ],
    "loop": false,
-   "duration": 0.427,
+   "duration": 0.396,
    "source": {
     "site": "freesound.org",
     "id": 521588,
@@ -873,7 +913,8 @@
     "fetched": "https://cdn.freesound.org/previews/521/521588_9395330-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 9657
+   "bytes": 9685,
+   "opus_kbps": 64
   },
   {
    "id": "fs_metal/fs_metal_698697_0",
@@ -881,7 +922,7 @@
    "mode": "shot",
    "files": [
     "fs_metal/fs_metal_698697_0.ogg",
-    "fs_metal/fs_metal_698697_0.mp3"
+    "fs_metal/fs_metal_698697_0.m4a"
    ],
    "loop": false,
    "duration": 0.825,
@@ -896,7 +937,8 @@
     "fetched": "https://cdn.freesound.org/previews/698/698697_9616576-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 16033
+   "bytes": 16698,
+   "opus_kbps": 64
   },
   {
    "id": "fs_metal/fs_metal_698697_1",
@@ -904,7 +946,7 @@
    "mode": "shot",
    "files": [
     "fs_metal/fs_metal_698697_1.ogg",
-    "fs_metal/fs_metal_698697_1.mp3"
+    "fs_metal/fs_metal_698697_1.m4a"
    ],
    "loop": false,
    "duration": 0.547,
@@ -919,7 +961,8 @@
     "fetched": "https://cdn.freesound.org/previews/698/698697_9616576-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 11045
+   "bytes": 11674,
+   "opus_kbps": 64
   },
   {
    "id": "fs_metal/fs_metal_698697_2",
@@ -927,7 +970,7 @@
    "mode": "shot",
    "files": [
     "fs_metal/fs_metal_698697_2.ogg",
-    "fs_metal/fs_metal_698697_2.mp3"
+    "fs_metal/fs_metal_698697_2.m4a"
    ],
    "loop": false,
    "duration": 0.844,
@@ -942,7 +985,8 @@
     "fetched": "https://cdn.freesound.org/previews/698/698697_9616576-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 16550
+   "bytes": 17064,
+   "opus_kbps": 64
   },
   {
    "id": "fs_metal/fs_metal_698697_3",
@@ -950,7 +994,7 @@
    "mode": "shot",
    "files": [
     "fs_metal/fs_metal_698697_3.ogg",
-    "fs_metal/fs_metal_698697_3.mp3"
+    "fs_metal/fs_metal_698697_3.m4a"
    ],
    "loop": false,
    "duration": 0.824,
@@ -965,7 +1009,8 @@
     "fetched": "https://cdn.freesound.org/previews/698/698697_9616576-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 16392
+   "bytes": 16940,
+   "opus_kbps": 64
   },
   {
    "id": "fs_metal/fs_metal_698697_4",
@@ -973,7 +1018,7 @@
    "mode": "shot",
    "files": [
     "fs_metal/fs_metal_698697_4.ogg",
-    "fs_metal/fs_metal_698697_4.mp3"
+    "fs_metal/fs_metal_698697_4.m4a"
    ],
    "loop": false,
    "duration": 0.735,
@@ -988,7 +1033,8 @@
     "fetched": "https://cdn.freesound.org/previews/698/698697_9616576-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 14630
+   "bytes": 12067,
+   "opus_kbps": 48
   },
   {
    "id": "fs_metal/fs_metal_698697_5",
@@ -996,10 +1042,10 @@
    "mode": "shot",
    "files": [
     "fs_metal/fs_metal_698697_5.ogg",
-    "fs_metal/fs_metal_698697_5.mp3"
+    "fs_metal/fs_metal_698697_5.m4a"
    ],
    "loop": false,
-   "duration": 0.591,
+   "duration": 0.589,
    "source": {
     "site": "freesound.org",
     "id": 698697,
@@ -1011,7 +1057,8 @@
     "fetched": "https://cdn.freesound.org/previews/698/698697_9616576-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 11970
+   "bytes": 12558,
+   "opus_kbps": 64
   },
   {
    "id": "fs_metal/fs_metal_698697_6",
@@ -1019,10 +1066,10 @@
    "mode": "shot",
    "files": [
     "fs_metal/fs_metal_698697_6.ogg",
-    "fs_metal/fs_metal_698697_6.mp3"
+    "fs_metal/fs_metal_698697_6.m4a"
    ],
    "loop": false,
-   "duration": 0.688,
+   "duration": 0.681,
    "source": {
     "site": "freesound.org",
     "id": 698697,
@@ -1034,7 +1081,8 @@
     "fetched": "https://cdn.freesound.org/previews/698/698697_9616576-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 13717
+   "bytes": 14326,
+   "opus_kbps": 64
   },
   {
    "id": "fs_sand/fs_sand_564893_0",
@@ -1042,10 +1090,10 @@
    "mode": "shot",
    "files": [
     "fs_sand/fs_sand_564893_0.ogg",
-    "fs_sand/fs_sand_564893_0.mp3"
+    "fs_sand/fs_sand_564893_0.m4a"
    ],
    "loop": false,
-   "duration": 0.515,
+   "duration": 0.507,
    "source": {
     "site": "freesound.org",
     "id": 564893,
@@ -1057,7 +1105,8 @@
     "fetched": "https://cdn.freesound.org/previews/564/564893_9250976-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 11487
+   "bytes": 11474,
+   "opus_kbps": 64
   },
   {
    "id": "fs_sand/fs_sand_564893_1",
@@ -1065,10 +1114,10 @@
    "mode": "shot",
    "files": [
     "fs_sand/fs_sand_564893_1.ogg",
-    "fs_sand/fs_sand_564893_1.mp3"
+    "fs_sand/fs_sand_564893_1.m4a"
    ],
    "loop": false,
-   "duration": 0.212,
+   "duration": 0.205,
    "source": {
     "site": "freesound.org",
     "id": 564893,
@@ -1080,7 +1129,8 @@
     "fetched": "https://cdn.freesound.org/previews/564/564893_9250976-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 5216
+   "bytes": 5856,
+   "opus_kbps": 64
   },
   {
    "id": "fs_sand/fs_sand_564893_2",
@@ -1088,7 +1138,7 @@
    "mode": "shot",
    "files": [
     "fs_sand/fs_sand_564893_2.ogg",
-    "fs_sand/fs_sand_564893_2.mp3"
+    "fs_sand/fs_sand_564893_2.m4a"
    ],
    "loop": false,
    "duration": 0.207,
@@ -1103,7 +1153,8 @@
     "fetched": "https://cdn.freesound.org/previews/564/564893_9250976-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 5330
+   "bytes": 5872,
+   "opus_kbps": 64
   },
   {
    "id": "fs_sand/fs_sand_564893_3",
@@ -1111,10 +1162,10 @@
    "mode": "shot",
    "files": [
     "fs_sand/fs_sand_564893_3.ogg",
-    "fs_sand/fs_sand_564893_3.mp3"
+    "fs_sand/fs_sand_564893_3.m4a"
    ],
    "loop": false,
-   "duration": 0.21,
+   "duration": 0.206,
    "source": {
     "site": "freesound.org",
     "id": 564893,
@@ -1126,7 +1177,8 @@
     "fetched": "https://cdn.freesound.org/previews/564/564893_9250976-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 5374
+   "bytes": 5844,
+   "opus_kbps": 64
   },
   {
    "id": "fs_sand/fs_sand_564893_4",
@@ -1134,10 +1186,10 @@
    "mode": "shot",
    "files": [
     "fs_sand/fs_sand_564893_4.ogg",
-    "fs_sand/fs_sand_564893_4.mp3"
+    "fs_sand/fs_sand_564893_4.m4a"
    ],
    "loop": false,
-   "duration": 0.228,
+   "duration": 0.227,
    "source": {
     "site": "freesound.org",
     "id": 564893,
@@ -1149,7 +1201,8 @@
     "fetched": "https://cdn.freesound.org/previews/564/564893_9250976-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 5880
+   "bytes": 6458,
+   "opus_kbps": 64
   },
   {
    "id": "fs_sand/fs_sand_564893_5",
@@ -1157,10 +1210,10 @@
    "mode": "shot",
    "files": [
     "fs_sand/fs_sand_564893_5.ogg",
-    "fs_sand/fs_sand_564893_5.mp3"
+    "fs_sand/fs_sand_564893_5.m4a"
    ],
    "loop": false,
-   "duration": 0.225,
+   "duration": 0.223,
    "source": {
     "site": "freesound.org",
     "id": 564893,
@@ -1172,7 +1225,8 @@
     "fetched": "https://cdn.freesound.org/previews/564/564893_9250976-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 5950
+   "bytes": 6451,
+   "opus_kbps": 64
   },
   {
    "id": "fs_sand/fs_sand_564893_6",
@@ -1180,10 +1234,10 @@
    "mode": "shot",
    "files": [
     "fs_sand/fs_sand_564893_6.ogg",
-    "fs_sand/fs_sand_564893_6.mp3"
+    "fs_sand/fs_sand_564893_6.m4a"
    ],
    "loop": false,
-   "duration": 0.482,
+   "duration": 0.417,
    "source": {
     "site": "freesound.org",
     "id": 564893,
@@ -1195,7 +1249,8 @@
     "fetched": "https://cdn.freesound.org/previews/564/564893_9250976-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 10525
+   "bytes": 10126,
+   "opus_kbps": 64
   },
   {
    "id": "fs_sand/fs_sand_564893_7",
@@ -1203,10 +1258,10 @@
    "mode": "shot",
    "files": [
     "fs_sand/fs_sand_564893_7.ogg",
-    "fs_sand/fs_sand_564893_7.mp3"
+    "fs_sand/fs_sand_564893_7.m4a"
    ],
    "loop": false,
-   "duration": 0.539,
+   "duration": 0.48,
    "source": {
     "site": "freesound.org",
     "id": 564893,
@@ -1218,7 +1273,8 @@
     "fetched": "https://cdn.freesound.org/previews/564/564893_9250976-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 11821
+   "bytes": 11588,
+   "opus_kbps": 64
   },
   {
    "id": "fs_snow/fs_snow_384423_0",
@@ -1226,7 +1282,7 @@
    "mode": "shot",
    "files": [
     "fs_snow/fs_snow_384423_0.ogg",
-    "fs_snow/fs_snow_384423_0.mp3"
+    "fs_snow/fs_snow_384423_0.m4a"
    ],
    "loop": false,
    "duration": 1.168,
@@ -1241,7 +1297,8 @@
     "fetched": "https://cdn.freesound.org/previews/384/384423_5450487-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 24203
+   "bytes": 25076,
+   "opus_kbps": 64
   },
   {
    "id": "fs_snow/fs_snow_432285_0",
@@ -1249,7 +1306,7 @@
    "mode": "shot",
    "files": [
     "fs_snow/fs_snow_432285_0.ogg",
-    "fs_snow/fs_snow_432285_0.mp3"
+    "fs_snow/fs_snow_432285_0.m4a"
    ],
    "loop": false,
    "duration": 0.803,
@@ -1264,7 +1321,8 @@
     "fetched": "https://cdn.freesound.org/previews/432/432285_4710044-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 17066
+   "bytes": 17813,
+   "opus_kbps": 64
   },
   {
    "id": "fs_snow/fs_snow_432285_1",
@@ -1272,7 +1330,7 @@
    "mode": "shot",
    "files": [
     "fs_snow/fs_snow_432285_1.ogg",
-    "fs_snow/fs_snow_432285_1.mp3"
+    "fs_snow/fs_snow_432285_1.m4a"
    ],
    "loop": false,
    "duration": 0.639,
@@ -1287,7 +1345,8 @@
     "fetched": "https://cdn.freesound.org/previews/432/432285_4710044-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 13742
+   "bytes": 14394,
+   "opus_kbps": 64
   },
   {
    "id": "fs_snow/fs_snow_432285_2",
@@ -1295,7 +1354,7 @@
    "mode": "shot",
    "files": [
     "fs_snow/fs_snow_432285_2.ogg",
-    "fs_snow/fs_snow_432285_2.mp3"
+    "fs_snow/fs_snow_432285_2.m4a"
    ],
    "loop": false,
    "duration": 0.674,
@@ -1310,7 +1369,8 @@
     "fetched": "https://cdn.freesound.org/previews/432/432285_4710044-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 14728
+   "bytes": 15320,
+   "opus_kbps": 64
   },
   {
    "id": "fs_snow/fs_snow_432285_3",
@@ -1318,7 +1378,7 @@
    "mode": "shot",
    "files": [
     "fs_snow/fs_snow_432285_3.ogg",
-    "fs_snow/fs_snow_432285_3.mp3"
+    "fs_snow/fs_snow_432285_3.m4a"
    ],
    "loop": false,
    "duration": 0.75,
@@ -1333,7 +1393,8 @@
     "fetched": "https://cdn.freesound.org/previews/432/432285_4710044-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 16658
+   "bytes": 17161,
+   "opus_kbps": 64
   },
   {
    "id": "fs_snow/fs_snow_432285_4",
@@ -1341,7 +1402,7 @@
    "mode": "shot",
    "files": [
     "fs_snow/fs_snow_432285_4.ogg",
-    "fs_snow/fs_snow_432285_4.mp3"
+    "fs_snow/fs_snow_432285_4.m4a"
    ],
    "loop": false,
    "duration": 0.677,
@@ -1356,7 +1417,8 @@
     "fetched": "https://cdn.freesound.org/previews/432/432285_4710044-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 15428
+   "bytes": 15916,
+   "opus_kbps": 64
   },
   {
    "id": "fs_snow/fs_snow_432285_5",
@@ -1364,7 +1426,7 @@
    "mode": "shot",
    "files": [
     "fs_snow/fs_snow_432285_5.ogg",
-    "fs_snow/fs_snow_432285_5.mp3"
+    "fs_snow/fs_snow_432285_5.m4a"
    ],
    "loop": false,
    "duration": 1.228,
@@ -1379,7 +1441,8 @@
     "fetched": "https://cdn.freesound.org/previews/432/432285_4710044-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 25802
+   "bytes": 26572,
+   "opus_kbps": 64
   },
   {
    "id": "fs_snow/fs_snow_432285_6",
@@ -1387,7 +1450,7 @@
    "mode": "shot",
    "files": [
     "fs_snow/fs_snow_432285_6.ogg",
-    "fs_snow/fs_snow_432285_6.mp3"
+    "fs_snow/fs_snow_432285_6.m4a"
    ],
    "loop": false,
    "duration": 0.669,
@@ -1402,7 +1465,8 @@
     "fetched": "https://cdn.freesound.org/previews/432/432285_4710044-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 15012
+   "bytes": 15920,
+   "opus_kbps": 64
   },
   {
    "id": "fs_wood/fs_wood_463670_0",
@@ -1410,7 +1474,7 @@
    "mode": "shot",
    "files": [
     "fs_wood/fs_wood_463670_0.ogg",
-    "fs_wood/fs_wood_463670_0.mp3"
+    "fs_wood/fs_wood_463670_0.m4a"
    ],
    "loop": false,
    "duration": 1.002,
@@ -1425,7 +1489,8 @@
     "fetched": "https://cdn.freesound.org/previews/463/463670_6551032-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 21434
+   "bytes": 22262,
+   "opus_kbps": 64
   },
   {
    "id": "fs_wood/fs_wood_463670_1",
@@ -1433,7 +1498,7 @@
    "mode": "shot",
    "files": [
     "fs_wood/fs_wood_463670_1.ogg",
-    "fs_wood/fs_wood_463670_1.mp3"
+    "fs_wood/fs_wood_463670_1.m4a"
    ],
    "loop": false,
    "duration": 0.656,
@@ -1448,7 +1513,8 @@
     "fetched": "https://cdn.freesound.org/previews/463/463670_6551032-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 15289
+   "bytes": 16003,
+   "opus_kbps": 64
   },
   {
    "id": "fs_wood/fs_wood_463670_2",
@@ -1456,10 +1522,10 @@
    "mode": "shot",
    "files": [
     "fs_wood/fs_wood_463670_2.ogg",
-    "fs_wood/fs_wood_463670_2.mp3"
+    "fs_wood/fs_wood_463670_2.m4a"
    ],
    "loop": false,
-   "duration": 0.725,
+   "duration": 0.723,
    "source": {
     "site": "freesound.org",
     "id": 463670,
@@ -1471,7 +1537,8 @@
     "fetched": "https://cdn.freesound.org/previews/463/463670_6551032-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 16079
+   "bytes": 16571,
+   "opus_kbps": 64
   },
   {
    "id": "fs_wood/fs_wood_463670_3",
@@ -1479,7 +1546,7 @@
    "mode": "shot",
    "files": [
     "fs_wood/fs_wood_463670_3.ogg",
-    "fs_wood/fs_wood_463670_3.mp3"
+    "fs_wood/fs_wood_463670_3.m4a"
    ],
    "loop": false,
    "duration": 1.084,
@@ -1494,7 +1561,8 @@
     "fetched": "https://cdn.freesound.org/previews/463/463670_6551032-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 24072
+   "bytes": 24588,
+   "opus_kbps": 64
   },
   {
    "id": "fs_wood/fs_wood_463670_4",
@@ -1502,7 +1570,7 @@
    "mode": "shot",
    "files": [
     "fs_wood/fs_wood_463670_4.ogg",
-    "fs_wood/fs_wood_463670_4.mp3"
+    "fs_wood/fs_wood_463670_4.m4a"
    ],
    "loop": false,
    "duration": 0.641,
@@ -1517,7 +1585,8 @@
     "fetched": "https://cdn.freesound.org/previews/463/463670_6551032-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 13372
+   "bytes": 13935,
+   "opus_kbps": 64
   },
   {
    "id": "fs_wood/fs_wood_463670_5",
@@ -1525,7 +1594,7 @@
    "mode": "shot",
    "files": [
     "fs_wood/fs_wood_463670_5.ogg",
-    "fs_wood/fs_wood_463670_5.mp3"
+    "fs_wood/fs_wood_463670_5.m4a"
    ],
    "loop": false,
    "duration": 0.646,
@@ -1540,7 +1609,8 @@
     "fetched": "https://cdn.freesound.org/previews/463/463670_6551032-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 13904
+   "bytes": 14653,
+   "opus_kbps": 64
   },
   {
    "id": "fs_wood/fs_wood_463670_6",
@@ -1548,7 +1618,7 @@
    "mode": "shot",
    "files": [
     "fs_wood/fs_wood_463670_6.ogg",
-    "fs_wood/fs_wood_463670_6.mp3"
+    "fs_wood/fs_wood_463670_6.m4a"
    ],
    "loop": false,
    "duration": 0.393,
@@ -1563,7 +1633,8 @@
     "fetched": "https://cdn.freesound.org/previews/463/463670_6551032-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 9161
+   "bytes": 9648,
+   "opus_kbps": 64
   },
   {
    "id": "fs_wood/fs_wood_463670_7",
@@ -1571,7 +1642,7 @@
    "mode": "shot",
    "files": [
     "fs_wood/fs_wood_463670_7.ogg",
-    "fs_wood/fs_wood_463670_7.mp3"
+    "fs_wood/fs_wood_463670_7.m4a"
    ],
    "loop": false,
    "duration": 0.595,
@@ -1586,7 +1657,8 @@
     "fetched": "https://cdn.freesound.org/previews/463/463670_6551032-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 12179
+   "bytes": 12892,
+   "opus_kbps": 64
   },
   {
    "id": "knife_stab/knife_stab_344404_0",
@@ -1594,7 +1666,7 @@
    "mode": "shot",
    "files": [
     "knife_stab/knife_stab_344404_0.ogg",
-    "knife_stab/knife_stab_344404_0.mp3"
+    "knife_stab/knife_stab_344404_0.m4a"
    ],
    "loop": false,
    "duration": 0.668,
@@ -1609,7 +1681,7 @@
     "fetched": "https://cdn.freesound.org/previews/344/344404_4986214-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 13451
+   "bytes": 14259
   },
   {
    "id": "knife_stab/knife_stab_385966_0",
@@ -1617,7 +1689,7 @@
    "mode": "shot",
    "files": [
     "knife_stab/knife_stab_385966_0.ogg",
-    "knife_stab/knife_stab_385966_0.mp3"
+    "knife_stab/knife_stab_385966_0.m4a"
    ],
    "loop": false,
    "duration": 0.398,
@@ -1632,7 +1704,8 @@
     "fetched": "https://cdn.freesound.org/previews/385/385966_4705955-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 8834
+   "bytes": 9565,
+   "opus_kbps": 64
   },
   {
    "id": "metal_small/metal_small_259553_0",
@@ -1640,7 +1713,7 @@
    "mode": "shot",
    "files": [
     "metal_small/metal_small_259553_0.ogg",
-    "metal_small/metal_small_259553_0.mp3"
+    "metal_small/metal_small_259553_0.m4a"
    ],
    "loop": false,
    "duration": 0.904,
@@ -1655,7 +1728,8 @@
     "fetched": "https://cdn.freesound.org/previews/259/259553_2316086-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 19788
+   "bytes": 20432,
+   "opus_kbps": 64
   },
   {
    "id": "mg_heavy/mg_heavy_165394_0",
@@ -1663,10 +1737,10 @@
    "mode": "long",
    "files": [
     "mg_heavy/mg_heavy_165394_0.ogg",
-    "mg_heavy/mg_heavy_165394_0.mp3"
+    "mg_heavy/mg_heavy_165394_0.m4a"
    ],
    "loop": false,
-   "duration": 3.079,
+   "duration": 2.921,
    "source": {
     "site": "freesound.org",
     "id": 165394,
@@ -1678,7 +1752,9 @@
     "fetched": "https://cdn.freesound.org/previews/165/165394_2989529-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 77807
+   "bytes": 61896,
+   "mono": true,
+   "opus_kbps": 64
   },
   {
    "id": "mg_heavy/mg_heavy_417687_0",
@@ -1686,10 +1762,10 @@
    "mode": "long",
    "files": [
     "mg_heavy/mg_heavy_417687_0.ogg",
-    "mg_heavy/mg_heavy_417687_0.mp3"
+    "mg_heavy/mg_heavy_417687_0.m4a"
    ],
    "loop": false,
-   "duration": 4.0,
+   "duration": 2.986,
    "source": {
     "site": "freesound.org",
     "id": 417687,
@@ -1701,7 +1777,8 @@
     "fetched": "https://cdn.freesound.org/previews/417/417687_7542558-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 99356
+   "bytes": 79998,
+   "opus_kbps": 96
   },
   {
    "id": "mg_heavy/mg_heavy_482122_0",
@@ -1709,7 +1786,7 @@
    "mode": "long",
    "files": [
     "mg_heavy/mg_heavy_482122_0.ogg",
-    "mg_heavy/mg_heavy_482122_0.mp3"
+    "mg_heavy/mg_heavy_482122_0.m4a"
    ],
    "loop": false,
    "duration": 1.598,
@@ -1724,7 +1801,8 @@
     "fetched": "https://cdn.freesound.org/previews/482/482122_71257-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 42203
+   "bytes": 42915,
+   "mono": true
   },
   {
    "id": "mg_period_craigsmith/mg_period_craigsmith_486053_0",
@@ -1732,10 +1810,10 @@
    "mode": "long",
    "files": [
     "mg_period_craigsmith/mg_period_craigsmith_486053_0.ogg",
-    "mg_period_craigsmith/mg_period_craigsmith_486053_0.mp3"
+    "mg_period_craigsmith/mg_period_craigsmith_486053_0.m4a"
    ],
    "loop": false,
-   "duration": 8.0,
+   "duration": 7.934,
    "source": {
     "site": "freesound.org",
     "id": 486053,
@@ -1747,7 +1825,9 @@
     "fetched": "https://cdn.freesound.org/previews/486/486053_2524442-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 188547
+   "bytes": 151242,
+   "mono": true,
+   "opus_kbps": 64
   },
   {
    "id": "mg_period_craigsmith/mg_period_craigsmith_675591_0",
@@ -1755,10 +1835,10 @@
    "mode": "long",
    "files": [
     "mg_period_craigsmith/mg_period_craigsmith_675591_0.ogg",
-    "mg_period_craigsmith/mg_period_craigsmith_675591_0.mp3"
+    "mg_period_craigsmith/mg_period_craigsmith_675591_0.m4a"
    ],
    "loop": false,
-   "duration": 8.0,
+   "duration": 7.786,
    "source": {
     "site": "freesound.org",
     "id": 675591,
@@ -1770,7 +1850,9 @@
     "fetched": "https://cdn.freesound.org/previews/675/675591_2524442-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 191809
+   "bytes": 148922,
+   "mono": true,
+   "opus_kbps": 64
   },
   {
    "id": "pistol/pistol_163456_0",
@@ -1778,7 +1860,7 @@
    "mode": "shot",
    "files": [
     "pistol/pistol_163456_0.ogg",
-    "pistol/pistol_163456_0.mp3"
+    "pistol/pistol_163456_0.m4a"
    ],
    "loop": false,
    "duration": 0.414,
@@ -1793,7 +1875,8 @@
     "fetched": "https://cdn.freesound.org/previews/163/163456_2263027-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 9258
+   "bytes": 9895,
+   "opus_kbps": 64
   },
   {
    "id": "pistol/pistol_740897_0",
@@ -1801,7 +1884,7 @@
    "mode": "shot",
    "files": [
     "pistol/pistol_740897_0.ogg",
-    "pistol/pistol_740897_0.mp3"
+    "pistol/pistol_740897_0.m4a"
    ],
    "loop": false,
    "duration": 1.843,
@@ -1816,7 +1899,8 @@
     "fetched": "https://cdn.freesound.org/previews/740/740897_15072041-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 36746
+   "bytes": 37702,
+   "opus_kbps": 64
   },
   {
    "id": "ricochet/ricochet_30932_0",
@@ -1824,7 +1908,7 @@
    "mode": "shot",
    "files": [
     "ricochet/ricochet_30932_0.ogg",
-    "ricochet/ricochet_30932_0.mp3"
+    "ricochet/ricochet_30932_0.m4a"
    ],
    "loop": false,
    "duration": 0.353,
@@ -1839,7 +1923,8 @@
     "fetched": "https://cdn.freesound.org/previews/30/30932_15696-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 7601
+   "bytes": 8248,
+   "opus_kbps": 64
   },
   {
    "id": "ricochet/ricochet_30932_1",
@@ -1847,7 +1932,7 @@
    "mode": "shot",
    "files": [
     "ricochet/ricochet_30932_1.ogg",
-    "ricochet/ricochet_30932_1.mp3"
+    "ricochet/ricochet_30932_1.m4a"
    ],
    "loop": false,
    "duration": 0.201,
@@ -1862,7 +1947,8 @@
     "fetched": "https://cdn.freesound.org/previews/30/30932_15696-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 5234
+   "bytes": 5775,
+   "opus_kbps": 64
   },
   {
    "id": "ricochet/ricochet_30932_2",
@@ -1870,7 +1956,7 @@
    "mode": "shot",
    "files": [
     "ricochet/ricochet_30932_2.ogg",
-    "ricochet/ricochet_30932_2.mp3"
+    "ricochet/ricochet_30932_2.m4a"
    ],
    "loop": false,
    "duration": 0.46,
@@ -1885,7 +1971,8 @@
     "fetched": "https://cdn.freesound.org/previews/30/30932_15696-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 10092
+   "bytes": 10578,
+   "opus_kbps": 64
   },
   {
    "id": "ricochet/ricochet_30932_3",
@@ -1893,7 +1980,7 @@
    "mode": "shot",
    "files": [
     "ricochet/ricochet_30932_3.ogg",
-    "ricochet/ricochet_30932_3.mp3"
+    "ricochet/ricochet_30932_3.m4a"
    ],
    "loop": false,
    "duration": 0.512,
@@ -1908,7 +1995,8 @@
     "fetched": "https://cdn.freesound.org/previews/30/30932_15696-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 10804
+   "bytes": 11320,
+   "opus_kbps": 64
   },
   {
    "id": "rifle_bolt_cycle/rifle_bolt_cycle_370345_0",
@@ -1916,7 +2004,7 @@
    "mode": "shot",
    "files": [
     "rifle_bolt_cycle/rifle_bolt_cycle_370345_0.ogg",
-    "rifle_bolt_cycle/rifle_bolt_cycle_370345_0.mp3"
+    "rifle_bolt_cycle/rifle_bolt_cycle_370345_0.m4a"
    ],
    "loop": false,
    "duration": 1.305,
@@ -1931,7 +2019,8 @@
     "fetched": "https://cdn.freesound.org/previews/370/370345_2558531-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 27669
+   "bytes": 28457,
+   "opus_kbps": 64
   },
   {
    "id": "rifle_bolt_cycle/rifle_bolt_cycle_370345_1",
@@ -1939,7 +2028,7 @@
    "mode": "shot",
    "files": [
     "rifle_bolt_cycle/rifle_bolt_cycle_370345_1.ogg",
-    "rifle_bolt_cycle/rifle_bolt_cycle_370345_1.mp3"
+    "rifle_bolt_cycle/rifle_bolt_cycle_370345_1.m4a"
    ],
    "loop": false,
    "duration": 0.253,
@@ -1954,7 +2043,8 @@
     "fetched": "https://cdn.freesound.org/previews/370/370345_2558531-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 6094
+   "bytes": 6572,
+   "opus_kbps": 64
   },
   {
    "id": "rifle_bolt_cycle/rifle_bolt_cycle_370345_2",
@@ -1962,7 +2052,7 @@
    "mode": "shot",
    "files": [
     "rifle_bolt_cycle/rifle_bolt_cycle_370345_2.ogg",
-    "rifle_bolt_cycle/rifle_bolt_cycle_370345_2.mp3"
+    "rifle_bolt_cycle/rifle_bolt_cycle_370345_2.m4a"
    ],
    "loop": false,
    "duration": 0.376,
@@ -1977,7 +2067,7 @@
     "fetched": "https://cdn.freesound.org/previews/370/370345_2558531-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 8899
+   "bytes": 9628
   },
   {
    "id": "rifle_bolt_cycle/rifle_bolt_cycle_370345_3",
@@ -1985,7 +2075,7 @@
    "mode": "shot",
    "files": [
     "rifle_bolt_cycle/rifle_bolt_cycle_370345_3.ogg",
-    "rifle_bolt_cycle/rifle_bolt_cycle_370345_3.mp3"
+    "rifle_bolt_cycle/rifle_bolt_cycle_370345_3.m4a"
    ],
    "loop": false,
    "duration": 0.787,
@@ -2000,7 +2090,8 @@
     "fetched": "https://cdn.freesound.org/previews/370/370345_2558531-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 17966
+   "bytes": 18666,
+   "opus_kbps": 64
   },
   {
    "id": "rifle_lee_enfield/rifle_lee_enfield_450852_0",
@@ -2008,7 +2099,7 @@
    "mode": "shot",
    "files": [
     "rifle_lee_enfield/rifle_lee_enfield_450852_0.ogg",
-    "rifle_lee_enfield/rifle_lee_enfield_450852_0.mp3"
+    "rifle_lee_enfield/rifle_lee_enfield_450852_0.m4a"
    ],
    "loop": false,
    "duration": 0.553,
@@ -2023,7 +2114,8 @@
     "fetched": "https://cdn.freesound.org/previews/450/450852_612689-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 12526
+   "bytes": 13005,
+   "opus_kbps": 64
   },
   {
    "id": "rifle_m1/rifle_m1_385785_0",
@@ -2031,7 +2123,7 @@
    "mode": "shot",
    "files": [
     "rifle_m1/rifle_m1_385785_0.ogg",
-    "rifle_m1/rifle_m1_385785_0.mp3"
+    "rifle_m1/rifle_m1_385785_0.m4a"
    ],
    "loop": false,
    "duration": 2.75,
@@ -2046,7 +2138,8 @@
     "fetched": "https://cdn.freesound.org/previews/385/385785_7210612-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 53883
+   "bytes": 54812,
+   "opus_kbps": 64
   },
   {
    "id": "rifle_m1/rifle_m1_386842_0",
@@ -2054,7 +2147,7 @@
    "mode": "shot",
    "files": [
     "rifle_m1/rifle_m1_386842_0.ogg",
-    "rifle_m1/rifle_m1_386842_0.mp3"
+    "rifle_m1/rifle_m1_386842_0.m4a"
    ],
    "loop": false,
    "duration": 1.656,
@@ -2069,7 +2162,8 @@
     "fetched": "https://cdn.freesound.org/previews/386/386842_932959-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 31713
+   "bytes": 32560,
+   "opus_kbps": 64
   },
   {
    "id": "siren_airraid/siren_airraid_412171_0",
@@ -2077,10 +2171,10 @@
    "mode": "long",
    "files": [
     "siren_airraid/siren_airraid_412171_0.ogg",
-    "siren_airraid/siren_airraid_412171_0.mp3"
+    "siren_airraid/siren_airraid_412171_0.m4a"
    ],
    "loop": false,
-   "duration": 30.0,
+   "duration": 29.997,
    "source": {
     "site": "freesound.org",
     "id": 412171,
@@ -2092,7 +2186,8 @@
     "fetched": "https://cdn.freesound.org/previews/412/412171_7383104-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 846360
+   "bytes": 738890,
+   "opus_kbps": 64
   },
   {
    "id": "siren_airraid/siren_airraid_607382_0",
@@ -2100,7 +2195,7 @@
    "mode": "long",
    "files": [
     "siren_airraid/siren_airraid_607382_0.ogg",
-    "siren_airraid/siren_airraid_607382_0.mp3"
+    "siren_airraid/siren_airraid_607382_0.m4a"
    ],
    "loop": false,
    "duration": 30.0,
@@ -2115,7 +2210,7 @@
     "fetched": "https://cdn.freesound.org/previews/607/607382_13349052-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 908841
+   "bytes": 914861
   },
   {
    "id": "siren_handcrank/siren_handcrank_239498_0",
@@ -2123,10 +2218,10 @@
    "mode": "long",
    "files": [
     "siren_handcrank/siren_handcrank_239498_0.ogg",
-    "siren_handcrank/siren_handcrank_239498_0.mp3"
+    "siren_handcrank/siren_handcrank_239498_0.m4a"
    ],
    "loop": false,
-   "duration": 20.0,
+   "duration": 19.754,
    "source": {
     "site": "freesound.org",
     "id": 239498,
@@ -2138,7 +2233,9 @@
     "fetched": "https://cdn.freesound.org/previews/239/239498_109726-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 548345
+   "bytes": 427252,
+   "mono": true,
+   "opus_kbps": 64
   },
   {
    "id": "siren_handcrank/siren_handcrank_675690_0",
@@ -2146,7 +2243,7 @@
    "mode": "long",
    "files": [
     "siren_handcrank/siren_handcrank_675690_0.ogg",
-    "siren_handcrank/siren_handcrank_675690_0.mp3"
+    "siren_handcrank/siren_handcrank_675690_0.m4a"
    ],
    "loop": false,
    "duration": 20.0,
@@ -2161,7 +2258,9 @@
     "fetched": "https://cdn.freesound.org/previews/675/675690_2524442-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 534829
+   "bytes": 318362,
+   "mono": true,
+   "opus_kbps": 48
   },
   {
    "id": "smg_thompson_single/smg_thompson_single_258198_0",
@@ -2169,10 +2268,10 @@
    "mode": "shot",
    "files": [
     "smg_thompson_single/smg_thompson_single_258198_0.ogg",
-    "smg_thompson_single/smg_thompson_single_258198_0.mp3"
+    "smg_thompson_single/smg_thompson_single_258198_0.m4a"
    ],
    "loop": false,
-   "duration": 0.232,
+   "duration": 0.211,
    "source": {
     "site": "freesound.org",
     "id": 258198,
@@ -2184,7 +2283,8 @@
     "fetched": "https://cdn.freesound.org/previews/258/258198_4675419-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 5861
+   "bytes": 6023,
+   "opus_kbps": 64
   },
   {
    "id": "sniper_echo/sniper_echo_541164_0",
@@ -2192,7 +2292,7 @@
    "mode": "shot",
    "files": [
     "sniper_echo/sniper_echo_541164_0.ogg",
-    "sniper_echo/sniper_echo_541164_0.mp3"
+    "sniper_echo/sniper_echo_541164_0.m4a"
    ],
    "loop": false,
    "duration": 2.595,
@@ -2207,7 +2307,8 @@
     "fetched": "https://cdn.freesound.org/previews/541/541164_9662992-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 50026
+   "bytes": 33690,
+   "opus_kbps": 40
   },
   {
    "id": "sniper_echo/sniper_echo_815476_0",
@@ -2215,7 +2316,7 @@
    "mode": "shot",
    "files": [
     "sniper_echo/sniper_echo_815476_0.ogg",
-    "sniper_echo/sniper_echo_815476_0.mp3"
+    "sniper_echo/sniper_echo_815476_0.m4a"
    ],
    "loop": false,
    "duration": 1.515,
@@ -2230,7 +2331,8 @@
     "fetched": "https://cdn.freesound.org/previews/815/815476_71257-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 29663
+   "bytes": 30535,
+   "opus_kbps": 64
   },
   {
    "id": "sniper_echo/sniper_echo_855608_0",
@@ -2238,7 +2340,7 @@
    "mode": "shot",
    "files": [
     "sniper_echo/sniper_echo_855608_0.ogg",
-    "sniper_echo/sniper_echo_855608_0.mp3"
+    "sniper_echo/sniper_echo_855608_0.m4a"
    ],
    "loop": false,
    "duration": 1.445,
@@ -2253,7 +2355,7 @@
     "fetched": "https://cdn.freesound.org/previews/855/855608_71257-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 28410
+   "bytes": 29155
   },
   {
    "id": "splash/splash_524524_0",
@@ -2261,7 +2363,7 @@
    "mode": "shot",
    "files": [
     "splash/splash_524524_0.ogg",
-    "splash/splash_524524_0.mp3"
+    "splash/splash_524524_0.m4a"
    ],
    "loop": false,
    "duration": 0.729,
@@ -2276,7 +2378,8 @@
     "fetched": "https://cdn.freesound.org/previews/524/524524_6605732-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 17656
+   "bytes": 18685,
+   "opus_kbps": 64
   },
   {
    "id": "splash/splash_524524_1",
@@ -2284,7 +2387,7 @@
    "mode": "shot",
    "files": [
     "splash/splash_524524_1.ogg",
-    "splash/splash_524524_1.mp3"
+    "splash/splash_524524_1.m4a"
    ],
    "loop": false,
    "duration": 1.85,
@@ -2299,7 +2402,8 @@
     "fetched": "https://cdn.freesound.org/previews/524/524524_6605732-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 41787
+   "bytes": 43301,
+   "opus_kbps": 64
   },
   {
    "id": "splash/splash_524524_2",
@@ -2307,7 +2411,7 @@
    "mode": "shot",
    "files": [
     "splash/splash_524524_2.ogg",
-    "splash/splash_524524_2.mp3"
+    "splash/splash_524524_2.m4a"
    ],
    "loop": false,
    "duration": 1.683,
@@ -2322,7 +2426,8 @@
     "fetched": "https://cdn.freesound.org/previews/524/524524_6605732-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 37620
+   "bytes": 38979,
+   "opus_kbps": 64
   },
   {
    "id": "splash/splash_524524_3",
@@ -2330,7 +2435,7 @@
    "mode": "shot",
    "files": [
     "splash/splash_524524_3.ogg",
-    "splash/splash_524524_3.mp3"
+    "splash/splash_524524_3.m4a"
    ],
    "loop": false,
    "duration": 1.503,
@@ -2345,7 +2450,8 @@
     "fetched": "https://cdn.freesound.org/previews/524/524524_6605732-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 34134
+   "bytes": 35436,
+   "opus_kbps": 64
   },
   {
    "id": "swim/swim_530158_0",
@@ -2353,7 +2459,7 @@
    "mode": "loop",
    "files": [
     "swim/swim_530158_0.ogg",
-    "swim/swim_530158_0.mp3"
+    "swim/swim_530158_0.m4a"
    ],
    "loop": true,
    "duration": 8.0,
@@ -2368,7 +2474,8 @@
     "fetched": "https://cdn.freesound.org/previews/530/530158_5387364-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 222010
+   "bytes": 224335,
+   "opus_kbps": 96
   },
   {
    "id": "tank_engine/tank_engine_121531_0",
@@ -2376,7 +2483,7 @@
    "mode": "loop",
    "files": [
     "tank_engine/tank_engine_121531_0.ogg",
-    "tank_engine/tank_engine_121531_0.mp3"
+    "tank_engine/tank_engine_121531_0.m4a"
    ],
    "loop": true,
    "duration": 7.921,
@@ -2391,7 +2498,8 @@
     "fetched": "https://cdn.freesound.org/previews/121/121531_57789-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 219713
+   "bytes": 220889,
+   "opus_kbps": 96
   },
   {
    "id": "tank_engine/tank_engine_329800_0",
@@ -2399,7 +2507,7 @@
    "mode": "loop",
    "files": [
     "tank_engine/tank_engine_329800_0.ogg",
-    "tank_engine/tank_engine_329800_0.mp3"
+    "tank_engine/tank_engine_329800_0.m4a"
    ],
    "loop": true,
    "duration": 8.0,
@@ -2414,7 +2522,8 @@
     "fetched": "https://cdn.freesound.org/previews/329/329800_1204841-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 217169
+   "bytes": 218712,
+   "opus_kbps": 96
   },
   {
    "id": "tank_engine/tank_engine_572294_0",
@@ -2422,7 +2531,7 @@
    "mode": "loop",
    "files": [
     "tank_engine/tank_engine_572294_0.ogg",
-    "tank_engine/tank_engine_572294_0.mp3"
+    "tank_engine/tank_engine_572294_0.m4a"
    ],
    "loop": true,
    "duration": 8.0,
@@ -2437,7 +2546,8 @@
     "fetched": "https://cdn.freesound.org/previews/572/572294_3625175-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 216429
+   "bytes": 217747,
+   "opus_kbps": 96
   },
   {
    "id": "tank_engine/tank_engine_675212_0",
@@ -2445,7 +2555,7 @@
    "mode": "loop",
    "files": [
     "tank_engine/tank_engine_675212_0.ogg",
-    "tank_engine/tank_engine_675212_0.mp3"
+    "tank_engine/tank_engine_675212_0.m4a"
    ],
    "loop": true,
    "duration": 8.0,
@@ -2460,7 +2570,9 @@
     "fetched": "https://cdn.freesound.org/previews/675/675212_2524442-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 195810
+   "bytes": 158315,
+   "mono": true,
+   "opus_kbps": 64
   },
   {
    "id": "truck_engine/truck_engine_405086_0",
@@ -2468,7 +2580,7 @@
    "mode": "loop",
    "files": [
     "truck_engine/truck_engine_405086_0.ogg",
-    "truck_engine/truck_engine_405086_0.mp3"
+    "truck_engine/truck_engine_405086_0.m4a"
    ],
    "loop": true,
    "duration": 8.0,
@@ -2483,7 +2595,9 @@
     "fetched": "https://cdn.freesound.org/previews/405/405086_612689-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 193712
+   "bytes": 156898,
+   "mono": true,
+   "opus_kbps": 64
   },
   {
    "id": "truck_engine/truck_engine_637916_0",
@@ -2491,7 +2605,7 @@
    "mode": "loop",
    "files": [
     "truck_engine/truck_engine_637916_0.ogg",
-    "truck_engine/truck_engine_637916_0.mp3"
+    "truck_engine/truck_engine_637916_0.m4a"
    ],
    "loop": true,
    "duration": 8.0,
@@ -2506,7 +2620,8 @@
     "fetched": "https://cdn.freesound.org/previews/637/637916_612689-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound"
    },
-   "bytes": 217540
+   "bytes": 218864,
+   "opus_kbps": 96
   },
   {
    "id": "k_step_concrete/footstep_concrete_000",
@@ -2514,9 +2629,9 @@
    "mode": "shot",
    "files": [
     "k_step_concrete/footstep_concrete_000.ogg",
-    "k_step_concrete/footstep_concrete_000.mp3"
+    "k_step_concrete/footstep_concrete_000.m4a"
    ],
-   "duration": null,
+   "duration": 0.103,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2525,7 +2640,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 3042
+   "bytes": 4136,
+   "opus_kbps": 64
   },
   {
    "id": "k_step_concrete/footstep_concrete_001",
@@ -2533,9 +2649,9 @@
    "mode": "shot",
    "files": [
     "k_step_concrete/footstep_concrete_001.ogg",
-    "k_step_concrete/footstep_concrete_001.mp3"
+    "k_step_concrete/footstep_concrete_001.m4a"
    ],
-   "duration": null,
+   "duration": 0.105,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2544,7 +2660,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 3287
+   "bytes": 4093,
+   "opus_kbps": 64
   },
   {
    "id": "k_step_concrete/footstep_concrete_002",
@@ -2552,9 +2669,9 @@
    "mode": "shot",
    "files": [
     "k_step_concrete/footstep_concrete_002.ogg",
-    "k_step_concrete/footstep_concrete_002.mp3"
+    "k_step_concrete/footstep_concrete_002.m4a"
    ],
-   "duration": null,
+   "duration": 0.11,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2563,7 +2680,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 3264
+   "bytes": 4094,
+   "opus_kbps": 64
   },
   {
    "id": "k_step_concrete/footstep_concrete_003",
@@ -2571,9 +2689,9 @@
    "mode": "shot",
    "files": [
     "k_step_concrete/footstep_concrete_003.ogg",
-    "k_step_concrete/footstep_concrete_003.mp3"
+    "k_step_concrete/footstep_concrete_003.m4a"
    ],
-   "duration": null,
+   "duration": 0.108,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2582,7 +2700,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 3267
+   "bytes": 4133,
+   "opus_kbps": 64
   },
   {
    "id": "k_step_concrete/footstep_concrete_004",
@@ -2590,9 +2709,9 @@
    "mode": "shot",
    "files": [
     "k_step_concrete/footstep_concrete_004.ogg",
-    "k_step_concrete/footstep_concrete_004.mp3"
+    "k_step_concrete/footstep_concrete_004.m4a"
    ],
-   "duration": null,
+   "duration": 0.111,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2601,7 +2720,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 3214
+   "bytes": 4120,
+   "opus_kbps": 64
   },
   {
    "id": "k_step_grass/footstep_grass_000",
@@ -2609,9 +2729,9 @@
    "mode": "shot",
    "files": [
     "k_step_grass/footstep_grass_000.ogg",
-    "k_step_grass/footstep_grass_000.mp3"
+    "k_step_grass/footstep_grass_000.m4a"
    ],
-   "duration": null,
+   "duration": 0.775,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2620,7 +2740,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 13145
+   "bytes": 12171,
+   "opus_kbps": 64
   },
   {
    "id": "k_step_grass/footstep_grass_001",
@@ -2628,9 +2749,9 @@
    "mode": "shot",
    "files": [
     "k_step_grass/footstep_grass_001.ogg",
-    "k_step_grass/footstep_grass_001.mp3"
+    "k_step_grass/footstep_grass_001.m4a"
    ],
-   "duration": null,
+   "duration": 0.671,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2639,7 +2760,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 11985
+   "bytes": 11691,
+   "opus_kbps": 64
   },
   {
    "id": "k_step_grass/footstep_grass_002",
@@ -2647,9 +2769,9 @@
    "mode": "shot",
    "files": [
     "k_step_grass/footstep_grass_002.ogg",
-    "k_step_grass/footstep_grass_002.mp3"
+    "k_step_grass/footstep_grass_002.m4a"
    ],
-   "duration": null,
+   "duration": 0.69,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2658,7 +2780,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 12238
+   "bytes": 11626,
+   "opus_kbps": 64
   },
   {
    "id": "k_step_grass/footstep_grass_003",
@@ -2666,9 +2789,9 @@
    "mode": "shot",
    "files": [
     "k_step_grass/footstep_grass_003.ogg",
-    "k_step_grass/footstep_grass_003.mp3"
+    "k_step_grass/footstep_grass_003.m4a"
    ],
-   "duration": null,
+   "duration": 0.666,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2677,7 +2800,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 11987
+   "bytes": 11576,
+   "opus_kbps": 64
   },
   {
    "id": "k_step_grass/footstep_grass_004",
@@ -2685,9 +2809,9 @@
    "mode": "shot",
    "files": [
     "k_step_grass/footstep_grass_004.ogg",
-    "k_step_grass/footstep_grass_004.mp3"
+    "k_step_grass/footstep_grass_004.m4a"
    ],
-   "duration": null,
+   "duration": 0.587,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2696,7 +2820,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 11126
+   "bytes": 11338,
+   "opus_kbps": 64
   },
   {
    "id": "k_step_snow/footstep_snow_000",
@@ -2704,9 +2829,9 @@
    "mode": "shot",
    "files": [
     "k_step_snow/footstep_snow_000.ogg",
-    "k_step_snow/footstep_snow_000.mp3"
+    "k_step_snow/footstep_snow_000.m4a"
    ],
-   "duration": null,
+   "duration": 0.371,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2715,7 +2840,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 7673
+   "bytes": 8651,
+   "opus_kbps": 64
   },
   {
    "id": "k_step_snow/footstep_snow_001",
@@ -2723,9 +2849,9 @@
    "mode": "shot",
    "files": [
     "k_step_snow/footstep_snow_001.ogg",
-    "k_step_snow/footstep_snow_001.mp3"
+    "k_step_snow/footstep_snow_001.m4a"
    ],
-   "duration": null,
+   "duration": 0.371,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2734,7 +2860,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 7712
+   "bytes": 8763,
+   "opus_kbps": 64
   },
   {
    "id": "k_step_snow/footstep_snow_002",
@@ -2742,9 +2869,9 @@
    "mode": "shot",
    "files": [
     "k_step_snow/footstep_snow_002.ogg",
-    "k_step_snow/footstep_snow_002.mp3"
+    "k_step_snow/footstep_snow_002.m4a"
    ],
-   "duration": null,
+   "duration": 0.371,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2753,7 +2880,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 7991
+   "bytes": 8972,
+   "opus_kbps": 64
   },
   {
    "id": "k_step_snow/footstep_snow_003",
@@ -2761,9 +2889,9 @@
    "mode": "shot",
    "files": [
     "k_step_snow/footstep_snow_003.ogg",
-    "k_step_snow/footstep_snow_003.mp3"
+    "k_step_snow/footstep_snow_003.m4a"
    ],
-   "duration": null,
+   "duration": 0.371,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2772,7 +2900,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 7797
+   "bytes": 8955,
+   "opus_kbps": 64
   },
   {
    "id": "k_step_snow/footstep_snow_004",
@@ -2780,9 +2909,9 @@
    "mode": "shot",
    "files": [
     "k_step_snow/footstep_snow_004.ogg",
-    "k_step_snow/footstep_snow_004.mp3"
+    "k_step_snow/footstep_snow_004.m4a"
    ],
-   "duration": null,
+   "duration": 0.371,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2791,7 +2920,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 7625
+   "bytes": 8547,
+   "opus_kbps": 64
   },
   {
    "id": "k_step_wood/footstep_wood_000",
@@ -2799,9 +2929,9 @@
    "mode": "shot",
    "files": [
     "k_step_wood/footstep_wood_000.ogg",
-    "k_step_wood/footstep_wood_000.mp3"
+    "k_step_wood/footstep_wood_000.m4a"
    ],
-   "duration": null,
+   "duration": 0.271,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2810,7 +2940,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6435
+   "bytes": 5538,
+   "opus_kbps": 40
   },
   {
    "id": "k_step_wood/footstep_wood_001",
@@ -2818,9 +2949,9 @@
    "mode": "shot",
    "files": [
     "k_step_wood/footstep_wood_001.ogg",
-    "k_step_wood/footstep_wood_001.mp3"
+    "k_step_wood/footstep_wood_001.m4a"
    ],
-   "duration": null,
+   "duration": 0.249,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2829,7 +2960,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6102
+   "bytes": 7411,
+   "opus_kbps": 64
   },
   {
    "id": "k_step_wood/footstep_wood_002",
@@ -2837,9 +2969,9 @@
    "mode": "shot",
    "files": [
     "k_step_wood/footstep_wood_002.ogg",
-    "k_step_wood/footstep_wood_002.mp3"
+    "k_step_wood/footstep_wood_002.m4a"
    ],
-   "duration": null,
+   "duration": 0.248,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2848,7 +2980,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6137
+   "bytes": 7400,
+   "opus_kbps": 64
   },
   {
    "id": "k_step_wood/footstep_wood_003",
@@ -2856,9 +2989,9 @@
    "mode": "shot",
    "files": [
     "k_step_wood/footstep_wood_003.ogg",
-    "k_step_wood/footstep_wood_003.mp3"
+    "k_step_wood/footstep_wood_003.m4a"
    ],
-   "duration": null,
+   "duration": 0.249,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2867,7 +3000,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6116
+   "bytes": 7559,
+   "opus_kbps": 64
   },
   {
    "id": "k_step_wood/footstep_wood_004",
@@ -2875,9 +3009,9 @@
    "mode": "shot",
    "files": [
     "k_step_wood/footstep_wood_004.ogg",
-    "k_step_wood/footstep_wood_004.mp3"
+    "k_step_wood/footstep_wood_004.m4a"
    ],
-   "duration": null,
+   "duration": 0.245,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2886,7 +3020,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6279
+   "bytes": 7579,
+   "opus_kbps": 64
   },
   {
    "id": "k_glass/impactGlass_light_000",
@@ -2894,9 +3029,9 @@
    "mode": "shot",
    "files": [
     "k_glass/impactGlass_light_000.ogg",
-    "k_glass/impactGlass_light_000.mp3"
+    "k_glass/impactGlass_light_000.m4a"
    ],
-   "duration": null,
+   "duration": 0.231,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2905,7 +3040,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 4927
+   "bytes": 4081,
+   "opus_kbps": 40
   },
   {
    "id": "k_glass/impactGlass_light_001",
@@ -2913,9 +3049,9 @@
    "mode": "shot",
    "files": [
     "k_glass/impactGlass_light_001.ogg",
-    "k_glass/impactGlass_light_001.mp3"
+    "k_glass/impactGlass_light_001.m4a"
    ],
-   "duration": null,
+   "duration": 0.207,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2924,7 +3060,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 4791
+   "bytes": 3750,
+   "opus_kbps": 40
   },
   {
    "id": "k_glass/impactGlass_light_002",
@@ -2932,9 +3069,9 @@
    "mode": "shot",
    "files": [
     "k_glass/impactGlass_light_002.ogg",
-    "k_glass/impactGlass_light_002.mp3"
+    "k_glass/impactGlass_light_002.m4a"
    ],
-   "duration": null,
+   "duration": 0.207,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2943,7 +3080,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 5062
+   "bytes": 4448,
+   "opus_kbps": 48
   },
   {
    "id": "k_glass/impactGlass_light_003",
@@ -2951,9 +3089,9 @@
    "mode": "shot",
    "files": [
     "k_glass/impactGlass_light_003.ogg",
-    "k_glass/impactGlass_light_003.mp3"
+    "k_glass/impactGlass_light_003.m4a"
    ],
-   "duration": null,
+   "duration": 0.207,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2962,7 +3100,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 4739
+   "bytes": 3849,
+   "opus_kbps": 40
   },
   {
    "id": "k_glass/impactGlass_light_004",
@@ -2970,9 +3109,9 @@
    "mode": "shot",
    "files": [
     "k_glass/impactGlass_light_004.ogg",
-    "k_glass/impactGlass_light_004.mp3"
+    "k_glass/impactGlass_light_004.m4a"
    ],
-   "duration": null,
+   "duration": 0.207,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -2981,7 +3120,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 4786
+   "bytes": 3962,
+   "opus_kbps": 40
   },
   {
    "id": "k_hit_metal/impactMetal_light_000",
@@ -2989,9 +3129,9 @@
    "mode": "shot",
    "files": [
     "k_hit_metal/impactMetal_light_000.ogg",
-    "k_hit_metal/impactMetal_light_000.mp3"
+    "k_hit_metal/impactMetal_light_000.m4a"
    ],
-   "duration": null,
+   "duration": 0.373,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3000,7 +3140,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 8480
+   "bytes": 6056,
+   "opus_kbps": 40
   },
   {
    "id": "k_hit_metal/impactMetal_light_001",
@@ -3008,9 +3149,9 @@
    "mode": "shot",
    "files": [
     "k_hit_metal/impactMetal_light_001.ogg",
-    "k_hit_metal/impactMetal_light_001.mp3"
+    "k_hit_metal/impactMetal_light_001.m4a"
    ],
-   "duration": null,
+   "duration": 0.249,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3019,7 +3160,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6254
+   "bytes": 4519,
+   "opus_kbps": 40
   },
   {
    "id": "k_hit_metal/impactMetal_light_002",
@@ -3027,9 +3169,9 @@
    "mode": "shot",
    "files": [
     "k_hit_metal/impactMetal_light_002.ogg",
-    "k_hit_metal/impactMetal_light_002.mp3"
+    "k_hit_metal/impactMetal_light_002.m4a"
    ],
-   "duration": null,
+   "duration": 0.233,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3038,7 +3180,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 5321
+   "bytes": 4335,
+   "opus_kbps": 40
   },
   {
    "id": "k_hit_metal/impactMetal_light_003",
@@ -3046,9 +3189,9 @@
    "mode": "shot",
    "files": [
     "k_hit_metal/impactMetal_light_003.ogg",
-    "k_hit_metal/impactMetal_light_003.mp3"
+    "k_hit_metal/impactMetal_light_003.m4a"
    ],
-   "duration": null,
+   "duration": 0.482,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3057,7 +3200,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 10331
+   "bytes": 7973,
+   "opus_kbps": 40
   },
   {
    "id": "k_hit_metal/impactMetal_light_004",
@@ -3065,9 +3209,9 @@
    "mode": "shot",
    "files": [
     "k_hit_metal/impactMetal_light_004.ogg",
-    "k_hit_metal/impactMetal_light_004.mp3"
+    "k_hit_metal/impactMetal_light_004.m4a"
    ],
-   "duration": null,
+   "duration": 0.21,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3076,7 +3220,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 5309
+   "bytes": 3996,
+   "opus_kbps": 40
   },
   {
    "id": "k_dig/impactMining_000",
@@ -3084,9 +3229,9 @@
    "mode": "shot",
    "files": [
     "k_dig/impactMining_000.ogg",
-    "k_dig/impactMining_000.mp3"
+    "k_dig/impactMining_000.m4a"
    ],
-   "duration": null,
+   "duration": 0.837,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3095,7 +3240,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 19157
+   "bytes": 15624,
+   "opus_kbps": 48
   },
   {
    "id": "k_dig/impactMining_001",
@@ -3103,9 +3249,9 @@
    "mode": "shot",
    "files": [
     "k_dig/impactMining_001.ogg",
-    "k_dig/impactMining_001.mp3"
+    "k_dig/impactMining_001.m4a"
    ],
-   "duration": null,
+   "duration": 0.779,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3114,7 +3260,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 18180
+   "bytes": 14853,
+   "opus_kbps": 48
   },
   {
    "id": "k_dig/impactMining_002",
@@ -3122,9 +3269,9 @@
    "mode": "shot",
    "files": [
     "k_dig/impactMining_002.ogg",
-    "k_dig/impactMining_002.mp3"
+    "k_dig/impactMining_002.m4a"
    ],
-   "duration": null,
+   "duration": 0.805,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3133,7 +3280,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 16344
+   "bytes": 14948,
+   "opus_kbps": 48
   },
   {
    "id": "k_dig/impactMining_003",
@@ -3141,9 +3289,9 @@
    "mode": "shot",
    "files": [
     "k_dig/impactMining_003.ogg",
-    "k_dig/impactMining_003.mp3"
+    "k_dig/impactMining_003.m4a"
    ],
-   "duration": null,
+   "duration": 0.871,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3152,7 +3300,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 19683
+   "bytes": 15837,
+   "opus_kbps": 48
   },
   {
    "id": "k_dig/impactMining_004",
@@ -3160,9 +3309,9 @@
    "mode": "shot",
    "files": [
     "k_dig/impactMining_004.ogg",
-    "k_dig/impactMining_004.mp3"
+    "k_dig/impactMining_004.m4a"
    ],
-   "duration": null,
+   "duration": 0.79,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3171,7 +3320,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 17249
+   "bytes": 12325,
+   "opus_kbps": 40
   },
   {
    "id": "k_barrel_set/impactPlate_heavy_000",
@@ -3179,9 +3329,9 @@
    "mode": "shot",
    "files": [
     "k_barrel_set/impactPlate_heavy_000.ogg",
-    "k_barrel_set/impactPlate_heavy_000.mp3"
+    "k_barrel_set/impactPlate_heavy_000.m4a"
    ],
-   "duration": null,
+   "duration": 0.489,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3190,7 +3340,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 8074
+   "bytes": 10798,
+   "opus_kbps": 64
   },
   {
    "id": "k_barrel_set/impactPlate_heavy_001",
@@ -3198,9 +3349,9 @@
    "mode": "shot",
    "files": [
     "k_barrel_set/impactPlate_heavy_001.ogg",
-    "k_barrel_set/impactPlate_heavy_001.mp3"
+    "k_barrel_set/impactPlate_heavy_001.m4a"
    ],
-   "duration": null,
+   "duration": 0.349,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3209,7 +3360,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6455
+   "bytes": 8338,
+   "opus_kbps": 64
   },
   {
    "id": "k_barrel_set/impactPlate_heavy_002",
@@ -3217,9 +3369,9 @@
    "mode": "shot",
    "files": [
     "k_barrel_set/impactPlate_heavy_002.ogg",
-    "k_barrel_set/impactPlate_heavy_002.mp3"
+    "k_barrel_set/impactPlate_heavy_002.m4a"
    ],
-   "duration": null,
+   "duration": 0.494,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3228,7 +3380,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 8381
+   "bytes": 11023,
+   "opus_kbps": 64
   },
   {
    "id": "k_barrel_set/impactPlate_heavy_003",
@@ -3236,9 +3389,9 @@
    "mode": "shot",
    "files": [
     "k_barrel_set/impactPlate_heavy_003.ogg",
-    "k_barrel_set/impactPlate_heavy_003.mp3"
+    "k_barrel_set/impactPlate_heavy_003.m4a"
    ],
-   "duration": null,
+   "duration": 0.344,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3247,7 +3400,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6691
+   "bytes": 8534,
+   "opus_kbps": 64
   },
   {
    "id": "k_barrel_set/impactPlate_heavy_004",
@@ -3255,9 +3409,9 @@
    "mode": "shot",
    "files": [
     "k_barrel_set/impactPlate_heavy_004.ogg",
-    "k_barrel_set/impactPlate_heavy_004.mp3"
+    "k_barrel_set/impactPlate_heavy_004.m4a"
    ],
-   "duration": null,
+   "duration": 0.559,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3266,7 +3420,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 9107
+   "bytes": 11998,
+   "opus_kbps": 64
   },
   {
    "id": "k_hit_flesh/impactPunch_medium_000",
@@ -3274,9 +3429,9 @@
    "mode": "shot",
    "files": [
     "k_hit_flesh/impactPunch_medium_000.ogg",
-    "k_hit_flesh/impactPunch_medium_000.mp3"
+    "k_hit_flesh/impactPunch_medium_000.m4a"
    ],
-   "duration": null,
+   "duration": 0.336,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3285,7 +3440,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 7559
+   "bytes": 6151,
+   "opus_kbps": 48
   },
   {
    "id": "k_hit_flesh/impactPunch_medium_001",
@@ -3293,9 +3449,9 @@
    "mode": "shot",
    "files": [
     "k_hit_flesh/impactPunch_medium_001.ogg",
-    "k_hit_flesh/impactPunch_medium_001.mp3"
+    "k_hit_flesh/impactPunch_medium_001.m4a"
    ],
-   "duration": null,
+   "duration": 0.324,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3304,7 +3460,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 7294
+   "bytes": 7979,
+   "opus_kbps": 64
   },
   {
    "id": "k_hit_flesh/impactPunch_medium_002",
@@ -3312,9 +3469,9 @@
    "mode": "shot",
    "files": [
     "k_hit_flesh/impactPunch_medium_002.ogg",
-    "k_hit_flesh/impactPunch_medium_002.mp3"
+    "k_hit_flesh/impactPunch_medium_002.m4a"
    ],
-   "duration": null,
+   "duration": 0.388,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3323,7 +3480,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 9718
+   "bytes": 9210,
+   "opus_kbps": 64
   },
   {
    "id": "k_hit_flesh/impactPunch_medium_003",
@@ -3331,9 +3489,9 @@
    "mode": "shot",
    "files": [
     "k_hit_flesh/impactPunch_medium_003.ogg",
-    "k_hit_flesh/impactPunch_medium_003.mp3"
+    "k_hit_flesh/impactPunch_medium_003.m4a"
    ],
-   "duration": null,
+   "duration": 0.331,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3342,7 +3500,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 8491
+   "bytes": 8274,
+   "opus_kbps": 64
   },
   {
    "id": "k_hit_flesh/impactPunch_medium_004",
@@ -3350,9 +3509,9 @@
    "mode": "shot",
    "files": [
     "k_hit_flesh/impactPunch_medium_004.ogg",
-    "k_hit_flesh/impactPunch_medium_004.mp3"
+    "k_hit_flesh/impactPunch_medium_004.m4a"
    ],
-   "duration": null,
+   "duration": 0.389,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3361,7 +3520,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 9625
+   "bytes": 9214,
+   "opus_kbps": 64
   },
   {
    "id": "k_hit_soft/impactSoft_medium_000",
@@ -3369,9 +3529,9 @@
    "mode": "shot",
    "files": [
     "k_hit_soft/impactSoft_medium_000.ogg",
-    "k_hit_soft/impactSoft_medium_000.mp3"
+    "k_hit_soft/impactSoft_medium_000.m4a"
    ],
-   "duration": null,
+   "duration": 0.115,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3380,7 +3540,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 3924
+   "bytes": 4923,
+   "opus_kbps": 64
   },
   {
    "id": "k_hit_soft/impactSoft_medium_001",
@@ -3388,9 +3549,9 @@
    "mode": "shot",
    "files": [
     "k_hit_soft/impactSoft_medium_001.ogg",
-    "k_hit_soft/impactSoft_medium_001.mp3"
+    "k_hit_soft/impactSoft_medium_001.m4a"
    ],
-   "duration": null,
+   "duration": 0.18,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3399,7 +3560,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 5008
+   "bytes": 6519,
+   "opus_kbps": 64
   },
   {
    "id": "k_hit_soft/impactSoft_medium_002",
@@ -3407,9 +3569,9 @@
    "mode": "shot",
    "files": [
     "k_hit_soft/impactSoft_medium_002.ogg",
-    "k_hit_soft/impactSoft_medium_002.mp3"
+    "k_hit_soft/impactSoft_medium_002.m4a"
    ],
-   "duration": null,
+   "duration": 0.132,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3418,7 +3580,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 3991
+   "bytes": 3619,
+   "opus_kbps": 40
   },
   {
    "id": "k_hit_soft/impactSoft_medium_003",
@@ -3426,9 +3589,9 @@
    "mode": "shot",
    "files": [
     "k_hit_soft/impactSoft_medium_003.ogg",
-    "k_hit_soft/impactSoft_medium_003.mp3"
+    "k_hit_soft/impactSoft_medium_003.m4a"
    ],
-   "duration": null,
+   "duration": 0.137,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3437,7 +3600,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 4271
+   "bytes": 3717,
+   "opus_kbps": 40
   },
   {
    "id": "k_hit_soft/impactSoft_medium_004",
@@ -3445,9 +3609,9 @@
    "mode": "shot",
    "files": [
     "k_hit_soft/impactSoft_medium_004.ogg",
-    "k_hit_soft/impactSoft_medium_004.mp3"
+    "k_hit_soft/impactSoft_medium_004.m4a"
    ],
-   "duration": null,
+   "duration": 0.144,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3456,7 +3620,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 4260
+   "bytes": 3797,
+   "opus_kbps": 40
   },
   {
    "id": "k_thud_wood/impactWood_heavy_000",
@@ -3464,9 +3629,9 @@
    "mode": "shot",
    "files": [
     "k_thud_wood/impactWood_heavy_000.ogg",
-    "k_thud_wood/impactWood_heavy_000.mp3"
+    "k_thud_wood/impactWood_heavy_000.m4a"
    ],
-   "duration": null,
+   "duration": 0.31,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3475,7 +3640,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6373
+   "bytes": 4985,
+   "opus_kbps": 40
   },
   {
    "id": "k_thud_wood/impactWood_heavy_001",
@@ -3483,9 +3649,9 @@
    "mode": "shot",
    "files": [
     "k_thud_wood/impactWood_heavy_001.ogg",
-    "k_thud_wood/impactWood_heavy_001.mp3"
+    "k_thud_wood/impactWood_heavy_001.m4a"
    ],
-   "duration": null,
+   "duration": 0.31,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3494,7 +3660,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6461
+   "bytes": 4928,
+   "opus_kbps": 40
   },
   {
    "id": "k_thud_wood/impactWood_heavy_002",
@@ -3502,9 +3669,9 @@
    "mode": "shot",
    "files": [
     "k_thud_wood/impactWood_heavy_002.ogg",
-    "k_thud_wood/impactWood_heavy_002.mp3"
+    "k_thud_wood/impactWood_heavy_002.m4a"
    ],
-   "duration": null,
+   "duration": 0.31,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3513,7 +3680,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6611
+   "bytes": 5028,
+   "opus_kbps": 40
   },
   {
    "id": "k_thud_wood/impactWood_heavy_003",
@@ -3521,9 +3689,9 @@
    "mode": "shot",
    "files": [
     "k_thud_wood/impactWood_heavy_003.ogg",
-    "k_thud_wood/impactWood_heavy_003.mp3"
+    "k_thud_wood/impactWood_heavy_003.m4a"
    ],
-   "duration": null,
+   "duration": 0.31,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3532,7 +3700,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6813
+   "bytes": 4929,
+   "opus_kbps": 40
   },
   {
    "id": "k_thud_wood/impactWood_heavy_004",
@@ -3540,9 +3709,9 @@
    "mode": "shot",
    "files": [
     "k_thud_wood/impactWood_heavy_004.ogg",
-    "k_thud_wood/impactWood_heavy_004.mp3"
+    "k_thud_wood/impactWood_heavy_004.m4a"
    ],
-   "duration": null,
+   "duration": 0.31,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3551,7 +3720,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6573
+   "bytes": 4877,
+   "opus_kbps": 40
   },
   {
    "id": "k_hit_wood/impactWood_light_000",
@@ -3559,9 +3729,9 @@
    "mode": "shot",
    "files": [
     "k_hit_wood/impactWood_light_000.ogg",
-    "k_hit_wood/impactWood_light_000.mp3"
+    "k_hit_wood/impactWood_light_000.m4a"
    ],
-   "duration": null,
+   "duration": 0.263,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3570,7 +3740,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 5596
+   "bytes": 4224,
+   "opus_kbps": 40
   },
   {
    "id": "k_hit_wood/impactWood_light_001",
@@ -3578,9 +3749,9 @@
    "mode": "shot",
    "files": [
     "k_hit_wood/impactWood_light_001.ogg",
-    "k_hit_wood/impactWood_light_001.mp3"
+    "k_hit_wood/impactWood_light_001.m4a"
    ],
-   "duration": null,
+   "duration": 0.263,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3589,7 +3760,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 5703
+   "bytes": 7016,
+   "opus_kbps": 64
   },
   {
    "id": "k_hit_wood/impactWood_light_002",
@@ -3597,9 +3769,9 @@
    "mode": "shot",
    "files": [
     "k_hit_wood/impactWood_light_002.ogg",
-    "k_hit_wood/impactWood_light_002.mp3"
+    "k_hit_wood/impactWood_light_002.m4a"
    ],
-   "duration": null,
+   "duration": 0.263,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3608,7 +3780,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 5500
+   "bytes": 4290,
+   "opus_kbps": 40
   },
   {
    "id": "k_hit_wood/impactWood_light_003",
@@ -3616,9 +3789,9 @@
    "mode": "shot",
    "files": [
     "k_hit_wood/impactWood_light_003.ogg",
-    "k_hit_wood/impactWood_light_003.mp3"
+    "k_hit_wood/impactWood_light_003.m4a"
    ],
-   "duration": null,
+   "duration": 0.263,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3627,7 +3800,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 5684
+   "bytes": 7014,
+   "opus_kbps": 64
   },
   {
    "id": "k_hit_wood/impactWood_light_004",
@@ -3635,9 +3809,9 @@
    "mode": "shot",
    "files": [
     "k_hit_wood/impactWood_light_004.ogg",
-    "k_hit_wood/impactWood_light_004.mp3"
+    "k_hit_wood/impactWood_light_004.m4a"
    ],
-   "duration": null,
+   "duration": 0.263,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_impact-sounds",
@@ -3646,7 +3820,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 5642
+   "bytes": 6993,
+   "opus_kbps": 64
   },
   {
    "id": "k_belt/beltHandle1",
@@ -3654,9 +3829,9 @@
    "mode": "shot",
    "files": [
     "k_belt/beltHandle1.ogg",
-    "k_belt/beltHandle1.mp3"
+    "k_belt/beltHandle1.m4a"
    ],
-   "duration": null,
+   "duration": 0.277,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -3665,7 +3840,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6597
+   "bytes": 8409,
+   "opus_kbps": 64
   },
   {
    "id": "k_belt/beltHandle2",
@@ -3673,9 +3849,9 @@
    "mode": "shot",
    "files": [
     "k_belt/beltHandle2.ogg",
-    "k_belt/beltHandle2.mp3"
+    "k_belt/beltHandle2.m4a"
    ],
-   "duration": null,
+   "duration": 0.457,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -3684,7 +3860,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 9627
+   "bytes": 12084,
+   "opus_kbps": 64
   },
   {
    "id": "k_page/bookFlip1",
@@ -3692,9 +3869,9 @@
    "mode": "shot",
    "files": [
     "k_page/bookFlip1.ogg",
-    "k_page/bookFlip1.mp3"
+    "k_page/bookFlip1.m4a"
    ],
-   "duration": null,
+   "duration": 0.709,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -3703,7 +3880,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 13333
+   "bytes": 16127,
+   "opus_kbps": 64
   },
   {
    "id": "k_page/bookFlip2",
@@ -3711,7 +3889,7 @@
    "mode": "shot",
    "files": [
     "k_page/bookFlip2.ogg",
-    "k_page/bookFlip2.mp3"
+    "k_page/bookFlip2.m4a"
    ],
    "duration": null,
    "source": {
@@ -3722,7 +3900,7 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 7845
+   "bytes": 10421
   },
   {
    "id": "k_page/bookFlip3",
@@ -3730,9 +3908,9 @@
    "mode": "shot",
    "files": [
     "k_page/bookFlip3.ogg",
-    "k_page/bookFlip3.mp3"
+    "k_page/bookFlip3.m4a"
    ],
-   "duration": null,
+   "duration": 0.231,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -3741,7 +3919,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 4839
+   "bytes": 6461,
+   "opus_kbps": 64
   },
   {
    "id": "k_book_open/bookOpen",
@@ -3749,9 +3928,9 @@
    "mode": "shot",
    "files": [
     "k_book_open/bookOpen.ogg",
-    "k_book_open/bookOpen.mp3"
+    "k_book_open/bookOpen.m4a"
    ],
-   "duration": null,
+   "duration": 0.151,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -3760,7 +3939,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 3598
+   "bytes": 4895,
+   "opus_kbps": 64
   },
   {
    "id": "k_stamp/bookPlace1",
@@ -3768,9 +3948,9 @@
    "mode": "shot",
    "files": [
     "k_stamp/bookPlace1.ogg",
-    "k_stamp/bookPlace1.mp3"
+    "k_stamp/bookPlace1.m4a"
    ],
-   "duration": null,
+   "duration": 0.277,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -3779,7 +3959,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 5503
+   "bytes": 7316,
+   "opus_kbps": 64
   },
   {
    "id": "k_stamp/bookPlace2",
@@ -3787,9 +3968,9 @@
    "mode": "shot",
    "files": [
     "k_stamp/bookPlace2.ogg",
-    "k_stamp/bookPlace2.mp3"
+    "k_stamp/bookPlace2.m4a"
    ],
-   "duration": null,
+   "duration": 0.322,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -3798,7 +3979,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6808
+   "bytes": 8300,
+   "opus_kbps": 64
   },
   {
    "id": "k_stamp/bookPlace3",
@@ -3806,9 +3988,9 @@
    "mode": "shot",
    "files": [
     "k_stamp/bookPlace3.ogg",
-    "k_stamp/bookPlace3.mp3"
+    "k_stamp/bookPlace3.m4a"
    ],
-   "duration": null,
+   "duration": 0.261,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -3817,7 +3999,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 5443
+   "bytes": 7148,
+   "opus_kbps": 64
   },
   {
    "id": "k_cloth/cloth1",
@@ -3825,9 +4008,9 @@
    "mode": "shot",
    "files": [
     "k_cloth/cloth1.ogg",
-    "k_cloth/cloth1.mp3"
+    "k_cloth/cloth1.m4a"
    ],
-   "duration": null,
+   "duration": 0.661,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -3836,7 +4019,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 11452
+   "bytes": 14750,
+   "opus_kbps": 64
   },
   {
    "id": "k_cloth/cloth2",
@@ -3844,9 +4028,9 @@
    "mode": "shot",
    "files": [
     "k_cloth/cloth2.ogg",
-    "k_cloth/cloth2.mp3"
+    "k_cloth/cloth2.m4a"
    ],
-   "duration": null,
+   "duration": 0.415,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -3855,7 +4039,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 7407
+   "bytes": 9926,
+   "opus_kbps": 64
   },
   {
    "id": "k_cloth/cloth3",
@@ -3863,9 +4048,9 @@
    "mode": "shot",
    "files": [
     "k_cloth/cloth3.ogg",
-    "k_cloth/cloth3.mp3"
+    "k_cloth/cloth3.m4a"
    ],
-   "duration": null,
+   "duration": 0.477,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -3874,7 +4059,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 8168
+   "bytes": 10666,
+   "opus_kbps": 64
   },
   {
    "id": "k_cloth/cloth4",
@@ -3882,9 +4068,9 @@
    "mode": "shot",
    "files": [
     "k_cloth/cloth4.ogg",
-    "k_cloth/cloth4.mp3"
+    "k_cloth/cloth4.m4a"
    ],
-   "duration": null,
+   "duration": 0.384,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -3893,7 +4079,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6908
+   "bytes": 9238,
+   "opus_kbps": 64
   },
   {
    "id": "k_creak/creak1",
@@ -3901,9 +4088,9 @@
    "mode": "shot",
    "files": [
     "k_creak/creak1.ogg",
-    "k_creak/creak1.mp3"
+    "k_creak/creak1.m4a"
    ],
-   "duration": null,
+   "duration": 0.636,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -3912,7 +4099,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 11962
+   "bytes": 14595,
+   "opus_kbps": 64
   },
   {
    "id": "k_creak/creak2",
@@ -3920,9 +4108,9 @@
    "mode": "shot",
    "files": [
     "k_creak/creak2.ogg",
-    "k_creak/creak2.mp3"
+    "k_creak/creak2.m4a"
    ],
-   "duration": null,
+   "duration": 0.83,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -3931,7 +4119,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 14194
+   "bytes": 18331,
+   "opus_kbps": 64
   },
   {
    "id": "k_creak/creak3",
@@ -3939,9 +4128,9 @@
    "mode": "shot",
    "files": [
     "k_creak/creak3.ogg",
-    "k_creak/creak3.mp3"
+    "k_creak/creak3.m4a"
    ],
-   "duration": null,
+   "duration": 0.338,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -3950,7 +4139,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6358
+   "bytes": 6548,
+   "opus_kbps": 48
   },
   {
    "id": "k_door_close/doorClose_1",
@@ -3958,9 +4148,9 @@
    "mode": "shot",
    "files": [
     "k_door_close/doorClose_1.ogg",
-    "k_door_close/doorClose_1.mp3"
+    "k_door_close/doorClose_1.m4a"
    ],
-   "duration": null,
+   "duration": 0.675,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -3969,7 +4159,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 11351
+   "bytes": 14735,
+   "opus_kbps": 64
   },
   {
    "id": "k_door_close/doorClose_2",
@@ -3977,9 +4168,9 @@
    "mode": "shot",
    "files": [
     "k_door_close/doorClose_2.ogg",
-    "k_door_close/doorClose_2.mp3"
+    "k_door_close/doorClose_2.m4a"
    ],
-   "duration": null,
+   "duration": 0.612,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -3988,7 +4179,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 11400
+   "bytes": 14667,
+   "opus_kbps": 64
   },
   {
    "id": "k_door_close/doorClose_3",
@@ -3996,9 +4188,9 @@
    "mode": "shot",
    "files": [
     "k_door_close/doorClose_3.ogg",
-    "k_door_close/doorClose_3.mp3"
+    "k_door_close/doorClose_3.m4a"
    ],
-   "duration": null,
+   "duration": 0.714,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -4007,7 +4199,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 13759
+   "bytes": 17292,
+   "opus_kbps": 64
   },
   {
    "id": "k_door_close/doorClose_4",
@@ -4015,9 +4208,9 @@
    "mode": "shot",
    "files": [
     "k_door_close/doorClose_4.ogg",
-    "k_door_close/doorClose_4.mp3"
+    "k_door_close/doorClose_4.m4a"
    ],
-   "duration": null,
+   "duration": 0.603,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -4026,7 +4219,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 11158
+   "bytes": 14376,
+   "opus_kbps": 64
   },
   {
    "id": "k_door_open/doorOpen_1",
@@ -4034,9 +4228,9 @@
    "mode": "shot",
    "files": [
     "k_door_open/doorOpen_1.ogg",
-    "k_door_open/doorOpen_1.mp3"
+    "k_door_open/doorOpen_1.m4a"
    ],
-   "duration": null,
+   "duration": 0.919,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -4045,7 +4239,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 16087
+   "bytes": 20590,
+   "opus_kbps": 64
   },
   {
    "id": "k_door_open/doorOpen_2",
@@ -4053,9 +4248,9 @@
    "mode": "shot",
    "files": [
     "k_door_open/doorOpen_2.ogg",
-    "k_door_open/doorOpen_2.mp3"
+    "k_door_open/doorOpen_2.m4a"
    ],
-   "duration": null,
+   "duration": 1.413,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -4064,7 +4259,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 24219
+   "bytes": 31376,
+   "opus_kbps": 64
   },
   {
    "id": "k_draw/drawKnife1",
@@ -4072,7 +4268,7 @@
    "mode": "shot",
    "files": [
     "k_draw/drawKnife1.ogg",
-    "k_draw/drawKnife1.mp3"
+    "k_draw/drawKnife1.m4a"
    ],
    "duration": null,
    "source": {
@@ -4083,7 +4279,7 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 7085
+   "bytes": 9486
   },
   {
    "id": "k_draw/drawKnife2",
@@ -4091,7 +4287,7 @@
    "mode": "shot",
    "files": [
     "k_draw/drawKnife2.ogg",
-    "k_draw/drawKnife2.mp3"
+    "k_draw/drawKnife2.m4a"
    ],
    "duration": null,
    "source": {
@@ -4102,7 +4298,7 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 8002
+   "bytes": 10522
   },
   {
    "id": "k_draw/drawKnife3",
@@ -4110,9 +4306,9 @@
    "mode": "shot",
    "files": [
     "k_draw/drawKnife3.ogg",
-    "k_draw/drawKnife3.mp3"
+    "k_draw/drawKnife3.m4a"
    ],
-   "duration": null,
+   "duration": 0.377,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -4121,7 +4317,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 8201
+   "bytes": 9134,
+   "opus_kbps": 64
   },
   {
    "id": "k_drop_leather/dropLeather",
@@ -4129,9 +4326,9 @@
    "mode": "shot",
    "files": [
     "k_drop_leather/dropLeather.ogg",
-    "k_drop_leather/dropLeather.mp3"
+    "k_drop_leather/dropLeather.m4a"
    ],
-   "duration": null,
+   "duration": 0.415,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -4140,7 +4337,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 7345
+   "bytes": 9975,
+   "opus_kbps": 64
   },
   {
    "id": "k_pouch/handleSmallLeather",
@@ -4148,9 +4346,9 @@
    "mode": "shot",
    "files": [
     "k_pouch/handleSmallLeather.ogg",
-    "k_pouch/handleSmallLeather.mp3"
+    "k_pouch/handleSmallLeather.m4a"
    ],
-   "duration": null,
+   "duration": 0.338,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -4159,7 +4357,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6044
+   "bytes": 8239,
+   "opus_kbps": 64
   },
   {
    "id": "k_pouch/handleSmallLeather2",
@@ -4167,7 +4366,7 @@
    "mode": "shot",
    "files": [
     "k_pouch/handleSmallLeather2.ogg",
-    "k_pouch/handleSmallLeather2.mp3"
+    "k_pouch/handleSmallLeather2.m4a"
    ],
    "duration": null,
    "source": {
@@ -4178,7 +4377,7 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 5598
+   "bytes": 7788
   },
   {
    "id": "k_knife/knifeSlice",
@@ -4186,7 +4385,7 @@
    "mode": "shot",
    "files": [
     "k_knife/knifeSlice.ogg",
-    "k_knife/knifeSlice.mp3"
+    "k_knife/knifeSlice.m4a"
    ],
    "duration": null,
    "source": {
@@ -4197,7 +4396,7 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 10222
+   "bytes": 13592
   },
   {
    "id": "k_knife/knifeSlice2",
@@ -4205,7 +4404,7 @@
    "mode": "shot",
    "files": [
     "k_knife/knifeSlice2.ogg",
-    "k_knife/knifeSlice2.mp3"
+    "k_knife/knifeSlice2.m4a"
    ],
    "duration": null,
    "source": {
@@ -4216,7 +4415,7 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 10017
+   "bytes": 13187
   },
   {
    "id": "k_metal_click/metalClick",
@@ -4224,9 +4423,9 @@
    "mode": "shot",
    "files": [
     "k_metal_click/metalClick.ogg",
-    "k_metal_click/metalClick.mp3"
+    "k_metal_click/metalClick.m4a"
    ],
-   "duration": null,
+   "duration": 0.426,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -4235,7 +4434,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 8453
+   "bytes": 10614,
+   "opus_kbps": 64
   },
   {
    "id": "k_metal_latch/metalLatch",
@@ -4243,9 +4443,9 @@
    "mode": "shot",
    "files": [
     "k_metal_latch/metalLatch.ogg",
-    "k_metal_latch/metalLatch.mp3"
+    "k_metal_latch/metalLatch.m4a"
    ],
-   "duration": null,
+   "duration": 0.261,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_rpg-audio",
@@ -4254,7 +4454,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 5481
+   "bytes": 7203,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_click/click_001",
@@ -4262,9 +4463,9 @@
    "mode": "shot",
    "files": [
     "k_ui_click/click_001.ogg",
-    "k_ui_click/click_001.mp3"
+    "k_ui_click/click_001.m4a"
    ],
-   "duration": null,
+   "duration": 0.097,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4273,7 +4474,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 3229
+   "bytes": 4437,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_click/click_002",
@@ -4281,9 +4483,9 @@
    "mode": "shot",
    "files": [
     "k_ui_click/click_002.ogg",
-    "k_ui_click/click_002.mp3"
+    "k_ui_click/click_002.m4a"
    ],
-   "duration": null,
+   "duration": 0.012,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4292,7 +4494,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 1214
+   "bytes": 1828,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_click/click_003",
@@ -4300,9 +4503,9 @@
    "mode": "shot",
    "files": [
     "k_ui_click/click_003.ogg",
-    "k_ui_click/click_003.mp3"
+    "k_ui_click/click_003.m4a"
    ],
-   "duration": null,
+   "duration": 0.007,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4311,7 +4514,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 1214
+   "bytes": 1822,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_click/click_004",
@@ -4319,9 +4523,9 @@
    "mode": "shot",
    "files": [
     "k_ui_click/click_004.ogg",
-    "k_ui_click/click_004.mp3"
+    "k_ui_click/click_004.m4a"
    ],
-   "duration": null,
+   "duration": 0.022,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4330,7 +4534,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 1503
+   "bytes": 2130,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_click/click_005",
@@ -4338,9 +4543,9 @@
    "mode": "shot",
    "files": [
     "k_ui_click/click_005.ogg",
-    "k_ui_click/click_005.mp3"
+    "k_ui_click/click_005.m4a"
    ],
-   "duration": null,
+   "duration": 0.007,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4349,7 +4554,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 1226
+   "bytes": 1830,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_confirm/confirmation_001",
@@ -4357,9 +4563,9 @@
    "mode": "shot",
    "files": [
     "k_ui_confirm/confirmation_001.ogg",
-    "k_ui_confirm/confirmation_001.mp3"
+    "k_ui_confirm/confirmation_001.m4a"
    ],
-   "duration": null,
+   "duration": 0.29,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4368,7 +4574,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6131
+   "bytes": 5614,
+   "opus_kbps": 40
   },
   {
    "id": "k_ui_confirm/confirmation_002",
@@ -4376,9 +4583,9 @@
    "mode": "shot",
    "files": [
     "k_ui_confirm/confirmation_002.ogg",
-    "k_ui_confirm/confirmation_002.mp3"
+    "k_ui_confirm/confirmation_002.m4a"
    ],
-   "duration": null,
+   "duration": 0.539,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4387,7 +4594,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 10557
+   "bytes": 9798,
+   "opus_kbps": 48
   },
   {
    "id": "k_ui_confirm/confirmation_003",
@@ -4395,9 +4603,9 @@
    "mode": "shot",
    "files": [
     "k_ui_confirm/confirmation_003.ogg",
-    "k_ui_confirm/confirmation_003.mp3"
+    "k_ui_confirm/confirmation_003.m4a"
    ],
-   "duration": null,
+   "duration": 0.322,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4406,7 +4614,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6705
+   "bytes": 8675,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_confirm/confirmation_004",
@@ -4414,9 +4623,9 @@
    "mode": "shot",
    "files": [
     "k_ui_confirm/confirmation_004.ogg",
-    "k_ui_confirm/confirmation_004.mp3"
+    "k_ui_confirm/confirmation_004.m4a"
    ],
-   "duration": null,
+   "duration": 0.49,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4425,7 +4634,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 9497
+   "bytes": 8331,
+   "opus_kbps": 40
   },
   {
    "id": "k_ui_error/error_001",
@@ -4433,9 +4643,9 @@
    "mode": "shot",
    "files": [
     "k_ui_error/error_001.ogg",
-    "k_ui_error/error_001.mp3"
+    "k_ui_error/error_001.m4a"
    ],
-   "duration": null,
+   "duration": 0.162,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4444,7 +4654,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 4638
+   "bytes": 5930,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_error/error_002",
@@ -4452,9 +4663,9 @@
    "mode": "shot",
    "files": [
     "k_ui_error/error_002.ogg",
-    "k_ui_error/error_002.mp3"
+    "k_ui_error/error_002.m4a"
    ],
-   "duration": null,
+   "duration": 0.165,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4463,7 +4674,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 4416
+   "bytes": 5702,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_error/error_003",
@@ -4471,9 +4683,9 @@
    "mode": "shot",
    "files": [
     "k_ui_error/error_003.ogg",
-    "k_ui_error/error_003.mp3"
+    "k_ui_error/error_003.m4a"
    ],
-   "duration": null,
+   "duration": 0.533,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4482,7 +4694,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 9642
+   "bytes": 12502,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_error/error_004",
@@ -4490,9 +4703,9 @@
    "mode": "shot",
    "files": [
     "k_ui_error/error_004.ogg",
-    "k_ui_error/error_004.mp3"
+    "k_ui_error/error_004.m4a"
    ],
-   "duration": null,
+   "duration": 0.104,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4501,7 +4714,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 3282
+   "bytes": 4428,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_error/error_005",
@@ -4509,9 +4723,9 @@
    "mode": "shot",
    "files": [
     "k_ui_error/error_005.ogg",
-    "k_ui_error/error_005.mp3"
+    "k_ui_error/error_005.m4a"
    ],
-   "duration": null,
+   "duration": 0.231,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4520,7 +4734,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 11542
+   "bytes": 7269,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_error/error_006",
@@ -4528,9 +4743,9 @@
    "mode": "shot",
    "files": [
     "k_ui_error/error_006.ogg",
-    "k_ui_error/error_006.mp3"
+    "k_ui_error/error_006.m4a"
    ],
-   "duration": null,
+   "duration": 0.28,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4539,7 +4754,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 11065
+   "bytes": 8637,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_error/error_007",
@@ -4547,9 +4763,9 @@
    "mode": "shot",
    "files": [
     "k_ui_error/error_007.ogg",
-    "k_ui_error/error_007.mp3"
+    "k_ui_error/error_007.m4a"
    ],
-   "duration": null,
+   "duration": 0.192,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4558,7 +4774,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 4745
+   "bytes": 5969,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_error/error_008",
@@ -4566,9 +4783,9 @@
    "mode": "shot",
    "files": [
     "k_ui_error/error_008.ogg",
-    "k_ui_error/error_008.mp3"
+    "k_ui_error/error_008.m4a"
    ],
-   "duration": null,
+   "duration": 0.139,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4577,7 +4794,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 4194
+   "bytes": 5556,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_scratch/scratch_001",
@@ -4585,7 +4803,7 @@
    "mode": "shot",
    "files": [
     "k_ui_scratch/scratch_001.ogg",
-    "k_ui_scratch/scratch_001.mp3"
+    "k_ui_scratch/scratch_001.m4a"
    ],
    "duration": null,
    "source": {
@@ -4596,7 +4814,7 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 3644
+   "bytes": 4879
   },
   {
    "id": "k_ui_scratch/scratch_002",
@@ -4604,7 +4822,7 @@
    "mode": "shot",
    "files": [
     "k_ui_scratch/scratch_002.ogg",
-    "k_ui_scratch/scratch_002.mp3"
+    "k_ui_scratch/scratch_002.m4a"
    ],
    "duration": null,
    "source": {
@@ -4615,7 +4833,7 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 3710
+   "bytes": 4850
   },
   {
    "id": "k_ui_scratch/scratch_003",
@@ -4623,7 +4841,7 @@
    "mode": "shot",
    "files": [
     "k_ui_scratch/scratch_003.ogg",
-    "k_ui_scratch/scratch_003.mp3"
+    "k_ui_scratch/scratch_003.m4a"
    ],
    "duration": null,
    "source": {
@@ -4634,7 +4852,7 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 3357
+   "bytes": 4661
   },
   {
    "id": "k_ui_scratch/scratch_004",
@@ -4642,7 +4860,7 @@
    "mode": "shot",
    "files": [
     "k_ui_scratch/scratch_004.ogg",
-    "k_ui_scratch/scratch_004.mp3"
+    "k_ui_scratch/scratch_004.m4a"
    ],
    "duration": null,
    "source": {
@@ -4653,7 +4871,7 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6956
+   "bytes": 8929
   },
   {
    "id": "k_ui_scratch/scratch_005",
@@ -4661,9 +4879,9 @@
    "mode": "shot",
    "files": [
     "k_ui_scratch/scratch_005.ogg",
-    "k_ui_scratch/scratch_005.mp3"
+    "k_ui_scratch/scratch_005.m4a"
    ],
-   "duration": null,
+   "duration": 0.325,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4672,7 +4890,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 6694
+   "bytes": 8615,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_select/select_001",
@@ -4680,9 +4899,9 @@
    "mode": "shot",
    "files": [
     "k_ui_select/select_001.ogg",
-    "k_ui_select/select_001.mp3"
+    "k_ui_select/select_001.m4a"
    ],
-   "duration": null,
+   "duration": 0.04,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4691,7 +4910,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 1994
+   "bytes": 2802,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_select/select_002",
@@ -4699,9 +4919,9 @@
    "mode": "shot",
    "files": [
     "k_ui_select/select_002.ogg",
-    "k_ui_select/select_002.mp3"
+    "k_ui_select/select_002.m4a"
    ],
-   "duration": null,
+   "duration": 0.04,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4710,7 +4930,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 1988
+   "bytes": 2784,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_select/select_003",
@@ -4718,9 +4939,9 @@
    "mode": "shot",
    "files": [
     "k_ui_select/select_003.ogg",
-    "k_ui_select/select_003.mp3"
+    "k_ui_select/select_003.m4a"
    ],
-   "duration": null,
+   "duration": 0.258,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4729,7 +4950,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 8306
+   "bytes": 7371,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_select/select_004",
@@ -4737,9 +4959,9 @@
    "mode": "shot",
    "files": [
     "k_ui_select/select_004.ogg",
-    "k_ui_select/select_004.mp3"
+    "k_ui_select/select_004.m4a"
    ],
-   "duration": null,
+   "duration": 0.258,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4748,7 +4970,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 8643
+   "bytes": 7406,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_select/select_005",
@@ -4756,9 +4979,9 @@
    "mode": "shot",
    "files": [
     "k_ui_select/select_005.ogg",
-    "k_ui_select/select_005.mp3"
+    "k_ui_select/select_005.m4a"
    ],
-   "duration": null,
+   "duration": 0.261,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4767,7 +4990,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 8583
+   "bytes": 7385,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_select/select_006",
@@ -4775,9 +4999,9 @@
    "mode": "shot",
    "files": [
     "k_ui_select/select_006.ogg",
-    "k_ui_select/select_006.mp3"
+    "k_ui_select/select_006.m4a"
    ],
-   "duration": null,
+   "duration": 0.258,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4786,7 +5010,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 38336
+   "bytes": 7059,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_select/select_007",
@@ -4794,9 +5019,9 @@
    "mode": "shot",
    "files": [
     "k_ui_select/select_007.ogg",
-    "k_ui_select/select_007.mp3"
+    "k_ui_select/select_007.m4a"
    ],
-   "duration": null,
+   "duration": 0.06,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4805,7 +5030,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 2435
+   "bytes": 3104,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_select/select_008",
@@ -4813,7 +5039,7 @@
    "mode": "shot",
    "files": [
     "k_ui_select/select_008.ogg",
-    "k_ui_select/select_008.mp3"
+    "k_ui_select/select_008.m4a"
    ],
    "duration": null,
    "source": {
@@ -4824,7 +5050,7 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 2439
+   "bytes": 3170
   },
   {
    "id": "k_ui_switch/switch_001",
@@ -4832,9 +5058,9 @@
    "mode": "shot",
    "files": [
     "k_ui_switch/switch_001.ogg",
-    "k_ui_switch/switch_001.mp3"
+    "k_ui_switch/switch_001.m4a"
    ],
-   "duration": null,
+   "duration": 0.169,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4843,7 +5069,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 11762
+   "bytes": 6305,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_switch/switch_002",
@@ -4851,9 +5078,9 @@
    "mode": "shot",
    "files": [
     "k_ui_switch/switch_002.ogg",
-    "k_ui_switch/switch_002.mp3"
+    "k_ui_switch/switch_002.m4a"
    ],
-   "duration": null,
+   "duration": 0.174,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4862,7 +5089,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 11895
+   "bytes": 6361,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_switch/switch_003",
@@ -4870,9 +5098,9 @@
    "mode": "shot",
    "files": [
     "k_ui_switch/switch_003.ogg",
-    "k_ui_switch/switch_003.mp3"
+    "k_ui_switch/switch_003.m4a"
    ],
-   "duration": null,
+   "duration": 0.5,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4881,7 +5109,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 12152
+   "bytes": 12506,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_switch/switch_004",
@@ -4889,9 +5118,9 @@
    "mode": "shot",
    "files": [
     "k_ui_switch/switch_004.ogg",
-    "k_ui_switch/switch_004.mp3"
+    "k_ui_switch/switch_004.m4a"
    ],
-   "duration": null,
+   "duration": 0.187,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4900,7 +5129,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 12609
+   "bytes": 6515,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_switch/switch_005",
@@ -4908,9 +5138,9 @@
    "mode": "shot",
    "files": [
     "k_ui_switch/switch_005.ogg",
-    "k_ui_switch/switch_005.mp3"
+    "k_ui_switch/switch_005.m4a"
    ],
-   "duration": null,
+   "duration": 0.186,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4919,7 +5149,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 14766
+   "bytes": 6585,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_switch/switch_006",
@@ -4927,9 +5158,9 @@
    "mode": "shot",
    "files": [
     "k_ui_switch/switch_006.ogg",
-    "k_ui_switch/switch_006.mp3"
+    "k_ui_switch/switch_006.m4a"
    ],
-   "duration": null,
+   "duration": 0.173,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4938,7 +5169,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 14115
+   "bytes": 5905,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_switch/switch_007",
@@ -4946,9 +5178,9 @@
    "mode": "shot",
    "files": [
     "k_ui_switch/switch_007.ogg",
-    "k_ui_switch/switch_007.mp3"
+    "k_ui_switch/switch_007.m4a"
    ],
-   "duration": null,
+   "duration": 0.176,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -4957,7 +5189,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 13707
+   "bytes": 6332,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_tick/tick_001",
@@ -4965,7 +5198,7 @@
    "mode": "shot",
    "files": [
     "k_ui_tick/tick_001.ogg",
-    "k_ui_tick/tick_001.mp3"
+    "k_ui_tick/tick_001.m4a"
    ],
    "duration": null,
    "source": {
@@ -4976,7 +5209,7 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 1955
+   "bytes": 2838
   },
   {
    "id": "k_ui_tick/tick_002",
@@ -4984,7 +5217,7 @@
    "mode": "shot",
    "files": [
     "k_ui_tick/tick_002.ogg",
-    "k_ui_tick/tick_002.mp3"
+    "k_ui_tick/tick_002.m4a"
    ],
    "duration": null,
    "source": {
@@ -4995,7 +5228,7 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 1535
+   "bytes": 2412
   },
   {
    "id": "k_ui_tick/tick_004",
@@ -5003,9 +5236,9 @@
    "mode": "shot",
    "files": [
     "k_ui_tick/tick_004.ogg",
-    "k_ui_tick/tick_004.mp3"
+    "k_ui_tick/tick_004.m4a"
    ],
-   "duration": null,
+   "duration": 0.055,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -5014,7 +5247,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 2491
+   "bytes": 3329,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_toggle/toggle_001",
@@ -5022,9 +5256,9 @@
    "mode": "shot",
    "files": [
     "k_ui_toggle/toggle_001.ogg",
-    "k_ui_toggle/toggle_001.mp3"
+    "k_ui_toggle/toggle_001.m4a"
    ],
-   "duration": null,
+   "duration": 0.133,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -5033,7 +5267,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 4014
+   "bytes": 4718,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_toggle/toggle_002",
@@ -5041,9 +5276,9 @@
    "mode": "shot",
    "files": [
     "k_ui_toggle/toggle_002.ogg",
-    "k_ui_toggle/toggle_002.mp3"
+    "k_ui_toggle/toggle_002.m4a"
    ],
-   "duration": null,
+   "duration": 0.132,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -5052,7 +5287,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 3905
+   "bytes": 4643,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_toggle/toggle_003",
@@ -5060,7 +5296,7 @@
    "mode": "shot",
    "files": [
     "k_ui_toggle/toggle_003.ogg",
-    "k_ui_toggle/toggle_003.mp3"
+    "k_ui_toggle/toggle_003.m4a"
    ],
    "duration": null,
    "source": {
@@ -5071,7 +5307,7 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 3803
+   "bytes": 4877
   },
   {
    "id": "k_ui_toggle/toggle_004",
@@ -5079,9 +5315,9 @@
    "mode": "shot",
    "files": [
     "k_ui_toggle/toggle_004.ogg",
-    "k_ui_toggle/toggle_004.mp3"
+    "k_ui_toggle/toggle_004.m4a"
    ],
-   "duration": null,
+   "duration": 0.063,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_interface-sounds",
@@ -5090,7 +5326,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 2227
+   "bytes": 3139,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_click/click1",
@@ -5098,9 +5335,9 @@
    "mode": "shot",
    "files": [
     "k_ui_click/click1.ogg",
-    "k_ui_click/click1.mp3"
+    "k_ui_click/click1.m4a"
    ],
-   "duration": null,
+   "duration": 0.091,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_ui-audio",
@@ -5109,7 +5346,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 2581
+   "bytes": 3796,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_click/click2",
@@ -5117,9 +5355,9 @@
    "mode": "shot",
    "files": [
     "k_ui_click/click2.ogg",
-    "k_ui_click/click2.mp3"
+    "k_ui_click/click2.m4a"
    ],
-   "duration": null,
+   "duration": 0.053,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_ui-audio",
@@ -5128,7 +5366,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 2146
+   "bytes": 3119,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_click/click3",
@@ -5136,9 +5375,9 @@
    "mode": "shot",
    "files": [
     "k_ui_click/click3.ogg",
-    "k_ui_click/click3.mp3"
+    "k_ui_click/click3.m4a"
    ],
-   "duration": null,
+   "duration": 0.083,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_ui-audio",
@@ -5147,7 +5386,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 2676
+   "bytes": 3613,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_click/click4",
@@ -5155,9 +5395,9 @@
    "mode": "shot",
    "files": [
     "k_ui_click/click4.ogg",
-    "k_ui_click/click4.mp3"
+    "k_ui_click/click4.m4a"
    ],
-   "duration": null,
+   "duration": 0.038,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_ui-audio",
@@ -5166,7 +5406,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 1916
+   "bytes": 2779,
+   "opus_kbps": 64
   },
   {
    "id": "k_ui_click/click5",
@@ -5174,9 +5415,9 @@
    "mode": "shot",
    "files": [
     "k_ui_click/click5.ogg",
-    "k_ui_click/click5.mp3"
+    "k_ui_click/click5.m4a"
    ],
-   "duration": null,
+   "duration": 0.035,
    "source": {
     "site": "kenney.nl",
     "title": "kenney_ui-audio",
@@ -5185,7 +5426,8 @@
     "license": "CC0-1.0",
     "license_url": "https://creativecommons.org/publicdomain/zero/1.0/"
    },
-   "bytes": 1933
+   "bytes": 2781,
+   "opus_kbps": 64
   },
   {
    "id": "bomb_tick1/bomb_tick1_487730_0",
@@ -5194,7 +5436,7 @@
    "duration": 0.11,
    "files": [
     "bomb_tick1/bomb_tick1_487730_0.ogg",
-    "bomb_tick1/bomb_tick1_487730_0.mp3"
+    "bomb_tick1/bomb_tick1_487730_0.m4a"
    ],
    "source": {
     "site": "freesound.org",
@@ -5207,7 +5449,7 @@
     "fetched": "https://cdn.freesound.org/previews/487/487730_6142149-hq.mp3",
     "note": "single ticks cut from the loop"
    },
-   "bytes": 3265
+   "bytes": 4370
   },
   {
    "id": "bomb_tick1/bomb_tick1_487730_1",
@@ -5216,7 +5458,7 @@
    "duration": 0.11,
    "files": [
     "bomb_tick1/bomb_tick1_487730_1.ogg",
-    "bomb_tick1/bomb_tick1_487730_1.mp3"
+    "bomb_tick1/bomb_tick1_487730_1.m4a"
    ],
    "source": {
     "site": "freesound.org",
@@ -5229,7 +5471,7 @@
     "fetched": "https://cdn.freesound.org/previews/487/487730_6142149-hq.mp3",
     "note": "single ticks cut from the loop"
    },
-   "bytes": 3160
+   "bytes": 4316
   },
   {
    "id": "bomb_tick1/bomb_tick1_487730_2",
@@ -5238,7 +5480,7 @@
    "duration": 0.11,
    "files": [
     "bomb_tick1/bomb_tick1_487730_2.ogg",
-    "bomb_tick1/bomb_tick1_487730_2.mp3"
+    "bomb_tick1/bomb_tick1_487730_2.m4a"
    ],
    "source": {
     "site": "freesound.org",
@@ -5251,7 +5493,7 @@
     "fetched": "https://cdn.freesound.org/previews/487/487730_6142149-hq.mp3",
     "note": "single ticks cut from the loop"
    },
-   "bytes": 3360
+   "bytes": 4571
   },
   {
    "id": "bomb_tick1/bomb_tick1_487730_3",
@@ -5260,7 +5502,7 @@
    "duration": 0.11,
    "files": [
     "bomb_tick1/bomb_tick1_487730_3.ogg",
-    "bomb_tick1/bomb_tick1_487730_3.mp3"
+    "bomb_tick1/bomb_tick1_487730_3.m4a"
    ],
    "source": {
     "site": "freesound.org",
@@ -5273,7 +5515,7 @@
     "fetched": "https://cdn.freesound.org/previews/487/487730_6142149-hq.mp3",
     "note": "single ticks cut from the loop"
    },
-   "bytes": 3374
+   "bytes": 4546
   },
   {
    "id": "surf/surf_proc_0",
@@ -5283,7 +5525,7 @@
    "duration": 32.0,
    "files": [
     "surf/surf_proc_0.ogg",
-    "surf/surf_proc_0.mp3"
+    "surf/surf_proc_0.m4a"
    ],
    "source": {
     "site": "project",
@@ -5292,7 +5534,8 @@
     "license": "CC0-1.0",
     "url": "tools/audio/procedural_beds.py"
    },
-   "bytes": 906915
+   "bytes": 809326,
+   "opus_kbps": 80
   },
   {
    "id": "river/river_proc_0",
@@ -5302,7 +5545,7 @@
    "duration": 24.0,
    "files": [
     "river/river_proc_0.ogg",
-    "river/river_proc_0.mp3"
+    "river/river_proc_0.m4a"
    ],
    "source": {
     "site": "project",
@@ -5311,7 +5554,8 @@
     "license": "CC0-1.0",
     "url": "tools/audio/procedural_beds.py"
    },
-   "bytes": 672758
+   "bytes": 587826,
+   "opus_kbps": 64
   },
   {
    "id": "gate_splinter/gate_splinter_481936_0",
@@ -5319,7 +5563,7 @@
    "mode": "shot",
    "files": [
     "gate_splinter/gate_splinter_481936_0.ogg",
-    "gate_splinter/gate_splinter_481936_0.mp3"
+    "gate_splinter/gate_splinter_481936_0.m4a"
    ],
    "loop": false,
    "duration": 2.32,
@@ -5334,7 +5578,7 @@
     "fetched": "https://cdn.freesound.org/previews/481/481936_2524442-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound; take cut + loudness-normalised by tools/audio/gate_smash_sfx.py"
    },
-   "bytes": 18643
+   "bytes": 48718
   },
   {
    "id": "gate_splinter/gate_splinter_481936_1",
@@ -5342,7 +5586,7 @@
    "mode": "shot",
    "files": [
     "gate_splinter/gate_splinter_481936_1.ogg",
-    "gate_splinter/gate_splinter_481936_1.mp3"
+    "gate_splinter/gate_splinter_481936_1.m4a"
    ],
    "loop": false,
    "duration": 1.65,
@@ -5357,7 +5601,7 @@
     "fetched": "https://cdn.freesound.org/previews/481/481936_2524442-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound; take cut + loudness-normalised by tools/audio/gate_smash_sfx.py"
    },
-   "bytes": 14187
+   "bytes": 37144
   },
   {
    "id": "gate_splinter/gate_splinter_481936_2",
@@ -5365,7 +5609,7 @@
    "mode": "shot",
    "files": [
     "gate_splinter/gate_splinter_481936_2.ogg",
-    "gate_splinter/gate_splinter_481936_2.mp3"
+    "gate_splinter/gate_splinter_481936_2.m4a"
    ],
    "loop": false,
    "duration": 1.3,
@@ -5380,7 +5624,7 @@
     "fetched": "https://cdn.freesound.org/previews/481/481936_2524442-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound; take cut + loudness-normalised by tools/audio/gate_smash_sfx.py"
    },
-   "bytes": 11164
+   "bytes": 28340
   },
   {
    "id": "gate_splinter/gate_splinter_481936_3",
@@ -5388,7 +5632,7 @@
    "mode": "shot",
    "files": [
     "gate_splinter/gate_splinter_481936_3.ogg",
-    "gate_splinter/gate_splinter_481936_3.mp3"
+    "gate_splinter/gate_splinter_481936_3.m4a"
    ],
    "loop": false,
    "duration": 2.13,
@@ -5403,7 +5647,7 @@
     "fetched": "https://cdn.freesound.org/previews/481/481936_2524442-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound; take cut + loudness-normalised by tools/audio/gate_smash_sfx.py"
    },
-   "bytes": 16645
+   "bytes": 43929
   },
   {
    "id": "gate_splinter/gate_splinter_438322_0",
@@ -5411,7 +5655,7 @@
    "mode": "shot",
    "files": [
     "gate_splinter/gate_splinter_438322_0.ogg",
-    "gate_splinter/gate_splinter_438322_0.mp3"
+    "gate_splinter/gate_splinter_438322_0.m4a"
    ],
    "loop": false,
    "duration": 2.6,
@@ -5426,7 +5670,7 @@
     "fetched": "https://cdn.freesound.org/previews/438/438322_2524442-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound; take cut + loudness-normalised by tools/audio/gate_smash_sfx.py"
    },
-   "bytes": 20827
+   "bytes": 54259
   },
   {
    "id": "gate_debris/gate_debris_589866_0",
@@ -5434,7 +5678,7 @@
    "mode": "shot",
    "files": [
     "gate_debris/gate_debris_589866_0.ogg",
-    "gate_debris/gate_debris_589866_0.mp3"
+    "gate_debris/gate_debris_589866_0.m4a"
    ],
    "loop": false,
    "duration": 0.78,
@@ -5449,7 +5693,7 @@
     "fetched": "https://cdn.freesound.org/previews/589/589866_5672786-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound; take cut + loudness-normalised by tools/audio/gate_smash_sfx.py"
    },
-   "bytes": 9296
+   "bytes": 20110
   },
   {
    "id": "gate_debris/gate_debris_589866_1",
@@ -5457,7 +5701,7 @@
    "mode": "shot",
    "files": [
     "gate_debris/gate_debris_589866_1.ogg",
-    "gate_debris/gate_debris_589866_1.mp3"
+    "gate_debris/gate_debris_589866_1.m4a"
    ],
    "loop": false,
    "duration": 1.29,
@@ -5472,7 +5716,7 @@
     "fetched": "https://cdn.freesound.org/previews/589/589866_5672786-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound; take cut + loudness-normalised by tools/audio/gate_smash_sfx.py"
    },
-   "bytes": 13021
+   "bytes": 30111
   },
   {
    "id": "gate_debris/gate_debris_589866_2",
@@ -5480,7 +5724,7 @@
    "mode": "shot",
    "files": [
     "gate_debris/gate_debris_589866_2.ogg",
-    "gate_debris/gate_debris_589866_2.mp3"
+    "gate_debris/gate_debris_589866_2.m4a"
    ],
    "loop": false,
    "duration": 0.78,
@@ -5495,7 +5739,7 @@
     "fetched": "https://cdn.freesound.org/previews/589/589866_5672786-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound; take cut + loudness-normalised by tools/audio/gate_smash_sfx.py"
    },
-   "bytes": 9219
+   "bytes": 20211
   },
   {
    "id": "gate_debris/gate_debris_589866_3",
@@ -5503,7 +5747,7 @@
    "mode": "shot",
    "files": [
     "gate_debris/gate_debris_589866_3.ogg",
-    "gate_debris/gate_debris_589866_3.mp3"
+    "gate_debris/gate_debris_589866_3.m4a"
    ],
    "loop": false,
    "duration": 0.62,
@@ -5518,7 +5762,7 @@
     "fetched": "https://cdn.freesound.org/previews/589/589866_5672786-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound; take cut + loudness-normalised by tools/audio/gate_smash_sfx.py"
    },
-   "bytes": 7096
+   "bytes": 18948
   },
   {
    "id": "gate_debris/gate_debris_589866_4",
@@ -5526,7 +5770,7 @@
    "mode": "shot",
    "files": [
     "gate_debris/gate_debris_589866_4.ogg",
-    "gate_debris/gate_debris_589866_4.mp3"
+    "gate_debris/gate_debris_589866_4.m4a"
    ],
    "loop": false,
    "duration": 0.58,
@@ -5541,7 +5785,7 @@
     "fetched": "https://cdn.freesound.org/previews/589/589866_5672786-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound; take cut + loudness-normalised by tools/audio/gate_smash_sfx.py"
    },
-   "bytes": 7281
+   "bytes": 15788
   },
   {
    "id": "gate_debris/gate_debris_589866_5",
@@ -5549,7 +5793,7 @@
    "mode": "shot",
    "files": [
     "gate_debris/gate_debris_589866_5.ogg",
-    "gate_debris/gate_debris_589866_5.mp3"
+    "gate_debris/gate_debris_589866_5.m4a"
    ],
    "loop": false,
    "duration": 0.59,
@@ -5564,7 +5808,7 @@
     "fetched": "https://cdn.freesound.org/previews/589/589866_5672786-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound; take cut + loudness-normalised by tools/audio/gate_smash_sfx.py"
    },
-   "bytes": 7994
+   "bytes": 18386
   },
   {
    "id": "gate_debris/gate_debris_589866_6",
@@ -5572,7 +5816,7 @@
    "mode": "shot",
    "files": [
     "gate_debris/gate_debris_589866_6.ogg",
-    "gate_debris/gate_debris_589866_6.mp3"
+    "gate_debris/gate_debris_589866_6.m4a"
    ],
    "loop": false,
    "duration": 0.65,
@@ -5587,7 +5831,7 @@
     "fetched": "https://cdn.freesound.org/previews/589/589866_5672786-hq.mp3",
     "note": "HQ preview (no-login CDN) of CC0 sound; take cut + loudness-normalised by tools/audio/gate_smash_sfx.py"
    },
-   "bytes": 8443
+   "bytes": 17983
   },
   {
    "id": "wind_air/wind_air_proc_0",
@@ -5598,7 +5842,7 @@
    "lufs": -24.0,
    "files": [
     "wind_air/wind_air_proc_0.ogg",
-    "wind_air/wind_air_proc_0.mp3"
+    "wind_air/wind_air_proc_0.m4a"
    ],
    "source": {
     "site": "project",
@@ -5607,7 +5851,8 @@
     "license": "CC0-1.0",
     "url": "tools/audio/procedural_beds.py"
    },
-   "bytes": 1073863
+   "bytes": 1076556,
+   "opus_kbps": 96
   },
   {
    "id": "wind_cold/wind_cold_proc_0",
@@ -5618,7 +5863,7 @@
    "lufs": -24.0,
    "files": [
     "wind_cold/wind_cold_proc_0.ogg",
-    "wind_cold/wind_cold_proc_0.mp3"
+    "wind_cold/wind_cold_proc_0.m4a"
    ],
    "source": {
     "site": "project",
@@ -5627,7 +5872,8 @@
     "license": "CC0-1.0",
     "url": "tools/audio/procedural_beds.py"
    },
-   "bytes": 1066926
+   "bytes": 1075076,
+   "opus_kbps": 96
   },
   {
    "id": "wind_sand/wind_sand_proc_0",
@@ -5638,7 +5884,7 @@
    "lufs": -24.0,
    "files": [
     "wind_sand/wind_sand_proc_0.ogg",
-    "wind_sand/wind_sand_proc_0.mp3"
+    "wind_sand/wind_sand_proc_0.m4a"
    ],
    "source": {
     "site": "project",
@@ -5647,7 +5893,8 @@
     "license": "CC0-1.0",
     "url": "tools/audio/procedural_beds.py"
    },
-   "bytes": 1067981
+   "bytes": 1076124,
+   "opus_kbps": 96
   }
  ]
 }

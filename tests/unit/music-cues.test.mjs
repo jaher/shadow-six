@@ -58,27 +58,41 @@ test('music cues: screen / flow state → cue (menu, map by theater, briefing lo
   assert.deepEqual(ONCE_THEN, BED_THEN, 'play-once beds hand over to the same bed in both modules');
 });
 
-test('music manifest: every BEL cue has its own OGG + MP3, valid meta, sample-accurate loops, loudness/true-peak targets', () => {
+test('music manifest: every BEL cue streams as its own chunks (Opus + AAC), valid meta, sample-accurate loops, loudness/true-peak targets', () => {
   for (const id of BEL_CUES) {
-    const files = MAN.cues[id];
-    assert.ok(files, `${id} listed`);
-    assert.deepEqual(files, [`${id}.ogg`, `${id}.mp3`], `${id}: own files (no aliases), OGG first, MP3 for Safari`);
+    const cue = MAN.cues[id];
+    assert.ok(cue?.chunks?.length, `${id} listed with chunks`);
+    assert.ok(cue.chunks.every((c) => c.f.startsWith(`${id}/`)), `${id}: own chunk files (no aliases)`);
     assert.ok(MUSIC[id], `${id} in the MUSIC catalogue`);
   }
-  for (const [id, files] of Object.entries(MAN.cues)) {
+  for (const [id, cue] of Object.entries(MAN.cues)) {
     const m = MAN.meta[id];
     assert.ok(m, `${id} meta`);
     assert.ok(CATEGORIES.has(m.category), `${id} category ${m.category}`);
     assert.ok(Number.isFinite(m.gain) && m.gain > 0 && m.gain <= 1.5, `${id} gain`);
     assert.ok(m.lengthSec > 0, `${id} length`);
-    for (const f of files) assert.ok(existsSync(new URL(f, DIR)), `${f} exists`);
-    assert.ok(files.some((f) => f.endsWith('.ogg')) && files.some((f) => f.endsWith('.mp3')), `${id}: OGG + MP3`);
+    // chunks: back to back from 0 to the end, each carrying a short crossfade overlap (none after the last)
+    let t = 0;
+    cue.chunks.forEach((c, k) => {
+      assert.ok(Math.abs(c.t - t) < 1e-5, `${id} chunk ${k} starts where ${k - 1} ends`);
+      assert.ok(c.d > 0.5 && c.d <= 12, `${id} chunk ${k}: ${c.d} s`);
+      assert.ok(c.o >= 0 && c.o <= 0.1 + 1e-9 && (k < cue.chunks.length - 1 ? c.o > 0 : c.o === 0), `${id} chunk ${k} overlap ${c.o}`);
+      for (const ext of ['.ogg', '.m4a']) assert.ok(existsSync(new URL(c.f + ext, DIR)), `${c.f}${ext} exists`);
+      t += c.d;
+    });
+    assert.ok(Math.abs(t - m.lengthSec) < 1e-3, `${id}: chunks cover the cue (${t} / ${m.lengthSec})`);
     if (m.loopEnd != null) {
       assert.ok(m.loopStart >= 0 && m.loopEnd > m.loopStart + 10 && m.loopEnd <= m.lengthSec + 1e-6, `${id} loop ${m.loopStart}–${m.loopEnd}`);
       if (m.loopStartSample != null) {
         assert.ok(Math.abs(m.loopStartSample / m.sampleRate - m.loopStart) < 1e-5, `${id} loopStart sample-accurate`);
         assert.ok(Math.abs(m.loopEndSample / m.sampleRate - m.loopEnd) < 1e-5, `${id} loopEnd sample-accurate`);
       }
+      // the loop points are chunk boundaries and the seam file joins the body's end to its start
+      assert.ok(cue.chunks.some((c) => Math.abs(c.t - m.loopStart) < 1e-5), `${id}: a chunk starts at loopStart`);
+      const w = cue.wrap;
+      assert.ok(w && Math.abs(cue.chunks[w.k].t + cue.chunks[w.k].d - m.loopEnd) < 1e-5, `${id}: the seam follows the last body chunk`);
+      assert.ok(w.s > w.o && w.s < cue.chunks[w.k].d, `${id}: seam ${w.s} s`);
+      for (const ext of ['.ogg', '.m4a']) assert.ok(existsSync(new URL(w.f + ext, DIR)), `${w.f}${ext} exists`);
     } else assert.ok(m.once || m.endSec != null, `${id}: a loop or a one-shot`);
     if (m.category === 'stinger_start') assert.ok(m.endSec > 5 && m.endSec <= m.lengthSec, `${id} hand-over`);
     if (m.truePeakDbTP != null) assert.ok(m.truePeakDbTP <= -1.0, `${id} true peak ${m.truePeakDbTP} dBTP`);
@@ -90,15 +104,19 @@ test('music manifest: every BEL cue has its own OGG + MP3, valid meta, sample-ac
   assert.ok(MAN.meta.credits.once && MAN.meta.campaign_end.once, 'credits / campaign_end play once (then the menu)');
 });
 
-test('music assets: OGG + MP3 only (no WAV masters), per-file and total size budget', () => {
-  let total = 0;
-  for (const f of readdirSync(DIR)) {
-    assert.ok(!/\.(wav|flac|aiff?)$/i.test(f), `${f}: masters stay out of the repo`);
+test('music assets: Opus + AAC chunks only (no WAV masters, no MP3, nothing unreferenced), per-file and total size budget', () => {
+  const walk = (d, rel = '') => readdirSync(d, { withFileTypes: true }).flatMap((f) => (f.isDirectory() ? walk(new URL(`${f.name}/`, d), `${rel}${f.name}/`) : [`${rel}${f.name}`]));
+  const listed = new Set(['manifest.json', 'README.md', 'CREDITS.md']);
+  for (const cue of Object.values(MAN.cues)) for (const c of [...cue.chunks, ...(cue.wrap ? [cue.wrap] : [])]) for (const ext of ['.ogg', '.m4a']) listed.add(c.f + ext);
+  let total = 0, ogg = 0;
+  for (const f of walk(DIR)) {
+    assert.ok(!/\.(wav|flac|aiff?|mp3)$/i.test(f), `${f}: masters / MP3 stay out of the build`);
+    assert.ok(listed.has(f), `${f} is referenced by the manifest`);
     const s = statSync(new URL(f, DIR)).size;
     total += s;
-    if (/\.(ogg|mp3)$/.test(f)) assert.ok(s < 5e6, `${f} ${(s / 1e6).toFixed(2)} MB`);
+    if (f.endsWith('.ogg')) ogg += s;
+    if (/\.(ogg|m4a)$/.test(f)) assert.ok(s < 400e3, `${f} ${(s / 1e3).toFixed(0)} kB (an 8 s chunk)`);
   }
   assert.ok(total < 80e6, `assets/audio/music ${(total / 1e6).toFixed(1)} MB (budget 80 MB)`);
-  const listed = new Set(Object.values(MAN.cues).flat());
-  for (const f of readdirSync(DIR).filter((x) => /\.(ogg|mp3)$/.test(x))) assert.ok(listed.has(f), `${f} is referenced by the manifest`);
+  assert.ok(ogg < 32e6, `the Opus score ${(ogg / 1e6).toFixed(1)} MB (≈ 96 kb/s)`);
 });

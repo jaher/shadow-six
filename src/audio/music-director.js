@@ -10,9 +10,13 @@
  * placeholder: a cue without a recorded file is silence.
  *
  * Pure helpers (nextSegment, ThreatTracker) are exported for unit tests; the class needs an AudioContext-like
- * `ctx`, the music bus node and `load(id) → Promise<{buffer, meta}|null>`.
+ * `ctx`, the music bus node and `load(id) → Promise<{buffer, meta}|{stream, meta}|null>`. A `stream` (the shipped
+ * cues: audio/music-stream.js ChunkCue) is played chunk by chunk — only the chunks a start needs are decoded ahead
+ * (`fetch(id, offset)`), so the score holds a few MB of PCM instead of whole cues.
  * @module audio/music-director
  */
+
+import { StreamVoice } from './music-stream.js';
 
 /** Tension segments and bridges, in chain order (one cycle ≈ 8.1 min before any exact repeat). */
 export const MISSION_CHAIN = Object.freeze(['mission_tension_a', 'mission_bridge_1', 'mission_tension_b',
@@ -39,6 +43,8 @@ export const TENSION_TRIM = 0.42;
 export const CALM_HOLD = 8; // s of no threat before the alert layer leaves
 const LOOKAHEAD = 2.0; // s: schedule the next segment this far ahead
 const DEFAULT_BAR = 240 / 84;
+/** Length (s) of a loaded cue (decoded buffer or streamed cue). */
+const lengthOf = (res) => res?.buffer?.duration ?? res?.stream?.duration ?? res?.meta?.lengthSec ?? 0;
 
 /**
  * Next cue after `cur` in the chain, skipping cues that are not available; never `cur` itself unless it is the
@@ -117,26 +123,33 @@ export class MusicDirector {
 
   get now() { return this.ctx.currentTime || 0; }
 
-  /** Start a buffer on `bus` at time `at` (offset s); loop with the manifest loop points when asked. */
+  /** Start a cue on `bus` at time `at` (offset s); loop with the manifest loop points when asked. */
   _src(res, bus, at, { offset = 0, loop = false, gain = 1, onEnd = null } = {}) {
-    const src = this.ctx.createBufferSource();
-    src.buffer = res.buffer;
-    if (loop) {
-      src.loop = true;
-      const m = res.meta || {};
-      if (m.loopEnd > m.loopStart) { src.loopStart = m.loopStart; src.loopEnd = m.loopEnd; }
-    }
     const g = this.ctx.createGain(); g.gain.value = gain;
     const trim = this.ctx.createGain(); trim.gain.value = Number.isFinite(res.meta?.gain) ? res.meta.gain : 1; // manifest gain
-    src.connect(trim); trim.connect(g); g.connect(bus);
-    const h = { src, g, id: res.id, ended: false, at };
+    let src;
+    if (res.stream) { // streamed: chunks scheduled on the context clock (pumped by update())
+      src = new StreamVoice(this.ctx, res.stream, { at: Math.max(this.now, at), offset: Math.max(0, offset), loop });
+      src.out.connect(trim);
+    } else {
+      src = this.ctx.createBufferSource();
+      src.buffer = res.buffer;
+      if (loop) {
+        src.loop = true;
+        const m = res.meta || {};
+        if (m.loopEnd > m.loopStart) { src.loopStart = m.loopStart; src.loopEnd = m.loopEnd; }
+      }
+      src.connect(trim);
+    }
+    trim.connect(g); g.connect(bus);
+    const h = { src, g, id: res.id, ended: false, at, stream: res.stream ? src : null };
     src.onended = () => {
       const natural = !h.ended;
       h.ended = true; this.handles.delete(h);
       try { g.disconnect(); } catch { /* ignore */ }
       if (natural && onEnd) onEnd(h);
     };
-    try { src.start(Math.max(this.now, at), Math.max(0, offset)); } catch { /* ignore */ }
+    if (!res.stream) { try { src.start(Math.max(this.now, at), Math.max(0, offset)); } catch { /* ignore */ } }
     this.handles.add(h);
     return h;
   }
@@ -148,35 +161,48 @@ export class MusicDirector {
   }
 
   // ---- loading (own cache: music buffers are not part of the per-mission SFX eviction) -----------------------
-  /** Kick (or reuse) the load of a cue. Resolves {id, buffer, meta} or null (no recorded file → silence). */
-  fetch(id) {
+  /**
+   * Kick (or reuse) the load of a cue, ready to start at `offset` s (a streamed cue decodes and keeps that chunk).
+   * Resolves {id, buffer|stream, meta} or null (no recorded file → silence).
+   */
+  fetch(id, offset = 0) {
     if (!id || !this.has(id)) return Promise.resolve(null);
     if (!this.cache) { this.cache = new Map(); this.ready = new Map(); }
     let p = this.cache.get(id);
     if (!p) {
       p = Promise.resolve(this.load(id)).then((r) => {
-        const res = r?.buffer ? { id, buffer: r.buffer, meta: r.meta || {} } : null;
+        const res = r?.buffer || r?.stream ? { id, buffer: r.buffer || null, stream: r.stream || null, meta: r.meta || {} } : null;
         if (res && this.cache.get(id) === p) this.ready.set(id, res);
         return res;
       }).catch(() => null);
       this.cache.set(id, p);
     }
-    return p;
+    return p.then((res) => (res?.stream ? res.stream.prefetch(offset).then((ok) => (ok ? res : null)) : res));
   }
-  isReady(id) { return !!this.ready?.get(id); }
+  /** Loaded, and (streamed) the chunk at `offset` decoded: a start there is instant. */
+  isReady(id, offset = 0) {
+    const res = this.ready?.get(id);
+    return !!res && (!res.stream || res.stream.readyAt(offset));
+  }
   /** Drop cached cues matching `fn` (decoded PCM is the memory cost: beds in missions, the score in menus). */
   _drop(fn) {
     if (!this.cache) return;
-    for (const id of [...this.cache.keys()]) if (fn(id)) { this.cache.delete(id); this.ready.delete(id); }
+    for (const id of [...this.cache.keys()]) if (fn(id)) this._forget(id);
+  }
+  _forget(id) {
+    this.ready.get(id)?.stream?.release(); // a voice still playing it keeps the chunks it holds
+    this.cache.delete(id); this.ready.delete(id);
   }
   /** Drop decoded mission cues except `keep` (memory: ≤ current + next segment + alert + stingers). */
   _evict(keep) {
     if (!this.cache) return;
     for (const id of [...this.cache.keys()]) {
       if (keep.has(id) || !MISSION_CHAIN.includes(id)) continue;
-      this.cache.delete(id); this.ready.delete(id);
+      this._forget(id);
     }
   }
+  /** A stinger has started: nothing needs its start chunk any more (a streamed cue keeps only what plays). */
+  _played(id) { if (this.ready?.get(id)?.stream) this._forget(id); }
 
   // ---- beds & stingers ----------------------------------------------------------------------------------------
   /**
@@ -206,6 +232,7 @@ export class MusicDirector {
       if (next) this.fetch(next); // decoded before the play-once bed ends: the handover has no gap
       const onEnd = next ? () => { if (this.bed === rec) { this.bed = null; this.playBed(next); this.onBedChange?.(next); } } : null;
       rec.h = this._src(res, this.bedBus, this.now + 0.02, { loop: loops, gain: 0, onEnd });
+      res.stream?.unpin(0); // a looping bed never comes back to its intro chunk
       setG(rec.h.g.gain, 1, this.now, BED_FADE_IN);
     });
   }
@@ -215,13 +242,24 @@ export class MusicDirector {
   stinger(id, at = null) {
     this.log({ type: 'music', name: id, stinger: true });
     const g = this.gen;
-    return this.fetch(id).then((res) => (res && g === this.gen ? this._src(res, this.duckNode, at ?? this.now + 0.02) : null));
+    return this.fetch(id).then((res) => {
+      if (!res || g !== this.gen) return null;
+      const h = this._src(res, this.duckNode, at ?? this.now + 0.02);
+      this._played(id);
+      return h;
+    });
   }
 
   // ---- mission score ------------------------------------------------------------------------------------------
   /** Preload what a mission start needs (call at mission load / briefing). */
   prefetchMission(startCue) {
-    for (const id of [startCue, MISSION_CHAIN[0], nextSegment(MISSION_CHAIN[0], this.has), ALERT_CUE]) this.fetch(id);
+    for (const id of [startCue, MISSION_CHAIN[0], ALERT_CUE]) this.fetch(id);
+    this._fetchBody(nextSegment(MISSION_CHAIN[0], this.has));
+  }
+  /** Load a chain segment ready to start at the top of its body (where a chained segment starts). */
+  _fetchBody(id) {
+    if (!id) return Promise.resolve(null);
+    return this.fetch(id).then((res) => (res ? this.fetch(id, res.meta.loopStart ?? 0) : null));
   }
   /** Start stinger → tension chain (no gap: the chain starts at the stinger's `endSec`). */
   startMission({ stinger = null } = {}) {
@@ -242,7 +280,8 @@ export class MusicDirector {
       let at = this.now + 0.02;
       if (s) {
         this._src(s, this.duckNode, at);
-        at += s.meta.endSec ?? Math.max(0, s.buffer.duration - (s.meta.tailSec ?? 0));
+        this._played(stinger);
+        at += s.meta.endSec ?? Math.max(0, lengthOf(s) - (s.meta.tailSec ?? 0));
       }
       this.pendingStart = { at: Math.max(at, t0), id: first };
       return this.fetch(first).then((res) => {
@@ -255,8 +294,9 @@ export class MusicDirector {
   _startSeg(res, at, offset) {
     const m = res.meta;
     const bodyStart = m.loopStart ?? 0;
-    const bodyEnd = m.loopEnd ?? Math.max(bodyStart + 1, res.buffer.duration - (m.tailSec ?? 0));
+    const bodyEnd = m.loopEnd ?? Math.max(bodyStart + 1, lengthOf(res) - (m.tailSec ?? 0));
     const h = this._src(res, this.tensionBus, at, { offset });
+    res.stream?.unpin(offset); // started: re-decoded if the chain comes back to this segment
     const bodyAt = at + Math.max(0, bodyStart - offset);
     if (!this.grid) this.grid = { origin: bodyAt, bar: m.barSec || (m.bpm ? 240 / m.bpm : DEFAULT_BAR) };
     this.seg = { id: res.id, h, at, endAt: at + (bodyEnd - Math.max(offset, bodyStart)) + Math.max(0, bodyStart - offset) };
@@ -264,7 +304,7 @@ export class MusicDirector {
     if (this.history.length > 64) this.history.shift();
     this.log({ type: 'music', name: res.id, segment: true });
     const nid = nextSegment(res.id, this.has);
-    this.fetch(nid);
+    this._fetchBody(nid);
     this._evict(new Set([res.id, nid]));
   }
   /** Next bar line at or after t on the mission grid. */
@@ -274,17 +314,19 @@ export class MusicDirector {
     return t <= origin ? origin : origin + Math.ceil((t - origin) / bar - 1e-6) * bar;
   }
 
-  /** Per-frame: chain the next segment ahead of time, follow the threat with the alert layer. */
+  /** Per-frame (and a 250 ms timer): feed the streamed cues; chain the next segment ahead of time, follow the threat. */
   update() {
+    for (const h of this.handles) h.stream?.pump();
     if (this.state !== 'mission') return;
     const now = this.now;
     const s = this.seg;
     if (s && now >= s.endAt - LOOKAHEAD) {
+      const body = (id) => this.ready?.get(id)?.meta.loopStart ?? 0;
       let nid = nextSegment(s.id, this.has);
-      if (!this.isReady(nid)) {
-        this.fetch(nid);
+      if (!this.isReady(nid, body(nid))) {
+        this._fetchBody(nid);
         if (now < s.endAt - 0.25) nid = null; // still time to wait for it
-        else nid = this.isReady(s.id) ? s.id : null; // too late: repeat this one rather than leave a gap
+        else nid = this.isReady(s.id, body(s.id)) ? s.id : null; // too late: repeat this one rather than leave a gap
       }
       if (nid) {
         const res = this.ready.get(nid);
@@ -304,7 +346,7 @@ export class MusicDirector {
     const bar = this.grid?.bar || DEFAULT_BAR;
     const tb = this.nextBar(now + 0.05);
     if (on) {
-      if (!this.isReady(ALERT_CUE)) { this.fetch(ALERT_CUE); return; } // retried next frame
+      if (!this.isReady(ALERT_CUE)) { this.fetch(ALERT_CUE); return; } // retried next frame (pinned at load: normally ready)
       if (!this.alert?.h || this.alert.h.ended) {
         this.alert = { on: true, h: this._src(this.ready.get(ALERT_CUE), this.alertBus, tb, { loop: true }) };
       } else this.alert.on = true; // still fading out: bring it back
@@ -348,6 +390,9 @@ export class MusicDirector {
     this._drop((k) => MISSION_CHAIN.includes(k) || k === ALERT_CUE); // the score is over (re-prefetched at the next mission load)
     return stingerId ? this.stinger(stingerId, this.now + (was ? 0.25 : 0.02)) : Promise.resolve(null);
   }
+
+  /** Back to the menus: the mission score's cached cues go (re-fetched at the next mission load). */
+  dropScore() { this._drop((k) => MISSION_CHAIN.includes(k) || k === ALERT_CUE || /^(start|success|fail)_/.test(k)); }
 
   debug() {
     const now = this.now;

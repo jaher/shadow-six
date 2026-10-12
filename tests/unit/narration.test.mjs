@@ -11,7 +11,8 @@ import { briefingNarrationLines, briefingParagraphs, briefingHeadline, briefingH
 import { NarrationTrack, narrationAudible, TOUR_TIMING } from '../../src/ui/briefing-narration.js';
 import { tourStops, tourNarrationLines, TOUR_SIGNOFF } from '../../src/ui/tour.js';
 import { missionTourLines, tourClipId } from '../../tools/audio/narration/tour-world.mjs';
-import { Narrator, pickNarrationFile } from '../../src/audio/narration.js';
+import { Narrator, pickNarrationFile, NARRATION_AHEAD } from '../../src/audio/narration.js';
+import { setAudioExt } from '../../src/audio/formats.js';
 import { createAudio } from '../../src/audio/audio.js';
 import { OPTION_DEFAULTS } from '../../src/ui/ui-config.js';
 import { OPTION_ROWS, OPTION_HELP } from '../../src/ui/options-panel.js';
@@ -30,7 +31,7 @@ test('manifest covers every mission briefing: one clip per line, text identical 
     got.forEach((l, i) => {
       assert.equal(l.text, want[i].text, `${def.id}/${l.id} narration text = on-screen text`);
       assert.equal(l.files.length, 2);
-      assert.ok(l.files.some((f) => f.endsWith('.ogg')) && l.files.some((f) => f.endsWith('.mp3')), `${def.id}/${l.id} ogg + mp3`);
+      assert.deepEqual(l.files.map((f) => f.slice(-4)), ['.ogg', '.m4a'], `${def.id}/${l.id}: Opus + AAC (one per browser)`);
       for (const f of l.files) {
         const p = new URL(`assets/audio/${f}`, ROOT);
         assert.ok(existsSync(p) && statSync(p).size > 1000, `${f} exists`);
@@ -82,7 +83,7 @@ test('the Colonel\'s tour: every caption of every mission has a narrator clip wi
       const clip = byText.get(l.text);
       assert.ok(clip, `${def.id}/${l.id} "${l.text}" is recorded`);
       assert.equal(clip.id, tourClipId(l.text));
-      assert.deepEqual(clip.files, [`narration/tour/${clip.id}.ogg`, `narration/tour/${clip.id}.mp3`]);
+      assert.deepEqual(clip.files, [`narration/tour/${clip.id}.ogg`, `narration/tour/${clip.id}.m4a`]);
       for (const f of clip.files) assert.ok(statSync(new URL(`assets/audio/${f}`, ROOT)).size > 1000, `${f} exists`);
       assert.ok(clip.duration > 0.8 && clip.duration < 20 && clip.words.length >= 2, `${clip.id} duration / words`);
       used.add(l.text);
@@ -140,8 +141,8 @@ test('NarrationTrack: the text share follows the word timings and never runs bac
 test('Narrator: decodes a mission\'s clips, plays them into the voice bus via its own gain, ducks the music', async () => {
   let ctx = null;
   const events = new EventBus();
-  const lines = [{ id: 'head', text: 'Mission 1.', files: ['narration/m01/head.ogg', 'narration/m01/head.mp3'], duration: 1, words: [] }];
-  const tour = [{ id: 't1', text: 'Watch this spot.', files: ['narration/tour/t1.ogg', 'narration/tour/t1.mp3'], duration: 1, words: [] }];
+  const lines = [{ id: 'head', text: 'Mission 1.', files: ['narration/m01/head.ogg', 'narration/m01/head.m4a'], duration: 1, words: [] }];
+  const tour = [{ id: 't1', text: 'Watch this spot.', files: ['narration/tour/t1.ogg', 'narration/tour/t1.m4a'], duration: 1, words: [] }];
   const fetch = async (url) => ({
     ok: true,
     json: async () => ({ missions: { m01: { lines } }, tour: { lines: tour } }),
@@ -157,8 +158,10 @@ test('Narrator: decodes a mission\'s clips, plays them into the voice bus via it
   const n = audio.narrator;
   assert.ok(n instanceof Narrator);
   assert.equal(await n.prefetch('m01'), true);
-  assert.equal(pickNarrationFile(lines[0].files, true), 'narration/m01/head.ogg');
-  assert.equal(pickNarrationFile(lines[0].files, false), 'narration/m01/head.mp3');
+  setAudioExt('.m4a');
+  assert.equal(pickNarrationFile(lines[0].files), 'narration/m01/head.m4a', 'WebKit: AAC');
+  setAudioExt('.ogg');
+  assert.equal(pickNarrationFile(lines[0].files), 'narration/m01/head.ogg', 'the others: Opus');
   const h = n.play('m01', 0);
   assert.ok(h && n.speaking, 'speaking');
   assert.equal(ctx.busOf(h.src, { narration: n.gain }), 'narration');
@@ -213,4 +216,40 @@ test('Options → Sound: NARRATION on by default, with its own volume and help t
   const sound = keys.slice(keys.indexOf('h') + 1, keys.indexOf('h', keys.indexOf('h') + 1));
   assert.ok(sound.includes('narration') && sound.includes('volNarration'), 'in the SOUND group');
   assert.ok(OPTION_HELP.narration && OPTION_HELP.volNarration);
+});
+
+test('Narrator memory: the reading is kept compressed; only the line being read and the next one are decoded', async () => {
+  setAudioExt('.ogg');
+  const lines = Array.from({ length: 6 }, (_, i) => ({ id: `p${i}`, text: `Line ${i}.`, files: [`narration/m01/p${i}.ogg`, `narration/m01/p${i}.m4a`], duration: 2, words: [] }));
+  const fetched = [];
+  const fetch = async (url) => { fetched.push(url); return { ok: true, json: async () => ({ missions: { m01: { lines } }, tour: { lines: [] } }), arrayBuffer: async () => new ArrayBuffer(64) }; };
+  let ctx = null, decodes = 0;
+  const audio = createAudio(new EventBus(), { createContext: () => {
+    ctx = new MockAudioContext();
+    ctx.decodeAudioData = async () => { decodes++; return ctx.createBuffer(1, 96000, 48000); };
+    return ctx;
+  }, fetch, rand: () => 0.1, storage: null, autoUnlock: false, loadAssets: false });
+  audio.unlock();
+  const n = audio.narrator;
+  assert.equal(await n.prefetch('m01'), true);
+  assert.equal(fetched.filter((u) => /p\d\.ogg$/.test(u)).length, 6, 'the whole reading downloaded (compressed)');
+  assert.ok(!fetched.some((u) => u.endsWith('.m4a')), 'one format only');
+  await new Promise((ok) => setTimeout(ok, 0));
+  const decodedNow = () => [...n.buffers.values()].filter((b) => typeof b === 'object').length;
+  assert.equal(decodedNow(), 1 + NARRATION_AHEAD, 'line 0 and the next one decoded');
+  for (let i = 0; i < 6; i++) {
+    const h = n.play('m01', i);
+    assert.ok(h, `line ${i} plays`);
+    await new Promise((ok) => setTimeout(ok, 0));
+    assert.ok(decodedNow() <= 1 + NARRATION_AHEAD, `line ${i}: at most ${1 + NARRATION_AHEAD} clips decoded (${decodedNow()})`);
+  }
+  // skipping to a line that is not decoded yet: a handle at once, the voice as soon as it has decoded
+  n.buffers.clear();
+  const h = n.play('m01', 2);
+  assert.ok(h && !h.src && h.elapsed() === 0 && n.speaking, 'deferred start: speaking (music ducked), no time elapsed');
+  await new Promise((ok) => setTimeout(ok, 0));
+  assert.ok(h.src && h.t0 != null, 'started once decoded');
+  n.release();
+  assert.equal(n.buffers.size + n.packed.size, 0, 'the briefing over: nothing kept');
+  assert.ok(decodes >= 6);
 });

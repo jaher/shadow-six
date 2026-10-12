@@ -27,7 +27,7 @@
       ]
      },
      "voice": "../audio/voice/green_beret/primary/consider_it_done.ogg",
-     "voice_mp3": "../audio/voice/green_beret/primary/consider_it_done.mp3",
+     "voice_m4a": "../audio/voice/green_beret/primary/consider_it_done.m4a",
      "alt": {
       "clip": "green_beret/consider_it_done_alt_{size}",
       "key": "3b9740c452905f88",
@@ -42,7 +42,7 @@
        ]
       },
       "voice": "../audio/voice/green_beret/alt/consider_it_done.ogg",
-      "voice_mp3": "../audio/voice/green_beret/alt/consider_it_done.mp3"
+      "voice_m4a": "../audio/voice/green_beret/alt/consider_it_done.m4a"
      }
     },
     "i_m_hit": {
@@ -60,7 +60,7 @@
       ]
      },
      "voice": "../audio/voice/green_beret/primary/i_m_hit.ogg",
-     "voice_mp3": "../audio/voice/green_beret/primary/i_m_hit.mp3",
+     "voice_m4a": "../audio/voice/green_beret/primary/i_m_hit.m4a",
      "alt": {
       "clip": "green_beret/i_m_hit_alt_{size}",
       "key": "47d0809df2f1e9ef",
@@ -75,7 +75,7 @@
        ]
       },
       "voice": "../audio/voice/green_beret/alt/i_m_hit.ogg",
-      "voice_mp3": "../audio/voice/green_beret/alt/i_m_hit.mp3"
+      "voice_m4a": "../audio/voice/green_beret/alt/i_m_hit.m4a"
      }
     },
     "on_my_way": {
@@ -93,7 +93,7 @@
       ]
      },
      "voice": "../audio/voice/green_beret/primary/on_my_way.ogg",
-     "voice_mp3": "../audio/voice/green_beret/primary/on_my_way.mp3",
+     "voice_m4a": "../audio/voice/green_beret/primary/on_my_way.m4a",
      "alt": {
       "clip": "green_beret/on_my_way_alt_{size}",
       "key": "f86faf21a0f45fb6",
@@ -108,7 +108,7 @@
        ]
       },
       "voice": "../audio/voice/green_beret/alt/on_my_way.ogg",
-      "voice_mp3": "../audio/voice/green_beret/alt/on_my_way.mp3"
+      "voice_m4a": "../audio/voice/green_beret/alt/on_my_way.m4a"
      }
     },
     "ready": {
@@ -126,7 +126,7 @@
       ]
      },
      "voice": "../audio/voice/green_beret/primary/ready.ogg",
-     "voice_mp3": "../audio/voice/green_beret/primary/ready.mp3",
+     "voice_m4a": "../audio/voice/green_beret/primary/ready.m4a",
      "alt": {
       "clip": "green_beret/ready_alt_{size}",
       "key": "5ce46a4e705530a2",
@@ -141,7 +141,7 @@
        ]
       },
       "voice": "../audio/voice/green_beret/alt/ready.ogg",
-      "voice_mp3": "../audio/voice/green_beret/alt/ready.mp3"
+      "voice_m4a": "../audio/voice/green_beret/alt/ready.m4a"
      }
     },
     "right_away": {
@@ -159,7 +159,7 @@
       ]
      },
      "voice": "../audio/voice/green_beret/primary/right_away.ogg",
-     "voice_mp3": "../audio/voice/green_beret/primary/right_away.mp3",
+     "voice_m4a": "../audio/voice/green_beret/primary/right_away.m4a",
      "alt": {
       "clip": "green_beret/right_away_alt_{size}",
       "key": "1f021613c0dfa15c",
@@ -174,7 +174,7 @@
        ]
       },
       "voice": "../audio/voice/green_beret/alt/right_away.ogg",
-      "voice_mp3": "../audio/voice/green_beret/alt/right_away.mp3"
+      "voice_m4a": "../audio/voice/green_beret/alt/right_away.m4a"
      }
     },
     "understood": {
@@ -192,7 +192,7 @@
       ]
      },
      "voice": "../audio/voice/green_beret/primary/understood.ogg",
-     "voice_mp3": "../audio/voice/green_beret/primary/understood.mp3",
+     "voice_m4a": "../audio/voice/green_beret/primary/understood.m4a",
      "alt": {
       "clip": "green_beret/understood_alt_{size}",
       "key": "b5a037aa69f594d5",
@@ -207,7 +207,7 @@
        ]
       },
       "voice": "../audio/voice/green_beret/alt/understood.ogg",
-      "voice_mp3": "../audio/voice/green_beret/alt/understood.mp3"
+      "voice_m4a": "../audio/voice/green_beret/alt/understood.m4a"
      }
     },
     "what_now": {
@@ -225,7 +225,7 @@
       ]
      },
      "voice": "../audio/voice/green_beret/primary/what_now.ogg",
-     "voice_mp3": "../audio/voice/green_beret/primary/what_now.mp3",
+     "voice_m4a": "../audio/voice/green_beret/primary/what_now.m4a",
      "alt": {
       "clip": "green_beret/what_now_alt_{size}",
       "key": "6799e059b235a05b",
@@ -240,7 +240,7 @@
        ]
       },
       "voice": "../audio/voice/green_beret/alt/what_now.ogg",
-      "voice_mp3": "../audio/voice/green_beret/alt/what_now.mp3"
+      "voice_m4a": "../audio/voice/green_beret/alt/what_now.m4a"
      }
     },
     "yes_sir": {
@@ -258,7 +258,7 @@
       ]
      },
      "voice": "../audio/voice/green_beret/primary/yes_sir.ogg",
-     "voice_mp3": "../audio/voice/green_beret/primary/yes_sir.mp3",
+     "voice_m4a": "../audio/voice/green_beret/primary/yes_sir.m4a",
      "alt": {
       "clip": "green_beret/yes_sir_alt_{size}",
       "key": "3716d44af8efc1cd",
@@ -273,7 +273,7 @@
        ]
       },
       "voice": "../audio/voice/green_beret/alt/yes_sir.ogg",
-      "voice_mp3": "../audio/voice/green_beret/alt/yes_sir.mp3"
+      "voice_m4a": "../audio/voice/green_beret/alt/yes_sir.m4a"
      }
     }
    },
@@ -294,7 +294,7 @@
        ]
       },
       "voice": "../audio/voice/green_beret/pain/pain_hit_1.ogg",
-      "voice_mp3": "../audio/voice/green_beret/pain/pain_hit_1.mp3"
+      "voice_m4a": "../audio/voice/green_beret/pain/pain_hit_1.m4a"
      },
      {
       "clip": "green_beret/flinch_2_{size}",
@@ -311,7 +311,7 @@
        ]
       },
       "voice": "../audio/voice/green_beret/pain/pain_hit_2.ogg",
-      "voice_mp3": "../audio/voice/green_beret/pain/pain_hit_2.mp3"
+      "voice_m4a": "../audio/voice/green_beret/pain/pain_hit_2.m4a"
      },
      {
       "clip": "green_beret/flinch_3_{size}",
@@ -328,7 +328,7 @@
        ]
       },
       "voice": "../audio/voice/green_beret/pain/pain_hit_3.ogg",
-      "voice_mp3": "../audio/voice/green_beret/pain/pain_hit_3.mp3"
+      "voice_m4a": "../audio/voice/green_beret/pain/pain_hit_3.m4a"
      }
     ],
     "still": "green_beret/pain_{size}.jpg",
@@ -404,7 +404,7 @@
       ]
      },
      "voice": "../audio/voice/sniper/primary/consider_it_done.ogg",
-     "voice_mp3": "../audio/voice/sniper/primary/consider_it_done.mp3",
+     "voice_m4a": "../audio/voice/sniper/primary/consider_it_done.m4a",
      "alt": {
       "clip": "sniper/consider_it_done_alt_{size}",
       "key": "ae6148eaaf9e1d24",
@@ -419,7 +419,7 @@
        ]
       },
       "voice": "../audio/voice/sniper/alt/consider_it_done.ogg",
-      "voice_mp3": "../audio/voice/sniper/alt/consider_it_done.mp3"
+      "voice_m4a": "../audio/voice/sniper/alt/consider_it_done.m4a"
      }
     },
     "i_m_hit": {
@@ -437,7 +437,7 @@
       ]
      },
      "voice": "../audio/voice/sniper/primary/i_m_hit.ogg",
-     "voice_mp3": "../audio/voice/sniper/primary/i_m_hit.mp3",
+     "voice_m4a": "../audio/voice/sniper/primary/i_m_hit.m4a",
      "alt": {
       "clip": "sniper/i_m_hit_alt_{size}",
       "key": "9d65449294c9b47a",
@@ -452,7 +452,7 @@
        ]
       },
       "voice": "../audio/voice/sniper/alt/i_m_hit.ogg",
-      "voice_mp3": "../audio/voice/sniper/alt/i_m_hit.mp3"
+      "voice_m4a": "../audio/voice/sniper/alt/i_m_hit.m4a"
      }
     },
     "on_my_way": {
@@ -470,7 +470,7 @@
       ]
      },
      "voice": "../audio/voice/sniper/primary/on_my_way.ogg",
-     "voice_mp3": "../audio/voice/sniper/primary/on_my_way.mp3",
+     "voice_m4a": "../audio/voice/sniper/primary/on_my_way.m4a",
      "alt": {
       "clip": "sniper/on_my_way_alt_{size}",
       "key": "f7622b1165ba45ac",
@@ -485,7 +485,7 @@
        ]
       },
       "voice": "../audio/voice/sniper/alt/on_my_way.ogg",
-      "voice_mp3": "../audio/voice/sniper/alt/on_my_way.mp3"
+      "voice_m4a": "../audio/voice/sniper/alt/on_my_way.m4a"
      }
     },
     "ready": {
@@ -503,7 +503,7 @@
       ]
      },
      "voice": "../audio/voice/sniper/primary/ready.ogg",
-     "voice_mp3": "../audio/voice/sniper/primary/ready.mp3",
+     "voice_m4a": "../audio/voice/sniper/primary/ready.m4a",
      "alt": {
       "clip": "sniper/ready_alt_{size}",
       "key": "479a1baafc5b71d8",
@@ -518,7 +518,7 @@
        ]
       },
       "voice": "../audio/voice/sniper/alt/ready.ogg",
-      "voice_mp3": "../audio/voice/sniper/alt/ready.mp3"
+      "voice_m4a": "../audio/voice/sniper/alt/ready.m4a"
      }
     },
     "right_away": {
@@ -536,7 +536,7 @@
       ]
      },
      "voice": "../audio/voice/sniper/primary/right_away.ogg",
-     "voice_mp3": "../audio/voice/sniper/primary/right_away.mp3",
+     "voice_m4a": "../audio/voice/sniper/primary/right_away.m4a",
      "alt": {
       "clip": "sniper/right_away_alt_{size}",
       "key": "e78739a286bd82e7",
@@ -551,7 +551,7 @@
        ]
       },
       "voice": "../audio/voice/sniper/alt/right_away.ogg",
-      "voice_mp3": "../audio/voice/sniper/alt/right_away.mp3"
+      "voice_m4a": "../audio/voice/sniper/alt/right_away.m4a"
      }
     },
     "understood": {
@@ -569,7 +569,7 @@
       ]
      },
      "voice": "../audio/voice/sniper/primary/understood.ogg",
-     "voice_mp3": "../audio/voice/sniper/primary/understood.mp3",
+     "voice_m4a": "../audio/voice/sniper/primary/understood.m4a",
      "alt": {
       "clip": "sniper/understood_alt_{size}",
       "key": "63cf5c3fb9cb41e1",
@@ -584,7 +584,7 @@
        ]
       },
       "voice": "../audio/voice/sniper/alt/understood.ogg",
-      "voice_mp3": "../audio/voice/sniper/alt/understood.mp3"
+      "voice_m4a": "../audio/voice/sniper/alt/understood.m4a"
      }
     },
     "what_now": {
@@ -602,7 +602,7 @@
       ]
      },
      "voice": "../audio/voice/sniper/primary/what_now.ogg",
-     "voice_mp3": "../audio/voice/sniper/primary/what_now.mp3",
+     "voice_m4a": "../audio/voice/sniper/primary/what_now.m4a",
      "alt": {
       "clip": "sniper/what_now_alt_{size}",
       "key": "a552fc9aa16d3cd6",
@@ -617,7 +617,7 @@
        ]
       },
       "voice": "../audio/voice/sniper/alt/what_now.ogg",
-      "voice_mp3": "../audio/voice/sniper/alt/what_now.mp3"
+      "voice_m4a": "../audio/voice/sniper/alt/what_now.m4a"
      }
     },
     "yes_sir": {
@@ -635,7 +635,7 @@
       ]
      },
      "voice": "../audio/voice/sniper/primary/yes_sir.ogg",
-     "voice_mp3": "../audio/voice/sniper/primary/yes_sir.mp3",
+     "voice_m4a": "../audio/voice/sniper/primary/yes_sir.m4a",
      "alt": {
       "clip": "sniper/yes_sir_alt_{size}",
       "key": "1f2eab032f48fedd",
@@ -650,7 +650,7 @@
        ]
       },
       "voice": "../audio/voice/sniper/alt/yes_sir.ogg",
-      "voice_mp3": "../audio/voice/sniper/alt/yes_sir.mp3"
+      "voice_m4a": "../audio/voice/sniper/alt/yes_sir.m4a"
      }
     }
    },
@@ -671,7 +671,7 @@
        ]
       },
       "voice": "../audio/voice/sniper/pain/pain_hit_1.ogg",
-      "voice_mp3": "../audio/voice/sniper/pain/pain_hit_1.mp3"
+      "voice_m4a": "../audio/voice/sniper/pain/pain_hit_1.m4a"
      },
      {
       "clip": "sniper/flinch_2_{size}",
@@ -688,7 +688,7 @@
        ]
       },
       "voice": "../audio/voice/sniper/pain/pain_hit_2.ogg",
-      "voice_mp3": "../audio/voice/sniper/pain/pain_hit_2.mp3"
+      "voice_m4a": "../audio/voice/sniper/pain/pain_hit_2.m4a"
      },
      {
       "clip": "sniper/flinch_3_{size}",
@@ -705,7 +705,7 @@
        ]
       },
       "voice": "../audio/voice/sniper/pain/pain_hit_3.ogg",
-      "voice_mp3": "../audio/voice/sniper/pain/pain_hit_3.mp3"
+      "voice_m4a": "../audio/voice/sniper/pain/pain_hit_3.m4a"
      }
     ],
     "still": "sniper/pain_{size}.jpg",
@@ -781,7 +781,7 @@
       ]
      },
      "voice": "../audio/voice/marine/primary/consider_it_done.ogg",
-     "voice_mp3": "../audio/voice/marine/primary/consider_it_done.mp3",
+     "voice_m4a": "../audio/voice/marine/primary/consider_it_done.m4a",
      "alt": {
       "clip": "marine/consider_it_done_alt_{size}",
       "key": "6b7bd94de8358c2c",
@@ -796,7 +796,7 @@
        ]
       },
       "voice": "../audio/voice/marine/alt/consider_it_done.ogg",
-      "voice_mp3": "../audio/voice/marine/alt/consider_it_done.mp3"
+      "voice_m4a": "../audio/voice/marine/alt/consider_it_done.m4a"
      }
     },
     "i_m_hit": {
@@ -814,7 +814,7 @@
       ]
      },
      "voice": "../audio/voice/marine/primary/i_m_hit.ogg",
-     "voice_mp3": "../audio/voice/marine/primary/i_m_hit.mp3",
+     "voice_m4a": "../audio/voice/marine/primary/i_m_hit.m4a",
      "alt": {
       "clip": "marine/i_m_hit_alt_{size}",
       "key": "2d07f340952b03c3",
@@ -829,7 +829,7 @@
        ]
       },
       "voice": "../audio/voice/marine/alt/i_m_hit.ogg",
-      "voice_mp3": "../audio/voice/marine/alt/i_m_hit.mp3"
+      "voice_m4a": "../audio/voice/marine/alt/i_m_hit.m4a"
      }
     },
     "on_my_way": {
@@ -847,7 +847,7 @@
       ]
      },
      "voice": "../audio/voice/marine/primary/on_my_way.ogg",
-     "voice_mp3": "../audio/voice/marine/primary/on_my_way.mp3",
+     "voice_m4a": "../audio/voice/marine/primary/on_my_way.m4a",
      "alt": {
       "clip": "marine/on_my_way_alt_{size}",
       "key": "503c9ba9706224ce",
@@ -862,7 +862,7 @@
        ]
       },
       "voice": "../audio/voice/marine/alt/on_my_way.ogg",
-      "voice_mp3": "../audio/voice/marine/alt/on_my_way.mp3"
+      "voice_m4a": "../audio/voice/marine/alt/on_my_way.m4a"
      }
     },
     "ready": {
@@ -880,7 +880,7 @@
       ]
      },
      "voice": "../audio/voice/marine/primary/ready.ogg",
-     "voice_mp3": "../audio/voice/marine/primary/ready.mp3",
+     "voice_m4a": "../audio/voice/marine/primary/ready.m4a",
      "alt": {
       "clip": "marine/ready_alt_{size}",
       "key": "8aba2435f782fa00",
@@ -895,7 +895,7 @@
        ]
       },
       "voice": "../audio/voice/marine/alt/ready.ogg",
-      "voice_mp3": "../audio/voice/marine/alt/ready.mp3"
+      "voice_m4a": "../audio/voice/marine/alt/ready.m4a"
      }
     },
     "right_away": {
@@ -913,7 +913,7 @@
       ]
      },
      "voice": "../audio/voice/marine/primary/right_away.ogg",
-     "voice_mp3": "../audio/voice/marine/primary/right_away.mp3",
+     "voice_m4a": "../audio/voice/marine/primary/right_away.m4a",
      "alt": {
       "clip": "marine/right_away_alt_{size}",
       "key": "7cf06c642aaffe81",
@@ -928,7 +928,7 @@
        ]
       },
       "voice": "../audio/voice/marine/alt/right_away.ogg",
-      "voice_mp3": "../audio/voice/marine/alt/right_away.mp3"
+      "voice_m4a": "../audio/voice/marine/alt/right_away.m4a"
      }
     },
     "understood": {
@@ -946,7 +946,7 @@
       ]
      },
      "voice": "../audio/voice/marine/primary/understood.ogg",
-     "voice_mp3": "../audio/voice/marine/primary/understood.mp3",
+     "voice_m4a": "../audio/voice/marine/primary/understood.m4a",
      "alt": {
       "clip": "marine/understood_alt_{size}",
       "key": "1581e8d459b4de98",
@@ -961,7 +961,7 @@
        ]
       },
       "voice": "../audio/voice/marine/alt/understood.ogg",
-      "voice_mp3": "../audio/voice/marine/alt/understood.mp3"
+      "voice_m4a": "../audio/voice/marine/alt/understood.m4a"
      }
     },
     "what_now": {
@@ -979,7 +979,7 @@
       ]
      },
      "voice": "../audio/voice/marine/primary/what_now.ogg",
-     "voice_mp3": "../audio/voice/marine/primary/what_now.mp3",
+     "voice_m4a": "../audio/voice/marine/primary/what_now.m4a",
      "alt": {
       "clip": "marine/what_now_alt_{size}",
       "key": "0d71a1a16e9d1815",
@@ -994,7 +994,7 @@
        ]
       },
       "voice": "../audio/voice/marine/alt/what_now.ogg",
-      "voice_mp3": "../audio/voice/marine/alt/what_now.mp3"
+      "voice_m4a": "../audio/voice/marine/alt/what_now.m4a"
      }
     },
     "yes_sir": {
@@ -1012,7 +1012,7 @@
       ]
      },
      "voice": "../audio/voice/marine/primary/yes_sir.ogg",
-     "voice_mp3": "../audio/voice/marine/primary/yes_sir.mp3",
+     "voice_m4a": "../audio/voice/marine/primary/yes_sir.m4a",
      "alt": {
       "clip": "marine/yes_sir_alt_{size}",
       "key": "f1388fd5546d51a2",
@@ -1027,7 +1027,7 @@
        ]
       },
       "voice": "../audio/voice/marine/alt/yes_sir.ogg",
-      "voice_mp3": "../audio/voice/marine/alt/yes_sir.mp3"
+      "voice_m4a": "../audio/voice/marine/alt/yes_sir.m4a"
      }
     }
    },
@@ -1048,7 +1048,7 @@
        ]
       },
       "voice": "../audio/voice/marine/pain/pain_hit_1.ogg",
-      "voice_mp3": "../audio/voice/marine/pain/pain_hit_1.mp3"
+      "voice_m4a": "../audio/voice/marine/pain/pain_hit_1.m4a"
      },
      {
       "clip": "marine/flinch_2_{size}",
@@ -1065,7 +1065,7 @@
        ]
       },
       "voice": "../audio/voice/marine/pain/pain_hit_2.ogg",
-      "voice_mp3": "../audio/voice/marine/pain/pain_hit_2.mp3"
+      "voice_m4a": "../audio/voice/marine/pain/pain_hit_2.m4a"
      },
      {
       "clip": "marine/flinch_3_{size}",
@@ -1082,7 +1082,7 @@
        ]
       },
       "voice": "../audio/voice/marine/pain/pain_hit_3.ogg",
-      "voice_mp3": "../audio/voice/marine/pain/pain_hit_3.mp3"
+      "voice_m4a": "../audio/voice/marine/pain/pain_hit_3.m4a"
      }
     ],
     "still": "marine/pain_{size}.jpg",
@@ -1158,7 +1158,7 @@
       ]
      },
      "voice": "../audio/voice/sapper/primary/consider_it_done.ogg",
-     "voice_mp3": "../audio/voice/sapper/primary/consider_it_done.mp3",
+     "voice_m4a": "../audio/voice/sapper/primary/consider_it_done.m4a",
      "alt": {
       "clip": "sapper/consider_it_done_alt_{size}",
       "key": "b6598d7a44dd6b53",
@@ -1173,7 +1173,7 @@
        ]
       },
       "voice": "../audio/voice/sapper/alt/consider_it_done.ogg",
-      "voice_mp3": "../audio/voice/sapper/alt/consider_it_done.mp3"
+      "voice_m4a": "../audio/voice/sapper/alt/consider_it_done.m4a"
      }
     },
     "i_m_hit": {
@@ -1191,7 +1191,7 @@
       ]
      },
      "voice": "../audio/voice/sapper/primary/i_m_hit.ogg",
-     "voice_mp3": "../audio/voice/sapper/primary/i_m_hit.mp3",
+     "voice_m4a": "../audio/voice/sapper/primary/i_m_hit.m4a",
      "alt": {
       "clip": "sapper/i_m_hit_alt_{size}",
       "key": "c076f35afcb4af71",
@@ -1206,7 +1206,7 @@
        ]
       },
       "voice": "../audio/voice/sapper/alt/i_m_hit.ogg",
-      "voice_mp3": "../audio/voice/sapper/alt/i_m_hit.mp3"
+      "voice_m4a": "../audio/voice/sapper/alt/i_m_hit.m4a"
      }
     },
     "on_my_way": {
@@ -1224,7 +1224,7 @@
       ]
      },
      "voice": "../audio/voice/sapper/primary/on_my_way.ogg",
-     "voice_mp3": "../audio/voice/sapper/primary/on_my_way.mp3",
+     "voice_m4a": "../audio/voice/sapper/primary/on_my_way.m4a",
      "alt": {
       "clip": "sapper/on_my_way_alt_{size}",
       "key": "1dd49b3877198474",
@@ -1239,7 +1239,7 @@
        ]
       },
       "voice": "../audio/voice/sapper/alt/on_my_way.ogg",
-      "voice_mp3": "../audio/voice/sapper/alt/on_my_way.mp3"
+      "voice_m4a": "../audio/voice/sapper/alt/on_my_way.m4a"
      }
     },
     "ready": {
@@ -1257,7 +1257,7 @@
       ]
      },
      "voice": "../audio/voice/sapper/primary/ready.ogg",
-     "voice_mp3": "../audio/voice/sapper/primary/ready.mp3",
+     "voice_m4a": "../audio/voice/sapper/primary/ready.m4a",
      "alt": {
       "clip": "sapper/ready_alt_{size}",
       "key": "f3b8110b8c183afa",
@@ -1272,7 +1272,7 @@
        ]
       },
       "voice": "../audio/voice/sapper/alt/ready.ogg",
-      "voice_mp3": "../audio/voice/sapper/alt/ready.mp3"
+      "voice_m4a": "../audio/voice/sapper/alt/ready.m4a"
      }
     },
     "right_away": {
@@ -1290,7 +1290,7 @@
       ]
      },
      "voice": "../audio/voice/sapper/primary/right_away.ogg",
-     "voice_mp3": "../audio/voice/sapper/primary/right_away.mp3",
+     "voice_m4a": "../audio/voice/sapper/primary/right_away.m4a",
      "alt": {
       "clip": "sapper/right_away_alt_{size}",
       "key": "06d1d4cf65ddba18",
@@ -1305,7 +1305,7 @@
        ]
       },
       "voice": "../audio/voice/sapper/alt/right_away.ogg",
-      "voice_mp3": "../audio/voice/sapper/alt/right_away.mp3"
+      "voice_m4a": "../audio/voice/sapper/alt/right_away.m4a"
      }
     },
     "understood": {
@@ -1323,7 +1323,7 @@
       ]
      },
      "voice": "../audio/voice/sapper/primary/understood.ogg",
-     "voice_mp3": "../audio/voice/sapper/primary/understood.mp3",
+     "voice_m4a": "../audio/voice/sapper/primary/understood.m4a",
      "alt": {
       "clip": "sapper/understood_alt_{size}",
       "key": "c31357cb99ba4602",
@@ -1338,7 +1338,7 @@
        ]
       },
       "voice": "../audio/voice/sapper/alt/understood.ogg",
-      "voice_mp3": "../audio/voice/sapper/alt/understood.mp3"
+      "voice_m4a": "../audio/voice/sapper/alt/understood.m4a"
      }
     },
     "what_now": {
@@ -1356,7 +1356,7 @@
       ]
      },
      "voice": "../audio/voice/sapper/primary/what_now.ogg",
-     "voice_mp3": "../audio/voice/sapper/primary/what_now.mp3",
+     "voice_m4a": "../audio/voice/sapper/primary/what_now.m4a",
      "alt": {
       "clip": "sapper/what_now_alt_{size}",
       "key": "f5a0e44c14303817",
@@ -1371,7 +1371,7 @@
        ]
       },
       "voice": "../audio/voice/sapper/alt/what_now.ogg",
-      "voice_mp3": "../audio/voice/sapper/alt/what_now.mp3"
+      "voice_m4a": "../audio/voice/sapper/alt/what_now.m4a"
      }
     },
     "yes_sir": {
@@ -1389,7 +1389,7 @@
       ]
      },
      "voice": "../audio/voice/sapper/primary/yes_sir.ogg",
-     "voice_mp3": "../audio/voice/sapper/primary/yes_sir.mp3",
+     "voice_m4a": "../audio/voice/sapper/primary/yes_sir.m4a",
      "alt": {
       "clip": "sapper/yes_sir_alt_{size}",
       "key": "5edb5d90010b0c59",
@@ -1404,7 +1404,7 @@
        ]
       },
       "voice": "../audio/voice/sapper/alt/yes_sir.ogg",
-      "voice_mp3": "../audio/voice/sapper/alt/yes_sir.mp3"
+      "voice_m4a": "../audio/voice/sapper/alt/yes_sir.m4a"
      }
     }
    },
@@ -1425,7 +1425,7 @@
        ]
       },
       "voice": "../audio/voice/sapper/pain/pain_hit_1.ogg",
-      "voice_mp3": "../audio/voice/sapper/pain/pain_hit_1.mp3"
+      "voice_m4a": "../audio/voice/sapper/pain/pain_hit_1.m4a"
      },
      {
       "clip": "sapper/flinch_2_{size}",
@@ -1442,7 +1442,7 @@
        ]
       },
       "voice": "../audio/voice/sapper/pain/pain_hit_2.ogg",
-      "voice_mp3": "../audio/voice/sapper/pain/pain_hit_2.mp3"
+      "voice_m4a": "../audio/voice/sapper/pain/pain_hit_2.m4a"
      },
      {
       "clip": "sapper/flinch_3_{size}",
@@ -1459,7 +1459,7 @@
        ]
       },
       "voice": "../audio/voice/sapper/pain/pain_hit_3.ogg",
-      "voice_mp3": "../audio/voice/sapper/pain/pain_hit_3.mp3"
+      "voice_m4a": "../audio/voice/sapper/pain/pain_hit_3.m4a"
      }
     ],
     "still": "sapper/pain_{size}.jpg",
@@ -1535,7 +1535,7 @@
       ]
      },
      "voice": "../audio/voice/driver/primary/consider_it_done.ogg",
-     "voice_mp3": "../audio/voice/driver/primary/consider_it_done.mp3",
+     "voice_m4a": "../audio/voice/driver/primary/consider_it_done.m4a",
      "alt": {
       "clip": "driver/consider_it_done_alt_{size}",
       "key": "a76d8453434fae72",
@@ -1550,7 +1550,7 @@
        ]
       },
       "voice": "../audio/voice/driver/alt/consider_it_done.ogg",
-      "voice_mp3": "../audio/voice/driver/alt/consider_it_done.mp3"
+      "voice_m4a": "../audio/voice/driver/alt/consider_it_done.m4a"
      }
     },
     "i_m_hit": {
@@ -1568,7 +1568,7 @@
       ]
      },
      "voice": "../audio/voice/driver/primary/i_m_hit.ogg",
-     "voice_mp3": "../audio/voice/driver/primary/i_m_hit.mp3",
+     "voice_m4a": "../audio/voice/driver/primary/i_m_hit.m4a",
      "alt": {
       "clip": "driver/i_m_hit_alt_{size}",
       "key": "f3b8a5ad1d0503cb",
@@ -1583,7 +1583,7 @@
        ]
       },
       "voice": "../audio/voice/driver/alt/i_m_hit.ogg",
-      "voice_mp3": "../audio/voice/driver/alt/i_m_hit.mp3"
+      "voice_m4a": "../audio/voice/driver/alt/i_m_hit.m4a"
      }
     },
     "on_my_way": {
@@ -1601,7 +1601,7 @@
       ]
      },
      "voice": "../audio/voice/driver/primary/on_my_way.ogg",
-     "voice_mp3": "../audio/voice/driver/primary/on_my_way.mp3",
+     "voice_m4a": "../audio/voice/driver/primary/on_my_way.m4a",
      "alt": {
       "clip": "driver/on_my_way_alt_{size}",
       "key": "530c8889bbcf6d08",
@@ -1616,7 +1616,7 @@
        ]
       },
       "voice": "../audio/voice/driver/alt/on_my_way.ogg",
-      "voice_mp3": "../audio/voice/driver/alt/on_my_way.mp3"
+      "voice_m4a": "../audio/voice/driver/alt/on_my_way.m4a"
      }
     },
     "ready": {
@@ -1634,7 +1634,7 @@
       ]
      },
      "voice": "../audio/voice/driver/primary/ready.ogg",
-     "voice_mp3": "../audio/voice/driver/primary/ready.mp3",
+     "voice_m4a": "../audio/voice/driver/primary/ready.m4a",
      "alt": {
       "clip": "driver/ready_alt_{size}",
       "key": "59fbc0b39050e663",
@@ -1649,7 +1649,7 @@
        ]
       },
       "voice": "../audio/voice/driver/alt/ready.ogg",
-      "voice_mp3": "../audio/voice/driver/alt/ready.mp3"
+      "voice_m4a": "../audio/voice/driver/alt/ready.m4a"
      }
     },
     "right_away": {
@@ -1667,7 +1667,7 @@
       ]
      },
      "voice": "../audio/voice/driver/primary/right_away.ogg",
-     "voice_mp3": "../audio/voice/driver/primary/right_away.mp3",
+     "voice_m4a": "../audio/voice/driver/primary/right_away.m4a",
      "alt": {
       "clip": "driver/right_away_alt_{size}",
       "key": "2022b6d05e223e2b",
@@ -1682,7 +1682,7 @@
        ]
       },
       "voice": "../audio/voice/driver/alt/right_away.ogg",
-      "voice_mp3": "../audio/voice/driver/alt/right_away.mp3"
+      "voice_m4a": "../audio/voice/driver/alt/right_away.m4a"
      }
     },
     "understood": {
@@ -1700,7 +1700,7 @@
       ]
      },
      "voice": "../audio/voice/driver/primary/understood.ogg",
-     "voice_mp3": "../audio/voice/driver/primary/understood.mp3",
+     "voice_m4a": "../audio/voice/driver/primary/understood.m4a",
      "alt": {
       "clip": "driver/understood_alt_{size}",
       "key": "1b9f53fc808ccead",
@@ -1715,7 +1715,7 @@
        ]
       },
       "voice": "../audio/voice/driver/alt/understood.ogg",
-      "voice_mp3": "../audio/voice/driver/alt/understood.mp3"
+      "voice_m4a": "../audio/voice/driver/alt/understood.m4a"
      }
     },
     "what_now": {
@@ -1733,7 +1733,7 @@
       ]
      },
      "voice": "../audio/voice/driver/primary/what_now.ogg",
-     "voice_mp3": "../audio/voice/driver/primary/what_now.mp3",
+     "voice_m4a": "../audio/voice/driver/primary/what_now.m4a",
      "alt": {
       "clip": "driver/what_now_alt_{size}",
       "key": "ca6bd194f07c18ce",
@@ -1748,7 +1748,7 @@
        ]
       },
       "voice": "../audio/voice/driver/alt/what_now.ogg",
-      "voice_mp3": "../audio/voice/driver/alt/what_now.mp3"
+      "voice_m4a": "../audio/voice/driver/alt/what_now.m4a"
      }
     },
     "yes_sir": {
@@ -1766,7 +1766,7 @@
       ]
      },
      "voice": "../audio/voice/driver/primary/yes_sir.ogg",
-     "voice_mp3": "../audio/voice/driver/primary/yes_sir.mp3",
+     "voice_m4a": "../audio/voice/driver/primary/yes_sir.m4a",
      "alt": {
       "clip": "driver/yes_sir_alt_{size}",
       "key": "3ea42af8ee7fafc0",
@@ -1781,7 +1781,7 @@
        ]
       },
       "voice": "../audio/voice/driver/alt/yes_sir.ogg",
-      "voice_mp3": "../audio/voice/driver/alt/yes_sir.mp3"
+      "voice_m4a": "../audio/voice/driver/alt/yes_sir.m4a"
      }
     }
    },
@@ -1802,7 +1802,7 @@
        ]
       },
       "voice": "../audio/voice/driver/pain/pain_hit_1.ogg",
-      "voice_mp3": "../audio/voice/driver/pain/pain_hit_1.mp3"
+      "voice_m4a": "../audio/voice/driver/pain/pain_hit_1.m4a"
      },
      {
       "clip": "driver/flinch_2_{size}",
@@ -1819,7 +1819,7 @@
        ]
       },
       "voice": "../audio/voice/driver/pain/pain_hit_2.ogg",
-      "voice_mp3": "../audio/voice/driver/pain/pain_hit_2.mp3"
+      "voice_m4a": "../audio/voice/driver/pain/pain_hit_2.m4a"
      },
      {
       "clip": "driver/flinch_3_{size}",
@@ -1836,7 +1836,7 @@
        ]
       },
       "voice": "../audio/voice/driver/pain/pain_hit_3.ogg",
-      "voice_mp3": "../audio/voice/driver/pain/pain_hit_3.mp3"
+      "voice_m4a": "../audio/voice/driver/pain/pain_hit_3.m4a"
      }
     ],
     "still": "driver/pain_{size}.jpg",
@@ -1912,7 +1912,7 @@
       ]
      },
      "voice": "../audio/voice/spy/primary/consider_it_done.ogg",
-     "voice_mp3": "../audio/voice/spy/primary/consider_it_done.mp3",
+     "voice_m4a": "../audio/voice/spy/primary/consider_it_done.m4a",
      "alt": {
       "clip": "spy/consider_it_done_alt_{size}",
       "key": "6d7cba44233c3729",
@@ -1927,7 +1927,7 @@
        ]
       },
       "voice": "../audio/voice/spy/alt/consider_it_done.ogg",
-      "voice_mp3": "../audio/voice/spy/alt/consider_it_done.mp3"
+      "voice_m4a": "../audio/voice/spy/alt/consider_it_done.m4a"
      }
     },
     "i_m_hit": {
@@ -1945,7 +1945,7 @@
       ]
      },
      "voice": "../audio/voice/spy/primary/i_m_hit.ogg",
-     "voice_mp3": "../audio/voice/spy/primary/i_m_hit.mp3",
+     "voice_m4a": "../audio/voice/spy/primary/i_m_hit.m4a",
      "alt": {
       "clip": "spy/i_m_hit_alt_{size}",
       "key": "6e09e6f41a95aa33",
@@ -1960,7 +1960,7 @@
        ]
       },
       "voice": "../audio/voice/spy/alt/i_m_hit.ogg",
-      "voice_mp3": "../audio/voice/spy/alt/i_m_hit.mp3"
+      "voice_m4a": "../audio/voice/spy/alt/i_m_hit.m4a"
      }
     },
     "on_my_way": {
@@ -1978,7 +1978,7 @@
       ]
      },
      "voice": "../audio/voice/spy/primary/on_my_way.ogg",
-     "voice_mp3": "../audio/voice/spy/primary/on_my_way.mp3",
+     "voice_m4a": "../audio/voice/spy/primary/on_my_way.m4a",
      "alt": {
       "clip": "spy/on_my_way_alt_{size}",
       "key": "aa8dfb00435ea9c2",
@@ -1993,7 +1993,7 @@
        ]
       },
       "voice": "../audio/voice/spy/alt/on_my_way.ogg",
-      "voice_mp3": "../audio/voice/spy/alt/on_my_way.mp3"
+      "voice_m4a": "../audio/voice/spy/alt/on_my_way.m4a"
      }
     },
     "ready": {
@@ -2011,7 +2011,7 @@
       ]
      },
      "voice": "../audio/voice/spy/primary/ready.ogg",
-     "voice_mp3": "../audio/voice/spy/primary/ready.mp3",
+     "voice_m4a": "../audio/voice/spy/primary/ready.m4a",
      "alt": {
       "clip": "spy/ready_alt_{size}",
       "key": "9c2c6b2809780c40",
@@ -2026,7 +2026,7 @@
        ]
       },
       "voice": "../audio/voice/spy/alt/ready.ogg",
-      "voice_mp3": "../audio/voice/spy/alt/ready.mp3"
+      "voice_m4a": "../audio/voice/spy/alt/ready.m4a"
      }
     },
     "right_away": {
@@ -2044,7 +2044,7 @@
       ]
      },
      "voice": "../audio/voice/spy/primary/right_away.ogg",
-     "voice_mp3": "../audio/voice/spy/primary/right_away.mp3",
+     "voice_m4a": "../audio/voice/spy/primary/right_away.m4a",
      "alt": {
       "clip": "spy/right_away_alt_{size}",
       "key": "82f1b8ab3e62d2f7",
@@ -2059,7 +2059,7 @@
        ]
       },
       "voice": "../audio/voice/spy/alt/right_away.ogg",
-      "voice_mp3": "../audio/voice/spy/alt/right_away.mp3"
+      "voice_m4a": "../audio/voice/spy/alt/right_away.m4a"
      }
     },
     "understood": {
@@ -2077,7 +2077,7 @@
       ]
      },
      "voice": "../audio/voice/spy/primary/understood.ogg",
-     "voice_mp3": "../audio/voice/spy/primary/understood.mp3",
+     "voice_m4a": "../audio/voice/spy/primary/understood.m4a",
      "alt": {
       "clip": "spy/understood_alt_{size}",
       "key": "e52b0c95c9dfc732",
@@ -2092,7 +2092,7 @@
        ]
       },
       "voice": "../audio/voice/spy/alt/understood.ogg",
-      "voice_mp3": "../audio/voice/spy/alt/understood.mp3"
+      "voice_m4a": "../audio/voice/spy/alt/understood.m4a"
      }
     },
     "what_now": {
@@ -2110,7 +2110,7 @@
       ]
      },
      "voice": "../audio/voice/spy/primary/what_now.ogg",
-     "voice_mp3": "../audio/voice/spy/primary/what_now.mp3",
+     "voice_m4a": "../audio/voice/spy/primary/what_now.m4a",
      "alt": {
       "clip": "spy/what_now_alt_{size}",
       "key": "8205f375eb55c517",
@@ -2125,7 +2125,7 @@
        ]
       },
       "voice": "../audio/voice/spy/alt/what_now.ogg",
-      "voice_mp3": "../audio/voice/spy/alt/what_now.mp3"
+      "voice_m4a": "../audio/voice/spy/alt/what_now.m4a"
      }
     },
     "yes_sir": {
@@ -2143,7 +2143,7 @@
       ]
      },
      "voice": "../audio/voice/spy/primary/yes_sir.ogg",
-     "voice_mp3": "../audio/voice/spy/primary/yes_sir.mp3",
+     "voice_m4a": "../audio/voice/spy/primary/yes_sir.m4a",
      "alt": {
       "clip": "spy/yes_sir_alt_{size}",
       "key": "957c240913af2706",
@@ -2158,7 +2158,7 @@
        ]
       },
       "voice": "../audio/voice/spy/alt/yes_sir.ogg",
-      "voice_mp3": "../audio/voice/spy/alt/yes_sir.mp3"
+      "voice_m4a": "../audio/voice/spy/alt/yes_sir.m4a"
      }
     }
    },
@@ -2179,7 +2179,7 @@
        ]
       },
       "voice": "../audio/voice/spy/pain/pain_hit_1.ogg",
-      "voice_mp3": "../audio/voice/spy/pain/pain_hit_1.mp3"
+      "voice_m4a": "../audio/voice/spy/pain/pain_hit_1.m4a"
      },
      {
       "clip": "spy/flinch_2_{size}",
@@ -2196,7 +2196,7 @@
        ]
       },
       "voice": "../audio/voice/spy/pain/pain_hit_2.ogg",
-      "voice_mp3": "../audio/voice/spy/pain/pain_hit_2.mp3"
+      "voice_m4a": "../audio/voice/spy/pain/pain_hit_2.m4a"
      },
      {
       "clip": "spy/flinch_3_{size}",
@@ -2213,7 +2213,7 @@
        ]
       },
       "voice": "../audio/voice/spy/pain/pain_hit_3.ogg",
-      "voice_mp3": "../audio/voice/spy/pain/pain_hit_3.mp3"
+      "voice_m4a": "../audio/voice/spy/pain/pain_hit_3.m4a"
      }
     ],
     "still": "spy/pain_{size}.jpg",

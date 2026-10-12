@@ -1111,10 +1111,18 @@ else in the codebase calls audio directly except the Game (music) and UI clicks.
   `narration.js` (`audio.narrator`: the briefing's newsreel narrator; `assets/audio/narration/manifest.json`, its own
   gain into the voice bus, `volumes.narration`, ducks the music; docs/narration.md).
   Recorded files go in `assets/audio/` via their manifests (see `assets/audio/README.md`), built from the R&D outputs by
-  `tools/audio/build_assets.py` (licence gate, Opus + MP3 twins, `assets/audio/CREDITS.md`).
-- Assets (realism-pipeline v2 §1.5): per-mission loading — `mission:loaded` → `missionAudio(def)` (event-map.js) → `engine.preload`
-  decodes that mission's one-shots/loops and voice packs and evicts the rest (one long siren take pinned per mission);
-  ambience beds (`SFX[id].bed`) stream through a media element and are never decoded. Distance model: per-category
+  `tools/audio/build_assets.py` (licence gate, `assets/audio/CREDITS.md`) and `tools/audio/web_formats.py` (every sound
+  as Opus `.ogg` + AAC `.m4a`; `formats.js` picks one per page — WebKit gets AAC — so a client downloads one set; music
+  in 8 s chunks; SFX re-encoded from their sources, mono where the channels match, silence trimmed).
+- Assets (realism-pipeline v2 §1.5; audio footprint pass): per-mission loading — `mission:loaded` → `missionAudio(def)`
+  (event-map.js) → `engine.preload` decodes that mission's instant one-shots (shots, impacts, steps, UI, pain grunts and
+  cries) and evicts the rest; loops, long non-weapon takes (sirens; one take pinned per mission) and spoken voice lines
+  are downloaded (kept compressed) and decode on first use: `play` / `playVoice` return a deferred handle that starts
+  when the take has decoded (a one-shot more than `LATE_DROP` late is dropped), kept in an LRU within `lazyBudget`
+  (32 MB, phones 16 MB). Voices decode at 32 kHz; a `mono`-flagged take (its stereo channels matched) is one channel
+  played as two. Leaving the mission frees the LRU, the narration and the score's cached cues; ambience beds
+  (`SFX[id].bed`) stream through a media element and are never decoded. The briefing narrator keeps the reading
+  compressed and decodes the clip being read and the next one. Distance model: per-category
   classes in `manifest.js DISTANCE` (footsteps 30 m, voices 60 m, small arms 400 m, MG/explosions 1.5 km) with an
   air-absorption low-pass, pan by the live frustum width, far explosion layer (`explosion_far`); MG fire plays one
   recorded burst per shooter (`audio.burst`). Voices: `LINES` entries with `rec` have recorded takes (`voice/lines.json`:
@@ -1128,7 +1136,11 @@ else in the codebase calls audio directly except the Game (music) and UI clicks.
   credits; quit → `exit`). Outside missions `music()` sets the bed; while playing or paused bed requests are refused
   and the director owns the score (option `missionMusic`: Suspense chain + alert layer, or Classic 1998 = start
   stinger only). Cue files, loop points, gain and category: `assets/audio/music/manifest.json` (loaded lazily with the
-  other audio manifests; a cue without a file is silence, never a synth placeholder).
+  other audio manifests; a cue without a file is silence, never a synth placeholder). Cues stream
+  (`src/audio/music-stream.js`): `ChunkCue` decodes 8 s chunks at the cue's `decodeRate`, `StreamVoice` schedules them
+  on the context clock 7 s ahead (pumped by `update()` and a 250 ms timer), crossfaded over 0.1 s overlaps, the loop
+  closed by a seam file — sample-accurate like an `AudioBufferSourceNode` loop, with a few MB of PCM per cue playing.
+  `director.fetch(id, offset)` decodes and pins the chunk a start needs (a chained segment: the top of its body).
 - Voice lines are broadcast as `bark` events and audio stamps `{speaker, text, gloss, subtitle, variant, duration, rec, take}` onto the payload.
   A `bark` that audio drops for anti-spam gets `suppressed: true`, and the UI must skip it.
 

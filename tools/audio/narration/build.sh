@@ -3,7 +3,7 @@
 # -> OGG/MP3 + manifest.
 # usage: tools/audio/narration/build.sh WORK_DIR [mission,ids]   (see docs/narration.md for the environment)
 #   PY       python with kokoro, librosa, scipy, pyloudnorm, faster-whisper, num2words
-#   PM_PY    python with praat-parselmouth        FFMPEG  ffmpeg binary (libopus + libmp3lame)
+#   PM_PY    python with praat-parselmouth        FFMPEG  ffmpeg binary (libopus + aac)
 #   KOKORO_DIR, WHISPER_DIR as in tts.py / qa.py
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; ROOT="$(cd "$HERE/../../.." && pwd)"

@@ -1,4 +1,5 @@
-// Newsreel narrator, stage 5: encode the processed clips (Opus/OGG + MP3) and write the manifest the briefing reads.
+// Newsreel narrator, stage 5: encode the processed clips (Opus/OGG + AAC/M4A, one per browser: src/audio/formats.js)
+// and write the manifest the briefing reads.
 // usage: node package.mjs WORK_DIR OUT_DIR   (WORK_DIR/proc/<mission>_<id>.{wav,json}, WORK_DIR/qa.json; env FFMPEG)
 // A clip whose speech-recognition check fails (more than 1 word wrong and WER > 0.10) is refused unless qa-accept.json
 // lists it with the reason (proper names the recogniser cannot spell; reviewed from its transcript).
@@ -54,7 +55,7 @@ const enc = (src, dst, sr, codec) => {
 };
 
 const manifest = {
-  format: 'newsreel narration: missions[id].lines[] = {id, text (exactly the on-screen words), files:[ogg,mp3] (relative to assets/audio/), duration s, wer + asrErrors (speech-recognition check), words:[{w,s,e}] s from clip start}; tour.lines[] = the same for every distinct caption of the Colonel\'s map tour (all missions), found by its text',
+  format: 'newsreel narration: missions[id].lines[] = {id, text (exactly the on-screen words), files:[ogg,m4a] (relative to assets/audio/), duration s, wer + asrErrors (speech-recognition check), words:[{w,s,e}] s from clip start}; tour.lines[] = the same for every distinct caption of the Colonel\'s map tour (all missions), found by its text',
   voice: 'original synthetic narrator: Kokoro-82M blend am_onyx .4 + bm_lewis .3 + am_eric .3 (British G2P, speed 1.20), Praat PSOLA cadence x1.6 +1.5 st, 1940s period chain (docs/narration.md)',
   license: 'Kokoro-82M Apache-2.0; AI-generated speech',
   missions: {},
@@ -71,14 +72,16 @@ for (const [mid, rows] of Object.entries(lines)) {
     if (!passes(q) && !accept[name]) { refused++; console.error(`REFUSED ${name} wer ${q?.wer} hyp: ${q?.hyp}`); continue; }
     mkdirSync(join(OUT, mid), { recursive: true });
     const wav = join(W, 'proc', `${name}.wav`);
-    for (const m of [enc(wav, join(OUT, mid, `${row.id}.ogg`), 48000, ['-c:a', 'libopus', '-b:a', '40k', '-application', 'voip']),
-      enc(wav, join(OUT, mid, `${row.id}.mp3`), 44100, ['-c:a', 'libmp3lame', '-b:a', '64k'])]) {
+    // Opus 32 kb/s mono (Chrome, Firefox, Android) / AAC-LC 40 kb/s mono at 24 kHz (WebKit): the period chain leaves
+    // nothing above 11 kHz (audio footprint pass, tools/audio/web_formats.py uses the same settings)
+    for (const m of [enc(wav, join(OUT, mid, `${row.id}.ogg`), 48000, ['-c:a', 'libopus', '-b:a', '32k', '-vbr', 'on', '-application', 'audio']),
+      enc(wav, join(OUT, mid, `${row.id}.m4a`), 24000, ['-c:a', 'aac', '-b:a', '40k', '-movflags', '+faststart'])]) {
       levels.tp = Math.max(levels.tp, m.tp);
       levels.lufs = [Math.min(levels.lufs[0], m.lufs), Math.max(levels.lufs[1], m.lufs)];
     }
-    for (const x of ['ogg', 'mp3']) bytes += statSync(join(OUT, mid, `${row.id}.${x}`)).size;
+    for (const x of ['ogg', 'm4a']) bytes += statSync(join(OUT, mid, `${row.id}.${x}`)).size;
     out.push({
-      id: row.id, text: row.text, files: [`narration/${mid}/${row.id}.ogg`, `narration/${mid}/${row.id}.mp3`],
+      id: row.id, text: row.text, files: [`narration/${mid}/${row.id}.ogg`, `narration/${mid}/${row.id}.m4a`],
       duration: +wavSeconds(wav).toFixed(3), wer: q?.wer ?? null, asrErrors: q?.errors ?? null,
       words: meta.words.map((w) => ({ w: w.w, s: +(w.s + PAD_IN).toFixed(3), e: +(w.e + PAD_IN).toFixed(3) })),
     });

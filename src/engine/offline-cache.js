@@ -13,6 +13,7 @@
  * @module engine/offline-cache
  */
 import { sessionCache } from './asset-cache.js';
+import { audioExt } from '../audio/formats.js';
 
 const nav = () => (typeof navigator !== 'undefined' ? navigator : null);
 const SITE = () => new URL('../../', import.meta.url).href; // site root (dev: repo root; build: rewritten by esbuild-plugin)
@@ -71,7 +72,9 @@ export function missionUrls(lists, id, preset = 'high', site = SITE()) {
   const P = lists?.presets || {};
   const alt = preset === 'ultra' || preset === 'medium' ? 'high' : preset;
   const rel = P[preset]?.[id] || P[alt]?.[id] || P.high?.[id] || null;
-  return rel ? rel.map((r) => new URL(r, site).href) : [];
+  // the lists name the Opus files: a WebKit browser downloads their AAC twins instead (audio/formats.js)
+  const ext = audioExt();
+  return rel ? rel.map((r) => new URL(ext !== '.ogg' && /^assets\/audio\/.+\.ogg$/.test(r) ? r.slice(0, -4) + ext : r, site).href) : [];
 }
 
 /**

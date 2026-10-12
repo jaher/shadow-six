@@ -2,7 +2,8 @@
 
 Every shipped sound, one row per source recording. All sources are CC0-1.0 (Freesound pages were
 re-checked live on 2026-09-26, including the description for derived material) or project output.
-Freesound files are the HQ previews, trimmed / split / loudness-normalised and re-encoded to Opus + MP3.
+Freesound files are the HQ previews, trimmed / split / loudness-normalised and encoded to Opus + AAC
+(one format per browser; tools/audio/web_formats.py).
 
 | Categories | Files | Title | Author | Source | Licence |
 | --- | --- | --- | --- | --- | --- |

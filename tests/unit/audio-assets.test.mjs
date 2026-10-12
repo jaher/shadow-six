@@ -61,12 +61,15 @@ test('licence gate: CC0 / project output only, the §1.5.1 rejects never ship, e
   assert.ok(/assets\/audio\/CREDITS\.md/.test(root), 'root CREDITS.md points at the audio credits');
 });
 
-test('files: every sound has an Opus/OGG file and an MP3 twin on disk; total audio ≤ 60 MB', () => {
+test('files: every sound has an Opus (.ogg) file and an AAC (.m4a) twin on disk, nothing else; total audio ≤ 60 MB', () => {
   for (const s of sfxMan.sounds) {
-    assert.ok(s.files.some((f) => f.endsWith('.ogg')) && s.files.some((f) => f.endsWith('.mp3')), `${s.id} ogg + mp3`);
+    assert.deepEqual(s.files.map((f) => f.slice(-4)), ['.ogg', '.m4a'], `${s.id}: Opus + AAC`);
     for (const f of s.files) assert.ok(statSync(join(ROOT, 'sfx', f)).size > 200, f);
   }
-  for (const l of voxMan.lines) for (const f of [...l.files, ...(l.alt || []), l.timing]) assert.ok(existsSync(join(ROOT, 'voice', f)), f);
+  for (const l of voxMan.lines) {
+    for (const f of [...l.files, ...(l.alt || []), l.timing]) assert.ok(existsSync(join(ROOT, 'voice', f)), f);
+    for (const set of [l.files, l.alt].filter(Boolean)) assert.deepEqual(set.map((f) => f.slice(-4)), ['.ogg', '.m4a'], `${l.files[0]}: Opus + AAC`);
+  }
   const listed = new Set(sfxMan.sounds.flatMap((s) => s.files));
   const walk = (d, rel = '') => readdirSync(d, { withFileTypes: true }).flatMap((f) => (f.isDirectory() ? walk(join(d, f.name), `${rel}${f.name}/`) : [`${rel}${f.name}`]));
   const stray = walk(join(ROOT, 'sfx')).filter((f) => f !== 'manifest.json' && !listed.has(f));
@@ -123,12 +126,26 @@ test('per-mission loading: decode only what M1 needs, one siren take, no beds; M
   const urls = [...eng.decoded.keys()];
   assert.ok(m1.buffers > 50 && m1.buffers === urls.length, `${m1.buffers} buffers`);
   assert.ok(!urls.some((u) => /^sfx\/(wind_|surf|river|birds|crickets|artillery)/.test(u)), `beds are streamed, never decoded (${urls.filter((u) => /^sfx\/(wind_|surf|river|birds|crickets|artillery)/.test(u))})`);
-  assert.equal(urls.filter((u) => /^sfx\/siren_/.test(u)).length, 1, 'one siren take pinned for the mission');
-  assert.ok(urls.some((u) => u.includes('voice/green_beret/')) && !urls.some((u) => u.includes('voice/sniper/')), 'voice packs of the squad only');
+  // the siren: one take pinned for the mission, downloaded now but decoded on first use (a long non-weapon take)
+  assert.equal(eng.pinned.get('siren')?.length, 1, 'one siren take pinned for the mission');
+  assert.ok(!urls.some((u) => /^sfx\/siren_/.test(u)) && eng.packed.has(eng.pinned.get('siren')[0]), 'siren kept compressed, not decoded');
+  // voices: only the squad's packs; the pain grunts / cries decoded now (synced to a hit), spoken lines on first use
+  const packedVoice = [...eng.packed.keys()].filter((u) => u.startsWith('voice/'));
+  assert.ok(packedVoice.some((u) => u.includes('voice/green_beret/')) && !packedVoice.some((u) => u.includes('voice/sniper/')), 'voice packs of the squad only');
+  assert.ok(urls.some((u) => /voice\/german_\d\/pain\/cry_/.test(u)), 'German cries decoded with the mission');
+  assert.ok(!urls.some((u) => u.startsWith('voice/') && !eng.meta.get(u)?.nonverbal), 'spoken lines are not decoded up front');
+  // a lazy take: a deferred handle, then the sound once decoded; the lazy set is capped
+  const sh = eng.play('siren', { loop: true, gain: 0.5 });
+  assert.ok(sh?.deferred && !sh.ended, 'siren: deferred handle');
+  await new Promise((ok) => setTimeout(ok, 0)); await new Promise((ok) => setTimeout(ok, 0));
+  assert.ok(sh.real && !sh.ended && eng.lazy.size === 1, 'siren decoded on first use and playing');
+  sh.stop(0);
   const a2 = missionAudio(M02);
   await eng.preload(a2.ids, { speakers: a2.speakers });
   const urls2 = [...eng.decoded.keys()];
-  assert.ok(urls2.some((u) => /truck_engine/.test(u)), 'M2 patrol boat engine decoded');
+  assert.ok([...eng.packed.keys()].some((u) => /truck_engine/.test(u)), 'M2 patrol boat engine downloaded (a loop: decoded on first use)');
+  const m2urls = new Set(a2.ids.flatMap((id) => eng.pinned.get(id) || eng.files.get(id) || []));
+  assert.ok([...eng.lazy.keys()].every((u) => m2urls.has(u)), 'lazily decoded takes M2 does not use are gone');
   assert.ok(!urls2.some((u) => u.includes('voice/driver/')) || a2.speakers.includes('driver'), 'evicted packs not in M2');
   // beds stream through a media element into the ambience bus
   const h = eng.play('surf', { gain: 0.4, loop: true });
@@ -191,7 +208,7 @@ test('German pain cries: every guard voice has its own stab / shot / blast / ko 
       assert.deepEqual(takes.map((t) => t.voice).sort(), [1, 2, 3], `${line.rec}: guard voices 1-3`);
       for (const t of takes) {
         assert.ok(t.nonverbal && t.kind === `cry_${cat}` && t.text === '', `${t.files[0]} non-verbal ${cat}`);
-        assert.ok(t.files[0] === `german_${t.voice}/pain/${line.rec}.ogg` && t.files[1].endsWith('.mp3'), t.files[0]);
+        assert.ok(t.files[0] === `german_${t.voice}/pain/${line.rec}.ogg` && t.files[1].endsWith('.m4a'), t.files[0]);
         const max = { stab: 1.0, shot: 1.3, blast: 1.7, ko: 1.2 }[cat];
         assert.ok(t.duration > 0.2 && t.duration <= max, `${t.files[0]} ${t.duration} s`);
       }

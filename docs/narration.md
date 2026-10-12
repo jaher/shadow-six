@@ -52,8 +52,10 @@ person was used as a reference.
   - NARRATION is on by default, in both rules presets and with either mission-music setting.
   - NARRATION VOLUME sets the narrator's own level. The VOICES and MASTER volumes also apply to him.
 - **Audio** (`src/audio/narration.js`):
-  - The `Narrator` fetches `assets/audio/narration/manifest.json` on the first briefing and decodes that mission's
-    clips: Opus/OGG, or MP3 on Safari.
+  - The `Narrator` fetches `assets/audio/narration/manifest.json` on the first briefing and downloads that mission's
+    clips (Opus/OGG, or AAC/M4A on Safari and iOS: `src/audio/formats.js`). It keeps them compressed and decodes, at
+    32 kHz, only the clip being read and the next one; a clip skipped to before it has decoded starts a few ms later.
+    Everything is freed when the mission starts.
   - The clips play through the narrator's own gain into the voice bus. `audio._musicTick` ducks the music director
     for the whole reading, from his first line to the end of the last: the briefing sets `narrator.session`, so the
     music stays down through the 0.45 s pauses between lines instead of pumping back up at every one.
@@ -80,7 +82,7 @@ person was used as a reference.
 | Cadence | `prosody.py` uses Praat PSOLA: f' = med·2^(1.5/12)·(f/med)^1.6. Every rise and fall is 1.6× wider and the voice is 1.5 st higher. Durations are unchanged. |
 | Period chain | `period.py`, in order: <ul><li>Booth reverb with an RT60 of 0.32 s, 10 % wet.</li><li>Band-pass from 200 Hz to 5.75 kHz.</li><li>+6 dB presence at 2.5 kHz and −4 dB at 330 Hz.</li><li>Asymmetric tanh "tube" saturation.</li><li>4:1 compressor.</li><li>Optical-soundtrack band-pass from 250 Hz to 5 kHz.</li><li>Pink hiss at −53 dBFS gated at 24 fps, plus crackle.</li><li>Wow and flutter at 0.55 Hz and 7.8 Hz.</li><li>−18 LUFS, with a soft limit at −1 dBFS sample peak.</li></ul> Each clip gets its own noise seed, 0.12 s of film run-in and 0.3 s of run-out. |
 | Pronunciation | `pron.json` holds IPA hints. A few common words get a rhotic hint because the British G2P's dropped *r* merged them into the next word: "near" ("Sola, near Stavanger" was heard as "Solenius de Vanga") and "dearly". The rest of the hints are for place names (Stavanger, Lofoten, Sysendam, Eidfjord, El Agheila, Compiègne, Liège, Riquewihr, Gundelfingen and others) and for German terms (Luftwaffe, Junkers, Gruppenführer, Afrika Korps). They are applied to the TTS input only, so the spoken words stay the on-screen words. `tts.py` also reads dates as "February the twentieth, 1941". |
-| Delivery | Opus/OGG at 40 kbps and MP3 at 64 kbps, mono. Each clip comes with word timings from Kokoro's duration predictor. The codecs overshoot between samples (Opus by up to 1.5 dB), so `package.mjs` puts each file through a 4×-oversampled limiter at −2.5 dBTP before encoding, measures the encoded file with an EBU R128 meter, and encodes it again 1 dB lower while it reads above −1 dBTP. The limiter takes 0.3 to 0.9 LU off: the 168 shipped files measure −18.2 to −19.5 LUFS integrated (158 of them within −18.4 to −19.0) and all peak at or below −1 dBTP. |
+| Delivery | Opus/OGG at 32 kbps and AAC/M4A at 40 kbps (24 kHz), mono (audio footprint pass; earlier Opus 40 kbps + MP3 64 kbps). Each clip comes with word timings from Kokoro's duration predictor. The codecs overshoot between samples (Opus by up to 1.5 dB), so `package.mjs` puts each file through a 4×-oversampled limiter at −2.5 dBTP before encoding, measures the encoded file with an EBU R128 meter, and encodes it again 1 dB lower while it reads above −1 dBTP. The limiter takes 0.3 to 0.9 LU off: the 168 shipped files measure −18.2 to −19.5 LUFS integrated (158 of them within −18.4 to −19.0) and all peak at or below −1 dBTP. |
 
 The design study is summarised here. Its measurements were taken on the Mission 1 text with faster-whisper small and
 librosa pyin:
@@ -97,7 +99,7 @@ librosa pyin:
 
 ```
 PY=<python with kokoro, librosa, scipy, pyloudnorm, faster-whisper, num2words> \
-PM_PY=<python with praat-parselmouth> FFMPEG=<ffmpeg with libopus + libmp3lame> \
+PM_PY=<python with praat-parselmouth> FFMPEG=<ffmpeg with libopus + aac> \
 KOKORO_DIR=<Kokoro-82M snapshot> WHISPER_DIR=<faster-whisper small> HF_HUB_OFFLINE=1 \
 tools/audio/narration/build.sh /path/to/workdir [m01,m02]
 ```

@@ -1,139 +1,2002 @@
 {
- "note": "Original compositions for SHADOW SIX (route A: MIDI score + VSCO 2 CE / VSCO 1 samples, CC0). files: [OGG Vorbis q5, MP3 128k (Safari)]. meta: loopStart/loopEnd (s, sample-accurate at sampleRate) = loop body after a play-once intro; once = plays once (then the caller decides); endSec = where a start stinger hands over; decodeRate = decode Hz; gain = linear trim; category = how the game uses it; mp3LeadSec = extra leading silence of a decoder that ignores the LAME gapless header.",
- "version": 3,
+ "note": "Original compositions for SHADOW SIX (route A: MIDI score + VSCO 2 CE / VSCO 1 samples, CC0). cues[id] = {chunks:[{f, t, d, o}], wrap?}: the cue as consecutive chunks, each `<f>.ogg` (Opus 96 kb/s) and `<f>.m4a` (AAC 128 kb/s) from the 24-bit master (tools/audio/web_formats.py); t = start (s), d = length (s), o = the next o s it also carries (consecutive chunks crossfade over it); wrap = {k, f, s, o} (looped cues): seam file f = the last s s of the loop body (chunk k ends there) + the first o s of the body, crossfaded the same way. Streamed by audio/music-stream.js: three or four chunks are decoded at a time. meta: loopStart/loopEnd (s) = loop body after a play-once intro; once; endSec = where a start stinger hands over; decodeRate = decode Hz; gain = linear trim; category; aacDelay = AAC priming samples (trimmed by the m4a edit list; the player checks the decoded length).",
+ "version": 4,
  "cues": {
-  "menu": [
-   "menu.ogg",
-   "menu.mp3"
-  ],
-  "credits": [
-   "credits.ogg",
-   "credits.mp3"
-  ],
-  "tutorial": [
-   "tutorial.ogg",
-   "tutorial.mp3"
-  ],
-  "briefing_1": [
-   "briefing_1.ogg",
-   "briefing_1.mp3"
-  ],
-  "briefing_2": [
-   "briefing_2.ogg",
-   "briefing_2.mp3"
-  ],
-  "briefing_3": [
-   "briefing_3.ogg",
-   "briefing_3.mp3"
-  ],
-  "campaign_norway": [
-   "campaign_norway.ogg",
-   "campaign_norway.mp3"
-  ],
-  "campaign_africa": [
-   "campaign_africa.ogg",
-   "campaign_africa.mp3"
-  ],
-  "campaign_normandy": [
-   "campaign_normandy.ogg",
-   "campaign_normandy.mp3"
-  ],
-  "campaign_rhine": [
-   "campaign_rhine.ogg",
-   "campaign_rhine.mp3"
-  ],
-  "campaign_reich": [
-   "campaign_reich.ogg",
-   "campaign_reich.mp3"
-  ],
-  "campaign_end": [
-   "campaign_end.ogg",
-   "campaign_end.mp3"
-  ],
-  "start_1": [
-   "start_1.ogg",
-   "start_1.mp3"
-  ],
-  "start_2": [
-   "start_2.ogg",
-   "start_2.mp3"
-  ],
-  "start_3": [
-   "start_3.ogg",
-   "start_3.mp3"
-  ],
-  "start_4": [
-   "start_4.ogg",
-   "start_4.mp3"
-  ],
-  "start_5": [
-   "start_5.ogg",
-   "start_5.mp3"
-  ],
-  "start_6": [
-   "start_6.ogg",
-   "start_6.mp3"
-  ],
-  "success_1": [
-   "success_1.ogg",
-   "success_1.mp3"
-  ],
-  "success_2": [
-   "success_2.ogg",
-   "success_2.mp3"
-  ],
-  "success_3": [
-   "success_3.ogg",
-   "success_3.mp3"
-  ],
-  "fail_1": [
-   "fail_1.ogg",
-   "fail_1.mp3"
-  ],
-  "fail_2": [
-   "fail_2.ogg",
-   "fail_2.mp3"
-  ],
-  "fail_3": [
-   "fail_3.ogg",
-   "fail_3.mp3"
-  ],
-  "exit": [
-   "exit.ogg",
-   "exit.mp3"
-  ],
-  "debrief_promotion": [
-   "debrief_promotion.ogg",
-   "debrief_promotion.mp3"
-  ],
-  "mission_tension_a": [
-   "mission_tension_a.ogg",
-   "mission_tension_a.mp3"
-  ],
-  "mission_tension_b": [
-   "mission_tension_b.ogg",
-   "mission_tension_b.mp3"
-  ],
-  "mission_tension_c": [
-   "mission_tension_c.ogg",
-   "mission_tension_c.mp3"
-  ],
-  "mission_bridge_1": [
-   "mission_bridge_1.ogg",
-   "mission_bridge_1.mp3"
-  ],
-  "mission_bridge_2": [
-   "mission_bridge_2.ogg",
-   "mission_bridge_2.mp3"
-  ],
-  "mission_bridge_3": [
-   "mission_bridge_3.ogg",
-   "mission_bridge_3.mp3"
-  ],
-  "mission_alert": [
-   "mission_alert.ogg",
-   "mission_alert.mp3"
-  ]
+  "menu": {
+   "chunks": [
+    {
+     "f": "menu/0",
+     "t": 0.0,
+     "d": 10.0,
+     "o": 0.1
+    },
+    {
+     "f": "menu/1",
+     "t": 10.0,
+     "d": 7.894729,
+     "o": 0.1
+    },
+    {
+     "f": "menu/2",
+     "t": 17.894729,
+     "d": 7.89475,
+     "o": 0.1
+    },
+    {
+     "f": "menu/3",
+     "t": 25.789479,
+     "d": 7.894729,
+     "o": 0.1
+    },
+    {
+     "f": "menu/4",
+     "t": 33.684208,
+     "d": 7.894729,
+     "o": 0.1
+    },
+    {
+     "f": "menu/5",
+     "t": 41.578938,
+     "d": 7.89475,
+     "o": 0.1
+    },
+    {
+     "f": "menu/6",
+     "t": 49.473687,
+     "d": 7.894729,
+     "o": 0.1
+    },
+    {
+     "f": "menu/7",
+     "t": 57.368417,
+     "d": 7.89475,
+     "o": 0.1
+    },
+    {
+     "f": "menu/8",
+     "t": 65.263167,
+     "d": 7.894729,
+     "o": 0.1
+    },
+    {
+     "f": "menu/9",
+     "t": 73.157896,
+     "d": 7.894729,
+     "o": 0.1
+    },
+    {
+     "f": "menu/10",
+     "t": 81.052625,
+     "d": 7.89475,
+     "o": 0.1
+    },
+    {
+     "f": "menu/11",
+     "t": 88.947375,
+     "d": 7.894729,
+     "o": 0.1
+    },
+    {
+     "f": "menu/12",
+     "t": 96.842104,
+     "d": 7.894729,
+     "o": 0.1
+    },
+    {
+     "f": "menu/13",
+     "t": 104.736833,
+     "d": 7.89475,
+     "o": 0.1
+    },
+    {
+     "f": "menu/14",
+     "t": 112.631583,
+     "d": 7.894729,
+     "o": 0.1
+    },
+    {
+     "f": "menu/15",
+     "t": 120.526313,
+     "d": 7.89475,
+     "o": 0.1
+    },
+    {
+     "f": "menu/16",
+     "t": 128.421063,
+     "d": 7.894729,
+     "o": 0.1
+    },
+    {
+     "f": "menu/17",
+     "t": 136.315792,
+     "d": 7.894729,
+     "o": 0.1
+    },
+    {
+     "f": "menu/18",
+     "t": 144.210521,
+     "d": 7.89475,
+     "o": 0.1
+    },
+    {
+     "f": "menu/19",
+     "t": 152.105271,
+     "d": 7.894729,
+     "o": 0.1
+    },
+    {
+     "f": "menu/20",
+     "t": 160.0,
+     "d": 4.0,
+     "o": 0.0
+    }
+   ],
+   "wrap": {
+    "k": 19,
+    "f": "menu/19w",
+    "s": 0.4,
+    "o": 0.1
+   },
+   "source": "wav master"
+  },
+  "credits": {
+   "chunks": [
+    {
+     "f": "credits/0",
+     "t": 0.0,
+     "d": 8.222229,
+     "o": 0.1
+    },
+    {
+     "f": "credits/1",
+     "t": 8.222229,
+     "d": 8.222208,
+     "o": 0.1
+    },
+    {
+     "f": "credits/2",
+     "t": 16.444437,
+     "d": 8.222229,
+     "o": 0.1
+    },
+    {
+     "f": "credits/3",
+     "t": 24.666667,
+     "d": 8.222229,
+     "o": 0.1
+    },
+    {
+     "f": "credits/4",
+     "t": 32.888896,
+     "d": 8.222208,
+     "o": 0.1
+    },
+    {
+     "f": "credits/5",
+     "t": 41.111104,
+     "d": 8.222229,
+     "o": 0.1
+    },
+    {
+     "f": "credits/6",
+     "t": 49.333333,
+     "d": 8.222229,
+     "o": 0.1
+    },
+    {
+     "f": "credits/7",
+     "t": 57.555563,
+     "d": 8.222208,
+     "o": 0.1
+    },
+    {
+     "f": "credits/8",
+     "t": 65.777771,
+     "d": 8.222229,
+     "o": 0.0
+    }
+   ],
+   "source": "wav master"
+  },
+  "tutorial": {
+   "chunks": [
+    {
+     "f": "tutorial/0",
+     "t": 0.0,
+     "d": 9.6,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/1",
+     "t": 9.6,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/2",
+     "t": 17.664,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/3",
+     "t": 25.728,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/4",
+     "t": 33.792,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/5",
+     "t": 41.856,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/6",
+     "t": 49.92,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/7",
+     "t": 57.984,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/8",
+     "t": 66.048,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/9",
+     "t": 74.112,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/10",
+     "t": 82.176,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/11",
+     "t": 90.24,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/12",
+     "t": 98.304,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/13",
+     "t": 106.368,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/14",
+     "t": 114.432,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/15",
+     "t": 122.496,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/16",
+     "t": 130.56,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/17",
+     "t": 138.624,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/18",
+     "t": 146.688,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/19",
+     "t": 154.752,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/20",
+     "t": 162.816,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/21",
+     "t": 170.88,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/22",
+     "t": 178.944,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/23",
+     "t": 187.008,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/24",
+     "t": 195.072,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/25",
+     "t": 203.136,
+     "d": 8.064,
+     "o": 0.1
+    },
+    {
+     "f": "tutorial/26",
+     "t": 211.2,
+     "d": 4.0,
+     "o": 0.0
+    }
+   ],
+   "wrap": {
+    "k": 25,
+    "f": "tutorial/25w",
+    "s": 0.4,
+    "o": 0.1
+   },
+   "source": "wav master"
+  },
+  "briefing_1": {
+   "chunks": [
+    {
+     "f": "briefing_1/0",
+     "t": 0.0,
+     "d": 6.0,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_1/1",
+     "t": 6.0,
+     "d": 7.8,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_1/2",
+     "t": 13.8,
+     "d": 7.8,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_1/3",
+     "t": 21.6,
+     "d": 7.8,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_1/4",
+     "t": 29.4,
+     "d": 7.8,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_1/5",
+     "t": 37.2,
+     "d": 7.8,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_1/6",
+     "t": 45.0,
+     "d": 7.8,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_1/7",
+     "t": 52.8,
+     "d": 7.8,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_1/8",
+     "t": 60.6,
+     "d": 7.8,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_1/9",
+     "t": 68.4,
+     "d": 7.8,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_1/10",
+     "t": 76.2,
+     "d": 7.8,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_1/11",
+     "t": 84.0,
+     "d": 4.0,
+     "o": 0.0
+    }
+   ],
+   "wrap": {
+    "k": 10,
+    "f": "briefing_1/10w",
+    "s": 0.4,
+    "o": 0.1
+   },
+   "source": "wav master"
+  },
+  "briefing_2": {
+   "chunks": [
+    {
+     "f": "briefing_2/0",
+     "t": 0.0,
+     "d": 5.333333,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_2/1",
+     "t": 5.333333,
+     "d": 8.242417,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_2/2",
+     "t": 13.57575,
+     "d": 8.242437,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_2/3",
+     "t": 21.818188,
+     "d": 8.242417,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_2/4",
+     "t": 30.060604,
+     "d": 8.242417,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_2/5",
+     "t": 38.303021,
+     "d": 8.242437,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_2/6",
+     "t": 46.545458,
+     "d": 8.242417,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_2/7",
+     "t": 54.787875,
+     "d": 8.242437,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_2/8",
+     "t": 63.030313,
+     "d": 8.242417,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_2/9",
+     "t": 71.272729,
+     "d": 8.242417,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_2/10",
+     "t": 79.515146,
+     "d": 8.242437,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_2/11",
+     "t": 87.757583,
+     "d": 8.242417,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_2/12",
+     "t": 96.0,
+     "d": 4.0,
+     "o": 0.0
+    }
+   ],
+   "wrap": {
+    "k": 11,
+    "f": "briefing_2/11w",
+    "s": 0.4,
+    "o": 0.1
+   },
+   "source": "wav master"
+  },
+  "briefing_3": {
+   "chunks": [
+    {
+     "f": "briefing_3/0",
+     "t": 0.0,
+     "d": 6.857146,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_3/1",
+     "t": 6.857146,
+     "d": 7.912083,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_3/2",
+     "t": 14.769229,
+     "d": 7.912083,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_3/3",
+     "t": 22.681313,
+     "d": 7.912104,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_3/4",
+     "t": 30.593417,
+     "d": 7.912083,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_3/5",
+     "t": 38.5055,
+     "d": 7.912083,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_3/6",
+     "t": 46.417583,
+     "d": 7.912083,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_3/7",
+     "t": 54.329667,
+     "d": 7.912104,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_3/8",
+     "t": 62.241771,
+     "d": 7.912083,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_3/9",
+     "t": 70.153854,
+     "d": 7.912083,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_3/10",
+     "t": 78.065938,
+     "d": 7.912083,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_3/11",
+     "t": 85.978021,
+     "d": 7.912104,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_3/12",
+     "t": 93.890125,
+     "d": 7.912083,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_3/13",
+     "t": 101.802208,
+     "d": 7.912083,
+     "o": 0.1
+    },
+    {
+     "f": "briefing_3/14",
+     "t": 109.714292,
+     "d": 4.0,
+     "o": 0.0
+    }
+   ],
+   "wrap": {
+    "k": 13,
+    "f": "briefing_3/13w",
+    "s": 0.4,
+    "o": 0.1
+   },
+   "source": "wav master"
+  },
+  "campaign_norway": {
+   "chunks": [
+    {
+     "f": "campaign_norway/0",
+     "t": 0.0,
+     "d": 6.666667,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_norway/1",
+     "t": 6.666667,
+     "d": 7.916667,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_norway/2",
+     "t": 14.583333,
+     "d": 7.916667,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_norway/3",
+     "t": 22.5,
+     "d": 7.916667,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_norway/4",
+     "t": 30.416667,
+     "d": 7.916667,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_norway/5",
+     "t": 38.333333,
+     "d": 7.916667,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_norway/6",
+     "t": 46.25,
+     "d": 7.916667,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_norway/7",
+     "t": 54.166667,
+     "d": 7.916667,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_norway/8",
+     "t": 62.083333,
+     "d": 7.916667,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_norway/9",
+     "t": 70.0,
+     "d": 7.916667,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_norway/10",
+     "t": 77.916667,
+     "d": 7.916667,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_norway/11",
+     "t": 85.833333,
+     "d": 7.916667,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_norway/12",
+     "t": 93.75,
+     "d": 7.916667,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_norway/13",
+     "t": 101.666667,
+     "d": 7.916667,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_norway/14",
+     "t": 109.583333,
+     "d": 7.916667,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_norway/15",
+     "t": 117.5,
+     "d": 7.916667,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_norway/16",
+     "t": 125.416667,
+     "d": 7.916667,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_norway/17",
+     "t": 133.333333,
+     "d": 4.0,
+     "o": 0.0
+    }
+   ],
+   "wrap": {
+    "k": 16,
+    "f": "campaign_norway/16w",
+    "s": 0.4,
+    "o": 0.1
+   },
+   "source": "wav master"
+  },
+  "campaign_africa": {
+   "chunks": [
+    {
+     "f": "campaign_africa/0",
+     "t": 0.0,
+     "d": 2.307688,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_africa/1",
+     "t": 2.307688,
+     "d": 7.948708,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_africa/2",
+     "t": 10.256396,
+     "d": 7.948729,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_africa/3",
+     "t": 18.205125,
+     "d": 7.948708,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_africa/4",
+     "t": 26.153833,
+     "d": 7.948729,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_africa/5",
+     "t": 34.102562,
+     "d": 7.948708,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_africa/6",
+     "t": 42.051271,
+     "d": 7.948729,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_africa/7",
+     "t": 50.0,
+     "d": 7.948708,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_africa/8",
+     "t": 57.948708,
+     "d": 7.948729,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_africa/9",
+     "t": 65.897437,
+     "d": 7.948708,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_africa/10",
+     "t": 73.846146,
+     "d": 4.0,
+     "o": 0.0
+    }
+   ],
+   "wrap": {
+    "k": 9,
+    "f": "campaign_africa/9w",
+    "s": 0.4,
+    "o": 0.1
+   },
+   "source": "wav master"
+  },
+  "campaign_normandy": {
+   "chunks": [
+    {
+     "f": "campaign_normandy/0",
+     "t": 0.0,
+     "d": 8.888896,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_normandy/1",
+     "t": 8.888896,
+     "d": 8.148146,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_normandy/2",
+     "t": 17.037042,
+     "d": 8.148146,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_normandy/3",
+     "t": 25.185188,
+     "d": 8.148146,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_normandy/4",
+     "t": 33.333333,
+     "d": 8.148146,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_normandy/5",
+     "t": 41.481479,
+     "d": 8.148146,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_normandy/6",
+     "t": 49.629625,
+     "d": 8.148146,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_normandy/7",
+     "t": 57.777771,
+     "d": 8.148167,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_normandy/8",
+     "t": 65.925938,
+     "d": 8.148146,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_normandy/9",
+     "t": 74.074083,
+     "d": 8.148146,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_normandy/10",
+     "t": 82.222229,
+     "d": 8.148146,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_normandy/11",
+     "t": 90.370375,
+     "d": 8.148146,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_normandy/12",
+     "t": 98.518521,
+     "d": 8.148146,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_normandy/13",
+     "t": 106.666667,
+     "d": 4.0,
+     "o": 0.0
+    }
+   ],
+   "wrap": {
+    "k": 12,
+    "f": "campaign_normandy/12w",
+    "s": 0.4,
+    "o": 0.1
+   },
+   "source": "wav master"
+  },
+  "campaign_rhine": {
+   "chunks": [
+    {
+     "f": "campaign_rhine/0",
+     "t": 0.0,
+     "d": 5.714292,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_rhine/1",
+     "t": 5.714292,
+     "d": 7.857146,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_rhine/2",
+     "t": 13.571438,
+     "d": 7.857146,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_rhine/3",
+     "t": 21.428583,
+     "d": 7.857146,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_rhine/4",
+     "t": 29.285729,
+     "d": 7.857146,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_rhine/5",
+     "t": 37.142875,
+     "d": 7.857125,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_rhine/6",
+     "t": 45.0,
+     "d": 7.857146,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_rhine/7",
+     "t": 52.857146,
+     "d": 7.857146,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_rhine/8",
+     "t": 60.714292,
+     "d": 7.857146,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_rhine/9",
+     "t": 68.571438,
+     "d": 4.0,
+     "o": 0.0
+    }
+   ],
+   "wrap": {
+    "k": 8,
+    "f": "campaign_rhine/8w",
+    "s": 0.4,
+    "o": 0.1
+   },
+   "source": "wav master"
+  },
+  "campaign_reich": {
+   "chunks": [
+    {
+     "f": "campaign_reich/0",
+     "t": 0.0,
+     "d": 4.0,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_reich/1",
+     "t": 4.0,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_reich/2",
+     "t": 12.0,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_reich/3",
+     "t": 20.0,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_reich/4",
+     "t": 28.0,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_reich/5",
+     "t": 36.0,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_reich/6",
+     "t": 44.0,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_reich/7",
+     "t": 52.0,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_reich/8",
+     "t": 60.0,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_reich/9",
+     "t": 68.0,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_reich/10",
+     "t": 76.0,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_reich/11",
+     "t": 84.0,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_reich/12",
+     "t": 92.0,
+     "d": 3.0,
+     "o": 0.0
+    }
+   ],
+   "wrap": {
+    "k": 11,
+    "f": "campaign_reich/11w",
+    "s": 0.4,
+    "o": 0.1
+   },
+   "source": "wav master"
+  },
+  "campaign_end": {
+   "chunks": [
+    {
+     "f": "campaign_end/0",
+     "t": 0.0,
+     "d": 7.752063,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_end/1",
+     "t": 7.752063,
+     "d": 7.752063,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_end/2",
+     "t": 15.504125,
+     "d": 7.752063,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_end/3",
+     "t": 23.256187,
+     "d": 7.752063,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_end/4",
+     "t": 31.00825,
+     "d": 7.752063,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_end/5",
+     "t": 38.760312,
+     "d": 7.752083,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_end/6",
+     "t": 46.512396,
+     "d": 7.752063,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_end/7",
+     "t": 54.264458,
+     "d": 7.752063,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_end/8",
+     "t": 62.016521,
+     "d": 7.752063,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_end/9",
+     "t": 69.768583,
+     "d": 7.752063,
+     "o": 0.1
+    },
+    {
+     "f": "campaign_end/10",
+     "t": 77.520646,
+     "d": 7.752063,
+     "o": 0.0
+    }
+   ],
+   "source": "wav master"
+  },
+  "start_1": {
+   "chunks": [
+    {
+     "f": "start_1/0",
+     "t": 0.0,
+     "d": 8.333167,
+     "o": 0.1
+    },
+    {
+     "f": "start_1/1",
+     "t": 8.333167,
+     "d": 8.333167,
+     "o": 0.0
+    }
+   ],
+   "source": "wav master"
+  },
+  "start_2": {
+   "chunks": [
+    {
+     "f": "start_2/0",
+     "t": 0.0,
+     "d": 6.924229,
+     "o": 0.1
+    },
+    {
+     "f": "start_2/1",
+     "t": 6.924229,
+     "d": 6.924229,
+     "o": 0.0
+    }
+   ],
+   "source": "wav master"
+  },
+  "start_3": {
+   "chunks": [
+    {
+     "f": "start_3/0",
+     "t": 0.0,
+     "d": 8.887771,
+     "o": 0.1
+    },
+    {
+     "f": "start_3/1",
+     "t": 8.887771,
+     "d": 8.887771,
+     "o": 0.0
+    }
+   ],
+   "source": "wav master"
+  },
+  "start_4": {
+   "chunks": [
+    {
+     "f": "start_4/0",
+     "t": 0.0,
+     "d": 8.572854,
+     "o": 0.1
+    },
+    {
+     "f": "start_4/1",
+     "t": 8.572854,
+     "d": 8.572854,
+     "o": 0.0
+    }
+   ],
+   "source": "wav master"
+  },
+  "start_5": {
+   "chunks": [
+    {
+     "f": "start_5/0",
+     "t": 0.0,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "start_5/1",
+     "t": 8.0,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "start_5/2",
+     "t": 16.0,
+     "d": 8.0,
+     "o": 0.0
+    }
+   ],
+   "source": "wav master"
+  },
+  "start_6": {
+   "chunks": [
+    {
+     "f": "start_6/0",
+     "t": 0.0,
+     "d": 7.0,
+     "o": 0.1
+    },
+    {
+     "f": "start_6/1",
+     "t": 7.0,
+     "d": 7.0,
+     "o": 0.1
+    },
+    {
+     "f": "start_6/2",
+     "t": 14.0,
+     "d": 7.0,
+     "o": 0.0
+    }
+   ],
+   "source": "wav master"
+  },
+  "success_1": {
+   "chunks": [
+    {
+     "f": "success_1/0",
+     "t": 0.0,
+     "d": 10.711417,
+     "o": 0.0
+    }
+   ],
+   "source": "wav master"
+  },
+  "success_2": {
+   "chunks": [
+    {
+     "f": "success_2/0",
+     "t": 0.0,
+     "d": 6.0,
+     "o": 0.1
+    },
+    {
+     "f": "success_2/1",
+     "t": 6.0,
+     "d": 6.0,
+     "o": 0.0
+    }
+   ],
+   "source": "wav master"
+  },
+  "success_3": {
+   "chunks": [
+    {
+     "f": "success_3/0",
+     "t": 0.0,
+     "d": 6.75,
+     "o": 0.1
+    },
+    {
+     "f": "success_3/1",
+     "t": 6.75,
+     "d": 6.75,
+     "o": 0.0
+    }
+   ],
+   "source": "wav master"
+  },
+  "fail_1": {
+   "chunks": [
+    {
+     "f": "fail_1/0",
+     "t": 0.0,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "fail_1/1",
+     "t": 8.0,
+     "d": 8.0,
+     "o": 0.0
+    }
+   ],
+   "source": "wav master"
+  },
+  "fail_2": {
+   "chunks": [
+    {
+     "f": "fail_2/0",
+     "t": 0.0,
+     "d": 9.997708,
+     "o": 0.1
+    },
+    {
+     "f": "fail_2/1",
+     "t": 9.997708,
+     "d": 9.997729,
+     "o": 0.0
+    }
+   ],
+   "source": "wav master"
+  },
+  "fail_3": {
+   "chunks": [
+    {
+     "f": "fail_3/0",
+     "t": 0.0,
+     "d": 7.334292,
+     "o": 0.1
+    },
+    {
+     "f": "fail_3/1",
+     "t": 7.334292,
+     "d": 7.334271,
+     "o": 0.1
+    },
+    {
+     "f": "fail_3/2",
+     "t": 14.668563,
+     "d": 7.334292,
+     "o": 0.0
+    }
+   ],
+   "source": "wav master"
+  },
+  "exit": {
+   "chunks": [
+    {
+     "f": "exit/0",
+     "t": 0.0,
+     "d": 8.000312,
+     "o": 0.0
+    }
+   ],
+   "source": "wav master"
+  },
+  "debrief_promotion": {
+   "chunks": [
+    {
+     "f": "debrief_promotion/0",
+     "t": 0.0,
+     "d": 8.575,
+     "o": 0.1
+    },
+    {
+     "f": "debrief_promotion/1",
+     "t": 8.575,
+     "d": 8.575,
+     "o": 0.0
+    }
+   ],
+   "source": "wav master"
+  },
+  "mission_tension_a": {
+   "chunks": [
+    {
+     "f": "mission_tension_a/0",
+     "t": 0.0,
+     "d": 2.857146,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_a/1",
+     "t": 2.857146,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_a/2",
+     "t": 10.857146,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_a/3",
+     "t": 18.857146,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_a/4",
+     "t": 26.857146,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_a/5",
+     "t": 34.857146,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_a/6",
+     "t": 42.857146,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_a/7",
+     "t": 50.857146,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_a/8",
+     "t": 58.857146,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_a/9",
+     "t": 66.857146,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_a/10",
+     "t": 74.857146,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_a/11",
+     "t": 82.857146,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_a/12",
+     "t": 90.857146,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_a/13",
+     "t": 98.857146,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_a/14",
+     "t": 106.857146,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_a/15",
+     "t": 114.857146,
+     "d": 8.0,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_a/16",
+     "t": 122.857146,
+     "d": 4.0,
+     "o": 0.0
+    }
+   ],
+   "wrap": {
+    "k": 15,
+    "f": "mission_tension_a/15w",
+    "s": 0.4,
+    "o": 0.1
+   },
+   "source": "vorbis q5 (no master)"
+  },
+  "mission_tension_b": {
+   "chunks": [
+    {
+     "f": "mission_tension_b/0",
+     "t": 0.0,
+     "d": 2.857146,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_b/1",
+     "t": 2.857146,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_b/2",
+     "t": 10.676687,
+     "d": 7.819562,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_b/3",
+     "t": 18.49625,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_b/4",
+     "t": 26.315792,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_b/5",
+     "t": 34.135333,
+     "d": 7.819562,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_b/6",
+     "t": 41.954896,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_b/7",
+     "t": 49.774437,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_b/8",
+     "t": 57.593979,
+     "d": 7.819562,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_b/9",
+     "t": 65.413542,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_b/10",
+     "t": 73.233083,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_b/11",
+     "t": 81.052625,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_b/12",
+     "t": 88.872167,
+     "d": 7.819562,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_b/13",
+     "t": 96.691729,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_b/14",
+     "t": 104.511271,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_b/15",
+     "t": 112.330812,
+     "d": 7.819562,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_b/16",
+     "t": 120.150375,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_b/17",
+     "t": 127.969917,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_b/18",
+     "t": 135.789458,
+     "d": 7.819562,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_b/19",
+     "t": 143.609021,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_b/20",
+     "t": 151.428562,
+     "d": 4.0,
+     "o": 0.0
+    }
+   ],
+   "wrap": {
+    "k": 19,
+    "f": "mission_tension_b/19w",
+    "s": 0.4,
+    "o": 0.1
+   },
+   "source": "wav master"
+  },
+  "mission_tension_c": {
+   "chunks": [
+    {
+     "f": "mission_tension_c/0",
+     "t": 0.0,
+     "d": 2.857146,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_c/1",
+     "t": 2.857146,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_c/2",
+     "t": 10.676687,
+     "d": 7.819562,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_c/3",
+     "t": 18.49625,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_c/4",
+     "t": 26.315792,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_c/5",
+     "t": 34.135333,
+     "d": 7.819562,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_c/6",
+     "t": 41.954896,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_c/7",
+     "t": 49.774437,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_c/8",
+     "t": 57.593979,
+     "d": 7.819562,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_c/9",
+     "t": 65.413542,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_c/10",
+     "t": 73.233083,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_c/11",
+     "t": 81.052625,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_c/12",
+     "t": 88.872167,
+     "d": 7.819562,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_c/13",
+     "t": 96.691729,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_c/14",
+     "t": 104.511271,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_c/15",
+     "t": 112.330812,
+     "d": 7.819562,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_c/16",
+     "t": 120.150375,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_c/17",
+     "t": 127.969917,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_c/18",
+     "t": 135.789458,
+     "d": 7.819562,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_c/19",
+     "t": 143.609021,
+     "d": 7.819542,
+     "o": 0.1
+    },
+    {
+     "f": "mission_tension_c/20",
+     "t": 151.428562,
+     "d": 4.0,
+     "o": 0.0
+    }
+   ],
+   "wrap": {
+    "k": 19,
+    "f": "mission_tension_c/19w",
+    "s": 0.4,
+    "o": 0.1
+   },
+   "source": "wav master"
+  },
+  "mission_bridge_1": {
+   "chunks": [
+    {
+     "f": "mission_bridge_1/0",
+     "t": 0.0,
+     "d": 2.857146,
+     "o": 0.1
+    },
+    {
+     "f": "mission_bridge_1/1",
+     "t": 2.857146,
+     "d": 7.619042,
+     "o": 0.1
+    },
+    {
+     "f": "mission_bridge_1/2",
+     "t": 10.476187,
+     "d": 7.619063,
+     "o": 0.1
+    },
+    {
+     "f": "mission_bridge_1/3",
+     "t": 18.09525,
+     "d": 7.619042,
+     "o": 0.1
+    },
+    {
+     "f": "mission_bridge_1/4",
+     "t": 25.714292,
+     "d": 4.0,
+     "o": 0.0
+    }
+   ],
+   "wrap": {
+    "k": 3,
+    "f": "mission_bridge_1/3w",
+    "s": 0.4,
+    "o": 0.1
+   },
+   "source": "wav master"
+  },
+  "mission_bridge_2": {
+   "chunks": [
+    {
+     "f": "mission_bridge_2/0",
+     "t": 0.0,
+     "d": 2.857146,
+     "o": 0.1
+    },
+    {
+     "f": "mission_bridge_2/1",
+     "t": 2.857146,
+     "d": 7.619042,
+     "o": 0.1
+    },
+    {
+     "f": "mission_bridge_2/2",
+     "t": 10.476187,
+     "d": 7.619063,
+     "o": 0.1
+    },
+    {
+     "f": "mission_bridge_2/3",
+     "t": 18.09525,
+     "d": 7.619042,
+     "o": 0.1
+    },
+    {
+     "f": "mission_bridge_2/4",
+     "t": 25.714292,
+     "d": 4.0,
+     "o": 0.0
+    }
+   ],
+   "wrap": {
+    "k": 3,
+    "f": "mission_bridge_2/3w",
+    "s": 0.4,
+    "o": 0.1
+   },
+   "source": "wav master"
+  },
+  "mission_bridge_3": {
+   "chunks": [
+    {
+     "f": "mission_bridge_3/0",
+     "t": 0.0,
+     "d": 2.857146,
+     "o": 0.1
+    },
+    {
+     "f": "mission_bridge_3/1",
+     "t": 2.857146,
+     "d": 7.619042,
+     "o": 0.1
+    },
+    {
+     "f": "mission_bridge_3/2",
+     "t": 10.476187,
+     "d": 7.619063,
+     "o": 0.1
+    },
+    {
+     "f": "mission_bridge_3/3",
+     "t": 18.09525,
+     "d": 7.619042,
+     "o": 0.1
+    },
+    {
+     "f": "mission_bridge_3/4",
+     "t": 25.714292,
+     "d": 4.0,
+     "o": 0.0
+    }
+   ],
+   "wrap": {
+    "k": 3,
+    "f": "mission_bridge_3/3w",
+    "s": 0.4,
+    "o": 0.1
+   },
+   "source": "wav master"
+  },
+  "mission_alert": {
+   "chunks": [
+    {
+     "f": "mission_alert/0",
+     "t": 0.0,
+     "d": 2.857146,
+     "o": 0.1
+    },
+    {
+     "f": "mission_alert/1",
+     "t": 2.857146,
+     "d": 7.619042,
+     "o": 0.1
+    },
+    {
+     "f": "mission_alert/2",
+     "t": 10.476187,
+     "d": 7.619042,
+     "o": 0.1
+    },
+    {
+     "f": "mission_alert/3",
+     "t": 18.095229,
+     "d": 7.619063,
+     "o": 0.1
+    },
+    {
+     "f": "mission_alert/4",
+     "t": 25.714292,
+     "d": 7.619042,
+     "o": 0.1
+    },
+    {
+     "f": "mission_alert/5",
+     "t": 33.333333,
+     "d": 7.619042,
+     "o": 0.1
+    },
+    {
+     "f": "mission_alert/6",
+     "t": 40.952375,
+     "d": 7.619042,
+     "o": 0.1
+    },
+    {
+     "f": "mission_alert/7",
+     "t": 48.571417,
+     "d": 7.619063,
+     "o": 0.1
+    },
+    {
+     "f": "mission_alert/8",
+     "t": 56.190479,
+     "d": 7.619042,
+     "o": 0.1
+    },
+    {
+     "f": "mission_alert/9",
+     "t": 63.809521,
+     "d": 7.619042,
+     "o": 0.1
+    },
+    {
+     "f": "mission_alert/10",
+     "t": 71.428562,
+     "d": 4.0,
+     "o": 0.0
+    }
+   ],
+   "wrap": {
+    "k": 9,
+    "f": "mission_alert/9w",
+    "s": 0.4,
+    "o": 0.1
+   },
+   "source": "wav master"
+  }
  },
  "meta": {
   "menu": {
@@ -149,12 +2012,12 @@
    "truePeakDbTP": -1.87,
    "key": "D minor (Aeolian) -> F major -> D minor",
    "mood": "heroic, restrained, confident",
-   "mp3LeadSec": 0.023021,
    "loopStart": 10.0,
    "loopEnd": 160.0,
    "loopStartSample": 480000,
    "loopEndSample": 7680000,
-   "decodeRate": 32000
+   "decodeRate": 32000,
+   "aacDelay": 1024
   },
   "credits": {
    "category": "credits",
@@ -169,9 +2032,9 @@
    "truePeakDbTP": -1.79,
    "key": "D minor -> D major",
    "mood": "proud, reflective",
-   "mp3LeadSec": 0.023021,
    "once": true,
-   "decodeRate": 32000
+   "decodeRate": 32000,
+   "aacDelay": 1024
   },
   "tutorial": {
    "category": "tutorial",
@@ -186,12 +2049,12 @@
    "truePeakDbTP": -1.9,
    "key": "F major / D minor",
    "mood": "brisk, training camp, lighter but military",
-   "mp3LeadSec": 0.023021,
    "loopStart": 9.6,
    "loopEnd": 211.2,
    "loopStartSample": 460800,
    "loopEndSample": 10137600,
-   "decodeRate": 32000
+   "decodeRate": 32000,
+   "aacDelay": 1024
   },
   "briefing_1": {
    "category": "briefing",
@@ -206,12 +2069,12 @@
    "truePeakDbTP": -6.12,
    "key": "D minor",
    "mood": "tense, methodical, planning",
-   "mp3LeadSec": 0.023021,
    "loopStart": 6.0,
    "loopEnd": 84.0,
    "loopStartSample": 288000,
    "loopEndSample": 4032000,
-   "decodeRate": 32000
+   "decodeRate": 32000,
+   "aacDelay": 1024
   },
   "briefing_2": {
    "category": "briefing",
@@ -226,12 +2089,12 @@
    "truePeakDbTP": -6.91,
    "key": "A minor",
    "mood": "urgent, clockwork",
-   "mp3LeadSec": 0.023021,
    "loopStart": 5.333333,
    "loopEnd": 96.0,
    "loopStartSample": 256000,
    "loopEndSample": 4608000,
-   "decodeRate": 32000
+   "decodeRate": 32000,
+   "aacDelay": 1024
   },
   "briefing_3": {
    "category": "briefing",
@@ -246,12 +2109,12 @@
    "truePeakDbTP": -9.05,
    "key": "G minor",
    "mood": "sombre, weighty, the stakes",
-   "mp3LeadSec": 0.023021,
    "loopStart": 6.857146,
    "loopEnd": 109.714292,
    "loopStartSample": 329143,
    "loopEndSample": 5266286,
-   "decodeRate": 32000
+   "decodeRate": 32000,
+   "aacDelay": 1024
   },
   "campaign_norway": {
    "category": "campaign",
@@ -266,12 +2129,12 @@
    "truePeakDbTP": -5.97,
    "key": "D Dorian (B natural)",
    "mood": "cold, lonely, determined",
-   "mp3LeadSec": 0.023021,
    "loopStart": 6.666667,
    "loopEnd": 133.333333,
    "loopStartSample": 320000,
    "loopEndSample": 6400000,
-   "decodeRate": 32000
+   "decodeRate": 32000,
+   "aacDelay": 1024
   },
   "campaign_africa": {
    "category": "campaign",
@@ -286,12 +2149,12 @@
    "truePeakDbTP": -1.88,
    "key": "E Phrygian",
    "mood": "restless, dry, sun-hammered",
-   "mp3LeadSec": 0.023021,
    "loopStart": 2.307688,
    "loopEnd": 73.846146,
    "loopStartSample": 110769,
    "loopEndSample": 3544615,
-   "decodeRate": 32000
+   "decodeRate": 32000,
+   "aacDelay": 1024
   },
   "campaign_normandy": {
    "category": "campaign",
@@ -306,12 +2169,12 @@
    "truePeakDbTP": -1.71,
    "key": "B-flat major <-> G minor (trio in E-flat)",
    "mood": "hope with a cost; forward motion",
-   "mp3LeadSec": 0.023021,
    "loopStart": 8.888896,
    "loopEnd": 106.666667,
    "loopStartSample": 426667,
    "loopEndSample": 5120000,
-   "decodeRate": 32000
+   "decodeRate": 32000,
+   "aacDelay": 1024
   },
   "campaign_rhine": {
    "category": "campaign",
@@ -326,12 +2189,12 @@
    "truePeakDbTP": -1.87,
    "key": "C minor",
    "mood": "heavy, grinding, muddy",
-   "mp3LeadSec": 0.023021,
    "loopStart": 5.714292,
    "loopEnd": 68.571438,
    "loopStartSample": 274286,
    "loopEndSample": 3291429,
-   "decodeRate": 32000
+   "decodeRate": 32000,
+   "aacDelay": 1024
   },
   "campaign_reich": {
    "category": "campaign",
@@ -346,12 +2209,12 @@
    "truePeakDbTP": -1.85,
    "key": "F minor, Phrygian bII (G-flat)",
    "mood": "grim, relentless, dark grandeur",
-   "mp3LeadSec": 0.023021,
    "loopStart": 4.0,
    "loopEnd": 92.0,
    "loopStartSample": 192000,
    "loopEndSample": 4416000,
-   "decodeRate": 32000
+   "decodeRate": 32000,
+   "aacDelay": 1024
   },
   "campaign_end": {
    "category": "campaign",
@@ -366,9 +2229,9 @@
    "truePeakDbTP": -6.42,
    "key": "D major -> B minor -> D major",
    "mood": "elegy, earned peace",
-   "mp3LeadSec": 0.023021,
    "once": true,
-   "decodeRate": 32000
+   "decodeRate": 32000,
+   "aacDelay": 1024
   },
   "start_1": {
    "category": "stinger_start",
@@ -383,9 +2246,9 @@
    "truePeakDbTP": -6.31,
    "key": "D Dorian (B natural)",
    "mood": "cold, still, resolute - mission start (Norway)",
-   "mp3LeadSec": 0.023021,
    "once": true,
-   "endSec": 15.166
+   "endSec": 15.166,
+   "aacDelay": 1024
   },
   "start_2": {
    "category": "stinger_start",
@@ -400,9 +2263,9 @@
    "truePeakDbTP": -1.83,
    "key": "E Phrygian",
    "mood": "restless, dry, sun-hammered - mission start (North Africa)",
-   "mp3LeadSec": 0.023021,
    "once": true,
-   "endSec": 12.348
+   "endSec": 12.348,
+   "aacDelay": 1024
   },
   "start_3": {
    "category": "stinger_start",
@@ -417,9 +2280,9 @@
    "truePeakDbTP": -1.71,
    "key": "B-flat major (ends on the dominant F)",
    "mood": "hope, momentum - mission start (Normandy)",
-   "mp3LeadSec": 0.023021,
    "once": true,
-   "endSec": 16.276
+   "endSec": 16.276,
+   "aacDelay": 1024
   },
   "start_4": {
    "category": "stinger_start",
@@ -434,9 +2297,9 @@
    "truePeakDbTP": -2.07,
    "key": "C minor",
    "mood": "heavy, grinding - mission start (Rhine)",
-   "mp3LeadSec": 0.023021,
    "once": true,
-   "endSec": 15.646
+   "endSec": 15.646,
+   "aacDelay": 1024
   },
   "start_5": {
    "category": "stinger_start",
@@ -451,9 +2314,9 @@
    "truePeakDbTP": -1.97,
    "key": "F minor, Phrygian bII (G-flat)",
    "mood": "grim, relentless - mission start (Final Assault)",
-   "mp3LeadSec": 0.023021,
    "once": true,
-   "endSec": 22.5
+   "endSec": 22.5,
+   "aacDelay": 1024
   },
   "start_6": {
    "category": "stinger_start",
@@ -468,9 +2331,9 @@
    "truePeakDbTP": -3.51,
    "key": "D minor",
    "mood": "covert, tense, quiet - mission start (generic)",
-   "mp3LeadSec": 0.023021,
    "once": true,
-   "endSec": 19.5
+   "endSec": 19.5,
+   "aacDelay": 1024
   },
   "success_1": {
    "category": "stinger_success",
@@ -485,9 +2348,9 @@
    "truePeakDbTP": -2.47,
    "key": "D major (bVI-I close)",
    "mood": "triumphant with weight - mission success",
-   "mp3LeadSec": 0.023021,
    "once": true,
-   "endSec": 9.211
+   "endSec": 9.211,
+   "aacDelay": 1024
   },
   "success_2": {
    "category": "stinger_success",
@@ -502,9 +2365,9 @@
    "truePeakDbTP": -1.85,
    "key": "B-flat major (minor-plagal close)",
    "mood": "warm, proud, with weight - mission success",
-   "mp3LeadSec": 0.023021,
    "once": true,
-   "endSec": 10.5
+   "endSec": 10.5,
+   "aacDelay": 1024
   },
   "success_3": {
    "category": "stinger_success",
@@ -519,9 +2382,9 @@
    "truePeakDbTP": -1.82,
    "key": "F major (F minor -> Picardy F major)",
    "mood": "brisk, earned - mission success",
-   "mp3LeadSec": 0.023021,
    "once": true,
-   "endSec": 12.0
+   "endSec": 12.0,
+   "aacDelay": 1024
   },
   "fail_1": {
    "category": "stinger_fail",
@@ -536,9 +2399,9 @@
    "truePeakDbTP": -5.5,
    "key": "D minor (ends i add b6)",
    "mood": "loss, broken resolve - mission failed",
-   "mp3LeadSec": 0.023021,
    "once": true,
-   "endSec": 14.5
+   "endSec": 14.5,
+   "aacDelay": 1024
   },
   "fail_2": {
    "category": "stinger_fail",
@@ -553,9 +2416,9 @@
    "truePeakDbTP": -3.89,
    "key": "G minor",
    "mood": "funeral, sober - mission failed",
-   "mp3LeadSec": 0.023021,
    "once": true,
-   "endSec": 18.495
+   "endSec": 18.495,
+   "aacDelay": 1024
   },
   "fail_3": {
    "category": "stinger_fail",
@@ -570,9 +2433,9 @@
    "truePeakDbTP": -3.77,
    "key": "D minor",
    "mood": "elegy, unfinished - mission failed",
-   "mp3LeadSec": 0.023021,
    "once": true,
-   "endSec": 20.503
+   "endSec": 20.503,
+   "aacDelay": 1024
   },
   "exit": {
    "category": "stinger_exit",
@@ -587,9 +2450,9 @@
    "truePeakDbTP": -3.75,
    "key": "D minor -> D major",
    "mood": "curt sign-off",
-   "mp3LeadSec": 0.023021,
    "once": true,
-   "endSec": 6.5
+   "endSec": 6.5,
+   "aacDelay": 1024
   },
   "debrief_promotion": {
    "category": "stinger_promotion",
@@ -604,9 +2467,9 @@
    "truePeakDbTP": -1.82,
    "key": "B-flat major (bVI colour, resolved)",
    "mood": "ceremonial, proud - promotion/medal",
-   "mp3LeadSec": 0.023021,
    "once": true,
-   "endSec": 15.65
+   "endSec": 15.65,
+   "aacDelay": 1024
   },
   "mission_tension_a": {
    "category": "mission",
@@ -619,7 +2482,9 @@
    "key": "D minor (Phrygian colour Eb)",
    "loopStart": 2.857146,
    "loopEnd": 122.857146,
-   "decodeRate": 24000
+   "decodeRate": 24000,
+   "lengthSamples": 6089143,
+   "aacDelay": 1024
   },
   "mission_tension_b": {
    "category": "mission",
@@ -632,7 +2497,9 @@
    "key": "D minor (chromatic drift over D pedal)",
    "loopStart": 2.857146,
    "loopEnd": 151.428562,
-   "decodeRate": 24000
+   "decodeRate": 24000,
+   "lengthSamples": 7460571,
+   "aacDelay": 1024
   },
   "mission_tension_c": {
    "category": "mission",
@@ -645,7 +2512,9 @@
    "key": "D minor / D Dorian over D pedal",
    "loopStart": 2.857146,
    "loopEnd": 151.428562,
-   "decodeRate": 24000
+   "decodeRate": 24000,
+   "lengthSamples": 7460571,
+   "aacDelay": 1024
   },
   "mission_bridge_1": {
    "category": "mission",
@@ -658,7 +2527,9 @@
    "key": "D minor (pedal)",
    "loopStart": 2.857146,
    "loopEnd": 25.714292,
-   "decodeRate": 24000
+   "decodeRate": 24000,
+   "lengthSamples": 1426286,
+   "aacDelay": 1024
   },
   "mission_bridge_2": {
    "category": "mission",
@@ -671,7 +2542,9 @@
    "key": "D minor (pedal)",
    "loopStart": 2.857146,
    "loopEnd": 25.714292,
-   "decodeRate": 24000
+   "decodeRate": 24000,
+   "lengthSamples": 1426286,
+   "aacDelay": 1024
   },
   "mission_bridge_3": {
    "category": "mission",
@@ -684,7 +2557,9 @@
    "key": "D minor (pedal)",
    "loopStart": 2.857146,
    "loopEnd": 25.714292,
-   "decodeRate": 24000
+   "decodeRate": 24000,
+   "lengthSamples": 1426286,
+   "aacDelay": 1024
   },
   "mission_alert": {
    "category": "mission_alert",
@@ -697,7 +2572,9 @@
    "key": "D minor (Phrygian colour Eb)",
    "loopStart": 2.857146,
    "loopEnd": 71.428562,
-   "decodeRate": 32000
+   "decodeRate": 32000,
+   "lengthSamples": 3620571,
+   "aacDelay": 1024
   }
  }
 }

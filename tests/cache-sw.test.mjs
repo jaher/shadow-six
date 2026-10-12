@@ -3,7 +3,7 @@
  * no service worker): a first visit stores the mission it played — including what loaded before the worker took the
  * page — and a second visit loads that mission with no asset request reaching the server.
  */
-const CACHEABLE = /\.(glb|webp|jpe?g|png|hdr|ogg|mp3|webm|mp4|woff2?|ttf|cube|wasm|svg)$/i;
+const CACHEABLE = /\.(glb|webp|jpe?g|png|hdr|ogg|m4a|mp3|webm|mp4|woff2?|ttf|cube|wasm|svg)$/i;
 
 export default async function (page, t) {
   const h = t.harness;

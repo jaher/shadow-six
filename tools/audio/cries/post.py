@@ -1,8 +1,8 @@
 # German pain cries, stage 3: vocal processing of the picked Chatterbox takes and packing into assets/audio/voice.
 # usage: post.py WORK_DIR VOICE_DIR   (WORK/pick.json from pick.py; VOICE_DIR = assets/audio/voice)
-#   -> WORK/master/<voice>/<rec>.wav (48 kHz 16-bit), VOICE_DIR/<voice>/pain/<rec>.{ogg,mp3,json}, rows merged into
+#   -> WORK/master/<voice>/<rec>.wav (48 kHz 16-bit), VOICE_DIR/<voice>/pain/<rec>.{ogg,m4a,json}, rows merged into
 #      VOICE_DIR/lines.json (speaker 'ger', voice 1-3, nonverbal, kind cry_<cat>).
-# Env: FFMPEG = ffmpeg 7 with libopus + libmp3lame; PM_PY = a python with praat-parselmouth (psola.py: every pitch bend
+# Env: FFMPEG = ffmpeg 7 with libopus + aac; PM_PY = a python with praat-parselmouth (psola.py: every pitch bend
 # below is a formant-preserving PSOLA bend, so a vowel never turns into a diphthong).
 #
 # Every take keeps its guard's voice chain (70 Hz high-pass; the NCO's +2 dB @150 Hz) and the pack's finishing (trim
@@ -218,9 +218,9 @@ def main():
                                        temp=c['temp'], seed_k=c['k']), processing=recipe)
             json.dump(tj, open(base + '.json', 'w'), ensure_ascii=False)
             ff(['-i', m, '-c:a', 'libopus', '-b:a', '40k', '-vbr', 'on', '-application', 'audio', '-ar', '48000', base + '.ogg'])
-            ff(['-i', m, '-c:a', 'libmp3lame', '-b:a', '64k', '-ar', '44100', base + '.mp3'])
+            ff(['-i', m, '-c:a', 'aac', '-b:a', '40k', '-ar', '24000', '-movflags', '+faststart', base + '.m4a'])  # WebKit
             rows.append(dict(speaker='ger', voice=VOICE_N[voice], rec=rec, text='', lang='', nonverbal=True, kind=f'cry_{cat}', loop=False,
-                             duration=dur, files=[f'{voice}/pain/{rec}.ogg', f'{voice}/pain/{rec}.mp3'], timing=f'{voice}/pain/{rec}.json'))
+                             duration=dur, files=[f'{voice}/pain/{rec}.ogg', f'{voice}/pain/{rec}.m4a'], timing=f'{voice}/pain/{rec}.json'))
             info[f'{voice}/{rec}'] = dict(recipe, prompt=c['text'], k=c['k'], dur=dur, peak=round(float(np.abs(out).max()), 3))
             print(voice, rec, info[f'{voice}/{rec}'], flush=True)
     lp = f'{vdir}/lines.json'; L = json.load(open(lp))

@@ -1,5 +1,5 @@
 """Gate smash one-shots (design-spec §3.7 ramming addendum): fetch the CC0 Freesound HQ previews, cut single takes,
-loudness-normalise, encode Opus + MP3 into assets/audio/sfx/<category>/ and register them in the sfx manifest and
+loudness-normalise, encode Opus + AAC (.m4a, WebKit) into assets/audio/sfx/<category>/ and register them in the sfx manifest and
 assets/audio/CREDITS.md (idempotent: re-running replaces this script's own entries).
 
     python3 tools/audio/gate_smash_sfx.py [--ffmpeg PATH] [--cache DIR]
@@ -74,10 +74,10 @@ def main():
                 f'highpass=f=70,afade=t=in:d=0.006,afade=t=out:st={dur - fade:.3f}:d={fade:.3f},loudnorm=I=-16:TP=-1.5:LRA=11',
                 '-ac', '1', '-ar', '48000', wav)
             run(ff, '-i', wav, '-ac', '1', '-ar', '48000', '-c:a', 'libopus', '-b:a', '64k', '-vbr', 'on', base + '.ogg')
-            run(ff, '-i', wav, '-ac', '1', '-ar', '44100', '-c:a', 'libmp3lame', '-b:a', '64k', base + '.mp3')
+            run(ff, '-i', wav, '-ac', '1', '-ar', '48000', '-c:a', 'aac', '-b:a', '96k', '-movflags', '+faststart', base + '.m4a')  # WebKit
             rel = f'{cat}/{cat}_{sid}_{k}'
             man['sounds'].append({
-                'id': rel, 'category': cat, 'mode': 'shot', 'files': [rel + '.ogg', rel + '.mp3'], 'loop': False, 'duration': dur,
+                'id': rel, 'category': cat, 'mode': 'shot', 'files': [rel + '.ogg', rel + '.m4a'], 'loop': False, 'duration': dur,
                 'source': {'site': 'freesound.org', 'id': sid, 'title': title, 'author': author,
                            'url': f'https://freesound.org/people/{author}/sounds/{sid}/', 'license': CC0[0], 'license_url': CC0[1],
                            'fetched': url, 'note': 'HQ preview (no-login CDN) of CC0 sound; take cut + loudness-normalised by tools/audio/gate_smash_sfx.py'},

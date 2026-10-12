@@ -2049,8 +2049,9 @@ The scheme copies the demo's structure with our own keys:
 **Cues.** Original orchestral war-film cues (snare-driven march, brass calls, sombre strings), composed for this
 project (route A: symbolic scores + VSCO 2 CE CC0 samples; style brief and originality rule in the music STYLE
 notes). Never the 1998 recordings, never a quote or paraphrase of the Commandos or film scores. Files:
-`assets/audio/music/<cue>.ogg` (Vorbis q5) + `.mp3` (128 kb/s, Safari), listed with loop points, category and gain in
-`assets/audio/music/manifest.json`; credits in `assets/audio/music/CREDITS.md`.
+`assets/audio/music/<cue>/<k>.ogg` (Opus 96 kb/s) + `.m4a` (AAC 128 kb/s, Safari / iOS): each cue in ≈ 8 s chunks with
+a loop seam file, listed with loop points, category and gain in `assets/audio/music/manifest.json`; credits in
+`assets/audio/music/CREDITS.md`.
 
 | Cue | Length | Where it plays | Mood / key |
 |---|---|---|---|
@@ -2076,12 +2077,12 @@ notes). Never the 1998 recordings, never a quote or paraphrase of the Commandos 
   quiet tension segments after the start stinger and crossfades the alert layer in on a bar line when the alarm sounds
   or enemies fight/search (calm hold 8 s). The siren and the SFX still carry the tension; the score never masks them.
 - **Mixing.** Beds crossfade 2 s out / 1.5 s in; loops use the manifest loop points (intro once, body looped,
-  `AudioBufferSourceNode.loopStart/loopEnd`). Voices duck the briefing −8 dB and the mission score −5 dB; pause keeps
+  sample-accurate through the chunk player's seam file). Voices duck the briefing −8 dB and the mission score −5 dB; pause keeps
   the score at −9 dB. Loudness: front end −18 LUFS, briefings −20, stingers −16, mission score −22; true peak ≤ −1 dBTP.
-- **Loading.** Lazy: the manifest loads with the audio manifests, each cue is fetched + decoded on first request (beds at
-  32 kHz, mission segments at 24 kHz, to bound decoded PCM); the first menu frame never waits for music. Only the
-  current bed and the mission's next segments stay decoded. Safari gets the MP3 (loop points shifted when its decoder
-  ignores the LAME gapless header).
+- **Loading.** Streamed (`src/audio/music-stream.js`): the manifest loads with the audio manifests; a cue's chunks are
+  fetched and decoded as it plays, a few seconds ahead (beds at 32 kHz, mission segments at 24 kHz), crossfaded over
+  0.1 s overlaps; only the chunks playing and the next one are decoded, plus the start chunk of the next segment and
+  of the alert layer. The first menu frame never waits for music. Safari / iOS get the AAC chunks.
 - **Option "cinematic ambience"** (off by default; Classic only) adds a low drone bed during missions.
 
 ### 9.2 Ambience (SHOULD; toggle "Nature sounds", default ON)

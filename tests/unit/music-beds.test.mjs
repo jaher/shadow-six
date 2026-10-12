@@ -1,9 +1,8 @@
-/** MUSIC BEDS (music-director.js + audio.js + engine.mp3LeadFix): crossfades, play-once beds, briefing duck, gain trim,
- *  theater start stinger, exit, Safari MP3 lead compensation. */
+/** MUSIC BEDS (music-director.js + audio.js): crossfades, play-once beds, briefing duck, gain trim,
+ *  theater start stinger, exit. */
 import { test, assert, near } from './lib.mjs';
 import { MockAudioContext } from './audio-mock.mjs';
 import { MusicDirector, BED_FADE_OUT, BED_FADE_IN, BRIEFING_DUCK_GAIN, DUCK_GAIN, duckGainFor } from '../../src/audio/music-director.js';
-import { mp3LeadFix } from '../../src/audio/engine.js';
 import { createAudio } from '../../src/audio/audio.js';
 import { EventBus } from '../../src/core/events.js';
 import { LIB, fakeLoad, flush } from './music-director.test.mjs';
@@ -77,16 +76,6 @@ test('beds: briefing ducks −8 dB under the Colonel, the mission score −5 dB 
   d.startMission({ stinger: null }); await flush();
   d.setDuck(true);
   near(d.duckNode.gain.value, DUCK_GAIN);
-});
-
-test('mp3LeadFix: Safari decoders that ignore the LAME header shift loop points and hand-over by the lead', () => {
-  const meta = { lengthSec: 164, loopStart: 10, loopEnd: 160, mp3LeadSec: 1105 / 48000 };
-  assert.equal(mp3LeadFix(meta, 164.0, true), meta, 'gapless decode: unchanged');
-  assert.equal(mp3LeadFix(meta, 164.04, false), meta, 'OGG: unchanged');
-  const m = mp3LeadFix(meta, 164 + (1105 + 431) / 48000, true);
-  near(m.loopStart, 10 + 1105 / 48000); near(m.loopEnd, 160 + 1105 / 48000);
-  const s = mp3LeadFix({ lengthSec: 16.7, endSec: 15.2, mp3LeadSec: 0.023 }, 16.75, true);
-  near(s.endSec, 15.223);
 });
 
 test('audio: theater start stinger, campaign map theme, tutorial, exit fades the bed, epilogue → campaign_end', async () => {

@@ -44,14 +44,14 @@ def main():
                      clicks=clicks(y, sr), voiced=round(vo, 2), f0=round(float(np.median(f0)), 1) if len(f0) else 0,
                      heard=heard, nonword=nonword(heard), ogg_dur=round(len(og) / osr, 3),
                      ogg_kb=round(os.path.getsize(f'{vdir}/{voice}/pain/{rec}.ogg') / 1024, 1),
-                     mp3_kb=round(os.path.getsize(f'{vdir}/{voice}/pain/{rec}.mp3') / 1024, 1))
+                     m4a_kb=round(os.path.getsize(f'{vdir}/{voice}/pain/{rec}.m4a') / 1024, 1))
             rows.append(r); print(json.dumps(r, ensure_ascii=False), flush=True)
     with open(f'{work}/qa.jsonl', 'w') as fh:
         for r in rows: fh.write(json.dumps(r, ensure_ascii=False) + '\n')
     L = [r['lufs'] for r in rows if r['lufs'] is not None]
     print(f"takes {len(rows)}; LUFS {min(L):.1f}..{max(L):.1f}; max peak {max(r['peak_db'] for r in rows)} dBFS; clipped {sum(r['clipped'] for r in rows)}; "
           f"clicks {sum(r['clicks'] for r in rows)}; words heard {[r['rec'] + '@' + r['voice'] + ':' + r['heard'] for r in rows if not r['nonword']]}; "
-          f"ogg {sum(r['ogg_kb'] for r in rows):.0f} KB, mp3 {sum(r['mp3_kb'] for r in rows):.0f} KB")
+          f"ogg {sum(r['ogg_kb'] for r in rows):.0f} KB, m4a {sum(r['m4a_kb'] for r in rows):.0f} KB")
 
 if __name__ == '__main__':
     main()

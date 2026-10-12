@@ -23,6 +23,7 @@
 
 import { registerPortraitPhoto, getPortraitURL } from '../art/portraits.js';
 import { sessionCache } from '../engine/asset-cache.js';
+import { audioExt } from '../audio/formats.js';
 
 /** game role id -> clip character id */
 export const ROLE_TO_CHAR = Object.freeze({ greenberet: 'green_beret', sniper: 'sniper', diver: 'marine', marine: 'marine', sapper: 'sapper', driver: 'driver', spy: 'spy' });
@@ -240,8 +241,7 @@ export class TalkingPortraits {
 
   async _voice(x) {
     const ctx = this._ctx(); if (!ctx) return;
-    const ogg = document.createElement('audio').canPlayType('audio/ogg; codecs="vorbis"') || document.createElement('audio').canPlayType('audio/ogg; codecs="opus"');
-    const u = this.base + (ogg ? x.voice : x.voice_mp3);
+    const u = this.base + (audioExt() === '.ogg' ? x.voice : x.voice_m4a || x.voice); // the audio pack's Opus or AAC take
     try { const r = await this.fetch(u); this.voices.set(x.voice, await ctx.decodeAudioData(await r.arrayBuffer())); } catch { /* silent line */ }
   }
 

@@ -27,6 +27,8 @@ const hashStr = (s) => { let h = 7; for (const c of String(s)) h = (h * 31 + c.c
 const LOG_MAX = 200;
 const STORE_KEY = 'shadowsix.audio.v1';
 const MISSION_STATES = new Set(['playing', 'paused']);
+/** States that leave the mission behind (its decoded sounds are freed). */
+const FRONT_END = new Set(['title', 'select', 'epilogue']);
 /** Default user options (§6.8 menu): "Nature sounds" ON, Verbose, cinematic drone OFF. */
 export const DEFAULT_OPTIONS = Object.freeze({ natureSounds: true, laconic: false, cinematicAmbience: false, subtitles: true, missionMusic: true });
 
@@ -419,10 +421,11 @@ function addVoiceSiren(audio, events, rand) {
           // German guards: one of the recorded voices (1–3) per soldier, stable for that soldier
           const voice = req.speaker === 'ger' ? hashStr(req.speakerId) : 0;
           const urgent = this._urgent(req.key);
-          const buffer = this.engine.voiceBuffer(req.speaker, req.key, res.n, e.text, { rec: res.line.rec, voice, urgent });
           e.take = res.line.rec && this.engine.hasVoice(req.speaker, res.line.rec) ? (urgent ? 'alt' : 'primary') : null;
-          // muffled (a hand over his mouth): low-passed, quieter, a touch lower (audio/engine.js play `muffle`)
-          h = buffer ? this.engine.play(`voice:${req.key}`, { buffer, bus: 'voice', pos: req.commando ? null : posOf(e.unit), cls: 'voice', ...(e.muffle ? { muffle: true, rate: 0.94 } : null) }) : null;
+          // muffled (a hand over his mouth): low-passed, quieter, a touch lower (audio/engine.js play `muffle`). A take
+          // that is not decoded yet starts when it has (a few ms: engine.playVoice); its length is known already.
+          h = this.engine.playVoice(`voice:${req.key}`, req.speaker, req.key, res.n, e.text, { rec: res.line.rec, voice, urgent },
+            { bus: 'voice', pos: req.commando ? null : posOf(e.unit), cls: 'voice', ...(e.muffle ? { muffle: true, rate: 0.94 } : null) });
         }
         if (h) dur = Math.max(0.4, h.duration);
       }
@@ -502,7 +505,7 @@ function addVoiceSiren(audio, events, rand) {
         siren: { active: this.siren.active, gain: +this.siren.gain.toFixed(3), handles: this.siren.handles.length },
         loops: [...this.loops.entries()].map(([k, r]) => `${k}:${r.id}`), ambience: this.ambience.map((l) => l.id),
         voices: { commando: d.commando?.key || null, enemy: d.enemy.map((v) => v.key) },
-        active: this.engine ? this.engine.active.size : 0, listener: { ...this.listener },
+        active: this.engine ? this.engine.active.size + this.engine.pending.size : 0, listener: { ...this.listener }, // + takes still decoding
         streams: this.engine ? [...this.engine.active].filter((h) => h.stream).map((h) => ({ id: h.id, file: String(h.url).split('/').pop(),
           playing: !h.stream.paused, ready: h.stream.readyState ?? 0 })) : [],
         assets: this.engine?.files.size ? { ...this.engine.memory(), files: this.engine.meta.size,
@@ -557,6 +560,9 @@ function wire(audio, events, subs, rand, opts) {
       audio._stopUiLoops(0.5); // no front-end bed (the briefing projector) survives into gameplay
       audio._missionMusicStart(); // also a save restored paused
     }
+    // memory: the briefing's narration goes once the mission plays; the mission's decoded sounds once it is left
+    if (MISSION_STATES.has(to)) audio.narrator?.release();
+    if (FRONT_END.has(to)) { audio.engine?.dropMission(); audio.narrator?.release(); audio.musicDir?.dropScore(); }
     if (!audio.inMission()) {
       audio._sirenStop(0.5); audio.bombs.clear();
       for (const k of [...audio.loops.keys()]) audio.stopLoop(k, 0.5);

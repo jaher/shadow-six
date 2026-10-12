@@ -1078,13 +1078,13 @@ export const CREDITS_SECTIONS = [
   "title": "AUDIO",
   "rows": [
    [
-    "assets/audio/sfx/{fs_,rifle_,pistol,sniper_echo,mg_,explosion_,siren_,dog,…} (trimmed, split, loudness-normalised, Opus + MP3)",
+    "assets/audio/sfx/{fs_,rifle_,pistol,sniper_echo,mg_,explosion_,siren_,dog,…} (trimmed, split, loudness-normalised, Opus + AAC)",
     "Freesound (61 source recordings; licence and provenance re-checked live 2026-09-26)",
     "craigsmith (USC 1930s–40s nitrate FX library), kyles, qubodup (DVIDS public-domain footage), unfa, Kostrava and others — see assets/audio/CREDITS.md",
     "CC0"
    ],
    [
-    "assets/audio/sfx/k_ (footsteps, impacts, cloth, doors, UI; re-encoded Opus + MP3)",
+    "assets/audio/sfx/k_ (footsteps, impacts, cloth, doors, UI; re-encoded Opus + AAC)",
     "Kenney impact-sounds, rpg-audio, interface-sounds, ui-audio",
     "Kenney",
     "CC0"
@@ -1096,7 +1096,7 @@ export const CREDITS_SECTIONS = [
     "CC0"
    ],
    [
-    "assets/audio/narration/ (the briefing's 1940s newsreel narrator: one clip per briefing line and per map-tour caption, Opus + MP3, word timings; docs/narration.md)",
+    "assets/audio/narration/ (the briefing's 1940s newsreel narrator: one clip per briefing line and per map-tour caption, Opus + AAC, word timings; docs/narration.md)",
     "AI-generated: Kokoro-82M (hexgrad) blend am_onyx+bm_lewis+am_eric with British G2P, Praat PSOLA cadence and a synthetic period chain (tools/audio/narration); an original voice, no real person cloned or imitated, no reference recordings; the text is our own briefing and tour text",
     "project contributors",
     "project output of an Apache-2.0 model"
@@ -1114,7 +1114,7 @@ export const CREDITS_SECTIONS = [
     "ours"
    ],
    [
-    "assets/audio/music/ (the whole soundtrack: menu, six campaign themes, three briefings, tutorial, credits, start / success / unsuccessful / exit / promotion stingers, the in-mission suspense score; OGG Vorbis + MP3)",
+    "assets/audio/music/ (the whole soundtrack: menu, six campaign themes, three briefings, tutorial, credits, start / success / unsuccessful / exit / promotion stingers, the in-mission suspense score; streamed in 8 s chunks, Opus + AAC)",
     "original composition for this project (symbolic scores rendered with orchestral samples from VS Chamber Orchestra 2 Community Edition and VSCO 1 percussion by Versilian Studios — Sam Gossner, Simon Dalzell; sample cutting by Elan Hickler/Soundemote)",
     "project contributors; samples Versilian Studios",
     "music: project licence; samples CC0 1.0 — per-cue list in assets/audio/music/CREDITS.md"
