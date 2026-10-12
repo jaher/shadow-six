@@ -919,23 +919,34 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   by a cache eviction while still drawn (`texture.needsUpdate` after the refill: three compares the texture version). `TextureWarmer` (Game, after each load) uploads the
   scene's not-yet-drawn textures ≤ 3 ms a frame during the briefing, so their page copy goes too and the first pan onto
   them does not stall a frame. The PCF shadow map's unused RGBA8 colour attachment is one byte per texel
-  (`renderer.js slimShadowMap`: −48 MB on high, −192 MB on ultra).
+  (`renderer.js slimShadowMap`: −48 MB on high, −192 MB on ultra). Once a glTF's scene exists, `keepEncodedImages`
+  also empties its parser (`releaseGltfParser`: the GLB binary chunk, raw buffers / views, texture promises) — libraries
+  keep load results to clone from, and with them every parsed file (M1: −25 MB of ArrayBuffers).
+- **Lost WebGL context**: on `webglcontextrestored` three re-creates every GL object; what lived only on the GPU is
+  made again — layer arrays decoded, compressed maps encoded again (above), the environment light filtered again
+  (`renderer.js`, keyed by the last lighting), and the trail targets stamped again (`trails.js replayRecords`: the
+  mission's pre-trampled roads, faded by the time since through the fade pass, then the gameplay records at their
+  faded depth). Baked impostor atlases and other one-off bakes are not (as before).
 - **GPU texture compression** (`engine/gpu-compress.js`, perf/gpu-memory): material maps go to the GPU as BC7
   (desktop, `EXT_texture_compression_bptc`) or ASTC 4×4 (phones / iPads / Apple silicon, `WEBGL_compressed_texture_astc`):
   1 byte per texel instead of 4, nothing changes in what is downloaded. At load, three uploads the decoded image exactly
   as before (same flags, internal format and generated mips) into a temporary texture, a fragment shader encodes every
   4×4 block of every level into an RGBA32UI target, `readPixels` copies the blocks into a pixel buffer and, after a fence,
   the texture becomes a `CompressedTexture` / `CompressedArrayTexture` in place (same object: materials, caches and clones
-  keep working). BC7: modes 6, 5 (rotations) and 1 (two subsets, turned off on GPUs slower than 8 ms / Mtexel) — the
-  quality of bc7enc's modes 1/5/6/7; ASTC: one partition, one or two weight planes. Callers: every GLTFLoader
+  keep working). BC7: modes 6, 5 (rotations) and 1 (two subsets) — the quality of bc7enc's modes 1/5/6/7; ASTC: one or two
+  weight planes, reduced weight grids, two partitions (0.3–1.3 dB below BC7 on normal maps). Three encoder tiers (one
+  shader program each): at start the compressor times the fast one on a noise image and picks the highest whose projected
+  cost on real maps fits 8 ms / Mtexel (≈ 1–2.4 s of GPU time per mission; with a GPU timer, real maps are timed too and
+  a tier over 1.5 × that steps down) — or leaves textures uncompressed where even the fast tier would cost more than
+  16 ms / Mtexel (software renderers, weak GPUs). Callers: every GLTFLoader
   (`keepEncodedImages` wraps `parser.loadTextureImage`; colour space from the material slots), `loadCompressedTexture`
   (library / dressing / castle / pavement maps), `assets.loadTexture`, terrain + vegetation layer arrays. Left as they are
   on purpose: the water foam / detail normals (thresholded by the shader), `foliage_n` (leaf ids in alpha), stone-ID maps
   (NEAREST), data / canvas / render-target textures. The compressed levels leave page memory after their upload and are
   encoded again from the kept file bytes when three uploads without them (another sampler, a restored context). The encode
   runs in ~10 ms slices with ≤ 24 readbacks in flight; the shaders compile in the background at start
-  (`KHR_parallel_shader_compile`). `?gpucompress=0` turns it off, `=astc|bc7` forces a codec, `?gpumode1=0|1` forces BC7
-  mode 1. Measured on every mission: material textures −73 %, GPU total −56 % (desktop high) … −63 % (phone medium);
+  (`KHR_parallel_shader_compile`). `?gpucompress=0` turns it off, `=astc|bc7` forces a codec, `?gputier=0|1|2` forces an encoder
+  tier. Measured on every mission: material textures −73 %, GPU total −56 % (desktop high) … −63 % (phone medium);
   RGB PSNR vs the uncompressed maps 45–55 dB albedo, 36–41 dB normal maps. Tools: `tools/perf/gpu-compress-quality.mjs`,
   `abdiff.py`, `load-ab.mjs`, `gpumem-table.py`; tests `tests/gpu-compress.test.mjs`, `tests/unit/gpu-compress.test.mjs`.
 - **Baked atlases and tree arrays** (perf/gpu-memory): the tree impostor atlases are encoded straight from their render

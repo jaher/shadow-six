@@ -16,15 +16,19 @@
  * the smallest error wins per block):
  *  - BC7: mode 6 (one RGBA line, 7-bit endpoints + p-bits, 16 steps; opaque blocks keep alpha exactly 255), mode 5 with
  *    each rotation (colour line + one channel on its own line: normal maps, packed data, cut-out alpha) and, for opaque
- *    blocks the single lines fit poorly, mode 1 (two subsets, best of the 64 shapes by line residual). Mode 1 is the
- *    costly one: timed on the GPU and turned off on GPUs slower than MODE1_MS_PER_MTEXEL.
- *  - ASTC 4×4, one partition: opaque CEM 8 with 16 weight levels / QUANT_192 endpoints, or two weight planes (one
- *    channel on its own plane, QUANT_4 / QUANT_160); alpha CEM 12 on one plane (QUANT_8 / QUANT_192) or with alpha on
- *    a second plane (QUANT_4 / QUANT_48). Endpoints are ordered so the decoder never blue-contracts.
- * Measured (tools/perf/gpu-compress-quality.mjs, RGB PSNR vs the uncompressed upload): BC7 albedo 45–55 dB, ORM 42–53,
- * normal maps 36–41 (= bc7enc's modes 1/5/6/7 at its highest level; UASTC λ0 scores 36 on the same normal map); ASTC
- * the same on albedo, 2–3 dB lower on normal maps (no two-partition mode).
- *
+ *    blocks the single lines fit poorly, mode 1 (two subsets, best of the 64 shapes by line residual).
+ *  - ASTC 4×4: opaque CEM 8 on one plane (16 weight levels, QUANT_192 endpoints) or two planes (one channel on its own,
+ *    QUANT_4 / QUANT_160); alpha CEM 12 on one plane (QUANT_8 / QUANT_192) or with alpha on a second plane (QUANT_4 /
+ *    QUANT_48); for opaque blocks the single lines fit poorly, two planes on reduced weight grids (3×4 / 4×3 QUANT_8 with
+ *    QUANT_64 endpoints, 3×4 QUANT_10 / QUANT_24, 4×4 QUANT_5 / QUANT_48 — astc-encoder's usual picks on normal maps)
+ *    and two partitions (the seed whose pattern is nearest the block's two clusters, QUANT_5 / QUANT_32). Endpoints are
+ *    ordered so the decoder never blue-contracts.
+ *  The costly modes (mode 1; ASTC grids and partitions) and the full candidate search belong to the higher of three
+ *  tiers (TIER_COST): the compressor times the fast one on the device and keeps the encode within a GPU-time budget —
+ *  or leaves textures uncompressed where even that would slow loading down (software renderers, weak GPUs).
+ * Measured (tools/perf/gpu-compress-quality.mjs, RGB PSNR vs the uncompressed upload, full tier): BC7 albedo 45–55 dB,
+ * ORM 42–53, normal maps 36–41 (= bc7enc's modes 1/5/6/7 at its highest level; UASTC λ0 scores 36 on the same normal
+ * map); ASTC albedo the same, normal maps / ORM 0.3–1.3 dB below BC7 (astc-encoder -medium: 0.6 below).
  * Per-channel error weights: alpha ×2 by default; `texture.userData.compressWeights = [r, g, b, a]` for packed maps
  * (e.g. a coverage mask in blue that an alpha test reads); `texture.userData.noCompress` keeps a map as it is (exact
  * ids in a channel, maps a shader thresholds sharply — water foam / detail normals).
@@ -43,7 +47,8 @@ const VERT = `#version 300 es
 void main() { vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2)); gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0); }`;
 
 /** Shared prelude: fetch the 16 texels of this fragment's block as 0..255 values in the texture's own encoding. */
-const PRELUDE = (array) => `#version 300 es
+const PRELUDE = (array, tier = 1) => `#version 300 es
+#define TIER ${tier}
 precision highp float;
 precision highp int;
 precision highp usampler2D;
@@ -53,7 +58,6 @@ uniform int uLayer;
 uniform ivec2 uSize;
 uniform bool uSrgb;
 uniform vec4 uW; // per-channel error weights (a coverage / alpha channel that an alpha test reads counts more)
-uniform bool uMode1; // BC7: try two-subset blocks (off on slow GPUs, see GpuCompressor.mode1)
 uniform int uN; // = 16: the loop bounds below come from it so the compilers keep the loops (unrolled, the shader takes
                 // seconds to compile and spills registers)
 #define N16 uN
@@ -83,6 +87,45 @@ void put(inout uvec4 b, inout int pos, uint v, int n) {
 }
 vec4 px[16];
 bool opaque;
+/** Refinement passes: the fast tier (slow GPUs) keeps two. */
+int ITERS() { return TIER == 0 ? 2 : N4; }
+/** Candidate steps to test for a texel: all of them, or (fast tier) the projected step ± 1 — its line position t
+ * (0..1 between the endpoints) times the step count. */
+ivec2 krange(float t, int n) {
+  if (TIER > 0) return ivec2(0, n - 1);
+  int k = int(clamp(floor(t * float(n - 1) + 0.5), 0.0, float(n - 1)));
+  return ivec2(max(k - 1, 0), min(k + 1, n - 1));
+}
+float lineT(vec4 p, vec4 c0, vec4 c1) { vec4 d = (c1 - c0) * W; float dd = dot(d, c1 - c0); return dd > 0.0 ? dot(p - c0, d) / dd : 0.0; }
+/** Blocks whose single-line fit leaves more than ~1.5 levels RMS per channel try two subsets / partitions. */
+const float MODE1_ERR = 16.0 * 3.0 * 2.25;
+/** Line through the subset's texels: residual (total variance minus the principal one), mean, axis, extent. */
+float subsetLine(int mask, int sel, out vec3 mean, out vec3 axis, out vec2 ext) {
+  float n = 0.0; vec3 sum = vec3(0.0);
+  for (int i = 0; i < N16; i++) if (((mask >> i) & 1) == sel) { n += 1.0; sum += px[i].rgb; }
+  mean = sum / max(n, 1.0);
+  mat3 cov = mat3(0.0);
+  for (int i = 0; i < N16; i++) if (((mask >> i) & 1) == sel) { vec3 d = px[i].rgb - mean; cov += outerProduct(d, d); }
+  float tr = cov[0][0] + cov[1][1] + cov[2][2];
+  vec3 v = vec3(cov[0][0], cov[1][1], cov[2][2]) + vec3(1e-3, 2e-3, 3e-3);
+  for (int k = 0; k < 6; k++) { v = cov * v; float l = max(max(abs(v.x), abs(v.y)), abs(v.z)); if (l > 0.0) v /= l; }
+  float vv = dot(v, v);
+  axis = vv > 1e-12 ? v * inversesqrt(vv) : vec3(0.57735);
+  ext = vec2(1e9, -1e9);
+  for (int i = 0; i < N16; i++) if (((mask >> i) & 1) == sel) { float t = dot(px[i].rgb - mean, axis); ext.x = min(ext.x, t); ext.y = max(ext.y, t); }
+  return tr - dot(axis, cov * axis);
+}
+/** The colour channel the block's principal line explains least (its own weight plane helps most). */
+int residualChannel(vec4 e0, vec4 e1) {
+  vec3 mean = vec3(0.0);
+  for (int i = 0; i < N16; i++) mean += px[i].rgb;
+  mean *= 1.0 / 16.0;
+  vec3 ax = e1.rgb - e0.rgb; float l = dot(ax, ax);
+  ax = l > 1e-6 ? ax * inversesqrt(l) : vec3(0.0);
+  vec3 r = vec3(0.0);
+  for (int i = 0; i < N16; i++) { vec3 d = px[i].rgb - mean; vec3 o = d - ax * dot(d, ax); r += o * o * W.rgb; }
+  return r.x >= r.y && r.x >= r.z ? 0 : (r.y >= r.z ? 1 : 2);
+}
 /** Principal axis of the block's colours (alpha too unless opaque) and the block's extent along it. */
 void lineFit(out vec4 e0, out vec4 e1) {
   vec4 mn = vec4(255.0), mx = vec4(0.0), mean = vec4(0.0);
@@ -108,7 +151,7 @@ void lineFit(out vec4 e0, out vec4 e1) {
 
 /** BC7 encoder: mode 6 (one RGBA line, 16 steps), mode 5 (colour line + one channel on its own line, each rotation)
  * and, for opaque blocks, mode 1 (two subsets of the 64 shapes); the smallest (weighted) error wins per block. */
-const BC7_FRAG = (array) => PRELUDE(array) + `
+const BC7_FRAG = (array, tier) => PRELUDE(array, tier) + `
 const int W4[16] = int[16](0, 4, 9, 13, 17, 21, 26, 30, 34, 38, 43, 47, 51, 55, 60, 64);
 const int W2[4] = int[4](0, 21, 43, 64);
 ivec4 quantEp(vec4 e, out int p) {
@@ -121,7 +164,7 @@ ivec4 quantEp(vec4 e, out int p) {
 }
 float mode6(vec4 e0, vec4 e1, out uvec4 b) {
   ivec4 bq0 = ivec4(0), bq1 = ivec4(0); int bp0 = 0, bp1 = 0; int bidx[16]; float best = 1e30;
-  for (int it = 0; it < N4; it++) {
+  for (int it = 0; it < ITERS(); it++) {
     int p0, p1;
     ivec4 q0 = quantEp(e0, p0), q1 = quantEp(e1, p1);
     ivec4 c0 = q0 * 2 + p0, c1 = q1 * 2 + p1;
@@ -131,7 +174,8 @@ float mode6(vec4 e0, vec4 e1, out uvec4 b) {
     float sa = 0.0, sb = 0.0, sc = 0.0; vec4 sx = vec4(0.0), sy = vec4(0.0);
     for (int i = 0; i < N16; i++) {
       float bd = 1e30; int bk = 0;
-      for (int k = 0; k < N16; k++) { float dd = wd2(vec4(pal[k]) - px[i]); if (dd < bd) { bd = dd; bk = k; } }
+      ivec2 kr = krange(lineT(px[i], vec4(c0), vec4(c1)), 16);
+      for (int k = kr.x; k <= kr.y; k++) { float dd = wd2(vec4(pal[k]) - px[i]); if (dd < bd) { bd = dd; bk = k; } }
       idx[i] = bk; err += bd;
       float w = float(W4[bk]) / 64.0, u = 1.0 - w;
       sa += u * u; sb += u * w; sc += w * w; sx += u * px[i]; sy += w * px[i];
@@ -166,7 +210,7 @@ int q7(float v) {
 float mode5(vec4 e0, vec4 e1, int rot, out uvec4 b) {
   // colour (RGB, 7-bit endpoints, 2-bit indices)
   ivec3 bc0 = ivec3(0), bc1 = ivec3(0); int cidx[16]; float bestC = 1e30;
-  for (int it = 0; it < N4; it++) {
+  for (int it = 0; it < ITERS(); it++) {
     ivec3 q0 = ivec3(q7(e0.r), q7(e0.g), q7(e0.b)), q1 = ivec3(q7(e1.r), q7(e1.g), q7(e1.b));
     ivec3 c0 = (q0 << 1) | (q0 >> 6), c1 = (q1 << 1) | (q1 >> 6);
     int idx[16]; float err = 0.0;
@@ -221,28 +265,12 @@ float mode5(vec4 e0, vec4 e1, int rot, out uvec4 b) {
   return bestC + bestA;
 }
 
+#if TIER == 2
 // mode 1: two subsets (one of 64 shapes), RGB endpoints 6 bits + a p-bit shared per subset, 8 steps. Blocks that hold
 // two surfaces (stone and mortar, a crease in a normal map) fit two lines far better than one.
 const int P2[64] = int[64](52428, 34952, 61166, 60616, 51328, 65260, 65224, 60544, 51200, 65516, 65152, 59392, 65512, 65280, 65520, 61440, 63248, 142, 28928, 2254, 140, 29456, 12544, 36046, 2188, 12560, 26214, 13932, 6120, 4080, 29070, 14748, 43690, 61680, 23130, 13260, 15420, 21930, 38550, 42330, 29646, 5064, 12876, 15324, 27030, 49980, 39270, 1632, 626, 1252, 20032, 10016, 51510, 37740, 14790, 25500, 37686, 40134, 33150, 59160, 52464, 4044, 30532, 60962);
 const int A2[64] = int[64](15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 2, 8, 2, 2, 8, 8, 15, 2, 8, 2, 2, 8, 8, 2, 2, 15, 15, 6, 8, 2, 8, 15, 15, 2, 8, 2, 2, 2, 15, 15, 6, 6, 2, 6, 8, 15, 15, 2, 2, 15, 15, 15, 15, 15, 2, 2, 15);
 const int W3[8] = int[8](0, 9, 18, 27, 37, 46, 55, 64);
-const float MODE1_ERR = 16.0 * 3.0 * 2.25;
-/** Line through the subset's texels: residual (total variance minus the principal one), mean, axis, extent. */
-float subsetLine(int mask, int sel, out vec3 mean, out vec3 axis, out vec2 ext) {
-  float n = 0.0; vec3 sum = vec3(0.0);
-  for (int i = 0; i < N16; i++) if (((mask >> i) & 1) == sel) { n += 1.0; sum += px[i].rgb; }
-  mean = sum / max(n, 1.0);
-  mat3 cov = mat3(0.0);
-  for (int i = 0; i < N16; i++) if (((mask >> i) & 1) == sel) { vec3 d = px[i].rgb - mean; cov += outerProduct(d, d); }
-  float tr = cov[0][0] + cov[1][1] + cov[2][2];
-  vec3 v = vec3(cov[0][0], cov[1][1], cov[2][2]) + vec3(1e-3, 2e-3, 3e-3);
-  for (int k = 0; k < 6; k++) { v = cov * v; float l = max(max(abs(v.x), abs(v.y)), abs(v.z)); if (l > 0.0) v /= l; }
-  float vv = dot(v, v);
-  axis = vv > 1e-12 ? v * inversesqrt(vv) : vec3(0.57735);
-  ext = vec2(1e9, -1e9);
-  for (int i = 0; i < N16; i++) if (((mask >> i) & 1) == sel) { float t = dot(px[i].rgb - mean, axis); ext.x = min(ext.x, t); ext.y = max(ext.y, t); }
-  return tr - dot(axis, cov * axis);
-}
 /** 6-bit endpoint + p-bit → 8-bit value. */
 ivec3 ep61(ivec3 q, int p) { ivec3 c = (q << 1) | p; return (c << 1) | (c >> 6); }
 ivec3 q61(vec3 e, int p) {
@@ -289,7 +317,7 @@ float mode1(out uvec4 b) {
     subsetLine(mask, s, m, ax, ex);
     vec3 e0 = clamp(m + ax * ex.x, 0.0, 255.0), e1 = clamp(m + ax * ex.y, 0.0, 255.0);
     float best = 1e30; ivec3 b0 = ivec3(0), b1 = ivec3(0); int bpp = 0; int bi[16];
-    for (int it = 0; it < N4; it++) {
+    for (int it = 0; it < ITERS(); it++) {
       // shared p-bit: the one whose two quantized endpoints land nearer
       ivec3 qa0 = q61(e0, 0), qa1 = q61(e1, 0), qb0 = q61(e0, 1), qb1 = q61(e1, 1);
       float ea = wd2(vec3(ep61(qa0, 0)) - e0) + wd2(vec3(ep61(qa1, 0)) - e1);
@@ -331,6 +359,7 @@ float mode1(out uvec4 b) {
   for (int i = 0; i < N16; i++) put(b, pos, uint(idx[i]), (i == 0 || i == a2) ? 2 : 3);
   return total;
 }
+#endif
 /** Swap channel c (0..2) with alpha in every texel (mode 5 rotations; applying it twice restores the block). */
 void rotate(int c) {
   float wa = W.a;
@@ -353,8 +382,10 @@ void main() {
   float err = mode6(e0, e1, best);
   // mode 5: colour on one line, one channel on its own (alpha, or R / G / B rotated into the alpha slot): channels
   // that vary independently (normal maps, packed data, cut-out alpha) fit it better than one RGBA line
+  int cOnly = TIER == 0 ? residualChannel(e0, e1) : -1; // fast tier: only the channel the line leaves the most off it
   for (int rot = 0; rot < N4; rot++) {
     if (err == 0.0) break;
+    if (cOnly >= 0 && rot > 0 && rot != cOnly + 1) continue;
     if (rot == 0 && solid) continue; // constant alpha: nothing to separate
     if (rot > 0) rotate(rot - 1);
     opaque = true; // RGB-only principal axis for the colour line
@@ -367,21 +398,22 @@ void main() {
     if (e5 < err) { err = e5; best = b5; }
   }
   // opaque blocks the single lines fit poorly (more than ~1.5 levels RMS per channel): two subsets
-  if (uMode1 && solid && err > MODE1_ERR) {
+#if TIER == 2
+  if (solid && err > MODE1_ERR) {
     uvec4 b1;
     float e1 = mode1(b1);
     if (e1 < err) { err = e1; best = b1; }
   }
+#endif
   oBlock = best;
 }`;
 
-/** ASTC 4×4, one partition. Opaque blocks: CEM 8 (RGB direct), 16 weight levels, QUANT_192 endpoints, or two weight
- * planes (one channel on its own: normal maps, packed data; QUANT_4 + QUANT_160). Blocks with
- * alpha try CEM 12 (RGBA direct) on one weight plane (8 levels, QUANT_192) and on two planes (alpha on its own plane,
- * 4 levels each, QUANT_48 endpoints — cut-out edges) and keep the smaller error.
- * uTab rows: 0 = nearest QUANT_192 [ISE index, value] per 8-bit value; 1 = trit block T per 5-trit tuple (base 3);
- * 2 = nearest QUANT_48 [ISE index, value]; 3 = quint block per 3-quint tuple (base 5); 4 = nearest QUANT_160. */
-const ASTC_FRAG = (array) => PRELUDE(array) + `
+/** ASTC 4×4. Opaque blocks: CEM 8 (RGB direct), 16 weight levels, QUANT_192 endpoints, or two weight planes (one
+ * channel on its own: normal maps, packed data; QUANT_4 + QUANT_160); full tier: + reduced-grid dual planes and two
+ * partitions for the blocks those fit poorly. Blocks with alpha try CEM 12 (RGBA direct) on one weight plane (8 levels,
+ * QUANT_192) and on two planes (alpha on its own plane, 4 levels each, QUANT_48 endpoints — cut-out edges) and keep
+ * the smaller error. uTab: the rows of astcTables(). */
+const ASTC_FRAG = (array, tier) => PRELUDE(array, tier) + `
 uniform highp usampler2D uTab;
 const int W16[16] = int[16](0, 4, 8, 12, 17, 21, 25, 29, 35, 39, 43, 47, 52, 56, 60, 64);
 const int W8[8] = int[8](0, 9, 18, 27, 37, 46, 55, 64);
@@ -428,20 +460,22 @@ void putQuints(inout uvec4 b, inout int pos, int v[8], int nb) {
 }
 /** Weight stream (wb bits each, LSB first) → bit-reversed into the top of the block. */
 void putWeights(inout uvec4 b, int w[32], int n, int wb) {
-  uint s0 = 0u, s1 = 0u;
+  uvec3 s = uvec3(0u); // up to 96 bits
   for (int i = 0; i < 32; i++) {
     if (i >= n) break;
-    int at = i * wb; uint x = uint(w[i]);
-    if (at < 32) { s0 |= x << uint(at); if (at + wb > 32) s1 |= x >> uint(32 - at); } else s1 |= x << uint(at - 32);
+    int at = i * wb, wi = at >> 5, sh = at & 31; uint x = uint(w[i]);
+    if (wi == 0) s.x |= x << uint(sh); else if (wi == 1) s.y |= x << uint(sh); else s.z |= x << uint(sh);
+    if (sh + wb > 32) { uint hi = x >> uint(32 - sh); if (wi == 0) s.y |= hi; else s.z |= hi; }
   }
-  b.w |= rev32(s0);
-  b.z |= rev32(s1);
+  b.w |= rev32(s.x);
+  b.z |= rev32(s.y);
+  b.y |= rev32(s.z);
 }
 /** One weight plane: CEM 8 (opaque, 16 levels) or CEM 12 (8 levels), QUANT_192 endpoints. */
 float single(vec4 e0, vec4 e1, out uvec4 b) {
   nW = opaque ? 16 : 8;
   ivec4 bi0 = ivec4(0), bi1 = ivec4(0); int bw[16]; float best = 1e30;
-  for (int it = 0; it < N4; it++) {
+  for (int it = 0; it < ITERS(); it++) {
     ivec2 r0 = q192(e0.r), g0 = q192(e0.g), b0 = q192(e0.b), a0 = q192(opaque ? 255.0 : e0.a);
     ivec2 r1 = q192(e1.r), g1 = q192(e1.g), b1 = q192(e1.b), a1 = q192(opaque ? 255.0 : e1.a);
     ivec4 i0 = ivec4(r0.x, g0.x, b0.x, a0.x), i1 = ivec4(r1.x, g1.x, b1.x, a1.x);
@@ -452,8 +486,8 @@ float single(vec4 e0, vec4 e1, out uvec4 b) {
     float sa = 0.0, sb = 0.0, sc = 0.0; vec4 sx = vec4(0.0), sy = vec4(0.0);
     for (int i = 0; i < N16; i++) {
       float bd = 1e30; int bk = 0;
-      for (int k = 0; k < N16; k++) {
-        if (k >= nW) break;
+      ivec2 kr = krange(lineT(px[i], vec4(c0), vec4(c1)), nW);
+      for (int k = kr.x; k <= kr.y; k++) {
         int w = wOf(k);
         float dd = wd2(vec4((c0 * (64 - w) + c1 * w + 32) >> 6) - px[i]); if (dd < bd) { bd = dd; bk = k; }
       }
@@ -485,7 +519,7 @@ float dual(vec4 e0, vec4 e1, out uvec4 b) {
   for (int i = 0; i < N16; i++) { amn = min(amn, px[i].a); amx = max(amx, px[i].a); }
   e0.a = amn; e1.a = amx;
   ivec4 bi0 = ivec4(0), bi1 = ivec4(0); int bwc[16]; int bwa[16]; float best = 1e30;
-  for (int it = 0; it < N4; it++) {
+  for (int it = 0; it < ITERS(); it++) {
     ivec2 r0 = q48(e0.r), g0 = q48(e0.g), b0 = q48(e0.b), a0 = q48(e0.a);
     ivec2 r1 = q48(e1.r), g1 = q48(e1.g), b1 = q48(e1.b), a1 = q48(e1.a);
     ivec4 i0 = ivec4(r0.x, g0.x, b0.x, a0.x), i1 = ivec4(r1.x, g1.x, b1.x, a1.x);
@@ -523,6 +557,234 @@ float dual(vec4 e0, vec4 e1, out uvec4 b) {
   putWeights(b, w32, 32, 2);
   return best;
 }
+#if TIER == 2
+uniform highp usampler2D uSeeds; // 256 × 256 RG8UI: the two-partition seed nearest each 16-bit texel mask
+const int WQ5[5] = int[5](0, 16, 32, 48, 64);
+int seedOf(int mask) { uvec4 v = texelFetch(uSeeds, ivec2(mask & 255, mask >> 8), 0); return int(v.x | (v.y << 8u)); }
+int patternOf(int seed) { uvec4 v = texelFetch(uTab, ivec2(seed & 255, 5 + (seed >> 8)), 0); return int(v.x | (v.y << 8u)); }
+/** 5-bit endpoint (QUANT_32, bit replication) nearest v: [code, value]. */
+ivec2 q32(float v) {
+  int q = int(clamp(floor(v * 31.0 / 255.0 + 0.5), 0.0, 31.0)), bq = q; float be = 1e9;
+  for (int d = -1; d <= 1; d++) { int c = clamp(q + d, 0, 31); float e = abs(float((c << 3) | (c >> 2)) - v); if (e < be) { be = e; bq = c; } }
+  return ivec2(bq, (bq << 3) | (bq >> 2));
+}
+/** Two clusters of the block's texels (2-means from the split across the principal axis): bit i = texel i's cluster. */
+int clusterMask(vec3 axis) {
+  vec3 mean = vec3(0.0);
+  for (int i = 0; i < N16; i++) mean += px[i].rgb;
+  mean *= 1.0 / 16.0;
+  int m = 0;
+  for (int i = 0; i < N16; i++) if (dot(px[i].rgb - mean, axis) > 0.0) m |= 1 << i;
+  for (int it = 0; it < N3; it++) {
+    vec3 c0 = vec3(0.0), c1 = vec3(0.0); float n0 = 0.0, n1 = 0.0;
+    for (int i = 0; i < N16; i++) { if (((m >> i) & 1) == 1) { c1 += px[i].rgb; n1 += 1.0; } else { c0 += px[i].rgb; n0 += 1.0; } }
+    if (n0 < 0.5 || n1 < 0.5) break;
+    c0 /= n0; c1 /= n1;
+    int nm = 0;
+    for (int i = 0; i < N16; i++) if (wd2(px[i].rgb - c1) < wd2(px[i].rgb - c0)) nm |= 1 << i;
+    if (nm == m) break;
+    m = nm;
+  }
+  return m;
+}
+/** Opaque, two partitions (the ASTC seed whose pattern is nearest the block's two clusters), one weight plane with
+ * 5 levels, CEM 8 for both with QUANT_32 endpoints: 29 + 60 + 38 bits. Blocks holding two surfaces (stone and mortar,
+ * a crease in a normal map), like BC7 mode 1. */
+float twoPart(vec4 e0, vec4 e1, out uvec4 b) {
+  vec3 ax = e1.rgb - e0.rgb;
+  if (dot(ax, ax) < 1e-6) ax = vec3(1.0);
+  int seed = seedOf(clusterMask(ax)), mask = patternOf(seed);
+  int q[12]; int w[16]; float total = 0.0;
+  for (int i = 0; i < 16; i++) w[i] = 0;
+  for (int s = 0; s < 2; s++) {
+    vec3 m, sax; vec2 ex;
+    subsetLine(mask, s, m, sax, ex);
+    vec3 a0 = clamp(m + sax * ex.x, 0.0, 255.0), a1 = clamp(m + sax * ex.y, 0.0, 255.0);
+    float best = 1e30; ivec3 b0 = ivec3(0), b1 = ivec3(0); int bw[16];
+    for (int i = 0; i < 16; i++) bw[i] = 0;
+    for (int it = 0; it < ITERS(); it++) {
+      ivec2 r0 = q32(a0.r), g0 = q32(a0.g), bl0 = q32(a0.b), r1 = q32(a1.r), g1 = q32(a1.g), bl1 = q32(a1.b);
+      ivec3 i0 = ivec3(r0.x, g0.x, bl0.x), i1 = ivec3(r1.x, g1.x, bl1.x);
+      ivec3 c0 = ivec3(r0.y, g0.y, bl0.y), c1 = ivec3(r1.y, g1.y, bl1.y);
+      if (c1.r + c1.g + c1.b < c0.r + c0.g + c0.b) { ivec3 t = c0; c0 = c1; c1 = t; t = i0; i0 = i1; i1 = t; }
+      int cur[16]; float err = 0.0, sa = 0.0, sb = 0.0, sc = 0.0; vec3 sx = vec3(0.0), sy = vec3(0.0);
+      for (int i = 0; i < N16; i++) {
+        cur[i] = 0;
+        if (((mask >> i) & 1) != s) continue;
+        float bd = 1e30; int bk = 0;
+        for (int k = 0; k < 5; k++) { float dd = wd2(vec3((c0 * (64 - WQ5[k]) + c1 * WQ5[k] + 32) >> 6) - px[i].rgb); if (dd < bd) { bd = dd; bk = k; } }
+        cur[i] = bk; err += bd;
+        float ww = float(WQ5[bk]) / 64.0, u = 1.0 - ww;
+        sa += u * u; sb += u * ww; sc += ww * ww; sx += u * px[i].rgb; sy += ww * px[i].rgb;
+      }
+      if (err < best) { best = err; b0 = i0; b1 = i1; for (int i = 0; i < N16; i++) bw[i] = cur[i]; }
+      if (err == 0.0) break;
+      float det = sa * sc - sb * sb;
+      if (abs(det) < 1e-6) break;
+      a0 = clamp((sc * sx - sb * sy) / det, 0.0, 255.0);
+      a1 = clamp((sa * sy - sb * sx) / det, 0.0, 255.0);
+    }
+    for (int i = 0; i < N16; i++) if (((mask >> i) & 1) == s) w[i] = bw[i];
+    int o = s * 6;
+    q[o] = b0.r; q[o + 1] = b1.r; q[o + 2] = b0.g; q[o + 3] = b1.g; q[o + 4] = b0.b; q[o + 5] = b1.b;
+    total += best;
+  }
+  b = uvec4(0u); int pos = 0;
+  put(b, pos, 0x052u, 11); // 4×4 grid, one plane, QUANT_5
+  put(b, pos, 1u, 2);      // two partitions
+  put(b, pos, uint(seed), 10);
+  put(b, pos, 32u, 6);     // both partitions CEM 8 (base class 0)
+  for (int i = 0; i < 12; i++) put(b, pos, uint(q[i]), 5);
+  // weights: 16 quints (no low bits) — groups of three as 7-bit blocks, the last weight alone in 3 bits
+  uint s0 = 0u, s1 = 0u; int at = 0;
+  for (int g = 0; g < 6; g++) {
+    int k = g * 3;
+    uint Q = quintBlock(w[k], k + 1 < 16 ? w[k + 1] : 0, k + 2 < 16 ? w[k + 2] : 0);
+    int nb = g < 5 ? 7 : 3;
+    uint v = Q & ((1u << uint(nb)) - 1u);
+    if (at < 32) { s0 |= v << uint(at); if (at + nb > 32) s1 |= v >> uint(32 - at); } else s1 |= v << uint(at - 32);
+    at += nb;
+  }
+  b.w |= rev32(s0);
+  b.z |= rev32(s1);
+  return total;
+}
+#endif
+#if TIER == 2
+// Reduced weight grids of the two-plane modes have 3 points on one side and 4 on the other: along a 3-point side, texel
+// coordinate u (0..3) infills from grid points TAP3[u].xy, TAP3[u].z / 16 of the second (spec C.2.18, Ds = 342 — exact).
+const ivec3 TAP3[4] = ivec3[4](ivec3(0, 0, 0), ivec3(0, 1, 11), ivec3(1, 2, 5), ivec3(2, 2, 0));
+/** Grid taps of texel i on an N×M grid: [j0, j1, f1], texel weight = (g[j0]·(16 − f1) + g[j1]·f1 + 8) >> 4. */
+ivec3 taps(int i, int N, int M) {
+  int x = i & 3, y = i >> 2;
+  if (N == 3) { ivec3 t = TAP3[x]; return ivec3(y * 3 + t.x, y * 3 + t.y, t.z); }
+  if (M == 3) { ivec3 t = TAP3[y]; return ivec3(t.x * 4 + x, t.y * 4 + x, t.z); }
+  return ivec3(i, i, 0);
+}
+// least-squares 3 grid points from the 4 texel weights of a 3-point side (pseudo-inverse of the TAP3 infill)
+const vec4 PINV0 = vec4(0.955516, 0.142349, -0.142349, 0.044484), PINV1 = vec4(-0.227273, 0.727273, 0.727273, -0.227273);
+/** Grid weights (N×M, row-major) whose infill best matches the per-texel weights w. */
+void fitGrid(float w[16], int N, int M, out float g[16]) {
+  for (int k = 0; k < 16; k++) g[k] = w[k]; // 4×4: the grid is the texels
+  if (N == 3) for (int y = 0; y < 4; y++) {
+    vec4 r = vec4(w[y * 4], w[y * 4 + 1], w[y * 4 + 2], w[y * 4 + 3]);
+    g[y * 3] = dot(PINV0, r); g[y * 3 + 1] = dot(PINV1, r); g[y * 3 + 2] = dot(PINV0.wzyx, r);
+  }
+  if (M == 3) for (int x = 0; x < 4; x++) {
+    vec4 r = vec4(w[x], w[x + 4], w[x + 8], w[x + 12]);
+    g[x] = dot(PINV0, r); g[x + 4] = dot(PINV1, r); g[x + 8] = dot(PINV0.wzyx, r);
+  }
+}
+// weight quantizations of the reduced grids: 0 = QUANT_8 (3 bits), 2 = QUANT_10 (quint + 1 bit), 3 = QUANT_5 (quint);
+// WU10: unquantized values by ISE code (astc-encoder's scrambled order), V10 / C10: the levels in order and their codes
+const int WU10[10] = int[10](0, 64, 7, 57, 14, 50, 21, 43, 28, 36);
+const int V10[10] = int[10](0, 7, 14, 21, 28, 36, 43, 50, 57, 64);
+const int C10[10] = int[10](0, 2, 4, 6, 8, 9, 7, 5, 3, 1);
+int wq(int code, int q) { return q == 0 ? W8[code] : q == 2 ? WU10[code] : code * 16; }
+int lvl(int k, int q) { return q == 0 ? W8[k] : q == 2 ? V10[k] : k * 16; }
+/** ISE code of the weight level of quantization q nearest v (0..64). */
+int qw(float v, int q) {
+  int n = q == 0 ? 7 : q == 2 ? 9 : 4;
+  int r = int(clamp(floor(v * float(n) / 64.0 + 0.5), 0.0, float(n))), best = r; float be = 1e9;
+  for (int k = max(r - 1, 0); k <= min(r + 1, n); k++) { float e = abs(float(lvl(k, q)) - v); if (e < be) { be = e; best = k; } }
+  return q == 2 ? C10[best] : best;
+}
+ivec2 q64(float v) { int q = int(clamp(floor(v * 63.0 / 255.0 + 0.5), 0.0, 63.0)); return ivec2(q, (q << 2) | (q >> 4)); }
+ivec2 q24(float v) { uvec4 t = texelFetch(uTab, ivec2(int(clamp(floor(v + 0.5), 0.0, 255.0)), 9), 0); return ivec2(t.xy); }
+/** Endpoint quantization of the reduced-grid modes: 0 = QUANT_64 (6 bits), 1 = QUANT_48 (trit + 4), 2 = QUANT_24 (trit + 3). */
+ivec2 qEp(float v, int eq) { return eq == 0 ? q64(v) : eq == 1 ? q48(v) : q24(v); }
+/** A sequence of values as ISE quints with nb low bits each (groups of three; a short last group truncated). */
+void putQuintSeq(inout uvec4 st, inout int pos, int v[32], int n, int nb) {
+  int mask = (1 << nb) - 1;
+  for (int g = 0; g < 11; g++) {
+    int base = g * 3;
+    if (base >= n) break;
+    int cnt = min(3, n - base);
+    int a0 = v[base], a1 = cnt > 1 ? v[base + 1] : 0, a2 = cnt > 2 ? v[base + 2] : 0;
+    uint Q = quintBlock(a0 >> nb, a1 >> nb, a2 >> nb);
+    put(st, pos, uint(a0 & mask), nb); put(st, pos, Q & 7u, 3);
+    if (cnt > 1) { put(st, pos, uint(a1 & mask), nb); put(st, pos, (Q >> 3u) & 3u, 2); }
+    if (cnt > 2) { put(st, pos, uint(a2 & mask), nb); put(st, pos, (Q >> 5u) & 3u, 2); }
+  }
+}
+/** Opaque, two planes on a reduced N×M weight grid (the decoder infills the 4×4 texel weights), channel c on plane 2,
+ * CEM 8: GRIDS[g] = 3×4 / 4×3 with 8 levels and QUANT_64 endpoints, 3×4 with 10 levels and QUANT_24, 4×4 with 5 and
+ * QUANT_48 — the modes astc-encoder picks most on normal maps (more weight or endpoint precision for the same bits).
+ * Bits only written when the error beats bound. */
+const ivec4 GRIDS[4] = ivec4[4](ivec4(3, 4, 0, 0), ivec4(4, 3, 0, 0), ivec4(3, 4, 2, 2), ivec4(4, 4, 3, 1)); // N, M, weight q, endpoint q
+const uint GRID_MODE[4] = uint[4](0x5DFu, 0x433u, 0x7CDu, 0x452u);
+float dualGrid(int c, int g, vec4 e0, vec4 e1, float bound, out uvec4 b) {
+  int N = GRIDS[g].x, M = GRIDS[g].y, L = GRIDS[g].z, eq = GRIDS[g].w, n = N * M;
+  vec3 m1 = vec3(1.0); m1[c] = 0.0;
+  float mn = 255.0, mx = 0.0;
+  for (int i = 0; i < N16; i++) { mn = min(mn, px[i][c]); mx = max(mx, px[i][c]); }
+  e0[c] = mn; e1[c] = mx;
+  vec3 w1 = W.rgb * m1; float w2 = W[c];
+  ivec3 tp[16];
+  for (int i = 0; i < N16; i++) tp[i] = taps(i, N, M);
+  float best = 1e30; ivec3 bi0 = ivec3(0), bi1 = ivec3(0); int bg1[16]; int bg2[16];
+  for (int k = 0; k < 16; k++) { bg1[k] = 0; bg2[k] = 0; }
+  for (int it = 0; it < N3; it++) {
+    ivec2 r0 = qEp(e0.r, eq), g0 = qEp(e0.g, eq), b0 = qEp(e0.b, eq), r1 = qEp(e1.r, eq), g1 = qEp(e1.g, eq), b1 = qEp(e1.b, eq);
+    ivec3 i0 = ivec3(r0.x, g0.x, b0.x), i1 = ivec3(r1.x, g1.x, b1.x);
+    ivec3 c0 = ivec3(r0.y, g0.y, b0.y), c1 = ivec3(r1.y, g1.y, b1.y);
+    if (c1.r + c1.g + c1.b < c0.r + c0.g + c0.b) { ivec3 t = c0; c0 = c1; c1 = t; t = i0; i0 = i1; i1 = t; }
+    vec3 d = vec3(c1 - c0) * m1; float dd = dot(d * d, w1);
+    float d2 = float(c1[c] - c0[c]);
+    float ws1[16]; float ws2[16];
+    for (int i = 0; i < N16; i++) {
+      vec3 p = px[i].rgb - vec3(c0);
+      ws1[i] = dd > 0.0 ? clamp(64.0 * dot(p * d, w1) / dd, 0.0, 64.0) : 32.0;
+      ws2[i] = abs(d2) > 0.0 ? clamp(64.0 * p[c] / d2, 0.0, 64.0) : 32.0;
+    }
+    float gf1[16]; float gf2[16];
+    fitGrid(ws1, N, M, gf1); fitGrid(ws2, N, M, gf2);
+    int gq1[16]; int gq2[16]; int gu1[16]; int gu2[16];
+    for (int k = 0; k < 16; k++) {
+      gq1[k] = 0; gq2[k] = 0; gu1[k] = 0; gu2[k] = 0;
+      if (k >= n) continue;
+      gq1[k] = qw(gf1[k], L); gq2[k] = qw(gf2[k], L); gu1[k] = wq(gq1[k], L); gu2[k] = wq(gq2[k], L);
+    }
+    float err = 0.0, sa = 0.0, sb = 0.0, sc = 0.0, ta = 0.0, tb = 0.0, tc = 0.0, tx = 0.0, ty = 0.0; vec3 sx = vec3(0.0), sy = vec3(0.0);
+    for (int i = 0; i < N16; i++) {
+      ivec3 t = tp[i];
+      int wa = (gu1[t.x] * (16 - t.z) + gu1[t.y] * t.z + 8) >> 4, wb = (gu2[t.x] * (16 - t.z) + gu2[t.y] * t.z + 8) >> 4;
+      vec3 col = vec3((c0 * (64 - wa) + c1 * wa + 32) >> 6);
+      float cc = float((c0[c] * (64 - wb) + c1[c] * wb + 32) >> 6);
+      vec3 e = (col - px[i].rgb) * m1; float ec = cc - px[i][c];
+      err += dot(e * e, W.rgb) + ec * ec * w2;
+      float fa = float(wa) / 64.0, ua = 1.0 - fa, fb = float(wb) / 64.0, ub = 1.0 - fb;
+      sa += ua * ua; sb += ua * fa; sc += fa * fa; sx += ua * px[i].rgb; sy += fa * px[i].rgb;
+      ta += ub * ub; tb += ub * fb; tc += fb * fb; tx += ub * px[i][c]; ty += fb * px[i][c];
+    }
+    if (err < best) { best = err; bi0 = i0; bi1 = i1; for (int k = 0; k < 16; k++) { bg1[k] = gq1[k]; bg2[k] = gq2[k]; } }
+    if (err == 0.0) break;
+    float det = sa * sc - sb * sb, detA = ta * tc - tb * tb;
+    vec3 n0 = e0.rgb, n1 = e1.rgb;
+    if (abs(det) > 1e-6) { n0 = clamp((sc * sx - sb * sy) / det, 0.0, 255.0); n1 = clamp((sa * sy - sb * sx) / det, 0.0, 255.0); }
+    if (abs(detA) > 1e-6) { n0[c] = clamp((tc * tx - tb * ty) / detA, 0.0, 255.0); n1[c] = clamp((ta * ty - tb * tx) / detA, 0.0, 255.0); }
+    e0.rgb = n0; e1.rgb = n1;
+  }
+  if (best >= bound) return best; // not the block's best: skip writing its bits
+  b = uvec4(0u); int pos = 0;
+  put(b, pos, GRID_MODE[g], 11);
+  put(b, pos, 0u, 2);
+  put(b, pos, 8u, 4);
+  int ev[8] = int[8](bi0.r, bi1.r, bi0.g, bi1.g, bi0.b, bi1.b, 0, 0);
+  if (eq == 0) { for (int k = 0; k < 6; k++) put(b, pos, uint(ev[k]), 6); } else putTrits(b, pos, ev, 6, eq == 1 ? 4 : 3);
+  int nw = n * 2;
+  int w32[32];
+  for (int k = 0; k < 32; k++) w32[k] = 0;
+  for (int k = 0; k < 16; k++) if (k < n) { w32[k * 2] = bg1[k]; w32[k * 2 + 1] = bg2[k]; }
+  // the weight stream, written forward, then bit-reversed into the top of the block; the CCS sits right below it
+  uvec4 ws = uvec4(0u); int wpos = 0;
+  if (L == 0) { for (int k = 0; k < 32; k++) if (k < nw) put(ws, wpos, uint(w32[k]), 3); }
+  else putQuintSeq(ws, wpos, w32, nw, L == 2 ? 1 : 0);
+  b.w |= rev32(ws.x); b.z |= rev32(ws.y); b.y |= rev32(ws.z); b.x |= rev32(ws.w);
+  pos = 128 - wpos - 2; put(b, pos, uint(c), 2); // colour component selector
+  return best;
+}
+#endif
 /** Opaque, two weight planes: channel c (0 R, 1 G, 2 B) on its own plane (CCS = c), 4 levels each, CEM 8 with
  * QUANT_160 endpoints — normal maps and packed data, whose channels vary independently. */
 float dualOpaque(int c, vec4 e0, vec4 e1, out uvec4 b) {
@@ -533,7 +795,7 @@ float dualOpaque(int c, vec4 e0, vec4 e1, out uvec4 b) {
   ivec3 bi0 = ivec3(0), bi1 = ivec3(0); int bw1[16]; int bw2[16]; float best = 1e30;
   vec3 w1 = W.rgb * m1;
   float w2 = W[c];
-  for (int it = 0; it < N4; it++) {
+  for (int it = 0; it < ITERS(); it++) {
     ivec2 r0 = q160(e0.r), g0 = q160(e0.g), b0 = q160(e0.b), r1 = q160(e1.r), g1 = q160(e1.g), b1 = q160(e1.b);
     ivec3 i0 = ivec3(r0.x, g0.x, b0.x), i1 = ivec3(r1.x, g1.x, b1.x);
     ivec3 c0 = ivec3(r0.y, g0.y, b0.y), c1 = ivec3(r1.y, g1.y, b1.y);
@@ -583,11 +845,30 @@ void main() {
   uvec4 b1;
   float err1 = single(e0, e1, b1);
   if (opaque && err1 > 0.0) {
+    int cOnly = TIER == 0 ? residualChannel(e0, e1) : -1; // fast tier: the channel the line leaves the most off it
+    int cBest = 0; float eBest = 1e30;
     for (int c = 0; c < 3; c++) {
+      if (cOnly >= 0 && c != cOnly) continue;
       uvec4 b2;
       float e2 = dualOpaque(c, e0, e1, b2);
+      if (e2 < eBest) { eBest = e2; cBest = c; }
       if (e2 < err1) { err1 = e2; b1 = b2; }
     }
+#if TIER == 2
+    if (err1 > MODE1_ERR) {
+      // reduced-grid dual planes (3×4 / 4×3 QUANT_8 + QUANT_64 endpoints, 3×4 QUANT_10 + QUANT_24, 4×4 QUANT_5 +
+      // QUANT_48) for the channel whose own plane helped most, then two partitions where those still fit poorly
+      uvec4 b2;
+      for (int g = 0; g < N4; g++) {
+        float e2 = dualGrid(cBest, g, e0, e1, err1, b2);
+        if (e2 < err1) { err1 = e2; b1 = b2; }
+      }
+      if (err1 > MODE1_ERR) {
+        float e2 = twoPart(e0, e1, b2);
+        if (e2 < err1) { err1 = e2; b1 = b2; }
+      }
+    }
+#endif
   }
   if (!opaque && err1 > 0.0) {
     opaque = true; // RGB-only principal axis for the colour plane
@@ -665,10 +946,107 @@ export function astcTrits(T) {
   return [t0, t1, t2, t3, t4];
 }
 
+/** ASTC partition hash (spec C.2.21 / astc-encoder select_partition): partition of texel (x, y, z) for a seed. */
+export function astcPartition(seed, x, y, z, count, small) {
+  if (small) { x <<= 1; y <<= 1; z <<= 1; }
+  seed += (count - 1) * 1024;
+  let r = seed >>> 0;
+  r ^= r >>> 15; r = Math.imul(r, 0xEEDE0891) >>> 0; r ^= r >>> 5; r = (r + (r << 16)) >>> 0; r ^= r >>> 7; r ^= r >>> 3;
+  r = (r ^ (r << 6)) >>> 0; r ^= r >>> 17; r >>>= 0;
+  const sq = (v) => v * v;
+  let s1 = sq(r & 15), s2 = sq((r >>> 4) & 15), s3 = sq((r >>> 8) & 15), s4 = sq((r >>> 12) & 15), s5 = sq((r >>> 16) & 15), s6 = sq((r >>> 20) & 15);
+  let s7 = sq((r >>> 24) & 15), s8 = sq((r >>> 28) & 15), s9 = sq((r >>> 18) & 15), s10 = sq((r >>> 22) & 15), s11 = sq((r >>> 26) & 15), s12 = sq(((r >>> 30) | (r << 2)) & 15);
+  let sh1, sh2;
+  if (seed & 1) { sh1 = seed & 2 ? 4 : 5; sh2 = count === 3 ? 6 : 5; } else { sh1 = count === 3 ? 6 : 5; sh2 = seed & 2 ? 4 : 5; }
+  const sh3 = seed & 0x10 ? sh1 : sh2;
+  s1 >>= sh1; s2 >>= sh2; s3 >>= sh1; s4 >>= sh2; s5 >>= sh1; s6 >>= sh2; s7 >>= sh1; s8 >>= sh2;
+  s9 >>= sh3; s10 >>= sh3; s11 >>= sh3; s12 >>= sh3;
+  let a = (s1 * x + s2 * y + s11 * z + (r >>> 14)) & 0x3f, b = (s3 * x + s4 * y + s12 * z + (r >>> 10)) & 0x3f;
+  let c = (s5 * x + s6 * y + s9 * z + (r >>> 6)) & 0x3f, d = (s7 * x + s8 * y + s10 * z + (r >>> 2)) & 0x3f;
+  if (count <= 3) d = 0;
+  if (count <= 2) c = 0;
+  if (count <= 1) b = 0;
+  if (a >= b && a >= c && a >= d) return 0;
+  if (b >= c && b >= d) return 1;
+  return c >= d ? 2 : 3;
+}
+
+/** 16-bit texel mask (bit = partition 1) of each 4×4 two-partition seed. */
+export function astcPatterns2() {
+  const out = new Uint16Array(1024);
+  for (let seed = 0; seed < 1024; seed++) {
+    let m = 0;
+    for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) if (astcPartition(seed, x, y, 0, 2, true)) m |= 1 << (y * 4 + x);
+    out[seed] = m;
+  }
+  return out;
+}
+
+let SEEDS = null;
+/** Builds the seed table in steps: run(n) does the next n masks, true once all are done. */
+function seedTableBuilder() {
+  const pat = astcPatterns2(), seen = new Set(), cand = [], seeds = [];
+  for (let s = 0; s < 1024; s++) {
+    const p = pat[s], key = Math.min(p, p ^ 0xffff);
+    if (p === 0 || p === 0xffff || seen.has(key)) continue;
+    seen.add(key); cand.push(p); seeds.push(s);
+  }
+  const pc = new Uint8Array(65536);
+  for (let i = 1; i < 65536; i++) pc[i] = pc[i >> 1] + (i & 1);
+  const out = new Uint8Array(65536 * 2), n = cand.length;
+  let m0 = 0;
+  return {
+    out,
+    run(count) {
+      const end = Math.min(65536, m0 + count);
+      for (let m = m0; m < end; m++) {
+        let best = 99, bs = 0;
+        for (let k = 0; k < n; k++) {
+          const d = pc[m ^ cand[k]], e = 16 - d, dd = d < e ? d : e;
+          if (dd < best) { best = dd; bs = seeds[k]; if (dd === 0) break; }
+        }
+        out[m * 2] = bs & 255; out[m * 2 + 1] = bs >> 8;
+      }
+      m0 = end;
+      return m0 >= 65536;
+    },
+  };
+}
+/**
+ * For every 16-bit texel mask, the two-partition seed whose pattern differs from it (or from its complement — the
+ * partitions can swap) in the fewest texels: RG8UI 256 × 256 (seed low byte, high bits). Built once (~0.1–0.3 s).
+ */
+export function astcSeedTable() {
+  if (SEEDS) return SEEDS;
+  const b = seedTableBuilder();
+  b.run(65536);
+  return (SEEDS = b.out);
+}
+
+/** Same, built in slices on later tasks (phones: the page stays responsive). @returns {Promise<Uint8Array>} */
+let SEEDS_ASYNC = null;
+export function astcSeedTableAsync(slice = 4096) {
+  if (SEEDS) return Promise.resolve(SEEDS);
+  if (SEEDS_ASYNC) return SEEDS_ASYNC;
+  SEEDS_ASYNC = new Promise((ok) => {
+    const b = seedTableBuilder();
+    const step = () => {
+      if (SEEDS) ok(SEEDS);
+      else if (b.run(slice)) ok((SEEDS = b.out));
+      else post(step);
+    };
+    post(step);
+  });
+  return SEEDS_ASYNC;
+}
+
+/** QUANT_24 colour values by ISE code (trit + 3 bits; astc-encoder color_scrambled_pquant_to_uquant_q24). */
+const Q24 = [0, 255, 33, 222, 66, 189, 99, 156, 11, 244, 44, 211, 77, 178, 110, 145, 22, 233, 55, 200, 88, 167, 121, 134];
 let TABLES = null;
 /** Rows: 0 nearest QUANT_192 [index, value] per 8-bit value; 1 trit block per 5-trit tuple (base 3); 2 QUANT_48;
- * 3 quint block per 3-quint tuple (base 5); 4 QUANT_160. */
-export const ASTC_TABLE_ROWS = 5;
+ * 3 quint block per 3-quint tuple (base 5); 4 QUANT_160; 5–8 the 16-bit pattern of each two-partition seed (low, high);
+ * 9 QUANT_24. */
+export const ASTC_TABLE_ROWS = 10;
 export function astcTables() {
   if (TABLES) return TABLES;
   const t = new Uint8Array(256 * ASTC_TABLE_ROWS * 2);
@@ -686,6 +1064,9 @@ export function astcTables() {
   const qenc = new Int16Array(125).fill(-1);
   for (let Q = 0; Q < 128; Q++) { const [a, b, c] = astcQuints(Q); const k = a + 5 * b + 25 * c; if (qenc[k] < 0) qenc[k] = Q; }
   for (let k = 0; k < 125; k++) t[(3 * 256 + k) * 2] = qenc[k];
+  const pat = astcPatterns2();
+  for (let sd = 0; sd < 1024; sd++) { t[(5 * 256 + sd) * 2] = pat[sd] & 255; t[(5 * 256 + sd) * 2 + 1] = pat[sd] >> 8; }
+  nearest(24, (v) => Q24[v], 9);
   const enc = new Int16Array(243).fill(-1);
   for (let T = 0; T < 256; T++) {
     const [a, b, c, d, e] = astcTrits(T);
@@ -706,9 +1087,36 @@ const CODECS = {
 
 /** three r186 renamed Source → TextureSource. */
 const TextureSource = THREE.TextureSource || THREE.Source;
-/** GPU time per million texels (all modes, mips included) above which the BC7 two-subset search is turned off:
- * a mission encodes ~300 Mtexels, so 8 ms/Mtexel ≈ 2.4 s of GPU time over its load. */
-const MODE1_MS_PER_MTEXEL = 8;
+/** Encoder quality tiers — one program each (`#define TIER`), so a slow GPU never runs (or compiles) the costly modes:
+ *  0 fast: the block's line, + one channel on its own line / plane (the one the line misses most), candidate
+ *    indices around each texel's projection, 2 refinement passes;
+ *  1 base: every rotation (BC7 mode 5) / dual-plane channel (ASTC), every candidate, 4 passes;
+ *  2 full: + BC7 mode 1 / ASTC two partitions and reduced-grid dual planes for blocks the single lines fit poorly.
+ * TIER_COST: GPU time of each on real maps (normal / ORM / albedo) per unit of the calibration — the fast tier on a
+ * noise image — measured where encoding is throughput-bound like on a phone GPU (SwiftShader; rounded up). */
+const TIER_COST = { bc7: [1.5, 3, 6], astc: [2.2, 5.5, 13] };
+/** GPU time per million texels a tier may cost on real maps: a mission encodes ~150–300 Mtexels (mips included), so
+ * 8 ms/Mtexel ≈ 1–2.4 s of GPU time, spread over its load. */
+const TIER_BUDGET = 8;
+/** When even the fast tier would cost more than this on real maps (≥ 3–5 s per mission), textures are not compressed
+ * at all: they upload as they always did (the memory of a build without this module, none of the wait). */
+const OFF_MS_PER_MTEXEL = 16;
+/** Side of the calibration image (noise: every block does all its work). */
+const CALIB_SIZE = 1024;
+
+/**
+ * The encoder tier for a calibration (the fast tier's GPU time per Mtexel of noise): the highest whose projected cost
+ * on real maps fits TIER_BUDGET — 3 × that with a GPU timer, since real maps are then timed as they load (a tier over
+ * 1.5 × the budget steps down) and big GPUs, latency-bound on the calibration, look slower there than they are.
+ * @param {CodecName} codec @param {number} ms @param {boolean} timer
+ * @returns {0|1|2|null} null: too slow even for the fast tier (compression off)
+ */
+export function chooseTier(codec, ms, timer) {
+  const cost = TIER_COST[codec].map((c) => ms * c), limit = timer ? TIER_BUDGET * 3 : TIER_BUDGET;
+  if (!(cost[0] <= OFF_MS_PER_MTEXEL)) return null;
+  return cost[2] <= limit ? 2 : cost[1] <= limit ? 1 : 0;
+}
+const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
 const mult4 = (n) => n >= 4 && n % 4 === 0;
 const mipmapped = (f) => f === THREE.LinearMipmapLinearFilter || f === THREE.LinearMipmapNearestFilter || f === THREE.NearestMipmapLinearFilter || f === THREE.NearestMipmapNearestFilter;
 /** Run f on a new task right away (a MessageChannel message: no timer clamping). */
@@ -754,7 +1162,8 @@ const DEFAULT_WEIGHTS = [1, 1, 1, 2];
 export class GpuCompressor {
   /**
    * @param {THREE.WebGLRenderer} renderer
-   * @param {{codec?: CodecName|null, maxPending?: number, sliceMs?: number, mode1?: boolean}} [o] codec: force one (tests); undefined → detect
+   * @param {{codec?: CodecName|null, maxPending?: number, sliceMs?: number, tier?: 0|1|2}} [o] codec: force one (tests),
+   *   undefined → detect; tier: force an encoder tier (tests, `?gputier=`), undefined → calibrate (see TIER_COST)
    */
   constructor(renderer, o = {}) {
     this.renderer = renderer;
@@ -762,11 +1171,14 @@ export class GpuCompressor {
     this.codec = o.codec !== undefined ? detectCodec(this.gl, o.codec || '-') : detectCodec(this.gl);
     this.format = this.codec ? CODECS[this.codec].format : null;
     this.maxPending = o.maxPending ?? 24;
-    /** BC7 two-subset search (≈ +2–3 dB on normal / packed maps, ~1.5–2× the GPU time). On by default; `auto`:
-     * the encode draws are timed (EXT_disjoint_timer_query_webgl2) and a GPU slower than MODE1_MS_PER_MTEXEL turns
-     * it off for the rest of the session, so a weak integrated GPU does not add seconds to a mission load. */
-    this.mode1 = o.mode1 ?? true;
-    this.mode1Auto = o.mode1 === undefined;
+    /** Encoder tier (TIER_COST). Unless forced, `prewarm()` times the fast tier on this GPU and picks the highest one
+     * whose projected cost fits TIER_BUDGET (or turns compression off past OFF_MS_PER_MTEXEL); encodes wait for that.
+     * Later encodes are timed too where the GPU has a timer (EXT_disjoint_timer_query_webgl2): a tier that costs
+     * more than 1.5 × the budget on real maps steps down. */
+    this.tier = o.tier ?? 1;
+    this.tierAuto = o.tier === undefined;
+    this.calibration = null; // {msPerMtexel, timer, tier} once calibrated
+    this._calib = null;
     this.timer = { ext: null, ms: 0, mtexels: 0, pending: [] };
     try { this.timer.ext = this.gl.getExtension?.('EXT_disjoint_timer_query_webgl2') || null; } catch { this.timer.ext = null; }
     this.progs = {};
@@ -778,7 +1190,7 @@ export class GpuCompressor {
     this.sliceMs = o.sliceMs ?? 10;
     this._jobs = new WeakMap(); // original Source → Map(variant → Promise<{source, mipmaps}|null>)
     const el = renderer.domElement;
-    this._onLost = () => { this.progs = {}; this.fbo = this.rt = this.vao = this.tab = null; this.rtSize = [0, 0]; };
+    this._onLost = () => { this.progs = {}; this.fbo = this.rt = this.vao = this.tab = this.seedTex = null; this.rtSize = [0, 0]; };
     el?.addEventListener?.('webglcontextlost', this._onLost);
   }
 
@@ -808,20 +1220,20 @@ export class GpuCompressor {
   }
 
   /** Start compiling (and linking) the encoder for 2D maps or layer arrays without waiting for the driver. */
-  _compile(array) {
-    const key = this.codec + (array ? ':a' : ':2');
+  _compile(array, tier = this.tier) {
+    const key = `${this.codec}:${array ? 'a' : '2'}:${tier}`;
     if (this.progs[key]) return this.progs[key];
     const gl = this.gl;
     const sh = (type, src) => { const x = gl.createShader(type); gl.shaderSource(x, src); gl.compileShader(x); return x; };
     const p = gl.createProgram();
-    const vs = sh(gl.VERTEX_SHADER, VERT), fs = sh(gl.FRAGMENT_SHADER, CODECS[this.codec].frag(array));
+    const vs = sh(gl.VERTEX_SHADER, VERT), fs = sh(gl.FRAGMENT_SHADER, CODECS[this.codec].frag(array, tier));
     gl.attachShader(p, vs); gl.attachShader(p, fs); gl.linkProgram(p);
     return (this.progs[key] = { p, vs, fs, ready: false });
   }
 
   /** The encoder program (compiled at install time where KHR_parallel_shader_compile lets the driver do it aside). */
-  _program(array) {
-    const prog = this._compile(array), gl = this.gl;
+  _program(array, tier = this.tier) {
+    const prog = this._compile(array, tier), gl = this.gl;
     if (prog.ready) return prog;
     if (!gl.getProgramParameter(prog.p, gl.LINK_STATUS) && !gl.isContextLost()) {
       const log = gl.getShaderInfoLog(prog.fs) || gl.getProgramInfoLog(prog.p);
@@ -829,7 +1241,7 @@ export class GpuCompressor {
     }
     gl.deleteShader(prog.vs); gl.deleteShader(prog.fs);
     const u = (n) => gl.getUniformLocation(prog.p, n);
-    Object.assign(prog, { ready: true, vs: null, fs: null, uSrc: u('uSrc'), uLevel: u('uLevel'), uLayer: u('uLayer'), uSize: u('uSize'), uSrgb: u('uSrgb'), uTab: u('uTab'), uW: u('uW'), uN: u('uN'), uMode1: u('uMode1') });
+    Object.assign(prog, { ready: true, vs: null, fs: null, uSrc: u('uSrc'), uLevel: u('uLevel'), uLayer: u('uLayer'), uSize: u('uSize'), uSrgb: u('uSrgb'), uTab: u('uTab'), uW: u('uW'), uN: u('uN'), uSeeds: u('uSeeds') });
     return prog;
   }
 
@@ -837,7 +1249,92 @@ export class GpuCompressor {
   prewarm() {
     if (!this.codec || this.gl.isContextLost()) return;
     this.gl.getExtension('KHR_parallel_shader_compile');
+    if (this.tierAuto) {
+      this._calibrate(); // compiles the tier it picks
+      // desktop GPUs (BC7) mostly keep the full tier: have the driver compile it meanwhile
+      if (this.codec === 'bc7') { this._compile(false, 2); this._compile(true, 2); }
+      return;
+    }
     this._compile(false); this._compile(true);
+    if (this.codec === 'astc' && this.tier === 2) astcSeedTableAsync();
+  }
+
+  /**
+   * Time the fast encoder on a CALIB_SIZE² noise image (GPU timer, else fence wall time: best of three) and pick the
+   * tier: the highest whose projected cost fits TIER_BUDGET, or none (compression off) past OFF_MS_PER_MTEXEL.
+   * @returns {Promise<void>}
+   */
+  _calibrate() {
+    if (this._calib) return this._calib;
+    const gl = this.gl, S = CALIB_SIZE;
+    const run = async () => {
+      const prog = this._compile(false, 0), par = gl.getExtension('KHR_parallel_shader_compile');
+      while (par && !gl.isContextLost() && !gl.getProgramParameter(prog.p, par.COMPLETION_STATUS_KHR)) await wait(16);
+      if (gl.isContextLost()) throw new Error('context lost');
+      const tex = gl.createTexture(), data = new Uint8Array(S * S * 4);
+      for (let i = 0, x = 0x9E3779B9; i < data.length; i += 4) { x ^= x << 13; x ^= x >>> 17; x ^= x << 5; data[i] = x; data[i + 1] = x >>> 8; data[i + 2] = x >>> 16; data[i + 3] = 255; }
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, S, S);
+      gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, S, S, gl.RGBA, gl.UNSIGNED_BYTE, data);
+      this.renderer.resetState();
+      let best = Infinity, timed = false;
+      try {
+        for (let k = 0; k < 3; k++) {
+          const r = await this._timeEncode(tex, S);
+          if (r.ms < best) { best = r.ms; timed = r.timer; }
+        }
+      } finally { if (!gl.isContextLost()) gl.deleteTexture(tex); }
+      const ms = best / (S * S / 1e6), tier = chooseTier(this.codec, ms, !!this.timer.ext);
+      this.calibration = { msPerMtexel: +ms.toFixed(2), timer: timed, tier };
+      if (tier === null) {
+        console.info(`[gpu-compress] ${this.codec}: fast encoder ${ms.toFixed(1)} ms per Mtexel of noise (≈ ${(ms * TIER_COST[this.codec][0]).toFixed(0)} on real maps): too slow here, textures stay uncompressed`);
+        this.codec = null; this.format = null;
+        return;
+      }
+      this.tier = tier;
+      if (!this.timer.ext) this.tierAuto = false; // nothing to time real maps with: decided
+      console.info(`[gpu-compress] ${this.codec}: fast encoder ${ms.toFixed(2)} ms per Mtexel of noise (${timed ? 'GPU timer' : 'wall time'}) → tier ${tier}`);
+      this._compile(false); this._compile(true);
+      if (this.codec === 'astc' && tier === 2) await astcSeedTableAsync();
+    };
+    this._calib = run().catch((e) => {
+      this.tier = 0; this.tierAuto = false;
+      console.warn('[gpu-compress] calibration failed, fast tier:', e?.message || e);
+    }).finally(() => { this._calibrated = true; this._kick(); });
+    return this._calib;
+  }
+
+  /** One timed encode of level 0 of a CALIB texture with the fast tier. @returns {Promise<{ms: number, timer: boolean}>} */
+  async _timeEncode(tex, S) {
+    const gl = this.gl, T = this.timer;
+    let q = null;
+    try { if (T.ext && !gl.getQuery(T.ext.TIME_ELAPSED_EXT, gl.CURRENT_QUERY)) { q = gl.createQuery(); gl.beginQuery(T.ext.TIME_ELAPSED_EXT, q); } } catch { q = null; }
+    const t0 = performance.now();
+    let job;
+    try { job = this._encodeGl(tex, { w: S, h: S, levels: 1, srgb: false, tier: 0, timed: false }); } finally {
+      if (q) gl.endQuery(T.ext.TIME_ELAPSED_EXT);
+      this.renderer.resetState();
+    }
+    // fence wall time: polled on fresh tasks (a fence's status only changes between tasks)
+    for (;;) {
+      await new Promise((ok) => post(ok));
+      if (gl.isContextLost()) throw new Error('context lost');
+      const st = gl.clientWaitSync(job.sync, 0, 0);
+      if (st === gl.WAIT_FAILED) { job.fail(); throw new Error('wait failed'); }
+      if (st !== gl.TIMEOUT_EXPIRED) break;
+      if (performance.now() - t0 > 5000) break;
+    }
+    const wall = performance.now() - t0;
+    job.fail(); // frees the readback buffer and the fence; the blocks are not needed
+    if (q) {
+      for (let i = 0; i < 200 && !gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE); i++) await wait(5);
+      const ok = gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE) && !gl.getParameter(T.ext.GPU_DISJOINT_EXT);
+      const ns = ok ? gl.getQueryParameter(q, gl.QUERY_RESULT) : 0;
+      gl.deleteQuery(q);
+      if (ok && ns > 0) return { ms: ns / 1e6, timer: true };
+    }
+    return { ms: wall, timer: false };
   }
 
   _target(bw, bh) {
@@ -870,14 +1367,29 @@ export class GpuCompressor {
     return this.tab;
   }
 
+  /** The two-partition seed table as a 256 × 256 RG8UI texture (astcSeedTable). */
+  _seeds() {
+    if (this.seedTex) return this.seedTex;
+    const gl = this.gl;
+    this.seedTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.seedTex);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG8UI, 256, 256, 0, gl.RG_INTEGER, gl.UNSIGNED_BYTE, astcSeedTable());
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    return this.seedTex;
+  }
+
   /**
    * Issue the encode of every level (and layer) of an uploaded GL texture: draws + readPixels into a pixel buffer.
    * @returns {{sync: WebGLSync, collect: () => Uint8Array[], fail: () => void}} collect (once the fence passed): per
    *   level its blocks (layer arrays: every layer of the level in order)
    */
-  _encodeGl(glTex, { w, h, levels, layers = 0, srgb, weights = null }) {
+  _encodeGl(glTex, { w, h, levels, layers = 0, srgb, weights = null, tier = this.tier, timed = true }) {
     const gl = this.gl, array = layers > 0, nz = Math.max(1, layers);
-    const prog = this._program(array);
+    const prog = this._program(array, tier);
     const plan = [];
     let total = 0;
     for (let l = 0; l < levels; l++) {
@@ -901,8 +1413,11 @@ export class GpuCompressor {
     const W = weights || DEFAULT_WEIGHTS;
     gl.uniform4f(prog.uW, W[0], W[1], W[2], W[3]);
     gl.uniform1i(prog.uN, 16);
-    gl.uniform1i(prog.uMode1, this.mode1 ? 1 : 0);
-    if (this.codec === 'astc') { gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this._tables()); gl.uniform1i(prog.uTab, 1); gl.activeTexture(gl.TEXTURE0); }
+    if (this.codec === 'astc') {
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this._tables()); gl.uniform1i(prog.uTab, 1);
+      if (tier === 2) { gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this._seeds()); gl.uniform1i(prog.uSeeds, 2); }
+      gl.activeTexture(gl.TEXTURE0);
+    }
     const pbo = gl.createBuffer();
     gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
     gl.bufferData(gl.PIXEL_PACK_BUFFER, total, gl.STREAM_READ);
@@ -910,7 +1425,7 @@ export class GpuCompressor {
     gl.pixelStorei(gl.PACK_ROW_LENGTH, 0);
     gl.pixelStorei(gl.PACK_SKIP_ROWS, 0);
     gl.pixelStorei(gl.PACK_SKIP_PIXELS, 0);
-    const tq = this._timerBegin(plan.reduce((a, L) => a + L.lw * L.lh * nz, 0) / 1e6);
+    const tq = timed ? this._timerBegin(plan.reduce((a, L) => a + L.lw * L.lh * nz, 0) / 1e6, tier) : null;
     for (let l = 0; l < plan.length; l++) {
       const L = plan[l];
       gl.uniform1i(prog.uLevel, l);
@@ -941,37 +1456,39 @@ export class GpuCompressor {
     return { sync, collect, fail: () => { if (!gl.isContextLost()) { gl.deleteBuffer(pbo); gl.deleteSync(sync); } } };
   }
 
-  /** Time this encode on the GPU while the two-subset mode is being judged (null: not timing). */
-  _timerBegin(mtexels) {
+  /** Time this encode on the GPU while the tier is being checked on real maps (null: not timing). */
+  _timerBegin(mtexels, tier) {
     const T = this.timer, gl = this.gl;
     this._timerPoll();
-    if (!this.mode1Auto || !this.mode1 || this.codec !== 'bc7' || !T.ext || T.pending.length > 4) return null;
+    if (!this.tierAuto || !T.ext || T.pending.length > 4) return null;
     try {
       if (gl.getQuery(T.ext.TIME_ELAPSED_EXT, gl.CURRENT_QUERY)) return null; // someone else is timing
       const q = gl.createQuery();
       gl.beginQuery(T.ext.TIME_ELAPSED_EXT, q);
-      T.pending.push({ q, mtexels });
+      T.pending.push({ q, mtexels, tier });
       return q;
     } catch { return null; }
   }
 
-  /** Collect finished timings; past ~6 Mtexels decide whether the GPU is fast enough for the two-subset search. */
+  /** Collect finished timings; past ~8 Mtexels at one tier, step down if it costs more than 1.5 × TIER_BUDGET. */
   _timerPoll() {
     const T = this.timer, gl = this.gl;
     if (!T.ext || !T.pending.length || gl.isContextLost()) return;
     const disjoint = gl.getParameter(T.ext.GPU_DISJOINT_EXT);
-    T.pending = T.pending.filter(({ q, mtexels }) => {
+    T.pending = T.pending.filter(({ q, mtexels, tier }) => {
       if (!gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) return true;
-      if (!disjoint) { T.ms += gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6; T.mtexels += mtexels; }
+      if (!disjoint && tier === this.tier) { T.ms += gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6; T.mtexels += mtexels; }
       gl.deleteQuery(q);
       return false;
     });
-    if (this.mode1Auto && this.mode1 && T.mtexels >= 6) {
-      this.mode1Auto = false; // decided once
-      if (T.ms / T.mtexels > MODE1_MS_PER_MTEXEL) {
-        this.mode1 = false;
-        console.info(`[gpu-compress] ${(T.ms / T.mtexels).toFixed(1)} ms per Mtexel: two-subset BC7 search off on this GPU`);
-      }
+    if (this.tierAuto && this._calibrated && T.mtexels >= 8) {
+      const rate = T.ms / T.mtexels;
+      T.ms = 0; T.mtexels = 0;
+      if (rate > TIER_BUDGET * 1.5 && this.tier > 0) {
+        this.tier--;
+        console.info(`[gpu-compress] ${rate.toFixed(1)} ms per Mtexel on real maps: tier ${this.tier} from now on`);
+        this._compile(false); this._compile(true);
+      } else this.tierAuto = false; // within the budget: decided
     }
   }
 
@@ -1013,6 +1530,19 @@ export class GpuCompressor {
 
   _run() {
     const gl = this.gl;
+    if (this.tierAuto && !this._calibrated) { // the tier is still being picked (prewarm): go on when it is
+      this._calibrate();
+      return;
+    }
+    if (!this.codec) { // calibration turned compression off: what was queued stays uncompressed
+      for (const j of this._queue) j.reject(Object.assign(new Error('compression off on this GPU'), { off: true }));
+      this._queue = [];
+      return;
+    }
+    if (this.codec === 'astc' && this.tier === 2 && !SEEDS) { // the two-partition table is still being built: go on when it is
+      if (!this._seedWait) this._seedWait = astcSeedTableAsync().then(() => { this._seedWait = null; this._kick(); });
+      return;
+    }
     if (gl.isContextLost()) {
       for (const j of [...this._inflight, ...this._queue]) j.reject(new Error('context lost'));
       this._inflight = []; this._queue = [];
@@ -1099,7 +1629,7 @@ export class GpuCompressor {
         return { source, mipmaps };
       }).catch((e) => {
         this.stats.failed++;
-        if (!this.gl.isContextLost()) console.warn('[gpu-compress] kept uncompressed:', e?.message || e);
+        if (!this.gl.isContextLost() && !e?.off) console.warn('[gpu-compress] kept uncompressed:', e?.message || e);
         return null;
       });
       byVariant.set(key, job);
@@ -1128,7 +1658,7 @@ export class GpuCompressor {
       return tex;
     }).catch((e) => {
       this.stats.failed++;
-      if (!this.gl.isContextLost()) console.warn('[gpu-compress] array kept uncompressed:', e?.message || e);
+      if (!this.gl.isContextLost() && !e?.off) console.warn('[gpu-compress] array kept uncompressed:', e?.message || e);
       return tex;
     });
   }
@@ -1171,7 +1701,7 @@ export class GpuCompressor {
       return out;
     }).catch((e) => {
       this.stats.failed++;
-      if (!this.gl.isContextLost()) console.warn('[gpu-compress] target kept as it is:', e?.message || e);
+      if (!this.gl.isContextLost() && !e?.off) console.warn('[gpu-compress] target kept as it is:', e?.message || e);
       return null;
     });
   }
@@ -1180,9 +1710,16 @@ export class GpuCompressor {
     const gl = this.gl;
     this.renderer.domElement?.removeEventListener?.('webglcontextlost', this._onLost);
     if (!gl.isContextLost()) {
-      for (const p of Object.values(this.progs)) gl.deleteProgram(p.p);
+      const par = gl.getExtension('KHR_parallel_shader_compile');
+      for (const p of Object.values(this.progs)) {
+        // a program still linking is left to the context (deleting it then makes Chrome query a deleted object)
+        if (!p.ready && par && !gl.getProgramParameter(p.p, par.COMPLETION_STATUS_KHR)) continue;
+        if (p.vs) { gl.deleteShader(p.vs); gl.deleteShader(p.fs); }
+        gl.deleteProgram(p.p);
+      }
       if (this.rt) gl.deleteTexture(this.rt);
       if (this.tab) gl.deleteTexture(this.tab);
+      if (this.seedTex) gl.deleteTexture(this.seedTex);
       if (this.fbo) gl.deleteFramebuffer(this.fbo);
       if (this.vao) gl.deleteVertexArray(this.vao);
     }
@@ -1269,7 +1806,8 @@ export function applyCompressedArray(tex, format, { source, mipmaps }) {
 let INSTANCE = null;
 
 /** Create the compressor for the game's renderer (engine/renderer.js). `?gpucompress=0` turns it off (A/B checks),
- * `?gpucompress=astc|bc7` forces a codec, `?gpumode1=0|1` forces the BC7 two-subset search. */
+ * `?gpucompress=astc|bc7` forces a codec, `?gputier=0|1|2` forces an encoder tier (TIER_COST; A/B checks on a busy
+ * test GPU, whose calibration varies with the load). */
 export function installGpuCompressor(renderer, o = {}) {
   try {
     const q = typeof location !== 'undefined' ? new URLSearchParams(location.search) : null;
@@ -1278,8 +1816,8 @@ export function installGpuCompressor(renderer, o = {}) {
     INSTANCE = null;
     if (flag === '0' || o.enabled === false) return null;
     const codec = flag && flag !== '1' ? flag : o.codec;
-    const m1 = q?.get('gpumode1'); // force the BC7 two-subset search on / off (A/B checks on a busy test GPU)
-    const c = new GpuCompressor(renderer, { ...(codec !== undefined ? { codec } : {}), ...(m1 === '0' || m1 === '1' ? { mode1: m1 === '1' } : {}) });
+    const tier = q?.get('gputier') ?? (o.tier !== undefined ? String(o.tier) : null);
+    const c = new GpuCompressor(renderer, { ...(codec !== undefined ? { codec } : {}), ...(/^[012]$/.test(tier || '') ? { tier: Number(tier) } : {}) });
     INSTANCE = c.codec ? c : null;
     INSTANCE?.prewarm(); // the driver compiles the encoders while the menu is up
   } catch (e) {
@@ -1290,7 +1828,16 @@ export function installGpuCompressor(renderer, o = {}) {
 }
 
 /** The game's compressor (null: not installed, turned off, or no BC7 / ASTC on this device). */
-export const gpuCompressor = () => INSTANCE;
+export const gpuCompressor = () => (INSTANCE?.codec ? INSTANCE : null);
+
+/** Resolves once the game's compressor has picked its encoder tier (the calibration): the compressor, or null. */
+export async function gpuCompressorReady() {
+  if (INSTANCE?.tierAuto && !INSTANCE._calibrated) await INSTANCE._calibrate();
+  return gpuCompressor();
+}
+
+/** The game compressor's calibration ({msPerMtexel, timer, tier}; tier null = compression off), null if none ran. */
+export const gpuCompressorCalibration = () => INSTANCE?.calibration ?? null;
 
 /** Compress a render target's colour texture with the game's compressor (null: none, or not possible). */
 export function compressRenderTarget(rt) { return INSTANCE ? INSTANCE.compressTarget(rt) : Promise.resolve(null); }

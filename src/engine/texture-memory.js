@@ -124,8 +124,25 @@ export function keepEncodedImages(parser) {
     afterRoot(result) {
       watchScene(result.scene);
       for (const s of result.scenes || []) if (s !== result.scene) watchScene(s);
+      setTimeout(() => releaseGltfParser(parser), 0); // once the loader has handed the result over
     },
   };
+}
+
+/**
+ * Drop what a glTF parser keeps of the parsed file once its scene exists: the GLB's binary chunk, the raw buffers /
+ * views / accessors the meshes were built from (the meshes keep their own arrays) and its texture / image promises.
+ * Libraries keep load results (`gltf.parser` with them) to clone characters and props from — without this, every
+ * loaded GLB stayed in page memory (M1: ~16 MB). The parser itself, its JSON and associations stay usable.
+ * @param {object} parser a GLTFParser after its parse
+ */
+export function releaseGltfParser(parser) {
+  if (!parser) return;
+  parser.cache?.removeAll?.();
+  const bin = parser.extensions?.KHR_binary_glTF;
+  if (bin) bin.body = null;
+  parser.sourceCache = {};
+  parser.textureCache = {};
 }
 
 /** glTF material slots sampled as sRGB colour (everything else is linear data: normals, ORM, masks…). */

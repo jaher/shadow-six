@@ -3,6 +3,7 @@
  *  - each codec this browser can sample (BC7 on the GPU runner; BC7 + ASTC under --swiftshader) encodes real maps
  *    within quality floors, read back through the GPU's own decoder against three's uncompressed upload (RGB PSNR,
  *    alpha separately): albedo, normal, ORM, a cut-out with alpha;
+ *  - the game's compressor calibrates its encoder tier (SwiftShader, ~100× slower than a GPU: compression off);
  *  - after M1 loads, every material map of the scene (≥ 256 px) is on the GPU compressed, except the maps kept as they
  *    are on purpose (water foam / detail normals, foliage leaf ids, stone ids, canvases, render targets).
  * tools/perf/gpu-compress-quality.mjs measures the same on any set of files.
@@ -11,10 +12,10 @@ export const timeout = 600_000;
 
 const FILES = [
   // [file, sRGB, RGB floor BC7 (dB), RGB floor ASTC, alpha floor]
-  ['assets/textures/lib/1k/brick_dark_diff.jpg', true, 44, 43, 0],
-  ['assets/textures/lib/1k/brick_dark_nor.jpg', false, 35, 33, 0],
-  ['assets/textures/lib/1k/brick_dark_arm.jpg', false, 40, 39, 0],
-  ['assets/textures/lib/1k/foliage_atlas_diff.png', true, 33, 32, 36],
+  ['assets/textures/lib/1k/brick_dark_diff.jpg', true, 44, 45, 0],
+  ['assets/textures/lib/1k/brick_dark_nor.jpg', false, 35, 36, 0],
+  ['assets/textures/lib/1k/brick_dark_arm.jpg', false, 40, 42, 0],
+  ['assets/textures/lib/1k/foliage_atlas_diff.png', true, 33, 33, 36],
 ];
 
 export default async function (page, t) {
@@ -42,9 +43,9 @@ export default async function (page, t) {
       return out;
     };
     const codecs = ['bc7', 'astc'].filter((c) => GC.detectCodec(gl, c));
-    const out = { codecs, game: GC.gpuCompressor()?.codec ?? null, rows: [] };
+    const out = { codecs, game: (await GC.gpuCompressorReady())?.codec ?? null, calibration: GC.gpuCompressorCalibration(), rows: [] };
     for (const codec of codecs) {
-      const C = new GC.GpuCompressor(R, { codec, mode1: true });
+      const C = new GC.GpuCompressor(R, { codec, tier: 2 });
       for (const [f, srgb] of FILES) {
         const bmp = await createImageBitmap(await (await fetch('/' + f)).blob(), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
         const p = { srgb, colorSpace: srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace, flipY: false, premultiplyAlpha: false, unpackAlignment: 4, mips: true };
@@ -66,9 +67,17 @@ export default async function (page, t) {
     }
     return out;
   }, FILES);
-  t.log(`codecs here: ${res.codecs.join(', ') || 'none'}; the game uses ${res.game}`);
+  const swift = t.harness?.mode === 'swiftshader';
+  t.log(`codecs here: ${res.codecs.join(', ') || 'none'}; the game uses ${res.game}; calibration ${JSON.stringify(res.calibration)}`);
   t.ok(res.codecs.length > 0, 'the GPU runner samples BC7 (EXT_texture_compression_bptc)');
-  t.ok(res.game === res.codecs[0], 'the game installed its compressor with the preferred codec');
+  if (swift) {
+    // a CPU renderer encodes ~100× slower than a GPU: the calibration turns compression off (a mission loads as it
+    // would without this module)
+    t.ok(res.calibration && res.calibration.tier === null && res.game === null, 'SwiftShader: compression off after the calibration');
+  } else {
+    t.ok(res.game === res.codecs[0], 'the game installed its compressor with the preferred codec');
+    t.ok(res.calibration && res.calibration.tier !== null, `the calibration picked an encoder tier (${res.calibration?.tier})`);
+  }
   for (const r of res.rows) {
     const [, , fb, fa, falpha] = FILES.find((x) => x[0] === r.f);
     const floor = r.codec === 'bc7' ? fb : fa;
@@ -104,6 +113,7 @@ export default async function (page, t) {
     return { comp, compMB: compBytes / 1048576, plain };
   });
   t.log(`M1: ${scan.comp} compressed maps (${scan.compMB.toFixed(0)} MB on the GPU); left uncompressed: ${scan.plain.length} ${JSON.stringify(scan.plain.slice(0, 8))}`);
+  if (swift) { t.equal(scan.comp, 0, 'SwiftShader: M1 loads uncompressed'); return; }
   t.ok(scan.comp > 200, `M1 draws its material maps compressed (${scan.comp})`);
   t.ok(scan.plain.length <= 2, `no material map left uncompressed by accident (${scan.plain.length})`);
 }

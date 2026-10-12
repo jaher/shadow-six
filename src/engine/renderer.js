@@ -196,6 +196,13 @@ export class Renderer {
 
     this.pmrem = new THREE.PMREMGenerator(r);
     this._envRT = null;
+    // a restored WebGL context brings render targets back empty: filter the environment light again (else the
+    // scene loses its image-based light — ~14 % darker)
+    r.domElement?.addEventListener?.('webglcontextrestored', () => {
+      if (!this._envL) return;
+      this._envKey = null; // the old target is disposed as on any change (its GL objects went with the context)
+      try { this._applyEnvironment(this._envL); } catch (e) { console.warn('[renderer] environment after a restored context', e); }
+    });
     this.camera = null;
     this.composer = null;
     this.passes = {};
@@ -478,6 +485,7 @@ export class Renderer {
   }
 
   _applyEnvironment(L) {
+    this._envL = L;
     // same HDRI + same lighting as the environment in use (a restart, the next mission in the theatre): keep the
     // filtered PMREM instead of grading + filtering it again
     let key = null;

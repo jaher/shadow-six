@@ -7,7 +7,7 @@
  * (alpha separately when the map has any).
  *
  *   node tools/perf/gpu-compress-quality.mjs [--codec=bc7|astc] [--swiftshader] [--files=a.jpg,b.png] [--json=out.json]
- *        [--dump=dir] [--channels] [--weights=1,1,3,1]   (dump: level-0 PNGs of reference / decoded / diff×8;
+ *        [--dump=dir] [--channels] [--weights=1,1,3,1] [--tier=0|1|2]   (tier: encoder quality tier, default 2; dump: level-0 PNGs of reference / decoded / diff×8;
  *        channels: per-channel PSNR + threshold flips at 128; weights: per-channel error weights, default 1,1,1,2)
  * Default set: a spread of library maps (albedo sRGB, normal, ARM), pavement, water, a foliage strip with alpha.
  * ASTC needs --swiftshader on desktop GPUs without it (SwiftShader decodes ASTC in software).
@@ -46,13 +46,13 @@ await page.route(BASE + '/__gpuq.html', (r) => r.fulfill({ contentType: 'text/ht
 <script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script></head><body></body></html>` }));
 await page.goto(BASE + '/__gpuq.html');
 
-const res = await page.evaluate(async ({ files, codec, wantDump, weights }) => {
+const res = await page.evaluate(async ({ files, codec, wantDump, weights, tier }) => {
   const THREE = await import('three');
   const GC = await import('/src/engine/gpu-compress.js');
   const canvas = document.createElement('canvas'); canvas.width = canvas.height = 4; document.body.appendChild(canvas);
   const r = new THREE.WebGLRenderer({ canvas, antialias: false });
   const gl = r.getContext();
-  const C = new GC.GpuCompressor(r, { codec });
+  const C = new GC.GpuCompressor(r, { codec, tier });
   if (!C.codec) return { error: `codec ${codec} not supported here`, exts: gl.getSupportedExtensions() };
   // decoder: texelFetch(level) of a 2D texture → 8-bit values in its own encoding
   const vs = `#version 300 es
@@ -130,7 +130,7 @@ const res = await page.evaluate(async ({ files, codec, wantDump, weights }) => {
     out.push({ f, w, h, srgb, ms, bytes: levels.reduce((a, x) => a + x.byteLength, 0), perLevel, dumped });
   }
   return { codec: C.codec, renderer: gl.getParameter(gl.RENDERER), out, stats: C.stats };
-}, { files, codec, wantDump: !!dump, weights: arg('weights') ? arg('weights').split(',').map(Number) : null });
+}, { files, codec, wantDump: !!dump, weights: arg('weights') ? arg('weights').split(',').map(Number) : null, tier: Number(arg('tier', '2')) });
 
 if (res.error) { console.log(res.error, res.exts); process.exit(1); }
 console.log(`codec ${res.codec} on ${res.renderer}`);

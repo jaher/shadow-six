@@ -5,7 +5,7 @@
  * the compressor's main-thread time and texture count too.
  *
  *   node tools/perf/load-ab.mjs --a=<checkout> --b=<checkout> [--missions=m01,m04] [--runs=3] [--preset=high]
- *        [--qa=…] [--qb=gpumode1=1]   (extra URL parameters per side)
+ *        [--qa=…] [--qb=gputier=2]   (extra URL parameters per side)
  */
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -32,10 +32,10 @@ for (const m of arg('missions', 'm01').split(',')) {
       const ms = performance.now() - t0;
       const GC = await import('/src/engine/gpu-compress.js').catch(() => null);
       const c = GC?.gpuCompressor?.();
-      return { ms, stats: c ? { ...c.stats, mode1: c.mode1 } : null };
+      return { ms, stats: c ? { ...c.stats, tier: c.tier, calibration: c.calibration } : null };
     }, m);
     ((out[m] ||= { a: [], b: [] })[k]).push(res);
-    console.log(`${m} ${k} run ${r}: ${(res.ms / 1000).toFixed(1)} s${res.stats ? ` (compressor: ${res.stats.textures} textures + ${res.stats.arrays} arrays, main thread ${res.stats.mainMs.toFixed(0)} ms (upload ${res.stats.uploadMs?.toFixed(0)}, readback ${res.stats.readMs?.toFixed(0)}), mode1 ${res.stats.mode1})` : ''}`);
+    console.log(`${m} ${k} run ${r}: ${(res.ms / 1000).toFixed(1)} s${res.stats ? ` (compressor: ${res.stats.textures} textures + ${res.stats.arrays} arrays, main thread ${res.stats.mainMs.toFixed(0)} ms (upload ${res.stats.uploadMs?.toFixed(0)}, readback ${res.stats.readMs?.toFixed(0)}), tier ${res.stats.tier}, calibration ${JSON.stringify(res.stats.calibration)})` : ''}`);
     await browser.close();
   }
   const med = (v) => { const x = v.map((o) => o.ms).sort((p, q) => p - q); return x[x.length >> 1] / 1000; };

@@ -143,6 +143,95 @@ export class TrailSystem {
     this.sources = new Map(); // id → {x, z, odo, lastRecX, lastRecZ, stepAcc, side}
     this.time = 0;
     this.stats = { stamps: 0, frameStamps: 0 };
+    // a restored WebGL context brings the targets back empty: stamp the recorded marks again
+    this._onRestored = () => { try { this.replayRecords(); } catch (e) { console.warn('[trails] replay after a restored context', e); } };
+    gl.domElement?.addEventListener?.('webglcontextrestored', this._onRestored);
+  }
+
+  /**
+   * Pre-age a road / track at mission start: `passes` vehicles driven along the polyline with lateral wander,
+   * plus optional foot traffic. No gameplay records are written. Gives slush on snow roads, puddled ruts on muddy
+   * roads, and worn wheel lines on desert pistes. (Kept — a few points — to be stamped again after a lost context.)
+   * @param {number[][]} pts polyline [[x, z], …] @param {{passes?:number, spread?:number, type?:string, walkers?:number, seed?:number, load?:number}} [o]
+   */
+  preTrample(pts, o = {}) {
+    (this._pre ||= []).push([pts, o]);
+    this._preTrample(pts, o);
+  }
+
+  _preTrample(pts, o) {
+    const passes = o.passes ?? 6, spread = o.spread ?? 0.7;
+    let sd = o.seed ?? 1;
+    const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
+    for (let p = 0; p < passes + (o.walkers ?? 0); p++) {
+      const walker = p >= passes, id = 'pre' + p + '_' + (o.seed ?? 1);
+      const off0 = (rnd() - 0.5) * 2 * spread, ph = rnd() * 6.28, type = o.type ?? (rnd() < 0.3 ? 'jeep' : 'truck');
+      let s = 0;
+      for (let k = 0; k < pts.length - 1; k++) {
+        const [ax, az] = pts[k], [bx, bz] = pts[k + 1], L = Math.hypot(bx - ax, bz - az), h = Math.atan2(bz - az, bx - ax);
+        for (let t = 0; t < L; t += walker ? 0.3 : 0.25) {
+          s += walker ? 0.3 : 0.25;
+          const off = off0 + Math.sin(s / 9 + ph) * spread * 0.5 + (walker ? (rnd() - 0.5) * 0.3 : 0);
+          const x = ax + (bx - ax) * t / L - Math.sin(h) * off, z = az + (bz - az) * t / L + Math.cos(h) * off;
+          if (walker) this.stamp('walker', x, z, h, { id, record: false });
+          else this.stamp('vehicle', x, z, h, { id, type, record: false, load: (o.load ?? 1.25) * (0.85 + 0.3 * rnd()) });
+        }
+      }
+      this.endSource(id);
+    }
+    this.update(0);
+  }
+
+  /**
+   * After a lost context (the GPU targets come back empty; the CPU records, which gameplay reads, do not): clear the
+   * targets, trample the mission's roads again and fade them by the time since (the fade pass, per surface), then
+   * stamp the records at the depth their age has faded them to — boot / paw prints, craters and melt bowls as they
+   * were; crawl, drag, wheel and track lines through their recorded points (vehicles record their wheels as 'vehicle'
+   * points: redrawn as tyre lines). Close to what was there; marks never recorded are not.
+   */
+  replayRecords() {
+    this._clearTargets();
+    this.nBatch = 0;
+    this.sources.clear();
+    if (this._pre?.length) {
+      for (const [pts, o] of this._pre) this._preTrample(pts, o);
+      const U = this.fadeMat.uniforms, gl = this.gl, prev = gl.getRenderTarget(), auto = gl.autoClear;
+      gl.autoClear = false;
+      U.uDt.value = this.time; U.uFlatTau.value = 0; gl.setRenderTarget(this.rtDef); gl.render(this.fadeScene, this.cam);
+      U.uFlatTau.value = this.flatTau; gl.setRenderTarget(this.rtFlat); gl.render(this.fadeScene, this.cam);
+      gl.setRenderTarget(prev); gl.autoClear = auto;
+    }
+    const ends = new Map(); // owner|kind → open line ends [{id, x, z}]
+    let lines = 0;
+    for (let n = 0; n < this.recN; n++) {
+      const r = this.rec[(this.recHead - this.recN + n + this.cap) % this.cap];
+      if (!r || !(r.strength > 0)) continue;
+      const f = Math.exp(-(this.time - r.t) / Math.max(1, r.tau || 600));
+      if (f < 0.03) continue;
+      const kind = r.kind === 'vehicle' ? 'tire' : r.kind;
+      if (this.nBatch > MAX_BATCH - 64) this.update(0);
+      if (kind === 'foot') {
+        const c = Math.cos(r.heading), sn = Math.sin(r.heading), side = r.side ?? 1;
+        this._push(2, r.x, r.z, c, sn, 0.34, 0.2, 0.2, 0, 0.75 * f, 0.5 * f, side, 0.7, (n * 7.3) % 97);
+      } else if (kind === 'paw') {
+        const d = KIND_DEF.paw, style = PAW_STYLE[r.foot] ?? 1, c = Math.cos(r.heading), sn = Math.sin(r.heading);
+        this._push(7, r.x, r.z, c, sn, d.len * PAW_PAD, d.fw * PAW_PAD, d.fw, 0, d.depth * f, d.berm * f, (r.side < 0 ? -1 : 1) * style, 0.7, (n * 7.3) % 97);
+      } else if (kind === 'crater' || kind === 'melt') {
+        const d = KIND_DEF[kind];
+        this.stamp(kind, r.x, r.z, r.heading, { record: false, depth: d.depth * f, berm: d.berm * f });
+      } else if (KIND_DEF[kind] && TRAIL_KINDS[kind] <= 4) {
+        // a line: continue the nearest open end of this owner's lines within reach, else start a new one
+        const key = `${r.id}|${kind}`, list = ends.get(key) || [];
+        let best = null, bd = 1.6;
+        for (const e of list) { const dd = Math.hypot(r.x - e.x, r.z - e.z); if (dd < bd) { bd = dd; best = e; } }
+        if (!best) { best = { id: `replay:${lines++}` }; list.push(best); ends.set(key, list); }
+        best.x = r.x; best.z = r.z;
+        const d = KIND_DEF[kind];
+        this.stamp(kind, r.x, r.z, r.heading, { record: false, id: best.id, depth: d.depth * f, berm: d.berm * f });
+      }
+    }
+    this.sources.clear();
+    this.update(0);
   }
 
   /** Deformation texture (RG: rut, berm). */
@@ -408,6 +497,7 @@ export class TrailSystem {
   }
 
   dispose() {
+    this.gl.domElement?.removeEventListener?.('webglcontextrestored', this._onRestored);
     this.rtDef.dispose(); this.rtFlat.dispose();
     this.stampMesh.geometry.dispose(); this.stampMat.dispose(); this.fadeMat.dispose();
   }

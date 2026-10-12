@@ -74,7 +74,8 @@ export default async function (page, t) {
   t.log(`restart M1: ${ms.toFixed(0)} ms, ${reqs.length} asset requests`);
   t.equal(reqs.length, 0, `restart of the mission on screen fetches nothing (${reqs.slice(0, 3)})`);
   // a lost and restored WebGL context: the released layer arrays are decoded again, the images re-upload from their
-  // bytes — the frame comes back (before the refill: black terrain, luma ~45 of ~140)
+  // bytes, the environment light is filtered again and the trails stamped again — the frame comes back as it was
+  // (before the refill: black terrain, luma ~45 of ~140; without the environment light ~14 % darker)
   const lost = await page.evaluate(async () => {
     const g = window.__game, G = g.game, R = G.renderer.renderer;
     const frames = async (n) => { for (let i = 0; i < n; i++) { G.render(0.016, 1); await new Promise((ok) => requestAnimationFrame(ok)); } };
@@ -102,6 +103,6 @@ export default async function (page, t) {
   });
   if (lost) {
     t.log(`context restored: luma ${lost.before} → ${lost.after}, ${lost.reloaded} arrays decoded again, ${lost.refills} compressed maps encoded again (${lost.refillMs.toFixed(0)} ms)`);
-    t.ok((lost.reloaded > 0 || lost.refills > 0) && lost.after >= lost.before * 0.75, `the frame comes back after a lost context (luma ${lost.before} → ${lost.after})`);
+    t.ok((lost.reloaded > 0 || lost.refills > 0) && Math.abs(lost.after - lost.before) <= lost.before * 0.03, `the frame comes back after a lost context (luma ${lost.before} → ${lost.after})`);
   }
 }

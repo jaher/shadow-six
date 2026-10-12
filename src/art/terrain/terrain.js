@@ -451,28 +451,7 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
      * roads, and worn wheel lines on desert pistes.
      * @param {number[][]} pts polyline [[x, z], …] @param {{passes?:number, spread?:number, type?:string, walkers?:number, seed?:number}} [o]
      */
-    preTrample(pts, o = {}) {
-      const passes = o.passes ?? 6, spread = o.spread ?? 0.7;
-      let sd = o.seed ?? 1;
-      const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
-      for (let p = 0; p < passes + (o.walkers ?? 0); p++) {
-        const walker = p >= passes, id = 'pre' + p + '_' + (o.seed ?? 1);
-        const off0 = (rnd() - 0.5) * 2 * spread, ph = rnd() * 6.28, type = o.type ?? (rnd() < 0.3 ? 'jeep' : 'truck');
-        let s = 0;
-        for (let k = 0; k < pts.length - 1; k++) {
-          const [ax, az] = pts[k], [bx, bz] = pts[k + 1], L = Math.hypot(bx - ax, bz - az), h = Math.atan2(bz - az, bx - ax);
-          for (let t = 0; t < L; t += walker ? 0.3 : 0.25) {
-            s += walker ? 0.3 : 0.25;
-            const off = off0 + Math.sin(s / 9 + ph) * spread * 0.5 + (walker ? (rnd() - 0.5) * 0.3 : 0);
-            const x = ax + (bx - ax) * t / L - Math.sin(h) * off, z = az + (bz - az) * t / L + Math.cos(h) * off;
-            if (walker) trails.stamp('walker', x, z, h, { id, record: false });
-            else trails.stamp('vehicle', x, z, h, { id, type, record: false, load: (o.load ?? 1.25) * (0.85 + 0.3 * rnd()) });
-          }
-        }
-        trails.endSource(id);
-      }
-      trails.update(0);
-    },
+    preTrample(pts, o = {}) { trails.preTrample(pts, o); },
     setQuality,
     get quality() { return quality; },
     get texRes() { return texRes; },
