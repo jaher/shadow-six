@@ -262,8 +262,9 @@ export const TANK_ROUTE = [[80, 104.5], [75.5, 108.5], [64.5, 108.5], [64, 102],
 const VEHICLES = [
   // the inflatable, ready on the ledge's wet rim: §3.8 row 13 lists no carried raft, so it starts deployed here
   // ([K] "unload the pneumatic boat at your starting position"); the Marine can pack and relaunch it as usual.
-  // Five seats: every walkthrough rows the whole team (D9)
-  { id: 'raft', vehicleType: 'raft', x: 74.5, z: 157.5, heading: deg(180), inflated: true, seats: 5, operators: ['diver'], suspicious: false },
+  // Five seats: every walkthrough rows the whole team (D9). At the rim's south-east end, beside the Marine: from the
+  // rim's west end (74.5,157.5) e4 saw its tubes from t=0 and e2 from 24 s; here nobody does for 11 s (time to pack it)
+  { id: 'raft', vehicleType: 'raft', x: 79.5, z: 160.5, heading: deg(180), inflated: true, seats: 5, operators: ['diver'], suspicious: false },
   // the Biber: Marine only, one seat, two torpedoes; moored S of the pontoon
   { id: 'sub', vehicleType: 'minisub', variant: 'biber', x: 51, z: 73, heading: deg(180), seats: 1, operators: ['diver'], driveable: true, suspicious: false },
   // the Opel Blitz parked by the garage (dossier (68.5,104), nudged to (70,104.8) off the tank's route): its job is to

@@ -115,6 +115,13 @@ test('on: cues parse and match live events', () => {
   assert.equal(orderAction({}, { type: 'ability', id: 'knife' }), 'knife');
 });
 
+test("a step's who keeps the commandos and a mission's guest, and drops anything else", () => {
+  const wt = normalizeWalkthrough({ version: 1, mission: 'mx', steps: [
+    { cp: 'A1', who: ['greenberet', 'guest', 'e5'], say: 'one' }, { cp: 'A2', who: 'guest', say: 'two' }] }, { id: 'mx', stages: [{ id: 'A' }] });
+  assert.deepEqual(wt.steps[0].who, ['greenberet', 'guest']);
+  assert.deepEqual(wt.steps[1].who, ['guest'], 'a step led by the guest alone still shows who acts');
+});
+
 test('the step on screen follows the checkpoints and the chapters', () => {
   const stages = [{ id: 'A', title: 'Stage A' }, { id: 'B', title: 'Stage B' }];
   const wt = normalizeWalkthrough({ version: 1, mission: 'mx', steps: [

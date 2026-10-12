@@ -8,6 +8,8 @@
 
 export const FORMAT_VERSION = 1;
 export const ROLES = Object.freeze(['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy']);
+/** Roles a step's `who` may name: the six commandos plus a mission's `guest` (an NPC the team frees and leads, e.g. M12's Informer). */
+export const WHO_ROLES = Object.freeze([...ROLES, 'guest']);
 /** Words `look` accepts besides ids, roles and points. */
 export const LOOK_WORDS = Object.freeze(['decoy', 'charge']);
 export const MAX_SAY = 240;
@@ -88,7 +90,7 @@ export function normalizeWalkthrough(wt, { id = null, stages = [], missionTitle 
   for (const c of src.chapters || []) if (!chapters.some((x) => x.id === String(c.id))) chapters.push({ id: String(c.id), title: c.title || String(c.id), say: c.say || '' });
   const steps = (src.steps || []).map((s, i) => ({
     cp: String(s.cp), index: i, chapter: chapterOf(String(s.cp), chapters),
-    who: asList(s.who).filter((r) => ROLES.includes(r)), say: String(s.say || ''),
+    who: asList(s.who).filter((r) => WHO_ROLES.includes(r)), say: String(s.say || ''),
     look: asList(s.look), shot: !!s.shot, cones: s.cones == null ? null : asList(s.cones), zoom: s.zoom || null,
     beats: (s.beats || []).map((b) => ({ ...b, parsed: parseOn(b.on), look: b.look == null ? null : asList(b.look), cones: b.cones == null ? null : asList(b.cones) })),
   }));

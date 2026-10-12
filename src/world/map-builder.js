@@ -419,7 +419,9 @@ export function stampHeadroom(world, built) {
     const gy = typeof world.groundY === 'function' ? world.groundY : null, out = new Set();
     for (let k = 0; k < grid.overLo.length; k++) {
       const lo = grid.overLo[k];
-      if (lo === Infinity || keep.has(k) || grid.block[k] !== B.NONE) continue;
+      // (open water is swum or rowed, never walked: a lock gate's beam over an open channel — M13's south gate, latched
+      // open — must not shut it to divers and boats once a blast re-stamps the head room)
+      if (lo === Infinity || keep.has(k) || grid.block[k] !== B.NONE || grid.terrain[k] === T.WATER) continue;
       const i = k % grid.cols, j = (k / grid.cols) | 0, c = grid.cellCenter(i, j);
       const y = Math.max(grid.elev[k], gy ? gy.call(world, c.x, c.z) : 0);
       if (lo - y < HEAD_ROOM) out.add(k);

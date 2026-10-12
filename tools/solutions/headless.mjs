@@ -12,6 +12,7 @@ import { Commando } from '../../src/entities/commando.js';
 import { Enemy } from '../../src/entities/enemy.js';
 import { Vehicle } from '../../src/entities/vehicle.js';
 import { Entity } from '../../src/entities/entity.js';
+import { admitAtSpawn } from '../../src/entities/interactables.js';
 import { Alarm } from '../../src/ai/alarm.js';
 import { firstAidCarrier, FIRST_AID_DOSES, defaultInventory } from '../../src/items.js';
 import { createObjectives, checkObjectives, updateExtractionVehicle } from '../../src/core/objectives.js';
@@ -30,6 +31,7 @@ export function headlessMission(id) {
     const s = { ...c, campaign: mission.campaign, inventory: c.inventory ? { ...c.inventory } : undefined };
     if (c.role === medic && s.inventory?.firstAid === undefined && mission.firstAid !== false) s.inventory = { ...(s.inventory || defaultInventory(c.role)), firstAid: FIRST_AID_DOSES };
     const cmd = world.add(new Commando(s)) || world.commandos.at(-1);
+    if (c.hideout) admitAtSpawn(world, cmd, c.hideout); // (as Game._spawnUnits: he starts inside his hideout)
     // §7.3 `stance: 'crawl'`: the mission starts him prone (as Game: already down, no stance-change lockout)
     if (c.stance === 'crawl') { cmd.setStance('crawl'); cmd._stanceT = 0; }
   }

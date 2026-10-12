@@ -853,7 +853,8 @@ export class Walkthrough extends SolutionReplay {
       return;
     }
     for (const role of who) {
-      const chip = el('span', 'wt-who', cap, ROLE_NAMES[role] || role);
+      const unit = ROLE_NAMES[role] ? null : this.world.commandos.find((c) => c.role === role);
+      const chip = el('span', 'wt-who', cap, ROLE_NAMES[role] || unit?.nickname || unit?.name || role);
       chip.style.background = ROLE_COLORS[role] || '#ddd';
     }
     el('span', 'wt-say', cap, say);

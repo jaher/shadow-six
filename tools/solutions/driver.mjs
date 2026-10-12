@@ -149,6 +149,8 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
   // guard's nervousness builds up: anything but 'none' is an exposure, recorded per guard and commando. Legitimately
   // unseen = what canSee rules out (a man crawling in the light band, the Spy in uniform, a buried GB, out of LOS).
   const exposures = new Map();
+  let idleRafts = false; // (D.watchIdleRafts: an unused raft at its mission spawn counts too)
+  let crewedRafts = false; // (D.watchCrewedRafts: a raft with a crew aboard counts by its hull too)
   let lastRaft = null; // (the raft last seen deployed: planSneak plans a packed raft's next leg with it, from `o.from`)
   const viewers = () => {
     const out = [];
@@ -171,11 +173,16 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
     if (!cs.length) return;
     // a used raft lying empty is evidence too (§4.3): in any live cone with a clear line of sight, any band, it is seen
     // — whoever lies hidden beside it (under water, crawling unseen) does not make it innocent
-    const rafts = (w.vehicles || []).filter((v) => v.def?.raft && v.used && !v.removed && !v.destroyed && !v.occupants?.length);
+    // — with `D.watchCrewedRafts()` so is a raft with a crew aboard, by its hull (the hull edge nearest the guard, as an
+    // empty one; the men sit at its centre, so their own test alone misses the near tube); with `D.watchIdleRafts()`
+    // also the team's raft still lying where the mission put it. (Both opt-in: solutions written before them — M3 —
+    // are held to the crew's own test.)
+    const rafts = (w.vehicles || []).filter((v) => v.def?.raft && !v.removed && !v.destroyed
+      && (v.occupants?.length ? crewedRafts : (v.used || idleRafts)));
     // a boat rowed by the team is seen by its hull (ai/director _rowedBoats: the hull edge nearest the guard in his cone)
     const rowed = (w.vehicles || []).filter((v) => v.def?.boat && !v.def.raft && !v.removed && !v.destroyed && v.driver?.faction === 'player');
     for (const e of viewers()) {
-      for (const v of rafts) if (canSeeVehicle(e, v, w)) note(e, `empty ${tagOf(v)}`, 'raft', v.x, v.z);
+      for (const v of rafts) if (canSeeVehicle(e, v, w)) note(e, `${v.occupants?.length ? 'crewed' : v.used ? 'empty' : 'idle'} ${tagOf(v)}`, 'raft', v.x, v.z);
       for (const v of rowed) if (canSeeVehicle(e, v, w)) note(e, `${tagOf(v)} hull`, 'boat', v.x, v.z);
       const cone = coneAt(e, w.time);
       for (const c of cs) {
@@ -192,6 +199,10 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
   const D = {
     world: w, events, checkpoints, dt, log,
     get t() { return w.time; },
+    /** strict raft watch: the team's raft counts even before anyone has used it (lying at its mission spawn) */
+    watchIdleRafts: () => { idleRafts = true; },
+    /** strict raft watch: a crewed raft is seen by its hull (the near tube), not only by the men at its centre */
+    watchCrewedRafts: () => { crewedRafts = true; },
     /** an enemy by tag (e1…e34, st_barr1#0.0.0…) */
     get: (t) => w.enemies.find((e) => e.tag === t || e.id === t) || w.byId?.(t),
     /** a commando by role (greenberet, diver, sapper, spy) */
@@ -202,7 +213,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
     item: (id) => w.interactables.find((i) => i.tag === id || i.spawn?.id === id || i.switchId === id || i.def?.id === id),
     /** detections of a commando so far (the solution must keep this at 0) */
     detections: () => events.filter((e) => e.name === 'enemy:spotted' || e.name === 'enemy:challenge' || e.name === 'enemy:unmasked-spy' || e.name === 'vehicle:tainted').length,
-    /** every time a commando (or the raft's crew, or a used raft lying empty) was inside a live cone and SEEN (see watchTick) */
+    /** every time a commando, a used raft (empty or by its crewed hull) or a rowed boat was inside a live cone and SEEN (see watchTick) */
     exposures: () => [...exposures.values()],
     exposureReport: () => [...exposures.values()].map((x) => `${x.viewer} saw ${x.target} (${x.band}) ${x.ticks} ticks t=${x.from.toFixed(2)}–${x.to.toFixed(2)} first at ${x.at}`),
     failed() {

@@ -405,3 +405,23 @@ test('m12 fix2 #3: the ledge sentries overlook the courtyard (Prima/ooc/NL); men
   place(e8, 37, 28.8, LEVEL.B); place(gb, 36, 38); aim(e8, gb);
   assert.equal(canSee(e8, gb, w), 'none', 'a palace-roof man keeps the roof rule');
 });
+
+// ---------------------------------------------------------------- sol/m12 (the scripted solution's findings)
+test('m12 sol #1: the hideout men are inside from spawn (admitAtSpawn), not one tick later; let out on the roof at roof height', async () => {
+  const { admitAtSpawn } = await import('../../src/entities/interactables.js');
+  const s = makeSim(M(), { brains: false }), w = s.world;
+  installSetpieces(w, s.mission, { meshes: false });
+  const gb = s.cmd('greenberet'), sn = s.cmd('sniper');
+  // before any tick (the start trigger has not run): Game._spawnUnits / the solution harness admit them at once
+  for (const [c, id] of [[gb, 'w_block_front'], [sn, 'sn_hut']]) assert.ok(admitAtSpawn(w, c, id), `${c.role} admitted`);
+  assert.ok(gb.hidden && sn.hidden && gb.state === 'hidden' && sn.state === 'hidden');
+  assert.ok(!admitAtSpawn(w, gb, 'w_block_front'), 'a man already inside is not admitted twice');
+  s.run(0.2); // the start trigger (fallback) leaves them as they are
+  assert.ok(gb.hidden && sn.hidden);
+  // let out of the rooftop shack, the Sniper stands at roof height (he was taken for a man in the street: y 0)
+  sn.y = 0;
+  assert.ok(sn.hideout.release(sn));
+  assert.equal(sn.y, LEVEL.B, 'the Sniper out on the terrace at y 8');
+  assert.ok(gb.hideout.release(gb));
+  assert.equal(gb.y, 0, 'the Green Beret out in the courtyard at y 0');
+});

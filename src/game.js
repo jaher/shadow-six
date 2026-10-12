@@ -34,6 +34,7 @@ import { Input } from './engine/input.js';
 import { assets } from './engine/assets.js';
 import { World } from './world/world.js';
 import { Commando } from './entities/commando.js';
+import { admitAtSpawn } from './entities/interactables.js';
 import { Enemy } from './entities/enemy.js';
 import { Entity } from './entities/entity.js';
 import { Alarm } from './ai/alarm.js';
@@ -395,6 +396,8 @@ export class Game {
       }
       const c = new Commando(placed(world, s));
       world.add(c);
+      // §7.3 `hideout`: he starts inside that structure's door, hidden from the first tick (M12 GB and Sniper)
+      if (spawn.hideout) admitAtSpawn(world, c, spawn.hideout);
       // §7.3 `stance: 'crawl'`: the mission starts him prone (already down: no stance-change lockout)
       if (spawn.stance === 'crawl') { c.setStance('crawl'); c._stanceT = 0; }
     }

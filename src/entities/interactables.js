@@ -361,6 +361,11 @@ export class Interactable extends Entity {
     const out = this.params.exit || null;
     const p = out ? { x: out[0], z: out[1] } : this.world?.grid.nearestWalkable?.(this.x, this.z, 3) || { x: this.x, z: this.z };
     unit.setPosition?.(p.x, p.z);
+    // he stands on the ground outside the door: a door on a roof (M12's rooftop shack) lets him out at roof height (a
+    // unit's y only follows the ground while he walks a path; a man let out at y 0 on the roof was taken for a man in
+    // the street below by the roof rule, and planned his first crawl as one)
+    const g = this.world?.grid;
+    if (g?.elevAt) unit.y = g.surfaceY ? g.surfaceY(p.x, p.z) : g.elevAt(p.x, p.z);
     if (unit.object3d) unit.object3d.visible = true;
     this.world?.events.emit('door', { id: this.tag ?? this.id, open: true, unit, enter: false });
     return true;
@@ -464,6 +469,7 @@ export class Interactable extends Entity {
           if (u.object3d) u.object3d.visible = true;
           const p = w?.grid.nearestWalkable?.(this.x, this.z, 3) || { x: this.x, z: this.z };
           u.setPosition?.(p.x, p.z);
+          if (w?.grid?.elevAt) u.y = w.grid.surfaceY ? w.grid.surfaceY(p.x, p.z) : w.grid.elevAt(p.x, p.z); // (as release)
           w?.events.emit('unit:freed', { unit: u, jailId: id, by: commando });
         }
         return true;
@@ -684,6 +690,17 @@ export const explodeHook = { fn: null };
 /** Pickup marker mesh (small crate). */
 /** Pickup crate (m, w × d) and the body clearance kept round it (placement RULES.bodyNav). */
 const PICKUP_SIZE = [0.5, 0.4], BODY_NAV = RULES.bodyNav;
+
+/**
+ * §7.3 `hideout` (dossier D1, M12): a commando whose spawn names a structure starts inside its enterable door
+ * ("<structureId>:door"), hidden from the first tick — the same `admit` a door click uses. Called right after the
+ * commando is added (the map's doors exist by then). Returns true when he was let in.
+ */
+export function admitAtSpawn(world, unit, structureId) {
+  if (!structureId || !unit || unit.hidden) return false;
+  const door = (world.interactables || []).find((i) => i.interactKind === 'door' && i.enterable && (i.tag === `${structureId}:door` || i.id === `${structureId}:door`));
+  return !!door && door.admit(unit);
+}
 
 export function createPickup(itemId, x, z, count = 1, extra = {}) {
   const m = new THREE.Mesh(boxUV(new THREE.BoxGeometry(PICKUP_SIZE[0], 0.35, PICKUP_SIZE[1]).toNonIndexed(), 0.5), dressingMaterial('planks')); // a plank crate (placeholder-art pass)

@@ -14,8 +14,10 @@
  * Briefing text is our own wording (§7.3).
  *
  * Deviations from the dossier (engine / grid fit, see the commit message):
- *  - D1 (spawn inside a hideout) is not an engine feature: a `start` trigger admits the GB and the Sniper
- *    into their hideout doors on the first tick (dossier T3 fallback); `hideout` stays on the defs as data;
+ *  - D1 (spawn inside a hideout): the commandos' `hideout` is admitted at spawn (Game._spawnUnits →
+ *    interactables admitAtSpawn), hidden from tick 0 (sol/m12: before, the `start` trigger let them in on the
+ *    director's first tick and the GB stood in three ledge sentries' cones for two ticks); the `start` trigger
+ *    stays as the dossier T3 fallback (it skips a man already inside);
  *  - D2 stepped roofs are split structures (w_block_front A / w_block_rear B, palace B / palace_c C);
  *    the palace's raised roof sits at y 10, not 10.5, so B and C see each other under the 2 m roof rule
  *    (dossier §6 intent) and it lies wholly inside the palace's east half;
