@@ -32,6 +32,8 @@ export const DEFAULT_OPTIONS = Object.freeze({
   timeOfDay: 'mission',
   weather: 'mission',
   infoHud: true,
+  /** The info HUD as one line (FPS · frame ms · GPU MB) instead of the full panel + graph (its −/+ button). */
+  statsMin: false,
 });
 
 /** Roles "all commandos available" adds when missing, per ruleset (BCD guests join by script, Natasha is free). */
@@ -43,7 +45,10 @@ export const ALL_ROLES = Object.freeze({
 /**
  * Is debug mode on for this query string? `?debug`, `?debug=1`, `?debug=cones`, any value except 0/false/off.
  * @param {string|URLSearchParams} search
- * @returns {{enabled: boolean, value: string|null, cones: boolean, mission: string|null, walkthrough: string|null, speed: number|null}}
+ * `clean` (`?debug=clean` or `&clean`) and `test` (`?test=1`, the deterministic capture path) mark a capture run: video
+ * mode keeps the info HUD hidden there (recordings stay clean).
+ * @returns {{enabled: boolean, value: string|null, cones: boolean, mission: string|null, walkthrough: string|null, speed: number|null,
+ *   clean: boolean, test: boolean}}
  */
 export function parseDebugParams(search) {
   const p = search instanceof URLSearchParams ? search : new URLSearchParams(search || '');
@@ -54,7 +59,7 @@ export function parseDebugParams(search) {
   // `&speed=4` (or 4x, 0.5, ½): video mode's starting speed; the Walkthrough keeps it only if it is one of its speeds
   const sp = parseFloat(String(p.get('speed') || '').replace('½', '0.5'));
   return { enabled, value, cones: enabled && parts.includes('cones'), mission: p.get('mission') || null, walkthrough: p.get('walkthrough') || null,
-    speed: sp > 0 ? sp : null };
+    speed: sp > 0 ? sp : null, clean: enabled && (parts.includes('clean') || p.has('clean')), test: p.get('test') === '1' };
 }
 
 /** Coerce stored / partial options onto DEFAULT_OPTIONS (unknown keys dropped, bad values reset). */

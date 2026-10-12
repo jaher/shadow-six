@@ -51,6 +51,13 @@ switch to the library only for hinted variants; a hinted `sea_wall` tiles its 8 
   houses with bluestone trims and wall anchors, one with the door on the W gable, whitewashed / brick farmhouses, grey rendered
   townhouses, the village railway halt with its platform canopy, a brick field hut, the island's tarred plank shed, the round
   camouflaged pillbox, the ridge field tent, an abandoned crawler bulldozer). Own types only; M16 picks them by `asset`.
+- M6 (Masi, Finnmark; `manifest-masi.json`): `norway/q_m06.txt` lists the builds (`masi_ruin.py`: the two roofless bombed log
+  manors with their walkable plank deck at 3.2 m, burnt upper storey broken off along the mission's parapets / partitions,
+  chimney stack, white stone stairs and ladder at the mission's links; `masi_tower.py`: the round laft log tower with its
+  snow-capped shingle cone and the rubble-granite round tower; `masi_garrison.py`: the stone chapel, the log barrack with a
+  sod roof and a flat roof section, the fortified HQ block with its walkable roof at 6.5 m, each with a burnt-out
+  `_destroyed` twin; `masi_small.py`: lean-to, burnt log house, long-case clock, wheeled Gatling, log pile, handcart). Own
+  types only; M6 picks them by `asset`.
 - M9 (Bab el Qattara, `manifest-bab-el-qattara.json`): `desert/q_m09.txt` lists the builds (`bq_*.py` on `bq_common.py`: the open
   three-bay corrugated tank shed with its torn roof and rolled camouflage net, sandstone houses under Marseille tiles and the
   weapons store with its porch, the whitewashed NE hideout, the command post with its mud-brick annex, the domed garrison block

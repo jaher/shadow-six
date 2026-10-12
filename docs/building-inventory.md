@@ -63,7 +63,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `house_log_cabin` | house | Norwegian log cabin with a snow-laden gable roof and 1 storey | Norway | M2, M3 (4-5 in the palisade), M5 (village), M6 | E, D | 7×5×5 | norway |
 | `house_timber_farm` | house | 2-storey timber farmhouse, snowy roof | Norway | M1 (rendezvous, `ALBERGUE01-03`) | E, C | 10×7×8 | norway |
 | `house_norse_fishing` | house | Dark-tarred and red-painted Norwegian coastal houses, some with boat-shed annexes | Norway coast | M7 (E village) | E; the village barracks is D, B | 9×6×7 | VAR:norway |
-| `house_bombed_log` | ruins | Roofless, bombed-out 2-storey log house. **Interior** needed: floors, chequer-tile floor, white interior stairs, interior ladder, grandfather clock, round log corner turret, exterior stairs, a C broken wall | Norway | **M6 (×2)** | E, C, L | 16×12×8 | VAR:europe (ruined houses) |
+| `house_bombed_log` | ruins | Roofless, bombed-out 2-storey log house. **Interior** needed: floors, chequer-tile floor, white interior stairs, interior ladder, grandfather clock, round log corner turret, exterior stairs, a C broken wall | Norway | **M6 (×2)** | E, C, L | 16×12×8 | BUILT (M6 art pass: `house_bombed_log_w` / `_ne`, deck at 3.2 m) |
 | `house_whitewash_flat` | flat_roof_house | Whitewashed flat-roof house with parapet | N. Africa | M8, M9, M11 | E, R | 8×7×4 | desert (M9 pass: `house_flat_white_bq` door W, `command_post_white_bq` + destroyed) |
 | `house_adobe_redtile` | house | Adobe row house with a red-tile pent roof | N. Africa | M8 (×6) | E | 6×5×4 | BUILT (M8 pass: five builds `house_adobe_redtile_n1`-`_n3` door N, `_w1` / `_w2` door W, door centred; awning / annex + stair / lean-to / dovecote / water-jar stand on the S and E faces) |
 | `house_stone_pitched` | house | Stone house with a pitched roof, desert village | N. Africa | M9 | E | 7×6×5 | VAR:desert (M9 pass: `house_stone_bq_a/_b`, `house_stone_store_bq` + destroyed) |
@@ -107,9 +107,9 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `nissen_hut` | hut | Corrugated half-cylinder (Nissen/Quonset) hut | Norway/France | M2 (in the camp), M13 (×3) | E | 10×6×4 | BUILT (M13 pass: `nissen_hut` 12 m, `nissen_hut_b` 10 m; manifest-le-havre) |
 | `quonset_hangar` | hangar | Large Quonset arched hangar | Norway | M7 (NW) | E | 30×15×8 | VAR:military |
 | `hq_villa_brick` | villa | Red-brick 2-3 storey HQ (`JEFATURA`): stone steps, circular drive around a fountain or monument, double walls with gatehouses, inner-court barracks, steps down to a pier | Norway | M4 | **D** (charge on steps), E | 22×14×12 | military |
-| `hq_log_flatroof` | house | Log HQ with a flat roof section, rooftop gear and flag; a guard stands on the roof | Norway | M6 | R, L | 14×10×6 | VAR:norway |
-| `stone_chapel_tower` | house | Stone building with a round tower, slate roof, arched door and flag | Norway | M6 (NW) [img, critic] | E | 16×8×10 | NEW |
-| `fortified_block_tower` | house | Stone-and-timber block with a round stone tower, flag, lean-to open canopy, ladder and platform | Norway | M6 (the "NE fortified block") [img, critic] | L, R | 16×12×10 | NEW |
+| `hq_log_flatroof` | house | Log HQ with a flat roof section, rooftop gear and flag; a guard stands on the roof | Norway | M6 | R, L | 14×10×6 | BUILT (M6 art pass: `hq_log_flatroof` + `_destroyed`) |
+| `stone_chapel_tower` | house | Stone building with a round tower, slate roof, arched door and flag | Norway | M6 (NW) [img, critic] | E | 16×8×10 | BUILT (M6 art pass: `chapel_stone_no` + `_destroyed`, tower `tower_round_stone`) |
+| `fortified_block_tower` | house | Stone-and-timber block with a round stone tower, flag, lean-to open canopy, ladder and platform | Norway | M6 (the "NE fortified block") [img, critic] | L, R | 16×12×10 | BUILT (M6 art pass: `hq_fortified_block` + `_destroyed`, roof at 6.5 m; `tower_round_stone`, `lean_to_canopy`) |
 | `hq_domed_terraced` | new | Whitewashed, flagged command post: terraced, with a dome and outside stairs | N. Africa | M9, M11 (central garrison, guards on the roof) | **D**, R, L | 16×12×8 | BUILT (M9 pass: `hq_domed_terraced_bq` 12×15, arcade W, dome, roof terrace + outside stair, + destroyed; manifest-bab-el-qattara) |
 | `domed_block` | house | Flat-roof block with an observatory-like dome | N. Africa | M10 (walled compound) [img] | E | 10×10×7 | VAR:desert |
 | `warehouse_adobe` | house | Flat-roof adobe warehouse with a large door | N. Africa | M9 (E and W) | D, E | 16×10×6 | VAR:desert |
@@ -136,7 +136,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | id | base | Description, style, materials | Theater | Missions | Flags | Size (m) | Status |
 |---|---|---|---|---|---|---|---|
 | `watchtower_stilt` | watchtower | Timber stilt watchtower with a roofed platform and ladder | All | M2 (×2 MG towers), M17 (×5), M19, B5 (perimeter towers `TORRE_PERIMETRO`), B7 (corners, `TORRE_SO`) | L, R, D (M19) | 3×3×8 | military |
-| `tower_round_log` | new | Cylindrical log tower with a snow-capped conical top at a palisade corner. These are the M6 "round wooden watchtowers" | Norway | M6 (×4-5) [img, critic] | L [inf] | 4 Ø × 7 | NEW |
+| `tower_round_log` | new | Cylindrical log tower with a snow-capped conical top at a palisade corner. These are the M6 "round wooden watchtowers" | Norway | M6 (×4-5) [img, critic] | L [inf] | 4 Ø × 7 | BUILT (M6 art pass: `tower_round_log`) |
 | `searchlight_tower` | searchlight | Searchlight on a tower, with an interrupter (`FOCO`, `FOCODEST`, `INTERFOC`) | Germany | BCD extra map `MAPA0009` (a B7 variant) | D | 3×3×7 | VAR:military |
 | `mg_nest_sandbag` | sandbags | Sandbag MG/Gatling nest ring, open behind (`NIDOMET`/`METRBASE`) | All | M1, M4 (×3), M6, M10 (×3), M14 (×5), B1 (×3), B4 (×2), B5 (×4) | — | 4 Ø × 1.2 | military |
 | `bunker_concrete` | bunker | Flat concrete bunker, flagged in places, releases patrols | All | M3 (dam abutment + about 4 garrison bunkers), M5 (SE, D), M8 (SW), M10 (airfield), M19 | D (M3, M5) | 8×6×3 | military; M19 pass: `bunker_obs_de` round Ringstand-type observation bunker |

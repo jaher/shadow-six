@@ -761,6 +761,15 @@ export class Walkthrough extends SolutionReplay {
     if (menuBtn && menuBtn.top > vh * 0.6) left = Math.max(left, menuBtn.right + 8);
     if (hb && hb.left - left >= 300) right = Math.min(right, hb.left - 8);
     else if (hb) { bottom = vh - hb.top + 6; left = 8; }
+    // the debug stats (bottom left: minimized by default in video mode, or expanded): beside it, else above it
+    const dbg = rectOf('#dbg-info');
+    if (dbg) {
+      const capH = cap.getBoundingClientRect().height || 60;
+      if (dbg.bottom > vh - bottom - capH - 4 && dbg.top < vh - bottom) {
+        if (right - (dbg.right + 8) >= 300) left = Math.max(left, dbg.right + 8);
+        else bottom = Math.max(bottom, vh - dbg.top + 6);
+      }
+    }
     const w = Math.min(780, right - left);
     cap.style.width = `${Math.round(w)}px`;
     cap.style.left = `${Math.round(left + (right - left - w) / 2)}px`;

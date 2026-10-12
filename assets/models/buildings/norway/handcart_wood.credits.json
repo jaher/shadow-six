@@ -1,0 +1,101 @@
+{
+ "asset": "handcart_wood",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "boards_weathered": {
+   "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathered vertical boards 0.2 m, per-plank ageing + tar staining",
+   "files": {
+    "diff": {
+     "1k": "1k/boards_weathered_diff",
+     "2k": "2k/boards_weathered_diff"
+    },
+    "nor": {
+     "1k": "1k/boards_weathered_nor",
+     "2k": "2k/boards_weathered_nor"
+    },
+    "arm": {
+     "1k": "1k/boards_weathered_arm",
+     "2k": "2k/boards_weathered_arm"
+    }
+   }
+  },
+  "hessian": {
+   "source": "Poly Haven",
+   "id": "hessian_230",
+   "url": "https://polyhaven.com/a/hessian_230",
+   "authors": [
+    "colormass",
+    "Rico Cilliers"
+   ],
+   "license": "CC0-1.0",
+   "name": "Hessian 230",
+   "label": "Hessian sandbag cloth",
+   "files": {
+    "diff": {
+     "2k": "2k/hessian_diff",
+     "1k": "1k/hessian_diff"
+    },
+    "nor": {
+     "2k": "2k/hessian_nor",
+     "1k": "1k/hessian_nor"
+    },
+    "arm": {
+     "2k": "2k/hessian_arm",
+     "1k": "1k/hessian_arm"
+    }
+   }
+  },
+  "steel_painted": {
+   "source": "Poly Haven",
+   "id": "rusty_painted_metal",
+   "url": "https://polyhaven.com/a/rusty_painted_metal",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Painted Metal",
+   "label": "Painted riveted steel (bridge grey-green)",
+   "files": {
+    "diff": {
+     "2k": "2k/steel_painted_diff",
+     "1k": "1k/steel_painted_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_painted_nor",
+     "1k": "1k/steel_painted_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_painted_arm",
+     "1k": "1k/steel_painted_arm"
+    }
+   }
+  },
+  "wood_paint": {
+   "source": "Poly Haven",
+   "id": "weathered_peeling_timber",
+   "url": "https://polyhaven.com/a/weathered_peeling_timber",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Peeling Timber",
+   "label": "Pale painted wood base (tint via kit_tint for shutters/frames)",
+   "files": {
+    "diff": {
+     "2k": "2k/wood_paint_diff",
+     "1k": "1k/wood_paint_diff"
+    },
+    "nor": {
+     "2k": "2k/wood_paint_nor",
+     "1k": "1k/wood_paint_nor"
+    },
+    "arm": {
+     "2k": "2k/wood_paint_arm",
+     "1k": "1k/wood_paint_arm"
+    }
+   }
+  }
+ }
+}

@@ -6,7 +6,11 @@
  *  - the GPU counter agrees with tools/perf/mem-probe.js (the memory test's meter) on the same session;
  *  - a lost + restored context: the counter drops the lost objects and counts the re-uploads (no double count), the
  *    triangles still update (three's new renderer.info is hooked again);
- *  - video mode hides the HUD (clean recordings) until F11.
+ *  - the perf graph is drawn (non-empty pixels) in the expanded panel; −/+ minimizes it to one line and back, remembered
+ *    in the debug options, without any click reaching the game (canvas, orders) or keeping the keyboard focus, and no
+ *    graph is drawn while minimized;
+ *  - video mode shows it minimized by default (F11 hides / shows it, + expands it for that walkthrough only); a capture
+ *    run (?test=1) keeps it hidden there.
  * README "Debug mode", design-spec §10.7.
  */
 import { join } from 'node:path';
@@ -86,23 +90,90 @@ export default async function debugStats(page, t) {
     t(lost.newInfo && lost.hooked && lost.tris > 10000, `triangles still counted on three's new renderer.info (${lost.tris | 0})`);
   }
 
-  // video mode: hidden by default (clean recordings), F11 shows it for that walkthrough, the option is untouched
-  const vid = async () => page.evaluate(() => ({ hidden: document.getElementById('dbg-info').hidden, shown: getComputedStyle(document.getElementById('dbg-info')).display !== 'none', video: document.body.classList.contains('dbg-video') }));
+  // the perf graph (expanded: the default)
+  const gr = await page.evaluate(async () => {
+    const m = window.shadowSix.debug.mode, cv = document.querySelector('#dbg-info .dbg-graph');
+    await new Promise((ok) => setTimeout(ok, 600));
+    const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    let lit = 0;
+    for (let i = 3; i < d.length; i += 4) if (d[i] > 0) lit++;
+    return { lit, px: cv.width * cv.height, w: cv.clientWidth, h: cv.clientHeight, info: m.graphInfo, draws: m.graphDraws, n: m.series.n,
+      bg: getComputedStyle(document.getElementById('dbg-info')).backgroundColor };
+  });
+  t(gr.w > 200 && gr.h >= 60 && gr.lit > gr.px * 0.3, `graph drawn (${gr.lit} of ${gr.px} px lit, ${gr.w}×${gr.h})`);
+  t(gr.info && gr.info.bars > 100 && gr.info.yMax >= 50 && gr.n > 100, `graph bars from the per-frame ring (${JSON.stringify(gr.info)}, ${gr.n} samples)`);
+  const alpha = +(/rgba\([^)]*,\s*([\d.]+)\)/.exec(gr.bg)?.[1] ?? 1);
+  t(alpha >= 0.3 && alpha <= 0.5, `see-through background (${gr.bg})`);
+
+  // −/+ : minimize, nothing reaches the game, remembered; expand again
+  const tog = async () => {
+    await page.evaluate(() => {
+      const G = window.shadowSix, cv = G.renderer.domElement;
+      window.__gameHits = 0;
+      window.__hit = () => { window.__gameHits++; };
+      cv.addEventListener('pointerdown', window.__hit, true);
+      window.__enq0 = G.enqueue;
+      if (typeof G.enqueue === 'function') G.enqueue = (...a) => { window.__gameHits++; return window.__enq0.apply(G, a); };
+    });
+    await page.click('#dbg-info .dbg-tog');
+    await page.waitForTimeout(300);
+    return page.evaluate(() => {
+      const G = window.shadowSix, m = G.debug.mode, box = document.getElementById('dbg-info');
+      G.renderer.domElement.removeEventListener('pointerdown', window.__hit, true);
+      if (window.__enq0) G.enqueue = window.__enq0;
+      let stored = null;
+      try { stored = JSON.parse(localStorage.getItem('shadowsix.debug.options')).statsMin; } catch { /* none */ }
+      return { min: box.classList.contains('min'), text: box.querySelector('.dbg-txt').textContent, hits: window.__gameHits, stored, opt: m.options.statsMin,
+        focus: document.activeElement?.className || document.activeElement?.tagName, graphShown: getComputedStyle(box.querySelector('.dbg-graph')).display !== 'none',
+        h: box.getBoundingClientRect().height, draws: m.graphDraws };
+    });
+  };
+  const a1 = await tog();
+  t(a1.min && /^FPS \d+ · [\d.]+ ms · GPU \d+ MB$/.test(a1.text) && !a1.graphShown && a1.h < 50, `− minimizes to one line (${JSON.stringify(a1)})`);
+  t(a1.hits === 0, `the button's click never reaches the game (${a1.hits})`);
+  t(a1.stored === true && a1.opt === true, 'minimized state remembered in the debug options');
+  t(a1.focus !== 'dbg-tog', `the keyboard stays with the game (focus: ${a1.focus})`);
+  await page.waitForTimeout(1200);
+  t((await page.evaluate(() => window.shadowSix.debug.mode.graphDraws)) === a1.draws, 'no graph drawing while minimized');
+  const a2 = await tog();
+  t(!a2.min && a2.graphShown && /draws\s+\d+/.test(a2.text) && a2.stored === false && a2.hits === 0, `+ expands again (${JSON.stringify({ ...a2, text: undefined })})`);
+
+  // video mode: shown minimized by default, F11 hides / shows, + expands for that walkthrough only (the option stays)
+  const vid = async () => page.evaluate(() => {
+    const box = document.getElementById('dbg-info');
+    return { hidden: box.hidden, shown: getComputedStyle(box).display !== 'none', min: box.classList.contains('min'), video: document.body.classList.contains('dbg-video'), opt: window.shadowSix.debug.mode.options.statsMin };
+  });
   await page.evaluate(() => {
     const m = window.shadowSix.debug.mode;
     m.replay = { isWalkthrough: true, sol: { id: 'm01' }, stage: null, speed: 1, stop() {}, key() { return false; } }; // stand-in walkthrough
-    m._videoInfo = false;
     m._frameApply();
   });
   let v = await vid();
-  t(v.video && v.hidden && !v.shown, `hidden in video mode (${JSON.stringify(v)})`);
+  t(v.video && !v.hidden && v.shown && v.min, `video mode: shown, minimized (${JSON.stringify(v)})`);
+  await page.click('#dbg-info .dbg-tog');
+  v = await vid();
+  t(!v.min && v.shown && v.opt === false, `+ expands it in video mode, the remembered option untouched (${JSON.stringify(v)})`);
+  await page.keyboard.press('F11');
+  t((await vid()).hidden, 'F11 hides it in video mode');
   await page.keyboard.press('F11');
   v = await vid();
-  t(!v.hidden && v.shown, `F11 shows it in video mode (${JSON.stringify(v)})`);
-  await page.keyboard.press('F11');
-  t((await vid()).hidden, 'F11 again hides it');
+  t(!v.hidden && v.shown, `F11 shows it again (${JSON.stringify(v)})`);
   await page.evaluate(() => { const m = window.shadowSix.debug.mode; m.replay = null; m._frameApply(); });
   v = await vid();
-  t(!v.video && !v.hidden && v.shown, `back from video mode: the option (on) applies (${JSON.stringify(v)})`);
+  t(!v.video && !v.hidden && v.shown && !v.min, `back from video mode: the options apply (${JSON.stringify(v)})`);
   t(await page.evaluate(() => window.shadowSix.debug.mode.options.infoHud === true), 'video-mode F11 left the remembered option alone');
+
+  // a capture run (?test=1, the deterministic film path): video mode keeps it hidden
+  await page.goto(`${url}/index.html?test=1&debug`);
+  await page.waitForFunction(() => document.body.dataset.ready === '1' && !!window.shadowSix?.debug?.mode, null, { timeout: 60000 });
+  v = await page.evaluate(() => {
+    const m = window.shadowSix.debug.mode;
+    m.replay = { isWalkthrough: true, sol: { id: 'm00' }, stage: null, speed: 1, stop() {}, key() { return false; } };
+    m._frameApply();
+    const box = document.getElementById('dbg-info');
+    const out = { capture: m.capture, hidden: box.hidden, shown: getComputedStyle(box).display !== 'none' };
+    m.replay = null; m._frameApply();
+    return out;
+  });
+  t(v.capture && v.hidden && !v.shown, `capture run: hidden in video mode (${JSON.stringify(v)})`);
 }

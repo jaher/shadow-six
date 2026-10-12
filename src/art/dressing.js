@@ -515,6 +515,7 @@ export function buildWall(points, o) {
   if (/^mudbrick_broken$/.test(String(o.variant))) return ruinedMudWall(points, { ...o, h, width }, R); // M9 art pass: the broken stub
   if (/^mudbrick_wire$/.test(String(o.variant))) return campMudWall(points, { ...o, h, width }, R);     // M9 art pass: the octagon
   if (kind === 'stone' && /ruined_stone_low/.test(String(o.variant))) return ruinedFieldWall(points, { ...o, h, width }, R);
+  if (kind === 'stone' && /stone_railing/.test(String(o.variant))) return stoneRailingWall(points, { ...o, h, width }, R);
   const mat = dressingMaterial(kind);
   for (let k = 0; k + 1 < points.length; k++) {
     const [ax, az] = points[k], [bx, bz] = points[k + 1], L = Math.hypot(bx - ax, bz - az);
@@ -675,6 +676,41 @@ function ruinedFieldWall(points, o, R) {
       b.position.set(cx + tx * u + nx * sd * off, 0, cz + tz * u + nz * sd * off); b.rotation.y = R() * 6.3; root.add(b);
     }
   }
+  return consolidate(root);
+}
+
+/**
+ * M6 art pass (Masi, Finnmark): a grey granite rubble wall with a dressed coping, square piers every few metres and
+ * an iron railing (round bars with spear points between two flat rails) making up the gameplay height (`stone_railing`).
+ */
+function stoneRailingWall(points, o, R) {
+  const h = o.h, width = o.width, root = new THREE.Group(); root.name = 'dressing:wall:stone_railing';
+  const stone = dressingMaterial('fieldstone'), cope = dressingMaterial('granite'), damp = dressingMaterial('rubble'), iron = dressingMaterial('castIron');
+  const hb = Math.max(0.6, h - 0.75), bars = [];
+  for (let k = 0; k + 1 < points.length; k++) {
+    const [ax, az] = points[k], [bx, bz] = points[k + 1], L = Math.hypot(bx - ax, bz - az);
+    if (L < 1e-3) continue;
+    const rot = -Math.atan2(bz - az, bx - ax), cx = (ax + bx) / 2, cz = (az + bz) / 2, Lw = L + width;
+    const tx = (bx - ax) / L, tz = (bz - az) / L;
+    const wall = mesh(boxUV(new THREE.BoxGeometry(Lw, hb, width), 1.6), stone); wall.position.set(cx, hb / 2, cz); wall.rotation.y = rot; root.add(wall);
+    const foot = mesh(boxUV(new THREE.BoxGeometry(Lw + 0.04, 0.3, width + 0.05), 1.4), damp); foot.position.set(cx, 0.15, cz); foot.rotation.y = rot; root.add(foot);
+    const cap = mesh(boxUV(new THREE.BoxGeometry(Lw + 0.06, 0.12, width + 0.1), 1.2), cope); cap.position.set(cx, hb + 0.06, cz); cap.rotation.y = rot; root.add(cap);
+    const np = Math.max(1, Math.round(L / 3.2));
+    for (let i = 0; i <= np; i++) {                    // piers with pyramid caps
+      const u = -L / 2 + (L * i) / np, px = cx + tx * u, pz = cz + tz * u;
+      const pier = mesh(boxUV(new THREE.BoxGeometry(width + 0.16, h - 0.08, width + 0.16), 1.4), stone); pier.position.set(px, (h - 0.08) / 2, pz); pier.rotation.y = rot; root.add(pier);
+      const pc = mesh(new THREE.ConeGeometry((width + 0.24) * 0.72, 0.18, 4, 1), cope); pc.position.set(px, h + 0.01, pz); pc.rotation.y = rot + Math.PI / 4; root.add(pc);
+    }
+    for (const y of [hb + 0.2, h - 0.12]) {            // flat rails
+      const r = mesh(new THREE.BoxGeometry(L, 0.04, 0.02), iron); r.position.set(cx, y, cz); r.rotation.y = rot; root.add(r);
+    }
+    for (let u = -L / 2 + 0.2; u < L / 2 - 0.15; u += 0.15) {   // bars (one merged geometry per run below)
+      const g = new THREE.CylinderGeometry(0.009, 0.009, h - hb - 0.1, 5); g.translate(cx + tx * u, hb + 0.06 + (h - hb - 0.1) / 2, cz + tz * u); bars.push(g);
+      const sp = new THREE.ConeGeometry(0.02, 0.07, 4); sp.translate(cx + tx * u, h - 0.01, cz + tz * u); bars.push(sp);
+    }
+  }
+  if (bars.length) root.add(mesh(mergeGeometries(bars.map((g) => g.toNonIndexed())), iron));
+  for (const g of bars) g.dispose();
   return consolidate(root);
 }
 

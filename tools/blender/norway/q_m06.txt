@@ -1,0 +1,22 @@
+# M6 art pass (Masi, Finnmark, Norway 1941): "script -- outroot variant seed" (norway family; nlib + the europe eu_common /
+# eu_dmg helpers; each build writes <outroot>/<asset>/). Ship with tools/blender/consolidate/addon_manifest.py:
+#   <art_root> <repo> manifest-masi norway ruin_log_manor=house_bombed_log_w,house_bombed_log_ne
+#     tower_round=tower_round_log,tower_round_stone chapel_stone=chapel_stone_no hq_log=hq_log_flatroof hq_block=hq_fortified_block
+#     lean_to=lean_to_canopy ruin_timber=ruin_burned_timber clock_case=grandfather_clock gatling=gatling_wheeled
+#     log_pile=log_pile_stack handcart=handcart_wood
+masi_ruin.py -- out w 1
+masi_ruin.py -- out ne 1
+masi_tower.py -- out log 1
+masi_tower.py -- out stone 1
+masi_garrison.py -- out chapel 1
+masi_garrison.py -- out chapeld 1
+masi_garrison.py -- out barr 1
+masi_garrison.py -- out barrd 1
+masi_garrison.py -- out hq 1
+masi_garrison.py -- out hqd 1
+masi_small.py -- out lean 1
+masi_small.py -- out burnt 1
+masi_small.py -- out clock 1
+masi_small.py -- out gatling 1
+masi_small.py -- out logs 1
+masi_small.py -- out cart 1

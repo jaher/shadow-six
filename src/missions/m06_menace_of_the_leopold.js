@@ -48,7 +48,7 @@ const CHARGE = {
  * `variant` keeps the building-inventory look for the building library.
  */
 const tower = (id, x, z, r, h, mat = 'woodDark', variant = 'tower_round_log') =>
-  ({ id, type: 'minaret', variant, x, z, rot: 0, r, h, mat, block: 2 });
+  ({ id, type: 'minaret', variant, asset: variant, x, z, rot: 0, r, h, mat, block: 2 }); // art pass: Masi add-on builds
 
 /** Czech hedgehog (road barricade / wire belts): low, blocks movement, see-through above 1 m. */
 const hedgehog = (id, x, z) => ({ id, type: 'crates', variant: 'czech_hedgehog', x, z, rot: deg(45), w: 1.4, d: 1.4, h: 1.2, block: 1 });
@@ -62,12 +62,41 @@ const hedgehog = (id, x, z) => ({ id, type: 'crates', variant: 'czech_hedgehog',
  */
 const deckWall = (id, points, above, width = 0.5) =>
   ({ id, type: 'wall', variant: above > 1.5 ? 'log_partition' : 'log_parapet_broken', mat: 'woodDark', points, h: DECK + above, width,
-    walkways: [{ points, width, y: DECK + above }] });
+    walkways: [{ points, width, y: DECK + above }], visual: false }); // drawn by the ruin's own build (house_bombed_log_w)
 
 // garrison loops (released on RINT, §9 of the dossier)
 const CHAPEL_LOOP = [P(78, 28), P(100, 35), P(90, 42), P(72, 33)];
 const BARRC_LOOP = [P(50, 62), P(80, 62), P(80, 52), P(50, 54)];
 const HQ_LOOP = [P(103, 81), P(104, 68), P(96, 62), P(80, 64), P(78, 88), P(100, 88)];
+
+// ---------------------------------------------------------------- art pass: set dressing (visual only, clear of every
+// route, post and cone: furniture never touches the walk grid (block false), the drums are drawn only (block 0)
+/** A parked BMW R75 combination at the HQ door, an Opel Blitz by the NE ruin (free ground, out of every walk). */
+const PARKED = [
+  { id: 'moto_hq', type: 'crates', variant: 'vehicle_parked', label: 'Motorcycle', x: 85.5, z: 85.4, rot: 0, w: 2.4, d: 1.7, h: 1.1, block: 1,
+    vehicleArt: 'r75_sidecar' },
+  { id: 'truck_ne', type: 'crates', variant: 'truck_parked', label: 'Truck', x: 124.5, z: 30.6, rot: deg(180), w: 6, d: 2.3, h: 2.6, block: 1,
+    vehicleArt: 'opel_blitz_cargo' },
+];
+/** Fuel drums stood against walls (drawn only: nobody walks there). */
+const DRUMS = [[64.6, 42.1], [85.2, 70.1], [87, 70.2]].map(([x, z], k) => ({ id: `drums_${k + 1}`, type: 'barrels', x, z, r: 0.7, h: 1, block: 0 }));
+/** Ground under an exterior stone flight (ruin_w's own mesh, laid out as the engine's link flight): nobody walks THROUGH
+ *  it at ground level — only its stair link climbs it. `noWalk` stamps ground cells only (the deck stays open); the
+ *  polygon starts just past the foot point, so the link's foot cell stays open. half: half-width (flight 1.3 m + body). */
+const flightNoWalk = (id, foot, top, half = 0.9, skip = 0.05) => {
+  const L = Math.hypot(top[0] - foot[0], top[1] - foot[1]), u = [(top[0] - foot[0]) / L, (top[1] - foot[1]) / L], s = [-u[1] * half, u[0] * half];
+  const a = [foot[0] + u[0] * skip, foot[1] + u[1] * skip];
+  return { id: `flight_${id}`, points: [[a[0] + s[0], a[1] + s[1]], [top[0] + s[0], top[1] + s[1]], [top[0] - s[0], top[1] - s[1]], [a[0] - s[0], a[1] - s[1]]] };
+};
+/** Wooden lamp posts at the chapel door, by the central barracks and on the road verge below the HQ; road signs. */
+const FURNITURE = [
+  { type: 'lamp', variant: 'norway_wood', x: 72.6, z: 17.8, rot: deg(90), block: false }, // W of the chapel door, ~5 m off the main line
+  { type: 'lamp', variant: 'norway_wood', x: 51.2, z: 46.0, rot: deg(0), block: false },
+  { type: 'lamp', variant: 'norway_wood', x: 80.5, z: 92.8, rot: deg(-90), block: false },
+  { type: 'sign', variant: 'fingerpost', x: 17.5, z: 58.5, rot: deg(-45), text: 'ALTA 130 km', block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 4.5, z: 29.5, rot: deg(45), text: 'SPERRGEBIET', block: false },
+  { type: 'milestone', x: 70.5, z: 100.6, rot: deg(-60), text: 'RV 93\nMASI 2', block: false },
+];
 
 export default {
   id: 'm06',
@@ -120,7 +149,7 @@ export default {
   // placement rule (c): the towers, lean-to and tent pair below are deliberate joins (joinStructures)
   structures: joinStructures([
     // --- the W ruin (the way in): roofless 2-storey log manor, whole footprint a walkable upper floor at y 3.2
-    { id: 'ruin_w', type: 'flat_roof_house', variant: 'house_bombed_log', x: 32, z: 35.5, rot: 0, w: 24, d: 21, h: DECK, roofY: DECK, mat: 'woodDark', roofWalk: true },
+    { id: 'ruin_w', type: 'flat_roof_house', variant: 'house_bombed_log', asset: 'house_bombed_log_w', x: 32, z: 35.5, rot: 0, w: 24, d: 21, h: DECK, roofY: DECK, mat: 'woodDark', roofWalk: true },
     // its upper floor (x 20–44, z 25–46): parapets round the edge, open at the climb spot, the ladder and both stair
     // heads; partitions: the N room (e2, e3) walled off from the middle, a W passage from the climb spot (fan map)
     ...[
@@ -132,25 +161,27 @@ export default {
       ['rw_n1', [[24.5, 32.5], [31, 32.5]]], ['rw_n2', [[33, 32.5], [38, 32.5]]], ['rw_w', [[24.5, 32.5], [24.5, 39.5]]],
     ].map(([id, pts]) => deckWall(id, pts, 2.2)),
     // the grandfather clock by e2 (cover on the deck: bodies are hidden behind it [K][P])
-    { id: 'rw_clock', type: 'crates', variant: 'grandfather_clock', x: 22.5, z: 27.5, rot: 0, w: 0.8, d: 0.5, h: DECK + 2.0, block: 2,
+    { id: 'rw_clock', type: 'crates', variant: 'grandfather_clock', asset: 'grandfather_clock', x: 22.5, z: 27.5, rot: 0, w: 0.8, d: 0.5, h: DECK + 2.0, block: 2,
+      fixed: true, clipAllow: ['ruin_w'], // stands ON the deck (its build starts at y 3.2): never relocated off the ruin
       walkways: [{ points: [[22.2, 27.5], [22.8, 27.5]], width: 0.6, y: DECK + 2.0 }] },
     tower('turret_w', 17.5, 29, 2.5, 8),
     // --- the NE ruin (second bombed house), held by e31–e33 on its upper floor; W and E turrets
-    { id: 'ruin_ne', type: 'flat_roof_house', variant: 'house_bombed_log', x: 120, z: 44, rot: 0, w: 20, d: 16, h: DECK, roofY: DECK, mat: 'woodDark', roofWalk: true },
+    { id: 'ruin_ne', type: 'flat_roof_house', variant: 'house_bombed_log', asset: 'house_bombed_log_ne', x: 120, z: 44, rot: 0, w: 20, d: 16, h: DECK, roofY: DECK, mat: 'woodDark', roofWalk: true },
     tower('ruin_ne_tw', 107.5, 44.5, 2.5, 8),
     tower('ruin_ne_te', 132, 42, 2, 8),
     // --- the three garrisons (Kildread's "3 Bunkers"): chapel (N), central barracks, HQ (S of the gun)
-    // the chapel's kit flag anchor (69.87, 20.77) stands on the main line: the whole wired pole assembly
-    // shifts E of the door instead (flagShift, art/flags.js) — pole axis lands at (79.0, 20.0), far enough
-    // S that the NW guy-wire clears the chapel wall (assembly extent >=1.75 m from the footprint) yet every
-    // wire/peg stays >=3.0 m from the spur and >=4.0 m from the main-line centreline (ballast half-width 1.5 m)
-    { id: 'chapel', type: 'barracks', variant: 'stone_chapel_tower', x: 75, z: 12.5, rot: 0, w: 14, d: 8, h: 8, mat: 'stone', flag: true, flagShift: [9.13, -0.77], garrison: true, destructible: true, hp: 100 },
+    // the chapel stands clear of the main line (z 12.5, user change); its garrison flag flies from a free-standing
+    // pole E of the door at (79.0, 20.0) — the spot the kit assembly's flagShift put it — >=4 m off the main line
+    // and >=3 m off the spur. The library chapel (chapel_stone_no) carries no flag of its own (no flagShift), and
+    // flag:false keeps building-props from adding its fallback SE-corner pole: one garrison flag, on chapel_flag.
+    { id: 'chapel', type: 'barracks', variant: 'stone_chapel_tower', asset: 'chapel_stone_no', x: 75, z: 12.5, rot: 0, w: 14, d: 8, h: 8, mat: 'stone', flag: false, garrison: true, destructible: true, hp: 100 },
+    { id: 'chapel_flag', type: 'sign', variant: 'flagpole_german', x: 79.0, z: 20.0, rot: 0, w: 0.3, d: 0.3, h: 6, block: 0 },
     tower('chapel_tower', 84, 14, 2.5, 10, 'stone', 'tower_round_stone'),
-    { id: 'barr_c', type: 'barracks', variant: 'hq_log_flatroof', x: 59, z: 48, rot: 0, w: 14, d: 10, h: 5, flag: true, garrison: true, destructible: true, hp: 100 },
-    { id: 'hq', type: 'flat_roof_house', variant: 'fortified_block_tower', x: 90, z: 77, rot: 0, w: 16, d: 12, h: HQ_ROOF, roofY: HQ_ROOF, mat: 'stone', roofWalk: true, flag: true, garrison: true, destructible: true, hp: 100 },
+    { id: 'barr_c', type: 'barracks', variant: 'hq_log_flatroof', asset: 'hq_log_flatroof', x: 59, z: 48, rot: 0, w: 14, d: 10, h: 5, flag: true, garrison: true, destructible: true, hp: 100 },
+    { id: 'hq', type: 'flat_roof_house', variant: 'fortified_block_tower', asset: 'hq_fortified_block', x: 90, z: 77, rot: 0, w: 16, d: 12, h: HQ_ROOF, roofY: HQ_ROOF, mat: 'stone', roofWalk: true, flag: true, garrison: true, destructible: true, hp: 100 },
     tower('hq_tower', 100, 76, 2.5, 10, 'stone', 'tower_round_stone'),
-    { id: 'hq_leanto', type: 'hut', variant: 'lean_to_canopy', x: 78.5, z: 80, rot: 0, w: 5, d: 5, h: 3, block: 1 },
-    { id: 'ruin_s', type: 'ruins', variant: 'burned_timber', x: 46, z: 92, rot: 0, w: 10, d: 8, h: 2.5 },
+    { id: 'hq_leanto', type: 'hut', variant: 'lean_to_canopy', asset: 'lean_to_canopy', x: 78.5, z: 80, rot: 0, w: 5, d: 5, h: 3, block: 1 },
+    { id: 'ruin_s', type: 'ruins', variant: 'burned_timber', asset: 'ruin_burned_timber', x: 46, z: 92, rot: 0, w: 10, d: 8, h: 2.5 },
     tower('tower_nw', 46.5, 40, 2.25, 7),
     tower('tower_s', 58.5, 80, 2.25, 7),
     // --- railway: main line NW → SE with the gun on it, dead-end spur NE; parked wagons (no traffic)
@@ -168,7 +199,9 @@ export default {
       ['w_x1', [[48, 17], [66, 37]]], ['w_x2', [[46, 37], [63, 24]]], ['w_n', [[55, 3], [65, 14]]], ['w_nn', [[30, 0], [35, 10]]],
       ['w_sw', [[38, 53], [57, 77]]], ['w_s', [[61, 79.75], [72, 79.75]]], ['w_brk', [[70, 51], [74, 43], [78, 51]]], ['w_ch', [[86, 16], [92, 27]]],
       ['w_hq', [[100, 70], [106, 65]]], ['w_gun', [[120, 68], [126, 77]]], ['w_ne', [[113, 53], [114.9, 52]], [[130, 44.05], [132, 43]]], ['w_yard', [[0, 45], [9, 40], [10, 47]]],
-    ].map(([id, points, rest]) => ({ id, type: 'wall', variant: 'stone_railing', mat: 'stone', ...(rest ? { segments: [points, rest] } : { points }), h: 2.2, width: 0.5 })),
+    ].map(([id, points, rest]) => ({ id, type: 'wall', variant: 'stone_railing', mat: 'stone', ...(rest ? { segments: [points, rest] } : { points }), h: 2.2, width: 0.5,
+      // the "X" N of the central barracks is one masonry crossing (art pass: railing walls on piers meet there)
+      ...(/^w_x[12]$/.test(id) ? { clipAllow: [id === 'w_x1' ? 'w_x2' : 'w_x1'] } : {}) })),
     // (w_ne stops at ruin_ne's walls: inside, the ruin's upper floor is the way across)
     { id: 'wire_n', type: 'fence', variant: 'barbed_wire', points: [[35, 11], [44, 14], [48, 16]], h: 1.2 },
     // the NE belt runs from the chapel wall's gap into the rock pile N of the Gatling: it seals the N edge (fan map)
@@ -178,10 +211,10 @@ export default {
     { id: 'wire_bar', type: 'fence', variant: 'barbed_wire', points: [[10, 40], [18, 47]], h: 1.2 },
     hedgehog('hh_1', 12, 41), hedgehog('hh_2', 15, 45), hedgehog('hh_3', 17, 42.5),
     // --- the Gatling: a wheeled gun standing in the open on the snow (fan map), its carriage in front of the gunner
-    { id: 'mg_gatling', type: 'crates', variant: 'gatling_wheeled', x: 105.6, z: 15.9, rot: deg(250), w: 1.6, d: 1.2, h: 0.9, block: 1 },
+    { id: 'mg_gatling', type: 'crates', variant: 'gatling_wheeled', asset: 'gatling_wheeled', x: 105.6, z: 15.9, rot: deg(250), w: 1.6, d: 1.2, h: 0.9, block: 1 },
     // --- tents: compound, SW field, SE
     ...[[57, 60], [64, 60], [69, 56], [75, 58], [82, 58], [87, 59], [81, 67], [29, 72], [35, 75], [114, 83], [122, 87], [127, 93]]
-      .map(([x, z], k) => ({ id: `tent_${k + 1}`, type: 'tent', variant: 'tent_ridge_field', x, z, rot: 0, w: 4, d: 3 })),
+      .map(([x, z], k) => ({ id: `tent_${k + 1}`, type: 'tent', variant: 'tent_ridge_field', asset: 'tent_ridge_field', x, z, rot: 0, w: 4, d: 3 })),
     // --- craters (the SW "explosion marks" of the safe field), rocks, crates, log stack, cart
     ...[[9, 56, 3.5], [15, 71, 3.5], [4, 78, 3.5], [38, 85, 3], [40, 99, 3], [50, 57, 3], [40, 5, 3.5], [98, 97, 3.5]]
       .map(([x, z, r], k) => ({ id: `crater_${k + 1}`, type: 'crater', x, z, r })),
@@ -191,13 +224,15 @@ export default {
     ...[[94, 14], [113, 17], [130, 98], [53, 99]].map(([x, z], k) => ({ id: `rock_${k + 1}`, type: 'rocks', x, z, r: 1.5 })),
     { id: 'se_rocks', type: 'rocks', x: 114, z: 100, r: 3.5, h: 2.4 },
     ...[[49, 17.5], [25, 58], [70, 67], [73, 77]].map(([x, z], k) => ({ id: `crates_${k + 1}`, type: 'crates', x, z, rot: 0, w: 2, d: 2, h: 1.2, block: 1 })),
-    { id: 'logs_sw', type: 'crates', variant: 'log_pile', x: 12, z: 62, rot: 0, w: 3, d: 1.5, h: 1.0, block: 1 },
-    { id: 'handcart', type: 'crates', variant: 'handcart', x: 25, z: 91, rot: 0, w: 2, d: 1.2, h: 1.0, block: 1 },
+    { id: 'logs_sw', type: 'crates', variant: 'log_pile', asset: 'log_pile_stack', x: 12, z: 62, rot: 0, w: 3, d: 1.5, h: 1.0, block: 1 },
+    { id: 'handcart', type: 'crates', variant: 'handcart', asset: 'handcart_wood', x: 25, z: 91, rot: 0, w: 2, d: 1.2, h: 1.0, block: 1 },
     // --- pines (snow under them); (100,21) is the tree e29 walks round (E of the wire belt)
     ...[[8, 3], [13, 8], [20, 6], [4, 26], [65, 5], [92, 7], [100, 21], [113, 12], [123, 14], [127, 18], [126, 25], [131, 24],
       [128, 62], [131, 68], [68, 86], [60, 95], [104, 89], [91, 100], [7, 90], [22, 88], [27, 96], [12, 102], [17, 99]]
       .map(([x, z], k) => ({ type: 'pine', x, z, r: 0.5, h: 9 + (k % 6), seed: 601 + k })),
+    ...PARKED, ...DRUMS,
   ], [['ruin_w', 'turret_w'], ['ruin_w', 'tower_nw'], ['ruin_ne', 'ruin_ne_tw'], ['ruin_ne', 'ruin_ne_te'], ['chapel', 'chapel_tower'], ['hq', 'hq_tower'], ['hq', 'hq_leanto'], ['tent_5', 'tent_6']]),
+  furniture: FURNITURE,
   items: [],
   interactables: [],
   vehicles: [
@@ -323,6 +358,7 @@ export default {
     { id: 'lad_ne', x: 108.8, z: 51, y: 0, top: [111, 50, DECK], raised: false, heading: deg(335) },
   ],
   triplines: [],
+  noWalk: [flightNoWalk('stair_w_s', [30, 49], [30, 45.5]), flightNoWalk('stair_w_e', [47, 45], [43.4, 42])],
   objectives: [
     { id: 'o1', text: 'Destroy the Leopold railway gun', type: 'destroy', targets: ['leopold'], marker: 'leopold_charge', required: true, bombOnly: true },
     { id: 'o2', text: 'Get everyone aboard the truck in the north-east', type: 'escape', required: true, hidden: true, vehicleId: 'evac_truck' },

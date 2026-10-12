@@ -52,15 +52,16 @@ def cornice(poly, z, mid='ashlar_limestone', steps=((0.06, 0.08), (0.12, 0.07), 
     return zz
 
 
-def stairs(p0, direction, width, rise, n=None, mid='ashlar', solid=True, cheek=None, name='stairs', meta=True):
+def stairs(p0, direction, width, rise, n=None, mid='ashlar', solid=True, cheek=None, name='stairs', meta=True, go=None):
     """Straight flight: bottom front edge centre p0, climbing along `direction`. rise = total height.
     solid=True: masonry steps on a solid base (+ optional cheek walls material `cheek`); False: timber treads on stringers.
-    Registers a ladder/stair nav link. Returns top landing centre (world)."""
+    Registers a ladder/stair nav link. Returns top landing centre (world).
+    go: tread depth (default 0.28 m); pass run/n to fit a flight to a given link run."""
     d = V(direction).normalized()
     s = V((d.y, -d.x, 0))
     n = n or max(2, int(round(rise / 0.18)))
     rh = rise / n
-    go = 0.28
+    go = go or 0.28
     bm = bmesh.new()
     p0 = V(p0)
     for i in range(n):
@@ -75,8 +76,9 @@ def stairs(p0, direction, width, rise, n=None, mid='ashlar', solid=True, cheek=N
             beam_bm(bm, c - s * width / 2 + V((0, 0, h - 0.02)), c + s * width / 2 + V((0, 0, h - 0.02)), go + 0.03, 0.04)
     if solid:       # solid masonry base under the flight
         q = [p0 - s * width / 2, p0 + d * go * n - s * width / 2, p0 + d * go * n + s * width / 2, p0 + s * width / 2]
-        q = q if (q[1] - q[0]).cross(q[3] - q[0]).z > 0 else [q[0], q[3], q[2], q[1]]
         tops = [0.0, rise - rh, rise - rh, 0.0]
+        if (q[1] - q[0]).cross(q[3] - q[0]).z <= 0:     # rewind: the tops follow their corners (else the base twists)
+            q, tops = [q[0], q[3], q[2], q[1]], [tops[0], tops[3], tops[2], tops[1]]
         C.hexa_bm(bm, [x for x in q] + [x + V((0, 0, max(0.01, tz - 0.01))) for x, tz in zip(q, tops)])
     bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
     part(bm, mid, name=name, uv='beam' if not solid else 'aligned', axis=tuple(s))

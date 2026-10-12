@@ -149,6 +149,8 @@ function buildLinear(type, p, def, ctx = {}) {
   const root = ground ? (type === 'rail_track' ? buildRailTrack(points, { width, rusty: /rust|mine|siding/.test(String(p.variant ?? '')) })
     : type === 'trench' ? buildTrench(points, { width, theater: ctx.theater, id: p.id ?? `trench@${points[0]}`, ruined: /ruin/.test(String(p.variant ?? '')) })
       : new THREE.Group())
+    // `visual: false`: gameplay only — a deck wall drawn by its building's own build (M6's W ruin parapets)
+    : p.visual === false ? new THREE.Group()
     : dressed && type === 'wall' && /clothesline/.test(String(p.variant ?? '')) ? clotheslineRun(points)
       : dressed ? buildWall(points, { variant: p.variant, mat: p.mat || def.mat, h, width, id: p.id, walkways: p.walkways }) : new THREE.Group();
   // barbed wire (art/wire-obstacles.js): the map's wire layer draws this run; the footprints below are unchanged

@@ -1,0 +1,76 @@
+{
+ "asset": "log_pile_stack",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "log_hewn": {
+   "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathered hewn log surface (grain along u)",
+   "files": {
+    "diff": {
+     "1k": "1k/log_hewn_diff",
+     "2k": "2k/log_hewn_diff"
+    },
+    "nor": {
+     "1k": "1k/log_hewn_nor",
+     "2k": "2k/log_hewn_nor"
+    },
+    "arm": {
+     "1k": "1k/log_hewn_arm",
+     "2k": "2k/log_hewn_arm"
+    }
+   }
+  },
+  "timber_grey": {
+   "source": "Poly Haven",
+   "id": "weathered_planks",
+   "url": "https://polyhaven.com/a/weathered_planks",
+   "authors": [
+    "Dario Barresi",
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Planks",
+   "label": "Weathered grey timber",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_grey_diff",
+     "1k": "1k/timber_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_grey_nor",
+     "1k": "1k/timber_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_grey_arm",
+     "1k": "1k/timber_grey_arm"
+    }
+   }
+  },
+  "timber_tarred": {
+   "source": "Poly Haven",
+   "id": "dark_wooden_planks",
+   "url": "https://polyhaven.com/a/dark_wooden_planks",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Dark Wooden Planks",
+   "label": "Dark tarred timber",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_tarred_diff",
+     "1k": "1k/timber_tarred_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_tarred_nor",
+     "1k": "1k/timber_tarred_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_tarred_arm",
+     "1k": "1k/timber_tarred_arm"
+    }
+   }
+  }
+ }
+}

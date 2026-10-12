@@ -1,0 +1,113 @@
+{
+ "asset": "lean_to_canopy",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "boards_weathered": {
+   "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathered vertical boards 0.2 m, per-plank ageing + tar staining",
+   "files": {
+    "diff": {
+     "1k": "1k/boards_weathered_diff",
+     "2k": "2k/boards_weathered_diff"
+    },
+    "nor": {
+     "1k": "1k/boards_weathered_nor",
+     "2k": "2k/boards_weathered_nor"
+    },
+    "arm": {
+     "1k": "1k/boards_weathered_arm",
+     "2k": "2k/boards_weathered_arm"
+    }
+   }
+  },
+  "log_hewn": {
+   "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathered hewn log surface (grain along u)",
+   "files": {
+    "diff": {
+     "1k": "1k/log_hewn_diff",
+     "2k": "2k/log_hewn_diff"
+    },
+    "nor": {
+     "1k": "1k/log_hewn_nor",
+     "2k": "2k/log_hewn_nor"
+    },
+    "arm": {
+     "1k": "1k/log_hewn_arm",
+     "2k": "2k/log_hewn_arm"
+    }
+   }
+  },
+  "steel_painted": {
+   "source": "Poly Haven",
+   "id": "rusty_painted_metal",
+   "url": "https://polyhaven.com/a/rusty_painted_metal",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Painted Metal",
+   "label": "Painted riveted steel (bridge grey-green)",
+   "files": {
+    "diff": {
+     "2k": "2k/steel_painted_diff",
+     "1k": "1k/steel_painted_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_painted_nor",
+     "1k": "1k/steel_painted_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_painted_arm",
+     "1k": "1k/steel_painted_arm"
+    }
+   }
+  },
+  "tar_paper_batten": {
+   "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Batten-roll tar paper (Leistendach; rolls run eave-ridge, streaks, patches)",
+   "files": {
+    "diff": {
+     "1k": "1k/tar_paper_batten_diff",
+     "2k": "2k/tar_paper_batten_diff"
+    },
+    "nor": {
+     "1k": "1k/tar_paper_batten_nor",
+     "2k": "2k/tar_paper_batten_nor"
+    },
+    "arm": {
+     "1k": "1k/tar_paper_batten_arm",
+     "2k": "2k/tar_paper_batten_arm"
+    }
+   }
+  },
+  "timber_beam": {
+   "source": "Poly Haven",
+   "id": "wood_planks_grey",
+   "url": "https://polyhaven.com/a/wood_planks_grey",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Grey",
+   "label": "Grey structural timber (beams, rafters)",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_beam_diff",
+     "1k": "1k/timber_beam_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_beam_nor",
+     "1k": "1k/timber_beam_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_beam_arm",
+     "1k": "1k/timber_beam_arm"
+    }
+   }
+  }
+ }
+}

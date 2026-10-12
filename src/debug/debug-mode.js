@@ -4,7 +4,8 @@
  * quick keys (F10 select, PageDown / PageUp next / previous level, Ctrl+R instant restart, F11 info HUD) and the
  * corner info HUD (mission; frame time, main-thread and render CPU, input → frame latency over a rolling 2 s / last 32
  * inputs; whole-frame draw calls and triangles; GPU memory from debug/gpu-mem-counter.js, three's object counts, JS heap;
- * cursor x/z, camera zoom / yaw: debug/debug-stats.js), the SOLUTION replay
+ * cursor x/z, camera zoom / yaw: debug/debug-stats.js; a 15 s perf graph, debug/perf-graph.js; −/+ minimizes it to one
+ * line), the SOLUTION replay
  * of missions with a saved solution (debug/solutions.js, debug/solution-replay.js: select section, in-game SOLUTION
  * button, F9; Esc stops it) and VIDEO MODE, the guided walkthrough of a solution (debug/walkthrough.js: the select's
  * "Watch walkthrough" section, the in-game ▶ VIDEO button, F8, `?debug&walkthrough=m03[&speed=4]`, which is also what the
@@ -22,6 +23,7 @@ import { hasSolution, solutionIds, loadSolution, loadCatalog, loadWalkthrough } 
 import { SolutionReplay } from './solution-replay.js';
 import { RollingWindow, FrameDraws, InputLatency, statsLines } from './debug-stats.js';
 import { installGpuMemCounter } from './gpu-mem-counter.js';
+import { FrameSeries, GRAPH_SPAN, drawPerfGraph, compactLine } from './perf-graph.js';
 
 /** Video mode is loaded on first use (a lazy chunk in the web build): nothing of it costs a normal debug session. */
 const walkthroughModule = () => import('./walkthrough.js');
@@ -65,9 +67,27 @@ const CSS = `
 :root{--dbg-x:calc(16px + env(safe-area-inset-left));--dbg-y:calc(8px + env(safe-area-inset-bottom))}
 html.mk-touch{--dbg-x:calc(130px + env(safe-area-inset-left))}
 @media (orientation:portrait){html.mk-touch{--dbg-x:calc(16px + env(safe-area-inset-left));--dbg-y:calc(190px + env(safe-area-inset-bottom))}}
-#dbg-info{position:fixed;left:var(--dbg-x);bottom:calc(var(--dbg-y) + 44px);z-index:8000;pointer-events:none;
-  font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#d6ffd0;background:rgba(0,0,0,.66);padding:5px 8px;
-  border-radius:4px;white-space:pre-wrap;box-sizing:border-box;max-width:calc(100vw - var(--dbg-x) - 16px - env(safe-area-inset-right))}
+/* any narrow upright window: the bottom row is the stance hand and the bag (wide there), so above it as well */
+@media (orientation:portrait) and (max-width:600px){:root{--dbg-y:calc(190px + env(safe-area-inset-bottom))}}
+#dbg-info{position:fixed;left:var(--dbg-x);bottom:calc(var(--dbg-y) + 44px);z-index:8000;pointer-events:none;box-sizing:border-box;
+  width:min(366px,calc(100vw - var(--dbg-x) - 16px - env(safe-area-inset-right)));padding:5px 8px;border-radius:4px;
+  font:11px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#e4ffde;background:rgba(0,0,0,.4);
+  text-shadow:0 1px 1px #000,0 0 3px rgba(0,0,0,.85)}
+#dbg-info .dbg-txt{white-space:pre-wrap}
+#dbg-info .dbg-graph{display:block;width:100%;height:72px;margin-top:4px}
+/* −/+ : the only part of the panel that takes input (the game keeps every other click and tap) */
+#dbg-info .dbg-tog{all:unset;position:absolute;top:3px;right:3px;box-sizing:border-box;width:26px;height:22px;pointer-events:auto;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;border-radius:3px;border:1px solid #d6ffd066;background:rgba(0,0,0,.35);
+  color:#e4ffde;font:700 14px/1 system-ui,sans-serif;touch-action:manipulation}
+#dbg-info .dbg-tog:hover{border-color:#ffcf4a;color:#ffcf4a}
+/* minimized: one line; the whole pill is the + button */
+#dbg-info.min{width:auto;max-width:calc(100vw - var(--dbg-x) - 16px - env(safe-area-inset-right));padding-right:34px;white-space:nowrap}
+#dbg-info.min .dbg-txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#dbg-info.min .dbg-graph{display:none}
+#dbg-info.min .dbg-tog{top:0;right:0;bottom:0;left:0;width:auto;height:auto;justify-content:flex-end;padding-right:9px;border-color:transparent;background:none}
+html.mk-touch #dbg-info .dbg-tog{width:44px;height:36px;top:2px;right:2px}
+html.mk-touch #dbg-info.min{min-height:40px;display:flex;align-items:center;padding-right:44px}
+html.mk-touch #dbg-info.min .dbg-tog{top:0;right:0;bottom:0;left:0;width:auto;height:auto}
 #dbg-btn,#dbg-sol-btn{position:fixed;left:var(--dbg-x);bottom:var(--dbg-y);z-index:8001;min-width:56px;min-height:36px;
   font:700 11px/1 system-ui,sans-serif;letter-spacing:.1em;color:#ffcf4a;background:rgba(0,0,0,.6);border:1px solid #ffcf4a88;
   border-radius:4px;cursor:pointer;touch-action:manipulation}
@@ -81,8 +101,11 @@ html.mk-touch{--dbg-x:calc(130px + env(safe-area-inset-left))}
   font-size:12px;opacity:.75;touch-action:manipulation;border:2px solid transparent}
 #dbg-select .dbg-wt-none:focus,#dbg-select .dbg-wt-none:hover{border-color:#7fd6ff;opacity:1}
 body.dbg-video #dbg-btn,body.dbg-video #dbg-sol-btn,body.dbg-video #dbg-wt-btn{display:none}
-/* video mode records clean: the info HUD only after F11 there (DebugMode._syncInfo) */
+/* video mode: the info HUD minimized in the corner (the DEBUG buttons are hidden), F11 hides / shows it; a capture run
+   (?test=1, clean) keeps it hidden (DebugMode._syncInfo). Never over a walkthrough card (title, end, no walkthrough). */
+body.dbg-video #dbg-info{bottom:var(--dbg-y)}
 body.dbg-video:not(.dbg-video-info) #dbg-info{display:none}
+body:has(#wt-card) #dbg-info{display:none}
 #dbg-select .dbg-sol{background:#24402a}
 #dbg-select .dbg-sol:focus,#dbg-select .dbg-sol:hover{background:#2f5636}
 `;
@@ -149,7 +172,14 @@ export class DebugMode {
     this.stats = null;
     this._statsOn = false;
     this._lastFrameT = 0;
-    this._videoInfo = false;
+    /** A capture run (?test=1, ?debug=clean): video mode keeps the info HUD hidden. */
+    this.capture = !!(this.params.clean || this.params.test);
+    this._videoInfo = !this.capture; // video mode: shown (minimized) unless capturing; F11 toggles
+    this._videoExpanded = false; // video mode: the panel expanded (this walkthrough only)
+    /** Perf graph: per-frame frame / main-CPU ms, GPU MB at the HUD's 4 Hz (the graph draws from these). */
+    this.series = new FrameSeries(4096);
+    this.gpuSeries = new FrameSeries(256);
+    this._colF = new Float32Array(1024); this._colC = new Float32Array(1024); this._colG = new Float32Array(1024); this._colS = new Float32Array(1024);
     this.pointer = { x: -1, y: -1 };
     this._frozen = null;
     this._style = el('style', null, document.head, CSS);
@@ -206,12 +236,13 @@ export class DebugMode {
     const frame = game.frame.bind(game);
     game.frame = (dt) => {
       if (!this._statsOn) { this._lastFrameT = 0; return frame(dt); }
-      const t0 = performance.now();
-      if (this._lastFrameT) W.frame.push(t0, t0 - this._lastFrameT);
+      const t0 = performance.now(), last = this._lastFrameT;
+      if (last) W.frame.push(t0, t0 - last);
       this._lastFrameT = t0;
       const out = frame(dt);
       const t1 = performance.now();
       W.cpu.push(t1, t1 - t0);
+      if (last) this.series.push(t0, t0 - last, t1 - t0); // the graph's ring (3 typed-array writes)
       return out;
     };
     game.events.on('mission:loaded', () => this._onLoaded());
@@ -222,6 +253,17 @@ export class DebugMode {
     this.button.addEventListener('click', () => this.toggle());
     this.info = el('div', null, document.body);
     this.info.id = 'dbg-info';
+    this.infoText = el('div', 'dbg-txt', this.info);
+    this.graph = el('canvas', 'dbg-graph', this.info);
+    this.graph.width = 1; this.graph.height = 1; // sized to its box when first drawn
+    this.infoTog = el('button', 'dbg-tog', this.info);
+    this.infoTog.type = 'button';
+    this.infoTog.tabIndex = -1; // never keeps the keyboard: Enter / Space stay the game's
+    // its own clicks and taps only: nothing reaches the game, the walkthrough or the touch gestures
+    for (const ev of ['pointerdown', 'pointerup', 'click', 'dblclick', 'contextmenu', 'wheel', 'touchstart']) {
+      this.infoTog.addEventListener(ev, (e) => { e.stopPropagation(); if (ev === 'contextmenu') e.preventDefault(); }, { passive: ev !== 'contextmenu' });
+    }
+    this.infoTog.addEventListener('click', () => this.toggleStatsMin());
     this._syncInfo();
     this.solBtn = el('button', null, document.body, '▶ SOL');
     this.solBtn.id = 'dbg-sol-btn';
@@ -290,12 +332,35 @@ export class DebugMode {
     if (!box) return;
     const video = document.body.classList.contains('dbg-video');
     const show = video ? this._videoInfo : !!this.options.infoHud;
+    const min = video ? !this._videoExpanded : !!this.options.statsMin;
     if (document.body.classList.contains('dbg-video-info') !== (video && show)) document.body.classList.toggle('dbg-video-info', video && show);
     if (box.hidden === show) box.hidden = !show;
-    if (show && !this._statsOn) { for (const w of Object.values(this.win)) w.clear(); this.latency.drop(); this._lastFrameT = 0; }
+    if (box.classList.contains('min') !== min) box.classList.toggle('min', min);
+    const t = this.infoTog;
+    if (t && t.dataset.min !== String(min)) {
+      t.dataset.min = String(min);
+      t.textContent = min ? '+' : '−';
+      t.title = min ? 'Show all stats and the perf graph' : 'Minimize the stats to one line';
+      t.setAttribute('aria-label', min ? 'Expand debug stats' : 'Minimize debug stats');
+      t.setAttribute('aria-expanded', String(!min));
+    }
+    if (show && !this._statsOn) {
+      for (const w of Object.values(this.win)) w.clear();
+      this.series.clear(); this.gpuSeries.clear();
+      this.latency.drop(); this._lastFrameT = 0;
+    }
     this._statsOn = show;
     if (show) this._updateInfo();
+    this.replay?._layout?.(); // video mode: the caption makes room at once
   }
+
+  /** −/+ : the full panel + graph or one line. Remembered (debug options); in video mode for this walkthrough only. */
+  toggleStatsMin() {
+    if (document.body.classList.contains('dbg-video')) { this._videoExpanded = !this._videoExpanded; this._syncInfo(); }
+    else this.setOption('statsMin', !this.options.statsMin);
+    this.game?.renderer?.domElement?.focus?.({ preventScroll: true });
+  }
+
 
   _applyCamera() {
     const g = this.game, def = g?.missionDef;
@@ -603,7 +668,7 @@ export class DebugMode {
     if (!hasSolution(id)) { this._noWalkthrough(W, id); return null; }
     const keep = settings || {};
     this.stopReplay();
-    this._videoInfo = false; // every walkthrough starts with a clean frame (F11 shows the info HUD)
+    if (!toMarker) { this._videoInfo = !this.capture; this._videoExpanded = false; } // a fresh start: minimized (a jump back keeps F11 / +)
     this._replayLaunch = true;
     this._syncFlags();
     // the clock is held from the load on: the walkthrough's first tick is the mission's first (the scripted run's)
@@ -785,14 +850,37 @@ export class DebugMode {
     const rep = r ? `REPLAY ${r.sol.id} step ${r.stage?.id ?? '-'} ${r.fastForward ? 'FF' : `x${r.speed}`}${r.paused ? ' paused' : ''} t=${(g.world?.time ?? 0).toFixed(0)}s` : '';
     const id = this.currentId;
     const s = this.sampleStats();
+    const now = performance.now();
+    if (s.gpu) this.gpuSeries.push(now, s.gpu.total / 1048576);
     box.dataset.mission = id || '';
-    box.textContent = [
+    if (box.classList.contains('min')) { this.infoText.textContent = compactLine(s); return; } // (no graph work)
+    this.infoText.textContent = [
       `${id || 'no mission'}  ${g.state}  x${g.timeScale}`,
       ...statsLines(s),
       `cursor ${cur}  zoom ${(cc?.zoom ?? 0).toFixed(2)}  yaw ${(cc?.yawDeg ?? 0).toFixed(0)}°`,
       rep,
       flags,
     ].filter(Boolean).join('\n');
+    this._drawGraph(now);
+  }
+
+  /** The perf graph (expanded panel only): the rings bucketed into one column per CSS px, drawn at the HUD's refresh. */
+  _drawGraph(now) {
+    const cv = this.graph;
+    const w = cv?.clientWidth || 0, h = cv?.clientHeight || 0;
+    if (!(w > 0 && h > 0)) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const pw = Math.round(w * dpr), ph = Math.round(h * dpr);
+    if (cv.width !== pw || cv.height !== ph) { cv.width = pw; cv.height = ph; }
+    const ctx = (this._gctx ||= cv.getContext('2d'));
+    if (!ctx) return;
+    const cols = Math.max(1, Math.min(this._colF.length, Math.floor(w)));
+    this.series.columns(now, GRAPH_SPAN, cols, this._colF, this._colC);
+    this.gpuSeries.columns(now, GRAPH_SPAN, cols, this._colG, null);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const g = this.gpuSeries.last();
+    this.graphInfo = drawPerfGraph(ctx, w, h, { frame: this._colF, cpu: this._colC, gpu: this._colG, cols, gpuNowMB: g ? g.a : null, scratch: this._colS });
+    this.graphDraws = (this.graphDraws || 0) + 1;
   }
 
   /**

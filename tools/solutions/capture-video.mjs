@@ -37,6 +37,12 @@ try {
   const page = await h.newPage({ width: W, height: H });
   page.setDefaultTimeout(0);
   page.on('console', (m) => { const t = m.text(); if (/^(CHECKPOINT|==|CAP)/.test(t)) console.log(t); });
+  // recordings stay clean: no debug corner (info HUD, DEBUG buttons) in a frame, whatever the URL carries
+  await page.addInitScript(() => addEventListener('DOMContentLoaded', () => {
+    const st = document.createElement('style');
+    st.textContent = '#dbg-info,#dbg-btn,#dbg-sol-btn,#dbg-wt-btn{display:none!important}';
+    document.head.appendChild(st);
+  }));
   await h.openGame(page, '?test=1');
   const cdp = await page.context().newCDPSession(page);
   let tShot = 0;

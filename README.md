@@ -150,7 +150,7 @@ buttons, or above them on a phone held upright). Frame numbers are the average, 
 | GPU MB | Live GPU allocations counted as they happen (`src/debug/gpu-mem-counter.js`, same rules as `tools/perf/mem-probe.js`): textures with every mip / face / layer, vertex and index buffers, renderbuffers, plus the canvas (estimated). |
 | three.js, JS heap | The renderer's live texture and geometry counts; the JS heap in use (Chrome / Edge only). |
 
-Sampling runs only while the HUD is shown. In video mode it starts hidden, so recordings stay clean; F11 shows it there.
+Below the table, a **perf graph** shows the last 15 seconds: each frame's time as a bar (green up to 16.7 ms, amber up to 33.3 ms, red above; one column per pixel keeps the worst frame in it, so a single hitch stays visible), the main-thread CPU as a blue line, dashed 16.7 / 33.3 ms guides, and the GPU memory as a violet line on its own scale. The **−** button shrinks the HUD to one line (FPS · frame ms · GPU MB) and **+** brings it back; the choice is remembered. Sampling runs only while the HUD is shown. In video mode the HUD starts minimized in the corner, with the caption moved clear of it; F11 hides or shows it there. Capture runs (`?test=1`, or `?debug=clean`) keep it hidden in video mode, so films stay clean.
 
 ### Solution replays
 
