@@ -813,6 +813,8 @@ const FLAT_CATS = new Set(['building', 'tent', 'tower', 'ruins', 'prop', 'sandba
 export function stampFlatBase(world, built, extra = []) {
   const grid = world.grid, roots = [];
   for (const b of built) {
+    // a ballasted track with `flatBed` (M19's mine railway over the undulating coal mud) lies on a levelled bed too
+    if (b.object3d && b.type === 'rail_track' && b.def.flatBed && b.def.y == null) { roots.push(b.object3d); continue; }
     if (!b.object3d || TREE_TYPES.includes(b.type) || LINEAR_PROPS.includes(b.type) || b.def.clip === false || b.def.y != null) continue;
     if (FLAT_CATS.has(placeCat(b.def))) roots.push(b.object3d);
   }

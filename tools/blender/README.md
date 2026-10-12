@@ -42,6 +42,11 @@ switch to the library only for hinted variants; a hinted `sea_wall` tiles its 8 
 - M8 (Tell el Eisa, `manifest-tell-el-eisa.json` + `manifest-tell-el-eisa-bridge.json`): `desert/q_m08.txt` lists the builds
   (red-tile adobe row houses with the door N / W, the riveted water reservoir and its burst ruin, jerrycan supply dumps,
   the desert timber trestle over the wadi).
+- M19 (Oldenburg coal mine + V-2 base, `manifest-oldenburg.json`): `europe/q_m19.txt` lists the builds (`olden.py`, `olden_small.py`,
+  `v2_kit.py` on `od_common.py`: the stilted timber mine office, the brick boiler house, corrugated-iron barracks, the tall brick
+  house, the timber hut, the plank pithead with its walkable flat roof, adit portal and canted rail doorway, the coal hopper, the Ringstand-type
+  observation bunker, privy, kennel, oil-drum stack, heightfield coal heap, pit props, the yard derrick, and the V-2 pad as
+  its three gameplay pieces: the A4 on the firing-table ring, the Brennstand on its pad, the servicing tower).
 - M16 (the Maas bridge, Belgium; `manifest-maas.json`, M18 shares the map): `europe/q_m16.txt` lists the builds (Mosan brick
   houses with bluestone trims and wall anchors, one with the door on the W gable, whitewashed / brick farmhouses, grey rendered
   townhouses, the village railway halt with its platform canopy, a brick field hut, the island's tarred plank shed, the round

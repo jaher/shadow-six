@@ -54,7 +54,7 @@ export const VARIANT_HINTS = {
   ruins: { rubble: null, wall_ruin: null },
   bridge: { bridge_timber_moat: null, bridge_timber_moat_lanterns: null },
   dam: { concrete_arch: ['dam_arch'] },
-  gate: { barrier_boom: null, chainlink: null },
+  gate: { barrier_boom: null, chainlink: null, plank_gate: null }, // plank_gate: a pen's own leaf (M19), never the stockade gatehouse
   fueltank: {}, // the fuel-tank family resolves its own variants (art/fuel-tanks.js)
   tent: {}, well: {},
   // Atlantic Wall (M14 art pass; reusable by M6/M7/M8/M10/M11/M15): the fit ranks the sizes, so one hint list
@@ -121,7 +121,21 @@ export const PLACEHOLDER_HINTS = {
     townhouse_stucco_shopfront: ['townhouse_fr_stucco'], mausoleum_chapel: ['mausoleum_chapel'] },
   flat_roof_house: { townhouse_corner_flat_roof: ['townhouse_corner_flat'] },
   crates: { sarcophagus: ['tomb_chest_a', 'tomb_chest_b', 'tomb_chest_c'] },
+  // Oldenburg (M19 art pass, manifest-oldenburg): the coal mine's stilted timber office, the brick boiler house, the
+  // base's corrugated-iron barracks, tall brick house and timber hut, the coal hopper, the round surveillance bunker,
+  // the privy and the dog kennel; the three V-2 pads as their gameplay pieces (A4 rocket on the firing-table ring,
+  // the Brennstand on its pad, the servicing tower). Visual only: footprints, doors, the deck and roofs stay the mission's
+  barracks: { mining_office: ['mine_office_de'], barracks_corrugated_iron: ['barracks_corr_a', 'barracks_corr_b'] },
+  hut: { coal_hopper: ['coal_hopper_de'], outhouse_privy: ['outhouse_de'], dog_kennel_box: ['kennel_de'] },
+  bunker: { bunker_concrete_round: ['bunker_obs_de'] },
+  v2_rocket: { v2_pad_gantry: ['v2_rocket_a4'] },
+  launch_pad: { v2_firing_table: ['v2_table_de'] },
+  rocks: { coal_heap: ['coal_heap_de'] },
+  mine_building: { timber_adit: ['pithead_adit_de'] },
 };
+Object.assign(PLACEHOLDER_HINTS.crates, { pit_props: ['pit_props_de'] });
+Object.assign(PLACEHOLDER_HINTS.house, { boiler_house: ['boiler_house_de'], house_tall_narrow_brick: ['house_tall_brick_de'], hut_timber_bigroof: ['hut_timber_de'] });
+Object.assign(PLACEHOLDER_HINTS.radio_mast, { v2_service_gantry: ['v2_gantry_de'], crane_jib_yard: ['crane_jib_de'] });
 for (const [type, hints] of Object.entries(PLACEHOLDER_HINTS)) {
   VARIANT_HINTS[type] ??= {};
   for (const [v, list] of Object.entries(hints)) if (!Object.prototype.hasOwnProperty.call(VARIANT_HINTS[type], v)) VARIANT_HINTS[type][v] = list;

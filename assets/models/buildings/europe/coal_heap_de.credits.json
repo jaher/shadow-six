@@ -1,0 +1,75 @@
+{
+ "asset": "coal_heap_de",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "gravel_grey": {
+   "source": "Poly Haven",
+   "id": "gravel",
+   "url": "https://polyhaven.com/a/gravel",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Gravel",
+   "label": "Grey limestone gravel (cemetery / churchyard paths, grave infill)",
+   "files": {
+    "diff": {
+     "2k": "2k/gravel_grey_diff",
+     "1k": "1k/gravel_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/gravel_grey_nor",
+     "1k": "1k/gravel_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/gravel_grey_arm",
+     "1k": "1k/gravel_grey_arm"
+    }
+   }
+  },
+  "paint_metal": {
+   "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Smooth enamel-painted sheet metal (pale, tint per asset)",
+   "files": {
+    "diff": {
+     "1k": "1k/paint_metal_diff",
+     "2k": "2k/paint_metal_diff"
+    },
+    "nor": {
+     "1k": "1k/paint_metal_nor",
+     "2k": "2k/paint_metal_nor"
+    },
+    "arm": {
+     "1k": "1k/paint_metal_arm",
+     "2k": "2k/paint_metal_arm"
+    }
+   }
+  },
+  "timber_beam": {
+   "source": "Poly Haven",
+   "id": "wood_planks_grey",
+   "url": "https://polyhaven.com/a/wood_planks_grey",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Grey",
+   "label": "Grey structural timber (beams, rafters)",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_beam_diff",
+     "1k": "1k/timber_beam_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_beam_nor",
+     "1k": "1k/timber_beam_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_beam_arm",
+     "1k": "1k/timber_beam_arm"
+    }
+   }
+  }
+ }
+}

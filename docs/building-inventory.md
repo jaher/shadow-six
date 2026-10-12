@@ -100,7 +100,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `barracks_log_flag` | barracks | Log garrison barracks with a flagpole | Norway | M2 (inside and outside the camp) | B, D | 16×7×5 | norway |
 | `barracks_rendered_hip` | barracks | White-rendered barracks with a snowy hip roof | Norway | M7 (×2-3) | B, D, E | 20×9×7 | VAR:norway |
 | `barracks_desert` | barracks | Flat-roof desert barracks. Some have guards on the roof | N. Africa | M8, M9, M10, M11, M12 | B, D, R | 18×8×4 | desert |
-| `barracks_corrugated_gable` | barracks | Long corrugated-iron gable barracks with a flag; brick or timber hipped corrugated in M19 | Desert/Germany | M10 (NE), M19 (×2-3) | B, D | 24×9×6 | VAR:military |
+| `barracks_corrugated_gable` | barracks | Long corrugated-iron gable barracks with a flag; brick or timber hipped corrugated in M19 | Desert/Germany | M10 (NE), M19 (×2-3) | B, D | 24×9×6 | VAR:military; M19 pass: `barracks_corr_a`/`_b` (corrugated iron on a timber frame, rusty roof, W door porch, flag; M19 variant `barracks_corrugated_iron`) |
 | `barracks_concrete_2st` | barracks | 2-storey flat-roof grey concrete barracks/blockhouse with outside stairs | Atlantic Wall | M14 (4-5) | B, E, R, L | 16×10×7 | BUILT (M14 pass: `barracks_concrete_2st`, `barracks_concrete_1st`) |
 | `hut_timber_barrack` | hut | Small wooden barrack hut: plank walls, grey shingle roof | Germany | M20 (about 12, S courts), B5 (small wooden huts) | E | 10×5×4 | built: europe `hut_timber_barrack_a-d` |
 | `hut_pow_long` | hut | Long wooden prisoner hut on a raised floor, grey pitched roof. M17 variant: dark timber, one cross-gable | Germany/Alsace | B7 (about 10), M17 (5-6) | E | 30×8×5 | VAR:military (stockade) |
@@ -139,7 +139,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `tower_round_log` | new | Cylindrical log tower with a snow-capped conical top at a palisade corner. These are the M6 "round wooden watchtowers" | Norway | M6 (×4-5) [img, critic] | L [inf] | 4 Ø × 7 | NEW |
 | `searchlight_tower` | searchlight | Searchlight on a tower, with an interrupter (`FOCO`, `FOCODEST`, `INTERFOC`) | Germany | BCD extra map `MAPA0009` (a B7 variant) | D | 3×3×7 | VAR:military |
 | `mg_nest_sandbag` | sandbags | Sandbag MG/Gatling nest ring, open behind (`NIDOMET`/`METRBASE`) | All | M1, M4 (×3), M6, M10 (×3), M14 (×5), B1 (×3), B4 (×2), B5 (×4) | — | 4 Ø × 1.2 | military |
-| `bunker_concrete` | bunker | Flat concrete bunker, flagged in places, releases patrols | All | M3 (dam abutment + about 4 garrison bunkers), M5 (SE, D), M8 (SW), M10 (airfield), M19 | D (M3, M5) | 8×6×3 | military |
+| `bunker_concrete` | bunker | Flat concrete bunker, flagged in places, releases patrols | All | M3 (dam abutment + about 4 garrison bunkers), M5 (SE, D), M8 (SW), M10 (airfield), M19 | D (M3, M5) | 8×6×3 | military; M19 pass: `bunker_obs_de` round Ringstand-type observation bunker |
 | `pillbox_round` | bunker | Round concrete pillbox, possibly with a cupola | Belgium/Alsace/Prussia/Desert | M16/M18 (both bridge ends, D in M18), M17 (riverside, D), M8 (SW, with cupola) [img], B5 | D | 6 Ø × 3 | europe (M16 art pass: `pillbox_round_be`, no cupola; no destroyed variant yet) |
 | `bunker_sandbag_thatch` | bunker | Sandbag bunker with a thatch or timber roof | N. Africa | M9 (**objective**) | **D** | 8×6×2.5 | VAR:military (M9 pass: `sandbag_bunker_thatch_bq` + destroyed) |
 | `dugout_airfield` | bunker | Long, low, log/sandbag-roofed dugout bunker | N. Africa | M10 (airfield NW; it releases patrols) [img] | — | 14×6×2.5 | NEW |
@@ -158,7 +158,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `beach_tetrahedron` | new | Concrete tetrahedron or pyramid beach obstacle | France | M14 | — | 1.5 | BUILT (M14 pass) |
 | `wire_on_stakes` | fence | Barbed wire on stakes, and wire belts | All | M4 (gorge rim), M6, M8, M10, M14 | cut | linear | VAR:military |
 | `trench_ruins` | trench | Trench with low ruined foundation walls | N. Africa | M10 (start) [img] | cover | area | VAR:desert |
-| `v2_pad_gantry` | new | V2 upright on a launch table, with a service gantry | Germany | M19 (×3, **objective**) | **D**, L | 6×6×16 | military |
+| `v2_pad_gantry` | new | V2 upright on a launch table, with a service gantry | Germany | M19 (×3, **objective**) | **D**, L | 6×6×16 | BUILT (M19 pass, manifest-oldenburg: `v2_rocket_a4` olive/sand splinter A4 on the 1.35 m ring, `v2_table_de` Brennstand on a 6×6 pad, `v2_gantry_de` servicing tower) |
 | `v2_meillerwagen` | new | V2 on its Meillerwagen trailer | Germany | M20 (×2, **objective**) | **D** | 14×3×3 | built: military `v2_meillerwagen` (+ `_b`, `_destroyed`) |
 | `firing_range` | new | Dirt yard with wooden target frames, timber fences and benches | Germany | M20 | — | 30×20 | built: military `firing_range(_b)`; M20 targets + bullet stops procedural (art/field-guns.js) |
 | `stockade_prison` | fence | Prison-camp enclosure. **M17**: low brick walls with an iron-railing top, zigzag inner divisions, iron gate, back gate with a wall control box, inner wire-mesh yard. **B7**: double barbed-wire fence with named gates N1/N2, S1/S2, E1/E2 | Alsace/Germany | M17, B7 | dr | area | VAR:military |
@@ -192,19 +192,19 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `tank_shed_open` | new | Open-front multi-bay tank shed or garage: timber or corrugated, some with broken roofs | N. Africa/Germany | M9 (3 bays, 3 Panzer IVs roll out), M10 (about 5 sheds), M19 (with smokestack) | — | 8×12×5 per bay | BUILT (M9 pass: `tank_shed_open_bq` 3 bays 21×9, corrugated, torn roof over the E bay, rolled camouflage net) |
 | `garage_brick` | house | Brick garage/warehouse with a big door (the Panzer II garage); a truck can block it | France | M13 | dr | 14×10×7 | BUILT (M13 pass: `garage_brick`, open S door, tile roof) |
 | `gantry_hoist` | new | Lattice A-frame gantry hoist over a tank under repair | N. Africa | M9, M10 [img] | — | 8×4×7 | BUILT (M9 pass: `gantry_hoist_bq` A-frames, beam, chain block, engine on its stand) |
-| `crane_tower_jib` | new | Lattice steel tower or jib crane | Alsace/Germany | M17 (outside the NW camp wall) [img], M19 (rail base) | — | 4×4×14 | NEW |
+| `crane_tower_jib` | new | Lattice steel tower or jib crane | Alsace/Germany | M17 (outside the NW camp wall) [img], M19 (rail base) | — | 4×4×14 | BUILT for M19 (`crane_jib_de` 7 m yard derrick, variant `crane_jib_yard`); M17 unchanged |
 | `crane_dock_portal` | new | Dockside portal jib crane, on rails in one case | France/Germany | M13 (×2), B4 (yard cranes), M7 (dock crane) | — | 8×8×18 | BUILT as a lattice-pillar jib crane (M13 pass: `crane_pillar`; keeps the 1.2 m crane foot of the layout) |
 | `gantry_crane_overhead` | new | Overhead travelling gantry crane over tracks | Germany | B4 | — | 25×6×10 | NEW |
-| `coal_mine_complex` | new | Timber pithead/headframe on a cliff with an exterior stair and ramps; adit entrance; coal heaps and mine carts; brick boiler/pump house with chimney | Germany | M19 (NW) | L | 20×15×15 | NEW |
-| `mining_office` | house | Brick mining office with a flag | Germany | M19 | E | 10×8×7 | NEW |
+| `coal_mine_complex` | new | Timber pithead/headframe on a cliff with an exterior stair and ramps; adit entrance; coal heaps and mine carts; brick boiler/pump house with chimney | Germany | M19 (NW) | L | 20×15×15 | BUILT (M19 pass: `pithead_adit_de` tarred adit shed with walkable flat roof + stone portal, `coal_heap_de`, `pit_props_de`, `boiler_house_de`; carts = vehicle library `mine_cart`) |
+| `mining_office` | house | Brick mining office with a flag | Germany | M19 | E | 10×8×7 | BUILT (M19 pass: `mine_office_de`, stained board-and-batten office on 3 m braced stilts, E deck + stair, flag) |
 | `conveyor_incline` | new | Inclined conveyor belt on a steel frame, from a coal hopper into the base shed. A **switch reverses it**; it carries crawling men | Germany | M19 | dr | 40×3×8 | NEW |
-| `coal_hopper` | new | Coal hopper/bunker | Germany | M19 | — | 6×6×8 | NEW |
+| `coal_hopper` | new | Coal hopper/bunker | Germany | M19 | — | 6×6×8 | BUILT (M19 pass: `coal_hopper_de`, riveted bin on a creosoted trestle, chute, catwalk) |
 | `watermill` | new | Half-timber and stone watermill with a waterwheel and a deck on the river | Alsace/Netherlands | M17 (old mill) [img], B8 (`MOLINO_AGUA`, **D** `EXPL_MOLINO01`) | E, D (B8) | 12×10×9 | europe |
 | `windmill_post` | new | Dutch timber post/smock mill with **animated sails** (`ASPA1/2`, `ASPAMOL`) on a round mound | Netherlands | B8 (×2) | — | 6×6×18 | NEW |
 | `shed_timber_long` | hut | Long timber-roofed shed, open shelter or pergola | N. Africa/Netherlands | M11, B2 (ostrich paddock shed), B7 (bridge shed `CASA_COBERTIZO_PUENTE`) | E [inf] | 12×5×4 | NEW |
 | `henhouse` | hut | Henhouse/chicken coop (`GALLINERO`, `GALL`) | Norway/Prussia/Germany | M4 (D), B5, B6 | D | 3×2×2 | NEW |
-| `dog_kennel` | new | Dog cage/kennel pen | Germany | M19 | dr | 4×3×2 | NEW |
-| `outhouse` | hut | Latrine/outhouse | Germany | M19, M20 | E [inf] | 1.5×1.5×2.5 | built: M20 procedural (castle-kit buildOuthouse) |
+| `dog_kennel` | new | Dog cage/kennel pen | Germany | M19 | dr | 4×3×2 | BUILT (M19 pass: `kennel_de` box in the kit pen) |
+| `outhouse` | hut | Latrine/outhouse | Germany | M19, M20 | E [inf] | 1.5×1.5×2.5 | built: M20 procedural (castle-kit buildOuthouse); M19 pass: `outhouse_de` plank privy (variant `outhouse_privy`) |
 
 ### 1.5 Rail, harbour and airfield
 

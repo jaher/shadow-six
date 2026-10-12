@@ -95,7 +95,8 @@ const nest = (id, x, z, back) => {
 /** The plank palisade: impassable and opaque (scripts/m19.js sealPalisade); a rifle round, or any bullet at a barrel, goes through. */
 const palisade = (id, points) => ({ id, type: 'fence', variant: 'palisade_plank', points, h: 3, width: 0.4, mat: 'planks', shotThrough: true });
 const v2 = (id, x, z) => [
-  { id, type: 'v2_rocket', variant: 'v2_pad_gantry', label: 'V2 rocket', x, z, r: 0.85, h: 14, destructible: true },
+  { id, type: 'v2_rocket', variant: 'v2_pad_gantry', label: 'V2 rocket', x, z, r: 0.85, h: 14, destructible: true,
+    float: true }, // (art pass: the A4 stands on its firing table's ring, 1.35 m up — placed off the ground on purpose)
   { id: `${id}_pad`, type: 'launch_pad', variant: 'v2_firing_table', x, z, rot: 0, w: 6, d: 6, h: 0.4, block: 0 },
   { id: `${id}_gantry`, type: 'radio_mast', variant: 'v2_service_gantry', x: x + 2.4, z, rot: 0, w: 1.6, d: 1.6, h: 15, block: 2 },
 ];
@@ -134,12 +135,16 @@ export const BRIDGE = { x: 68.5, z: 55.25, w: 25.7, d: 3, rot: 26.6 };
 export const CONVEYOR = { a: [88.5, 81.5], b: [103.5, 70], exit: [105, 71.5] };
 export const SWITCH = [100, 66.5];
 const YARD = [
-  { id: 'rail', type: 'rail_track', variant: 'mine_railway', points: RAIL, width: 1.2 },
+  // (art pass: the ballasted line stops at the trestle's ends, whose deck carries its own track, never across the
+  // river under the deck; the ground under the ballast is levelled, so the coal mud's undulation never buries the
+  // sleepers. The cart's rail_line still follows the whole RAIL.)
+  { id: 'rail', type: 'rail_track', variant: 'mine_railway', points: RAIL.slice(0, 4), width: 1.2, flatBed: true },
+  { id: 'rail_se', type: 'rail_track', variant: 'mine_railway', points: RAIL.slice(4), width: 1.2, flatBed: true },
   { id: 'bridge', type: 'rail_bridge', variant: 'rail_bridge_mine_low', label: 'Rail trestle', x: BRIDGE.x, z: BRIDGE.z, rot: deg(BRIDGE.rot),
     w: BRIDGE.w, d: BRIDGE.d, h: 1.5 },
   { id: 'buffer_se', type: 'crates', variant: 'rail_buffer', x: 96, z: 64.8, rot: deg(13.1), w: 1.5, d: 2, h: 1, block: 1,
     alignFree: 'the buffer stop squares to the end of the rail (13.1°), not to the palisade behind it' },
-  { id: 'crane', type: 'radio_mast', variant: 'crane_tower_jib', x: 84.5, z: 65.5, rot: 0, w: 2.5, d: 2.5, h: 7, block: 2 },
+  { id: 'crane', type: 'radio_mast', variant: 'crane_jib_yard', x: 84.5, z: 65.5, rot: 0, w: 2.5, d: 2.5, h: 7, block: 2 },
   coal('coal_se', 90, 69.5, 2.5),
   { id: 'boiler', type: 'house', variant: 'boiler_house', label: 'Boiler house', x: 95.5, z: 52, rot: 0, w: 10, d: 11, h: 7, mat: 'brick',
     enterable: true, door: deg(90) },
@@ -149,7 +154,8 @@ const YARD = [
   coal('coal_w', 96, 80.5, 2, 1.4),
   { id: 'white_wall', type: 'wall', variant: 'whitewashed_concrete', points: [[101.5, 82.5], [101.5, 89.5]], width: 5, h: 3, mat: 'plaster', block: 2 },
   { id: 'crates_gate', type: 'crates', variant: 'crates_pile', x: 117.5, z: 86, rot: deg(346), w: 4, d: 5, h: 1.8, block: 2 },
-  { id: 'wreck_car', type: 'ruins', variant: 'car_wreck_burnt', x: 133.5, z: 84, rot: deg(20), w: 4.5, d: 2.5, h: 1.4, mat: 'metalRust' },
+  { id: 'wreck_car', type: 'ruins', variant: 'car_wreck_burnt', x: 133.5, z: 84, rot: deg(20), w: 4.5, d: 2.5, h: 1.4, mat: 'metalRust',
+    vehicleArt: 'horch901', wreck: true }, // (art pass: a burnt-out Horch staff car from the vehicle library; footprint unchanged)
   // the SE bank's rocky cliffs (Phase 3) and the yard rocks
   rock('rock_se1', 63, 85, 3, 2.5), rock('rock_se2', 71, 92, 3, 2), rock('rock_se3', 66, 96.5, 2.5, 2.5), rock('rock_se4', 78, 82, 3, 3),
   rock('rock_se5', 70, 75, 3, 2), rock('rock_se6', 42.5, 101.5, 5, 4), rock('rock_se7', 52, 84.5, 3, 2.5), rock('rock_se8', 81, 94, 3, 2.5),
@@ -166,22 +172,24 @@ const BASE = [
   { id: 'gate_s', type: 'gate', variant: 'plank_double_gate', label: 'South gate', x: 122, z: 81.5, rot: Math.atan2(-1, 4), w: 4, h: 3, open: true },
   { id: 'sentry_box', type: 'hut', variant: 'sentry_box', x: 126.5, z: 78, rot: 0, w: 1.5, d: 1.5, h: 2.6, mat: 'planks' },
   ...v2('v2_w', 118, 40), ...v2('v2_m', 130, 37), ...v2('v2_e', 141, 47),
-  { id: 'barr_n', type: 'barracks', variant: 'barracks_corrugated_gable', x: 134.5, z: 45, rot: 0, w: 8, d: 7, h: 5, mat: 'metal',
+  { id: 'barr_n', type: 'barracks', variant: 'barracks_corrugated_iron', x: 134.5, z: 45, rot: 0, w: 8, d: 7, h: 5, mat: 'metal',
     flag: true, garrison: true, door: deg(180), destructible: true },
-  { id: 'barr_s', type: 'barracks', variant: 'barracks_corrugated_gable', x: 131, z: 66, rot: 0, w: 12, d: 9, h: 6, mat: 'metal',
+  { id: 'barr_s', type: 'barracks', variant: 'barracks_corrugated_iron', x: 131, z: 66, rot: 0, w: 12, d: 9, h: 6, mat: 'metal',
     flag: true, garrison: true, door: deg(180), destructible: true },
-  { id: 'outhouse', type: 'hut', variant: 'outhouse', x: 137.5, z: 39.5, rot: 0, w: 1.5, d: 1.5, h: 2.5, mat: 'planks' },
+  { id: 'outhouse', type: 'hut', variant: 'outhouse_privy', x: 137.5, z: 39.5, rot: 0, w: 1.5, d: 1.5, h: 2.5, mat: 'planks' },
   { id: 'tall_house', type: 'house', variant: 'house_tall_narrow_brick', x: 108.5, z: 54, rot: 0, w: 4, d: 5, h: 11, mat: 'brick',
     enterable: true, door: deg(90) },
   { id: 'hut_n', type: 'house', variant: 'hut_timber_bigroof', x: 115, z: 51, rot: 0, w: 9, d: 8, h: 5, mat: 'woodDark', enterable: true, door: deg(90) },
   { id: 'crates_n', type: 'crates', variant: 'crates_pile', x: 120, z: 57, rot: 0, w: 4, d: 3, h: 1.5, block: 1 },
-  { id: 'drums_conv', type: 'fueltank', variant: 'oil_drums_stack', x: 102, z: 62, rot: 0, w: 2.5, d: 5, h: 2, block: 2 },
+  { id: 'drums_conv', type: 'fueltank', variant: 'oil_drums_stack', x: 102, z: 62, rot: 0, w: 2.5, d: 5, h: 2, block: 2,
+    asset: 'drum_stack_de', nav: false }, // (art pass: the library's chocked drum stack, not a fuel tank; the mission's nav stays)
   { id: 'pen', type: 'prison_pen', variant: 'dog_kennel', label: 'Dog pen', x: 111.5, z: 74, rot: 0, w: 9, d: 10, h: 2, gateSide: 'W',
     alignFree: 'on the base grid with pal_w and the huts; the S palisade runs a clear 14–17° off (the dog is shot through its rails)' },
   { id: 'pen_gate', type: 'gate', variant: 'plank_gate', x: 107, z: 74, rot: deg(90), w: 2.4, h: 2, locked: true },
   { id: 'kennel', type: 'hut', variant: 'dog_kennel_box', x: 114, z: 77, rot: 0, w: 1.6, d: 1.4, h: 1.2, mat: 'planks',
     alignFree: 'inside the pen, square to it' },
-  { id: 'wreck_ht', type: 'ruins', variant: 'tractor_wreck_burnt', x: 114.5, z: 63.5, rot: deg(30), w: 5, d: 3, h: 1.8, mat: 'metalRust', block: 2 },
+  { id: 'wreck_ht', type: 'ruins', variant: 'tractor_wreck_burnt', x: 114.5, z: 63.5, rot: deg(30), w: 5, d: 3, h: 1.8, mat: 'metalRust', block: 2,
+    vehicleArt: 'sdkfz251_c', wreck: true }, // (art pass: the burnt-out tracked tractor is a gutted Sd.Kfz. 251 half-track)
   { id: 'crates_v2', type: 'crates', variant: 'crates_cable_drums', x: 124, z: 46.5, rot: 0, w: 3, d: 5, h: 1.2, block: 1 },
   { id: 'drum_rust', type: 'fueltank', variant: 'rusty_drum_upright', x: 116, z: 80, r: 1, h: 2, block: 2 },
   // the four movable barrels (§3.8 "4 barrels"), 6 m S of the watchtower, inside the N fence
@@ -193,7 +201,35 @@ const BASE = [
 /** The two SE-bank MG nests ("near" e17, "far" e50). */
 const NESTS = [...nest('nest_17', 58.5, 75.5, 120), ...nest('nest_50', 37, 99, 130)];
 
-const STRUCTURES = [...NORTH, ...YARD, ...NESTS, ...BASE];
+// ---------------------------------------------------------------- art pass dressing (visual; low cover, off every route)
+// pit props (Grubenholz) stacked by the pithead and against the boiler house's W wall, and a coal lorry parked in the
+// SE yard below the crane (an Opel Blitz; the crate type keeps it plain low cover like the coal heaps)
+const DRESSING = [
+  { id: 'props_head', type: 'crates', variant: 'pit_props', x: 14.4, z: 33.3, rot: deg(15), w: 4, d: 1.4, h: 1.3, block: 1 },
+  { id: 'props_boiler', type: 'crates', variant: 'pit_props', x: 89.3, z: 51.5, rot: deg(90), w: 4, d: 1.4, h: 1.3, block: 1 },
+  { id: 'lorry_yard', type: 'crates', variant: 'parked_lorry', x: 79.5, z: 71, rot: deg(100), w: 6.2, d: 2.3, h: 2.2, block: 1,
+    vehicleArt: 'opel_blitz_cargo' },
+];
+
+const STRUCTURES = [...NORTH, ...YARD, ...NESTS, ...BASE, ...DRESSING];
+
+// the base's concrete service road from the S gate up to the pads (visual only, grid false: nav and footstep terrain
+// stay as tuned); a floodlight over the pads, blackout lamps at the barracks doors, a pit sign and Sperrgebiet boards
+const PAVEMENTS = [
+  { id: 'base_road', surface: 'concrete', points: [[120.2, 83.05], [125, 81.85], [125, 50.2], [122.4, 50.2], [122.4, 42.4], [120, 42.4], [120, 54], [122.2, 54], [122.2, 70], [120.2, 70]],
+    // (square to the crates and barracks: a 2.8 m lorry road along barr_s's W wall, a branch up between hut_n and the cable drums to v2_w's pad)
+    cracks: 0.55, weeds: 0.35, patches: 0.25, edge: 'ragged', grid: false },
+];
+const FURNITURE = [
+  { type: 'floodlight', x: 133, z: 31.6, rot: deg(110), block: false },
+  { type: 'lamp', variant: 'wall_lamp', x: 124.95, z: 64.4, rot: 0, hooded: true, block: false },
+  { type: 'lamp', variant: 'wall_lamp', x: 130.45, z: 43.6, rot: 0, hooded: true, block: false },
+  { type: 'lamp', variant: 'norway_wood', x: 17, z: 20, rot: deg(200), hooded: true, block: false },
+  { type: 'lamp', variant: 'norway_wood', x: 89.5, z: 58.8, rot: deg(-60), hooded: true, block: false },
+  { type: 'sign', variant: 'plate', x: 12.6, z: 19.9, rot: 0, text: 'ZECHE GLÜCKAUF\nOLDENBURG', block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 128.5, z: 80.7, rot: deg(-17), text: 'SPERRGEBIET\nBETRETEN VERBOTEN', block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 101.9, z: 59.0, rot: 0, text: 'RAUCHEN\nVERBOTEN!', block: false },
+];
 
 // ---------------------------------------------------------------- enemies (dossier §8; Prima numbers 1–36)
 /** Lone walker: PINGPONG (or LOOP) over `pts` (1.0 m/s), starting at the first point facing the second. */
@@ -365,8 +401,11 @@ export default {
   water: { velocity: 1.6, angleDeg: 315, turbulence: 0.6, color: '#1d5a5c' },
   baseTerrain: 'ground',
   terrain: TERRAIN,
+  pavements: PAVEMENTS,
+  furniture: FURNITURE,
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
-  structures: joinStructures(STRUCTURES, [['hopper', 'conv'], ['v2_e_pad', 'barr_n'], ['tall_house', 'hut_n'], ['pen', 'kennel']]),
+  structures: joinStructures(STRUCTURES, [['hopper', 'conv'], ['v2_e_pad', 'barr_n'], ['tall_house', 'hut_n'], ['pen', 'kennel'],
+    ['pen', 'pen_gate'], ['shed', 'rock_mound']]), // (art pass: the pen's own gate in its W rails; the start mound banked against the shed's NE corner)
   items: [],
   interactables: [],
   vehicles: VEHICLES,

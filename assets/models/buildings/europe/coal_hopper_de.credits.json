@@ -1,0 +1,237 @@
+{
+ "asset": "coal_hopper_de",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "concrete_board": {
+   "source": "Poly Haven",
+   "id": "wood_textured_concrete",
+   "url": "https://polyhaven.com/a/wood_textured_concrete",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Textured Concrete",
+   "label": "Board-formed concrete",
+   "files": {
+    "diff": {
+     "2k": "2k/concrete_board_diff",
+     "1k": "1k/concrete_board_diff"
+    },
+    "nor": {
+     "2k": "2k/concrete_board_nor",
+     "1k": "1k/concrete_board_nor"
+    },
+    "arm": {
+     "2k": "2k/concrete_board_arm",
+     "1k": "1k/concrete_board_arm"
+    }
+   }
+  },
+  "deck_planks": {
+   "source": "Poly Haven",
+   "id": "wood_planks_dirt",
+   "url": "https://polyhaven.com/a/wood_planks_dirt",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Dirt",
+   "label": "Deck / floor planks",
+   "files": {
+    "diff": {
+     "2k": "2k/deck_planks_diff",
+     "1k": "1k/deck_planks_diff"
+    },
+    "nor": {
+     "2k": "2k/deck_planks_nor",
+     "1k": "1k/deck_planks_nor"
+    },
+    "arm": {
+     "2k": "2k/deck_planks_arm",
+     "1k": "1k/deck_planks_arm"
+    }
+   }
+  },
+  "gravel_grey": {
+   "source": "Poly Haven",
+   "id": "gravel",
+   "url": "https://polyhaven.com/a/gravel",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Gravel",
+   "label": "Grey limestone gravel (cemetery / churchyard paths, grave infill)",
+   "files": {
+    "diff": {
+     "2k": "2k/gravel_grey_diff",
+     "1k": "1k/gravel_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/gravel_grey_nor",
+     "1k": "1k/gravel_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/gravel_grey_arm",
+     "1k": "1k/gravel_grey_arm"
+    }
+   }
+  },
+  "paint_metal": {
+   "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Smooth enamel-painted sheet metal (pale, tint per asset)",
+   "files": {
+    "diff": {
+     "1k": "1k/paint_metal_diff",
+     "2k": "2k/paint_metal_diff"
+    },
+    "nor": {
+     "1k": "1k/paint_metal_nor",
+     "2k": "2k/paint_metal_nor"
+    },
+    "arm": {
+     "1k": "1k/paint_metal_arm",
+     "2k": "2k/paint_metal_arm"
+    }
+   }
+  },
+  "rubble_stone": {
+   "source": "Poly Haven",
+   "id": "stone_wall",
+   "url": "https://polyhaven.com/a/stone_wall",
+   "authors": [
+    "Dario Barresi",
+    "Charlotte Baglioni"
+   ],
+   "license": "CC0-1.0",
+   "name": "Stone Wall",
+   "label": "Random rubble stone wall, irregular polygonal stones (garden / farm walls)",
+   "files": {
+    "diff": {
+     "2k": "2k/rubble_stone_diff",
+     "1k": "1k/rubble_stone_diff"
+    },
+    "nor": {
+     "2k": "2k/rubble_stone_nor",
+     "1k": "1k/rubble_stone_nor"
+    },
+    "arm": {
+     "2k": "2k/rubble_stone_arm",
+     "1k": "1k/rubble_stone_arm"
+    }
+   }
+  },
+  "signs": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Painted sign atlas",
+   "files": {
+    "diff": {
+     "1k": "1k/signs_diff",
+     "2k": "2k/signs_diff"
+    }
+   }
+  },
+  "steel_painted": {
+   "source": "Poly Haven",
+   "id": "rusty_painted_metal",
+   "url": "https://polyhaven.com/a/rusty_painted_metal",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Painted Metal",
+   "label": "Painted riveted steel (bridge grey-green)",
+   "files": {
+    "diff": {
+     "2k": "2k/steel_painted_diff",
+     "1k": "1k/steel_painted_diff"
+    },
+    "nor": {
+     "2k": "2k/steel_painted_nor",
+     "1k": "1k/steel_painted_nor"
+    },
+    "arm": {
+     "2k": "2k/steel_painted_arm",
+     "1k": "1k/steel_painted_arm"
+    }
+   }
+  },
+  "timber_creosote": {
+   "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+   "license": "CC0-1.0",
+   "derived_from": {
+    "source": "Poly Haven",
+    "id": "wood_planks_grey",
+    "license": "CC0-1.0"
+   },
+   "label": "Creosoted structural timber",
+   "files": {
+    "diff": {
+     "1k": "1k/timber_creosote_diff",
+     "2k": "2k/timber_creosote_diff"
+    },
+    "nor": {
+     "1k": "1k/timber_creosote_nor",
+     "2k": "2k/timber_creosote_nor"
+    },
+    "arm": {
+     "1k": "1k/timber_creosote_arm",
+     "2k": "2k/timber_creosote_arm"
+    }
+   }
+  },
+  "timber_grey": {
+   "source": "Poly Haven",
+   "id": "weathered_planks",
+   "url": "https://polyhaven.com/a/weathered_planks",
+   "authors": [
+    "Dario Barresi",
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Planks",
+   "label": "Weathered grey timber",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_grey_diff",
+     "1k": "1k/timber_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_grey_nor",
+     "1k": "1k/timber_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_grey_arm",
+     "1k": "1k/timber_grey_arm"
+    }
+   }
+  }
+ }
+}

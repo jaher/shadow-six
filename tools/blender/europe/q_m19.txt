@@ -1,0 +1,24 @@
+# M19 art pass (Oldenburg coal mine + V-2 base): run.sh-style lines "script variant seed theater budget" (scripts take -- <outroot> <variant> <seed>);
+# ship with tools/blender/consolidate/addon_manifest.py <art_root> <repo> manifest-oldenburg europe \
+#   mine_office=mine_office_de boiler_house_de=boiler_house_de barracks_corr=barracks_corr_a,barracks_corr_b house_tall_de=house_tall_brick_de \
+#   hut_timber_de=hut_timber_de coal_hopper=coal_hopper_de bunker_obs=bunker_obs_de privy=outhouse_de kennel=kennel_de v2_rocket_a4=v2_rocket_a4 \
+#   v2_table=v2_table_de v2_gantry=v2_gantry_de drum_stack=drum_stack_de coal_heap_de=coal_heap_de pit_props=pit_props_de \
+#   pithead_de=pithead_adit_de crane_jib=crane_jib_de
+olden.py o 1901 temperate 15000
+olden.py b 1902 temperate 15000
+olden.py k 1903 temperate 12000
+olden.py K 1904 temperate 12000
+olden.py t 1905 temperate 12000
+olden.py h 1906 temperate 12000
+olden.py p 1907 temperate 10000
+olden_small.py p 1922 temperate 8000
+olden_small.py r 1923 temperate 8000
+olden_small.py o 1924 temperate 8000
+olden_small.py n 1925 temperate 8000
+olden_small.py d 1926 temperate 8000
+olden_small.py c 1927 temperate 8000
+olden_small.py q 1928 temperate 8000
+v2_kit.py R 1931 temperate 15000
+v2_kit.py T 1931 temperate 15000
+v2_kit.py G 1931 temperate 15000
+v2_kit.py J 1935 temperate 8000

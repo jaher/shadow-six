@@ -19,6 +19,7 @@ import { libTextureURL } from './building-library.js';
 import { extendPolygonPastEdges } from '../world/edge-extend.js';
 import { scopedMemo, pendingTextureBytes } from '../engine/scoped-assets.js';
 import { MEDINA_GOODS_RX, buildMedinaGoods } from './medina-kit.js';
+import { ruinedStoneWall, whitewashedBlock } from './mine-walls.js';
 import { loadCompressedTexture } from '../engine/texture-memory.js';
 
 const HAS_DOM = typeof document !== 'undefined';
@@ -508,6 +509,9 @@ export function buildWall(points, o) {
   // M15 art pass: the burned-out house's shell (brick with plaster and wallpaper remnants, charred joists, jagged tops)
   if (/^ruin_(burnt_walls|wall_stub)$/.test(String(o.variant))) return buildBurntWall(points, o, h, width, R);
   if (kind === 'mudbrick' && /ruin/.test(String(o.variant))) return ruinedMudWall(points, { ...o, h, width }, R);
+  // M19 art pass (art/mine-walls.js): the field ruins' broken stone walls and the base's whitewashed concrete block
+  if (o.variant === 'ruin_wall') return ruinedStoneWall(points, { ...o, h, width }, R);
+  if (o.variant === 'whitewashed_concrete') return whitewashedBlock(points, { ...o, h, width }, R);
   if (/^mudbrick_broken$/.test(String(o.variant))) return ruinedMudWall(points, { ...o, h, width }, R); // M9 art pass: the broken stub
   if (/^mudbrick_wire$/.test(String(o.variant))) return campMudWall(points, { ...o, h, width }, R);     // M9 art pass: the octagon
   if (kind === 'stone' && /ruined_stone_low/.test(String(o.variant))) return ruinedFieldWall(points, { ...o, h, width }, R);

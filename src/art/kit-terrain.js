@@ -369,8 +369,10 @@ export function buildRailBridge(p) {
     tb(w, 0.06, 0.06, dressingMaterial('castIron'), 0, 1.25, s * (d / 2 - 0.05), 0.6);   // hand rail
     for (let x = -w / 2; x <= w / 2; x += 2) tb(0.06, 0.85, 0.06, dressingMaterial('castIron'), x, 0.82, s * (d / 2 - 0.05), 0.6);
   }
-  const track = buildRailTrack([[-w / 2, 0], [w / 2, 0]], { width: Math.min(2.4, d - 0.6) });
-  track.position.y = 0.3; track.children[0].visible = false; // no ballast on a bridge deck
+  // a mine trestle (M19) carries its rusty track ON the planks (sleepers spiked to the deck), like the line either side
+  const mine = /mine/.test(String(p.variant || ''));
+  const track = buildRailTrack([[-w / 2, 0], [w / 2, 0]], { width: Math.min(2.4, d - 0.6), rusty: mine });
+  track.position.y = mine ? 0.4 : 0.3; track.children[0].visible = false; // no ballast on a bridge deck
   g.add(track);
   if (h > 1) for (let x = -w / 2 + 3; x < w / 2; x += 6) {
     for (const s of [-1, 1]) { const leg = tb(steelV ? 0.3 : 0.4, h, steelV ? 0.3 : 0.4, steelV ? steel : beam, x, -0.8 - h / 2, s * (d / 2 - 0.3), 1.2); leg.rotation.x = s * 0.06; }
