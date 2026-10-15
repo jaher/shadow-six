@@ -1612,8 +1612,7 @@ Emitters add the events they own; AUDIO never needs another team to call it.
     inside those passes (`isMesh` getter: the colour pass, raycasts and scene walks never see it); a member is culled
     there while its group is valid in that pass (visible, same geometry / matrix / layers; shadow: castShadow + plain
     depth material of the same side; AO: GTAO's stock normal material, `userData.aoStock`), else the group falls back to
-    its members. The proxy draws when any member passes its own cull test (every member is tested each pass, as
-    unmerged: their lazily cached bounds are taken at the same moments), so groups are in or out exactly as unmerged;
+    its members. The proxy is culled by its own bounds (they hold every member's: it draws whenever a member would);
     frozen same-page ON / OFF frames (`setDepthMerge`) match bit for bit but for a few equal-depth edge pixels.
     M6 default view 480 → 415 draws.
   - Water mirror (`art/water/index.js`): oblique near plane at the water instead of a clipping plane (no program

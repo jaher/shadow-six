@@ -418,16 +418,24 @@ export class Game {
       scene.updateMatrixWorld();
       scene.matrixWorldAutoUpdate = false;
       // programs are acquired before the instance count matters: one instance each (grass, trees, clutter…) keeps the
-      // whole-map frame light on a phone GPU
+      // whole-map frame light on a phone GPU. Bounds a cull computes during this frame (the shadow reach test asks for
+      // an instanced mesh's box lazily) would cover that one instance and be kept: the instanced grass, trench pieces,
+      // tents and hedgehogs then lost their shadows whenever it was off screen. Bounds not computed yet go back to
+      // unset with the count, and are computed over every instance the next time a cull asks.
+      const oneInstance = (o) => {
+        if (o.boundingBox === null) few.push(o, 'boundingBox', null);
+        if (o.boundingSphere === null) few.push(o, 'boundingSphere', null);
+        few.push(o, 'count', o.count); o.count = 1;
+      };
       scene.traverse((o) => {
-        if (o.isInstancedMesh && o.count > 1) { few.push(o, 'count', o.count); o.count = 1; }
+        if (o.isInstancedMesh && o.count > 1) oneInstance(o);
         else if (o.geometry?.isInstancedBufferGeometry && o.geometry.instanceCount > 1) { few.push(o.geometry, 'instanceCount', o.geometry.instanceCount); o.geometry.instanceCount = 1; }
         // what stays hidden until something happens (`userData.warmShow`: the M3 dam's burst, a ruin waiting for its
         // blast, blood decals before the first wound) is drawn in this frame too: its programs exist before it first
         // shows (the blast is the shot in video mode)
         if (o.userData?.warmShow) {
           if (!o.visible) { few.push(o, 'visible', false); o.visible = true; }
-          if (o.isInstancedMesh && o.count === 0) { few.push(o, 'count', 0); o.count = 1; }
+          if (o.isInstancedMesh && o.count === 0) oneInstance(o);
         }
         // every level of detail of the characters (the director zooms in and out: each LOD's own program variants)
         if (!o.visible && /^LOD\d$/.test(o.name)) lods.push(o);

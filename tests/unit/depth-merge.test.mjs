@@ -164,25 +164,19 @@ test('depth merge: a group falls back to its members in a pass where one changed
   assert.deepEqual(drawnIn('shadow', [...members, p]), [false, false, false, true], 'the shadow pass is unaffected');
 });
 
-test('depth merge: the group is in or out exactly as unmerged: the proxy draws when any member passes its own test', () => {
+test('depth merge: the proxy is culled by its own bounds, which hold every member: drawn whenever a member would be', () => {
   const { root, node } = building(3); // parts at x -0.5..0.5, 2..4, 4.5..7.5
   addDepthMerge(root);
   const p = proxyOf(node), members = node.children.filter((c) => !c.isDepthProxy);
   root.updateMatrixWorld(true);
   const f = (x0, x1) => { const fr = new THREE.Frustum(); const c = new THREE.OrthographicCamera(x0, x1, 10, -10, -100, 100); c.updateMatrixWorld(); fr.setFromProjectionMatrix(c.projectionMatrix.clone().multiply(c.matrixWorldInverse)); return fr; };
   const drawn = (fr) => inDepthPass('shadow', () => [...members, p].map((o) => o.isMesh && o.intersectsFrustum(fr)));
-  assert.deepEqual(drawn(f(-1, 12)), [false, false, false, true], 'all parts in view: the proxy draws them');
-  assert.deepEqual(drawn(f(5, 7)), [false, false, false, true], 'only the third in view: the proxy (the others shade nothing in view)');
-  assert.deepEqual(drawn(f(40, 50)), [false, false, false, false], 'none: nothing');
-  // every member is tested each pass, as unmerged (their lazy bounds are taken at the same moments)
-  let calls = 0;
-  const spy = new THREE.Frustum().copy(f(-1, 12)), io = spy.intersectsObject.bind(spy);
-  spy.intersectsObject = (o) => { calls++; return io(o); };
-  drawn(spy);
-  assert.equal(calls, 3, `${calls} member tests in one pass`);
-  // members' own (cached) bounds decide, whatever the proxy's own box says
-  for (const m of members) m.geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(500, 0, 0), 1);
-  assert.deepEqual(drawn(f(-1, 12)), [false, false, false, false], 'members culled by their own bounds: the proxy too');
+  for (const [x0, x1] of [[-1, 12], [5, 7], [1.5, 2.5], [-0.4, 0]]) {
+    const fr = f(x0, x1), any = members.some((m) => fr.intersectsObject(m)); // (the stock test, no depth-merge hook)
+    assert.ok(any, `a member is in [${x0}, ${x1}]`);
+    assert.deepEqual(drawn(fr), [false, false, false, true], `[${x0}, ${x1}]: the proxy draws for its members`);
+  }
+  assert.deepEqual(drawn(f(40, 50)), [false, false, false, false], 'none in view: nothing');
 });
 
 test('depth merge: batch proxies (createBuildingBatch) are instanced, share their members\' matrices and tags', () => {

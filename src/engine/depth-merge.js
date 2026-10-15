@@ -15,8 +15,8 @@
  *    pass renders: `isMesh` is false otherwise, so the colour pass, the water mirror, x-ray, raycasts and every scene
  *    walk (clip audit, nav, drape stripping, burnt-material swaps) never see it — as chunking's proxy;
  *  - `inDepthPass(kind, fn)` brackets those passes (the renderer's shadow map render, the GTAO prepass); inside one, a
- *    member mesh is culled while its group is valid and the proxy is drawn in its place — when any member passes its
- *    own cull test for that pass (frustum, shadow reach), so a group is in or out exactly as without the merge;
+ *    member mesh is culled while its group is valid and the proxy is drawn in its place, culled by its own bounds
+ *    (they hold every member's: whenever a member would be drawn, the proxy is);
  *  - a group is valid in a pass while every member is still there and drawable as at merge time: visible, same
  *    geometry, matrix and layers, and for the shadow pass castShadow and a plain depth material of the same shadow side;
  *    for the AO prepass the stock normal material (GTAO marks its stock variants `userData.aoStock`). Anything else (an
@@ -209,24 +209,6 @@ function groupOk(p) {
   return ok;
 }
 
-/**
- * Is any member of a valid group drawn in this pass? (each member's own cull test — its bounds and caches: frustum,
- * shadow reach — so the group is in or out exactly as without the merge, a box cached during the one-instance warm-up
- * frame included.) When it is, the proxy draws every member: a part whose own test fails has a shadow volume that
- * misses every receiving view (shadow-reach sweeps its box down to the ground), so it shades nothing on screen, in the
- * air either. Cached per pass and frustum.
- */
-function groupIn(p, frustum, test) {
-  if (p.__cs === serial && p.__cf === frustum) return p.__cv;
-  const g = p.userData.depthGroup;
-  // every member is tested, as unmerged (no early exit): the tests compute lazy bounds (an instanced mesh's box, cached
-  // by shadow reach), and must do so at the same moments — a box taken during the warm-up frame stays one instance
-  let v = false;
-  for (const c of p.parent.children) if (c !== p && c.userData.depthGroup === g && test.call(c, frustum)) v = true;
-  p.__cs = serial; p.__cf = frustum;
-  return (p.__cv = v);
-}
-
 /** The proxy of a member mesh (its sibling with the same group), cached. */
 function proxyOf(o, g) {
   const par = o.parent;
@@ -249,10 +231,9 @@ export function installDepthMerge() {
     if (depth > 0) {
       const g = this.userData.depthGroup;
       if (g !== undefined) {
-        if (this.isDepthProxy) return on() && groupOk(this) && groupIn(this, frustum, orig);
-        if (on()) {
+        if (this.isDepthProxy) { if (!on() || !groupOk(this)) return false; } else if (on()) {
           const p = proxyOf(this, g);
-          if (p && groupOk(p)) return false; // the proxy draws it (or, its group being out, nobody)
+          if (p && groupOk(p)) return false; // the proxy draws it
         }
       }
     }
@@ -272,9 +253,7 @@ export function installShadowDepthPass(renderer) {
 
 /**
  * Instanced copy of a template proxy for createBuildingBatch: same geometry / material / group tags, drawn with its
- * first member's instance matrices (the same attribute). Its bounds are computed here, over every instance (its cull
- * follows its members', but anything else that asks must not take them during the one-instance warm-up frame,
- * Game._warmFrame).
+ * first member's instance matrices (the same attribute); its bounds computed here, over every instance.
  */
 export function instancedProxy(o, first) {
   const im = new DepthProxyInstancedMesh(o.geometry, o.material, first.count);
