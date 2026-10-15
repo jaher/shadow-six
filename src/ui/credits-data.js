@@ -647,7 +647,7 @@ export const CREDITS_SECTIONS = [
     "CC0 1.0"
    ],
    [
-    "paint_rust_ochre, rust_heavy",
+    "paint_rust_ochre, paint_rust_red, rust_heavy",
     "Procedural (tools/blender/europe/scripts/make_rust_tex.py, own work)",
     "SHADOW SIX project (own work)",
     "CC0 1.0"

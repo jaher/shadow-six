@@ -54,7 +54,8 @@ switch to the library only for hinted variants; a hinted `sea_wall` tiles its 8 
 - M16 (the Maas bridge, Belgium; `manifest-maas.json`, M18 shares the map): `europe/q_m16.txt` lists the builds (Mosan brick
   houses with bluestone trims and wall anchors, one with the door on the W gable, whitewashed / brick farmhouses, grey rendered
   townhouses, the village railway halt with its platform canopy, a brick field hut, the island's tarred plank shed, the round
-  camouflaged pillbox, the ridge field tent, an abandoned crawler bulldozer). Own types only; M16 picks them by `asset`.
+  camouflaged pillbox, the ridge field tent, an abandoned crawler bulldozer and its tractor-red twin for M18). Own types only;
+  M16 and M18 pick them by `asset`.
 - M6 (Masi, Finnmark; `manifest-masi.json`): `norway/q_m06.txt` lists the builds (`masi_ruin.py`: the two roofless bombed log
   manors with their walkable plank deck at 3.2 m, burnt upper storey broken off along the mission's parapets / partitions,
   chimney stack, white stone stairs and ladder at the mission's links; `masi_tower.py`: the round laft log tower with its

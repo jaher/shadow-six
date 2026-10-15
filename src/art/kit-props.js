@@ -265,14 +265,19 @@ function hydrant(g) {
   g.add(mesh(lathe([[0, 0], [0.16, 0], [0.16, 0.06], [0.11, 0.1], [0.1, 0.62], [0.13, 0.66], [0.12, 0.72], [0.07, 0.8], [0.03, 0.86], [0, 0.87]], 16), red));
   for (const s of [-1, 1]) { const o = tcyl(0.045, 0.045, 0.16, red, 0, 0, 0, 10, 0.4); o.rotation.z = Math.PI / 2; o.position.set(s * 0.15, 0.48, 0); g.add(o); }
 }
-/** Level-crossing boom: striped arm on a post with a counterweight, lowered across the road (local +X). */
+/** Level-crossing boom: striped arm on a post with a counterweight, lowered across the road (local +X); `raised: true`
+ *  swings the arm up (about 80 degrees, pivot at the post head) in the same vertical plane, the open position. */
 function crossingBoom(g, p) {
   const L = Math.max(3, (p.w ?? 0) > 1 ? p.w : 5.5);
   const white = paintedMaterial('planks', 0xe6e3da), red = paintedMaterial('planks', 0xa3261e);
+  const a = p.raised ? (80 * Math.PI) / 180 : 0, ca = Math.cos(a), sa = Math.sin(a);
+  const zArm = p.raised ? 0.36 : 0; // raised: the arm hangs on a side axle so the dropped counterweight clears the post
+  const onArm = (o, c) => { o.position.set(c * ca, 1.0 + c * sa, zArm); o.rotation.z = a; return o; }; // c: distance from the pivot
   g.add(tbox(0.3, 1.05, 0.3, white, 0, 0.525, 0, 0.8));
-  g.add(tbox(0.36, 0.36, 0.36, dressingMaterial('castIron'), -0.3, 1.0, 0, 0.6));
+  if (p.raised) g.add(tbox(0.08, 0.08, 0.3, dressingMaterial('castIron'), 0, 1.0, 0.18, 0.6)); // axle
+  g.add(onArm(tbox(0.36, 0.36, 0.36, dressingMaterial('castIron'), 0, 0, 0, 0.6), -0.3));
   const n = 8;
-  for (let k = 0; k < n; k++) g.add(tbox(L / n, 0.1, 0.1, k % 2 ? white : red, 0.2 + (k + 0.5) * (L / n), 1.0, 0, 0.6));
+  for (let k = 0; k < n; k++) g.add(onArm(tbox(L / n, 0.1, 0.1, k % 2 ? white : red, 0, 0, 0, 0.6), 0.2 + (k + 0.5) * (L / n)));
   g.add(tbox(0.1, 0.9, 0.1, dressingMaterial('creosote'), 0.2 + L - 0.1, 0.45, 0, 0.6)); // rest post
 }
 /** Tram stop: enamel stop sign on an iron post with a timetable box. */

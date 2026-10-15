@@ -1,6 +1,7 @@
 """Procedural, seamless 1k PBR maps (own work, CC0) for long-abandoned plant (M16 bulldozer_rusty):
   paint_rust_ochre  faded yellow-ochre enamel worn through to red-oxide primer and rust: blotchy chalking, peeled chips
                     with a primer rim, rust patches with orange cores and dark scale, pitting, rain runs (1.6 m tile)
+  paint_rust_red    the same wear under faded tractor-red enamel over grey primer (M18 bulldozer_rusty_red)
   rust_heavy        steel corroded right through: orange-brown scale, dark pits, flaking crust, black mill-scale
                     remnants, grit (1.2 m tile; track shoes, blade face, undercarriage)
 Writes <out>/<name>_{diff,nor,arm}.jpg (ARM = AO, roughness, metal). usage: python3 make_rust_tex.py <out_dir> [px]
@@ -103,6 +104,19 @@ dirt = sstep(0.55, 0.95, fnoise(2.0, 4, 80))
 diff = lerp(diff, col((92, 80, 62)), dirt * 0.25)
 h = paint_cov * 0.6 + primer * 0.4 + rust * (0.25 + 0.35 * fine) - pits * 0.3 + grain * 0.04
 save('paint_rust_ochre', diff, normal_from(smooth(h, 0.7), 9.0), 1 - pits * 0.35 - (1 - paint_cov) * 0.08,
+     0.55 * paint_cov + 0.88 * (1 - paint_cov) + 0.05 * grain, rust * 0.0 + paint_cov * 0.12)
+
+# ---------------------------------------------------------------- paint_rust_red (M18: the red tractor / bulldozer wreck)
+# the same wear masks under a faded tractor-red enamel (chalked to brick pink) over grey primer
+rpaint = lerp(col((138, 30, 24)), col((168, 74, 60)), sstep(0.3, 0.8, chalk))
+rpaint = lerp(rpaint, col((112, 40, 32)), sstep(0.55, 0.9, mid) * 0.5)
+rpaint *= (0.93 + 0.12 * grain)[..., None]
+rprim = col((96, 92, 84)) * (0.9 + 0.2 * fine)[..., None]
+rdiff = lerp(rpaint, rprim, primer * 0.85)
+rdiff = lerp(rdiff, rcol, rust)
+rdiff = lerp(rdiff, col((110, 64, 40)), streak * 0.45)
+rdiff = lerp(rdiff, col((92, 80, 62)), dirt * 0.25)
+save('paint_rust_red', rdiff, normal_from(smooth(h, 0.7), 9.0), 1 - pits * 0.35 - (1 - paint_cov) * 0.08,
      0.55 * paint_cov + 0.88 * (1 - paint_cov) + 0.05 * grain, rust * 0.0 + paint_cov * 0.12)
 
 # ---------------------------------------------------------------- rust_heavy

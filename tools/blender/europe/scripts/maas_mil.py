@@ -7,6 +7,7 @@
  d  bulldozer_rusty    abandoned 1930s crawler tractor with a cable-lift angledozer, 4.5 x 2.6 m (maas_dozer.py: shoe-by-
                        shoe track belts with grousers, sprockets, idlers, rollers, louvred hood, barred radiator, exposed
                        engine, cable control unit, ribbed mouldboard; faded ochre paint worn to rust, weeds)
+ e  bulldozer_rusty_red the same crawler in faded tractor red over grey primer (M18: the "red tractor" wreck in the SE fields)
 usage: blender -b --python maas_mil.py -- outroot variant seed"""
 import sys, os, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -16,7 +17,7 @@ use_cheap_doors()
 
 a = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 ROOT, VAR, SEED = (a[0] if a else '/tmp/out'), (a[1] if len(a) > 1 else 'r'), (int(a[2]) if len(a) > 2 else 1)
-NAME = {'r': 'pillbox_round_be', 'n': 'tent_ridge_field', 'd': 'bulldozer_rusty'}[VAR]
+NAME = {'r': 'pillbox_round_be', 'n': 'tent_ridge_field', 'd': 'bulldozer_rusty', 'e': 'bulldozer_rusty_red'}[VAR]
 K.begin(NAME, SEED, theater='temperate')
 r = K.rng()
 
@@ -153,8 +154,10 @@ if VAR == 'n':
     K.footprint_rect(0, 0, 5.0, 3.5, 0, 'HIGH', 'tent')
     K.anchor('roof_ridge', (0, 0, HR))
 
-if VAR == 'd':                                          # the rebuilt crawler: maas_dozer.py (running gear, body, dozer)
+if VAR in ('d', 'e'):                                   # the rebuilt crawler: maas_dozer.py (running gear, body, dozer)
     import maas_dozer as DZ
+    if VAR == 'e':
+        DZ.PAINT = 'paint_rust_red'                     # M18's red tractor wreck (dossier §5.2)
     from eu_common import foliage
     C = __import__('kit_core')
     DZ.build(K, C, V, r, foliage)

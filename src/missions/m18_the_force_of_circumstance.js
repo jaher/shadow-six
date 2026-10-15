@@ -68,9 +68,9 @@ const TERRAIN = [
   { type: 'poly', terrain: 'shallow', points: REED_NECK },
   { type: 'circle', terrain: 'grass', x: 86.5, z: 55, r: 2 },
   { type: 'poly', terrain: 'ground', points: [[109, 0], [120, 0], [120, 4], [109, 4]] },
-  { type: 'path', terrain: 'road', width: 6, points: ROADS.nw },
-  { type: 'path', terrain: 'road', width: 6.5, points: ROADS.bridgehead },
-  { type: 'path', terrain: 'road', width: 6.5, points: ROADS.ne },
+  { type: 'path', terrain: 'road', width: 6, points: ROADS.nw, surface: 'belgian' },
+  { type: 'path', terrain: 'road', width: 6.5, points: ROADS.bridgehead, surface: 'belgian' },
+  { type: 'path', terrain: 'road', width: 6.5, points: ROADS.ne, surface: 'belgian' },
   { type: 'path', terrain: 'road', width: 6.5, points: ROADS.south },
   // T12 the ploughed SE field; T13 wet mud round the station, the fountain, the NW houses and the camp; the tank yard
   { type: 'poly', terrain: 'ground', points: [[171, 103], [201, 98], [201, 150], [160, 150]] },
@@ -88,7 +88,7 @@ const BRIDGE_ROT = deg(39.6);
 const house = (id, variant, x, z, w, d, h, extra = {}) => ({ id, type: 'house', variant, x, z, rot: deg(-45), w, d, h, ...extra });
 const tree = (x, z, k) => ({ id: `tree_${k}`, type: 'tree', variant: 'broadleaf', x, z });
 const rock = (id, x, z) => ({ id, type: 'rocks', x, z, r: 1.5 });
-const tent = (x, z, k) => ({ id: `tent_${k}`, type: 'tent', variant: 'tent_ridge_field', x, z, rot: deg(-25), w: 5, d: 3.5, h: 2.2 });
+const tent = (x, z, k) => ({ id: `tent_${k}`, type: 'tent', variant: 'tent_ridge_field', asset: 'tent_ridge_field', x, z, rot: deg(-25), w: 5, d: 3.5, h: 2.2 });
 const lowWall = (id, points) => ({ id, type: 'wall', variant: 'ruined_stone_low', points, h: 1.2, width: 0.6, mat: 'stone', block: 1 });
 const belt = (id, points) => ({ id, type: 'fence', variant: 'czech_hedgehog_wire', points, h: 1.4, width: 1.2 });
 const bags = (id, x, z, rot, w) => ({ id, type: 'sandbags', x, z, rot: deg(rot), w, d: 0.8, h: 0.9 });
@@ -99,36 +99,37 @@ const BRIDGE_SET = [
   // (open Pratt truss 6 m high, bowstring arch to 14 m over the main span, as M16: the deck, the charges and I_S show)
   { id: 'bridge', type: 'truss_bridge', variant: 'truss_bridge_maas', x: 58.6, z: 81.25, rot: BRIDGE_ROT, w: 85.4, d: 9, h: 14,
     trussH: 6, arch: [-16.5, 14], mat: 'metalRust', destructible: true, indestructible: true, vehiclesAllowed: true, charges: MARKERS.map((m) => ({ x: m.x, z: m.z })) },
-  { id: 'pb_w', type: 'bunker', variant: 'pillbox_round', x: 21, z: 56, rot: 0, w: 5, d: 5, h: 3, mat: 'concrete', destructible: true, bunker: true },
-  { id: 'pb_e', type: 'bunker', variant: 'pillbox_round', x: 87.5, z: 113, rot: 0, w: 5, d: 5, h: 3, mat: 'concrete', destructible: true, bunker: true },
+  { id: 'pb_w', type: 'bunker', variant: 'pillbox_round', asset: 'pillbox_round_be', x: 21, z: 56, rot: deg(110), w: 5, d: 5, h: 3, mat: 'concrete', destructible: true, bunker: true },
+  { id: 'pb_e', type: 'bunker', variant: 'pillbox_round', asset: 'pillbox_round_be', x: 87.5, z: 113, rot: deg(20), w: 5, d: 5, h: 3, mat: 'concrete', destructible: true, bunker: true },
   // the green explosives case on I_S (the pickup itself is `items[]`)
   { id: 'crate_bombs', type: 'crates', variant: 'explosives_case', x: 50.5, z: 88.5, rot: deg(30), w: 1.0, d: 0.6, h: 0.5, block: 0 },
   // MG pits: on the W bank below the bridge, and on the island
   bags('mg_w_n', 24, 72.8, 0, 3), bags('mg_w_s', 24, 76.4, 0, 3), bags('mg_w_w', 22.2, 74.6, 90, 3),
   bags('mg_isl_e', 47.9, 90, 90, 3), bags('mg_isl_s', 46, 91.9, 0, 3),
   bags('sandbags_isl', 48, 94.5, 25, 2.2),
-  { id: 'isl_hut', type: 'hut', variant: 'timber_shed', x: 57.2, z: 91.5, rot: deg(-30), w: 4, d: 4, h: 2.6, destructible: true },
+  { id: 'isl_hut', type: 'hut', variant: 'timber_shed', asset: 'shed_tarred_be', x: 57.2, z: 91.5, rot: deg(-30), w: 4, d: 4, h: 2.6, destructible: true },
   { id: 'isl_jetty', type: 'pier', variant: 'pier_timber', x: 60, z: 101, rot: deg(-30), w: 5, d: 9 },
 ];
 
 const EAST = [
   // zone A: the station (garrison g_station; one grenade by the platform door razes it) and its plank platform
-  { id: 'station', type: 'barracks', variant: 'station_building', x: 182, z: 28.6, rot: deg(-45), w: 12, d: 7, h: 7, mat: 'brick',
+  { id: 'station', type: 'barracks', variant: 'station_building', asset: 'station_halt_be', x: 182, z: 28.6, rot: deg(-45), w: 12, d: 7, h: 7, mat: 'brick',
     flag: true, garrison: true, door: deg(90), destructible: true, grenadeDestructible: true },
   { id: 'platform', type: 'pier', variant: 'station_platform_planks', x: 188, z: 33.5, rot: deg(-45), w: 22, d: 3.5 },
-  // freight wagons on the stub siding N of the station (cover)
-  { id: 'wagon_1', type: 'train_car', variant: 'rail_yard_derelict_boxcar', x: 194, z: 19.5, rot: deg(-40), w: 10, d: 3, h: 3.5 },
+  // freight wagons on the stub siding N of the station (cover; parallel to the main line and the station since the art pass)
+  { id: 'wagon_1', type: 'train_car', variant: 'rail_yard_derelict_boxcar', x: 194, z: 19.5, rot: deg(-45), w: 10, d: 3, h: 3.5 },
   // zone B: the timber house by the road (hideout), the house block round its yard, the grey townhouse, the fountain
-  house('house_road', 'farmhouse_normandy', 177, 59, 10, 8, 9, { mat: 'woodDark', enterable: true, door: deg(90) }),
-  house('blk_n', 'house_belgian_brick', 188, 73, 8, 8, 10, { mat: 'brick' }),
-  house('blk_w', 'house_belgian_brick', 182, 85, 10, 8, 10, { mat: 'brick' }),
-  house('blk_e', 'house_belgian_brick', 192, 82, 8, 10, 10, { mat: 'brick', enterable: true, door: deg(180) }),
-  { id: 'town_grey', type: 'house', variant: 'townhouse_stucco', x: 198, z: 80, rot: 0, w: 6, d: 10, h: 12, mat: 'plaster' },
+  house('house_road', 'farmhouse_normandy', 177, 59, 10, 8, 9, { asset: 'farmhouse_mosan_a', mat: 'woodDark', enterable: true, door: deg(90) }),
+  house('blk_n', 'house_belgian_brick', 188, 73, 8, 8, 10, { asset: 'house_belgian_brick_a', mat: 'brick' }),
+  house('blk_w', 'house_belgian_brick', 182, 85, 10, 8, 10, { asset: 'house_belgian_brick_b', mat: 'brick' }),
+  house('blk_e', 'house_belgian_brick', 192, 82, 8, 10, 10, { asset: 'house_belgian_brick_w', mat: 'brick', enterable: true, door: deg(180) }),
+  // the grey townhouse stands free N of blk_e (was z 80: blk_e's 45-degree E corner, window and shutter, sank into its W wall)
+  { id: 'town_grey', type: 'house', variant: 'townhouse_stucco', asset: 'townhouse_stucco_be_a', x: 198, z: 72, rot: 0, w: 6, d: 10, h: 12, mat: 'plaster' },
   { id: 'fountain_e', type: 'well', variant: 'fountain_statue', x: 177, z: 95, r: 2, h: 1.5 },
   // zone C: the fields hut (garrison g_fields, "the barracks with the flag"), the red tractor wreck, the field walls
-  { id: 'hut_fields', type: 'barracks', variant: 'brick_hut', x: 173, z: 109, rot: deg(-45), w: 6, d: 5, h: 3.2, mat: 'brick',
+  { id: 'hut_fields', type: 'barracks', variant: 'brick_hut', asset: 'hut_brick_be', x: 173, z: 109, rot: deg(-45), w: 6, d: 5, h: 3.2, mat: 'brick',
     flag: true, garrison: true, door: deg(90), destructible: true, grenadeDestructible: true },
-  { id: 'bulldozer', type: 'ruins', variant: 'bulldozer_rusty', x: 178, z: 122, rot: deg(-30), w: 4.5, d: 2.6, h: 2.2, mat: 'metalRust' },
+  { id: 'bulldozer', type: 'ruins', variant: 'bulldozer_rusty', asset: 'bulldozer_rusty_red', x: 178, z: 122, rot: deg(-30), w: 4.5, d: 2.6, h: 2.2, mat: 'metalRust' },
   lowWall('wall_f1', [[189, 105], [193, 109]]),
   lowWall('wall_f2', [[180, 112], [184, 114], [184, 117]]),
   lowWall('wall_f3', [[188, 125], [194, 129]]),
@@ -140,23 +141,30 @@ const EAST = [
   belt('belt_b', [[101.4, 97.7], [105, 94], [125, 81.5], [129.5, 76.4]]),
   belt('belt_c', [[132.5, 73.6], [138, 69], [142, 60], [148, 52], [150.5, 52.3]]),
   belt('belt_d', [[153.5, 52.7], [157, 53]]),
-  { id: 'lx_boom_n', type: 'sign', variant: 'level_crossing_boom', x: 99.5, z: 119, rot: BRIDGE_ROT, r: 0.2, h: 1.2, block: 0 },
-  { id: 'lx_boom_s', type: 'sign', variant: 'level_crossing_boom', x: 106.5, z: 122.5, rot: BRIDGE_ROT, r: 0.2, h: 1.2, block: 0 },
+  // the level-crossing booms stand open (raised), one each side of the track 4.5-4.7 m off the rail axis, each arm in a
+  // plane parallel to the rail (135.4 deg) and spanning the road from a post on the verge to a rest post on the far verge
+  // (they lay along the road at BRIDGE_ROT, one across both rails: the train drove through it; a lowered boom would be
+  // walked through by the bridgehead patrols)
+  { id: 'lx_boom_n', type: 'sign', variant: 'level_crossing_boom', x: 102.25, z: 114.75, rot: deg(135.4), w: 7.6, raised: true, r: 0.2, h: 1.2, block: 0 },
+  { id: 'lx_boom_s', type: 'sign', variant: 'level_crossing_boom', x: 104.2, z: 125.75, rot: deg(-44.6), w: 7.6, raised: true, r: 0.2, h: 1.2, block: 0 },
   // the four explosive barrels (Kildread "on site"): one between the houses, three by the lorry (10 m off its hull)
   barrel('barrel_se', 186, 94),
   barrel('brl_1', 100.5, 143.5), barrel('brl_2', 102.5, 143.8), barrel('brl_3', 104, 143.5),
-  { id: 'wreck_car', type: 'ruins', variant: 'car_wreck_burnt', x: 123, z: 51.5, rot: deg(20), w: 4, d: 2, h: 1.4, mat: 'metalRust' },
+  // the burnt car lies half in the E-bank shallows (the dossier's (123,51.5) is deep water on this flat river), drawn as a
+  // burnt-out Traction Avant (art pass, as M16; it was a shrunken bombed house)
+  { id: 'wreck_car', type: 'ruins', variant: 'car_wreck_burnt', x: 125.5, z: 50, rot: deg(20), w: 4, d: 2, h: 1.4, mat: 'metalRust',
+    vehicleArt: 'citroen11', wreck: true },
   ...[[164.5, 23.5], [171, 26.5], [157, 30.6], [159, 36.7], [150, 41.8], [179.6, 6.1], [186.8, 2], [190.8, 3], [198, 8.2], [194, 1],
     [160, 70.6], [170.4, 96.1]].map(([x, z], k) => tree(x, z, `e${k}`)),
-  ...[[140, 119], [153, 106.5], [166, 94], [179, 81.5], [192, 69]].map(([x, z], k) => ({ id: `pole_${k}`, type: 'telegraph_pole', x, z })),
+  ...[[140, 119], [153, 106.5], [166, 94], [178.5, 81], [192, 69]].map(([x, z], k) => ({ id: `pole_${k}`, type: 'telegraph_pole', x, z })),
 ];
 
 const WEST = [
   // zone G: the NW town (the timber farmhouse is garrison g_town), the red house by the tank yard, the camp
-  house('nw_h1', 'house_belgian_brick', 6.5, 5.5, 9, 8, 9, { mat: 'brick' }),
-  house('nw_h2', 'house_belgian_brick', 15, 7, 8, 8, 9, { mat: 'brick' }),
-  house('red_house', 'house_belgian_brick', 17.5, 16.5, 8, 8, 10, { mat: 'brick', enterable: true, door: deg(90), label: 'Red house' }),
-  { id: 'nw_h3', type: 'barracks', variant: 'farmhouse_normandy', x: 30, z: 6.5, rot: deg(-45), w: 9, d: 8, h: 9, mat: 'woodDark',
+  house('nw_h1', 'house_belgian_brick', 6.5, 5.5, 9, 8, 9, { asset: 'house_belgian_brick_b', mat: 'brick' }),
+  house('nw_h2', 'house_belgian_brick', 15, 7, 8, 8, 9, { asset: 'house_belgian_brick_c', mat: 'brick' }),
+  house('red_house', 'house_belgian_brick', 17.5, 16.5, 8, 8, 10, { asset: 'house_belgian_brick_a', mat: 'brick', enterable: true, door: deg(90), label: 'Red house' }),
+  { id: 'nw_h3', type: 'barracks', variant: 'farmhouse_normandy', asset: 'farmhouse_mosan_b', x: 30, z: 6.5, rot: deg(-45), w: 9, d: 8, h: 9, mat: 'woodDark',
     flag: true, garrison: true, door: deg(90), destructible: true },
   { id: 'monument', type: 'well', variant: 'fountain_statue', x: 22.5, z: 2.5, r: 1.5, h: 2.5 },
   bags('sb_nw1', 15.5, 22.8, 27, 5), bags('sb_nw2', 26.5, 16, -39, 5.5), bags('sb_nw3', 36.5, 9, 34, 3.5),
@@ -169,7 +177,57 @@ const RAILWAY = [
   { id: 'rail_main', type: 'rail_track', points: [[201, 24.1], [139.5, 84.3], [103, 120.3], [73.2, 150]] },
 ];
 
-const STRUCTURES = [...BRIDGE_SET, ...EAST, ...WEST, ...RAILWAY];
+// ---------------------------------------------------------------- art pass: set dressing (visual only, clear of every
+// route, post, cone and the dossier's solution spots; furniture and paving never touch the walk grid: block false / grid false)
+/** A point in a structure's local frame (+x along `rot`, +z its door side) → world [x, z]. */
+const local = (cx, cz, rot, lx, lz) => [cx + lx * Math.cos(rot) - lz * Math.sin(rot), cz + lx * Math.sin(rot) + lz * Math.cos(rot)];
+const ST = (lx, lz) => local(182, 28.6, deg(-45), lx, lz);
+/** Parked machines and stores on free ground: an R75 combination behind the station, a Kübelwagen and a cargo Opel by the
+ *  German camp, fuel drums and ammunition by the tents, winter firewood stacked against the farms, a handcart in the village. */
+const DRESSING = [
+  { id: 'moto_station', type: 'crates', variant: 'vehicle_parked', label: 'Motorcycle', x: ST(-3.5, -7.6)[0], z: ST(-3.5, -7.6)[1], rot: deg(-45),
+    w: 2.4, d: 1.7, h: 1.1, block: 1, vehicleArt: 'r75_sidecar' },
+  { id: 'kubel_camp', type: 'crates', variant: 'vehicle_parked', label: 'Car', x: 41.5, z: 11.5, rot: deg(15), w: 3.8, d: 1.7, h: 1.4, block: 1, vehicleArt: 'kubelwagen' },
+  { id: 'truck_camp', type: 'crates', variant: 'truck_parked', label: 'Truck', x: 62, z: 12, rot: deg(-25), w: 6, d: 2.3, h: 2.6, block: 2, vehicleArt: 'opel_blitz_cargo' },
+  { id: 'drums_camp', type: 'crates', variant: 'fuel_drums', x: 62, z: 2.5, rot: deg(5), w: 4.4, d: 1.4, h: 1.6, block: 1 },
+  { id: 'ammo_camp', type: 'crates', variant: 'ammo_boxes', x: 40.8, z: 30.5, rot: deg(-25), w: 1.4, d: 0.9, h: 0.7, block: 0 },
+  { id: 'crates_camp', type: 'crates', variant: 'crate_stack', x: 29.5, z: 31, rot: deg(-25), w: 3, d: 2, h: 1.6, block: 2 },
+  { id: 'logs_farm', type: 'crates', variant: 'log_pile', asset: 'log_pile_stack', x: local(177, 59, deg(-45), -6.2, 0)[0], z: local(177, 59, deg(-45), -6.2, 0)[1],
+    rot: deg(45), w: 3, d: 1.6, h: 1, block: 1 },
+  { id: 'logs_town', type: 'crates', variant: 'log_pile', asset: 'log_pile_stack', x: local(30, 6.5, deg(-45), 6.4, 0)[0], z: local(30, 6.5, deg(-45), 6.4, 0)[1],
+    rot: deg(45), w: 3, d: 1.6, h: 1, block: 1 },
+  { id: 'cart_village', type: 'crates', variant: 'handcart', asset: 'handcart_wood', x: 196.5, z: 91.5, rot: deg(-90), w: 1.9, d: 1.4, h: 1, block: 1 },
+];
+/** Belgian setts (pavés): the station forecourt on the road side, the little square round the NW monument (edges kept
+ *  ≥ 15° off the siding wagon and the NW sandbags, alignment rule). */
+const PAVEMENTS = [
+  { id: 'pave_station', surface: 'belgian', points: [ST(-7.5, -3.6), ST(6, -3.6), ST(6, -9.5), ST(-7.5, -9.5)],
+    wear: 0.6, weeds: 0.4, cracks: 0.3, puddles: 0.15, edge: 'ragged', grid: false },
+  { id: 'pave_monument', surface: 'belgian', points: [[19, 0], [26, 0], [26, 6.5], [21, 6.5], [19, 4.5]],
+    wear: 0.5, weeds: 0.45, cracks: 0.3, puddles: 0.1, edge: 'ragged', grid: false },
+];
+const FURNITURE = [
+  // platform lamps at both ends of the plank platform, a lamp on the station forecourt
+  { type: 'lamp', variant: 'platform', x: local(188, 33.5, deg(-45), 8.5, 0.6)[0], z: local(188, 33.5, deg(-45), 8.5, 0.6)[1], rot: deg(45), block: false },
+  { type: 'lamp', variant: 'platform', x: local(188, 33.5, deg(-45), -8.5, 0.6)[0], z: local(188, 33.5, deg(-45), -8.5, 0.6)[1], rot: deg(45), block: false },
+  { type: 'lamp', variant: 'paris_single', x: ST(5.5, -8.8)[0], z: ST(5.5, -8.8)[1], rot: deg(-135), block: false },
+  // St Andrew's crosses on the verge of each approach to the level crossing, a fingerpost in the N corner of the S-road
+  // junction, kilometre stones on the NE road (all clear of the carriageway)
+  { type: 'sign', variant: 'andreaskreuz', x: 94.5, z: 119.5, rot: deg(-45), block: false },
+  { type: 'sign', variant: 'andreaskreuz', x: 111.0, z: 120.2, rot: deg(135), block: false },
+  { type: 'sign', variant: 'fingerpost', x: 119.5, z: 123.5, rot: deg(-40), text: 'LIEGE 9 km', block: false },
+  { type: 'milestone', x: 154.6, z: 104.6, rot: deg(-44), text: 'N 2\nLIEGE 11', block: false },
+  { type: 'milestone', x: 173.4, z: 73.6, rot: deg(-44), text: 'N 2\nVISE 6', block: false },
+  // street lamps either side of the NE road at the village; the NW town square: a lamp and two benches by the monument
+  { type: 'lamp', variant: 'paris_single', x: 167.6, z: 79.4, rot: deg(-135), block: false },
+  { type: 'lamp', variant: 'paris_single', x: 171.9, z: 88.1, rot: deg(45), block: false },
+  { type: 'lamp', variant: 'paris_single', x: 25.6, z: 0.8, rot: deg(-90), block: false },
+  { type: 'bench', x: 19.6, z: 4.2, rot: deg(-90), block: false },
+  // the German camp: a Wehrmacht board where the NW road meets the tents
+  { type: 'sign', variant: 'wehrmacht', x: 20.5, z: 40, rot: deg(-50), text: 'HALT!\nSPERRGEBIET', block: false },
+];
+
+const STRUCTURES = [...BRIDGE_SET, ...EAST, ...WEST, ...RAILWAY, ...DRESSING];
 
 // ---------------------------------------------------------------- enemies (dossier §8; Prima numbers 1–31)
 /** Lone walker: PINGPONG (or LOOP) over `pts` (1.0 m/s), starting at the first point facing the second. */
@@ -347,9 +405,11 @@ export default {
   water: { velocity: 0.2, angleDeg: 225, turbulence: 0.25, color: '#1c4f55' },
   baseTerrain: 'grass',
   terrain: TERRAIN,
+  pavements: PAVEMENTS,
+  furniture: FURNITURE,
   markers: MARKERS.map((m) => ({ ...m })),
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
-  structures: joinStructures([...STRUCTURES, ...WIRE_PASS], [['bridge', 'pb_w'], ['bridge', 'pb_e'], ['blk_n', 'blk_e'], ['blk_w', 'blk_e'], ['blk_e', 'town_grey'], ['nw_h1', 'nw_h2'], ['nw_h2', 'red_house']]),
+  structures: joinStructures([...STRUCTURES, ...WIRE_PASS], [['bridge', 'pb_w'], ['bridge', 'pb_e'], ['blk_n', 'blk_e'], ['blk_w', 'blk_e'], ['nw_h1', 'nw_h2'], ['nw_h2', 'red_house']]),
   // the green case: three German remote charges (Sapper only; the detonator comes with the first one planted)
   items: [{ id: 'bombs_crate', itemId: 'remoteBomb', x: 50.5, z: 88.5, count: 3 }],
   interactables: [],

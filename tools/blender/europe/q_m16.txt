@@ -19,3 +19,4 @@ maas_small.py <out> t 3
 maas_mil.py <out> r 1
 maas_mil.py <out> n 2
 maas_mil.py <out> d 3
+maas_mil.py <out> e 1     # M18: the same crawler in faded tractor red (paint_rust_red, make_rust_tex.py)

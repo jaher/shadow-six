@@ -117,7 +117,8 @@ const EAST = [
   house('blk_n', 'house_belgian_brick', 188, 73, 8, 8, 10, { asset: 'house_belgian_brick_a', mat: 'brick' }),
   house('blk_w', 'house_belgian_brick', 182, 85, 10, 8, 10, { asset: 'house_belgian_brick_b', mat: 'brick' }),
   house('blk_e', 'house_belgian_brick', 192, 82, 8, 10, 10, { asset: 'house_belgian_brick_w', mat: 'brick', enterable: true, door: deg(180) }),
-  { id: 'town_grey', type: 'house', variant: 'townhouse_stucco', asset: 'townhouse_stucco_be_a', x: 198, z: 80, rot: 0, w: 6, d: 10, h: 12, mat: 'plaster' },
+  // the grey townhouse stands free N of blk_e (was z 80: blk_e's 45-degree E corner, window and shutter, sank into its W wall)
+  { id: 'town_grey', type: 'house', variant: 'townhouse_stucco', asset: 'townhouse_stucco_be_a', x: 198, z: 72, rot: 0, w: 6, d: 10, h: 12, mat: 'plaster' },
   { id: 'fountain_e', type: 'well', variant: 'fountain_statue', x: 177, z: 95, r: 2, h: 1.5 },
   // zone C: the fields hut (garrison g_fields), the rusty bulldozer, the ruined field walls
   { id: 'hut_fields', type: 'barracks', variant: 'brick_hut', asset: 'hut_brick_be', x: 173, z: 109, rot: deg(-45), w: 6, d: 5, h: 3.2, mat: 'brick',
@@ -135,8 +136,12 @@ const EAST = [
   belt('belt_c', [[132.5, 73.6], [138, 69], [142, 60], [148, 52], [150.5, 52.3]]),
   belt('belt_d', [[153.5, 52.7], [157, 53]]),
   // the level crossing (booms up) and the explosive barrels by the lorry (9 m off its hull)
-  { id: 'lx_boom_n', type: 'sign', variant: 'level_crossing_boom', x: 99.5, z: 119, rot: BRIDGE_ROT, r: 0.2, h: 1.2, block: 0 },
-  { id: 'lx_boom_s', type: 'sign', variant: 'level_crossing_boom', x: 106.5, z: 122.5, rot: BRIDGE_ROT, r: 0.2, h: 1.2, block: 0 },
+  // the level-crossing booms stand open (raised), one each side of the track 4.5-4.7 m off the rail axis, each arm in a
+  // plane parallel to the rail (135.4 deg) and spanning the road from a post on the verge to a rest post on the far verge
+  // (they lay along the road at BRIDGE_ROT, one across both rails: the train drove through it; a lowered boom would be
+  // walked through by the bridgehead patrols)
+  { id: 'lx_boom_n', type: 'sign', variant: 'level_crossing_boom', x: 102.25, z: 114.75, rot: deg(135.4), w: 7.6, raised: true, r: 0.2, h: 1.2, block: 0 },
+  { id: 'lx_boom_s', type: 'sign', variant: 'level_crossing_boom', x: 104.2, z: 125.75, rot: deg(-44.6), w: 7.6, raised: true, r: 0.2, h: 1.2, block: 0 },
   { id: 'brl_1', type: 'barrels', variant: 'fuel_explosive', x: 104, z: 147, explosive: 'barrel', carriable: true },
   { id: 'brl_2', type: 'barrels', variant: 'fuel_explosive', x: 105.4, z: 147.6, explosive: 'barrel', carriable: true },
   { id: 'brl_3', type: 'barrels', variant: 'fuel_explosive', x: 106.8, z: 147, explosive: 'barrel', carriable: true },
@@ -194,8 +199,8 @@ const FURNITURE = [
   { type: 'lamp', variant: 'paris_single', x: ST(5.5, -8.8)[0], z: ST(5.5, -8.8)[1], rot: deg(-135), block: false },
   // St Andrew's crosses on the verge of each approach to the level crossing, a fingerpost in the SW corner of the
   // S-road junction, kilometre stones on the NE road (all clear of the carriageway: art-m16 test)
-  { type: 'sign', variant: 'andreaskreuz', x: 96.0, z: 120.1, rot: deg(-45), block: false },
-  { type: 'sign', variant: 'andreaskreuz', x: 110.0, z: 119.6, rot: deg(135), block: false },
+  { type: 'sign', variant: 'andreaskreuz', x: 94.5, z: 119.5, rot: deg(-45), block: false },
+  { type: 'sign', variant: 'andreaskreuz', x: 111.0, z: 120.2, rot: deg(135), block: false },
   { type: 'sign', variant: 'fingerpost', x: 116.2, z: 134.9, rot: deg(-40), text: 'LIEGE 9 km', block: false },
   { type: 'milestone', x: 153.1, z: 106.1, rot: deg(-44), text: 'N 2\nLIEGE 11', block: false },
   { type: 'milestone', x: 182.4, z: 77.7, rot: deg(-44), text: 'N 2\nVISE 6', block: false },
@@ -370,7 +375,7 @@ export default {
     { id: 'plunger_e', ...DETONATORS.D_E, r: 2 },
   ],
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
-  structures: joinStructures(STRUCTURES, [['bridge', 'pb_w'], ['bridge', 'pb_e'], ['blk_n', 'blk_e'], ['blk_w', 'blk_e'], ['blk_e', 'town_grey'], ['nw_h1', 'nw_h2'], ['nw_h2', 'nw_grey']]),
+  structures: joinStructures(STRUCTURES, [['bridge', 'pb_w'], ['bridge', 'pb_e'], ['blk_n', 'blk_e'], ['blk_w', 'blk_e'], ['nw_h1', 'nw_h2'], ['nw_h2', 'nw_grey']]),
   items: [],
   // §3.4 the Spy's uniform on the clothesline in the E village ('use' it, 1.5 s: dressed at once)
   interactables: [{ id: 'uniform_line', interactKind: 'clothesline', x: 196, z: 99 }],
