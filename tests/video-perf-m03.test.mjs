@@ -84,7 +84,9 @@ export default async function videoPerfM03(page, t) {
   const cpu = await calibCpu();
   const slow = Math.min(4, Math.max(1, cpu / 20)); // (≈ 20 ms is the workload on a calm host)
   t.log(`CPU calibration: ${cpu.toFixed(1)} ms → ×${slow.toFixed(2)}`);
-  for (const speed of ['auto', 4]) {
+  // (VIDEO_PERF_SPEEDS=4 or =auto plays one of the two runs alone)
+  const speeds = (process.env.VIDEO_PERF_SPEEDS || 'auto,4').split(',').map((s) => (s === 'auto' ? 'auto' : +s));
+  for (const speed of speeds) {
     const label = speed === 'auto' ? 'AUTO' : `${speed}×`;
     let r, bounds, ok = false;
     for (let attempt = 1; attempt <= 2 && !ok; attempt++) {

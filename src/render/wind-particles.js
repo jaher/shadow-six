@@ -72,18 +72,23 @@ export function createWindParticles(scene, blow, preset = 'high') {
     ...WIND_UNIFORMS, uOrigin: { value: new THREE.Vector3() }, uBox: { value: new THREE.Vector3(64, 1, 44) }, uOff: { value: new THREE.Vector2() },
     uLift: { value: B.lift }, uHop: { value: B.hop }, uStretch: { value: B.stretch }, uTimeW: { value: 0 },
   };
-  const mat = new THREE.MeshStandardMaterial({ roughness: B.rough, metalness: 0, side: THREE.DoubleSide, transparent: true, depthWrite: false });
-  mat.onBeforeCompile = (sh) => {
-    Object.assign(sh.uniforms, U);
-    // normals are needed before begin_vertex (defaultnormal_vertex): build the whole particle at beginnormal_vertex
-    sh.vertexShader = PARS + sh.vertexShader.replace('#include <beginnormal_vertex>', MAIN).replace('#include <begin_vertex>', 'vec3 transformed = wpT;');
-    sh.fragmentShader = 'varying vec3 vPCol; varying float vPA;\n' + sh.fragmentShader
-      .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb = vPCol; diffuseColor.a *= vPA; if (vPA < 0.01) discard;');
+  // a transparent double-sided material is drawn by three as two passes, back faces then front, flipping its side and
+  // flagging needsUpdate each time (the program parameters re-derived twice a frame): the same two draws as two meshes,
+  // back then front (same z and render order: drawn in creation order), each with its own one-sided material
+  const makeMat = (side) => {
+    const mat = new THREE.MeshStandardMaterial({ roughness: B.rough, metalness: 0, side, transparent: true, depthWrite: false });
+    mat.onBeforeCompile = (sh) => {
+      Object.assign(sh.uniforms, U);
+      // normals are needed before begin_vertex (defaultnormal_vertex): build the whole particle at beginnormal_vertex
+      sh.vertexShader = PARS + sh.vertexShader.replace('#include <beginnormal_vertex>', MAIN).replace('#include <begin_vertex>', 'vec3 transformed = wpT;');
+      sh.fragmentShader = 'varying vec3 vPCol; varying float vPA;\n' + sh.fragmentShader
+        .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb = vPCol; diffuseColor.a *= vPA; if (vPA < 0.01) discard;');
+    };
+    mat.customProgramCacheKey = () => 'windParticles1';
+    return mat;
   };
-  mat.customProgramCacheKey = () => 'windParticles1';
-  const mesh = new THREE.Mesh(g, mat);
-  mesh.frustumCulled = false; mesh.name = 'windParticles'; mesh.renderOrder = 4;
-  scene.add(mesh);
+  const back = new THREE.Mesh(g, makeMat(THREE.BackSide)), mesh = new THREE.Mesh(g, makeMat(THREE.FrontSide));
+  for (const m of [back, mesh]) { m.frustumCulled = false; m.name = 'windParticles'; m.renderOrder = 4; scene.add(m); }
   const dir = new THREE.Vector3(), tgt = new THREE.Vector3();
   let lastT = null;
   return {
@@ -101,8 +106,8 @@ export function createWindParticles(scene, blow, preset = 'high') {
       tgt.copy(camera.position).addScaledVector(dir, k);
       const Bx = U.uBox.value;
       U.uOrigin.value.set(tgt.x - Bx.x / 2, groundY, tgt.z - Bx.z / 2);
-      mesh.visible = A[2] * (1 + 1.5 * WIND_UNIFORMS.uWindB.value[0]) > B.lift; // gust peaks can lift it (never in a calm)
+      mesh.visible = back.visible = A[2] * (1 + 1.5 * WIND_UNIFORMS.uWindB.value[0]) > B.lift; // gust peaks can lift it (never in a calm)
     },
-    dispose() { scene.remove(mesh); g.dispose(); mat.dispose(); },
+    dispose() { scene.remove(back, mesh); g.dispose(); back.material.dispose(); mesh.material.dispose(); },
   };
 }

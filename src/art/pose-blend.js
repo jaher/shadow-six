@@ -18,19 +18,26 @@ import { Quaternion, Vector3 } from 'three';
 
 /** Records bone values before direct writes and restores them before the next mixer update. */
 export class BoneGuard {
-  constructor() { this.m = new Map(); }
+  // (one record per bone ever touched, reused frame after frame — `on` marks this frame's: a fresh record and two clones
+  // per bone per frame were garbage that lived just long enough to reach the old generation)
+  constructor() { this.idx = new Map(); this.bones = []; this.recs = []; this.gen = 1; this.n = 0; }
   /** Call before writing `o.quaternion` / `o.position` directly (once per frame is enough; repeats are free). */
   touch(o) {
-    if (!this.m.has(o)) this.m.set(o, { q: o.quaternion.clone(), p: o.position.clone() });
+    let i = this.idx.get(o);
+    if (i === undefined) { i = this.bones.length; this.idx.set(o, i); this.bones.push(o); this.recs.push({ q: new Quaternion(), p: new Vector3(), on: 0 }); }
+    const v = this.recs[i];
+    if (v.on === this.gen) return;
+    v.q.copy(o.quaternion); v.p.copy(o.position); v.on = this.gen; this.n++;
   }
   /** Put every touched bone back to its pre-override value (call right before the mixer update). */
   restore() {
-    if (!this.m.size) return false;
-    for (const [o, v] of this.m) { o.quaternion.copy(v.q); o.position.copy(v.p); }
-    this.m.clear();
+    if (!this.n) return false;
+    const B = this.bones, R = this.recs, g = this.gen;
+    for (let i = 0; i < R.length; i++) if (R[i].on === g) { B[i].quaternion.copy(R[i].q); B[i].position.copy(R[i].p); }
+    this.gen++; this.n = 0;
     return true;
   }
-  get size() { return this.m.size; }
+  get size() { return this.n; }
 }
 
 const CACHE = new WeakMap();

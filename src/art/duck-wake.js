@@ -30,11 +30,17 @@ export function createDuckWakes(cap, o = {}) {
   const pa = new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage), ca = new THREE.BufferAttribute(col, 4).setUsage(THREE.DynamicDrawUsage);
   const ia = new THREE.BufferAttribute(idx, 1).setUsage(THREE.DynamicDrawUsage);
   g.setAttribute('position', pa); g.setAttribute('color', ca); g.setIndex(ia); g.setDrawRange(0, 0);
-  const mat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide });
-  const mesh = new THREE.Mesh(g, mat);
-  mesh.name = 'duckWakes'; mesh.frustumCulled = false; mesh.renderOrder = 2; mesh.layers.set(o.layer ?? FX_LAYER);
-  mesh.userData.waterIgnore = true; mesh.userData.dynamic = true; mesh.userData.ambientLife = 'wake';
-  mesh.userData.warmShow = true; // (drawn by the load's program warm-up frame even before any duck swims)
+  // both faces, back then front, as three draws a transparent double-sided material — but as two one-sided meshes:
+  // three's own two passes flip the material's side and re-derive its program parameters twice a frame. The back
+  // ribbon is a child of the front one (hidden with it), created first: same z and render order → drawn first.
+  const mkMat = (side) => new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side });
+  const back = new THREE.Mesh(g, mkMat(THREE.BackSide)), mesh = new THREE.Mesh(g, mkMat(THREE.FrontSide)), mat = mesh.material;
+  for (const m of [mesh, back]) {
+    m.name = 'duckWakes'; m.frustumCulled = false; m.renderOrder = 2; m.layers.set(o.layer ?? FX_LAYER);
+    m.userData.waterIgnore = true; m.userData.dynamic = true; m.userData.ambientLife = 'wake';
+    m.userData.warmShow = true; // (drawn by the load's program warm-up frame even before any duck swims)
+  }
+  mesh.add(back);
   const trails = new Map(), crest = [0.6, 0.64, 0.68], dark = [0.02, 0.03, 0.04], foam = [0.85, 0.88, 0.9];
   const stats = { points: 0, ducks: 0, verts: 0 };
   let nv = 0, ni = 0;
@@ -124,6 +130,6 @@ export function createDuckWakes(cap, o = {}) {
     for (let i = 0; i < 3; i++) { crest[i] = (sky[i] / m) * 0.5 * k; foam[i] = (0.6 + 0.4 * sky[i] / m) * 0.85 * k; }
   }
 
-  function dispose() { g.dispose(); mat.dispose(); }
+  function dispose() { g.dispose(); mat.dispose(); back.material.dispose(); }
   return { mesh, update, setLight, dispose, stats, trails };
 }

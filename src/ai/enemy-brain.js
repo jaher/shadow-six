@@ -37,6 +37,8 @@ const TURN_DONE = 1e-4;
 const WP_NEAR = 1.0;
 
 /** Spec brain states (design-spec §4.6). */
+/** An empty seen list, shared (the brain's _seen is only read: iterated, counted, searched). */
+const SEEN_NONE = Object.freeze([]);
 export const BRAIN_STATES = Object.freeze(['IDLE', 'INVESTIGATE', 'DECOY', 'TRACKS', 'BODY', 'CHALLENGE', 'HOLD',
   'ARREST', 'COMBAT', 'SEARCH', 'RETURN', 'DISTRACTED', 'ALARM_RUN', 'REINFORCE', 'DEAD']);
 
@@ -582,14 +584,14 @@ export class EnemyBrain {
   /** §4.3 perception pass: seen list, witness memory, bodies, wounded comrades, prints, fire-on-sight. */
   _perceive() {
     const e = this.enemy, w = this.world;
-    this._seen = [];
+    this._seen = SEEN_NONE; // (read only: iterated, counted — one shared empty list instead of a fresh one each tick)
     if (this.bcd && !this.arch.reacts && e.soldierType === 'officer' && e.vision && e.state !== 'captured') { bcdOfficerLook(this); return; } // BCD §1.6
     if (!e.vision || !this.arch.reacts || e.state === 'captured') return;
     const S = this.state;
     const wantPrints = e.flags.followsTracks && (S === 'IDLE' || S === 'REINFORCE' || S === 'RETURN' || S === 'SEARCH');
     const res = perceive(e, w, { prints: wantPrints, bodies: !e.flags.ignoresBodies || this.arch.script === 'courier' });
-    let seen = res.commandos.filter((s) => s.unit.state !== 'captured');
-    if (this.arch.vehicleOnly) seen = [];
+    let seen = res.commandos.length ? res.commandos.filter((s) => s.unit.state !== 'captured') : SEEN_NONE;
+    if (this.arch.vehicleOnly) seen = SEEN_NONE;
     this._seen = seen;
     for (const s of seen) {
       e.lastSeen = { target: s.unit, x: s.unit.x, z: s.unit.z, t: w.time };

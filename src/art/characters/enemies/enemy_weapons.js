@@ -44,13 +44,18 @@ export function bindInfo(h) {
 }
 
 // world transform for the gun: socket `s` (weapon local) at world point p, +Z along z, +Y towards upHint
-function gunMatrix(w, s, p, z, upHint) {
-  const y = upHint.clone().addScaledVector(z, -upHint.dot(z)).normalize(), x = V().crossVectors(y, z);
-  const q = Q().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
-  return new THREE.Matrix4().compose(p.clone().sub(s.clone().applyQuaternion(q)), q, new THREE.Vector3(1, 1, 1));
+// (scratch objects: every enemy's gun is solved each frame; the same arithmetic without the per-call garbage. `out`: a
+// matrix only used at once (setWorld) is the shared _gM; a pose's matrix, kept for the next frame's blend, is new)
+const _gy = new THREE.Vector3(), _gx = new THREE.Vector3(), _gq = new THREE.Quaternion(), _gb = new THREE.Matrix4();
+const _gp = new THREE.Vector3(), _gs = new THREE.Vector3(), _ONE = new THREE.Vector3(1, 1, 1), _gM = new THREE.Matrix4();
+const _sw = new THREE.Matrix4(), _swi = new THREE.Matrix4();
+function gunMatrix(w, s, p, z, upHint, out = new THREE.Matrix4()) {
+  const y = _gy.copy(upHint).addScaledVector(z, -upHint.dot(z)).normalize(), x = _gx.crossVectors(y, z);
+  const q = _gq.setFromRotationMatrix(_gb.makeBasis(x, y, z));
+  return out.compose(_gp.copy(p).sub(_gs.copy(s).applyQuaternion(q)), q, _ONE);
 }
-function setWorld(w, M) { const par = w.parent; M.clone()   // parent (the unit) matrixWorld is current: updBones at solve start
-  .premultiply(par.matrixWorld.clone().invert()).decompose(w.position, w.quaternion, w.scale); w.updateMatrixWorld(true); }
+function setWorld(w, M) { const par = w.parent; _sw.copy(M)   // parent (the unit) matrixWorld is current: updBones at solve start
+  .premultiply(_swi.copy(par.matrixWorld).invert()).decompose(w.position, w.quaternion, w.scale); w.updateMatrixWorld(true); }
 function aimHand(B, s, dir) {   // swing the hand so wrist->middle knuckle points along dir (world); keeps it attached
   const hb = B['hand_' + s], cur = wpos(B['middle_01_' + s]).sub(wpos(hb)).normalize();
   const nw = Q().setFromUnitVectors(cur, dir.clone().normalize()).multiply(hb.getWorldQuaternion(Q()));
@@ -125,12 +130,12 @@ function slingPress(h, w) {
   h.slingShift = shift;
 }
 // gun pose (world matrix) for a carry/hold mode; two = both hands on the gun
-function holdPose(h, hold, F) {
+function holdPose(h, hold, F, out = new THREE.Matrix4()) {
   const { B, S, g, fwd, up, left, cf, cu, cl, pitch } = F;
   if (hold === 'sling' || hold === 'back') {
     const s3 = wpf(B.spine_03), coat = /greatcoat|general_coat/.test(h.info.outfit || '') ? 0.015 : 0;
-    if (hold === 'back') return { M: gunMatrix(null, S.grip_r, s3.clone().addScaledVector(cf, -0.17 + coat).addScaledVector(cl, 0.05).addScaledVector(cu, 0.02), cl.clone().negate().addScaledVector(cu, 0.35).normalize(), cf.clone().negate()), two: false };
-    return { M: gunMatrix(null, S.grip_r, s3.clone().addScaledVector(cf, -0.13 + coat).addScaledVector(cl, -0.13).addScaledVector(cu, -0.08), cu.clone().addScaledVector(cl, 0.18).addScaledVector(cf, -0.12).normalize(), cf.clone().negate()), two: false };
+    if (hold === 'back') return { M: gunMatrix(null, S.grip_r, s3.clone().addScaledVector(cf, -0.17 + coat).addScaledVector(cl, 0.05).addScaledVector(cu, 0.02), cl.clone().negate().addScaledVector(cu, 0.35).normalize(), cf.clone().negate(), out), two: false };
+    return { M: gunMatrix(null, S.grip_r, s3.clone().addScaledVector(cf, -0.13 + coat).addScaledVector(cl, -0.13).addScaledVector(cu, -0.08), cu.clone().addScaledVector(cl, 0.18).addScaledVector(cf, -0.12).normalize(), cf.clone().negate(), out), two: false };
   }
   const shR = wpos(B.upperarm_r), neck = wpos(B.neck_01);
   let dir, butt;
@@ -151,11 +156,13 @@ function holdPose(h, hold, F) {
     dir = fwd.clone().multiplyScalar(0.75).addScaledVector(up, 0.45).addScaledVector(left, 0.35).normalize();
     butt = wpos(B.pelvis).addScaledVector(up, 0.18).addScaledVector(cf, 0.13).addScaledVector(left, -0.12);
   }
-  return { M: gunMatrix(null, S.butt || new THREE.Vector3(0, 0, -0.3), butt, dir.normalize(), up), two: true, dir, shoulder: hold === 'aim' && g.aim === 'shoulder' };
+  return { M: gunMatrix(null, S.butt || new THREE.Vector3(0, 0, -0.3), butt, dir.normalize(), up, out), two: true, dir, shoulder: hold === 'aim' && g.aim === 'shoulder' };
 }
-function blendM(A, Bm, s) {
-  const pa = V(), qa = Q(), sa = V(), pb = V(), qb = Q(), sb = V(); A.decompose(pa, qa, sa); Bm.decompose(pb, qb, sb);
-  return new THREE.Matrix4().compose(pa.lerp(pb, s), qa.slerp(qb, s), new THREE.Vector3(1, 1, 1));
+const _bpa = new THREE.Vector3(), _bqa = new THREE.Quaternion(), _bsa = new THREE.Vector3(), _bpb = new THREE.Vector3(), _bqb = new THREE.Quaternion(), _bsb = new THREE.Vector3();
+const _bM = new THREE.Matrix4(), _hM1 = new THREE.Matrix4(), _hM2 = new THREE.Matrix4();
+function blendM(A, Bm, s) { // (scratch result: setWorld copies it at once)
+  const pa = _bpa, qa = _bqa, sa = _bsa, pb = _bpb, qb = _bqb, sb = _bsb; A.decompose(pa, qa, sa); Bm.decompose(pb, qb, sb);
+  return _bM.compose(pa.lerp(pb, s), qa.slerp(qb, s), _ONE);
 }
 const smooth = (x) => x * x * (3 - 2 * x);
 
@@ -187,12 +194,12 @@ export function solveEnemyWeapon(h, dt = 0) {
   h._wKey = pg ? (pg.hide ? 'hide' : 'pg:' + pg.hand) : HOLD_E[clip] === 'drop' ? 'drop' : 'std';   // weapon-handover.js
   if (pg) {
     if (pg.hide) { w.visible = false; return; }
-    setWorld(w, B['hand_' + pg.hand].matrixWorld.clone().multiply(pg.local)); h._dropM = null; return;
+    setWorld(w, _gM.copy(B['hand_' + pg.hand].matrixWorld).multiply(pg.local)); h._dropM = null; return;
   }
   if (!LONG.has(name)) {   // pistol
     if (!HAND_CLIPS.includes(clip)) { w.visible = false; return; }
     const z = wpos(B.hand_r).sub(wpos(B.lowerarm_r)).normalize();
-    setWorld(w, gunMatrix(w, S.grip_r, palm(B, 'r'), z, up)); return;
+    setWorld(w, gunMatrix(w, S.grip_r, palm(B, 'r'), z, up, _gM)); return;
   }
   const g = GUN[name] || GUN.kar98k;
   const hold = HOLD_E[clip] || 'sling';
@@ -201,7 +208,7 @@ export function solveEnemyWeapon(h, dt = 0) {
   if (hold === 'drop') {
     const fallT = clip === 'die' ? 0.55 : 0;
     if (t < fallT) {   // still in the hand while he buckles
-      setWorld(w, gunMatrix(w, S.grip_r, palm(B, 'r'), fwd.clone().multiplyScalar(0.6).addScaledVector(up, -0.8).normalize(), fwd)); return;
+      setWorld(w, gunMatrix(w, S.grip_r, palm(B, 'r'), fwd.clone().multiplyScalar(0.6).addScaledVector(up, -0.8).normalize(), fwd, _gM)); return;
     }
     const prone = clip === 'die_prone' || clip === 'dead_prone';
     if (!h._dropM || (h._dropClip !== clip && !(prone && h._dropClip === 'die_prone'))) {   // lying on its side on the ground, beside the right hand / at his feet
@@ -232,12 +239,12 @@ export function solveEnemyWeapon(h, dt = 0) {
   const aw0 = act ? act.getEffectiveWeight() : 1, s0 = prevHold0 && aw0 < 0.999 ? smooth(THREE.MathUtils.clamp(aw0, 0, 1)) : 1;
   const shk = (shoulderOf(hold) ? s0 : 0) + (prevHold0 && shoulderOf(prevHold0) ? 1 - s0 : 0);
   if (shk > 0) headOnStock(h, B, rootQ, shk);
-  const cur = holdPose(h, hold, F);
+  const cur = holdPose(h, hold, F, _hM1); // (this frame's poses: their matrices are scratch, used just below)
   // cross-fade between holds with the incoming action's weight (idle->aim no longer snaps the gun 0.5-0.75 m in one frame)
   const prevHold = h._prevHold && h._prevHold !== 'drop' && h._prevHold !== hold ? h._prevHold : null;
   const aw = act ? act.getEffectiveWeight() : 1, s = prevHold && aw < 0.999 ? smooth(THREE.MathUtils.clamp(aw, 0, 1)) : 1;
   if (s >= 1) h._prevHold = null;
-  const prev = s < 1 ? holdPose(h, prevHold, F) : null;
+  const prev = s < 1 ? holdPose(h, prevHold, F, _hM2) : null;
   setWorld(w, prev ? blendM(prev.M, cur.M, s) : cur.M);
   if (hold === 'sling' && !prev) slingPress(h, w);
   const hw = prev ? (cur.two && prev.two ? 1 : cur.two ? s : prev.two ? 1 - s : 0) : (cur.two ? 1 : 0);

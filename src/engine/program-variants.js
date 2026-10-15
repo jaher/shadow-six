@@ -15,15 +15,27 @@
  */
 import * as THREE from 'three';
 
-/** Program-relevant object features ('' = a plain static mesh). */
+/** Program-relevant object features ('' = a plain static mesh). Interned: the same string object per feature set (asked
+ *  for every mesh of every override pass, every frame — a string built each time was a stream of garbage). */
+const KEYS = new Map();
 export function variantKey(o) {
-  let k = '';
-  if (o.isInstancedMesh) k += 'i' + (o.instanceColor ? 'c' : '') + (o.morphTexture ? 'm' : '');
-  if (o.isSkinnedMesh) k += 's';
-  if (o.isBatchedMesh) k += 'b' + (o._colorsTexture ? 'c' : '');
   const ma = o.geometry?.morphAttributes;
-  const mp = ma?.position?.length || 0;
-  if (mp || ma?.normal || ma?.color) k += `m${mp}${ma.normal ? 'n' : ''}${ma.color ? 'c' : ''}`;
+  const mp = ma?.position?.length || 0, mn = ma?.normal ? 1 : 0, mc = ma?.color ? 1 : 0;
+  let bits = 0;
+  if (o.isInstancedMesh) bits |= 1 | (o.instanceColor ? 2 : 0) | (o.morphTexture ? 4 : 0);
+  if (o.isSkinnedMesh) bits |= 8;
+  if (o.isBatchedMesh) bits |= 16 | (o._colorsTexture ? 32 : 0);
+  if (!bits && !mp && !mn && !mc) return '';
+  const id = bits | (mn << 6) | (mc << 7) | (mp << 8);
+  let k = KEYS.get(id);
+  if (k === undefined) {
+    k = '';
+    if (bits & 1) k += 'i' + (bits & 2 ? 'c' : '') + (bits & 4 ? 'm' : '');
+    if (bits & 8) k += 's';
+    if (bits & 16) k += 'b' + (bits & 32 ? 'c' : '');
+    if (mp || mn || mc) k += `m${mp}${mn ? 'n' : ''}${mc ? 'c' : ''}`;
+    KEYS.set(id, k);
+  }
   return k;
 }
 

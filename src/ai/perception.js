@@ -283,49 +283,57 @@ export function bodiesOf(world) {
  * @returns {{cone: Cone|null, commandos: {unit, zone, dist}[], bodies: {unit, zone, dist}[], prints: object[]}}
  */
 export function perceive(enemy, world, o = {}) {
-  const res = { cone: null, commandos: [], bodies: [], prints: [] };
+  // (garbage per call, for every guard every tick, cut without changing a result: the empty lists are one shared frozen
+  // array until something is seen, canSee's options one module object, the body walk inline instead of closures)
+  const res = { cone: null, commandos: NONE, bodies: NONE, prints: NONE };
   const cone = o.cone || coneAt(enemy, world.time);
   if (!cone) return res;
   res.cone = cone;
   const max = CONFIG.stealth.seenListMax;
   const r = cone.far + 1, r2 = r * r;
-  const opt = { cone };
-  for (const c of world.commandos) {
-    if (!c.alive || c.removed) continue;
-    const dx = c.x - cone.x, dz = c.z - cone.z, d2 = dx * dx + dz * dz;
-    if (d2 > r2) continue; // cheap prefilter first (§10.5: distance, then angle, then LOS)
-    const zone = canSee(enemy, c, world, opt);
-    if (zone !== 'none') res.commandos.push({ unit: c, zone, dist: Math.sqrt(d2) });
-  }
-  res.commandos.sort((a, b) => a.dist - b.dist);
-  if (res.commandos.length > max) res.commandos.length = max;
-  let n = res.commandos.length;
-  if (o.bodies !== false && n < max) {
-    // (bodiesOf's order — dead enemies, dead commandos, the extra bodies — walked in place: this runs for every guard,
-    // every tick, and a fresh list each time was most of the sim's garbage)
-    const take = (b) => {
-      const dx = b.x - cone.x, dz = b.z - cone.z, d2 = dx * dx + dz * dz;
-      if (d2 > r2) return false;
-      const zone = canSee(enemy, b, world, opt);
-      if (zone !== 'none') { res.bodies.push({ unit: b, zone, dist: Math.sqrt(d2) }); if (++n >= max) return true; }
-      return false;
-    };
-    const dead = (u) => !u.alive && !u.removed && u.state !== 'jailed' && !u.spawn?.quietBody;
-    let full = false;
-    for (let L = 0; L < 2 && !full; L++) {
-      const list = L ? world.commandos : world.enemies;
-      for (let i = 0; i < list.length && !full; i++) if (dead(list[i])) full = take(list[i]);
+  const opt = _perceiveOpt;
+  opt.cone = cone;
+  try {
+    const cs = world.commandos;
+    for (let i = 0; i < cs.length; i++) {
+      const c = cs[i];
+      if (!c.alive || c.removed) continue;
+      const dx = c.x - cone.x, dz = c.z - cone.z, d2 = dx * dx + dz * dz;
+      if (d2 > r2) continue; // cheap prefilter first (§10.5: distance, then angle, then LOS)
+      const zone = canSee(enemy, c, world, opt);
+      if (zone !== 'none') { if (res.commandos === NONE) res.commandos = []; res.commandos.push({ unit: c, zone, dist: Math.sqrt(d2) }); }
     }
-    const extra = world.ai?.extraBodies;
-    if (extra) for (let i = 0; i < extra.length && !full; i++) full = take(extra[i]);
-  }
-  if (o.prints && n < max && world.ai?.footprints) {
-    for (const p of (world.ai.footprints.tracksNear?.(cone.x, cone.z, cone.near + 0.5) ?? world.ai.footprints.query(cone.x, cone.z, cone.near + 0.5))) {
-      if (canSee(enemy, p, world, opt) !== 'none') { res.prints.push(p); if (++n >= max) break; }
+    if (res.commandos.length > 1) res.commandos.sort((a, b) => a.dist - b.dist);
+    if (res.commandos.length > max) res.commandos.length = max;
+    let n = res.commandos.length;
+    if (o.bodies !== false && n < max) {
+      // (bodiesOf's order — dead enemies, dead commandos, the extra bodies — walked in place)
+      let full = false;
+      for (let L = 0; L < 3 && !full; L++) {
+        const list = L === 0 ? world.enemies : L === 1 ? world.commandos : world.ai?.extraBodies;
+        if (!list) continue;
+        for (let i = 0; i < list.length && !full; i++) {
+          const b = list[i];
+          // (dead men only from the two unit lists; every extra body)
+          if (L < 2 && !(!b.alive && !b.removed && b.state !== 'jailed' && !b.spawn?.quietBody)) continue;
+          const dx = b.x - cone.x, dz = b.z - cone.z, d2 = dx * dx + dz * dz;
+          if (d2 > r2) continue;
+          const zone = canSee(enemy, b, world, opt);
+          if (zone !== 'none') { if (res.bodies === NONE) res.bodies = []; res.bodies.push({ unit: b, zone, dist: Math.sqrt(d2) }); if (++n >= max) full = true; }
+        }
+      }
     }
-  }
+    if (o.prints && n < max && world.ai?.footprints) {
+      for (const p of (world.ai.footprints.tracksNear?.(cone.x, cone.z, cone.near + 0.5) ?? world.ai.footprints.query(cone.x, cone.z, cone.near + 0.5))) {
+        if (canSee(enemy, p, world, opt) !== 'none') { if (res.prints === NONE) res.prints = []; res.prints.push(p); if (++n >= max) break; }
+      }
+    }
+  } finally { opt.cone = null; }
   return res;
 }
+/** An empty seen list (shared, frozen: nobody writes to a list perceive returns). */
+const NONE = Object.freeze([]);
+const _perceiveOpt = { cone: null };
 
 /** Commandos currently visible to `enemy`, nearest first. @returns {{unit, zone, dist}[]} */
 export function visibleCommandos(enemy, world) {

@@ -23,6 +23,8 @@ import { stairTreads } from '../art/dam-stairs.js';
 /** Gameplay pace on a flight (Unit._followPath): walking × walk, running (a careful jog) × run but ≤ runMax m/s and
  *  ≤ jog treads a second (3.75 strides of two treads: on M2's narrow 29 cm treads 2.2 m/s, on the M3 dam's 38 cm 2.9 m/s;
  *  M20's 42 cm keep runMax), crawling × crawl. */
+/** No flight near: one shared, frozen empty list (StairField.near). */
+const NO_FLIGHTS = Object.freeze([]);
 export const STAIR_PACE = { walk: 0.85, run: 0.75, runMax: 3.0, jog: 7.5, crawl: 0.85 };
 
 /**
@@ -172,12 +174,16 @@ export class StairField {
 
   get size() { return this.flights.length; }
 
-  /** Flights whose (padded) box holds (x, z). */
-  *near(x, z, pad = 0) {
-    for (const f of this.flights) {
-      const b = f.box;
-      if (x >= b[0] - pad && x <= b[2] + pad && z >= b[1] - pad && z <= b[3] + pad) yield f;
+  /** Flights whose (padded) box holds (x, z), in order — one shared empty list when none does (asked for every man
+   *  every tick, mostly far from any stair: a generator per call was a stream of garbage). Read-only. */
+  near(x, z, pad = 0) {
+    let out = NO_FLIGHTS;
+    const fl = this.flights;
+    for (let i = 0; i < fl.length; i++) {
+      const f = fl[i], b = f.box;
+      if (x >= b[0] - pad && x <= b[2] + pad && z >= b[1] - pad && z <= b[3] + pad) { if (out === NO_FLIGHTS) out = []; out.push(f); }
     }
+    return out;
   }
 
   /**
@@ -187,7 +193,10 @@ export class StairField {
    * ends (the floor at its foot, its top) for anybody there.
    * @returns {{f:object, s:number, v:number}|null}
    */
-  flightAt(x, z, y, { pad = 0.6, side = 0.15, tol = 0.45, link = null } = {}) {
+  flightAt(x, z, y, { pad = 0.6, side = 0.15, tol = 0.45, link = null } = {}) { return this.flightAtP(x, z, y, pad, side, tol, link); }
+
+  /** flightAt with its options as arguments (unitFlight: every man, every tick — no options object). */
+  flightAtP(x, z, y, pad = 0.6, side = 0.15, tol = 0.45, link = null) {
     let best = null;
     for (const f of this.near(x, z, pad + side)) {
       const { s, v } = flightLocal(f, x, z);

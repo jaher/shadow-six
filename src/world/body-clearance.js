@@ -22,6 +22,8 @@
  * Body shapes (m). `front`/`back`: capsule extent ahead / behind the unit position, `r`: capsule radius; `arms`: a
  * second capsule across the body, `at` m behind the unit position, reaching `half` m to each side.
  */
+/** No static solid near: one shared, frozen empty list (staticNear; its callers only read it). */
+const NO_SOLIDS = Object.freeze([]);
 export const BODY = {
   stand: { front: 0.3, back: 0.3, r: 0.3 },
   // front: the weapon held out ahead of the face when he stops (crawl-animation.md §4.1); back: the dragging toe of the
@@ -219,8 +221,10 @@ export function removeStaticSolids(world, owner) {
 /** Static solids within `reach` m of (x, z) (bucket lookup + circle prefilter). */
 export function staticNear(world, x, z, reach) {
   const S = world?.bodySolids;
-  if (!S?.list.length) return [];
-  const out = [], q = (S.query = (S.query || 0) + 1);
+  if (!S?.list.length) return NO_SOLIDS;
+  // (a list only once something is near — one shared, frozen empty list otherwise: asked for every man every tick)
+  let out = NO_SOLIDS;
+  const q = (S.query = (S.query || 0) + 1);
   for (let bj = Math.floor((z - reach) / BUCKET); bj <= Math.floor((z + reach) / BUCKET); bj++) {
     for (let bi = Math.floor((x - reach) / BUCKET); bi <= Math.floor((x + reach) / BUCKET); bi++) {
       const list = S.buckets.get(bi * 65536 + bj);
@@ -229,7 +233,15 @@ export function staticNear(world, x, z, reach) {
         const o = S.list[k];
         if (o.q === q) continue;
         o.q = q;
-        if (o.gone || Math.hypot(x - o.R.x, z - o.R.z) > obsRadius(o.R) + reach) continue;
+        if (o.gone) continue;
+        // (Math.hypot allocates in V8: the squared distance decides every case not within 1e-9 of the edge; those, the
+        // exact hypot test as before — the same answer every time)
+        const R = o.R;
+        if (o.rad === undefined || o.rr !== R.r || o.rhl !== R.hl || o.rhw !== R.hw) { o.rad = obsRadius(R); o.rr = R.r; o.rhl = R.hl; o.rhw = R.hw; } // (its radius, kept while its shape is)
+        const dx = x - R.x, dz = z - R.z, d2 = dx * dx + dz * dz, lim = o.rad + reach, l2 = lim * lim;
+        if (d2 > l2 * (1 + 1e-9) + 1e-12) continue;
+        if (!(d2 < l2 * (1 - 1e-9)) && Math.hypot(dx, dz) > lim) continue;
+        if (out === NO_SOLIDS) out = [];
         out.push(o.R);
       }
     }

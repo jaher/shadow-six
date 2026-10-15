@@ -30,6 +30,7 @@
  * `flash` = feeding flank flashes per fish per minute (a roll that turns the silver flank to the sky), `rise` = surface rises per fish per
  * minute (trout / grayling taking flies, mullet and herring dimpling the surface: "nervous water").
  */
+const _here = { flow: [0, 0] }, _ahead = { flow: [0, 0] };
 export const FISH_SPECIES = {
   herring: { len: [0.29, 0.37], group: [45, 75], cruise: 0.42, burst: 2.4, band: [0.15, 0.6], shore: 0.05, shoreD: 8,
     coh: 1.2, align: 1.1, sepK: 1.1, back: 0x33525e, flank: 0xb9c6cc, belly: 0xeef2f2, pattern: 0, depthR: 0.2, widthR: 0.11, fork: 0.9, metal: 0.75, flash: 10, rise: 0.25 },
@@ -365,14 +366,14 @@ export class FishSim {
     f.chk -= h;
     if (f.chk <= 0) { // 5 Hz water query: current, depth band, and a look-ahead for banks / ice / shallows
       f.chk = 0.2;
-      const here = W.sample(f.x, f.z);
+      const here = W.sampleInto ? W.sampleInto(f.x, f.z, _here) : W.sample(f.x, f.z); // (read at once: one reused record)
       if (here) { f.depth = here.depth; f.shore = here.shore; f.level = here.level; f.fx = here.flow[0]; f.fz = here.flow[1]; f.dry = 0; }
       else if ((f.dry += 0.2) > 2) { f.gone = true; return false; } // stranded (a drained reservoir): out of the sim
       const la = 0.5 + f.len, sp = Math.hypot(f.vx, f.vz) + 1e-3;
-      const s = W.sample(f.x + (f.vx / sp) * la, f.z + (f.vz / sp) * la);
+      const s = W.sampleInto ? W.sampleInto(f.x + (f.vx / sp) * la, f.z + (f.vz / sp) * la, _ahead) : W.sample(f.x + (f.vx / sp) * la, f.z + (f.vz / sp) * la);
       f.bad = !s || s.ice || s.depth < 0.2 + S.depthR * f.len ? 1 : 0;
       if (f.bad || !here) {
-        const e = 0.7, sh = (x, z) => { const q = W.sample(x, z); return q && !q.ice ? q.shore + q.depth : -1; };
+        const e = 0.7, sh = (x, z) => { const q = W.sampleInto ? W.sampleInto(x, z, _ahead) : W.sample(x, z); return q && !q.ice ? q.shore + q.depth : -1; };
         const gx = sh(f.x + e, f.z) - sh(f.x - e, f.z), gz = sh(f.x, f.z + e) - sh(f.x, f.z - e), g = Math.hypot(gx, gz);
         if (g > 1e-4) { f.ax = gx / g; f.az = gz / g; } else { f.ax = -f.vx / sp; f.az = -f.vz / sp; }
         f.bad = 1;

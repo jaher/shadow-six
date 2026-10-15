@@ -91,6 +91,10 @@ function skyIrradiance(tex) {
 const _clipPlane = new THREE.Plane();
 const _vp = new THREE.Matrix4(), _vpInv = new THREE.Matrix4(), _wb = new THREE.Box3(), _wp = new THREE.Vector3(), _wd = new THREE.Vector3();
 const _jp = new THREE.Vector3(), _jq = new THREE.Quaternion();
+/** Bilinear read of channel `c` (stride `st`) at cell k0 (row width rx), fractions tx / tz: sample()'s formula. */
+function bilerp(arr, st, c, k0, rx, tx, tz) {
+  return (arr[k0 * st + c] * (1 - tx) + arr[(k0 + 1) * st + c] * tx) * (1 - tz) + (arr[(k0 + rx) * st + c] * (1 - tx) + arr[(k0 + rx + 1) * st + c] * tx) * tz;
+}
 /** Mirror levels drawn in turn: each texture covers this much NDC past the screen edges (5 % of the width each side). */
 const MIRROR_PAD = 0.1;
 function obliqueNear(cam, h, range) {
@@ -537,19 +541,29 @@ export class WaterSystem {
    * @returns {{depth:number, flow:[number,number], level:number, type:string, shore:number, ice:boolean, body:object}|null}
    *   depth in metres (bed from bed(x,z) or the capture), flow in m/s, shore = distance to the nearest bank/obstacle (m).
    */
-  sample(x, z) {
-    for (const b of this.bodies) {
-      const B = b.bake.bounds, { rx, rz, data, shoreDist } = b.bake;
+  sample(x, z) { return this._sample(x, z, null); }
+
+  /** sample() written into `out` ({flow: [0, 0]}, reused by a caller that reads it at once: the fish, 5 Hz each). */
+  sampleInto(x, z, out) { return this._sample(x, z, out); }
+
+  _sample(x, z, out) {
+    // (bilinear reads in a plain function: the per-body closures here were a stream of garbage — fish, ducks, wakes)
+    const bodies = this.bodies;
+    for (let n = 0; n < bodies.length; n++) {
+      const b = bodies[n], bk = b.bake, B = bk.bounds, rx = bk.rx, rz = bk.rz, data = bk.data;
       const fx = (x - B.x) / B.z * rx - 0.5, fz = (z - B.y) / B.w * rz - 0.5;
       if (fx < -0.5 || fz < -0.5 || fx > rx - 0.5 || fz > rz - 0.5) continue;
       const i = Math.max(0, Math.min(rx - 2, Math.floor(fx))), j = Math.max(0, Math.min(rz - 2, Math.floor(fz)));
-      const tx = Math.min(1, Math.max(0, fx - i)), tz = Math.min(1, Math.max(0, fz - j));
-      const L = (arr, st, c) => { const k = (q) => arr[q * st + c];
-        const k0 = j * rx + i; return (k(k0) * (1 - tx) + k(k0 + 1) * tx) * (1 - tz) + (k(k0 + rx) * (1 - tx) + k(k0 + rx + 1) * tx) * tz; };
-      const depth = L(data, 4, 3);
+      const tx = Math.min(1, Math.max(0, fx - i)), tz = Math.min(1, Math.max(0, fz - j)), k0 = j * rx + i;
+      const depth = bilerp(data, 4, 3, k0, rx, tx, tz);
       if (depth <= 0) continue;
-      const shore = L(shoreDist, 1, 0), iw = b.o.frozen ? Infinity : (b.o.ice || 0);
-      return { depth, flow: [L(data, 4, 0), L(data, 4, 1)], level: b.level, type: b.o.type, shore, ice: shore < iw * 0.62, body: b };
+      const shore = bilerp(bk.shoreDist, 1, 0, k0, rx, tx, tz), iw = b.o.frozen ? Infinity : (b.o.ice || 0);
+      const f0 = bilerp(data, 4, 0, k0, rx, tx, tz), f1 = bilerp(data, 4, 1, k0, rx, tx, tz);
+      if (out) {
+        out.depth = depth; out.flow[0] = f0; out.flow[1] = f1; out.level = b.level; out.type = b.o.type; out.shore = shore; out.ice = shore < iw * 0.62; out.body = b;
+        return out;
+      }
+      return { depth, flow: [f0, f1], level: b.level, type: b.o.type, shore, ice: shore < iw * 0.62, body: b };
     }
     return null;
   }
@@ -798,10 +812,14 @@ export class WaterSystem {
     const Q = this.Q, r = this.renderer, cam = this.camera;
     // perf review (art integration 2): the mirror is a second full scene render (~2 ms CPU on M3). With a still
     // camera it is refreshed every `reflEvery` frames; the stored reflMatrix keeps the old texture registered.
-    const every = Q.reflEvery ?? 1, key = cam.matrixWorld.elements.join() + cam.projectionMatrix.elements[0];
+    // (the still-camera test on the matrices' numbers: a joined string of them every frame was garbage)
+    const every = Q.reflEvery ?? 1, K = (this._reflKey ||= new Float64Array(17)), me = cam.matrixWorld.elements, p0 = cam.projectionMatrix.elements[0];
+    let still = K[16] === p0;
+    for (let i = 0; i < 16 && still; i++) still = K[i] === me[i];
     this._reflN = (this._reflN || 0) + 1;
-    if (every > 1 && this._reflN % every !== 0 && key === this._reflKey && this.reflections.size) return;
-    this._reflKey = key;
+    if (every > 1 && this._reflN % every !== 0 && still && this._reflKeyed && this.reflections.size) return;
+    for (let i = 0; i < 16; i++) K[i] = me[i];
+    K[16] = p0; this._reflKeyed = true;
     const levels = [];
     for (const b of this.bodies) {
       b.uniforms.reflEnabled.value = 0;

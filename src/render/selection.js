@@ -273,7 +273,18 @@ export class Selection {
     pos.needsUpdate = true;
     line.geometry.setDrawRange(0, n);
     line.geometry.computeBoundingSphere();
-    line.computeLineDistances();
+    // (the dash distances in place, the drawn points only: Line.computeLineDistances built a new array and a new GPU
+    // attribute every frame for every selected walker's path — the same sums, a double running total stored per point)
+    let ld = line.geometry.attributes.lineDistance;
+    if (!ld || ld.count < pos.count) { ld = new THREE.BufferAttribute(new Float32Array(pos.count), 1); line.geometry.setAttribute('lineDistance', ld); }
+    let acc = 0;
+    ld.array[0] = 0;
+    for (let i = 1; i < n; i++) {
+      const dx = pos.getX(i) - pos.getX(i - 1), dy = pos.getY(i) - pos.getY(i - 1), dz = pos.getZ(i) - pos.getZ(i - 1);
+      acc += Math.sqrt(dx * dx + dy * dy + dz * dz);
+      ld.array[i] = acc;
+    }
+    ld.needsUpdate = true;
   }
 
   /**

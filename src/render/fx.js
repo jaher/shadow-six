@@ -639,7 +639,10 @@ export class FX {
     const add = (e, r, h) => {
       if (!e || e.removed || e.object3d?.visible === false || !Number.isFinite(e.x) || !near(e.x, e.z, r)) return;
       const y0 = Math.max(e.y || 0, this._y(e.x, e.z));
-      A.entities.push({ x: e.x, z: e.z, r, y0, top: y0 + h });
+      // (records reused frame after frame: the mask is read within the frame)
+      const o = ((A._pool ||= [])[A.entities.length] ||= { x: 0, z: 0, r: 0, y0: 0, top: 0 });
+      o.x = e.x; o.z = e.z; o.r = r; o.y0 = y0; o.top = y0 + h;
+      A.entities.push(o);
     };
     for (const u of w.commandos || []) add(u, 0.9, 1.9);   // + selection ring around the feet
     for (const e of w.enemies || []) add(e, 0.85, 1.9);    // standing / prone / bodies

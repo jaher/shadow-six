@@ -97,6 +97,9 @@ export class NoiseRings {
       const mesh = new THREE.Mesh(ringGeometry(), new THREE.MeshBasicMaterial({
         color: COLOR, transparent: true, opacity: 0, depthTest: true, depthWrite: false, fog: false, side: THREE.DoubleSide,
         polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2,
+        // (a ring draped on the ground, depth-tested: both sides in one pass, as the selection rings — three's back /
+        // front pass pair for a transparent double-sided material re-derived its program parameters twice a frame)
+        forceSinglePass: true,
       }));
       mesh.name = 'noise-ring';
       mesh.renderOrder = 9;

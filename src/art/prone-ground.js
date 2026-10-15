@@ -57,8 +57,9 @@ export function proneGround(st, o) {
   const { root, body, bones: B } = o;
   const yaw = root.rotation.y;
   // restore bones the mixer left untouched since our last write (static prone clips: dead_prone, idle holds)
-  if (st.mem) for (const n of LIMB) { const m = st.mem[n], b = B[n]; if (m && b && b.quaternion.equals(m.post)) b.quaternion.copy(m.pre); }
-  st.mem = null;
+  // (st.mem: one record per limb kept with the model, refilled each frame instead of fresh clones)
+  if (st.memOn) for (const n of LIMB) { const m = st.mem[n], b = B[n]; if (m && m.on && b && b.quaternion.equals(m.post)) b.quaternion.copy(m.pre); }
+  st.memOn = false;
   if (st.visYaw == null || !o.prone) st.visYaw = yaw;
   let turnDir = 0;
   if (o.prone && o.dt > 0) {
@@ -95,7 +96,10 @@ export function proneGround(st, o) {
   if (!o.prone || !o.groundY) return { turnDir, active };
   // local relief under each elbow / ankle vs the fitted plane
   root.updateMatrixWorld(true);
-  const mem = {}; for (const n of LIMB) if (B[n]) mem[n] = { pre: B[n].quaternion.clone(), post: null };
+  const mem = (st.mem ||= {});
+  for (const n of LIMB) {
+    if (B[n]) { const m = (mem[n] ||= { pre: new Quaternion(), post: new Quaternion(), on: false }); m.pre.copy(B[n].quaternion); m.on = true; } else if (mem[n]) mem[n].on = false;
+  }
   const base = root.position.y, plane = (w) => {
     const dx = w.x - root.position.x, dz = w.z - root.position.z, h = st.visYaw;
     const along = dx * Math.sin(h) + dz * Math.cos(h), lat = dx * Math.cos(h) - dz * Math.sin(h);
@@ -105,7 +109,7 @@ export function proneGround(st, o) {
     if (B['lowerarm_' + s]) { const e = B['lowerarm_' + s].getWorldPosition(_b); const dy = MathUtils.clamp(o.groundY(e.x, e.z) - plane(e), -0.08, 0.08); if (Math.abs(dy) > 0.008) elbowBy(B, s, dy); }
     if (B['foot_' + s]) { const f = B['foot_' + s].getWorldPosition(_b); const dy = MathUtils.clamp(o.groundY(f.x, f.z) - plane(f), -0.08, 0.1); if (Math.abs(dy) > 0.008) ankleBy(B, s, dy); }
   }
-  for (const n of LIMB) if (mem[n]) mem[n].post = B[n].quaternion.clone();
-  st.mem = mem;
+  for (const n of LIMB) if (B[n]) mem[n].post.copy(B[n].quaternion);
+  st.memOn = true;
   return { turnDir, active };
 }

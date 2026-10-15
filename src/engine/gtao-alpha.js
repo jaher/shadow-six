@@ -81,19 +81,21 @@ export class AlphaAwareGTAOPass extends GTAOPass {
   }
 
   _renderNormals(renderer, renderTarget, clearColor, clearAlpha) {
+    // (a fill count, not swap.length = 0: emptying the array frees its store and the pushes grew it again every frame)
     const swap = this._swap;
-    swap.length = 0;
+    let n = 0;
+    const put = (o, m, hid) => { swap[n] = o; swap[n + 1] = m; swap[n + 2] = hid; n += 3; };
     this.scene.traverseVisible((o) => {
       // points / lines never write AO normals (GTAOPass._overrideVisibility, done here in the same walk)
-      if (o.isPoints || o.isLine || o.isLine2) { swap.push(o, o.material, 1); o.visible = false; return; }
+      if (o.isPoints || o.isLine || o.isLine2) { put(o, o.material, 1); o.visible = false; return; }
       if (!(o.isMesh || o.isInstancedMesh || o.isBatchedMesh || o.isSkinnedMesh)) return;
       const ud = o.userData;
-      if (ud.aoExclude) { swap.push(o, o.material, 1); o.visible = false; return; }
+      if (ud.aoExclude) { put(o, o.material, 1); o.visible = false; return; }
       let m;
       if (ud.aoMaterial) m = ud.aoMaterial;
       else if (Array.isArray(o.material)) m = o.material.map((x) => this._aoPick(o, x) ?? this._aoPick(o, {}));
       else m = this._aoPick(o, o.material) ?? this._aoPick(o, {});
-      swap.push(o, o.material, 0);
+      put(o, o.material, 0);
       o.material = m;
     });
     // same as GTAOPass._renderOverride but without scene.overrideMaterial
@@ -114,11 +116,11 @@ export class AlphaAwareGTAOPass extends GTAOPass {
     renderer.autoClear = originalAutoClear;
     renderer.setClearColor(this._originalClearColor);
     renderer.setClearAlpha(originalClearAlpha);
-    for (let i = swap.length - 3; i >= 0; i -= 3) {
+    for (let i = n - 3; i >= 0; i -= 3) {
       const o = swap[i];
       if (swap[i + 2]) o.visible = true; else o.material = swap[i + 1];
+      swap[i] = swap[i + 1] = null; // (no stale references to removed objects)
     }
-    swap.length = 0;
   }
 
   /** The stock pass hides points / lines with a whole-scene traverse() every frame (invisible subtrees and every bone

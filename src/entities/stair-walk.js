@@ -23,7 +23,7 @@ export function unitFlight(u, pad = 0, side = 0.15) {
   if (!F?.size) return null;
   const wp = u.path?.[u.pathIndex];
   const link = wp?.link?.walk === 'stairs' ? wp.link.id : null;
-  return F.flightAt(u.x, u.z, u.y ?? 0, { pad, side, link });
+  return F.flightAtP ? F.flightAtP(u.x, u.z, u.y ?? 0, pad, side, 0.45, link) : F.flightAt(u.x, u.z, u.y ?? 0, { pad, side, link });
 }
 
 /**

@@ -18,6 +18,8 @@ import { WindField } from './wind.js';
 /** Spatial hash bucket size (m). */
 const HASH_CELL = 4;
 
+/** Nobody near: one shared, frozen empty list (World.entitiesInRadius). */
+const NO_ENTITIES = Object.freeze([]);
 export class World {
   /**
    * @param {object} opts
@@ -168,21 +170,25 @@ export class World {
   // ------------------------------------------------------------ spatial hash
 
   /** Collision-free bucket key (XOR hashing could merge buckets and report an entity twice). */
+  // (a small-integer key, ±16 km of 4 m cells: the old (ix + 32768) · 65536 + … was past V8's small-integer range, a
+  // boxed number per bucket asked for, for every query of every man every tick)
   _key(ix, iz) {
-    return (ix + 32768) * 65536 + (iz + 32768);
+    return (ix + 4096) * 8192 + (iz + 4096);
   }
 
   _hashInsert(e) {
     const k = this._key(Math.floor(e.x / HASH_CELL), Math.floor(e.z / HASH_CELL));
     let b = this._hash.get(k);
-    if (!b) this._hash.set(k, (b = []));
-    b.push(e);
+    if (!b) this._hash.set(k, (b = { a: [], n: 0, hi: 0 }));
+    b.a[b.n++] = e;
   }
 
   /** Rebuild the coarse spatial hash (once per tick, before entity updates). */
   rebuildSpatial() {
-    for (const b of this._hash.values()) b.length = 0;
+    // (each bucket keeps its array and a fill count: emptying the arrays freed their store and every tick grew it again)
+    for (const b of this._hash.values()) { b.hi = Math.max(b.hi, b.n); b.n = 0; }
     for (const e of this.entities) if (!e.removed) this._hashInsert(e);
+    for (const b of this._hash.values()) { for (let q = b.n; q < b.hi; q++) b.a[q] = null; b.hi = b.n; } // (no stale references)
   }
 
   /**
@@ -192,7 +198,9 @@ export class World {
    * @returns {any[]}
    */
   entitiesInRadius(x, z, r, filterFn) {
-    const out = [];
+    // (a list only once someone is found — one shared, frozen empty list otherwise: asked for every man every tick, and
+    // its callers only read, filter or sort it)
+    let out = NO_ENTITIES;
     const r2 = r * r;
     const pad = 1; // entities may have moved up to a bucket since the last rebuild
     const i0 = Math.floor((x - r) / HASH_CELL) - pad, i1 = Math.floor((x + r) / HASH_CELL) + pad;
@@ -200,7 +208,7 @@ export class World {
     if ((i1 - i0 + 1) * (j1 - j0 + 1) > this.entities.length * 2) {
       for (const e of this.entities) {
         const dx = e.x - x, dz = e.z - z;
-        if (!e.removed && dx * dx + dz * dz <= r2 && (!filterFn || filterFn(e))) out.push(e);
+        if (!e.removed && dx * dx + dz * dz <= r2 && (!filterFn || filterFn(e))) { if (out === NO_ENTITIES) out = []; out.push(e); }
       }
       return out;
     }
@@ -208,9 +216,9 @@ export class World {
       for (let j = j0; j <= j1; j++) {
         const b = this._hash.get(this._key(i, j));
         if (!b) continue;
-        for (const e of b) {
-          const dx = e.x - x, dz = e.z - z;
-          if (!e.removed && dx * dx + dz * dz <= r2 && (!filterFn || filterFn(e))) out.push(e);
+        for (let q = 0, a = b.a; q < b.n; q++) {
+          const e = a[q], dx = e.x - x, dz = e.z - z;
+          if (!e.removed && dx * dx + dz * dz <= r2 && (!filterFn || filterFn(e))) { if (out === NO_ENTITIES) out = []; out.push(e); }
         }
       }
     }

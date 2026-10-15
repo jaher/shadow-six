@@ -223,17 +223,23 @@ export class PerfCeiling {
  * same number of ticks every frame, so no frame is longer than the others (user 2026-10-14: "fix those periods of
  * idleness") — between the cruise and WAIT.max.
  */
-export const WAIT = Object.freeze({ tickMs: 8, share: 0.25, maxTickMs: 16, max: 64, rampOctavesPerS: 2.5, rampPerFrame: 0.1 });
+export const WAIT = Object.freeze({ tickMs: 8, share: 0.25, maxTickMs: 16, minTickMs: 1, max: 64, rampOctavesPerS: 2.5, rampPerFrame: 0.1 });
 
 /** Is this a true wait? `sig`/`tg`: PaceSensor sample and paceTarget result; o: {waiting (the solution's wait label), busy (a man acts)}. */
 export function isTrueWait(sig, tg, { waiting = null, busy = false } = {}) {
   return !!waiting && !busy && (sig?.motion || 'idle') === 'idle' && tg?.why === 'idle';
 }
 
-/** The speed of a true wait: the frame's tick budget at `tickMs` a tick (≥ `floor`, the cruise; ≤ WAIT.max). */
-export function waitRate({ tickMs = 0.5, frameDt = 1 / 60, simDt = 1 / 60, floor = AUTO_PACE.max } = {}) {
+/**
+ * The speed of a true wait: the frame's tick budget at `tickMs` a tick (≥ `floor`, the cruise; ≤ WAIT.max).
+ * `budgetMs` (video mode's adaptive ticks): the ms the frame's draw leaves of its vsync slot — it only ever lowers the
+ * fixed share (down to WAIT.minTickMs), so a heavy draw is not paid on top with 8–16 ms of ticks and a light one gets
+ * no more than before.
+ */
+export function waitRate({ tickMs = 0.5, frameDt = 1 / 60, simDt = 1 / 60, floor = AUTO_PACE.max, budgetMs = null } = {}) {
   const fdt = Math.max(frameDt || 1 / 60, 1 / 240);
-  const budget = clamp(WAIT.share * fdt * 1000, WAIT.tickMs, WAIT.maxTickMs);
+  const share = clamp(WAIT.share * fdt * 1000, WAIT.tickMs, WAIT.maxTickMs);
+  const budget = budgetMs != null ? clamp(Math.min(budgetMs, share), WAIT.minTickMs, WAIT.maxTickMs) : share;
   const perFrame = budget / Math.max(0.05, tickMs || 0.5);
   return clamp(perFrame * (simDt / fdt), floor, WAIT.max);
 }

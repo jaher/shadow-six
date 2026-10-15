@@ -545,6 +545,7 @@ function* buildWaterG(R, world, grid, mission, theater, o, sliced) {
   const handle = {
     system, bodies, stats, level: WATER_LEVEL, real: true, drains, dry,
     sample: (x, z) => system.sample(x, z),
+    sampleInto: (x, z, out) => system.sampleInto(x, z, out),
     depthAt: (x, z) => system.depthAt(x, z),
     disturb: (...a) => system.disturb(...a),
     /** Late-FX roots (particles/VFX on FX_LAYER) scanned every frame so new effects draw over the water at once. */

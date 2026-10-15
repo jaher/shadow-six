@@ -168,6 +168,7 @@ export function createAmbientLife(world, renderer = null, o = {}) {
   const wk = water?.wakes, prevSplash = wk?.onSplash;
   if (wk) wk.onSplash = (x, z, s) => { prevSplash?.(x, z, s); fish?.impulse(x, z, 2 + 2.5 * s, 1); };
   const last = new WeakMap(), drift = (x, z) => { const w = [0, 0]; env.wind(x, z, w); return [w[0] * 0.03, w[1] * 0.03]; };
+  const ftPool = [], btPool = []; // threat records, refilled each frame (threats()): the sims read them only in the step that follows
   let lastT = null;
   return { fish, birds, stats, meshes, fishH, birdH, env, get wakes() { return wakes; }, frame: (dt, camera) => frame(camera), dispose };
 
@@ -186,10 +187,12 @@ export function createAmbientLife(world, renderer = null, o = {}) {
       if (p) { p[0] = e.x; p[1] = e.z; } else last.set(e, [e.x, e.z]);
       const boat = e.kind === 'vehicle' && e.def?.kind === 'boat';
       if (e.kind !== 'vehicle' && (e.state === 'inVehicle' || e.state === 'carried')) continue;
-      bt.push({ x: e.x, z: e.z, moving });
+      const tb = btPool[bt.length] || (btPool[bt.length] = { x: 0, z: 0, moving: false });
+      tb.x = e.x; tb.z = e.z; tb.moving = moving; bt.push(tb);
       if (!fish || !(boat || (e.kind !== 'vehicle' && G && wetAtGrid(G, e.x, e.z)))) continue;
       const cls = boat ? 'boat' : e.stance === 'dive' || e.underwater ? 'dive' : e.stance === 'swim' ? 'swim' : 'wade';
-      ft.push({ x: e.x, z: e.z, r: FISH_THREAT[cls] * (moving || cls === 'dive' ? 1 : 0.6), s: moving || cls === 'dive' ? 1 : 0.6 });
+      const tf = ftPool[ft.length] || (ftPool[ft.length] = { x: 0, z: 0, r: 0, s: 0 });
+      tf.x = e.x; tf.z = e.z; tf.r = FISH_THREAT[cls] * (moving || cls === 'dive' ? 1 : 0.6); tf.s = moving || cls === 'dive' ? 1 : 0.6; ft.push(tf);
     }
     return [ft, bt];
   }

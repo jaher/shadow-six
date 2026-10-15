@@ -25,6 +25,7 @@ import { SolutionReplay } from './solution-replay.js';
 import { normalizeWalkthrough, currentStep, orderAction, targetTag, matchOn, cpId } from './walkthrough-data.js';
 import { Director, freeRect } from './walkthrough-director.js';
 import { ROLE_NAMES } from '../ui/catalogue.js';
+import { PERF } from '../engine/perf-flags.js';
 import { AutoPace, PaceSensor, PerfCeiling, SteadyGrant, paceTarget, readTime, inClimax, isTrueWait, waitRate, WAIT } from './auto-pace.js';
 
 export const WALK_SPEEDS = Object.freeze([0.5, 1, 2, 4]);
@@ -424,8 +425,24 @@ export class Walkthrough extends SolutionReplay {
     }
   }
 
+  /**
+   * Ms of ticks this frame may run without pushing it into the next vsync step: what the draw (an average of the last
+   * frames' views) leaves of the slot it needs — a 25 ms draw is a 33.3 ms frame, so ~6.8 ms of ticks; a 10 ms draw,
+   * ~5.2 ms; a 14 ms draw, ~1.2 ms. Never under WAIT.minTickMs (the run keeps moving), never over the walkthrough's cap.
+   */
+  _tickBudget() {
+    const v = 1000 / 60, draw = this._drawMs || 0;
+    const slot = v * Math.max(1, Math.ceil((draw + 1.5) / v));
+    return Math.max(WAIT.minTickMs, slot - draw - 1.5);
+  }
+
   _frame(dt) {
     this._frameNo++;
+    // (the view's draw time, smoothed: _viewMs is the last drawn frame's Game.frame, ticks excluded)
+    if (this._viewMs > 0 && !this.pacer.turbo) this._drawMs = this._drawMs ? this._drawMs * 0.85 + this._viewMs * 0.15 : this._viewMs;
+    this._tickMsBase ??= this.pacer.tickMs;
+    // (AUTO only: its pace is its own to set; a fixed speed — 4× — keeps its tick cap and plays at the speed it shows)
+    this.pacer.tickMs = PERF.adaptiveTicks && this.auto && this._drawMs ? Math.min(this._tickMsBase, this._tickBudget()) : this._tickMsBase;
     // AUTO grants ticks for a steady frame time: one long frame (a hitch, a shader compile) is not paid back with a
     // burst of ticks on the next — at most 1.25× a usual frame's worth, the rest of the lag is let go (the pace is
     // wall time only) — so the ticks per frame follow the eased speed and never pile up into a second hitch
@@ -490,7 +507,7 @@ export class Walkthrough extends SolutionReplay {
     // WAIT.tickMs of ticks a frame allow; anything that happens (an order, an event, a man moving) ends it at once
     const busy = w.commandos.some((c) => c.alive && (c.pendingAbility || (c.currentAction && c.currentActionId !== 'distract')));
     if (isTrueWait(sig, tg, { waiting: this.waitLabel, busy })) {
-      const want = waitRate({ tickMs: this.autoCeiling.tickMs, frameDt: this._grant.usual, simDt: this.simDt, floor: ceiling });
+      const want = waitRate({ tickMs: this.autoCeiling.tickMs, frameDt: this._grant.usual, simDt: this.simDt, floor: ceiling, budgetMs: PERF.adaptiveTicks && this._drawMs ? this._tickBudget() : null });
       // (up smoothly: at most WAIT.rampPerFrame of an octave a frame, however slow the frames)
       const lf = Math.log2(this._waitRate || this.autoPace.rate), lw = Math.log2(want);
       const stepO = Math.min(Math.min(dt, 0.1) * WAIT.rampOctavesPerS, WAIT.rampPerFrame);
