@@ -5,10 +5,12 @@
  *   C  right after a sweep of the MG across the water (e13) he packs the raft where it lies, swims it on the surface
  *      behind the islets to the GB and inflates it below him;
  *   D  the raft waits beyond e4's reach and, in a gap, dashes up the fjord's far west edge (past the end of the MG's
- *      traverse) to the north beach; the GB gets out, the Marine packs the raft and dives with it; the GB digs
- *      himself into the snow above the beach and, when e4 and the p3 patrol are away, crawls into the camp;
+ *      traverse) to the north beach, swinging in side-on so the GB rolls straight out onto the snow (not one step:
+ *      no boot print for the beach guards to follow); the Marine packs the raft and dives with it; the GB digs
+ *      himself in where he lies and, when e4 and the p3 patrol are away, crawls into the camp;
  *   E  he shoulders fuel drum b4; F  carries it to the station's north wall, waits, and sets it off with his pistol
- *      from 10 m when e4 and the patrol are far away. Two kills (knife, harpoon), no alarm, nobody ever sees a man.
+ *      from 10 m when e4 and the patrol are far away. Two kills (knife, harpoon), no alarm, nobody ever sees a man,
+ *      and until the blast no guard follows a print or looks into a noise (tests/m01-solution.test.mjs).
  * Driver API: tools/solutions/driver.mjs. Reference run, in the real game: node tools/solutions/run-browser.mjs m01
  * (also tests/m01-solution.test.mjs). Walkthrough (debug video mode): m01.walkthrough.mjs.
  */
@@ -45,17 +47,24 @@ const PACK_EXIT = [35.1, 60.45]; // one step back: deep water (he swims)
 const PACK_T = 2.4; // s from the order to the raft in his pack (a step to it, 2 s to deflate and pack it)
 // on the surface: down the peninsula's shore, behind islet 2, the fjord's south-west corner, the shallows below the GB
 const SWIM_ROUTE = [[33.5, 62], [32.6, 68], [32, 75], [25.5, 81], [17, 90], [19.8, 101.3]];
-const LANDING_RAFT = [11.5, 44.6]; // north shore shallows, by e4's west halt (he walks the beach east of it)
-const LANDING_GB = [11.3, 42.9]; // the bank there
+const LANDING_RAFT = [9.1, 44.3]; // north shore shallows, 3 m west of e4's west halt (he walks the beach east of it)
+// the raft runs in from the south-east, bow to the north-west, so the Green Beret's side (the right) lies against the
+// bank: he rolls out straight onto the snow and gets down on the spot — no step on the snow, no boot print for e4 and
+// the p3 patrol to follow (verifier, fix round 2: a single print where he stepped up the bank drew e4 and then the
+// whole patrol to within 3 m of his dig)
+const LANDING_TURN = [10.8, 46.1]; // just off the landing to its south-east (out of e1's reach): the raft swings in from here
+const LANDING_GB = [9.75, 42.75]; // where he gets out: the snow at the raft's right side
 const RAFT_HIDE = [8, 80]; // the west fjord behind the islets: nobody looks there either
 const RAFT_WAIT = [6, 81]; // the fjord's west side behind the islets, 39 m from e4's west halt: beyond every cone
 // the dash to the beach: up the fjord's west edge, round the far side of the MG's traverse (e13 never looks that far
 // west), and in to the landing
-const DASH = [[1, 64], [1, 53], LANDING_RAFT];
+const DASH = [[1, 64], [1, 53], LANDING_TURN, LANDING_RAFT];
 // s the raft lies at the beach: both men out, the Marine packs it (2 s; the fold after it, abilities/raft-actions.js,
-// is cut short: the beach gap leaves no time for it, he dives with the pack at once)
-const LAND_HOLD = 5.5;
-const DIG = [9.5, 43.1]; // a few metres west of e4's west halt, in the snow above the beach: the GB digs in here
+// is cut short: the beach gap leaves no time for it, he dives with the pack at once). Measured: packed 2.1 s and the
+// Marine under water 3.6 s after the raft stops (both get out on the shallow side; nobody wades)
+const LAND_HOLD = 3;
+const LAND_UNDER = 4.5; // s from the raft stopping until the Marine is under water (measured 3.6)
+const DIG = LANDING_GB; // 2 m west of e4's west halt, in the snow above the beach: the GB digs in where he got out
 const SHELTER = [17.5, 38]; // a hollow west of the MG nest, between e4's beach and p3's path
 const CAMP_CRAWL = [[19.8, 36.3], [23, 35], [22.8, 30], [21.8, 26.5]]; // across p3's path, round the drums
 const HIDEOUT = [21.8, 26.5]; // between the barracks, in the camp's middle: no cone ever reaches a man lying there
@@ -173,8 +182,8 @@ export const STAGES = [
     // the north beach is watched by e4 walking it, by e5 from further east and by the MG (e13) sweeping the water: the
     // raft waits until it can dash in hard up the fjord's far west edge (past the end of the MG's traverse) and drop
     // the GB before anyone looks — then the Marine, his job done, packs the raft on the spot and slips under water with
-    // it (gear on 1.5 s), so nothing is left on the beach to see. The GB steps up the bank, crawls a few metres west and
-    // digs himself into the snow: buried, nobody sees him, and he waits there for the way into the camp to open.
+    // it (gear on 1.5 s), so nothing is left on the beach to see. The GB rolls out onto the bank and, flat on his belly
+    // (a crawling man leaves no boot prints), crawls a few metres west and digs himself into the snow: buried, nobody sees him, and he waits there for the way into the camp to open.
     const dv = D.c('diver'), rate = raft.def?.turn || Math.PI / 2, fast = raft.def?.fast || 4;
     const legT = (ax, az, ah, bx, bz) => {
       const want = Math.atan2(bz - az, bx - ax), dh = Math.abs(((want - ah + 3 * Math.PI) % (2 * Math.PI)) - Math.PI);
@@ -182,7 +191,7 @@ export const STAGES = [
     };
     const e13 = D.get('e13'), others = D.world.enemies.filter((e) => e !== e13);
     const digT = Math.hypot(DIG[0] - LANDING_GB[0], DIG[1] - LANDING_GB[1]) / 0.7;
-    let k = 0;
+    let k = 0, tPlan = 0;
     const why = [];
     await D.until(() => {
       if (k++ % 15) return false;
@@ -190,32 +199,36 @@ export const STAGES = [
       let tin = 0;
       for (let i = 0, x = raft.x, z = raft.z, h = raft.heading; i < DASH.length; [x, z] = DASH[i++]) { const l = legT(x, z, h, ...DASH[i]); tin += l.t; h = l.h; }
       // (the MG's sweep is a clock: checked apart, with the raft's own timing margin only; the walkers with more)
+      tPlan = tin;
       const ok = D.rowClear(DASH, { fast: true, hold: LAND_HOLD, slack: [-1, 1.5], pad: 1, why, except: [e13] })
         && D.rowClear(DASH, { fast: true, hold: LAND_HOLD, slack: [-0.6, 0.9], pad: 0.4, why, except: others })
-        && clearFor(D, ...LANDING_RAFT, tin, LAND_HOLD + 2.5, false, why, 2) // the Marine packing the raft and diving
-        && clearFor(D, ...LANDING_GB, tin, 3.5, false, why, 2) // the GB out, up the bank and down
-        && D.routeClear('greenberet', [DIG], { from: LANDING_GB, delay: tin + 3, speed: 0.7, low: true, why })
-        && clearFor(D, ...DIG, tin + 3 + digT, 3, true, why, 1.5); // he digs in, lying flat
+        && clearFor(D, ...LANDING_RAFT, tin, LAND_UNDER, false, why, 2) // the Marine packing the raft and diving
+        && clearFor(D, ...LANDING_GB, tin, 2.5, false, why, 2) // the GB out on the bank and down
+        && D.routeClear('greenberet', [DIG], { from: LANDING_GB, delay: tin + 2, speed: 0.7, low: true, why })
+        && clearFor(D, ...DIG, tin + 2 + digT, 3, true, why, 1.5); // he digs in, lying flat
       if (!ok && DBG && k % 1200 === 1) D.log(`DBG ${D.t.toFixed(1)} beach gap: no [${why.join(' ')}]`);
       return ok;
-    }, 900, 'a gap on the north beach').catch((e) => { throw new Error(`${e.message} [${why.join(' ')}]`); });
+    }, 1500, 'a gap on the north beach').catch((e) => { throw new Error(`${e.message} [${why.join(' ')}]`); });
+    const tGo = D.t;
     for (const p of DASH) await D.row(...p, 30, { fast: true });
+    const tArr = D.t;
     D.ability('greenberet', 'leaveVehicle');
     await D.until(() => !gb.vehicle, 3, 'GB out');
     const shallow = (u) => D.world.groundAt(u.x, u.z).shallow;
-    // (out in the shallows: a step up the bank, and down on his belly)
-    if (shallow(gb)) D.order('greenberet', { type: 'move', x: LANDING_GB[0], z: LANDING_GB[1] });
+    // (the raft lies with his side against the bank: he is out on the snow and goes flat where he is — a step up the
+    // bank from the shallows would leave a boot print the beach guards follow)
+    if (shallow(gb) || Math.hypot(gb.x - LANDING_GB[0], gb.z - LANDING_GB[1]) > 1.2) throw new Error(`GB got out at (${gb.x.toFixed(2)},${gb.z.toFixed(2)}), not on the bank (raft heading ${raft.heading.toFixed(2)})`);
     D.ability('diver', 'leaveVehicle');
     await D.until(() => !dv.vehicle, 3, 'Marine out');
     // (a swimmer gets out on the water side: back to the hull in the shallows, where he can stand and pack it)
     if (!shallow(dv)) await D.go('diver', raft.x + (LANDING_GB[0] - raft.x) * 0.35, raft.z + (LANDING_GB[1] - raft.z) * 0.35, { tol: 0.4, max: 6 });
     D.ability('diver', 'hand', raft);
-    await D.until(() => !gb.path && !gb.isMoving, 5, 'GB on the bank');
     await D.stance('greenberet', 'crawl');
     D.order('greenberet', { type: 'move', x: DIG[0], z: DIG[1] });
     await D.until(() => dv.has('inflatableBoat'), 8, 'raft packed');
     D.ability('diver', 'dive');
     await D.until(() => dv.underwater && !dv.currentAction, 5, 'Marine under water');
+    if (DBG) D.log(`DBG landing: dash ${(tArr - tGo).toFixed(2)} s (planned ${tPlan.toFixed(2)}), Marine under ${(D.t - tArr).toFixed(2)} s after landing`);
     await D.until(() => !gb.path && !gb.isMoving, 15, 'GB at his dig');
     D.ability('greenberet', 'shovel');
     await D.until(() => gb.buried && !gb.currentAction, 5, 'GB buried');

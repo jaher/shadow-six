@@ -76,6 +76,8 @@ Object.assign(VARIANT_HINTS.barracks, { barracks_concrete_2st: ['barracks_concre
 Object.assign(VARIANT_HINTS.gate, { iron: null, jail_door_mesh: null });
 VARIANT_HINTS.mobile_bridge = { mobile_bridge_sliding: null }; // M17: missions/scripts/m17-art.js draws the rolling bridge
 Object.assign(VARIANT_HINTS.hut, { shed_concrete: ['shed_concrete'] });
+// M5 art pass: the village privy is drawn by missions/scripts/m05-art.js (castle-kit plank privy), never the sentry box
+VARIANT_HINTS.hut.outhouse_plank = null;
 Object.assign(VARIANT_HINTS.house, { house_concrete_2st: ['house_coastal_normandy'] });
 Object.assign(VARIANT_HINTS.bunker, { blockhouse_small: ['blockhouse_small'] });
 // M12 art pass (Tunis, manifest-tunis.json + the M12 desert set): the harbour HQ is a French-protectorate office block, the

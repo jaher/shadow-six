@@ -337,6 +337,11 @@ export function plantingPlan(grid, theater, { mission = null, trees = [], forest
     placements.push(...clearForestFill(fillForest({ ...f, forestVariant: fv }, (d, k) => treePlacement(d, theater, k), { spacing: theater === 'snow' ? 3.7 : 4.4, occupied: mine }), mission?.structures));
     placements.push(...visual(clearForestFill(forestUnderstorey(f, theater), mission?.structures))); // brambles, hazel, fallen boughs on the litter
   }
+  // visual woods (mission.vegetation.woods: [{type, points, h?, seed?}]): a wood with no gameplay footprint, e.g. the
+  // M5 pine canopy down in the carved valley (a blocked drop: its trees must not add sight blockers)
+  for (const f of mission?.vegetation?.woods || []) {
+    placements.push(...visual(clearForestFill(fillForest(f, (d, k) => treePlacement(d, theater, k), { spacing: f.spacing ?? 3.7, occupied: mine }), mission?.structures)));
+  }
   // bocage hedgerows (visual; mission.vegetation.hedgerows: [{points, gaps?, h?, standards?}])
   for (const hr of [...(mission?.vegetation?.hedgerows || []), ...farm.hedgerows]) placements.push(...visual(hedgerowPlacements(hr)));
   placements.push(...visual(farm.orchard));
@@ -366,6 +371,8 @@ export function roadPolylines(mission) {
 
 /** One shared snow-cover uniform set for every patched prop material (materials are cached across missions). */
 const PROP_SNOW = { uSnowAmt: { value: 0 }, uSnowBias: { value: 0 } };
+/** The mission-wide prop snow amount (shared uniform: a material patched with its own bias follows the theater). */
+export const propSnowAmount = () => PROP_SNOW.uSnowAmt;
 /**
  * Top-facing snow on props: patch every opaque MeshStandard/Physical material under `root` once, then drive
  * the shared amount (0 = off; later non-snow missions reuse the same cached materials with amount 0).

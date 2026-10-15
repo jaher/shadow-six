@@ -89,7 +89,8 @@ export function missionCarves(mission) {
 export function carvePainter(field, layers) {
   if (!field) return undefined;
   const L = (n) => layers.indexOf(n);
-  const iRock = L('rock'), iGravel = L('gravel'), iSand2 = L('sand2'), iDirt = L('dirt');
+  // (the snow palette has no gravel: its banks show the rock and the bed is old, trodden snow; M5's valley drop)
+  const iRock = L('rock'), iGravel = L('gravel') >= 0 ? L('gravel') : L('snowold'), iSand2 = L('sand2'), iDirt = L('dirt');
   if (iRock < 0 || iGravel < 0) return undefined;
   const maxD = Math.max(...field.carves.map((c) => c.depth));
   const tgt = new Float32Array(layers.length);

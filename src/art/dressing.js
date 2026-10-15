@@ -42,6 +42,7 @@ function tex(file, srgb) {
 const SETS = {
   rock: ['rock_cliff', 0xb8b4ac, 0x77746d, 1.2],
   rockDark: ['rock_cliff', 0x8c8984, 0x5f5c57, 1.3],   // (lib 'granite' is a log-wall texture)
+  graniteFace: ['rock_cliff', 0xc4c0b8, 0x7c7972, 1.5], // M5 art pass: the massif face (own material: snow on its ledges only)
   rockOchre: ['rock_cliff', 0xe0c497, 0x9a7a52, 1.3], // M8 art pass: the desert escarpment (warm eroded rock, not dressed sandstone)
   logs: ['timber_grey', 0xc9c2b4, 0x6b6153, 1.0],
   logsTarred: ['timber_tarred', 0xffffff, 0x3c342c, 1.0],
@@ -1027,6 +1028,7 @@ let PORCELAIN = null;
 /** Electrical transformer on a concrete plinth: finned tank, three porcelain bushings. Other generators: a genset. */
 export function buildGenerator(p) {
   const w = p.w ?? 2, d = p.d ?? 1.4, h = p.h ?? 1.2;
+  if (/genset/.test(String(p.variant ?? ''))) return buildGenset(w, d, h);
   const g = new THREE.Group(); g.name = 'dressing:generator';
   const plinth = mesh(boxUV(new THREE.BoxGeometry(w, 0.25, d), 1.5), dressingMaterial('plinth'));
   plinth.position.y = 0.125; g.add(plinth);
@@ -1044,6 +1046,50 @@ export function buildGenerator(p) {
       const bush = mesh(new THREE.CylinderGeometry(0.05, 0.08, 0.45, 8), porcelain);
       bush.position.set(k * tw * 0.3, 0.25 + th + 0.22, 0); g.add(bush);
     }
+  }
+  return consolidate(g);
+}
+
+/**
+ * Field generating set (variant `genset*`, M5 art pass: the radar's power) on timber skids: a steel base frame, the
+ * engine block with a ribbed head and its radiator (grille bars), the dynamo and coupling, the day tank on saddles,
+ * the exhaust with a rain cap, a switch box with a gauge, two jerrycans. Long axis x (w), height ≈ h.
+ */
+function buildGenset(w, d, h) {
+  const g = new THREE.Group(); g.name = 'dressing:generator';
+  const steel = dressingMaterial('steel'), iron = dressingMaterial('castIron'), galv = dressingMaterial('galv'), logs = dressingMaterial('logs');
+  const box = (sx, sy, sz, m, x, y, z) => { const b = mesh(boxUV(new THREE.BoxGeometry(sx, sy, sz), 0.8), m); b.position.set(x, y, z); g.add(b); return b; };
+  const cyl = (r0, r1, L, m, x, y, z, axis = 'y', seg = 14) => {
+    const c = mesh(new THREE.CylinderGeometry(r0, r1, L, seg), m); c.position.set(x, y, z);
+    if (axis === 'x') c.rotation.z = Math.PI / 2; else if (axis === 'z') c.rotation.x = Math.PI / 2;
+    g.add(c); return c;
+  };
+  const L = w * 0.86, Z = d * 0.3, k = h / 1.2;                         // frame length, skid offset, height scale
+  for (const s of [-1, 1]) box(L + 0.2, 0.16, 0.2, logs, 0, 0.08, s * Z);           // timber skids on the snow
+  for (const s of [-1, 1]) box(L, 0.1, 0.07, steel, 0, 0.21, s * (Z - 0.02));       // channel rails
+  for (const x of [-L / 2 + 0.1, 0, L / 2 - 0.1]) box(0.07, 0.06, Z * 2, steel, x, 0.19, 0); // cross members
+  const y0 = 0.26, ex = -L * 0.2;                                        // engine centre x
+  box(0.62, 0.52 * k, 0.5, steel, ex, y0 + 0.26 * k, 0);                 // crankcase / block
+  box(0.56, 0.16 * k, 0.4, iron, ex, y0 + 0.6 * k, 0);                   // cylinder head
+  for (let i = 0; i < 6; i++) box(0.035, 0.05, 0.46, iron, ex - 0.24 + i * 0.096, y0 + 0.7 * k, 0); // cooling ribs
+  const rx = -L / 2 + 0.1;
+  box(0.12, 0.66 * k, 0.6, iron, rx, y0 + 0.34 * k, 0);                  // radiator
+  for (let i = 0; i < 7; i++) box(0.03, 0.03, 0.56, galv, rx - 0.07, y0 + (0.08 + i * 0.085) * k, 0); // grille bars
+  box(0.18, 0.05, 0.14, galv, rx + 0.02, y0 + 0.7 * k, 0);               // filler cap neck
+  cyl(0.2, 0.2, 0.12, iron, ex + 0.37, y0 + 0.3 * k, 0, 'x');           // coupling bell
+  const ax = ex + 0.72;
+  cyl(0.25, 0.25, 0.56, steel, ax, y0 + 0.3 * k, 0, 'x', 18);            // dynamo body
+  cyl(0.18, 0.25, 0.08, iron, ax + 0.32, y0 + 0.3 * k, 0, 'x', 18);      // end shield
+  for (const s of [-1, 1]) box(0.5, 0.05, 0.08, steel, ax, y0 + 0.05, s * 0.18);   // dynamo feet
+  for (const s of [-1, 1]) box(0.06, 0.1, 0.34, steel, ex + 0.05 + s * 0.3, y0 + 0.84 * k, 0); // tank saddles
+  cyl(0.15, 0.15, 0.82, steel, ex + 0.05, y0 + 0.98 * k, 0, 'x', 16);    // day tank
+  cyl(0.04, 0.04, 0.08, galv, ex + 0.3, y0 + 1.15 * k, 0);               // tank cap
+  cyl(0.035, 0.035, 0.55 * k, iron, ex + 0.12, y0 + 0.98 * k, -0.2);     // exhaust stack
+  cyl(0.07, 0.05, 0.05, iron, ex + 0.12, y0 + 1.27 * k, -0.2);           // rain cap
+  box(0.34, 0.42, 0.13, steel, ax + 0.05, y0 + 0.72 * k, d * 0.18);      // switch box
+  cyl(0.05, 0.05, 0.02, galv, ax + 0.05, y0 + 0.8 * k, d * 0.18 + 0.07, 'z', 12); // gauge
+  for (const [x, z, r] of [[L / 2 - 0.05, -d * 0.36, 0.2], [L / 2 - 0.15, -d * 0.36 + 0.2, -0.3]]) {
+    box(0.34, 0.46, 0.16, steel, x, 0.23, z).rotation.y = r;              // jerrycans
   }
   return consolidate(g);
 }

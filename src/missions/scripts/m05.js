@@ -16,6 +16,9 @@
 import * as THREE from 'three';
 import { terrainPrism, terrainBed } from '../../art/kit-terrain.js';
 import { Enemy } from '../../entities/enemy.js';
+import { coverPropsWithSnow } from '../../art/terrain.js';
+import { massifFace, screeBoulders, buildPrivies, rimLip } from './m05-art.js';
+import { carveField } from '../../art/terrain/carve.js';
 
 export const SUMMIT_Y = 16;
 const CELL = 0.5;
@@ -206,9 +209,25 @@ export function buildSummitVisuals(world, spec) {
   world._m05Visuals = true;
   const root = new THREE.Group();
   root.name = 'm05:summit';
-  root.add(prism(spec.plateau, SUMMIT_Y - 0.02, 0xdfdfde, 0x6a655a));
-  root.add(prism(spec.massif, SUMMIT_Y - 0.4, 0x7a7466, 0x5a564c));
-  root.add(terrainBed(spec.valley, 0.04, 'rockDark')); // the deep valley floor: dark scree (was a flat colour)
+  const art = spec.art;
+  if (art) {
+    // art pass (scripts/m05-art.js): the plateau carried on past the N / E map edges and down into the carved valley,
+    // the massif as a sloped granite face with its scree apron (the valley itself is cut into the terrain: `carves`)
+    const top = terrainPrism(art.plateau, SUMMIT_Y - 0.02 + art.valleyDepth, { y0: art.valleyDepth > 0 ? -art.valleyDepth : 0, top: 'snow', side: 'rock', tile: 4 });
+    root.add(top);
+    root.add(massifFace(art.rim, art.foot, { h: SUMMIT_Y, gully: art.gully }));
+    root.add(screeBoulders(art.rim, art.foot, { h: SUMMIT_Y }));
+    if (art.valley) { // the valley's rock lip on the village side (the drop reads as an edge)
+      const f = carveField(art.valley.carves, { W: art.valley.size[0], D: art.valley.size[1] });
+      if (f) root.add(rimLip(art.valley.lip, art.valley.carves[0].points, f.at, { avoid: art.valley.avoid || [] }));
+    }
+    coverPropsWithSnow(root, 1);
+    buildPrivies(world, art.privies).catch(() => {});
+  } else {
+    root.add(prism(spec.plateau, SUMMIT_Y - 0.02, 0xdfdfde, 0x6a655a));
+    root.add(prism(spec.massif, SUMMIT_Y - 0.4, 0x7a7466, 0x5a564c));
+    root.add(terrainBed(spec.valley, 0.04, 'rockDark')); // the deep valley floor: dark scree (was a flat colour)
+  }
   world.scene.add(root);
   for (const id of spec.hide || []) { const o = world.structures?.get(id)?.object3d; if (o) o.visible = false; }
   for (const id of spec.lift || []) {

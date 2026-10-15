@@ -46,23 +46,49 @@ const PLATEAU = [[60, 0], [107, 0], [107, 73], [96, 68], [88, 61], [78, 58], [66
 const MASSIF = [[60, 40], [62, 50], [66, 55], [78, 58], [88, 61], [96, 68], [107, 73],
   [107, 89], [95, 88], [86, 85], [76, 78], [74, 70], [70, 63], [64, 58], [60, 56], [59, 48], [58, 40]];
 
+// ---------------------------------------------------------------- art pass (visual only: scripts/m05-art.js)
+/** The valley drop is cut 14 m into the terrain (`carves`; its rim spares the rim_rock outcrop) and wooded far below. */
+const VALLEY_DEPTH = 14;
+const VALLEY_CARVE = [[33, 0], [60, 0], [60, 40], [56, 42], [52, 26], [44, 22], [38.8, 18.6], [37.6, 13], [34.3, 11], [33.6, 6]];
+// (the wood keeps ~4.5 m off the village rim: the bare rock bank shows between the rim and the canopy)
+const VALLEY_WOOD = [[37.5, 1], [57, 1], [57, 31], [55.8, 23], [46.3, 18.1], [43, 15.7], [41.6, 10.2], [38.5, 8.2], [38.1, 5.5]];
+/** The massif's rim (plateau edge, y 16) and foot (y 0), W → E, carried on 21 m past the E map edge. */
+const MASSIF_RIM = [[60, 40], [62, 50], [66, 55], [78, 58], [88, 61], [96, 68], [107, 73], [128, 81]];
+const MASSIF_FOOT = [[58, 40], [59, 48], [60, 56], [64, 58], [70, 63], [74, 70], [76, 78], [86, 85], [95, 88], [107, 89], [128, 93]];
+/** The plateau as drawn: carried on past the N and E edges (no void), down to the valley floor on its W face. */
+const PLATEAU_ART = [[60, -25], [132, -25], [132, 81], [128, 81], [107, 73], [96, 68], [88, 61], [78, 58], [66, 55], [62, 50], [60, 40]];
+/** The valley's village-side rim (on the carve outline): its rock lip is drawn by scripts/m05-art.js `rimLip`. */
+const VALLEY_LIP = [[56, 42], [52, 26], [44, 22], [38.8, 18.6], [37.6, 13], [34.3, 11], [33.6, 6], [33, 0]];
+const VALLEY_CARVES = [{ id: 'valley', points: VALLEY_CARVE, depth: VALLEY_DEPTH, bank: 5, inset: 0.5 }];
+export const ART = { plateau: PLATEAU_ART, rim: MASSIF_RIM, foot: MASSIF_FOOT, valleyDepth: VALLEY_DEPTH, gully: [100.6, 2.2, 1.3], privies: ['outhouse'],
+  valley: { carves: VALLEY_CARVES, lip: VALLEY_LIP, size: [107, 131], avoid: null } }; // avoid: the rim trees (set below TREES)
+
 // ---------------------------------------------------------------- the summit (y 16; +19 m z shift applied, §3)
 const SUMMIT = [
   { id: 'top_station', type: 'cable_car_station', variant: 'upper_blockhouse', x: 72, z: 44, rot: deg(45), w: 16, d: 9, h: 9 },
   { id: 'radar', type: 'radio_mast', variant: 'wurzburg_dish', label: 'Radar', x: 94, z: 31, rot: deg(20), w: 3, d: 3, h: 8, r: 3.75,
-    destructible: true, destroyedBy: ['explosion'], hp: 100 },
-  { id: 'radar_hut', type: 'hut', variant: 'guard_hut', x: 101, z: 30, rot: 0, w: 4, d: 4, h: 3.5, snowRoof: true },
+    destructible: true, destroyedBy: ['explosion'], hp: 100, fixed: true },
+  { id: 'radar_hut', type: 'hut', variant: 'guard_hut', x: 101, z: 30, rot: 0, w: 4, d: 4, h: 3.5, snowRoof: true, asset: 'shed_tarred_be' },
   { id: 'g3_barracks', type: 'barracks', variant: 'timber_long', label: 'Summit barracks', x: 100.5, z: 51, rot: deg(50), w: 11, d: 7, h: 5,
     flag: true, garrison: true, destructible: true, destroyedBy: ['explosion'], hp: 100 }, // door: the SW long side (default +90°)
-  { id: 'pole_top', type: 'telegraph_pole', x: 82, z: 49, r: 0.15, h: 7, wireTo: 'top_station' },
-  ...[[100, 36], [101, 41], [106, 46]].map(([x, z], k) => ({ id: `pine_top_${k + 1}`, type: 'pine', x, z, r: 0.45, h: 10 + k, seed: 5300 + k })),
+  { id: 'pole_top', type: 'telegraph_pole', x: 82, z: 49, r: 0.15, h: 7, wireTo: 'top_station', fixed: true },
+  ...[[100, 36], [101, 41], [106, 46]].map(([x, z], k) => ({ id: `pine_top_${k + 1}`, type: 'pine', x, z, r: 0.45, h: 10 + k, seed: 5300 + k, fixed: true })),
 ];
+// (summit points carry `fixed`: they stand on the raised plateau, so the ground placement rules (world/placement.js),
+// which can only ever keep them where they are, skip the futile relocation search: a faster load)
 /** Summit structures without a footprint (lifted visually only). */
 const SUMMIT_FLAT = [
   { id: 'top_deck', type: 'pier', variant: 'timber_deck', x: 64, z: 50, rot: deg(45), w: 6, d: 5, h: 0.4 },
 ];
+/** Summit dressing without a footprint (lifted visually only; nobody walks there): the dish's generator E of the
+ *  operators' hut, a crate stack by the top station, firewood by the barracks. */
+const SUMMIT_DRESS = [ // (fixed: placement keeps them where authored; the plateau is no ground obstacle for them)
+  { id: 'gen_radar', type: 'generator', variant: 'genset_field', x: 104.5, z: 30, rot: deg(90), w: 2, d: 1.4, h: 1.2, block: 0, fixed: true },
+  { id: 'crates_top', type: 'crates', x: 76, z: 36.5, rot: deg(45), w: 2.2, d: 1.6, h: 1.2, block: 0, fixed: true },
+  { id: 'logs_barr', type: 'crates', variant: 'log_pile', asset: 'log_pile_stack', x: 104.5, z: 45, rot: deg(50), w: 3, d: 1.5, h: 1, block: 0, fixed: true },
+];
 const DRUMS = [['b1', 94.7, 51.9], ['b2', 84, 55], ['b3', 86, 55.5]]
-  .map(([id, x, z]) => ({ id, type: 'barrels', variant: 'fuel_explosive', explosive: 'barrel', carriable: true, x, z, r: 0.3, h: 0.9 }));
+  .map(([id, x, z]) => ({ id, type: 'barrels', variant: 'fuel_explosive', explosive: 'barrel', carriable: true, x, z, r: 0.3, h: 0.9, fixed: true }));
 
 /** The plateau as walkway strips, the summit footprints cut out (they keep their block). */
 const PLATEAU_WALKS = plateauWalkways(PLATEAU, holesOf(SUMMIT));
@@ -175,17 +201,51 @@ const TREES = [
   ...pines('se_clump', [[100, 108], [104, 113], [102, 124], [105, 120]], 9, 5140),
 ];
 
+// the valley's rock lip keeps clear of the trunks standing on or near the rim (scripts/m05-art.js rimLip)
+ART.valley.avoid = TREES.filter((t) => t.x > 30 && t.x < 60 && t.z < 45).map((t) => [t.x, t.z, 0.8]);
+
 // ---------------------------------------------------------------- the mines (dossier §6.2)
 const MINES = [[86, 109], [58, 110], [70, 112], [64, 106], [76, 124], [60, 126], [88, 122], [95, 108],
   [91, 99], [103, 97], [104, 104], [94, 91], [40, 128], [52, 127]];
 
 /** Structures lifted onto the plateau by the mission script (meshes + drum entities). */
-const LIFT = [...SUMMIT, ...SUMMIT_FLAT, ...DRUMS].map((s) => s.id);
+const LIFT = [...SUMMIT, ...SUMMIT_FLAT, ...SUMMIT_DRESS, ...DRUMS].map((s) => s.id);
 
 const cabin = (id, x, z, w, d, extra = {}) => ({ id, type: 'house', variant: 'log_cabin', x, z, rot: deg(328), w, d, h: 5.5, snowRoof: true, ...extra });
 const drums = (id, x, z, w = 2.4, d = 2) => ({ id, type: 'barrels', variant: 'inert_stack', x, z, rot: 0, w, d, h: 1, block: 1 }); // not explosive
 const crates = (id, x, z, w, d, h = 1.2, rot = 0, variant) => ({ id, type: 'crates', ...(variant ? { variant } : {}), x, z, rot: deg(rot), w, d, h, block: 1 });
-const tent = (id, x, z) => ({ id, type: 'tent', variant: 'ridge_small', x, z, rot: deg(40), w: 3, d: 4, h: 2.2 });
+const tent = (id, x, z) => ({ id, type: 'tent', variant: 'ridge_small', x, z, rot: deg(40), w: 3, d: 4, h: 2.2, asset: 'tent_ridge_field' });
+
+// ---------------------------------------------------------------- art pass: set dressing (visual; low cover, ≥ 4.5 m off every
+// route, post and start; furniture never touches the walk grid: block false)
+/** Firewood stacks by the cabins, handcarts, the HQ despatch rider's BMW combination (fixed: authored on spots that already
+ *  clear the placement rules, so the load runs no relocation search). */
+const DRESSING = [
+  { id: 'logs_h1', type: 'crates', variant: 'log_pile', asset: 'log_pile_stack', x: 12.2, z: 19.5, rot: deg(328), w: 3, d: 1.5, h: 1, block: 1, fixed: true },
+  { id: 'cart_h1', type: 'crates', variant: 'handcart', asset: 'handcart_wood', x: 28.8, z: 17.9, rot: deg(15), w: 1.9, d: 1.4, h: 1, block: 1, fixed: true },
+  { id: 'logs_h3', type: 'crates', variant: 'log_pile', asset: 'log_pile_stack', x: 21.7, z: 44.3, rot: deg(328), w: 3, d: 1.5, h: 1, block: 1, fixed: true },
+  { id: 'logs_h4b', type: 'crates', variant: 'log_pile', asset: 'log_pile_stack', x: 25.1, z: 57.4, rot: deg(328), w: 3, d: 1.5, h: 1, block: 1, fixed: true },
+  { id: 'logs_h5', type: 'crates', variant: 'log_pile', asset: 'log_pile_stack', x: 14.3, z: 62.5, rot: deg(328), w: 3, d: 1.5, h: 1, block: 1, fixed: true },
+  { id: 'cart_h6', type: 'crates', variant: 'handcart', asset: 'handcart_wood', x: 31.6, z: 77.7, rot: deg(240), w: 1.9, d: 1.4, h: 1, block: 1, fixed: true },
+  { id: 'logs_shed', type: 'crates', variant: 'log_pile', asset: 'log_pile_stack', x: 46.5, z: 54, rot: deg(328), w: 4, d: 2, h: 1.3, block: 1, fixed: true }, // cordwood under the woodshed's roof
+  { id: 'logs_h8', type: 'crates', variant: 'log_pile', asset: 'log_pile_stack', x: 33.1, z: 110.7, rot: deg(335), w: 3, d: 1.5, h: 1, block: 1, fixed: true },
+  { id: 'moto_hq', type: 'crates', variant: 'vehicle_parked', label: 'Motorcycle', x: 54.1, z: 50.1, rot: deg(328), w: 2.4, d: 1.7, h: 1.1, block: 1, fixed: true, vehicleArt: 'r75_sidecar' },
+];
+/** Wooden lamp posts by the stone house, the lift and the south hut (and two on the summit, y 16), a fingerpost at the
+ *  village's W edge, a no-entry board at the lower station, mine boards on the S field's edge, a round-pole fence N of
+ *  the start house. */
+const FURNITURE = [
+  { type: 'lamp', variant: 'norway_wood', x: 27, z: 52, rot: deg(0), block: false },
+  { type: 'lamp', variant: 'norway_wood', x: 26.5, z: 89.4, rot: deg(45), block: false },
+  { type: 'lamp', variant: 'norway_wood', x: 43.2, z: 109.3, rot: deg(-90), block: false },
+  { type: 'lamp', variant: 'norway_wood', x: 79, z: 47.5, y: Y, rot: deg(45), block: false },
+  { type: 'lamp', variant: 'norway_wood', x: 97.5, z: 34, y: Y, rot: deg(180), block: false },
+  { type: 'sign', variant: 'fingerpost', x: 2, z: 43, rot: deg(-45), text: 'HERDLA 3 km', block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 26.1, z: 81, rot: deg(-30), text: 'SEILBAHN\nZUTRITT VERBOTEN', block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 50, z: 104, rot: deg(-60), text: 'ACHTUNG\nMINEN!', block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 74, z: 106.5, rot: deg(-90), text: 'ACHTUNG\nMINEN!', block: false },
+  { type: 'fence', variant: 'rail', points: [[23, 12], [28, 11.5], [32.5, 12.8]], h: 1.2, block: false },
+];
 
 const STRUCTURES = [
   // --- terrain structures: the valley drop, the summit plateau (raised by walkways), the massif
@@ -194,8 +254,8 @@ const STRUCTURES = [
   { id: 'massif', type: 'cliff', variant: 'granite_massif', points: MASSIF, h: Y, block: 2, climbable: false },
   { id: 'rim_rock', type: 'rocks', x: 36, z: 16, rot: 0, w: 5, d: 4, h: 5 },
   // --- the village (NW and W)
-  cabin('h1', 21.5, 26.5, 14, 7),
-  { id: 'h1_annex', type: 'hut', variant: 'log_shed', x: 13.5, z: 24, rot: deg(328), w: 3.5, d: 3, h: 3 },
+  cabin('h1', 21.5, 26.5, 14, 7, { asset: 'log_cabin_b' }),
+  { id: 'h1_annex', type: 'hut', variant: 'log_shed', x: 13.5, z: 24, rot: deg(328), w: 3.5, d: 3, h: 3, asset: 'shed_tarred_be' },
   { id: 'h1_kennel', type: 'tent', variant: 'canvas_shed', x: 25, z: 17.5, rot: deg(328), w: 3, d: 2.5, h: 2, block: 1 },
   crates('h1_crates', 28.5, 22.5, 2, 2),
   { id: 'rocks_w1', type: 'rocks', x: 9, z: 29, rot: 0, w: 5, d: 4, h: 3 },
@@ -204,20 +264,20 @@ const STRUCTURES = [
   drums('drums_w', 4.5, 26, 2.2, 2.2),
   { id: 'h2', type: 'flat_roof_house', variant: 'stone_bunkhouse', x: 30, z: 43, rot: deg(335), w: 10, d: 6, h: 4.5, mat: 'stone', roofWalk: false, enterable: true },
   drums('drums_h2a', 27.5, 48, 2.5, 2), drums('drums_h2b', 34.5, 33.5, 2.5, 2),
-  { id: 'outhouse', type: 'hut', variant: 'outhouse', x: 13.5, z: 43.5, rot: 0, w: 1.6, d: 1.6, h: 2.4 },
-  cabin('h3', 11.5, 49.5, 12, 7),
+  { id: 'outhouse', type: 'hut', variant: 'outhouse_plank', x: 3.15, z: 52.36, rot: deg(328), w: 1.6, d: 1.6, h: 2.4, chimney: false }, // by h3's W gable, clear of its eaves; no fx stack on a privy
+  cabin('h3', 11.5, 49.5, 12, 7, { asset: 'log_cabin_b' }),
   drums('drums_h3', 18.5, 51),
   crates('crates_h3', 8, 57.5, 3, 2.5, 1.2, 20),
-  cabin('h4', 29.5, 62.5, 12, 7),
+  cabin('h4', 29.5, 62.5, 12, 7, { asset: 'log_cabin_b' }),
   crates('logs_h4', 35.3, 61.8, 3, 2, 1.2, 328, 'log_pile'),
-  cabin('h5', 12, 72, 13, 7),
-  cabin('h5_wing', 9, 66, 5, 6),
+  cabin('h5', 12, 72, 13, 7, { asset: 'log_cabin_b' }),
+  cabin('h5_wing', 9, 66, 5, 6, { asset: 'log_cabin_a' }),
   crates('crates_h5', 21, 69, 2, 3, 1.5),
   crates('crate_pile', 15.5, 82, 7, 4, 1.8, 0, 'stack_large'), // the lure corner behind it: (19.5, 83.5)
-  cabin('h6', 39.5, 75, 11, 7),
+  cabin('h6', 39.5, 75, 11, 7, { asset: 'log_cabin_b' }),
   { id: 'pole_c', type: 'telegraph_pole', variant: 'lamp_crossbar', x: 44, z: 64, r: 0.15, h: 7, wireTo: 'pole_n' },
   // --- the lower camp (centre)
-  { id: 'woodshed', type: 'hut', variant: 'woodshed_open', x: 46.5, z: 54, rot: deg(328), w: 6, d: 4, h: 3 },
+  { id: 'woodshed', type: 'hut', variant: 'woodshed_open', x: 46.5, z: 54, rot: deg(328), w: 6, d: 4, h: 3, asset: 'lean_to_canopy' },
   { id: 'pole_n', type: 'telegraph_pole', variant: 'wall_telephone', x: 50.5, z: 51, r: 0.15, h: 7, wireTo: 'lower_station' },
   { id: 'g1_hq', type: 'barracks', variant: 'log_hq_flag', x: 54, z: 57, rot: deg(328), w: 8, d: 6, h: 4, flag: true, garrison: true },
   tent('tent_1', 51, 64), tent('tent_2', 62, 62), tent('tent_3', 68, 68),
@@ -231,8 +291,9 @@ const STRUCTURES = [
   { id: 'g2_bunker', type: 'bunker', variant: 'concrete_flag', x: 94, z: 118, rot: 0, w: 8, d: 6, h: 3, flag: true, garrison: true },
   { id: 'rock_sw', type: 'rocks', x: 1.5, z: 124, rot: 0, w: 3, d: 3, h: 2 },
   // --- the summit (y 16)
-  ...SUMMIT, ...SUMMIT_FLAT, ...DRUMS,
+  ...SUMMIT, ...SUMMIT_FLAT, ...SUMMIT_DRESS, ...DRUMS,
   ...TREES,
+  ...DRESSING,
 ];
 
 export default {
@@ -266,6 +327,10 @@ export default {
   lighting: { sunElevDeg: 28, sunAzimuthDeg: 315, kelvin: 6000, hdri: 'spring_broken_cloud', fog: 180, lut: 'norway' },
   water: null,
   baseTerrain: 'snow',
+  // art pass: the valley drop cut into the terrain (visual: its cells stay the blocked `valley_rim` cliff) and the pine
+  // canopy far below it (a visual wood: no sight blockers added)
+  carves: VALLEY_CARVES,
+  vegetation: { woods: [{ id: 'valley_wood', type: 'pine', points: VALLEY_WOOD, h: 9, spacing: 6.5, seed: 5401 }] }, // open, lower stand: the floor and banks show
   terrain: [
     { type: 'poly', terrain: 'ground', points: [[22, 38], [37, 37], [37, 50], [22, 51]] }, // T4 yard of h2
     { type: 'poly', terrain: 'ground', points: [[30, 99], [46, 99], [46, 113], [30, 113]] }, // T5 around h8
@@ -273,8 +338,9 @@ export default {
     { type: 'path', terrain: 'ground', points: P19_TRACK, width: 2 }, // T7 Patrol 19's beaten track (the safe line)
   ],
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
-  structures: joinStructures(STRUCTURES, [['h1', 'h1_kennel'], ['outhouse', 'h3'], ['h5', 'h5_wing'], ['h6', 'lower_station'], ['g1_hq', 'tent_1']]),
+  structures: joinStructures(STRUCTURES, [['h1', 'h1_kennel'], ['h5', 'h5_wing'], ['h6', 'lower_station'], ['g1_hq', 'tent_1'], ['woodshed', 'logs_shed']]),
   // §3.4 the uniform hangs on a clothesline (use, 1.5 s: dressed at once); e8 stands 5 m SW of it
+  furniture: FURNITURE,
   interactables: [
     { id: 'uniform_line', interactKind: 'clothesline', x: 52, z: 42 },
   ],
@@ -326,7 +392,7 @@ export default {
     { on: 'area', area: { poly: PLATEAU }, who: 'commando', once: true,
       do: [{ message: 'The summit. Three fuel drums by the barracks and the rim.', kind: 'info' }] },
   ],
-  script: m05Script({ plateau: PLATEAU, massif: MASSIF, valley: VALLEY, hide: ['summit', 'massif', 'valley_rim'], lift: LIFT }),
+  script: m05Script({ plateau: PLATEAU, massif: MASSIF, valley: VALLEY, hide: ['summit', 'massif', 'valley_rim'], lift: LIFT, art: ART }),
   objectives: [
     { id: 'o1', text: 'Destroy the radar on the summit', type: 'destroy', targets: ['radar'], required: true },
     { id: 'o2', text: 'Destroy the barracks on the summit', type: 'destroy', targets: ['g3_barracks'], required: false },
