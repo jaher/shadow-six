@@ -184,7 +184,20 @@ export class WakeTracker {
       const per = st.rowPer || rowPeriod(st.v || 0), u = st.rowU ?? 0;
       return { oars: true, side: 0, u, t: u * per, period: per, moving: (st.rowStill ?? 9) < 0.3 };
     }
+    if (e._paddleClock) return e._paddleClock;   // the crew drawn in it sets the strokes (art/boat-crew.js)
     return { side: st.side || 1, t: st.strokeT || 0, period: st.prof.stroke, moving: st.fx != null };
+  }
+
+  /**
+   * A paddle blade at the water (art/boat-crew.js: each paddler's own strokes, when a crew is drawn): 'catch' a small
+   * ring with a white splash of foam where it goes in (k: how hard the stroke), 'exit' the swirl it leaves where it
+   * comes out, 'drip' a speck under the blade carried forward.
+   */
+  paddleFx(x, z, kind, k = 1) {
+    if (!this.isWet(x, z)) return;
+    if (kind === 'catch') { this._emit(x, z, 0.014 * k, 0.3, 0.4 * k); this._emit(x, z, -0.006 * k, 0.12, 0.5 * k); }
+    else if (kind === 'exit') this._emit(x, z, -0.009, 0.34, 0.3);
+    else this._emit(x, z, 0.003, 0.07, 0.22);
   }
 
   splash(x, z, size = 1) {
@@ -275,7 +288,7 @@ export class WakeTracker {
         }
       }
       if (P.oars) { st.rowStill = 0; st.hx = fx; st.hz = fz; }
-      else if (P.rowed) { // paddle strokes (raft): alternating sides; the catch rings out, the blade leaves a swirl astern
+      else if (P.rowed && !e._paddleFx) { // paddle strokes (raft; a drawn crew splashes its own): alternating sides; the catch rings out, the blade leaves a swirl astern
         st.strokeT = (st.strokeT || 0) + dt;
         if (st.strokeT >= P.stroke) {
           st.strokeT = 0; st.side = -(st.side || 1);

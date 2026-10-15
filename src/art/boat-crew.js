@@ -32,6 +32,7 @@
  * @module art/boat-crew
  */
 import * as THREE from 'three';
+import { makePaddleMesh, PADDLE_SHAPE, SIDE_PADDLE } from './paddle.js';
 import { twoBoneIKPole, wpos, wquat, handFrame, handQuat } from './characters/commandos_a/ca_ik.js';
 import { T as TERRAIN } from '../world/grid.js';
 import { OAR, ROW, EASY, TRAIL, rowKey, backKey, mixOar, oarPoints, oarDir, oarAnglesThrough } from './oars.js';
@@ -60,17 +61,18 @@ const wrapPi = (a) => Math.atan2(Math.sin(a), Math.cos(a));
  * floor under the sole + 8.5 cm. `rim`: height of the tube top / gunwale / deck edge a man steps over.
  */
 export const BOAT_SEATS = Object.freeze({
-  // the inflatable (2.7 × 1.3 m, tubes ~0.30 high, floor 0.02 between |x| 0.25 from z −0.9 to 0.9, the cross-thwart
-  // tube z −0.33 … −0.17 topped at 0.21; raft.py): the Marine kneels at the stern (front foot up on the thwart, back
-  // knee on the floor, back foot on the stern tube — his paddle sweeps both sides over the tubes beside him, so the
-  // men keep low or forward of it): one sits on the floor before the thwart, knees up; one on the bow tube facing aft;
-  // M13's 4th and 5th on the side tubes forward, feet in the bow's well
+  // the inflatable (2.7 × 1.3 m, tubes ~0.30 high, floor 0.02 between |x| 0.25 from z −0.9 to 0.77 then ramping up
+  // into the bow, the cross-thwart tube z −0.33 … −0.17 topped at 0.21; raft.py): the Marine kneels at the stern and
+  // steers (front foot up on the thwart, back knee on the floor, back foot on the stern tube); the next two paddle,
+  // each sitting on a side tube facing the bow, feet braced on the floor inboard and forward, his paddle outboard —
+  // the first on the port tube amidships, the second on the starboard tube forward (staggered: neither's stroke meets
+  // the other's); M13's 4th sits low on the floor before the thwart, the 5th on the bow tube facing aft
   raft: { rim: 0.32, seats: [
     { p: [0, 0.02, -0.62], pose: 'paddle', feet: { l: [0.16, 0.295, -0.27, 0.22], r: [-0.13, 0.385, -1.05, 0.31], kneeR: 'down' } },
-    { p: [0, 0.02, 0.02], pose: 'floor', feet: { l: [0.17, 0.105, 0.44], r: [-0.17, 0.105, 0.44] } },
-    { p: [0, 0.42, 1.1], yaw: PI, pose: 'tube', feet: { l: [-0.055, 0.105, 0.8], r: [0.055, 0.105, 0.8] } },
-    { p: [0.37, 0.3, 0.42], yaw: -0.9, pose: 'tube', feet: { l: [0.19, 0.105, 0.66], r: [0.11, 0.105, 0.56] } },
-    { p: [-0.37, 0.3, 0.42], yaw: 0.9, pose: 'tube', feet: { l: [-0.11, 0.105, 0.56], r: [-0.19, 0.105, 0.66] } },
+    { p: [0.4, 0.3, 0.0], yaw: -0.06, pose: 'tubePaddle', side: 1, feet: { l: [0.2, 0.105, 0.36], r: [0.05, 0.105, 0.3] } },
+    { p: [-0.4, 0.3, 0.42], yaw: 0.06, pose: 'tubePaddle', side: -1, feet: { l: [-0.05, 0.105, 0.55, 0.06], r: [-0.19, 0.105, 0.58, 0.07] } },
+    { p: [-0.11, 0.02, -0.06], pose: 'floor', feet: { l: [-0.04, 0.105, 0.42], r: [-0.2, 0.105, 0.4] } },
+    { p: [0, 0.42, 1.1], yaw: PI, pose: 'tube', feet: { l: [-0.055, 0.105, 0.82], r: [0.055, 0.105, 0.82] } },
   ] },
   // the wooden rowboat (3.9 × 1.4 m, floorboards at 0.043, thwarts topped at 0.357 / 0.337 / 0.357 at z −1.2 / −0.15
   // / 1.05; rowboat.py): the oarsman on the midship thwart facing aft (feet braced on the boards before him), two men
@@ -141,7 +143,7 @@ export function assignBoatSeats(prev, occupants, driver, n, open0 = false) {
 
 /** Clip candidates per seat pose (the first the character has wins). */
 export const SEAT_CLIPS = Object.freeze({
-  paddle: ['kneel_shoot', 'crouch_idle'], row: ['sit'], floor: ['boat_sit', 'sit'], tube: ['sit'], bench: ['sit'], stand: ['idle'],
+  paddle: ['kneel_shoot', 'crouch_idle'], tubePaddle: ['sit'], row: ['sit'], floor: ['boat_sit', 'sit'], tube: ['sit'], bench: ['sit'], stand: ['idle'],
 });
 /**
  * Clip and placement for a seat pose. mode 'root': the figure's root on the seat point (floor / deck: the clip's own
@@ -159,7 +161,7 @@ export function seatClip(pose, has = () => true) {
 // ------------------------------------------------------------------ paddling (root-local: x his left, y up, z his front)
 
 /** Paddle: T-grip to blade tip (m); the lower hand's grip down the shaft (m); the blade length (m). */
-export const PADDLE = Object.freeze({ length: 1.45, lower: 0.5, blade: 0.44 });
+export const PADDLE = Object.freeze({ length: PADDLE_SHAPE.length, lower: 0.5, blade: PADDLE_SHAPE.blade });
 /**
  * One stroke on his LEFT (s = +1; mirrored for the right). G = the top hand on the T-grip, T = where the blade points
  * (the paddle is rigid: the tip lies PADDLE.length from the grip along G→T), bend = forward lean, twist = shoulders
@@ -175,7 +177,7 @@ const STROKE = [
   { u: 0.78, G: [0.02, 0.88, 0.22], T: [0.06, 2.10, 0.70], bend: 0.10, twist: 0.00, lean: 0.00 },
 ];
 /** Pivoting: the recovery comes back to the same side (feathered forward, low over the water). */
-const TURN_BACK = { G: [0.24, 1.10, 0.22], T: [1.25, 0.50, 0.90], bend: 0.20, twist: -0.12, lean: 0.14 };
+const TURN_BACK = { G: [0.24, 1.10, 0.22], T: [1.25, 0.50, 0.90], bend: 0.20, twist: -0.12, lean: 0.14, feather: 1.25 };
 /** At rest: the paddle across his thighs, both hands on the shaft (the top hand at his right). */
 export const HOLD = Object.freeze({ G: [-0.42, 0.62, 0.30], T: [1.30, 0.58, 0.32], bend: 0.06, twist: 0, lean: 0, top: 'r', lowerAt: 0.75 });
 /**
@@ -191,18 +193,32 @@ export const UPRIGHT = Object.freeze({ G: [0, 0.88, 0.22], T: [0, 2.10, 0.70], b
  */
 export const SWITCH_U = 0.82;
 
-const mirror = (k, s) => ({ G: [k.G[0] * s, k.G[1], k.G[2]], T: [k.T[0] * s, k.T[1], k.T[2]], bend: k.bend, twist: k.twist * s, lean: k.lean * s });
+const mirror = (k, s) => ({ G: [k.G[0] * s, k.G[1], k.G[2]], T: [k.T[0] * s, k.T[1], k.T[2]], bend: k.bend, twist: k.twist * s, lean: k.lean * s, feather: (k.feather || 0) * s });
 function mixKey(a, b, k) {
   return { G: a.G.map((v, i) => lerp(v, b.G[i], k)), T: a.T.map((v, i) => lerp(v, b.T[i], k)), bend: lerp(a.bend, b.bend, k),
-    twist: lerp(a.twist, b.twist, k), lean: lerp(a.lean, b.lean, k) };
+    twist: lerp(a.twist, b.twist, k), lean: lerp(a.lean, b.lean, k), feather: lerp(a.feather || 0, b.feather || 0, k) };
+}
+/**
+ * A stroke key pulled harder or lighter (`power` 1 as keyed; > 1 the long stroke of the paddler outside a turn, < 1 the
+ * short one inside it or a sneaking stroke): its fore-and-aft travel scaled about the stroke's middle `mid` (root z).
+ */
+function powered(k, power, mid) {
+  if (power === 1) return k;
+  // (mostly the blade's travel: the hands follow half as far — a long stroke is reached for with the shoulders)
+  const pg = 1 + (power - 1) * 0.5;
+  return { ...k, G: [k.G[0], k.G[1], mid + (k.G[2] - mid) * pg], T: [k.T[0], k.T[1], mid + (k.T[2] - mid) * power], bend: k.bend * (0.6 + 0.4 * power) };
 }
 
 /**
  * Paddle pose at phase u (0..1) of a stroke on side s (+1 his left, −1 his right). `same`: the next stroke is on the
- * same side (pivoting). @returns {{G:number[], T:number[], bend:number, twist:number, lean:number, top:'l'|'r', wet:boolean}}
+ * same side (pivoting, a lone paddler's run of strokes on one side: the blade comes back feathered, low over the water);
+ * `back`: backing water (the stroke run in reverse); `power`: the stroke's length (powered()).
+ * @returns {{G:number[], T:number[], bend:number, twist:number, lean:number, feather:number, top:'l'|'r', wet:boolean}}
  */
-export function paddleKey(u, s, same = false) {
+export function paddleKey(u, s, same = false, { back = false, power = 1 } = {}) {
   u = ((u % 1) + 1) % 1;
+  if (back) { const k = paddleKey(1 - u, s, true, { power }); return { ...k, wet: (1 - u) < STROKE[2].u }; }   // backing water: the stroke run in reverse
+  if (power !== 1) return powered(paddleKey(u, s, same), power, 0.12);
   const last = STROKE.length - 1;
   let k;
   if (u >= STROKE[last].u) {
@@ -229,8 +245,8 @@ export function paddleKey(u, s, same = false) {
  * down through the floor, the thwart and the tubes, and into the man sitting before him. The hands change over up
  * there when the stroke wants the left one on the grip.
  */
-export function paddlePose(u, s, same, act) {
-  const k = paddleKey(u, s, same);
+export function paddlePose(u, s, same, act, opt = undefined) {
+  const k = paddleKey(u, s, same, opt);
   if (act >= 0.999) return k;
   const h = { ...HOLD, wet: false };
   if (act <= 0.001) return h;
@@ -241,6 +257,98 @@ export function paddlePose(u, s, same, act) {
   }
   const b = a * 2 - 1;
   return { ...mixKey(UPRIGHT, k, b), top: k.top, wet: k.wet && b > 0.5, lowerAt: PADDLE.lower };
+}
+
+// ------------------------------------------------------------------ the raft's crew: paddlers on the side tubes
+
+/**
+ * A man paddling from a side tube (seat pose 'tubePaddle'): sitting on the tube facing the bow, his paddle outboard on
+ * his side only. One stroke on his LEFT (s = +1; mirrored for the right), root-local (x his left, y up, z his front;
+ * his root sits ~0.3 m ahead of and 0.6 m under his pelvis on the tube, the tube's crown ~0.1 to his left and ~0.55
+ * up, the water ~0.25 up, outboard from x ~0.3):
+ *   catch (0)     reaching forward, wound up (shoulders turned to his right), the top hand high before his left
+ *                 shoulder, the blade planted deep and square well forward beside the tube;
+ *   pull (0.3)    the shoulders unwinding drive it: the top hand pushed down and forward, the lower hand pulling back
+ *                 along the side, the shaft upright beside him;
+ *   exit (0.52)   at the hip the lower hand draws the blade out sideways, edge up;
+ *   recovery      feathered (turned edge-on) and carried forward low over the water to the next catch.
+ * The top hand is always the inboard one (his right); the shaft runs outboard of the tube's crown.
+ */
+export const SIDE_STROKE = Object.freeze([
+  { u: 0.00, G: [0.25, 1.06, 0.24], T: [0.62, -0.9, 0.74], bend: 0.36, twist: -0.32, lean: 0.18, feather: 0 },
+  { u: 0.30, G: [0.27, 1.0, -0.02], T: [0.56, -0.95, -0.06], bend: 0.22, twist: -0.04, lean: 0.22, feather: 0 },
+  { u: 0.52, G: [0.22, 1.0, -0.22], T: [0.95, 0.3, -0.55], bend: 0.12, twist: 0.22, lean: 0.16, feather: 0.3 },
+  { u: 0.64, G: [0.18, 1.08, -0.12], T: [0.85, 0.62, 0.25], bend: 0.14, twist: 0.12, lean: 0.12, feather: 1.35 },
+  { u: 0.84, G: [0.2, 1.1, 0.12], T: [0.78, 0.5, 0.95], bend: 0.26, twist: -0.16, lean: 0.14, feather: 1.2 },
+]);
+/** At rest: the paddle across his lap, the blade out over the tube on his side, the inboard hand on the T-grip. */
+export const SIDE_HOLD = Object.freeze({ G: [-0.2, 0.78, 0.05], T: [1.1, 0.6, 0.1], bend: 0.05, twist: 0, lean: 0, feather: 1.57, lowerAt: 0.62 });
+/** The stroke's middle (root z) about which power() lengthens or shortens it; the lower hand's grip down the shaft. */
+const SIDE_MID = 0.0, SIDE_LOWER = 0.45;
+
+/** Side paddler's key at phase u, side s: options as paddleKey (back: backing water; power). */
+export function sideKey(u, s, { back = false, power = 1 } = {}) {
+  u = ((u % 1) + 1) % 1;
+  if (back) { const k = sideKey(1 - u, s, { power }); return { ...k, wet: 1 - u < SIDE_STROKE[2].u }; }
+  const K = SIDE_STROKE, last = K.length - 1;
+  let k;
+  if (u >= K[last].u) k = mixKey(mirror(K[last], s), mirror(K[0], s), smooth((u - K[last].u) / (1 - K[last].u)));
+  else {
+    let i = last;
+    while (i > 0 && K[i].u > u) i--;
+    k = mixKey(mirror(K[i], s), mirror(K[i + 1], s), smooth((u - K[i].u) / (K[i + 1].u - K[i].u)));
+  }
+  if (power !== 1) k = powered(k, power, SIDE_MID);
+  return { ...k, top: s > 0 ? 'r' : 'l', wet: u < K[2].u, lowerAt: SIDE_LOWER };
+}
+
+/** Side paddler's pose: strokes (act 1) or the rest hold (act 0), blended. */
+export function sidePose(u, s, act, opt = undefined) {
+  const k = sideKey(u, s, opt);
+  if (act >= 0.999) return k;
+  const h = { ...mirror(SIDE_HOLD, s), top: s > 0 ? 'r' : 'l', wet: false, lowerAt: SIDE_HOLD.lowerAt };
+  if (act <= 0.001) return h;
+  const a = smooth(act);
+  return { ...mixKey(h, k, a), top: h.top, wet: k.wet && a > 0.6, lowerAt: lerp(SIDE_HOLD.lowerAt, SIDE_LOWER, a) };
+}
+
+/** Strokes a lone paddler takes on one side before he changes over. */
+export const SOLO_RUN = 3;
+/** Stroke period (s) at a speed (m/s): sneaking (2.5) long and smooth, at full speed (4) brisk. */
+export function paddlePeriod(speed) { return lerp(1.25, 0.85, smooth(((speed || 0) - 2.4) / 1.6)); }
+
+/**
+ * The crew's strokes, stroke number n: who pulls on which side, how long, and who backs water.
+ *  - the side paddlers pull together on their own sides; the Marine in the stern steers: with a man on a side tube he
+ *    keeps to the other side from the port one (starboard: his port strokes would swing through the port paddler's
+ *    arms just forward of him), else the other side from the starboard one; alone he changes sides every SOLO_RUN
+ *    strokes (crossing over in the recovery of the last);
+ *  - turning under way (turn: −1 … 1, + = heading increasing, a turn to starboard: the outside is the left, +1): the
+ *    man outside the turn pulls the long stroke, the inside one a short one; the Marine alone strokes on the outside,
+ *    with a crew he pulls long on his side when it is the outside, short when it is the inside;
+ *  - pivoting on the spot: the outside side pulls, the inside one backs water (the Marine too when he is inside);
+ *  - sneaking (slow): shorter, smoother strokes.
+ * @param {{n:number, turn?:number, pivot?:boolean, sides?:{1?:boolean, '-1'?:boolean}, slow?:boolean}} o
+ * @returns {{marine:{s:number, same:boolean, back:boolean, power:number}, 1:{back:boolean, power:number}, '-1':{back:boolean, power:number}}}
+ */
+export function crewPlan({ n = 0, turn = 0, pivot = false, sides = {}, slow = false }) {
+  const base = slow ? 0.85 : 1;
+  const out = { marine: { s: 1, same: true, back: false, power: base }, 1: { back: false, power: base }, [-1]: { back: false, power: base } };
+  const crew = !!sides[1] || !!sides[-1];
+  const ms = sides[1] ? -1 : sides[-1] ? 1 : 0;                              // the Marine's side with a crew
+  const out1 = Math.abs(turn) > 0.25 || pivot ? (turn >= 0 ? 1 : -1) : 0;    // the side outside the turn
+  if (out1) {
+    const k = clamp(Math.abs(turn), 0, 1), long = base * (1 + 0.18 * k), short = base * (1 - 0.45 * k);
+    out[out1].power = long;
+    if (pivot) out[-out1].back = true; else out[-out1].power = short;
+    if (!crew) out.marine = { s: out1, same: true, back: false, power: long };
+    else out.marine = { s: ms, same: true, back: pivot && ms !== out1, power: ms === out1 ? long : pivot ? base : short };
+    return out;
+  }
+  if (crew) { out.marine = { s: ms, same: true, back: false, power: base }; return out; }
+  const run = Math.floor(n / SOLO_RUN);
+  out.marine = { s: run % 2 ? -1 : 1, same: n % SOLO_RUN !== SOLO_RUN - 1, back: false, power: base };
+  return out;
 }
 
 // ------------------------------------------------------------------ rowing: the oars per side (art/oars.js)
@@ -323,25 +431,20 @@ export function pathPoint(P, S, Z, t, dir = 'in') {
 
 // ------------------------------------------------------------------ props
 
-let PADDLE_GEO = null;
-/** Low-poly single-bladed paddle: origin at the T-grip, shaft down −Y, blade face +Z, tip at y = −PADDLE.length. */
-export function makePaddle() {
-  if (!PADDLE_GEO) {
-    const wood = new THREE.MeshStandardMaterial({ color: 0x3a3a30, roughness: 0.8 });
-    const L = PADDLE.length, B = PADDLE.blade;
-    const shaft = new THREE.CylinderGeometry(0.016, 0.018, L - B + 0.04, 6, 1); shaft.translate(0, -(L - B + 0.04) / 2 - 0.02, 0);
-    const grip = new THREE.CylinderGeometry(0.018, 0.018, 0.11, 5); grip.rotateZ(PI / 2); grip.translate(0, -0.01, 0);
-    const sh = new THREE.Shape();
-    sh.moveTo(-0.03, 0); sh.lineTo(0.03, 0); sh.quadraticCurveTo(0.085, -0.06, 0.085, -0.16); sh.lineTo(0.08, -B + 0.06);
-    sh.quadraticCurveTo(0.07, -B, 0, -B); sh.quadraticCurveTo(-0.07, -B, -0.08, -B + 0.06); sh.lineTo(-0.085, -0.16); sh.quadraticCurveTo(-0.085, -0.06, -0.03, 0);
-    const blade = new THREE.ExtrudeGeometry(sh, { depth: 0.012, bevelEnabled: false, curveSegments: 3 });
-    blade.translate(0, -(L - B), -0.006);
-    PADDLE_GEO = { wood, shaft, grip, blade };
-  }
-  const G = PADDLE_GEO;
-  const g = new THREE.Group(); g.name = 'prop_paddle';
-  for (const geo of [G.shaft, G.grip, G.blade]) { const m = new THREE.Mesh(geo, G.wood); m.castShadow = true; m.receiveShadow = true; g.add(m); }
-  return g;
+/**
+ * The paddle he strokes with: the raft's own shaped paddle (art/paddle.js — T-grip, round tapered shaft, oval
+ * lens-section blade; origin at the T-grip, shaft down −Y, blade face +Z, tip at y = −PADDLE.length), one mesh in the
+ * raft's paddle material when the visual has it.
+ */
+export function makePaddle(vis = null, length = PADDLE_SHAPE.length) {
+  let mat = null, ao = null;
+  vis?.parts?.paddle_l?.traverse((o) => {
+    if (mat || !o.isMesh) return;
+    mat = Array.isArray(o.material) ? o.material[0] : o.material;
+    const uv1 = o.geometry?.attributes?.uv1;
+    if (uv1) ao = [uv1.getX(0), uv1.getY(0)];
+  });
+  return makePaddleMesh(mat, ao, length);
 }
 
 let OAR_GEO = null;
@@ -606,6 +709,14 @@ export function fitLegs(m, hullObj, feet, w = 1, guard = null) {
  * T-grip, the lower hand round the shaft; the paddle is then laid through both grip points (the hands never slip off
  * it, wherever the arm IK fell short). @returns {boolean} pose written
  */
+/** A paddle frame turned about its shaft (y) by `a` (rad): the blade feathered edge-on in the recovery. */
+function feathered(F, a) {
+  if (!a) return F;
+  const c = Math.cos(a), sn = Math.sin(a);
+  const x = F.x.clone().multiplyScalar(c).addScaledVector(F.z, sn), z = F.z.clone().multiplyScalar(c).addScaledVector(F.x, -sn);
+  return { x, y: F.y, z };
+}
+
 export function applyPaddlePose(m, P, paddle, guard, w = 1) {
   const B = m.real?.inner?.bones;
   if (!B || !B.hand_r || !B.hand_l || !B.upperarm_l || w <= 0.001) { if (paddle) paddle.visible = false; return false; }
@@ -626,7 +737,7 @@ export function applyPaddlePose(m, P, paddle, guard, w = 1) {
     z.normalize();
     return { x: new THREE.Vector3().crossVectors(y, z).normalize(), y, z: z.clone() };
   };
-  const F = frame(dir);
+  const F = feathered(frame(dir), P.feather || 0);
   // top hand: palm down onto the T-grip (along the paddle's x), lower hand: palm toward the shaft from his side
   gripBar(B, top, G, F.x, dir, elbowPole(B, top), w);
   // the lower hand on the shaft: where the key puts it, else slid along the shaft to the nearest spot his arm
@@ -649,7 +760,7 @@ export function applyPaddlePose(m, P, paddle, guard, w = 1) {
     const gt = gripPoint(B, top), gl = gripPoint(B, low);
     const d2 = gl.clone().sub(gt);
     const dd = d2.length() > 0.08 && d2.dot(dir) > 0 ? d2.normalize() : dir;   // through both fists
-    const F2 = frame(dd);
+    const F2 = feathered(frame(dd), P.feather || 0);
     _m.makeBasis(F2.x, F2.y, F2.z).setPosition(gt);
     _inv.copy(paddle.parent.matrixWorld).invert();
     _m.premultiply(_inv);
@@ -927,18 +1038,46 @@ export function createBoatCrew(v, deps) {
     }
   }
 
-  /** Where the paddle stroke stands: from the wake's clock when it runs, else our own (same period). */
+  /**
+   * The crew's stroke clock (art only: the sim moves the raft on its own; the strokes follow its speed and its turns):
+   * one stroke per paddlePeriod of the speed, all paddlers in time; each stroke's plan (crewPlan: sides, power,
+   * backing water) is settled a stroke ahead, so the stroke before a change of side recovers across to it. The
+   * Marine's stroke (rig.st) and the side paddlers' (rig.side) — the wake reads the clock (v._paddleClock).
+   */
   function stroke(dt) {
-    const w = v.world?.water?.wakes?.strokeOf?.(v);
-    const moving = (v.speed || 0) > 0.15 || !!w?.moving;
-    const turning = !moving && Math.abs(rig.yawRate) > 0.5;
-    rig.act = clamp(rig.act + (moving || turning ? 1 : -1) * dt / 0.35, 0, 1);
-    if (w && moving && !w.oars) return { u: w.t / w.period, s: -(w.side || 1), same: false }; // wake side +1 = boat's right = his −x
-    rig.paddleT += dt;
-    const per = 0.9 * (turning ? 0.85 : 1);
-    // pivoting: forward strokes on the outside of the turn (heading increasing = turning right → stroke on his left)
-    const s = turning ? (rig.yawRate > 0 ? 1 : -1) : (Math.floor(rig.paddleT / per) % 2 ? -1 : 1);
-    return { u: (rig.paddleT % per) / per, s, same: turning };
+    const now = v.world?.time ?? 0;
+    if (rig.px == null || Math.hypot(v.x - rig.px, v.z - rig.pz) > 1e-4) { rig.movedAt = now; rig.px = v.x; rig.pz = v.z; }
+    const sp = Math.abs(v.speed || 0);
+    const moving = sp > 0.15 || now - (rig.movedAt ?? -9) < 0.2;
+    const pivot = !moving && Math.abs(rig.yawRate) > 0.5;
+    rig.act = clamp(rig.act + (moving || pivot ? 1 : -1) * dt / 0.35, 0, 1);
+    const per = paddlePeriod(moving ? sp || 2.5 : 2.5) * (pivot ? 0.85 : 1);
+    rig.phase = (rig.phase ?? 0.0) + dt / per;
+    const n = Math.floor(rig.phase), u = rig.phase - n;
+    const sides = { 1: paddlerOn(1), [-1]: paddlerOn(-1) };
+    const plan = (k) => crewPlan({ n: k, turn: moving || pivot ? clamp(rig.yawRate / 1.2, -1, 1) : 0, pivot, sides, slow: moving && sp < 3.1 });
+    if (rig.n !== n) { rig.n = n; rig.plan = rig.next && rig.next.n === n ? rig.next : { ...plan(n), n }; rig.next = { ...plan(n + 1), n: n + 1 }; }
+    const P = rig.plan, Nx = rig.next;
+    // (power eased: a stroke lengthened or shortened mid-turn grows into it, no snap)
+    const pw = rig.pw || (rig.pw = { marine: 1, 1: 1, [-1]: 1 }), ease = Math.min(1, dt * 2.5);
+    pw.marine += (P.marine.power - pw.marine) * ease; pw[1] += (P[1].power - pw[1]) * ease; pw[-1] += (P[-1].power - pw[-1]) * ease;
+    // (the per-frame records are kept and refreshed: nothing allocated per frame)
+    const sdr = rig._side || (rig._side = { u: 0, 1: { back: false, power: 1 }, [-1]: { back: false, power: 1 } });
+    sdr.u = u; sdr[1].back = P[1].back; sdr[1].power = pw[1]; sdr[-1].back = P[-1].back; sdr[-1].power = pw[-1];
+    rig.side = sdr;
+    // the wake's paddle clock: the Marine's stroke (wake side +1 = the raft's right = his −x); the crew splashes itself
+    const st = rig._st || (rig._st = { u: 0, s: 1, same: true, opt: { power: 1, back: false } });
+    st.u = u; st.s = P.marine.s; st.same = Nx.marine.s === P.marine.s; st.opt.power = pw.marine; st.opt.back = P.marine.back;
+    const ck = v._paddleClock || (v._paddleClock = { side: 1, t: 0, period: 1, moving: false });
+    ck.side = -st.s; ck.t = u * per; ck.period = per; ck.moving = moving && rig.act > 0.5;
+    rig.per = per; rig.moving = moving; rig.pivotP = pivot;
+    return st;
+  }
+
+  /** A man ready to paddle on the side tube of side s. */
+  function paddlerOn(sd) {
+    for (const f of figs.values()) if (f.pose === 'tubePaddle' && !f.out && f.ready && !f.tr && layout.seats[f.k]?.side === sd) return true;
+    return false;
   }
 
   /** Weight of a seated pose over the clip: 0 walking in / out, rising to 1 as he sits down (or falling as he rises). */
@@ -957,9 +1096,11 @@ export function createBoatCrew(v, deps) {
     const w = seatW(f);
     let on = false;
     if (s.feet) on = fitLegs(f.m, vis.object3d, s.feet, w, guard) || on;
-    if (f.pose === 'paddle' && f.u === v.driver) {
-      if (w > 0.5 && !f.paddle) { f.paddle = makePaddle(); group.add(f.paddle); }
-      const P = paddlePose(rig.st?.u ?? 0, rig.st?.s ?? 1, rig.st?.same ?? false, rig.act);
+    if ((f.pose === 'paddle' && f.u === v.driver) || f.pose === 'tubePaddle') {
+      if (w > 0.5 && !f.paddle) { f.plen = f.pose === 'tubePaddle' ? SIDE_PADDLE : PADDLE.length; f.paddle = makePaddle(vis, f.plen); group.add(f.paddle); }
+      const sd = s.side, sk = rig.side?.[sd];
+      const P = f.pose === 'tubePaddle' ? sidePose(rig.side?.u ?? 0, sd, rig.act, sk)
+        : paddlePose(rig.st?.u ?? 0, rig.st?.s ?? 1, rig.st?.same ?? false, rig.act, rig.st?.opt);
       // his slung harpoon gun is laid in the boat while he paddles (the kneeling clip would shoulder it)
       if (w > 0.5) f.m.root.traverse((o) => { if (o.isMesh && /^weapon_/.test(o.name) && o.visible) o.visible = false; });
       on = applyPaddlePose(f.m, P, f.paddle, guard, w) || on;
@@ -977,11 +1118,16 @@ export function createBoatCrew(v, deps) {
    * rowing / held / trailing, posed from the keys (the oarsman's overlay then lays each through his fist).
    */
   function boatParts(dt) {
-    const pf = [...figs.values()].find((f) => f.pose === 'paddle' && f.u === v.driver && !f.out && f.paddle?.visible);
-    const takeL = !!pf;
-    if (takeL !== rig.takenL) {
-      rig.takenL = takeL; vis.showPart?.('paddle_l', !takeL);
-      vis.posePart?.('paddle_r', takeL ? STOW.q : null, takeL ? STOW.off : null);
+    // the raft's two paddles go to the first two men paddling (the Marine takes the port one; a second man the
+    // starboard one); with the Marine alone the starboard one is stowed along its tube
+    let n = 0;
+    for (const f of figs.values()) if (!f.out && f.paddle?.visible) n++;
+    const taken = Math.min(2, n), takeL = taken > 0;
+    if (taken !== rig.taken) {
+      rig.taken = taken; rig.takenL = takeL;
+      vis.showPart?.('paddle_l', !takeL);
+      vis.showPart?.('paddle_r', taken < 2);
+      vis.posePart?.('paddle_r', taken === 1 ? STOW.q : null, taken === 1 ? STOW.off : null);
       if (takeL) for (const f of locks) rig.lift[f.name] = 0;
     }
     // paddles left in their rowlocks: the blade lies on the ground instead of going into it (rises at once, settles back)
@@ -1015,6 +1161,46 @@ export function createBoatCrew(v, deps) {
     rig.bend = rig.keys.bend;
     rig.u = u;
     for (const o of oars) { o.key = rig.keys[o.s]; setOar(o.obj, o.s, o.key.sweep, o.key.pitch, o.key.feather, rig.ship); }
+  }
+
+  const _tip = new THREE.Vector3(), _mid = new THREE.Vector3(), _loc = new THREE.Vector3();
+  /**
+   * Each paddler's blade at the water (the wake's fx: art/water.js WakeTracker.paddleFx): a small ring and splash as it
+   * goes in at the catch, the swirl it leaves at the exit, drips off it as it is carried forward; and the raft surging
+   * a little with each stroke (ahead on the pull, easing back in the recovery) and yawing with it in a turn — drawn
+   * only (the sim's raft moves at its own steady speed).
+   */
+  function paddleWater(dt) {
+    const wk = v.world?.water?.wakes, o = vis.object3d;
+    let any = false;
+    for (const f of figs.values()) {
+      const pd = f.paddle;
+      if (!pd?.visible || f.out || rig.act < 0.5) { if (f.bl) f.bl.wet = false; continue; }
+      any = true;
+      pd.updateWorldMatrix(true, false);
+      const L = f.plen || PADDLE.length;
+      pd.localToWorld(_tip.set(0, -L + 0.03, 0));
+      pd.localToWorld(_mid.set(0, -L + PADDLE.blade * 0.5, 0));
+      const y = o.worldToLocal(_loc.copy(_mid)).y;
+      const b = f.bl || (f.bl = { wet: false, drip: 0, acc: 0 });
+      const wet = y < -0.02;
+      if (wet && !b.wet) wk?.paddleFx?.(_tip.x, _tip.z, 'catch', rig.side?.[layout.seats[f.k]?.side]?.power ?? 1);
+      else if (!wet && b.wet) { wk?.paddleFx?.(_tip.x, _tip.z, 'exit', 1); b.drip = 0.45; b.acc = 0; }
+      else if (!wet && b.drip > 0) {
+        b.drip -= dt; b.acc += dt;
+        if (b.acc >= 0.09 && o.worldToLocal(_loc.copy(_tip)).y < 0.45) { b.acc = 0; wk?.paddleFx?.(_tip.x, _tip.z, 'drip', 1); }
+      }
+      b.wet = wet;
+    }
+    v._paddleFx = any;
+    // the surge and the yaw of each stroke (all paddlers in time)
+    const sp = Math.abs(v.speed || 0), u = rig.side?.u ?? 0;
+    const sz = any ? rig.act * clamp(sp * 0.014, 0, 0.05) * Math.sin(2 * PI * (u - 0.08)) : 0;
+    const sy = any ? rig.act * clamp(rig.yawRate / 1.2, -1, 1) * 0.02 * Math.sin(2 * PI * (u - 0.08)) : 0;
+    rig.surge = (rig.surge ?? 0) + (sz - (rig.surge ?? 0)) * Math.min(1, dt * 12);
+    rig.yawW = (rig.yawW ?? 0) + (sy - (rig.yawW ?? 0)) * Math.min(1, dt * 12);
+    if (Math.abs(rig.surge) > 1e-5 || o.position.z !== 0) o.position.z = Math.abs(rig.surge) > 1e-5 ? rig.surge : 0;
+    if (Math.abs(rig.yawW) > 1e-6 || o.rotation.y !== 0) o.rotation.y = Math.abs(rig.yawW) > 1e-6 ? rig.yawW : 0;
   }
 
   function step(f, dt) {
@@ -1081,9 +1267,12 @@ export function createBoatCrew(v, deps) {
       rig.st = stroke(dt);
       boatParts(dt);
       for (const f of [...figs.values()]) step(f, dt);
+      if (model.libType === 'raft') paddleWater(dt);
     },
     dispose() {
       for (const f of [...figs.values()]) drop(f);
+      v._paddleClock = null; v._paddleFx = false;
+      vis.object3d.position.z = 0; vis.object3d.rotation.y = 0;
       if (oars) { vis.showPart?.('oar_l', true); vis.showPart?.('oar_r', true); }
       group.removeFromParent();
     },

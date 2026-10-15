@@ -6,7 +6,9 @@
 import { test, assert, near } from './lib.mjs';
 import { OAR, BLADE_C, ROW, EASY, TRAIL, rowKey, backKey, oarPoints, oarDir, oarAnglesThrough, pivotOf, pitchFor, rowPeriod,
   catchOffset } from '../../src/art/oars.js';
-import { BOAT_SEATS, STAND_FIX, boatLayout, oarKeys, SHIPPED, STOW, paddlePose, PADDLE, HOLD, UPRIGHT, SWITCH_U } from '../../src/art/boat-crew.js';
+import { BOAT_SEATS, STAND_FIX, boatLayout, oarKeys, SHIPPED, STOW, paddlePose, paddleKey, PADDLE, HOLD, UPRIGHT, SWITCH_U, sidePose, sideKey, SIDE_STROKE,
+  crewPlan, paddlePeriod, SOLO_RUN } from '../../src/art/boat-crew.js';
+import { SIDE_PADDLE } from '../../src/art/paddle.js';
 
 const ROWER = BOAT_SEATS.rowboat.seats[0];
 const U = Array.from({ length: 200 }, (_, i) => i / 200);
@@ -302,4 +304,88 @@ test('raft paddle: over the whole stroke cycle — both sides, pivoting, to and 
     }
   }
   assert.deepEqual(paddlePose(0.4, -1, false, 0).G, HOLD.G, 'at rest: the hold');
+});
+
+// user 2026-10-15: "Also how the commandos row should be more realistic" — the men on the side tubes paddle, each on
+// his own side: catch forward, the pull, out at the hip, the recovery feathered low over the water
+test('raft crew: a man paddling from a side tube — the blade buried through the pull, out at the hip, carried back feathered low over the water; the paddle clear of the tube; one side only, the top hand inboard', () => {
+  // his root (sit clip, pelvis on the tube: measured on the posed Green Beret and Sniper) in hull space
+  const PEL = [[0.003, 0.657, -0.333], [0.003, 0.6, -0.305]];
+  for (const k of [1, 2]) {
+    const seat = BOAT_SEATS.raft.seats[k], yaw = seat.yaw || 0, sd = seat.side, c = Math.cos(yaw), sn = Math.sin(yaw);
+    for (const pel of PEL) {
+      const root = [seat.p[0] - (pel[0] * c + pel[2] * sn), seat.p[1] - pel[1] + 0.1, seat.p[2] - (-pel[0] * sn + pel[2] * c)];
+      const hull = (q) => [root[0] + q[0] * c + q[2] * sn, root[1] + q[1], root[2] - q[0] * sn + q[2] * c];
+      const W = { shaft: [9], blade: [9], dryDrive: [], wetRec: [], deep: 9, side: [], top: [], jump: [0] };
+      for (const opt of [{}, { power: 1.18 }, { power: 0.55 }, { back: true }]) for (let ai = 0; ai <= 10; ai++) {
+        let prev = null;
+        for (let i = 0; i <= 200; i++) {
+          const u = i / 200, act = ai / 10, K = sidePose(u, sd, act, opt), tag = `seat ${k} u ${u.toFixed(3)} act ${act} ${JSON.stringify(opt)}`;
+          const G = hull(K.G), T = hull(K.T), d = T.map((v, j) => v - G[j]), n = Math.hypot(...d), dn = d.map((v) => v / n);
+          for (let t = 0.02; t <= SIDE_PADDLE + 1e-9; t += 0.025) {
+            const p = G.map((v, j) => v + dn[j] * t), blade = t > SIDE_PADDLE - PADDLE.blade;
+            const gap = tubeGap(p) - (blade ? 0.085 : 0.018);
+            if (gap < W[blade ? 'blade' : 'shaft'][0]) W[blade ? 'blade' : 'shaft'] = [gap, tag];
+          }
+          const mid = G.map((v, j) => v + dn[j] * (SIDE_PADDLE - PADDLE.blade / 2)), tip = G.map((v, j) => v + dn[j] * SIDE_PADDLE);
+          if (Math.sign(tip[0] - seat.p[0] * 0.5) !== sd && W.side.length < 3) W.side.push(tag);
+          if (K.top !== (sd > 0 ? 'r' : 'l')) W.top.push(tag);
+          if (act === 1 && !opt.back) {
+            if (u > 0.04 && u < 0.45) { W.deep = Math.min(W.deep, -mid[1]); if (mid[1] > -0.04 && W.dryDrive.length < 3) W.dryDrive.push(tag); }
+            if (u > 0.6 && u < 0.85 && tip[1] < 0.02 && W.wetRec.length < 3) W.wetRec.push(`${tag} tip ${tip[1].toFixed(2)}`);
+          }
+          if (prev) { const j = Math.hypot(...tip.map((v, q) => v - prev[q])); if (j > W.jump[0]) W.jump = [j, tag]; }
+          prev = tip;
+        }
+      }
+      const who = `seat ${k} (pelvis ${pel[1]})`;
+      assert.ok(W.shaft[0] > 0.03, `${who}: the shaft clear of the tube by ${(W.shaft[0] * 100).toFixed(1)} cm (${W.shaft[1]})`);
+      assert.ok(W.blade[0] > 0.02, `${who}: the blade clear of it by ${(W.blade[0] * 100).toFixed(1)} cm (${W.blade[1]})`);
+      assert.ok(!W.dryDrive.length && W.deep > 0.04, `${who}: the blade buried through the pull (its middle ≥ ${(W.deep * 100).toFixed(0)} cm down) ${W.dryDrive}`);
+      assert.ok(!W.wetRec.length, `${who}: out of the water in the recovery ${W.wetRec}`);
+      assert.ok(!W.side.length && !W.top.length, `${who}: on his own side only, the top hand inboard ${W.side} ${W.top}`);
+      assert.ok(W.jump[0] < 0.12, `${who}: no snap (the tip ≤ ${(W.jump[0] * 100).toFixed(1)} cm per 1/200 stroke, ${W.jump[1]})`);
+    }
+  }
+  // feathered (turned edge-on) in the recovery, square in the pull; backing water runs the stroke in reverse
+  for (const sd of [1, -1]) {
+    assert.ok(Math.abs(sideKey(0.2, sd).feather) < 0.05 && Math.abs(sideKey(0.75, sd).feather) > 1, 'square in the water, edge-on carried forward');
+    for (const u of [0.1, 0.3, 0.7]) assert.deepEqual(sideKey(u, sd, { back: true }).G, sideKey(1 - u, sd).G, 'backing water: the forward stroke in reverse');
+    // a stronger stroke reaches further forward at the catch and further back at the exit
+    assert.ok(sideKey(0, sd, { power: 1.18 }).T[2] > sideKey(0, sd).T[2] && sideKey(0, sd, { power: 0.55 }).T[2] < sideKey(0, sd).T[2], 'power: the length of the stroke');
+  }
+  assert.ok(SIDE_STROKE.length >= 4 && SIDE_PADDLE < PADDLE.length, 'the side paddlers\' paddles are the short ones');
+});
+
+test('raft crew: in time at an even cadence (slower when sneaking); turning, the outside paddler pulls long and the inside one short — pivoting he backs water; the Marine steers; alone he changes sides every few strokes', () => {
+  assert.ok(paddlePeriod(2.5) > paddlePeriod(4) + 0.25 && paddlePeriod(4) > 0.7 && paddlePeriod(2.5) < 1.4, `cadence ${paddlePeriod(2.5).toFixed(2)} s sneaking, ${paddlePeriod(4).toFixed(2)} s at full speed`);
+  // alone: SOLO_RUN strokes on a side, the last one recovering across
+  const solo = Array.from({ length: 12 }, (_, n) => crewPlan({ n }).marine);
+  for (let n = 0; n < 12; n++) {
+    assert.equal(solo[n].s, Math.floor(n / SOLO_RUN) % 2 ? -1 : 1, `stroke ${n}: his side`);
+    assert.equal(solo[n].same, n % SOLO_RUN !== SOLO_RUN - 1, `stroke ${n}: back to the same side unless he changes over`);
+  }
+  assert.ok(SOLO_RUN >= 2 && SOLO_RUN <= 5, 'a few strokes a side');
+  // with a crew the Marine steers from one side: the other side from the port paddler (whose arms are just forward of
+  // him), else from the starboard one — never crossing over
+  for (let n = 0; n < 8; n++) {
+    assert.deepEqual([crewPlan({ n, sides: { 1: true, [-1]: true } }).marine.s, crewPlan({ n, sides: { 1: true, [-1]: true } }).marine.same], [-1, true]);
+    assert.equal(crewPlan({ n, sides: { 1: true } }).marine.s, -1);
+    assert.equal(crewPlan({ n, sides: { [-1]: true } }).marine.s, 1);
+  }
+  // turning to starboard (heading increasing): the outside (port) paddler pulls long, the inside one short
+  const t = crewPlan({ n: 0, turn: 0.8, sides: { 1: true, [-1]: true } });
+  assert.ok(t[1].power > 1.1 && t[-1].power < 0.75 && !t[-1].back && t.marine.s === -1 && t.marine.power < 0.75, JSON.stringify(t));
+  const t2 = crewPlan({ n: 0, turn: -0.8, sides: { 1: true, [-1]: true } });
+  assert.ok(t2[-1].power > 1.1 && t2[1].power < 0.75 && t2.marine.s === -1 && t2.marine.power > 1.1, `to port: the starboard side pulls long, the Marine with it ${JSON.stringify(t2)}`);
+  const p = crewPlan({ n: 0, turn: -0.9, pivot: true, sides: { 1: true, [-1]: true } });
+  assert.ok(p[-1].power > 1 && p[1].back && p.marine.s === -1 && !p.marine.back, `pivoting to port: the starboard side pulls, the port side backs water ${JSON.stringify(p)}`);
+  const p2 = crewPlan({ n: 0, turn: 0.9, pivot: true, sides: { 1: true, [-1]: true } });
+  assert.ok(p2[1].power > 1 && p2[-1].back && p2.marine.back, `pivoting to starboard: the port side pulls, the starboard side (the Marine too) backs water ${JSON.stringify(p2)}`);
+  // alone, turning: he strokes on the outside
+  assert.equal(crewPlan({ n: 0, turn: 0.8 }).marine.s, 1);
+  assert.equal(crewPlan({ n: 0, turn: -0.8 }).marine.s, -1);
+  assert.ok(crewPlan({ n: 0, slow: true }).marine.power < 1 && crewPlan({ n: 0, slow: true })[1].power < 1, 'sneaking: shorter, smoother strokes');
+  // the Marine's own strokes take the same options
+  assert.ok(paddleKey(0, 1, true, { power: 1.2 }).T[2] > paddleKey(0, 1, true).T[2], 'his long stroke');
 });

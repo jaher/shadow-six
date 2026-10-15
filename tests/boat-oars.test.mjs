@@ -5,16 +5,21 @@
  *    turning about its thole pivot on the gunwale, the blades buried on the drive and clear on the recovery, the row
  *    clock the wake's (both blades catch together), no oar through the hull or any man; pivoting on the spot one oar
  *    pulls while the other backs, his hands still on; the model's own oars (between the old thole pins) hidden;
- *  - M2: the Marine paddling the raft with the Green Beret and the Sniper aboard — both fists on the paddle all
- *    through the strokes, the raft's spare paddle stowed on its starboard tube, none of the paddles through the hull;
- *    then the stroke pinned phase by phase over the WHOLE cycle (strokes on either side, pivoting, and the blends to and
- *    from the rest hold at every phase — the run alone starts at whatever phase and side the wake's clock stands at,
- *    which hangs on how long the figures took to load): no part of the paddle through the tubes, the thwart or the
- *    floor, nor through a man, both fists on it, the paddle where the stroke puts it (the hand low on the shaft reaches);
+ *  - M2: the raft paddled by a crew of three (user 2026-10-15: "Also how the commandos row should be more
+ *    realistic"): the Marine steering from the stern, the Green Beret and the Sniper sitting on the side tubes, each
+ *    paddling on his own side — every man's fists on his paddle all through the strokes, no paddle through the hull or
+ *    a man, the side paddlers' blades in the water through the pull and out of it carried forward, both of the raft's
+ *    paddles in the men's hands; then the strokes pinned phase by phase over the WHOLE cycle (long, short and backing
+ *    strokes, and the blends to and from the rest hold at every phase): no paddle through the tubes, the thwart or the
+ *    floor, a man or another paddle, both fists on each, each where its stroke puts it; then the Marine alone: the
+ *    spare paddle stowed on the starboard tube, under way he changes sides every few strokes, and his whole cycle
+ *    pinned on both sides and across;
  *  - no seated man's legs through a hull or its floor: the rowboat (5), the raft (3, M13's 5), the M4 escape boat.
  * Frames: tests/out/boat-oars-*.png.
  */
-export const timeout = 300_000;
+export const timeout = 420_000;
+/** A lone paddler's strokes on one side (art/boat-crew.js SOLO_RUN). */
+const S_RUN = 3;
 
 function install() {
   const g = window.__game, G = g.game;
@@ -241,99 +246,156 @@ export default async function (page, t) {
     await S.run(30, b);
     const lim = S.limbs(b);
     ma.issue({ type: 'move', x: 27.9, z: 49.6 });
-    const cf = b._crewFig, f = [...cf.occupants.values()].find((x) => x.pose === 'paddle'), H = S.hull(b), o = H.o;
-    const others = [...cf.occupants.values()].filter((x) => x !== f);
-    const r = { ok, lim, n: 0, grip: 0, low: [9, -9], tip: 0, hull: [], men: 9, menAt: '', spare: null, spareHull: 0 };
+    const cf = b._crewFig, H = S.hull(b), o = H.o;
+    const pads = [...cf.occupants.values()].filter((x) => x.pose === 'paddle' || x.pose === 'tubePaddle');
+    const r = { ok, lim, n: 0, grip: 0, gripAt: '', low: [9, -9], hull: [], men: 9, menAt: '', pads: pads.map((x) => `${x.u.role}:${x.pose}`),
+      wet: {}, dry: {}, sideOk: 0, sideN: 0, lockL: null, lockR: null, sync: 0 };
     await S.run(220, b, () => {
-      const pd = f.paddle; if (!pd?.visible) return;
-      o.updateWorldMatrix(true, true); pd.updateWorldMatrix(true, false);
-      r.n++;
-      const B = f.m.real.inner.bones;
-      const org = pd.localToWorld(new THREE.Vector3()), ax = pd.localToWorld(new THREE.Vector3(0, -1, 0)).sub(org).normalize();
-      for (const s of ['l', 'r']) {
-        const g = S.bc.gripPoint(B, s).sub(org), tt = g.dot(ax);
-        r.grip = Math.max(r.grip, g.clone().addScaledVector(ax, -tt).length());
-        if (tt > 0.05) r.low = [Math.min(r.low[0], tt), Math.max(r.low[1], tt)];
+      o.updateWorldMatrix(true, true);
+      const moving = cf.rig.act > 0.99, u = cf.rig.side?.u ?? 0;
+      let counted = false;
+      for (const f of pads) {
+        const pd = f.paddle; if (!pd?.visible) continue;
+        pd.updateWorldMatrix(true, false);
+        if (!counted) { r.n++; counted = true; }
+        const B = f.m.real.inner.bones, L = f.plen || S.bc.PADDLE.length;
+        const org = pd.localToWorld(new THREE.Vector3()), ax = pd.localToWorld(new THREE.Vector3(0, -1, 0)).sub(org).normalize();
+        for (const s of ['l', 'r']) {
+          const g = S.bc.gripPoint(B, s).sub(org), tt = g.dot(ax), off = g.clone().addScaledVector(ax, -tt).length();
+          if (off > r.grip) { r.grip = off; r.gripAt = f.u.role; }
+          if (tt > 0.05) r.low = [Math.min(r.low[0], tt), Math.max(r.low[1], tt)];
+        }
+        // the paddle clear of the hull (the blade below the tube is in the water outside it) and of the other men
+        const tip = pd.localToWorld(new THREE.Vector3(0, -L, 0)), lt = o.worldToLocal(tip.clone());
+        const hits = H.seg(o.worldToLocal(org.clone()), lt);
+        if (hits.length && r.hull.length < 5) r.hull.push(`${f.u.role} ${hits[0].point.toArray().map((v) => +v.toFixed(2))}`);
+        for (const x of cf.occupants.values()) if (x !== f) for (const sg of S.segs(x)) { const d = S.segDist(org, tip, sg.a, sg.b) - sg.r - 0.018; if (d < r.men) { r.men = d; r.menAt = `${f.u.role} paddle / ${sg.n}`; } }
+        // the side paddlers: on their own side; the blade in the water through the pull, out in the recovery (pulling
+        // forward: backing water runs the stroke in reverse)
+        if (f.pose === 'tubePaddle' && moving && !cf.rig.side?.[S.bc.BOAT_SEATS.raft.seats[f.k].side]?.back) {
+          const sd = S.bc.BOAT_SEATS.raft.seats[f.k].side, mid = o.worldToLocal(pd.localToWorld(new THREE.Vector3(0, -L + 0.22, 0)));
+          r.sideN++; if (Math.sign(lt.x) === sd) r.sideOk++;
+          const k = f.u.role;
+          if (u > 0.08 && u < 0.42) { r.wet[k] = r.wet[k] || [0, 0]; r.wet[k][0]++; if (mid.y < 0) r.wet[k][1]++; }
+          if (u > 0.62 && u < 0.84) { r.dry[k] = r.dry[k] || [0, 0]; r.dry[k][0]++; if (lt.y > -0.02) r.dry[k][1]++; }
+        }
       }
-      // the shaft clear of the hull (the blade below the tube is in the water outside it) and of the men
-      const tip = pd.localToWorld(new THREE.Vector3(0, -S.bc.PADDLE.length, 0));
-      const hits = H.seg(o.worldToLocal(org.clone()), o.worldToLocal(tip.clone()));
-      if (hits.length && r.hull.length < 5) r.hull.push(hits[0].point.toArray().map((v) => +v.toFixed(2)));
-      for (const x of others) for (const sg of S.segs(x)) { const d = S.segDist(org, tip, sg.a, sg.b) - sg.r - 0.018; if (d < r.men) { r.men = d; r.menAt = sg.n; } }
+      r.lockL = b.model.visual.parts.paddle_l.visible; r.lockR = b.model.visual.parts.paddle_r.visible;
     });
-    // the spare paddle stowed on the starboard tube: its mesh inside the raft's outline, on top of the tube
-    const node = b.model.visual.parts.paddle_r; node.updateWorldMatrix(true, true);
-    const box = new THREE.Box3();
-    node.traverse((n) => { if (n.isMesh) { const a = n.geometry.attributes.position, v = new THREE.Vector3(); for (let i = 0; i < a.count; i += 3) box.expandByPoint(o.worldToLocal(n.localToWorld(v.fromBufferAttribute(a, i)))); } });
-    r.spare = { min: box.min.toArray().map((v) => +v.toFixed(2)), max: box.max.toArray().map((v) => +v.toFixed(2)), vis: node.visible, l: b.model.visual.parts.paddle_l.visible };
-    const g0 = S.bc.STOW.at(S.bc.STOW.d0.clone().multiplyScalar(-0.5).toArray()), g1 = S.bc.STOW.at(S.bc.STOW.d0.clone().multiplyScalar(1.0).toArray());
-    r.spareHull = H.seg(g0, g1).length;
     r.grip = +r.grip.toFixed(4); r.men = +r.men.toFixed(3); r.low = r.low.map((v) => +v.toFixed(2));
     return r;
   });
   t.log(JSON.stringify(raft));
   await t.shot('boat-oars-4-m02-paddling');
-  t.ok(raft.ok && raft.n > 150, 'M2: the Marine paddles the raft, the Green Beret and the Sniper aboard');
-  t.ok(raft.grip <= 0.03, `both fists on the paddle all through the strokes (≤ ${(raft.grip * 100).toFixed(1)} cm off its axis; the lower hand ${raft.low.join('–')} m down the shaft)`);
-  t.ok(!raft.hull.length, `the paddle never through the tubes ${JSON.stringify(raft.hull)}`);
+  t.ok(raft.ok && raft.n > 150 && raft.pads.length === 3, `M2: the Marine paddles the raft, the Green Beret and the Sniper with him from the side tubes (${raft.pads})`);
+  t.ok(raft.grip <= 0.03, `every man's fists on his paddle all through the strokes (≤ ${(raft.grip * 100).toFixed(1)} cm off its axis, ${raft.gripAt}; the lower hand ${raft.low.join('–')} m down the shaft)`);
+  t.ok(!raft.hull.length, `no paddle through the tubes ${JSON.stringify(raft.hull)}`);
   t.ok(raft.men > 0, `…nor through the men aboard (closest ${raft.men} m, ${raft.menAt})`);
-  const sp = raft.spare;
-  t.ok(sp.vis && !sp.l && sp.min[0] > -0.62 && sp.max[0] < -0.2 && sp.min[2] > -1.25 && sp.max[2] < 1.0 && sp.min[1] > 0.2, `the spare paddle stowed inside on the starboard tube ${JSON.stringify(sp)}`);
-  t.ok(raft.spareHull === 0, '…lying on the tube, not through it');
+  t.ok(raft.sideN > 200 && raft.sideOk === raft.sideN, `each side paddler on his own side (${raft.sideOk}/${raft.sideN} frames)`);
+  for (const k of Object.keys(raft.wet)) {
+    t.ok(raft.wet[k][1] / raft.wet[k][0] > 0.95, `${k}: the blade in the water through the pull (${raft.wet[k][1]}/${raft.wet[k][0]})`);
+    t.ok(raft.dry[k] && raft.dry[k][1] / raft.dry[k][0] > 0.95, `${k}: out of it carried forward (${raft.dry[k]?.[1]}/${raft.dry[k]?.[0]})`);
+  }
+  t.ok(raft.lockL === false && raft.lockR === false, 'both of the raft\'s paddles in the men\'s hands (none left in a rowlock)');
   t.ok(raft.lim.n === 3 && !raft.lim.bad.length, `M2 raft (3): no leg through the tubes or the floor ${JSON.stringify(raft.lim.bad)}`);
 
-  // the whole cycle, pinned: the paddler's overlay reads the stroke (rig.st) and the hold ↔ stroke blend (rig.act) as it
-  // runs; each phase is held for two frames (the pose settles), the raft stopped
-  const sweep = await page.evaluate(async () => {
+  // the whole cycle, pinned: the paddlers' overlays read the strokes (rig.st: the Marine's, rig.side: the side
+  // paddlers') and the hold ↔ stroke blend (rig.act) as they run; each phase is held for two frames (the pose
+  // settles), the raft stopped. With the crew: the Marine steering on starboard (forward, long, short, backing), the
+  // side paddlers forward / long / short / backing; then alone, the Marine's whole cycle on both sides and across.
+  const sweepOf = (plans) => page.evaluate(async (plans) => {
     const S = window.__bo, THREE = S.T, b = S.b, cf = b._crewFig, H = S.hull(b), o = H.o;
     b.driver.issue({ type: 'move', x: b.x, z: b.z });
-    const f = [...cf.occupants.values()].find((x) => x.pose === 'paddle'), others = [...cf.occupants.values()].filter((x) => x !== f);
-    const root = f.m._body?.() || f.m.root, orig = f.m.overlay;
+    const figs = [...cf.occupants.values()], pads = figs.filter((x) => x.pose === 'paddle' || x.pose === 'tubePaddle');
+    const origs = new Map(figs.map((f) => [f, f.m.overlay]));
     let pin = null;
-    f.m.overlay = (mm, dt, guard) => { if (pin) { cf.rig.st = { u: pin.u, s: pin.s, same: pin.same }; cf.rig.act = pin.act; } return orig(mm, dt, guard); };
-    const r = { n: 0, hull: [], grip: 0, dev: 0, devAt: '', men: 9, menAt: '', low: [9, -9] };
-    // shaft: its axis and 3 cm round it; blade (paddle-local −y 1.01 … 1.45, 17 cm wide in x): 1.5 cm beyond its edges
-    const LINES = [[0, 0, 0, -1.45], [0.03, 0, 0.03, -1.45], [-0.03, 0, -0.03, -1.45], [0, 0, 0, -1.45, 0.03], [0, 0, 0, -1.45, -0.03],
-      [0.1, -1.0, 0.1, -1.45], [-0.1, -1.0, -0.1, -1.45]];
+    for (const f of figs) { const orig = origs.get(f); f.m.overlay = (mm, dt, guard) => { if (pin) { cf.rig.st = { u: pin.u, s: pin.s, same: pin.same, opt: pin.opt }; cf.rig.side = { u: pin.u, 1: pin.side || {}, [-1]: pin.side2 || pin.side || {} }; cf.rig.act = pin.act; } return orig(mm, dt, guard); }; }
+    const r = { n: 0, hull: [], grip: 0, gripAt: '', dev: 0, devAt: '', men: 9, menAt: '', pad: 9, padAt: '', low: [9, -9] };
     try {
-      for (const same of [false, true]) for (const s of [1, -1]) for (const act of [1, 0.75, 0.5, 0.25, 0]) for (let i = 0; i < 40; i++) {
-        pin = { u: i / 40, s, same, act };
+      for (const pl of plans) for (const act of [1, 0.75, 0.5, 0.25, 0]) for (let i = 0; i < 40; i++) {
+        pin = { ...pl, u: i / 40, act };
         S.frame(b); S.frame(b);
         if (i % 10 === 9) await new Promise((res) => setTimeout(res, 0));
-        const pd = f.paddle; if (!pd?.visible) continue;
+        o.updateWorldMatrix(true, true);
+        const tag = `u ${pin.u} ${JSON.stringify(pl)} act ${act}`, seen = [];
+        for (const f of pads) {
+          const pd = f.paddle; if (!pd?.visible) continue;
+          pd.updateWorldMatrix(true, false);
+          const B = f.m.real.inner.bones, Lp = f.plen || S.bc.PADDLE.length, root = f.m._body?.() || f.m.root;
+          const org = pd.localToWorld(new THREE.Vector3()), ax = pd.localToWorld(new THREE.Vector3(0, -1, 0)).sub(org).normalize();
+          for (const h of ['l', 'r']) {
+            const g = S.bc.gripPoint(B, h).sub(org), tt = g.dot(ax), off = g.clone().addScaledVector(ax, -tt).length();
+            if (off > r.grip) { r.grip = off; r.gripAt = `${f.u.role} ${tag}`; }
+            if (tt > 0.05) r.low = [Math.min(r.low[0], tt), Math.max(r.low[1], tt)];
+          }
+          // the paddle where the key puts it (laid through both fists: off it only if a hand fell short)
+          const sd = S.bc.BOAT_SEATS.raft.seats[f.k].side;
+          const P = f.pose === 'tubePaddle' ? S.bc.sidePose(pin.u, sd, act, sd > 0 ? pin.side : pin.side2 || pin.side) : S.bc.paddlePose(pin.u, pin.s, pin.same, act, pin.opt);
+          const kd = root.localToWorld(new THREE.Vector3(...P.T)).sub(root.localToWorld(new THREE.Vector3(...P.G))).normalize();
+          const dev = Math.acos(Math.min(1, ax.dot(kd))) * 180 / Math.PI;
+          if (dev > r.dev) { r.dev = dev; r.devAt = `${f.u.role} ${tag}`; }
+          // shaft: its axis and 3 cm round it; blade (the last 0.44 m, 17 cm wide in x): 1.5 cm beyond its edges
+          const L = (x, y, z = 0) => o.worldToLocal(pd.localToWorld(new THREE.Vector3(x, y, z)));
+          for (const [x0, y0, x1, y1, z = 0] of [[0, 0, 0, -Lp], [0.03, 0, 0.03, -Lp], [-0.03, 0, -0.03, -Lp], [0, 0, 0, -Lp, 0.03], [0, 0, 0, -Lp, -0.03],
+            [0.1, -(Lp - 0.44), 0.1, -Lp], [-0.1, -(Lp - 0.44), -0.1, -Lp]]) {
+            const hits = H.seg(L(x0, y0, z), L(x1, y1, z));
+            if (hits.length && r.hull.length < 6) r.hull.push(`${f.u.role} ${tag}: ${hits[0].point.toArray().map((v) => v.toFixed(2))}`);
+          }
+          const tip = pd.localToWorld(new THREE.Vector3(0, -Lp, 0));
+          for (const x of figs) if (x !== f) for (const sg of S.segs(x)) { const d = S.segDist(org, tip, sg.a, sg.b) - sg.r - 0.018; if (d < r.men) { r.men = d; r.menAt = `${f.u.role} paddle / ${sg.n} ${tag}`; } }
+          for (const q of seen) { const d = S.segDist(org, tip, q.org, q.tip) - 0.04; if (d < r.pad) { r.pad = d; r.padAt = `${f.u.role} / ${q.role} ${tag}`; } }
+          seen.push({ org, tip, role: f.u.role });
+        }
         r.n++;
-        o.updateWorldMatrix(true, true); pd.updateWorldMatrix(true, false);
-        const tag = `u ${pin.u} s ${s}${same ? ' pivoting' : ''} act ${act}`;
-        const B = f.m.real.inner.bones;
-        const org = pd.localToWorld(new THREE.Vector3()), ax = pd.localToWorld(new THREE.Vector3(0, -1, 0)).sub(org).normalize();
-        for (const h of ['l', 'r']) {
-          const g = S.bc.gripPoint(B, h).sub(org), tt = g.dot(ax);
-          r.grip = Math.max(r.grip, g.clone().addScaledVector(ax, -tt).length());
-          if (tt > 0.05) r.low = [Math.min(r.low[0], tt), Math.max(r.low[1], tt)];
-        }
-        // the paddle where the key puts it (laid through both fists: off it only if a hand fell short)
-        const P = S.bc.paddlePose(pin.u, s, same, act);
-        const kd = root.localToWorld(new THREE.Vector3(...P.T)).sub(root.localToWorld(new THREE.Vector3(...P.G))).normalize();
-        const dev = Math.acos(Math.min(1, ax.dot(kd))) * 180 / Math.PI;
-        if (dev > r.dev) { r.dev = dev; r.devAt = tag; }
-        const L = (x, y, z = 0) => o.worldToLocal(pd.localToWorld(new THREE.Vector3(x, y, z)));
-        for (const [x0, y0, x1, y1, z = 0] of LINES) {
-          const hits = H.seg(L(x0, y0, z), L(x1, y1, z));
-          if (hits.length && r.hull.length < 6) r.hull.push(`${tag}: ${hits[0].point.toArray().map((v) => v.toFixed(2))}`);
-        }
-        const tip = pd.localToWorld(new THREE.Vector3(0, -S.bc.PADDLE.length, 0));
-        for (const x of others) for (const sg of S.segs(x)) { const d = S.segDist(org, tip, sg.a, sg.b) - sg.r - 0.018; if (d < r.men) { r.men = d; r.menAt = `${sg.n} ${tag}`; } }
       }
-    } finally { f.m.overlay = orig; }
-    r.grip = +r.grip.toFixed(4); r.dev = +r.dev.toFixed(1); r.men = +r.men.toFixed(3); r.low = r.low.map((v) => +v.toFixed(2));
+    } finally { for (const f of figs) f.m.overlay = origs.get(f); }
+    r.grip = +r.grip.toFixed(4); r.dev = +r.dev.toFixed(1); r.men = +r.men.toFixed(3); r.pad = +r.pad.toFixed(3); r.low = r.low.map((v) => +v.toFixed(2));
     return r;
+  }, plans);
+  const report = (sw, label, n) => {
+    t.log(`${label}: ${JSON.stringify(sw)}`);
+    t.ok(sw.n === n, `${label}: posed at every pinned phase (${sw.n}/${n})`);
+    t.ok(!sw.hull.length, `${label}: no paddle through the tubes, the thwart or the floor, nor within 3 cm of them ${JSON.stringify(sw.hull)}`);
+    t.ok(sw.grip <= 0.03, `${label}: both fists on each paddle (≤ ${(sw.grip * 100).toFixed(1)} cm off its axis, ${sw.gripAt}; the lower hand ${sw.low.join('–')} m down the shaft)`);
+    t.ok(sw.dev <= 6, `${label}: each paddle where its stroke puts it (≤ ${sw.dev}° off the key, ${sw.devAt})`);
+    t.ok(sw.men > 0, `${label}: no paddle through a man (closest ${sw.men} m, ${sw.menAt})`);
+    t.ok(sw.pad > 0, `${label}: the paddles clear of each other (closest ${sw.pad} m, ${sw.padAt})`);
+  };
+  const crewSweep = await sweepOf([
+    { s: -1, same: true }, { s: -1, same: true, opt: { power: 1.18 }, side: { power: 1.18 }, side2: { power: 0.55 } },
+    { s: -1, same: true, opt: { power: 0.55 }, side: { power: 0.55 }, side2: { power: 1.18 } },
+    { s: -1, same: true, opt: { back: true }, side: { back: true }, side2: { power: 1.18 } }, { s: -1, same: true, side: { power: 1.18 }, side2: { back: true } },
+  ]);
+  report(crewSweep, 'M2 crew of three, pinned', 5 * 5 * 40);
+
+  // alone: the Marine's whole cycle on both sides and across; the spare paddle stowed; under way he changes sides
+  const solo = await page.evaluate(async () => {
+    const S = window.__bo, THREE = S.T, b = S.b, cf = b._crewFig, H = S.hull(b), o = H.o, w = S.G.world;
+    for (const c of [...b.occupants]) if (c !== b.driver) c.issue({ type: 'ability', id: 'leaveVehicle', target: c });
+    await S.run(90, b);
+    for (const c of w.commandos) if (c !== b.driver) c.setPosition(c.x + 30, c.z, 0);
+    await S.run(30, b);
+    const node = b.model.visual.parts.paddle_r; node.updateWorldMatrix(true, true);
+    const box = new THREE.Box3();
+    node.traverse((n) => { if (n.isMesh) { const a = n.geometry.attributes.position, v = new THREE.Vector3(); for (let i = 0; i < a.count; i += 3) box.expandByPoint(o.worldToLocal(n.localToWorld(v.fromBufferAttribute(a, i)))); } });
+    const spare = { min: box.min.toArray().map((v) => +v.toFixed(2)), max: box.max.toArray().map((v) => +v.toFixed(2)), vis: node.visible, l: b.model.visual.parts.paddle_l.visible };
+    const g0 = S.bc.STOW.at(S.bc.STOW.d0.clone().multiplyScalar(-0.5).toArray()), g1 = S.bc.STOW.at(S.bc.STOW.d0.clone().multiplyScalar(0.95).toArray());
+    const spareHull = H.seg(g0, g1).length;
+    // under way: his stroke side, stroke by stroke
+    b.driver.issue({ type: 'move', x: 27.9, z: 49.6 });
+    const sides = [];
+    let lastN = null;
+    await S.run(240, b, () => { if (cf.rig.act > 0.99 && cf.rig.n !== lastN) { lastN = cf.rig.n; sides.push(cf.rig.st.s); } });
+    return { n: b.occupants.length, spare, spareHull, sides };
   });
-  t.log(JSON.stringify(sweep));
-  t.ok(sweep.n === 800, `M2: the paddle posed at every pinned phase (${sweep.n}/800: 40 phases × either side × pivoting or not × 5 blends from the rest hold)`);
-  t.ok(!sweep.hull.length, `…never through the tubes, the thwart or the floor, nor within 3 cm of them ${JSON.stringify(sweep.hull)}`);
-  t.ok(sweep.grip <= 0.03, `…both fists on it (≤ ${(sweep.grip * 100).toFixed(1)} cm off its axis; the lower hand ${sweep.low.join('–')} m down the shaft)`);
-  t.ok(sweep.dev <= 6, `…where the stroke puts it: the hand low on the shaft reaches its spot (≤ ${sweep.dev}° off the key, ${sweep.devAt})`);
-  t.ok(sweep.men > 0, `…nor through the men aboard (closest ${sweep.men} m, ${sweep.menAt})`);
+  t.log(JSON.stringify(solo));
+  const sp = solo.spare;
+  t.ok(solo.n === 1 && sp.vis && !sp.l && sp.min[0] > -0.62 && sp.max[0] < -0.2 && sp.min[2] > -1.25 && sp.max[2] < 1.0 && sp.min[1] > 0.2, `alone: the spare paddle stowed inside on the starboard tube ${JSON.stringify(sp)}`);
+  t.ok(solo.spareHull === 0, '…lying on the tube, not through it');
+  const runs = []; for (const x of solo.sides) { if (runs.length && runs[runs.length - 1][0] === x) runs[runs.length - 1][1]++; else runs.push([x, 1]); }
+  t.ok(runs.length >= 3 && runs.slice(1, -1).every(([, k]) => k === S_RUN), `alone under way he changes sides every ${S_RUN} strokes (${JSON.stringify(runs)})`);
+  const soloSweep = await sweepOf([{ s: 1, same: false }, { s: -1, same: false }, { s: 1, same: true }, { s: -1, same: true }]);
+  report(soloSweep, 'M2 the Marine alone, pinned', 4 * 5 * 40);
 
   // ---------------------------------------------------------------- M13 raft (five), M4 escape boat (standing)
   const more = await page.evaluate(async () => {

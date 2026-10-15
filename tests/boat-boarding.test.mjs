@@ -1,8 +1,8 @@
 /**
  * Men in the boat, drawn (GPU, M2): the Marine deploys the raft from the bank by the shallows and is seen kneeling in it, the Green
- * Beret steps in from the bank over the side tube and sits down facing the bow, the Marine paddles across — the blade
- * dips on alternating sides in step with the wake's strokes — and the Green Beret steps out on the far bank, where his
- * own model takes over. Frames: tests/out/boat-boarding-*.png (docs/screenshots/boat-boarding.jpg is cut from them).
+ * Beret steps in from the bank over the side tube and sits down on the port tube facing the bow, they paddle across —
+ * the Green Beret on his side, the Marine steering on the other, in time, his strokes on the wake's clock — and the
+ * Green Beret steps out on the far bank, where his own model takes over. Frames: tests/out/boat-boarding-*.png (docs/screenshots/boat-boarding.jpg is cut from them).
  */
 export const timeout = 240_000;
 
@@ -72,8 +72,8 @@ export default async function (page, t) {
   t.log(JSON.stringify({ inn, seated }));
   t.ok(inn.tr > 10 && inn.visIn > 5, `the Green Beret is drawn stepping in (${inn.tr} frames)`);
   t.ok(inn.outside > 0 && inn.maxY > 0.3, `…from outside the hull, over the tube (top ${inn.maxY.toFixed(2)} m)`);
-  t.ok(seated.n === 2 && seated.gb.vis && !seated.gb.tr && seated.gb.k === 1 && seated.gb.clip === 'boat_sit', `two men seen aboard; GB sits on the floor (${JSON.stringify(seated.gb)})`);
-  t.ok(seated.gb.z > seated.ma.z + 0.3 && Math.abs(seated.gb.yaw) < 0.05, '…forward of the Marine, facing the bow');
+  t.ok(seated.n === 2 && seated.gb.vis && !seated.gb.tr && seated.gb.k === 1 && seated.gb.clip === 'sit', `two men seen aboard; GB sits on the port tube to paddle (${JSON.stringify(seated.gb)})`);
+  t.ok(seated.gb.z > seated.ma.z + 0.3 && Math.abs(seated.gb.yaw) < 0.1, '…forward of the Marine, facing the bow');
   t.ok(seated.unitHidden, 'his own (standing) model stays hidden while aboard');
   t.equal(seated.paddleL, false, 'the raft\'s port paddle left its rowlock (it is in the Marine\'s hands)');
   await t.shot('boat-boarding-2-aboard');
@@ -81,21 +81,21 @@ export default async function (page, t) {
   // paddle across: the blade dips on alternating sides, in step with the wake's strokes (sampled every frame; two
   // screenshots on the way, half a stroke apart)
   const paddle = (frames) => page.evaluate(async (frames) => {
-    const S = window.__bb, { raft, ma } = S, THREE = await import('three');
+    const S = window.__bb, { raft, ma, gb } = S, THREE = await import('three');
     if (!S.rowing) { S.rowing = true; ma.issue({ type: 'move', x: 27.9, z: 49.6 }); }
-    const fm = raft._crewFig.occupants.get(ma), o = raft.model.visual.object3d;
-    const r = { l: 0, r: 0, changes: 0, ok: 0, n: 0 };
-    let last = 0;
+    const fm = raft._crewFig.occupants.get(ma), fg = raft._crewFig.occupants.get(gb), o = raft.model.visual.object3d;
+    const r = { l: 0, r: 0, gl: 0, gr: 0, both: 0, ok: 0, n: 0 };
+    const wet = (f, L) => (f?.paddle?.visible ? o.worldToLocal(f.paddle.localToWorld(new THREE.Vector3(0, -L + 0.15, 0))) : null);
     for (let k = 0; k < frames && Math.hypot(raft.x - 27.9, raft.z - 49.6) > 2.5; k++) {
       S.frame();
-      const tip = fm.paddle?.visible ? o.worldToLocal(fm.paddle.localToWorld(new THREE.Vector3(0, -1.3, 0))) : null;
+      const tip = wet(fm, 1.45), gt = wet(fg, fg?.plen || 1.25);
       const st = S.w.water?.wakes?.strokeOf?.(raft);
-      if (tip && tip.y < 0 && (raft.speed || 0) > 0.5) {
-        const side = tip.x > 0 ? 1 : -1; // model +x = the raft's left
-        r[side > 0 ? 'l' : 'r']++;
-        if (last && side !== last) r.changes++;
-        last = side;
-        if (st?.moving && st.t / st.period < 0.4) { r.n++; if (side === -st.side) r.ok++; } // wake +1 = the raft's right
+      if ((raft.speed || 0) > 0.5) {
+        const mIn = tip && tip.y < 0, gIn = gt && gt.y < 0;
+        if (mIn) r[tip.x > 0 ? 'l' : 'r']++; // model +x = the raft's left
+        if (gIn) r[gt.x > 0 ? 'gl' : 'gr']++;
+        if (mIn && gIn) r.both++;
+        if (mIn && st?.moving && st.t / st.period < 0.4) { r.n++; if ((tip.x > 0 ? 1 : -1) === -st.side) r.ok++; } // wake +1 = the raft's right
       }
       if (k % 10 === 9) await new Promise((res) => setTimeout(res, 0));
     }
@@ -107,12 +107,15 @@ export default async function (page, t) {
   await t.shot('boat-boarding-4-paddling');
   pads.push(await paddle(900));
   await page.evaluate(() => window.__bb.run(1.0));
-  const tot = pads.reduce((a, p) => ({ l: a.l + p.l, r: a.r + p.r, changes: a.changes + p.changes, ok: a.ok + p.ok, n: a.n + p.n }), { l: 0, r: 0, changes: 0, ok: 0, n: 0 });
+  const tot = pads.reduce((a, p) => { for (const k of Object.keys(a)) a[k] += p[k]; return a; }, { l: 0, r: 0, gl: 0, gr: 0, both: 0, ok: 0, n: 0 });
   const at = pads[2].at;
   t.log(JSON.stringify({ pads }));
-  t.ok(tot.l > 10 && tot.r > 10, `the blade dips on both sides (left ${tot.l}, right ${tot.r} frames)`);
-  t.ok(tot.changes >= 4, `…alternating (${tot.changes} changes of side)`);
-  t.ok(tot.n > 10 && tot.ok / tot.n > 0.8, `…on the side the wake draws its catch ring (${tot.ok}/${tot.n})`);
+  // user 2026-10-15: "Also how the commandos row should be more realistic" — the Green Beret paddles from the port
+  // tube, the Marine steers from the starboard side, both in time
+  t.ok(tot.gl > 30 && tot.gr === 0, `the Green Beret's blade dips on his side, the port side (port ${tot.gl}, starboard ${tot.gr} frames)`);
+  t.ok(tot.r > 30 && tot.l < tot.r * 0.15, `…the Marine's on the other side (starboard ${tot.r}, port ${tot.l} frames)`);
+  t.ok(tot.both > 20, `…in time: both blades in the water together (${tot.both} frames)`);
+  t.ok(tot.n > 10 && tot.ok / tot.n > 0.8, `the Marine's on the side the wake's stroke clock says (${tot.ok}/${tot.n})`);
   t.ok(Math.hypot(at[0] - 27.9, at[1] - 49.6) < 3, 'the raft reaches the far bank');
 
   // the Green Beret steps out on the far bank

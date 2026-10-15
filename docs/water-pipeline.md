@@ -405,7 +405,10 @@ tools/check.sh                                                          # syntax
   waders and divers emit alternating-sign strokes with foam; boats emit a bow wave, churning prop/paddle wash and two
   Kelvin shoulders every frame (the raft's paddle rings out on alternating sides; the rowboat's two oars catch
   together, a ring at each blade once per row stroke of a period set by the speed — `art/oars.js`, the clock the
-  oarsman's arms follow through `strokeOf`); entering the water (a commando wading in, a body falling in, a raft launched) and
+  oarsman's arms follow through `strokeOf`). A raft paddled by its drawn crew (`art/boat-crew.js`: the men on the
+  side tubes on their own sides, the Marine steering, all in time at a cadence of the speed) splashes its own water
+  instead: `paddleFx` at each blade as it goes in (a small ring and a splash of foam), as it comes out (the swirl)
+  and drips as it is carried forward; `strokeOf` then reads the crew's clock (`v._paddleClock`); entering the water (a commando wading in, a body falling in, a raft launched) and
   dying in it splash (ripple ring + `fx.spawn('splash')`). Events: grenade/charge/barrel `explosion` in water →
   water column (-0.6 m, foam 1) + ring of secondary drops + a large splash; `projectile:bounce` in water → splash;
   missed `shot` into water → spout; `unit:water` dive/surface/row → rings.

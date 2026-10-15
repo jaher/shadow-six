@@ -7,18 +7,23 @@ import { makeSim } from './abilsim.mjs';
 import { boardingHint } from '../../src/abilities/drive.js';
 import { vehicleOrderLabel } from '../../src/ui/tooltip.js';
 
-test('boat seats: the raft kneels the Marine at the stern and seats the men forward of him, low or on the bow; the mini-sub draws nobody', () => {
+test('boat seats: the raft kneels the Marine at the stern; the next two paddle from the side tubes facing the bow, the rest sit low or on the bow; the mini-sub draws nobody', () => {
+  // user 2026-10-15: "Also how the commandos row should be more realistic" — men kneel or sit on the tube facing
+  // forward, knees braced; the men who are not paddling sit low
   const raft = boatLayout('raft');
   assert.equal(raft, BOAT_SEATS.raft);
   assert.equal(raft.seats[0].pose, 'paddle', 'seat 0: the paddler');
   assert.ok(raft.seats[0].p[2] < -0.6, 'at the stern');
   assert.ok(raft.seats.length >= 5, 'five seats (M13 raft seats: 5)');
-  const first = raft.seats[1];
-  assert.equal(first.pose, 'floor', 'the first man sits on the floor (below the paddle\'s sweep)');
-  assert.ok(!first.yaw, '…facing the bow');
-  for (const s of raft.seats.slice(1)) assert.ok(s.p[2] > raft.seats[0].p[2] + 0.6, 'forward of the Marine');
-  assert.equal(raft.seats[2].pose, 'tube', 'the second on the bow tube…');
-  near(raft.seats[2].yaw, Math.PI, 1e-9, '…facing aft');
+  const [, port, stbd] = raft.seats;
+  assert.ok(port.pose === 'tubePaddle' && port.side === 1 && port.p[0] > 0.3 && port.p[1] > 0.25, 'the first man paddles from the port tube (+x), sitting on it');
+  assert.ok(stbd.pose === 'tubePaddle' && stbd.side === -1 && stbd.p[0] < -0.3 && stbd.p[1] > 0.25, 'the second from the starboard tube');
+  for (const s of [port, stbd]) assert.ok(Math.abs(s.yaw) < 0.15, '…facing the bow');
+  assert.ok(stbd.p[2] > port.p[2] + 0.3, 'staggered: the starboard man forward of the port one');
+  for (const s of raft.seats.slice(1)) assert.ok(s.p[2] > raft.seats[0].p[2] + 0.55, 'forward of the Marine');
+  assert.ok(raft.seats[3].pose === 'floor' && raft.seats[3].p[1] < 0.05, 'the 4th sits low on the floor');
+  assert.equal(raft.seats[4].pose, 'tube', 'the 5th on the bow tube…');
+  near(raft.seats[4].yaw, Math.PI, 1e-9, '…facing aft');
   for (const s of raft.seats) assert.ok(Math.abs(s.p[0]) < 0.6 && Math.abs(s.p[2]) < 1.2, 'inside the 2.7 × 1.3 m hull');
   for (const s of raft.seats) assert.ok(s.feet?.l && s.feet?.r, 'every raft seat fits the legs to the hull');
   const row = boatLayout('rowboat');
@@ -64,6 +69,7 @@ test('boat seats: clip and placement per pose', () => {
   assert.deepEqual(seatClip('paddle'), { clip: 'kneel_shoot', mode: 'root' }, 'the paddler kneels on the floor');
   assert.deepEqual(seatClip('paddle', (n) => n !== 'kneel_shoot'), { clip: 'crouch_idle', mode: 'root' });
   assert.deepEqual(seatClip('floor'), { clip: 'boat_sit', mode: 'root' }, 'the raft clip: on the floor, hands on the tubes');
+  assert.deepEqual(seatClip('tubePaddle'), { clip: 'sit', mode: 'settle' }, 'paddling from a side tube: seated on it');
   assert.deepEqual(seatClip('floor', (n) => n !== 'boat_sit'), { clip: 'sit', mode: 'settle' });
   assert.deepEqual(seatClip('tube'), { clip: 'sit', mode: 'settle' });
   assert.deepEqual(seatClip('row'), { clip: 'sit', mode: 'settle' });

@@ -92,6 +92,8 @@ def floor_poly(pts, z, wr=0.0, name='floor', seat=False):
 
 
 def paddle(node, piv, d, up):
+    # (in the game these poles are swapped at load for the shaped paddle of src/art/paddle.js — T-grip, tapered round
+    # shaft, oval lens-section blade — laid along the same line: grip at the inboard end, blade toward the board)
     kw = dict(node=node, pivot=tuple(piv))
     a, b = piv - d * 0.55, piv + d * 0.6
     NP('wood', cyl, a, b, 0.017, 6, name='paddle_shaft', **kw)

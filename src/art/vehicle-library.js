@@ -28,6 +28,7 @@ import { scoped, touch, sceneBytes, disposeScene } from '../engine/scoped-assets
 import { libTier, loadLibDensity, setLibPreset } from './lib-tiers.js';
 import { sharedLibTexture, isLibTexture, isLibImage } from './lib-textures.js';
 import { raftFloorFix } from './raft-hull.js';
+import { raftPaddleFix } from './paddle.js';
 
 const DEG = Math.PI / 180;
 const YAW_KINDS = new Set(['turret', 'turret_yaw', 'gun_yaw', 'weapon_traverse', 'gun_yaw_pitch']);
@@ -176,9 +177,10 @@ function loadMeta(model) {
 
 /**
  * Geometry fixes applied to a model's LOD scenes as they load (once: instances clone them). raft_deployed: the floor
- * swept up into the raised bow, joined to the tube (art/raft-hull.js raftFloorFix; raft.py builds the same floor).
+ * swept up into the raised bow, joined to the tube (art/raft-hull.js raftFloorFix; raft.py builds the same floor);
+ * the raft's paddles (deployed and the wreck's) shaped — T-grip, tapered shaft, oval blade (art/paddle.js).
  */
-const SCENE_FIXES = { raft_deployed: raftFloorFix };
+const SCENE_FIXES = { raft_deployed: (sc) => { raftFloorFix(sc); raftPaddleFix(sc); }, raft_deflated: raftPaddleFix };
 
 /** LOD scene (shared; instances clone it). Missing LODs (LOD1 is not shipped) resolve to null. */
 function loadLod(model, i, swap) {
