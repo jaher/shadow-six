@@ -295,12 +295,23 @@ export function perceive(enemy, world, o = {}) {
   if (res.commandos.length > max) res.commandos.length = max;
   let n = res.commandos.length;
   if (o.bodies !== false && n < max) {
-    for (const b of bodiesOf(world)) {
+    // (bodiesOf's order — dead enemies, dead commandos, the extra bodies — walked in place: this runs for every guard,
+    // every tick, and a fresh list each time was most of the sim's garbage)
+    const take = (b) => {
       const dx = b.x - cone.x, dz = b.z - cone.z, d2 = dx * dx + dz * dz;
-      if (d2 > r2) continue;
+      if (d2 > r2) return false;
       const zone = canSee(enemy, b, world, opt);
-      if (zone !== 'none') { res.bodies.push({ unit: b, zone, dist: Math.sqrt(d2) }); if (++n >= max) break; }
+      if (zone !== 'none') { res.bodies.push({ unit: b, zone, dist: Math.sqrt(d2) }); if (++n >= max) return true; }
+      return false;
+    };
+    const dead = (u) => !u.alive && !u.removed && u.state !== 'jailed' && !u.spawn?.quietBody;
+    let full = false;
+    for (let L = 0; L < 2 && !full; L++) {
+      const list = L ? world.commandos : world.enemies;
+      for (let i = 0; i < list.length && !full; i++) if (dead(list[i])) full = take(list[i]);
     }
+    const extra = world.ai?.extraBodies;
+    if (extra) for (let i = 0; i < extra.length && !full; i++) full = take(extra[i]);
   }
   if (o.prints && n < max && world.ai?.footprints) {
     for (const p of (world.ai.footprints.tracksNear?.(cone.x, cone.z, cone.near + 0.5) ?? world.ai.footprints.query(cone.x, cone.z, cone.near + 0.5))) {

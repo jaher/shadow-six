@@ -192,7 +192,8 @@ export function createDamWater(world, structures, renderer = null) {
     group, stats, get pool() { return pool; },
     get breach() { return breach; },
     frame(dt) {
-      if (over || !(dt > 0)) return;
+      if (over) return;
+      if (!(dt > 0)) { if (!fading) pool?.prewarm(); return; } // the clock held (load, title card): fill the foam there
       U.uTime.value = (U.uTime.value + dt) % 3600; // every animated term divides 3600 s
       if (!fading) pool?.frame(dt, U.uTime.value);
       if (fading && !gone) {

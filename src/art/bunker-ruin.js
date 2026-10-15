@@ -38,36 +38,63 @@ const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a
  * attribute is interpolated; material groups are kept. @returns {THREE.BufferGeometry} a new geometry
  */
 function tessellate(g, mw, near, maxEdge, levels, budget = 120000) {
+  // (flat buffers, no per-corner arrays: the M3 bunker's ruin is ~240 000 corners — the same arithmetic in the same
+  // order as corner-by-corner arrays, so the same triangles to the bit, in a fraction of the time)
   const names = Object.keys(g.attributes), attrs = names.map((n) => g.attributes[n]);
   const pos = g.attributes.position;
   const groups = g.groups.length ? g.groups : [{ start: 0, count: pos.count, materialIndex: 0 }];
-  const out = attrs.map(() => []);
+  const sizes = attrs.map((a) => a.itemSize), offs = [], S = sizes.reduce((t, z) => { offs.push(t); return t + z; }, 0);
+  // every attribute's components as read by getComponent (denormalised), one corner after another
+  const src = new Float64Array(pos.count * S);
+  attrs.forEach((a, k) => { for (let i = 0; i < pos.count; i++) for (let c = 0; c < a.itemSize; c++) src[i * S + offs[k] + c] = a.getComponent(i, c); });
+  // corners in work: 3 per recursion level for the triangle's own corners, 3 more for its midpoints
+  const work = new Float64Array((levels + 2) * 6 * S);
+  let cap = Math.max(16, pos.count);
+  const out = sizes.map((z) => new Float32Array(cap * z));
   const newGroups = [];
   let n = 0;
-  const read = (i) => attrs.map((a) => { const v = []; for (let c = 0; c < a.itemSize; c++) v.push(a.getComponent(i, c)); return v; });
-  const mid = (A, B) => A.map((va, k) => va.map((x, c) => (x + B[k][c]) / 2));
-  const W = (A) => new THREE.Vector3(A[0][0], A[0][1], A[0][2]).applyMatrix4(mw);
-  const push = (A) => { A.forEach((v, k) => out[k].push(...v)); n++; };
-  const split = (A, B, C, lv) => {
+  const push = (buf, o) => {
+    if (n >= cap) { cap *= 2; for (let k = 0; k < out.length; k++) { const a = new Float32Array(cap * sizes[k]); a.set(out[k]); out[k] = a; } }
+    for (let k = 0; k < sizes.length; k++) { const z = sizes[k], dst = out[k], b = o + offs[k]; for (let c = 0; c < z; c++) dst[n * z + c] = buf[b + c]; }
+    n++;
+  };
+  // (a corner's world position: its first attribute's three components, as ever — the position in every model so far)
+  const V = Array.from({ length: (levels + 2) * 3 }, () => new THREE.Vector3());
+  const s1 = sizes[0] > 1, s2 = sizes[0] > 2;
+  const W = (buf, o, out3) => out3.set(buf[o], s1 ? buf[o + 1] : undefined, s2 ? buf[o + 2] : undefined).applyMatrix4(mw);
+  const mid = (dst, d, A, a, B, b) => { for (let c = 0; c < S; c++) dst[d + c] = (A[a + c] + B[b + c]) / 2; };
+  // split the triangle whose corners are at work offsets a, b, c (level lv): its midpoints go to level lv's slots
+  const split = (a, b, c, lv) => {
     if (lv < levels && n < budget) {
-      const a = W(A), b = W(B), c = W(C);
-      const e = Math.max(a.distanceTo(b), b.distanceTo(c), c.distanceTo(a));
-      if (e > maxEdge && near(a, b, c, e)) {
-        const ab = mid(A, B), bc = mid(B, C), ca = mid(C, A);
-        split(A, ab, ca, lv + 1); split(ab, B, bc, lv + 1); split(ca, bc, C, lv + 1); split(ab, bc, ca, lv + 1);
+      const A = W(work, a, V[lv * 3]), B = W(work, b, V[lv * 3 + 1]), C = W(work, c, V[lv * 3 + 2]);
+      const e = Math.max(A.distanceTo(B), B.distanceTo(C), C.distanceTo(A));
+      if (e > maxEdge && near(A, B, C, e)) {
+        const base = (lv + 1) * 6 * S, ab = base, bc = base + S, ca = base + 2 * S;
+        mid(work, ab, work, a, work, b); mid(work, bc, work, b, work, c); mid(work, ca, work, c, work, a);
+        // (the children's corners are copied into the next level's own slots: a level's midpoints stay put while its
+        // four children recurse)
+        const k0 = base + 3 * S;
+        const child = (p, q, r) => {
+          work.copyWithin(k0, p, p + S); work.copyWithin(k0 + S, q, q + S); work.copyWithin(k0 + 2 * S, r, r + S);
+          split(k0, k0 + S, k0 + 2 * S, lv + 1);
+        };
+        child(a, ab, ca); child(ab, b, bc); child(ca, bc, c); child(ab, bc, ca);
         return;
       }
     }
-    push(A); push(B); push(C);
+    push(work, a); push(work, b); push(work, c);
   };
   for (const gr of groups) {
     const start = n;
     const end = Math.min(pos.count, gr.start + gr.count);
-    for (let t = gr.start; t + 2 < end; t += 3) split(read(t), read(t + 1), read(t + 2), 0);
+    for (let t = gr.start; t + 2 < end; t += 3) {
+      work.set(src.subarray(t * S, (t + 3) * S), 3 * S); // level 0's corners (slots 3..5)
+      split(3 * S, 4 * S, 5 * S, 0);
+    }
     newGroups.push({ start, count: n - start, materialIndex: gr.materialIndex ?? 0 });
   }
   const r = new THREE.BufferGeometry();
-  names.forEach((nm, k) => r.setAttribute(nm, new THREE.Float32BufferAttribute(out[k], attrs[k].itemSize)));
+  names.forEach((nm, k) => r.setAttribute(nm, new THREE.Float32BufferAttribute(out[k].subarray(0, n * sizes[k]), sizes[k])));
   if (g.groups.length) for (const gr of newGroups) r.addGroup(gr.start, gr.count, gr.materialIndex);
   return r;
 }

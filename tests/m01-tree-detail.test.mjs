@@ -46,12 +46,12 @@ export default async function m01TreeDetail(page, t) {
     let low = 0, bark = 0;
     v.group.traverse((o) => {
       if (!o.isMesh || o.name !== 'vegBark') return;
-      const P = o.geometry.attributes.position, R = o.geometry.attributes.aRoot;
+      const P = o.geometry.attributes.position;
       for (let i = 0; i < P.count; i++) {
-        const w = R.getW(i);
-        if (w < 100 || w >= 200 || !roots.has(`${R.getX(i).toFixed(2)},${R.getZ(i).toFixed(2)}`)) continue; // conifer heroes
+        const [rx, ry, rz, w] = v.rootAt(o.geometry, i); // the vertex's tree (root table: art/terrain/treegen.js vertexRoot)
+        if (w < 100 || w >= 200 || !roots.has(`${rx.toFixed(2)},${rz.toFixed(2)}`)) continue; // conifer heroes
         bark++;
-        const y = P.getY(i) - R.getY(i), rho = Math.hypot(P.getX(i) - R.getX(i), P.getZ(i) - R.getZ(i));
+        const y = P.getY(i) - ry, rho = Math.hypot(P.getX(i) - rx, P.getZ(i) - rz);
         if (y > 0.25 && y < 1.6 && rho > 0.7) low++;
       }
     });

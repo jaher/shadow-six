@@ -168,12 +168,18 @@ export function createFoamField(gl, flowTex, dom, o) {
     for (const rt of [src, dst, pred]) { gl.setRenderTarget(rt); gl.clear(true, false, false); }
     gl.setRenderTarget(prev); gl.setClearColor(cc, ca);
   }
-  let warm = false;
+  // the fill: WARM steps from an empty field before the first animated frame. `prewarm` runs it a slice per held frame
+  // (load, a walkthrough's title card: the programs link and the passes run there, not in the first frame of play);
+  // whatever is left runs in the first `frame`. The same steps in the same order either way.
+  const WARM = 300, WARM_SLICE = 25;
+  let warmed = 0;
   return {
     texture: tex, stepT, domain, res: [NX, NY], step: STEP, _rt: () => src,
+    /** A slice of the fill (a frame whose clock does not move). */
+    prewarm() { if (warmed < WARM) { const n = Math.min(WARM_SLICE, WARM - warmed); warmed += n; run(n); } },
     /** Advance the field by dt (s); `t` = the pool's clock (uTime) after this frame. */
     frame(dt, t) {
-      if (!warm) { warm = true; run(300); }
+      if (warmed < WARM) { run(WARM - warmed); warmed = WARM; }
       acc += dt;
       const n = Math.min(4, Math.floor(acc / STEP));
       if (n > 0) { run(n); acc -= n * STEP; if (acc > STEP) acc = 0; }

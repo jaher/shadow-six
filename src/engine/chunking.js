@@ -50,13 +50,15 @@ function cutRow(m, camera, geometry, group) {
     if (_F.intersectsBox(c.wbox)) { if (a < 0) a = i; b = i; }
   }
   const start = a < 0 ? row.start : row.cells[a].start, count = a < 0 ? 0 : row.cells[b].start + row.cells[b].count - start;
-  if (group) { group.start = start; group.count = count; } else { geometry.drawRange.start = start; geometry.drawRange.count = count; }
+  const s0 = row.local ? start - row.start : start; // a row with its own (16-bit) index counts from its first triangle
+  if (group) { group.start = s0; group.count = count; } else { geometry.drawRange.start = s0; geometry.drawRange.count = count; }
 }
 
 /** Triangles a mesh draws (index or position count / 3, all groups). */
 export function meshTriangles(mesh) {
   const g = mesh.geometry;
   if (!g?.attributes?.position) return 0;
+  if (!g.index && g.userData?.chunkLayout) return Math.floor(g.userData.chunkLayout.count / 3);
   return Math.floor((g.index ? g.index.count : g.attributes.position.count) / 3);
 }
 
@@ -77,27 +79,73 @@ export function chunkable(m) {
 }
 
 /**
- * Split a static mesh into culled spatial chunks (see module doc). No-op (returns null) for a mesh that is not chunkable
- * or would make fewer than two chunks.
- * @param {THREE.Mesh} mesh (in its final place: its world matrix is used for the cell grid)
- * @param {{cell?: number, pad?: number}} [o]
- * @returns {THREE.Mesh[]|null} the chunk meshes
+ * Row slices for 16-bit rows (null when they do not fit): each row's triangles reference one contiguous vertex range of
+ * at most 65,536 vertices, the ranges together hardly more than the vertex count (a grid's rows share a line), the
+ * attributes plain (not interleaved) arrays the rows can view.
  */
-export function chunkMesh(mesh, { cell = 24, pad = 1 } = {}) {
-  if (!chunkable(mesh)) return null;
-  const geo = mesh.geometry;
-  const pos = geo.attributes.position;
-  mesh.updateWorldMatrix(true, false);
-  const mw = mesh.matrixWorld.elements;
-  let index = geo.index;
-  const nIdx = index ? index.count : pos.count;
-  const nTri = Math.floor(nIdx / 3);
-  if (nTri < 2) return null;
+function ownRows(geo, out, rows) {
+  const attrs = geo.attributes, nv = attrs.position.count;
+  for (const name in attrs) if (attrs[name].isInterleavedBufferAttribute || !attrs[name].array?.subarray) return null;
+  const spans = [];
+  let sum = 0;
+  for (const row of rows) {
+    let mn = Infinity, mx = -1;
+    for (let k = row.start, e = row.start + row.count; k < e; k++) { const v = out[k]; if (v < mn) mn = v; if (v > mx) mx = v; }
+    if (mx < 0 || mx - mn + 1 > 65536) return null;
+    spans.push([mn, mx]); sum += mx - mn + 1;
+  }
+  if (sum > nv * 1.15) return null;
+  return rows.map((row, ri) => {
+    const [mn, mx] = spans[ri], o = { min: mn, attrs: {}, index: null };
+    for (const name in attrs) {
+      const a = attrs[name], sz = a.itemSize, view = a.array.subarray(mn * sz, (mx + 1) * sz);
+      let b;
+      if (a.isFloat16BufferAttribute) { b = new THREE.Float16BufferAttribute(new Uint16Array(sz), sz, a.normalized); b.array = view; b.count = mx - mn + 1; } else b = new THREE.BufferAttribute(view, sz, a.normalized);
+      b.name = a.name; b.usage = a.usage;
+      o.attrs[name] = b;
+    }
+    const idx = new Uint16Array(row.count);
+    for (let k = 0; k < row.count; k++) idx[k] = out[row.start + k] - mn;
+    o.index = new THREE.BufferAttribute(idx, 1);
+    return o;
+  });
+}
+
+/**
+ * Give a geometry chunked with 16-bit rows (its index dropped: userData.chunkLayout) its whole index back — the rows'
+ * slices put end to end, the same triangles in the same order. For whoever draws it whole: a restart (the water bakes
+ * draw the scene before chunking), unchunkMesh. @returns {boolean} rebuilt
+ */
+export function restoreChunkIndex(geo) {
+  const idx = geo?.index ? null : chunkIndexOf(geo);
+  if (!idx) return false;
+  geo.setIndex(new THREE.BufferAttribute(idx, 1));
+  delete geo.userData.chunkLayout;
+  return true;
+}
+
+/** The rows' slices end to end as a whole index array (the dropped one), without keeping it. */
+function chunkIndexOf(geo) {
+  const L = geo?.userData?.chunkLayout;
+  if (!L) return null;
+  const idx = new L.Index(L.count);
+  let at = 0;
+  for (const r of L.rows) { for (let k = 0; k < r.index.length; k++) idx[at + k] = r.index[k] + r.min; at += r.index.length; }
+  return idx;
+}
+
+/**
+ * A geometry's index array for code that reads its triangles (tests, debug tools): the index, or — chunked with 16-bit
+ * rows, the index dropped — a fresh copy rebuilt from the rows (not kept: the geometry stays without it). null: none.
+ */
+export function geometryIndexArray(geo) {
+  return geo?.index ? geo.index.array : chunkIndexOf(geo);
+}
+
+/** Cell of every triangle (world XZ of its centroid), cells ordered by group, row (z), column (x); the index reordered. */
+function cellOrder(geo, pos, mw, index, nIdx, nTri, groups, cell, cellZ) {
   const idx = index ? index.array : null;
   const vi = (k) => (idx ? idx[k] : k);
-  // groups: a triangle outside every group is not drawn by three (material array) → kept out of the chunks
-  const multi = Array.isArray(mesh.material);
-  const groups = multi && geo.groups.length ? geo.groups : [{ start: 0, count: nIdx, materialIndex: 0 }];
   const triGroup = new Int32Array(nTri).fill(-1);
   groups.forEach((gr, gi) => {
     const a = Math.floor(gr.start / 3), b = Math.min(nTri, Math.floor((gr.start + Math.min(gr.count, nIdx - gr.start)) / 3));
@@ -119,7 +167,7 @@ export function chunkMesh(mesh, { cell = 24, pad = 1 } = {}) {
     }
     x /= 3; y /= 3; z /= 3;
     const wx = mw[0] * x + mw[4] * y + mw[8] * z + mw[12], wz = mw[2] * x + mw[6] * y + mw[10] * z + mw[14];
-    const cx = Math.floor(wx / cell), cz = Math.floor(wz / cell), key = `${gi}:${cx}:${cz}`;
+    const cx = Math.floor(wx / cell), cz = Math.floor(wz / cellZ), key = `${gi}:${cx}:${cz}`;
     let ci = keyOf.get(key);
     if (ci === undefined) { ci = chunks.length; keyOf.set(key, ci); chunks.push({ gi, cx, cz, n: 0, start: 0, box: new THREE.Box3() }); }
     chunks[ci].n++;
@@ -150,6 +198,35 @@ export function chunkMesh(mesh, { cell = 24, pad = 1 } = {}) {
     }
   }
   chunks.forEach((c, i) => c.box.set(new THREE.Vector3(mn[i * 3], mn[i * 3 + 1], mn[i * 3 + 2]), new THREE.Vector3(mx[i * 3], mx[i * 3 + 1], mx[i * 3 + 2])));
+  return { chunks, order, at, IA, out };
+}
+
+/**
+ * Split a static mesh into culled spatial chunks (see module doc). No-op (returns null) for a mesh that is not chunkable
+ * or would make fewer than two chunks.
+ * @param {THREE.Mesh} mesh (in its final place: its world matrix is used for the cell grid)
+ * @param {{cell?: number, pad?: number}} [o]
+ * @returns {THREE.Mesh[]|null} the chunk meshes
+ */
+export function chunkMesh(mesh, { cell = 24, cellZ = cell, pad = 1 } = {}) {
+  if (!chunkable(mesh)) return null;
+  const geo = mesh.geometry;
+  restoreChunkIndex(geo); // a geometry chunked before (session cache) and drawn whole since
+  const pos = geo.attributes.position;
+  mesh.updateWorldMatrix(true, false);
+  let index = geo.index;
+  const nIdx = index ? index.count : pos.count;
+  const nTri = Math.floor(nIdx / 3);
+  if (nTri < 2) return null;
+  // groups: a triangle outside every group is not drawn by three (material array) → kept out of the chunks
+  const multi = Array.isArray(mesh.material);
+  const groups = multi && geo.groups.length ? geo.groups : [{ start: 0, count: nIdx, materialIndex: 0 }];
+  // (in a function of its own: the per-triangle arrays and the old index must not stay alive in this scope, which the
+  // rows' render hooks and the proxy's raycast keep for the mesh's lifetime)
+  const cells = cellOrder(geo, pos, mesh.matrixWorld.elements, index, nIdx, nTri, groups, cell, cellZ);
+  if (!cells) return null;
+  const { chunks, order, at, IA } = cells;
+  let out = cells.out;
   // the shared index (the proxy's geometry keeps raycasting / measuring the same triangles). Rewritten in place when it
   // fits (same type and size): the geometry may already be on the GPU (the water bakes draw the scene before chunking),
   // and a replaced index attribute keeps its buffer for good — three frees a buffer only when its geometry is disposed,
@@ -186,16 +263,27 @@ export function chunkMesh(mesh, { cell = 24, pad = 1 } = {}) {
     if (last && last.gi === c.gi && last.cz === c.cz) { last.cells.push(c); last.box.union(c.box); } else rows.push({ gi: c.gi, cz: c.cz, cells: [c], box: c.box.clone() });
   }
   if (rows.length < 2 && rows[0]?.cells.length < 2) return null;
+  for (const row of rows) { const a = row.cells[0].start; row.start = a; row.count = row.cells[row.cells.length - 1].start + row.cells[row.cells.length - 1].count - a; }
+  // 16-bit rows (geometries that opt in: userData.chunk16): each row draws its own slice of the vertex arrays (views:
+  // no copy) with a Uint16 index — half the index memory, one GPU copy of every vertex (+ the lines rows share)
+  const own = geo.userData?.chunk16 ? ownRows(geo, out, rows) : null;
   const meshes = [];
   const sphere = new THREE.Sphere();
-  for (const row of rows) {
+  for (const [ri, row] of rows.entries()) {
     const g = new THREE.BufferGeometry();
-    for (const name in geo.attributes) g.setAttribute(name, geo.attributes[name]);
-    g.setIndex(newIndex);
-    const a = row.cells[0].start, n = row.cells[row.cells.length - 1].start + row.cells[row.cells.length - 1].count - a;
-    if (multi && geo.groups.length) g.addGroup(a, n, groups[row.gi].materialIndex);
-    else g.setDrawRange(a, n);
-    row.start = a; row.count = n;
+    const n = row.count;
+    if (own) {
+      for (const name in own[ri].attrs) g.setAttribute(name, own[ri].attrs[name]);
+      g.setIndex(own[ri].index);
+      row.local = true; row.min = own[ri].min;
+      if (multi && geo.groups.length) g.addGroup(0, n, groups[row.gi].materialIndex);
+      else g.setDrawRange(0, n);
+    } else {
+      for (const name in geo.attributes) g.setAttribute(name, geo.attributes[name]);
+      g.setIndex(newIndex);
+      if (multi && geo.groups.length) g.addGroup(row.start, n, groups[row.gi].materialIndex);
+      else g.setDrawRange(row.start, n);
+    }
     g.boundingBox = row.box;
     g.boundingSphere = g.boundingBox.getBoundingSphere(sphere.clone());
     g.name = (geo.name || mesh.name || 'mesh') + ':row';
@@ -222,6 +310,15 @@ export function chunkMesh(mesh, { cell = 24, pad = 1 } = {}) {
     m.intersectsFrustum = boxInFrustum; // the box, not its (much looser) bounding sphere
     meshes.push(m);
   }
+  if (own) {
+    // the whole geometry is no longer drawn (the water bakes may have uploaded it): its GPU copy goes; its index too
+    // when the owner allows (restoreChunkIndex rebuilds it from the rows: a restart draws it whole before chunking)
+    geo.dispose();
+    if (geo.userData.chunk16.dropIndex) {
+      geo.userData.chunkLayout = { count: out.length, Index: geo.index.array.constructor, rows: own.map((o) => ({ min: o.min, index: o.index.array })) };
+      geo.setIndex(null);
+    }
+  }
   // proxy: the original object, not drawn itself; property writes reach the chunks
   const saved = {};
   for (const k of FORWARD) {
@@ -240,21 +337,31 @@ export function chunkMesh(mesh, { cell = 24, pad = 1 } = {}) {
   mesh.isMesh = false;
   // raycasts go through the cells: only those whose box the ray crosses test their triangles (a ray against the whole
   // 630k-triangle terrain took ~0.5 s); hits report the proxy, face indices are the shared index's
-  const rayGeo = new THREE.BufferGeometry();
-  for (const name in geo.attributes) rayGeo.setAttribute(name, geo.attributes[name]);
-  rayGeo.setIndex(newIndex);
-  const rayMesh = new THREE.Mesh(rayGeo);
+  // (16-bit rows: through each row's own slice — face indices are then row-local)
+  const rayGeos = [];
+  for (let ri = 0; ri < (own ? rows.length : 1); ri++) {
+    const rg = new THREE.BufferGeometry(), src = own ? meshes[ri].geometry : geo;
+    for (const name in src.attributes) rg.setAttribute(name, src.attributes[name]);
+    rg.setIndex(own ? src.index : newIndex);
+    rayGeos.push(rg);
+  }
+  out = null; // (not kept by the hooks below)
+  const rayMesh = new THREE.Mesh(rayGeos[0]);
   mesh.raycast = function chunkedRaycast(raycaster, intersects) {
     rayMesh.material = mesh.material;
     rayMesh.matrixWorld.copy(mesh.matrixWorld);
-    for (const row of rows) for (const c of row.cells) {
-      rayGeo.boundingBox = c.box;
-      rayGeo.boundingSphere = c.sphere ||= c.box.getBoundingSphere(new THREE.Sphere());
-      rayGeo.clearGroups();
-      if (multi && geo.groups.length) { rayGeo.addGroup(c.start, c.count, groups[c.gi].materialIndex); rayGeo.setDrawRange(0, Infinity); } else rayGeo.setDrawRange(c.start, c.count);
-      const k = intersects.length;
-      THREE.Mesh.prototype.raycast.call(rayMesh, raycaster, intersects);
-      for (let i = k; i < intersects.length; i++) intersects[i].object = mesh;
+    for (const [ri, row] of rows.entries()) {
+      const rayGeo = rayGeos[own ? ri : 0], off = own ? row.start : 0;
+      rayMesh.geometry = rayGeo;
+      for (const c of row.cells) {
+        rayGeo.boundingBox = c.box;
+        rayGeo.boundingSphere = c.sphere ||= c.box.getBoundingSphere(new THREE.Sphere());
+        rayGeo.clearGroups();
+        if (multi && geo.groups.length) { rayGeo.addGroup(c.start - off, c.count, groups[c.gi].materialIndex); rayGeo.setDrawRange(0, Infinity); } else rayGeo.setDrawRange(c.start - off, c.count);
+        const k = intersects.length;
+        THREE.Mesh.prototype.raycast.call(rayMesh, raycaster, intersects);
+        for (let i = k; i < intersects.length; i++) intersects[i].object = mesh;
+      }
     }
   };
   mesh.__chunks = { meshes, saved, cell, rows };
@@ -268,6 +375,7 @@ export function unchunkMesh(mesh) {
   if (!c) return false;
   // the rows' vertex-array states (three keeps one per drawn geometry until it is disposed): the proxy draws itself again
   for (const m of c.meshes) { mesh.remove(m); m.geometry.dispose(); }
+  restoreChunkIndex(mesh.geometry); // drawn whole again: its index back
   delete mesh.raycast; // Mesh.prototype.raycast again
   for (const k of FORWARD) { const v = mesh[k]; delete mesh[k]; mesh[k] = v; }
   mesh.isMesh = true;
@@ -318,7 +426,10 @@ export function chunkLargeMeshes(root, { cell = 24, maxCell = 96, cellTris = 200
   });
   const st = { meshes: 0, chunks: 0, tris: 0, cells: [] };
   for (const [o, c] of found) {
-    const ch = chunkMesh(o, { cell: c, pad });
+    // 16-bit rows: a row of a regular grid must hold ≤ 65,536 vertices (geometry.userData.chunk16.maxRowM, the owner
+    // knows its vertices per metre): wider maps get shorter rows
+    const maxRow = o.geometry.userData?.chunk16?.maxRowM;
+    const ch = chunkMesh(o, { cell: c, cellZ: maxRow > 0 ? Math.min(c, maxRow) : c, pad });
     if (!ch) continue;
     st.meshes++; st.chunks += ch.length; st.tris += meshTriangles(o); st.cells.push(Math.round(c));
   }

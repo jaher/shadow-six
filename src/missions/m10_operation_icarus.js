@@ -51,13 +51,21 @@ const wire = (id, points, h = 1.2) => ({ id, type: 'fence', variant: 'wire_on_st
 const hedgehog = (id, x, z) => ({ id, type: 'crates', variant: 'czech_hedgehog', x, z, rot: deg(45), w: 1.2, d: 1.2, h: 1.2, block: 1 });
 
 const AIRFIELD = [
-  { id: 'dugout', type: 'bunker', variant: 'dugout_airfield', label: 'Dugout', x: 21, z: 30, rot: 0, w: 14, d: 6, h: 2.5, mat: 'wood', flag: true, garrison: true, door: deg(90) },
-  { id: 'sentry_hut', type: 'hut', variant: 'sentry_box_sandbag', x: 84, z: 45, rot: 0, w: 3, d: 3, h: 2.4 },
+  { id: 'dugout', type: 'bunker', variant: 'dugout_airfield', asset: 'dugout_log_ic', nav: false, clipAllow: ['shelf'], label: 'Dugout', x: 21, z: 30, rot: 0, w: 14, d: 6, h: 2.5, mat: 'wood', flag: true, garrison: true, door: deg(90) },
+  { id: 'sentry_hut', type: 'hut', variant: 'sentry_box_sandbag', asset: 'sentry_hut_ic', nav: false, x: 84, z: 45, rot: 0, w: 3, d: 3, h: 2.4 },
   { id: 'crates_af', type: 'crates', variant: 'ammo_crates', x: 99, z: 45.5, rot: 0, w: 5, d: 3, h: 1.1, block: 1 },
   { id: 'drums_af_e', type: 'barrels', variant: 'drum_pyramid', x: 113, z: 45, rot: 0, w: 4, d: 4, h: 1.8, block: 1 },
   { id: 'drums_af_w', type: 'barrels', variant: 'drum_pyramid', x: 21, z: 42, rot: 0, w: 4, d: 4, h: 1.8, block: 1 },
   wire('belt_rim_w', [[0, 49.5], [49, 50]]),
   wire('belt_rim_e', [[87, 50], [119, 49.5]]),
+  // art pass: airfield ground equipment (library vehicles drawn on the shelf, off the Ju 52's taxi run and every
+  // dugout squad's loop): a fuel bowser and a bomb trolley by the Stukas, the starter cart behind the Junkers' tail,
+  // the dugout's Kubelwagen, the windsock in the NE corner
+  { id: 'af_bowser', type: 'crates', variant: 'vehicle_parked', label: 'Fuel bowser', vehicleArt: 'fuel_bowser', x: 117.4, z: 41.6, rot: deg(90), w: 5.8, d: 2, h: 2.3, block: 1 },
+  { id: 'af_trolley', type: 'crates', variant: 'vehicle_parked', label: 'Bomb trolley', vehicleArt: 'bomb_trolley', x: 92.5, z: 44.8, rot: deg(0), w: 2.9, d: 1.1, h: 1, block: 1 },
+  { id: 'af_starter', type: 'crates', variant: 'vehicle_parked', label: 'Starter cart', vehicleArt: 'starter_cart', x: 104.5, z: 13, rot: deg(180), w: 1.8, d: 1.3, h: 1.1, block: 1 },
+  { id: 'af_kubel', type: 'crates', variant: 'vehicle_parked', label: 'Kubelwagen', vehicleArt: 'kubelwagen', x: 8.5, z: 40.5, rot: deg(270), w: 3.74, d: 1.6, h: 1.6, block: 1 },
+  { id: 'af_windsock', type: 'crates', variant: 'vehicle_parked', label: 'Windsock', vehicleArt: 'windsock', x: 116, z: 4.5, rot: 0, w: 1, d: 1, h: 6, block: 1, clipAllow: ['shelf'] },
 ];
 /** 3 of the 4 site barrels, by the Stukas (Prima's "nearby explosive barrels"). */
 const AIR_DRUMS = [drum('barrel_1', 104, 43), drum('barrel_2', 106, 45.5), drum('barrel_3', 108.5, 43)];
@@ -82,9 +90,10 @@ const RUINS = [
   { id: 'rw7', type: 'ruins', variant: 'ruins_mudbrick_low', mat: 'stone', x: 24, z: 101, rot: Math.atan2(4, 8), w: 9.7, d: 0.8, h: 1.6, block: 1 },
   ...[[[2, 64], [10, 58], [14, 55]], [[18, 80], [26, 88], [22, 96]], [[26, 91], [36, 99], [36, 104]], [[0, 80], [8, 86], [4, 96]]]
     .map((points, k) => ({ id: `trench_${k + 1}`, type: 'trench', variant: 'trench_ruins', points, width: 1.4, terrain: 2 })),
-  { id: 'wreck_1', type: 'ruins', variant: 'vehicle_wreck_burnt', x: 13, z: 106, rot: deg(30), w: 5, d: 2.5, h: 2, block: 2 },
+  { id: 'wreck_1', type: 'ruins', variant: 'vehicle_wreck_burnt', x: 13, z: 106, rot: deg(30), w: 6.1, d: 2.5, h: 2, block: 2,
+    vehicleArt: 'opel_blitz_cargo', wreck: true }, // art pass: a burnt-out Opel Blitz (footprint 5 → 6.1 m long: the lorry's own length)
   { id: 'crater_1', type: 'crater', x: 16, z: 115, r: 4 },
-  { id: 'wreck_2', type: 'ruins', variant: 'aircraft_wreck', x: 16, z: 115, rot: deg(20), w: 6, d: 3, h: 1.2, block: 1 },
+  { id: 'wreck_2', type: 'ruins', variant: 'aircraft_wreck', asset: 'aircraft_wreck_ic', nav: false, x: 16, z: 115, rot: deg(20), w: 6, d: 3, h: 1.2, block: 1 }, // art pass: a burnt RAF fighter-recon wreck
   { id: 'crater_2', type: 'crater', x: 9, z: 127, r: 3.5 },
   { id: 'crater_3', type: 'crater', x: 108, z: 66, r: 5 },
 ];
@@ -103,62 +112,103 @@ function shed(id, x, z, w, d, open, extra = {}) {
   const points = [1, 2, 3, 4].map((n) => corners[(k + n) % 4]);
   const h = SIDE[open];
   const spot = { x: +(x + Math.cos(deg(h))).toFixed(2), z: +(z + Math.sin(deg(h))).toFixed(2), heading: deg(h) };
-  return { def: { id, type: 'wall', variant: 'tank_shed', mat: 'concrete', points, h: 5, width: 0.6, ...extra }, spot };
+  // art pass: the walls are gameplay only; the library shed (open front along SIDE[open]) is drawn by its art twin
+  const fw = open === 'N' || open === 'S' ? w : d, depth = open === 'N' || open === 'S' ? d : w;
+  const art = { id: `${id}_art`, type: 'crates', variant: 'tank_shed_ic', asset: SHED_ART[id], x, z, rot: deg(h - 90), w: fw, d: depth, h: 5,
+    block: 0, nav: false, clipAllow: [id, ...(extra.artAllow || [])] };
+  delete extra.artAllow;
+  return { def: { id, type: 'wall', variant: 'tank_shed', mat: 'concrete', points, h: 5, width: 0.6, visual: false, ...extra }, spot, art };
 }
+/** Art pass: the El Agheila sheds (single bay, open front): corrugated a / b, plank-and-sandbag c, the bombed d. */
+const SHED_ART = { shed_1: 'tank_shed_ic_a', shed_2: 'tank_shed_ic_b', shed_3: 'tank_shed_ic_c', shed_4: 'tank_shed_ic_c', shed_5: 'tank_shed_ic_d' };
 const SHED_1 = shed('shed_1', 101, 138, 11, 12, 'S');
 const SHED_2 = shed('shed_2', 110, 155, 11, 12, 'W');
-const SHED_3 = shed('shed_3', 65, 177, 12, 10, 'E');
+const SHED_3 = shed('shed_3', 65, 177, 12, 10, 'E', { artAllow: ['wall_s'] }); // (its sand drift meets wall_s's end)
 const SHED_4 = shed('shed_4', 77, 193, 12, 10, 'E');
 const SHED_5 = shed('shed_5', 106, 199, 15, 12, 'W', { broken: true }); // bombed: roof half gone; the vacant Panzer IV
 
 /** The prisoner pen (mesh cage on timber posts) and its locked gate in the S side (the jail door). */
-const PEN = [[23, 146], [36, 139], [38, 153], [28, 161]];
+// (NE corner 2.9 m W of the N gate's W pier: the gate's open W leaf lies against the wall's inner face there)
+const PEN = [[23, 146], [33.2, 140.5], [38, 153], [28, 161]];
 const PEN_GATE = { x: 33, z: 157, rot: Math.atan2(8, -10), w: 2.4 };
 const PEN_DOOR = { x: 33.75, z: 157.95 }; // just outside the gate: the jail interactable
 
+/** Art pass: the N gate drawn by the library's mud-brick arch gate (piers over the wall_n run ends, doors open
+ *  against the inner face); the gameplay gate stays the open 4.9 m passage. */
+const GATE_N_ART = { id: 'gate_n_art', type: 'crates', variant: 'arch_gate_mud_ic', asset: 'arch_gate_mud_ic', x: 40, z: 138, rot: Math.atan2(-4, 8),
+  w: 7.5, d: 1.6, h: 5.6, block: 0, nav: false, fixed: true, clipAllow: ['gate_n', 'wall_n'] }; // fixed: on the passage, never relocated
+/** Art pass: a point inside the compound (the mud walls' buttresses stand on its side). */
+const COMPOUND_IN = [40, 165];
 const camp = (id, type, variant, x, z, w, d, h, extra = {}) => ({ id, type, variant, x, z, rot: deg(ROT), w, d, h, ...extra });
 const COMPOUND = [
   // walls: N (with the arched main gate), W (with the open W arch), S; barbed wire on N and S
-  { id: 'wall_n', type: 'wall', variant: 'wall_mudbrick_wire', mat: 'plaster', h: 3, width: 1,
+  { id: 'wall_n', type: 'wall', variant: 'wall_mudbrick_wire', mat: 'plaster', h: 3, width: 1, inside: COMPOUND_IN,
     clipAllow: ['gate_n'], // the runs end at the arch gate's piers: joined, not cut back by its body
+    flushAt: [[37.8, 139.1], [42.2, 136.9]], // drawn ends flush with the piers' passage faces (nothing stands in the passage)
     segments: [[[11, 152], [37.8, 139.1]], [[42.2, 136.9], [66, 121]]] },
-  { id: 'gate_n', type: 'gate', variant: 'arch_gate_mudbrick', x: 40, z: 138, rot: Math.atan2(-4, 8), w: 4.9, open: true },
-  { id: 'wall_w', type: 'wall', variant: 'wall_mudbrick', mat: 'plaster', h: 3, width: 1,
+  { id: 'gate_n', type: 'gate', variant: 'arch_gate_mudbrick', x: 40, z: 138, rot: Math.atan2(-4, 8), w: 4.9, open: true, visual: false }, // drawn by gate_n_art
+  GATE_N_ART,
+  { id: 'wall_w', type: 'wall', variant: 'wall_mudbrick', mat: 'plaster', h: 3, width: 1, inside: COMPOUND_IN,
     segments: [[[11, 152], [19, 171], [20.2, 173.7]], [[21.8, 177.3], [23, 180], [33, 196]]] },
-  { id: 'arch_w', type: 'ruins', variant: 'arch_mudbrick', x: 21, z: 175.5, rot: Math.atan2(9, 4), w: 5, d: 1, h: 3.5, block: 0 },
-  { id: 'wall_s', type: 'wall', variant: 'wall_mudbrick_wire', mat: 'plaster', h: 3, width: 1, points: [[33, 196], [62, 182]] },
+  { id: 'arch_w', type: 'ruins', variant: 'arch_mudbrick', asset: 'arch_mud_ic', nav: false, clipAllow: ['wall_w'], x: 21, z: 175.5, rot: Math.atan2(9, 4), w: 5, d: 1, h: 3.5, block: 0 },
+  { id: 'wall_s', type: 'wall', variant: 'wall_mudbrick_wire', mat: 'plaster', h: 3, width: 1, inside: COMPOUND_IN, points: [[33, 196], [62, 182]] },
   // the pen: the jail for McRae (and for any commando captured here)
   { id: 'pen', type: 'fence', variant: 'prisoner_cage', h: 3, width: 0.3,
     segments: [[PEN[3], PEN[0], PEN[1], PEN[2], [33.94, 156.25]], [[32.06, 157.75], PEN[3]]] },
-  { id: 'pen_gate', type: 'gate', variant: 'jail_door_mesh', ...PEN_GATE, h: 2.4, locked: true },
+  { id: 'pen_gate', type: 'gate', variant: 'jail_door_mesh', ...PEN_GATE, h: 2.4, locked: true, gateModel: true }, // steel-frame mesh leaf (swings open)
   // the bomb store (o2): domed block, time bomb only, the team can hide inside
-  camp('store', 'house', 'domed_block', 48, 177, 10, 9, 4, { label: 'Bomb store', mat: 'plaster', enterable: true, door: [43.0, 179.5],
+  camp('store', 'house', 'domed_block', 48, 177, 10, 9, 4, { asset: 'store_domed_ic', nav: false, label: 'Bomb store', mat: 'plaster', enterable: true, door: [43.0, 179.5],
     destructible: true, bombOnly: true, hp: 100, destroyFx: ['bigBlast', 'fire'] }),
-  { id: 'windpump', type: 'radio_mast', variant: 'windpump', x: 35, z: 182, r: 1.5, h: 9 },
-  camp('truck_wreck', 'ruins', 'vehicle_wreck', 38, 164, 7, 2.6, 2.4, { rot: deg(340), block: 2 }),
+  { id: 'windpump', type: 'radio_mast', variant: 'windpump', asset: 'windpump_ic', nav: false, x: 35, z: 182, rot: 0, w: 3, d: 3, r: 1.5, h: 9 },
+  camp('truck_wreck', 'ruins', 'vehicle_wreck', 38, 164, 7, 2.6, 2.4, { rot: deg(340), block: 2, vehicleArt: 'opel_blitz_cargo', wreck: true }), // art pass: the wrecked Opel Blitz
   camp('crates_c1', 'crates', 'crates_big', 18, 162, 2.5, 2.5, 2, { block: 2, rot: deg(337.2) }), // ∥ wall_w
   camp('crates_c2', 'crates', 'crates', 32.8, 163, 2, 2, 1.1, { block: 1, rot: deg(321.3) }), // ∥ the pen's S side
   camp('crates_c3', 'crates', 'crates_pile', 20.5, 168.5, 3, 2, 1.4, { block: 1, rot: deg(337.2) }), // ∥ wall_w
   camp('crates_c4', 'crates', 'crates_pile', 41, 188, 3, 2, 1.4, { block: 1 }),
-  camp('wreck_dismantled', 'ruins', 'vehicle_dismantled', 36.5, 171.5, 3, 2, 1.2, { block: 1 }),
+  camp('wreck_dismantled', 'ruins', 'vehicle_dismantled', 36.5, 171.5, 3, 2, 1.2, { block: 1, vehicleArt: 'kubelwagen', wreck: true }), // art pass: a stripped Kubelwagen hulk
   // the tent row runs along wall_n's E run (−33.8°) and fence_mast (−31°): 327.6° is parallel to both (≤ 2°)
-  camp('tent_1', 'tent', 'tent_pyramid_desert', 51, 144.5, 6, 5, 3, { rot: deg(TENT_ROT) }),
-  camp('tent_2', 'tent', 'tent_pyramid_desert', 59, 139.5, 6, 5, 3, { rot: deg(TENT_ROT) }),
-  camp('tent_3', 'tent', 'tent_pyramid_desert', 69, 142, 6, 5, 3, { rot: deg(TENT_ROT) }),
+  camp('tent_1', 'tent', 'tent_pyramid_desert', 51, 144.5, 6, 5, 3, { rot: deg(TENT_ROT), asset: 'tent_pyramid_ic', nav: false }),
+  camp('tent_2', 'tent', 'tent_pyramid_desert', 59, 139.5, 6, 5, 3, { rot: deg(TENT_ROT), asset: 'tent_pyramid_ic', nav: false }),
+  camp('tent_3', 'tent', 'tent_pyramid_desert', 69, 142, 6, 5, 3, { rot: deg(TENT_ROT), asset: 'tent_pyramid_ic', nav: false }),
 ];
 
+/** K's "inverted T wall" (A) and the wall by the vacant tank's shed (B): gameplay runs. */
+const WALL_A = [[[86, 165], [91, 176]], [[87, 178], [98, 170]]];
+const WALL_B = [[[90, 191], [108, 182]], [[90, 190], [93, 200]]];
+/** Art pass: precast splinter-wall panels (library `revetment_ic`, a ~2 m module) tiled along a gameplay wall's runs
+ *  (drawn only: block 0, no nav; buttresses on each run's left side). */
+function revetments(id, segments) {
+  const out = [];
+  segments.forEach(([[ax, az], [bx, bz]], s) => {
+    const L = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.round(L / 2)), rot = Math.atan2(bz - az, bx - ax);
+    for (let k = 0; k < n; k++) {
+      const t = (k + 0.5) / n;
+      out.push({ id: `${id}_rv${s}_${k}`, type: 'crates', variant: 'revetment_ic', asset: 'revetment_ic', x: +(ax + (bx - ax) * t).toFixed(2), z: +(az + (bz - az) * t).toFixed(2),
+        rot, w: +(L / n).toFixed(3), d: 1, h: 2.4, block: 0, nav: false, clipAllow: [id] });
+    }
+  });
+  return out;
+}
+
 const APRON_S = [
-  { id: 'barracks', type: 'barracks', variant: 'barracks_corrugated_gable', label: 'Barracks', x: 88, z: 121, rot: deg(66), w: 22, d: 10, h: 6,
+  { id: 'barracks', type: 'barracks', variant: 'barracks_corrugated_gable', asset: 'barracks_corr_ic', nav: false, label: 'Barracks', x: 88, z: 121, rot: deg(66), w: 22, d: 10, h: 6,
     mat: 'greyPaint', flag: true, garrison: true, door: deg(90) }, // indestructible (§4)
   { id: 'mast', type: 'radio_mast', variant: 'lattice_crane', x: 74, z: 124, r: 1.5, h: 12 },
   camp('mast_hut', 'crates', 'crate_big', 75, 129, 3, 2, 1.8, { block: 2, rot: deg(329) }), // ∥ fence_mast
   SHED_1.def, SHED_2.def, SHED_3.def, SHED_4.def, SHED_5.def,
+  ...[SHED_1, SHED_2, SHED_3, SHED_4, SHED_5].map((sh) => sh.art),
   // the gantry hoist over the tank under repair (static hull, not a unit)
-  camp('gantry', 'crates', 'gantry_hoist', 79, 157, 10, 5, 7, { block: 2, rot: deg(326.3) }), // ∥ fence_f2
-  { id: 'tank_repair', type: 'ruins', variant: 'panzer4_hull', x: 78, z: 160, rot: deg(200), w: 5.9, d: 2.9, h: 2, block: 2 },
+  camp('gantry', 'crates', 'gantry_hoist', 79, 157, 10, 5, 7, { block: 2, rot: deg(326.3), visual: false }), // ∥ fence_f2 (drawn by gantry_art)
+  // art pass: the library A-frame hoist (M9's) over the tank, no footprint of its own
+  camp('gantry_art', 'crates', 'gantry_hoist_bq', 79, 157, 7.6, 4.2, 7, { asset: 'gantry_hoist_bq', block: 0, nav: false, rot: deg(326.3), clipAllow: ['gantry'] }),
+  // backed in under the hoist (∥ wall_a), its open engine deck by the Maybach on the stand; clear of the A-frame legs
+  { id: 'tank_repair', type: 'ruins', variant: 'panzer4_hull', x: 82, z: 160.5, rot: deg(65.56), w: 5.9, d: 2.9, h: 2, block: 2,
+    vehicleArt: 'panzer4_f2', clipAllow: ['gantry'] }, // art pass: the Panzer IV under repair (library model, static)
   // K's "inverted T wall" (A) and the wall by the vacant tank's shed (B)
-  { id: 'wall_a', type: 'wall', variant: 'blast_wall_revetment', mat: 'concrete', h: 2.4, width: 1, segments: [[[86, 165], [91, 176]], [[87, 178], [98, 170]]] },
-  { id: 'wall_b', type: 'wall', variant: 'blast_wall_revetment', mat: 'concrete', h: 2.4, width: 1, segments: [[[90, 191], [108, 182]], [[90, 190], [93, 200]]] },
+  { id: 'wall_a', type: 'wall', variant: 'blast_wall_revetment', mat: 'concrete', h: 2.4, width: 1, segments: WALL_A, visual: false },
+  ...revetments('wall_a', WALL_A),
+  { id: 'wall_b', type: 'wall', variant: 'blast_wall_revetment', mat: 'concrete', h: 2.4, width: 1, segments: WALL_B, visual: false },
+  ...revetments('wall_b', WALL_B),
   drum('barrel_4', 70, 182, { variant: 'fuel_explosive_blue' }), // the 4th site barrel, by e14
   // chain-link fences (see-through, uncrossable; no cutters in this mission)
   { id: 'fence_mast', type: 'fence', variant: 'fence_chainlink', points: [[66, 121], [75, 136]], h: 2.4 },
@@ -230,6 +280,26 @@ const FIELD = [
     .map(([x, z], k) => ({ id: `bush_${k + 1}`, type: 'bush', variant: 'camel_thorn', x, z, r: 0.8, h: 0.8, block: 0 })),
 ];
 
+// ---------------------------------------------------------------- art pass: set dressing (visual only, clear of every
+// route, post, cone and the tanks' drives: furniture and paving never touch the walk grid, the lorry is drawn only)
+/** An Opel Blitz parked behind the barracks (inside the apron fence, out of every walk). */
+const PARKED = [
+  { id: 'truck_barr', type: 'crates', variant: 'truck_parked', label: 'Truck', vehicleArt: 'opel_blitz_cargo', x: 95.6, z: 114.8, rot: Math.atan2(46, 24), // ∥ fence_ap_e
+    w: 6, d: 2.3, h: 2.8, block: 0 },
+];
+/** T8 the square-slab concrete apron of the E base (sand drifted over its ragged edge, oil-stained). */
+const PAVEMENTS = [
+  { id: 'apron', surface: 'concrete', points: APRON, wear: 0.75, weeds: 0.0, cracks: 0.45, patches: 0.2, puddles: 0, edge: 'ragged', grid: false },
+];
+/** Camp floodlights on poles, Wehrmacht boards (black on yellow), a fingerpost on the airfield road. */
+const FURNITURE = [
+  { type: 'floodlight', x: 47.5, z: 140.6, rot: deg(120), block: false },  // the tent yard, inside the N gate
+  { type: 'floodlight', x: 90.6, z: 158.6, rot: deg(200), block: false },  // the apron by the gantry
+  { type: 'floodlight', x: 79.6, z: 118.8, rot: deg(110), block: false },  // the barracks' W end
+  { type: 'sign', variant: 'wehrmacht', x: 35.6, z: 137.4, rot: deg(-30), text: 'LAGER\nAGHEILA', block: false },
+  { type: 'sign', variant: 'fingerpost', x: 63.6, z: 72, rot: deg(-90), text: 'FLUGPLATZ', block: false },
+];
+
 /** Shelf visual lift: the airfield props (plus the two rim telegraph poles). */
 const LIFT_ALL = [...LIFT, 'pole_af1', 'pole_af2'];
 
@@ -238,7 +308,7 @@ const STRUCTURES = [
   { id: 'shelf', type: 'cliff', variant: 'escarpment_sandstone', points: SHELF, h: Y, block: 2, walkways: shelfStrips(SHELF, SHELF_HOLES) },
   { id: 'ramp', type: 'road', variant: 'road_ramp', points: [RAMP.a.slice(0, 2), RAMP.b.slice(0, 2)], width: RAMP.width,
     walkways: rampWalkways(RAMP.a, RAMP.b, RAMP.width, RAMP.steps) },
-  ...AIRFIELD, ...AIR_DRUMS, ...RUINS, ...COMPOUND, ...APRON_S, ...FIELD,
+  ...AIRFIELD, ...AIR_DRUMS, ...RUINS, ...COMPOUND, ...APRON_S, ...FIELD, ...PARKED,
 ];
 
 // ---------------------------------------------------------------- enemies (dossier §8; Prima numbers where sure)
@@ -414,6 +484,8 @@ export default {
     { type: 'path', terrain: 'road', points: [[73, 49], [76, 46], [80, 38]], width: 5 },
   ],
   structures: [...STRUCTURES, ...WIRE_PASS],
+  pavements: PAVEMENTS,
+  furniture: FURNITURE,
   items: [],
   interactables: [
     // the pen's jail door: frees McRae (§4.10: not while an enemy sees you)

@@ -1547,6 +1547,21 @@ function attachRuntime(h, opts) {
       }
     }
   };
+  // a cut's own materials (the flaps, the hollow under the hole) first draw at the first cut: two stand-ins for the
+  // load's warm-up frame (Game._warmFrame) link their programs there instead
+  h.warmObjects = () => {
+    if (!samples.length) return [];
+    const theater = opts.theater || 'temperate', plane = () => new THREE.PlaneGeometry(0.2, 0.2).rotateX(-Math.PI / 2);
+    const fm = new THREE.Mesh(plane(), flapMaterial()); fm.receiveShadow = true;
+    const sm = new THREE.Mesh(plane(), holeShadeMaterial(theater)); sm.renderOrder = 1;
+    // (on the fence itself: the passes that see a real hole — the water's mirror beside M3's river fence — see these)
+    const s0 = samples[0], run = h.runs.find((r) => r.key === s0.key)?.run, at = run?.at(s0.d);
+    for (const o of [fm, sm]) {
+      o.name = 'wire:warm'; o.userData.aoExclude = true; o.userData.warmDispose = () => o.geometry.dispose();
+      if (at) o.position.set(at.x, (opts.groundAt?.(at.x, at.z) ?? 0) + 0.05, at.z);
+    }
+    return [fm, sm];
+  };
   h.dispose = () => {
     off?.(); h.stopBarbs?.();
     h.group.parent?.remove(h.group);

@@ -34,8 +34,9 @@ export async function voidCheck(page, t, id) {
     let seams = [];
     if (ter.shore && !G.missionDef?.water?.frozen) {
       const M = await import('/tests/shore-seam-metric.mjs'), geo = ap.mesh.geometry;
+      const { geometryIndexArray } = await import('/src/engine/chunking.js'); // (16-bit rows drop the whole index)
       const near = (x, z) => { const qx = Math.min(W, Math.max(0, x)), qz = Math.min(D, Math.max(0, z)); return Math.hypot(x - qx, z - qz) < 8; };
-      const mesh = M.meshSurface(geo.attributes.position.array, geo.index.array, (x, z) => near(x, z) && !(x > 0.5 && x < W - 0.5 && z > 0.5 && z < D - 0.5));
+      const mesh = M.meshSurface(geo.attributes.position.array, geometryIndexArray(geo), (x, z) => near(x, z) && !(x > 0.5 && x < W - 0.5 && z > 0.5 && z < D - 0.5));
       const Gd = (x, z) => (x >= 0 && x <= W && z >= 0 && z <= D ? ter.heightAt(x, z) : mesh(x, z));
       seams = M.seamTurns(W, D, Gd, ter.shore.wetAt, -0.35).map((c) => ({ at: c.at, turn: +c.turn.toFixed(1), ref: +c.ref.toFixed(1) }));
     }

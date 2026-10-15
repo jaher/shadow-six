@@ -51,6 +51,16 @@ import { resolveHouseRules, tierFromPreset } from './core/house-rules.js';
 import { nobodyLeftToHelp } from './entities/downed.js';
 import { prepareCharacters, awaitUnitModels, warmUnitModels, charactersFrame, transportFrame, releaseCharacters } from './art/unit-model.js';
 import { knifeKillFrame } from './art/knife-kill.js';
+import { digWarmObjects } from './art/shovel-dig.js';
+
+/** Let the page paint once (a frame, then a task: the DOM drawn), at most ~50 ms (a hidden tab draws no frames). */
+function paintOnce() {
+  if (typeof requestAnimationFrame !== 'function') return Promise.resolve();
+  return new Promise((res) => {
+    const t = setTimeout(res, 50);
+    requestAnimationFrame(() => setTimeout(() => { clearTimeout(t); res(); }, 0));
+  });
+}
 import { spyActionsFrame } from './art/spy-actions.js';
 import { switchStationsFrame } from './art/switch-station.js';
 import { prepareVehicleArt, warmVehicleArt, tickVehicles, releaseVehicles, createVehicleLamps } from './art/vehicle-model.js';
@@ -72,6 +82,7 @@ import { DynamicResolution } from './engine/dynamic-res.js';
 import { sessionCache } from './engine/asset-cache.js';
 import { deferMaterialDisposal, flushMaterialDisposal, holdingMaterials } from './engine/program-keeper.js';
 import { TextureWarmer, releaseUnloadTextures } from './engine/texture-memory.js';
+import { fitLadders } from './art/ladder-frame.js';
 
 /** Resolve the first function/class export among candidate names (stub modules may vary). */
 function pick(mod, ...names) {
@@ -260,6 +271,7 @@ export class Game {
     await safeAsync(() => prepareVehicleArt(def, { assets, quality: r.presetName, extra: staticVehicleAssets(def), ambient: flyoverAssets(def), canon: VehicleMod.canonicalType, onProgress: (d, n) => prog.stage('vehicles', d / Math.max(1, n)) }), 'vehicles');
     if (this.world !== world) return prog.cancel(), world; // unloaded / replaced while loading
     prog.stage('terrain');
+    await paintOnce(); // (the map build and the warm-up frame are long: a loading bar shows where the load is first)
     const build = pick(MapBuilder, 'buildMap', 'buildMission', 'build', 'default');
     this.mapHandle = build ? safe(() => build(world, def, { theater: def.theater, renderer: r, scene: r.scene, assets }), 'map-builder') : null;
     safe(() => dressStaticVehicles(world, def), 'static vehicles'); // parked wagons / aircraft / flak: library models
@@ -269,6 +281,16 @@ export class Game {
     const ready = this.mapHandle?.ready;
     if (ready) await safeAsync(() => Promise.race([ready, new Promise((ok) => setTimeout(ok, 20000))]), 'terrain');
     if (this.world !== world) return prog.cancel(), world; // unloaded / replaced while waiting
+    // every climbed ladder measured on the built map, the missing ones built (art/ladder-frame.js)
+    this.ladders = safe(() => fitLadders(world, r.scene), 'ladders');
+    // ruins waiting for their blast (art/building-props.js prepareDestroy: bunkers, dams): built now, off the scene —
+    // their models load while the rest does; the warm-up frame draws them; the blast only moves them into place
+    const ruins = [];
+    for (const it of world.interactables || []) {
+      const f = it.destructible && !it.destroyed ? it.object3d?.userData?.prepareDestroy : null;
+      const rr = f ? safe(() => f(), 'ruin staging') : null;
+      if (rr) ruins.push(rr);
+    }
     // scenery apron past the map edges (art/apron.js): the camera keeps its true footprint inside it at every zoom
     const apron = this.mapHandle?.terrain?.apron;
     if (apron) this.cameraRig.setApron(apron.field.A, apron.range);
@@ -280,7 +302,11 @@ export class Game {
     await safeAsync(() => awaitUnitModels(world.entities.filter((e) => e.model?.ready)), 'character bodies');
     this.warmMs = await safeAsync(() => warmUnitModels(world.entities.filter((e) => e.model?.real)), 'character grounding');
     // vehicles, wrecks, lamps, scorch: shaders + textures + vertex buffers on the GPU now, not on the first pan / wreck swap
+    // (+ the vehicles the mission brings on later, e.g. M3's escape truck: drawn now, kept off the scene — VehicleMod.laterVehicleModels)
+    const later = safe(() => VehicleMod.laterVehicleModels?.(def), 'later vehicles') || [];
+    for (const m of later) r.scene.add(m.root);
     this.vehicleWarm = await safeAsync(() => warmVehicleArt(r.renderer, r.scene, r.camera, () => this.cameraRig.render(this.renderer, 0)), 'vehicle warm-up');
+    for (const m of later) m.root.removeFromParent();
     if (this.world !== world) return prog.cancel(), world;
     // house rules (bodies-design §0.3) + blast/ragdoll physics (§A): Rapier over the finished map, null object on failure
     world.house = resolveHouseRules({ options: this.options, mission: def, tier: tierFromPreset(r.presetName) });
@@ -303,7 +329,20 @@ export class Game {
     if (this.world !== world) return prog.cancel(), world;
     // every pass's programs for everything on the map (shadow depth, AO normals, mirror, x-ray variants): compiled now,
     // not as first-sight hitches when the camera reaches them during play
-    if (CONFIG.render.warmFrame !== false) this.warmFrameMs = safe(() => this._warmFrame(), 'program warm-up frame');
+    if (ruins.length) await safeAsync(() => Promise.race([Promise.all(ruins.map((rr) => rr.ready)), new Promise((ok) => setTimeout(ok, 8000))]), 'ruins');
+    if (this.world !== world) return prog.cancel(), world;
+    await paintOnce();
+    if (this.world !== world) return prog.cancel(), world;
+    // (+ a dig site and a shovel where the Green Beret stands: art/shovel-dig.js keeps their programs from then on)
+    const gb = world.commandos.find((c) => c.role === 'greenberet');
+    const dig = gb ? safe(() => digWarmObjects(gb.x, gb.z, (world.groundY?.(gb.x, gb.z) || 0) + (gb.y || 0)), 'dig warm-up') : null;
+    safe(() => world.blood?.layers?.pools?.warmMesh?.(), 'blood pools warm-up'); // (drawn by the warm-up frame only)
+    safe(() => this.selection?.noise?.prewarm?.(), 'noise ring warm-up'); // (the first running step's ring)
+    const wireWarm = safe(() => this.mapHandle?.wire?.warmObjects?.(), 'wire warm-up') || []; // (a cut's flaps and hollow)
+    if (CONFIG.render.warmFrame !== false) this.warmFrameMs = safe(() => this._warmFrame([...ruins.flatMap((rr) => rr.roots), ...(dig?.objects || []), ...wireWarm], dig?.xray || []), 'program warm-up frame');
+    for (const o of wireWarm) o.userData.warmDispose?.();
+    safe(() => dig?.done(), 'dig warm-up');
+    safe(() => world.fx?.prescan?.(), 'fx scan'); // chimneys, drums, mission fx: now, not in the first tick of play
     prog.stage('finish');
     world.objectives = createObjectives(def.objectives || []);
     if (!world.extraction) world.extraction = def.extraction || null;
@@ -341,8 +380,9 @@ export class Game {
    * updated for it. Every material then acquires its programs in every pass now (three compiles on first use).
    * Restores the view; the next real frame refits everything. @returns {number} ms
    */
-  _warmFrame() {
+  _warmFrame(extra = [], xrayExtra = []) {
     const t0 = performance.now(), r = this.renderer, rig = this.cameraRig, def = this.missionDef, w = this.world;
+    let restoreWarm = null;
     if (!r.camera || !w || !def?.size) return 0;
     const [W, D] = def.size, m = 12, cam = rig.mainCamera, saved = cam.clone();
     cam.copy(rig.active?.camera || cam);
@@ -356,7 +396,9 @@ export class Game {
     cam.left = x0; cam.right = x1; cam.bottom = y0; cam.top = y1; cam.zoom = 1; cam.clearViewOffset?.();
     cam.updateProjectionMatrix();
     const corners = (y) => [[-m, -m], [W + m, -m], [W + m, D + m], [-m, D + m]].map(([x, z]) => ({ x, y, z }));
-    const scene = r.scene, autoMW = scene.matrixWorldAutoUpdate, few = [];
+    const scene = r.scene, autoMW = scene.matrixWorldAutoUpdate, few = [], lods = [], seen = new Set();
+    // (`extra`: objects kept off the scene until something happens — staged ruins: drawn in this frame only)
+    for (const o of extra) scene.add(o);
     try {
       safe(() => charactersFrame(cam, 40), 'warm characters'); // all on screen, the zoom-1 LOD
       safe(() => this.mapHandle?.frame?.(0, cam), 'warm terrain / water');
@@ -368,13 +410,78 @@ export class Game {
       scene.traverse((o) => {
         if (o.isInstancedMesh && o.count > 1) { few.push(o, 'count', o.count); o.count = 1; }
         else if (o.geometry?.isInstancedBufferGeometry && o.geometry.instanceCount > 1) { few.push(o.geometry, 'instanceCount', o.geometry.instanceCount); o.geometry.instanceCount = 1; }
+        // what stays hidden until something happens (`userData.warmShow`: the M3 dam's burst, a ruin waiting for its
+        // blast, blood decals before the first wound) is drawn in this frame too: its programs exist before it first
+        // shows (the blast is the shot in video mode)
+        if (o.userData?.warmShow) {
+          if (!o.visible) { few.push(o, 'visible', false); o.visible = true; }
+          if (o.isInstancedMesh && o.count === 0) { few.push(o, 'count', 0); o.count = 1; }
+        }
+        // every level of detail of the characters (the director zooms in and out: each LOD's own program variants)
+        if (!o.visible && /^LOD\d$/.test(o.name)) lods.push(o);
       });
+      // (one of each program signature among them: programSignature)
+      scene.traverseVisible((o) => { if (o.isMesh) seen.add(programSignature(o)); });
+      for (const g of lods) {
+        const dup = [];
+        let fresh = false;
+        for (const o of drawnMeshes(g)) { const k = programSignature(o); if (seen.has(k)) dup.push(o); else { seen.add(k); fresh = true; } }
+        if (!fresh) continue;
+        few.push(g, 'visible', false); g.visible = true;
+        for (const o of dup) { few.push(o, 'visible', true); o.visible = false; }
+      }
+      // (the ground decals' scene too: the selection's noise rings…)
+      r.decalScene?.traverse((o) => { if (o.userData?.warmShow && !o.visible) { few.push(o, 'visible', false); o.visible = true; } });
+      // a vision cone (one guard's: the cones come and go with video mode's steps) and the selection's path line
+      const cones = this.cones, forced0 = cones?.forced, foe = w.enemies.find((e) => e.alive && e.vision);
+      if (cones && 'forced' in cones && foe) { cones.forced = new Set([foe]); safe(() => cones.update(), 'warm cone'); }
+      const path = safe(() => this.selection?._pathLine?.(0), 'warm path');
+      // (and the x-ray pass over `xrayExtra` too: props carried on a man, the shovel, draw their own silhouette variant)
+      const xt = r.xrayTargets;
+      if (xrayExtra.length) r.xrayTargets = () => [...(xt?.() || []), ...xrayExtra];
+      restoreWarm = () => {
+        r.xrayTargets = xt;
+        if (path) path.visible = false;
+        if (cones && 'forced' in cones && foe) { cones.forced = forced0; safe(() => cones.update(), 'warm cone'); }
+      };
       r.render(0);
+      // the men again with blood on them (blood/stains.js: the stained variant of every character material compiles at
+      // the first wound — a kill in video mode): only their subtrees and the lights (the same light set), every LOD;
+      // then close up, clean and stained (the director's close shots: the full-detail LOD and the small kit — mess
+      // tins, rolled Zeltbahns, pouches — that humanoid-real's applyLOD hides zoomed out, with its AO prepass draw)
+      safe(() => {
+        const units = w.entities.filter((e) => e.model?.root && e.alive !== false);
+        if (!units.length) return;
+        const stains = w.blood?.layers?.stains;
+        const tops = new Set(), hid = [];
+        for (const u of units) { let t = u.model.root; while (t?.parent && t.parent !== scene) t = t.parent; if (t?.parent === scene) tops.add(t); }
+        const lit = (top) => { let l = false; top.traverse((o) => { if (o.isLight) l = true; }); return l; };
+        for (const top of scene.children) if (top.visible && !tops.has(top) && !top.isLight && !lit(top)) { top.visible = false; hid.push(top); }
+        const stained = () => { const undo = stains?.preview?.(units); if (undo) try { r.render(0); } finally { undo(); } };
+        const dup = [];
+        try {
+          stained();
+          charactersFrame(cam, 400);
+          scene.updateMatrixWorld();
+          for (const top of tops) for (const o of drawnMeshes(top)) { const k = programSignature(o); if (seen.has(k)) { o.visible = false; dup.push(o); } else seen.add(k); }
+          r.render(0);
+          stained();
+        } finally { for (const o of dup) o.visible = true; for (const t of hid) t.visible = true; charactersFrame(cam, 40); }
+      }, 'warm close-up / stained characters');
+      // the water's mask of a submerged man (the Marine diving: its own override programs)
+      safe(() => {
+        const sys = w.water?.system, diver = w.commandos.find((c) => c.role === 'diver') || w.commandos[0], root = diver?.model?.root;
+        if (!sys?.renderSubmergedMask || !root) return;
+        sys.setSubmerged([{ root, sel: false, x: root.position.x, y: root.position.y, z: root.position.z }]);
+        try { sys.renderSubmergedMask(r.renderer, { width: 256, height: 144 }); } finally { sys.setSubmerged(null); }
+      }, 'warm submerged mask');
       // render-to-texture programs of the map's systems (footprint trails, water ripples)
       safe(() => w.terrain?.terrain?.trails?.warm?.(), 'warm trails');
       safe(() => w.water?.system?.ripples?.warm?.(), 'warm ripples');
     } finally {
       for (let i = few.length - 3; i >= 0; i -= 3) few[i][few[i + 1]] = few[i + 2];
+      safe(() => restoreWarm?.(), 'warm restore');
+      for (const o of extra) scene.remove(o);
       scene.matrixWorldAutoUpdate = autoMW;
       cam.copy(saved);
       cam.updateProjectionMatrix();
@@ -424,6 +531,8 @@ export class Game {
       safe(() => releaseAllChunks(this.renderer.scene), 'chunk rows');
       safe(() => releaseUnloadTextures(), 'module textures'); // GPU copies of session-long module textures
       safe(() => this.mapHandle?.dispose?.(), 'map dispose');
+      safe(() => this.ladders?.dispose?.(), 'ladders dispose');
+      this.ladders = null;
       safe(() => this.world.fx?.dispose?.(), 'fx dispose');
       safe(() => this.physicsVisuals?.dispose?.(), 'physics visuals dispose');
       safe(() => this.world.marks?.dispose?.(), 'blast marks dispose');
@@ -797,6 +906,7 @@ export class Game {
       if (this.physicsVisuals) safe(() => this.physicsVisuals.frame(), 'physics visuals'); // props, vehicle rock, censored bodies
       // trails, grass, trees; the water's offscreen passes (FFT, caustics, ripples, mirror) only for a drawn frame
       safe(() => this.mapHandle?.frame?.(animDt, this.renderer.camera, draw), 'terrain frame');
+      if (this.ladders) safe(() => this._laddersFrame(w), 'ladders');
       this._updateCones();
       this.renderer.fitShadowToView?.(this.cameraRig);
       const cc = this.cameraController;
@@ -852,6 +962,19 @@ export class Game {
   toggleCone(enemy, on = !enemy.coneVisible) {
     if (!enemy) return;
     enemy.coneVisible = !!on;
+  }
+
+  /**
+   * Built ladders follow their links (a raised ladder shows once lowered). A mission script draws its own scenery on
+   * its first tick (M20's castle): the ladders are measured again then, once.
+   */
+  _laddersFrame(w) {
+    if (!this.ladders.late && w.tick >= 1 && this.missionDef?.script) {
+      this.ladders.dispose();
+      this.ladders = fitLadders(w, this.renderer.scene);
+      this.ladders.late = true;
+    }
+    this.ladders.frame();
   }
 
   _updateCones() {
@@ -931,6 +1054,34 @@ export class Game {
     this.scopeMagnifier?.dispose();
     this.renderer.dispose?.();
   }
+}
+
+/**
+ * What decides the program three links for a mesh (its WebGLPrograms key, over-split on purpose): the material's kind,
+ * features and maps, the mesh's attributes, skinning, morphs and the passes it takes part in — not which man it is.
+ * The warm-up frame draws hidden levels of detail and the close-up kit once per signature: their programs link at
+ * load, while every other man's vertex buffers stay off the GPU until the camera gets there (uploads are cheap,
+ * programs are not).
+ */
+const SIG_TEX = ['map', 'alphaMap', 'normalMap', 'bumpMap', 'displacementMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap',
+  'lightMap', 'envMap', 'specularMap', 'specularIntensityMap', 'specularColorMap', 'clearcoatMap', 'clearcoatNormalMap',
+  'clearcoatRoughnessMap', 'sheenColorMap', 'sheenRoughnessMap', 'transmissionMap', 'thicknessMap', 'iridescenceMap',
+  'iridescenceThicknessMap', 'anisotropyMap', 'matcap', 'gradientMap'];
+function programSignature(o) {
+  const g = o.geometry, at = g?.attributes || {};
+  const mat = (m) => (!m ? '-' : [m.type, m.customProgramCacheKey?.(), JSON.stringify(m.defines || null), m.vertexColors, m.alphaTest > 0, m.alphaHash,
+    m.side, m.flatShading, m.fog, m.toneMapped, m.wireframe, m.transparent, m.premultipliedAlpha, m.dithering, m.clippingPlanes?.length || 0,
+    m.normalMapType, m.envMap?.mapping, SIG_TEX.map((k) => (m[k] ? `${k}${m[k].channel}${m[k].colorSpace}` : '')).join('')].join(','));
+  return [o.type, !!o.instanceColor, Object.keys(at).sort().map((k) => `${k}${at[k].itemSize}`).join('.'),
+    Object.entries(g?.morphAttributes || {}).map(([k, v]) => `${k}${v.length}`).join('.'), g?.morphTargetsRelative, o.receiveShadow, o.castShadow,
+    o.layers.mask, !!o.userData.aoExclude, !!o.userData.noXray, ...[].concat(o.material).map(mat)].join('|');
+}
+/** The meshes a subtree draws (its root counted visible): no hidden branch below it. */
+function drawnMeshes(root) {
+  const out = [];
+  const walk = (o) => { if (o !== root && !o.visible) return; if (o.isMesh) out.push(o); for (const c of o.children) walk(c); };
+  walk(root);
+  return out;
 }
 
 /** Run fn, logging (as a warning, so tests don't fail on optional systems) and returning null on error. */

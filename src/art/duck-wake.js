@@ -34,6 +34,7 @@ export function createDuckWakes(cap, o = {}) {
   const mesh = new THREE.Mesh(g, mat);
   mesh.name = 'duckWakes'; mesh.frustumCulled = false; mesh.renderOrder = 2; mesh.layers.set(o.layer ?? FX_LAYER);
   mesh.userData.waterIgnore = true; mesh.userData.dynamic = true; mesh.userData.ambientLife = 'wake';
+  mesh.userData.warmShow = true; // (drawn by the load's program warm-up frame even before any duck swims)
   const trails = new Map(), crest = [0.6, 0.64, 0.68], dark = [0.02, 0.03, 0.04], foam = [0.85, 0.88, 0.9];
   const stats = { points: 0, ducks: 0, verts: 0 };
   let nv = 0, ni = 0;

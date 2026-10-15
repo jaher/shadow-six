@@ -29,7 +29,7 @@ import { dropCarried } from '../abilities/common.js';
 import { releasePuppet, installBcdSystems } from '../ai/bcd-enemy.js';
 import { isDownableHit, enterDowned, tickDowned, serializeDowned } from './downed.js';
 import { digFrame } from '../art/shovel-dig.js';
-import { pathOnStairs } from './stair-walk.js';
+import { pathOnStairs, steepLadder } from './stair-walk.js';
 import { cutFrame } from '../art/wire-cut.js';
 
 export { dropCarried };
@@ -586,7 +586,10 @@ export class Commando extends Unit {
    * procedural climb (art/ladder-climb.js) over the 'ladder' pose.
    */
   _updateLinks() {
-    const wp0 = this.path?.[this.pathIndex], wp = wp0?.link?.walk ? null : wp0;
+    // (a walked link — stairs, a plank — and a ramp listed as a ladder are walked: no climbing pose)
+    const wp0 = this.path?.[this.pathIndex], lk = wp0?.link;
+    const gl = lk?.kind === 'ladder' && !lk.a ? this.world?.grid?.links?.find((l) => l.id === lk.id) : lk;
+    const wp = lk?.walk || (lk?.kind === 'ladder' && !steepLadder(gl)) ? null : wp0;
     const anim = wp?.link?.kind === 'ladder' ? 'ladder' : 'climb';
     if (wp?.link && this._linkIdx !== this.pathIndex) {
       this._linkIdx = this.pathIndex;

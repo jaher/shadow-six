@@ -4,7 +4,9 @@
  * slope through the treads' front edges: no cell-by-cell height snaps), the view (art/stair-gait.js) puts the feet on
  * its real treads and lifts the body tread by tread.
  *
- * A flight is a straight run along a unit axis u (from its foot up to its top), `w` wide, described by its risers:
+ * A flight is a straight run along a unit axis u (from its foot up to its top), `w` wide (`clear`: the half-width from
+ * its axis to the inner faces of its rails, cheek walls or stringers — a man keeps his body inside them, entities/
+ * stair-walk.js railShift), described by its risers:
  *   risers[k] = arc length s (m, from the origin o along u) of the k-th riser, increasing,
  *   levels[k] = height of the walking surface just before risers[k] (levels[0] the floor at the foot), levels[n] the
  *               top (landing / deck / crest) after the last riser.
@@ -31,6 +33,9 @@ export function makeFlight(o) {
   const n = o.risers.length;
   const L = Math.hypot(o.ux, o.uz) || 1;
   const f = { id: o.id ?? null, kind: o.kind, ox: o.ox, oz: o.oz, ux: o.ux / L, uz: o.uz / L, w: o.w, risers: o.risers.slice(), levels: o.levels.slice(), link: o.link ?? null };
+  // the clear half-width between its rails / cheek walls / stringers (from its axis to their inner faces)
+  f.clear = Math.min(o.w / 2, o.clear ?? o.w / 2);
+  // where along it (s) the rails / walls run: from where the stair begins to where its landing ends
   // the nosing line: through the treads' front edges (risers[k], levels[k + 1]); a single riser: its top edge
   const s0 = f.risers[0], s1 = f.risers[n - 1], y0 = f.levels[1], y1 = f.levels[n];
   f.slope = n > 1 ? (y1 - y0) / (s1 - s0) : 0;
@@ -42,8 +47,13 @@ export function makeFlight(o) {
   // the extent where the nosing line is the walking height: from where it meets the floor to the last riser
   f.sFoot = f.slope > 1e-6 ? s0 - (y0 - f.levels[0]) / f.slope : s0;
   f.sTop = s1;
-  // world bounding box of the flight's rectangle (± w/2, from the foot of the line to the top), padded on use
-  const ends = [f.sFoot - f.tread, f.sTop + f.tread], px = -f.uz * f.w / 2, pz = f.ux * f.w / 2;
+
+  // (railAt: where the rails themselves stand; railS: the stair between them — its foot to its landing's end)
+  f.railAt = o.railS ? o.railS.slice() : [f.sFoot, f.sTop];
+  f.railS = [Math.min(f.railAt[0], f.sFoot), Math.max(f.railAt[1], f.sTop)];
+  // world bounding box of the flight's rectangle (± w/2, from the foot of the line to the top — its rails' ends),
+  // padded on use
+  const ends = [Math.min(f.sFoot - f.tread, f.railS[0]), Math.max(f.sTop + f.tread, f.railS[1])], px = -f.uz * f.w / 2, pz = f.ux * f.w / 2;
   const xs = [], zs = [];
   for (const s of ends) for (const k of [-1, 1]) { xs.push(f.ox + f.ux * s + px * k); zs.push(f.oz + f.uz * s + pz * k); }
   f.box = [Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs)];
@@ -112,7 +122,11 @@ export function damFlights(r) {
     levels.push(allL[k0]);
     for (let k = k0; k < allR.length && allR[k] <= g.s0 + g.l + 1e-9; k++) { risers.push(allR[k] - g.s0); levels.push(allL[k + 1]); }
     if (!risers.length) continue;
-    out.push(makeFlight({ id: r.id ?? null, kind: 'dam', ox: g.a[0], oz: g.a[1], ux, uz, w: r.width ?? 1.6, risers, levels }));
+    // (its railings' posts stand 0.08 m in from its edges, 0.05 m square: art/dam-stairs.js)
+    const w = r.width ?? 1.6;
+    // (the railings run from 0.15 m along the stair to 0.15 m short of its landing's end, on every leg)
+    const railS = [Math.max(0, 0.15 - g.s0), Math.min(g.l, total - 0.15 - g.s0)];
+    out.push(makeFlight({ id: r.id ?? null, kind: 'dam', ox: g.a[0], oz: g.a[1], ux, uz, w, clear: w / 2 - 0.105, railS, risers, levels }));
   }
   return out;
 }
@@ -129,7 +143,8 @@ export function platformFlight(ramp, id = null) {
   const risers = [], levels = [ramp.yb];
   const rise = (ramp.ya - ramp.yb) / S.n;
   for (let m = 1; m <= S.n; m++) { risers.push(m * S.tread); levels.push(ramp.yb + rise * m); }
-  return makeFlight({ id, kind: 'platform', ox, oz, ux: dx / L, uz: dz / L, w: ramp.w, risers, levels });
+  // (its stringers stand 0.04 m in from its edges, their hand rails 0.06 m thick on them: art/access-platform.js)
+  return makeFlight({ id, kind: 'platform', ox, oz, ux: dx / L, uz: dz / L, w: ramp.w, clear: ramp.w / 2 - 0.07, railS: [0.1, L - 0.05], risers, levels });
 }
 
 /**
@@ -146,7 +161,7 @@ export function linkFlight(link, { width = 1.8, id = null, a = link.a, b = link.
   const n = Math.max(2, Math.ceil(rise / 0.2)), tr = run / n;
   const risers = [], levels = [lo.y ?? 0];
   for (let i = 0; i < n; i++) { risers.push((up ? i : i + 1) * tr); levels.push((lo.y ?? 0) + (rise * (i + 1)) / n); }
-  return makeFlight({ id, kind: 'link', ox: lo.x, oz: lo.z, ux: dx / run, uz: dz / run, w: width, risers, levels, link });
+  return makeFlight({ id, kind: 'link', ox: lo.x, oz: lo.z, ux: dx / run, uz: dz / run, w: width, railS: [0, run], risers, levels, link });
 }
 
 /** Every flight of a map, with point queries. */

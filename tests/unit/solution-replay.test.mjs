@@ -54,6 +54,23 @@ test('pacer: 1x grants one tick per 1/60 s of real time, Nx N times that, capped
   assert.ok(ticks <= 8, `hitch capped (${ticks})`);
 });
 
+test('pacer: tickMs caps the wall time of one frame\'s ticks; the rest of its budget waits, nothing is lost', () => {
+  const p = new TickPacer({ simDt: 1 / 60, maxPerFrame: 8, speeds: [1, 4, 8], speed: 8, tickMs: 10 });
+  p.frame(1 / 60, 0); // 8 ticks granted
+  let n = 0, now = 0;
+  while (p.canTick(now)) { p.take(now); n++; now += 3; } // 3 ms a tick
+  assert.equal(n, 4, `ticks within 10 ms of the frame's first (${n})`);
+  assert.ok(p.budget >= 3.99, 'the rest of the budget is kept');
+  p.frame(1 / 60, 16);
+  now = 16; let m = 0;
+  while (p.canTick(now)) { p.take(now); m++; now += 1; }
+  assert.equal(m, 10, `next frame: its ticks run while within 10 ms (${m})`);
+  const q = new TickPacer({ simDt: 1 / 60, speeds: [1, 8], speed: 8 }); // default: no cap
+  q.frame(1 / 60, 0); let k = 0;
+  while (q.canTick(0)) { q.take(1e6 * k); k++; }
+  assert.equal(k, 8, 'no cap by default');
+});
+
 test('pacer: paused grants nothing; fast-forward runs by wall time per frame', () => {
   const p = new TickPacer({ simDt: 1 / 60 });
   p.paused = true;

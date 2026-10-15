@@ -29,6 +29,8 @@ import { restOnGround, corpseGround, warmCorpse, CORPSE_BONES } from './corpse-g
 import { turnStep } from './turn-step.js';
 import { stairGait, stairGround, rampGround } from './stair-gait.js';
 import { ladderClimb } from './ladder-climb.js';
+import { railArms } from './rail-arms.js';
+import { steepLadder } from '../entities/stair-walk.js';
 import { swimFrame, wadeOffset, waterColumn } from './swim-pose.js';
 
 const PRONE_SHOT = /^prone_(shoot|shoot_smg|pistol_shoot)$/;
@@ -283,7 +285,7 @@ export class UnitModel {
     const u = this.unit;
     if (u && ((u.carrying && u.carrying.kind !== 'interactable') || u.downed || u.state === 'carried' || u.pendingTransport)) want = false;
     if (this.overlay) want = false; // a procedural overlay has his hands (the shovel: art/shovel-dig.js re-checks when it ends)
-    if (u?._ladder) want = false; // both hands on the rungs (art/ladder-climb.js), the weapon slung
+    if (u?._ladder && steepLadder(u._ladder.link)) want = false; // both hands on the rungs (art/ladder-climb.js), the weapon slung
     return want;
   }
 
@@ -404,7 +406,8 @@ export class UnitModel {
       this._weaponFor(this._ctx());
     }
     // on / off a ladder: the weapon slung / back in hand
-    if (R.inner && this.player && this.unit && !!this.unit._ladder !== !!this._onLadder) { this._onLadder = !!this.unit._ladder; this._weaponFor(this._ctx()); }
+    const onLad = !!(this.unit?._ladder && steepLadder(this.unit._ladder.link));
+    if (R.inner && this.player && this.unit && onLad !== !!this._onLadder) { this._onLadder = onLad; this._weaponFor(this._ctx()); }
     // the contact knife kill's blend-out (abilities/knife.js sets knifeShow): the knife stays in his fist until it ends
     if (R.inner && this.player && this.unit) {
       const ks = (this.unit.knifeShow ?? -1) > (this.unit.world?.time ?? 0);
@@ -480,6 +483,8 @@ export class UnitModel {
     // ladder: hands and feet on its rungs (art/ladder-climb.js)
     if (R.inner && !this.dog && !tst && !this._carryOn && !this._rdLast && (this._sg || u?.world?.stairs?.size)) stepped = stairGait(this, dt, this._guard) || stepped;
     if (R.inner && !this.dog && !tst && (this._lc || u?._ladder)) stepped = ladderClimb(this, dt, this._guard) || stepped;
+    // on a stair, his arms inside its rails (art/rail-arms.js)
+    if (R.inner && !this.dog && !tst && !this._rdLast && u?.world?.grid?.flights?.size) stepped = railArms(this, this._guard) || stepped;
     // the Marine swimming / diving: the procedural water poses (art/swim-pose.js)
     if (R.inner && this.swimmer && !tst && !this._rdLast) stepped = swimFrame(this, dt, this._guard) || stepped;
     // no ragdoll (physics off / failed): the settled death clip, laid on the drawn ground as it eases in after the fall

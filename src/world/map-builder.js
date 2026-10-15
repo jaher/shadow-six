@@ -1633,7 +1633,10 @@ export function buildMap(world, mission, opts = {}) {
     for (const r of b.def.ramps || []) {
       if (!(r.points?.length >= 2)) continue;
       const w = r.width ?? 1.6;
-      const run = grid.addRun({ id: `${b.def.id ?? b.type}:${r.id ?? 'ramp'}`, pts: pts2(r.points), w, lane: r.curb ? w - 2 * r.curb : undefined, align: true });
+      // (its lane: between the barn ramp's curbs; between a stair's railings — art/dam-stairs.js posts 0.08 m in from its
+      // edges, 0.05 m square: the band's cells past them are no stair to walk on, user 2026-10-11)
+      const lane = r.curb ? w - 2 * r.curb : !r.smooth ? w - 0.21 : undefined;
+      const run = grid.addRun({ id: `${b.def.id ?? b.type}:${r.id ?? 'ramp'}`, pts: pts2(r.points), w, lane, align: true });
       // `walls`: polygons off its band — its side walls' faces and their ends flared out at its foot — nobody walks
       // over (nav-only; the library's visual nav does the same in the browser, from the model)
       if (run && r.walls?.length) {
@@ -1801,7 +1804,10 @@ export function buildMap(world, mission, opts = {}) {
       // skirt instead of pushing into its side while the body's centre is still below
       let sy, dry = null;
       const movable = world.surfaces?.length ? world.surfaces : null;
-      for (const [dx, dz, drop] of FOOT_OFFS) {
+      // (indexed loops, no destructuring iterator: this runs for every man, every frame — the same steps in the same
+      // order as `for (const [dx, dz, drop] of FOOT_OFFS)`, without its garbage)
+      for (let f = 0; f < FOOT_OFFS.length; f++) {
+        const off = FOOT_OFFS[f], dx = off[0], dz = off[1], drop = off[2];
         const px = x + dx, pz = z + dz, key = Math.floor(px / SURF_CELL) * 131072 + Math.floor(pz / SURF_CELL);
         const onLane = laneN && (onDeck || deckLanes.has(grid.idx(Math.floor(px / grid.cell), Math.floor(pz / grid.cell))));
         const v0 = onLane && laneN.has(key) ? laneN.get(key) : surfN ? surfN.get(key) : undefined;
@@ -1810,11 +1816,15 @@ export function buildMap(world, mission, opts = {}) {
         if (v !== undefined && (sy === undefined || v > sy)) sy = v;
         // a deck / span edge beside a dry walker (a drawbridge end, a bridge's side): a step, not a roof overhead
         if (!onDeck && (dx || dz) && (decks.length || movable) && onDeckCell(px, pz)) {
-          for (const list of [decks, movable]) for (const d of list || []) {
-            const h = d.heightAt(px, pz);
-            if (h == null || h - g > STEP_MAX) continue;
-            const hv = h - lipDrop(h - g, drop);
-            if (hv > g && (sy === undefined || hv > sy) && (dry ??= !wetAt(x, z))) sy = hv;
+          for (let L = 0; L < 2; L++) {
+            const list = L ? movable : decks;
+            if (!list) continue;
+            for (let q = 0; q < list.length; q++) {
+              const h = list[q].heightAt(px, pz);
+              if (h == null || h - g > STEP_MAX) continue;
+              const hv = h - lipDrop(h - g, drop);
+              if (hv > g && (sy === undefined || hv > sy) && (dry ??= !wetAt(x, z))) sy = hv;
+            }
           }
         }
       }

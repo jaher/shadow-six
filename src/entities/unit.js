@@ -34,7 +34,7 @@ import { pathLength } from '../world/pathfinding.js';
 import { gateLayout } from '../world/breakables.js';
 import { runNoiseStep } from '../ai/running-noise.js';
 import { footOf } from '../ai/footprints.js';
-import { stairSpeed, linkWalkY, isLadderLeg, ladderTrack, ladderSpeed, onStairRun } from './stair-walk.js';
+import { stairSpeed, linkWalkY, isLadderLeg, ladderTrack, ladderSpeed, onStairRun, railShift, railPath, railRoom, railPoint } from './stair-walk.js';
 
 const LOW_STANCES = new Set(['crawl', 'swim', 'dive', 'downed']);
 /**
@@ -214,8 +214,9 @@ export class Unit extends Entity {
     if (!this.alive || !this.world || IMMOBILE_STATES.has(this.state) || this.buried) return false;
     // from the path track: a dodging walker keeps its lane (avoidance.js), so re-paths do not shift the route
     // (halfway up / down a ladder: planned from its end, which he climbs on to first)
-    const path = this._onLadder() ? this._planFromLadder(x, z) : this._planPath(x, z);
+    let path = this._onLadder() ? this._planFromLadder(x, z) : this._planPath(x, z);
     if (!path) return false;
+    path = railPath(this, path, { x, z }); // (up / down a stair head-on, its middle between the rails: user 2026-10-11)
     this._bodyBlockT = 0;
     this._bodyProg = null;
     this._bodyRepaths = 0; // (a fresh order gets its three tries; the step guard's own re-path sets its count after)
@@ -693,12 +694,20 @@ export class Unit extends Entity {
     }
     this._walkAnim = this._moving;
     this._guardBody(dt);
+    // on a flight of stairs his body stays between its rails (a dodge, a crowd or his path's corner never takes it over)
+    const rs = this.world?.grid?.flights?.size ? railShift(this) : null;
+    if (rs) {
+      this.x += rs.x; this.z += rs.z;
+      // (and the point he walks to, when a re-plan left it out there: no walking on the spot against a rail)
+      const wp = this.path?.[this.pathIndex];
+      if (wp && !wp.link) { const q = railPoint(this, wp, this.pathIndex === this.path.length - 1); if (q !== wp) this.path[this.pathIndex] = q; }
+    }
     if (!this._moving) this._runNoiseD = null; // a new run starts its running-noise counter afresh
     this._updateAnim(dt);
     // (also while the aim is his idle pose on a way his boot is blocked on — a soldier in COMBAT stood at a pine on M3's
     // W edge, his rifle up into its trunk: _locoAnim's toe block)
     if (this._anim === 'aim' || this._anim === 'shoot') this._keepWeaponRoom(dt);
-    else this._weaponBack = 0;
+    else { this._weaponBack = 0; this._weaponAtX = null; }
   }
 
   /**
@@ -797,6 +806,13 @@ export class Unit extends Entity {
   _keepWeaponRoom(dt) {
     const w = this.world;
     if (!w?.grid || LOW_STANCES.has(this.stance) || this.vehicle || this._climb || this._ladder) return;
+    // (≤ 0.6 m back in all per aim — net: a step he took forward since, closing in while he aims in COMBAT, gives that
+    // much back; spent on cumulative half steps, an M3 trooper at st_barr1's corner had his rifle 9 cm into it)
+    if (this._weaponAtX != null && this._weaponBack > 0) {
+      const adv = (this.x - this._weaponAtX) * Math.cos(this.heading) + (this.z - this._weaponAtZ) * Math.sin(this.heading);
+      if (adv > 0) this._weaponBack = Math.max(0, this._weaponBack - adv);
+    }
+    this._weaponAtX = this.x; this._weaponAtZ = this.z;
     const left = 0.6 - (this._weaponBack || 0); // per aim (≤ 0.6 m in all)
     // parked hulls and wagons count too (taller than the shoulder: a vehicle's own height, a wagon's box)
     const solidAt = (x, z, y) => (w.vehicles || []).some((v) => v !== this.vehicle && !v.removed && !v.hiddenRail && v._inHull?.(x, z, 0) && (v.hullHeight?.() ?? 2) > y)
@@ -817,6 +833,7 @@ export class Unit extends Entity {
     }
     this._weaponBack = (this._weaponBack || 0) + st;
     this.x = nx; this.z = nz;
+    this._weaponAtX = nx; this._weaponAtZ = nz;
   }
 
   /**
@@ -831,8 +848,10 @@ export class Unit extends Entity {
     const w = this.world;
     const P = this._bodyPrev;
     const st = this.stance;
+    // (on a ladder he goes up its line, the wall it stands against before him: a ladder's top a step inside a wall's
+    // body — M17's, M19's, M11's — had him stopped at its foot the first frame up)
     const skip = !hasObstacles(w) || !this.alive || HIDDEN_STATES.has(this.state) || this.vehicle || this.y > 1
-      || st === 'swim' || st === 'dive';
+      || st === 'swim' || st === 'dive' || this._ladder;
     if (skip) { this._bodyPrev = null; return; }
     const ign = this._bodyIgnore();
     const g = bodyGap(w, this.x, this.z, this.heading, st, ign);
@@ -1534,8 +1553,11 @@ export class Unit extends Entity {
     const keep = av.hold;
     // on raised ground (a wall walk, a dam, a bridge deck: elev > 0.3 m) he keeps to the walk's middle — the nav cells
     // of a narrow deck do not see its parapet, a lane would push him into it
-    const raised = (this.y || 0) > 0.3;
-    const soft = raised ? 0 : keep ? A.laneMax : Math.min(A.laneMax, 0.3 * dEnd), cap = raised ? 0 : keep ? A.laneMax : Math.min(A.laneMax, 0.6 * dEnd);
+    // (a flight of stairs too: two men meeting on it go by as on a narrow walk — entities/stair-walk.js railShift keeps
+    // each between its rails; low on it, a lane is no wider than his band there)
+    const room = this.world?.grid?.flights?.size ? railRoom(this) : null;
+    const raised = (this.y || 0) > 0.3, laneMax = room != null ? Math.min(A.laneMax, room) : A.laneMax;
+    const soft = raised ? 0 : keep ? laneMax : Math.min(laneMax, 0.3 * dEnd), cap = raised ? 0 : keep ? laneMax : Math.min(laneMax, 0.6 * dEnd);
     let want = 0;
     if (av.shift && !raised) want = Math.sign(av.shift) * Math.min(maxV, Math.sqrt(2 * acc * Math.abs(av.shift)));
     else if (Math.abs(side) > 1e-4 && av.calm) want = -Math.sign(side) * Math.min(maxV * 0.6, Math.sqrt(2 * acc * Math.abs(side)));

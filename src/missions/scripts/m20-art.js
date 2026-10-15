@@ -9,7 +9,7 @@
  *  - gatehouses, the turret, towers, the range block, stair towers, bridges, the water gate (castle-kit builders).
  * @module missions/scripts/m20-art
  */
-import { buildCurtain, buildTerrace, buildParapet, buildTwinGatehouse, buildRoundTower, buildRange, buildStairTower, buildInnerGate, buildMoatBridge, buildWaterGate, buildStairFlight, buildLadder, buildWing, buildOuthouse, buildOpenShed, buildFieldWagon, buildWell, buildBasin, setCastleFrost, Geo } from '../../art/castle-kit.js';
+import { buildCurtain, buildTerrace, buildParapet, buildTwinGatehouse, buildRoundTower, buildRange, buildStairTower, buildInnerGate, buildMoatBridge, buildWaterGate, buildStairFlight, buildWing, buildOuthouse, buildOpenShed, buildFieldWagon, buildWell, buildBasin, setCastleFrost, Geo } from '../../art/castle-kit.js';
 import { libraryVisual } from '../../art/building-props.js';
 import { buildCliff } from '../../art/dressing.js';
 import { buildFlakTowed, buildFlakEmplacement, buildFieldGun, buildTargetFrame, buildBulletStop, buildSearchlight, buildRangeBerm, buildLeverBox } from '../../art/field-guns.js';
@@ -209,15 +209,17 @@ function rockets(w, m) {
   return n;
 }
 
-/** Every `ladders[]` link: stone flights (kind 'stairs') and timber ladders (planks stay m20.js's). */
+/**
+ * Every `ladders[]` stone flight (kind 'stairs'; planks stay m20.js's). The climbed timber ladders are built by
+ * art/ladder-frame.js against the towers' faces (drawn here from end to end, they ran into the masonry).
+ */
 function links(w, m) {
   const G = new Geo('m20:links');
   let n = 0;
   for (const l of m.ladders || []) {
-    if (l.kind === 'plank') continue;
+    if (l.kind !== 'stairs') continue;
     const a = { x: l.x, y: l.y ?? 0, z: l.z }, b = { x: l.top[0], y: l.top[2] ?? 0, z: l.top[1] };
-    if (l.kind === 'stairs') buildStairFlight(a, b, { G, width: 1.8 });
-    else buildLadder(a, b, { G, heading: l.heading });
+    buildStairFlight(a, b, { G, width: 1.8 });
     n++;
   }
   // the GB's climbs: the cast-iron downpipe of `cl_in` ("down the drainpipe" [fd]) with its hopper and brackets

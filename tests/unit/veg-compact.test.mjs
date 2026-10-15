@@ -7,7 +7,9 @@
  */
 import * as THREE from 'three';
 import { test, assert } from './lib.mjs';
-import { GeoAcc, generateTree, TREE_QUALITY, useThree } from '../../src/art/terrain/treegen.js';
+import { GeoAcc, generateTree, TREE_QUALITY, useThree, vertexRoot } from '../../src/art/terrain/treegen.js';
+
+const perVertexId = (acc, k) => acc.tree[k];
 import { snorm16, half16, packNormals } from '../../src/engine/vertex-pack.js';
 
 useThree(THREE);
@@ -19,7 +21,11 @@ test('tree arrays: Int16 normals / aExt and half-float tint, within one step of 
     if (!acc.count) continue;
     const a = acc.toArrays();
     assert.ok(a.n instanceof Int16Array && a.ext instanceof Int16Array && a.tint instanceof Uint16Array);
-    assert.ok(a.p instanceof Float32Array && a.info instanceof Float32Array && a.root instanceof Float32Array && a.uv instanceof Float32Array);
+    assert.ok(a.p instanceof Float32Array && a.info instanceof Float32Array && a.uv instanceof Float32Array && !a.root);
+    assert.ok(a.roots instanceof Float32Array && a.roots.length % 4 === 0 && a.roots.length / 4 >= 2, 'one root entry a tree (+ the default)');
+    // every vertex's tree: the entry of its 4th normal component = what the per-vertex roots were
+    const perVertex = acc.rootsPerVertex();
+    for (let k = 0; k < acc.count; k++) for (let c = 0; c < 4; c++) assert.equal(a.roots[a.n[k * 4 + 3] * 4 + c], perVertex[k * 4 + c]);
     assert.equal(a.n.length, acc.count * 4, 'normals padded to 4 components');
     assert.equal(a.tint.length, acc.count * 4, 'tint padded to 4 components');
     for (let k = 0; k < acc.count; k++) for (let c = 0; c < 3; c++) {
@@ -27,7 +33,7 @@ test('tree arrays: Int16 normals / aExt and half-float tint, within one step of 
       const t = acc.tint[k * 3 + c];
       assert.ok(Math.abs(THREE.DataUtils.fromHalfFloat(a.tint[k * 4 + c]) - t) <= Math.abs(t) / 2048 + 1e-6);
     }
-    for (let k = 0; k < acc.count; k++) { assert.equal(a.n[k * 4 + 3], 0); assert.equal(a.tint[k * 4 + 3], 0); }
+    for (let k = 0; k < acc.count; k++) assert.equal(a.tint[k * 4 + 3], 0);
     for (let i = 0; i < acc.ext.length; i++) assert.ok(Math.abs(a.ext[i] / 32767 - acc.ext[i]) <= 0.5 / 32767 + 1e-7);
     const g = GeoAcc.arraysToGeometry(a);
     assert.equal(g.attributes.normal.normalized, true);
@@ -39,8 +45,15 @@ test('tree arrays: Int16 normals / aExt and half-float tint, within one step of 
     assert.equal(g.attributes.normal.count, acc.count);
     assert.ok(Math.abs(g.attributes.normal.getY(0) - acc.n[1]) < 1e-4, 'getY reads the normalized value');
     assert.ok(Math.abs(g.attributes.aTint.getZ(0) - acc.tint[2]) < 2e-3, 'getZ reads the half float');
-    const f32 = 84, now = 12 + 8 + 8 + 16 + 8 + 16 + 4;
-    assert.equal(now, f32 - 12, '−12 bytes a vertex');
+    const f32 = 84, now = 12 + 8 + 8 + 16 + 8 + 4;
+    assert.equal(now, f32 - 28, '−28 bytes a vertex (the roots: one table entry a tree)');
+    // a geometry whose trees start at entry 40 of the shared table: the 4th components are rebased (once)
+    const g2 = GeoAcc.arraysToGeometry(a, 40);
+    assert.equal(g2.attributes.aNrm4, g2.attributes.normal, 'the normal buffer bound twice');
+    for (let k = 0; k < acc.count; k++) assert.equal(a.n[k * 4 + 3], perVertexId(acc, k) + 40);
+    GeoAcc.arraysToGeometry(a, 40);
+    for (let k = 0; k < acc.count; k++) assert.equal(a.n[k * 4 + 3], perVertexId(acc, k) + 40, 'idempotent');
+    assert.deepEqual(vertexRoot(g2, 7), Array.from(perVertex.subarray(28, 32)));
   }
 });
 

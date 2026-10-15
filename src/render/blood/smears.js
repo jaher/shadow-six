@@ -72,6 +72,7 @@ export class SmearLayer {
     this.mesh.userData.noXray = true; this.mesh.userData.aoExclude = true;
     scene.add(this.mesh);
     this._on = true; this.mesh.visible = false; // not drawn (nor compiled) until the first segment
+    this.mesh.userData.warmShow = true; // (…but drawn in the load's program warm-up frame: Game._warmFrame)
     this.slot = new Map(); this.next = 0; this.used = 0; this.odo = 0;
   }
 

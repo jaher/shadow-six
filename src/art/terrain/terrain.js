@@ -5,6 +5,7 @@
  * @module terrain-b/terrain
  */
 import { packNormals } from '../../engine/vertex-pack.js';
+import { restoreChunkIndex } from '../../engine/chunking.js';
 import { missionCarves } from './carve.js';
 import * as THREE from 'three';
 import { PALETTES, buildSplat, splatAt, undulation } from './terrain-layers.js';
@@ -342,11 +343,15 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
     // vertex), normals as normalized Int16 × 4 (8 instead of 12 bytes) — before chunking, which shares these attributes
     geo.deleteAttribute('uv');
     packNormals(THREE, geo);
+    // chunked into rows of ≤ 65,536 vertices with 16-bit indices (engine/chunking.js); the whole index is rebuilt for
+    // whoever draws it whole (restoreChunkIndex below: the water bakes of a restart)
+    geo.userData.chunk16 = { maxRowM: (Math.floor(65536 / (sx + 1)) - 1) / seg, dropIndex: true };
     geo.computeBoundingBox();
     geo.computeBoundingSphere();
     cache.retain(geo);
     return { geo, hgt };
   }, { bytes: (v) => v.hgt.byteLength + v.geo.attributes.position.array.byteLength + v.geo.attributes.normal.array.byteLength, dispose: disposeHeightEntry });
+  restoreChunkIndex(geo); // (a cached geometry chunked by the last load: drawn whole until this load chunks it)
 
   // ---- material ----------------------------------------------------------------------------------
   const layerInfo = P.layers.map((n) => LAYER_INFO[n] || { tau: 600, vis: 0.3 });

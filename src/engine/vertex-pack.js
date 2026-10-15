@@ -13,13 +13,14 @@
 
 /**
  * Values in [−1, 1] as normalized Int16, `size` components a vertex stored in `stride` (≥ size; the rest 0).
- * @param {ArrayLike<number>} v @param {number} [size] @param {number} [stride]
+ * @param {ArrayLike<number>} v @param {number} [size] @param {number} [stride] @param {number} [tol] rounding slack
+ *   beyond ±1 that is clamped (unit normals)
  * @returns {Int16Array|null} null when a value lies outside [−1, 1] (keep the floats: nothing is ever clamped)
  */
-export function snorm16(v, size = 1, stride = size) {
-  for (let i = 0; i < v.length; i++) if (!(v[i] >= -1 && v[i] <= 1)) return null;
+export function snorm16(v, size = 1, stride = size, tol = 0) {
+  for (let i = 0; i < v.length; i++) if (!(v[i] >= -1 - tol && v[i] <= 1 + tol)) return null;
   const n = v.length / size, o = new Int16Array(n * stride);
-  for (let k = 0; k < n; k++) for (let c = 0; c < size; c++) o[k * stride + c] = Math.round(v[k * size + c] * 32767);
+  for (let k = 0; k < n; k++) for (let c = 0; c < size; c++) o[k * stride + c] = Math.round(Math.max(-1, Math.min(1, v[k * size + c])) * 32767);
   return o;
 }
 

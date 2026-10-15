@@ -86,6 +86,7 @@ function buffers(grid) {
   return b;
 }
 
+const EMPTY_SETS = Object.freeze([]);
 const DI = [1, -1, 0, 0, 1, 1, -1, -1];
 const DJ = [0, 0, 1, -1, 1, -1, 1, -1];
 
@@ -153,6 +154,84 @@ export function hugsObstacle(grid, i, j) {
   return false;
 }
 
+/**
+ * Failed searches remembered within one epoch (World.findPath passes the world tick as `opts.memo`): a search that
+ * failed after reaching EVERY cell it could reach (its heap ran dry, not its node cap) leaves the set R of those cells —
+ * whatever its goal was. A later search under the same walk rules (swim / dive, the same avoid mask, role, links) from a
+ * start inside R to a goal outside R cannot succeed (whatever it reaches, the first start reached too): it returns null
+ * at once — exactly what its own full search would return. A blast heard by every guard on the map, inside a bunker none
+ * of them can reach, cost ~100 such floods in one tick (M3: 2 s). Never for `dynamic` searches (the vehicle layer is
+ * restamped within a tick); a new epoch or a new grid version starts afresh.
+ */
+const failMemos = new WeakMap();
+const maskIds = new WeakMap();
+let nextMaskId = 1;
+/** Failed-search sets kept per epoch (each a byte per cell). */
+const FAIL_MEMO_MAX = 24;
+function failMemo(grid, epoch) {
+  let m = failMemos.get(grid);
+  if (!m || m.epoch !== epoch || m.version !== grid.version) {
+    m = { epoch, version: grid.version, sets: new Map(), pockets: new Map(), n: 0 };
+    failMemos.set(grid, m);
+  }
+  return m;
+}
+function failKey(walkOpts, opts) {
+  let mask = 0;
+  if (walkOpts.avoid) { mask = maskIds.get(walkOpts.avoid); if (!mask) maskIds.set(walkOpts.avoid, (mask = nextMaskId++)); }
+  return `${walkOpts.swim ? 1 : 0}${walkOpts.dive ? 1 : 0}${opts.noLinks ? 1 : 0}${opts.noWalkLinks ? 1 : 0}|${mask}|${opts.role ?? ''}`;
+}
+
+/** Expansions after which a search asks whether its goal is shut in a small pocket (goalPocketExcludes). */
+export const POCKET_AT = 2500;
+/** Largest pocket (cells) worth enumerating for that question. */
+export const POCKET_MAX = 2500;
+const _pocketSeen = new WeakMap();
+/**
+ * Is goal cell `goalK` inside a pocket of at most POCKET_MAX cells — every cell from which a search can step (or climb,
+ * links) into the goal, enumerated backwards over the very rule the search steps by — that does not hold `startK`?
+ * Then no search from `startK` reaches the goal: findPath returns null, exactly as its full flood would (a charge
+ * blown inside a bunker nobody can walk into: every guard who hears it flooded the whole map, ~20 ms each).
+ * @returns {number[]|null} the pocket's cells, or null = can't tell (it is larger, or holds the start): search on
+ */
+function goalPocketExcludes(grid, goalK, startK, walkOpts, role, hasLinks, noLinks) {
+  const cols = grid.cols;
+  let mark = _pocketSeen.get(grid);
+  if (!mark || mark.a.length !== grid.size) { mark = { a: new Uint32Array(grid.size), id: 0 }; _pocketSeen.set(grid, mark); }
+  if (++mark.id >= 0xfffffff0) { mark.a.fill(0); mark.id = 1; }
+  const seen = mark.a, id = mark.id, queue = [goalK];
+  seen[goalK] = id;
+  for (let q = 0; q < queue.length; q++) {
+    const k = queue[q], i = k % cols, j = (k - i) / cols;
+    // every p with a step p → k: p walkable (searches only expand walkable cells), the step's own rules from p's side
+    for (let d = 0; d < 8; d++) {
+      const pi = i - DI[d], pj = j - DJ[d];
+      if (!grid.isWalkable(pi, pj, walkOpts)) continue;
+      const pk = pj * cols + pi;
+      if (seen[pk] === id) continue;
+      if (d >= 4 && (!grid.isWalkable(pi + DI[d], pj, walkOpts) || !grid.isWalkable(pi, pj + DJ[d], walkOpts))) continue;
+      if (!grid.canStep(pk, k)) continue;
+      if (d >= 4 && (!grid.canStep(pk, pj * cols + i) || !grid.canStep(pk, j * cols + pi))) continue;
+      if (pk === startK) return null;
+      seen[pk] = id; queue.push(pk);
+      if (queue.length > POCKET_MAX) return null;
+    }
+    if (hasLinks) {
+      for (const L of grid.linksAt(k)) {
+        if (!grid.linkAllowed(L, role) || (noLinks && !L.walk)) continue;
+        const pk = L.ka === k ? L.kb : L.ka;
+        if (seen[pk] === id) continue;
+        const pi = pk % cols, pj = (pk - pi) / cols;
+        if (!grid.isWalkable(pi, pj, walkOpts)) continue;
+        if (pk === startK) return null;
+        seen[pk] = id; queue.push(pk);
+        if (queue.length > POCKET_MAX) return null;
+      }
+    }
+  }
+  return queue;
+}
+
 export function findPath(grid, sx, sz, tx, tz, opts = {}) {
   const swim = !!opts.swim;
   const walkOpts = { swim, dynamic: !!opts.dynamic, dive: !!opts.dive, avoid: opts.avoid || null };
@@ -184,11 +263,20 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
   goal = clearOfWalls(grid, goal.x, goal.z, gi, gj, GOAL_CLEARANCE);
   if (si === gi && sj === gj) return [start, goal];
 
+  const startK = sj * cols + si, goalK = gj * cols + gi;
+  // (a failed search this epoch reached this start but not this goal: the goal is out of this start's reach too)
+  const memo = opts.memo != null && !walkOpts.dynamic ? failMemo(grid, opts.memo) : null;
+  const memoKey = memo ? failKey(walkOpts, opts) : null;
+  if (memo) {
+    for (const reach of memo.sets.get(memoKey) || EMPTY_SETS) if (reach[startK] && !reach[goalK]) return null;
+    // (or this goal's pocket — every cell that can reach it — was enumerated this epoch, without this start)
+    const pocket = memo.pockets.get(`${memoKey}|${goalK}`);
+    if (pocket && !pocket.has(startK)) return null;
+  }
   const b = buffers(grid);
   const { g, f, parent, stamp, closed, via } = b;
   const id = b.search;
   const heap = new NodeHeap(1024, f);
-  const startK = sj * cols + si, goalK = gj * cols + gi;
   const h = (i, j) => {
     const dx = Math.abs(i - gi), dz = Math.abs(j - gj);
     return (dx + dz) + (SQRT2 - 2) * Math.min(dx, dz);
@@ -200,7 +288,7 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
   stamp[startK] = id;
   heap.push(startK);
   let expanded = 0;
-  let found = false;
+  let found = false, capped = false;
   const terrain = grid.terrain, bridge = grid.bridge;
 
   while (heap.size > 0) {
@@ -208,7 +296,12 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
     if (closed[k] === id) continue;
     closed[k] = id;
     if (k === goalK) { found = true; break; }
-    if (++expanded > maxNodes) break;
+    if (++expanded > maxNodes) { capped = true; break; }
+    // (a long search: is the goal shut in a small pocket this start cannot be in? then it fails — no need to flood)
+    if (expanded === POCKET_AT) {
+      const pocket = goalPocketExcludes(grid, goalK, startK, walkOpts, role, hasLinks, !!opts.noLinks);
+      if (pocket) { if (memo) memo.pockets.set(`${memoKey}|${goalK}`, new Set(pocket)); return null; }
+    }
     const i = k % cols, j = (k - i) / cols;
     for (let d = 0; d < 8; d++) {
       const ni = i + DI[d], nj = j + DJ[d];
@@ -254,7 +347,17 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
       }
     }
   }
-  if (!found) return null;
+  if (!found) {
+    // every cell this start reaches is closed now: remember them for the epoch (see failMemo)
+    if (memo && !capped && memo.n < FAIL_MEMO_MAX) {
+      const reach = new Uint8Array(grid.size);
+      for (let k = 0; k < reach.length; k++) if (closed[k] === id) reach[k] = 1;
+      const list = memo.sets.get(memoKey);
+      if (list) list.push(reach); else memo.sets.set(memoKey, [reach]);
+      memo.n++;
+    }
+    return null;
+  }
 
   // Reconstruct cell chain.
   const cellsRev = [];

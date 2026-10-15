@@ -70,6 +70,12 @@ switch to the library only for hinted variants; a hinted `sea_wall` tiles its 8 
   types only; M9 picks them by `asset` with `nav: false` (gameplay footprints unchanged).
 
 ## Conventions
+- M10 (El Agheila, `manifest-el-agheila.json`): `desert/q_m10.txt` lists the builds (`ic_*.py` on `ic_common.py`: four single-bay
+  tank sheds (sand-painted / rusty corrugated iron, plank-and-sandbag, the bombed one with half its roof gone), the domed mud-brick
+  bomb store and its destroyed twin, the long corrugated gable barracks with its veranda, the lattice windpump, the precast
+  splinter-wall panel tiled along the apron's blast walls, the sandbag sentry hut, the mud-brick arch gate and W arch, the
+  log-and-sandbag airfield dugout, the tan pyramid tents on their sandbag skirts, the burnt RAF fighter wreck in the crater). Own `*_ic` types only; M10 picks them by `asset` with `nav: false`; the sheds' and blast
+  walls' gameplay walls stay (`visual: false`) and are drawn by art twins with no block.
 - Blender Z-up, 1 unit = 1 m. The pivot is the ground centre and the front faces Blender −Y, which is glTF +Z (game south at `rot` 0).
 - Sidecars (`<asset>.kit.json`) use game coordinates: x east, y up, z south; `heading = atan2(dz, dx)`.
   - footprints: `HIGH`, `LOW`, `FENCE`, or `NONE` (bridge decks, quays)

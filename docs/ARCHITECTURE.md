@@ -409,6 +409,11 @@ them (`Unit._lyingOnRun`). `avoid` (a cell mask, 1 = keep out) and
 around vehicle hulls, wrecks, fuel drums, pushables and solid props (`src/world/body-clearance.js`,
 docs/clipping-audit.md "Characters and vehicles": standing disc / prone capsule vs oriented rects and discs, per-step
 guard, clear stop poses, vehicles and pushed wagons stop for or run over men in their way).
+Failed searches are memoized per tick and grid version (`failMemo`, never for `dynamic` searches): a flood that ran
+out uncapped records the cells it reached, so a later search of the same tick, options, mask and role from inside that
+set to a goal outside it returns null at once; a goal whose reverse flood (`goalPocketExcludes`, the same step rules
+backwards, ≤ 2500 cells) closes without the start returns null before the forward search. Both are exact (a blast that
+re-plans a hundred men in one tick costs one flood per pocket instead of one per man).
 
 ### Entities
 ```js
@@ -1015,8 +1020,11 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   goes through `engine/vertex-pack.js`: values in [−1, 1] as normalized Int16, colours as half floats rounded to
   nearest, and 3-vectors always padded to 4 components (D3D11 has no 3-component 16-bit vertex format and Metal wants
   4-byte strides: ANGLE would keep a converted copy). Tree arrays (`treegen.js GeoAcc.toArrays`): normals / `aExt`
-  Int16, `aTint` half — 72 of 84 bytes a vertex, on the GPU and in the session cache; positions, uv, `aInfo` (per-leaf
-  phases) and `aRoot` (world roots) stay Float32. Terrain mesh (`createTerrain`, before chunking): no uv (its shader maps
+  Int16, `aTint` half, and the tree roots in a table — one entry (x, y, z, H + 100·kind) a tree, the vertex's entry in
+  the 4th (padding) component of its packed normal; the vegetation shaders bind the normal buffer a second time as
+  `aNrm4` and fetch the root from `uRoots` (RGBA32F, the mission's trees end to end, `arraysToGeometry(a, base)`
+  rebasing in place) — 56 of 84 bytes a vertex, on the GPU and in the session cache; positions, uv and `aInfo` (per-leaf
+  phases) stay Float32. Per-vertex roots remain for `GeoAcc.toGeometry` (impostor prototypes: `aRootV`, no `aNrm4`). Terrain mesh (`createTerrain`, before chunking): no uv (its shader maps
   world xz), normals Int16 × 4 (−21 % of its buffers); apron normals Int16 × 4. Not packed: kit / dressing geometry
   (merged in many places — a packed and a float normal cannot merge).
 - **Render-target formats** (perf/gpu-memory): the sun shadow map's depth texture is 16-bit (`slimShadowMap`: the ortho
@@ -1581,10 +1589,17 @@ Emitters add the events they own; AUDIO never needs another team to call it.
     cell column) and are drawn as one child Mesh per row of cells (shared attributes + index); a row is culled by its box
     and, in onBeforeRender / onBeforeShadow, cut to the span of its cells inside the drawing camera's frustum. Cell size
     ~20k triangles (24–96 m). The original mesh stays as a proxy (`isMesh = false`, setters forwarded, raycasts through
-    the cells the ray crosses); a geometry swap unchunks it.
+    the cells the ray crosses); a geometry swap unchunks it. Geometries that opt in (`userData.chunk16`: terrain, apron)
+    get 16-bit rows: each row its own slice of the vertex arrays (views, no copy; a grid's rows share one line) and a
+    Uint16 index, the whole index dropped (`restoreChunkIndex` rebuilds it for whoever draws the geometry whole: a
+    restart's water bakes; code that only reads the triangles — tests, debug clip geometry — uses `geometryIndexArray`,
+    a copy not kept). A grid row must hold ≤ 65,536 vertices (`chunk16.maxRowM`): the maps up to ~160 m wide keep
+    their 25 m rows; M4, M16 and M18 (~200 m) get 20 m rows (+2 draws a frame on desktop high).
   - Program variants (`engine/program-variants.js`): one override material per object kind (static / instanced /
     skinned / batched / morph) for the GTAO normals and the sun shadow depth (`assignShadowVariants` every 30 frames,
-    `checkShadowVariants` every frame), so three never re-derives a program between kinds.
+    `checkShadowVariants` every frame), so three never re-derives a program between kinds; the depth ones also per
+    side and copied maps (`depthState`: on a shared one the program re-derived on whichever caster a side change
+    landed, under that moment's lights — a new program whenever the camera first showed an unusual caster).
   - Shadow reach (`engine/shadow-cull.js`, `renderer.shadowCull`, `renderer.shadowViews`): a caster is drawn into the
     sun shadow map only if its world box, swept along the sun direction to y = −3, meets a receiving view (the frame
     camera + 1.5 m, the water mirror cameras + 3 m). Instance overrides on the sun shadow's own Frustum.
@@ -1606,7 +1621,16 @@ Emitters add the events they own; AUDIO never needs another team to call it.
     ratio down to 0.85 / 0.7 of the preset's, headroom steps it back.
   - Tools: `tools/perf/render-probe.js` (draws / triangles per pass and subsystem, GPU per pass, program switches),
     `measure-render.mjs`, `ab-render.mjs` (+ `ab-table.mjs`: two checkouts, process CPU, pixel diff vs noise floor),
-    `longtasks.mjs` (long tasks in a walkthrough, programs linked during play with their JS stack). Tests:
+    `longtasks.mjs` (long tasks in a walkthrough, programs linked during play with their JS stack), `wt-frames.mjs`
+    (video mode played live: every frame's wall time, ticks, sim / render / driver split per chapter, long tasks,
+    programs linked during play and who drew them; `--from=G3 --to=G5`, `--speed=auto`, `--phone --preset=low`),
+    `driver-gaps.mjs` (the solution driver's own time between ticks, with a CPU profile), `sim-trace.mjs` (per-second
+    state hashes of a logic-only run, `--diff` two checkouts, `--pause` plans sliced: the run must stay identical).
+    Video mode keeps first-use costs out of play: the load stages the ruins a blast reveals (`prepareDestroy`, detached
+    groups at the same world matrices: the same deformation bit for bit) and its warm-up frame draws them with the dam
+    burst, the escape truck (`laterVehicleModels`), blood, dig sites, a cone, LODs and stained / submerged men;
+    `tests/video-perf-m03.test.mjs` plays M3's whole walkthrough at 4× and fails on a program linked during play, a
+    driver stall, a long task or a frame over its host-calibrated bound. Tests:
     `render-budget` (draws / triangles / frame time per mission vs `tests/render-budgets.json`), `render-on-demand`,
     `dynamic-res`, unit `render-culling`, `dynamic-res`.
 - QA: `renderer.frameStats()` / `__game.frameStats()` (mean/std RGB, saturation, black fraction, context lost)

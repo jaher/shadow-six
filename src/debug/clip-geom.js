@@ -9,6 +9,7 @@
  */
 import * as THREE from 'three';
 import { MeshBVH } from '../../vendor/three-mesh-bvh/index.module.js';
+import { geometryIndexArray } from '../engine/chunking.js';
 
 const CACHE = new WeakMap();
 
@@ -23,7 +24,8 @@ function copyGeometry(geo, positionOf = null) {
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-  if (geo.index) g.setIndex(new THREE.BufferAttribute(Uint32Array.from(geo.index.array), 1));
+  const I = geometryIndexArray(geo); // (chunked with 16-bit rows: the dropped index rebuilt)
+  if (I) g.setIndex(new THREE.BufferAttribute(Uint32Array.from(I), 1));
   else if (n % 3) return null;
   g.computeBoundingBox();
   return g;

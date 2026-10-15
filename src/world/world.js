@@ -299,6 +299,8 @@ export class World {
       avoid: opts.avoid,
       nearRadius: opts.nearRadius,
       lying: !!opts.lying,
+      // (failed searches are remembered for the rest of this tick: pathfinding failMemo — the same answers, at once)
+      memo: this.tick,
     });
   }
 

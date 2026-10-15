@@ -26,10 +26,18 @@ import { AutoPace, PaceSensor, PerfCeiling, SteadyGrant, paceTarget, readTime, i
 export const WALK_SPEEDS = Object.freeze([0.5, 1, 2, 4]);
 /** The speed of a fresh walkthrough (no `speed` in its link): AUTO. `speed=1` is a fixed 1×. */
 export const DEFAULT_WALK_SPEED = 'auto';
-/** Wall-clock ms of ticks per frame while jumping (fast-forward). */
-export const WALK_TURBO_MS = 220;
+/**
+ * Wall-clock ms of ticks per frame while jumping (fast-forward), counted from the frame's start (a frame that draws
+ * the view runs fewer): a jump keeps the screen alive — the clock and the progress bar move every frame, the view is
+ * redrawn every WALK_TURBO_VIEW_MS — instead of freezing it in 0.2 s blocks.
+ */
+export const WALK_TURBO_MS = 14;
+/** While jumping, the view is redrawn at most this often (ms; never more than 15 % of the wall time: TURBO_VIEW_SHARE). */
+export const WALK_TURBO_VIEW_MS = 200;
 /** Skip waits: the most the pace is raised while every commando waits. */
 export const SKIP_BOOST = 4;
+/** Wall-clock ms of ticks a displayed frame may run (TickPacer.tickMs): costly stretches slow down, never stall. */
+export const WALK_TICK_MS = 12;
 const ROLE_COLORS = { greenberet: '#8fd47a', sniper: '#d9c27a', diver: '#7ac4e8', sapper: '#e8a25c', driver: '#c7a0e8', spy: '#e87a8f' };
 
 const CSS = `
@@ -91,6 +99,12 @@ const CSS = `
   #wt-cap.chapter .wt-title{font-size:17px;margin:0 0 2px}#wt-cap .wt-who{font-size:10px;padding:2px 5px}}
 @media (max-width:480px){#wt-cap{font-size:15px;line-height:1.33}}
 body.dbg-video .hud-speaker-card{transform:translateY(var(--wt-card-shift,0px))}
+#wt-rewind{position:fixed;z-index:8950;left:50%;top:50%;transform:translate(-50%,-50%);min-width:min(360px,calc(100vw - 32px));box-sizing:border-box;
+  padding:14px 18px;background:rgba(10,11,12,.88);border:1px solid #7fd6ff88;border-radius:10px;color:#efe7d2;font:600 14px/1.35 system-ui,sans-serif;pointer-events:none}
+#wt-rewind .wt-k{color:#7fd6ff;letter-spacing:.08em}
+#wt-rewind .wt-sub{font-weight:500;opacity:.85;margin-top:2px}
+#wt-rewind .wt-prog{height:4px;margin-top:10px;background:#ffffff22;border-radius:2px;overflow:hidden}
+#wt-rewind .wt-prog i{display:block;height:100%;background:#7fd6ff;width:0;transition:width .15s linear}
 #wt-flash{position:fixed;z-index:8650;left:50%;transform:translateX(-50%);padding:6px 12px;border-radius:6px;background:rgba(0,0,0,.75);
   color:#ffe9a8;font:600 13px/1.3 system-ui,sans-serif;pointer-events:none;max-width:calc(100vw - 24px);text-align:center}
 `;
@@ -156,6 +170,31 @@ export function closeCard() {
   document.getElementById('wt-card')?.remove();
 }
 
+/**
+ * A jump back rebuilds the mission (then fast-forwards): this panel shows it happening — the load's own progress
+ * (`mission:progress`) on a bar — instead of a frozen picture. The next walkthrough takes it away as its jump starts.
+ */
+export function showRewind(game, label) {
+  installStyle();
+  hideRewind();
+  const box = el('div', null, document.body);
+  box.id = 'wt-rewind';
+  box.setAttribute('role', 'status');
+  el('div', 'wt-k', box, `⏪ Back to ${label}`);
+  el('div', 'wt-sub', box, 'Rebuilding the mission, then fast-forwarding…');
+  const bar = el('i', null, el('div', 'wt-prog', box));
+  const off = game?.events?.on?.('mission:progress', (e) => { bar.style.width = `${Math.round(Math.max(0, Math.min(1, e?.p ?? 0)) * 100)}%`; });
+  box._off = typeof off === 'function' ? off : null;
+  return box;
+}
+
+export function hideRewind() {
+  const b = document.getElementById('wt-rewind');
+  if (!b) return;
+  b._off?.();
+  b.remove();
+}
+
 export class Walkthrough extends SolutionReplay {
   /**
    * @param {object} game the Game (mission freshly loaded, playing)
@@ -170,7 +209,7 @@ export class Walkthrough extends SolutionReplay {
    */
   constructor(game, sol, wtFile, o = {}) {
     const auto = String(o.speed ?? DEFAULT_WALK_SPEED).toLowerCase() === 'auto';
-    super(game, sol, { ...o, speed: auto ? 1 : o.speed, speeds: WALK_SPEEDS, turboMs: o.turboMs ?? WALK_TURBO_MS, onSkip: null });
+    super(game, sol, { ...o, speed: auto ? 1 : o.speed, speeds: WALK_SPEEDS, turboMs: o.turboMs ?? WALK_TURBO_MS, turboViewMs: o.turboViewMs ?? WALK_TURBO_VIEW_MS, tickMs: o.tickMs ?? WALK_TICK_MS, onSkip: null });
     this.isWalkthrough = true;
     this.onJumpBack = o.onSkip || null;
     this.onExit = o.onExit || null;
@@ -235,7 +274,7 @@ export class Walkthrough extends SolutionReplay {
   }
 
   _animScale() {
-    if (this.pacer.paused || this._held()) return 0;
+    if (this.pacer.paused || this._held() || this._thinking) return 0;
     return this.pacer.turbo ? 8 : this.pacer.speed * this.pacer.boost;
   }
 
@@ -280,6 +319,7 @@ export class Walkthrough extends SolutionReplay {
     ].filter(Boolean);
     this.sensor.attach();
     this.director.attach();
+    hideRewind(); // (a jump back's rebuild is done: this walkthrough's own fast-forward shows the rest)
     if (this.showIntro) { this._introOn = true; this.hold = { until: performance.now() + 1e9, kind: 'intro' }; }
     const done = super.start(); // (runs the solution up to its first tick: stage A starts in here)
     if (this.showIntro) this._intro();
@@ -718,6 +758,7 @@ export class Walkthrough extends SolutionReplay {
       this._syncBar();
       return true;
     }
+    if (this.onJumpBack) showRewind(this.game, m.id);
     this.onJumpBack?.({ kind: m.kind, id: m.id }, this.settings);
     return true;
   }

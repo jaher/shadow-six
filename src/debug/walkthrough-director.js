@@ -15,6 +15,16 @@ import * as THREE from 'three';
 const PX_PER_M = 40; // CSS px per metre at zoom 1 (CONFIG.camera.pxPerMeterAt1x)
 /** Yaws (deg, relative to the player's own) the director may swing to when a building hides the shot. */
 export const YAW_OFFSETS = Object.freeze([0, -30, 30, -55, 55]);
+/** Wall-clock ms of the yaw check's rays a frame (at least one ray a frame): see Director._yaw. */
+export const YAW_RAY_MS = 3;
+
+/** The meshes drawn under `o` (it and its ancestors visible; sprites out): what can stand between a man and the camera. */
+function shownMeshes(o, out) {
+  if (!o.visible) return out;
+  if (o.isMesh && !o.isSprite) out.push(o);
+  for (const c of o.children) shownMeshes(c, out);
+  return out;
+}
 
 /** Screen-space metres of a world point for a camera at yaw `az` / pitch `el` (u: screen right, w: screen down). */
 export function screenMetres(p, az, el) {
@@ -191,50 +201,68 @@ export class Director {
 
   /**
    * Yaw: the player's own, unless a building hides part of the shot from it (the men in it, then its guards): then
-   * the nearest offset that shows more of it, held at least 4 s. Checked twice a second (real time).
+   * the nearest offset that shows more of it, held at least 4 s. Checked twice a second (real time). Each check casts
+   * up to 25 rays at the structures round the men — a blasted bunker's ruin alone is ~80 000 triangles, ~100 ms of rays
+   * in one go — so a check is a job spread over the next frames, at most YAW_RAY_MS of rays a frame (one at least):
+   * the same rays, the same decision, a few frames later.
    */
   _yaw(shot, el, dt) {
     const y = this.yaw, now = performance.now();
-    if (shot.cut) { y.cur = y.want; y.v = 0; }
-    if (now - y.at > 500 && !shot.noYaw) {
+    if (shot.cut) { y.cur = y.want; y.v = 0; this._yawJob = null; }
+    if (!this._yawJob && now - y.at > 500 && !shot.noYaw) {
       y.at = now;
-      const pts = shot.pts.slice(0, 5);
-      const score = (off) => this._hidden(pts, shot.must ?? 1, this._saved.azimuth + (off * Math.PI) / 180, el);
-      const cur = score(y.want);
-      if (cur > 0 || (y.want !== 0 && now - y.since > 4000)) {
-        let best = y.want, bestS = cur;
-        for (const off of YAW_OFFSETS) {
-          const sc = off === y.want ? cur : score(off);
-          if (sc < bestS - 1e-9 || (sc === bestS && Math.abs(off) < Math.abs(best))) { best = off; bestS = sc; }
-        }
-        if (best !== y.want && (now - y.since > 4000 || bestS + 1 <= cur)) { y.want = best; y.since = now; }
-      }
+      this._yawJob = this._yawCheck(shot.pts.slice(0, 5), shot.must ?? 1, el);
+    }
+    if (this._yawJob) {
+      const t0 = performance.now();
+      for (;;) { const r = this._yawJob.next(); if (r.done) { this._yawJob = null; break; } if (performance.now() - t0 > YAW_RAY_MS) break; }
     }
     [y.cur, y.v] = spring(y.cur, y.v, y.want, 1.6, Math.min(dt, 0.1));
   }
 
-  /** How hidden `pts` are behind the mission's structures from yaw `az` (a man of the first `must` counts 3). */
-  _hidden(pts, must, az, el) {
+  /** One yaw check (a generator: it yields after every ray; see _yaw). */
+  * _yawCheck(pts, must, el) {
+    const y = this.yaw;
+    const score = function* (off) { return yield* this._hidden(pts, must, this._saved.azimuth + (off * Math.PI) / 180, el); }.bind(this);
+    const cur = yield* score(y.want);
+    if (cur > 0 || (y.want !== 0 && performance.now() - y.since > 4000)) {
+      let best = y.want, bestS = cur;
+      for (const off of YAW_OFFSETS) {
+        const sc = off === y.want ? cur : yield* score(off);
+        if (sc < bestS - 1e-9 || (sc === bestS && Math.abs(off) < Math.abs(best))) { best = off; bestS = sc; }
+      }
+      const now = performance.now();
+      if (best !== y.want && (now - y.since > 4000 || bestS + 1 <= cur)) { y.want = best; y.since = now; }
+    }
+  }
+
+  /**
+   * How hidden `pts` are behind the mission's structures from yaw `az` (a man of the first `must` counts 3): a
+   * generator yielding after each ray, returning the score. Only what is drawn hides anyone: the meshes shown now (a
+   * building's other LODs, a hidden ruin waiting for its blast and the like are not in the way).
+   */
+  * _hidden(pts, must, az, el) {
     const w = this.wk.world;
     if (!w?.structures?.size) return 0;
     if (!this._ray) { this._ray = new THREE.Raycaster(); this._dir = new THREE.Vector3(); this._org = new THREE.Vector3(); }
-    const dir = this._dir.set(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)); // towards the camera
     let s = 0;
-    pts.forEach((p, i) => {
-      if (p.unseen) return;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      if (p.unseen) continue;
       const objs = [];
       for (const st of w.structures.values()) {
         const o = st.object3d, d = st.def;
         if (!o || (Number.isFinite(d?.x) && Math.hypot(d.x - p.x, d.z - p.z) > 45)) continue;
-        objs.push(o);
+        shownMeshes(o, objs);
       }
-      if (!objs.length) return;
+      if (!objs.length) continue;
+      const dir = this._dir.set(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)); // towards the camera
       this._org.set(p.x, (p.y || 0) + 1.1, p.z).addScaledVector(dir, 0.6);
       this._ray.set(this._org, dir);
       this._ray.far = 80;
-      const hit = this._ray.intersectObjects(objs, true).find((h) => h.object.visible !== false && !h.object.isSprite);
-      if (hit) s += i < must ? 3 : 1;
-    });
+      if (this._ray.intersectObjects(objs, false).length) s += i < must ? 3 : 1;
+      yield;
+    }
     return s;
   }
 

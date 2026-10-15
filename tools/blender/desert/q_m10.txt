@@ -1,0 +1,21 @@
+# M10 art pass (El Agheila, "Operation Icarus"): "script -- outdir variant seed" (desert family; ic_common.py on
+# bq_common.py / the dz.py kit helpers; ic_*_b.py are the second halves the scripts exec). Ship with
+# tools/blender/consolidate/addon_manifest.py:
+#   <art_root> <repo> manifest-el-agheila desert tank_shed_ic=tank_shed_ic_a,tank_shed_ic_b,tank_shed_ic_c,tank_shed_ic_d
+#     store_domed_ic=store_domed_ic barracks_corr_ic=barracks_corr_ic windpump_ic=windpump_ic revetment_ic=revetment_ic
+#     sentry_hut_ic=sentry_hut_ic arch_gate_ic=arch_gate_mud_ic,arch_mud_ic dugout_ic=dugout_log_ic aircraft_wreck_ic=aircraft_wreck_ic tent_pyramid_ic=tent_pyramid_ic
+ic_shed.py <out> a 1
+ic_shed.py <out> b 1
+ic_shed.py <out> c 1
+ic_shed.py <out> d 1
+ic_store.py <out> a 1
+ic_store.py <out> a_destroyed 1
+ic_barracks.py <out> a 1
+ic_misc.py <out> pump 1
+ic_misc.py <out> revet 1
+ic_misc.py <out> hut 1
+ic_gate.py <out> gate 1
+ic_gate.py <out> arch 1
+ic_dugout.py <out> a 1
+ic_wreck.py <out> plane 1
+ic_tent.py <out> a 1

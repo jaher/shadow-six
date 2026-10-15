@@ -297,6 +297,24 @@ function modelFor(type, def, spawn = {}) {
   return boxModel(type, def);
 }
 
+/**
+ * Visual-only models of the vehicles a mission brings on later — its scripted escape vehicle (§7.6 `extraction.spawnAt`:
+ * M3's truck drives in once the dam is down) — built at load so the GPU warm-up draws them (programs, textures, the
+ * canvas cover's attributes on the shared library geometry) and the vehicle's first appearance costs nothing. They are
+ * not entities: nothing in the simulation sees them, the real spawn builds its own model as ever. Kept (out of the
+ * scene) until the mission unloads (art/vehicle-model.js releaseVehicles), so what they compiled stays.
+ * @param {object} def mission definition @returns {object[]} models ({root, …})
+ */
+export function laterVehicleModels(def) {
+  const ex = def?.extraction, out = [];
+  if (!ex?.spawnAt || ex.vehicleId == null || (def.vehicles || []).some((v) => v?.id === ex.vehicleId)) return out;
+  const type = ex.vehicleType || 'truck', D = vehicleDef(type);
+  if (ex.seats != null) D.seats = ex.seats;
+  const m = modelFor(type, D, { id: ex.vehicleId, vehicleType: type, x: ex.spawnAt.x, z: ex.spawnAt.z, heading: ex.spawnAt.heading ?? 0 });
+  if (m?.root) { m.root.position.set(ex.spawnAt.x, 0, ex.spawnAt.z); out.push(m); }
+  return out;
+}
+
 /** Enemy → commando visibility through the AI perception API. */
 function canSeeUnit(viewer, unit, world) {
   return perceptionCanSee(viewer, unit, world) !== 'none';

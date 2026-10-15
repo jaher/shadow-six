@@ -43,9 +43,17 @@ export class TickPacer {
    * @param {{simDt?: number, maxPerFrame?: number, speed?: number, speeds?: number[], turboMs?: number}} o
    *   speeds: the speeds setSpeed accepts; turboMs: wall-clock ms of ticks per frame while fast-forwarding
    */
-  constructor({ simDt = 1 / 60, maxPerFrame = 8, speed = 1, speeds = SPEEDS, turboMs = TURBO_MS } = {}) {
+  constructor({ simDt = 1 / 60, maxPerFrame = 8, speed = 1, speeds = SPEEDS, turboMs = TURBO_MS, tickMs = Infinity } = {}) {
     this.simDt = simDt;
     this.maxPerFrame = maxPerFrame;
+    /**
+     * Wall-clock ms of ticks one displayed frame may run (from its first tick; Infinity: no limit). Past it the rest of
+     * the frame's budget waits for the next frames: a stretch of costly ticks plays a little slower instead of
+     * stalling the picture (video mode at 4×, ×4 more while it skips waits: 16 ticks a frame). The ticks and the
+     * orders are the same, only their wall-clock pacing differs.
+     */
+    this.tickMs = tickMs;
+    this.tickFrom = -1;
     this.speeds = speeds;
     this.speed = speeds.includes(+speed) ? +speed : speeds.includes(1) ? 1 : speeds[0];
     this.turboMs = turboMs;
@@ -61,6 +69,7 @@ export class TickPacer {
   frame(dt, now) {
     if (this.paused) { this.budget = 0; return; }
     if (this.turbo) { this.deadline = now + this.turboMs; return; }
+    this.tickFrom = -1;
     const d = Math.max(0, Math.min(dt, CONFIG.render?.maxDelta ?? 0.25));
     const k = this.speed * this.boost;
     this.budget = Math.min(this.budget + (d * k) / this.simDt, this.maxPerFrame * Math.max(1, k));
@@ -69,12 +78,14 @@ export class TickPacer {
   /** May a tick run now? */
   canTick(now) {
     if (this.paused) return false;
-    return this.turbo ? now < this.deadline : this.budget >= 1;
+    return this.turbo ? now < this.deadline : this.budget >= 1 && (this.tickFrom < 0 || now - this.tickFrom < this.tickMs);
   }
 
-  /** One granted tick used. */
-  take() {
-    if (!this.turbo) this.budget = Math.max(0, this.budget - 1);
+  /** One granted tick used (`now`: wall ms, as canTick's). */
+  take(now = performance.now()) {
+    if (this.turbo) return;
+    this.budget = Math.max(0, this.budget - 1);
+    if (this.tickFrom < 0 && this.tickMs !== Infinity) this.tickFrom = now;
   }
 
   setSpeed(s) {
@@ -149,12 +160,14 @@ export class SolutionReplay {
    * @param {{speed?: number, toStage?: string|null, isFrozen?: () => boolean, onEnd?: (r: object) => void,
    *   onSkip?: (stageId: string) => void}} o  isFrozen: the debug select is open (no ticks); onSkip: reload + fast-forward
    */
-  constructor(game, sol, { speed = 1, toStage = null, toMarker = null, speeds = SPEEDS, turboMs = TURBO_MS, isFrozen = () => false, onEnd = null, onSkip = null, manualTickAfter = null } = {}) {
+  constructor(game, sol, { speed = 1, toStage = null, toMarker = null, speeds = SPEEDS, turboMs = TURBO_MS, turboViewMs = TURBO_VIEW_MS, tickMs = Infinity, isFrozen = () => false, onEnd = null, onSkip = null, manualTickAfter = null } = {}) {
     this.game = game;
+    /** While fast-forwarding, the view is drawn at most every this many ms (TURBO_VIEW_MS; video mode: more often). */
+    this.turboViewMs = turboViewMs;
     this.sol = sol;
     this.world = game.world;
     this.simDt = CONFIG.sim.dt;
-    this.pacer = new TickPacer({ simDt: this.simDt, maxPerFrame: CONFIG.sim.maxStepsPerFrame, speed, speeds, turboMs });
+    this.pacer = new TickPacer({ simDt: this.simDt, maxPerFrame: CONFIG.sim.maxStepsPerFrame, speed, speeds, turboMs, tickMs });
     this.isFrozen = isFrozen;
     this.onEnd = onEnd;
     this.onSkip = onSkip;
@@ -209,7 +222,7 @@ export class SolutionReplay {
       // fast-forward: the view only every TURBO_VIEW_MS; the frames between just grant ticks (and wake the driver)
       this._viewDt += dt;
       const now = performance.now();
-      if (this.pacer.turbo && !this.stopped && now - this._viewAt < Math.max(TURBO_VIEW_MS, this._viewMs / TURBO_VIEW_SHARE)) return undefined;
+      if (this.pacer.turbo && !this.stopped && now - this._viewAt < Math.max(this.turboViewMs, this._viewMs / TURBO_VIEW_SHARE)) return undefined;
       this._viewAt = now;
       const vdt = Math.min(this._viewDt, CONFIG.render?.maxDelta ?? 0.25);
       this._viewDt = 0;
@@ -226,6 +239,7 @@ export class SolutionReplay {
       aborted: () => this.stopped,
       onOrder: (role, u, o) => this._onOrder(role, u, o),
       onCheckpoint: (cp) => this._onCheckpoint(cp),
+      pause: () => this._pause(),
     });
     this.driver = D;
     this.done = this._run(D);
@@ -269,9 +283,22 @@ export class SolutionReplay {
     return this.finished;
   }
 
-  /** Animation time per real second of the displayed frame (the sim's pace). */
+  /** Animation time per real second of the displayed frame (the sim's pace; still while the solution plans). */
   _animScale() {
+    if (this._thinking) return 0;
     return this.pacer.turbo ? 8 : this.pacer.speed;
+  }
+
+  /**
+   * The solution's sliced planning (driver `pause`) hands the frame back: the plan goes on on the next displayed
+   * frame — no tick in between, the world it reads stands still — or at once while a fast-forward frame has time left.
+   * Meanwhile the men's animation holds (nothing moves: the clock is not running).
+   */
+  _pause() {
+    if (this.stopped) return Promise.reject(new this.sol.SolutionAborted());
+    if (this.pacer.turbo && this.pacer.canTick(performance.now())) return Promise.resolve();
+    this._thinking = true;
+    return new Promise((res, rej) => { this._pauseWaiter = { res, rej }; });
   }
 
   _onOrder(role, u, o) {
@@ -313,6 +340,7 @@ export class SolutionReplay {
 
   _tick() {
     if (this.stopped) throw new this.sol.SolutionAborted();
+    this._thinking = false;
     this.pacer.take();
     this.game.step(this.simDt);
     this.ticks++;
@@ -326,6 +354,9 @@ export class SolutionReplay {
     if (g.state === 'won' || g.state === 'lost') {
       // the game is over: wake the driver so its end loop sees it
     } else if (g.state === 'playing' && !this.isFrozen()) this.pacer.frame(dt, performance.now());
+    // a sliced plan goes on in this frame (after its draw, like the ticks)
+    const pw = this._pauseWaiter;
+    if (pw) { this._pauseWaiter = null; pw.res(); }
     const w = this._waiter;
     if (w && (this._ready() || g.state === 'won' || g.state === 'lost')) {
       this._waiter = null;
@@ -478,6 +509,9 @@ export class SolutionReplay {
     const w = this._waiter;
     this._waiter = null;
     w?.rej(new this.sol.SolutionAborted());
+    const pw = this._pauseWaiter;
+    this._pauseWaiter = null;
+    pw?.rej(new this.sol.SolutionAborted());
     this._release();
   }
 

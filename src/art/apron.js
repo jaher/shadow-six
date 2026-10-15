@@ -229,6 +229,7 @@ export function apronGeometry(f, heightAt, mapHeightAt, step = CONFIG.apron.cell
   // normals from the undropped surface: the steep strip would tilt the edge-line normals and light every map edge up
   geo.computeVertexNormals();
   packNormals(THREE, geo); // normalized Int16 × 4: 8 instead of 12 bytes a vertex (engine/vertex-pack.js)
+  geo.userData.chunk16 = { dropIndex: true }; // 16-bit chunk rows where they fit (engine/chunking.js): built per load
   const P = geo.attributes.position.array;
   for (let k = 0; k < P.length; k += 3) if (inMap(P[k], P[k + 2])) P[k + 1] -= INNER_DROP;
   geo.computeBoundingBox(); geo.computeBoundingSphere();

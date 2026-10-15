@@ -63,6 +63,7 @@ export class DecalLayer {
     this.mesh.name = 'blood-decals'; this.mesh.userData.noXray = true; this.mesh.userData.aoExclude = true;
     scene.add(this.mesh);
     this._on = true; this.mesh.visible = false; // not drawn (nor compiled) until the first decal
+    this.mesh.userData.warmShow = true; // (…but drawn in the load's program warm-up frame: Game._warmFrame)
     this.list = []; // records in instance order
     this._m = new THREE.Matrix4(); this._x = new THREE.Vector3(); this._y = new THREE.Vector3(); this._n = new THREE.Vector3(); this._p = new THREE.Vector3();
   }

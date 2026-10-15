@@ -472,9 +472,51 @@ export class DigSite {
 
   dispose() {
     this.group.removeFromParent();
-    this.ringMat.dispose(); this.holeMat.dispose(); this.heapMat.dispose(); this.clodMat.dispose();
+    keepMaterials('site', [this.ringMat, this.holeMat, this.heapMat, this.clodMat]);
     this.ring.geometry.dispose(); this.hole.geometry.dispose(); this.clods.dispose();
   }
+}
+
+/**
+ * The materials of the last dig site / shovel put away are kept (not disposed) until the next one is put away: three
+ * frees a program once no material uses it, so every dig (the GB digs in and out a dozen times in M3) compiled its
+ * site's and shovel's programs again — a hitch of ~5 programs each time. With one set always alive they stay cached.
+ */
+const KEPT = { site: null, shovel: null, shovelFade: null };
+function keepMaterials(kind, mats) {
+  const old = KEPT[kind];
+  KEPT[kind] = mats;
+  if (old) for (const m of old) if (!mats.includes(m)) m.dispose();
+}
+
+/**
+ * A dig site and a shovel for the load's program warm-up frame (Game._warmFrame): drawn once there, then put away —
+ * their materials become the kept set, so the first dig of the mission compiles nothing.
+ * @param {number} x @param {number} z @param {number} y @returns {{objects: THREE.Object3D[], done: () => void}}
+ */
+export function digWarmObjects(x, z, y = 0) {
+  const site = new DigSite({ x, z, surface: 'snow', heading: 0 }, y);
+  site.update('buried', 0, 2);
+  site.clods.count = 1;
+  const shovel = makeShovel();
+  shovel.position.set(x, y + 1, z);
+  // (and one fading on / off his pack: its transparent variant — applyDigPose sets these when alpha < 1)
+  const fading = makeShovel();
+  fading.position.set(x + 0.5, y + 1, z);
+  fading.traverse((o) => { if (o.isMesh) { o.material.opacity = 0.5; o.material.transparent = true; o.material.depthWrite = false; } });
+  return {
+    objects: [site.group, shovel, fading],
+    xray: [shovel], // (a shovel in his hands is x-rayed with him: its silhouette variant)
+    done: () => { site.dispose(); shovel.removeFromParent(); fading.removeFromParent(); putShovelAway(shovel); keepMaterials('shovelFade', meshMats(fading)); },
+  };
+}
+const meshMats = (root) => { const out = []; root.traverse((o) => { if (o.isMesh && !out.includes(o.material)) out.push(o.material); }); return out; };
+
+/** A shovel's own materials (makeShovel clones them: it fades on / off his pack) go to the kept set. */
+function putShovelAway(shovel) {
+  const mats = [];
+  shovel.traverse((o) => { if (o.isMesh && !mats.includes(o.material)) mats.push(o.material); });
+  keepMaterials('shovel', mats);
 }
 
 // ------------------------------------------------------------------ per-frame driver
@@ -508,7 +550,7 @@ export function digFrame(u, dt) {
     u.inGround = false;
   };
   if (!d) {
-    if (V) { stop(); V.shovel?.traverse((o) => { if (o.isMesh) o.material.dispose(); }); u._digVis = null; }
+    if (V) { stop(); if (V.shovel) putShovelAway(V.shovel); u._digVis = null; }
     return;
   }
   const stamp = `${d.phase}@${d.t0}`;

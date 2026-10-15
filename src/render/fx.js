@@ -562,6 +562,15 @@ export class FX {
 
   // ------------------------------------------------------------------ per tick / per frame
 
+  /**
+   * The persistent sources' scan (_scan) at the end of the load instead of in the first tick: chimney tops are seated
+   * with rays through the whole scene (and the first ray sizes every skinned body's bounds) — ~0.2 s that otherwise
+   * lands on the first frame of play. Same scene, same map: the same sources.
+   */
+  prescan() {
+    if (!this._scanned && this.world.structures) this._scan();
+  }
+
   /** Sim tick (fixed 1/60 s, not called while paused): effect simulation + persistent sources. */
   update(dt) {
     this.time += dt;

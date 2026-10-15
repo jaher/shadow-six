@@ -80,18 +80,18 @@ const p5FarWest = (D) => D.get('e29').x < 19;
 async function raftWindow(D, raft, to, hold, label, maxSec = 600, back = null, { alsoClear = null, ...opts } = {}) {
   let k = 0;
   const packed = raft.def ? {} : { from: [raft.x, raft.z] }; // (`raft` a spot {x, z}: the packed raft, deployed there)
-  await D.until(() => {
+  await D.untilAsync(async () => { // (the plans inside are sliced in the live replay: driver planSneakAsync)
     if (k++ % 30) return false; // (look again every half second)
     const dbg = globalThis.process?.env?.RWDBG && k % 300 === 1 ? [] : null;
     if (!p5West(D, hold + (globalThis.process?.env?.P5W ? +globalThis.process.env.P5W : 25))) { if (dbg) D.log(`   rw ${D.t.toFixed(1)} p5 not W`); return false; } // the 5-man patrol's place in a file is only roughly predictable: wait it out W
     if (!D.clearAhead(raft.x, raft.z, hold, false, dbg, null, 2)) { if (dbg) D.log(`   rw ${D.t.toFixed(1)} raft spot seen [${dbg.join(' ')}]`); return false; }
     // (`alsoClear`: where the Marine walks to it, standing)
     if (alsoClear && !alsoClear.every(([x, z]) => D.clearAhead(x, z, hold, false, dbg, null, 2))) { if (dbg) D.log(`   rw ${D.t.toFixed(1)} way to the raft seen`); return false; }
-    const p = D.planSneak(...to, { mode: 'raft', box: 12, startDelay: hold - 1, horizon: 120, maxExpand: 120000, why: dbg ?? undefined, ...packed, ...opts });
+    const p = await D.planSneakAsync(...to, { mode: 'raft', box: 12, startDelay: hold - 1, horizon: 120, maxExpand: 120000, why: dbg ?? undefined, ...packed, ...opts });
     if (dbg && !p) D.log(`   rw ${D.t.toFixed(1)} no way there [${dbg.join(' ')}]`);
     if (!p || !back) return !!p;
     // a round trip (`back`: [x, z, s aboard there]): the way back must be clear too, from where this leg ends
-    const p2 = D.planSneak(back[0], back[1], { mode: 'raft', box: 12, from: to, startDelay: p[p.length - 1][2] - D.t + back[2], horizon: 180, maxExpand: 120000, why: dbg ?? undefined, ...opts });
+    const p2 = await D.planSneakAsync(back[0], back[1], { mode: 'raft', box: 12, from: to, startDelay: p[p.length - 1][2] - D.t + back[2], horizon: 180, maxExpand: 120000, why: dbg ?? undefined, ...opts });
     if (dbg && !p2) D.log(`   rw ${D.t.toFixed(1)} no way back (there at +${(p[p.length - 1][2] - D.t).toFixed(1)}) [${dbg.join(' ')}]`);
     return !!p2;
   }, maxSec, `${label}: a quiet moment`);
@@ -256,7 +256,7 @@ async function gbSneak(D, x, z, o = {}) {
   for (let i = 0; i < 600; i++) {
     if (Math.hypot(gb.x - x, gb.z - z) < 0.9) return;
     why.length = 0;
-    const p = D.planSneak(x, z, { ...opts, startDelay: gb.buried ? 1.5 : 0, horizon: 90, maxExpand: 80000, why });
+    const p = await D.planSneakAsync(x, z, { ...opts, startDelay: gb.buried ? 1.5 : 0, horizon: 90, maxExpand: 80000, why });
     if (globalThis.__M3DBG && !p && i % 40 === 0) D.log(`DBG ${D.t.toFixed(1)} gbSneak → (${x},${z}) at (${gb.x.toFixed(1)},${gb.z.toFixed(1)})${gb.buried ? ' buried' : ''}: none [${why.join(' ')}]`);
     if (p) {
       await gbRise(D);

@@ -105,6 +105,7 @@ test('stair gait: cadence — a step covers one tread at a patrol\'s pace, two a
   assert.deepEqual(cadenceFor(0.6, 0.384, 1.9), { n: 2, k: 0.6 / 0.768 });    // (a short-legged walk at that pace: two, unhurried)
   assert.deepEqual(cadenceFor(0.52, 0.384, 0.77), { n: 1, k: 0.52 / 0.384 }); // a German patrol walking them
   assert.deepEqual(cadenceFor(0.52, 0.29, 0.77), { n: 1, k: 0.52 / 0.29 });   // the same patrol on plat_sw's 29 cm treads
+  assert.deepEqual(cadenceFor(0.9, 0.384, 1.15), { n: 2, k: 0.9 / 0.768 });   // (a long stride slower: a tread a step would need the clip past kMax)
   assert.deepEqual(cadenceFor(1.6, 0.384, 3), { n: 2, k: 1.6 / 0.768 });      // a jog up the dam stairs: two at a time, quick steps
   assert.equal(cadenceFor(1.6, 0.29, 3).k, GAIT.kMax);                        // on plat_sw: as quick as it goes
   assert.deepEqual(cadenceFor(0.6, 0.384), { n: 1, k: 0.6 / 0.384 });         // (no speed: shortened rather than stretched)

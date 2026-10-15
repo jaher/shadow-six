@@ -185,6 +185,27 @@ float pH; float pWet; float pSoak; float pHalo; vec3 pNrm;`)
 
   set visible(v) { this._off = !v; if (this.mesh) this.mesh.visible = v; }
 
+  /**
+   * A one-quad stand-in drawn only by the load's program warm-up frame (userData.warmShow, Game._warmFrame): the
+   * pools' program exists before the first body bleeds (the pools mesh itself is built with the first pool).
+   */
+  warmMesh() {
+    if (this._warm) return this._warm;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, -50, 0, 0.1, -50, 0, 0, -50, 0.1]), 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(6), 2));
+    geo.setAttribute('aTile', new THREE.BufferAttribute(new Float32Array(6), 2));
+    geo.setAttribute('aPool', new THREE.BufferAttribute(new Float32Array(12), 4));
+    geo.setIndex([0, 1, 2]);
+    geo.computeVertexNormals();
+    const m = new THREE.Mesh(geo, this.mat);
+    m.name = 'blood-pools-warm'; m.frustumCulled = false; m.renderOrder = 3; m.receiveShadow = true;
+    m.userData.noXray = true; m.userData.aoExclude = true; m.userData.warmShow = true;
+    m.visible = false;
+    this.scene.add(m);
+    return (this._warm = m);
+  }
+
   dispose() {
     if (this.mesh) { this.scene.remove(this.mesh); this.mesh.geometry.dispose(); this.mesh = null; }
     this.mat.dispose(); this.atlas.dispose(); this.tile.dispose();

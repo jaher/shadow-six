@@ -12,9 +12,10 @@
  * Helpers that look ahead (seers, clearAhead, whoSees) read the same §4.2 cone rules the AI uses
  * (src/ai/perception.js): the script watches the cones like a player does before moving a man.
  */
-import { canSee, coneAt } from '../../src/ai/perception.js';
+import { canSee, coneAt, pointInCone } from '../../src/ai/perception.js';
 import { viewerFor, canSeeVehicle } from '../../src/ai/vehicle-ai.js';
 import { T } from '../../src/world/grid.js';
+import { CONFIG } from '../../src/config.js';
 
 const tagOf = (u) => u?.tag ?? u?.role ?? u?.id ?? '?';
 
@@ -75,13 +76,59 @@ export function predictEnemy(e, t, depth = 0) {
  */
 function walkerSees(e, q, dummy, w, tAbs) {
   const amp = e.sweepAmp ?? e.vision?.sweep ?? 0; // radians (normalised vision data)
+  // (no head reaches past the cone's longest far radius — perception.coneAt: a, or b = a·ratio for a wide ellipse)
+  const v = e.vision, a0 = v?.far ?? v?.range, dx = dummy.x - q.x, dz = dummy.z - q.z;
+  const reach = v?.elliptical ? a0 * Math.max(1, v.ellipseRatio ?? CONFIG.stealth.ellipseRatio) : a0;
+  if (Number.isFinite(reach) && dx * dx + dz * dz > reach * reach * (1 + 1e-9) + 1e-9) return false;
   for (const hd of q.alt != null ? [q.heading, q.alt] : [q.heading]) for (const off of amp ? [0, amp / 2, -amp / 2, amp, -amp] : [0]) {
     const g = Object.create(e);
     g.x = q.x; g.z = q.z; g.heading = hd; g.sweepActive = false; g.headOffset = off; // head turned `off` (elliptical far)
-    if (canSee(g, dummy, w, { cone: coneAt(g, tAbs) }) !== 'none') return true;
+    const cone = coneAt(g, tAbs);
+    if (pointInCone(cone, dummy.x, dummy.z) && canSee(g, dummy, w, { cone }) !== 'none') return true;
   }
   return false;
 }
+
+/**
+ * Could a planSneak search accept ANY goal state? A popped state (cell c, step k) ends the search when c is the goal
+ * cell `s1` (or, on foot, any cell whose centre lies within 0.55 m of the target) and the cell stays unseen from k to
+ * k + holdK; states run from k0 up to `kMax` (the last step a search can push). When no such cell is unseen for
+ * holdK + 1 steps in a row anywhere in [k0, kMax + holdK], the search cannot succeed: it would expand states up to its
+ * cap (300 000: ~9 s at M3's shed ramp, the moment the Spy takes e20 aside) and return null. `seen(c, k)` is the
+ * planner's own memoised test (pure while it plans), so asking it first changes nothing the search finds.
+ */
+export function goalReachable(a) {
+  const it = goalReachableGen(a);
+  for (;;) { const r = it.next(); if (r.done) return r.value; }
+}
+/** goalReachable, yielding now and then (a sliced planner: see makeDriver `pause`). */
+export function* goalReachableGen({ s1, tx, tz, W, H, x0, z0, cx, cz, k0, holdK, kMax, seen, raft }) {
+  const goals = [s1];
+  if (!raft) {
+    const gi = Math.floor(tx) - x0, gj = Math.floor(tz) - z0;
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+      const i = gi + di, j = gj + dj;
+      if (i < 0 || j < 0 || i >= W || j >= H) continue;
+      const c = j * W + i;
+      if (c !== s1 && Math.hypot(cx(c) - tx, cz(c) - tz) <= 0.55) goals.push(c);
+    }
+  }
+  const k1 = kMax + holdK;
+  for (const c of goals) {
+    let run = 0;
+    for (let k = Math.max(0, k0); k <= k1; k++) {
+      if ((k & 63) === 0) yield;
+      if (seen(c, k)) { run = 0; continue; }
+      if (++run > holdK) return true; // unseen from k - holdK (≥ k0, ≤ kMax) to k
+    }
+  }
+  return false;
+}
+
+/** Wall-clock ms a sliced plan runs before it hands the frame back (makeDriver `pause`). */
+export const PLAN_SLICE_MS = 6;
+/** Run a generator to its end (a plan's search, straight through). */
+function runGen(it) { for (;;) { const r = it.next(); if (r.done) return r.value; } }
 
 /** Is (x, z) inside polygon `poly` ([[x, z], …])? */
 function inPoly(poly, x, z) {
@@ -114,10 +161,21 @@ function alongPath(u, dist, stopAtEnd = false) {
  *   aborted?: () => boolean, onOrder?: (role: string, unit: object, order: object) => void,
  *   onCheckpoint?: (cp: object) => void}} o
  *   aborted: once true, every tick and every order throws SolutionAborted (the replay was stopped: no order may
- *   reach the game after that, even from a solution's own try/catch); onOrder: after each accepted player order.
+ *   reach the game after that, even from a solution's own try/catch); onOrder: after each accepted player order;
+ *   pause: () => Promise resolved on a later displayed frame with no tick in between (the live replay): sliced plans
+ *   (planSneakAsync, sneak) hand the frame back with it.
  */
-export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet = false, watch = true, aborted = null, onOrder = null, onCheckpoint = null } = {}) {
+export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet = false, watch = true, aborted = null, onOrder = null, onCheckpoint = null, pause = null } = {}) {
   const w = world;
+  // a sliced plan hands the frame back every PLAN_SLICE_MS (`pause`: resolves on a later frame, no tick in between)
+  const runGenAsync = async (it) => {
+    let t0 = performance.now();
+    for (;;) {
+      const r = it.next();
+      if (r.done) return r.value;
+      if (pause && performance.now() - t0 > PLAN_SLICE_MS) { await pause(); halt(); t0 = performance.now(); }
+    }
+  };
   const events = [];
   const offs = [];
   const rec = (name, fmt) => offs.push(w.events.on(name, (p) => {
@@ -225,6 +283,17 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
       const n = Math.round(maxSec / dt);
       for (let i = 0; i < n; i++) {
         if (pred()) return true;
+        await tick();
+        const f = D.failed();
+        if (f) throw new Error(`FAILED while waiting ${label}: ${f}`);
+      }
+      throw new Error(`timeout ${maxSec}s waiting ${label}`);
+    },
+    /** until, for a predicate that may await (a sliced plan inside it): the same ticks, the same checks */
+    async untilAsync(pred, maxSec = 120, label = '') {
+      const n = Math.round(maxSec / dt);
+      for (let i = 0; i < n; i++) {
+        if (await pred()) return true;
         await tick();
         const f = D.failed();
         if (f) throw new Error(`FAILED while waiting ${label}: ${f}`);
@@ -571,7 +640,17 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
      * 'raft' (the men sitting in it, seen in both bands), 'crawl' (low: near band only), 'walk'.
      * @returns {Array<[number, number, number]>|null} [x, z, absolute time] per cell, or null (no way within `horizon` s)
      */
-    planSneak(tx, tz, o = {}) {
+    planSneak(tx, tz, o = {}) { return runGen(D.planSneakGen(tx, tz, o)); },
+    /**
+     * planSneak sliced: the same search, handing the frame back (makeDriver `pause`) after every PLAN_SLICE_MS of it —
+     * no tick runs meanwhile, so the world it reads stands still and the plan is the one planSneak returns. Without a
+     * `pause` (headless, tests) it runs straight through.
+     */
+    planSneakAsync(tx, tz, o = {}) { return runGenAsync(D.planSneakGen(tx, tz, o)); },
+    /** Run any generator the sliced way (sneak.mjs plans): hand the frame back every PLAN_SLICE_MS (`pause`). */
+    runSliced(it) { return runGenAsync(it); },
+    /** planSneak's search as a generator (it yields every few hundred states). */
+    * planSneakGen(tx, tz, o = {}) {
       const mode = o.mode || 'raft', raft = D.raft() ?? (o.from ? lastRaft : null), u = mode === 'raft' ? raft : D.c(o.role);
       if (!u) throw new Error(`planSneak: no ${mode === 'raft' ? 'raft' : o.role}`);
       const DT = o.dt ?? 0.2, [ma, mb] = o.margin ?? [2, 3], HS = Math.round((o.horizon ?? 180) / DT);
@@ -629,57 +708,90 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
       };
       const dummyAt = (x, z) => mode === 'raft' ? { x, z, y: 0, state: 'inVehicle', vehicle: boat, isVisibleToEnemies: true, alive: true }
         : { x, z, y: g.elevAt?.(x, z) ?? 0, isLow: mode === 'crawl', isVisibleToEnemies: true, alive: true, kind: 'commando' };
-      const qMemo = new Map();
-      const wheelMemo = new Map();
-      const wheels = (e, k) => {
+      // (memos: the planner reads a world that stands still while it plans — the tick waits for it — so every look-ahead
+      // below is a pure function of its arguments and is worked out once: a walker's predicted place per step, a post's
+      // cone per step, a walker's head positions and cones per step; a cell outside a cone's geometry is not seen by it,
+      // so perception.canSee is asked only inside one. The same answers as asking afresh each time, a fraction the cost.)
+      const qMemo = walkers.map(() => []), wheelMemo = walkers.map(() => []), viewMemo = walkers.map(() => new Map());
+      const predAt = (wi, k) => { const a = qMemo[wi]; let q = a[k]; if (q === undefined) q = a[k] = predictEnemy(walkers[wi], k * DT); return q; };
+      const wheels = (wi, k) => {
         // (a squad's man where the file turns a corner or about wheels round to his new place)
-        const key = `${e.id}|${k}`; let r = wheelMemo.get(key);
+        const m = wheelMemo[wi]; let r = m[k];
         if (r === undefined) {
-          const a = predAt(e, Math.max(0, k - 15)).heading, b = predAt(e, k + 15).heading;
+          const e = walkers[wi], a = predAt(wi, Math.max(0, k - 15)).heading, b = predAt(wi, k + 15).heading;
           let dh = Math.abs(a - b) % (2 * Math.PI); if (dh > Math.PI) dh = 2 * Math.PI - dh;
-          wheelMemo.set(key, r = e.squad?.id != null && e.brain?._leader?.() !== e && dh > 1);
+          r = m[k] = e.squad?.id != null && e.brain?._leader?.() !== e && dh > 1;
         }
         return r;
       };
-      const predAt = (e, k) => { const key = `${e.id}|${k}`; let q = qMemo.get(key); if (!q) qMemo.set(key, q = predictEnemy(e, k * DT)); return q; };
-      const seenMemo = new Map();
+      /** walkerSees' viewers at step kk: [g, cone, …] for each head it tries (heading `r`·45° when r ≥ 0), in its order */
+      const headViews = (wi, kk, r) => {
+        const m = viewMemo[wi], key = kk * 9 + r + 1;
+        let L = m.get(key);
+        if (!L) {
+          const e = walkers[wi], q0 = predAt(wi, kk), q = r < 0 ? q0 : { ...q0, heading: (r * Math.PI) / 4 }, tAbs = now + kk * DT;
+          const amp = e.sweepAmp ?? e.vision?.sweep ?? 0;
+          L = [];
+          for (const hd of q.alt != null ? [q.heading, q.alt] : [q.heading]) for (const off of amp ? [0, amp / 2, -amp / 2, amp, -amp] : [0]) {
+            const v = Object.create(e);
+            v.x = q.x; v.z = q.z; v.heading = hd; v.sweepActive = false; v.headOffset = off; // (as walkerSees)
+            L.push(v, coneAt(v, tAbs));
+          }
+          m.set(key, L);
+        }
+        return L;
+      };
+      const seesAny = (L, d) => { for (let i = 0; i < L.length; i += 2) { const cone = L[i + 1]; if (pointInCone(cone, d.x, d.z) && canSee(L[i], d, w, { cone }) !== 'none') return true; } return false; };
+      const sCones = statics.map(() => []);
+      const sCone = (i, k) => { const a = sCones[i]; let c = a[k]; if (c === undefined) c = a[k] = coneAt(statics[i], now + k * DT); return c; };
+      // (seen per (cell, step): 0 unknown, 1 unseen, 2 seen — a flat byte per state instead of a Map)
+      const KS = HS + 256, seenMemo = new Uint8Array(W * H * KS);
+      // (each viewer's reach, and a squared-distance pre-filter: only a point surely beyond it skips the exact hypot test)
+      const sFar = statics.map((e) => e.vision?.far ?? 36), sReach2 = sFar.map((f) => (f + 1) * (f + 1) * (1 + 1e-9) + 1e-9);
+      const wFar = walkers.map((e) => e.vision?.far ?? 36), wReach2 = wFar.map((f) => (f + walkerPad + 3) * (f + walkerPad + 3) * (1 + 1e-9) + 1e-9);
       const seen = (c, k) => {
-        const key = c * (HS + 256) + k;
-        const m = seenMemo.get(key); if (m !== undefined) return m;
+        const key = c * KS + k;
+        const m = seenMemo[key]; if (m) return m === 2;
         const x = cx(c), z = cz(c), d = dummyAt(x, z);
         let s = false;
-        for (const e of statics) {
-          const dd = Math.hypot(e.x - x, e.z - z), far = e.vision?.far ?? 36, near = e.vision?.near ?? far / 2;
+        for (let i = 0; i < statics.length; i++) {
+          const e = statics[i], ex = e.x - x, ez = e.z - z;
+          if (ex * ex + ez * ez > sReach2[i]) continue; // (beyond far + 1)
+          const dd = Math.hypot(ex, ez), far = sFar[i], near = e.vision?.near ?? far / 2;
           if (dd > far + 1) continue;
-          const cone = coneAt(e, now + k * DT);
-          if (canSee(e, d, w, { cone }) !== 'none') { s = true; break; }
+          const cone = sCone(i, k);
+          if (pointInCone(cone, x, z) && canSee(e, d, w, { cone }) !== 'none') { s = true; break; }
           // at the edge of the band that matters (a crawler: the near band; a raft or a standing man: the far one) the
           // unit's own path may wander a little: the cell 1 m nearer the guard must be clear too
           const edge = mode === 'crawl' ? near : far;
           if (dd > edge - edgePad && dd < edge + edgePad) {
             const f = edgePad / dd, d2 = dummyAt(x + (e.x - x) * f, z + (e.z - z) * f);
-            if (canSee(e, d2, w, { cone }) !== 'none') { s = true; break; }
+            if (pointInCone(cone, d2.x, d2.z) && canSee(e, d2, w, { cone }) !== 'none') { s = true; break; }
           }
         }
-        if (!s) for (const e of walkers) for (const dk of walkerSlack) {
-          // a walker's pace and halts drift from the prediction: he is tried `walkerSlack` steps early and late too
-          const kk = Math.max(0, k + dk), q = predAt(e, kk), dd = Math.hypot(q.x - x, q.z - z), far = e.vision?.far ?? 36;
-          if (dd > far + walkerPad + 3) continue;
-          if (dd < keepWalker || walkerSees(e, q, d, w, now + kk * DT)) { s = true; break; }
-          // a man where his beat turns about (a halt, a corner) — a squad's man wheeling to his new place: any heading
-          if (wheels(e, kk) && [0, 1, 2, 3, 4, 5, 6, 7].some((r) => walkerSees(e, { ...q, heading: (r * Math.PI) / 4 }, d, w, now + kk * DT))) { s = true; break; }
-          // a walker's predicted place and pace are approximate: try the cell `walkerPad` m nearer to him as well (a
-          // crawler: 1.5 m nearer when he is at the edge of the near band, the only one that sees a man lying down)
-          // (a squad's man keeps only roughly to his leader's prediction plus his present offset: 2 m more for him)
-          const near = e.vision?.near ?? far / 2, sq = e.squad?.id != null && mode === 'raft' ? 2 : 0;
-          const pad = (walkerPad ? walkerPad + sq : 0) || (mode === 'crawl' && dd > near - 3 && dd < near + crawlPad + 0.5 ? crawlPad : 0);
-          if (pad > 0 && dd > pad) {
-            const f = pad / dd, d2 = dummyAt(x + (q.x - x) * f, z + (q.z - z) * f);
-            if (walkerSees(e, q, d2, w, now + kk * DT)) { s = true; break; }
+        if (!s) walk: for (let wi = 0; wi < walkers.length; wi++) {
+          const e = walkers[wi];
+          for (const dk of walkerSlack) {
+            // a walker's pace and halts drift from the prediction: he is tried `walkerSlack` steps early and late too
+            const kk = Math.max(0, k + dk), q = predAt(wi, kk), qx = q.x - x, qz = q.z - z;
+            if (qx * qx + qz * qz > wReach2[wi]) continue; // (beyond far + walkerPad + 3)
+            const dd = Math.hypot(qx, qz), far = wFar[wi];
+            if (dd > far + walkerPad + 3) continue;
+            if (dd < keepWalker || seesAny(headViews(wi, kk, -1), d)) { s = true; break walk; }
+            // a man where his beat turns about (a halt, a corner) — a squad's man wheeling to his new place: any heading
+            if (wheels(wi, kk) && [0, 1, 2, 3, 4, 5, 6, 7].some((r) => seesAny(headViews(wi, kk, r), d))) { s = true; break walk; }
+            // a walker's predicted place and pace are approximate: try the cell `walkerPad` m nearer to him as well (a
+            // crawler: 1.5 m nearer when he is at the edge of the near band, the only one that sees a man lying down)
+            // (a squad's man keeps only roughly to his leader's prediction plus his present offset: 2 m more for him)
+            const near = e.vision?.near ?? far / 2, sq = e.squad?.id != null && mode === 'raft' ? 2 : 0;
+            const pad = (walkerPad ? walkerPad + sq : 0) || (mode === 'crawl' && dd > near - 3 && dd < near + crawlPad + 0.5 ? crawlPad : 0);
+            if (pad > 0 && dd > pad) {
+              const f = pad / dd, d2 = dummyAt(x + (q.x - x) * f, z + (q.z - z) * f);
+              if (seesAny(headViews(wi, kk, -1), d2)) { s = true; break walk; }
+            }
           }
-          if (s) break;
         }
-        seenMemo.set(key, s);
+        seenMemo[key] = s ? 2 : 1;
         return s;
       };
       const clear = o.blind ? () => true : (c, k0, k1) => { for (let k = Math.max(0, k0); k <= k1; k++) if (seen(c, k)) return false; return true; };
@@ -710,6 +822,12 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
         return top;
       };
       const k0 = o.startDelay ? Math.round(o.startDelay / DT) : 0, holdK = Math.round((o.hold ?? 3) / DT);
+      // (no goal state can ever be accepted: the search would only grind to its cap and fail — the same null, now)
+      if (!o.shelter && !o.blind && !(yield* goalReachableGen({ s1, tx, tz, W, H, x0, z0, cx, cz, k0, holdK, seen, raft: mode === 'raft', kMax: Math.max(k0, HS - 1 + Math.max(1, Math.ceil(Math.SQRT2 / speed / DT))) }))) {
+        if (o.why) o.why.push(`goal (${tx},${tz}) never unseen for ${(holdK * DT).toFixed(1)} s within the horizon`);
+        if (o.stats) Object.assign(o.stats, { expanded: 0, found: false, pre: true, cells: W * H, HS });
+        return null;
+      }
       push(k0 + hfun(s0), s0, k0, -1);
       let found = null, n = 0;
       const maxN = o.maxExpand ?? 300000;
@@ -718,6 +836,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
         const key = c * (HS + 256) + k;
         if (done.has(key)) continue;
         done.add(key); n++;
+        if ((n & 127) === 0) yield;
         // he may stay a while where he stops (`shelter`: any cell he can lie in unseen for `hold` s will do)
         // (a click on a cell edge: either cell touching it will do)
         const atGoal = o.shelter || c === s1 || (mode !== 'raft' && Math.hypot(cx(c) - tx, cz(c) - tz) <= 0.55);
@@ -738,6 +857,11 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
           if ((!(c === s0 && k === k0) && !clear(c, k - ma, k + steps)) || !clear(nc, k - ma, k + steps + mb)) continue;
           push(k + steps + hfun(nc), nc, k + steps, key);
         }
+      }
+      if (o.stats) { // (debugging / tools/perf: how big the search was)
+        let goalClear = 0;
+        for (let k = k0; k <= HS + 2; k++) if (clear(s1, k, k + holdK)) goalClear++;
+        Object.assign(o.stats, { expanded: n, maxN, found: !!found, heapLeft: heap.length, seen: seenMemo.reduce((a, v) => a + (v ? 1 : 0), 0), cells: W * H, HS, statics: statics.length, walkers: walkers.length, goalClear });
       }
       if (!found) {
         if (o.why) { let bc = s0, bd = Infinity; for (const key of done) { const c = Math.floor(key / (HS + 256)), d = Math.hypot(cx(c) - tx, cz(c) - tz); if (d < bd) { bd = d; bc = c; } } o.why.push(`closest (${cx(bc)},${cz(bc)}) ${bd.toFixed(1)} m, ${n} expanded`); }
@@ -771,7 +895,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
         // (a raft still gliding: let it settle first, the plan starts from where it lies)
         if (!stopped()) { await D.wait(dt); continue; }
         const dbgWhy = globalThis.__M3DBG ? [] : undefined;
-        let plan = D.planSneak(tx, tz, dbgWhy ? { ...o, why: dbgWhy } : o);
+        let plan = await D.planSneakAsync(tx, tz, dbgWhy ? { ...o, why: dbgWhy } : o);
         plans++;
         if (dbgWhy && (plan || plans % 20 === 1)) log(`DBG ${D.t.toFixed(1)} sneak ${o.label || ''} → (${tx},${tz}) at (${u.x.toFixed(1)},${u.z.toFixed(1)}): ${plan ? `${plan.length} pts, there at ${plan[plan.length - 1][2].toFixed(1)}` : `none [${dbgWhy.join(' ')}]`}`);
         if (dbgWhy && !plan && plans % 20 === 1) { // who keeps the cells just past the closest one covered (each viewer alone)
@@ -790,7 +914,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
           // no way on yet: if where he lies will be looked at soon, he first crawls off to a spot nobody will look at
           // for a while (shelter), and waits there
           const sb = o.shelterBox ?? 6, sh = o.shelterHorizon ?? 30;
-          const here = D.planSneak(u.x, u.z, { ...o, shelter: true, hold: o.shelterHold ?? 8, box: sb, horizon: sh, maxExpand: 60000 });
+          const here = await D.planSneakAsync(u.x, u.z, { ...o, shelter: true, hold: o.shelterHold ?? 8, box: sb, horizon: sh, maxExpand: 60000 });
           if (here && here.length > 1) { await D.sneak(here[here.length - 1][0], here[here.length - 1][1], { ...o, hold: o.shelterHold ?? 8, label: `${o.label || ''} (shelter)`, noWait: true, box: sb, horizon: sh }); fails = 0; }
           // (where he lies stays unseen for the shelter hold: the longer no way opens, the less often he looks again)
           else await D.wait(o.retry ?? (here ? Math.min(0.5 + 0.25 * fails++, 2.5) : 0.5));

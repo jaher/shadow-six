@@ -19,11 +19,19 @@ import { T } from '../world/grid.js';
 import { isSolidHull, hullsNear, dynamicObstacles } from '../world/body-clearance.js';
 import { SNOW_WADE, snowTris } from '../world/placement-visual.js';
 
+const _db = new THREE.Box3();
 const SKIP_NAME = /shadow|proxy|collider|collision|occluder|decal|selection|select_ring|ring_sel|vision|cone|marker|halo|glow|blob|water|impostor/i;
 
 function meshOk(o) {
   if (o.userData?.clip === false || o.userData?.noClip) return false;
   if (SKIP_NAME.test(o.name || '')) return false;
+  // (a library asset's ground decals — flat quads named mesh_N under its `decals` / `decals_lod1` group: a boot on the
+  // ground beside M2's sentry box sbox_se read as 5 cm into the hut. Its wall decals, standing on the walls, still count)
+  if (/decal/i.test(o.parent?.name || '') && o.geometry && !o.isInstancedMesh) {
+    if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+    const b = _db.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld);
+    if (b.max.y - b.min.y < 0.05) return false;
+  }
   const mats = [].concat(o.material || []);
   if (!mats.length || mats.every((m) => m.visible === false || m.colorWrite === false)) return false;
   return true;

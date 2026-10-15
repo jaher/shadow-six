@@ -161,6 +161,8 @@ export function createDamPool(world, F, o) {
     mesh, field, tex, foam,
     /** Advance the foam field; `t` = the pool clock after this frame. */
     frame(dt, t) { foam?.frame(dt, t); },
+    /** A slice of the foam's fill on a frame whose clock does not move (dam-water-foam.js prewarm). */
+    prewarm() { foam?.prewarm(); },
     dispose() { geo.dispose(); mat.dispose(); tex.dispose(); foam?.dispose(); black?.dispose(); },
   };
 }

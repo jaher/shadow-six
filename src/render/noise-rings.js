@@ -80,7 +80,20 @@ export class NoiseRings {
   spawn(x, z, R) {
     if (!this._on() || !(R > 0)) return null;
     let r = this.rings.find((q) => !q.live);
-    if (!r && this.rings.length < POOL) {
+    if (!r && this.rings.length < POOL) r = this._make();
+    if (!r) r = this.rings.reduce((a, b) => (b.t > a.t ? b : a));
+    Object.assign(r, { t: 0, R, x, z, live: true });
+    this._frame(r);
+    return r;
+  }
+
+  /** The pool's first ring made now (not shown): the load's program warm-up frame draws it (userData.warmShow). */
+  prewarm() {
+    if (!this.rings.length) this._make().mesh.userData.warmShow = true;
+  }
+
+  _make() {
+    {
       const mesh = new THREE.Mesh(ringGeometry(), new THREE.MeshBasicMaterial({
         color: COLOR, transparent: true, opacity: 0, depthTest: true, depthWrite: false, fog: false, side: THREE.DoubleSide,
         polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2,
@@ -90,13 +103,10 @@ export class NoiseRings {
       mesh.frustumCulled = false;
       mesh.visible = false;
       this.group.add(mesh);
-      r = { mesh, t: 0, R: 0, x: 0, z: 0, live: false };
+      const r = { mesh, t: 0, R: 0, x: 0, z: 0, live: false };
       this.rings.push(r);
+      return r;
     }
-    if (!r) r = this.rings.reduce((a, b) => (b.t > a.t ? b : a));
-    Object.assign(r, { t: 0, R, x, z, live: true });
-    this._frame(r);
-    return r;
   }
 
   /** Per-frame (render time). */

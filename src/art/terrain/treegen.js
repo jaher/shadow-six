@@ -149,19 +149,24 @@ const lerp = (a, b, t) => a + (b - a) * t;
 export const WIND_KIND = { broad: 0, conifer: 1, palm: 2, bush: 3 };
 
 export class GeoAcc {
-  constructor() { this.p = []; this.n = []; this.uv = []; this.info = []; this.tint = []; this.root = []; this.ext = []; this.idx = []; }
+  constructor() { this.p = []; this.n = []; this.uv = []; this.info = []; this.tint = []; this.tree = []; this.roots = [0, 0, 0, 1]; this.ext = []; this.idx = []; }
   get count() { return this.p.length / 3; }
   /** ext = [crown AO 0..1, signed snow catch -1..1 (sky exposure × geometric normal y)]; needle cards only. */
   vert(p, n, u, v, info, tint, ext) {
     this.p.push(p.x, p.y, p.z); this.n.push(n.x, n.y, n.z); this.uv.push(u, v);
     this.info.push(info[0], info[1], info[2], info[3]); this.tint.push(tint[0], tint[1], tint[2]);
-    this.root.push(0, 0, 0, 1);
+    this.tree.push(0); // its tree's root: entry 0 = (0, 0, 0, 1) until setRoot
     this.ext.push(ext ? ext[0] : 1, ext ? ext[1] : 0);
     return this.count - 1;
   }
-  /** Tree root for hierarchical wind (step 4w): aRoot = (x, y, z, H + 100·kind) on vertices `from`..count. */
+  /**
+   * Tree root for hierarchical wind (step 4w): (x, y, z, H + 100·kind) for vertices `from`..count — one entry of the
+   * root table per tree, not four floats a vertex (vegetation.js reads it in the vertex shader: VEG_ROOTS).
+   */
   setRoot(from, x, y, z, H, kind) {
-    for (let i = from; i < this.count; i++) { const o = i * 4; this.root[o] = x; this.root[o + 1] = y; this.root[o + 2] = z; this.root[o + 3] = Math.min(H, 99) + 100 * kind; }
+    const id = this.roots.length / 4;
+    this.roots.push(x, y, z, Math.min(H, 99) + 100 * kind);
+    for (let i = from; i < this.count; i++) this.tree[i] = id;
   }
   tri(a, b, c) { this.idx.push(a, b, c); }
   /** Apply a Matrix4 to positions and normals from vertex `from` on. */
@@ -175,26 +180,51 @@ export class GeoAcc {
   /**
    * Plain typed arrays (transferable from a worker), compact where it is exact enough to draw the same
    * (engine/vertex-pack.js): normals (padded to 4) and aExt (AO 0..1, snow catch −1..1) as normalized Int16, aTint as
-   * half floats (padded to 4). Positions, uv, aInfo (layer ids, per-leaf phases) and aRoot (world roots) stay Float32.
-   * 72 instead of 84 bytes a vertex, on the GPU and in the session cache that keeps these arrays for restarts.
+   * half floats (padded to 4); the normal's 4th component holds the vertex's tree (its entry in `roots`: x, y, z,
+   * H + 100·kind a tree). Positions, uv and aInfo (layer ids, per-leaf phases) stay Float32. 56 instead of 84 bytes a
+   * vertex, on the GPU and in the session cache that keeps these arrays for restarts. (Normals that cannot pack: the
+   * roots go per vertex, as `root`.)
    */
   toArrays() {
-    return { p: new Float32Array(this.p), n: snorm16(this.n, 3, 4) || new Float32Array(this.n), uv: new Float32Array(this.uv), info: new Float32Array(this.info),
-      tint: half16(this.tint, 3, 4), root: new Float32Array(this.root), ext: snorm16(this.ext, 2) || new Float32Array(this.ext), idx: this.count > 65535 ? new Uint32Array(this.idx) : new Uint16Array(this.idx) };
+    const n = snorm16(this.n, 3, 4, 1e-4);
+    const out = { p: new Float32Array(this.p), n: n || new Float32Array(this.n), uv: new Float32Array(this.uv), info: new Float32Array(this.info),
+      tint: half16(this.tint, 3, 4), ext: snorm16(this.ext, 2) || new Float32Array(this.ext), idx: this.count > 65535 ? new Uint32Array(this.idx) : new Uint16Array(this.idx) };
+    if (n) { for (let k = 0; k < this.count; k++) n[k * 4 + 3] = this.tree[k]; out.roots = new Float32Array(this.roots); } else out.root = this.rootsPerVertex();
+    return out;
   }
-  static arraysToGeometry(a) {
+  /** (x, y, z, H + 100·kind) per vertex. */
+  rootsPerVertex() {
+    const r = new Float32Array(this.count * 4);
+    for (let k = 0; k < this.count; k++) r.set(this.roots.slice(this.tree[k] * 4, this.tree[k] * 4 + 4), k * 4);
+    return r;
+  }
+  /**
+   * Geometry over toArrays' arrays. With a root table (`a.roots`): the trees' entries start at `base` in the table the
+   * vegetation materials read (uRoots) — the normal's 4th component is rebased in place (the arrays remember their
+   * base: a restart reuses them) and the normal attribute is also bound as `aNrm4` (same buffer) for the shader to read it.
+   */
+  static arraysToGeometry(a, base = 0) {
     const g = new THREE.BufferGeometry(), n = a.p.length / 3;
     g.setAttribute('position', new THREE.BufferAttribute(a.p, 3));
-    g.setAttribute('normal', packedAttribute(THREE, a.n, n));
+    if (a.roots) {
+      const d = base - (a.rootBase || 0);
+      if (d) for (let k = 0; k < n; k++) a.n[k * 4 + 3] += d;
+      a.rootBase = base;
+      if (base + a.roots.length / 4 > 32767) throw new Error('vegetation root table: more than 32,767 trees');
+    }
+    const nrm = packedAttribute(THREE, a.n, n);
+    g.setAttribute('normal', nrm);
+    if (a.roots) { g.setAttribute('aNrm4', nrm); g.userData.roots = { table: a.roots, base }; }
     g.setAttribute('uv', new THREE.BufferAttribute(a.uv, 2));
     g.setAttribute('aInfo', new THREE.BufferAttribute(a.info, 4));
     g.setAttribute('aTint', packedAttribute(THREE, a.tint, n));
-    if (a.root) g.setAttribute('aRoot', new THREE.BufferAttribute(a.root, 4));
+    if (a.root) g.setAttribute('aRootV', new THREE.BufferAttribute(a.root, 4));
     if (a.ext) g.setAttribute('aExt', packedAttribute(THREE, a.ext, n));
     g.setIndex(new THREE.BufferAttribute(a.idx, 1));
     g.computeBoundingSphere();
     return g;
   }
+  /** Plain Float32 geometry with per-vertex roots (prototypes for the impostor bake, test cards): no root table needed. */
   toGeometry() {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));
@@ -202,12 +232,20 @@ export class GeoAcc {
     g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2));
     g.setAttribute('aInfo', new THREE.Float32BufferAttribute(this.info, 4));
     g.setAttribute('aTint', new THREE.Float32BufferAttribute(this.tint, 3));
-    g.setAttribute('aRoot', new THREE.Float32BufferAttribute(this.root, 4));
+    g.setAttribute('aRootV', new THREE.BufferAttribute(this.rootsPerVertex(), 4));
     g.setAttribute('aExt', new THREE.Float32BufferAttribute(this.ext, 2));
     g.setIndex(this.count > 65535 ? new THREE.Uint32BufferAttribute(this.idx, 1) : new THREE.Uint16BufferAttribute(this.idx, 1));
     g.computeBoundingSphere();
     return g;
   }
+}
+
+/** A vertex's tree root (x, y, z, H + 100·kind) in a vegetation geometry (root table or per-vertex roots). */
+export function vertexRoot(g, i) {
+  const R = g.attributes.aRootV;
+  if (R) return [R.getX(i), R.getY(i), R.getZ(i), R.getW(i)];
+  const T = g.userData.roots, id = g.attributes.normal.array[i * 4 + 3] - T.base;
+  return Array.from(T.table.subarray(id * 4, id * 4 + 4));
 }
 
 function perp(d) {

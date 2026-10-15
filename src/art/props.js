@@ -156,7 +156,7 @@ function buildLinear(type, p, def, ctx = {}) {
     // `visual: false`: gameplay only — a deck wall drawn by its building's own build (M6's W ruin parapets)
     : p.visual === false ? new THREE.Group()
     : dressed && type === 'wall' && /clothesline/.test(String(p.variant ?? '')) ? clotheslineRun(points)
-      : dressed ? buildWall(points, { variant: p.variant, mat: p.mat || def.mat, h, width, id: p.id, walkways: p.walkways }) : new THREE.Group();
+      : dressed ? buildWall(points, { variant: p.variant, mat: p.mat || def.mat, h, width, id: p.id, walkways: p.walkways, flushAt: p.flushAt }) : new THREE.Group();
   // barbed wire (art/wire-obstacles.js): the map's wire layer draws this run; the footprints below are unchanged
   const wire = (type === 'fence' || type === 'wall') && dressingOn(ctx) ? wireTypeOf({ ...p, type, h }, ctx) : null;
   let dressedFence = false;
@@ -256,7 +256,8 @@ const BUILDERS = {
   },
   gate: (p, def, ctx) => {
     // rammable gates: the pre-fractured model the gate smash breaks apart (art/breakable-gates.js, §3.7 addendum)
-    const bg = isBreakableGate({ ...p, type: 'gate' }) ? buildBreakableGate(p) : null;
+    // (`gateModel: true`: the same leaf model on a gate nobody rams — M10's mesh jail door swings open when McRae is freed)
+    const bg = isBreakableGate({ ...p, type: 'gate' }) || p.gateModel ? buildBreakableGate(p) : null;
     if (bg) return bg;
     // M17 art pass: the prison camp's wrought-iron back gate and the cage's mesh door (art/iron-gates.js)
     const ig = dressingOn(ctx) ? buildIronGate(p) : null;

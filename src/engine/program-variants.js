@@ -7,10 +7,10 @@
  * the object features that select a different program; `VariantCache.get(base, key)` hands out one clone of `base` per
  * key, so each clone always sees the same kind of object and keeps its program. Same shaders, same output.
  *
- * `assignShadowVariants(scene)` gives every shadow-casting instanced / skinned / batched / morphing mesh whose materials
- * take three's default depth material (no alpha-tested map, displacement, clip-shadows or alpha-to-coverage, no custom
- * depth material) a per-variant MeshDepthMaterial as `customDepthMaterial` — three then applies the same per-draw
- * state (side, visibility) to it as to its own default.
+ * `assignShadowVariants(scene)` gives every shadow-casting mesh whose materials take three's default depth material
+ * (no alpha-tested map, displacement, clip-shadows or alpha-to-coverage, no custom depth material) a MeshDepthMaterial
+ * per object kind and depth state (`depthState`: side, copied maps) as `customDepthMaterial` — three then applies the
+ * same per-draw state (side, maps, visibility) to it as to its own default.
  * @module engine/program-variants
  */
 import * as THREE from 'three';
@@ -47,6 +47,19 @@ export class VariantCache {
   }
 }
 
+/**
+ * What else picks a depth program among casters of one kind: the side three gives the shadow and the maps it copies
+ * onto the depth material before each draw (getDepthMaterial). A program is only re-derived when the side, instancing
+ * or skinning change, so a depth material shared by casters with and without maps, or of different sides, links the
+ * variant of whichever caster it re-derives on, under the lights of that moment: new programs mid-play whenever the
+ * camera first brings an unusual caster into the shadow (M3: the telegraph wires, a sentry's rifle). One per state.
+ */
+function depthState(o) {
+  let k = '';
+  for (const m of [].concat(o.material)) if (m) k += `${m.shadowSide ?? 's' + m.side}${m.map ? 'm' : ''}${m.alphaMap ? 'a' : ''};`;
+  return k;
+}
+
 /** Would three draw this material's shadow with its shared default depth material? */
 function plainDepth(mat, renderer) {
   if (!mat) return true;
@@ -76,13 +89,12 @@ export function assignShadowVariants(scene, renderer = null) {
     if (!o.castShadow || !(o.isMesh || o.isInstancedMesh || o.isBatchedMesh)) return;
     const mine = assigned.get(o);
     if (o.customDepthMaterial !== undefined && o.customDepthMaterial !== mine) return; // the owner's own
-    const key = variantKey(o);
-    const ok = key && [].concat(o.material).every((m) => plainDepth(m, renderer));
+    const ok = [].concat(o.material).every((m) => plainDepth(m, renderer));
     if (!ok) {
       if (mine) { delete o.customDepthMaterial; assigned.delete(o); }
       return;
     }
-    const v = depthVariants.get(depthBase, key);
+    const v = depthVariants.get(depthBase, `${variantKey(o)}|${depthState(o)}`);
     if (mine !== v) { o.customDepthMaterial = v; assigned.set(o, v); n++; }
     list.push(o);
   });

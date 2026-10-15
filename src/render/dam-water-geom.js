@@ -11,6 +11,7 @@ import * as THREE from 'three';
  * @param {THREE.Object3D} root the structure's object3d
  * @param {{x:number, z:number, rot:number}} def
  */
+const SAMPLES = new Map();
 export function faceSampler(root, def) {
   root.updateMatrixWorld(true);
   const meshes = [];
@@ -25,7 +26,11 @@ export function faceSampler(root, def) {
   const c = Math.cos(def.rot ?? 0), s = Math.sin(def.rot ?? 0), X = def.x ?? 0, Z = def.z ?? 0;
   const world = (u, v) => [X + u * c - v * s, Z + u * s + v * c];
   const rc = new THREE.Raycaster(), o = new THREE.Vector3(), d = new THREE.Vector3(s, 0, -c); // towards upstream (−v)
-  const cache = new Map();
+  // (the samples of the same meshes — the session cache's geometries — placed the same way are the same: a mission
+  // rebuilt (a restart, a walkthrough jump back) reuses them instead of ~600 rays through the dam, ~1 s)
+  const sig = `${X},${Z},${def.rot ?? 0}|` + meshes.map((m) => `${m.geometry.uuid}:${m.matrixWorld.elements.join(',')}`).join(';');
+  let cache = SAMPLES.get(sig);
+  if (!cache) { cache = new Map(); SAMPLES.set(sig, cache); while (SAMPLES.size > 4) SAMPLES.delete(SAMPLES.keys().next().value); }
   const v = (u, y) => {
     const key = `${u.toFixed(2)}|${y.toFixed(2)}`;
     if (cache.has(key)) return cache.get(key);

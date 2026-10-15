@@ -478,14 +478,14 @@ function attrWords(a) {
   if (!arr?.buffer) return null;
   return arr.byteLength % 4 === 0 && arr.byteOffset % 4 === 0 ? new Uint32Array(arr.buffer, arr.byteOffset, arr.byteLength >> 2) : new Uint8Array(arr.buffer, arr.byteOffset, arr.byteLength);
 }
-const _geoHash = new WeakMap(); // geometry → {pv, iv, hash}
+const _geoHash = new WeakMap(); // geometry → {pv, iv, pos / idx (weak), hash}
 /** Content hash of a geometry's positions + index (memoised per geometry object and attribute version). */
 export function geometryHash(g) {
   const pos = g?.attributes?.position, idx = g?.index;
   if (!pos) return null;
   const pv = pos.isInterleavedBufferAttribute ? pos.data.version : pos.version, iv = idx ? idx.version : -1;
   const c = _geoHash.get(g);
-  if (c && c.pv === pv && c.iv === iv && c.pos === pos && c.idx === idx) return c.hash;
+  if (c && c.pv === pv && c.iv === iv && c.pos.deref() === pos && (c.idx ? c.idx.deref() === idx : !idx)) return c.hash;
   const h = hasher();
   const words = attrWords(pos);
   if (!words) return null;
@@ -493,7 +493,8 @@ export function geometryHash(g) {
   h.words(words);
   if (idx) { const iw = attrWords(idx); if (!iw) return null; h.num(idx.count); h.words(iw); }
   const hash = h.hex();
-  _geoHash.set(g, { pv, iv, pos, idx, hash });
+  // (weak: a replaced or dropped attribute — chunking's 16-bit rows drop the whole index — must not stay alive here)
+  _geoHash.set(g, { pv, iv, pos: new WeakRef(pos), idx: idx ? new WeakRef(idx) : null, hash });
   return hash;
 }
 

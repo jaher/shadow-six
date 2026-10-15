@@ -546,7 +546,21 @@ export class VisionCone {
     pa.array.set(o.a.subarray(0, o.n)); la.array.set(o.l.subarray(0, o.n / 3));
     pa.needsUpdate = la.needsUpdate = true;
     geo.setDrawRange(0, o.n / 3);
-    geo.boundingSphere = null;
+    // (the bounding sphere three sorts the cone by — it does even with culling off — from the drawn corners only: left
+    // null, three recomputed it over the whole grown buffer, padding included, boxing a double per coordinate:
+    // megabytes of garbage per rebuild, a cone rebuilt every few frames — the GC pauses of video mode)
+    const a = o.a, n = o.n;
+    let x0 = Infinity, y0 = Infinity, z0 = Infinity, x1 = -Infinity, y1 = -Infinity, z1 = -Infinity;
+    for (let i = 0; i < n; i += 3) {
+      const x = a[i], y = a[i + 1], z = a[i + 2];
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; if (z < z0) z0 = z; if (z > z1) z1 = z;
+    }
+    const bs = geo.boundingSphere || (geo.boundingSphere = new THREE.Sphere());
+    if (n < 3) { bs.center.set(0, 0, 0); bs.radius = 0; return; }
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cz = (z0 + z1) / 2;
+    let r2 = 0;
+    for (let i = 0; i < n; i += 3) { const dx = a[i] - cx, dy = a[i + 1] - cy, dz = a[i + 2] - cz, d2 = dx * dx + dy * dy + dz * dz; if (d2 > r2) r2 = d2; }
+    bs.center.set(cx, cy, cz); bs.radius = Math.sqrt(r2);
   }
 
   /**
@@ -599,10 +613,15 @@ export class VisionCone {
 
   dispose() {
     this.nearGeo.dispose(); this.farGeo.dispose();
-    this.nearMesh.material.dispose(); this.farMesh.material.dispose();
+    // the last cone put away keeps its materials until the next one is: three frees a program once no material uses
+    // it, and every cone shown after a moment with none (video mode's per-step cones) compiled its two programs again
+    const old = KEPT_CONE;
+    KEPT_CONE = [this.nearMesh.material, this.farMesh.material];
+    if (old) for (const m of old) m.dispose();
     this.group.removeFromParent();
   }
 }
+let KEPT_CONE = null;
 
 /**
  * Keeps the shown cone(s) in `scene` (Renderer.decalScene). BEL shows ONE cone at a time

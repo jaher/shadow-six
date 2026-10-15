@@ -109,6 +109,7 @@ export function createBreach(def, fx, level0) {
   const group = new THREE.Group();
   group.name = 'dam-breach';
   group.visible = false;
+  group.userData.warmShow = true; // (drawn by the load's program warm-up frame: Game._warmFrame)
   const amt = { value: 0 }, geos = [], mats = [], sprays = [];
   const levelEnd = Math.max(yW, level0 - RESERVOIR_DRAWDOWN);
   const nominal = breachProfile(levelEnd, 0, yW);

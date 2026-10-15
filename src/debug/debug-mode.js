@@ -712,6 +712,7 @@ export class DebugMode {
       return r;
     } catch (err) {
       console.warn('[debug] walkthrough failed to start', err);
+      W.hideRewind?.(); // (a jump back's overlay)
       return null;
     } finally {
       if (!started) this.game.manualTick = mt;

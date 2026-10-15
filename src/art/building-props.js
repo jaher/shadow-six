@@ -54,7 +54,8 @@ export const VARIANT_HINTS = {
   ruins: { rubble: null, wall_ruin: null },
   bridge: { bridge_timber_moat: null, bridge_timber_moat_lanterns: null },
   dam: { concrete_arch: ['dam_arch'] },
-  gate: { barrier_boom: null, chainlink: null, plank_gate: null }, // plank_gate: a pen's own leaf (M19), never the stockade gatehouse
+  gate: { barrier_boom: null, chainlink: null, plank_gate: null, // plank_gate: a pen's own leaf (M19), never the stockade gatehouse
+    jail_door_mesh: null }, // M10's cage door: the mesh leaf model (props.js gateModel), not a shrunken gatehouse
   fueltank: {}, // the fuel-tank family resolves its own variants (art/fuel-tanks.js)
   tent: {}, well: {},
   // Atlantic Wall (M14 art pass; reusable by M6/M7/M8/M10/M11/M15): the fit ranks the sizes, so one hint list
@@ -454,26 +455,26 @@ export function libraryVisual(type, p = {}, ctx = {}) {
   // bunkers, blockhouses, casemates: blown up they are a ruin with a caved-in roof, slabs, rebar, rubble and soot round
   // the blast and the openings (art/bunker-ruin.js) — on the modelled ruin when there is one, else on the model itself
   const ruinable = /^(bunker|blockhouse|casemate)/.test(b.asset) && !part; // (an MG nest is sandbags: its modelled ruin only)
-  const wreck = (bb, reskin) => {
+  const wreck = (bb, reskin, host = outer) => {
     outer.updateMatrixWorld(true);
     const openings = [...doors.map((dd) => [dd.x, 1.0, dd.z]), ...anchors.filter((an) => an.kind === 'embrasure').map((an) => [an.pos.x, an.pos.y, an.pos.z])];
     const mm = buildingMeta(bb.asset), H = ((mm?.roofElev > 0 ? mm.roofElev : null) ?? mm?.height ?? 3) * sy; // its roof slab
-    const r = wreckBunker(bb.object3d, outer, { id: p.id ?? `${type}@${p.x},${p.z}`, centre: p.entry?.charge ?? [x, z], x0: x, z0: z,
+    const r = wreckBunker(bb.object3d, host, { id: p.id ?? `${type}@${p.x},${p.z}`, centre: p.entry?.charge ?? [x, z], x0: x, z0: z,
       w: w ?? ew * sx, d: d ?? ed * sz, rot, openings, theater, height: H, reskin, groundY: ctx.world?.groundY ? (gx, gz) => ctx.world.groundY(gx, gz) : null });
     const prev = bb.object3d.userData.onLodAttached;
     bb.object3d.userData.onLodAttached = (...args) => { prev?.(...args); r.deform(args[1]); };
     return r;
   };
-  // explosiveTarget destroyed → swap to the modelled destroyed variant when there is one (else the caller burns it)
-  outer.userData.destroy = () => {
+  /**
+   * The modelled ruin (+ its bunker wreck: caved-in roof, soot, slabs, rubble), built and dressed: in place (`stage`
+   * null: under turnG / outer) or STAGED — under two detached groups carrying turnG's and outer's world matrices, so
+   * every corner it deforms lands exactly where it would in place, while nothing that measures the structure's own
+   * meshes (nav stamps, low surfaces, body solids) ever meets it before the blast. @returns {{nb, wrecked}|null}
+   */
+  const buildRuin = (stage = null) => {
     // a snow / desert / camouflaged variant without its own ruin (dam_arch_snow, bunker_snow, bunker_desert) falls back
     // on its base asset's (dam_arch_destroyed, bunker_destroyed): never the burnt-black slump of a model with no ruin
     const dn = ruinVariant(b.asset, a);
-    if (!dn || !buildingMeta(dn)) {
-      if (!ruinable || state.wrecked) return false;
-      state.wrecked = wreck(state.b, null);
-      return true;
-    }
     // the ruin of a temperate model on snow / sand: its turf is snow / sand (an untextured copy of the turf material,
     // keeping its baked vertex AO; the intact model's drape materials read uv channels the ruin's turf lacks)
     // Best: the intact model's own textured cover material (bunker_snow `kit:snow`), so the ruin's apron reads like the
@@ -502,21 +503,65 @@ export function libraryVisual(type, p = {}, ctx = {}) {
       return turfs.get(m);
     } : null;
     const nb = createBuilding(dn, { x: 0, z: 0, rot: 0, id: p.id, theater });
-    if (!nb) return false;
+    if (!nb) return null;
     nb.object3d.position.copy(state.b.object3d.position);
-    state.b.dispose();
-    turnG.add(nb.object3d);
-    S.live.delete(state.b); S.live.add(nb);
-    state.b = nb;
-    outer.userData.libraryAsset = nb.asset;
+    if (stage) stage.turn.add(nb.object3d);
+    else { state.b.dispose(); turnG.add(nb.object3d); S.live.delete(state.b); S.live.add(nb); state.b = nb; outer.userData.libraryAsset = nb.asset; }
     dressFlags(nb.object3d, nb.asset, { flag: false });
     dressDam?.(nb);
     dressParts?.(nb);
-    if (ruinable) state.wrecked = wreck(nb, reskin);
+    return { nb, wrecked: ruinable ? wreck(nb, reskin, stage ? stage.host : outer) : null };
+  };
+  const hasRuin = () => { const dn = ruinVariant(b.asset, a); return !!(dn && buildingMeta(dn)); };
+  // explosiveTarget destroyed → swap to the modelled destroyed variant when there is one (else the caller burns it)
+  outer.userData.destroy = () => {
+    if (!hasRuin()) {
+      if (!ruinable || state.wrecked) return false;
+      state.wrecked = wreck(state.b, null);
+      return true;
+    }
+    const pre = state.pre;
+    if (!pre) {
+      const r = buildRuin();
+      if (!r) return false;
+      if (ruinable) state.wrecked = r.wrecked;
+      return true;
+    }
+    // the staged ruin (prepareDestroy) takes the intact model's place: the same meshes, moved in now
+    state.pre = null;
+    S.live.delete(pre.release);
+    state.b.dispose();
+    turnG.add(pre.nb.object3d);
+    if (pre.wrecked) outer.add(pre.wrecked.group);
+    S.live.delete(state.b); S.live.add(pre.nb);
+    state.b = pre.nb;
+    outer.userData.libraryAsset = pre.nb.asset;
+    if (ruinable) state.wrecked = pre.wrecked;
     return true;
   };
+  /**
+   * Build the ruin now, staged off the scene (bunkers and dams: their blast is the shot — a bunker's wreck is ~100 ms of
+   * geometry and its soot a handful of new programs, a dam's ruin a new model): the load awaits `ready` and draws
+   * `roots` in its program warm-up frame, so the blast only moves meshes. Once the intact model is in (its turf
+   * material is read). @returns {{roots: THREE.Object3D[], ready: Promise<void>}|null}
+   */
+  if ((ruinable || p.waterFx) && !p.destroyed) outer.userData.prepareDestroy = () => {
+    if (state.pre !== undefined || state.disposed || !hasRuin()) return state.pre ? { roots: state.pre.roots, ready: state.pre.ready } : null;
+    outer.updateMatrixWorld(true);
+    const mk = (m, name) => { const g = new THREE.Group(); g.name = name; g.matrixAutoUpdate = false; g.matrix.copy(m); g.updateMatrixWorld(true); return g; };
+    const stage = { turn: mk(turnG.matrixWorld, `ruin-stage:${p.id ?? type}`), host: mk(outer.matrixWorld, `ruin-stage-host:${p.id ?? type}`) };
+    const r = buildRuin(stage);
+    if (!r) { state.pre = null; return null; }
+    const roots = [stage.turn, stage.host];
+    // (never blown up: its geometry copies and soot materials go with the mission — walked before nb.dispose() takes
+    // the ruin's model off its stage group)
+    const release = { dispose: () => { for (const o of roots) { o.removeFromParent(); o.traverse((n) => { if (n.geometry && !n.geometry.userData?.shared) n.geometry.dispose(); for (const m of [].concat(n.material || [])) if (m?.userData?.shared === false) m.dispose(); }); } r.nb.dispose(); } };
+    S.live.add(release);
+    state.pre = { ...r, roots, release, ready: r.nb.ready };
+    return { roots, ready: r.nb.ready };
+  };
   S.live.add(b);
-  const dispose = () => { if (state.disposed) return; state.disposed = true; state.b.dispose(); S.live.delete(state.b); outer.removeFromParent(); };
+  const dispose = () => { if (state.disposed) return; state.disposed = true; if (state.pre) { S.live.delete(state.pre.release); state.pre.release.dispose(); state.pre = null; } state.b.dispose(); S.live.delete(state.b); outer.removeFromParent(); };
   return { object3d: outer, asset: b.asset, scale: [sx, sy, sz], matrix: M, footprints, doors, ladders, roofs, climbEdges, anchors, bridge, piers,
     ready: b.ready, setDoorOpen: outer.userData.setDoorOpen, dispose };
 }

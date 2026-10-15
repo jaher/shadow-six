@@ -515,7 +515,8 @@ export function buildWall(points, o) {
   if (o.variant === 'ruin_wall') return ruinedStoneWall(points, { ...o, h, width }, R);
   if (o.variant === 'whitewashed_concrete') return whitewashedBlock(points, { ...o, h, width }, R);
   if (/^mudbrick_broken$/.test(String(o.variant))) return ruinedMudWall(points, { ...o, h, width }, R); // M9 art pass: the broken stub
-  if (/^mudbrick_wire$/.test(String(o.variant))) return campMudWall(points, { ...o, h, width }, R);     // M9 art pass: the octagon
+  // M9 art pass: the octagon; M10 art pass: the El Agheila compound walls (`wall_mudbrick`, `wall_mudbrick_wire`)
+  if (/^(wall_)?mudbrick(_wire)?$/.test(String(o.variant))) return campMudWall(points, { ...o, h, width }, R);
   if (kind === 'stone' && /ruined_stone_low/.test(String(o.variant))) return ruinedFieldWall(points, { ...o, h, width }, R);
   if (kind === 'stone' && /stone_railing/.test(String(o.variant))) return stoneRailingWall(points, { ...o, h, width }, R);
   if (kind === 'brick' && /brick_railing/.test(String(o.variant))) return stoneRailingWall(points, { ...o, h, width }, R, 'brick');
@@ -750,8 +751,13 @@ function campMudWall(points, o, R) {
   for (let k = 0; k + 1 < points.length; k++) {
     const [ax, az] = points[k], [bx, bz] = points[k + 1], L = Math.hypot(bx - ax, bz - az);
     if (L < 1e-3) continue;
-    const rot = -Math.atan2(bz - az, bx - ax), cx = (ax + bx) / 2, cz = (az + bz) / 2, Lw = L + width * 0.9;
+    // each end runs on by half the foot's thickness (closed corners), except a free end at `o.flushAt` (a gate pier's
+    // passage face: M10's N gate — the body stops there instead of standing in the passage)
+    const flush = (q, end) => end && (o.flushAt || []).some(([fx, fz]) => Math.hypot(q[0] - fx, q[1] - fz) < 0.1);
+    const eA = flush(points[k], k === 0) ? 0 : width * 0.45, eB = flush(points[k + 1], k + 2 === points.length) ? 0 : width * 0.45;
     const tx = (bx - ax) / L, tz = (bz - az) / L, nx = -tz, nz = tx; // local +z of the rotated box = (nx, nz)
+    const rot = -Math.atan2(bz - az, bx - ax), cx = (ax + bx) / 2, cz = (az + bz) / 2, Lw = L + eA + eB;
+    const ox = cx + tx * (eB - eA) / 2, oz = cz + tz * (eB - eA) / 2; // the body's centre (the ends' run-ons differ)
     const inSide = o.inside ? Math.sign((o.inside[0] - cx) * nx + (o.inside[1] - cz) * nz) || 1 : 1;
     const segs = Math.max(4, Math.round(Lw / 0.6)), ph = R() * 10;
     const geo = new THREE.BoxGeometry(Lw, h - 0.1, width, segs, 3, 1), P = geo.attributes.position;
@@ -762,7 +768,7 @@ function campMudWall(points, o, R) {
       if (f > 0.99) P.setY(i, P.getY(i) - R() * 0.05);
     }
     geo.computeVertexNormals();
-    const wall = mesh(boxUV(geo.toNonIndexed(), 1.8), render); wall.position.set(cx, (h - 0.1) / 2, cz); wall.rotation.y = rot; root.add(wall);
+    const wall = mesh(boxUV(geo.toNonIndexed(), 1.8), render); wall.position.set(ox, (h - 0.1) / 2, oz); wall.rotation.y = rot; root.add(wall);
     // hand-rounded crown: a low crowned cap along the crest
     const cg = new THREE.BoxGeometry(Lw, 0.16, width * 0.74, segs, 1, 2), C = cg.attributes.position;
     for (let i = 0; i < C.count; i++) {
@@ -771,10 +777,10 @@ function campMudWall(points, o, R) {
       C.setZ(i, C.getZ(i) + wob * 1.4);
     }
     cg.computeVertexNormals();
-    const cap = mesh(boxUV(cg.toNonIndexed(), 1.4), cope); cap.position.set(cx, h - 0.09, cz); cap.rotation.y = rot; root.add(cap);
+    const cap = mesh(boxUV(cg.toNonIndexed(), 1.4), cope); cap.position.set(ox, h - 0.09, oz); cap.rotation.y = rot; root.add(cap);
     // eroded foot: bare mud brick to ~0.45 m, slightly proud of the render
     const fh = 0.32 + R() * 0.16;
-    const foot = mesh(boxUV(new THREE.BoxGeometry(Lw - 0.05, fh, width + 0.05), 1.6), brick); foot.position.set(cx, fh / 2, cz); foot.rotation.y = rot; root.add(foot);
+    const foot = mesh(boxUV(new THREE.BoxGeometry(Lw - 0.05, fh, width + 0.05), 1.6), brick); foot.position.set(ox, fh / 2, oz); foot.rotation.y = rot; root.add(foot);
     // fallen render: ragged brick patches on both faces, gullies under the crest
     const face = (sd, y) => width / 2 * (1 - 0.28 * y / h) + 0.012;
     const tilt = Math.atan2(0.28 * width / 2, h);

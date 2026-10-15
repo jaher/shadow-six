@@ -115,7 +115,10 @@ export function swingClear(dy, u) {
  */
 export function cadenceFor(L, tread, v = null) {
   if (!(L > 0.05) || !(tread > 0.05)) return { n: 1, k: 1 };
-  const n = v > 0 ? clamp(Math.ceil(v / (tread * GAIT.cadence)), 1, 2) : clamp(Math.floor(L / tread + 0.3), 1, 2);
+  let n = v > 0 ? clamp(Math.ceil(v / (tread * GAIT.cadence)), 1, 2) : clamp(Math.floor(L / tread + 0.3), 1, 2);
+  // (a tread a step only as fast as the clip can be played: a long stride on narrow treads — the Marine's walk on the
+  // M3 dam stair — takes two, its clip otherwise held at kMax behind the feet, each foot coming down twice a tread)
+  if (n === 1 && L / tread > GAIT.kMax) n = 2;
   return { n, k: clamp(L / (n * tread), GAIT.kMin, GAIT.kMax) };
 }
 
@@ -169,7 +172,12 @@ function supportOf(S, x, y, z) {
  * (fx, fz). @returns {{x:number, z:number, y:number}} the ball's spot (x, z) and its tread's height y
  */
 function snapBall(S, x, z, fx, fz, geo, kWant = null) {
-  const f = S.f, { s } = flightLocal(f, x, z), dir = fx * f.ux + fz * f.uz;
+  const f = S.f;
+  // (inside its rails: a foothold at most 0.13 m in from a rail's inner face — a turning step on to it, a sidestep to
+  // let a man by — user 2026-10-11 "…cross the handrails…")
+  const q = flightLocal(f, x, z), lim = Math.max(0.05, (f.clear ?? f.w / 2) - 0.13);
+  if (Math.abs(q.v) > lim) { const d = Math.sign(q.v) * lim - q.v; x += -f.uz * d; z += f.ux * d; }
+  const { s } = flightLocal(f, x, z), dir = fx * f.ux + fz * f.uz;
   const { ds, k } = footholdOnFlight(f, s, dir, geo.toeD ?? geo.toe, geo.heelD ?? geo.heel, kWant);
   return { x: x + f.ux * ds, z: z + f.uz * ds, y: f.levels[k], k };
 }
@@ -200,7 +208,9 @@ export function stairGait(m, dt, guard) {
   // (from GAIT.warm m off it his steps are measured — step length, swing time, where the clip lands a foot — with
   // nothing written; within GAIT.pad / GAIT.side of its run the layer poses him)
   const near = ok ? unitFlight(u, GAIT.warm, GAIT.warm) : null;
-  const at = near && near.s >= near.f.sFoot - GAIT.pad && near.s <= near.f.sTop + GAIT.pad && Math.abs(near.v) <= near.f.w / 2 + GAIT.side ? near : null;
+  // (his middle between its rails: a man walking past outside them is not on its treads — his feet would be put on
+  // them through the rail, user 2026-10-11)
+  const at = near && near.s >= near.f.sFoot - GAIT.pad && near.s <= near.f.sTop + GAIT.pad && Math.abs(near.v) <= Math.min(near.f.w / 2 + GAIT.side, (near.f.clear ?? near.f.w / 2) + 0.05) ? near : null;
   if (!S) {
     if (!near) return false;
     S = m._sg = { w: 0, f: near.f, t: 0, acc: 0, mt: null, feet: { l: newFoot(), r: newFoot() }, dy: null, dyV: 0, lean: 0, k: 1, kOn: 1, L: null, td: null, px: null, pz: null, vx: 0, vz: 0, vb: 0, inner: h };

@@ -7,7 +7,7 @@
  * @module terrain-b/vegetation
  */
 import * as THREE from 'three';
-import { generateTree, GeoAcc, TREE_QUALITY, SPECIES, LEAF_LAYERS, useThree } from './treegen.js';
+import { generateTree, GeoAcc, TREE_QUALITY, SPECIES, LEAF_LAYERS, useThree, vertexRoot } from './treegen.js';
 import { bakeImpostors, createImpostorMesh } from './impostors.js';
 import { WIND_GLSL, WIND_UNIFORMS } from '../../world/wind.js';
 useThree(THREE);
@@ -102,7 +102,19 @@ varying vec2 vLeaf;   // per-card random, species kind (0 broad, 1 conifer, 2 pa
 #endif
 attribute vec4 aInfo;   // layer, sway weight (height), flex (0 trunk .. 1 leaf), phase
 attribute vec3 aTint;
-attribute vec4 aRoot;   // tree root x, y, z, H + 100·kind (0 broad, 1 conifer, 2 palm, 3 bush)
+// the vertex's tree root x, y, z, H + 100·kind (0 broad, 1 conifer, 2 palm, 3 bush): one entry a tree in uRoots (RGBA32F,
+// 1024 a row), its row in the 4th component of the packed normal (aNrm4: the normal's own buffer); geometries with
+// per-vertex roots (GeoAcc.toGeometry: impostor prototypes) have no aNrm4 (w reads 1) and use aRootV
+attribute vec4 aRootV;
+attribute vec4 aNrm4;
+uniform highp sampler2D uRoots;
+vec4 aRoot;
+vec4 vegRoot() {
+  float w = aNrm4.w;
+  if (w > 0.99997) return aRootV;
+  int id = int(w * 32767.0 + 0.5);
+  return texelFetch(uRoots, ivec2(id & 1023, id >> 10), 0);
+}
 uniform float uTime;
 uniform vec2 uWind;
 uniform float uWindStr; // 0..1 multiplier (0 while baking impostors)
@@ -162,6 +174,7 @@ vec3 vegWind(vec3 p) {
 }
 `;
 const VBEGIN = /* glsl */ `
+aRoot = vegRoot();
 vec3 transformed = vegWind(position);
 vVUv = vec3(uv, aInfo.x);
 vTint = aTint;
@@ -245,6 +258,16 @@ const LEAF_NORMAL_FRAG = /* glsl */ `
 `;
 /** Alpha test shared by the leaf depth and GTAO-normal programs. */
 const LEAF_DISCARD = 'void main() {\n  if (leafAlpha(texture(tArrN, vVUv).b) < 0.5) discard;';
+
+/** The trees' root table as a texture: RGBA32F, 1024 entries a row (read with texelFetch in the vertex shaders). */
+function rootTable(roots) {
+  const n = roots.length / 4, w = Math.min(1024, Math.max(1, n)), h = Math.ceil(n / 1024), data = new Float32Array(w * h * 4);
+  data.set(roots);
+  const t = new THREE.DataTexture(data, w, h, THREE.RGBAFormat, THREE.FloatType);
+  t.minFilter = t.magFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  t.needsUpdate = true;
+  return t;
+}
 
 function makeMaterials(tex, U, kind) {
   const leaf = kind === 'leaf';
@@ -478,6 +501,7 @@ export async function createVegetation(scene, placements, theater = 'temperate',
     uAgit: { value: Array.from({ length: 8 }, () => new THREE.Vector4(0, 0, 0, 1)) },
     uSeason: { value: new THREE.Vector4(opts.season?.autumn ?? 0, opts.season?.dull ?? 0, 0, 0) }, // leaf colour by date (treeSeason)
     uAut: { value: autumnTints() },
+    uRoots: { value: rootTable(new Float32Array([0, 0, 0, 1])) }, // the trees' roots (built with the meshes)
   };
   const barkM = makeMaterials({ alb: bAlb, nor: bNor }, U, 'bark');
   const leafM = makeMaterials({ alb: lAlb, nor: lNor }, U, 'leaf');
@@ -564,11 +588,17 @@ export async function createVegetation(scene, placements, theater = 'temperate',
     leafMeshes = [];
     trees = []; stats.tris = 0;
     const byKey = new Map(chunkList.map((c) => [c.key, c]));
+    // the root table: every geometry's trees, end to end (entry bases: arraysToGeometry rebases the normals' 4th component)
+    let nRoots = 0;
+    for (const r of out) for (const a of [r.bark, r.leaf, r.needle]) if (a?.roots) nRoots += a.roots.length / 4;
+    const table = new Float32Array(Math.max(1, nRoots) * 4);
+    let at = 0;
+    const baseOf = (a) => { if (!a?.roots) return 0; const b = at; table.set(a.roots, b * 4); at += a.roots.length / 4; return b; };
     for (const r of out) {
       byKey.get(r.key).trees.forEach((t, i) => trees.push({ ...t, ...r.info[i], impostor: false }));
       for (const [a, M] of [[r.bark, barkM], [r.leaf, leafM], [r.needle, needleM]]) {
         if (!a) continue;
-        const mesh = new THREE.Mesh(GeoAcc.arraysToGeometry(a), M.mat);
+        const mesh = new THREE.Mesh(GeoAcc.arraysToGeometry(a, baseOf(a)), M.mat);
         mesh.customDepthMaterial = M.depth;
         mesh.castShadow = true; mesh.receiveShadow = true;
         mesh.name = M === barkM ? 'vegBark' : M === needleM ? 'vegNeedles' : 'vegLeaves';
@@ -582,6 +612,10 @@ export async function createVegetation(scene, placements, theater = 'temperate',
         stats.tris += a.idx.length / 3;
       }
     }
+    const old = U.uRoots.value;
+    U.uRoots.value = rootTable(table);
+    old.dispose();
+    stats.roots = nRoots;
     stats.impostors = 0;
     if (imp.length) {
       // K prototypes per species/variant, baked once per quality change (and once per page for the same set:
@@ -667,6 +701,8 @@ export async function createVegetation(scene, placements, theater = 'temperate',
     },
     setQuality(q2) { if (TREE_QUALITY[q2] && q2 !== quality) { quality = q2; building = build(); } return building; },
     setSnow(a) { U.uSnowAmt.value = a; },
+    /** The tree root (x, y, z, H + 100·kind) of vertex `i` of one of the group's meshes (tests / tools). */
+    rootAt: (geometry, i) => vertexRoot(geometry, i),
     setWind(s) { U.uWindStr.value = s; },
     /**
      * Movers brushing through low vegetation this frame ([{id, x, z, s: strength 0..2, r: reach m}]): the 8 strongest
@@ -692,6 +728,7 @@ export async function createVegetation(scene, placements, theater = 'temperate',
       scene.remove(group);
       [barkM.mat, barkM.depth, leafM.mat, leafM.depth, needleM.mat, needleM.depth, needleM.aoMat].forEach((m) => m.dispose());
       [lAlb, bAlb, bNor, lNor, nAlb, nNor].forEach((t) => cache.release(t));
+      U.uRoots.value.dispose();
     },
   };
 }
