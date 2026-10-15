@@ -2,9 +2,10 @@
  * Debug VIDEO MODE on the desktop (src/debug/walkthrough.js, docs/walkthrough-format.md): the debug select offers
  * "Watch walkthrough" for every mission with a saved solution and "No walkthrough yet" for the rest; M3 opens on its
  * title card, then plays live with the director camera on the acting commando, the narration of the step, the step's
- * cones; pause, ½× / 1× / 2× / 4×, next / previous step, the chapter list (a jump ahead fast-forwards, a jump back
- * reloads), captions off / on, free camera and back, and ✕ back to the debug menu with the game's camera, clock and
- * input restored.
+ * cones; pause, ½× / 1× / 2× / 4× and AUTO (the default: fast through a quiet stretch, eased down to 1× into a knife
+ * kill; a fixed speed leaves it, 5 / A toggle it), next / previous step, the chapter list (a jump ahead fast-forwards,
+ * a jump back reloads), captions off / on, free camera and back, and ✕ back to the debug menu with the game's camera,
+ * clock and input restored.
  */
 export const timeout = 420_000;
 
@@ -18,7 +19,7 @@ export default async function debugWalkthrough(page, t) {
     const cap = document.getElementById('wt-cap'), bar = document.getElementById('wt-bar');
     return {
       on: !!r?.isWalkthrough, mission: g.missionDef?.id ?? null, state: g.state, time: w?.time ?? 0, manualTick: g.manualTick,
-      chapter: r?.chapterId ?? null, step: r?.step?.cp ?? null, ff: r?.pacer.turbo ?? null, speed: r?.speed ?? null, paused: r?.paused ?? null,
+      chapter: r?.chapterId ?? null, step: r?.step?.cp ?? null, ff: r?.pacer.turbo ?? null, speed: r?.speed ?? null, auto: r?.auto ?? null, rate: r?.rate ?? null, paused: r?.paused ?? null,
       free: r?.free ?? null, captions: r?.captions ?? null, done: r?.doneCps.slice() ?? [], detections: r?.driver?.detections() ?? null,
       cap: cap?.textContent || '', capMode: cap?.dataset.mode || '', capHidden: cap ? cap.hidden : null, bar: bar ? { ...bar.dataset } : null,
       scripted: !!g.cameraRig?.scripted, forced: [...(g.cones?.forced || [])].map((e) => e.tag), select: !!document.getElementById('dbg-select'),
@@ -79,11 +80,18 @@ export default async function debugWalkthrough(page, t) {
   t(s.state === 'playing' && s.manualTick && s.scripted, `playing; the walkthrough owns the clock and the camera (${JSON.stringify({ st: s.state, m: s.manualTick, sc: s.scripted })})`);
   t(s.step === 'A1' && /Sapper/.test(s.cap) && /bear trap/.test(s.cap), `caption: step A1, who and what (${s.cap.slice(0, 120)})`);
   t(['e1', 'e2', 'e3'].every((e) => s.forced.includes(e)), `the step's cones are drawn (${s.forced})`);
+  const autoBtn = () => page.evaluate(() => { const b = document.querySelector('#wt-bar [data-act=speed-auto]'); return { pressed: b.getAttribute('aria-pressed'), text: b.textContent, skipOff: document.querySelector('#wt-bar [data-act=skip]').hidden }; });
+  let ab = await autoBtn();
+  t(s.auto && s.bar.speed === 'auto' && ab.pressed === 'true' && /^AUTO \d\.\d×|^AUTO ½×/.test(ab.text) && ab.skipOff, `a fresh walkthrough plays in AUTO, its speed on the button (${ab.text}; no skip-waits button: AUTO paces the waits)`);
   await page.evaluate(() => { window.__ran = 0; window.shadowSix.enqueue(() => { window.__ran = 1; }); });
   await page.waitForTimeout(300);
   t.equal(await page.evaluate(() => window.__ran), 0, 'a player order is held while the walkthrough plays');
 
   step('3. speeds (skip waits off to measure)');
+  await click('#wt-bar [data-act="speed-1"]');
+  s = await S();
+  ab = await autoBtn();
+  t(!s.auto && s.speed === 1 && s.bar.speed === '1' && ab.pressed === 'false' && ab.text === 'AUTO' && !ab.skipOff, `a fixed speed leaves AUTO (${JSON.stringify(ab)})`);
   await click('#wt-bar [data-act=skip]');
   t.equal((await S()).bar.skip, '0', 'skip waits off');
   const r1 = await rate(2500);
@@ -98,6 +106,13 @@ export default async function debugWalkthrough(page, t) {
   t.equal(await page.evaluate(() => document.querySelector('#wt-bar [data-act="speed-0.5"]').getAttribute('aria-pressed')), 'true', '½× shown pressed');
   await click('#wt-bar [data-act="speed-4"]');
   await click('#wt-bar [data-act=skip]');
+  // 5 and A toggle AUTO (back to the fixed speed it left)
+  await page.keyboard.press('5');
+  s = await S();
+  t(s.auto && s.bar.auto === '1', '5: AUTO on');
+  await page.keyboard.press('a');
+  s = await S();
+  t(!s.auto && s.speed === 4 && s.bar.speed === '4', `A: AUTO off, back to 4× (${s.bar.speed})`);
 
   step('4. pause / play');
   await click('#wt-bar [data-act=play]');
@@ -144,6 +159,34 @@ export default async function debugWalkthrough(page, t) {
   await page.waitForFunction(() => { const r = window.shadowSix.debug.mode.replay; return r && window.shadowSix.world !== window.__w1 && !r.pacer.turbo; }, null, { timeout: 180000 });
   s = await S();
   t.equal(s.step, wB, `back at the start of step ${wB}`);
+
+  step('7b. AUTO: fast through the crawl down the gully, eased down to 1× into the knife on e5 (B1)');
+  // every displayed frame: game time, the speed, why; the kill's game time
+  await page.evaluate(() => {
+    const r = window.shadowSix.debug.mode.replay, w = window.shadowSix.world;
+    window.__pace = { f: [], kill: null };
+    const off = w.events.on('unit:killed', (p) => { if (p.unit?.tag === 'e5' && window.__pace && window.__pace.kill == null) { window.__pace.kill = w.time; off(); } });
+    const f = () => { if (!window.__pace) return; if (!r.stopped && !r.paused && !r._held()) window.__pace.f.push([w.time, r.rate, r.autoWhy]); requestAnimationFrame(f); };
+    requestAnimationFrame(f);
+  });
+  await page.keyboard.press('a');
+  t((await S()).auto, 'A: AUTO on');
+  await page.waitForFunction(() => window.__pace?.kill != null && window.shadowSix.world.time > window.__pace.kill + 2.5, null, { timeout: 180000 });
+  const pace = await page.evaluate(() => { const p = window.__pace; window.__pace = null; return p; });
+  const at = (tt) => { let best = null; for (const x of pace.f) { if (x[0] <= tt) best = x; else break; } return best; };
+  const K = pace.kill;
+  const before = pace.f.filter((x) => x[0] < K - 6);
+  const fast = Math.max(...before.map((x) => x[1]));
+  const atK = at(K)[1], at3 = at(K - 3)[1], at6 = at(K - 6)[1];
+  let jump = 0;
+  for (let i = 1; i < pace.f.length; i++) jump = Math.max(jump, Math.abs(Math.log2(pace.f[i][1] / pace.f[i - 1][1])));
+  t.log(`AUTO before B1: max ${fast.toFixed(2)}×; at kill −6 s ${at6.toFixed(2)}, −3 s ${at3.toFixed(2)}, kill ${atK.toFixed(2)} (${at(K)[2]}); biggest step between frames ${jump.toFixed(3)} octave`);
+  t(fast >= 3, `AUTO speeds up through the quiet crawl (${fast.toFixed(2)}×)`);
+  t(atK <= 1.3 && at3 < fast && at3 >= atK, `… and slows down before the knife: ${at3.toFixed(2)}× 3 s before, ${atK.toFixed(2)}× at the kill`);
+  t(jump < 0.2, `smooth ramps, no jump between two frames (${jump.toFixed(3)} octave at most)`);
+  t(/AUTO \d\.\d×|AUTO ½×/.test((await autoBtn()).text), `the button shows the speed (${(await autoBtn()).text})`);
+  await click('#wt-bar [data-act="speed-4"]');
+  t(!(await S()).auto, 'a fixed speed leaves AUTO');
 
   step('8. captions off / on; free camera and back');
   await click('#wt-bar [data-act=cc]');

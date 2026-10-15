@@ -2,7 +2,7 @@
  * Debug VIDEO MODE on a phone (emulated Pixel 7, portrait then landscape, taps only): the walkthrough opens from the
  * debug select, its bar and caption fit the screen with finger-sized buttons, never overlap the HUD (top bar, the
  * knapsack corner, the MENU button) and leave the acting commando in view: the director frames him in the free part
- * of the screen. ½× / 2× / next step / chapter jump / free camera / captions / ✕ by tap. docs/walkthrough-format.md.
+ * of the screen. ½× / 2× / AUTO / next step / chapter jump / free camera / captions / ✕ by tap. docs/walkthrough-format.md.
  */
 import { DEVICES } from './touch-flow.mjs';
 
@@ -49,7 +49,7 @@ export default async function debugWalkthroughTouch(_page, t) {
         const bar = R(document.getElementById('wt-bar')), cap = R(document.getElementById('wt-cap'));
         const hud = { topbar: R(document.querySelector('.hud-topbar')), pack: R(document.querySelector('.hud-right-bottom .pack')), menu: R(document.querySelector('.touch-menu')), notebook: R(document.querySelector('.hud-right')),
           speaker: R(document.querySelector('.hud-speaker-card')) }; // (the speaker card: while a man talks)
-        const bs = [...document.querySelectorAll('#wt-bar button')].map((b) => b.getBoundingClientRect());
+        const bs = [...document.querySelectorAll('#wt-bar button')].filter((b) => !b.hidden).map((b) => b.getBoundingClientRect());
         const g = window.shadowSix, r = g.debug.mode.replay, cc = g.cameraController;
         const rect = r.safeRect();
         const men = g.world.commandos.filter((c) => c.alive && (r.step?.who?.length ? r.step.who.includes(c.role) : c === r.focus));
@@ -75,6 +75,13 @@ export default async function debugWalkthroughTouch(_page, t) {
       t.equal(await page.evaluate(() => window.shadowSix.debug.mode.replay.speed), 2, `${tag}: 2× by tap`);
       await page.locator('#wt-bar [data-act="speed-0.5"]').tap();
       t.equal(await page.evaluate(() => window.shadowSix.debug.mode.replay.speed), 0.5, `${tag}: ½× by tap`);
+      await page.locator('#wt-bar [data-act=speed-auto]').tap();
+      await page.waitForTimeout(600);
+      const au = await page.evaluate(() => { const b = document.querySelector('#wt-bar [data-act=speed-auto]'), r = b.getBoundingClientRect(), bar = document.getElementById('wt-bar').getBoundingClientRect();
+        return { auto: window.shadowSix.debug.mode.replay.auto, text: b.textContent, w: r.width, h: r.height, fits: bar.left >= 0 && bar.right <= innerWidth }; });
+      t(au.auto && /^AUTO /.test(au.text) && au.w >= 44 && au.h >= 44 && au.fits, `${tag}: AUTO by tap, its speed on the button, the bar still fits (${JSON.stringify(au)})`);
+      await page.locator('#wt-bar [data-act="speed-0.5"]').tap();
+      t(!(await page.evaluate(() => window.shadowSix.debug.mode.replay.auto)), `${tag}: a fixed speed by tap leaves AUTO`);
       await page.locator('#wt-bar [data-act=play]').tap();
       t(await page.evaluate(() => window.shadowSix.debug.mode.replay.paused), `${tag}: paused by tap`);
       await page.locator('#wt-bar [data-act=chapters]').tap();

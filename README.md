@@ -179,7 +179,7 @@ chunk).
 
 A guided film of a mission's solution, played live in the game. In DEBUG LEVEL SELECT pick **▶ … — watch the
 walkthrough** under *Watch walkthrough · video mode*; in a mission press **F8** or the small **▶ VIDEO** button; or
-open `?debug&walkthrough=m03` directly. Missions without a solution are listed under *No walkthrough yet* (their
+open `?debug&walkthrough=m03` directly (`&speed=auto`, `&speed=4`, … picks the speed; no speed is AUTO). Missions without a solution are listed under *No walkthrough yet* (their
 button says so). The mission loads fresh, as authored, on a title card (Start, Chapters, Exit); then:
 
 - **The director** frames the commando who acts with what matters to the step (his target, the guard he slips past,
@@ -197,8 +197,9 @@ button says so). The mission loads fresh, as authored, on a title card (Start, C
 | ⏮ / ⏭ | B / N | Previous / next step. Ahead fast-forwards from where you are; back reloads the mission and fast-forwards (the run is deterministic). ⏮ restarts the current step, or goes to the previous one in its first 4 s. |
 | ❚❚ / ▶ | Space | Pause / play. |
 | ☰ | L | Chapters and steps: jump to any of them. |
-| ½× 1× 2× 4× | 1–4 | Speed. |
-| ⏩ | W | Skip waits (on by default): while every commando waits, the pace rises up to 4× faster; it drops back the moment anything happens. |
+| ½× 1× 2× 4× | 1–4 | A fixed speed. |
+| AUTO | 5 / A | The default: the speed follows the action, as the solution films did. Fast through walks, waits and long crawls (4×, up to 8× while the frame rate holds), eased down to 1× ahead of what matters (a knife, a shot, a charge, a uniform, a switch, a near miss, a man closing in on the guard the step is about), ½× for blasts and the escape, never above 2.5× while a new caption is read. The button shows the speed it plays at; a fixed speed leaves AUTO. |
+| ⏩ | W | Skip waits (fixed speeds; on by default): while every commando waits, the pace rises up to 4× faster; it drops back the moment anything happens. |
 | CC | C | Captions on / off. |
 | CAM | F | Director on / off. Off is a free camera: scroll, drag and zoom as in the game; a drag or the wheel over the map also switches to it. CAM gives the camera back to the director. |
 

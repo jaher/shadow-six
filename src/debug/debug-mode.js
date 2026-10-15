@@ -8,7 +8,7 @@
  * line), the SOLUTION replay
  * of missions with a saved solution (debug/solutions.js, debug/solution-replay.js: select section, in-game SOLUTION
  * button, F9; Esc stops it) and VIDEO MODE, the guided walkthrough of a solution (debug/walkthrough.js: the select's
- * "Watch walkthrough" section, the in-game ▶ VIDEO button, F8, `?debug&walkthrough=m03[&speed=4]`, which is also what the
+ * "Watch walkthrough" section, the in-game ▶ VIDEO button, F8, `?debug&walkthrough=m03[&speed=4|auto]`, which is also what the
  * address bar shows in video mode, so it can be shared: the link opens on the title card, waiting for ▶ Start; Esc exits
  * to this menu).
  * main.js installs it only when the URL carries `debug`; nothing here exists otherwise. Pure logic: debug-options.js.
@@ -657,7 +657,8 @@ export class DebugMode {
   /**
    * Video mode: load mission `id` fresh (as authored) and play its solution as a guided walkthrough
    * (debug/walkthrough.js). A mission without a solution gets the "No walkthrough yet" card. `toMarker`: fast-forward
-   * to that chapter / checkpoint first (a jump back reloads); `settings`: speed, captions, skip waits, free camera.
+   * to that chapter / checkpoint first (a jump back reloads); `settings`: speed (a fixed one or 'auto'; none: AUTO), captions,
+   * skip waits, free camera.
    * @returns {Promise<Walkthrough|null>}
    */
   async startWalkthrough(id, { toMarker = null, settings = null, introWait = false } = {}) {
@@ -684,9 +685,10 @@ export class DebugMode {
       if (!ok || !this.game.world || this.currentId !== id) throw new Error(`mission ${id} did not load`);
       if (this.game.state === 'paused') this.game.pause(false);
       const r = new W.Walkthrough(this.game, sol, wtFile, {
-        speed: keep.speed ?? 1, captions: keep.captions ?? true, skipWaits: keep.skipWaits ?? true, free: !!keep.free,
+        speed: keep.speed ?? W.DEFAULT_WALK_SPEED, captions: keep.captions ?? true, skipWaits: keep.skipWaits ?? true, free: !!keep.free,
         toMarker, intro: !toMarker, introWait, manualTickAfter: mt,
-        onSpeed: (s) => this._setUrl((q) => (s === 1 ? q.delete('speed') : q.set('speed', String(s)))),
+        // (always in the link: no speed means AUTO, so a fixed 1× is speed=1; AUTO is speed=auto)
+        onSpeed: (s) => this._setUrl((q) => q.set('speed', String(s))),
         isFrozen: () => !!this.overlay,
         onSkip: (marker, s) => { this.startWalkthrough(id, { toMarker: marker, settings: s }); },
         onExit: () => this.exitWalkthrough(),
@@ -704,8 +706,8 @@ export class DebugMode {
       this._syncFlags();
       r.start();
       started = true;
-      // the address bar is now a shareable video-mode link: ?debug&mission=m03&walkthrough=m03[&speed=4]
-      this._setUrl((q) => { q.set('walkthrough', id); if (r.pacer.speed === 1) q.delete('speed'); else q.set('speed', String(r.pacer.speed)); });
+      // the address bar is now a shareable video-mode link: ?debug&mission=m03&walkthrough=m03&speed=auto|4|…
+      this._setUrl((q) => { q.set('walkthrough', id); q.set('speed', String(r.speedSetting)); });
       this.game.renderer?.domElement?.focus?.();
       return r;
     } catch (err) {
@@ -847,7 +849,7 @@ export class DebugMode {
     const fo = this.effectiveOptions();
     const flags = [fo.invulnerable && 'INVULN', fo.noDetect && 'BLIND', o.cones && 'CONES', o.freeCamera && 'FREECAM'].filter(Boolean).join(' ');
     const r = this.replay;
-    const rep = r ? `REPLAY ${r.sol.id} step ${r.stage?.id ?? '-'} ${r.fastForward ? 'FF' : `x${r.speed}`}${r.paused ? ' paused' : ''} t=${(g.world?.time ?? 0).toFixed(0)}s` : '';
+    const rep = r ? `REPLAY ${r.sol.id} step ${r.stage?.id ?? '-'} ${r.fastForward ? 'FF' : r.auto ? `AUTO x${r.rate.toFixed(1)}` : `x${r.speed}`}${r.paused ? ' paused' : ''} t=${(g.world?.time ?? 0).toFixed(0)}s` : '';
     const id = this.currentId;
     const s = this.sampleStats();
     const now = performance.now();

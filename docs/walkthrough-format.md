@@ -29,8 +29,10 @@ and its mission). Format version: **1** (stable; new fields will only ever be op
   play order.
 - A checkpoint the solution sets only on one branch (`if (...) D.checkpoint('G5b …')`) still gets its step. In a run
   that skips it the caption moves on at the next checkpoint, and a jump to it stops at the next one.
-- Long waits (a patrol walking off, a cone sweeping past) need no step of their own: the director fast-forwards
-  idle stretches when the viewer asks it to, and the caption stays on the step being waited for.
+- Long waits (a patrol walking off, a cone sweeping past) need no step of their own: AUTO speed (the default) runs
+  them fast and slows down by itself for the moments that matter, and the caption stays on the step being waited for.
+  AUTO reads the step too: its `who` closing in on a guard named in its `look` slows the play down ahead of the
+  action, and a new caption is never played faster than 2.5× while it is read.
 
 ## The file
 

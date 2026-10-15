@@ -1,7 +1,8 @@
 /**
  * Debug VIDEO MODE never changes the simulation (src/debug/walkthrough.js): the M3 walkthrough, watched with the
- * director camera, the step cones, captions, pauses, speed changes, free camera, a jump back (reload + fast-forward)
- * and jumps ahead, wins exactly like the scripted run (tools/solutions/m03.solution.mjs played logic-only, as
+ * director camera, the step cones, captions, pauses, speed changes and AUTO speed (debug/auto-pace.js: the start, the
+ * charges, the blasts and the escape), free camera, a jump back (reload + fast-forward) and jumps ahead, wins exactly
+ * like the scripted run (tools/solutions/m03.solution.mjs played logic-only, as
  * tests/m03-solution.test.mjs does): the same checkpoints at the same game times, the same end time, 0 detections,
  * nobody ever inside a live cone (the driver's exposure watch). (The node harness, tools/solutions/run-headless.mjs,
  * is only an approximation of the game — its grid lacks the library meshes — so the reference is the game's own
@@ -43,9 +44,10 @@ export default async function debugWalkthroughSim(page, t) {
   const click = (sel) => page.locator(sel).click();
   const wk = (fn) => page.waitForFunction(fn, null, { timeout: 600000 });
   await click('#wt-card [data-act=start]');
-  await click('#wt-bar [data-act="speed-4"]');
-  // stage A with the director at work; a pause, captions off and on, free camera and back
+  t(await page.evaluate(() => window.shadowSix.debug.mode.replay.auto), 'AUTO (the default) from the start');
+  // stage A in AUTO with the director at work; then 4×: a pause, captions off and on, free camera and back
   await wk(() => window.shadowSix.debug.mode.replay?.doneCps.includes('A1'));
+  await click('#wt-bar [data-act="speed-4"]');
   await click('#wt-bar [data-act=play]');
   await page.waitForTimeout(800);
   await click('#wt-bar [data-act=play]');
@@ -73,9 +75,19 @@ export default async function debugWalkthroughSim(page, t) {
   await click('#wt-bar [data-act=chapters]');
   await click('#wt-menu [data-chapter="I"]');
   await wk(() => { const r = window.shadowSix.debug.mode.replay; return r?.chapterId === 'I' && !r.pacer.turbo; });
-  step('   I and J: the charges and the escape, watched at 4×');
-  await click('#wt-bar [data-act="speed-4"]');
+  step('   I and J: the charges, the blasts and the escape, watched in AUTO');
+  await click('#wt-bar [data-act="speed-auto"]');
+  await page.evaluate(() => {
+    const r = window.shadowSix.debug.mode.replay, w = window.shadowSix.world;
+    window.__pace = [];
+    const f = () => { if (r.stopped) return; if (!r.paused && !r._held()) window.__pace.push([w.time, r.rate, r.autoWhy, r.chapterId]); requestAnimationFrame(f); };
+    requestAnimationFrame(f);
+  });
   await wk(() => !!window.__end);
+  const pace = await page.evaluate(() => window.__pace);
+  const slow = (re) => Math.min(...pace.filter((x) => re.test(x[2])).map((x) => x[1]));
+  t.log(`AUTO in I-J: ${pace.length} frames, max ${Math.max(...pace.map((x) => x[1])).toFixed(2)}x, blasts down to ${slow(/charge|blast/).toFixed(2)}x, escape ${slow(/climax/).toFixed(2)}x`);
+  t(slow(/charge|blast/) <= 0.6 && slow(/climax/) <= 0.6, 'AUTO: the blasts and the escape at ½×');
   const run = await page.evaluate(() => ({ ...window.__end, gameState: window.shadowSix.state, card: document.getElementById('wt-card')?.dataset.kind || null,
     cardText: document.getElementById('wt-card')?.textContent || '' }));
   t.log(`walkthrough: ${run.outcome} ${run.state} t=${run.time.toFixed(2)} detections=${run.detections} exposures=${run.exposures} checkpoints=${run.marks.length} error=${run.error}`);

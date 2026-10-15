@@ -7,10 +7,12 @@
  *    part of the screen the walkthrough's UI and the HUD leave free;
  *  - narration from tools/solutions/<id>.walkthrough.mjs (docs/walkthrough-format.md): a chapter card at each stage,
  *    a caption per step saying who does what and why, finer beats on live events;
- *  - controls: play / pause, 0.5× / 1× / 2× / 4×, skip waits (idle stretches run up to 4× faster), previous / next
- *    step and a chapter list (forward = fast-forward from here; back = the mission reloaded and fast-forwarded, the
- *    run being deterministic), captions on / off, free camera (the director lets go until it is switched back on),
- *    exit to the debug menu. Desktop keys: Space, B / N, 1–4, W, C, F, L, Esc.
+ *  - controls: play / pause, 0.5× / 1× / 2× / 4× and AUTO (the default: the films' pacing worked out live,
+ *    debug/auto-pace.js — fast through walks and waits, eased down to 1× for the moments that matter, ½× for blasts
+ *    and the escape), skip waits (fixed speeds: idle stretches run up to 4× faster), previous / next step and a chapter
+ *    list (forward = fast-forward from here; back = the mission reloaded and fast-forwarded, the run being
+ *    deterministic), captions on / off, free camera (the director lets go until it is switched back on), exit to the
+ *    debug menu. Desktop keys: Space, B / N, 1–4, 5 / A (AUTO), W, C, F, L, Esc.
  * Nothing here touches the simulation: the camera, the drawn cones, the captions and the pacing of wall time only.
  * @module debug/walkthrough
  */
@@ -19,8 +21,11 @@ import { SolutionReplay } from './solution-replay.js';
 import { normalizeWalkthrough, currentStep, orderAction, targetTag, matchOn, cpId } from './walkthrough-data.js';
 import { Director, freeRect } from './walkthrough-director.js';
 import { ROLE_NAMES } from '../ui/catalogue.js';
+import { AutoPace, PaceSensor, PerfCeiling, SteadyGrant, paceTarget, readTime, inClimax } from './auto-pace.js';
 
 export const WALK_SPEEDS = Object.freeze([0.5, 1, 2, 4]);
+/** The speed of a fresh walkthrough (no `speed` in its link): AUTO. `speed=1` is a fixed 1×. */
+export const DEFAULT_WALK_SPEED = 'auto';
 /** Wall-clock ms of ticks per frame while jumping (fast-forward). */
 export const WALK_TURBO_MS = 220;
 /** Skip waits: the most the pace is raised while every commando waits. */
@@ -39,6 +44,11 @@ const CSS = `
 #wt-bar [data-act=exit]{background:#4a1d19}
 #wt-bar .wt-grp{display:inline-flex;gap:2px;padding:0;border-radius:8px}
 #wt-bar .wt-grp button{min-width:44px;padding:0 4px;font-size:12px}
+#wt-bar button[hidden]{display:none}
+#wt-bar [data-act=speed-auto]{flex-direction:column;gap:3px;min-width:48px;line-height:1}
+#wt-bar [data-act=speed-auto] .wt-k{font-size:11px;letter-spacing:.08em}
+#wt-bar [data-act=speed-auto] .wt-v{font-size:12px;font-variant-numeric:tabular-nums;letter-spacing:0}
+#wt-bar [data-act=speed-auto] .wt-v:empty{display:none}
 #wt-bar .wt-tag{align-self:center;padding:0 6px 0 4px;color:#ffcf4a;font-size:11px;letter-spacing:.14em}
 #wt-cap{position:fixed;z-index:8500;box-sizing:border-box;padding:8px 12px 10px;background:rgba(12,11,9,.80);border-radius:8px;
   border:1px solid #ffffff1a;color:#f3ead2;pointer-events:auto;font:16px/1.38 Georgia,'Times New Roman',serif;text-shadow:0 1px 2px #000;cursor:default}
@@ -151,14 +161,16 @@ export class Walkthrough extends SolutionReplay {
    * @param {object} game the Game (mission freshly loaded, playing)
    * @param {object} sol loadSolution() result
    * @param {object|null} wtFile the mission's WALKTHROUGH (or null: chapters / captions from the solution itself)
-   * @param {{speed?: number, toMarker?: {kind: string, id: string}|null, isFrozen?: () => boolean, onEnd?: Function,
+   * @param {{speed?: number|'auto', toMarker?: {kind: string, id: string}|null, isFrozen?: () => boolean, onEnd?: Function,
    *   onSkip?: (marker: object, settings: object) => void, onExit?: () => void, captions?: boolean, skipWaits?: boolean,
-   *   free?: boolean, intro?: boolean, introWait?: boolean, onSpeed?: (s: number) => void}} o  onSkip: reload +
-   *   fast-forward to that marker (a jump back); intro: show the opening card (a fresh start); introWait: the card waits
-   *   for ▶ Start (a shared link: nobody may be watching yet, and the click lets the sound play); onSpeed: speed changed
+   *   free?: boolean, intro?: boolean, introWait?: boolean, onSpeed?: (s: number|'auto') => void}} o  speed: a fixed
+   *   speed or 'auto' (the default); onSkip: reload + fast-forward to that marker (a jump back); intro: show the opening
+   *   card (a fresh start); introWait: the card waits for ▶ Start (a shared link: nobody may be watching yet, and the
+   *   click lets the sound play); onSpeed: speed changed (a fixed speed or 'auto')
    */
   constructor(game, sol, wtFile, o = {}) {
-    super(game, sol, { ...o, speeds: WALK_SPEEDS, turboMs: o.turboMs ?? WALK_TURBO_MS, onSkip: null });
+    const auto = String(o.speed ?? DEFAULT_WALK_SPEED).toLowerCase() === 'auto';
+    super(game, sol, { ...o, speed: auto ? 1 : o.speed, speeds: WALK_SPEEDS, turboMs: o.turboMs ?? WALK_TURBO_MS, onSkip: null });
     this.isWalkthrough = true;
     this.onJumpBack = o.onSkip || null;
     this.onExit = o.onExit || null;
@@ -192,6 +204,18 @@ export class Walkthrough extends SolutionReplay {
     this._safe = null;
     this._safeAt = 0;
     this._doneObj = new Set();
+    // AUTO speed (debug/auto-pace.js): pacer.speed stays 1× and pacer.boost carries the eased speed
+    this.auto = auto;
+    this._fixedSpeed = this.pacer.speed; // (where AUTO off goes back to)
+    this.autoPace = new AutoPace(1);
+    this.autoCeiling = new PerfCeiling({ simDt: this.simDt });
+    this.sensor = new PaceSensor(this.world);
+    this._grant = new SteadyGrant();
+    this.autoWhy = '';
+    this._readUntil = 0;
+    this._lastChapterT0 = null;
+    this._burst = { frame: 0, prev: 0, ms: 0, ticks: 0 };
+    this._frameNo = 0;
   }
 
   // ------------------------------------------------------------ state
@@ -199,8 +223,12 @@ export class Walkthrough extends SolutionReplay {
   get paused() { return this.pacer.paused || this.game.state === 'paused'; }
   get free() { return !this.director.on; }
   get stepIndex() { return this.step ? this.wt.steps.indexOf(this.step) : -1; }
+  /** The speed setting: a fixed speed, or 'auto'. */
+  get speedSetting() { return this.auto ? 'auto' : this.pacer.speed; }
+  /** Sim seconds per real second now (AUTO: its eased speed). */
+  get rate() { return this.pacer.speed * this.pacer.boost; }
   /** Settings a reload (jump back) carries over. */
-  get settings() { return { speed: this.speed, captions: this.captions, skipWaits: this.skipWaits, free: this.free }; }
+  get settings() { return { speed: this.speedSetting, captions: this.captions, skipWaits: this.skipWaits, free: this.free }; }
 
   _held() {
     return !!this.hold && !this.pacer.turbo && performance.now() < this.hold.until;
@@ -250,6 +278,7 @@ export class Walkthrough extends SolutionReplay {
       on('alarm:start', () => { this._event({ kind: 'alarm', on: true }); this._calm(3); }),
       on('alarm:end', () => this._event({ kind: 'alarm', on: false })),
     ].filter(Boolean);
+    this.sensor.attach();
     this.director.attach();
     if (this.showIntro) { this._introOn = true; this.hold = { until: performance.now() + 1e9, kind: 'intro' }; }
     const done = super.start(); // (runs the solution up to its first tick: stage A starts in here)
@@ -273,12 +302,14 @@ export class Walkthrough extends SolutionReplay {
     const tgt = o?.type === 'ability' && o.target && o.target !== u && typeof o.target === 'object' ? o.target : null;
     if (tgt && (Number.isFinite(tgt.x) || tgt.kind)) this._action = { u, t: tgt, until: this.world.time + 6 };
     this._event({ kind: 'order', role, action: orderAction(u, o), target: tgt ? targetTag(tgt) : null });
+    this.sensor.order(u, o, this.world.time);
   }
 
   _onCheckpoint(cp) {
     const id = cpId(cp.name);
     if (!this.doneCps.includes(id)) this.doneCps.push(id);
     this._calm(2.5);
+    this.sensor.checkpoint(this.world.time);
     this._marker('cp', id);
     super._onCheckpoint(cp);
     this._syncStep();
@@ -286,6 +317,9 @@ export class Walkthrough extends SolutionReplay {
 
   _onStage(id, title) {
     this.chapterId = id;
+    // AUTO: a chapter starts at 1× (after its card); the last one's blast and escape are the climax
+    this._lastChapterT0 = this.wt.chapters[this.wt.chapters.length - 1]?.id === id ? this.world.time : null;
+    if (this.auto && !this.pacer.turbo) this._autoReset(1);
     this._marker('stage', id);
     super._onStage(id, title);
     this._syncStep();
@@ -302,6 +336,7 @@ export class Walkthrough extends SolutionReplay {
 
   _fastForwardDone(kind) {
     this._jumpFrom = null;
+    this._autoReset(1);
     this._camCut = true;
     this.stepWall = performance.now();
     if (kind === 'stage') this._chapterCard();
@@ -331,6 +366,7 @@ export class Walkthrough extends SolutionReplay {
         this.beatIdx = i + 1;
         this.beat = { ...b, until: b.hold > 0 ? this.world.time + b.hold : null };
         this._calm(Math.max(2, b.hold || 0));
+        this.sensor.beat(this.world.time, b.hold);
         this._capKey = null;
         return;
       }
@@ -338,7 +374,12 @@ export class Walkthrough extends SolutionReplay {
   }
 
   _frame(dt) {
-    super._frame(dt);
+    this._frameNo++;
+    // AUTO grants ticks for a steady frame time: one long frame (a hitch, a shader compile) is not paid back with a
+    // burst of ticks on the next — at most 1.25× a usual frame's worth, the rest of the lag is let go (the pace is
+    // wall time only) — so the ticks per frame follow the eased speed and never pile up into a second hitch
+    const g = this._grant.frame(dt);
+    super._frame(this.auto && !this.pacer.turbo ? g : dt);
     if (this.stopped) return;
     this._pace(dt);
     this.director.update(dt);
@@ -346,6 +387,7 @@ export class Walkthrough extends SolutionReplay {
 
   /** Skip waits: while every commando waits (nobody moves or acts, nothing just happened) the pace rises to 4×. */
   _pace(dt) {
+    if (this.auto) { this._autoStep(dt); return; }
     const w = this.world, t = w.time, p = this.pacer;
     if (this.pacer.turbo || this.paused) { p.boost = 1; return; }
     const m = this._motion;
@@ -369,6 +411,75 @@ export class Walkthrough extends SolutionReplay {
     if (want < p.boost) p.boost = want; // back to the chosen pace at once
     else if (want > p.boost) p.boost = Math.min(want, p.boost * Math.pow(2.2, Math.min(dt, 0.1))); // ramps up
     if (Math.abs(p.boost - 1) < 0.02) p.boost = 1;
+  }
+
+  /**
+   * AUTO (debug/auto-pace.js): what is about to happen (PaceSensor) → the speed wanted (paceTarget, under the frame
+   * rate's ceiling) → eased (AutoPace) → pacer.boost on top of a 1× pacer. Paused, held on a card or fast-forwarding:
+   * the speed holds.
+   */
+  _autoStep(dt) {
+    const p = this.pacer, w = this.world;
+    if (p.turbo) return;
+    const b = this._burst; // ms of ticks per tick on the last frames (the game step and the solution's own planning)
+    const msPerTick = b.ticks ? b.ms / b.ticks : null;
+    b.ms = 0; b.ticks = 0;
+    const ceiling = this.autoCeiling.frame(dt, msPerTick);
+    if (this.paused || this._held()) { p.boost = this.autoPace.rate; return; }
+    const t = w.time;
+    const sig = this.sensor.sample(t, this._paceCtx(), performance.now());
+    const reading = this.captions ? (this._readUntil - performance.now()) / 1000 : 0;
+    const climax = inClimax(t, this._lastChapterT0, this.sensor.blastT);
+    const tg = paceTarget(sig, { ceiling, reading, climax });
+    p.boost = this.autoPace.step(tg.rate, dt, ceiling);
+    this.autoWhy = tg.why;
+    this._autoLabel();
+  }
+
+  /** The step's acting men and the guards it (or its beat) names: the sensor's "closing in". Cached per step / beat. */
+  _paceCtx() {
+    const key = `${this.step?.cp}|${this.beatIdx}|${this.focus?.role}`;
+    if (this._paceKey === key && this._paceCtxV) return this._paceCtxV;
+    const w = this.world;
+    const who = this.step?.who?.length ? this.step.who.map((r) => w.commandos.find((c) => c.role === r)).filter(Boolean) : this.focus ? [this.focus] : [];
+    const refs = [...(this.step?.look || []), ...(this.beat?.look || [])].filter((r) => typeof r === 'string');
+    const subjects = refs.map((r) => w.enemies.find((e) => e.tag === r)).filter(Boolean);
+    this._paceKey = key;
+    this._paceCtxV = { actors: who, subjects };
+    return this._paceCtxV;
+  }
+
+  _autoReset(rate = 1) {
+    this.autoPace.reset(Math.min(rate, this.autoPace.rate));
+    if (this.auto) this.pacer.boost = this.autoPace.rate;
+  }
+
+  /** The AUTO button shows the speed it plays at (4 times a second at most). */
+  _autoLabel(force = false) {
+    const v = this._autoVal;
+    if (!v) return;
+    const now = performance.now();
+    if (!force && now - (this._autoLabelAt || 0) < 250) return;
+    this._autoLabelAt = now;
+    const txt = this.auto ? ` ${this._fmtRate(this.rate)}` : ''; // (textContent "AUTO 3.2×"; the space is not drawn)
+    if (v.textContent !== txt) v.textContent = txt;
+    if (this._ui) { this._ui.dataset.rate = this.rate.toFixed(2); this._ui.dataset.why = this.auto ? this.autoWhy : ''; }
+  }
+
+  _fmtRate(r) {
+    return r < 0.75 ? '½×' : `${r.toFixed(1)}×`;
+  }
+
+  _tick() {
+    // (AUTO's frame-rate ceiling: the wall time a tick takes, the solution's own planning since the frame's last tick
+    // included)
+    const b = this._burst, t0 = performance.now();
+    if (b.frame !== this._frameNo) { b.frame = this._frameNo; b.prev = t0; }
+    super._tick();
+    const t1 = performance.now();
+    b.ms += t1 - b.prev;
+    b.prev = t1;
+    b.ticks++;
   }
 
   _nearView(e) {
@@ -546,10 +657,30 @@ export class Walkthrough extends SolutionReplay {
     if (!!on !== this.pacer.paused) this.togglePause();
   }
 
+  /** A fixed speed (leaves AUTO). */
   setSpeed(s) {
+    const was = this.auto;
+    this.auto = false;
     this.pacer.setSpeed(s);
+    this._fixedSpeed = this.pacer.speed;
+    if (was) this.pacer.boost = 1;
     this._syncBar();
     this.onSpeed?.(this.pacer.speed);
+  }
+
+  /** AUTO on (the speed follows the action) or off (back to the last fixed speed). */
+  setAuto(on) {
+    on = !!on;
+    if (on === this.auto) return;
+    if (!on) { this.setSpeed(this._fixedSpeed); return; }
+    const from = this.rate;
+    this._fixedSpeed = this.pacer.speed;
+    this.auto = true;
+    this.pacer.setSpeed(1);
+    this.autoPace.reset(from); // (eases on from the speed it was playing at)
+    this.pacer.boost = this.autoPace.rate;
+    this._syncBar();
+    this.onSpeed?.('auto');
   }
 
   setCaptions(on) {
@@ -561,7 +692,7 @@ export class Walkthrough extends SolutionReplay {
 
   setSkipWaits(on) {
     this.skipWaits = !!on;
-    if (!this.skipWaits) this.pacer.boost = 1;
+    if (!this.skipWaits && !this.auto) this.pacer.boost = 1;
     this._syncBar();
   }
 
@@ -629,6 +760,7 @@ export class Walkthrough extends SolutionReplay {
     const map = {
       Space: () => this.togglePause(), KeyP: () => this.togglePause(), KeyN: () => this.nextStep(), KeyB: () => this.prevStep(),
       Digit1: () => this.setSpeed(0.5), Digit2: () => this.setSpeed(1), Digit3: () => this.setSpeed(2), Digit4: () => this.setSpeed(4),
+      Digit5: () => this.setAuto(!this.auto), KeyA: () => this.setAuto(!this.auto),
       KeyW: () => this.setSkipWaits(!this.skipWaits), KeyC: () => this.setCaptions(!this.captions), KeyF: () => this.setFree(!this.free),
       KeyL: () => this._showMenu(!this._menu),
     };
@@ -647,7 +779,7 @@ export class Walkthrough extends SolutionReplay {
     const chapters = this.wt.chapters.length;
     showCard({
       kind: 'intro', kicker: 'SHADOW SIX · WALKTHROUGH', title: `${n} · ${this.wt.title}`,
-      paras: [this.wt.intro || m?.briefing?.objectivesSummary || '', `${chapters} chapters${this.wt.steps.length ? `, ${this.wt.steps.length} steps` : ''}. The solution plays live in the game: pause, change the speed, skip to any step.`],
+      paras: [this.wt.intro || m?.briefing?.objectivesSummary || '', `${chapters} chapters${this.wt.steps.length ? `, ${this.wt.steps.length} steps` : ''}. The solution plays live in the game: pause, change the speed (AUTO paces it like a film), skip to any step.`],
       actions: [['▶ Start', () => this._endIntro(), true], ['Chapters', () => { this._endIntro(true); this.setPaused(true); this._showMenu(true); }], ['Exit', () => this.exit()]],
     });
     if (!this.introWait) this._introTimer = setTimeout(() => { if (this._introOn) this._endIntro(); }, 9000);
@@ -708,8 +840,12 @@ export class Walkthrough extends SolutionReplay {
     btn(tr, 'chapters', '☰', 'Chapters and steps (L)', () => this._showMenu(!this._menu));
     const sp = el('div', 'wt-grp', bar);
     for (const [s, k] of [[0.5, 1], [1, 2], [2, 3], [4, 4]]) btn(sp, `speed-${s}`, `${s === 0.5 ? '½' : s}×`, `Play at ${s}× speed (${k})`, () => this.setSpeed(s));
+    // (AUTO over the speed it plays at: as narrow as a speed button, so the bar keeps its rows on a phone)
+    this._autoBtn = btn(sp, 'speed-auto', '', 'AUTO speed: fast through walks and waits, slow for the moments that matter (5 / A)', () => this.setAuto(!this.auto));
+    el('span', 'wt-k', this._autoBtn, 'AUTO');
+    this._autoVal = el('span', 'wt-v', this._autoBtn, '');
     const op = el('div', 'wt-grp', bar);
-    btn(op, 'skip', '⏩', 'Skip waits: idle stretches play up to 4× faster (W)', () => this.setSkipWaits(!this.skipWaits));
+    btn(op, 'skip', '⏩', 'Skip waits: idle stretches play up to 4× faster (W; fixed speeds: AUTO paces the waits itself)', () => this.setSkipWaits(!this.skipWaits));
     btn(op, 'cc', 'CC', 'Captions on / off (C)', () => this.setCaptions(!this.captions));
     btn(op, 'cam', 'CAM', 'Director camera on / off: off = free camera (F)', () => this.setFree(!this.free));
     this._ui = bar;
@@ -794,15 +930,19 @@ export class Walkthrough extends SolutionReplay {
   _syncBar() {
     const bar = this._ui;
     if (!bar) return;
-    for (const s of WALK_SPEEDS) bar.querySelector(`[data-act="speed-${s}"]`)?.setAttribute('aria-pressed', String(!this.pacer.turbo && this.pacer.speed === s));
+    for (const s of WALK_SPEEDS) bar.querySelector(`[data-act="speed-${s}"]`)?.setAttribute('aria-pressed', String(!this.pacer.turbo && !this.auto && this.pacer.speed === s));
+    bar.querySelector('[data-act=speed-auto]')?.setAttribute('aria-pressed', String(!this.pacer.turbo && this.auto));
+    const skip = bar.querySelector('[data-act=skip]');
+    if (skip && skip.hidden !== this.auto) { skip.hidden = this.auto; this._safe = null; } // (AUTO paces the waits itself)
     const p = bar.querySelector('[data-act=play]');
     if (p) { p.textContent = this.paused ? '▶' : '❚❚'; p.setAttribute('aria-pressed', String(this.paused)); }
     bar.querySelector('[data-act=skip]')?.setAttribute('aria-pressed', String(this.skipWaits));
     bar.querySelector('[data-act=cc]')?.setAttribute('aria-pressed', String(this.captions));
     bar.querySelector('[data-act=cam]')?.setAttribute('aria-pressed', String(!this.free));
     bar.querySelector('[data-act=chapters]')?.setAttribute('aria-pressed', String(!!this._menu));
-    Object.assign(bar.dataset, { speed: String(this.pacer.speed), paused: this.paused ? '1' : '0', ff: this.pacer.turbo ? '1' : '0',
+    Object.assign(bar.dataset, { speed: String(this.speedSetting), auto: this.auto ? '1' : '0', paused: this.paused ? '1' : '0', ff: this.pacer.turbo ? '1' : '0',
       free: this.free ? '1' : '0', cc: this.captions ? '1' : '0', skip: this.skipWaits ? '1' : '0' });
+    this._autoLabel(true);
   }
 
   _caption() {
@@ -825,13 +965,16 @@ export class Walkthrough extends SolutionReplay {
       status = `⏩ jumping to ${this.toMarker?.id ?? ''}`;
       cap.dataset.progress = target > 0 ? String(Math.max(0, Math.min(1, (this.markerIndex + 1) / (target + 1)))) : '0';
     } else if (this.paused) status = '❚❚ paused';
-    else if (this.pacer.boost > 1.05) status = `⏩ waiting ×${(this.pacer.speed * this.pacer.boost).toFixed(1)}`;
+    else if (!this.auto && this.pacer.boost > 1.05) status = `⏩ waiting ×${(this.pacer.speed * this.pacer.boost).toFixed(1)}`;
     const head = ch ? `${ch.id} · ${ch.title}` : this.stage ? `${this.stage.id} · ${this.stage.title}` : 'Walkthrough';
     let say, who = [];
     if (chapterMode) say = ch.say || '';
     else if (this.beat?.say) { say = this.beat.say; who = st?.who || []; }
     else if (st) { say = st.say; who = st.who; }
     else say = this.lastOrder || '';
+    // AUTO: a new caption is read at no more than 2.5×, from when it shows with the clock running (a card holds the clock
+    // itself; a fast-forward's captions are not read)
+    if (st && !this._held() && !this.pacer.turbo && say !== this._readSay) { this._readSay = say; this._readUntil = performance.now() + readTime(say) * 1000; }
     const key = [head, pos.replace(/ · \d+:\d\d$/, ''), status, say, who.join(), chapterMode ? 1 : 0, Math.floor(this.world.time)].join('|');
     if (key === this._capKey) return;
     this._capKey = key;
@@ -944,6 +1087,7 @@ export class Walkthrough extends SolutionReplay {
     document.getElementById('wt-flash')?.remove();
     if (this._introOn) { this._introOn = false; closeCard(); }
     this.director.detach();
+    this.sensor.detach();
     this.pacer.boost = 1;
   }
 }
