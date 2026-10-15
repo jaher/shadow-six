@@ -39,7 +39,7 @@ import { Enemy } from './entities/enemy.js';
 import { Entity } from './entities/entity.js';
 import { Alarm } from './ai/alarm.js';
 import { Selection } from './render/selection.js';
-import { FIRST_AID_DOSES, firstAidCarrier, defaultInventory } from './items.js';
+import { FIRST_AID_DOSES, firstAidCarrier, defaultInventory, spawnInventory } from './items.js';
 import * as MapBuilder from './world/map-builder.js';
 import { prepareMissionArt } from './art/building-props.js';
 import { createPhysics } from './physics/world-physics.js';
@@ -61,7 +61,8 @@ function paintOnce() {
     requestAnimationFrame(() => setTimeout(() => { clearTimeout(t); res(); }, 0));
   });
 }
-import { spyActionsFrame } from './art/spy-actions.js';
+import { spyActionsFrame, spyWarmObjects } from './art/spy-actions.js';
+import { raftActionsFrame, raftPassWanted, raftWarmObjects } from './art/raft-actions.js';
 import { switchStationsFrame } from './art/switch-station.js';
 import { prepareVehicleArt, warmVehicleArt, tickVehicles, releaseVehicles, createVehicleLamps } from './art/vehicle-model.js';
 import { staticVehicleAssets, dressStaticVehicles } from './art/static-vehicles.js';
@@ -268,7 +269,9 @@ export class Game {
     await safeAsync(() => prepareCharacters(def), 'characters');
     // realistic vehicle library (art/vehicle-model.js): every vehicle type of the mission in the theater paint + its wreck
     prog.stage('vehicles');
-    await safeAsync(() => prepareVehicleArt(def, { assets, quality: r.presetName, extra: staticVehicleAssets(def), ambient: flyoverAssets(def), canon: VehicleMod.canonicalType, onProgress: (d, n) => prog.stage('vehicles', d / Math.max(1, n)) }), 'vehicles');
+    // (+ the raft a Marine carries in his kit: inflated on screen, art/raft-actions.js, it must not wait on its GLB)
+    const kitRaft = (def.commandos || []).some((c) => c.role === 'diver' && (spawnInventory('diver', c.inventory, def.campaign || 'BEL').inflatableBoat ?? 0) > 0);
+    await safeAsync(() => prepareVehicleArt(def, { assets, quality: r.presetName, extra: [...staticVehicleAssets(def), ...(kitRaft ? ['raft'] : [])], ambient: flyoverAssets(def), canon: VehicleMod.canonicalType, onProgress: (d, n) => prog.stage('vehicles', d / Math.max(1, n)) }), 'vehicles');
     if (this.world !== world) return prog.cancel(), world; // unloaded / replaced while loading
     prog.stage('terrain');
     await paintOnce(); // (the map build and the warm-up frame are long: a loading bar shows where the load is first)
@@ -339,9 +342,18 @@ export class Game {
     safe(() => world.blood?.layers?.pools?.warmMesh?.(), 'blood pools warm-up'); // (drawn by the warm-up frame only)
     safe(() => this.selection?.noise?.prewarm?.(), 'noise ring warm-up'); // (the first running step's ring)
     const wireWarm = safe(() => this.mapHandle?.wire?.warmObjects?.(), 'wire warm-up') || []; // (a cut's flaps and hollow)
-    if (CONFIG.render.warmFrame !== false) this.warmFrameMs = safe(() => this._warmFrame([...ruins.flatMap((rr) => rr.roots), ...(dig?.objects || []), ...wireWarm], dig?.xray || []), 'program warm-up frame');
+    // (+ the raft deflated / inflating and the strapped pack, where the Marine can inflate or pack one: art/raft-actions.js)
+    const diver = world.commandos.find((c) => c.role === 'diver'), rv = world.vehicles.find((v) => v.vehicleType === 'raft') || diver;
+    const raftWarm = rv && (kitRaft || world.vehicles.some((v) => v.vehicleType === 'raft'))
+      ? await safeAsync(() => raftWarmObjects({ x: rv.x, z: rv.z, y: world.groundY?.(rv.x, rv.z) || 0 }), 'raft warm-up') : null;
+    if (this.world !== world) { safe(() => raftWarm?.done(), 'raft warm-up'); return prog.cancel(), world; }
+    // (+ the Spy's take and dressing props: her caps as loose props, the officer's cap, U's bundle — art/spy-actions.js)
+    const spyWarm = safe(() => spyWarmObjects(world), 'spy warm-up');
+    if (CONFIG.render.warmFrame !== false) this.warmFrameMs = safe(() => this._warmFrame([...ruins.flatMap((rr) => rr.roots), ...(dig?.objects || []), ...wireWarm, ...(raftWarm?.objects || []), ...(spyWarm?.objects || [])], [...(dig?.xray || []), ...(raftWarm?.xray || []), ...(spyWarm?.xray || [])]), 'program warm-up frame');
     for (const o of wireWarm) o.userData.warmDispose?.();
     safe(() => dig?.done(), 'dig warm-up');
+    safe(() => raftWarm?.done(), 'raft warm-up');
+    safe(() => spyWarm?.done(), 'spy warm-up');
     safe(() => world.fx?.prescan?.(), 'fx scan'); // chimneys, drums, mission fx: now, not in the first tick of play
     prog.stage('finish');
     world.objectives = createObjectives(def.objectives || []);
@@ -902,6 +914,8 @@ export class Game {
       safe(() => transportFrame(), 'transport poses'); // carried / dragged men after both skeletons updated (§C.10)
       if (w.knifeKills?.length) safe(() => knifeKillFrame(w, alpha, CONFIG.sim.dt), 'knife kill poses'); // contact knife kills: both men posed together
       if (w.spyActs?.length) safe(() => spyActionsFrame(w, alpha, CONFIG.sim.dt), 'spy action poses'); // the Spy's injection / dressing
+      // the Marine inflating / packing the raft, and the packed raft on his back (art/raft-actions.js)
+      if (raftPassWanted(w)) safe(() => raftActionsFrame(w, alpha, CONFIG.sim.dt), 'raft actions');
       if (w.switchStations?.length) safe(() => switchStationsFrame(w, alpha, CONFIG.sim.dt), 'switch stations'); // levers + the operator's hand
       if (this.physicsVisuals) safe(() => this.physicsVisuals.frame(), 'physics visuals'); // props, vehicle rock, censored bodies
       // trails, grass, trees; the water's offscreen passes (FFT, caustics, ripples, mirror) only for a drawn frame

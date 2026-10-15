@@ -158,6 +158,7 @@ unsubscribe function and call it between scenarios. **Canonical events** (payloa
 | `unit:step` | `{unit, terrain, stance}` | anim/renderer (optional) → audio (footsteps) |
 | `unit:climb` | `{unit, kind:'climb'|'ladder', link}` | abilities → audio, anim |
 | `unit:water` | `{unit, what:'enter'|'exit'|'dive'|'surface'|'row'}` | unit/abilities → audio, fx |
+| `raft:hiss` | `{unit, x, z, kind:'inflate'|'deflate', dur}` | abilities (raft-actions: the CO2 cord pulled / the valve opened) → audio |
 | `footprint` | `{x, z, heading, t, owner, aiVisible, terrain, foot}` | unit (SNOW/SAND/MUD, every 0.75/1.6 m; `foot` 'boot' or the animal's, `ai/footprints.js footOf`) → AI (TRACKS §4.8), render (trail), audio |
 | `dragmark` | `{x, z, heading, t, owner, load}` | dragger (Commando._placeDragged, every 0.5 m of heel travel) → terrain trail records ('drag', not AI-visible) |
 | `ability:start` / `ability:end` | `{unit, id, target}` / `{unit, id, result}` | commando → audio, ui, AI (suspicious acts) |

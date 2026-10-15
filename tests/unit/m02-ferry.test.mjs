@@ -55,12 +55,12 @@ test('m02 wide river: the Marine ferries all four across (two per trip) between 
     for (const [u, x, z] of spots) assert.ok(u.issue({ type: 'move', x, z }) && u.stance === 'crawl', `${u.role}: crawl to (${x},${z}) (${u.stance})`);
   };
 
+  // up, and T where he lies by the water (2026-10-14: the raft takes 4.0 s to inflate, abilities/raft-actions.js — he no
+  // longer wades into the shallows first only to climb back out onto the bank to launch it)
   ma.issue({ type: 'stance', stance: 'stand' });
-  assert.ok(ma.issue({ type: 'move', x: 19.5, z: 73.2 }), 'Marine: into the shallows');
-  s.run(4, () => watch() || !ma.path);
   assert.ok(ma.issue({ type: 'ability', id: 'raft', target: ma }), `Marine: deploy the raft (${ma.lastRefusal?.text || ''} ${ma.stance} ${ma.x.toFixed(1)},${ma.z.toFixed(1)})`);
-  // (he wades out onto the bank and inflates it there, into the water beside him: abilities/marine.js raft)
-  s.run(8, () => watch() || w.vehicles.find((v) => v.vehicleType === 'raft')?.operator === ma);
+  // (he inflates it on the bank, into the water beside him: abilities/marine.js raft)
+  s.run(10, () => watch() || w.vehicles.find((v) => v.vehicleType === 'raft')?.operator === ma);
   const raft = w.vehicles.find((v) => v.vehicleType === 'raft');
   assert.ok(raft && raft.operator === ma, 'raft deployed, Marine aboard');
   // trip 1: GB + Sniper

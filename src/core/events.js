@@ -95,7 +95,7 @@ export class EventBus {
 export const EVENT_NAMES = Object.freeze([
   // units
   'unit:selected', 'unit:order', 'unit:damaged', 'unit:killed', 'unit:stance', 'unit:captured', 'unit:jailed',
-  'unit:freed', 'unit:held', 'unit:step', 'unit:climb', 'unit:water', 'footprint', 'dragmark',
+  'unit:freed', 'unit:held', 'unit:step', 'unit:climb', 'unit:water', 'raft:hiss', 'footprint', 'dragmark',
   // abilities / items
   'ability:start', 'ability:end', 'ability:refused', 'bomb:armed', 'bomb:detonate', 'bomb:exploded', 'bomb:disarmed', 'trap:sprung', 'projectile:bounce', 'hit',
   // enemies / AI

@@ -328,7 +328,7 @@
 | `uniform` | U | Spy | self | — | Re-dress. Only when **no enemy currently has him inside a cone** | 1.5 s | none |
 | `distract` | D | Spy, in uniform | enemy | walks to within 1.5 m | Talks to the target (§3.4) | Until released | none |
 | `dive` | D | Marine | self | — | Diving gear on or off. The icon appears only in shallow water or aboard a boat | 1.5 s | none |
-| `raft` | T | Marine | self | — | Deploys the raft **from the bank** (dry ground or a low deck at the water's edge); from the water he makes for the bank first | 2.0 s | none |
+| `raft` | T | Marine | self | — | Deploys the raft **from the bank** (dry ground or a low deck at the water's edge); from the water he makes for the bank first | 4.0 s (was 2.0: inflated on screen) | none |
 | `crawl` / `stand` | C / S | all | self | — | Stance change | 0.5 s / 0.6 s | none |
 | `hand` | H | all | item/body/barrel/raft | 1.2 | Role-gated pick-up | 0.6–1.0 s | none |
 | `vehicleFire` | Ctrl+click | the operator of an armed vehicle or manned gun | point | per weapon (§4.1) | Fires a volley; turrets rotate first (90°/s) | per weapon | mg or cannon |
@@ -396,10 +396,10 @@ The animation names are the humanoid names from ARCHITECTURE. Each voice cue is 
   - No oxygen limit [inf: none mentioned in BEL].
 - **Knife from the water.** He can knife an enemy standing within 1.2 m of the shoreline; he surfaces for 0.6 s to do it.
 - **Raft (T / H).**
-  - **T deploys it only from the bank** (2.0 s; user 2026-10-11 "he can only deploy the boat on the ground"): he stands on dry ground (or a low deck: a pier, a landing stage, the M4 wreck) at the water's edge, inflates it and puts it in the water beside him as a `raft` vehicle. Ordered from the water he first swims / wades to the nearest bank he can launch it from and climbs out (with the diving gear on he takes it off in the shallows there first); no such bank within 30 m: refused. Away from the water: refused ("Only at the water's edge.").
+  - **T deploys it only from the bank** (4.0 s — was 2.0 s; user 2026-10-14 "when the raft is inflated it should be very clear it gets inflated": he kneels, the strapped pack off his back, the hull spread over the water and unfolded, the CO2 cord pulled (the hiss), the chambers filling one after the other over 2.2 s, the valve shut — abilities/raft-actions.js; user 2026-10-11 "he can only deploy the boat on the ground"): he stands on dry ground (or a low deck: a pier, a landing stage, the M4 wreck) at the water's edge, inflates it and puts it in the water beside him as a `raft` vehicle. Ordered from the water he first swims / wades to the nearest bank he can launch it from and climbs out (with the diving gear on he takes it off in the shallows there first); no such bank within 30 m: refused. Away from the water: refused ("Only at the water's edge.").
   - Only he rows it. Capacity 3 (him plus 2). Rowing speed 2.5 m/s, with the river current added (`water.velocity`, §7.3).
   - He boards first. Others board by clicking the raft while it sits in shallow water.
-  - **H on the raft** from shallow water or the bank deflates and packs it (2.0 s). Carrying it slows him (see §3.1).
+  - **H on the raft** from shallow water or the bank deflates and packs it (2.0 s: in his kit then, as before), then folds it, gathers it into a pack and shoulders it (1.6 s more, `raftFold`; interruptible — a new order sends the pack straight onto his back; user 2026-10-14 "the marine very quickly deflated and folds the raft"). The pack rides on his back while he carries it. Carrying it slows him (see §3.1).
   - **An unattended deployed raft is suspicious.** Enemies who see it shoot it; it deflates (it is not destroyed) and becomes a pickup on the spot. On-site rafts that nobody has used yet are not suspicious. Attended means a commando within 3 m whom that enemy can see: a Marine under water beside it, a buried GB or a man crawling unseen in the light band attends nothing — to that enemy the raft lies there alone (seen in any band of his cone, like a raft with men in it). Pack it (H) rather than leave it in view.
 - **Other craft.** He is the only operator of water craft: patrol boat (M4, auto), rowboats (M7, M14, M19), and the mini-sub (M13; 2 torpedoes, §7.1).
 - He **cannot carry bodies**.
@@ -484,7 +484,7 @@ The animation names are the humanoid names from ARCHITECTURE. Each voice cue is 
 **Spy: Spooky**
 - **Syringe (L).** Melee, 1.2 m; double-click runs up. 0.9 s, kill at 0.5 s, **no blood decal**, unlimited.
 - **Uniform.**
-  - Picked from a clothesline (activation, 1.5 s). The model swaps to a German officer's uniform (`setDisguise(true)`).
+  - Picked from a clothesline (activation, 1.5 s). The model swaps to a German officer's uniform (`setDisguise(true)`). SHADOW SIX: she takes it off the line piece by piece (2.75 s: the tunic with both hands from its pegs, folded over her forearm; the cap; the trousers pulled off; user 2026-10-14 "animate better how the spy grabs the clothes"), steps behind the laundry and dresses (abilities/spy-actions.js); lying by the line she gets up first.
   - Some missions start disguised (`startDisguised`).
   - While disguised, **every enemy ignores him** (no nervousness, no challenge) unless he is *seen* doing something suspicious:
     - killing or injecting;
@@ -2225,7 +2225,7 @@ CONFIG.weapons  = { pistol: {range: 13.5, dmg: 80, cadence: 0.15, noise: 18}, sn
                     explosions: {bomb: {...}, barrel: {...}, grenade: {...}, vehicle: {...}, shell: {...}} }
 CONFIG.abilities= { knife: {reach: 1.2, dur: 0.6, hit: 0.3}, syringe: {dur: 0.9, hit: 0.5}, timeBomb: {fuse: 10},
                     firstAid: {heal: 34, doses: 6, dur: 1.5, at: 0.5}, dig: 2.0, rise: 1.0, cutters: 3.0,
-                    raftDeploy: 2.0, dive: 1.5, uniform: 1.5, distractRange: 1.5, distractBreak: 3.0, climbSpeed: 0.5 }
+                    raftDeploy: 4.0, raftPack: 2.0, raftFold: 1.6, dive: 1.5, uniform: 1.5, distractRange: 1.5, distractBreak: 3.0, climbSpeed: 0.5 }
 CONFIG.vehicles = { truck: {slow: 3, fast: 9, turn: 60}, tank: {slow: 2, fast: 5, turn: 45}, boat: {slow: 2.5, fast: 4},
                     runoverBox: [1.8, 5.4, 1.35], hits: {truck: 30, kubel: 20, car: 60, sdkfz: 500, panzer2: 1000} }
 CONFIG.rulesets = { BEL: { knockouts: false, handcuffs: false, stones: false, cigarettes: false, spyChloroform: false,

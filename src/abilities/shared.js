@@ -1,7 +1,8 @@
 /**
  * Shared actions (design-spec §3.2) — owned by ABILITIES:
  *   hand     H  role-gated pick-up (§3.2 table): bodies (GB, Spy), barrels (GB), items/ammo/crates, the decoy (GB),
- *               a sprung trap (Sapper), the deployed raft (Marine, packs it 2.0 s); carrying a barrel + click a body
+ *               a sprung trap (Sapper), the deployed raft (Marine: deflates it, in his kit at 2.0 s, then folds and
+ *               shoulders the pack, 3.6 s in all — raftPackTask); carrying a barrel + click a body
  *               = hide the body under the barrel (§3.4). 0.6 s items, 1.0 s bodies/barrels. On a placed time / remote
  *               bomb the order goes on to the Sapper's takeCharge (house rule recoverCharges, abilities/sapper.js).
  *   drop     right-click while carrying: 0.8 s, the body lies down / the barrel stands upright.
@@ -22,6 +23,7 @@ import { takeSpot } from './spy-actions.js';
 import { reviveDowned } from '../entities/downed.js';
 import { isTransportable, liveLoadNear, transportMode, takeLoad, carriesMan, transportTimes, DRAG_ROLES, liftHint } from './bodies.js';
 import { structureEntry, entryTask, ENTRY_REACH } from './bunker-entry.js';
+import { RAFT, raftTimes, pushRaftAct } from './raft-actions.js';
 
 const A = CONFIG.abilities;
 
@@ -149,6 +151,7 @@ registerAbility({
 /** The hand task (start or resume at `t0` s): pick up, lift / grab a man, hide a body, loot, pack the raft. */
 function handTask(c, h, world, mode, t0) {
     const ent = h.ent;
+    if (h.kind === 'raft') return raftPackTask(c, h, world);
     const T = transportTimes();
     const dur = h.kind === 'loot' ? CONFIG.bcd.lootTime : h.kind === 'raft' ? A.raftPack : h.kind === 'item' ? A.hand.min : h.kind === 'hideBody' ? A.carry.drop : mode === 'drag' ? T.grab : A.carry.pick;
     c.playAction(h.kind === 'item' ? 'use' : mode === 'drag' ? 'drag_grab' : mode === 'shoulder' ? 'lift_to_shoulder' : 'plant', dur);
@@ -188,14 +191,41 @@ function handTask(c, h, world, mode, t0) {
             world.events.emit('message', { text: `${c.nickname}: took a pack of cigarettes.`, kind: 'info', unit: c });
             return true;
           }
-          case 'raft':
-            if (!ent.pack) { world.remove(ent); c.gainItem('inflatableBoat', 1); return true; }
-            return ent.pack(c);
           default:
             return ent.pickUp ? ent.pickUp(c) : ent.interact(c);
         }
       } }],
     });
+}
+
+/**
+ * H on the raft (§3.4; user 2026-10-14 "the marine very quickly deflated and folds the raft", abilities/raft-actions.js):
+ * he kneels facing it, opens the valve (the hiss), the chambers collapse, he drags the flat hull to his knees — at
+ * raftPack (2.0 s, as before) the raft leaves the sim and is in his kit — then folds it, gathers it into a pack and
+ * shoulders it (raftFold, 1.6 s). Interruptible throughout, as before (drawn by art/raft-actions.js).
+ */
+function raftPackTask(c, h, world) {
+  const ent = h.ent, T = raftTimes('pack');
+  c.faceTowards?.(ent.x, ent.z);
+  const rec = pushRaftAct(world, { kind: 'pack', a: c, raft: ent, from: { x: c.x, z: c.z, h: Math.atan2(ent.z - c.z, ent.x - c.x) }, T, t0: world.time + CONFIG.sim.dt });
+  c.playAction('plant', T.dur);
+  return timedTask({
+    dur: T.dur, phases: T.phases, present: true,
+    onCancel: () => { rec.cancelled = world.time; },
+    onEnd: (r) => { rec.ended = world.time; rec.result = r; },
+    steps: [
+      { at: RAFT.pack.open, fn: () => { // the valve open: the hiss as the air goes out
+        if (!ent.removed) world.events.emit('raft:hiss', { unit: c, x: ent.x, z: ent.z, kind: 'deflate', dur: RAFT.pack.flat - RAFT.pack.open });
+        return true;
+      } },
+      { at: T.gone, fn: () => {
+        if (handAllowed(c, h, world) !== true) return false;
+        if (ent.pack) { if (!ent.pack(c)) return false; } else { world.remove(ent); c.gainItem('inflatableBoat', 1); }
+        rec.gone = world.time;
+        return true;
+      } },
+    ],
+  });
 }
 
 registerAbility({
@@ -291,6 +321,32 @@ function reviveTask(c, t, world, t0 = 0) {
   });
 }
 
+/**
+ * A Spy lying by a clothesline: up on her feet (CONFIG.units.stanceUp), then the take and the dressing (dressTask). One
+ * task (interruptible, as the dressing): the walkthrough director reads its length and phases (actionClock).
+ */
+function standThenDress(world, c, line) {
+  const up = CONFIG.units.stanceUp;
+  c.setStance('stand');
+  let inner = null, tt = 0;
+  return {
+    interruptible: true,
+    present: true,
+    get t() { return tt; },
+    get dur() { return up + (inner ? inner.dur : 0); },
+    get phases() { return inner ? [['stand', 0, up], ...inner.phases.map(([n, a, b]) => [n, a + up, b + up])] : [['stand', 0, up]]; },
+    get phase() { return inner ? inner.phase : 'stand'; },
+    update(dt) {
+      tt += dt;
+      if (inner) return inner.update(dt);
+      if (tt < up - 1e-9 || c.stance !== 'stand') return 'running';
+      inner = line.canUse(c) === true ? dressTask(world, c, line, { afterStand: true }) : null;
+      return inner ? 'running' : 'failed';
+    },
+    cancel() { inner?.cancel?.(); },
+  };
+}
+
 /** The Spy taking a uniform off a clothesline: she walks to the spot in front of it (abilities/spy-actions.js). */
 const lineTake = (c, t, world) => (t?.interactKind === 'clothesline' && c?.role === 'spy' && t.count > 0 ? takeSpot(world ?? c.world, c, t) : null);
 /**
@@ -319,10 +375,13 @@ registerAbility({
     return t.canUse(c);
   },
   start(c, t, world) {
-    // §3.4 the Spy at a clothesline: takes the uniform off the line piece by piece and puts it on (spy.js dressTask)
-    if (t.interactKind === 'clothesline' && c.role === 'spy' && !c.carrying && (c.stance ?? 'stand') === 'stand' && t.canUse(c) === true) {
-      const task = dressTask(world, c, t);
-      if (task) return task;
+    // §3.4 the Spy at a clothesline: takes the uniform off the line piece by piece and puts it on (spy.js dressTask);
+    // lying by it she gets up first (the line hangs at 1.8 m: user 2026-10-14 "animate better how the spy grabs the
+    // clothes" — the walkthrough's Spy crawled up to it and took it lying down in 1.5 s)
+    if (t.interactKind === 'clothesline' && c.role === 'spy' && !c.carrying && t.canUse(c) === true) {
+      const st = c.stance ?? 'stand';
+      if (st === 'stand') { const task = dressTask(world, c, t); if (task) return task; }
+      else if (st === 'crawl' && takeSpot(world, c, t)) return standThenDress(world, c, t);
     }
     // at a switch station he faces the kiosk, on his feet (a crawler stands up first: the lever is at chest height)
     const spot = standSpot(c, t, world);

@@ -1,3 +1,6 @@
+import { CONFIG } from '../../src/config.js';
+import { DRESS } from '../../src/abilities/spy-actions.js';
+
 /**
  * M3 "Reverse Engineering" (Sysendam dam): a full stealth solution, played only with player orders.
  * Driver API: tools/solutions/driver.mjs. Reference run, in the real game: node tools/solutions/run-browser.mjs m03
@@ -126,7 +129,11 @@ async function packRaft(D, raft) {
   await D.go('diver', ...at, { tol: 0.12 });
   D.ability('diver', 'hand', { x: dv.x, z: dv.z });
   await D.until(() => !D.raft(), 6, 'raft packed');
+  // (then he folds it and shoulders the pack: abilities/raft-actions.js, raftFold)
+  await D.until(() => !dv.currentAction, 3, 'pack on his back');
 }
+/** the fold after the raft is in his kit (s): every window that covers a pack covers it too */
+const FOLD = CONFIG.abilities.raftFold;
 /** the Marine (gear off, in the shallows) deploys the packed raft where he stands and sits in it (2 s, §3.4) */
 async function deployRaft(D) {
   const dv = D.c('diver');
@@ -401,9 +408,12 @@ export const STAGES = [
     await D.path('spy', lane, { tol: 0.5 });
     for (const [x, z] of SPY_ROUND.slice(3)) await D.sneak(x, z, spyOpts);
     D.checkpoint('C2 Spy at the clothesline');
-    await D.until(() => D.clearAhead(spy.x, spy.z, 3, false), 120, 'nobody looking at the clothesline');
+    // (up on her feet, the uniform off the line piece by piece, behind the laundry and dressed: ~5.4 s standing there —
+    // abilities/spy-actions.js DRESS, 2026-10-14; it was 1.5 s taken lying down)
+    const TAKE = CONFIG.units.stanceUp + DRESS.take + DRESS.step[1] + DRESS.line.end;
+    await D.until(() => D.clearAhead(spy.x, spy.z, TAKE + 0.5, false), 120, 'nobody looking at the clothesline');
     D.ability('spy', 'use', D.item('uniform_line'));
-    await D.until(() => spy.disguised, 20, 'uniform on');
+    await D.until(() => spy.disguised && !spy.currentAction, 20, 'uniform on');
     D.checkpoint('C3 Spy in uniform');
   }],
   ['D', 'Marine: harpoon e14 from the river', async (D) => {
@@ -514,7 +524,7 @@ export const STAGES = [
     // the raft must not stay where it lies: e17 (once the Spy leaves him for e20), e19 and the camp's squads look over
     // it, and a man hiding beside it (under water) attends nothing in their eyes (§4.3: they shoot it). The Marine steps
     // into the shallows, packs it and dives there — nothing left lying about, nobody to see
-    await clearWindow(D, [[raft.x, raft.z], shallowNear(D, raft.x, raft.z)], 6, 150, 'Marine packs the raft', null, 2);
+    await clearWindow(D, [[raft.x, raft.z], shallowNear(D, raft.x, raft.z)], 6 + FOLD, 150, 'Marine packs the raft', null, 2);
     D.ability('diver', 'leaveVehicle');
     await D.until(() => !dv.vehicle && !dv.currentAction, 3, 'Marine off the raft');
     await packRaft(D, raft);
@@ -587,7 +597,7 @@ export const STAGES = [
     await D.sneak(...E_STAIR_RAFT, { mode: 'raft', box: 12, label: 'raft to the E stair' });
     // both off; the Marine packs the raft at once (left lying at the stair foot, the camp's squads see it from their
     // round) and crawls up beside the stair
-    await clearWindow(D, [[raft.x, raft.z], [58, 34], [59.35, 30], [58.2, 37]], 9, 300, 'landing by the E stair');
+    await clearWindow(D, [[raft.x, raft.z], [58, 34], [59.35, 30], [58.2, 37]], 9 + FOLD, 300, 'landing by the E stair');
     for (const r of ['sapper', 'diver']) { D.ability(r, 'leaveVehicle'); await D.wait(0.3); }
     D.order('sapper', { type: 'move', x: CREST_PATH[3][0], z: CREST_PATH[3][1] });
     await packRaft(D, raft);
@@ -656,10 +666,11 @@ export const STAGES = [
     await D.sneak(...RAFT_HIDE, { mode: 'raft', box: 12, hold: 10, ...TIGHT, label: 'raft over for the GB' });
     await boardRaft(D, 'greenberet', boardPoint, null, 0);
     await D.sneak(...E_STAIR_RAFT, { mode: 'raft', box: 12, ...TIGHT, edgePad: 1.2, label: 'raft to the E stair' }); // (on the move: a wider margin)
-    await clearWindow(D, [[raft.x, raft.z], [58, 34], [59.35, 30], [58.2, 37]], 6, 300, 'landing by the E stair');
+    await clearWindow(D, [[raft.x, raft.z], [58, 34], [59.35, 30], [58.2, 37]], 6 + FOLD, 300, 'landing by the E stair');
     for (const r of ['greenberet', 'diver']) { D.ability(r, 'leaveVehicle'); await D.wait(0.3); }
     D.ability('diver', 'hand', raft); // packed: nothing left lying about
     await D.until(() => !D.raft(), 20, 'raft packed');
+    await D.until(() => !dv.currentAction, 3, 'pack on his back');
     D.order('diver', { type: 'move', x: TRUCK_WAIT.diver[0], z: TRUCK_WAIT.diver[1] });
     await D.path('greenberet', [[59.2, 22], TRUCK_WAIT.greenberet], { tol: 0.6 });
     for (const r of ['greenberet', 'diver']) { await D.until(() => !D.c(r).path && !D.c(r).isMoving, 60, `${r} at the truck road`); await D.stance(r, 'crawl'); }

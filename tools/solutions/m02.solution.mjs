@@ -18,6 +18,7 @@
  */
 import { clearFor, routeClear, sneak, unwitnessed, bodySeen } from './sneak.mjs';
 import { ABILITIES } from '../../src/abilities/registry.js';
+import { CONFIG } from '../../src/config.js';
 
 const DBG = !!globalThis.process?.env?.M02DBG || !!globalThis.__M3DBG;
 
@@ -150,7 +151,7 @@ function holdClear(D, x, z, from, len, mode, why, pad = 0) {
  */
 async function trip(D, boardPoint, who, { dry }) {
   const dv = D.c('diver');
-  const prep = (dry ? 0.6 : 1.5 + 2.5) + 2.0; // (up on his feet) or (gear off, out of the shallows onto the bank), then the raft
+  const prep = (dry ? 0.6 : 1.5 + 2.5) + CONFIG.abilities.raftDeploy; // (up on his feet) or (gear off, out of the shallows onto the bank), then the raft (4.0 s)
   const boardT = 3.5 * who.length; // each man up, a few steps and in (they go together, the second one waits his turn)
   const startT = prep + boardT + 0.5, landT = startT + ROW_T + 1.5;
   await waitFor(D, (why) => holdClear(D, ...LAUNCH, 0, prep, 'walk', why) // the Marine standing in the shallows

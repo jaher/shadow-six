@@ -21,16 +21,22 @@
  *   move order: she lets go and he slumps down), so the Spy is held no longer than before (0.65 s vs 0.9 s). No room for contact or for laying him down (a wall, a prop, water, another level, a dog): the
  *   classic jab at arm's length, 0.9 s, as before. Silent to the AI as before; his cry is muffled (audio/event-map.js).
  *
- * UNIFORM FROM A CLOTHESLINE (abilities/shared.js 'use' on a clothesline): she walks to the line in front of the uniform
- * (the officer's cap hangs between the tunic and the trousers, art/clothesline.js LAUNDRY), pulls the tunic and the
- * trousers off the pegs with both hands, rolls them under her left arm, lifts the cap off its peg (the line is left
- * with the shirt and the towel), steps behind the remaining laundry (on the side away from the nearest enemy, ducking
- * under the line if that is the other side), and dresses: the officer's cap hung on the line in front of her, her own
- * cap off and into the bundle, the tunic out of the bundle and swung on (the outfit changes as her arms go into the
- * sleeves), the buttons, the cap off the line onto her head, a tug at the hem. Watched when she has taken it: the
- * uniform goes in her kit and she does not dress (as before).
- *   timing: take 1.05 s (the uniform in her kit at the end of it), the step ≤ 0.55 s, dressed (the disguise on) 0.8 s
- *   into the dressing, the action ends 1.48 s into it; interruptible throughout, as before.
+ * UNIFORM FROM A CLOTHESLINE (abilities/shared.js 'use' on a clothesline; user 2026-10-14 "animate better how the spy
+ * grabs the clothes": the take read poorly and was over in a second). She walks up to the line in front of the tunic
+ * (art/clothesline.js LAUNDRY: towel | tunic | cap | trousers | shirt), looks up at it and reaches up with both hands to
+ * its shoulder pegs, unpegs it — left, middle, right — lifts it off the line and lays it folded over her left forearm;
+ * on the side-step along the line to the trousers her right hand lifts the officer's cap off its peg into her left
+ * hand; her right hand takes the trousers by the near corner and pulls them off their pegs (they pop one after the
+ * other) and lays them over her forearm on the tunic; the line, lighter, springs up and sways back each time. Then she
+ * steps behind the remaining laundry (on the side away from the nearest enemy, ducking under the line if that is the
+ * other side) and dresses: the officer's cap hung on the line in front of her, her own cap off onto the bundle on her
+ * arm, the tunic off her arm and swung on (the outfit changes as her arms go into the sleeves), the buttons, the cap
+ * off the line onto her head, a tug at the hem. Watched when she has taken it: the uniform goes in her kit and she does
+ * not dress (as before).
+ *   timing: take 2.75 s (the uniform in her kit at the end of it; was 1.05 s), the step ≤ 0.55 s, dressed (the
+ *   disguise on) 0.8 s into the dressing, the action ends 1.48 s into it (M3: 4.75 s, was 2.92 s); interruptible
+ *   throughout, as before. No room in front of the tunic (or for the side-step): she takes it all from in front of the
+ *   cap, as before, at the same pace.
  * UNIFORM FROM THE KIT (U): the bundle out of her kit (0.32 s), her cap swapped first, then the tunic; dressed at
  * 1.06 s, ends 1.58 s.
  * @module abilities/spy-actions
@@ -120,11 +126,12 @@ export function injectAt(plan, T, t) {
 
 /** Dressing timeline (s). Take: from the action start; dress: from the start of the dressing (D0). */
 export const DRESS = Object.freeze({
-  settle: 0.15,     // into the take spot, facing the line
-  grab: 0.27,       // both hands on the near corners of the tunic and the trousers
-  bundle: 0.62,     // the two rolled under her left arm
-  capGrab: 0.8, capOff: 0.86, capHand: 1.0,
-  take: 1.05,       // the uniform in her kit
+  settle: 0.25,     // into the take spot in front of the tunic, facing the line
+  // the take (the beats: art/spy-actions.js VD): the tunic with both hands, the cap and the side-step to the trousers,
+  // the trousers with her right hand
+  grab: 0.55,       // both hands on the tunic's shoulder pegs
+  sideStep: Object.freeze([1.4, 1.9]),   // along the line from the tunic to the trousers (the cap lifted off on the way)
+  take: 2.75,       // the uniform in her kit
   stepSpeed: 2.6,   // m/s to the dressing spot behind the laundry
   step: [0.25, 0.55],
   kitOut: 0.32,     // U: the bundle out of her kit
@@ -164,16 +171,27 @@ function spotFree(world, x, z, h, y0) {
 }
 
 /**
- * Where the Spy stands to take the uniform: in front of the cap, LAUNDRY.standOff off the line, on her side (the other
- * side when hers is blocked); null when neither is free. @returns {{x,z,h,side}|null}
+ * Where the Spy stands to take the uniform: in front of the tunic, LAUNDRY.standOff off the line, on her side (the other
+ * side when hers is blocked), with `b` the spot in front of the trousers she side-steps to (null: no room — she takes
+ * the trousers from where she stands); no room in front of the tunic: in front of the cap (`single`), taking it all from
+ * there. null when nothing is free. @returns {{x,z,h,side,b:{x,z,h}|null,single?:boolean}|null}
  */
 export function takeSpot(world, c, line) {
   const F = lineFrame(line), y0 = lineY(world, line, F);
   const s0 = sideOf(F, c.x, c.z);
   for (const s of [s0, -s0]) {
-    const p = linePoint(F, LAUNDRY.cap, s * LAUNDRY.standOff);
     const h = Math.atan2(-s * F.nz, -s * F.nx); // facing the line
-    if (spotFree(world, p.x, p.z, h, y0)) return { ...p, h, side: s };
+    const a = linePoint(F, LAUNDRY.tunic, s * LAUNDRY.standOff);
+    if (spotFree(world, a.x, a.z, h, y0)) {
+      const b = linePoint(F, LAUNDRY.trousers, s * LAUNDRY.standOff), mid = linePoint(F, LAUNDRY.cap, s * LAUNDRY.standOff);
+      const bOk = spotFree(world, b.x, b.z, h, y0) && spotFree(world, mid.x, mid.z, h, y0);
+      return { ...a, h, side: s, b: bOk ? { ...b, h } : null };
+    }
+  }
+  for (const s of [s0, -s0]) {
+    const p = linePoint(F, LAUNDRY.cap, s * LAUNDRY.standOff);
+    const h = Math.atan2(-s * F.nz, -s * F.nx);
+    if (spotFree(world, p.x, p.z, h, y0)) return { ...p, h, side: s, b: null, single: true };
   }
   return null;
 }
@@ -213,23 +231,33 @@ export function dressTimes(mode, cover = null, take = null) {
     const d0 = DRESS.kitOut;
     return { take: 0, step: 0, d0, swap: d0 + DRESS.kit.swap, dur: d0 + DRESS.kit.end };
   }
-  const dist = cover && take ? Math.hypot(cover.x - take.x, cover.z - take.z) : 0;
+  const from = take?.b || take;   // (she sets off for the cover from in front of the trousers)
+  const dist = cover && from ? Math.hypot(cover.x - from.x, cover.z - from.z) : 0;
   const step = cover ? clamp(dist / DRESS.stepSpeed, DRESS.step[0], DRESS.step[1]) : 0;
   const d0 = DRESS.take + step;
   return { take: DRESS.take, step, d0, swap: d0 + DRESS.line.swap, dur: d0 + DRESS.line.end };
 }
 
-/** The Spy's position / heading `t` s into a clothesline dressing: settle into the take spot, then the step behind the laundry. */
+/**
+ * The Spy's position / heading `t` s into a clothesline dressing: settle into the take spot (in front of the tunic),
+ * the side-step along the line to the trousers, then the step behind the laundry.
+ */
 export function dressAt(rec, t) {
   const { from, take, cover } = rec.plan, T = rec.T;
   if (!take) return null;
   const k = smooth(t / DRESS.settle);
   const p = { x: from.x + (take.x - from.x) * k, z: from.z + (take.z - from.z) * k, h: from.h + wrap(take.h - from.h) * k };
+  const b = take.b;
+  if (b) {
+    const s = smooth((t - DRESS.sideStep[0]) / (DRESS.sideStep[1] - DRESS.sideStep[0]));
+    if (s > 0) { p.x = take.x + (b.x - take.x) * s; p.z = take.z + (b.z - take.z) * s; p.h = take.h + wrap(b.h - take.h) * s; }
+  }
   if (cover && T.step > 0) {
     const s = smooth((t - T.take) / T.step);
     if (s > 0) {
-      p.x = take.x + (cover.x - take.x) * s; p.z = take.z + (cover.z - take.z) * s;
-      p.h = take.h + wrap(cover.h - take.h) * s;
+      const o = b || take;
+      p.x = o.x + (cover.x - o.x) * s; p.z = o.z + (cover.z - o.z) * s;
+      p.h = o.h + wrap(cover.h - o.h) * s;
     }
   }
   return p;

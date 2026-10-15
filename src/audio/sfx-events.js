@@ -13,10 +13,11 @@ export const SFX_EVENTS = Object.freeze([
   { event: 'unit:step', sfx: ['step_snow', 'step_sand', 'step_grass', 'step_road', 'step_wood', 'step_water', 'crawl_rustle'], pick: '{unit, terrain, stance} — optional, emitted by the renderer/anim at footfalls' },
   { event: 'unit:stance', sfx: ['crawl_rustle'], pick: 'stance === "crawl"' },
   { event: 'unit:climb', sfx: ['climb_scrape', 'ladder'], pick: 'payload.kind: climb | ladder' },
-  { event: 'ability:start', sfx: ['dig_snow', 'dig_sand', 'body_drag', 'barrel_lift', 'bomb_plant', 'trap_set', 'cutters_snip', 'raft_inflate', 'syringe', 'knife_stab', 'grenade_pin', 'grenade_throw', 'pistol_draw', 'decoy_beep', 'switch_throw', 'valve_turn'], pick: '{unit, id, target} ability id' },
-  { event: 'ability:end', sfx: ['body_drop', 'barrel_set', 'raft_deflate', 'pistol_holster'], pick: '{unit, id, result}' },
+  { event: 'ability:start', sfx: ['dig_snow', 'dig_sand', 'body_drag', 'barrel_lift', 'bomb_plant', 'trap_set', 'cutters_snip', 'syringe', 'knife_stab', 'grenade_pin', 'grenade_throw', 'pistol_draw', 'decoy_beep', 'switch_throw', 'valve_turn'], pick: '{unit, id, target} ability id' },
+  { event: 'ability:end', sfx: ['body_drop', 'barrel_set', 'pistol_holster'], pick: '{unit, id, result}' },
   // Water
   { event: 'unit:water', sfx: ['splash_in', 'splash_out', 'dive_bubbles', 'underwater_loop', 'row_stroke'], pick: '{unit, what: enter|exit|dive|surface|row}' },
+  { event: 'raft:hiss', sfx: ['raft_inflate', 'raft_deflate'], pick: '{unit, x, z, kind: inflate|deflate, dur} — the CO2 cord pulled / the valve opened (abilities/raft-actions.js)' },
   // Weapons
   { event: 'shot', sfx: ['pistol_shot', 'sniper_shot', 'sniper_bolt', 'smg_burst', 'harpoon_fire', 'rifle_shot', 'mp40_burst', 'mg_burst', 'tank_mg', 'boat_mg', 'tank_cannon', 'torpedo_launch'], pick: 'payload.weapon (CONFIG.weapons key)' },
   { event: 'hit', sfx: ['bullet_impact_dirt', 'bullet_impact_wood', 'bullet_impact_metal', 'bullet_impact_water', 'bullet_impact_flesh', 'harpoon_hit', 'raft_hit_hiss'], pick: '{x, z, surface, target}' },

@@ -25,7 +25,9 @@ export function weaponSfx(w) {
 const ABILITY_SFX = [
   ['dig', ['dig_snow', null]], ['bury', ['dig_snow', null]], ['carry', ['body_drag', 'body_drop']], ['drag', ['body_drag', 'body_drop']],
   ['barrel', ['barrel_lift', 'barrel_set']], ['bomb', ['bomb_plant', null]], ['trap', ['trap_set', null]],
-  ['cutter', ['cutters_snip', null]], ['wire', ['cutters_snip', null]], ['raft', ['raft_inflate', 'raft_deflate']],
+  ['cutter', ['cutters_snip', null]], ['wire', ['cutters_snip', null]],
+  // (the raft's hiss is not at the start / end of the action: 'raft:hiss' when the cord is pulled / the valve opened)
+  ['raft', [null, null]],
   ['syringe', ['syringe', null]], ['inject', ['syringe', null]], ['knife', ['knife_stab', null]], ['grenade', ['grenade_pin', null]],
   ['pistol', ['pistol_draw', 'pistol_holster']], ['decoy', ['decoy_beep', null]], ['switch', ['switch_throw', null]],
   ['valve', ['valve_turn', null]], ['climb', ['climb_scrape', null]],
@@ -163,6 +165,9 @@ export function installHandlers(a, events) {
   on('unit:climb', (e, t) => sfx(e.kind === 'ladder' ? 'ladder' : 'climb_scrape', e.unit, t));
   on('ability:start', (e, t) => sfx(abilitySfx(e.id, 'start'), e.target && Number.isFinite(e.target.x) ? e.target : e.unit, t));
   on('ability:end', (e, t) => sfx(abilitySfx(e.id, 'end'), e.unit, t));
+  // the Marine's raft (abilities/raft-actions.js): the CO2 cord pulled — the gas rushing into the chambers — or the
+  // valve opened, the air hissing out as the tubes collapse
+  on('raft:hiss', (e, t) => sfx(e.kind === 'deflate' ? 'raft_deflate' : 'raft_inflate', e, t));
   // Water
   on('unit:water', (e, t) => {
     const u = e.unit, k = key(u, 'uw');

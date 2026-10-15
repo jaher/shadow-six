@@ -7,11 +7,13 @@
  *    home; his cry muffled; silent to the AI (no noise, no alarm); he is lowered onto his back into his corpse pose and
  *    the settle ragdoll takes over without a pop; the syringe out of her pocket only while used
  *  - injection from the front: the needle into the left side of his neck at a forearm's length
- *  - the clothesline: the tunic and the trousers off their pegs in her hands one after the other, the cap off its peg,
- *    the line left with the shirt and the towel, dressed (the disguise on) at the swap, behind the laundry, the cap
- *    seated on her head where the outfit's own cap sits
+ *  - the clothesline (user 2026-10-14 "animate better how the spy grabs the clothes"): a 2–3 s take — both hands on the
+ *    tunic's shoulder pegs, off the line in her hands, folded over her left forearm; the cap off its peg into her hands;
+ *    the trousers by the near corner, pulled off, laid on the tunic — no cloth floating free of her hands / arm, the line
+ *    springing up and swaying as they leave it; the line left with the shirt and the towel, dressed (the disguise on) at
+ *    the swap, behind the laundry, the cap seated on her head where the outfit's own cap sits
  * Shots: spy-inject-behind-{game,side}.png at the kill, spy-inject-lowered-side.png, spy-line-take-side.png,
- * spy-line-dressed-side.png.
+ * spy-line-draped-side.png, spy-line-dressed-side.png.
  */
 import { writeFileSync } from 'node:fs';
 
@@ -170,24 +172,59 @@ export default async function spyActions(page, t) {
     w.events.on('ability:end', (e) => { if (e.id === 'use') end ??= w.time; });
     g.useAbility(spy.id, 'use', line.id);
     const log = [];
-    let rec = null, dressedAt = null, takeShot = null;
-    for (let i = 0; i < 600 && (end == null || w.time < end + 0.5); i++) {
+    let rec = null, dressedAt = null, takeShot = null, drapeShot = null;
+    // the rope's own shape: how far it moves from it (the line springing up and swaying as a garment leaves it)
+    const rope = line.object3d.getObjectByName('clothesline_rope'), rope0 = Float32Array.from(rope.geometry.attributes.position.array);
+    const ropeDy = () => { const a = rope.geometry.attributes.position.array; let m = 0; for (let k = 1; k < a.length; k += 3) m = Math.max(m, Math.abs(a[k] - rope0[k])); return m; };
+    // the line's height (world) at the tunic / the trousers
+    const lineAt = (lx) => { const F = line.object3d; F.updateWorldMatrix(true, false); return F.localToWorld(new (F.position.constructor)(lx, 1.85 - 0.05 - 0.12 * (1 - (2 * lx / 4.2) ** 2), 0)).y; };
+    const yLine = { tunic: lineAt(-0.62), trousers: lineAt(0.3) };
+    for (let i = 0; i < 700 && (end == null || w.time < end + 0.5); i++) {
       step();
       rec ||= (w.spyActs || []).find((r) => r.a === spy) || null;
-      if (start != null) log.push({ t: w.time - start, ...SA.dressMetrics(spy, line) });
+      if (start != null) log.push({ t: w.time - start, rope: ropeDy(), ...SA.dressMetrics(spy, line) });
       if (dressedAt == null && spy.disguised) dressedAt = w.time - start;
-      if (start != null && takeShot == null && w.time - start >= SA.VD.grab + 0.12) { takeShot = { x: spy.x, z: spy.z }; window.__saTake = window.__saShot({ x: spy.x, z: spy.z, h: Math.PI }); }
+      if (start != null && takeShot == null && w.time - start >= SA.VD.grab + 0.08) { takeShot = { x: spy.x, z: spy.z }; window.__saTake = window.__saShot({ x: spy.x, z: spy.z, h: Math.PI }); }
+      if (start != null && drapeShot == null && w.time - start >= SA.VD.tDrape[1]) { drapeShot = 1; window.__saDrape = window.__saShot({ x: spy.x, z: spy.z, h: Math.PI }); }
     }
-    return { log, T: rec?.T, plan: rec ? { take: rec.plan.take, cover: rec.plan.cover } : null, dressedAt, end: end - start, spy: [spy.x, spy.z], disguised: spy.disguised, count: line.count, takeShot, VD: SA.VD };
+    return { log, T: rec?.T, plan: rec ? { take: rec.plan.take, cover: rec.plan.cover } : null, dressedAt, end: end - start, spy: [spy.x, spy.z], disguised: spy.disguised, count: line.count,
+      takeShot, VD: SA.VD, yLine, ropeEnd: ropeDy() };
   });
   t.log(JSON.stringify({ line: { T: L.T, dressedAt: L.dressedAt, end: L.end, cover: L.plan?.cover } }));
   const at = (x) => L.log.find((q) => q.t >= x - 1e-6);
-  const first = at(L.VD.peg2 + 0.02), pull = at(L.VD.peg2 + L.VD.leftLag + 0.02);
-  t(first && [first.onLine.tunic, first.onLine.trousers].filter(Boolean).length === 1, 'one garment off its pegs first, the other still pegged');
-  t(pull && pull.corner_l <= 0.02 && pull.corner_r <= 0.02, `the tunic and the trousers in her hands (corners ${pull?.corner_l} / ${pull?.corner_r} m from her palms)`);
-  t(pull && !pull.onLine.tunic && !pull.onLine.trousers && pull.onLine.cap, 'both off their pegs, the cap still on its peg');
-  const capped = at(0.9);
-  t(capped && capped.capParent === 'hand_r', 'the cap off its peg in her right hand');
+  const V = L.VD, G = (q, n) => q?.garments?.[n] || {};
+  t(L.T.take >= 2 && L.T.take <= 3, `the take lasts ${L.T.take} s (2–3 s; was 1.05 s)`);
+  // the tunic: both hands on its shoulder pegs, unpegged, off the line in her hands, laid over her left forearm
+  const grab = at(V.grab + 0.05), lifted = at(V.lift[1]), draped = at(V.drape[1] + 0.1);
+  t(G(grab, 'tunic').corner_l <= 0.02 && G(grab, 'tunic').corner_r <= 0.02, `both hands on the tunic's shoulder corners (${G(grab, 'tunic').corner_l} / ${G(grab, 'tunic').corner_r} m from her palms)`);
+  t(grab?.onLine.trousers && grab?.onLine.cap, 'the trousers and the cap still on the line');
+  t(G(lifted, 'tunic').corner_l <= 0.02 && G(lifted, 'tunic').corner_r <= 0.02, `lifted off, still in her hands (${G(lifted, 'tunic').corner_l} / ${G(lifted, 'tunic').corner_r} m)`);
+  t(G(lifted, 'tunic').top < L.yLine.tunic - 0.12, `the tunic off the line (its top ${(L.yLine.tunic - G(lifted, 'tunic').top).toFixed(2)} m under it)`);
+  // (its middle row rests on the forearm: 4.5 cm off the forearm's axis, the arm's own thickness)
+  t(G(draped, 'tunic').forearm <= 0.06, `folded over her left forearm (its middle ${G(draped, 'tunic').forearm} m from the arm's axis)`);
+  const maxSway = Math.max(...L.log.filter((q) => q.t >= V.lift[0] && q.t <= V.lift[0] + 0.7).map((q) => q.rope));
+  t(maxSway >= 0.01, `the line springs up and sways as the tunic leaves it (${(maxSway * 100).toFixed(1)} cm)`);
+  t(L.ropeEnd <= 0.002, `the line back at rest (${(L.ropeEnd * 1000).toFixed(1)} mm)`);
+  // the cap off its peg on the side-step: in her right hand, then her left
+  t(at(V.capGrab + 0.1)?.capParent === 'hand_r', 'the cap off its peg in her right hand');
+  t(at(V.capHand + 0.05)?.capParent === 'hand_l', '…handed to her left, over the garments');
+  // the trousers: the near corner in her right hand, pulled off (the last peg let go), laid on the tunic
+  const pulled = at(V.tPegs[2] + 0.04), tdraped = at(V.tDrape[1]);
+  t(G(pulled, 'trousers').corner_r <= 0.02, `the trousers' corner in her right hand (${G(pulled, 'trousers').corner_r} m)`);
+  t(G(at(V.tPull[1]), 'trousers').top < L.yLine.trousers - 0.1, 'the trousers off the line');
+  t(G(tdraped, 'trousers').forearm <= 0.095 && G(tdraped, 'tunic').forearm <= 0.06, `both over her forearm, the trousers on the tunic (${G(tdraped, 'trousers').forearm} / ${G(tdraped, 'tunic').forearm} m from its axis)`);
+  // no floating cloth: every held corner in her palm and every draped middle on her arm, all through the take
+  let worst = 0, worstAt = null;
+  for (const q of L.log.filter((q) => q.t >= V.grab + 0.02 && q.t <= L.T.take)) {
+    for (const n of ['tunic', 'trousers']) for (const k of ['corner_l', 'corner_r', 'forearm']) {
+      let d = q.garments?.[n]?.[k];
+      if (d == null) continue;
+      if (k === 'forearm' && q.t < (n === 'tunic' ? V.drape[0] : V.tDrape[0]) + 0.25) continue;   // (still being laid over it)
+      if (k === 'forearm') d -= n === 'tunic' ? 0.045 : 0.08;   // (off the arm's surface: its axis less the arm / the tunic under it)
+      if (d > worst) { worst = d; worstAt = `${n} ${k} @${q.t.toFixed(2)}`; }
+    }
+  }
+  t(worst <= 0.035, `the garments stay on her hands / arm all through the take (worst ${worst.toFixed(3)} m, ${worstAt})`);
   t(L.count === 0 && L.disguised, 'the uniform off the line and on her');
   t(Math.abs(L.dressedAt - L.T.swap) <= 2 / 60 + 1e-6, `dressed at the swap (${L.dressedAt.toFixed(2)} s; before 1.5 s)`);
   t(Math.abs(L.end - L.T.dur) <= 2 / 60 + 1e-6, `the action ${L.end.toFixed(2)} s`);
@@ -198,5 +235,7 @@ export default async function spyActions(page, t) {
   t(Math.min(...seat) <= 0.01, `the cap seated where the outfit's own cap sits (${Math.min(...seat).toFixed(4)} m)`);
   const take = await page.evaluate(() => window.__saTake);
   writeFileSync(t.harness.shotPath('spy-line-take-side.png'), Buffer.from(take.split(',')[1], 'base64'));
+  const drape = await page.evaluate(() => window.__saDrape);
+  if (drape) writeFileSync(t.harness.shotPath('spy-line-draped-side.png'), Buffer.from(drape.split(',')[1], 'base64'));
   await viewShot(page, t, 'spy-line-dressed-side', { x: L.spy[0], z: L.spy[1], h: Math.PI });
 }

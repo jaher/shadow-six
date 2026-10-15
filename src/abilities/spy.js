@@ -17,7 +17,7 @@
 
 import { registerAbility } from './registry.js';
 import { CONFIG } from '../config.js';
-import { timedTask, freeToAct, bark } from './common.js';
+import { timedTask, freeToAct, bark, phaseOf } from './common.js';
 import { meleeReachable } from './knife.js';
 import { witnessesOf } from './system.js';
 import { wardrobeOf } from './bcd-melee.js';
@@ -144,7 +144,7 @@ const watched = (world, c) => inAnyCone(world, c);
  * if nobody watches then; watched when she has taken it or at the swap: she stops, the uniform stays in her kit.
  * Interruptible throughout, as before. Falls back to the plain 1.5 s activation when there is no spot to take it from.
  */
-export function dressTask(world, c, line) {
+export function dressTask(world, c, line, opts = {}) {
   const bcd = !!world.rules?.spyUniformFromCaptives;
   const dress = () => (bcd ? (line ? dressIn(world, c, line.params?.uniform ?? 'soldier') : false) : tryDress(world, c));
   let plan = null;
@@ -154,12 +154,18 @@ export function dressTask(world, c, line) {
     plan = { from: { x: c.x, z: c.z, h: c.heading || 0 }, take, cover: coverSpot(world, take, line) };
   }
   const T = dressTimes(line ? 'line' : 'kit', plan?.cover, plan?.take);
-  const rec = pushSpyAct(world, { kind: 'dress', mode: line ? 'line' : 'kit', a: c, line, plan, T, t0: world.time + CONFIG.sim.dt });
+  const rec = pushSpyAct(world, { kind: 'dress', mode: line ? 'line' : 'kit', a: c, line, plan, T, t0: world.time + CONFIG.sim.dt, afterStand: !!opts.afterStand });
   c.playAction('use', T.dur);
   let tt = 0, end = T.dur;
   const stop = (why) => { rec.abort = tt; rec.why = why; end = Math.min(end, tt + DRESS.abort); };
+  // (the walkthrough director / AUTO: abilities/common.js actionClock — a sequence to watch to its end)
+  const phases = line ? [['take', 0, T.take], ['step', T.take, T.d0], ['dress', T.d0, T.dur]] : [['kit', 0, T.d0], ['dress', T.d0, T.dur]];
   return {
     interruptible: true,
+    present: true,
+    phases,
+    get dur() { return end; },
+    get phase() { return phaseOf(phases, tt); },
     get t() { return tt; },
     update(dt) {
       tt += dt;

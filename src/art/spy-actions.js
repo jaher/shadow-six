@@ -42,7 +42,7 @@ import { realBody, contactMarks, setWQ, turn, setPelvisWorld, snap, writeBlend, 
   palmNormal, handQ, at, wp, wq, faceDir, finish } from './knife-kill.js';
 import { setSyringeFill, TIP_Z } from './syringe-prop.js';
 import { makeGarment as makeGarmentRef, makeOfficerCap as makeOfficerCapProp, hangCap, LAUNDRY } from './clothesline.js';
-import { lineFrame } from '../abilities/spy-actions.js';
+import { lineFrame, DRESS } from '../abilities/spy-actions.js';
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const smooth = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
@@ -52,6 +52,7 @@ const BASE_UMW = Object3D.prototype.updateMatrixWorld;
 const upd = (o) => BASE_UMW.call(o, true);
 const bonesOf = (m) => m?.real?.inner?.bones || null;
 const lerpRot = (a, b, k) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * k;
+const _sv = new Vector3();
 
 /** Visual timeline constants (s, relative to the record's own times). */
 export const SA = Object.freeze({
@@ -97,9 +98,12 @@ function overlayW(rec, t, end) {
   return ramp(t, 0, SA.aIn) * (1 - ramp(t, end, end + SA.aOut)) * (vis.walkAt != null ? 1 - ramp(t, vis.walkAt, vis.walkAt + 0.15) : 1);
 }
 
-/** The pose she was shown in before the action (the action clip's first frame jumps), captured once. */
-function pose0Of(m, vis) {
-  if (vis.pose0 === undefined) { vis.pose0 = m._preKnife || capturePose(m); m._preKnife = null; }
+/**
+ * The pose she was shown in before the action (the action clip's first frame jumps), captured once — after getting up
+ * by the line (rec.afterStand) the pose of the moment, not the one she walked up in lying down.
+ */
+function pose0Of(m, vis, rec = null) {
+  if (vis.pose0 === undefined) { vis.pose0 = (!rec?.afterStand && m._preKnife) || capturePose(m); m._preKnife = null; }
   return vis.pose0;
 }
 
@@ -669,11 +673,20 @@ export function injectMetrics(a, v) {
  * the sim's own marks (take, swap, end) come from abilities/spy-actions.js DRESS.
  */
 export const VD = Object.freeze({
-  reach: [0.05, 0.27], grab: 0.27, peg1: 0.33, peg2: 0.4, pull: [0.27, 0.48], toBundle: [0.46, 0.6], roll: [0.52, 0.6],
-  capReach: [0.6, 0.8], capGrab: 0.8, capLift: [0.8, 0.86], capToL: [0.86, 0.98], capHand: 0.97,
-  leftLag: 0.1,      // her left hand takes its garment this much after the right: they come off one after the other
+  // (user 2026-10-14 "animate better how the spy grabs the clothes": one garment at a time, slow enough to read at 1x)
+  look: [0, 0.3],          // settling in front of the tunic, she looks up at it
+  reach: [0.2, 0.55], grab: 0.55,   // both hands up to its shoulder pegs
+  pegs: [0.6, 0.66, 0.72], // unpegged: her left corner, the middle (the top edge sags between her hands), her right
+  lift: [0.7, 1.0],        // up off the pegs and the line, then down in front of her chest
+  drape: [1.0, 1.4],       // laid folded over her left forearm (its middle on the arm, the halves hanging)
+  // the side-step to the trousers (abilities/spy-actions.js DRESS.sideStep 1.4–1.9): the cap off its peg on the way
+  capReach: [1.35, 1.6], capGrab: 1.6, capToL: [1.6, 1.85], capHand: 1.85,
+  // the trousers, her right hand: the near corner, pulled down off the line (the pegs pop one after the other)
+  tReach: [1.85, 2.1], tGrab: 2.1, tPegs: [2.16, 2.26, 2.36], tPull: [2.1, 2.42], tDrape: [2.42, 2.72],
   kitBack: [0, 0.12], kitOut: 0.11, kitTuck: [0.12, 0.26], kitCap: [0.2, 0.32],
 });
+/** The line springing up and swaying as a garment leaves it: amplitude (m), frequency (Hz), decay (s), lift (m). */
+export const SWAY = Object.freeze({ amp: 0.03, hz: 2.2, decay: 0.55, lift: 0.014 });
 /**
  * The dressing beats (s from its start). From the kit (U): her own cap off and into the bundle, the officer's cap on,
  * the tunic out and swung on (the swap), the buttons, the hem, a touch to the visor. At a clothesline she first hangs
@@ -751,6 +764,27 @@ function headgearProp(m, B, which) {
   return g;
 }
 
+/**
+ * Program warm-up objects for a mission with the Spy (Game.loadMission → Game._warmFrame, every pass): the props the
+ * take and the dressing show that nothing else draws — her own cap and the disguise cap as loose (unskinned) props in
+ * her hand, the officer's cap and the rolled bundle of U — x-rayed with her as she holds them.
+ * @returns {{objects: Object3D[], xray: Object3D[], done: () => void}|null}
+ */
+export function spyWarmObjects(world) {
+  const spy = (world?.commandos || []).find((c) => c.role === 'spy' && realBody(c.model));
+  if (!spy) return null;
+  const m = spy.model, B = bonesOf(m), objects = [];
+  for (const which of ['base', 'disg']) { const o = headgearProp(m, B, which); if (o) objects.push(o); }
+  const own = [makeOfficerCapProp(), makeBundle()];   // (their own geometry: disposed after; the caps' is the outfit's)
+  objects.push(...own);
+  const y = (world.groundY?.(spy.x, spy.z) || 0) + 1.2;
+  objects.forEach((o, k) => { o.position.set(spy.x + 0.4 * k, y, spy.z); o.updateMatrixWorld(true); o.traverse((q) => { if (q.isMesh) q.frustumCulled = false; }); });
+  return {
+    objects, xray: objects,
+    done: () => { for (const o of objects) o.removeFromParent(); for (const o of own) o.traverse((q) => { if (q.isMesh) q.geometry.dispose(); }); },
+  };
+}
+
 /** Place `obj` at world matrix `Wm` under its current parent. */
 function setWorld(obj, Wm) {
   obj.parent.updateWorldMatrix(true, false);
@@ -782,6 +816,15 @@ function nearEdge(pc, p) {
   const a = at_(0), b = at_(nx - 1);
   return a.distanceTo(p) <= b.distanceTo(p) ? { k: 0, far: nx - 1 } : { k: nx - 1, far: 0 };
 }
+/** The rope and its pegs back to their own shape, the laundry left on the line back on it (lineSway). */
+function restoreSway(rec) {
+  const S = rec.vis?.sway;
+  if (!S) return;
+  for (const R of [S.rope, S.pegs]) if (R) { R.mesh.geometry.attributes.position.array.set(R.base); R.mesh.geometry.attributes.position.needsUpdate = true; }
+  for (const h of S.hang) h.mesh.position.y = h.y0;
+  rec.vis.sway = null;
+}
+
 /** Put the line back as it was (an action cut short before the uniform was taken). */
 function restoreLine(rec) {
   const L = rec.vis?.parts;
@@ -798,7 +841,17 @@ function restoreLine(rec) {
 function dressCleanup(rec) {
   const v = rec.vis;
   if (!v) return;
+  restoreSway(rec);
   if (rec.mode === 'line' && rec.taken == null) restoreLine(rec);
+  else if (rec.mode === 'line' && v.parts) {   // taken: the garments back into the (hidden) uniform group, off her arm
+    for (const n of ['tunic', 'trousers']) {
+      const pc = v.parts[n];
+      if (!pc?.mesh) continue;
+      if (pc.mesh.parent !== pc.parent) pc.parent.add(pc.mesh);
+      pc.mesh.position.copy(pc.pos); pc.mesh.quaternion.copy(pc.quat); pc.mesh.scale.copy(pc.scale);
+      if (pc.cloth) { pc.cloth.setPinned(pc.mesh.userData.pegs.map((i) => i)); pc.cloth.reset(); pc.cloth.write(); }
+    }
+  }
   else if (v.parts?.cap?.mesh && v.parts.cap.mesh.parent !== v.parts.cap.parent) { v.parts.cap.mesh.removeFromParent(); }
   for (const k of ['bundle', 'flat', 'tunic', 'kitCap']) { const o = v[k]; if (o) { o.removeFromParent(); if (k === 'tunic' || k === 'bundle') o.traverse((q) => { if (q.isMesh && q.geometry) q.geometry.dispose(); }); v[k] = null; } }
   const inner = rec.a?.model?.real?.inner;
@@ -856,7 +909,7 @@ function dressFrame(world, rec, now) {
 function dressPose(world, rec, m, B, M, t, dt, end) {
   const vis = rec.vis, T = rec.T, root = m.root, line = rec.mode === 'line';
   const W = overlayW(rec, t, end);
-  const pose0 = pose0Of(m, vis);
+  const pose0 = pose0Of(m, vis, rec);
   const D = t - T.d0;                                   // dressing clock
   const dressing = D >= 0 && rec.abort == null;
   const L = line ? lineParts(rec) : null;
@@ -873,13 +926,23 @@ function dressPose(world, rec, m, B, M, t, dt, end) {
   const feetHere = feetOf(B);
   const feet = { l: { ...feetHere.l }, r: { ...feetHere.r } };
   const arc = (a0, a1, k, lift) => ({ p: a0.p.clone().lerp(a1.p, k).addScaledVector(F.u, lift * Math.sin(Math.PI * clamp(k, 0, 1))), q: a0.q.clone().slerp(a1.q, k) });
-  if (line && t < 0.2) { feet.l = arc(vis.feet0.l, feetHere.l, ramp(t, 0, 0.12), 0.06); feet.r = arc(vis.feet0.r, feetHere.r, ramp(t, 0.04, 0.18), 0.06); }
+  if (line && t < 0.3) { feet.l = arc(vis.feet0.l, feetHere.l, ramp(t, 0, 0.16), 0.06); feet.r = arc(vis.feet0.r, feetHere.r, ramp(t, 0.06, 0.26), 0.06); }
+  // the side-step along the line from the tunic to the trousers: a side-shuffle (the leading foot, the trailing one)
+  const SS = DRESS.sideStep, tb = rec.plan?.take?.b;
+  if (line && tb && rec.abort == null && t >= SS[0] - 0.02 && t < SS[1] + 0.06) {
+    if (!vis.sideFeet) vis.sideFeet = feetOf(B);
+    const s0 = SS[0], d = SS[1] - SS[0], mv = _sv.set(tb.x - rec.plan.take.x, 0, tb.z - rec.plan.take.z);
+    const lead = mv.dot(F.l) >= 0 ? 'l' : 'r', trail = lead === 'l' ? 'r' : 'l';
+    const mid = { p: vis.sideFeet[lead].p.clone().lerp(feetHere[lead].p, 0.55), q: vis.sideFeet[lead].q.clone().slerp(feetHere[lead].q, 0.55) };
+    feet[lead] = t < s0 + d * 0.5 ? arc(vis.sideFeet[lead], mid, ramp(t, s0, s0 + d * 0.4), 0.07) : arc(mid, feetHere[lead], ramp(t, s0 + d * 0.62, SS[1] + 0.04), 0.06);
+    feet[trail] = arc(vis.sideFeet[trail], feetHere[trail], ramp(t, s0 + d * 0.3, s0 + d * 0.78), 0.07);
+  }
   if (line && rec.plan?.cover && T.step > 0 && rec.abort == null) {
     if (!vis.stepFeet && t >= T.take - 0.02) vis.stepFeet = feetOf(B);            // where the feet were as she set off
     if (vis.stepFeet && t < T.take + T.step + 0.05) {
-      const s0 = T.take, s1 = T.take + T.step;
+      const s0 = T.take, s1 = T.take + T.step, o = rec.plan.take.b || rec.plan.take;
       // a side-shuffle: the leading foot half way, the trailing foot all the way, the leading foot home
-      const d = s1 - s0, mv = new Vector3(rec.plan.cover.x - rec.plan.take.x, 0, rec.plan.cover.z - rec.plan.take.z);
+      const d = s1 - s0, mv = new Vector3(rec.plan.cover.x - o.x, 0, rec.plan.cover.z - o.z);
       const lead = mv.dot(F.l) >= 0 ? 'l' : 'r', trail = lead === 'l' ? 'r' : 'l';
       const mid = { p: vis.stepFeet[lead].p.clone().lerp(feetHere[lead].p, 0.55), q: vis.stepFeet[lead].q.clone().slerp(feetHere[lead].q, 0.55) };
       feet[lead] = t < s0 + d * 0.5 ? arc(vis.stepFeet[lead], mid, ramp(t, s0, s0 + d * 0.38), 0.08) : arc(mid, feetHere[lead], ramp(t, s0 + d * 0.66, s1 + 0.04), 0.07);
@@ -895,44 +958,69 @@ function dressPose(world, rec, m, B, M, t, dt, end) {
   const H = {};
   const add = (s, w, p, f, n, pole) => { if (w > 1e-3) (H[s] ||= []).push({ w, p, f: f.clone().normalize(), n: n.clone().normalize(), pole }); };
   const head = wp(B.Head), chestF = at(B, 'spine_03', M.chestPt);
-  const bundleAt = () => wp(B.spine_03).addScaledVector(F.l, 0.19).addScaledVector(F.u, -0.13).addScaledVector(F.f, 0.0);
-  const lHold = P(0.24, 0.13, 0.98);                                  // her left hand at her left front waist
-  if (line && L && !vis.hands) assignHands(rec, L, world);
-  if (line && L) {
-    // both hands to the near corners of the tunic and the trousers, pulled down to her chest, rolled under her left arm
-    for (const s of ['l', 'r']) {
-      const hd = vis.hands?.[s];
-      if (!hd) continue;
-      const ts = t - (s === 'l' ? VD.leftLag : 0);                    // the left hand a beat after the right
-      const cl = hd.pc.cloth, mesh = hd.pc.mesh, k = hd.k;
-      const corner = new Vector3(cl.x[k * 3], cl.x[k * 3 + 1], cl.x[k * 3 + 2]).applyMatrix4(mesh.matrixWorld);
-      const reachP = corner.addScaledVector(F.u, -0.03).addScaledVector(F.f, -0.025);
-      if (ts >= VD.grab) hd.grabP ||= reachP.clone();
-      const w = ramp(ts, VD.reach[0], VD.reach[1]) * (1 - ramp(t, VD.toBundle[1], VD.toBundle[1] + 0.1));
-      const chest = P(0.32, s === 'l' ? 0.12 : -0.12, 1.18), bun = bundleAt().addScaledVector(F.f, 0.1).addScaledVector(F.l, s === 'l' ? -0.02 : -0.12);
-      const p = ts < VD.grab ? reachP : hd.grabP.clone().lerp(chest, ramp(ts, VD.grab, VD.pull[1])).lerp(bun, ramp(t, VD.toBundle[0], VD.toBundle[1]));
-      const gk = ramp(ts, VD.grab, VD.grab + 0.12);
-      add(s, w, p, F.u.clone().addScaledVector(F.f, 0.2 + 0.4 * gk), F.f.clone().addScaledVector(F.u, -0.5 * gk), s === 'l' ? [0.4, -0.5, -0.2] : [-0.4, -0.5, -0.2]);
+  // her left forearm across her waist carrying the garments (line), or the bundle under her arm (U)
+  const lHold = line ? P(0.3, 0.03, 1.0) : P(0.24, 0.13, 0.98);
+  const bundleAt = line ? () => wp(B.lowerarm_l).lerp(wp(B.hand_l), 0.5).addScaledVector(F.u, 0.06)
+    : () => wp(B.spine_03).addScaledVector(F.l, 0.19).addScaledVector(F.u, -0.13).addScaledVector(F.f, 0.0);
+  if (line && L && !vis.tk) vis.tk = takeSetup(rec, L, world);
+  const K = vis.tk;
+  if (line && L && K) {
+    const UP = F.u, palmIn = (s) => (s === 'l' ? F.l.clone().negate() : F.l.clone());
+    // (1) the tunic: both hands up to its shoulder pegs, unpegged, lifted off the line and down to her chest, laid over
+    //     her left forearm
+    if (K.tunic) for (const s of ['l', 'r']) {
+      const k = K.tunic[s], c = clothPt(L.tunic, k, new Vector3());
+      const reachP = c.addScaledVector(UP, -0.035).addScaledVector(F.f, -0.03);
+      if (t >= VD.grab) K.grabP[s] ||= reachP.clone();
+      const w = ramp(t, VD.reach[0], VD.reach[1]) * (s === 'l' ? 1 - ramp(t, VD.drape[0], VD.drape[0] + 0.2) : 1 - ramp(t, VD.drape[0] + 0.2, VD.drape[1]));
+      let p = reachP;
+      if (t >= VD.grab) {
+        const pegT = VD.pegs[s === K.tunic.first ? 0 : 2];
+        const chest = P(0.32, s === 'l' ? 0.16 : -0.16, 1.32);
+        p = K.grabP[s].clone().addScaledVector(UP, -0.015 * bump(t, pegT - 0.03, pegT + 0.05) + 0.07 * bump(t, VD.lift[0], VD.lift[0] + 0.2))
+          .addScaledVector(F.f, -0.08 * ramp(t, VD.lift[0], VD.lift[0] + 0.15)).lerp(chest, ramp(t, VD.lift[0] + 0.08, VD.lift[1]));
+        if (s === 'r') p.lerp(lHold.clone().addScaledVector(UP, 0.14).addScaledVector(F.l, -0.06), ramp(t, VD.drape[0], VD.drape[0] + 0.25));
+      }
+      const gk = ramp(t, VD.grab - 0.05, VD.grab + 0.1);
+      add(s, w, p, UP.clone().addScaledVector(F.f, 0.25 + 0.35 * gk), F.f.clone().addScaledVector(palmIn(s), 0.2), s === 'l' ? [0.4, -0.5, -0.2] : [-0.4, -0.5, -0.2]);
     }
-    // the cap: off its peg with the right hand, handed to the left
+    // (2) the cap off its peg with the right hand on the side-step, into her left hand over the garments
     const cap = L.cap?.mesh;
     if (cap) {
       if (!vis.capC) vis.capC = new THREE_REF.Box3().setFromObject(cap).getCenter(new Vector3());
       const w = ramp(t, VD.capReach[0], VD.capReach[1]) * (1 - ramp(t, VD.capHand, VD.capHand + 0.12));
-      const grabP = vis.capC.clone().addScaledVector(F.f, -0.07).addScaledVector(F.u, 0.03);
-      const p = t < VD.capGrab ? grabP : grabP.clone().lerp(P(0.36, -0.02, 1.62), ramp(t, VD.capLift[0], VD.capLift[1])).lerp(lHold.clone().addScaledVector(F.u, 0.07).addScaledVector(F.f, 0.03), ramp(t, VD.capLift[1], VD.capToL[1]));
-      add('r', w, p, F.u.clone().addScaledVector(F.f, 0.4), F.f.clone().addScaledVector(F.l, 0.4), [-0.4, -0.5, -0.2]);
+      const grabP = vis.capC.clone().addScaledVector(F.f, -0.07).addScaledVector(UP, 0.03);
+      const p = t < VD.capGrab ? grabP : grabP.clone().addScaledVector(UP, 0.05 * bump(t, VD.capGrab, VD.capGrab + 0.12))
+        .lerp(lHold.clone().addScaledVector(UP, 0.09).addScaledVector(F.f, 0.03), ramp(t, VD.capGrab + 0.05, VD.capToL[1]));
+      add('r', w, p, UP.clone().addScaledVector(F.f, 0.4), F.f.clone().addScaledVector(F.l, 0.4), [-0.4, -0.5, -0.2]);
+    }
+    // (3) the trousers: her right hand to the near corner, pulled down and toward her (the pegs pop one by one), laid
+    //     over her forearm on the tunic
+    if (K.trousers) {
+      const k = K.trousers.k, c = clothPt(L.trousers, k, new Vector3());
+      const reachP = c.addScaledVector(UP, -0.035).addScaledVector(F.f, -0.03);
+      if (t >= VD.tGrab) K.tGrabP ||= reachP.clone();
+      const w = ramp(t, VD.tReach[0], VD.tReach[1]) * (1 - ramp(t, VD.tDrape[1] - 0.08, VD.tDrape[1] + 0.12));
+      let p = reachP;
+      if (t >= VD.tGrab) {
+        const pulled = P(0.34, -0.05, 1.3);
+        p = K.tGrabP.clone().lerp(pulled, ramp(t, VD.tPull[0] + 0.04, VD.tPull[1]))
+          .lerp(lHold.clone().addScaledVector(UP, 0.16).addScaledVector(F.l, -0.08), ramp(t, VD.tDrape[0], VD.tDrape[0] + 0.22));
+      }
+      add('r', w, p, UP.clone().addScaledVector(F.f, 0.35), F.f.clone().addScaledVector(F.l, 0.3), [-0.4, -0.5, -0.2]);
     }
   } else if (!line) {
     // U: the bundle (the officer's cap on top) from her kit behind her right hip, tucked under her left arm
     const w = ramp(t, VD.kitBack[0], VD.kitBack[1]) * (1 - ramp(t, VD.kitTuck[1], VD.kitTuck[1] + 0.1));
     add('r', w, P(-0.16, -0.22, 0.95).lerp(bundleAt().addScaledVector(F.f, 0.06), ramp(t, VD.kitTuck[0], VD.kitTuck[1])), F.u.clone().negate(), F.l, [-0.5, -0.4, -0.3]);
   }
-  // the left hand cradles the bundle under her arm, then holds the cap at her waist until the dressing takes it
+  // the left hand: (line) the forearm across her waist under the garments, holding the cap from the side-step on;
+  // (U) cradling the bundle under her arm, holding the cap at her waist — until the dressing takes it
   const capTaken = line ? VDL.hang[1] : VDK.capR[1];
-  const wHold = (line ? ramp(t, VD.toBundle[0] + 0.06, VD.toBundle[1] + 0.06) : ramp(t, VD.kitCap[0], VD.kitCap[1]))
-    * (1 - ramp(t, T.d0 + capTaken, T.d0 + capTaken + 0.1)) * (rec.abort != null ? 1 - ramp(t, rec.abort + 0.1, rec.abort + 0.25) : 1);
-  add('l', wHold, lHold, F.f.clone().addScaledVector(F.u, 0.2), F.l.clone().negate(), [0.4, -0.5, -0.1]);
+  const wHold = (line ? ramp(t, VD.drape[0], VD.drape[0] + 0.2) : ramp(t, VD.kitCap[0], VD.kitCap[1]))
+    * (1 - ramp(t, T.d0 + (line ? VDL.tunicReach[1] + 0.12 : capTaken), T.d0 + (line ? VDL.tunicReach[1] + 0.25 : capTaken + 0.1))) * (rec.abort != null ? 1 - ramp(t, rec.abort + 0.1, rec.abort + 0.25) : 1);
+  if (line) add('l', wHold, lHold, F.f.clone().addScaledVector(F.l, -0.6), F.u, [0.5, -0.35, -0.25]);
+  else add('l', wHold, lHold, F.f.clone().addScaledVector(F.u, 0.2), F.l.clone().negate(), [0.4, -0.5, -0.1]);
   const V = line ? VDL : VDK;
   if (dressing) {
     const onHead = head.clone().addScaledVector(F.u, 0.12).addScaledVector(F.f, 0.1);
@@ -1007,7 +1095,7 @@ function dressPose(world, rec, m, B, M, t, dt, end) {
   vis.short = short();
   const ahead = P(1, 0, 1.45);
   const look = !dressing
-    ? (line ? path(t, [[0.1, P(0.45, 0, 1.55)], [VD.capReach[1], P(0.45, 0, 1.6)], [VD.capToL[1], P(0.35, 0.12, 1.0)], [T.take + 0.1, ahead]]) : path(t, [[0.05, P(0.4, -0.15, 1.1)], [VD.kitCap[1], P(0.35, 0.12, 1.0)], [T.d0, ahead]]))
+    ? (line ? lookTake(rec, t, P, ahead) : path(t, [[0.05, P(0.4, -0.15, 1.1)], [VD.kitCap[1], P(0.35, 0.12, 1.0)], [T.d0, ahead]]))
     : line ? path(D, [[0, ahead], [VDL.hang[1], P(0.4, 0.1, 1.15)], [VDL.hang[2], P(0.6, -0.1, 1.65)], [VDL.flat[1], P(0.6, 0, 1.4)], [VDL.shake[1], P(0.45, -0.25, 1.35)],
       [VDL.sleeveR[1], P(0.5, 0, 1.3)], [VDL.buttons[0] + 0.04, P(0.25, 0, 0.95)], [VDL.capReach[1], P(0.6, -0.1, 1.65)], [VDL.capUp[1], P(0.8, 0, 1.55)], [VDL.hem[1], P(0.3, 0, 0.85)], [VDL.end, ahead]])
       : path(D, [[0, ahead], [VDK.capR[1], P(0.5, 0.1, 1.2)], [VDK.capUp[1], P(0.7, 0, 1.55)], [VDK.shake[1], P(0.45, -0.25, 1.35)], [VDK.sleeveR[1], P(0.5, 0, 1.3)],
@@ -1051,53 +1139,143 @@ function capHangWorld(rec) {
 }
 const lineFrameArt = (line) => { const F = lineFrame(line); return { x: F.x, z: F.z, ax: F.ax, az: F.az }; }; // honours visualAt / visualRot
 
-/** Which hand takes which garment: from the take spot, the near corner on her left with her left hand. */
-function assignHands(rec, L, world) {
+/** World position of particle k of a garment's cloth (into `out`). */
+function clothPt(pc, k, out) {
+  const x = pc.cloth.x;
+  pc.mesh.updateWorldMatrix(true, false);
+  return out.set(x[k * 3], x[k * 3 + 1], x[k * 3 + 2]).applyMatrix4(pc.mesh.matrixWorld);
+}
+
+/**
+ * Which corner each hand takes (line take): the tunic's two shoulder corners — the one on her left side to her left
+ * hand (and which is unpegged first) — the trousers' corner on her right (her right hand) and the far one.
+ */
+function takeSetup(rec, L, world) {
   const tk = rec.plan?.take;
-  if (!tk) return;
-  const y = world.groundY ? world.groundY(tk.x, tk.z) : 0, at0 = new Vector3(tk.x, y, tk.z);
+  if (!tk) return null;
   const left = new Vector3(Math.sin(tk.h), 0, -Math.cos(tk.h));
-  const out = {};
-  for (const pc of [L.tunic, L.trousers]) {
-    if (!pc?.cloth) continue;
-    pc.mesh.updateWorldMatrix(true, false);
-    const e = nearEdge(pc, at0), x = pc.cloth.x;
-    const c = new Vector3(x[e.k * 3], x[e.k * 3 + 1], x[e.k * 3 + 2]).applyMatrix4(pc.mesh.matrixWorld);
-    let side = c.sub(at0).dot(left) >= 0 ? 'l' : 'r';
-    if (out[side]) side = side === 'l' ? 'r' : 'l';
-    out[side] = { pc, ...e };
+  const out = { grabP: {} };
+  const ends = (pc) => {
+    const nx = pc.cloth.nx, a = clothPt(pc, 0, new Vector3()), b = clothPt(pc, nx - 1, new Vector3());
+    return { a: 0, b: nx - 1, la: a.dot(left), lb: b.dot(left) };
+  };
+  if (L.tunic?.cloth) {
+    const e = ends(L.tunic);
+    const l = e.la >= e.lb ? e.a : e.b, r = l === e.a ? e.b : e.a;
+    out.tunic = { l, r, first: 'l' };
   }
-  rec.vis.hands = out;
+  if (L.trousers?.cloth) {
+    const e = ends(L.trousers);
+    const k = e.la < e.lb ? e.a : e.b;   // the corner on her right
+    out.trousers = { k, far: k === e.a ? e.b : e.a };
+  }
+  return out;
+}
+
+/**
+ * One garment off the line (VerletCloth pins, mesh-local): its corners in her palms from `grab` (the other pegs let go
+ * at their `release` times), out of the uniform's group into the scene (still wind-ticked), then laid over her left
+ * forearm (`drape`): its middle row drawn onto the arm (elbow → wrist, `layer` m above it), the corners let go, the
+ * halves hanging. Until the dressing takes the tunic (st.handed).
+ */
+function garmentFrame(rec, m, B, pc, st, t, o) {
+  const cl = pc?.cloth, mesh = pc?.mesh;
+  if (!cl || !mesh || st.handed) return;
+  if (!st.on) {
+    st.on = true; st.mesh = mesh; st.cloth = cl;
+    const scene = m.root.parent;
+    if (scene && mesh.parent !== scene) scene.attach(mesh);   // (the line's uniform group is hidden at the take)
+    mesh.frustumCulled = false;
+    mesh.updateMatrixWorld(true);
+  }
+  const nx = cl.nx, row = Math.floor(cl.ny / 2), mid = [];
+  for (let i = 0; i < nx; i++) mid.push(row * nx + i);
+  const d0 = o.drape[0], dIn = d0 + 0.25;
+  // pins now
+  let pins = [...o.corners];
+  if (t < d0) {
+    for (const [k, at] of o.release) if (t < at && !pins.includes(k)) pins.push(k);
+    if (t < o.grab + 1e-3) pins = [...new Set([...pins, ...(mesh.userData.pegs || [])])];
+  } else if (t < dIn) pins = [...o.corners, ...mid];
+  else pins = mid;
+  const key = pins.join(',');
+  if (st.pins !== key) {
+    if (t >= d0 && !st.mid0) { st.mid0 = mid.map((k) => [cl.x[k * 3], cl.x[k * 3 + 1], cl.x[k * 3 + 2]]); }
+    cl.setPinned(pins); st.pins = key;
+  }
+  mesh.updateMatrixWorld(true);
+  // the corners in her palms (until the corners are let go over the arm)
+  if (t < dIn) o.corners.forEach((k, j) => { const lp = mesh.worldToLocal(palmPt(B, o.hands[j])); cl.movePin(k, lp.x, lp.y, lp.z); });
+  // the middle row onto her left forearm
+  if (t >= d0 && st.mid0) {
+    const e = wp(B.lowerarm_l), h = wp(B.hand_l), up = new Vector3(0, 1, 0);
+    const k = ramp(t, d0, dIn);
+    for (let i = 0; i < nx; i++) {
+      const u = 0.12 + 0.76 * (i / (nx - 1));
+      const w = e.clone().lerp(h, u).addScaledVector(up, 0.045 + o.layer);
+      const lp = mesh.worldToLocal(w), a = st.mid0[i];
+      cl.movePin(mid[i], a[0] + (lp.x - a[0]) * k, a[1] + (lp.y - a[1]) * k, a[2] + (lp.z - a[2]) * k);
+    }
+  }
+}
+
+/**
+ * The line springing up and swaying as a garment leaves it (the tunic lifted off, the cap, the trousers' last peg): a
+ * damped swing of the rope with its pegs and the laundry left on it, plus the lift of the load gone (easing back by
+ * the end of the action). Rope / pegs: own copies of their positions (restored by dressCleanup).
+ */
+function lineSway(rec, t) {
+  const v = rec.vis, g = rec.line?.object3d;
+  if (!g) return;
+  if (!v.sway) {
+    const rope = g.getObjectByName('clothesline_rope'), pegs = g.getObjectByName('clothesline_pegs');
+    const keep = (mesh) => (mesh ? { mesh, base: Float32Array.from(mesh.geometry.attributes.position.array) } : null);
+    const hang = [];
+    for (const c of g.children) if (c.isMesh && /^laundry_/.test(c.name)) hang.push({ mesh: c, y0: c.position.y, x: c.geometry.boundingSphere?.center.x ?? 0 });
+    v.sway = { rope: keep(rope), pegs: keep(pegs), hang, span: LAUNDRY.span };
+  }
+  const S = v.sway, span = S.span, end = rec.T.dur;
+  const ev = [[VD.lift[0] + 0.08, LAUNDRY.tunic, 1], [VD.capGrab + 0.05, LAUNDRY.cap, 0.35], [VD.tPegs[2], LAUNDRY.trousers, 1]];
+  const settle = 1 - ramp(t, end - 0.6, end);
+  const dy = (x) => {
+    let y = 0;
+    for (const [te, xe, a] of ev) {
+      if (t < te) continue;
+      const tri = x < xe ? (x + span / 2) / (xe + span / 2) : (span / 2 - x) / (span / 2 - xe);
+      const u = t - te;
+      y += clamp(tri, 0, 1) * a * (SWAY.lift * ramp(u, 0, 0.12) * settle + SWAY.amp * Math.exp(-u / SWAY.decay) * Math.sin(TAU_ * SWAY.hz * u));
+    }
+    return y;
+  };
+  for (const R of [S.rope, S.pegs]) {
+    if (!R) continue;
+    const pa = R.mesh.geometry.attributes.position, b = R.base;
+    for (let i = 0; i < pa.count; i++) pa.array[i * 3 + 1] = b[i * 3 + 1] + dy(b[i * 3]);
+    pa.needsUpdate = true;
+  }
+  for (const h of S.hang) h.mesh.position.y = h.y0 + dy(h.x);
+}
+const TAU_ = Math.PI * 2;
+
+/** Where her eyes are during the take: the tunic, the cap, the trousers, the garments on her arm, then ahead. */
+function lookTake(rec, t, P, ahead) {
+  return path(t, [[0.05, P(0.45, 0, 1.55)], [VD.lift[0], P(0.45, 0, 1.6)], [VD.drape[0] + 0.1, P(0.35, 0.05, 1.1)], [VD.capReach[0] + 0.05, P(0.45, -0.3, 1.6)],
+    [VD.capToL[1], P(0.35, 0.05, 1.1)], [VD.tReach[0] + 0.15, P(0.45, -0.15, 1.6)], [VD.tPull[1], P(0.4, -0.05, 1.3)], [VD.tDrape[1], P(0.32, 0.05, 1.05)],
+    [rec.T.take + 0.1, ahead]]);
 }
 
 function dressProps(rec, m, B, F, t, D, dt, ctx) {
   const vis = rec.vis, T = rec.T, root = m.root, inner = m.real.inner, { L, line, dressing, bundleAt, P } = ctx;
   let bundleK = 0, bundleHand = null;
-  // the garments: pinched corner in the hand, the pegs popping one after the other, rolled up into the bundle
-  if (line && L && vis.hands) {
-    const rollK = ramp(t, VD.roll[0], VD.roll[1]);
-    for (const s of ['l', 'r']) {
-      const hd = vis.hands[s], ts = t - (s === 'l' ? VD.leftLag : 0);
-      if (!hd || hd.done || ts < VD.grab) continue;
-      const { pc, k, far } = hd, cl = pc.cloth, mesh = pc.mesh;
-      const pins = ts < VD.peg1 ? [k, far, 3] : ts < VD.peg2 ? [k, far] : [k];
-      const key = pins.join(',');
-      if (hd.pins !== key) { cl.setPinned(pins); hd.pins = key; }
-      mesh.parent.updateWorldMatrix(true, false);
-      if (rollK <= 0) {
-        mesh.updateWorldMatrix(true, false);
-        const lp = mesh.worldToLocal(palmPt(B, s));
-        cl.movePin(k, lp.x, lp.y, lp.z);
-      } else {   // rolled: shrinks into her hand (the corner held in the palm) as the bundle grows under her arm
-        hd.c0 ||= new Vector3(cl.x[k * 3], cl.x[k * 3 + 1], cl.x[k * 3 + 2]);
-        const sc = 1 - 0.85 * rollK, hp = mesh.parent.worldToLocal(palmPt(B, s));
-        mesh.scale.setScalar(sc); mesh.position.copy(hp.sub(hd.c0.clone().multiplyScalar(sc)));
-        cl.movePin(k, hd.c0.x, hd.c0.y, hd.c0.z);
-        if (rollK >= 1) { mesh.visible = false; hd.done = true; }
-      }
-      mesh.updateMatrixWorld(true);
-    }
-    bundleK = ramp(t, VD.roll[0] + 0.02, VD.roll[1] + 0.02);
+  // the garments: the tunic in both hands, unpegged, laid over her forearm; the trousers in her right hand, pulled off
+  // their pegs one after the other, laid on it; the line springing up and swaying each time
+  if (line && L && vis.tk) {
+    const K = vis.tk;
+    if (K.tunic && t >= VD.grab) garmentFrame(rec, m, B, L.tunic, K.tunicSt ||= { kind: 'tunic' }, t, {
+      corners: [K.tunic.l, K.tunic.r], hands: ['l', 'r'], grab: VD.grab, release: [[3, VD.pegs[1]]], drape: VD.drape, layer: 0 });
+    if (K.trousers && t >= VD.tGrab) garmentFrame(rec, m, B, L.trousers, K.trousersSt ||= { kind: 'trousers' }, t, {
+      corners: [K.trousers.k], hands: ['r'], grab: VD.tGrab, release: [[3, VD.tPegs[1]], [K.trousers.far, VD.tPegs[2]]], drape: VD.tDrape, layer: 0.035 });
+    lineSway(rec, t);
     const cap = L.cap?.mesh;
     if (cap) {
       if (t >= VD.capGrab && !vis.capInR) { B.hand_r.attach(cap); vis.capInR = true; }
@@ -1114,7 +1292,7 @@ function dressProps(rec, m, B, F, t, D, dt, ctx) {
       } else { B.hand_l.attach(vis.kitCap); vis.kitCapL = true; }
     }
   }
-  if (line && t >= VD.roll[1] && rec.abort == null) bundleK = 1;
+  if (line) bundleK = 0;   // (at a line the bundle is the uniform itself, over her forearm)
   const capObj = line ? L?.cap?.mesh : vis.kitCap;
   const V = line ? VDL : VDK;
   if (dressing) {
@@ -1151,18 +1329,32 @@ function dressProps(rec, m, B, F, t, D, dt, ctx) {
     }
     // the tunic: unrolled out of the bundle by its collar, shaken out, swung round her back; it is on at the swap
     if (D >= V.tunicReach[1] && D < V.swap && !vis.tunic) {
-      vis.tunic = makeGarmentRef('tunic'); vis.tunic.frustumCulled = false;
-      root.parent.add(vis.tunic);
-      vis.tunic.quaternion.copy(wq(root));
-      const cl = vis.tunic.userData.cloth;
-      vis.tc0 = new Vector3(cl.x[3], cl.x[4], cl.x[5]);
-      cl.setPinned([1]);
+      const dr = line ? vis.tk?.tunicSt : null;
+      if (dr?.mesh && dr.on) {   // the tunic taken off her forearm by its collar (the line's own cloth)
+        vis.tunic = dr.mesh; vis.tunicReused = true; dr.handed = true;
+        const cl = dr.cloth;
+        vis.tc0 = new Vector3(cl.x[3], cl.x[4], cl.x[5]);
+        cl.setPinned([1]);
+      } else {
+        vis.tunic = makeGarmentRef('tunic'); vis.tunic.frustumCulled = false;
+        root.parent.add(vis.tunic);
+        vis.tunic.quaternion.copy(wq(root));
+        const cl = vis.tunic.userData.cloth;
+        vis.tc0 = new Vector3(cl.x[3], cl.x[4], cl.x[5]);
+        cl.setPinned([1]);
+      }
     }
+    if (line && vis.tk?.trousersSt?.mesh) vis.tk.trousersSt.mesh.visible = D < V.sleeveL[0] + 0.05;   // (on with the outfit)
     if (vis.tunic) {
-      const cl = vis.tunic.userData.cloth, out = ramp(D, V.tunicReach[1], V.tunicReach[1] + 0.08);
+      const cl = vis.tunic.userData.cloth, out = vis.tunicReused ? 1 : ramp(D, V.tunicReach[1], V.tunicReach[1] + 0.08);
       vis.tunic.visible = D < V.swap;
       if (vis.tunic.visible) {
-        if (out < 1) {   // unrolling: grows from her hand, its collar corner kept in the palm
+        vis.tunicHeld = !vis.tunicReused || D >= V.tunicReach[1] + 0.08;
+        if (vis.tunicReused && D < V.tunicReach[1] + 0.08) {   // off her arm: the collar corner drawn to her palm
+          vis.tunic.updateMatrixWorld(true);
+          const lp = vis.tunic.worldToLocal(palmPt(B, 'r')), k = ramp(D, V.tunicReach[1] - 0.02, V.tunicReach[1] + 0.08);
+          cl.movePin(1, vis.tc0.x + (lp.x - vis.tc0.x) * k, vis.tc0.y + (lp.y - vis.tc0.y) * k, vis.tc0.z + (lp.z - vis.tc0.z) * k);
+        } else if (out < 1) {   // unrolling: grows from her hand, its collar corner kept in the palm
           const sc = 0.25 + 0.75 * out;
           vis.tunic.scale.setScalar(sc);
           vis.tunic.position.copy(palmPt(B, 'r').sub(vis.tc0.clone().multiplyScalar(sc).applyQuaternion(vis.tunic.quaternion)));
@@ -1179,13 +1371,14 @@ function dressProps(rec, m, B, F, t, D, dt, ctx) {
           const lp = vis.tunic.worldToLocal(palmPt(B, 'l'));
           cl.movePin(5, lp.x, lp.y, lp.z);
         }
-        stepCloth(cl, vis.tunic, dt);
+        if (!vis.tunicReused) stepCloth(cl, vis.tunic, dt);   // (the line's own cloth: stepped by the wind tick)
       }
     }
-    bundleK = D < V.tunicReach[1] ? 1 : D < V.swap ? 0.75 : 0;
+    bundleK = line ? 0 : D < V.tunicReach[1] ? 1 : D < V.swap ? 0.75 : 0;
   } else if (rec.abort != null && t >= rec.abort) {
     const k = ramp(t, rec.abort, rec.abort + 0.2);
-    bundleK = 1 - k;
+    bundleK = line ? 0 : 1 - k;
+    if (line && k >= 0.9) for (const st of [vis.tk?.tunicSt, vis.tk?.trousersSt]) if (st?.mesh) st.mesh.visible = false;   // (in her kit)
     if (capObj) capObj.visible = k < 0.9;
   }
   if (bundleK > 0 || vis.bundle) {
@@ -1250,19 +1443,36 @@ export function dressMetrics(spy, line) {
     const worn = new Vector3().setFromMatrixPosition(wornCapMatrix(m, B));
     out.capToWorn = +wp(cap).distanceTo(worn).toFixed(4);
   }
-  for (const s of ['l', 'r']) {
-    const hd = v.hands?.[s];
-    if (hd && hd.pins != null && hd.pc.mesh.visible) {
-      const cl = hd.pc.cloth, k = hd.k;
-      const c = new Vector3(cl.x[k * 3], cl.x[k * 3 + 1], cl.x[k * 3 + 2]).applyMatrix4(hd.pc.mesh.matrixWorld);
-      out['corner_' + s] = +c.distanceTo(palmPt(B, s)).toFixed(4);
+  // the garments off the line: their held corners to her palms, their middle on her forearm, how high they hang
+  const K = v.tk, t = (spy.world?.time ?? 0) - rec.t0;
+  if (K && v.parts) {
+    const pinnedTo = (pc, k) => !!pc.cloth.pinned && Array.from(pc.cloth.pinned).includes(k);
+    for (const [n, st, corners] of [['tunic', K.tunicSt, K.tunic ? [[K.tunic.l, 'l'], [K.tunic.r, 'r']] : []], ['trousers', K.trousersSt, K.trousers ? [[K.trousers.k, 'r']] : []]]) {
+      const pc = v.parts[n];
+      if (!pc?.cloth || !st?.on || st.handed || !pc.mesh.visible) continue;
+      const g = (out.garments ||= {})[n] = { onLine: pc.mesh.parent === v.parts.uni };
+      for (const [k, s] of corners) if (pinnedTo(pc, k)) g['corner_' + s] = +clothPt(pc, k, new Vector3()).distanceTo(palmPt(B, s)).toFixed(4);
+      const row = Math.floor(pc.cloth.ny / 2) * pc.cloth.nx;
+      if (pinnedTo(pc, row)) {   // its middle on her forearm: the row's particles to the forearm segment
+        const e = wp(B.lowerarm_l), h = wp(B.hand_l), seg = h.clone().sub(e), l2 = seg.lengthSq();
+        let worst = 0;
+        for (let i = 0; i < pc.cloth.nx; i++) {
+          const q = clothPt(pc, row + i, new Vector3()), u = clamp(q.clone().sub(e).dot(seg) / l2, 0, 1);
+          worst = Math.max(worst, q.distanceTo(e.clone().addScaledVector(seg, u)));
+        }
+        g.forearm = +worst.toFixed(4);
+      }
+      // highest point of the cloth (world y) against the line's height: off the line = below it
+      let top = -Infinity; for (let i = 0; i < pc.cloth.nx; i++) top = Math.max(top, clothPt(pc, i, new Vector3()).y);
+      g.top = +top.toFixed(3);
     }
+    out.t = +t.toFixed(3);
   }
   if (v.flat && v.flat.visible) {   // her own cap in her hand: its centre to her palm
     const c = new THREE_REF.Box3().setFromObject(v.flat).getCenter(new Vector3());
     out.flatToPalm = +c.distanceTo(palmPt(B, 'r')).toFixed(4);
   }
-  if (v.tunic && v.tunic.visible) {
+  if (v.tunic && v.tunic.visible && v.tunicHeld) {   // (once its collar is in her hand: taken off her arm, it is drawn there first)
     const cl = v.tunic.userData.cloth;
     out.tunicCorner = +new Vector3(cl.x[3], cl.x[4], cl.x[5]).applyMatrix4(v.tunic.matrixWorld).distanceTo(palmPt(B, 'r')).toFixed(4);
   }

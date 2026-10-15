@@ -20,8 +20,10 @@ import { bodyGap, clearPose, hasObstacles, deadStance, STOP_MARGIN } from '../wo
  * @param {boolean} [o.interruptible=true]
  * @param {number} [o.t0=0] elapsed time to start from (save/load resume: steps already past are not re-run)
  * @param {() => object} [o.save] extra data a save keeps to resume this task (`def.resume`)
+ * @param {[string, number, number][]} [o.phases] named phases [[name, t0, t1], …] (s from the start; actionClock)
+ * @param {boolean} [o.present] a sequence worth watching to its end (the walkthrough director / AUTO: actionClock)
  */
-export function timedTask({ dur, steps = [], tick = null, onCancel = null, onEnd = null, interruptible = true, t0 = 0, save = null }) {
+export function timedTask({ dur, steps = [], tick = null, onCancel = null, onEnd = null, interruptible = true, t0 = 0, save = null, phases = null, present = false }) {
   let t = t0;
   const list = [...steps].sort((a, b) => a.at - b.at);
   let k = 0;
@@ -34,6 +36,10 @@ export function timedTask({ dur, steps = [], tick = null, onCancel = null, onEnd
   return {
     interruptible,
     get t() { return t; },
+    dur,
+    phases,
+    present,
+    get phase() { return phaseOf(phases, t); },
     saveData: save,
     update(dt) {
       if (finished) return 'done';
@@ -50,6 +56,33 @@ export function timedTask({ dur, steps = [], tick = null, onCancel = null, onEnd
       if (!finished) { finished = true; onCancel?.(); }
     },
   };
+}
+
+/** Name of the phase at `t` in [[name, t0, t1], …] (the last one once past its end), null without phases. */
+export function phaseOf(phases, t) {
+  if (!phases?.length) return null;
+  for (let i = 0; i < phases.length; i++) if (t < phases[i][2] - 1e-9) return phases[i][0];
+  return phases[phases.length - 1][0];
+}
+
+/**
+ * What a commando is doing, for the walkthrough director and AUTO (debug/walkthrough*.js, debug/auto-pace.js): the
+ * action's id, elapsed / total / remaining seconds of sim time, its current phase and whether it is a sequence worth
+ * watching to its end (`present`: the raft inflated or packed, the uniform taken off a line and put on). null when idle.
+ * Tasks without a known length report dur / left null. No allocation: one object per unit, refreshed in place.
+ * @returns {{id:string, t:number, dur:number|null, left:number|null, phase:string|null, present:boolean}|null}
+ */
+export function actionClock(u) {
+  const a = u?.currentAction;
+  if (!a) return null;
+  const o = (u._actionClock ||= { id: null, t: 0, dur: null, left: null, phase: null, present: false });
+  o.id = u.currentActionId ?? null;
+  o.t = Number.isFinite(a.t) ? a.t : 0;
+  o.dur = Number.isFinite(a.dur) ? a.dur : null;
+  o.left = o.dur != null ? Math.max(0, o.dur - o.t) : null;
+  o.phase = a.phase ?? null;
+  o.present = !!a.present;
+  return o;
 }
 
 /** An instantaneous task: runs fn once and finishes (fn false → failed). */

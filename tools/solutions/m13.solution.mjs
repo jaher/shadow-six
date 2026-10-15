@@ -591,6 +591,7 @@ export const STAGES = [
     await D.until(() => !dv.vehicle, 5, 'Marine out');
     D.ability('diver', 'hand', raft);
     await D.until(() => !D.world.vehicles.includes(raft) || raft.removed, 10, 'raft packed');
+    await D.until(() => !dv.currentAction, 3, 'the pack on his back'); // (folded and shouldered: abilities/raft-actions.js)
     D.order('diver', { type: 'move', x: JETTY_SPOTS.diver[0], z: JETTY_SPOTS.diver[1] });
     await D.until(() => Object.entries(JETTY_SPOTS).every(([r, [x, z]]) => Math.hypot(D.c(r).x - x, D.c(r).z - z) < 0.8 && !D.c(r).path), 40, 'everyone on the jetty');
     for (const r of Object.keys(JETTY_SPOTS)) D.order(r, { type: 'stance', stance: 'crawl' });
@@ -659,6 +660,7 @@ export const STAGES = [
     await D.until(() => !dv.vehicle, 5, 'Marine out');
     D.ability('diver', 'hand', raft);
     await D.until(() => !D.world.vehicles.includes(raft) || raft.removed, 10, 'raft packed');
+    await D.until(() => !dv.currentAction, 3, 'the pack on his back'); // (folded and shouldered: abilities/raft-actions.js)
     D.ability('diver', 'dive');
     await D.until(() => dv.underwater, 5, 'gear on');
     for (const r of crew) await crawl(D, r, ...GARAGE_SPOTS[r], { box: 8 });

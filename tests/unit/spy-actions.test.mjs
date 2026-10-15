@@ -8,12 +8,14 @@
  *    where he stood, she steps back 0.7 m; front: 0.3 m back), interruptible from hit + 0.15 s, silent, his cry muffled;
  *    no room: the classic jab (0.9 s, kill at 0.5 s)
  *  - uniform: the clothesline layout (the officer's cap between the tunic and the trousers); she walks to the spot in
- *    front of it, takes it (the uniform in her kit at 1.05 s), steps behind the laundry, is dressed at the swap; watched:
- *    the uniform in her kit, no dressing; U from the kit: dressed at 1.06 s, ends 1.58 s
+ *    front of the tunic, side-steps to the trousers, takes it (the uniform in her kit at 2.75 s; user 2026-10-14
+ *    "animate better how the spy grabs the clothes"), steps behind the laundry, is dressed at the swap; watched: the
+ *    uniform in her kit, no dressing; U from the kit: dressed at 1.06 s, ends 1.58 s
  *  - poses on the real bodies (the Spy and a German rifleman GLB in node): the needle point at the carotid point (12 mm
  *    in), her palm on his mouth, chest on his back, the plunger pressed, his corpse pose reached before the settle
- *    ragdoll; the garments' corners in her palms, the line emptied piece by piece, the cap seated where the outfit's cap
- *    sits, the tunic's collar in her hand
+ *    ragdoll; the tunic's corners in her palms, lifted off the line and over her forearm, the cap into her hands, the
+ *    trousers' corner in her right hand and on her forearm, the line emptied piece by piece, the cap seated where the
+ *    outfit's cap sits, the tunic's collar in her hand
  */
 import { test, assert, near } from './lib.mjs';
 import * as THREE from 'three';
@@ -158,29 +160,35 @@ function lineSim(spyAt = [10, 13.2], enemies = []) {
   return { s, spy: s.cmd('spy'), line: s.get('cl') };
 }
 
-test('clothesline: she walks to the cap\'s spot, takes the uniform (1.05 s), steps behind the laundry, is dressed at the swap', () => {
+test('clothesline: she walks up to the tunic, side-steps to the trousers, takes the uniform (2.75 s), steps behind the laundry, is dressed at the swap', () => {
+  // (user 2026-10-14 "animate better how the spy grabs the clothes": the take slowed to read at 1x, one garment at a time)
   const { s, spy, line } = lineSim();
   const take = takeSpot(s.world, spy, line);
   const F = lineFrame(line);
-  near(Math.hypot(take.x - (F.x + F.ax * LAUNDRY.cap + F.nx * LAUNDRY.standOff), take.z - (F.z + F.az * LAUNDRY.cap + F.nz * LAUNDRY.standOff)), 0, 1e-9, 'in front of the cap, her side');
-  let start = null, end = null, taken = null, dressed = null;
+  const lp = (lx) => ({ x: F.x + F.ax * lx + F.nx * LAUNDRY.standOff, z: F.z + F.az * lx + F.nz * LAUNDRY.standOff });
+  near(Math.hypot(take.x - lp(LAUNDRY.tunic).x, take.z - lp(LAUNDRY.tunic).z), 0, 1e-9, 'in front of the tunic, her side');
+  assert.ok(take.b && Math.hypot(take.b.x - lp(LAUNDRY.trousers).x, take.b.z - lp(LAUNDRY.trousers).z) < 1e-9, 'then in front of the trousers');
+  let start = null, end = null, taken = null, dressed = null, atB = null;
   s.world.events.on('ability:start', (p) => { if (p.id === 'use') start ??= s.world.time; });
   s.world.events.on('ability:end', (p) => { if (p.id === 'use') end ??= s.world.time; });
   assert.ok(spy.issue({ type: 'ability', id: 'use', target: line }));
-  for (let i = 0; i < 60 * 10 && end == null; i++) {
+  for (let i = 0; i < 60 * 12 && end == null; i++) {
     s.step();
     if (taken == null && line.count === 0) taken = s.world.time;
     if (dressed == null && spy.disguised) dressed = s.world.time;
+    if (start != null && atB == null && s.world.time - start >= DRESS.sideStep[1] + 0.05) atB = { x: spy.x, z: spy.z };
   }
   const rec = s.world.spyActs[0], T = rec.T;
   assert.ok(Math.hypot(rec.plan.from.x - take.x, rec.plan.from.z - take.z) <= 0.45 + 1e-6, 'walked up to the spot');
-  near(taken - start, DRESS.take, 1 / 60 + 1e-9, 'the uniform off the line at 1.05 s');
+  assert.ok(Math.hypot(atB.x - take.b.x, atB.z - take.b.z) < 1e-6, 'side-stepped to the trousers');
+  near(taken - start, DRESS.take, 1 / 60 + 1e-9, `the uniform off the line at ${DRESS.take} s`);
+  assert.ok(DRESS.take >= 2 && DRESS.take <= 3, 'a 2–3 s take');
   assert.ok(rec.plan.cover, 'a spot behind the laundry');
   near(T.d0, DRESS.take + T.step, 1e-9);
   assert.ok(T.step >= DRESS.step[0] - 1e-9 && T.step <= DRESS.step[1] + 1e-9, `the step ${T.step.toFixed(2)} s`);
-  near(dressed - start, T.swap, 2 / 60 + 1e-9, `dressed at the swap (${T.swap.toFixed(2)} s; before: 1.5 s)`);
+  near(dressed - start, T.swap, 2 / 60 + 1e-9, `dressed at the swap (${T.swap.toFixed(2)} s)`);
   near(end - start, T.dur, 2 / 60 + 1e-9, `the action ${T.dur.toFixed(2)} s`);
-  assert.ok(T.swap <= 2.5 && T.dur <= 3.2, 'close to the old 1.5 s');
+  assert.ok(T.dur <= 5, 'under 5 s in all');
   near(Math.hypot(spy.x - rec.plan.cover.x, spy.z - rec.plan.cover.z), 0, 1e-6, 'dressed behind the laundry');
   assert.ok(!spy.has('uniform') && spy.disguised, 'wearing it');
   assert.equal(line.count, 0);
@@ -206,8 +214,26 @@ test('clothesline: watched when she has taken it → the uniform in her kit, no 
   s.run(1);
   assert.ok(!spy.disguised && spy.has('uniform'), 'the uniform in her kit, not on her');
   assert.equal(line.count, 0, 'the line is bare');
-  assert.ok(Math.hypot(spy.x - take.x, spy.z - take.z) < 1e-6, 'no step behind the laundry');
+  const o = take.b || take;
+  assert.ok(Math.hypot(spy.x - o.x, spy.z - o.z) < 1e-6, 'no step behind the laundry (where she took the trousers)');
   void start;
+});
+
+test('clothesline: lying by it she gets up first, then the whole take and the dressing (not the 1.5 s take lying down)', () => {
+  const { s, spy, line } = lineSim();
+  spy.setStance('crawl'); s.run(1);
+  assert.equal(spy.stance, 'crawl');
+  let start = null, end = null, dressed = null;
+  s.world.events.on('ability:start', (p) => { if (p.id === 'use') start ??= s.world.time; });
+  s.world.events.on('ability:end', (p) => { if (p.id === 'use') end ??= s.world.time; });
+  assert.ok(spy.issue({ type: 'ability', id: 'use', target: line }));
+  for (let i = 0; i < 60 * 14 && end == null; i++) { s.step(); if (dressed == null && spy.disguised) dressed = s.world.time; }
+  const rec = s.world.spyActs[0], up = CONFIG.units.stanceUp;
+  assert.equal(spy.stance, 'stand', 'on her feet');
+  assert.ok(rec && rec.mode === 'line' && rec.afterStand, 'the clothesline take (drawn from the pose she got up in)');
+  near(end - start, up + rec.T.dur, 2 / 60 + 1e-9, `up ${up} s + the take and dressing ${rec.T.dur.toFixed(2)} s`);
+  near(dressed - start, up + rec.T.swap, 2 / 60 + 1e-9, 'dressed at the swap');
+  assert.ok(spy.disguised && line.count === 0);
 });
 
 test('U from the kit: dressed at 1.06 s (unwatched), the action 1.58 s; watched: refused as before', () => {
@@ -375,15 +401,22 @@ test('poses (real bodies): the garments come off the line one by one into her ha
     if (start != null && !s.world.spyActs?.length) break;
   }
   const at = (t) => log.find((q) => q.t >= t - 1e-6);
-  const before = at(0.1), first = at(VD.peg2 + 0.02), pulled = at(VD.peg2 + VD.leftLag + 0.02), rolled = at(VD.roll[1] + 0.05), capped = at(VD.capGrab + 0.1);
+  const G = (q, n) => q?.garments?.[n] || {};
+  const before = at(0.1), grab = at(VD.grab + 0.05), lifted = at(VD.lift[1]), draped = at(VD.drape[1] + 0.1), capped = at(VD.capGrab + 0.1);
+  const tPulled = at(VD.tPegs[2] + 0.04), tDraped = at(VD.tDrape[1]);
   assert.ok(before.onLine.tunic && before.onLine.trousers && before.onLine.cap, 'all on the line at first');
-  console.log(`  clothesline: corners in the palms ${pulled.corner_l} / ${pulled.corner_r} m; cap ${capped.capParent} (${capped.capToPalm} m from the palm)`);
-  assert.ok(pulled.corner_l <= 0.02 && pulled.corner_r <= 0.02, 'each garment pinched in a hand (≤ 2 cm)');
-  assert.equal([first.onLine.tunic, first.onLine.trousers].filter(Boolean).length, 1, 'one garment off its pegs, the other still pegged');
-  assert.ok(!pulled.onLine.tunic && !pulled.onLine.trousers && pulled.onLine.cap, 'then the other; the cap still hangs');
-  assert.ok(rolled.bundle, 'rolled under her arm');
+  console.log(`  clothesline: tunic corners in the palms ${G(grab, 'tunic').corner_l} / ${G(grab, 'tunic').corner_r} m, lifted ${G(lifted, 'tunic').corner_l} / ${G(lifted, 'tunic').corner_r} m, on the forearm ${G(draped, 'tunic').forearm} m; trousers' corner ${G(tPulled, 'trousers').corner_r} m; cap ${capped.capParent} (${capped.capToPalm} m from the palm)`);
+  assert.ok(G(grab, 'tunic').corner_l <= 0.02 && G(grab, 'tunic').corner_r <= 0.02, 'both hands on the tunic\'s shoulder corners (≤ 2 cm)');
+  assert.ok(grab.onLine.trousers && grab.onLine.cap, 'the trousers and the cap still on the line');
+  assert.ok(G(lifted, 'tunic').corner_l <= 0.02 && G(lifted, 'tunic').corner_r <= 0.02, 'lifted off the line in her hands');
+  // (the cloth hanging off the line below her hands is stepped by the wind tick, which node does not run: the browser
+  // test spy-actions.test.mjs checks the whole tunic is off the line)
+  assert.ok(G(draped, 'tunic').forearm <= 0.06, `folded over her left forearm (${G(draped, 'tunic').forearm} m from its axis)`);
   assert.equal(capped.capParent, 'hand_r', 'the cap off its peg in her right hand');
   assert.ok(capped.capToPalm <= 0.16, 'in her fist (cap origin at its band)');
+  assert.equal(at(VD.capHand + 0.05).capParent, 'hand_l', '…then in her left');
+  assert.ok(G(tPulled, 'trousers').corner_r <= 0.02, 'the trousers by their corner in her right hand, off their pegs');
+  assert.ok(G(tDraped, 'trousers').forearm <= 0.095, 'laid over her forearm on the tunic');
   // the cap seated exactly where the outfit's own cap sits, then that one shows; the tunic's collar in her hand
   const seat = log.filter((q) => q.capToWorn != null).map((q) => q.capToWorn);
   assert.ok(Math.min(...seat) <= 0.01, `the cap seated on her head (${Math.min(...seat).toFixed(4)} m from the worn cap)`);

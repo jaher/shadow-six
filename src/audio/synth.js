@@ -62,6 +62,14 @@ const RECIPES = {
   splash_small: (sr, s) => render(sr, 0.25, (t, i, r) => r() * dec(t, 18), { seed: s, lp: 3000, hp: 400 }),
   bubbles: (sr, s) => render(sr, 1.0, (t) => Math.sin(TAU * (300 + 400 * ((t * 7) % 1)) * t) * (0.5 + 0.5 * Math.sin(TAU * 7 * t)) * loopFade(t, 1)),
   hiss: (sr, s) => render(sr, 0.6, (t, i, r) => r() * att(t, 0.02) * dec(t, 3), { seed: s, hp: 3000 }),
+  // the raft's CO2 inflation: the cord's click, then the gas rushing in — a loud, bright hiss that darkens and thins as
+  // the chambers fill and the pressure evens out, stopping with the last chamber (2.2 s)
+  hiss_fill: (sr, s) => render(sr, 2.2, (t, i, r) => (t < 0.02 ? Math.sin(TAU * 1900 * t) * 0.8 : 0)
+    + r() * att(t, 0.03) * (0.55 + 0.45 * dec(t, 1.2)) * Math.min(1, (2.2 - t) / 0.25) * (1 + 0.12 * Math.sin(TAU * 7 * t)),
+  { seed: s, lp: (t) => 9000 - 3800 * Math.min(1, t / 2), hp: 1200 }),
+  // the valve opened: air venting from the tubes, strong at first, falling off with a rubbery flutter as they sag (1.3 s)
+  hiss_vent: (sr, s) => render(sr, 1.3, (t, i, r) => r() * att(t, 0.05) * dec(t, 1.6) * (0.75 + 0.25 * Math.sin(TAU * (31 - 12 * t) * t)) * Math.min(1, (1.3 - t) / 0.2),
+    { seed: s, lp: (t) => 6500 - 3500 * Math.min(1, t / 1.3), hp: 700 }),
   stab: (sr, s) => render(sr, 0.15, (t, i, r) => (r() * 0.5 + Math.sin(TAU * 180 * t)) * dec(t, 30), { seed: s, lp: 2000 }),
   shot: (sr, s) => render(sr, 0.4, (t, i, r) => r() * (t < 0.004 ? 1 : dec(t, 16)), { seed: s, lp: (t) => 9000 * dec(t, 10) + 500 }),
   shot_big: (sr, s) => render(sr, 1.0, (t, i, r) => r() * (t < 0.006 ? 1 : dec(t, 6)) + (t > 0.15 ? 0.25 * r() * dec(t - 0.15, 5) : 0), { seed: s, lp: (t) => 8000 * dec(t, 6) + 300 }),

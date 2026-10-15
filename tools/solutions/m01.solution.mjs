@@ -52,7 +52,9 @@ const RAFT_WAIT = [6, 81]; // the fjord's west side behind the islets, 39 m from
 // the dash to the beach: up the fjord's west edge, round the far side of the MG's traverse (e13 never looks that far
 // west), and in to the landing
 const DASH = [[1, 64], [1, 53], LANDING_RAFT];
-const LAND_HOLD = 5.5; // s the raft lies at the beach: both men out, the Marine packs it (2 s)
+// s the raft lies at the beach: both men out, the Marine packs it (2 s; the fold after it, abilities/raft-actions.js,
+// is cut short: the beach gap leaves no time for it, he dives with the pack at once)
+const LAND_HOLD = 5.5;
 const DIG = [9.5, 43.1]; // a few metres west of e4's west halt, in the snow above the beach: the GB digs in here
 const SHELTER = [17.5, 38]; // a hollow west of the MG nest, between e4's beach and p3's path
 const CAMP_CRAWL = [[19.8, 36.3], [23, 35], [22.8, 30], [21.8, 26.5]]; // across p3's path, round the drums
@@ -146,7 +148,9 @@ export const STAGES = [
     D.ability('diver', 'dive'); // gear off
     await D.until(() => !dv.diving && !dv.currentAction, 5, 'Marine surfaced');
     D.ability('diver', 'hand', raft);
-    await D.until(() => dv.has('inflatableBoat') && !dv.currentAction, 8, 'raft packed');
+    // (in his kit at 2 s: no time to fold it here before the MG sweeps back — he swims off at once, the pack going
+    // straight onto his back: the fold cut short, art/raft-actions.js)
+    await D.until(() => dv.has('inflatableBoat'), 8, 'raft packed');
     D.order('diver', { type: 'move', x: PACK_EXIT[0], z: PACK_EXIT[1] });
     await D.until(() => dv.stance === 'swim', 5, 'Marine swimming');
     D.checkpoint('C2 raft packed, Marine swimming');
@@ -209,7 +213,7 @@ export const STAGES = [
     await D.until(() => !gb.path && !gb.isMoving, 5, 'GB on the bank');
     await D.stance('greenberet', 'crawl');
     D.order('greenberet', { type: 'move', x: DIG[0], z: DIG[1] });
-    await D.until(() => dv.has('inflatableBoat') && !dv.currentAction, 8, 'raft packed');
+    await D.until(() => dv.has('inflatableBoat'), 8, 'raft packed');
     D.ability('diver', 'dive');
     await D.until(() => dv.underwater && !dv.currentAction, 5, 'Marine under water');
     await D.until(() => !gb.path && !gb.isMoving, 15, 'GB at his dig');

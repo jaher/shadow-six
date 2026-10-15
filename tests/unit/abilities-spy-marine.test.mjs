@@ -1,6 +1,7 @@
 /** ABILITIES: Marine, Spy, interactables, guests and §3.8 loadouts. */
 import { test, assert, near } from './lib.mjs';
 import { makeSim, guard } from './abilsim.mjs';
+import { CONFIG } from '../../src/config.js';
 import { canSee } from '../../src/ai/perception.js';
 import { belLoadout, BEL_LOADOUTS, spawnInventory, firstAidCarrier, canPickUp } from '../../src/items.js';
 
@@ -36,7 +37,7 @@ test('diving gear: only in shallow water; submerged = invisible except to witnes
   assert.ok(!d.diving && !d.underwater && d.stance === 'stand');
 });
 
-test('raft: T inflates it on the bank at the water\'s edge (2.0 s), in the water beside him, and he boards; H packs it (2.0 s); packed raft slows him', () => {
+test('raft: T inflates it on the bank at the water\'s edge (4.0 s), in the water beside him, and he boards; H packs it (in his kit at 2.0 s, folded and shouldered by 3.6 s); packed raft slows him', () => {
   const s = makeSim({ ...RIVER, commandos: [{ role: 'diver', x: 30, z: 10, inventory: { inflatableBoat: 1 } }] });
   const d = s.cmd('diver');
   near(d.speed, 2.25 - 0.9, 1e-9, 'walk 1.35 with the packed raft');
@@ -44,7 +45,9 @@ test('raft: T inflates it on the bank at the water\'s edge (2.0 s), in the water
   assert.equal(d.lastRefusal?.text, "Only at the water's edge.");
   d.setPosition(36.2, 10, 0); // on the bank, the shallows from 36.5
   assert.ok(d.issue({ type: 'ability', id: 'raft', target: d }));
-  s.run(2.1);
+  s.run(CONFIG.abilities.raftDeploy - 0.1);
+  assert.ok(!s.world.vehicles.some((v) => v.vehicleType === 'raft') && d.currentActionId === 'raft', 'still inflating it');
+  s.run(0.2);
   const raft = s.world.vehicles.find((v) => v.vehicleType === 'raft');
   assert.ok(raft && raft.occupants.includes(d) && raft.operator === d);
   assert.ok(!d.has('inflatableBoat'));
@@ -53,9 +56,15 @@ test('raft: T inflates it on the bank at the water\'s edge (2.0 s), in the water
   assert.ok(raft.x > 36.5 + 0.4, 'out in the water off the bank');
   assert.ok(d.issue({ type: 'exit' }));
   d.setPosition(36.9, 12);
+  let t0 = null;
+  s.world.events.on('ability:start', (e) => { if (e.id === 'hand') t0 ??= s.world.time; });
   assert.ok(d.issue({ type: 'ability', id: 'hand', target: raft }));
   s.run(5, () => raft.removed);
   assert.ok(d.has('inflatableBoat') && raft.removed, 'packed');
+  near(s.world.time - t0, CONFIG.abilities.raftPack, 0.05, 'in his kit at raftPack (2.0 s), as before');
+  assert.equal(d.currentActionId, 'hand', 'then folding and shouldering it');
+  s.run(CONFIG.abilities.raftFold + 0.1);
+  assert.equal(d.currentAction, null, `done at ${CONFIG.abilities.raftPack + CONFIG.abilities.raftFold} s`);
 });
 
 test('raft ordered from the water: he swims / wades out onto the bank, stands there, then inflates it into the water beside him', () => {
@@ -147,7 +156,8 @@ test('clothesline: the Spy takes the uniform (1.5 s) and is dressed at once', ()
   assert.ok(!spy.abilities.includes('uniform'));
   assert.equal(s.cmd('greenberet').issue({ type: 'ability', id: 'use', target: s.get('cl') }), false);
   spy.issue({ type: 'ability', id: 'use', target: s.get('cl') });
-  s.run(3);
+  // (2026-10-14: the uniform off the line piece by piece, 2.75 s, then behind the laundry and dressed)
+  s.run(8, () => spy.disguised);
   assert.ok(spy.disguised);
 });
 
@@ -158,8 +168,8 @@ test('clothesline: an items[] uniform with variant clothesline becomes the devic
   assert.equal(line.interactKind, 'clothesline');
   assert.ok(spy.issue({ type: 'ability', id: 'use', target: line }), 'use accepted');
   s.run(1.3);
-  assert.ok(!spy.disguised, 'still taking it (1.5 s activation)');
-  s.run(1.5);
+  assert.ok(!spy.disguised, 'still taking it off the line');
+  s.run(8, () => spy.disguised);
   assert.ok(spy.disguised && !spy.has('uniform'), 'dressed at once, nothing left in the knapsack');
   assert.equal(line.count, 0);
 });

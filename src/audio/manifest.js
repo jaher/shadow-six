@@ -31,7 +31,11 @@ const ROWS = [
   [['dive_bubbles'], 'sfx', 'bubbles', 0.5],
   [['underwater_loop'], 'sfx', 'bubbles', 0.35, { loop: true }],
   [['row_stroke'], 'sfx', 'splash_small', 0.4],
-  [['raft_inflate', 'raft_deflate', 'raft_hit_hiss'], 'sfx', 'hiss', 0.45],
+  // the raft (abilities/raft-actions.js 'raft:hiss'): the CO2 bottle's rush into the chambers (2.2 s), the valve venting
+  // as the tubes collapse (1.3 s); a bullet through a tube: the short hiss
+  [['raft_inflate'], 'sfx', 'hiss_fill', 0.5],
+  [['raft_deflate'], 'sfx', 'hiss_vent', 0.45],
+  [['raft_hit_hiss'], 'sfx', 'hiss', 0.45],
   // Weapons
   [['knife_stab', 'syringe', 'cutters_snip'], 'sfx', 'stab', 0.5],
   [['pistol_shot'], 'sfx', 'shot', 0.8],

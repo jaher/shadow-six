@@ -4,10 +4,11 @@
  *   dive  D  diving gear on/off (1.5 s). Only in SHALLOW water or aboard a boat. Submerged (`underwater`) he is
  *            invisible except to witnesses (enemies whose cone held him as he went under keep him, near band).
  *            He moves through WATER/SHALLOW only (1.8 m/s); gear off only in shallow water.
- *   raft  T  inflates the raft (2.0 s) standing on dry ground at the water's edge, puts it in the water beside him as a
- *            `raft` vehicle (VEHICLES API) and boards it; ordered from the water he first makes for the nearest bank he
- *            can launch it from and climbs out (gear on: off in the shallows there first). Only he rows it (§3.7
- *            operator rules in shared.js `board`).
+ *   raft  T  inflates the raft (4.0 s: kneeling, the pack spread over the water, the CO2 cord, the chambers filling,
+ *            the valve shut — abilities/raft-actions.js) standing on dry ground at the water's edge, puts it in the water
+ *            beside him as a `raft` vehicle (VEHICLES API) and boards it; ordered from the water he first makes for the
+ *            nearest bank he can launch it from and climbs out (gear on: off in the shallows there first). Only he rows
+ *            it (§3.7 operator rules in shared.js `board`).
  * @module abilities/marine
  */
 
@@ -16,6 +17,7 @@ import { CONFIG } from '../config.js';
 import { timedTask, freeToAct, inShallow } from './common.js';
 import { T } from '../world/grid.js';
 import { recordWitnesses } from './system.js';
+import { RAFT, raftTimes, pushRaftAct } from './raft-actions.js';
 
 const A = CONFIG.abilities;
 
@@ -237,16 +239,35 @@ registerAbility({
     if (world.grid && (!st || Math.hypot(st.x - c.x, st.z - c.z) > 0.5)) return null;   // (not on the bank: canUse refused)
     const L = st?.launch || { x: c.x, z: c.z, heading: c.heading };
     c.faceTowards?.(L.x, L.z);
-    c.playAction('use', A.raftDeploy);
-    return timedTask({ dur: A.raftDeploy, steps: [{ at: A.raftDeploy, fn: () => {
-      if (!c.has('inflatableBoat')) return false;
-      c.loseItem('inflatableBoat');
-      const raft = world.spawnVehicle('raft', { x: L.x, z: L.z, heading: L.heading });
-      raft.deployedBy = c;
-      raft.used = true; // §3.4: an unattended raft that has been used is suspicious to enemies
-      raft.enter(c);   // he steps in from the bank (boardFrom: art/boat-crew.js)
-      world.events.emit('unit:water', { unit: c, what: 'row' });
-      return true;
-    } }] });
+    // user 2026-10-14 "when the raft is inflated it should be very clear it gets inflated" (abilities/raft-actions.js):
+    // the pack spread out over the water, the CO2 cord, the chambers filling (drawn by art/raft-actions.js)
+    const T = raftTimes('deploy');
+    const rec = pushRaftAct(world, { kind: 'inflate', a: c, L: { x: L.x, z: L.z, heading: L.heading }, from: { x: c.x, z: c.z, h: Math.atan2(L.z - c.z, L.x - c.x) },
+      T, t0: world.time + CONFIG.sim.dt });
+    c.playAction('use', T.dur);
+    return timedTask({
+      dur: T.dur, phases: T.phases, present: true,
+      onCancel: () => { rec.cancelled = world.time; },
+      onEnd: (r) => { rec.ended = world.time; rec.result = r; },
+      steps: [
+        { at: RAFT.deploy.pull, fn: () => { // the CO2 cord: the hiss as the gas goes in
+          world.events.emit('raft:hiss', { unit: c, x: L.x, z: L.z, kind: 'inflate', dur: RAFT.deploy.full - RAFT.deploy.pull });
+          return true;
+        } },
+        { at: T.dur, fn: () => {
+          if (!c.has('inflatableBoat')) return false;
+          c.loseItem('inflatableBoat');
+          // the hull drawn inflating (if any: visual only) becomes the raft's model — no swap, no pop
+          const model = typeof rec.handoff === 'function' ? rec.handoff() : null;
+          const raft = world.spawnVehicle('raft', { x: L.x, z: L.z, heading: L.heading, ...(model ? { model } : null) });
+          rec.raft = raft;
+          raft.deployedBy = c;
+          raft.used = true; // §3.4: an unattended raft that has been used is suspicious to enemies
+          raft.enter(c);   // he steps in from the bank (boardFrom: art/boat-crew.js)
+          world.events.emit('unit:water', { unit: c, what: 'row' });
+          return true;
+        } },
+      ],
+    });
   },
 });

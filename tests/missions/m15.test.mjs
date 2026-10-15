@@ -366,9 +366,16 @@ test('m15: the Spy takes the uniform where the rack is drawn (visualAt / visualR
   const take = takeSpot(world, { x: spec.x, z: spec.z }, line);
   assert.ok(take, 'a take spot');
   assert.equal(+g.elevAt(take.x, take.z).toFixed(2), LEVEL.B, 'on the balcony');
-  // in front of the cap, standOff off the drawn line, facing it
+  // in front of the tunic (2026-10-14: she takes it with both hands, then side-steps to the trousers; no room for that:
+  // in front of the cap, as before), standOff off the drawn line, facing it
   const lx = (take.x - F.x) * F.ax + (take.z - F.z) * F.az, lz = (take.x - F.x) * F.nx + (take.z - F.z) * F.nz;
-  assert.ok(Math.abs(lx - LAUNDRY.cap) < 1e-6 && Math.abs(Math.abs(lz) - LAUNDRY.standOff) < 1e-6, `line-local ${lx.toFixed(2)}, ${lz.toFixed(2)}`);
+  const want = take.single ? LAUNDRY.cap : LAUNDRY.tunic;
+  assert.ok(Math.abs(lx - want) < 1e-6 && Math.abs(Math.abs(lz) - LAUNDRY.standOff) < 1e-6, `line-local ${lx.toFixed(2)}, ${lz.toFixed(2)}`);
+  if (take.b) {
+    const bx = (take.b.x - F.x) * F.ax + (take.b.z - F.z) * F.az;
+    assert.ok(Math.abs(bx - LAUNDRY.trousers) < 1e-6, 'the side-step to the trousers');
+    assert.equal(+g.elevAt(take.b.x, take.b.z).toFixed(2), LEVEL.B, '…on the balcony');
+  }
   const cover = coverSpot(world, take, line);
   if (cover) assert.equal(+g.elevAt(cover.x, cover.z).toFixed(2), LEVEL.B, 'dresses on the balcony');
   assert.ok(spy, 'the Spy is in the mission');

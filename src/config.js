@@ -361,7 +361,10 @@ export const CONFIG = {
     // at `snips` (s into the cut; the first one finds out whether the wire is live), stands up over `stand` for the top
     // ones, and pulls the flaps aside from `peel`
     cutHole: { w: 1.0, h: 1.95, y0: 0, standoff: 0.6, snips: [0.6, 0.95, 1.55, 1.85, 2.15], stand: [1.05, 1.4], peel: 2.45, postClear: 0.6 },
-    raftDeploy: 2.0, // §3.3
+    // §3.3 2.0 s; user 2026-10-14 "when the raft is inflated it should be very clear it gets inflated": he kneels, the
+    // pack out and spread over the water, the CO2 cord, 2.2 s of the chambers filling, the valve shut
+    // (abilities/raft-actions.js RAFT.deploy); the raft in the water and him aboard at the end, as before
+    raftDeploy: 4.0,
     dive: 1.5, // §3.3 diving gear on/off
     uniform: 1.5, // §3.3 Spy re-dress
     distractRange: 1.5, // §3.3 Spy walks to within 1.5 m
@@ -393,7 +396,10 @@ export const CONFIG = {
     phoneRing: 10, // phone rings for 10 s of phone-noise pulses (lure) [rec]
     surfaceTime: 0.6, // §3.4 Marine surfaces 0.6 s to knife from the water
     shoreReach: 1.2, // §3.4 knife from the water: enemy within 1.2 m of the shoreline
-    raftPack: 2.0, // §3.4 H on the raft: deflate and pack 2.0 s
+    raftPack: 2.0, // §3.4 H on the raft: deflate and pack 2.0 s (the raft leaves the sim then, in his kit)
+    // …then he folds the flat hull, gathers it into a pack and shoulders it (user 2026-10-14 "the marine very quickly
+    // deflated and folds the raft": abilities/raft-actions.js RAFT.pack), interruptible
+    raftFold: 1.6,
     grenadeSelf: true, // §3.4 friendly fire on (thrower included)
     electricDmg: 20, // §3.4 live electric fence: 20 damage, cut fails
     doorWatch: 6, // §3.2 an enemy who saw a man enter a door looks around it for 6 s
