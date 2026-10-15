@@ -24,6 +24,7 @@
 import { UBOATS, hullPoint, nearUboatHull, inMarker, afloat, chargesLeft, spawnVillageOfficer } from './scripts/m07.js';
 import { joinStructures } from './schema.js';
 import { installM07Art } from './scripts/m07-art.js';
+import { bombedRuin } from './scripts/bombed-ruin.js';
 
 const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (enemy-brain reads wp.look * DEG)
@@ -69,23 +70,8 @@ const wall = (id, points, extra = {}) => ({ id, type: 'wall', variant: 'wall_sto
 const house = (id, x, z, w, d, h, door, variant = 'house_norse_fishing') =>
   ({ id, type: 'house', variant, x, z, rot: 0, w, d, h, mat: 'woodDark', snowRoof: true, enterable: true, door });
 const pine = (x, z, k) => ({ type: 'pine', x, z, r: 0.5, h: 9 + (k % 6), seed: 701 + k });
-/**
- * The bombed brick houses of the ruins field (T9): the library's house_bombed_b (roofless two-storey shells, one corner
- * breached, rubble spilling out), drawn at its 0.72 plan fit (a 7.9 × 5.8 m shell, walls ~7 m) as before the art pass.
- * Gameplay follows the drawn model (`navParts`, the sidecar's own parts in the ruin's frame; +z = S): the shell walls
- * are B.HIGH (they hide a standing man and stop sight, h 7), the breached corner and the two rubble spills B.LOW (crawl
- * cover, see-through), and the shell's inside is the heap of the fallen storeys (B.LOW, closed off). The low parts
- * come first: the walls are stamped over them. `nav: false`: none of the sidecar's upper floors, stair ladders or
- * climb edges (the browser and the grid-only builds see the same ruins).
- */
-const RUIN_NAV = [
-  { x: 0, z: 0, w: 7.128, d: 4.968, block: 1 },                                                                    // the fallen storeys inside the shell
-  { x: 2.628, z: 2.682, w: 2.232, d: 0.54, block: 1 },                                                             // the breach (fallen brick)
-  { x: 2.232, z: 3.96, w: 2.534, d: 2.534, block: 1 }, { x: 0.432, z: -3.744, w: 1.958, d: 1.958, block: 1 },     // rubble spills S and N
-  { x: -1.224, z: 2.682, w: 5.472, d: 0.396, block: 2 }, { x: 3.852, z: 2.682, w: 0.216, d: 0.396, block: 2 },  // S wall, either side of the breach
-  { x: 3.762, z: 0, w: 0.396, d: 5.76, block: 2 }, { x: 0, z: -2.682, w: 7.92, d: 0.396, block: 2 }, { x: -3.762, z: 0, w: 0.396, d: 5.76, block: 2 }, // E, N, W
-];
-const ruin = (id, x, z, rot = 0) => ({ id, type: 'ruins', variant: 'bombed_brick', asset: 'house_bombed_b', x, z, rot: deg(rot), w: 5, d: 4, h: 7, block: 0, nav: false, navParts: RUIN_NAV });
+/** The bombed brick houses of the ruins field (T9): scripts/bombed-ruin.js (gameplay = the drawn shell). */
+const ruin = (id, x, z, rot = 0) => bombedRuin(id, x, z, deg(rot));
 /** Art pass: moored = the library motor fishing cutter, beached = the faering rowing boat (oars shipped, some keel-up). */
 const boat = (id, x, z, rot, variant = 'boat_moored', block = 2) => ({ id, type: 'crates', variant, x, z, rot: deg(rot), w: /moored/.test(variant) ? 9 : 4, d: /moored/.test(variant) ? 3 : 1.8, h: 1.4, block,
   vehicleArt: /moored/.test(variant) ? 'fishing_boat' : 'rowboat', ...(/moored/.test(variant) ? { vehicleArtFit: 1 } : { vehicleArtHide: ['oar_l', 'oar_r'], ...(/overturned/.test(variant) ? {} : { vehicleArtY: 0.22 }) }) });

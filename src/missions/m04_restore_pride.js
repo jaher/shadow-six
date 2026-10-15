@@ -21,6 +21,7 @@
  */
 
 import { m04Script, TRUCK_STOPS } from './scripts/m04.js';
+import { bombedRuin } from './scripts/bombed-ruin.js';
 
 const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (enemy-brain reads wp.look * DEG)
@@ -230,10 +231,11 @@ const NE_BANK = [
   { id: 'rocks_x1', type: 'rocks', x: 163, z: 94.5, rot: 0, w: 7, d: 7, h: 3.5 }, // 2 m NE of the fan map: e36 passes clear of the train
   { id: 'rocks_x2', type: 'rocks', x: 151, z: 116, rot: 0, w: 10, d: 10, h: 4 },
   { id: 'rocks_x3', type: 'rocks', x: 186, z: 90, rot: 0, w: 4, d: 6, h: 2.5 },
-  ...[['ruin_se1', 158.8, 126.5, 30, 8, 6, 2.5], ['ruin_se2', 165.8, 141, 20, 5.5, 4, 2], ['ruin_se3', 182.5, 139, 150, 6, 5, 2.5],
-    ['ruin_se4', 190.5, 120.5, 20, 9, 5, 2.5], ['ruin_se5', 196, 130, 60, 5, 4, 2]]
-    .map(([id, x, z, r, w, d, h]) => ({ id, type: 'ruins', variant: 'wall_ruined_stone', x, z, rot: deg(r), w, d, h, nav: false,
-      asset: w / d > 1.35 ? 'ruin_fieldstone_no_c' : 'ruin_fieldstone_no_b' })), // art pass: fieldstone farm ruins
+  // the SE farm ruins: bombed brick houses (scripts/bombed-ruin.js: gameplay = the drawn shell, walls B.HIGH to 7 m). The
+  // shells are bigger than the old low walls: se1 1.4 m NW (2 m off e31's post), se2 2.2 m WNW (off e38's start and p5's
+  // walk), se3 1 m N (off e38's loop); se4 and se5 already clear
+  ...[['ruin_se1', 157.8, 127.5, 30], ['ruin_se2', 163.8, 140, 20], ['ruin_se3', 182.5, 138, 150], ['ruin_se4', 190.5, 120.5, 20], ['ruin_se5', 196, 130, 60]]
+    .map(([id, x, z, r]) => bombedRuin(id, x, z, deg(r))),
 ];
 
 // ---------------------------------------------------------------- art pass: set dressing (visual; low cover, ≥ 1.5 m off every

@@ -1,5 +1,5 @@
-/** M4 art pass (Restore Pride, Stokkan): the granite inner arch (with its collapsed twin), Norwegian fieldstone ruins
- *  instead of brick bomb shells, a henhouse and a log guardhouse of their own (with ruins), the drowned Panzer II on
+/** M4 art pass (Restore Pride, Stokkan): the granite inner arch (with its collapsed twin), Norwegian fieldstone wall
+ *  fragments by the start, the SE farm ruins bombed brick houses whose gameplay is the drawn shell, a henhouse and a log guardhouse of their own (with ruins), the drowned Panzer II on
  *  pack ice, the rendered outer wall under its iron railing, the board inner fence, the steel lattice girders of the
  *  trestle on granite pier heads; set dressing clear of every route, post and start; furniture visual only. */
 import { readFileSync } from 'node:fs';
@@ -9,6 +9,9 @@ import { mergeManifest, EXTRA_MANIFESTS } from '../../src/art/building-library.j
 import { buildWall } from '../../src/art/dressing.js';
 import { buildRailBridge } from '../../src/art/kit-terrain.js';
 import { MISSIONS } from '../../src/missions/index.js';
+import { BOMBED_RUIN_NAV } from '../../src/missions/scripts/bombed-ruin.js';
+import { loadGrid } from './mission-check.mjs';
+import { B } from '../../src/world/grid.js';
 
 const P = (f) => new URL(`../../${f}`, import.meta.url);
 const merged = () => {
@@ -29,7 +32,7 @@ test('art m04: the arch, the henhouse, the guardhouse and the ruins draw the Sto
   const man = JSON.parse(readFileSync(P('assets/models/buildings/manifest-stokkan.json')));
   assert.ok(EXTRA_MANIFESTS.includes('manifest-stokkan'));
   const want = { arch: 'arch_gate_granite_no', henhouse: 'henhouse_no', jail_hut: 'jail_guardhouse_no', ruin_w1: 'ruin_fieldstone_no_a',
-    ruin_w3: 'ruin_fieldstone_no_a', ruin_se1: 'ruin_fieldstone_no_b', ruin_se4: 'ruin_fieldstone_no_c' };
+    ruin_w3: 'ruin_fieldstone_no_a' };
   for (const [id, name] of Object.entries(want)) {
     const s = S(id);
     assert.equal(s.asset, name, id);
@@ -41,6 +44,40 @@ test('art m04: the arch, the henhouse, the guardhouse and the ruins draw the Sto
   for (const n of ['arch_gate_granite_no', 'henhouse_no', 'jail_guardhouse_no']) assert.equal(man.assets[n].destroyedVariant, `${n}_destroyed`, n);
   for (const s of m04.structures.filter((q) => q.type === 'ruins' && q.variant === 'wall_ruined_stone')) assert.match(s.asset ?? '', /^ruin_fieldstone_no_/, s.id);
 }));
+
+const SE = ['ruin_se1', 'ruin_se2', 'ruin_se3', 'ruin_se4', 'ruin_se5'];
+test('art m04: the SE farm ruins are bombed brick houses again, their gameplay the drawn shell, clear of every walk and post', () => withLib(merged(), () => {
+  // the shell (7.9 × 5.8 m) and its two rubble spills, in the ruin's frame (scripts/bombed-ruin.js)
+  const RECTS = [[-3.96, 3.96, -2.88, 2.88], [0.965, 3.499, 2.693, 5.227], [-0.547, 1.411, -4.723, -2.765]];
+  const dist = (r, x, z) => {
+    const c = Math.cos(r.rot), s = Math.sin(r.rot), u = (x - r.x) * c + (z - r.z) * s, v = -(x - r.x) * s + (z - r.z) * c;
+    return Math.min(...RECTS.map(([x0, x1, z0, z1]) => Math.hypot(Math.max(x0 - u, 0, u - x1), Math.max(z0 - v, 0, v - z1))));
+  };
+  for (const id of SE) {
+    const r = S(id);
+    assert.equal(pickAsset(r.type, r, { theater: 'snow', missionId: 'm04' })?.name, 'house_bombed_b', id);
+    assert.ok(r.navParts === BOMBED_RUIN_NAV && r.nav === false && r.h === 7 && r.block === 0, `${id}: the shared bombed-ruin nav`);
+    for (const e of m04.enemies.filter((q) => !q.vehicle)) {
+      assert.ok(dist(r, e.x, e.z) >= 2, `${id}: ${e.id}'s post / start ${dist(r, e.x, e.z).toFixed(2)} m`);
+      if (!e.route) continue;
+      const P = [{ x: e.x, z: e.z }, ...e.route.points, ...(e.route.type === 'LOOP' ? [e.route.points[0]] : [])];
+      for (let i = 0; i + 1 < P.length; i++) for (let t = 0; t <= 1; t += 0.05) {
+        const d = dist(r, P[i].x + (P[i + 1].x - P[i].x) * t, P[i].z + (P[i + 1].z - P[i].z) * t);
+        assert.ok(d >= 1.5, `${id}: ${e.id}'s walk ${d.toFixed(2)} m off the shell`);
+      }
+    }
+  }
+}));
+
+test('art m04: in the grid each SE ruin is its drawn shell (walls B.HIGH, breach and rubble B.LOW, a closed inside)', () => {
+  const { grid } = loadGrid(m04);
+  for (const id of SE) {
+    const r = S(id), c = Math.cos(r.rot), s = Math.sin(r.rot), at = (dx, dz) => grid.blockAt(r.x + dx * c - dz * s, r.z + dx * s + dz * c);
+    assert.equal(at(-3.76, 0), B.HIGH, `${id} wall`); assert.equal(at(0, -2.68), B.HIGH, `${id} wall`);
+    assert.equal(at(2.6, 2.68), B.LOW, `${id} breach`); assert.equal(at(2.2, 4), B.LOW, `${id} rubble`);
+    assert.equal(at(-1, 0), B.LOW, `${id}: the inside is the fallen storeys`);
+  }
+});
 
 test('art m04: the sunken tank is a drowned Panzer II wreck on pack ice (the pier deck stays the walk)', () => {
   const t = S('wreck_tank');
