@@ -12,6 +12,7 @@
 import { buildCurtain, buildTerrace, buildParapet, buildTwinGatehouse, buildRoundTower, buildRange, buildStairTower, buildInnerGate, buildMoatBridge, buildWaterGate, buildStairFlight, buildWing, buildOuthouse, buildOpenShed, buildFieldWagon, buildWell, buildBasin, setCastleFrost, Geo } from '../../art/castle-kit.js';
 import { libraryVisual } from '../../art/building-props.js';
 import { buildCliff } from '../../art/dressing.js';
+import { due, runSync } from '../../engine/slice.js';
 import { buildFlakTowed, buildFlakEmplacement, buildFieldGun, buildTargetFrame, buildBulletStop, buildSearchlight, buildRangeBerm, buildLeverBox } from '../../art/field-guns.js';
 
 const PARAPET_H = 1.4; // == m20_operation_valhalla.js PARAPET_H
@@ -71,10 +72,11 @@ function trimEnds(points, inside) {
 }
 
 /** Curtain stretches (castle_wall with a crenellated variant) and the crag wall under the HQ terrace. */
-function curtains(w, m) {
+function* curtains(w, m) {
   let n = 0;
   const inside = bodiesOf(m);
   for (const s of m.structures || []) {
+    if (due()) yield;
     if (s.type !== 'castle_wall' || !s.points) continue;
     const crag = /crag/.test(s.variant || '');
     const v = buildCurtain(crag ? s.points : trimEnds(s.points, inside), {
@@ -93,9 +95,10 @@ function bodyRects(m) {
 }
 
 /** The raised levels (`cliff` ids t_*): masonry terraces; the 1-cell parapet strips: balustrades / crenels. */
-function levels(w, m) {
+function* levels(w, m) {
   let n = 0;
   for (const s of m.structures || []) {
+    if (due()) yield;
     if (s.type !== 'cliff' || !/^t_/.test(s.id || '')) continue;
     let v;
     // parapet strips stand PARAPET_H (1.4 m) above their level; the forecourt balustrade (t_par_hq_b*) is open work
@@ -107,9 +110,10 @@ function levels(w, m) {
 }
 
 /** The SW and SE gatehouses (twin towers, tops on the wall walk). */
-function gates(w, m) {
+function* gates(w, m) {
   let n = 0;
   for (const s of m.structures || []) {
+    if (due()) yield;
     if (s.type !== 'castle_gate') continue;
     if (/inner/.test(s.variant || '')) {
       // the tunnel between the gameplay towers (±w/3, w/3 wide); the W tower is T_wb's masonry (y 4)
@@ -121,9 +125,10 @@ function gates(w, m) {
 }
 
 /** The HQ turret (round, crenellated deck), the N range, the stair towers. */
-function towers(w, m) {
+function* towers(w, m) {
   let n = 0;
   for (const s of m.structures || []) {
+    if (due()) yield;
     let v = null;
     const y0 = s.baseY ?? 0;
     if (s.id === 'turret') v = buildRoundTower({ x: s.x, z: s.z, r: s.w / 2, y0: 13, deckY: s.deckY ?? s.h, door: Math.PI / 2, seed: s.id });
@@ -194,9 +199,10 @@ function animateWaterGate(w) {
  * The two V2s (o2): the library's V2 on its Meillerwagen (tools/blender/military/scripts/v2_meillerwagen.py), fitted on
  * the trailer footprint; a hit swaps in the burnt-out wreck (building-props destroy hook).
  */
-function rockets(w, m) {
+function* rockets(w, m) {
   let n = 0;
   for (const s of m.structures || []) {
+    if (due()) yield;
     if (s.type !== 'v2_rocket') continue;
     const lib = libraryVisual('v2_rocket', { ...s, asset: s.id === 'v2b' ? 'v2_meillerwagen_b' : 'v2_meillerwagen' }, { theater: m.theater, missionId: m.id });
     if (!lib) continue;
@@ -213,7 +219,7 @@ function rockets(w, m) {
  * Every `ladders[]` stone flight (kind 'stairs'; planks stay m20.js's). The climbed timber ladders are built by
  * art/ladder-frame.js against the towers' faces (drawn here from end to end, they ran into the masonry).
  */
-function links(w, m) {
+function* links(w, m) { // eslint-disable-line require-yield
   const G = new Geo('m20:links');
   let n = 0;
   for (const l of m.ladders || []) {
@@ -249,7 +255,7 @@ const CRAG_PARTS = [
   // loose rock wedges through the wall foot — the rock stops at the wall's W end
   [[CRAG_X0, 79], [4.5, 79], [4.5, 82], [CRAG_X0, 82]],
 ];
-function crag(w, m) {
+function* crag(w, m) { // eslint-disable-line require-yield
   const s = (m.structures || []).find((q) => q.id === 'crag');
   if (!s) return 0;
   const g = new Geo('crag').build('crag');
@@ -261,7 +267,7 @@ function crag(w, m) {
  * The range's fire-water basin (terrain water T4, a plain rect in the grid): masonry walls, coping, apron, silted
  * floor; its E side stays open where the channel runs to the water gate.
  */
-function basin(w, m) {
+function* basin(w, m) { // eslint-disable-line require-yield
   const rects = (m.terrain || []).filter((t) => t.type === 'rect' && t.terrain === 'water');
   const pool = rects.find((t) => t.w >= 3 && t.d >= 3);
   if (!pool) return 0;
@@ -273,13 +279,30 @@ function basin(w, m) {
 }
 
 /** Build every M20 art visual once per world. */
-export function buildM20Art(w) {
+export function buildM20Art(w) { runSync(buildM20ArtG(w)); }
+
+/**
+ * buildM20Art as a sliced job (engine/slice.js): the same pieces in the same order, pausing between structures. The
+ * castle frost is on only while a piece is being built (off whenever the job pauses: nothing else gets it).
+ */
+export function* buildM20ArtG(w) {
   if (!w.scene || w._m20Art) return;
   w._m20Art = true;
   const m = w.mission || {};
-  setCastleFrost(m.variant === 'frost' ? 0.28 : 0); // 11 Feb 1945: hoar frost on the tops, no snow (dossier §2)
-  const stats = { curtains: curtains(w, m), levels: levels(w, m), gates: gates(w, m), towers: towers(w, m), links: links(w, m), rockets: rockets(w, m), crag: crag(w, m), basin: basin(w, m) };
-  setCastleFrost(0);
+  const f = m.variant === 'frost' ? 0.28 : 0; // 11 Feb 1945: hoar frost on the tops, no snow (dossier §2)
+  const frosted = function* frosted(gen) {
+    for (;;) {
+      setCastleFrost(f);
+      let r;
+      try { r = gen.next(); } finally { setCastleFrost(0); }
+      if (r.done) return r.value;
+      yield r.value;
+    }
+  };
+  const stats = {};
+  for (const [k, step] of [['curtains', curtains], ['levels', levels], ['gates', gates], ['towers', towers], ['links', links], ['rockets', rockets], ['crag', crag], ['basin', basin]]) {
+    stats[k] = yield* frosted(step(w, m));
+  }
   animateWaterGate(w);
   w._m20ArtStats = stats;
 }

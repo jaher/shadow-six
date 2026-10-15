@@ -324,10 +324,16 @@ export function tunnelRubble(world, at) {
   world.scene.add(grp);
 }
 
-/** mission.script(world, director): visuals + first glue pass (the per-tick glue is a `tick` trigger). */
+/**
+ * mission.script(world, director): visuals + first glue pass (the per-tick glue is a `tick` trigger). `.visuals`: the
+ * scenery alone, which Game builds as the load ends (its textures resident, its programs linked); the first tick's
+ * call then finds it built.
+ */
 export function m11Script(spec) {
-  return (world) => {
+  const script = (world) => {
     buildVisuals(world, spec);
     m11Tick(world);
   };
+  script.visuals = (world) => buildVisuals(world, spec);
+  return script;
 }

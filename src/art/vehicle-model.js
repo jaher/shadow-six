@@ -23,7 +23,8 @@
 import * as THREE from 'three';
 import { loadVehicleLibrary, preloadVehicles, createVehicleVisual, vehicleLibraryReady, resolveVehicle, setVehicleZoom, setVehicleTextureQuality, liveVehicleVisuals } from './vehicle-library.js';
 import { resolveLighting } from '../engine/lighting.js';
-import { applyCanvasCover } from './cloth-wind.js';
+import { applyCanvasCover, applyCanvasCoverG } from './cloth-wind.js';
+import { runSliced } from '../engine/slice.js';
 import { createStrapCurtain } from './strap-curtain.js';
 import { doorRig, boardFrac } from './door-hand.js';
 import { addPennants } from './vehicle-pennants.js';
@@ -174,7 +175,7 @@ export const vehicleArtReady = () => S.ready && !S.disabled && vehicleLibraryRea
  * @param {() => void} [renderFrame] one frame of the real pipeline (default: renderer.render(scene, camera))
  * @returns {Promise<{ms: number, visuals: number, wrecks: number}>}
  */
-export async function warmVehicleArt(renderer, scene, camera, renderFrame = null) {
+export async function warmVehicleArt(renderer, scene, camera, renderFrame = null, o = {}) {
   const t0 = performance.now();
   if (!renderer || !scene || !camera || !vehicleArtReady()) return { ms: 0, visuals: 0, wrecks: 0 };
   const vis = liveVehicleVisuals();
@@ -206,8 +207,11 @@ export async function warmVehicleArt(renderer, scene, camera, renderFrame = null
     scene.updateMatrixWorld(true);
     // twice: the first frame allocates the sun's shadow map, which the water's mirror pass waits for; the second also
     // draws the mirror (renderer clipping plane → each vehicle material's clipped program variant)
-    frame(); sm.needsUpdate = true; frame();
-    mirrorWarm(renderer, scene, camera, [...vis.map((h) => h.object3d), group]);
+    const frames = () => { frame(); sm.needsUpdate = true; frame(); mirrorWarm(renderer, scene, camera, [...vis.map((h) => h.object3d), group]); };
+    // `precompile(frames)`: their programs linked by the driver first, without blocking (engine/parallel-compile.js)
+    if (o.precompile) { await o.precompile(frames); sm.needsUpdate = true; scene.updateMatrixWorld(true); }
+    // `runFrames(frames)`: drawn a share of the scene per task (Game: engine/parallel-compile.js framesInParts)
+    if (o.runFrames) await o.runFrames(frames); else frames();
   } catch (e) {
     console.warn('[vehicles] warm-up failed:', e?.message || e);
   } finally {
@@ -694,7 +698,7 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
     dispose() { S.live.delete(model); st.pennants?.dispose(); st.curtain?.dispose(); vis.object3d.traverse((o) => { if (o.userData.ownCanvas) o.material.dispose(); }); vis.dispose(); st.scorch?.removeFromParent(); root.clear(); },
   };
 
-  model.ready = vis.ready.then(() => {
+  model.ready = vis.ready.then(async () => {
     const b = vis.meta?.bbox, md = vis.meta?.dims || {};
     // authored dimensions first (a few sidecar bboxes are loose), else the bbox
     if (b) Object.assign(dims, { w: md.width ?? md.span ?? md.beam ?? (b.max[0] - b.min[0]), l: md.length ?? md.length_over_fenders ?? (b.max[2] - b.min[2]), h: md.height ?? b.max[1] });
@@ -708,7 +712,7 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
     clearGlass(vis.object3d);
     placePools(st.lamps, vis.object3d);
     for (const g of st.lamps) g.visible = false;
-    if (/opel_blitz_cargo/.test(vis.model || '')) st.curtain = rearCurtain(vis.object3d, canvasFlap(vis.object3d));
+    if (/opel_blitz_cargo/.test(vis.model || '')) st.curtain = rearCurtain(vis.object3d, await canvasFlap(vis.object3d));
     if (st.destroyed) model.setDestroyed(true);
     markShared(vis.object3d);
     model.isReady = true;
@@ -1279,7 +1283,30 @@ function gunInfo(vis, def, dims) {
  * (`kit:limewash_worn~<tint>`; the untinted `kit:limewash_worn` is the body paint and never matches).
  */
 const CANVAS_MAT = /canvas|limewash_worn~/i;
-function canvasFlap(root) {
+async function canvasFlap(root) {
+  const covers = canvasCovers(root);
+  for (const o of covers) {
+    const g = o.geometry;
+    if (!g.attributes.aFlapDir) {
+      let job = COVER_JOBS.get(g);
+      if (!job) { job = runSliced(applyCanvasCoverG(o, { rear: -1 })); COVER_JOBS.set(g, job); }
+      await job;
+    }
+    applyCanvasCover(o, { rear: -1 }); // (its attributes are made: only this mesh's own canvas material)
+    o.userData.ownCanvas = true;
+  }
+  return covers;
+}
+
+/**
+ * The cover attributes being made per geometry (the trucks of a mission share the library's): one job each, a slice at
+ * a time (engine/slice.js: 0.1–0.4 s per cover model in one task otherwise); a truck sharing the geometry waits for the
+ * job already running. The same covers, the same results.
+ */
+const COVER_JOBS = new WeakMap();
+
+/** The canvas cover meshes of a vehicle (see canvasFlap). */
+function canvasCovers(root) {
   root.updateWorldMatrix(true, true);
   const box = new THREE.Box3(), toLocal = new THREE.Matrix4(), inv = root.matrixWorld.clone().invert(), covers = [];
   root.traverse((o) => {
@@ -1290,7 +1317,6 @@ function canvasFlap(root) {
     if (box.max.y - box.min.y < 0.3 || box.max.z - box.min.z < 1) return;
     covers.push(o);
   });
-  for (const o of covers) { applyCanvasCover(o, { rear: -1 }); o.userData.ownCanvas = true; }
   return covers;
 }
 

@@ -6,6 +6,9 @@
  *   triggers:  [{on, match?, when?, once?, delay?, do:[actions]}]   event → actions (see runAction)
  *   alarmFail: {events:['DETONATE'], message} | {event, message}    §8.1 alarm-fail scripts (M12/M15/M16/M13)
  *   script(world, director)           optional per-mission hook, called once after the lazy init
+ *   script.visuals(world)             optional: the script's scenery alone (idempotent, no sim state; may return a
+ *                                     promise — a sliced job), built by Game.loadMission as the load ends; the
+ *                                     script's own call then finds it built
  *
  * Every set-piece is an Entity of kind 'setpiece' (no update list): World.serialize saves it by id, so its
  * state survives quick save/load; the director ticks them at 20 Hz on world.onBelTick (§10.1). Ids that point

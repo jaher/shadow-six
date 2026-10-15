@@ -10,6 +10,7 @@
  * (short-lived aeration: the white boil and the jump just past it).
  * @module render/dam-flow
  */
+import { due, runSync } from '../engine/slice.js';
 
 /**
  * @param {object} o
@@ -20,17 +21,20 @@
  * @param {number} [o.steps=180] @param {number} [o.speed=1.4] target core speed downstream (m/s; the field is scaled)
  * @param {number} [o.foamLife=22] @param {number} [o.aerLife=2.2] seconds
  */
-export function bakeDamFlow(o) {
-  const G = setup(o);
-  simulate(G);
-  return finish(G);
+export function bakeDamFlow(o) { return runSync(bakeDamFlowG(o)); }
+
+/** bakeDamFlow() as a sliced job (engine/slice.js): the same bake, pausing between rows, steps and iterations. */
+export function* bakeDamFlowG(o) {
+  const G = yield* setup(o);
+  yield* simulate(G);
+  return yield* finish(G);
 }
 
-function setup(o) {
+function* setup(o) {
   const { u0, v0, nu, nv, h } = o, N = nu * nv, steps = o.steps ?? 180;
   const id = (i, j) => j * nu + i, cu = (i) => u0 + (i + 0.5) * h, cv = (j) => v0 + (j + 0.5) * h;
   const mask = new Uint8Array(N), out = new Uint8Array(N);
-  for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) mask[id(i, j)] = o.isWater(cu(i), cv(j)) ? 1 : 0;
+  for (let j = 0; j < nv; j++) { for (let i = 0; i < nu; i++) mask[id(i, j)] = o.isWater(cu(i), cv(j)) ? 1 : 0; if (due()) yield; }
   for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) {
     const k = id(i, j);
     if (!mask[k]) continue;
@@ -79,19 +83,21 @@ function setup(o) {
     }
   };
   const resid = new Float32Array(N); // div(u*) − S, fixed during a projection
-  const fullProject = (iters) => {
+  // (a generator: the long final projection pauses between iterations; the per-step ones run straight through)
+  const fullProjectG = function* (iters) {
     for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) { const k = id(i, j); resid[k] = mask[k] ? (U[ui(i + 1, j)] - U[ui(i, j)] + V[vi(i, j + 1)] - V[vi(i, j)]) / h - S[k] : 0; }
-    project(iters);
+    for (let it = 0; it < iters; it++) { project(1); if (due()) yield; }
     for (let j = 0; j < nv; j++) for (let i = 1; i < nu; i++) { const f = ui(i, j); if (oU[f]) U[f] -= (P[id(i, j)] - P[id(i - 1, j)]) / h; else U[f] = 0; }
     for (let j = 1; j < nv; j++) for (let i = 0; i < nu; i++) { const f = vi(i, j); if (oV[f]) V[f] -= (P[id(i, j)] - P[id(i, j - 1)]) / h; else V[f] = 0; }
     for (let j = 0; j < nv; j++) { U[ui(0, j)] = 0; U[ui(nu, j)] = 0; }
     for (let i = 0; i < nu; i++) { V[vi(i, 0)] = 0; V[vi(i, nv)] = 0; }
   };
-  return { o, u0, v0, nu, nv, h, N, id, cu, cv, mask, out, dist, S, push, fSrc, aSrc, U, V, U2, V2, ui, vi, oU, oV, bil, velAt, fullProject, steps, P };
+  const fullProject = (iters) => runSync(fullProjectG(iters));
+  return { o, u0, v0, nu, nv, h, N, id, cu, cv, mask, out, dist, S, push, fSrc, aSrc, U, V, U2, V2, ui, vi, oU, oV, bil, velAt, fullProject, fullProjectG, steps, P };
 }
 
 /** Run the solver until the flow settles (semi-Lagrangian advection, push, bank drag, SOR pressure projection). */
-function simulate(G) {
+function* simulate(G) {
   const { nu, nv, h, U, V, U2, V2, ui, vi, oU, oV, bil, velAt, push, dist, id, steps } = G, dt = 0.25, t2 = [0, 0];
   const kb = G.o.bankDrag ?? 0.45, rb = 1.6 / h, k0 = 0.01, nuVisc = G.o.viscosity ?? 0.35;
   const dragC = (k) => 1 / (1 + dt * (k0 + kb * Math.exp(-dist[k] / rb)));
@@ -114,12 +120,13 @@ function simulate(G) {
     for (let j = 1; j < nv - 1; j++) for (let i = 1; i < nu; i++) { const f = ui(i, j); if (oU[f]) U[f] = U2[f] + a * ((oU[f - 1] ? U2[f - 1] : 0) + (oU[f + 1] ? U2[f + 1] : 0) + (oU[f - nu - 1] ? U2[f - nu - 1] : 0) + (oU[f + nu + 1] ? U2[f + nu + 1] : 0) - 4 * U2[f]); else U[f] = 0; }
     for (let j = 1; j < nv; j++) for (let i = 1; i < nu - 1; i++) { const f = vi(i, j); if (oV[f]) V[f] = V2[f] + a * ((oV[f - 1] ? V2[f - 1] : 0) + (oV[f + 1] ? V2[f + 1] : 0) + (oV[f - nu] ? V2[f - nu] : 0) + (oV[f + nu] ? V2[f + nu] : 0) - 4 * V2[f]); else V[f] = 0; }
     G.fullProject(14);
+    if (due()) yield;
   }
-  G.fullProject(600);
+  yield* G.fullProjectG(600);
 }
 
 /** Collocate, scale to the target speed, advect foam + aeration to steady state; returns the baked field. */
-function finish(G) {
+function* finish(G) {
   const { o, nu, nv, h, N, id, mask, U, V, ui, vi, bil, velAt, fSrc, aSrc } = G;
   const vel = new Float32Array(N * 2);
   for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) {
@@ -135,7 +142,7 @@ function finish(G) {
   for (let k = 0; k < U.length; k++) U[k] *= scale;
   for (let k = 0; k < V.length; k++) V[k] *= scale;
   const t2 = [0, 0];
-  const advect = (src, life) => {
+  const advect = function* (src, life) {
     let f = new Float32Array(N), g = new Float32Array(N);
     const dtf = Math.min(0.5, life / 6), decay = Math.exp(-dtf / life), n = Math.min(400, Math.ceil((4 * life) / dtf));
     for (let s = 0; s < n; s++) {
@@ -146,13 +153,14 @@ function finish(G) {
         g[k] = bil(f, nu, nv, i - (t2[0] * dtf) / h, j - (t2[1] * dtf) / h) * decay + src[k] * dtf;
       }
       [f, g] = [g, f];
+      if (due()) yield;
     }
     let mx = 0;
     for (let k = 0; k < N; k++) if (src[k] > 0.3 && f[k] > mx) mx = f[k];
     for (let k = 0; k < N; k++) f[k] = Math.min(1, f[k] / (mx || 1));
     return f;
   };
-  const foam = advect(fSrc, o.foamLife ?? 22), aer = advect(aSrc, o.aerLife ?? 2.2);
+  const foam = yield* advect(fSrc, o.foamLife ?? 22), aer = yield* advect(aSrc, o.aerLife ?? 2.2);
   const at = (A, u, v, c = 1) => bil(A, nu, nv, (u - o.u0) / h - 0.5, (v - o.v0) / h - 0.5) * c;
   return {
     u0: o.u0, v0: o.v0, nu, nv, h, vel, foam, aer, mask, scale,

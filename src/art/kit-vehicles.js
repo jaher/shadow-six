@@ -232,15 +232,20 @@ export function createCableCarModel(type = 'cable_car', def = {}, spawn = {}, th
   const track = spawn.track || [];
   let line = null, th = 0, om = 0, lastV = 0, destroyed = false;
   root.traverse((o) => { if (o.isMesh) o.userData.mat0 = o.material; });
+  // the line (portals, anchors, ropes) beside the cabin, once it is in the scene and its world can be asked for the ground
+  const buildLine = (v) => {
+    if (line || track.length < 2 || !root.parent) return;
+    const w = v?.world, gy = (x, z) => (w?.groundY ? w.groundY(x, z) : 0) + (w?.grid?.elevAt?.(x, z) || 0);
+    line = buildCableLine(track, gy, theater);
+    root.parent.add(line);
+  };
   return {
     root, turret: null, gun: null, kit: true,
     dims: { w: CABIN.w, l: CABIN.l, h: CABIN.roof },
+    /** Load time (Game.loadMission): what the first update would build, built now (its textures load with the map). */
+    prepare(v) { buildLine(v); },
     update(dt, v) {
-      if (!line && track.length >= 2 && root.parent) {
-        const w = v?.world, gy = (x, z) => (w?.groundY ? w.groundY(x, z) : 0) + (w?.grid?.elevAt?.(x, z) || 0);
-        line = buildCableLine(track, gy, theater);
-        root.parent.add(line);
-      }
+      buildLine(v);
       if (!v || !(dt > 0)) return;
       // carriage pitch along the ropes (the cabin's +z faces uphill or down depending on the trip)
       const a = track[0], b = track[track.length - 1];

@@ -7,6 +7,7 @@
  */
 
 import { pointInPolygon } from '../core/math.js';
+import { due } from '../engine/slice.js';
 
 /** Cell size in metres. */
 export const CELL = 0.5;
@@ -428,6 +429,44 @@ export class NavGrid {
    * @param {Array<[number,number]|{x:number,z:number}>} points
    * @param {number|number[]} width
    */
+  /** fillPoly() as a sliced job (engine/slice.js): the same cells, pausing between rows. */
+  *fillPolyG(points, layerName, value, owner) {
+    const layer = this.layer(layerName);
+    let minX = Infinity, minZ = Infinity, maxX = -Infinity, maxZ = -Infinity;
+    for (const p of points) {
+      const [px, pz] = Array.isArray(p) ? p : [p.x, p.z];
+      minX = Math.min(minX, px); maxX = Math.max(maxX, px);
+      minZ = Math.min(minZ, pz); maxZ = Math.max(maxZ, pz);
+    }
+    const c = this.cell;
+    const i0 = Math.max(0, Math.floor(minX / c)), i1 = Math.min(this.cols - 1, Math.floor(maxX / c));
+    const j0 = Math.max(0, Math.floor(minZ / c)), j1 = Math.min(this.rows - 1, Math.floor(maxZ / c));
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        if (pointInPolygon((i + 0.5) * c, (j + 0.5) * c, points)) this._write(j * this.cols + i, layer, value, owner);
+      }
+      if (due()) yield;
+    }
+    this.version++;
+  }
+
+  /** fillLine() as a sliced job (engine/slice.js): the same cells in the same order, pausing between pieces. */
+  *fillLineG(points, width, layerName, value, owner) {
+    const pts = points.map((p) => (Array.isArray(p) ? p : [p.x, p.z]));
+    const wAt = (k) => (Array.isArray(width) ? (width[k] ?? width[width.length - 1]) : width);
+    for (let k = 0; k + 1 < pts.length; k++) {
+      const [ax, az] = pts[k], [bx, bz] = pts[k + 1];
+      const len = Math.hypot(bx - ax, bz - az);
+      if (len < 1e-6) continue;
+      const wa = wAt(k), wb = wAt(k + 1);
+      if (wa === wb) { this.fillOrientedRect((ax + bx) / 2, (az + bz) / 2, len, wa, Math.atan2(bz - az, bx - ax), layerName, value, owner); if (due()) yield; continue; }
+      const nx = -(bz - az) / len, nz = (bx - ax) / len;
+      yield* this.fillPolyG([[ax + nx * wa / 2, az + nz * wa / 2], [bx + nx * wb / 2, bz + nz * wb / 2],
+        [bx - nx * wb / 2, bz - nz * wb / 2], [ax - nx * wa / 2, az - nz * wa / 2]], layerName, value, owner);
+    }
+    for (let k = 1; k + 1 < pts.length; k++) { this.fillCircle(pts[k][0], pts[k][1], wAt(k) / 2, layerName, value, owner); if (due()) yield; }
+  }
+
   fillLine(points, width, layerName, value, owner) {
     const pts = points.map((p) => (Array.isArray(p) ? p : [p.x, p.z]));
     const wAt = (k) => (Array.isArray(width) ? (width[k] ?? width[width.length - 1]) : width);

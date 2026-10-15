@@ -40,6 +40,7 @@
  */
 
 import * as THREE from 'three';
+import { due, nextTask, stepFor, SLICED } from './slice.js';
 
 /** @typedef {'bc7'|'astc'} CodecName */
 
@@ -1128,6 +1129,12 @@ function post(f) {
   POST.mc.port2.postMessage(0);
 }
 const isBitmap = (x) => typeof ImageBitmap !== 'undefined' && x instanceof ImageBitmap;
+/** Bytes of source per upload call of a banded upload (engine/slice.js pauses between calls): ~1–3 ms each. */
+const BAND_BYTES = 2 << 20;
+/** Bytes per read-back call (made while the GPU is idle: a plain copy). */
+const READ_BYTES = 1 << 20;
+/** Banded uploads on (the one-call three path otherwise: `?gpubands=0` compares). */
+const BANDS = SLICED && !(typeof location !== 'undefined' && /[?&]gpubands=0\b/.test(location.search));
 
 /** Pick the codec a WebGL2 context can sample (null = none: textures stay uncompressed). */
 export function detectCodec(gl, prefer = null) {
@@ -1441,19 +1448,29 @@ export class GpuCompressor {
     if (tq) gl.endQuery(this.timer.ext.TIME_ELAPSED_EXT);
     const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
     gl.flush();
-    const collect = () => {
-      const t0 = performance.now();
+    // the blocks back from the pixel buffer once the fence passed: level by level, pausing between (a sliced job)
+    // (in reads of READ_BYTES or more: each read is a round trip to the GPU process — one per level costs more than it saves)
+    const collectG = function* collectG() {
       const all = new Uint8Array(total);
-      gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
-      gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, all);
-      gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+      for (let a = 0; a < total;) {
+        const t0 = performance.now();
+        let b = a;
+        for (const L of plan) if (L.off >= b && (b === a || L.off + L.bytes - a <= READ_BYTES)) b = L.off + L.bytes;
+        if (b <= a) b = total;
+        gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
+        gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, a, all, a, b - a);
+        gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+        this.stats.mainMs += performance.now() - t0;
+        this.stats.readMs += performance.now() - t0;
+        a = b;
+        if (a < total && due()) yield;
+      }
       gl.deleteBuffer(pbo);
       gl.deleteSync(sync);
-      this.stats.mainMs += performance.now() - t0;
-      this.stats.readMs += performance.now() - t0;
       return plan.map((L) => all.subarray(L.off, L.off + L.bytes));
-    };
-    return { sync, collect, fail: () => { if (!gl.isContextLost()) { gl.deleteBuffer(pbo); gl.deleteSync(sync); } } };
+    }.bind(this);
+    const collect = () => { const g = collectG(); let r = g.next(); while (!r.done) r = g.next(); return r.value; };
+    return { sync, collect, collectG, fail: () => { if (!gl.isContextLost()) { gl.deleteBuffer(pbo); gl.deleteSync(sync); } } };
   }
 
   /** Time this encode on the GPU while the tier is being checked on real maps (null: not timing). */
@@ -1493,6 +1510,61 @@ export class GpuCompressor {
   }
 
   /**
+   * A sliced job (engine/slice.js): the source uploaded into a temporary texture a band at a time (rows of an image,
+   * layers / rows of an array: ≤ BAND_BYTES per call, the page drawing between them), then its levels encoded. The
+   * same texels as three's own upload: the same internal format (SRGB8_ALPHA8 / RGBA8), the same storage levels, an
+   * ImageBitmap's pixels as they are (WebGL ignores the flip / premultiply flags for it; <img> sources arrive converted
+   * by encodeImage with those flags), an array's bytes; generateMipmap over the finished level 0.
+   * @returns {Generator<void, {sync, collect, collectG, fail}>}
+   */
+  *_issueBands(src, { w, h, layers = 0, srgb, mips, weights = null, alignment = 4 }) {
+    const gl = this.gl, r = this.renderer, array = layers > 0, target = array ? gl.TEXTURE_2D_ARRAY : gl.TEXTURE_2D;
+    const levels = mips ? mipLevels(w, h) : 1, fmt = srgb ? gl.SRGB8_ALPHA8 : gl.RGBA8;
+    const tex = gl.createTexture();
+    try {
+      const bind = () => {
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(target, tex);
+        gl.bindBuffer(gl.PIXEL_UNPACK_BUFFER, null);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+        gl.pixelStorei(gl.UNPACK_ALIGNMENT, alignment);
+        gl.pixelStorei(gl.UNPACK_ROW_LENGTH, 0); gl.pixelStorei(gl.UNPACK_IMAGE_HEIGHT, 0);
+        gl.pixelStorei(gl.UNPACK_SKIP_PIXELS, 0); gl.pixelStorei(gl.UNPACK_SKIP_IMAGES, 0);
+      };
+      // (our state is set again after each pause — three may have drawn in between — and three's cache resynced before it)
+      const unbind = () => { gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 0); r.resetState(); };
+      bind();
+      if (array) gl.texStorage3D(target, levels, fmt, w, h, layers); else gl.texStorage2D(target, levels, fmt, w, h);
+      const rows = Math.max(4, Math.min(h, Math.floor(BAND_BYTES / (w * 4)) & ~3));
+      let bound = true;
+      for (let z = 0; z < Math.max(1, layers); z++) {
+        for (let y = 0; y < h; y += rows) {
+          const t0 = performance.now(), n = Math.min(rows, h - y);
+          if (!bound) { bind(); bound = true; }
+          if (array) gl.texSubImage3D(target, 0, 0, y, z, w, n, 1, gl.RGBA, gl.UNSIGNED_BYTE, src, (z * h + y) * w * 4);
+          else { gl.pixelStorei(gl.UNPACK_SKIP_ROWS, y); gl.texSubImage2D(target, 0, 0, y, w, n, gl.RGBA, gl.UNSIGNED_BYTE, src); }
+          const dt = performance.now() - t0;
+          this.stats.uploadMs += dt; this.stats.mainMs += dt;
+          if ((y + rows < h || z + 1 < layers) && due()) { unbind(); bound = false; yield; }
+        }
+      }
+      if (!bound) bind();
+      gl.pixelStorei(gl.UNPACK_SKIP_ROWS, 0);
+      const t1 = performance.now();
+      if (mips) gl.generateMipmap(target);
+      gl.texParameteri(target, gl.TEXTURE_MIN_FILTER, mips ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
+      gl.texParameteri(target, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      const job = this._encodeGl(tex, { w, h, levels, layers, srgb, weights });
+      this.stats.mainMs += performance.now() - t1;
+      return job;
+    } finally {
+      if (!gl.isContextLost()) gl.deleteTexture(tex); // (the encode draws keep it alive until they ran)
+      r.resetState(); // three's cached GL state no longer matches: let it bind everything again
+    }
+  }
+
+  /**
    * Upload `tmp` through three (its own path: flags, internal format, generated mips), encode its levels, dispose it.
    * @returns {{sync, collect, fail}}
    */
@@ -1525,30 +1597,12 @@ export class GpuCompressor {
     if (this._tick) return;
     this._tick = true;
     const go = () => { this._tick = false; this._run(); };
-    if (delay < 0) post(go); else setTimeout(go, delay);
+    // (more to do at once: the next task once the page has drawn a frame when one is due — engine/slice.js)
+    if (delay < 0) { if (SLICED) nextTask().then(go); else post(go); } else setTimeout(go, delay);
   }
 
-  _run() {
-    const gl = this.gl;
-    if (this.tierAuto && !this._calibrated) { // the tier is still being picked (prewarm): go on when it is
-      this._calibrate();
-      return;
-    }
-    if (!this.codec) { // calibration turned compression off: what was queued stays uncompressed
-      for (const j of this._queue) j.reject(Object.assign(new Error('compression off on this GPU'), { off: true }));
-      this._queue = [];
-      return;
-    }
-    if (this.codec === 'astc' && this.tier === 2 && !SEEDS) { // the two-partition table is still being built: go on when it is
-      if (!this._seedWait) this._seedWait = astcSeedTableAsync().then(() => { this._seedWait = null; this._kick(); });
-      return;
-    }
-    if (gl.isContextLost()) {
-      for (const j of [...this._inflight, ...this._queue]) j.reject(new Error('context lost'));
-      this._inflight = []; this._queue = [];
-      return;
-    }
-    const hidden = typeof document !== 'undefined' && document.hidden; // timers crawl there: read back at once
+  /** The pump as it was before the responsive load (`?sliced=0` A/B): read-backs as soon as each fence passed. */
+  _runClassic(gl, hidden) {
     for (let i = 0; i < this._inflight.length;) {
       const j = this._inflight[i];
       const st = gl.clientWaitSync(j.sync, 0, 0);
@@ -1567,11 +1621,80 @@ export class GpuCompressor {
     else this._idleSoon();
   }
 
+  _run() {
+    const gl = this.gl;
+    if (this.tierAuto && !this._calibrated) { // the tier is still being picked (prewarm): go on when it is
+      this._calibrate();
+      return;
+    }
+    if (!this.codec) { // calibration turned compression off: what was queued stays uncompressed
+      for (const j of this._queue) j.reject(Object.assign(new Error('compression off on this GPU'), { off: true }));
+      this._queue = [];
+      return;
+    }
+    if (this.codec === 'astc' && this.tier === 2 && !SEEDS) { // the two-partition table is still being built: go on when it is
+      if (!this._seedWait) this._seedWait = astcSeedTableAsync().then(() => { this._seedWait = null; this._kick(); });
+      return;
+    }
+    if (gl.isContextLost()) {
+      for (const j of [...this._inflight, ...this._queue, ...(this._current ? [this._current.q] : [])]) j.reject(new Error('context lost'));
+      this._inflight = []; this._queue = []; this._current = null;
+      return;
+    }
+    const hidden = typeof document !== 'undefined' && document.hidden; // timers crawl there: read back at once
+    if (!SLICED) { this._runClassic(gl, hidden); return; }
+    const t0 = performance.now(), left = () => this.sliceMs - (performance.now() - t0);
+    // 1. read-backs, only while the GPU has nothing of ours queued: a read waits behind every command issued before it
+    //    (reading one job while the next ones' encodes were queued held the page 50–80 ms a read). Fences pass in
+    //    order, so the last one issued tells for all of them; then they are read in order, a slice at a time, and no
+    //    new encode is issued until they are all read.
+    let reading = false, gpuIdle = true;
+    const last = this._inflight[this._inflight.length - 1];
+    if (last && !last.passed) {
+      const st = gl.clientWaitSync(last.sync, 0, 0);
+      if (st === gl.WAIT_FAILED) {
+        for (const j of this._inflight.splice(0)) { j.fail(); j.reject(new Error('wait failed')); }
+      } else last.passed = st !== gl.TIMEOUT_EXPIRED || hidden || performance.now() - last.t0 > 3000;
+      gpuIdle = !this._inflight.length || last.passed;
+    }
+    while (gpuIdle && this._inflight.length && left() > 0) {
+      const j = this._inflight[0];
+      j.reader ||= j.collectG ? j.collectG() : (function* () { return j.collect(); })();
+      let res;
+      try { res = stepFor(j.reader, left()); } catch (e) { this._inflight.shift(); j.fail(); j.reject(e); continue; }
+      if (!res.done) break; // its slice is used: on with it next time
+      this._inflight.shift();
+      j.resolve(res.value);
+    }
+    if (gpuIdle && this._inflight.length) reading = true;
+    // 2. the job being uploaded (a band at a time), then the next ones
+    while (!reading && (this._current || this._queue.length) && this._inflight.length < this.maxPending && left() > 0) {
+      if (!this._current) {
+        const q = this._queue.shift();
+        let it;
+        try { it = q.issue(); } catch (e) { q.reject(e); continue; }
+        this._current = { q, gen: it && typeof it.next === 'function' ? it : null, done: it && typeof it.next === 'function' ? null : it };
+      }
+      const c = this._current;
+      if (c.gen) {
+        let res;
+        try { res = stepFor(c.gen, left()); } catch (e) { this._current = null; c.q.reject(e); continue; }
+        if (!res.done) break; // its slice is used
+        c.done = res.value;
+      }
+      this._current = null;
+      this._inflight.push({ ...c.done, resolve: c.q.resolve, reject: c.q.reject, t0: performance.now() });
+    }
+    if (reading || ((this._current || this._queue.length) && this._inflight.length < this.maxPending)) this._kick(); // more to do: after a yield
+    else if (this._inflight.length || this._queue.length || this._current) this._kick(1); // waiting on the GPU
+    else this._idleSoon();
+  }
+
   /** Nothing left to encode: free the block target (sized for the largest map: MBs) once the pump has been idle a moment. */
   _idleSoon() {
     clearTimeout(this._idleTimer);
     this._idleTimer = setTimeout(() => {
-      if (this._queue.length || this._inflight.length || this._tick || !this.rt || this.gl.isContextLost()) return;
+      if (this._queue.length || this._inflight.length || this._current || this._tick || !this.rt || this.gl.isContextLost()) return;
       // the framebuffer goes too: a texture still attached to an unbound framebuffer would stay allocated
       if (this.fbo) this.gl.deleteFramebuffer(this.fbo);
       this.gl.deleteTexture(this.rt);
@@ -1581,7 +1704,7 @@ export class GpuCompressor {
 
   /** Resolves once every queued encode and readback has finished. */
   async idle() {
-    while (this._queue.length || this._inflight.length || this._tick) await new Promise((ok) => setTimeout(ok, 4));
+    while (this._queue.length || this._inflight.length || this._current || this._tick) await new Promise((ok) => setTimeout(ok, 4));
   }
 
   /** Temporary three texture for an image with the given upload parameters. */
@@ -1606,13 +1729,31 @@ export class GpuCompressor {
     return tmp;
   }
 
-  /** Encode an image (ImageBitmap / <img> / ImageData-like) with upload parameters `p`. @returns {Promise<Uint8Array[]>} */
+  /**
+   * Encode an image (ImageBitmap / <img> / ImageData-like) with upload parameters `p`. An ImageBitmap uploads a band of
+   * rows at a time (_issueBands); an <img> is first turned into one with the upload's flags (flip, premultiply, colour
+   * conversion: what WebGL would apply to it), off the main thread; anything else goes through three in one call.
+   * @returns {Promise<Uint8Array[]>}
+   */
   encodeImage(image, p) {
-    return this._schedule(() => this._issue(this._tmpImage(image, p), { w: image.width, h: image.height, srgb: p.srgb, mips: p.mips, weights: p.weights }));
+    const o = { w: image.width, h: image.height, srgb: p.srgb, mips: p.mips, weights: p.weights, alignment: p.unpackAlignment ?? 4 };
+    if (isBitmap(image) && BANDS) return this._schedule(() => this._issueBands(image, o));
+    if (BANDS && typeof HTMLImageElement !== 'undefined' && image instanceof HTMLImageElement && typeof createImageBitmap === 'function') {
+      // (three's own choice for an <img>: no colour conversion unless the texture's primaries differ from the working space's)
+      const CM = THREE.ColorManagement;
+      const none = p.colorSpace === THREE.NoColorSpace || CM.getPrimaries(CM.workingColorSpace) === CM.getPrimaries(p.colorSpace);
+      return createImageBitmap(image, {
+        imageOrientation: p.flipY ? 'flipY' : 'from-image', premultiplyAlpha: p.premultiplyAlpha ? 'premultiply' : 'none',
+        colorSpaceConversion: none ? 'none' : 'default',
+      }).then((bm) => this._schedule(() => this._issueBands(bm, o)).finally(() => bm.close?.()),
+        () => this._schedule(() => this._issue(this._tmpImage(image, p), o)));
+    }
+    return this._schedule(() => this._issue(this._tmpImage(image, p), o));
   }
 
-  /** Encode a layer array's data. @returns {Promise<Uint8Array[]>} */
+  /** Encode a layer array's data (a layer — or a band of its rows — at a time). @returns {Promise<Uint8Array[]>} */
   encodeArray(data, w, h, d, p) {
+    if (BANDS && data instanceof Uint8Array) return this._schedule(() => this._issueBands(data, { w, h, layers: d, srgb: p.srgb, mips: p.mips, weights: p.weights, alignment: p.unpackAlignment ?? 4 }));
     return this._schedule(() => this._issue(this._tmpArray(data, w, h, d, p), { w, h, layers: d, srgb: p.srgb, mips: p.mips, weights: p.weights }));
   }
 

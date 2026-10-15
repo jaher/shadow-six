@@ -25,7 +25,8 @@
  * @module art/humanoid-real
  */
 import * as THREE from 'three';
-import { addBodyClips } from './body-clips.js';
+import { addBodyClipsG } from './body-clips.js';
+import { runSliced } from '../engine/slice.js';
 import { scoped, touch, sceneBytes, disposeScene } from '../engine/scoped-assets.js';
 import { syringeWeapon } from './syringe-prop.js';
 import { chargeWeapon } from './demolition-charge.js';
@@ -79,9 +80,12 @@ const _m4 = new THREE.Matrix4(), _sph = new THREE.Sphere(new THREE.Vector3(), 1.
 /** fnv1a 32-bit (same hash as the pipeline's variety.js). */
 function fnv1a(str) { let h = 0x811c9dc5; for (const c of new TextEncoder().encode(String(str))) { h ^= c; h = Math.imul(h, 0x01000193) >>> 0; } return h >>> 0; }
 
-/** bodies-design §C.10: derived drag / carry / downed clips on every kit's library (before any clip is adapted). */
-function bodyClips(lib, kit) {
-  try { lib._bodyClips = addBodyClips(lib); } catch (e) { console.warn('[humanoid-real] body clips for', kit, 'failed', e); }
+/**
+ * bodies-design §C.10: derived drag / carry / downed clips on every kit's library (before any clip is adapted), a clip
+ * per slice (engine/slice.js: 0.1–0.16 s per kit in one task otherwise).
+ */
+async function bodyClips(lib, kit) {
+  try { lib._bodyClips = await runSliced(addBodyClipsG(lib)); } catch (e) { console.warn('[humanoid-real] body clips for', kit, 'failed', e); }
 }
 
 async function initCommandos(L) {
@@ -100,7 +104,7 @@ async function initCommandos(L) {
   };
   const [caLib, caW, bLib, bW] = await Promise.all([CA.loadCALib(), PW.loadWeapons(url('weapons/weapons.glb')), cbLib(),
     CBW.loadWeapons(url('weapons/weapons_b.glb'))]);
-  bodyClips(caLib, 'commandos_a'); bodyClips(bLib, 'commandos_b');
+  await bodyClips(caLib, 'commandos_a'); await bodyClips(bLib, 'commandos_b');
   // the Spy's syringe: the detailed glass-and-nickel model with a moving plunger (art/syringe-prop.js)
   try { if (bW) bW.syringe = syringeWeapon(); } catch (e) { console.warn('[humanoid-real] syringe prop', e); }
   // the Sapper's charges in his hand (plant / take_charge): the same models as on the ground (art/demolition-charge.js)
@@ -127,14 +131,14 @@ async function initEnemies(L) {
     const ca = await PK.loadAnimLibrary(url('anims/commando_anims.glb'));
     for (const n of ['carried']) if (!E.lib.clips.has(n) && ca.clips.has(n)) { E.lib.clips.set(n, ca.clips.get(n)); E.lib.meta[n] ||= ca.meta[n]; }
   } catch (e) { console.warn('[humanoid-real] carried clip for enemies unavailable', e); }
-  bodyClips(E.lib, 'enemies');
+  await bodyClips(E.lib, 'enemies');
   L.rt.enemies = { EK, SK, E, picks: new Map() };
 }
 
 async function initGuests(L) {
   const [GK, GC] = await Promise.all([loadRuntime('guests/guestkit.js'), loadRuntime('guests/charkit.js')]);
   const lib = await GK.loadGuestLib();
-  bodyClips(lib, 'guests');
+  await bodyClips(lib, 'guests');
   L.rt.guests = {
     load: (e) => GC.loadCharacter(url(e.glb)),
     create: (tpl, o) => GK.createGuest(tpl, lib, { id: o.id }), lib,

@@ -690,13 +690,23 @@ export function stripDrape(root, hostRe, drapeRe, tol = 0.35) {
     if (!hosts.length || !drapes.length) continue;
     lod.updateMatrixWorld(true);
     const inv = new THREE.Matrix4().copy(lod.matrixWorld).invert();
-    const cell = new Set(), key = (x, y, z) => `${Math.round(x / tol)},${Math.round(y / tol)},${Math.round(z / tol)}`;
+    // cells as numbers (exact: three indices packed in 12 bits each) when every vertex of the LOD falls within the
+    // packable range (checked on the meshes' boxes), else as "i,j,k" strings: the same cells, the same test
+    const box = new THREE.Box3(), bb = new THREE.Box3();
+    for (const o of [...hosts, ...drapes]) {
+      if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+      box.union(bb.copy(o.geometry.boundingBox).applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld)));
+    }
+    const lim = Math.max(Math.abs(box.min.x), Math.abs(box.max.x), Math.abs(box.min.y), Math.abs(box.max.y), Math.abs(box.min.z), Math.abs(box.max.z)) / tol + 4;
+    const P = lim < 2000;
+    const pack = P ? (i, j, k) => ((i + 2048) * 4096 + (j + 2048)) * 4096 + (k + 2048) : (i, j, k) => `${i},${j},${k}`;
+    const cell = new Set(), key = (x, y, z) => pack(Math.round(x / tol), Math.round(y / tol), Math.round(z / tol));
     for (const h of hosts) {
       const pos = h.geometry.attributes.position, m = new THREE.Matrix4().multiplyMatrices(inv, h.matrixWorld);
       for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i).applyMatrix4(m); cell.add(key(v.x, v.y, v.z)); }
     }
     const near = (x, y, z) => { const i = Math.round(x / tol), j = Math.round(y / tol), k = Math.round(z / tol);
-      for (let a = -1; a <= 1; a++) for (let c = -1; c <= 1; c++) for (let e = -1; e <= 1; e++) if (cell.has(`${i + a},${j + c},${k + e}`)) return true; return false; };
+      for (let a = -1; a <= 1; a++) for (let c = -1; c <= 1; c++) for (let e = -1; e <= 1; e++) if (cell.has(pack(i + a, j + c, k + e))) return true; return false; };
     for (const d of drapes) {
       const g = d.geometry, pos = g.attributes.position, idx = g.index, m = new THREE.Matrix4().multiplyMatrices(inv, d.matrixWorld);
       const count = idx ? idx.count : pos.count, keep = [];
@@ -731,6 +741,8 @@ export function keepDrapeOnHosts(root, drapeRe, skipRe, cell = 0.5, dy = 0.8) {
     if (!hosts.length || !drapes.length) continue;
     lod.updateMatrixWorld(true);
     const inv = new THREE.Matrix4().copy(lod.matrixWorld).invert(), top = new Map();
+    // plan cells as numbers (exact for |i|, |j| < 2^20: half a cell is 0.25 m, far past any map), "i,j" strings else
+    const ck = (i, j) => (Math.abs(i) < 1048576 && Math.abs(j) < 1048576 ? (i + 1048576) * 2097152 + (j + 1048576) : `${i},${j}`);
     const tri = (g, m, t, idx) => { const pos = g.attributes.position;
       for (const [v, k] of [[a, 0], [b, 1], [c, 2]]) v.fromBufferAttribute(pos, idx ? idx.getX(t + k) : t + k).applyMatrix4(m); };
     for (const h of hosts) {
@@ -740,7 +752,7 @@ export function keepDrapeOnHosts(root, drapeRe, skipRe, cell = 0.5, dy = 0.8) {
         const y = Math.max(a.y, b.y, c.y);
         for (let i = Math.floor(Math.min(a.x, b.x, c.x) / cell); i <= Math.floor(Math.max(a.x, b.x, c.x) / cell); i++)
           for (let j = Math.floor(Math.min(a.z, b.z, c.z) / cell); j <= Math.floor(Math.max(a.z, b.z, c.z) / cell); j++) {
-            const k = `${i},${j}`, l = top.get(k); if (l) l.push(y); else top.set(k, [y]);
+            const k = ck(i, j), l = top.get(k); if (l) l.push(y); else top.set(k, [y]);
           }
       }
     }
@@ -750,7 +762,7 @@ export function keepDrapeOnHosts(root, drapeRe, skipRe, cell = 0.5, dy = 0.8) {
         tri(g, m, t, idx);
         const x = (a.x + b.x + c.x) / 3, y = (a.y + b.y + c.y) / 3, z = (a.z + b.z + c.z) / 3, i0 = Math.floor(x / cell), j0 = Math.floor(z / cell);
         let ok = false;
-        for (let i = i0 - 1; i <= i0 + 1 && !ok; i++) for (let j = j0 - 1; j <= j0 + 1 && !ok; j++) { const l = top.get(`${i},${j}`); if (l && l.some((h) => h >= y - dy && h <= y + 0.6)) ok = true; }
+        for (let i = i0 - 1; i <= i0 + 1 && !ok; i++) for (let j = j0 - 1; j <= j0 + 1 && !ok; j++) { const l = top.get(ck(i, j)); if (l && l.some((h) => h >= y - dy && h <= y + 0.6)) ok = true; }
         if (ok) keep.push(idx ? idx.getX(t) : t, idx ? idx.getX(t + 1) : t + 1, idx ? idx.getX(t + 2) : t + 2);
       }
       d.userData.drapeKept = true;

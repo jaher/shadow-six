@@ -13,7 +13,7 @@ import * as THREE from 'three';
 import { T } from '../world/grid.js';
 import { createTerrainHandle, tracksNear as trailsNear, dragHeels } from './terrain/game-adapter.js';
 import { footOf } from '../ai/footprints.js';
-import { buildFlatMask, PALETTES } from './terrain/terrain-layers.js';
+import { buildFlatMaskG, PALETTES } from './terrain/terrain-layers.js';
 import { pretrampleRoads, terrainPainter } from '../world/roads.js';
 import { createVegetation } from './terrain/vegetation.js';
 import { vegetationProfile } from './terrain/veg-profile.js';
@@ -24,10 +24,11 @@ import { addSnowCover } from './terrain/snowfx.js';
 import { CONFIG } from '../config.js';
 import { dataKey } from '../engine/asset-cache.js';
 import { screenDensity } from '../engine/texel-budget.js';
-import { createApron } from './apron.js';
-import { buildApronField, extendPath } from '../world/apron-field.js';
+import { createApronG } from './apron.js';
+import { buildApronFieldG, extendPath } from '../world/apron-field.js';
 import { edgeCrossings } from '../world/edge-extend.js';
-import { buildShoreField } from '../world/shore-field.js';
+import { buildShoreFieldG } from '../world/shore-field.js';
+import { due, runSync, runSliced } from '../engine/slice.js';
 import { structureRecords, obstacle, pruneTree, OBSTACLE_H } from '../world/placement.js';
 import { polyDist } from '../world/placement-geom.js';
 import { vegetationWetAt, onDryLand } from '../world/veg-shore.js';
@@ -458,7 +459,10 @@ function paintKeyOf(ctx) {
   try { return dataKey((h) => { h.str(roads); h.str(JSON.stringify((ctx.forests || []).map((f) => [f.type, f.variant, f.points]))); h.str(JSON.stringify(ctx.mission?.carves || null)); }); } catch { return undefined; }
 }
 
-export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
+export function buildTerrain(grid, theater = 'temperate', ctx = {}) { return runSync(buildTerrainG(grid, theater, ctx)); }
+
+/** buildTerrain() as a sliced job (engine/slice.js): the same ground, pausing inside the apron / shore fields. */
+export function* buildTerrainG(grid, theater = 'temperate', ctx = {}) {
   const R = ctx.renderer || null;
   if (!canBuildRealTerrain(R) || ctx.real === false) return buildPlaceholderTerrain(grid, theater);
   let quality = presetOf(R);
@@ -478,21 +482,24 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
   // wet line and the water's shore distance (smooth banks instead of the 0.5 m cell staircase)
   let apronField = null, shore = null;
   try {
-    if (mission && ctx.apron !== false) apronField = buildApronField(grid, mission);
-    shore = buildShoreField(apronField?.grid ?? grid, mission || {}, apronField
+    if (mission && ctx.apron !== false) apronField = yield* buildApronFieldG(grid, mission);
+    shore = yield* buildShoreFieldG(apronField?.grid ?? grid, mission || {}, apronField
       ? { ox: apronField.ox, oz: apronField.oz, feats: apronField.feats, W: apronField.W, D: apronField.D } : { W: grid.width, D: grid.depth });
   } catch (e) { console.error('[shore] field failed', e); shore = null; }
   // everything planted on the map (pure: plantingPlan) — the mission's trees, forest fill, hedgerows, orchards
+  if (due()) yield;
   const { placements, scrubHeroes, farm } = plantingPlan(grid, theater, { mission, trees: ctx.trees, forests: ctx.forests, shore });
+  if (due()) yield;
   const inner = createTerrainHandle(R, new THREE.Group(), grid, theater, {
     scrubHeroes,
     fields: farm.fields,
-    quality, flatMask: buildFlatMask(grid), frozenWater: !!mission?.water?.frozen, shore,
+    quality, flatMask: yield* buildFlatMaskG(grid), frozenWater: !!mission?.water?.frozen, shore,
     roads: ruts, paint,
     // identity of the painter (road network + forest floor polygons): lets the session cache keep the painted splat
     paintKey: paintKeyOf(ctx),
     exclude: ctx.roads && (ctx.roads.net.roads.some((r) => !r.legacy) || ctx.roads.net.areas.length) ? (x, z) => ctx.roads.covers(x, z) : undefined,
     onSpray: ctx.onSpray, texRes: terrainTexRes(quality, theater), mission, // mission → vegetation profile (season, mix)
+    gate: ctx.gate, // (the map builder's: nothing of the terrain's async build takes effect before the map is built)
   });
   const ground = inner.ground;
   ground.name = 'terrain:ground';
@@ -506,8 +513,8 @@ export function buildTerrain(grid, theater = 'temperate', ctx = {}) {
     if (disposed) return null;
     // scenery past the map edges (art/apron.js): ground + water continuation + forest; before the water's bed capture
     if (mission && ctx.apron !== false) {
-      try { apron = createApron(R, ground, t, grid, mission, theater, { trees: ctx.trees || [], quality, pitchDeg, createVegetation, treePlacement, crossings, paint, flatLines: ctx.edgeLines,
-        season: vegetationProfile(mission, theater).trees, snow: mission?.treeSnow ?? undefined, field: apronField, shore }); }
+      try { apron = await runSliced(createApronG(R, ground, t, grid, mission, theater, { trees: ctx.trees || [], quality, pitchDeg, createVegetation, treePlacement, crossings, paint, flatLines: ctx.edgeLines,
+        season: vegetationProfile(mission, theater).trees, snow: mission?.treeSnow ?? undefined, field: apronField, shore })); }
       catch (e) { console.error('[apron] build failed', e); apron = null; }
       apronReady = Promise.resolve(apron?.forest).then(() => apron);
     }

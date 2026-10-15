@@ -273,8 +273,8 @@ export class TalkingPortraits {
     // the static face becomes the photo still (poster frame): what shows under a failed / not-yet-decoded clip
     const img = slot.parentElement?.querySelector(':scope > img');
     if (img) {
-      const stub = getPortraitURL(unit.role, { size: 80, procedural: true });
-      img.addEventListener('error', () => { if (img.src !== stub) img.src = stub; }, { once: true });
+      // (the drawn stand-in face only when the still fails: drawing + PNG-encoding it here held the load's last task)
+      img.addEventListener('error', () => { const stub = getPortraitURL(unit.role, { size: 80, procedural: true }); if (img.src !== stub) img.src = stub; }, { once: true });
       img.src = h.idle.poster;
     }
     this.slots.set(unit, { char, img, ...h, state: painState(unit) });

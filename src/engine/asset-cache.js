@@ -119,6 +119,17 @@ export class SessionCache {
     return this.set(key, fn(), o);
   }
 
+  /**
+   * Generator memo (a sliced job, engine/slice.js): the cached value, or `yield* gen()` (pausing as it likes) and keep
+   * what it returns. A caller running it straight through (runSync) gets exactly memo()'s behaviour.
+   */
+  *memoGen(key, gen, o) {
+    if (this.entries.has(key)) { this.hits++; return this.get(key); }
+    this.misses++;
+    const v = yield* gen();
+    return this.set(key, v, o);
+  }
+
   /** Async memo: concurrent callers share one load; a rejected load is not cached. */
   memoAsync(key, fn, o) {
     if (this.entries.has(key)) { this.hits++; return Promise.resolve(this.get(key)); }

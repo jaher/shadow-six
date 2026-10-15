@@ -10,10 +10,11 @@ import { GRASS_PARS, GRASS_NORMAL, GRASS_BEGIN, GRASS_BEGIN_DEPTH, GRASS_COLOR }
 import { rng, fbm } from './noise.js';
 const smoothstep = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
 import { splatAt } from './terrain-layers.js';
-import { createClutter } from './clutter.js';
+import { createClutterG } from './clutter.js';
+import { due, runSync } from '../../engine/slice.js';
 import { createScrub } from './scrub.js';
 import { archetypeGeometry } from './grass-arch.js';
-import { placeGround, STRIDE } from './grass-place.js';
+import { placeGroundG, STRIDE } from './grass-place.js';
 import { GRASS_TYPES, GT, vegetationProfile, pickWeighted } from './veg-profile.js';
 
 /**
@@ -86,7 +87,10 @@ const BLANK_MASK = (() => { const t = new THREE.DataTexture(new Uint8Array(4), 1
  * @param {object} ctx terrain context (grid, splat, P palette, heightAt, trails, windDir, tNoise, W, D, opts)
  * @param {object} Q quality preset (grassDensity, grassBlades, clutter, shadowsGrass)
  */
-export function createGrass(ctx, Q) {
+export function createGrass(ctx, Q) { return runSync(createGrassG(ctx, Q)); }
+
+/** createGrass() as a sliced job (engine/slice.js): the same tufts, chunk by chunk. */
+export function* createGrassG(ctx, Q) {
   const { scene, splat, P, heightAt, trails, W, D } = ctx;
   const group = new THREE.Group();
   group.name = 'grassB';
@@ -173,18 +177,20 @@ export function createGrass(ctx, Q) {
     return 1 - smoothstep(apron.band * 0.3, apron.band, d + (fbm(px / 9, pz / 9, 3, 77) - 0.5) * apron.band * 0.6);
   };
 
-  function build(q, apronOnly = false) {
+  function build(q, apronOnly = false) { return runSync(buildG(q, apronOnly)); }
+  function* buildG(q, apronOnly = false) {
     clear(apronOnly);
     const protos = {};
     const proto = (name) => (protos[name] ||= archetypeGeometry(name, q.grassBlades, 11));
     const perM2 = 9 * q.grassDensity * (ctx.opts.grassDensity ?? 1);
     const po = { perM2, chunk: CHUNK, seed: 1234, reedDensity: q.grassDensity, wind: { x: ctx.windDir.x, z: ctx.windDir.y } };
-    const chunks = q.grassDensity > 0 && !apronOnly ? placeGround(env, prof, po) : [];
+    const chunks = q.grassDensity > 0 && !apronOnly ? yield* placeGroundG(env, prof, po) : [];
     // apron (own stream, so the map's tufts are the same with or without it): the same sward, thinning past the edge
     const aEnv = apron && q.grassDensity > 0 ? { ...env, fields: null, heightAt: apron.heightAt, tallOK: () => false,
       grassW: (x, z) => { const k = apronKeep(x, z); if (k <= 0.02) return { g: 0, dry: 0, excluded: true }; const g = grassW(x, z); return { ...g, g: g.g * k }; } } : null;
-    for (const c of aEnv ? placeGround(aEnv, prof, { ...po, seed: 4321, macro: false, chunks: apronChunks() }) : []) chunks.push({ ...c, apron: true });
+    for (const c of aEnv ? yield* placeGroundG(aEnv, prof, { ...po, seed: 4321, macro: false, chunks: apronChunks() }) : []) chunks.push({ ...c, apron: true });
     for (const { cx, cz, lists, apron: out } of chunks) for (const name in lists) {
+      if (due()) yield;
       const arr = lists[name], n = arr.length / STRIDE;
       const g = proto(name).clone();
       const a = new Float32Array(n * 4), b = new Float32Array(n * 4), e = new Float32Array(n * 2);
@@ -214,11 +220,11 @@ export function createGrass(ctx, Q) {
     Object.values(protos).forEach((g) => g.dispose());
     if (apronOnly) return;
     clutter?.dispose(); scrub?.dispose();
-    clutter = createClutter(ctx, q, group, U);
+    clutter = yield* createClutterG(ctx, q, group, U);
     scrub = prof.scrub || ctx.scrubPlan?.length ? createScrub(ctx, q, group, U) : null;
   }
   let curQ = Q;
-  build(Q);
+  yield* buildG(Q);
   const _v = new THREE.Vector3(), _t = new THREE.Vector3();
   return {
     group, uniforms: U,
@@ -264,6 +270,8 @@ export function createGrass(ctx, Q) {
      *   splat (grid origin ox/oz, world m) and height field; null removes them.
      */
     setApron(a) { apron = a && a.band > 0 ? a : null; build(curQ, true); },
+    /** setApron() as a sliced job (engine/slice.js). */
+    *setApronG(a) { apron = a && a.band > 0 ? a : null; yield* buildG(curQ, true); },
     /** Instances in the apron chunks (stats / tests). */
     get apronInstances() { return meshes.reduce((s, m) => s + (m.userData.apron ? m.userData.n : 0), 0); },
     dispose() {

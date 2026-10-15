@@ -13,6 +13,7 @@
 import * as THREE from 'three';
 import { createTerrain } from './terrain.js';
 import { footOf } from '../../ai/footprints.js';
+import { runSliced, SLICED } from '../../engine/slice.js';
 
 /** Engine vehicleType → trail layout (trails.js VEHICLE_TYPES). Boats/planes leave no ground trail. */
 export const VEHICLE_TRAIL = {
@@ -43,11 +44,18 @@ export function createTerrainHandle(renderer, scene, grid, theater, opts = {}) {
     dispose() { h.terrain?.dispose(); scene.remove(ground); },
   };
   scene.add(ground);
-  h.ready = createTerrain(renderer, ground, grid, theater, opts).then((t) => {
+  // `opts.gate`: the terrain takes over (heightAt, trails) only once it resolves — the map builder's sliced build
+  // (world/map-builder.js buildMapGen) holds it until its last step, as a synchronous build did by finishing first
+  const made = createTerrain(renderer, ground, grid, theater, opts);
+  h.ready = (opts.gate ? Promise.all([made, opts.gate]).then(([t]) => t) : made).then(async (t) => {
     h.terrain = t;
     t.mesh.userData.waterTerrain = true; // water final: bed capture reads the carved ground
     for (const [fn, a] of queue.splice(0)) t[fn](...a);
-    if (opts.roads) for (const r of opts.roads) t.preTrample(r.points, r);
+    if (opts.roads?.length) {
+      // the stamp programs linked by the driver first (the first trampled road no longer waits for them)
+      if (SLICED && t.trails?.warmAsync) await t.trails.warmAsync().catch(() => {});
+      for (const r of opts.roads) { if (t.preTrampleG) await runSliced(t.preTrampleG(r.points, r)); else t.preTrample(r.points, r); }
+    }
     return t;
   });
   return h;

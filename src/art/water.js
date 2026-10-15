@@ -20,6 +20,8 @@ import { T } from '../world/grid.js';
 import { dryHullOf } from './water/hulls.js';
 import { rowPeriod, catchOffset, ROW } from './oars.js';
 import { shownSubmerged } from './swim-pose.js';
+import { due, stepFor, nextTask, SLICE_MS } from '../engine/slice.js';
+import { compileAhead } from '../engine/parallel-compile.js';
 
 /** World Y of the water surface. Terrain carves deep cells to -1.2 m and shallows to -0.35 m below it. */
 export const WATER_LEVEL = -0.1;
@@ -416,6 +418,33 @@ export function extendBodiesOverApron(descs, f, res = 256, cap = 768) {
 }
 
 export function buildWater(R, world, grid, mission, theater, o = {}) {
+  const g = buildWaterG(R, world, grid, mission, theater, o, false);
+  let r = g.next();
+  while (!r.done) r = g.next();
+  return r.value;
+}
+
+/**
+ * buildWater() without one long task (world/map-builder.js, the map's ready chain): the same water, its bodies made by
+ * WaterSystem.addBodiesG — the bed captures drawn per body and read back without waiting, the bakes a slice at a time.
+ * @returns {Promise<ReturnType<typeof buildWater>>}
+ */
+export async function buildWaterAsync(R, world, grid, mission, theater, o = {}) {
+  const g = buildWaterG(R, world, grid, mission, theater, o, true);
+  try {
+    for (;;) {
+      const r = stepFor(g, SLICE_MS);
+      if (r.done) return r.value;
+      // the job yields a promise to wait for (read-backs, a compile), else just a pause
+      if (r.value && typeof r.value.then === 'function') await r.value; else await nextTask();
+    }
+  } catch (e) {
+    try { g.return(undefined); } catch { /* its own cleanup failed: nothing to add */ }
+    throw e;
+  }
+}
+
+function* buildWaterG(R, world, grid, mission, theater, o, sliced) {
   const mod = o.module;
   if (!mod || !R?.renderer) return null;
   const Q = QUALITY_OF[R.presetName] || 'high';
@@ -425,6 +454,7 @@ export function buildWater(R, world, grid, mission, theater, o = {}) {
   // continuous shorelines (world/shore-field.js, built with the terrain): bank distance for the mask edge, the
   // contact foam and the ice rim — the same smooth line the terrain is carved along
   if (o.shore) for (const d of descs) { d.sdf = o.shore.wetAt; d.sdfFar = o.shore.margin - 0.8; }
+  if (due()) yield;
   const t0 = performance.now();
   const system = mod.createWater(R, R.scene, R.camera, {
     quality: Q, terrain: o.terrain ? [o.terrain, o.apron?.mesh].filter(Boolean) : undefined, lateDecals: true,
@@ -442,7 +472,13 @@ export function buildWater(R, world, grid, mission, theater, o = {}) {
       if (mine.length) d.obstacles = [...(d.obstacles || []), ...mine.map(({ x, z, r }) => ({ x, z, r }))];
     }
   }
-  const bodies = descs.map((d) => system.addBody(d));
+  // (sliced: the off-screen passes' programs — FFT, caustics, ripple step — start linking aside now, not waited for:
+  // the first update draws them later in the load, linked by then; then the bodies: addBodiesG yields promises and
+  // pauses — only buildWaterAsync drives it; the plain call adds them at once)
+  if (due()) yield;
+  if (sliced && system.passProbeDraws && R.renderer) compileAhead(R.renderer, () => system.passProbeDraws(), { all: true }).catch(() => null);
+  if (due()) yield;
+  const bodies = sliced && system.addBodiesG ? yield* system.addBodiesG(descs) : descs.map((d) => system.addBody(d));
   const isWet = (x, z) => wetAt(grid, x, z);
   const splashFx = (x, z, size) => world.fx?.spawn?.('splash', x, z, { radius: size, water: true });
   const wakes = new WakeTracker(system, isWet, splashFx, (x, z) => system.sample(x, z)?.flow || null);

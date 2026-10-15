@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { releaseDataAfterUpload } from '../../engine/texture-memory.js';
 import { compressArrayTexture } from '../../engine/gpu-compress.js';
+import { decodeStrip } from '../../engine/decode-worker.js';
 
 /** Load an image element (rejects on a 404 / decode error). */
 export function loadImage(url) {
@@ -27,10 +28,11 @@ export function loadImage(url) {
  *   device has it (engine/gpu-compress.js); weights: its per-channel error weights
  * @returns {Promise<THREE.DataArrayTexture>}
  */
-export async function loadLayerArray(url, o = {}) {
+/** The strip's tiles as one RGBA array, decoded on the main thread (2D canvas draw + read-back). */
+async function decodeHere(url, tileOpt) {
   const img = await loadImage(url);
   const W = img.width, H = img.height;
-  const tile = Math.min(o.tile || W, W);
+  const tile = Math.min(tileOpt || W, W);
   const cols = Math.max(1, Math.round(W / tile)), rows = Math.max(1, Math.round(H / tile));
   const n = cols * rows;
   const cv = document.createElement('canvas');
@@ -38,8 +40,22 @@ export async function loadLayerArray(url, o = {}) {
   const cx = cv.getContext('2d', { willReadFrequently: true });
   if (cols === 1) cx.drawImage(img, 0, 0);
   else for (let i = 0; i < n; i++) cx.drawImage(img, (i % cols) * tile, Math.floor(i / cols) * tile, tile, tile, 0, i * tile, tile, tile);
-  const t = new THREE.DataArrayTexture(new Uint8Array(cx.getImageData(0, 0, tile, tile * n).data.buffer), tile, tile, n);
+  const data = new Uint8Array(cx.getImageData(0, 0, tile, tile * n).data.buffer);
   cv.width = cv.height = 1; // release the canvas backing store now
+  return { data, tile, n };
+}
+
+/** Download the strip here (the loading screen counts its bytes); decode it in a worker (engine/decode-worker.js). */
+async function decodeOffThread(url, tileOpt) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('load ' + url);
+  return decodeStrip(await r.blob(), tileOpt || 0);
+}
+
+export async function loadLayerArray(url, o = {}) {
+  // off the main thread where it can (the same draw + read-back, byte for byte), else here
+  const { data, tile, n } = (o.worker !== false && (await decodeOffThread(url, o.tile))) || (await decodeHere(url, o.tile));
+  const t = new THREE.DataArrayTexture(data, tile, tile, n);
   t.format = THREE.RGBAFormat; t.type = THREE.UnsignedByteType;
   t.wrapS = t.wrapT = o.wrap ?? THREE.RepeatWrapping;
   t.minFilter = THREE.LinearMipmapLinearFilter; t.magFilter = THREE.LinearFilter;

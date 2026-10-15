@@ -9,6 +9,7 @@ import { WIND_GLSL } from '../../world/wind.js';
 import { rng, fbm } from './noise.js';
 import { makeBuf, leaf, blade, panicle } from './grass-arch.js';
 import { onDryLand, GROUND_SHORE_MARGIN } from '../../world/veg-shore.js';
+import { due, runSync } from '../../engine/slice.js';
 
 function stoneGeo(seed) {
   const g = new THREE.IcosahedronGeometry(1, 1);
@@ -151,7 +152,10 @@ function windClutter(m, U, amp, h, key) {
   return m;
 }
 
-export function createClutter(ctx, q, group, U = null) {
+export function createClutter(ctx, q, group, U = null) { return runSync(createClutterG(ctx, q, group, U)); }
+
+/** createClutter() as a sliced job (engine/slice.js): the same draws of the same random stream, pausing between. */
+export function* createClutterG(ctx, q, group, U = null) {
   const { W, D, heightAt, materialAt, src } = ctx;
   const dens = q.clutter * (ctx.opts.clutter === false ? 0 : 1);
   const excl = ctx.opts.exclude || null; // step 3p: nothing on / through hard pavement
@@ -170,6 +174,7 @@ export function createClutter(ctx, q, group, U = null) {
   const stones = [[], [], [], []];
   const tries = Math.round(W * D * 1.6 * dens);
   for (let i = 0; i < tries; i++) {
+    if ((i & 1023) === 1023 && due()) yield;
     const x = r() * W, z = r() * D;
     if (excl && excl(x, z)) continue;
     const m = materialAt(x, z);
@@ -180,8 +185,8 @@ export function createClutter(ctx, q, group, U = null) {
     stones[(r() * 4) | 0].push([x, heightAt(x, z) - s * 0.25, z, s, r()]);
   }
   const pal = STONE_COL[src] || STONE_COL.temperate;
-  stones.forEach((list, v) => {
-    if (!list.length) return;
+  for (const [v, list] of stones.entries()) {
+    if (!list.length) continue;
     const im = new THREE.InstancedMesh(stoneGeo(31 + v), stoneMat, list.length);
     list.forEach(([x, y, z, s, c], i) => {
       e.set((r() - 0.5) * 0.4, r() * 6.28, (r() - 0.5) * 0.4); qt.setFromEuler(e);
@@ -190,7 +195,8 @@ export function createClutter(ctx, q, group, U = null) {
     });
     im.castShadow = true; im.receiveShadow = true; im.name = 'clutterStones';
     group.add(im); meshes.push(im);
-  });
+    if (due()) yield;
+  }
 
   // --- wildflowers (temperate) + weeds -------------------------------------------------------------------
   const prof = ctx.veg || { flowers: 1, season: 'summer' };
@@ -212,9 +218,10 @@ export function createClutter(ctx, q, group, U = null) {
     };
     windClutter(fMat, U, 0.16, 0.4, 'clutterFlowerW'); // thin stems: a soft bend
     const nF = Math.round(W * D * 2.2 * dens);
-    FL.forEach((f, fi) => {
+    for (const [fi, f] of FL.entries()) {
       const list = [];
       for (let i = 0; i < nF; i++) {
+        if ((i & 1023) === 1023 && due()) yield;
         const x = r() * W, z = r() * D;
         if (excl && excl(x, z)) continue;
         const patch = fbm(x / 7 + fi * 13.1, z / 7 - fi * 7.7, 3, 900 + fi);
@@ -224,7 +231,7 @@ export function createClutter(ctx, q, group, U = null) {
         list.push([x, z, dry(x, z)]);
       }
       const n = list.reduce((k, q) => k + q[2], 0);
-      if (!n) return;
+      if (!n) continue;
       const hm = (f.h[0] + f.h[1]) / 2;
       const im = new THREE.InstancedMesh(flowerGeo(f.petals, hm, f.r / 0.6, 0.9), fMat, n);
       let i = 0;
@@ -238,7 +245,7 @@ export function createClutter(ctx, q, group, U = null) {
       });
       im.name = 'clutterFlowers_' + f.name; im.receiveShadow = true;
       group.add(im); meshes.push(im);
-    });
+    }
   }
   // broad-leaf weeds: 3D dock / plantain rosettes (cupped leaves rising 30–60°, a seed spike on some) along verges
   // and in the sward. The desert no longer gets weeds here: its plants are the 3D scrub archetypes (scrub.js).
@@ -248,6 +255,7 @@ export function createClutter(ctx, q, group, U = null) {
     const winter = prof.season === 'winter' || prof.season === 'thaw';
     const lists = [[], []];
     for (let i = 0; i < W * D * 0.5 * dens; i++) {
+      if ((i & 1023) === 1023 && due()) yield;
       const x = r() * W, z = r() * D, m = materialAt(x, z);
       if (excl && excl(x, z)) continue;
       const g = (m.weights[0] * 0.5 + m.weights[2] * 0.6 + m.weights[1] * 0.4) * (1 - m.weights[7]); // not on beach sand

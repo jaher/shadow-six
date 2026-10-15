@@ -231,19 +231,28 @@ export function buildSummitVisuals(world, spec) {
   world.scene.add(root);
   for (const id of spec.hide || []) { const o = world.structures?.get(id)?.object3d; if (o) o.visible = false; }
   for (const id of spec.lift || []) {
-    const s = world.structures?.get(id);
-    const o = s?.object3d;
-    if (s?.entity) s.entity.y = SUMMIT_Y;
+    const o = world.structures?.get(id)?.object3d;
     if (o && !o.userData.m05Lifted) { o.userData.m05Lifted = true; o.position.y += SUMMIT_Y; }
   }
   wurzburgDish(world.structures?.get('radar')?.object3d);
 }
 
-/** mission.script(world, director): installed once after the lazy set-piece init. */
+/** The lifted props' logical height: with the summit meshes only (a world without them keeps them at 0, as ever). */
+function liftSummitEntities(world, spec) {
+  if (!world.scene || !world._spMeshes || world._m05Lifted) return;
+  world._m05Lifted = true;
+  for (const id of spec.lift || []) { const s = world.structures?.get(id); if (s?.entity) s.entity.y = SUMMIT_Y; }
+}
+
+/**
+ * mission.script(world, director): installed once after the lazy set-piece init. `.visuals`: the summit meshes alone,
+ * built by Game as the load ends (textures resident, programs linked); the script's run finds them built.
+ */
 export function m05Script(spec) {
-  return (world, dir) => {
+  const script = (world, dir) => {
     installPhoneHangUp(dir);
     buildSummitVisuals(world, spec);
+    liftSummitEntities(world, spec);
     const cab = world.byId('cablecar'), gyro = world.byId('autogyro'), line = dir.get('cablecar_line');
     if (gyro) gyro.y = SUMMIT_Y;
     world.onBelTick((dt) => {
@@ -251,4 +260,6 @@ export function m05Script(spec) {
       tickAutogyro(world, gyro, dt);
     });
   };
+  script.visuals = (world) => buildSummitVisuals(world, spec);
+  return script;
 }

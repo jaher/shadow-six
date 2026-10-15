@@ -46,7 +46,8 @@ export class BloodSystem {
     this._burst = new Map(); // unit id → recent spatter times (≤ 3 per 0.2 s)
     this._feetT = 0;
     this.layers = o.layers || null;
-    if (this.visual && !this.layers) this._makeLayers();
+    // (`layersReady`: the load waits for them, so they join the scene at the same point of every load — Game.loadMission)
+    this.layersReady = this.visual && !this.layers ? this._makeLayers() : Promise.resolve();
     const on = (ev, fn) => world.events.on(ev, (e) => { try { fn(e || {}); } catch (err) { console.error(`[blood] ${ev}`, err); } });
     this._off = [
       on('unit:damaged', (e) => this.onDamaged(e)),

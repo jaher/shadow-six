@@ -8,7 +8,8 @@
  */
 import { releaseGpuOnUnload } from '../engine/texture-memory.js';
 import * as THREE from 'three';
-import { bakeDamFlow } from './dam-flow.js';
+import { bakeDamFlowG } from './dam-flow.js';
+import { due, runSync } from '../engine/slice.js';
 import { POOL_VERT, POOL_FRAG } from './dam-water-pool-glsl.js';
 import { createFoamField } from './dam-water-foam.js';
 
@@ -64,13 +65,16 @@ export function poolSources(mid, trickles = []) {
  * @param {{cols:number, rows:number, terrain:Uint8Array, cell?:number}} grid
  * @param {{v:(u:number, y:number)=>number|null, world:(u:number, v:number)=>number[]}} F face sampler (or an analytic stand-in)
  */
-export function bakePool(grid, F, sources, o = {}) {
+export function bakePool(grid, F, sources, o = {}) { return runSync(bakePoolG(grid, F, sources, o)); }
+
+/** bakePool() as a sliced job (engine/slice.js). */
+export function* bakePoolG(grid, F, sources, o = {}) {
   const D = { ...POOL_DOMAIN, ...(o.domain || {}) }, cell = grid.cell || 0.5, foot = new Map();
   const footV = (u) => { const k = Math.round(u * 2) / 2; if (!foot.has(k)) foot.set(k, F.v(k, 0.15)); return foot.get(k); };
   const wet = (x, z) => { const i = Math.floor(x / cell), j = Math.floor(z / cell); if (i < 0 || j < 0 || i >= grid.cols || j >= grid.rows) return false; const t = grid.terrain[j * grid.cols + i]; return t === 5 || t === 6; };
   const isWater = (u, v) => { const f = footV(u); if (f != null && v < f + 0.1) return false; const [x, z] = F.world(u, v); return wet(x, z); };
   const t0 = performance.now();
-  const field = bakeDamFlow({ isWater, ...D, sources, steps: 200, speed: o.speed ?? 1.5,
+  const field = yield* bakeDamFlowG({ isWater, ...D, sources, steps: 200, speed: o.speed ?? 1.5,
     isOut: (u, v) => v > D.v0 + D.nv * D.h - 1.6 || (u > D.u0 + D.nu * D.h - 1.6 && v > 20) });
   field.ms = performance.now() - t0;
   return field;
@@ -98,14 +102,20 @@ export function blurMasked(src, mask, nu, nv, su, sv) {
   return out;
 }
 
-export function createDamPool(world, F, o) {
+export function createDamPool(world, F, o) { return runSync(createDamPoolG(world, F, o)); }
+
+/** createDamPool() as a sliced job (engine/slice.js): its bake and blurs pause between steps. */
+export function* createDamPoolG(world, F, o) {
   if (!world.grid?.terrain) return null;
-  const field = bakePool(world.grid, F, o.sources, o);
+  const field = yield* bakePoolG(world.grid, F, o.sources, o);
   // the field as a half-float texture (rg current m/s, b foam, a aeration)
   const { nu, nv, h, u0, v0 } = field, data = new Uint16Array(nu * nv * 4), toH = THREE.DataUtils.toHalfFloat;
   // the drawn foam and aeration are blurred (wider across the stream than along it): advected without diffusion, the
   // baked boil ends on a straight line along the jet's flanks, where the real one frays out into the slack water
-  const foamB = blurMasked(field.foam, field.mask, nu, nv, 3.2, 1.6), aerB = blurMasked(field.aer, field.mask, nu, nv, 3.2, 1.6);
+  const foamB = blurMasked(field.foam, field.mask, nu, nv, 3.2, 1.6);
+  if (due()) yield;
+  const aerB = blurMasked(field.aer, field.mask, nu, nv, 3.2, 1.6);
+  if (due()) yield;
   for (let k = 0; k < nu * nv; k++) { data[k * 4] = toH(field.vel[k * 2]); data[k * 4 + 1] = toH(field.vel[k * 2 + 1]); data[k * 4 + 2] = toH(foamB[k]); data[k * 4 + 3] = toH(aerB[k]); }
   // the foam and aeration reach 2 cells upstream past the water (still): the boil runs on under the curtains' feet and the
   // face, so the pool and the falling sheets overlap instead of meeting along a seam

@@ -49,7 +49,7 @@ import { BlastMarks } from './render/blast-marks.js';
 import { BloodSystem } from './render/blood/index.js';
 import { resolveHouseRules, tierFromPreset } from './core/house-rules.js';
 import { nobodyLeftToHelp } from './entities/downed.js';
-import { prepareCharacters, awaitUnitModels, warmUnitModels, charactersFrame, transportFrame, releaseCharacters } from './art/unit-model.js';
+import { prepareCharacters, awaitUnitModels, warmUnitModels, warmUnitModelsG, charactersFrame, transportFrame, releaseCharacters } from './art/unit-model.js';
 import { knifeKillFrame } from './art/knife-kill.js';
 import { digWarmObjects } from './art/shovel-dig.js';
 
@@ -78,12 +78,14 @@ import { quickSave, quickLoad, saveSlot, loadSlot, autoSave } from './save.js';
 import { probe as probeCone } from './ai/perception.js';
 import { mgMountFrame } from './render/mg-mount.js';
 import { ScopeMagnifier } from './render/scope-magnifier.js';
-import { chunkLargeMeshes, releaseAllChunks } from './engine/chunking.js';
+import { chunkLargeMeshes, chunkLargeMeshesG, releaseAllChunks } from './engine/chunking.js';
 import { DynamicResolution } from './engine/dynamic-res.js';
 import { sessionCache } from './engine/asset-cache.js';
 import { deferMaterialDisposal, flushMaterialDisposal, holdingMaterials } from './engine/program-keeper.js';
-import { TextureWarmer, releaseUnloadTextures } from './engine/texture-memory.js';
-import { fitLadders } from './art/ladder-frame.js';
+import { TextureWarmer, releaseUnloadTextures, texturesLoading, texturesLoaded } from './engine/texture-memory.js';
+import { compileAhead, framesInParts } from './engine/parallel-compile.js';
+import { runSliced, runSync, due, nextTask } from './engine/slice.js';
+import { fitLadders, fitLaddersG } from './art/ladder-frame.js';
 
 /** Resolve the first function/class export among candidate names (stub modules may vary). */
 function pick(mod, ...names) {
@@ -231,6 +233,9 @@ export class Game {
     this.events.emit('mission:loading', { id: def.id }); // UI releases the menu diorama (menus-art-direction §1.10)
     this.unloadMission();
     this.missionIndex = list.indexOf(def);
+    // a reload of a mission this page has built (a restart, a walkthrough jump back): its programs were kept
+    // (engine/program-keeper.js), so the warm-ups draw for real at once (a compile probe would only cost its traversal)
+    this._warmReload = sessionCache.missions.includes(def.id);
     sessionCache.beginMission(def.id); // asset cache: tag what this load uses; the last mission's data stays until settle()
     if (this.debug?.transformDef) def = this.debug.transformDef(def); // ?debug inspection options (debug/debug-options.js)
     def = normalizeMission(def, { difficulty: this.difficulty ?? null }); // design-spec §7.3 defaults (throws on invalid data); BCD Easy/Hard variant
@@ -276,39 +281,61 @@ export class Game {
     prog.stage('terrain');
     await paintOnce(); // (the map build and the warm-up frame are long: a loading bar shows where the load is first)
     const build = pick(MapBuilder, 'buildMap', 'buildMission', 'build', 'default');
-    this.mapHandle = build ? safe(() => build(world, def, { theater: def.theater, renderer: r, scene: r.scene, assets }), 'map-builder') : null;
-    safe(() => dressStaticVehicles(world, def), 'static vehicles'); // parked wagons / aircraft / flak: library models
-    safe(() => createFlyovers(world, def, { renderer: r, seed: def.seed ?? CONFIG.sim.seed }), 'flyovers'); // ambient aircraft overhead
-    safe(() => createVehicleLamps(r.scene, { preset: r.presetName }), 'vehicle lamps'); // night: real headlamp lights (fixed pool)
+    // the map builds in slices (engine/slice.js): the same build, the loading screen drawing between them. What it starts
+    // loading takes effect once the gate opens — after the steps below, where a synchronous build had returned
+    let openGate = null;
+    const mapOpts = { theater: def.theater, renderer: r, scene: r.scene, assets, gate: new Promise((ok) => { openGate = ok; }) };
+    let handle;
+    try {
+      handle = MapBuilder.buildMapGen ? await safeAsync(() => runSliced(MapBuilder.buildMapGen(world, def, mapOpts)), 'map-builder')
+        : build ? safe(() => build(world, def, mapOpts), 'map-builder') : null;
+      if (this.world !== world) { safe(() => handle?.dispose?.(), 'map dispose'); return prog.cancel(), world; } // replaced meanwhile
+      this.mapHandle = handle;
+      safe(() => dressStaticVehicles(world, def), 'static vehicles'); // parked wagons / aircraft / flak: library models
+      safe(() => createFlyovers(world, def, { renderer: r, seed: def.seed ?? CONFIG.sim.seed }), 'flyovers'); // ambient aircraft overhead
+      safe(() => createVehicleLamps(r.scene, { preset: r.presetName }), 'vehicle lamps'); // night: real headlamp lights (fixed pool)
+    } finally { openGate(); }
     // ground textures, grass and trees build asynchronously (decode + splat + tree workers): wait, bounded
     const ready = this.mapHandle?.ready;
     if (ready) await safeAsync(() => Promise.race([ready, new Promise((ok) => setTimeout(ok, 20000))]), 'terrain');
+    await nextTask(); // (the steps below start on their own task, not on the one that finished the terrain)
     if (this.world !== world) return prog.cancel(), world; // unloaded / replaced while waiting
     // every climbed ladder measured on the built map, the missing ones built (art/ladder-frame.js)
-    this.ladders = safe(() => fitLadders(world, r.scene), 'ladders');
+    this.ladders = await safeAsync(() => runSliced(fitLaddersG(world, r.scene)), 'ladders'); // (a ladder at a time)
+    if (this.world !== world) return prog.cancel(), world;
     // ruins waiting for their blast (art/building-props.js prepareDestroy: bunkers, dams): built now, off the scene —
     // their models load while the rest does; the warm-up frame draws them; the blast only moves them into place
     const ruins = [];
     for (const it of world.interactables || []) {
       const f = it.destructible && !it.destroyed ? it.object3d?.userData?.prepareDestroy : null;
       const rr = f ? safe(() => f(), 'ruin staging') : null;
-      if (rr) ruins.push(rr);
+      if (rr) { ruins.push(rr); await nextTask(); } // (a ruin a task: a bunker's wreck is ~100 ms of geometry)
     }
+    if (this.world !== world) return prog.cancel(), world;
     // scenery apron past the map edges (art/apron.js): the camera keeps its true footprint inside it at every zoom
     const apron = this.mapHandle?.terrain?.apron;
     if (apron) this.cameraRig.setApron(apron.field.A, apron.range);
     // big static meshes (terrain, apron ring…) → culled spatial chunks: the view draws only the part it sees
     const ck = CONFIG.render.chunking;
-    if (ck?.enabled !== false) this.chunkStats = safe(() => chunkLargeMeshes(r.scene, ck), 'chunking');
+    if (ck?.enabled !== false) this.chunkStats = await safeAsync(() => (chunkLargeMeshesG ? runSliced(chunkLargeMeshesG(r.scene, ck)) : chunkLargeMeshes(r.scene, ck)), 'chunking');
+    if (this.world !== world) return prog.cancel(), world;
     prog.stage('units');
-    this._spawnUnits(world, def);
+    await safeAsync(() => runSliced(this._spawnUnitsG(world, def)), 'spawn'); // (a unit at a time: engine/slice.js)
+    if (this.world !== world) return prog.cancel(), world;
     await safeAsync(() => awaitUnitModels(world.entities.filter((e) => e.model?.ready)), 'character bodies');
-    this.warmMs = await safeAsync(() => warmUnitModels(world.entities.filter((e) => e.model?.real)), 'character grounding');
+    // (a clip at a time, the loading screen drawing between them: engine/slice.js)
+    this.warmMs = await safeAsync(() => (warmUnitModelsG ? runSliced(warmUnitModelsG(world.entities.filter((e) => e.model?.real))) : warmUnitModels(world.entities.filter((e) => e.model?.real))), 'character grounding');
     // vehicles, wrecks, lamps, scorch: shaders + textures + vertex buffers on the GPU now, not on the first pan / wreck swap
     // (+ the vehicles the mission brings on later, e.g. M3's escape truck: drawn now, kept off the scene — VehicleMod.laterVehicleModels)
     const later = safe(() => VehicleMod.laterVehicleModels?.(def), 'later vehicles') || [];
     for (const m of later) r.scene.add(m.root);
-    this.vehicleWarm = await safeAsync(() => warmVehicleArt(r.renderer, r.scene, r.camera, () => this.cameraRig.render(this.renderer, 0)), 'vehicle warm-up');
+    // (their models complete — a covered lorry's canvas and rear straps are built after its GLB, a slice at a time —
+    // before their frames are drawn: the straps' programs too)
+    const vehReady = [...later, ...world.entities.map((e) => e.model)].map((m) => m?.ready).filter((p) => p && typeof p.then === 'function');
+    if (vehReady.length) await safeAsync(() => Promise.race([Promise.all(vehReady), new Promise((ok) => setTimeout(ok, 8000))]), 'vehicle models');
+    // (its programs linked aside first and its frames drawn a share of the scene per task: engine/parallel-compile.js)
+    this.vehicleWarm = await safeAsync(() => warmVehicleArt(r.renderer, r.scene, r.camera, () => this.cameraRig.render(this.renderer, 0),
+      { precompile: (f) => this._compileAhead(f, { parts: true }), runFrames: (f) => this._framesInParts(f) }), 'vehicle warm-up');
     for (const m of later) m.root.removeFromParent();
     if (this.world !== world) return prog.cancel(), world;
     // house rules (bodies-design §0.3) + blast/ragdoll physics (§A): Rapier over the finished map, null object on failure
@@ -329,6 +356,13 @@ export class Game {
     if (world.blood?.warm) await safeAsync(() => Promise.race([world.blood.warm(r.renderer, r.camera), new Promise((ok) => setTimeout(ok, 4000))]), 'blood warm-up');
     if (world.marks?.warm) await safeAsync(() => Promise.race([world.marks.warm(r.renderer, r.camera), new Promise((ok) => setTimeout(ok, 4000))]), 'blast marks warm-up'); // crater decal program + atlas
     if (world.fx?.vfx?.warm) await safeAsync(() => Promise.race([world.fx.vfx.warm(r.renderer, r.camera), new Promise((ok) => setTimeout(ok, 4000))]), 'vfx warm-up'); // smoke / fire / debris programs
+    // the blood's drawn layers come from a lazily loaded module: in the scene by now, whatever the network and the
+    // machine's speed (the warm-up frame below raced them: the wind particles and the fish joined the scene before or
+    // after them, depending on how long the warm-ups above took)
+    if (world.blood?.layersReady) await safeAsync(() => Promise.race([world.blood.layersReady, new Promise((ok) => setTimeout(ok, 4000))]), 'blood layers');
+    // what the map builds on its first frame (the dam's water: rays down its face and a flow bake, ~1.7 s on M3), now,
+    // a slice at a time; the warm-up frame below is that first frame and puts it in the scene as it always did
+    if (this.mapHandle?.prepareG) await safeAsync(() => runSliced(this.mapHandle.prepareG()), 'map first-frame build');
     if (this.world !== world) return prog.cancel(), world;
     // every pass's programs for everything on the map (shadow depth, AO normals, mirror, x-ray variants): compiled now,
     // not as first-sight hitches when the camera reaches them during play
@@ -349,12 +383,28 @@ export class Game {
     if (this.world !== world) { safe(() => raftWarm?.done(), 'raft warm-up'); return prog.cancel(), world; }
     // (+ the Spy's take and dressing props: her caps as loose props, the officer's cap, U's bundle — art/spy-actions.js)
     const spyWarm = safe(() => spyWarmObjects(world), 'spy warm-up');
-    if (CONFIG.render.warmFrame !== false) this.warmFrameMs = safe(() => this._warmFrame([...ruins.flatMap((rr) => rr.roots), ...(dig?.objects || []), ...wireWarm, ...(raftWarm?.objects || []), ...(spyWarm?.objects || [])], [...(dig?.xray || []), ...(raftWarm?.xray || []), ...(spyWarm?.xray || [])]), 'program warm-up frame');
+    if (CONFIG.render.warmFrame !== false) {
+      const extra = [...ruins.flatMap((rr) => rr.roots), ...(dig?.objects || []), ...wireWarm, ...(raftWarm?.objects || []), ...(spyWarm?.objects || [])];
+      const xray = [...(dig?.xray || []), ...(raftWarm?.xray || []), ...(spyWarm?.xray || [])];
+      const frame = () => this._warmFrame(extra, xray, 'world'), close = () => this._warmFrame(extra, xray, 'close');
+      // the driver links the frames' programs aside first (engine/parallel-compile.js): the frames themselves never wait
+      this.warmCompile = await safeAsync(() => this._compileAhead(frame, { parts: true, extra }), 'program warm-up (parallel compile)');
+      // (`all`: its submerged-mask, trail and ripple passes render their own scenes — warm-ups too: skipped in the probe)
+      if (this.world === world) await safeAsync(() => this._compileAhead(close, { all: true }), 'program warm-up, close-ups (parallel compile)');
+      // (the whole-map frame drawn a share of the scene per task: engine/parallel-compile.js framesInParts; the men's
+      // close-up / stained passes once, on a task of their own)
+      const tw = performance.now();
+      if (this.world === world) await safeAsync(() => this._framesInParts(frame, extra), 'program warm-up frame');
+      if (this.world === world) { await nextTask(); safe(() => close(), 'program warm-up close-ups'); }
+      this.warmFrameMs = Math.round(performance.now() - tw);
+    }
     for (const o of wireWarm) o.userData.warmDispose?.();
     safe(() => dig?.done(), 'dig warm-up');
     safe(() => raftWarm?.done(), 'raft warm-up');
     safe(() => spyWarm?.done(), 'spy warm-up');
-    safe(() => world.fx?.prescan?.(), 'fx scan'); // chimneys, drums, mission fx: now, not in the first tick of play
+    if (this.world !== world) return prog.cancel(), world;
+    await safeAsync(() => world.fx?.prescan?.(), 'fx scan'); // chimneys, drums, mission fx: now, not in the first tick of play
+    if (this.world !== world) return prog.cancel(), world;
     prog.stage('finish');
     world.objectives = createObjectives(def.objectives || []);
     if (!world.extraction) world.extraction = def.extraction || null;
@@ -371,6 +421,30 @@ export class Game {
     const first = world.commandos.find((c) => c.alive);
     if (first) this.input.select([first]);
     this.accumulator = 0;
+    // the mission's own scenery (its script's `visuals`: M11's ramps and portals, M12's platform…): built now, as the
+    // load ends — not by the script's first run on the first tick of play, its textures still loading (dark surfaces
+    // for the first frames) and its programs compiling then; the script finds it built (missions/setpieces.js)
+    await safeAsync(() => def.script?.visuals?.(world), 'mission visuals'); // (may be a sliced job: M20's castle)
+    if (this.world !== world) return prog.cancel(), world;
+    // (and what a model builds on its first update: `model.prepare(entity)` — the cable car's line)
+    for (const e of world.entities) if (typeof e.model?.prepare === 'function') safe(() => e.model.prepare(e), 'model prepare');
+    // (the ladders measured again over that scenery — what _laddersFrame did on the first tick of play — sliced)
+    if (def.script?.visuals && this.ladders) {
+      safe(() => this.ladders.dispose(), 'ladders dispose');
+      this.ladders = (await safeAsync(() => runSliced(fitLaddersG(world, r.scene)), 'ladders')) || null;
+      if (this.ladders) this.ladders.late = true;
+    }
+    if (this.world !== world) return prog.cancel(), world;
+    // every texture loading in the background (engine/texture-memory.js: the dressing / castle / pavement finishes made
+    // by the scans above) decoded and compressed before the loading screen goes: none draws empty in the first view
+    const tt = performance.now(), tn = texturesLoading();
+    if (tn) await safeAsync(() => texturesLoaded(20000), 'textures');
+    this.textureWait = { textures: tn, ms: Math.round(performance.now() - tt) };
+    if (this.world !== world) return prog.cancel(), world;
+    // the first frame itself (the start view, its LODs, the selection, the cones): whatever program it still lacks is
+    // linked aside now, not in that frame (engine/parallel-compile.js; a render with dt 0 advances nothing)
+    if (CONFIG.render.warmFrame !== false) await safeAsync(() => this._compileAhead(() => this.render(0, 1, true)), 'first frame programs');
+    if (this.world !== world) return prog.cancel(), world;
     const lp = prog.done();
     // the world is built: free what earlier missions loaded and this one does not use (GPU textures, templates…)
     sessionCache.settle();
@@ -390,9 +464,12 @@ export class Game {
    * One frame of the whole map (load time): the frame camera keeps the game's orientation with its frustum widened to
    * the map and a margin, the sun shadow fitted to the whole map, the characters all on screen, the water mirror
    * updated for it. Every material then acquires its programs in every pass now (three compiles on first use).
-   * Restores the view; the next real frame refits everything. @returns {number} ms
+   * Restores the view; the next real frame refits everything. `only`: 'world' the whole-map frame alone (drawn in
+   * parts at load: engine/parallel-compile.js framesInParts), 'close' the characters' close-up / stained passes and the
+   * render-to-texture warms alone (once: they draw the men only — repeated per part they were most of each part's
+   * cost); both by default. @returns {number} ms
    */
-  _warmFrame(extra = [], xrayExtra = []) {
+  _warmFrame(extra = [], xrayExtra = [], only = null) {
     const t0 = performance.now(), r = this.renderer, rig = this.cameraRig, def = this.missionDef, w = this.world;
     let restoreWarm = null;
     if (!r.camera || !w || !def?.size) return 0;
@@ -456,6 +533,7 @@ export class Game {
       const cones = this.cones, forced0 = cones?.forced, foe = w.enemies.find((e) => e.alive && e.vision);
       if (cones && 'forced' in cones && foe) { cones.forced = new Set([foe]); safe(() => cones.update(), 'warm cone'); }
       const path = safe(() => this.selection?._pathLine?.(0), 'warm path');
+      if (path) path.visible = true; // (made once, hidden again below: shown on every call — a warm-up frame runs in parts)
       // (and the x-ray pass over `xrayExtra` too: props carried on a man, the shovel, draw their own silhouette variant)
       const xt = r.xrayTargets;
       if (xrayExtra.length) r.xrayTargets = () => [...(xt?.() || []), ...xrayExtra];
@@ -464,7 +542,8 @@ export class Game {
         if (path) path.visible = false;
         if (cones && 'forced' in cones && foe) { cones.forced = forced0; safe(() => cones.update(), 'warm cone'); }
       };
-      r.render(0);
+      if (only !== 'close') r.render(0);
+      if (only === 'world') return Math.round(performance.now() - t0); // (the finally below restores)
       // the men again with blood on them (blood/stains.js: the stained variant of every character material compiles at
       // the first wound — a kill in video mode): only their subtrees and the lights (the same light set), every LOD;
       // then close up, clean and stained (the director's close shots: the full-detail LOD and the small kit — mess
@@ -509,8 +588,31 @@ export class Game {
     return Math.round(performance.now() - t0);
   }
 
+  /**
+   * Compile the programs a warm-up frame will use without freezing the page: `frame` runs once as a probe (its new
+   * programs are created and linked by the driver in parallel; their draws skipped), the wait polls between tasks
+   * (engine/parallel-compile.js). The caller then draws the frame for real. Without KHR_parallel_shader_compile: no-op.
+   * @param {() => void} frame synchronous, repeatable (it restores what it changes)
+   */
+  _compileAhead(frame, { cancelled = () => !this.building, always = false, parts = false, extra = null, all = false } = {}) {
+    if (this._warmReload && this.building && !always) return Promise.resolve(null);
+    const r = this.renderer;
+    // (`parts`: a whole-map frame, probed a share of the scene at a time: engine/parallel-compile.js framesInParts;
+    // `extra`: what the frame adds to the scene for itself — staged ruins… — split among the parts too)
+    // (`all`: a frame of warm-up draws only — its own render-to-texture scenes too — every draw may be skipped)
+    return compileAhead(r.renderer, frame, { scenes: [r.scene, r.decalScene, r.overlayScene], composer: r.composer, cancelled, scene: parts ? r.scene : null, extra, all });
+  }
+
+  /** A whole-map warm-up frame drawn for real, a share of the scene per task (engine/parallel-compile.js). */
+  _framesInParts(frame, extra = null) {
+    return framesInParts(this.renderer.scene, frame, { extra });
+  }
+
   /** Spawn commandos (with BEL first-aid kit rule), enemies and vehicles from the mission def. */
-  _spawnUnits(world, def) {
+  _spawnUnits(world, def) { return runSync(Game.prototype._spawnUnitsG.call(this, world, def)); }
+
+  /** _spawnUnits as a sliced job (engine/slice.js): the same spawns in the same order, pausing between units. */
+  *_spawnUnitsG(world, def) {
     const roles = (def.commandos || []).map((c) => c.role);
     const medic = firstAidCarrier(roles);
     for (const spawn of def.commandos || []) {
@@ -527,13 +629,15 @@ export class Game {
       if (spawn.hideout) admitAtSpawn(world, c, spawn.hideout);
       // §7.3 `stance: 'crawl'`: the mission starts him prone (already down: no stance-change lockout)
       if (spawn.stance === 'crawl') { c.setStance('crawl'); c._stanceT = 0; }
+      if (due()) yield;
     }
-    for (const spawn of def.enemies || []) world.add(new Enemy(placed(world, spawn)));
+    for (const spawn of def.enemies || []) { world.add(new Enemy(placed(world, spawn))); if (due()) yield; }
     const Vehicle = pick(VehicleMod, 'Vehicle', 'default');
     const createVehicle = pick(VehicleMod, 'createVehicle');
     world.vehicleFactory = (spawn) => (createVehicle ? createVehicle(spawn) : new Vehicle(spawn));
     for (const spawn of def.vehicles || []) {
       safe(() => world.spawnVehicle(spawn.vehicleType || 'truck', spawn), 'vehicle');
+      if (due()) yield;
     }
   }
 
@@ -883,6 +987,13 @@ export class Game {
     // a world being built is hidden by the loading screen (or holds the last frame of an instant restart): drawing
     // it half-built only competes with the load for the main thread (and compiles programs one frame at a time)
     if (!this.building) {
+      // the page's first frame (post passes, the menus' scene): its programs linked aside first, the view waits for
+      // them (engine/parallel-compile.js: ~17 programs blocked the boot 0.3–0.8 s)
+      if (this._bootWarm !== true && !this.manualTick && CONFIG.render.warmFrame !== false) {
+        this._bootWarm ||= this._compileAhead(() => this.render(0, 1, true), { cancelled: () => false })
+          .catch(() => null).finally(() => { this._bootWarm = true; });
+        if (this._bootWarm !== true) { safe(() => this.hud?.update?.(dt), 'hud'); return; }
+      }
       // the view hidden behind an opaque menu layer (the menus' backdrop, its live diorama off): no GPU work for it
       const covered = this._viewCovered();
       this._coveredFrames = covered ? (this._coveredFrames || 0) + 1 : 0;
@@ -988,7 +1099,8 @@ export class Game {
 
   /**
    * Built ladders follow their links (a raised ladder shows once lowered). A mission script draws its own scenery on
-   * its first tick (M20's castle): the ladders are measured again then, once.
+   * its first tick: the ladders are measured again then, once (a script with `.visuals` — M20's castle — had its
+   * scenery built and the ladders measured again as the load ended: `late` already).
    */
   _laddersFrame(w) {
     if (!this.ladders.late && w.tick >= 1 && this.missionDef?.script) {

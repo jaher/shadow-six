@@ -96,9 +96,12 @@ export function liftEntities(world, spec) {
   for (const id of spec.liftVehicles || []) { const v = world.byId?.(id); if (v && !v.destroyed) v.y = PLATEAU_Y; }
 }
 
-/** mission.script(world, director): installed once after the lazy set-piece init. */
+/**
+ * mission.script(world, director): installed once after the lazy set-piece init. `.visuals`: the plateau meshes alone,
+ * built by Game as the load ends (textures resident, programs linked); the script's run finds them built.
+ */
 export function m08Script(spec) {
-  return (world) => {
+  const script = (world) => {
     buildPlateauVisuals(world, spec);
     liftEntities(world, spec);
     // §7 both men start prone in the start yard (only on a fresh start, not after a quick load)
@@ -111,4 +114,6 @@ export function m08Script(spec) {
       }
     }
   };
+  script.visuals = (world) => buildPlateauVisuals(world, spec);
+  return script;
 }

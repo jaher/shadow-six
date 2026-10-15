@@ -13,6 +13,7 @@
  * @module art/body-clips
  */
 import { AnimationClip, QuaternionKeyframeTrack, VectorKeyframeTrack, Quaternion, Vector3, Euler } from 'three';
+import { due, runSync } from '../engine/slice.js';
 
 const FPS = 30;
 const RX = {
@@ -247,11 +248,15 @@ export function recipes(mirror = MIRROR) {
  * Add the derived clips to a kit's library (idempotent; skips names the kit already has and recipes whose base clip it
  * lacks). @returns {string[]} names added
  */
-export function addBodyClips(lib, { mirror = MIRROR, force = false } = {}) {
+export function addBodyClips(lib, o = {}) { return runSync(addBodyClipsG(lib, o)); }
+
+/** addBodyClips() as a sliced job (engine/slice.js): one clip at a time. */
+export function* addBodyClipsG(lib, { mirror = MIRROR, force = false } = {}) {
   if (!lib?.clips) return [];
   const added = [];
   for (const [name, r] of recipes(mirror)) {
     if (lib.clips.has(name) && !force) continue;
+    if (added.length && due()) yield;
     let dur = r.dur;
     if (!dur) dur = lib.clips.get(r.layers[0].src)?.duration || 1;
     const c = buildClip(lib.clips, name, { ...r, dur });

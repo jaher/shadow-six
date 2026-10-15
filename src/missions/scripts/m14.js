@@ -107,7 +107,12 @@ export function buildVisuals(world, spec) {
   for (const id of spec.hide || []) { const o = world.structures?.get(id)?.object3d; if (o) o.visible = false; }
 }
 
-/** mission.script(world): visuals once (the team is seated by the `start` trigger). */
+/**
+ * mission.script(world): visuals once (the team is seated by the `start` trigger). `.visuals`: the same, built by Game
+ * as the load ends (the first tick's call finds it built).
+ */
 export function m14Script(spec) {
-  return (world) => { buildVisuals(world, spec); };
+  const script = (world) => { buildVisuals(world, spec); };
+  script.visuals = script;
+  return script;
 }

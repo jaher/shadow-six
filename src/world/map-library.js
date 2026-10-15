@@ -13,6 +13,7 @@
  */
 
 import * as THREE from 'three';
+import { due, runSync } from '../engine/slice.js';
 import { LINK, B } from './grid.js';
 import { placeholderHinted } from '../art/building-props.js';
 
@@ -304,14 +305,18 @@ export function wireLibraryDoors(world, built) {
  * Walkable deck surfaces of library bridges (and piers/quays with a deck height), in world coords.
  * `heightAt(x, z)` = deck height along the bridge (deck_end at the ends, smooth ramp to deck_top), or null outside.
  */
-export function libraryDecks(built, o = {}) {
+export function libraryDecks(built, o = {}) { return runSync(libraryDecksG(built, o)); }
+
+/** libraryDecks() as a sliced job (engine/slice.js): `o.measureG` (generator) in place of `o.measure`. */
+export function* libraryDecksG(built, o = {}) {
   const out = [];
+  const measure = o.measure || o.measureG;
   for (let b of built) {
     let br = b.library?.bridge;
     if (!br?.deck || br.deck.length < 3 || !(br.deck_top > 0.05)) {
       // a library bridge / pier without sidecar deck data: its gameplay rect is the deck, measured on the visual
       const d = b.def, isDeck = b.library && (/bridge|pier|jetty|dam/.test(b.type) || d.deck) && d.w != null && d.d != null;
-      if (!isDeck || !o.measure) continue;
+      if (!isDeck || !measure) continue;
       const c = Math.cos(d.rot ?? 0), s = Math.sin(d.rot ?? 0), hw = d.w / 2, hd = d.d / 2;
       br = { deck: [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([u, v]) => [d.x + u * c - v * s, d.z + u * s + v * c]), deck_top: 1.2, deck_end: 0 };
       b = { ...b, library: { ...b.library, scale: [1, 1, 1] } };
@@ -323,7 +328,7 @@ export function libraryDecks(built, o = {}) {
     const lo = Math.min(...along), hi = Math.max(...along), half = (hi - lo) / 2, mid = (hi + lo) / 2;
     const ramp = Math.min(half * 0.45, Math.max(2, (br.approach?.length ?? 6) * b.library.scale[0]));
     // measured decks cover the whole walkable nav rect (the sidecar deck can stop short of the crest's ends)
-    const d = b.def, rect = o.measure && d.w != null && d.d != null
+    const d = b.def, rect = measure && d.w != null && d.d != null
       ? [[-d.w / 2, -d.d / 2], [d.w / 2, -d.d / 2], [d.w / 2, d.d / 2], [-d.w / 2, d.d / 2]].map(([u, v]) => [x0 + u * c - v * s, z0 + u * s + v * c]) : null;
     const polyArea = (p) => Math.abs(p.reduce((t, q, k) => { const r = p[(k + 1) % p.length]; return t + q[0] * r[1] - r[0] * q[1]; }, 0)) / 2;
     // a curved crest (a dam's arch: the asset's crest_poly) is the deck itself
@@ -336,7 +341,7 @@ export function libraryDecks(built, o = {}) {
     // a raised deck (`elev`, M3 dam crest): the visual stands `elev` higher and units already stand at grid elev
     // there, so the measured surface is taken relative to it
     const lift0 = b.def.elev > 0 ? b.def.elev : 0;
-    const field0 = o.measure ? o.measure(b, poly, rot, top + lift0) : null;
+    const field0 = o.measureG ? yield* o.measureG(b, poly, rot, top + lift0) : o.measure ? o.measure(b, poly, rot, top + lift0) : null;
     const field = field0 && lift0 ? { heightAt: (x, z) => { const h = field0.heightAt(x, z); return h == null ? h : h - lift0; }, parapet: (x, z) => field0.parapet(x, z) } : field0;
     out.push({
       id: b.def.id ?? b.type, poly, top, owner: b.owner, measured: !!field, lift: 0, root: b.library.object3d ?? null,
@@ -361,7 +366,13 @@ export function libraryDecks(built, o = {}) {
  * @param {typeof import('three')} THREE
  * @returns {boolean} true when enough of the deck was hit to decide (false: meshes not loaded yet, retry later)
  */
-export function calibrateDeck(deck, THREE) {
+export function calibrateDeck(deck, THREE) { return runSync(calibrateDeckG(deck, THREE)); }
+
+/**
+ * calibrateDeck() as a sliced job (engine/slice.js): the deck's heights are read first (with its lift at 0, as
+ * before), then one ray per step; the lift changes only at the end (readers in between see the previous one).
+ */
+export function* calibrateDeckG(deck, THREE) {
   if (!deck.root) return false;
   const poly = deck.poly, n = poly.length;
   const cx = poly.reduce((a, p) => a + p[0], 0) / n, cz = poly.reduce((a, p) => a + p[1], 0) / n;
@@ -374,10 +385,13 @@ export function calibrateDeck(deck, THREE) {
   const rc = new THREE.Raycaster(), o = new THREE.Vector3(), down = new THREE.Vector3(0, -1, 0), d = [];
   const lift = deck.lift;
   deck.lift = 0;
+  const hs = pts.map(([x, z]) => deck.heightAt(x, z));
+  deck.lift = lift;
   let hits = 0;
-  for (const [x, z] of pts) {
-    const h = deck.heightAt(x, z);
+  for (let k = 0; k < pts.length; k++) {
+    const [x, z] = pts[k], h = hs[k];
     if (h == null) continue;
+    if (k && due()) yield;
     rc.set(o.set(x, h + 3, z), down);
     const all = rc.intersectObject(deck.root, true);
     if (all.length) hits++;

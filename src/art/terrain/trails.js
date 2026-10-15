@@ -11,6 +11,7 @@
  */
 import * as THREE from 'three';
 import { STAMP_VERT, STAMP_FRAG, FADE_VERT, FADE_FRAG } from './trails-glsl.js';
+import { due, runSync } from '../../engine/slice.js';
 
 export const TRAIL_KINDS = { tire: 0, track: 1, foot: 2, crawl: 3, drag: 4, crater: 5, flatten: 6, melt: 5, paw: 7 }; // melt = a soft bowl, no berm (blood on snow)
 // defaults per kind: feature width (m), quad width factor, depth, berm, min spacing for CPU records (m)
@@ -159,7 +160,15 @@ export class TrailSystem {
     this._preTrample(pts, o);
   }
 
-  _preTrample(pts, o) {
+  /** preTrample() as a sliced job (engine/slice.js): the same stamps in the same order, pausing between them. */
+  *preTrampleG(pts, o = {}) {
+    (this._pre ||= []).push([pts, o]);
+    yield* this._preTrampleG(pts, o);
+  }
+
+  _preTrample(pts, o) { runSync(this._preTrampleG(pts, o)); }
+
+  *_preTrampleG(pts, o) {
     const passes = o.passes ?? 6, spread = o.spread ?? 0.7;
     let sd = o.seed ?? 1;
     const rnd = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
@@ -175,6 +184,7 @@ export class TrailSystem {
           const x = ax + (bx - ax) * t / L - Math.sin(h) * off, z = az + (bz - az) * t / L + Math.cos(h) * off;
           if (walker) this.stamp('walker', x, z, h, { id, record: false });
           else this.stamp('vehicle', x, z, h, { id, type, record: false, load: (o.load ?? 1.25) * (0.85 + 0.3 * rnd()) });
+          if (due()) yield;
         }
       }
       this.endSource(id);
@@ -481,6 +491,27 @@ export class TrailSystem {
       gl.compile(this.stampScene, this.cam);
       gl.compile(this.fadeScene, this.cam);
     } finally { gl.setRenderTarget(prev); }
+  }
+
+  /**
+   * warm() without waiting on the driver: the same programs, compiled in parallel (KHR_parallel_shader_compile) while
+   * the page goes on drawing; resolves once they are linked. The first stamps then never wait for a link.
+   * @returns {Promise<void>}
+   */
+  warmAsync() {
+    const gl = this.gl, prev = gl.getRenderTarget();
+    if (typeof gl.compileAsync !== 'function') { this.warm(); return Promise.resolve(); }
+    let p;
+    try {
+      gl.setRenderTarget(this.rtDef);
+      p = Promise.all([gl.compileAsync(this.stampScene, this.cam), gl.compileAsync(this.fadeScene, this.cam)]);
+    } finally { gl.setRenderTarget(prev); }
+    // …and their first use (uniform tables: a few queries each) a task apart, not in the first stamping draw
+    const first = (m) => new Promise((ok) => setTimeout(() => {
+      try { const pr = gl.properties.get(m)?.currentProgram; pr?.getUniforms?.(); pr?.getAttributes?.(); } catch { /* three reports it at its own first use */ }
+      ok();
+    }, 0));
+    return p.then(() => first(this.stampMat)).then(() => first(this.fadeMat));
   }
 
   /** Zero both render targets, restoring the renderer's target and clear colour (the game's composer relies on them). */

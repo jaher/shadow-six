@@ -25,12 +25,12 @@ import { edgeStructureRuns, edgeLineExtensions, edgeBuildingRows } from './edge-
 import { buildEdgeBuildings, edgeBuildingFlatLines } from '../art/edge-buildings.js';
 import { extendPath } from './apron-field.js';
 import { cellWetAt } from './veg-shore.js';
-import { buildTerrain, canBuildRealTerrain, TREE_TYPES, coverPropsWithSnow, setPropSnow, wireTrailRecords, buildMaskedWater } from '../art/terrain.js';
-import { buildWater, raisedWaterMasks } from '../art/water.js';
+import { buildTerrainG, canBuildRealTerrain, TREE_TYPES, coverPropsWithSnow, setPropSnow, wireTrailRecords, buildMaskedWater } from '../art/terrain.js';
+import { buildWaterAsync, raisedWaterMasks } from '../art/water.js';
 import { buildWalkDeck, WALK_SHIFT, dressingMaterial } from '../art/dressing.js';
 import { buildDamStairs, stairTopAt } from '../art/dam-stairs.js';
 import { StairField, damFlights, platformFlight, linkFlight } from './stairs.js';
-import { createDamWater, hasDamWater, loadDamPoolTextures } from '../render/dam-water.js';
+import { createDamWater, createDamWaterG, hasDamWater, loadDamPoolTextures } from '../render/dam-water.js';
 import { buildMissionWire } from '../art/wire-obstacles.js';
 import * as WaterModule from '../art/water/index.js';
 import { buildExtraProp, isExtraProp, isPlatformProp } from '../art/props-extra.js';
@@ -49,14 +49,16 @@ import { setAntiTilingQuality } from '../art/anti-tiling.js';
 import { buildFurniture } from '../art/furniture/index.js';
 import { createStreetLights } from '../render/street-lights.js';
 import { resolveLighting } from '../engine/lighting.js';
-import { createBuildingBatch } from '../art/building-library.js';
-import { resolvePlacement, placeCat, RULES } from './placement.js';
+import { createBuildingBatch, holdLodAttach } from '../art/building-library.js';
+import { resolvePlacementG, wantsShape, placeCat, RULES } from './placement.js';
 import { convexHull } from './placement-geom.js';
 import { gateLayout } from './breakables.js';
 import { categoryOf } from '../debug/clip-rules.js';
 import { setStaticSolids, removeStaticSolids, minAreaRect } from './body-clearance.js';
-import { planHull, planCells, finestMeshes, measureTop, deckField, lowSurfaces, overheadCells, standingCells, dataKey, SNOW_WADE } from './placement-visual.js';
-import { applyLibraryNav, libraryDoorPoints, wireLibraryDoors, libraryDecks, calibrateDeck, libraryWaterObstacles } from './map-library.js';
+import { planHull, planCells, finestMeshes, measureTop, lowSurfaces, overheadCells, dataKey, SNOW_WADE,
+  planHullG, planCellsG, deckFieldG, lowSurfacesG, overheadCellsG, standingCellsG } from './placement-visual.js';
+import { due, runSync, runSliced, nextTask } from '../engine/slice.js';
+import { applyLibraryNav, libraryDoorPoints, wireLibraryDoors, libraryDecksG, calibrateDeck, calibrateDeckG, libraryWaterObstacles } from './map-library.js';
 import '../entities/bcd-interactables.js'; // registers the BCD mechanics' interactable kinds (docs/bcd-plan.md §1.10)
 
 /** Grid owner ids for structures start here (entity ids stay far below). */
@@ -226,25 +228,35 @@ function buildStructureCore(s, ctx) {
  * plan hulls (library sidecar meshes, dressing); grid-only: the data footprints.
  * @returns {ReturnType<typeof resolvePlacement> & {changed: Set<number>}}
  */
-export function placeStructures(mission, first, { grid, meshes = false, realTerrain = false } = {}) {
+export function placeStructures(mission, first, o = {}) { return runSync(placeStructuresG(mission, first, o)); }
+
+/** placeStructures() as a sliced job (engine/slice.js): the shapes measured, then the rules run, pausing in between. */
+export function* placeStructuresG(mission, first, { grid, meshes = false, realTerrain = false } = {}) {
   const hulls = new Map();
-  const shapeOf = meshes ? (def, k, band) => {
+  function* shapeOfG(def, k, band) {
     const r = first[k];
     if (!r?.object3d || TREE_TYPES.includes(def.type)) return null;
     const key = `${k}:${band}`;
     if (!hulls.has(key)) {
-      if (band === 'low') hulls.set(key, planCells(r.object3d, { maxY: 1.8, cell: 0.25 }));
-      else if (band.startsWith('body')) hulls.set(key, planCells(r.object3d, { minY: 0.3, maxY: +band.split(':')[1] || 1.8, cell: 0.25, fit: true }));
-      else { const h = planHull(r.object3d); hulls.set(key, h ? [h] : null); }
+      if (band === 'low') hulls.set(key, yield* planCellsG(r.object3d, { maxY: 1.8, cell: 0.25 }));
+      else if (band.startsWith('body')) hulls.set(key, yield* planCellsG(r.object3d, { minY: 0.3, maxY: +band.split(':')[1] || 1.8, cell: 0.25, fit: true }));
+      else { const h = yield* planHullG(r.object3d); hulls.set(key, h ? [h] : null); }
     }
     return hulls.get(key);
-  } : null;
+  }
+  const shapeOf = meshes ? (def, k, band) => runSync(shapeOfG(def, k, band)) : null;
+  // the shapes the rules ask for first (placement structureRecords: every structure's low, tall and body shapes, in
+  // that order), measured here a slice at a time; the rules then find them made (later `body:<h>` asks measure then)
+  if (meshes) for (const [k, def] of (mission.structures || []).entries()) {
+    if (!wantsShape(def)) continue;
+    for (const band of ['low', 'tall', 'body']) yield* shapeOfG(def, k, band);
+  }
   const W = grid.width, D = grid.depth;
   const wet = (x, z) => { const t = grid.terrainAt?.(x, z); return t === T.WATER || t === T.SHALLOW; };
   const isFree = (x, z, cat, pt) => x > 0.5 && z > 0.5 && x < W - 0.5 && z < D - 0.5 && (!wet(x, z) || wet(pt.x, pt.z));
   // trees and bushes keep off the water (world/veg-shore.js; the drawn shore follows these cells within ~a cell)
   const wetAt = cellWetAt(grid, RULES.shore + 0.5);
-  const res = resolvePlacement(mission.structures || [], { shapeOf, isFree, wetAt, vehicles: mission.vehicles, terrain: mission.terrain, items: mission.items, interactables: mission.interactables,
+  const res = yield* resolvePlacementG(mission.structures || [], { shapeOf, isFree, wetAt, vehicles: mission.vehicles, terrain: mission.terrain, items: mission.items, interactables: mission.interactables,
     links: { climbLinks: mission.climbLinks, ladders: mission.ladders } });
   const changed = new Set();
   res.structures.forEach((d, k) => {
@@ -437,7 +449,10 @@ export function stampHeadroom(world, built) {
   return { cells, off: typeof off === 'function' ? off : null };
 }
 
-export function stampVisualNav(world, built, points = []) {
+export function stampVisualNav(world, built, points = []) { return runSync(stampVisualNavG(world, built, points)); }
+
+/** stampVisualNav() as a sliced job (engine/slice.js). */
+export function* stampVisualNavG(world, built, points = []) {
   const grid = world.grid, keep = navKeepPoints(world, built), lanes = new Set();
   // (a stair's graded run and the step onto it at either end stay open: its hand rails are walk-only footprints; and
   // the way onto its foot straight on, between the stringers' ends: 0.9 m out — a cell centre in front of the first
@@ -450,7 +465,7 @@ export function stampVisualNav(world, built, points = []) {
   const free = (x, z) => keep.some(([kx, kz, r = 0.9]) => Math.hypot(kx - x, kz - z) < r) || !!(grid.ramps && (grid.nearRamp(x, z, 0.3) || footLane(x, z)));
   let cells = 0, n = 0;
   // the ways to keep: walkable pieces before the stamps, and the points they join
-  const labels0 = walkPieces(grid), stamps = [];
+  const labels0 = yield* walkPiecesG(grid), stamps = [];
   // (door approaches of the assets' real doors and link ends; a layout's guessed door side is no way point)
   const realDoors = [...(world.structureDoors?.values?.() || [])];
   for (const b of built) for (const d of b.library?.doors || []) if (d.approach) realDoors.push([d.approach.x, d.approach.z]);
@@ -458,6 +473,7 @@ export function stampVisualNav(world, built, points = []) {
   const linkEnds = [...(grid.links || []).flatMap((l) => [[l.a.x, l.a.z], [l.b.x, l.b.z]]), ...rampEnds(grid)];
   const ways = [...realDoors, ...linkEnds, ...points].map(([x, z]) => { const c = grid.worldToCell(x, z); return [c.i, c.j]; });
   for (const b of built) {
+    if (due()) yield;
     if (!b.object3d || TREE_TYPES.includes(b.type) || b.def.clip === false) continue;
     const cat = placeCat(b.def), deck = cat === 'bridge' || cat === 'pier';
     // walls: what the dressing adds around the nav line (end caps, buttresses, plank roofs, walk posts)
@@ -486,14 +502,17 @@ export function stampVisualNav(world, built, points = []) {
       }
     }
     // (snow drifts against the walls lower than SNOW_WADE are walked over: neither a body part nor a low part)
-    const rects = planCells(b.object3d, { minY: 0.3, maxY: 1.8, cell: 0.25, close: deck || cat === 'wall' ? 0 : 3, wade: SNOW_WADE });
+    const rects = yield* planCellsG(b.object3d, { minY: 0.3, maxY: 1.8, cell: 0.25, close: deck || cat === 'wall' ? 0 : 3, wade: SNOW_WADE });
     if (!rects) continue;
     // low parts (0.12–0.3 m: a ramp's side, a step's face, a plinth, a kerb): the ground beside them keeps the body
     // clearance too (a boot at the end of a stride would kick their face), but not their own tops (walked on)
-    const lowRects = planCells(b.object3d, { minY: 0.12, maxY: 0.3, cell: 0.25, close: 0, wade: SNOW_WADE }) || [];
-    const tops = lowRects.length ? lowSurfaces(b.object3d, { maxY: 0.6, cell: 0.25, flat: 0.8 }) : null;
+    const lowRects = (yield* planCellsG(b.object3d, { minY: 0.12, maxY: 0.3, cell: 0.25, close: 0, wade: SNOW_WADE })) || [];
+    const tops = lowRects.length ? yield* lowSurfacesG(b.object3d, { maxY: 0.6, cell: 0.25, flat: 0.8 }) : null;
     const onTop = (x, z) => (tops.get(`${Math.floor(x / 0.25)},${Math.floor(z / 0.25)}`) ?? 0) >= 0.08;
-    const deckTops = deck ? lowSurfaces(b.object3d, { maxY: 2.5, cell: 0.25, flat: 0.8 }) : null;
+    const deckTops = deck ? yield* lowSurfacesG(b.object3d, { maxY: 2.5, cell: 0.25, flat: 0.8 }) : null;
+    // (measured now, a slice at a time, for stampAt below: the pier's waterline band and the deck's cover band)
+    if (cat === 'pier') yield* planCellsG(b.object3d, { minY: -0.6, maxY: 0.6, cell: 0.25, close: 0 });
+    if (deck && pairs.length) yield* planCellsG(b.object3d, { minY: 0.6, maxY: 1.8, cell: 0.25, close: 0 });
     const lowAt = (m) => {
       const out = new Set();
       for (const r of lowRects) {
@@ -552,6 +571,7 @@ export function stampVisualNav(world, built, points = []) {
     for (const [m, cover] of [[VIS_NAV_MARGIN, true], [VIS_NAV_MARGIN / 2, true], [0, true], [VIS_NAV_MARGIN, false], [VIS_NAV_MARGIN / 2, false], [0, false]]) {
       if (!deck && !cover) break;
       if (levels.length && !cover) break; // (covers found: done)
+      if (due()) yield;
       const o = stampAt(m, cover);
       if (before && !deckCrossingKept(before, deckCrossing(grid, b.def, pairs, o))) continue;
       levels.push(o);
@@ -577,7 +597,8 @@ export function stampVisualNav(world, built, points = []) {
   // …and every way that was open between the mission's points (spawns, posts, pickups, devices, exits, doors, link
   // ends, deck landings) stays open: stamps around a cut are relaxed (half margin, then what stands right there, then
   // none) until it is open again
-  const relaxed = keepWays(grid, labels0, ways, stamps);
+  if (due()) yield;
+  const relaxed = yield* keepWaysG(grid, labels0, ways, stamps);
   if (relaxed) cells = stamps.reduce((a, st) => a + stampCells(st).size, 0);
   const relaxedN = stamps.filter((st) => st.lv?.size && !st.soft).length;
   const off = world.events?.on?.('structure:destroyed', (e) => { if (e?.owner != null) { grid.navStamp(`vis:${e.owner}`, []); grid.navStamp(`low:${e.owner}`, []); } });
@@ -585,15 +606,21 @@ export function stampVisualNav(world, built, points = []) {
 }
 
 /** Walkable pieces of the grid for a walker (4-connected = 8-connected without corner cutting): label per cell, 0 = closed. */
-export function walkPieces(grid) {
+export function walkPieces(grid) { return runSync(walkPiecesG(grid)); }
+
+/** walkPieces() as a sliced job (engine/slice.js): pauses between grid rows. */
+export function* walkPiecesG(grid) {
   const lab = new Int32Array(grid.cols * grid.rows);
   let n = 0;
   for (let j0 = 0; j0 < grid.rows; j0++) for (let i0 = 0; i0 < grid.cols; i0++) {
+    if (i0 === 0 && (j0 & 7) === 7 && due()) yield;
     const k0 = j0 * grid.cols + i0;
     if (lab[k0] || !grid.isWalkable(i0, j0)) continue;
     const id = ++n, st = [k0];
     lab[k0] = id;
+    let pops = 0;
     while (st.length) {
+      if ((++pops & 4095) === 0 && due()) yield;
       const k = st.pop(), i = k % grid.cols, j = (k / grid.cols) | 0;
       if (i > 0 && !lab[k - 1] && grid.isWalkable(i - 1, j)) { lab[k - 1] = id; st.push(k - 1); }
       if (i < grid.cols - 1 && !lab[k + 1] && grid.isWalkable(i + 1, j)) { lab[k + 1] = id; st.push(k + 1); }
@@ -618,10 +645,13 @@ export function stampCells(st) {
   return out;
 }
 
-export function keepWays(grid, labels0, ways, stamps) {
+export function keepWays(grid, labels0, ways, stamps) { return runSync(keepWaysG(grid, labels0, ways, stamps)); }
+
+/** keepWays() as a sliced job (engine/slice.js). */
+export function* keepWaysG(grid, labels0, ways, stamps) {
   let steps = 0;
   for (let round = 0; round < 16; round++) {
-    const lab = walkPieces(grid), rep = new Map(), cut = [];
+    const lab = yield* walkPiecesG(grid), rep = new Map(), cut = [];
     for (const [i, j] of ways) {
       if (!grid.inBounds(i, j)) continue;
       const k = grid.idx(i, j), a = labels0[k], b = lab[k];
@@ -650,6 +680,7 @@ export function keepWays(grid, labels0, ways, stamps) {
     for (const soft of [true, false]) { // low parts give way first
       for (const st of stamps) {
         if (!!st.soft !== soft) continue;
+        if (due()) yield;
         st.lv ??= new Map();
         const cur = stampCells(st), last = st.levels.length - 1;
         let changed = false;
@@ -815,7 +846,10 @@ const FLAT_CATS = new Set(['building', 'tent', 'tower', 'ruins', 'prop', 'sandba
  * props (pickups, drums, devices) included. Structures with an authored `y` keep their ground.
  * @returns {number} cells levelled
  */
-export function stampFlatBase(world, built, extra = []) {
+export function stampFlatBase(world, built, extra = []) { return runSync(stampFlatBaseG(world, built, extra)); }
+
+/** stampFlatBase() as a sliced job (engine/slice.js). */
+export function* stampFlatBaseG(world, built, extra = []) {
   const grid = world.grid, roots = [];
   for (const b of built) {
     // a ballasted track with `flatBed` (M19's mine railway over the undulating coal mud) lies on a levelled bed too
@@ -828,7 +862,7 @@ export function stampFlatBase(world, built, extra = []) {
   const flat = grid.flatExtra || (grid.flatExtra = new Uint8Array(grid.cols * grid.rows)), c = grid.cell;
   let n = 0;
   for (const r of roots) {
-    const rects = planCells(r, { maxY: 0.6, cell: 0.25, close: 0 });
+    const rects = yield* planCellsG(r, { maxY: 0.6, cell: 0.25, close: 0 });
     for (const q of rects || []) {
       const c0 = grid.worldToCell(q[0][0] - c, q[0][1] - c), c1 = grid.worldToCell(q[2][0] + c, q[2][1] + c);
       for (let j = Math.max(0, c0.j); j <= Math.min(grid.rows - 1, c1.j); j++) for (let i = Math.max(0, c0.i); i <= Math.min(grid.cols - 1, c1.i); i++) {
@@ -847,14 +881,18 @@ export function stampFlatBase(world, built, extra = []) {
  * (soft canopies) and decks (boats pass under bridges) are left out. Cleared when the structure is destroyed.
  * @returns {{cells: number, structures: number, off: Function|null}}
  */
-export function stampOverhead(world, built) {
+export function stampOverhead(world, built) { return runSync(stampOverheadG(world, built)); }
+
+/** stampOverhead() as a sliced job (engine/slice.js). */
+export function* stampOverheadG(world, built) {
   const grid = world.grid;
   let cells = 0, n = 0;
   for (const b of built) {
+    if (due()) yield;
     if (!b.object3d || TREE_TYPES.includes(b.type) || b.def.clip === false) continue;
     const cat = placeCat(b.def);
     if (cat === 'bridge' || cat === 'pier' || cat === 'flag') continue;
-    const raw = overheadCells(b.object3d, { minY: 1.8, maxY: 12, cell: grid.cell });
+    const raw = yield* overheadCellsG(b.object3d, { minY: 1.8, maxY: 12, cell: grid.cell });
     const out = new Map();
     for (const [key, r] of raw) {
       const [i, j] = key.split(',').map(Number);
@@ -864,7 +902,7 @@ export function stampOverhead(world, built) {
       out.set(k, [+r[0].toFixed(2), +r[1].toFixed(2)]);
     }
     // footprint cells: the visual's real top there (a rock or a palisade taller than its data `h`) for gun arcs
-    for (const [key, r] of overheadCells(b.object3d, { minY: 0.2, maxY: 30, cell: grid.cell })) {
+    for (const [key, r] of yield* overheadCellsG(b.object3d, { minY: 0.2, maxY: 30, cell: grid.cell })) {
       const [i, j] = key.split(',').map(Number);
       if (!grid.inBounds(i, j)) continue;
       const k = grid.idx(i, j);
@@ -886,15 +924,19 @@ export function stampOverhead(world, built) {
  * hulls and walkers brush through them. Re-stamped whenever called (quality changes regenerate the trees).
  * @returns {number} cells stamped
  */
-export function stampTreeBranches(world, root, trees = null) {
+export function stampTreeBranches(world, root, trees = null) { return runSync(stampTreeBranchesG(world, root, trees)); }
+
+/** stampTreeBranches() as a sliced job (engine/slice.js). */
+export function* stampTreeBranchesG(world, root, trees = null) {
   const grid = world.grid, out = new Map();
   if (!grid || !root) return 0;
   // visual-only vegetation (farmland hedges and orchards, forest understorey: art/terrain/bocage.js, forest-fill.js)
   // never changes gameplay: its branches do not stamp gun-arc cells unless a mission tree's crown is there too
   const vis = (trees || []).filter((t) => t.visual), solid = (trees || []).filter((t) => !t.visual);
   const under = (list, x, z) => list.some((t) => Math.abs(t.x - x) < 9 && Math.hypot(t.x - x, t.z - z) < (t.crownRadius ?? 4) + 0.75);
-  const raw = new Map();
-  root.traverse((n) => { if (n.isMesh && !n.isInstancedMesh && n.name === 'vegBark') overheadCells(n, { minY: 1.2, maxY: 6, cell: grid.cell }, raw); });
+  const raw = new Map(), bark = [];
+  root.traverse((n) => { if (n.isMesh && !n.isInstancedMesh && n.name === 'vegBark') bark.push(n); });
+  for (const n of bark) yield* overheadCellsG(n, { minY: 1.2, maxY: 6, cell: grid.cell }, raw);
   for (const [key, r] of raw) {
     const [i, j] = key.split(',').map(Number);
     if (!grid.inBounds(i, j)) continue;
@@ -929,13 +971,17 @@ const CRAWL_RISER = 0.2;
  * over, a crawler along house_s's front lay across the side of its door steps.
  * @returns {{cells: number, off: Function|null}}
  */
-export function stampCrawlSteps(world, built, groundAt = null) {
+export function stampCrawlSteps(world, built, groundAt = null) { return runSync(stampCrawlStepsG(world, built, groundAt)); }
+
+/** stampCrawlSteps() as a sliced job (engine/slice.js). */
+export function* stampCrawlStepsG(world, built, groundAt = null) {
   const grid = world.grid, SURF = 0.2, gAt = (x, z) => (groundAt ? groundAt(x, z) : 0), per = new Map();
   for (const b of built) {
+    if (due()) yield;
     if (!b.object3d || TREE_TYPES.includes(b.type) || LINEAR_PROPS.includes(b.type) || b.def.clip === false) continue;
     const cat = placeCat(b.def);
     if (cat === 'bridge' || cat === 'pier') continue; // decks: their own landings
-    const surf = lowSurfaces(b.object3d, { maxY: 0.8, cell: SURF, wade: SNOW_WADE }), cells = new Set();
+    const surf = yield* lowSurfacesG(b.object3d, { maxY: 0.8, cell: SURF, wade: SNOW_WADE }), cells = new Set();
     for (const [key, y] of surf) {
       const c = key.indexOf(','), si = +key.slice(0, c), sj = +key.slice(c + 1), x = (si + 0.5) * SURF, z = (sj + 0.5) * SURF;
       if (y - gAt(x, z) < CRAWL_STEP) continue;
@@ -965,7 +1011,10 @@ export function stampCrawlSteps(world, built, groundAt = null) {
   return { cells: n, off: typeof off === 'function' ? off : null };
 }
 
-export function stampStanding(world, built) {
+export function stampStanding(world, built) { return runSync(stampStandingG(world, built)); }
+
+/** stampStanding() as a sliced job (engine/slice.js). */
+export function* stampStandingG(world, built) {
   const grid = world.grid, h = grid.cell / 2, cache = new Map();
   let maxElev = 0;
   for (let k = 0; k < grid.elev.length; k++) if (grid.elev[k] > maxElev) maxElev = grid.elev[k];
@@ -989,7 +1038,8 @@ export function stampStanding(world, built) {
   let cells = 0;
   for (const b of built) {
     if (!b.object3d || TREE_TYPES.includes(b.type) || b.def.clip === false || b.type === 'road' || b.type === 'river') continue;
-    const set = standingCells(b.object3d, surf, { lo: 0.15, hi: 1.2, cell: h, maxY: maxElev + 2, surfKey, wade: SNOW_WADE });
+    if (due()) yield;
+    const set = yield* standingCellsG(b.object3d, surf, { lo: 0.15, hi: 1.2, cell: h, maxY: maxElev + 2, surfKey, wade: SNOW_WADE });
     if (!set.size) continue;
     grid.solidStamp(`solid:${b.owner}`, set);
     cells += set.size;
@@ -1089,9 +1139,13 @@ const BODY_SOLID_OUTLINE = new Set(['sandbags']);
  * behind a bent line stays open. Re-run when library meshes load; a destroyed structure's rects are dropped.
  * @returns {{count: number, off: Function|null}}
  */
-export function stampBodySolids(world, built, groundAt = null) {
+export function stampBodySolids(world, built, groundAt = null) { return runSync(stampBodySolidsG(world, built, groundAt)); }
+
+/** stampBodySolids() as a sliced job (engine/slice.js). */
+export function* stampBodySolidsG(world, built, groundAt = null) {
   const list = [];
   for (const b of built) {
+    if (due()) yield;
     if (!b.object3d || TREE_TYPES.includes(b.type) || LINEAR_PROPS.includes(b.type) || b.def.clip === false) continue;
     if (!BODY_SOLID_CATS.has(categoryOf(b.type, b.def)) || isPlatformProp(b.type)) continue; // a platform is walked on (nav + climb links)
     if (world.bodySolidsGone?.has(b.owner)) continue;
@@ -1100,13 +1154,13 @@ export function stampBodySolids(world, built, groundAt = null) {
     const top = new THREE.Box3().setFromObject(b.object3d).max.y - gy;
     if (BODY_SOLID_OUTLINE.has(categoryOf(b.type, b.def))) {
       for (const R of instanceRects(b.object3d, 0.15, 1.2, gy)) list.push({ owner: b.owner, R: { ...R, top } });
-      for (const q of planCells(b.object3d, { minY: 0.15, maxY: 1.2, groundY: gy, cell: 0.25, close: 0, fit: true, wade: SNOW_WADE }) || []) {
+      for (const q of (yield* planCellsG(b.object3d, { minY: 0.15, maxY: 1.2, groundY: gy, cell: 0.25, close: 0, fit: true, wade: SNOW_WADE })) || []) {
         const [p0, p1, , p3] = q, hl = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) / 2, hw = Math.hypot(p3[0] - p0[0], p3[1] - p0[1]) / 2;
         if (hl > 0.01 && hw > 0.01) list.push({ owner: b.owner, R: { x: (q[0][0] + q[2][0]) / 2, z: (q[0][1] + q[2][1]) / 2, h: Math.atan2(p1[1] - p0[1], p1[0] - p0[0]), hl, hw, top } });
       }
       continue;
     }
-    const hull = planHull(b.object3d, { minY: 0.15, maxY: 1.6, groundY: gy, wade: SNOW_WADE }); // (not the drift round its foot)
+    const hull = yield* planHullG(b.object3d, { minY: 0.15, maxY: 1.6, groundY: gy, wade: SNOW_WADE }); // (not the drift round its foot)
     const R = hull && minAreaRect(hull);
     if (R) list.push({ owner: b.owner, R: { ...R, top } });
   }
@@ -1430,7 +1484,26 @@ export function doorPoint(def) {
  * @returns {{propsRoot: THREE.Group, terrain: object|null, structures: Map<string, object>, interactables: Interactable[], links: object[],
  *   ready: Promise<void>, frame: (dt:number, camera?:THREE.Camera) => void, dispose: () => void}}
  */
-export function buildMap(world, mission, opts = {}) {
+export function buildMap(world, mission, opts = {}) { return runSync(buildMapGen(world, mission, opts)); }
+
+/**
+ * buildMap() as a sliced job (engine/slice.js): Game.loadMission runs it with runSliced, so the loading screen keeps
+ * drawing while the map builds. The same build in the same order — it only pauses between (and inside) its steps.
+ */
+export function* buildMapGen(world, mission, opts = {}) {
+  // `opts.gate` (a promise; a sliced build has one): what the map starts loading must not take effect while the map is
+  // still being built — a synchronous build finished before any of it could. The terrain's async part (art/terrain/
+  // game-adapter.js: heightAt, then apron / vegetation / water), the deck calibration, the body-solid re-stamp and the
+  // late visual nav stamps wait for it; the caller opens it where the synchronous build had returned.
+  const gate = opts.gate || null;
+  // (each gated step starts on its own task: they do not all pile into the one task that opens the gate)
+  const after = (p) => (gate ? Promise.all([p, gate]).then(() => nextTask()) : Promise.resolve(p));
+  // the steps a synchronous build ran right after it returned (deck calibration, body-solid re-stamp, late nav stamps,
+  // all on already-loaded libraries) come before the terrain takes over, as they did: its gate waits for them too
+  const early = [];
+  const terrainGate = gate ? gate.then(() => Promise.all(early)) : null;
+  // (library LODs loaded on demand attach once the gate opens, as they did after a synchronous build)
+  if (gate) holdLodAttach(gate);
   mission = normalizeMission(mission); // design-spec §7.3 (idempotent)
   const grid = world.grid;
   const theater = opts.theater || mission.theater || 'temperate';
@@ -1460,23 +1533,24 @@ export function buildMap(world, mission, opts = {}) {
   // explosive fuel drums (`barrels` + explosive:'barrel') are dynamic Barrel entities (§3.4 carry, §3.6 barrel
   // class), not static props: no footprint (they can be carried away), spawned in step 4
   const ctx = { theater, grid, world, missionId: mission.id, apronWidth: mission.apron?.width ?? CONFIG.apron.width };
-  const first = (mission.structures || []).map((s) => (isExplosiveBarrel(s) ? null : buildStructure(s, ctx)));
+  const first = [];
+  for (const s of mission.structures || []) { first.push(isExplosiveBarrel(s) ? null : buildStructure(s, ctx)); if (due()) yield; }
   // terrain of every structure first (rivers, lakes): the placement rules keep scenery out of the water
   first.forEach((r, k) => { if (r) for (const fp of r.footprints) applyFootprint(grid, fp, 'terrain', STRUCTURE_OWNER_BASE + k); });
   applyShoreShallows(grid, mission.shoreShallowWidth);
   // 2b. placement rules (world/placement.js): runs cut at solids, towers off fence lines, scenery out of solids
-  const placement = placeStructures(mission, first, { grid, meshes, realTerrain });
+  const placement = yield* placeStructuresG(mission, first, { grid, meshes, realTerrain });
   if (placement.log.length && meshes) console.info(`[placement] ${mission.id}:\n  ${placement.log.join("\n  ")}`);
   world.placement = placement;
   mission = { ...mission, structures: placement.structures, items: placement.items, interactables: placement.interactables };
   const built = [], drums = [];
-  mission.structures.forEach((s, k) => {
-    if (isExplosiveBarrel(s)) { drums.push({ def: s, owner: STRUCTURE_OWNER_BASE + k }); return; }
-    if (s.placementDropped) { first[k]?.library?.dispose(); return; }
+  for (const [k, s] of mission.structures.entries()) {
+    if (isExplosiveBarrel(s)) { drums.push({ def: s, owner: STRUCTURE_OWNER_BASE + k }); continue; }
+    if (s.placementDropped) { first[k]?.library?.dispose(); continue; }
     let r = first[k];
-    if (placement.changed.has(k)) { r.library?.dispose(); r = buildStructure(s, ctx); }
+    if (placement.changed.has(k)) { r.library?.dispose(); r = buildStructure(s, ctx); if (due()) yield; }
     built.push({ def: s, type: s.type, owner: STRUCTURE_OWNER_BASE + k, ...r });
-  });
+  }
   // walkable decks follow the asset's own crest (a dam's arch curves away from the data rect at its ends): nobody
   // walks on air beside it or through its parapet (placement rule e)
   for (const b of built) {
@@ -1486,6 +1560,7 @@ export function buildMap(world, mission, opts = {}) {
   // 3. grid passes: terrain (above) → shore rim (above) → bridges → blocks → raised surfaces
   for (const pass of ['bridge', 'block']) {
     for (const b of built) for (const fp of b.footprints) applyFootprint(grid, fp, pass, b.owner);
+    if (due()) yield;
   }
   // raised decks stand where the visual's floor really is (the fitted asset's planks sit a few cm off deckY)
   if (meshes) for (const b of built) if (b.type === 'watchtower' && b.object3d) b.deckSurfaceY = deckSurface(b);
@@ -1503,11 +1578,13 @@ export function buildMap(world, mission, opts = {}) {
   if (raisedCells.length) grid.navStamp('raised-water', raisedCells);
   // building-library sidecars (browser): walkable roofs, ladders, climb edges where the mission does not override
   const libLog = buildingLog();
+  if (due()) yield;
   const libNav = applyLibraryNav(grid, built, mission, snapToSurface);
   if (libNav.roofs || libNav.ladders || libNav.climbs) libLog.push(`nav: ${libNav.roofs} roofs, ${libNav.ladders} ladders, ${libNav.climbs} climb edges (${libNav.structures.join(', ')})`);
   // measured decks (placement rule e): walking level from the visual; railings / parapets / lamp posts / end blocks
   // over the deck cells are nav-only blocks
-  const decks = libraryDecks(built.filter((b) => b.library), meshes ? { measure: (b, poly, rot, top) => deckField(b.object3d, poly, rot, top + 2.5, { pad: 1.5 }) } : {});
+  if (due()) yield;
+  const decks = yield* libraryDecksG(built.filter((b) => b.library), meshes ? { measureG: (b, poly, rot, top) => deckFieldG(b.object3d, poly, rot, top + 2.5, { pad: 1.5 }) } : {});
   for (const d of decks) {
     if (!d.measured) continue;
     const cells = [];
@@ -1530,6 +1607,7 @@ export function buildMap(world, mission, opts = {}) {
   const addIt = (it) => { world.add(it); interactables.push(it); return it; };
   world.switchStations = []; // structure switches' stations (world/switch-station.js; drawn by art/switch-station.js)
   for (const b of built) {
+    if (due()) yield;
     let ownedByEntity = false;
     for (const spec of b.interactables || []) {
       const tagged = spec.interactKind === 'explosiveTarget' || spec.interactKind === 'door';
@@ -1568,6 +1646,7 @@ export function buildMap(world, mission, opts = {}) {
     if (meshes && b.def.ramps?.some((r) => !r.smooth)) propsRoot.add(buildDamStairs(b.def.ramps.filter((r) => !r.smooth)));
   }
   for (const d of drums) {
+    if (due()) yield;
     const s = d.def;
     // an explosive process column (M11 quarry tanks: `barrels` + `oil_tanks_vertical`, r 1.75 h 7) bursts like a drum
     // but looks and stands like the fuel family's column: its library model (+ pipe run), a HIGH round footprint, and
@@ -1607,12 +1686,14 @@ export function buildMap(world, mission, opts = {}) {
   }
 
   // 5. off-grid pathfinding links (§7.3 climbLinks / ladders → NavGrid.addLink, §10.2); ends snapped
+  if (due()) yield;
   const links = addMissionLinks(grid, mission, { snap: true, records: true });
   world.ladders = links.filter((l) => l.kind === LINK.LADDER).map((l) => ({ id: l.def.id ?? `ladder${l.link.id}`, linkId: l.link.id, raised: !!l.def.raised, x: l.link.a.x, z: l.link.a.z, top: l.link.b, def: l.def }));
   world.structureDoors = libraryDoorPoints(built, libLog); // hideout doors at the assets' main doors
   // 5b. ABILITIES interactables: mission.interactables[], enterable-building doors, raised ladders (lowered
   // from the top, driven by world.ladders), fence power
   interactables.push(...spawnMissionInteractables(world, mission, { meshes }));
+  if (due()) yield;
 
   // 5b'. a boom barrier set in a wider wall opening (def.gap): the pivot side and the gate / fork posts stay blocked to
   // walkers whether the boom is up or down; the footway beside the fork rest stays open (pedestrians walk round)
@@ -1662,30 +1743,34 @@ export function buildMap(world, mission, opts = {}) {
   }
   // 5b''. `noWalk` areas (M3: the foot of the dam's face): nobody walks, wades, swims or is sent there; before the
   // visual nav pass, so its keep-the-ways-open rules never count on them
+  if (due()) yield;
   stampNoWalk(grid, mission.noWalk);
   // 5b'''. stair flights (world/stairs.js): the dam stairs, the access platform stairs and the stair links — the sim
   // walks their nosing line (grid.surfaceY), the view puts the feet on their treads (art/stair-gait.js). Attached after
   // every nav stamp above, which knows nothing of them.
   world.stairs = grid.flights = buildStairField(built, grid, links);
+  if (due()) yield;
 
   // 5c. placement rule (e): what the visuals occupy outside their gameplay footprints blocks walking (browser)
   let visNavOff = null, deckLanes = null;
   if (meshes) {
-    const vn = stampVisualNav(world, built, missionWayPoints(mission, interactables));
+    const vn = yield* stampVisualNavG(world, built, missionWayPoints(mission, interactables));
     visNavOff = vn.off; deckLanes = vn.lanes;
     if (vn.cells) libLog.push(`visual nav: ${vn.cells} cells blocked (${vn.structures} structures${vn.relaxed ? `, ${vn.relaxed} relaxed to keep ways open` : ''})`);
-    const fl = stampFlatBase(world, built, [...interactables, ...(world.switchStations || []).map((st) => ({ object3d: st.vis?.group }))]);
+    const fl = yield* stampFlatBaseG(world, built, [...interactables, ...(world.switchStations || []).map((st) => ({ object3d: st.vis?.group }))]);
     if (fl) libLog.push(`levelled: ${fl} cells under prop bases`);
-    const ov = stampOverhead(world, built);
+    const ov = yield* stampOverheadG(world, built);
     if (ov.off) { const a = visNavOff; visNavOff = () => { a?.(); ov.off(); }; }
     if (ov.cells) libLog.push(`overhead: ${ov.cells} cells (${ov.structures} structures)`);
   }
 
   // 6. mission registries (consumed by AI alarm/brain, abilities, objectives)
+  if (due()) yield;
   registerMission(world, mission, structures);
   // 6b. set-piece mechanics + data triggers + alarm-fail scripts (M4-M20, src/missions/setpieces.js)
   world.structures = structures;
   installSetpieces(world, mission, { meshes });
+  if (due()) yield;
 
   // 6c. linear structures (walls, fences, wire, rails) that end on a map edge carry on over the scenery apron instead
   // of stopping on the boundary line; visual only, the nav grid keeps the mission's runs (world/edge-extend.js)
@@ -1695,6 +1780,7 @@ export function buildMap(world, mission, opts = {}) {
     const g = new THREE.Group();
     g.name = 'props:edgeRuns';
     for (const r of edgeRuns) {
+      if (due()) yield;
       const { type, segments, visualRuns, placementDropped, visualWalkways, walkways, ...params } = r.def;
       try { g.add(buildProp(type, { ...params, id: r.id, points: r.points }, ctx).object3d); } catch (e) { console.warn('[map-builder] edge run', r.id, e); }
     }
@@ -1707,6 +1793,7 @@ export function buildMap(world, mission, opts = {}) {
     const m = buildEdgeBuildings(edgeHouses);
     if (m) propsRoot.add(m);
   }
+  if (due()) yield;
   // 7. ground + water from the finished grid
   let terrain = null, unwire = null, pavedGroundY = null, wire = null;
   if (meshes) {
@@ -1716,14 +1803,16 @@ export function buildMap(world, mission, opts = {}) {
     const forests = realTerrain ? built.filter((b) => TREE_TYPES.includes(b.type) && Array.isArray(b.def?.points)).map((b) => b.def) : [];
     // real terrain: the water system (src/art/water) owns the surface → buildTerrain returns water: null
     // placeholder ground takes the mission's `groundPalette` (e.g. 'frost', M18 §2.4); real terrain keeps the theater
-    terrain = buildTerrain(grid, realTerrain ? theater : (mission.groundPalette || theater), realTerrain ? { renderer: opts.renderer, mission, trees, forests, ownWater: true, roads,
+    terrain = yield* buildTerrainG(grid, realTerrain ? theater : (mission.groundPalette || theater), realTerrain ? { renderer: opts.renderer, mission, trees, forests, ownWater: true, roads, gate: terrainGate || undefined,
       edgeLines: [...edgeRuns.map((r) => ({ points: r.points, hw: (r.def.width ?? 0.5) / 2 + 0.6 })), ...edgeBuildingFlatLines(edgeHouses)] } : {});
     world.scene?.add(terrain.ground);
     if (terrain.water) world.scene?.add(terrain.water);
+    if (due()) yield;
     wire = buildMissionWire(propsRoot, { terrain, theater, mission, world, renderer: opts.renderer, material: dressingMaterial, night: theater === 'night' || !!mission.lighting?.night });
     // the cuttable fences' posts, as drawn: the cutters keep a hole clear of them (abilities/sapper.js planHole)
     world.fencePosts = wire?.posts?.length ? wire.posts : null;
     world.scene?.add(propsRoot);
+    if (due()) yield;
     if (realTerrain) {
       // top-facing snow on props (shared uniform: cached materials reused by a later non-snow mission get 0)
       const snowAmt = theater === 'snow' ? 1 : (mission.lighting?.snow ?? 0);
@@ -1747,10 +1836,10 @@ export function buildMap(world, mission, opts = {}) {
   if (surf) {
     for (const b of built) {
       if (!b.object3d || TREE_TYPES.includes(b.type) || LINEAR_PROPS.includes(b.type) || b.def.clip === false) continue;
-      lowSurfaces(b.object3d, { maxY: 0.8, cell: SURF_CELL }, surf); // (up to a door sill: the top step of a porch)
+      yield* lowSurfacesG(b.object3d, { maxY: 0.8, cell: SURF_CELL }, surf); // (up to a door sill: the top step of a porch)
     }
     if (surf.size) libLog.push(`low surfaces: ${surf.size} samples`);
-    const cs = stampCrawlSteps(world, built, terrain?.groundY ? (x, z) => terrain.groundY(x, z) : null);
+    const cs = yield* stampCrawlStepsG(world, built, terrain?.groundY ? (x, z) => terrain.groundY(x, z) : null);
     if (cs.off) { const a = visNavOff; visNavOff = () => { a?.(); cs.off(); }; }
     if (cs.cells) libLog.push(`crawl steps: ${cs.cells} cells (the sides of steps, porches, plinths: a crawler goes round)`);
   }
@@ -1758,7 +1847,7 @@ export function buildMap(world, mission, opts = {}) {
   const laneSurf = meshes && deckLanes?.size ? new Map() : null;
   if (laneSurf) for (const b of built) {
     const cat = placeCat(b.def);
-    if (b.object3d && (cat === 'bridge' || cat === 'pier')) lowSurfaces(b.object3d, { maxY: 2.0, cell: SURF_CELL, flat: 0.8 }, laneSurf);
+    if (b.object3d && (cat === 'bridge' || cat === 'pier')) yield* lowSurfacesG(b.object3d, { maxY: 2.0, cell: SURF_CELL, flat: 0.8 }, laneSurf);
   }
   let deckGroundY = null, lyingGroundY = null;
   if (decks.length || surf?.size || laneSurf?.size || world.surfaces?.length) {
@@ -1841,41 +1930,47 @@ export function buildMap(world, mission, opts = {}) {
         const b = libBuilt.find((q) => q.library.object3d === d.root);
         let tries = 0;
         const cal = () => { if (!gone && !calibrateDeck(d, THREE) && ++tries < 6) setTimeout(cal, 1000); };
-        Promise.resolve(b?.library.ready).then(cal, () => {});
+        // (the first try in slices on a sliced build: engine/slice.js; later tries as they were)
+        early.push(after(b?.library.ready).then(() => (!gate ? cal() : gone ? null
+          : runSliced(calibrateDeckG(d, THREE)).then((ok) => { if (!gone && !ok && ++tries < 6) setTimeout(cal, 1000); })), () => {}));
       }
     }
   }
   // placement rule (e) bodies: standing visuals over any walking surface (after the deck-aware ground is known)
-  const stampBodies = (list = built) => {
-    const pieces = walkPieces(grid), hr = stampHeadroom(world, built);
+  const stampBodies = function* stampBodies(list = built) {
+    if (due()) yield;
+    const pieces = yield* walkPiecesG(grid), hr = stampHeadroom(world, built);
     // (never at the price of a way between the mission's points: a lane under low eaves stays a lane)
     if (hr.cells) {
       const st = { key: 'headroom', levels: [new Set(grid._navStamps.get('headroom') || []), new Set()], soft: true };
       const ways = [...(world.structureDoors?.values?.() || []), ...(grid.links || []).flatMap((l) => [[l.a.x, l.a.z], [l.b.x, l.b.z]]), ...rampEnds(grid), ...missionWayPoints(mission, interactables)];
-      if (keepWays(grid, pieces, ways.map(([x, z]) => { const c = grid.worldToCell(x, z); return [c.i, c.j]; }), [st])) libLog.push(`head room: ${st.lv.size} cells opened (a way under low eaves)`);
+      if (yield* keepWaysG(grid, pieces, ways.map(([x, z]) => { const c = grid.worldToCell(x, z); return [c.i, c.j]; }), [st])) libLog.push(`head room: ${st.lv.size} cells opened (a way under low eaves)`);
     }
     if (hr.off) { const a = visNavOff; visNavOff = () => { a?.(); hr.off(); }; }
     if (hr.cells) libLog.push(`head room: ${hr.cells} cells under low eaves blocked`);
-    const t0 = performance.now(), st = stampStanding(world, list);
+    if (due()) yield;
+    const t0 = performance.now(), st = yield* stampStandingG(world, list);
     if (st.off) { const a = visNavOff; visNavOff = () => { a?.(); st.off(); }; }
     if (st.cells) libLog.push(`standing visuals: ${st.cells} quarter cells (${Math.round(performance.now() - t0)} ms)`);
     const spawns = [...(mission.enemies || []), ...(mission.commandos || [])].filter((u) => u.x != null).map((u) => [u.x, u.z]);
+    if (due()) yield;
     const wc = stampWalkClearance(world, [...navKeepPoints(world, built), ...spawns]);
     if (wc) libLog.push(`raised walks: ${wc} cells beside stakes / railings blocked`);
   };
   if (meshes) {
-    stampBodies(wire?.standing ? [...built, wire.standing] : built);
+    yield* stampBodies(wire?.standing ? [...built, wire.standing] : built);
     // body clearance: solid props men never cross (world/body-clearance.js), again once library meshes are in
     const solidGround = terrain?.groundY ? (x, z) => terrain.groundY(x, z) : null;
-    const bs = stampBodySolids(world, built, solidGround);
+    const bs = yield* stampBodySolidsG(world, built, solidGround);
     if (bs.off) { const a = visNavOff; visNavOff = () => { a?.(); bs.off(); }; }
     libLog.push(`body solids: ${bs.count}`);
     if (built.some((b) => b.library && BODY_SOLID_CATS.has(categoryOf(b.type, b.def)))) {
-      Promise.all(built.filter((b) => b.library).map((b) => b.library.ready)).then(() => { if (!gone) stampBodySolids(world, built, solidGround); }, () => {});
+      early.push(after(Promise.all(built.filter((b) => b.library).map((b) => b.library.ready))).then(() => { if (!gone) stampBodySolids(world, built, solidGround); }, () => {}));
     }
   }
   // repeats → instanced batches, only now: every visual measurement above (low surfaces under the feet, standing
   // visuals, head room) reads the repeats' own meshes, which the batch disposes (clip-2: M3 cabins' porch boards)
+  if (due()) yield;
   const batches = meshes ? batchLibraryRepeats(libBuilt, propsRoot, libLog) : [];
   world.waterObstacles = libraryWaterObstacles(libBuilt);
   const doors = wireLibraryDoors(world, libBuilt);
@@ -1888,7 +1983,7 @@ export function buildMap(world, mission, opts = {}) {
   const meshless = meshes ? libBuilt.filter((b) => { if (b.batched) return false; let n = 0, l0 = false; b.object3d?.traverse((o) => { if (o.isMesh) n++; if (o.name === 'lod0') l0 = true; }); return !n || !l0; }) : [];
   if (meshless.length) {
     libLog.push(`${meshless.length} library buildings still loading: visual nav stamps again when they are in`);
-    libReady.then(() => {
+    after(libReady).then(() => {
       // (only those: the others keep their stamps; a batched repeat is drawn by its batch, its stamps stay)
       const late = meshless.filter((b) => !b.batched);
       if (gone || !late.length) return;
@@ -1896,12 +1991,13 @@ export function buildMap(world, mission, opts = {}) {
       grid.navStamp('headroom', []); grid.navStamp('walk:clear', []);
       stampVisualNav(world, late, missionWayPoints(mission, interactables));
       stampOverhead(world, late);
-      stampBodies(late);
+      runSync(stampBodies(late));
       grid.version++;
     }, () => {});
   }
   // 8. water (real terrain only): built once the carved ground is ready — the bed capture renders it from above
   let water = null, fallbackWater = null, gone = false, windFx, life, damWater, lifeReady = false, pavement = null, furniture = null, streetLights = null;
+  let damPrepared; // the dam's water built ahead of the first frame (handle.prepareG), which adds it to the scene
   // 7b. step 3p pavement meshes on the finished (carved, flattened) ground: hard roads, sidewalks, kerbs, quays
   const buildPavementNow = () => {
     if (gone || !realTerrain || !terrain) return;
@@ -1941,10 +2037,13 @@ export function buildMap(world, mission, opts = {}) {
       }
     } catch (e) { console.error('[furniture] build failed', e); furniture = null; }
   };
-  const buildWaterNow = () => {
+  // (a slice at a time: art/water.js buildWaterAsync — the same water, its captures read back and its bakes run without
+  // one long task)
+  const buildWaterNow = async () => {
     if (gone || !realTerrain) return;
     try {
-      water = buildWater(opts.renderer, world, grid, mission, theater, { module: WaterModule, terrain: terrain?.terrain?.mesh, apron: terrain?.apron, shore: terrain?.shore });
+      water = await buildWaterAsync(opts.renderer, world, grid, mission, theater, { module: WaterModule, terrain: terrain?.terrain?.mesh, apron: terrain?.apron, shore: terrain?.shore });
+      if (gone) { water?.dispose(); water = null; return; } // (the map went meanwhile)
     } catch (e) {
       console.error('[water] build failed, using the flat placeholder', e);
       water = null;
@@ -1957,7 +2056,7 @@ export function buildMap(world, mission, opts = {}) {
     propsRoot, terrain, structures, interactables, links,
     get water() { return water; },
     /** Resolves when the ground textures, grass, trees and water are built (placeholder / grid-only: at once). */
-    ready: Promise.all([Promise.resolve(terrain?.ready).then(() => { if (!gone && meshes && terrain?.ground) stampTreeBranches(world, terrain.ground, terrain.vegetation?.trees); }).then(buildPavementNow).then(buildWaterNow).then(() => water?.system.texturesReady), Promise.resolve(terrain?.ready).then(() => terrain?.apronReady), libReady,
+    ready: Promise.all([Promise.resolve(terrain?.ready).then(() => (!gone && meshes && terrain?.ground ? runSliced(stampTreeBranchesG(world, terrain.ground, terrain.vegetation?.trees)) : null)).then(buildPavementNow).then(buildWaterNow).then(() => water?.system.texturesReady), Promise.resolve(terrain?.ready).then(() => terrain?.apronReady), libReady,
       // the dam pool's lace / normal textures (render/dam-water-pool.js): decoded before the first frame draws the pool
       meshes && realTerrain && hasDamWater(structures) ? loadDamPoolTextures() : null]).then(() => { lifeReady = true; }),
     /**
@@ -1977,10 +2076,24 @@ export function buildMap(world, mission, opts = {}) {
       life?.frame(dt, camera);
       // water down the M3 dam (render/dam-water.js): built with the life layer, after the water's bed capture
       if (damWater === undefined && lifeReady && !gone) {
-        damWater = opts.meshes === false || !realTerrain ? null : createDamWater(world, structures, opts.renderer);
+        damWater = damPrepared !== undefined ? damPrepared : opts.meshes === false || !realTerrain ? null : createDamWater(world, structures, opts.renderer);
+        if (damPrepared !== undefined) damWater?.listen?.(); // (its listener joins here, after the ambient life's: as before)
+        damPrepared = undefined;
         if (damWater) world.scene?.add(damWater.group);
       }
       damWater?.frame(dt);
+    },
+    /**
+     * The heavy part of what frame() builds on its first call — the dam's water (render/dam-water.js: ~600 rays through
+     * the dam and a flow bake, ~1.7 s on M3) — built now as a sliced job (engine/slice.js; Game.loadMission, before the
+     * warm-up frame), under the conditions frame() checks. Nothing joins the scene here: frame() adds it where it always
+     * did, after the wind particles and the ambient life it creates first.
+     */
+    *prepareG() {
+      if (damWater !== undefined || damPrepared !== undefined || !lifeReady || gone) return;
+      const d = opts.meshes === false || !realTerrain ? null : yield* createDamWaterG(world, structures, opts.renderer, { deferListen: true });
+      if (gone) { d?.dispose(); return; }
+      damPrepared = d;
     },
     get damWater() { return damWater; },
     get windFx() { return windFx; },
@@ -1996,6 +2109,7 @@ export function buildMap(world, mission, opts = {}) {
       wire?.dispose(); wire = null;
       life?.dispose(); life = null;
       damWater?.dispose(); damWater = null;
+      damPrepared?.dispose(); damPrepared = undefined;
       pavement?.dispose(); pavement = null;
       streetLights?.dispose(); streetLights = null;
       furniture?.dispose(); furniture = null;

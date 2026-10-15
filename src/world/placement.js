@@ -24,6 +24,7 @@
 import { rectPoly, circlePoly, polyDist, lineDist, inPoly, clipPolyline, sweepPoly, linePolys, inflatePoly, centroidOf, convexHull, segDist, boundsOf, polysOverlap } from './placement-geom.js';
 import { categoryOf } from '../debug/clip-rules.js';
 import { BODY, LIMBS } from './body-clearance.js';
+import { due, runSync } from '../engine/slice.js';
 
 /** Tunables (metres). */
 export const RULES = Object.freeze({
@@ -157,12 +158,33 @@ export function clearance(a, b, search = false) {
 const shift = (polys, dx, dz) => polys.map((p) => p.map(([x, z]) => [x + dx, z + dz]));
 const bboxHit = (a, b, m) => a[0] - m <= b[2] && b[0] - m <= a[2] && a[1] - m <= b[3] && b[1] - m <= a[3];
 
-/** Minimum clearance-violation test: does any vertex/edge of `mine` come within `clr` of an obstacle polygon? */
+/** Axis-aligned box of one polygon, kept per polygon array (placement never edits a polygon's points in place). */
+const _polyBox = new WeakMap();
+function polyBox(p) {
+  let b = _polyBox.get(p);
+  if (!b) { b = boundsOf([p]); _polyBox.set(p, b); }
+  return b;
+}
+/** Margin on the box tests below (m): far above any rounding in polyDist, far below any clearance. */
+const BOX_EPS = 1e-6;
+
+/**
+ * Minimum clearance-violation test: does any vertex/edge of `mine` come within `clr` of an obstacle polygon?
+ * Polygon pairs whose boxes are apart by more than `clr`, and vertices farther than `clr` from the other polygon's box,
+ * are skipped: a point's distance to a polygon is at least its distance to the polygon's box (and boxes apart cannot
+ * overlap), so the answer is the same — without the vertex × edge loops over every far road segment or forest edge.
+ */
 export function tooClose(mine, obs, clr) {
-  for (const p of mine) for (const q of obs) {
-    if (polysOverlap(p, q)) return true;
-    for (const [x, z] of p) if (polyDist(x, z, q) < clr) return true;
-    for (const [x, z] of q) if (polyDist(x, z, p) < clr) return true;
+  const lim = clr + BOX_EPS;
+  for (const p of mine) {
+    const pb = polyBox(p);
+    for (const q of obs) {
+      const qb = polyBox(q);
+      if (Math.max(qb[0] - pb[2], pb[0] - qb[2], qb[1] - pb[3], pb[1] - qb[3]) > Math.max(lim, BOX_EPS)) continue;
+      if (polysOverlap(p, q)) return true;
+      for (const [x, z] of p) if (Math.max(qb[0] - x, x - qb[2], qb[1] - z, z - qb[3]) <= lim && polyDist(x, z, q) < clr) return true;
+      for (const [x, z] of q) if (Math.max(pb[0] - x, x - pb[2], pb[1] - z, z - pb[3]) <= lim && polyDist(x, z, p) < clr) return true;
+    }
   }
   return false;
 }
@@ -198,7 +220,10 @@ export function allowed(a, b) {
  * @param {{isFree?: (x:number, z:number, cat:string) => boolean, maxMove?: number, seed?: number}} [o]
  * @returns {{x:number, z:number, moved:number}|null} null when no free spot within maxMove
  */
-export function relocate(pt, obstacles, o = {}) {
+export function relocate(pt, obstacles, o = {}) { return runSync(relocateG(pt, obstacles, o)); }
+
+/** relocate() as a sliced job (engine/slice.js): the same search, pausing between candidate spots. */
+export function* relocateG(pt, obstacles, o = {}) {
   const step = RULES.step, maxMove = o.maxMove ?? RULES.maxMove, n = RULES.angles;
   const rnd = seeded(o.seed ?? hashStr(String(pt.id ?? `${pt.x},${pt.z}`)));
   const a0 = rnd() * 2 * Math.PI;
@@ -208,6 +233,7 @@ export function relocate(pt, obstacles, o = {}) {
     for (let k = 0; k < m; k++) {
       const a = a0 + (2 * Math.PI * k) / m, dx = Math.cos(a) * r, dz = Math.sin(a) * r;
       const x = pt.x + dx, z = pt.z + dz;
+      if ((k & 7) === 7 && due()) yield;
       if (o.isFree && !o.isFree(x, z, pt.cat, pt)) continue;
       if (!conflicts(shift(pt.polys, dx, dz), pt.cat, near, pt, true).length) return { x: +x.toFixed(3), z: +z.toFixed(3), moved: r };
     }
@@ -338,6 +364,12 @@ export function chainRuns(linears) {
   return items;
 }
 
+/** Does structureRecords ask `shapeOf` for this structure's visual shapes (not ignored, not a run)? */
+export function wantsShape(def) {
+  const cat = placeCat(def);
+  return !(def.clip === false || cat === 'ground') && !(isLinearDef(def) && (LINEAR_CATS.has(cat) || cat === 'fence' || cat === 'wall'));
+}
+
 /** Plan shapes and categories of every structure (`shapeOf` = visual shapes, e.g. library sidecars). */
 export function structureRecords(structures, shapeOf = null) {
   return structures.map((def, k) => {
@@ -367,7 +399,10 @@ export function structureRecords(structures, shapeOf = null) {
  * @returns {{structures: object[], items: object[], interactables: object[], moves: Map<string, {dx:number, dz:number}>,
  *   dropped: string[], log: string[], records: object[]}}
  */
-export function resolvePlacement(structures = [], o = {}) {
+export function resolvePlacement(structures = [], o = {}) { return runSync(resolvePlacementG(structures, o)); }
+
+/** resolvePlacement() as a sliced job (engine/slice.js): the same rules in the same order, pausing between steps. */
+export function* resolvePlacementG(structures = [], o = {}) {
   const log = [], moves = new Map(), dropped = [], gateRot = new Map(), attached = new Set();
   const recs = structureRecords(structures.map((d) => ({ ...d })), o.shapeOf);
   // gate-like interactables (pen gates, drawbridges, lifts…) are solids: runs are cut at them
@@ -391,6 +426,7 @@ export function resolvePlacement(structures = [], o = {}) {
   const solids = live.filter((r) => !r.linear && !POINT_CATS.has(r.cat));
   // (a1) towers standing on a run
   for (const t of solids.filter((r) => r.cat === 'tower' && r.def.onLine !== 'gap' && !r.def.fixed)) {
+    if (due()) yield;
     for (const lin of linears) {
       if (allowed(t, lin)) continue;
       for (const run of runsOf(lin.def)) {
@@ -410,6 +446,7 @@ export function resolvePlacement(structures = [], o = {}) {
   // (a2) visual runs: chained, then cut where they meet solids / higher-ranked runs (nav keeps the authored line)
   const chained = chainRuns(linears);
   for (const lin of linears) {
+    if (due()) yield;
     const mine = chained.filter((c) => c.r === lin);
     const hw = halfW(lin);
     const cutters = [
@@ -481,14 +518,14 @@ export function resolvePlacement(structures = [], o = {}) {
   const ashore = (cat) => !!o.wetAt && cat === 'tree';
   const dryAt = (x, z) => o.wetAt(x, z) <= -RULES.shore;
   const freeAt = (x, z, cat, pt) => (!o.isFree || o.isFree(x, z, cat, pt)) && (!ashore(cat) || pt?.def?.points || dryAt(x, z));
-  const place = (p, keep) => {
+  const place = function* place(p, keep) {
     // (point trees only: a forest AREA is a polygon whose wood art/terrain/forest-fill.js plants on its dry ground)
     const wet = ashore(p.cat) && Number.isFinite(p.def.x) && Number.isFinite(p.def.z) && !p.def.points && !dryAt(p.def.x, p.def.z);
     const hit = conflicts(p.polys, p.cat, obstacles, p);
     if (hit.length && !doPoints && !wet) { log.push(`check ${p.cat} ${p.id}: near ${hit.slice(0, 3).map((h) => h.id).join(', ')} (data shapes; not moved)`); hit.length = 0; }
     if (wet) hit.unshift({ id: 'the water' });
     if (hit.length) {
-      const to = relocate({ ...p, x: p.def.x ?? 0, z: p.def.z ?? 0 }, obstacles, { isFree: freeAt });
+      const to = yield* relocateG({ ...p, x: p.def.x ?? 0, z: p.def.z ?? 0 }, obstacles, { isFree: freeAt });
       const why = hit.slice(0, 3).map((h) => h.id).join(', ');
       if (to) {
         const dx = to.x - (p.def.x ?? 0), dz = to.z - (p.def.z ?? 0);
@@ -505,18 +542,23 @@ export function resolvePlacement(structures = [], o = {}) {
   };
   // scenery (unnamed trees / rocks / bushes) may be dropped; named or gameplay objects are always kept
   const keepOf = (d) => d.id != null || !['tree', 'rocks'].includes(placeCat(d));
-  for (const p of points.filter((q) => !q.def.fixed)) place(p, keepOf(p.def));
-  const extra = (list, kind) => (list || []).map((it, k) => {
-    // (an item lying inside a building with a walk-in, `inside`: M3's shed charges on its loft floor, stays put)
-    if (it.x == null || it.z == null || it.fixed || it.inside != null || FIXED_INTERACTABLE(it)) return it;
-    const d = { ...it };
-    const rec = { k, def: d, id: String(it.id ?? `${kind}#${k}`), cat: 'item', polys: [circlePoly(it.x, it.z, it.r ?? 0.35)] };
-    place(rec, true);
-    return d;
-  });
-  const items = extra(o.items, 'item');
-  const interactables = extra(o.interactables, 'interactable').map((it, k) => (gateRot.has(k) ? { ...it, rot: gateRot.get(k) } : it));
+  for (const p of points.filter((q) => !q.def.fixed)) { yield* place(p, keepOf(p.def)); if (due()) yield; }
+  const extra = function* extra(list, kind) {
+    const out = [];
+    for (const [k, it] of (list || []).entries()) {
+      // (an item lying inside a building with a walk-in, `inside`: M3's shed charges on its loft floor, stays put)
+      if (it.x == null || it.z == null || it.fixed || it.inside != null || FIXED_INTERACTABLE(it)) { out.push(it); continue; }
+      const d = { ...it };
+      const rec = { k, def: d, id: String(it.id ?? `${kind}#${k}`), cat: 'item', polys: [circlePoly(it.x, it.z, it.r ?? 0.35)] };
+      yield* place(rec, true);
+      out.push(d);
+    }
+    return out;
+  };
+  const items = yield* extra(o.items, 'item');
+  const interactables = (yield* extra(o.interactables, 'interactable')).map((it, k) => (gateRot.has(k) ? { ...it, rot: gateRot.get(k) } : it));
   for (const p of points.filter((q) => q.cat === 'tree' && !q.def.placementDropped)) {
+    if (due()) yield;
     const hint = pruneTree(p.def, obstacles.filter((ob) => ob.id !== p.id));
     if (hint) { Object.assign(p.def, hint); log.push(`tree ${p.id}: crown ${hint.crownBase ? `lifted to ${hint.crownBase} m` : ''}${hint.crownR ? ` narrowed to ${hint.crownR} m` : ''}`); }
   }

@@ -21,7 +21,9 @@ import { CONFIG } from '../config.js';
 import { T } from '../world/grid.js';
 import { buildApronField } from '../world/apron-field.js';
 import { edgeCliffOutlines, inPolygon, crossingSource } from '../world/edge-extend.js';
-import { buildSplat, buildFlatMask, undulation, PALETTES as LAYER_PALETTES } from './terrain/terrain-layers.js';
+import { buildSplatG, buildFlatMask, buildFlatMaskG, undulation, PALETTES as LAYER_PALETTES } from './terrain/terrain-layers.js';
+import { due, runSync } from '../engine/slice.js';
+import { computeVertexNormalsG } from '../engine/geometry-jobs.js';
 import { APRON_MAX_CROSSINGS } from './terrain/terrain-glsl.js';
 import { apronBocage, bankField } from './terrain/bocage.js';
 import { missionCarves } from './terrain/carve.js';
@@ -37,7 +39,7 @@ const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
  * @param {{src:string, seed:number, frozen:boolean, heightAt:(x:number,z:number)=>number}} t the map terrain
  * @returns {{heightAt:(x:number,z:number)=>number, flatAt:(x:number,z:number)=>number, range:[number, number]}}
  */
-export function apronHeights(f, t, cfg = CONFIG.apron, shore = null, flatLines = []) {
+export function apronHeights(f, t, cfg = CONFIG.apron, shore = null, flatLines = [], flatMask = null) {
   const g = f.grid, A = f.A, W = f.W, D = f.D;
   // the continuous shore field (world coordinates) when given, else the bilinear cell signed distance (apron grid)
   const wet = shore ? (x, z) => shore.wetAt(x - A, z - A) : sampleCells(cellSignedDistance(g, (c) => c === T.WATER || c === T.SHALLOW), g);
@@ -47,7 +49,7 @@ export function apronHeights(f, t, cfg = CONFIG.apron, shore = null, flatLines =
   let lo = 0, hi = 0;
   // as on the map (art/terrain/terrain.js): roads half-flattened, water banks levelled (buildFlatMask), so a road's
   // banks and berms carry on past the edge instead of fading into the bare relief
-  const mask = sampleCells(buildFlatMask(g), g);
+  const mask = sampleCells(flatMask || buildFlatMask(g), g); // (`flatMask`: buildFlatMask(f.grid), made beforehand)
   // quays: an edge run with water on one side only (a harbour quay, a canal parapet). Its bank is a wall, not a slope:
   // no carve under the wall or behind it, the full bed right in front of it (the 1 m lattice would otherwise slope the
   // bank across the wall, and the water surface, drawn a little past its cells where the ground dips under it, showed
@@ -155,6 +157,11 @@ export const SEAM_IN = 0.25, INNER_DROP = 0.3;
  * into its outline as a fan around its centre (no T-junction pinholes).
  */
 export function apronGeometry(f, heightAt, mapHeightAt, step = CONFIG.apron.cell, fineAt = null, fine = 4) {
+  return runSync(apronGeometryG(f, heightAt, mapHeightAt, step, fineAt, fine));
+}
+
+/** apronGeometry() as a sliced job (engine/slice.js): the same mesh, pausing between lattice rows. */
+export function* apronGeometryG(f, heightAt, mapHeightAt, step = CONFIG.apron.cell, fineAt = null, fine = 4) {
   const A = f.A, W = f.W, D = f.D;
   // lattice lines every `step` m within `near` m of the map, twice as far apart beyond (seen only at low zoom)
   const near = 24;
@@ -172,8 +179,9 @@ export function apronGeometry(f, heightAt, mapHeightAt, step = CONFIG.apron.cell
   const hole = (i, j) => xs[i] >= 1 && xs[i + 1] <= W - 1 && zs[j] >= 1 && zs[j + 1] <= D - 1;
   // per-cell split count (0 = left out, 1 = plain quad)
   const n = new Uint8Array(nx * nz);
-  for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
-    n[j * nx + i] = hole(i, j) ? 0 : fineAt && fineAt(xs[i], zs[j], xs[i + 1], zs[j + 1]) ? fine : 1;
+  for (let j = 0; j < nz; j++) {
+    for (let i = 0; i < nx; i++) n[j * nx + i] = hole(i, j) ? 0 : fineAt && fineAt(xs[i], zs[j], xs[i + 1], zs[j + 1]) ? fine : 1;
+    if (due()) yield;
   }
   const cnt = (i, j) => (i < 0 || j < 0 || i >= nx || j >= nz ? 0 : n[j * nx + i]);
   const pos = [], idx = [], vmap = new Map();
@@ -186,6 +194,7 @@ export function apronGeometry(f, heightAt, mapHeightAt, step = CONFIG.apron.cell
   };
   const Y = (x, z) => pos[vert(x, z) * 3 + 1]; // a lattice corner's height (shared with the coarse neighbour)
   for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+    if (i === 0 && due()) yield;
     const m = n[j * nx + i];
     if (!m) continue;
     const x0 = xs[i], x1 = xs[i + 1], z0 = zs[j], z1 = zs[j + 1];
@@ -227,7 +236,7 @@ export function apronGeometry(f, heightAt, mapHeightAt, step = CONFIG.apron.cell
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   geo.setIndex(pos.length / 3 > 65535 ? new THREE.Uint32BufferAttribute(idx, 1) : new THREE.Uint16BufferAttribute(idx, 1));
   // normals from the undropped surface: the steep strip would tilt the edge-line normals and light every map edge up
-  geo.computeVertexNormals();
+  yield* computeVertexNormalsG(geo);
   packNormals(THREE, geo); // normalized Int16 × 4: 8 instead of 12 bytes a vertex (engine/vertex-pack.js)
   geo.userData.chunk16 = { dropIndex: true }; // 16-bit chunk rows where they fit (engine/chunking.js): built per load
   const P = geo.attributes.position.array;
@@ -273,6 +282,11 @@ const hash2 = (i, j, s) => { let h = (i * 374761393 + j * 668265263 + s * 224682
  * spruces, user 2026-10-08 "giant tree standing on the water"). `mission.apron.trees` scales the forest (0 = none).
  */
 export function apronTrees(f, mission = {}, trees = [], theater = 'temperate', cfg = CONFIG.apron, avoid = null, wetAt = null) {
+  return runSync(apronTreesG(f, mission, trees, theater, cfg, avoid, wetAt));
+}
+
+/** apronTrees() as a sliced job (engine/slice.js): the same trees, pausing between lattice rows. */
+export function* apronTreesG(f, mission = {}, trees = [], theater = 'temperate', cfg = CONFIG.apron, avoid = null, wetAt = null) {
   const A = f.A, W = f.W, D = f.D, bg = BACKGROUND[theater] || BACKGROUND.temperate;
   const k = mission.apron?.trees ?? 1;
   if (!(k > 0)) return [];
@@ -296,6 +310,7 @@ export function apronTrees(f, mission = {}, trees = [], theater = 'temperate', c
     && (inPolygon(x, z, r.P) || inPolygon(x + 2, z, r.P) || inPolygon(x - 2, z, r.P) || inPolygon(x, z + 2, r.P) || inPolygon(x, z - 2, r.P)));
   const out = [], cell = 3;
   for (let z = -A; z < D + A; z += cell) for (let x = -A; x < W + A; x += cell) {
+    if (x === -A && due()) yield;
     const i = Math.round(x / cell), j = Math.round(z / cell);
     const px = x + hash2(i, j, 1) * cell, pz = z + hash2(i, j, 2) * cell;
     const qx = Math.min(W, Math.max(0, px)), qz = Math.min(D, Math.max(0, pz)), d = Math.hypot(px - qx, pz - qz);
@@ -331,13 +346,18 @@ export function apronTrees(f, mission = {}, trees = [], theater = 'temperate', c
  *   map's splat painter; flatLines: edge runs to level the ground under; field = a prebuilt buildApronField(); shore =
  *   the continuous shore field (world/shore-field.js) the map's terrain carves with (same banks across the seam)
  */
-export function createApron(R, parent, t, grid, mission, theater, o = {}) {
+export function createApron(R, parent, t, grid, mission, theater, o = {}) { return runSync(createApronG(R, parent, t, grid, mission, theater, o)); }
+
+/** createApron() as a sliced job (engine/slice.js): the same apron, pausing inside its splat, mesh and grass. */
+export function* createApronG(R, parent, t, grid, mission, theater, o = {}) {
   const t0 = performance.now();
   const f = o.field || buildApronField(grid, mission);
   // bocage past the edges (Normandy / Belgium / Germany farmland): hedges on raised earth banks with bare soil flanks
   const boc = apronBocage(f, mission), bank = bankField(boc.banks);
+  if (due()) yield;
   const dry = missionCarves(mission);
-  const H = apronHeights(f, bank || dry ? { ...t, ...(bank ? { bank } : {}), ...(dry ? { dry: dry.at } : {}) } : t, CONFIG.apron, o.shore || null, o.flatLines);
+  const fm = yield* buildFlatMaskG(f.grid);
+  const H = apronHeights(f, bank || dry ? { ...t, ...(bank ? { bank } : {}), ...(dry ? { dry: dry.at } : {}) } : t, CONFIG.apron, o.shore || null, o.flatLines, fm);
   // roads that leave the map (art/terrain.js edgeCrossings): their paint and wheel ruts carry on along the road,
   // repeated from the map's last metres (world/edge-extend.js crossingSource) instead of stopping on the edge line
   const X = (o.crossings || []).slice(0, APRON_MAX_CROSSINGS), period = CONFIG.apron.rutPeriod;
@@ -349,6 +369,7 @@ export function createApron(R, parent, t, grid, mission, theater, o = {}) {
     o.paint(q.x, q.z, v);
     for (let k = 0; k < w.length; k++) w[k] += (v[k] - w[k]) * q.w;
   } : o.paint;
+  if (due()) yield;
   const L = (LAYER_PALETTES[theater] || LAYER_PALETTES.temperate).layers, iDirt = L.indexOf('dirt'), iLeaf = L.indexOf('leaves');
   const bankPaint = bank && iDirt >= 0 ? (x, z, w) => {
     const b = bank(x, z);
@@ -358,7 +379,8 @@ export function createApron(R, parent, t, grid, mission, theater, o = {}) {
     w[iDirt] += soilW; if (iLeaf >= 0) w[iLeaf] += leafW;
   } : null;
   const paint = roadPaint && bankPaint ? (x, z, w) => { roadPaint(x, z, w); bankPaint(x, z, w); } : (roadPaint || bankPaint || undefined);
-  const splat = buildSplat(f.grid, theater, { splatRes: 1, origin: [f.ox, f.oz], frozenWater: t.frozen, seed: t.seed, paint, shore: o.shore || null });
+  if (due()) yield;
+  const splat = yield* buildSplatG(f.grid, theater, { splatRes: 1, origin: [f.ox, f.oz], frozenWater: t.frozen, seed: t.seed, paint, shore: o.shore || null });
   const tA = splatTexture(splat.a, splat.w, splat.h), tB = splatTexture(splat.b, splat.w, splat.h);
   const Wg = f.grid.width, Dg = f.grid.depth, W = f.W, D = f.D;
   const tex = t.uniforms.uTrailTexel.value; // one map trail texel per neighbour step (rut normals) in the apron's uv
@@ -370,7 +392,8 @@ export function createApron(R, parent, t, grid, mission, theater, o = {}) {
     uTrailTexel: { value: new THREE.Vector2(tex.x * W / Wg, tex.y * D / Dg) },
     uTrMap: { value: new THREE.Vector4(W, D, 1 / W, 1 / D) }, uXA: { value: XA }, uXB: { value: XB }, uXN: { value: X.length }, uXPeriod: { value: period } };
   const mat = terrainMaterial(U, 'terrainB:apron', { apronTrails: true });
-  const geo = apronGeometry(f, H.heightAt, t.heightAt, CONFIG.apron.cell, H.fineAt);
+  const geo = yield* apronGeometryG(f, H.heightAt, t.heightAt, CONFIG.apron.cell, H.fineAt);
+  if (due()) yield;
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = 'terrain:apron'; mesh.receiveShadow = true; mesh.castShadow = false;
   mesh.userData.apron = true;
@@ -379,7 +402,9 @@ export function createApron(R, parent, t, grid, mission, theater, o = {}) {
   parent.add(mesh, skirt);
   // the map's 3D grass continues past the edge and thins out over grassBand m along a noisy line (no straight edge)
   const grass = t.grass?.setApron ? t.grass : null;
-  grass?.setApron({ splat, ox: f.ox, oz: f.oz, heightAt: H.heightAt, band: CONFIG.apron.grassBand });
+  const ga = { splat, ox: f.ox, oz: f.oz, heightAt: H.heightAt, band: CONFIG.apron.grassBand };
+  if (grass?.setApronG) yield* grass.setApronG(ga); else grass?.setApron(ga);
+  if (due()) yield;
   const stats = { width: f.A, verts: geo.attributes.position.count, tris: geo.index.count / 3, trees: 0, ms: 0, grass: grass?.apronInstances ?? 0, crossings: X.length };
   let veg = null, disposed = false;
   stats.groundMs = Math.round(performance.now() - t0);
@@ -389,7 +414,8 @@ export function createApron(R, parent, t, grid, mission, theater, o = {}) {
   const nearHedge = (x, z) => { const i = Math.floor(x / 2.5), j = Math.floor(z / 2.5); for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) if (hCell.has((i + a) + ',' + (j + b))) return true; return false; };
   // the drawn water (the shore field the ground is carved with; else the field's wet cells): nothing planted in it
   const wetAt = o.shore?.wetAt || cellWetAt(f.grid, APRON_SHORE_MARGIN + 0.5, f.ox, f.oz);
-  const defs = apronTrees(f, mission, o.trees || [], theater, CONFIG.apron, (x, z) => H.flatAt(x, z) > 0.2, wetAt).filter((d) => !hedges.length || !nearHedge(d.x, d.z));
+  if (due()) yield;
+  const defs = (yield* apronTreesG(f, mission, o.trees || [], theater, CONFIG.apron, (x, z) => H.flatAt(x, z) > 0.2, wetAt)).filter((d) => !hedges.length || !nearHedge(d.x, d.z));
   stats.treeDefs = defs.length; stats.hedges = boc.hedgerows.length; stats.hedgePlants = hedges.length;
   const forest = (async () => {
     if ((!defs.length && !hedges.length) || !o.createVegetation || !o.treePlacement) return null;

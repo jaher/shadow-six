@@ -38,6 +38,7 @@ const L = {
   manifest: null, base: 'assets/', quality: 'default', loader: null, ultra: new Set(),
   gltf: new Map(), pending: new Map(), live: new Set(), zoom: 1, lodBias: 0,
   deps: new Map(), // name#lod → its shared texture cache keys (art/lib-textures.js)
+  hold: null, // a promise on-demand LODs wait for before attaching (holdLodAttach)
 };
 
 /** Session-cache keys (engine/scoped-assets.js): a loaded LOD scene and a shared library texture. */
@@ -379,7 +380,8 @@ export function createBuilding(type, params = {}, rng = null) {
   const jobs = a.lods.map((_, i) => {
     const cached = L.gltf.get(`${name}#${i}`);
     if (cached !== undefined) { if (cached) touchLod(`${name}#${i}`); attach(i, cached); return null; }
-    return loadLod(name, i).then((s) => attach(i, s));
+    // (a LOD that arrives while a sliced map build holds attaches joins once it lets go: holdLodAttach)
+    return loadLod(name, i).then((s) => { const h = L.hold; return h ? h.then(() => attach(i, s), () => attach(i, s)) : attach(i, s); });
   }).filter(Boolean);
   L.live.add(entry);
   const anchors = a.anchors.map((an) => ({ ...an, pos: P.p3(an.pos), heading: P.h(an.heading) }));
@@ -400,6 +402,19 @@ export function createBuilding(type, params = {}, rng = null) {
     },
     dispose: () => { L.live.delete(entry); group.removeFromParent(); },
   };
+}
+
+/**
+ * Hold the attaching of LODs loaded on demand until `p` settles (world/map-builder.js buildMapGen with its `gate`). A
+ * sliced map build (engine/slice.js) lets promise continuations run between its slices, where a synchronous build ran
+ * none before it returned: a LOD arriving mid-build would change what the build measures (visual nav stamps, fits)
+ * and the scene's order — M10's gate_n, loaded on demand, stamped as a whole building instead of the late re-stamp.
+ * @param {Promise<unknown>|null} p
+ */
+export function holdLodAttach(p) {
+  L.hold = p || null;
+  const release = () => { if (L.hold === p) L.hold = null; };
+  if (p) p.then(release, release);
 }
 
 /** Switch every live building (and batch) to the LOD for this camera zoom (0.5 / 1 / 2 / close). */
@@ -430,6 +445,7 @@ export async function createBuildingBatch(type, placements, rng = null) {
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
   for (const [name, list] of byName) {
     const scenes = await Promise.all(L.manifest.assets[name].lods.map((_, i) => loadLod(name, i)));
+    if (L.hold) await L.hold.catch(() => {}); // (filled once a sliced map build lets go: holdLodAttach)
     // p.matrix: full placement (e.g. fitted onto a gameplay footprint, non-uniform scale); else x/z/rot
     const place = list.map((p) => p.matrix ? p.matrix.clone() : m.clone().compose(new THREE.Vector3(p.x ?? 0, 0, p.z ?? 0), q.clone().setFromAxisAngle(up, -(p.rot ?? 0)), one));
     scenes.forEach((sc, i) => {

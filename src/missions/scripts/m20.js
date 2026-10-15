@@ -21,7 +21,8 @@
 
 import * as THREE from 'three';
 import { canSee } from '../../ai/perception.js';
-import { buildM20Art } from './m20-art.js';
+import { buildM20ArtG } from './m20-art.js';
+import { due, runSync, runSliced } from '../../engine/slice.js';
 import { dressingMaterial, boxUV } from '../../art/dressing.js';
 
 const STONE_TOP = 0x8a8472, STONE_SIDE = 0x6f6a5a;
@@ -116,7 +117,10 @@ export function wagonMesh(def) {
 }
 
 /** Build the castle's level prisms, lift the terrace props and draw the links (idempotent per world). */
-export function buildCastleVisuals(w) {
+export function buildCastleVisuals(w) { runSync(buildCastleVisualsG(w)); }
+
+/** buildCastleVisuals as a sliced job (engine/slice.js): the art pass pauses between its structures. */
+export function* buildCastleVisualsG(w) {
   if (!w.scene || w._m20Visuals) return;
   w._m20Visuals = true;
   const m = w.mission || {};
@@ -141,7 +145,8 @@ export function buildCastleVisuals(w) {
     const o = w.structures?.get?.(s.id)?.object3d;
     if (o) liftOnto(o, s.baseY);
   }
-  buildM20Art(w);
+  if (due()) yield;
+  yield* buildM20ArtG(w);
 }
 
 /**
@@ -186,3 +191,6 @@ export function m20Script(w) {
   buildCastleVisuals(w);
   w.onBelTick(() => atGunTick(w));
 }
+// the castle's meshes alone (the art pass, its textures): built by Game as the load ends (sliced), found built by the
+// script
+m20Script.visuals = (w) => runSliced(buildCastleVisualsG(w));

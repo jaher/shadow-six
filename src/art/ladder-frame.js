@@ -21,6 +21,7 @@ import * as THREE from 'three';
 import { MeshBVH } from '../../vendor/three-mesh-bvh/index.module.js';
 import { Geo } from './castle-kit.js';
 import { steepLadder } from '../entities/stair-walk.js';
+import { due, runSync } from '../engine/slice.js';
 
 /**
  * Tuning. lat / latMax: lateral ray spacing and reach (m); dv: ray row spacing (m); fine: rung scan step (m); behind:
@@ -563,11 +564,15 @@ export const SIDE_STEP = 0.1;
  * 1.5 m over its tread (a man's arms and body), within 1.5 m. f.sides = {s0, r: Float32Array, l: Float32Array}
  * (Infinity: open). Measured with the ladders (fitLadders), on the built scene.
  */
-export function fitStairSides(world, scene, skip = new Set()) {
+export function fitStairSides(world, scene, skip = new Set()) { runSync(fitStairSidesG(world, scene, skip)); }
+
+/** fitStairSides as a sliced job (engine/slice.js): a flight at a time. */
+export function* fitStairSidesG(world, scene, skip = new Set()) {
   const F = world?.stairs?.flights;
   if (!F?.length) return;
   const o = new THREE.Vector3(), d = new THREE.Vector3();
   for (const f of F) {
+    if (due()) yield;
     const s0 = (f.railS?.[0] ?? f.sFoot) - 0.3, s1 = (f.railS?.[1] ?? f.sTop) + 0.3, n = Math.max(1, Math.round((s1 - s0) / SIDE_STEP) + 1);
     const P = (s, v) => ({ x: f.ox + f.ux * s - f.uz * v, z: f.oz + f.uz * s + f.ux * v });
     const c = [P(s0, -1.6), P(s0, 1.6), P(s1, -1.6), P(s1, 1.6)];
@@ -632,7 +637,10 @@ export function ladderFrame(world, link) {
  * and build the missing ladders. @returns {{frames: Map<number, object>, group: THREE.Group, frame: () => void,
  * dispose: () => void, ms: number}}
  */
-export function fitLadders(world, scene) {
+export function fitLadders(world, scene) { return runSync(fitLaddersG(world, scene)); }
+
+/** fitLadders as a sliced job (engine/slice.js): the same links in the same order, a ladder at a time. */
+export function* fitLaddersG(world, scene) {
   const t0 = performance.now();
   const frames = new Map(), group = new THREE.Group();
   group.name = 'ladders:built';
@@ -644,6 +652,7 @@ export function fitLadders(world, scene) {
   const built = [];
   scene.updateMatrixWorld(true);
   for (const L of links) {
+    if (due()) yield;
     const A = linkAxes(L);
     const box = new THREE.Box3(
       new THREE.Vector3(Math.min(A.foot.x, A.top.x) - 2.2, A.foot.y - 0.3, Math.min(A.foot.z, A.top.z) - 2.2),
@@ -672,7 +681,7 @@ export function fitLadders(world, scene) {
   if (group.children.length) scene.add(group);
   world.ladderFrames = frames;
   // (and the sides of every flight of stairs: art/rail-arms.js keeps a man's arms inside them)
-  try { fitStairSides(world, scene, skip); } catch (e) { console.warn('[ladder-frame] stair sides', e); }
+  try { yield* fitStairSidesG(world, scene, skip); } catch (e) { console.warn('[ladder-frame] stair sides', e); }
   const ms = Math.round(performance.now() - t0);
   return {
     frames, group, ms, counts: [...frames.values()].reduce((a, F) => { a[F.source] = (a[F.source] || 0) + 1; return a; }, {}),

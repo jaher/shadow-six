@@ -13,10 +13,11 @@
  */
 import * as THREE from 'three';
 import { FX_LAYER, WATER_LEVEL, wetAt } from '../art/water.js';
-import { faceSampler, faceRibbon } from './dam-water-geom.js';
+import { faceSampler, faceRibbonG } from './dam-water-geom.js';
+import { due, runSync } from '../engine/slice.js';
 import { sheetMaterial, crownMaterial, splashMaterial, wetMaterial, iceMaterial, damWaterUniforms as U, damLight } from './dam-water-mats.js';
 import { createDamSpray } from './dam-water-spray.js';
-import { createDamPool, poolSources } from './dam-water-pool.js';
+import { createDamPoolG, poolSources } from './dam-water-pool.js';
 import { createBreach } from './dam-breach.js';
 
 /** True when the mission's structures include a dam with water effects (createDamWater would build something). */
@@ -45,7 +46,15 @@ const hash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return
  * @param {Map<string, {def:object, object3d:THREE.Object3D}>} structures map handle structures
  * @returns {{group:THREE.Group, frame:(dt:number)=>void, dispose:()=>void, stats:object}|null}
  */
-export function createDamWater(world, structures, renderer = null) {
+export function createDamWater(world, structures, renderer = null) { return runSync(createDamWaterG(world, structures, renderer)); }
+
+/**
+ * createDamWater() as a sliced job (engine/slice.js): the same water, pausing between the rays down the dam's face and
+ * the flow bake's steps (world/map-builder.js handle.prepareG builds it ahead of the first frame). `o.deferListen`: its
+ * 'structure:destroyed' listener is registered by `listen()` (where the first frame used to create it, so the
+ * listeners keep their order), not here.
+ */
+export function* createDamWaterG(world, structures, renderer = null, o = {}) {
   const gl = renderer?.isWebGLRenderer ? renderer : renderer?.renderer?.isWebGLRenderer ? renderer.renderer : null;
   const dams = [...(structures?.values?.() || [])].filter((s) => s.def?.waterFx && s.object3d);
   if (!dams.length) return null;
@@ -63,9 +72,9 @@ export function createDamWater(world, structures, renderer = null) {
   };
   const yW = WATER_LEVEL;
   /** Is there water (the nav grid's wet cells) in front of the face's foot at u? (its lowest point the ribbons reach) */
-  const footInWater = (F, u) => {
+  const footInWater = function* (F, u) {
     let vEnd = null;
-    for (let y = 7.2; y >= yW - 1e-6; y -= 0.2) { const v = F.v(u, y); if (v != null) vEnd = v; else if (vEnd != null) break; }
+    for (let y = 7.2; y >= yW - 1e-6; y -= 0.2) { const v = F.v(u, y); if (v != null) vEnd = v; else if (vEnd != null) break; if (due()) yield; }
     if (vEnd == null || !world.grid) return true;
     const [x, z] = F.world(u, vEnd + 0.4);
     return wetAt(world.grid, x, z);
@@ -81,51 +90,53 @@ export function createDamWater(world, structures, renderer = null) {
       group.add(breach.group);
     }
     // 1. spillway sheets from the gate bays, each with a splash crown where it hits the pool
-    BAYS.forEach(([a, b], k) => {
-      const g = faceRibbon(F, { u0: (a + b) / 2, w: b - a, yTop: BAY_TOP, yBot: yW, off: 0.07, cols: 4, seed: k });
+    for (const [k, [a, b]] of BAYS.entries()) {
+      const g = yield* faceRibbonG(F, { u0: (a + b) / 2, w: b - a, yTop: BAY_TOP, yBot: yW, off: 0.07, cols: 4, seed: k });
       if (add(g, sheetMaterial({ speed: 2.0, alpha: 1, len: g?.userData.len, seed: k * 3.1, inception: 3.9 }))) stats.ribbons++;
       // the splash crown thrown up where it hits the pool
-      const cw = b - a + 1.0, cr = faceRibbon(F, { u0: (a + b) / 2, w: cw, yTop: yW + 1.1, yBot: yW, off: 0.11, cols: 5, seed: k + 40 });
+      const cw = b - a + 1.0, cr = yield* faceRibbonG(F, { u0: (a + b) / 2, w: cw, yTop: yW + 1.1, yBot: yW, off: 0.11, cols: 5, seed: k + 40 });
       add(cr, crownMaterial({ len: cr?.userData.len, seed: k * 5.7, inner: (b - a) / cw }));
       hot.push({ u: (a + b) / 2, w: 1.4, s: 1 });
-    });
+    }
     // the splash zone: concrete soaked by the spray at the foot of the falls, rimed along its top
-    const sz = faceRibbon(F, { u0: 0, w: 10, yTop: yW + 2.4, yBot: yW, off: 0.025, cols: 9, seed: 31 });
+    const sz = yield* faceRibbonG(F, { u0: 0, w: 10, yTop: yW + 2.4, yBot: yW, off: 0.025, cols: 9, seed: 31 });
     add(sz, splashMaterial({ alpha: 0.55, len: sz?.userData.len, seed: 3 }));
     // 2. trickles (flowing or frozen) with their wet streaks, and old dry streaks from the crest
-    streams.forEach(([u, yTop, w, kind, seed], i) => {
+    for (const [i, [u, yTop, w, kind, seed]] of streams.entries()) {
       const k = seed ?? i;
       // falling water lands in the pool or not at all: a flowing trickle whose foot is on dry ground is left out
-      if (kind !== 'ice' && !footInWater(F, u)) { stats.dryLeftOut = (stats.dryLeftOut || 0) + 1; return; }
-      const wet = faceRibbon(F, { u0: u, w: w * 3.2, yTop: yTop + 0.35, yBot: yW, off: 0.03, cols: 3, wobble: 0.03, seed: k });
+      if (kind !== 'ice' && !(yield* footInWater(F, u))) { stats.dryLeftOut = (stats.dryLeftOut || 0) + 1; continue; }
+      const wet = yield* faceRibbonG(F, { u0: u, w: w * 3.2, yTop: yTop + 0.35, yBot: yW, off: 0.03, cols: 3, wobble: 0.03, seed: k });
       add(wet, wetMaterial({ alpha: 0.42, len: wet?.userData.len, seed: k }));
       if (kind === 'ice') {
         const yEnd = Math.max(yW, yTop - (1.2 + 3.5 * hash(k + 0.3)));
         iceEnds.push([u, yEnd]);
-        const ice = faceRibbon(F, { u0: u, w: w * 1.3, yTop, yBot: yEnd, off: 0.07, cols: 3, wobble: 0.025, seed: k });
+        const ice = yield* faceRibbonG(F, { u0: u, w: w * 1.3, yTop, yBot: yEnd, off: 0.07, cols: 3, wobble: 0.025, seed: k });
         if (add(ice, iceMaterial({ alpha: 0.62, len: ice?.userData.len, seed: k }))) stats.ribbons++;
       } else {
-        const g = faceRibbon(F, { u0: u, w, yTop, yBot: yW, off: 0.06, cols: 3, wobble: 0.04, seed: k });
+        const g = yield* faceRibbonG(F, { u0: u, w, yTop, yBot: yW, off: 0.06, cols: 3, wobble: 0.04, seed: k });
         if (add(g, sheetMaterial({ speed: 0.8, alpha: 0.7, len: g?.userData.len, seed: k * 1.3, thin: true }))) stats.ribbons++;
         hot.push({ u, w: 0.5, s: 0.45 });
       }
-    });
-    OLD_STREAKS.forEach(([u, len], k) => {
-      const g = faceRibbon(F, { u0: u, w: 0.5 + 0.3 * hash(k), yTop: 7.2, yBot: Math.max(yW, 7.2 - len), off: 0.02, cols: 3, wobble: 0.02, seed: k + 20 });
+    }
+    for (const [k, [u, len]] of OLD_STREAKS.entries()) {
+      const g = yield* faceRibbonG(F, { u0: u, w: 0.5 + 0.3 * hash(k), yTop: 7.2, yBot: Math.max(yW, 7.2 - len), off: 0.02, cols: 3, wobble: 0.02, seed: k + 20 });
       add(g, wetMaterial({ alpha: 0.28, len: g?.userData.len, seed: k + 20 }));
-    });
+    }
     // 3. icicles under the crest's parapet band and at the frozen trickles (lit, opaque ice)
     const tips = [];
     for (let u = -13; u <= 13; u += 0.3) {
       const r = hash(u * 3.7);
       if (r < 0.42) continue;
       const v = F.v(u, 7.6) ?? F.v(u, 7.2);
+      if (due()) yield;
       if (v == null) continue;
       tips.push({ u, v: v + 0.08, y: 7.7, len: 0.12 + 0.85 * Math.pow(hash(u * 9.1), 2.5), r: 0.03 + 0.05 * hash(u * 5.3) });
     }
     // the frozen trickles end in a few icicles
     for (const [u, yEnd] of iceEnds) if (yEnd > yW + 0.5) for (let j = 0; j < 3; j++) {
       const uu = u + (j - 1) * 0.08, v = F.v(uu, yEnd + 0.1);
+      if (due()) yield;
       if (v != null) tips.push({ u: uu, v: v + 0.07, y: yEnd + 0.25, len: 0.25 + 0.45 * hash(uu * 7 + j), r: 0.03 });
     }
     if (tips.length) {
@@ -141,15 +152,16 @@ export function createDamWater(world, structures, renderer = null) {
       group.add(inst); geos.push(cone); mats.push(iceMat);
       stats.icicles = tips.length;
     }
-    buildFoot(F, def);
+    yield* buildFoot(F, def);
   }
 
   /** 4. the plunge pool and the tailwater (baked flow field), spray mist. */
-  function buildFoot(F, def) {
+  function* buildFoot(F, def) {
     const mid = F.v(0, 0.15) ?? 3, c = Math.cos(def.rot ?? 0), sn = Math.sin(def.rot ?? 0);
     const feet = hot.filter((h) => h.s < 1).map((h) => ({ u: h.u, v: F.v(h.u, 0.15) })).filter((t) => t.v != null);
     const sources = poolSources(mid, feet);
-    pool = createDamPool(world, F, { sources, boilV: mid + 1.6, mid, y: yW + 0.03, rot: [c, sn], uniforms: { ...U, ...damLight }, gl, sheets: BAYS.map(([a, b]) => (a + b) / 2) });
+    if (due()) yield;
+    pool = yield* createDamPoolG(world, F, { sources, boilV: mid + 1.6, mid, y: yW + 0.03, rot: [c, sn], uniforms: { ...U, ...damLight }, gl, sheets: BAYS.map(([a, b]) => (a + b) / 2) });
     if (pool) { pool.mesh.layers.set(FX_LAYER); group.add(pool.mesh); stats.bakeMs = Math.round(pool.field.ms); }
     // spray + mist emitters along the impact line of the curtain (strongest) and at the flowing trickles' feet
     const src = [];
@@ -170,7 +182,12 @@ export function createDamWater(world, structures, renderer = null) {
   // runtime: time, mist, ripples in the water sim, fade-out once the dam is gone, then the burst
   let fading = false, disturbAcc = 0, gone = false, dseq = 0, burst = 0;
   const damIds = new Set(dams.map((s) => s.def.id).filter(Boolean));
-  const off = (world.listen ? world.listen.bind(world) : world.events?.on?.bind(world.events))?.('structure:destroyed', (e) => { if (damIds.has(e?.id)) { fading = true; breach?.start(); } });
+  let off = null;
+  const listen = () => {
+    if (off !== null) return;
+    off = (world.listen ? world.listen.bind(world) : world.events?.on?.bind(world.events))?.('structure:destroyed', (e) => { if (damIds.has(e?.id)) { fading = true; breach?.start(); } }) ?? undefined;
+  };
+  if (!o.deferListen) listen();
   let over = false; // the burst is over (no head left behind the breach): nothing at all
   // loaded with the dam already down: the intact dam's water is gone and the breach runs in its settled outflow
   for (const id of damIds) if (world.byId?.(id)?.destroyed) {
@@ -189,7 +206,7 @@ export function createDamWater(world, structures, renderer = null) {
   damLight.uSunI.value = night ? 0.15 : /overcast|fog|snow/.test(lit.hdri || '') ? 0.25 : 0.9;
   damLight.uSky.value.set(...(night ? [0.06, 0.08, 0.12] : [0.55, 0.6, 0.66]));
   return {
-    group, stats, get pool() { return pool; },
+    group, stats, listen, get pool() { return pool; },
     get breach() { return breach; },
     frame(dt) {
       if (over) return;

@@ -7,7 +7,8 @@
  *        else a bank-distance heuristic (depth * smoothstep over opts.bankWidth)
  */
 import * as THREE from 'three';
-import { solveFlow, wakeFoam, upsample, distanceField } from './fields.js';
+import { solveFlowG, wakeFoamG, upsample, distanceFieldG } from './fields.js';
+import { due, runSync } from '../../engine/slice.js';
 
 function segDist(px, pz, ax, az, bx, bz) {
   const dx = bx - ax, dz = bz - az;
@@ -45,7 +46,10 @@ export function bodyGrid(b, res = 256) {
  *   bed heights where no bed(x,z) function is given, solids (piers, rocks, hulls crossing the surface) become dry
  *   cells → shore distance, ripple walls, flow projection and wake streaks all see them.
  */
-export function bakeBody(b, res = 256, cap = null) {
+export function bakeBody(b, res = 256, cap = null) { return runSync(bakeBodyG(b, res, cap)); }
+
+/** bakeBody() as a sliced job (engine/slice.js): the same bake, pausing between rows and solver steps. */
+export function* bakeBodyG(b, res = 256, cap = null) {
   const poly = b.polygon;
   const { minX, minZ, w, h, rx, rz } = bodyGrid(b, res);
   const data = new Float32Array(rx * rz * 4);
@@ -62,13 +66,15 @@ export function bakeBody(b, res = 256, cap = null) {
   let maskSD = null;
   if (b.mask) {
     const N = rx * rz, ins = new Uint8Array(N), out = new Uint8Array(N), cell = 0.5 * (w / rx + h / rz);
-    for (let j = 0; j < rz; j++) for (let i = 0; i < rx; i++) { const k = j * rx + i;
+    for (let j = 0; j < rz; j++) { for (let i = 0; i < rx; i++) { const k = j * rx + i;
       ins[k] = b.mask(minX + (i + 0.5) / rx * w, minZ + (j + 0.5) / rz * h) ? 1 : 0; out[k] = 1 - ins[k]; }
-    const dIn = distanceField(out, rx, rz, cell), dOut = distanceField(ins, rx, rz, cell);
+    if (due()) yield; }
+    const dIn = yield* distanceFieldG(out, rx, rz, cell), dOut = yield* distanceFieldG(ins, rx, rz, cell);
     maskSD = new Float32Array(N); for (let k = 0; k < N; k++) maskSD[k] = ins[k] ? dIn[k] - 0.5 * cell : -(dOut[k] - 0.5 * cell);
     // the continuous shore field (world/shore-field.js) replaces the texel-mask staircase near this body's banks
-    if (b.sdf) for (let j = 0; j < rz; j++) for (let i = 0; i < rx; i++) { const k = j * rx + i;
+    if (b.sdf) for (let j = 0; j < rz; j++) { for (let i = 0; i < rx; i++) { const k = j * rx + i;
       if (Math.abs(maskSD[k]) < 1.5) maskSD[k] = b.sdf(minX + (i + 0.5) / rx * w, minZ + (j + 0.5) / rz * h); }
+    if (due()) yield; }
   }
   const sample = (x, z) => {
     if (maskSD) { const i = Math.min(rx - 1, Math.max(0, Math.floor((x - minX) / w * rx))), j = Math.min(rz - 1, Math.max(0, Math.floor((z - minZ) / h * rz))); return maskSD[j * rx + i]; }
@@ -116,6 +122,7 @@ export function bakeBody(b, res = 256, cap = null) {
     data[idx * 4] = vx; data[idx * 4 + 1] = vz; data[idx * 4 + 3] = depth;
     // bank turbulence in fast rivers
     data[idx * 4 + 2] = speed > 0.3 && sd > 0 ? 0.25 * Math.max(0, 1 - sd / 1.2) * Math.min(1, speed / 1.5) : 0;
+    if (i === rx - 1 && due()) yield;
   }
   // captured obstacles in a river: divergence-free projection of the current around them + advected wake streaks
   if (speed > 0 && cap && cap.solid.some((v) => v)) {
@@ -125,9 +132,14 @@ export function bakeBody(b, res = 256, cap = null) {
       const k = Math.min(rz - 1, j * cf + (cf >> 1)) * rx + Math.min(rx - 1, i * cf + (cf >> 1)), q = j * cx + i;
       if (data[k * 4 + 3] > 0.02) { wet[q] = 1; bvx[q] = vel[k * 2]; bvz[q] = vel[k * 2 + 1]; }
     }
-    const { vx, vz } = solveFlow(wet, bvx, bvz, cx, cz, 120);
-    const wf = wakeFoam(wet, vx, vz, cx, cz, (w / rx) * cf, 110, bvx, bvz);
-    const ux = upsample(vx, cx, cz, rx, rz), uz = upsample(vz, cx, cz, rx, rz), uf = upsample(wf, cx, cz, rx, rz);
+    const { vx, vz } = yield* solveFlowG(wet, bvx, bvz, cx, cz, 120);
+    const wf = yield* wakeFoamG(wet, vx, vz, cx, cz, (w / rx) * cf, 110, bvx, bvz);
+    const ux = upsample(vx, cx, cz, rx, rz);
+    if (due()) yield;
+    const uz = upsample(vz, cx, cz, rx, rz);
+    if (due()) yield;
+    const uf = upsample(wf, cx, cz, rx, rz);
+    if (due()) yield;
     for (let k = 0; k < rx * rz; k++) {
       if (data[k * 4 + 3] <= 0) { vel[k * 2] = vel[k * 2 + 1] = data[k * 4] = data[k * 4 + 1] = 0; continue; }
       vel[k * 2] = data[k * 4] = ux[k]; vel[k * 2 + 1] = data[k * 4 + 1] = uz[k];
@@ -142,6 +154,7 @@ export function bakeBody(b, res = 256, cap = null) {
       return [vel[(j * rx + i) * 2], vel[(j * rx + i) * 2 + 1]];
     };
     for (let j = 0; j < rz; j++) for (let i = 0; i < rx; i++) {
+      if (i === 0 && j > 0 && due()) yield;
       const idx = j * rx + i;
       if (data[idx * 4 + 3] <= 0) continue;
       let x = minX + (i + 0.5) / rx * w, z = minZ + (j + 0.5) / rz * h, s = 0, f = 0;
@@ -164,41 +177,49 @@ export function bakeBody(b, res = 256, cap = null) {
   const dist = new Float32Array(rx * rz);
   for (let k = 0; k < rx * rz; k++) dist[k] = data[k * 4 + 3] <= 0 ? 0 : INF;
   const relax = (k, k2, c) => { if (dist[k2] + c < dist[k]) dist[k] = dist[k2] + c; };
-  for (let j = 0; j < rz; j++) for (let i = 0; i < rx; i++) { const k = j * rx + i;
+  for (let j = 0; j < rz; j++) { for (let i = 0; i < rx; i++) { const k = j * rx + i;
     if (i > 0) relax(k, k - 1, cx); if (j > 0) relax(k, k - rx, cz);
     if (i > 0 && j > 0) relax(k, k - rx - 1, cd); if (i < rx - 1 && j > 0) relax(k, k - rx + 1, cd); }
-  for (let j = rz - 1; j >= 0; j--) for (let i = rx - 1; i >= 0; i--) { const k = j * rx + i;
+  if ((j & 15) === 15 && due()) yield; }
+  for (let j = rz - 1; j >= 0; j--) { for (let i = rx - 1; i >= 0; i--) { const k = j * rx + i;
     if (i < rx - 1) relax(k, k + 1, cx); if (j < rz - 1) relax(k, k + rx, cz);
     if (i < rx - 1 && j < rz - 1) relax(k, k + rx + 1, cd); if (i > 0 && j < rz - 1) relax(k, k + rx - 1, cd); }
+  if ((j & 15) === 0 && due()) yield; }
   // two [1 2 1]² passes: the chamfer field of a texel mask has 1-texel stairs along diagonal banks (ice edges)
   const tmp = new Float32Array(rx * rz);
   for (let pass = 0; pass < 2; pass++) {
     for (let j = 0; j < rz; j++) for (let i = 0; i < rx; i++) { const k = j * rx + i;
       tmp[k] = dist[k] <= 0 ? 0 : (2 * dist[k] + dist[k - (i > 0)] + dist[k + (i < rx - 1)]) / 4; }
+    if (due()) yield;
     for (let j = 0; j < rz; j++) for (let i = 0; i < rx; i++) { const k = j * rx + i;
       dist[k] = tmp[k] <= 0 ? 0 : (2 * tmp[k] + tmp[k - (j > 0) * rx] + tmp[k + (j < rz - 1) * rx]) / 4; }
+    if (due()) yield;
   }
   // continuous shore field: the bank distance is the field itself (smooth ice rims and contact foam at any bake
   // resolution); the chamfer only keeps the dry spots inside the water (captured rocks, piers, hulls) and far water
   if (b.sdf) {
     const inner = new Float32Array(rx * rz), sd = new Float32Array(rx * rz), far = b.sdfFar ?? 5;
-    for (let j = 0; j < rz; j++) for (let i = 0; i < rx; i++) { const k = j * rx + i;
+    for (let j = 0; j < rz; j++) { for (let i = 0; i < rx; i++) { const k = j * rx + i;
       sd[k] = b.sdf(minX + (i + 0.5) / rx * w, minZ + (j + 0.5) / rz * h);
       inner[k] = data[k * 4 + 3] <= 0 && sd[k] > 0.5 ? 0 : INF; }
-    for (let j = 0; j < rz; j++) for (let i = 0; i < rx; i++) { const k = j * rx + i; if (!inner[k]) continue;
+    if (due()) yield; }
+    for (let j = 0; j < rz; j++) { for (let i = 0; i < rx; i++) { const k = j * rx + i; if (!inner[k]) continue;
       const rl = (q, c) => { if (inner[q] + c < inner[k]) inner[k] = inner[q] + c; };
       if (i > 0) rl(k - 1, cx); if (j > 0) rl(k - rx, cz); if (i > 0 && j > 0) rl(k - rx - 1, cd); if (i < rx - 1 && j > 0) rl(k - rx + 1, cd); }
-    for (let j = rz - 1; j >= 0; j--) for (let i = rx - 1; i >= 0; i--) { const k = j * rx + i; if (!inner[k]) continue;
+    if ((j & 15) === 15 && due()) yield; }
+    for (let j = rz - 1; j >= 0; j--) { for (let i = rx - 1; i >= 0; i--) { const k = j * rx + i; if (!inner[k]) continue;
       const rl = (q, c) => { if (inner[q] + c < inner[k]) inner[k] = inner[q] + c; };
       if (i < rx - 1) rl(k + 1, cx); if (j < rz - 1) rl(k + rx, cz); if (i < rx - 1 && j < rz - 1) rl(k + rx + 1, cd); if (i > 0 && j < rz - 1) rl(k + rx - 1, cd); }
+    if ((j & 15) === 0 && due()) yield; }
     for (let k = 0; k < rx * rz; k++) dist[k] = Math.min(sd[k] >= far ? dist[k] : Math.max(0, sd[k]), inner[k]);
   }
+  if (due()) yield;
   const half2 = new Uint16Array(rx * rz * 4);
-  for (let k = 0; k < rx * rz; k++) half2[k * 4] = THREE.DataUtils.toHalfFloat(Math.min(dist[k], 60000));
+  for (let k = 0; k < rx * rz; k++) { half2[k * 4] = THREE.DataUtils.toHalfFloat(Math.min(dist[k], 60000)); if ((k & 65535) === 65535 && due()) yield; }
   const tex2 = new THREE.DataTexture(half2, rx, rz, THREE.RGBAFormat, THREE.HalfFloatType);
   tex2.minFilter = tex2.magFilter = THREE.LinearFilter; tex2.needsUpdate = true;
   const half = new Uint16Array(data.length);
-  for (let i = 0; i < data.length; i++) half[i] = THREE.DataUtils.toHalfFloat(data[i]);
+  for (let i = 0; i < data.length; i++) { half[i] = THREE.DataUtils.toHalfFloat(data[i]); if ((i & 65535) === 65535 && due()) yield; }
   const tex = new THREE.DataTexture(half, rx, rz, THREE.RGBAFormat, THREE.HalfFloatType);
   tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
   tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;

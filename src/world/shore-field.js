@@ -25,6 +25,7 @@
  * @module world/shore-field
  */
 import { T } from './grid.js';
+import { due, runSync } from '../engine/slice.js';
 
 const isWet = (c) => c === T.WATER || c === T.SHALLOW;
 const CODES = { ground: T.GROUND, road: T.ROAD, sand: T.SAND, snow: T.SNOW, grass: T.GRASS, water: T.WATER, shallow: T.SHALLOW, mud: T.MUD };
@@ -110,7 +111,7 @@ function span(L, x0, z0, x1, z1) {
  * Field of a path (tapered ribbon; flat ends like grid.fillLine) into F (max-composed; F pre-filled with -M).
  * @param {number[][]} S smoothed samples [[x, z, width]]
  */
-function stampPath(L, F, S, M) {
+function* stampPath(L, F, S, M) {
   const last = S.length - 2;
   for (let s = 0; s <= last; s++) {
     const [ax, az, wa] = S[s], [bx, bz, wb] = S[s + 1];
@@ -134,6 +135,7 @@ function stampPath(L, F, S, M) {
         const k = j * L.nx + i;
         if (v > F[k]) F[k] = v;
       }
+      if (due()) yield;
     }
   }
 }
@@ -142,7 +144,7 @@ function stampPath(L, F, S, M) {
  * Field of a closed outline (signed distance, + inside) into F (pre-filled with -M). Edges flagged `open[k]` (along
  * or outside the map boundary) count for inside / outside but are not shore: no distance to them.
  */
-function stampPoly(L, F, S, open, M) {
+function* stampPoly(L, F, S, open, M) {
   const n = S.length;
   let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
   for (const [x, z] of S) { x0 = Math.min(x0, x); z0 = Math.min(z0, z); x1 = Math.max(x1, x); z1 = Math.max(z1, z); }
@@ -161,6 +163,7 @@ function stampPoly(L, F, S, open, M) {
         const d = Math.hypot(ax + dx * t - x, az + dz * t - z), q = (j - sp.j0) * bw + (i - sp.i0);
         if (d < D[q]) D[q] = d;
       }
+      if (due()) yield;
     }
   }
   // inside: even-odd crossings per texel row
@@ -180,6 +183,7 @@ function stampPoly(L, F, S, open, M) {
       const d = D[(j - sp.j0) * bw + (i - sp.i0)], v = c & 1 ? d : -d, k = j * L.nx + i;
       if (v > F[k]) F[k] = v;
     }
+    if (due()) yield;
   }
 }
 
@@ -197,7 +201,7 @@ function stampCircle(L, F, cx, cz, r, M) {
 }
 
 /** Exact squared Euclidean distance transform (Felzenszwalb-Huttenlocher), in place on f (0 = site, 1e20 = none). */
-function edt2(f, nx, nz) {
+function* edt2(f, nx, nz) {
   const n = Math.max(nx, nz), v = new Int32Array(n), zb = new Float64Array(n + 1), g = new Float64Array(n), d = new Float64Array(n);
   const pass = (len, get, set) => {
     for (let q = 0; q < len; q++) g[q] = get(q);
@@ -212,30 +216,35 @@ function edt2(f, nx, nz) {
     for (let q = 0; q < len; q++) { while (zb[k + 1] < q) k++; d[q] = (q - v[k]) * (q - v[k]) + g[v[k]]; }
     for (let q = 0; q < len; q++) set(q, d[q]);
   };
-  for (let i = 0; i < nx; i++) pass(nz, (q) => f[q * nx + i], (q, x) => { f[q * nx + i] = x; });
-  for (let j = 0; j < nz; j++) pass(nx, (q) => f[j * nx + q], (q, x) => { f[j * nx + q] = x; });
+  for (let i = 0; i < nx; i++) { pass(nz, (q) => f[q * nx + i], (q, x) => { f[q * nx + i] = x; }); if (due()) yield; }
+  for (let j = 0; j < nz; j++) { pass(nx, (q) => f[j * nx + q], (q, x) => { f[j * nx + q] = x; }); if (due()) yield; }
   return f;
 }
 
 /** Exact signed distance (m, cell centres, + where `ins[k]`) of a cell mask: ±(distance to the other side − cell/2). */
-export function maskSignedDistance(ins, nx, nz, cell) {
+export function maskSignedDistance(ins, nx, nz, cell) { return runSync(maskSignedDistanceG(ins, nx, nz, cell)); }
+
+/** maskSignedDistance() as a sliced job (engine/slice.js). */
+export function* maskSignedDistanceG(ins, nx, nz, cell) {
   const N = nx * nz, a = new Float64Array(N), b = new Float64Array(N), out = new Float32Array(N);
   for (let k = 0; k < N; k++) { a[k] = ins[k] ? 1e20 : 0; b[k] = ins[k] ? 0 : 1e20; }
-  edt2(a, nx, nz); edt2(b, nx, nz);
+  yield* edt2(a, nx, nz); yield* edt2(b, nx, nz);
   for (let k = 0; k < N; k++) out[k] = ins[k] ? Math.min(Math.sqrt(a[k]) * cell, 1e4) - cell / 2 : -(Math.min(Math.sqrt(b[k]) * cell, 1e4) - cell / 2);
   return out;
 }
 
 /** Separable box blur (radius r texels), clamped borders, in place. */
-function boxBlur(F, nx, nz, r) {
+function* boxBlur(F, nx, nz, r) {
   const tmp = new Float32Array(Math.max(nx, nz));
   for (let j = 0; j < nz; j++) {
     for (let i = 0; i < nx; i++) { let s = 0; for (let d = -r; d <= r; d++) s += F[j * nx + Math.min(nx - 1, Math.max(0, i + d))]; tmp[i] = s / (2 * r + 1); }
     for (let i = 0; i < nx; i++) F[j * nx + i] = tmp[i];
+    if (due()) yield;
   }
   for (let i = 0; i < nx; i++) {
     for (let j = 0; j < nz; j++) { let s = 0; for (let d = -r; d <= r; d++) s += F[Math.min(nz - 1, Math.max(0, j + d)) * nx + i]; tmp[j] = s / (2 * r + 1); }
     for (let j = 0; j < nz; j++) F[j * nx + i] = tmp[j];
+    if (due()) yield;
   }
 }
 
@@ -301,7 +310,10 @@ function smoothOutline(P, onEdge) {
  *   noise?:number, seed?:number, tol?:number}} [o] feats default to the mission's terrain features (the apron passes
  *   its extended set); W x D = the playable map (boundary edges are open water)
  */
-export function buildShoreField(codes, mission = {}, o = {}) {
+export function buildShoreField(codes, mission = {}, o = {}) { return runSync(buildShoreFieldG(codes, mission, o)); }
+
+/** buildShoreField() as a sliced job (engine/slice.js): the same field, pausing between features and rows. */
+export function* buildShoreFieldG(codes, mission = {}, o = {}) {
   const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
   const { cols, rows, cell, terrain } = codes;
   const ox = o.ox ?? 0, oz = o.oz ?? 0, h = o.res ?? 0.25, M = o.margin ?? 4;
@@ -330,37 +342,46 @@ export function buildShoreField(codes, mission = {}, o = {}) {
     const sp = span(L, ...bb);
     if (!sp) continue;
     for (let j = sp.j0; j <= sp.j1; j++) F.fill(-M, j * L.nx + sp.i0, j * L.nx + sp.i1 + 1);
-    if (f.type === 'path') stampPath(L, F, S, M);
+    if (f.type === 'path') yield* stampPath(L, F, S, M);
     else if (f.type === 'circle') stampCircle(L, F, f.x, f.z, f.r, M);
-    else stampPoly(L, F, S, S.map((p, k) => side(p) & side(S[(k + 1) % S.length])), M);
+    else yield* stampPoly(L, F, S, S.map((p, k) => side(p) & side(S[(k + 1) % S.length])), M);
     const wetF = isWet(f.c), deepF = f.c === T.WATER;
-    for (let j = sp.j0; j <= sp.j1; j++) for (let i = sp.i0; i <= sp.i1; i++) {
-      const k = j * L.nx + i, v = Math.max(-M, Math.min(M, F[k]));
-      wet[k] = wetF ? smax(wet[k], v, K) : -smax(-wet[k], v, K);
-      deep[k] = deepF ? smax(deep[k], v, K) : -smax(-deep[k], v, K);
+    for (let j = sp.j0; j <= sp.j1; j++) {
+      for (let i = sp.i0; i <= sp.i1; i++) {
+        const k = j * L.nx + i, v = Math.max(-M, Math.min(M, F[k]));
+        wet[k] = wetF ? smax(wet[k], v, K) : -smax(-wet[k], v, K);
+        deep[k] = deepF ? smax(deep[k], v, K) : -smax(-deep[k], v, K);
+      }
+      if (due()) yield;
     }
   }
-  for (let k = 0; k < N; k++) if (wet[k] - sw < deep[k]) deep[k] = wet[k] - sw; // the nav shore rim
-  return finishField(L, codes, wet, deep, { M, tol: o.tol ?? 0.4, noise: o.noise ?? 1, seed: o.seed ?? 0, t0 });
+  for (let k = 0; k < N; k++) {
+    if (wet[k] - sw < deep[k]) deep[k] = wet[k] - sw; // the nav shore rim
+    if ((k & 65535) === 65535 && due()) yield;
+  }
+  return yield* finishField(L, codes, wet, deep, { M, tol: o.tol ?? 0.4, noise: o.noise ?? 1, seed: o.seed ?? 0, t0 });
 }
 
 /** Grid fallback where the cells disagree with the analytic shapes, noise, samplers. */
-function finishField(L, codes, wet, deep, { M, tol, noise, seed, t0 }) {
+function* finishField(L, codes, wet, deep, { M, tol, noise, seed, t0 }) {
   const { cols, rows, cell, terrain } = codes, NC = cols * rows, N = L.N;
   const sWet = sampler(L, wet), sDeep = sampler(L, deep);
   const foreign = new Uint8Array(NC);
   let nForeign = 0;
-  for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
-    const k = j * cols + i, x = L.ox + (i + 0.5) * cell, z = L.oz + (j + 0.5) * cell, c = terrain[k];
-    const a = sWet(x, z), d = sDeep(x, z);
-    if ((isWet(c) !== a > 0 && Math.abs(a) > tol) || ((c === T.WATER) !== d > 0 && Math.abs(d) > tol + 0.3)) { foreign[k] = 1; nForeign++; }
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) {
+      const k = j * cols + i, x = L.ox + (i + 0.5) * cell, z = L.oz + (j + 0.5) * cell, c = terrain[k];
+      const a = sWet(x, z), d = sDeep(x, z);
+      if ((isWet(c) !== a > 0 && Math.abs(a) > tol) || ((c === T.WATER) !== d > 0 && Math.abs(d) > tol + 0.3)) { foreign[k] = 1; nForeign++; }
+    }
+    if (due()) yield;
   }
   if (nForeign) {
     // exact distance of the cell masks, rounded at cell level (no stairs), blended in around the foreign cells
-    const sdW = maskSignedDistance(terrain.map((c) => (isWet(c) ? 1 : 0)), cols, rows, cell);
-    const sdD = maskSignedDistance(terrain.map((c) => (c === T.WATER ? 1 : 0)), cols, rows, cell);
-    boxBlur(sdW, cols, rows, 1); boxBlur(sdW, cols, rows, 1); boxBlur(sdD, cols, rows, 1); boxBlur(sdD, cols, rows, 1);
-    const fd = maskSignedDistance(foreign, cols, rows, cell);
+    const sdW = yield* maskSignedDistanceG(terrain.map((c) => (isWet(c) ? 1 : 0)), cols, rows, cell);
+    const sdD = yield* maskSignedDistanceG(terrain.map((c) => (c === T.WATER ? 1 : 0)), cols, rows, cell);
+    yield* boxBlur(sdW, cols, rows, 1); yield* boxBlur(sdW, cols, rows, 1); yield* boxBlur(sdD, cols, rows, 1); yield* boxBlur(sdD, cols, rows, 1);
+    const fd = yield* maskSignedDistanceG(foreign, cols, rows, cell);
     const wc = new Float32Array(NC);
     for (let k = 0; k < NC; k++) wc[k] = 1 - ss(0.75, 2.75, -fd[k]);
     const r = L.h / cell;
@@ -377,20 +398,25 @@ function finishField(L, codes, wet, deep, { M, tol, noise, seed, t0 }) {
         wet[k] += (Math.max(-M, Math.min(M, gw)) - wet[k]) * w;
         deep[k] += (Math.max(-M, Math.min(M, gd)) - deep[k]) * w;
       }
+      if (due()) yield;
     }
   }
   if (noise) {
     // the noise never pushes a nav cell further across the drawn line: it fades out (smoothly, bilinear over the
     // cells) wherever a cell centre already sits on the wrong side of the noiseless field, e.g. a sharp corner's cut
     const keep = new Float32Array(NC).fill(1);
-    for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
-      const k = j * cols + i, x = L.ox + (i + 0.5) * cell, z = L.oz + (j + 0.5) * cell, c = terrain[k];
-      const a = sWet(x, z), d = sDeep(x, z);
-      const wrong = Math.max(isWet(c) ? -a : a, (c === T.WATER ? -d : d) - 0.3);
-      if (wrong > 0.1) keep[k] = 1 - ss(0.1, 0.3, wrong);
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < cols; i++) {
+        const k = j * cols + i, x = L.ox + (i + 0.5) * cell, z = L.oz + (j + 0.5) * cell, c = terrain[k];
+        const a = sWet(x, z), d = sDeep(x, z);
+        const wrong = Math.max(isWet(c) ? -a : a, (c === T.WATER ? -d : d) - 0.3);
+        if (wrong > 0.1) keep[k] = 1 - ss(0.1, 0.3, wrong);
+      }
+      if (due()) yield;
     }
     const r = L.h / cell;
     for (let j = 0; j < L.nz; j++) for (let i = 0; i < L.nx; i++) {
+      if (i === 0 && due()) yield;
       const k = j * L.nx + i, near = Math.min(Math.abs(wet[k]), Math.abs(deep[k]));
       if (near >= 3.5) continue; // the noise fades out 2.5-3.5 m from any shore (no cost far from water)
       const fz = Math.min(rows - 1, Math.max(0, (j + 0.5) * r - 0.5)), cj = Math.min(rows - 2, Math.floor(fz)), tz = fz - cj;

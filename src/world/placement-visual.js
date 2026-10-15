@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { convexHull } from './placement-geom.js';
 import { sessionCache, hasher, dataKey } from '../engine/asset-cache.js';
+import { due, runSync } from '../engine/slice.js';
 
 export { dataKey };
 
@@ -51,11 +52,11 @@ const _v = new THREE.Vector3();
  *   `groundY`; `wade`: snow lower than this is left out (SNOW_WADE)
  * @returns {number[][]|null} hull polygon [[x, z], …] or null (no vertices in the band)
  */
-function planHullRaw(root, o = {}) {
+function* planHullRaw(root, o = {}) {
   const minY = o.minY ?? -Infinity, maxY = o.maxY ?? Infinity, gy = o.groundY ?? 0, maxVerts = o.maxVerts ?? 60000, wade = o.wade ?? 0;
   root.updateMatrixWorld(true);
   const pts = [];
-  const visit = (n) => {
+  const visit = function* visit(n) {
     if (n.userData?.clip === false || (!n.visible && !/^lod\d$/.test(n.name))) return;
     if (/^lod[12]$/.test(n.name)) { // finest loaded LOD only
       const sib = n.parent?.children || [];
@@ -73,18 +74,21 @@ function planHullRaw(root, o = {}) {
           _v.fromBufferAttribute(pos, i).applyMatrix4(m);
           const y = _v.y - gy;
           if (y >= lo && y <= maxY) pts.push([_v.x, _v.z]);
+          if ((i & 255) === 0 && due()) yield;
         }
       }
     }
-    for (const c of n.children) visit(c);
+    for (const c of n.children) yield* visit(c);
   };
-  visit(root);
+  yield* visit(root);
   if (pts.length < 3) return null;
   const h = convexHull(pts);
   return h.length >= 3 ? h : null;
 }
 
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3();
+/** Raster work (≈ samples) between two looks at the slice clock (engine/slice.js due()): never inside a triangle. */
+const WORK_CHECK = 4096;
 
 /**
  * Occupancy of a structure's render triangles within a height band, rasterized at `cell` m and merged into row
@@ -96,7 +100,7 @@ const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3
  * @param {THREE.Object3D} root @param {{minY?: number, maxY?: number, groundY?: number, cell?: number, close?: number, fit?: boolean, wade?: number}} [o]
  * @returns {number[][][]|null} rectangles [[x, z] × 4][] or null when empty
  */
-function planCellsRaw(root, o = {}) {
+function* planCellsRaw(root, o = {}) {
   const minY = o.minY ?? -Infinity, maxY = o.maxY ?? Infinity, gy = o.groundY ?? 0, cell = o.cell ?? 0.25, wade = o.wade ?? 0;
   root.updateMatrixWorld(true);
   const cells = new Set(), rowLo = new Map(), rowHi = new Map();
@@ -114,20 +118,29 @@ function planCellsRaw(root, o = {}) {
     cells.add(`${Math.floor(lx / cell)},${j}`);
     if (o.fit) { rowLo.set(j, Math.min(rowLo.get(j) ?? Infinity, lx)); rowHi.set(j, Math.max(rowHi.get(j) ?? -Infinity, lx)); }
   };
-  // (`snow`: a snow triangle, whose part below `wade` is waded through: no occupancy)
-  const tri = (a, b, c, snow = false) => {
+  // (`snow`: a snow triangle, whose part below `wade` is waded through: no occupancy). A big triangle (up to 80k
+  // samples) may pause between its rows: its corners are copied first (the module's scratch vectors are shared)
+  const A = new THREE.Vector3(), Bv = new THREE.Vector3(), Cv = new THREE.Vector3();
+  const tri = function* tri(a0, b0, c0, snow = false) {
+    const a = A.copy(a0), b = Bv.copy(b0), c = Cv.copy(c0);
     const ya = a.y - gy, yb = b.y - gy, yc = c.y - gy, deep = snow && wade > minY;
-    if (Math.min(ya, yb, yc) > maxY || Math.max(ya, yb, yc) < (deep ? wade : minY)) return;
+    if (Math.min(ya, yb, yc) > maxY || Math.max(ya, yb, yc) < (deep ? wade : minY)) return 1;
     const L = Math.max(a.distanceTo(b), b.distanceTo(c), c.distanceTo(a));
     const n = Math.min(400, Math.max(1, Math.ceil(L / (cell * 0.5))));
-    for (let i = 0; i <= n; i++) for (let j = 0; j <= n - i; j++) {
-      const u = i / n, v = j / n, w = 1 - u - v;
-      const y = a.y * u + b.y * v + c.y * w - gy;
-      if (y < (deep ? wade : minY - 0.05) || y > maxY + 0.05) continue;
-      mark(a.x * u + b.x * v + c.x * w, a.z * u + b.z * v + c.z * w);
+    work += n * n;
+    for (let i = 0; i <= n; i++) {
+      for (let j = 0; j <= n - i; j++) {
+        const u = i / n, v = j / n, w = 1 - u - v;
+        const y = a.y * u + b.y * v + c.y * w - gy;
+        if (y < (deep ? wade : minY - 0.05) || y > maxY + 0.05) continue;
+        mark(a.x * u + b.x * v + c.x * w, a.z * u + b.z * v + c.z * w);
+      }
+      if (n > 64 && (i & 7) === 7 && due()) yield;
     }
+    return 1;
   };
-  const visit = (nd) => {
+  let work = 0;
+  const visit = function* visit(nd) {
     if (nd.userData?.clip === false || (!nd.visible && !/^lod\d$/.test(nd.name))) return;
     if (/^lod[12]$/.test(nd.name)) {
       const sib = nd.parent?.children || [];
@@ -139,19 +152,25 @@ function planCellsRaw(root, o = {}) {
       for (let t = 0; t + 2 < count; t += 3) {
         const i0 = idx ? idx.getX(t) : t, i1 = idx ? idx.getX(t + 1) : t + 1, i2 = idx ? idx.getX(t + 2) : t + 2;
         _a.fromBufferAttribute(pos, i0).applyMatrix4(m); _b.fromBufferAttribute(pos, i1).applyMatrix4(m); _c.fromBufferAttribute(pos, i2).applyMatrix4(m);
-        tri(_a, _b, _c, !!snow?.(t));
+        work += yield* tri(_a, _b, _c, !!snow?.(t));
+        if (work > WORK_CHECK) { work = 0; if (due()) yield; }
       }
     }
-    for (const c of nd.children) visit(c);
+    for (const c of nd.children) yield* visit(c);
   };
-  visit(root);
+  yield* visit(root);
   if (!cells.size) return null;
-  const filled = o.close === 0 ? cells : closeCells(cells, o.close ?? 3);
+  const filled = o.close === 0 ? cells : yield* closeCellsG(cells, o.close ?? 3);
   // merge each row's runs of cells into rectangles
   const rows = new Map();
-  for (const key of filled) { const [i, j] = key.split(',').map(Number); if (!rows.has(j)) rows.set(j, []); rows.get(j).push(i); }
+  let nk = 0;
+  for (const key of filled) {
+    const [i, j] = key.split(',').map(Number); if (!rows.has(j)) rows.set(j, []); rows.get(j).push(i);
+    if ((++nk & 4095) === 0 && due()) yield;
+  }
   const out = [];
   for (const [j, list] of rows) {
+    if (due()) yield;
     list.sort((p, q) => p - q);
     const lo = rowLo.get(j) ?? -Infinity, hi = rowHi.get(j) ?? Infinity;
     const push = () => {
@@ -174,14 +193,16 @@ function planCellsRaw(root, o = {}) {
  * @param {THREE.Object3D} root @param {{minY?: number, maxY?: number, cell?: number, groundY?: number}} [o]
  * @returns {Map<string, [number, number]>} "i,j" (cell indices) → [lo, hi] (world y)
  */
-function overheadCellsRaw(root, o = {}, into = new Map()) {
+function* overheadCellsRaw(root, o = {}, into = new Map()) {
   const minY = o.minY ?? 1.8, maxY = o.maxY ?? 12, gy = o.groundY ?? 0, cell = o.cell ?? 0.5;
+  const TA = new THREE.Vector3(), TB = new THREE.Vector3(), TC = new THREE.Vector3();
+  let work = 0;
   root.updateMatrixWorld(true);
   const put = (x, z, y) => {
     const k = `${Math.floor(x / cell)},${Math.floor(z / cell)}`, p = into.get(k);
     if (!p) into.set(k, [y, y]); else { if (y < p[0]) p[0] = y; if (y > p[1]) p[1] = y; }
   };
-  const visit = (nd) => {
+  const visit = function* visit(nd) {
     if (nd.userData?.clip === false || (!nd.visible && !/^lod\d$/.test(nd.name))) return;
     if (/^lod[12]$/.test(nd.name)) {
       const sib = nd.parent?.children || [];
@@ -191,21 +212,27 @@ function overheadCellsRaw(root, o = {}, into = new Map()) {
       const pos = nd.geometry.attributes.position, idx = nd.geometry.index;
       const count = idx ? idx.count : pos.count;
       for (let t = 0; t + 2 < count; t += 3) {
+        if (++work > WORK_CHECK) { work = 0; if (due()) yield; }
         const i0 = idx ? idx.getX(t) : t, i1 = idx ? idx.getX(t + 1) : t + 1, i2 = idx ? idx.getX(t + 2) : t + 2;
         _a.fromBufferAttribute(pos, i0).applyMatrix4(m); _b.fromBufferAttribute(pos, i1).applyMatrix4(m); _c.fromBufferAttribute(pos, i2).applyMatrix4(m);
         if (Math.max(_a.y, _b.y, _c.y) - gy < minY || Math.min(_a.y, _b.y, _c.y) - gy > maxY) continue;
         const L = Math.max(_a.distanceTo(_b), _b.distanceTo(_c), _c.distanceTo(_a));
         const n = Math.min(400, Math.max(1, Math.ceil(L / (cell * 0.4))));
-        for (let i = 0; i <= n; i++) for (let j = 0; j <= n - i; j++) {
-          const u = i / n, v = j / n, w = 1 - u - v, y = _a.y * u + _b.y * v + _c.y * w;
-          if (y - gy < minY || y - gy > maxY) continue;
-          put(_a.x * u + _b.x * v + _c.x * w, _a.z * u + _b.z * v + _c.z * w, y);
+        work += n * n;
+        const a = TA.copy(_a), b = TB.copy(_b), c = TC.copy(_c); // (a big one pauses between rows: own copies)
+        for (let i = 0; i <= n; i++) {
+          for (let j = 0; j <= n - i; j++) {
+            const u = i / n, v = j / n, w = 1 - u - v, y = a.y * u + b.y * v + c.y * w;
+            if (y - gy < minY || y - gy > maxY) continue;
+            put(a.x * u + b.x * v + c.x * w, a.z * u + b.z * v + c.z * w, y);
+          }
+          if (n > 64 && (i & 7) === 7 && due()) yield;
         }
       }
     }
-    for (const c of nd.children) visit(c);
+    for (const c of nd.children) yield* visit(c);
   };
-  visit(root);
+  yield* visit(root);
   return into;
 }
 
@@ -219,10 +246,12 @@ function overheadCellsRaw(root, o = {}, into = new Map()) {
  *   triangles wholly above it; wade: snow lower than this over `groundY` (SNOW_WADE) stands nowhere
  * @param {Set<string>} [into] "i,j" at `cell`
  */
-function standingCellsRaw(root, surf, o = {}, into = new Set()) {
+function* standingCellsRaw(root, surf, o = {}, into = new Set()) {
   const lo = o.lo ?? 0.15, hi = o.hi ?? 1.2, cell = o.cell ?? 0.25, wade = o.wade ?? 0, gy = o.groundY ?? 0;
+  const TA = new THREE.Vector3(), TB = new THREE.Vector3(), TC = new THREE.Vector3();
+  let work = 0;
   root.updateMatrixWorld(true);
-  const visit = (nd) => {
+  const visit = function* visit(nd) {
     if (nd.userData?.clip === false || (!nd.visible && !/^lod\d$/.test(nd.name))) return;
     if (/^lod[12]$/.test(nd.name)) {
       const sib = nd.parent?.children || [];
@@ -232,6 +261,7 @@ function standingCellsRaw(root, surf, o = {}, into = new Set()) {
       const pos = nd.geometry.attributes.position, idx = nd.geometry.index;
       const count = idx ? idx.count : pos.count, snow = wade > 0 ? snowTris(nd) : null;
       for (let t = 0; t + 2 < count; t += 3) {
+        if (++work > WORK_CHECK) { work = 0; if (due()) yield; }
         const i0 = idx ? idx.getX(t) : t, i1 = idx ? idx.getX(t + 1) : t + 1, i2 = idx ? idx.getX(t + 2) : t + 2;
         _a.fromBufferAttribute(pos, i0).applyMatrix4(m); _b.fromBufferAttribute(pos, i1).applyMatrix4(m); _c.fromBufferAttribute(pos, i2).applyMatrix4(m);
         if (o.maxY != null && Math.min(_a.y, _b.y, _c.y) > o.maxY) continue; // above any surface + hi (roofs)
@@ -239,18 +269,23 @@ function standingCellsRaw(root, surf, o = {}, into = new Set()) {
         if (Math.max(_a.y, _b.y, _c.y) < sl) continue;
         const L = Math.max(_a.distanceTo(_b), _b.distanceTo(_c), _c.distanceTo(_a));
         const n = Math.min(400, Math.max(1, Math.ceil(L / (cell * 0.5))));
-        for (let i = 0; i <= n; i++) for (let j = 0; j <= n - i; j++) {
-          const u = i / n, v = j / n, w = 1 - u - v;
-          const x = _a.x * u + _b.x * v + _c.x * w, z = _a.z * u + _b.z * v + _c.z * w, y = _a.y * u + _b.y * v + _c.y * w;
-          if (y < sl) continue;
-          const r = y - surf(x, z);
-          if (r >= lo && r <= hi) into.add(`${Math.floor(x / cell)},${Math.floor(z / cell)}`);
+        work += n * n;
+        const a = TA.copy(_a), b = TB.copy(_b), c = TC.copy(_c); // (a big one pauses between rows: own copies)
+        for (let i = 0; i <= n; i++) {
+          for (let j = 0; j <= n - i; j++) {
+            const u = i / n, v = j / n, w = 1 - u - v;
+            const x = a.x * u + b.x * v + c.x * w, z = a.z * u + b.z * v + c.z * w, y = a.y * u + b.y * v + c.y * w;
+            if (y < sl) continue;
+            const r = y - surf(x, z);
+            if (r >= lo && r <= hi) into.add(`${Math.floor(x / cell)},${Math.floor(z / cell)}`);
+          }
+          if (n > 64 && (i & 7) === 7 && due()) yield;
         }
       }
     }
-    for (const c of nd.children) visit(c);
+    for (const c of nd.children) yield* visit(c);
   };
-  visit(root);
+  yield* visit(root);
   return into;
 }
 
@@ -294,25 +329,33 @@ export function measureTop(root, x, z, lo, hi, meshes = null) {
  * bridged), flood-fill from outside, erode back. A hollow cabin without a floor mesh is solid; a tower's open
  * leg frame (legs further apart than 2R) stays open. Returns the set of occupied cell keys "i,j".
  */
-export function closeCells(cells, R = 3) {
+export function closeCells(cells, R = 3) { return runSync(closeCellsG(cells, R)); }
+
+/** closeCells() as a sliced job (engine/slice.js): pauses between rows (and every few thousand cells). */
+export function* closeCellsG(cells, R = 3) {
   let i0 = Infinity, j0 = Infinity, i1 = -Infinity, j1 = -Infinity;
-  const pts = [...cells].map((k) => k.split(',').map(Number));
+  const pts = [];
+  let n = 0;
+  for (const k of cells) { pts.push(k.split(',').map(Number)); if ((++n & 4095) === 0 && due()) yield; }
   for (const [i, j] of pts) { i0 = Math.min(i0, i); j0 = Math.min(j0, j); i1 = Math.max(i1, i); j1 = Math.max(j1, j); }
   const pad = R + 1, W = i1 - i0 + 1 + 2 * pad, H = j1 - j0 + 1 + 2 * pad;
   const occ = new Uint8Array(W * H);
   for (const [i, j] of pts) occ[(j - j0 + pad) * W + (i - i0 + pad)] = 1;
-  const grow = (src, r, val) => { // dilate cells equal to `val` by a (2r+1)² square
+  const grow = function* grow(src, r, val) { // dilate cells equal to `val` by a (2r+1)² square
     const out = new Uint8Array(W * H);
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      if (src[y * W + x] !== val) continue;
-      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
-        const xx = x + dx, yy = y + dy;
-        if (xx >= 0 && yy >= 0 && xx < W && yy < H) out[yy * W + xx] = 1;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        if (src[y * W + x] !== val) continue;
+        for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+          const xx = x + dx, yy = y + dy;
+          if (xx >= 0 && yy >= 0 && xx < W && yy < H) out[yy * W + xx] = 1;
+        }
       }
+      if ((y & 7) === 7 && due()) yield;
     }
     return out;
   };
-  const dil = grow(occ, R, 1);
+  const dil = yield* grow(occ, R, 1);
   const outside = new Uint8Array(W * H), stack = [0];
   outside[0] = 1;
   while (stack.length) {
@@ -322,12 +365,16 @@ export function closeCells(cells, R = 3) {
       if (xx < 0 || yy < 0 || xx >= W || yy >= H || outside[kk] || dil[kk]) continue;
       outside[kk] = 1; stack.push(kk);
     }
+    if ((++n & 4095) === 0 && due()) yield;
   }
-  const near = grow(outside, R, 1); // cells within R of the outside = the dilation ring, eroded back
+  const near = yield* grow(outside, R, 1); // cells within R of the outside = the dilation ring, eroded back
   const out = new Set(cells);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const k = y * W + x;
-    if (!outside[k] && !near[k]) out.add(`${x - pad + i0},${y - pad + j0}`);
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const k = y * W + x;
+      if (!outside[k] && !near[k]) out.add(`${x - pad + i0},${y - pad + j0}`);
+    }
+    if ((y & 7) === 7 && due()) yield;
   }
   return out;
 }
@@ -340,7 +387,7 @@ export function closeCells(cells, R = 3) {
  * reported by `parapet`.
  * @returns {{heightAt: (x:number, z:number) => (number|null), parapet: (x:number, z:number) => boolean, samples: number}|null}
  */
-function deckFieldRaw(root, poly, rot, hi, o = {}) {
+function* deckFieldRaw(root, poly, rot, hi, o = {}) {
   const step = o.step ?? 0.35, rail = o.rail ?? 0.45, lo = o.lo ?? -3;
   const c = Math.cos(rot), s = Math.sin(rot);
   const cx = poly.reduce((t, p) => t + p[0], 0) / poly.length, cz = poly.reduce((t, p) => t + p[1], 0) / poly.length;
@@ -354,6 +401,7 @@ function deckFieldRaw(root, poly, rot, hi, o = {}) {
     const u = u0 + ((u1 - u0) * i) / (nu - 1), v = v0 + ((v1 - v0) * j) / (nv - 1);
     const y = measureTop(root, cx + u * c - v * s, cz + u * s + v * c, lo, hi, meshes);
     if (y != null) { H[i * nv + j] = y; n++; }
+    if ((j & 7) === 7 && due()) yield;
   }
   if (!n) return null;
   // single-sample pits: a ray down a triangle seam of the top boards falls through to the planks beneath (M1 pier_n:
@@ -430,11 +478,13 @@ const _n = new THREE.Vector3(), _e1 = new THREE.Vector3(), _e2 = new THREE.Vecto
  * @param {THREE.Object3D} root @param {Map<string, number>} [into] accumulates across structures
  * @returns {Map<string, number>} "i,j" → world y
  */
-function lowSurfacesRaw(root, o = {}, into = new Map()) {
+function* lowSurfacesRaw(root, o = {}, into = new Map()) {
   const maxY = o.maxY ?? 0.6, cell = o.cell ?? 0.2, gy = o.groundY ?? 0, wade = o.wade ?? 0;
+  const TA = new THREE.Vector3(), TB = new THREE.Vector3(), TC = new THREE.Vector3();
+  let work = 0;
   root.updateMatrixWorld(true);
   const put = (x, z, y) => { const k = `${Math.floor(x / cell)},${Math.floor(z / cell)}`; const p = into.get(k); if (p === undefined || y > p) into.set(k, y); };
-  const visit = (nd) => {
+  const visit = function* visit(nd) {
     if (nd.userData?.clip === false || nd.userData?.surface === false || (!nd.visible && !/^lod\d$/.test(nd.name))) return;
     if (/^lod[12]$/.test(nd.name)) {
       const sib = nd.parent?.children || [];
@@ -444,6 +494,7 @@ function lowSurfacesRaw(root, o = {}, into = new Map()) {
       const pos = nd.geometry.attributes.position, idx = nd.geometry.index;
       const count = idx ? idx.count : pos.count, snow = wade > 0 ? snowTris(nd) : null;
       for (let t = 0; t + 2 < count; t += 3) {
+        if (++work > WORK_CHECK) { work = 0; if (due()) yield; }
         const i0 = idx ? idx.getX(t) : t, i1 = idx ? idx.getX(t + 1) : t + 1, i2 = idx ? idx.getX(t + 2) : t + 2;
         _a.fromBufferAttribute(pos, i0).applyMatrix4(m); _b.fromBufferAttribute(pos, i1).applyMatrix4(m); _c.fromBufferAttribute(pos, i2).applyMatrix4(m);
         if (Math.max(_a.y, _b.y, _c.y) - gy > maxY || Math.max(_a.y, _b.y, _c.y) - gy < 0.02) continue;
@@ -454,15 +505,20 @@ function lowSurfacesRaw(root, o = {}, into = new Map()) {
         const L = _n.length();
         if (L < 1e-9 || Math.abs(_n.y / L) < (o.flat ?? 0.5)) continue; // walls / risers: not a surface to stand on
         const len = Math.max(_a.distanceTo(_b), _b.distanceTo(_c), _c.distanceTo(_a)), n = Math.min(200, Math.max(1, Math.ceil(len / (cell * 0.5))));
-        for (let i = 0; i <= n; i++) for (let j = 0; j <= n - i; j++) {
-          const u = i / n, v = j / n, w = 1 - u - v, y = _a.y * u + _b.y * v + _c.y * w;
-          if (y >= sl) put(_a.x * u + _b.x * v + _c.x * w, _a.z * u + _b.z * v + _c.z * w, y);
+        work += n * n;
+        const a = TA.copy(_a), b = TB.copy(_b), c = TC.copy(_c); // (a big one pauses between rows: own copies)
+        for (let i = 0; i <= n; i++) {
+          for (let j = 0; j <= n - i; j++) {
+            const u = i / n, v = j / n, w = 1 - u - v, y = a.y * u + b.y * v + c.y * w;
+            if (y >= sl) put(a.x * u + b.x * v + c.x * w, a.z * u + b.z * v + c.z * w, y);
+          }
+          if (n > 64 && (i & 7) === 7 && due()) yield;
         }
       }
     }
-    for (const ch of nd.children) visit(ch);
+    for (const ch of nd.children) yield* visit(ch);
   };
-  visit(root);
+  yield* visit(root);
   return into;
 }
 
@@ -481,6 +537,16 @@ function attrWords(a) {
 const _geoHash = new WeakMap(); // geometry → {pv, iv, pos / idx (weak), hash}
 /** Content hash of a geometry's positions + index (memoised per geometry object and attribute version). */
 export function geometryHash(g) {
+  const it = geometryHashSteps(g, Infinity);
+  let r = it.next();
+  while (!r.done) r = it.next();
+  return r.value;
+}
+
+/** geometryHash() as a sliced job (engine/slice.js): the same hash (and memo), big arrays fed a chunk at a time. */
+export function geometryHashG(g) { return geometryHashSteps(g, 1 << 18); }
+
+function* geometryHashSteps(g, chunk) {
   const pos = g?.attributes?.position, idx = g?.index;
   if (!pos) return null;
   const pv = pos.isInterleavedBufferAttribute ? pos.data.version : pos.version, iv = idx ? idx.version : -1;
@@ -489,9 +555,11 @@ export function geometryHash(g) {
   const h = hasher();
   const words = attrWords(pos);
   if (!words) return null;
+  // (words fed in parts hash the same as in one go: the hasher mixes word by word, no lengths)
+  const feed = function* (w) { for (let i = 0; i < w.length; i += chunk) { h.words(i === 0 && w.length <= chunk ? w : w.subarray(i, Math.min(w.length, i + chunk))); if (i + chunk < w.length && due()) yield; } };
   h.num(pos.count); h.num(pos.itemSize); h.num(pos.offset ?? 0); h.num(pos.data?.stride ?? 0); h.num(pos.normalized ? 1 : 0); h.str(pos.array?.constructor?.name || pos.data?.array?.constructor?.name);
-  h.words(words);
-  if (idx) { const iw = attrWords(idx); if (!iw) return null; h.num(idx.count); h.words(iw); }
+  yield* feed(words);
+  if (idx) { const iw = attrWords(idx); if (!iw) return null; h.num(idx.count); yield* feed(iw); }
   const hash = h.hex();
   // (weak: a replaced or dropped attribute — chunking's 16-bit rows drop the whole index — must not stay alive here)
   _geoHash.set(g, { pv, iv, pos: new WeakRef(pos), idx: idx ? new WeakRef(idx) : null, hash });
@@ -549,48 +617,58 @@ export function sceneSignature(root, skip = null) {
 }
 
 const optKey = (o) => JSON.stringify(o, (k, v) => (typeof v === 'function' ? undefined : v));
-function memoVisual(kind, root, args, compute, bytes) {
+/** The analysis `kind` of `root` with `args`: from the session memo, or computed by the generator `compute`. */
+function* memoVisual(kind, root, args, compute, bytes) {
   const sig = visualSignature(root);
-  if (!sig) return compute();
-  return sessionCache.memo(`visual:${kind}:${sig}:${optKey(args)}`, compute, { bytes });
+  if (!sig) return yield* compute();
+  return yield* sessionCache.memoGen(`visual:${kind}:${sig}:${optKey(args)}`, compute, { bytes });
 }
 const arrBytes = (v) => (v ? JSON.stringify(v).length * 2 : 0);
 const mapBytes = (m) => m.size * 64;
 
-export function planHull(root, o = {}) {
-  const v = memoVisual('hull', root, o, () => planHullRaw(root, o), arrBytes);
+// Each analysis has a generator form (…G: a sliced job — engine/slice.js — pauses inside it when its slice is used up;
+// the map builder runs that way at load) and the plain call (the same generator run straight through).
+
+export function* planHullG(root, o = {}) {
+  const v = yield* memoVisual('hull', root, o, () => planHullRaw(root, o), arrBytes);
   return v && v.map((p) => p.slice());
 }
+export function planHull(root, o = {}) { return runSync(planHullG(root, o)); }
 
-export function planCells(root, o = {}) {
-  const v = memoVisual('cells', root, o, () => planCellsRaw(root, o), arrBytes);
+export function* planCellsG(root, o = {}) {
+  const v = yield* memoVisual('cells', root, o, () => planCellsRaw(root, o), arrBytes);
   return v && v.map((r) => r.map((p) => p.slice()));
 }
+export function planCells(root, o = {}) { return runSync(planCellsG(root, o)); }
 
-export function overheadCells(root, o = {}, into = new Map()) {
-  const v = memoVisual('overhead', root, o, () => overheadCellsRaw(root, o, new Map()), mapBytes);
+export function* overheadCellsG(root, o = {}, into = new Map()) {
+  const v = yield* memoVisual('overhead', root, o, () => overheadCellsRaw(root, o, new Map()), mapBytes);
   for (const [k, [lo, hi]] of v) {
     const p = into.get(k);
     if (!p) into.set(k, [lo, hi]); else { if (lo < p[0]) p[0] = lo; if (hi > p[1]) p[1] = hi; }
   }
   return into;
 }
+export function overheadCells(root, o = {}, into = new Map()) { return runSync(overheadCellsG(root, o, into)); }
 
 /** `o.surfKey`: identity of `surf` (the walking surface it samples); without one the result is not cached. */
-export function standingCells(root, surf, o = {}, into = new Set()) {
-  if (o.surfKey == null) return standingCellsRaw(root, surf, o, into);
-  const v = memoVisual('standing', root, o, () => standingCellsRaw(root, surf, o, new Set()), (s) => s.size * 48);
+export function* standingCellsG(root, surf, o = {}, into = new Set()) {
+  if (o.surfKey == null) return yield* standingCellsRaw(root, surf, o, into);
+  const v = yield* memoVisual('standing', root, o, () => standingCellsRaw(root, surf, o, new Set()), (s) => s.size * 48);
   for (const k of v) into.add(k);
   return into;
 }
+export function standingCells(root, surf, o = {}, into = new Set()) { return runSync(standingCellsG(root, surf, o, into)); }
 
-export function deckField(root, poly, rot, hi, o = {}) {
+export function* deckFieldG(root, poly, rot, hi, o = {}) {
   // the field only closes over its own sample arrays: shared as is
-  return memoVisual('deck', root, { poly, rot, hi, o }, () => deckFieldRaw(root, poly, rot, hi, o), (d) => (d ? d.samples * 8 + 256 : 0));
+  return yield* memoVisual('deck', root, { poly, rot, hi, o }, () => deckFieldRaw(root, poly, rot, hi, o), (d) => (d ? d.samples * 8 + 256 : 0));
 }
+export function deckField(root, poly, rot, hi, o = {}) { return runSync(deckFieldG(root, poly, rot, hi, o)); }
 
-export function lowSurfaces(root, o = {}, into = new Map()) {
-  const v = memoVisual('low', root, o, () => lowSurfacesRaw(root, o, new Map()), mapBytes);
+export function* lowSurfacesG(root, o = {}, into = new Map()) {
+  const v = yield* memoVisual('low', root, o, () => lowSurfacesRaw(root, o, new Map()), mapBytes);
   for (const [k, y] of v) { const p = into.get(k); if (p === undefined || y > p) into.set(k, y); }
   return into;
 }
+export function lowSurfaces(root, o = {}, into = new Map()) { return runSync(lowSurfacesG(root, o, into)); }

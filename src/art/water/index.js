@@ -16,14 +16,16 @@
 import * as THREE from 'three';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { DepthStashPass, WaterPass, LateFxPass, ensureDepthTextures, FX_LAYER } from './passes.js';
-import { captureHeights } from './fields.js';
+import { captureHeights, captureHeightsAsync, captureMaterial } from './fields.js';
 import { FFTOcean, FFT_PERIOD } from './fft.js';
 import { RippleSim } from './ripples.js';
 import { Caustics } from './caustics.js';
-import { bakeBody, bodyGrid } from './bake.js';
+import { bakeBodyG, bodyGrid } from './bake.js';
+import { due, runSync } from '../../engine/slice.js';
+import { compileAhead } from '../../engine/parallel-compile.js';
 import { sessionCache, dataKey } from '../../engine/asset-cache.js';
 import { withExtraCull, WorldBoxes } from '../../engine/cull-hooks.js';
-import { sceneSignature } from '../../world/placement-visual.js';
+import { sceneSignature, geometryHashG } from '../../world/placement-visual.js';
 
 export { FX_LAYER };
 import { makeWaterMaterial, TIME_LOOP } from './material.js';
@@ -228,12 +230,75 @@ export class WaterSystem {
    *   bed?:(x:number,z:number)=>number, bankWidth?:number, ice?:number, surf?:{amp:number,length?:number,period?:number},
    *   reflect?:boolean, foamTrail?:number, absorb?:number[], scatter?:number[]}} o
    */
-  addBody(o) {
+  addBody(o) { return runSync(this._addBodyG(o)); }
+
+  /**
+   * addBody() for a list of bodies as a sliced job (engine/slice.js; art/water.js buildWaterAsync drives it — the job
+   * yields promises it waits for, and pauses): the same bodies as addBody one after the other, built without one long
+   * task. The bed captures' programs are linked by the driver first (a dry run of the captures, engine/parallel-compile.js);
+   * the geometry hashes their cache keys read are made a slice at a time; then each body's three captures are drawn
+   * in one task (one look at the scene, as back-to-back addBody calls had), their pixels read back without waiting,
+   * and each body's bake runs a slice at a time.
+   * @returns {Generator<any, object[]>} the bodies
+   */
+  *addBodiesG(list) {
+    const mat = captureMaterial(); // (one for every capture of the batch: its programs stay linked from the dry run on)
+    try {
+      const want = list.map((o) => o.capture !== false);
+      if (want.some(Boolean)) {
+        // a capture's program variants: with the clip plane and without (one dry draw each over every body's area)
+        for (const clip of [true, false]) {
+          if (due()) yield;
+          yield compileAhead(this.renderer, () => this._captureDry(list.filter((o, k) => want[k]), mat, clip), { all: true }).catch(() => null);
+        }
+        // (memoised per geometry: the keys below only look them up)
+        const geos = new Set();
+        this.scene.traverse((ob) => { if ((ob.isMesh || ob.isLine || ob.isPoints) && ob.geometry) geos.add(ob.geometry); });
+        for (const t of [].concat(this.opts.terrain || [])) t?.traverse?.((ob) => { if (ob.geometry) geos.add(ob.geometry); });
+        for (const g of geos) { try { yield* geometryHashG(g); } catch { /* the key falls back to no cache */ } if (due()) yield; }
+      }
+      const caps = [];
+      for (let k = 0; k < list.length; k++) {
+        caps.push(want[k] ? this._captureAsync(list[k], list[k].level ?? 0, mat) : null);
+        if (k + 1 < list.length) yield; // (a body's captures per task)
+      }
+      const got = {};
+      yield Promise.all(caps).then((v) => { got.caps = v; });
+      const out = [];
+      for (let k = 0; k < list.length; k++) out.push(yield* this._addBodyG(list[k], got.caps[k]));
+      return out;
+    } finally { mat.dispose(); }
+  }
+
+  /**
+   * The off-screen passes' materials (FFT oceans, caustics, the ripple step) drawn once into a scratch target — as a
+   * compile probe only (engine/parallel-compile.js compileAhead, `all`: the drivers link their programs aside before
+   * the first update() draws them; art/water.js buildWaterAsync). Leaves nothing behind: no pass target is touched,
+   * the FFT quads get their (empty) material back.
+   */
+  passProbeDraws() {
+    const r = this.renderer, prev = r.getRenderTarget();
+    const rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, depthBuffer: false });
+    try {
+      r.setRenderTarget(rt);
+      for (const o of [this.detailOcean, this.seaOcean]) {
+        if (!o) continue;
+        const keep = o.quad.material;
+        try { for (const m of [o.mH0, o.mSpec, o.mFFT, o.mDisp, o.mNrm]) { o.quad.material = m; o.quad.render(r); } } finally { o.quad.material = keep; }
+      }
+      this.caustics?.quad?.render(r);
+      this.ripples?.quad?.render(r);
+    } finally { r.setRenderTarget(prev); rt.dispose(); }
+  }
+
+  /** addBody's work (a sliced job): `cap` = its bed capture when already made, else captured here. */
+  *_addBodyG(o, cap) {
     const type = o.type || 'lake';
     const level = o.level ?? 0;
     const P = { ...WATER_PRESETS[o.preset || o.look || (type === 'sea' ? 'sea' : type)] || WATER_PRESETS.lake };
     if (o.absorb) P.absorb = o.absorb; if (o.scatter) P.scatter = o.scatter;
-    const bake = bakeBody({ ...o, level }, o.bakeRes || this.Q.bodyRes, o.capture === false ? null : this._capture(o, level));
+    const bake = yield* bakeBodyG({ ...o, level }, o.bakeRes || this.Q.bodyRes, cap !== undefined ? cap : o.capture === false ? null : this._capture(o, level));
+    if (due()) yield;
     const b = bake.bounds;
     const segLen = type === 'sea' ? 1 / this.Q.seaSeg : 0.75;
     const sx = Math.min(512, Math.max(2, Math.round(b.z / segLen))), sz = Math.min(512, Math.max(2, Math.round(b.w / segLen)));
@@ -278,6 +343,63 @@ export class WaterSystem {
    * or opts.terrain. Returns null when the scene has nothing to capture.
    */
   _capture(o, level) {
+    const { g, hide, terr, key, t0 } = this._captureKey(o, level);
+    if (key) {
+      const hit = sessionCache.get(key);
+      if (hit !== undefined) { this.lastCaptureMs = performance.now() - t0; return hit && { hgt: hit.hgt.slice(), solid: hit.solid.slice() }; }
+    }
+    const res = this._captureNow(o, level, g, hide, terr);
+    if (key) sessionCache.set(key, res && { hgt: res.hgt.slice(), solid: res.solid.slice() }, { bytes: res ? res.hgt.byteLength + res.solid.byteLength : 0 });
+    this.lastCaptureMs = performance.now() - t0;
+    return res;
+  }
+
+  /** _capture() drawn now, read back without waiting: a Promise of its result. `mat`: the shared capture material. */
+  _captureAsync(o, level, mat) {
+    const { g, hide, terr, key, t0 } = this._captureKey(o, level);
+    if (key) {
+      const hit = sessionCache.get(key);
+      if (hit !== undefined) { this.lastCaptureMs = performance.now() - t0; return Promise.resolve(hit && { hgt: hit.hgt.slice(), solid: hit.solid.slice() }); }
+    }
+    return this._captureDraws(o, level, mat, 'async', { g, hide, terr }).then((res) => {
+      if (key) sessionCache.set(key, res && { hgt: res.hgt.slice(), solid: res.solid.slice() }, { bytes: res ? res.hgt.byteLength + res.solid.byteLength : 0 });
+      this.lastCaptureMs = performance.now() - t0;
+      return res;
+    });
+  }
+
+  /**
+   * The three capture draws of _captureNow with a shared material: 'async' → Promise of the same result; 'dry' → drawn
+   * only (the compile probe of addBodiesG). `at`: {g, hide, terr} from _captureKey (else worked out here).
+   */
+  _captureDraws(o, level, mat, mode, at = null) {
+    const { g, hide, terr } = at || this._captureKey(o, level, false);
+    const B = [g.minX, g.minZ, g.maxX, g.maxZ], clipY = level + 0.35, r = this.renderer;
+    const ph = captureHeightsAsync(r, this.scene, B, g.rx, g.rz, hide, clipY, mat, mode);
+    const pt = captureHeightsAsync(r, this.scene, B, g.rx, g.rz, hide, Infinity, mat, mode);
+    const ps = captureHeightsAsync(r, this.scene, B, g.rx, g.rz, hide.concat(terr), clipY, mat, mode);
+    if (mode === 'dry') return null;
+    return Promise.all([ph, pt, ps]).then(([hgt, top, sol]) => this._captureMerge(hgt, top, sol, g, clipY));
+  }
+
+  /**
+   * A compile probe's capture draw (addBodiesG): the capture material over the union of the bodies' areas, with the
+   * clip plane or without — the program variants the real captures will pick. Draws into a throwaway target only.
+   */
+  _captureDry(list, mat, clip) {
+    if (!list.length) return;
+    let B = null, lv = -Infinity;
+    for (const o of list) {
+      const level = o.level ?? 0, g = bodyGrid({ ...o, level }, o.bakeRes || this.Q.bodyRes);
+      B = B ? [Math.min(B[0], g.minX), Math.min(B[1], g.minZ), Math.max(B[2], g.maxX), Math.max(B[3], g.maxZ)] : [g.minX, g.minZ, g.maxX, g.maxZ];
+      lv = Math.max(lv, level);
+    }
+    const { hide } = this._captureKey(list[0], list[0].level ?? 0, false);
+    captureHeightsAsync(this.renderer, this.scene, B, 16, 16, hide, clip ? lv + 0.35 : Infinity, mat, 'dry');
+  }
+
+  /** The capture's grid, what it hides, the terrain it draws apart and its session-cache key (null: not cacheable). */
+  _captureKey(o, level, wantKey = true) {
     const g = bodyGrid({ ...o, level }, o.bakeRes || this.Q.bodyRes), t0 = performance.now();
     const hide = [], terr = [].concat(this.opts.terrain || []);
     // instanced meshes (grass, clutter stones, debris, wind particles) and points / lines / sprites (snowfall) are left
@@ -291,18 +413,11 @@ export class WaterSystem {
     // session cache: the same body over the same drawn scene (a restart) captures the same heights — skip the three
     // GPU passes and their read-backs. Key: the body + grid + a signature of everything the passes would draw.
     let key = null;
-    try {
+    if (wantKey) try {
       const sig = sceneSignature(this.scene, new Set(hide)), ts = terr.map((t) => sceneSignature(t));
       if (sig && ts.every(Boolean)) key = `water:capture:${dataKey((h) => { h.num(level); h.str(JSON.stringify(g)); h.str(sig); h.str(ts.join(',')); })}`;
     } catch { key = null; }
-    if (key) {
-      const hit = sessionCache.get(key);
-      if (hit !== undefined) { this.lastCaptureMs = performance.now() - t0; return hit && { hgt: hit.hgt.slice(), solid: hit.solid.slice() }; }
-    }
-    const res = this._captureNow(o, level, g, hide, terr);
-    if (key) sessionCache.set(key, res && { hgt: res.hgt.slice(), solid: res.solid.slice() }, { bytes: res ? res.hgt.byteLength + res.solid.byteLength : 0 });
-    this.lastCaptureMs = performance.now() - t0;
-    return res;
+    return { g, hide, terr, key, t0 };
   }
 
   _captureNow(o, level, g, hide, terr) {
@@ -310,6 +425,11 @@ export class WaterSystem {
     const hgt = captureHeights(r, this.scene, B, g.rx, g.rz, hide, clipY);
     const top = captureHeights(r, this.scene, B, g.rx, g.rz, hide);
     const sol = captureHeights(r, this.scene, B, g.rx, g.rz, hide.concat(terr), clipY);
+    return this._captureMerge(hgt, top, sol, g, clipY);
+  }
+
+  /** The bed (below the clip), the open top where nothing is below, and the solids, merged. */
+  _captureMerge(hgt, top, sol, g, clipY) {
     const N = g.rx * g.rz, solid = new Uint8Array(N); let any = false;
     for (let k = 0; k < N; k++) {
       if (hgt[k] < -900 && top[k] > -900) hgt[k] = top[k];

@@ -1103,6 +1103,61 @@ Two layers, both generic (keyed by URL / asset id / content signature, never per
   throttled link shared with the worker, Pages cache headers). Tests: `tests/unit/asset-cache.test.mjs`,
   `tests/cache-restart.test.mjs`, `cache-sw.test.mjs`, `cache-deploy.test.mjs` (the last two with `SS_DIST=1`).
 
+### Responsive load (`engine/slice.js`, `engine/parallel-compile.js`, `engine/decode-worker.js`)
+A mission load (cold, the walkthrough link, a normal start, a jump back) keeps the main thread free: the LOADING screen's
+bar, its tips and the ?debug perf graph keep moving (no task over ~50 ms on a desktop; `tests/load-responsive.test.mjs`).
+- **Sliced jobs** (`engine/slice.js`). Long synchronous load work is written as a generator that pauses with
+  `if (due()) yield;` (between steps, inside loops — never while a shared scratch object holds live data); `runSliced(gen)`
+  runs it in ~8 ms slices and the next slice waits for a frame when one is due (a stream of short tasks alone left Chrome
+  drawing at 10 fps; the loading screen draws at ~35 fps, ~26 ms of load work between frames). `runSync(gen)` runs the
+  same generator straight through: every sliced function keeps its plain
+  synchronous form (`buildMap` = `runSync(buildMapGen(…))`, `planCells` = `runSync(planCellsG(…))`, …) for tests and
+  callers that need the result now. `sessionCache.memoGen` is `memo` for generators. Sliced today: the map build
+  (`buildMapGen`: placement, visual nav / overhead / standing / low surfaces / decks / body solids, keepWays flood fills),
+  terrain / apron / shore fields / splat / heightfield / grass / vegetation, the water bake and the dam water, unit
+  spawns, character grounding, body clips, chunking, deck calibration, truck canvas covers, ladder fitting
+  (`fitLaddersG`), the fx scan (`fx.prescan`: chimneys seated a house at a time).
+  The same work in the same order: only where the page draws in between changes. What a sliced build *starts* must not
+  take effect during it (a synchronous build finished before any promise continuation ran): `buildMapGen` takes a
+  `gate` promise the caller opens where the synchronous build had returned (Game.loadMission, after the static
+  vehicles), and the terrain's async part, the deck calibration, the body-solid re-stamp, the late nav stamps and the
+  library LODs loaded on demand (`building-library.js holdLodAttach`: one arriving mid-build changed M10's stamps) wait
+  for it. `tools/perf/load-identity.mjs --base=<checkout>` compares what two checkouts build (every grid layer, stamps,
+  entities, the scene graph with matrices and geometry hashes): it must say identical.
+- **Programs without waiting** (`engine/parallel-compile.js`, KHR_parallel_shader_compile). `compileAhead(renderer,
+  frame, {scenes, composer, scene})` runs a warm-up frame as a probe: a draw in a frame-transient context (the world
+  scene, its decal / overlay scenes, shadow maps, everything inside `composer.render`) ends right after three picked or
+  created its program, before the first use that would wait; the driver links them all in parallel; COMPLETION_STATUS is
+  polled between tasks; their uniform tables are fetched a few per task, the frame's textures uploaded a slice at a time
+  (`uploadTextures`, three's `initTexture` path); then the caller draws the frame for real. One-time draws (an FFT
+  spectrum, a bake) are never skipped: their owners precompile with `renderer.compileAsync` on their own target, or
+  `compileAhead(…, {all: true})` around draws that exist only to compile. `{scene}` / `framesInParts(scene, frame)`: a
+  whole-map frame probed / drawn a share of the scene's drawables per task (lights never hidden); a frame run in parts
+  must be repeatable (it is called once per part, again when a probe defers): what it makes visible it shows on every
+  call. Used by the vehicle warm-up, `Game._warmFrame` (its whole-map pass `'world'` in parts, the men's close-up /
+  stained and render-target passes `'close'` once), the first frame of a load and of the page, the VFX quads. Warm reloads (a mission this page
+  built: its programs kept, `engine/program-keeper.js`) skip the probes.
+- **Off the main thread**: terrain layer strips decode in a blob worker (`decode-worker.js`: the same 2D draw +
+  getImageData, byte-identical); GLBs inflate in a worker (`engine/glb-gzip.js`); gpu-compress uploads its sources in
+  2 MB bands (an `<img>` first becomes an ImageBitmap with three's flags) and reads blocks back only while the GPU has
+  nothing of ours queued.
+- `?sliced=0` turns all of it off in the same build (the old blocking load) for A/B checks. Measure a cold load with
+  `node tools/perf/load-longtasks.mjs --mission=m03 --mode=walkthrough|debug|jump [--root=<checkout>]` (Chrome trace +
+  Long Tasks API; every task over 50 ms attributed to its functions, game code and load stage; CPU vs wall time) and
+  `python3 tools/perf/load-longtasks-table.py <json> --rows`.
+- **No dark first frames.** A material texture loaded in the background (`texture-memory.js` `loadCompressedTexture`:
+  the image, then its GPU compression; `trackTextureLoad(promise)` for other loaders) is drawn as an empty texture
+  until both are done. The load waits for every one of them (`texturesLoaded`, bounded at 20 s, promise-only) after
+  the last scans that make such materials (`fx.prescan`) and before the first-frame probe, which uploads them; and it
+  builds the missions' own scenery first: a mission script with a `.visuals(world)` (M5, M8, M10, M11, M12, M14, M20:
+  its plateau / ramp / castle meshes, idempotent, no simulation state; M20's castle art is a sliced job) has it run as
+  the load ends, so the script's first run on the first tick finds it built; likewise an entity model's
+  `prepare(entity)` (what its first update would build: the cable car's line). `node tools/perf/first-frames.mjs
+  --mission=m11` counts the draws of a version-0 texture and the luminance of a watched surface over the first frames
+  (`tests/load-textures.test.mjs`).
+  `load-identity.mjs --tick` compares after 0.1 s of play (scenery one checkout builds earlier); `--dump=<dir>` writes
+  both sides' scene lines for a diff tool, `--query=&sliced=0` adds URL parameters.
+
 ### Missions (`src/missions/*.js`)
 Every def goes through `normalizeMission(def)` (`src/missions/schema.js`; Game.loadMission and map-builder call it;
 idempotent, non-mutating, throws on invalid data, `validateMission(def) → {errors, warnings}`). It fills every
@@ -1623,7 +1678,8 @@ Emitters add the events they own; AUDIO never needs another team to call it.
     points / lines in its own walk.
   - Load-time warm-up (`Game._warmFrame`, `CONFIG.render.warmFrame`): one frame of the whole map (frustum widened, shadow
     fitted to the map, every man on screen, one instance per instanced mesh) so every pass's programs are compiled and
-    the textures uploaded at load; `vfx.warm`, `TrailSystem.warm`, `RippleSim.warm` do the same for their targets.
+    the textures uploaded at load; `vfx.warm`, `TrailSystem.warm`, `RippleSim.warm` do the same for their targets. Its
+    programs are linked aside first and it is drawn a share of the scene per task (see Responsive load).
   - Render on demand: `Game.frame` skips the GPU frame after two frames under an opaque full-screen layer (boot
     screens, the menus' backdrop without its live diorama). Such a frame (`Game.render(…, draw = false)`) also skips
     the water's offscreen passes (`WaterSystem.update(dt, draw)`: FFT ocean, caustics, ripples, mirror reflection; its
@@ -1660,7 +1716,8 @@ checkout, read-only); add a merged mission to `ENFORCED` in `tests/unit/alignmen
 
 **Set-piece mechanics (M4-M20, `src/missions/setpieces.js`).** Mission data `setpieces: [{type, id, …}]`,
 `triggers: [{on, match?, when?, once?, delay?, do:[actions]}]`, `alarmFail: {events|event, message}` and an optional
-`script(world, director)`; map-builder installs them (`world.setpieces`: `get(id)`, `fail(reason)`, `pieces`). Set-pieces
+`script(world, director)` (its optional `.visuals(world)`: the mission's own scenery, built by Game.loadMission as the
+load ends — see Responsive load); map-builder installs them (`world.setpieces`: `get(id)`, `fail(reason)`, `pieces`). Set-pieces
 are entities of kind `'setpiece'` (saved by id; ticked at 20 Hz on `onBelTick`), hand devices are `Device`
 interactables (`interactKind:'device'`, used with the shared 'use' ability). Types: `rail_line`, `cable_car` (+ `cableCar()`
 helper), `conveyor`, `current`, `lock_gate`, `mobile_bridge`, `collapse`, `multi_charge`, `phones`, `minefield`,

@@ -3,6 +3,7 @@
 //   back faces seen through the clip = inside a closed solid = obstacle: piers, posts, rocks, hulls)
 //   distanceField (chamfer), solveFlow (Jacobi pressure projection, solid walls), wakeFoam (advected streaks)
 import * as THREE from 'three';
+import { due, runSync } from '../../engine/slice.js';
 
 const CAP_VS = `#include <clipping_planes_pars_vertex>
 varying float vY; void main(){ vec4 w = modelMatrix * vec4(position,1.0); vY = w.y; vec4 mvPosition = viewMatrix * w; gl_Position = projectionMatrix * mvPosition;
@@ -14,7 +15,25 @@ varying float vY; void main(){
 // back face seen first = the ray is inside a closed solid at the clip height (capping trick) -> obstacle
 gl_FragColor = vec4(gl_FrontFacing ? vY : 999.0, 0.0, 0.0, 1.0); }`;
 
+/** The capture material: one per capture, or one shared by a batch of captures (its two program variants kept). */
+export function captureMaterial() {
+  return new THREE.ShaderMaterial({ vertexShader: CAP_VS, fragmentShader: CAP_FS, side: THREE.DoubleSide, clipping: true });
+}
+
 export function captureHeights(renderer, scene, bounds, nx, nz, hide, clipY = Infinity) {
+  return captureDraw(renderer, scene, bounds, nx, nz, hide, clipY, null, 'sync');
+}
+
+/**
+ * captureHeights() with the read-back not waited for: the same draw, the same state changes and restores, now; the
+ * pixels come back (Promise) once the GPU is done (three's readRenderTargetPixelsAsync: a pixel buffer and a fence).
+ * `mat`: a shared captureMaterial() (the caller disposes it). `mode` 'dry': draw only, nothing read (a compile probe).
+ */
+export function captureHeightsAsync(renderer, scene, bounds, nx, nz, hide, clipY = Infinity, mat = null, mode = 'async') {
+  return captureDraw(renderer, scene, bounds, nx, nz, hide, clipY, mat, mode);
+}
+
+function captureDraw(renderer, scene, bounds, nx, nz, hide, clipY, shared, mode) {
   const [minX, minZ, maxX, maxZ] = bounds;
   const rt = new THREE.WebGLRenderTarget(nx, nz, { type: THREE.FloatType, format: THREE.RGBAFormat, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter });
   const cam = new THREE.OrthographicCamera(-(maxX - minX) / 2, (maxX - minX) / 2, (maxZ - minZ) / 2, -(maxZ - minZ) / 2, 0.1, 2000);
@@ -22,7 +41,7 @@ export function captureHeights(renderer, scene, bounds, nx, nz, hide, clipY = In
   cam.up.set(0, 0, -1);
   cam.lookAt((minX + maxX) / 2, 0, (minZ + maxZ) / 2);
   cam.updateMatrixWorld();
-  const mat = new THREE.ShaderMaterial({ vertexShader: CAP_VS, fragmentShader: CAP_FS, side: THREE.DoubleSide, clipping: true });
+  const mat = shared || captureMaterial();
   const vis = hide.map((o) => o.visible);
   hide.forEach((o) => { o.visible = false; });
   const prevO = scene.overrideMaterial, prevBg = scene.background, prevFog = scene.fog, prevT = renderer.getRenderTarget();
@@ -35,14 +54,28 @@ export function captureHeights(renderer, scene, bounds, nx, nz, hide, clipY = In
   renderer.setClearColor(new THREE.Color(-1000, 0, 0), 1);
   renderer.clear();
   renderer.render(scene, cam);
-  const px = new Float32Array(nx * nz * 4);
-  renderer.readRenderTargetPixels(rt, 0, 0, nx, nz, px);
+  const px = mode === 'dry' ? null : new Float32Array(nx * nz * 4);
+  let pending = null;
+  if (mode === 'sync') renderer.readRenderTargetPixels(rt, 0, 0, nx, nz, px);
+  else if (mode === 'async') {
+    // (issued here, before anything else draws: the buffer gets this capture; a failed async read reads it now)
+    try { pending = renderer.readRenderTargetPixelsAsync(rt, 0, 0, nx, nz, px); } catch (e) { pending = Promise.reject(e); }
+  }
   renderer.clippingPlanes = prevClip;
   renderer.setRenderTarget(prevT); renderer.setClearColor(cc, ca);
   scene.overrideMaterial = prevO; scene.background = prevBg; scene.fog = prevFog;
   hide.forEach((o, i) => { o.visible = vis[i]; });
-  rt.dispose(); mat.dispose();
-  // readPixels row 0 = bottom of image = +Z edge (camera up is -Z). Re-order so row j <-> z ascending.
+  const done = () => { rt.dispose(); if (!shared) mat.dispose(); };
+  if (mode === 'dry') { done(); return null; }
+  if (mode === 'async') {
+    return pending.catch(() => { renderer.readRenderTargetPixels(rt, 0, 0, nx, nz, px); }).then(() => { done(); return reorderRows(px, nx, nz); }, (e) => { done(); throw e; });
+  }
+  done();
+  return reorderRows(px, nx, nz);
+}
+
+/** readPixels row 0 = bottom of image = +Z edge (camera up is -Z). Re-order so row j <-> z ascending. */
+function reorderRows(px, nx, nz) {
   const h = new Float32Array(nx * nz);
   for (let j = 0; j < nz; j++) {
     const sr = (nz - 1 - j) * nx;
@@ -61,7 +94,10 @@ export function pointInPoly(x, z, poly) {
 }
 
 /** 2-pass chamfer (3-4) distance transform; seeds where `solid` is true. Returns metres. */
-export function distanceField(solid, nx, nz, cell) {
+export function distanceField(solid, nx, nz, cell) { return runSync(distanceFieldG(solid, nx, nz, cell)); }
+
+/** distanceField() as a sliced job (engine/slice.js): the same passes, pausing between rows. */
+export function* distanceFieldG(solid, nx, nz, cell) {
   const INF = 1e9, d = new Float32Array(nx * nz);
   for (let k = 0; k < d.length; k++) d[k] = solid[k] ? 0 : INF;
   const a = 1, b = Math.SQRT2;
@@ -74,6 +110,7 @@ export function distanceField(solid, nx, nz, cell) {
       if (i < nx - 1) v = Math.min(v, d[k - nx + 1] + b);
     }
     d[k] = v;
+    if (i === nx - 1 && due()) yield;
   }
   for (let j = nz - 1; j >= 0; j--) for (let i = nx - 1; i >= 0; i--) {
     const k = j * nx + i; let v = d[k];
@@ -84,6 +121,7 @@ export function distanceField(solid, nx, nz, cell) {
       if (i > 0) v = Math.min(v, d[k + nx - 1] + b);
     }
     d[k] = v;
+    if (i === 0 && due()) yield;
   }
   for (let k = 0; k < d.length; k++) d[k] = Math.min(d[k] * cell, 200);
   return d;
@@ -93,7 +131,10 @@ export function distanceField(solid, nx, nz, cell) {
  * Divergence-free flow around obstacles on a coarse grid (Jacobi pressure projection, solid walls).
  * base: per-cell initial velocity (vx,vz) arrays; wet: Uint8 mask. Returns {vx, vz}.
  */
-export function solveFlow(wet, bvx, bvz, nx, nz, iters = 160) {
+export function solveFlow(wet, bvx, bvz, nx, nz, iters = 160) { return runSync(solveFlowG(wet, bvx, bvz, nx, nz, iters)); }
+
+/** solveFlow() as a sliced job (engine/slice.js): the same iterations, pausing between them. */
+export function* solveFlowG(wet, bvx, bvz, nx, nz, iters = 160) {
   const N = nx * nz, vx = Float32Array.from(bvx), vz = Float32Array.from(bvz);
   const p = new Float32Array(N), p2 = new Float32Array(N), div = new Float32Array(N);
   const W = (i, j) => (i >= 0 && j >= 0 && i < nx && j < nz && wet[j * nx + i]) ? 1 : 0;
@@ -124,6 +165,7 @@ export function solveFlow(wet, bvx, bvz, nx, nz, iters = 160) {
         b[k] = n ? (s - div[k]) / n : 0;
       }
       const t = a; a = b; b = t;
+      if (due()) yield;
     }
     for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
       const k = j * nx + i; if (!wet[k]) continue;
@@ -143,7 +185,10 @@ function bilin(f, nx, nz, x, z) {
 }
 
 /** Foam streaks: sources at obstacles facing the current, advected downstream with decay. */
-export function wakeFoam(wet, vx, vz, nx, nz, cell, steps = 120, bvx = vx, bvz = vz) {
+export function wakeFoam(wet, vx, vz, nx, nz, cell, steps = 120, bvx = vx, bvz = vz) { return runSync(wakeFoamG(wet, vx, vz, nx, nz, cell, steps, bvx, bvz)); }
+
+/** wakeFoam() as a sliced job (engine/slice.js): the same steps, pausing between them. */
+export function* wakeFoamG(wet, vx, vz, nx, nz, cell, steps = 120, bvx = vx, bvz = vz) {
   const N = nx * nz, src = new Float32Array(N);
   const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1], [0.7071, 0.7071], [-0.7071, 0.7071], [0.7071, -0.7071], [-0.7071, -0.7071]];
   for (let j = 1; j < nz - 1; j++) for (let i = 1; i < nx - 1; i++) {
@@ -167,6 +212,7 @@ export function wakeFoam(wet, vx, vz, nx, nz, cell, steps = 120, bvx = vx, bvz =
       g[k] = Math.max(src[k], (0.9 * up + 0.1 * lat) * 0.992);
     }
     const t = f; f = g; g = t;
+    if (due()) yield;
   }
   return f;
 }

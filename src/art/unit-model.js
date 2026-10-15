@@ -32,6 +32,7 @@ import { ladderClimb } from './ladder-climb.js';
 import { railArms } from './rail-arms.js';
 import { steepLadder } from '../entities/stair-walk.js';
 import { swimFrame, wadeOffset, waterColumn } from './swim-pose.js';
+import { due, runSync } from '../engine/slice.js';
 
 const PRONE_SHOT = /^prone_(shoot|shoot_smg|pistol_shoot)$/;
 /** The Spy's pending orders whose action blends in from the last pose shown (art/spy-actions.js). */
@@ -111,27 +112,38 @@ const WARM_CLIPS = ['idle', 'walk', 'run', 'die', 'dead', 'die_prone', 'dead_pro
  * squad switching to run/aim or the first death in combat does not stall a frame. Bounded by `budgetMs`.
  * @returns {number} ms spent
  */
-export function warmUnitModels(units, budgetMs = 1200) {
-  const t0 = performance.now();
+export function warmUnitModels(units, budgetMs = 1200) { return runSync(warmUnitModelsG(units, budgetMs)); }
+
+/**
+ * warmUnitModels() as a sliced job (engine/slice.js): one clip (or one corpse template) at a time, pausing when the
+ * slice is used. The budgets count the work only (not the pauses): the same warming as one straight run.
+ * @returns {Generator<void, number>} ms of work
+ */
+export function* warmUnitModelsG(units, budgetMs = 1200) {
+  let work = 0;
+  const timed = (fn) => { const t = performance.now(); try { fn(); } finally { work += performance.now() - t; } };
   for (const u of units) {
-    if (performance.now() - t0 > budgetMs) break;
+    if (work > budgetMs) break;
     const R = u.model?.real, H = R?.inner;
     if (!H) continue;
-    try {
-      // prone clips are fitted per body (prone-fit.js, 20-80 ms each): warm them for the squad, lazily for the Germans
-      const names = u.faction === 'player' ? WARM_CLIPS : WARM_CLIPS.filter((n) => !PRONE_CLIP.test(n));
-      if (H.warmGround) H.warmGround(names);
-      else for (const n of names) R.hasAnim(n);
-    } catch (e) { console.warn('[unit-model] warm', e); }
+    // prone clips are fitted per body (prone-fit.js, 20-80 ms each): warm them for the squad, lazily for the Germans
+    const names = u.faction === 'player' ? WARM_CLIPS : WARM_CLIPS.filter((n) => !PRONE_CLIP.test(n));
+    for (const n of names) {
+      let failed = false;
+      timed(() => { try { if (H.warmGround) H.warmGround([n]); else R.hasAnim(n); } catch (e) { failed = true; console.warn('[unit-model] warm', e); } });
+      if (failed) break; // (as before: an error ends this unit's warm-up)
+      if (due()) yield;
+    }
   }
   // the belt kit and the samples a corpse is laid on the ground with (art/corpse-ground.js): once per template
   // (5-60 ms), not at the first death of each in combat
-  const t1 = performance.now();
+  const w1 = work;
   for (const u of units) {
-    if (performance.now() - t1 > budgetMs / 2) break;
-    try { if (u.model?.real?.inner && !u.model.dog) warmCorpse(u.model); } catch (e) { console.warn('[unit-model] warm corpse', e); }
+    if (work - w1 > budgetMs / 2) break;
+    timed(() => { try { if (u.model?.real?.inner && !u.model.dog) warmCorpse(u.model); } catch (e) { console.warn('[unit-model] warm corpse', e); } });
+    if (due()) yield;
   }
-  return performance.now() - t0;
+  return work;
 }
 
 /**

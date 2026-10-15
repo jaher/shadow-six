@@ -16,6 +16,7 @@ import { RECIPES, ALIASES } from './effects.js';
 import { WIND_UNIFORMS } from '../../world/wind.js';
 import { sessionCache } from '../../engine/asset-cache.js';
 import { AMBIENT_RULES } from './ambient.js';
+import { compileAhead } from '../../engine/parallel-compile.js';
 
 /** Cache-entry dispose at module level (a callback made inside the FX builder would keep its scope — pools, world — alive). */
 const disposeVfxTextures = (t) => t.dispose();
@@ -260,13 +261,20 @@ function makeRuntime(vfx, { eng, gl, u, smoke, hot, amb, lights, decals, debris,
     async warm(renderer, cam) {
       if (!renderer?.compile) return;
       const p = this.pass;
-      // the pass's full-screen quads: drawn once into a 1×1 target (their exact draw path)
+      // the pass's full-screen quads: drawn once into a 1×1 target (their exact draw path), their programs linked by the
+      // driver aside first (engine/parallel-compile.js: a probe of the same draws, then the draws)
       const rt1 = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthBuffer: false });
-      const prev = renderer.getRenderTarget();
+      const quads = () => {
+        const prev = renderer.getRenderTarget();
+        try {
+          renderer.setRenderTarget(rt1);
+          for (const q of [p.quad, p.copyQuad, p.depthCopy].filter(Boolean)) q.render(renderer);
+        } finally { renderer.setRenderTarget(prev); }
+      };
       try {
-        renderer.setRenderTarget(rt1);
-        for (const q of [p.quad, p.copyQuad, p.depthCopy].filter(Boolean)) q.render(renderer);
-      } finally { renderer.setRenderTarget(prev); rt1.dispose(); }
+        await compileAhead(renderer, quads, { all: true, textures: false });
+        quads();
+      } finally { rt1.dispose(); }
       const scenes = [p.smokeScene, p.hotScene, p.ambScene];
       if (decals.mesh) scenes.push(decals.mesh);
       if (debris.mesh) scenes.push(debris.mesh);

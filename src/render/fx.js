@@ -33,6 +33,7 @@ import { buildingMeta } from '../art/building-library.js';
 import { dressingMaterial, boxUV } from '../art/dressing.js';
 import { assetExtents } from '../art/building-props.js';
 import { coneAt } from '../ai/perception.js';
+import { due, runSync, runSliced } from '../engine/slice.js';
 
 /** Theater → default ground surface (dust / clod colours). */
 const THEATER_SURF = { desert: 'sand', snow: 'snow', temperate: 'grass', coast: 'dirt', night: 'grass', winter: 'snow' };
@@ -381,7 +382,10 @@ export class FX {
   // ------------------------------------------------------------------ persistent sources (props, vehicles)
 
   /** Once the map is built: explosive drums, chimneys, mission-placed fires/smoke. */
-  _scan() {
+  _scan() { runSync(this._scanG()); }
+
+  /** _scan as a sliced job (engine/slice.js): the same steps in the same order, pausing between houses. */
+  *_scanG() {
     const w = this.world;
     this._scanned = true;
     if (w.grid?.terrain) this._wade0 = w.grid.terrain.map((t) => (t === T.SHALLOW ? 1 : 0));
@@ -391,7 +395,10 @@ export class FX {
     this._scanBarrels();
     const houses = [];
     for (const [id, s] of w.structures || []) if (s?.object3d && !s.entity) houses.push([id, s]);
-    houses.forEach(([id, s], k) => this._maybeChimney(id, s, k));
+    for (let k = 0; k < houses.length; k++) {
+      yield* this._maybeChimneyG(houses[k][0], houses[k][1], k);
+      if (due()) yield;
+    }
     this._lightChimneys();
     for (const f of w.mission?.fx || []) if (f?.kind && f.x != null) this.spawn(f.kind, f.x, f.z, { ...f });
   }
@@ -416,13 +423,14 @@ export class FX {
    * get a seeded brick stack, seated on the roof surface under it (raycast) so it never floats.
    * Per-chimney variety (seeded by id): cold / faint / normal / busy, theater-weighted, plus a slow draught variation.
    */
-  _maybeChimney(id, s, k) {
+  *_maybeChimneyG(id, s, k) {
     const def = s.def || {}, obj = s.object3d;
     if (def.chimney === false || s.destroyed) return;
     obj.updateMatrixWorld(true);
     let pts = def.chimney && typeof def.chimney === 'object' && def.chimney.x != null
       ? [V3(def.chimney.x, def.chimney.y ?? this._y(def.chimney.x, def.chimney.z) + 6, def.chimney.z)] : FX.chimneyPoints(obj);
     if (pts === null) return; // library model without a chimney (or a ruin): no smoke
+    if (pts.length) yield* this._sizeSkinnedG();
     pts = pts.map((q) => this._seatOnStack(q));
     let mesh = null;
     if (!pts.length) {
@@ -439,6 +447,23 @@ export class FX {
       const rec = { id, owner: s.owner, handle: null, mesh: j === 0 ? mesh : null, pos, activity: act };
       this._chimneys.push(rec);
     });
+  }
+
+  /**
+   * The first ray through the whole scene (_seatOnStack) sizes every skinned body's bounds (SkinnedMesh
+   * computeBoundingSphere: every vertex skinned on the CPU — 0.2–0.6 s on a crowded map): the same spheres, computed
+   * first a body at a time (the same pose: nothing moves during the scan).
+   */
+  *_sizeSkinnedG() {
+    const root = this.scene;
+    if (this._skinSized || !root?.isObject3D) return;
+    this._skinSized = true;
+    const todo = [];
+    root.traverse((o) => { if (o.isSkinnedMesh && o.material !== undefined && o.boundingSphere === null && o.layers.test(_ray.layers)) todo.push(o); });
+    for (const o of todo) {
+      if (o.boundingSphere === null) o.computeBoundingSphere();
+      if (due()) yield;
+    }
   }
 
   /**
@@ -568,7 +593,8 @@ export class FX {
    * lands on the first frame of play. Same scene, same map: the same sources.
    */
   prescan() {
-    if (!this._scanned && this.world.structures) this._scan();
+    if (!this._scanned && this.world.structures) return runSliced(this._scanG()); // (sliced: engine/slice.js)
+    return Promise.resolve();
   }
 
   /** Sim tick (fixed 1/60 s, not called while paused): effect simulation + persistent sources. */

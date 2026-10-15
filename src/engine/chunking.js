@@ -24,6 +24,7 @@
  */
 import * as THREE from 'three';
 import { extraCull } from './cull-hooks.js';
+import { due, runSync } from './slice.js';
 
 const FORWARD = ['geometry', 'material', 'castShadow', 'receiveShadow', 'renderOrder', 'customDepthMaterial', 'customDistanceMaterial'];
 const noRaycast = () => {};
@@ -412,7 +413,10 @@ export function releaseAllChunks(root) {
  * triangles a cell, between `cell` and `maxCell` m — so a coarse mesh (the scenery apron ring) gets few, large rows.
  * @returns {{meshes: number, chunks: number, tris: number, cells: number[]}}
  */
-export function chunkLargeMeshes(root, { cell = 24, maxCell = 96, cellTris = 20000, minTris = 20000, pad = 1 } = {}) {
+export function chunkLargeMeshes(root, o = {}) { return runSync(chunkLargeMeshesG(root, o)); }
+
+/** chunkLargeMeshes() as a sliced job (engine/slice.js): the meshes are found first, then chunked one a slice. */
+export function* chunkLargeMeshesG(root, { cell = 24, maxCell = 96, cellTris = 20000, minTris = 20000, pad = 1 } = {}) {
   const found = [];
   root.updateMatrixWorld(true);
   root.traverse((o) => {
@@ -426,6 +430,7 @@ export function chunkLargeMeshes(root, { cell = 24, maxCell = 96, cellTris = 200
   });
   const st = { meshes: 0, chunks: 0, tris: 0, cells: [] };
   for (const [o, c] of found) {
+    if (due()) yield;
     // 16-bit rows: a row of a regular grid must hold ≤ 65,536 vertices (geometry.userData.chunk16.maxRowM, the owner
     // knows its vertices per metre): wider maps get shorter rows
     const maxRow = o.geometry.userData?.chunk16?.maxRowM;

@@ -8,7 +8,7 @@ import { SURFACES } from '../../world/roads.js';
 import { injectPavement } from './pavement-glsl.js';
 import { scopedMemo, pendingTextureBytes } from '../../engine/scoped-assets.js';
 import { AT_UNIFORMS, atNoiseTexture } from '../anti-tiling.js';
-import { loadCompressedTexture } from '../../engine/texture-memory.js';
+import { loadCompressedTexture, trackTextureLoad } from '../../engine/texture-memory.js';
 
 const HAS_DOM = typeof document !== 'undefined';
 const BASE = new URL('../../../assets/textures/pavement/', import.meta.url).href;
@@ -69,7 +69,9 @@ function sidTex(set) {
   if (!STONES[set]) return (SID_NONE ||= (() => { const t = new THREE.DataTexture(new Uint8Array([128, 128, 100, 255]), 1, 1); t.needsUpdate = true; return t; })());
   const url = `${BASE}512/${set}_sid.png`;
   if (!TEX.has(url)) {
-    const t = new THREE.TextureLoader().load(url);
+    let t;
+    // (counted as a background load: a mission load waits for it — engine/texture-memory.js texturesLoaded)
+    trackTextureLoad(new Promise((ok) => { t = new THREE.TextureLoader().load(url, ok, undefined, ok); }));
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
     TEX.set(url, t);

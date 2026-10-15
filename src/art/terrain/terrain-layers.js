@@ -4,6 +4,7 @@
  * @module terrain-b/terrain-layers
  */
 import { fbm, vnoise } from './noise.js';
+import { due, runSync } from '../../engine/slice.js';
 
 // Grid terrain codes (src/world/grid.js T.*)
 export const TC = { GROUND: 0, ROAD: 1, SAND: 2, SNOW: 3, GRASS: 4, WATER: 5, SHALLOW: 6, MUD: 7 };
@@ -111,7 +112,10 @@ function rules(th, code, x, z, w, seed) {
  * Build the splat weights (8 layers → 2 RGBA8 arrays) at `res` texels/m, box-blurred for soft borders.
  * Returns {res, w, h, a: Uint8Array(w*h*4), b: Uint8Array(w*h*4), f32: Float32Array(w*h*8)}.
  */
-export function buildSplat(grid, theater, opts = {}) {
+export function buildSplat(grid, theater, opts = {}) { return runSync(buildSplatG(grid, theater, opts)); }
+
+/** buildSplat() as a sliced job (engine/slice.js): the same weights, pausing between rows. */
+export function* buildSplatG(grid, theater, opts = {}) {
   const res = opts.splatRes || 4, seed = opts.seed || 7;
   // origin: world xz of the grid's (0,0) corner (the apron's code field starts at -width); noise stays in world space
   const ox = opts.origin?.[0] || 0, oz = opts.origin?.[1] || 0;
@@ -136,7 +140,7 @@ export function buildSplat(grid, theater, opts = {}) {
     return base;
   };
   const fr = Math.max(1, Math.round((opts.featherM ?? 1.5) / grid.cell));
-  const feather = boxBlur1(boxBlur1(ind, grid.cols, grid.rows, fr, 1), grid.cols, grid.rows, fr, grid.cols);
+  const feather = yield* boxBlur1G(yield* boxBlur1G(ind, grid.cols, grid.rows, fr, 1), grid.cols, grid.rows, fr, grid.cols);
   for (let j = 0; j < H; j++) {
     for (let i = 0; i < W; i++) {
       const x = ox + (i + 0.5) / res, z = oz + (j + 0.5) / res;
@@ -166,8 +170,9 @@ export function buildSplat(grid, theater, opts = {}) {
       if (opts.paint) opts.paint(x, z, w); // mission hook: forest floor under trees, burnt patches…
       f.set(w, (j * W + i) * 8);
     }
+    if (due()) yield;
   }
-  f = blur8(f, W, H, Math.max(1, Math.round(res * (opts.splatBlur ?? 0.5))));
+  f = yield* blur8(f, W, H, Math.max(1, Math.round(res * (opts.splatBlur ?? 0.5))));
   const a = new Uint8Array(W * H * 4), b = new Uint8Array(W * H * 4);
   for (let p = 0; p < W * H; p++) {
     let s = 0;
@@ -175,37 +180,47 @@ export function buildSplat(grid, theater, opts = {}) {
     s = s > 1e-5 ? 1 / s : 0;
     for (let k = 0; k < 8; k++) f[p * 8 + k] *= s;
     for (let k = 0; k < 4; k++) { a[p * 4 + k] = Math.round(f[p * 8 + k] * 255); b[p * 4 + k] = Math.round(f[p * 8 + 4 + k] * 255); }
+    if (p % W === W - 1 && due()) yield;
   }
   return { res, w: W, h: H, a, b, f32: f, theater: th };
 }
 
-/** 1D box blur along rows (step 1) or columns (step = W) of a W×H field. */
-function boxBlur1(src, W, H, r, step) {
+/** 1D box blur along rows (step 1) or columns (step = W) of a W×H field (a sliced job: pauses between rows). */
+function* boxBlur1G(src, W, H, r, step) {
   const out = new Float32Array(src.length);
-  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
-    let s = 0, n = 0;
-    for (let d = -r; d <= r; d++) {
-      const ii = step === 1 ? i + d : i, jj = step === 1 ? j : j + d;
-      if (ii < 0 || jj < 0 || ii >= W || jj >= H) continue;
-      s += src[jj * W + ii]; n++;
+  for (let j = 0; j < H; j++) {
+    for (let i = 0; i < W; i++) {
+      let s = 0, n = 0;
+      for (let d = -r; d <= r; d++) {
+        const ii = step === 1 ? i + d : i, jj = step === 1 ? j : j + d;
+        if (ii < 0 || jj < 0 || ii >= W || jj >= H) continue;
+        s += src[jj * W + ii]; n++;
+      }
+      out[j * W + i] = s / n;
     }
-    out[j * W + i] = s / n;
+    if (due()) yield;
   }
   return out;
 }
 
-function blur8(src, W, H, r) {
+function* blur8(src, W, H, r) {
   const tmp = new Float32Array(src.length), out = new Float32Array(src.length);
   const n = 2 * r + 1;
-  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) for (let k = 0; k < 8; k++) {
-    let s = 0;
-    for (let d = -r; d <= r; d++) s += src[(j * W + Math.min(W - 1, Math.max(0, i + d))) * 8 + k];
-    tmp[(j * W + i) * 8 + k] = s / n;
+  for (let j = 0; j < H; j++) {
+    for (let i = 0; i < W; i++) for (let k = 0; k < 8; k++) {
+      let s = 0;
+      for (let d = -r; d <= r; d++) s += src[(j * W + Math.min(W - 1, Math.max(0, i + d))) * 8 + k];
+      tmp[(j * W + i) * 8 + k] = s / n;
+    }
+    if (due()) yield;
   }
-  for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) for (let k = 0; k < 8; k++) {
-    let s = 0;
-    for (let d = -r; d <= r; d++) s += tmp[(Math.min(H - 1, Math.max(0, j + d)) * W + i) * 8 + k];
-    out[(j * W + i) * 8 + k] = s / n;
+  for (let j = 0; j < H; j++) {
+    for (let i = 0; i < W; i++) for (let k = 0; k < 8; k++) {
+      let s = 0;
+      for (let d = -r; d <= r; d++) s += tmp[(Math.min(H - 1, Math.max(0, j + d)) * W + i) * 8 + k];
+      out[(j * W + i) * 8 + k] = s / n;
+    }
+    if (due()) yield;
   }
   return out;
 }
@@ -251,7 +266,10 @@ export function undulation(theater, x, z, seed = 7) {
  * @param {{radius?:number, road?:number}} [o]
  * @returns {Float32Array}
  */
-export function buildFlatMask(grid, o = {}) {
+export function buildFlatMask(grid, o = {}) { return runSync(buildFlatMaskG(grid, o)); }
+
+/** buildFlatMask() as a sliced job (engine/slice.js). */
+export function* buildFlatMaskG(grid, o = {}) {
   const { cols, rows } = grid, n = cols * rows, road = o.road ?? 0.5;
   const src = new Float32Array(n);
   for (let k = 0; k < n; k++) {
@@ -259,7 +277,7 @@ export function buildFlatMask(grid, o = {}) {
     src[k] = grid.block[k] || grid.bridge?.[k] || grid.elev?.[k] || grid.flatExtra?.[k] || c === TC.WATER || c === TC.SHALLOW ? 1 : c === TC.ROAD ? road : 0;
   }
   const r = Math.max(1, Math.round((o.radius ?? 2.5) / grid.cell));
-  const b = boxBlur1(boxBlur1(src, cols, rows, r, 1), cols, rows, r, cols);
+  const b = yield* boxBlur1G(yield* boxBlur1G(src, cols, rows, r, 1), cols, rows, r, cols);
   for (let k = 0; k < n; k++) b[k] = Math.max(src[k], Math.min(1, b[k] * 2.2));
   return b;
 }

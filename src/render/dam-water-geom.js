@@ -4,6 +4,7 @@
  * @module render/dam-water-geom
  */
 import * as THREE from 'three';
+import { due, runSync } from '../engine/slice.js';
 
 /**
  * Raycast sampler of a dam's downstream face. Dam frame: u along the crest (local +X), v downstream (local +Z), y up
@@ -49,7 +50,10 @@ export function faceSampler(root, def) {
  * of the face, with an optional sideways meander. Rows where the face is not found end the ribbon.
  * @returns {THREE.BufferGeometry|null} with `flow` (across 0..1, metres along) and userData.len
  */
-export function faceRibbon(F, { u0, w, yTop, yBot, off = 0.05, step = 0.2, cols = 3, wobble = 0, seed = 0 }) {
+export function faceRibbon(F, o) { return runSync(faceRibbonG(F, o)); }
+
+/** faceRibbon() as a sliced job (engine/slice.js): the same rays, pausing between rows. */
+export function* faceRibbonG(F, { u0, w, yTop, yBot, off = 0.05, step = 0.2, cols = 3, wobble = 0, seed = 0 }) {
   const pos = [], flow = [], rows = [];
   let along = 0, prev = null;
   for (let y = yTop; y >= yBot - 1e-6; y -= step) {
@@ -60,12 +64,14 @@ export function faceRibbon(F, { u0, w, yTop, yBot, off = 0.05, step = 0.2, cols 
       if (vf == null) return finish();
       const [x, z] = F.world(u, vf + off);
       row.push([x, y, z, t]);
+      if (k + 1 < cols && due()) yield; // (a ray each: through the dam's finest mesh)
     }
     const mid = row[(cols - 1) >> 1];
     if (prev) along += Math.hypot(mid[0] - prev[0], mid[1] - prev[1], mid[2] - prev[2]);
     prev = mid;
     for (const [x, yy, z, t] of row) { pos.push(x, yy, z); flow.push(t, along); }
     rows.push(row);
+    if (due()) yield;
   }
   return finish();
   function finish() {

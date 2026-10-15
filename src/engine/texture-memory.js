@@ -205,14 +205,57 @@ export function compressImageTexture(tex) {
  */
 export function loadCompressedTexture(url, onLoad, onError) {
   const t = new THREE.Texture();
+  let settle;
+  trackTextureLoad(new Promise((ok) => { settle = ok; }));
   new THREE.ImageLoader().load(url, (img) => {
     t.image = img;
     compressImageTexture(t).then(() => {
       if (!t.isCompressedTexture) t.needsUpdate = true;
+      settle();
       onLoad?.(t);
-    });
-  }, undefined, (e) => { if (onError) onError(e); else console.error('[texture-memory] load', url, e); });
+    }, settle);
+  }, undefined, (e) => { settle(); if (onError) onError(e); else console.error('[texture-memory] load', url, e); });
   return t;
+}
+
+// ------------------------------------------------------------------ textures loading in the background
+
+/**
+ * Background texture loads (loadCompressedTexture, trackTextureLoad): a material holds the Texture at once, but until
+ * its image is decoded and compressed (version 0) three draws it as an empty texture — the surface comes out dark.
+ * A mission load waits for them before its loading screen closes (texturesLoaded): the first view never shows one.
+ */
+const loading = new Set();
+
+/**
+ * Count a background texture load until `done` settles (its texture can then be drawn: uploaded at its next use).
+ * @template T @param {Promise<T>} done @returns {Promise<T>}
+ */
+export function trackTextureLoad(done) {
+  loading.add(done);
+  const drop = () => { loading.delete(done); };
+  done.then(drop, drop);
+  return done;
+}
+
+/** Background texture loads still running. */
+export function texturesLoading() { return loading.size; }
+
+/**
+ * Resolve once every background texture load started so far — and any they start meanwhile — has settled, or after
+ * `timeout` ms. Waits on promises only: the page stays responsive meanwhile.
+ * @param {number} [timeout] @returns {Promise<boolean>} false: some still loading at the timeout
+ */
+export async function texturesLoaded(timeout = 20000) {
+  const end = performance.now() + timeout;
+  while (loading.size) {
+    const left = end - performance.now();
+    if (left <= 0) return false;
+    let timer;
+    await Promise.race([Promise.allSettled([...loading]), new Promise((ok) => { timer = setTimeout(ok, left); })]);
+    clearTimeout(timer);
+  }
+  return true;
 }
 
 // ------------------------------------------------------------------ compressed textures (engine/gpu-compress.js)

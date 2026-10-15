@@ -8,11 +8,13 @@ import { packNormals } from '../../engine/vertex-pack.js';
 import { restoreChunkIndex } from '../../engine/chunking.js';
 import { missionCarves } from './carve.js';
 import * as THREE from 'three';
-import { PALETTES, buildSplat, splatAt, undulation } from './terrain-layers.js';
+import { PALETTES, buildSplatG, splatAt, undulation } from './terrain-layers.js';
+import { due, runSliced } from '../../engine/slice.js';
+import { planeGeometryG, applyMatrixToPositionsG, computeVertexNormalsG } from '../../engine/geometry-jobs.js';
 import { COMMON, VERT_PARS, VERT_MAIN, VERT_WORLD, FRAG_MAIN, FRAG_ROUGH, FRAG_NORMAL, FRAG_EMIS, FRAG_AO, APRON_TRAIL, APRON_FLAT } from './terrain-glsl.js';
 import { TrailSystem } from './trails.js';
 import { pfbm } from './noise.js';
-import { createGrass, grassPalette } from './grass.js';
+import { createGrassG, grassPalette } from './grass.js';
 import { vegetationProfile, groundTint, swardOf } from './veg-profile.js';
 const seasonTint = (veg, layer) => new THREE.Vector3(...groundTint(veg, layer));
 import { placeScrub, nebkhaField, spawnClearance } from './scrub.js';
@@ -61,21 +63,27 @@ function loadArray(url, srgb, anisotropy, tile) {
   });
 }
 
-function noiseTexture(size = 256) {
+function* noiseTexture(size = 256) {
   const d = new Uint8Array(size * size * 4);
   // G: seed 207, rescaled to the old seed-202 statistics (mean 0.459, sd 0.132). Seed 202 ran ~1 sd darker along the
   // texture's border, so every lookup drew a dark grid at its repeat (5.3 m tussocks, 23 m macro): regular stripes
   // across meadows and dunes.
   const g = new Float32Array(size * size);
   let gm = 0, gs = 0;
-  for (let k = 0; k < size * size; k++) { const v = pfbm(k % size, Math.floor(k / size), size, 3, 3, 207); g[k] = v; gm += v; gs += v * v; }
+  for (let k = 0; k < size * size; k++) {
+    const v = pfbm(k % size, Math.floor(k / size), size, 3, 3, 207); g[k] = v; gm += v; gs += v * v;
+    if (k % size === size - 1 && due()) yield;
+  }
   gm /= size * size; gs = Math.sqrt(Math.max(1e-6, gs / (size * size) - gm * gm));
-  for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
-    const o = (j * size + i) * 4;
-    d[o] = pfbm(i, j, size, 4, 4, 101) * 255;
-    d[o + 1] = Math.max(0, Math.min(255, (0.459 + (g[j * size + i] - gm) / gs * 0.132) * 255));
-    d[o + 2] = pfbm(i, j, size, 6, 3, 303) * 255;
-    d[o + 3] = pfbm(i, j, size, 8, 5, 404) * 255;
+  for (let j = 0; j < size; j++) {
+    for (let i = 0; i < size; i++) {
+      const o = (j * size + i) * 4;
+      d[o] = pfbm(i, j, size, 4, 4, 101) * 255;
+      d[o + 1] = Math.max(0, Math.min(255, (0.459 + (g[j * size + i] - gm) / gs * 0.132) * 255));
+      d[o + 2] = pfbm(i, j, size, 6, 3, 303) * 255;
+      d[o + 3] = pfbm(i, j, size, 8, 5, 404) * 255;
+    }
+    if (due()) yield;
   }
   const t = new THREE.DataTexture(d, size, size, THREE.RGBAFormat);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -244,15 +252,16 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
   const gridKey = dataKey((h) => { h.num(grid.cols); h.num(grid.rows); h.num(grid.cell); h.words(new Uint8Array(grid.terrain.buffer, grid.terrain.byteOffset, grid.terrain.byteLength)); });
   // a mission paint hook is a function: cacheable only with its identity (`paintKey`, e.g. the road network's hash)
   const splatKey = opts.paint && opts.paintKey == null ? null : `terrain:splat:${gridKey}:${theater}:${opts.seed || 7}:${opts.splatRes || 4}:${opts.featherM ?? 1.5}:${opts.splatBlur ?? 0.5}:${!!opts.frozenWater}:${opts.paint ? opts.paintKey : '-'}`;
-  const makeSplat = () => {
-    const sp = buildSplat(grid, theater, opts);
+  // (the heavy builds below run as sliced jobs — engine/slice.js — with the same results: the page keeps drawing)
+  const makeSplat = function* makeSplat() {
+    const sp = yield* buildSplatG(grid, theater, opts);
     return { splat: sp, tA: splatTexture(sp.a, sp.w, sp.h), tB: splatTexture(sp.b, sp.w, sp.h) };
   };
-  const SP = splatKey ? cache.memo(splatKey, () => { const v = makeSplat(); cache.retain(v.tA); cache.retain(v.tB); return v; }, {
+  const SP = await runSliced(splatKey ? cache.memoGen(splatKey, function* () { const v = yield* makeSplat(); cache.retain(v.tA); cache.retain(v.tB); return v; }, {
     bytes: (v) => v.splat.a.length * 2 + v.splat.f32.byteLength, dispose: disposeSplatEntry,
-  }) : makeSplat();
+  }) : makeSplat());
   const splat = SP.splat, tSplatA = SP.tA, tSplatB = SP.tB;
-  const tNoise = cache.memo('terrain:noise256b', () => cache.retain(noiseTexture()), { bytes: 256 * 256 * 4 * 1.34, dispose: disposeTexture });
+  const tNoise = await runSliced(cache.memoGen('terrain:noise256b', function* () { return cache.retain(yield* noiseTexture()); }, { bytes: 256 * 256 * 4 * 1.34, dispose: disposeTexture }));
 
   // ---- geometry: undulating heightfield, water cells sunk -----------------------------------------
   const seg = opts.segPerM || 4;
@@ -316,13 +325,15 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
   // dry wadis / gullies cut into the heightfield (art/terrain/carve.js, mission `carves`)
   const dryCarve = missionCarves(opts.mission || null);
   const geoKey = `terrain:height:${gridKey}:${W}:${D}:${seg}:${src}:${opts.seed || 7}:${frozen}:${dryCarve ? dataKey((h) => h.str(dryCarve.key)) : '-'}:${opts.flatMask ? dataKey((h) => h.floats(opts.flatMask)) : '-'}:${moundKey}:${windDir.x.toFixed(4)}:${windDir.y.toFixed(4)}`;
-  const { geo, hgt } = cache.memo(geoKey, () => {
-    const geo = new THREE.PlaneGeometry(W, D, sx, sz);
-    geo.rotateX(-Math.PI / 2);
-    geo.translate(W / 2, 0, D / 2);
+  const { geo, hgt } = await runSliced(cache.memoGen(geoKey, function* () {
+    // = new THREE.PlaneGeometry(W, D, sx, sz).rotateX(-π/2).translate(W/2, 0, D/2), built a row at a time
+    const geo = yield* planeGeometryG(W, D, sx, sz);
+    yield* applyMatrixToPositionsG(geo, new THREE.Matrix4().makeRotationX(-Math.PI / 2));
+    yield* applyMatrixToPositionsG(geo, new THREE.Matrix4().makeTranslation(W / 2, 0, D / 2));
     const pos = geo.attributes.position;
     const hgt = new Float32Array(pos.count);
     for (let v = 0; v < pos.count; v++) {
+      if (v % (sx + 1) === 0 && due()) yield;
       const x = pos.getX(v), z = pos.getZ(v);
       let y = undulation(src, x, z, opts.seed || 7);
       if (flatAt) y *= 1 - flatAt(x, z);
@@ -338,19 +349,21 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
       hgt[v] = y;
       pos.setY(v, y);
     }
-    geo.computeVertexNormals();
+    yield* computeVertexNormalsG(geo);
     // what the material reads, compactly (engine/vertex-pack.js): its shader maps world xz itself (no uv: 8 bytes a
     // vertex), normals as normalized Int16 × 4 (8 instead of 12 bytes) — before chunking, which shares these attributes
     geo.deleteAttribute('uv');
     packNormals(THREE, geo);
+    if (due()) yield;
     // chunked into rows of ≤ 65,536 vertices with 16-bit indices (engine/chunking.js); the whole index is rebuilt for
     // whoever draws it whole (restoreChunkIndex below: the water bakes of a restart)
     geo.userData.chunk16 = { maxRowM: (Math.floor(65536 / (sx + 1)) - 1) / seg, dropIndex: true };
     geo.computeBoundingBox();
+    if (due()) yield;
     geo.computeBoundingSphere();
     cache.retain(geo);
     return { geo, hgt };
-  }, { bytes: (v) => v.hgt.byteLength + v.geo.attributes.position.array.byteLength + v.geo.attributes.normal.array.byteLength, dispose: disposeHeightEntry });
+  }, { bytes: (v) => v.hgt.byteLength + v.geo.attributes.position.array.byteLength + v.geo.attributes.normal.array.byteLength, dispose: disposeHeightEntry }));
   restoreChunkIndex(geo); // (a cached geometry chunked by the last load: drawn whole until this load chunks it)
 
   // ---- material ----------------------------------------------------------------------------------
@@ -413,7 +426,7 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
   // ---- grass, clutter, weather -------------------------------------------------------------------------
   let quality = TERRAIN_QUALITY[opts.quality] ? opts.quality : 'high';
   const ctx = { gl, scene, sun: renderer.sun || null, grid, theater, src, P, splat, W, D, heightAt, materialAt, trails, windDir, tNoise, opts, addSnowCover, waterSD: wetAt, deepSD: deepAt, veg, scrubPlan };
-  const grass = opts.grass === false ? null : createGrass(ctx, TERRAIN_QUALITY[quality]);
+  const grass = opts.grass === false ? null : await runSliced(createGrassG(ctx, TERRAIN_QUALITY[quality]));
   const snowfx = src === 'snow' || opts.snowfall ? createSnowFx(ctx, TERRAIN_QUALITY[quality]) : null;
 
   const _sun = new THREE.Vector3();
@@ -462,6 +475,8 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
      * @param {number[][]} pts polyline [[x, z], …] @param {{passes?:number, spread?:number, type?:string, walkers?:number, seed?:number}} [o]
      */
     preTrample(pts, o = {}) { trails.preTrample(pts, o); },
+    /** preTrample() as a sliced job (engine/slice.js). */
+    *preTrampleG(pts, o = {}) { yield* trails.preTrampleG(pts, o); },
     setQuality,
     get quality() { return quality; },
     get texRes() { return texRes; },

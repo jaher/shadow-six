@@ -155,9 +155,12 @@ export function buildShelfVisuals(world, spec) {
   }
 }
 
-/** mission.script: visuals, shelf drums at y 5, first patch pass. */
+/**
+ * mission.script: visuals, shelf drums at y 5, first patch pass. `.visuals`: the shelf meshes alone, built by Game as
+ * the load ends (textures resident, programs linked); the script's run finds them built.
+ */
 export function m10Script(spec) {
-  return (world) => {
+  const script = (world) => {
     buildShelfVisuals(world, spec);
     for (const id of spec.lift || []) {
       const e = world.structures?.get(id)?.entity;
@@ -165,4 +168,6 @@ export function m10Script(spec) {
     }
     m10Tick(world);
   };
+  script.visuals = (world) => buildShelfVisuals(world, spec);
+  return script;
 }

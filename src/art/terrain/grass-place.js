@@ -15,6 +15,7 @@
 import { rng, fbm, vnoise } from './noise.js';
 import { GT, pickWeighted } from './veg-profile.js';
 import { onDryLand, GROUND_SHORE_MARGIN } from '../../world/veg-shore.js';
+import { due, runSync } from '../../engine/slice.js';
 
 export const STRIDE = 10;
 const ss = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -77,7 +78,10 @@ export function meadowMacro(x, z) {
  * @param {object} prof veg-profile
  * @param {{perM2:number, chunk?:number, seed?:number}} o
  */
-export function placeGround(env, prof, o) {
+export function placeGround(env, prof, o) { return runSync(placeGroundG(env, prof, o)); }
+
+/** placeGround() as a sliced job (engine/slice.js): the same tufts from the same random stream, chunk by chunk. */
+export function* placeGroundG(env, prof, o) {
   const { W, D, grassW, heightAt } = env, wet = env.waterSD || null;
   const CH = o.chunk || 16, r = rng(o.seed || 1234), out = [];
   // crop fields (bocage.js farmland): wheat / stubble polygons with their drill direction
@@ -249,6 +253,7 @@ export function placeGround(env, prof, o) {
       for (let i = 0; i < n; i++) a[i * STRIDE + 8] = (i + 0.5) / n;
     }
     if (Object.keys(lists).length) out.push({ cx, cz, lists });
+    if (due()) yield;
   }
   return out;
 }

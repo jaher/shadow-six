@@ -16,6 +16,7 @@
  */
 import * as THREE from 'three';
 import { WIND_GLSL, WIND_UNIFORMS, activeWind } from '../world/wind.js';
+import { due, runSync } from '../engine/slice.js';
 
 /** Per-draw character velocity (world xz, m/s): set in each mesh's onBeforeRender. */
 const VEL = { value: new Float32Array([0, 0]) };
@@ -385,7 +386,10 @@ const sstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a)
  * @param {object} geo THREE.BufferGeometry @param {(x:number,y:number,z:number)=>number} weightFn
  * @param {number} [mPerUnit=1] metres per object unit (quantized GLBs) @param {number} [sigma=0.15] smoothing radius (m)
  */
-export function canvasAttributes(geo, weightFn, mPerUnit = 1, sigma = 0.15) {
+export function canvasAttributes(geo, weightFn, mPerUnit = 1, sigma = 0.15) { return runSync(canvasAttributesG(geo, weightFn, mPerUnit, sigma)); }
+
+/** canvasAttributes() as a sliced job (engine/slice.js): the same work, pausing between loop stretches. */
+export function* canvasAttributesG(geo, weightFn, mPerUnit = 1, sigma = 0.15) {
   const P = geo.attributes.position, n = P.count;
   if (!geo.boundingBox) geo.computeBoundingBox();
   const bb = geo.boundingBox, s = mPerUnit;
@@ -406,6 +410,7 @@ export function canvasAttributes(geo, weightFn, mPerUnit = 1, sigma = 0.15) {
   const SC = [], SN = [], cell = new Map(), ci = (x) => Math.floor(x / R) + 1024, ck = (i, j, k) => (i * 2048 + j) * 2048 + k;
   const put = (x, y, z, nx, ny, nz) => { const k = ck(ci(x), ci(y), ci(z)); let l = cell.get(k); if (!l) cell.set(k, (l = [])); l.push(SC.length / 3); SC.push(x, y, z); SN.push(nx, ny, nz); };
   for (let t = 0; t < tri; t++) {
+    if ((t & 255) === 255 && due()) yield;
     const a = v(t, 0) * 3, b = v(t, 1) * 3, c = v(t, 2) * 3;
     const ux = X[b] - X[a], uy = X[b + 1] - X[a + 1], uz = X[b + 2] - X[a + 2];
     const wx = X[c] - X[a], wy = X[c + 1] - X[a + 1], wz = X[c + 2] - X[a + 2];
@@ -424,6 +429,7 @@ export function canvasAttributes(geo, weightFn, mPerUnit = 1, sigma = 0.15) {
   // along the panel's normal), the inner/outer skins of a thick sheet. Coincident vertices share one value exactly.
   const acc = new Float64Array(G * 3), seen = new Uint8Array(G), i2 = 1 / (2 * sg * sg);
   for (let i = 0; i < n; i++) {
+    if ((i & 255) === 255 && due()) yield;
     const g = gid[i]; if (seen[g]) continue; seen[g] = 1;
     const px = X[i * 3], py = X[i * 3 + 1], pz = X[i * 3 + 2], bx = ci(px), by = ci(py), bz = ci(pz);
     let sx = 0, sy = 0, sz = 0;
@@ -439,6 +445,7 @@ export function canvasAttributes(geo, weightFn, mPerUnit = 1, sigma = 0.15) {
   }
   const W = new Float32Array(n), WG = new Float32Array(n * 3), D = new Float32Array(n * 3), PP = new Float32Array(n * 4), h = 0.01;
   for (let i = 0; i < n; i++) {
+    if ((i & 1023) === 1023 && due()) yield;
     const x = X[i * 3], y = X[i * 3 + 1], z = X[i * 3 + 2], g = gid[i] * 3;
     let dx = acc[g], dy = acc[g + 1], dz = acc[g + 2], l = Math.hypot(dx, dy, dz);
     if (l < 1e-12 && N) { dx = N.getX(i); dy = N.getY(i); dz = N.getZ(i); l = Math.hypot(dx, dy, dz) || 1; } // isolated vertex
@@ -475,7 +482,10 @@ function profile(n, lo, step) {
  * bay, ×(1 + `loose`) toward the free hem of the rear end panel. Pure function of the metric position.
  * @param {object} geo @param {number} [s=1] metres per unit @param {{rear?:number, loose?:number, taut?:number}} [o]
  */
-export function coverWeightFn(geo, s = 1, o = {}) {
+export function coverWeightFn(geo, s = 1, o = {}) { return runSync(coverWeightFnG(geo, s, o)); }
+
+/** coverWeightFn() as a sliced job (engine/slice.js). */
+export function* coverWeightFnG(geo, s = 1, o = {}) {
   if (!geo.boundingBox) geo.computeBoundingBox();
   const P = geo.attributes.position, bb = geo.boundingBox, n = P.count;
   const x0 = bb.min.x * s, x1 = bb.max.x * s, y0 = bb.min.y * s, y1 = bb.max.y * s, z0 = bb.min.z * s, z1 = bb.max.z * s;
@@ -491,6 +501,7 @@ export function coverWeightFn(geo, s = 1, o = {}) {
   // otherwise leave bins measured only by an end panel's interior vertices, and the weight would ripple in y
   const idx = geo.index, ne = idx ? idx.count : n;
   for (let t = 0; t < ne; t += 3) for (let e = 0; e < 3; e++) {
+    if (e === 0 && (t % 768) === 765 && due()) yield;
     const a = idx ? idx.getX(t + e) : t + e, b = idx ? idx.getX(t + (e + 1) % 3) : t + (e + 1) % 3;
     const ax = P.getX(a) * s - xc, ay = P.getY(a) * s, bx = P.getX(b) * s - xc, by = P.getY(b) * s;
     const k = Math.ceil(Math.hypot(bx - ax, by - ay) / (st * 0.5));
@@ -535,7 +546,10 @@ export function coverWeightFn(geo, s = 1, o = {}) {
  * @param {object} geo THREE.BufferGeometry @param {number} [maxEdge=0.3] @param {number} [s=1] metres per unit
  * @returns {object} the same geometry (or a new one when something was split)
  */
-export function subdivideCanvas(geo, maxEdge = 0.3, s = 1) {
+export function subdivideCanvas(geo, maxEdge = 0.3, s = 1) { return runSync(subdivideCanvasG(geo, maxEdge, s)); }
+
+/** subdivideCanvas() as a sliced job (engine/slice.js): pauses between passes and triangle stretches. */
+export function* subdivideCanvasG(geo, maxEdge = 0.3, s = 1) {
   if (geo.groups.length > 1 || Object.keys(geo.morphAttributes).length) return geo;
   const P = geo.attributes.position, names = Object.keys(geo.attributes);
   let idx = geo.index ? Array.from(geo.index.array) : Array.from({ length: P.count }, (_, i) => i);
@@ -546,7 +560,10 @@ export function subdivideCanvas(geo, maxEdge = 0.3, s = 1) {
   let changed = false;
   for (let pass = 0; pass < 6; pass++) {
     const marked = new Set(), ek = (a, b) => { const x = pk(a), y = pk(b); return x < y ? x + '|' + y : y + '|' + x; };
-    for (let t = 0; t < idx.length; t += 3) for (let e = 0; e < 3; e++) { const a = idx[t + e], b = idx[t + (e + 1) % 3]; if (len2(a, b) > L2) marked.add(ek(a, b)); }
+    for (let t = 0; t < idx.length; t += 3) {
+      for (let e = 0; e < 3; e++) { const a = idx[t + e], b = idx[t + (e + 1) % 3]; if (len2(a, b) > L2) marked.add(ek(a, b)); }
+      if ((t % 1536) === 1533 && due()) yield;
+    }
     if (!marked.size) break;
     changed = true;
     const mids = new Map(), mid = (a, b) => {
@@ -561,6 +578,7 @@ export function subdivideCanvas(geo, maxEdge = 0.3, s = 1) {
     };
     const out = [];
     for (let t = 0; t < idx.length; t += 3) {
+      if ((t % 1536) === 1533 && due()) yield;
       const v = [idx[t], idx[t + 1], idx[t + 2]], mk = [0, 1, 2].map((e) => marked.has(ek(v[e], v[(e + 1) % 3])));
       const n = mk.filter(Boolean).length;
       if (!n) { out.push(...v); continue; }
@@ -595,12 +613,15 @@ const metresPerUnit = (o) => { o.updateWorldMatrix?.(true, false); const e = o.m
  * pin model + the canvas shader. @param {object} mesh THREE.Mesh @param {{rear?:number, loose?:number, taut?:number}} [o]
  * (`taut` < 1 for a car's folding top: barely ripples)
  */
-export function applyCanvasCover(mesh, o = {}) {
+export function applyCanvasCover(mesh, o = {}) { return runSync(applyCanvasCoverG(mesh, o)); }
+
+/** applyCanvasCover() as a sliced job (engine/slice.js): the same attributes, the page drawing between slices. */
+export function* applyCanvasCoverG(mesh, o = {}) {
   const g = mesh.geometry;
   if (!g.attributes.aFlapDir) {
     const s = metresPerUnit(mesh);
-    subdivideCanvas(g, 0.3, s);
-    canvasAttributes(g, coverWeightFn(g, s, o), s);
+    yield* subdivideCanvasG(g, 0.3, s);
+    yield* canvasAttributesG(g, yield* coverWeightFnG(g, s, o), s);
     g.userData.canvasCover = true;
   }
   return ownCanvasMaterial(mesh);

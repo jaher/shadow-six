@@ -54,6 +54,8 @@ import { hash2 } from './noise.js';
 import { loadLayerArray } from './layer-image.js';
 import { compressRenderTarget } from '../../engine/gpu-compress.js';
 import { sessionCache as cache, dataKey } from '../../engine/asset-cache.js';
+import { due, runSliced, SLICED } from '../../engine/slice.js';
+import { compileAhead } from '../../engine/parallel-compile.js';
 import { textureBytes } from '../../engine/scoped-assets.js';
 
 /** GPU compression per strip (engine/gpu-compress.js): the *_n maps carry the alpha-tested coverage in blue (weighted
@@ -65,6 +67,46 @@ function loadStrip(url, srgb, alpha, tile) {
   return cache.memoAsync(`strip:${url}|${srgb ? 1 : 0}|${alpha ? 1 : 0}|${tile || '-'}`, () => loadLayerArray(url, { srgb, anisotropy: 4, wrap: alpha ? THREE.ClampToEdgeWrapping : THREE.RepeatWrapping, tile, ...cmp }).then((t) => cache.retain(t)), {
     bytes: textureBytes, dispose: (t) => t.dispose(),
   });
+}
+
+/** Run a generator straight through (engine/slice.js runSync, kept local: the tree worker never loads this module). */
+function runSyncGen(gen) { let r = gen.next(); while (!r.done) r = gen.next(); return r.value; }
+/**
+ * The impostor bake's programs (bakeImpostors: one ambient light, the bark / leaf / needle materials and their normal-pass
+ * variants, drawn into a render target) created and linked by the driver without blocking: the same draws into a 4 × 4
+ * target as a probe (engine/parallel-compile.js compileAhead, every new-program draw skipped). The returned material —
+ * the bake's own MeshNormalMaterial twin — keeps that program alive until the bake has taken it; dispose it after.
+ * @returns {Promise<THREE.Material|null>}
+ */
+async function precompileBake(gl, protos, mats) {
+  if (!gl || !protos.length) return null;
+  const rt = new THREE.WebGLRenderTarget(4, 4, { depthBuffer: true, generateMipmaps: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+  const scene = new THREE.Scene();
+  scene.add(new THREE.AmbientLight(0xffffff, 1));
+  const bark = new THREE.Mesh(undefined, mats.barkMat), leaf = new THREE.Mesh(undefined, mats.leafMat);
+  const needle = new THREE.Mesh(undefined, mats.needleMat || mats.leafMat);
+  scene.add(bark, leaf, needle);
+  const nBark = new THREE.MeshNormalMaterial(), cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400), empty = new THREE.BufferGeometry();
+  cam.position.set(0, 0, 150); cam.lookAt(0, 0, 0); cam.updateMatrixWorld();
+  try {
+    await compileAhead(gl, () => {
+      const prev = gl.getRenderTarget();
+      try {
+        gl.setRenderTarget(rt);
+        for (const P of protos) for (const pass of [0, 1]) {
+          bark.geometry = P.bark || empty; bark.visible = !!P.bark;
+          leaf.geometry = P.leaf || empty; leaf.visible = !!P.leaf;
+          needle.geometry = P.needle || empty; needle.visible = !!P.needle;
+          bark.material = pass ? nBark : mats.barkMat;
+          leaf.material = pass ? mats.leafNormalMat : mats.leafMat;
+          needle.material = pass ? (mats.needleNormalMat || mats.leafNormalMat) : (mats.needleMat || mats.leafMat);
+          gl.render(scene, cam);
+        }
+      } finally { gl.setRenderTarget(prev); }
+    }, { all: true });
+  } catch (e) { console.warn('[vegetation] impostor precompile', e); }
+  finally { rt.dispose(); empty.dispose(); }
+  return nBark;
 }
 
 /** Impostor-bank cache entry dispose (module level: a callback made inside the builder would keep its whole scope — and the mission — alive). */
@@ -576,11 +618,16 @@ export async function createVegetation(scene, placements, theater = 'temperate',
       stats.worker = !!out;
     }
     if (!out) {
-      out = chunkList.map((c) => {
-        const bark = new GeoAcc(), leaf = new GeoAcc(), needle = new GeoAcc();
-        const info = c.trees.map((t) => generateTree(t.species, t.seed, q, bark, leaf, t, needle));
-        return { key: c.key, bark: bark.count ? bark.toArrays() : null, leaf: leaf.count ? leaf.toArrays() : null, needle: needle.count ? needle.toArrays() : null, info };
-      });
+      // here: tree by tree, a slice at a time (engine/slice.js) — the same trees in the same order
+      out = await runSliced((function* genChunks() {
+        const res = [];
+        for (const c of chunkList) {
+          const bark = new GeoAcc(), leaf = new GeoAcc(), needle = new GeoAcc(), info = [];
+          for (const t of c.trees) { info.push(generateTree(t.species, t.seed, q, bark, leaf, t, needle)); if (due()) yield; }
+          res.push({ key: c.key, bark: bark.count ? bark.toArrays() : null, leaf: leaf.count ? leaf.toArrays() : null, needle: needle.count ? needle.toArrays() : null, info });
+        }
+        return res;
+      })());
     }
     if (!stats.cached) cache.set(genKey, out, { bytes: chunkBytes });
     // swap geometry in only when the new set is ready (no pop-out while regenerating)
@@ -625,7 +672,7 @@ export async function createVegetation(scene, placements, theater = 'temperate',
       const tile = IMP_TILE[quality] ?? 256;
       const impKey = `impostors:${dataKey((h) => h.str(JSON.stringify([protoKeys, q, tile, ts.marc || 0, ts.marcTrees || null, +pitch.toFixed(5), theater, U.uSnowAmt.value, U.uSnowBias.value])))}`;
       const prev = impBank;
-      const baked = cache.memo(impKey, () => {
+      const genProtos = function* genProtos() {
         const protos = [];
         for (const k of protoKeys) {
           const [sp] = k.split('|');
@@ -633,14 +680,37 @@ export async function createVegetation(scene, placements, theater = 'temperate',
             const bark = new GeoAcc(), leaf = new GeoAcc(), needle = new GeoAcc();
             const info = generateTree(sp, 9173 + v * 131 + protos.length, q, bark, leaf, { x: 0, y: 0, z: 0, leafless: k.includes('|bare'), burnt: k.includes('|burnt'), marc: k.includes('|bare') ? ts.marc || 0 : 0, marcTrees: ts.marcTrees }, needle);
             protos.push({ key: k, v, info, bark: bark.count ? bark.toGeometry() : null, leaf: leaf.count ? leaf.toGeometry() : null, needle: needle.count ? needle.toGeometry() : null });
+            if (due()) yield;
           }
         }
-        const bank = bakeImpostors(gl, protos, { barkMat: barkM.mat, leafMat: leafM.mat, leafNormalMat: aoMat, needleMat: needleM.mat, needleNormalMat: needleM.aoMat, U }, { views: 6, tile, pitch });
+        return protos;
+      };
+      const bakeMats = { barkMat: barkM.mat, leafMat: leafM.mat, leafNormalMat: aoMat, needleMat: needleM.mat, needleNormalMat: needleM.aoMat, U };
+      // not baked yet: the prototypes are grown a slice at a time and the bake's programs linked by the driver first
+      // (engine/parallel-compile.js), so the bake itself — the same draws — never waits for a compile
+      let pre = null, preKeep = null;
+      if (SLICED && !cache.has(impKey)) {
+        pre = await runSliced(genProtos());
+        preKeep = await precompileBake(gl, pre, bakeMats);
+        // …and the strips it samples on the GPU a task apart (its first draws uploaded them all in one go): only those
+        // the prototypes draw — bark always, leaf cards / needle sprays when there are some
+        const ups = [];
+        if (pre.some((P) => P.bark)) ups.push(bAlb, bNor);
+        if (pre.some((P) => P.leaf)) ups.push(lAlb, lNor);
+        if (pre.some((P) => P.needle)) ups.push(nAlb, nNor);
+        for (const t of ups) if (t && gl?.initTexture) { gl.initTexture(t); await new Promise((ok) => setTimeout(ok, 0)); }
+      }
+      const baked = cache.memo(impKey, () => {
+        const protos = pre || runSyncGen(genProtos());
+        pre = null;
+        const bank = bakeImpostors(gl, protos, bakeMats, { views: 6, tile, pitch });
         for (const pr of protos) { pr.bark?.dispose(); pr.leaf?.dispose(); pr.needle?.dispose(); }
         cache.retain(bank.albedo); cache.retain(bank.normal);
         compactImpostorBank(bank);
         return { bank, heights: protos.map((pr) => pr.info.height) };
       }, { bytes: (b) => b.bank.bytes || 0, dispose: disposeImpostorEntry });
+      preKeep?.dispose();
+      for (const pr of pre || []) { pr.bark?.dispose(); pr.leaf?.dispose(); pr.needle?.dispose(); } // (baked meanwhile by another build)
       impBank = baked.bank;
       if (prev && prev !== impBank) { cache.release(prev.albedo); cache.release(prev.normal); }
       const protos = baked.heights.map((height) => ({ info: { height } }));

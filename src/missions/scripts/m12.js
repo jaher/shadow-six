@@ -262,9 +262,12 @@ export function buildVisuals(world, spec) {
   }
 }
 
-/** mission.script: visuals, roof-prop blocks, post-elevation sight blockers and parapets, the HQ's ears. */
+/**
+ * mission.script: visuals, roof-prop blocks, post-elevation sight blockers and parapets, the HQ's ears. `.visuals`: the
+ * scenery alone, built by Game as the load ends (the first tick's call finds it built).
+ */
 export function m12Script(spec) {
-  return (world) => {
+  const script = (world) => {
     buildVisuals(world, spec);
     blockRoofRects(world, spec.block || []);
     stampLines(world, spec.lines || []);
@@ -274,4 +277,6 @@ export function m12Script(spec) {
       world.listen('noise', (n) => { if (southHears(world, n, poly)) world.alarm?.raise(id, 'heard', n.x, n.z, { sensor: 'seen' }); });
     }
   };
+  script.visuals = (world) => buildVisuals(world, spec);
+  return script;
 }
