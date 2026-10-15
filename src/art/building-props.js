@@ -78,6 +78,11 @@ VARIANT_HINTS.mobile_bridge = { mobile_bridge_sliding: null }; // M17: missions/
 Object.assign(VARIANT_HINTS.hut, { shed_concrete: ['shed_concrete'] });
 // M5 art pass: the village privy is drawn by missions/scripts/m05-art.js (castle-kit plank privy), never the sentry box
 VARIANT_HINTS.hut.outhouse_plank = null;
+// M7 art pass: missions/scripts/m07-art.js draws the burnt timber frames, the fish-drying racks and the slipway's timber
+// gantry (never a brick townhouse ruin or four MG nests)
+Object.assign(VARIANT_HINTS.ruins, { burned_timber: null, fish_drying_racks: null });
+VARIANT_HINTS.bunker.gantry_timber = null;
+VARIANT_HINTS.house.house_norse_compound = null; // the L-shaped tarred house, the red double house: m07-art.js parts
 Object.assign(VARIANT_HINTS.house, { house_concrete_2st: ['house_coastal_normandy'] });
 Object.assign(VARIANT_HINTS.bunker, { blockhouse_small: ['blockhouse_small'] });
 // M12 art pass (Tunis, manifest-tunis.json + the M12 desert set): the harbour HQ is a French-protectorate office block, the
@@ -330,9 +335,12 @@ export function libraryVisual(type, p = {}, ctx = {}) {
   let pick = pickAsset(type, part ? { ...p, asset: part.asset ?? p.asset } : p, ctx);
   if (!pick) return null;
   if (part) { const [x0, z0, x1, z1] = part.box; pick = { ...pick, turn: 0, ext: { w: x1 - x0, d: z1 - z0, cx: (x0 + x1) / 2, cz: (z0 + z1) / 2 } }; }
+  // `artTurn: 0|1` overrides the aspect-driven quarter turn (keeps the model's door on the face the mission's door uses)
+  else if (p.artTurn === 0 || p.artTurn === 1) pick = { ...pick, turn: p.artTurn };
   const theater = ctx.theater;
-  // `artOffset: [dx, dz]` (m): the model only, nudged off a neighbour it would clip (the gameplay footprint stays)
-  const x = (p.x ?? 0) + (p.artOffset?.[0] ?? 0), z = (p.z ?? 0) + (p.artOffset?.[1] ?? 0), rot = p.rot ?? 0;
+  // `artOffset: [dx, dz]` (m): the model only, nudged off a neighbour it would clip (the gameplay footprint stays);
+  // `artRot` (rad, a half turn on a w × d footprint): the model only, turned so its door faces the mission's door
+  const x = (p.x ?? 0) + (p.artOffset?.[0] ?? 0), z = (p.z ?? 0) + (p.artOffset?.[1] ?? 0), rot = (p.rot ?? 0) + (p.artRot ?? 0);
   const b = createBuilding(pick.name, { x: 0, z: 0, rot: 0, id: p.id, theater, destroyed: !!p.destroyed });
   if (!b) return null;
   const outer = new THREE.Group();
@@ -357,6 +365,9 @@ export function libraryVisual(type, p = {}, ctx = {}) {
     sy = ext.deckY && deckY ? clamp(deckY / ext.deckY, 0.7, 1.4) : clamp(Math.sqrt(sx * sz), 0.8, 1.25);
   } else ({ sx, sy, sz } = fitScale(rawX, rawZ, doorsH.length ? Math.max(...doorsH) : 0));
   fit.scale.set(sx, sy, sz);
+  // `artMirror: 'x' | 'z'`: the model mirrored across that structure-frame axis (a door moved to the other end of a face
+  // or to the opposite face; three.js flips the winding for a negative-determinant matrix)
+  if (p.artMirror === 'x') fit.scale.x = -sx; else if (p.artMirror === 'z') fit.scale.z = -sz;
   b.object3d.position.set(-ext.cx, 0, -ext.cz);
   outer.add(fit); fit.add(turnG); turnG.add(b.object3d);
   if (w && d && (rawX < 0.8 || rawX > 1.25 || rawZ < 0.8 || rawZ > 1.25)) {
@@ -805,6 +816,8 @@ export async function prepareMissionArt(mission, o = {}) {
     const a = buildingMeta(pk.name);
     names.add(theater === 'snow' && a.snowVariant ? a.snowVariant : pk.name); // the variant createBuilding will use
   }
+  // `artAssets`: models a mission's art script places itself (M7: the village compounds' parts, the drying racks)
+  for (const n of mission?.artAssets || []) if (S.manifest.assets[n]) names.add(n);
   const t0 = performance.now();
   const job = preloadBuildings([...names], { theater }); // + their destroyed variants
   await Promise.race([job, new Promise((ok) => setTimeout(ok, o.timeoutMs ?? 25000))]);

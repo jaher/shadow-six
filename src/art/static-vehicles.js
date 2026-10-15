@@ -62,11 +62,13 @@ export function staticVehicleAssets(def) {
   return [...out].sort();
 }
 
-/** Placement of a library model on a structure footprint: scale (≤ 1) and whether it was shrunk. */
-export function fitOnFootprint(model, fp) {
+/** Placement of a library model on a structure footprint: scale (≤ 1); `k` = how far past the footprint it may reach
+ *  (`vehicleArtFit: 1`: exactly onto it — M7's cutters moored between jetty decks the grid does not block). */
+export function fitOnFootprint(model, fp, k = 1.1) {
   const [L, W] = model, [fl, fw] = fp;
-  if (!(fl > 0) || !(fw > 0) || (L <= fl * 1.15 && W <= fw * 1.15)) return 1;
-  return Math.max(0.6, Math.min(1, (fl * 1.1) / L, (fw * 1.1) / W));
+  if (!(fl > 0) || !(fw > 0)) return 1;
+  if (k >= 1.1 && L <= fl * 1.15 && W <= fw * 1.15) return 1; // the default fit lets a model overhang by 15 %
+  return Math.max(0.6, Math.min(1, (fl * k) / L, (fw * k) / W));
 }
 
 /** Static gun variants with a procedural kit model (art/field-guns.js, placed by scripts/m20-art.js). */
@@ -95,6 +97,11 @@ export function dressStaticVehicles(world, def) {
     if (!vis) continue;
     const holder = new THREE.Group(); holder.name = `static-vehicle:${asset}`;
     holder.rotation.y = Math.PI / 2; // structure local +X = its heading; the library model faces +Z
+    // `vehicleArtY` (m): the model sits that much higher / lower (M7: a U-boat trimmed down to the walk deck at the
+    // pier's level, a faering hauled up on the beach resting on its keel)
+    if (Number.isFinite(s.def?.vehicleArtY)) holder.position.y = s.def.vehicleArtY;
+    // `vehicleArtX` (m): slid along the structure heading (M7: each U-boat's tower over its gameplay tower block)
+    if (Number.isFinite(s.def?.vehicleArtX)) holder.position.x = s.def.vehicleArtX;
     // an 'overturned' wreck (e.g. M15's car_wreck_overturned) lies on its roof: rolled 180 deg about its long axis
     const flip = /overturned/.test(String(s.def?.variant || '')) ? new THREE.Group() : null;
     if (flip) { flip.name = 'overturned'; flip.rotation.z = Math.PI; flip.add(vis.object3d); holder.add(flip); } else holder.add(vis.object3d);
@@ -108,11 +115,14 @@ export function dressStaticVehicles(world, def) {
         const top = b ? b.max[1] : new THREE.Box3().setFromObject(vis.object3d).max.y;
         flip.position.y = Math.max(0, top - 0.08);
       }
-      // true scale when the overhang clears every other structure; else onto the footprint (windsocks never scale)
-      const clear = asset === 'windsock' || overhangClear(world.grid, s.def, L, W);
-      rec.scale = clear ? 1 : fitOnFootprint([L, W], fp);
+      // true scale when the overhang clears every other structure; else onto the footprint (windsocks never scale;
+      // `vehicleArtFit` always fits it)
+      const clear = asset === 'windsock' || (!s.def?.vehicleArtFit && overhangClear(world.grid, s.def, L, W));
+      rec.scale = clear ? 1 : fitOnFootprint([L, W], fp, typeof s.def?.vehicleArtFit === 'number' ? s.def.vehicleArtFit : 1.1);
       if (rec.scale < 1) { holder.scale.setScalar(rec.scale); noteVehicleArt(`${id} (${asset}) ${L.toFixed(1)}×${W.toFixed(1)} m scaled ${rec.scale.toFixed(2)} onto its ${fp[0]}×${fp[1]} m footprint`); }
-      for (const c of s.object3d.children) if (c !== holder && !c.userData?.keepWithLibrary) c.visible = false;
+      for (const c of s.object3d.children) if (c !== holder) hideExceptKept(c);
+      // `vehicleArtHide`: model parts left off a parked one (M7: the oars of a faering hauled up on the beach)
+      for (const part of s.def?.vehicleArtHide || []) vis.showPart?.(part, false);
       markShared(vis.object3d);
       if (asset === 'windsock') addVehicleTicker(windsockTicker(vis, s.object3d));
     });
@@ -120,6 +130,15 @@ export function dressStaticVehicles(world, def) {
     out.push(rec);
   }
   return out;
+}
+
+/** Hide a placeholder subtree, sparing any `keepWithLibrary` part inside it (e.g. M7's torpedo stack on the hull). */
+function hideExceptKept(o) {
+  if (o.userData?.keepWithLibrary) return;
+  let kept = false;
+  o.traverse((d) => { if (d !== o && d.userData?.keepWithLibrary) kept = true; });
+  if (!kept || o.isMesh) { o.visible = false; return; }
+  for (const c of o.children) hideExceptKept(c);
 }
 
 /**

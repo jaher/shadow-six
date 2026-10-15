@@ -23,6 +23,7 @@
 
 import { UBOATS, hullPoint, nearUboatHull, inMarker, afloat, chargesLeft, spawnVillageOfficer } from './scripts/m07.js';
 import { joinStructures } from './schema.js';
+import { installM07Art } from './scripts/m07-art.js';
 
 const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (enemy-brain reads wp.look * DEG)
@@ -47,10 +48,20 @@ const uboat = (id) => {
     id, type: 'battleship', variant: 'uboat_docked', label: 'U-boat', x: b.x, z: b.z, rot: deg(b.rot), w: b.w, d: b.d, h: 5, deck: true, deckY: 1.2,
     destructible: true, bombOnly: true, targetAt: [b.torpX, 0], marker: b.marker, hp: 100,
     destroyFx: ['explode', 'removeCrest', 'sinkStern'], torpedoStack: true,
+    // art pass: the library Type VIIC (winter) over the deck, trimmed down so its casing deck is the walk deck (0.3 m,
+    // the pier's level); the torpedo stack stays (keepWithLibrary)
+    vehicleArt: 'uboat_viic', vehicleArtY: -1.1, vehicleArtX: UBOAT_ART[id].dx,
   };
 };
-/** The conning tower (`uboat_tower`): B.HIGH, it stays above water when the hull settles. */
-const tower = (id, b) => ({ id, type: 'uboat_tower', variant: 'uboat_conning_tower', ...hullPoint(b, 2), rot: deg(b.rot), w: 5, d: 2.4, h: 4, mat: 'greyPaint', block: 2 });
+/**
+ * Art pass: where the library Type VIIC sits on each hull (`dx` m along the heading) so the 6.2 m torpedo stack lies on
+ * its casing deck (which runs to 29 m aft of the model's middle before the stern tapers): U-boat 1 as laid out, U-boat
+ * 2 (stack 29.5 m aft) slid 4 m aft. The model's tower (fairing + wintergarten) spans ~10 m centred 0.5 m aft of the
+ * model's middle.
+ */
+const UBOAT_ART = { uboat_1: { dx: 0 }, uboat_2: { dx: -4 } };
+/** The conning tower (`uboat_tower`): B.HIGH, it stays above water when the hull settles; drawn by the model. */
+const tower = (id, b, hull) => ({ id, type: 'uboat_tower', variant: 'uboat_conning_tower', ...hullPoint(b, UBOAT_ART[hull].dx - 0.5), rot: deg(b.rot), w: 10, d: 2.6, h: 4, mat: 'greyPaint', block: 2, visual: false });
 
 /** Fieldstone wall with a barbed-wire coping (not climbable). */
 const wall = (id, points, extra = {}) => ({ id, type: 'wall', variant: 'wall_stone_zigzag', mat: 'stone', points, h: 3, width: 0.6, ...extra });
@@ -59,7 +70,9 @@ const house = (id, x, z, w, d, h, door, variant = 'house_norse_fishing') =>
   ({ id, type: 'house', variant, x, z, rot: 0, w, d, h, mat: 'woodDark', snowRoof: true, enterable: true, door });
 const pine = (x, z, k) => ({ type: 'pine', x, z, r: 0.5, h: 9 + (k % 6), seed: 701 + k });
 const ruin = (id, x, z, w = 5, d = 4) => ({ id, type: 'ruins', variant: 'burned_timber', x, z, rot: 0, w, d, h: 3, block: 1 });
-const boat = (id, x, z, rot, variant = 'boat_moored', block = 2) => ({ id, type: 'crates', variant, x, z, rot: deg(rot), w: variant === 'boat_moored' ? 9 : 4, d: variant === 'boat_moored' ? 3 : 1.8, h: 1.4, block });
+/** Art pass: moored = the library motor fishing cutter, beached = the faering rowing boat (oars shipped, some keel-up). */
+const boat = (id, x, z, rot, variant = 'boat_moored', block = 2) => ({ id, type: 'crates', variant, x, z, rot: deg(rot), w: /moored/.test(variant) ? 9 : 4, d: /moored/.test(variant) ? 3 : 1.8, h: 1.4, block,
+  vehicleArt: /moored/.test(variant) ? 'fishing_boat' : 'rowboat', ...(/moored/.test(variant) ? { vehicleArtFit: 1 } : { vehicleArtHide: ['oar_l', 'oar_r'], ...(/overturned/.test(variant) ? {} : { vehicleArtY: 0.22 }) }) });
 
 // ---------------------------------------------------------------- terrain (dossier §4)
 /** T6 the harbour: the quay face (0,102)→(49.5,146.7), the lighthouse mole's notch, the pebble beach E. */
@@ -89,16 +102,17 @@ const CLIFFS = [
 ];
 
 const BUILDINGS = [
-  { id: 'hangar_nw', type: 'hangar', variant: 'quonset_hangar', x: 19, z: 26, rot: 0, w: 16, d: 11, h: 7 },
-  house('hut_gate', 22, 56.5, 10, 6, 4, [18.5, 52.5], 'barracks_rendered_hip'),
+  { id: 'hangar_nw', type: 'hangar', variant: 'quonset_hangar', x: 19, z: 26, rot: 0, w: 16, d: 11, h: 7, asset: 'nissen_hut' },
+  // (art: the cabin mirrored N-S so its door is on the N face, W end, where the hideout door is)
+  { ...house('hut_gate', 22, 56.5, 10, 6, 4, [18.5, 52.5], 'barracks_rendered_hip'), asset: 'log_cabin_b_snow', artMirror: 'z' },
   // the three garrisons (Kildread's "3 Bunkers"); a bomb or a barrel empties them for good (§4.9)
   { id: 'barr_dock', type: 'barracks', variant: 'barracks_rendered_hip', x: 10.5, z: 77, rot: 0, w: 11, d: 8, h: 6, mat: 'plaster',
-    flag: true, garrison: true, destructible: true, hp: 100, door: Math.PI / 2 },
+    flag: true, garrison: true, destructible: true, hp: 100, door: Math.PI / 2, asset: 'barracks_c_snow' },
   { id: 'barr_mid', type: 'barracks', variant: 'barracks_rendered_hip', x: 65.2, z: 81.5, rot: 0, w: 11, d: 9, h: 6, mat: 'plaster',
-    flag: true, garrison: true, destructible: true, hp: 100, door: -Math.PI / 2 },
+    flag: true, garrison: true, destructible: true, hp: 100, door: -Math.PI / 2, asset: 'barracks_b_snow', artRot: Math.PI }, // main door N
   { id: 'barr_vil', type: 'barracks', variant: 'house_norse_fishing', x: 134.8, z: 83.5, rot: 0, w: 8, d: 9, h: 6, mat: 'woodDark',
-    flag: true, banners: true, garrison: true, destructible: true, hp: 100, door: Math.PI },
-  house('house_mid', 50.4, 73.5, 11, 9, 6, [50.4, 78.8], 'barracks_rendered_hip'),
+    flag: true, banners: true, garrison: true, destructible: true, hp: 100, door: Math.PI, artTurn: 1 }, // (art) front door W
+  { ...house('house_mid', 50.4, 73.5, 11, 9, 6, [50.4, 78.8], 'barracks_rendered_hip'), asset: 'barracks_c_snow' },
   // the timber gantry over the slip rails: two portals (B.HIGH posts), open between them; the square posts stand
   // square to w_inner (41.7°) beside it
   ...[[-5, -3], [-5, 3], [5, -3], [5, 3]].map(([lx, lz], k) => {
@@ -106,14 +120,15 @@ const BUILDINGS = [
     return { id: `gantry_post_${k + 1}`, type: 'bunker', variant: 'gantry_timber', x: +(34 + lx * c - lz * s).toFixed(2), z: +(84 + lx * s + lz * c).toFixed(2), rot: deg(41.7), w: 0.8, d: 0.8, h: 6, mat: 'woodDark', block: 2 };
   }),
   // the village (tarred / red-painted timber, all enterable)
-  house('h_big', 107, 62.5, 13, 22, 8, [99.8, 66]),
-  house('h_1', 114, 74, 8, 10, 6, [114, 79.8]),
-  house('h_2', 124.5, 72.5, 7, 8, 6, [124.5, 77.3]),
-  house('h_3', 118.5, 88.5, 7, 10, 6, [114.3, 88.5]),
-  house('h_4', 99.5, 86, 9, 17, 8, [104.8, 88]),
-  house('h_5', 127, 97, 12, 10, 8, [127, 91.3]),
-  house('h_6', 100.5, 99, 8, 7, 5, [100.5, 103.3]),
-  { id: 'boathouse', type: 'house', variant: 'boathouse', x: 137, z: 111, rot: deg(20), w: 8, d: 12, h: 6, mat: 'woodDark', snowRoof: true },
+  // (art pass: h_big and h_4 are compounds of library houses, ART.parts; the rest one Norwegian model each)
+  house('h_big', 107, 62.5, 13, 22, 8, [99.8, 66], 'house_norse_compound'),
+  { ...house('h_1', 114, 74, 8, 10, 6, [114, 79.8]), asset: 'house_timber_b_snow' },
+  { ...house('h_2', 124.5, 72.5, 7, 8, 6, [124.5, 77.3]), asset: 'house_timber_a_snow' },
+  { ...house('h_3', 118.5, 88.5, 7, 10, 6, [114.3, 88.5]), asset: 'house_timber_b_snow', artTurn: 1 }, // front door W
+  house('h_4', 99.5, 86, 9, 17, 8, [104.8, 88], 'house_norse_compound'),
+  { ...house('h_5', 127, 97, 12, 10, 8, [127, 91.3]), asset: 'house_timber_c_snow' },
+  { ...house('h_6', 100.5, 99, 8, 7, 5, [100.5, 103.3]), asset: 'fishing_shed_a_snow', artTurn: 0 }, // front door S
+  { id: 'boathouse', type: 'house', variant: 'boathouse', x: 137, z: 111, rot: deg(20), w: 8, d: 12, h: 6, mat: 'woodDark', snowRoof: true, asset: 'naust_a_snow' },
   ruin('ruin_1', 88.8, 90), ruin('ruin_2', 82.4, 106), ruin('ruin_3', 89.5, 110), ruin('ruin_4', 88, 118), ruin('ruin_5', 70.8, 123), ruin('ruin_6', 133, 67),
   { id: 'racks_e', type: 'ruins', variant: 'fish_drying_racks', x: 142.5, z: 77, rot: 0, w: 3, d: 26, h: 4, block: 1 },
   { id: 'lighthouse', type: 'lighthouse', variant: 'lighthouse_small', x: 76.5, z: 171, r: 2.5, h: 16, mat: 'plaster' },
@@ -123,12 +138,14 @@ const BUILDINGS = [
 const WATERSIDE = [
   // the granite quay face (the T8 strip is its land side): iron bollards every 6 m, decor only (no block)
   ...Array.from({ length: 11 }, (_, k) => ({ id: `quay_bollard_${k + 1}`, type: 'sign', variant: 'quay_granite_bollard', x: +(2.2 + k * 4.45).toFixed(2), z: +(102.4 + k * 4.02).toFixed(2), r: 0.2, h: 0.6, block: 0 })),
-  span('pier', [0, 126], [35, 158.5], 8, { variant: 'uboat_pen_open' }),
+  // (art: the library T pier's head, stretched to 20 m across, lay over both U-boats' sterns and torpedo stacks: only
+  // the walk deck is drawn, its head cut back to the deck's width; ART.pierRoot re-decks the root)
+  span('pier', [0, 126], [35, 158.5], 8, { variant: 'uboat_pen_open', hideParts: [{ box: [-28, 2.05, -21.5, 6.5], pad: 0 }, { box: [-28, -6.5, -21.5, -2.05], pad: 0 }] }),
   span('float', [36, 162.5], [39, 165.5], 3, { variant: 'timber_float' }),
   span('gw_1', [19.2, 131.1], [14.8, 135.9], 1.5, { variant: 'steel_gangway' }),
   span('gw_2', [24.2, 136.1], [19.8, 140.9], 1.5, { variant: 'steel_gangway' }),
   uboat('uboat_1'), uboat('uboat_2'),
-  tower('uboat_1_tower', UBOATS.uboat_1), tower('uboat_2_tower', UBOATS.uboat_2),
+  tower('uboat_1_tower', UBOATS.uboat_1, 'uboat_1'), tower('uboat_2_tower', UBOATS.uboat_2, 'uboat_2'),
   { id: 'slip_rails', type: 'rail_track', points: [[41, 81.6], [30, 89], [18, 100], [7.5, 112], [5, 116]] },
   { id: 'crane_dock', type: 'bunker', variant: 'crane_dock_portal', x: 36, z: 112, rot: deg(45), w: 1.2, d: 1.2, h: 12, mat: 'metalRust', block: 2 },
   { id: 'gun22_pit', type: 'sandbags', variant: 'gun_pit_open', x: 5, z: 93, rot: deg(120), ring: { r: 3, arc: 300 }, h: 0.8, block: 1 },
@@ -143,7 +160,7 @@ const WATERSIDE = [
     .map(([x, z, r], k) => boat(`boat_m${k + 1}`, x, z, r)),
   // 14 hauled-up boats and dinghies on the beach and in the ruins field (low cover)
   ...[[74, 126], [78, 124], [80, 133], [86, 131], [73, 135], [89, 127], [94, 118], [97, 121], [99, 115], [104, 114], [110, 107], [118, 107], [120, 110], [123, 106]]
-    .map(([x, z], k) => boat(`boat_b${k + 1}`, x, z, k === 0 || k === 4 ? 37 : 30 + 25 * (k % 4), 'boat_beached', 1)), // b1/b5 lie along w_salient
+    .map(([x, z], k) => boat(`boat_b${k + 1}`, x, z, k === 0 || k === 4 ? 37 : 30 + 25 * (k % 4), k % 3 === 1 ? 'boat_beached_overturned' : 'boat_beached', 1)), // b1/b5 lie along w_salient; every third keel-up
 ];
 
 /** Walls and gates (dossier §5.3): fieldstone, 3 m, barbed-wire coping, not climbable. */
@@ -176,7 +193,7 @@ const PROPS = [
   // air-drop crate under a draped parachute (the charges), crate stacks
   { id: 'airdrop', type: 'crates', variant: 'airdrop_crate', x: 15, z: 4.5, rot: 0, w: 1.2, d: 1.2, h: 1.0, block: 0 },
   { id: 'parachute', type: 'sign', variant: 'parachute_draped', x: 12, z: 7.8, r: 0.5, h: 3, block: 0 },
-  ...[[20, 95], [38, 116], [47, 60]].map(([x, z], k) => ({ id: `crates_${k + 1}`, type: 'crates', x, z, rot: 0, w: 2, d: 2, h: 1.2, block: 1 })),
+  ...[[20, 95], [38, 116], [47, 60]].map(([x, z], k) => ({ id: `crates_${k + 1}`, type: 'crates', variant: 'dock_cargo', asset: ['dock_cargo_a', 'dock_cargo_c', 'dock_cargo_b'][k], x, z, rot: 0, w: 2, d: 2, h: 1.2, block: 1 })),
   // the hedgehog in the crag gap
   { id: 'hedgehog_n', type: 'crates', variant: 'czech_hedgehog', x: 46, z: 23, rot: deg(45), w: 1.4, d: 1.4, h: 1.2, block: 1 },
   // rocks: the start rock that hides group B, two boulders, the low chain E of it, the mole rim
@@ -192,7 +209,77 @@ const PROPS = [
     [122.5, 45], [129.5, 18], [133.5, 12], [136.5, 23], [140, 52]].map(([x, z], k) => pine(x, z, k)),
 ];
 
-const STRUCTURES = [...CLIFFS, ...BUILDINGS, ...WATERSIDE, ...WALLS, ...PROPS];
+// ---------------------------------------------------------------- art pass: set dressing (low cover, >= 1.5 m off every
+// route, >= 3 m off every post, start, item and vehicle; authored on free cells: fixed, no relocation search)
+const dress = (id, x, z, rot, w, d, o) => ({ id, type: 'crates', x, z, rot: deg(rot), w, d, h: 1, block: 1, fixed: true, ...o });
+const LOGS = { variant: 'log_pile', asset: 'log_pile_stack' }, CART = { variant: 'handcart', asset: 'handcart_wood' };
+const parked = (art, label) => ({ variant: 'vehicle_parked', label, vehicleArt: art, h: 1.6 });
+const DRESSING = [
+  // the NW hangar's motor pool: a Kubelwagen and an Opel Blitz in winter white, drums, a handcart
+  dress('kubel_hg', 31, 26, 90, 3.8, 1.7, parked('kubelwagen', 'Kubelwagen')),
+  dress('blitz_hg', 31, 33, 90, 6.2, 2.4, parked('opel_blitz_cargo', 'Lorry')),
+  { id: 'drums_hg', type: 'barrels', variant: 'inert_stack', x: 9.5, z: 34, rot: 0, w: 2.4, d: 2, h: 1, block: 1, fixed: true },
+  dress('cart_hg', 8, 24, 90, 2, 1.2, CART),
+  // the W base: firewood by the gate hut and the dock barracks, the middle barracks' despatch rider
+  dress('logs_hut', 24, 51, 0, 3, 1.5, LOGS),
+  dress('logs_bd', 3.2, 84.5, 90, 3, 1.5, LOGS),
+  dress('moto_bm', 72, 76, 90, 2.4, 1.7, parked('r75_sidecar', 'Motorcycle')),
+  // the dock yard: drums and cargo by the crane
+  { id: 'drums_dk', type: 'barrels', variant: 'inert_stack', x: 44, z: 99, rot: deg(45), w: 2.4, d: 2, h: 1, block: 1, fixed: true },
+  dress('cargo_cr', 40.5, 108.5, 45, 2.2, 2.2, { variant: 'dock_cargo', asset: 'dock_cargo_d', h: 1.2 }),
+  // the village: firewood stacks, a handcart, fish boxes by the boathouse
+  dress('logs_h2', 130.4, 71, 90, 3, 1.5, LOGS),
+  dress('logs_h3', 123.4, 85, 90, 3, 1.5, LOGS), // (N of h_3's back steps)
+  dress('logs_h5', 129.5, 103.6, 0, 3, 1.5, LOGS),
+  dress('cart_h1', 113, 95.5, 90, 2, 1.2, CART),
+  dress('crates_bh', 130.5, 106, 20, 2.2, 2.2, { variant: 'dock_cargo', asset: 'dock_cargo_e', h: 1.2 }),
+];
+/** Street furniture (visual only, never on the walk grid): Norwegian wooden lamp posts in the village, harbour lamps on
+ *  the quay, a telegraph line along the beach road, the dockyard's no-entry board, a fingerpost, a rail fence. */
+const FURNITURE = [
+  ...[[109, 79.6, 0], [121, 82.2, 180], [127.5, 78.8, 0], [97, 76.4, 90], [33, 71.8, 45]].map(([x, z, r]) => ({ type: 'lamp', variant: 'norway_wood', x, z, rot: deg(r), block: false })),
+  ...[[12.8, 108.7], [26.9, 121.4], [41, 134.1]].map(([x, z]) => ({ type: 'lamp', variant: 'harbour', x, z, rot: deg(222), block: false })),
+  { type: 'telegraph', points: [[94, 104], [108, 107], [124, 104.5], [133, 103]], spacing: 12, h: 6.5, wires: 2, block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 31.2, z: 62.6, rot: deg(-50), text: 'KRIEGSMARINE\nSPERRGEBIET', block: false },
+  { type: 'sign', variant: 'fingerpost', x: 93, z: 63, rot: deg(-90), text: 'GRIMSTAD 18 km', block: false },
+  { type: 'fence', variant: 'rail', points: [[121, 67.4], [128, 67.4]], h: 1.1, block: false },
+];
+
+const STRUCTURES = [...CLIFFS, ...BUILDINGS, ...WATERSIDE, ...WALLS, ...PROPS, ...DRESSING];
+
+// ---------------------------------------------------------------- art pass (scripts/m07-art.js; visual only)
+/**
+ * The slipway gantry drawn over its four posts, burnt timber frames on the ruins, the drying racks along the E edge, and
+ * the two big village houses as compounds of Norwegian timber houses (parts inside the parent's footprint; `rot` deg):
+ * h_big an L of a tarred two-storey house (N) and a wing (W) with a tarred shed in the yard corner; h_4 a red double
+ * house. Every footprint stays the mission's.
+ */
+export const ART = {
+  gantry: { x: 34, z: 84, rot: 35, span: 10, gap: 6, h: 6, posts: ['gantry_post_1', 'gantry_post_2', 'gantry_post_3', 'gantry_post_4'] },
+  ruins: ['ruin_1', 'ruin_2', 'ruin_3', 'ruin_4', 'ruin_5', 'ruin_6'],
+  sink: ['uboat_1', 'uboat_2'],
+  // the finger pier's root, where the library T pier's head was cut away (its 8.9 m from the root end; m along the axis)
+  pierRoot: { id: 'pier', from: -23.9, to: -14.7, width: 6.48 },
+  // the lighthouse mole's granite coping along its water edge (land on the left going round from the W root)
+  mole: { edge: [[49.5, 146.7], [57, 148], [60, 160], [64, 176], [70, 184.5], [78, 185.5], [84, 180], [84, 160], [82, 150], [89.4, 135.2]],
+    avoid: [[49.5, 146.5, 2.6], ...[[59, 150], [62, 162], [66, 176], [72, 182.5], [79.5, 181.5], [83, 168], [83, 155]].map(([x, z]) => [x, z, 1.7])] },
+  parts: {
+    h_big: [
+      { asset: 'house_timber_c_snow', x: 107, z: 56, w: 13, d: 9, rot: 0 },
+      { asset: 'house_timber_a_snow', x: 104.5, z: 66.75, w: 12.5, d: 8, rot: 90 },
+      { asset: 'fishing_shed_b_snow', type: 'hut', x: 111, z: 64.5, w: 5, d: 7, rot: 0 },
+    ],
+    // ridges N-S, the gables 2.3 m apart (clear of both roofs' verges; firewood stacked between them) and no door facing
+    // the other house: the red N house's front door opens W, its back door E; the tarred S house (mirrored E-W so its
+    // front door is at the N end of its E side) has h_4's door (104.8, 88)
+    h_4: [
+      { asset: 'house_timber_b_snow', x: 100.5, z: 81, w: 7, d: 6.5, rot: 90 },
+      { asset: 'house_timber_a_snow', x: 100.5, z: 90.4, w: 7.2, d: 6.5, rot: 270, mirror: 'x' },
+    ],
+    racks_e: [68.4, 77, 85.6].map((z) => ({ asset: 'drying_rack_a_snow', type: 'drying_rack', x: 142.5, z, w: 8.4, d: 2.9, rot: 90 })),
+  },
+};
+const ART_ASSETS = [...new Set(Object.values(ART.parts).flat().map((q) => q.asset))];
 
 // ---------------------------------------------------------------- enemies (dossier §8; Prima numbers 1–23)
 /** Lone walker: PINGPONG between a and b (1.0 m/s), starting at a facing b. */
@@ -319,6 +406,9 @@ export default {
   date: '1942-02-07',
   place: 'Arendal harbour, southern Norway',
   theater: 'snow',
+  artAssets: ART_ASSETS,
+  furniture: FURNITURE,
+  script: (world) => installM07Art(world, ART),
   coneColors: 'green',
   size: [144, 195],
   seed: 1942_0207,
@@ -347,7 +437,9 @@ export default {
     { id: 'u2_charge', x: U2.x, z: U2.z, r: 3, target: 'uboat_2' },
   ],
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
-  structures: joinStructures([...STRUCTURES, ...WIRE_PASS], [['h_big', 'h_1'], ['h_3', 'h_5'], ['h_4', 'h_6'], ['uboat_1', 'uboat_1_tower'], ['uboat_2', 'uboat_2_tower'], ['boat_m3', 'boat_m4'], ['boat_m7', 'boat_m10']]),
+  structures: joinStructures([...STRUCTURES, ...WIRE_PASS], [['h_big', 'h_1'], ['h_3', 'h_5'], ['h_4', 'h_6'], ['uboat_1', 'uboat_1_tower'], ['uboat_2', 'uboat_2_tower'],
+    // the Type VIICs moored at the pier, U-boat 1's gangways resting on its casing, the naust's own jetty (art pass)
+    ['uboat_1', 'pier'], ['uboat_2', 'pier'], ['uboat_1', 'gw_1'], ['uboat_1', 'gw_2'], ['boathouse', 'jetty_e1'], ['boat_m3', 'boat_m4'], ['boat_m7', 'boat_m10']]),
   items: [],
   interactables: [
     // the air-drop crate: all four time bombs (only the Sapper can take them)

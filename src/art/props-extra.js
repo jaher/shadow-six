@@ -315,8 +315,12 @@ function uboatMesh(p) {
   g.add(ped, shield, barrel);
   // the spare torpedoes, lashed on chocks on the after deck (where the charge must go)
   const [tx] = Array.isArray(p.targetAt) ? p.targetAt : [-L * 0.75];
-  for (const [dz, y] of [[-0.3, 0.7], [0.3, 0.7], [0, 1.2]]) g.add(torpedo(tx, y, dz));
-  for (const dx of [-2.2, 2.2]) { const chock = box(0.3, 0.3, 1.3, 'woodDark', 0.55); chock.position.x = tx + dx; g.add(chock); }
+  // (`keepWithLibrary`: they stay when the library Type VIIC replaces the hull, art/static-vehicles.js; `torpedoStack`
+  //  groups them so a script can seat them on the model's deck)
+  const stack = new THREE.Group(); stack.name = 'torpedoStack'; stack.userData.keepWithLibrary = true;
+  for (const [dz, y] of [[-0.3, 0.7], [0.3, 0.7], [0, 1.2]]) stack.add(torpedo(tx, y, dz));
+  for (const dx of [-2.2, 2.2]) { const chock = box(0.3, 0.3, 1.3, 'woodDark', 0.55); chock.position.x = tx + dx; stack.add(chock); }
+  g.add(stack);
   // stern: rudder and hydroplane guards breaking the water
   const rudder = box(1.4, 1.0, 0.15, 'greyPaint', 0.2);
   rudder.position.x = -L + 0.4;
@@ -580,6 +584,8 @@ export function buildExtraProp(type, params = {}, ctx = {}) {
   const group = placed(x, z, rot);
   group.name = `prop:${type}${params.id ? ':' + params.id : ''}`;
   const plat = base.kind === 'platform';
+  // `visual: false`: gameplay only, drawn by another model (M7: the conning towers belong to the library Type VIIC)
+  if (p.visual === false && !plat) return { object3d: group, footprints: footprintsFor(resolve(type), p, x, z, rot), castsShadow: false };
   const kit = plat ? null : kitExtraMesh(resolve(type), p, ctx);
   group.add(plat ? buildAccessPlatform(p) : kit || meshFor(resolve(type), p));
   // no dedicated kit model: the primitive placeholder keeps its shape with textured finishes (art/kit-materials.js)
