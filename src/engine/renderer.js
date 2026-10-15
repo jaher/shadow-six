@@ -39,6 +39,7 @@ import { installTextureMemory } from './texture-memory.js';
 import { assignShadowVariants, checkShadowVariants } from './program-variants.js';
 import { ShadowReachCull } from './shadow-cull.js';
 import { installGpuCompressor } from './gpu-compress.js';
+import { installShadowDepthPass } from './depth-merge.js';
 
 /**
  * Quality presets. pixelRatio is a cap on window.devicePixelRatio.
@@ -178,6 +179,7 @@ export class Renderer {
     this.domElement = r.domElement;
     installTextureMemory(r); // a restored context refills the textures whose page copy was released
     installGpuCompressor(r); // material maps go to the GPU as BC7 / ASTC (engine/gpu-compress.js)
+    installShadowDepthPass(r); // library buildings' merged depth meshes stand in for their parts here (engine/depth-merge.js)
 
     /** Main world scene (lit, shadowed, post-processed). */
     this.scene = new THREE.Scene();

@@ -112,7 +112,14 @@ export function signTexture(kind, text = '') {
     g.strokeStyle = fg; g.lineWidth = 6; g.strokeRect(5, 5, 246, 118);
     g.fillStyle = fg; g.textAlign = 'center'; g.textBaseline = 'middle';
     const lines = String(text).split('\n');
-    lines.forEach((l, i) => { g.font = `bold ${lines.length > 1 ? 34 : 44}px sans-serif`; g.fillText(l, 128, 64 + (i - (lines.length - 1) / 2) * 40); });
+    lines.forEach((l, i) => {
+      // shrink a line that would overrun the 246 px board border (long single words such as TRINKWASSER)
+      let px = lines.length > 1 ? 34 : 44;
+      g.font = `bold ${px}px sans-serif`;
+      const wpx = g.measureText ? g.measureText(l).width : 0;
+      if (wpx > 228) { px = Math.max(16, Math.floor(px * 228 / wpx)); g.font = `bold ${px}px sans-serif`; }
+      g.fillText(l, 128, 64 + (i - (lines.length - 1) / 2) * 40);
+    });
   }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;

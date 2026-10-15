@@ -15,6 +15,7 @@
 import * as THREE from 'three';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { VariantCache, variantKey } from './program-variants.js';
+import { inDepthPass } from './depth-merge.js';
 
 const CUTOUT_PARS = /* glsl */ `
 #include <map_pars_fragment>
@@ -52,6 +53,9 @@ export class AlphaAwareGTAOPass extends GTAOPass {
     this._aoAuto = new WeakMap();
     this._swap = [];
     this._variants = new VariantCache(); // one normal material per program variant (instanced, skinned, …): no program churn
+    // stock prepass material (and its variants, which copy userData): a merged depth mesh may stand in for meshes drawn
+    // with it (engine/depth-merge.js)
+    this.normalMaterial.userData.aoStock = true;
   }
 
   /** @returns {THREE.Material|null|undefined} material for the prepass; null = exclude; undefined = stock */
@@ -72,6 +76,11 @@ export class AlphaAwareGTAOPass extends GTAOPass {
 
   _renderOverride(renderer, overrideMaterial, renderTarget, clearColor, clearAlpha) {
     if (overrideMaterial !== this.normalMaterial) return super._renderOverride(renderer, overrideMaterial, renderTarget, clearColor, clearAlpha);
+    // a depth pass: merged depth meshes are meshes here, their members skipped (engine/depth-merge.js)
+    return inDepthPass('ao', () => this._renderNormals(renderer, renderTarget, clearColor, clearAlpha));
+  }
+
+  _renderNormals(renderer, renderTarget, clearColor, clearAlpha) {
     const swap = this._swap;
     swap.length = 0;
     this.scene.traverseVisible((o) => {

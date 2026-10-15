@@ -1,0 +1,176 @@
+{
+ "asset": "drilling_rig_ms",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "corrugated_rust": {
+   "source": "Poly Haven",
+   "id": "rusty_corrugated_iron",
+   "url": "https://polyhaven.com/a/rusty_corrugated_iron",
+   "authors": [
+    "Charlotte Baglioni"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Corrugated Iron",
+   "label": "Rusty corrugated iron",
+   "files": {
+    "diff": {
+     "2k": "2k/corrugated_rust_diff",
+     "1k": "1k/corrugated_rust_diff"
+    },
+    "nor": {
+     "2k": "2k/corrugated_rust_nor",
+     "1k": "1k/corrugated_rust_nor"
+    },
+    "arm": {
+     "2k": "2k/corrugated_rust_arm",
+     "1k": "1k/corrugated_rust_arm"
+    }
+   }
+  },
+  "corrugated_zinc": {
+   "source": "Poly Haven",
+   "id": "corrugated_iron_02",
+   "url": "https://polyhaven.com/a/corrugated_iron_02",
+   "authors": [
+    "Jenelle van Heerden",
+    "Sergej Majboroda"
+   ],
+   "license": "CC0-1.0",
+   "name": "Corrugated Iron 02",
+   "label": "Galvanised corrugated iron (76 mm pitch)",
+   "files": {
+    "diff": {
+     "2k": "2k/corrugated_zinc_diff",
+     "1k": "1k/corrugated_zinc_diff"
+    },
+    "nor": {
+     "2k": "2k/corrugated_zinc_nor",
+     "1k": "1k/corrugated_zinc_nor"
+    },
+    "arm": {
+     "2k": "2k/corrugated_zinc_arm",
+     "1k": "1k/corrugated_zinc_arm"
+    }
+   }
+  },
+  "deck_planks": {
+   "source": "Poly Haven",
+   "id": "wood_planks_dirt",
+   "url": "https://polyhaven.com/a/wood_planks_dirt",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Dirt",
+   "label": "Deck / floor planks",
+   "files": {
+    "diff": {
+     "2k": "2k/deck_planks_diff",
+     "1k": "1k/deck_planks_diff"
+    },
+    "nor": {
+     "2k": "2k/deck_planks_nor",
+     "1k": "1k/deck_planks_nor"
+    },
+    "arm": {
+     "2k": "2k/deck_planks_arm",
+     "1k": "1k/deck_planks_arm"
+    }
+   }
+  },
+  "mud": {
+   "source": "Poly Haven",
+   "id": "brown_mud_02",
+   "url": "https://polyhaven.com/a/brown_mud_02",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Brown Mud 02",
+   "label": "Mud / dirt",
+   "files": {
+    "diff": {
+     "2k": "2k/mud_diff",
+     "1k": "1k/mud_diff"
+    },
+    "nor": {
+     "2k": "2k/mud_nor",
+     "1k": "1k/mud_nor"
+    },
+    "arm": {
+     "2k": "2k/mud_arm",
+     "1k": "1k/mud_arm"
+    }
+   }
+  },
+  "paint_metal": {
+   "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Smooth enamel-painted sheet metal (pale, tint per asset)",
+   "files": {
+    "diff": {
+     "1k": "1k/paint_metal_diff",
+     "2k": "2k/paint_metal_diff"
+    },
+    "nor": {
+     "1k": "1k/paint_metal_nor",
+     "2k": "2k/paint_metal_nor"
+    },
+    "arm": {
+     "1k": "1k/paint_metal_arm",
+     "2k": "2k/paint_metal_arm"
+    }
+   }
+  },
+  "plaster_rough": {
+   "source": "Poly Haven",
+   "id": "rough_plaster_03",
+   "url": "https://polyhaven.com/a/rough_plaster_03",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rough Plaster 03",
+   "label": "Rough render / half-timber infill (cream)",
+   "files": {
+    "diff": {
+     "2k": "2k/plaster_rough_diff",
+     "1k": "1k/plaster_rough_diff"
+    },
+    "nor": {
+     "2k": "2k/plaster_rough_nor",
+     "1k": "1k/plaster_rough_nor"
+    },
+    "arm": {
+     "2k": "2k/plaster_rough_arm",
+     "1k": "1k/plaster_rough_arm"
+    }
+   }
+  }
+ }
+}

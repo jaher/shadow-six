@@ -1,0 +1,29 @@
+# M11 art pass (Maradah oil field, "In the Soup"): "script -- outdir variant seed" (desert family; ms_common.py on bq_common.py /
+# dz.py). Ship with tools/blender/consolidate/addon_manifest.py:
+#   <art_root> <repo> manifest-maradah desert water_tower_ms=water_tower_legs_ms windpump_ms=windpump_ms bunker_timber_ms=bunker_sandbag_timber_ms
+#     hq_domed_ms=hq_domed_ms house_domed_ms=house_domed_ms_e,house_domed_ms_a barracks_domed_ms=barracks_domed_ms tunnel_portal_ms=tunnel_portal_ms
+#     shed_lean_to_ms=shed_lean_to_ms dugout_ms=dugout_sandbag_ms tower_stub_ms=tower_stub_ms drilling_rig_ms=drilling_rig_ms
+#     oil_tank_ms=oil_tank_process_ms crate_stack_ms=crate_stack_ms_a,crate_stack_ms_b,crate_stack_ms_c,crate_stack_ms_d,crate_stack_ms_e drum_stack_ms=drum_stack_ms
+ms_tower.py <out> water 1
+ms_tower.py <out> pump 1
+ms_bunker.py <out> c 1
+ms_bunker.py <out> c_destroyed 1
+ms_domed.py <out> hq 1
+ms_domed.py <out> hq_destroyed 1
+ms_domed.py <out> e 1
+ms_domed.py <out> a 1
+ms_domed.py <out> b 1
+ms_domed.py <out> b_destroyed 1
+ms_works.py <out> portal 1
+ms_works.py <out> shed 1
+ms_works.py <out> dugout 1
+ms_works.py <out> tower 1
+ms_rig.py <out> a 1
+ms_rig.py <out> a_destroyed 1
+ms_tank.py <out> a 1
+ms_props.py <out> a 1
+ms_props.py <out> b 1
+ms_props.py <out> c 1
+ms_props.py <out> d 1
+ms_props.py <out> e 1
+ms_props.py <out> drums 1

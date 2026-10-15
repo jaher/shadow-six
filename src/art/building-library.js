@@ -26,6 +26,7 @@ import { scoped, touch, sceneBytes, disposeScene } from '../engine/scoped-assets
 import { libTier, loadLibDensity } from './lib-tiers.js';
 import { sharedLibTexture, isLibTexture, isLibImage } from './lib-textures.js';
 import { antiTile } from './anti-tiling.js';
+import { addDepthMerge, instancedProxy } from '../engine/depth-merge.js';
 
 const BLOCK = { NONE: 0, LOW: 1, HIGH: 2, FENCE: 3 }; // == world/grid.js B
 const BRIDGE_KINDS = new Set(['bridge_deck', 'drawbridge', 'quay', 'footboard', 'landing']);
@@ -103,7 +104,7 @@ export function libTextureURL(file) {
 }
 
 /** Add-on manifests under assets/models/buildings/ (same schema, `assets` + `types` only), merged after manifest.json. */
-export const EXTRA_MANIFESTS = ['manifest-atlantic-wall', 'manifest-tunis', 'manifest-le-havre', 'manifest-compiegne', 'manifest-tell-el-eisa', 'manifest-tell-el-eisa-bridge', 'manifest-oldenburg', 'manifest-maas', 'manifest-bab-el-qattara', 'manifest-masi', 'manifest-el-agheila'];
+export const EXTRA_MANIFESTS = ['manifest-atlantic-wall', 'manifest-tunis', 'manifest-le-havre', 'manifest-compiegne', 'manifest-tell-el-eisa', 'manifest-tell-el-eisa-bridge', 'manifest-oldenburg', 'manifest-maas', 'manifest-bab-el-qattara', 'manifest-masi', 'manifest-el-agheila', 'manifest-maradah'];
 
 /**
  * Merge an add-on manifest into `base` (in place): new assets; per type the variant / all / byTheater lists are
@@ -195,6 +196,9 @@ function loadLod(name, i) {
   const p = L.loader.loadAsync(url).then((g) => {
     prepareScene(g.scene);
     g.scene.userData.fixups = applyAssetFixups(g.scene, name, i, L.base);
+    // one merged mesh per multi-primitive part for the shadow map and the AO prepass (engine/depth-merge.js); window
+    // glass stays out: world/map-library.js splits it into breakable panes, a geometry of its own per building
+    addDepthMerge(g.scene, { exclude: paneGlass });
     L.gltf.set(key, g.scene); L.pending.delete(key);
     const deps = [...(g.parser?.shadowLibKeys || [])];
     L.deps.set(key, deps);
@@ -212,6 +216,9 @@ function loadLod(name, i) {
   L.pending.set(key, p);
   return p;
 }
+
+/** Window glass (world/map-library.js gives each building's glass meshes their own pane geometry). */
+const paneGlass = (o) => /glass/i.test((Array.isArray(o.material) ? o.material[0] : o.material)?.name || '');
 
 /** A texture named after a shared-library albedo (GLTFLoader keeps the image name, e.g. 'ashlar_limestone_diff'). */
 const LIB_MAP = /^[a-z0-9_]+_diff$/;
@@ -428,14 +435,24 @@ export async function createBuildingBatch(type, placements, rng = null) {
     scenes.forEach((sc, i) => {
       if (!sc) return;
       sc.updateMatrixWorld(true);
+      const proxies = [], firstOf = new Map();
       sc.traverse((o) => {
+        if (o.isDepthProxy) { proxies.push(o); return; }
         if (!o.isMesh) return;
         const im = new THREE.InstancedMesh(o.geometry, o.material, place.length);
         place.forEach((pm, k) => im.setMatrixAt(k, m.multiplyMatrices(pm, o.matrixWorld)));
         im.castShadow = o.castShadow; im.receiveShadow = o.receiveShadow; im.renderOrder = o.renderOrder;
         im.computeBoundingSphere();
+        const dg = o.userData.depthGroup;
+        if (dg !== undefined) { im.userData.depthGroup = dg; im.userData.depthGeo = o.userData.depthGeo; if (!firstOf.has(dg)) firstOf.set(dg, im); }
         lods[i].add(im);
       });
+      // the parts' merged depth mesh, instanced with the same matrices (engine/depth-merge.js)
+      for (const o of proxies) {
+        const first = firstOf.get(o.userData.depthGroup);
+        if (!first) continue;
+        lods[i].add(instancedProxy(o, first));
+      }
     });
     for (const p of list) {
       footprints.push(...buildingFootprints(name, p.x ?? 0, p.z ?? 0, p.rot ?? 0));

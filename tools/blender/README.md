@@ -68,6 +68,14 @@ switch to the library only for hinted variants; a hinted `sea_wall` tiles its 8 
   with arcade and roof terrace, the board-and-batten radio hut behind its blast wall, the sandbag bunker under palm thatch, the
   A-frame engine hoist, the yellow drum dump, Afrika Korps ammunition stacks; destroyed twins of the five targets). Own `*_bq`
   types only; M9 picks them by `asset` with `nav: false` (gameplay footprints unchanged).
+- M11 (Maradah oil field, `manifest-maradah.json`): `desert/q_m11.txt` lists the builds (`ms_*.py` on `ms_common.py` / `bq_common.py`:
+  the late-1930s drilling rig on its I-beam substructure with monkey board, crown block, drawworks and doghouse, and its buckled
+  ruin; the timber block house behind a sandbag skirt with the walkable plank deck (the central garrison) and its ruin; the domed
+  whitewashed HQ (stepped terrace, pergola, outside stair), the small and large domed houses, the domed crenellated barracks and
+  their ruins; the sandstone tunnel portal with its dark bore; the water tower on lattice legs, the windpump with its trough, the
+  riveted white process tank with valves and handrail; the open timber lean-to, the sandbag dugout, the ruined tower stub; crate
+  stacks and a drum stack). Own `*_ms` types; M11 picks them by `asset` with `nav: false`; the quarry tanks (barrel entities)
+  dress through `libraryVisual` in `src/missions/scripts/m11.js`.
 
 ## Conventions
 - M10 (El Agheila, `manifest-el-agheila.json`): `desert/q_m10.txt` lists the builds (`ic_*.py` on `ic_common.py`: four single-bay

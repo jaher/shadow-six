@@ -21,6 +21,7 @@ import { terrainRamp, terrainRampChain } from '../../art/kit-terrain.js';
 import { dressingMaterial, boxUV, boulderGeometry } from '../../art/dressing.js';
 import { paintedMaterial } from '../../art/kit-props.js';
 import { antiTile } from '../../art/anti-tiling.js';
+import { libraryVisual } from '../../art/building-props.js';
 import { plateauWalkways, rectPoly } from './m05.js';
 import { segmentHoles, rampWalkways } from './m08.js';
 
@@ -272,7 +273,14 @@ export function buildVisuals(world, spec) {
     pool.rotation.x = Math.PI / 2; pool.position.y = 0.04;
     root.add(pool);
   }
-  for (const p of spec.portals || []) root.add(portalMesh(p.x, p.z, p.rot, p.y));
+  // the portals: the library's sandstone faces (M11 art pass, `tunnel_portal_ms`, lifted by spec.lift) when they
+  // loaded; else this procedural arch, and the placeholder slab hides
+  for (const p of spec.portals || []) {
+    const o = p.id ? world.structures?.get(p.id)?.object3d : null;
+    if (o?.getObjectByName?.('fit')) continue;
+    if (o) o.visible = false;
+    root.add(portalMesh(p.x, p.z, p.rot, p.y));
+  }
   world.scene.add(root);
   // the quarry's explosive process tanks are Barrel entities (the schema's only explosive): dress them as the
   // white vertical oil tanks they are (the drum mesh goes; the tank goes with the entity when it blows)
@@ -280,7 +288,9 @@ export function buildVisuals(world, spec) {
     const b = world.byId?.(id);
     if (!b?.object3d || b.object3d.userData.m11Tank) continue;
     b.object3d.clear();
-    b.object3d.add(oilTankMesh(1.75, 7));
+    // M11 art pass: the library's process tank (`oil_tank_process_ms`); the procedural tank when it is not loaded
+    const lib = libraryVisual('fueltank', { id, asset: 'oil_tank_process_ms', x: 0, z: 0, rot: 0, r: 1.75 }, { theater: 'desert', missionId: 'm11' });
+    b.object3d.add(lib?.object3d ?? oilTankMesh(1.75, 7));
     b.object3d.userData.m11Tank = true;
   }
   // the yard's inert tanks (static structures) get the same dress

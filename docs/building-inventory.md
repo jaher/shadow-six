@@ -110,7 +110,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `hq_log_flatroof` | house | Log HQ with a flat roof section, rooftop gear and flag; a guard stands on the roof | Norway | M6 | R, L | 14×10×6 | BUILT (M6 art pass: `hq_log_flatroof` + `_destroyed`) |
 | `stone_chapel_tower` | house | Stone building with a round tower, slate roof, arched door and flag | Norway | M6 (NW) [img, critic] | E | 16×8×10 | BUILT (M6 art pass: `chapel_stone_no` + `_destroyed`, tower `tower_round_stone`) |
 | `fortified_block_tower` | house | Stone-and-timber block with a round stone tower, flag, lean-to open canopy, ladder and platform | Norway | M6 (the "NE fortified block") [img, critic] | L, R | 16×12×10 | BUILT (M6 art pass: `hq_fortified_block` + `_destroyed`, roof at 6.5 m; `tower_round_stone`, `lean_to_canopy`) |
-| `hq_domed_terraced` | new | Whitewashed, flagged command post: terraced, with a dome and outside stairs | N. Africa | M9, M11 (central garrison, guards on the roof) | **D**, R, L | 16×12×8 | BUILT (M9 pass: `hq_domed_terraced_bq` 12×15, arcade W, dome, roof terrace + outside stair, + destroyed; manifest-bab-el-qattara) |
+| `hq_domed_terraced` | new | Whitewashed, flagged command post: terraced, with a dome and outside stairs | N. Africa | M9, M11 (central garrison, guards on the roof) | **D**, R, L | 16×12×8 | BUILT (M9 pass: `hq_domed_terraced_bq` 12×15, arcade W, dome, roof terrace + outside stair, + destroyed; manifest-bab-el-qattara; M11 pass: `hq_domed_ms` HQ, `house_domed_ms_e/_a`, `barracks_domed_ms` + ruins, manifest-maradah) |
 | `domed_block` | house | Flat-roof block with an observatory-like dome | N. Africa | M10 (walled compound) [img] | E | 10×10×7 | VAR:desert |
 | `warehouse_adobe` | house | Flat-roof adobe warehouse with a large door | N. Africa | M9 (E and W) | D, E | 16×10×6 | VAR:desert |
 | `weapons_store` | house | Weapons or bomb store: a small, heavy flat-roof store with a door | N. Africa | M9 (the team hides in it), M10 (**objective**, S edge) | **D**, E | 10×8×4 | VAR:desert |
@@ -177,18 +177,18 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `fuel_tank_horizontal` | fueltank | Large horizontal cylinder tanks on cradles. **M8**: twin tanks under a frame with a roof walkway, ladders, guards on top | All | M2 (×2, **objective**), M8 (2 blocks, **objective**), M13 (×3, **objective**), M12 | **D** (`DEPO`), L, R | 10×4×4 each | NEW |
 | `fuel_tank_elevated` | fueltank | Twin cylinder tanks on a raised frame, with a ladder and an **oil valve** (spills oil to be ignited) | Alsace | M17 [img] | D, L, dr | 5×3×6 | NEW (M17 art pass: placed; fuel-drum dump procedural (art/fuel-drums.js)) |
 | `fuel_tank_pushable` | fueltank | Wheeled fuel bowser that can be pushed (`DEPOSEMP`) | Germany | B6 (×4) | D | 5×2×2.5 | NEW |
-| `oil_tanks_vertical` | fueltank | White vertical process tanks with pipework (`TUBO`) | N. Africa | M11 (2 clusters at the rigs) | D | 5 Ø × 7 | NEW |
+| `oil_tanks_vertical` | fueltank | White vertical process tanks with pipework (`TUBO`) | N. Africa | M11 (2 clusters at the rigs) | D | 5 Ø × 7 | BUILT (M11 pass: `oil_tank_process_ms`, manifest-maradah) |
 | `water_reservoir_round` | new | Squat riveted round water reservoir on a low base | N. Africa | M8 (**objective**) [img] | **D** | 10 Ø × 6 | BUILT (M8 pass, + burst `_destroyed`) |
-| `water_tower_legs` | new | Tank on a lattice or timber-leg tower | Desert/Germany | M11 (SW camp), B7 (timber, in the yard), M19 (small cylindrical tank at the mine) | D [inf] | 4 Ø × 10 | NEW |
-| `windpump` | new | Lattice windmill water pump | N. Africa | M10 (in the compound; A mistook it for a radio mast), M11 | — | 3×3×9 | NEW |
-| `drilling_rig` | drilling_rig | Lattice pyramidal oil derrick on a pump skid | N. Africa | M11 (×4, **objective**) | **D** | 6×6×25 | desert |
+| `water_tower_legs` | new | Tank on a lattice or timber-leg tower | Desert/Germany | M11 (SW camp), B7 (timber, in the yard), M19 (small cylindrical tank at the mine) | D [inf] | 4 Ø × 10 | BUILT (M11 pass: `water_tower_legs_ms`) |
+| `windpump` | new | Lattice windmill water pump | N. Africa | M10 (in the compound; A mistook it for a radio mast), M11 | — | 3×3×9 | BUILT (M11 pass: `windpump_ms`) |
+| `drilling_rig` | drilling_rig | Lattice pyramidal oil derrick on a pump skid | N. Africa | M11 (×4, **objective**) | **D** | 6×6×25 | desert (M11 pass: `drilling_rig_ms` + destroyed) |
 | `well` | well | Stone well, possibly with a ladder (`ESCALA_POZO`) | All | M3, M16/M18, B6 (ladder), B7 | L (B6) | 2 Ø | desert (VAR:europe for the stone well with ladder) |
 | `dam_arch` | dam | Curved concrete arch dam spanning a gorge, with a walkable crest road. 27 `PRES` tiles and **5 numbered spillway gates** (`1COM-5COM`) over the reservoir (`EMBA`) | Norway | M3 (**objective**, charge at the base) | **D**, R | 120×10×40 | bridges (VAR: 5 spillway gates) |
 | `hydro_station` | house | Hydro power-station admin building and barracks; a large shed (`ALMA`/`CASE`) | Norway | M3 | E | 16×10×7 | VAR:norway |
 | `transformer_cage` | new | Fenced transformer cage with insulators (`AISL`); about 12 set in a grid | Norway | M3 | — | 5×5×4 | NEW |
 | `electric_fence_switch` | fence | Powered chain-link fence (`ALAM` ×12) with a fence switch box or switch tower | Norway | M3 | cut, dr | linear | NEW |
 | `power_pylon` | new | Lattice power-line pylon | Norway | M3 (crosses the river) | — | 6×6×25 | NEW |
-| `tunnel_portal` | new | Rock-cut tunnel portal with an arched masonry face; it collapses on a charge | N. Africa | M11 (N cliff) | **Db** | 10×4×7 | NEW |
+| `tunnel_portal` | new | Rock-cut tunnel portal with an arched masonry face; it collapses on a charge | N. Africa | M11 (N cliff) | **Db** | 10×4×7 | BUILT (M11 pass: `tunnel_portal_ms`) |
 | `tank_shed_open` | new | Open-front multi-bay tank shed or garage: timber or corrugated, some with broken roofs | N. Africa/Germany | M9 (3 bays, 3 Panzer IVs roll out), M10 (about 5 sheds), M19 (with smokestack) | — | 8×12×5 per bay | BUILT (M9 pass: `tank_shed_open_bq` 3 bays 21×9, corrugated, torn roof over the E bay, rolled camouflage net) |
 | `garage_brick` | house | Brick garage/warehouse with a big door (the Panzer II garage); a truck can block it | France | M13 | dr | 14×10×7 | BUILT (M13 pass: `garage_brick`, open S door, tile roof) |
 | `gantry_hoist` | new | Lattice A-frame gantry hoist over a tank under repair | N. Africa | M9, M10 [img] | — | 8×4×7 | BUILT (M9 pass: `gantry_hoist_bq` A-frames, beam, chain block, engine on its stand) |
@@ -201,7 +201,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `coal_hopper` | new | Coal hopper/bunker | Germany | M19 | — | 6×6×8 | BUILT (M19 pass: `coal_hopper_de`, riveted bin on a creosoted trestle, chute, catwalk) |
 | `watermill` | new | Half-timber and stone watermill with a waterwheel and a deck on the river | Alsace/Netherlands | M17 (old mill) [img], B8 (`MOLINO_AGUA`, **D** `EXPL_MOLINO01`) | E, D (B8) | 12×10×9 | europe |
 | `windmill_post` | new | Dutch timber post/smock mill with **animated sails** (`ASPA1/2`, `ASPAMOL`) on a round mound | Netherlands | B8 (×2) | — | 6×6×18 | NEW |
-| `shed_timber_long` | hut | Long timber-roofed shed, open shelter or pergola | N. Africa/Netherlands | M11, B2 (ostrich paddock shed), B7 (bridge shed `CASA_COBERTIZO_PUENTE`) | E [inf] | 12×5×4 | NEW |
+| `shed_timber_long` | hut | Long timber-roofed shed, open shelter or pergola | N. Africa/Netherlands | M11, B2 (ostrich paddock shed), B7 (bridge shed `CASA_COBERTIZO_PUENTE`) | E [inf] | 12×5×4 | BUILT (M11 pass: `shed_lean_to_ms`) |
 | `henhouse` | hut | Henhouse/chicken coop (`GALLINERO`, `GALL`) | Norway/Prussia/Germany | M4 (D), B5, B6 | D | 3×2×2 | NEW |
 | `dog_kennel` | new | Dog cage/kennel pen | Germany | M19 | dr | 4×3×2 | BUILT (M19 pass: `kennel_de` box in the kit pen) |
 | `outhouse` | hut | Latrine/outhouse | Germany | M19, M20 | E [inf] | 1.5×1.5×2.5 | built: M20 procedural (castle-kit buildOuthouse); M19 pass: `outhouse_de` plank privy (variant `outhouse_privy`) |
@@ -448,6 +448,12 @@ Each mission lists the §1 ids it needs, with counts. **Bold** marks an objectiv
   - `shed_timber_long`/pergola.
   - `house_whitewash_flat`.
   - `czech_hedgehog`, palms.
+  - M11 art pass (manifest-maradah, all `asset` + `nav: false`): rigs `drilling_rig_ms` (+ buckled ruin), yard / quarry tanks
+    `oil_tank_process_ms`, portals `tunnel_portal_ms`, HQ `hq_domed_ms`, central garrison `bunker_sandbag_timber_ms` (sandbag
+    skirt, plank deck = roof), houses `house_domed_ms_e` / `_a`, barracks `barracks_domed_ms`, `water_tower_legs_ms`, `windpump_ms`,
+    `shed_lean_to_ms`, `dugout_sandbag_ms`, `tower_stub_ms`, `crate_stack_ms_a..e`, `drum_stack_ms`; dressing: tank slab and rig
+    aprons, two telephone lines, floodlights, notice boards, a fingerpost, a parked Kübelwagen and fuel bowser, the ridge lorry
+    as a burnt Opel Blitz.
 - **M12 Up on the Roof (Tunis)** [i] — art pass done (`manifest-tunis.json`: `hq_colonial_tunis` = the SE harbour HQ, a
   French-protectorate office block with a rooftop flag; `warehouse_harbour_tunis` = the corrugated harbour shed; the minaret
   takes `minaret_tunis`, the N backdrop houses `house_flat_white_a/b/c`; the walkable medina houses, souk and palace keep

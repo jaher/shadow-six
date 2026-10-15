@@ -1,0 +1,181 @@
+{
+ "asset": "dugout_sandbag_ms",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "burlap_bag": {
+   "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+   "license": "CC0-1.0",
+   "derived_from": {
+    "source": "Poly Haven",
+    "id": "hessian_230",
+    "license": "CC0-1.0"
+   },
+   "label": "Sandbag burlap (light khaki, soiled)",
+   "files": {
+    "diff": {
+     "1k": "1k/burlap_bag_diff",
+     "2k": "2k/burlap_bag_diff"
+    },
+    "nor": {
+     "1k": "1k/burlap_bag_nor",
+     "2k": "2k/burlap_bag_nor"
+    },
+    "arm": {
+     "1k": "1k/burlap_bag_arm",
+     "2k": "2k/burlap_bag_arm"
+    }
+   }
+  },
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "hessian": {
+   "source": "Poly Haven",
+   "id": "hessian_230",
+   "url": "https://polyhaven.com/a/hessian_230",
+   "authors": [
+    "colormass",
+    "Rico Cilliers"
+   ],
+   "license": "CC0-1.0",
+   "name": "Hessian 230",
+   "label": "Hessian sandbag cloth",
+   "files": {
+    "diff": {
+     "2k": "2k/hessian_diff",
+     "1k": "1k/hessian_diff"
+    },
+    "nor": {
+     "2k": "2k/hessian_nor",
+     "1k": "1k/hessian_nor"
+    },
+    "arm": {
+     "2k": "2k/hessian_arm",
+     "1k": "1k/hessian_arm"
+    }
+   }
+  },
+  "palm_log": {
+   "source": "Poly Haven",
+   "id": "bark_brown_01",
+   "url": "https://polyhaven.com/a/bark_brown_01",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Bark Brown 01",
+   "label": "Palm trunk / rough log (joists, beams)",
+   "files": {
+    "diff": {
+     "2k": "2k/palm_log_diff",
+     "1k": "1k/palm_log_diff"
+    },
+    "nor": {
+     "2k": "2k/palm_log_nor",
+     "1k": "1k/palm_log_nor"
+    },
+    "arm": {
+     "2k": "2k/palm_log_arm",
+     "1k": "1k/palm_log_arm"
+    }
+   }
+  },
+  "sand": {
+   "source": "Poly Haven",
+   "id": "dense_sand",
+   "url": "https://polyhaven.com/a/dense_sand",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Dense Sand",
+   "label": "Desert sand drift",
+   "files": {
+    "diff": {
+     "2k": "2k/sand_diff",
+     "1k": "1k/sand_diff"
+    },
+    "nor": {
+     "2k": "2k/sand_nor",
+     "1k": "1k/sand_nor"
+    },
+    "arm": {
+     "2k": "2k/sand_arm",
+     "1k": "1k/sand_arm"
+    }
+   }
+  },
+  "timber_beam": {
+   "source": "Poly Haven",
+   "id": "wood_planks_grey",
+   "url": "https://polyhaven.com/a/wood_planks_grey",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Grey",
+   "label": "Grey structural timber (beams, rafters)",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_beam_diff",
+     "1k": "1k/timber_beam_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_beam_nor",
+     "1k": "1k/timber_beam_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_beam_arm",
+     "1k": "1k/timber_beam_arm"
+    }
+   }
+  },
+  "wood_paint": {
+   "source": "Poly Haven",
+   "id": "weathered_peeling_timber",
+   "url": "https://polyhaven.com/a/weathered_peeling_timber",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Peeling Timber",
+   "label": "Pale painted wood base (tint via kit_tint for shutters/frames)",
+   "files": {
+    "diff": {
+     "2k": "2k/wood_paint_diff",
+     "1k": "1k/wood_paint_diff"
+    },
+    "nor": {
+     "2k": "2k/wood_paint_nor",
+     "1k": "1k/wood_paint_nor"
+    },
+    "arm": {
+     "2k": "2k/wood_paint_arm",
+     "1k": "1k/wood_paint_arm"
+    }
+   }
+  }
+ }
+}

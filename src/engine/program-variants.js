@@ -72,6 +72,9 @@ function plainDepth(mat, renderer) {
 
 const depthBase = new THREE.MeshDepthMaterial();
 depthBase.name = 'shadow-depth';
+/** Is this one of the per-variant depth materials handed out below? (same output as three's default depth material) */
+export const isShadowVariant = (m) => !!m && m.isMeshDepthMaterial === true && m.userData.shadowVariant === true;
+depthBase.userData.shadowVariant = true; // (clones copy it)
 const depthVariants = new VariantCache();
 const assigned = new WeakMap(); // object → the variant we gave it
 let assignedList = []; // the objects holding one (refreshed by every scan)
@@ -86,7 +89,8 @@ export function assignShadowVariants(scene, renderer = null) {
   // visible subtrees only (hidden men's bones, unused LODs): a caster shown later is drawn with three's default until
   // the next scan — correct, only the old program churn for up to 30 frames
   scene.traverseVisible((o) => {
-    if (!o.castShadow || !(o.isMesh || o.isInstancedMesh || o.isBatchedMesh)) return;
+    // (merged depth meshes are meshes only inside depth passes: engine/depth-merge.js)
+    if (!o.castShadow || !(o.isMesh || o.isInstancedMesh || o.isBatchedMesh || o.isDepthProxy)) return;
     const mine = assigned.get(o);
     if (o.customDepthMaterial !== undefined && o.customDepthMaterial !== mine) return; // the owner's own
     const ok = [].concat(o.material).every((m) => plainDepth(m, renderer));

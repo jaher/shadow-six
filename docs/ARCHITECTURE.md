@@ -1604,6 +1604,18 @@ Emitters add the events they own; AUDIO never needs another team to call it.
   - Shadow reach (`engine/shadow-cull.js`, `renderer.shadowCull`, `renderer.shadowViews`): a caster is drawn into the
     sun shadow map only if its world box, swept along the sun direction to y = −3, meets a receiving view (the frame
     camera + 1.5 m, the water mirror cameras + 3 m). Instance overrides on the sun shadow's own Frustum.
+  - Depth merge (`engine/depth-merge.js`; `art/building-library.js` loadLod, createBuildingBatch): a library asset's
+    sibling primitives (one per material, ~10–25 per building) get ONE merged mesh per (parent, matrix, attribute
+    layout, shadow side) — raw positions + normals concatenated, built once per loaded LOD (clones share it; window
+    glass stays out: map-library re-geometries it into panes) — that the sun shadow map and the GTAO prepass draw
+    instead of them (`inDepthPass`: the renderer's shadow map render, the GTAO normal walk + render). It is a mesh only
+    inside those passes (`isMesh` getter: the colour pass, raycasts and scene walks never see it); a member is culled
+    there while its group is valid in that pass (visible, same geometry / matrix / layers; shadow: castShadow + plain
+    depth material of the same side; AO: GTAO's stock normal material, `userData.aoStock`), else the group falls back to
+    its members. The proxy draws when any member passes its own cull test (every member is tested each pass, as
+    unmerged: their lazily cached bounds are taken at the same moments), so groups are in or out exactly as unmerged;
+    frozen same-page ON / OFF frames (`setDepthMerge`) match bit for bit but for a few equal-depth edge pixels.
+    M6 default view 480 → 415 draws.
   - Water mirror (`art/water/index.js`): oblique near plane at the water instead of a clipping plane (no program
     variant flip), the mirror camera cut to the screen window the visible water can sample, and `withExtraCull`
     (`engine/cull-hooks.js`) drops objects whose reflection (footprint swept h·cot(pitch) towards the camera + the
