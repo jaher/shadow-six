@@ -29,6 +29,7 @@ import { buildTowerCrane } from './tower-crane.js';
 import { buildFuelDrumStack } from './fuel-drums.js';
 import { buildMgPlatform } from './mg-platform.js';
 import { isBreakableGate } from '../world/breakables.js';
+import { addCableNode } from './cable-attach.js';
 import { buildRocks, buildCliff, buildWall, buildTent, buildRuins, buildSandbags, buildCrates, buildGenerator, buildLattice, buildPole } from './dressing.js';
 import { buildDrumCluster, buildWellVariant, buildGroundSearchlight, buildLampPost, buildSignVariant, buildFenceKit } from './kit-props.js';
 import { buildRailTrack, buildTrench, buildCraterKit } from './kit-terrain.js';
@@ -450,6 +451,7 @@ const ROUND = {
     const g = new THREE.Group();
     g.add(cyl(0.1, 0.12, p.h, def.mat));
     g.add(box(1.4, 0.1, 0.1, def.mat, p.h - 0.5));
+    for (const [k, x] of [-0.62, 0.62].entries()) addCableNode(g, k, x, p.h - 0.45, 0); // wires on the bar ends
     return g;
   },
   sign: (p, def, ctx) => {

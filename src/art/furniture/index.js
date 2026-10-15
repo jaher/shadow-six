@@ -11,6 +11,7 @@ import { lampParts, LAMP_LIGHT } from './lamps.js';
 import { propParts, signTexture, wireGeometry, fenceParts } from './street-props.js';
 import { dressingMaterial, buildPole } from '../dressing.js';
 import { applySway } from '../cloth-wind.js';
+import { cablePoints, conductorSpans } from '../cable-attach.js';
 
 const HAS_DOM = typeof document !== 'undefined';
 const MAT = new Map();
@@ -124,58 +125,51 @@ export function buildFurniture(F, ctx = {}) {
   };
 }
 
-/** Insulator fixing points (world) of a buildPole() pole at (x, y, z) with arm angle `rot`. */
-function insulators(x, y, z, rot, H, n) {
-  const c = Math.cos(rot), s = Math.sin(rot), out = [];
-  for (const lx of [-0.62, 0.62, -0.25, 0.25].slice(0, n)) out.push([x + lx * c - 0.13 * s, y + H - 0.28, z + lx * s + 0.13 * c]);
-  return out;
-}
-
-/** Telegraph lines (poles + wires) and the wires of mission telegraph_pole structures. */
+/**
+ * Telegraph lines (poles + wires) and the wires of mission telegraph_pole structures (power pylons included). Every
+ * conductor runs between two models' own fixing points (`cable:<k>` nodes, art/cable-attach.js) read in world space
+ * once the model stands where it is drawn: a pole's pin insulators, a pylon's suspension clamps.
+ */
 function buildLines(F, ctx, group, geos, stats, Y, extra = []) {
   const spans = [];
   const fenceWire = extra.length ? wireGeometry(extra, { sag: 0.05, r: 0.004, seg: 4 }) : null;
   if (fenceWire) { const m = new THREE.Mesh(fenceWire, furnitureMaterial('wire')); m.name = 'furniture:fence-wire'; geos.push(fenceWire); group.add(m); }
   for (const line of F.lines) {
     line.poles.forEach((p, k) => {
-      const y = Y(p.x, p.z);
-      p.fix = insulators(p.x, y, p.z, p.rot, line.h, line.wires);
       if (k === 0 && line.ghostFirst) {
-        // an edge run's first pole is the map line's own end pole: not drawn twice, its wires leave from that
-        // pole's insulators (nearest each)
+        // an edge run's first pole is the map line's own end pole: not drawn twice, its wires leave from that pole
         const own = F.lines.find((l) => !l.ghostFirst && l.poles[0]?.fix && l.poles.some((q) => Math.hypot(q.x - p.x, q.z - p.z) < 0.5));
         const q = own?.poles.find((r) => Math.hypot(r.x - p.x, r.z - p.z) < 0.5);
-        if (q?.fix) p.fix = p.fix.map((a) => q.fix.reduce((b, c) => (Math.hypot(c[0] - a[0], c[2] - a[2]) < Math.hypot(b[0] - a[0], b[2] - a[2]) ? c : b)));
-        return;
+        if (q?.fix) { p.fix = q.fix; return; }
       }
-      const g = buildPole({ h: line.h });
-      g.position.set(p.x, y, p.z); g.rotation.y = -p.rot;
+      const g = buildPole({ h: line.h, wires: line.wires });
+      g.position.set(p.x, Y(p.x, p.z), p.z); g.rotation.y = -p.rot;
       g.traverse((o) => { if (o.isMesh) o.userData.ownGeo = true; });
       group.add(g); stats.poles++;
+      p.fix = cablePoints(g);
     });
-    for (let k = 0; k < line.poles.length - 1; k++) for (let w = 0; w < line.wires; w++) spans.push({ a: line.poles[k].fix[w], b: line.poles[k + 1].fix[w] });
+    for (let k = 0; k < line.poles.length - 1; k++) spans.push(...conductorSpans(line.poles[k].fix, line.poles[k + 1].fix));
   }
-  // mission structures: telegraph_pole {wireTo} (M1 coast road) — orient unrotated poles across their line
+  // mission structures: telegraph_pole {wireTo} (M1 coast road, M3 pylons, …) — orient unrotated poles across their line
   const poles = ctx.poles || [], byId = new Map(poles.filter((p) => p.def.id).map((p) => [p.def.id, p]));
   for (const p of poles) {
     const to = p.def.wireTo && byId.get(p.def.wireTo);
     const from = poles.find((q) => q.def.wireTo === p.def.id);
     const dx = (to ? to.def.x : p.def.x) - (from ? from.def.x : p.def.x), dz = (to ? to.def.z : p.def.z) - (from ? from.def.z : p.def.z);
     p.rot = p.def.rot ?? (dx || dz ? Math.atan2(dz, dx) + Math.PI / 2 : 0);
-    if (p.def.rot == null && p.object3d) p.object3d.rotation.y = -p.rot;
+    if (p.def.rot == null && p.object3d?.rotation) p.object3d.rotation.y = -p.rot;
   }
   for (const p of poles) {
     const to = p.def.wireTo && byId.get(p.def.wireTo);
-    if (!to) continue;
-    const H = p.def.h ?? 7, H2 = to.def.h ?? 7;
-    const a = insulators(p.def.x, p.object3d?.position.y ?? 0, p.def.z, p.rot, H, 4), b = insulators(to.def.x, to.object3d?.position.y ?? 0, to.def.z, to.rot, H2, 4);
-    // keep wires on the same side: pair each insulator with the nearest one on the next pole
-    for (const q of a) { let best = b[0], bd = 1e9; for (const r of b) { const d = Math.hypot(r[0] - q[0], r[2] - q[2]); if (d < bd) { bd = d; best = r; } } spans.push({ a: q, b: best }); }
+    if (to) spans.push(...conductorSpans(cablePoints(p.object3d), cablePoints(to.object3d)));
   }
   if (!spans.length) return;
   const geo = wireGeometry(spans);
   const m = new THREE.Mesh(geo, furnitureMaterial('wire'));
   m.castShadow = true; m.name = 'furniture:wires';
+  // each conductor's fixing nodes, in geometry order (geo.userData.spans: its end rings): tests/power-lines measures
+  // the drawn ends against the models' fixing points
+  m.userData.cableSpans = spans.map((s) => ({ a: s.an, b: s.bn }));
   geos.push(geo); group.add(m);
   stats.wireSpans = spans.length;
 }

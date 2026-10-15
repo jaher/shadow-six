@@ -97,6 +97,7 @@ src/art/strap-curtain.js              ART — rear strap curtain of a covered lo
 src/art/vehicle-pennants.js           ART — cloth pennants on vehicles (patrol-boat masthead, staff-car wing flag), apparent wind
 src/art/props.js                      ART — building/prop builders (catalogue below)
 src/art/dressing.js                   ART — procedural realistic non-library props (palisade/stone walls, rocks, cliffs, tents, sandbags, crates, transformers, pylons, poles)
+src/art/cable-attach.js               ART — conductor fixing points: models mark each insulator / clamp / rope shoe with a `cable:<k>` node; telegraph wires, pylon conductors and cable-car ropes are drawn node to node in world space (pairing by side / level), measureCableEnds() for the tests
 src/art/castle-kit.js                 ART — procedural castle masonry fitted to gameplay data (curtains, terraces, parapets, gatehouses, towers, ranges, stairs, bridges, water gate, wagons, wells; merged per-material meshes)
 src/art/medina-kit.js                 ART — Tunis medina facade dressing on the kit houses (M12): horseshoe studded doors, tile hoods, grilles, mashrabiya, spouts, fallen render, laundry, souk shopfronts and awnings, palace zellige / balcony; market carts and goods
 src/art/field-guns.js                 ART — procedural field guns and range props (Flakvierling 38 towed/emplaced, field gun, searchlight, targets, bullet stops)
@@ -1124,6 +1125,9 @@ Step 3p road network (optional, backwards compatible; `src/world/roads.js`, docs
 raised platforms, quays) and `furniture` (lamps, benches, bollards, Morris columns, signs, crossings, fences, telegraph
 lines); a legacy `terrain` road path may carry `surface`. The builder paints the grid, exposes `world.roads` (a `RoadIndex`:
 `at / surfaceAt / raiseAt / covers / trailInfo`) and, on the real terrain, `mapHandle.pavement`, `.furniture`, `.streetLights`.
+Wires (telegraph lines, `telegraph_pole {wireTo}` structures incl. `lattice_pylon` power towers) run between the fixing
+nodes of the drawn models (art/cable-attach.js): one conductor per insulator, each end ≤ 2 cm from its insulator
+(tests/power-lines.test.mjs, tests/unit/power-lines.test.mjs). A telegraph line's `wires` (1–4) sets its poles' insulators.
 ```js
 export default {
   id: 'm01', title, subtitle, theater, size: [W, D],

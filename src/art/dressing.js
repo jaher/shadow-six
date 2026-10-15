@@ -21,6 +21,7 @@ import { scopedMemo, pendingTextureBytes } from '../engine/scoped-assets.js';
 import { MEDINA_GOODS_RX, buildMedinaGoods } from './medina-kit.js';
 import { ruinedStoneWall, whitewashedBlock } from './mine-walls.js';
 import { loadCompressedTexture } from '../engine/texture-memory.js';
+import { addCableNode } from './cable-attach.js';
 
 const HAS_DOM = typeof document !== 'undefined';
 
@@ -1052,9 +1053,14 @@ function beam(a, b, t) {
 }
 const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
 
+/** Suspension insulator string of a pylon: hook link, 6 glass discs on a steel pin, the conductor clamp at the foot. */
+export const PYLON_STRING = { len: 1.15, discs: 6, discR: 0.12, conductorR: 0.014 };
+
 /**
- * Steel lattice tower (power pylon / radio mast): four tapering legs, X-bracing every ~2.2 m, cross-arms with
- * insulator strings (pylons). One merged mesh.
+ * Steel lattice tower (power pylon / radio mast): four tapering legs, X-bracing every ~2.2 m, two cross-arm levels
+ * (pylons). Each arm is a pair of chords tied at its tips; a suspension insulator string hangs from the middle of each
+ * tip tie and the conductor is fixed in the clamp at its foot: a `cable:<k>` node there (art/cable-attach.js), the
+ * point the power lines are wired to. Steel = one merged mesh; the glass discs = one more (no shadow).
  */
 export function buildLattice(p, { base = 3, top = 0.7, arms = true } = {}) {
   const H = p.h ?? 18, body = arms ? H * 0.82 : H;
@@ -1070,26 +1076,42 @@ export function buildLattice(p, { base = 3, top = 0.7, arms = true } = {}) {
       parts.push(beam(V3(ax * b, y1, az * b), V3(bx * b, y1, bz * b), 0.06));
     }
   }
+  const g = new THREE.Group(); g.name = 'dressing:lattice';
+  const discs = [];
   if (arms) {
-    const t = half(body);
+    const t = half(body), S = PYLON_STRING, chord = 0.09, tie = 0.07;
     parts.push(beam(V3(-t, body, -t), V3(0, H, 0), 0.08), beam(V3(t, body, t), V3(0, H, 0), 0.08), beam(V3(t, body, -t), V3(0, H, 0), 0.08), beam(V3(-t, body, t), V3(0, H, 0), 0.08));
+    let k = 0;
     for (const [y, L] of [[H * 0.72, 3.4], [body, 2.6]]) {
       const hw = half(y);
-      for (const sz of [-1, 1]) parts.push(beam(V3(-L, y, sz * hw), V3(L, y, sz * hw), 0.09), beam(V3(-L, y, 0), V3(-hw, y - 0.9, sz * hw), 0.05), beam(V3(L, y, 0), V3(hw, y - 0.9, sz * hw), 0.05));
-      for (const x of [-L + 0.15, L - 0.15]) { const ins = new THREE.CylinderGeometry(0.09, 0.09, 1.1, 6); ins.translate(x, y - 0.6, 0); parts.push(ins); }
+      for (const sz of [-1, 1]) parts.push(beam(V3(-L, y, sz * hw), V3(L, y, sz * hw), chord), beam(V3(-L, y, 0), V3(-hw, y - 0.9, sz * hw), 0.05), beam(V3(L, y, 0), V3(hw, y - 0.9, sz * hw), 0.05));
+      for (const x of [-L + 0.15, L - 0.15]) {
+        parts.push(beam(V3(x, y, -hw), V3(x, y, hw), tie));                                     // tip tie: the string's hook
+        const hook = y - tie / 2, foot = y - S.len;
+        parts.push(new THREE.CylinderGeometry(0.022, 0.022, hook - foot, 6).translate(x, (hook + foot) / 2, 0)); // steel pin
+        parts.push(new THREE.BoxGeometry(0.08, 0.1, 0.32).translate(x, foot, 0));                // conductor clamp (along the line)
+        for (let d = 0; d < S.discs; d++) discs.push(new THREE.CylinderGeometry(S.discR, S.discR * 0.8, 0.05, 8).translate(x, hook - 0.17 - d * ((S.len - 0.36) / (S.discs - 1)), 0));
+        addCableNode(g, k++, x, foot, 0, { r: S.conductorR });                                    // conductor fixing point
+      }
     }
   }
-  const geo = mergeGeometries(parts.map((g) => g.toNonIndexed()), false);
+  const geo = mergeGeometries(parts.map((q) => q.toNonIndexed()), false);
   geo.computeVertexNormals();
   boxUV(geo, 1.5);
-  const g = new THREE.Group(); g.name = 'dressing:lattice';
   g.add(mesh(geo, dressingMaterial('galv')));
+  if (discs.length) g.add(mesh(mergeGeometries(discs, false), insulatorGlass(), false));
   return g;
 }
 
-/** Creosoted telegraph pole: pole, cross-arm, braces and four glass insulators (one merged mesh + insulators). */
+/** Pin insulator positions along a telegraph cross-arm (x), in wiring order: 2 wires = the outer pair. */
+export const POLE_INSULATORS = [-0.62, 0.62, -0.25, 0.25];
+
+/**
+ * Creosoted telegraph pole: pole, cross-arm, braces and `p.wires` (1–4, default 4) glass pin insulators (one merged
+ * mesh + the insulators). The wire lies in the groove under each insulator's crown: a `cable:<k>` node there.
+ */
 export function buildPole(p) {
-  const H = p.h ?? 7;
+  const H = p.h ?? 7, n = Math.max(1, Math.min(POLE_INSULATORS.length, Math.round(p.wires ?? POLE_INSULATORS.length)));
   const pole = new THREE.CylinderGeometry(0.1, 0.13, H + 0.4, 9); pole.translate(0, (H + 0.4) / 2 - 0.4, 0);
   const parts = [pole, beam(V3(-0.75, H - 0.45, 0.13), V3(0.75, H - 0.45, 0.13), 0.09), beam(V3(-0.4, H - 0.45, 0.13), V3(0, H - 0.95, 0.13), 0.04), beam(V3(0.4, H - 0.45, 0.13), V3(0, H - 0.95, 0.13), 0.04)];
   const geo = mergeGeometries(parts.map((g) => g.toNonIndexed()), false);
@@ -1097,12 +1119,17 @@ export function buildPole(p) {
   boxUV(geo, 1.2);
   const g = new THREE.Group(); g.name = 'dressing:pole';
   g.add(mesh(geo, dressingMaterial('creosote')));
-  const glass = GLASS ||= new THREE.MeshStandardMaterial({ color: 0x6f8f86, roughness: 0.2, name: 'dressing:insulator' });
-  const ins = mergeGeometries([-0.62, -0.25, 0.25, 0.62].map((x) => new THREE.CylinderGeometry(0.035, 0.05, 0.12, 6).translate(x, H - 0.34, 0.13)), false);
-  g.add(mesh(ins, glass, false));
+  const xs = POLE_INSULATORS.slice(0, n);
+  const ins = mergeGeometries(xs.map((x) => new THREE.CylinderGeometry(0.035, 0.05, 0.12, 6).translate(x, H - 0.34, 0.13)), false);
+  g.add(mesh(ins, insulatorGlass(), false));
+  xs.forEach((x, k) => addCableNode(g, k, x, H - 0.3, 0.13));
   return g;
 }
 let GLASS = null;
+/** Shared glass of the pin / suspension insulators. */
+function insulatorGlass() {
+  return (GLASS ||= new THREE.MeshStandardMaterial({ color: 0x6f8f86, roughness: 0.2, name: 'dressing:insulator' }));
+}
 
 /**
  * Timber wall-walk deck (mission `walkways` on a wall): plank deck strips [{ax, az, bx, bz, off, width, y}] (off =

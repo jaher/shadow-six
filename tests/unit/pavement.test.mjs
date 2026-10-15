@@ -91,6 +91,7 @@ test('3p mesh builder: ribbons, kerbs, sidewalks, rails, quay, details (node, fl
 import { expandFurniture, FURNITURE_BLOCK } from '../../src/world/roads.js';
 import { lampParts, LAMP_VARIANTS, LAMP_LIGHT } from '../../src/art/furniture/lamps.js';
 import { buildFurniture } from '../../src/art/furniture/index.js';
+import { buildProp } from '../../src/art/props.js';
 import { wireGeometry, fenceParts, propParts } from '../../src/art/furniture/street-props.js';
 import { createStreetLights, LIGHTS_PER_PRESET } from '../../src/render/street-lights.js';
 import gallery from '../../src/missions/dev/pavement-gallery.js';
@@ -153,7 +154,7 @@ test('3p furniture: builder instancing, emitters, BEL telegraph wires, street li
   assert.equal(night.stats.assigned, LIGHTS_PER_PRESET.high);
   night.dispose(); B.dispose();
   // M1 relay-road telegraph poles (wireTo) get wires and are turned across their line
-  const poles = m01.structures.filter((s) => s.type === 'telegraph_pole').map((def) => ({ def, object3d: { rotation: { y: 0 }, position: { y: 0 } } }));
+  const poles = m01.structures.filter((s) => s.type === 'telegraph_pole').map((def) => ({ def, object3d: buildProp('telegraph_pole', def, { theater: 'temperate' }).object3d }));
   const M = buildFurniture(expandFurniture(normalizeRoadNetwork(m01)), { poles });
   assert.equal(M.stats.wireSpans, 16);
   assert.ok(poles.every((p) => p.object3d.rotation.y !== 0));

@@ -126,13 +126,17 @@ export function signTexture(kind, text = '') {
 /**
  * Sagging catenary wires between fixing points (pairs of world points) as thin tubes with an aSway weight
  * (sin π t along each span) for the shared wind sway shader (art/cloth-wind.js applySway).
- * @param {{a:number[], b:number[]}[]} spans @param {{sag?:number, r?:number, seg?:number}} [o]
+ * @param {{a:number[], b:number[], r?:number}[]} spans (r: that conductor's radius, else o.r)
+ * @param {{sag?:number, r?:number, seg?:number, sides?:number}} [o] sag (m, default by span), seg: segments a span,
+ *   sides of the tube (3)
  */
 export function wireGeometry(spans, o = {}) {
-  const pos = [], sway = [], idx = [];
-  const r = o.r ?? 0.009, seg = o.seg ?? 10, rs = 3;
-  for (const { a, b } of spans) {
+  const pos = [], sway = [], idx = [], ends = [];
+  const seg = o.seg ?? 10, rs = o.sides ?? 3;
+  for (const { a, b, r: rSpan } of spans) {
+    const r = rSpan ?? o.r ?? 0.009;
     const L = Math.hypot(b[0] - a[0], b[2] - a[2]), sag = o.sag ?? Math.min(0.9, 0.0022 * L * L + 0.08);
+    ends.push([pos.length / 3, pos.length / 3 + seg * rs]);
     const pts = [];
     for (let k = 0; k <= seg; k++) {
       const t = k / seg;
@@ -159,6 +163,7 @@ export function wireGeometry(spans, o = {}) {
   g.setAttribute('aSway', new THREE.Float32BufferAttribute(sway, 1));
   g.setIndex(idx);
   g.computeVertexNormals();
+  g.userData.spans = { ends, ring: rs }; // per span: first vertex of its a-end ring and of its b-end ring (centre = the fixing)
   return g;
 }
 

@@ -18,6 +18,8 @@ import * as THREE from 'three';
 import { dressingMaterial, boxUV, consolidate } from './dressing.js';
 import { paintedMaterial } from './kit-props.js';
 import { windowGlass } from './kit-buildings.js';
+import { cablePoints, conductorSpans, addCableNode } from './cable-attach.js';
+import { wireGeometry } from './furniture/street-props.js';
 
 function mesh(geo, mat, shadow = true) {
   const m = new THREE.Mesh(geo, mat);
@@ -77,7 +79,7 @@ function band(w, l, r, y0, y1, mat, tile = 1) {
 
 const CABIN = { w: 2.05, l: 2.9, r: 0.28, floor: 0.16, belt: 1.0, sill: 1.08, head: 1.95, eave: 2.2, roof: 2.34 };
 /** Rope heights above the cabin floor: the track ropes under the carriage wheels, the haul rope below them. */
-export const CABLE_CAR_ROPES = { track: 3.96, haul: 3.72, gauge: 0.32, portal: 2.4 };
+export const CABLE_CAR_ROPES = { track: 3.96, haul: 3.72, gauge: 0.32, portal: 2.4, trackR: 0.028, haulR: 0.02 };
 
 function cabinMaterials(theater) {
   return {
@@ -138,7 +140,7 @@ function buildHanger(M) {
   return consolidate(g);
 }
 function buildCarriage(M) {
-  const R = CABLE_CAR_ROPES, g = new THREE.Group(), pv = 3.3, wr = 0.16, wy = R.track + wr - pv;
+  const R = CABLE_CAR_ROPES, g = new THREE.Group(), pv = 3.3, wr = 0.16, wy = R.track + R.trackR + wr - pv; // wheels ride ON the ropes
   g.add(strut([0, 0, 0], [0, wy - 0.1, 0], 0.12, M.dark, 0.18));                               // drop arm
   g.add(tbox(0.9, 0.14, 2.5, M.dark, 0, wy - 0.12, 0));                                        // balance beam
   for (const sx of [-1, 1]) {
@@ -151,23 +153,37 @@ function buildCarriage(M) {
   return consolidate(g);
 }
 
-/** Rope saddle portal: two steel posts from the ground to the ropes, cross head with the rope shoes and the haul sheave. */
-function buildPortal(M, top, ground) {
-  const R = CABLE_CAR_ROPES, g = new THREE.Group(), h = top - ground;
+/**
+ * Rope saddle portal (local x across the line, z along it): two steel posts from the ground, the cross head in two
+ * halves with the haul-rope roller between them, and the two track-rope shoes on top. `ry` = the track ropes' centre
+ * height there; the ropes lie in the grooves: `cable:0` / `cable:1` = the track ropes on their shoes, `cable:2` = the
+ * haul rope on the roller (art/cable-attach.js — the rope span is drawn between two portals' nodes).
+ */
+function buildPortal(M, ry, ground) {
+  const R = CABLE_CAR_ROPES, g = new THREE.Group(), concrete = dressingMaterial('concrete');
+  const hy = ry - (R.track - R.haul), shoe = 0.12, head = 0.3, roll = 0.14;
+  const shoeY = ry - R.trackR - shoe / 2 + 0.01;        // the rope sits 1 cm deep in the shoe's groove
+  const headY = shoeY - shoe / 2 - head / 2, h = headY - ground;
   for (const sx of [-1, 1]) {
-    g.add(strut([sx * 1.3, ground, 0], [sx * 0.9, top + 0.15, 0], 0.18, M.dark, 0.14));
+    g.add(strut([sx * 1.3, ground, 0], [sx * 0.9, headY, 0], 0.18, M.dark, 0.14));            // post into the cross head
     g.add(strut([sx * 1.3, ground, 0], [sx * 0.95, ground + h * 0.6, 0.0], 0.06, M.dark));
-    g.add(tbox(0.5, 0.25, 0.5, dressingMaterial('concrete'), sx * 1.3, ground + 0.1, 0));       // footing
-    for (let y = ground + 0.9; y < top - 0.4; y += 1.1) g.add(strut([-1.25, y, 0], [1.25, y + 0.9, 0], 0.05, M.dark));
+    g.add(tbox(0.5, 0.25, 0.5, concrete, sx * 1.3, ground + 0.1, 0));                         // footing
+    g.add(tbox(0.97, head, 0.32, M.dark, sx * 0.665, headY, 0));                               // cross head half (|x| 0.18 … 1.15)
+    g.add(tbox(0.16, shoe, 0.7, M.iron, sx * R.gauge, shoeY, 0));                             // rope shoe
   }
-  g.add(tbox(2.3, 0.22, 0.32, M.dark, 0, top + 0.12, 0));                                      // cross head
-  for (const sx of [-1, 1]) g.add(tbox(0.16, 0.12, 0.7, M.iron, sx * R.gauge, top + 0.28, 0)); // rope shoes
-  g.add(tcyl(0.32, 0.32, 0.08, M.iron, 0, top - 0.02, 0, 'x', 16));                            // haul sheave
+  for (let y = ground + 0.9; y + 0.9 < headY - head / 2; y += 1.1) g.add(strut([-1.25, y, 0], [1.25, y + 0.9, 0], 0.05, M.dark));
+  const ry2 = hy - R.haulR - roll;                                                             // haul rope over the roller's top
+  g.add(tcyl(roll, roll, 0.08, M.iron, 0, ry2, 0, 'x', 16), tcyl(0.03, 0.03, 0.4, M.iron, 0, ry2, 0, 'x', 8));
+  addCableNode(g, 0, -R.gauge, ry, 0, { r: R.trackR });
+  addCableNode(g, 1, R.gauge, ry, 0, { r: R.trackR });
+  addCableNode(g, 2, 0, hy, 0, { r: R.haulR });
   return g;
 }
 
 /**
- * The static rope span + portals for a cable-car vehicle (world coordinates).
+ * The static rope span + portals for a cable-car vehicle (world coordinates). The track and haul ropes run straight
+ * (the cabin rolls on them) between the two portals' rope grooves; guy stays from each track-rope saddle down to a
+ * ground anchor behind its portal.
  * @param {{x:number,z:number,y:number}[]} track the vehicle's two track points (cabin floor heights)
  * @param {(x:number, z:number) => number} ground ground height
  */
@@ -175,26 +191,34 @@ export function buildCableLine(track, ground, theater = 'temperate') {
   const M = cabinMaterials(theater), R = CABLE_CAR_ROPES, g = new THREE.Group(); g.name = 'kit:cable_line';
   const [a, b] = [track[0], track[track.length - 1]];
   const dx = b.x - a.x, dz = b.z - a.z, L = Math.hypot(dx, dz) || 1, ux = dx / L, uz = dz / L, px = -uz, pz = ux;
-  const slope = ((b.y ?? 0) - (a.y ?? 0)) / L, E = R.portal;
+  const slope = ((b.y ?? 0) - (a.y ?? 0)) / L, E = R.portal, yaw = Math.atan2(ux, uz); // yaw: portal local x across the line
   const at = (s, h) => [a.x + ux * s, (a.y ?? 0) + slope * s + h, a.z + uz * s]; // rope point s m along the line, h above the floor line
-  const ends = [-E, L + E];
-  for (const sx of [-1, 1]) {
-    const A = at(ends[0], R.track), B = at(ends[1], R.track);
-    g.add(rope([A[0] + px * sx * R.gauge, A[1], A[2] + pz * sx * R.gauge], [B[0] + px * sx * R.gauge, B[1], B[2] + pz * sx * R.gauge], 0.028, M.iron));
-  }
-  g.add(rope(at(ends[0], R.haul), at(ends[1], R.haul), 0.02, M.iron));
-  for (const [k, s] of ends.entries()) {
-    const [x, y, z] = at(s, R.track), gy = ground(x, z);
-    const p = buildPortal(M, y - 0.08, Math.min(gy, y - 1));
-    p.position.set(x, 0, z); p.rotation.y = Math.atan2(ux, uz) + Math.PI / 2; // local x across the line
+  const portals = [-E, L + E].map((s) => {
+    const [x, y, z] = at(s, R.track);
+    const p = buildPortal(M, y, Math.min(ground(x, z), y - 1));
+    p.position.set(x, 0, z); p.rotation.y = yaw;
     g.add(p);
-    // guy stays down to a ground anchor behind the portal
-    const out = k === 0 ? -1 : 1, ax = x + ux * out * 3.2, az = z + uz * out * 3.2, ag = ground(ax, az);
-    for (const sx of [-1, 1]) g.add(rope([x + px * sx * R.gauge, y, z + pz * sx * R.gauge], [ax + px * sx * 0.5, ag + 0.3, az + pz * sx * 0.5], 0.022, M.iron));
-    const blk = tbox(1.6, 0.6, 0.8, dressingMaterial('concrete'), ax, ag + 0.2, az, 1); blk.rotation.y = Math.atan2(ux, uz) + Math.PI / 2;
+    return p;
+  });
+  const fix = portals.map((p) => cablePoints(p));
+  for (const [k, p] of portals.entries()) {
+    const out = k === 0 ? -1 : 1, x = p.position.x, z = p.position.z, ax = x + ux * out * 3.2, az = z + uz * out * 3.2, ag = ground(ax, az);
+    for (const q of fix[k].slice(0, 2)) {
+      const sx = Math.sign((q.p[0] - x) * px + (q.p[2] - z) * pz);
+      g.add(rope(q.p, [ax + px * sx * 0.5, ag + 0.3, az + pz * sx * 0.5], 0.022, M.iron));
+    }
+    const blk = tbox(1.6, 0.6, 0.8, dressingMaterial('concrete'), ax, ag + 0.2, az, 1); blk.rotation.y = yaw;
     g.add(blk);
   }
-  return consolidate(g);
+  const line = consolidate(g);
+  // the ropes: their own mesh, groove to groove (tests/power-lines measures its ends against the portals' nodes)
+  const spans = conductorSpans(fix[0], fix[1]);
+  const geo = wireGeometry(spans, { sag: 0, seg: 1, sides: 8 });
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(geo.attributes.position.count * 2), 2));
+  const ropes = mesh(geo, M.iron); ropes.name = 'kit:cable_ropes';
+  ropes.userData.cableSpans = spans.map((s) => ({ a: s.an, b: s.bn }));
+  line.add(ropes);
+  return line;
 }
 
 /** Entity model for a `cable_car` rail vehicle. */
