@@ -30,8 +30,9 @@ import { T } from '../world/grid.js';
 import { mgMuzzle } from './mg-mount.js';
 import { fuelBlastScale, isFuelStructure } from '../art/fuel-tanks.js';
 import { buildingMeta } from '../art/building-library.js';
-import { dressingMaterial, boxUV } from '../art/dressing.js';
+import { dressingMaterial } from '../art/dressing.js';
 import { assetExtents } from '../art/building-props.js';
+import { smokePoints, fluedStackGeometry, sootMaterial } from '../art/chimney-flues.js';
 import { coneAt } from '../ai/perception.js';
 import { due, runSync, runSliced } from '../engine/slice.js';
 
@@ -415,9 +416,10 @@ export class FX {
   }
 
   /**
-   * Chimney smoke (E4, ambient): emission points are the chimney tops of the ACTUAL model — the building library's
-   * `chimney` anchors (and a hut's stovepipe `smoke` anchor; manifest sidecar, transformed by the placed instance, also
-   * for instanced repeats), a model child named /chimney/, or the mission's `chimney: {x, z, y}` (`chimney: {activity}`
+   * Chimney smoke (E4, ambient): emission points are the chimney tops of the ACTUAL model — the mouths of the flues the
+   * load opened at the building library's `chimney` anchors (and a hut's stovepipe `smoke` anchor; art/chimney-flues.js:
+   * the smoke rises out of the hole, a stack with pots from one pot; manifest sidecar, transformed by the placed
+   * instance, also for instanced repeats), a model child named /chimney/, or the mission's `chimney: {x, z, y}` (`chimney: {activity}`
    * without x/z keeps the model's own anchors and only sets how busy the fire is). Library models without a chimney anchor never smoke (no smoke
    * from bare roofs); ruins / destroyed variants are cold. Only procedural placeholder houses/huts (no library model)
    * get a seeded brick stack, seated on the roof surface under it (raycast) so it never floats.
@@ -431,7 +433,7 @@ export class FX {
       ? [V3(def.chimney.x, def.chimney.y ?? this._y(def.chimney.x, def.chimney.z) + 6, def.chimney.z)] : FX.chimneyPoints(obj);
     if (pts === null) return; // library model without a chimney (or a ruin): no smoke
     if (pts.length) yield* this._sizeSkinnedG();
-    pts = pts.map((q) => this._seatOnStack(q));
+    pts = pts.map((q) => (q.mouth ? q : this._seatOnStack(q))); // (a flue's mouth is measured: already in the opening)
     let mesh = null;
     if (!pts.length) {
       if (!['house', 'hut'].includes(s.type) && def.chimney !== true) return;
@@ -498,12 +500,14 @@ export class FX {
   static chimneyPoints(obj) {
     const pts = [];
     let lib = false;
+    // one point per smoking anchor: its flue's mouth (`.mouth`) once the load opened it, else the anchor itself
+    const add = (name, M) => { for (const p of smokePoints(name, buildingMeta(name)?.anchors || [])) { const v = V3(p.pos[0], p.pos[1], p.pos[2]).applyMatrix4(M); if (p.mouth) v.mouth = true; pts.push(v); } };
     obj.traverse((o) => {
       const name = o.userData?.building;
       if (name) {
         lib = true;
         if (/ruin|destroyed/.test(name)) return;
-        for (const an of buildingMeta(name)?.anchors || []) if (an.kind === 'chimney' || an.kind === 'smoke') pts.push(V3(an.pos[0], an.pos[1], an.pos[2]).applyMatrix4(o.matrixWorld));
+        add(name, o.matrixWorld);
       } else if (!lib && /chimney/i.test(o.name || '') && o.name !== 'fx-chimney') {
         const b = new THREE.Box3().setFromObject(o);
         if (!b.isEmpty()) pts.push(V3((b.min.x + b.max.x) / 2, b.max.y + 0.05, (b.min.z + b.max.z) / 2));
@@ -514,8 +518,7 @@ export class FX {
       lib = true;
       const fit = obj.children.find((c) => c.name === 'fit'), turn = fit?.children[0], ext = assetExtents(asset);
       if (turn && ext && !/ruin|destroyed/.test(asset)) {
-        const M = new THREE.Matrix4().makeTranslation(-ext.cx, 0, -ext.cz).premultiply(turn.matrixWorld);
-        for (const an of buildingMeta(asset)?.anchors || []) if (an.kind === 'chimney' || an.kind === 'smoke') pts.push(V3(an.pos[0], an.pos[1], an.pos[2]).applyMatrix4(M));
+        add(asset, new THREE.Matrix4().makeTranslation(-ext.cx, 0, -ext.cz).premultiply(turn.matrixWorld));
       }
     }
     return lib && !pts.length ? null : pts;
@@ -530,7 +533,8 @@ export class FX {
 
   static _hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return ((h ^ (h >>> 13)) >>> 0) / 4294967296; }
 
-  /** Brick stack for a procedural house/hut, seated on the roof surface under it and topping the ridge. */
+  /** Open brick stack (art/chimney-flues.js: a coping round a sooty flue) for a procedural house/hut, seated on the
+   * roof surface under it and topping the ridge; the smoke rises out of the flue. */
   _placeholderStack(obj, def, k) {
     const box = new THREE.Box3().setFromObject(obj);
     if (box.isEmpty()) return null;
@@ -541,18 +545,19 @@ export class FX {
     _ray.set(V3(cx, box.max.y + 5, cz), _down); _ray.far = Infinity;
     const hit = _ray.intersectObject(obj, true).find((h) => !h.object.isSprite && !h.object.isPoints);
     const roofY = hit ? hit.point.y : box.max.y, top = Math.max(roofY + 0.9, box.max.y + 0.35), base = roofY - 0.3;
-    // placeholder-art pass: a textured stack (brick; rendered mud brick in the desert) with a cap slab (was a flat-colour
-    // box); unit-height geometry scaled to the stack height as before, its UVs laid out at the real height
-    const H = top - base, desert = this.theater === 'desert';
-    const geo = boxUV(new THREE.BoxGeometry(0.6, H, 0.6).toNonIndexed(), 1.2).scale(1, 1 / H, 1);
-    const capM = new THREE.Mesh(boxUV(new THREE.BoxGeometry(0.76, 0.1, 0.76).toNonIndexed(), 1.2), dressingMaterial(desert ? 'adobe' : 'concrete'));
-    capM.position.y = 0.5 - 0.06 / H; capM.scale.y = 1 / H; capM.name = 'fx-chimney'; capM.castShadow = true; // cap just under the stack top (smoke leaves at top + 0.02)
-    const mesh = new THREE.Mesh(geo, dressingMaterial(desert ? 'mudRender' : 'brick'));
-    mesh.add(capM);
-    mesh.scale.y = H; mesh.position.set(cx, (top + base) / 2, cz);
+    // placeholder-art pass: a textured stack (brick; rendered mud brick in the desert) under a coping course, open: a
+    // flue 0.13 m in from the faces, lined in the stack's material darkened (same program: no compile; the coping is the
+    // stack's material now, so still two draws as the stack + concrete cap slab before)
+    const stackMat = dressingMaterial(this.theater === 'desert' ? 'mudRender' : 'brick');
+    const { outer, liner } = fluedStackGeometry({ w: 0.6, d: 0.6, y0: base, y1: top, cap: 0.08, capH: 0.1, t: 0.13, depth: 0.45, uvScale: 1.2 });
+    const mesh = new THREE.Mesh(outer, stackMat), lin = new THREE.Mesh(liner, sootMaterial(stackMat));
+    lin.name = 'fx-chimney'; lin.castShadow = false; lin.receiveShadow = true;
+    mesh.add(lin);
+    mesh.position.set(cx, 0, cz);
     mesh.castShadow = true; mesh.receiveShadow = true; mesh.name = 'fx-chimney';
     this.root.add(mesh);
-    return { mesh, pos: V3(cx, top + 0.02, cz) };
+    const pos = V3(cx, top - 0.04, cz); pos.mouth = true; // (the smoke leaves the flue just inside its mouth)
+    return { mesh, pos };
   }
 
   _stopTrail(v) { const t = this._trails.get(v); if (t) { t.handle?.stop?.(); this._trails.delete(v); } }

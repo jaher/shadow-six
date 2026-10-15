@@ -15,6 +15,7 @@ import * as THREE from 'three';
 import { dressingMaterial, boxUV, consolidate, rng, seedOf, boulderGeometry } from './dressing.js';
 import { paintedMaterial } from './kit-props.js';
 import { MEDINA_RX, glazedTile, medinaDoor, medinaWindow, medinaFacade, medinaAwning, medinaShop, palaceFront } from './medina-kit.js';
+import { fluedStackGeometry, sootMaterial } from './chimney-flues.js';
 
 function mesh(geo, mat, shadow = true) {
   const m = new THREE.Mesh(geo, mat);
@@ -26,6 +27,15 @@ function tbox(w, h, d, mat, x = 0, y = h / 2, z = 0, tile = 2.2) {
   const m = mesh(boxUV(new THREE.BoxGeometry(w, h, d).toNonIndexed(), tile), mat);
   m.position.set(x, y, z);
   return m;
+}
+/** Open chimney stack w × d from y0 to y1 at (x, z): coping round a flue lined in the stack's material darkened
+ *  (art/chimney-flues.js; consolidate() merges every liner of the building into one mesh). Its mouth (local to g) is
+ *  kept in g.userData.flueMouths (tests / tools). */
+function flueStack(g, w, d, y0, y1, mat, x, z) {
+  const { outer, liner } = fluedStackGeometry({ w, d, y0, y1, cap: 0.05, capH: 0.08, t: Math.min(w, d) * 0.22, depth: 0.4, uvScale: 1.2 });
+  const m = mesh(outer, mat); m.position.set(x, 0, z); g.add(m);
+  const l = mesh(liner, sootMaterial(mat), false); l.position.set(x, 0, z); g.add(l);
+  (g.userData.flueMouths ||= []).push([x, y1 - 0.04, z]);
 }
 const V2 = (r, y) => new THREE.Vector2(r, y);
 /** Lathe with world-scale UVs (u around the circumference in metres / tile, v = height / tile). */
@@ -256,7 +266,7 @@ export function buildKitHouse(p, theater = 'temperate') {
     }
     // a stairhead / water tank on desert roofs, a chimney in Europe
     if (p.roofWalk) { /* clear roof */ } else if (theater === 'desert' && w * d > 50 && R() < 0.6) g.add(tbox(1.8, 1.9, 1.6, wallMat, -w / 2 + 1.3, h + 0.95, -d / 2 + 1.2, 2.2));
-    else if (theater !== 'desert') g.add(tbox(0.6, 1.2, 0.6, dressingMaterial('brick'), w * 0.3, h + 0.6, -d * 0.25, 1.2));
+    else if (theater !== 'desert') flueStack(g, 0.6, 0.6, h, h + 1.2, dressingMaterial('brick'), w * 0.3, -d * 0.25);
   } else {
     // pitched roof along the longer side, 0.35 m overhang
     const along = w >= d, L = (along ? w : d) + 0.6, span = (along ? d : w) + 0.6, rise = Math.min(4, span * 0.38);
@@ -265,7 +275,7 @@ export function buildKitHouse(p, theater = 'temperate') {
     geo.translate(0, 0, -L / 2);
     if (along) geo.rotateY(Math.PI / 2);
     const roof = mesh(boxUV(geo, 2), dressingMaterial(S.pitched)); roof.position.y = h; g.add(roof);
-    g.add(tbox(0.5, 1.0, 0.5, dressingMaterial(theater === 'snow' ? 'fieldstone' : 'brick'), (along ? 1 : 0) * w * 0.25, h + rise * 0.6, (along ? 0 : 1) * d * 0.25, 1.2));
+    flueStack(g, 0.5, 0.5, h + rise * 0.6 - 0.5, h + rise * 0.6 + 0.5, dressingMaterial(theater === 'snow' ? 'fieldstone' : 'brick'), (along ? 1 : 0) * w * 0.25, (along ? 0 : 1) * d * 0.25);
   }
   // variant accents
   if (/awning|souk|shop/.test(v) && !medina) {

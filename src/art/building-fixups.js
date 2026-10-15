@@ -10,11 +10,14 @@
  *  - desert palm-frond shades/thatch (kit:palm_frond_dz): exported without alphaMode MASK → the leaf cards drew as
  *    opaque black squares → alpha-tested (cut-out), double-sided
  *  - uboat_pen: Fangrost rib tops had their concrete stretched along 50 m ribs (striped) → object-space triplanar
+ *  - chimneys: solid stacks / capped pots and stovepipes (snow-capped on the snow variants) → an open, sooty flue at
+ *    every smoke anchor (art/chimney-flues.js)
  * @module art/building-fixups
  */
 
 import * as THREE from 'three';
 import { loadCompressedTexture } from '../engine/texture-memory.js';
+import { openChimneyFlues } from './chimney-flues.js';
 
 const C = { net: null, netNor: null };
 
@@ -173,10 +176,13 @@ function fixUboatConcrete(root) {
 
 /**
  * Apply the fixes that match `name` / `lod` to a freshly loaded scene.
+ * @param {object} [meta] the asset's manifest entry (its anchors: chimney flues)
  * @returns {string[]} applied fix ids (for logs/tests)
  */
-export function applyAssetFixups(root, name, lod, base = 'assets/') {
+export function applyAssetFixups(root, name, lod, base = 'assets/', meta = null) {
   const out = [];
+  // first: the flues cut the asset's own geometry (its turf → snow swap and materials do not matter to them)
+  if (meta?.anchors?.length && openChimneyFlues(root, meta.anchors, { name, lod }).length) out.push('chimney-flues');
   if (/_snow$/.test(name) && fixSnowTurf(root)) out.push('snow-turf');
   if (fixSnowNormals(root)) out.push('snow-normals'); // every asset with kit snow (snow variants, snowy ruins)
   if (fixBunkerNet(root, base, name)) out.push('camo-net'); // every kit camo net; the desert/snow bunker hessian drapes

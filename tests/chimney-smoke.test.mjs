@@ -4,7 +4,8 @@
  * over every commando / enemy screen box (a commando and an enemy are moved right under a plume, the enemy's cone
  * shown) and over the shown vision cone. Uses the pass debug target: R perceived change, G local cap, B raw ambient
  * alpha, A final ambient alpha. The plume must read clearly (not a faint veil) and start right at the stack top. Also:
- * emission points sit on the model's chimney tops (raycast) and the cost is small.
+ * emission points sit in the open flue of the model's chimney tops (raycast: a dark flue floor under the point, the
+ * rim round it at the mouth's height; art/chimney-flues.js) and the cost is small.
  */
 export default async function chimneySmoke(page, t) {
   for (const [mission, id] of [['m01', 'relay_hut'], ['m03', 'camp_barr']]) {
@@ -15,14 +16,30 @@ export default async function chimneySmoke(page, t) {
       for (let i = 0; i < 64; i++) { g.advance(0.25); if (i % 8 === 0) G.render(1 / 60, 1); }
       const A0 = fx.vfx.ambient; out.rules = { cap: A0.cap, capRoof: A0.capRoof, maskUnit: A0.maskUnit, maskCone: A0.maskCone };
       out.chimneys = fx._chimneys.map((c) => ({ id: c.id, a: c.activity, y: c.pos.y }));
-      // emission points sit on a chimney top of the drawn model: a ray down from 0.5 m above hits geometry within 0.5 m
+      // emission points sit in the open flue of a chimney top of the drawn model (art/chimney-flues.js): straight under
+      // the point the flue's dark floor, round it the rim at the mouth's height; a raw anchor (no flue measured): a ray
+      // down from 0.5 m above hits geometry within 0.12 m
       const THREE = await import('three');
-      out.tops = fx._chimneys.map((c) => {
+      const hitAt = (x, y, z) => {
         // the whole scene: instanced repeats are drawn by a batch mesh outside the structure's group
-        const ray = new THREE.Raycaster(new THREE.Vector3(c.pos.x, c.pos.y + 0.5, c.pos.z), new THREE.Vector3(0, -1, 0), 0, 3);
+        const ray = new THREE.Raycaster(new THREE.Vector3(x, y, z), new THREE.Vector3(0, -1, 0), 0, 3);
         ray.camera = new THREE.PerspectiveCamera(); // the scene has Sprites (headlight halos): Sprite.raycast needs a camera
-        const hit = ray.intersectObject(fx.scene, true).find((q) => q.object.visible !== false && !q.object.isPoints && !q.object.isSprite && !/^vfx-/.test(q.object.name));
-        return { id: c.id, gap: hit ? +(c.pos.y - hit.point.y).toFixed(3) : null };
+        const h = ray.intersectObject(fx.scene, true).find((q) => q.object.visible !== false && !q.object.isPoints && !q.object.isSprite && !/^vfx-/.test(q.object.name));
+        if (!h) return null;
+        const C = h.object.geometry?.attributes?.color, f = h.face;
+        const col = C && f ? (C.getX(f.a) + C.getX(f.b) + C.getX(f.c)) / 3 : 1; // (an instanced batch draws the template: same colours)
+        return { y: h.point.y, dark: col < 0.15 || /#soot/.test(h.object.material?.name || '') };
+      };
+      out.tops = fx._chimneys.map((c) => {
+        const { x, y, z } = c.pos;
+        if (!c.pos.mouth) { const h = hitAt(x, y + 0.5, z); return { id: c.id, mouth: false, gap: h ? +(y - h.y).toFixed(3) : null }; }
+        const mid = hitAt(x, y + 0.03, z);
+        let rim = null;
+        for (let d = 0.03; d <= 0.6 && !rim; d += 0.015) for (let a = 0; a < 8 && !rim; a++) {
+          const h = hitAt(x + Math.cos(a * Math.PI / 4) * d, y + 0.12, z + Math.sin(a * Math.PI / 4) * d);
+          if (h && !h.dark && Math.abs(h.y - y - 0.04) < 0.07) rim = { d: +d.toFixed(3), dy: +(h.y - y).toFixed(3) };
+        }
+        return { id: c.id, mouth: true, gap: mid ? +(y - mid.y).toFixed(3) : null, dark: !!mid?.dark, rim };
       });
       const c = fx._chimneys.find((q) => q.id === id && q.activity > 0) || fx._chimneys.find((q) => q.activity > 0);
       out.framed = c.id;
@@ -98,7 +115,11 @@ export default async function chimneySmoke(page, t) {
     if (!r.chimneys) { t.ok(false, `${mission}: VFX library active`); continue; }
     const R = r.rules;
     t.ok(r.chimneys.length > 0 && r.chimneys.some((c) => c.a > 0), `${mission}: lit chimneys (${r.chimneys.map((c) => `${c.id}:${c.a}`)})`);
-    for (const q of r.tops) t.ok(q.gap != null && q.gap >= -0.01 && q.gap <= 0.12, `${mission} ${q.id}: emission on the chimney top of the model (gap ${q.gap} m)`);
+    for (const q of r.tops) {
+      if (!q.mouth) { t.ok(q.gap != null && q.gap >= -0.01 && q.gap <= 0.12, `${mission} ${q.id}: emission on the chimney top of the model (gap ${q.gap} m)`); continue; }
+      t.ok(q.gap != null && q.gap >= 0.05 && q.gap <= 0.6 && q.dark, `${mission} ${q.id}: emission over the open flue (its dark floor ${q.gap} m under it, dark ${q.dark})`);
+      t.ok(!!q.rim, `${mission} ${q.id}: the flue's rim round the emission point at the mouth's height (${JSON.stringify(q.rim)})`);
+    }
     t.ok(r.visiblePx > 3000 && r.maxPerceived > 0.15, `${mission}: smoke clearly visible (${r.visiblePx} px, max perceived ${r.maxPerceived})`);
     t.ok(r.stack.m > 0.08 && r.stack.n > 150, `${mission}: plume anchored at the stack top (max ${r.stack.m}, ${r.stack.n} px within 1.5 m)`);
     t.ok(r.maxPerceived <= R.capRoof + 0.012, `${mission}: perceived change ≤ roof cap ${R.capRoof} (${r.maxPerceived})`);

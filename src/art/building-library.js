@@ -196,7 +196,7 @@ function loadLod(name, i) {
   const url = L.base + 'models/' + L.manifest.assets[name].lods[i].url;
   const p = L.loader.loadAsync(url).then((g) => {
     prepareScene(g.scene);
-    g.scene.userData.fixups = applyAssetFixups(g.scene, name, i, L.base);
+    g.scene.userData.fixups = applyAssetFixups(g.scene, name, i, L.base, L.manifest.assets[name]);
     // one merged mesh per multi-primitive part for the shadow map and the AO prepass (engine/depth-merge.js); window
     // glass stays out: world/map-library.js splits it into breakable panes, a geometry of its own per building
     addDepthMerge(g.scene, { exclude: paneGlass });

@@ -843,9 +843,20 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   headless), `fx.items` (recent spawn log). Listens to `explosion`, `shot`, `unit:killed`, `vehicle:destroyed`,
   `vehicle:fire`, `fire`, `hit`, `structure:destroyed`; registers explosive drums (`vfx.addExplosive`, never armed:
   the gameplay ignite chain decides), chimneys (model child named /chimney/, mission `chimney`, a library model's
-  `chimney` / `smoke` (hut stovepipe) anchors, or placeholder houses; `chimney: false` none, `chimney: {activity}` a
+  `chimney` / `smoke` (hut stovepipe) anchors — the smoke leaves the measured mouth of the flue the load opened there
+  (`art/chimney-flues.js`) — or placeholder houses (an open stack); `chimney: false` none, `chimney: {activity}` a
   lit fire of that strength) and optional mission `fx: [{kind, x, z, ...opts}]`. Blood honours `options.blood` /
   `options.censored`.
+- Chimney flues (`src/art/chimney-flues.js`): the kit's stacks, clay pots and stovepipes are modelled closed (and
+  snow-capped on the snow variants). `openChimneyFlues(scene, anchors)` runs once per loaded building GLB (art/
+  building-fixups.js, every LOD, before the depth merge): at each smoke-like anchor it finds the cap plate / pots /
+  pipe top in the geometry, cuts the hole through every surface in its column (cap, pot top, snow, decals; triangle
+  minus convex prism, attributes interpolated, the coping keeps its snow) and merges a sooty liner (walls + floor)
+  into the chimney's own mesh, darkened by vertex colour and shaded with side / downward normals so the scene's
+  top-facing prop snow (`coverPropsWithSnow`) skips it; rain hats sitting on a pipe are lifted clear and sooted. No
+  new mesh, material, program or draw. `flueMouths(name)` / `smokePoints(name, anchors)` give FX the mouths (model
+  space, finest LOD opened); `fluedStackGeometry` + `sootMaterial` build the same open stack for the FX placeholder
+  and the kit houses (art/kit-buildings.js).
 - Dam water (`src/render/dam-water.js` + `-mats.js`, `-geom.js`, `-pool.js`, `-pool-glsl.js`, `-spray.js`,
   `dam-flow.js`; structures with `waterFx`, M3): built by the map handle with the ambient-life layer (after the
   water's bed capture) and ticked per displayed frame (frozen while paused). The face is sampled by raycasts on the

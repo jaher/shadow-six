@@ -206,9 +206,14 @@ test('chimney: map scan (headless) — anchors of the placed models, a seated st
   const an = chimneyAnchors('log_cabin_b_snow')[0];
   near(cab.pos.y, an.pos[1] * 1.05, 1e-6, 'emission exactly at the stack top');
   const proc = fx._chimneys.find((c) => c.id === 'proc');
-  const top = proc.mesh.position.y + proc.mesh.scale.y / 2, base = proc.mesh.position.y - proc.mesh.scale.y / 2;
+  const bb = new THREE.Box3().setFromObject(proc.mesh), top = bb.max.y, base = bb.min.y;
   assert.ok(base < 4.2 && base > 2.0, `stack seated on the roof (${base.toFixed(2)})`);
-  near(proc.pos.y, top + 0.02, 1e-6, 'smoke at the stack top');
+  // an open stack (art/chimney-flues.js): the smoke leaves its flue just inside the mouth, over the sooty liner
+  near(proc.pos.y, top - 0.04, 1e-6, 'smoke at the stack top, in its mouth');
+  assert.ok(proc.pos.mouth, 'a measured mouth: not re-seated');
+  const down = new THREE.Raycaster(new THREE.Vector3(proc.pos.x, top + 1, proc.pos.z), new THREE.Vector3(0, -1, 0));
+  const hit = down.intersectObject(proc.mesh, true)[0];
+  assert.ok(hit && /#soot/.test(hit.object.material.name) && hit.point.y < top - 0.3, `open flue under the plume (${hit?.object.material.name} at ${hit?.point.y.toFixed(2)})`);
   assert.ok(proc.activity > 0, 'mission chimney: true is lit');
   const lit = fx._chimneys.filter((c) => c.activity > 0).length;
   assert.equal(fx.items.filter((r) => r.kind === 'chimney_smoke').length, lit, 'one emitter per lit chimney');
