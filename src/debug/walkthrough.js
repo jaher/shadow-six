@@ -13,6 +13,10 @@
  *    list (forward = fast-forward from here; back = the mission reloaded and fast-forwarded, the run being
  *    deterministic), captions on / off, free camera (the director lets go until it is switched back on), exit to the
  *    debug menu. Desktop keys: Space, B / N, 1–4, 5 / A (AUTO), W, C, F, L, Esc.
+ * An action is watched until it has visibly finished (debug/action-hold.js: the clothesline take, a knife, a charge…,
+ * plus a beat): the camera stays on the man (an authored `shot` cue still wins), the caption on his step, the next
+ * chapter's card waits for it, and AUTO plays it at 1×. Every order selects the man it goes to, as a portrait click
+ * would: his portrait, knapsack, stance hand and ring (debug/solution-replay.js _selectActor).
  * Nothing here touches the simulation: the camera, the drawn cones, the captions and the pacing of wall time only.
  * @module debug/walkthrough
  */
@@ -21,7 +25,7 @@ import { SolutionReplay } from './solution-replay.js';
 import { normalizeWalkthrough, currentStep, orderAction, targetTag, matchOn, cpId } from './walkthrough-data.js';
 import { Director, freeRect } from './walkthrough-director.js';
 import { ROLE_NAMES } from '../ui/catalogue.js';
-import { AutoPace, PaceSensor, PerfCeiling, SteadyGrant, paceTarget, readTime, inClimax } from './auto-pace.js';
+import { AutoPace, PaceSensor, PerfCeiling, SteadyGrant, paceTarget, readTime, inClimax, isTrueWait, waitRate, WAIT } from './auto-pace.js';
 
 export const WALK_SPEEDS = Object.freeze([0.5, 1, 2, 4]);
 /** The speed of a fresh walkthrough (no `speed` in its link): AUTO. `speed=1` is a fixed 1×. */
@@ -127,6 +131,8 @@ const rectOf = (q) => {
   return r.width > 0 && r.height > 0 ? r : null;
 };
 const fmtTime = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+/** What a wait is for, as the solution says it (its until label), kept short for the caption. */
+const waitText = (s) => { const t = String(s ?? '').trim(); return t.length > 72 ? `${t.slice(0, 70)}…` : t; };
 
 function installStyle() {
   if (document.getElementById('wt-style')) return;
@@ -253,6 +259,7 @@ export class Walkthrough extends SolutionReplay {
     this.autoWhy = '';
     this._readUntil = 0;
     this._lastChapterT0 = null;
+    this._cardDeferred = false;
     this._burst = { frame: 0, prev: 0, ms: 0, ticks: 0 };
     this._frameNo = 0;
   }
@@ -363,8 +370,11 @@ export class Walkthrough extends SolutionReplay {
     this._marker('stage', id);
     super._onStage(id, title);
     this._syncStep();
-    if (!this.pacer.turbo && !this._introOn) this._chapterCard();
+    // (the card waits until an action of the last chapter has visibly finished: the Spy's clothesline take, M3 C3)
+    if (!this.pacer.turbo && !this._introOn) { if (this.holdNow()) this._cardDeferred = true; else this._chapterCard(); }
   }
+
+  _holdMeta() { return { step: this.step, chapterId: this.chapterId }; }
 
   _marker(kind, id) {
     const i = this._markerIdx({ kind, id });
@@ -376,6 +386,7 @@ export class Walkthrough extends SolutionReplay {
 
   _fastForwardDone(kind) {
     this._jumpFrom = null;
+    this._cardDeferred = false;
     this._autoReset(1);
     this._camCut = true;
     this.stepWall = performance.now();
@@ -421,6 +432,7 @@ export class Walkthrough extends SolutionReplay {
     const g = this._grant.frame(dt);
     super._frame(this.auto && !this.pacer.turbo ? g : dt);
     if (this.stopped) return;
+    if (this._cardDeferred && (this.pacer.turbo || !this.holdNow())) { this._cardDeferred = false; if (!this.pacer.turbo) this._chapterCard(); }
     this._pace(dt);
     this.director.update(dt);
   }
@@ -460,6 +472,7 @@ export class Walkthrough extends SolutionReplay {
    */
   _autoStep(dt) {
     const p = this.pacer, w = this.world;
+    this.autoDt = dt; // (the frame time the speed was eased over: tests measure the ramps by it)
     if (p.turbo) return;
     const b = this._burst; // ms of ticks per tick on the last frames (the game step and the solution's own planning)
     const msPerTick = b.ticks ? b.ms / b.ticks : null;
@@ -470,9 +483,26 @@ export class Walkthrough extends SolutionReplay {
     const sig = this.sensor.sample(t, this._paceCtx(), performance.now());
     const reading = this.captions ? (this._readUntil - performance.now()) / 1000 : 0;
     const climax = inClimax(t, this._lastChapterT0, this.sensor.blastT);
+    const held = this.holdNow();
+    if (held) sig.windows.push({ rate: 1, why: held.id, left: 1 }); // (an action watched until it has visibly finished: 1×)
     const tg = paceTarget(sig, { ceiling, reading, climax });
-    p.boost = this.autoPace.step(tg.rate, dt, ceiling);
-    this.autoWhy = tg.why;
+    // a true wait (the solution waits for a guard, a gap, a timer; nobody acts; nothing to slow for): as fast as a steady
+    // WAIT.tickMs of ticks a frame allow; anything that happens (an order, an event, a man moving) ends it at once
+    const busy = w.commandos.some((c) => c.alive && (c.pendingAbility || (c.currentAction && c.currentActionId !== 'distract')));
+    if (isTrueWait(sig, tg, { waiting: this.waitLabel, busy })) {
+      const want = waitRate({ tickMs: this.autoCeiling.tickMs, frameDt: this._grant.usual, simDt: this.simDt, floor: ceiling });
+      // (up smoothly: at most WAIT.rampPerFrame of an octave a frame, however slow the frames)
+      const lf = Math.log2(this._waitRate || this.autoPace.rate), lw = Math.log2(want);
+      const stepO = Math.min(Math.min(dt, 0.1) * WAIT.rampOctavesPerS, WAIT.rampPerFrame);
+      this._waitRate = 2 ** (lw > lf ? Math.min(lw, lf + stepO) : Math.max(lw, lf - stepO));
+      p.boost = this._waitRate;
+      this.autoPace.handOver(this._waitRate);
+      this.autoWhy = 'wait';
+    } else {
+      if (this._waitRate) { this._waitRate = 0; } // (the wait is over: AUTO's spring takes it down from the wait's speed)
+      p.boost = this.autoPace.step(tg.rate, dt, ceiling);
+      this.autoWhy = tg.why;
+    }
     this._autoLabel();
   }
 
@@ -484,8 +514,9 @@ export class Walkthrough extends SolutionReplay {
     const who = this.step?.who?.length ? this.step.who.map((r) => w.commandos.find((c) => c.role === r)).filter(Boolean) : this.focus ? [this.focus] : [];
     const refs = [...(this.step?.look || []), ...(this.beat?.look || [])].filter((r) => typeof r === 'string');
     const subjects = refs.map((r) => w.enemies.find((e) => e.tag === r)).filter(Boolean);
+    const objects = refs.map((r) => w.interactables.find((i) => !i.removed && (i.tag === r || i.spawn?.id === r || i.switchId === r))).filter(Boolean);
     this._paceKey = key;
-    this._paceCtxV = { actors: who, subjects };
+    this._paceCtxV = { actors: who, subjects, objects };
     return this._paceCtxV;
   }
 
@@ -507,7 +538,7 @@ export class Walkthrough extends SolutionReplay {
   }
 
   _fmtRate(r) {
-    return r < 0.75 ? '½×' : `${r.toFixed(1)}×`;
+    return r < 0.75 ? '½×' : r >= 9.95 ? `${Math.round(r)}×` : `${r.toFixed(1)}×`;
   }
 
   _tick() {
@@ -621,6 +652,9 @@ export class Walkthrough extends SolutionReplay {
     if (this._objHold && this._objHold.until > now) return { pts: this._objHold.pts, frame: { minSpan: [24, 15] }, pitch: this._pitch(this._objHold.pts), cut };
     const b = this.beat && (this.beat.until == null || now <= this.beat.until) ? this.beat : null;
     const cue = b?.look ? b : this.step;
+    // an action is watched until it has visibly finished (and its beat), unless the walkthrough asks for a `shot`
+    const held = cue?.shot && cue.look?.length ? null : this.holdNow();
+    if (held) { const s = this.holdShot(held, cut); if (s) return s; }
     const zoom = cue?.zoom || this.step?.zoom;
     const frame = zoom === 'close' ? { minSpan: [10, 6], maxZoom: 1.7 } : zoom === 'wide' ? { minSpan: [30, 18] } : { minSpan: [16, 10] };
     const look = (cue?.look || []).map((r) => this.resolve(r)).filter(Boolean);
@@ -995,7 +1029,11 @@ export class Walkthrough extends SolutionReplay {
     if (!this._cardAt || now - this._cardAt > 150) { this._cardAt = now; this._cardShift(); } // (it moves to the speaker)
     if (this._capAt && now - this._capAt < 100) return;
     this._capAt = now;
-    const wt = this.wt, st = this.step, ch = wt.chapters.find((c) => c.id === this.chapterId);
+    // (while an action is watched to its end, its step stays on screen: the next one starts after it)
+    const hd = this.holdNow();
+    const st = hd?.meta?.step && hd.meta.step !== this.step ? hd.meta.step : this.step;
+    const chId = st === this.step ? this.chapterId : hd.meta.chapterId ?? this.chapterId;
+    const wt = this.wt, ch = wt.chapters.find((c) => c.id === chId);
     const chapterMode = this._held() && this.hold?.kind === 'chapter' && ch;
     const n = wt.steps.length;
     let pos = st ? `${st.cp} · ${wt.steps.indexOf(st) + 1}/${n}` : ch ? `${ch.id}` : '';
@@ -1007,10 +1045,11 @@ export class Walkthrough extends SolutionReplay {
       cap.dataset.progress = target > 0 ? String(Math.max(0, Math.min(1, (this.markerIndex + 1) / (target + 1)))) : '0';
     } else if (this.paused) status = '❚❚ paused';
     else if (!this.auto && this.pacer.boost > 1.05) status = `⏩ waiting ×${(this.pacer.speed * this.pacer.boost).toFixed(1)}`;
+    else if (this.auto && this.autoWhy === 'wait' && this.waitLabel) status = `⏩ waiting: ${waitText(this.waitLabel)}`;
     const head = ch ? `${ch.id} · ${ch.title}` : this.stage ? `${this.stage.id} · ${this.stage.title}` : 'Walkthrough';
     let say, who = [];
     if (chapterMode) say = ch.say || '';
-    else if (this.beat?.say) { say = this.beat.say; who = st?.who || []; }
+    else if (st === this.step && this.beat?.say) { say = this.beat.say; who = st?.who || []; }
     else if (st) { say = st.say; who = st.who; }
     else say = this.lastOrder || '';
     // AUTO: a new caption is read at no more than 2.5×, from when it shows with the clock running (a card holds the clock
@@ -1021,7 +1060,7 @@ export class Walkthrough extends SolutionReplay {
     this._capKey = key;
     cap.className = chapterMode ? 'chapter' : '';
     cap.dataset.step = st?.cp || '';
-    cap.dataset.chapter = this.chapterId || '';
+    cap.dataset.chapter = chId || '';
     cap.dataset.mode = chapterMode ? 'chapter' : this.pacer.turbo ? 'jump' : 'step';
     cap.textContent = '';
     const h = el('div', 'wt-head', cap);

@@ -183,7 +183,8 @@ export class Input {
   /**
    * Select commandos.
    * @param {any[]} units
-   * @param {{add?: boolean, toggle?: boolean}} [opts]
+   * @param {{add?: boolean, toggle?: boolean, silent?: boolean}} [opts] silent: no "Yes?" voice (the solution replay /
+   *   video mode selecting the man an order goes to: his acknowledgement is heard)
    */
   select(units, opts = {}) {
     const w = this.world;
@@ -210,7 +211,7 @@ export class Input {
         t.commando = keep[0];
       }
     }
-    w.events.emit('unit:selected', { units: this.selection });
+    w.events.emit('unit:selected', opts.silent ? { units: this.selection, silent: true } : { units: this.selection });
   }
 
   deselectAll() {

@@ -10,6 +10,12 @@
  * captions show the stage, the latest checkpoint and the latest order. Player orders (game.enqueue) are dropped while
  * it runs; Esc (or STOP) stops it and gives the game back to the player where it stands.
  *
+ * The HUD follows the play as it would a player's: every order selects the man it goes to (orders to several men in a
+ * row select them together) — his portrait, his knapsack, his stance hand and the selection ring under him — with the
+ * game's own Input.select (no voice: the order's acknowledgement is heard), never the run itself (the driver gives
+ * its orders straight to the units, Commando.issue). An action is watched until it has visibly finished
+ * (debug/action-hold.js): the camera stays on the man and his target meanwhile.
+ *
  * While CAM follow is on, the camera is VIDEO MODE's (debug/walkthrough-director.js): a Director fed by this
  * replay's own composeShot() frames the acting commando with the mission's `pitchAt` tilt and a yaw swung away
  * from whatever building would hide the men — the plain follow track runs only until the director attaches
@@ -22,8 +28,11 @@ import { CONFIG } from '../config.js';
 import { loadWalkthrough } from './solutions.js';
 import { normalizeWalkthrough } from './walkthrough-data.js';
 import { Director, freeRect } from './walkthrough-director.js';
+import { ActionHolds } from './action-hold.js';
 
 export const SPEEDS = Object.freeze([1, 2, 4, 8]);
+/** Orders to several men within this many seconds of game time from the first one select them together (a group order). */
+export const SELECT_GROUP_S = 0.35;
 /** Wall-clock ms of ticks per frame while fast-forwarding to a stage. */
 export const TURBO_MS = 90;
 /**
@@ -196,6 +205,11 @@ export class SolutionReplay {
     this._waiter = null;
     this.ticks = 0;
     this.dropped = 0;
+    /** Actions watched until they have visibly finished (debug/action-hold.js). */
+    this.holds = new ActionHolds();
+    /** The men the play has selected (orders to them) and when the last was. */
+    this._selUnits = [];
+    this._selAt = null;
   }
 
   get speed() { return this.pacer.speed; }
@@ -232,6 +246,12 @@ export class SolutionReplay {
       return out;
     };
     g.enqueue = () => { this.dropped++; this._flash = performance.now() + 2500; }; // the replay plays: player orders wait
+    const ev = this.world.events, T = () => this.world.time;
+    this._holdOffs = ev?.on ? [
+      ev.on('ability:start', (p) => this.holds.start(p?.unit, p?.id, p?.target ?? null, T(), this._holdMeta())),
+      ev.on('ability:end', (p) => this.holds.end(p?.unit, p?.id, T())),
+      ev.on('unit:killed', (p) => this.holds.killed(p?.unit, p?.killer, T())),
+    ] : [];
     if (this.toMarker) this.pacer.setTurbo(true);
     this._buildUi();
     const D = this.sol.makeDriver(this.world, {
@@ -239,6 +259,7 @@ export class SolutionReplay {
       aborted: () => this.stopped,
       onOrder: (role, u, o) => this._onOrder(role, u, o),
       onCheckpoint: (cp) => this._onCheckpoint(cp),
+      onWait: (label) => this._onWait(label),
       pause: () => this._pause(),
     });
     this.driver = D;
@@ -303,9 +324,61 @@ export class SolutionReplay {
 
   _onOrder(role, u, o) {
     this.focus = u;
+    this._selectActor(u);
     this.lastOrder = describeOrder(u, o);
     const tgt = o?.type === 'ability' && o.target && o.target !== u && typeof o.target === 'object' ? o.target : null;
     if (tgt && (Number.isFinite(tgt.x) || tgt.kind)) this._action = { u, t: tgt, until: this.world.time + 6 };
+  }
+
+  /**
+   * Select the man an order went to, as a portrait click would (Input.select: portrait, knapsack, stance hand, ring),
+   * silently. Orders to several men within SELECT_GROUP_S of the first select them together (a group order: a ring
+   * under each); a later order to another man selects him alone. Never under the BCD puppet rule (selecting another
+   * man there releases a puppet: a change to the run).
+   */
+  _selectActor(u) {
+    const w = this.world, input = this.game.input;
+    if (!input?.select || !u || u.kind !== 'commando' || u.alive === false || w.rules?.puppet) return;
+    const t = w.time;
+    const group = this._selAt != null && t - this._selAt <= SELECT_GROUP_S;
+    const keep = group ? this._selUnits.filter((c) => c.alive !== false && c !== u) : [];
+    const next = [...keep, u];
+    if (!group) this._selAt = t;
+    this._selUnits = next;
+    // (while an action of another man is watched to its end, the HUD stays on him with the camera: then it follows)
+    const held = this.holdNow();
+    if (held && !next.includes(held.unit)) { this._selPending = true; return; }
+    this._selPending = false;
+    this._applySelection();
+  }
+
+  _applySelection() {
+    const w = this.world, input = this.game.input, next = this._selUnits.filter((c) => c.alive !== false);
+    if (!input?.select || !next.length) return;
+    const now = w.commandos.filter((c) => c.selected);
+    if (now.length === next.length && next.every((c) => c.selected)) return; // (already so: no event)
+    input.select(next, { silent: true });
+  }
+
+  /** What the solution is waiting for now (the driver's until label, a sneak's gap), or null. */
+  _onWait(label) { this.waitLabel = label || null; }
+
+  /** The host's context a hold remembers (the walkthrough: the step on screen). */
+  _holdMeta() { return {}; }
+
+  /** The action being watched now (debug/action-hold.js), or null. */
+  holdNow() {
+    return this.pacer.turbo ? null : this.holds.current(this.world.time);
+  }
+
+  /** A shot of a held action: the man, and his target when there is one within 40 m of him. */
+  holdShot(h, cut = false) {
+    const a = this._pointOf(h.unit);
+    if (!a) return null;
+    const pts = [a];
+    const tg = h.target;
+    if (tg && Number.isFinite(tg.x) && Math.hypot(tg.x - a.x, tg.z - a.z) < 40) pts.push({ x: tg.x, z: tg.z, y: tg.y ?? 0 });
+    return { pts, must: 1, frame: { minSpan: [12, 8], maxZoom: 1.5 }, pitch: this._pitch(pts), cut, hold: h };
   }
 
   _onCheckpoint(cp) {
@@ -364,6 +437,7 @@ export class SolutionReplay {
       else w.res();
     }
     this._dt = dt;
+    if (this._selPending && !this.holdNow()) { this._selPending = false; this._applySelection(); }
     this._camera();
     if (this._wasPaused !== this.paused) { this._wasPaused = this.paused; this._syncBar(); } // P pauses too
     this._caption();
@@ -432,6 +506,8 @@ export class SolutionReplay {
       const a = this._actors();
       return a.length ? { pts: a, must: a.length, cut: true, frame: { minSpan: [26, 16] }, pitch: this._pitch(a) } : null;
     }
+    const held = this.holdNow(); // an action is watched until it has visibly finished
+    if (held) { const s = this.holdShot(held); if (s) return s; }
     const actors = this._actors();
     const pts = [...actors];
     const a0 = actors[0];
@@ -527,6 +603,9 @@ export class SolutionReplay {
       g.accumulator = 0;
     }
     if (this._smart && this.director) { this.director.detach(); this.director = null; } // the player's pitch / yaw / bounds back
+    for (const off of this._holdOffs || []) off?.();
+    this._holdOffs = null;
+    this.holds.clear();
     if (this._trackPending || this._tracked) g.cameraController?.untrack?.();
     this._ui?.remove();
     this._steps?.remove();

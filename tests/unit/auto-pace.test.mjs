@@ -5,7 +5,7 @@
  * and nothing written to the game.
  */
 import { test, assert, near } from './lib.mjs';
-import { paceTarget, AutoPace, PerfCeiling, PaceSensor, SteadyGrant, readTime, inClimax, AUTO_PACE, ACTION_RATE, EVENT_WINDOWS } from '../../src/debug/auto-pace.js';
+import { paceTarget, AutoPace, PerfCeiling, PaceSensor, SteadyGrant, readTime, inClimax, isTrueWait, waitRate, WAIT, AUTO_PACE, ACTION_RATE, EVENT_WINDOWS } from '../../src/debug/auto-pace.js';
 import { TickPacer } from '../../src/debug/solution-replay.js';
 import { EventBus } from '../../src/core/events.js';
 
@@ -36,11 +36,12 @@ test('auto pace: a key action is eased into (rate × (1 + seconds to go − 0.6)
   near(at(0), 1, 1e-9);
   for (let e = 0; e < 4; e += 0.25) assert.ok(at(e) <= at(e + 0.25) + 1e-12, `monotonic at ${e}`);
   assert.equal(paceTarget({ action: { id: 'knife', rate: 1, eta: 0 } }).why, 'knife');
-  near(paceTarget({ action: { id: 'use', rate: ACTION_RATE.use, eta: 0 } }).rate, 1.5, 1e-9, 'a switch: 1.5×');
-  // the key actions and their rates (what the films slowed for)
-  for (const id of ['knife', 'harpoon', 'pistol', 'sniper', 'timeBomb', 'remoteBomb', 'uniform', 'handcuff', 'syringe']) assert.equal(ACTION_RATE[id], 1, id);
-  for (const id of ['use', 'cutters', 'decoyToggle', 'distract', 'trap']) assert.equal(ACTION_RATE[id], 1.5, id);
-  for (const id of ['shovel', 'dive', 'climb', 'leaveVehicle', 'raft']) assert.equal(ACTION_RATE[id], undefined, `${id} is not a moment`);
+  near(paceTarget({ action: { id: 'use', rate: ACTION_RATE.use, eta: 0 } }).rate, 1, 1e-9, 'the clothesline take (use): 1×, as a kill');
+  // the key actions and their rates (what the films slowed for; the M3 review: the clothesline take too)
+  for (const id of ['knife', 'harpoon', 'pistol', 'sniper', 'timeBomb', 'remoteBomb', 'uniform', 'handcuff', 'syringe', 'use', 'cutters', 'trap']) assert.equal(ACTION_RATE[id], 1, id);
+  for (const id of ['decoyToggle', 'distract']) assert.equal(ACTION_RATE[id], 1.5, id);
+  for (const id of ['shovel', 'dive', 'climb', 'leaveVehicle']) assert.equal(ACTION_RATE[id], undefined, `${id} is not a moment`);
+  assert.equal(ACTION_RATE.raft, 1, 'the raft inflated / folded is watched');
 });
 
 test('auto pace: ½× around a blast (from 0.8 s before the fuse runs out to 3 s after) and for the climax', () => {
@@ -79,6 +80,9 @@ test('auto pace: events, striking distance, near misses, the step\'s subject, ca
   near(paceTarget({ subject: 3 }).rate, 1.5, 1e-9, 'closing in on the step\'s guard');
   near(paceTarget({ subject: 7.5 }).rate, 2.75, 1e-9);
   assert.equal(paceTarget({ subject: 12 }).rate, 4);
+  near(paceTarget({ object: 2 }).rate, 1.5, 1e-9, 'the step\'s man beside the thing it names: about to act on it');
+  assert.equal(paceTarget({ object: 2 }).why, 'at it');
+  assert.equal(paceTarget({ object: 5 }).rate, 4);
   near(paceTarget({}, { reading: 3 }).rate, 2.5, 1e-9, 'a caption being read');
   assert.equal(paceTarget({}, { reading: -1 }).rate, 4, 'read');
   // the slowest wins
@@ -123,6 +127,11 @@ test('auto pace: a slow-down holds the next speed-up (no pumping), the ceiling a
   assert.ok(Math.max(...r3) <= r0 + 1e-9, `the speed-up waits ~0.5 s after a slow-down (${r0.toFixed(2)} → ${Math.max(...r3).toFixed(2)})`);
   const r4 = run(d, 4, 1.5);
   assert.ok(r4[r4.length - 1] > 3.5, 'then it rises');
+  const hv = new AutoPace(4);
+  hv.handOver(24); // (a true wait at 24× just ended)
+  const r6 = run(hv, 4, 1.5, 4);
+  assert.ok(r6[0] > 22 && r6[r6.length - 1] < 4.3, `down from a wait's speed by the spring (${r6[0].toFixed(1)} → ${r6[r6.length - 1].toFixed(2)})`);
+  for (let i = 1; i < r6.length; i++) assert.ok(Math.abs(Math.log2(r6[i] / r6[i - 1])) < 0.12, `smooth at frame ${i}`);
   const e = new AutoPace(2);
   e.reset(1);
   assert.equal(e.rate, 1);
@@ -169,6 +178,21 @@ test('auto pace: ticks per frame follow the eased speed — no burst after a lon
   // a sustained slower frame rate is followed: 30 fps at 4× = 8 ticks a frame within a second
   for (let i = 0; i < 40; i++) frame(1 / 30, 4);
   assert.equal(perFrame[perFrame.length - 1], 8);
+});
+
+test('auto pace: a true wait runs as fast as a steady 8 ms of ticks a frame allow (the cruise at least, 64× at most)', () => {
+  near(waitRate({ tickMs: 0.4, frameDt: 1 / 60 }), 20, 1e-9, '0.4 ms a tick: 20 ticks a frame → 20×');
+  near(waitRate({ tickMs: 0.2, frameDt: 1 / 30 }), 0.25 * (1000 / 30) / 0.2 / 2, 1e-9, '30 fps: a quarter of the frame for ticks');
+  near(waitRate({ tickMs: 0.5, frameDt: 0.055 }), (0.25 * 55 / 0.5) * (1 / 60) / 0.055, 1e-9, 'slow frames (a loaded machine): a quarter of the frame');
+  near(waitRate({ tickMs: 0.2, frameDt: 0.2, floor: 1 }), (16 / 0.2) * (1 / 60) / 0.2, 1e-9, '16 ms a frame at most');
+  assert.equal(waitRate({ tickMs: 0.05 }), WAIT.max);
+  assert.equal(waitRate({ tickMs: 5, floor: 4 }), 4, 'expensive ticks: no faster than the cruise');
+  // only while the solution waits, nobody acts, nothing to slow for
+  assert.ok(isTrueWait({ motion: 'idle' }, { why: 'idle' }, { waiting: 'e19 down his beat' }));
+  assert.ok(!isTrueWait({ motion: 'idle' }, { why: 'idle' }, { waiting: null }), 'the solution is not waiting (planning, an order)');
+  assert.ok(!isTrueWait({ motion: 'idle' }, { why: 'idle' }, { waiting: 'x', busy: true }), 'a man acts');
+  assert.ok(!isTrueWait({ motion: 'crawl' }, { why: 'crawl' }, { waiting: 'x' }), 'a man moves');
+  for (const why of ['caption', 'cone', 'closing in', 'kill', 'charge', 'climax']) assert.ok(!isTrueWait({ motion: 'idle' }, { why }, { waiting: 'x' }), `${why}: not a true wait`);
 });
 
 // ------------------------------------------------------------------ the sensor, on a small fake world

@@ -32,7 +32,9 @@ and its mission). Format version: **1** (stable; new fields will only ever be op
 - Long waits (a patrol walking off, a cone sweeping past) need no step of their own: AUTO speed (the default) runs
   them fast and slows down by itself for the moments that matter, and the caption stays on the step being waited for.
   AUTO reads the step too: its `who` closing in on a guard named in its `look` slows the play down ahead of the
-  action, and a new caption is never played faster than 2.5× while it is read.
+  action, and a new caption is never played faster than 2.5× while it is read. A true wait (nobody acts, the solution
+  waits in a `D.until` or for a sneak's gap) runs as fast as a steady share of each frame allows, the caption reading
+  "waiting: <the until's label>": so write those labels for a viewer ("e19 down his beat, p5 by the decoy").
 
 ## The file
 
@@ -122,7 +124,10 @@ You do not need cues for these; they happen in every mission:
 
 - follows the acting commando (`who`, else the last ordered one), his vehicle while he rides;
 - an ability aimed at someone or something (knife, harpoon, distract, use, enter a vehicle) frames the man and his
-  target until the action ends;
+  target until the action ends; any key action (those, a charge, the uniform, the raft…) is held until it has
+  visibly finished — the unit's own action, the rest of its clip, its victim's fall — plus a 1 s beat, before the
+  camera, the caption or the next chapter's card moves on (src/debug/action-hold.js);
+- every order selects the man it goes to (portrait, knapsack, stance hand, selection ring);
 - an armed time bomb is framed for the last seconds of its fuse and the blast; a finished objective is held on
   screen for a moment;
 - a guard's cone is drawn while he is in `cones`, in `look`, or close to the actor;

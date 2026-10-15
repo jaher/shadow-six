@@ -683,8 +683,12 @@ export const STAGES = [
     await D.go('sapper', 27.4, 32.4, { tol: 0.5 });
     await D.stance('sapper', 'crawl');
     const dec = D.c('greenberet').decoy, decHear = (e) => !e?.alive || Math.hypot(e.x - dec.x, e.z - dec.z) < 12;
+    // (the camp walkers 50 / 45 m off the E stair's foot, not 64 / 60: those margins lined up all four rounds only once
+    // in 4 min, the longest wait of the walkthrough — user 2026-10-14 "There is a large time gap between green beret
+    // activates the decoy and the rapper goes in the bunker, fix those periods of idleness"; 0 detections, 0 exposures,
+    // nominal and jittered runs: the decoy goes on at 2699.9 instead of 2905.1)
     await D.until(() => P5.every((t) => { const e = D.get(t); return !e?.alive || (e.brain.state !== 'DECOY' && decHear(e) && e.x < 24); })
-      && staysAway(D, 'e19', [dec.x, dec.z], 14, 45) && staysAway(D, 'e7', E_STAIR_FOOT, 64, 42, 20) && staysAway(D, 'e10', E_STAIR_FOOT, 60, 42, 20),
+      && staysAway(D, 'e19', [dec.x, dec.z], 14, 45) && staysAway(D, 'e7', E_STAIR_FOOT, 50, 42, 20) && staysAway(D, 'e10', E_STAIR_FOOT, 45, 42, 20),
     1200, 'e19 down his beat, p5 by the decoy, e7 / e10 off E');
     D.ability('greenberet', 'decoyToggle'); // on
     const toDecoy = (e) => { const a = Math.atan2(dec.z - e.z, dec.x - e.x) - e.heading; return Math.abs(Math.atan2(Math.sin(a), Math.cos(a))); };

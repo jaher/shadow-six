@@ -161,16 +161,16 @@ export default async function debugWalkthrough(page, t) {
   t.equal(s.step, wB, `back at the start of step ${wB}`);
 
   step('7b. AUTO: fast through the crawl down the gully, eased down to 1× into the knife on e5 (B1)');
-  // every displayed frame: game time, the speed, why; the kill's game time
+  await page.keyboard.press('a');
+  t((await S()).auto, 'A: AUTO on');
+  // every displayed frame (in AUTO): game time, the speed, why; the kill's game time
   await page.evaluate(() => {
     const r = window.shadowSix.debug.mode.replay, w = window.shadowSix.world;
     window.__pace = { f: [], kill: null };
     const off = w.events.on('unit:killed', (p) => { if (p.unit?.tag === 'e5' && window.__pace && window.__pace.kill == null) { window.__pace.kill = w.time; off(); } });
-    const f = () => { if (!window.__pace) return; if (!r.stopped && !r.paused && !r._held()) window.__pace.f.push([w.time, r.rate, r.autoWhy]); requestAnimationFrame(f); };
+    const f = () => { if (!window.__pace) return; if (!r.stopped && !r.paused && !r._held()) window.__pace.f.push([w.time, r.rate, r.autoWhy, r.autoDt]); requestAnimationFrame(f); };
     requestAnimationFrame(f);
   });
-  await page.keyboard.press('a');
-  t((await S()).auto, 'A: AUTO on');
   await page.waitForFunction(() => window.__pace?.kill != null && window.shadowSix.world.time > window.__pace.kill + 2.5, null, { timeout: 180000 });
   const pace = await page.evaluate(() => { const p = window.__pace; window.__pace = null; return p; });
   const at = (tt) => { let best = null; for (const x of pace.f) { if (x[0] <= tt) best = x; else break; } return best; };
@@ -179,11 +179,18 @@ export default async function debugWalkthrough(page, t) {
   const fast = Math.max(...before.map((x) => x[1]));
   const atK = at(K)[1], at3 = at(K - 3)[1], at6 = at(K - 6)[1];
   let jump = 0;
-  for (let i = 1; i < pace.f.length; i++) jump = Math.max(jump, Math.abs(Math.log2(pace.f[i][1] / pace.f[i - 1][1])));
-  t.log(`AUTO before B1: max ${fast.toFixed(2)}×; at kill −6 s ${at6.toFixed(2)}, −3 s ${at3.toFixed(2)}, kill ${atK.toFixed(2)} (${at(K)[2]}); biggest step between frames ${jump.toFixed(3)} octave`);
+  // (in octaves per second of the frame time AUTO eased it over: a frame-rate-free measure of how fast the speed
+  // changes; 6 = 4× → 1× in a third of a second at the very least)
+  let jumpAt = null;
+  for (let i = 1; i < pace.f.length; i++) {
+    const d = Math.abs(Math.log2(pace.f[i][1] / pace.f[i - 1][1])) / Math.max(pace.f[i][3] || 0, 1 / 120);
+    if (d > jump) { jump = d; jumpAt = pace.f.slice(i - 1, i + 1); }
+  }
+  if (jump >= 4) t.log(`fastest change: ${JSON.stringify(jumpAt)}`);
+  t.log(`AUTO before B1: max ${fast.toFixed(2)}×; at kill −6 s ${at6.toFixed(2)}, −3 s ${at3.toFixed(2)}, kill ${atK.toFixed(2)} (${at(K)[2]}); fastest change ${jump.toFixed(2)} octave/s`);
   t(fast >= 3, `AUTO speeds up through the quiet crawl (${fast.toFixed(2)}×)`);
   t(atK <= 1.3 && at3 < fast && at3 >= atK, `… and slows down before the knife: ${at3.toFixed(2)}× 3 s before, ${atK.toFixed(2)}× at the kill`);
-  t(jump < 0.2, `smooth ramps, no jump between two frames (${jump.toFixed(3)} octave at most)`);
+  t(jump < 6, `smooth ramps, no jump between two frames (at most ${jump.toFixed(2)} octave a second)`);
   t(/AUTO \d\.\d×|AUTO ½×/.test((await autoBtn()).text), `the button shows the speed (${(await autoBtn()).text})`);
   await click('#wt-bar [data-act="speed-4"]');
   t(!(await S()).auto, 'a fixed speed leaves AUTO');

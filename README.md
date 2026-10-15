@@ -187,6 +187,11 @@ button says so). The mission loads fresh, as authored, on a title card (Start, C
   caption and the HUD leave free, with smooth pans and zooms, the mission's camera pitch (M3 looks down steeper over
   the plateau) and your camera angle, swung aside only while a building would hide the shot. The guards' cones that
   matter to the step are drawn.
+- **The HUD follows the play**: every order selects the man it goes to, as a click on his portrait would — his
+  portrait, his knapsack, his stance hand and the selection ring under him (two men ordered together: two rings).
+- **An action is watched to its end**: a knife, an injection, a charge, the clothesline take, the raft inflated or
+  folded… the camera stays on the man (and his target) until it has visibly finished, then a beat, before it moves
+  on to the next man or chapter.
 - **The narration**: a chapter card at each stage, then one caption per step saying who does what and why
   (`tools/solutions/<id>.walkthrough.mjs`, format in [docs/walkthrough-format.md](docs/walkthrough-format.md)).
 - **The bar** (finger-sized, under the HUD's top bar on every screen):
@@ -198,7 +203,7 @@ button says so). The mission loads fresh, as authored, on a title card (Start, C
 | ❚❚ / ▶ | Space | Pause / play. |
 | ☰ | L | Chapters and steps: jump to any of them. |
 | ½× 1× 2× 4× | 1–4 | A fixed speed. |
-| AUTO | 5 / A | The default: the speed follows the action, as the solution films did. Fast through walks, waits and long crawls (4×, up to 8× while the frame rate holds), eased down to 1× ahead of what matters (a knife, a shot, a charge, a uniform, a switch, a near miss, a man closing in on the guard the step is about), ½× for blasts and the escape, never above 2.5× while a new caption is read. The button shows the speed it plays at; a fixed speed leaves AUTO. |
+| AUTO | 5 / A | The default: the speed follows the action, as the solution films did. Fast through walks and long crawls (4×, up to 8× while the frame rate holds); a true wait (the solution waits for a guard, a gap in the cones, a timer, and nobody acts) runs as fast as a steady share of each frame allows, the caption saying what it waits for; eased down to 1× ahead of what matters (a knife, a shot, a charge, the uniform, a switch, the raft, a near miss, a man closing in on the guard the step is about) and held there until the action has visibly finished; ½× for blasts and the escape; never above 2.5× while a new caption is read. The button shows the speed it plays at; a fixed speed leaves AUTO. |
 | ⏩ | W | Skip waits (fixed speeds; on by default): while every commando waits, the pace rises up to 4× faster; it drops back the moment anything happens. |
 | CC | C | Captions on / off. |
 | CAM | F | Director on / off. Off is a free camera: scroll, drag and zoom as in the game; a drag or the wheel over the map also switches to it. CAM gives the camera back to the director. |

@@ -281,7 +281,7 @@ export function installHandlers(a, events) {
 
   // Voices (§9.4)
   on('bark', (e) => a._bark(e));
-  on('unit:selected', (e) => { const u = (e.units || [])[0]; if (isCommando(u) && (e.units.length === 1 || !e.silent)) a.say(u, 'select'); });
+  on('unit:selected', (e) => { const u = (e.units || [])[0]; if (isCommando(u) && !e.silent) a.say(u, 'select'); }); // (silent: the replay's own selection)
   on('unit:order', (e) => {
     const o = e.order || {};
     if (o.type === 'move') a.say(e.unit, 'ack_move');

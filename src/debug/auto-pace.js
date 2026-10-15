@@ -6,8 +6,9 @@
  *    16×) under the walkthrough's ceiling: 4×, or up to 8× (crawls 6×) while the frame rate holds (PerfCeiling);
  *  - a key action (a knife, a harpoon, a shot, a charge, the uniform, handcuffs, a switch, a decoy, a chat-up…) is eased
  *    into as the films eased into their windows, speed ≤ rate × (1 + seconds to go − 0.6): the seconds to go are the
- *    commando's walk-up to his target (his pending order), a guard's walk onto a bear trap; 1× at the stab, 1.5× for
- *    a switch or a decoy;
+ *    commando's walk-up to his target (his pending order), a guard's walk onto a bear trap; 1× at the stab, the
+ *    clothesline take, a switch, a charge; 1.5× for a decoy or a chat-up; while the action runs and until it has
+ *    visibly finished (debug/action-hold.js) the walkthrough holds AUTO at 1×;
  *  - after a kill, an objective, a capture, an alarm, a beat of the walkthrough: a moment at 1× (the films' +2 s), then
  *    eased back up the same way (two kills in a row stay slow);
  *  - blasts at ½× (from 0.8 s before the fuse runs out to 3 s after) and the climax — the escape after the last
@@ -49,6 +50,8 @@ export const AUTO_PACE = Object.freeze({
   near: 2, nearDist: 3.5,
   /** The step's man at work closing in on the guard it names: from 4× at `subjectFar` m down to `subjectRate`× at `subjectNear` m. */
   subjectFar: 12, subjectNear: 3, subjectRate: 1.5,
+  /** The step's man within `objectNear` m of the thing it names (the clothesline, a switch, the bunker's door): about to act on it. */
+  objectNear: 3, objectRate: 1.5,
   /** A cone within `coneDist` m of a man it could see: from `coneRate`× (touching) up to 4× (at coneDist); turning to him: ×0.75. */
   coneDist: 3, coneRate: 1.5, turning: 0.75,
   /** The spring (rad/s of the critically damped response, log2 space): faster down than up. */
@@ -64,8 +67,10 @@ export const AUTO_PACE = Object.freeze({
 export const ACTION_RATE = Object.freeze({
   knife: 1, harpoon: 1, pistol: 1, rifle: 1, sniper: 1, smg: 1, grenade: 1, syringe: 1, hanger: 1, lipstick: 1,
   handcuff: 1, timeBomb: 1, remoteBomb: 1, detonate: 1, uniform: 1, vehicleFire: 1,
-  use: 1.5, cutters: 1.5, trap: 1.5, decoyToggle: 1.5, distract: 1.5, puppet: 1.5, puppetDistract: 1.5, stone: 1.5,
+  use: 1, cutters: 1, trap: 1, // (the clothesline take, a switch, the wire, a bear trap: watched as a kill is, M3 review)
+  decoyToggle: 1.5, distract: 1.5, puppet: 1.5, puppetDistract: 1.5, stone: 1.5,
   cigarettes: 1.5, takeCharge: 1.5, firstAid: 1.5, enterVehicle: 1.5,
+  raft: 1, // (the Marine inflating / folding the raft: watched)
   hand: 2, carryToggle: 2, drag: 2, decoyDrop: 2,
 });
 /** An action keeps its rate this long after it starts (s, sim); then it is under way (a long chat-up is not a moment). */
@@ -78,7 +83,7 @@ export const EVENT_WINDOWS = Object.freeze({
 });
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const LOG_MIN = Math.log2(AUTO_PACE.min), LOG_MAX = Math.log2(AUTO_PACE.turboMax);
+const LOG_MIN = Math.log2(AUTO_PACE.min), LOG_MAX = Math.log2(AUTO_PACE.turboMax), LOG_WAIT = 6; // (WAIT.max 64×)
 const ALERT_RE = /^(ALERT|COMBAT|SEARCH|INVESTIGATE|ALARM)/;
 const DISTRACT_RE = /^(DECOY|DISTRACTED)/;
 /** The geometry (moves, striking distance, near misses, traps) is refreshed no more often than this (wall ms). */
@@ -123,6 +128,7 @@ export function paceTarget(sig = {}, o = {}) {
   for (const w of sig.windows || []) cap(ease(w.rate, -(w.left ?? 1)), w.why); // (then eased back up: no pumping between two kills)
   if (sig.near != null && sig.near <= P.nearDist) cap(P.near, 'close');
   if (sig.cone != null && sig.cone <= P.coneDist) cap((P.coneRate + (P.max - P.coneRate) * (sig.cone / P.coneDist)) * (sig.turning ? P.turning : 1), sig.turning ? 'cone turning' : 'cone');
+  if (sig.object != null && sig.object <= P.objectNear) cap(P.objectRate, 'at it');
   if (sig.subject != null && sig.subject <= P.subjectFar) cap(P.subjectRate + (P.max - P.subjectRate) * clamp((sig.subject - P.subjectNear) / (P.subjectFar - P.subjectNear), 0, 1), 'closing in');
   if (o.climax) cap(P.climax, 'climax');
   if (o.reading > 0) cap(P.read, 'caption');
@@ -145,6 +151,13 @@ export class AutoPace {
     this.target = this.rate;
   }
 
+  /** Take over from a true wait running at `rate` (above the ceiling): the spring eases it down from there, no jump. */
+  handOver(rate) {
+    this.x = Math.log2(clamp(rate, AUTO_PACE.min, WAIT.max));
+    this.v = 0;
+    this.hold = AUTO_PACE.upHold;
+  }
+
   /**
    * One displayed frame of `dt` wall seconds; returns the speed. `max`: the ceiling now — the speed never rises above
    * it, and eases down under it when it falls (the frame rate dropped).
@@ -165,7 +178,9 @@ export class AutoPace {
       this.v += a * h;
       this.x += this.v * h;
     }
-    if (this.x > LOG_MAX) { this.x = LOG_MAX; this.v = Math.min(0, this.v); }
+    // (above the 8× ceiling only on the way down from a true wait, handOver)
+    if (this.x > Math.max(LOG_MAX, g) && this.v > 0) this.v = 0;
+    if (this.x > LOG_WAIT) { this.x = LOG_WAIT; this.v = Math.min(0, this.v); }
     if (this.x < LOG_MIN) { this.x = LOG_MIN; this.v = Math.max(0, this.v); }
     return this.rate;
   }
@@ -200,6 +215,27 @@ export class PerfCeiling {
     }
     return this.ceiling;
   }
+}
+
+/**
+ * A true wait (the solution waits for a guard, a gap in the cones, a timer; nobody acts, nothing to slow for) runs as
+ * fast as a steady tick budget a frame allows — 8 ms, or 25 % of a usual frame when frames are slow (≤ 16 ms): the
+ * same number of ticks every frame, so no frame is longer than the others (user 2026-10-14: "fix those periods of
+ * idleness") — between the cruise and WAIT.max.
+ */
+export const WAIT = Object.freeze({ tickMs: 8, share: 0.25, maxTickMs: 16, max: 64, rampOctavesPerS: 2.5, rampPerFrame: 0.1 });
+
+/** Is this a true wait? `sig`/`tg`: PaceSensor sample and paceTarget result; o: {waiting (the solution's wait label), busy (a man acts)}. */
+export function isTrueWait(sig, tg, { waiting = null, busy = false } = {}) {
+  return !!waiting && !busy && (sig?.motion || 'idle') === 'idle' && tg?.why === 'idle';
+}
+
+/** The speed of a true wait: the frame's tick budget at `tickMs` a tick (≥ `floor`, the cruise; ≤ WAIT.max). */
+export function waitRate({ tickMs = 0.5, frameDt = 1 / 60, simDt = 1 / 60, floor = AUTO_PACE.max } = {}) {
+  const fdt = Math.max(frameDt || 1 / 60, 1 / 240);
+  const budget = clamp(WAIT.share * fdt * 1000, WAIT.tickMs, WAIT.maxTickMs);
+  const perFrame = budget / Math.max(0.05, tickMs || 0.5);
+  return clamp(perFrame * (simDt / fdt), floor, WAIT.max);
 }
 
 /**
@@ -305,7 +341,8 @@ export class PaceSensor {
 
   /**
    * Signals at game time t: {motion, action: {id, rate, eta}|null, fuse, blastAgo, trapEta, windows, near, cone, turning,
-   * subject}. ctx (the walkthrough's step): {actors: the step's acting commandos, subjects: the guards it names}.
+   * subject, object}. ctx (the walkthrough's step): {actors: the step's acting commandos, subjects: the guards it names,
+   * objects: the things it names (interactables)}.
    * `wallMs` (performance.now()): the geometry is refreshed every `every` s of game time but no more often than every
    * GEO_WALL_MS of wall time (at 8× that is every third frame, not every one).
    */
@@ -352,10 +389,16 @@ export class PaceSensor {
         for (const e of subs) subject = Math.min(subject, Math.hypot(e.x - c.x, e.z - c.z));
       }
     }
+    // the step's man beside the thing it names (ctx.objects: the clothesline, a switch, the bunker): his moment is next
+    let object = Infinity;
+    for (const o of ctx.objects || []) {
+      if (!o || o.removed || !Number.isFinite(o.x)) continue;
+      for (const c of ctx.actors || []) if (c?.alive) object = Math.min(object, Math.hypot(o.x - c.x, o.z - c.z));
+    }
     const g = this._geo;
     return {
       t, motion: g.motion, action, fuse, blastAgo: this.blastT == null ? null : t - this.blastT, trapEta: g.trapEta,
-      windows: this.windows.map((x) => ({ rate: x.rate, why: x.why, left: x.until - t })), near: g.near, cone: g.cone, turning: g.turning, subject,
+      windows: this.windows.map((x) => ({ rate: x.rate, why: x.why, left: x.until - t })), near: g.near, cone: g.cone, turning: g.turning, subject, object,
     };
   }
 

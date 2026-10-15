@@ -159,13 +159,15 @@ function alongPath(u, dist, stopAtEnd = false) {
  * @param {import('../../src/world/world.js').World} world
  * @param {{step: () => (void|Promise<void>), dt?: number, log?: (s: string) => void, quiet?: boolean,
  *   aborted?: () => boolean, onOrder?: (role: string, unit: object, order: object) => void,
- *   onCheckpoint?: (cp: object) => void}} o
+ *   onCheckpoint?: (cp: object) => void, onWait?: (label: string|null) => void, pause?: () => Promise<void>}} o
  *   aborted: once true, every tick and every order throws SolutionAborted (the replay was stopped: no order may
  *   reach the game after that, even from a solution's own try/catch); onOrder: after each accepted player order;
+ *   onWait: what the solution is waiting for (an until's label, a sneak's gap in the cones), null when it goes on —
+ *   video mode's AUTO shows it while it runs the wait fast (it changes nothing in the run);
  *   pause: () => Promise resolved on a later displayed frame with no tick in between (the live replay): sliced plans
  *   (planSneakAsync, sneak) hand the frame back with it.
  */
-export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet = false, watch = true, aborted = null, onOrder = null, onCheckpoint = null, pause = null } = {}) {
+export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet = false, watch = true, aborted = null, onOrder = null, onCheckpoint = null, onWait = null, pause = null } = {}) {
   const w = world;
   // a sliced plan hands the frame back every PLAN_SLICE_MS (`pause`: resolves on a later frame, no tick in between)
   const runGenAsync = async (it) => {
@@ -281,12 +283,16 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
     async wait(sec) { const n = Math.round(sec / dt); for (let i = 0; i < n; i++) await tick(); },
     async until(pred, maxSec = 120, label = '') {
       const n = Math.round(maxSec / dt);
-      for (let i = 0; i < n; i++) {
-        if (pred()) return true;
-        await tick();
-        const f = D.failed();
-        if (f) throw new Error(`FAILED while waiting ${label}: ${f}`);
-      }
+      let said = false;
+      try {
+        for (let i = 0; i < n; i++) {
+          if (pred()) return true;
+          if (!said && label) { said = true; onWait?.(label); }
+          await tick();
+          const f = D.failed();
+          if (f) throw new Error(`FAILED while waiting ${label}: ${f}`);
+        }
+      } finally { if (said) onWait?.(null); }
       throw new Error(`timeout ${maxSec}s waiting ${label}`);
     },
     /** until, for a predicate that may await (a sliced plan inside it): the same ticks, the same checks */
@@ -943,7 +949,10 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
         }
         let late = false;
         for (const s of segs) {
-          if (s.wait) { while (D.t < s.until - 1e-6) await tick(); continue; }
+          if (s.wait) {
+            if (D.t < s.until - 1e-6) { onWait?.(`${o.label || 'a man'}: a gap in the cones`); while (D.t < s.until - 1e-6) await tick(); onWait?.(null); }
+            continue;
+          }
           while (D.t < s.start - 1e-6) await tick();
           // (a leg end the raft has already reached — it glided onto or just past it — is not clicked: a player clicks
           // the next one, as for a click the raft cannot take; the M3 film flashed "can't get there in a straight line"
