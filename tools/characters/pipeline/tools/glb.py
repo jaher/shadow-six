@@ -1,5 +1,5 @@
 # Minimal GLB reader/writer (numpy) for the character pipeline.
-import json, struct
+import gzip, json, struct
 import numpy as np
 
 CT = {5120: np.int8, 5121: np.uint8, 5122: np.int16, 5123: np.uint16, 5125: np.uint32, 5126: np.float32}
@@ -12,6 +12,7 @@ class GLB:
         self.bin = bytearray()
         if path:
             d = open(path, 'rb').read()
+            if d[:2] == b'\x1f\x8b': d = gzip.decompress(d)  # assets/ GLBs are gzip-wrapped (src/engine/glb-gzip.js)
             n = struct.unpack('<I', d[12:16])[0]
             self.j = json.loads(d[20:20 + n])
             o = 20 + n

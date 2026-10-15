@@ -3,6 +3,7 @@
  *  footprint, decks and roofs at the mission's walk heights, garrison doors where the game enters, the railing walls and
  *  the visual-only dressing. */
 import { readFileSync, existsSync } from 'node:fs';
+import { readGlb } from '../../tools/glb-io.mjs'; // GLBs are gzip-wrapped (src/engine/glb-gzip.js)
 import { test, assert } from './lib.mjs';
 import { useManifest, pickAsset, fitScale } from '../../src/art/building-props.js';
 import { doorPoint } from '../../src/world/map-builder.js';
@@ -32,7 +33,7 @@ test('art m06: the Masi add-on ships every LOD, sidecar and texture (+ the garri
     assert.equal(a.lods.length, 3, n);
     for (const l of a.lods) {
       assert.ok(existsSync(P(`assets/models/${l.url}`)), l.url);
-      const glb = readFileSync(P(`assets/models/${l.url}`)).toString('latin1');
+      const glb = readGlb(P(`assets/models/${l.url}`)).toString('latin1');
       for (const [, u] of glb.matchAll(/"uri":"([^"]+)"/g)) assert.ok(found(new URL(u, P(`assets/models/${l.url}`))), `${l.url} → ${u}`);
     }
     assert.ok(existsSync(P(`assets/models/${a.sidecar}`)), a.sidecar);

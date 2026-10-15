@@ -8,6 +8,8 @@
 // (commandos_b), guest_anims (guests). Per-clip meta goes to the 'Scene' node extras (shadowSix.clips) and the .json sidecar.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
+import { gzipSync } from 'node:zlib';
+import { readGlb } from '../../glb-io.mjs';
 
 // ESM entry of a package in GLTF_DEPS (ESM ignores NODE_PATH)
 const DEPS = process.env.GLTF_DEPS || process.cwd() + '/node_modules';
@@ -63,7 +65,7 @@ function reduce(times, vals, dim, tol) {
 }
 
 for (const f of files) {
-  const doc = await io.read(f), root = doc.getRoot(), buf = root.listBuffers()[0];
+  const doc = await io.readBinary(new Uint8Array(readGlb(f))), root = doc.getRoot(), buf = root.listBuffers()[0]; // assets/ GLBs are gzip-wrapped
   const nodes = new Map(root.listNodes().map((n) => [n.getName(), n]));
   let removed = 0;
   for (const a of root.listAnimations()) if (OLD.has(a.getName()) || NEW.has(a.getName())) {
@@ -100,7 +102,7 @@ for (const f of files) {
   sceneNode.setExtras(ex);
   if (!root.listExtensionsUsed().some((e) => e.extensionName === 'EXT_meshopt_compression'))
     doc.createExtension(EXTMeshoptCompression).setRequired(true).setEncoderOptions({ method: EXTMeshoptCompression.EncoderMethod.QUANTIZE });
-  await io.write(f, doc);
+  writeFileSync(f, gzipSync(Buffer.from(await io.writeBinary(doc)), { level: 9, memLevel: 9 })); // gzip-wrapped (src/engine/glb-gzip.js)
   const side = f.replace(/\.glb$/, '.json');
   if (existsSync(side)) {
     const sj = JSON.parse(readFileSync(side, 'utf8'));

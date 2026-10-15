@@ -1165,8 +1165,9 @@ def _feather(J, binc):
 def glb_externalize(path, relmap):
     """Rewrite a GLB so images reference external files (relmap: image name -> relative uri), dropping the
     embedded bytes. Returns (bytes, tris)."""
-    import struct
+    import gzip, struct
     d = open(path, 'rb').read()
+    if d[:2] == b'\x1f\x8b': d = gzip.decompress(d)  # assets/ GLBs are gzip-wrapped (src/engine/glb-gzip.js)
     jl = struct.unpack('<I', d[12:16])[0]
     J = json.loads(d[20:20 + jl])
     binc = d[20 + jl + 8:]

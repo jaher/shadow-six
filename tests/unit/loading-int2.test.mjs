@@ -2,6 +2,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { test, assert } from './lib.mjs';
+import { readGlb, glbJson } from '../../tools/glb-io.mjs'; // GLBs are gzip-wrapped (src/engine/glb-gzip.js)
 import { createLoadProgress, expectedBytes, LOAD_STAGES } from '../../src/engine/load-progress.js';
 
 const ROOT = new URL('../../', import.meta.url);
@@ -56,8 +57,7 @@ test('loading: character GLBs are meshopt-compressed and every character loader 
   const dir = P('assets/characters/');
   for (const g of ['enemies', 'commandos', 'anims']) {
     const f = readdirSync(new URL(g + '/', dir)).find((n) => n.endsWith('.glb'));
-    const b = readFileSync(new URL(`${g}/${f}`, dir));
-    const json = JSON.parse(b.subarray(20, 20 + b.readUInt32LE(12)).toString('utf8'));
+    const json = glbJson(new URL(`${g}/${f}`, dir));
     assert.ok(json.extensionsRequired?.includes('EXT_meshopt_compression'), `${g}/${f}`);
   }
   const rt = P('src/art/characters/');
@@ -73,7 +73,8 @@ test('loading: building textures — 512 set for low, byte-identical maps aliase
   // GLBs (or its manifest's paint swaps) still names stays on disk (wood_paint_* on the fishing boats / covered wagon)
   const vehRefs = (() => {
     const out = [], walk = (d) => { for (const e of readdirSync(P(d), { withFileTypes: true })) {
-      if (e.isDirectory()) walk(`${d}${e.name}/`); else if (/\.(glb|json)$/.test(e.name)) out.push(readFileSync(P(d + e.name)).toString('latin1'));
+      if (e.isDirectory()) walk(`${d}${e.name}/`); else if (/\.json$/.test(e.name)) out.push(readFileSync(P(d + e.name)).toString('latin1'));
+      else if (/\.glb$/.test(e.name)) out.push(readGlb(P(d + e.name)).toString('latin1'));
     } };
     if (existsSync(P('assets/models/vehicles/'))) walk('assets/models/vehicles/');
     return (name) => out.some((b) => b.includes(name));

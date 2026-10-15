@@ -945,6 +945,18 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   textures: `textures/lib/1k` (default), `512` (low), `2k` WebP albedo (ultra), byte-identical maps aliased away
   (`manifest.textures.aliases`). Tools: `tools/perf/measure-load.mjs` (bytes per mission/preset, `--budget`),
   `tools/perf/shot.mjs` (A/B screenshot), `tools/perf/terrain_webp.py`, `tools/perf/lib_textures.py`.
+- **Gzip-wrapped GLBs and HDRIs** (`engine/glb-gzip.js`, asset budget 2026-10): every `assets/**/*.glb` and
+  `assets/hdri/*.hdr` is stored as gzip(file) — meshopt output is built to be entropy-coded on top and GitHub Pages
+  serves binaries as stored, so the wrap takes 27 % off the GLBs (426.8 → 311.5 MB with zopfli; geometry −35…40 %,
+  the JPEGs inside unchanged) and a third off the HDRIs, with every decoded byte unchanged. Importing `engine/glb-gzip.js` patches `GLTFLoader.prototype.parse`
+  once: a buffer starting with 1f 8b is inflated with the native `DecompressionStream` first, anything else (a plain GLB
+  fresh from an art export) parses as before; modules that build a GLTFLoader import the class from there.
+  `Assets.loadHDR` inflates the `.hdr` bytes and hands the stock HDRLoader a blob URL. URLs, manifests and the service
+  worker cache are unchanged. Tools: `tools/perf/glb_gzip.mjs` (wrap — zopfli, `--check`, `--unwrap`), `tools/glb-io.mjs`
+  (node: `readGlb`, `readGlbArrayBuffer`, `glbJson`; tests and tools that read GLB bytes go through it),
+  `tests/unit/glb-gzip.test.mjs` (everything wrapped, URIs resolve, the hook is installed and exact). Character GLBs also
+  store their Float32 positions through meshopt's EXPONENTIAL filter (`tools/perf/glb_posfilter.mjs`, 18-bit mantissa,
+  ≤ 0.015 mm; still Float32 in bind space after decode).
 - **Texture tiers by texel density** (`engine/texel-budget.js`, `art/lib-tiers.js`): the camera is orthographic with
   a fixed scale, so a preset never draws more than `screenDensity(preset)` = 40 CSS px/m × zoom 2 × its pixel-ratio cap
   (low 80, medium 100, high 120, ultra 160 physical px per metre). A map whose texels per metre on its most stretched

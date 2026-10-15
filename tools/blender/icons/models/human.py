@@ -304,8 +304,10 @@ STANCE_YAW = float(os.environ.get('STANCE_YAW', '90'))   # turn him to walk / cr
 
 
 def _glb(path):
-    import json, struct
-    b = open(path, 'rb').read(); n = struct.unpack('<I', b[12:16])[0]
+    import gzip, json, struct
+    b = open(path, 'rb').read()
+    if b[:2] == b'\x1f\x8b': b = gzip.decompress(b)  # assets/ GLBs are gzip-wrapped (src/engine/glb-gzip.js)
+    n = struct.unpack('<I', b[12:16])[0]
     j = json.loads(b[20:20 + n]); o = 20 + n
     m = struct.unpack('<I', b[o:o + 4])[0]
     return j, b[o + 8:o + 8 + m]

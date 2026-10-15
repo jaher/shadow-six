@@ -2,7 +2,7 @@
 // charkit.js — SHADOW SIX runtime for pipeline characters (UAL skeleton, shared anims.glb, weapons.glb).
 // Implements the ARCHITECTURE.md humanoid interface: setAnim(name,{loop,speed}), update(dt), setColors(opts), setDisguise(bool).
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { GLTFLoader } from '../../../engine/glb-gzip.js'; // gzip-wrapped GLBs (assets/**/*.glb)
 import { keepEncodedImages } from '../../../engine/texture-memory.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';

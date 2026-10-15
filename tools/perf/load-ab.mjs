@@ -6,6 +6,8 @@
  *
  *   node tools/perf/load-ab.mjs --a=<checkout> --b=<checkout> [--missions=m01,m04] [--runs=3] [--preset=high]
  *        [--qa=…] [--qb=gputier=2]   (extra URL parameters per side)
+ *        [--mbit=50] [--latency=20]  (tools/serve.mjs link throttling: one shared link of that speed, ms per response)
+ * Also reports the bytes the page fetched and, for a tree with engine/glb-gzip.js, the GLB/HDR inflate counters.
  */
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -16,7 +18,8 @@ const H = await import(pathToFileURL(join(HERE, 'tests/harness.mjs')).href);
 const { startServer } = await import(pathToFileURL(join(HERE, 'tools/serve.mjs')).href);
 const { chromium } = await import(pathToFileURL(join(HERE, 'node_modules/playwright-core/index.mjs')).href);
 const sides = { a: { root: resolve(arg('a')), q: arg('qa', '') }, b: { root: resolve(arg('b', HERE)), q: arg('qb', '') } };
-for (const s of Object.values(sides)) s.server = await startServer({ port: 0, root: s.root });
+const mbit = +arg('mbit', 0), latencyMs = +arg('latency', 0);
+for (const s of Object.values(sides)) s.server = await startServer({ port: 0, root: s.root, mbit, latencyMs });
 const preset = arg('preset', 'high'), runs = +arg('runs', 3);
 const out = {};
 for (const m of arg('missions', 'm01').split(',')) {
@@ -32,10 +35,12 @@ for (const m of arg('missions', 'm01').split(',')) {
       const ms = performance.now() - t0;
       const GC = await import('/src/engine/gpu-compress.js').catch(() => null);
       const c = GC?.gpuCompressor?.();
-      return { ms, stats: c ? { ...c.stats, tier: c.tier, calibration: c.calibration } : null };
+      const gz = (await import('/src/engine/glb-gzip.js').catch(() => null))?.glbGzipStats || null;
+      const bytes = performance.getEntriesByType('resource').reduce((a, e) => a + (e.encodedBodySize || 0), 0);
+      return { ms, bytes, gz: gz && { ...gz }, stats: c ? { ...c.stats, tier: c.tier, calibration: c.calibration } : null };
     }, m);
     ((out[m] ||= { a: [], b: [] })[k]).push(res);
-    console.log(`${m} ${k} run ${r}: ${(res.ms / 1000).toFixed(1)} s${res.stats ? ` (compressor: ${res.stats.textures} textures + ${res.stats.arrays} arrays, main thread ${res.stats.mainMs.toFixed(0)} ms (upload ${res.stats.uploadMs?.toFixed(0)}, readback ${res.stats.readMs?.toFixed(0)}), tier ${res.stats.tier}, calibration ${JSON.stringify(res.stats.calibration)})` : ''}`);
+    console.log(`${m} ${k} run ${r}: ${(res.ms / 1000).toFixed(1)} s, ${(res.bytes / 1e6).toFixed(1)} MB fetched${res.gz ? `, inflated ${res.gz.files} files ${(res.gz.bytesIn / 1e6).toFixed(1)} → ${(res.gz.bytesOut / 1e6).toFixed(1)} MB` : ''}${res.stats ? ` (compressor: ${res.stats.textures} textures + ${res.stats.arrays} arrays, main thread ${res.stats.mainMs.toFixed(0)} ms (upload ${res.stats.uploadMs?.toFixed(0)}, readback ${res.stats.readMs?.toFixed(0)}), tier ${res.stats.tier}, calibration ${JSON.stringify(res.stats.calibration)})` : ''}`);
     await browser.close();
   }
   const med = (v) => { const x = v.map((o) => o.ms).sort((p, q) => p - q); return x[x.length >> 1] / 1000; };

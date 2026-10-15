@@ -18,6 +18,7 @@
 import { test, assert, near } from './lib.mjs';
 import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
+import { readGlbArrayBuffer } from '../../tools/glb-io.mjs'; // GLBs are gzip-wrapped (src/engine/glb-gzip.js)
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { makeSim, guard } from './abilsim.mjs';
@@ -243,7 +244,7 @@ test('syringe prop: glass barrel, the dose, plunger and needle; the plunger slid
 
 const A = new URL('../../assets/characters/', import.meta.url).pathname;
 async function glb(path) {
-  const buf = readFileSync(A + path), ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+  const ab = readGlbArrayBuffer(A + path);
   const L = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
   L.register(() => ({ name: 'no-textures', loadTexture: () => Promise.resolve(null) }));
   return new Promise((res, rej) => L.parse(ab, '', res, rej));

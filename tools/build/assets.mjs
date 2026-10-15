@@ -13,6 +13,7 @@
  */
 import { copyFile, mkdir, readdir, stat, readFile } from 'node:fs/promises';
 import { dirname, join, relative, resolve } from 'node:path';
+import { readGlb } from '../glb-io.mjs';
 
 const SKIP_SUFFIX = ['.kit.json', '.credits.json', '.spec.json', '.blend', '.blend1', '.wav', '.flac', '.psd', '.xcf',
   '.kra', '.exr', '.tif', '.tiff', '.fbx', '.obj', '.py', '.bak'];
@@ -39,7 +40,7 @@ async function walk(dir) {
 
 /** External URIs referenced by a GLB's JSON chunk. */
 async function glbUris(file) {
-  const b = await readFile(file);
+  const b = readGlb(await readFile(file)); // gzip-wrapped GLBs (src/engine/glb-gzip.js)
   if (b.readUInt32LE(0) !== 0x46546c67) return [];
   const len = b.readUInt32LE(12);
   const j = JSON.parse(b.subarray(20, 20 + len).toString('utf8'));

@@ -24,6 +24,10 @@ The runtime side is `src/art/building-library.js`, and the data it reads is `ass
    `.kit.json`, `.credits.json` and `review/`. The batch files `*.sh` and `q*.txt` list the exact commands used.
 3. Validate: `python3 tools/blender/kit/tools/validate.py <glb> --budget 15000` (use `--bridge --budget 25000` for bridges).
 4. Ship: `consolidate/pack.py`, `textures.py`, `sidecars.py`, then `build_manifest.py`. Run them from a folder that has `../<family>/out`, or edit `ART` in `pack.py`. They need `gltfpack` (`npm i gltfpack`).
+5. Gzip-wrap the shipped GLBs: `node tools/perf/glb_gzip.mjs assets/models` (every GLB under `assets/` is stored gzip-wrapped,
+   ~27 % smaller, inflated by `src/engine/glb-gzip.js` before GLTFLoader parses it; `tests/unit/glb-gzip.test.mjs` lists
+   plain ones). Node tools read GLBs through `tools/glb-io.mjs` (`readGlb`, `glbJson`); the Python readers here inflate
+   gzip-wrapped files themselves; `node tools/perf/glb_gzip.mjs --unwrap <paths>` gives plain GLBs back for other viewers.
 
 ## Add-on manifests (per-mission art passes)
 An art pass ships its new assets without rebuilding the whole library: `consolidate/addon_manifest.py <art_root> <repo> <addon>

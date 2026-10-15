@@ -11,7 +11,7 @@
  */
 
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { GLTFLoader, isGzip, gunzip } from './glb-gzip.js'; // gzip-wrapped GLBs / HDRs (assets/**/*.glb, assets/hdri)
 import { keepEncodedImages, compressImageTexture } from './texture-memory.js';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 import { EXRLoader } from 'three/addons/loaders/EXRLoader.js';
@@ -191,7 +191,17 @@ export class Assets {
     return this._once(key, async () => {
       try {
         const url = this._url(entry);
-        const tex = await (url.endsWith('.exr') ? this.exrLoader : this.hdrLoader).loadAsync(url);
+        if (url.endsWith('.exr')) {
+          const tex = await this.exrLoader.loadAsync(url);
+          tex.mapping = THREE.EquirectangularReflectionMapping;
+          return tex;
+        }
+        // the .hdr files are stored gzip-wrapped like the GLBs (engine/glb-gzip.js): fetch, inflate, then let the
+        // stock HDRLoader read the plain bytes from a blob URL
+        const bytes = await new THREE.FileLoader(this.manager).setResponseType('arraybuffer').loadAsync(url);
+        const blobUrl = URL.createObjectURL(new Blob([isGzip(bytes) ? await gunzip(bytes) : bytes]));
+        let tex;
+        try { tex = await this.hdrLoader.loadAsync(blobUrl); } finally { URL.revokeObjectURL(blobUrl); }
         tex.mapping = THREE.EquirectangularReflectionMapping;
         return tex;
       } catch (err) {

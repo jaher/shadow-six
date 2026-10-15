@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { readFileSync } from 'node:fs';
+import { readGlbArrayBuffer } from '../../glb-io.mjs';
 
 export const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
 const FING = ['thumb', 'index', 'middle', 'ring', 'pinky'];
@@ -20,8 +20,7 @@ for (const s of ['l', 'r']) for (const f of FING) for (let i = 1; i <= 3; i++) C
 export const ANIMATED = Object.keys(CHILD);
 
 export async function loadUAL(path) {
-  const buf = readFileSync(path);
-  const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+  const ab = readGlbArrayBuffer(path); // assets/ GLBs are gzip-wrapped (src/engine/glb-gzip.js)
   const g = await new Promise((res, rej) => new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parse(ab, '', res, rej));
   return new Rig(g.scene, g.animations);
 }

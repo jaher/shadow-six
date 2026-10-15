@@ -16,7 +16,9 @@ Sources of everything in `assets/characters/`. The scripts were developed in a s
 
 Rebuild order: build GLBs per group, then `tools/characters/prone` (bake + write_anims, replaces the prone clips in the
 anim libraries), then `python3 consolidate/copy_assets.py`, `python3 consolidate/copy_runtime.py`,
-`python3 consolidate/make_manifest.py`.
+`python3 consolidate/make_manifest.py`, then the size passes on what was copied: `node tools/perf/glb_meshopt.mjs <glbs>`
+(lossless meshopt), `node tools/perf/glb_posfilter.mjs assets/characters` (Float32 positions through meshopt's exponential
+filter, ≤ 0.015 mm) and `node tools/perf/glb_gzip.mjs assets/characters` (gzip wrap, `src/engine/glb-gzip.js`).
 
 The prone runtime (`src/art/characters/prone-fit.js`, `prone-grips.js`, `weapon-handover.js` (called from the three charkit
 `update`s), the prone holds in the four weapon codes and the PRONE sets in the runtimes) was written directly in `src/art/characters/`; the runtime copies under `tools/` predate it,

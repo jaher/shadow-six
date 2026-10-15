@@ -1,7 +1,7 @@
 // Copied from scratchpad chars/guests/pipeline/web/weapons.js by tools/characters/consolidate/copy_runtime.py (imports/URLs rewritten; moved to src/art/characters in art integration 2). CC0 project code.
 // weapons.js — weapon props (out/weapons.glb) with sockets, auto attachment per clip and left-hand two-bone IK.
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { GLTFLoader } from '../../../engine/glb-gzip.js'; // gzip-wrapped GLBs (assets/**/*.glb)
 import { keepEncodedImages } from '../../../engine/texture-memory.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { proneGrip } from '../prone-grips.js';

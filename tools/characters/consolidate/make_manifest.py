@@ -1,10 +1,12 @@
 # Builds assets/characters/manifest.json from the copied GLBs + sidecars (run after copy_assets.py / copy_runtime.py).
-import json, os, struct, glob, time
+import gzip, json, os, struct, glob, time
 A = os.path.join(os.path.dirname(__file__), '../../../assets/characters')
 A = os.path.normpath(A)
 
 def glb_json(p):
-    b = open(p, 'rb').read(); n = struct.unpack('<I', b[12:16])[0]; return json.loads(b[20:20 + n])
+    b = open(p, 'rb').read()
+    if b[:2] == b'\x1f\x8b': b = gzip.decompress(b)  # assets/ GLBs are gzip-wrapped (src/engine/glb-gzip.js)
+    n = struct.unpack('<I', b[12:16])[0]; return json.loads(b[20:20 + n])
 
 def mesh_parts(p):
     j = glb_json(p); names = []

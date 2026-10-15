@@ -1,6 +1,7 @@
 // mo_keepuri.mjs in.glb out.glb : lossless-ish meshopt (EXT_meshopt_compression, QUANTIZE) for a GLB whose kit textures
 // are EXTERNAL uris (shared library). External images are fed as 1-byte placeholders and restored to their uris by
 // mo_fix.py afterwards, so nothing gets embedded. Used only where a GLB exceeds the 2 MB budget (battleship).
+import zlib from 'node:zlib';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS, EXTMeshoptCompression, KHRMeshQuantization } from '@gltf-transform/extensions';
 import { MeshoptEncoder, MeshoptDecoder } from 'meshoptimizer';
@@ -8,7 +9,8 @@ import fs from 'fs';
 await MeshoptEncoder.ready; await MeshoptDecoder.ready;
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS).registerDependencies({ 'meshopt.encoder': MeshoptEncoder, 'meshopt.decoder': MeshoptDecoder });
 const [,, inp, out] = process.argv;
-const buf = fs.readFileSync(inp);
+let buf = fs.readFileSync(inp);
+if (buf[0] === 0x1f && buf[1] === 0x8b) buf = zlib.gunzipSync(buf); // assets/ GLBs are gzip-wrapped (src/engine/glb-gzip.js)
 const jl = buf.readUInt32LE(12);
 const json = JSON.parse(buf.slice(20, 20 + jl).toString('utf8'));
 const bl = buf.readUInt32LE(20 + jl);

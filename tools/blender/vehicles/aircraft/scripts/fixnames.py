@@ -1,7 +1,8 @@
 """fixnames.py <glb...>: strip Blender '.NNN' suffixes from glTF node/mesh names in place (see veh._strip_suffix)."""
-import sys, json, struct, re
+import gzip, sys, json, struct, re
 def fix(p):
     b = open(p, 'rb').read()
+    if b[:2] == b'\x1f\x8b': b = gzip.decompress(b)  # assets/ GLBs are gzip-wrapped (src/engine/glb-gzip.js)
     n = struct.unpack_from('<I', b, 12)[0]
     js = json.loads(b[20:20 + n]); rest = b[20 + n:]
     ch = 0

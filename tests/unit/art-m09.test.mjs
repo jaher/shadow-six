@@ -1,6 +1,7 @@
 /** M9 art pass (Bab el Qattara, "A Courtesy Call"): the Bab el Qattara add-on, each structure's own build fitted to its
  *  footprint, the doors where the game enters, the octagon's mud-brick wall, the set dressing clear of the routes. */
 import { readFileSync, existsSync } from 'node:fs';
+import { readGlb, glbJson } from '../../tools/glb-io.mjs'; // GLBs are gzip-wrapped (src/engine/glb-gzip.js)
 import { test, assert } from './lib.mjs';
 import { useManifest, pickAsset, fitScale } from '../../src/art/building-props.js';
 import { doorPoint } from '../../src/world/map-builder.js';
@@ -31,7 +32,7 @@ test('art m09: the Bab el Qattara add-on ships every LOD, sidecar and texture, d
     assert.equal(a.lods.length, 3, n);
     for (const l of a.lods) {
       assert.ok(existsSync(P(`assets/models/${l.url}`)), l.url);
-      const glb = readFileSync(P(`assets/models/${l.url}`)).toString('latin1');
+      const glb = readGlb(P(`assets/models/${l.url}`)).toString('latin1');
       for (const [, u] of glb.matchAll(/"uri":"([^"]+)"/g)) assert.ok(found(new URL(u, P(`assets/models/${l.url}`))), `${l.url} → ${u}`);
     }
     assert.ok(existsSync(P(`assets/models/${a.sidecar}`)), a.sidecar);
@@ -92,7 +93,7 @@ test('art m09: the octagon is drawn as the camp mud-brick wall, the broken stub 
 });
 
 test('art m09: the palm-frond shade cards are alpha-tested cut-outs, not opaque squares (house_flat_white_bq, house_stone_bq_b)', () => {
-  const glbMats = (f) => { const b = readFileSync(P(f)); return JSON.parse(b.subarray(20, 20 + b.readUInt32LE(12)).toString()).materials; };
+  const glbMats = (f) => glbJson(P(f)).materials;
   for (const n of ['house_flat_white_bq', 'house_stone_bq_b']) assert.ok(glbMats(`assets/models/buildings/desert/${n}.glb`).some((m) => /kit:palm_frond/.test(m.name)), n);
   const frond = new THREE.MeshStandardMaterial({ name: 'kit:palm_frond_dz', map: new THREE.Texture() });
   const wall = new THREE.MeshStandardMaterial({ name: 'kit:whitewash', map: new THREE.Texture() });

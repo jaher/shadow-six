@@ -18,7 +18,7 @@
  */
 
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { GLTFLoader } from '../engine/glb-gzip.js'; // gzip-wrapped GLBs (assets/**/*.glb)
 import { keepEncodedImages } from '../engine/texture-memory.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { applyAssetFixups, DROP_LODS } from './building-fixups.js';

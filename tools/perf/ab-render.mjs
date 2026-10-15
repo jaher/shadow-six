@@ -7,9 +7,11 @@
  * a second time to show the run-to-run noise floor (particles, wind, snowfall seeds).
  *
  *   node tools/perf/ab-render.mjs --base=<checkout A> [--test=<checkout B>] [--missions=m01,m03] [--configs=desktop-high,phone-medium]
- *        [--views=default,z05] [--reps=3] [--frames=40] [--noise] [--out=dir] [--label=name]
+ *        [--views=default,z05] [--reps=3] [--frames=40] [--noise] [--out=dir] [--label=name] [--q=gputier=2]
  *
- * Writes <out>/<label>.json, diff images <out>/<label>-<cfg>-<mission>-<view>-diff.png (×8 amplified), prints a table.
+ * Writes <out>/<label>.json, diff images <out>/<label>-<cfg>-<mission>-<view>-diff.png (×8 amplified), prints a table;
+ * with --noise also the second A shot (-A2.png): `python3 tools/perf/abdiff.py <out> --a=A --b=B --n=A2` then gives the
+ * A/B difference over the pixels that hold still between the two A runs.
  */
 import { mkdirSync, writeFileSync, readFileSync, readdirSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
@@ -27,6 +29,8 @@ const LABEL = arg('label', 'ab');
 const REPS = +arg('reps', 3), FRAMES = +arg('frames', 40);
 const VIEWS = arg('views', 'default').split(',');
 const CONFIGS = arg('configs', 'desktop-high').split(',');
+const QS = arg('q', ''); // extra URL parameters for both sides, e.g. gputier=2 (the GPU texture compressor's tier is
+// calibrated per page from its timing: on a busy machine two pages can pick different tiers)
 const MISSIONS = arg('missions', 'm01,m03').split(',');
 mkdirSync(OUT, { recursive: true });
 const roots = { A: resolve(arg('base')), B: resolve(arg('test', HERE)) };
@@ -89,7 +93,7 @@ async function openPage(browser, side, cfg) {
   const errs = [];
   page.on('pageerror', (e) => errs.push(String(e.message).slice(0, 300)));
   page.on('console', (m) => { if (m.type() === 'error') errs.push('console: ' + m.text().slice(0, 300)); });
-  await page.goto(`${servers[side].url.replace(/\/$/, '')}/index.html?test=1&preset=${preset}`, { timeout: 180000 });
+  await page.goto(`${servers[side].url.replace(/\/$/, '')}/index.html?test=1&preset=${preset}${QS ? '&' + QS : ''}`, { timeout: 180000 });
   await page.waitForFunction(() => document.body.dataset.ready === '1', null, { timeout: 180000 });
   await page.evaluate(async () => {
     window.__game.game.stop(); // only explicit renders from here on
@@ -227,7 +231,7 @@ for (const cfg of CONFIGS) {
         writeFileSync(join(OUT, `${tag}-B.png`), Buffer.from(sb, 'base64'));
         const dAB = diff(sa, sb, join(OUT, `${tag}-diff.png`));
         let dAA = null;
-        if (A2) dAA = diff(sa, await shot(A2, view), join(OUT, `${tag}-noise.png`));
+        if (A2) { const s2 = await shot(A2, view); writeFileSync(join(OUT, `${tag}-A2.png`), Buffer.from(s2, 'base64')); dAA = diff(sa, s2, join(OUT, `${tag}-noise.png`)); }
         const ra = [], rb = [], ca = [], cb = [];
         for (let k = 0; k < REPS; k++) { ra.push(await bench(A, view, FRAMES)); rb.push(await bench(B, view, FRAMES)); }
         for (let k = 0; k < +arg('cpureps', 8); k++) { ca.push(await cpuBench(A, view, FRAMES)); cb.push(await cpuBench(B, view, FRAMES)); }

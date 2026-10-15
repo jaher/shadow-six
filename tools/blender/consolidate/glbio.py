@@ -1,8 +1,9 @@
 """Minimal GLB read/write (single BIN buffer, uncompressed bufferViews) for AO/URI rewrites."""
-import json, struct, io
+import gzip, json, struct, io
 
 def read(path):
     b = open(path, 'rb').read()
+    if b[:2] == b'\x1f\x8b': b = gzip.decompress(b)  # assets/ GLBs are gzip-wrapped (src/engine/glb-gzip.js)
     assert b[:4] == b'glTF'
     off = 12; j = None; bin_ = b''
     while off < len(b):

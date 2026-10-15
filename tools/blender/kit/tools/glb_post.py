@@ -4,7 +4,7 @@ Materials named 'kit:<id>' or 'kit:<id>~rrggbb' (sRGB tint) are rebuilt from lib
   occlusionTexture = per-asset baked AO on TEXCOORD_1 (embedded JPEG), KHR_materials_specular where set,
   alphaMode BLEND for decals. Pure Python (json/struct/PIL) - runs inside Blender or standalone.
 CLI: python3 glb_post.py in.glb [--ao ao.png] [--res 1k|2k] [--webp] [--lib-url URL_PREFIX]"""
-import json, os, struct, io, sys
+import gzip, json, os, struct, io, sys
 
 KIT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LIB = os.path.join(KIT, 'lib')
@@ -12,6 +12,7 @@ LIB = os.path.join(KIT, 'lib')
 
 def read_glb(p):
     b = open(p, 'rb').read()
+    if b[:2] == b'\x1f\x8b': b = gzip.decompress(b)  # assets/ GLBs are gzip-wrapped (src/engine/glb-gzip.js)
     magic, ver, ln = struct.unpack_from('<III', b, 0)
     assert magic == 0x46546C67
     off, js, bin_ = 12, None, b''

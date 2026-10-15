@@ -1,6 +1,7 @@
 /** M16 art pass (the Maas bridge, Belgium): the Mosan add-on, each structure's own build fitted to its footprint, the
  *  doors where the game enters, the burnt car as a vehicle wreck, the ruined field walls, the paving and furniture. */
 import { readFileSync, existsSync } from 'node:fs';
+import { readGlb } from '../../tools/glb-io.mjs'; // GLBs are gzip-wrapped (src/engine/glb-gzip.js)
 import { test, assert } from './lib.mjs';
 import { useManifest, pickAsset, fitScale } from '../../src/art/building-props.js';
 import { doorPoint } from '../../src/world/map-builder.js';
@@ -30,7 +31,7 @@ test('art m16: the Maas add-on ships every LOD, sidecar and texture, temperate, 
     assert.equal(a.lods.length, 3, n);
     for (const l of a.lods) {
       assert.ok(existsSync(P(`assets/models/${l.url}`)), l.url);
-      const glb = readFileSync(P(`assets/models/${l.url}`)).toString('latin1');
+      const glb = readGlb(P(`assets/models/${l.url}`)).toString('latin1');
       for (const [, u] of glb.matchAll(/"uri":"([^"]+)"/g)) assert.ok(found(new URL(u, P(`assets/models/${l.url}`))), `${l.url} → ${u}`);
     }
     assert.ok(existsSync(P(`assets/models/${a.sidecar}`)), a.sidecar);
@@ -138,7 +139,7 @@ test('art m16: each round pillbox turns its embrasures onto its crew\'s watch, c
 test('art m16: the rusty bulldozer is a detailed build (shoe-by-shoe tracks, worn paint and rust maps), not a box stand-in', () => {
   const a = merged().assets.bulldozer_rusty;
   assert.ok(a.lods[0].tris > 9000, `LOD0 ${a.lods[0].tris} tris`);
-  const glb = readFileSync(P(`assets/models/${a.lods[0].url}`)).toString('latin1');
+  const glb = readGlb(P(`assets/models/${a.lods[0].url}`)).toString('latin1');
   for (const m of ['paint_rust_ochre_diff', 'paint_rust_ochre_nor', 'rust_heavy_diff', 'rust_heavy_nor']) {
     assert.ok(glb.includes(`/${m}.jpg`), m);
     assert.ok(existsSync(P(`assets/textures/lib/1k/${m}.jpg`)) && existsSync(P(`assets/textures/lib/512/${m}.jpg`)), `${m} 1k + 512`);

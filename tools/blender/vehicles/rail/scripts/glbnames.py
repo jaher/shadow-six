@@ -1,11 +1,12 @@
 """glbnames.py - strip Blender '.001' suffixes from glTF node names (LOD1/LOD2 are built while the LOD0 objects still
 exist, so Blender renames them). Mesh nodes win the base name; empties (sockets) keep theirs.
 CLI: python3 glbnames.py out/*/*.glb   (uses the sidecar node list)"""
-import json, struct, re, sys, os, glob
+import gzip, json, struct, re, sys, os, glob
 
 
 def read(p):
     b = open(p, 'rb').read()
+    if b[:2] == b'\x1f\x8b': b = gzip.decompress(b)  # assets/ GLBs are gzip-wrapped (src/engine/glb-gzip.js)
     n = struct.unpack('<I', b[12:16])[0]
     js = json.loads(b[20:20 + n])
     rest = b[20 + n:]

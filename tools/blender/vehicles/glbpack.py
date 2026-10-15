@@ -3,7 +3,7 @@
 Usage: glbpack.py in.glb out.glb [--albedo 2048] [--normal 2048] [--orm 1024] [--q 85] [--webp]
 Images are classified by name suffix (_albedo/_normal/_orm, as written by blib.bake_atlas).
 --webp re-encodes as WebP and declares EXT_texture_webp (three.js GLTFLoader supports it natively)."""
-import json, struct, sys, io, argparse
+import gzip, json, struct, sys, io, argparse
 from PIL import Image
 
 ap = argparse.ArgumentParser()
@@ -14,6 +14,7 @@ ap.add_argument('--webp', action='store_true')
 a = ap.parse_args()
 
 f = open(a.src, 'rb').read()
+if f[:2] == b'\x1f\x8b': f = gzip.decompress(f)  # assets/ GLBs are gzip-wrapped (src/engine/glb-gzip.js)
 magic, ver, total = struct.unpack('<III', f[:12])
 assert magic == 0x46546C67
 jl, jt = struct.unpack('<II', f[12:20]); J = json.loads(f[20:20 + jl])

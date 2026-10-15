@@ -80,8 +80,8 @@ test('flags: every baked kit flag is stripped at every LOD (flag, flag.001, flag
   const { readFileSync } = await import('node:fs');
   const m = JSON.parse(readFileSync(new URL('../../assets/models/buildings/manifest.json', import.meta.url), 'utf8'));
   const lod1 = m.assets.barracks_b_snow.lods[1].url;
-  const b = readFileSync(new URL(`../../assets/models/${lod1}`, import.meta.url));
-  const j = JSON.parse(b.subarray(20, 20 + b.readUInt32LE(12)).toString());
+  const { glbJson } = await import('../../tools/glb-io.mjs'); // GLBs are gzip-wrapped (src/engine/glb-gzip.js)
+  const j = glbJson(new URL(`../../assets/models/${lod1}`, import.meta.url));
   const baked = j.nodes.map((n) => n.name).filter((n) => /flag/.test(n || ''));
   assert.ok(baked.length && baked.every((n) => BAKED_FLAG.test(n)), `barracks_b_snow LOD1 flags ${baked} all stripped`);
 });

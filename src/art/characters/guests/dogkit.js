@@ -4,7 +4,7 @@
 //   d.setAnim('walk', { speed: 1.3 });  d.setAnim('die', { loop: false });  d.update(dt);  d.autoLOD(pxPerMetre);
 //   clips: idle walk sniff_walk trot run sniff bark attack die dead sit   (meta: loop, duration, groundSpeed, events)
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { GLTFLoader } from '../../../engine/glb-gzip.js'; // gzip-wrapped GLBs (assets/**/*.glb)
 import { keepEncodedImages } from '../../../engine/texture-memory.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
