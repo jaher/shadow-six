@@ -423,7 +423,14 @@ tools/check.sh                                                          # syntax
   tube. Wrecked or deflated hulls take water. The open boats' plans stop just under their bottom (raft 9 cm, rowboat
   22 cm below the waterline, `under`): a hull resting on a bank is lifted clear of the water, which stays drawn
   under it. GPU test: `tests/boat-dry-hull.test.mjs` (flat-magenta water, floor pixels read back every frame: M2 raft,
-  M13 raft at sea, M14 rowboat).
+  M13 raft at sea, M14 rowboat). The raft drawn outside the sim — inflating before the sim's raft exists, its sheet
+  after it went into the Marine's kit — gets the same cut-out (`art/raft-actions.js raftDryHulls`, `dryHullOfObject`
+  with the plan narrowed to the folded sheet and laid over the part not yet gathered): the M13 swell had washed over
+  the spread sheet. The raft's floor sweeps up into its raised bow tube (`art/raft-hull.js raftFloorFix`, raft.py
+  `floor_z`): flat, it left a slot under the bow tube through which the water — or, inside this cut-out, the bed —
+  showed ("the raft has a hole in the front"). GPU test: `tests/raft-dry-interior.test.mjs` (water magenta, ground
+  cyan, the pixels over the floor in every state, from ahead / astern / the sides at 40° and 70°; the hull mesh's
+  open edges round the floor inside the tube in both LODs).
 - **Boats on the ground** (`src/art/boat-rest.js`, posed in `art/vehicle-model.js`). A boat used to float flat at the
   water level whenever its centre was over a wet cell, so a hull half on the bank (the M1 raft on the peninsula's west
   shore, M3's and M18's rafts, a raft the Marine inflates at the water's edge) had the snow or mud come up through it,

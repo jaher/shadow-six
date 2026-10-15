@@ -36,6 +36,7 @@ import { createLibraryVehicleModel } from './vehicle-model.js';
 import { vehicleDef } from '../entities/vehicle.js';
 import { headingToRotY } from '../core/math.js';
 import { groundOf, waterOf } from './boat-rest.js';
+import { HULL_PLANS } from './water/hulls.js';
 
 const { Vector3, Quaternion, Matrix4, Object3D } = THREE;
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -249,6 +250,42 @@ function surfaceAt(world, x, z) {
   const g = groundOf(world)(x, z), l = waterOf(world)(x, z);
   const v = Math.max(Number.isFinite(g) ? g : -Infinity, l ?? -Infinity);
   return Number.isFinite(v) ? v : (typeof world.groundY === 'function' ? world.groundY(x, z) || 0 : 0);
+}
+
+// ------------------------------------------------------------------ the water kept out
+
+/**
+ * The water cut out of the rafts drawn here outside the sim (art/water/hulls.js; user 2026-10-15: "When the inflatable
+ * raft is inflated there should not be water or the ground inside it"): the hull inflating before it is handed to the
+ * raft the sim spawns, and the flat sheet left after the raft went into his kit (2.0 s) until it is gathered into the
+ * pack. Without it the sea's swell washed over the spread sheet and over the floor of the hull filling on it (the sim's
+ * raft has its own: art/water.js). The plan is the raft's own (inside the tube's centreline) while the sides lie out,
+ * the middle band once they are folded in, over the part of the strip not yet gathered into the stack.
+ * @param {object} world
+ * @param {(o: THREE.Object3D, plan: object, dz: number) => void} add called with each hull's model space (the visual),
+ *   its plan and the plan's centre along +z
+ */
+export function raftDryHulls(world, add) {
+  const list = world?.raftActs;
+  if (!list?.length) return;
+  const P0 = HULL_PLANS.raft;
+  for (const rec of list) {
+    const vis = rec.vis, S = vis?.S;
+    if (!S || !vis.hull || rec.superseded) continue;
+    const model = rec.kind === 'inflate' ? (vis.handed ? null : vis.model) : (rec.raft?.removed || rec.gone != null ? rec.raft?.model : null);
+    if (!model?.isReady || !model.root.visible || !model.root.parent || !model.visual?.object3d) continue;
+    const P = (vis.dry ||= { ...P0 });
+    P.b = Math.max(S.foldL, S.foldR) > 0.02 ? SHEET.hinge - 0.03 : P0.b;
+    let dz = 0;
+    if (S.gather > 0) {
+      // (art/raft-hull.js foldGather: the stack at the near end, the rest of the strip lying flat beyond it)
+      const Lt = 2 * SHEET.near, G = S.gather * Lt, a0 = Math.min(G, SHEET.pleat) + 0.1, a1 = Math.min(G, SHEET.pleat) + Lt - G - 0.25;
+      if (a1 - a0 < 0.3) continue;
+      dz = S.near * SHEET.near - S.near * (a0 + a1) / 2;
+      P.aF = P.aA = (a1 - a0) / 2;
+    } else { P.aF = P0.aF; P.aA = P0.aA; }
+    add(model.visual.object3d, P, dz);
+  }
 }
 
 // ------------------------------------------------------------------ inflate

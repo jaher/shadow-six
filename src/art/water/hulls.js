@@ -20,8 +20,10 @@
  * fitted INSIDE the hull's outer skin at every height (a plan wider than the hull would open a dry hole in the water
  * beside it) and wide enough to take in its inner skin. The raft's plan is its buoyancy tube's centreline
  * (tools/blender/vehicles/naval/scripts/raft.py loop_path: x = b·cos^0.8, y = a·sin^0.35, i.e. pv = 2/0.8,
- * pu = 2/0.35; the bow 6 cm short of the raised tip, where the floor ends under the lifted tube: past it you would
- * see the bed through that gap), always under the tube whatever the water does. The rowboat
+ * pu = 2/0.35; the bow 6 cm short of the raised tip, where the floor sweeps up into the lifted tube: art/raft-hull.js
+ * raftFloorFix — before it a slot under the bow tube showed the water, or the bed through this cut-out), always under
+ * the tube whatever the water does. The raft's hull drawn outside the sim (inflating, being packed) gets the same plan,
+ * shrunk to its folded / gathered sheet (art/raft-actions.js raftDryHulls). The rowboat
  * follows its hull lines (rowboat.py stations) from 10 cm below to 25 cm above the waterline, 1–2 cm inside the
  * skin; the decked patrol and fishing boats keep the section 8 cm down. The mini-sub runs awash and stays wet.
  *
@@ -69,7 +71,7 @@ export function inPlan(P, u, v, z = 0) {
   return Math.abs(u / (u >= 0 ? aF : aA)) ** P.pu + Math.abs(v / b) ** P.pv <= 1;
 }
 
-const _p = new THREE.Vector3();
+const _p = new THREE.Vector3(), _m = new THREE.Matrix4();
 
 /**
  * Dry plan of a vehicle as drawn this frame, or null (not a boat, no plan for its model, model not loaded or hidden,
@@ -81,11 +83,21 @@ export function dryHullOf(v, out = null) {
   const m = v.model, plan = m?.library ? HULL_PLANS[m.libType] : null;
   const o = plan && m.isReady ? m.visual?.object3d : null;
   if (!o || !m.root?.visible) return null;
+  return dryHullOfObject(o, plan, out);
+}
+
+/**
+ * Dry plan of a hull drawn by `o` (its frame = the hull's model space) as posed this frame, its centre `dz` m along
+ * its +z (a plan laid over part of the hull: the raft's sheet folded / gathered, art/raft-actions.js raftDryHulls).
+ */
+export function dryHullOfObject(o, plan, out = null, dz = 0) {
   o.updateWorldMatrix(true, false); // posed by renderUpdate this frame; the scene's world matrices update later
   const d = out || { inv: null, plan: null, x: 0, z: 0 };
-  (d.inv ||= new THREE.Matrix4()).copy(o.matrixWorld).invert();
+  (d.inv ||= new THREE.Matrix4()).copy(o.matrixWorld);
+  if (dz) d.inv.multiply(_m.makeTranslation(0, 0, dz));
+  d.inv.invert();
   d.plan = plan;
-  _p.setFromMatrixPosition(o.matrixWorld); d.x = _p.x; d.z = _p.z;
+  _p.set(0, 0, dz).applyMatrix4(o.matrixWorld); d.x = _p.x; d.z = _p.z;
   return d;
 }
 

@@ -275,6 +275,7 @@ class MeshDeform {
     g.boundingSphere = g0.boundingSphere.clone(); g.boundingSphere.radius *= 1.6;
     g.boundingBox = null;
     g.userData.shared = true;   // (an entity's dispose() leaves it alone: art/raft-actions.js disposes it)
+    g.userData.raftSource = g0; // (the library geometry it deforms: tests find the floor's triangles on it)
     this.geo = g;
     this.acc = new Float32Array(n * 3);
     this.on = false;
@@ -481,4 +482,93 @@ export class RaftHull {
     if (S.foldL > 0 || S.foldR > 0 || S.gather > 0) foldGather(S);
     return out.set(_p.x, _p.y, _p.z);
   }
+}
+
+/** The floor swept up into the raised bow: its rim this far above the tube's skin under it (m). */
+export const FLOOR_SEAT = 0.03;
+
+/**
+ * Height of the floor's rim at model-space (x, z) (raft.py floor_z): the floor's own height (ZF), or — where the tube
+ * above it rises off the floor toward the bow — FLOOR_SEAT above the tube's underside there (the tube's section through
+ * the nearest centreline point, horizontally), so the rim is always inside the tube.
+ */
+export function floorRimY(x, z) {
+  const L = tubeLoop(), P = L.P, R = HULL.R;
+  let bd = Infinity, bi = 0;
+  for (let i = 0; i < L.n; i++) { const d = (P[i * 3] - x) ** 2 + (P[i * 3 + 2] - z) ** 2; if (d < bd) { bd = d; bi = i; } }
+  const d = Math.sqrt(bd);
+  if (d >= R - FLOOR_SEAT) return HULL.ZF;
+  return Math.max(HULL.ZF, P[bi * 3 + 1] - Math.sqrt(R * R - d * d) + FLOOR_SEAT);
+}
+
+/**
+ * The inflated raft's floor joined to its tube at the raised bow (user 2026-10-15: "When the inflatable raft is
+ * inflated there should not be water or the ground inside it"). raft.py laid the floor flat, 2 cm above the waterline
+ * at 0.8 × / 0.93 × the tube's centreline; toward the bow the tube rises (14 cm at the tip) and its underside lifted
+ * off the floor's end, leaving a slot under the bow tube: looking into the boat, the eye went over the floor's end and
+ * under the tube to the water beyond the bow — or, inside the dry-hull cut-out (art/water/hulls.js), to the bed. Every
+ * floor rim vertex is raised to floorRimY(): the floor ramps up into the bow (from ~0.8 m ahead of the middle) and
+ * meets the tube all round. Normals of the raised floor follow its slope.
+ *
+ * Applied once to each LOD scene of the library's deployed raft as it loads (art/vehicle-library.js), before anything
+ * samples it (the rest pose's underside, the inflation's parameterisation, the clipping audit). raft.py builds the same
+ * floor (floor_z), so a GLB rebuilt from it is left as it is (nothing below floorRimY).
+ * @param {THREE.Object3D} scene a loaded LOD scene (its root frame = the model's space)
+ * @returns {number} floor vertices raised
+ */
+export function raftFloorFix(scene) {
+  scene.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(scene.matrixWorld).invert(), M = new THREE.Matrix4(), Mi = new THREE.Matrix4();
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), n = new THREE.Vector3();
+  let raised = 0;
+  scene.traverse((o) => {
+    if (!o.isMesh || !o.geometry?.index || o.geometry.userData.raftFloor) return;
+    for (let q = o; q && q !== scene; q = q.parent) if (/paddle|oar/i.test(q.name)) return;
+    const g = o.geometry, pos = g.attributes.position, idx = g.index, nor = g.attributes.normal;
+    M.copy(inv).multiply(o.matrixWorld); Mi.copy(M).invert();
+    // the floor: up-facing triangles at the floor's height inside the tubes
+    const at = (i, v) => v.fromBufferAttribute(pos, i).applyMatrix4(M);
+    const tris = [], verts = new Set();
+    for (let t = 0; t < idx.count; t += 3) {
+      at(idx.getX(t), a); at(idx.getX(t + 1), b); at(idx.getX(t + 2), c);
+      if (![a, b, c].every((p) => Math.abs(p.y - HULL.ZF) < 0.004 && Math.abs(p.x) < 0.4 && Math.abs(p.z) < 1.1)) continue;
+      n.crossVectors(e1.subVectors(b, a), e2.subVectors(c, a));
+      if (n.y <= 0) continue;
+      tris.push(t); verts.add(idx.getX(t)); verts.add(idx.getX(t + 1)); verts.add(idx.getX(t + 2));
+    }
+    if (!tris.length) return;
+    let moved = 0;
+    for (const i of verts) {
+      at(i, a);
+      const y = floorRimY(a.x, a.z);
+      if (y <= a.y + 1e-4) continue;
+      a.y = y; a.applyMatrix4(Mi);
+      const r = (v) => (pos.normalized || pos.array instanceof Float32Array ? v : Math.round(v));
+      pos.setXYZ(i, r(a.x), r(a.y), r(a.z));
+      moved++;
+    }
+    g.userData.raftFloor = true;
+    if (!moved) return;
+    raised += moved;
+    pos.needsUpdate = true;
+    // the ramp's normals: area-weighted over the floor's triangles (model space → mesh local)
+    if (nor) {
+      const acc = new Map(), key = (i) => { at(i, a); return `${a.x.toFixed(4)},${a.z.toFixed(4)}`; };
+      for (const t of tris) {
+        at(idx.getX(t), a); at(idx.getX(t + 1), b); at(idx.getX(t + 2), c);
+        n.crossVectors(e1.subVectors(b, a), e2.subVectors(c, a));
+        for (let k = 0; k < 3; k++) { const kk = key(idx.getX(t + k)); const s = acc.get(kk) || acc.set(kk, new THREE.Vector3()).get(kk); s.add(n); }
+      }
+      const nm = new THREE.Matrix3().getNormalMatrix(Mi);
+      for (const i of verts) {
+        const s = acc.get(key(i));
+        if (!s || s.lengthSq() < 1e-12) continue;
+        n.copy(s).normalize().applyMatrix3(nm).normalize();
+        nor.setXYZ(i, n.x, n.y, n.z);
+      }
+      nor.needsUpdate = true;
+    }
+    g.computeBoundingSphere(); g.computeBoundingBox();
+  });
+  return raised;
 }

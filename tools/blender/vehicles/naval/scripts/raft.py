@@ -62,9 +62,28 @@ def tube(pts, r, rz=1.0, wr=0.0, name='tube', segs=12, key='rubberfab'):
     return np_(bm, key, name, smooth=True, grime=0.5)
 
 
-def floor_poly(pts, z, wr=0.0, name='floor'):
+FLOOR_SEAT = 0.03                 # the floor's rim this far above the tube's underside where the tube rises off it
+
+
+def floor_z(q, z0, loop):
+    """Height of the floor's rim at q: z0, or — toward the bow, where the tube rises off the floor — FLOOR_SEAT above
+    the tube's underside there (its section through the nearest centreline point), so the floor ramps up into the bow
+    and meets the tube all round. Flat, the floor's end lay under the raised bow tube with a slot between them that the
+    eye looked through into the water (user 2026-10-15: "it looks like the raft has a hole in the front?").
+    Same as src/art/raft-hull.js floorRimY (which lifts the floor of GLBs built before this at load)."""
+    p = min(loop, key=lambda c: (c.x - q.x) ** 2 + (c.y - q.y) ** 2)
+    d = math.hypot(p.x - q.x, p.y - q.y)
+    if d >= R - FLOOR_SEAT:
+        return z0
+    return max(z0, p.z - math.sqrt(R * R - d * d) + FLOOR_SEAT)
+
+
+def floor_poly(pts, z, wr=0.0, name='floor', seat=False):
     bm = bmesh.new()
     inner = [V((p.x * 0.8, p.y * 0.93, z)) for p in pts]
+    if seat:
+        loop = loop_path(480)
+        inner = [V((q.x, q.y, floor_z(q, z, loop))) for q in inner]
     if wr:
         inner = [q + V((0, 0, wr * noise.noise(q * 3.0))) for q in inner]
     bm.faces.new([bm.verts.new(q) for q in inner])
@@ -87,7 +106,7 @@ def paddle(node, piv, d, up):
 def deployed():
     pts = loop_path()
     tube(pts, R)
-    floor_poly(pts, ZF)
+    floor_poly(pts, ZF, seat=True)
     # cross thwart tube, lifeline with loops along the tube, valve caps, repair patches, rubbing strake
     tube_seg = [V((x, 0.25, ZC + 0.02)) for x in (-0.46, 0.46)]
     NP('rubberfab', cyl, (-0.47, 0.25, ZC), (0.47, 0.25, ZC), 0.11, 10, name='thwart_tube', smooth=True)

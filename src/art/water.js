@@ -17,7 +17,8 @@
  * @module art/water
  */
 import { T } from '../world/grid.js';
-import { dryHullOf } from './water/hulls.js';
+import { dryHullOf, dryHullOfObject } from './water/hulls.js';
+import { raftDryHulls } from './raft-actions.js';
 import { rowPeriod, catchOffset, ROW } from './oars.js';
 import { shownSubmerged } from './swim-pose.js';
 import { due, stepFor, nextTask, SLICE_MS } from '../engine/slice.js';
@@ -526,6 +527,8 @@ function* buildWaterG(R, world, grid, mission, theater, o, sliced) {
   });
 
   const dry = [], dryPool = [], sub = [];
+  // (rafts drawn outside the sim: the hull inflating, the sheet being packed — art/raft-actions.js)
+  const addDry = (o, plan, dz) => { const d = dryHullOfObject(o, plan, dryPool[dry.length] ||= { inv: null, plan: null, x: 0, z: 0 }, dz); if (d) dry.push(d); };
   const handle = {
     system, bodies, stats, level: WATER_LEVEL, real: true, drains, dry,
     sample: (x, z) => system.sample(x, z),
@@ -547,6 +550,7 @@ function* buildWaterG(R, world, grid, mission, theater, o, sliced) {
         const d = dryHullOf(v, dryPool[dry.length] ||= { inv: null, plan: null, x: 0, z: 0 });
         if (d) dry.push(d);
       }
+      raftDryHulls(world, addDry);
       system.setDryHulls(dry);
       // the diving Marine shown under the surface: drawn through it, readable (WaterSystem.setSubmerged)
       sub.length = 0;
