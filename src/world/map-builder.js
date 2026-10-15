@@ -398,6 +398,9 @@ export function navKeepPoints(world, built) {
   }
   // link ends: the end's own spot (the climber's / ladder user's body), not the 0.9 m doorway disc
   for (const l of world.grid.links || []) { keep.push([l.a.x, l.a.z, LINK_KEEP_R]); keep.push([l.b.x, l.b.z, LINK_KEEP_R]); }
+  // a mission's own kept ground (`navKeep`: [[x, z, r], …]): a way its play needs that a mesh's body clearance would
+  // squeeze shut (M8: the lane between the Gatling pit's ring and the supply track's side)
+  for (const p of world.mission?.navKeep || []) keep.push([p[0], p[1], p[2] ?? DOOR_KEEP_R]);
   return keep;
 }
 

@@ -141,7 +141,7 @@ const STRUCTURES = [
   // --- the lower road strip, the Gatling pit and the bridge
   { id: 'slab_n', type: 'sandbags', variant: 'blast_wall_revetment', x: 66, z: 27.5, rot: deg(60), w: 4, d: 1.5, h: 2.5, block: 2 },
   { id: 'slab_c', type: 'sandbags', variant: 'blast_wall_revetment', x: 61.4, z: 38.6, rot: deg(70), w: 4, d: 1.5, h: 2.5, block: 2 },
-  { id: 'mg_pit', type: 'sandbags', variant: 'mg_nest_sandbag', x: 75.3, z: 25.9, rot: deg(150), ring: { r: 2 }, h: 1.0, block: 1 },
+  { id: 'mg_pit', type: 'sandbags', variant: 'mg_nest_sandbag', x: 75.55, z: 25.9, rot: deg(150), ring: { r: 2 }, h: 1.0, block: 1 },
   hedgehog('hh_1', 68, 27), hedgehog('hh_2', 74.5, 28), hedgehog('hh_3', 77, 28), hedgehog('hh_4', 80, 28.5),
   { id: 'bridge', type: 'bridge', variant: 'bridge_timber_trestle', x: 87.5, z: 33, rot: 0, w: 19, d: 5, h: 0.5 },
   ...[[44, 41.5], [84, 63], [86, 57]].map(([x, z], k) => ({ id: `scrub_${k + 1}`, type: 'bush', variant: 'scrub_desert', x, z, r: 1 })),
@@ -187,7 +187,7 @@ const ENEMIES = [
   sentry('e1', 1, 10.5, 2.5, 180, 45, true, UP), // N of the start yard's N wall; the first decoy behind rw1 pulls him
   sentry('e2', 2, 21.3, 7.5, 90, 30, true, UP),
   sentry('e3', 10, 18.2, 16, 90, 45, true, UP), // by the truck yard, over B1/B2
-  walker('e4', 4, 'PINGPONG', [P(4, 23, 3, 90), P(10, 31, 3, 45)], UP),
+  walker('e4', 4, 'PINGPONG', [P(4, 23.5, 3, 90), P(10, 31, 3, 45)], UP),
   walker('e5', 5, 'PINGPONG', [P(26.5, 16.5, 4, 90), P(29, 22.5, 4, 90)], UP), // W of rw9
   walker('e6', 6, 'PINGPONG', [P(26, 25.5, 3, 90), P(37, 25.5, 3, 90)], UP), // looks down at the cliff foot at each end
   sentry('e7', 7, 37.2, 18, 135, 30, false, UP),
@@ -220,7 +220,7 @@ const ENEMIES = [
   { id: 'e29', prima: 29, soldierType: 'gunner', x: 62.7, z: 14.2, y: Y, heading: deg(0), emplacement: 'gun210', post: { heading: deg(0), sweep: 40 } },
   sentry('e30', 30, 64.3, 25.2, 200, 40, true),
   walker('e31', 31, 'PINGPONG', [P(72, 33, 3, 180), P(97, 33, 3, 0)]), // over the bridge; comes up ramp_ne after a GB seen on the plateau
-  { id: 'e32', prima: 32, soldierType: 'mg', x: 75.3, z: 25.9, heading: deg(150), emplacement: 'gatling', post: { heading: deg(150), sweep: 50, giro: 180 } },
+  { id: 'e32', prima: 32, soldierType: 'mg', x: 75.55, z: 25.9, heading: deg(150), emplacement: 'gatling', post: { heading: deg(150), sweep: 50, giro: 180 } },
 ];
 
 // ---------------------------------------------------------------- garrisons (§9; exit 2.7 m/s, loops 1.8 m/s)
@@ -317,7 +317,7 @@ export default {
     // the 210 mm gun (never manned by commandos): shells the jeep while e29 lives; a barrel blast wrecks it
     { id: 'gun210', vehicleType: 'mortar210', x: 62.7, z: 12.2, y: Y, heading: deg(0), gunner: 'e29', driveable: false },
     // the Gatling by the bridge (e32 mans it)
-    { id: 'gatling', vehicleType: 'mgNest', x: 75.3, z: 25.9, heading: deg(150), gunner: 'e32', driveable: false },
+    { id: 'gatling', vehicleType: 'mgNest', x: 75.55, z: 25.9, heading: deg(150), gunner: 'e32', driveable: false },
     // parked and empty: nobody can drive them (no Driver), anyone can hide inside
     { id: 'truck_p', vehicleType: 'truck', variant: 'opel_blitz_desert', x: 12.3, z: 21.5, y: Y, heading: deg(0), driveable: false },
     { id: 'car', vehicleType: 'horch', variant: 'horch_desert', x: 19.3, z: 60.6, heading: deg(180), driveable: false },
@@ -397,6 +397,10 @@ export default {
     spawnAt: { x: 105, z: -6, heading: deg(100) }, arrive: { x: 98.5, z: 31, speed: 7 },
     exit: { x: 105, z: 1, r: 3 }, leave: { x: 105, z: -12 },
   },
+  // the lane between the Gatling pit's sandbag ring and the supply track's side: the only way from the road and the
+  // track to the pit's open E side and the ground N of it below the plateau's E face (behind the gunner e32, the
+  // decoy ground for e30). The ring's mesh clearance squeezed it shut in the real game (map-builder navKeepPoints)
+  navKeep: [[72.6, 25.8, 1.4]],
   alarmFail: null,
   par: { time: 600 },
   cameraStart: { x: 12, z: 22, zoom: 1 },

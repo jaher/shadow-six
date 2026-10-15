@@ -307,3 +307,40 @@ test('m08 regression: the tank walkway frame covers the whole top — deck guard
   for (const [x, z] of [[58.5, 72.5], [54.6, 72.5], [67.7, 62.8], [71.2, 65.5]]) assert.ok(Math.abs(w.grid.elevAt(x, z) - 4.5) < 0.01, `deck at (${x},${z})`);
   assert.equal(M().rules.decoyMaxDwell, 75, 'one lure holds a guard 75 s at most');
 });
+
+test('m08 regression: the plateau walker e4 halts at both ends of his beat and looks out (his NW point was out of reach)', () => {
+  // his NW waypoint sat against the low wall there: he stopped 0.45 m short, stood facing SW, then walked on without his
+  // 3 s halt and look S (solution run: an unpredictable dithering guard over the W plateau)
+  const s = m08Sim(true), w = s.world, e = w.byId('e4');
+  const halts = [];
+  let was = false;
+  s.run(80, () => {
+    const at = !!e.brain.atWait;
+    if (at && !was) halts.push({ i: e.brain.routeIndex, x: e.x, z: e.z });
+    was = at;
+    return halts.length >= 3;
+  });
+  assert.ok(halts.length >= 3, `e4 halts: ${JSON.stringify(halts)}`);
+  for (const i of [0, 1]) assert.ok(halts.some((h) => h.i === i), `e4 halts at route point ${i}`);
+  const nw = halts.find((h) => h.i === 0), wp = e.route[0];
+  assert.ok(Math.hypot(nw.x - wp.x, nw.z - wp.z) <= 0.35, `e4 reaches his NW point (${nw.x.toFixed(2)},${nw.z.toFixed(2)})`);
+});
+
+test('m08 regression: a route waypoint the planner ends short of counts as reached there (e24 by the SW huts)', () => {
+  // in the real game a mesh's clearance covers e24's SW halt point (37.5,64): the planner ends 0.7 m short and he stood
+  // there re-planning the same walk for ever — no halt, no walk on, the store's W half left unwatched (solution run).
+  // Headless: his planner is made to end 0.75 m short of that point, as in the game
+  const s = m08Sim(true), w = s.world, e = w.byId('e24'), wp = e.route[3];
+  const moveTo = e.moveTo.bind(e);
+  e.moveTo = (x, z, o) => (Math.hypot(x - wp.x, z - wp.z) < 1e-6 ? moveTo(x + 0.3, z - 0.7, o) : moveTo(x, z, o));
+  const seen = [];
+  let halted = null;
+  s.run(140, () => {
+    if (seen[seen.length - 1] !== e.brain.routeIndex) seen.push(e.brain.routeIndex);
+    if (e.brain.atWait && e.brain.routeIndex === 3 && !halted) halted = { x: e.x, z: e.z };
+    return seen.filter((i) => i === 1).length >= 2;
+  });
+  assert.ok(halted && Math.hypot(halted.x - wp.x, halted.z - wp.z) < 1.0, `e24 halts at his SW point, where his walk there ended: ${JSON.stringify(halted)}`);
+  assert.ok(seen.includes(3) && seen.includes(4), `and walks on: route points ${seen.join(',')}`);
+  assert.ok(seen.filter((i) => i === 1).length >= 2, `and comes round his loop again: ${seen.join(',')}`);
+});

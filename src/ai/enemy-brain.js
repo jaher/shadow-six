@@ -33,6 +33,8 @@ import { blocks as blocksUnit } from '../entities/avoidance.js';
 const NOISE_WITNESS_DELAY = 0.3;
 /** A smooth turn closer than this (rad) to its bearing is done (he faces it). */
 const TURN_DONE = 1e-4;
+/** How far short of a route waypoint (m) the planner's end may lie and still count as the waypoint reached (EnemyBrain._route). */
+const WP_NEAR = 1.0;
 
 /** Spec brain states (design-spec §4.6). */
 export const BRAIN_STATES = Object.freeze(['IDLE', 'INVESTIGATE', 'DECOY', 'TRACKS', 'BODY', 'CHALLENGE', 'HOLD',
@@ -1498,15 +1500,24 @@ export class EnemyBrain {
     if (this._isLeader()) this._recordTrail();
     if (!this.atWait) {
       const tk = e.track || e; // route progress is measured on the path track (not the dodge lane / corner curve)
-      if (Math.hypot(wp.x - tk.x, wp.z - tk.z) > 0.3) {
+      // (a waypoint the planner cannot end on exactly — a mesh's clearance over it in the real game — counts as
+      // reached where his last walk to it ended, up to WP_NEAR m short: else he stood there re-planning the same
+      // walk for ever, never halting nor walking on. M8 e24 by the store's SW huts)
+      const g = this._wpGoal, near = g && g.wp === wp && !e.isMoving && Math.hypot(g.x - tk.x, g.z - tk.z) <= 0.3;
+      if (Math.hypot(wp.x - tk.x, wp.z - tk.z) > 0.3 && !near) {
         this._look(0);
         if (!e.isMoving) {
           const v = wp.speed ?? this.routeVel;
           e.vel = v;
           if (!e.moveTo(wp.x, wp.z)) this._advanceWaypoint();
+          else {
+            const end = e.path?.[e.path.length - 1];
+            this._wpGoal = end && Math.hypot(end.x - wp.x, end.z - wp.z) <= WP_NEAR ? { wp, x: end.x, z: end.z } : null;
+          }
         }
         return;
       }
+      this._wpGoal = null;
       // a pass-through waypoint (no wait, look or event): walk straight on to the next one — the one-tick stop
       // there flashed the idle pose at every corner of a patrol (playtest: "soldiers jerking" on M1)
       if (!(wp.wait > 0) && wp.look == null && !wp.event && r.length > 1) {
