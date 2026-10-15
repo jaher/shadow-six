@@ -57,6 +57,53 @@ export function paintedMaterial(set, color, extra = {}) {
   return m;
 }
 
+/**
+ * One jagged pack-ice floe (M4 fix round): an irregular `n`-gon of radius rx × rz round (cx, cz), `th` thick, its top
+ * at about y. The top is a faceted, hummocky snow crust (centre + inner ring raised, rim lower) so it reads as broken
+ * ice under the flat light; the broken edges are blue-green glassy ice. `R` is a 0..1 random source; rafted floes pass
+ * `tilt` (radians) for a small random lean.
+ */
+let ICE_SIDE = null, CRUST = null;
+/** Fresh snow crust on floes and pier copings (M4 fix round 2): the painted snow set lifted above white (colour
+ * > 1) so a crust still reads white against the lit pack ice when it lies in the bridge's shadow. */
+export function snowCrustMaterial() {
+  const base = dressingMaterial('snow');
+  if (CRUST && CRUST.userData.base === base.uuid) return CRUST;
+  CRUST = base.clone(); CRUST.name = 'kit:snow_crust'; CRUST.userData.base = base.uuid;
+  CRUST.color.setRGB(1.12, 1.15, 1.2); CRUST.emissive.setHex(0x4c5462);                 // + skylight on high-albedo snow
+  return CRUST;
+}
+export function iceFloe(R, cx, cz, rx, rz, y, th = 0.12, { n = 12, tilt = 0, tint = 0xffffff, shade = true } = {}) {
+  const ring = [], inner = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + (R() - 0.5) * (2.6 / n), r = 0.68 + R() * 0.42;
+    ring.push([Math.cos(a) * r * rx, -0.01 - R() * 0.04, Math.sin(a) * r * rz]);
+    const ri = 0.45 + R() * 0.2;
+    inner.push([Math.cos(a) * r * rx * ri, 0.02 + R() * 0.08, Math.sin(a) * r * rz * ri]);
+  }
+  const c = [(R() - 0.5) * 0.3 * rx, 0.06 + R() * 0.07, (R() - 0.5) * 0.3 * rz];
+  const top = [], side = [];
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    top.push(...c, ...inner[j], ...inner[i]);
+    top.push(...inner[i], ...inner[j], ...ring[j], ...inner[i], ...ring[j], ...ring[i]);
+    const b0 = [ring[i][0] * 0.94, -th, ring[i][2] * 0.94], b1 = [ring[j][0] * 0.94, -th, ring[j][2] * 0.94];
+    side.push(...ring[i], ...ring[j], ...b1, ...ring[i], ...b1, ...b0);
+  }
+  const P = [...top, ...side], uv = [];
+  for (let i = 0; i < P.length; i += 3) uv.push(P[i] / 2.2, (P[i + 2] + P[i + 1]) / 2.2);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.addGroup(0, top.length / 3, 0); geo.addGroup(top.length / 3, side.length / 3, 1);
+  geo.computeVertexNormals();
+  ICE_SIDE ??= new THREE.MeshStandardMaterial({ color: 0x7fa6b5, roughness: 0.18, metalness: 0, name: 'kit:ice_edge' });
+  const m = new THREE.Mesh(geo, [tint === 0xffffff ? snowCrustMaterial() : paintedMaterial('snow', tint), ICE_SIDE]);
+  m.position.set(cx, y, cz); m.rotation.set((R() - 0.5) * tilt, R() * 6.28, (R() - 0.5) * tilt);
+  m.receiveShadow = shade; m.castShadow = true; m.name = 'ice-floe';   // shade: false = like the pack-ice surface, which takes no shadow
+  return m;
+}
+
 // ------------------------------------------------------------------------------------------ drums and casks
 
 let DRUM = null;

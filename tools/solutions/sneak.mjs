@@ -39,6 +39,22 @@ function canSee(e, d, w, o = {}) {
   return w.grid.lineOfSight(e.x, e.z, d.x, d.z, { viewerElevated: !!e.vision?.elevated, ownHull: e.ownHull }) ? 'far' : 'none';
 }
 
+/**
+ * Run `fn` with the line-of-sight layer stamped without the vehicles that will not stay where they are (rail
+ * vehicles on their schedule, anything under way or ordered somewhere): the planners look ahead, and a tram standing
+ * between a guard and a man now may be gone when the guard looks. Restamped as the game has it afterwards.
+ * (A rail vehicle's own path / goal are its track: it is a mover by its schedule, unless it stands `keep` s more.)
+ */
+export function withoutMovers(w, fn, { keep = 0 } = {}) {
+  // (`keep` s: a rail vehicle standing at a stop that long yet still hides what is behind it)
+  const stays = (v) => keep > 0 && (v.speed || 0) < 0.05 && (v.waitT || 0) >= keep;
+  const movers = new Set((w.vehicles || []).filter((v) => (v.def?.rail && !stays(v)) || (!v.def?.rail && ((v.speed || 0) > 0.05 || v.goal || v.path))));
+  if (!movers.size || !w.grid?.clearDynamic) return fn();
+  w.grid.clearDynamic();
+  for (const e of w.entities) if (!e.removed && e.stampOccluder && !movers.has(e)) e.stampOccluder(w.grid);
+  try { return fn(); } finally { w.refreshDynamicOccluders(); }
+}
+
 export function viewersOf(w) {
   const out = w.enemies.filter((e) => e.alive && !e.removed && e.vision && !e.incapacitated && e.brain?.arch?.reacts !== false);
   // (`w.sneakVehicleEyes`, opt-in) an armed crewed vehicle with its own cone (M2's patrol boat: vehicle-ai spotCommando)
@@ -111,6 +127,45 @@ function alongPath(u, dist, stopAtEnd = false) {
   return { x: x + Math.cos(h) * dist, z: z + Math.sin(h) * dist, heading: h };
 }
 
+/** the leader's predicted place, memoised per sim time (trailPoint walks back along it in small steps) */
+const leadMemo = new WeakMap();
+function leadAt(lead, s) {
+  const now = lead.world?.time ?? 0;
+  let m = leadMemo.get(lead);
+  if (!m || m.now !== now) leadMemo.set(lead, (m = { now, at: new Map() }));
+  const k = Math.round(s * 20);
+  let q = m.at.get(k);
+  if (!q) m.at.set(k, (q = k <= 0 ? { x: lead.x, z: lead.z, heading: lead.heading } : predict(lead, k / 20, 1)));
+  return q;
+}
+
+/**
+ * Where file man `e` will be `t` s from now (`w.sneakTrail`): his slot, rank × squadSpacing behind the leader along
+ * the way the leader will have walked (his predicted beat, then the squad's recorded breadcrumbs), facing the way the
+ * file walks there. Null when his rank is unknown.
+ */
+function trailPoint(e, lead, t) {
+  const w = e.world, mates = e.brain?._mates?.(lead) || [], k = mates.indexOf(e);
+  if (k < 0) return null;
+  const want = (k + 1) * (CONFIG.ai?.squadSpacing ?? 1.2);
+  const q = leadAt(lead, t);
+  let acc = 0, prev = q;
+  const hit = (p) => {
+    const seg = Math.hypot(p.x - prev.x, p.z - prev.z);
+    if (acc + seg < want) { acc += seg; prev = p; return null; }
+    const f = seg > 0 ? (want - acc) / seg : 0;
+    return { x: prev.x + (p.x - prev.x) * f, z: prev.z + (p.z - prev.z) * f, heading: seg > 1e-6 ? Math.atan2(prev.z - p.z, prev.x - p.x) : q.heading, halt: q.halt };
+  };
+  // back along the leader's predicted way to now (at most 30 s of it: a long halt of his only bunches the file up)
+  for (let s = t - 0.1; s > Math.max(0, t - 30) - 1e-9; s -= 0.1) { const r = hit(leadAt(lead, s)); if (r) return r; }
+  if (t > 30) return { x: prev.x, z: prev.z, heading: q.heading };
+  const r0 = hit({ x: lead.x, z: lead.z }); if (r0) return r0;
+  // then the breadcrumbs he has left (newest first)
+  const sq = w?.ai?.squads?.get(e.squad.id);
+  for (const p of sq?.trail || []) { const r = hit(p); if (r) return r; }
+  return { x: prev.x - Math.cos(lead.heading) * (want - acc), z: prev.z - Math.sin(lead.heading) * (want - acc), heading: lead.heading };
+}
+
 /**
  * Where enemy `e` will be (and face) `t` s from now. A man on his route (IDLE / REINFORCE / RETURN) is walked along it
  * — the rest of his current path, then waypoint to waypoint with each halt's wait and look (LOOP / PINGPONG as the
@@ -118,6 +173,31 @@ function alongPath(u, dist, stopAtEnd = false) {
  * his offset to his leader and reaches each turn as far behind him as he walks now. Anyone else walking keeps to his
  * path and stops at its end (a lure, a body, a noise); a man standing still keeps his place and heading.
  */
+/**
+ * (`w.sneakPaths`) The way walker `e` takes to route point `i`: from route point `from` (null: from where he is now —
+ * the rest of his present path when it ends there), as [[x, z]...] ending where the way ends (on the point, or as near
+ * it as the nav lets him: where he halts), or null (straight). Legs
+ * between route points are planned once per grid version (World.findPath with his own path query).
+ */
+function legWay(e, from, i) {
+  const r = e.route, wp = r[i], w = e.world;
+  if (from == null) {
+    const P = e.path, end = P?.[P.length - 1];
+    if (!P || !end || Math.hypot(end.x - wp.x, end.z - wp.z) > 1.2) return null;
+    return P.slice(e.pathIndex ?? 0).map((p) => [p.x, p.z]);
+  }
+  const ver = w.grid?.version ?? 0;
+  if (!e._sneakLegs || e._sneakLegs.ver !== ver) e._sneakLegs = { ver, m: new Map() };
+  const k = `${from}>${i}`;
+  if (!e._sneakLegs.m.has(k)) {
+    const a = r[from], q = e.pathQuery?.() ?? {};
+    const p = w.findPath?.(a.x, a.z, wp.x, wp.z, q);
+    // (ending where the way ends: a point the nav keeps him off — a mesh's clearance — he halts short of, WP_NEAR)
+    e._sneakLegs.m.set(k, p && p.length > 1 ? p.slice(1).map((n) => [n.x, n.z]) : null);
+  }
+  return e._sneakLegs.m.get(k);
+}
+
 export function predict(e, t, depth = 0) {
   if (e.vehEye) { // a vehicle's eye: along its route, `mount` m ahead of its centre (viewerFor)
     const q = predictVehicle(e.vehicle, t), m = e.vehicle.def?.turret ? 0 : (e.vehicle.def?.mount || 0);
@@ -125,6 +205,13 @@ export function predict(e, t, depth = 0) {
   }
   const b = e.brain, r = e.route;
   const lead = depth === 0 && b?._leader?.();
+  // (`w.sneakTrail`, opt-in) a file man walks the leader's breadcrumbs (enemy-brain _followPoint): he will be his
+  // rank × squadSpacing behind the leader ALONG the leader's way — round a corner too, where the present offset is off
+  if (lead && lead !== e && lead.alive && b.state !== 'DISTRACTED' && b.state === lead.brain?.state && e.world?.sneakTrail
+    && (e.squad?.columns || 1) === 1 && ['IDLE', 'REINFORCE', 'RETURN'].includes(b.state)) {
+    const q = trailPoint(e, lead, t);
+    if (q) return q;
+  }
   if (lead && lead !== e && lead.alive && b.state !== 'DISTRACTED' && b.state === lead.brain?.state) {
     const lag = Math.hypot(e.x - lead.x, e.z - lead.z) / (lead.speed ?? 1.0);
     const q = predict(lead, t, 1), ql = t > lag ? predict(lead, t - lag, 1) : { heading: e.heading };
@@ -162,22 +249,45 @@ export function predict(e, t, depth = 0) {
   const loopStart = b._loopStart ?? 0;
   const waitLeft = b.atWait && !p0 ? Math.max(0, b.waitT ?? 0) : 0;
   const halt = (wp, into) => (wp?.look != null ? { x, z, heading: (wp.look * Math.PI) / 180, alt: into <= TURN ? h : undefined, halt: true } : { x, z, heading: h, halt: true });
+  let prevWait = null;
   if (waitLeft > 0) {
     const wp = r[i];
     if (left <= waitLeft) return halt(wp, left + Math.max(0, (wp?.wait ?? 0) - waitLeft));
     if (wp?.look != null) h = (wp.look * Math.PI) / 180;
-    left -= waitLeft; i = nextIdx(i);
+    left -= waitLeft; prevWait = i; i = nextIdx(i);
   }
+  // (`w.sneakPaths`, opt-in) he walks each leg along the pathfinder's way (his present path on this one), not straight
+  // from point to point: round the corners the game's nav makes him take (its mesh clearances in the browser)
+  const paths = !!e.world?.sneakPaths;
+  // (and halts where he was last seen halting at that point: the game's own planner may stop him a little short of it)
+  if (paths && b.atWait && Math.hypot(e.x - r[b.routeIndex ?? 0].x, e.z - r[b.routeIndex ?? 0].z) < 1.5) (e._sneakHalts ??= {})[b.routeIndex ?? 0] = [e.x, e.z];
+  let prev = null;
   for (let guard = 0; guard < 64; guard++) {
     const wp = r[i];
-    const dx = wp.x - x, dz = wp.z - z, L = Math.hypot(dx, dz);
-    if (L > 1e-6) {
-      // (setting off on a leg he turns to it at his body's rate: `turnFrom`, `turnT` s into the leg — walkerSees)
-      const h0 = h;
-      h = Math.atan2(dz, dx);
-      if (left * sp <= L) return { x: x + (dx / L) * left * sp, z: z + (dz / L) * left * sp, heading: h, halt: false, turnFrom: h0, turnT: left };
-      left -= L / sp; x = wp.x; z = wp.z;
+    const pts = paths ? legWay(e, guard === 0 ? prevWait : prev, i) : null;
+    if (pts) {
+      let h0 = h, tLeg = 0;
+      for (const [px, pz] of pts) {
+        const dx = px - x, dz = pz - z, L = Math.hypot(dx, dz);
+        if (L <= 1e-6) continue;
+        const hp = h; h = Math.atan2(dz, dx);
+        if (tLeg > 0) h0 = hp; // (at a corner of the way he turns from the last stretch's heading)
+        if (left * sp <= L) return { x: x + (dx / L) * left * sp, z: z + (dz / L) * left * sp, heading: h, halt: false, turnFrom: h0, turnT: left };
+        left -= L / sp; tLeg += L / sp; x = px; z = pz;
+      }
+      const hs = e._sneakHalts?.[i];
+      if (hs && Math.hypot(hs[0] - x, hs[1] - z) < 1.5) { x = hs[0]; z = hs[1]; }
+    } else {
+      const dx = wp.x - x, dz = wp.z - z, L = Math.hypot(dx, dz);
+      if (L > 1e-6) {
+        // (setting off on a leg he turns to it at his body's rate: `turnFrom`, `turnT` s into the leg — walkerSees)
+        const h0 = h;
+        h = Math.atan2(dz, dx);
+        if (left * sp <= L) return { x: x + (dx / L) * left * sp, z: z + (dz / L) * left * sp, heading: h, halt: false, turnFrom: h0, turnT: left };
+        left -= L / sp; x = wp.x; z = wp.z;
+      }
     }
+    prev = i;
     if (wp.wait > 0) { if (left <= wp.wait) return halt(wp, left); if (wp.look != null) h = (wp.look * Math.PI) / 180; left -= wp.wait; }
     i = nextIdx(i);
   }
@@ -213,7 +323,8 @@ const TURN_RATE = CONFIG.units?.enemyTurnRate ?? Math.PI;
  * The headings a walker setting off on a new leg may face while he turns to it (`q.turnFrom` → q.heading, `q.turnT` s
  * into the leg, ± 0.4 s of timing): from a halt facing away he swings his eyes across everything in between (e31 turning
  * north at the east end of his beat; e39 south at the west end of his). Both ways round for an about-turn. Opt-in
- * (`w.sneakTurns`): the stages planned without it were proven with it off.
+ * (`w.sneakTurns`: true for everyone, or a Set of the guards' tags it applies to): the stages planned without it were
+ * proven with it off.
  */
 function turnHeadings(q) {
   if (q.turnFrom == null) return [];
@@ -266,7 +377,12 @@ export function walkerViews(e, q, w, tAbs) {
   }
   const amp = (q.halt === false ? (w.sneakWalkAmp ?? 0.25) : (q.halt ? (CONFIG.stealth.vision.patrolWatch?.sweep ?? 50) * Math.PI / 180 : e.sweepAmp ?? e.vision?.sweep ?? 0))
     + (w.sneakMargin ?? 0);
-  for (const hd of [q.heading, ...(q.alt != null ? [q.alt] : []), ...(w.sneakTurns ? turnHeadings(q) : []), ...cryHeadings(q, w, tAbs)]) for (const off of amp ? [0, amp / 2, -amp / 2, amp, -amp] : [0]) add(hd, off, true);
+  // (`w.sneakSweepSteps`, opt-in: the head tried at that many even steps each side of the heading, not just half and
+  // full sweep — an elliptical cone's near band is longest straight ahead, so a man between two tried heads may be
+  // in it while neither tried cone reaches him)
+  const n = w.sneakSweepSteps ?? 2, offs = [0];
+  if (amp) for (let k = 1; k <= n; k++) offs.push((amp * k) / n, (-amp * k) / n);
+  for (const hd of [q.heading, ...(q.alt != null ? [q.alt] : []), ...((w.sneakTurns === true || w.sneakTurns?.has?.(e.tag)) ? turnHeadings(q) : []), ...cryHeadings(q, w, tAbs)]) for (const off of offs) add(hd, off, true);
   return L;
 }
 
@@ -336,6 +452,9 @@ function padded(d, y0) { if (d.state !== 'inVehicle') d.y = y0; return d; }
 /** Is a squad man wheeling round at time step `t` (his leader's heading turns > 1 rad within ±3 s)? */
 export function wheeling(e, t) {
   if (e.squad?.id == null || e.brain?._leader?.() === e) return false;
+  // (`w.sneakPaths`) at the leader's halt the file men step up beside him (enemy-brain _besidePoint), facing any way
+  const L = e.brain?._leader?.();
+  if (e.world?.sneakPaths && L && L !== e && L.alive && [0, -2, 2].some((o) => predict(L, Math.max(0, t + o)).halt)) return true;
   const a = predict(e, Math.max(0, t - 3)).heading, b = predict(e, t + 3).heading;
   let dh = Math.abs(a - b) % (2 * Math.PI); if (dh > Math.PI) dh = 2 * Math.PI - dh;
   return dh > 1;
@@ -372,7 +491,7 @@ export function clearFor(D, pts, dur = 2, { mode = 'walk', except = null, why = 
  * Would a man (mode 'crawl' / 'walk') or a boat ('boat') going along `pts` from `from` (default: where he is) at
  * `speed` m/s, setting off in `delay` s, stay unseen? Each sample is tried at the moment he passes it (± `slack` s).
  */
-export function routeClear(D, pts, { mode = 'walk', from, speed, delay = 0, step = 0.75, slack = 0.5, why = null, except = null, keepWalker = 4, pad = 0 } = {}) {
+export function routeClear(D, pts, { mode = 'walk', from, speed, delay = 0, step = 0.75, slack = 0.5, slackRate = 0, hold = 0, why = null, except = null, keepWalker = 4, pad = 0 } = {}) {
   const w = D.world;
   const sp = speed ?? (mode === 'boat' ? 2.5 : mode === 'crawl' ? 0.9 : 1.5);
   let [x, z] = from ?? (() => { throw new Error('routeClear: from'); })();
@@ -383,13 +502,17 @@ export function routeClear(D, pts, { mode = 'walk', from, speed, delay = 0, step
     for (let k = 1; k <= n; k++) samples.push([x + ((px - x) * k) / n, z + ((pz - z) * k) / n, t + (L * k) / n / sp]);
     t += L / sp; x = px; z = pz;
   }
+  // (`hold` s: he lies on at the end of the way that long, waiting for what comes next)
+  for (let h = 0.5; h <= hold + 1e-6; h += 0.5) samples.push([x, z, t + h]);
   for (const e of viewersOf(w)) {
     if (except?.includes?.(e)) continue;
     const far = (e.vision.far ?? 36) + 1, moving = walking(e);
     // (a post sweeping his head may swing his cone across a point within half a second: finer steps for him)
     const ostep = Math.min(!moving && e.sweepActive ? 0.15 : 0.5, Math.max(0.1, slack));
     for (const [sx, sz, st] of samples) {
-      for (let o = -slack; o <= slack + 1e-6; o += ostep) {
+      // (`slackRate`: the farther ahead, the less sure the timing: slack + slackRate s per s ahead)
+      const sl = slack + slackRate * st;
+      for (let o = -sl; o <= sl + 1e-6; o += ostep) {
         const tt = Math.max(0, st + o), hull = mode === 'boat' ? HULL : 0;
         let seen;
         // (`pad`: a man at the very edge of a band may be a step nearer than planned: the point `pad` m nearer too)

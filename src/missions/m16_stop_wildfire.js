@@ -89,7 +89,11 @@ const BRIDGE_SET = [
   // §5.1 the steel through-truss, deck at ground level from (25.7,54) to (91.5,108.5); never destructible here
   // (open Pratt truss 6 m high, bowstring arch to 14 m over the main span P1–P3; ART: truss_bridge_maas model)
   { id: 'bridge', type: 'truss_bridge', variant: 'truss_bridge_maas', x: 58.6, z: 81.25, rot: BRIDGE_ROT, w: 85.4, d: 9, h: 14,
-    trussH: 6, arch: [-16.5, 14], mat: 'metalRust', indestructible: true, charges: CHARGES.map(([x, z]) => ({ x, z })) },
+    trussH: 6, arch: [-16.5, 14], mat: 'metalRust', indestructible: true, charges: CHARGES.map(([x, z]) => ({ x, z })),
+    // (sol/m16: the deck is not measured on the visual — the truss's overhead bracing (3.2 m) and the deck seams over
+    // the piers cut a measured deck into islands and the rest became railing blocks: nobody could walk or drive across
+    // in the real game. It walks at the visual's level (1.0 m, 7 m ramps at the ends); the grid's girders keep its sides)
+    deckMeasure: false, deckTop: 1.0, deckRamp: 7 },
   // the round pillboxes turn their three embrasures (model front ±45°, local +z) onto their crew's watch: rot = heading − 90°;
   // pb_w stands on the bank S of the W ramp, 7 m from the dossier's (21,56): its 5 m drum (and sandbags) clears the NW road's
   // setts and the ramp parapet's end (it used to sit on both), and the W-road patrol still passes 5 m off its W side
@@ -387,6 +391,10 @@ export default {
   jails: [],
   // §6.1/§9: an officer climbing into a lorry is routine: a disguised Spy boarding it in view is not unmasked
   rules: { spyMayBoard: ['truck'] },
+  // e1's beat runs off the SW end of the plank platform's forecourt (his post in front of the station, his far turn by
+  // the road): the planks' low edge and the churns / lamp on them shut that corner in the real game, and he walked
+  // 60 m round the station's E end instead — past the team's starting wood, which he saw at once (map-builder navKeepPoints)
+  navKeep: [[177.6, 39.3, 1.1], [180.6, 36.3, 1.2]],
   barracks: BARRACKS,
   climbLinks: [],
   ladders: [],

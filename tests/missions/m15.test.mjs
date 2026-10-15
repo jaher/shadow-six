@@ -18,7 +18,8 @@ import { LAUNDRY } from '../../src/art/clothesline.js';
 import { Alarm } from '../../src/ai/alarm.js';
 import { createObjectives, checkObjectives, updateExtractionVehicle } from '../../src/core/objectives.js';
 import { LEVEL, SNIPER_SPOT, UNIFORM, D1, D2, GENERAL_PAUSE, TANKER_ON_RAILS, S1, S2 } from '../../src/missions/m15_the_end_of_the_butcher.js';
-import { HQ_POINT, GARDEN_DOOR, MAIN_DOOR, chooseCar, inPoly, GARDEN, destroyHQ, m15Tick } from '../../src/missions/scripts/m15.js';
+import { HQ_POINT, HQ_REACH, reachesHQ, GARDEN_DOOR, MAIN_DOOR, chooseCar, inPoly, GARDEN, destroyHQ, m15Tick, S1_LOW, onLowerStairs } from '../../src/missions/scripts/m15.js';
+import { canSee } from '../../src/ai/perception.js';
 
 const M = () => getMission('m15');
 const reach = (g, a, b, role, o = {}) => !!findPath(g, a.x, a.z, b.x, b.z, { role, maxNodes: 400000, ...o });
@@ -226,11 +227,20 @@ test('m15 hook: the tram hits the tanker on the rails by the rear gate — HQ de
   s.run(2);
   assert.ok(w.byId('hq').destroyed, 'the HQ is destroyed');
   assert.ok(done(w, 'o2'), 'o2 done');
-  assert.ok(Math.hypot(tk.x - HQ_POINT.x, tk.z - HQ_POINT.z) <= 6.75);
+  assert.ok(Math.hypot(tk.x - HQ_POINT.x, tk.z - HQ_POINT.z) <= HQ_REACH);
   assert.deepEqual(zoneEvents(w), [], 'no alarm');
   assert.notEqual(gen.brain.state, 'ALARM_RUN', 'the general keeps walking');
   assert.ok(!w.scriptFail, String(w.scriptFail));
   assert.ok(w.alarm.barracks.hq.destroyed, 'the garrison is gone with it');
+});
+
+test('m15 hook: the demolition reach covers a tanker parked behind the tram at the east end, as near as the game lets it', () => {
+  // (the browser's nav keeps the lorry's centre ~7 m from the corner there: its mesh clearance round the HQ block and
+  // the standing tram's hull; a real run parked it at (67.2, 44.6), 6.9 m off)
+  assert.ok(HQ_REACH >= 7.25 && HQ_REACH <= 7.75, `reach ${HQ_REACH}`);
+  assert.ok(reachesHQ({ kind: 'barrel', x: 67.2, z: 44.6 }), 'the tanker blast from the east-end parking reaches the corner');
+  assert.ok(!reachesHQ({ kind: 'barrel', x: 64.5, z: 42.5 }), 'from 10 m it does not');
+  assert.ok(!reachesHQ({ kind: 'vehicle', x: 70, z: 47 }), 'only a barrel/bomb class blast counts');
 });
 
 test('m15 hook: the tanker blown up away from the HQ is a loss (nothing else can bring it down)', () => {
@@ -379,4 +389,49 @@ test('m15: the Spy takes the uniform where the rack is drawn (visualAt / visualR
   const cover = coverSpot(world, take, line);
   if (cover) assert.equal(+g.elevAt(cover.x, cover.z).toFixed(2), LEVEL.B, 'dresses on the balcony');
   assert.ok(spy, 'the Spy is in the mission');
+});
+
+test('m15 fix (sol/m15) — the sunken stairs: a body on the lower steps of S1 is out of sight from the street, off them it is seen', () => {
+  // dossier §4.2 [K][P]: the canal is sunken in the original and the parapet hides a body left low on the W stairs; the
+  // flat build keeps the rule in scripts/m15.js (stairsHideBodies). e9 at his west halt looks west over the stairs.
+  const s = m15Sim(), w = s.world, e4 = s.get('e4'), e6 = s.get('e6');
+  assert.ok(inPoly(S1, 28.5, 102.8) && onLowerStairs(28.5, 102.8) && !onLowerStairs(28.5, 99.5));
+  const viewer = { ...e6, x: 28.5, z: 92, heading: Math.PI / 2, sweepActive: false, headOffset: 0, alive: true, vision: e6.vision, faction: 'enemy' };
+  Object.setPrototypeOf(viewer, Object.getPrototypeOf(e6));
+  e4.die?.('knife', null); if (e4.alive) { e4.alive = false; e4.hp = 0; }
+  e4.x = 28.5; e4.z = 102.8;
+  s.run(0.1);
+  assert.equal(e4.hiddenBody, true, 'hidden on the lower steps');
+  assert.equal(canSee(viewer, e4, w), 'none', 'not seen from the street 11 m away, looking straight at it');
+  e4.x = 28.5; e4.z = 99.5;
+  s.run(0.1);
+  assert.equal(e4.hiddenBody, false, 'on the upper steps it is in sight again');
+  assert.notEqual(canSee(viewer, e4, w), 'none', 'seen there');
+});
+
+test('m15 fix (sol/m15) — the W bridge no longer walls off the walk along the central basin to the W stairs', () => {
+  // its side rails ran 20 m: the invisible E rail cut the bridge street from the walk under e6's back (§12 step 6)
+  const m = M(), g = loadGrid(m).grid, b = m.structures.find((s) => s.id === 'bridge_w');
+  assert.ok(b.w <= 7 && b.z > 101 && b.z < 108, 'spans only between the two basins');
+  const p = findPath(g, 16, 99, 23, 100.6, { role: 'spy', maxNodes: 200000 });
+  assert.ok(p, 'a way from the bridge to behind e6');
+  let L = 0; for (let k = 1; k < p.length; k++) L += Math.hypot(p[k].x - p[k - 1].x, p[k].z - p[k - 1].z);
+  assert.ok(L < 10, `straight along the parapet (${L.toFixed(1)} m), not round by the fountain square`);
+});
+
+test('m15 retune (sol/m15) — e6 at the head of the W stairs watches the canal walk east: the lawn gap, e12\'s halt and ladder L1 stay out of his cone', () => {
+  // facing N (the dossier's 270) his far band swept the whole fountain square from a post nobody could reach unseen:
+  // no window ever opened to climb L1 for the uniform, to take e12 at the lawn or to cross the W avenue (sol/m15 scans)
+  const e6 = M().enemies.find((e) => e.id === 'e6');
+  assert.ok(Math.abs(e6.heading) < 1e-6 && Math.abs(e6.post.heading) < 1e-6, 'faces east');
+  const reachDeg = e6.post.sweep + 70 / 2; // the widest angle his cone ever reaches off his post heading (soldier fov 70)
+  const L1 = M().ladders.find((l) => l.id === 'L1');
+  for (const [name, p] of [['the lawn gap', { x: 5.6, z: 77.8 }], ["e12's west halt", { x: 4, z: 70 }], ['L1 foot', L1]]) {
+    const b = Math.atan2(p.z - e6.z, p.x - e6.x);
+    const off = Math.abs(((b - e6.post.heading + 3 * Math.PI) % (2 * Math.PI)) - Math.PI) * 180 / Math.PI;
+    // (at the cone's edge the elliptical far band (b = a/3) is short: it must fall short of the point there)
+    const th = Math.max(0, off - e6.post.sweep) * Math.PI / 180, a = 36, bb = a / 3;
+    const far = (a * bb) / Math.hypot(bb * Math.cos(th), a * Math.sin(th)), d = Math.hypot(p.x - e6.x, p.z - e6.z);
+    assert.ok(off > reachDeg || far < d - 3, `${name} is ${off.toFixed(0)}° off e6's heading (his cone reaches ${reachDeg}°, his far band ${far.toFixed(1)} m there; it is ${d.toFixed(1)} m away)`);
+  }
 });

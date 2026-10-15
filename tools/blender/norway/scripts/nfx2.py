@@ -12,6 +12,7 @@ from nfx import noise01, slope_normal, orient, recolor, local, roof_z, Z
 F.NO_COLLAPSE_MATS = tuple(m for m in F.NO_COLLAPSE_MATS if m != 'snow')
 WIND = V((0.62, -0.78, 0)).normalized()          # prevailing wind from the NNW (sun from NW)
 PATCHY = 0.45                                      # default bare-patch amount on every blanket
+SLIDE = 1.0                                        # eave slide-off scallops (0 = a whole cornice; M4 jail)
 
 
 def _sstep(a, b, x):
@@ -54,7 +55,7 @@ def snow_blanket(R, q, th=0.2, lip=0.2, seed=0, icicles=True, base_off=0.0, name
             k -= bare * th * 11.0 + base_off * min(1.0, bare * 25)
         # snow slid off the lower roof in scallops: a bare, wavy band along ~half of the eave (reads at 1x)
         n1 = 0.6 * noise01((u * el * 0.8, ph * 3.1, 0.5), 1.0, 0.0) + 0.4 * noise01((u * el * 2.3, ph * 1.7, 0.2), 1.0, 0.0)
-        ret = max(0.0, n1 - 0.5) * 4.0 * (1.0 if not hipq else 0.6)
+        ret = max(0.0, n1 - 0.5) * 4.0 * (1.0 if not hipq else 0.6) * SLIDE
         if ret > 0.05:
             k = k * _sstep(ret, ret + 0.15, v * ul) - (0.1 + base_off) * (1 - _sstep(ret - 0.06, ret + 0.06, v * ul))
         if edge_u(u):

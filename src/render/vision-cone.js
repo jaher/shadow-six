@@ -136,7 +136,11 @@ export function* coneFanSteps(enemy, grid, o = {}) {
   let memo = null;
   if (o.cache && grid?.sightRay) {
     const key = `${grid.version}|${grid.dynamicVersion || 0}|${cone.x}|${cone.z}|${cone.vy}|${cone.y}|${reachMax}|${cone.overlooks}|${cone.elevated}|${world?.mission?.rules?.roofRule}|${enemy.ownHull ? JSON.stringify(enemy.ownHull) : ''}`;
-    if (o.cache.key !== key || !o.cache.map || o.cache.map.size > 20000) { o.cache.key = key; o.cache.map = new Map(); }
+    // (kept only once the apex has stayed put for a rebuild — a sentry on his post: a walker's apex moves at every
+    // rebuild, so a memo of his rays lived just long enough to reach the old generation and then went all at once:
+    // the vision cones were the largest source of the major GC pauses in video mode)
+    if (o.cache.key !== key) { o.cache.key = key; o.cache.map = null; }
+    else if (!o.cache.map || o.cache.map.size > 20000) o.cache.map = new Map();
     memo = o.cache.map;
   }
   const raw = (a) => {
@@ -341,6 +345,9 @@ function coneMaterial(u, kind) {
   const mat = new THREE.MeshBasicMaterial({
     color: 0xffffff, transparent: true, opacity: CONFIG.stealth.coneAlpha, depthWrite: false, depthTest: true, fog: false,
     side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, toneMapped: false,
+    // (a ground-hugging sheet: one pass draws both sides; three's default for transparent double-sided materials — back
+    // faces, then front faces — bumped the material version twice per draw: a program re-derivation each, every frame)
+    forceSinglePass: true,
   });
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uApex = u.apex; sh.uniforms.uHead = u.head; sh.uniforms.uHalf = u.half;

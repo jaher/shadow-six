@@ -509,6 +509,10 @@ export function buildWall(points, o) {
     if (/wire/.test(String(o.variant))) root.userData.wireRun = { type: 'coping_bracket', def: { id: o.id, variant: o.variant, type: 'wall', h }, points, coping: { stakes } };
     return root;
   }
+  // M4 art pass (Stokkan): the HQ's outer wall is rendered masonry on a granite socle under an iron railing; the inner
+  // wall a tarred board fence on posts (vertical boards, two rails, braces on the yard side, a plank cap)
+  if (/^masonry_railing$/.test(String(o.variant))) return stoneRailingWall(points, { ...o, h, width }, R, 'plaster');
+  if (/^timber_fence$/.test(String(o.variant))) return boardFence(points, { ...o, h, width }, R);
   // M15 art pass: the burned-out house's shell (brick with plaster and wallpaper remnants, charred joists, jagged tops)
   if (/^ruin_(burnt_walls|wall_stub)$/.test(String(o.variant))) return buildBurntWall(points, o, h, width, R);
   if (kind === 'mudbrick' && /ruin/.test(String(o.variant))) return ruinedMudWall(points, { ...o, h, width }, R);
@@ -691,23 +695,27 @@ function ruinedFieldWall(points, o, R) {
 function stoneRailingWall(points, o, R, kind = 'stone') {
   // M17 art pass (`brick`): the Alsatian prison camp's walls, red brick to 1.2 m under a Vosges sandstone coping, brick
   // piers every ~3 m and a rusty iron railing above (dossier §5.2 `stockade_prison`)
-  const brick = kind === 'brick', h = o.h, width = o.width, root = new THREE.Group(); root.name = `dressing:wall:${kind}_railing`;
-  const stone = dressingMaterial(brick ? 'brick' : 'fieldstone'), cope = dressingMaterial(brick ? 'sandstone' : 'granite'), damp = dressingMaterial('rubble'), iron = dressingMaterial('castIron');
-  const hb = Math.max(0.6, h - (brick ? 1.0 : 0.75)), bars = [];
+  // M4 art pass (`plaster`): Stokkan's HQ wall, lime-rendered masonry on a dressed granite socle, granite coping and
+  // pier caps, an iron railing above (dossier §4.1 `masonry_railing`)
+  const brick = kind === 'brick', plaster = kind === 'plaster', h = o.h, width = o.width, root = new THREE.Group(); root.name = `dressing:wall:${kind}_railing`;
+  const stone = dressingMaterial(brick ? 'brick' : plaster ? 'plasterRough' : 'fieldstone'), cope = dressingMaterial(brick ? 'sandstone' : 'granite'), damp = dressingMaterial(plaster ? 'granite' : 'rubble'), iron = dressingMaterial('castIron');
+  const hb = Math.max(0.6, h - (brick ? 1.0 : plaster ? 1.1 : 0.75)), bars = [];
   for (let k = 0; k + 1 < points.length; k++) {
     const [ax, az] = points[k], [bx, bz] = points[k + 1], L = Math.hypot(bx - ax, bz - az);
     if (L < 1e-3) continue;
     const tx = (bx - ax) / L, tz = (bz - az) / L;
     // brick: the run's free ends are flush (no body or pier past the end point: a run cut at a gate / hut stops at
     // its face, placement rule a); inner corners keep the half-width overlap that closes them
-    const eA = brick && k === 0 ? -0.04 : width / 2, eB = brick && k + 2 === points.length ? -0.04 : width / 2, sh = (eB - eA) / 2; // (−: the coping's overhang stays inside the end)
+    const flush = brick || plaster;
+    const eA = flush && k === 0 ? -0.04 : width / 2, eB = flush && k + 2 === points.length ? -0.04 : width / 2, sh = (eB - eA) / 2; // (−: the coping's overhang stays inside the end)
     const rot = -Math.atan2(bz - az, bx - ax), cx = (ax + bx) / 2 + tx * sh, cz = (az + bz) / 2 + tz * sh, Lw = L + eA + eB;
-    const ph = brick ? (width + 0.16) / 2 + 0.06 : 0; // (the pier's pyramid cap overhangs its shaft by ~5 cm)
+    const ph = flush ? (width + 0.16) / 2 + 0.06 : 0; // (the pier's pyramid cap overhangs its shaft by ~5 cm)
     const wall = mesh(boxUV(new THREE.BoxGeometry(Lw, hb, width), 1.6), stone); wall.position.set(cx, hb / 2, cz); wall.rotation.y = rot; root.add(wall);
-    const foot = mesh(boxUV(new THREE.BoxGeometry(Lw + 0.04, 0.3, width + 0.05), 1.4), damp); foot.position.set(cx, 0.15, cz); foot.rotation.y = rot; root.add(foot);
+    const fh = plaster ? 0.55 : 0.3; // the HQ wall stands on a dressed granite socle
+    const foot = mesh(boxUV(new THREE.BoxGeometry(Lw + 0.04, fh, width + (plaster ? 0.1 : 0.05)), 1.4), damp); foot.position.set(cx, fh / 2, cz); foot.rotation.y = rot; root.add(foot);
     const cap = mesh(boxUV(new THREE.BoxGeometry(Lw + 0.06, 0.12, width + 0.1), 1.2), cope); cap.position.set(cx, hb + 0.06, cz); cap.rotation.y = rot; root.add(cap);
     const np = Math.max(1, Math.round(L / 3.2)), mx = (ax + bx) / 2, mz = (az + bz) / 2;
-    const u0 = -L / 2 + (eA > 0 || !brick ? 0 : ph), u1 = L / 2 - (eB > 0 || !brick ? 0 : ph);
+    const u0 = -L / 2 + (eA > 0 || !flush ? 0 : ph), u1 = L / 2 - (eB > 0 || !flush ? 0 : ph);
     for (let i = 0; i <= np; i++) {                    // piers with pyramid caps
       const u = u0 + ((u1 - u0) * i) / np, px = mx + tx * u, pz = mz + tz * u;
       const pier = mesh(boxUV(new THREE.BoxGeometry(width + 0.16, h - 0.08, width + 0.16), 1.4), stone); pier.position.set(px, (h - 0.08) / 2, pz); pier.rotation.y = rot; root.add(pier);
@@ -724,6 +732,50 @@ function stoneRailingWall(points, o, R, kind = 'stone') {
   if (bars.length) root.add(mesh(mergeGeometries(bars.map((g) => g.toNonIndexed())), iron));
   for (const g of bars) g.dispose();
   return consolidate(root);
+}
+
+/**
+ * M4 art pass (Stokkan): the HQ's inner fence of tarred vertical boards (0.18 m, narrow gaps, slightly uneven tops) nailed
+ * to two rails on squared posts every ~2.4 m, a plank cap, raking braces on alternate posts (yard side, +normal).
+ */
+function boardFence(points, o, R) {
+  const h = o.h, root = new THREE.Group(); root.name = 'dressing:wall:board_fence';
+  const boards = [], posts = [], rails = [];
+  const put = (arr, w, hh, d, x, y, z, rot, tilt = 0) => {
+    const g = new THREE.BoxGeometry(w, hh, d).toNonIndexed();
+    if (tilt) g.rotateZ(tilt);
+    g.rotateY(rot); g.translate(x, y, z); arr.push(g);
+  };
+  for (let k = 0; k + 1 < points.length; k++) {
+    const [ax, az] = points[k], [bx, bz] = points[k + 1], L = Math.hypot(bx - ax, bz - az);
+    if (L < 1e-3) continue;
+    const tx = (bx - ax) / L, tz = (bz - az) / L, nx = -tz, nz = tx, rot = -Math.atan2(bz - az, bx - ax);
+    const at = (u, off) => [ax + tx * u + nx * off, az + tz * u + nz * off];
+    for (let u = 0.1; u < L - 0.05; u += 0.2) {          // boards (0.18 m + 2 cm gap), tops ±4 cm
+      const bh = h - 0.12 + (R() - 0.5) * 0.08, [x, z] = at(u, -0.03);
+      put(boards, 0.18, bh, 0.035, x, bh / 2 + 0.04, z, rot);
+    }
+    const np = Math.max(1, Math.round(L / 2.4));
+    for (let i = 0; i <= np; i++) {                     // posts + braces on alternate posts
+      const u = (L * i) / np, [x, z] = at(u, 0.07);
+      put(posts, 0.15, h + 0.08, 0.15, x, (h + 0.08) / 2, z, rot);
+      if (i % 2 === 1 && i < np) {
+        const [bx2, bz2] = at(u, 0.75);
+        const dx = bx2 - x, dz = bz2 - z, len = Math.hypot(dx, dz, h * 0.6);
+        const g = new THREE.BoxGeometry(0.1, len, 0.1).toNonIndexed();
+        g.rotateX(Math.atan2(Math.hypot(dx, dz), h * 0.6)); g.rotateY(Math.atan2(-dx, -dz));
+        g.translate((x + bx2) / 2, h * 0.3, (z + bz2) / 2); posts.push(g);
+      }
+    }
+    for (const y of [0.45, h - 0.45]) { const [x, z] = at(L / 2, 0.035); put(rails, L, 0.12, 0.06, x, y, z, rot); }
+    const [cx, cz] = at(L / 2, 0.02);
+    put(rails, L + 0.1, 0.05, 0.24, cx, h - 0.02, cz, rot);  // plank cap
+  }
+  if (boards.length) root.add(mesh(boxUV(mergeGeometries(boards), 1.2), dressingMaterial('planks')));
+  if (posts.length) root.add(mesh(boxUV(mergeGeometries(posts), 1.2), dressingMaterial('creosote')));
+  if (rails.length) root.add(mesh(boxUV(mergeGeometries(rails), 1.6), dressingMaterial('beam')));
+  for (const g of [...boards, ...posts, ...rails]) g.dispose();
+  return root;
 }
 
 /** Irregular flat patch outline (ShapeGeometry, local XY, centred), `n` jittered points. */

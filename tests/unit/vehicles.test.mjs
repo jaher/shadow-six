@@ -270,6 +270,18 @@ test('tainted (§3.7/§4.3): an enemy who sees the boarding marks it; infantry s
   assert.equal(tr.hits, 0);
 });
 
+test('tainted: a man who takes no notice of commandos (officer, general: archetype reacts false) does not mark the boarding', () => {
+  for (const soldierType of ['general', 'officer']) {
+    const w = mkWorld();
+    const watcher = enemy(w, 10, 30, 0, { soldierType }); // looking +x at the car 12 m away
+    assert.equal(watcher.brain.reacts(), false, `${soldierType} takes no notice`);
+    const dr = commando(w, 'driver', 21, 31.5);
+    const kub = w.spawnVehicle('kubelwagen', { x: 22, z: 30, heading: 0 });
+    assert.ok(kub.enter(dr));
+    assert.equal(kub.tainted, false, `the ${soldierType} saw him get in and took no notice (M15: the general in his garden)`);
+  }
+});
+
 test('tainted (§3.7/§4.1): an enemy who saw the boarding fires at the rifle cadence (1 shot/s), not twice', () => {
   const w = mkWorld();
   const watcher = enemy(w, 10, 30, 0);

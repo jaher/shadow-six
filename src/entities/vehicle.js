@@ -611,7 +611,9 @@ export class Vehicle extends Entity {
   _checkTaint(unit) {
     const w = this.world;
     if (!w || this.tainted || !w.enemies) return;
-    const seer = w.enemies.find((e) => e.alive && e.vision && canSeeUnit(e, unit, w));
+    // (only a man who reacts to commandos: an officer, the general, a lorry driver draw a cone but take no notice —
+    // archetypes `reacts: false`, as ai/director _onBoard)
+    const seer = w.enemies.find((e) => e.alive && e.vision && e.brain?.reacts?.() !== false && canSeeUnit(e, unit, w));
     if (seer) this.taint(seer);
   }
 
@@ -2044,6 +2046,8 @@ export class Vehicle extends Entity {
     const w = this.world;
     const R = CONFIG.vehicles.wreckFireRadius;
     for (const u of w.entitiesInRadius(this.x, this.z, Math.max(...this.def.size) / 2 + R, (e) => (e.kind === 'commando' || e.kind === 'enemy') && e.alive)) {
+      // the men aboard a vehicle passing it are inside its hull: the hull decides, as for a blast (abilities/explosions.js)
+      if (u.state === 'inVehicle' || u.vehicle) continue;
       if (this._inHull(u.x, u.z, R - 1)) u.takeDamage?.(CONFIG.weapons.fire.dps * dt, this, 'fire');
     }
     if (this.wreckT >= CONFIG.vehicles.wreckBurn) {

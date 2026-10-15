@@ -1,0 +1,169 @@
+{
+ "asset": "henhouse_no_destroyed",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "fieldstone_grey": {
+   "source": "Poly Haven",
+   "id": "stone_wall_04",
+   "url": "https://polyhaven.com/a/stone_wall_04",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Stone Wall 04",
+   "label": "Fieldstone rubble wall, grey (Norway/granite)",
+   "files": {
+    "diff": {
+     "2k": "2k/fieldstone_grey_diff",
+     "1k": "1k/fieldstone_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/fieldstone_grey_nor",
+     "1k": "1k/fieldstone_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/fieldstone_grey_arm",
+     "1k": "1k/fieldstone_grey_arm"
+    }
+   }
+  },
+  "gravel": {
+   "source": "Poly Haven",
+   "id": "gravel_road",
+   "url": "https://polyhaven.com/a/gravel_road",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Gravel Road",
+   "label": "Gravel road",
+   "files": {
+    "diff": {
+     "2k": "2k/gravel_diff",
+     "1k": "1k/gravel_diff"
+    },
+    "nor": {
+     "2k": "2k/gravel_nor",
+     "1k": "1k/gravel_nor"
+    },
+    "arm": {
+     "2k": "2k/gravel_arm",
+     "1k": "1k/gravel_arm"
+    }
+   }
+  },
+  "snow": {
+   "source": "Poly Haven",
+   "id": "snow_01",
+   "url": "https://polyhaven.com/a/snow_01",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Snow 01",
+   "label": "Snow cap",
+   "files": {
+    "diff": {
+     "2k": "2k/snow_diff",
+     "1k": "1k/snow_diff"
+    },
+    "nor": {
+     "2k": "2k/snow_nor",
+     "1k": "1k/snow_nor"
+    },
+    "arm": {
+     "2k": "2k/snow_arm",
+     "1k": "1k/snow_arm"
+    }
+   }
+  },
+  "tar_paper_batten": {
+   "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Batten-roll tar paper (Leistendach; rolls run eave-ridge, streaks, patches)",
+   "files": {
+    "diff": {
+     "1k": "1k/tar_paper_batten_diff",
+     "2k": "2k/tar_paper_batten_diff"
+    },
+    "nor": {
+     "1k": "1k/tar_paper_batten_nor",
+     "2k": "2k/tar_paper_batten_nor"
+    },
+    "arm": {
+     "1k": "1k/tar_paper_batten_arm",
+     "2k": "2k/tar_paper_batten_arm"
+    }
+   }
+  },
+  "timber_beam": {
+   "source": "Poly Haven",
+   "id": "wood_planks_grey",
+   "url": "https://polyhaven.com/a/wood_planks_grey",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Grey",
+   "label": "Grey structural timber (beams, rafters)",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_beam_diff",
+     "1k": "1k/timber_beam_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_beam_nor",
+     "1k": "1k/timber_beam_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_beam_arm",
+     "1k": "1k/timber_beam_arm"
+    }
+   }
+  },
+  "timber_tarred": {
+   "source": "Poly Haven",
+   "id": "dark_wooden_planks",
+   "url": "https://polyhaven.com/a/dark_wooden_planks",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Dark Wooden Planks",
+   "label": "Dark tarred timber",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_tarred_diff",
+     "1k": "1k/timber_tarred_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_tarred_nor",
+     "1k": "1k/timber_tarred_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_tarred_arm",
+     "1k": "1k/timber_tarred_arm"
+    }
+   }
+  },
+  "weatherboard_paint": {
+   "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Painted horizontal lap siding, 0.18 m boards (tint per asset)",
+   "files": {
+    "diff": {
+     "1k": "1k/weatherboard_paint_diff",
+     "2k": "2k/weatherboard_paint_diff"
+    },
+    "nor": {
+     "1k": "1k/weatherboard_paint_nor",
+     "2k": "2k/weatherboard_paint_nor"
+    },
+    "arm": {
+     "1k": "1k/weatherboard_paint_arm",
+     "2k": "2k/weatherboard_paint_arm"
+    }
+   }
+  }
+ }
+}

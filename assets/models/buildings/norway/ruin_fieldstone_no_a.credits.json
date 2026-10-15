@@ -1,0 +1,67 @@
+{
+ "asset": "ruin_fieldstone_no_a",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  },
+  "fieldstone_grey": {
+   "source": "Poly Haven",
+   "id": "stone_wall_04",
+   "url": "https://polyhaven.com/a/stone_wall_04",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Stone Wall 04",
+   "label": "Fieldstone rubble wall, grey (Norway/granite)",
+   "files": {
+    "diff": {
+     "2k": "2k/fieldstone_grey_diff",
+     "1k": "1k/fieldstone_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/fieldstone_grey_nor",
+     "1k": "1k/fieldstone_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/fieldstone_grey_arm",
+     "1k": "1k/fieldstone_grey_arm"
+    }
+   }
+  },
+  "granite": {
+   "source": "Poly Haven",
+   "id": "granite_wall",
+   "url": "https://polyhaven.com/a/granite_wall",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Granite Wall",
+   "label": "Granite wall",
+   "files": {
+    "diff": {
+     "2k": "2k/granite_diff",
+     "1k": "1k/granite_diff"
+    },
+    "nor": {
+     "2k": "2k/granite_nor",
+     "1k": "1k/granite_nor"
+    },
+    "arm": {
+     "2k": "2k/granite_arm",
+     "1k": "1k/granite_arm"
+    }
+   }
+  }
+ }
+}

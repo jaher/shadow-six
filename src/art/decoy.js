@@ -35,6 +35,7 @@
  */
 
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 export const DECOY_SCALE = 1.5;
 
@@ -122,6 +123,39 @@ function geos() {
   return G;
 }
 
+/**
+ * The radio's static parts merged per material (lazy singleton, shared like the parts): case; nickel (top trim,
+ * bezel, knob washer, toggle nut, lamp washer, aerial base, whip, tip); cloth (speaker disc); grille (three rings and
+ * the centre cap); bakelite (knob) — each part placed as it was (position / rotation / scale baked into its copy).
+ */
+let MERGED = null;
+function mergedParts() {
+  if (MERGED) return MERGED;
+  const g = geos(), o = new THREE.Object3D();
+  const at = (geo, pos, rot = null, scale = null) => {
+    o.position.set(...pos); o.rotation.set(rot?.[0] ?? 0, rot?.[1] ?? 0, rot?.[2] ?? 0); o.scale.set(scale?.[0] ?? 1, scale?.[1] ?? 1, scale?.[2] ?? 1);
+    o.updateMatrix();
+    return geo.clone().applyMatrix4(o.matrix);
+  };
+  const H = Math.PI / 2;
+  const parts = {
+    case: [at(g.case, [0, 0.060, 0])],
+    nickel: [at(g.trim, [0, 0.118, 0]), at(g.bezel, [0, 0.056, 0.0365]), at(g.washer, [-0.030, 0.1205, -0.010]), at(g.nut, [0.022, 0.122, 0.006]),
+      at(g.washer, [0, 0.1205, 0.020]), at(g.aerialBase, [0.040, 0.125, -0.022]), at(g.whip, [0, 0, 0]), at(g.tip, [0.0585, 0.234, -0.0345], null, [1, 0.8, 1])],
+    cloth: [at(g.clothDisc, [0, 0.056, 0.0335], [H, 0, 0])],
+    grille: [at(g.grille0, [0, 0.056, 0.037]), at(g.grille1, [0, 0.056, 0.037]), at(g.grille2, [0, 0.056, 0.037]), at(g.cap, [0, 0.056, 0.0375], [H, 0, 0])],
+    bakelite: [at(g.knob, [-0.030, 0.125, -0.010])],
+  };
+  MERGED = {};
+  for (const [k, list] of Object.entries(parts)) {
+    const geo = list.length > 1 ? mergeGeometries(list, false) : list[0];
+    if (list.length > 1) for (const p of list) p.dispose();
+    geo.userData.shared = true;
+    MERGED[k] = geo;
+  }
+  return MERGED;
+}
+
 // ---------------------------------------------------------------------------
 // Builder
 // ---------------------------------------------------------------------------
@@ -132,54 +166,11 @@ export function makeDecoy() {
   const group = new THREE.Group();
   group.name = 'decoy';
 
-  // --- Case ---------------------------------------------------------------
-  const caseMesh = new THREE.Mesh(g.case, m.case);
-  caseMesh.position.set(0, 0.060, 0);
-  group.add(caseMesh);
-
-  // --- Top trim -----------------------------------------------------------
-  const trim = new THREE.Mesh(g.trim, m.nickel);
-  trim.position.set(0, 0.118, 0);
-  group.add(trim);
-
-  // --- Speaker cloth disc -------------------------------------------------
-  const cloth = new THREE.Mesh(g.clothDisc, m.cloth);
-  cloth.rotation.x = Math.PI / 2;
-  cloth.position.set(0, 0.056, 0.0335); // front surface at z ~ 0.035
-  group.add(cloth);
-
-  // --- Bezel --------------------------------------------------------------
-  const bezel = new THREE.Mesh(g.bezel, m.nickel);
-  bezel.position.set(0, 0.056, 0.0365);
-  group.add(bezel);
-
-  // --- Concentric grille rings -------------------------------------------
-  const grilleGeos = [g.grille0, g.grille1, g.grille2];
-  for (const gg of grilleGeos) {
-    const ring = new THREE.Mesh(gg, m.grille);
-    ring.position.set(0, 0.056, 0.037);
-    group.add(ring);
-  }
-
-  // --- Centre cap ---------------------------------------------------------
-  const cap = new THREE.Mesh(g.cap, m.grille);
-  cap.rotation.x = Math.PI / 2;
-  cap.position.set(0, 0.056, 0.0375);
-  group.add(cap);
-
-  // --- Knob + washer ------------------------------------------------------
-  const washer = new THREE.Mesh(g.washer, m.nickel);
-  washer.position.set(-0.030, 0.1205, -0.010);
-  group.add(washer);
-
-  const knob = new THREE.Mesh(g.knob, m.bakelite);
-  knob.position.set(-0.030, 0.125, -0.010);
-  group.add(knob);
-
-  // --- Toggle switch ------------------------------------------------------
-  const nut = new THREE.Mesh(g.nut, m.nickel);
-  nut.position.set(0.022, 0.122, 0.006);
-  group.add(nut);
+  // The static parts, one mesh per material (case, nickel, cloth, grille, bakelite): the same triangles at the same
+  // places as the part-by-part build (each part's transform baked in, mergedParts), 5 draws instead of 15 in every
+  // pass (main, shadow, AO, mirror). The toggle (it flips) and the lamp (its own blinking material) stay apart.
+  const P = mergedParts();
+  for (const [k, geo] of Object.entries(P)) { const mesh = new THREE.Mesh(geo, m[k]); mesh.name = `decoy_${k}`; group.add(mesh); }
 
   const toggle = new THREE.Group();
   toggle.name = 'decoy_toggle';
@@ -198,10 +189,6 @@ export function makeDecoy() {
   // Its material is deliberately NOT one of the shared singletons above: each
   // decoy blinks on its own state, so each radio gets its own lamp material
   // (missions/setpiece-device.js builds its lamp the same way).
-  const lampWasher = new THREE.Mesh(g.washer, m.nickel);
-  lampWasher.position.set(0, 0.1205, 0.020);
-  group.add(lampWasher);
-
   const lampMat = new THREE.MeshStandardMaterial({
     name: 'decoy:lamp',
     color: 0x551010,
@@ -215,19 +202,6 @@ export function makeDecoy() {
   lamp.scale.y = 0.7; // a squat dome, seated on the washer
   lamp.position.set(0, 0.1235, 0.020);
   group.add(lamp);
-
-  // --- Whip aerial --------------------------------------------------------
-  const aerialBase = new THREE.Mesh(g.aerialBase, m.nickel);
-  aerialBase.position.set(0.040, 0.125, -0.022);
-  group.add(aerialBase);
-
-  const whip = new THREE.Mesh(g.whip, m.nickel);
-  group.add(whip); // curve points are already in local space
-
-  const tip = new THREE.Mesh(g.tip, m.nickel);
-  tip.position.set(0.0585, 0.234, -0.0345);
-  tip.scale.y = 0.8;
-  group.add(tip);
 
   // --- Shadows ------------------------------------------------------------
   group.traverse((o) => {

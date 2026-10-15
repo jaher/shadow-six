@@ -1,14 +1,14 @@
 /**
  * M7 "Chase of the Wolves" art pass (visual only; docs/missions/m07.md §5): the pieces the building library has no
- * model for — the slipway's heavy timber gantry over the rails, the burnt-out timber houses of the ruins field (charred
- * frames on their stone footings, a chimney stack still standing), the fish-drying racks along the E edge — and the two
+ * model for — the slipway's heavy timber gantry over the rails, the fish-drying racks along the E edge — and the two
  * big village houses drawn as compounds of Norwegian timber houses (an L-shaped tarred house, a red double house)
- * instead of one stretched model.
+ * instead of one stretched model. (The ruins field's bombed brick houses are the library's house_bombed_b again:
+ * missions/m07 `ruin`.)
  * Nothing here touches the nav grid: every footprint stays the mission's structure.
  * @module missions/scripts/m07-art
  */
 import * as THREE from 'three';
-import { dressingMaterial, rng, seedOf, boulderGeometry, consolidate } from '../../art/dressing.js';
+import { dressingMaterial, rng, seedOf, consolidate } from '../../art/dressing.js';
 import { coverPropsWithSnow, propSnowAmount } from '../../art/terrain.js';
 import { libraryVisual } from '../../art/building-props.js';
 
@@ -33,13 +33,11 @@ function beam(a, b, s, m) {
 }
 
 const MATS = new Map();
-/** Charred timber (the creosote set darkened and dulled) and the other finishes, cached per name. */
+/** The pass's finishes (iron, the pier's weathered planks, rope; else the dressing set), cached per name. */
 export function artMaterial(name) {
   if (MATS.has(name)) return MATS.get(name);
   let m;
-  if (name === 'char') { m = dressingMaterial('creosote').clone(); m.color.setHex(0x4a4440); m.name = 'm07art:char'; }
-  else if (name === 'ash') { m = dressingMaterial('mud').clone(); m.color.setHex(0x55504a); m.name = 'm07art:ash'; }
-  else if (name === 'iron') m = new THREE.MeshStandardMaterial({ color: 0x2a2826, roughness: 0.55, metalness: 0.7, name: 'm07art:iron' });
+  if (name === 'iron') m = new THREE.MeshStandardMaterial({ color: 0x2a2826, roughness: 0.55, metalness: 0.7, name: 'm07art:iron' });
   else if (name === 'pierPlanks') { m = dressingMaterial('planks').clone(); m.color.setHex(0xb4ab9e); m.name = 'm07art:pierPlanks'; delete m.userData.snowCover; } // the T pier's weathered deck (a clone keeps the flag, not the snow shader)
   else if (name === 'rope') m = new THREE.MeshStandardMaterial({ color: 0x8a7a5a, roughness: 0.95, name: 'm07art:rope' });
   else m = dressingMaterial(name);
@@ -112,69 +110,6 @@ export function pierRootDeck(o) {
   return g;
 }
 
-/**
- * A burnt-out Norwegian timber house (dossier §5.1 `ruin_*`, `B.LOW`, see-through): the fieldstone footing, broken in
- * places; the stone chimney stack still standing at one gable; charred corner posts and studs snapped at uneven
- * heights; a fallen sill and roof rafters leaning in; an ash bed and charred planks inside. Local frame centred,
- * w along x, d along z; seeded by the structure id so every ruin differs.
- * @param {{w?: number, d?: number, h?: number, id?: string}} p
- */
-export function burntRuin(p = {}) {
-  const w = p.w ?? 5, d = p.d ?? 4, h = p.h ?? 3, R = rng(seedOf(`m07ruin:${p.id ?? ''}`));
-  const g = new THREE.Group(); g.name = 'm07art:ruin';
-  const char = artMaterial('char'), stone = artMaterial('stone'), ash = artMaterial('ash');
-  const hw = w / 2 - 0.2, hd = d / 2 - 0.2;
-  // footing: four runs of 0.35 m fieldstone, each with a gap knocked out of it
-  const runs = [[[-hw, -hd], [hw, -hd]], [[hw, -hd], [hw, hd]], [[hw, hd], [-hw, hd]], [[-hw, hd], [-hw, -hd]]];
-  for (const [[ax, az], [bx2, bz]] of runs) {
-    const L = Math.hypot(bx2 - ax, bz - az), ux = (bx2 - ax) / L, uz = (bz - az) / L;
-    const g0 = 0.25 + R() * (L - 1.4), g1 = g0 + 0.5 + R() * 0.6;   // the gap
-    for (const [s0, s1] of [[0, g0], [g1, L]]) {
-      if (s1 - s0 < 0.2) continue;
-      const m = (s0 + s1) / 2, hgt = 0.3 + R() * 0.25;
-      g.add(bx(Math.abs(ux) > 0.5 ? s1 - s0 : 0.4, hgt, Math.abs(uz) > 0.5 ? s1 - s0 : 0.4, stone, ax + ux * m, hgt / 2, az + uz * m));
-    }
-  }
-  // the chimney stack at one gable (the tallest thing left), its top ragged
-  const cx = (R() < 0.5 ? -1 : 1) * (hw - 0.45), cz = (R() - 0.5) * d * 0.4, ch = h + 0.4 + R() * 0.8;
-  g.add(bx(0.85, ch, 0.85, stone, cx, ch / 2, cz));
-  g.add(bx(0.55, 0.35, 0.6, stone, cx + (R() - 0.5) * 0.2, ch + 0.15, cz));
-  // charred posts at the corners and studs along the long walls, snapped at uneven heights; one leans
-  const posts = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]];
-  for (let x = -hw + 1.2; x < hw - 0.6; x += 1.1 + R() * 0.4) posts.push([x, R() < 0.5 ? -hd : hd]);
-  for (const [px, pz] of posts) {
-    if (Math.hypot(px - cx, pz - cz) < 0.9 || R() < 0.18) continue;
-    const ph = 0.6 + R() * (h - 0.6), lean = R() < 0.2 ? (R() - 0.5) * 0.5 : (R() - 0.5) * 0.08;
-    const post = bx(0.17, ph, 0.17, char, px, ph / 2 + 0.3, pz);
-    post.rotation.z = lean; post.rotation.x = (R() - 0.5) * 0.08;
-    g.add(post);
-  }
-  // the lower courses of two walls survive: charred horizontal boards, burnt back to ragged lengths
-  for (const side of [R() < 0.5 ? -1 : 1, 2]) {
-    const along = side !== 2, L = along ? w - 0.6 : d - 0.6, off = along ? side * hd : (cx > 0 ? -hw : hw);
-    for (let k = 0, y = 0.55; k < 3 + Math.floor(R() * 3); k++, y += 0.2) {
-      const len = L * (0.25 + R() * 0.6), c0 = (R() - 0.5) * (L - len);
-      g.add(along ? bx(len, 0.17, 0.07, char, c0, y, off) : bx(0.07, 0.17, len, char, off, y, c0));
-    }
-  }
-  // a surviving wall plate on one side, a fallen sill, two rafters leaning in from the gable
-  g.add(beam([-hw, h * 0.72, -hd], [-hw + w * (0.45 + R() * 0.2), h * (0.55 + R() * 0.15), -hd], 0.16, char));
-  g.add(beam([-hw * 0.8, 0.35, hd * (R() - 0.5)], [hw * 0.6, 0.12, hd * (R() - 0.5) * 1.6], 0.18, char));
-  for (const dz of [-hd * 0.5, hd * 0.35]) g.add(beam([-cx * 0.9, 0.2, dz], [-cx * 0.15, h * 0.65, dz + (R() - 0.5) * 0.4], 0.14, char));
-  // ash bed (a thin dark slab inside the footing) with charred planks and stones fallen on it
-  const bed = bx(w - 0.9, 0.06, d - 0.9, ash, 0, 0.03, 0); bed.castShadow = false; g.add(bed);
-  for (let k = 0; k < 5; k++) {
-    const pl = bx(0.9 + R() * 0.9, 0.05, 0.18, char, (R() - 0.5) * (w - 1.6), 0.09 + k * 0.012, (R() - 0.5) * (d - 1.6), R() * Math.PI);
-    pl.castShadow = false; g.add(pl);
-  }
-  for (let k = 0; k < 4; k++) {
-    const s = 0.15 + R() * 0.15;
-    const b = new THREE.Mesh(boulderGeometry(s, s * 0.6, s * 0.8, Math.floor(R() * 1e9), 1), stone);
-    b.position.set((R() - 0.5) * (w - 1.2), 0.05, (R() - 0.5) * (d - 1.2)); b.castShadow = true; g.add(b);
-  }
-  return g;
-}
-
 /** Hide a structure's own visual (its gameplay footprint, interactables and nav stay). */
 function hideStructure(world, id) {
   const o = world.structures?.get?.(id)?.object3d;
@@ -183,10 +118,10 @@ function hideStructure(world, id) {
 }
 
 /**
- * Install the art pass (missions/m07 `script`): the gantry over the posts, a burnt frame on every ruin, the drying racks
- * and the village compounds (library parts placed on the parent's footprint). Browser only (no scene in node runs).
+ * Install the art pass (missions/m07 `script`): the gantry over the posts, the drying racks and the village compounds
+ * (library parts placed on the parent's footprint). Browser only (no scene in node runs).
  * @param {object} world
- * @param {{gantry?: object, ruins?: string[], parts?: Object<string, object[]>, pierRoot?: object}} art
+ * @param {{gantry?: object, parts?: Object<string, object[]>, pierRoot?: object}} art
  */
 export function installM07Art(world, art) {
   if (!world?.scene || !art || world._m07Art) return null;
@@ -200,13 +135,6 @@ export function installM07Art(world, art) {
     root.add(v);
     for (const id of G.posts || []) hideStructure(world, id);
   }
-  for (const id of art.ruins || []) {
-    const d = world.structures?.get?.(id)?.def;
-    if (!d || !hideStructure(world, id)) continue;
-    const v = burntRuin(d);
-    v.position.set(d.x, gy(d.x, d.z), d.z); v.rotation.y = -(d.rot ?? 0);
-    root.add(v);
-  }
   const PR = art.pierRoot, pier = PR && world.structures?.get?.(PR.id)?.def;
   if (pier) {
     const v = pierRootDeck(PR);
@@ -218,7 +146,7 @@ export function installM07Art(world, art) {
     const isLand = (x, z) => { if (!G) return true; const c = G.worldToCell(x, z); return G.inBounds(c.i, c.j) && !wet.has(G.terrain[G.idx(c.i, c.j)]); };
     root.add(moleCoping(art.mole.edge, { isLand, avoid: art.mole.avoid, groundY: gy }));
   }
-  consolidate(root); // one mesh per finish for the whole pass (gantry, frames, coping): a handful of draws
+  consolidate(root); // one mesh per finish for the whole pass (gantry, pier deck, coping): a handful of draws
   coverPropsWithSnow(root, propSnowAmount().value || 1); // built after the scene's prop snow pass: the same snow
   world.scene.add(root);
   if (art.sink?.length && typeof world.onBelTick === 'function') world.onBelTick((dt) => sinkTick(world, art.sink, dt));
@@ -234,7 +162,7 @@ function placeParts(world, spec, gy) {
   for (const [id, list] of Object.entries(spec)) {
     if (!hideStructure(world, id)) continue;
     for (const [k, q] of list.entries()) {
-      const vis = libraryVisual(q.type ?? 'house', { id: `${id}:art${k}`, asset: q.asset, x: q.x, z: q.z, w: q.w, d: q.d, rot: deg(q.rot ?? 0), ...(q.mirror ? { artMirror: q.mirror } : {}) }, { theater: 'snow', missionId: 'm07' });
+      const vis = libraryVisual(q.type ?? 'house', { id: `${id}:art${k}`, asset: q.asset, x: q.x, z: q.z, w: q.w, d: q.d, rot: deg(q.rot ?? 0), ...(q.mirror ? { artMirror: q.mirror } : {}), ...(q.fill ? { artFill: q.fill } : {}) }, { theater: 'snow', missionId: 'm07' });
       if (!vis) continue;
       vis.object3d.position.y = gy(q.x, q.z);
       vis.object3d.name = `m07art:${id}:${q.asset}`;

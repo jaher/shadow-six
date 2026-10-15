@@ -67,13 +67,25 @@ export function m04Script(world, dir) { // eslint-disable-line no-unused-vars
       if (sp?.stance === 'crawl' && c.stance === 'stand') { c.stance = 'crawl'; world.events.emit('unit:stance', { unit: c, stance: 'crawl' }); }
     }
   }
+  // art pass: the inner arch's model comes down with the `arch_fall` collapse (its modelled rubble twin, visual only:
+  // the set-piece blocks the gap); on a load the tick catches a collapse restored as done
+  world.listen?.('structure:destroyed', (e) => { if (e?.id === 'arch_fall') archDown(world, S); });
   world.onBelTick((dt) => {
+    if (!S.archDown && world.byId('arch_fall')?.done) archDown(world, S);
     booms(world, S, dt);
     truckDriver(world, S, dt);
     courierBike(world, S);
     courierIn(world, S);
     railGuard(world, S);
   });
+}
+
+/** Swap the arch to its collapsed model once (art/building-props.js `userData.destroy`: the library ruin twin). */
+function archDown(world, S) {
+  if (S.archDown) return;
+  S.archDown = true;
+  const a = world.structures?.get?.('arch');
+  try { a?.object3d?.userData?.destroy?.(); } catch { /* visual only */ }
 }
 
 /**

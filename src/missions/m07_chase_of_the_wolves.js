@@ -69,7 +69,23 @@ const wall = (id, points, extra = {}) => ({ id, type: 'wall', variant: 'wall_sto
 const house = (id, x, z, w, d, h, door, variant = 'house_norse_fishing') =>
   ({ id, type: 'house', variant, x, z, rot: 0, w, d, h, mat: 'woodDark', snowRoof: true, enterable: true, door });
 const pine = (x, z, k) => ({ type: 'pine', x, z, r: 0.5, h: 9 + (k % 6), seed: 701 + k });
-const ruin = (id, x, z, w = 5, d = 4) => ({ id, type: 'ruins', variant: 'burned_timber', x, z, rot: 0, w, d, h: 3, block: 1 });
+/**
+ * The bombed brick houses of the ruins field (T9): the library's house_bombed_b (roofless two-storey shells, one corner
+ * breached, rubble spilling out), drawn at its 0.72 plan fit (a 7.9 × 5.8 m shell, walls ~7 m) as before the art pass.
+ * Gameplay follows the drawn model (`navParts`, the sidecar's own parts in the ruin's frame; +z = S): the shell walls
+ * are B.HIGH (they hide a standing man and stop sight, h 7), the breached corner and the two rubble spills B.LOW (crawl
+ * cover, see-through), and the shell's inside is the heap of the fallen storeys (B.LOW, closed off). The low parts
+ * come first: the walls are stamped over them. `nav: false`: none of the sidecar's upper floors, stair ladders or
+ * climb edges (the browser and the grid-only builds see the same ruins).
+ */
+const RUIN_NAV = [
+  { x: 0, z: 0, w: 7.128, d: 4.968, block: 1 },                                                                    // the fallen storeys inside the shell
+  { x: 2.628, z: 2.682, w: 2.232, d: 0.54, block: 1 },                                                             // the breach (fallen brick)
+  { x: 2.232, z: 3.96, w: 2.534, d: 2.534, block: 1 }, { x: 0.432, z: -3.744, w: 1.958, d: 1.958, block: 1 },     // rubble spills S and N
+  { x: -1.224, z: 2.682, w: 5.472, d: 0.396, block: 2 }, { x: 3.852, z: 2.682, w: 0.216, d: 0.396, block: 2 },  // S wall, either side of the breach
+  { x: 3.762, z: 0, w: 0.396, d: 5.76, block: 2 }, { x: 0, z: -2.682, w: 7.92, d: 0.396, block: 2 }, { x: -3.762, z: 0, w: 0.396, d: 5.76, block: 2 }, // E, N, W
+];
+const ruin = (id, x, z, rot = 0) => ({ id, type: 'ruins', variant: 'bombed_brick', asset: 'house_bombed_b', x, z, rot: deg(rot), w: 5, d: 4, h: 7, block: 0, nav: false, navParts: RUIN_NAV });
 /** Art pass: moored = the library motor fishing cutter, beached = the faering rowing boat (oars shipped, some keel-up). */
 const boat = (id, x, z, rot, variant = 'boat_moored', block = 2) => ({ id, type: 'crates', variant, x, z, rot: deg(rot), w: /moored/.test(variant) ? 9 : 4, d: /moored/.test(variant) ? 3 : 1.8, h: 1.4, block,
   vehicleArt: /moored/.test(variant) ? 'fishing_boat' : 'rowboat', ...(/moored/.test(variant) ? { vehicleArtFit: 1 } : { vehicleArtHide: ['oar_l', 'oar_r'], ...(/overturned/.test(variant) ? {} : { vehicleArtY: 0.22 }) }) });
@@ -111,7 +127,7 @@ const BUILDINGS = [
   { id: 'barr_mid', type: 'barracks', variant: 'barracks_rendered_hip', x: 65.2, z: 81.5, rot: 0, w: 11, d: 9, h: 6, mat: 'plaster',
     flag: true, garrison: true, destructible: true, hp: 100, door: -Math.PI / 2, asset: 'barracks_b_snow', artRot: Math.PI }, // main door N
   { id: 'barr_vil', type: 'barracks', variant: 'house_norse_fishing', x: 134.8, z: 83.5, rot: 0, w: 8, d: 9, h: 6, mat: 'woodDark',
-    flag: true, banners: true, garrison: true, destructible: true, hp: 100, door: Math.PI, artTurn: 1 }, // (art) front door W
+    flag: true, banners: true, garrison: true, destructible: true, hp: 100, door: Math.PI, artTurn: 1, artFill: [0.85, 1] }, // (art) front door W
   { ...house('house_mid', 50.4, 73.5, 11, 9, 6, [50.4, 78.8], 'barracks_rendered_hip'), asset: 'barracks_c_snow' },
   // the timber gantry over the slip rails: two portals (B.HIGH posts), open between them; the square posts stand
   // square to w_inner (41.7°) beside it
@@ -120,16 +136,22 @@ const BUILDINGS = [
     return { id: `gantry_post_${k + 1}`, type: 'bunker', variant: 'gantry_timber', x: +(34 + lx * c - lz * s).toFixed(2), z: +(84 + lx * s + lz * c).toFixed(2), rot: deg(41.7), w: 0.8, d: 0.8, h: 6, mat: 'woodDark', block: 2 };
   }),
   // the village (tarred / red-painted timber, all enterable)
-  // (art pass: h_big and h_4 are compounds of library houses, ART.parts; the rest one Norwegian model each)
+  // (art pass: h_big and h_4 are compounds of library houses, ART.parts; the rest one Norwegian model each. Breathing
+  // room: the models are drawn on part of their footprints, `artFill`, and nudged off a neighbour, `artOffset` — their
+  // porches and eaves off the streets, no two roofs touching (h_3 and h_5's footprints share a corner: their models
+  // stand apart); every footprint, door and route stays)
   house('h_big', 107, 62.5, 13, 22, 8, [99.8, 66], 'house_norse_compound'),
-  { ...house('h_1', 114, 74, 8, 10, 6, [114, 79.8]), asset: 'house_timber_b_snow' },
-  { ...house('h_2', 124.5, 72.5, 7, 8, 6, [124.5, 77.3]), asset: 'house_timber_a_snow' },
-  { ...house('h_3', 118.5, 88.5, 7, 10, 6, [114.3, 88.5]), asset: 'house_timber_b_snow', artTurn: 1 }, // front door W
+  { ...house('h_1', 114, 74, 8, 10, 6, [114, 79.8]), asset: 'house_timber_b_snow', artFill: 0.8, artOffset: [0.25, 0.6] },
+  { ...house('h_2', 124.5, 72.5, 7, 8, 6, [124.5, 77.3]), asset: 'house_timber_a_snow', artFill: [0.8, 0.9] },
+  { ...house('h_3', 118.5, 88.5, 7, 10, 6, [114.3, 88.5]), asset: 'house_timber_b_snow', artTurn: 1, artFill: 0.8, artOffset: [-0.8, -0.4] }, // front door W
   house('h_4', 99.5, 86, 9, 17, 8, [104.8, 88], 'house_norse_compound'),
-  { ...house('h_5', 127, 97, 12, 10, 8, [127, 91.3]), asset: 'house_timber_c_snow' },
-  { ...house('h_6', 100.5, 99, 8, 7, 5, [100.5, 103.3]), asset: 'fishing_shed_a_snow', artTurn: 0 }, // front door S
-  { id: 'boathouse', type: 'house', variant: 'boathouse', x: 137, z: 111, rot: deg(20), w: 8, d: 12, h: 6, mat: 'woodDark', snowRoof: true, asset: 'naust_a_snow' },
-  ruin('ruin_1', 88.8, 90), ruin('ruin_2', 82.4, 106), ruin('ruin_3', 89.5, 110), ruin('ruin_4', 88, 118), ruin('ruin_5', 70.8, 123), ruin('ruin_6', 133, 67),
+  { ...house('h_5', 127, 97, 12, 10, 8, [127, 91.3]), asset: 'house_timber_c_snow', artFill: [0.85, 0.75], artOffset: [0.9, 0.3] },
+  { ...house('h_6', 100.5, 99, 8, 7, 5, [100.5, 103.3]), asset: 'fishing_shed_a_snow', artTurn: 0, artFill: 0.8 }, // front door S
+  { id: 'boathouse', type: 'house', variant: 'boathouse', x: 137, z: 111, rot: deg(20), w: 8, d: 12, h: 6, mat: 'woodDark', snowRoof: true, asset: 'naust_a_snow', artFill: 0.8 },
+  // (the brick shells are bigger than the old 5 × 4 frames: ruin_1 2.5 m W off e6's walk, ruin_2 0.9 m W off ruin_3's
+  // wall, ruin_5 2.1 m N and turned round (breach and rubble N) off the beached faering boat_b1, ruin_6 2.5 m E: the
+  // barrel lane from (131,60.5) S to barr_vil's W corner stays 3 m wide and barrel_1 in e7's sight)
+  ruin('ruin_1', 86.3, 90), ruin('ruin_2', 81.5, 106), ruin('ruin_3', 89.5, 110), ruin('ruin_4', 88, 118), ruin('ruin_5', 70.8, 120.9, 180), ruin('ruin_6', 135.5, 67),
   { id: 'racks_e', type: 'ruins', variant: 'fish_drying_racks', x: 142.5, z: 77, rot: 0, w: 3, d: 26, h: 4, block: 1 },
   { id: 'lighthouse', type: 'lighthouse', variant: 'lighthouse_small', x: 76.5, z: 171, r: 2.5, h: 16, mat: 'plaster' },
 ];
@@ -227,11 +249,9 @@ const DRESSING = [
   // the dock yard: drums and cargo by the crane
   { id: 'drums_dk', type: 'barrels', variant: 'inert_stack', x: 44, z: 99, rot: deg(45), w: 2.4, d: 2, h: 1, block: 1, fixed: true },
   dress('cargo_cr', 40.5, 108.5, 45, 2.2, 2.2, { variant: 'dock_cargo', asset: 'dock_cargo_d', h: 1.2 }),
-  // the village: firewood stacks, a handcart, fish boxes by the boathouse
-  dress('logs_h2', 130.4, 71, 90, 3, 1.5, LOGS),
-  dress('logs_h3', 123.4, 85, 90, 3, 1.5, LOGS), // (N of h_3's back steps)
+  // the village: a firewood stack behind h_5, fish boxes by the boathouse (the streets and yards between the houses
+  // kept clear: no log piles by h_2 and h_3, no handcart by h_3)
   dress('logs_h5', 129.5, 103.6, 0, 3, 1.5, LOGS),
-  dress('cart_h1', 113, 95.5, 90, 2, 1.2, CART),
   dress('crates_bh', 130.5, 106, 20, 2.2, 2.2, { variant: 'dock_cargo', asset: 'dock_cargo_e', h: 1.2 }),
 ];
 /** Street furniture (visual only, never on the walk grid): Norwegian wooden lamp posts in the village, harbour lamps on
@@ -249,14 +269,13 @@ const STRUCTURES = [...CLIFFS, ...BUILDINGS, ...WATERSIDE, ...WALLS, ...PROPS, .
 
 // ---------------------------------------------------------------- art pass (scripts/m07-art.js; visual only)
 /**
- * The slipway gantry drawn over its four posts, burnt timber frames on the ruins, the drying racks along the E edge, and
+ * The slipway gantry drawn over its four posts, the drying racks along the E edge, and
  * the two big village houses as compounds of Norwegian timber houses (parts inside the parent's footprint; `rot` deg):
  * h_big an L of a tarred two-storey house (N) and a wing (W) with a tarred shed in the yard corner; h_4 a red double
  * house. Every footprint stays the mission's.
  */
 export const ART = {
   gantry: { x: 34, z: 84, rot: 35, span: 10, gap: 6, h: 6, posts: ['gantry_post_1', 'gantry_post_2', 'gantry_post_3', 'gantry_post_4'] },
-  ruins: ['ruin_1', 'ruin_2', 'ruin_3', 'ruin_4', 'ruin_5', 'ruin_6'],
   sink: ['uboat_1', 'uboat_2'],
   // the finger pier's root, where the library T pier's head was cut away (its 8.9 m from the root end; m along the axis)
   pierRoot: { id: 'pier', from: -23.9, to: -14.7, width: 6.48 },
@@ -266,15 +285,15 @@ export const ART = {
   parts: {
     h_big: [
       { asset: 'house_timber_c_snow', x: 107, z: 56, w: 13, d: 9, rot: 0 },
-      { asset: 'house_timber_a_snow', x: 104.5, z: 66.75, w: 12.5, d: 8, rot: 90 },
-      { asset: 'fishing_shed_b_snow', type: 'hut', x: 111, z: 64.5, w: 5, d: 7, rot: 0 },
+      { asset: 'house_timber_a_snow', x: 104.3, z: 66.5, w: 12, d: 7.6, rot: 90 },          // (its S gable and the shed 1.3 / 2.7 m off h_1's roof)
+      { asset: 'fishing_shed_b_snow', type: 'hut', x: 111.25, z: 63.3, w: 4.5, d: 6.3, rot: 0 },
     ],
     // ridges N-S, the gables 2.3 m apart (clear of both roofs' verges; firewood stacked between them) and no door facing
     // the other house: the red N house's front door opens W, its back door E; the tarred S house (mirrored E-W so its
     // front door is at the N end of its E side) has h_4's door (104.8, 88)
     h_4: [
       { asset: 'house_timber_b_snow', x: 100.5, z: 81, w: 7, d: 6.5, rot: 90 },
-      { asset: 'house_timber_a_snow', x: 100.5, z: 90.4, w: 7.2, d: 6.5, rot: 270, mirror: 'x' },
+      { asset: 'house_timber_a_snow', x: 100.5, z: 90, w: 7.2, d: 6.5, rot: 270, mirror: 'x', fill: 0.85 }, // (its roof 1.5 m off h_6's)
     ],
     racks_e: [68.4, 77, 85.6].map((z) => ({ asset: 'drying_rack_a_snow', type: 'drying_rack', x: 142.5, z, w: 8.4, d: 2.9, rot: 90 })),
   },

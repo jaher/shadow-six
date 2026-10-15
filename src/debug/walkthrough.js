@@ -870,6 +870,12 @@ export class Walkthrough extends SolutionReplay {
     this._syncBar();
   }
 
+  /** The title card, a chapter card held on screen, or a jump's fast-forward: nothing plays that a 20–40 ms frame
+   *  would show (a jump to a later chapter drains the queue on its way: the bodies built ahead are there when it lands). */
+  _stillScreen() {
+    return this.pacer.turbo || this._introOn || (this.hold?.kind === 'chapter' && this._held());
+  }
+
   _chapterCard() {
     const c = this.wt.chapters.find((x) => x.id === this.chapterId);
     if (!c) return;

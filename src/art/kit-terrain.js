@@ -13,7 +13,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { dressingMaterial, boxUV, consolidate, rng, seedOf, boulderGeometry } from './dressing.js';
-import { paintedMaterial } from './kit-props.js';
+import { paintedMaterial, iceFloe, snowCrustMaterial } from './kit-props.js';
 
 function mesh(geo, mat, shadow = true) {
   const m = new THREE.Mesh(geo, mat);
@@ -352,6 +352,143 @@ export function buildGorge(p) {
 }
 
 /**
+ * M4 art pass (Stokkan): the steel lattice pony-truss girders of the fjord trestle (`rail_trestle_steel`): riveted
+ * chords, double-intersecting lattice diagonals and verticals at every panel point, inclined end posts, U-frame knee
+ * braces on cross-girders cantilevered past the deck (a pony truss has no overhead bracing). The girders stand
+ * outside the mission's 4 m deck, clear of the train's loading gauge (±2.0 m). Under them, dressed granite piers at
+ * the mission's `pillars` (world points, here in the local frame): coursed ashlar shafts from the inlet bed, a dark
+ * wet band and a ring of pack ice at the waterline, pointed cutwaters with sloped copings up- and downstream; granite
+ * abutment wings at both ends.
+ */
+function buildLatticeSpans(g, p, w, d, tb, steel) {
+  const ashlar = paintedMaterial('ashlar', 0x8a8c88), cope = paintedMaterial('ashlar', 0xa9a8a1), wet = paintedMaterial('ashlar', 0x454a48);
+  const rivet = paintedMaterial('steel', 0x3c3f38);
+  const H = 1.9, y0 = 0.36, y1 = y0 + H, half = w / 2 - 0.15, zg = d / 2 + 0.32, WL = -0.1;
+  const R = rng(seedOf(p.id ?? 'lattice'));
+  const beam = (ax, ay, bx, by, z, t, mat = steel) => {
+    const L = Math.hypot(bx - ax, by - ay), m = tb(L, t, t * 0.8, mat, (ax + bx) / 2, (ay + by) / 2, z, 0.8);
+    m.rotation.z = Math.atan2(by - ay, bx - ax); return m;
+  };
+  const c = Math.cos(p.rot ?? 0), sn = Math.sin(p.rot ?? 0);
+  const piers = (p.pillars || []).map(([px, pz]) => (px - (p.x ?? 0)) * c + (pz - (p.z ?? 0)) * sn);
+  const panels = Math.max(4, Math.round((2 * half) / 2.2)), pw = (2 * half - 2 * 1.4) / panels;
+  for (let i = 0; i <= panels; i++) {                                         // cross-girders under the deck
+    const x = -half + 1.4 + i * pw;
+    if (piers.some((lx) => Math.abs(lx - x) < 1.25)) continue;                // the pier coping carries the deck there
+    tb(0.2, 0.2, 2 * zg + 0.9, steel, x, 0.18, 0, 0.8);
+    for (const s of [-1, 1]) {                                                // U-frame knee brace
+      const za = s * (zg + 0.42), zb = s * (zg + 0.1), ya = 0.22, yb = 1.3;
+      const kb = tb(0.08, Math.hypot(zb - za, yb - ya), 0.1, steel, x, (ya + yb) / 2, (za + zb) / 2, 0.6);
+      kb.rotation.x = Math.atan2(zb - za, yb - ya);
+    }
+  }
+  for (const s of [-1, 1]) {
+    const z = s * zg;
+    tb(2 * half, 0.32, 0.24, steel, 0, y0 + 0.02, z, 0.8);                     // bottom chord
+    tb(2 * half - 2.8, 0.22, 0.3, steel, 0, y1, z, 0.8);                      // top chord
+    tb(2 * half - 2.8, 0.03, 0.34, rivet, 0, y1 + 0.12, z, 0.8);              // cover plate
+    beam(-half, y0 + 0.1, -half + 1.4, y1, z, 0.24);                          // inclined end posts
+    beam(half, y0 + 0.1, half - 1.4, y1, z, 0.24);
+    for (let i = 0; i <= panels; i++) {
+      const x = -half + 1.4 + i * pw;
+      tb(0.1, H - 0.1, 0.18, steel, x, (y0 + y1) / 2, z, 0.6);                  // verticals
+      if (i < panels) {                                                       // double lattice
+        beam(x, y0 + 0.1, x + pw, y1 - 0.08, z, 0.09);
+        beam(x, y1 - 0.08, x + pw, y0 + 0.1, z, 0.09);
+      }
+    }
+    for (let x = -half + 0.6; x < half - 0.5; x += 0.55) tb(0.05, 0.05, 0.27, rivet, x, y0 + 0.2, z, 0.5);  // rivet heads
+  }
+  // granite piers: shaft from the bed, wet band under the deck, coping (deck bearing); up- and downstream a pointed
+  // starling carried up past the bearing as a pier head of coursed ashlar (ashlarCutwater), pack ice round its nose
+  for (const lx of piers) {
+    tb(2.2, 1.31, 2 * zg + 0.5, ashlar, lx, -0.6, 0, 1.1);                     // y -1.25 .. 0.06
+    tb(2.26, 0.19, 2 * zg + 0.56, wet, lx, WL - 0.025, 0, 1.1);                // wet, weed-dark band at the waterline
+    tb(2.5, 0.12, 2 * zg + 0.8, cope, lx, 0.06, 0, 1.0);                       // coping (deck bearing)
+    for (const s of [-1, 1]) {
+      const cw = ashlarCutwater(R, 1.1, 1.35, WL);
+      cw.position.set(lx, 0, s * (zg + 0.25)); cw.rotation.y = s < 0 ? Math.PI : 0; g.add(cw);
+      for (let k = 0; k < 4; k++) {                                            // pack ice jammed against the cutwater
+        const a = (k / 3 - 0.5) * 2.2, r = 1.3 + R() * 0.45, hz = zg + 0.25 + Math.cos(a) * r;
+        g.add(iceFloe(R, lx + Math.sin(a) * r * 1.25, s * hz, 0.4 + R() * 0.3, 0.32 + R() * 0.25, WL + 0.1, 0.16, { tilt: 0.12, shade: false }));
+      }
+    }
+  }
+  for (const e of [-1, 1]) for (const s of [-1, 1]) tb(1.8, 0.9, 0.9, ashlar, e * (w / 2 - 0.6), -0.23, s * (zg + 0.05), 1.1);
+}
+
+/**
+ * M4 fix round 2: one pointed starling of dressed granite (local frame: back face on the pier at z = 0, nose at +z,
+ * half-width hw, length L): a dark mortar core from the bed; above the waterline WL four 0.27 m courses of separate,
+ * slightly proud ashlar blocks laid along both faces in broken bond, with a long/short quoin at the nose, the lowest
+ * course dark and wet; a projecting granite coping course and a hipped cap under a white snow crust. The blocks are
+ * geometry, so the coursing reads under the deck's shadow at the default zoom.
+ */
+function ashlarCutwater(R, hw, L, WL) {
+  const g = new THREE.Group();
+  const stones = [0xd6d2c9, 0xc0bcb3, 0xe2ddd3, 0xccc5b8].map((c) => paintedMaterial('graniteFace', c));   // rock-faced
+  const wet = paintedMaterial('graniteFace', 0x5c625f), core = paintedMaterial('graniteFace', 0x4e4f4b), cope = paintedMaterial('graniteFace', 0xdcd8ce);
+  const ch = 0.27, y0 = WL - 0.12, n = 4, yt = y0 + n * ch, Lf = Math.hypot(hw, L);
+  const add = (geo, mat) => { const m = mesh(geo, mat); g.add(m); return m; };
+  add(cutwaterGeometry(hw - 0.03, L - 0.05, -1.25, yt, 0, 'body'), core);
+  for (let k = 0; k < n; k++) {
+    const yb = y0 + k * ch, h = ch - 0.03, f = (k % 2 ? 0.3 : 0.2) + 0.02;    // quoin: alternate long / short
+    add(cutwaterGeometry(hw * f + 0.03, L * f + 0.03, yb, yb + h, 0, 'body').translate(0, 0, L * (1 - f)), k === 0 ? wet : stones[k % 4]);
+    for (const sx of [-1, 1]) {
+      const ux = -sx * hw / Lf, uz = L / Lf, nx = sx * L / Lf, nz = hw / Lf;   // along the face (back -> nose), outward
+      const end = Lf * (1 - f) - 0.02;
+      let t = 0.04 + (k % 2) * 0.24 * R();
+      if (t > 0.06) {                                                         // short closer at the back
+        const m = add(boxUV(new THREE.BoxGeometry(t - 0.035, h, 0.24).toNonIndexed(), 1.1), k === 0 ? wet : stones[(k + 1) % 4]);
+        m.position.set(sx * hw + ux * t / 2 - nx * 0.095, yb + h / 2, uz * t / 2 - nz * 0.095); m.rotation.y = -Math.atan2(uz, ux);
+      }
+      while (t < end - 0.1) {
+        const l = Math.min(0.42 + R() * 0.24, end - t);
+        const mat = k === 0 ? wet : stones[Math.floor(R() * 4)];
+        const m = add(boxUV(new THREE.BoxGeometry(l - 0.035, h, 0.24).toNonIndexed(), 1.1), mat);
+        const c = t + l / 2;
+        m.position.set(sx * hw + ux * c - nx * 0.095, yb + h / 2, uz * c - nz * 0.095); m.rotation.y = -Math.atan2(uz, ux);
+        t += l;
+      }
+    }
+  }
+  add(cutwaterGeometry(hw + 0.07, L + 0.1, yt, yt + 0.11, 0, 'body'), cope);   // projecting coping course
+  const cap = cutwaterGeometry(hw - 0.02, L - 0.03, yt + 0.11, yt + 0.11, 0.12, 'cap'), ty = yt + 0.23;   // shallow weathering
+  add(cap, cope);
+  // the snow crust: the cap shrunk about its apex (on the cap's planes), lifted 3 cm, so the dressed coping edge
+  // shows round it; it takes no shadow, like the pack ice and the floes round the pier
+  const crust = cap.clone().translate(0, -ty, 0.05).scale(0.8, 0.8, 0.8).translate(0, ty + 0.03, -0.05);
+  add(crust, snowCrustMaterial()).receiveShadow = false;
+  return g;
+}
+
+/** A pointed pier cutwater (starling) local to the pier face at z = 0, pointing +z: a triangular prism of half-width
+ * hw and length L from yb to yt, under a sloped coping that falls from `rise` above yt at the face to yt at the nose
+ * (`part`: 'all', 'body' = the prism only, 'cap' = the coping only, lifted by `lift`). */
+function cutwaterGeometry(hw, L, yb, yt, rise, part = 'all', lift = 0) {
+  const parts = [];
+  if (part !== 'cap') {
+    const sh = new THREE.Shape([new THREE.Vector2(-hw, 0), new THREE.Vector2(hw, 0), new THREE.Vector2(0, -L)]);
+    const body = new THREE.ExtrudeGeometry(sh, { depth: yt - yb, bevelEnabled: false }).rotateX(-Math.PI / 2).translate(0, yb, 0);
+    body.deleteAttribute('normal');
+    const bu = body.attributes.uv; for (let i = 0; i < bu.count; i++) bu.setXY(i, bu.getX(i) / 1.1, bu.getY(i) / 1.1);
+    parts.push(body.index ? body.toNonIndexed() : body);
+  }
+  if (part !== 'body') {
+    const y = yt + lift, A = [-hw - 0.1, y, -0.05], B = [hw + 0.1, y, -0.05], N = [0, y, L + 0.12], T = [0, y + rise, -0.05];
+    const P = [...A, ...N, ...T, ...T, ...N, ...B, ...A, ...T, ...B];
+    const cap = new THREE.BufferGeometry();
+    cap.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
+    const uv = []; for (let i = 0; i < P.length; i += 3) uv.push(P[i] / 1.1, (P[i + 2] + P[i + 1]) / 1.1);
+    cap.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    parts.push(cap);
+  }
+  const geo = parts.length > 1 ? mergeGeometries(parts, false) : parts[0];
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/**
  * Railway bridge deck (`rail_bridge` extra, kind 'deck', local frame, w along X): plate girders either side, a timber
  * deck with sleepers and rails on top, steel (or timber) trestle bents below every 6 m.
  */
@@ -361,7 +498,9 @@ export function buildRailBridge(p) {
   const steel = paintedMaterial('steel', 0x4e5248), beam = dressingMaterial('beam');
   const tb = (bw, bh, bd, mat, x, y, z, tile = 1.5) => { const m = mesh(boxUV(new THREE.BoxGeometry(bw, bh, bd).toNonIndexed(), tile), mat); m.position.set(x, y, z); g.add(m); return m; };
   tb(w, 0.12, d, dressingMaterial('planks'), 0, 0.34, 0);
-  for (const s of [-1, 1]) {
+  const lattice = /lattice|trestle_steel/.test(String(p.variant || ''));
+  if (lattice) buildLatticeSpans(g, p, w, d, tb, steel);
+  for (const s of lattice ? [] : [-1, 1]) {
     tb(w, 1.1, 0.06, steel, 0, -0.2, s * (d / 2 - 0.1));          // plate girder web
     tb(w, 0.06, 0.4, steel, 0, 0.33, s * (d / 2 - 0.1));          // top flange
     tb(w, 0.06, 0.4, steel, 0, -0.75, s * (d / 2 - 0.1));         // bottom flange
@@ -374,7 +513,7 @@ export function buildRailBridge(p) {
   const track = buildRailTrack([[-w / 2, 0], [w / 2, 0]], { width: Math.min(2.4, d - 0.6), rusty: mine });
   track.position.y = mine ? 0.4 : 0.3; track.children[0].visible = false; // no ballast on a bridge deck
   g.add(track);
-  if (h > 1) for (let x = -w / 2 + 3; x < w / 2; x += 6) {
+  if (h > 1 && !lattice) for (let x = -w / 2 + 3; x < w / 2; x += 6) {
     for (const s of [-1, 1]) { const leg = tb(steelV ? 0.3 : 0.4, h, steelV ? 0.3 : 0.4, steelV ? steel : beam, x, -0.8 - h / 2, s * (d / 2 - 0.3), 1.2); leg.rotation.x = s * 0.06; }
     const xb = tb(0.15, Math.hypot(h, d), 0.15, steelV ? steel : beam, x, -0.8 - h / 2, 0, 1.2); xb.rotation.x = Math.atan2(d, h);
   }

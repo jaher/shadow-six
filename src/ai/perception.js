@@ -193,13 +193,19 @@ export function canSee(viewer, target, world, o = {}) {
   // §4.2 occlusion by height: the straight sight line from his eye to the target (a standing man's chest and head, a low
   // man's back) clears every bump, drift, low wall or crate below it; low cover hides a crawler only where the line
   // really passes under it. The drawn cone runs the same test ray by ray (sightRay, render/vision-cone.js).
-  const los = world.grid.sightLine
-    ? world.grid.sightLine(cone.x, cone.z, target.x, target.z, {
-      eyeY: cone.y, targetY: ty + targetHeight(low), targetLow: low, viewerY: cone.vy, targetBaseY: ty, lowCover: lowCoverMode(cone), heightOf: ownerHeight(world), dynamic, ownHull: viewer.ownHull, ownOwner: postOwner(viewer, world), targetHull,
-    })
-    : world.grid.lineOfSight(cone.x, cone.z, target.x, target.z, { viewerElevated: cone.elevated, targetLow: low, viewerY: cone.vy ?? 0, targetY: ty, dynamic, ownHull: viewer.ownHull, ownOwner: postOwner(viewer, world), targetHull });
+  let los;
+  if (world.grid.sightLine) {
+    // (one options object filled per call — the same fields and values as a fresh literal; sightLine only reads it
+    // while it runs: canSee is the sim's most frequent call, a literal each time was a steady stream of garbage)
+    const L = _sightOpts;
+    L.eyeY = cone.y; L.targetY = ty + targetHeight(low); L.targetLow = low; L.viewerY = cone.vy; L.targetBaseY = ty; L.lowCover = lowCoverMode(cone);
+    L.heightOf = ownerHeight(world); L.dynamic = dynamic; L.ownHull = viewer.ownHull; L.ownOwner = postOwner(viewer, world); L.targetHull = targetHull;
+    los = world.grid.sightLine(cone.x, cone.z, target.x, target.z, L);
+    L.heightOf = null; L.ownHull = undefined; L.targetHull = undefined;
+  } else los = world.grid.lineOfSight(cone.x, cone.z, target.x, target.z, { viewerElevated: cone.elevated, targetLow: low, viewerY: cone.vy ?? 0, targetY: ty, dynamic, ownHull: viewer.ownHull, ownOwner: postOwner(viewer, world), targetHull });
   return los ? zone : 'none';
 }
+const _sightOpts = { eyeY: 0, targetY: 0, targetLow: false, viewerY: undefined, targetBaseY: 0, lowCover: 'block', heightOf: null, dynamic: true, ownHull: undefined, ownOwner: 0, targetHull: undefined };
 
 /**
  * §4.2 low cover (B.LOW) and a low target, BEL's rule: from the ground it hides him wherever he lies behind it

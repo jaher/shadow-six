@@ -49,7 +49,8 @@ import { BlastMarks } from './render/blast-marks.js';
 import { BloodSystem } from './render/blood/index.js';
 import { resolveHouseRules, tierFromPreset } from './core/house-rules.js';
 import { nobodyLeftToHelp } from './entities/downed.js';
-import { prepareCharacters, awaitUnitModels, warmUnitModels, warmUnitModelsG, charactersFrame, transportFrame, releaseCharacters } from './art/unit-model.js';
+import { prepareCharacters, awaitUnitModels, warmUnitModels, warmUnitModelsG, queueIdleWarm, queueAheadModels, charactersFrame, transportFrame, releaseCharacters } from './art/unit-model.js';
+import { idleWarm } from './engine/idle-warm.js';
 import { knifeKillFrame } from './art/knife-kill.js';
 import { digWarmObjects } from './art/shovel-dig.js';
 
@@ -325,6 +326,8 @@ export class Game {
     await safeAsync(() => awaitUnitModels(world.entities.filter((e) => e.model?.ready)), 'character bodies');
     // (a clip at a time, the loading screen drawing between them: engine/slice.js)
     this.warmMs = await safeAsync(() => (warmUnitModelsG ? runSliced(warmUnitModelsG(world.entities.filter((e) => e.model?.real))) : warmUnitModels(world.entities.filter((e) => e.model?.real))), 'character grounding');
+    // (the rest of the bodies' clip fits: on still screens — the walkthrough's cards — engine/idle-warm.js)
+    safe(() => { idleWarm.clear(); queueIdleWarm(world.entities.filter((e) => e.model?.real)); queueAheadModels(world); }, 'idle warm queue');
     // vehicles, wrecks, lamps, scorch: shaders + textures + vertex buffers on the GPU now, not on the first pan / wreck swap
     // (+ the vehicles the mission brings on later, e.g. M3's escape truck: drawn now, kept off the scene — VehicleMod.laterVehicleModels)
     const later = safe(() => VehicleMod.laterVehicleModels?.(def), 'later vehicles') || [];
@@ -542,7 +545,10 @@ export class Game {
         if (path) path.visible = false;
         if (cones && 'forced' in cones && foe) { cones.forced = forced0; safe(() => cones.update(), 'warm cone'); }
       };
-      if (only !== 'close') r.render(0);
+      if (only !== 'close') {
+        safe(() => w.water?.system?.renderMirror?.(), 'warm water mirror'); // (deferred by Game.render's mirrorLater)
+        r.render(0);
+      }
       if (only === 'world') return Math.round(performance.now() - t0); // (the finally below restores)
       // the men again with blood on them (blood/stains.js: the stained variant of every character material compiles at
       // the first wound — a kill in video mode): only their subtrees and the lights (the same light set), every LOD;
@@ -663,6 +669,7 @@ export class Game {
       safe(() => this.world.blood?.dispose?.(), 'blood dispose');
       this.physicsVisuals = null;
       this.world.dispose();
+      idleWarm.clear();
       safe(() => releaseCharacters(), 'characters dispose');
       safe(() => releaseVehicles(), 'vehicles dispose');
       // Anything the map builder added directly to the scene (terrain, props) is removed here.
@@ -1037,7 +1044,10 @@ export class Game {
       if (raftPassWanted(w)) safe(() => raftActionsFrame(w, alpha, CONFIG.sim.dt), 'raft actions');
       if (w.switchStations?.length) safe(() => switchStationsFrame(w, alpha, CONFIG.sim.dt), 'switch stations'); // levers + the operator's hand
       if (this.physicsVisuals) safe(() => this.physicsVisuals.frame(), 'physics visuals'); // props, vehicle rock, censored bodies
-      // trails, grass, trees; the water's offscreen passes (FFT, caustics, ripples, mirror) only for a drawn frame
+      // trails, grass, trees; the water's offscreen passes (FFT, caustics, ripples) only for a drawn frame — its mirror
+      // waits for the frame's one world-matrix update below (WaterSystem.mirrorLater / renderMirror)
+      const ws = w.water?.system;
+      if (ws) ws.mirrorLater = true;
       safe(() => this.mapHandle?.frame?.(animDt, this.renderer.camera, draw), 'terrain frame');
       if (this.ladders) safe(() => this._laddersFrame(w), 'ladders');
       this._updateCones();
@@ -1057,6 +1067,7 @@ export class Game {
       scene.updateMatrixWorld();
       scene.matrixWorldAutoUpdate = false;
       try {
+        if (w?.water?.system?.renderMirror) safe(() => w.water.system.renderMirror(), 'water mirror');
         this.cameraRig.render(this.renderer, dt);
         if (w) safe(() => this._scopeFrame(), 'scope magnifier'); // §5.3 sniper scope: 2× lens into the same canvas
       } finally { scene.matrixWorldAutoUpdate = autoMW; }

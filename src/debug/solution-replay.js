@@ -23,6 +23,7 @@
  * @module debug/solution-replay
  */
 
+import { idleWarm } from '../engine/idle-warm.js';
 import { ROLE_NAMES } from '../ui/catalogue.js';
 import { CONFIG } from '../config.js';
 import { loadWalkthrough } from './solutions.js';
@@ -233,6 +234,8 @@ export class SolutionReplay {
     this._viewMs = 0;
     g.frame = (dt) => {
       this._frame(dt);
+      // a still screen (video mode's title and chapter cards): one queued cache fill per frame (engine/idle-warm.js)
+      if (idleWarm.pending && this._stillScreen?.()) idleWarm.runOne();
       // fast-forward: the view only every TURBO_VIEW_MS; the frames between just grant ticks (and wake the driver)
       this._viewDt += dt;
       const now = performance.now();

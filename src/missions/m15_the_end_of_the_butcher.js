@@ -22,7 +22,8 @@
  *  - gates are open gaps (the dossier has them all open); the SdKfz stands 3.5 m further S, clear of the block;
  *  - the general's run, car priority, "through the house" crossing, hearing filter, HQ demolition point and silent
  *    accident destruction live in scripts/m15.js (dossier §14 E1–E3, E6), not in enemy-brain.js;
- *  - routes nudged ≤ 2 m off walls, trees and parked cars (e2, e3, e5, e27, p17, the garden walks).
+ *  - routes nudged ≤ 2 m off walls, trees and parked cars (e2, e3, e5, e27, p17, the garden walks);
+ *  - (retune, sol/m15) e6 at the head of S1 faces E along the canal walk, not N over the fountain square (see ENEMIES).
  */
 
 import { m15Tick, reachesHQ, destroyHQ, HQ_POINT, GARDEN_DOOR } from './scripts/m15.js';
@@ -133,7 +134,11 @@ const SOUTH = [
   { id: 'fountain', type: 'well', variant: 'fountain_statue', x: 24.5, z: 80, r: 5, h: 0.7, statueH: 6 },
   // the street "bridges" between the basins (flat map, culverts closed): gameplay only, the basins' quay parapets are
   // their parapets and the setts run across them (art pass: no castle drawbridge model stretched over the street)
-  { id: 'bridge_w', type: 'bridge', variant: 'bridge_stone_arch', x: 15.5, z: 100, rot: deg(95), w: 20, d: 9, h: 0.3, visual: false },
+  // (fix, sol/m15) the W bridge spans only where both basins flank it (z 101.7–107.2): a bridge's side rails block
+  // movement and low sight along its whole length, and at 20 m long its invisible E rail walled the bridge street off
+  // from the walk along the central basin's N parapet (z 90–101.7) that leads to the W stairs — the dossier's way up
+  // behind e6 "in the parapet's lee" (§12 step 6)
+  { id: 'bridge_w', type: 'bridge', variant: 'bridge_stone_arch', x: 15.1, z: 104.45, rot: deg(95), w: 6.5, d: 9, h: 0.3, visual: false },
   { id: 'bridge_e', type: 'bridge', variant: 'bridge_stone_arch', x: 57, z: 118, rot: deg(100), w: 24, d: 8, h: 0.3, visual: false },
   // the burned-out house (roofless, 3 m walls); its entrance is the gap in the E wall
   { id: 'ruin_s', type: 'wall', variant: 'ruin_burnt_walls', points: [[5, 139], [5, 123], [24, 123], [24, 129]], h: 3, width: 0.5, mat: 'stone' },
@@ -267,7 +272,10 @@ const ENEMIES = [
   walker('e8', 8, [P(61, 104, 3, 270), P(58.5, 125, 3, 90)]),
   // ===== the canal's N side and the fountain (Phases 1–2)
   walker('e4', 4, [P(24, 92, 6, 180), P(28, 96), P(28.5, 102.6, 3, 90)]), // down the W stairs to the water and back
-  sentry('e6', 6, 24.5, 97, 270, 60), // head of S1, back to the water
+  // (retune, sol/m15) head of S1, watching the canal walk east: facing N (the dossier's 270) his far band swept the
+  // whole fountain square, the lawn gap and ladder L1 from a post nobody can reach unseen, so the uniform and the west
+  // avenue were never open (sol/m15 scans: no L1 climb, no e12 ambush, no west-avenue crossing in 1500+ s)
+  sentry('e6', 6, 24.5, 97, 0, 60),
   walker('e9', 9, [P(36, 86, 4, 180), P(62, 98, 4, 90)]),
   walker('e12', 12, [P(4, 70, 4, 270), P(20, 69.5, 4, 0)]),
   // ===== the corner block (Phase 2): e13 below the balcony, e14/e15 on it (B), e16 on the roof (R)
@@ -415,7 +423,7 @@ export default {
   triggers: [
     // per-tick glue: the general's hearing and flight, the drive-off (scripts/m15.js)
     { on: 'tick', once: false, when: () => true, do: [{ run: (w) => m15Tick(w) }] },
-    // the demolition point: a barrel/bomb class blast within 6.75 m of the NE corner (silent after an accident)
+    // the demolition point: a barrel/bomb class blast within HQ_REACH (7.5 m) of the NE corner (silent after an accident)
     { on: 'explosion', once: false, when: (p) => reachesHQ(p), do: [{ run: (w, d, p) => destroyHQ(w, p) }] },
     { on: 'structure:destroyed', match: { id: 'hq' }, do: [{ message: 'The headquarters is burning. Its garrison is finished.', kind: 'objective' }] },
     { on: 'objective', match: { id: 'o1', status: 'done' }, do: [{ message: 'The Butcher is dead. The alarm no longer matters: get to the van.', kind: 'objective' }] },

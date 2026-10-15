@@ -112,7 +112,7 @@ const HQ = [
     segments: [[[71.8, 0], [74, 2], [110, 34], [96.6, 47.0]], [[93.0, 50.4], [70, 73.5], [66, 77.6]]] },
   // the stone arch over the gap: decorative until `arch_fall` brings it down (rubble blocks the gap)
   { id: 'arch', type: 'ruins', variant: 'stone_arch', x: ARCH.x, z: ARCH.z, rot: deg(135), w: 5.6, d: 0.9, h: 4.5, block: 0,
-    nav: false, clip: false }, // the gap stays open at ground level: no walkable library top (it would open the fence
+    nav: false, clip: false, asset: 'arch_gate_granite_no' }, // art pass: the granite arch (its rubble twin when `arch_fall` brings it down) // the gap stays open at ground level: no walkable library top (it would open the fence
   // ends), no visual nav block across the passage; its pillars stand on the fence ends, already blocked
   // outer masonry wall with an iron railing; its gate between the two gatehouses
   { id: 'wall_outer', type: 'wall', variant: 'masonry_railing', mat: 'plaster', h: 4.0, width: 0.6,
@@ -128,7 +128,8 @@ const HQ = [
   { id: 'house_b', type: 'hut', variant: 'timber_shed', x: 90.0, z: 24.5, rot: deg(42), w: 4.5, d: 5, h: 4, enterable: true },
   { id: 'tent1', type: 'tent', variant: 'tent_large_barrack', x: 108.5, z: 17, rot: deg(42), w: 5, d: 4, h: 3, destructible: true, hp: 60 },
   { id: 'tent2', type: 'tent', variant: 'tent_large_barrack', x: 113.5, z: 22.5, rot: deg(42), w: 5, d: 4, h: 3, destructible: true, hp: 60 },
-  { id: 'henhouse', type: 'hut', variant: 'henhouse', x: 62, z: 12, rot: 0, w: 3, d: 2, h: 2, destructible: true, hp: 30 },
+  // (art pass: 2.6 m E of the dossier's (62, 12), clear of the fjord cliff's crest it straddled)
+  { id: 'henhouse', type: 'hut', variant: 'henhouse', x: 64.6, z: 12, rot: 0, w: 3, d: 2, h: 2, destructible: true, hp: 30, asset: 'henhouse_no', nav: false },
   // the jetty: shed at the stair head, timber stair down the cliff, pier deck, low landing stage, MG nest
   { id: 'shed_pier', type: 'hut', variant: 'timber_shed', x: 56.0, z: 51.5, rot: 0, w: 3.5, d: 3.5, h: 3.5, enterable: true, destructible: true, hp: 60 },
   { id: 'stair_pier1', type: 'pier', variant: 'timber_stair', x: 44.75, z: 60.15, rot: deg(135.8), w: 11.5, d: 2.4 },
@@ -162,7 +163,8 @@ const INLET = [
   { id: 'bridge_rail', type: 'rail_bridge', variant: 'rail_trestle_steel', x: (BR_A[0] + BR_B[0]) / 2, z: (BR_A[1] + BR_B[1]) / 2,
     rot: deg(315), w: Math.hypot(BR_B[0] - BR_A[0], BR_B[1] - BR_A[1]) + 1, d: 4, h: 7, pillars: [[106, 136.6], [111.3, 131.3], [116.5, 126.1]] },
   // the sunken tank at the foot of the E pillar: a walkable platform reached only by the pillar ladder (or swimming)
-  { id: 'wreck_tank', type: 'pier', variant: 'sunken_tank', x: 119.3, z: 144.8, rot: deg(45), w: 4.5, d: 4 },
+  { id: 'wreck_tank', type: 'pier', variant: 'sunken_tank', x: 119.3, z: 144.8, rot: deg(45), w: 4.5, d: 4,
+    vehicleArt: 'panzer2_f', wreck: true, sink: 1.15, list: -7, trim: 4, ice: { y: 0, zmin: -0.9 }, artShift: [0, 0.9] }, // art pass: the drowned Panzer II on pack ice (hull 0.9 m off the cliff foot)
   // the level crossing: two booms across the road 5.5 m either side of the rails (retail hinges (169.4, 78.6) and
   // (165.1, 73.8)); open, closed while the train is near (script). And the crossing keeper's shack.
   { id: 'boom_x1', type: 'gate', variant: 'barrier_boom', x: 168.9, z: 81.4, rot: deg(315), w: 6, open: true },
@@ -182,9 +184,10 @@ const SW_BANK = [
   { id: 'wagon_coach', type: 'train_car', variant: 'rail_yard_derelict_coach', x: 35.5, z: 119.5, rot: deg(70), w: 14, d: 3, h: 3 },
   { id: 'wagon_loco', type: 'train_car', variant: 'rail_yard_derelict_loco', x: 38.0, z: 136.0, rot: deg(40), w: 12, d: 3, h: 3.5 },
   { id: 'ruin_house', type: 'ruins', variant: 'brick_shell_2storey', x: 23.0, z: 138.0, rot: deg(40), w: 10, d: 8, h: 6 },
-  { id: 'ruin_w1', type: 'ruins', variant: 'wall_ruined_stone', x: 19.5, z: 157, rot: deg(40), w: 5, d: 1, h: 2.2 },
-  { id: 'ruin_w2', type: 'ruins', variant: 'wall_ruined_stone', x: 22.5, z: 163.5, rot: deg(130), w: 4, d: 1, h: 2.8 },
-  { id: 'ruin_w3', type: 'ruins', variant: 'wall_ruined_stone', x: 15.5, z: 166.5, rot: deg(40), w: 5, d: 1, h: 1.8 },
+  // (art pass: Norwegian fieldstone ruins, ruin_fieldstone_no_*; visual only, nav stays the mission's)
+  { id: 'ruin_w1', type: 'ruins', variant: 'wall_ruined_stone', x: 19.5, z: 157, rot: deg(40), w: 5, d: 1, h: 2.2, asset: 'ruin_fieldstone_no_a', nav: false },
+  { id: 'ruin_w2', type: 'ruins', variant: 'wall_ruined_stone', x: 22.5, z: 163.5, rot: deg(130), w: 4, d: 1, h: 2.8, asset: 'ruin_fieldstone_no_a', nav: false },
+  { id: 'ruin_w3', type: 'ruins', variant: 'wall_ruined_stone', x: 15.5, z: 166.5, rot: deg(40), w: 5, d: 1, h: 1.8, asset: 'ruin_fieldstone_no_a', nav: false },
   { id: 'debris_logs', type: 'crates', variant: 'timber_debris', x: 40.0, z: 162.0, rot: deg(20), w: 7, d: 3, h: 1.5, block: 1 },
   { id: 'debris_cart', type: 'crates', variant: 'timber_debris', x: 90.0, z: 161.0, rot: deg(60), w: 4, d: 3, h: 1.5, block: 1 },
   { id: 'rocks_yard1', type: 'rocks', variant: 'granite_spire', x: 10.5, z: 124, rot: 0, w: 6, d: 5, h: 4 },
@@ -211,7 +214,7 @@ const forest = (id, points, box, n, seed) => [
 const NE_BANK = [
   // jail hut outside the outer wall (garrison of 5 + the jail for every patrol; a bomb razes it)
   { id: 'jail_hut', type: 'barracks', variant: 'jail_cell', x: 95.3, z: 65.2, rot: deg(45), w: 5, d: 4, h: 3.5, flag: true, garrison: true,
-    jail: true, door: 0, destructible: true, hp: 100, enterable: true },
+    jail: true, door: 0, destructible: true, hp: 100, enterable: true, asset: 'jail_guardhouse_no', nav: false },
   // the RAF air-drop: crate + white parachute canopy spread N (no block)
   { id: 'crate_drop', type: 'crates', variant: 'airdrop_crate', x: 180.8, z: 33.4, rot: 0, w: 1.2, d: 1.2, h: 1.0, block: 0 },
   { id: 'canopy', type: 'sign', variant: 'parachute_canopy', x: 180, z: 28.5, rot: deg(90), w: 9, d: 5, h: 0.2, block: 0 },
@@ -229,10 +232,39 @@ const NE_BANK = [
   { id: 'rocks_x3', type: 'rocks', x: 186, z: 90, rot: 0, w: 4, d: 6, h: 2.5 },
   ...[['ruin_se1', 158.8, 126.5, 30, 8, 6, 2.5], ['ruin_se2', 165.8, 141, 20, 5.5, 4, 2], ['ruin_se3', 182.5, 139, 150, 6, 5, 2.5],
     ['ruin_se4', 190.5, 120.5, 20, 9, 5, 2.5], ['ruin_se5', 196, 130, 60, 5, 4, 2]]
-    .map(([id, x, z, r, w, d, h]) => ({ id, type: 'ruins', variant: 'wall_ruined_stone', x, z, rot: deg(r), w, d, h })),
+    .map(([id, x, z, r, w, d, h]) => ({ id, type: 'ruins', variant: 'wall_ruined_stone', x, z, rot: deg(r), w, d, h, nav: false,
+      asset: w / d > 1.35 ? 'ruin_fieldstone_no_c' : 'ruin_fieldstone_no_b' })), // art pass: fieldstone farm ruins
 ];
 
-const STRUCTURES = [...HQ, ...INLET, ...SW_BANK, ...NE_BANK];
+// ---------------------------------------------------------------- art pass: set dressing (visual; low cover, ≥ 1.5 m off every
+// route, ≥ 3 m off every post and start; authored on rule-clean spots: fixed). Furniture never touches the walk grid.
+const logs = (id, x, z, r) => ({ id, type: 'crates', variant: 'log_pile', asset: 'log_pile_stack', x, z, rot: deg(r), w: 3, d: 1.5, h: 1, block: 1, fixed: true });
+const DRESSING = [
+  // the HQ staff car and a despatch rider's BMW combination parked by the villa's W wall (seen past it, not hidden behind)
+  { id: 'kw_villa', type: 'crates', variant: 'vehicle_parked', label: 'Staff car', x: 66, z: 25, rot: deg(90), w: 3.8, d: 1.6, h: 1.4, block: 1, fixed: true, vehicleArt: 'kubelwagen' },
+  { id: 'moto_villa', type: 'crates', variant: 'vehicle_parked', label: 'Motorcycle', x: 65.8, z: 19.6, rot: deg(90), w: 2.4, d: 1.7, h: 1.1, block: 1, fixed: true, vehicleArt: 'r75_sidecar' },
+  logs('logs_hb', 86.3, 21.2, 42), logs('logs_jail', 99.5, 67.5, 45), logs('sleepers_y', 14.5, 128.5, 40),
+  { id: 'drums_corr', type: 'barrels', variant: 'inert_stack', x: 116.6, z: 26.3, rot: deg(42), w: 2.4, d: 2, h: 1, block: 1, fixed: true },
+  { id: 'crates_stair', type: 'crates', x: 57.6, z: 46.6, rot: 0, w: 2, d: 2, h: 1.2, block: 1, fixed: true },
+  { id: 'cart_x', type: 'crates', variant: 'handcart', asset: 'handcart_wood', x: 179.5, z: 77.5, rot: deg(45), w: 1.9, d: 1.4, h: 1, block: 1, fixed: true },
+  // a platelayers' hand trolley left on the dead siding in the yard
+  { id: 'handcar_y', type: 'crates', variant: 'vehicle_parked', label: 'Hand trolley', x: 12.5, z: 137.2, rot: deg(44.4), w: 2.4, d: 1.6, h: 1, block: 1, fixed: true, vehicleArt: 'handcar' },
+];
+/** Wooden lamp posts at the villa, the arch and the pier stair; St Andrew's crosses at the level crossing; a telegraph
+ *  line along the main line (both sides of the crossing); the HQ board at the outer gate; a fingerpost at the SE road. */
+const FURNITURE = [
+  { type: 'lamp', variant: 'norway_wood', x: 69.5, z: 33.5, rot: deg(0), block: false },
+  { type: 'lamp', variant: 'norway_wood', x: 92.2, z: 41.8, rot: deg(135), block: false },
+  { type: 'lamp', variant: 'norway_wood', x: 55.3, z: 56.6, rot: deg(-90), block: false },
+  { type: 'sign', variant: 'andreaskreuz', x: 168.2, z: 85.9, rot: deg(-45), block: false },
+  { type: 'sign', variant: 'andreaskreuz', x: 161.9, z: 69.2, rot: deg(135), block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 112, z: 58, rot: deg(-45), text: 'STAB\nZUTRITT VERBOTEN', block: false },
+  { type: 'sign', variant: 'fingerpost', x: 192.8, z: 99.6, rot: deg(-45), text: 'TRONDHEIM 12 km', block: false },
+  { type: 'telegraph', points: [[199, 49.3], [177, 71.3]], spacing: 22, h: 6.5, wires: 2, block: false },
+  { type: 'telegraph', points: [[164, 84.3], [132, 116.3]], spacing: 22, h: 6.5, wires: 2, block: false },
+];
+
+const STRUCTURES = [...HQ, ...INLET, ...SW_BANK, ...NE_BANK, ...DRESSING];
 
 // ---------------------------------------------------------------- vehicles (dossier §6.1)
 const TRUCK_ROUTE = [
@@ -494,6 +526,7 @@ export default {
     { id: 'villa_steps', x: STEPS.x, z: STEPS.z, r: 3, target: 'villa' },
   ],
   structures: [...STRUCTURES, ...WIRE_PASS],
+  furniture: FURNITURE,
   items: [],
   interactables: INTERACTABLES,
   vehicles: VEHICLES,

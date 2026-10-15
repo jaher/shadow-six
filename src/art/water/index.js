@@ -90,6 +90,9 @@ function skyIrradiance(tex) {
  */
 const _clipPlane = new THREE.Plane();
 const _vp = new THREE.Matrix4(), _vpInv = new THREE.Matrix4(), _wb = new THREE.Box3(), _wp = new THREE.Vector3(), _wd = new THREE.Vector3();
+const _jp = new THREE.Vector3(), _jq = new THREE.Quaternion();
+/** Mirror levels drawn in turn: each texture covers this much NDC past the screen edges (5 % of the width each side). */
+const MIRROR_PAD = 0.1;
 function obliqueNear(cam, h, range) {
   cam.updateMatrixWorld();
   _clipPlane.set(new THREE.Vector3(0, 1, 0), -h).applyMatrix4(cam.matrixWorldInverse);
@@ -635,7 +638,7 @@ export class WaterSystem {
    * through the mirror matrix, widened by the shader's ripple distortion (reflDistort, UV) and a texel. Pixel rect
    * {x, y, w, h} in the mirror target (y up), or null when no such water is on screen.
    */
-  _reflWindow(level, R) {
+  _reflWindow(level, R, pad = 0) {
     const cam = this.camera, W = R.rt.width, H = R.rt.height;
     _vp.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, dist = 0;
@@ -650,8 +653,8 @@ export class WaterSystem {
         _wp.set(k & 1 ? _wb.max.x : _wb.min.x, level, k & 2 ? _wb.max.z : _wb.min.z).applyMatrix4(_vp);
         bx0 = Math.min(bx0, _wp.x); bx1 = Math.max(bx1, _wp.x); by0 = Math.min(by0, _wp.y); by1 = Math.max(by1, _wp.y);
       }
-      // clip to the screen
-      bx0 = Math.max(bx0, -1); by0 = Math.max(by0, -1); bx1 = Math.min(bx1, 1); by1 = Math.min(by1, 1);
+      // clip to the screen (+ `pad` NDC each side: a texture reused next frame covers a panning camera's new edge)
+      bx0 = Math.max(bx0, -1 - pad); by0 = Math.max(by0, -1 - pad); bx1 = Math.min(bx1, 1 + pad); by1 = Math.min(by1, 1 + pad);
       if (bx0 >= bx1 || by0 >= by1) continue;
       x0 = Math.min(x0, bx0); y0 = Math.min(y0, by0); x1 = Math.max(x1, bx1); y1 = Math.max(y1, by1);
       dist = Math.max(dist, b.uniforms.reflDistort?.value ?? 0.06);
@@ -746,7 +749,7 @@ export class WaterSystem {
    * so the object's footprint swept that far towards the camera, widened by the shader's ripple distortion reach
    * (reflDistort × the view extent) and 1 m, must touch a water cell. Returns null (no extra cull) without a mask.
    */
-  _mirrorReach(level, win) {
+  _mirrorReach(level, win, pad = 0) {
     const mask = this._waterMask(level);
     if (!mask) return null;
     const cam = this.camera, f = _wd.set(0, 0, -1).transformDirection(cam.matrixWorld);
@@ -756,7 +759,7 @@ export class WaterSystem {
     const viewW = cam.isOrthographicCamera ? (cam.right - cam.left) / cam.zoom : 100, viewH = cam.isOrthographicCamera ? (cam.top - cam.bottom) / cam.zoom / -f.y : 100;
     let dist = 0;
     for (const b of this.bodies) if (Math.round(b.level * 100) / 100 === level) dist = Math.max(dist, b.uniforms.reflDistort?.value ?? 0.06);
-    const margin = dist * Math.max(viewW, viewH) + 1;
+    const margin = (dist + pad * 0.5) * Math.max(viewW, viewH) + 1;
     if (this._reach?.size > 8) this._reach.clear(); // a draining level walks through many values
     const P = ((this._reach ||= new Map()).get(level)) || {};
     P.mask = mask; P.cot = cot; P.ux = ux; P.uz = uz; P.margin = margin;
@@ -781,6 +784,16 @@ export class WaterSystem {
     });
   }
 
+  /** Did the view move more than MIRROR_PAD allows since the last call (a cut, a zoom, a fast pan or turn)? */
+  _viewJump(cam) {
+    const L = (this._lastView ||= { p: new THREE.Vector3(), q: new THREE.Quaternion(), w: 0, ok: false });
+    const p = _jp.setFromMatrixPosition(cam.matrixWorld), q = _jq.setFromRotationMatrix(cam.matrixWorld);
+    const w = cam.isOrthographicCamera ? (cam.right - cam.left) / (cam.zoom || 1) : 0;
+    const jump = !L.ok || !cam.isOrthographicCamera || p.distanceTo(L.p) > MIRROR_PAD * 0.4 * w || Math.abs(w - L.w) > MIRROR_PAD * 0.4 * w || q.angleTo(L.q) > 0.02;
+    L.p.copy(p); L.q.copy(q); L.w = w; L.ok = true;
+    return jump;
+  }
+
   _renderReflections() {
     const Q = this.Q, r = this.renderer, cam = this.camera;
     // perf review (art integration 2): the mirror is a second full scene render (~2 ms CPU on M3). With a still
@@ -798,6 +811,14 @@ export class WaterSystem {
     }
     const used = levels.slice(0, Q.reflection);
     if (!used.length) return;
+    // mirror levels under a moving camera (quality with reflEvery > 1): one level redrawn per frame in turn (one level
+    // alone: every `every` frames), each texture drawn a little past the screen edge (MIRROR_PAD) so the next frame's
+    // view still finds its reflection in it (its reflMatrix kept with it); every level again after a cut or a jump
+    // (one level alone: redrawn every `every` frames the same way — the still camera's rule above, for a camera on the move)
+    const multi = every > 1, pad = multi ? MIRROR_PAD : 0;
+    const jump = multi ? this._viewJump(cam) : true;
+    const slot = this._reflN % Math.max(every, used.length);
+    const turn = multi && !jump && used.every((l) => this.reflections.get(l)?.drawn) ? (slot < used.length ? used[slot] : NaN) : null;
     // the world render allocates the sun's shadow map: before its first frame the mirrored render would bind a
     // non-depth placeholder to the shadow samplers (GL sampler-type mismatch) — skip that one frame
     const sun = this.opts.sun || (this.engine && this.engine.sun);
@@ -809,6 +830,11 @@ export class WaterSystem {
     this.scene.background = null;
     r.setClearColor(0x000000, 0);
     for (const level of used) {
+      if (turn !== null && level !== turn) {
+        // (its last texture stays: re-enabled with the matrix it was drawn with)
+        for (const b of this.bodies) if (Math.round(b.level * 100) / 100 === level && b.o.reflect !== false) b.uniforms.reflEnabled.value = 1;
+        continue;
+      }
       let R = this.reflections.get(level);
       if (!R) {
         R = { rt: new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: 0 }), cam: cam.clone(), matrix: new THREE.Matrix4() };
@@ -831,7 +857,8 @@ export class WaterSystem {
       // program variant and back in the main pass, every reflection frame (three re-derives the program each switch).
       // only the texels the visible water can sample (its screen box + the ripple distortion reach) are rendered: the
       // mirror camera is cut to that window (same projection inside it, so the same texels) and culls the rest
-      const win = this._reflWindow(level, R);
+      const win = this._reflWindow(level, R, pad);
+      R.drawn = !!win;
       if (!win) continue; // no water of this level on screen: nothing samples the mirror (reflEnabled stays 0)
       if (win.w < R.rt.width || win.h < R.rt.height) {
         rc.setViewOffset(R.rt.width, R.rt.height, win.x, R.rt.height - win.y - win.h, win.w, win.h);
@@ -842,7 +869,7 @@ export class WaterSystem {
       R.rt.viewport.set(win.x, win.y, win.w, win.h); R.rt.scissor.copy(R.rt.viewport); R.rt.scissorTest = true;
       r.setRenderTarget(R.rt); r.clear();
       const culled = this._reflectCull();
-      const reach = this._mirrorReach(level, win);
+      const reach = this._mirrorReach(level, win, pad);
       if (reach) withExtraCull(reach, () => r.render(this.scene, rc));
       else r.render(this.scene, rc);
       for (const o of culled) o.visible = true;
@@ -881,9 +908,19 @@ export class WaterSystem {
     s.rippleTex.value = this.ripples.texture; s.rippleArea.value.copy(this.ripples.area);
     for (const b of this.bodies) { b.uniforms.dispScaleA.value = b.o.type === 'sea' && this.seaOcean ? 1 : 0; }
     this._envAndLights();
-    this._renderReflections();
+    // (`mirrorLater`: the host draws the mirror itself once the frame's world matrices are up to date — Game.render
+    // calls renderMirror() after its one scene.updateMatrixWorld — instead of a full extra matrix update per level here)
+    if (this.mirrorLater) this._mirrorDue = true;
+    else this._renderReflections();
     this.lastUpdateMs = performance.now() - t0;
     this.frames = (this.frames || 0) + 1;
+  }
+
+  /** The mirror render update() left for later (`mirrorLater`); nothing when it was not due this frame. */
+  renderMirror() {
+    if (!this._mirrorDue) return;
+    this._mirrorDue = false;
+    this._renderReflections();
   }
 
   /** Switch water quality ('low'|'medium'|'high'|'ultra'); bodies are kept. */

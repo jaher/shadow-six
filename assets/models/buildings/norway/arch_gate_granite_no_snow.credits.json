@@ -1,0 +1,173 @@
+{
+ "asset": "arch_gate_granite_no_snow",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  },
+  "fieldstone_grey": {
+   "source": "Poly Haven",
+   "id": "stone_wall_04",
+   "url": "https://polyhaven.com/a/stone_wall_04",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Stone Wall 04",
+   "label": "Fieldstone rubble wall, grey (Norway/granite)",
+   "files": {
+    "diff": {
+     "2k": "2k/fieldstone_grey_diff",
+     "1k": "1k/fieldstone_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/fieldstone_grey_nor",
+     "1k": "1k/fieldstone_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/fieldstone_grey_arm",
+     "1k": "1k/fieldstone_grey_arm"
+    }
+   }
+  },
+  "glass_dirty": {
+   "source": "procedural (tools/make_procedural.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Dirty window glass",
+   "files": {
+    "diff": {
+     "1k": "1k/glass_dirty_diff",
+     "2k": "2k/glass_dirty_diff"
+    },
+    "nor": {
+     "1k": "1k/glass_dirty_nor",
+     "2k": "2k/glass_dirty_nor"
+    },
+    "arm": {
+     "1k": "1k/glass_dirty_arm",
+     "2k": "2k/glass_dirty_arm"
+    }
+   }
+  },
+  "granite": {
+   "source": "Poly Haven",
+   "id": "granite_wall",
+   "url": "https://polyhaven.com/a/granite_wall",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Granite Wall",
+   "label": "Granite wall",
+   "files": {
+    "diff": {
+     "2k": "2k/granite_diff",
+     "1k": "1k/granite_diff"
+    },
+    "nor": {
+     "2k": "2k/granite_nor",
+     "1k": "1k/granite_nor"
+    },
+    "arm": {
+     "2k": "2k/granite_arm",
+     "1k": "1k/granite_arm"
+    }
+   }
+  },
+  "signs": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Painted sign atlas",
+   "files": {
+    "diff": {
+     "1k": "1k/signs_diff",
+     "2k": "2k/signs_diff"
+    }
+   }
+  },
+  "snow": {
+   "source": "Poly Haven",
+   "id": "snow_01",
+   "url": "https://polyhaven.com/a/snow_01",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Snow 01",
+   "label": "Snow cap",
+   "files": {
+    "diff": {
+     "2k": "2k/snow_diff",
+     "1k": "1k/snow_diff"
+    },
+    "nor": {
+     "2k": "2k/snow_nor",
+     "1k": "1k/snow_nor"
+    },
+    "arm": {
+     "2k": "2k/snow_arm",
+     "1k": "1k/snow_arm"
+    }
+   }
+  },
+  "timber_grey": {
+   "source": "Poly Haven",
+   "id": "weathered_planks",
+   "url": "https://polyhaven.com/a/weathered_planks",
+   "authors": [
+    "Dario Barresi",
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Weathered Planks",
+   "label": "Weathered grey timber",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_grey_diff",
+     "1k": "1k/timber_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_grey_nor",
+     "1k": "1k/timber_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_grey_arm",
+     "1k": "1k/timber_grey_arm"
+    }
+   }
+  }
+ }
+}

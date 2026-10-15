@@ -46,11 +46,16 @@ export function predictEnemy(e, t, depth = 0) {
   const loop = (b._routeType || e.spawn?.route?.type || e.routeMode || 'PINGPONG').toUpperCase() === 'LOOP' || e.routeMode === 'loop';
   const loopStart = b._loopStart ?? 0;
   let waitLeft = b.atWait ? Math.max(0, b.waitT ?? 0) : 0;
-  // (at a halt he turns to its look over a couple of seconds: until then he still faces the way he came)
-  const TURN = 3;
-  // (a halt's look: he faces it — and in its first seconds may still face the way he came: `alt`)
-  const halt = (wp, into) => (wp?.look != null ? { x, z, heading: (wp.look * Math.PI) / 180, alt: into <= TURN ? h : undefined } : { x, z, heading: h });
-  if (waitLeft > 0) { const wp = r[i]; if (left <= waitLeft) return halt(wp, left + Math.max(0, (wp?.wait ?? 0) - waitLeft)); if (wp?.look != null) h = (wp.look * Math.PI) / 180; left -= waitLeft; i = nextIdx(i); }
+  // (the next waypoint, halts as haltPose: written out in place — inner closures here allocated a context per call,
+  // and this runs for every walker at every sample of every look-ahead)
+  if (waitLeft > 0) {
+    const wp = r[i];
+    if (left <= waitLeft) return haltPose(wp, left + Math.max(0, (wp?.wait ?? 0) - waitLeft), x, z, h);
+    if (wp?.look != null) h = (wp.look * Math.PI) / 180;
+    left -= waitLeft;
+    if (loop) i = i + 1 < r.length ? i + 1 : Math.min(loopStart, r.length - 1);
+    else { if (i + dir >= r.length || i + dir < 0) dir *= -1; i += dir; }
+  }
   for (let guard = 0; guard < 64; guard++) {
     const wp = r[i];
     const dx = wp.x - x, dz = wp.z - z, L = Math.hypot(dx, dz);
@@ -59,32 +64,45 @@ export function predictEnemy(e, t, depth = 0) {
       if (left * sp <= L) return { x: x + (dx / L) * left * sp, z: z + (dz / L) * left * sp, heading: h };
       left -= L / sp; x = wp.x; z = wp.z;
     }
-    if (wp.wait > 0) { if (left <= wp.wait) return halt(wp, left); if (wp.look != null) h = (wp.look * Math.PI) / 180; left -= wp.wait; }
-    i = nextIdx(i);
+    if (wp.wait > 0) { if (left <= wp.wait) return haltPose(wp, left, x, z, h); if (wp.look != null) h = (wp.look * Math.PI) / 180; left -= wp.wait; }
+    if (loop) i = i + 1 < r.length ? i + 1 : Math.min(loopStart, r.length - 1);
+    else { if (i + dir >= r.length || i + dir < 0) dir *= -1; i += dir; }
   }
   return { x, z, heading: h };
-  function nextIdx(k) {
-    if (loop) return k + 1 < r.length ? k + 1 : Math.min(loopStart, r.length - 1);
-    if (k + dir >= r.length || k + dir < 0) dir *= -1;
-    return k + dir;
-  }
+}
+
+/** At a halt he turns to its look over a couple of seconds (TURN): until then he still faces the way he came (`alt`). */
+const HALT_TURN = 3;
+function haltPose(wp, into, x, z, h) {
+  return wp?.look != null ? { x, z, heading: (wp.look * Math.PI) / 180, alt: into <= HALT_TURN ? h : undefined } : { x, z, heading: h };
 }
 
 /**
  * Could walking enemy `e`, predicted at `q` (x, z, heading) at sim time `tAbs`, see `dummy`? Conservative: his head is
  * tried at the predicted heading and at both ends of his sweep (walking men glance about).
  */
+const _seeOpt = { cone: null };
 function walkerSees(e, q, dummy, w, tAbs) {
   const amp = e.sweepAmp ?? e.vision?.sweep ?? 0; // radians (normalised vision data)
   // (no head reaches past the cone's longest far radius — perception.coneAt: a, or b = a·ratio for a wide ellipse)
   const v = e.vision, a0 = v?.far ?? v?.range, dx = dummy.x - q.x, dz = dummy.z - q.z;
   const reach = v?.elliptical ? a0 * Math.max(1, v.ellipseRatio ?? CONFIG.stealth.ellipseRatio) : a0;
   if (Number.isFinite(reach) && dx * dx + dz * dz > reach * reach * (1 + 1e-9) + 1e-9) return false;
-  for (const hd of q.alt != null ? [q.heading, q.alt] : [q.heading]) for (const off of amp ? [0, amp / 2, -amp / 2, amp, -amp] : [0]) {
-    const g = Object.create(e);
-    g.x = q.x; g.z = q.z; g.heading = hd; g.sweepActive = false; g.headOffset = off; // head turned `off` (elliptical far)
-    const cone = coneAt(g, tAbs);
-    if (pointInCone(cone, dummy.x, dummy.z) && canSee(g, dummy, w, { cone }) !== 'none') return true;
+  // (the same heads in the same order as `for (hd of [heading, alt?]) for (off of [0, ±amp/2, ±amp])`, without the
+  // arrays: this runs for every walker, every sample of every look-ahead)
+  const nh = q.alt != null ? 2 : 1, no = amp ? 5 : 1;
+  for (let ih = 0; ih < nh; ih++) {
+    const hd = ih ? q.alt : q.heading;
+    for (let io = 0; io < no; io++) {
+      const off = io === 0 ? 0 : io === 1 ? amp / 2 : io === 2 ? -amp / 2 : io === 3 ? amp : -amp;
+      const g = Object.create(e);
+      g.x = q.x; g.z = q.z; g.heading = hd; g.sweepActive = false; g.headOffset = off; // head turned `off` (elliptical far)
+      const cone = coneAt(g, tAbs);
+      _seeOpt.cone = cone;
+      const seen = pointInCone(cone, dummy.x, dummy.z) && canSee(g, dummy, w, _seeOpt) !== 'none';
+      _seeOpt.cone = null;
+      if (seen) return true;
+    }
   }
   return false;
 }
@@ -143,8 +161,10 @@ function inPoly(poly, x, z) {
 /** Where a walking unit will be after `dist` m along its current path (then straight on), and his heading there. */
 function alongPath(u, dist, stopAtEnd = false) {
   let x = u.x, z = u.z, h = u.heading;
-  const pts = u.path ? u.path.slice(u.pathIndex ?? 0) : [];
-  for (const p of pts) {
+  // (the rest of his path walked in place: the same points in the same order as u.path.slice(pathIndex), no copy)
+  const P = u.path, rel = P ? Math.trunc(u.pathIndex ?? 0) || 0 : 0, i0 = P ? (rel < 0 ? Math.max(P.length + rel, 0) : Math.min(rel, P.length)) : 0;
+  for (let i = i0; P && i < P.length; i++) {
+    const p = P[i];
     const dx = p.x - x, dz = p.z - z, L = Math.hypot(dx, dz);
     if (L < 1e-6) continue;
     h = Math.atan2(dz, dx);
@@ -421,15 +441,19 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
         t += L / speed; x = px; z = pz;
         if (pause + extra > 0) { samples.push([x, z, t + (pause + extra) / 2]); t += pause + extra; samples.push([x, z, t]); }
       }
+      // (one dummy refilled per sample, the samples walked by index: the same tests in the same order as a fresh
+      // dummy per sample under `for (const [sx, sz, st] of samples)`, without that garbage — this runs every tick)
+      const dummy = { x: 0, z: 0, y: 0, isLow: low, isVisibleToEnemies: true };
       for (const e of w.enemies) {
         if (!e.alive || e.removed || !e.vision) continue;
         const moving = e.isMoving || e.path || (e.route && e.route.length > 1), far = (e.vision.far ?? 36) + 1;
-        for (const [sx, sz, st] of samples) {
+        for (let si = 0; si < samples.length; si++) {
+          const S = samples[si], sx = S[0], sz = S[1], st = S[2];
           const q = moving ? predictEnemy(e, st) : { x: e.x, z: e.z, heading: e.heading };
           const dd = Math.hypot(q.x - sx, q.z - sz);
           if (dd > far) continue;
           if (dd < minDist && moving) { if (why) why.push(`${e.tag} close@(${sx.toFixed(1)},${sz.toFixed(1)})+${st.toFixed(1)}`); return false; } // too close to trust a cone
-          const dummy = { x: sx, z: sz, y: w.grid.elevAt?.(sx, sz) ?? 0, isLow: low, isVisibleToEnemies: true };
+          dummy.x = sx; dummy.z = sz; dummy.y = w.grid.elevAt?.(sx, sz) ?? 0;
           const sees = moving ? walkerSees(e, q, dummy, w, w.time + st) : canSee(e, dummy, w, { cone: coneAt(e, w.time + st) }) !== 'none';
           if (sees) { if (why) why.push(`${e.tag}@(${sx.toFixed(1)},${sz.toFixed(1)})+${st.toFixed(1)}`); return false; }
         }

@@ -313,12 +313,16 @@ export function* libraryDecksG(built, o = {}) {
   const measure = o.measure || o.measureG;
   for (let b of built) {
     let br = b.library?.bridge;
-    if (!br?.deck || br.deck.length < 3 || !(br.deck_top > 0.05)) {
+    // `deckMeasure: false` (a long through-truss whose overhead bracing and deck seams would cut a measured deck into
+    // islands, M16): the gameplay rect is the deck at the analytic ramp to `deckTop`, its sides kept by the grid's own
+    // girders — the same in the browser and headless
+    const fixed = b.def?.deckMeasure === false;
+    if (!br?.deck || br.deck.length < 3 || !(br.deck_top > 0.05) || fixed) {
       // a library bridge / pier without sidecar deck data: its gameplay rect is the deck, measured on the visual
       const d = b.def, isDeck = b.library && (/bridge|pier|jetty|dam/.test(b.type) || d.deck) && d.w != null && d.d != null;
-      if (!isDeck || !measure) continue;
+      if (!isDeck || (!measure && !fixed)) continue;
       const c = Math.cos(d.rot ?? 0), s = Math.sin(d.rot ?? 0), hw = d.w / 2, hd = d.d / 2;
-      br = { deck: [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([u, v]) => [d.x + u * c - v * s, d.z + u * s + v * c]), deck_top: 1.2, deck_end: 0 };
+      br = { deck: [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([u, v]) => [d.x + u * c - v * s, d.z + u * s + v * c]), deck_top: fixed ? d.deckTop ?? 1.2 : 1.2, deck_end: 0, ...(fixed && d.deckRamp ? { approach: { length: d.deckRamp } } : {}) };
       b = { ...b, library: { ...b.library, scale: [1, 1, 1] } };
     }
     const sy = b.library.scale[1], top = br.deck_top * sy, endH = (br.deck_end ?? 0) * sy;
@@ -328,7 +332,7 @@ export function* libraryDecksG(built, o = {}) {
     const lo = Math.min(...along), hi = Math.max(...along), half = (hi - lo) / 2, mid = (hi + lo) / 2;
     const ramp = Math.min(half * 0.45, Math.max(2, (br.approach?.length ?? 6) * b.library.scale[0]));
     // measured decks cover the whole walkable nav rect (the sidecar deck can stop short of the crest's ends)
-    const d = b.def, rect = measure && d.w != null && d.d != null
+    const d = b.def, rect = (measure || fixed) && d.w != null && d.d != null
       ? [[-d.w / 2, -d.d / 2], [d.w / 2, -d.d / 2], [d.w / 2, d.d / 2], [-d.w / 2, d.d / 2]].map(([u, v]) => [x0 + u * c - v * s, z0 + u * s + v * c]) : null;
     const polyArea = (p) => Math.abs(p.reduce((t, q, k) => { const r = p[(k + 1) % p.length]; return t + q[0] * r[1] - r[0] * q[1]; }, 0)) / 2;
     // a curved crest (a dam's arch: the asset's crest_poly) is the deck itself
@@ -341,7 +345,7 @@ export function* libraryDecksG(built, o = {}) {
     // a raised deck (`elev`, M3 dam crest): the visual stands `elev` higher and units already stand at grid elev
     // there, so the measured surface is taken relative to it
     const lift0 = b.def.elev > 0 ? b.def.elev : 0;
-    const field0 = o.measureG ? yield* o.measureG(b, poly, rot, top + lift0) : o.measure ? o.measure(b, poly, rot, top + lift0) : null;
+    const field0 = fixed ? null : o.measureG ? yield* o.measureG(b, poly, rot, top + lift0) : o.measure ? o.measure(b, poly, rot, top + lift0) : null;
     const field = field0 && lift0 ? { heightAt: (x, z) => { const h = field0.heightAt(x, z); return h == null ? h : h - lift0; }, parapet: (x, z) => field0.parapet(x, z) } : field0;
     out.push({
       id: b.def.id ?? b.type, poly, top, owner: b.owner, measured: !!field, lift: 0, root: b.library.object3d ?? null,

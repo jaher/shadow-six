@@ -63,6 +63,11 @@ switch to the library only for hinted variants; a hinted `sea_wall` tiles its 8 
   sod roof and a flat roof section, the fortified HQ block with its walkable roof at 6.5 m, each with a burnt-out
   `_destroyed` twin; `masi_small.py`: lean-to, burnt log house, long-case clock, wheeled Gatling, log pile, handcart). Own
   types only; M6 picks them by `asset`.
+- M4 (Stokkan, Trondheim; `manifest-stokkan.json`): `norway/q_m04.txt` lists the builds (`stokkan.py`: the inner compound's
+  granite gate arch (dressed piers, segmental voussoir arch with keystone, rubble spandrels, coping, lantern, HALT board) and
+  its collapsed twin; three Norwegian fieldstone farm ruins (a broken wall with a window gap, an L-shaped and a U-shaped
+  shell with chimney stubs, charred beams and rubble); the Falu-red henhouse with its netted run; the tarred log guardhouse
+  with barred windows (the jail hut); snow twins and ruins). Own types only; M4 picks them by `asset` with `nav: false`.
 - M9 (Bab el Qattara, `manifest-bab-el-qattara.json`): `desert/q_m09.txt` lists the builds (`bq_*.py` on `bq_common.py`: the open
   three-bay corrugated tank shed with its torn roof and rolled camouflage net, sandstone houses under Marseille tiles and the
   weapons store with its porch, the whitewashed NE hideout, the command post with its mud-brick annex, the domed garrison block

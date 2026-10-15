@@ -18,6 +18,7 @@ import * as THREE from 'three';
 import { createVehicleVisual, vehicleLibraryReady, resolveVehicle } from './vehicle-library.js';
 import { vehicleArtReady, vehicleArtContext, noteVehicleArt, addVehicleTicker, markShared } from './vehicle-model.js';
 import { createWindsockSock } from './windsock-sock.js';
+import { iceFloe } from './kit-props.js';
 
 /**
  * Structure type (+ variant hint) → library asset / type, or null (keep the placeholder, logged).
@@ -104,7 +105,17 @@ export function dressStaticVehicles(world, def) {
     if (Number.isFinite(s.def?.vehicleArtX)) holder.position.x = s.def.vehicleArtX;
     // an 'overturned' wreck (e.g. M15's car_wreck_overturned) lies on its roof: rolled 180 deg about its long axis
     const flip = /overturned/.test(String(s.def?.variant || '')) ? new THREE.Group() : null;
-    if (flip) { flip.name = 'overturned'; flip.rotation.z = Math.PI; flip.add(vis.object3d); holder.add(flip); } else holder.add(vis.object3d);
+    // a sunken wreck (M4's tank in the inlet, art pass): `sink` m down, `list` / `trim` degrees of roll / pitch, on an
+    // ice crust (`ice`: the walkable platform round it, drawn as rafted pack ice at the deck level)
+    const sunk = !flip && (s.def?.sink || s.def?.list || s.def?.trim) ? new THREE.Group() : null;
+    if (sunk) {
+      sunk.name = 'sunken'; sunk.position.y = -(s.def.sink || 0);
+      // `artShift` [along, across] m: the hull sits off-centre on its platform (M4: clear of the cliff foot)
+      if (s.def.artShift) sunk.position.add(new THREE.Vector3(-(s.def.artShift[1] || 0), 0, s.def.artShift[0] || 0));
+      sunk.rotation.set(((s.def.trim || 0) * Math.PI) / 180, 0, ((s.def.list || 0) * Math.PI) / 180);
+      sunk.add(vis.object3d); holder.add(sunk);
+      if (s.def.ice) s.object3d.add(iceCrust(s.def));
+    } else if (flip) { flip.name = 'overturned'; flip.rotation.z = Math.PI; flip.add(vis.object3d); holder.add(flip); } else holder.add(vis.object3d);
     const rec = { id, asset, scale: 1, vis };
     vis.ready.then(() => {
       const md = vis.meta?.dims || {}, b = vis.meta?.bbox;
@@ -130,6 +141,30 @@ export function dressStaticVehicles(world, def) {
     out.push(rec);
   }
   return out;
+}
+
+/** Rafted pack ice round a sunken wreck: a few overlapping jagged floes over the structure's w × d at `ice.y`. */
+function iceCrust(d) {
+  const g = new THREE.Group(); g.name = 'ice-crust'; g.userData.keepWithLibrary = true;
+  const w = d.w ?? 4, dd = d.d ?? 4, y = d.ice?.y ?? 0.05, zmin = d.ice?.zmin ?? -Infinity;
+  let seed = 7;
+  const R = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  // rafted floes over the deck (the walkable platform), overlapping and leaning a little, snow-crusted
+  for (const [cx, cz, s] of [[-0.25, 0.1, 0.62], [0.3, -0.2, 0.55], [0.05, 0.35, 0.5], [-0.3, -0.35, 0.45], [0.35, 0.3, 0.4], [0, -0.05, 0.4]]) {
+    let fz = cz * dd * 0.6, rx = s * w * 0.4, rz = s * dd * 0.4;
+    const lim = (r) => r * 1.12 + 0.1;                                       // polygon jitter + bevel; floes spin freely
+    if (fz - lim(Math.max(rx, rz)) < zmin) {                                  // stay off the -z side's limit
+      rx = rz = Math.max(0.35, (fz - zmin - 0.1) / 1.12); fz = Math.max(fz, zmin + lim(rx));
+    }
+    g.add(iceFloe(R, cx * w * 0.6, fz, rx, rz, y + 0.03 + R() * 0.04, 0.2 + R() * 0.06, { n: 10, tilt: 0.06 }));
+  }
+  // broken floes and brash ice round the rim, awash at the waterline
+  for (let k = 0; k < 9; k++) {
+    const a = (k / 9) * Math.PI * 2 + R() * 0.4, rx = w * (0.52 + R() * 0.12), rz = dd * (0.52 + R() * 0.12);
+    if (Number.isFinite(zmin) && Math.sin(a) < -0.3) continue;               // none on a limited -z side (M4: the cliff foot)
+    g.add(iceFloe(R, Math.cos(a) * rx, Math.sin(a) * rz, 0.25 + R() * 0.3, 0.2 + R() * 0.25, y - 0.04, 0.09, { n: 7, tilt: 0.3, tint: 0xd2e0e8 }));
+  }
+  return g;
 }
 
 /** Hide a placeholder subtree, sparing any `keepWithLibrary` part inside it (e.g. M7's torpedo stack on the hull). */

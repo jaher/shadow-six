@@ -1673,7 +1673,11 @@ Emitters add the events they own; AUDIO never needs another team to call it.
   - Water mirror (`art/water/index.js`): oblique near plane at the water instead of a clipping plane (no program
     variant flip), the mirror camera cut to the screen window the visible water can sample, and `withExtraCull`
     (`engine/cull-hooks.js`) drops objects whose reflection (footprint swept h·cot(pitch) towards the camera + the
-    ripple distortion reach) misses the level's water footprint mask.
+    ripple distortion reach) misses the level's water footprint mask. Game.render draws it after its one
+    scene.updateMatrixWorld of the frame (`WaterSystem.mirrorLater` / `renderMirror`: no matrix update of its own per
+    level). Under a moving camera with `reflEvery` > 1 (high) the levels are redrawn in turn (one level alone: every
+    other frame), each texture drawn 5 % past the screen edges (`MIRROR_PAD`) so the next frame still finds its
+    reflection with the matrix it was drawn with; every level again after a cut, a zoom or a fast pan (`_viewJump`).
   - x-ray / late-FX passes hide the top-level groups that hold neither their objects nor lights; the GTAO prepass hides
     points / lines in its own walk.
   - Load-time warm-up (`Game._warmFrame`, `CONFIG.render.warmFrame`): one frame of the whole map (frustum widened, shadow
@@ -1697,8 +1701,15 @@ Emitters add the events they own; AUDIO never needs another team to call it.
     Video mode keeps first-use costs out of play: the load stages the ruins a blast reveals (`prepareDestroy`, detached
     groups at the same world matrices: the same deformation bit for bit) and its warm-up frame draws them with the dam
     burst, the escape truck (`laterVehicleModels`), blood, dig sites, a cone, LODs and stained / submerged men;
-    `tests/video-perf-m03.test.mjs` plays M3's whole walkthrough at 4× and fails on a program linked during play, a
-    driver stall, a long task or a frame over its host-calibrated bound. Tests:
+    `engine/idle-warm.js` queues the cache fills left to first use — the bodies' fitted / grounded clips
+    (`queueIdleWarm`: prone set, plant, set_trap, cut_wire: 20–40 ms each) and the bodies of each barracks squad's
+    first release (`queueAheadModels` / `buildAhead`, taken by createUnitModel when the man spawns) — and the
+    walkthrough runs one per frame on its title and chapter cards and during a jump (`_stillScreen`).
+    `wt-user.mjs` records the walkthrough as the user watches it (cold browser, the live site or a checkout, AUTO by
+    default): every frame with its phase, long tasks, GPU time per draw (`--gpu`), a whole-run CPU profile and each
+    frame over 50 ms with what ran in it. `tests/video-perf-m03.test.mjs` plays M3's whole walkthrough in AUTO and at
+    4× (1920×1080) and fails on a program linked during play, a driver stall, a long tick, a long task or a frame over
+    the calm-desktop targets (50 ms, p99 25 ms) scaled by the run's own median frame. Tests:
     `render-budget` (draws / triangles / frame time per mission vs `tests/render-budgets.json`), `render-on-demand`,
     `dynamic-res`, unit `render-culling`, `dynamic-res`.
 - QA: `renderer.frameStats()` / `__game.frameStats()` (mean/std RGB, saturation, black fraction, context lost)

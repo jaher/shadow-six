@@ -18,6 +18,7 @@ import { applyClothWind } from './cloth-wind.js';
 import { createHumanoid } from './humanoid.js';
 import { CONFIG } from '../config.js';
 import * as HR from './humanoid-real.js';
+import { idleWarm } from '../engine/idle-warm.js';
 import { applyRagdollPose, rememberIdle, captureBase, lyingBase } from './ragdoll-pose.js';
 import { liveView } from '../physics/ragdoll.js';
 import { mapAnim, LOCOMOTION, actionWeapon, CARRY_WEAPON, lookType, guestCharacter, missionNumber, chargeProp } from './unit-anim-map.js';
@@ -93,7 +94,41 @@ export async function prepareCharacters(def, { timeoutMs = 20000 } = {}) {
 }
 
 /** Stop creating real characters (mission unloaded) and drop every live one. */
-export function releaseCharacters() { ctx.ready = false; HR.disposeAllCharacters?.(); }
+export function releaseCharacters() { ctx.ready = false; AHEAD.clear(); HR.disposeAllCharacters?.(); }
+
+/**
+ * Bodies built ahead for men the simulation will only spawn later — a barracks' reinforcements (ai/alarm.js
+ * `${barracks}#${k}.${gen}.${i}`): built on a still screen (engine/idle-warm.js), taken by createUnitModel when the
+ * man appears instead of being built in the tick that spawns him (M3's bunker blast: ~20 ms of the tick). The same
+ * body either way: everything it is made of follows from the spawn id (variant, jitter, kit), nothing from the moment.
+ */
+const AHEAD = new Map();
+const aheadKey = (o) => (o.faction === 'enemy' && o.spawnId != null && !o.colors && !o.variantId ? `${o.spawnId}|${o.soldierType}|${o.squad ?? ''}` : null);
+export function buildAhead(opts) {
+  if (!ctx.ready || !HR.characterLibrary()) return;
+  const o = { faction: 'enemy', ...opts }, k = aheadKey(o);
+  if (!k || AHEAD.has(k)) return;
+  try { AHEAD.set(k, HR.createRealHumanoid(realOpts(o))); } catch (e) { console.warn('[unit-model] build ahead', e); }
+}
+
+/** Queue (idle-warm) the bodies of every barracks squad's first release (gen 0), within each pool. */
+export function queueAheadModels(world) {
+  let n = 0;
+  for (const b of Object.values(world?.alarm?.barracks || {})) {
+    let pool = b.pool ?? 0;
+    for (const s of b.squads || []) {
+      const m = Math.min(s.size ?? 0, pool);
+      pool -= m;
+      const squadId = `${b.id}#${s.k}`;
+      for (let i = 0; i < m; i++) {
+        const spawnId = `${squadId}.${s.gen ?? 0}.${i}`, soldierType = i === 0 ? 'sergeant' : 'trooper';
+        idleWarm.add(`ahead ${spawnId}`, () => buildAhead({ soldierType, spawnId, squad: squadId }));
+        n++;
+      }
+    }
+  }
+  return n;
+}
 
 /** Wait (bounded) until every unit's body is built so the mission does not start with pop-ins. */
 export async function awaitUnitModels(units, ms = 15000) {
@@ -146,6 +181,44 @@ export function* warmUnitModelsG(units, budgetMs = 1200) {
   return work;
 }
 
+/** Clips whose first use fits them to the body (prone-fit.js) or grounds them (ground.js): 5–40 ms each. */
+const FITTED = (m) => !!(m && (m.prone || m.paths || m.ground));
+/** Clips seen first mid-play (M3's walkthrough): played early, so warmed first. */
+const EARLY_CLIPS = ['go_prone', 'crawl_idle_unarmed', 'crawl_unarmed', 'crawl_idle', 'crawl', 'prone_turn_r', 'prone_turn_l', 'get_up',
+  'set_trap', 'cut_wire', 'take_charge', 'plant', 'prone_shoot', 'prone_aim', 'crawl_knife'];
+
+/**
+ * Queue (engine/idle-warm.js) the clip work warmUnitModels leaves to first use: every fitted / grounded clip of the
+ * squad's bodies (the prone set, the Sapper's plant / set_trap / cut_wire: 20–40 ms each, a frame each mid-play) and
+ * the Germans' prone death clips, one task per clip and body template. Run on still screens (the walkthrough's cards);
+ * what is left fills lazily at first use, as before. Pure cache fills: the poses are the same either way.
+ */
+export function queueIdleWarm(units) {
+  const L = HR.characterLibrary?.();
+  if (!L) return 0;
+  const seen = new Set();
+  let n = 0;
+  const add = (R, name, label) => {
+    const k = `${R.characterId}|${name}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    idleWarm.add(label, () => R.hasAnim(name));
+    n++;
+  };
+  for (const u of units) {
+    const R = u.model?.real;
+    if (!R?.inner || u.model?.dog) continue;
+    const lib = L.rt?.[R.entry?.runtime]?.lib;
+    if (!lib?.clips) continue;
+    if (u.faction === 'player') {
+      const names = [...lib.clips.keys()].filter((nm) => FITTED(lib.meta?.[nm]));
+      names.sort((a, b) => (EARLY_CLIPS.indexOf(a) + 1 || 99) - (EARLY_CLIPS.indexOf(b) + 1 || 99));
+      for (const nm of names) add(R, nm, `${u.role || u.id} ${nm}`);
+    } else for (const nm of ['die_prone', 'dead_prone']) if (lib.clips.has(nm)) add(R, nm, `${R.characterId} ${nm}`);
+  }
+  return n;
+}
+
 /**
  * Per-frame view update shared by every character: frustum (off-screen throttling) + LOD from the camera zoom.
  * @param {import('three').Camera|false} camera the view camera; false when several views are drawn (no culling)
@@ -174,6 +247,8 @@ function realOpts(o) {
  */
 export function createUnitModel(opts = {}) {
   if (!ctx.ready || !HR.characterLibrary()) return createHumanoid(opts);
+  const k = aheadKey(opts), pre = k && AHEAD.get(k);
+  if (pre) { AHEAD.delete(k); return new UnitModel(pre, opts); }
   try { return new UnitModel(HR.createRealHumanoid(realOpts(opts)), opts); } catch (e) {
     console.warn('[unit-model] real character failed, placeholder used', e);
     return createHumanoid(opts);

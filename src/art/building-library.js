@@ -105,7 +105,7 @@ export function libTextureURL(file) {
 }
 
 /** Add-on manifests under assets/models/buildings/ (same schema, `assets` + `types` only), merged after manifest.json. */
-export const EXTRA_MANIFESTS = ['manifest-atlantic-wall', 'manifest-tunis', 'manifest-le-havre', 'manifest-compiegne', 'manifest-tell-el-eisa', 'manifest-tell-el-eisa-bridge', 'manifest-oldenburg', 'manifest-maas', 'manifest-bab-el-qattara', 'manifest-masi', 'manifest-el-agheila', 'manifest-maradah'];
+export const EXTRA_MANIFESTS = ['manifest-atlantic-wall', 'manifest-tunis', 'manifest-le-havre', 'manifest-compiegne', 'manifest-tell-el-eisa', 'manifest-tell-el-eisa-bridge', 'manifest-oldenburg', 'manifest-maas', 'manifest-bab-el-qattara', 'manifest-masi', 'manifest-el-agheila', 'manifest-maradah', 'manifest-stokkan'];
 
 /**
  * Merge an add-on manifest into `base` (in place): new assets; per type the variant / all / byTheater lists are

@@ -320,6 +320,12 @@ export function fitScale(rawX, rawZ, maxDoorH = 0) {
   return { sx, sy, sz };
 }
 
+/** A structure's `artFill` as [along w, along d] (1, 1 when unset). */
+export function artFillOf(p = {}) {
+  const f = p.artFill;
+  return Array.isArray(f) ? [f[0] ?? 1, f[1] ?? 1] : [f ?? 1, f ?? 1];
+}
+
 /**
  * Realistic visual for a catalogue structure, fitted onto its gameplay footprint.
  * @param {string} type catalogue type
@@ -353,7 +359,11 @@ export function libraryVisual(type, p = {}, ctx = {}) {
   const { ext } = pick;
   const ew = pick.turn ? ext.d : ext.w, ed = pick.turn ? ext.w : ext.d;
   const w = p.w ?? (p.r != null ? p.r * 2 : null), d = p.d ?? (p.r != null ? p.r * 2 : null);
-  const rawX = w ? w / ew : 1, rawZ = d ? d / ed : 1;
+  // `artFill` (a share of the footprint, or [x, z] along w and d): the model fitted to that much of it — a house drawn
+  // smaller on its gameplay footprint, its eaves and porches off the street (breathing room between neighbours); the
+  // footprint, its doors and its nav stay
+  const [fx, fz] = artFillOf(p);
+  const rawX = w ? (w * fx) / ew : 1, rawZ = d ? (d * fz) / ed : 1;
   // raised decks (watchtowers) match the gameplay deck height (units stand at deckY); bridges/dams keep the plain
   // footprint fit (their spans must meet the banks); buildings follow the real-world scale rules (fitScale)
   const deckY = p.deckY ?? (type === 'watchtower' ? p.h : null);

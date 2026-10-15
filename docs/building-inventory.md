@@ -121,7 +121,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `tent_large_barrack` | tent | Large "barrack tent" or tarp shelter over equipment; covers the HS 293 bomb in B3 | Crete/Norway | B3, M4 (`LONA1-4`) | D | 12×6×4 | NEW |
 | `guard_hut` | hut | Timber guard hut | All | M1, M2, M4 | E | 3×3×3 | norway |
 | `sentry_box` | hut | Sentry box (guérite, `GARI`/`GARE`, tooltip `GUERITE`): 1-man upright box | All | M1 (end of the stone wall), M2 (gate), B5 (×12) | — | 1.2×1.2×2.4 | VAR:norway (guard hut) |
-| `jail_cell` | new | Small jail cell or cell block with a barred door. It can be a room in a building (`CARCEL`) | All | M4, M12 (off the courtyard), M17 (cage-type gate), B5 (×2), B7 (punishment cells `CELDAS_CASTIGO`) | J, dr | 6×4×3 | NEW |
+| `jail_cell` | new | Small jail cell or cell block with a barred door. It can be a room in a building (`CARCEL`) | All | M4, M12 (off the courtyard), M17 (cage-type gate), B5 (×2), B7 (punishment cells `CELDAS_CASTIGO`) | J, dr | 6×4×3 | BUILT for M4 (`jail_guardhouse_no`, tarred log guardhouse, barred windows; `manifest-stokkan`) |
 | `comms_hut_antenna` | hut | Small communications hut cabled to a lattice antenna mast; in M9 the mast stands in a sandbag ring | N. Africa/Norway | M5 (antenna), M9 (**2 objectives**: mast and hut) | **D** | hut 4×3×3; mast 18 h | BUILT (M9 pass: `comms_hut_antenna_bq` board-and-batten hut, whips, S blast wall, generator, + destroyed) |
 | `relay_station` | hut | Timber radio relay hut with a tall lattice radio mast and a parked vehicle (`RADI0000-2`, `RADIOEXP`) | Norway | M1 (**objective**, NW island) | **D** | hut 5×4×3; mast 20 h | NEW |
 | `radar_station` | new | Radar building with a Würzburg dish and antenna mast (`CASA04`) | Norway/Guernsey | M5 (summit, **objective**), B1 (**objective**) | **D** | bldg 10×6×4; dish 7.5 Ø | norway (building); VAR for the dish |
@@ -202,7 +202,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `watermill` | new | Half-timber and stone watermill with a waterwheel and a deck on the river | Alsace/Netherlands | M17 (old mill) [img], B8 (`MOLINO_AGUA`, **D** `EXPL_MOLINO01`) | E, D (B8) | 12×10×9 | europe |
 | `windmill_post` | new | Dutch timber post/smock mill with **animated sails** (`ASPA1/2`, `ASPAMOL`) on a round mound | Netherlands | B8 (×2) | — | 6×6×18 | NEW |
 | `shed_timber_long` | hut | Long timber-roofed shed, open shelter or pergola | N. Africa/Netherlands | M11, B2 (ostrich paddock shed), B7 (bridge shed `CASA_COBERTIZO_PUENTE`) | E [inf] | 12×5×4 | BUILT (M11 pass: `shed_lean_to_ms`) |
-| `henhouse` | hut | Henhouse/chicken coop (`GALLINERO`, `GALL`) | Norway/Prussia/Germany | M4 (D), B5, B6 | D | 3×2×2 | NEW |
+| `henhouse` | hut | Henhouse/chicken coop (`GALLINERO`, `GALL`) | Norway/Prussia/Germany | M4 (D), B5, B6 | D | 3×2×2 | BUILT for M4 (`henhouse_no` + ruin; `manifest-stokkan`) |
 | `dog_kennel` | new | Dog cage/kennel pen | Germany | M19 | dr | 4×3×2 | BUILT (M19 pass: `kennel_de` box in the kit pen) |
 | `outhouse` | hut | Latrine/outhouse | Germany | M19, M20 | E [inf] | 1.5×1.5×2.5 | built: M20 procedural (castle-kit buildOuthouse); M19 pass: `outhouse_de` plank privy (variant `outhouse_privy`) |
 
@@ -360,6 +360,12 @@ Each mission lists the §1 ids it needs, with counts. **Bold** marks an objectiv
   - `tent_large_barrack`/tarps (`LONA1-4`).
   - `wall_ruined_stone` arch.
   - `airdrop_crate`, `aircraft_wreck` [inf].
+  - **Art pass (M4)**: `manifest-stokkan` adds the granite gate arch (`arch_gate_granite_no`, collapses into its rubble twin
+    with `arch_fall`), Norwegian fieldstone ruins (`ruin_fieldstone_no_a/b/c`, for `wall_ruined_stone`), the henhouse and the
+    log guardhouse; the outer wall is rendered masonry on a granite socle under an iron railing, the inner one a tarred board
+    fence; the trestle carries steel lattice girders on granite pier heads; the sunken tank is a drowned Panzer II on pack
+    ice; set dressing (staff car, R75, log piles, drums, hand trolley) and furniture (lamps, St Andrew's crosses, telegraph
+    line, HQ board, fingerpost).
 - **M5 Blind Justice (Herdla)** [i]:
   - `house_log_cabin` village.
   - `cable_car` (2 stations, cabin, towers).

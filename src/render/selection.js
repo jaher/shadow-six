@@ -68,6 +68,7 @@ function decalMaterial(color, opacity) {
   return new THREE.MeshBasicMaterial({
     color, transparent: true, opacity, depthTest: true, depthWrite: false, fog: false, side: THREE.DoubleSide,
     polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2,
+    forceSinglePass: true, // (a flat ring on the ground: both sides in one pass — no back/front pass pair, no version bumps)
   });
 }
 
@@ -206,7 +207,7 @@ export class Selection {
       r.name = 'selection-ring';
       r.renderOrder = 10;
       r.frustumCulled = false;
-      const ghostMat = ghostMaterial(new THREE.MeshBasicMaterial({ color: GHOST_COLOR, transparent: true, opacity: GHOST_DIM, side: THREE.DoubleSide }));
+      const ghostMat = ghostMaterial(new THREE.MeshBasicMaterial({ color: GHOST_COLOR, transparent: true, opacity: GHOST_DIM, side: THREE.DoubleSide, forceSinglePass: true }));
       const ghost = new THREE.Mesh(geo, pulseRingMaterial(ghostMat));
       ghost.name = 'selection-ring-ghost';
       ghost.layers.set(XRAY_LAYER); // drawn only by XRayPass

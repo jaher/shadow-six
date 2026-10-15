@@ -25,6 +25,26 @@ import { oxbloodLUT, dioramaPath, samplePath } from './menu-model.js';
 /** Theatres with a baked B1s still (assets/ui/diorama/<theater>.webp, tools/ui/bake_dioramas.mjs). */
 export const STILL_THEATERS = ['temperate', 'snow']; // desert / night join when their missions ship (re-run the bake)
 
+/** An inline SVG filter doing freeze()'s oxblood grade (luminance 54/183/19 ÷ 256 → oxbloodLUT), made once; its id. */
+let OX_FILTER = null;
+export function oxbloodFilterId() {
+  if (OX_FILTER) return OX_FILTER;
+  if (typeof document === 'undefined' || !document.body) return null;
+  const lut = oxbloodLUT(), ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('width', '0'); svg.setAttribute('height', '0'); svg.setAttribute('aria-hidden', 'true');
+  svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
+  const k = [54 / 256, 183 / 256, 19 / 256].map((v) => v.toFixed(6)).join(' ');
+  const tab = (c) => Array.from({ length: 256 }, (_, y) => (lut[y * 3 + c] / 255).toFixed(5)).join(' ');
+  svg.innerHTML = `<filter id="s6-oxblood" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+    <feColorMatrix type="matrix" values="${k} 0 0  ${k} 0 0  ${k} 0 0  0 0 0 1 0"/>
+    <feComponentTransfer><feFuncR type="table" tableValues="${tab(0)}"/><feFuncG type="table" tableValues="${tab(1)}"/><feFuncB type="table" tableValues="${tab(2)}"/></feComponentTransfer>
+  </filter>`;
+  document.body.appendChild(svg);
+  OX_FILTER = 's6-oxblood';
+  return OX_FILTER;
+}
+
 export class Backdrop {
   constructor(hud) {
     this.hud = hud;
@@ -359,9 +379,17 @@ export class Backdrop {
     }
     f.width = shot.width;
     f.height = shot.height;
-    const ctx = f.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(shot, 0, 0);
-    try {
+    const ctx = f.getContext('2d');
+    // the oxblood grade on the GPU (an SVG filter: the same luminance weights, the LUT as a 256-entry table — ±1 of the
+    // CPU loop's rounding): the read-back + per-pixel loop + write-back of a 1920 px frame held the main thread ~40 ms
+    // (the debrief's freeze at a walkthrough's end, the pause menu)
+    const fid = 'filter' in ctx ? oxbloodFilterId() : null;
+    if (fid) {
+      ctx.filter = `url(#${fid})`;
+      ctx.drawImage(shot, 0, 0);
+      ctx.filter = 'none';
+    } else ctx.drawImage(shot, 0, 0);
+    if (!fid) try {
       const img = ctx.getImageData(0, 0, f.width, f.height);
       const d = img.data, lut = oxbloodLUT();
       for (let i = 0; i < d.length; i += 4) {

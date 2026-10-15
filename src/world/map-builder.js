@@ -213,6 +213,13 @@ function buildStructureCore(s, ctx) {
     // round catalogue prop (rocks, …) given an explicit w × d: oriented rect footprint
     fps = fps.map((f) => ({ ...f, shape: 'rect', x: params.x, z: params.z, w: params.w, d: params.d, rot: params.rot ?? 0 }));
   }
+  // `navParts` ({x, z, w, d, block} rects in the structure's frame, before `rot`): the drawn model's own walls and low
+  // parts as the gameplay footprints, in place of the w × d block — what a wall hides and stops is where it is drawn,
+  // in the browser and in the grid-only builds alike (M7's brick ruins: the shell walls B.HIGH, breach and rubble B.LOW)
+  if (Array.isArray(params.navParts)) {
+    const rot = params.rot ?? 0, c = Math.cos(rot), s = Math.sin(rot), x0 = params.x ?? 0, z0 = params.z ?? 0;
+    fps = [...fps.filter((f) => !f.block), ...params.navParts.map((p) => ({ shape: 'rect', x: x0 + p.x * c - p.z * s, z: z0 + p.x * s + p.z * c, w: p.w, d: p.d, rot, block: p.block }))];
+  }
   // thin blocking rects (gates, barriers) must stay ≥ 2 cells thick at any rotation, or diagonal ones leak
   fps = fps.map((f) => (f.block && f.shape === 'rect' && Math.min(f.w, f.d) < 2 * ctx.grid.cell
     ? (f.w < f.d ? { ...f, w: 2 * ctx.grid.cell } : { ...f, d: 2 * ctx.grid.cell }) : f));

@@ -14,14 +14,22 @@
  *    destroys it SILENTLY: an `accident` explosion event (FX only), no noise, so no alarm (the stock destroy() is always noisy).
  *  - The drive-off: the van, once everyone is aboard after o1 + o2, path-finds to the NW road instead of the
  *    engine's straight [exit, leave] run (it starts in the cemetery, behind a fence).
+ *  - The sunken stairs (dossier §4.2: "a body left on S1 below y −1.5 is hidden from the street, the parapet occludes
+ *    it" [K][P]). The flat build has the stair flights at street level, so a body on their lower half is taken out
+ *    of sight here instead (`hiddenBody`, as a body under a barrel): the canal's stairs hide the dead as they did.
  * @module missions/scripts/m15
  */
 
 import { CONFIG } from '../../config.js';
 
-/** The HQ's demolition point (the N block's NE corner by the rear door) and its reach (the barrel damage ring). */
+/**
+ * The HQ's demolition point (the N block's NE corner by the rear door) and its reach. 7.5 m, a little past the barrel
+ * damage ring (6.75): in the real game the block's mesh clearance (map-builder rule e) and the tram standing at the
+ * line's east end keep a lorry's centre ~7 m from the corner at best, so at 6.75 a fuel tanker parked against both —
+ * where the departing tram hits it — fell just short (the data-footprint nav lets it 6 m in).
+ */
 export const HQ_POINT = { x: 72.4, z: 49.2 };
-export const HQ_REACH = 6.75;
+export const HQ_REACH = 7.5;
 /** The general's doors: the garden door (W face) and the main door (E face, onto the car yard). */
 export const GARDEN_DOOR = { x: 54.3, z: 59.8 };
 export const MAIN_DOOR = { x: 71.7, z: 58.5 };
@@ -55,6 +63,29 @@ export function hullDistance(v, x, z) {
   const sz = v.def?.size || [4.5, 1.8];
   const ax = Math.max(0, Math.abs(dx * c + dz * s) - sz[0] / 2), sx = Math.max(0, Math.abs(-dx * s + dz * c) - sz[1] / 2);
   return Math.hypot(ax, sx);
+}
+
+/**
+ * The lower halves of the two stair flights (the W stairs S1 go down to the S, the E stairs S2 to the W): a body lying
+ * there is below the parapets in the real, sunken canal (dossier §4.2).
+ */
+export const S1_LOW = [[26, 100.9], [31, 101.5], [31, 104], [26, 103.5]];
+export const S2_LOW = [[50.2, 106.3], [51.9, 107.3], [48.0, 122.3], [46.6, 121.8]];
+export const onLowerStairs = (x, z) => inPoly(S1_LOW, x, z) || inPoly(S2_LOW, x, z);
+
+/**
+ * A body on the lower stairs is out of sight from the street; lifted off them it is in sight again (only the bodies
+ * this rule hid: one under a barrel or buried in rubble stays hidden). After a load a hidden body lying there is the
+ * rule's again.
+ */
+export function stairsHideBodies(w) {
+  for (const e of w.enemies || []) {
+    if (e.alive !== false || e.removed) continue;
+    const low = !e.carriedBy && e.state !== 'carried' && onLowerStairs(e.x, e.z);
+    if (low) {
+      if (!e.hiddenBody) { e.hiddenBody = true; e.m15Stairs = true; } else if (e.m15Stairs === undefined) e.m15Stairs = !e.hiddenUnderBarrel;
+    } else if (e.m15Stairs) { e.hiddenBody = false; e.m15Stairs = false; }
+  }
 }
 
 const hqStanding = (w) => { const h = w.byId?.('hq'); return !!h && !h.destroyed; };
@@ -255,4 +286,5 @@ export function m15Tick(world) {
   if (world.byId?.('hq')?.destroyed) { ruinWing(world); smoulderHQ(world); } // after a quick load too
   tickGeneral(world);
   tickDriveOff(world);
+  stairsHideBodies(world);
 }

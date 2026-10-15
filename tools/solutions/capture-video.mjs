@@ -290,12 +290,13 @@ async function directorMain({ id, FPS, DRY, MAX_FRAMES }) {
   let err2 = null;
   try {
     // title card over the opening view
-    const gb = D.c('greenberet');
+    // (the opening view on the Green Beret, or the first live man of a team without one: M15, M16)
+    const gb = D.c('greenberet') ?? w.commandos.find((c) => c.alive) ?? w.commandos[0];
     pitch = CUT.pitchAt?.(gb.x, gb.z) ?? pitch0;
     cam.elevation = (pitch * Math.PI) / 180;
     cam.setZoom(0.7, true);
     look(gb.x, gb.y ?? 0, gb.z); camX = gb.x; camZ = gb.z; camY = gb.y ?? 0;
-    G.select('greenberet');
+    G.select(gb.role);
     ov.style.display = 'none'; badge.style.display = 'none';
     showCard(CUT.TITLE_CARD || `<div style="font-size:42px">${id}</div>`);
     await hold(4.5, { card: 'title' });
