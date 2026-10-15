@@ -32,6 +32,8 @@ export const BODY = {
   // past the head, 1.45 m behind it and up to 0.7 m to each side (a man who died crawling lies like a crawler)
   dead: { front: 0.65, back: 1.25, r: 0.3, arms: { at: 1.45, half: 0.7, r: 0.15 } },
 };
+/** Top (m over the ground under it) of the height band a static solid's plan is measured in (map-builder stampBodySolids). */
+export const SOLID_BAND_TOP = 1.6;
 /** Clearance kept at a stop / after lying down (m). */
 export const STOP_MARGIN = 0.1;
 /** Clearance the step guard keeps while moving / turning (m). */
@@ -319,10 +321,15 @@ export function unitStance(u) {
 function stampObstacle(g, mask, R, pad) {
   const r = obsRadius(R) + pad;
   const c0 = g.worldToCell(R.x - r, R.z - r), c1 = g.worldToCell(R.x + r, R.z + r);
+  // (a deck, walkway or landing on it — M8's fuel tanks under their walkway frame, a tank's rim grating — is walked
+  // above its body: a click up there plans up the ladder, not to the ground beside it. Not a terrace beside a taller
+  // solid: up there only within a metre of its top)
+  const over = R.y0 != null && g.elev ? R.y0 + Math.max(SOLID_BAND_TOP, (R.top ?? 0) - 1.2) : Infinity;
   for (let j = Math.max(0, c0.j); j <= Math.min(g.rows - 1, c1.j); j++) {
     for (let i = Math.max(0, c0.i); i <= Math.min(g.cols - 1, c1.i); i++) {
-      const p = g.cellCenter(i, j);
-      if (rectSDF(p.x, p.z, R) < pad) mask[j * g.cols + i] = 1;
+      const p = g.cellCenter(i, j), k = j * g.cols + i;
+      const d = rectSDF(p.x, p.z, R);
+      if (d < pad && !(g.elev?.[k] >= over)) mask[k] = 1;
     }
   }
 }
@@ -348,6 +355,8 @@ export function avoidMask(world, inflate, ignore = null, prone = false) {
     if (!base) {
       base = new Uint8Array(g.cols * g.rows);
       for (const o of S.list) if (!o.gone) stampObstacle(g, base, o.R, pad);
+      // (a ladder's two ends — a tank's ladder foot a step from its shell — stay in the mask: the search opens them as
+      // the ladder's ends only, world/pathfinding.js findPath)
       S.masks.set(key, base);
     }
   }

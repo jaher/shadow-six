@@ -1,5 +1,5 @@
 import { test, assert } from './lib.mjs';
-import { NavGrid, B, T } from '../../src/world/grid.js';
+import { NavGrid, B, T, LINK } from '../../src/world/grid.js';
 import { findPath, pathLength } from '../../src/world/pathfinding.js';
 
 /** Every consecutive segment must be walkable. */
@@ -111,4 +111,28 @@ test('large map search is fast', () => {
   assert.ok(p, 'serpentine path found');
   assertWalkable(g, p);
   assert.ok(ms < 250, `took ${ms.toFixed(1)} ms`);
+});
+
+test('a ladder foot a clearance mask shuts is the way up, never a way past', () => {
+  // a 1-cell corridor (z 10-10.5) between two walls (x 2-18) with a ladder's foot in it, the foot's cell masked (a tank
+  // shell's clearance); the ladder goes up to a raised deck at z 12-14 behind the S wall
+  const g = new NavGrid(20, 20);
+  g.fillRect(2, 9.5, 16, 0.5, 'block', B.HIGH);
+  g.fillRect(2, 10.5, 16, 0.5, 'block', B.HIGH);
+  for (let j = 24; j < 28; j++) for (let i = 4; i < 36; i++) g.elev[g.idx(i, j)] = 3;
+  g.version++;
+  const L = g.addLink(LINK.LADDER, { x: 7.75, z: 10.25, y: 0 }, { x: 7.75, z: 12.25, y: 3 });
+  const avoid = new Uint8Array(g.size);
+  avoid[g.idx(15, 20)] = 1; // the foot's cell
+  // up: through the corridor onto the foot, up the ladder
+  const up = findPath(g, 3, 10.25, 10, 13, { avoid });
+  assert.ok(up && up.some((q) => q.link?.id === L.id), 'the ladder is the way up');
+  // past: the corridor is shut at the foot for a walker going by: round the walls, never through the foot's cell
+  const past = findPath(g, 3, 10.25, 12, 10.25, { avoid, maxNodes: g.size });
+  assert.ok(past, 'a way round');
+  assert.ok(!past.some((q) => q.link), 'no ladder on the way past');
+  assertWalkable(g, past, { avoid });
+  // down: off the ladder's foot and on along the corridor
+  const down = findPath(g, 10, 13, 12, 10.25, { avoid, maxNodes: g.size });
+  assert.ok(down && down.some((q) => q.link?.id === L.id), 'down the ladder and off its foot');
 });

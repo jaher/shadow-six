@@ -65,6 +65,50 @@ const R60 = deg(60); // the souk arcade
 /** Level heights (dossier §5): A ledge, B upper roofs, C raised palace roof, P mosque platform. */
 export const LEVEL = { A: 4, B: 8, C: 10, E3: 4.5, P: 2.2, PAV: 7, ARC: 6 };
 
+/**
+ * The stone stairs between the levels (art/castle-kit.js buildStairFlight, drawn by the script; world/stairs.js
+ * linkFlight lays the walk out the same way): each climbs along `u` (unit, from its low side) to the upper block's
+ * face at F — its last riser there, its top tread on the roof through a gap in the parapet — with risers every `tr` m.
+ * (The links once ran 1.5–2.3 m into the upper blocks with nothing drawn: men walked up through the walls.)
+ */
+const FLIGHTS = {
+  // (S1 on its own line at the roofs' W edge, out of e5's beat along the balcony: 0.96 m wide, its one cheek on the W
+  // side — the open E side clear of the top-floor window; its top tread 0.4 m into w_block_rear's wall (the last riser
+  // is the wall's) so its foot leaves a 1.5 m way past it from the balcony onto house_tile)
+  // (it climbs over the low parapet between house_tile and w_block_front: that parapet stops where its cheek begins)
+  S1: { F: [10.55, 37.6], u: [0, -1], y0: 4, y1: 8, tr: 0.21, heading: 270, upper: 'w_block_rear', width: 0.96, cheeks: 'w', over: ['house_tile', 'w_block_front'] },
+  C1: { F: [37.435, 22.75], u: [0.866, -0.5], y0: 8, y1: 10, tr: 0.24, heading: 330, upper: 'palace_c' }, // palace roof → raised roof
+  S3: { F: [70, 66.0], u: [0, -1], y0: 4.5, y1: 8, tr: 0.22, heading: 270, upper: 'house_e2' },          // house_e3 → house_e2
+  S4: { F: [55.0, 78.8], u: [1, 0], y0: 2.2, y1: 4.5, tr: 0.23, heading: 0, upper: 'house_e3' }, // platform → house_e3 (over the alley)
+  S6: { F: [39.198, 108.149], u: [-0.5009, -0.8655], y0: 0, y1: 2.2, tr: 0.24, heading: 240 },          // S quay → platform
+  S7: { F: [52.5, 98.4], u: [-1, 0], y0: 0, y1: 2.2, tr: 0.24, heading: 180 },                           // the alley → platform (N of L6's foot)
+};
+const FLIGHT_W = 1.2;
+/** Where the stair links' ends stood before their flights were drawn (their parapet gaps are kept: m12.js stampParapets). */
+const OLD_STAIR_ENDS = [[10.6, 40.5], [10.6, 36.2], [35.7, 23.75], [38.3, 22.25], [70, 68.2], [70, 64.5], [52, 79.5], [56, 78.5], [35.5, 112], [38.5, 105], [54, 97.5], [51.5, 95]];
+for (const f of Object.values(FLIGHTS)) {
+  const n = Math.max(2, Math.ceil((f.y1 - f.y0) / 0.2)); // (castle-kit / linkFlight: risers ≤ 0.2 m)
+  f.a = [f.F[0] - f.u[0] * (n - 1) * f.tr, f.F[1] - f.u[1] * (n - 1) * f.tr];
+  f.b = [f.F[0] + f.u[0] * f.tr, f.F[1] + f.u[1] * f.tr];
+}
+/** The parapet gap (house frame [x0, z0, x1, z1], art/kit-buildings.js) where flight f comes up onto house h's roof —
+ * or, `whole`, all along it (a roof edge the flight stands over). */
+const parapetGap = (f, h, whole = false) => {
+  const c = Math.cos(h.rot ?? 0), sn = Math.sin(h.rot ?? 0), half = (f.width ?? FLIGHT_W) / 2 + 0.35;
+  const t0 = whole ? -Math.hypot(f.F[0] - f.a[0], f.F[1] - f.a[1]) : -0.4; // (to the foot: the parapet goes on from the cheek's end)
+  const pts = [[-half, t0], [half, t0], [half, 0.4], [-half, 0.4]].map(([v, t]) => {
+    const x = f.F[0] - f.u[1] * v + f.u[0] * t, z = f.F[1] + f.u[0] * v + f.u[1] * t, dx = x - h.x, dz = z - h.z;
+    return [dx * c + dz * sn, -dx * sn + dz * c];
+  });
+  return [Math.min(...pts.map((q) => q[0])), Math.min(...pts.map((q) => q[1])), Math.max(...pts.map((q) => q[0])), Math.max(...pts.map((q) => q[1]))];
+};
+/** Houses with a flight coming up onto their roof: their parapet's gaps. */
+const withGaps = (h) => {
+  const gaps = [...Object.values(FLIGHTS).filter((f) => f.upper === h.id).map((f) => parapetGap(f, h)),
+    ...Object.values(FLIGHTS).filter((f) => f.over?.includes(h.id)).map((f) => parapetGap(f, h, true))];
+  return gaps.length ? { ...h, parapetGaps: gaps } : h;
+};
+
 // ---------------------------------------------------------------- structures (dossier §5.1)
 const flat = (id, variant, x, z, w, d, h, extra = {}) => ({ id, type: 'flat_roof_house', variant, x, z, rot: 0, w, d, h, mat: 'plaster', roofWalk: true, ...extra });
 const backdrop = (id, variant, x, z, w, d, h, extra = {}) => flat(id, variant, x, z, w, d, h, { roofWalk: false, ...extra });
@@ -80,10 +124,10 @@ const BACKDROP = [
 
 /** The west block, the jail and the palace (the courtyard's north side). */
 const WEST = [
-  flat('house_tile', 'medina_tile_roof', 5, 41.5, 10, 9, LEVEL.A, { roofFinish: 'tile' }),
+  withGaps(flat('house_tile', 'medina_tile_roof', 5, 41.5, 10, 9, LEVEL.A, { roofFinish: 'tile' })),
   // the GB's hideout: the front (ledge) half of the stepped west block; its door opens S onto the courtyard
-  flat('w_block_front', 'medina_stepped_front', 15.5, 40.5, 11, 5, LEVEL.A, { enterable: true, door: [16.5, 43.6] }),
-  flat('w_block_rear', 'medina_stepped_rear', 15, 32, 10, 12, LEVEL.B, { lightWell: [12, 27, 19, 32] }),
+  withGaps(flat('w_block_front', 'medina_stepped_front', 15.5, 40.5, 11, 5, LEVEL.A, { enterable: true, door: [16.5, 43.6] })),
+  withGaps(flat('w_block_rear', 'medina_stepped_rear', 15, 32, 10, 12, LEVEL.B, { lightWell: [12, 27, 19, 32] })),
   // the jail: a cell block whose roof is "the ledge over the prison" (door = the S face)
   flat('jail_block', 'medina_jail_cell', 25.5, 33.5, 11, 9, LEVEL.A, { label: 'Jail', jail: true, door: deg(90), barredWindow: [24.5, 38] }),
   flat('mid_block', 'medina_roof_terrace', 23.5, 22.5, 7, 13, LEVEL.B, { walkways: [walk([[26, 22], [29.5, 22.2]], LEVEL.B)] }),
@@ -91,7 +135,7 @@ const WEST = [
   { id: 'palace', type: 'flat_roof_house', variant: 'palace_tiled_domes', label: 'Palace', x: 37, z: 23, rot: R30, w: 16, d: 12, h: LEVEL.B,
     mat: 'plaster', roofWalk: true, dome: true, flag: true, garrison: true, door: deg(90),
     walkways: [walk([[43.06, 19.5], [46, 19.5]], LEVEL.B), walk([[45.06, 22.96], [48.5, 26.5]], LEVEL.B)] },
-  { id: 'palace_c', type: 'flat_roof_house', variant: 'palace_raised_roof', x: 39.6, z: 21.5, rot: R30, w: 5, d: 8, h: LEVEL.C, mat: 'plaster', roofWalk: true },
+  withGaps({ id: 'palace_c', type: 'flat_roof_house', variant: 'palace_raised_roof', x: 39.6, z: 21.5, rot: R30, w: 5, d: 8, h: LEVEL.C, mat: 'plaster', roofWalk: true }),
 ];
 
 /** The northern terrace (the Sniper's shack), the souk and the east houses. */
@@ -103,9 +147,9 @@ const EAST = [
   { id: 'l2_hut', type: 'hut', variant: 'rooftop_stairhead', x: 50, z: 29.8, rot: 0, w: 2.4, d: 2.4, h: 2.5, mat: 'plaster', baseY: LEVEL.B },
   { id: 'souk', type: 'flat_roof_house', variant: 'souk_arcade', label: 'Souk', x: 57, z: 36, rot: R60, w: 26, d: 12, h: LEVEL.B, mat: 'plaster', roofWalk: true, awnings: true },
   flat('house_e1', 'medina_balconies', 70.5, 35, 11, 26, LEVEL.B),
-  flat('house_e2', 'medina_mosaic_terrace', 67, 57, 18, 18, LEVEL.B, { walkways: [walk([[57.8, 63.4], [50.2, 69.1]], 7.5, 1.2)] }),
+  withGaps(flat('house_e2', 'medina_mosaic_terrace', 67, 57, 18, 18, LEVEL.B, { walkways: [walk([[57.8, 63.4], [50.2, 69.1]], 7.5, 1.2)] })),
   { id: 'kiosk', type: 'mosque', variant: 'qubba_green_dome', x: 64.5, z: 51.5, rot: 0, w: 6, d: 6, h: 3.5, mat: 'plaster', dome: true, roofWalk: false, baseY: LEVEL.B },
-  flat('house_e3', 'medina_mosaic_terrace', 65.5, 76, 21, 20, LEVEL.E3),
+  withGaps(flat('house_e3', 'medina_mosaic_terrace', 65.5, 76, 21, 20, LEVEL.E3)),
   // the lane E of the courtyard is walled off: the courtyard is a dead end at street level
   { id: 'wall_lane', type: 'wall', variant: 'medina_blind_wall', mat: 'plaster', points: [[51.4, 52.4], [51.4, 50.2], [57.6, 50.2]], h: 3.5, width: 1.0 },
   // ... and so is the gap between the palace and the souk north of L2 (the streets behind are backdrop)
@@ -156,6 +200,7 @@ const MOSQUE_WALLS = Object.entries(MOSQUE_WALL_LINES).flatMap(([id, segs]) => s
   points, h: 3, width: 0.8,
 })));
 const MOSQUE_LINES = [...MOSQUE_WALLS, ...ARC_WALLS].map((w) => ({ points: w.points, width: 1.0 }));
+
 
 const MOSQUE = [
   { id: 'mosque_platform', type: 'cliff', variant: 'mosque_platform_stone', mat: 'stone', points: PLATFORM, h: LEVEL.P, block: 2,
@@ -211,18 +256,20 @@ const STRUCTURES = [...BACKDROP, ...WEST, ...EAST, ...MOSQUE, ...QUAY, ...PROPS,
 // ---------------------------------------------------------------- ladders and stairs (dossier §6; everyone)
 const ladder = (id, x, z, y, top, extra = {}) => ({ id, x, z, y, top, raised: false, ...extra });
 const stairs = (id, x, z, y, top, heading) => ladder(id, x, z, y, top, { kind: 'stairs', heading: deg(heading) });
+/** A drawn stone flight (FLIGHTS): the link's ends are the flight's own (the walk is laid out on its steps). */
+const flight = (id) => { const f = FLIGHTS[id]; return ladder(id, f.a[0], f.a[1], f.y0, [f.b[0], f.b[1], f.y1], { kind: 'stairs', heading: deg(f.heading), width: f.width ?? FLIGHT_W, drawn: true }); };
 const LADDERS = [
   ladder('L1', 10.8, 44.6, 0, [9.4, 44.2, LEVEL.A], { heading: deg(180) }), // "the ladder in the west", by the GB's door
-  stairs('S1', 10.6, 40.5, LEVEL.A, [10.6, 36.2, LEVEL.B], 270), // w_block outer stair ("the door in the stairs")
+  flight('S1'), // w_block outer stair ("the door in the stairs")
   ladder('L2', 45.3, 29.2, 0, [47, 27.2, LEVEL.B], { heading: deg(300) }), // "the ladder by 13": courtyard → souk roof
   ladder('L3', 26.5, 30.3, LEVEL.A, [26.5, 28.5, LEVEL.B], { heading: deg(270) }), // "the ladder behind 14"
   ladder('L4', 30.5, 39.2, 0, [30.5, 37.4, LEVEL.A], { heading: deg(270) }), // courtyard ↔ jail ledge
-  stairs('C1', 35.7, 23.75, LEVEL.B, [38.3, 22.25, LEVEL.C], 330), // palace roof → raised roof
-  stairs('S3', 70, 68.2, LEVEL.E3, [70, 64.5, LEVEL.B], 270), // house_e2 ↔ house_e3 ("the stairs" of 23)
-  stairs('S4', 52, 79.5, LEVEL.P, [56, 78.5, LEVEL.E3], 350), // house_e3 ↔ platform
+  flight('C1'), // palace roof → raised roof
+  flight('S3'), // house_e2 ↔ house_e3 ("the stairs" of 23)
+  flight('S4'), // house_e3 ↔ platform (over the alley: headroom under it)
   ladder('L5', 45.4, 75.8, LEVEL.P, [46, 73.5, LEVEL.PAV], { heading: deg(290) }), // platform ↔ pavilion roof
-  stairs('S6', 35.5, 112, 0, [38.5, 105, LEVEL.P], 290), // SW stairs: platform → S quay
-  stairs('S7', 54, 97.5, 0, [51.5, 95, LEVEL.P], 225), // SE stairs: platform → the alley
+  flight('S6'), // SW stairs: platform → S quay
+  flight('S7'), // SE stairs: platform → the alley
   ladder('L6', 54.4, 95.5, 0, [56, 94.5, LEVEL.ARC], { heading: deg(0) }), // alley → arcade roof
 ];
 
@@ -455,7 +502,10 @@ export default {
     lift: LIFT,
     block: REBLOCK,
     lines: MOSQUE_LINES,
-    parapets: { roofs: ROOFS, keep: PLANKS, doors: DOORWAYS },
+    flights: Object.values(FLIGHTS).map((f) => ({ a: { x: f.a[0], y: f.y0, z: f.a[1] }, b: { x: f.b[0], y: f.y1, z: f.b[1] }, width: f.width ?? FLIGHT_W, cheeks: f.cheeks })),
+    // (the flights' feet stand mid-roof: no parapet gap round them; the gaps the stair links' old ends opened stay —
+    // the walls between terraces they let men through, the routes everyone takes)
+    parapets: { roofs: ROOFS, keep: PLANKS, doors: [...DOORWAYS, ...OLD_STAIR_ENDS], noGap: Object.values(FLIGHTS).map((f) => f.a) },
     southZone: { id: 'z_sehq', poly: Z_SEHQ },
     // fix round 2 art pass: blind arcades on the mosque's inner walls, a ribbed dome on the prayer hall
     arcades: { lines: MOSQUE_WALLS.map((w) => ({ points: w.points, y: LEVEL.P, h: w.h, width: w.width })) },

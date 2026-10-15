@@ -152,13 +152,14 @@ export function platformFlight(ramp, id = null) {
  * buildStairFlight (n = ceil(rise / 0.2) steps, the first riser at the foot point, the last tread ending at b). The
  * ends default to the link's (snapped onto walkable cells); the mission's own ends are where its mesh stands.
  */
-export function linkFlight(link, { width = 1.8, id = null, a = link.a, b = link.b } = {}) {
+export function linkFlight(link, { width = 1.8, id = null, a = link.a, b = link.b, risers: nR = null } = {}) {
   // (foot = the lower end; buildStairFlight steps from `a`: a first riser at `a` when it is the foot, the last one at
   // `a` when it is the top)
   const up = (a.y ?? 0) <= (b.y ?? 0), [lo, hi] = up ? [a, b] : [b, a];
   const dx = hi.x - lo.x, dz = hi.z - lo.z, run = Math.hypot(dx, dz), rise = (hi.y ?? 0) - (lo.y ?? 0);
   if (!(run > 0.2) || !(rise > 0.1)) return null;
-  const n = Math.max(2, Math.ceil(rise / 0.2)), tr = run / n;
+  // (`risers`: the drawn flight's own step count, when its mesh is not castle-kit's — M9's barracks stair: 13 × 0.31 m)
+  const n = nR > 1 ? Math.round(nR) : Math.max(2, Math.ceil(rise / 0.2)), tr = run / n;
   const risers = [], levels = [lo.y ?? 0];
   for (let i = 0; i < n; i++) { risers.push((up ? i : i + 1) * tr); levels.push((lo.y ?? 0) + (rise * (i + 1)) / n); }
   return makeFlight({ id, kind: 'link', ox: lo.x, oz: lo.z, ux: dx / run, uz: dz / run, w: width, railS: [0, run], risers, levels, link });

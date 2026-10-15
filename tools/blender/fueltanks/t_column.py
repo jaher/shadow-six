@@ -148,22 +148,35 @@ def fittings(S, fit, bolts, pipe, wheel):
         al = -2.55
         lr = R + 0.18 if pr > R + 0.3 else pr + 0.08
         zl = z0 if lr < pr else 0.0
-        ft.ladder(ld, rad(al, lr, zl), z1 + 0.15, rad(al, 1, 0), w=0.42, over=0.0)
+        # crown platform: a small grating landing at the rim with a rail
+        zc = z1 + 0.15 if t['roof'] == 'cone' else z1 + 0.35
+        # the ladder up to the landing, its stringers on 0.9 m past it as grab rails curving over it (the climb's way
+        # off: game ladders step off between them — user 2026-10-15, every ladder climbable both ways)
+        ft.ladder(ld, rad(al, lr, zl), zc, rad(al, 1, 0), w=0.42, over=0.9)
         for k in range(3):
             z = zl + 1.0 + k * (z1 - zl - 1.2) / 2
             for s in (-0.2, 0.2):
                 C.beam_bm(ld, rad(al + s / R, R, z), rad(al + s / R, lr, z), 0.04, 0.04)
-        # crown platform: a small grating landing at the rim with a rail
-        zc = z1 + 0.15 if t['roof'] == 'cone' else z1 + 0.35
         for i in range(5):
             a0, a1 = al - 0.45 + i * 0.18, al - 0.45 + (i + 1) * 0.18
             q = [rad(a0, R * 0.62, zc), rad(a1, R * 0.62, zc), rad(a1, lr, zc), rad(a0, lr, zc)]
             ft.bmesh.ops.contextual_create(plat, geom=[plat.verts.new(p) for p in q])
-        ft.railing(rail, [tuple(rad(al - 0.45 + i * 0.3, lr, 0))[:2] for i in range(4)], zc, h=min(1.0, z1 + rh + 0.25 - zc), step=0.6, r=0.022)
+        # (the rail open where the ladder comes up: either side of it, not across its head)
+        for a0, a1 in ((al - 0.45, al - 0.2), (al + 0.2, al + 0.45)):
+            ft.railing(rail, [tuple(rad(a0, lr, 0))[:2], tuple(rad(a1, lr, 0))[:2]], zc, h=min(1.0, z1 + rh + 0.25 - zc), step=0.6, r=0.022)
         P(ld, 'steel_galv', 'ladder', mat_tint=(0.5, 0.5, 0.48) if not dest else (0.2, 0.18, 0.17))
         P(rail, 'steel_galv', 'rail', mat_tint=(0.5, 0.5, 0.48) if not dest else (0.2, 0.18, 0.17))
         P(plat, 'fuel_grating', 'platform', grime=0.2)
-        K.ladder_meta(tuple(rad(al, lr + 0.6, 0)), tuple(rad(al, R * 0.8, zc)), zc)
+        # the landing's walkable part (a game roof: a man climbs up and stands there) — the grating where it is clear of
+        # the roof under it (dome / cone at zc) to just inside its rail; the ladder's top end on it
+        if t['roof'] == 'dome':
+            rin = R * math.sqrt(max(0.0, 1 - ((zc - z1) / rh) ** 2))
+        else:
+            rin = R + 0.04 - (zc - z1 - 0.03) * (R + 0.04 - 0.25) / (rh - 0.03)
+        rin, rout, angs = rin + 0.05, lr - 0.07, [al - 0.42 + i * 0.21 for i in range(5)]
+        K.ladder_meta(tuple(rad(al, lr + 0.6, 0)), tuple(rad(al, (rin + rout) / 2, zc)), zc)
+        if not dest:
+            K.roof_meta([tuple(rad(a, rout, zc))[:2] for a in angs] + [tuple(rad(a, rin, zc))[:2] for a in reversed(angs)], zc, walkable=True, kind='landing')
     P(fit, S.smat, 'fittings', smooth=True, mat_tint=tuple(c * 0.9 for c in S.paint), grime=0.7)
     P(bolts, 'cast_iron', 'bolts')
     if not dest:

@@ -139,6 +139,9 @@ def access(S):
     ft.railing(rail, [(lx0, -0.37), (lx1, -0.37)], DECK, h=0.57, step=0.6, r=0.022)
     ft.ladder(ld, (lx1 + 0.08, -0.12, 0.0), DECK, (1, 0, 0), w=0.45, over=0.55)   # no cage: it would overhang the end
     K.ladder_meta((lx1 + 0.7, -0.12, 0), (lx1 - 0.3, -0.12, DECK), DECK)
+    if not S.dest:   # walkable (a game roof): the crown catwalk and the head landing the ladder comes up to, inside the rails
+        K.roof_meta([(xa + 0.05, y0 + 0.05), (lx0, y0 + 0.05), (lx0, -0.32), (lx1 - 0.05, -0.32), (lx1 - 0.05, y1 - 0.05),
+                     (xa + 0.05, y1 - 0.05)], DECK, walkable=True, kind='catwalk')
     S.catwalk = [P(deck, 'boards_weathered', 'catwalk', uv='beam', axis=(0, 1, 0), mat_tint=(0.75, 0.72, 0.68)),
                  P(brk, 'paint_metal', 'brackets', mat_tint=PAL['blackgrey']),
                  P(rail, 'steel_galv', 'rails', mat_tint=(0.6, 0.6, 0.58))]

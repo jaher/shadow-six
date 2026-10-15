@@ -54,7 +54,7 @@ import { resolvePlacementG, wantsShape, placeCat, RULES } from './placement.js';
 import { convexHull } from './placement-geom.js';
 import { gateLayout } from './breakables.js';
 import { categoryOf } from '../debug/clip-rules.js';
-import { setStaticSolids, removeStaticSolids, minAreaRect } from './body-clearance.js';
+import { setStaticSolids, removeStaticSolids, minAreaRect, SOLID_BAND_TOP } from './body-clearance.js';
 import { planHull, planCells, finestMeshes, measureTop, lowSurfaces, overheadCells, dataKey, SNOW_WADE,
   planHullG, planCellsG, deckFieldG, lowSurfacesG, overheadCellsG, standingCellsG } from './placement-visual.js';
 import { due, runSync, runSliced, nextTask } from '../engine/slice.js';
@@ -1167,9 +1167,10 @@ export function* stampBodySolidsG(world, built, groundAt = null) {
       }
       continue;
     }
-    const hull = yield* planHullG(b.object3d, { minY: 0.15, maxY: 1.6, groundY: gy, wade: SNOW_WADE }); // (not the drift round its foot)
+    const hull = yield* planHullG(b.object3d, { minY: 0.15, maxY: SOLID_BAND_TOP, groundY: gy, wade: SNOW_WADE }); // (not the drift round its foot)
     const R = hull && minAreaRect(hull);
-    if (R) list.push({ owner: b.owner, R: { ...R, top } });
+    // (`y0`: the ground it stands on — a deck over it is walked above its body, avoidMask)
+    if (R) list.push({ owner: b.owner, R: { ...R, top, y0: gy } });
   }
   // a gate's fixed posts (world/breakables.js gateLayout: a boom barrier's pivot post, fork rest and log gate posts beside
   // its footway) are solid bodies too: a man standing or aiming in the footway keeps his body off them (clip-2, M2)
@@ -1468,7 +1469,8 @@ export function buildStairField(built, grid, links = []) {
     if (l.walk !== 'stairs') continue;
     const d = links.find((r) => r.link === l)?.def;
     const ends = d ? { a: { x: d.x, z: d.z, y: d.y ?? 0 }, b: { x: d.top[0], z: d.top[1], y: d.top[2] ?? 0 } } : {};
-    flights.push(linkFlight(l, { id: d?.id ?? `link${l.id}`, ...ends }));
+    // (`width` / `risers`: a drawn stair that is not castle-kit's 1.8 m flight of 0.2 m steps — M9's barracks stair)
+    flights.push(linkFlight(l, { id: d?.id ?? `link${l.id}`, ...ends, ...(d?.width ? { width: d.width } : null), ...(d?.risers ? { risers: d.risers } : null) }));
   }
   return new StairField(flights);
 }
@@ -1659,7 +1661,8 @@ export function* buildMapGen(world, mission, opts = {}) {
     // but looks and stands like the fuel family's column: its library model (+ pipe run), a HIGH round footprint, and
     // a wreck left standing when it goes up (docs/fuel-tanks.md §5.4)
     const column = isFuelStructure(s) && s.r != null;
-    const colVis = column && meshes && ctx.library !== false ? buildStructure(s, ctx) : null;
+    // (the ladderless column: a barrel entity has no walk-grid ladder link, so a drawn ladder would lead nowhere)
+    const colVis = column && meshes && ctx.library !== false ? buildStructure(s.variant === 'oil_tanks_vertical' && !s.asset ? { ...s, asset: 'oil_tank_column' } : s, ctx) : null;
     if (column) grid.fillCircle(s.x, s.z, s.r, 'block', B.HIGH, d.owner);
     const barrel = addIt(createInteractable({
       interactKind: 'barrel', id: s.id ?? null, x: s.x, z: s.z, variant: s.variant ?? null, hp: s.hp ?? 1,

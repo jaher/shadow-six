@@ -232,12 +232,25 @@ export function railPath(u, path, goal = null) {
         const along = (dx * ux + dz * uz), off = Math.abs(dx * uz - dz * ux);
         const lined = along > 0 && off <= 0.1 + 0.27 * along;
         if (!lined && d > 0.3 && A) {
-          if (along > 0 && along < RAIL_APPROACH && out.length > 2) out[out.length - 2] = { ...prev, x: st.x + ux * along, z: st.z + uz * along };
+          // (a point already out in front of it moves onto its line — far enough out that his body clears the cheek
+          // walls' ends turning in: M12's narrow flights)
+          if (along >= railBody(u) + 0.15 && along < RAIL_APPROACH && out.length > 2) out[out.length - 2] = { ...prev, x: st.x + ux * along, z: st.z + uz * along };
           else {
+            // (the planner's own corners hugging its foot — in front of the cheek walls' ends — are left out: he goes
+            // round to the line-up point instead, M12's narrow flights)
+            const B0 = railBody(u), hiO = lf.w / 2 + CHEEK + B0;
+            while (out.length > 2) {
+              const q = out[out.length - 2];
+              if (q.link || q.steer) break;
+              const qa = (q.x - st.x) * ux + (q.z - st.z) * uz, qo = Math.abs((q.x - st.x) * uz - (q.z - st.z) * ux);
+              if (!(qa < B0 + 0.15 && qa > -0.5 && qo < hiO)) break;
+              out.splice(out.length - 2, 1);
+            }
+            const prev2 = out[out.length - 2];
             out.splice(out.length - 1, 0, A);
             // (from beside its cheek walls: round their end, not across its corner — M20's S_n3 head, its walls' ends
             // standing on the wall walk)
-            const C = roundEnd(g, st, ux, uz, lf, u, prev, A);
+            const C = roundEnd(g, st, ux, uz, lf, u, prev2, A);
             if (C) out.splice(out.length - 2, 0, C);
           }
         }

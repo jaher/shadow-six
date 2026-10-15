@@ -14,6 +14,7 @@ import * as THREE from 'three';
 import { terrainPrism } from '../../art/kit-terrain.js';
 import { dressingMaterial } from '../../art/dressing.js';
 import { paintedMaterial } from '../../art/kit-props.js';
+import { Geo, buildStairFlight } from '../../art/castle-kit.js';
 import { B, MAX_STEP } from '../../world/grid.js';
 import { CONFIG } from '../../config.js';
 import { hears } from '../../ai/perception.js';
@@ -103,7 +104,9 @@ export function stampParapets(world, o = {}) {
   if (!g) return 0;
   const minY = o.minY ?? CONFIG.stealth.roofY, gapR = o.gapR ?? 1.6;
   const ends = [];
-  for (const l of g.links || []) ends.push([l.a.x, l.a.z], [l.b.x, l.b.z]);
+  // (`noGap`: link ends that stand mid-roof — a drawn flight's foot — open no parapet round them)
+  const skip = (x, z) => (o.noGap || []).some(([px, pz]) => Math.hypot(px - x, pz - z) < 0.05);
+  for (const l of g.links || []) for (const e of [l.a, l.b]) if (!skip(e.x, e.z)) ends.push([e.x, e.z]);
   for (const d of o.doors || []) ends.push(d);
   const keep = o.keep || [], roofs = o.roofs || [];
   const roofOf = (i, j) => {
@@ -255,11 +258,51 @@ export function buildVisuals(world, spec) {
   if (spec.arcades) buildArcades(root, spec.arcades);
   if (spec.dome) buildDome(root, spec.dome);
   world.scene.add(root);
+  // the stone stairs between the levels (their links walk these very steps: world/stairs.js linkFlight)
+  if (spec.flights?.length) {
+    const G = new Geo('m12:flights');
+    for (const f of spec.flights) {
+      // (`cheeks: 'w'` / 'e': the one cheek wall on that world side — castle-kit segFrame's +1 side is n = (u.z, -u.x))
+      let cheeks;
+      if (f.cheeks) { const uz = f.b.z - f.a.z, westIsPlus = uz < 0; cheeks = [(f.cheeks === 'w') === westIsPlus ? 1 : -1]; }
+      buildStairFlight(f.a, f.b, { G, width: f.width, body: 'plaster', tread: 'dressed', ...(cheeks ? { cheeks } : null) });
+    }
+    world.scene.add(G.build('m12:flights', { ground: 0, moss: 0, damp: 0.4 })); // (desert: no moss)
+  }
   for (const id of spec.hide || []) { const o = world.structures?.get(id)?.object3d; if (o) o.visible = false; }
   for (const [id, y] of spec.lift || []) {
     const o = world.structures?.get(id)?.object3d;
     if (o && !o.userData.m12Lifted) { o.userData.m12Lifted = true; o.position.y += y; }
   }
+}
+
+/**
+ * The flights' bodies (castle-kit stone, buildStairFlight) block the cells of the level they stand on under them —
+ * from 0.35 m up their first tread to their top riser, cheeks included — so nobody walks into a flight from the side
+ * (their link walks the steps). Cells of another level (the roof they reach, the street under S4) stay as they are.
+ */
+export function blockFlights(world, flights = []) {
+  const g = world.grid;
+  if (!g) return 0;
+  let n = 0;
+  // (never a ladder's or another stair's end: the way on stays open)
+  const ends = new Set();
+  for (const l of g.links || []) for (const e of [l.a, l.b]) { const c = g.worldToCell(e.x, e.z); ends.add(g.idx(c.i, c.j)); }
+  for (const f of flights) {
+    const dx = f.b.x - f.a.x, dz = f.b.z - f.a.z, run = Math.hypot(dx, dz), ux = dx / run, uz = dz / run;
+    const nR = Math.max(2, Math.ceil(Math.abs(f.b.y - f.a.y) / 0.2)), sF = run - run / nR, half = f.width / 2 + 0.3;
+    const xs = [f.a.x, f.b.x], zs = [f.a.z, f.b.z];
+    const i0 = Math.floor((Math.min(...xs) - half - 1) / g.cell), i1 = Math.floor((Math.max(...xs) + half + 1) / g.cell);
+    const j0 = Math.floor((Math.min(...zs) - half - 1) / g.cell), j1 = Math.floor((Math.max(...zs) + half + 1) / g.cell);
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      if (!g.inBounds(i, j)) continue;
+      const cx = (i + 0.5) * g.cell - f.a.x, cz = (j + 0.5) * g.cell - f.a.z, s = cx * ux + cz * uz, v = -cx * uz + cz * ux, k = g.idx(i, j);
+      if (s < 0.35 || s > sF || Math.abs(v) > half || Math.abs(g.elev[k] - f.a.y) > 0.3 || ends.has(k)) continue;
+      g.block[k] = B.HIGH; n++;
+    }
+  }
+  if (n) g.version++;
+  return n;
 }
 
 /**
@@ -270,6 +313,7 @@ export function m12Script(spec) {
   const script = (world) => {
     buildVisuals(world, spec);
     blockRoofRects(world, spec.block || []);
+    blockFlights(world, spec.flights || []);
     stampLines(world, spec.lines || []);
     if (spec.parapets) stampParapets(world, spec.parapets);
     if (spec.southZone) {

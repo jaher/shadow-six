@@ -187,6 +187,18 @@ export const POCKET_AT = 2500;
 /** Largest pocket (cells) worth enumerating for that question. */
 export const POCKET_MAX = 2500;
 const _pocketSeen = new WeakMap();
+const _ladderEnds = new WeakMap();
+/** The cells of every ladder's (and stair link's) two ends, per grid (rebuilt when its links change). */
+function ladderEnds(grid) {
+  const links = grid.links || [];
+  let c = _ladderEnds.get(grid);
+  if (!c || c.links !== links || c.n !== links.length) {
+    const set = new Set();
+    for (const L of links) if (L.kind === 'ladder') { set.add(L.ka); set.add(L.kb); }
+    _ladderEnds.set(grid, (c = { links, n: links.length, set }));
+  }
+  return c.set;
+}
 /**
  * Is goal cell `goalK` inside a pocket of at most POCKET_MAX cells — every cell from which a search can step (or climb,
  * links) into the goal, enumerated backwards over the very rule the search steps by — that does not hold `startK`?
@@ -194,7 +206,7 @@ const _pocketSeen = new WeakMap();
  * blown inside a bunker nobody can walk into: every guard who hears it flooded the whole map, ~20 ms each).
  * @returns {number[]|null} the pocket's cells, or null = can't tell (it is larger, or holds the start): search on
  */
-function goalPocketExcludes(grid, goalK, startK, walkOpts, role, hasLinks, noLinks) {
+function goalPocketExcludes(grid, goalK, startK, walkOpts, role, hasLinks, noLinks, open = (i, j) => grid.isWalkable(i, j, walkOpts)) {
   const cols = grid.cols;
   let mark = _pocketSeen.get(grid);
   if (!mark || mark.a.length !== grid.size) { mark = { a: new Uint32Array(grid.size), id: 0 }; _pocketSeen.set(grid, mark); }
@@ -206,7 +218,7 @@ function goalPocketExcludes(grid, goalK, startK, walkOpts, role, hasLinks, noLin
     // every p with a step p → k: p walkable (searches only expand walkable cells), the step's own rules from p's side
     for (let d = 0; d < 8; d++) {
       const pi = i - DI[d], pj = j - DJ[d];
-      if (!grid.isWalkable(pi, pj, walkOpts)) continue;
+      if (!open(pi, pj)) continue;
       const pk = pj * cols + pi;
       if (seen[pk] === id) continue;
       if (d >= 4 && (!grid.isWalkable(pi + DI[d], pj, walkOpts) || !grid.isWalkable(pi, pj + DJ[d], walkOpts))) continue;
@@ -222,7 +234,7 @@ function goalPocketExcludes(grid, goalK, startK, walkOpts, role, hasLinks, noLin
         const pk = L.ka === k ? L.kb : L.ka;
         if (seen[pk] === id) continue;
         const pi = pk % cols, pj = (pk - pi) / cols;
-        if (!grid.isWalkable(pi, pj, walkOpts)) continue;
+        if (!open(pi, pj)) continue;
         if (pk === startK) return null;
         seen[pk] = id; queue.push(pk);
         if (queue.length > POCKET_MAX) return null;
@@ -233,6 +245,18 @@ function goalPocketExcludes(grid, goalK, startK, walkOpts, role, hasLinks, noLin
 }
 
 export function findPath(grid, sx, sz, tx, tz, opts = {}) {
+  const info = { endBlocked: false };
+  const p = searchPath(grid, sx, sz, tx, tz, opts, false, info);
+  if (p || !info.endBlocked) return p;
+  // (shut out where a body-clearance mask covers a ladder's end — a tank ladder's foot a step from its shell, M8's deck
+  // ladders: again, the ladder ends open as the ladders' own ends only. A search that never needs them runs as it
+  // always did)
+  return searchPath(grid, sx, sz, tx, tz, opts, true, null);
+}
+
+/** findPath's A*; `openEnds`: the ladder ends a clearance mask shuts are open as ladder ends (stepped onto to climb,
+ * stepped off from it, never walked through); `info.endBlocked`: set when a search without them met one. */
+function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
   const swim = !!opts.swim;
   const walkOpts = { swim, dynamic: !!opts.dynamic, dive: !!opts.dive, avoid: opts.avoid || null };
   const nearR = opts.nearRadius ?? NEAREST_WALKABLE_RADIUS;
@@ -242,11 +266,25 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
   const maxNodes = opts.maxNodes ?? 40000;
   const c = grid.cell;
   const cols = grid.cols;
+  // (a ladder's two ends — where a man stands to climb it — under a body-clearance mask: `openEnds`, open as the
+  // ladder's ends; else noted when the search meets one, `info.endBlocked`)
+  const allEnds = walkOpts.avoid && hasLinks ? ladderEnds(grid) : null, ends = openEnds ? allEnds : null;
+  const bare = allEnds ? { ...walkOpts, avoid: null } : null;
+  const isEnd = (i, j) => allEnds !== null && grid.inBounds(i, j) && allEnds.has(j * cols + i) && grid.isWalkable(i, j, bare);
+  const open = ends ? (i, j) => grid.isWalkable(i, j, walkOpts) || isEnd(i, j) : (i, j) => grid.isWalkable(i, j, walkOpts);
+  const meet = info && allEnds ? (i, j) => { if (!info.endBlocked && isEnd(i, j)) info.endBlocked = true; } : null;
+  // (the goal's pocket counts the ends open either way: a pocket shut without them is shut with them too, or not one)
+  const pocketOpen = allEnds ? (i, j) => grid.isWalkable(i, j, walkOpts) || isEnd(i, j) : open;
 
   // Start: if the unit stands in a blocked cell (pushed/spawned badly), leave via the nearest walkable one.
   let start = { x: sx, z: sz };
   let si = Math.floor(sx / c), sj = Math.floor(sz / c);
-  if (!grid.isWalkable(si, sj, walkOpts)) {
+  // (starting or ending on a ladder's end the mask shuts — just down a tank's ladder, or ordered up it: with the ends open)
+  if (meet && (isEnd(si, sj) && !open(si, sj) || isEnd(Math.floor(tx / c), Math.floor(tz / c)) && !open(Math.floor(tx / c), Math.floor(tz / c)))) {
+    info.endBlocked = true;
+    return null;
+  }
+  if (!open(si, sj)) {
     const n = grid.nearestWalkable(sx, sz, NEAREST_WALKABLE_RADIUS, walkOpts);
     if (!n) return null;
     si = n.i; sj = n.j; start = { x: n.x, z: n.z };
@@ -254,7 +292,7 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
   // Goal: substitute the nearest walkable cell within 3 m.
   let goal = { x: tx, z: tz };
   let gi = Math.floor(tx / c), gj = Math.floor(tz / c);
-  if (!grid.isWalkable(gi, gj, walkOpts)) {
+  if (!open(gi, gj)) {
     const n = grid.nearestWalkable(tx, tz, nearR, walkOpts);
     if (!n) return null;
     gi = n.i; gj = n.j; goal = { x: n.x, z: n.z };
@@ -266,9 +304,9 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
   const startK = sj * cols + si, goalK = gj * cols + gi;
   // (a failed search this epoch reached this start but not this goal: the goal is out of this start's reach too)
   const memo = opts.memo != null && !walkOpts.dynamic ? failMemo(grid, opts.memo) : null;
-  const memoKey = memo ? failKey(walkOpts, opts) : null;
+  const memoKey = memo ? failKey(walkOpts, opts) + (ends ? '|ends' : '') : null;
   if (memo) {
-    for (const reach of memo.sets.get(memoKey) || EMPTY_SETS) if (reach[startK] && !reach[goalK]) return null;
+    for (const reach of memo.sets.get(memoKey) || EMPTY_SETS) if (reach[startK] && !reach[goalK]) { if (info && reach.endBlocked) info.endBlocked = true; return null; }
     // (or this goal's pocket — every cell that can reach it — was enumerated this epoch, without this start)
     const pocket = memo.pockets.get(`${memoKey}|${goalK}`);
     if (pocket && !pocket.has(startK)) return null;
@@ -299,13 +337,15 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
     if (++expanded > maxNodes) { capped = true; break; }
     // (a long search: is the goal shut in a small pocket this start cannot be in? then it fails — no need to flood)
     if (expanded === POCKET_AT) {
-      const pocket = goalPocketExcludes(grid, goalK, startK, walkOpts, role, hasLinks, !!opts.noLinks);
+      const pocket = goalPocketExcludes(grid, goalK, startK, walkOpts, role, hasLinks, !!opts.noLinks, pocketOpen);
       if (pocket) { if (memo) memo.pockets.set(`${memoKey}|${goalK}`, new Set(pocket)); return null; }
     }
     const i = k % cols, j = (k - i) / cols;
-    for (let d = 0; d < 8; d++) {
+    // (a ladder end the clearance mask shuts, reached on foot: only its ladder goes on from it)
+    const endOnly = ends !== null && walkOpts.avoid[k] && via[k] === 0 && k !== startK;
+    for (let d = 0; d < 8 && !endOnly; d++) {
       const ni = i + DI[d], nj = j + DJ[d];
-      if (!grid.isWalkable(ni, nj, walkOpts)) continue;
+      if (!open(ni, nj)) { if (meet) meet(ni, nj); continue; }
       // No corner cutting: a diagonal step needs both orthogonal neighbours free.
       if (d >= 4 && (!grid.isWalkable(i + DI[d], j, walkOpts) || !grid.isWalkable(i, j + DJ[d], walkOpts))) continue;
       const nk = nj * cols + ni;
@@ -334,7 +374,7 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
         const nk = L.ka === k ? L.kb : L.ka;
         if (closed[nk] === id) continue;
         const ni = nk % cols, nj = (nk - ni) / cols;
-        if (!grid.isWalkable(ni, nj, walkOpts)) continue;
+        if (!open(ni, nj)) { if (meet) meet(ni, nj); continue; }
         const ng = g[k] + Math.hypot(ni - i, nj - j) + L.cost / c;
         if (stamp[nk] !== id || ng < g[nk]) {
           stamp[nk] = id;
@@ -352,6 +392,7 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
     if (memo && !capped && memo.n < FAIL_MEMO_MAX) {
       const reach = new Uint8Array(grid.size);
       for (let k = 0; k < reach.length; k++) if (closed[k] === id) reach[k] = 1;
+      if (info?.endBlocked) reach.endBlocked = true;
       const list = memo.sets.get(memoKey);
       if (list) list.push(reach); else memo.sets.set(memoKey, [reach]);
       memo.n++;

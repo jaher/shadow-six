@@ -795,17 +795,18 @@ export function buildWaterGate(o) {
  * a low cheek wall with a stepped coping on the open sides. o: {width=1.8, cheeks=[-1, 1], seed}
  */
 export function buildStairFlight(a, b, o = {}) {
-  const G = o.G || new Geo(o.seed ?? `${a.x},${a.z}`), W = o.width ?? 1.8;
+  // (`body` / `tread`: the material sets — M12's medina flights are plastered with limestone treads)
+  const G = o.G || new Geo(o.seed ?? `${a.x},${a.z}`), W = o.width ?? 1.8, body = o.body ?? 'ashlar', tread = o.tread ?? 'dressed';
   const run = Math.hypot(b.x - a.x, b.z - a.z), rise = b.y - a.y, n = Math.max(2, Math.ceil(Math.abs(rise) / 0.2));
   const F = segFrame([a.x, a.z], [b.x, b.z], null), tr = run / n, y0 = Math.min(a.y, b.y) - 0.15;
   for (let i = 0; i < n; i++) {
     const top = a.y + (rise * (i + 1)) / n, u0 = i * tr, u1 = run + 0.02;
-    segBox(G, 'ashlar', F, u0, Math.min(u1, u0 + tr + 0.02), -W / 2, W / 2, y0, top - 0.06, 1);
-    segBox(G, 'dressed', F, u0 - 0.04, u0 + tr + 0.02, -W / 2, W / 2, top - 0.06, top, 0.95 + ((i * 7) % 5) * 0.03);
+    segBox(G, body, F, u0, Math.min(u1, u0 + tr + 0.02), -W / 2, W / 2, y0, top - 0.06, 1);
+    segBox(G, tread, F, u0 - 0.04, u0 + tr + 0.02, -W / 2, W / 2, top - 0.06, top, 0.95 + ((i * 7) % 5) * 0.03);
     for (const s of o.cheeks ?? [-1, 1]) {
       const w0 = s < 0 ? -W / 2 - 0.3 : W / 2, w1 = s < 0 ? -W / 2 : W / 2 + 0.3;
-      segBox(G, 'ashlar', F, u0, u0 + tr + 0.02, w0, w1, y0, top + 0.55, 0.97);
-      segBox(G, 'dressed', F, u0 - 0.02, u0 + tr + 0.04, w0 - 0.04, w1 + 0.04, top + 0.55, top + 0.65, 1.05);
+      segBox(G, body, F, u0, u0 + tr + 0.02, w0, w1, y0, top + 0.55, 0.97);
+      segBox(G, tread, F, u0 - 0.02, u0 + tr + 0.04, w0 - 0.04, w1 + 0.04, top + 0.55, top + 0.65, 1.05);
     }
   }
   return o.G ? G : G.build(o.name || 'stairs', { ground: y0 });

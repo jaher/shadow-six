@@ -83,8 +83,26 @@ export function applyLibraryNav(grid, built, mission, snap) {
     const inside = (p) => p.x >= 0 && p.z >= 0 && p.x < grid.width && p.z < grid.depth;
     for (const l of lib.ladders) {
       if (!(l.y >= MIN_RAISE)) continue;
-      const a = end(l.a[0], l.a[1], 0), bTop = end(l.b[0], l.b[1], l.y);
+      // (a ladder from one floor up to the next — a bombed house's, a domed block's upper roof — stands on the lower
+      // floor, not the ground: its foot at that roof's level (M10's store, M7's racks ruin: never climbable from 0 m)
+      const below = raised.filter((r) => r.elev < l.y - 0.5 && inPoly(l.a[0], l.a[1], r.points)).sort((p, q) => q.elev - p.elev)[0];
+      // (an end off walkable ground moves along the ladder's own line — the foot out from it, the top in — not to the
+      // nearest cell: snapped askew, the link no longer ran square to the drawn ladder (M2's depot_b: a second ladder
+      // was built beside it))
+      const along = (p, q, y) => {
+        const dx = p[0] - q[0], dz = p[1] - q[1], L = Math.hypot(dx, dz) || 1;
+        for (let t = 0; t <= 1.5; t += 0.1) {
+          const x = p[0] + (dx / L) * t, z = p[1] + (dz / L) * t, c = grid.worldToCell(x, z);
+          if (grid.inBounds(c.i, c.j) && grid.isWalkable(c.i, c.j) && Math.abs(grid.elev[grid.idx(c.i, c.j)] - y) <= 0.6) return { x, z, y };
+        }
+        return end(p[0], p[1], y);
+      };
+      const a = along(l.a, l.b, below ? below.elev : 0), bTop = along(l.b, l.a, l.y);
       if (!inside(a) || !inside(bTop)) continue;
+      // (a ladder / ramp to a loft or roof the asset gives no walkable floor — M7's hangar barn: its threshing ramp up
+      // to the shut loft door — leads nowhere: no link, rather than a dead one)
+      const tc = grid.worldToCell(bTop.x, bTop.z);
+      if (!grid.inBounds(tc.i, tc.j) || !grid.isWalkable(tc.i, tc.j) || Math.abs(grid.elev[grid.idx(tc.i, tc.j)] - l.y) > 0.6) { out.dead = (out.dead || 0) + 1; continue; }
       grid.addLink(LINK.LADDER, a, bTop, { roles: null });
       out.ladders++;
     }

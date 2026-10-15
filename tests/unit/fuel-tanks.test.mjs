@@ -80,10 +80,15 @@ test('fuel tanks: manifest entries — 3 LODs under 1 MB, budgets, snow + destro
     const s = A[A[n].snowVariant];
     assert.ok(s?.snow && A[s.destroyedVariant]?.destroyed && s.destroyedVariant.endsWith('_destroyed_snow'), n);
   }
-  // walkable decks where guards stand (M8 deck block 4.5 m, M17 platform 2.6 m); the M2 catwalk is not a walkway
+  // walkable decks where guards stand (M8 deck block 4.5 m, M17 platform 2.6 m); every tank ladder's landing is
+  // walkable too (user 2026-10-15: every ladder climbable both ways) — the cradle's catwalk + stand, the quay tank's
+  // crown catwalk, the columns' rim gratings
   near(A.fuel_tank_farm_9x7.walkableRoofs[0].elev, 4.5, 0.01);
   near(A.fuel_tank_elevated.walkableRoofs[0].elev, 2.6, 0.01);
-  assert.equal(A.fuel_tank_h_cradle.walkableRoofs.length, 0);
+  for (const [n, y] of [['fuel_tank_h_cradle', 2.85], ['fuel_tank_h_cradle_m', 2.85], ['fuel_tank_quay_12', 4.4], ['fuel_tank_quay_11', 4.4], ['oil_tank_column_b', 6.1], ['fuel_tank_vertical_t', 3.5]]) {
+    near(A[n].walkableRoofs[0].elev, y, 0.01);
+    assert.ok(A[n].ladders.every((l) => Math.abs(l.y - y) < 0.01), `${n}: its ladder up to its landing`);
+  }
   assert.equal(A[A.fuel_tank_farm_9x7.destroyedVariant].walkableRoofs.length, 0, 'the collapsed deck is no walkway');
   // M17: the spinnable valve node + spout anchor
   const el = A.fuel_tank_elevated;

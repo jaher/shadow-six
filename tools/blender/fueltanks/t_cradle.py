@@ -170,6 +170,9 @@ def catwalk_stand(S):
     lx = sx1 + 0.04 if mx > 0 else sx0 - 0.04
     ft.ladder(ld, (lx, 0.15, 0.0), DECK, (mx, 0, 0), w=0.45, over=0.58)
     K.ladder_meta((lx + mx * 0.5, 0.15, 0), (lx - mx * 0.4, 0.15, DECK), DECK)
+    if not S.dest:   # walkable (a game roof): the catwalk and the stand's platform the ladder comes up to, inside the rails
+        K.roof_meta([(X(-1.85), y0 + 0.05), (X(3.15), y0 + 0.05), (X(3.15), sy0 + 0.05), (X(4.20), sy0 + 0.05),
+                     (X(4.20), sy1 - 0.05), (X(-1.85), sy1 - 0.05)], DECK, walkable=True, kind='catwalk')
     tim = ft.TIMBER if not S.dest else ft.CHAR
     S.catwalk = [P(deck, 'boards_weathered', 'catwalk', uv='beam', axis=(0, 1, 0), mat_tint=tim),
                  P(brk, 'paint_metal', 'catwalk_brackets', mat_tint=ft.PAL['blackgrey']),
@@ -203,6 +206,11 @@ def bund_dressing(S):
                 h0, h1 = sorted((S.cx - mx * LC / 2, S.cx - mx * LC / 2 + mx * 2.4))
                 segs = [(a_, b_) for (a_, b_) in ((t0, min(t1, h0 - 0.2 + hw)) for (t0, t1) in segs) if b_ - a_ > 0.2] + \
                        [(a_, b_) for (a_, b_) in ((max(t0, h1 + 0.2 + hw), t1) for (t0, t1) in segs) if b_ - a_ > 0.2]
+        lad = None
+        if ei == (1 if mx > 0 else 3) and not S.dest:      # the stand's ladder comes down behind this edge: a gap in
+            # the bund in front of it (0.4 m either side of its line, y 0.15) — a man steps through, not over a 0.6 m wall
+            lad = sorted(((0.15 - 0.4 - a.y) * d.y, (0.15 + 0.4 - a.y) * d.y))
+            segs = [(a_, b_) for (t0, t1) in segs for (a_, b_) in ((t0, min(t1, lad[0])), (max(t0, lad[1]), t1)) if b_ - a_ > 0.2]
         for (t0, t1) in segs:
             for k, z in enumerate((0.1, 0.3, 0.5)):
                 if S.dest and k > 0 and r.random() < 0.6:
@@ -215,7 +223,8 @@ def bund_dressing(S):
         while k * 1.5 <= L + 0.01:
             p = a + d * min(k * 1.5, L) - n * 0.1
             skip_h = S.dest and ei == 0 and min(S.cx - mx * LC / 2, S.cx - mx * LC / 2 + mx * 2.4) - 0.2 < p.x < max(S.cx - mx * LC / 2, S.cx - mx * LC / 2 + mx * 2.4) + 0.2
-            if not (ei == 0 and g0 - 0.1 < p.x < g1 + 0.1) and not skip_h:
+            in_lad = lad is not None and lad[0] - 0.1 < min(k * 1.5, L) < lad[1] + 0.1
+            if not (ei == 0 and g0 - 0.1 < p.x < g1 + 0.1) and not skip_h and not in_lad:
                 hgt = 0.62 if not S.dest else r.uniform(0.2, 0.55)
                 C.box_bm(posts, (p.x, p.y, hgt / 2), (0.12, 0.12, hgt))
             k += 1

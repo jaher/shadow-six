@@ -27,15 +27,14 @@ export const timeout = 2_400_000;
 const ART = {
   'm17:1': { from: 0.6, why: "a roof's eave hangs low over the wall top he climbs over (head / chest brush it)" },
   'm20:4': { from: 0.6, why: "the tower's door at the ladder's top is drawn shut (his knee touches it stepping in)" },
-  'm04:14': { from: 0, why: "a bombed house's broken first floor reaches across the ladder's way at 2.7 m (no clear place near the link)" },
-  'm04:22': { from: 0, why: "a bombed house's broken floor reaches across the ladder's way at 3.6 m (no clear place near the link)" },
   'm08:6': { from: 0, who: 'greenberet', why: "the tank's cage is 0.56 m deep: the tallest man's back clears its hoops only with his knees by the rungs" },
   'm08:7': { from: 0, who: 'greenberet', why: "the tank's cage is 0.56 m deep: the tallest man's back clears its hoops only with his knees by the rungs" },
 };
 
 export default async function ladderClimb(page, t) {
   const only = process.env.LADDER_ONLY || ''; // e.g. "m08:6,m12" — a subset while working on it
-  const missions = ['m00', 'm02', 'm04', 'm06', 'm07', 'm08', 'm09', 'm10', 'm11', 'm12', 'm14', 'm15', 'm17', 'm19', 'm20'];
+  // every mission (user 2026-10-15: every ladder in the game climbed both ways — no dead ladders left)
+  const missions = ['m00', 'm01', 'm02', 'm03', 'm04', 'm05', 'm06', 'm07', 'm08', 'm09', 'm10', 'm11', 'm12', 'm13', 'm14', 'm15', 'm16', 'm17', 'm18', 'm19', 'm20', 'b00'];
   const out = [];
   for (const mis of missions) {
     if (only && !only.split(',').some((s) => s.split(':')[0] === mis)) continue;
@@ -63,19 +62,22 @@ export default async function ladderClimb(page, t) {
         for (const e of w.entities) if (e.kind === 'commando' || e.kind === 'enemy') { e.syncTransform?.(1); e.renderUpdate?.(1 / 60); }
         um.transportFrame();
       }
-      // the ladders that lead somewhere
-      const ladders = [];
+      // every climbed ladder: each end on walkable ground at its height (a dead ladder — a top nobody can stand on — fails)
+      const ladders = [], dead = [];
       for (const L of grid.links.filter((l) => l.kind === 'ladder' && !l.walk && steepLadder(l))) {
         const def = (w.ladders || []).find((q) => q.linkId === L.id);
         if (def?.raised) grid.setLinkEnabled(L.id, true); // (M2's camp ladder: lowered)
         const [foot, top] = L.a.y <= L.b.y ? [L.a, L.b] : [L.b, L.a];
-        const topOk = grid.walkableAt(top.x, top.z) && Math.abs(grid.elevAt(top.x, top.z) - top.y) < 0.35;
-        if (!topOk || !L.enabled) continue;
         if (only && !only.split(',').some((e) => e === mis || e === `${mis}:${L.id}`)) continue;
+        const endOk = (p) => grid.walkableAt(p.x, p.z) && Math.abs(grid.elevAt(p.x, p.z) - p.y) < 0.35;
+        if (!L.enabled || !endOk(top) || !endOk(foot)) {
+          dead.push({ name: '-', lad: `${mis}:${L.id}${def ? ` (${def.id})` : ''}`, src: '-', ok: false, why: [`a dead ladder: ${!L.enabled ? 'disabled' : !endOk(top) ? `its top (${top.y.toFixed(2)} m) is no walkable ground` : `its foot (${foot.y.toFixed(2)} m) is no walkable ground`}`], sum: {}, rung: 0, frames: 0 });
+          continue;
+        }
         ladders.push({ L, foot, top, def: def?.id ?? null });
       }
       G.render(1 / 60, 1); // (the lowered camp ladder drawn)
-      const res = [];
+      const res = [...dead];
       const climbers = (lad) => {
         const list = [['greenberet', () => new Commando({ role: 'greenberet', x: 0, z: 0 })]];
         if (mis === 'm08' && lad.L.id === 6) {
@@ -89,7 +91,9 @@ export default async function ladderClimb(page, t) {
       };
       for (const lad of ladders) {
         const F = LF.ladderFrame(w, lad.L);
-        if (F.source === 'inside') { res.push({ name: '-', lad: `${mis}:${lad.L.id}`, src: F.source, ok: true, skip: 'inside a building (out of sight)', why: [], sum: {}, rung: 0, frames: 0 }); continue; }
+        // (inside a building — walls all round, a floor over the way up: no ladder is drawn there and the climb is out of
+        // sight — he still gets up and back down; the pose checks need a drawn ladder and are not run)
+        const inside = F.source === 'inside';
         // the static geometry round the ladder (rays)
         const box = new THREE.Box3(new THREE.Vector3(Math.min(lad.foot.x, lad.top.x) - 2.5, lad.foot.y - 0.5, Math.min(lad.foot.z, lad.top.z) - 2.5),
           new THREE.Vector3(Math.max(lad.foot.x, lad.top.x) + 2.5, lad.top.y + 2.5, Math.max(lad.foot.z, lad.top.z) + 2.5));
@@ -104,7 +108,6 @@ export default async function ladderClimb(page, t) {
           await u.model.ready;
           if (u.faction === 'enemy') u.brain = stub();
           set?.(u);
-          u._planPath = (x, z) => w.findPath(u.x, u.z, x, z, u.pathQuery()); // (plain planning: a click under a deck goes round)
           // (from the ladder's foot end — the walkable spot nearest it — back to it)
           let back = { x: lad.foot.x, z: lad.foot.z };
           if (!grid.walkableAt(back.x, back.z)) for (let r = 0.25; r <= 1.5 && !grid.walkableAt(back.x, back.z); r += 0.25) for (let a = 0; a < 16; a++) { const x = lad.foot.x + Math.cos(a * Math.PI / 8) * r, z = lad.foot.z + Math.sin(a * Math.PI / 8) * r; if (grid.walkableAt(x, z) && Math.abs(grid.elevAt(x, z) - lad.foot.y) < 0.3) { back = { x, z }; break; } }
@@ -190,6 +193,7 @@ export default async function ladderClimb(page, t) {
           const bad = [];
           if (M.err) bad.push(M.err);
           if (!M.top || !M.back) bad.push(`climb not done (top ${M.top}, back ${M.back})`);
+          if (inside) { res.push({ name: M.name, lad: M.lad, src: M.src, ok: !bad.length, why: bad, sum: {}, rung: M.rung, frames: M.frames, inside: true }); continue; }
           if (M.rung < 20) bad.push(`only ${M.rung} frames on the rungs`);
           const c = M.sum.chest;
           if (c[1] == null || c[1] < 0.3 || c[1] > 0.4 || c[0] < 0.27 || c[2] > 0.43) bad.push(`chest out ${c}`);
@@ -215,7 +219,7 @@ export default async function ladderClimb(page, t) {
     }
   }
   const bad = out.filter((x) => !x.ok), done = out.filter((x) => !x.skip);
-  t.log(`${done.length - bad.length} / ${done.length} climbs ok (${out.length - done.length} ladders skipped: inside buildings / not the way)`);
+  t.log(`${done.length - bad.length} / ${done.length} climbs ok (${out.filter((x) => x.inside).length} inside buildings: climbed, pose unchecked; ${out.length - done.length} skipped: not the way)`);
   t(done.length >= (process.env.LADDER_ONLY ? 1 : 45), `climbs run (${done.length})`);
   t(!bad.length, `failing: ${bad.map((x) => `${x.lad} ${x.name}: ${x.why.join(' / ')}`).join(' || ')}`);
 }

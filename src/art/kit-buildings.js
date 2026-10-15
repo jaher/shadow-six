@@ -229,9 +229,23 @@ export function buildKitHouse(p, theater = 'temperate') {
   if (p.roofWalk || /flat|terrace|medina|souk|whitewash|bunkhouse|block|hq_domed|stepped|jail|palace|pavilion|corner/.test(v) || theater === 'desert') {
     g.add(tbox(w - 0.1, 0.08, d - 0.1, dressingMaterial(S.roof), 0, top - 0.03, 0, 2.5));
     const ph = theater === 'desert' ? 0.45 : 0.35, pt = 0.22;
+    // (`parapetGaps`: [x0, z0, x1, z1] rects in the house's own frame where the parapet is open — a stair coming up
+    // onto the roof there, M12's flights)
+    const gaps = p.parapetGaps || [];
     for (const [len, x, z, ax] of [[w, 0, d / 2 - pt / 2, true], [w, 0, -d / 2 + pt / 2, true], [d - 2 * pt, w / 2 - pt / 2, 0, false], [d - 2 * pt, -w / 2 + pt / 2, 0, false]]) {
-      g.add(tbox(ax ? len : pt, ph, ax ? pt : len, wallMat, x, h + ph / 2, z, 2.2));
-      g.add(tbox(ax ? len + 0.04 : pt + 0.08, 0.06, ax ? pt + 0.08 : len + 0.04, trim, x, h + ph + 0.03, z, 1.5));
+      // the parapet's run along its side, less the gaps across it
+      const c = ax ? x : z, q = ax ? z : x;
+      let runs = [[c - len / 2, c + len / 2]];
+      for (const G of gaps) {
+        const [g0, g1, h0, h1] = ax ? [G[0], G[2], G[1], G[3]] : [G[1], G[3], G[0], G[2]];
+        if (h1 < q - pt / 2 || h0 > q + pt / 2) continue;
+        runs = runs.flatMap(([r0, r1]) => [[r0, Math.min(r1, g0)], [Math.max(r0, g1), r1]]).filter(([r0, r1]) => r1 - r0 > 0.05);
+      }
+      for (const [r0, r1] of runs) {
+        const L = r1 - r0, m = (r0 + r1) / 2, px = ax ? m : x, pz = ax ? z : m, whole = runs.length === 1 && L >= len - 1e-6;
+        g.add(tbox(ax ? L : pt, ph, ax ? pt : L, wallMat, px, h + ph / 2, pz, 2.2));
+        g.add(tbox(ax ? L + (whole ? 0.04 : 0) : pt + 0.08, 0.06, ax ? pt + 0.08 : L + (whole ? 0.04 : 0), trim, px, h + ph + 0.03, pz, 1.5));
+      }
     }
     // (nothing stands on a walkable roof: roof walkers must not walk through domes, stairheads or chimneys)
     if (!p.roofWalk && (p.dome || /dome|qubba/.test(v))) {

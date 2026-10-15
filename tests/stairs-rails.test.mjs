@@ -1,12 +1,13 @@
 /**
  * Stairs between their rails (user feedback 2026-10-11: "it looks like the man walk on the stairs in a way they can
  * cross the handrails, fix that"). Every flight with handrails or side walls — the M3 dam's W and E stairs, M2's
- * plat_sw stair, M20's stone flights and the stair links of M6, M9 and M12 — is walked and run up and down by men coming
+ * plat_sw stair, M20's stone flights and the stair links of M6, M9 and every M12 flight — is walked and run up and down by men coming
  * at its foot or head head-on and from odd angles (±70°, ±110° off its axis), crawled up, climbed with a man on the
  * shoulder (M3), and walked by two men passing each other on it. Per frame, on its run, every sampled bone (hands,
  * forearms, shoulders, feet, knees, hips, pelvis, chest, head) keeps its radius inside the rails / walls on its side
  * at its height: its distance off the axis + radius ≤ the first static surface a ray from the axis out to that side
- * meets there (the rails, posts, stringers, cheek walls; men and machines are no part of it).
+ * meets there, from 0.3 m under the bone's height up (the rails, posts, stringers, cheek walls, a battered wall leaning
+ * away; men and machines are no part of it).
  * Logic + model updates per frame (no frames drawn), as Game.render steps the units' models.
  */
 export const timeout = 2_400_000;
@@ -26,11 +27,10 @@ const ART = {
   // (M2's plat_sw stands along the camp palisade: at its foot the palisade is half a metre off its line, and a man
   // coming along the palisade from that side brushes it — the palisade's own nav, not the stair's rails)
   'm02 plat_sw': { s: -9, s1: 0.5, side: 1, why: 'the camp palisade half a metre off its line at its foot' },
-  // (no stair drawn along these links' lines: M9's barracks outside stair and its parapet do not follow stair_barr's
-  // line — something solid 0.0 m off its axis from its foot up; M12's S1 has nothing drawn between the w_block roofs
-  // (y 4 → 8) — the link walks through w_block_rear's wall. Art / mission data, not the rails)
-  'm09 stair_barr': { s: -9, why: "the barracks' drawn stair and parapet do not follow the link's line" },
-  'm12 S1': { s: -9, why: "no stair drawn on the link's line (w_block_rear's wall)" },
+  // (M9's barracks asset draws its outside stair with the lower treads 0.25–0.4 m wide against a battered side wall and
+  // its head 1.2 m wide in the terrace parapet: on its one straight line a man's feet and right hand brush the wall's
+  // foot on the first steps — the asset's stair, the link now on it)
+  'm09 stair_barr': { s: -9, why: "the asset's lower treads are 0.25-0.4 m wide against its battered side wall" },
 };
 
 export default async function stairsRails(page, t) {
@@ -99,7 +99,7 @@ export default async function stairsRails(page, t) {
       const ready = async (u) => { await u.model.ready; return u; };
       const picks = {
         m03: (fl) => fl.filter((f) => f.kind === 'dam'), m02: (fl) => fl.filter((f) => f.kind === 'platform'),
-        m20: (fl) => fl.filter((f) => f.kind === 'link').slice(0, 3), m12: (fl) => fl.filter((f) => f.kind === 'link').slice(0, 2),
+        m20: (fl) => fl.filter((f) => f.kind === 'link').slice(0, 3), m12: (fl) => fl.filter((f) => f.kind === 'link'),
         m06: (fl) => fl.filter((f) => f.kind === 'link').slice(0, 1), m09: (fl) => fl.filter((f) => f.kind === 'link').slice(0, 1),
       };
       const flights = picks[mis](w.stairs.flights);
@@ -128,8 +128,9 @@ export default async function stairsRails(page, t) {
           for (let k = Math.round(sA * 10); k <= Math.round(sB * 10); k++) {
             const s = k / 10, tr = ST.levelAt(f, s);
             let v = Infinity, top = -Infinity;
-            for (let h = 0.05; h <= 1.4; h += 0.025) { const x = face(s, tr + h, sg); if (x <= f.w / 2 + 0.3) { v = Math.min(v, x); top = Math.max(top, h); } }
-            if (top >= 0.5) { at.set(k, { v, top }); n++; vs.push(v); }
+            const hv = [];
+            for (let h = 0.05; h <= 1.4; h += 0.025) { const x = face(s, tr + h, sg); hv.push(x <= f.w / 2 + 0.3 ? x : Infinity); if (x <= f.w / 2 + 0.3) { v = Math.min(v, x); top = Math.max(top, h); } }
+            if (top >= 0.5) { at.set(k, { v, top, hv }); n++; vs.push(v); }
           }
           vs.sort((a, b) => a - b);
           side[sg] = n >= 5 ? { at, v: vs[Math.floor(vs.length * 0.05)], n } : null;
@@ -222,7 +223,13 @@ export default async function stairsRails(page, t) {
                 for (const sg of [-1, 1]) {
                   const S = railAt(sg, q.s);
                   if (!S || p.y - tread > S.top + rad) continue; // (no rail there, or over its top: clear of it)
-                  const need = q.v * sg + rad, ex = need - S.v;
+                  // (against the faces from 0.3 m under the bone's own height up: a battered wall leans away above its
+                  // foot — M9's barracks stair — and a foot under a railing's top rail is through it all the same)
+                  const bh = p.y - tread;
+                  let fv = Infinity;
+                  S.hv.forEach((x, i) => { if (0.05 + i * 0.025 >= bh - 0.3) fv = Math.min(fv, x); });
+                  if (fv === Infinity) continue;
+                  const need = q.v * sg + rad, ex = need - fv;
                   const A0 = ART[`${mis} ${f.id}`];
                   if (ex > R.worst && !(A0 && q.s >= A0.s && q.s <= (A0.s1 ?? Infinity) && (!A0.side || A0.side === sg))) R.worst = ex;
                   const A = ART[`${mis} ${f.id}`], inArt = A && q.s >= A.s && q.s <= (A.s1 ?? Infinity) && (!A.side || A.side === sg);

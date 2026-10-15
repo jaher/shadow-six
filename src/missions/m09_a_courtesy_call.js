@@ -306,7 +306,10 @@ export default {
   ],
   ladders: [
     // outside stairs to the barracks' roof terrace (nobody is posted up there)
-    { id: 'stair_barr', kind: 'stairs', x: 91.5, z: 62, y: 0, top: [91.5, 58.5, 4], raised: false, heading: deg(270) },
+    // (on the drawn stair — the barracks asset's own: 13 steps of 0.31 m up from z 63.65 to the terrace's parapet gap at
+    // z 60, the steps 0.25–0.4 m wide at the bottom against the battered side wall, widening to 0.9 m at the top; it
+    // used to run 0.3 m east of it, from its middle into the terrace 1.5 m past its head, through the parapet)
+    { id: 'stair_barr', kind: 'stairs', x: 91.05, z: 63.65, y: 0, top: [91.05, 59.75, 4], raised: false, heading: deg(270), width: 0.5, risers: 13 },
   ],
   triplines: [],
   markers: [
