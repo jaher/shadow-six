@@ -302,7 +302,7 @@ const CRAWL_LIMBS = new Set(['crawl', 'downed']);
  * Limb discs [along (m, + ahead), lateral (m), radius] of a crawler, measured on the crawl stroke (clip-2): the
  * drawn-up knee 0.64 m to his side just behind the hips, the toes of the straight leg up to 1.07 m behind, 0.37 m out.
  */
-const LIMBS = [[-0.15, 0.5, 0.17], [-0.15, -0.5, 0.17], [-0.95, 0.3, 0.17], [-0.95, -0.3, 0.17]];
+export const LIMBS = [[-0.15, 0.5, 0.17], [-0.15, -0.5, 0.17], [-0.95, 0.3, 0.17], [-0.95, -0.3, 0.17]];
 const LIMB_REACH = Math.max(...LIMBS.map(([a, l, r]) => Math.hypot(a, l) + r));
 
 /** Gap of a unit's current body (its stance and heading). */

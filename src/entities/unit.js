@@ -5,7 +5,7 @@
  * @module entities/unit
  */
 
-import { settleBody, fallHeading, settleSolid, settleHands, climbTrack, climbAt, ownerHeight, weaponRoom } from '../world/placement.js';
+import { settleBody, fallHeading, settleSolid, settleHands, climbTrack, climbAt, ownerHeight, weaponRoom, proneClear } from '../world/placement.js';
 import { Entity } from './entity.js';
 import { createUnitModel } from '../art/unit-model.js';
 import { CONFIG, velToSpeed } from '../config.js';
@@ -56,6 +56,8 @@ function boomLines(w) {
   return list;
 }
 
+/** How fast a man getting down edges aside to lie clear of a wall (m/s; Unit._lieDownStep). */
+const LIE_SHIFT = 1.2;
 /** How fast a lying man's shown body turns while he crawls (rad/s; art/prone-ground.js: 75°/s × 1.5). */
 const PRONE_TURN = (112 * Math.PI) / 180;
 /** Every Unit.state value (§10.4 #2). BEL never enters 'stunned'/'bound' (BCD rulesets only). */
@@ -398,8 +400,70 @@ export class Unit extends Entity {
     if (stance !== 'stand') this.moveMode = 'walk';
     if (prev === 'stand' && stance === 'crawl') this._stanceT = CONFIG.units.stanceDown;
     else if (prev === 'crawl' && stance === 'stand') this._stanceT = CONFIG.units.stanceUp;
+    // getting down on his belly: the body falls along his heading, so where that would put his head, hands, knees or
+    // feet in a wall he turns (or edges aside) to lie where all of him fits, while he gets down (stanceDown; from a
+    // crouch, as long as the turn or the edging takes) (clipping seeds 7 / 11, M3: the Diver and the Green Beret lying
+    // down at their starts, 0.95 m from start_wall and facing it, 0.11 m into it)
+    this._lieDown = stance === 'crawl' && (prev === 'stand' || prev === 'crouch') ? { to: null } : null;
+    if (this._lieDown && !(this._stanceT > 0)) {
+      // (from a crouch he is down at once — unless he must turn or edge aside first: then as long as that takes)
+      const L = this._lieDown, to = (L.to = this._lieDownPose() || { none: true });
+      L.px = this.x; L.pz = this.z;
+      if (to.none) this._lieDown = null;
+      else this._stanceT = Math.min(CONFIG.units.stanceDown, Math.max(Math.abs(angleDiff(this.heading, to.heading)) / this.turnRate, Math.hypot(to.x - this.x, to.z - this.z) / LIE_SHIFT) + 1 / 60);
+    }
     if (stance === 'crawl') this._crawlRepath();
     this.world?.events.emit('unit:stance', { unit: this, stance });
+  }
+
+  /**
+   * Where a man getting down lies (placement proneClear: his whole lying body clear of walls, the standing visuals and
+   * ledges; world/body-clearance.js: of hulls and solid props): here as he faces when that fits, else facing the way
+   * his path goes when that fits, else the nearest heading that does, else the nearest spot (≤ 0.5 m) where one does.
+   * Null: as he is (it fits, or nothing does; on a ramp / stair run its own rules hold).
+   * @returns {{x:number, z:number, heading:number}|null}
+   */
+  _lieDownPose() {
+    const w = this.world, g = w?.grid;
+    if (!g || this.vehicle || this._lyingRun() || onStairRun(this)) return null;
+    const ign = this._bodyIgnore(), solids = hasObstacles(w);
+    const fits = (x, z, h) => proneClear(g, x, z, h);
+    const free = (x, z, h) => fits(x, z, h) && (!solids || bodyGap(w, x, z, h, 'crawl', ign) >= STOP_MARGIN);
+    if (free(this.x, this.z, this.heading)) return null;
+    const wp = this.path?.[this.pathIndex];
+    if (wp && Math.hypot(wp.x - this.x, wp.z - this.z) > 0.05) {
+      const want = Math.atan2(wp.z - this.z, wp.x - this.x);
+      if (free(this.x, this.z, want)) return { x: this.x, z: this.z, heading: want };
+    }
+    return clearPose(w, this.x, this.z, this.heading, 'crawl', { sweep: false, maxDist: 0.5, ignore: ign, fits,
+      walkable: (x, z) => g.walkableAt(x, z) && Math.abs(g.elevAt(x, z) - g.elevAt(this.x, this.z)) <= 0.1 });
+  }
+
+  /**
+   * One step of getting down (Unit.setStance `_lieDown`): turn (at his standing turn rate) and edge (LIE_SHIFT) toward
+   * the pose _lieDownPose picks on the first step (by then his order's path is known; picked again when something
+   * else has moved him since); `final`: the last step.
+   */
+  _lieDownStep(dt, final = false) {
+    const L = this._lieDown;
+    if (!L) return;
+    // put somewhere else meanwhile (a script, a test, a load placing him): planned again from where he is
+    if (L.to && (Math.abs(this.x - L.px) > 1e-3 || Math.abs(this.z - L.pz) > 1e-3)) L.to = null;
+    if (!L.to) L.to = this._lieDownPose() || { none: true };
+    const to = L.to;
+    if (!to.none) {
+      const dx = to.x - this.x, dz = to.z - this.z, d = Math.hypot(dx, dz);
+      // (never a jump: the last step finishes a short way only; else he lies here, turned only if that fits here)
+      const snap = final && d <= LIE_SHIFT * dt + 0.05;
+      const step = snap ? d : Math.min(d, LIE_SHIFT * dt);
+      if (d > 1e-6) { this.x += (dx / d) * step; this.z += (dz / d) * step; }
+      if (!final || snap || proneClear(this.world.grid, this.x, this.z, to.heading)) {
+        this.heading = final ? wrapAngle(to.heading) : turnTowardsAngle(this.heading, to.heading, this.turnRate * dt);
+      }
+      if (final) { this.prevHeading = this.heading; this._bodyPrev = null; }
+    }
+    L.px = this.x; L.pz = this.z;
+    if (final) this._lieDown = null;
   }
 
   /**
@@ -620,6 +684,7 @@ export class Unit extends Entity {
     }
     if (this._stanceT > 0) {
       this._stanceT -= dt;
+      if (this._lieDown) this._lieDownStep(dt, !(this._stanceT > 0));
     } else if (this.path && (this.state === 'active' || this.state === 'hidden' || this.state === 'captured' || this.state === 'downed')) {
       this._followPath(dt);
     } else if (!this.path && this.world) {
@@ -1068,6 +1133,11 @@ export class Unit extends Entity {
           if (wide && this._lyingOnDeck(o)) { h = o; sgn = -sgn; } else h = this.heading;
         }
         this._deckTurn = sgn;
+      } else if (lying && w?.grid && h !== this.heading && proneClear(w.grid, this.x, this.z, this.heading)) {
+        // on the ground likewise: placement proneClear — his head, hands and feet off walls, fences, the standing
+        // visuals and ledges (a man lying along a wall whose way turns back or away: his feet or head would swing into it)
+        h = this._groundTurn(want, rate, h);
+        this._deckTurn = 0;
       } else this._deckTurn = 0;
       this.heading = h;
     }
@@ -1404,6 +1474,24 @@ export class Unit extends Entity {
       if (!g.walkableAt(x, z) || Math.abs(g.elevAt(x, z) - e0) >= 1) return false;
     }
     return true;
+  }
+
+  /**
+   * Lying on the ground, the heading for this step's turn toward `want` (`h`: the plain step at `rate`), through
+   * headings where all of him fits only (placement proneClear; the whole turn, not just this step): the short way,
+   * else the long way round, else his body along his way feet first (want + π) when that turn fits, else he keeps his
+   * heading until his crawl takes him where one does (M3 start: lying along start_wall 0.95 m off it, sent back the
+   * other way — there is no room to turn round; the precedent: a crawler sent back down a ramp, feet first).
+   */
+  _groundTurn(want, rate, h) {
+    const g = this.world.grid, H = this.heading;
+    const clear = (sgn, span) => { for (let a = 0; ; a = Math.min(span, a + Math.PI / 36)) { if (!proneClear(g, this.x, this.z, H + sgn * a)) return false; if (a >= span) return true; } };
+    const d = angleDiff(H, want);
+    if (clear(Math.sign(d), Math.abs(d))) return h;
+    if (clear(-Math.sign(d), 2 * Math.PI - Math.abs(d))) return wrapAngle(H - Math.sign(d) * rate);
+    const db = angleDiff(H, want + Math.PI);
+    if (Math.abs(db) > 1e-4 && clear(Math.sign(db), Math.abs(db))) return turnTowardsAngle(H, want + Math.PI, rate);
+    return H;
   }
 
   /** The ramp / stair run (grid.addRun, `align`) any of his lying body is on — pelvis, head or feet — or null. */

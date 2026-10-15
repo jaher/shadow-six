@@ -23,6 +23,7 @@
  */
 import { rectPoly, circlePoly, polyDist, lineDist, inPoly, clipPolyline, sweepPoly, linePolys, inflatePoly, centroidOf, convexHull, segDist, boundsOf, polysOverlap } from './placement-geom.js';
 import { categoryOf } from '../debug/clip-rules.js';
+import { BODY, LIMBS } from './body-clearance.js';
 
 /** Tunables (metres). */
 export const RULES = Object.freeze({
@@ -842,6 +843,36 @@ export function ownerHeight(world) {
   const fn = (k) => { const o = world.grid?.owner?.[k]; return o ? byOwner.get(o) ?? null : null; };
   world._ownerH = { src: world.structures, fn };
   return fn;
+}
+
+/** Sample points [along, lateral] (m) over a crawler's body: toes to muzzle ±0.2 m, and his limbs' discs (LIMBS). */
+const PRONE_SAMPLES = (() => {
+  const S = BODY.prone, out = [];
+  for (let u = -(S.back - 0.05); u <= S.front - 0.05 + 1e-9; u += 0.25) for (const v of [-0.2, 0, 0.2]) out.push([u, v]);
+  for (const [a, l, r] of LIMBS) out.push([a, l], [a + r, l], [a - r, l], [a, l + Math.sign(l) * r]);
+  return out;
+})();
+
+/**
+ * Rule (e) a man lying on his belly: is his whole body clear at (x, z) along heading `h`? His body from the toes to the
+ * muzzle (BODY.prone: hands and weapon 1.3 m ahead, toes 1.05 m behind, ±0.2 m across) and the crawl stroke's limbs
+ * (LIMBS: the drawn-up knee 0.67 m to his side, the straight leg's toes) must stay off structure cells (grid block:
+ * walls, fences, buildings, ruins), off the standing visuals the grid does not hold (grid.solidAt: stakes, rubble, a
+ * plinth's skirt) and off ground more than 0.3 m above or below his own (a wall walk's edge, a deck's side). The
+ * clearance cells round the walls (navBlock) are open ground he may lie on. Clipping seeds 7 / 11 on M3: the Diver and
+ * the Green Beret lying down at their starts facing `start_wall`, 0.95 m off it, head and hands 0.11 m into it.
+ * @param {import('./grid.js').NavGrid} grid
+ */
+export function proneClear(grid, x, z, h) {
+  if (!grid?.block) return true;
+  const c = Math.cos(h), s = Math.sin(h), cell = grid.cell, y0 = grid.elevAt ? grid.elevAt(x, z) : 0;
+  for (const [u, v] of PRONE_SAMPLES) {
+    const px = x + c * u - s * v, pz = z + s * u + c * v, i = Math.floor(px / cell), j = Math.floor(pz / cell);
+    if (i < 0 || j < 0 || i >= grid.cols || j >= grid.rows) return false;
+    const k = j * grid.cols + i;
+    if (grid.block[k] !== 0 || grid.solidAt?.(px, pz) || Math.abs((grid.elev ? grid.elev[k] : 0) - y0) > 0.3) return false;
+  }
+  return true;
 }
 
 /**
