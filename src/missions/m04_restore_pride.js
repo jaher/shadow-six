@@ -233,8 +233,8 @@ const NE_BANK = [
   { id: 'rocks_x3', type: 'rocks', x: 186, z: 90, rot: 0, w: 4, d: 6, h: 2.5 },
   // the SE farm ruins: bombed brick houses (scripts/bombed-ruin.js: gameplay = the drawn shell, walls B.HIGH to 7 m). The
   // shells are bigger than the old low walls: se1 1.4 m NW (2 m off e31's post), se2 2.2 m WNW (off e38's start and p5's
-  // walk), se3 1 m N (off e38's loop); se4 and se5 already clear
-  ...[['ruin_se1', 157.8, 127.5, 30], ['ruin_se2', 163.8, 140, 20], ['ruin_se3', 182.5, 138, 150], ['ruin_se4', 190.5, 120.5, 20], ['ruin_se5', 196, 130, 60]]
+  // walk), se3 1 m N (off e38's loop), se5 2.5 m W 1 m S (its shell inside the map's E edge, x 199, and no pocket by se4); se4 already clear
+  ...[['ruin_se1', 157.8, 127.5, 30], ['ruin_se2', 163.8, 140, 20], ['ruin_se3', 182.5, 138, 150], ['ruin_se4', 190.5, 120.5, 20], ['ruin_se5', 193.5, 131, 60]]
     .map(([id, x, z, r]) => bombedRuin(id, x, z, deg(r))),
 ];
 

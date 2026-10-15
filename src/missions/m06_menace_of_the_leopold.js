@@ -21,6 +21,7 @@
  */
 
 import { joinStructures } from './schema.js';
+import { bombedRuin } from './scripts/bombed-ruin.js';
 const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (enemy-brain reads wp.look * DEG, §4.1)
 
@@ -181,7 +182,9 @@ export default {
     { id: 'hq', type: 'flat_roof_house', variant: 'fortified_block_tower', asset: 'hq_fortified_block', x: 90, z: 77, rot: 0, w: 16, d: 12, h: HQ_ROOF, roofY: HQ_ROOF, mat: 'stone', roofWalk: true, flag: true, garrison: true, destructible: true, hp: 100 },
     tower('hq_tower', 100, 76, 2.5, 10, 'stone', 'tower_round_stone'),
     { id: 'hq_leanto', type: 'hut', variant: 'lean_to_canopy', asset: 'lean_to_canopy', x: 78.5, z: 80, rot: 0, w: 5, d: 5, h: 3, block: 1 },
-    { id: 'ruin_s', type: 'ruins', variant: 'burned_timber', asset: 'ruin_burned_timber', x: 46, z: 92, rot: 0, w: 10, d: 8, h: 2.5 },
+    // the burned-out house S of the road: a bombed brick shell drawn on the dossier's 10 × 8 m (scripts/bombed-ruin.js:
+    // gameplay = the drawn shell, walls B.HIGH to 7.9 m, breach and rubble B.LOW, the inside closed)
+    bombedRuin('ruin_s', 46, 92, 0, { scale: [10 / 11, 1] }),
     tower('tower_nw', 46.5, 40, 2.25, 7),
     tower('tower_s', 58.5, 80, 2.25, 7),
     // --- railway: main line NW → SE with the gun on it, dead-end spur NE; parked wagons (no traffic)

@@ -54,7 +54,9 @@ test('art m06: every placeholder takes its own Masi build, fitted to the gamepla
     const tol = /^(minaret|tent)$/.test(s.type) ? 0.25 : 0.12; // one tower build serves the 4–5 m towers; the M16 tent at 0.83 scale
     assert.ok(Math.abs(Math.log(w / ew)) < tol && Math.abs(Math.log(d / ed)) < tol, `${s.id}: ${pk.name} ${ew.toFixed(1)}×${ed.toFixed(1)} on ${w}×${d}`);
   }
-  for (const n of [...OWN, 'tent_ridge_field']) assert.ok(seen.has(n), `${n} used`);
+  // (ruin_s is the bombed brick house again, scripts/bombed-ruin.js: the burnt timber build stays in the add-on, unused)
+  for (const n of [...OWN.filter((q) => q !== 'ruin_burned_timber'), 'tent_ridge_field']) assert.ok(seen.has(n), `${n} used`);
+  assert.equal(byId('ruin_s').asset, 'house_bombed_b');
   for (const id of ['ruin_w', 'ruin_ne', 'chapel', 'barr_c', 'hq', 'hq_leanto', 'ruin_s', 'turret_w', 'tower_nw', 'tower_s', 'chapel_tower', 'hq_tower'])
     assert.ok(byId(id).asset, `${id} has its own build`);
 }));
