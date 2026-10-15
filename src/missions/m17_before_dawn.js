@@ -33,6 +33,7 @@
 
 import { GUESTS, setLockedGate, openPen, showCaged, northAlarm, lineUp, investigateBlast } from './scripts/m17.js';
 import { joinStructures } from './schema.js';
+import { buildM17Art } from './scripts/m17-art.js';
 
 const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES
@@ -52,6 +53,9 @@ const RIVER_S = [[90, 74.2], [76.5, 77], [67.5, 77.5], [58.5, 81], [49.5, 86], [
 export const RIVER = [...RIVER_N, ...RIVER_S];
 /** The gorge SW: its E end runs up against the camp's W wall. */
 export const RAVINE = [[0, 125.5], [12, 126], [28, 124.5], [33, 125.5], [36.5, 133.5], [40.5, 137.5], [22, 139], [12, 145], [0, 147]];
+/** Art pass: the gorge cut 4.5 m into the terrain (visual only: its cells are the ravine / deck), its stream (dossier §4.2). */
+const CARVES = [{ id: 'gorge', points: RAVINE, depth: 4.5, bank: 1.8, inset: 0.4 }];
+const STREAM = [[0, 141], [10, 139.5], [20, 137], [27, 133.5]];
 /** Mobile-bridge deck (17 m + 3 m on the N lip, axis 75°) and the S landing it crushes when it slides out. */
 export const DECK = [[9.8, 125.6], [14.6, 124.3], [19.8, 143.6], [15.0, 144.9]];
 export const CRUSH = [[14.6, 144.9], [19.8, 143.6], [20.4, 146], [15.2, 147.3]];
@@ -101,9 +105,9 @@ const CAMP = [
   // wall_n after the pen: where the cage's W and E sides meet it, its brick cells win (stamps overwrite)
   brick('wall_n', { segments: [[C(0, 0), C(28.9, 0)], [C(31.9, 0), C(55.5, 0)]] }),
   // upper camp (the prison yard)
-  camp('house_w', 'house', 'house_timber_crossgable', C(11, 15.7), 12, 9, 7, { mat: 'woodDark', enterable: true }),
-  camp('shed_w', 'hut', 'showers_slatted', C(10.8, 2.6), 5, 3, 2.6, { label: 'Showers', mat: 'planks' }),
-  camp('shed_ne', 'hut', 'shed_slatted', C(47.3, 2.8), 5, 3, 2.6, { mat: 'planks' }),
+  camp('house_w', 'house', 'house_timber_crossgable', C(11, 15.7), 12, 9, 7, { mat: 'woodDark', enterable: true, asset: 'house_halftimber_b' }),
+  camp('shed_w', 'hut', 'showers_slatted', C(10.8, 2.6), 5, 3, 2.6, { label: 'Showers', mat: 'planks', asset: 'shed_tarred_be' }),
+  camp('shed_ne', 'hut', 'shed_slatted', C(47.3, 2.8), 5, 3, 2.6, { mat: 'planks', asset: 'shed_tarred_be' }),
   { id: 'water_tank', type: 'well', variant: 'water_tank_caged', x: C(4.4, 22.9)[0], z: C(4.4, 22.9)[1], r: 1.2, h: 3, block: 2 },
   camp('fuel_tank', 'fueltank', 'fuel_tank_elevated', C(33.7, 25), 5, 3, 6, { label: 'Fuel tanks', block: 2 }),
   camp('crates_u', 'crates', 'crates_pile', C(47.5, 20.5), 3, 3, 1.5, { block: 1 }),
@@ -113,11 +117,11 @@ const CAMP = [
   { id: 'lamp_1', type: 'lamp_post', variant: 'floodlight_loudspeaker', x: C(38, 6)[0], z: C(38, 6)[1] },
   { id: 'lamp_2', type: 'lamp_post', variant: 'floodlight_loudspeaker', x: C(30, 18)[0], z: C(30, 18)[1] },
   // the divide and the lower camp (garrison barracks_se), 5 towers
-  camp('hut_flag', 'barracks', 'hut_pow_long', C(17.3, 31.5), 13, 7, 4.5, { flag: true, mat: 'woodDark' }),
-  camp('hut_ne', 'barracks', 'hut_pow_long', C(34.7, 30.5), 12, 7, 4.5, { mat: 'woodDark' }),
-  camp('hut_e', 'barracks', 'hut_pow_long', C(36, 41.2), 11, 7, 4.5, { mat: 'woodDark' }),
-  camp('hut_s', 'barracks', 'hut_pow_long', C(13, 54), 12, 7, 4.5, { mat: 'woodDark' }),
-  camp('barracks_se', 'barracks', 'hut_pow_long_crossgable', C(36, 55), 12, 10, 6, { mat: 'woodDark', garrison: true, door: deg(90) }),
+  camp('hut_flag', 'barracks', 'hut_pow_long', C(17.3, 31.5), 13, 7, 4.5, { flag: true, mat: 'woodDark', asset: 'hut_timber_barrack_c' }),
+  camp('hut_ne', 'barracks', 'hut_pow_long', C(34.7, 30.5), 12, 7, 4.5, { mat: 'woodDark', asset: 'hut_timber_barrack_b' }),
+  camp('hut_e', 'barracks', 'hut_pow_long', C(36, 41.2), 11, 7, 4.5, { mat: 'woodDark', asset: 'hut_timber_barrack_a' }),
+  camp('hut_s', 'barracks', 'hut_pow_long', C(13, 54), 12, 7, 4.5, { mat: 'woodDark', asset: 'hut_timber_barrack_b', artOffset: [0.22, -0.12] }), // (its log pile against wall_w, not in it)
+  camp('barracks_se', 'barracks', 'hut_pow_long_crossgable', C(36, 55), 12, 10, 6, { mat: 'woodDark', garrison: true, door: deg(90), asset: 'house_halftimber_c' }),
   tower('t1', [9.3, 46.5], 200), tower('t2', [15.9, 65.9], 120), tower('t3', [24.4, 67.5], 60),
   tower('t4', [26.5, 47.5], 30), tower('t5', [5.5, 37], 90),
   { id: 'lamp_3', type: 'lamp_post', variant: 'floodlight_loudspeaker', x: C(20, 60)[0], z: C(20, 60)[1] },
@@ -129,15 +133,16 @@ export const LEVER = [15.2, 122.3];
 const OUTSIDE = [
   { id: 'bridge_road', type: 'bridge', variant: 'bridge_timber_deck_long', ...BRIDGE, mat: 'planks' },
   { id: 'pillbox', type: 'bunker', variant: 'pillbox_round', label: 'Surveillance bunker', x: 63, z: 81, rot: deg(200), w: 5, d: 5, h: 3,
-    mat: 'concrete', destructible: true, hp: 100, destroyFx: ['bigBlast'] },
-  { id: 'gorge', type: 'ravine', variant: 'rock_gorge', points: RAVINE },
+    mat: 'concrete', destructible: true, hp: 100, destroyFx: ['bigBlast'], asset: 'pillbox_round_be' },
+  { id: 'gorge', type: 'ravine', variant: 'rock_gorge', points: RAVINE, carved: true }, // drawn by the terrain carve (`carves`)
+  // drawn as the rolling bridge (scripts/m17-art.js): its span follows the set-piece `mbridge`
   { id: 'mbridge_deck', type: 'mobile_bridge', variant: 'mobile_bridge_sliding', x: 14.8, z: 134.6, rot: deg(75), w: 20.5, d: 5, h: 0.4 },
   { id: 'truck_winch', type: 'ruins', variant: 'truck_opel_parked', label: 'Winch lorry', x: 18.5, z: 120.5, rot: deg(120), w: 6.5, d: 2.4, h: 2.8,
-    mat: 'olivePaint', block: 2 },
-  { id: 'crane', type: 'radio_mast', variant: 'crane_tower_jib', x: 20, z: 113, r: 1.6, h: 14 },
+    mat: 'olivePaint', block: 2, vehicleArt: 'opel_blitz_cargo' },
+  { id: 'crane', type: 'radio_mast', variant: 'crane_tower_jib', x: 20, z: 113, rot: deg(350), r: 1.6, h: 14 }, // jib over the wall (dossier §5.1)
   // N bank: the HQ house (garrison hq_n), the old mill, the MG nest by the bridge
   { id: 'hq_n', type: 'barracks', variant: 'house_timber_hq_L', x: 27, z: 40.6, rot: deg(316), w: 16, d: 10, h: 9, mat: 'woodDark',
-    flag: true, garrison: true, door: deg(90) },
+    flag: true, garrison: true, door: deg(90), asset: 'house_halftimber_d' },
   { id: 'mill', type: 'watermill', variant: 'watermill', label: 'The old mill', x: 80, z: 46.5, rot: CAMP_ROT, w: 12, d: 10, h: 9 },
   { id: 'mill_deck', type: 'pier', variant: 'pier_timber', x: 74, z: 55, rot: CAMP_ROT, w: 5, d: 5 },
   { id: 'mg_n_ring', type: 'sandbags', variant: 'mg_nest_sandbag', x: 45.9, z: 53.9, rot: deg(105), ring: { r: 1.6 }, h: 1.0, block: 1 },
@@ -154,7 +159,35 @@ const OUTSIDE = [
     .map(([x, z], k) => ({ id: `pole_${k}`, type: 'telegraph_pole', x, z })),
 ];
 
-const STRUCTURES = [...CAMP, ...OUTSIDE];
+// ---------------------------------------------------------------- art pass: set dressing (visual; low cover, ≥ 4 m off every
+// route, post and device; furniture and paving never touch the walk grid: block false / grid false)
+/** The Kommandantur's staff car and a despatch rider's BMW combination on the HQ forecourt, a Kübelwagen on the verge
+ *  outside the camp's main gate, fuel drums and firewood by the crane outside the NW wall, a handcart in the yard. */
+const DRESSING = [
+  { id: 'car_hq', type: 'crates', variant: 'vehicle_parked', label: 'Staff car', x: 40, z: 40, rot: deg(46), w: 4.8, d: 1.9, h: 1.8, block: 1, vehicleArt: 'horch901' },
+  { id: 'moto_hq', type: 'crates', variant: 'vehicle_parked', label: 'Motorcycle', x: 42.5, z: 43.5, rot: deg(46), w: 2.4, d: 1.7, h: 1.1, block: 1, vehicleArt: 'r75_sidecar' },
+  { id: 'kubel_gate', type: 'crates', variant: 'vehicle_parked', label: 'Car', x: 76.6, z: 169, rot: deg(268), w: 3.8, d: 1.7, h: 1.4, block: 1, vehicleArt: 'kubelwagen' },
+  { id: 'drums_crane', type: 'crates', variant: 'fuel_drums', x: 23.6, z: 118, rot: deg(62), w: 4.4, d: 1.4, h: 1.6, block: 1 },
+  { id: 'logs_crane', type: 'crates', variant: 'log_pile', asset: 'log_pile_stack', x: 27.5, z: 121.5, rot: deg(62), w: 3, d: 1.6, h: 1, block: 1 },
+  { id: 'cart_yard', type: 'crates', variant: 'handcart', asset: 'handcart_wood', x: 47, z: 123.5, rot: CAMP_ROT, w: 1.9, d: 1.4, h: 1, block: 1 },
+];
+/** Worn setts: the Kommandantur's forecourt and the apron through the camp's main gate. */
+const PAVEMENTS = [
+  { id: 'pave_hq', surface: 'setts', points: [[29.6, 42.6], [33.6, 45], [35.6, 48.6], [30.6, 48.4], [28.8, 45.2]], wear: 0.6, weeds: 0.45, cracks: 0.3, puddles: 0.2, edge: 'ragged', grid: false },
+  { id: 'pave_gate', surface: 'setts', points: [[69.5, 158.5], [76, 158.5], [76.5, 166], [69, 166]], wear: 0.7, weeds: 0.35, cracks: 0.35, puddles: 0.25, edge: 'ragged', grid: false },
+];
+/** A fingerpost at the N-road fork, kilometre stones and a Wehrmacht board on the S road, post-and-rail field fences. */
+const FURNITURE = [
+  { type: 'sign', variant: 'fingerpost', x: 41.5, z: 46, rot: deg(-60), text: 'COLMAR 16 km', block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 66, z: 166.5, rot: deg(-38), text: 'HALT!\nSPERRGEBIET', block: false },
+  { type: 'milestone', x: 45, z: 178.3, rot: deg(-90), text: 'N 83\nCOLMAR 15', block: false },
+  { type: 'milestone', x: 70, z: 178.3, rot: deg(-90), text: 'N 83\nSELESTAT 8', block: false },
+  { type: 'fence', variant: 'rail', points: [[42, 27], [56, 27], [70, 27], [70, 36]], h: 1.2, block: false },
+  { type: 'fence', variant: 'rail', points: [[33, 179], [57, 179]], h: 1.2, block: false },
+  { type: 'fence', variant: 'rail', points: [[62, 179], [74, 179.5]], h: 1.2, block: false },
+];
+
+const STRUCTURES = [...CAMP, ...OUTSIDE, ...DRESSING];
 
 // ---------------------------------------------------------------- enemies (dossier §8; Prima numbers 1–26)
 /** Lone walker (PINGPONG, 1.0 m/s), starting at the first point facing the second. */
@@ -311,8 +344,14 @@ export default {
   shoreShallowWidth: 1.5,
   baseTerrain: 'grass',
   terrain: TERRAIN,
-  // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
-  structures: joinStructures(STRUCTURES, [['pen', 'shed_ne'], ['pen', 'pillbox'], ['hut_s', 't1']]),
+  pavements: PAVEMENTS,
+  // art pass: the gorge cut 4.5 m into the terrain under the sliding bridge (visual only: its cells are the ravine / deck)
+  carves: CARVES,
+  furniture: FURNITURE,
+  // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures. Art pass: the cage's
+  // sides meet the camp's N wall (its N side; the brick runs are chained into the wall_e1 / wall_w runs), wall_e3 tees
+  // into wall_e2 (chained into wall_e1), hut_s's log pile is stacked against wall_w, the fuel tanks stand under hut_ne's eaves
+  structures: joinStructures(STRUCTURES, [['pen', 'shed_ne'], ['pen', 'pillbox'], ['hut_s', 't1'], ['hut_s', 'wall_w'], ['fuel_tank', 'hut_ne'], ['wall_e3', 'wall_e1'], ['pen', 'wall_n'], ['pen', 'wall_e1'], ['pen', 'wall_w']]),
   items: [],
   interactables: [
     // the cage's jail door, just outside the pen gate: frees every jailed man at once (§4.10, unseen)
@@ -370,4 +409,6 @@ export default {
   par: { time: 780 },
   cameraStart: { x: 10, z: 152, zoom: 1 },
   startDisguised: ['spy'],
+  // art pass: the sliding bridge's span rides out and back with the lever (visual only, scripts/m17-art.js)
+  script: (w) => { buildM17Art(w, OUTSIDE.find((q) => q.id === 'mbridge_deck'), { carves: CARVES, size: [90, 185], poly: RAVINE, stream: STREAM }); },
 };

@@ -418,6 +418,7 @@ function logGeometry() {
 
 const WALL_KIND = (variant = '', mat = '') => {
   const v = String(variant);
+  if (/brick_railing/.test(v)) return 'brick'; // M17 art pass: the prison camp's low brick walls (not a stockade palisade)
   if (/palisade|stockade|log/.test(v)) return 'palisade';
   if (/canal_parapet/.test(v)) return 'ashlar';
   if (/medina|mosque/.test(v)) return 'limewash'; // M12 art pass: Tunis lime-washed rubble walls (sandstone coping), not brick
@@ -516,6 +517,7 @@ export function buildWall(points, o) {
   if (/^mudbrick_wire$/.test(String(o.variant))) return campMudWall(points, { ...o, h, width }, R);     // M9 art pass: the octagon
   if (kind === 'stone' && /ruined_stone_low/.test(String(o.variant))) return ruinedFieldWall(points, { ...o, h, width }, R);
   if (kind === 'stone' && /stone_railing/.test(String(o.variant))) return stoneRailingWall(points, { ...o, h, width }, R);
+  if (kind === 'brick' && /brick_railing/.test(String(o.variant))) return stoneRailingWall(points, { ...o, h, width }, R, 'brick');
   const mat = dressingMaterial(kind);
   for (let k = 0; k + 1 < points.length; k++) {
     const [ax, az] = points[k], [bx, bz] = points[k + 1], L = Math.hypot(bx - ax, bz - az);
@@ -683,30 +685,37 @@ function ruinedFieldWall(points, o, R) {
  * M6 art pass (Masi, Finnmark): a grey granite rubble wall with a dressed coping, square piers every few metres and
  * an iron railing (round bars with spear points between two flat rails) making up the gameplay height (`stone_railing`).
  */
-function stoneRailingWall(points, o, R) {
-  const h = o.h, width = o.width, root = new THREE.Group(); root.name = 'dressing:wall:stone_railing';
-  const stone = dressingMaterial('fieldstone'), cope = dressingMaterial('granite'), damp = dressingMaterial('rubble'), iron = dressingMaterial('castIron');
-  const hb = Math.max(0.6, h - 0.75), bars = [];
+function stoneRailingWall(points, o, R, kind = 'stone') {
+  // M17 art pass (`brick`): the Alsatian prison camp's walls, red brick to 1.2 m under a Vosges sandstone coping, brick
+  // piers every ~3 m and a rusty iron railing above (dossier §5.2 `stockade_prison`)
+  const brick = kind === 'brick', h = o.h, width = o.width, root = new THREE.Group(); root.name = `dressing:wall:${kind}_railing`;
+  const stone = dressingMaterial(brick ? 'brick' : 'fieldstone'), cope = dressingMaterial(brick ? 'sandstone' : 'granite'), damp = dressingMaterial('rubble'), iron = dressingMaterial('castIron');
+  const hb = Math.max(0.6, h - (brick ? 1.0 : 0.75)), bars = [];
   for (let k = 0; k + 1 < points.length; k++) {
     const [ax, az] = points[k], [bx, bz] = points[k + 1], L = Math.hypot(bx - ax, bz - az);
     if (L < 1e-3) continue;
-    const rot = -Math.atan2(bz - az, bx - ax), cx = (ax + bx) / 2, cz = (az + bz) / 2, Lw = L + width;
     const tx = (bx - ax) / L, tz = (bz - az) / L;
+    // brick: the run's free ends are flush (no body or pier past the end point: a run cut at a gate / hut stops at
+    // its face, placement rule a); inner corners keep the half-width overlap that closes them
+    const eA = brick && k === 0 ? -0.04 : width / 2, eB = brick && k + 2 === points.length ? -0.04 : width / 2, sh = (eB - eA) / 2; // (−: the coping's overhang stays inside the end)
+    const rot = -Math.atan2(bz - az, bx - ax), cx = (ax + bx) / 2 + tx * sh, cz = (az + bz) / 2 + tz * sh, Lw = L + eA + eB;
+    const ph = brick ? (width + 0.16) / 2 + 0.06 : 0; // (the pier's pyramid cap overhangs its shaft by ~5 cm)
     const wall = mesh(boxUV(new THREE.BoxGeometry(Lw, hb, width), 1.6), stone); wall.position.set(cx, hb / 2, cz); wall.rotation.y = rot; root.add(wall);
     const foot = mesh(boxUV(new THREE.BoxGeometry(Lw + 0.04, 0.3, width + 0.05), 1.4), damp); foot.position.set(cx, 0.15, cz); foot.rotation.y = rot; root.add(foot);
     const cap = mesh(boxUV(new THREE.BoxGeometry(Lw + 0.06, 0.12, width + 0.1), 1.2), cope); cap.position.set(cx, hb + 0.06, cz); cap.rotation.y = rot; root.add(cap);
-    const np = Math.max(1, Math.round(L / 3.2));
+    const np = Math.max(1, Math.round(L / 3.2)), mx = (ax + bx) / 2, mz = (az + bz) / 2;
+    const u0 = -L / 2 + (eA > 0 || !brick ? 0 : ph), u1 = L / 2 - (eB > 0 || !brick ? 0 : ph);
     for (let i = 0; i <= np; i++) {                    // piers with pyramid caps
-      const u = -L / 2 + (L * i) / np, px = cx + tx * u, pz = cz + tz * u;
+      const u = u0 + ((u1 - u0) * i) / np, px = mx + tx * u, pz = mz + tz * u;
       const pier = mesh(boxUV(new THREE.BoxGeometry(width + 0.16, h - 0.08, width + 0.16), 1.4), stone); pier.position.set(px, (h - 0.08) / 2, pz); pier.rotation.y = rot; root.add(pier);
       const pc = mesh(new THREE.ConeGeometry((width + 0.24) * 0.72, 0.18, 4, 1), cope); pc.position.set(px, h + 0.01, pz); pc.rotation.y = rot + Math.PI / 4; root.add(pc);
     }
     for (const y of [hb + 0.2, h - 0.12]) {            // flat rails
-      const r = mesh(new THREE.BoxGeometry(L, 0.04, 0.02), iron); r.position.set(cx, y, cz); r.rotation.y = rot; root.add(r);
+      const r = mesh(new THREE.BoxGeometry(L - 2 * ph, 0.04, 0.02), iron); r.position.set(mx, y, mz); r.rotation.y = rot; root.add(r);
     }
-    for (let u = -L / 2 + 0.2; u < L / 2 - 0.15; u += 0.15) {   // bars (one merged geometry per run below)
-      const g = new THREE.CylinderGeometry(0.009, 0.009, h - hb - 0.1, 5); g.translate(cx + tx * u, hb + 0.06 + (h - hb - 0.1) / 2, cz + tz * u); bars.push(g);
-      const sp = new THREE.ConeGeometry(0.02, 0.07, 4); sp.translate(cx + tx * u, h - 0.01, cz + tz * u); bars.push(sp);
+    for (let u = -L / 2 + 0.2 + ph; u < L / 2 - 0.15 - ph; u += 0.15) {   // bars (one merged geometry per run below)
+      const g = new THREE.CylinderGeometry(0.009, 0.009, h - hb - 0.1, 5); g.translate(mx + tx * u, hb + 0.06 + (h - hb - 0.1) / 2, mz + tz * u); bars.push(g);
+      const sp = new THREE.ConeGeometry(0.02, 0.07, 4); sp.translate(mx + tx * u, h - 0.01, mz + tz * u); bars.push(sp);
     }
   }
   if (bars.length) root.add(mesh(mergeGeometries(bars.map((g) => g.toNonIndexed())), iron));

@@ -47,7 +47,8 @@ function kitExtraMesh(type, p, ctx) {
     case 'v2_rocket': return /lying|meiller/.test(String(p.variant || '')) ? null : buildV2Rocket(p);
     case 'launch_pad': return /table|firing/.test(String(p.variant || '')) ? buildFiringTable(p) : null;
     case 'conveyor': return buildConveyor(p);
-    case 'ravine': return buildGorge(p);
+    // `carved: true`: the mission cuts the gorge into the terrain (`carves`, art/terrain/carve.js, M17): no boulder-rim kit
+    case 'ravine': return p.carved ? Object.assign(new THREE.Group(), { name: 'kit:gorge:carved' }) : buildGorge(p);
     case 'rail_bridge': return buildRailBridge(p);
     case 'garage': case 'tank_shed': return buildKitShed(p, th);
     case 'battleship': return p.variant === 'uboat_docked' ? null : buildWarship(p); // art/warship.js (detailed Bismarck class)

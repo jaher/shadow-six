@@ -24,6 +24,9 @@ import { libraryVisual, libTypeOf } from './building-props.js';
 import { makeFlag } from './flags.js';
 import { wireTypeOf } from './wire-obstacles.js';
 import { buildBreakableGate } from './breakable-gates.js';
+import { buildIronGate } from './iron-gates.js';
+import { buildTowerCrane } from './tower-crane.js';
+import { buildFuelDrumStack } from './fuel-drums.js';
 import { buildMgPlatform } from './mg-platform.js';
 import { isBreakableGate } from '../world/breakables.js';
 import { buildRocks, buildCliff, buildWall, buildTent, buildRuins, buildSandbags, buildCrates, buildGenerator, buildLattice, buildPole } from './dressing.js';
@@ -213,7 +216,7 @@ const BUILDERS = {
   cliff: (p, def, ctx) => (dressingOn(ctx) ? buildCliff({ ...p, edge: cliffEdge(ctx) }) : box(p.w, p.h ?? 1, p.d, def.mat || 'rock')),
   ruins: (p, def, ctx) => (dressingOn(ctx) ? buildRuins(p) : box(p.w, p.h ?? 1, p.d, def.mat || 'stone')),
   sandbags: (p, def, ctx) => (dressingOn(ctx) ? buildSandbags(p) : box(p.w, p.h ?? 1, p.d, def.mat)),
-  crates: (p, def, ctx) => (dressingOn(ctx) ? buildCrates(p) : box(p.w, p.h ?? 1, p.d, def.mat)),
+  crates: (p, def, ctx) => (!dressingOn(ctx) ? box(p.w, p.h ?? 1, p.d, def.mat) : p.variant === 'fuel_drums' ? buildFuelDrumStack(p) : buildCrates(p)), // (M17: art/fuel-drums.js)
   generator: (p, def, ctx) => (dressingOn(ctx) ? buildGenerator(p) : box(p.w, p.h ?? 1, p.d, def.mat)),
   barracks: (p, def, ctx) => {
     // placeholder-art pass: a textured kit building when the library has no fitting asset (art/kit-buildings.js)
@@ -250,10 +253,13 @@ const BUILDERS = {
     g.add(box(p.w + 0.4, 0.15, p.d + 0.4, 'roofTar', p.h + 2.3));
     return g;
   },
-  gate: (p, def) => {
+  gate: (p, def, ctx) => {
     // rammable gates: the pre-fractured model the gate smash breaks apart (art/breakable-gates.js, §3.7 addendum)
     const bg = isBreakableGate({ ...p, type: 'gate' }) ? buildBreakableGate(p) : null;
     if (bg) return bg;
+    // M17 art pass: the prison camp's wrought-iron back gate and the cage's mesh door (art/iron-gates.js)
+    const ig = dressingOn(ctx) ? buildIronGate(p) : null;
+    if (ig) return ig;
     const g = new THREE.Group();
     const leaf = box(p.w, p.h, 0.08, def.mat);
     leaf.material = getMaterial('woodDark');
@@ -417,6 +423,7 @@ const ROUND = {
     return g;
   },
   radio_mast: (p, def, ctx) => {
+    if (dressingOn(ctx) && p.variant === 'crane_tower_jib') return buildTowerCrane(p); // M17 art pass (art/tower-crane.js)
     if (dressingOn(ctx)) return buildLattice(p, { base: Math.min(1.4, (p.r ?? 0.6) * 2), top: 0.25, arms: false });
     const g = new THREE.Group(); g.add(cyl(0.08, p.r, p.h, def.mat, p.h / 2, 4)); return g;
   },

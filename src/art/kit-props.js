@@ -448,12 +448,38 @@ function waterTank(g, p) {
   for (let y = 0.3; y < H; y += 0.3) g.add(tbox(0.03, 0.03, 0.4, steel, w / 2 + 0.12, y, 0, 0.5));
 }
 
+/**
+ * M17 art pass (`water_tank_caged`, dossier §5.1 "a small tank in a slatted cage"): a wooden stave water butt on a
+ * timber stand, iron hoops, a shingled cone lid, inside a cage of vertical slats on four corner posts, a standpipe
+ * and tap on the camp side, a drip-darkened plank under the tap.
+ */
+function waterTankCaged(g, p) {
+  const w = Math.min(p.w ?? (p.r ?? 1.2) * 2, 2.6), H = p.h ?? 3, timber = dressingMaterial('creosote'), iron = dressingMaterial('castIron');
+  const standH = 0.7, r = w / 2 - 0.28, tankH = H - standH - 0.55;
+  for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) g.add(tbox(0.16, H - 0.2, 0.16, timber, sx * (w / 2 - 0.08), (H - 0.2) / 2, sz * (w / 2 - 0.08), 0.8));
+  for (const y of [0.15, standH]) for (const s of [-1, 1]) { g.add(tbox(w, 0.12, 0.1, timber, 0, y, s * (w / 2 - 0.08), 0.8)); g.add(tbox(0.1, 0.12, w, timber, s * (w / 2 - 0.08), y, 0, 0.8)); }
+  g.add(tcyl(r, r * 0.94, tankH, dressingMaterial('logHewn'), 0, standH + 0.06, 0, 18, 0.9));            // staves
+  for (const t of [0.12, 0.5, 0.88]) g.add(tcyl(r + 0.02, r + 0.02, 0.06, iron, 0, standH + 0.06 + tankH * t, 0, 18, 0.5)); // hoops
+  g.add(mesh(lathe([[r + 0.12, 0], [r * 0.5, 0.32], [0.06, 0.5], [0, 0.52]], 18).translate(0, standH + 0.06 + tankH, 0), dressingMaterial('roofShingle')));
+  for (const [sx, sz, along] of [[0, -1, 'x'], [0, 1, 'x'], [-1, 0, 'z'], [1, 0, 'z']]) { // slatted cage sides (a gap at the tap)
+    for (let u = -w / 2 + 0.3; u < w / 2 - 0.2; u += 0.22) {
+      if (sx === 1 && Math.abs(u) < 0.35) continue;
+      const x = along === 'x' ? u : sx * (w / 2 - 0.02), z = along === 'z' ? u : sz * (w / 2 - 0.02);
+      g.add(tbox(along === 'x' ? 0.1 : 0.03, H - 1.1, along === 'z' ? 0.1 : 0.03, dressingMaterial('planks'), x, standH + (H - 1.1) / 2, z, 0.7));
+    }
+  }
+  g.add(tcyl(0.035, 0.035, standH + 0.1, iron, w / 2 - 0.35, 0.05, 0, 8, 0.3));                          // standpipe + tap
+  g.add(tbox(0.18, 0.04, 0.04, iron, w / 2 - 0.27, 0.62, 0, 0.3));
+  g.add(tbox(0.5, 0.03, 0.6, dressingMaterial('planks'), w / 2 - 0.2, 0.02, 0, 0.5));
+}
+
 /** `well` structures by variant. */
 export function buildWellVariant(p, theater) {
   const v = String(p.variant || ''), g = new THREE.Group(); g.name = `kit:well:${v || 'well'}`;
   if (/fountain/.test(v)) fountain(g, p);
   else if (/morris/.test(v)) return partsToGroup(propParts('morris_column'), 'kit:morris');
   else if (/monument|statue|memorial/.test(v)) monument(g, p);
+  else if (/tank_caged/.test(v)) waterTankCaged(g, p);
   else if (/tank/.test(v)) waterTank(g, p);
   else well(g, p, theater);
   return consolidate(g);
