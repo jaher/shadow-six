@@ -6,7 +6,7 @@
  */
 import * as THREE from 'three';
 import { test, assert } from './lib.mjs';
-import { addDepthMerge, inDepthPass, instancedProxy, DepthProxyMesh, installShadowDepthPass, setDepthMerge } from '../../src/engine/depth-merge.js';
+import { addDepthMerge, inDepthPass, instancedProxies, DepthProxyMesh, installShadowDepthPass, setDepthMerge } from '../../src/engine/depth-merge.js';
 import { readGlbArrayBuffer } from '../../tools/glb-io.mjs';
 import { GLTFLoader } from '../../src/engine/glb-gzip.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
@@ -179,30 +179,36 @@ test('depth merge: the proxy is culled by its own bounds, which hold every membe
   assert.deepEqual(drawn(f(40, 50)), [false, false, false, false], 'none in view: nothing');
 });
 
-test('depth merge: batch proxies (createBuildingBatch) are instanced, share their members\' matrices and tags', () => {
+test('depth merge: batch proxies (createBuildingBatch) are instanced leaves over the batch\'s instances, each culled alone', () => {
   const { root, node } = building(2);
   addDepthMerge(root);
   const tpl = proxyOf(node);
   const group = new THREE.Group();
-  const place = [0, 40, 80].map((x) => new THREE.Matrix4().makeTranslation(x, 0, -x));
+  const place = [0, 40, 80, 120, 160].map((x) => new THREE.Matrix4().makeTranslation(x, 0, -x / 4));
   const members = node.children.filter((c) => !c.isDepthProxy).map((o) => {
-    const im = new THREE.InstancedMesh(o.geometry, o.material, 3);
+    const im = new THREE.InstancedMesh(o.geometry, o.material, place.length);
     place.forEach((m, k) => im.setMatrixAt(k, m));
     im.castShadow = true; im.userData.depthGroup = o.userData.depthGroup; im.userData.depthGeo = o.userData.depthGeo;
     group.add(im);
     return im;
   });
-  const ip = instancedProxy(tpl, members[0]);
-  group.add(ip);
-  assert.ok(ip.isInstancedMesh && ip.isDepthProxy && ip.isMesh === false && ip.count === 3);
-  assert.equal(ip.instanceMatrix, members[0].instanceMatrix, 'the members\' matrices, shared');
-  assert.equal(ip.userData.depthGroup, tpl.userData.depthGroup);
-  // bounds over every instance, computed now — not later by a cull during the one-instance warm-up frame
-  members[0].count = 1;
-  assert.ok(ip.boundingBox && ip.boundingBox.max.x > 80 && ip.boundingBox.min.z < -79, JSON.stringify(ip.boundingBox));
-  assert.ok(ip.boundingSphere && ip.boundingSphere.radius > 55);
-  members[0].count = 3;
-  assert.deepEqual(drawnIn('shadow', [...members, ip]), [false, false, true]);
+  const leaves = instancedProxies(tpl, members[0], 4);
+  for (const l of leaves) group.add(l);
+  assert.equal(leaves.length, 4);
+  assert.equal(leaves.reduce((s, l) => s + l.count, 0), 5, 'every instance in one leaf');
+  const xs = leaves.map((l) => Array.from({ length: l.count }, (_, i) => l.instanceMatrix.array[i * 16 + 12]));
+  assert.deepEqual(xs.flat().sort((a, b) => a - b), [0, 40, 80, 120, 160]);
+  for (const l of leaves) {
+    assert.ok(l.isInstancedMesh && l.isDepthProxy && l.isMesh === false && l.userData.depthGroup === tpl.userData.depthGroup);
+    assert.ok(l.boundingBox && l.boundingSphere, 'bounds computed at once');
+  }
+  // all leaves draw in a full view, the members none; a view over x 70..90 draws only the leaf holding x = 80
+  assert.deepEqual(drawnIn('shadow', [...members, ...leaves]), [false, false, true, true, true, true]);
+  const c = new THREE.OrthographicCamera(70, 90, 50, -50, -500, 500); c.updateMatrixWorld();
+  const fr = new THREE.Frustum().setFromProjectionMatrix(c.projectionMatrix.clone().multiply(c.matrixWorldInverse));
+  group.updateMatrixWorld(true);
+  const got = inDepthPass('shadow', () => leaves.map((l) => l.isMesh && l.intersectsFrustum(fr)));
+  assert.deepEqual(got, xs.map((x) => x.includes(80)));
 });
 
 test('depth merge: proxies get their shadow-depth variant from the scan like every caster (no shared default depth material)', () => {

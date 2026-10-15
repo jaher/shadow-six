@@ -196,7 +196,7 @@ function groupOk(p) {
     let n = 0;
     ok = true;
     for (const c of par.children) {
-      if (c === p || c.userData.depthGroup !== g) continue;
+      if (c === p || c.isDepthProxy || c.userData.depthGroup !== g) continue; // (other leaves of a batch's proxy)
       n++;
       if (!c.isMesh || !c.visible || c.geometry?.uuid !== c.userData.depthGeo || !c.layers.test(p.layers) || !memberOk(c, ud.depthSide)) { ok = false; break; }
       const ce = c.matrix.elements;
@@ -251,17 +251,37 @@ export function installShadowDepthPass(renderer) {
   sm.render = function shadowRenderDepthMerge(...a) { return inDepthPass('shadow', () => render.apply(this, a)); };
 }
 
+/** Leaves (at most) a batch's depth proxy is split into (instancedProxies). */
+export const PROXY_LEAVES = 4;
+
 /**
- * Instanced copy of a template proxy for createBuildingBatch: same geometry / material / group tags, drawn with its
- * first member's instance matrices (the same attribute); its bounds computed here, over every instance.
+ * Instanced copies of a template proxy for createBuildingBatch: same geometry / material / group tags, the batch's
+ * instances (its first member's matrices) shared out over up to `leaves` proxies by a k-d split at the median (widest
+ * side first), so the depth passes draw the instances near the view, not the whole map's (M5's five log cabins: all
+ * five in the shadow map and AO prepass with one or two on screen); bounds computed here, over each leaf's instances.
+ * The colour pass keeps the members' one batch.
+ * @param {THREE.Mesh} o template proxy @param {THREE.InstancedMesh} first first member of its group in the batch
+ * @returns {DepthProxyInstancedMesh[]}
  */
-export function instancedProxy(o, first) {
-  const im = new DepthProxyInstancedMesh(o.geometry, o.material, first.count);
-  im.name = o.name;
-  im.castShadow = true; im.receiveShadow = false;
-  im.userData = { ...o.userData };
-  im.instanceMatrix = first.instanceMatrix;
-  im.computeBoundingBox();
-  im.computeBoundingSphere();
-  return im;
+export function instancedProxies(o, first, leaves = PROXY_LEAVES) {
+  const M = first.instanceMatrix.array, n = first.count, parts = [];
+  const split = (idx, k) => {
+    if (k <= 1 || idx.length < 2) { parts.push(idx.sort((a, b) => a - b)); return; }
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (const i of idx) { x0 = Math.min(x0, M[i * 16 + 12]); x1 = Math.max(x1, M[i * 16 + 12]); z0 = Math.min(z0, M[i * 16 + 14]); z1 = Math.max(z1, M[i * 16 + 14]); }
+    const c = x1 - x0 >= z1 - z0 ? 12 : 14, kL = k >> 1;
+    const s2 = idx.slice().sort((a, b) => M[a * 16 + c] - M[b * 16 + c] || a - b), cut = Math.round(s2.length * kL / k);
+    split(s2.slice(0, cut), kL); split(s2.slice(cut), k - kL);
+  };
+  split([...Array(n).keys()], Math.min(leaves, n));
+  return parts.filter((l) => l.length).map((list) => {
+    const im = new DepthProxyInstancedMesh(o.geometry, o.material, list.length);
+    im.name = o.name;
+    im.castShadow = true; im.receiveShadow = false;
+    im.userData = { ...o.userData };
+    list.forEach((i, j) => im.instanceMatrix.array.set(M.subarray(i * 16, i * 16 + 16), j * 16));
+    im.computeBoundingBox();
+    im.computeBoundingSphere();
+    return im;
+  });
 }

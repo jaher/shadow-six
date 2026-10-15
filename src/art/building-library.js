@@ -26,7 +26,7 @@ import { scoped, touch, sceneBytes, disposeScene } from '../engine/scoped-assets
 import { libTier, loadLibDensity } from './lib-tiers.js';
 import { sharedLibTexture, isLibTexture, isLibImage } from './lib-textures.js';
 import { antiTile } from './anti-tiling.js';
-import { addDepthMerge, instancedProxy } from '../engine/depth-merge.js';
+import { addDepthMerge, instancedProxies } from '../engine/depth-merge.js';
 
 const BLOCK = { NONE: 0, LOW: 1, HIGH: 2, FENCE: 3 }; // == world/grid.js B
 const BRIDGE_KINDS = new Set(['bridge_deck', 'drawbridge', 'quay', 'footboard', 'landing']);
@@ -463,11 +463,11 @@ export async function createBuildingBatch(type, placements, rng = null) {
         if (dg !== undefined) { im.userData.depthGroup = dg; im.userData.depthGeo = o.userData.depthGeo; if (!firstOf.has(dg)) firstOf.set(dg, im); }
         lods[i].add(im);
       });
-      // the parts' merged depth mesh, instanced with the same matrices (engine/depth-merge.js)
+      // the parts' merged depth mesh, instanced with the same matrices, in up to 4 spatial leaves (engine/depth-merge.js)
       for (const o of proxies) {
         const first = firstOf.get(o.userData.depthGroup);
         if (!first) continue;
-        lods[i].add(instancedProxy(o, first));
+        for (const p of instancedProxies(o, first)) lods[i].add(p);
       }
     });
     for (const p of list) {
