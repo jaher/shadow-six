@@ -1744,8 +1744,9 @@ export class Vehicle extends Entity {
       u.die?.('train', this);
       this.world.events.emit('vehicle:runover', { vehicle: this, victim: u });
     }
-    // …and anyone whose body reaches under the hull (a crawler's legs beside the rails)
-    for (const u of this._bodiesUnder(this.x, this.z, this.heading, 0)) this._runoverKill(u);
+    // …and anyone whose body reaches under the hull (a crawler's legs beside the rails) — not under a `harmless`
+    // one (M19's mine cart ran over e40, whose beat crosses its rails, and left his body for e11 to find)
+    for (const u of harmless ? [] : this._bodiesUnder(this.x, this.z, this.heading, 0)) this._runoverKill(u);
     if (end) {
       if (S.mode === 'pingpong') { this.railDir = -this.railDir; this.waitT = S.endWait ?? 5; return; }
       this.railRunning = false;

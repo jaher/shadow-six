@@ -16,7 +16,11 @@
  *  - flat map (the river is deep water at y 0, the trestle deck at ground level);
  *  - the W palisade runs straight N–S at x 99 from the white wall to z 61 (the dossier's slanted line left the
  *    conveyor switch outside the base); the coal heap by the belt, the boiler house, the tall house, the
- *    cable-drum crates and the dog pen's small objects are nudged 0.5–4 m to clear fences and routes;
+ *    cable-drum crates and the dog pen's small objects are nudged 0.5–4 m to clear fences and routes; the boiler house
+ *    is a metre narrower (9 m) and the tall house and the hut a metre further E, so their art leaves the strips along
+ *    the W fence open (outside: the gap behind the boiler house; inside: the way N past the tall house);
+ *  - the light lorry stops 1 m W of the road's end, (120, 72): at (121, 72) its hull nosed into the post e27 beside it
+ *    and it never left again;
  *  - the start rock mound is split: the mound S of the team plus a boulder W of it (the dossier's mound covered
  *    the painted start figures); the team starts at z 1.5–2.5;
  *  - a few posts/waypoints move ≤ 3 m off footprints (e1, e2, e9, e20–e22, e26–e30, Patrol 36, MG14 and MG50
@@ -125,7 +129,7 @@ const NORTH = [
   ...nest('nest_14', 54.5, 55.5, 150),
   // rocks and trees (dossier §4.2)
   rock('rock_mound', 39, 9.25, 18, 7.5, 3), rock('rock_start_w', 33.5, 1.5, 3, 3), rock('rock_small', 20, 10, 2.5, 4),
-  rock('rock_ne1', 53, 7, 6, 10), rock('rock_ne2', 75, 13, 6, 6), rock('rock_w1', 12, 52, 2.5, 2.5), rock('rock_w2', 16, 63, 2.5, 2),
+  rock('rock_ne1', 53, 8, 6, 8), rock('rock_ne2', 75, 13, 6, 6), rock('rock_w1', 12, 52, 2.5, 2.5), rock('rock_w2', 16, 63, 2.5, 2),
   rock('rock_13', 37, 57, 3, 5), rock('rock_w3', 5, 77, 2.5, 2.5),
   ...[[61, 5], [64, 10], [67, 13], [69, 18], [78, 2], [82, 22], [100, 6], [24, 52], [31, 58], [3, 68]].map(([x, z], k) => tree(x, z, k, 'n')),
 ];
@@ -143,10 +147,11 @@ const YARD = [
   { id: 'bridge', type: 'rail_bridge', variant: 'rail_bridge_mine_low', label: 'Rail trestle', x: BRIDGE.x, z: BRIDGE.z, rot: deg(BRIDGE.rot),
     w: BRIDGE.w, d: BRIDGE.d, h: 1.5 },
   { id: 'buffer_se', type: 'crates', variant: 'rail_buffer', x: 96, z: 64.8, rot: deg(13.1), w: 1.5, d: 2, h: 1, block: 1,
-    alignFree: 'the buffer stop squares to the end of the rail (13.1°), not to the palisade behind it' },
+    alignFree: 'the buffer stop squares to the end of the rail (13.1°), not to the palisade behind it',
+    fixed: true }, // (at the rail's end: the map build would move it 1.3 m off the cart's route, onto the strip by the palisade)
   { id: 'crane', type: 'radio_mast', variant: 'crane_jib_yard', x: 84.5, z: 65.5, rot: 0, w: 2.5, d: 2.5, h: 7, block: 2 },
   coal('coal_se', 90, 69.5, 2.5),
-  { id: 'boiler', type: 'house', variant: 'boiler_house', label: 'Boiler house', x: 95.5, z: 52, rot: 0, w: 10, d: 11, h: 7, mat: 'brick',
+  { id: 'boiler', type: 'house', variant: 'boiler_house', label: 'Boiler house', x: 94.5, z: 52, rot: 0, w: 9, d: 11, h: 7, mat: 'brick',
     enterable: true, door: deg(90) },
   { id: 'chimney', type: 'minaret', variant: 'brick_chimney', x: 98, z: 49, r: 0.8, h: 14, mat: 'brick' },
   { id: 'hopper', type: 'hut', variant: 'coal_hopper', x: 86, z: 84, rot: 0, w: 4, d: 4, h: 5, mat: 'metalRust' },
@@ -169,7 +174,8 @@ const BASE = [
   palisade('pal_n', [[113, 30], [151, 30]]), // square to the pads, barr_n and the tower
   palisade('pal_s1', [[104, 86], [120, 82]]),
   palisade('pal_s2', [[124, 81], [137, 77], [143, 60], [151, 49]]),
-  { id: 'gate_s', type: 'gate', variant: 'plank_double_gate', label: 'South gate', x: 122, z: 81.5, rot: Math.atan2(-1, 4), w: 4, h: 3, open: true },
+  { id: 'gate_s', type: 'gate', variant: 'plank_double_gate', label: 'South gate', x: 122, z: 81.5, rot: Math.atan2(-1, 4), w: 4, h: 3, open: true,
+    gateModel: true }, // two plank leaves swung open (art/breakable-gates.js), the lorry drives through
   { id: 'sentry_box', type: 'hut', variant: 'sentry_box', x: 126.5, z: 78, rot: 0, w: 1.5, d: 1.5, h: 2.6, mat: 'planks' },
   ...v2('v2_w', 118, 40), ...v2('v2_m', 130, 37), ...v2('v2_e', 141, 47),
   { id: 'barr_n', type: 'barracks', variant: 'barracks_corrugated_iron', x: 134.5, z: 45, rot: 0, w: 8, d: 7, h: 5, mat: 'metal',
@@ -177,9 +183,9 @@ const BASE = [
   { id: 'barr_s', type: 'barracks', variant: 'barracks_corrugated_iron', x: 131, z: 66, rot: 0, w: 12, d: 9, h: 6, mat: 'metal',
     flag: true, garrison: true, door: deg(180), destructible: true },
   { id: 'outhouse', type: 'hut', variant: 'outhouse_privy', x: 137.5, z: 39.5, rot: 0, w: 1.5, d: 1.5, h: 2.5, mat: 'planks' },
-  { id: 'tall_house', type: 'house', variant: 'house_tall_narrow_brick', x: 108.5, z: 54, rot: 0, w: 4, d: 5, h: 11, mat: 'brick',
+  { id: 'tall_house', type: 'house', variant: 'house_tall_narrow_brick', x: 109.5, z: 54, rot: 0, w: 4, d: 5, h: 11, mat: 'brick',
     enterable: true, door: deg(90) },
-  { id: 'hut_n', type: 'house', variant: 'hut_timber_bigroof', x: 115, z: 51, rot: 0, w: 9, d: 8, h: 5, mat: 'woodDark', enterable: true, door: deg(90) },
+  { id: 'hut_n', type: 'house', variant: 'hut_timber_bigroof', x: 116, z: 51, rot: 0, w: 9, d: 8, h: 5, mat: 'woodDark', enterable: true, door: deg(90) },
   { id: 'crates_n', type: 'crates', variant: 'crates_pile', x: 120, z: 57, rot: 0, w: 4, d: 3, h: 1.5, block: 1 },
   { id: 'drums_conv', type: 'fueltank', variant: 'oil_drums_stack', x: 102, z: 62, rot: 0, w: 2.5, d: 5, h: 2, block: 2,
     asset: 'drum_stack_de', nav: false }, // (art pass: the library's chocked drum stack, not a fuel tank; the mission's nav stays)
@@ -206,7 +212,7 @@ const NESTS = [...nest('nest_17', 58.5, 75.5, 120), ...nest('nest_50', 37, 99, 1
 // SE yard below the crane (an Opel Blitz; the crate type keeps it plain low cover like the coal heaps)
 const DRESSING = [
   { id: 'props_head', type: 'crates', variant: 'pit_props', x: 14.4, z: 33.3, rot: deg(15), w: 4, d: 1.4, h: 1.3, block: 1 },
-  { id: 'props_boiler', type: 'crates', variant: 'pit_props', x: 89.3, z: 51.5, rot: deg(90), w: 4, d: 1.4, h: 1.3, block: 1 },
+  { id: 'props_boiler', type: 'crates', variant: 'pit_props', x: 88.8, z: 51.5, rot: deg(90), w: 4, d: 1.4, h: 1.3, block: 1 },
   { id: 'lorry_yard', type: 'crates', variant: 'parked_lorry', x: 79.5, z: 71, rot: deg(100), w: 6.2, d: 2.3, h: 2.2, block: 1,
     vehicleArt: 'opel_blitz_cargo' },
 ];
@@ -348,7 +354,7 @@ const VEHICLES = [
   { id: 'mg50', vehicleType: 'mgNest', x: 37, z: 99, heading: deg(310), gunner: 'e50', driveable: false },
   // the light lorry in and out of the S gate; its driver has no cone [fd]
   { id: 'lt', vehicleType: 'truck', variant: 'opel_blitz_open', x: 122.5, z: 95, heading: deg(270), driveable: false,
-    route: { type: 'PINGPONG', speed: 3, points: [P(122.5, 95, 60), P(122.5, 82), P(121, 72, 30)] } },
+    route: { type: 'PINGPONG', speed: 3, points: [P(122.5, 95, 60), P(122.5, 82), P(120, 72, 30)] } }, // (its stop 1 m W of the road's end: at (121, 72) the hull nosed into the post e27 beside it and stuck there for good)
 ];
 
 // ---------------------------------------------------------------- commandos (§3.8 row 19, exact): prone behind the rock mound

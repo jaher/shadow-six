@@ -206,6 +206,34 @@ test('m19 hook: the cart shuttles over the trestle; after the charge it never pa
   void w;
 });
 
+test('m19 fix: the mine cart is harmless — e40, whose beat crosses its rails, is never run over (solution run: killed by the cart at 51 s)', () => {
+  const s = m19Sim(), w = s.world, e40 = s.get('e40'), cart = s.get('cart');
+  const runover = [];
+  w.events.on('vehicle:runover', (p) => runover.push(p.victim?.tag ?? p.victim?.id));
+  let passed = false;
+  s.run(130, () => { if (Math.hypot(cart.x - 50, cart.z - 45.5) < 2) passed = true; return false; });
+  assert.ok(passed, 'the cart came by e40\'s crossing');
+  assert.ok(e40.alive, 'e40 lives');
+  assert.deepEqual(runover, [], 'nobody run over');
+});
+
+test('m19 fix: the base lorry keeps its round — in through the S gate, 30 s at its stop beside the post e27, out again — and never sticks there (it nosed into e27 at (121, 72) and stayed for good)', () => {
+  const s = m19Sim(), w = s.world, lt = s.get('lt');
+  let stops = 0, outs = 0, at = false, home = false;
+  s.run(720, () => {
+    const inside = Math.hypot(lt.x - 120.5, lt.z - 72) < 1.8 && (lt.speed || 0) < 0.05;
+    if (inside && !at) stops++;
+    at = inside;
+    const out = lt.z > 93;
+    if (out && !home) outs++;
+    home = out;
+    return false;
+  });
+  assert.ok(stops >= 5, `stopped inside ${stops} times in 720 s`);
+  assert.ok(outs >= 5, `back out by the S gate ${outs} times`);
+  assert.ok(Math.hypot(s.get('e27').x - 122.5, s.get('e27').z - 71) < 0.5, 'e27 still on his post');
+});
+
 test('m19 hook: the base hears — shots near its men sound the siren, the caged dog\'s bark does not; a blast within 25 m does, farther does not', () => {
   const s = m19Sim({ brains: false }), w = s.world;
   applyExplosion(w, 70, 36, 'bomb', null); // on the N bank, ~33 m from the palisade zone

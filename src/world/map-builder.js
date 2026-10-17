@@ -899,7 +899,11 @@ export function* stampOverheadG(world, built) {
     if (!b.object3d || TREE_TYPES.includes(b.type) || b.def.clip === false) continue;
     const cat = placeCat(b.def);
     if (cat === 'bridge' || cat === 'pier' || cat === 'flag') continue;
-    const raw = yield* overheadCellsG(b.object3d, { minY: 1.8, maxY: 12, cell: grid.cell });
+    // a gate's leaves swing (and it may start open, the leaves still closed at build time): its passage is no
+    // overhang (M19 gate_s: the closed leaves' tops read as a 1.8 m beam the base lorry never drove under). Its visual top
+    // over its own footprint still counts for gun arcs (below)
+    const swings = b.def.type === 'gate';
+    const raw = swings ? new Map() : yield* overheadCellsG(b.object3d, { minY: 1.8, maxY: 12, cell: grid.cell });
     const out = new Map();
     for (const [key, r] of raw) {
       const [i, j] = key.split(',').map(Number);

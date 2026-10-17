@@ -55,6 +55,8 @@ export const VARIANT_HINTS = {
   bridge: { bridge_timber_moat: null, bridge_timber_moat_lanterns: null },
   dam: { concrete_arch: ['dam_arch'] },
   gate: { barrier_boom: null, chainlink: null, plank_gate: null, // plank_gate: a pen's own leaf (M19), never the stockade gatehouse
+    plank_double_gate: null, // M19's 4 m palisade gate: its own two plank leaves (props.js gateModel), not the 12 m gatehouse
+    // squeezed to a third (a 1.8 m beam over a 1.4 m passage the base lorry could never drive through)
     jail_door_mesh: null }, // M10's cage door: the mesh leaf model (props.js gateModel), not a shrunken gatehouse
   fueltank: {}, // the fuel-tank family resolves its own variants (art/fuel-tanks.js)
   tent: {}, well: {},

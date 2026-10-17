@@ -204,6 +204,12 @@ export function predict(e, t, depth = 0) {
     return { x: q.x + Math.cos(q.heading) * m, z: q.z + Math.sin(q.heading) * m, heading: q.heading, alt: q.alt };
   }
   const b = e.brain, r = e.route;
+  // (`w.sneakHeel`, opt-in) a dog heeling its living handler keeps 1.5 m behind him (enemy-brain _heel), not straight on
+  const hd = e.world?.sneakHeel && e.spawn?.handler != null && depth < 2 ? e.world.byId?.(e.spawn.handler) : null;
+  if (hd?.alive && b?.state === 'IDLE') {
+    const q = predict(hd, t, depth + 1);
+    return { x: q.x - Math.cos(q.heading) * 1.5, z: q.z - Math.sin(q.heading) * 1.5, heading: q.heading, alt: q.alt, halt: q.halt };
+  }
   const lead = depth === 0 && b?._leader?.();
   // (`w.sneakTrail`, opt-in) a file man walks the leader's breadcrumbs (enemy-brain _followPoint): he will be his
   // rank × squadSpacing behind the leader ALONG the leader's way — round a corner too, where the present offset is off
@@ -326,12 +332,13 @@ const TURN_RATE = CONFIG.units?.enemyTurnRate ?? Math.PI;
  * (`w.sneakTurns`: true for everyone, or a Set of the guards' tags it applies to): the stages planned without it were
  * proven with it off.
  */
-function turnHeadings(q) {
+function turnHeadings(q, w = null) {
   if (q.turnFrom == null) return [];
   const d = Math.atan2(Math.sin(q.heading - q.turnFrom), Math.cos(q.heading - q.turnFrom)), ad = Math.abs(d);
   if (ad < 0.15 || q.turnT > ad / TURN_RATE + 0.4) return [];
   const out = [], a0 = Math.max(0, q.turnT - 0.4) * TURN_RATE, a1 = (q.turnT + 0.4) * TURN_RATE;
-  for (const sg of ad > Math.PI - 0.1 ? [1, -1] : [Math.sign(d)]) {
+  // (a body turns the short way round; within `w.sneakTurnTie` rad of an about-turn (default 0.1) either way is tried)
+  for (const sg of ad > Math.PI - (w?.sneakTurnTie ?? 0.1) ? [1, -1] : [Math.sign(d)]) {
     const full = Math.sign(d) === sg ? ad : 2 * Math.PI - ad;
     for (let a = a0; a <= Math.min(full, a1) + 1e-6; a += 0.2) out.push(q.turnFrom + sg * a);
   }
@@ -382,7 +389,7 @@ export function walkerViews(e, q, w, tAbs) {
   // in it while neither tried cone reaches him)
   const n = w.sneakSweepSteps ?? 2, offs = [0];
   if (amp) for (let k = 1; k <= n; k++) offs.push((amp * k) / n, (-amp * k) / n);
-  for (const hd of [q.heading, ...(q.alt != null ? [q.alt] : []), ...((w.sneakTurns === true || w.sneakTurns?.has?.(e.tag)) ? turnHeadings(q) : []), ...cryHeadings(q, w, tAbs)]) for (const off of offs) add(hd, off, true);
+  for (const hd of [q.heading, ...(q.alt != null ? [q.alt] : []), ...((w.sneakTurns === true || w.sneakTurns?.has?.(e.tag)) ? turnHeadings(q, w) : []), ...cryHeadings(q, w, tAbs)]) for (const off of offs) add(hd, off, true);
   return L;
 }
 
@@ -624,7 +631,8 @@ export function teamBoat(w) {
  * Space-time sneak plan: the fastest chain of 1 m cells from where the man (or the boat) is to (tx, tz) that no cone
  * covers while he is in it — a cell is entered only when it stays clear from `margin[0]` steps before to `margin[1]`
  * after, and he WAITS only where nobody will look. Posted men by their sweep at the future time, walkers along their
- * predicted beat (every glance: walkerSees), never closer than `keepWalker` m. mode: 'boat' (rowed by the Marine),
+ * predicted beat (every glance: walkerSees), never closer than `keepWalker` m (`keepFrom` {tag: r}: than r m to those
+ * men). mode: 'boat' (rowed by the Marine),
  * 'crawl' (near band only), 'walk'.
  * @returns {Array<[number, number, number]>|null} [x, z, absolute time] per cell, or null (no way within `horizon` s)
  */
@@ -730,7 +738,9 @@ export function* planSneakGen(D, tx, tz, o = {}) {
       const kk = Math.max(0, k + dk), q = predAt(e, kk), dd = Math.hypot(q.x - x, q.z - z), far = e.vision?.far ?? 36;
       if (dd > far + walkerPad + 3 + hull) continue;
       const d = dummyFor(w, mode, x, z, q.x, q.z);
-      if (dd < keepWalker || seesAny(headViews(e, kk, -1), d, w)) { s = true; break walk; }
+      // (`o.keepFrom`: {tag: r} — never within r m of these men, whichever way they face: a patrol file whose men
+      // fall out of step and swing round at its turns is not predicted well enough to slip past its cones)
+      if (dd < keepWalker || (o.keepFrom?.[e.tag] && dd < o.keepFrom[e.tag]) || seesAny(headViews(e, kk, -1), d, w)) { s = true; break walk; }
       if (wheels(e, kk) && [0, 1, 2, 3, 4, 5, 6, 7].some((r) => seesAny(headViews(e, kk, r), d, w))) { s = true; break walk; }
       const near = e.vision?.near ?? far / 2, sq = e.squad?.id != null && mode === 'boat' ? 2 : 0;
       const pad = (walkerPad ? walkerPad + sq : 0) || (mode === 'crawl' && dd > near - 3 && dd < near + crawlPad + 0.5 ? crawlPad : 0);
