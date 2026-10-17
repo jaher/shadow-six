@@ -16,6 +16,7 @@ import { canSee, coneAt, pointInCone } from '../../src/ai/perception.js';
 import { viewerFor, canSeeVehicle } from '../../src/ai/vehicle-ai.js';
 import { T } from '../../src/world/grid.js';
 import { CONFIG } from '../../src/config.js';
+import { compileDashGen, routeFor } from './dash.mjs';
 
 const tagOf = (u) => u?.tag ?? u?.role ?? u?.id ?? '?';
 
@@ -283,6 +284,8 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
     watchIdleRafts: () => { idleRafts = true; },
     /** strict raft watch: a crewed raft is seen by its hull (the near tube), not only by the men at its centre */
     watchCrewedRafts: () => { crewedRafts = true; },
+    /** sneak on foot in straight, decisive dashes (dash.mjs compileDash) instead of the plan's cell clicks: opt-in */
+    straightDashes: false,
     /** an enemy by tag (e1…e34, st_barr1#0.0.0…) */
     get: (t) => w.enemies.find((e) => e.tag === t || e.id === t) || w.byId?.(t),
     /** a commando by role (greenberet, diver, sapper, spy) */
@@ -905,7 +908,48 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
       out.reverse();
       out[0][0] = ux; out[0][1] = uz;
       if (!o.shelter) { out[out.length - 1][0] = tx; out[out.length - 1][1] = tz; }
+      // (what the dash compiler re-checks a straighter, quicker way with: the same memoised cones, cells and margins)
+      out.ctx = { seen: o.blind ? () => false : seen, pass, cellOf, DT, now, ma, mb, holdK, KS: HS + 256, mode };
       return out;
+    },
+    /**
+     * Walk compiled legs (dash.mjs compileDash): each move clicked the moment the one before is all but done — he never
+     * halts between two legs of a dash — and a halt only where a leg says wait. 'done' when he got to the last leg's end;
+     * 'late' when he fell behind (a mate in the way, a refused click): the caller plans again from where he is.
+     */
+    async _walkLegs(legs, { role, u, tol = 0.4, slack = 0.5, label = '' }) {
+      const stoppedU = () => !u.path && !u.isMoving;
+      for (let li = 0; li < legs.length; li++) {
+        const s = legs[li];
+        if (s.wait) {
+          if (D.t < s.until - 1e-6) { onWait?.(`${label || 'a man'}: a gap in the cones`); while (D.t < s.until - 1e-6) await tick(); onWait?.(null); }
+          continue;
+        }
+        // (walking on from the leg before he may be a stride early: within the plan's margin before)
+        while (D.t < s.start - (li > 0 && !legs[li - 1].wait ? 0.15 : 1e-6)) await tick();
+        try { D.order(role, { type: 'move', x: s.x, z: s.z }); } catch (e) {
+          if (globalThis.process?.env?.SNEAKDBG) log(`    [${D.t.toFixed(2)}] legs: ${e.message}`);
+          return 'late';
+        }
+        // (the next leg a move too: clicked when he is a couple of strides from this one's end, so he walks on into it)
+        const next = legs[li + 1], chain = next && !next.wait;
+        const near = chain ? Math.max(0.12, u.speed * dt * 3) : tol;
+        const ts = D.t;
+        while (Math.hypot(u.x - s.x, u.z - s.z) > near && D.t < s.end + slack + 1) {
+          await tick();
+          if (D.t > ts + 0.5 && stoppedU()) break;
+        }
+        const f = D.failed(); if (f) throw new Error(`FAILED sneaking ${label}: ${f}`);
+        const d = Math.hypot(u.x - s.x, u.z - s.z);
+        if (D.t > s.end + slack || d > Math.max(near, tol)) {
+          if (globalThis.process?.env?.SNEAKDBG) log(`    [${D.t.toFixed(2)}] legs late: → (${s.x},${s.z}) end ${s.end.toFixed(2)}, at (${u.x.toFixed(2)},${u.z.toFixed(2)})`);
+          return 'late';
+        }
+      }
+      // (the last click's own arrival: he stops on it)
+      const last = legs[legs.length - 1];
+      for (let n = 0; n < 120 && !stoppedU(); n++) await tick();
+      return Math.hypot(u.x - (last.x ?? u.x), u.z - (last.z ?? u.z)) <= tol + 0.1 ? 'done' : 'late';
     },
     /**
      * Go to (tx, tz) on a planSneak plan, like a player timing each dash: wait where the plan waits (somewhere no cone
@@ -952,6 +996,17 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
         }
         fails = 0;
         [gx, gz] = plan[plan.length - 1]; // (snapped to a cell he can stop in)
+        // on foot: the plan as the fewest straight legs he walks one after the other at his own pace, halting only where
+        // he must wait for a gap in the cones (dash.mjs; user 2026-10-15: "making it more straight and decisive").
+        // Opt-in per solution (D.straightDashes, or o.straight): the solutions not re-tuned for it click as before
+        const legs = mode !== 'raft' && (o.straight ?? D.straightDashes) ? await runGenAsync(compileDashGen(plan, { speed: u.speed, route: routeFor(u) })) : null;
+        if (legs) {
+          const r = await D._walkLegs(legs, { role: o.role, u, tol, slack, label: o.label });
+          if (r === 'done') break;
+          if (Math.hypot(u.x - gx, u.z - gz) < 0.9 && stopped() && plans > 3) break;
+          try { D.order(o.role, { type: 'stop' }); } catch { /* already still */ }
+          continue;
+        }
         // runs: consecutive cells in one direction (at most `run` cells), waits between them
         const segs = [];
         let a = 0;

@@ -299,8 +299,8 @@ export class Unit extends Entity {
    * any way, then only to lie parallel), the tighter tier when it is much shorter or ends nearer the click, and the
    * bare grid path when the obstacles box him in (the step guard still keeps his body out of them).
    */
-  _planPath(x, z) {
-    const w = this.world, q = this.pathQuery(), tr = this.track; // (from his path track, see moveTo)
+  _planPath(x, z, from = null) {
+    const w = this.world, q = this.pathQuery(), tr = from || this.track; // (from his path track, see moveTo)
     // (a crawler also goes round steps, porches and plinths: his body would lie into their sides, grid.crawlStep)
     const prone = this.stance === 'crawl' && !!w.grid?.crawlStep;
     if ((!hasObstacles(w) && !prone) || this.y > 1) return w.findPath(tr.x, tr.z, x, z, q);
@@ -317,6 +317,17 @@ export class Unit extends Entity {
       if (miss < best.miss - 0.4 || len < best.len / 1.5 - 2) best = { p, miss, len };
     }
     return best ? best.p : w.findPath(tr.x, tr.z, x, z, q);
+  }
+
+  /**
+   * The path a move order to (x, z) would give him if he stood on his feet / lay at (fx, fz) now, in his stance (the
+   * order's own planning: _planPath + railPath). For look-ahead only (tools/solutions: the driver checks that a leg it
+   * is about to click is walked straight); nothing about him changes. @returns {object[]|null}
+   */
+  planFrom(fx, fz, x, z) {
+    if (!this.world) return null;
+    const p = this._planPath(x, z, { x: fx, z: fz });
+    return p ? railPath(this, p, { x, z }) : null;
   }
 
   /**

@@ -1,5 +1,6 @@
 import { CONFIG } from '../../src/config.js';
 import { DRESS } from '../../src/abilities/spy-actions.js';
+import { wheeling } from './sneak.mjs';
 
 /**
  * M3 "Reverse Engineering" (Sysendam dam): a full stealth solution, played only with player orders.
@@ -165,6 +166,22 @@ async function boardRaft(D, role, boardPoint, extra = null, margin = 0.8) {
 }
 
 /**
+ * No squad man wheeling round (sneak.mjs wheeling: his file turns a corner or about, his head any way) has (x, z) in his
+ * near band (+1 m) from `at` s on for `dur` s: predictEnemy turns a file man's heading a few seconds after he really
+ * does (M3: p5's rear man e30 at the W end of its round looked straight at the GB digging in 17.7 m off).
+ */
+function wheelersAway(D, [x, z], at, dur, why = null) {
+  for (const e of D.world.enemies) {
+    if (!e.alive || e.squad?.id == null || !e.vision) continue;
+    const near = (e.vision.near ?? (e.vision.far ?? 36) / 2) + 1;
+    for (let t = Math.max(0, at - 0.5); t <= at + dur + 0.5; t += 0.5) {
+      const q = D.predict(e, t);
+      if (Math.hypot(q.x - x, q.z - z) < near && wheeling(e, t)) { if (why) why.push(`${e.tag} wheeling+${t.toFixed(1)}`); return false; }
+    }
+  }
+  return true;
+}
+/**
  * The cautious crawl: before each leg the GB checks that nobody will see it; if someone would, he digs in where he
  * is (snow) and waits under it until the leg is clear, then digs out and goes on. `finalPause` = time spent at the end.
  */
@@ -173,10 +190,28 @@ async function crawlCautiously(D, pts, { finalPause = 0, maxWait = 900, lastWhen
   for (let k = 0; k < pts.length; k++) {
     const leg = [[pts[k][0], pts[k][1], k === pts.length - 1 ? finalPause : 0.5]];
     const when = k === pts.length - 1 && lastWhen ? lastWhen : () => true; // (the last leg: an extra condition)
-    if (!when() || !D.routeClear('greenberet', leg, { delay: gb.buried ? 1.5 : 0.3 })) {
+    const hopClear = (delay, why) => D.routeClear('greenberet', leg, { delay, why });
+    // (and where the hop ends he can go straight on, or dig in there unseen to wait for the next one: digging in takes
+    // CONFIG.abilities.dig, and a squad man wheeling round at a turn of p5's round meanwhile may look any way)
+    const stopSafe = (delay, why) => {
+      if (k === pts.length - 1) return true;
+      const at = delay + Math.hypot(pts[k][0] - gb.x, pts[k][1] - gb.z) / 0.9, dig = CONFIG.abilities.dig;
+      const next = [[pts[k + 1][0], pts[k + 1][1], 0.5]];
+      if (D.routeClear('greenberet', next, { from: pts[k], delay: at })) return true;
+      return D.routeClear('greenberet', [[pts[k][0], pts[k][1], dig]], { from: pts[k], delay: at, why }) && wheelersAway(D, pts[k], at, dig, why);
+    };
+    // (dug in, he goes the moment he may also come up out of the snow: the hop is checked from when he does — not a
+    // check gone stale while the rise waits for its own moment)
+    const go = (delay, why) => when() && hopClear(delay, why) && stopSafe(delay, why) && (!gb.buried || riseOk(D, why));
+    if (!go(gb.buried ? 1.5 : 0.3)) {
       if (!gb.buried) { D.ability('greenberet', 'shovel'); await D.until(() => gb.buried, 5, 'GB digs in to wait'); }
       const why = []; // (who keeps the leg covered, for the timeout message)
-      await D.until(() => { why.length = 0; return when() && D.routeClear('greenberet', leg, { delay: 1.5, why }); }, maxWait, `clear leg to (${pts[k]})`)
+      let dbg = 0;
+      await D.until(() => {
+        why.length = 0; const r = go(1.5, why);
+        if (globalThis.__M3DBG && dbg++ % 30 === 0 && when() && hopClear(1.5)) D.log(`DBG ${D.t.toFixed(1)} hop → (${pts[k]}) clear; stopSafe ${stopSafe(1.5)} rise ${!gb.buried || riseOk(D)} [${why.join(' ')}]`);
+        return r;
+      }, maxWait, `clear leg to (${pts[k]})`)
         .catch((e) => { throw new Error(`${e.message} [${why.join(' ')}]`); });
     }
     if (gb.buried) await gbRise(D); // (up out of the snow only when nobody looks there either)
@@ -233,17 +268,23 @@ async function digIn(D) {
   await D.until(() => gb.buried, 6, 'GB dug in');
 }
 /** the GB digs himself out, prone */
+/** may the buried GB come up now (upright a moment): nobody looks at his spot, none of p5 within 7 m for 3 s */
+function riseOk(D, why = null) {
+  const gb = D.c('greenberet');
+  // (the 5-man patrol's file is only roughly predictable: none of them within 7 m either)
+  const a = D.clearAhead(gb.x, gb.z, 2.5, false, why), b = gb.x > 38 || P5.every((t) => staysAway(D, t, [gb.x, gb.z], 7, 3) || (why && !why.push(t)));
+  return a && b;
+}
 async function gbRise(D) {
   const gb = D.c('greenberet');
   if (!gb.buried) return;
-  // (upright a moment; the 5-man patrol's file is only roughly predictable: none of them within 11 m either)
   const why = [];
   let dbg = 0;
   await D.until(() => {
     why.length = 0;
-    const a = D.clearAhead(gb.x, gb.z, 2.5, false, why), b = gb.x > 38 || P5.every((t) => staysAway(D, t, [gb.x, gb.z], 7, 3) || !why.push(t));
-    if ((globalThis.process?.env?.RISEDBG || globalThis.__M3DBG) && dbg++ % 300 === 0) D.log(`DBG rise? ${D.t.toFixed(1)} clear=${a} p5=${b} [${why.join(' ')}] e19 ${D.get('e19').x.toFixed(1)},${D.get('e19').z.toFixed(1)} h${deg(D.get('e19').heading)}`);
-    return a && b;
+    const r = riseOk(D, why);
+    if ((globalThis.process?.env?.RISEDBG || globalThis.__M3DBG) && dbg++ % 300 === 0) D.log(`DBG rise? ${D.t.toFixed(1)} ${r} [${why.join(' ')}] e19 ${D.get('e19').x.toFixed(1)},${D.get('e19').z.toFixed(1)} h${deg(D.get('e19').heading)}`);
+    return r;
   }, 300, 'nobody looking where the GB comes up')
     .catch((e) => { throw new Error(`${e.message} at (${gb.x.toFixed(1)},${gb.z.toFixed(1)}) [${why.join(' ')}]`); });
   // the shovel again (F), not a move order: a move would walk him to his own spot once he is out — a step on his
@@ -785,6 +826,10 @@ export const STAGES = [
  * node and in the page). `ctx.only` / `ctx.until`: run a slice of the stages (debugging).
  */
 export async function solve(D, ctx) {
+  // every sneak on foot in straight, decisive dashes (driver D.sneak → dash.mjs; user 2026-10-15, watching this
+  // walkthrough: "Looking at mission 3 the trajectory of commandos is very zig baggy, making it more straight and
+  // decisive. Longer trajectories rather than zig zagging in small trajectories")
+  D.straightDashes = true;
   for (const [id, title, fn] of STAGES) {
     if (ctx.from && id < ctx.from) continue;
     ctx.onStage?.(id, title, D.t);
