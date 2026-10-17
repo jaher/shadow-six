@@ -286,19 +286,33 @@ export class Game {
     // loading takes effect once the gate opens — after the steps below, where a synchronous build had returned
     let openGate = null;
     const mapOpts = { theater: def.theater, renderer: r, scene: r.scene, assets, gate: new Promise((ok) => { openGate = ok; }) };
-    let handle;
+    let handle, dressed = [];
     try {
       handle = MapBuilder.buildMapGen ? await safeAsync(() => runSliced(MapBuilder.buildMapGen(world, def, mapOpts)), 'map-builder')
         : build ? safe(() => build(world, def, mapOpts), 'map-builder') : null;
       if (this.world !== world) { safe(() => handle?.dispose?.(), 'map dispose'); return prog.cancel(), world; } // replaced meanwhile
       this.mapHandle = handle;
-      safe(() => dressStaticVehicles(world, def), 'static vehicles'); // parked wagons / aircraft / flak: library models
+      dressed = safe(() => dressStaticVehicles(world, def), 'static vehicles') || []; // parked wagons / aircraft / flak: library models
       safe(() => createFlyovers(world, def, { renderer: r, seed: def.seed ?? CONFIG.sim.seed }), 'flyovers'); // ambient aircraft overhead
       safe(() => createVehicleLamps(r.scene, { preset: r.presetName }), 'vehicle lamps'); // night: real headlamp lights (fixed pool)
     } finally { openGate(); }
     // ground textures, grass and trees build asynchronously (decode + splat + tree workers): wait, bounded
     const ready = this.mapHandle?.ready;
     if (ready) await safeAsync(() => Promise.race([ready, new Promise((ok) => setTimeout(ok, 20000))]), 'terrain');
+    // the body solids men path and stand clear of (world/body-clearance.js) are what is drawn: a prop dressed as a
+    // library vehicle is measured on its model, so they are measured again here, once every static vehicle's model is
+    // in (awaited: the map's own re-stamp ran when the library buildings were in, before or after a vehicle's model —
+    // M14's parked lorry was a 2.3 m or a 6.2 m solid depending on which came first)
+    if (dressed.length && this.mapHandle?.restampBodySolidsG) {
+      const t0 = performance.now(), all = Promise.allSettled(dressed.map((d) => d.ready));
+      // (a model that never arrives — a stalled request — is waited for 60 s; its placeholder then stays drawn and solid)
+      const done = await Promise.race([all.then(() => true), new Promise((ok) => setTimeout(() => ok(false), 60000))]);
+      if (!done) console.warn(`[game] static vehicle models still loading after ${Math.round(performance.now() - t0)} ms: body solids measured on what is drawn`);
+      if (this.world !== world) return prog.cancel(), world;
+      const owners = new Set(dressed.map((d) => world.structures?.get(d.id)?.owner).filter((o) => o != null));
+      await safeAsync(() => runSliced(this.mapHandle.restampBodySolidsG(owners)), 'body solids');
+      if (this.world !== world) return prog.cancel(), world;
+    }
     await nextTask(); // (the steps below start on their own task, not on the one that finished the terrain)
     if (this.world !== world) return prog.cancel(), world; // unloaded / replaced while waiting
     // every climbed ladder measured on the built map, the missing ones built (art/ladder-frame.js)

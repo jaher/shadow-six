@@ -57,6 +57,9 @@ function digest() {
   out['structureDoors'] = safeJson(w.structureDoors || null);
   out['stairs'] = safeJson((w.stairs || []).map?.((s) => [s.id, s.pts ?? s.points, s.w]) || null);
   out['fencePosts'] = safeJson(w.fencePosts || null);
+  // (the body-clearance solids men path round: not in the grid — M14's parked lorry measured on its placeholder or on
+  // its library model changed every path past it)
+  out['bodySolids'] = safeJson((w.bodySolids?.list || []).map((o) => [o.owner, o.gone, o.R]));
   const gy = [];
   for (let z = 1; z < (w.size?.[1] || 100); z += 7) for (let x = 1; x < (w.size?.[0] || 100); x += 7) gy.push(r6(w.groundY?.(x, z) ?? 0));
   out['groundY'] = hashStr(gy.join(','));

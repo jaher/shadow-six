@@ -1431,10 +1431,15 @@ export class EnemyBrain {
     const e = this.enemy;
     this._look(0);
     const home = this._homePoint();
+    // a route waypoint the planner cannot end on exactly counts as reached where his walk back to it ended (WP_NEAR,
+    // as on his beat: _route) — else he stood there re-planning the same walk for ever, never back on his beat
+    // (M14 e_g3r, back up on the turret roof after a look at a body: 0.64 m short of the roof's east point)
+    const g = this._homeGoal, near = !!g && g.wp === home && !e.isMoving && Math.hypot(g.x - e.x, g.z - e.z) <= 0.5;
     // home, or beside it when another man stands on it (Unit._avoidPlan stops a walker beside a man on his goal)
-    if (this._dist(home) <= 0.5 || (!e.isMoving && this._homeTaken(home))) {
+    if (this._dist(home) <= 0.5 || near || (!e.isMoving && this._homeTaken(home))) {
       e.stop();
       e.vel = this.routeVel;
+      this._homeGoal = null;
       this._set(this.idleState);
       this._applyHead();
       if (e.route) this.waitT = 0;
@@ -1443,7 +1448,10 @@ export class EnemyBrain {
     this._repathT -= dt;
     if (!e.isMoving && this._repathT <= 0) {
       this._repathT = 1;
-      if (!this._go(home.x, home.z, CONFIG.ai.investigate.speed, { fallback: false })) { this._set(this.idleState); this._applyHead(); }
+      if (!this._go(home.x, home.z, CONFIG.ai.investigate.speed, { fallback: false })) { this._set(this.idleState); this._applyHead(); return; }
+      // (only a waypoint of his own beat: a post is where he stands on his spawn, a squad slot moves with its leader)
+      const end = e.path?.[e.path.length - 1], onRoute = !!e.route?.includes(home);
+      this._homeGoal = onRoute && end && Math.hypot(end.x - home.x, end.z - home.z) <= WP_NEAR ? { wp: home, x: end.x, z: end.z } : null;
     }
   }
 

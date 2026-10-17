@@ -79,7 +79,7 @@ export const FIELD_GUN_VARIANTS = new Set(['flak38_quad_towed', 'flak38_quad_rou
  * Swap the placeholder meshes of every static vehicle structure for the library model.
  * @param {object} world (world.structures: Map id → {type, def, object3d}; world.wind for windsocks)
  * @param {object} def mission definition (theater)
- * @returns {object[]} dressed structures [{id, asset, scale}]
+ * @returns {object[]} dressed structures [{id, asset, scale, vis, ready}] (`ready`: settles once the model is in place)
  */
 export function dressStaticVehicles(world, def) {
   const out = [];
@@ -117,7 +117,9 @@ export function dressStaticVehicles(world, def) {
       if (s.def.ice) s.object3d.add(iceCrust(s.def));
     } else if (flip) { flip.name = 'overturned'; flip.rotation.z = Math.PI; flip.add(vis.object3d); holder.add(flip); } else holder.add(vis.object3d);
     const rec = { id, asset, scale: 1, vis };
-    vis.ready.then(() => {
+    // (`ready`: the model in, fitted, the placeholder hidden — what Game.loadMission awaits before the body solids are
+    // measured on the drawn model: map-builder restampBodySolidsG)
+    rec.ready = vis.ready.then(() => {
       const md = vis.meta?.dims || {}, b = vis.meta?.bbox;
       const L = md.length ?? md.length_over_buffers_loco ?? (b ? b.max[2] - b.min[2] : 1);
       const W = md.width ?? md.span ?? md.beam ?? (b ? b.max[0] - b.min[0] : 1);

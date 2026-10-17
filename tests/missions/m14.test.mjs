@@ -465,3 +465,26 @@ test('m14 (review): g1–g3 need the bomb within 3 m of the target point (§3.3)
     assert.ok(t.destroyed, `${id} goes up with a bomb 2.5 m off`);
   }
 });
+
+test('m14 regression: e_g3r walking back to his roof point the planner ends short of gets back on his beat (RETURN)', () => {
+  // in the real game the turret's body clearance covers e_g3r's east point (94.5, 58): the planner ends 0.64 m short of
+  // it. The route rule (EnemyBrain._route, WP_NEAR) counted it reached on his beat, but walking back to it after a
+  // look (RETURN) he stood there re-planning for ever (the M14 solution's "calm" never came). Headless: his planner is
+  // made to end short of that point, as in the game
+  const s = makeSim(M()), w = s.world, e = w.byId('e_g3r'), wp = e.route[1];
+  const moveTo = e.moveTo.bind(e);
+  e.moveTo = (x, z, o) => (Math.hypot(x - wp.x, z - wp.z) < 1e-6 ? moveTo(x - 0.45, z - 0.45, o) : moveTo(x, z, o));
+  e.stop(); e.x = 91.5; e.z = 58; e.y = ROOF_Y; w.rebuildSpatial();
+  e.brain._set('RETURN');
+  let back = null;
+  const seen = [];
+  s.run(60, () => {
+    if (!back && e.brain.state !== 'RETURN') back = { state: e.brain.state, x: e.x, z: e.z };
+    if (back && seen[seen.length - 1] !== e.brain.routeIndex) seen.push(e.brain.routeIndex);
+    return back && seen.includes(0);
+  });
+  assert.ok(back, `back from RETURN (still ${e.brain.state} at (${e.x.toFixed(2)}, ${e.z.toFixed(2)}))`);
+  assert.equal(back.state, 'IDLE');
+  assert.ok(Math.hypot(back.x - wp.x, back.z - wp.z) < 1.0, `where his walk back ended, by the point: (${back.x.toFixed(2)}, ${back.z.toFixed(2)})`);
+  assert.ok(seen.includes(0), `and walks his beat on, west to (87, 58): route points ${seen.join(',')}`);
+});

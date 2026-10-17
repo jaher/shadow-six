@@ -1149,10 +1149,11 @@ const BODY_SOLID_OUTLINE = new Set(['sandbags']);
 export function stampBodySolids(world, built, groundAt = null) { return runSync(stampBodySolidsG(world, built, groundAt)); }
 
 /** stampBodySolids() as a sliced job (engine/slice.js). */
-export function* stampBodySolidsG(world, built, groundAt = null) {
+export function* stampBodySolidsG(world, built, groundAt = null, only = null) {
   const list = [];
   for (const b of built) {
     if (due()) yield;
+    if (only && !only.has(b.owner)) continue; // (`only`: these structures measured again, see below)
     if (!b.object3d || TREE_TYPES.includes(b.type) || LINEAR_PROPS.includes(b.type) || b.def.clip === false) continue;
     if (!BODY_SOLID_CATS.has(categoryOf(b.type, b.def)) || isPlatformProp(b.type)) continue; // a platform is walked on (nav + climb links)
     if (world.bodySolidsGone?.has(b.owner)) continue;
@@ -1171,6 +1172,20 @@ export function* stampBodySolidsG(world, built, groundAt = null) {
     const R = hull && minAreaRect(hull);
     // (`y0`: the ground it stands on — a deck over it is walked above its body, avoidMask)
     if (R) list.push({ owner: b.owner, R: { ...R, top, y0: gy } });
+  }
+  // `only` (a set of structure owners): their rects measured again in place of their old ones, every other solid kept
+  // as it is (handle.restampBodySolidsG: the static vehicles once their library models are in)
+  if (only) {
+    const fresh = new Map(), merged = [], done = new Set();
+    for (const o of list) { if (!fresh.has(o.owner)) fresh.set(o.owner, []); fresh.get(o.owner).push(o); }
+    for (const o of world.bodySolids?.list || []) {
+      if (o.gone) continue;
+      if (!only.has(o.owner)) { merged.push({ owner: o.owner, R: o.R }); continue; }
+      if (!done.has(o.owner)) { done.add(o.owner); merged.push(...(fresh.get(o.owner) || [])); }
+    }
+    for (const [owner, l] of fresh) if (!done.has(owner)) merged.push(...l); // (its placeholder had none)
+    setStaticSolids(world, merged);
+    return { count: merged.length, off: null };
   }
   // a gate's fixed posts (world/breakables.js gateLayout: a boom barrier's pivot post, fork rest and log gate posts beside
   // its footway) are solid bodies too: a man standing or aiming in the footway keeps his body off them (clip-2, M2)
@@ -1967,10 +1982,12 @@ export function* buildMapGen(world, mission, opts = {}) {
     const wc = stampWalkClearance(world, [...navKeepPoints(world, built), ...spawns]);
     if (wc) libLog.push(`raised walks: ${wc} cells beside stakes / railings blocked`);
   };
+  // (body clearance, below: the ground under each solid; restampBodySolidsG measures again with it)
+  const solidGround = meshes && terrain?.groundY ? (x, z) => terrain.groundY(x, z) : null;
   if (meshes) {
     yield* stampBodies(wire?.standing ? [...built, wire.standing] : built);
-    // body clearance: solid props men never cross (world/body-clearance.js), again once library meshes are in
-    const solidGround = terrain?.groundY ? (x, z) => terrain.groundY(x, z) : null;
+    // body clearance: solid props men never cross (world/body-clearance.js), again once library meshes are in, and
+    // once more when the static vehicles' library models are (Game.loadMission → handle.restampBodySolidsG)
     const bs = yield* stampBodySolidsG(world, built, solidGround);
     if (bs.off) { const a = visNavOff; visNavOff = () => { a?.(); bs.off(); }; }
     libLog.push(`body solids: ${bs.count}`);
@@ -2104,6 +2121,18 @@ export function* buildMapGen(world, mission, opts = {}) {
       const d = opts.meshes === false || !realTerrain ? null : yield* createDamWaterG(world, structures, opts.renderer, { deferListen: true });
       if (gone) { d?.dispose(); return; }
       damPrepared = d;
+    },
+    /**
+     * The body solids measured again (stampBodySolidsG) on what is drawn now. A prop drawn as a library vehicle
+     * (art/static-vehicles.js: M14's parked Opel Blitz, M8's tanker, carts, wagons, wrecks, moored boats) is dressed
+     * after the build, its model coming in a few tasks later; the re-stamp above runs when the library buildings are
+     * in, which may be before or after it. Game.loadMission calls this at a fixed point, once every static vehicle's
+     * model is in, with their owners: their solids are measured again on the drawn models (the rest kept as they are),
+     * the same on every load.
+     */
+    *restampBodySolidsG(owners) {
+      if (!meshes || gone || !owners?.size) return 0;
+      return (yield* stampBodySolidsG(world, built, solidGround, owners)).count;
     },
     get damWater() { return damWater; },
     get windFx() { return windFx; },

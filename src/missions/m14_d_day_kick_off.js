@@ -228,7 +228,9 @@ const ENEMIES = [
   sentry('e30', 30, 88, 71, 0, 60, 9),
   walker('e31', 31, [P(86, 67, 3, 180), P(97, 67.5, 3, 0)]),
   walker('e32', 32, [P(84, 74.5, 3, 180), P(95, 73.5, 3, 0)]),
-  walker('e33', 33, [P(74, 70.5, 3, 180), P(78, 76), P(88, 76, 3, 90)]),
+  // (his west halt 1 m east of where it was: (74, 70.5) lies in rock rk_bn's body clearance — the planner ended 1.2 m
+  // short of it and he stood there re-planning for ever, never walking his beat)
+  walker('e33', 33, [P(75, 70.5, 3, 180), P(78, 76), P(88, 76, 3, 90)]),
   sentry('e34', 34, 109, 70.5, 300, 60),
   sentry('e35', 35, 107, 57.5, 90, 50),
   walker('e36', 36, [P(98, 44, 3, 180), P(104, 50.5, 3, 0)]),

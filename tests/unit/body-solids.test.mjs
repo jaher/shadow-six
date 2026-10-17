@@ -3,6 +3,9 @@
  * soldiers nor commandos can cross cars or any other object which could be climbed on").
  */
 import { test, assert } from './lib.mjs';
+import * as THREE from 'three';
+import { stampBodySolids, stampBodySolidsG } from '../../src/world/map-builder.js';
+import { runSync } from '../../src/engine/slice.js';
 import { World } from '../../src/world/world.js';
 import { createVehicle } from '../../src/entities/vehicle.js';
 import { Commando } from '../../src/entities/commando.js';
@@ -183,4 +186,32 @@ test('a man making no headway beside a post stands rather than stride his toe in
   assert.notEqual(anim(0), 'walk', 'holding (no headway), a post where his boot lands: no stride');
   assert.equal(anim(1.8), 'walk', 'walking on (headway): the stride as ever');
   assert.equal(anim(0, Math.PI), 'walk', 'nothing at his toes: the sidestep is shown walking');
+});
+
+test('a prop drawn as a library vehicle is solid as its drawn model, re-measured once it is in, the same every time (M14 van_g4)', () => {
+  // (the map's own re-stamp ran when the library buildings were in — before or after a static vehicle's model came in:
+  // M14's parked Opel Blitz was a 2.3 x 1.4 m solid on one load path, 6.2 x 2.3 m on the other. Game.loadMission now
+  // re-measures the static vehicles at a fixed point, once their models are in: map handle restampBodySolidsG)
+  // (rows of vertices up its sides: the plan hull reads the vertices in the body band, 0.15–1.6 m)
+  const box = (w, h, d) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d, 1, 8, 1), new THREE.MeshBasicMaterial()); m.position.y = h / 2; return m; };
+  const prop = (owner, def) => {
+    const g = new THREE.Group(); g.position.set(def.x, 0, def.z); g.rotation.y = -(def.rot ?? 0);
+    const placeholder = box(2.3, 1.6, 1.4); g.add(placeholder);
+    return { owner, type: 'crates', def, object3d: g, placeholder };
+  };
+  const van = prop(17, { id: 'van', x: 20, z: 20, rot: Math.PI / 2, w: 4.5, d: 2, h: 2.2, vehicleArt: 'opel_blitz_cargo' });
+  const crates = prop(18, { id: 'crates', x: 30, z: 30, w: 2.3, d: 1.4, h: 1.6 });
+  const world = {}, solid = (owner) => world.bodySolids.list.find((o) => o.owner === owner)?.R;
+  stampBodySolids(world, [van, crates]);
+  const c0 = JSON.stringify(solid(18));
+  assert.ok(2 * Math.max(solid(17).hl, solid(17).hw) < 2.5, 'the build measures the placeholder');
+  // the library lorry comes in (art/static-vehicles.js: its placeholder hidden); the crate stack changes too
+  for (const b of [van, crates]) { b.object3d.add(box(6.2, 2.9, 2.3)); b.placeholder.visible = false; }
+  runSync(stampBodySolidsG(world, [van, crates], null, new Set([17])));
+  const v1 = JSON.stringify(solid(17));
+  assert.ok(Math.abs(2 * Math.max(solid(17).hl, solid(17).hw) - 6.2) < 0.05 && solid(17).top > 2.8, `the van is solid as the drawn lorry (${v1})`);
+  assert.equal(JSON.stringify(solid(18)), c0, 'the other solids are kept as they were');
+  runSync(stampBodySolidsG(world, [van, crates], null, new Set([17])));
+  assert.equal(JSON.stringify(solid(17)), v1, 'measured again: the same');
+  assert.equal(world.bodySolids.list.length, 2);
 });

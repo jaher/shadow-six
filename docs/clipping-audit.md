@@ -243,6 +243,11 @@ normally set by the rules).
     furniture, rocks, wrecked planes and boats) → the min-area rect of its plan hull; sandbag lines → one rect per bag
     (up to 1.2 m) so a bent line keeps its pit open. Dropped when the structure is destroyed. Walls, fences,
     buildings, bridges and dams keep their own rules above (grid blocks, visual nav blocks).
+    A prop drawn as a library vehicle (`vehicleArt` or a static vehicle type, `art/static-vehicles.js`, dressed after
+    the build) is solid as its drawn model: `Game.loadMission` awaits every static vehicle's model (`rec.ready`) and
+    measures those again at that fixed point (map handle `restampBodySolidsG(owners)`, the other solids kept), so it is
+    the same on every load (the re-stamp once library buildings are in had come before or after the vehicle: M14's
+    parked lorry was 2.3 or 6.2 m long by load path; `tests/static-vehicle-solids.test.mjs`).
   The only way over any of them is a climb link / ladder where the data has one (the path goes through the link).
   - *Paths*: `Unit.moveTo` plans with a keep-out mask around the hulls (`avoidMask`, `grid.isWalkable opts.avoid`):
     a crawler first with room to lie any way (1.15 m), else lying parallel (0.4 m); a click on a hull ends at the free

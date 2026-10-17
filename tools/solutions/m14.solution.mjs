@@ -10,6 +10,7 @@
  */
 import { sneak, clearFor, routeClear, alarmEta, alarmEtaInfo, teamBoat, predict, unwitnessed, viewersOf, walking, walkerSees, wheeling, staticSees } from './sneak.mjs';
 import { T } from '../../src/world/grid.js';
+import { canSee, coneAt } from '../../src/ai/perception.js';
 import { ABILITIES } from '../../src/abilities/registry.js';
 
 const objective = (D, id) => D.world.objectives.find((q) => q.id === id).done;
@@ -269,7 +270,8 @@ export const STAGES = [
     D.checkpoint('D1 behind the east spit, the Marine over the side');
     await D.go('diver', ...WATERLINE_E34, { tol: 0.6, max: 150 });
     const e34 = D.get('e34');
-    await D.until(() => Math.hypot(e34.x - dv.x, e34.z - dv.z) < 8.6 && unwitnessed(D, e34, dv, { ahead: 0.6 }), 300, 'e34 unwatched');
+    // (and as everyone stands now: e31, at the east end of his beat, turns round slowly — still facing e34 as he sets off)
+    await D.until(() => Math.hypot(e34.x - dv.x, e34.z - dv.z) < 8.6 && unwitnessed(D, e34, dv, { ahead: 0.6 }) && unwitnessedNow(D, e34, dv), 300, 'e34 unwatched');
     D.ability('diver', 'harpoon', e34);
     await D.until(() => !e34.alive, 3, 'e34 harpooned');
     D.checkpoint('D2 e34 speared from the shallows');
@@ -320,6 +322,9 @@ export const STAGES = [
       if (!routeClear(D, [[...SNIPE_MG5]], { mode: 'boat', from: SNIPE_MG5, delay: arr + 0.7, slack: 0.7, why })) return 'shot';
       if (!routeClear(D, [[...SNIPE_MG5]], { mode: 'boat', from: SNIPE_MG5, delay: arr + 5, slack: 5, except: [mg5], why })) return 'back';
       if (!unwitnessed(D, mg5, sn, { ahead: 3, why }) || !unwitnessed(D, mg5, sn, { ahead: arr + 1.5, strict: true, why })) return 'witness';
+      // (and Patrol 43 finds him first, out on the beach: a post inside the line — e45 on the apron — seeing the body
+      // first would cry out there and turn the barracks out)
+      if (bodyAlarm(D, ...MG5_BODY, arr + 60)) return 'found';
       return '';
     }, 900, 'mg5g looking west, nobody watching him');
     D.log?.(`DBG mg5g window at t=${D.t.toFixed(2)}`);
@@ -898,7 +903,7 @@ const BRL_TO = [[55.5, 50.6], [55.6, 51.6]];
 const BRL_UP = [[55.5, 50.6], [55.7, 47.6]];
 const BRL_OUT = [[55.9, 45.6], [54.2, 45.2], [52.6, 45]];
 /** and crawling back into the passage, to its blind spot */
-const BRL_HOME = [[55.9, 45.6], [55.6, 47], [55.6, 49], [56.35, 50]];
+const BRL_HOME = [[55.9, 45.6], [55.6, 47], [55.6, 49], [55.75, 50]]; // (to H_A)
 /** Will nobody see the Green Beret fetch the barrel (starting in `delay` s): out of the passage to the stack, the
  * lift, back up the passage to its north end, and a few s standing there with it? */
 function barrelClear(D, brl, delay = 0, why = null) {
@@ -981,7 +986,7 @@ async function killFile(D, tags, { end, startAt = 6, maxSec = 300 } = {}) {
 }
 
 /** Harpoon `victim` from the water as soon as he is in reach (9 m) and nobody would see him fall. */
-async function harpoon(D, victim, { maxSec = 60, give = null } = {}) {
+async function harpoon(D, victim, { maxSec = 60, give = null, hide = 0 } = {}) {
   const dv = D.c('diver');
   const why = [];
   let gaveUp = false;
@@ -994,7 +999,17 @@ async function harpoon(D, victim, { maxSec = 60, give = null } = {}) {
     if (D.world.time < (dv._harpoonT ?? -1)) return false;
     // (the line of fire: from the water his harpoon clears low cover no better than the guard's eyes would see him)
     if (ABILITIES.harpoon.canUse(dv, victim, D.world) !== true) { why.push('no line of fire'); return false; }
-    return unwitnessed(D, victim, dv, { why, ahead: 0.6, strict: true });
+    if (!unwitnessed(D, victim, dv, { why, ahead: 0.6, strict: true })) return false;
+    if (!unwitnessedNow(D, victim, dv)) { why.push('seen now'); return false; }
+    // (`hide` s: where he falls nobody else — but the men already walking to a body, speared in turn — finds him
+    // sooner from inside the fortified line: a post up the beach seeing the body cries out there and the barracks
+    // turn out; a man finding him out on the beach only calls the others down to look)
+    if (hide) {
+      const comers = D.world.enemies.filter((e) => e.alive && e.brain?.state === 'BODY');
+      const by = bodyAlarm(D, victim.x, victim.z, hide, [victim, ...comers]);
+      if (by) { why.push(`body found by ${by}`); return false; }
+    }
+    return true;
   }, maxSec, `harpoon ${victim.tag}`).catch((e) => { throw new Error(`${e.message} [${why.join(' ')}] d=${Math.hypot(victim.x - dv.x, victim.z - dv.z).toFixed(1)}`); });
   if (!victim.alive) return;
   if (gaveUp) throw new Error(`${victim.tag} got away`);
@@ -1017,7 +1032,8 @@ async function baitKills(D, tags, { maxSec = 240, quiet = 0 } = {}) {
       if (waiting) throw new Error(`bait: ${[...left].filter((e) => e.alive).map((e) => e.tag)} never came`);
       return;
     }
-    const comer = [...D.world.enemies].find((e) => e.alive && e.brain?.state === 'BODY' && e.brain.phase === 'go' && !e.flags?.holdsPost);
+    // (on his way, or already kneeling by it — a man next to the body is there at once — until he cries out)
+    const comer = [...D.world.enemies].find((e) => e.alive && e.brain?.state === 'BODY' && (e.brain.phase === 'go' || e.brain.phase === 'kneel') && !e.flags?.holdsPost);
     if (!comer) { await D.wait(0.1); continue; }
     lastComer = D.t;
     if (!left.has(comer)) D.log(`DBG bait: ${comer.tag} comes to a body`);
@@ -1027,9 +1043,54 @@ async function baitKills(D, tags, { maxSec = 240, quiet = 0 } = {}) {
     const meet = waterNear(D, g?.x ?? comer.x, g?.z ?? comer.z);
     if (meet && Math.hypot(dv.x - meet[0], dv.z - meet[1]) > 1.5) D.order('diver', { type: 'move', x: meet[0], z: meet[1] });
     const must = tags.includes(comer.tag);
-    try { await harpoon(D, comer, { maxSec: 40, give: must ? null : () => comer.brain?.state !== 'BODY' || comer.brain.phase !== 'go' }); }
+    // (taken on his way down or kneeling by the body, before he cries out: where his own body will lie unseen)
+    try { await harpoon(D, comer, { maxSec: 40, hide: 30, give: must ? null : () => comer.brain?.state !== 'BODY' || (comer.brain.phase !== 'go' && comer.brain.phase !== 'kneel') }); }
     catch (e) { if (must) throw e; D.log(`DBG bait: ${comer.tag} not taken (${e.message})`); left.delete(comer); }
   }
+}
+
+/**
+ * Who would find a body left at (x, z) within `horizon` s and cry out from inside an alarm zone (the first finder: a
+ * post kneels where he stands, anyone else at the body), or null: nobody, or the first finds it out on the beach.
+ */
+function bodyAlarm(D, x, z, horizon, except = []) {
+  // (the first man to see a body claims it — the others leave it to him: who sees it first, not who could cry first;
+  // every 0.1 s: a post's sweep may hold a body at the cone's far edge for a moment only — e45 and mg5g, 0.15 s)
+  // (worked out at most every 0.5 s for the same spot: the answer moves with the sweeps, not tick by tick)
+  const key = `${x},${z},${horizon},${except.map((e) => e.tag).join()}`, c = bodyAlarm.memo;
+  if (c && c.key === key && D.t - c.t < 0.5) return c.tag;
+  const w = D.world, d = { x, z, y: w.grid.elevAt?.(x, z) ?? 0, kind: 'body' };
+  let best = { t: Infinity, tag: null, at: null };
+  for (const e of viewersOf(w)) {
+    if (except.includes(e) || e.vehEye) continue;
+    const moving = walking(e), far = (e.vision.far ?? 36) + 1, post = e.flags?.holdsPost || !e.flags?.investigates;
+    for (let t = 0; t <= Math.min(horizon, best.t); t += 0.1) {
+      let seen = false;
+      if (moving) { const q = predict(e, t); if (Math.hypot(q.x - x, q.z - z) <= far) seen = walkerSees(e, q, d, w, w.time + t); }
+      else { if (Math.hypot(e.x - x, e.z - z) > far) break; seen = canSee(e, d, w, { cone: coneAt(e, w.time + t) }) !== 'none'; }
+      if (seen) { if (t < best.t) best = { t, tag: e.tag, at: post ? [e.x, e.z] : [x, z] }; break; }
+    }
+  }
+  const tag = best.at && w.alarm?.zoneAt?.(...best.at) ? best.tag : null;
+  bodyAlarm.memo = { key, t: D.t, tag };
+  return tag;
+}
+
+/**
+ * Nobody, standing and facing as he does now (his head's sweep followed), sees the victim fall or the killer within
+ * `ahead` s: what unwitnessed's walk prediction misses — a walker leaving a halt turns round over a second or more,
+ * still facing the way he looked.
+ */
+function unwitnessedNow(D, victim, killer, ahead = 0.6) {
+  const w = D.world, body = { x: victim.x, z: victim.z, y: victim.y || 0, kind: 'body', falling: true };
+  for (const e of viewersOf(w)) {
+    if (e === victim || e.vehEye) continue;
+    for (let t = 0; t <= ahead + 1e-6; t += 0.2) {
+      const cone = coneAt(e, w.time + t);
+      if (canSee(e, body, w, { cone }) !== 'none' || canSee(e, killer, w, { cone, ignoreDisguise: true }) !== 'none') return false;
+    }
+  }
+  return true;
 }
 
 /** Wait until every guard within `r` m of `at` is back on his beat (IDLE) or posted again. */
@@ -1096,6 +1157,8 @@ const PLANT_G3 = [88.3, 60.4];
 /** gun 4: under the north-south ridge's tip (its rock hides the boat from the north beach); the Sniper's spot for mg5g
  * (26 m); the landing on the north beach */
 const BOAT_HIDE_N = [76, 1.6];
+/** Where mg5g's body comes to rest, shot in his nest: pushed out of the sandbags, 1.8 m south (in sight of the apron). */
+const MG5_BODY = [60.25, 27.75];
 const SNIPE_MG5 = [71, 2];
 const LANDING_N = [57, 13.5];
 const LANDING_N_SHORE = [57, 17.2];
@@ -1111,16 +1174,17 @@ const GB_HOLD = [55.3, 19.5];
 const SN_HOLD = [56, 18.4];
 /** a step east of it, out of the block's shadow: e_flag in the rifle's line past the lorry (37 m) */
 const SN_EF = [56.8, 19.6];
-/** from the shore up the beach to the passage's north mouth, west of where the lured men stare */
-const UP_BEACH = [[54, 19.8], [52, 19.6], [48, 22.5], [48, 30], [52, 37], [56.3, 42], [56.3, 45.3]];
+/** from the shore up the beach to the passage's north mouth, west of where the lured men stare (clear of the lorry's
+ * front corner: a man lying along the passage keeps his knees 0.2 m off it) */
+const UP_BEACH = [[54, 19.8], [52, 19.6], [48, 22.5], [48, 30], [52, 37], [56.3, 42], [55.9, 45.3]];
 /** the Green Beret's way from behind the block to the decoy spot: along the shore past the tank obstacles and the machine-gun nest, then along the foot of the ridge */
 const TO_DECOY = [[57, 20], [62.6, 20.6], [62.6, 27], [63.6, 33], DECOY_STAND];
 /** the passage between the gun-4 shed and the parked lorry (x 55-56.8): its north end, where the Green Beret waits for
- * the strike (only Patrol 43 at the east end of its beat could see it); its one blind spot (against the lorry, 1.5 m
- * from the south mouth: nobody sees a man lying there); the Sniper's firing spot in its south mouth (in sight of
- * e_flag, e46 and e44) */
+ * the strike (only Patrol 43 at the east end of its beat could see it); its one blind spot (by the lorry, 1.5 m from
+ * the south mouth: nobody sees a man lying there — as close to the lorry's flank as a man lying along the passage keeps
+ * his knees off it); the Sniper's firing spot in its south mouth (in sight of e_flag, e46 and e44) */
 const GB_WAIT = [55.75, 47.4];
-const H_A = [56.35, 50];
+const H_A = [55.75, 50];
 /** the far west end of the beach: e46 (past the shed) and e44 in the rifle's line (25 and 37 m) */
 const SN_WEST = [28, 32];
 /** along the shore from behind the block to it, round the east end of the wire on the beach */
