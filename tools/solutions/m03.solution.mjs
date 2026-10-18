@@ -245,9 +245,17 @@ const GB_WAIT = [41, 56.5]; // the GB's place in the snow on the strip, 20 m fro
 // and e19 at the N end of his beat (12.4 m) all hear it — each turns to it with the stair, its foot and the trench's
 // mouth N of him, out of his eyes
 const N_DECOY_WAIT = [34, 56.2]; // the GB's place in the snow E of p5's halt (30, 54): he goes on from here behind p5
-const N_DECOY_FENCE = [15.4, 57.3]; // his place in the snow by the fence S of the decoy spot (2.5 m off p5's W leg)
+const N_DECOY_FENCE = [15.4, 57.3]; // his place in the snow by the fence S of the decoy spot (2.5 m off p5's W leg):
+// it cannot move — S the snow ends at z 57.75, E or W the drop excursion out to the decoy spot and back outgrows
+// the moment p5's backs are turned at the W end of its round (at 3.8 m out he was still crawling back when its
+// cones swept the strip: exposures, then combat), and the decoy spot itself is pinned by the gunner's earshot
+// (13.13 m of the decoy's 13.5 m radius). What moves instead is the crawl line's W end (see FENCE_W)
 const N_DECOY = [15.1, 56.1]; // where he drops the decoy (facing NW, it lands 0.4 m ahead of him)
-const FENCE_W = [[29.5, 56.9], [25.5, 57.1], [21.5, 57.2], [18.5, 57.3]]; // his crawl along the fence behind p5's beat
+const FENCE_W = [[29.5, 56.9], [25.5, 57.1], [21.5, 57.2], [18.5, 57.3], [16.9, 57.35]]; // his crawl along the fence
+// behind p5's beat. The extra point at the W end cuts the first hop back E from the fence spot to 1.5 m: as one
+// 3.1 m hop its clearance (no man of p5 within 6 m of the line, a safe stop at its end) never once lined up with
+// a rise window (all of p5 7 m off the fence spot for 3 s) and he lay buried ~537 s after the drop; in short hops
+// the same gates open inside a single rise window
 // the truck road N of the dam, out of every cone: where the four wait for the truck
 const E_STAIR_FOOT = [59.35, 34.3];
 const TRUCK_WAIT = { diver: [63.5, 5.5], spy: [64.5, 7.5], greenberet: [66, 5], sapper: [63, 9.5] }; // beside the truck road's end (it stops at (60, 9.2))
