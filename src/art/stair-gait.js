@@ -30,7 +30,7 @@
  */
 import { Vector3, Quaternion, LoopOnce } from 'three';
 import { twoBoneIK } from './characters/pipeline/weapons.js';
-import { flightLocal, flightWorld, levelIndex, levelSpan, lineAt } from '../world/stairs.js';
+import { flightLocal, flightWorld, levelAt, levelIndex, levelSpan, lineAt } from '../world/stairs.js';
 import { unitFlight } from '../entities/stair-walk.js';
 
 const DEG = Math.PI / 180;
@@ -867,6 +867,21 @@ export function stairGround(u) {
   const fn = (x, z) => { const { s, v } = flightLocal(f, x, z); return Math.abs(v) > f.w / 2 + 0.6 ? null : lineAt(f, s); };
   fn.maxTilt = Math.min(40 * DEG, Math.atan(Math.abs(f.slope)) + 4 * DEG);
   return fn;
+}
+
+/**
+ * The stepped surface of the same flight (prone-ground's extremity floor, UnitModel._proneGround): the tread
+ * under a point (levelAt — the floor before its foot / its top after its last riser, like lineAt's clamps), as
+ * opposed to stairGround's smooth nosing line, which rides up to a full riser above a tread. A hand or toe the
+ * plane-fitted pose leaves resting on a tread is a full riser below the line there, so the line cannot floor it.
+ * @returns {((x:number, z:number) => number|null) | null}
+ */
+export function stairStep(u) {
+  if (!GAIT.on || !u?.world?.stairs?.size) return null;
+  const at = unitFlight(u, 0.9);
+  if (!at) return null;
+  const f = at.f;
+  return (x, z) => { const { s, v } = flightLocal(f, x, z); return Math.abs(v) > f.w / 2 + 0.6 ? null : levelAt(f, s); };
 }
 
 /**

@@ -48,7 +48,7 @@ function ankleBy(B, s, dy) {
  * Per-frame prone grounding / turning for one UnitModel. Call after the mixer stepped.
  * @param {object} st persistent state object of the model
  * @param {{root:object, body:object, bones:object, groundY:(x:number,z:number)=>number, prone:boolean, dt:number, moving:boolean,
- *   pivot?:number, done?:Function, maxTilt?:number}} o pivot: where along the body the lagging heading turns (PIVOT m ahead: the chest);
+ *   pivot?:number, done?:Function, maxTilt?:number, stepY?:(x:number,z:number)=>number|null}} o pivot: where along the body the lagging heading turns (PIVOT m ahead: the chest);
  *   maxTilt: pitch limit (rad; MAX_TILT by default, a flight of stairs' slope on one)
  *   done: called once the shown heading has caught up
  * @returns {{turnDir:number, active:boolean}}
@@ -108,6 +108,38 @@ export function proneGround(st, o) {
   for (const s of ['l', 'r']) {
     if (B['lowerarm_' + s]) { const e = B['lowerarm_' + s].getWorldPosition(_b); const dy = MathUtils.clamp(o.groundY(e.x, e.z) - plane(e), -0.08, 0.08); if (Math.abs(dy) > 0.008) elbowBy(B, s, dy); }
     if (B['foot_' + s]) { const f = B['foot_' + s].getWorldPosition(_b); const dy = MathUtils.clamp(o.groundY(f.x, f.z) - plane(f), -0.08, 0.1); if (Math.abs(dy) > 0.008) ankleBy(B, s, dy); }
+  }
+  // extremity floor: the relief above aims the elbow / ankle against the fitted PLANE, but a limb's end past
+  // that joint is never checked — the crawl clip's pointed toes trail below the tread at their own s (m03 W
+  // stair: ball centre -0.21 m vs tread, at a spot where the tread meets the nosing line, so the line cannot
+  // excuse it), a straight toe / finger chord cuts a nosing corner its floored ends straddle, and at a flight's
+  // foot the extrapolated plane dives below the floor the leading hand has already reached (fingertips
+  // -0.23 m). The floor is the STEP profile where there is one (o.stepY, a flight — UnitModel._proneGround:
+  // its treads sit up to a riser below the line the plane was fitted to, so the line cannot floor a limb that
+  // rests on them), else the ground the body is fitted to (terrain / a ramp's own surface line). Where the
+  // floor under the fingertip / ball — or the middle of its chord to the hand / foot — is above it, lift the
+  // whole limb by the deficit through the same IK (the forearm / foot keep their world rotation, so the end
+  // rises with the joint), five passes at most.
+  const floorY = o.stepY || o.groundY;
+  if (floorY) {
+    // worst deficit along the hand / foot -> tip / ball chord, sampled at its quarter points (a riser's corner
+    // can stand between any two of them: the stepped floor jumps a full riser there)
+    const deficit = (bone, from) => {
+      const e = bone.getWorldPosition(_b);
+      let dy = 0;
+      const g = floorY(e.x, e.z);
+      if (g != null) dy = Math.max(dy, g - e.y);
+      if (from) {
+        const a = from.getWorldPosition(_a);
+        for (const u of [0.25, 0.5, 0.75]) { _v.set(a.x + (e.x - a.x) * u, a.y + (e.y - a.y) * u, a.z + (e.z - a.z) * u); const gm = floorY(_v.x, _v.z); if (gm != null) dy = Math.max(dy, gm - _v.y); }
+      }
+      return dy;
+    };
+    for (const s of ['l', 'r']) {
+      const tip = B['middle_01_' + s] || B['hand_' + s];
+      if (tip && B['lowerarm_' + s]) for (let i = 0; i < 5; i++) { const dy = deficit(tip, B['hand_' + s] === tip ? null : B['hand_' + s]); if (dy <= 0.005) break; elbowBy(B, s, Math.min(dy, 0.25)); }
+      if (B['ball_' + s] && B['foot_' + s]) for (let i = 0; i < 5; i++) { const dy = deficit(B['ball_' + s], B['foot_' + s]); if (dy <= 0.005) break; ankleBy(B, s, Math.min(dy, 0.25)); }
+    }
   }
   for (const n of LIMB) if (B[n]) mem[n].post.copy(B[n].quaternion);
   st.memOn = true;

@@ -66,19 +66,41 @@ export function seatMotion(dir, t, S, D, Z) {
 
 /**
  * Lorry passengers over the tailgate, in the model frame: S on the ground behind, G on top of the tailgate, B inside the
- * bay under the canvas (hidden there). 'in': S → G (climb), G → B (step); 'out' the reverse.
+ * bay under the canvas (hidden there). The entry is staged so it reads (user 2026-10-20, rejecting a first cut in
+ * which the man crossed diagonally — draped over the rear face, head / torso in, legs dangling over the tailgate band,
+ * the rear face never reading as opening): he closes with the rear face low, climbs it vertically to the lip L (on
+ * top of the tailgate, a body's depth short of G — still outside the canvas plane), stands there a beat, then steps
+ * over the lip through the parted straps and only then walks in under the canvas to B. The old diagonal S → G lerp
+ * did all three at once; here the rise happens against the face and the plane is crossed horizontally, at the top,
+ * ducked, legs last. 'in': S → L (climb), L → G → B (step); 'out' is the same path read in reverse time (out from
+ * under the canvas, over the lip, down the face against it, then away). Total time unchanged (climb + step); at
+ * t = climb he is on top of the tailgate (p.y = G.y), as the tests have it.
  */
 export function tailgateMotion(dir, t, S, G, B) {
-  const T = BOARD_TIMES;
-  const climb = (a, b, k, up) => { const p = lerp3(a, b, smooth(k)); p.y = a.y + (b.y - a.y) * smooth(up ? k * 1.5 - 0.1 : k * 1.5 - 0.5); return p; };
+  const T = BOARD_TIMES, total = T.climb + T.step;
+  const L = { x: G.x, y: G.y, z: G.z - 0.48 }; // the lip: the tailgate's top outer edge, outside the canvas plane
+  /** The 'in' path at time tt: climb S → L, then step L → G → B. */
+  const pathIn = (tt) => {
+    if (tt < T.climb) {
+      const k = tt / T.climb;
+      // close with the face first (the horizontal done by ~55%), then rise against it (height done by ~75%):
+      // the diagonal part of the approach happens in open air behind the truck, never across the rear face
+      const p = lerp3(S, L, smooth(Math.min(1, k * 1.8)));
+      p.y = S.y + (L.y - S.y) * smooth(k * 1.5 - 0.1);
+      return { p, clip: 'climb' };
+    }
+    const k = (tt - T.climb) / T.step;
+    if (k < 0.35) return { p: lerp3(L, G, smooth(k / 0.35)), clip: 'walk' }; // over the lip, through the opening
+    return { p: lerp3(G, B, smooth((k - 0.35) / 0.65)), clip: 'walk' }; // in under the canvas, settling to the bay floor
+  };
   if (dir === 'in') {
-    if (t < T.climb) return { p: climb(S, G, t / T.climb, true), clip: 'climb', done: false };
-    const k = (t - T.climb) / T.step;
-    return { p: lerp3(G, B, smooth(k)), clip: 'walk', done: k >= 1 };
+    if (t >= total) return { p: { ...B }, clip: 'walk', done: true };
+    const r = pathIn(Math.max(0, t));
+    return { p: r.p, clip: r.clip, done: false };
   }
-  if (t < T.step) return { p: lerp3(B, G, smooth(t / T.step)), clip: 'walk', done: false };
-  const k = (t - T.step) / T.climb;
-  return { p: climb(G, S, k, false), clip: 'climb', done: k >= 1 };
+  if (t >= total) return { p: { ...S }, clip: 'climb', done: true };
+  const r = pathIn(total - Math.max(0, t)); // the same staged path, read backwards
+  return { p: r.p, clip: r.clip, done: false };
 }
 
 const _hp = new Vector3(), _sp = new Vector3(), _up = new Vector3(), _fw = new Vector3(), _bx = new Vector3();
@@ -86,19 +108,25 @@ const STOOP = [['spine_01', 0.4], ['spine_02', 0.35], ['spine_03', 0.25]];
 /** Upper-body points that must clear a ceiling: bone, how far its surface stands above the joint (m). */
 const CROWN = [['Head', 0.13], ['neck_01', 0.09], ['spine_03', 0.15], ['upperarm_l', 0.08], ['upperarm_r', 0.08]];
 /**
+ * The whole body under the ceiling, for a man crossing a lorry's rear opening (over the tailgate, under the
+ * rolled-up flap): crown set plus torso and hips — his chest / pelvis must not ride through the flap either
+ * (user 2026-10-20: rear entry "crosses the cloth").
+ */
+export const BAY_STOOP = Object.freeze([...CROWN, ['pelvis', 0.16], ['spine_01', 0.17], ['thigh_l', 0.1], ['thigh_r', 0.1]]);
+/**
  * Under a roof he stoops: his crown, neck, upper back and shoulders are kept under the ceiling there (`ceil(x, z)`:
  * model-frame height of the rolled-up flap over a lorry's rear opening, of the canvas or a cab's roof inside;
  * Infinity outside) — first bending forward at the waist (≤ 40°, the head kept up), then crouching (the pelvis
  * lowered ≤ 0.45 m, knees bent, each foot left where the clip put it). `frame` = the vehicle model object.
  * @returns {boolean} posed
  */
-export function stoopUnder(m, frame, ceil, guard = null) {
+export function stoopUnder(m, frame, ceil, guard = null, points = CROWN) {
   const B = m.real?.inner?.bones;
   if (!B?.Head || !B.spine_01 || !B.pelvis) return false;
   m.root.updateWorldMatrix(true, true);
   const over = () => {
     let worst = -Infinity;
-    for (const [n, r] of CROWN) {
+    for (const [n, r] of points) {
       const b = B[n]; if (!b) continue;
       const p = frame.worldToLocal(b.getWorldPosition(_hp)), o = p.y + r - ceil(p.x, p.z);
       if (o > worst) worst = o;
@@ -178,6 +206,29 @@ export function rearDoorMotion(dir, t, S, G, P, Z, hold = 0) {
   return at(climb(G, S, k, false), 'climb', false, k >= 1);
 }
 
+/**
+ * Door arbitration (user spec 2026-10-20: "the door gets closed at the end when everybody is in"): a cab door is
+ * still owed to another man when one of the other figures is coming through it (`others`: boarding through the
+ * same node, or already pulling it shut himself) or a man still walking to the vehicle is promised it
+ * (`promised`: door nodes of the vehicle's boarder queue). While it is owed, the seated man's hand waits and
+ * the door stays open; the LAST man through shuts it after his own sit.
+ * @param {string} node @param {{node:string,boarding:boolean,closing:boolean}[]} others @param {string[]} promised
+ */
+export function doorHeldOpen(node, others = [], promised = []) {
+  if (!node) return false;
+  if (promised.includes(node)) return true;
+  return others.some((o) => o && o.node === node && (o.boarding || o.closing));
+}
+
+/**
+ * Rear-door verdict (a pair of rear doors, the Sd.Kfz. 251's): `self` is the last man in when no OTHER unit is
+ * rear-boarding (`rearBoarding`: units with a rear figure) and none still walking to the vehicle is promised a
+ * rear seat / door (`promisedRear`). Judged when the close would start, not when a figure was built.
+ */
+export function rearIsLast(self, rearBoarding = [], promisedRear = []) {
+  return !rearBoarding.some((u) => u && u !== self) && !promisedRear.some((u) => u && u !== self);
+}
+
 /** Model options that reproduce a unit's own look (entities/enemy.js, commando.js modelOpts). */
 function lookOf(u) {
   const s = u.spawn || {};
@@ -250,6 +301,7 @@ export function createCrewFigures(v) {
     });
   }
   const occ = new Map(); // unit → figure (occupants shown only on vehicles without crew records)
+  let closeSeq = 0; // order in which seated men's hands went to a door (door arbitration tiebreak)
   const showOcc = lib && !figures.length && !v.crew?.length && OCCUPANT_MODELS.has(key) && !!v.model.seatHolder;
   if (!figures.length && !showOcc) return null;
   let pushed = false; // bodies were handed to the rear strap curtain last frame
@@ -271,6 +323,39 @@ export function createCrewFigures(v) {
     return { rig, s: rig.side > 0 ? 'l' : 'r', t: 0, phase: 'hold', key: { w: 0, door: 1, lean: 0 }, frac: rig.frac, f0: rig.frac,
       slide: { x: rig.seat[0] - mine[0], y: rig.seat[1] - mine[1], z: rig.seat[2] - mine[2] }, which: 'in' };
   };
+  /** Door node a seat is boarded through with a hand (the rig `handFor` picks for it), or null. */
+  const doorNodeOf = (seatIdx) => (v.model.doorRigs?.(seatIdx) || []).find((r) => r.alongZ && r.seat)?.node ?? null;
+  /** Must seated figure `self` hold door `node` open for another man? (doorHeldOpen over the live figures / queue.) */
+  const doorBusy = (self, node) => {
+    const others = [], promised = [];
+    for (const f2 of occ.values()) {
+      if (f2 === self) continue;
+      others.push({ node: f2.hand?.rig?.node ?? null, boarding: !!f2.board,
+        closing: f2.hand?.phase === 'close' && (f2.hand.seq ?? 0) > (self?.hand?.seq ?? 0) }); // a LATER closer wins: he is the last man in, so his hand shuts the door; an earlier closer yields to him
+    }
+    for (const [u2, seat2] of v._boarders || []) {
+      if (u2 === self?.u || u2.vehicle === v || u2.alive === false) continue;
+      const memo = u2._door, promisedSeat = memo && memo.v === v ? memo.door : seat2;
+      const n = promisedSeat != null ? doorNodeOf(promisedSeat) : null;
+      if (n) promised.push(n);
+    }
+    return doorHeldOpen(node, others, promised);
+  };
+  /**
+   * The last-man verdict for the rear doors, judged live: no other figure is rear-boarding and no man still
+   * walking to the vehicle is promised a rear seat / door (rearIsLast).
+   */
+  const rearLast = (u) => {
+    const rearFigs = [], promisedRear = [];
+    for (const f2 of occ.values()) if (f2.board?.rear) rearFigs.push(f2.u);
+    for (const q2 of moving) if (q2.rear && q2.dir === 'in') rearFigs.push(q2.u);
+    for (const [u2, seat2] of v._boarders || []) {
+      if (u2 === u || u2.vehicle === v || u2.alive === false) continue;
+      const memo = u2._door, promisedSeat = memo && memo.v === v ? memo.door : seat2;
+      if ((promisedSeat != null ? rearOf(promisedSeat) : rearOf(2))) promisedRear.push(u2);
+    }
+    return rearIsLast(u, rearFigs, promisedRear);
+  };
   /**
    * A figure's skeleton overlay (after the clip): stooping under a roof / the canvas (`ceil`), then his hand on a door
    * (`hand`). Returns the figure's overlay state; an overlay with neither is removed.
@@ -280,7 +365,7 @@ export function createCrewFigures(v) {
       m._fig = { ceil: null, hand: null };
       m.overlay = (mm, dt, guard) => {
         const F = mm._fig;
-        let on = F.ceil ? stoopUnder(mm, vis0(), F.ceil, guard) : false;
+        let on = F.ceil ? stoopUnder(mm, vis0(), F.ceil, guard, F.points) : false;
         const h = F.hand;
         if (h?.key && h.key.w > 0.001) {
           h.err = null;
@@ -351,7 +436,7 @@ export function createCrewFigures(v) {
     if (dir === 'out' && u.object3d) u.object3d.visible = false;
     // under the canvas he keeps his head below the rolled-up flap and the roof (no head through the cloth)
     const can = v.model.canopy;
-    if (can) figOverlay(m).ceil = canopyCeil(can);
+    if (can) { const F = figOverlay(m); F.ceil = canopyCeil(can); F.points = BAY_STOOP; }
     const q = { m, u, dir, t: 0, kind: 'bay', S, G, B, par };
     if (R && dir === 'in') {
       q.rear = { R, G, P: B, last: !v._boarders?.size };
@@ -381,7 +466,20 @@ export function createCrewFigures(v) {
   };
   /** One frame of a figure through rear doors (in or out; seat or bench). @returns {object} the motion sample */
   const rearStep = (q, f, dt) => {
-    const b = q.rear, h = q.hand, inSeat = !!f;
+    const b = q.rear, inSeat = !!f;
+    let h = q.hand;
+    if (q.dir === 'in' && !b.lastSettled) {
+      // who shuts the rear doors is decided when the hold at the doors actually starts, from who is still
+      // coming — not from the queue as it stood when this figure was built
+      b.last = rearLast(q.u);
+      if (q.t >= BOARD_TIMES.wait + BOARD_TIMES.climb) b.lastSettled = true; // the hold starts: the verdict stands
+      if (b.last && !h) { // the last man after all: the doors are his to pull shut
+        h = q.hand = pairHands(b.R, true, 'in'); h.stand = true; h.held = true;
+        for (const r of b.R.rigs) v.model.claimDoor(r.node);
+      } else if (!b.last && h?.held) { // another man is still coming: the doors are not his to shut
+        letGo(q.m, h); q.hand = null; h = null;
+      }
+    }
     const hold = q.dir === 'in' ? (b.last ? REAR_HOLD.pull : 0) : b.hold;
     const Z = inSeat && q.dir === 'in' ? (f.board.Z || b.P) : q.Z || null; // (a seat: sat on once he is beside it)
     const r = rearDoorMotion(q.dir, q.t, q.S, b.G, b.P, Z, hold);
@@ -495,7 +593,9 @@ export function createCrewFigures(v) {
     if (b.rear) { // in through rear doors, up the floor to his seat
       const T = BOARD_TIMES, walk = Math.max(0.3, Math.hypot(b.rear.P.x - b.rear.G.x, b.rear.P.z - b.rear.G.z) / 1.3);
       if (!b.Z && b.t >= T.wait + T.climb + (b.rear.last ? REAR_HOLD.pull : 0) + walk) b.Z = { x: 0, y: -(0.45 - HIP_ABOVE_SEAT), z: 0.27 };
-      const r = rearStep({ m: f.m, u: f.u, dir: 'in', t: b.t, S: b.S, rear: b.rear, hand: f.hand, par: f.m.root.parent }, f, dt);
+      const shim = { m: f.m, u: f.u, dir: 'in', t: b.t, S: b.S, rear: b.rear, hand: f.hand, par: f.m.root.parent };
+      const r = rearStep(shim, f, dt);
+      f.hand = shim.hand; // the rear verdict (rearStep) may have taken the doors in hand, or let them go
       if (r.done) {
         f.board = null; f.m.root.rotation.y = 0; f.hand = null;
         if (f.m._fig) { f.m._fig.ceil = null; f.m._fig.hand = null; tidyOverlay(f.m); f.m._guard?.restore(); }
@@ -522,7 +622,7 @@ export function createCrewFigures(v) {
       settle(f);
       const h = f.hand;
       if (h) { // seated: he reaches out and pulls the door shut (from the seat by that door when it is across the cab)
-        h.phase = 'close'; h.t = 0; h.edge = null; h.f0 = Math.max(0.05, v.model.doorFrac(h.rig.node) || h.rig.frac);
+        h.phase = 'close'; h.t = 0; h.seq = ++closeSeq; h.edge = null; h.f0 = Math.max(0.05, v.model.doorFrac(h.rig.node) || h.rig.frac);
         h.Z = f.m.root.position.clone();
         f.m.root.position.x += h.slide.x; f.m.root.position.z += h.slide.z;
         handOverlay(f.m, h);
@@ -534,6 +634,21 @@ export function createCrewFigures(v) {
   /** One frame of a seated man's hand on the door he came in by: reach, pull it shut, let go (slide over). */
   const handStep = (f, dt) => {
     const h = f.hand;
+    if (h.phase === 'close' && doorBusy(f, h.rig.node)) {
+      // another man is still coming through this door (or is promised it), or a later man seated through it
+      // is the one to shut it: the door stays open — the hand has not begun the pull and the door is held
+      // where it stands — until he is seated too; the last man in then performs the close below, exactly as
+      // for a lone boarder (bench slide included)
+      h.t = 0; h.key = closeKey(0); h.frac = h.f0; setDoors(h, h.f0);
+      return;
+    }
+    if (h.phase === 'close' && h.t === 0 && (v.model.doorFrac(h.rig.node) || 0) <= 0.001) {
+      // he yielded to a later man through the same door, who has shut it already: nothing left to pull —
+      // the hand lets go at once (and he slides over to his own seat if he came in across the cab)
+      setDoors(h, 0); letGo(f.m, h);
+      if (h.slide.x || h.slide.z) { h.phase = 'slide'; h.t = 0; } else f.hand = null;
+      return;
+    }
     h.t += dt;
     if (h.phase === 'close') {
       h.key = closeKey(h.t);
@@ -704,6 +819,16 @@ export function createCrewFigures(v) {
           if (q.kind !== 'bay' || !q.m.root.visible) continue;
           q.m.root.updateMatrixWorld(true);
           bodyCapsules(q.m, frame, caps, q.u.id ?? '');
+          // held open while he crosses the rear plane (his climb / step segment): his capsules again, shifted a
+          // short way along his path and a touch wider, so the straps stand parted as an envelope AHEAD of his
+          // body — he steps through an opening, never through cloth. Released when the segment ends (he is
+          // inside; the empty push on the next frame lets the straps fall back)
+          const T = BOARD_TIMES, crossing = q.dir === 'in' ? q.t < T.climb + T.step : q.t < T.step + T.climb;
+          if (crossing) {
+            const ahead = bodyCapsules(q.m, frame, [], q.u.id ?? '');
+            const dx = q.B.x - q.S.x, dz = q.B.z - q.S.z, l = Math.hypot(dx, dz) || 1, k = 0.36 / l * (q.dir === 'in' ? 1 : -1);
+            for (const c of ahead) { c.a[0] += dx * k; c.a[2] += dz * k; c.b[0] += dx * k; c.b[2] += dz * k; c.r += 0.05; caps.push(c); }
+          }
         }
         if (caps.length || pushed) v.model.curtainPush(caps);
         pushed = caps.length > 0;

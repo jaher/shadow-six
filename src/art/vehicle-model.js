@@ -722,6 +722,7 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
   /** One simulation step of the visuals: drive, suspension, doors, lamps, exhaust. */
   function step(dt, v) {
     st.t += dt;
+    st.veh = v; // the entity, for doors(): its boarder queue promises doors to men still walking to them
     if (st.destroyed && !st.burnt && v.world) { // the grass under a burnt-out hull lies flat and scorched
       st.burnt = true;
       if (def.kind === 'land') v.world.terrain?.stampTrail?.('flatten', v.x, v.z, v.heading, { length: dims.l * 1.3 + 1, width: dims.w * 1.8 + 1, record: false });
@@ -1025,10 +1026,31 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
   }
   function mountYaw() { return st.yaw - bodyYaw(); }
 
+  /**
+   * Door nodes a man still walking to this vehicle is promised (vehicle._boarders → his door, drive.js doorOf):
+   * a boarding 'enter' hold extension must not expire into a shut while he is on his way to that door — the
+   * crew's hand claims the door once his figure exists (claimDoor), but the walk up to it is timer-only, so the
+   * timer itself is gated here, re-checked every frame (the same arbitration as the hand close in
+   * art/vehicle-crew.js doorHeldOpen).
+   */
+  function promisedDoorNodes() {
+    const set = new Set(), v = st.veh;
+    if (!v?._boarders?.size || !vis.meta) return set;
+    for (const [u, seat] of v._boarders) {
+      if (!u || u.vehicle === v || u.alive === false) continue;
+      const memo = u._door, doorSeat = memo && memo.v === v ? memo.door : seat;
+      if (doorSeat == null) continue;
+      for (const n of doorsForSeat(vis.meta, lt, def.kind, doorSeat)) set.add(n);
+    }
+    return set;
+  }
+
   function doors(dt) {
+    const promised = st.doors.size ? promisedDoorNodes() : null;
     for (const [n, d] of st.doors) {
       if (d.hand != null) { vis.setPart(n, d.hand); d.cur = d.hand; continue; } // in a man's hand (art/door-hand.js)
       d.t += dt;
+      if (promised?.has(n)) d.t = Math.min(d.t, DOOR_OPEN + (d.hold ?? DOOR_HOLD)); // promised: held open at the top of its hold
       const hold = d.claim ? Infinity : d.hold ?? DOOR_HOLD;
       const open = d.t < DOOR_OPEN ? d.t / DOOR_OPEN : d.t < DOOR_OPEN + hold ? 1 : 1 - (d.t - DOOR_OPEN - hold) / DOOR_OPEN;
       const e = clamp(open, 0, 1);

@@ -28,7 +28,7 @@ import { BoneGuard, StickyGuard, capturePose, mixPose } from './pose-blend.js';
 import { proneGround, PRONE_CLIP } from './prone-ground.js';
 import { restOnGround, corpseGround, warmCorpse, CORPSE_BONES } from './corpse-ground.js';
 import { turnStep } from './turn-step.js';
-import { stairGait, stairGround, rampGround } from './stair-gait.js';
+import { stairGait, stairGround, stairStep, rampGround } from './stair-gait.js';
 import { ladderClimb } from './ladder-climb.js';
 import { railArms } from './rail-arms.js';
 import { steepLadder } from '../entities/stair-walk.js';
@@ -256,6 +256,7 @@ export function createUnitModel(opts = {}) {
 }
 
 const _rq = new Quaternion(), _bq = new Quaternion(), _bq2 = new Quaternion(), _bq3 = new Quaternion(), _bq3b = new Quaternion(), _v1 = new Vector3(), _v2 = new Vector3();
+const _tgq = new Quaternion(), _tgp = new Vector3(), _tgx = new Vector3(1, 0, 0);   // transition ground guard temps
 const SPEED_SEND = 0.04;   // re-time the gait when the measured speed moved by > 4 %
 /**
  * A shot on the move (§3.2, Unit.playAction keeps the legs stepping): the action clip's arms, chest and head are layered
@@ -569,6 +570,9 @@ export class UnitModel {
     // on a flight of stairs: each foot on a tread, the body rising / sinking tread by tread (art/stair-gait.js); on a
     // ladder: hands and feet on its rungs (art/ladder-climb.js)
     if (R.inner && !this.dog && !tst && !this._carryOn && !this._rdLast && (this._sg || u?.world?.stairs?.size)) stepped = stairGait(this, dt, this._guard) || stepped;
+    // a stance transition on a flight: neither _prone (excludes transitions) nor stairGait (locomotion only) owns
+    // the body - the transition ground guard keeps the pelvis out of the treads (see _trGuard)
+    if (R.inner && !this.dog) stepped = this._trGuard(tst) || stepped;
     if (R.inner && !this.dog && !tst && (this._lc || u?._ladder)) stepped = ladderClimb(this, dt, this._guard) || stepped;
     // on a stair, his arms inside its rails (art/rail-arms.js)
     if (R.inner && !this.dog && !tst && !this._rdLast && u?.world?.grid?.flights?.size) stepped = railArms(this, this._guard) || stepped;
@@ -713,6 +717,62 @@ export class UnitModel {
   }
 
   /**
+   * Transition ground guard on flights: while get_up / go_prone plays on a flight, neither _prone (it excludes
+   * transitions) nor stairGait (locomotion clips only) owns the body, and the clip can sink the pelvis through the
+   * treads (m03 W stair get_up: pelvis -0.31 m vs its tread). While the transition runs, the flight's nosing line
+   * (stairGround / rampGround) is a floor for the pelvis: the body group is pitched about the root's lateral axis
+   * to lift the pelvis onto the line, or - the pelvis over / behind the root, where pitch cannot lift it - raised
+   * outright by what pitch could not cover. Released when the transition ends (stair-gait takes over at locomotion
+   * start). Nothing accumulates: last frame's application is restored first when nothing else rewrote the body
+   * since, then re-measured and re-applied; the stored application is dropped the frame the conditions stop
+   * holding. @param {object|null} tst the transport state of update() (a transported man is not guarded)
+   * @returns {boolean} body written
+   */
+  _trGuard(tst) {
+    const R = this.real, inner = R.inner, u = this.unit;
+    let wrote = false;
+    if (this._trg) {   // undo last frame's application before anything re-measures (never stack a rotation)
+      const body = this._body(), st = this._trg; this._trg = null;
+      if (body.quaternion.equals(st.q) && body.position.equals(st.p)) { body.quaternion.copy(st.q0); body.position.copy(st.p0); wrote = true; }
+    }
+    if (!inner || this.dog || tst || this._carryOn || this._rdLast || this._blend || !this._tr || this._wade) return wrote;
+    if (!TR_CLIP.test(inner._clipName || inner.animClip || '')) return wrote;
+    const sg = stairGround(u) || rampGround(u);
+    if (!sg) return wrote;
+    const root = this.root, body = this._body(), pelvis = inner.bones?.pelvis;
+    if (!pelvis) return wrote;
+    baseUpdateMW.call(root, true);
+    pelvis.getWorldPosition(_tgp);
+    const floorY = sg(_tgp.x, _tgp.z);
+    if (floorY == null) return wrote;
+    const deficit = floorY - _tgp.y;
+    if (deficit <= 0.005) return wrote;
+    const h = root.rotation.y;
+    const along = (_tgp.x - root.position.x) * Math.sin(h) + (_tgp.z - root.position.z) * Math.cos(h), dy = _tgp.y - root.position.y;
+    const cap = sg.maxTilt ?? (40 * Math.PI / 180);
+    let th = 0;
+    if (along > 0.1) {   // pitch can lift a pelvis ahead of the root: solve along*sin(th) + dy*(cos(th)-1) = deficit
+      th = Math.min(cap, Math.max(0, deficit / along));
+      for (let i = 0; i < 2; i++) {
+        const f = along * Math.sin(th) + dy * (Math.cos(th) - 1) - deficit, fp = along * Math.cos(th) - dy * Math.sin(th);
+        if (fp <= 1e-6) break;
+        th = Math.min(cap, Math.max(0, th - f / fp));
+      }
+    }
+    const lifted = along * Math.sin(th) + dy * (Math.cos(th) - 1);
+    const st = { q0: body.quaternion.clone(), p0: body.position.clone(), q: null, p: null };
+    if (th > 0) {   // (prone-ground's pitch convention: a negative rotation about +X raises the +Z forward side)
+      _tgq.setFromAxisAngle(_tgx, -th);
+      body.quaternion.premultiply(_tgq);
+      body.position.applyQuaternion(_tgq);
+    }
+    if (deficit - lifted > 0) body.position.y += deficit - lifted;   // pitch capped / pelvis over the root: raise the rest outright
+    st.q = body.quaternion.clone(); st.p = body.position.clone();
+    this._trg = st;
+    return true;
+  }
+
+  /**
    * Ground under a lying man for prone-ground: the world's (his level + the relief), or on a flight of stairs its
    * nosing line (he lies along the steps' edges, pitched up to the stair's slope: art/stair-gait.js stairGround).
    */
@@ -721,9 +781,11 @@ export class UnitModel {
     // lying in the shallows: on the bed under the water, like the root (art/swim-pose.js wadeOffset)
     if (this._wade) return { groundY: (x, z) => { const c = waterColumn(w, x, z); return c ? c.bed : w.groundY(x, z) + ey; } };
     // (on a smooth ramp, the M3 barn's: its slope under him — rampGround)
-    const sg = stairGround(u) || rampGround(u);
+    const sgS = stairGround(u), sg = sgS || rampGround(u);
     if (!sg) return { groundY: (x, z) => w.groundY(x, z) + ey };
-    return { groundY: (x, z) => sg(x, z) ?? w.groundY(x, z) + ey, maxTilt: sg.maxTilt };
+    // (on a flight, its stepped surface too: prone-ground floors the hands / toes on the treads themselves)
+    const ss = sgS ? stairStep(u) : null;
+    return { groundY: (x, z) => sg(x, z) ?? w.groundY(x, z) + ey, maxTilt: sg.maxTilt, ...(ss ? { stepY: (x, z) => ss(x, z) } : {}) };
   }
 
   /** Post pass of a transported man (transportFrame): paired track / hold, sway, the transporter's hands. */
