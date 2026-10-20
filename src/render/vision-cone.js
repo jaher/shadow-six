@@ -349,6 +349,28 @@ function coneMaterial(u, kind) {
     // faces, then front faces — bumped the material version twice per draw: a program re-derivation each, every frame)
     forceSinglePass: true,
   });
+  // Two-tier union in the stencil buffer: overlaps never stack WITHIN a tier, and the dark tier wins over the
+  // light one wherever both cover a pixel — exactly, not just darker: the near (dark) fragments draw FIRST
+  // (renderOrder, below), first-wins at stencil claim 2, so a dark-covered pixel is one dark blend over the
+  // ground, identical to a dark-only pixel. The far (light) fragments draw after and pass only where the
+  // stencil is still 0 (Equal test against bits 0-1), incrementing the claim as they paint — a light pixel is
+  // likewise one light blend, and a light fragment can never touch a dark-claimed or light-claimed pixel.
+  // A target with no stencil buffer (bare canvas, the scope magnifier) skips the test entirely and the cones
+  // blend exactly as they did before this.
+  mat.stencilWrite = true;
+  mat.stencilFail = THREE.KeepStencilOp;
+  mat.stencilZFail = THREE.KeepStencilOp;
+  if (kind === NEAR) {
+    mat.stencilFunc = THREE.NotEqualStencilFunc;
+    mat.stencilRef = 2;
+    mat.stencilFuncMask = 2;
+    mat.stencilZPass = THREE.ReplaceStencilOp;
+  } else {
+    mat.stencilFunc = THREE.EqualStencilFunc;
+    mat.stencilRef = 0;
+    mat.stencilFuncMask = 3;
+    mat.stencilZPass = THREE.IncrementStencilOp;
+  }
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uApex = u.apex; sh.uniforms.uHead = u.head; sh.uniforms.uHalf = u.half;
     sh.uniforms.uNear = u.near; sh.uniforms.uFar = u.far; sh.uniforms.uKind = { value: kind };
@@ -394,6 +416,7 @@ export class VisionCone {
     this._u = { apex: { value: new THREE.Vector2() }, head: { value: 0 }, half: { value: 0 }, near: { value: 0 }, far: { value: 0 } };
     this.nearMesh = new THREE.Mesh(this.geo, coneMaterial(this._u, NEAR));
     this.farMesh = new THREE.Mesh(this.geo, coneMaterial(this._u, FAR));
+    this.nearMesh.renderOrder = 5; this.farMesh.renderOrder = 6; // (within the groups' shared order: dark tier first, light only where it left the pixel empty)
     this.nearMesh.frustumCulled = this.farMesh.frustumCulled = false;
     this.group.add(this.farMesh, this.nearMesh);
     this.object3d = this.group;

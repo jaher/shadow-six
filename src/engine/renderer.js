@@ -336,7 +336,15 @@ export class Renderer {
     this._applyShadowPreset();
     const p = this.preset;
     const size = this.renderer.getSize(new THREE.Vector2());
-    const composer = new EffectComposer(this.renderer);
+    // The composer target carries a stencil buffer, its depth pre-attached as a depth-stencil texture: the
+    // water / VFX passes attach a PLAIN depth texture to any composer target that lacks one (they guard on
+    // rt.depthTexture), and a plain depth attachment leaves the framebuffer with no stencil at all. The vision
+    // cones' two-tier union is resolved in this stencil (render/vision-cone.js, coneMaterial).
+    const crt = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, stencilBuffer: true });
+    crt.depthTexture = new THREE.DepthTexture(size.x, size.y);
+    crt.depthTexture.format = THREE.DepthStencilFormat;
+    crt.depthTexture.type = THREE.UnsignedIntType;
+    const composer = new EffectComposer(this.renderer, crt);
     const passes = {};
     passes.render = new RenderPass(this.scene, this.camera);
     composer.addPass(passes.render);
