@@ -367,8 +367,16 @@ export class Walkthrough extends SolutionReplay {
     }
     if (this.showIntro) { this._introOn = true; this.hold = { until: performance.now() + 1e9, kind: 'intro' }; }
     const done = super.start(); // (runs the solution up to its first tick: stage A starts in here)
-    // (the run's measured length completes the timeline — this viewing's bar, and the next one's from the start)
-    done.then((res) => { if (Number.isFinite(res?.time)) { this._tl.total = res.time; this._tlSave(); this._syncTimeline(); } }, () => {});
+    // (the run's measured length completes the timeline — this viewing's bar, and the next one's from the
+    // start. Only a run that played to the win measures it: the replay promise also resolves for a stopped,
+    // lost or errored run, at whatever the clock had then reached — and every jump back stops the instance
+    // it replaces the same way — so an early clock must never become (or shrink) the bar's length)
+    done.then((res) => {
+      if (res?.outcome === 'done' && res?.state === 'won' && Number.isFinite(res.time) && res.time > (this._tl.total ?? 0)) {
+        this._tl.total = res.time; this._tlSave();
+      }
+      this._syncTimeline();
+    }, () => {});
     if (this.showIntro) this._intro();
     return done;
   }
@@ -611,6 +619,9 @@ export class Walkthrough extends SolutionReplay {
     b.ticks++;
     // (a scrub lands on its tick: from here the state on screen is the state at the scrubbed time)
     if (this._seekT != null && this.world.time >= this._seekT) this._seekDone();
+    // (the clock ran past the stored length: that length was no complete run's — drop it and let this play
+    // measure its own, instead of pinning the bar full for the rest of the mission)
+    if (this._tl.total != null && this.world.time > this._tl.total) { this._tl.total = null; this._tlSave(); this._syncTimeline(); }
   }
 
   _nearView(e) {
@@ -843,7 +854,13 @@ export class Walkthrough extends SolutionReplay {
   _tlLoad() {
     try {
       const v = JSON.parse(localStorage.getItem(`ss-wt-timeline:${this.sol.id}`) || 'null');
-      if (v && Array.isArray(v.marks)) return { total: Number.isFinite(v.total) ? v.total : null, marks: v.marks.filter((m) => m && Number.isFinite(m.t)) };
+      if (v && Array.isArray(v.marks)) {
+        const marks = v.marks.filter((m) => m && Number.isFinite(m.t));
+        // (a stored length under a point the run demonstrably reached cannot be a complete run's length —
+        // it is a partial viewing's clock, kept from before the guard above: this play measures its own)
+        const total = Number.isFinite(v.total) && marks.every((m) => m.t <= v.total) ? v.total : null;
+        return { total, marks };
+      }
     } catch { /* no storage: this play measures its own */ }
     return { total: null, marks: [] };
   }
