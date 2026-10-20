@@ -12,7 +12,11 @@
  *    and the escape), skip waits (fixed speeds: idle stretches run up to 4× faster), previous / next step and a chapter
  *    list (forward = fast-forward from here; back = the mission reloaded and fast-forwarded, the run being
  *    deterministic), captions on / off, free camera (the director lets go until it is switched back on), exit to the
- *    debug menu. Desktop keys: Space, B / N, 1–4, 5 / A (AUTO), W, C, F, L, Esc.
+ *    debug menu. A timeline under the bar scrubs the run: drag it (or step with ← / →, a second at a time, ten
+ *    with Shift) to any moment — ahead fast-forwards from here, behind reloads and fast-forwards, as a chapter
+ *    jump back does; its length and its chapter / checkpoint marks are the run's own measured times (a point's
+ *    time lands as the run passes it), kept in localStorage between viewings. Paused stays paused on arrival.
+ *    Desktop keys: Space, B / N, 1–4, 5 / A (AUTO), W, C, F, L, Esc.
  * An action is watched until it has visibly finished (debug/action-hold.js: the clothesline take, a knife, a charge…,
  * plus a beat): the camera stays on the man (an authored `shot` cue still wins), the caption on his step, the next
  * chapter's card waits for it, and AUTO plays it at 1×. Every order selects the man it goes to, as a portrait click
@@ -43,6 +47,11 @@ export const WALK_TURBO_VIEW_MS = 200;
 export const SKIP_BOOST = 4;
 /** Wall-clock ms of ticks a displayed frame may run (TickPacer.tickMs): costly stretches slow down, never stall. */
 export const WALK_TICK_MS = 12;
+/**
+ * Wall-clock ms of ticks per frame while scrubbing to a time: the plain fast-forward's budget (the view is
+ * still redrawn every WALK_TURBO_VIEW_MS, so the timeline's clock and fill move while the jump runs).
+ */
+export const WALK_SEEK_TURBO_MS = 90;
 const ROLE_COLORS = { greenberet: '#8fd47a', sniper: '#d9c27a', diver: '#7ac4e8', sapper: '#e8a25c', driver: '#c7a0e8', spy: '#e87a8f' };
 
 const CSS = `
@@ -112,6 +121,14 @@ body.dbg-video .hud-speaker-card{transform:translateY(var(--wt-card-shift,0px))}
 #wt-rewind .wt-prog i{display:block;height:100%;background:#7fd6ff;width:0;transition:width .15s linear}
 #wt-flash{position:fixed;z-index:8650;left:50%;transform:translateX(-50%);padding:6px 12px;border-radius:6px;background:rgba(0,0,0,.75);
   color:#ffe9a8;font:600 13px/1.3 system-ui,sans-serif;pointer-events:none;max-width:calc(100vw - 24px);text-align:center}
+#wt-tl{flex:1 1 100%;display:flex;align-items:center;gap:8px;padding:3px 4px 1px;box-sizing:border-box}
+#wt-tl .wt-tl-clock{font:700 12px/1 system-ui,sans-serif;font-variant-numeric:tabular-nums;color:#efe7d2;white-space:nowrap}
+#wt-tl-track{position:relative;flex:1;height:16px;border-radius:8px;background:#ffffff1f;cursor:pointer;touch-action:none}
+#wt-tl-fill{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:8px;background:#7fd6ff;pointer-events:none}
+#wt-tl-fill.seeking{background:#ffcf4a}
+#wt-tl .wt-tl-mark{position:absolute;top:3px;width:2px;height:10px;margin-left:-1px;border-radius:1px;background:#ffffff70;pointer-events:none}
+#wt-tl .wt-tl-mark.stage{top:1px;height:14px;background:#ffcf4a}
+#wt-bar #wt-tl button{min-width:38px;height:30px;min-height:30px;padding:0 6px;font-size:11px}
 `;
 
 function el(tag, cls, parent, text) {
@@ -240,6 +257,17 @@ export class Walkthrough extends SolutionReplay {
     this.introWait = !!o.introWait;
     this.onSpeed = o.onSpeed || null;
     this._jumpFrom = this.toMarker ? -1 : null;
+    // the time scrub (the timeline row under the bar): a jump back to a clock time waiting for the first tick,
+    // a seek in flight (its target, and whether to pause again on arrival), and the run's measured timeline
+    this._toTime = o.toTime ?? null;
+    this._toTimePause = !!o.toTimePause;
+    this._seekT = null;
+    this._seekPause = false;
+    this._seekBackSent = false;
+    this._turboMsBase = this.pacer.turboMs;
+    this._tl = this._tlLoad();
+    this._tlKey = null;
+    this._tlDragT = null;
     this._bombs = [];
     this._blasts = [];
     this._objHold = null;
@@ -328,8 +356,19 @@ export class Walkthrough extends SolutionReplay {
     this.sensor.attach();
     this.director.attach();
     hideRewind(); // (a jump back's rebuild is done: this walkthrough's own fast-forward shows the rest)
+    // (a scrub back reloaded the mission for one moment: no intro card; the fast-forward to it starts at once)
+    if (this._toTime != null) {
+      this.showIntro = false;
+      this._seekT = this._toTime;
+      this._seekPause = this._toTimePause;
+      this.pacer.turboMs = WALK_SEEK_TURBO_MS;
+      this.pacer.setTurbo(true);
+      this._jumpFrom = -1;
+    }
     if (this.showIntro) { this._introOn = true; this.hold = { until: performance.now() + 1e9, kind: 'intro' }; }
     const done = super.start(); // (runs the solution up to its first tick: stage A starts in here)
+    // (the run's measured length completes the timeline — this viewing's bar, and the next one's from the start)
+    done.then((res) => { if (Number.isFinite(res?.time)) { this._tl.total = res.time; this._tlSave(); this._syncTimeline(); } }, () => {});
     if (this.showIntro) this._intro();
     return done;
   }
@@ -356,6 +395,7 @@ export class Walkthrough extends SolutionReplay {
   _onCheckpoint(cp) {
     const id = cpId(cp.name);
     if (!this.doneCps.includes(id)) this.doneCps.push(id);
+    this._tlMark('cp', id, cp.t);
     this._calm(2.5);
     this.sensor.checkpoint(this.world.time);
     this._marker('cp', id);
@@ -365,6 +405,7 @@ export class Walkthrough extends SolutionReplay {
 
   _onStage(id, title) {
     this.chapterId = id;
+    this._tlMark('stage', id, this.world.time);
     // AUTO: a chapter starts at 1× (after its card); the last one's blast and escape are the climax
     this._lastChapterT0 = this.wt.chapters[this.wt.chapters.length - 1]?.id === id ? this.world.time : null;
     if (this.auto && !this.pacer.turbo) this._autoReset(1);
@@ -568,6 +609,8 @@ export class Walkthrough extends SolutionReplay {
     b.ms += t1 - b.prev;
     b.prev = t1;
     b.ticks++;
+    // (a scrub lands on its tick: from here the state on screen is the state at the scrubbed time)
+    if (this._seekT != null && this.world.time >= this._seekT) this._seekDone();
   }
 
   _nearView(e) {
@@ -794,12 +837,121 @@ export class Walkthrough extends SolutionReplay {
     this._syncBar();
   }
 
+  // ------------------------------------------------------------ the timeline (time scrub)
+
+  /** The measured timeline kept between viewings ({total, marks: [{kind, id, t}]}), or a fresh one. */
+  _tlLoad() {
+    try {
+      const v = JSON.parse(localStorage.getItem(`ss-wt-timeline:${this.sol.id}`) || 'null');
+      if (v && Array.isArray(v.marks)) return { total: Number.isFinite(v.total) ? v.total : null, marks: v.marks.filter((m) => m && Number.isFinite(m.t)) };
+    } catch { /* no storage: this play measures its own */ }
+    return { total: null, marks: [] };
+  }
+
+  _tlSave() {
+    try { localStorage.setItem(`ss-wt-timeline:${this.sol.id}`, JSON.stringify(this._tl)); } catch { /* private mode */ }
+  }
+
+  /** A point of the run was reached: its time joins the timeline (the run is deterministic: the same every play). */
+  _tlMark(kind, id, t) {
+    if (!Number.isFinite(t) || !id) return;
+    const m = this._tl.marks.find((x) => x.kind === kind && x.id === id);
+    if (m) { if (m.t === t) return; m.t = t; } else this._tl.marks.push({ kind, id, t });
+    this._tlSave();
+  }
+
+  /** The bar's length: the measured run, or (during a first play) the furthest point reached so far. */
+  tlTotal() {
+    let max = this.world?.time || 0;
+    for (const m of this._tl.marks) max = Math.max(max, m.t);
+    return this._tl.total ?? max;
+  }
+
+  /**
+   * Scrub to sim time `t` (seconds): ahead → fast-forward from here; behind → the mission reloads and
+   * fast-forwards, as a chapter jump back does. `pause` says whether to be paused on arrival (the default
+   * keeps the state the scrub started from). @returns {boolean} the scrub started (or was already there)
+   */
+  seekTo(t, { pause = this.paused } = {}) {
+    if (this.stopped || this.finished || !Number.isFinite(t)) return false;
+    t = Math.max(0, this._tl.total != null ? Math.min(t, this._tl.total) : t);
+    this._showMenu(false);
+    this.hold = null;
+    if (this._introOn) this._endIntro(true);
+    if (t < this.world.time - this.simDt) {
+      if (!this.onJumpBack) return false;
+      if (this._seekBackSent) return true; // (the reload is already on its way)
+      this._seekBackSent = true;
+      showRewind(this.game, fmtTime(t));
+      this.onJumpBack({ kind: 'time', t, pause: !!pause }, this.settings);
+      return true;
+    }
+    if (t <= this.world.time) return true; // (already there)
+    this.toMarker = null;
+    this._seekT = t;
+    this._seekPause = !!pause;
+    this.pacer.turboMs = WALK_SEEK_TURBO_MS;
+    this.pacer.setTurbo(true);
+    this.pacer.paused = false;
+    this._syncBar();
+    this._syncTimeline();
+    return true;
+  }
+
+  /** Scrub `dt` seconds from here (the ← / → keys, the −1s / +1s buttons). */
+  seekBy(dt) { return this.seekTo(this.world.time + dt); }
+
+  /** A time fast-forward landed: the jump's state clears, the normal play (or the pause) resumes. */
+  _seekDone() {
+    const pause = this._seekPause;
+    this._seekT = null;
+    this._seekPause = false;
+    this.pacer.turboMs = this._turboMsBase;
+    this.pacer.setTurbo(false);
+    this._jumpFrom = null;
+    this._cardDeferred = false;
+    this._autoReset(1);
+    this._camCut = true;
+    this.stepWall = performance.now();
+    if (pause) { this.pacer.paused = true; this.pacer.budget = 0; }
+    this._syncBar();
+    this._syncTimeline();
+  }
+
+  /** The timeline row follows the clock; a drag previews its landing time in the clock without seeking yet. */
+  _syncTimeline() {
+    const track = this._tlTrack;
+    if (!track) return;
+    const total = this.tlTotal();
+    const now = this._tlDragT ?? this.world.time;
+    const f = total > 0 ? Math.max(0, Math.min(1, now / total)) : 0;
+    if (this._tlFill) {
+      this._tlFill.style.width = `${(f * 100).toFixed(2)}%`;
+      this._tlFill.classList.toggle('seeking', this._seekT != null);
+    }
+    if (this._tlClock) this._tlClock.textContent = `${fmtTime(now)} / ${this._tl.total != null ? fmtTime(this._tl.total) : '–:––'}`;
+    track.dataset.time = String(Math.floor(this.world.time));
+    track.dataset.total = this._tl.total != null ? String(this._tl.total) : '';
+    const key = `${total.toFixed(1)}|${this._tl.marks.length}|${this._tl.total != null ? 1 : 0}`;
+    if (key !== this._tlKey) {
+      this._tlKey = key;
+      track.querySelectorAll('.wt-tl-mark').forEach((n) => n.remove());
+      if (total > 0) for (const m of this._tl.marks) {
+        const d = el('div', `wt-tl-mark${m.kind === 'stage' ? ' stage' : ''}`, track);
+        d.style.left = `${(Math.max(0, Math.min(1, m.t / total)) * 100).toFixed(2)}%`;
+        d.title = `${m.id} · ${fmtTime(m.t)}`;
+      }
+    }
+  }
+
   /** Jump to a marker: ahead → fast-forward from here; behind → the mission reloads and fast-forwards. */
   jumpTo(m) {
     const i = this._markerIdx(m);
     if (i < 0 || this.stopped) return false;
     this._showMenu(false);
     this.hold = null;
+    this._seekT = null; // (a marker jump supersedes a scrub in flight)
+    this.pacer.turboMs = this._turboMsBase;
     if (this._introOn) this._endIntro(true);
     if (i > this.markerIndex) {
       this.toMarker = { kind: m.kind, id: m.id };
@@ -857,6 +1009,8 @@ export class Walkthrough extends SolutionReplay {
       KeyL: () => this._showMenu(!this._menu),
     };
     if (map[k]) { if (!e.repeat) map[k](); return true; }
+    // (← / → scrub the run: a second at a time, ten with Shift; a free camera keeps its scroll keys)
+    if ((k === 'ArrowLeft' || k === 'ArrowRight') && !this.free) { this.seekBy((k === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? 10 : 1)); return true; }
     if (/^Arrow/.test(k) && !this.free) { this.setFree(true); return false; } // arrows scroll: the user takes the camera
     return false;
   }
@@ -946,6 +1100,34 @@ export class Walkthrough extends SolutionReplay {
     btn(op, 'skip', '⏩', 'Skip waits: idle stretches play up to 4× faster (W; fixed speeds: AUTO paces the waits itself)', () => this.setSkipWaits(!this.skipWaits));
     btn(op, 'cc', 'CC', 'Captions on / off (C)', () => this.setCaptions(!this.captions));
     btn(op, 'cam', 'CAM', 'Director camera on / off: off = free camera (F)', () => this.setFree(!this.free));
+    // the scrub row: the run's measured timeline — drag (or click) to any moment, −1s / +1s to step
+    const tl = el('div', null, bar);
+    tl.id = 'wt-tl';
+    const tlBtn = (label, title, fn) => {
+      const b = el('button', null, tl, label);
+      b.type = 'button';
+      b.title = title;
+      b.setAttribute('aria-label', title);
+      b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
+      return b;
+    };
+    tlBtn('−1s', 'Step back 1 second (←; with Shift: 10 seconds)', () => this.seekBy(-1));
+    this._tlClock = el('span', 'wt-tl-clock', tl, '0:00 / –:––');
+    const track = el('div', null, tl);
+    track.id = 'wt-tl-track';
+    track.setAttribute('role', 'slider');
+    track.setAttribute('aria-label', 'Timeline: drag to scrub through the run');
+    this._tlFill = el('div', null, track);
+    this._tlFill.id = 'wt-tl-fill';
+    this._tlTrack = track;
+    tlBtn('+1s', 'Step forward 1 second (→; with Shift: 10 seconds)', () => this.seekBy(1));
+    // (a drag previews its landing time in the clock; the scrub itself starts on release — one jump, not a storm)
+    const fracOf = (e) => { const r = track.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / Math.max(1, r.width))); };
+    let dragOn = false;
+    track.addEventListener('pointerdown', (e) => { e.stopPropagation(); dragOn = true; track.setPointerCapture?.(e.pointerId); this._tlDragT = fracOf(e) * this.tlTotal(); this._syncTimeline(); });
+    track.addEventListener('pointermove', (e) => { if (!dragOn) return; this._tlDragT = fracOf(e) * this.tlTotal(); this._syncTimeline(); });
+    track.addEventListener('pointerup', (e) => { if (!dragOn) return; dragOn = false; const t = fracOf(e) * this.tlTotal(); this._tlDragT = null; this.seekTo(t); });
+    track.addEventListener('pointercancel', () => { dragOn = false; this._tlDragT = null; this._syncTimeline(); });
     this._ui = bar;
     const cap = el('div', null, document.body);
     cap.id = 'wt-cap';
@@ -973,6 +1155,7 @@ export class Walkthrough extends SolutionReplay {
     window.addEventListener('resize', this._onResize);
     this._layout();
     this._syncBar();
+    this._syncTimeline();
     this._layoutT = setInterval(() => this._layout(), 500); // the HUD settles / rotates
   }
 
@@ -1052,6 +1235,7 @@ export class Walkthrough extends SolutionReplay {
     if (!this._cardAt || now - this._cardAt > 150) { this._cardAt = now; this._cardShift(); } // (it moves to the speaker)
     if (this._capAt && now - this._capAt < 100) return;
     this._capAt = now;
+    this._syncTimeline();
     // (while an action is watched to its end, its step stays on screen: the next one starts after it)
     const hd = this.holdNow();
     const st = hd?.meta?.step && hd.meta.step !== this.step ? hd.meta.step : this.step;
@@ -1063,9 +1247,14 @@ export class Walkthrough extends SolutionReplay {
     pos += ` · ${fmtTime(this.world.time)}`;
     let status = '';
     if (this.pacer.turbo) {
-      const target = this.toMarker ? this._markerIdx(this.toMarker) : -1;
-      status = `⏩ jumping to ${this.toMarker?.id ?? ''}`;
-      cap.dataset.progress = target > 0 ? String(Math.max(0, Math.min(1, (this.markerIndex + 1) / (target + 1)))) : '0';
+      if (this._seekT != null) {
+        status = `⏩ jumping to ${fmtTime(this._seekT)}`;
+        cap.dataset.progress = String(Math.max(0, Math.min(1, this.world.time / Math.max(1, this._seekT))));
+      } else {
+        const target = this.toMarker ? this._markerIdx(this.toMarker) : -1;
+        status = `⏩ jumping to ${this.toMarker?.id ?? ''}`;
+        cap.dataset.progress = target > 0 ? String(Math.max(0, Math.min(1, (this.markerIndex + 1) / (target + 1)))) : '0';
+      }
     } else if (this.paused) status = '❚❚ paused';
     else if (!this.auto && this.pacer.boost > 1.05) status = `⏩ waiting ×${(this.pacer.speed * this.pacer.boost).toFixed(1)}`;
     else if (this.auto && this.autoWhy === 'wait' && this.waitLabel) status = `⏩ waiting: ${waitText(this.waitLabel)}`;

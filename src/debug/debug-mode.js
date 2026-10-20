@@ -661,7 +661,7 @@ export class DebugMode {
    * skip waits, free camera.
    * @returns {Promise<Walkthrough|null>}
    */
-  async startWalkthrough(id, { toMarker = null, settings = null, introWait = false } = {}) {
+  async startWalkthrough(id, { toMarker = null, toTime = null, toTimePause = false, settings = null, introWait = false } = {}) {
     if (!id || this._replayLaunch) return null;
     closeCard();
     this.close();
@@ -669,7 +669,7 @@ export class DebugMode {
     if (!hasSolution(id)) { this._noWalkthrough(W, id); return null; }
     const keep = settings || {};
     this.stopReplay();
-    if (!toMarker) { this._videoInfo = !this.capture; this._videoExpanded = false; } // a fresh start: minimized (a jump back keeps F11 / +)
+    if (!toMarker && toTime == null) { this._videoInfo = !this.capture; this._videoExpanded = false; } // a fresh start: minimized (a jump back keeps F11 / +)
     this._replayLaunch = true;
     this._syncFlags();
     // the clock is held from the load on: the walkthrough's first tick is the mission's first (the scripted run's)
@@ -681,16 +681,19 @@ export class DebugMode {
       // a fresh start shows the LOADING screen and its progress bar (a shared link opens on a cold load: user
       // 2026-10-12 "Add a quick way to see the state of loading with a loading bar when sending that link");
       // a jump back reloads instantly (warm, from the session cache) and fast-forwards
-      const ok = await this.launch(id, { instant: !!toMarker, brief: false });
+      const ok = await this.launch(id, { instant: !!toMarker || toTime != null, brief: false });
       if (!ok || !this.game.world || this.currentId !== id) throw new Error(`mission ${id} did not load`);
       if (this.game.state === 'paused') this.game.pause(false);
       const r = new W.Walkthrough(this.game, sol, wtFile, {
         speed: keep.speed ?? W.DEFAULT_WALK_SPEED, captions: keep.captions ?? true, skipWaits: keep.skipWaits ?? true, free: !!keep.free,
-        toMarker, intro: !toMarker, introWait, manualTickAfter: mt,
+        toMarker, toTime, toTimePause, intro: !toMarker && toTime == null, introWait, manualTickAfter: mt,
         // (always in the link: no speed means AUTO, so a fixed 1× is speed=1; AUTO is speed=auto)
         onSpeed: (s) => this._setUrl((q) => q.set('speed', String(s))),
         isFrozen: () => !!this.overlay,
-        onSkip: (marker, s) => { this.startWalkthrough(id, { toMarker: marker, settings: s }); },
+        onSkip: (marker, s) => {
+          if (marker?.kind === 'time') this.startWalkthrough(id, { toTime: marker.t, toTimePause: !!marker.pause, settings: s });
+          else this.startWalkthrough(id, { toMarker: marker, settings: s });
+        },
         onExit: () => this.exitWalkthrough(),
         onEnd: (res) => {
           if (this.replay === r) this.replay = null;
