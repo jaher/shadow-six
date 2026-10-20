@@ -132,9 +132,11 @@ function backFrame(m) {
     }
     if (back > 0.5) back = -0.12;
   }
-  // root-local pack frame: standing on end on the left half of his back (the harpoon gun is slung down the right half):
-  // its length (x) up his spine, its thickness (y) out of his back (-z), its depth (z) across toward his left
-  const c = new Vector3(s1.x + PACK.d / 2 + 0.01, (y0 + y1) / 2 + 0.06, back - PACK.h / 2 - 0.006);
+  // root-local pack frame: standing on end centred on his spine:
+  // its length (x) up his spine, its thickness (y) out of his back (-z), its depth (z) across his back, centred on s1.x.
+  // The surface line above is measured on the spine strip; under the pack footprint the back high point sits in front of
+  // that line, so the pack is seated deeper than the old 6 mm standoff: its face lands just proud of the surface there.
+  const c = new Vector3(s1.x, (y0 + y1) / 2 + 0.06, back - PACK.h / 2 + 0.019);
   const basis = new Matrix4().makeBasis(new Vector3(0, 1, 0), new Vector3(0, 0, -1), new Vector3(-1, 0, 0));
   const Wpack = root.matrixWorld.clone().multiply(new Matrix4().makeTranslation(c.x, c.y, c.z).multiply(basis))
     .multiply(new Matrix4().makeTranslation(0, -PACK.h / 2, 0));
