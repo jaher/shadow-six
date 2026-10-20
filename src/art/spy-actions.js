@@ -41,8 +41,8 @@ import { headingToRotY, lerpAngle } from '../core/math.js';
 import { realBody, contactMarks, setWQ, turn, setPelvisWorld, snap, writeBlend, limbIK, frameOf, legsTo, feetOf, alignHand,
   palmNormal, handQ, at, wp, wq, faceDir, finish } from './knife-kill.js';
 import { setSyringeFill, TIP_Z } from './syringe-prop.js';
-import { makeGarment as makeGarmentRef, makeOfficerCap as makeOfficerCapProp, hangCap, LAUNDRY } from './clothesline.js';
-import { lineFrame, DRESS } from '../abilities/spy-actions.js';
+import { makeGarment as makeGarmentRef, makeOfficerCap as makeOfficerCapProp, LAUNDRY } from './clothesline.js';
+import { DRESS } from '../abilities/spy-actions.js';
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const smooth = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
@@ -689,9 +689,9 @@ export const VD = Object.freeze({
 export const SWAY = Object.freeze({ amp: 0.03, hz: 2.2, decay: 0.55, lift: 0.014 });
 /**
  * The dressing beats (s from its start). From the kit (U): her own cap off and into the bundle, the officer's cap on,
- * the tunic out and swung on (the swap), the buttons, the hem, a touch to the visor. At a clothesline she first hangs
- * the officer's cap on the line in front of her, so the order is the tunic, the buttons, then the cap off the line and
- * onto her head, then the hem.
+ * the tunic out and swung on (the swap), the buttons, the hem, a touch to the visor. At a clothesline the cap stays
+ * in her left hand from the take (never back on the line), so the order is the tunic, the buttons, then the cap out
+ * of her left hand onto her head, then the hem.
  */
 export const VDK = Object.freeze({
   flat: [0, 0.09], flatToBundle: [0.09, 0.18], capR: [0.18, 0.24], capUp: [0.24, 0.36],
@@ -699,7 +699,6 @@ export const VDK = Object.freeze({
   shrug: [0.8, 0.92], buttons: [0.86, 1.08], hem: [1.08, 1.16], visor: [1.14, 1.24], end: 1.26,
 });
 export const VDL = Object.freeze({
-  hang: [0, 0.06, 0.19, 0.26],   // to her left hand (takes the cap), up to the line, hung on its peg, the hand down
   flat: [0.2, 0.3], flatToBundle: [0.3, 0.4],
   tunicReach: [0.4, 0.46], shake: [0.46, 0.56], swingR: [0.56, 0.7], sleeveL: [0.64, 0.8], swap: 0.8, sleeveR: [0.8, 0.9],
   shrug: [0.84, 0.96], buttons: [0.9, 1.1], capReach: [1.1, 1.2], capUp: [1.2, 1.34], hem: [1.34, 1.44], end: 1.48,
@@ -1016,7 +1015,7 @@ function dressPose(world, rec, m, B, M, t, dt, end) {
   }
   // the left hand: (line) the forearm across her waist under the garments, holding the cap from the side-step on;
   // (U) cradling the bundle under her arm, holding the cap at her waist — until the dressing takes it
-  const capTaken = line ? VDL.hang[1] : VDK.capR[1];
+  const capTaken = line ? VDL.capReach[1] : VDK.capR[1];
   const wHold = (line ? ramp(t, VD.drape[0], VD.drape[0] + 0.2) : ramp(t, VD.kitCap[0], VD.kitCap[1]))
     * (1 - ramp(t, T.d0 + (line ? VDL.tunicReach[1] + 0.12 : capTaken), T.d0 + (line ? VDL.tunicReach[1] + 0.25 : capTaken + 0.1))) * (rec.abort != null ? 1 - ramp(t, rec.abort + 0.1, rec.abort + 0.25) : 1);
   if (line) add('l', wHold, lHold, F.f.clone().addScaledVector(F.l, -0.6), F.u, [0.5, -0.35, -0.25]);
@@ -1025,13 +1024,10 @@ function dressPose(world, rec, m, B, M, t, dt, end) {
   if (dressing) {
     const onHead = head.clone().addScaledVector(F.u, 0.12).addScaledVector(F.f, 0.1);
     if (line) {
-      // the officer's cap: from her left hand up onto the line in front of her (her hands free for the tunic) …
-      const hangP = capHangWorld(rec).clone().addScaledVector(F.f, -0.05).addScaledVector(F.u, 0.02);
-      add('r', bump(D, V.hang[0] - 0.02, V.hang[3]), path(D, [[V.hang[1], lHold.clone().addScaledVector(F.u, 0.07)], [V.hang[2], hangP], [V.hang[3], P(0.25, -0.2, 1.1)]]),
-        F.u.clone().addScaledVector(F.f, 0.4), F.f.clone().addScaledVector(F.l, 0.4), [-0.4, -0.5, -0.2]);
-      // … and, buttoned up, off the line onto her head
+      // the officer's cap: it stays in her left hand from the take (never hung back on the line); buttoned up,
+      // her right hand takes it from her left and puts it on her head
       add('r', ramp(D, V.capReach[0], V.capReach[1]) * (1 - ramp(D, V.capUp[1], V.capUp[1] + 0.06)),
-        path(D, [[V.capReach[1], hangP], [V.capUp[1] - 0.04, onHead]]), F.u.clone().addScaledVector(F.f, 0.4), F.f.clone().addScaledVector(F.l, 0.6), [-0.4, -0.45, -0.1]);
+        path(D, [[V.capReach[1], lHold.clone().addScaledVector(F.u, 0.07)], [V.capUp[1] - 0.04, onHead]]), F.u.clone().addScaledVector(F.f, 0.4), F.f.clone().addScaledVector(F.l, 0.6), [-0.4, -0.45, -0.1]);
     } else {
       // the officer's cap: from her left hand into her right, up and on
       add('r', ramp(D, V.capR[0], V.capR[1]) * (1 - ramp(D, V.capUp[1], V.capUp[1] + 0.06)),
@@ -1096,7 +1092,7 @@ function dressPose(world, rec, m, B, M, t, dt, end) {
   const ahead = P(1, 0, 1.45);
   const look = !dressing
     ? (line ? lookTake(rec, t, P, ahead) : path(t, [[0.05, P(0.4, -0.15, 1.1)], [VD.kitCap[1], P(0.35, 0.12, 1.0)], [T.d0, ahead]]))
-    : line ? path(D, [[0, ahead], [VDL.hang[1], P(0.4, 0.1, 1.15)], [VDL.hang[2], P(0.6, -0.1, 1.65)], [VDL.flat[1], P(0.6, 0, 1.4)], [VDL.shake[1], P(0.45, -0.25, 1.35)],
+    : line ? path(D, [[0, ahead], [VDL.flat[0], P(0.4, 0.1, 1.15)], [VDL.flat[1], P(0.6, 0, 1.4)], [VDL.shake[1], P(0.45, -0.25, 1.35)],
       [VDL.sleeveR[1], P(0.5, 0, 1.3)], [VDL.buttons[0] + 0.04, P(0.25, 0, 0.95)], [VDL.capReach[1], P(0.6, -0.1, 1.65)], [VDL.capUp[1], P(0.8, 0, 1.55)], [VDL.hem[1], P(0.3, 0, 0.85)], [VDL.end, ahead]])
       : path(D, [[0, ahead], [VDK.capR[1], P(0.5, 0.1, 1.2)], [VDK.capUp[1], P(0.7, 0, 1.55)], [VDK.shake[1], P(0.45, -0.25, 1.35)], [VDK.sleeveR[1], P(0.5, 0, 1.3)],
         [VDK.buttons[0] + 0.04, P(0.25, 0, 0.95)], [VDK.hem[1], P(0.3, 0, 0.85)], [VDK.visor[1], P(1, 0, 1.6)]]);
@@ -1113,31 +1109,6 @@ function dressPose(world, rec, m, B, M, t, dt, end) {
   // ---- props, with the hands where they are drawn this frame
   dressProps(rec, m, B, F, t, D, dt, { L, line, dressing, bundleAt, P });
 }
-
-/**
- * Where she hangs the officer's cap while she dresses: on the line beside the laundry she stands behind (toward the
- * bare stretch where the uniform hung), by its strap, the crown toward her; where it hung before when she dresses at
- * the take spot. Line-group matrix of the cap, cached.
- */
-function capHang(rec) {
-  if (rec.vis.capHang) return rec.vis.capHang;
-  const F = lineFrameArt(rec.line), spot = rec.plan.cover || rec.plan.take;
-  const lxS = (spot.x - F.x) * F.ax + (spot.z - F.z) * F.az;
-  const lx = rec.plan.cover ? lxS + (Math.sign(LAUNDRY.cap - lxS) || 1) * 0.42 : LAUNDRY.cap;
-  const o = new Object3D();
-  hangCap(o, lx);
-  if (spot.side < 0) { o.position.z *= -1; o.quaternion.premultiply(new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI)); }
-  o.updateMatrix();
-  return (rec.vis.capHang = { local: o.matrix.clone(), lx });
-}
-/** World point her hand takes the hung cap by (its crown, a little above its centre). */
-function capHangWorld(rec) {
-  const g = rec.line.object3d, HG = capHang(rec);
-  g.updateWorldMatrix(true, false);
-  const M = g.matrixWorld.clone().multiply(HG.local);
-  return new Vector3(0, 0.07, 0.02).applyMatrix4(M);
-}
-const lineFrameArt = (line) => { const F = lineFrame(line); return { x: F.x, z: F.z, ax: F.ax, az: F.az }; }; // honours visualAt / visualRot
 
 /** World position of particle k of a garment's cloth (into `out`). */
 function clothPt(pc, k, out) {
@@ -1303,17 +1274,10 @@ function dressProps(rec, m, B, F, t, D, dt, ctx) {
     }
     if (vis.flat) vis.flat.visible = D < V.flatToBundle[1] - 0.01;
     if (capObj && line) {
-      // the officer's cap: from her left hand onto a peg of the line in front of her, then off it again onto her head
-      const g = rec.line.object3d, HG = capHang(rec);
-      if (D >= V.hang[1] - 0.01 && !vis.capInR2) { B.hand_r.attach(capObj); vis.capInR2 = true; }
-      if (vis.capInR2 && !vis.capHung) {
-        g.updateWorldMatrix(true, false);
-        const k = ramp(D, V.hang[2] - 0.06, V.hang[2]);
-        if (k > 0) setWorld(capObj, lerpM(capObj.matrixWorld.clone(), g.matrixWorld.clone().multiply(HG.local), k));
-        if (D >= V.hang[2]) { g.add(capObj); HG.local.decompose(capObj.position, capObj.quaternion, capObj.scale); capObj.updateMatrixWorld(true); vis.capHung = true; }
-      }
-      if (vis.capHung && D >= V.capReach[1] && !vis.capInR3) { B.hand_r.attach(capObj); vis.capInR3 = true; }
-      if (vis.capInR3) {
+      // the officer's cap: it stays in her left hand from the take until, buttoned up, her right hand takes it
+      // and seats it where the outfit's own cap sits (never back on the line)
+      if (D >= V.capReach[1] - 0.01 && !vis.capInR2) { B.hand_r.attach(capObj); vis.capInR2 = true; }
+      if (vis.capInR2) {
         const k = ramp(D, V.capUp[1] - 0.1, V.capUp[1] - 0.025);   // seated a frame or two before the outfit's own shows
         if (k > 0) setWorld(capObj, lerpM(capObj.matrixWorld.clone(), wornCapMatrix(m, B), k));
         capObj.visible = D < V.capUp[1];

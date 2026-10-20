@@ -29,9 +29,9 @@
  * hand; her right hand takes the trousers by the near corner and pulls them off their pegs (they pop one after the
  * other) and lays them over her forearm on the tunic; the line, lighter, springs up and sways back each time. Then she
  * steps behind the remaining laundry (on the side away from the nearest enemy, ducking under the line if that is the
- * other side) and dresses: the officer's cap hung on the line in front of her, her own cap off onto the bundle on her
- * arm, the tunic off her arm and swung on (the outfit changes as her arms go into the sleeves), the buttons, the cap
- * off the line onto her head, a tug at the hem. Watched when she has taken it: the uniform goes in her kit and she does
+ * other side) and dresses: her own cap off onto the bundle on her
+ * arm, the tunic off her arm and swung on (the outfit changes as her arms go into the sleeves), the buttons, the
+ * officer's cap — in her left hand since the take — onto her head, a tug at the hem. Watched when she has taken it: the uniform goes in her kit and she does
  * not dress (as before).
  *   timing: take 2.75 s (the uniform in her kit at the end of it; was 1.05 s), the step ≤ 0.55 s, dressed (the
  *   disguise on) 0.8 s into the dressing, the action ends 1.48 s into it (M3: 4.75 s, was 2.92 s); interruptible
@@ -135,10 +135,10 @@ export const DRESS = Object.freeze({
   stepSpeed: 2.6,   // m/s to the dressing spot behind the laundry
   step: [0.25, 0.55],
   kitOut: 0.32,     // U: the bundle out of her kit
-  // the dressing, from its start (the beats: art/spy-actions.js VDL / VDK). At a clothesline: the officer's cap hung on
-  // the line in front of her, her own cap off into the bundle, the tunic out and swung on, arms into the sleeves — the
-  // outfit changes, the disguise on — the buttons, the cap off the line onto her head, a tug at the hem. From the kit:
-  // her cap swapped first (no line to hang it on), then the tunic (the swap), buttons, hem, a touch to the visor.
+  // the dressing, from its start (the beats: art/spy-actions.js VDL / VDK). At a clothesline: her own cap off into
+  // the bundle, the tunic out and swung on, arms into the sleeves — the outfit changes, the disguise on — the
+  // buttons, the officer's cap (in her left hand since the take) onto her head, a tug at the hem. From the kit:
+  // her cap swapped first, then the tunic (the swap), buttons, hem, a touch to the visor.
   line: Object.freeze({ swap: 0.8, end: 1.48 }),
   kit: Object.freeze({ swap: 0.74, end: 1.26 }),
   abort: 0.25,      // watched: she stops, the bundle goes in her kit
