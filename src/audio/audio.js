@@ -19,6 +19,7 @@ import { VoiceDirector, lineKey, speakerOf } from './voice-lines.js';
 import { installHandlers, missionAudio } from './event-map.js';
 import { MusicDirector } from './music-director.js';
 import { Narrator } from './narration.js';
+import { SpriteSource } from './sprite-source.js';
 import { cueForState, startCueFor, endStinger } from './music-cues.js';
 import { WIND_BED, windBedTargetDb, smoothWindDb } from './wind-bed.js';
 
@@ -102,6 +103,7 @@ export function createAudio(events, opts = {}) {
         this.engine = new AudioEngine(ctx, { fetch: opts.fetch, base: opts.base, rand, jitter: opts.jitter ?? !opts.createContext });
         this.engine.setListener(this.listener.x, this.listener.z, this.listener.viewWidth, this.listener.yaw);
         this.narrator = new Narrator(this.engine); // the briefing's newsreel voice (audio/narration.js)
+        if (this._spritesWanted) this.setMissionSprites(this._spritesWanted); // a mission loaded before unlock
         this._applyVolumes();
         const eng = this.engine;
         this.musicDir = new MusicDirector({ ctx: eng.ctx, out: eng.bus.music,
@@ -130,6 +132,19 @@ export function createAudio(events, opts = {}) {
       this.engine.setBusGain('master', this.muted ? 0 : this.volumes.master);
       for (const b of ['sfx', 'voice', 'ambience', 'music', 'ui']) this.engine.setBusGain(b, this.volumes[b]);
       this.narrator?.setVolume(this.volumes.narration);
+    },
+    /**
+     * Mission audio sprites (audio/sprite-source.js): when the mission's pack was built, the engine serves its
+     * clip bytes from the mission's sprite files instead of fetching clip by clip. Called on every mission load
+     * (info null: no sprites — every clip fetches as before); remembered across unlock.
+     */
+    setMissionSprites(info) {
+      this._spritesWanted = info || null;
+      if (!this.engine) return; // applied when the engine is created (unlock)
+      if (!info) { this.engine.sprites = null; return; }
+      const s = new SpriteSource();
+      s.open(info.mission, info.preset);
+      this.engine.sprites = s;
     },
     /** Per-mission loading: decode this mission's SFX and voice packs, evict the rest (§1.5.0). */
     _preload() {

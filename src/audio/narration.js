@@ -127,6 +127,8 @@ export class Narrator {
       const e = this.engine;
       p = (async () => {
         try {
+          const sb = e.sprites?.bytes(file); // the mission's voice sprite holds the clip: no fetch at all
+          if (sb) return sb;
           const r = await e.fetch(e.base + file);
           return r.ok ? await r.arrayBuffer() : null;
         } catch { return null; }

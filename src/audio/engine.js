@@ -124,6 +124,7 @@ export class AudioEngine {
     this.voiceRate = opts.voiceRate ?? VOICE_RATE;
     this.upmix = new WeakSet(); // mono buffers of near-mono stereo takes: played as two equal channels
     this.packed = new Map(); // url → ArrayBuffer: the compressed bytes of this mission's lazy takes (decode needs no fetch)
+    this.sprites = null; // audio/sprite-source.js: the mission's clips in a few concatenated files, when built (set per mission by the facade)
     this.pending = new Set(); // deferred handles whose take is still decoding (stopAll reaches them too)
   }
 
@@ -206,7 +207,7 @@ export class AudioEngine {
   }
 
   async _fetchDecode(url, low = false) {
-    let ab = this.packed.get(url);
+    let ab = this.packed.get(url) ?? this.sprites?.bytes(url) ?? null;
     if (ab) ab = ab.slice(0); // decodeAudioData detaches its input: the kept bytes stay for a re-decode after eviction
     else {
       const res = await this.fetch(this.base + url, low ? LOW : undefined);
@@ -280,9 +281,12 @@ export class AudioEngine {
     const url = this.files.get(id)?.[0];
     if (!url || !this.fetch || !this.ctx.decodeAudioData) return null;
     try {
-      const res = await this.fetch(this.base + url);
-      if (!res.ok) return null;
-      const ab = await res.arrayBuffer();
+      let ab = this.sprites?.bytes(url) ?? null;
+      if (!ab) {
+        const res = await this.fetch(this.base + url);
+        if (!res.ok) return null;
+        ab = await res.arrayBuffer();
+      }
       const meta = this.musicMeta.get(id) || {};
       const OAC = globalThis.OfflineAudioContext || globalThis.webkitOfflineAudioContext;
       let buffer = null;
@@ -309,9 +313,12 @@ export class AudioEngine {
     };
     const load = async (f) => {
       const url = `${this.base}music/${f}${audioExt()}`;
-      const r = await this.fetch(url);
-      if (!r.ok) throw new Error(r.status);
-      const ab = await r.arrayBuffer();
+      let ab = this.sprites?.bytes(`music/${f}${audioExt()}`) ?? null;
+      if (!ab) {
+        const r = await this.fetch(url);
+        if (!r.ok) throw new Error(r.status);
+        ab = await r.arrayBuffer();
+      }
       try { return await decode(ab); } catch (e) {
         if (audioExt() !== '.ogg') throw e;
         // an Ogg chunk that downloaded but did not decode: this browser does not decode Opus after all → AAC
@@ -681,6 +688,8 @@ export class AudioEngine {
 
   /** Download a lazy take's compressed bytes (kept; decoded on first use). */
   async _pack(url) {
+    const sb = this.sprites?.bytes(url); // the mission's sprite holds the clip: no fetch at all
+    if (sb) { this.packed.set(url, sb); return; }
     try {
       const r = await this.fetch(this.base + url, LOW);
       if (r.ok) this.packed.set(url, await r.arrayBuffer());
