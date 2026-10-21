@@ -683,6 +683,10 @@ export class AudioEngine {
       ...[...want].filter((u) => !this.decoded.has(u) || this.decoded.get(u) === 'pending').map((u) => this._decode(u, { low: true })),
       ...[...later].filter((u) => !this.packed.has(u)).map((u) => this._pack(u)),
     ]);
+    // Synth-only loops (no recorded take: flood_rush, fire_loop) render their buffer lazily at first play —
+    // a multi-second noise render landing inside one sim tick (the M3 dam burst measured 6.8 ms of it).
+    // Render them here, with the mission's other decoding, so starting the loop mid-play is node setup only.
+    for (const id of ids) if (SFX[id]?.loop && !this.files.get(id)?.length) this.bufferFor(id);
     return this.memory();
   }
 
