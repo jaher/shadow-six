@@ -69,6 +69,7 @@ import { prepareVehicleArt, warmVehicleArt, tickVehicles, releaseVehicles, creat
 import { staticVehicleAssets, dressStaticVehicles } from './art/static-vehicles.js';
 import { flyoverAssets, createFlyovers } from './render/flyovers.js';
 import { createLoadProgress, loadBudget } from './engine/load-progress.js';
+import { openMissionPack } from './engine/mission-pack.js';
 import * as Missions from './missions/index.js';
 import * as VehicleMod from './entities/vehicle.js';
 import * as FxMod from './render/fx.js';
@@ -247,6 +248,12 @@ export class Game {
     // real progress for the loading screen: stages + bytes received vs the mission's budget (engine/load-progress.js)
     const prog = createLoadProgress({ events: this.events, id: def.id, preset: r.presetName, budget: await loadBudget() });
     this.loadProgress = prog;
+    // mission asset pack + audio sprites (engine/mission-pack.js, audio/sprite-source.js): when the packs were
+    // built (tools/packs/build-packs.mjs) the mission's ~1,000 files arrive as a few archive parts + sprite fetches
+    // and every loader is served from memory; without packs this resolves null and the load is exactly as before
+    const pack = await openMissionPack(def.id, r.presetName, (f) => prog.stage('lighting', f));
+    this.missionPack = pack;
+    this.audio?.setMissionSprites?.(pack ? { mission: def.id, preset: r.presetName } : null);
     prog.stage('lighting');
     // per-mission lighting from the mission file (sun, kelvin, HDRI, fog, LUT — design-spec §2.4)
     if (r.applyMissionLighting) await safeAsync(() => r.applyMissionLighting(def, { assets }), 'lighting');
