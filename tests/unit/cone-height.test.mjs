@@ -132,17 +132,17 @@ test('height sight: the DRAWN cone (sector mesh under the shader window, VisionC
   }
   assert.equal(vc.rebuilds, 1, 'one sector for the whole sweep: the head only moves the uniforms');
   for (const k of Object.keys(total)) assert.ok(total[k] > 60, `enough ${k} samples (${total[k]})`);
-  // a walker: rebuilt once he has walked MOVE_EPS (0.3 m), the mesh rides along in between
+  // a walker: rebuilt once he has walked MOVE_EPS (0.15 m), the mesh rides along in between
   const n0 = vc.rebuilds;
   g.sweepActive = false;
   g.x += 0.1; vc.update(g); g.x += 0.1; vc.update(g);
   assert.ok(vc.rebuilds <= n0 + 1, 'small steps: no rebuild each frame');
   g.x += 0.4; vc.update(g);
-  assert.ok(vc.rebuilds > n0, 'past 0.3 m: rebuilt');
+  assert.ok(vc.rebuilds > n0, 'past 0.15 m: rebuilt');
   vc.dispose();
 });
 
-test('height sight: shown cones rebuild within a frame budget (VisionCones) — a walker\'s sector lands a step at a time, coarse while he walks; the settled cone == detection', () => {
+test('height sight: shown cones rebuild within a frame budget (VisionCones) — a walker\'s sector rides along inside MOVE_EPS and never lags past it, coarse while he walks; the settled cone == detection', () => {
   const w = bumpy();
   const rng = new Rng(4242);
   const g = { kind: 'enemy', id: 1, x: 30, z: 40, heading: 0, alive: true, world: w, vision: makeVision('soldier'), sweepActive: false, coneVisible: true };
@@ -161,7 +161,11 @@ test('height sight: shown cones rebuild within a frame budget (VisionCones) — 
     if (vc.rebuilds > 1) landed = frames;
   }
   assert.ok(ride, 'meanwhile the shown sector rides along with him');
-  assert.ok(landed > 15 + 3, `the walking rebuild is spread over frames (landed ${landed} frames after he set off)`);
+  // the ride-along is a pure translation: it cannot reproduce the parallax of an occluder's shadow, so a sector
+  // may not lag past MOVE_EPS (0.15 m) — at 0.02 m a frame he crosses it on frame 7-8 and the rebuild lands at
+  // once there, however small the frame budget. (Inside the tolerance a rebuild still spreads over frames; the
+  // settled phase below, which never outruns the sector, is what exercises the slicing.)
+  assert.ok(landed >= 7 && landed <= 8, `the walking rebuild lands as he crosses MOVE_EPS, never metres behind (landed ${landed} frames after he set off)`);
   assert.equal(vc._sector.coarse, true, 'built coarse while he walks');
   // he stops: the exact sector follows, a step a frame
   let k = 0;

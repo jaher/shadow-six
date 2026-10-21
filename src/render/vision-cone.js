@@ -125,6 +125,7 @@ export function* coneFanSteps(enemy, grid, o = {}) {
   const sightOpts = {
     eyeY: cone.y, viewerY: cone.vy, lowOf: [false, true], lowCover: lowCoverMode(cone), heightOf: world?.structures ? ownerHeight(world) : null, ownHull: enemy.ownHull, ownOwner: world ? postOwner(enemy, world) : 0,
     hide: (k, ty, n) => levelHides(cone, ty, n === 1, world),
+    pastEdge: !!o.pastEdge, // the drawn cone runs on past the playable frontier over the apron (detection never asks sightRay)
   };
   const reachMax0 = Math.max(cone.far, enemy.vision?.far ?? enemy.vision?.range ?? cone.far);
   const nearCut = sec ? reachMax0 : cone.near, farCut = sec ? reachMax0 : cone.far;
@@ -323,8 +324,12 @@ function triGeometry() {
   return g;
 }
 
-/** A walker's cone is rebuilt once he has walked this far (m); in between it rides along with him (render only). */
-const MOVE_EPS = 0.3;
+/** A walker's cone is rebuilt once he has walked this far (m); in between it rides along with him (render only).
+ * The ride-along is a pure translation, so it cannot reproduce the parallax of an occluder's shadow: past a near
+ * post or wall corner the drawn shadow edge sits off by the ride distance times the range ratio, which reads as
+ * uncoloured patches inside the cone (and paint outside it) — hence the small epsilon, and update()'s rule that
+ * a rebuild the frame budget has starved past this distance finishes at once instead of riding any farther. */
+const MOVE_EPS = 0.15;
 /**
  * A walker's cone while he walks (render only; VisionCones' budgeted rebuilds): base rays 1.5° apart, edges to 0.25 m,
  * occluder corners to 0.15 m, the drape sliced every 2 m. Once he stands still the exact sector is built (the settled
@@ -470,6 +475,16 @@ export class VisionCone {
     // VisionCones' frame budget: the rebuild runs a slice at a time (round robin over the shown cones) while the
     // shown sector rides along with him; it lands a few frames later (perception itself is exact all along)
     this.group.position.set(cone.x - S.x, 0, cone.z - S.z);
+    if (Math.hypot(cone.x - S.x, cone.z - S.z) > MOVE_EPS) {
+      // starved past the ride-along tolerance (many cones shown, a long coarse build): finish at once, from where
+      // he stands now — riding farther would draw the shadows of near occluders metres off (see MOVE_EPS)
+      this._job = null;
+      const it = this._buildSteps(enemy, cone, world, grid, gv, reach, coarse);
+      let r = it.next();
+      while (!r.done) r = it.next();
+      this._finish(r.value, cone);
+      return true;
+    }
     if (!this._job) this._job = this._buildSteps(enemy, cone, world, grid, gv, reach, coarse);
     while (!budget.steps || now() < budget.until) { // (at least one step a frame overall: a rebuild always gets on)
       budget.steps = (budget.steps || 0) + 1;
@@ -492,7 +507,7 @@ export class VisionCone {
     a0 = Math.min(a0, cone.heading - cone.halfFov - DEG); a1 = Math.max(a1, cone.heading + cone.halfFov + DEG);
     if (a1 - a0 > TAU) { a0 = cone.heading - Math.PI; a1 = a0 + TAU; }
     const fan = yield* coneFanSteps(enemy, grid && (grid.sightRay || grid.castRay) ? grid : null,
-      { maxRays: this.cap - 2, world, cache: this._rays || (this._rays = {}), sector: { a0, a1 }, ...(coarse ? COARSE : null) });
+      { maxRays: this.cap - 2, world, cache: this._rays || (this._rays = {}), sector: { a0, a1 }, pastEdge: true, ...(coarse ? COARSE : null) });
     const buf = this._stage || (this._stage = { a: new Float32Array(3 * 1024), l: new Float32Array(1024), n: 0 });
     buf.n = 0;
     yield* this._meshSteps(fan, world, grid, buf, coarse ? SLICE_COARSE : SLICE);

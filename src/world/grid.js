@@ -1157,7 +1157,9 @@ export class NavGrid {
    * maximum, as sightLine; the open floors are kept by level so a target never counts his own floor, nor the viewer
    * his — `o.viewerY`). A cell that blocks at any height (a wall, a building, a vehicle) ends the ray. `o.hide(k, base,
    * i)` → true hides target height i standing in cell k (perception's roof and deck-edge rules); options as sightLine
-   * (eyeY, viewerY, heightOf, ownOwner, ownHull, dynamic).
+   * (eyeY, viewerY, heightOf, ownOwner, ownHull, dynamic). `o.pastEdge` (the drawn cone only, never detection):
+   * past the map edge the ray runs on over open ground on the last cell's surface to maxDist instead of stopping
+   * at the border — the scenery apron out there carries no occluders, so the cone keeps its geometric extent.
    * @param {number[]} heights
    * @returns {number[][][]} intervals[i] = [[d0, d1], …]
    */
@@ -1165,10 +1167,12 @@ export class NavGrid {
     const out = heights.map(() => []);
     const dx = Math.cos(angle), dz = Math.sin(angle);
     let L = maxDist;
-    if (dx > 1e-12) L = Math.min(L, (this.width - ax) / dx);
-    if (dx < -1e-12) L = Math.min(L, -ax / dx);
-    if (dz > 1e-12) L = Math.min(L, (this.depth - az) / dz);
-    if (dz < -1e-12) L = Math.min(L, -az / dz);
+    if (!o.pastEdge) { // (o.pastEdge: the border does not cut the ray; the march below still ends at the last cell)
+      if (dx > 1e-12) L = Math.min(L, (this.width - ax) / dx);
+      if (dx < -1e-12) L = Math.min(L, -ax / dx);
+      if (dz > 1e-12) L = Math.min(L, (this.depth - az) / dz);
+      if (dz < -1e-12) L = Math.min(L, -az / dz);
+    }
     if (!(L > 0)) return out;
     const eye = o.eyeY, vy = o.viewerY ?? null;
     const lowOf = heights.map((_, n) => !!o.lowOf?.[n]);
@@ -1229,9 +1233,12 @@ export class NavGrid {
       cross(st[0], k, ts, d0, d1); cross(st[1], k, tl, d0, d1);
       return ts === Infinity;
     };
-    let d = 0, first = true;
+    let d = 0, first = true, lastK = -1;
     for (let guard = 0; guard < 1e6 && d < L; guard++) {
-      if (!this.inBounds(i, j)) break;
+      if (!this.inBounds(i, j)) { // past the map edge (o.pastEdge): the last cell's surface, seen as far as the slopes crossed so far allow, to the ray's end
+        if (o.pastEdge && lastK >= 0) reach(lastK, d, L);
+        break;
+      }
       const k = this.idx(i, j);
       const corner = Math.abs(tMaxX - tMaxZ) < 1e-12;
       const dExit = Math.min(tMaxX, tMaxZ, L);
@@ -1239,6 +1246,7 @@ export class NavGrid {
       const ts = first ? 0 : this.sightTop(k, o, own, null, false);
       if (ts === Infinity) break;
       reach(k, d, dExit);
+      lastK = k;
       if (!first) crossBoth(k, d, dExit, ts);
       first = false;
       if (dExit >= L) break;
