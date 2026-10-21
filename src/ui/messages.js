@@ -65,11 +65,35 @@ export class Messages {
   _place(t) {
     const u = t.unit;
     const p = this.hud.game.cameraController?.worldToScreen?.(u.x, (u.y || 0) + 2.1, u.z);
-    if (!p) return;
+    if (!p) { t._rect = null; return; }
     const r = this.hud.root.getBoundingClientRect();
-    // a "?" mark sits above the guard's subtitle tag when he has one
-    const lift = t.mark ? (this.tags.find((s) => s.unit === u)?.el.offsetHeight ?? 0) : 0;
-    t.el.style.transform = `translate(${p.x - r.left}px, ${p.y - r.top - lift}px) translate(-50%, -100%)`;
+    const px = p.x - r.left, py = p.y - r.top;
+    let lift = 0;
+    if (t.mark) {
+      // a "?" mark sits above the guard's subtitle tag when he has one (above its stacked place too)
+      const s = this.tags.find((s) => s.unit === u);
+      lift = s ? (s._lift || 0) + s.el.offsetHeight : 0;
+    } else {
+      // Speech tags are centred on the speaker's head, and two men talking face to face (the Spy
+      // distracting a guard, §3.4) stand 1.5 m apart: their tags land in the same band and cover each
+      // other. Stack a tag above any other speaker's tag it would overlap — the same lift the "?" mark
+      // takes over its own guard's tag, applied between speakers. update() places tags oldest first, so
+      // the first speaker keeps the low slot and the stack is stable while both lines run.
+      const w = t.el.offsetWidth, h = t.el.offsetHeight, x0 = px - w / 2, x1 = px + w / 2;
+      for (let n = 0; n < this.tags.length; n++) {
+        let raised = false;
+        for (const s of this.tags) {
+          if (s === t || s.unit === u || !s._rect) continue;
+          if (x0 < s._rect.x1 && s._rect.x0 < x1 && py - lift - h < s._rect.bot && s._rect.top < py - lift) {
+            lift = Math.max(lift, py - s._rect.top); raised = true;
+          }
+        }
+        if (!raised) break;
+      }
+      t._rect = { x0, x1, top: py - lift - h, bot: py - lift };
+    }
+    t._lift = lift;
+    t.el.style.transform = `translate(${px}px, ${py - lift}px) translate(-50%, -100%)`;
   }
 
   /**
