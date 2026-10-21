@@ -5,7 +5,11 @@
  * missions not in the file use `default`). A cold load follows the bytes, a warm (cached) one the stages. Monotonic.
  *
  *   const prog = createLoadProgress({ events, id: 'm01', preset: 'high', budget });
- *   prog.stage('buildings'); … prog.done();   // → 'mission:progress' {id, p, stage, bytes, expected, files}
+ *   prog.stage('buildings'); … prog.done();   // → 'mission:progress' {id, p, stage, bytes, expected, files, dlBytes, dlTotal}
+ *
+ * The payload's dlBytes/dlTotal are the loading screen's download figures (engine/download-meter.js): the
+ * exact pack counters while a mission pack feeds `dlMeter`, else the observer's bytes against the budget
+ * (dlTotal null when no budget covers the mission — the screen then omits the to-go/ETA figures).
  *
  * @module engine/load-progress
  */
@@ -37,11 +41,17 @@ export function loadBudget(url = new URL('../../assets/load-budget.json', import
 }
 
 /**
- * @param {{events?: {emit: Function}, id?: string, preset?: string, budget?: object|null, now?: () => number}} o
+ * @param {{events?: {emit: Function}, id?: string, preset?: string, budget?: object|null, dlMeter?: object, now?: () => number}} o
  */
 export function createLoadProgress(o = {}) {
   const now = o.now || (() => (typeof performance !== 'undefined' ? performance.now() : Date.now()));
   const expected = expectedBytes(o.budget, o.id, o.preset);
+  const hasBudget = !!(o.budget?.missions?.[o.id] || o.budget?.default);
+  // the download figures the loading screen prints (engine/download-meter.js): the pack meter's exact
+  // counters while it is active, else the observer's bytes against the budget (null total: no budget)
+  const dl = () => (o.dlMeter?.active
+    ? { dlBytes: o.dlMeter.bytes, dlTotal: o.dlMeter.total }
+    : { dlBytes: bytes, dlTotal: hasBudget ? expected : null });
   const t0 = now();
   let bytes = 0, files = 0, cached = 0, p = 0, stage = 'lighting', closed = false;
   let obs = null;
@@ -63,7 +73,7 @@ export function createLoadProgress(o = {}) {
     const byStage = lo + (hi - lo) * Math.max(0, Math.min(1, sub));
     const byBytes = Math.min(hi, bytes / expected);
     p = Math.max(p, byStage, byBytes);
-    o.events?.emit?.('mission:progress', { id: o.id, p, stage, bytes, expected, files, cached });
+    o.events?.emit?.('mission:progress', { id: o.id, p, stage, bytes, expected, files, cached, ...dl() });
   }
   return {
     get p() { return p; },
@@ -87,7 +97,7 @@ export function createLoadProgress(o = {}) {
       stage = 'finish';
       emit(1);
       p = 1;
-      o.events?.emit?.('mission:progress', { id: o.id, p: 1, stage: 'done', bytes, expected, files, cached });
+      o.events?.emit?.('mission:progress', { id: o.id, p: 1, stage: 'done', bytes, expected, files, cached, ...dl() });
       closed = true;
       return { bytes, files, cached, ms: Math.round(now() - t0), expected };
     },

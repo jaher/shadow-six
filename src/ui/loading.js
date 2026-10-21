@@ -23,6 +23,7 @@ import { drawEurope } from './europe.js';
 import { MISSIONS } from '../missions/index.js';
 import { isTouchUI } from './touch.js';
 import { sessionCache } from '../engine/asset-cache.js';
+import { DownloadMeter, formatDownload } from '../engine/download-meter.js';
 
 /**
  * A warm (cached) reload taking longer than this shows the loading card after all. Restarts take ~0.6–1 s on a desktop
@@ -61,9 +62,10 @@ export class Loading {
     const def = MISSIONS.find((m) => m.id === info.missionId) || null;
     const c = catalogueEntry(info.missionId) || {};
     const n = hud.game.flow?.numberOf(info.missionId) || c.n;
-    let shown = 0, target = 0.08, raf = 0, last = 0, tipT = 0, done = false, cont = null, real = null;
+    let shown = 0, target = 0.08, raf = 0, last = 0, tipT = 0, done = false, cont = null, real = null, dlAt = 0, dlShown = '';
     let bar, pct, prompt, tipHost, size;
-    const offProgress = hud.game.events?.on?.('mission:progress', (e) => { real = e; });
+    const dlMeter = new DownloadMeter(); // the figures line's tracker, fed by every progress event
+    const offProgress = hud.game.events?.on?.('mission:progress', (e) => { real = e; dlMeter.note(e.dlBytes ?? e.bytes ?? 0, e.dlTotal ?? null); });
     const tipOf = () => pickTip(TIPS, { theater: def?.theater, mission: info.missionId, seen: this.seen, rnd: Math.random() });
     const showTip = (first) => {
       const t = tipOf();
@@ -87,7 +89,14 @@ export class Loading {
       last = now;
       if (!done && real) target = Math.max(target, Math.min(0.97, real.p)); // real stages + bytes (never backwards)
       else if (!done) target = Math.min(0.92, target + dt * 0.35 * (1 - target)); // no progress events: ease toward 92 %
-      if (size && real?.bytes) size.textContent = `${(real.bytes / 1e6).toFixed(1)} MB${real.files && real.cached >= real.files * 0.9 ? ' · FROM CACHE' : ''}`;
+      // the size line: live download figures (MB down / to go · smoothed bandwidth · ETA, engine/download-meter.js)
+      // while bytes are moving — repainted at ~4 Hz, textContent only; a cache-served load keeps the plain counter
+      if (size && real?.bytes && real.files && real.cached >= real.files * 0.9) size.textContent = `${(real.bytes / 1e6).toFixed(1)} MB · FROM CACHE`;
+      else if (size && dlMeter.bytes > 0 && now - dlAt >= 250) {
+        dlAt = now;
+        const s = formatDownload(dlMeter);
+        if (s !== dlShown) { dlShown = s; size.textContent = s; }
+      }
       else if (size && warm && !real?.bytes) size.textContent = 'FROM CACHE';
       shown = easeProgress(shown, done ? 1 : target, dt);
       if (bar) bar.style.transform = `scaleX(${shown.toFixed(4)})`;

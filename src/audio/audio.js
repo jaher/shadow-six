@@ -103,7 +103,7 @@ export function createAudio(events, opts = {}) {
         this.engine = new AudioEngine(ctx, { fetch: opts.fetch, base: opts.base, rand, jitter: opts.jitter ?? !opts.createContext });
         this.engine.setListener(this.listener.x, this.listener.z, this.listener.viewWidth, this.listener.yaw);
         this.narrator = new Narrator(this.engine); // the briefing's newsreel voice (audio/narration.js)
-        if (this._spritesWanted) this.setMissionSprites(this._spritesWanted); // a mission loaded before unlock
+        if (this._spritesWanted) this.setMissionSprites(this._spritesWanted, this._spritesMeter); // a mission loaded before unlock
         this._applyVolumes();
         const eng = this.engine;
         this.musicDir = new MusicDirector({ ctx: eng.ctx, out: eng.bus.music,
@@ -138,12 +138,13 @@ export function createAudio(events, opts = {}) {
      * clip bytes from the mission's sprite files instead of fetching clip by clip. Called on every mission load
      * (info null: no sprites — every clip fetches as before); remembered across unlock.
      */
-    setMissionSprites(info) {
+    setMissionSprites(info, meter) {
       this._spritesWanted = info || null;
+      this._spritesMeter = meter || null;
       if (!this.engine) return; // applied when the engine is created (unlock)
       if (!info) { this.engine.sprites = null; return; }
       const s = new SpriteSource();
-      s.open(info.mission, info.preset);
+      s.open(info.mission, info.preset, meter);
       this.engine.sprites = s;
     },
     /** Per-mission loading: decode this mission's SFX and voice packs, evict the rest (§1.5.0). */

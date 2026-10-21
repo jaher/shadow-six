@@ -25,19 +25,23 @@ export class SpriteSource {
 
   /**
    * Load a mission's sprite index + group buffers (3 fetches, in parallel). Never rejects.
-   * @param {string} mission @param {string} preset @returns {Promise<boolean>} true when any group loaded
+   * @param {string} mission @param {string} preset
+   * @param {import('../engine/download-meter.js').DownloadMeter} [meter] live download figures: the index
+   *   announces the groups' exact sizes into the meter's total; each group's bytes are counted as it lands
+   * @returns {Promise<boolean>} true when any group loaded
    */
-  open(mission, preset) {
+  open(mission, preset, meter) {
     this.ready = (async () => {
       try {
         const r = await fetch(`${PACKS_URL}${preset}-${mission}-audio.json`);
         if (!r.ok) return false;
         const idx = await r.json();
         this.entries = new Map(Object.entries(idx.entries || {}));
+        if (meter) { let tot = 0; for (const s of Object.values(idx.sprites || {})) tot += s.bytes || 0; meter.addTotal(tot); }
         await Promise.all(Object.entries(idx.sprites || {}).map(async ([group, s]) => {
           try {
             const rr = await fetch(PACKS_URL + s.file);
-            if (rr.ok) this.groups.set(group, await rr.arrayBuffer());
+            if (rr.ok) { const ab = await rr.arrayBuffer(); this.groups.set(group, ab); meter?.add(ab.byteLength); }
           } catch { /* that group misses; its clips fetch individually */ }
         }));
         return this.groups.size > 0;

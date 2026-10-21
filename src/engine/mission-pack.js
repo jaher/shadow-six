@@ -121,13 +121,16 @@ class MissionPack {
  * Fetch and install a mission's pack. Resolves to the pack, or null when packs are off / not built / failed —
  * the caller loads either way (every asset then falls back to its own request).
  * @param {string} mission @param {string} preset @param {(frac: number) => void} [onProgress] download progress 0..1
+ * @param {import('./download-meter.js').DownloadMeter} [meter] live download figures: exact streamed bytes
+ *   and the parts' exact sizes are counted into it as they arrive (the loading screen's numbers)
  */
-export async function openMissionPack(mission, preset, onProgress) {
+export async function openMissionPack(mission, preset, onProgress, meter) {
   install();
   closeMissionPack();
   if (PACKS_OFF || !realFetch) return null;
   const meta = PACK_CATALOG.packs?.[`${preset}-${mission}`];
   if (!meta?.parts?.length) return null; // not built for this deployment: no probe, the load is as it was
+  if (meter) meter.active = true; // the load progress now reports this meter's exact counters
   try {
     const parts = meta.parts;
     // fetch the parts in parallel; each part is assembled from its stream with a frame yield every ~8 MB, so
@@ -139,17 +142,23 @@ export async function openMissionPack(mission, preset, onProgress) {
       if (!res.ok) throw new Error(`part ${name}: HTTP ${res.status}`);
       const chunks = [];
       let got = 0;
+      // the part's exact size joins the meter's total as soon as its headers land (its length at the end
+      // when the server sent no Content-Length)
+      let totalCounted = false;
+      const cl = Number(res.headers.get('Content-Length')) || 0;
+      if (meter && cl > 0) { meter.addTotal(cl); totalCounted = true; }
       if (res.body?.getReader) {
         const reader = res.body.getReader();
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
-          chunks.push(value); got += value.length; streamed += value.length; report();
+          chunks.push(value); got += value.length; streamed += value.length; meter?.add(value.length); report();
         }
       } else {
         const ab = await res.arrayBuffer();
-        chunks.push(new Uint8Array(ab)); got = ab.byteLength; streamed += got; report();
+        chunks.push(new Uint8Array(ab)); got = ab.byteLength; streamed += got; meter?.add(got); report();
       }
+      if (meter && !totalCounted) meter.addTotal(got);
       const buf = new ArrayBuffer(got);
       const dst = new Uint8Array(buf);
       let off = 0, sinceYield = 0;
@@ -167,6 +176,7 @@ export async function openMissionPack(mission, preset, onProgress) {
     current = new MissionPack(meta, bufs, index);
     return current;
   } catch (err) {
+    if (meter) meter.active = false; // the load fell back to files: the observer's figures take over again
     console.warn(`[packs] ${preset}-${mission} unavailable, loading files individually:`, err?.message || err);
     return null;
   }
