@@ -12,6 +12,7 @@ import { installTestApi } from './debug/test-api.js';
 import { hasQuickSave } from './save.js';
 import { installDebugMode } from './debug/debug-mode.js';
 import { installOfflineCache } from './engine/offline-cache.js';
+import { installDeployCheck } from './engine/deploy-check.js';
 import { PRESET_CHOSEN_KEY, bootPreset, gpuName, mobilePreset } from './engine/device.js';
 import { touchFirst } from './ui/touch.js';
 import { loadOptions } from './ui/ui-config.js';
@@ -142,6 +143,7 @@ async function boot() {
     showTitle: () => { buildTitle(game); showScreen('title'); },
   });
   installOfflineCache(game); // web build: keep the downloaded mission in the service worker cache
+  if (!TEST) installDeployCheck(); // web build: a deploy that landed since this page loaded reloads it onto the new build (once)
 
   // docs/menus-art-direction.md S01/S03: the HUD boot plays the disclaimer + ident while assets preload, then the
   // title splash's brass rule shows the rest of the preload and turns into PRESS ANY KEY.
