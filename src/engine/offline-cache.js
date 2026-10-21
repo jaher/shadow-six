@@ -3,9 +3,8 @@
  * asset in Cache Storage; this module tells it what to keep and when:
  *
  * - after a mission loads: `cache-urls` with every asset this page fetched (the first visit loads the title screen and
- *   the first mission before the worker controls the page, so those would otherwise stay uncached);
- * - when idle after that: `prefetch` of the next two campaign missions, in order (assets/mission-assets.json, written
- *   by tools/perf/measure-load.mjs --budget), unless the connection is metered / data-saver / 2G or storage is short;
+ *   the first mission before the worker controls the page, so those would otherwise stay uncached). Only the mission
+ *   being played is ever cached — no assets are downloaded ahead for any other mission;
  * - `navigator.storage.persist()` once, so the browser does not evict the download under storage pressure;
  * - Options → CLEAR CACHED GAME DATA: `clearCachedGameData()` (Cache Storage + the in-memory session cache).
  *
@@ -13,7 +12,6 @@
  * @module engine/offline-cache
  */
 import { sessionCache } from './asset-cache.js';
-import { audioExt } from '../audio/formats.js';
 
 const nav = () => (typeof navigator !== 'undefined' ? navigator : null);
 const SITE = () => new URL('../../', import.meta.url).href; // site root (dev: repo root; build: rewritten by esbuild-plugin)
@@ -50,48 +48,6 @@ export function cacheLoadedAssets() {
   return urls.length ? post({ type: 'cache-urls', urls }) : Promise.resolve(null);
 }
 
-/** May we download ahead? No on data-saver, 2G or a cellular (metered) connection. */
-export function canPrefetch(n = nav()) {
-  const c = n?.connection;
-  if (!c) return true;
-  if (c.saveData) return false;
-  if (/(^|-)2g$/.test(c.effectiveType || '')) return false;
-  return c.type !== 'cellular';
-}
-
-let listP = null;
-/** assets/mission-assets.json: {presets: {high: {m01: [site-relative urls]}}} (null when missing). */
-export function missionAssetLists() {
-  if (typeof fetch !== 'function') return Promise.resolve(null);
-  listP ||= fetch(new URL('assets/mission-assets.json', SITE()).href).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-  return listP;
-}
-
-/** Asset URLs a mission loads at a preset (falls back to the closest preset recorded). */
-export function missionUrls(lists, id, preset = 'high', site = SITE()) {
-  const P = lists?.presets || {};
-  const alt = preset === 'ultra' || preset === 'medium' ? 'high' : preset;
-  const rel = P[preset]?.[id] || P[alt]?.[id] || P.high?.[id] || null;
-  // the lists name the Opus files: a WebKit browser downloads their AAC twins instead (audio/formats.js)
-  const ext = audioExt();
-  return rel ? rel.map((r) => new URL(ext !== '.ogg' && /^assets\/audio\/.+\.ogg$/.test(r) ? r.slice(0, -4) + ext : r, site).href) : [];
-}
-
-/**
- * Download a mission's assets into the worker cache in the background (low priority).
- * @returns {Promise<{total:number, fetched:number}|null>} null when skipped
- */
-export async function prefetchMission(id, preset) {
-  if (!id || !swActive() || !canPrefetch()) return null;
-  const urls = missionUrls(await missionAssetLists(), id, preset);
-  if (!urls.length) return null;
-  try { // leave room: skip when the origin is within ~250 MB of its quota
-    const est = await nav()?.storage?.estimate?.();
-    if (est?.quota && est.quota - (est.usage || 0) < 250e6) return null;
-  } catch { /* no estimate: go ahead */ }
-  return post({ type: 'prefetch', urls }, 600000);
-}
-
 let persistAsked = false;
 /** Ask once per page for persistent storage. @returns {Promise<boolean|null>} */
 export async function requestPersistence() {
@@ -109,7 +65,6 @@ export async function requestPersistence() {
 export async function clearCachedGameData({ keepMission = null } = {}) {
   if (keepMission == null) sessionCache.clear();
   else sessionCache.keepOnly(keepMission);
-  listP = null;
   if (typeof caches === 'undefined') return 0;
   let n = 0;
   for (const k of await caches.keys()) if (/^ss-/.test(k) && (await caches.delete(k))) n++;
@@ -124,36 +79,18 @@ export async function cacheStatus() {
   return { usage: est?.usage ?? null, quota: est?.quota ?? null, assets: st?.assets ?? null, version: st?.version ?? null, worker: swActive(), memory: sessionCache.stats() };
 }
 
-/** Campaign missions after `id`, `n` deep (flow.nextMissionId chain). */
-export function upcomingMissions(flow, id, n = 2) {
-  const out = [];
-  for (let m = id; out.length < n;) {
-    m = flow?.nextMissionId?.(m);
-    if (!m || out.includes(m)) break;
-    out.push(m);
-  }
-  return out;
-}
-
 /**
- * Wire to the game: after each mission load (when the page is idle) store the loaded assets, ask for persistence,
- * then prefetch the next `o.lookahead` (default 2) campaign missions one after another, so the one after next is warm
- * too. A newer mission load stops the chain (it starts its own). @returns {() => void} unsubscribe
+ * Wire to the game: after each mission load (when the page is idle) store the assets that mission loaded and ask
+ * for persistence. Nothing is ever fetched for another mission. @returns {() => void} unsubscribe
  */
 export function installOfflineCache(game, o = {}) {
   const idle = o.idle || ((fn) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(fn, { timeout: 8000 }) : setTimeout(fn, 3000)));
-  const active = o.active || swActive, prefetch = o.prefetch || prefetchMission, store = o.store || cacheLoadedAssets;
-  let gen = 0;
-  return game.events.on('mission:loaded', ({ mission }) => {
+  const active = o.active || swActive, store = o.store || cacheLoadedAssets;
+  return game.events.on('mission:loaded', () => {
     if (!active()) return;
-    const my = ++gen;
     idle(async () => {
       await store();
       requestPersistence();
-      for (const id of upcomingMissions(game.flow, mission?.id, o.lookahead ?? 2)) {
-        if (my !== gen) return; // the player moved on: that load prefetches from where they are now
-        if (!(await prefetch(id, game.renderer?.presetName))) return; // skipped (metered, storage short, no list)
-      }
     });
   });
 }

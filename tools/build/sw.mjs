@@ -12,7 +12,7 @@
  * - Code, HTML, CSS, JSON (`ss-code-<version>`, per build): network-first, so they are never stale; this build's copy
  *   is only the offline fallback. Older builds' code caches are deleted on activate.
  * - Messages from the page (engine/offline-cache.js): `cache-urls` stores assets the page loaded before the worker
- *   controlled it; `prefetch` stores a mission ahead at low priority; `status` reports the cached asset count.
+ *   controlled it (only ever the mission being played); `status` reports the cached asset count.
  */
 import { createHash } from 'node:crypto';
 import { readdir, readFile, writeFile } from 'node:fs/promises';
@@ -157,16 +157,15 @@ self.addEventListener('fetch', (e) => {
   if (isAsset(rel)) return e.respondWith(asset(e, rel));
   if (req.mode === 'navigate' || /\\.(html|js|mjs|css|json|wasm)$/.test(rel)) return e.respondWith(code(req));
 });
-/** Page messages: cache-urls (what this page already loaded) / prefetch (a mission ahead, low priority) / status. */
+/** Page messages: cache-urls (what this page already loaded) / status. */
 self.addEventListener('message', (e) => {
   const d = e.data || {}, port = e.ports && e.ports[0];
   const reply = (m) => { try { port ? port.postMessage(m) : e.source && e.source.postMessage(m); } catch {} };
-  if (d.type === 'cache-urls' || d.type === 'prefetch') {
+  if (d.type === 'cache-urls') {
     const urls = (d.urls || []).filter((u) => typeof u === 'string' && u.startsWith(SCOPE));
-    const init = d.type === 'prefetch' ? { priority: 'low' } : undefined;
     e.waitUntil((async () => {
       let fetched = 0, i = 0;
-      const worker = async () => { while (i < urls.length) { const u = urls[i++]; try { if (await store(u, init)) fetched++; } catch {} } };
+      const worker = async () => { while (i < urls.length) { const u = urls[i++]; try { if (await store(u)) fetched++; } catch {} } };
       await Promise.all([worker(), worker(), worker()]);
       reply({ type: d.type, id: d.id, total: urls.length, fetched });
     })());

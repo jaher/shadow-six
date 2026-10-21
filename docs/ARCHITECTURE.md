@@ -1105,10 +1105,7 @@ Two layers, both generic (keyed by URL / asset id / content signature, never per
   never sit under a new key. HTML, JS, CSS, JSON: network-first with `ss-code-<version>` as the offline fallback (older
   builds' code caches are deleted on activate). Page side (`installOfflineCache(game)`, main.js): after each
   `mission:loaded`, when idle, `cache-urls` (everything the page fetched, incl. what loaded before the worker took
-  control), `navigator.storage.persist()` once, then `prefetch` of the next two campaign missions in order
-  (`upcomingMissions`, the `flow.nextMissionId()` chain; a newer mission load stops the chain) from
-  `assets/mission-assets.json` (written by `tools/perf/measure-load.mjs --budget`) unless data-saver / 2G / cellular
-  or < 250 MB of quota is left. OPTIONS → CLEAR CACHED GAME DATA → `clearCachedGameData()` (Cache Storage + the
+  control), `navigator.storage.persist()` once. Only the mission being played is cached — no assets are downloaded ahead for other missions. OPTIONS → CLEAR CACHED GAME DATA → `clearCachedGameData()` (Cache Storage + the
   in-memory cache, except what the mission on screen uses; `sessionCache.keepOnly(id)` also forgets the other missions,
   so their next load is cold). Measure: `node tools/perf/measure-restart.mjs` (dist,
   throttled link shared with the worker, Pages cache headers). Tests: `tests/unit/asset-cache.test.mjs`,

@@ -12,7 +12,6 @@ import { MockAudioContext } from './audio-mock.mjs';
 import { isWebKit, prefersOpus, pickAudio, aacTwin, setAudioExt, audioExt } from '../../src/audio/formats.js';
 import { ChunkCue, StreamVoice, STREAM_AHEAD } from '../../src/audio/music-stream.js';
 import { AudioEngine, LATE_DROP, lazySfx } from '../../src/audio/engine.js';
-import { missionUrls } from '../../src/engine/offline-cache.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../../assets/audio');
 const walk = (d, rel = '') => readdirSync(d, { withFileTypes: true }).flatMap((f) => (f.isDirectory() ? walk(join(d, f.name), `${rel}${f.name}/`) : [`${rel}${f.name}`]));
@@ -38,12 +37,6 @@ test('formats: WebKit (Safari, every iOS browser, iPadOS) gets AAC, the others O
   setAudioExt('.ogg');
   assert.equal(pickAudio(['a/x.ogg', 'a/x.m4a'], 'sfx/'), 'sfx/a/x.ogg');
   assert.equal(aacTwin('voice/a.ogg'), 'voice/a.m4a');
-  // the next-mission prefetch (service worker) downloads the client's format only
-  const L = { presets: { high: { m01: ['assets/audio/sfx/a.ogg', 'assets/models/b.glb'] } } };
-  setAudioExt('.m4a');
-  assert.deepEqual(missionUrls(L, 'm01', 'high', 'https://x/'), ['https://x/assets/audio/sfx/a.m4a', 'https://x/assets/models/b.glb']);
-  setAudioExt('.ogg');
-  assert.deepEqual(missionUrls(L, 'm01', 'high', 'https://x/'), ['https://x/assets/audio/sfx/a.ogg', 'https://x/assets/models/b.glb']);
   assert.equal(audioExt(), '.ogg');
 });
 

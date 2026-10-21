@@ -151,7 +151,6 @@ export function installTestApi(game) {
       stats: () => sessionCache.stats(),
       cacheLoadedAssets: () => Offline.cacheLoadedAssets(),
       status: () => Offline.cacheStatus(),
-      prefetch: (id, preset) => Offline.prefetchMission(id, preset),
       clear: (o) => Offline.clearCachedGameData(o),
     },
     renderStats: () => game.renderer.stats?.(),

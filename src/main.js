@@ -141,7 +141,7 @@ async function boot() {
     startMission: (id) => startMission(game, id).then(() => !!game.world),
     showTitle: () => { buildTitle(game); showScreen('title'); },
   });
-  installOfflineCache(game); // web build: keep the downloaded mission in the service worker cache, prefetch the next
+  installOfflineCache(game); // web build: keep the downloaded mission in the service worker cache
 
   // docs/menus-art-direction.md S01/S03: the HUD boot plays the disclaimer + ident while assets preload, then the
   // title splash's brass rule shows the rest of the preload and turns into PRESS ANY KEY.

@@ -7,7 +7,7 @@ import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 import { test, assert } from './lib.mjs';
 import { writeServiceWorker } from '../../tools/build/sw.mjs';
-import { canPrefetch, missionUrls, upcomingMissions, installOfflineCache } from '../../src/engine/offline-cache.js';
+import { installOfflineCache } from '../../src/engine/offline-cache.js';
 
 const SCOPE = 'https://x.test/shadow-six/';
 
@@ -109,11 +109,11 @@ test('sw: a deploy while the browser still holds the old file fresh never stores
     await writeServiceWorker(dir, { short: 'v2' });
     sw = await boot(st);
     assert.equal(await (await sw.get('assets/b.jpg')).text(), 'B2', 'a miss revalidates: the new file at once');
-    const r = await sw.post({ type: 'prefetch', id: 1, urls: [SCOPE + 'assets/c.ogg', SCOPE + 'assets/a.glb'] });
-    assert.deepEqual([r.total, r.fetched], [2, 1], 'prefetch: only the changed file');
+    const r = await sw.post({ type: 'cache-urls', id: 1, urls: [SCOPE + 'assets/c.ogg', SCOPE + 'assets/a.glb'] });
+    assert.deepEqual([r.total, r.fetched], [2, 1], 'cache-urls: only the changed file');
     st.http.clear(); st.dir = null; // the HTTP cache expires, then offline: only the worker's copies are left
     assert.equal(await (await sw.get('assets/b.jpg')).text(), 'B2', 'the worker kept the new bytes');
-    assert.equal(await (await sw.get('assets/c.ogg')).text(), 'C2', 'prefetch stored the new bytes');
+    assert.equal(await (await sw.get('assets/c.ogg')).text(), 'C2', 'cache-urls stored the new bytes');
     assert.equal(await (await sw.get('assets/a.glb')).text(), 'AAA', 'unchanged file kept across the deploy');
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
@@ -177,48 +177,16 @@ test('sw: a Range request is answered from the cached file', async () => {
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('offline-cache: prefetch policy and mission lists', () => {
-  assert.equal(canPrefetch({}), true);
-  assert.equal(canPrefetch({ connection: { saveData: true } }), false);
-  assert.equal(canPrefetch({ connection: { effectiveType: '2g' } }), false);
-  assert.equal(canPrefetch({ connection: { effectiveType: 'slow-2g' } }), false);
-  assert.equal(canPrefetch({ connection: { type: 'cellular', effectiveType: '4g' } }), false);
-  assert.equal(canPrefetch({ connection: { type: 'wifi', effectiveType: '4g' } }), true);
-  const L = { presets: { high: { m02: ['assets/a.glb'] }, low: { m02: ['assets/a_512.glb'] } } };
-  assert.deepEqual(missionUrls(L, 'm02', 'low', SCOPE), [SCOPE + 'assets/a_512.glb']);
-  assert.deepEqual(missionUrls(L, 'm02', 'ultra', SCOPE), [SCOPE + 'assets/a.glb'], 'ultra falls back to high');
-  assert.deepEqual(missionUrls(L, 'm09', 'high', SCOPE), []);
-  assert.deepEqual(missionUrls(null, 'm02', 'high', SCOPE), []);
-});
-
-test('offline-cache: after a load, prefetch the next two missions in order; a newer load stops the chain', async () => {
-  const ids = ['m00', 'm01', 'm02', 'm03'];
-  const flow = { nextMissionId: (id) => ids[ids.indexOf(id) + 1] || null };
-  assert.deepEqual(upcomingMissions(flow, 'm01'), ['m02', 'm03']);
-  assert.deepEqual(upcomingMissions(flow, 'm02', 2), ['m03'], 'campaign end');
-  assert.deepEqual(upcomingMissions(flow, 'm03'), []);
-  const handlers = [], idle = [], got = [];
-  let release = null, hold = false;
-  const game = { flow, renderer: { presetName: 'high' }, events: { on: (_t, f) => { handlers.push(f); return () => {}; } } };
-  installOfflineCache(game, { active: () => true, idle: (fn) => idle.push(fn), store: async () => null,
-    prefetch: (id, preset) => { got.push(id + ':' + preset); return hold && id === 'm02' ? new Promise((ok) => { release = ok; }) : Promise.resolve({ total: 1, fetched: 1 }); } });
-  handlers[0]({ mission: { id: 'm00' } });
-  await idle.shift()();
-  assert.deepEqual(got, ['m01:high', 'm02:high'], 'next, then the one after');
-  got.length = 0; hold = true;
+test('offline-cache: after a load, store the loaded assets when idle (nothing for other missions)', async () => {
+  const handlers = [], idle = [];
+  let stored = 0;
+  const game = { events: { on: (_t, f) => { handlers.push(f); return () => {}; } } };
+  installOfflineCache(game, { active: () => true, idle: (fn) => idle.push(fn), store: async () => { stored++; return null; } });
   handlers[0]({ mission: { id: 'm01' } });
-  const run = idle.shift()();
-  await new Promise((ok) => setTimeout(ok, 0));
-  assert.deepEqual(got, ['m02:high'], 'm02 in flight');
-  handlers[0]({ mission: { id: 'm02' } }); // the player moved on before it finished
-  release({ total: 1, fetched: 1 });
-  await run;
-  assert.deepEqual(got, ['m02:high'], 'the old chain stops (no m03 from it)');
+  assert.equal(stored, 0, 'nothing stored before idle');
   await idle.shift()();
-  assert.deepEqual(got, ['m02:high', 'm03:high'], 'the new load prefetches from where the player is');
-  got.length = 0;
-  installOfflineCache({ ...game, events: { on: (_t, f) => { f({ mission: { id: 'm00' } }); return () => {}; } } },
-    { active: () => true, idle: (fn) => idle.push(fn), store: async () => null, prefetch: async (id) => { got.push(id); return null; } });
+  assert.equal(stored, 1, 'the loaded mission is stored once idle');
+  handlers[0]({ mission: { id: 'm02' } });
   await idle.shift()();
-  assert.deepEqual(got, ['m01'], 'a skipped prefetch (metered / storage) does not go further');
+  assert.equal(stored, 2, 'each load stores its own assets');
 });
