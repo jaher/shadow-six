@@ -16,6 +16,7 @@
 import { registerAbility, ABILITIES } from './registry.js';
 import { CONFIG } from '../config.js';
 import { freeToAct } from './common.js';
+import { dressOnBoard } from './spy.js';
 
 /** Everyone can ride; McRae is the BEL guest pilot (§3.5). */
 export const RIDER_ROLES = ['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy', 'mcrae', 'pilot', 'guest'];
@@ -206,7 +207,11 @@ registerAbility({
           world.events.emit('message', { text: `${commando.nickname || commando.role}: ${ok}.`, kind: 'warn', unit: commando });
           return 'failed';
         }
-        return vehicle.enter(commando, seat, door) ? 'done' : 'failed';
+        if (!vehicle.enter(commando, seat, door)) return 'failed';
+        // a closed cab conceals a change of clothes: the Spy who boards a land vehicle holding a uniform
+        // is in it from here on (abilities/spy.js dressOnBoard)
+        if (vehicle.vehicleKind === 'land') dressOnBoard(world, commando);
+        return 'done';
       },
       cancel() { queue(vehicle, commando, false); commando.stop(); },
     };

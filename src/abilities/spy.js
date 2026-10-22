@@ -109,6 +109,29 @@ export function dressIn(world, c, u) {
   return true;
 }
 
+/**
+ * Boarding a closed vehicle with a uniform in her kit (abilities/drive.js enterVehicle): she changes
+ * inside, as part of getting in (user 2026-10-21: "when the spy goes into the truck and it has the nazi
+ * clothes, it should jump in with those clothes"). The unseen rule on tryDress/dressIn guards changing
+ * in the open; the cab is not the open, so no cone check here — the same spend as U elsewhere: BEL the
+ * kit item is consumed, BCD the first wardrobe uniform goes on (the wardrobe itself is kept).
+ * @returns {boolean} dressed by this call
+ */
+export function dressOnBoard(world, c) {
+  if (c.role !== 'spy' || c.disguised) return false;
+  if (world.rules?.spyUniformFromCaptives) {
+    const u = wardrobeOf(c)[0];
+    if (!u) return false;
+    c.uniformType = u;
+    c.setDisguise(true);
+    return true;
+  }
+  if (!c.has('uniform')) return false;
+  c.loseItem('uniform');
+  c.setDisguise(true);
+  return true;
+}
+
 registerAbility({
   id: 'uniform', label: 'Uniform', icon: '🎖', hotkey: 'u', roles: ['spy'], item: 'uniform', targeting: 'self',
   order: 11, visibleToEnemies: true,
