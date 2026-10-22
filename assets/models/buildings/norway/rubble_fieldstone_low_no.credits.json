@@ -1,0 +1,106 @@
+{
+ "asset": "rubble_fieldstone_low_no",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "fieldstone": {
+   "source": "Poly Haven",
+   "id": "rustic_stone_wall",
+   "url": "https://polyhaven.com/a/rustic_stone_wall",
+   "authors": [
+    "Dimitrios Savva"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rustic Stone Wall",
+   "label": "Fieldstone rubble wall, warm (Normandy)",
+   "files": {
+    "diff": {
+     "2k": "2k/fieldstone_diff",
+     "1k": "1k/fieldstone_diff"
+    },
+    "nor": {
+     "2k": "2k/fieldstone_nor",
+     "1k": "1k/fieldstone_nor"
+    },
+    "arm": {
+     "2k": "2k/fieldstone_arm",
+     "1k": "1k/fieldstone_arm"
+    }
+   }
+  },
+  "fieldstone_grey": {
+   "source": "Poly Haven",
+   "id": "stone_wall_04",
+   "url": "https://polyhaven.com/a/stone_wall_04",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Stone Wall 04",
+   "label": "Fieldstone rubble wall, grey (Norway/granite)",
+   "files": {
+    "diff": {
+     "2k": "2k/fieldstone_grey_diff",
+     "1k": "1k/fieldstone_grey_diff"
+    },
+    "nor": {
+     "2k": "2k/fieldstone_grey_nor",
+     "1k": "1k/fieldstone_grey_nor"
+    },
+    "arm": {
+     "2k": "2k/fieldstone_grey_arm",
+     "1k": "1k/fieldstone_grey_arm"
+    }
+   }
+  },
+  "gravel": {
+   "source": "Poly Haven",
+   "id": "gravel_road",
+   "url": "https://polyhaven.com/a/gravel_road",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Gravel Road",
+   "label": "Gravel road",
+   "files": {
+    "diff": {
+     "2k": "2k/gravel_diff",
+     "1k": "1k/gravel_diff"
+    },
+    "nor": {
+     "2k": "2k/gravel_nor",
+     "1k": "1k/gravel_nor"
+    },
+    "arm": {
+     "2k": "2k/gravel_arm",
+     "1k": "1k/gravel_arm"
+    }
+   }
+  },
+  "timber_tarred": {
+   "source": "Poly Haven",
+   "id": "dark_wooden_planks",
+   "url": "https://polyhaven.com/a/dark_wooden_planks",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Dark Wooden Planks",
+   "label": "Dark tarred timber",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_tarred_diff",
+     "1k": "1k/timber_tarred_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_tarred_nor",
+     "1k": "1k/timber_tarred_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_tarred_arm",
+     "1k": "1k/timber_tarred_arm"
+    }
+   }
+  }
+ }
+}

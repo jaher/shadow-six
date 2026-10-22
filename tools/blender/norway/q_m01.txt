@@ -1,0 +1,12 @@
+# M1 Sola art pass (manifest-sola.json): scripts/sola.py -- <outroot> <variant> <seed> [snow]
+sola.py relay 1
+sola.py relay 1 snow
+sola.py relayd 1
+sola.py stabbur 2
+sola.py stabbur 2 snow
+sola.py lumber 3
+sola.py lumber 3 snow
+sola.py rubble 4
+sola.py rubble 4 snow
+# ship: consolidate/addon_manifest.py <art_root> <repo> manifest-sola norway relay_station_no=relay_station_no stabbur_no=stabbur_no timber_stack_no=timber_stack_no rubble_fieldstone_low_no=rubble_fieldstone_low_no
+#       then set snowVariant / destroyedVariant on the intact entries (addon_manifest does not) and gzip-wrap the GLBs

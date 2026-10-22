@@ -95,12 +95,15 @@ const RIGS = [rig('rig_w', 30.5, 89), { ...rig('rig_e', 95, 81.5), rot: deg(5.7)
 /** Loose explosive drums (§3.8 row 11: five on site): two at the camp's S edge, three by rig_ne. */
 const drum = (id, x, z, extra = {}) => ({ id, type: 'barrels', variant: 'fuel_explosive', x, z, r: 0.3, h: 0.9, explosive: 'barrel', carriable: true, destructible: true, hp: 1, ...extra });
 const BARRELS = [drum('brl_s1', 35, 150), drum('brl_s2', 37.7, 150), drum('brl_q1', 94.2, 36), drum('brl_q2', 95.2, 37), drum('brl_q3', 95, 41.5)];
-/** The quarry's two white process tanks: a round or a blast bursts them like a barrel (fallback for rig_nw, §12 #23). */
-const qTank = (id, x, z) => ({ id, type: 'barrels', variant: 'oil_tanks_vertical', label: 'Oil tank', x, z, rot: 0, r: 1.75, h: 7,
-  explosive: 'barrel', carriable: false, destructible: true, hp: 1 });
-/** The yard's three tanks (inert: an explosive one 5.6 m from rig_w would break the 3-charge budget, §5.4). */
+/** The quarry's two white process tanks: a round or a blast bursts them like a barrel (fallback for rig_nw, §12 #23). The
+ * process tank model (its caged ladder up to the roof landing: climbable, map-builder's explosive column), turned 40° so
+ * its pipe runs reach toward rig_nw clear of the rig's skid and of the tanker S of tank_q1 (clip audit). */
+const qTank = (id, x, z) => ({ id, type: 'barrels', variant: 'oil_tanks_vertical', label: 'Oil tank', x, z, rot: deg(-40), r: 1.75, h: 7,
+  explosive: 'barrel', carriable: false, destructible: true, hp: 1, asset: 'oil_tank_process_ms' });
+/** The yard's three tanks (inert: an explosive one 5.6 m from rig_w would break the 3-charge budget, §5.4). Their caged
+ * ladder goes up to a landing plate on the roof (the model's sidecar: a walkable landing + the ladder link). */
 const wTank = (id, x, z) => ({ id, type: 'fueltank', variant: 'oil_tanks_vertical', label: 'Oil tank', x, z, rot: 0, r: 1.75, h: 7, mat: 'whitePaint',
-  destructible: true, destroyedBy: ['explosion'], hp: 100, asset: 'oil_tank_process_ms', nav: false });
+  destructible: true, destroyedBy: ['explosion'], hp: 100, asset: 'oil_tank_process_ms' });
 
 // ---------------------------------------------------------------- buildings, walls, cover
 /** An enterable house; `door` is the world point [x, z] in front of its door (dossier §5; the door interactable). */
@@ -145,7 +148,9 @@ const STRUCTURES = [
   { id: 'bunker_c', type: 'flat_roof_house', variant: 'bunker_sandbag_timber', label: 'Bunker', x: 50.5, z: 61, rot: 0, w: 13, d: 8, h: ROOF_Y,
     roofY: ROOF_Y, roofWalk: true, mat: 'sandbag', flag: true, garrison: true, destructible: true, destroyedBy: ['explosion'], hp: 100, bombOnly: true, door: deg(90),
     asset: 'bunker_sandbag_timber_ms', nav: false },
-  RIGS[0], { ...wTank('tank_w1', 16, 87), artOffset: [0.5, 0.2] }, wTank('tank_w2', 22, 82), wTank('tank_w3', 28, 76), // tank_w1's model clear of the spur rock
+  // (tank_w1's model clear of the spur rock, and turned so its ladder comes down on the open ground S of it, not into the
+  // rock W of it: its pipework runs out N)
+  RIGS[0], { ...wTank('tank_w1', 16, 87), rot: deg(-90), artOffset: [0.5, 0.2] }, wTank('tank_w2', 22, 82), wTank('tank_w3', 28, 76),
   { id: 'windpump', type: 'radio_mast', variant: 'windpump', label: 'Wind pump', x: 39, z: 79, rot: 0, w: 3, d: 3, h: 9, block: 1, asset: 'windpump_ms', nav: false },
   flat('house_y', 'house_whitewash_flat', 40, 87, 10, 8, 4, [41.4, 91], -20),
   { id: 'dugout_y', type: 'hut', variant: 'dugout', label: 'Dugout', x: 62, z: 84.5, rot: 0, w: 4.5, d: 4, h: 2, mat: 'sandbag', enterable: true, door: [62, 86.6],

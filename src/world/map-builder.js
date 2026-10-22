@@ -1683,10 +1683,15 @@ export function* buildMapGen(world, mission, opts = {}) {
     // (the ladderless column: a barrel entity has no walk-grid ladder link, so a drawn ladder would lead nowhere)
     const colVis = column && meshes && ctx.library !== false ? buildStructure(s.variant === 'oil_tanks_vertical' && !s.asset ? { ...s, asset: 'oil_tank_column' } : s, ctx) : null;
     if (column) grid.fillCircle(s.x, s.z, s.r, 'block', B.HIGH, d.owner);
+    // (its model's ladder and roof landing — M11's process tanks: climbable as a fuel structure's are; the burst tank's
+    // wreck keeps them)
+    if (colVis?.library) applyLibraryNav(grid, [{ ...colVis, def: s, type: s.type, owner: d.owner }], mission, snapToSurface);
     const barrel = addIt(createInteractable({
       interactKind: 'barrel', id: s.id ?? null, x: s.x, z: s.z, variant: s.variant ?? null, hp: s.hp ?? 1,
       carriable: s.carriable !== false && !column, explosive: 'barrel', structure: s, owner: d.owner,
-      ...(colVis?.object3d ? { object3d: colVis.object3d, keepWreck: true } : {}),
+      // (the entity turns its model to its heading every frame, headingToRotY: the heading that keeps the model at the
+      // def's `rot`, as built — its pipe run toward the rig, its ladder where its nav link is)
+      ...(colVis?.object3d ? { object3d: colVis.object3d, keepWreck: true, heading: Math.PI / 2 + (s.rot ?? 0) } : {}),
     }, { meshes }));
     structures.set(s.id ?? `barrels#${d.owner - STRUCTURE_OWNER_BASE}`, { type: s.type, def: s, owner: d.owner, object3d: barrel.object3d, footprints: [], entity: barrel });
   }

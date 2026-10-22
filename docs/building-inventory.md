@@ -123,7 +123,7 @@ The working notes are in `scratchpad/notes/inv_mission.notes.md`, `inv_source.no
 | `sentry_box` | hut | Sentry box (guérite, `GARI`/`GARE`, tooltip `GUERITE`): 1-man upright box | All | M1 (end of the stone wall), M2 (gate), B5 (×12) | — | 1.2×1.2×2.4 | VAR:norway (guard hut) |
 | `jail_cell` | new | Small jail cell or cell block with a barred door. It can be a room in a building (`CARCEL`) | All | M4, M12 (off the courtyard), M17 (cage-type gate), B5 (×2), B7 (punishment cells `CELDAS_CASTIGO`) | J, dr | 6×4×3 | BUILT for M4 (`jail_guardhouse_no`, tarred log guardhouse, barred windows; `manifest-stokkan`) |
 | `comms_hut_antenna` | hut | Small communications hut cabled to a lattice antenna mast; in M9 the mast stands in a sandbag ring | N. Africa/Norway | M5 (antenna), M9 (**2 objectives**: mast and hut) | **D** | hut 4×3×3; mast 18 h | BUILT (M9 pass: `comms_hut_antenna_bq` board-and-batten hut, whips, S blast wall, generator, + destroyed) |
-| `relay_station` | hut | Timber radio relay hut with a tall lattice radio mast and a parked vehicle (`RADI0000-2`, `RADIOEXP`) | Norway | M1 (**objective**, NW island) | **D** | hut 5×4×3; mast 20 h | NEW |
+| `relay_station` | hut | Timber radio relay hut with a tall lattice radio mast and a parked vehicle (`RADI0000-2`, `RADIOEXP`) | Norway | M1 (**objective**, NW island) | **D** | hut 5×4×3; mast 20 h | `relay_station_no` (+ `_snow`, `_destroyed`; manifest-sola, M1 art pass) |
 | `radar_station` | new | Radar building with a Würzburg dish and antenna mast (`CASA04`) | Norway/Guernsey | M5 (summit, **objective**), B1 (**objective**) | **D** | bldg 10×6×4; dish 7.5 Ø | norway (building); VAR for the dish |
 | `hangar_metal` | hangar | Metal hangar with a corrugated gable roof | Desert/Germany | M10, B6 (×2, `CASA_HANGAR`) | E | 35×30×10 | military |
 | `control_tower_airfield` | new | Airfield control-tower building: brick, with a tower | Germany | B6 | E, R | 14×10×12 | NEW |
@@ -330,6 +330,9 @@ Each mission lists the §1 ids it needs, with counts. **Bold** marks an objectiv
   - `wall_drystone_leanto` ending in a `sentry_box`.
   - `pier_timber` ×2.
   - `mg_nest_sandbag`, `road_barrier`, `telegraph_pole`s.
+  - Art pass (M1): `stabbur_no` (farm storehouse on stilts by the house), `timber_stack_no` (the debris), the wall drawn by
+    `art/norway-walls.js`; set dressing: log piles, handcart, R75 combination, cable drum, a stockfish rack on the peninsula,
+    snow poles and a milestone on the coast road.
   - `bridge` ×3 (`PUEN` sprites; small stream bridges [WAD]).
 - **M2 A Quiet Blow-Up (Stamsund)** [i]:
   - `house_log_cabin` ×2 and several more inside the camp.

@@ -52,6 +52,30 @@ export default async function ladderClimb(page, t) {
       for (let i = 0; i < 3; i++) g.step();
       G.render(1 / 60, 1); // (a mission script's scenery is in: the ladders measured again)
       const w = G.world, grid = w.grid;
+      // every ladder a library model draws (its sidecar's ladders, 1.5 m up or more) has its walk-grid link at it — foot and
+      // top within 1.2 m: a tank's (the fuel family's, M11's process tanks) fails without one; any other is listed
+      const drawn = [];
+      {
+        const BL = await import('/src/art/building-library.js');
+        const objs = [];
+        G.renderer.scene.traverse((o) => { if (o.userData?.libraryAsset) objs.push(o); });
+        const v = new THREE.Vector3();
+        for (const outer of objs) {
+          const asset = outer.userData.libraryAsset, meta = BL.buildingMeta(asset);
+          const inner = outer.getObjectByName('fit')?.children[0]?.children[0];
+          if (!meta?.ladders?.some((l) => l.y >= 1.5) || !inner) continue;
+          outer.updateMatrixWorld(true);
+          const pt = (q) => { v.set(q[0], 0, q[1]).applyMatrix4(inner.matrixWorld); return [v.x, v.z]; };
+          const tank = (meta.types || [meta.type]).some((ty) => /^(fueltank|oil_tank_ms)$/.test(ty));
+          for (const l of meta.ladders) {
+            if (!(l.y >= 1.5)) continue;
+            const a = pt(l.a), b = pt(l.b);
+            const at = (p) => (L) => [L.a, L.b].some((e) => Math.hypot(e.x - p[0], e.z - p[1]) < 1.2);
+            const L = grid.links.find((q) => q.kind === 'ladder' && at(a)(q) && at(b)(q));
+            drawn.push({ asset, id: outer.name.replace(/^prop:/, ''), tank, link: L?.id ?? null, at: `(${a[0].toFixed(1)}, ${a[1].toFixed(1)}) → (${b[0].toFixed(1)}, ${b[1].toFixed(1)}, ${l.y} m)` });
+          }
+        }
+      }
       const clear = () => { for (const e of [...w.entities]) if (e.kind === 'enemy' || e.kind === 'commando' || e.kind === 'vehicle') w.remove(e); w.flushRemovals?.(); };
       clear();
       function frame() {
@@ -78,6 +102,13 @@ export default async function ladderClimb(page, t) {
       }
       G.render(1 / 60, 1); // (the lowered camp ladder drawn)
       const res = [...dead];
+      if (!only || only.split(',').includes(mis)) {
+        for (const d of drawn) {
+          if (d.link != null) res.push({ drawnInfo: `drawn ${mis} ${d.id} (${d.asset}) ${d.at}: link ${d.link}` });
+          else if (d.tank) res.push({ name: '-', lad: `${mis} ${d.id}`, src: 'drawn', ok: false, why: [`a tank's ladder drawn with no link (${d.asset} ${d.at})`], sum: {}, rung: 0, frames: 0 });
+          else res.push({ drawnInfo: `drawn ${mis} ${d.id} (${d.asset}) ${d.at}: no link (not a tank: listed)` });
+        }
+      }
       const climbers = (lad) => {
         const list = [['greenberet', () => new Commando({ role: 'greenberet', x: 0, z: 0 })]];
         if (mis === 'm08' && lad.L.id === 6) {
@@ -213,6 +244,7 @@ export default async function ladderClimb(page, t) {
       return res;
     }, { mis, only, ART });
     for (const x of r) {
+      if (x.drawnInfo) { t.log(x.drawnInfo); continue; }
       if (x.skip) { t.log(`skip ${x.lad} [${x.src}] ${x.name}: ${x.skip}`); out.push(x); continue; }
       t.log(`${x.ok ? 'ok  ' : 'FAIL'} ${x.lad} [${x.src}] ${x.name}: chest ${x.sum.chest} pelvis ${x.sum.pelvis} head ${x.sum.head} knee ${x.sum.knee} hand ${x.sum.hand95} foot ${x.sum.foot95} (${x.rung} on rungs)${x.clutter?.length ? ` (rubble at the foot: ${x.clutter.join('; ')})` : ''}${x.art ? ` (art: ${x.art})` : ''}${x.ok ? '' : ' — ' + x.why.join(' / ')}`);
       out.push(x);

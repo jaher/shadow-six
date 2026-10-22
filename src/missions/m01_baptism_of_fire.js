@@ -14,6 +14,22 @@ const deg = (d) => (d * Math.PI) / 180;
 /** Route point helper: look in degrees (kept in degrees; the brain converts). */
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (enemy-brain reads wp.look * DEG, §4.1)
 
+// ---------------------------------------------------------------- art pass: set dressing (visual and low cover, ≥ 1.5 m off
+// every route and every solution leg, ≥ 3 m off every post and start; authored on rule-clean spots: fixed)
+const logs = (id, x, z, r) => ({ id, type: 'crates', variant: 'log_pile', asset: 'log_pile_stack', x, z, rot: deg(r), w: 3, d: 1.5, h: 1, block: 1, fixed: true });
+const DRESSING = [
+  // the farm: its storehouse on stilts NE of the house, firewood against the house's E wall, a handcart by the stabbur
+  { id: 'stabbur', type: 'hut', variant: 'stabbur', asset: 'stabbur_no', x: 39.8, z: 108.5, rot: 0, w: 4, d: 3.5, h: 4.6, nav: false, fixed: true },
+  logs('logs_house', 36.6, 114, 90),
+  { id: 'cart_farm', type: 'crates', variant: 'handcart', asset: 'handcart_wood', x: 42.8, z: 104.8, rot: deg(200), w: 1.9, d: 1.4, h: 1, block: 1, fixed: true },
+  // the camp: cordwood by the small barracks, the despatch rider's BMW combination, signal stores by the relay track
+  logs('logs_camp', 13.5, 27.6, 0),
+  { id: 'moto_camp', type: 'crates', variant: 'vehicle_parked', label: 'Motorcycle', x: 36.5, z: 12.6, rot: deg(0), w: 2.4, d: 1.7, h: 1.1, block: 1, fixed: true, vehicleArt: 'r75_sidecar' },
+  { id: 'crates_camp', type: 'crates', variant: 'cable_drum', x: 8.6, z: 24.5, rot: 0, w: 1.3, d: 1.1, h: 1.3, block: 1, fixed: true },
+  // the peninsula: a stockfish rack (hjell) in the open field above the S shore
+  { id: 'rack_pen', type: 'crates', variant: 'fish_rack', asset: 'drying_rack_a', x: 55.5, z: 87.5, rot: 0, w: 10.4, d: 3.4, h: 4.7, block: 1, fixed: true },
+];
+
 export default {
   id: 'm01',
   campaign: 'BEL',
@@ -70,11 +86,16 @@ export default {
     { type: 'floodlight', x: 7.5, z: 20, rot: -0.6, block: false },
     { type: 'lamp', variant: 'wall_lamp', x: 15.05, z: 12, rot: 0, hooded: true, block: false },
     { type: 'sign', variant: 'fingerpost', x: 39.5, z: 35.5, rot: 0.6, text: 'SOLA 3 km', block: false },
+    // art pass: a milestone on the coast road and its snow poles (birch stakes marking the verges for the plough)
+    { type: 'milestone', x: 44.5, z: 131.6, rot: deg(-70), text: 'STAVANGER\n14 km', block: false },
+    ...[[2.2, 147.4], [6.9, 152.8], [15.3, 145.7], [14.9, 136.3], [19.8, 141.6], [23, 128.8], [27.9, 134.1], [32.1, 129], [30.1, 135.9],
+      [38.4, 130.4], [35.6, 137.1], [48.5, 134.6], [45.7, 141.3]].map(([x, z], k) => ({ type: 'snow_pole', x, z, rot: k * 1.3, block: false })),
   ],
   structures: [
     // --- north landmass: the relay station (objective) and the camp
     { id: 'relay_hut', type: 'hut', variant: 'relay_station', x: 12, z: 12, rot: 0, w: 6, d: 5, h: 3.5,
-      destructible: true, destroyedBy: ['explosion'], debris: true, fire: true, hp: 100 },
+      destructible: true, destroyedBy: ['explosion'], debris: true, fire: true, hp: 100,
+      asset: 'relay_station_no', nav: false }, // art pass: the signals hut (aerial, lead-in post, generator lean-to) and its blown twin
     { id: 'relay_mast', type: 'radio_mast', x: 16.08, z: 6.4, // legs clear of the hut's eaves (placement rule b)
       rot: 0, r: 0.5, h: 18, destructible: true, destroyedBy: ['explosion'], collapses: true, hp: 100 },
     // door to the N (rot 180°: its stoop and steps no longer stand in the alley between the two barracks, which a
@@ -91,13 +112,15 @@ export default {
     { id: 'house_s', type: 'house', variant: 'timber_2storey', x: 30.5, z: 113, rot: 0, w: 10, d: 8, h: 7, snowRoof: true, enterable: false },
     { id: 'wall_s', type: 'wall', variant: 'stone_plank_roof', points: [[25.5, 117], [21, 125], [17.5, 132]], width: 0.6, h: 1.8, climbable: true },
     { id: 'sbox', type: 'hut', variant: 'sentry_box', x: 16.5, z: 134, rot: deg(26.6), w: 1.6, d: 1.6, h: 2.4 },
-    { id: 'debris', type: 'crates', variant: 'timber_debris', x: 27, z: 127, rot: deg(30), w: 3, d: 2, h: 1, block: 1 },
-    { id: 'rubble', type: 'ruins', variant: 'rubble', x: 9.5, z: 150.5, rot: 0, w: 3.5, d: 2, h: 1.0, block: 1 },
+    { id: 'debris', type: 'crates', variant: 'timber_debris', x: 27, z: 127, rot: deg(30), w: 3, d: 2, h: 1, block: 1, asset: 'timber_stack_no' }, // art pass: a snowed-over plank stack
+    { id: 'rubble', type: 'ruins', variant: 'rubble', x: 9.5, z: 150.5, rot: 0, w: 3.5, d: 2, h: 1.0, block: 1, asset: 'rubble_fieldstone_low_no' }, // art pass: a tumbled byre corner
     { id: 'rocks_drv', type: 'rocks', x: 57, z: 150, rot: 0, w: 7, d: 4, h: 2.5 },
     { id: 'rocks_s1', type: 'rocks', x: 10, z: 166, rot: 0, w: 5, d: 3, h: 2 },
     { id: 'rocks_s2', type: 'rocks', x: 40, z: 164, rot: 0, w: 4, d: 3, h: 2 },
     { id: 'islet_1', type: 'rocks', x: 18, z: 72, rot: 0, w: 5, d: 4, h: 3 },
     { id: 'islet_2', type: 'rocks', x: 23, z: 78, rot: 0, w: 3, d: 3, h: 2 },
+    // art pass: the farm's stabbur (storehouse on stilts), set dressing (DRESSING below)
+    ...DRESSING,
     // telegraph poles along the road (wire spans between consecutive poles)
     ...[[6, 141], [20.13, 128.92], [36, 130], [50, 135], [62, 141]].map(([x, z], k) => ({ id: `pole_${k + 1}`, type: 'telegraph_pole', x, z, h: 7, wireTo: k < 4 ? `pole_${k + 2}` : null })),
     // pines (occluder r 0.8), unique seeds

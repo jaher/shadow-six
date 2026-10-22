@@ -60,7 +60,11 @@ export function propParts(type, o = {}) {
   else if (type === 'morris_column') morris(P);
   else if (type === 'crossing') crossing(P, o);
   else if (type === 'bollard') P.iron.push(lathe([[0, 0], [0.11, 0], [0.1, 0.1], [0.085, 0.75], [0.1, 0.8], [0.09, 0.86], [0.05, 0.9], [0, 0.91]], 14));
-  else if (type === 'milestone') {
+  // M1 art pass: a Norwegian road's snow pole (brøytestikk), a peeled birch stake with a twig tuft marking the verge for the plough
+  else if (type === 'snow_pole') {
+    P.wood.push(cyl(0.03, 0.02, 1.95, 0, 0, 0, 5));
+    for (const a of [0.5, 2.6, 4.4]) P.wood.push(cyl(0.006, 0.01, 0.34, 0, 0, 0, 3).rotateZ(0.5).rotateY(a).translate(0, 1.9, 0));
+  } else if (type === 'milestone') {
     P.white.push(box(0.4, 0.6, 0.22, 0, 0.3, 0), new THREE.CylinderGeometry(0.2, 0.2, 0.22, 12, 1, false, 0, Math.PI).rotateX(Math.PI / 2).rotateZ(Math.PI / 2).rotateY(Math.PI / 2).translate(0, 0.6, 0));
     P.red.push(new THREE.CylinderGeometry(0.205, 0.205, 0.225, 12, 1, false, 0, Math.PI).rotateX(Math.PI / 2).rotateZ(Math.PI / 2).rotateY(Math.PI / 2).scale(1, 0.7, 1).translate(0, 0.66, 0));
     P.sign.push(new THREE.PlaneGeometry(0.34, 0.3).translate(0, 0.33, 0.112));

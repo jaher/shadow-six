@@ -20,6 +20,8 @@ import { extendPolygonPastEdges } from '../world/edge-extend.js';
 import { scopedMemo, pendingTextureBytes } from '../engine/scoped-assets.js';
 import { MEDINA_GOODS_RX, buildMedinaGoods } from './medina-kit.js';
 import { ruinedStoneWall, whitewashedBlock } from './mine-walls.js';
+import { drystonePlankWall } from './norway-walls.js';
+import { brickDepotWall } from './depot-walls.js';
 import { loadCompressedTexture } from '../engine/texture-memory.js';
 import { addCableNode } from './cable-attach.js';
 
@@ -519,6 +521,10 @@ export function buildWall(points, o) {
   // M19 art pass (art/mine-walls.js): the field ruins' broken stone walls and the base's whitewashed concrete block
   if (o.variant === 'ruin_wall') return ruinedStoneWall(points, { ...o, h, width }, R);
   if (o.variant === 'whitewashed_concrete') return whitewashedBlock(points, { ...o, h, width }, R);
+  // M1 art pass (art/norway-walls.js): the south bank's dry-stone wall under its plank lean-to roof
+  if (o.variant === 'stone_plank_roof') return drystonePlankWall(points, { ...o, h, width }, R);
+  // M0 art pass (art/depot-walls.js): the sandbox depot's Flemish brick yard wall (pilasters, tarred plinth, blue-stone coping)
+  if (/^brick_depot(_wire)?$/.test(String(o.variant))) return brickDepotWall(points, { ...o, h, width }, R);
   if (/^mudbrick_broken$/.test(String(o.variant))) return ruinedMudWall(points, { ...o, h, width }, R); // M9 art pass: the broken stub
   // M9 art pass: the octagon; M10 art pass: the El Agheila compound walls (`wall_mudbrick`, `wall_mudbrick_wire`)
   if (/^(wall_)?mudbrick(_wire)?$/.test(String(o.variant))) return campMudWall(points, { ...o, h, width }, R);

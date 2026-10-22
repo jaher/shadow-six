@@ -68,8 +68,9 @@ def valve(p, axis=(1, 0, 0), r=0.08, name='valve'):
     K.part(bm, 'paint_metal', name=name + '_wheel', mat_tint=(0.62, 0.16, 0.12), grime=0.5, bisect=False)
 
 
-def cage_ladder(x, y, z0, z1, normal=(0, -1, 0), name='ladder', cage_from=2.2):
-    """Steel rung ladder against a structure with a safety cage from `cage_from` m up."""
+def cage_ladder(x, y, z0, z1, normal=(0, -1, 0), name='ladder', cage_from=2.2, rung_r=0.012):
+    """Steel rung ladder against a structure with a safety cage from `cage_from` m up (`rung_r`: the rungs' radius — a
+    ladder men climb in the game takes 0.02, a bar a boot stands on)."""
     n = V(normal).normalized()
     t = V((-n.y, n.x, 0))
     base = V((x, y, 0))
@@ -78,7 +79,7 @@ def cage_ladder(x, y, z0, z1, normal=(0, -1, 0), name='ladder', cage_from=2.2):
         C.cyl_bm(bm, base + t * 0.22 * s + V((0, 0, z0)), base + t * 0.22 * s + V((0, 0, z1 + 0.9)), 0.022, 5)
     z = z0 + 0.3
     while z < z1:
-        C.cyl_bm(bm, base - t * 0.22 + V((0, 0, z)), base + t * 0.22 + V((0, 0, z)), 0.012, 4)
+        C.cyl_bm(bm, base - t * 0.22 + V((0, 0, z)), base + t * 0.22 + V((0, 0, z)), rung_r, 6 if rung_r > 0.015 else 4)
         z += 0.3
     z = z0 + cage_from
     while z < z1 + 0.8:

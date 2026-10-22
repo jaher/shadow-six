@@ -23,6 +23,7 @@ export const WIRE_ALIASES = {
   concertina: 'concertina', wire_gun: 'concertina', concertina_hedgehog: 'triple_concertina', triple_concertina: 'triple_concertina',
   barbed_wire_hedgehog: 'hedgehog_belt', czech_hedgehog_wire: 'hedgehog_belt', hedgehog_belt: 'hedgehog_belt',
   palisade_wire: 'coping_bracket', wall_stone_zigzag: 'coping_bracket', coping_bracket: 'coping_bracket',
+  brick_depot_wire: 'coping_bracket', // M0 art pass: the depot's brick yard wall (art/depot-walls.js)
   mudbrick_wire: 'coping_concertina', wall_mudbrick_wire: 'coping_concertina', coping_concertina: 'coping_concertina',
   chainlink: 'chainlink', fence_chainlink: 'chainlink', electric: 'chainlink', square: 'chainlink', mesh_iron: 'chainlink',
   prisoner_cage: 'cage', wire_cage: 'cage', cage: 'cage',

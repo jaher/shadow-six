@@ -52,7 +52,7 @@ test('art m11: the Maradah add-on ships every LOD, sidecar and texture (and the 
     assert.deepEqual(m.types[t]?.variants, b.types[t]?.variants, `generic ${t} picks unchanged`);
 });
 
-test('art m11: every asset-picked structure takes its own build, fitted to the gameplay footprint (≤ 12 % per axis), nav its own', () => withLib(merged(), () => {
+test('art m11: every asset-picked structure takes its own build, fitted to the gameplay footprint (≤ 12 % per axis), nav its own (the process tanks: their ladder and landing)', () => withLib(merged(), () => {
   const seen = new Set();
   for (const s of m11.structures.filter((q) => q.asset)) {
     const pk = pick(s);
@@ -60,7 +60,9 @@ test('art m11: every asset-picked structure takes its own build, fitted to the g
     seen.add(pk.name);
     const e = pk.ext, w = s.w ?? 2 * s.r, d = s.d ?? 2 * s.r, [ew, ed] = pk.turn ? [e.d, e.w] : [e.w, e.d];
     assert.ok(Math.abs(Math.log(w / ew)) < 0.12 && Math.abs(Math.log(d / ed)) < 0.12, `${s.id}: ${pk.name} ${ew.toFixed(2)}×${ed.toFixed(2)} on ${w}×${d}`);
-    assert.equal(s.nav, false, `${s.id}: gameplay nav, not the build's`);
+    // (the process tanks take their build's nav: the caged ladder up to the roof landing — every drawn ladder climbable)
+    if (s.asset === 'oil_tank_process_ms') assert.notEqual(s.nav, false, `${s.id}: its build's ladder and landing`);
+    else assert.equal(s.nav, false, `${s.id}: gameplay nav, not the build's`);
   }
   for (const n of OWN.filter((x) => x !== 'oil_tank_process_ms' || m11.structures.some((s) => s.asset === x))) assert.ok(seen.has(n), `${n} used`);
   // the four rigs, the three garrisons and the yard tanks are the library's now (no procedural derrick / white box)
@@ -121,4 +123,20 @@ test('art m11: set dressing is visual only and clear of every route; decor vehic
   }
   assert.equal(byId('wreck_r').vehicleArt, 'opel_blitz_cargo');
   assert.equal(byId('wreck_r').wreck, true);
+});
+
+test('art m11: the process tank\'s caged ladder goes up to its roof landing (walkable, at the ladder\'s height, the ladder\'s top on it, the foot outside the shell)', () => {
+  const a = JSON.parse(readFileSync(P(`assets/models/buildings/${ADDON}.json`))).assets.oil_tank_process_ms;
+  const inPoly = (x, z, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, zi] = poly[i], [xj, zj] = poly[j]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c; } return c; };
+  assert.equal(a.walkableRoofs.length, 1, 'one landing');
+  const L = a.walkableRoofs[0], ring = a.footprints.find((f) => f.kind === 'tank').points;
+  const cx = ring.reduce((s, p) => s + p[0], 0) / ring.length, cz = ring.reduce((s, p) => s + p[1], 0) / ring.length;
+  const R = Math.max(...ring.map((p) => Math.hypot(p[0] - cx, p[1] - cz)));
+  assert.ok(L.elev > 7 && L.elev < 7.6 && L.kind === 'landing', `landing at ${L.elev}`);
+  assert.equal(a.ladders.length, 1, 'one ladder');
+  const l = a.ladders[0];
+  assert.ok(Math.abs(l.y - L.elev) < 0.01, 'the ladder ends at the landing\'s height');
+  assert.ok(inPoly(l.b[0], l.b[1], L.points), 'its top on the landing');
+  assert.ok(Math.hypot(l.a[0] - cx, l.a[1] - cz) > R + 0.6, 'its foot out in front of the ladder');
+  assert.ok(L.points.every((p) => Math.hypot(p[0] - cx, p[1] - cz) < R), 'the landing inside the shell\'s rim');
 });

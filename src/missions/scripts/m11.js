@@ -286,7 +286,8 @@ export function buildVisuals(world, spec) {
   // white vertical oil tanks they are (the drum mesh goes; the tank goes with the entity when it blows)
   for (const id of spec.tanks || []) {
     const b = world.byId?.(id);
-    if (!b?.object3d || b.object3d.userData.m11Tank) continue;
+    // (drawn as the library's process tank already — the mission def's `asset`, map-builder's column — with its nav)
+    if (!b?.object3d || b.object3d.userData.m11Tank || b.object3d.userData.libraryAsset) continue;
     b.object3d.clear();
     // M11 art pass: the library's process tank (`oil_tank_process_ms`); the procedural tank when it is not loaded
     const lib = libraryVisual('fueltank', { id, asset: 'oil_tank_process_ms', x: 0, z: 0, rot: 0, r: 1.75 }, { theater: 'desert', missionId: 'm11' });

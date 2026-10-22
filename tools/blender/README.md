@@ -63,6 +63,11 @@ switch to the library only for hinted variants; a hinted `sea_wall` tiles its 8 
   sod roof and a flat roof section, the fortified HQ block with its walkable roof at 6.5 m, each with a burnt-out
   `_destroyed` twin; `masi_small.py`: lean-to, burnt log house, long-case clock, wheeled Gatling, log pile, handcart). Own
   types only; M6 picks them by `asset`.
+- M1 (Sola, Stavanger; `manifest-sola.json`): `norway/q_m01.txt` lists the builds (`sola.py`: the Luftwaffe signals relay
+  hut, grey-green board-and-batten on a fieldstone plinth with a wire dipole between two ridge poles, a lead-in insulator post
+  towards the mast, blackout-shuttered windows, a HALT board and a petrol generator under a lean-to, and its blown twin
+  (aerial down, walls bitten, rafters bare); the farm's stabbur on stilts with rat stones and a free stair; a snowed-over plank
+  stack under a tarpaulin; the tumbled fieldstone corner of a byre by the road, knee to hip high). Own types only; M1 picks them by `asset` (the relay with `nav: false`).
 - M4 (Stokkan, Trondheim; `manifest-stokkan.json`): `norway/q_m04.txt` lists the builds (`stokkan.py`: the inner compound's
   granite gate arch (dressed piers, segmental voussoir arch with keystone, rubble spandrels, coping, lantern, HALT board) and
   its collapsed twin; three Norwegian fieldstone farm ruins (a broken wall with a window gap, an L-shaped and a U-shaped
