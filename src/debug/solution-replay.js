@@ -38,6 +38,8 @@ export const SPEEDS = Object.freeze([1, 2, 4, 8]);
 export const SELECT_GROUP_S = 0.35;
 /** Wall-clock ms of ticks per frame while fast-forwarding to a stage. */
 export const TURBO_MS = 90;
+/** Ms of queued cache fills (engine/idle-warm.js) a still screen's frame may run (at least one). */
+export const IDLE_WARM_MS = 8;
 /**
  * While fast-forwarding the view is drawn at most every TURBO_VIEW_MS (twice a second) — and never more often than
  * TURBO_VIEW_SHARE of the wall clock allows (a slow draw on a loaded machine spaces the next one out): the frames
@@ -236,8 +238,9 @@ export class SolutionReplay {
     this._viewMs = 0;
     g.frame = (dt) => {
       this._frame(dt);
-      // a still screen (video mode's title and chapter cards): one queued cache fill per frame (engine/idle-warm.js)
-      if (idleWarm.pending && this._stillScreen?.()) idleWarm.runOne();
+      // a still screen (video mode's title and chapter cards): queued cache fills (engine/idle-warm.js), ≥ 1 a frame and
+      // more while they take under IDLE_WARM_MS together (the title card warms a squad's ~150 fitted clips in a few s)
+      if (idleWarm.pending && this._stillScreen?.()) { const t0 = performance.now(); while (idleWarm.runOne() && idleWarm.pending && performance.now() - t0 < IDLE_WARM_MS); }
       // fast-forward: the view only every TURBO_VIEW_MS; the frames between just grant ticks (and wake the driver)
       this._viewDt += dt;
       const now = performance.now();

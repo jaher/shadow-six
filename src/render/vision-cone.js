@@ -441,7 +441,7 @@ export class VisionCone {
    * Refresh for `enemy` (call each frame while shown): this frame's window into the uniforms; the sector rebuilt only
    * when stale. @returns {boolean} rebuilt
    */
-  update(enemy = this.enemy, budget = null) {
+  update(enemy = this.enemy, budget = null, first = null) {
     if (!enemy) return false;
     const world = enemy.world || this.world || null;
     const grid = world?.grid || null;
@@ -454,15 +454,31 @@ export class VisionCone {
     u.apex.value.set(cone.x, cone.z); u.head.value = cone.heading; u.half.value = cone.halfFov; u.near.value = cone.near; u.far.value = cone.far;
     const gv = grid ? grid.version * 1e6 + (grid.dynamicVersion || 0) : -1;
     const reach = Math.max(cone.far, enemy.vision?.far ?? enemy.vision?.range ?? cone.far);
+    const inside = (s, a) => { const d = a - (s.a0 + s.a1) / 2; return Math.abs(d - TAU * Math.round(d / TAU)) <= (s.a1 - s.a0) / 2 + 1e-9; };
+    const off = (s) => s.gv !== gv || s.vy !== cone.vy || s.el !== cone.elevated || s.reach < reach - 1e-9
+      || Math.hypot(cone.x - s.x, cone.z - s.z) > MOVE_EPS || !inside(s, cone.heading - cone.halfFov) || !inside(s, cone.heading + cone.halfFov);
+    // back from VisionCones' parked pool: a sector that no longer fits him (he walked on, turned out of it, the grid
+    // changed) is built afresh as a first build — never shown riding along from where he stood when it was put away
+    if (this._unparked) { this._unparked = false; this._lastX = null; if (this._sector && off(this._sector)) { this._sector = null; this._job = null; } }
     const S = this._sector;
     // walking: the apex moved since the last frame (a budgeted walker's cone is built coarse until he stands still)
     const moving = this._lastX != null && Math.hypot(cone.x - this._lastX, cone.z - this._lastZ) > 1e-4;
     this._lastX = cone.x; this._lastZ = cone.z;
-    const inside = (a) => { const d = a - (S.a0 + S.a1) / 2; return Math.abs(d - TAU * Math.round(d / TAU)) <= (S.a1 - S.a0) / 2 + 1e-9; };
-    const stale = !S || S.gv !== gv || S.vy !== cone.vy || S.el !== cone.elevated || S.reach < reach - 1e-9
-      || Math.hypot(cone.x - S.x, cone.z - S.z) > MOVE_EPS || !inside(cone.heading - cone.halfFov) || !inside(cone.heading + cone.halfFov)
-      || (S.coarse && !moving); // settled: the exact sector
+    const stale = !S || off(S) || (S.coarse && !moving); // (settled: the exact sector)
     if (!stale) { this._job = null; this.group.position.set(cone.x - S.x, 0, cone.z - S.z); return false; }
+    if (!S && first) {
+      // a first build under VisionCones' `first` budget (the cones video mode shows for a step): spread over the next
+      // frames, the cone hidden until its sector lands — a cut to a new step no longer builds them all in one frame.
+      // A walker's is built coarse (as his rebuilds are while he walks); the exact one follows once he stands.
+      this.group.visible = false;
+      if (!this._job) this._job = this._buildSteps(enemy, cone, world, grid, gv, reach, !!(enemy.path || enemy.isMoving));
+      while (!first.steps || now() < first.until) { // (at least one step a frame overall)
+        first.steps = (first.steps || 0) + 1;
+        const r = this._job.next();
+        if (r.done) { this._job = null; this._finish(r.value, cone); this.group.visible = true; return true; }
+      }
+      return false;
+    }
     const coarse = !!budget && moving;
     if (!budget || !S) { // unbudgeted (tests, tools) or a cone's first build: at once
       this._job = null;
@@ -668,6 +684,11 @@ export class VisionCone {
 }
 let KEPT_CONE = null;
 
+/** VisionCones: the cones kept put away (hidden, built) at most. */
+const PARKED_MAX = 8;
+/** VisionCones: ms a frame for the first builds of the cones shown only because video mode forces them. */
+const FIRST_BUDGET_MS = 3;
+
 /**
  * Keeps the shown cone(s) in `scene` (Renderer.decalScene). BEL shows ONE cone at a time
  * (CONFIG.stealth.multiCone): turning a cone on (enemy.coneVisible = true, the eye button / click) hides the
@@ -682,8 +703,15 @@ export class VisionCones {
     this.world = world;
     this.scene = scene;
     this.opts = opts;
-    /** @type {Map<any, VisionCone>} */
+    /** @type {Map<any, VisionCone>} the shown cones */
     this.cones = new Map();
+    /**
+     * Cones put away (hidden, not disposed), most recently first out: a guard shown again soon — video mode cutting back
+     * and forth between steps, the player toggling between two guards — gets his built sector (and its ray cache) back
+     * instead of a whole build in that frame. At most PARKED_MAX; a dead or removed guard's goes at once.
+     * @type {Map<any, VisionCone>}
+     */
+    this.parked = new Map();
     /** Enemies whose cone is shown, oldest first. */
     this.shown = [];
     let dbg = false;
@@ -691,6 +719,8 @@ export class VisionCones {
     this.showAll = opts.showAll ?? dbg;
     /** Extra cones on show (debug video mode: the guards that matter to the step), or null. Drawing only. */
     this.forced = null;
+    /** A forced cone's first build is spread over frames (hidden until built); false: at once (the load's warm-up frame). */
+    this.deferForced = true;
     this.highlightUntil = new Map();
     this.probe = null;
     const offs = [
@@ -763,25 +793,45 @@ export class VisionCones {
     this._updateProbe();
     const t = w.time ?? 0;
     const shown = [];
+    const live = (e) => e.alive !== false && !e.removed && e.state !== 'dead' && !!e.vision && !e.incapacitated;
     for (const e of w.enemies) {
-      const show = (e.coneVisible || this.showAll || !!this.forced?.has(e)) && e.alive !== false && !e.removed && e.state !== 'dead' && !!e.vision && !e.incapacitated;
+      const own = e.coneVisible || this.showAll; // (the player's cone, a spotter's: built whole at once, as ever)
+      const show = (own || !!this.forced?.has(e)) && live(e);
       let cone = this.cones.get(e);
       if (show) {
+        if (!cone && (cone = this.parked.get(e))) { this.parked.delete(e); this.cones.set(e, cone); cone._unparked = true; }
         if (!cone) { cone = new VisionCone(e, w, this.opts); this.cones.set(e, cone); this.scene.add(cone.group); }
         cone.highlight = (this.highlightUntil.get(e) ?? -1) > t;
-        shown.push([e, cone]);
+        shown.push([e, cone, !own]);
       } else if (cone) {
-        cone.dispose();
         this.cones.delete(e);
+        if (live(e)) this._park(e, cone); else cone.dispose();
       }
     }
     // one frame budget (CONFIG.stealth.coneBudgetMs) for the sector rebuilds of the cones already built, taken round
-    // robin from a different cone each frame: a rebuild is spread over frames instead of a hitch (a cone's first build
-    // is whole, at once)
+    // robin from a different cone each frame: a rebuild is spread over frames instead of a hitch. A cone's first build
+    // is whole, at once — but for a cone shown only because video mode forces it (VisionCones.forced): those share a
+    // FIRST_BUDGET_MS budget a frame, each hidden until built (a cut to a step that shows three new guards built their
+    // ~10 ms sectors in one frame: the 45 ms frame of M3's walkthrough at t≈905)
     const budget = { until: now() + (this.opts.budgetMs ?? CONFIG.stealth.coneBudgetMs ?? 0.5), steps: 0 };
+    const first = { until: now() + (this.opts.firstBudgetMs ?? FIRST_BUDGET_MS), steps: 0 };
     const n = shown.length, r0 = n ? (this._rr = ((this._rr ?? -1) + 1) % n) : 0;
-    for (let k = 0; k < n; k++) { const [e, cone] = shown[(r0 + k) % n]; cone.update(e, budget); }
+    for (let k = 0; k < n; k++) { const [e, cone, defer] = shown[(r0 + k) % n]; cone.update(e, budget, defer && this.deferForced ? first : null); }
     for (const [e, cone] of this.cones) if (!w.enemies.includes(e)) { cone.dispose(); this.cones.delete(e); }
+    for (const [e, cone] of this.parked) if (!live(e) || !w.enemies.includes(e)) { cone.dispose(); this.parked.delete(e); }
+  }
+
+  /** Put a cone away (hidden, its sector kept: see `parked`); the oldest beyond PARKED_MAX is disposed. */
+  _park(e, cone) {
+    cone._job = null;
+    cone.group.visible = false;
+    this.parked.delete(e);
+    this.parked.set(e, cone);
+    while (this.parked.size > PARKED_MAX) {
+      const [old, c] = this.parked.entries().next().value;
+      this.parked.delete(old);
+      c.dispose();
+    }
   }
 
   dispose() {
@@ -789,6 +839,8 @@ export class VisionCones {
     this.clearProbe();
     for (const c of this.cones.values()) c.dispose();
     this.cones.clear();
+    for (const c of this.parked.values()) c.dispose();
+    this.parked.clear();
   }
 }
 

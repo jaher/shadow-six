@@ -19,6 +19,8 @@ import { createHumanoid } from './humanoid.js';
 import { CONFIG } from '../config.js';
 import * as HR from './humanoid-real.js';
 import { idleWarm } from '../engine/idle-warm.js';
+import { GROUND_CLIPS } from './characters/commandos_b/ground.js';
+import { GROUND_CLIPS as GUEST_GROUND_CLIPS } from './characters/guests/ground.js';
 import { applyRagdollPose, rememberIdle, captureBase, lyingBase } from './ragdoll-pose.js';
 import { liveView } from '../physics/ragdoll.js';
 import { mapAnim, LOCOMOTION, actionWeapon, CARRY_WEAPON, lookType, guestCharacter, missionNumber, chargeProp } from './unit-anim-map.js';
@@ -181,8 +183,12 @@ export function* warmUnitModelsG(units, budgetMs = 1200) {
   return work;
 }
 
-/** Clips whose first use fits them to the body (prone-fit.js) or grounds them (ground.js): 5–40 ms each. */
-const FITTED = (m) => !!(m && (m.prone || m.paths || m.ground));
+/** Clips whose first use fits them to the body (prone-fit.js) or grounds them (ground.js): 5–40 ms each — by their meta,
+ * and, in the runtimes that ground a clip by its name (commandos_b, guests: charkit `GROUND_CLIPS`), by name too: the
+ * Sapper's cut_wire / plant / set_trap, a knife's stab, a dig were left out and grounded mid-play (M3 t≈1520.9: the
+ * cutters' first use, ~20 ms in a tick). */
+const BY_NAME = { commandos_b: GROUND_CLIPS, guests: GUEST_GROUND_CLIPS };
+const FITTED = (m, name, runtime) => !!((m && (m.prone || m.paths || m.ground)) || BY_NAME[runtime]?.has(name));
 /** Clips seen first mid-play (M3's walkthrough): played early, so warmed first. */
 const EARLY_CLIPS = ['go_prone', 'crawl_idle_unarmed', 'crawl_unarmed', 'crawl_idle', 'crawl', 'prone_turn_r', 'prone_turn_l', 'get_up',
   'set_trap', 'cut_wire', 'take_charge', 'plant', 'prone_shoot', 'prone_aim', 'crawl_knife'];
@@ -205,16 +211,26 @@ export function queueIdleWarm(units) {
     idleWarm.add(label, () => R.hasAnim(name));
     n++;
   };
+  // (the squad's clips in the order play first needs them — EARLY_CLIPS for every man before the rest for any — then
+  // the Germans' prone deaths)
+  const squad = [];
   for (const u of units) {
     const R = u.model?.real;
     if (!R?.inner || u.model?.dog) continue;
     const lib = L.rt?.[R.entry?.runtime]?.lib;
     if (!lib?.clips) continue;
     if (u.faction === 'player') {
-      const names = [...lib.clips.keys()].filter((nm) => FITTED(lib.meta?.[nm]));
-      names.sort((a, b) => (EARLY_CLIPS.indexOf(a) + 1 || 99) - (EARLY_CLIPS.indexOf(b) + 1 || 99));
-      for (const nm of names) add(R, nm, `${u.role || u.id} ${nm}`);
-    } else for (const nm of ['die_prone', 'dead_prone']) if (lib.clips.has(nm)) add(R, nm, `${R.characterId} ${nm}`);
+      for (const nm of lib.clips.keys()) if (FITTED(lib.meta?.[nm], nm, R.entry?.runtime)) squad.push([EARLY_CLIPS.indexOf(nm) + 1 || 99, R, nm, `${u.role || u.id} ${nm}`]);
+    }
+  }
+  squad.sort((a, b) => a[0] - b[0]); // (stable: the men in their order within a rank)
+  for (const [, R, nm, label] of squad) add(R, nm, label);
+  for (const u of units) {
+    const R = u.model?.real;
+    if (!R?.inner || u.model?.dog || u.faction === 'player') continue;
+    const lib = L.rt?.[R.entry?.runtime]?.lib;
+    if (!lib?.clips) continue;
+    for (const nm of ['die_prone', 'dead_prone']) if (lib.clips.has(nm)) add(R, nm, `${R.characterId} ${nm}`);
   }
   return n;
 }

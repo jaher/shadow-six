@@ -14,11 +14,11 @@
  * Marine at the oars), so it runs on any mission with a raft or a rowboat.
  * @module tools/solutions/sneak
  */
-import { canSee as canSee0, coneAt, pointInCone } from '../../src/ai/perception.js';
+import { canSee as canSee0, coneAt, pointInCone, ellipseFar } from '../../src/ai/perception.js';
 import { CONFIG } from '../../src/config.js';
 import { T } from '../../src/world/grid.js';
 import { viewerFor } from '../../src/ai/vehicle-ai.js';
-import { goalReachableGen } from './driver.mjs';
+import { goalReachableGen, seesAnyHeads } from './driver.mjs';
 import { compileDashGen, routeFor } from './dash.mjs';
 
 /** A dash compile run the sliced way when the driver can (D.runSliced: the live replay keeps its frames), else through. */
@@ -31,6 +31,7 @@ function runDash(D, it) {
 let __verify = null;
 export function __setVerify(fn) { __verify = fn; }
 
+const TAU = Math.PI * 2; // (as perception.js: walkerSees works out a head's cone exactly as pointInCone does)
 const TURN = 3; // s: at a halt he turns to its look over a couple of seconds (until then he may face the way he came)
 
 /** The guards whose cones count (alive, seeing, not knocked out, reacting). */
@@ -357,7 +358,40 @@ function turnHeadings(q, w = null) {
  * head is tried at the predicted heading and at both ends of his sweep (and at the heading he came with, at a halt).
  */
 export function walkerSees(e, q, dummy, w, tAbs) {
-  return seesAny(walkerViews(e, q, w, tAbs), dummy, w);
+  const v = e.vision, a = v ? v.far ?? v.range : NaN, ratio = v?.ellipseRatio === undefined ? CONFIG.stealth.ellipseRatio : v.ellipseRatio;
+  if (e.vehEye || !(a > 0) || (v.elliptical && !(ratio > 0))) return seesAny(walkerViews(e, q, w, tAbs), dummy, w);
+  // (the same heads in the same order as walkerViews, each built — a viewer copy and its cone — only when the point lies
+  // in its cone, that cone's reach and aperture worked out first exactly as coneAt / pointInCone do for that head: most
+  // heads face elsewhere, and building every one was most of a look-ahead's time — M12's "way to the car", ~5 ms a tick)
+  const dx = dummy.x - q.x, dz = dummy.z - q.z, d2 = dx * dx + dz * dz;
+  // (past the longest reach any head has — an elliptical far a·b/√((b cos θ)² + (a sin θ)²) is at most max(a, b), give or
+  // take its rounding — no head's cone holds the point)
+  const R = (v.elliptical ? Math.max(a, a * ratio) : a) * (1 + 1e-9);
+  if (d2 > R * R) return false;
+  const { hds, offs } = headsOf(e, q, w, tAbs);
+  const half = v.fov / 2, bear = d2 > 1e-12 ? Math.atan2(dz, dx) : 0;
+  const far2 = offs.map((off) => { const f = v.elliptical ? ellipseFar(a, (off || 0) + 0, v.ellipseRatio) : a; return f * f; });
+  let maxOff = 0;
+  for (const off of offs) maxOff = Math.max(maxOff, Math.abs((off || 0) + 0));
+  const lim = half + maxOff + 1e-6;
+  for (const hd of hds) {
+    // (a body heading whose every head offset leaves the point outside the aperture: none of its heads can see it)
+    if (d2 > 1e-12) { let an = bear - hd; an -= TAU * Math.round(an / TAU); if (Math.abs(an) > lim) continue; } // (NaN: tried, as pointInCone would)
+    for (let k = 0; k < offs.length; k++) {
+      if (d2 > far2[k]) continue;
+      const off = offs[k];
+      if (d2 > 1e-12) {
+        let an = bear - (hd + ((off || 0) + 0));
+        an -= TAU * Math.round(an / TAU);
+        if (Math.abs(an) > half) continue;
+      }
+      const g = Object.create(e);
+      g.x = q.x; g.z = q.z; g.heading = hd; g.sweepActive = false; g.headOffset = off; g.headCarry = 0;
+      const cone = coneAt(g, tAbs);
+      if (pointInCone(cone, dummy.x, dummy.z) && canSee(g, dummy, w, { cone }) !== 'none') return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -368,6 +402,7 @@ export function walkerSees(e, q, dummy, w, tAbs) {
  */
 export function walkerViews(e, q, w, tAbs) {
   const L = [];
+  L._oneEye = true; // (seesAny: one guard at one eye)
   const add = (hd, off, sweepless) => {
     const g = Object.create(e);
     g.x = q.x; g.z = q.z; g.heading = hd;
@@ -378,6 +413,16 @@ export function walkerViews(e, q, w, tAbs) {
     for (const hd of q.alt != null ? [q.heading, q.alt] : [q.heading]) for (const dh of [0, 0.15, -0.15]) add(hd + dh, 0, false);
     return L;
   }
+  const { hds, offs } = headsOf(e, q, w, tAbs);
+  for (const hd of hds) for (const off of offs) add(hd, off, true);
+  return L;
+}
+
+/**
+ * The sweepless heads walkerViews tries for a man on foot: every body heading of `hds` with every head offset of `offs`
+ * (in that order: heading by heading).
+ */
+function headsOf(e, q, w, tAbs) {
   // a man walking his beat looks straight ahead (the brain sweeps his head only at a halt: patrolWatch); one walking
   // anywhere else, or halted, is tried at both ends of his sweep too (walking men glance about). With
   // `w.sneakHaltExact` (s) a halted man's head is where his sweep puts it at tAbs (its phase is his own and the clock's),
@@ -386,8 +431,7 @@ export function walkerViews(e, q, w, tAbs) {
   if (q.halt && w.sneakHaltExact != null && pw && e.vision) {
     const A = (pw.sweep * Math.PI) / 180, P = pw.period, ph = e.vision.phase || 0, dt = w.sneakHaltExact;
     const offs = [0, -dt, dt, -dt / 2, dt / 2].map((tau) => A * Math.sin((2 * Math.PI * (tAbs + tau + ph)) / P));
-    for (const hd of [q.heading, ...(q.alt != null ? [q.alt] : []), ...cryHeadings(q, w, tAbs)]) for (const off of offs) add(hd, off, true);
-    return L;
+    return { hds: [q.heading, ...(q.alt != null ? [q.alt] : []), ...cryHeadings(q, w, tAbs)], offs };
   }
   const amp = (q.halt === false ? (w.sneakWalkAmp ?? 0.25) : (q.halt ? (CONFIG.stealth.vision.patrolWatch?.sweep ?? 50) * Math.PI / 180 : e.sweepAmp ?? e.vision?.sweep ?? 0))
     + (w.sneakMargin ?? 0);
@@ -396,12 +440,12 @@ export function walkerViews(e, q, w, tAbs) {
   // in it while neither tried cone reaches him)
   const n = w.sneakSweepSteps ?? 2, offs = [0];
   if (amp) for (let k = 1; k <= n; k++) offs.push((amp * k) / n, (-amp * k) / n);
-  for (const hd of [q.heading, ...(q.alt != null ? [q.alt] : []), ...((w.sneakTurns === true || w.sneakTurns?.has?.(e.tag)) ? turnHeadings(q, w) : []), ...cryHeadings(q, w, tAbs)]) for (const off of offs) add(hd, off, true);
-  return L;
+  return { hds: [q.heading, ...(q.alt != null ? [q.alt] : []), ...((w.sneakTurns === true || w.sneakTurns?.has?.(e.tag)) ? turnHeadings(q, w) : []), ...cryHeadings(q, w, tAbs)], offs };
 }
 
 /** Does any of walkerViews' heads see `d`? (a point outside a cone's geometry is never seen by it: canSee not asked) */
 export function seesAny(L, d, w) {
+  if (L._oneEye) return seesAnyHeads(L, d, w, canSee); // (walkerViews' heads: one guard at one eye, asked once)
   for (let i = 0; i < L.length; i += 2) { const cone = L[i + 1]; if (pointInCone(cone, d.x, d.z) && canSee(L[i], d, w, { cone }) !== 'none') return true; }
   return false;
 }
@@ -437,9 +481,23 @@ export function postHeadings(e) {
 
 /** canSee for a standing (not walking) viewer at time t, every heading a turned post may face. */
 export function staticSees(e, d, w, t) {
-  const ch = cryHeadings(e, w, w.time + t);
+  // (past the longest reach his cone has at any head offset — see walkerSees — no heading of his sees the point)
+  const v = e.vision, a = v ? v.far ?? v.range : NaN, ratio = v?.ellipseRatio === undefined ? CONFIG.stealth.ellipseRatio : v.ellipseRatio;
+  const ch = cryHeadings(e, w, w.time + t), hs = postHeadings(e);
+  if (a > 0 && (!v.elliptical || ratio > 0)) {
+    const R = (v.elliptical ? Math.max(a, a * ratio) : a) * (1 + 1e-9), dx = d.x - e.x, dz = d.z - e.z, d2 = dx * dx + dz * dz;
+    if (d2 > R * R) return false;
+    // (nor when no heading he may face — his post's, a turn's, a cry's — brings the point within his aperture, however
+    // his head sweeps: the cone's heading is that heading + his head offset ± his sweep's amplitude)
+    const half = v.fov / 2, base = (e.headOffset || 0) + (e.headCarry || 0);
+    const sw = e.sweepActive ? Math.abs((e.sweepW ?? 1) * (e.sweepAmp ?? v.sweep ?? 0)) : 0;
+    if (d2 > 1e-12 && Number.isFinite(half + base + sw)) {
+      const bear = Math.atan2(dz, dx), lim = half + sw + 1e-6;
+      const within = (h, l) => { let an = bear - h; an -= TAU * Math.round(an / TAU); return !(Math.abs(an) > l); }; // (NaN: within, as pointInCone)
+      if (!ch.some((h) => within(h, half + 1e-6)) && !(hs ? hs.some((h) => within(h + base, lim)) : within(e.heading + base, lim))) return false;
+    }
+  }
   if (ch.length && ch.some((h) => { const g = Object.create(e); g.heading = h; g.sweepActive = false; g.headOffset = 0; g.headCarry = 0; return canSee(g, d, w, { cone: coneAt(g, w.time + t) }) !== 'none'; })) return true;
-  const hs = postHeadings(e);
   if (!hs) return canSee(e, d, w, { cone: coneAt(e, w.time + t) }) !== 'none';
   return hs.some((h) => { const g = Object.create(e); g.heading = h; return canSee(g, d, w, { cone: coneAt(g, w.time + t) }) !== 'none'; });
 }
@@ -505,7 +563,7 @@ export function clearFor(D, pts, dur = 2, { mode = 'walk', except = null, why = 
  * Would a man (mode 'crawl' / 'walk') or a boat ('boat') going along `pts` from `from` (default: where he is) at
  * `speed` m/s, setting off in `delay` s, stay unseen? Each sample is tried at the moment he passes it (± `slack` s).
  */
-export function routeClear(D, pts, { mode = 'walk', from, speed, delay = 0, step = 0.75, slack = 0.5, slackRate = 0, hold = 0, why = null, except = null, keepWalker = 4, pad = 0 } = {}) {
+export function routeClear(D, pts, { mode = 'walk', from, speed, delay = 0, step = 0.75, slack = 0.5, slackRate = 0, hold = 0, why = null, except = null, keepWalker = 4, pad = 0, hint = null } = {}) {
   const w = D.world;
   const sp = speed ?? (mode === 'boat' ? 2.5 : mode === 'crawl' ? 0.9 : 1.5);
   let [x, z] = from ?? (() => { throw new Error('routeClear: from'); })();
@@ -518,9 +576,9 @@ export function routeClear(D, pts, { mode = 'walk', from, speed, delay = 0, step
   }
   // (`hold` s: he lies on at the end of the way that long, waiting for what comes next)
   for (let h = 0.5; h <= hold + 1e-6; h += 0.5) samples.push([x, z, t + h]);
-  for (const e of viewersOf(w)) {
-    if (except?.includes?.(e)) continue;
-    const far = (e.vision.far ?? 36) + 1, moving = walking(e);
+  /** Where viewer `e` sees him (the `why` entry), or null. */
+  const seenBy = (e, moving) => {
+    const far = (e.vision.far ?? 36) + 1;
     // (a post sweeping his head may swing his cone across a point within half a second: finer steps for him)
     const ostep = Math.min(!moving && e.sweepActive ? 0.15 : 0.5, Math.max(0.1, slack));
     for (const [sx, sz, st] of samples) {
@@ -545,9 +603,31 @@ export function routeClear(D, pts, { mode = 'walk', from, speed, delay = 0, step
           seen = staticSees(e, dummyFor(w, mode, sx, sz, e.x, e.z), w, tt)
             || (!!p2 && staticSees(e, padded(dummyFor(w, mode, p2[0], p2[1], e.x, e.z), w.grid.elevAt?.(sx, sz) ?? 0), w, tt));
         }
-        if (seen) { if (why) why.push(`${e.tag}@(${sx.toFixed(1)},${sz.toFixed(1)})+${tt.toFixed(1)}`); return false; }
+        if (seen) return `${e.tag}@(${sx.toFixed(1)},${sz.toFixed(1)})+${tt.toFixed(1)}`;
       }
     }
+    return null;
+  };
+  if (!hint) {
+    for (const e of viewersOf(w)) {
+      if (except?.includes?.(e)) continue;
+      const r = seenBy(e, walking(e));
+      if (r) { why?.push(r); return false; }
+    }
+    return true;
+  }
+  // `hint` ({e}: kept by the caller from one call to the next): the guard who saw him last time is asked first — a wait
+  // for a gap re-asks the same question every tick, and its answer is the same whoever is asked first (every guard is
+  // looked at — walking(): his last-moved time — before any is asked, so that bookkeeping does not depend on who saw).
+  // A tick of M12's "way to the car" was a full pass over every guard but the one who sees, ~4 ms.
+  const views = viewersOf(w).filter((e) => !except?.includes?.(e)), moving = new Map();
+  for (const e of views) moving.set(e, walking(e));
+  if (w.sneakPaths) for (const e of views) if (moving.get(e)) predict(e, 0); // (and where each walker halts: predict's halt record)
+  if (hint.e && moving.has(hint.e)) { const r = seenBy(hint.e, moving.get(hint.e)); if (r) { why?.push(r); return false; } }
+  for (const e of views) {
+    if (e === hint.e) continue;
+    const r = seenBy(e, moving.get(e));
+    if (r) { hint.e = e; why?.push(r); return false; }
   }
   return true;
 }
@@ -723,12 +803,43 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     return L;
   };
   const KS = HS + 256, seenMemo = new Uint8Array(W * H * KS);
+  // (which posts can reach a cell at all — the same test as below, `dd > far + 1 + hull`, once per cell instead of once
+  // per cell and step: the posts stand still while he plans — and, per walker and block of 32 steps, the box his
+  // predicted places keep to: a cell beyond his reach of that box is out of his reach at every step of the block)
+  const hullR = mode === 'boat' ? HULL : 0, sCand = new Array(W * H);
+  const statCand = (c) => {
+    let L = sCand[c];
+    if (L) return L;
+    const x = cx(c), z = cz(c);
+    L = [];
+    for (let i = 0; i < statics.length; i++) { const e = statics[i], far = e.vision?.far ?? 36; if (!(Math.hypot(e.x - x, e.z - z) > far + 1 + hullR)) L.push(i); }
+    return (sCand[c] = L);
+  };
+  const BLK = 32, dkMin = Math.min(...walkerSlack), dkMax = Math.max(...walkerSlack), wBox = walkers.map(() => []);
+  const wReach = walkers.map((e) => (e.vision?.far ?? 36) + walkerPad + 3 + hullR + 1e-6);
+  const boxOf = (wi, b) => {
+    let B = wBox[wi][b];
+    if (B) return B;
+    const e = walkers[wi];
+    B = [Infinity, -Infinity, Infinity, -Infinity];
+    for (let kk = b * BLK; kk < (b + 1) * BLK; kk++) { const q = predAt(e, kk); if (!(q.x >= B[0])) B[0] = q.x; if (!(q.x <= B[1])) B[1] = q.x; if (!(q.z >= B[2])) B[2] = q.z; if (!(q.z <= B[3])) B[3] = q.z; }
+    return (wBox[wi][b] = B);
+  };
+  /** Can walker `wi` reach cell (x, z) at any step `k + dk` of walkerSlack? (false: every dk would be skipped below) */
+  const walkerNear = (wi, k, x, z) => {
+    const R = wReach[wi];
+    for (let b = Math.floor(Math.max(0, k + dkMin) / BLK), b1 = Math.floor(Math.max(0, k + dkMax) / BLK); b <= b1; b++) {
+      const B = boxOf(wi, b);
+      if (!(x < B[0] - R || x > B[1] + R || z < B[2] - R || z > B[3] + R)) return true;
+    }
+    return false;
+  };
   const seen = (c, k) => {
     const key = c * KS + k;
     const m = seenMemo[key]; if (m) return m === 2;
     const x = cx(c), z = cz(c), hull = mode === 'boat' ? HULL : 0;
     let s = false;
-    for (let i = 0; i < statics.length; i++) {
+    for (const i of statCand(c)) {
       const e = statics[i];
       const dd = Math.hypot(e.x - x, e.z - z), far = e.vision?.far ?? 36, near = e.vision?.near ?? far / 2;
       if (dd > far + 1 + hull) continue;
@@ -741,7 +852,9 @@ export function* planSneakGen(D, tx, tz, o = {}) {
         if (pointInCone(cone, d2.x, d2.z) && canSee(e, d2, w, { cone }) !== 'none') { s = true; break; }
       }
     }
-    if (!s) walk: for (const e of walkers) for (const dk of walkerSlack) {
+    if (!s) walk: for (let wi = 0; wi < walkers.length; wi++) for (const dk of walkerSlack) {
+      const e = walkers[wi];
+      if (dk === walkerSlack[0] && !walkerNear(wi, k, x, z)) break; // (out of his reach at every dk: on to the next)
       const kk = Math.max(0, k + dk), q = predAt(e, kk), dd = Math.hypot(q.x - x, q.z - z), far = e.vision?.far ?? 36;
       if (dd > far + walkerPad + 3 + hull) continue;
       const d = dummyFor(w, mode, x, z, q.x, q.z);

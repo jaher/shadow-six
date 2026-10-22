@@ -12,7 +12,7 @@
  * Helpers that look ahead (seers, clearAhead, whoSees) read the same §4.2 cone rules the AI uses
  * (src/ai/perception.js): the script watches the cones like a player does before moving a man.
  */
-import { canSee, coneAt, pointInCone } from '../../src/ai/perception.js';
+import { canSee, coneAt, pointInCone, targetClass } from '../../src/ai/perception.js';
 import { viewerFor, canSeeVehicle } from '../../src/ai/vehicle-ai.js';
 import { T } from '../../src/world/grid.js';
 import { CONFIG } from '../../src/config.js';
@@ -142,6 +142,65 @@ export function* goalReachableGen({ s1, tx, tz, W, H, x0, z0, cx, cz, k0, holdK,
     }
   }
   return false;
+}
+
+const TAU = Math.PI * 2; // (as perception.js: seesAnyHeads works out a head's band exactly as pointInCone does)
+
+/**
+ * Does any head of `L` see `d`? `L`: one guard's heads at one eye — [viewer, cone, …], every viewer an Object.create of
+ * the same guard at the same point, differing only by where its head looks (sneak.mjs walkerViews, a planner's
+ * headViews) — asked of `see` (perception's canSee or a wrapper of it) as `pointInCone(cone, d) && see(viewer, d, w,
+ * {cone}) !== 'none'` head by head. The same answer, asked once: the heads' cones differ only by heading and reach, and
+ * once a head has the point in a band its class is seen in (a crawler: the near band), everything else `see` asks —
+ * the guard, the eye, the sight line to the point — is the same for every head: that head's answer is the answer.
+ * The bands are worked out exactly as pointInCone does (the same arithmetic); a list that is not one guard at one eye
+ * is asked head by head.
+ */
+export function seesAnyHeads(L, d, w, see) {
+  let S = L._heads;
+  if (S === undefined) S = L._heads = headsSummary(L);
+  if (!S) { for (let i = 0; i < L.length; i += 2) { const cone = L[i + 1]; if (pointInCone(cone, d.x, d.z) && see(L[i], d, w, { cone }) !== 'none') return true; } return false; }
+  const dx = d.x - S.x, dz = d.z - S.z, d2 = dx * dx + dz * dz;
+  if (d2 > S.far2) return false; // (beyond every head's reach)
+  const bear = d2 > 1e-12 ? Math.atan2(dz, dx) : 0;
+  if (S.arc && d2 > 1e-12) {
+    // (outside the arc every aperture lies in — tried a turn either way round — no head has the point in its cone)
+    let b = bear - S.h0;
+    b -= TAU * Math.round(b / TAU);
+    const [a0, a1] = S.arc, inArc = (v) => v >= a0 && v <= a1;
+    if (!inArc(b) && !inArc(b + TAU) && !inArc(b - TAU)) return false;
+  }
+  let cls;
+  for (let i = 0; i < L.length; i += 2) {
+    const cone = L[i + 1];
+    if (!cone || d2 > cone.far * cone.far) continue;
+    if (d2 > 1e-12) { let a = bear - cone.heading; a -= TAU * Math.round(a / TAU); if (Math.abs(a) > cone.halfFov) continue; }
+    if (!(d2 <= cone.near * cone.near)) { if (cls === undefined) cls = targetClass(d, {}, L[i]); if (cls === 'near') continue; } // (far band: not for a crawler)
+    return see(L[i], d, w, { cone }) !== 'none';
+  }
+  return false;
+}
+/** One guard at one eye? → {x, z, far2: the longest reach squared}; else null (seesAnyHeads asks head by head). */
+function headsSummary(L) {
+  let c0 = null, proto, far2 = 0, lo = 0, hi = 0, half = 0, arc = true;
+  for (let i = 0; i < L.length; i += 2) {
+    const g = L[i], c = L[i + 1];
+    if (!c) continue;
+    if (!c0) { c0 = c; proto = Object.getPrototypeOf(g); }
+    else if (Object.getPrototypeOf(g) !== proto || c.x !== c0.x || c.z !== c0.z || c.y !== c0.y || c.vy !== c0.vy || c.elevated !== c0.elevated
+      || c.overlooks !== c0.overlooks || c.overWalls !== c0.overWalls) return null;
+    if (!Object.prototype.hasOwnProperty.call(g, 'x') || g.y !== proto.y) return null;
+    far2 = Math.max(far2, c.far * c.far);
+    // (the arc every head's aperture lies in, about the first head's heading: the heads' headings ± the widest aperture)
+    let d = c.heading - c0.heading;
+    d -= TAU * Math.round(d / TAU);
+    if (!Number.isFinite(d) || !Number.isFinite(c.halfFov)) arc = false;
+    else { if (d < lo) lo = d; if (d > hi) hi = d; if (c.halfFov > half) half = c.halfFov; }
+  }
+  if (!c0) return null;
+  // (an arc of 2π or more, or a heading that is not a number: no arc test, every head is asked)
+  const a0 = lo - half - 1e-6, a1 = hi + half + 1e-6;
+  return { x: c0.x, z: c0.z, far2, h0: c0.heading, arc: arc && a1 - a0 < TAU - 1e-6 ? [a0, a1] : null };
 }
 
 /** Wall-clock ms a sliced plan runs before it hands the frame back (makeDriver `pause`). */
@@ -782,7 +841,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
         }
         return L;
       };
-      const seesAny = (L, d) => { for (let i = 0; i < L.length; i += 2) { const cone = L[i + 1]; if (pointInCone(cone, d.x, d.z) && canSee(L[i], d, w, { cone }) !== 'none') return true; } return false; };
+      const seesAny = (L, d) => seesAnyHeads(L, d, w, canSee); // (one guard at one eye: walkerSees' heads, asked once)
       const sCones = statics.map(() => []);
       const sCone = (i, k) => { const a = sCones[i]; let c = a[k]; if (c === undefined) c = a[k] = coneAt(statics[i], now + k * DT); return c; };
       // (seen per (cell, step): 0 unknown, 1 unseen, 2 seen — a flat byte per state instead of a Map)

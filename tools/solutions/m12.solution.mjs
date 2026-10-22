@@ -181,14 +181,21 @@ async function moveOpen(D, role, pts, { mode = 'walk', maxWait = 300, label = 'm
   const rise = mode !== 'crawl' && u.stance === 'crawl' ? 0.7 : 0;
   const sp = mode === 'crawl' ? 0.8 : 2.0, fast = mode === 'crawl' ? 1.0 : 2.3;
   const why = [];
+  // (the checks all pass or the way is not clear: the one that failed last time is asked first, each asking the guard
+  // who saw last time first — routeClear `hint`; the same answer, tick for tick, as toCar's)
+  const hints = [], hintOf = (i) => (hints[i] ||= { e: null });
+  let lastFail = -1;
   await D.until(() => {
     why.length = 0;
-    if (rise && !routeClear(D, [[u.x, u.z]], { mode, from: [u.x, u.z], delay: rise / 2, slack: rise / 2 + 0.2, why, pad, except })) return dbg(D, why, label);
-    for (const v of [sp, fast]) if (!routeClear(D, pts, { mode, from: [u.x, u.z], speed: v, delay: 0.2 + rise, slack, why, pad, except })) return dbg(D, why, label);
+    const checks = [];
+    if (rise) checks.push((h) => routeClear(D, [[u.x, u.z]], { mode, from: [u.x, u.z], delay: rise / 2, slack: rise / 2 + 0.2, why, pad, except, hint: h }));
+    for (const v of [sp, fast]) checks.push((h) => routeClear(D, pts, { mode, from: [u.x, u.z], speed: v, delay: 0.2 + rise, slack, why, pad, except, hint: h }));
     let t = 0.2 + rise, [x, z] = [u.x, u.z];
     for (const [px, pz] of pts) { t += Math.hypot(px - x, pz - z) / sp; x = px; z = pz; }
     const end = pts[pts.length - 1];
-    for (let h = 0; h <= hold; h += 0.5) if (!routeClear(D, [end], { mode, from: end, delay: t + h, slack: 0, why, pad, except })) return dbg(D, why, label);
+    for (let hh = 0; hh <= hold; hh += 0.5) checks.push((h) => routeClear(D, [end], { mode, from: end, delay: t + hh, slack: 0, why, pad, except, hint: h }));
+    if (lastFail >= 0 && lastFail < checks.length && !checks[lastFail](hintOf(lastFail))) return dbg(D, why, label);
+    for (let i = 0; i < checks.length; i++) if (i !== lastFail && !checks[i](hintOf(i))) { lastFail = i; return dbg(D, why, label); }
     return true;
   }, maxWait, `${label} clear`).catch((e) => { throw new Error(`${e.message} [${why.slice(0, 3).join(' ')}]`); });
   await D.stance(role, mode === 'crawl' ? 'crawl' : 'stand');
@@ -496,23 +503,35 @@ export const STAGES = [
     const car = D.world.byId('kubel');
     const toCar = async (role, { onlyBoard = false } = {}) => {
       const u = D.c(role), why = [];
+      // (his way to the car is the same search tick after tick while he and the car stand still: kept while its inputs —
+      // the two ends and the nav grid's version — are the same; findPath is a pure function of them)
+      let wayKey = null, way = null;
+      // (the wait re-asks the same checks every tick and the way is clear only when all of them pass: the one that
+      // failed last time is asked first, and each asks the guard who saw him last time first — routeClear `hint`; the
+      // same answer, tick for tick, without a full pass over every guard while one of them still sees the way)
+      const hints = [], hintOf = (i) => (hints[i] ||= { e: null });
+      let lastFail = -1;
       await D.until(() => {
         why.length = 0;
         const bp = boardPoint(car, u);
-        const path = D.world.findPath(u.x, u.z, bp.x, bp.z);
+        const key = `${u.x},${u.z},${bp.x},${bp.z},${D.world.grid.version}`;
+        if (key !== wayKey) { wayKey = key; way = D.world.findPath(u.x, u.z, bp.x, bp.z); }
+        const path = way;
         if (!path) return dbg(D, ['no path'], `${role} to the car`);
         const pts = path.slice(1).map((q) => [q.x, q.z]);
         let L = 0, p0 = [u.x, u.z];
         for (const q of pts) { L += Math.hypot(q[0] - p0[0], q[1] - p0[1]); p0 = q; }
+        const checks = [];
         // (his own line may run half a metre off the planned one, round a corner or a mate: tried shifted as well)
         // (the Spy in uniform may walk where he likes: only his climbing in is judged)
         // (the order itself is the suspicious act for the Spy: nobody may see him where he gives it)
-        if (onlyBoard && !routeClear(D, [[u.x, u.z]], { mode: 'walk', from: [u.x, u.z], delay: 0, slack: 1.2, why, pad: 1.2 })) return dbg(D, why, `${role} sets off`);
+        if (onlyBoard) checks.push([`${role} sets off`, (h) => routeClear(D, [[u.x, u.z]], { mode: 'walk', from: [u.x, u.z], delay: 0, slack: 1.2, why, pad: 1.2, hint: h })]);
         if (!onlyBoard) for (const [ox, oz] of [[0, 0], [0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]]) {
-          const q = pts.map(([x, z], k) => (k === pts.length - 1 ? [x, z] : [x + ox, z + oz]));
-          for (const v of [1.7, 2.3]) if (!routeClear(D, q, { mode: 'walk', from: [u.x, u.z], speed: v, delay: 0.7, slack: 1.0, why, pad: 1.2, except: held() })) return dbg(D, why, `${role} to the car`);
+          for (const v of [1.7, 2.3]) checks.push([`${role} to the car`, (h) => routeClear(D, pts.map(([x, z], k) => (k === pts.length - 1 ? [x, z] : [x + ox, z + oz])), { mode: 'walk', from: [u.x, u.z], speed: v, delay: 0.7, slack: 1.0, why, pad: 1.2, except: held(), hint: h })]);
         }
-        if (!routeClear(D, [[bp.x, bp.z]], { mode: 'walk', from: [bp.x, bp.z], delay: 0.7 + L / 2.3, slack: L / 1.7 - L / 2.3 + 3, why, pad: 1.2, except: held() })) return dbg(D, why, `${role} at the car`);
+        checks.push([`${role} at the car`, (h) => routeClear(D, [[bp.x, bp.z]], { mode: 'walk', from: [bp.x, bp.z], delay: 0.7 + L / 2.3, slack: L / 1.7 - L / 2.3 + 3, why, pad: 1.2, except: held(), hint: h })]);
+        if (lastFail >= 0 && lastFail < checks.length && !checks[lastFail][1](hintOf(lastFail))) return dbg(D, why, checks[lastFail][0]);
+        for (let i = 0; i < checks.length; i++) if (i !== lastFail && !checks[i][1](hintOf(i))) { lastFail = i; return dbg(D, why, checks[i][0]); }
         return true;
       }, 600, `${role}: the way to the car unwatched`).catch((e) => { throw new Error(`${e.message} [${why.slice(0, 3).join(' ')}]`); });
       await D.stance(role, 'stand');

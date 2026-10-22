@@ -57,6 +57,15 @@ export const SKIP_TICK_MS = 16;
  * wall time): a fast-forward that keeps moving on screen, never a frozen picture, and no frame over ~20 ms.
  */
 export const SKIP_VIEW_MS = 66;
+/**
+ * AUTO: a plan the solution searches for longer than this (wall ms; its sliced search, driver.mjs PLAN_SLICE_MS a frame:
+ * the clock stands still meanwhile and nobody moves) is skipped like a wait — the search gets the skip's frame budget
+ * (SKIP_TICK_MS, the view redrawn every SKIP_VIEW_MS) under a "⏩ waiting" tag instead of ~6 ms of every frame (M15's
+ * crawls to the north-west road: ~35 s of planning, ~120 s on screen).
+ */
+export const THINK_SKIP_MS = 250;
+/** The tag of a skipped plan. */
+const PLAN_WAIT = 'a way past the guards';
 /** AUTO's adaptive tick budget never goes under this (ms a frame): the run keeps moving under a heavy draw. */
 export const MIN_TICK_MS = 1;
 /** Always action: a man or a guard the camera turned to while the step's men wait is kept this long (ms) at least. */
@@ -568,13 +577,20 @@ export class Walkthrough extends SolutionReplay {
   _autoStep(dt) {
     const p = this.pacer, w = this.world;
     this.autoDt = dt; // (the frame time the speed was eased over: tests measure the ramps by it)
-    if (this._skip) { if (this.waitLabel && !this._anyBusy()) { this._skipTag(); return; } this._endSkip(); }
+    // (a skipped wait goes on while the solution waits, or plans its next move, and nobody acts)
+    if (this._skip) { if ((this.waitLabel || this._thinking) && !this._anyBusy()) { this._skipTag(); return; } this._endSkip(); }
     if (p.turbo) return;
     const b = this._burst; // ms of ticks per tick on the last frames (the game step and the solution's own planning)
     const msPerTick = b.ticks ? b.ms / b.ticks : null;
     b.ms = 0; b.ticks = 0;
     const ceiling = this.autoCeiling.frame(dt, msPerTick);
-    if (this.paused || this._held()) { p.boost = this.autoPace.rate; return; }
+    if (this.paused || this._held()) { p.boost = this.autoPace.rate; this._thinkSince = null; return; }
+    // a long plan, nobody acting: skipped like a wait (THINK_SKIP_MS)
+    if (this._thinking && !this._anyBusy()) {
+      const now = performance.now();
+      if (this._thinkSince == null) this._thinkSince = now;
+      else if (now - this._thinkSince >= THINK_SKIP_MS) { this._thinkSince = null; this._startSkip(PLAN_WAIT); return; }
+    } else this._thinkSince = null;
     const t = w.time;
     const sig = this.sensor.sample(t, this._paceCtx(), performance.now());
     const reading = this.captions ? (this._readUntil - performance.now()) / 1000 : 0;
@@ -604,9 +620,9 @@ export class Walkthrough extends SolutionReplay {
   }
 
   /** Skip a true wait like a jump: ticks by wall time, the view redrawn now and then, a "waiting" tag. */
-  _startSkip() {
+  _startSkip(label = this.waitLabel) {
     if (this._skip || this.pacer.turbo || !this.auto) return;
-    this._skip = { label: this.waitLabel, t0: this.world.time, wall: performance.now(), turboMs: this.pacer.turboMs, viewMs: this.turboViewMs };
+    this._skip = { label, t0: this.world.time, wall: performance.now(), turboMs: this.pacer.turboMs, viewMs: this.turboViewMs };
     this.pacer.turboMs = SKIP_TICK_MS;
     this.turboViewMs = SKIP_VIEW_MS;
     this.pacer.setTurbo(true);
@@ -637,7 +653,8 @@ export class Walkthrough extends SolutionReplay {
   _skipTag() {
     let tag = document.getElementById('wt-skip');
     if (!tag) { installStyle(); tag = el('div', null, document.body); tag.id = 'wt-skip'; tag.setAttribute('role', 'status'); }
-    const txt = `⏩ waiting: ${waitText(this._skip?.label || this.waitLabel || '')}`;
+    // (a skipped plan that runs on into a wait shows what it waits for now)
+    const txt = `⏩ waiting: ${waitText((this._skip?.label === PLAN_WAIT && !this._thinking && this.waitLabel) || this._skip?.label || this.waitLabel || '')}`;
     if (tag.textContent !== txt) tag.textContent = txt;
     const bar = rectOf(this._ui);
     tag.style.top = `${Math.round((bar?.bottom ?? 60) + 8)}px`;

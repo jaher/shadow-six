@@ -1904,6 +1904,22 @@ export function* buildMapGen(world, mission, opts = {}) {
     const numKeys = (m) => { if (!m?.size) return null; const o = new Map(); for (const [k, v] of m) { const c = k.indexOf(','); o.set(+k.slice(0, c) * 131072 + +k.slice(c + 1), v); } return o; };
     const surfN = numKeys(surf), laneN = numKeys(laneSurf);
     const onDeckCell = (px, pz) => { const i = Math.floor(px / grid.cell), j = Math.floor(pz / grid.cell); return grid.inBounds(i, j) && grid.bridge[grid.idx(i, j)]; };
+    // which 1 m squares (SURF_K × SURF_K sample cells) hold any low-surface sample: the feet ring of a man (or a chunk of
+    // debris) out in the open, with no low surface and no deck within a stride, finds none — its answer is the ground
+    // itself, without the ring's ~33 look-ups (it runs for every man every frame, and every flying chunk every tick)
+    const SURF_K = 5, coarse = new Set();
+    for (const m of [surf, laneSurf]) if (m) for (const k of m.keys()) { const c = k.indexOf(','); coarse.add(Math.floor(+k.slice(0, c) / SURF_K) * 1048576 + Math.floor(+k.slice(c + 1) / SURF_K)); }
+    const ringEmpty = (x, z) => {
+      const R = STRIDE_R; // (every sample of FOOT_OFFS lies within ±STRIDE_R of the centre on each axis)
+      const ci0 = Math.floor(Math.floor((x - R) / SURF_CELL) / SURF_K), ci1 = Math.floor(Math.floor((x + R) / SURF_CELL) / SURF_K);
+      const cj0 = Math.floor(Math.floor((z - R) / SURF_CELL) / SURF_K), cj1 = Math.floor(Math.floor((z + R) / SURF_CELL) / SURF_K);
+      for (let ci = ci0; ci <= ci1; ci++) for (let cj = cj0; cj <= cj1; cj++) if (coarse.has(ci * 1048576 + cj)) return false;
+      if (decks.length || world.surfaces?.length) { // (a deck / span edge beside him: its cells on the grid's bridge layer)
+        const i0 = Math.floor((x - R) / grid.cell), i1 = Math.floor((x + R) / grid.cell), j0 = Math.floor((z - R) / grid.cell), j1 = Math.floor((z + R) / grid.cell);
+        for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) if (grid.inBounds(i, j) && grid.bridge[grid.idx(i, j)]) return false;
+      }
+      return true;
+    };
     // over a raised walk (a dam crest, stair treads, a tower deck: grid elev > 0) the grid height already is the
     // surface the feet stand on; the low surfaces / relief below it only count where they rise above it
     deckGroundY = (x, z) => {
@@ -1939,6 +1955,7 @@ export function* buildMapGen(world, mission, opts = {}) {
         onDeck = g != null;
       }
       if (g == null) g = typeof base === 'function' ? base.call(world, x, z) : 0;
+      if (!onDeck && ringEmpty(x, z)) return g; // (nothing within a stride: the ring below would find nothing)
       // the highest low surface under the feet (centre ± FOOT_R): a boot steps up onto a kerb, plinth or snow
       // skirt instead of pushing into its side while the body's centre is still below
       let sy, dry = null;

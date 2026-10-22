@@ -561,7 +561,7 @@ export class Game {
       r.decalScene?.traverse((o) => { if (o.userData?.warmShow && !o.visible) { few.push(o, 'visible', false); o.visible = true; } });
       // a vision cone (one guard's: the cones come and go with video mode's steps) and the selection's path line
       const cones = this.cones, forced0 = cones?.forced, foe = w.enemies.find((e) => e.alive && e.vision);
-      if (cones && 'forced' in cones && foe) { cones.forced = new Set([foe]); safe(() => cones.update(), 'warm cone'); }
+      if (cones && 'forced' in cones && foe) { cones.forced = new Set([foe]); cones.deferForced = false; safe(() => cones.update(), 'warm cone'); cones.deferForced = true; }
       const path = safe(() => this.selection?._pathLine?.(0), 'warm path');
       if (path) path.visible = true; // (made once, hidden again below: shown on every call — a warm-up frame runs in parts)
       // (and the x-ray pass over `xrayExtra` too: props carried on a man, the shovel, draw their own silhouette variant)

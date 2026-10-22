@@ -746,9 +746,15 @@ export function curlTail(cut, kind = 'soft', rnd = Math.random, groundAt = () =>
  * clearance. Pure (no GPU): returns {buffers: Map look → WireBuffer, cuts, tails}.
  */
 export function assembleRibbons(parts, gaps = new Map(), groundAt = () => 0, o = {}) {   // o.holes: Map runKey → [hole]
+  const it = assembleRibbonsG(parts, gaps, groundAt, o);
+  for (;;) { const r = it.next(); if (r.done) return r.value; }
+}
+
+/** assembleRibbons in steps (a generator: yields every few items, returns what assembleRibbons returns). */
+export function* assembleRibbonsG(parts, gaps = new Map(), groundAt = () => 0, o = {}) {
   const buffers = new Map(), stat = { cuts: 0, tails: 0 };
   const bufOf = (look) => { if (!buffers.has(look)) buffers.set(look, new WireBuffer(groundAt)); return buffers.get(look); };
-  for (let k = 0; k < parts.items.length; k++) assembleItem(parts.items[k], k, bufOf, gaps, groundAt, o, stat);
+  for (let k = 0; k < parts.items.length; k++) { assembleItem(parts.items[k], k, bufOf, gaps, groundAt, o, stat); if ((k & 7) === 7) yield; }
   // the snipped weave round each hole in a chain-link panel, and the bits of wire he snipped off lying by it
   if (o.holes?.size && o.strands !== false) {
     let q = 0;
@@ -1391,12 +1397,15 @@ export function buildWireLayer(root, opts = {}) {
     job = null;
     return false;
   };
-  const rebuild = () => {
-    for (const m of ribbons) { group.remove(m); m.geometry.dispose(); }
-    ribbons = [];
+  /**
+   * The strands, the chain-link panels, the holes' flaps and hollows rebuilt (a cut, a flap settled), then the barbs
+   * pass started: a generator (yields while it assembles the strands); the meshes swap in at its end, all at once.
+   */
+  function* rebuildG() {
     // (a hole's flaps settled: their cut ends are drawn in their final pose; until then, while they swing, none)
     for (const hs of holes.values()) for (const H of hs) H.settled = openAt(H, opts.world?.time ?? Infinity) >= 1;
-    const asm = assembleRibbons(parts, gaps, G, { barbs: false, holes });
+    const asm = yield* assembleRibbonsG(parts, gaps, G, { barbs: false, holes });
+    const made = [], madeFlaps = [];
     let tris = 0, verts = 0;
     for (const [look, buf] of asm.buffers) {
       const geo = buf.geometry();
@@ -1404,18 +1413,16 @@ export function buildWireLayer(root, opts = {}) {
         tris += buf.triangles; verts += buf.vertexCount;
         const m = wireMesh(geo, wireMaterial(look, { snow }), `wire:strands:${look}`);
         const sh = wireMesh(geo, wireShadowMaterial(opts.night ? 0.12 : snow > 0 ? 0.42 : theater === 'desert' ? 0.62 : 0.4), `wire:shadow:${look}`);
-        group.add(m, sh); ribbons.push(m, sh);
+        made.push(m, sh);
       }
       for (const ig of buf.instGeometries(true)) {   // the strands' own snow beads
-        const im = wireMesh(ig, wireMaterial(look, { snow, inst: true }), `wire:snow:${look}`);
-        group.add(im); ribbons.push(im); tris += ig.instanceCount * 2;
+        made.push(wireMesh(ig, wireMaterial(look, { snow, inst: true }), `wire:snow:${look}`)); tris += ig.instanceCount * 2;
       }
     }
     const pg = panelGeometry(parts.panels, gaps, holes);
-    if (pg) { const pm = new THREE.Mesh(pg, chainMaterial()); pm.name = 'wire:chainlink'; pm.receiveShadow = true; pm.userData.aoExclude = true; group.add(pm); ribbons.push(pm); }
+    if (pg) { const pm = new THREE.Mesh(pg, chainMaterial()); pm.name = 'wire:chainlink'; pm.receiveShadow = true; pm.userData.aoExclude = true; made.push(pm); }
     // the two cut flaps of each hole in a chain-link panel (one mesh), pulled aside and folded back beside it (bent
     // open by setFlaps: flapOpen since it was cut); crumpled, freshly bent galvanising (flapMaterial)
-    flaps = [];
     for (const [key, hs] of holes) {
       for (const H of hs) {
         const pnl = parts.panels.find((q) => q.runKey === key && q.cuttable && H.d >= q.da - 0.2 && H.d <= q.db + 0.2);
@@ -1426,23 +1433,58 @@ export function buildWireLayer(root, opts = {}) {
         fm.matrix.makeBasis(new THREE.Vector3(F.tx, 0, F.tz), new THREE.Vector3(0, 1, 0), new THREE.Vector3(F.n[0], 0, F.n[1])).setPosition(...F.o);
         fm.userData.hole = H; fm.userData.bottom = pnl.bottom;
         fm.matrixAutoUpdate = false; fm.matrixWorldNeedsUpdate = true;
-        group.add(fm); ribbons.push(fm); flaps.push(fm);
+        made.push(fm); madeFlaps.push(fm);
       }
     }
     const sg = holeShadeGeometry(holes, G);
-    if (sg) { const sm = new THREE.Mesh(sg, holeShadeMaterial(theater)); sm.name = 'wire:holeShade'; sm.renderOrder = 1; sm.userData.aoExclude = true; group.add(sm); ribbons.push(sm); }
+    if (sg) { const sm = new THREE.Mesh(sg, holeShadeMaterial(theater)); sm.name = 'wire:holeShade'; sm.renderOrder = 1; sm.userData.aoExclude = true; made.push(sm); }
+    // the swap: the old strands, panels, flaps and hollows out, the new ones in (in the order they were made)
+    for (const m of ribbons) { group.remove(m); m.geometry.dispose(); }
+    ribbons = made;
+    for (const m of made) group.add(m);
+    flaps = madeFlaps;
     setFlaps();
     stats = { runs: runs.length, ribbonTris: tris, strandTris: tris, barbs: stats.barbs ?? 0, ribbonVerts: verts, instances: inst.reduce((a, m) => a + m.count, 0), instanceKinds: inst.length,
       panels: parts.panels.length, cuts: asm.cuts, drawCalls: group.children.filter((o) => o.layers.mask & 1).length, barbsPending: true, buildMs: stats.buildMs, ...parts.counts };
     const buffers = new Map();
     job = { k: 0, buffers, stat: { cuts: 0, tails: 0 }, ms: 0, bufOf: (look) => { if (!buffers.has(look)) buffers.set(look, new WireBuffer(G)); return buffers.get(look); } };
     if (!opts.deferBarbs) stepBarbs(); else kick();
+  }
+  /** Rebuild now, whole (load, tests, a save restored). */
+  const rebuild = () => {
+    strandJob = null;
+    const it = rebuildG();
+    while (!it.next().done) { /* whole */ }
   };
-  let timer = 0;
-  const tick = () => { timer = 0; if (stepBarbs(4)) kick(); };
+  /**
+   * Rebuild over the next frames (opts.deferStrands, the game: a cut in play, a flap settling): the strands are
+   * assembled ≤ 3 ms in each update() and ≤ 4 ms slices on zero-delay timers, as the barbs are, and the new meshes swap
+   * in when complete — a cut no longer rebuilds every wire of the mission inside the tick that makes it (M3's fence:
+   * ~10 ms warm, 25–50 ms the first time, in one sim tick). Meanwhile the old wire stays, its barbs too (their pass waits
+   * for the new strands).
+   */
+  const rebuildSoon = () => {
+    job = null;
+    strandJob = rebuildG();
+    kick();
+  };
+  /** A step of the pending rebuild (≤ budget ms). @returns {boolean} it did some work */
+  const stepStrands = (budget = Infinity) => {
+    if (!strandJob) return false;
+    const t = now();
+    for (;;) {
+      const r = strandJob.next();
+      if (r.done) { strandJob = null; break; }
+      if (now() - t > budget) break;
+    }
+    return true;
+  };
+  let timer = 0, strandJob = null;
+  const tick = () => { timer = 0; if (strandJob) { stepStrands(4); kick(); return; } if (stepBarbs(4)) kick(); };
   function kick() { if (!timer && typeof setTimeout === 'function') timer = setTimeout(tick, 0); }
   rebuild();
-  const handle = { group, runs, parts, gaps, holes, setFlaps, posts: parts.posts, get flaps() { return flaps; }, rebuild, standing, stepBarbs, finishBarbs: () => stepBarbs(), stopBarbs: () => { clearTimeout(timer); timer = 0; job = null; }, get stats() { return stats; } };
+  const handle = { group, runs, parts, gaps, holes, setFlaps, posts: parts.posts, get flaps() { return flaps; }, rebuild, rebuildSoon, stepStrands, get strandsPending() { return !!strandJob; }, standing, stepBarbs,
+    finishBarbs: () => { stepStrands(); stepBarbs(); }, stopBarbs: () => { clearTimeout(timer); timer = 0; job = null; strandJob = null; }, get stats() { return stats; } };
   stats.buildMs = +(now() - t0).toFixed(1);
   return attachRuntime(handle, opts);
 }
@@ -1507,7 +1549,7 @@ function attachRuntime(h, opts) {
     for (const [k, v] of found) h.gaps.set(k, v);
     h.holes.clear();
     for (const [k, v] of holes) h.holes.set(k, v);
-    h.rebuild();
+    if (opts.deferStrands) h.rebuildSoon(); else h.rebuild();
     return true;
   };
   const off = world?.events?.on?.('structure:destroyed', (e) => {
@@ -1531,10 +1573,11 @@ function attachRuntime(h, opts) {
   h.sparksSpawned = 0;
   h.isPowered = powered;
   h.update = (dt = 0) => {
-    h.stepBarbs?.(3);
+    if (!h.stepStrands?.(3)) h.stepBarbs?.(3);
     if (opts.sunDir) WIRE_UNIFORMS.uSunDir.value.copy(opts.sunDir);
     if (grid && grid.version !== ver) { ver = grid.version; h.scanGaps(); }
-    if (h.flaps.length && h.setFlaps(world?.time ?? Infinity)) h.rebuild();   // (flaps settled: their cut ends now)
+    // (flaps settled: their cut ends now — once the rebuild under way, if any, has landed)
+    if (h.flaps.length && h.setFlaps(world?.time ?? Infinity) && !h.strandsPending) { if (opts.deferStrands) h.rebuildSoon(); else h.rebuild(); }
     const t = world?.time ?? simT + dt, step = Math.max(0, Math.min(0.5, t - simT));
     simT = t;
     if (!step || !world?.fx?.spawn) return;
@@ -1583,6 +1626,7 @@ export function buildMissionWire(propsRoot, o = {}) {
     const layer = buildWireLayer(propsRoot, {
       groundAt: o.terrain?.heightAt || (() => 0), theater: o.theater, snow, world: o.world, grid: o.world?.grid,
       missionId: o.mission?.id, sunDir: o.renderer?.sunDir || null, material: o.material, night: !!o.night, deferBarbs: o.deferBarbs ?? true,
+      deferStrands: o.deferStrands ?? !!o.renderer, // (the game: a cut's rebuild over the next frames; tools / tests: at once)
     });
     if (layer) propsRoot.add(layer.group);
     return layer;
