@@ -72,6 +72,10 @@ import { flyoverAssets, createFlyovers } from './render/flyovers.js';
 import { createLoadProgress, loadBudget } from './engine/load-progress.js';
 import { DownloadMeter } from './engine/download-meter.js';
 import { openMissionPack } from './engine/mission-pack.js';
+import { earlyFetch, dropEarlyFetches, earlyFetchSlots, MAX_ACTIVE as MAX_EARLY } from './engine/early-fetch.js';
+import { terrainTexRes } from './art/terrain.js';
+import { terrainLayerUrls } from './art/terrain/terrain.js';
+import { loadRapier } from './physics/rapier-loader.js';
 import * as Missions from './missions/index.js';
 import * as VehicleMod from './entities/vehicle.js';
 import * as FxMod from './render/fx.js';
@@ -224,7 +228,7 @@ export class Game {
     try {
       return await this._loadMission(idOrIndex);
     } finally {
-      if (this._buildToken === token) this.building = false;
+      if (this._buildToken === token) { this.building = false; earlyFetchSlots(MAX_EARLY); } // (a load cut short keeps no limit)
     }
   }
 
@@ -256,6 +260,15 @@ export class Game {
     // and every loader is served from memory; without packs this resolves null and the load is exactly as before
     const pack = await openMissionPack(def.id, r.presetName, (f) => prog.stage('lighting', f), dlMeter);
     this.missionPack = pack;
+    // early downloads (engine/early-fetch.js): files a later stage will ask for start downloading now, behind what the
+    // stages ahead of it wait for, so the link works through the CPU-bound map build (a pack already holds them all)
+    dropEarlyFetches(30000);
+    earlyFetchSlots(0); // (the HDRI below has the link to itself; one slot while the art libraries load, all from the map build)
+    if (!pack) {
+      safe(() => earlyFetch(terrainLayerUrls(def.theater || 'temperate', terrainTexRes(r.presetName, def.theater)), { rank: 0 }), 'early fetch: terrain');
+      safe(() => this.hud?.prefetchMission?.(def), 'early fetch: portraits');
+      safe(() => this.audio?.prefetchMission?.(def)?.catch?.(() => 0), 'early fetch: sounds');
+    }
     this.audio?.setMissionSprites?.(pack ? { mission: def.id, preset: r.presetName } : null, dlMeter);
     prog.stage('lighting');
     // per-mission lighting from the mission file (sun, kelvin, HDRI, fog, LUT — design-spec §2.4)
@@ -278,18 +291,33 @@ export class Game {
     this._endFlags = {};
 
     // realistic buildings & bridges (art/building-props.js): manifest + this mission's GLBs before the map builds
+    // the three art libraries load side by side (perf/download-speed: their downloads and parses overlap instead of
+    // waiting on each other; each fills only its own library, and the map build below starts once all three are in,
+    // as before). The bar still walks buildings → characters → vehicles, each stage closing when its library is in.
     prog.stage('buildings');
-    await safeAsync(() => prepareMissionArt(def, { assets, quality: r.presetName === 'ultra' ? 'ultra' : r.presetName === 'low' ? 'low' : 'default', preset: r.presetName }), 'buildings');
-    // realistic characters (art/unit-model.js): library + squad-aware enemy looks; placeholder capsules on failure
-    prog.stage('characters');
-    await safeAsync(() => prepareCharacters(def), 'characters');
-    // realistic vehicle library (art/vehicle-model.js): every vehicle type of the mission in the theater paint + its wreck
-    prog.stage('vehicles');
+    earlyFetchSlots(1);
     // (+ the raft a Marine carries in his kit: inflated on screen, art/raft-actions.js, it must not wait on its GLB)
     const kitRaft = (def.commandos || []).some((c) => c.role === 'diver' && (spawnInventory('diver', c.inventory, def.campaign || 'BEL').inflatableBoat ?? 0) > 0);
-    await safeAsync(() => prepareVehicleArt(def, { assets, quality: r.presetName, extra: [...staticVehicleAssets(def), ...(kitRaft ? ['raft'] : [])], ambient: flyoverAssets(def), canon: VehicleMod.canonicalType, onProgress: (d, n) => prog.stage('vehicles', d / Math.max(1, n)) }), 'vehicles');
+    let vehFrac = 0, vehStage = false;
+    const artJobs = [
+      safeAsync(() => prepareMissionArt(def, { assets, quality: r.presetName === 'ultra' ? 'ultra' : r.presetName === 'low' ? 'low' : 'default', preset: r.presetName }), 'buildings'),
+      // realistic characters (art/unit-model.js): library + squad-aware enemy looks; placeholder capsules on failure
+      safeAsync(() => prepareCharacters(def), 'characters'),
+      // realistic vehicle library (art/vehicle-model.js): every vehicle type of the mission in the theater paint + its wreck
+      safeAsync(() => prepareVehicleArt(def, { assets, quality: r.presetName, extra: [...staticVehicleAssets(def), ...(kitRaft ? ['raft'] : [])], ambient: flyoverAssets(def), canon: VehicleMod.canonicalType,
+        onProgress: (d, n) => { vehFrac = d / Math.max(1, n); if (vehStage) prog.stage('vehicles', vehFrac); } }), 'vehicles'),
+    ];
+    await artJobs[0];
+    prog.stage('characters');
+    await artJobs[1];
+    vehStage = true;
+    prog.stage('vehicles', vehFrac);
+    await artJobs[2];
     if (this.world !== world) return prog.cancel(), world; // unloaded / replaced while loading
     prog.stage('terrain');
+    earlyFetchSlots(MAX_EARLY); // the map build is CPU work: the background downloads have the link
+    // the physics module (Rapier, ~1.7 MB): fetched and compiled while the map builds; createPhysics awaits the same load
+    loadRapier();
     await paintOnce(); // (the map build and the warm-up frame are long: a loading bar shows where the load is first)
     const build = pick(MapBuilder, 'buildMap', 'buildMission', 'build', 'default');
     // the map builds in slices (engine/slice.js): the same build, the loading screen drawing between them. What it starts

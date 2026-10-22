@@ -11,6 +11,10 @@
  * Also importable: `const { url, close } = await startServer({ port: 0 })` (used by tests/harness.mjs).
  */
 import { createServer } from 'node:http';
+import { createSecureServer } from 'node:http2';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync, mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { createGzip } from 'node:zlib';
 import { Transform } from 'node:stream';
 import { createReadStream, promises as fs } from 'node:fs';
@@ -65,21 +69,29 @@ export const MIME = {
  *   gzip: compress text responses like GitHub Pages does (the static/--base mode turns it on).
  *   pages: cache headers like GitHub Pages (`max-age=600` + ETag, 304 on If-None-Match) instead of `no-cache`.
  *   base: URL path prefix the site lives under (GitHub Pages project sites: '/shadow-six/'); other paths 404.
+ *   h2: serve HTTP/2 over TLS like GitHub Pages (one multiplexed connection instead of HTTP/1.1's six: a mission's
+ *   ~1,000 requests are not queued behind each other). Self-signed localhost certificate (made once with openssl):
+ *   launch Chromium with --ignore-certificate-errors (tools/perf/measure-download.mjs).
  * @returns {Promise<{server: import('node:http').Server, port: number, url: string, close: () => Promise<void>}>}
  */
-export function startServer({ port = 8080, root = ROOT, host = '127.0.0.1', quiet = true, base = '/', gzip = false, pages = false, mbit = 0, latencyMs = 0 } = {}) {
+export function startServer({ port = 8080, root = ROOT, host = '127.0.0.1', quiet = true, base = '/', gzip = false, pages = false, mbit = 0, latencyMs = 0, h2 = false, log = false } = {}) {
   let rootAbs = resolve(root);
-  const stats = { requests: 0, ok: 0, notModified: 0, bytes: 0, paths: [] };
+  const stats = { requests: 0, ok: 0, notModified: 0, bytes: 0, paths: [], log: [] };
   // mbit: one shared link of that speed for every response (a throttled player connection, service worker fetches
   // included — DevTools throttling only covers the page itself); latencyMs: added before each response
   let linkFree = 0;
-  const throttle = () => new Transform({
+  const throttle = (entry = null) => new Transform({
     transform(chunk, _enc, cb) {
       stats.bytes += chunk.length;
+      if (entry) entry.bytes += chunk.length;
       if (!mbit) return cb(null, chunk);
       const now = Date.now();
       linkFree = Math.max(linkFree, now) + chunk.length / (mbit * 125);
       setTimeout(() => cb(null, chunk), Math.max(0, linkFree - now));
+    },
+    flush(cb) {
+      if (entry) entry.t1 = Date.now();
+      cb();
     },
   });
   base = ('/' + base + '/').replace(/\/+/g, '/');
@@ -90,7 +102,8 @@ export function startServer({ port = 8080, root = ROOT, host = '127.0.0.1', quie
     if (page) res.writeHead(404, { 'Content-Type': MIME['.html'] }).end(page);
     else res.writeHead(404, { 'Content-Type': 'text/plain' }).end('not found');
   };
-  const server = createServer(async (req, res) => {
+  const sessions = new Set();
+  const handler = async (req, res) => {
     try {
       if (latencyMs) await new Promise((r) => setTimeout(r, latencyMs));
       const url = new URL(req.url, 'http://x');
@@ -138,12 +151,17 @@ export function startServer({ port = 8080, root = ROOT, host = '127.0.0.1', quie
       if (req.method === 'HEAD') return res.end();
       stats.ok++;
       if (stats.paths.length < 1e6) stats.paths.push(rel); // tests and tools/perf read what was served
-      if (gz) createReadStream(file).pipe(createGzip({ level: 6 })).pipe(throttle()).pipe(res);
-      else createReadStream(file).pipe(throttle()).pipe(res);
+      // log: one {rel, t0, t1, bytes} per response (tools/perf/measure-download.mjs: what crossed the link, when)
+      const entry = log ? { rel, t0: Date.now(), t1: null, bytes: 0 } : null;
+      if (entry && stats.log.length < 1e6) stats.log.push(entry);
+      if (gz) createReadStream(file).pipe(createGzip({ level: 6 })).pipe(throttle(entry)).pipe(res);
+      else createReadStream(file).pipe(throttle(entry)).pipe(res);
     } catch (err) {
       res.writeHead(500).end(String(err));
     }
-  });
+  };
+  const server = h2 ? createSecureServer({ ...localCert(), allowHTTP1: true }, handler) : createServer(handler);
+  if (h2) server.on('session', (s) => { sessions.add(s); s.on('close', () => sessions.delete(s)); });
   return new Promise((resolveP, reject) => {
     server.once('error', reject);
     server.listen(port, host, () => {
@@ -154,11 +172,23 @@ export function startServer({ port = 8080, root = ROOT, host = '127.0.0.1', quie
         /** Serve another directory from now on (tests: a new deploy on the same origin). */
         setRoot(dir) { rootAbs = resolve(dir); },
         port: actual,
-        url: `http://${host === '0.0.0.0' ? 'localhost' : host}:${actual}${base}`,
-        close: () => new Promise((r) => { server.closeAllConnections?.(); server.close(() => r()); }),
+        url: `${h2 ? 'https' : 'http'}://${host === '0.0.0.0' || h2 ? 'localhost' : host}:${actual}${base}`,
+        close: () => new Promise((r) => { server.closeAllConnections?.(); for (const s of sessions) s.destroy(); server.close(() => r()); }),
       });
     });
   });
+}
+
+/** Self-signed certificate for localhost (HTTP/2 needs TLS in browsers), made once per machine with openssl. */
+function localCert() {
+  const dir = join(tmpdir(), 'shadow-six-h2-cert');
+  const key = join(dir, 'key.pem'), cert = join(dir, 'cert.pem');
+  if (!existsSync(key) || !existsSync(cert)) {
+    mkdirSync(dir, { recursive: true });
+    execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', key, '-out', cert, '-days', '3650',
+      '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost,IP:127.0.0.1'], { stdio: 'ignore' });
+  }
+  return { key: readFileSync(key), cert: readFileSync(cert) };
 }
 
 // CLI
@@ -167,6 +197,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const flag = (n) => { const i = argv.indexOf(n); if (i < 0) return undefined; const v = argv[i + 1]; argv.splice(i, 2); return v; };
   const root = resolve(flag('--root') ?? ROOT), base = flag('--base') ?? '/';
   const port = Number(argv[0] ?? process.env.PORT ?? 8080);
-  const { url } = await startServer({ port, root, base, gzip: base !== '/' || argv.includes('--gzip'), quiet: false, host: process.env.HOST || '127.0.0.1' });
+  const { url } = await startServer({ port, root, base, gzip: base !== '/' || argv.includes('--gzip'), quiet: false, host: process.env.HOST || '127.0.0.1', h2: argv.includes('--h2') });
   console.log(`SHADOW SIX ${root === ROOT ? 'dev' : 'static'} server: ${url}  (root ${root})`);
 }

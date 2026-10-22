@@ -650,6 +650,29 @@ export class AudioEngine {
    * evict every other decoded buffer. Long takes (> 12 s, e.g. the siren) are pinned to ONE per mission and
    * loops to two; beds are streamed and skipped. Resolves with {buffers, bytes} of decoded PCM.
    */
+  /**
+   * The clip files `preload(ids, {speakers})` will fetch, for a mission load's early downloads (engine/early-fetch.js):
+   * the same selection, read-only and without the random pick among long takes (those are left to preload).
+   * Full URLs (base included). Needs the manifests (`await this.ready`).
+   * @returns {string[]}
+   */
+  prefetchUrls(ids, { speakers = [] } = {}) {
+    if (this.sprites) return []; // the mission's audio sprites serve the clips (mission packs)
+    const out = new Set();
+    for (const id of ids) {
+      const def = SFX[id], urls = this.files.get(id);
+      if (!urls?.length || def?.bed || this._bedFiles(id)) continue;
+      if (urls.some((u) => (this.meta.get(u)?.duration ?? 0) > 12)) continue; // one long take, picked at random
+      for (const u of def?.loop && urls.length > 2 ? urls.slice(0, 2) : urls) if (!this.decoded.has(u) && !this.packed.has(u)) out.add(u);
+    }
+    const sp = new Set(speakers);
+    for (const [k, takes] of this.voiceRec) {
+      if (!sp.has(k.split('|')[0])) continue;
+      for (const t of takes) for (const u of [t.url, t.alt]) if (u && !this.decoded.has(u) && !this.packed.has(u)) out.add(u);
+    }
+    return [...out].map((u) => this.base + u);
+  }
+
   async preload(ids, { speakers = [] } = {}) {
     await this.ready;
     const want = new Set(), later = new Set();

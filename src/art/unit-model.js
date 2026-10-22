@@ -36,6 +36,7 @@ import { railArms } from './rail-arms.js';
 import { steepLadder } from '../entities/stair-walk.js';
 import { swimFrame, wadeOffset, waterColumn } from './swim-pose.js';
 import { due, runSync } from '../engine/slice.js';
+import { earlyFetch } from '../engine/early-fetch.js';
 
 const PRONE_SHOT = /^prone_(shoot|shoot_smg|pistol_shoot)$/;
 /** The Spy's pending orders whose action blends in from the last pose shown (art/spy-actions.js). */
@@ -91,6 +92,8 @@ export async function prepareCharacters(def, { timeoutMs = 20000 } = {}) {
   const spawns = (def.enemies || []).filter((e) => e.soldierType !== 'dog' && e.id != null)
     .map((e) => ({ id: String(e.id), soldierType: lookType(e, ctx.theater, ctx.missionId), x: e.x || 0, z: e.z || 0, squad: squadId(e) }));
   HR.assignEnemyLooks(ctx.missionId, spawns);
+  // the men's body GLBs download now, while the map builds (engine/early-fetch.js): the units stage builds them later
+  earlyFetch(HR.missionCharacterUrls(ctx.missionId, { roles: (def.commandos || []).map((c) => c.role).filter(Boolean), mission: ctx.missionNo }));
   ctx.ready = true;
   return true;
 }

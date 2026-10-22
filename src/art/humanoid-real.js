@@ -227,6 +227,27 @@ export function assignEnemyLooks(missionId, spawns) {
   return out;
 }
 
+/**
+ * The body GLBs a mission's men will be built from, for the load's early downloads (engine/early-fetch.js): the
+ * enemies' looks assigned by assignEnemyLooks (its picks) and the squad's bodies (resolve()'s own role → character
+ * choice, + the Marine's wetsuit body). The loaders fetch exactly these when the men spawn.
+ * @param {string|number} missionId @param {{roles?: string[], mission?: number}} [o] the squad's roles, mission number
+ * @returns {string[]}
+ */
+export function missionCharacterUrls(missionId, { roles = [], mission } = {}) {
+  if (!LIB) return [];
+  const C = LIB.manifest.characters, out = new Set();
+  // (a body whose template this page already holds is not fetched again)
+  const add = (id) => { const g = id && C[id]?.glb; if (g && C[id].group !== 'enemies' && !LIB.tpl.has(id)) out.add(url(g)); };
+  for (const role of new Set(roles)) {
+    try { const r = resolve({ faction: 'player', role, mission }); add(r.id); add(r.water); add(r.disguise); } catch { /* unknown role: built as before */ }
+  }
+  const pre = `${missionId}:`;
+  const E = LIB.rt.enemies?.E;
+  for (const [k, v] of LIB.rt.enemies?.picks || []) if (k.startsWith(pre) && v?.url && !E?.templates.has(v.id)) out.add(v.url);
+  return [...out];
+}
+
 let autoSeed = 0;
 function resolve(opts) {
   const man = LIB.manifest, C = man.characters;

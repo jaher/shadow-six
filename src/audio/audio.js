@@ -17,6 +17,7 @@ import { AudioEngine, spatialize } from './engine.js';
 import { SFX, MUSIC, ambienceFor } from './manifest.js';
 import { VoiceDirector, lineKey, speakerOf } from './voice-lines.js';
 import { installHandlers, missionAudio } from './event-map.js';
+import { earlyFetch } from '../engine/early-fetch.js';
 import { MusicDirector } from './music-director.js';
 import { Narrator } from './narration.js';
 import { SpriteSource } from './sprite-source.js';
@@ -146,6 +147,19 @@ export function createAudio(events, opts = {}) {
       const s = new SpriteSource();
       s.open(info.mission, info.preset, meter);
       this.engine.sprites = s;
+    },
+    /**
+     * A mission load has started: download its sound pack's clips now, in the background, while the map builds
+     * (engine/early-fetch.js); `_preload` decodes / keeps them after 'mission:loaded' as before, served from memory.
+     * @param {object} def the normalized mission (as 'mission:loaded' will carry it)
+     */
+    async prefetchMission(def) {
+      const eng = this.engine;
+      if (!eng || !def || typeof eng.prefetchUrls !== 'function') return 0;
+      try { await eng.ready; } catch { return 0; }
+      if (this.engine !== eng) return 0;
+      const { ids, speakers } = missionAudio(def);
+      return earlyFetch(eng.prefetchUrls(ids, { speakers }), { rank: 4 });
     },
     /** Per-mission loading: decode this mission's SFX and voice packs, evict the rest (§1.5.0). */
     _preload() {

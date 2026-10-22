@@ -531,6 +531,11 @@ function aoNormalMaterial(tex, U) {
  * @returns {Promise<{group:THREE.Group, trees:object[], update:(dt:number)=>void, setQuality:(q:string)=>void,
  *   setSnow:(a:number)=>void, dispose:()=>void, stats:{trees:number, tris:number, drawCalls:number, genMs:number}}>}
  */
+/** The strips createVegetation loads (leaf / bark / needle atlases), for a load's early downloads (engine/early-fetch.js). */
+export const VEGETATION_STRIPS = Object.freeze(['foliage.webp', 'bark_albedo.webp', 'bark_normal.webp', 'foliage_n.webp', 'needles.webp', 'needles_n.webp']);
+export const vegetationStripUrls = (base = new URL('../../../assets/terrain/', import.meta.url).href) => VEGETATION_STRIPS.map((f) => base + f)
+  .filter((u) => !cache.hasPrefix(`strip:${u}|`)); // decoded already: no fetch will come
+
 export async function createVegetation(scene, placements, theater = 'temperate', opts = {}) {
   const base = opts.assetBase || new URL('../../../assets/terrain/', import.meta.url).href;
   const [lAlb, bAlb, bNor, lNor, nAlb, nNor] = await Promise.all([

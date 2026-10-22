@@ -24,6 +24,7 @@
 import { registerPortraitPhoto, getPortraitURL } from '../art/portraits.js';
 import { sessionCache } from '../engine/asset-cache.js';
 import { audioExt } from '../audio/formats.js';
+import { earlyFetch } from '../engine/early-fetch.js';
 
 /** game role id -> clip character id */
 export const ROLE_TO_CHAR = Object.freeze({ greenberet: 'green_beret', sniper: 'sniper', diver: 'marine', marine: 'marine', sapper: 'sapper', driver: 'driver', spy: 'spy' });
@@ -231,11 +232,37 @@ export class TalkingPortraits {
     this.blobs.set(u, url.url);
   }
 
+  /** The files `_preload(c)` turns into blobs: every clip in the playable format + the pain stills (relative paths). */
+  static preloadFiles(e, fmt) {
+    const clips = [e.idle, e.talk_loop, ...Object.values(e.lines || {}).flatMap((l) => [l, l.alt]), ...(e.pain?.flinch || []), e.pain?.wounded];
+    return [...clips.filter(Boolean).map((x) => x.clip + '.' + fmt), ...['still', 'downed'].map((k) => e.pain?.[k]).filter(Boolean)];
+  }
+
+  /**
+   * A mission load has started: download the clips its squad's portraits will preload (engine/early-fetch.js), while
+   * the map builds; `load()` after the build turns them into blobs as before, served from memory. Same manifest, format
+   * and size choices as load(). @param {{roles?: string[], base?: string, size?: number}} o
+   */
+  static async prefetch({ roles = [], base = 'assets/portraits/', size = 256 } = {}) {
+    if (typeof document === 'undefined') return 0;
+    const b = base.endsWith('/') ? base : base + '/';
+    const man = await TalkingPortraits.probe({ base: b, size });
+    const v = document.createElement('video');
+    const fmt = ['webm', 'mp4'].find((k) => v.canPlayType(TYPES[k])) || null;
+    if (!man || !fmt) return 0;
+    const urls = [];
+    for (const c of new Set(roles.map((r) => ROLE_TO_CHAR[r]).filter((c) => c && man.characters[c]))) {
+      for (const f of TalkingPortraits.preloadFiles(man.characters[c], fmt)) {
+        const u = b + f.replace('{size}', String(size));
+        if (!sessionCache.has(`blob:${u}`)) urls.push(u); // a blob already (an earlier mission): no fetch will come
+      }
+    }
+    return earlyFetch(urls, { rank: 3 });
+  }
+
   async _preload(c) {
     const e = this.man.characters[c], jobs = [];
-    const clips = [e.idle, e.talk_loop, ...Object.values(e.lines).flatMap((l) => [l, l.alt]), ...(e.pain?.flinch || []), e.pain?.wounded];
-    for (const x of clips) if (x) jobs.push(this._blob(this.url(x.clip) + '.' + this.fmt).catch(() => { /* streams instead */ }));
-    for (const k of ['still', 'downed']) if (e.pain?.[k]) jobs.push(this._blob(this.url(e.pain[k])).catch(() => {}));
+    for (const f of TalkingPortraits.preloadFiles(e, this.fmt)) jobs.push(this._blob(this.url(f)).catch(() => { /* streams instead */ }));
     if (this.ownVoice) for (const x of [...Object.values(e.lines), ...(e.pain?.flinch || [])]) jobs.push(this._voice(x));
     await Promise.all(jobs);
   }

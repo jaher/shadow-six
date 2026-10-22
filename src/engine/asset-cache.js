@@ -89,6 +89,13 @@ export class SessionCache {
 
   has(key) { return this.entries.has(key); }
 
+  /** Is any entry (kept or loading) keyed `prefix…`? (a load deciding whether a file will be fetched again) */
+  hasPrefix(prefix) {
+    for (const k of this.entries.keys()) if (k.startsWith(prefix)) return true;
+    for (const k of this.pending.keys()) if (k.startsWith(prefix)) return true;
+    return false;
+  }
+
   /** Value for `key` (marks it used by the current mission), or undefined. */
   get(key) {
     const e = this.entries.get(key);

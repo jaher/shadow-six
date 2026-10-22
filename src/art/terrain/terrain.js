@@ -221,11 +221,27 @@ function turfUniforms(veg, on) {
   return { uTurf: { value: new THREE.Vector4(on ? t : 0, Math.min(1, veg.dry ?? 0), 0, 0) }, uTurfA: { value: a }, uTurfB: { value: b } };
 }
 
+/** The layer strips' source theatre (a palette may borrow another theatre's strips). */
+const stripSource = (theater) => (PALETTES[theater] || PALETTES.temperate).sourceTheater || (PALETTES[theater] ? theater : 'temperate');
+const TERRAIN_BASE = () => new URL('../../../assets/terrain/', import.meta.url).href;
+const resSuffix = (res) => (res >= 2048 ? '_2k' : res <= 512 ? '_512' : '');
+
+/**
+ * The layer strips createTerrain loads first for a theatre at a texture resolution (albedo, normal, data), so a
+ * mission load can download them ahead (engine/early-fetch.js; art/terrain.js terrainTexRes gives the resolution).
+ * @param {string} theater @param {number} texRes 512 | 1024 | 2048 @returns {string[]}
+ */
+export function terrainLayerUrls(theater = 'temperate', texRes = 1024, base = TERRAIN_BASE()) {
+  const src = stripSource(theater), r = texRes >= 2048 ? 2048 : texRes > 0 && texRes <= 512 ? 512 : 1024;
+  return [`${base}${src}_albedo${resSuffix(r)}.webp`, `${base}${src}_normal${resSuffix(r)}.webp`, r <= 512 ? `${base}${src}_data_512.webp` : `${base}${src}_data.webp`]
+    .filter((u) => !cache.hasPrefix(`layer:${u}|`)); // decoded already (this page's last mission): no fetch will come
+}
+
 export async function createTerrain(renderer, scene, grid, theater = 'temperate', opts = {}) {
   const gl = renderer.isWebGLRenderer ? renderer : renderer.renderer;
   const P = PALETTES[theater] || PALETTES.temperate;
-  const src = P.sourceTheater || (PALETTES[theater] ? theater : 'temperate');
-  const base = opts.assetBase || new URL('../../../assets/terrain/', import.meta.url).href;
+  const src = stripSource(theater);
+  const base = opts.assetBase || TERRAIN_BASE();
   const aniso = Math.min(8, gl.capabilities.getMaxAnisotropy());
   const W = grid.width, D = grid.depth;
   const windDir = new THREE.Vector2(opts.wind?.x ?? 1, opts.wind?.z ?? 0.25).normalize();
@@ -233,7 +249,7 @@ export async function createTerrain(renderer, scene, grid, theater = 'temperate'
   // texRes 2048 (ultra): 2K albedo + normal arrays (`*_2k.webp`, 2 x 4 grid), 1K data; 512 (art/terrain.js
   // terrainTexRes: 'low', and 'medium' / 'high' where the palette allows): `*_512.webp` albedo, normal and data.
   // A missing 2K / 512 file falls back to 1K.
-  const sfx = (res) => (res >= 2048 ? '_2k' : res <= 512 ? '_512' : '');
+  const sfx = resSuffix;
   const loadRes = (res) => Promise.all([
     loadArray(`${base}${src}_albedo${sfx(res)}.webp`, true, aniso, res),
     loadArray(`${base}${src}_normal${sfx(res)}.webp`, false, aniso, res),

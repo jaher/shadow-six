@@ -15,7 +15,8 @@ import { createTerrainHandle, tracksNear as trailsNear, dragHeels } from './terr
 import { footOf } from '../ai/footprints.js';
 import { buildFlatMaskG, PALETTES } from './terrain/terrain-layers.js';
 import { pretrampleRoads, terrainPainter } from '../world/roads.js';
-import { createVegetation } from './terrain/vegetation.js';
+import { createVegetation, vegetationStripUrls } from './terrain/vegetation.js';
+import { earlyFetch } from '../engine/early-fetch.js';
 import { vegetationProfile } from './terrain/veg-profile.js';
 import { fillForest, hedgerowPlacements, forestUnderstorey, forestFloorPainter } from './terrain/forest-fill.js';
 import { SPECIES } from './terrain/treegen.js';
@@ -489,6 +490,8 @@ export function* buildTerrainG(grid, theater = 'temperate', ctx = {}) {
   // everything planted on the map (pure: plantingPlan) — the mission's trees, forest fill, hedgerows, orchards
   if (due()) yield;
   const { placements, scrubHeroes, farm } = plantingPlan(grid, theater, { mission, trees: ctx.trees, forests: ctx.forests, shore });
+  // trees on the map: their atlases download now, while the ground builds (engine/early-fetch.js)
+  if (placements.length) earlyFetch(vegetationStripUrls(), { rank: 1 });
   if (due()) yield;
   const inner = createTerrainHandle(R, new THREE.Group(), grid, theater, {
     scrubHeroes,

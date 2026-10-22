@@ -7,6 +7,7 @@
  * defines, texture sizes). Prints per-mission equal / different, with the first differing parts.
  *
  *   node tools/perf/load-identity.mjs --base=<checkout A> [--test=<checkout B>] [--missions=m01,m03] [--preset=high] [--tick] [--dump=<dir>] [--query=&sliced=0]
+ * A checkout may also be a web build (dist/): served at its root, class names (minified) left out of the entity digest.
  */
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -51,7 +52,10 @@ function digest() {
   out['grid.version'] = g.version;
   out['placement'] = safeJson((w.placement?.structures || []).map((s) => [s.type, s.id, s.x, s.z, s.rot, s.w, s.d, s.points, s.placementDropped]));
   out['placement.log'] = safeJson(w.placement?.log || null);
-  out['entities'] = safeJson(w.entities.map((e) => [e.id, e.constructor?.name, e.kind, e.role, e.soldierType, r6(e.x), r6(e.z), r6(e.y), r6(e.heading ?? e.h), e.state, e.alive]));
+  // (a web build's class names are the minifier's, different per bundle: compared only on dev trees)
+  const ents = w.entities.map((e) => [e.id, window.__SS_BUILD__ ? '' : e.constructor?.name, e.kind, e.role, e.soldierType, r6(e.x), r6(e.z), r6(e.y), r6(e.heading ?? e.h), e.state, e.alive]);
+  out['entities'] = safeJson(ents);
+  out._raw = { entities: JSON.stringify(ents) };
   out['interactables'] = safeJson((w.interactables || []).map((i) => [i.id, i.interactKind, r6(i.x), r6(i.z), i.tag, i.on, i.open]));
   out['ladders'] = safeJson(w.ladders || null);
   out['structureDoors'] = safeJson(w.structureDoors || null);
@@ -102,7 +106,7 @@ for (const id of missions) {
     await page.close();
     await server.close();
   }
-  const diffs = Object.keys({ ...res.A, ...res.B }).filter((k) => k !== '_lines' && k !== '_ms' && k !== '_arrays' && res.A[k] !== res.B[k]);
+  const diffs = Object.keys({ ...res.A, ...res.B }).filter((k) => k !== '_lines' && k !== '_ms' && k !== '_arrays' && k !== '_raw' && res.A[k] !== res.B[k]);
   // --dump=<dir>: both sides' scene lines (nodes / geometry / materials) as text files, for a diff tool
   const dump = arg('dump', '');
   if (dump) {
@@ -114,6 +118,15 @@ for (const id of missions) {
     if (!a || !b) continue;
     const idx = []; for (let i = 0; i < Math.max(a.length, b.length); i++) if (a[i] !== b[i]) idx.push(i);
     console.log(`   ${k}: ${idx.length} cells differ, e.g. ${idx.slice(0, 8).map((i) => `${i}:${a[i]}→${b[i]}`).join(' ')}`);
+  }
+  // JSON digests (entities, interactables, …): the first entries that differ
+  for (const k of diffs) {
+    let a, b;
+    try { a = JSON.parse(res.A._raw?.[k]); b = JSON.parse(res.B._raw?.[k]); } catch { continue; }
+    if (!Array.isArray(a) || !Array.isArray(b)) continue;
+    const idx = []; for (let i = 0; i < Math.max(a.length, b.length); i++) if (JSON.stringify(a[i]) !== JSON.stringify(b[i])) idx.push(i);
+    for (const i of idx.slice(0, 6)) console.log(`   ${k}[${i}] A: ${JSON.stringify(a[i])}\n   ${k}[${i}] B: ${JSON.stringify(b[i])}`);
+    if (idx.length > 6) console.log(`   … ${idx.length} entries differ`);
   }
   if (diffs.length) allSame = false;
   console.log(`${id}: ${diffs.length ? 'DIFFERENT ' + diffs.join(', ') : 'identical'} (${Object.keys(res.A).length - 2} digests; load A ${res.A._ms} ms, B ${res.B._ms} ms)`);

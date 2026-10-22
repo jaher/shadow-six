@@ -962,7 +962,7 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
 - **Asset loading & size** (art integration 2 step 4): every subsystem fetches only what the mission uses (buildings:
   the picked GLBs + destroyed/snow variants, every LOD the preset can show — `low` skips LOD0; characters: the
   squad picks + the commandos; vehicles: the mission's types in its theater paint + wrecks; terrain: the theatre's strips; audio: the
-  mission's SFX/voice pack after `mission:loaded`; portraits: the squad). `Game.loadMission` reports real progress
+  mission's SFX/voice pack, downloaded during the load and decoded after `mission:loaded`; portraits: the squad). `Game.loadMission` reports real progress
   (`engine/load-progress.js`: stage shares + Resource Timing bytes vs `assets/load-budget.json`) as
   `mission:progress`; `ui/loading.js` shows it for every mission start (`hud.startMission` → loading → briefing) and
   then waits (≤ 6 s) for the portraits and the decoded sound pack. Formats: terrain strips WebP (`layer-image.js`
@@ -971,6 +971,33 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   textures: `textures/lib/1k` (default), `512` (low), `2k` WebP albedo (ultra), byte-identical maps aliased away
   (`manifest.textures.aliases`). Tools: `tools/perf/measure-load.mjs` (bytes per mission/preset, `--budget`),
   `tools/perf/shot.mjs` (A/B screenshot), `tools/perf/terrain_webp.py`, `tools/perf/lib_textures.py`.
+- **Early downloads** (`engine/early-fetch.js`, perf/download-speed 2026-10-22): the load's stages run one after
+  another and each used to ask for its files only when it started, so the link sat idle through the CPU-bound map build
+  while the units stage then waited on the enemies' bodies (10–28 MB), and the sound pack / portraits came after
+  `mission:loaded`. Now the code that knows what a later stage will load names it as soon as it knows:
+  `earlyFetch(urls, {rank})` downloads those files in the background (≤ 6 at a time, `priority: 'low'`, lower rank
+  first: 0 terrain layer strips — `terrainLayerUrls(theater, terrainTexRes(preset))` at the click; 1 tree atlases —
+  `vegetationStripUrls()` once the planting plan has trees; 2 the men's body GLBs — `missionCharacterUrls()` right after
+  `assignEnemyLooks`; 3 the squad's portrait clips — `TalkingPortraits.prefetch`; 4 the sound pack's clips —
+  `AudioEngine.prefetchUrls`, the same selection as `preload` minus the randomly picked long takes) and `loadRapier()`
+  starts with the map build. `window.fetch` is wrapped once (module import, before the audio engine binds `fetch`): the
+  loader's own later `fetch(url)` of a named file gets its bytes from memory (or joins the download in flight), once;
+  a request for a still-queued file starts it at once; GET only, no Range; anything not named goes to the network as
+  before; a failed early download is forgotten, so the loader meets the error itself. Files already decoded in the
+  session cache (`layer:` / `strip:` / `blob:` keys, held templates) are not named. Nothing changes in what is
+  loaded, in what order the world is built or in what a loader receives (`tools/perf/load-identity.mjs`: identical).
+  The building / character / vehicle libraries also load side by side (`Game.loadMission`; the bar still closes
+  buildings → characters → vehicles in order). `?earlyfetch=0` turns the early downloads off (A/B). A loader that
+  fetches per-mission files LATE in the load should name them early the same way, from the code that builds the URLs.
+  Measured (cold first visit, web build over HTTP/2, 40 ms RTT, interleaved A/B on a loaded shared host; seconds from
+  the click to the briefing): 25 Mbit/s m01 low 33.7 → 24.7, m01 high 28.1 → 22.1, m03 low 45.3 → 34.5, m20 low 55.9 →
+  42.0, m20 high 61.9 → 50.8; unthrottled m01 low 16.4 → 12.7, m03 low 29.2 → 25.0 — the same bytes, the link busy
+  41–67 % of the load instead of 34–53 %. What is left is CPU (the map build, the units' warm-ups); the art libraries'
+  ~20 MB are the network-bound part at 25 Mbit/s.
+  Measure: `tools/perf/measure-download.mjs` (cold first visit through MAIN → mission → briefing → first playing frame,
+  bytes / requests per phase, link use, load-stage timeline; local: the web build over HTTP/2 + TLS through one shared
+  throttled link — `tools/serve.mjs` `h2` / `log` — so the service worker's fetches are throttled too; `--site=`: a live
+  deployment with DevTools throttling, service worker blocked).
 - **Gzip-wrapped GLBs and HDRIs** (`engine/glb-gzip.js`, asset budget 2026-10): every `assets/**/*.glb` and
   `assets/hdri/*.hdr` is stored as gzip(file) — meshopt output is built to be entropy-coded on top and GitHub Pages
   serves binaries as stored, so the wrap takes 27 % off the GLBs (426.8 → 311.5 MB with zopfli; geometry −35…40 %,

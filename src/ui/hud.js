@@ -294,6 +294,12 @@ export class HUD {
     this._syncVisibility();
   }
 
+  /** A mission load has started (Game.loadMission): its squad's portrait clips download while the map builds. */
+  prefetchMission(def) {
+    if (typeof document === 'undefined' || this.options.talkingPortraits === false) return null;
+    return TalkingPortraits.prefetch({ roles: (def?.commandos || []).map((c) => c.role).filter(Boolean), base: this.portraitsBase }).catch(() => 0);
+  }
+
   /** §6.3: talking portraits into the fresh portrait slots + speaker card; the stills stay if they cannot play. */
   _mountPortraits(world, def) {
     this.portraits?.dispose();
