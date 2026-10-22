@@ -1,0 +1,85 @@
+{
+ "asset": "rust_tank_de",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "cast_iron": {
+   "source": "Poly Haven",
+   "id": "rusty_metal_03",
+   "url": "https://polyhaven.com/a/rusty_metal_03",
+   "authors": [
+    "Amal Kumar"
+   ],
+   "license": "CC0-1.0",
+   "name": "Rusty Metal 03",
+   "label": "Cast iron (lamp posts, railings, fittings)",
+   "files": {
+    "diff": {
+     "2k": "2k/cast_iron_diff",
+     "1k": "1k/cast_iron_diff"
+    },
+    "nor": {
+     "2k": "2k/cast_iron_nor",
+     "1k": "1k/cast_iron_nor"
+    },
+    "arm": {
+     "2k": "2k/cast_iron_arm",
+     "1k": "1k/cast_iron_arm"
+    }
+   }
+  },
+  "decals": {
+   "source": "procedural (tools/make_decals.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Weathering decal atlas (alpha blend)",
+   "files": {
+    "diff": {
+     "1k": "1k/decals_rgba",
+     "2k": "2k/decals_rgba"
+    }
+   }
+  },
+  "paint_metal": {
+   "source": "procedural (art/norway/tools/make_nor_tex.py, own work)",
+   "license": "CC0-1.0",
+   "label": "Smooth enamel-painted sheet metal (pale, tint per asset)",
+   "files": {
+    "diff": {
+     "1k": "1k/paint_metal_diff",
+     "2k": "2k/paint_metal_diff"
+    },
+    "nor": {
+     "1k": "1k/paint_metal_nor",
+     "2k": "2k/paint_metal_nor"
+    },
+    "arm": {
+     "1k": "1k/paint_metal_arm",
+     "2k": "2k/paint_metal_arm"
+    }
+   }
+  },
+  "timber_creosote": {
+   "source": "procedural (art/military/tools/make_mil_tex.py, own work)",
+   "license": "CC0-1.0",
+   "derived_from": {
+    "source": "Poly Haven",
+    "id": "wood_planks_grey",
+    "license": "CC0-1.0"
+   },
+   "label": "Creosoted structural timber",
+   "files": {
+    "diff": {
+     "1k": "1k/timber_creosote_diff",
+     "2k": "2k/timber_creosote_diff"
+    },
+    "nor": {
+     "1k": "1k/timber_creosote_nor",
+     "2k": "2k/timber_creosote_nor"
+    },
+    "arm": {
+     "1k": "1k/timber_creosote_arm",
+     "2k": "2k/timber_creosote_arm"
+    }
+   }
+  }
+ }
+}

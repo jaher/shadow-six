@@ -136,7 +136,7 @@ export function* goalReachableGen({ s1, tx, tz, W, H, x0, z0, cx, cz, k0, holdK,
   for (const c of goals) {
     let run = 0;
     for (let k = Math.max(0, k0); k <= k1; k++) {
-      if ((k & 63) === 0) yield;
+      if ((k & 7) === 0) yield; // (a seen() asks every guard: a slice stays within PLAN_SLICE_MS)
       if (seen(c, k)) { run = 0; continue; }
       if (++run > holdK) return true; // unseen from k - holdK (≥ k0, ≤ kMax) to k
     }
@@ -333,7 +333,10 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
     }
   };
   const halt = () => { if (aborted?.()) throw new SolutionAborted(); };
-  const tick = async () => { halt(); const r = step(); if (r && typeof r.then === 'function') await r; halt(); if (watch) watchTick(); };
+  // side tasks (D.meanwhile): checked every tick before it runs, each until it returns true
+  const side = [];
+  const runSide = () => { for (const f of side.slice()) if (f()) side.splice(side.indexOf(f), 1); };
+  const tick = async () => { halt(); if (side.length) runSide(); const r = step(); if (r && typeof r.then === 'function') await r; halt(); if (watch) watchTick(); };
   const checkpoints = [];
 
   const D = {
@@ -749,6 +752,28 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
     planSneakAsync(tx, tz, o = {}) { return runGenAsync(D.planSneakGen(tx, tz, o)); },
     /** Run any generator the sliced way (sneak.mjs plans): hand the frame back every PLAN_SLICE_MS (`pause`). */
     runSliced(it) { return runGenAsync(it); },
+    /**
+     * A side task while the solution goes on with something else: `fn` is called every tick (before it runs) until it
+     * returns true — a second man's orders timed by the world (the Spy who talks to a patrol the moment it halts while
+     * the Sapper crawls off elsewhere), as a player gives orders to two men at once. `D.pending(fn)`: still running?
+     */
+    meanwhile(fn) { side.push(fn); return fn; },
+    pending(fn) { return side.includes(fn); },
+    /**
+     * A drive order's turn plan made beforehand, sliced: the vehicle `role` drives plans its multi-point turn toward
+     * (x, z) (Vehicle.planDriveGen) handing the frame back every PLAN_SLICE_MS with no tick in between, into the memo the
+     * order reads — so the order, given next, finds the very plan it would have made at once (a cramped three-point
+     * turn is ~100 ms of search: never in one frame of a live replay).
+     */
+    async drivePlan(role, x, z, { run = false } = {}) {
+      const v = D.c(role)?.vehicle;
+      if (!v?.planDriveGen || !v.arcDrive || v.driver !== D.c(role)) return;
+      const fast = !!run || !!v.def.fastOnly;
+      let n = 0;
+      const it = v.planDriveGen(x, z, { pause: () => (++n & 31) === 0 });
+      // (the order plans at the speed it is given: the memo is keyed by it)
+      await runGenAsync({ next() { const f = v.fast; v.fast = fast; try { return it.next(); } finally { v.fast = f; } } });
+    },
     /** planSneak's search as a generator (it yields every few hundred states). */
     * planSneakGen(tx, tz, o = {}) {
       const mode = o.mode || 'raft', raft = D.raft() ?? (o.from ? lastRaft : null), u = mode === 'raft' ? raft : D.c(o.role);
@@ -936,7 +961,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
         const key = c * (HS + 256) + k;
         if (done.has(key)) continue;
         done.add(key); n++;
-        if ((n & 127) === 0) yield;
+        if ((n & 15) === 0) yield; // (each state asks seen() of its neighbours: often, so a slice stays within PLAN_SLICE_MS)
         // he may stay a while where he stops (`shelter`: any cell he can lie in unseen for `hold` s will do)
         // (a click on a cell edge: either cell touching it will do)
         const atGoal = o.shelter || c === s1 || (mode !== 'raft' && Math.hypot(cx(c) - tx, cz(c) - tz) <= 0.55);

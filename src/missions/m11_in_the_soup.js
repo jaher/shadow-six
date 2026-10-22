@@ -387,7 +387,7 @@ export default {
     { id: 'tanker', vehicleType: 'opel_blitz_tanker', variant: 'opel_blitz_tanker_desert', label: 'Fuel truck', x: 72, z: 38.5, heading: deg(0), driveable: false,
       crew: [{ id: 'tank_drv', soldierType: 'truckDriver' }],
       route: { type: 'PINGPONG', speed: 2.5, points: [
-        { x: 72, z: 38.5, wait: 10 }, { x: 79, z: 42 }, { x: 85.7, z: 40 }, { x: 85.7, z: 35.5 },
+        { x: 72, z: 38.5, wait: 10 }, { x: 79, z: 42 }, { x: 85, z: 40 }, { x: 85, z: 35.5 },
         { x: 88.5, z: 33.8, wait: 4 }, { x: 93, z: 31.5 }, { x: 96, z: 32, wait: 8 }] } },
     // the Gatling guarding the half-track (e22 mans it; the Driver may take it once he is dead)
     { id: 'mg_e', vehicleType: 'mgNest', x: 80, z: 87.7, heading: deg(240), gunner: 'e22', driveable: false },
@@ -435,13 +435,19 @@ export default {
     // mission glue every tick: the half-tracks' ramp/plateau driving and heights (D3/D9)
     { on: 'tick', once: false, when: () => true, do: [{ run: (w) => m11Tick(w) }] },
     // the N half-track answers the northern alarm through the tunnel [P tip][g3]; it fights whatever it meets
-    { on: 'alarm:zone', match: { event: 'EV_N' }, once: true,
+    // (once the tunnel has fallen it only goes as far as the N portal and stands there: no way through the rubble —
+    // dossier §10.2; a hull ordered on through it planned its way in vain every few seconds)
+    { on: 'alarm:zone', match: { event: 'EV_N' }, once: true, when: (_p, w) => !tunnelDown(w),
       do: [{ drive: 'ht_n', to: [[70, 12.5], [63, 13.5], [52.8, 30.8], [50, 36], [50, 40]], speed: 5 }] },
+    { on: 'alarm:zone', match: { event: 'EV_N' }, once: true, when: (_p, w) => tunnelDown(w),
+      do: [{ drive: 'ht_n', to: [[70, 12.5], [63, 13.5]], speed: 5 }] },
     // a half-track caught in the bore when it falls is crushed with it [P tip] (collapse kills units only, D6)
     { on: 'structure:destroyed', match: { id: 'tunnel_fall' }, once: true, do: [{ run: (w) => {
       tunnelRubble(w, [53.4, 30.2]);
       const v = w.byId('ht_n');
       if (v && !v.destroyed && inside(TUNNEL_POLY, v.x, v.z)) v.destroy(null, 'explosion');
+      // (on its way to the bore: its drive now ends at the N portal, short of the rubble)
+      else if (v && !v.destroyed && v.path?.some((p) => p.z > 20)) v.followPath([{ x: 63, z: 13.5 }], { speed: 5 });
     } }] },
     // the two silent garrison alerts: only the camp's siren is an alarm (stats.alarms, gap-7 scores neither); the
     // silent EV_C / EV_N calls are tallied apart in stats.zoneAlerts (once each)
@@ -478,6 +484,9 @@ export default {
   cameraStart: { x: 12, z: 68, zoom: 1 },
   startDisguised: ['spy'],
 };
+
+/** Has the tunnel fallen? (its bore is rock: the collapse stamps TUNNEL_POLY; save-safe, read off the grid) */
+function tunnelDown(w) { return !!w?.grid && !w.grid.walkableAt(58, 22.5); }
 
 /** Point in polygon (the trigger's bore test). */
 function inside(poly, x, z) {

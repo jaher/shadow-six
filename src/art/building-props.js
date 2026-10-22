@@ -59,7 +59,7 @@ export const VARIANT_HINTS = {
     // squeezed to a third (a 1.8 m beam over a 1.4 m passage the base lorry could never drive through)
     jail_door_mesh: null }, // M10's cage door: the mesh leaf model (props.js gateModel), not a shrunken gatehouse
   fueltank: {}, // the fuel-tank family resolves its own variants (art/fuel-tanks.js)
-  tent: {}, well: {},
+  tent: {}, well: { well_village: null }, // well_village: M8's plateau village well, the kit's own (art/kit-props.js) on its r 0.9
   // Atlantic Wall (M14 art pass; reusable by M6/M7/M8/M10/M11/M15): the fit ranks the sizes, so one hint list
   // serves the small H612-type and the wide H679-type casemate
   casemate_gun: {
@@ -70,6 +70,8 @@ export const VARIANT_HINTS = {
   sign: { buoy_red: ['buoy_red'], sign_minen: ['sign_minen'], sign_sperrgebiet: ['sign_sperrgebiet'] },
   crates: {
     beach_tetrahedron: ['beach_tetrahedron'], dragons_teeth: ['dragons_teeth'], czech_hedgehog: ['czech_hedgehog'],
+    // M14 art pass 2: battery ammunition dumps (cases, wicker shell baskets, cartridge containers) sized 6x4 / 3x2 / 4x3
+    battery_stores: ['battery_stores_a', 'battery_stores_b', 'battery_stores_c'],
   },
 };
 Object.assign(VARIANT_HINTS.barracks, { barracks_concrete_2st: ['barracks_concrete_1st', 'barracks_concrete_2st'] });
@@ -84,6 +86,7 @@ VARIANT_HINTS.hut.outhouse_plank = null;
 // gantry (never a brick townhouse ruin or four MG nests)
 Object.assign(VARIANT_HINTS.ruins, { burned_timber: null, fish_drying_racks: null, tower_ruin: null, wall_dry_ruin: null }); // (M3's start ruin: art/ruin-tower.js)
 VARIANT_HINTS.bunker.gantry_timber = null;
+VARIANT_HINTS.ruins.brick_heap = null; // M15 art pass 2: a heap of bomb-broken brickwork (art/brick-rubble.js), never a whole ruined house
 VARIANT_HINTS.house.house_norse_compound = null; // the L-shaped tarred house, the red double house: m07-art.js parts
 Object.assign(VARIANT_HINTS.house, { house_concrete_2st: ['house_coastal_normandy'] });
 Object.assign(VARIANT_HINTS.bunker, { blockhouse_small: ['blockhouse_small'] });
@@ -148,6 +151,10 @@ export const PLACEHOLDER_HINTS = {
   mine_building: { timber_adit: ['pithead_adit_de'] },
 };
 Object.assign(PLACEHOLDER_HINTS.crates, { pit_props: ['pit_props_de'] });
+// (M19 second art pass: the open brick-and-board vehicle shed over the Panzer II, the narrow-gauge buffer stop and the
+// cable-drum store by the pads; M9's tank shed names its own asset, so its look is unchanged)
+PLACEHOLDER_HINTS.tank_shed = { tank_shed_open: ['tank_shed_de'] };
+Object.assign(PLACEHOLDER_HINTS.crates, { rail_buffer: ['rail_buffer_de'], crates_cable_drums: ['cable_drums_de'] });
 Object.assign(PLACEHOLDER_HINTS.house, { boiler_house: ['boiler_house_de'], house_tall_narrow_brick: ['house_tall_brick_de'], hut_timber_bigroof: ['hut_timber_de'] });
 Object.assign(PLACEHOLDER_HINTS.radio_mast, { v2_service_gantry: ['v2_gantry_de'], crane_jib_yard: ['crane_jib_de'] });
 for (const [type, hints] of Object.entries(PLACEHOLDER_HINTS)) {
@@ -570,7 +577,10 @@ export function libraryVisual(type, p = {}, ctx = {}) {
    * `roots` in its program warm-up frame, so the blast only moves meshes. Once the intact model is in (its turf
    * material is read). @returns {{roots: THREE.Object3D[], ready: Promise<void>}|null}
    */
-  if ((ruinable || p.waterFx) && !p.destroyed) outer.userData.prepareDestroy = () => {
+  // (bunkers and dams always; any other building with a modelled ruin when the load asks — a mission's objective
+  // targets, whose blast is the shot in video mode: M11's drilling rigs)
+  outer.userData.stageAlways = !!(ruinable || p.waterFx);
+  if (!p.destroyed) outer.userData.prepareDestroy = () => {
     if (state.pre !== undefined || state.disposed || !hasRuin()) return state.pre ? { roots: state.pre.roots, ready: state.pre.ready } : null;
     outer.updateMatrixWorld(true);
     const mk = (m, name) => { const g = new THREE.Group(); g.name = name; g.matrixAutoUpdate = false; g.matrix.copy(m); g.updateMatrixWorld(true); return g; };

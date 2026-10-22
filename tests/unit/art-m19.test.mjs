@@ -20,11 +20,11 @@ const m19 = MISSIONS.find((m) => m.id === 'm19');
 const S = (id) => m19.structures.find((s) => s.id === id);
 const OWN = ['mine_office_de', 'boiler_house_de', 'barracks_corr_a', 'barracks_corr_b', 'house_tall_brick_de', 'hut_timber_de',
   'coal_hopper_de', 'bunker_obs_de', 'outhouse_de', 'kennel_de', 'v2_rocket_a4', 'v2_table_de', 'v2_gantry_de', 'coal_heap_de',
-  'pit_props_de', 'pithead_adit_de', 'crane_jib_de'];
+  'pit_props_de', 'pithead_adit_de', 'crane_jib_de', 'tank_shed_de', 'rail_buffer_de', 'cable_drums_de'];
 
 test('art m19: the Oldenburg add-on ships every LOD and sidecar under its own types; generic picks unchanged', () => {
   assert.ok(EXTRA_MANIFESTS.includes('manifest-oldenburg'));
-  for (const n of [...OWN, 'drum_stack_de']) {
+  for (const n of [...OWN, 'drum_stack_de', 'rust_tank_de']) {
     const a = addon.assets[n];
     assert.ok(a, n);
     assert.equal(a.lods.length, 3, n);
@@ -60,7 +60,7 @@ test('art m19: no other mission draws an Oldenburg asset (shared variant names k
     for (const s of m.structures || []) {
       if (s.points) continue;
       const pk = pickAsset(s.type, s, { theater: m.theater, missionId: m.id });
-      assert.ok(!pk || ![...OWN, 'drum_stack_de'].includes(pk.name), `${m.id} ${s.id} → ${pk?.name}`);
+      assert.ok(!pk || ![...OWN, 'drum_stack_de', 'rust_tank_de'].includes(pk.name), `${m.id} ${s.id} → ${pk?.name}`);
     }
   }
 }));
@@ -84,4 +84,30 @@ test('art m19: wrecks and the parked lorry are library vehicles; the base road a
   assert.ok(net.areas.length >= 1);
   for (const a of net.areas) { assert.equal(a.grid, false, a.id); assert.equal(a.surface, 'concrete', a.id); }
   for (const f of net.furniture) assert.equal(f.block, false, `${f.type} at ${f.x},${f.z} must not block`);
+});
+
+test('art m19 pass 2: library swaps keep the mission nav; the parked vehicles and the fuel point stay clear of every route and post', () => {
+  for (const [id, asset] of [['crates_coal', 'timber_stack_no'], ['crates_gate', 'dock_cargo_c'], ['crates_n', 'dock_cargo_b'], ['drum_rust', 'rust_tank_de']]) {
+    const s = S(id); assert.equal(s.asset, asset, id); assert.equal(s.nav, false, `${id}: the mission's nav stays`);
+  }
+  // the rusty tank no longer stands on the dog pen's SE corner post
+  const pen = S('pen'), dr = S('drum_rust');
+  assert.ok(Math.hypot(dr.x - (pen.x + pen.w / 2), dr.z - (pen.z + pen.d / 2)) >= dr.r + 0.8 && dr.fixed, 'drum_rust pinned clear of the pen corner');
+  const segDist = (px, pz, a, b) => {
+    const dx = b.x - a.x, dz = b.z - a.z, L = dx * dx + dz * dz, t = L ? Math.max(0, Math.min(1, ((px - a.x) * dx + (pz - a.z) * dz) / L)) : 0;
+    return Math.hypot(px - a.x - t * dx, pz - a.z - t * dz);
+  };
+  for (const id of ['car_office', 'tanker_s', 'drums_s']) {
+    const s = S(id);
+    assert.ok(s.fixed && s.block === 1, `${id}: low cover, placed as authored`);
+    const half = Math.hypot(s.w, s.d) / 2;
+    for (const e of m19.enemies) {
+      if (e.vehicle) continue; // (vehicle crews ride: the lorry's verge clearance is its own route's business)
+      assert.ok(Math.hypot(e.x - s.x, e.z - s.z) - half >= 2.5, `${id} vs ${e.id} post`);
+      const pts = e.route?.points || [];
+      for (let k = 0; k + 1 < pts.length; k++) assert.ok(segDist(s.x, s.z, pts[k], pts[k + 1]) - half >= 1.5, `${id} vs ${e.id} route`);
+    }
+  }
+  assert.equal(S('car_office').vehicleArt, 'kubelwagen');
+  assert.equal(S('tanker_s').vehicleArt, 'opel_blitz_tanker');
 });

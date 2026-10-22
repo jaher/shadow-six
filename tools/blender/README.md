@@ -50,7 +50,8 @@ switch to the library only for hinted variants; a hinted `sea_wall` tiles its 8 
   `v2_kit.py` on `od_common.py`: the stilted timber mine office, the brick boiler house, corrugated-iron barracks, the tall brick
   house, the timber hut, the plank pithead with its walkable flat roof, adit portal and canted rail doorway, the coal hopper, the Ringstand-type
   observation bunker, privy, kennel, oil-drum stack, heightfield coal heap, pit props, the yard derrick, and the V-2 pad as
-  its three gameplay pieces: the A4 on the firing-table ring, the Brennstand on its pad, the servicing tower).
+  its three gameplay pieces: the A4 on the firing-table ring, the Brennstand on its pad, the servicing tower; second pass: the open
+  brick-and-board vehicle shed over the Panzer II, a rusty riveted air receiver, the narrow-gauge buffer stop, the cable-drum store).
 - M16 (the Maas bridge, Belgium; `manifest-maas.json`, M18 shares the map): `europe/q_m16.txt` lists the builds (Mosan brick
   houses with bluestone trims and wall anchors, one with the door on the W gable, whitewashed / brick farmhouses, grey rendered
   townhouses, the village railway halt with its platform canopy, a brick field hut, the island's tarred plank shed, the round

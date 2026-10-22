@@ -4,6 +4,8 @@
 #   hut_timber_de=hut_timber_de coal_hopper=coal_hopper_de bunker_obs=bunker_obs_de privy=outhouse_de kennel=kennel_de v2_rocket_a4=v2_rocket_a4 \
 #   v2_table=v2_table_de v2_gantry=v2_gantry_de drum_stack=drum_stack_de coal_heap_de=coal_heap_de pit_props=pit_props_de \
 #   pithead_de=pithead_adit_de crane_jib=crane_jib_de
+# second art pass (merged into the same add-on): tank_shed_de=tank_shed_de rust_tank=rust_tank_de rail_buffer=rail_buffer_de
+#   cable_drums=cable_drums_de
 olden.py o 1901 temperate 15000
 olden.py b 1902 temperate 15000
 olden.py k 1903 temperate 12000
@@ -22,3 +24,7 @@ v2_kit.py R 1931 temperate 15000
 v2_kit.py T 1931 temperate 15000
 v2_kit.py G 1931 temperate 15000
 v2_kit.py J 1935 temperate 8000
+olden.py s 1908 temperate 12000
+olden_small.py u 1941 temperate 6000
+olden_small.py f 1941 temperate 6000
+olden_small.py k 1941 temperate 6000

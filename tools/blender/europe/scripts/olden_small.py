@@ -8,6 +8,12 @@
  c  coal_heap_de     5 x 5 x 1.6 coal heap: lumpy slumped cone of black coal with slack at the toe, lumps and a shovel
  q  pit_props_de     4 x 1.4 stack of debarked pine pit props (Grubenholz) on bearers, chained, with a few loose ones
  n  kennel_de        1.6 x 1.4 dog kennel: gabled box on skids, arched hole, chain post and a tin bowl
+ u  rust_tank_de     2 m round, 2 m tall rusty upright riveted tank (an old air receiver) on two sleepers: dished top with a
+                     manhole, riveted seams, a drain cock and a valve wheel, rust runs
+ f  rail_buffer_de   1.7 x 0.9 x 1.4 narrow-gauge buffer stop (Prellbock): a crib of old sleepers filled with ballast, a
+                     buffer beam at the rail's height and a red-and-white end board facing the line
+ k  cable_drums_de   3 x 5 x 1.2 cable store by the pads: two big wooden cable drums on edge, chocked, one lying on its
+                     flange, a coil of cable and a few spare chocks
 usage: blender -b --python olden_small.py -- outroot variant seed"""
 import sys, os, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -15,7 +21,8 @@ from od_common import *
 use_cheap_doors()
 
 ROOT, VAR, SEED = args('p')
-NAME = {'p': 'coal_hopper_de', 'r': 'bunker_obs_de', 'o': 'outhouse_de', 'n': 'kennel_de', 'd': 'drum_stack_de', 'c': 'coal_heap_de', 'q': 'pit_props_de'}[VAR]
+NAME = {'p': 'coal_hopper_de', 'r': 'bunker_obs_de', 'o': 'outhouse_de', 'n': 'kennel_de', 'd': 'drum_stack_de', 'c': 'coal_heap_de', 'q': 'pit_props_de',
+        'u': 'rust_tank_de', 'f': 'rail_buffer_de', 'k': 'cable_drums_de'}[VAR]
 K.begin(NAME, SEED, theater='temperate')
 r = K.rng()
 
@@ -280,4 +287,98 @@ if VAR == 'q':
     K.part(bm, 'cast_iron', name='chains', mat_tint=(0.3, 0.28, 0.26), lod='drop')
     K.footprint(rect(-2.0, -0.7, 2.0, 0.7), 'LOW', 'crates')
 
-finish(os.path.join(ROOT, NAME), ao_res=512 if VAR in 'ondcq' else 1024)
+if VAR == 'u':
+    RT, Z0, Z1 = 0.92, 0.17, 1.72
+    bm = bmesh.new()
+    for y in (-0.55, 0.55):
+        K.box_bm(bm, (0, y, 0.085), (2.0, 0.26, 0.17))
+    K.part(bm, 'timber_creosote', name='sleepers', mat_tint=(0.45, 0.4, 0.34), grime=1.6)
+    bm = bmesh.new()
+    K.cyl_bm(bm, (0, 0, Z0), (0, 0, Z1), RT, 20)
+    K.cyl_bm(bm, (0, 0, Z1), (0, 0, Z1 + 0.2), RT, 20, r1=RT * 0.55)              # dished top
+    K.cyl_bm(bm, (0, 0, Z1 + 0.2), (0, 0, Z1 + 0.25), RT * 0.55, 20, r1=RT * 0.3)
+    K.part(bm, 'paint_metal', name='shell', mat_tint=(0.42, 0.25, 0.16), grime=2.0, smooth=True)
+    bm = bmesh.new()                                     # riveted seams, the manhole and its studs
+    for z in (Z0 + 0.04, 0.95, Z1 - 0.02):
+        K.cyl_bm(bm, (0, 0, z - 0.03), (0, 0, z + 0.03), RT + 0.015, 20)
+    K.cyl_bm(bm, (0.25, 0.1, Z1 + 0.14), (0.25, 0.1, Z1 + 0.27), 0.22, 12)
+    K.cyl_bm(bm, (RT - 0.02, 0, 0.32), (RT + 0.22, 0, 0.32), 0.05, 8)                # drain cock
+    K.cyl_bm(bm, (-0.3, -RT + 0.02, 1.3), (-0.3, -RT - 0.22, 1.3), 0.06, 8)          # valve stub
+    K.cyl_bm(bm, (-0.3, -RT - 0.22, 1.3), (-0.3, -RT - 0.26, 1.3), 0.16, 12)         # valve wheel
+    K.part(bm, 'cast_iron', name='seams', mat_tint=(0.32, 0.22, 0.17), smooth=True)
+    for k in range(5):
+        a = r.uniform(0, 2 * math.pi)
+        K.decal('streak_rust', (RT * math.cos(a), RT * math.sin(a), r.uniform(0.8, 1.3)), (math.cos(a), math.sin(a), 0), 0.5, 1.0, alpha=0.6)
+    K.footprint([(math.cos(2 * math.pi * k / 12), math.sin(2 * math.pi * k / 12)) for k in range(12)], 'HIGH', 'tank')
+
+if VAR == 'f':
+    # local +x = along the rail towards the stop (the rail arrives from -x). Kept to the old crate pile's envelope
+    # (1.7 x 0.9 m): the hollow beside it is where the Green Beret lies before the palisade climb, its nav unchanged
+    bm = bmesh.new()
+    for layer in range(5):
+        z = 0.075 + layer * 0.15
+        if layer % 2 == 0:
+            for x in (-0.55, 0.05, 0.6):
+                K.box_bm(bm, (x, 0, z), (0.24, 0.9 + r.uniform(-0.03, 0.03), 0.15), rot_z=r.uniform(-0.03, 0.03))
+        else:
+            for y in (-0.33, 0.33):
+                K.box_bm(bm, (0.02, y, z), (1.4, 0.22, 0.15), rot_z=r.uniform(-0.02, 0.02))
+    K.part(bm, 'timber_creosote', name='crib', mat_tint=(0.42, 0.37, 0.32), grime=1.8)
+    bm = bmesh.new()
+    K.box_bm(bm, (0.05, 0, 0.66), (1.05, 0.55, 0.24))
+    K.part(bm, 'gravel_grey', name='ballast', mat_tint=(0.55, 0.53, 0.5))
+    bm = bmesh.new()                                     # the buffer beam, faced with an old rail, and its bolts
+    K.box_bm(bm, (-0.75, 0, 0.42), (0.22, 0.86, 0.28))
+    K.part(bm, 'timber_beam', name='beam', mat_tint=(0.5, 0.44, 0.36))
+    bm = bmesh.new()
+    K.box_bm(bm, (-0.87, 0, 0.42), (0.04, 0.8, 0.1))
+    for y in (-0.3, 0.3):
+        K.cyl_bm(bm, (-0.89, y, 0.42), (-0.85, y, 0.42), 0.04, 8)
+    K.part(bm, 'cast_iron', name='rail_face', mat_tint=(0.35, 0.3, 0.27))
+    bm = bmesh.new()                                     # end board (red with a white border) on the crib's top, facing the line
+    K.box_bm(bm, (-0.5, 0, 0.9), (0.06, 0.06, 0.3))
+    K.part(bm, 'timber_beam', name='post', mat_tint=(0.4, 0.36, 0.3))
+    bm = bmesh.new()
+    K.box_bm(bm, (-0.54, 0, 1.18), (0.03, 0.6, 0.4))
+    K.part(bm, 'wood_paint', name='board_white', mat_tint=(0.9, 0.88, 0.84))
+    bm = bmesh.new()
+    K.box_bm(bm, (-0.556, 0, 1.18), (0.01, 0.48, 0.28))
+    K.part(bm, 'wood_paint', name='board_red', mat_tint=(0.62, 0.12, 0.1))
+    K.decal('dirt_splash', (-0.89, 0, 0.12), (-1, 0, 0), 0.9, 0.4, alpha=0.5)
+    K.footprint(rect(-0.75, -1.0, 0.75, 1.0), 'LOW', 'crates')
+
+if VAR == 'k':
+    def drum(cx, cy, cz, axis, R=0.62, Wd=0.75, name='drum'):
+        a = V(axis)
+        c = V((cx, cy, cz))
+        bm = bmesh.new()
+        for s_ in (-1, 1):                               # two flanges
+            K.cyl_bm(bm, c + a * (s_ * Wd / 2 - 0.04), c + a * (s_ * Wd / 2 + 0.04), R, 18)
+        K.part(bm, 'timber_beam', name=name + '_fl', mat_tint=(0.58, 0.5, 0.38), grime=1.2, smooth=False)
+        bm = bmesh.new()
+        K.cyl_bm(bm, c - a * (Wd / 2 - 0.04), c + a * (Wd / 2 - 0.04), R * 0.78, 18)  # wound black cable
+        K.part(bm, 'bitumen_felt', name=name + '_cable', mat_tint=(0.2, 0.2, 0.2), smooth=True)
+    drum(-0.85, -1.45, 0.62, (1, 0, 0), Wd=0.95, name='d0')   # two on edge side by side, axles E-W
+    drum(0.85, -1.45, 0.62, (1, 0, 0), Wd=0.95, name='d1')
+    drum(-0.2, 0.25, 0.72, (1, 0, 0), R=0.72, Wd=0.9, name='d2')  # a bigger one
+    drum(-0.55, 1.75, 0.06 + 0.375, (0, 0, 1), R=0.6, Wd=0.75, name='d3')   # lying flat on a flange
+    bm = bmesh.new()                                     # chocks under the standing drums
+    for (x, y, ax) in ((-0.85, -1.45, 'y'), (0.85, -1.45, 'y'), (-0.2, 0.25, 'y')):
+        for s_ in (-1, 1):
+            if ax == 'y':
+                K.box_bm(bm, (x, y + s_ * (0.6 if y < -1 else 0.68), 0.08), (0.8, 0.18, 0.16))
+            else:
+                K.box_bm(bm, (x + s_ * 0.68, y, 0.08), (0.18, 0.95, 0.16))
+    K.part(bm, 'timber_beam', name='chocks', mat_tint=(0.5, 0.44, 0.36))
+    bm = bmesh.new()                                     # a loose coil on the lying drum, spare chocks, a cable tail
+    K.cyl_bm(bm, (-0.55, 1.75, 0.9), (-0.55, 1.75, 1.0), 0.38, 14)
+    K.beam_bm(bm, (0.72, -0.85, 0.45), (1.05, -0.4, 0.03), 0.05, 0.05)
+    K.beam_bm(bm, (1.05, -0.4, 0.03), (1.1, 0.9, 0.03), 0.05, 0.05)
+    K.part(bm, 'bitumen_felt', name='coil', mat_tint=(0.18, 0.18, 0.18), lod='drop')
+    bm = bmesh.new()
+    for k in range(3):
+        K.box_bm(bm, (0.75, 1.5 + k * 0.3, 0.08 + 0.0), (0.8, 0.18, 0.16), rot_z=r.uniform(-0.2, 0.2))
+    K.part(bm, 'timber_beam', name='spare', mat_tint=(0.52, 0.46, 0.38))
+    K.footprint(rect(-1.5, -2.5, 1.5, 2.5), 'LOW', 'crates')
+
+finish(os.path.join(ROOT, NAME), ao_res=512 if VAR in 'ondcqufk' else 1024)

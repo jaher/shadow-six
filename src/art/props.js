@@ -36,6 +36,7 @@ import { buildRailTrack, buildTrench, buildCraterKit } from './kit-terrain.js';
 import { buildKitHouse, buildNissenHut, buildDockCrane } from './kit-buildings.js';
 import { buildBoulderRow } from './boulder-row.js';
 import { buildRuinTower, buildRuinWall } from './ruin-tower.js';
+import { buildBrickHeap } from './brick-rubble.js';
 import { kitify } from './kit-materials.js';
 
 /** Prop catalogue (missions may only use these). */
@@ -221,6 +222,7 @@ const BUILDERS = {
     if (!dressingOn(ctx)) return box(p.w, p.h ?? 1, p.d, def.mat || 'stone');
     if (p.variant === 'tower_ruin') return buildRuinTower(p); // M3's start: a ruined fieldstone watchtower (art/ruin-tower.js)
     if (p.variant === 'wall_dry_ruin') return buildRuinWall(p); // …and the broken dry-stone wall running from it
+    if (p.variant === 'brick_heap') return buildBrickHeap(p); // M15 art pass 2: a heap of bomb-broken brickwork (art/brick-rubble.js)
     return buildRuins(p);
   },
   sandbags: (p, def, ctx) => (dressingOn(ctx) ? buildSandbags(p) : box(p.w, p.h ?? 1, p.d, def.mat)),
@@ -368,6 +370,9 @@ const ROUND = {
     return g;
   },
   barrels: (p, def, ctx) => {
+    // M8's drum dumps (a low w × d `oil_tanks_vertical`, h 2.2, B.HIGH): the whole footprint stacked two tiers high
+    // in 200 l drums on dunnage (art/fuel-drums.js), no red bands (the red drums are the explosive ones)
+    if (dressingOn(ctx) && p.variant === 'oil_tanks_vertical' && p.w > 1.5 && p.d > 1.5 && (p.h ?? 0) < 5) return buildFuelDrumStack({ ...p, tiers: 2, red: false });
     if (dressingOn(ctx)) return buildDrumCluster(p);
     const g = new THREE.Group();
     const offs = [[-0.3, -0.2], [0.3, -0.2], [0, 0.32]];

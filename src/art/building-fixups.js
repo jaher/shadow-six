@@ -2,6 +2,8 @@
  * Load-time fixes for known building-library asset issues (docs/PROGRESS.md open art issues), applied once per
  * loaded GLB scene by building-library.js (clones inherit them). Each fix is keyed by asset name (+ LOD).
  *  - dam_arch LOD2: decimation collapsed the gorge walls (one half as bright) → LOD2 dropped (DROP_LODS)
+ *  - barracks_concrete_1st/_2st LOD2 (M14 art pass 2): the kit collapse left a roofless, shredded shell (seen at zoom
+ *    < 0.4 and at zoom 0.5 on the low preset) → LOD2 dropped, LOD1 (1.8k / 4k tris) shows instead
  *  - *_snow assets with a turf roof (naust_b, log cabins, barn, fishing shed): the green turf showed through the
  *    snow → the turf faces take the asset's own snow material, their grass tufts dropped (dark spikes in the snow)
  *  - kit snow: its normal map at quarter strength (full strength lit each roof-snow UV tile apart: a checkerboard)
@@ -38,7 +40,7 @@ const setMat = (o, fn) => { o.material = Array.isArray(o.material) ? o.material.
  * LODs that are not used: the dam's LOD2 decimation collapsed the gorge walls (one wall faces away from the sun →
  * half as bright, crude slabs) → the dam stays on LOD1 when zoomed out.
  */
-export const DROP_LODS = { dam_arch: [2], dam_arch_snow: [2], dam_arch_destroyed: [2] };
+export const DROP_LODS = { dam_arch: [2], dam_arch_snow: [2], dam_arch_destroyed: [2], barracks_concrete_1st: [2], barracks_concrete_2st: [2] };
 
 /**
  * Drop the grass tufts from a turf primitive (M5 art review: on the snow variants they poked through the roof snow

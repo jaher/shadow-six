@@ -378,8 +378,32 @@ export function createFlyovers(world, def, o = {}) {
   }
   const silence = (keep = null) => { const au = audio(); for (const k of [...sounds]) if (!keep?.has(k)) { au?.stopLoop?.(k, 0.8); sounds.delete(k); } };
 
+  // every aircraft the schedule's formations can call for, built now (the largest wing of each type): a craft built on
+  // its first pass cloned its model and compiled its programs mid-play — a hitch, a shader compile in video mode
+  const maxWing = (type) => { const T = FLYOVER_TYPES[type]; let m = 1; for (let i = 0; i < 3; i++) if (T.sizes[i] > 0) m = i + 1; return cfg.count ? Math.max(cfg.count[0], Math.min(cfg.count[1], m)) : m; };
+  for (const type of cfg.types) for (let i = 0; i < maxWing(type); i++) pool.push(buildCraft(type, art.theater, hashStr(`${def.id}|${pool.length}`), group));
+  for (const c of pool) c.pass = -1;
+  const ready = Promise.all(pool.map((c) => Promise.all([c.a.vis.ready, c.b.vis.ready]).catch(() => null)));
+
   const api = {
     group, config: cfg,
+    /** settles once the aircraft built at load are in place (their models cloned, discs and shadow twins set up) */
+    ready,
+    /**
+     * For the load's warm-up frame (Game): every built aircraft shown at (x, y, z) in view — the model, its blur discs
+     * and its shadow-only twin (the twin's dither depth program in the sun's shadow pass) — so their programs exist
+     * before the first pass. `done()` hides them again.
+     */
+    warmShow(x, y, z) {
+      const shown = [];
+      for (const c of pool) {
+        if (!c.ready) continue;
+        for (const [h, dy] of [[c.a.holder, 0], [c.b.holder, -Math.min(y / 2, TWIN_H)]]) { shown.push([h, h.visible, h.position.clone()]); h.position.set(x, y + dy, z); h.visible = true; }
+        c.dither.userData.dens.value = 0.8;
+      }
+      const gv = group.visible; group.visible = true;
+      return { n: shown.length, done: () => { for (const [h, v, p] of shown) { h.visible = v; h.position.copy(p); } group.visible = gv; } };
+    },
     schedule: () => sched,
     active: () => [...live.keys()].map((k) => sched[k]),
     /** Per displayed frame. */

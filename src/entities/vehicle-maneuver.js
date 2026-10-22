@@ -66,14 +66,27 @@ export function pursuitLegs(p0, t, o) {
  * may close the plan analytically and returns {legs, end, len} or null. Cost: metres driven (reverse metres weigh
  * `revCost`), each change of gear `gearCost` m — the cheapest plan is the one a driver would pick: as few shunts as
  * the space allows. `o.h(pose)` is the heuristic (weighted by `w`).
+ * `o.pause()` (optional): checked before each node; while it returns true the search hands control back (yields) and
+ * resumes where it stopped — searchPlanGen runs sliced over several calls (a route plan spread over ticks), searchPlan
+ * runs it through at once. Either way the same nodes in the same order: the same plan.
  * @returns {{legs:{dir:number,k:number,len:number}[], end:{x:number,z:number,h:number}, cost:number}|null}
  */
-export function searchPlan(start, o) {
+export function searchPlan(start, o) { return drain(searchPlanGen(start, o)); }
+
+/** Run a planning generator through (its pauses ignored) and return its result. */
+export function drain(it) {
+  for (;;) { const r = it.next(); if (r.done) return r.value; }
+}
+
+/** searchPlan as a generator: it yields while `o.pause()` holds (see searchPlan). */
+export function* searchPlanGen(start, o) {
   const R = o.R, gearCost = o.gearCost ?? 3, revCost = o.revCost ?? 1.5, maxNodes = o.maxNodes ?? 5000;
   const maxRev = o.maxRev ?? 8, W = o.w ?? 1.3, every = o.finishEvery ?? 1;
   const P = Math.min(1, Math.max(0.3, R * 0.35)); // primitive length: ≤ 20° of heading per primitive
   const sub = Math.max(1, Math.ceil(P / 0.35));
-  const HB = Math.PI / 36, key = (p, dir) => `${Math.round(p.x * 2)},${Math.round(p.z * 2)},${((Math.round(p.h / HB) % 72) + 72) % 72}${dir < 0 ? 'r' : 'f'}`;
+  // (the lattice cell as one number — 0.5 m × 0.5 m × 5°, gear — the same cells the string key named, without building a
+  // string per node: a stuck hull's search expands thousands)
+  const HB = Math.PI / 36, key = (p, dir) => (((Math.round(p.x * 2) + 8192) * 16384 + (Math.round(p.z * 2) + 8192)) * 72 + (((Math.round(p.h / HB) % 72) + 72) % 72)) * 2 + (dir < 0 ? 1 : 0);
   const heap = [];
   const push = (n) => { heap.push(n); let i = heap.length - 1; while (i > 0) { const j = (i - 1) >> 1; if (heap[j].f <= n.f) break; heap[i] = heap[j]; i = j; } heap[i] = n; };
   const pop = () => {
@@ -95,7 +108,9 @@ export function searchPlan(start, o) {
   const seen = new Map();
   push({ p: { ...start }, g: 0, f: o.h(start) * W, dir: 0, rev: 0, par: null, prim: null });
   let n = 0;
+  const pause = o.pause;
   while (heap.length && n < maxNodes) {
+    if (pause) while (pause()) yield;
     const node = pop();
     const kk = key(node.p, node.dir);
     if (seen.has(kk) && seen.get(kk) <= node.g + 1e-9) continue;
@@ -127,7 +142,10 @@ export function searchPlan(start, o) {
  *   maxNodes?:number, maxFwd?:number, step?:number, gearCost?:number, revCost?:number, tol?:number, maxRev?:number}} o
  * @returns {{legs:{dir:number,k:number,len:number}[], end:{x:number,z:number,h:number}, cost:number}|null}
  */
-export function planManeuver(start, o) {
+export function planManeuver(start, o) { return drain(planManeuverGen(start, o)); }
+
+/** planManeuver as a generator (sliced with `o.pause`, see searchPlan). */
+export function* planManeuverGen(start, o) {
   const R = o.R, step = o.step ?? 0.25, tol = o.tol ?? 0.05, T = o.target;
   const maxFwd = o.maxFwd ?? Math.PI * R + 2;
   if (o.goal(start)) return { legs: [], end: { ...start }, cost: 0 };
@@ -150,7 +168,7 @@ export function planManeuver(start, o) {
     }
     return null;
   };
-  return searchPlan(start, { ...o, goal: () => false, finish, h: (p) => Math.max(0, Math.abs(headingError(p, T)) - tol) * R });
+  return yield* searchPlanGen(start, { ...o, goal: () => false, finish, h: (p) => Math.max(0, Math.abs(headingError(p, T)) - tol) * R });
 }
 
 /**
@@ -158,11 +176,14 @@ export function planManeuver(start, o) {
  * search around what is in the way (finishing on the pursuit line as soon as that is clear).
  * @returns {{legs, end, cost}|null}
  */
-export function planReach(start, o) {
+export function planReach(start, o) { return drain(planReachGen(start, o)); }
+
+/** planReach as a generator (sliced with `o.pause`, see searchPlan). */
+export function* planReachGen(start, o) {
   const T = o.target, reach = o.reach ?? 0.75;
   const direct = pursuitLegs(start, T, o);
   if (direct) return { legs: direct.legs, end: direct.end, cost: direct.len };
-  return searchPlan(start, {
+  return yield* searchPlanGen(start, {
     ...o, finishEvery: o.finishEvery ?? 8,
     goal: (p, dir) => dir > 0 && Math.hypot(T.x - p.x, T.z - p.z) <= reach, // arriving forward
     finish: (p) => pursuitLegs(p, T, o),

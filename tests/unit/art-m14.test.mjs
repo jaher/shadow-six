@@ -3,6 +3,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { test, assert } from './lib.mjs';
 import { useManifest, pickAsset, assetExtents, VARIANT_HINTS, libraryHinted } from '../../src/art/building-props.js';
 import { mergeManifest, EXTRA_MANIFESTS } from '../../src/art/building-library.js';
+import { DROP_LODS } from '../../src/art/building-fixups.js';
 import { MISSIONS } from '../../src/missions/index.js';
 
 const P = (f) => new URL(`../../${f}`, import.meta.url);
@@ -63,4 +64,32 @@ test('art m14: each M14 structure with a library look fits its gameplay footprin
   for (const n of ['casemate_h612', 'casemate_h679', 'gun_turret_block', 'gun_pit_open', 'barracks_concrete_2st', 'barracks_concrete_1st', 'shed_concrete',
     'blockhouse_small', 'house_coastal_normandy', 'beach_tetrahedron', 'czech_hedgehog', 'dragons_teeth', 'sign_minen', 'buoy_red']) assert.ok(seen.has(n), n);
   assert.equal(m14.libraryNav, false, 'Atlantic Wall assets are visuals only on M14');
+}));
+
+test('art m14 pass 2: battery ammunition dumps on the crate piles, barracks LOD2 dropped, the tank billet dressed off the routes', () => withLib(merged(), () => {
+  // the crate piles keep their gameplay rect, height and block; the battery_stores kit is drawn to that rect
+  const want = { cr_s1: 'battery_stores_b', cr_s2: 'battery_stores_c', cr_g4: 'battery_stores_a' };
+  for (const [id, name] of Object.entries(want)) {
+    const s = m14.structures.find((x) => x.id === id);
+    assert.equal(s.block, 2, `${id} stays a HIGH block (hiding spot)`);
+    assert.equal(pickAsset(s.type, s, { theater: 'coast', missionId: 'm14' })?.name, name, id);
+    const a = merged().assets[name];
+    assert.ok(Math.abs(a.height - s.h) < 0.15, `${id}: drawn ${a.height} m on a ${s.h} m pile`);
+    assert.equal(a.lods.length, 3, name);
+  }
+  // the kit LOD2 of the concrete barracks was a roofless shell (zoom < 0.4, and zoom 0.5 on the low preset)
+  for (const n of ['barracks_concrete_1st', 'barracks_concrete_2st']) assert.deepEqual(DROP_LODS[n], [2], n);
+  // the billet's dressing: LOW, authored (fixed), clear of house_t, the tank and the NW alcove, and outside the tank-yard
+  // patrol loop (x 15-40, z 58-77) by >= 3 m
+  const house = m14.structures.find((x) => x.id === 'house_t'), pz = m14.vehicles.find((v) => v.id === 'pz2');
+  for (const id of ['fuel_pz', 'fuel_pz2', 'moto_t', 'logs_t']) {
+    const s = m14.structures.find((x) => x.id === id);
+    assert.ok(s && s.block === 1 && s.fixed, id);
+    const r = Math.hypot(s.w, s.d) / 2;
+    assert.ok(Math.abs(s.x - house.x) > house.w / 2 + 0.2 || Math.abs(s.z - house.z) > house.d / 2 + 0.2, `${id} clear of house_t`);
+    assert.ok(Math.hypot(s.x - pz.x, s.z - pz.z) > 2.6 + r, `${id} clear of the tank`);
+    assert.ok(!(s.x + r > 15 - 3 && s.x - r < 40 + 3 && s.z + r > 58 - 3 && s.z - r < 77 + 3) || s.z - r > 80, `${id} off the patrol loop`);
+    assert.ok(!(Math.abs(s.x - 15.75) < 0.75 + r && Math.abs(s.z - 81) < 1 + r), `${id} out of the NW alcove`);
+  }
+  assert.ok(m14.furniture.some((f) => f.type === 'fence' && f.variant === 'picket' && f.block === false), 'the kitchen garden fence is visual only');
 }));

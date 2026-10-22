@@ -475,3 +475,91 @@ test('m11 regression: the half-track drives the W road leg by leg through both b
   // and back up
   legs([[25.5, 57.2], [17.5, 57], [8, 56.5], [4.5, 51.5], [4, 48], [4, 44.5]]);
 });
+
+// ------------------------------------------------------------------ the M11 solution (sol/m11)
+
+test('m11 regression: a man getting out of the half-track on the ridge stands up there (y 6), not at the foot of it', () => {
+  // (Vehicle.exit set only his x/z: until he moved he stayed at y 0 — under the roof rule unseen by the guards on the
+  // plateau, seen from below, and his rifle sighted from the ground: "No line of sight." to the fuel truck)
+  const s = m11Sim(), w = s.world, v = w.byId('ht_ours'), sn = s.cmd('sniper');
+  place(s, sn, v.x - 3, v.z + 2);
+  assert.ok(v.enter(sn), 'aboard down in the E valley (y 0)');
+  place(s, v, 62, 55.5); // (driven up the W road and onto the ridge meanwhile)
+  v.heading = 0;
+  s.run(0.2);
+  assert.ok(v.exit(sn), 'out');
+  assert.equal(sn.y, 6, `stands on the ridge (y ${sn.y} at ${sn.x.toFixed(1)},${sn.z.toFixed(1)})`);
+});
+
+test('m11 regression: the tunnel down, the N half-track drives only to its N portal and stands there (no way through the rubble)', () => {
+  // (ordered on through the rubble it planned its turn in vain every 3 s — a 150–250 ms search each time, a stall in
+  // video mode; dossier §10.2: "its drive stops at the rubble and it stays on standby at the N portal")
+  for (const order of ['collapse first', 'alarm first']) {
+    const s = m11Sim(), w = s.world, v = w.byId('ht_n');
+    const alarm = () => w.alarm.fireEvent('EV_N', { zoneId: 'z_n', cause: 'test', x: 30, z: 30 });
+    if (order === 'alarm first') { alarm(); s.run(0.3); }
+    applyExplosion(w, 53.5, 30.5, 'bomb', s.cmd('sapper'));
+    s.run(0.5);
+    assert.equal(w.grid.walkableAt(58, 22.5), false, `${order}: the bore is rock`);
+    if (order === 'collapse first') alarm();
+    s.run(25);
+    assert.ok(!v.destroyed && Math.hypot(v.x - 63, v.z - 13.5) < 2.5 && !v.path && !v.goal, `${order}: halted at the N portal (${v.x.toFixed(1)},${v.z.toFixed(1)}) path=${!!v.path}`);
+  }
+});
+
+test('m11 regression: a blast heard by the whole camp sends its men off over a few ticks, not all searching in one (tick budget)', async () => {
+  // (twenty guards each searching their way to the yard rig in one tick: ~100 ms, a stall in video mode)
+  const { headlessMission } = await import('../../tools/solutions/headless.mjs');
+  const { INVESTIGATE_BUDGET } = await import('../../src/ai/enemy-brain.js');
+  const { searchStats } = await import('../../src/world/pathfinding.js');
+  const s = headlessMission('m11'), w = s.world;
+  for (let i = 0; i < 30; i++) s.step();
+  const rig = w.byId('rig_w');
+  let worst = 0;
+  w.events.emit('explosion', { x: rig.x, z: rig.z, kind: 'bomb' });
+  w.emitNoise(rig.x, rig.z, 45, 'explosion', null, 3);
+  const later = () => w.enemies.filter((e) => e.brain?.state === 'INVESTIGATE' && e.brain.goal?.later).length;
+  const went = () => w.enemies.filter((e) => e.brain?.state === 'INVESTIGATE' && !e.brain.goal?.later && e.path).length;
+  let maxLater = 0;
+  for (let i = 0; i < 120; i++) {
+    const s0 = searchStats.expanded;
+    s.step();
+    worst = Math.max(worst, searchStats.expanded - s0);
+    maxLater = Math.max(maxLater, later());
+  }
+  assert.ok(went() >= 6, `the men set off (${went()})`);
+  assert.equal(later(), 0, 'none still waiting after 2 s');
+  assert.ok(maxLater > 0, 'some waited a tick or more');
+  assert.ok(worst < INVESTIGATE_BUDGET * 2.5, `a tick's search stays near the budget (${worst} cells)`);
+});
+
+test('m11 regression: the tanker\'s route plans run sliced over ticks (pose-test budget), each the very plan made at once', async () => {
+  // (a lorry's three-point turn in the cramped quarry lane: ~100 ms of search in the browser, a stall in video mode)
+  const { headlessMission } = await import('../../tools/solutions/headless.mjs');
+  const { ROUTE_BUDGET } = await import('../../src/entities/vehicle.js');
+  const { drain } = await import('../../src/entities/vehicle-maneuver.js');
+  const s = headlessMission('m11'), w = s.world, tk = w.vehicles.find((v) => v.tag === 'tanker');
+  const VP = Object.getPrototypeOf(tk), pf = VP._planFree, gen = VP._planRouteGen;
+  let tests = 0, plans = 0, sliced = 0, maxSpan = 0, worst = 0;
+  const legs = (p) => JSON.stringify(p?.legs ?? null);
+  VP._planFree = function (...a) { const f = pf.apply(this, a); return (x, z, h) => { tests++; return f(x, z, h); }; };
+  tk._planRouteGen = function* (g, reach, pause) {
+    if (!pause) return yield* gen.call(this, g, reach);
+    // the plan made at once from here, on a copy of the leg (the vehicle's own fail memo put back after)
+    const fail = this._routeFail, n0 = tests;
+    const want = legs(drain(gen.call(this, { ...g }, reach)));
+    this._routeFail = fail; tests = n0;
+    const t0 = w.tick, got = yield* gen.call(this, g, reach, pause);
+    const span = w.tick - t0 + 1;
+    plans++; if (span > 1) sliced++; maxSpan = Math.max(maxSpan, span);
+    assert.equal(legs(got), want, `the plan at t=${w.time.toFixed(2)} (over ${span} ticks) = the one made at once`);
+    return got;
+  };
+  try {
+    while (w.time < 200) { const t0 = tests; s.step(); worst = Math.max(worst, tests - t0); }
+  } finally { VP._planFree = pf; delete tk._planRouteGen; }
+  assert.ok(plans >= 10, `the tanker planned its legs (${plans})`);
+  assert.ok(sliced >= 1, `some plan ran over several ticks (${sliced}, longest ${maxSpan} ticks)`);
+  assert.ok(maxSpan <= 30, `none holds the lorry over half a second (${maxSpan} ticks)`);
+  assert.ok(worst < ROUTE_BUDGET * 1.5, `no tick tests more than the budget (${worst} poses, budget ${ROUTE_BUDGET})`);
+});

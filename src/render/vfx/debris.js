@@ -79,7 +79,12 @@ export class Debris {
       it.p.addScaledVector(it.v, dt);
       const wl = it.w.length();
       if (wl > 1e-4) { this._q.setFromAxisAngle(this._s.copy(it.w).divideScalar(wl), wl * dt); it.q.premultiply(this._q); }
-      const gy = this.gh(it.p.x, it.p.z);
+      // (the ground under a piece asked again only near it or 0.75 m on: the ground probe is a man's foot ring, and a
+      // blast throws hundreds of pieces — asking each one every tick was ~1 ms a tick per hundred)
+      let gy = it.gy;
+      if (gy === undefined || it.p.y < gy + it.r + 1 || Math.abs(it.p.x - it.gx) + Math.abs(it.p.z - it.gz) > 0.75) {
+        gy = it.gy = this.gh(it.p.x, it.p.z); it.gx = it.p.x; it.gz = it.p.z;
+      }
       if (it.p.y < gy + it.r) { // ground contact
         it.p.y = gy + it.r;
         if (it.v.y < 0) it.v.y = -it.v.y * 0.28;

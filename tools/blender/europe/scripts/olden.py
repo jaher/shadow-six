@@ -12,6 +12,10 @@
                        face on the rail line, the SE corner canted 45 deg for the 15 deg mine rail's open portal (its 2.6 m bed
                        clear of every wall) under a cantilevered roof bay, men's door SE, ladder N
  h  hut_timber_de      9 x 8 x 5 timber hut with a big tar-paper roof, door S
+ s  tank_shed_de       11 x 12 x 6.4 open-fronted vehicle shed (Fahrzeughalle) for the Panzer II: clinker-brick piers and
+                       plinth with tarred weatherboard infill on the E / W walls, a brick N gable with two high windows,
+                       the whole S gable open under a riveted steel lintel, two plank sliding doors run back along the
+                       outside of the side walls, a shallow corrugated-iron gable roof, a stovepipe, oil-stained floor
 usage: blender -b --python olden.py -- outroot variant seed"""
 import sys, os, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -22,7 +26,7 @@ use_cheap_doors()
 
 ROOT, VAR, SEED = args('o')
 NAME = {'o': 'mine_office_de', 'b': 'boiler_house_de', 'k': 'barracks_corr_a', 'K': 'barracks_corr_b',
-        't': 'house_tall_brick_de', 'h': 'hut_timber_de', 'p': 'pithead_adit_de'}[VAR]
+        't': 'house_tall_brick_de', 'h': 'hut_timber_de', 'p': 'pithead_adit_de', 's': 'tank_shed_de'}[VAR]
 K.begin(NAME, SEED, theater='temperate')
 r = K.rng()
 STAIN = (0.46, 0.36, 0.28)          # dark-stained boards
@@ -362,5 +366,102 @@ if VAR == 'p':
     K.sign((sx, sy, 2.75), NC + (0,), 1.0, 'wache', board='timber_grey')
     K.wall_lantern((x1, 0.4, 0), (1, 0, 0), 3.0)
     coal_dust([((x0, y0), (CX, y0), (0, -1)), ((x1, CY), (x1, y1), (1, 0))], n=4, seed=SEED, z=0.5, alpha=0.4)
+
+if VAR == 's':
+    # walls centred on the mission's pen edges (x +-5.5, y +-6: its gameplay walls are 0.8 m thick on those lines), the S
+    # side open over its whole width; the Panzer II (2.3 m wide) parks in the middle and rolls out S
+    T, ZE, PITCH = 0.3, 5.0, 14                       # (eave as the mission's 5 m: the camera sees the tank under it)
+    x0, x1, y0, y1 = -5.65, 5.65, -6.15, 6.15
+    P = rect(x0, y0, x1, y1)
+    TAR = (0.3, 0.27, 0.24)
+    front = K.opening(P, 0, 5.65, 10.0, 4.5, 0.0, T, 'rect', 'door')              # the open S gable
+    bays = [K.opening(P, e, t, 3.3, 3.6, 0.9, T, 'rect', 'door') for e in (1, 3) for t in (2.05, 6.15, 10.25)]
+    wins = [K.opening(P, 2, t, 1.2, 1.0, 3.1, T, 'segment') for t in (3.3, 8.0)]
+    K.wall_ring(P, ZE, T, 'brick_red', [front] + bays + wins, name='walls', mat_tint=BRICK_T, grime=COAL_GRIME, footprint=False)
+    for poly in (rect(x0, y1 - 0.8, x1, y1 + 0.4), rect(x0 - 0.4, y0, x0 + 0.4, y1), rect(x1 - 0.4, y0, x1 + 0.4, y1)):
+        K.footprint(poly, 'HIGH', 'building')
+    bm = bmesh.new()                                   # tarred weatherboard infill in the side bays (set in 0.1 m)
+    for f in bays:
+        sx = 1 if f.o.x > 0 else -1
+        cy = f.o.y
+        K.box_bm(bm, (sx * (5.65 - 0.14), cy, 0.9 + 3.6 / 2), (0.06, 3.32, 3.61))
+    K.part(bm, 'board_batten', name='infill', mat_tint=TAR, grime=1.2, uv='aligned', axis=(0, 0, 1))
+    bm = bmesh.new()                                   # one small fixed light high in each middle bay
+    for sx in (-1, 1):
+        K.box_bm(bm, (sx * (5.65 - 0.1), 0.0, 3.85), (0.05, 1.1, 0.6))
+    K.part(bm, 'glass_dirty', name='lights', mat_tint=(0.5, 0.52, 0.5))
+    bm = bmesh.new()                                   # plinth cap on the three closed sides only (never across the opening)
+    K.box_bm(bm, (0, y1 + 0.03, 0.85), (11.4, 0.12, 0.12))
+    for sx in (-1, 1):
+        K.box_bm(bm, (sx * (5.65 + 0.03), 0, 0.85), (0.12, 12.4, 0.12))
+    K.part(bm, 'concrete_board', name='plinth_cap', mat_tint=(0.66, 0.65, 0.62))
+    K.course(P, ZE - 0.3, 0.2, 0.06, 'brick_dark', name='eaves_band')
+    zr = ZE + 5.65 * math.tan(math.radians(PITCH))
+    for e in (0, 2):
+        K.gable(P, e, ZE, zr, T, 'board_batten', [], name='gable%d' % e, mat_tint=TAR)
+    bm = bmesh.new()                                   # riveted steel lintel over the opening, on bearing plates
+    K.box_bm(bm, (0, y0 - 0.04, 4.62), (10.9, 0.3, 0.26))
+    K.box_bm(bm, (0, y0 + 0.11, 4.5), (10.9, 0.04, 0.5))
+    for sx in (-1, 1):
+        K.box_bm(bm, (sx * 5.2, y0 - 0.1, 4.42), (0.5, 0.14, 0.06))
+    K.part(bm, 'steel_painted', name='lintel', mat_tint=(0.36, 0.34, 0.3), grime=1.4)
+    R = K.roof_gable(0, 0, 12.3, 11.3, ZE, PITCH, 'corrugated_galv', rot=math.pi / 2, eave_oh=0.4, gable_oh=0.35, thick=0.06,
+                     fascia='timber_beam', barge='timber_beam', gutters=True, sag=0.02)
+    bm = bmesh.new()
+    K.beam_bm(bm, (0, y0 - 0.35, R.z_ridge + 0.02), (0, y1 + 0.35, R.z_ridge + 0.02), 0.5, 0.06)
+    K.part(bm, 'steel_galv', name='ridge_cap', mat_tint=(0.5, 0.5, 0.5))
+    stovepipe(-2.6, 3.6, ZE + 3.05 * math.tan(math.radians(PITCH)) - 0.2, zr + 0.9)
+    # the barn doors, swung right round and hooked back flat against the outside of the side walls (S half)
+    for sx in (-1, 1):
+        xd = sx * (5.65 + 0.07)
+        bm = bmesh.new()
+        K.box_bm(bm, (xd, y0 + 2.45, 2.25), (0.07, 4.9, 4.3))
+        K.part(bm, 'door_planks', name='door%d' % (sx + 1), mat_tint=(0.4, 0.43, 0.36), grime=1.1,
+               uv='aligned', axis=(0, 0, 1))
+        bm = bmesh.new()
+        for z in (0.5, 2.25, 4.0):                     # ledges and a brace
+            K.box_bm(bm, (xd + sx * 0.05, y0 + 2.45, z), (0.04, 4.8, 0.16))
+        K.beam_bm(bm, (xd + sx * 0.05, y0 + 0.2, 0.55), (xd + sx * 0.05, y0 + 4.7, 3.95), 0.04, 0.14)
+        K.part(bm, 'timber_beam', name='ledges%d' % (sx + 1), mat_tint=(0.36, 0.38, 0.32))
+        bm = bmesh.new()                               # strap hinges at the corner, a hook into the wall
+        for z in (0.6, 3.9):
+            K.box_bm(bm, (xd + sx * 0.08, y0 + 0.5, z), (0.02, 1.0, 0.07))
+        K.box_bm(bm, (xd + sx * 0.06, y0 + 4.95, 2.1), (0.08, 0.25, 0.03))
+        K.part(bm, 'cast_iron', name='straps%d' % (sx + 1), mat_tint=(0.25, 0.24, 0.23))
+    bm = bmesh.new()                                   # oil-stained concrete floor and a short apron outside the opening
+    K.box_bm(bm, (0, 0, 0.03), (10.7, 11.7, 0.06))
+    K.box_bm(bm, (0, y0 - 0.25, 0.02), (10.6, 0.5, 0.04))
+    K.part(bm, 'concrete_board', name='floor', mat_tint=(0.86, 0.85, 0.82), grime=0.9)
+    bm = bmesh.new()                                   # limewashed inside up to 2.4 m (reads under the roof's shadow)
+    K.box_bm(bm, (0, y1 - T - 0.012, 1.25), (10.6, 0.02, 2.3))
+    for sx in (-1, 1):
+        K.box_bm(bm, (sx * (5.65 - T - 0.012), 0.0, 1.25), (0.02, 11.7, 2.3))
+    K.part(bm, 'limewash_worn', name='limewash', mat_tint=(0.92, 0.9, 0.86), grime=1.4)
+    bm = bmesh.new()                                   # tarred dado at the foot of the limewash
+    K.box_bm(bm, (0, y1 - T - 0.025, 0.2), (10.6, 0.02, 0.32))
+    for sx in (-1, 1):
+        K.box_bm(bm, (sx * (5.65 - T - 0.025), 0.0, 0.2), (0.02, 11.7, 0.32))
+    K.part(bm, 'timber_tarred', name='dado', mat_tint=(0.3, 0.28, 0.26))
+    bm = bmesh.new()                                   # the tracks' worn bands in the floor, out over the apron
+    for sx in (-1, 1):
+        K.box_bm(bm, (sx * 0.85, -1.1, 0.064), (0.42, 10.6, 0.008))
+    K.part(bm, 'concrete_board', name='wear', mat_tint=(0.42, 0.41, 0.4), grime=1.6)
+    bm = bmesh.new()                                   # shelf along the inside of the N wall (within the wall's 0.4 m)
+    K.box_bm(bm, (-2.5, y1 - 0.42, 1.0), (3.4, 0.24, 0.05))
+    K.box_bm(bm, (-2.5, y1 - 0.42, 1.7), (3.4, 0.24, 0.05))
+    for x in (-4.1, -0.9):
+        K.box_bm(bm, (x, y1 - 0.42, 0.9), (0.06, 0.24, 1.8))
+    K.part(bm, 'timber_beam', name='shelf', mat_tint=(0.5, 0.45, 0.4))
+    bm = bmesh.new()
+    for k in range(5):                                  # jerrycans on the shelf and the floor under it
+        K.box_bm(bm, (-3.8 + k * 0.6, y1 - 0.42, 1.29), (0.16, 0.2, 0.47))
+        K.box_bm(bm, (-3.6 + k * 0.55, y1 - 0.42, 0.24), (0.16, 0.2, 0.47))
+    K.part(bm, 'steel_painted', name='cans', mat_tint=(0.36, 0.38, 0.28), lod='drop')
+    K.sign((2.6, y0 - 0.22, 5.2), (0, -1, 0), 1.1, 'halt_sperrgebiet', board='timber_grey')
+    K.wall_lantern((5.32, y0, 0), (0, -1, 0), 3.6)                             # on the E pier
+    coal_dust([((x0, y1), (x0, y0), (-1, 0)), ((x1, y0), (x1, y1), (1, 0)), ((x1, y1), (x0, y1), (0, 1))], n=4, seed=SEED, alpha=0.45)
+    eave_streaks([((x1, y0), (x1, y1)), ((x0, y1), (x0, y0))], ZE - 0.3, n=4, seed=SEED, alpha=0.35)
+    roof_tone(R, seed=SEED, amp=0.2)
+    K.anchor('roof_ridge', (0, 0, zr))
 
 finish(os.path.join(ROOT, NAME))

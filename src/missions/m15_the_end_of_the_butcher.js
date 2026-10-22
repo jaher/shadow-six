@@ -28,6 +28,7 @@
 
 import { m15Tick, reachesHQ, destroyHQ, HQ_POINT, GARDEN_DOOR } from './scripts/m15.js';
 import { joinStructures } from './schema.js';
+import { M15_DRESSING } from '../art/m15-dressing.js';
 
 const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (enemy-brain)
@@ -170,7 +171,8 @@ const STREET = [
     [66, 103], [8, 116], [28, 123.5], [42, 126.5], [70, 136.5]].map(([x, z], k) => ({ id: `lamp_${k + 5}`, type: 'lamp_post', variant: 'lamp_cast_iron', x, z, h: 4.5, block: 0 })),
 ];
 
-const STRUCTURES = [...CORNER, ...HQ, ...GARDEN, ...NORTH, ...CANAL, ...SOUTH, ...STREET];
+// (art pass 2: set dressing — rubble heaps, a handcart, the despatch riders' stand, more graves: art/m15-dressing.js)
+const STRUCTURES = [...CORNER, ...HQ, ...GARDEN, ...NORTH, ...CANAL, ...SOUTH, ...STREET, ...M15_DRESSING];
 
 // ---------------------------------------------------------------- terrain (dossier §4.1, §4.2)
 const TERRAIN = [
@@ -208,6 +210,11 @@ const PAVEMENTS = [
   // the walk between the park strip and the central basin's N parapet, either side of the W stairs
   { id: 'setts_c1', ...SETTS, points: [[19.7, 101.7], [22, 100], [26, 100.75], [26, 102.5]] },
   { id: 'setts_c2', ...SETTS, points: [[31, 101.7], [54, 106], [53.9, 107.7], [50, 105.7], [31, 103.2]] },
+  // (art pass 2) the two stair flights S1 / S2 (shallow wading strips in the parapet gaps) drawn as cobbled slipways
+  // (cales pavées) running down into the basin, not a muddy reed bank (visual only: grid false, the shallow terrain
+  // stays as tuned); laid along the ramp, slimed and worn where the water laps
+  { id: 'slip_s1', ...SETTS, angle: deg(ROT + 90), wear: 0.85, weeds: 0.05, puddles: 0.6, points: S1 },
+  { id: 'slip_s2', ...SETTS, angle: deg(ROT), wear: 0.85, weeds: 0.05, puddles: 0.6, points: S2 },
 ];
 
 // raked gravel walk (soft surface painted into the ground, visual only) round the HQ parterre
@@ -373,7 +380,7 @@ export default {
   seed: 1944_0826,
   // farmland fringe (art/terrain/bocage.js): field hedges, crops and orchards on the clear map edges, hedges
   // backing walls (visual only: laid out clear of every gameplay point and route)
-  vegetation: { farmland: { crops: ['stubble', 'stubble', 'wheat'], orchards: 0.3, walls: false } }, // (walls false: no trimmed hedge pressed into the W quay parapet)
+  vegetation: { farmland: { crops: ['stubble', 'stubble', 'wheat'], orchards: 0.3, walls: false }, reeds: false }, // (walls false: no trimmed hedge pressed into the W quay parapet; art pass 2: reeds false — the basins are dressed stone, the reed bed drawn over the W stairs hid them)
   briefing: {
     historical: 'August 1944. Paris is free, and its people are in the streets cheering General de Gaulle. The Germans are pulling back to the north-east. Among the first to go was SS-Gruppenführer Helmut Schleper, the man Paris calls the Butcher for what he did to the Resistance. He is hiding in Compiègne, and tomorrow he leaves for Berlin.',
     text: 'You go in from the southern edge of the town, officer. Every morning Schleper takes a walk in the garden of the house he has made his headquarters, and that is when he is most exposed. Kill him, and while you are about it, bring the headquarters down as well. A van will be waiting for you in the cemetery to the north. Remember that the whole town is watched. If anyone raises the alarm, anywhere, they will bundle him into a car and he will be gone, and with him your mission. Quietly, gentlemen.',

@@ -501,6 +501,9 @@ Each mission lists the §1 ids it needs, with counts. **Bold** marks an objectiv
   `house_coastal_normandy`, `sign_minen`, `sign_sperrgebiet`, `buoy_red`):
   - **`gun_pit_open`, `gun_turret_block`, `casemate_embrasure` ×2** (4 guns, all different).
   - `barracks_concrete_2st` ×2 (image) to ×4-5 (source B).
+  - art pass 2: `battery_stores_a/_b/_c` (6×4 / 3×2 / 4×3 ammunition dumps: field-grey cases, wicker shell baskets,
+    cartridge containers, tarpaulin; type `battery_stores`, hint `crates.battery_stores`) on the three crate piles; the
+    barracks LOD2 dropped (roofless kit shell, `DROP_LODS`); tank billet: R75 combination, cordwood, picket kitchen garden, fuel drums.
   - `at_wall_segment`s.
   - `dragons_teeth`.
   - `czech_hedgehog`, `beach_tetrahedron`, `wire_on_stakes`.

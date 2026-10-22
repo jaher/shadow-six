@@ -18,6 +18,7 @@
  */
 
 import { CONFIG, velToSpeed } from '../config.js';
+import { searchStats } from '../world/pathfinding.js';
 import { hasObstacles, bodyGap, MOVE_MARGIN } from '../world/body-clearance.js';
 import { angleTo, angleDiff, wrapAngle } from '../core/math.js';
 import { perceive, canSee, hears, coneAt, headTheta } from './perception.js';
@@ -53,6 +54,8 @@ const DECOY_SLOT_ANGLE = 50 * DEG;
 const DECOY_SLOT_GAP = 1.2;
 const AWARE = new Set(['CHALLENGE', 'HOLD', 'ARREST', 'COMBAT', 'ALARM_RUN']);
 /** States in which a newly seen body / wounded comrade / print may take over. */
+/** A* cells a tick's noise investigations may search before the rest set off on later ticks (_goInvestigate). */
+export const INVESTIGATE_BUDGET = 12000;
 const CALM = new Set(['IDLE', 'REINFORCE', 'RETURN', 'INVESTIGATE', 'DECOY', 'TRACKS', 'SEARCH', 'DISTRACTED']);
 /** Player lure noises whose post-holder turn is flagged ('enemy:noise-turn'). */
 const LURES = new Set(['decoy', 'phone', 'horn']);
@@ -1224,11 +1227,12 @@ export class EnemyBrain {
 
   _investigate() {
     const e = this.enemy, I = CONFIG.ai.investigate, g = this.goal;
+    if (g?.later) { this._goInvestigate(g.x, g.z, g.speed); return; } // (still waiting his turn to set off: _goInvestigate)
     if (this.phase === 'turn') { // turning round to the sound on the spot (running steps): then he walks over
       if (this.turn) return;
       this.phase = 'go';
       this.pt = 0;
-      this._go(g.x, g.z, g.speed);
+      this._goInvestigate(g.x, g.z, g.speed);
       if (g.steps) g.repathT = this.world.time;
       return;
     }
@@ -1620,7 +1624,22 @@ export class EnemyBrain {
       if (this._turnTo(angleTo(e.x, e.z, x, z))) return;
       this.phase = 'go';
     }
-    this._go(x, z, speed);
+    this._goInvestigate(x, z, speed);
+  }
+
+  /**
+   * Off to a noise, within the tick's path budget: a blast heard by twenty men had them all search their way in one
+   * tick (M11's yard rigs: ~100 ms). Past INVESTIGATE_BUDGET cells searched this tick by such starts, he sets off on a
+   * later tick (`goal.later`: he stands a moment longer, still listening) — the same order every run, never wall time.
+   */
+  _goInvestigate(x, z, speed) {
+    const w = this.world, B = w._investBudget || (w._investBudget = { tick: -1, used: 0 });
+    if (B.tick !== w.tick) { B.tick = w.tick; B.used = 0; }
+    if (B.used >= INVESTIGATE_BUDGET) { if (this.goal) this.goal.later = true; this.enemy.stop?.(); return false; }
+    if (this.goal) this.goal.later = false;
+    const s0 = searchStats.expanded, ok = this._go(x, z, speed);
+    B.used += searchStats.expanded - s0;
+    return ok;
   }
 
   // ------------------------------------------------------------ squads (§4.1 patrols)

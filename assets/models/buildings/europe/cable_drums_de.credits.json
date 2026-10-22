@@ -1,0 +1,56 @@
+{
+ "asset": "cable_drums_de",
+ "geometry": "procedural, SHADOW SIX kit (own work, CC0)",
+ "textures": {
+  "bitumen_felt": {
+   "source": "Poly Haven",
+   "id": "bitumen",
+   "url": "https://polyhaven.com/a/bitumen",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Bitumen",
+   "label": "Tarred roofing felt, sun-faded and dusty / bitumen patches",
+   "files": {
+    "diff": {
+     "2k": "2k/bitumen_felt_diff",
+     "1k": "1k/bitumen_felt_diff"
+    },
+    "nor": {
+     "2k": "2k/bitumen_felt_nor",
+     "1k": "1k/bitumen_felt_nor"
+    },
+    "arm": {
+     "2k": "2k/bitumen_felt_arm",
+     "1k": "1k/bitumen_felt_arm"
+    }
+   }
+  },
+  "timber_beam": {
+   "source": "Poly Haven",
+   "id": "wood_planks_grey",
+   "url": "https://polyhaven.com/a/wood_planks_grey",
+   "authors": [
+    "Rob Tuytel"
+   ],
+   "license": "CC0-1.0",
+   "name": "Wood Planks Grey",
+   "label": "Grey structural timber (beams, rafters)",
+   "files": {
+    "diff": {
+     "2k": "2k/timber_beam_diff",
+     "1k": "1k/timber_beam_diff"
+    },
+    "nor": {
+     "2k": "2k/timber_beam_nor",
+     "1k": "1k/timber_beam_nor"
+    },
+    "arm": {
+     "2k": "2k/timber_beam_arm",
+     "1k": "1k/timber_beam_arm"
+    }
+   }
+  }
+ }
+}

@@ -355,7 +355,7 @@ export function terrainPainter(index, theater, layers) {
 /** Lamp variants by furniture type shortcut. */
 const LAMP_TYPES = { lamp: null, lamp_post: 'paris_single', street_lamp: 'paris_single', floodlight: 'floodlight', searchlight_pole: 'searchlight', wall_lamp: 'wall_lamp' };
 /** Gameplay footprint radius (m) of posts that block a nav cell (0 = walk-through). */
-export const FURNITURE_BLOCK = { lamp: 0.2, bollard: 0.15, morris_column: 0.7, telegraph: 0.2, sign: 0.1, bench: 0, fence: 0, crossing: 0, milestone: 0.2 };
+export const FURNITURE_BLOCK = { lamp: 0.2, bollard: 0.15, morris_column: 0.7, telegraph: 0.2, sign: 0.1, bench: 0, fence: 0, crossing: 0, milestone: 0.2, capstan: 0.45, lifebuoy: 0.1 };
 
 /**
  * Expand a network's furniture into concrete placements: explicit items, lamps along roads (`road.lamps`),

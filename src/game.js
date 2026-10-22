@@ -65,7 +65,7 @@ function paintOnce() {
 import { spyActionsFrame, spyWarmObjects } from './art/spy-actions.js';
 import { raftActionsFrame, raftPassWanted, raftWarmObjects } from './art/raft-actions.js';
 import { switchStationsFrame } from './art/switch-station.js';
-import { prepareVehicleArt, warmVehicleArt, tickVehicles, releaseVehicles, createVehicleLamps } from './art/vehicle-model.js';
+import { prepareVehicleArt, warmVehicleArt, tickVehicles, releaseVehicles, createVehicleLamps, vehicleDecalWarm } from './art/vehicle-model.js';
 import { staticVehicleAssets, dressStaticVehicles } from './art/static-vehicles.js';
 import { flyoverAssets, createFlyovers } from './render/flyovers.js';
 import { createLoadProgress, loadBudget } from './engine/load-progress.js';
@@ -334,8 +334,11 @@ export class Game {
     // ruins waiting for their blast (art/building-props.js prepareDestroy: bunkers, dams): built now, off the scene —
     // their models load while the rest does; the warm-up frame draws them; the blast only moves them into place
     const ruins = [];
+    // (+ the ruins of the buildings a destroy objective names: their blast is the shot too — M11's four rigs)
+    const targets = new Set((def.objectives || []).filter((o) => o.type === 'destroy').flatMap((o) => o.targets || []));
     for (const it of world.interactables || []) {
-      const f = it.destructible && !it.destroyed ? it.object3d?.userData?.prepareDestroy : null;
+      const ud = it.object3d?.userData, tag = it.tag ?? it.spawn?.id ?? it.id;
+      const f = it.destructible && !it.destroyed && (ud?.stageAlways || targets.has(tag)) ? ud?.prepareDestroy : null;
       const rr = f ? safe(() => f(), 'ruin staging') : null;
       if (rr) { ruins.push(rr); await nextTask(); } // (a ruin a task: a bunker's wreck is ~100 ms of geometry)
     }
@@ -413,6 +416,12 @@ export class Game {
     if (this.world !== world) { safe(() => raftWarm?.done(), 'raft warm-up'); return prog.cancel(), world; }
     // (+ the Spy's take and dressing props: her caps as loose props, the officer's cap, U's bundle — art/spy-actions.js)
     const spyWarm = safe(() => spyWarmObjects(world), 'spy warm-up');
+    // (+ the ambient aircraft, built at load: shown over the middle of the map for the warm-up frame — render/flyovers.js)
+    if (world.flyovers?.ready) await safeAsync(() => Promise.race([world.flyovers.ready, new Promise((ok) => setTimeout(ok, 4000))]), 'flyover models');
+    const flyWarm = def.size ? safe(() => world.flyovers?.warmShow?.(def.size[0] / 2, 20, def.size[1] / 2), 'flyover warm-up') : null;
+    // (+ a wreck's scorch decal in the ground-decal scene, where wrecks draw it — art/vehicle-model.js)
+    const scorchWarm = def.size && r.decalScene ? safe(() => vehicleDecalWarm(), 'scorch warm-up') : null;
+    if (scorchWarm) { scorchWarm.position.x = def.size[0] / 2; scorchWarm.position.z = def.size[1] / 2; r.decalScene.add(scorchWarm); }
     if (CONFIG.render.warmFrame !== false) {
       const extra = [...ruins.flatMap((rr) => rr.roots), ...(dig?.objects || []), ...wireWarm, ...(raftWarm?.objects || []), ...(spyWarm?.objects || [])];
       const xray = [...(dig?.xray || []), ...(raftWarm?.xray || []), ...(spyWarm?.xray || [])];
@@ -432,6 +441,8 @@ export class Game {
     safe(() => dig?.done(), 'dig warm-up');
     safe(() => raftWarm?.done(), 'raft warm-up');
     safe(() => spyWarm?.done(), 'spy warm-up');
+    safe(() => flyWarm?.done(), 'flyover warm-up');
+    scorchWarm?.removeFromParent();
     if (this.world !== world) return prog.cancel(), world;
     await safeAsync(() => world.fx?.prescan?.(), 'fx scan'); // chimneys, drums, mission fx: now, not in the first tick of play
     if (this.world !== world) return prog.cancel(), world;

@@ -257,6 +257,19 @@ export function _setVehicleArt(ctx = {}) { Object.assign(S, { ready: true, disab
 /** Note a placeholder / fitting decision in the mission log. */
 export function noteVehicleArt(msg) { if (!S.log.includes(msg)) S.log.push(msg); }
 
+/**
+ * For the load's warm-up frame: a wreck's scorch decal as the ground-decal scene draws it (its program there differs
+ * from the one warmVehicleArt's main-scene copy gets: it compiled on the first wreck — M11's fuel truck). Hidden; the
+ * warm frame shows `warmShow` objects. The caller adds it to the decal scene and removes it afterwards.
+ */
+export function vehicleDecalWarm() {
+  if (!vehicleArtReady()) return null;
+  const sh = shared(), m = new THREE.Mesh(sh.scorchGeo, sh.scorchMat);
+  m.name = 'scorch-warm'; m.scale.set(5, 1, 7); m.position.y = 0.04; m.renderOrder = 2;
+  m.castShadow = m.receiveShadow = false; m.visible = false; m.userData.warmShow = true;
+  return m;
+}
+
 // ------------------------------------------------------------------ shared resources (lights, scorch)
 
 let SH = null;

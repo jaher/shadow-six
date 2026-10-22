@@ -144,11 +144,12 @@ const STRUCTURES = [
   rock('rk_sw', 8.5, 148, 6, 6, 2.5), rock('rk_41', 7, 62, 3, 2.5), rock('rk_nw', 8, 40.5, 3, 2.5), rock('rk_nb', 55, 22, 3, 2.5),
   rock('rk_g4', 25, 55, 3, 2.5), rock('rk_17', 67, 117, 3, 2.5), rock('rk_bn', 69.5, 67.5, 4, 14, 3), rock('rk_g3a', 70, 62, 3, 3),
   rock('rk_g3b', 92, 70.5, 3, 2), rock('rk_e1', 82, 72, 2.5, 2),
-  // --- barrels (3, carriable), crates, trees
+  // --- barrels (3, carriable), crates, trees (art pass 2: the crate piles are the battery's ammunition dumps, library
+  //     battery_stores drawn to the same rect and height: cases, wicker shell baskets, cartridge containers)
   drum('brl_1', 55, 53.3), drum('brl_2', 56.2, 54), drum('brl_3', 55.4, 54.8),
-  { id: 'cr_s1', type: 'crates', variant: 'crate_stack', x: 51.5, z: 110, rot: deg(14.6), w: 3, d: 2, h: 1.6, block: 2 },
-  { id: 'cr_s2', type: 'crates', variant: 'crate_stack', x: 62, z: 116, rot: 0, w: 4, d: 3, h: 1.6, block: 2 },
-  { id: 'cr_g4', type: 'crates', variant: 'crate_stack', x: 46, z: 73, rot: 0, w: 6, d: 4, h: 1.5, block: 2 },
+  { id: 'cr_s1', type: 'crates', variant: 'battery_stores', x: 51.5, z: 110, rot: deg(14.6), w: 3, d: 2, h: 1.6, block: 2 },
+  { id: 'cr_s2', type: 'crates', variant: 'battery_stores', x: 62, z: 116, rot: 0, w: 4, d: 3, h: 1.6, block: 2 },
+  { id: 'cr_g4', type: 'crates', variant: 'battery_stores', x: 46, z: 73, rot: 0, w: 6, d: 4, h: 1.5, block: 2 },
   ...[[3, 118], [8, 122], [5, 128], [12, 125], [30, 148], [32, 109], [45, 102.5], [15, 62], [37, 77], [2, 83], [15, 95], [22, 95], [55, 78], [66, 76]]
     .map(([x, z], k) => tree(`tree_${k + 1}`, x, z, k)),
   // --- the red buoy (extraction point)
@@ -161,6 +162,21 @@ const STRUCTURES = [
   { id: 'ammo_bs', type: 'crates', variant: 'ammo_boxes', x: 61.6, z: 102.2, rot: 0, w: 1.4, d: 0.9, h: 0.7, block: 0 },
   { id: 'ammo_bn', type: 'crates', variant: 'ammo_boxes', x: 49.8, z: 63.2, rot: 0, w: 1.4, d: 0.9, h: 0.7, block: 0 },
   { id: 'stores_g3', type: 'crates', variant: 'crate_stack', x: 83.2, z: 64.6, rot: deg(90), w: 1.6, d: 1.0, h: 0.9, block: 0 },
+];
+
+// ---------------------------------------------------------------- art pass 2 (M0-M3 standard): purposeful dressing
+/** "The house near the tank" is the tank crew's billet: a BMW R75 combination parked by its W gable, cordwood stacked
+ *  against its E gable and the Panzer II's fuel point (fuel drums) on the grass W of the tank, behind it and off its
+ *  way E to the track. All LOW (cover, see-through), authored on free cells ≥ 10 m off every traced route and post
+ *  (the tank-yard patrol loops x 15-40, z 58-77) and clear of house_t's NW alcove (15-16.5, 80-82). */
+const ART2 = [
+  // two three-drum clusters (the drum kit draws 1.2 x 1.1 m each: the LOW block is drawn to that, not a wider rect)
+  { id: 'fuel_pz', type: 'barrels', variant: 'fuel_drums', label: 'Fuel drums', x: 3.4, z: 71.6, rot: 0, w: 1.3, d: 1.2, h: 0.9, block: 1, fixed: true },
+  { id: 'fuel_pz2', type: 'barrels', variant: 'fuel_drums', label: 'Fuel drums', x: 4.5, z: 73.1, rot: deg(90), w: 1.3, d: 1.2, h: 0.9, block: 1, fixed: true },
+  { id: 'moto_t', type: 'crates', variant: 'vehicle_parked', label: 'Motorcycle', x: 11.8, z: 87.4, rot: deg(90), w: 2.4, d: 1.7, h: 1.1, block: 1,
+    fixed: true, vehicleArt: 'r75_sidecar' },
+  { id: 'logs_t', type: 'crates', variant: 'log_pile', asset: 'log_pile_stack', label: 'Firewood', x: 25, z: 84.5, rot: deg(90), w: 3, d: 1.5, h: 1,
+    block: 1, fixed: true },
 ];
 
 // ---------------------------------------------------------------- enemies (dossier §8; `prima` = Prima's number)
@@ -340,6 +356,8 @@ export default {
   ],
   pavements: [
     { id: 'pad_bar_n', surface: 'concrete', points: [[46.8, 65.2], [51.4, 65.2], [51.4, 71.8], [46.8, 71.8]], cracks: 0.5, weeds: 0.5, patches: 0.2, edge: 'ragged', grid: false },
+    // art pass 2: the billet's kitchen garden, dug beds S of house_t (visual only)
+    { id: 'garden_t', surface: 'dirt', points: [[15, 89.9], [18.2, 89.9], [18.2, 93], [15, 93]], wear: 0.1, puddles: 0, weeds: 0.5, edge: 'ragged', grid: false },
     { id: 'pad_bar_s', surface: 'concrete', points: [[51.2, 107.1], [59.8, 107.1], [59.8, 109.6], [51.2, 109.6]], cracks: 0.5, weeds: 0.4, edge: 'ragged', grid: false },
   ],
   // field telephone net between the garrisons and the batteries, blackout lamps at the barracks doors, unit boards
@@ -352,12 +370,14 @@ export default {
     { type: 'sign', variant: 'wehrmacht', x: 17.6, z: 113.6, rot: deg(-30), text: 'SPERRGEBIET\nBETRETEN VERBOTEN', block: false },
     { type: 'sign', variant: 'wehrmacht', x: 49.6, z: 72.8, rot: Math.PI, text: 'KP.-GEF.STD.', block: false },
     { type: 'sign', variant: 'wehrmacht', x: 53.6, z: 116.6, rot: deg(-20), text: 'BTTR. LA RIVIERE', block: false },
+    // art pass 2: the billet's kitchen garden, picket-fenced, its gate by the front door
+    { type: 'fence', variant: 'picket', points: [[18.6, 91.2], [18.6, 93.4], [14.6, 93.4], [14.6, 89.5], [18.6, 89.5], [18.6, 90]], h: 1.0, block: false },
   ],
   // vegetation tags for the vegetation pass (docs/vegetation.md §1 M14): Normandy coast in late May
   vegetation: { region: 'normandy_coast', month: 5, dune: ['marram', 'sea_kale', 'sea_rocket'], trees: ['oak', 'ash', 'elm'],
     shrubs: ['hawthorn', 'blackthorn', 'gorse'], meadow: ['cow_parsley', 'buttercup', 'red_campion'],
     farmland: { crops: 'none', orchards: 0.25 } }, // bocage fringe (art/terrain/bocage.js), clear of gameplay
-  structures: [...STRUCTURES, ...WIRE_PASS],
+  structures: [...STRUCTURES, ...WIRE_PASS, ...ART2],
   items: [],
   interactables: [],
   vehicles: [

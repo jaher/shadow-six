@@ -397,10 +397,16 @@ function well(g, p, theater) {
   const stone = dressingMaterial(desert ? 'mudRender' : 'fieldstone');
   g.add(mesh(lathe([[r * 0.78, 0.0], [r, 0], [r, 0.82], [r * 1.04, 0.84], [r * 1.04, 0.92], [r * 0.78, 0.92], [r * 0.78, 0.1]], 22), stone));
   g.add(mesh(new THREE.CircleGeometry(r * 0.78, 18).rotateX(-Math.PI / 2).translate(0, 0.25, 0), new THREE.MeshStandardMaterial({ color: 0x0c0d0c, roughness: 1, name: 'kit:well_dark' }), false));
-  if (desert) return;
-  const beam = dressingMaterial('beam');
-  for (const s of [-1, 1]) g.add(tbox(0.12, 2.1, 0.12, beam, s * (r + 0.02), 1.05, 0, 0.8));
-  const ax = tcyl(0.06, 0.06, 2 * r + 0.3, beam, 0, 1.45, 0, 8, 0.6); ax.rotation.z = Math.PI / 2; ax.position.set(0, 1.45, 0); g.add(ax);
+  const village = desert && /village/.test(String(p.variant || '')); // M8's plateau village: a winding frame, no roof
+  if (desert && !village) return;
+  const beam = dressingMaterial(village ? 'palmLog' : 'beam');
+  for (const s of [-1, 1]) g.add(tbox(0.12, 2.1, 0.12, beam, s * (r - 0.08), 1.05, 0, 0.8));
+  const ax = tcyl(0.06, 0.06, 2 * r + 0.1, beam, 0, 1.45, 0, 8, 0.6); ax.rotation.z = Math.PI / 2; ax.position.set(0, 1.45, 0); g.add(ax);
+  if (village) { // a wooden bucket on its rope, drawn up over the rim
+    g.add(tcyl(0.012, 0.012, 0.25, dressingMaterial('beam'), 0.12, 1.2, 0, 4, 0.2));
+    g.add(tcyl(0.16, 0.12, 0.26, dressingMaterial('planks'), 0.12, 0.95, 0, 10, 0.4));
+    return;
+  }
   for (const s of [-1, 1]) { const roof = tbox(2 * r + 0.6, 0.05, r * 0.9, dressingMaterial('roofShingle'), 0, 2.25, s * r * 0.38, 0.8); roof.rotation.x = s * 0.55; g.add(roof); }
   g.add(tcyl(0.12, 0.1, 0.22, dressingMaterial('planks'), 0.15, 0.95, 0, 10, 0.5));
 }

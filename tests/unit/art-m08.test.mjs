@@ -116,3 +116,48 @@ test('art m08: dressing is clear of routes and posts; pads are visual only; furn
     for (const p of pts) assert.ok(Math.hypot(p[0] - s.x, p[1] - s.z) > r + 1.5, `${s.id} clear of a post`);
   }
 });
+
+// ------------------------------------------------------------------ second art pass (art/m08-dressing.js)
+test('art m08 pass 2: the new dressing keeps ≥ 1.5 m off every beat, post, ladder, climb link and the jeep; the plateau pieces block under the shelf', async () => {
+  const { M08_DRESSING, M08_PLATEAU_DRESSING } = await import('../../src/art/m08-dressing.js');
+  const items = [...M08_DRESSING, ...M08_PLATEAU_DRESSING, m08.structures.find((s) => s.id === 'well_p')];
+  const ids = new Set(m08.structures.map((s) => s.id));
+  for (const s of items) assert.ok(ids.has(s.id) && s.fixed === true, `${s.id} in the mission, fixed`);
+  const dseg = ([x, z], [ax, az], [bx, bz]) => { const dx = bx - ax, dz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1))); return Math.hypot(x - ax - dx * t, z - az - dz * t); };
+  const segs = [], pts = [];
+  for (const e of m08.enemies) { pts.push([e.x, e.z]); const r = e.route?.points || []; r.forEach((p, k) => { pts.push([p.x, p.z]); if (k) segs.push([[r[k - 1].x, r[k - 1].z], [p.x, p.z]]); }); }
+  for (const l of m08.ladders) segs.push([[l.x, l.z], l.top.slice(0, 2)]);
+  for (const c of m08.climbLinks) segs.push([c.a.slice(0, 2), c.b.slice(0, 2)]);
+  for (const c of m08.commandos) pts.push([c.x, c.z]);
+  const X = m08.extraction; segs.push([[X.spawnAt.x, X.spawnAt.z], [X.arrive.x, X.arrive.z]]);
+  for (const s of items) {
+    const r = Math.hypot(s.w ?? 2 * s.r, s.d ?? 2 * s.r) / 2;
+    for (const [a, b] of segs) assert.ok(dseg([s.x, s.z], a, b) > r + 1.5, `${s.id} clear of ${a}→${b}`);
+    for (const p of pts) assert.ok(Math.hypot(p[0] - s.x, p[1] - s.z) > r + 1.5, `${s.id} clear of ${p}`);
+  }
+  // the 4 m shelf is walkway strips: a plateau piece's cells must keep its block (a hole in the strips), not be walked through
+  const { grid } = loadGrid(m08);
+  for (const s of [...M08_PLATEAU_DRESSING, m08.structures.find((q) => q.id === 'well_p')]) {
+    const w = s.w ?? 2 * s.r, d = s.d ?? 2 * s.r, c = Math.cos(s.rot ?? 0), sn = Math.sin(s.rot ?? 0);
+    for (const [u, v] of [[0, 0], [0.35, 0.35], [-0.35, 0.35], [0.35, -0.35], [-0.35, -0.35]]) {
+      const x = s.x + c * u * w - sn * v * d, z = s.z + sn * u * w + c * v * d;
+      assert.ok(!grid.isWalkable(Math.floor(x / grid.cell), Math.floor(z / grid.cell)), `${s.id}: walkable at ${x.toFixed(1)},${z.toFixed(1)}`);
+    }
+  }
+});
+
+test('art m08 pass 2: the W drum dumps fill their B.HIGH footprints two tiers high, with no red (explosive-looking) drums', async () => {
+  const { buildFuelDrumStack } = await import('../../src/art/fuel-drums.js');
+  const THREE = await import('three');
+  for (const id of ['drums_w1', 'drums_w2']) {
+    const s = m08.structures.find((q) => q.id === id);
+    assert.equal(s.block, 2, id);
+    const g = buildFuelDrumStack({ ...s, tiers: 2, red: false }), b = new THREE.Box3().setFromObject(g), sz = b.getSize(new THREE.Vector3());
+    assert.ok(sz.x > s.w - 0.5 && sz.x <= s.w + 0.01 && sz.z > s.d - 0.6 && sz.z <= s.d + 0.01, `${id} ${sz.x.toFixed(2)}×${sz.z.toFixed(2)} on ${s.w}×${s.d}`);
+    assert.ok(sz.y > 1.8 && sz.y < 2.6, `${id} h ${sz.y.toFixed(2)}`);
+    g.traverse((o) => { if (o.material) assert.ok(!/red/.test(o.material.name), `${id}: ${o.material.name}`); });
+  }
+  // the default stack (M17 / M3) is unchanged: one tier
+  const one = new THREE.Box3().setFromObject(buildFuelDrumStack({ id: 'x', w: 3, d: 1.4 }));
+  assert.ok(one.max.y < 1.7, 'single tier');
+});

@@ -201,7 +201,26 @@ const SOUTH = [
   { id: 'brl_2', type: 'barrels', variant: 'fuel_explosive', x: 45.2, z: 152.2, explosive: 'barrel', carriable: true },
 ];
 
-const STRUCTURES = [...SHIP_AND_GATES, ...DOCK_N, ...DOCK_E, ...SOUTH];
+// ---------------------------------------------------------------- art pass 2 (M0-M3 standard): purposeful harbour dressing
+/** The pier gun's open-backed sandbag parapet (dossier §5.4 `gun_pit`, inventory at_gun_emplacement): a 144° horseshoe
+ *  on the seaward side of its 112° bearing (40°-184°), open to the N where the Driver walks in and the Marine passes on
+ *  his way to the lever (a 200° arc ended 1.7 m from that walk and nudged it: the solution's run then diverged). */
+const GUN_PIT = { id: 'gun_pit', type: 'sandbags', variant: 'gun_pit_open', x: 16.5, z: 145, rot: deg(112), ring: { r: 3, arc: 144 }, h: 0.8, block: 1 };
+/** The dock railway: one track let into the setts, in from the E edge along the empty E-quay strip, round past the
+ *  garage (W of crate_e1) and W along the mid mole (flush, visual only); a covered goods wagon stands on its straight E
+ *  spur, behind e12's back and 1.8 m clear of the telegraph line. */
+const QUAY_RAIL = { id: 'quay_rail', surface: 'setts', width: 2.2, edge: 'hard', spline: true, rails: { tracks: 1 },
+  points: [[97, 82], [90, 82], [84, 82], [76, 82], [71, 82.6], [68.2, 84.6], [66.8, 87.8], [66.3, 92], [66.2, 98], [65, 103.4], [61.5, 107.5], [55, 109], [47, 109.2], [37, 109.2]],
+  wear: 0.5, cracks: 0.3, patches: 0, weeds: 0.3, puddles: 0.1, manholes: 0 };
+const WAGON = { id: 'wagon_e', type: 'train_car', variant: 'covered_goods', x: 80.5, z: 82, rot: 0, w: 8, d: 3, h: 3.5 };
+
+/** Unloading at the wagon's S door: a dockers' handcart and a crate stack (≥ 3 m off the traced z 88-89 path). */
+const WAGON_GOODS = [
+  { id: 'cart_wagon', type: 'crates', variant: 'handcart', asset: 'handcart_wood', x: 81.2, z: 85.1, rot: 0, w: 1.9, d: 1.4, h: 1, block: 1, fixed: true },
+  { ...crates('crates_wagon', 77.5, 85.2, 4, 2, 1.6), fixed: true },
+];
+
+const STRUCTURES = [...SHIP_AND_GATES, ...DOCK_N, ...DOCK_E, ...SOUTH, GUN_PIT, WAGON, ...WAGON_GOODS];
 
 // ---------------------------------------------------------------- enemies (dossier §8; Prima numbers 1–20, 11 = the patrol)
 /** Lone walker: PINGPONG between a and b (1.0 m/s), starting at a facing b. */
@@ -351,6 +370,7 @@ export default {
   // art pass (step 3p, visual only: grid false keeps the quays' road cells as the nav terrain): pavé on the main dock,
   // granite slabs on the moles and the jetty, coping + masonry faces with bollards and rings on every water face
   pavements: QUAYS,
+  roads: [QUAY_RAIL],
   // dock furniture (visual only, block false: routes, cones and footprints stay as tuned): blackout-hooded harbour
   // lamps on the quay heads, a yard floodlight over the fuel depot, the garage's wall lamp, the depot's field-telephone
   // line along the E fence, Kriegsmarine notice boards
@@ -366,6 +386,10 @@ export default {
     { type: 'sign', variant: 'wehrmacht', x: 69.5, z: 41, rot: 0, text: 'RAUCHEN\nVERBOTEN!', block: false },
     { type: 'sign', variant: 'wehrmacht', x: 78.5, z: 141, rot: 0, text: 'HAFEN LE HAVRE\nSPERRGEBIET', block: false },
     { type: 'sign', variant: 'wehrmacht', x: 37.5, z: 140.6, rot: 0, text: 'SCHLEUSE\nDURCHFAHRT VERBOTEN', block: false },
+    // art pass 2: lock-gate capstans on the pier heads beside each gate's heel, cork lifebuoys on the mole and jetty faces
+    // (both block only their own post cell for movement, sight passes; all clear of the traced routes by ≥ 1.5 m)
+    { type: 'capstan', x: 15.6, z: 49.6 }, { type: 'capstan', x: 24.6, z: 149.8 }, { type: 'capstan', x: 36.6, z: 150.3 },
+    { type: 'lifebuoy', x: 17.5, z: 79.4, rot: 0 }, { type: 'lifebuoy', x: 72, z: 140.4, rot: 0 }, { type: 'lifebuoy', x: 8, z: 49.8, rot: 0 },
   ],
   markers: [
     // the torpedo must strike the forward hull (bow tip to x 28, S side)

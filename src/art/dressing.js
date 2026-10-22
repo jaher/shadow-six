@@ -24,6 +24,7 @@ import { drystonePlankWall } from './norway-walls.js';
 import { brickDepotWall } from './depot-walls.js';
 import { loadCompressedTexture } from '../engine/texture-memory.js';
 import { addCableNode } from './cable-attach.js';
+import { brokenGardenWall } from './brick-rubble.js';
 
 const HAS_DOM = typeof document !== 'undefined';
 
@@ -406,7 +407,7 @@ export function buildCliff(p) {
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   g.setIndex(idx);
   g.computeVertexNormals();
-  const m = mesh(g, dressingMaterial('rock'));
+  const m = mesh(g, dressingMaterial(p.rockMat || 'rock')); // (`rockMat`: M8's warm desert rock for its S drop)
   m.userData.capStart = base;
   m.name = 'dressing:cliff';
   const grp = new THREE.Group(); grp.add(m); grp.name = 'dressing:cliff';
@@ -520,7 +521,9 @@ export function buildWall(points, o) {
   if (/^masonry_railing$/.test(String(o.variant))) return stoneRailingWall(points, { ...o, h, width }, R, 'plaster');
   if (/^timber_fence$/.test(String(o.variant))) return boardFence(points, { ...o, h, width }, R);
   // M15 art pass: the burned-out house's shell (brick with plaster and wallpaper remnants, charred joists, jagged tops)
-  if (/^ruin_(burnt_walls|wall_stub)$/.test(String(o.variant))) return buildBurntWall(points, o, h, width, R);
+  if (/^ruin_burnt_walls$/.test(String(o.variant))) return buildBurntWall(points, o, h, width, R);
+  // M15 art pass 2: the S street's shattered brick garden wall (art/brick-rubble.js), not a burned room's party wall
+  if (/^ruin_wall_stub$/.test(String(o.variant))) return brokenGardenWall(points, o, h, width, R);
   if (kind === 'mudbrick' && /ruin/.test(String(o.variant))) return ruinedMudWall(points, { ...o, h, width }, R);
   // M19 art pass (art/mine-walls.js): the field ruins' broken stone walls and the base's whitewashed concrete block
   if (o.variant === 'ruin_wall') return ruinedStoneWall(points, { ...o, h, width }, R);

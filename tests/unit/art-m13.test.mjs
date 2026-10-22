@@ -3,7 +3,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { test, assert } from './lib.mjs';
 import { useManifest, pickAsset, libraryHinted } from '../../src/art/building-props.js';
 import { mergeManifest, EXTRA_MANIFESTS } from '../../src/art/building-library.js';
-import { normalizeRoadNetwork } from '../../src/world/roads.js';
+import { normalizeRoadNetwork, FURNITURE_BLOCK, sampleCenterline, pointInPolygon } from '../../src/world/roads.js';
 import { MISSIONS } from '../../src/missions/index.js';
 
 const P = (f) => new URL(`../../${f}`, import.meta.url);
@@ -73,5 +73,28 @@ test('art m13: granite quays are visual only, carry walls on water faces and non
     assert.ok(a.points.some(([x2, z2]) => Math.abs(x2 - bx) < 1e-6 && Math.abs(z2 - z) < 1e-6), `${a.id}: (${x},${z}) has no border twin`);
   }
   assert.ok(net.furniture.length >= 8);
-  for (const f of net.furniture) assert.equal(f.block, false, f.id);
+  // art pass 2: the harbour capstans and lifebuoy posts block their own post cell for movement only (B.FENCE: what is
+  // drawn is what stops a man); everything else is visual only
+  for (const f of net.furniture) {
+    if (f.type === 'capstan' || f.type === 'lifebuoy') { assert.equal(f.block, undefined, f.id); assert.ok(FURNITURE_BLOCK[f.type] > 0 && FURNITURE_BLOCK[f.type] <= 0.45, f.type); }
+    else assert.equal(f.block, false, f.id);
+  }
+});
+
+test('art m13 pass 2: dock railway let into the quays, wagon on its spur, open-backed gun pit, harbour furniture on land', () => {
+  const net = normalizeRoadNetwork(m13), rail = net.roads.find((r) => r.id === 'quay_rail');
+  assert.ok(rail && rail.rails && rail.surface === 'setts', 'the rail road carries embedded rails in a lane of coursed setts');
+  const T1 = m13.terrain[0].points, onMap = (x) => x >= 0 && x <= 87;
+  for (const q of sampleCenterline(rail.points, 1, rail.spline)) if (onMap(q.x)) assert.ok(pointInPolygon(q.x, q.z, T1), `rail off the main dock at ${q.x.toFixed(1)},${q.z.toFixed(1)}`);
+  const wagon = m13.structures.find((s) => s.id === 'wagon_e');
+  assert.ok(wagon && wagon.type === 'train_car' && Math.abs(wagon.z - 82) < 1e-6 && wagon.rot === 0 && wagon.x + wagon.w / 2 < 86.3 - 1.5, 'the covered wagon stands on the straight E spur');
+  const pit = m13.structures.find((s) => s.id === 'gun_pit'), gun = m13.vehicles.find((v) => v.id === 'pier_gun');
+  assert.ok(pit && pit.ring && Math.hypot(pit.x - gun.x, pit.z - gun.z) < 1e-6, 'the parapet rings the pier gun');
+  // open to the N: the Driver walks in from bearing 247-277° and the Marine passes at 304-352° and on to the E (trace of
+  // the solution; the parapet's end stays ≥ 2 m off that walk)
+  const a0 = ((pit.rot * 180) / Math.PI - pit.ring.arc / 2 + 360) % 360, a1 = ((pit.rot * 180) / Math.PI + pit.ring.arc / 2) % 360;
+  const inWall = (b) => (a0 <= a1 ? b >= a0 && b <= a1 : b >= a0 || b <= a1);
+  for (let b = 236; b <= 396; b += 4) assert.ok(!inWall(b % 360), `parapet across bearing ${b % 360}`);
+  const land = m13.terrain.filter((t) => t.terrain === 'road').map((t) => t.points);
+  for (const f of net.furniture.filter((x) => x.type === 'capstan' || x.type === 'lifebuoy')) assert.ok(land.some((P) => pointInPolygon(f.x, f.z, P)), `${f.type} at ${f.x},${f.z} on a quay`);
 });

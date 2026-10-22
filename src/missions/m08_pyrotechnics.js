@@ -28,6 +28,7 @@
 
 import { PLATEAU_Y, TANK_DECK_Y, ROOF_Y, segmentHoles, plateauStrips, rampWalkways, m08Script } from './scripts/m08.js';
 import { joinStructures } from './schema.js';
+import { M08_DRESSING, M08_PLATEAU_DRESSING } from '../art/m08-dressing.js';
 
 const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (§4.1)
@@ -50,7 +51,7 @@ const WADI_SE = [[84, 56], [79.5, 69], [74, 80], [66, 90], [57, 105], [67, 105],
 const WADI_CARVE = [[79, 0], [96, 0], [95, 30.2], [95.6, 35.8], [96, 37], [97, 50], [99, 60], [97, 66], [91.52, 61.52], [88.5, 71], [82, 84],
   [74, 96], [67, 105], [57, 105], [66, 90], [74, 80], [79.5, 69], [84, 56], [88, 58], [85, 55], [80, 40], [78, 37], [78.6, 35.8], [79, 30.2]];
 /** T8 the terrace drop S of the camp (map-edge scenery). */
-const DROP_S = [[0, 98], [12, 96.5], [20, 103], [30, 98], [41, 94], [70, 93], [74, 96], [74, 105], [0, 105]];
+const DROP_S = [[0, 100], [12, 100], [20, 103], [30, 98], [41, 94], [70, 93], [74, 96], [74, 105], [0, 105]];
 
 /** Ramps: the W road cut and the NE supply track to the gun ([x, z, y] ends, width, steps of ≤ 0.4 m). */
 const RAMP_W = { a: [14, 30, Y], b: [15, 44, 0], width: 5, steps: 10 };
@@ -78,10 +79,22 @@ const WIRE_GUN = { id: 'wire_gun', type: 'fence', variant: 'wire_on_stakes', poi
 const drum = (id, x, z) => ({ id, type: 'barrels', variant: 'fuel_explosive', x, z, r: 0.3, h: 0.9, explosive: 'barrel', carriable: true, destructible: true, hp: 1 });
 const PLATEAU_DRUMS = [drum('b1', 18.5, 21.5), drum('b2', 23.2, 20.7), drum('b3', 5.6, 14)];
 
+/** The old village well (art pass), in the courtyard inside rw11 where nobody walks. */
+// (`well_village`: the kit's mud well head and winding frame on exactly its r 0.9 — the library's desert well is a pump
+// house, tank and trough several metres round a 1.8 m footprint: drawn far beyond what blocks)
+const WELL_P = { id: 'well_p', type: 'well', variant: 'well_village', x: 43.6, z: 11.6, r: 0.9, h: 2.1, block: 1, fixed: true };
+/** A plateau prop's walkway hole: its footprint + 0.2 m all round (segmentHoles adds the margin). */
+function holeOf(s) {
+  const w = s.w ?? 2 * s.r, d = s.d ?? 2 * s.r, [L, W] = w >= d ? [w, d] : [d, w], a = (s.rot ?? 0) + (w >= d ? 0 : Math.PI / 2);
+  const hx = Math.cos(a) * (L - W) / 2, hz = Math.sin(a) * (L - W) / 2;
+  return segmentHoles([[s.x - hx, s.z - hz], [s.x + hx + 1e-3, s.z + hz]], W);
+}
 const PLATEAU_WALKS = plateauStrips(PLATEAU, [
   ...RUIN_WALLS.flatMap(([, points]) => segmentHoles(points, 0.8)),
   ...segmentHoles([[59, 16.2], [66, 16.2]], 1.0),
   ...segmentHoles(WIRE_GUN.points, 0.3),
+  // art: the plateau dressing (the village well, the gun's ammunition) keeps its block under the walkway strips
+  ...[WELL_P, ...M08_PLATEAU_DRESSING].flatMap(holeOf),
 ]);
 
 // ---------------------------------------------------------------- the depot (L0)
@@ -135,7 +148,7 @@ const STRUCTURES = [
   { id: 'wadi_n', type: 'cliff', variant: 'ravine', points: WADI_N, h: 0.3, block: 1 },
   { id: 'wadi_mid', type: 'cliff', variant: 'ravine', points: WADI_MID, h: 0.3, block: 1 },
   { id: 'wadi_se', type: 'cliff', variant: 'ravine', points: WADI_SE, h: 0.3, block: 1 },
-  { id: 'drop_s', type: 'cliff', variant: 'drop', points: DROP_S, h: 0.5, block: 2 },
+  { id: 'drop_s', type: 'cliff', variant: 'drop', points: DROP_S, h: 0.5, block: 2, rockMat: 'rockOchre' }, // art pass 2: the escarpment's warm rock
   // --- the plateau: ruins, gun-pit parapet, rim wire, drums
   ...RUINS, GUN_PARAPET, WIRE_GUN, ...PLATEAU_DRUMS,
   // --- the lower road strip, the Gatling pit and the bridge
@@ -155,13 +168,14 @@ const STRUCTURES = [
   { id: 'reservoir', type: 'fueltank', variant: 'water_reservoir_round', label: 'Water reservoir', x: 70.5, z: 45.3, rot: 0, r: 3.75, h: 6, mat: 'greyPaint',
     destructible: true, destroyedBy: ['explosion'], hp: 100 },
   // --- the south: tents, the five houses (hideouts), the clothesline, the SW pillbox (garrison B)
-  tent('tent_w', 9, 78), tent('tent_e', 17.5, 74.5),
+  tent('tent_w', 8, 80.5), tent('tent_e', 17.5, 74.5),
   house('house_1', 25, 86, 270, 'n1'), house('house_2', 28.7, 82, 270, 'n2'), house('house_3', 33.6, 78.5, 270, 'n3'), house('house_4', 42.7, 78, 180, 'w1'),
   house('house_5', 46.5, 83, 180, 'w2'),
   { id: 'clothesline', type: 'wall', variant: 'clothesline_sheets', mat: 'canvas', points: [[33.3, 88.5], [37.3, 88.5]], h: 2, width: 0.3 },
   { id: 'bunker_sw', type: 'bunker', variant: 'pillbox_round', label: 'Pillbox', x: 11.5, z: 92, rot: 0, w: 11, d: 6, h: 3, mat: 'concrete', flag: true, garrison: true, door: deg(270) },
   { id: 'crates_sw', type: 'crates', x: 3.5, z: 92.5, rot: 0, w: 1.5, d: 1.2, h: 1, block: 1 },
-  { id: 'rubble_se', type: 'rocks', variant: 'rubble', x: 66.8, z: 86, r: 1, h: 0.6, block: 1 },
+  // art pass 2: the fallen corner of the village's palm-garden wall (art/m08-dressing.js), a low mud-brick heap
+  { id: 'rubble_se', type: 'ruins', variant: 'ruins_mudbrick_low', mat: 'stone', x: 66.8, z: 86, rot: deg(80), w: 2, d: 1.6, h: 0.6, block: 1 },
   // --- wire (see-through, uncrossable; no cutters in this mission)
   wire('wire_n', [[31, 50], [40, 45.5], [50, 41], [56, 39], [66, 39.5], [78, 39.5]]),
   wire('wire_e', [[78, 39.5], [78, 59], [72, 78], [70, 92]]),
@@ -236,7 +250,7 @@ const DRESSING = [
   { id: 'dump_e1', type: 'crates', variant: 'supply_dump_desert', asset: 'supply_dump_desert_b', label: 'Supplies', x: 75.8, z: 61, rot: deg(90), w: 3.2, d: 1.4, h: 1.2, block: 2 },
   { id: 'dump_w1', type: 'crates', variant: 'supply_dump_desert', asset: 'supply_dump_desert_a', label: 'Supplies', x: 2.5, z: 71.6, rot: 0, w: 2.6, d: 1.6, h: 1.4, block: 2 },
   { id: 'tanker_e', type: 'crates', variant: 'truck_parked', label: 'Fuel truck', x: 73.2, z: 53.5, rot: deg(90), w: 7.4, d: 2.4, h: 2.6, block: 2, vehicleArt: 'opel_blitz_tanker' },
-  { id: 'well_p', type: 'well', variant: 'well_desert', x: 31, z: 3.1, r: 0.8, h: 0.9, block: 1 },
+  WELL_P, // art pass 2: moved off the N lane (it stood on walkable plateau cells) into rw11's courtyard, with a hole
 ];
 /** Concrete standings under the two tank blocks (visual only: grid false keeps the yard's sand codes). */
 const tankPad = (cx, cz, w, d) => [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sz]) => tankPt(cx, cz, [cx + sx * (w / 2 + 0.8), cz + sz * (d / 2 + 0.8)]));
@@ -255,7 +269,7 @@ const FURNITURE = [
 ];
 
 /** Plateau structures and drums lifted to y 4 by the script (meshes; drum entities); the village well too. */
-const LIFT = [...RUINS, GUN_PARAPET, WIRE_GUN, ...PLATEAU_DRUMS, DRESSING[3]].map((s) => s.id);
+const LIFT = [...RUINS, GUN_PARAPET, WIRE_GUN, ...PLATEAU_DRUMS, WELL_P, ...M08_PLATEAU_DRESSING].map((s) => s.id);
 
 // ---------------------------------------------------------------- barbed wire (docs/barbed-wire.md §12)
 /** The M4–M20 wire pass: see-through, uncrossable (B.FENCE) runs added where the wire belongs; none crosses a route
@@ -310,7 +324,7 @@ export default {
   carves: [{ id: 'wadi', points: WADI_CARVE, depth: 2.6, bank: 1.7, inset: 0.5 }],
   pavements: PAVEMENTS,
   furniture: FURNITURE,
-  structures: joinStructures([...STRUCTURES, ...WIRE_PASS, ...DRESSING], [['house_1', 'house_2'], ['house_2', 'house_3'], ['house_4', 'house_5'], ['rw11', 'rw12']]), // rw12's stub abuts rw11 (a T in the ruins)
+  structures: joinStructures([...STRUCTURES, ...WIRE_PASS, ...DRESSING, ...M08_PLATEAU_DRESSING, ...M08_DRESSING], [['house_1', 'house_2'], ['house_2', 'house_3'], ['house_4', 'house_5'], ['rw11', 'rw12']]), // rw12's stub abuts rw11 (a T in the ruins)
   items: [],
   interactables: [],
   vehicles: [

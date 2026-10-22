@@ -914,7 +914,7 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     const key = c * (HS + 256) + k;
     if (done.has(key)) continue;
     done.add(key); n++;
-    if ((n & 127) === 0) yield;
+    if ((n & 15) === 0) yield; // (each state asks seen() of its neighbours: often, so a slice stays within PLAN_SLICE_MS)
     const atGoal = o.shelter || c === s1 || (mode !== 'boat' && Math.hypot(cx(c) - tx, cz(c) - tz) <= 0.55);
     if (atGoal && clear(c, k, k + holdK) && (!o.goalOk || o.goalOk(cx(c), cz(c), now + k * DT))) { found = [c, k]; break; }
     if (k >= HS) continue;

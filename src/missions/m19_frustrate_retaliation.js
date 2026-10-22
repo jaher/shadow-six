@@ -67,6 +67,10 @@ export const CURRENT_AREA = [...RIVER.slice(0, 20), [131.5, 13], [123, 13], [122
 /** The mine railway (60 cm gauge): the adit → the carts → the trestle → the SE yard buffer. */
 export const RAIL = [[5.5, 34], [26, 39.5], [50, 45.5], [57, 49.5], [80, 61], [95, 64.5]];
 const ROAD_S = [[122, 104], [122.5, 82], [121, 72]];
+/** (art pass 2) The walk clearance round the buffer stop at the rail's SE end, as the old crate pile there gave it: the
+ *  library buffer stop (`clip: false`) blocks its footprint only, these nine 0.5 m cells keep walkers off its flanks. */
+const BUFFER_CLEAR = [[95.25, 63.75], [94.75, 64.25], [95.25, 64.25], [97.25, 64.25], [94.75, 64.75], [97.25, 64.75], [94.75, 65.25], [96.75, 65.25], [96.75, 65.75]]
+  .map(([x, z], k) => ({ id: `buffer_se_${k}`, points: [[x - 0.2, z - 0.2], [x + 0.2, z - 0.2], [x + 0.2, z + 0.2], [x - 0.2, z + 0.2]] }));
 
 const TERRAIN = [
   // frozen-grass patches: the N-bank fields, the SE bank W and S of the yard
@@ -114,13 +118,16 @@ const NORTH = [
     roofWalk: true, roofY: 4.5 },
   { id: 'cliff_w', type: 'cliff', variant: 'rock_face', points: [[0, 19], [5, 19], [5, 46], [0, 46]], h: 12 },
   { id: 'shed', type: 'tank_shed', variant: 'tank_shed_open', label: 'Tank shed', x: 28, z: 17.5, rot: 0, w: 11, d: 12, h: 5, open: 'S', smokestack: true },
-  { id: 'tank_small', type: 'fueltank', variant: 'water_tower_legs_small', x: 20.5, z: 22, r: 1.2, h: 3, block: 2 },
+  { id: 'tank_small', type: 'fueltank', variant: 'water_tower_legs_small', x: 20.09, z: 21.82, r: 1.2, h: 3, block: 2, fixed: true },
+  // (art pass 2: where the map build put it beside the old kit shed, 0.45 m off (20.5, 22); pinned, so the new shed's
+  // narrower eaves leave the gameplay where it was)
   { id: 'bunker_n', type: 'bunker', variant: 'bunker_concrete_round', x: 43, z: 18.5, rot: 0, w: 5, d: 5, h: 2.5, mat: 'concrete', bunker: true },
   // the carts stand on the rail, along it (RAIL's first leg 15°, the second 14°)
   ...[[15, 36.55], [17, 37.09], [19, 37.62], [21, 38.16], [23, 38.7]].map(([x, z], k) => cart(`cart_n${k}`, x, z)),
   cart('cart_empty', 27, 39.75, 'mine_cart_empty', 14),
   coal('coal_n', 18, 45, 3),
-  { id: 'crates_coal', type: 'crates', variant: 'coal_crates', x: 12.5, z: 44, rot: 0, w: 2, d: 3, h: 1, block: 1 },
+  { id: 'crates_coal', type: 'crates', variant: 'coal_crates', x: 12.5, z: 44, rot: 0, w: 2, d: 3, h: 1, block: 1,
+    asset: 'timber_stack_no', nav: false }, // (art pass 2: sawn mine timber under a tarpaulin by the cliff foot, not two plain crates)
   ruin('ruins_a', [[46, 33], [50, 33]]),
   ruin('ruins_b', [[51.5, 37], [61.9, 35]]),
   ruin('ruins_c', [[46, 41.5], [50, 41.5]]),
@@ -148,7 +155,9 @@ const YARD = [
     w: BRIDGE.w, d: BRIDGE.d, h: 1.5 },
   { id: 'buffer_se', type: 'crates', variant: 'rail_buffer', x: 96, z: 64.8, rot: deg(13.1), w: 1.5, d: 2, h: 1, block: 1,
     alignFree: 'the buffer stop squares to the end of the rail (13.1°), not to the palisade behind it',
-    fixed: true }, // (at the rail's end: the map build would move it 1.3 m off the cart's route, onto the strip by the palisade)
+    fixed: true, // (at the rail's end: the map build would move it 1.3 m off the cart's route, onto the strip by the palisade)
+    artFill: [1.08, 0.465], clip: false }, // (art pass 2: the buffer stop drawn on the old crate pile's 1.6 × 0.9 m; its body
+    // clearance is the old pile's, cell for cell (BUFFER_CLEAR): the Green Beret lies in the hollow E of it before the climb)
   { id: 'crane', type: 'radio_mast', variant: 'crane_jib_yard', x: 84.5, z: 65.5, rot: 0, w: 2.5, d: 2.5, h: 7, block: 2 },
   coal('coal_se', 90, 69.5, 2.5),
   { id: 'boiler', type: 'house', variant: 'boiler_house', label: 'Boiler house', x: 94.5, z: 52, rot: 0, w: 9, d: 11, h: 7, mat: 'brick',
@@ -158,7 +167,8 @@ const YARD = [
   { id: 'conv', type: 'conveyor', variant: 'conveyor_incline', label: 'Coal conveyor', x: 96, z: 75.75, rot: Math.atan2(-11.5, 15), w: 18.9, d: 1.6, h: 3, block: 0 },
   coal('coal_w', 96, 80.5, 2, 1.4),
   { id: 'white_wall', type: 'wall', variant: 'whitewashed_concrete', points: [[101.5, 82.5], [101.5, 89.5]], width: 5, h: 3, mat: 'plaster', block: 2 },
-  { id: 'crates_gate', type: 'crates', variant: 'crates_pile', x: 117.5, z: 86, rot: deg(346), w: 4, d: 5, h: 1.8, block: 2 },
+  { id: 'crates_gate', type: 'crates', variant: 'crates_pile', x: 117.5, z: 86, rot: deg(346), w: 4, d: 5, h: 1.8, block: 2,
+    asset: 'dock_cargo_c', nav: false }, // (art pass 2: the library's stacked supply cases and sacks; the mission's nav stays)
   { id: 'wreck_car', type: 'ruins', variant: 'car_wreck_burnt', x: 133.5, z: 84, rot: deg(20), w: 4.5, d: 2.5, h: 1.4, mat: 'metalRust',
     vehicleArt: 'horch901', wreck: true }, // (art pass: a burnt-out Horch staff car from the vehicle library; footprint unchanged)
   // the SE bank's rocky cliffs (Phase 3) and the yard rocks
@@ -186,7 +196,8 @@ const BASE = [
   { id: 'tall_house', type: 'house', variant: 'house_tall_narrow_brick', x: 109.5, z: 54, rot: 0, w: 4, d: 5, h: 11, mat: 'brick',
     enterable: true, door: deg(90) },
   { id: 'hut_n', type: 'house', variant: 'hut_timber_bigroof', x: 116, z: 51, rot: 0, w: 9, d: 8, h: 5, mat: 'woodDark', enterable: true, door: deg(90) },
-  { id: 'crates_n', type: 'crates', variant: 'crates_pile', x: 120, z: 57, rot: 0, w: 4, d: 3, h: 1.5, block: 1 },
+  { id: 'crates_n', type: 'crates', variant: 'crates_pile', x: 120, z: 57, rot: 0, w: 4, d: 3, h: 1.5, block: 1,
+    asset: 'dock_cargo_b', nav: false },
   { id: 'drums_conv', type: 'fueltank', variant: 'oil_drums_stack', x: 102, z: 62, rot: 0, w: 2.5, d: 5, h: 2, block: 2,
     asset: 'drum_stack_de', nav: false }, // (art pass: the library's chocked drum stack, not a fuel tank; the mission's nav stays)
   { id: 'pen', type: 'prison_pen', variant: 'dog_kennel', label: 'Dog pen', x: 111.5, z: 74, rot: 0, w: 9, d: 10, h: 2, gateSide: 'W',
@@ -197,7 +208,9 @@ const BASE = [
   { id: 'wreck_ht', type: 'ruins', variant: 'tractor_wreck_burnt', x: 114.5, z: 63.5, rot: deg(30), w: 5, d: 3, h: 1.8, mat: 'metalRust', block: 2,
     vehicleArt: 'sdkfz251_c', wreck: true }, // (art pass: the burnt-out tracked tractor is a gutted Sd.Kfz. 251 half-track)
   { id: 'crates_v2', type: 'crates', variant: 'crates_cable_drums', x: 124, z: 46.5, rot: 0, w: 3, d: 5, h: 1.2, block: 1 },
-  { id: 'drum_rust', type: 'fueltank', variant: 'rusty_drum_upright', x: 116, z: 80, r: 1, h: 2, block: 2 },
+  { id: 'drum_rust', type: 'fueltank', variant: 'rusty_drum_upright', x: 116.17, z: 80.88, r: 1, h: 2, block: 2, fixed: true,
+    asset: 'rust_tank_de', nav: false }, // (art pass 2: a riveted rusty air receiver on sleepers, not the fuel library's tank squashed
+    // into a dome with a ladder on it; pinned where the map build already moved it off the pen's SE corner post)
   // the four movable barrels (§3.8 "4 barrels"), 6 m S of the watchtower, inside the N fence
   barrel('barrel_1', 123.5, 32.5), barrel('barrel_2', 124.6, 33.2), barrel('barrel_3', 123.8, 34.4), barrel('barrel_4', 125, 35),
   // the watchtower just outside the N fence: a bomb at its legs kills the gunner, the tower stays up
@@ -215,6 +228,15 @@ const DRESSING = [
   { id: 'props_boiler', type: 'crates', variant: 'pit_props', x: 88.8, z: 51.5, rot: deg(90), w: 4, d: 1.4, h: 1.3, block: 1 },
   { id: 'lorry_yard', type: 'crates', variant: 'parked_lorry', x: 79.5, z: 71, rot: deg(100), w: 6.2, d: 2.3, h: 2.2, block: 1,
     vehicleArt: 'opel_blitz_cargo' },
+  // (art pass 2) the works manager's Kübelwagen parked between the mine office and the small rock, nose S; and a fuel
+  // point on the S road's W verge outside the base (between the road and the big rock): an Opel Blitz tanker (the V-2s' alcohol comes by road) waiting with
+  // a stack of drums behind it. Both are low cover off every route and post (≥ 3 m), never on the solution's way (the N edge,
+  // the NE shore, the strip W of the palisade and the base's N half)
+  { id: 'car_office', type: 'crates', variant: 'parked_car', x: 15.6, z: 12, rot: deg(90), w: 3.8, d: 1.7, h: 1.4, block: 1, fixed: true,
+    vehicleArt: 'kubelwagen' },
+  { id: 'tanker_s', type: 'crates', variant: 'parked_lorry', x: 118.8, z: 96.5, rot: deg(270), w: 6.2, d: 2.3, h: 2.6, block: 1, fixed: true,
+    vehicleArt: 'opel_blitz_tanker', alignFree: 'parked along the S road (N–S), not square to the palisade 10 m N of it' },
+  { id: 'drums_s', type: 'barrels', variant: 'inert_stack', x: 118.6, z: 101.4, rot: deg(0), w: 2.4, d: 2, h: 1, block: 1, fixed: true },
 ];
 
 const STRUCTURES = [...NORTH, ...YARD, ...NESTS, ...BASE, ...DRESSING];
@@ -409,6 +431,7 @@ export default {
   terrain: TERRAIN,
   pavements: PAVEMENTS,
   furniture: FURNITURE,
+  noWalk: BUFFER_CLEAR,
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
   structures: joinStructures(STRUCTURES, [['hopper', 'conv'], ['v2_e_pad', 'barr_n'], ['tall_house', 'hut_n'], ['pen', 'kennel'],
     ['pen', 'pen_gate'], ['shed', 'rock_mound']]), // (art pass: the pen's own gate in its W rails; the start mound banked against the shed's NE corner)

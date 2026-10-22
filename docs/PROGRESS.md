@@ -718,3 +718,7 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 - M12 car-way check 6.0 → 0.31 ms a tick (logic run 37 → 9.5 s); M15 plans 126.9 → 36.2 s; AUTO skips plans > 250 ms like a wait. AUTO low preset: M12 total 420 → 393 s, longest no-action 24.2 → 4.5 s; M15 1639 → 1366 s, longest 166.5 → 82.9 s.
 - Runs unchanged checkpoint for checkpoint (M3 2703.85, M12 982.37, M15 5973.65, 0/0). Unit 2270/0. video-perf-m03 still fails on this loaded host (load 15–40), on master too; branch better back-to-back (AUTO p99 66.6 → 50.1 ms).
 - Not fixed yet: the bunker-blast tick (noise pathfinding, reinforcements, debris; 30–48 ms under load), stage G camera yaw checks against the ruins (5–15 ms), heavy water views.
+
+## 2026-10-22 — Second art pass M8, M14, M15, M19 and the M11 solution (merged by the workflows)
+- art2/m08 a8aae6510, art2/m15 b9f4607a4, art2/m14 7f0745eb6, art2/m19 b76a994f3 (sheets commandos-shots/art/mNN-p2-before-after.jpg); sol/m11 033915248 (scripted M11 solution, walkthrough, per-mission video-perf test `video-perf-mission`).
+- User: "Work incrementally from mission to mission to not hit the limit", "Art, perf, solver in lockstep": the parallel art/solution workflows were stopped; from now on one mission at a time (art + solution + perf), tracker commandos-shots/notes/mission-status.md. Unit 2280/0 on b76a994f3.

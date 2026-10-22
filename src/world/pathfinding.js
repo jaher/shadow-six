@@ -167,6 +167,8 @@ export function hugsObstacle(grid, i, j) {
  * restamped within a tick); a new epoch or a new grid version starts afresh.
  */
 const failMemos = new WeakMap();
+/** Cells expanded by every A* search so far (a running count: callers budget their searches per tick by it). */
+export const searchStats = { expanded: 0 };
 const maskIds = new WeakMap();
 let nextMaskId = 1;
 /** Failed-search sets kept per epoch (each a byte per cell). */
@@ -183,6 +185,69 @@ function failKey(walkOpts, opts) {
   let mask = 0;
   if (walkOpts.avoid) { mask = maskIds.get(walkOpts.avoid); if (!mask) maskIds.set(walkOpts.avoid, (mask = nextMaskId++)); }
   return `${walkOpts.swim ? 1 : 0}${walkOpts.dive ? 1 : 0}${opts.noLinks ? 1 : 0}${opts.noWalkLinks ? 1 : 0}|${mask}|${opts.role ?? ''}`;
+}
+
+/**
+ * Connected areas of the static walkable grid, per walk rules (swim / dive, the links a role may take): a label per cell,
+ * 0 = not walkable. Two cells with different labels have no path between them under ANY search on top of those rules —
+ * the labelling takes every step a search may take (either direction of a step, diagonals whenever both cells are open,
+ * every allowed link) and nothing the vehicle layer (`dynamic`) or a body-clearance mask (`avoid`) adds can only take
+ * cells away. So a search whose goal lies in another area returns null at once, exactly what its own full flood would
+ * return: guards who hear a blast in a pit none of them can enter (M11's sealed quarry: ~20–55 ms a flood, a dozen in
+ * one tick) no longer flood the map one by one. Built lazily, kept until the grid's static layers or links change.
+ */
+const _areas = new WeakMap();
+function linksSig(grid) {
+  const L = grid.links || [];
+  let n = 0, s = 0;
+  for (const l of L) if (l.enabled) { n++; s = (s * 31 + (l.id | 0)) % 2147483647; }
+  return `${L.length}:${n}:${s}`;
+}
+function areasFor(grid, walkOpts, role, opts, hasLinks) {
+  let per = _areas.get(grid);
+  if (!per || per.version !== grid.version || per.links !== grid.links) { per = { version: grid.version, links: grid.links, map: new Map() }; _areas.set(grid, per); }
+  const sig = hasLinks ? linksSig(grid) : '-';
+  const key = `${walkOpts.swim ? 1 : 0}${walkOpts.dive ? 1 : 0}${opts.noLinks ? 1 : 0}${opts.noWalkLinks ? 1 : 0}|${role ?? ''}|${sig}`;
+  let lab = per.map.get(key);
+  if (lab) return lab;
+  const cols = grid.cols, rows = grid.rows, N = grid.size, bare = { swim: !!walkOpts.swim, dive: !!walkOpts.dive };
+  const open = new Uint8Array(N);
+  for (let j = 0, k = 0; j < rows; j++) for (let i = 0; i < cols; i++, k++) open[k] = grid.isWalkable(i, j, bare) ? 1 : 0;
+  // (links by cell, the ones this search may take)
+  let adj = null;
+  if (hasLinks) {
+    adj = new Map();
+    for (const L of grid.links) {
+      if (!grid.linkAllowed(L, role) || (opts.noLinks && !L.walk)) continue;
+      if (!open[L.ka] || !open[L.kb]) continue;
+      (adj.get(L.ka) || adj.set(L.ka, []).get(L.ka)).push(L.kb);
+      (adj.get(L.kb) || adj.set(L.kb, []).get(L.kb)).push(L.ka);
+    }
+  }
+  lab = new Int32Array(N);
+  const queue = new Int32Array(N);
+  let next = 0;
+  for (let s0 = 0; s0 < N; s0++) {
+    if (!open[s0] || lab[s0]) continue;
+    const id = ++next;
+    let qh = 0, qt = 0;
+    queue[qt++] = s0; lab[s0] = id;
+    while (qh < qt) {
+      const k = queue[qh++], i = k % cols, j = (k - i) / cols;
+      for (let d = 0; d < 8; d++) {
+        const ni = i + DI[d], nj = j + DJ[d];
+        if (ni < 0 || nj < 0 || ni >= cols || nj >= rows) continue;
+        const nk = nj * cols + ni;
+        if (!open[nk] || lab[nk]) continue;
+        if (!grid.canStep(k, nk) && !grid.canStep(nk, k)) continue;
+        lab[nk] = id; queue[qt++] = nk;
+      }
+      const ls = adj?.get(k);
+      if (ls) for (const nk of ls) if (!lab[nk]) { lab[nk] = id; queue[qt++] = nk; }
+    }
+  }
+  per.map.set(key, lab);
+  return lab;
 }
 
 /** Expansions after which a search asks whether its goal is shut in a small pocket (goalPocketExcludes). */
@@ -337,6 +402,11 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
   if (si === gi && sj === gj) return [start, goal];
 
   const startK = sj * cols + si, goalK = gj * cols + gi;
+  // (the goal in another walkable area than the start: no search can join them — areasFor)
+  if (!walkOpts.dive) {
+    const lab = areasFor(grid, walkOpts, role, opts, hasLinks);
+    if (lab[startK] && lab[goalK] && lab[startK] !== lab[goalK]) return null;
+  }
   // (a failed search this epoch reached this start but not this goal: the goal is out of this start's reach too)
   const memo = opts.memo != null && !walkOpts.dynamic ? failMemo(grid, opts.memo) : null;
   const memoKey = memo ? failKey(walkOpts, opts) + (ends ? '|ends' : '') : null;
@@ -370,6 +440,7 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
     closed[k] = id;
     if (k === goalK) { found = true; break; }
     if (++expanded > maxNodes) { capped = true; break; }
+    searchStats.expanded++;
     // (a long search: is the goal shut in a small pocket this start cannot be in? then it fails — no need to flood)
     if (expanded === POCKET_AT) {
       const pocket = goalPocketExcludes(grid, goalK, startK, walkOpts, role, hasLinks, !!opts.noLinks, pocketOpen);

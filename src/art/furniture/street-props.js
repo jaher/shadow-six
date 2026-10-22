@@ -64,6 +64,22 @@ export function propParts(type, o = {}) {
   else if (type === 'snow_pole') {
     P.wood.push(cyl(0.03, 0.02, 1.95, 0, 0, 0, 5));
     for (const a of [0.5, 2.6, 4.4]) P.wood.push(cyl(0.006, 0.01, 0.34, 0, 0, 0, 3).rotateZ(0.5).rotateY(a).translate(0, 1.9, 0));
+  } else if (type === 'capstan') {
+    // M13 art pass 2: a lock-gate capstan on a pier head — cast-iron base plate, waisted drum, a drumhead with eight bar
+    // sockets and a pawl ring at its foot (the leaves were hauled by men walking capstan bars round it)
+    P.iron.push(new THREE.CylinderGeometry(0.42, 0.46, 0.08, 8).translate(0, 0.04, 0));
+    P.iron.push(lathe([[0, 0.08], [0.34, 0.08], [0.34, 0.16], [0.27, 0.24], [0.24, 0.42], [0.27, 0.6], [0.3, 0.66], [0.38, 0.68], [0.38, 0.8], [0.3, 0.84], [0, 0.86]], 16));
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      P.iron.push(box(0.11, 0.09, 0.11, 0, 0, 0).translate(0.4, 0.74, 0).rotateY(a));
+      P.iron.push(box(0.05, 0.1, 0.04, 0, 0, 0).translate(0.3, 0.2, 0).rotateY(a + 0.39)); // pawls
+    }
+    for (const a of [0.6, 2.7, 4.6]) P.iron.push(cyl(0.035, 0.035, 0.05, 0, 0, 0, 6).translate(0.38, 0.0, 0).rotateY(a)); // hold-down bolts
+  } else if (type === 'lifebuoy') {
+    // a cork lifebuoy on a creosoted post with a small backboard (quarters red / white), local +Z = the face
+    P.wood.push(box(0.1, 1.45, 0.1, 0, 0.725, 0), box(0.62, 0.62, 0.03, 0, 1.05, 0.065));
+    for (let k = 0; k < 4; k++) (k % 2 ? P.white : P.red).push(new THREE.TorusGeometry(0.25, 0.055, 6, 8, Math.PI / 2).rotateZ(k * Math.PI / 2 + Math.PI / 4).translate(0, 1.05, 0.135));
+    P.iron.push(box(0.04, 0.12, 0.08, 0, 1.33, 0.11)); // hook
   } else if (type === 'milestone') {
     P.white.push(box(0.4, 0.6, 0.22, 0, 0.3, 0), new THREE.CylinderGeometry(0.2, 0.2, 0.22, 12, 1, false, 0, Math.PI).rotateX(Math.PI / 2).rotateZ(Math.PI / 2).rotateY(Math.PI / 2).translate(0, 0.6, 0));
     P.red.push(new THREE.CylinderGeometry(0.205, 0.205, 0.225, 12, 1, false, 0, Math.PI).rotateX(Math.PI / 2).rotateZ(Math.PI / 2).rotateY(Math.PI / 2).scale(1, 0.7, 1).translate(0, 0.66, 0));
