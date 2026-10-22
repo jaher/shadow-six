@@ -1781,7 +1781,13 @@ Emitters add the events they own; AUDIO never needs another team to call it.
     (video mode played live: every frame's wall time, ticks, sim / render / driver split per chapter, long tasks,
     programs linked during play and who drew them; `--from=G3 --to=G5`, `--speed=auto`, `--phone --preset=low`),
     `driver-gaps.mjs` (the solution driver's own time between ticks, with a CPU profile), `sim-trace.mjs` (per-second
-    state hashes of a logic-only run, `--diff` two checkouts, `--pause` plans sliced: the run must stay identical).
+    state hashes of a logic-only run, `--diff` two checkouts, `--pause` plans sliced: the run must stay identical),
+    `cold-trace.mjs` (every tick hashed — `debug/sim-trace.js` — of the logic run or of a walkthrough opened from a cold
+    link, `--sdelay=<regex>@<ms>` / `--smbit=N` to hold back art or throttle the link, `--diff`: the first tick and the
+    units that differ, the tick-0 gameplay fingerprint). The rule it checks: what the gameplay world measures on loaded
+    art (the placed buildings' LOD0, the map's gameplay stamps, the static vehicles' models) is awaited however long it
+    takes (`engine/gameplay-inputs.js`), never raced against a clock; gameplay never reads the drawn water
+    (`world.waterLevelAt`, art/water.js `gameplayWaterLevel`).
     Video mode keeps first-use costs out of play: the load stages the ruins a blast reveals (`prepareDestroy`, detached
     groups at the same world matrices: the same deformation bit for bit) and its warm-up frame draws them with the dam
     burst, the escape truck (`laterVehicleModels`), blood, dig sites, a cone, LODs and stained / submerged men;

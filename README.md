@@ -214,7 +214,9 @@ button says so). The mission loads fresh, as authored, on a title card (Start, C
 | CAM | F | Director on / off. Off is a free camera: scroll, drag and zoom as in the game; a drag or the wheel over the map also switches to it. CAM gives the camera back to the director. |
 
 The walkthrough never changes the simulation: it wins exactly like the scripted run, checkpoint for checkpoint
-(`tests/debug-walkthrough-sim.test.mjs`).
+(`tests/debug-walkthrough-sim.test.mjs`) — opened from a cold link too, however slow the connection: the load waits for
+everything the gameplay world measures on the art, never racing it against a clock, so the run is the tested one tick
+for tick (`tests/debug-walkthrough-cold.test.mjs`: M2 and M3 cold, M2 through a 4 Mbit/s link).
 
 ## Controls
 

@@ -17,6 +17,7 @@
  * @module art/water
  */
 import { T } from '../world/grid.js';
+import { waterBodiesFromGrid } from './water/grid.js';
 import { dryHullOf, dryHullOfObject } from './water/hulls.js';
 import { raftDryHulls } from './raft-actions.js';
 import { rowPeriod, catchOffset, ROW } from './oars.js';
@@ -119,6 +120,43 @@ export function raisedWaterMasks(grid, mission = {}) {
     if (n) out.push({ level: f.level, drainOn: f.drainOn, id: f.id, iceFree: f.iceFree, mask });
   }
   return out;
+}
+
+/** The drawdown of a drained reservoir: `from` → `to`, fast at first, then settling (`u` = time since the breach / DRAIN_S). */
+export function drainedLevel(from, to, u) {
+  const v = Math.min(1, Math.max(0, u)), k = 1 - (1 - v) * (1 - v) * (1 - v);
+  return from + (to - from) * k;
+}
+
+/**
+ * The gameplay water level (world.waterLevelAt — abilities/marine.js dryAt's low-deck test): the level of the water
+ * body whose own grid cells hold (x, z), from the nav grid as the map build leaves it and the mission alone — the same
+ * bodies the drawn water is made of (waterBodyDescriptors, in the same order), read without it. The drawn WaterSystem's
+ * levelAt gave the same levels, but it exists only once the drawn water is built (after the load's bounded terrain
+ * wait: on a slow machine or link play could start without it, every deck then read at WATER_LEVEL) and it drains the
+ * M3 reservoir per displayed frame (a logic-only run, which draws none, never drained it): a walkthrough opened from a
+ * cold link and the tested run could read different levels. A raised body with a `drainOn` dam draws down in game time
+ * from that dam's destruction, on the drawn water's curve (drainedLevel; already down at load: drawn down).
+ * @param {object} world (world.listen / byId / time) @param {object} grid nav grid @param {object} [mission]
+ * @returns {(x: number, z: number) => number|null} null: no body there (callers fall back to WATER_LEVEL)
+ */
+export function gameplayWaterLevel(world, grid, mission = {}) {
+  const descs = waterBodyDescriptors(grid, mission, mission.theater || 'temperate', waterBodiesFromGrid);
+  const bodies = descs.map((d) => ({ mask: d.mask, level: d.level, drainOn: d.raised?.drainOn ?? null, t0: null }));
+  const drains = bodies.filter((b) => b.drainOn != null);
+  if (drains.length && world?.listen) {
+    world.listen('structure:destroyed', (e) => { for (const b of drains) if (b.t0 == null && e?.id === b.drainOn) b.t0 = world.time; });
+  }
+  const levelOf = (b) => {
+    if (b.drainOn == null) return b.level;
+    if (b.t0 == null && world?.byId?.(b.drainOn)?.destroyed) b.t0 = -Infinity; // (loaded with the dam already down)
+    if (b.t0 == null) return b.level;
+    return drainedLevel(b.level, Math.max(WATER_LEVEL, b.level - RESERVOIR_DRAWDOWN), ((world?.time ?? 0) - b.t0) / DRAIN_S);
+  };
+  return (x, z) => {
+    for (const b of bodies) if (b.mask(x, z)) return levelOf(b);
+    return null;
+  };
 }
 
 /** Wake parameters per mover class: disturb strength (m), radius (m), foam, emit period (s). Boats: `_boat`. */
@@ -522,8 +560,7 @@ function* buildWaterG(R, world, grid, mission, theater, o, sliced) {
       if (d.t < 0 && world.byId?.(d.id)?.destroyed) d.t = DRAIN_S - 1e-3; // loaded with the dam already down
       if (d.t < 0 || d.t >= DRAIN_S) continue;
       d.t = Math.min(DRAIN_S, d.t + dt);
-      const u = d.t / DRAIN_S, k = 1 - (1 - u) * (1 - u) * (1 - u); // fast at first, then settling
-      const y = d.from + (d.to - d.from) * k;
+      const y = drainedLevel(d.from, d.to, d.t / DRAIN_S); // fast at first, then settling
       d.body.mesh.position.y = y - d.from; d.body.uniforms.level.value = y; d.body.level = y;
     }
   };

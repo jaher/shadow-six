@@ -27,7 +27,7 @@ async function row(D, x, z, o = {}) {
  * Row straight along `pts` (a player's clicks) once nobody will see the boat on the way; `run` = pull hard (4 m/s).
  * Waits up to `maxWait` s for the stretch to be clear, then goes leg by leg.
  */
-async function rowOpen(D, pts0, { run = false, maxWait = 120, label = 'row', slack = 0.5, now = false } = {}) {
+async function rowOpen(D, pts0, { run = false, maxWait = 120, label = 'row', slack = 0.5, now = false, stop = null } = {}) {
   const b = boatOf(D), sp = run ? 3.9 : 2.3, why = [];
   // (a click within arm's length of where the boat lies: nothing to row)
   const pts = pts0.filter(([x, z], k) => k > 0 || Math.hypot(x - b.x, z - b.z) > 1.5);
@@ -40,7 +40,8 @@ async function rowOpen(D, pts0, { run = false, maxWait = 120, label = 'row', sla
   for (const [x, z] of pts) {
     D.order('diver', { type: 'move', x, z, run });
     const t0 = D.t;
-    await D.until(() => (Math.hypot(b.x - x, b.z - z) < 1.5) || (D.t > t0 + 1 && !b.goal && (b.speed || 0) < 0.05), 200, `${label} → (${x},${z})`);
+    await D.until(() => stop?.() || (Math.hypot(b.x - x, b.z - z) < 1.5) || (D.t > t0 + 1 && !b.goal && (b.speed || 0) < 0.05), 200, `${label} → (${x},${z})`);
+    if (stop?.()) return;
   }
   await D.until(() => (b.speed || 0) < 0.1 || !b.goal, 10, `${label} stops`);
 }
@@ -522,7 +523,9 @@ export const STAGES = [
     }
     D.checkpoint('G4 the Sapper fires the three charges: guns 1, 2 and 3 destroyed');
     await D.until(() => objective(D, 'o1'), 5, 'o1');
-    await rowOpen(D, [[...BUOY]], { run: true, label: 'to the red buoy', maxWait: 120 });
+    // (the escape counts — and the game ends — the tick the boat is in the buoy's ring: the run stops there, as a live
+    // walkthrough does, never rowing on past the win; the last checkpoint is that tick in both)
+    await rowOpen(D, [[...BUOY]], { run: true, label: 'to the red buoy', maxWait: 120, stop: () => objective(D, 'o2') });
     await D.until(() => objective(D, 'o2'), 30, 'o2');
     D.checkpoint('G5 everyone in the boat at the red buoy: mission complete');
   }],

@@ -4,19 +4,22 @@
  * charges, the blasts and the escape), free camera, a jump back (reload + fast-forward) and jumps ahead, wins exactly
  * like the scripted run (tools/solutions/m03.solution.mjs played logic-only, as
  * tests/m03-solution.test.mjs does): the same checkpoints at the same game times, the same end time, 0 detections,
- * nobody ever inside a live cone (the driver's exposure watch). (The node harness, tools/solutions/run-headless.mjs,
+ * nobody ever inside a live cone (the driver's exposure watch). The walkthrough's page is a fresh one (its own browser
+ * context): its first run is a COLD load, compared up to the jump back (tests/debug-walkthrough-cold.test.mjs plays
+ * whole cold links). (The node harness, tools/solutions/run-headless.mjs,
  * is only an approximation of the game — its grid lacks the library meshes — so the reference is the game's own
  * logic-only run, in the same browser.)
  */
 export const timeout = 900_000;
 
-export default async function debugWalkthroughSim(page, t) {
-  page.setDefaultTimeout(600000);
+export default async function debugWalkthroughSim(page0, t) {
+  page0.setDefaultTimeout(600000);
+  let page = page0;
   const T0 = Date.now();
   const step = (n) => t.log(`${n} @${((Date.now() - T0) / 1000).toFixed(1)} s`);
 
   step('1. the scripted run, logic only (the reference)');
-  const ref = await page.evaluate(async () => {
+  const ref = await page0.evaluate(async () => {
     const G = window.__game, dt = G.CONFIG.sim.dt;
     await G.loadMission('m03');
     G.start();
@@ -35,11 +38,15 @@ export default async function debugWalkthroughSim(page, t) {
   t(!ref.error && ref.state === 'won' && ref.detections === 0, `the scripted run wins unseen (${ref.state}, ${ref.detections}, ${ref.error})`);
 
   step('2. the walkthrough, watched: director, cones, captions, pauses, speeds, free camera, jumps');
+  // a fresh page — its own browser context, nothing cached: the link loads COLD, as for someone opening it (the runner's
+  // page has the reference's downloads in its cache); its checkpoints up to the jump back are the cold load's own run
+  page = await t.harness.newPage();
+  page.setDefaultTimeout(600000);
   await page.goto(`${t.harness.url}/index.html?debug&preset=low&walkthrough=m03`);
   await page.evaluate(() => localStorage.removeItem('shadowsix.debug.options'));
-  await page.waitForFunction(() => document.querySelector('#wt-card[data-kind=intro]'), null, { timeout: 180000 });
+  await page.waitForFunction(() => document.querySelector('#wt-card[data-kind=intro]'), null, { timeout: 300000 });
   // (a jump back stops the running walkthrough — outcome 'stopped' — and starts another: the run that counts ends 'done')
-  await page.evaluate(() => { window.__end = null; window.shadowSix.events.on('debug:walkthrough-end', (r) => { if (r.outcome !== 'stopped') window.__end = r; }); });
+  await page.evaluate(() => { window.__end = null; window.__stopped = []; window.shadowSix.events.on('debug:walkthrough-end', (r) => { if (r.outcome !== 'stopped') window.__end = r; else window.__stopped.push(r); }); });
   t.equal(await page.evaluate(() => window.shadowSix.world.time), 0, 'tick 0 waits for the title card');
   const click = (sel) => page.locator(sel).click();
   const wk = (fn) => page.waitForFunction(fn, null, { timeout: 600000 });
@@ -102,5 +109,12 @@ export default async function debugWalkthroughSim(page, t) {
   t(off.length === 0, `every checkpoint at the same game time (${off.slice(0, 6).map(([k, d]) => `${k} ${d.toFixed(3)}`).join(', ') || 'all equal'})`);
   t(Math.abs(run.time - ref.time) < 1e-6, `the same end time (${run.time.toFixed(3)} vs ${ref.time.toFixed(3)})`);
   t(run.card === 'end' && /Mission complete/.test(run.cardText), `the closing card (${run.cardText.slice(0, 100)})`);
+  // the cold load's own run, up to the jump back (A1–A3 at 4×, a pause, the free camera): the reference's checkpoints
+  const cold = await page.evaluate(() => (window.__stopped[0]?.marks || []).map((m) => ({ name: m.name, t: m.t })));
+  const coldOff = cold.map((m, i) => [m.name.split(' ')[0], m.name === ref.marks[i]?.name ? m.t - ref.marks[i].t : NaN]).filter(([, d]) => !(Math.abs(d) < 1e-6));
+  t(cold.length >= 3 && coldOff.length === 0, `the cold load's run: ${cold.length} checkpoints before the jump back, each the reference's at the same game time (${coldOff.slice(0, 4).map(([k, d]) => `${k} ${d}`).join(', ') || cold.map((m) => m.name.split(' ')[0]).join(' ')})`);
   await page.screenshot({ path: t.harness.shotPath('debug-walkthrough-end.png') });
+  const errs = t.harness.errors(page);
+  t.equal(errs.length, 0, `no page errors in the walkthrough's page${errs.length ? `: ${errs.slice(0, 3).join(' | ')}` : ''}`);
+  await page.close().catch(() => {});
 }

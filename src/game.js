@@ -51,6 +51,7 @@ import { resolveHouseRules, tierFromPreset } from './core/house-rules.js';
 import { nobodyLeftToHelp } from './entities/downed.js';
 import { prepareCharacters, awaitUnitModels, warmUnitModels, warmUnitModelsG, queueIdleWarm, queueAheadModels, charactersFrame, transportFrame, releaseCharacters } from './art/unit-model.js';
 import { idleWarm } from './engine/idle-warm.js';
+import { awaitGameplayInput } from './engine/gameplay-inputs.js';
 import { knifeKillFrame, queueContactMarks } from './art/knife-kill.js';
 import { barrelCarryFrame } from './art/barrel-carry.js';
 import { warmAvoidMasks, rewarmAvoidMasks } from './world/body-clearance.js';
@@ -345,19 +346,20 @@ export class Game {
     // ground textures, grass and trees build asynchronously (decode + splat + tree workers): wait, bounded
     const ready = this.mapHandle?.ready;
     if (ready) await safeAsync(() => Promise.race([ready, new Promise((ok) => setTimeout(ok, 20000))]), 'terrain');
-    // …but what the gameplay world measures on the art (the trees' branches: gun arcs) is in before play, however slow
-    // the rest (a weak machine past the 20 s above): never a stamp landing mid-game (bounded: a stalled build plays on)
+    // …but what the gameplay world measures on the art (the trees' branches: gun arcs; library buildings that were
+    // still loading; the decks' calibration) is in before play, however slow the rest (a weak machine or a slow link
+    // past the 20 s above) — and however slow it is itself: never raced, never a stamp landing mid-game, so a cold link
+    // plays the tested run (engine/gameplay-inputs.js; it used to give up after 60 s and play on)
     const gp = this.mapHandle?.gameplayReady;
-    if (gp) await safeAsync(() => Promise.race([gp, new Promise((ok) => setTimeout(ok, 60000))]), 'gameplay stamps');
+    if (gp) await safeAsync(() => awaitGameplayInput(gp, 'the gameplay stamps (tree branches, late library buildings, decks)'), 'gameplay stamps');
     // the body solids men path and stand clear of (world/body-clearance.js) are what is drawn: a prop dressed as a
     // library vehicle is measured on its model, so they are measured again here, once every static vehicle's model is
     // in (awaited: the map's own re-stamp ran when the library buildings were in, before or after a vehicle's model —
     // M14's parked lorry was a 2.3 m or a 6.2 m solid depending on which came first)
     if (dressed.length && this.mapHandle?.restampBodySolidsG) {
-      const t0 = performance.now(), all = Promise.allSettled(dressed.map((d) => d.ready));
-      // (a model that never arrives — a stalled request — is waited for 60 s; its placeholder then stays drawn and solid)
-      const done = await Promise.race([all.then(() => true), new Promise((ok) => setTimeout(() => ok(false), 60000))]);
-      if (!done) console.warn(`[game] static vehicle models still loading after ${Math.round(performance.now() - t0)} ms: body solids measured on what is drawn`);
+      // (however long they take — a failed one settles to its placeholder, measured as drawn: engine/gameplay-inputs.js;
+      // it used to give up after 60 s and measure a model still loading, the solid then differing from the tested run's)
+      await awaitGameplayInput(Promise.allSettled(dressed.map((d) => d.ready)), 'the static vehicles\' models');
       if (this.world !== world) return prog.cancel(), world;
       const owners = new Set(dressed.map((d) => world.structures?.get(d.id)?.owner).filter((o) => o != null));
       await safeAsync(() => runSliced(this.mapHandle.restampBodySolidsG(owners)), 'body solids');

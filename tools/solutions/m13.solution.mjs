@@ -101,7 +101,7 @@ async function row(D, x, z, o = {}) {
  * Row straight along `pts` (a player's clicks) once nobody will see the raft anywhere on the way (routeClear, the
  * cones predicted as it passes); `run` = paddle hard (4 m/s). Waits up to `maxWait` s for the stretch to be clear.
  */
-async function rowOpen(D, pts0, { run = false, maxWait = 300, label = 'row', slack = 0.5, now = false } = {}) {
+async function rowOpen(D, pts0, { run = false, maxWait = 300, label = 'row', slack = 0.5, now = false, stop = null } = {}) {
   const b = raftOf(D), sp = run ? 3.9 : 2.4, why = [];
   const pts = pts0.filter(([x, z], k) => k > 0 || Math.hypot(x - b.x, z - b.z) > 1.5);
   if (!pts.length) return;
@@ -111,7 +111,8 @@ async function rowOpen(D, pts0, { run = false, maxWait = 300, label = 'row', sla
   for (const [x, z] of pts) {
     D.order('diver', { type: 'move', x, z, run });
     const t0 = D.t;
-    await D.until(() => (Math.hypot(b.x - x, b.z - z) < 1.5) || (D.t > t0 + 1 && !b.goal && (b.speed || 0) < 0.05), 200, `${label} → (${x},${z})`);
+    await D.until(() => stop?.() || (Math.hypot(b.x - x, b.z - z) < 1.5) || (D.t > t0 + 1 && !b.goal && (b.speed || 0) < 0.05), 200, `${label} → (${x},${z})`);
+    if (stop?.()) return;
     if (Math.hypot(b.x - x, b.z - z) > 2) throw new Error(`${label}: the raft stopped at (${b.x.toFixed(1)},${b.z.toFixed(1)}), short of (${x},${z})`);
   }
   await D.until(() => (b.speed || 0) < 0.1 || !b.goal, 10, `${label} stops`);
@@ -991,8 +992,11 @@ export const STAGES = [
       const p = [OUT[OUT.length - 2], ...v, BUOY];
       return !wreck || wreck.removed || p.slice(1).every((q, k) => segGap(p[k], q, wreck) > 4.5);
     }) ?? [];
-    await rowOpen(D, [...OUT.slice(0, -1), ...via, BUOY], { now: true, run: true, label: 'out to the buoy' });
-    await D.until(() => D.world.objectives.find((o) => o.id === 'o_buoy').done, 30, 'out at the buoy');
+    // (the escape counts — and the game ends — the tick the raft is in the buoy's ring: the run stops there, as a live
+    // walkthrough does, never rowing on past the win; the last checkpoint is that tick in both)
+    const out = () => D.world.objectives.find((o) => o.id === 'o_buoy').done;
+    await rowOpen(D, [...OUT.slice(0, -1), ...via, BUOY], { now: true, run: true, label: 'out to the buoy', stop: out });
+    await D.until(out, 30, 'out at the buoy');
     D.checkpoint('L12 everyone in the raft at the red buoy: mission complete');
   }],
 ];

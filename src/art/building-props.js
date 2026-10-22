@@ -13,6 +13,7 @@
 
 import * as THREE from 'three';
 import { loadBuildingLibrary, preloadBuildings, createBuilding, buildingMeta, setBuildingZoom, expandBuildingNames } from './building-library.js';
+import { awaitGameplayInput } from '../engine/gameplay-inputs.js';
 import { makeFlag, dressFlags, tickFlags } from './flags.js';
 import { wreckBunker } from './bunker-ruin.js';
 import { B, T } from '../world/grid.js';
@@ -847,6 +848,13 @@ export async function prepareMissionArt(mission, o = {}) {
   const t0 = performance.now();
   // + their destroyed variants; the placed models' LOD0 at every preset (the gameplay stamps measure it: never 'low' only)
   const job = preloadBuildings([...names], { theater, placed: [...placed] });
+  // the placed models' LOD0 are in before the map builds, however slow the link (engine/gameplay-inputs.js): the map
+  // stamps its visual nav, eaves / head room, levelled bases, crawl steps, body solids, doors and deck heights on them.
+  // Raced against the clock, a slow link built the map on buildings still loading and the late re-stamp did not give
+  // the same world (M2, GLBs 30 s late: 10 gameplay fields differed at tick 0 and the run drifted off the tested one).
+  // (the same loads as job's first ones: loadLod shares a pending load)
+  await awaitGameplayInput(preloadBuildings([], { theater, placed: [...placed], lods: [] }), 'the placed buildings\' models');
+  // (the coarser LODs and the ruins are drawing only: bounded as before)
   await Promise.race([job, new Promise((ok) => setTimeout(ok, o.timeoutMs ?? 25000))]);
   let bytes = 0;
   for (const n of expandBuildingNames([...names], theater)) for (const l of buildingMeta(n).lods) bytes += l.bytes || 0;

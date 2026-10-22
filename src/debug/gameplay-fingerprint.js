@@ -112,7 +112,8 @@ export function gameplayFingerprint(world, o = {}) {
   list('grid.links', grid.links);
   list('stairs', world.stairs || grid.flights);
   list('bodySolids', world.bodySolids?.list, (s) => plain({ owner: s.owner, R: s.R, gone: s.gone }));
-  for (const fn of ['groundY', 'lyingY']) {
+  // (+ the water level gameplay reads: world.waterLevelAt, art/water.js gameplayWaterLevel — never the drawn water's)
+  for (const fn of ['groundY', 'lyingY', 'waterLevelAt']) {
     const s = heightSamples(world, fn, grid);
     fields[`ground.${fn}`] = s ? hashBytes(s) : 'none';
     if (s) {

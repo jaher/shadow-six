@@ -26,7 +26,7 @@ import { buildEdgeBuildings, edgeBuildingFlatLines } from '../art/edge-buildings
 import { extendPath } from './apron-field.js';
 import { cellWetAt } from './veg-shore.js';
 import { buildTerrainG, canBuildRealTerrain, TREE_TYPES, coverPropsWithSnow, setPropSnow, wireTrailRecords, buildMaskedWater } from '../art/terrain.js';
-import { buildWaterAsync, raisedWaterMasks } from '../art/water.js';
+import { buildWaterAsync, raisedWaterMasks, gameplayWaterLevel } from '../art/water.js';
 import { buildWalkDeck, WALK_SHIFT, dressingMaterial } from '../art/dressing.js';
 import { buildDamStairs, stairTopAt } from '../art/dam-stairs.js';
 import { StairField, damFlights, platformFlight, linkFlight } from './stairs.js';
@@ -1592,6 +1592,10 @@ export function* buildMapGen(world, mission, opts = {}) {
   // all on already-loaded libraries) come before the terrain takes over, as they did: its gate waits for them too
   const early = [];
   const terrainGate = gate ? gate.then(() => Promise.all(early)) : null;
+  // what the gameplay world still measures after the build returns (a deck's later calibration tries, the visual
+  // stamps of library buildings that were still loading): handle.gameplayReady waits for them, and Game.loadMission for
+  // it — never a stamp landing during play (engine/gameplay-inputs.js)
+  const lateGameplay = [];
   // (library LODs loaded on demand attach once the gate opens, as they did after a synchronous build)
   if (gate) holdLodAttach(gate);
   mission = normalizeMission(mission); // design-spec §7.3 (idempotent)
@@ -2078,11 +2082,13 @@ export function* buildMapGen(world, mission, opts = {}) {
     if (meshes) {
       for (const d of decks) {
         const b = libBuilt.find((q) => q.library.object3d === d.root);
-        let tries = 0;
-        const cal = () => { if (!gone && !calibrateDeck(d, THREE) && ++tries < 6) setTimeout(cal, 1000); };
-        // (the first try in slices on a sliced build: engine/slice.js; later tries as they were)
-        early.push(after(b?.library.ready).then(() => (!gate ? cal() : gone ? null
-          : runSliced(calibrateDeckG(d, THREE)).then((ok) => { if (!gone && !ok && ++tries < 6) setTimeout(cal, 1000); })), () => {}));
+        // once its meshes are in: library.ready (every LOD that will ever attach has) and, on a sliced build, the gate
+        // (the attaches it held); in slices there (engine/slice.js). Measured once: a deck its probes miss then (M4's
+        // and M7's piers) has nothing to give later — the free 1 s timer that tried 5 more times during play is gone
+        // (it could only ever land mid-game); before play either way (lateGameplay → handle.gameplayReady)
+        const cal = after(b?.library.ready).then(() => (gone ? null : !gate ? calibrateDeck(d, THREE) : runSliced(calibrateDeckG(d, THREE)))).then(() => {}, () => {});
+        early.push(cal);
+        lateGameplay.push(cal);
       }
     }
   }
@@ -2146,7 +2152,7 @@ export function* buildMapGen(world, mission, opts = {}) {
   const meshless = meshes ? libBuilt.filter((b) => { if (b.batched) return false; let n = 0, l0 = false; b.object3d?.traverse((o) => { if (o.isMesh) n++; if (o.name === 'lod0') l0 = true; }); return !n || !l0; }) : [];
   if (meshless.length) {
     libLog.push(`${meshless.length} library buildings still loading: visual nav stamps again when they are in`);
-    after(libReady).then(() => {
+    lateGameplay.push(after(libReady).then(() => {
       // (only those: the others keep their stamps; a batched repeat is drawn by its batch, its stamps stay)
       const late = meshless.filter((b) => !b.batched);
       if (gone || !late.length) return;
@@ -2156,7 +2162,7 @@ export function* buildMapGen(world, mission, opts = {}) {
       stampOverhead(world, late);
       runSync(stampBodies(late));
       grid.version++;
-    }, () => {});
+    }, () => {}));
   }
   // 8. water (real terrain only): built once the carved ground is ready — the bed capture renders it from above
   let water = null, fallbackWater = null, gone = false, windFx, life, damWater, lifeReady = false, pavement = null, furniture = null, streetLights = null;
@@ -2224,14 +2230,18 @@ export function* buildMapGen(world, mission, opts = {}) {
     if (gone) { g.dispose?.(); return null; }
     try { return await runSliced(stampTreeBranchesG(world, g.root, g.trees)); } finally { g.dispose?.(); }
   });
+  // the water level gameplay reads (the Marine's low decks), from the finished grid — never from the drawn water, which
+  // is built later and at no fixed time (art/water.js gameplayWaterLevel)
+  world.waterLevelAt = gameplayWaterLevel(world, grid, mission);
   const handle = {
     propsRoot, terrain, structures, interactables, links,
     get water() { return water; },
     /**
      * Resolves when what the gameplay world measures on the art is stamped (the trees' branches; the library buildings'
-     * stamps are made in the build, on their LOD0 at every preset): Game.loadMission waits for it, however slow the rest.
+     * stamps are made in the build, on their LOD0 at every preset — those that were still loading again once in; the
+     * decks' later calibration tries): Game.loadMission waits for it, however slow the rest — and however slow it is.
      */
-    gameplayReady: branchesStamped.catch(() => null),
+    gameplayReady: Promise.all([branchesStamped.catch(() => null), ...lateGameplay]).then(() => undefined),
     /** Resolves when the ground textures, grass, trees and water are built (placeholder / grid-only: at once). */
     ready: Promise.all([branchesStamped.then(buildPavementNow).then(buildWaterNow).then(() => water?.system.texturesReady), Promise.resolve(terrain?.ready).then(() => terrain?.apronReady), libReady,
       // the dam pool's lace / normal textures (render/dam-water-pool.js): decoded before the first frame draws the pool

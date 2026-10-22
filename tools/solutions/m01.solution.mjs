@@ -293,8 +293,9 @@ export const STAGES = [
     D.ability('greenberet', 'pistol', drum);
     await D.until(() => D.world.objectives.every((o) => o.done), 15, 'relay station destroyed');
     D.checkpoint('F4 relay station destroyed');
-    // the mission is won five seconds later (no extraction in M1): he lies still where nobody comes
-    await D.wait(5.3);
+    // the mission is won five seconds later (no extraction in M1): he lies still where nobody comes — until the win, not
+    // a tick past it (a live walkthrough stops there: the same run, the same end)
+    await D.until(() => !D.world.game || D.world.game.state !== 'playing', 5.3, 'the win');
   }],
 ];
 
