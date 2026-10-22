@@ -273,18 +273,23 @@ export function paddlePose(u, s, same, act, opt = undefined) {
  *   exit (0.52)   at the hip the lower hand draws the blade out sideways, edge up;
  *   recovery      feathered (turned edge-on) and carried forward low over the water to the next catch.
  * The top hand is always the inboard one (his right); the shaft runs outboard of the tube's crown.
+ * The wet part of the arc (catch -> pull) is floored so the LOWER hand keeps clear of the water: with the old
+ * keys the grip bottomed ~0.30 over the surface line with the blade buried just behind it, and the fist and
+ * forearm read as going into the water at the pull (user 2026-10-21). The catch/pull grips ride higher, the
+ * lower hand grips a little further up the shaft (SIDE_LOWER) and the exit starts a touch lower so the blade
+ * stays buried through the pull (boat-oars pins that depth): the grip now bottoms ~0.41 over the line.
  */
 export const SIDE_STROKE = Object.freeze([
-  { u: 0.00, G: [0.25, 1.06, 0.24], T: [0.62, -0.9, 0.74], bend: 0.36, twist: -0.32, lean: 0.18, feather: 0 },
-  { u: 0.30, G: [0.27, 1.0, -0.02], T: [0.56, -0.95, -0.06], bend: 0.22, twist: -0.04, lean: 0.22, feather: 0 },
-  { u: 0.52, G: [0.22, 1.0, -0.22], T: [0.95, 0.3, -0.55], bend: 0.12, twist: 0.22, lean: 0.16, feather: 0.3 },
+  { u: 0.00, G: [0.25, 1.1, 0.24], T: [0.62, -0.84, 0.74], bend: 0.36, twist: -0.32, lean: 0.18, feather: 0 },
+  { u: 0.30, G: [0.27, 1.08, -0.02], T: [0.56, -0.9, -0.06], bend: 0.22, twist: -0.04, lean: 0.22, feather: 0 },
+  { u: 0.52, G: [0.22, 1.0, -0.22], T: [0.95, 0.24, -0.55], bend: 0.12, twist: 0.22, lean: 0.16, feather: 0.3 },
   { u: 0.64, G: [0.18, 1.08, -0.12], T: [0.85, 0.62, 0.25], bend: 0.14, twist: 0.12, lean: 0.12, feather: 1.35 },
   { u: 0.84, G: [0.2, 1.1, 0.12], T: [0.78, 0.5, 0.95], bend: 0.26, twist: -0.16, lean: 0.14, feather: 1.2 },
 ]);
 /** At rest: the paddle across his lap, the blade out over the tube on his side, the inboard hand on the T-grip. */
 export const SIDE_HOLD = Object.freeze({ G: [-0.2, 0.78, 0.05], T: [1.1, 0.6, 0.1], bend: 0.05, twist: 0, lean: 0, feather: 1.57, lowerAt: 0.62 });
 /** The stroke's middle (root z) about which power() lengthens or shortens it; the lower hand's grip down the shaft. */
-const SIDE_MID = 0.0, SIDE_LOWER = 0.45;
+const SIDE_MID = 0.0, SIDE_LOWER = 0.41;
 
 /** Side paddler's key at phase u, side s: options as paddleKey (back: backing water; power). */
 export function sideKey(u, s, { back = false, power = 1 } = {}) {

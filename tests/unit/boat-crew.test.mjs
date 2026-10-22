@@ -2,7 +2,7 @@
 // the boarding path; the boarding hint the cursor / tooltip show (abilities/drive.js boardingHint, ui/tooltip.js).
 import { test, assert, near } from './lib.mjs';
 import { BOAT_SEATS, ENCLOSED, boatLayout, assignBoatSeats, seatClip, paddleKey, paddlePose, HOLD, PADDLE, rowKey, ROW,
-  boardPath, pathPoint } from '../../src/art/boat-crew.js';
+  boardPath, pathPoint, sideKey } from '../../src/art/boat-crew.js';
 import { makeSim } from './abilsim.mjs';
 import { boardingHint } from '../../src/abilities/drive.js';
 import { vehicleOrderLabel } from '../../src/ui/tooltip.js';
@@ -166,4 +166,26 @@ test('boarding hint: BOARD over a boat the selection may get into, the reason wh
   assert.equal(boardingHint(raft, [gb], w).ok, true, 'Marine aboard: the Green Beret may board');
   assert.equal(boardingHint(raft, [], w), null, 'nothing selected: plain label');
   assert.equal(vehicleOrderLabel({ kind: 'enemy' }, w, 'SOLDIER'), 'SOLDIER');
+});
+
+test('side paddle stroke: the lower hand stays clear of the water through the whole cycle, the blade still bites', () => {
+  // user 2026-10-21: the Green Beret's arm read as going into the water at the pull. In the stroke keys' frame
+  // the water sits at y ~0.25 (boat-crew.js, SIDE_STROKE header). The lower hand grips the shaft lowerAt metres
+  // down from the top grip G along the shaft direction, so its height is G.y + dn.y * lowerAt with dn the
+  // normalised G -> T direction. With the old keys that bottomed at ~0.55 (0.30 over the line) with the buried
+  // blade right behind the fist; it now bottoms at ~0.66.
+  for (const s of [1, -1]) for (const back of [false, true]) for (const power of [1, 1.18]) {
+    let min = Infinity;
+    for (let i = 0; i <= 200; i++) {
+      const k = sideKey(i / 200, s, { back, power });
+      const d = k.T.map((v, j) => v - k.G[j]), dn = d[1] / Math.hypot(...d);
+      const y = k.G[1] + dn * (k.lowerAt ?? 0.41);
+      if (y < min) min = y;
+    }
+    assert.ok(min >= 0.62, `lower hand bottoms at ${min.toFixed(3)} (side ${s}, back ${back}, power ${power}): well clear of the water line at 0.25`);
+  }
+  const pull = sideKey(0.30, 1);
+  const d = pull.T.map((v, j) => v - pull.G[j]), dn = d[1] / Math.hypot(...d);
+  const tip = pull.G[1] + dn * 1.25;
+  assert.ok(tip <= -0.1, `the blade still bites at the pull (tip y ${tip.toFixed(3)} in key space: under the surface line)`);
 });
