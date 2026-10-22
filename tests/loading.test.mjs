@@ -55,6 +55,8 @@ export default async function (page, t) {
   // placed buildings still attach LOD0 (door nodes live there); the preload skips it for the destroyed variants
   const lod0 = bld.filter((u) => !/_lod[12]\.glb$/.test(u));
   t(bld.some((u) => /_lod1\.glb$/.test(u)) && !lod0.some((u) => /\/barracks_[a-d]+d_snow\.glb$/.test(u)), 'low: no LOD0 preload of destroyed variants ' + lod0.join(' '));
-  t(lowLoad.bytes < r.lastLoad.bytes * 0.8, 'low downloads less');
+  // (perf/download-speed-2: both presets now load only what the default zoom draws before the briefing — the full-size
+  // maps high adds stream in after it — so the gap narrowed: m01 low 38.7 vs high 47.3 MB, was ~0.7)
+  t(lowLoad.bytes < r.lastLoad.bytes * 0.9, `low downloads less (${(lowLoad.bytes / 1e6).toFixed(1)} vs ${(r.lastLoad.bytes / 1e6).toFixed(1)} MB)`);
 }
 

@@ -62,7 +62,7 @@ function take(input, init) {
   const e = url && entries.get(url);
   if (!e) return null;
   entries.delete(url);
-  if (e.state === 'queued') { const i = queue.indexOf(url); if (i >= 0) queue.splice(i, 1); e.start(true); } // wanted now: no slot needed
+  if (e.state === 'queued') { const i = queue.indexOf(url); if (i >= 0) queue.splice(i, 1); e.start(true, init?.priority); } // wanted now: no slot needed, the asker's priority
   else if (e.state === 'active') earlyFetchStats.joined++;
   return e.p.then((r) => {
     if (!r) return realFetch(input, init); // the early download failed: the request goes out as it always did
@@ -106,12 +106,13 @@ export function earlyFetch(urls, { rank = 2 } = {}) {
     if (!url || entries.has(url) || (typeof location !== 'undefined' && !url.startsWith(location.origin))) continue;
     let resolve;
     const e = { state: 'queued', t: now, rank, p: new Promise((r) => { resolve = r; }) };
-    e.start = (asked = false) => { // asked: the loader's own request (never counted against the background slots)
+    e.start = (asked = false, priority = 'auto') => { // asked: the loader's own request (never counted against the
+      // background slots, at its own fetch priority: a file wanted now is not sent as a background one)
       if (e.state !== 'queued') return;
       e.state = 'active';
       if (!asked) active++;
       earlyFetchStats.fetched++;
-      realFetch(url, { priority: 'low', credentials: 'same-origin' })
+      realFetch(url, { priority: asked ? priority || 'auto' : 'low', credentials: 'same-origin' })
         .then((res) => (res.ok && res.status === 200 ? res.arrayBuffer().then((buf) => ({ buf, type: res.headers.get('Content-Type') })) : null))
         .catch(() => null)
         .then((r) => {

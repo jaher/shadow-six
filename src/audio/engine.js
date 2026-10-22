@@ -39,6 +39,8 @@ export const VOICE_RATE = 32000;
  * a music chunk, a deferred take) is not queued behind them.
  */
 const LOW = Object.freeze({ priority: 'low' });
+/** Takes kept compressed that download at once when they come after the loading screen (preload packAfter). */
+const PACK_AT_ONCE = 4;
 /** Wall-clock ms of placeholder rendering a timer slice of warmSynth may take (one render slice at least). */
 export const SYNTH_SLICE_MS = 1;
 /** A deferred one-shot that could not start within this many seconds is dropped (no late gunshots / barks). */
@@ -655,27 +657,42 @@ export class AudioEngine {
   /**
    * The clip files `preload(ids, {speakers})` will fetch, for a mission load's early downloads (engine/early-fetch.js):
    * the same selection, read-only and without the random pick among long takes (those are left to preload).
+   * `lazy`: undefined → every file; false → the instant set only (decoded at the load: shots, impacts, steps, grunts);
+   * true → only the takes kept compressed until first use (spoken lines — the squad's first, then the guards' — and
+   * the loops), which a `preload(…, {packAfter})` downloads after the loading screen (perf/download-speed-2).
    * Full URLs (base included). Needs the manifests (`await this.ready`).
+   * @param {string[]} ids @param {{speakers?: string[], lazy?: boolean}} [o]
    * @returns {string[]}
    */
-  prefetchUrls(ids, { speakers = [] } = {}) {
+  prefetchUrls(ids, { speakers = [], lazy } = {}) {
     if (this.sprites) return []; // the mission's audio sprites serve the clips (mission packs)
     const out = new Set();
+    const keep = (u) => lazy === undefined || this._isLazy(u) === lazy;
     for (const id of ids) {
       const def = SFX[id], urls = this.files.get(id);
       if (!urls?.length || def?.bed || this._bedFiles(id)) continue;
       if (urls.some((u) => (this.meta.get(u)?.duration ?? 0) > 12)) continue; // one long take, picked at random
-      for (const u of def?.loop && urls.length > 2 ? urls.slice(0, 2) : urls) if (!this.decoded.has(u) && !this.packed.has(u)) out.add(u);
+      for (const u of def?.loop && urls.length > 2 ? urls.slice(0, 2) : urls) if (keep(u) && !this.decoded.has(u) && !this.packed.has(u)) out.add(u);
     }
     const sp = new Set(speakers);
+    const voices = [];
     for (const [k, takes] of this.voiceRec) {
-      if (!sp.has(k.split('|')[0])) continue;
-      for (const t of takes) for (const u of [t.url, t.alt]) if (u && !this.decoded.has(u) && !this.packed.has(u)) out.add(u);
+      const who = k.split('|')[0];
+      if (!sp.has(who)) continue;
+      for (const t of takes) for (const u of [t.url, t.alt]) if (u && keep(u) && !this.decoded.has(u) && !this.packed.has(u)) voices.push([who === 'ger' ? 1 : 0, u]);
     }
-    return [...out].map((u) => this.base + u);
+    // the squad's lines first (a selection speaks at once), the guards' next, then the loops / long takes
+    const list = [...voices.sort((a, b) => a[0] - b[0]).map((v) => v[1]), ...out];
+    return [...new Set(list)].map((u) => this.base + u);
   }
 
-  async preload(ids, { speakers = [] } = {}) {
+  /**
+   * @param {string[]} ids @param {{speakers?: string[], packAfter?: Promise<any>|null}} [o] packAfter: the takes kept
+   *   compressed (spoken lines, loops, long takes) download once it resolves (the game: the loading screen is down,
+   *   engine/post-load.js) and `this.packing` tracks them; preload itself then resolves once the instant set is
+   *   decoded. Without it everything is downloaded before preload resolves, as before.
+   */
+  async preload(ids, { speakers = [], packAfter = null } = {}) {
     await this.ready;
     const want = new Set(), later = new Set();
     for (const id of ids) {
@@ -704,9 +721,20 @@ export class AudioEngine {
     }
     for (const u of [...this.lazy.keys()]) if (!this.decoded.has(u)) this.lazy.delete(u);
     for (const u of [...this.packed.keys()]) if (!later.has(u)) this.packed.delete(u);
+    // (a take wanted before its download arrives decodes from the network on first use, as a lazy take always could)
+    // (deferred: PACK_AT_ONCE downloads at a time, so a take wanted now — played before its turn — is not queued behind
+    // hundreds of them; at the load, as before, all at once)
+    const pack = (n = Infinity) => {
+      const list = [...later].filter((u) => !this.packed.has(u));
+      let i = 0;
+      const lane = async () => { while (i < list.length) { const u = list[i++]; if (gen === this._packGen) await this._pack(u); } };
+      return Promise.all(Array.from({ length: Math.min(n, list.length) }, lane));
+    };
+    const gen = (this._packGen = (this._packGen || 0) + 1);
+    if (packAfter) this.packing = Promise.resolve(packAfter).then(() => (gen === this._packGen ? pack(PACK_AT_ONCE) : null));
     await Promise.all([
       ...[...want].filter((u) => !this.decoded.has(u) || this.decoded.get(u) === 'pending').map((u) => this._decode(u, { low: true })),
-      ...[...later].filter((u) => !this.packed.has(u)).map((u) => this._pack(u)),
+      ...(packAfter ? [] : [pack()]),
     ]);
     // Synth-only loops (no recorded take: flood_rush, fire_loop) render their buffer lazily at first play —
     // a multi-second noise render landing inside one sim tick (the M3 dam burst measured 6.8 ms of it).
@@ -749,6 +777,8 @@ export class AudioEngine {
 
   /** Download a lazy take's compressed bytes (kept; decoded on first use). */
   async _pack(url) {
+    // (played before its download came: it fetched and decoded on its own — a re-decode after eviction refetches)
+    if (this.loading.has(url) || (this.decoded.has(url) && this.decoded.get(url) !== 'failed')) return;
     const sb = this.sprites?.bytes(url); // the mission's sprite holds the clip: no fetch at all
     if (sb) { this.packed.set(url, sb); return; }
     try {

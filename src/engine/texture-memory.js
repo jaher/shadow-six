@@ -21,6 +21,7 @@
 
 import * as THREE from 'three';
 import { COMPRESSED_HOOKS, compressTexture, keepImage } from './gpu-compress.js';
+import { registerHdTexture } from './hd-textures.js';
 
 const encoded = new WeakMap(); // ImageBitmap → Blob (its file bytes)
 const swapping = new WeakSet(); // sources whose <img> stand-in is loading
@@ -116,7 +117,11 @@ export function keepEncodedImages(parser) {
   if (typeof load === 'function' && !parser._ssCompress) {
     parser._ssCompress = true;
     parser.loadTextureImage = function (textureIndex, sourceIndex, loader) {
-      return load.call(this, textureIndex, sourceIndex, loader).then((tex) => compressGltfTexture(parser, tex, textureIndex));
+      return load.call(this, textureIndex, sourceIndex, loader).then((tex) => {
+        const out = compressGltfTexture(parser, tex, textureIndex);
+        noteHdTier(parser, tex, textureIndex); // (its colour space is set; its compression has not run yet)
+        return out;
+      });
     };
   }
   return {
@@ -143,6 +148,18 @@ export function releaseGltfParser(parser) {
   if (bin) bin.body = null;
   parser.sourceCache = {};
   parser.textureCache = {};
+}
+
+/**
+ * A texture whose glTF entry names an HD tier (`extras.hd`, relative to the GLB: tools/perf/char_tex_tiers.py) is
+ * registered for its upgrade after the loading screen (engine/hd-textures.js).
+ */
+function noteHdTier(parser, tex, textureIndex) {
+  const x = parser.json?.textures?.[textureIndex]?.extras;
+  if (!x?.hd || !tex?.isTexture) return;
+  let url = null;
+  try { url = new URL(x.hd, new URL(parser.options?.path || '', typeof location !== 'undefined' ? location.href : undefined)).href; } catch { return; }
+  registerHdTexture(tex, url, { size: Array.isArray(x.hdSize) ? x.hdSize : null });
 }
 
 /** glTF material slots sampled as sRGB colour (everything else is linear data: normals, ORM, masks…). */
@@ -337,6 +354,16 @@ export function releaseDataAfterUpload(texture, reload) {
     if (reload && !listed.has(t)) { listed.add(t); released.add(new WeakRef(t)); }
   };
   return texture;
+}
+
+/**
+ * `to` took `from`'s image in place (engine/hd-textures.js: a layer array's full-size copy): its reload after a
+ * restored context is now `from`'s (the same strip at that size).
+ */
+export function takeReload(to, from) {
+  const r = reloadOf.get(from);
+  if (r) reloadOf.set(to, r);
+  if (to?.source) holding.add(to.source);
 }
 
 const refilling = new WeakSet(); // sources being decoded again

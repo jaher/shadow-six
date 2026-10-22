@@ -24,6 +24,7 @@ import { MISSIONS } from '../missions/index.js';
 import { isTouchUI } from './touch.js';
 import { sessionCache } from '../engine/asset-cache.js';
 import { DownloadMeter, formatDownload } from '../engine/download-meter.js';
+import { loadScreenDown } from '../engine/post-load.js';
 
 /**
  * A warm (cached) reload taking longer than this shows the loading card after all. Restarts take ~0.6–1 s on a desktop
@@ -178,6 +179,7 @@ export class Loading {
       offProgress?.();
       this.active = false;
       if (result && info.brief && hud.game.state === 'briefing' && hud.def) hud.briefing.open(hud.def);
+      loadScreenDown(); // what waited for the loading screen (engine/post-load.js) starts now
       const v = veil;
       v.style.opacity = '0';
       setTimeout(() => v.remove(), 160);
@@ -201,6 +203,9 @@ export class Loading {
     kit.close();
     hud.backdrop?.setMode('off');
     if (result && info.brief && hud.game.state === 'briefing' && hud.def) hud.briefing.open(hud.def);
+    // what waited for the loading screen starts now, while the briefing is read: the bodies' HD textures, the spoken
+    // lines, the portraits' talking clips (engine/post-load.js)
+    loadScreenDown();
     return result;
   }
 

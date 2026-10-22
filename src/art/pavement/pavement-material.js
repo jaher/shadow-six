@@ -8,6 +8,7 @@ import { SURFACES } from '../../world/roads.js';
 import { injectPavement } from './pavement-glsl.js';
 import { scopedMemo, pendingTextureBytes } from '../../engine/scoped-assets.js';
 import { AT_UNIFORMS, atNoiseTexture } from '../anti-tiling.js';
+import { HD_TEXTURES, registerHdTexture } from '../../engine/hd-textures.js';
 import { loadCompressedTexture, trackTextureLoad } from '../../engine/texture-memory.js';
 
 const HAS_DOM = typeof document !== 'undefined';
@@ -53,7 +54,11 @@ function tex(set, map, tier) {
   const url = `${BASE}${tier}/${set}_${map}.jpg`;
   // mission-scoped (engine/scoped-assets.js): freed once no kept mission uses it
   return scopedMemo('pavement:tex', TEX, url, () => {
-    const t = loadCompressedTexture(url); // BC7 / ASTC (engine/gpu-compress.js)
+    // the 1k set loads as its 512 copy (the default zoom's density: the 'low' preset's set), the 1k after the loading
+    // screen (engine/hd-textures.js, perf/download-speed-2)
+    const start = tier === '1k' && HD_TEXTURES;
+    const t = loadCompressedTexture(start ? `${BASE}512/${set}_${map}.jpg` : url); // BC7 / ASTC (engine/gpu-compress.js)
+    if (start) registerHdTexture(t, url);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = 8;
     if (map === 'diff') t.colorSpace = THREE.SRGBColorSpace;

@@ -4,7 +4,7 @@
  *
  *   node tools/perf/measure-download.mjs [--root=dist | --site=https://jaher.github.io/shadow-six/]
  *        [--mbit=25] [--rtt=40] [--missions=m01,m03,m20] [--presets=low,high] [--runs=1] [--json=out.json] [--menu]
- *        [--after=12] [--q=extra=url&params]
+ *        [--after=12] [--q=extra=url&params] [--menu-wait=0]
  *
  * --root serves a web build (default dist/, `npm run build`) under /shadow-six/ the way GitHub Pages does: HTTP/2 over
  * TLS (tools/serve.mjs h2, self-signed — Chromium runs with --ignore-certificate-errors), text gzipped, max-age=600 —
@@ -20,6 +20,10 @@
  * table does): card = loading screen up, brief = briefing open (load done, the card's settle included), play = first
  * frame drawn in 'playing' after START MISSION is pressed at once (no reading time); plus what downloads during the
  * first --after seconds of play. Top contributors by type / folder and the largest files of the mission phase.
+ * Main-thread long tasks (PerformanceObserver 'longtask', > 50 ms) are counted on the menu (from MAIN to the click) and
+ * during the load (click → briefing); --menu-wait=S stays S seconds on the menu first (its live diorama: downloads +
+ * build) — the menu must never freeze. --eager clicks the mission as soon as MAIN shows (no wait for the menu's own
+ * downloads: a player who picks a mission at once — the menu's background work then competes with the load).
  */
 import { writeFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
@@ -31,7 +35,7 @@ const H = await import(pathToFileURL(join(ROOT, 'tests/harness.mjs')).href);
 const { startServer } = await import(pathToFileURL(join(ROOT, 'tools/serve.mjs')).href);
 const { chromium } = await import(pathToFileURL(join(ROOT, 'node_modules/playwright-core/index.mjs')).href);
 
-const mbit = +arg('mbit', 25), rtt = +arg('rtt', 40), runs = +arg('runs', 1), after = +arg('after', 12);
+const mbit = +arg('mbit', 25), rtt = +arg('rtt', 40), runs = +arg('runs', 1), after = +arg('after', 12), menuWait = +arg('menu-wait', 0);
 const missions = arg('missions', 'm01,m03,m20').split(',');
 const presets = arg('presets', 'low,high').split(',');
 const extraQ = arg('q', '');
@@ -54,6 +58,10 @@ const folderOf = (p) => {
 /** One cold run: the timeline + the requests that crossed the link, each tagged with the phase it started in. */
 async function coldRun(mission, preset, { fullIntro = false } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, ignoreHTTPSErrors: true, serviceWorkers: site ? 'block' : 'allow' });
+  await ctx.addInitScript(() => {
+    window.__dlLT = [];
+    try { new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__dlLT.push([performance.timeOrigin + e.startTime, e.duration]); }).observe({ type: 'longtask', buffered: true }); } catch { /* unsupported */ }
+  });
   const page = await ctx.newPage();
   const errs = [];
   page.on('pageerror', (e) => errs.push((e.message || String(e)).slice(0, 200)));
@@ -100,13 +108,16 @@ async function coldRun(mission, preset, { fullIntro = false } = {}) {
     if (now() - tNav > 300) throw new Error('timeout waiting for the menu');
     await sleep(50);
   }
+  const tMain = Date.now();
+  if (menuWait > 0) await sleep(menuWait * 1000);
   // the menu's own background loads (title diorama, menu sounds, the service worker's install) finish first, so they
   // are not billed to the mission
-  for (let quiet = 0, t = now(); now() - t < 40 && quiet < 2;) {
+  for (let quiet = 0, t = now(); !process.argv.includes('--eager') && now() - t < 40 && quiet < 2;) {
     await sleep(250);
     const busy = server ? server.stats.log.slice(log0).some((e) => e.t1 == null) : [...cdpReqs.values()].some((r) => r.t1 == null);
     quiet = busy ? 0 : quiet + 0.25;
   }
+  const tClick = Date.now();
   setPhase('load');
   const tS = now();
   // stage changes of the load (Game.loadMission 'mission:progress'), in seconds from the click
@@ -114,6 +125,10 @@ async function coldRun(mission, preset, { fullIntro = false } = {}) {
     const t0 = performance.now(), st = (window.__dlStages = []);
     window.shadowSix.events.on('mission:progress', (e) => { if (!st.length || st[st.length - 1][1] !== e.stage) st.push([(performance.now() - t0) / 1000, e.stage]); });
     window.shadowSix.events.on('mission:loaded', () => st.push([(performance.now() - t0) / 1000, 'loaded']));
+    // the moment the briefing opens, stamped in the page (epoch ms): the phase boundary 'load' | 'play' is exact, not
+    // the next 50 ms poll (downloads that start as the briefing opens belong to the briefing)
+    const b = window.shadowSix.hud.briefing, open = b.open;
+    b.open = function (...a) { if (window.__dlBriefAt == null) window.__dlBriefAt = performance.timeOrigin + performance.now(); return open.apply(this, a); };
     window.shadowSix.hud.startMission(m);
   }, mission);
   for (;;) {
@@ -127,14 +142,19 @@ async function coldRun(mission, preset, { fullIntro = false } = {}) {
     if (now() - tS > 900) throw new Error('timeout waiting for the briefing');
     await sleep(50);
   }
-  setPhase('play');
-  const tB = now();
+  const briefAt = await page.evaluate(() => window.__dlBriefAt ?? null).catch(() => null);
+  if (briefAt != null && briefAt - T0 > 0) { at.brief = (briefAt - T0) / 1000 - tS; phase = 'play'; marks.push([(briefAt - T0) / 1000, 'play']); }
+  else setPhase('play');
   await page.evaluate(() => window.shadowSix.hud.briefing.finish());
   await page.waitForFunction(() => window.shadowSix.state === 'playing', null, { timeout: 120000 });
   await page.evaluate(() => new Promise((ok) => requestAnimationFrame(() => requestAnimationFrame(ok))));
-  at.play = at.brief + (now() - tB);
+  at.play = now() - tS;
   setPhase('after');
   await sleep(after * 1000);
+  const lt = await page.evaluate(() => window.__dlLT || []).catch(() => []);
+  const ltIn = (a, b) => lt.filter(([t]) => t >= a && t < b).map(([, d]) => Math.round(d));
+  const tBriefEpoch = T0 + (tS + at.brief) * 1000;
+  const longTasks = { menu: ltIn(tMain, tClick), load: ltIn(tClick, tBriefEpoch) };
   const info = await page.evaluate(() => ({ lastLoad: window.shadowSix.lastLoad || null, sw: !!navigator.serviceWorker?.controller, stages: window.__dlStages, early: globalThis.__ssEarlyFetch ? { ...globalThis.__ssEarlyFetch } : null })).catch(() => ({}));
   await ctx.close();
   setPhase('end');
@@ -144,7 +164,7 @@ async function coldRun(mission, preset, { fullIntro = false } = {}) {
     : [...cdpReqs.values()].filter((r) => /^https?:/.test(r.url)).map((r) => ({ ...r, path: decodeURIComponent(new URL(r.url).pathname).replace(/^\/shadow-six\//, '').replace(/^\//, '') }));
   for (const r of list) r.phase = phaseAt(r.t0);
   if (process.env.MD_DUMP) writeFileSync(`${process.env.MD_DUMP}-${mission}-${preset}.json`, JSON.stringify({ at, tS, list }));
-  return { mission, preset, at, list, tS, tB: tS + at.brief, errs, sw: info.sw, lastLoad: info.lastLoad, stages: info.stages || [], early: info.early || null };
+  return { mission, preset, at, list, tS, tB: tS + at.brief, errs, longTasks, menuSecs: (tClick - tMain) / 1000, sw: info.sw, lastLoad: info.lastLoad, stages: info.stages || [], early: info.early || null };
 }
 
 function summarize(run) {
@@ -180,6 +200,8 @@ function summarize(run) {
     failed: run.list.filter((r) => r.failed || r.status >= 400).map((r) => `${r.status || r.failed} ${r.path}`).slice(0, 10),
     errs: run.errs.slice(0, 5),
     early: run.early,
+    longTasks: Object.fromEntries(Object.entries(run.longTasks || {}).map(([k, v]) => [k, { n: v.length, max: v.length ? Math.max(...v) : 0, total: v.reduce((a, x) => a + x, 0), over200: v.filter((x) => x > 200).length }])),
+    menuSecs: +(run.menuSecs || 0).toFixed(1),
     lastLoad: run.lastLoad && { MB: +(run.lastLoad.bytes / 1e6).toFixed(1), files: run.lastLoad.files, s: +((run.lastLoad.ms || 0) / 1000).toFixed(1) },
   };
 }
@@ -202,6 +224,7 @@ try {
         console.log('   folders:', s.byFolder.slice(0, 12).map(([k, mb, n]) => `${k} ${mb}/${n}`).join('  '));
         console.log('   top:', s.topFiles.slice(0, 8).map(([k, mb]) => `${k.split('/').slice(-2).join('/')} ${mb}`).join('  '));
         if (s.early) console.log('   early fetch:', JSON.stringify(s.early));
+        console.log(`   long tasks: menu (${s.menuSecs} s) ${JSON.stringify(s.longTasks.menu)}  load ${JSON.stringify(s.longTasks.load)}`);
         if (s.failed.length || s.errs.length) console.log('   !!', s.failed.join(' | '), s.errs.join(' | '));
       }
     }

@@ -1,0 +1,18 @@
+{
+ "bark_albedo": {
+  "source": "6a7119d0d074344c3b3d47663b95d3364d6529f8",
+  "half": "b9a47de0d43b477a530acbaa37738874938b6ea6"
+ },
+ "bark_normal": {
+  "source": "79e94d2817680c240d3be846bdf457b0ac7e77a1",
+  "half": "a8c5210597adfe29794aca1dfeb764e57cb8ef1d"
+ },
+ "foliage": {
+  "source": "c240bdbca9edd93c965b8f7618f422fe7a5081d9",
+  "half": "a98c8677f24e0d30b079a945114b08f42b3d4423"
+ },
+ "needles": {
+  "source": "ad4396869918ab8054c5f1120a9a8d327c0e77c9",
+  "half": "6eb94dd87aad7357cbb692ed38d0408deba9816e"
+ }
+}

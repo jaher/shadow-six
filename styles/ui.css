@@ -2,8 +2,9 @@
    every size is calc(N * var(--r)) with --r = 1 ref px. Period look: canvas webbing, brass, leather, paper.
    Fonts: Anton and Oswald (SIL OFL 1.1, vendored in assets/fonts with their licences). */
 
-@font-face { font-family: 'Anton'; src: url('../assets/fonts/Anton-Regular.ttf') format('truetype'); font-display: swap; }
-@font-face { font-family: 'Oswald'; src: url('../assets/fonts/Oswald-VF.ttf') format('truetype'); font-weight: 200 700; font-display: swap; }
+/* (the full fonts — every glyph of the TTF — as WOFF2: a third of the bytes; menus.css adds the Latin subsets) */
+@font-face { font-family: 'Anton'; src: url('../assets/fonts/Anton-Regular-full.woff2') format('woff2'), url('../assets/fonts/Anton-Regular.ttf') format('truetype'); font-display: swap; }
+@font-face { font-family: 'Oswald'; src: url('../assets/fonts/Oswald-VF-full.woff2') format('woff2'), url('../assets/fonts/Oswald-VF.ttf') format('truetype'); font-weight: 200 700; font-display: swap; }
 
 :root {
   --u: 1;

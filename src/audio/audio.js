@@ -18,6 +18,7 @@ import { SFX, MUSIC, ambienceFor } from './manifest.js';
 import { VoiceDirector, lineKey, speakerOf } from './voice-lines.js';
 import { installHandlers, missionAudio } from './event-map.js';
 import { earlyFetch } from '../engine/early-fetch.js';
+import { afterLoadScreen } from '../engine/post-load.js';
 import { MusicDirector } from './music-director.js';
 import { Narrator } from './narration.js';
 import { SpriteSource } from './sprite-source.js';
@@ -159,13 +160,17 @@ export function createAudio(events, opts = {}) {
       try { await eng.ready; } catch { return 0; }
       if (this.engine !== eng) return 0;
       const { ids, speakers } = missionAudio(def);
-      return earlyFetch(eng.prefetchUrls(ids, { speakers }), { rank: 4 });
+      // the instant set now (decoded before the loading screen closes); the takes kept compressed until first use
+      // (spoken lines, loops) download once it has closed, a few at a time (engine.preload packAfter)
+      return earlyFetch(eng.prefetchUrls(ids, { speakers, lazy: false }), { rank: 4 });
     },
     /** Per-mission loading: decode this mission's SFX and voice packs, evict the rest (§1.5.0). */
     _preload() {
       if (!this.engine || !this.mission) return null;
       const { ids, speakers } = missionAudio(this.mission);
-      const p = this.engine.preload(ids, { speakers }).then((m) => { this.memory = m; return m; }).catch(() => null);
+      // (the loading screen waits for the instant set only; the lines / loops download after it: engine/post-load.js)
+      const packAfter = new Promise((ok) => afterLoadScreen(ok));
+      const p = this.engine.preload(ids, { speakers, packAfter }).then((m) => { this.memory = m; return m; }).catch(() => null);
       this.preloading = p;
       return p;
     },
@@ -621,7 +626,9 @@ function wire(audio, events, subs, rand, opts) {
     audio._missionFresh = true;
     if (audio.gameState === 'briefing') { audio.track = cueForState('briefing', audio.mission); audio._refreshMusic(); }
     if (audio.musicDir?.state === 'mission') audio.musicDir.stopMission(1.0);
-    audio.musicDir?.prefetchMission(audio._startCue());
+    // the in-mission score (start stinger, tension chain, alert) downloads once the loading screen is down, while the
+    // briefing (its own music already in) is read (engine/post-load.js)
+    afterLoadScreen(() => { if (audio.mission === e.mission) audio.musicDir?.prefetchMission(audio._startCue()); });
     audio.ambience.forEach((l) => l.handle?.stop(0.5));
     audio.ambience = [];
     audio.director.reset();

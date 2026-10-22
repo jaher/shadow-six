@@ -10,7 +10,10 @@
  * them (first frame outside vendor/), and the load stage it fell in (Game.loadMission 'mission:progress' stages, plus
  * boot / settle / walkthrough phases).
  *
- *   node tools/perf/load-longtasks.mjs [--mission=m03] [--mode=walkthrough|debug|jump] [--preset=high] [--root=<checkout>]
+ * `--mode=menu`: a first visit's MAIN menu instead (intro marked seen, the splash skipped), held --menu-secs (default 60):
+ * its live diorama's downloads and sliced build (ui/backdrop.js) — the menu must never freeze.
+ *
+ *   node tools/perf/load-longtasks.mjs [--mission=m03] [--mode=walkthrough|debug|jump|menu] [--preset=high] [--root=<checkout>]
  *        [--out=report.json] [--shot=graph.png] [--min=50] [--size=1920x1080] [--keep-trace=trace.json]
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -29,6 +32,7 @@ const [vw, vh] = arg('size', '1920x1080').split('x').map(Number);
 const server = await startServer({ port: 0, root: ROOT });
 const browser = await PW.chromium.launch({ executablePath: H.findChrome(), headless: true, args: [...H.GPU_ARGS, '--autoplay-policy=no-user-gesture-required'] });
 const ctx = await browser.newContext({ viewport: { width: vw, height: vh } });
+if (mode === 'menu') await ctx.addInitScript(() => { try { localStorage.setItem('shadowsix.intro.seen', '1'); } catch { /* ignore */ } });
 await ctx.addInitScript(() => {
   const L = (window.__lt = { tasks: [], frames: [], marks: [], stages: [], t0: performance.now() });
   try { new PerformanceObserver((l) => { for (const e of l.getEntries()) L.tasks.push([e.startTime, e.duration]); }).observe({ type: 'longtask', buffered: true }); } catch { /* unsupported */ }
@@ -73,11 +77,25 @@ const base = server.url.replace(/\/$/, '');
 const CATS = ['toplevel', 'v8.execute', 'disabled-by-default-v8.cpu_profiler', 'blink.user_timing', 'devtools.timeline', '__metadata'];
 if (mode !== 'jump') await browser.startTracing(page, { categories: CATS });
 const tNav = Date.now();
-const url = mode === 'debug' ? `${base}/index.html?debug&mission=${mission}&preset=${preset}`
-  : `${base}/index.html?debug&walkthrough=${mission}&preset=${preset}`;
+const url = mode === 'menu' ? `${base}/index.html?preset=${preset}${arg('query', '')}`
+  : mode === 'debug' ? `${base}/index.html?debug&mission=${mission}&preset=${preset}${arg('query', '')}`
+    : `${base}/index.html?debug&walkthrough=${mission}&preset=${preset}`;
 await page.goto(url, { timeout: 240000 });
 let endName;
-if (mode === 'debug') {
+if (mode === 'menu') {
+  // splash → Enter → (N)O on the new-user card → MAIN, then the menu held (the diorama: 20 s idle, download, build)
+  for (let pressed = false, t = Date.now(); ;) {
+    const s = await page.evaluate(() => ({ splash: window.shadowSix?.hud?.boot?.phase === 'splash' && /PRESS ANY KEY/.test(document.querySelector('.bt-prompt')?.textContent || ''),
+      main: document.querySelector('.mk-host .mk-card')?.dataset.card === 'main' })).catch(() => ({}));
+    if (s.splash && !pressed) { pressed = true; await page.keyboard.press('Enter'); await page.waitForTimeout(150); await page.keyboard.press('KeyN'); }
+    if (s.main) break;
+    if (Date.now() - t > 240000) throw new Error('menu not reached');
+    await page.waitForTimeout(100);
+  }
+  await page.evaluate(() => window.__lt.mark('menu'));
+  await page.waitForTimeout(+arg('menu-secs', 60) * 1000);
+  endName = 'menu held';
+} else if (mode === 'debug') {
   await page.waitForFunction(() => window.shadowSix?.lastLoad && !window.shadowSix.hud?.loading?.active && (window.shadowSix.state === 'playing' || window.shadowSix.state === 'briefing'), null, { timeout: 400000, polling: 200 });
   endName = 'loaded';
 } else {

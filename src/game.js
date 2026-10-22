@@ -75,7 +75,9 @@ import { createLoadProgress, loadBudget } from './engine/load-progress.js';
 import { DownloadMeter } from './engine/download-meter.js';
 import { openMissionPack } from './engine/mission-pack.js';
 import { earlyFetch, dropEarlyFetches, earlyFetchSlots, MAX_ACTIVE as MAX_EARLY } from './engine/early-fetch.js';
-import { terrainTexRes } from './art/terrain.js';
+import { loadScreenUp, loadScreenDown } from './engine/post-load.js';
+import { startHdTextures, resumeHdTextures } from './engine/hd-textures.js';
+import { terrainLoadRes } from './art/terrain.js';
 import { terrainLayerUrls } from './art/terrain/terrain.js';
 import { loadRapier } from './physics/rapier-loader.js';
 import * as Missions from './missions/index.js';
@@ -162,6 +164,8 @@ export class Game {
     this.selection = new Selection(this.renderer.decalScene);
     this.selection.xrayHidden = (o) => this.renderer.passes?.xray?.isHidden(o) ?? true;
     assets.init(this.renderer.renderer, this.events);
+    // the bodies' HD textures stream in after each loading screen (engine/hd-textures.js, perf/download-speed-2)
+    safe(() => startHdTextures({ renderer: this.renderer.renderer, playing: () => this.state === 'playing', active: () => !!this.world }), 'hd textures');
 
     const createAudio = pick(AudioMod, 'createAudio', 'default');
     this.audio = safe(() => createAudio?.(this.events), 'audio') || null;
@@ -195,6 +199,7 @@ export class Game {
     const from = this.state;
     this.state = s;
     if (s !== 'paused') this.playerPaused = false;
+    if (s === 'playing') loadScreenDown(); // (no loading screen closed first: a link, a test) what waited for it starts
     this.events.emit('game:state', { from, to: s });
   }
 
@@ -227,6 +232,7 @@ export class Game {
     // `building`: the frame loop does not draw while a world is being built (cleared by the latest load only)
     const token = (this._buildToken = {});
     this.building = true;
+    loadScreenUp(); // downloads that wait for the loading screen to close (engine/post-load.js) wait for this one's
     try {
       return await this._loadMission(idOrIndex);
     } finally {
@@ -267,7 +273,7 @@ export class Game {
     dropEarlyFetches(30000);
     earlyFetchSlots(0); // (the HDRI below has the link to itself; one slot while the art libraries load, all from the map build)
     if (!pack) {
-      safe(() => earlyFetch(terrainLayerUrls(def.theater || 'temperate', terrainTexRes(r.presetName, def.theater)), { rank: 0 }), 'early fetch: terrain');
+      safe(() => earlyFetch(terrainLayerUrls(def.theater || 'temperate', terrainLoadRes(r.presetName, def.theater)), { rank: 0 }), 'early fetch: terrain');
       safe(() => this.hud?.prefetchMission?.(def), 'early fetch: portraits');
       safe(() => this.audio?.prefetchMission?.(def)?.catch?.(() => 0), 'early fetch: sounds');
     }
@@ -537,6 +543,7 @@ export class Game {
     this.lastLoad = { id: def.id, preset: r.presetName, ...lp };
     if (!this.manualTick) console.info(`[load] ${def.id} (${r.presetName}): ${(lp.bytes / 1e6).toFixed(1)} MB in ${lp.files} files, ${(lp.ms / 1000).toFixed(1)} s`);
     this._setState('briefing');
+    resumeHdTextures(); // (full-size textures queued — by this load or the menu's diorama — once the loading screen is down)
     this.hud?.onMissionLoaded?.(world, def);
     this.events.emit('mission:loaded', { mission: def, world });
     return world;

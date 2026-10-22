@@ -959,7 +959,7 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   transparent objects that must draw over the water live ONLY on `FX_LAYER = 11` (`obj.layers.set(11)`);
   `world.fx.lateLayer` is still set to 11 by the water (legacy, unused by the VFX pass).
 
-- **Asset loading & size** (art integration 2 step 4): every subsystem fetches only what the mission uses (buildings:
+- **Asset loading & size** (art integration 2 step 4; what waits for the briefing: "Download tiers" below): every subsystem fetches only what the mission uses (buildings:
   the picked GLBs + destroyed/snow variants, every LOD the preset can show — `low` skips LOD0; characters: the
   squad picks + the commandos; vehicles: the mission's types in its theater paint + wrecks; terrain: the theatre's strips; audio: the
   mission's SFX/voice pack, downloaded during the load and decoded after `mission:loaded`; portraits: the squad). `Game.loadMission` reports real progress
@@ -998,6 +998,41 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   bytes / requests per phase, link use, load-stage timeline; local: the web build over HTTP/2 + TLS through one shared
   throttled link — `tools/serve.mjs` `h2` / `log` — so the service worker's fetches are throttled too; `--site=`: a live
   deployment with DevTools throttling, service worker blocked).
+- **Download tiers: what waits for the briefing** (perf/download-speed-2, 2026-10-22): a mission downloads before
+  its briefing only what the default zoom draws; the rest streams in while the briefing is read, in place.
+  - **Post-load gate** (`engine/post-load.js`): `loadScreenUp()` at `Game.loadMission`, `loadScreenDown()` when the
+    loading card closes (ui/loading.js, right after the briefing opens) or play starts without a card;
+    `afterLoadScreen(fn)` queues work until then. Behind it: the spoken lines and loops (`AudioEngine.preload(ids,
+    {packAfter})` decodes the instant set before the card closes, `prefetchUrls({lazy})` splits the sets; after the
+    gate the takes download 4 at a time, and a take wanted before its turn fetches on its own at normal priority, as a
+    lazy take always could), the portraits' talking / flinch clips (`TalkingPortraits.preloadFiles(e, fmt, 'first' |
+    'rest')`: idle loop + stills before; the rest 2 at a time per man, selection lines first), the mission score's
+    chunks. A queued early download that a loader asks for starts at the loader's fetch priority, not `low`.
+  - **HD upgrades** (`engine/hd-textures.js`): `registerHdTexture(tex, url, {size, onSwap})` names a texture's full-size
+    image; `registerHdJob(key, {urls, run})` a whole upgrade (layer arrays). After the gate they run in order —
+    the terrain / tree layer arrays (the heaviest: done while the briefing is read), commandos, library / pavement
+    maps, enemies, guests; colour, normals, the rest — their files named to the early downloads (rank 6, a few ahead),
+    one per idle period (while the game is played: 250 ms + an idle period, compressor slice 2 ms; in the briefing 3 ms),
+    only while a mission is up (the menus' diorama never upgrades; `resumeHdTextures()` after each load). A texture takes
+    its new image IN PLACE (`dispose()`, new source / compressed levels, `initTexture`): every material and clone
+    holding it sharpens together. A new load pauses them. `?hdtex=0` = off (full sizes at once), `?hdtex=hold` = the
+    smaller copies only (A/B screenshots).
+  - **Character bodies**: each body GLB embeds its atlases at half size (2 × 2 box = the GPU's mip 1 of the original;
+    enemies draw LOD0 only from 120 px/m, commandos from 60, the default zoom is 40); the originals sit byte for byte in
+    `<group>/hd/<name>.jpg` (`textures[i].extras.hd`, read by the GLTF plugin in engine/texture-memory.js). Made by
+    `tools/perf/char_tex_tiers.py`, which `tools/perf/glb_gzip.mjs` (the one entry point after an export) runs.
+  - **Start tiers**: `engine/texel-budget.js startDensity(preset)` = px/m at the default zoom (half the closest zoom's).
+    A library map loads the smallest copy that covers it (`lib-tiers.js libStartTier`; building / vehicle GLB images
+    except those sampled through KHR_texture_transform, dressing / castle `libTextureURL().hd`), pavement maps load
+    512 then 1k, the terrain arrays 512 where 512 ÷ the palette's largest tile covers it (`art/terrain.js
+    terrainLoadRes`, then `setTextureRes`), the tree strips their half copies (`<strip>.half.webp`,
+    `tools/perf/strip_tiers.py`, also run by glb_gzip.mjs; `assets/terrain/strip-tiers.json` records their sources;
+    only the colour / bark strips — the alpha-tested coverage maps foliage_n / needles_n load full size: a half copy
+    moved snow-clump edges).
+    Never magnified before the player zooms in; the full copy is in place within seconds of the briefing.
+  - Measured (cold first visit, web build over HTTP/2, 40 ms RTT; MB downloaded before the briefing, master → branch):
+    see notes/download.notes.md ROUND 2. Character close-ups and full frames at zoom 1 / 2 / 3 after the upgrades are
+    within master's run-to-run noise (`?hdtex=hold`: zoom 1 within noise, zoom 2-3 slightly softer until the upgrade).
 - **Gzip-wrapped GLBs and HDRIs** (`engine/glb-gzip.js`, asset budget 2026-10): every `assets/**/*.glb` and
   `assets/hdri/*.hdr` is stored as gzip(file) — meshopt output is built to be entropy-coded on top and GitHub Pages
   serves binaries as stored, so the wrap takes 27 % off the GLBs (426.8 → 311.5 MB with zopfli; geometry −35…40 %,
@@ -1313,8 +1348,14 @@ Menus and full-screen screens follow docs/menus-art-direction.md (S01–S22 + am
   Tests: `tests/touch-{pixel7,iphone14}{,-land}.test.mjs`, `touch-desktop`, `touch-menu-esc` (shared phone flow in
   `tests/touch-flow.mjs`: ≥ 44 px MAIN rows, HELP EXIT, NEXT TIP clear of the longest tip, briefing clear of the touch
   bar, a returning player's title tap opens no menu row).
-- Consumes only `game.flow`, `game.events` (`mission:loading`, `mission:won/lost/escaped`, `game:state`), the renderer
-  canvas (B2 snapshot) and, for B1, `World` + `MapBuilder.buildMap` into the idle scene (released on `mission:loading`).
+- Consumes only `game.flow`, `game.events` (`mission:loading`, `mission:loaded`, `mission:won/lost/escaped`,
+  `game:state`), the renderer canvas (B2 snapshot) and, for B1, `World` + `MapBuilder.buildMapGen` (released on
+  `mission:loading`). B1's live diorama never gets in a mission's way (perf/download-speed-2): it starts at once only
+  when its art is cached (this page loaded that mission, or this browser did at this quality: localStorage
+  `shadowsix.artSeen`), else after `DIORAMA_IDLE_MS` (20 s) on the menu; its map builds in slices (engine/slice.js)
+  into a group of its own that joins the scene once complete (its gate opens then), its first frame's programs link
+  aside, and a mission load cancels a build in progress (nothing of it in the scene, its gate never opens, its library
+  instances disposed). Menu long tasks at high / medium, cold, 60 s on the menu: 2.8 s → ≤ 0.1 s.
 - Assets: `assets/fonts/*` (OFL / Apache, licences alongside), `assets/ui/*` (emblem, wordmark, CC0 textures, baked B1s
   stills: `node tools/ui/bake_dioramas.mjs`; key art `assets/ui/keyart/{hero,tiny-portrait}.webp` rendered offline from
   the Green Beret model by `tools/ui/keyart/render.py` (Blender; the hero's M1911A1 from `colt1911.py`, gripped by a
@@ -1342,7 +1383,7 @@ else in the codebase calls audio directly except the Game (music) and UI clicks.
 - Assets (realism-pipeline v2 §1.5; audio footprint pass): per-mission loading — `mission:loaded` → `missionAudio(def)`
   (event-map.js) → `engine.preload` decodes that mission's instant one-shots (shots, impacts, steps, UI, pain grunts and
   cries) and evicts the rest; loops, long non-weapon takes (sirens; one take pinned per mission) and spoken voice lines
-  are downloaded (kept compressed) and decode on first use: `play` / `playVoice` return a deferred handle that starts
+  are downloaded (kept compressed; once the loading screen has closed — `preload({packAfter})`, engine/post-load.js) and decode on first use: `play` / `playVoice` return a deferred handle that starts
   when the take has decoded (a one-shot more than `LATE_DROP` late is dropped), kept in an LRU within `lazyBudget`
   (32 MB, phones 16 MB). Voices decode at 32 kHz; a `mono`-flagged take (its stereo channels matched) is one channel
   played as two. Leaving the mission frees the LRU, the narration and the score's cached cues; ambience beds

@@ -53,5 +53,12 @@ export function sharedLibTexture(parser, index, url) {
   return p;
 }
 
+/** A shared texture took a new image in place (engine/hd-textures.js: its full size after the loading screen). */
+export function libTextureSwapped(tex, oldSource) {
+  if (!SHARED.has(tex)) return;
+  SHARED_SRC.delete(oldSource);
+  SHARED_SRC.add(tex.source);
+}
+
 /** Shared textures currently cached (tests / tools). */
 export const libTextureCount = () => CACHE.size;

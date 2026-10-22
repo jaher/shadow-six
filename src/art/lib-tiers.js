@@ -10,9 +10,9 @@
  *   libTier('granite_diff.jpg')   // → '256' | '512' | '1k' …
  * @module art/lib-tiers
  */
-import { screenDensity, tierFor } from '../engine/texel-budget.js';
+import { screenDensity, startDensity, tierFor } from '../engine/texel-budget.js';
 
-const S = { density: null, loading: null, preset: null, need: 0 };
+const S = { density: null, loading: null, preset: null, need: 0, start: 0 };
 
 /** Fetch the density table once (missing / offline → every map stays at its preset's default size). */
 export function loadLibDensity(base = 'assets/') {
@@ -30,6 +30,7 @@ export function useLibDensity(table) { S.density = table?.maps || table || {}; }
 export function setLibPreset(preset) {
   S.preset = preset || null;
   S.need = preset && preset !== 'ultra' ? screenDensity(preset) : 0;
+  S.start = preset && preset !== 'ultra' ? startDensity(preset) : 0;
 }
 
 /** Current preset (null when none was set). */
@@ -45,4 +46,18 @@ export function libTier(file, { low = S.preset === 'low' } = {}) {
   let size = tierFor(S.density?.[file], 1024, S.need, 128);
   if (low) size = Math.min(size, 512);
   return size >= 1024 ? '1k' : String(size);
+}
+
+/**
+ * The smaller copy a map can load first (perf/download-speed-2): the smallest that covers the DEFAULT zoom — never
+ * magnified before the player zooms in — while its `libTier` copy streams in after the loading screen and replaces it
+ * in place (engine/hd-textures.js). null when there is none (the same tier, an unlisted map, 'ultra').
+ * @param {string} file @param {{low?: boolean}} [o]
+ * @returns {'512'|'256'|'128'|null}
+ */
+export function libStartTier(file, { low = S.preset === 'low' } = {}) {
+  if (!S.preset || S.preset === 'ultra' || !(S.density?.[file] > 0) || !(S.start > 0)) return null;
+  const full = libTier(file, { low }), fullSize = full === '1k' ? 1024 : Number(full);
+  const size = Math.min(fullSize, tierFor(S.density[file], 1024, S.start, 128));
+  return size < fullSize ? String(size) : null;
 }

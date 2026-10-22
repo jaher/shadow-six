@@ -23,6 +23,16 @@ export function screenDensity(preset) {
 }
 
 /**
+ * Physical px per metre at the camera's default zoom (CONFIG.camera.defaultZoom: where every mission starts and the
+ * briefing returns): what a texture must cover before the player can zoom in (perf/download-speed-2: a map loads at
+ * the size that covers this first, its full size streams in after the loading screen — engine/hd-textures.js).
+ */
+export function startDensity(preset) {
+  const cap = QUALITY_PRESETS[preset]?.pixelRatio ?? 2;
+  return (CONFIG.camera.pxPerMeterAt1x || 40) * (CONFIG.camera.defaultZoom || 1) * cap;
+}
+
+/**
  * Smallest power-of-two size (≥ `min`, ≤ `full`) whose texels per metre stay ≥ `need`.
  * @param {number|null|undefined} density texels per metre at `full` on the map's most stretched surfaces (null: unknown → full)
  */

@@ -23,8 +23,9 @@ import { keepEncodedImages } from '../engine/texture-memory.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { applyAssetFixups, DROP_LODS } from './building-fixups.js';
 import { scoped, touch, sceneBytes, disposeScene } from '../engine/scoped-assets.js';
-import { libTier, loadLibDensity } from './lib-tiers.js';
-import { sharedLibTexture, isLibTexture, isLibImage } from './lib-textures.js';
+import { libTier, libStartTier, loadLibDensity } from './lib-tiers.js';
+import { sharedLibTexture, isLibTexture, isLibImage, libTextureSwapped } from './lib-textures.js';
+import { HD_TEXTURES, registerHdTexture } from '../engine/hd-textures.js';
 import { antiTile } from './anti-tiling.js';
 import { addDepthMerge, instancedProxies } from '../engine/depth-merge.js';
 
@@ -53,18 +54,28 @@ function touchLod(key) { touch(lodKey(key), L.deps.get(key) || []); }
  * before parsing: byte-identical maps → their survivor (manifest textures.aliases), 'ultra' → 2k WebP albedo, else
  * the smallest library copy that covers the preset's closest view (art/lib-tiers.js: 512 / 256 / 128 sets, 'low' ≤ 512;
  * tools/perf/lib_textures.py).
+ * perf/download-speed-2: a map first loads the smaller copy that covers the DEFAULT zoom (lib-tiers.js libStartTier);
+ * its full copy downloads after the loading screen and replaces it in place (engine/hd-textures.js) — the shared
+ * Texture object, so every building and vehicle drawing it sharpens at once. Not for a map this GLB samples through a
+ * KHR_texture_transform (GLTFLoader clones those textures: a clone would keep the smaller image).
  */
 class SharedLibTextures {
-  constructor(parser) { this.parser = parser; this.name = 'SHADOW_shared_lib_textures'; }
+  constructor(parser) { this.parser = parser; this.name = 'SHADOW_shared_lib_textures'; this.hd = new Map(); }
   beforeRoot() {
     const alias = L.manifest?.textures?.aliases || {};
-    for (const im of this.parser.json.images || []) {
+    const json = this.parser.json, cloned = clonedImages(json);
+    for (const [i, im] of (json.images || []).entries()) {
       const m = im.uri && im.uri.match(/^(.*\/textures\/lib\/)1k\/([^/]+)\.(jpg|png)$/);
       if (!m) continue;
       let file = `${m[2]}.${m[3]}`;
       if (alias[file]) { file = alias[file]; im.uri = `${m[1]}1k/${file}`; }
       if (L.quality === 'ultra' && L.ultra.has(file)) im.uri = `${m[1]}2k/${file.replace(/\.(jpg|png)$/, '')}.webp`;
-      else { const t = libTier(file, { low: L.quality === 'low' }); if (t !== '1k') im.uri = `${m[1]}${t}/${file}`; } // art/lib-tiers.js
+      else {
+        const low = L.quality === 'low', t = libTier(file, { low }); // art/lib-tiers.js
+        if (t !== '1k') im.uri = `${m[1]}${t}/${file}`;
+        const s = HD_TEXTURES && !cloned.has(i) ? libStartTier(file, { low }) : null;
+        if (s) { this.hd.set(i, im.uri); im.uri = `${m[1]}${s}/${file}`; }
+      }
     }
     return null;
   }
@@ -72,9 +83,28 @@ class SharedLibTextures {
     const json = this.parser.json, def = json.textures[index];
     const img = def && json.images[def.source];
     if (!img || !img.uri || !/textures\/lib\//.test(img.uri)) return null; // embedded AO etc.: default path
-    const url = new URL(img.uri, new URL(this.parser.options.path || '', globalThis.location?.href ?? 'http://localhost/')).href;
-    return sharedLibTexture(this.parser, index, url); // one GPU image per map, with the vehicle library too
+    const base = new URL(this.parser.options.path || '', globalThis.location?.href ?? 'http://localhost/');
+    const url = new URL(img.uri, base).href;
+    const p = sharedLibTexture(this.parser, index, url); // one GPU image per map, with the vehicle library too
+    const hd = this.hd.get(def.source);
+    if (hd) p.then((t) => registerHdTexture(t, new URL(hd, base).href, { onSwap: libTextureSwapped }), () => {});
+    return p;
   }
+}
+
+/** Image indices a glTF samples through a texture GLTFLoader clones (KHR_texture_transform, a uv set other than 0). */
+function clonedImages(json) {
+  const out = new Set();
+  const walk = (o, depth) => {
+    if (!o || typeof o !== 'object' || depth > 5) return;
+    for (const [k, v] of Object.entries(o)) {
+      if (k.endsWith('Texture') && v && typeof v.index === 'number') {
+        if (v.extensions?.KHR_texture_transform || v.texCoord > 0) { const s = json.textures?.[v.index]?.source; if (s != null) out.add(s); }
+      } else if (v && typeof v === 'object') walk(v, depth + 1);
+    }
+  };
+  for (const m of json.materials || []) walk(m, 0);
+  return out;
 }
 
 /** Resolve rng: world Rng ({next}), a () => [0,1) function, or nothing (first variant). */
@@ -94,14 +124,19 @@ function rand(rng) {
 /**
  * URL of a shared library texture file (e.g. 'rock_cliff_diff.jpg') under the current quality rules: manifest
  * aliases, 'ultra' → 2k WebP albedo when shipped, 'low' → the 512 set. Used by procedural dressing (art/dressing.js).
- * @returns {{url: string, tier: string}}
+ * `hd` (perf/download-speed-2): when the map can load a smaller copy first (lib-tiers.js libStartTier), `url` is that
+ * copy and `hd` the full one — the caller registers it with engine/hd-textures.js (it replaces the smaller copy in
+ * place after the loading screen).
+ * @returns {{url: string, tier: string, hd: string|null}}
  */
 export function libTextureURL(file) {
   const alias = L.manifest?.textures?.aliases || {};
   const f = alias[file] || file, root = `${L.base}textures/lib/`;
-  if (L.quality === 'ultra' && L.ultra.has(f)) return { url: `${root}2k/${f.replace(/\.(jpg|png)$/, '')}.webp`, tier: '2k' };
-  const tier = libTier(f, { low: L.quality === 'low' && !!L.manifest?.textures?.low });
-  return { url: `${root}${tier}/${f}`, tier };
+  if (L.quality === 'ultra' && L.ultra.has(f)) return { url: `${root}2k/${f.replace(/\.(jpg|png)$/, '')}.webp`, tier: '2k', hd: null };
+  const low = L.quality === 'low' && !!L.manifest?.textures?.low;
+  const tier = libTier(f, { low });
+  const s = HD_TEXTURES ? libStartTier(f, { low }) : null;
+  return s ? { url: `${root}${s}/${f}`, tier: s, hd: `${root}${tier}/${f}` } : { url: `${root}${tier}/${f}`, tier, hd: null };
 }
 
 /** Add-on manifests under assets/models/buildings/ (same schema, `assets` + `types` only), merged after manifest.json. */

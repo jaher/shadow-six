@@ -5,7 +5,7 @@
  * intervals, and a CPU profile; each long task is attributed to the functions sampled inside it (self time).
  *
  *   node tools/perf/longtasks.mjs [--mission=m03] [--preset=high] [--secs=90] [--speed=1] [--root=<checkout>] [--phone]
- *        [--out=file.json]
+ *        [--out=file.json] [--query=&extra=url&params]
  */
 import { writeFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
@@ -56,7 +56,7 @@ await ctx.addInitScript(() => {
 const page = await ctx.newPage();
 const errs = [];
 page.on('pageerror', (e) => errs.push(e.message.slice(0, 200)));
-await page.goto(`${server.url.replace(/\/$/, '')}/index.html?debug&walkthrough=${mission}&preset=${preset}`, { timeout: 180000 });
+await page.goto(`${server.url.replace(/\/$/, '')}/index.html?debug&walkthrough=${mission}&preset=${preset}${arg('query', '')}`, { timeout: 180000 });
 await page.waitForFunction(() => window.shadowSix?.world && !window.shadowSix.building && window.shadowSix.state === 'playing', null, { timeout: 240000 });
 await page.waitForTimeout(3000); // first frames (programs, uploads) are the loading screen's business
 const cdp = await ctx.newCDPSession(page);

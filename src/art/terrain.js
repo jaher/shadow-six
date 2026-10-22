@@ -24,7 +24,9 @@ import { farmland } from './terrain/bocage.js';
 import { addSnowCover } from './terrain/snowfx.js';
 import { CONFIG } from '../config.js';
 import { dataKey } from '../engine/asset-cache.js';
-import { screenDensity } from '../engine/texel-budget.js';
+import { screenDensity, startDensity } from '../engine/texel-budget.js';
+import { HD_TEXTURES, registerHdJob } from '../engine/hd-textures.js';
+import { terrainLayerUrls } from './terrain/terrain.js';
 import { createApronG } from './apron.js';
 import { buildApronFieldG, extendPath } from '../world/apron-field.js';
 import { edgeCrossings } from '../world/edge-extend.js';
@@ -180,6 +182,19 @@ export const terrainTexRes = (q, theater) => {
   const P = PALETTES[theater] || PALETTES.temperate; // createTerrain's palette
   if (P && (q === 'medium' || q === 'high') && 512 / Math.max(...P.tile) >= screenDensity(q)) return 512;
   return 1024;
+};
+
+/**
+ * The layer-array resolution a mission LOADS with (perf/download-speed-2): 512 where `terrainTexRes` wants 1024 but
+ * 512 already covers the default zoom (512 ÷ the palette's largest layer tile ≥ engine/texel-budget.js startDensity);
+ * the 1024 arrays then stream in after the loading screen (engine/hd-textures.js registerHdJob → setTextureRes).
+ * @param {string} q preset @param {string} [theater]
+ */
+export const terrainLoadRes = (q, theater) => {
+  const full = terrainTexRes(q, theater);
+  if (!HD_TEXTURES || full !== 1024) return full;
+  const P = PALETTES[theater] || PALETTES.temperate;
+  return P && 512 / Math.max(...P.tile) >= startDensity(q) ? 512 : full;
 };
 
 const WET_CODES = new Set([T.WATER, T.SHALLOW]);
@@ -501,9 +516,21 @@ export function* buildTerrainG(grid, theater = 'temperate', ctx = {}) {
     // identity of the painter (road network + forest floor polygons): lets the session cache keep the painted splat
     paintKey: paintKeyOf(ctx),
     exclude: ctx.roads && (ctx.roads.net.roads.some((r) => !r.legacy) || ctx.roads.net.areas.length) ? (x, z) => ctx.roads.covers(x, z) : undefined,
-    onSpray: ctx.onSpray, texRes: terrainTexRes(quality, theater), mission, // mission → vegetation profile (season, mix)
+    onSpray: ctx.onSpray, texRes: terrainLoadRes(quality, theater), mission, // mission → vegetation profile (season, mix)
     gate: ctx.gate, // (the map builder's: nothing of the terrain's async build takes effect before the map is built)
   });
+  // loaded with the smaller layer arrays (terrainLoadRes): the full ones after the loading screen, in the HD queue
+  const loadRes = terrainLoadRes(quality, theater), fullRes = terrainTexRes(quality, theater);
+  if (loadRes !== fullRes) {
+    inner.ready.then(() => {
+      if (disposed) return;
+      registerHdJob(`terrain:${theater}:${fullRes}_albedo.layers`, {
+        urls: terrainLayerUrls(theater, fullRes),
+        run: async () => { if (!disposed && quality === q0) await inner.terrain?.setTextureRes?.(fullRes); },
+      });
+    }, () => {});
+  }
+  const q0 = quality;
   const ground = inner.ground;
   ground.name = 'terrain:ground';
   ground.userData.terrain = true;

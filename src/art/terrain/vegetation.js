@@ -62,16 +62,47 @@ import { sessionCache as cache, dataKey } from '../../engine/asset-cache.js';
 import { due, runSliced, SLICED } from '../../engine/slice.js';
 import { compileAhead } from '../../engine/parallel-compile.js';
 import { textureBytes } from '../../engine/scoped-assets.js';
+import { HD_TEXTURES, registerHdJob, uploadNow, hdPause } from '../../engine/hd-textures.js';
+import { takeReload } from '../../engine/texture-memory.js';
 
 /** GPU compression per strip (engine/gpu-compress.js): the *_n maps carry the alpha-tested coverage in blue (weighted
  * up); foliage_n's alpha holds per-leaf ids read as exact values (autumn turning, twig = 255) → stays uncompressed. */
 const STRIP_COMPRESS = { 'foliage_n.webp': { compress: false }, 'needles_n.webp': { weights: [1, 1, 3, 1] } };
+const stripOpts = (url, srgb, alpha, tile) => ({ srgb, anisotropy: 4, wrap: alpha ? THREE.ClampToEdgeWrapping : THREE.RepeatWrapping, tile,
+  ...(STRIP_COMPRESS[url.split('/').pop().replace('.half.', '.')] || {}) });
 function loadStrip(url, srgb, alpha, tile) {
-  const cmp = STRIP_COMPRESS[url.split('/').pop()] || {};
   // session cache (engine/asset-cache.js): decoded + uploaded once per page, freed on eviction
-  return cache.memoAsync(`strip:${url}|${srgb ? 1 : 0}|${alpha ? 1 : 0}|${tile || '-'}`, () => loadLayerArray(url, { srgb, anisotropy: 4, wrap: alpha ? THREE.ClampToEdgeWrapping : THREE.RepeatWrapping, tile, ...cmp }).then((t) => cache.retain(t)), {
+  return cache.memoAsync(`strip:${url}|${srgb ? 1 : 0}|${alpha ? 1 : 0}|${tile || '-'}`, () => loadLayerArray(url, stripOpts(url, srgb, alpha, tile)).then((t) => cache.retain(t)), {
     bytes: textureBytes, dispose: (t) => t.dispose(),
   });
+}
+
+/**
+ * The tree strips [name, sRGB, alpha (clamped), tile px] in createVegetation's order (leaf, bark, bark normal, leaf
+ * normal, needle, needle normal). perf/download-speed-2: a load takes their half-size copies (`<name>.half.webp`,
+ * tools/perf/strip_tiers.py: the GPU's mip 1 of the original — every game zoom samples that level or smaller) and the
+ * originals replace them in place after the loading screen (engine/hd-textures.js registerHdJob).
+ */
+const STRIP_SPECS = [['foliage', true, true, 512], ['bark_albedo', true, false], ['bark_normal', false, false], ['foliage_n', false, true, 256], ['needles', true, true], ['needles_n', false, true]];
+const HALF_STRIPS = HD_TEXTURES;
+/** Strips that always load at full size: the alpha-tested coverage (b) of the leaf / needle sprays — a half copy moved
+ * the snow-clump and needle edges at zoom 1 (thresholds flip on small value changes), unlike the colour and bark maps. */
+const FULL_ONLY = new Set(['foliage_n', 'needles_n']);
+const halved = (name, half) => half && !FULL_ONLY.has(name);
+const stripFile = (name, half) => `${name}${halved(name, half) ? '.half' : ''}.webp`;
+
+/** A full-size strip array takes the half-size one's place in place (same texture object: every material keeps it). */
+function swapStrip(dst, src) {
+  if (!!dst.isCompressedTexture !== !!src.isCompressedTexture) { src.dispose(); return false; }
+  dst.dispose(); // (its GPU copy goes; three makes a new one at the new size on the upload below)
+  dst.source = src.source;
+  if (dst.isCompressedTexture) { dst.mipmaps = src.mipmaps; dst.format = src.format; }
+  takeReload(dst, src);
+  dst.userData.url = src.userData.url;
+  dst.userData.hdUpgraded = src.userData.url;
+  dst.needsUpdate = true;
+  uploadNow(dst);
+  return true;
 }
 
 /** Run a generator straight through (engine/slice.js runSync, kept local: the tree worker never loads this module). */
@@ -532,17 +563,33 @@ function aoNormalMaterial(tex, U) {
  *   setSnow:(a:number)=>void, dispose:()=>void, stats:{trees:number, tris:number, drawCalls:number, genMs:number}}>}
  */
 /** The strips createVegetation loads (leaf / bark / needle atlases), for a load's early downloads (engine/early-fetch.js). */
-export const VEGETATION_STRIPS = Object.freeze(['foliage.webp', 'bark_albedo.webp', 'bark_normal.webp', 'foliage_n.webp', 'needles.webp', 'needles_n.webp']);
+export const VEGETATION_STRIPS = Object.freeze(STRIP_SPECS.map(([n]) => stripFile(n, HALF_STRIPS)));
 export const vegetationStripUrls = (base = new URL('../../../assets/terrain/', import.meta.url).href) => VEGETATION_STRIPS.map((f) => base + f)
   .filter((u) => !cache.hasPrefix(`strip:${u}|`)); // decoded already: no fetch will come
 
 export async function createVegetation(scene, placements, theater = 'temperate', opts = {}) {
   const base = opts.assetBase || new URL('../../../assets/terrain/', import.meta.url).href;
-  const [lAlb, bAlb, bNor, lNor, nAlb, nNor] = await Promise.all([
-    loadStrip(base + 'foliage.webp', true, true, 512), loadStrip(base + 'bark_albedo.webp', true, false), loadStrip(base + 'bark_normal.webp', false, false),
-    loadStrip(base + 'foliage_n.webp', false, true, 256), // leaf sprays: rg normal, b coverage (grid of 256 px tiles)
-    loadStrip(base + 'needles.webp', true, true), loadStrip(base + 'needles_n.webp', false, true),
-  ]);
+  // (foliage: grid of 512 px tiles; foliage_n — rg normal, b coverage, a per-leaf ids — of 256 px tiles; the half copies
+  // halve the tiles)
+  const strips = await Promise.all(STRIP_SPECS.map(([n, srgb, alpha, tile]) => loadStrip(base + stripFile(n, HALF_STRIPS), srgb, alpha, tile && halved(n, HALF_STRIPS) ? tile / 2 : tile)));
+  const [lAlb, bAlb, bNor, lNor, nAlb, nNor] = strips;
+  let gone = false;
+  const small = (i) => halved(STRIP_SPECS[i][0], HALF_STRIPS) && !strips[i].userData.hdUpgraded;
+  if (strips.some((t, i) => small(i))) {
+    // the originals after the loading screen, in the HD queue, one strip at a time, swapped in place
+    const full = STRIP_SPECS.map(([n]) => base + stripFile(n, false));
+    registerHdJob(`vegetation:${base}foliage_albedo.strips`, {
+      urls: full.filter((u, i) => small(i)),
+      run: async () => {
+        let n = 0;
+        for (const [i, [, srgb, alpha, tile]] of STRIP_SPECS.entries()) {
+          if (gone || !small(i)) continue;
+          if (n++) await hdPause(); // (a strip at a time, the game's frames between them)
+          try { swapStrip(strips[i], await loadLayerArray(full[i], stripOpts(full[i], srgb, alpha, tile))); } catch (e) { console.warn('[vegetation] full strip', full[i], e?.message || e); }
+        }
+      },
+    });
+  }
   const wind = new THREE.Vector2(opts.wind?.x ?? 1, opts.wind?.z ?? 0.25).normalize();
   const snowDefault = opts.snow ?? (theater === 'snow' ? 1 : 0);
   const U = {
@@ -858,6 +905,7 @@ export async function createVegetation(scene, placements, theater = 'temperate',
       return Math.min(8, list.length);
     },
     dispose() {
+      gone = true;
       for (const m of group.children) m.geometry.dispose();
       scene.remove(group);
       [barkM.mat, barkM.depth, leafM.mat, leafM.depth, needleM.mat, needleM.depth, needleM.aoMat].forEach((m) => m.dispose());

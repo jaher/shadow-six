@@ -14,6 +14,7 @@ import { rng, seedOf, fbm } from './dressing.js';
 import { scopedMemo, pendingTextureBytes } from '../engine/scoped-assets.js';
 import { antiTile } from './anti-tiling.js';
 import { loadCompressedTexture } from '../engine/texture-memory.js';
+import { registerHdTexture } from '../engine/hd-textures.js';
 
 const HAS_DOM = typeof document !== 'undefined';
 
@@ -46,10 +47,11 @@ let FROST = 0;
 /** Hoar frost on up-facing surfaces of everything built from now on (0 = none; M20's frost theater ~0.3). */
 export function setCastleFrost(v) { FROST = Math.max(0, Math.min(1, v || 0)); }
 function tex(file, srgb) {
-  const { url } = libTextureURL(file);
+  const { url, hd } = libTextureURL(file); // (hd: the full copy, after the loading screen — engine/hd-textures.js)
   // mission-scoped (engine/scoped-assets.js): freed once no kept mission uses it
   return scopedMemo('castle:tex', TEX, url + (srgb ? '|s' : ''), () => {
     const t = loadCompressedTexture(url); // BC7 / ASTC on the GPU (engine/gpu-compress.js)
+    if (hd) registerHdTexture(t, hd);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = 8;
     if (srgb) t.colorSpace = THREE.SRGBColorSpace;

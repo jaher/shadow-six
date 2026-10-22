@@ -23,6 +23,7 @@ import { ruinedStoneWall, whitewashedBlock } from './mine-walls.js';
 import { drystonePlankWall } from './norway-walls.js';
 import { brickDepotWall } from './depot-walls.js';
 import { loadCompressedTexture } from '../engine/texture-memory.js';
+import { registerHdTexture } from '../engine/hd-textures.js';
 import { addCableNode } from './cable-attach.js';
 import { brokenGardenWall } from './brick-rubble.js';
 
@@ -30,10 +31,11 @@ const HAS_DOM = typeof document !== 'undefined';
 
 const TEX = new Map(), MATS = new Map();
 function tex(file, srgb) {
-  const { url } = libTextureURL(file);
+  const { url, hd } = libTextureURL(file); // (hd: the full copy, after the loading screen — engine/hd-textures.js)
   // mission-scoped (engine/scoped-assets.js): freed once no kept mission uses it
   return scopedMemo('dressing:tex', TEX, url + (srgb ? '|s' : ''), () => {
     const t = loadCompressedTexture(url); // BC7 / ASTC on the GPU (engine/gpu-compress.js)
+    if (hd) registerHdTexture(t, hd);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.anisotropy = 8;
     if (srgb) t.colorSpace = THREE.SRGBColorSpace;

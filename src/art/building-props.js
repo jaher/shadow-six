@@ -869,6 +869,14 @@ export function tickBuildings(dt, camera, wind = null) {
   tickFuelHooks(dt);
 }
 
+/** The live library instances now (a menu diorama's sliced build notes them, to dispose its own if it is cancelled). */
+export const liveBuildings = () => new Set(S.live);
+
+/** Dispose the live library instances made since `before` (a cancelled diorama build: no map handle to do it). */
+export function disposeBuildingsSince(before) {
+  for (const b of [...S.live]) if (!before.has(b)) { S.live.delete(b); b.dispose(); }
+}
+
 /** Dispose every live library instance (mission unload). */
 export function disposeMissionBuildings() {
   for (const b of S.live) b.dispose();

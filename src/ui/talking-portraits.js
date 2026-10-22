@@ -25,6 +25,7 @@ import { registerPortraitPhoto, getPortraitURL } from '../art/portraits.js';
 import { sessionCache } from '../engine/asset-cache.js';
 import { audioExt } from '../audio/formats.js';
 import { earlyFetch } from '../engine/early-fetch.js';
+import { afterLoadScreen } from '../engine/post-load.js';
 
 /** game role id -> clip character id */
 export const ROLE_TO_CHAR = Object.freeze({ greenberet: 'green_beret', sniper: 'sniper', diver: 'marine', marine: 'marine', sapper: 'sapper', driver: 'driver', spy: 'spy' });
@@ -33,6 +34,10 @@ export const KEY_LINES = Object.freeze({
   select: ['yes_sir', 'ready', 'what_now'], ack_move: ['on_my_way', 'right_away', 'understood'],
   ack_act: ['consider_it_done', 'right_away'], act_kill: ['consider_it_done'], hurt: ['i_m_hit'],
 });
+/** Talking clips preloaded at once per man after the loading screen. */
+const REST_AT_ONCE = 2;
+/** The selection lines (the first thing a man says in a mission) rank first among his talking clips. */
+const SELECT_FIRST = (f) => (KEY_LINES.select.some((n) => f.includes(`/${n}_`)) ? 1 : 0);
 /** Own-voice anti-spam (s): the same man re-selected inside `select` stays quiet, other lines 0.6 s apart. */
 export const OWN_VOICE_CD = Object.freeze({ select: 3, other: 0.6 });
 /**
@@ -180,8 +185,11 @@ export class TalkingPortraits {
       const chars = new Set();
       for (const u of units) { const c = ROLE_TO_CHAR[u?.role]; if (c && this.man.characters[c]) { chars.add(c); this._attach(u, c); } }
       this._attachCard();
-      await Promise.all([...chars].map((c) => this._preload(c)));
+      // what shows at once (the idle loop, the pain / downed stills) before the loading screen closes; the line and
+      // flinch clips after it, while the briefing is read (engine/post-load.js) — until one is in, it streams
+      await Promise.all([...chars].map((c) => this._preload(c, 'first')));
       if (this._disposed) return false;
+      afterLoadScreen(() => { if (!this._disposed) for (const c of chars) this._preload(c, 'rest'); });
       this.ok = true;
       this._listen();
       this.setTheme(this.theme);
@@ -232,10 +240,16 @@ export class TalkingPortraits {
     this.blobs.set(u, url.url);
   }
 
-  /** The files `_preload(c)` turns into blobs: every clip in the playable format + the pain stills (relative paths). */
-  static preloadFiles(e, fmt) {
-    const clips = [e.idle, e.talk_loop, ...Object.values(e.lines || {}).flatMap((l) => [l, l.alt]), ...(e.pain?.flinch || []), e.pain?.wounded];
-    return [...clips.filter(Boolean).map((x) => x.clip + '.' + fmt), ...['still', 'downed'].map((k) => e.pain?.[k]).filter(Boolean)];
+  /**
+   * The files `_preload(c)` turns into blobs: every clip in the playable format + the pain stills (relative paths).
+   * `part`: 'first' = what a portrait shows at once (its idle loop, the pain / downed stills), 'rest' = the talking
+   * and flinch clips (perf/download-speed-2: after the loading screen), undefined = all.
+   */
+  static preloadFiles(e, fmt, part) {
+    const first = [e.idle], rest = [e.talk_loop, ...Object.values(e.lines || {}).flatMap((l) => [l, l.alt]), ...(e.pain?.flinch || []), e.pain?.wounded];
+    const stills = part === 'rest' ? [] : ['still', 'downed'].map((k) => e.pain?.[k]).filter(Boolean);
+    const clips = part === 'first' ? first : part === 'rest' ? rest : [...first, ...rest];
+    return [...clips.filter(Boolean).map((x) => x.clip + '.' + fmt), ...stills];
   }
 
   /**
@@ -250,20 +264,24 @@ export class TalkingPortraits {
     const v = document.createElement('video');
     const fmt = ['webm', 'mp4'].find((k) => v.canPlayType(TYPES[k])) || null;
     if (!man || !fmt) return 0;
-    const urls = [];
-    for (const c of new Set(roles.map((r) => ROLE_TO_CHAR[r]).filter((c) => c && man.characters[c]))) {
-      for (const f of TalkingPortraits.preloadFiles(man.characters[c], fmt)) {
-        const u = b + f.replace('{size}', String(size));
-        if (!sessionCache.has(`blob:${u}`)) urls.push(u); // a blob already (an earlier mission): no fetch will come
-      }
-    }
-    return earlyFetch(urls, { rank: 3 });
+    const chars = [...new Set(roles.map((r) => ROLE_TO_CHAR[r]).filter((c) => c && man.characters[c]))];
+    const urls = (part) => chars.flatMap((c) => TalkingPortraits.preloadFiles(man.characters[c], fmt, part).map((f) => b + f.replace('{size}', String(size))))
+      .filter((u) => !sessionCache.has(`blob:${u}`)); // a blob already (an earlier mission): no fetch will come
+    // (the talking clips: load() fetches them itself once the loading screen is down, a few at a time)
+    return earlyFetch(urls('first'), { rank: 3 });
   }
 
-  async _preload(c) {
+  async _preload(c, part) {
     const e = this.man.characters[c], jobs = [];
-    for (const f of TalkingPortraits.preloadFiles(e, this.fmt)) jobs.push(this._blob(this.url(f)).catch(() => { /* streams instead */ }));
-    if (this.ownVoice) for (const x of [...Object.values(e.lines), ...(e.pain?.flinch || [])]) jobs.push(this._voice(x));
+    // (the talking clips after the loading screen: REST_AT_ONCE at a time, the selection lines first — what is wanted
+    // now, a line spoken before its turn, is not queued behind dozens of them; it streams meanwhile)
+    if (part === 'rest') {
+      const files = TalkingPortraits.preloadFiles(e, this.fmt, 'rest').sort((a, b) => SELECT_FIRST(b) - SELECT_FIRST(a));
+      let i = 0;
+      const lane = async () => { while (i < files.length && !this._disposed) await this._blob(this.url(files[i++])).catch(() => { /* streams instead */ }); };
+      jobs.push(...Array.from({ length: Math.min(REST_AT_ONCE, files.length) }, lane));
+    } else for (const f of TalkingPortraits.preloadFiles(e, this.fmt, part)) jobs.push(this._blob(this.url(f)).catch(() => { /* streams instead */ }));
+    if (this.ownVoice && part !== 'first') for (const x of [...Object.values(e.lines), ...(e.pain?.flinch || [])]) jobs.push(this._voice(x));
     await Promise.all(jobs);
   }
 

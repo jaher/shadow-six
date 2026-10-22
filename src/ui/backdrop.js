@@ -4,6 +4,12 @@
  *    water, weather; no units, no sim) seen through an olive duotone grade, the M1 wool camo scrim and the embossed
  *    emblem with its 30 s light sweep. Renders at half internal resolution, capped at 30 fps. B1s (static) when the
  *    option says STILL, reduced motion, the Low preset, low-memory devices, or until the diorama is built.
+ *    Its cost (the map's art: 30-50 MB on a first visit; the map build: seconds of CPU) never gets in a mission's way
+ *    (perf/download-speed-2, "no long pauses"): it starts at once only when its art is cached (this page loaded that
+ *    mission, or this browser did before at this quality — the service worker holds it), else once the menu has been up
+ *    DIORAMA_IDLE_MS without a mission being chosen; the map builds in slices (engine/slice.js) under a group of its
+ *    own that joins the scene only when complete, and a mission load cancels a build in progress (nothing of it is in
+ *    the scene, its gated steps never start, its library instances go).
  *  - 'mission' B2: the frozen frame of the Esc press graded to the oxblood duotone; sharp inside, 20 % vignette,
  *    1.01× Ken Burns drift.
  *  - 'paper' B3 and 'off': the menu layer paints its own ground; the diorama is released.
@@ -18,9 +24,21 @@ import { normalizeMission } from '../missions/schema.js';
 import { World } from '../world/world.js';
 import { EventBus } from '../core/events.js';
 import { assets } from '../engine/assets.js';
+import * as THREE from 'three';
 import * as MapBuilder from '../world/map-builder.js';
-import { prepareMissionArt } from '../art/building-props.js';
+import { prepareMissionArt, liveBuildings, disposeBuildingsSince } from '../art/building-props.js';
+import { runSliced } from '../engine/slice.js';
+import { sessionCache } from '../engine/asset-cache.js';
 import { oxbloodLUT, dioramaPath, samplePath } from './menu-model.js';
+
+/** On a first visit (art not cached) the live diorama waits this long on the menu before it downloads and builds. */
+export const DIORAMA_IDLE_MS = 20000;
+/** localStorage: `missionId|quality` of every mission whose art this browser loaded (the service worker keeps it). */
+const ART_SEEN_KEY = 'shadowsix.artSeen';
+const artQuality = (preset) => (preset === 'ultra' ? 'ultra' : preset === 'low' ? 'low' : 'default');
+function artSeen() {
+  try { const v = JSON.parse(localStorage.getItem(ART_SEEN_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
+}
 
 /** Theatres with a baked B1s still (assets/ui/diorama/<theater>.webp, tools/ui/bake_dioramas.mjs). */
 export const STILL_THEATERS = ['temperate', 'snow']; // desert / night join when their missions ship (re-run the bake)
@@ -75,7 +93,12 @@ export class Backdrop {
     this.dio = null;
     this._timer = 0;
     this._frameT = 0;
-    this._subs = [hud.game.events.on('mission:loading', () => this._release())];
+    this._buildGen = 0; // bumped by a mission load / leaving the menu: a diorama build in progress is cancelled
+    this._idleSince = null; // when the menu came up (the first-visit idle wait counts from here)
+    this._subs = [
+      hud.game.events.on('mission:loading', () => { this._idleSince = null; this._release(); }),
+      hud.game.events.on('mission:loaded', (e) => this._noteArt(e?.mission?.id)),
+    ];
     this._onVis = () => this._vis();
     document.addEventListener('visibilitychange', this._onVis);
   }
@@ -106,8 +129,11 @@ export class Backdrop {
       this._still();
       clearTimeout(this._timer);
       if (this.liveAllowed && !this.game.world && !this.dio) {
-        // loads after the first menu paint (§1.10 cost budget); the still crossfades out when it arrives
-        this._timer = setTimeout(() => this._build(), was === 'frontend' ? 0 : 350);
+        // loads after the first menu paint (§1.10 cost budget); the still crossfades out when it arrives — at once when
+        // its art is cached, else after the menu has been up DIORAMA_IDLE_MS (a first visit: the mission comes first)
+        this._idleSince ??= performance.now();
+        const wait = this._artCached() ? (was === 'frontend' ? 0 : 350) : Math.max(0, DIORAMA_IDLE_MS - (performance.now() - this._idleSince));
+        this._timer = setTimeout(() => this._build(), wait);
       }
     } else if (mode === 'mission' && !this.frozen.classList.contains('on')) this.freeze();
     document.documentElement.classList.toggle('bd-live', mode === 'frontend' && !!this.dio);
@@ -244,6 +270,24 @@ export class Backdrop {
     return `assets/ui/diorama/${t}.webp`;
   }
 
+  /** Is the diorama mission's art cached at this quality (this page loaded it, or this browser did before)? */
+  _artCached(def = this.dioramaMission()) {
+    if (!def) return false;
+    if (sessionCache.missions?.includes?.(def.id)) return true;
+    return artSeen().includes(`${def.id}|${artQuality(this.game.renderer?.presetName)}`);
+  }
+
+  /** A mission's art was loaded (the service worker now holds it): remembered for the next visits' diorama. */
+  _noteArt(id) {
+    if (!id) return;
+    const k = `${id}|${artQuality(this.game.renderer?.presetName)}`;
+    try {
+      const v = artSeen().filter((x) => x !== k);
+      v.unshift(k);
+      localStorage.setItem(ART_SEEN_KEY, JSON.stringify(v.slice(0, 40)));
+    } catch { /* storage off: the first-visit wait applies */ }
+  }
+
   /** The mission the profile last reached (M1 on first run). */
   dioramaMission() {
     const last = this.hud.profiles?.last?.missionId;
@@ -263,49 +307,104 @@ export class Backdrop {
       return;
     }
     const t0 = performance.now();
+    const gen = ++this._buildGen;
+    // still wanted: no mission load started, the menu is still up (each slice of the build checks)
+    const wanted = () => this._buildGen === gen && this.mode === 'frontend' && !g.world && !this.dio;
     // the real building / bridge models of that map (polish: the diorama showed placeholder boxes); the same
-    // cached fetches the mission load reuses, so this doubles as a preload of the likely next mission
+    // cached fetches the mission load reuses
     this._building = true;
     try {
       const q = r.presetName === 'ultra' ? 'ultra' : r.presetName === 'low' ? 'low' : 'default';
       await prepareMissionArt(def, { assets, quality: q });
     } catch (err) {
       console.warn('[backdrop] diorama art', err);
-    } finally {
-      this._building = false;
     }
-    if (this.mode !== 'frontend' || g.world || this.dio) return; // a mission started / the menu left meanwhile
-    const world = new World({ game: g, scene: r.scene, events: new EventBus(), size: def.size, seed: def.seed ?? CONFIG.sim.seed, mission: def });
+    if (!wanted()) { this._building = false; return; } // a mission started / the menu left meanwhile
+    // built off the scene, a slice at a time (the menu keeps drawing and answering): its own group joins the scene once
+    // complete; the gate holds what the map starts loading (terrain textures, water, late stamps) until then
+    const root = new THREE.Group();
+    root.name = 'menu-diorama';
+    const world = new World({ game: g, scene: root, events: new EventBus(), size: def.size, seed: def.seed ?? CONFIG.sim.seed, mission: def });
+    let openGate = null;
+    const gate = new Promise((ok) => { openGate = ok; });
+    const before = liveBuildings();
     let handle = null;
     try {
       r.setTheater?.(def.theater || 'temperate', def.lighting || null);
       r.setMapBounds?.(def.size[0], def.size[1]);
       g.cameraRig.reset();
       g.cameraRig.setBounds(def.size[0], def.size[1]);
-      const build = MapBuilder.buildMap;
-      handle = build(world, def, { theater: def.theater, renderer: r, scene: r.scene, assets });
-      world.rebuildSpatial?.();
+      handle = await runSliced(MapBuilder.buildMapGen(world, def, { theater: def.theater, renderer: r, scene: root, assets, gate }), { cancelled: () => !wanted() });
     } catch (err) {
       console.warn('[backdrop] diorama build failed', err);
-      try { handle?.dispose?.(); world.dispose(); } catch { /* ignore */ }
+      handle = null;
+    } finally {
+      this._building = false;
+    }
+    if (!handle || !wanted()) {
+      // cancelled (a mission load started) or failed: nothing of it is in the scene and its gate stays shut (its gated
+      // steps never start); its library instances go
+      try { if (handle) handle.dispose(); else disposeBuildingsSince(before); } catch (err) { console.warn('[backdrop] dispose', err); }
+      try { world.dispose(); } catch { /* ignore */ }
       return;
     }
+    r.scene.add(root);
+    openGate();
+    world.rebuildSpatial?.();
     const cc = g.cameraController;
-    this.dio = { world, handle, def, t: 0, path: dioramaPath(def), zoom: cc?.zoom ?? 1, buildMs: performance.now() - t0 };
+    const d = (this.dio = { world, handle, root, def, t: 0, path: dioramaPath(def), zoom: cc?.zoom ?? 1, buildMs: performance.now() - t0, warming: false });
     // §1.10 cost budget: 50 % internal resolution and 30 fps while the diorama is the only thing drawn
     this._savedPreset = r.preset;
     r.preset = { ...r.preset, pixelRatio: Math.min(r.preset.pixelRatio ?? 1, 0.5 * (devicePixelRatio || 1)) };
     r.resize();
     this._origRender = r.render;
     r.render = (dt) => {
-      if (this._frameT > 0) return;
+      if (this._frameT > 0 || d.warming) return; // (its programs still linking aside: the still shows meanwhile)
       this._frameT = 1 / 30 - 0.004;
       this._origRender.call(r, dt);
       if (this.dio) this._compose(r.domElement); // same task: the drawing buffer is still valid
     };
     cc?.setZoom?.(CONFIG.camera.zoomLevels?.[0] ?? 0.5);
     this._place(0);
+    // its programs link aside before its first frame draws (engine/parallel-compile.js), not inside a later frame: one
+    // frame of the WHOLE map (the camera's frustum widened to it, like Game._warmFrame), probed a share at a time —
+    // the 90 s camera loop then meets no new program (a view of the map not drawn yet linked its programs inside a
+    // frame: 0.6-0.85 s menu freezes)
+    // (after what the map builds once its gate opens — ground textures, grass, trees, water, its first-frame build —
+    // as a mission load does: a program first drawn later links inside that frame. The still shows meanwhile.)
+    d.warming = true;
+    (async () => {
+      try {
+        await Promise.race([handle.ready, new Promise((ok) => setTimeout(ok, 20000))]);
+        if (this.dio === d && handle.prepareG) await runSliced(handle.prepareG(), { cancelled: () => this.dio !== d });
+        if (this.dio === d && typeof g._compileAhead === 'function') await g._compileAhead(() => this._wholeMapFrame(def), { cancelled: () => this.dio !== d, always: true, parts: true });
+      } catch { /* draw anyway */ }
+      d.warming = false;
+    })();
     document.documentElement.classList.add('bd-live');
+  }
+
+  /** One frame of the diorama's whole map: the camera's orthographic frustum widened to it for this render only. */
+  _wholeMapFrame(def) {
+    const r = this.game.renderer, cam = r.camera;
+    if (!cam?.isOrthographicCamera || !def?.size) return this._origRender.call(r, 0);
+    const [W, D] = def.size, m = 12, saved = { left: cam.left, right: cam.right, top: cam.top, bottom: cam.bottom, zoom: cam.zoom, view: cam.view ? { ...cam.view } : null };
+    cam.updateMatrixWorld();
+    const v = new THREE.Vector3();
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (const x of [-m, W + m]) for (const z of [-m, D + m]) for (const y of [-3, 24]) {
+      v.set(x, y, z).applyMatrix4(cam.matrixWorldInverse);
+      x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y);
+    }
+    try {
+      cam.left = x0; cam.right = x1; cam.bottom = y0; cam.top = y1; cam.zoom = 1; cam.clearViewOffset?.();
+      cam.updateProjectionMatrix();
+      return this._origRender.call(r, 0);
+    } finally {
+      Object.assign(cam, { left: saved.left, right: saved.right, top: saved.top, bottom: saved.bottom, zoom: saved.zoom });
+      if (saved.view) cam.setViewOffset(saved.view.fullWidth, saved.view.fullHeight, saved.view.offsetX, saved.view.offsetY, saved.view.width, saved.view.height);
+      cam.updateProjectionMatrix();
+    }
   }
 
   /** Camera along the 90 s loop (§1.10: eased keys, the standard game angle). */
@@ -318,12 +417,14 @@ export class Backdrop {
 
   _release() {
     clearTimeout(this._timer);
+    this._buildGen++; // a build in progress stops at its next slice
     const d = this.dio;
     if (!d) return;
     this.dio = null;
     const r = this.game.renderer;
     try { d.handle?.dispose?.(); } catch (err) { console.warn('[backdrop] dispose', err); }
     try { d.world.dispose(); } catch { /* ignore */ }
+    d.root?.removeFromParent();
     if (this._origRender) r.render = this._origRender;
     this._origRender = null;
     if (this._savedPreset) r.preset = this._savedPreset;
