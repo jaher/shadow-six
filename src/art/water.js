@@ -547,6 +547,8 @@ function* buildWaterG(R, world, grid, mission, theater, o, sliced) {
     sample: (x, z) => system.sample(x, z),
     sampleInto: (x, z, out) => system.sampleInto(x, z, out),
     depthAt: (x, z) => system.depthAt(x, z),
+    /** Level of the water body under (x, z) from its grid cells (a gameplay query: the same at every preset), or null. */
+    levelAt: (x, z) => system.levelAt(x, z),
     disturb: (...a) => system.disturb(...a),
     /** Late-FX roots (particles/VFX on FX_LAYER) scanned every frame so new effects draw over the water at once. */
     addLateRoot: (root) => system.addLateRoot(root),

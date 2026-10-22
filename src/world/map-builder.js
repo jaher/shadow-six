@@ -2111,11 +2111,25 @@ export function* buildMapGen(world, mission, opts = {}) {
     }
     world.water = water;
   };
+  // the trees' branches over open cells (gun arcs): measured on the tree set gameplay uses, the same at every preset
+  // (art/terrain/vegetation.js gameplayBranches: 'low' draws fewer, simpler trees — the gun arcs must not change)
+  const branchesStamped = Promise.resolve(terrain?.ready).then(async () => {
+    if (gone || !meshes || !terrain?.ground) return null;
+    // (no trees: the ground, as ever — nothing to measure, an empty stamp)
+    const g = (terrain.gameplayBranches ? await terrain.gameplayBranches() : null) ?? { root: terrain.ground, trees: terrain.vegetation?.trees };
+    if (gone) { g.dispose?.(); return null; }
+    try { return await runSliced(stampTreeBranchesG(world, g.root, g.trees)); } finally { g.dispose?.(); }
+  });
   const handle = {
     propsRoot, terrain, structures, interactables, links,
     get water() { return water; },
+    /**
+     * Resolves when what the gameplay world measures on the art is stamped (the trees' branches; the library buildings'
+     * stamps are made in the build, on their LOD0 at every preset): Game.loadMission waits for it, however slow the rest.
+     */
+    gameplayReady: branchesStamped.catch(() => null),
     /** Resolves when the ground textures, grass, trees and water are built (placeholder / grid-only: at once). */
-    ready: Promise.all([Promise.resolve(terrain?.ready).then(() => (!gone && meshes && terrain?.ground ? runSliced(stampTreeBranchesG(world, terrain.ground, terrain.vegetation?.trees)) : null)).then(buildPavementNow).then(buildWaterNow).then(() => water?.system.texturesReady), Promise.resolve(terrain?.ready).then(() => terrain?.apronReady), libReady,
+    ready: Promise.all([branchesStamped.then(buildPavementNow).then(buildWaterNow).then(() => water?.system.texturesReady), Promise.resolve(terrain?.ready).then(() => terrain?.apronReady), libReady,
       // the dam pool's lace / normal textures (render/dam-water-pool.js): decoded before the first frame draws the pool
       meshes && realTerrain && hasDamWater(structures) ? loadDamPoolTextures() : null]).then(() => { lifeReady = true; }),
     /**

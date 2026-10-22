@@ -571,6 +571,20 @@ export class WaterSystem {
   /** Depth (m) of the body under (x,z) or -1 when dry — useful for gameplay (swimming, wading). */
   depthAt(x, z) { const s = this.sample(x, z); return s ? s.depth : -1; }
 
+  /**
+   * Level (m) of the body whose own cells hold (x, z) — the nav-grid water cells it was made from (`o.mask`), not its
+   * bake: a gameplay query, the same at every preset (sample() reads the bake, at the quality's resolution: a shore
+   * point wet on 'high' could read dry on 'low'). Bodies without a mask: sample(). null = no body there.
+   */
+  levelAt(x, z) {
+    let maskless = false;
+    for (const b of this.bodies) {
+      if (typeof b.o.mask !== 'function') { maskless = true; continue; }
+      if (b.o.mask(x, z)) return b.level;
+    }
+    return maskless ? (this.sample(x, z)?.level ?? null) : null;
+  }
+
   _frameUniforms(readBuffer, depthTex) {
     const s = this.shared, c = this.camera;
     s.sceneColor.value = readBuffer.texture; s.sceneDepth.value = depthTex || readBuffer.depthTexture;

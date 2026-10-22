@@ -176,16 +176,26 @@ export function expandBuildingNames(list, theater) {
 }
 
 /**
- * Preload GLBs for asset names / types: every LOD the quality can show ('low' never draws LOD0, so it is skipped here;
- * createBuilding still attaches LOD0 of the placed buildings — their door nodes live there — so in practice 'low' saves
- * the destroyed / unused variants' LOD0).
+ * Preload GLBs for asset names / types: every LOD the quality can show ('low' never draws LOD0, so it is skipped here
+ * for the destroyed / unused variants). `placed`: the asset names the map build draws — their LOD0 is loaded at every
+ * quality, before the build: the gameplay stamps (visual nav, head room, overhangs, levelled bases, low surfaces,
+ * crawl steps, body solids…) are measured on the finest level of detail, so at 'low' they measured LOD1 while LOD0 was
+ * still on its way (createBuilding attaches it anyway: the door nodes live there) — a gameplay world that changed
+ * with the graphics preset (M3 at 'low': the cabins' eaves measured on LOD1, the walkthrough off the logic run).
  */
-export async function preloadBuildings(list, { theater, lods = L.lodBias ? [1, 2] : [0, 1, 2], onProgress } = {}) {
-  const names = expandBuildingNames(list, theater);
-  const jobs = [];
-  for (const n of names) for (const i of lods) if (L.manifest.assets[n].lods[i]) jobs.push([n, i]);
+export async function preloadBuildings(list, { theater, lods, placed = [], onProgress } = {}) {
+  const jobs = preloadJobs(list, { theater, lods, placed });
   let done = 0;
   await Promise.all(jobs.map(([n, i]) => loadLod(n, i).then(() => onProgress?.(++done, jobs.length))));
+}
+
+/** The [asset name, LOD] loads of preloadBuildings (placed models' LOD0 first, then every LOD the quality shows). */
+export function preloadJobs(list, { theater, lods = L.lodBias ? [1, 2] : [0, 1, 2], placed = [] } = {}) {
+  const jobs = [], seen = new Set();
+  const add = (n, i) => { const k = `${n}#${i}`; if (!seen.has(k) && L.manifest.assets[n]?.lods[i]) { seen.add(k); jobs.push([n, i]); } };
+  for (const n of placed) add(n, 0);
+  for (const n of expandBuildingNames(list, theater)) for (const i of lods) add(n, i);
+  return jobs;
 }
 
 function loadLod(name, i) {

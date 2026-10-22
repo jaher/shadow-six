@@ -2250,6 +2250,7 @@ CONFIG.rulesets = { BEL: { knockouts: false, handcuffs: false, stones: false, ci
 
 ### 10.5 Determinism, performance, testing
 - **Determinism.** A seeded `Rng` per mission drives sweep phases, search points and decoy tie-breaks. Enemy shots are deterministic hits (§4.1), so a quickload replays identically given the same inputs.
+- **The graphics preset never changes gameplay.** Art LOD and detail differ per preset; what gameplay measures on the art does not: the library buildings' stamps are measured on their LOD0 (preloaded for the placed models at every preset, 'low' included), the trees' branch cells (gun arcs) on the 'high' tree set (`GAMEPLAY_TREES`, art/terrain/vegetation.js `gameplayBranches`), a smashed gate breaks into at most `CONFIG.physics.gameplayCaps.gatePieces`, the raft's deck check reads the water body's level from its grid cells (`levelAt`), not the preset's bake. Guard: `tests/preset-determinism.test.mjs` loads every mission cold at 'low' and 'high' and compares the gameplay-world fingerprint (`src/debug/gameplay-fingerprint.js`) field by field (2026-10-22: 'low' had measured the buildings on LOD1 and its own trees — the M3 walkthrough at 'low' drifted off the logic run and timed out).
 - **Performance budget.**
   - 40–80 enemies, of which about 40 are on screen.
   - Perception at 60 Hz costs under 1.0 ms per frame on the target GPU machine: spatial hash first, then the angle test, then LOS.

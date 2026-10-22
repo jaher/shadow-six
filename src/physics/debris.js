@@ -327,7 +327,7 @@ Object.assign(GateDebris.prototype, {
     if (g.intact) { rw.removeRigidBody(g.intact); g.intact = null; }
     g.broken = true; g.active = true; g.frozen = false; g.t = 0; g.outcome = e.outcome; g.thuds = 0; g.speed = e.speed || 0;
     const smash = { outcome: e.outcome, info: e.info, seed: e.seed >>> 0 };
-    const plan = planFracture(L, smash, Math.max(4, pw.caps.debris ?? 64));
+    const plan = planFracture(L, smash, Math.max(4, pw.caps.gatePieces ?? 64)); // (a gameplay cap: the same at every preset)
     const comps = componentsOf(L, plan.edges, plan.cut);
     const rand = rng32((smash.seed ^ 0x9e3779b9) >>> 0);
     const v = Math.max(1, e.speed || 0), shatter = e.outcome === 'shatter';

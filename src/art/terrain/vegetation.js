@@ -14,6 +14,11 @@ useThree(THREE);
 
 /** Unique (fully generated) trees per preset; the rest of a forest becomes impostors (must-fix 11). */
 export const MAX_UNIQUE = { low: 150, medium: 300, high: 400, ultra: 500 };
+/**
+ * The tree set gameplay measures (gameplayBranches): what this quality draws, at every preset — the gun-arc branch cells
+ * are part of the gameplay world, which never changes with the graphics preset ('high': the set every run was made on).
+ */
+export const GAMEPLAY_TREES = 'high';
 const PROTOS_PER_SPECIES = 2;
 const IMP_TILE = { low: 160, medium: 192, high: 224, ultra: 256 };   // whole-tree tiles: below ~1:1 at zoom 1 they read blurry
 /** Conifer impostors: light gain standing in for the needle shader's canopy scattering and translucency. */
@@ -562,9 +567,8 @@ export async function createVegetation(scene, placements, theater = 'temperate',
   let building = null;
 
   const ts = opts.season || {};
-  async function build() {
-    const t0 = performance.now();
-    const q = TREE_QUALITY[quality];
+  /** Every planted tree with its seed, ground height and season looks (the same at every quality). */
+  function treeList() {
     const list = [];
     for (const p of placements) {
       if (!SPECIES[p.species]) continue;
@@ -577,8 +581,12 @@ export async function createVegetation(scene, placements, theater = 'temperate',
       const ivy = p.ivy ?? (sp.kind === 'broad' && !sp.evergreen && sp.H[1] > 9 && hash2(seed & 0xffff, seed >>> 16, 31) < (ts.ivy || 0));
       list.push({ ...p, y, seed, leafless, marc: leafless ? ts.marc || 0 : 0, marcTrees: ts.marcTrees, ivy, dates: p.dates ?? !!ts.dates, fruit: !!ts.fruit });
     }
+    return list;
+  }
+  /** The trees drawn unique at `qName` (`hero`) and those drawn as impostors (`imp`). */
+  function heroSplit(list, qName) {
     // unique budget: heroes first (p.hero), then a seeded shuffle, so impostors are spread evenly through forests
-    const maxU = opts.maxUnique ?? MAX_UNIQUE[quality] ?? 500;
+    const maxU = opts.maxUnique ?? MAX_UNIQUE[qName] ?? 500;
     let hero = list, imp = [];
     // impostor candidates = trees in dense stands (forest interiors); solitary / hedge / designed trees stay unique
     const cell = new Map(), ck = (x, z) => Math.floor(x / 6) + ',' + Math.floor(z / 6);
@@ -600,22 +608,34 @@ export async function createVegetation(scene, placements, theater = 'temperate',
         hero = hero.filter((p) => !drop.has(p)); imp = imp.concat([...drop]);
       }
     }
+    return { hero, imp };
+  }
+  /** The unique trees in CHUNK m squares (one geometry set per chunk). */
+  function chunksOf(hero) {
     const chunks = new Map();
     for (const p of hero) {
       const key = Math.floor(p.x / CHUNK) + ',' + Math.floor(p.z / CHUNK);
       if (!chunks.has(key)) chunks.set(key, { key, trees: [] });
       chunks.get(key).trees.push({ species: p.species, seed: p.seed, x: p.x, y: p.y, z: p.z, scale: p.scale, burnt: p.burnt, leafless: p.leafless, marc: p.marc, marcTrees: p.marcTrees, ivy: p.ivy, dates: p.dates, fruit: p.fruit, crownBase: p.crownBase, crownR: p.crownR, visual: p.visual, clear: p.clear });
     }
-    const chunkList = [...chunks.values()];
+    return [...chunks.values()];
+  }
+  /**
+   * The chunks' tree geometry arrays at quality `qName` (session cache, else the workers, else here a slice at a time:
+   * the same trees in the same order). `barkOnly` (a set generated to be measured, never drawn): only its bark and tree
+   * info are kept in the session cache. @returns {Promise<{out: object[], cached: boolean, worker: boolean}>}
+   */
+  async function generate(chunkList, qName, nHero, { barkOnly = false } = {}) {
+    const q = TREE_QUALITY[qName];
     // generated meshes are a pure function of the chunks + quality: a restart reuses them (session cache)
-    const genKey = `trees:${quality}:${dataKey((h) => { h.str(JSON.stringify(q)); h.str(JSON.stringify(chunkList)); })}`;
-    let out = cache.get(genKey) || null;
-    stats.cached = !!out;
-    stats.worker = false;
+    const sig = dataKey((h) => { h.str(JSON.stringify(q)); h.str(JSON.stringify(chunkList)); });
+    const genKey = `trees:${qName}:${sig}`, barkKey = `trees-bark:${qName}:${sig}`;
+    let out = cache.get(genKey) || (barkOnly ? cache.get(barkKey) : null) || null, worker = false;
+    const cached = !!out;
     const nW = opts.workers ?? Math.min(4, Math.max(1, (navigator.hardwareConcurrency || 4) - 1));
-    if (!out && opts.workers !== 0 && hero.length >= 40) {
+    if (!out && opts.workers !== 0 && nHero >= 40) {
       try { out = await genInWorkers(chunkList, q, nW); } catch (e) { console.warn('[vegetation] worker generation failed, falling back', e); out = null; }
-      stats.worker = !!out;
+      worker = !!out;
     }
     if (!out) {
       // here: tree by tree, a slice at a time (engine/slice.js) — the same trees in the same order
@@ -629,7 +649,21 @@ export async function createVegetation(scene, placements, theater = 'temperate',
         return res;
       })());
     }
-    if (!stats.cached) cache.set(genKey, out, { bytes: chunkBytes });
+    if (!cached && barkOnly) cache.set(barkKey, out.map((r) => ({ key: r.key, bark: r.bark, info: r.info })), { bytes: chunkBytes });
+    else if (!cached) cache.set(genKey, out, { bytes: chunkBytes });
+    return { out, cached, worker };
+  }
+  /** Quality of the tree set last built (drawn), null before the first. */
+  let builtQuality = null;
+  async function build() {
+    const t0 = performance.now();
+    const q = TREE_QUALITY[quality], qName = quality;
+    const { hero, imp } = heroSplit(treeList(), qName);
+    const chunkList = chunksOf(hero);
+    const gen = await generate(chunkList, qName, hero.length);
+    const out = gen.out;
+    stats.cached = gen.cached;
+    stats.worker = gen.worker;
     // swap geometry in only when the new set is ready (no pop-out while regenerating)
     for (const m of [...group.children]) { group.remove(m); m.geometry.dispose(); }
     leafMeshes = [];
@@ -730,6 +764,7 @@ export async function createVegetation(scene, placements, theater = 'temperate',
     stats.unique = hero.length;
     stats.drawCalls = group.children.length;
     stats.genMs = Math.round(performance.now() - t0);
+    builtQuality = qName;
   }
   building = build();
   await building;
@@ -770,6 +805,30 @@ export async function createVegetation(scene, placements, theater = 'temperate',
       if (camera) U.uSunV.value.transformDirection(camera.matrixWorldInverse);
     },
     setQuality(q2) { if (TREE_QUALITY[q2] && q2 !== quality) { quality = q2; building = build(); } return building; },
+    /**
+     * The trees gameplay measures (world/map-builder.js stampTreeBranchesG: the branch cells of gun arcs): the bark of
+     * the trees GAMEPLAY_TREES ('high') draws unique, generated at that quality — whatever the preset draws. 'low' draws
+     * fewer unique trees (MAX_UNIQUE) with half the twigs (TREE_QUALITY): measured on what it drew, the gun arcs changed
+     * with the graphics preset. When the drawn set is that quality: its meshes; else a measurement-only copy (never
+     * drawn, `dispose` frees it). @returns {Promise<{root: THREE.Object3D, trees: object[], dispose: () => void}>}
+     */
+    async gameplayBranches() {
+      await building;
+      if (builtQuality === GAMEPLAY_TREES) { stats.gameplay = { drawn: true }; return { root: group, trees, dispose() {} }; }
+      const t0 = performance.now();
+      const { hero, imp } = heroSplit(treeList(), GAMEPLAY_TREES);
+      const chunkList = chunksOf(hero), byKey = new Map(chunkList.map((c) => [c.key, c]));
+      const { out, cached, worker } = await generate(chunkList, GAMEPLAY_TREES, hero.length, { barkOnly: true });
+      stats.gameplay = { drawn: false, unique: hero.length, cached, worker, ms: Math.round(performance.now() - t0) }; // (load cost at 'low')
+      const root = new THREE.Group(), list = [];
+      root.name = 'vegetationB:gameplay';
+      for (const r of out) {
+        byKey.get(r.key).trees.forEach((t, i) => list.push({ ...t, ...r.info[i], impostor: false }));
+        if (r.bark) { const m = new THREE.Mesh(GeoAcc.arraysToGeometry(r.bark, 0)); m.name = 'vegBark'; root.add(m); }
+      }
+      for (const p of imp) list.push({ ...p, impostor: true });
+      return { root, trees: list, dispose() { for (const m of root.children) { m.geometry.dispose(); m.material.dispose(); } } };
+    },
     setSnow(a) { U.uSnowAmt.value = a; },
     /** The tree root (x, y, z, H + 100·kind) of vertex `i` of one of the group's meshes (tests / tools). */
     rootAt: (geometry, i) => vertexRoot(geometry, i),

@@ -196,6 +196,14 @@ export function installTestApi(game) {
       return { preset: R.presetName, frames: n, wallMedian: med(wall), wallP95: p95(wall), gpuMedian: med(gpu), gpuP95: p95(gpu), gpuSamples: gpu.length, size: [R.width, R.height], pixelRatio: R.renderer.getPixelRatio(), ...R.stats() };
     },
     abilities: () => Object.keys(ABILITIES),
+    /**
+     * Fingerprint of the loaded mission's gameplay world (debug/gameplay-fingerprint.js, loaded on first use): the same
+     * at every graphics preset (tests/preset-determinism.test.mjs). `{fields: {name: hash}, detail}`.
+     */
+    async gameplayFingerprint() {
+      const { gameplayFingerprint } = await import('./gameplay-fingerprint.js');
+      return game.world ? gameplayFingerprint(game.world, { game }) : null;
+    },
     /** Clipping / interpenetration audit (debug/clip-audit.js, loaded on first use): `const c = await __game.clipAudit()`. */
     async clipAudit() {
       if (!api.clip) api.clip = (await import('./clip-audit.js')).createClipApi(game);

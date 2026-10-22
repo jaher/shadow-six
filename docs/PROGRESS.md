@@ -687,3 +687,9 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 - debug-walkthrough-touch failed on master: the scrubber row's −1s/+1s were 38×30. Now 44×44; the 16 px timeline track takes touches over 44 px (invisible ::after). Portrait bar 140 → 150 px, no overflow 360–430 px portrait or 667–932 px landscape.
 - The touch test now samples until the acting men are framed (≤20 s) instead of one fixed instant (the GB sat under the bar at the map's N edge for ~2 s in short landscape views, on master too).
 - debug-walkthrough-touch, -hold, -sim, debug-walkthrough, debug-video-link pass; unit 2233/0.
+
+## 2026-10-22 — Gameplay identical at every graphics preset (merged 5b89f1017)
+- Found by the always-action work: an M3 walkthrough from the start at preset=low timed out in stage I (the live run drifted off the logic run since art/m05).
+- Cause: at `low` the loader skipped LOD0 of buildings, so the map build measured visual nav, eaves/head room, overhangs, crawl steps etc. on LOD1; the late re-stamp skipped instanced repeats (M3's three snow log cabins). Also preset-dependent: tree branch cells (gun arcs), smashed-gate piece count (physics tier cap), the raft deck's water level (water bake resolution).
+- Fix: LOD0 of placed buildings preloaded at every preset (same download), branch cells always from the high tree set (bark-only, never drawn; play waits on `gameplayReady`), fixed `gatePieces = 64`, `WaterSystem.levelAt` from grid cells. High unchanged.
+- Guard: `tests/preset-determinism.test.mjs` (GPU, all 22 missions cold at low vs high, field-by-field gameplay fingerprint `__game.gameplayFingerprint()`), unit guards. M3 at low from cold: won 2703.83, 0/0, checkpoints identical to m03-solution. Unit 2248/0.

@@ -18,8 +18,9 @@ export function houseFlags() {
 }
 
 /**
- * Renderer preset name → physics tier ('high' when unknown). The tier only scales VISUAL extras (debris); the caps that
- * decide which bodies and props are simulated are one fixed set (CONFIG.physics.gameplayCaps, §0.2 determinism).
+ * Renderer preset name → physics tier ('high' when unknown). The tier only scales VISUAL extras; the caps that decide
+ * which bodies, props and smashed-gate pieces are simulated are one fixed set (CONFIG.physics.gameplayCaps, §0.2
+ * determinism: a smashed gate once broke into fewer pieces on 'low').
  */
 export function tierFromPreset(presetName) {
   return PHYSICS_TIERS.includes(presetName) ? presetName : 'high';

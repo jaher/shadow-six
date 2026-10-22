@@ -540,6 +540,11 @@ export function* buildTerrainG(grid, theater = 'temperate', ctx = {}) {
     get apronReady() { return apronReady; },
     get terrain() { return inner.terrain; },
     get vegetation() { return veg; },
+    /**
+     * The trees gameplay measures (their branches: gun-arc cells, world/map-builder.js stampTreeBranchesG), the same at
+     * every preset (art/terrain/vegetation.js gameplayBranches), once the vegetation is built; null without trees.
+     */
+    gameplayBranches: () => ready.then(() => veg?.gameplayBranches?.() ?? null),
     get quality() { return quality; },
     // past the map edge: the scenery apron's ground (edge runs, telegraph poles stand on it), else the map's
     heightAt: (x, z) => (apron && (x < 0 || z < 0 || x > grid.width || z > grid.depth) ? apron.heightAt(x, z) : inner.heightAt(x, z)),

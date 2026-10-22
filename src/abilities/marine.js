@@ -116,7 +116,9 @@ function dryAt(world, x, z) {
   const wet = g.terrain[k] === T.WATER || g.terrain[k] === T.SHALLOW;
   if (g.bridge[k] || pierAt(world, x, z)) {   // a deck: low over the water only
     const top = typeof world.groundY === 'function' ? world.groundY(x, z) || 0 : 0;
-    return top - (world.water?.sample?.(x, z)?.level ?? -0.1) <= DECK_MAX;
+    // (the body's level from its grid cells, not the drawn water's bake: that one's resolution is the preset's)
+    const lv = world.water?.levelAt ? world.water.levelAt(x, z) : world.water?.sample?.(x, z)?.level;
+    return top - (lv ?? -0.1) <= DECK_MAX;
   }
   return !wet && !((g.elev?.[k] || 0) > 0.05);
 }

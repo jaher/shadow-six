@@ -601,8 +601,10 @@ export const CONFIG = {
     looseItemFrac: 0.6, // knock-loose helmets when J > 60 % of the fall threshold
     // §0.2 determinism: the ragdoll and prop caps decide which body / prop gets simulated, and that result feeds
     // gameplay, so they are ONE fixed set for every graphics preset (a replay made on 'low' matches one on 'ultra').
-    gameplayCaps: { ragdolls: 8, props: 48 },
-    // purely visual extras (debris chips, glass shards) scale with the quality preset
+    // A smashed gate's pieces (physics/debris.js planFracture) are bodies that shove units, props, ragdolls and hulls:
+    // gameplay too — at most `gatePieces` loose groups at every preset ('low' broke a gate into fewer pieces than 'high')
+    gameplayCaps: { ragdolls: 8, props: 48, gatePieces: 64 },
+    // purely visual extras scale with the quality preset (nothing simulated reads them: gameplayCaps above)
     caps: {
       low: { debris: 32 },
       medium: { debris: 64 },

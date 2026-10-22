@@ -821,17 +821,22 @@ export async function prepareMissionArt(mission, o = {}) {
     S.failed = true;
     return false;
   }
-  const theater = mission?.theater || 'temperate', names = new Set();
+  const theater = mission?.theater || 'temperate', names = new Set(), placed = new Set();
   for (const s of mission?.structures || []) {
     const pk = pickAsset(s.type, s.assetPart?.asset ? { ...s, asset: s.assetPart.asset } : s, { theater, missionId: S.mission });
     if (!pk) continue;
     const a = buildingMeta(pk.name);
-    names.add(theater === 'snow' && a.snowVariant ? a.snowVariant : pk.name); // the variant createBuilding will use
+    const n = theater === 'snow' && a.snowVariant ? a.snowVariant : pk.name; // the variant createBuilding will use
+    names.add(n);
+    // (…and the model it draws: a structure in ruins from the start draws the ruin, art/building-library.js resolveBuilding)
+    const dv = s.destroyed ? buildingMeta(n)?.destroyedVariant : null;
+    placed.add(dv && S.manifest.assets[dv] ? dv : n);
   }
   // `artAssets`: models a mission's art script places itself (M7: the village compounds' parts, the drying racks)
-  for (const n of mission?.artAssets || []) if (S.manifest.assets[n]) names.add(n);
+  for (const n of mission?.artAssets || []) if (S.manifest.assets[n]) { names.add(n); placed.add(n); }
   const t0 = performance.now();
-  const job = preloadBuildings([...names], { theater }); // + their destroyed variants
+  // + their destroyed variants; the placed models' LOD0 at every preset (the gameplay stamps measure it: never 'low' only)
+  const job = preloadBuildings([...names], { theater, placed: [...placed] });
   await Promise.race([job, new Promise((ok) => setTimeout(ok, o.timeoutMs ?? 25000))]);
   let bytes = 0;
   for (const n of expandBuildingNames([...names], theater)) for (const l of buildingMeta(n).lods) bytes += l.bytes || 0;

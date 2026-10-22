@@ -90,12 +90,12 @@ test('gate smash: fracture plan — burst tears one leaf off and leaves the othe
  * M2 staged for a ram. M2's gate_se is a boom barrier; `plank: true` swaps in the two-leaf plank gate (the model the
  * plank tests below exercise) on the same spot, in the old 4 m opening (m2PlankDef).
  */
-async function m2Sim({ plank = true } = {}) {
+async function m2Sim({ plank = true, tier = 'high' } = {}) {
   Entity.nextId = 1;
   const def0 = getMission('m02');
   const def = plank ? m2PlankDef(def0) : def0;
   const s = makeSim({ ...def, commandos: def.commandos.filter((c) => c.role === 'driver') }, { brains: false });
-  s.world.physics = await createPhysics(s.world, { tier: 'high' });
+  s.world.physics = await createPhysics(s.world, { tier });
   const truck = s.get('truck'), gate = s.world.interactables.find((i) => i.tag === 'gate_se'), driver = s.cmd('driver');
   driver.setPosition(truck.x - 3, truck.z + 3);
   truck.enter(driver);
@@ -146,6 +146,23 @@ test('gate smash physics: same scenario twice is bit-identical (fixed step, smas
   a.s.run(7); b.s.run(7);
   assert.equal(digest(a.pw), digest(b.pw));
   assert.deepEqual(a.gate.smash, b.gate.smash);
+});
+
+test('gate smash physics: the same pieces and spots at every graphics preset (the physics tier only scales visual extras)', async () => {
+  // a smashed gate's pieces shove units, props, ragdolls and hulls: gameplay. The fracture once took the tier's visual
+  // debris cap (low 32, high 64, ultra 96): 'low' broke a gate into fewer pieces (CONFIG.physics.gameplayCaps.gatePieces)
+  const runs = [];
+  for (const tier of ['low', 'high', 'ultra']) {
+    const r = await m2Sim({ tier });
+    r.truck.handleOrder(r.driver, { type: 'move', x: 62, z: 55, run: true });
+    r.s.run(7);
+    runs.push({ tier, digest: digest(r.pw), smash: JSON.stringify(r.gate.smash), truck: [r.truck.x, r.truck.z] });
+  }
+  for (const r of runs.slice(1)) {
+    assert.equal(r.digest, runs[0].digest, `gate pieces at '${r.tier}' = at '${runs[0].tier}'`);
+    assert.equal(r.smash, runs[0].smash);
+    assert.deepEqual(r.truck, runs[0].truck);
+  }
 });
 
 test('gate smash physics: save mid-flight → load → continue equals the uninterrupted run; settled wreckage reloads', async () => {

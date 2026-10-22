@@ -308,6 +308,10 @@ export class Game {
     // ground textures, grass and trees build asynchronously (decode + splat + tree workers): wait, bounded
     const ready = this.mapHandle?.ready;
     if (ready) await safeAsync(() => Promise.race([ready, new Promise((ok) => setTimeout(ok, 20000))]), 'terrain');
+    // …but what the gameplay world measures on the art (the trees' branches: gun arcs) is in before play, however slow
+    // the rest (a weak machine past the 20 s above): never a stamp landing mid-game (bounded: a stalled build plays on)
+    const gp = this.mapHandle?.gameplayReady;
+    if (gp) await safeAsync(() => Promise.race([gp, new Promise((ok) => setTimeout(ok, 60000))]), 'gameplay stamps');
     // the body solids men path and stand clear of (world/body-clearance.js) are what is drawn: a prop dressed as a
     // library vehicle is measured on its model, so they are measured again here, once every static vehicle's model is
     // in (awaited: the map's own re-stamp ran when the library buildings were in, before or after a vehicle's model —
