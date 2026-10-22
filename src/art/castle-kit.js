@@ -21,6 +21,7 @@ const HAS_DOM = typeof document !== 'undefined';
 export const CASTLE_SETS = {
   ashlar: ['ashlar_limestone', 0xb9b2a3, 0x8f8a7a, 2.2, 1.3],
   rubble: ['rubble_stone', 0xc9c3b4, 0x7c776a, 2.0, 1.3],
+  ruinStone: ['rubble_stone', 0xbdbcb7, 0x77756f, 1.8, 1.4], // M3's ruined watchtower and wall: grey Norwegian fieldstone (art/ruin-tower.js)
   field: ['fieldstone_grey', 0xd0cbc0, 0x7f7a70, 1.7, 1.2],
   dressed: ['limestone_smooth', 0xcdc6b6, 0x9a9484, 2.0, 0.8],
   flags: ['ashlar', 0xcfcbc2, 0x77746b, 2.6, 1.0],

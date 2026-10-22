@@ -34,6 +34,8 @@ import { buildRocks, buildCliff, buildWall, buildTent, buildRuins, buildSandbags
 import { buildDrumCluster, buildWellVariant, buildGroundSearchlight, buildLampPost, buildSignVariant, buildFenceKit } from './kit-props.js';
 import { buildRailTrack, buildTrench, buildCraterKit } from './kit-terrain.js';
 import { buildKitHouse, buildNissenHut, buildDockCrane } from './kit-buildings.js';
+import { buildBoulderRow } from './boulder-row.js';
+import { buildRuinTower, buildRuinWall } from './ruin-tower.js';
 import { kitify } from './kit-materials.js';
 
 /** Prop catalogue (missions may only use these). */
@@ -215,7 +217,12 @@ const cliffEdge = (ctx) => (ctx?.world?.width > 0 && ctx.apron !== false ? { W: 
 
 const BUILDERS = {
   cliff: (p, def, ctx) => (dressingOn(ctx) ? buildCliff({ ...p, edge: cliffEdge(ctx) }) : box(p.w, p.h ?? 1, p.d, def.mat || 'rock')),
-  ruins: (p, def, ctx) => (dressingOn(ctx) ? buildRuins(p) : box(p.w, p.h ?? 1, p.d, def.mat || 'stone')),
+  ruins: (p, def, ctx) => {
+    if (!dressingOn(ctx)) return box(p.w, p.h ?? 1, p.d, def.mat || 'stone');
+    if (p.variant === 'tower_ruin') return buildRuinTower(p); // M3's start: a ruined fieldstone watchtower (art/ruin-tower.js)
+    if (p.variant === 'wall_dry_ruin') return buildRuinWall(p); // …and the broken dry-stone wall running from it
+    return buildRuins(p);
+  },
   sandbags: (p, def, ctx) => (dressingOn(ctx) ? buildSandbags(p) : box(p.w, p.h ?? 1, p.d, def.mat)),
   crates: (p, def, ctx) => (!dressingOn(ctx) ? box(p.w, p.h ?? 1, p.d, def.mat) : p.variant === 'fuel_drums' ? buildFuelDrumStack(p) : buildCrates(p)), // (M17: art/fuel-drums.js)
   generator: (p, def, ctx) => (dressingOn(ctx) ? buildGenerator(p) : box(p.w, p.h ?? 1, p.d, def.mat)),
@@ -415,6 +422,7 @@ const ROUND = {
     return g;
   },
   rocks: (p, def, ctx) => {
+    if (dressingOn(ctx) && Array.isArray(p.boulders)) return buildBoulderRow(p); // a row of snow-capped granite boulders (M3 start)
     if (dressingOn(ctx)) return buildRocks(p);
     const g = new THREE.Group();
     const s = new THREE.Mesh(new THREE.DodecahedronGeometry(p.r, 0), getMaterial(def.mat));

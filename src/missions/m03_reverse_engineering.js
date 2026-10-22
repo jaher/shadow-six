@@ -2,8 +2,8 @@
  * BEL Mission 3 — "Reverse Engineering" (design-spec §7.6 buildable layout). Owned by MISSIONS.
  * Sysendam dam near the Sima hydro plant, Eidfjord, 4 Mar 1941. The dam faces the camera from the north-west: its
  * raised reservoir lies beyond it (top of the screen), the river pours from its foot towards the camera and bends
- * diagonally to the SE. The team starts on the NE plateau behind a ruined
- * wall; a gully between two cliffs leads down to the river. The German camp (zone `z_camp`, event RCAMP)
+ * diagonally to the SE. The team starts on the NE plateau behind a ruined tower
+ * and wall; a gully between two cliffs leads down to the river. The German camp (zone `z_camp`, event RCAMP)
  * sits on the E bank; the electrified power station and the dam bunker lie on the S bank (zone `z_south`,
  * RINT + siren). The evacuation truck spawns north of the dam once the bunker and the dam are destroyed.
  *
@@ -150,6 +150,48 @@ export const M3_RESERVOIR_LEVEL = DAM.elev - 1.2;
 
 const E7_LOOP = [P(104, 50), P(138, 50, 3, 90), P(138, 89), P(116, 78), P(104, 64, 3, 180)];
 
+/**
+ * The team's cover on the plateau (user 2026-10-21: "replace the low wall at the beginning with a tower on the right
+ * side in ruins with a small wall with boulders (similar to the original game but with the tower on the right side).
+ * Make it in a way commandos dont have to rush to crawl to not be seen. That structure should hide them"): a ruined
+ * fieldstone watchtower at its E end (the right, from the default camera), a broken dry-stone wall running W from it
+ * along the old wall's line (13.4 m, x 100–113.4 at z 8, 0.75 m thick, its head 1.75–2.6 m with two notches down to
+ * 1.25 m), and snow-capped granite boulders along its S foot, the two big ones covering the notches. It replaces the
+ * 1.6 m dry-stone stub (`start_wall` 16 × 1.5 m, whose broken top hid nobody standing). Every part is drawn from the
+ * data below and blocks where it is drawn (art/ruin-tower.js, art/boulder-row.js: navParts): the plans stop a walker
+ * and hide a crawler, the masonry and rock standing eye-high (1.65 m) hide a standing man — p1 on its path 5 m S
+ * never sees the team standing behind it. The wall's W end stays where the old one ended (x 100): the Marine's
+ * harpoon line from its end to p1's troopers at the decoy, and the crawl round it to the decoy and the trap, are as
+ * they were. `h`: each part's sight height (its lowest eye-high head; checked by tests/unit/start-ruin.test.mjs).
+ */
+// tower: tops [deg, h] round its ring (0 = E, 90 = S towards the path), broken down to 2.5 m on the S, 6.4 m on the N;
+// slits [deg, sill y]; fallen heaps [deg, spread°, blocks] round its foot; fill: the rubble heap inside the shell
+const START_TOWER = {
+  id: 'start_tower', type: 'ruins', variant: 'tower_ruin', x: 115.6, z: 7.6, rot: 0, r: 2.35, t: 0.7, w: 5.1, d: 5.1, h: 2.38, block: 2, seed: 'm03:tower',
+  tops: [[0, 5.0], [30, 4.2], [55, 3.1], [80, 2.5], [105, 2.6], [130, 3.3], [160, 4.0], [195, 4.6], [230, 5.7], [265, 6.4], [300, 6.1], [335, 5.6]],
+  slits: [[300, 3.2], [20, 2.4], [240, 3.4]], fill: 1.3, fallen: [[80, 55, 14], [130, 30, 6]],
+};
+// wall: tops [u, h] along it from its W end (u 0 at x 100); fallen [u, stones] in front of its notches
+const START_WALL = {
+  id: 'start_wall', type: 'ruins', variant: 'wall_dry_ruin', x: 106.7, z: 8, rot: 0, w: 13.4, d: 0.75, t: 0.75, h: 1.67, block: 2, seed: 'm03:wall',
+  tops: [[0, 1.0], [0.6, 1.75], [1.2, 2.0], [3.0, 2.1], [3.85, 1.9], [4.25, 1.25], [4.65, 1.3], [5.05, 1.95], [7.5, 2.25], [8.8, 2.05], [9.15, 1.35], [9.45, 1.4], [9.8, 2.1], [12.0, 2.4], [13.4, 2.6]],
+  fallen: [[4.6, 4], [9.4, 3], [1.0, 2]],
+};
+// boulders along the wall's S foot ([x, z, w, d, h, yaw°, seed] from (106.7, 9.3)): the two big ones against its
+// notches (x 104.45, 109.3), and one against its W end on the N side; stones [x, z, size, seed, yaw°]; drifts [x, z, length, width, height, yaw°] in their lee
+// (the wind blows towards 20°)
+const START_ROCKS = {
+  id: 'start_rocks', type: 'rocks', variant: 'boulder_row', x: 106.7, z: 9.3, rot: 0, w: 12, d: 2, h: 1.95, block: 2,
+  boulders: [
+    [-2.25, -0.1, 2.6, 1.9, 2.05, 4, 102], [2.65, -0.1, 2.7, 1.9, 2.05, -4, 106],
+    [-5.0, 0.05, 1.7, 1.4, 1.35, 25, 101], [0.2, 0.2, 1.6, 1.3, 1.25, -15, 105], [5.3, 0.4, 1.9, 1.5, 1.55, 30, 108],
+    // against the wall's W end on the team's side: the low sun-lines from p1 at the W end of its beat, past the end
+    [-5.8, -2.35, 1.7, 1.4, 1.9, 10, 109],
+  ],
+  stones: [[-3.6, 0.9, 0.3, 201, 10], [-0.9, 1.0, 0.26, 202, 40], [1.2, 1.1, 0.3, 203, 0], [4.2, 1.1, 0.24, 204, 70]],
+  drifts: [[-3.6, 1.15, 2.2, 1.1, 0.32, 20], [1.4, 1.2, 2.4, 1.2, 0.35, 22], [7.2, 1.5, 2.0, 1.0, 0.3, 30]],
+};
+
 export default {
   id: 'm03',
   campaign: 'BEL',
@@ -288,10 +330,10 @@ export default {
     ...[[30, 72], [31.5, 73.5], [56, 94]].map(([x, z], k) => ({ id: `drum_${k + 1}`, type: 'crates', variant: 'cable_drum', x, z, rot: 0, w: 1.5, d: 1.5, h: 1.5, block: 1 })),
     { id: 'sign_w', type: 'sign', x: 2, z: 88, rot: 0, text: 'SIMA KRAFTVERK' },
     ...[[60, 122], [80, 100], [95.64, 62.27]].map(([x, z], k) => ({ id: `pylon_${k + 1}`, type: 'telegraph_pole', variant: 'lattice_pylon', x, z, h: 18, r: 0.6, wireTo: k < 2 ? `pylon_${k + 2}` : null })),
-    // --- the north: cliffs with the gully (x 74–84) between them, and the start wall on the plateau
+    // --- the north: cliffs with the gully (x 74–84) between them, and the start ruin (tower, wall, boulders) on the plateau
     { id: 'cliff_e', type: 'cliff', points: [[84, 20], [148, 20], [148, 34], [124, 38], [84, 42]], h: 12, climbable: false },
     { id: 'cliff_w', type: 'cliff', points: [[63, 17], [74, 17], [74, 34], [65, 31]], h: 10, climbable: false },
-    { id: 'start_wall', type: 'ruins', variant: 'wall_ruin', x: 108, z: 8, rot: 0, w: 16, d: 1.5, h: 1.6, block: 2 },
+    START_TOWER, START_WALL, START_ROCKS,
     // --- the German camp (E bank): palisade with a N gate (x 116–120) and a W gate (z 55–59)
     { id: 'camp_wall', type: 'wall', variant: 'palisade', h: 2.4, width: 0.5,
       segments: [[[120, 48], [142, 48], [142, 96], [126, 90], [98, 66], [98, 59]], [[98, 55], [98, 48], [116, 48]]] },
@@ -318,13 +360,13 @@ export default {
     { id: 'raft', vehicleType: 'raft', x: 64, z: 45, heading: deg(90), inflated: true, suspicious: false, operators: ['diver'] },
   ],
   commandos: [
-    { role: 'greenberet', x: 102.5, z: 6.75, heading: deg(90), inventory: { knife: 1, pistol: 1, decoy: 1, shovel: 1 } },
+    { role: 'greenberet', x: 103.5, z: 6.75, heading: deg(90), inventory: { knife: 1, pistol: 1, decoy: 1, shovel: 1 } },
     { role: 'diver', x: 105.5, z: 6.75, heading: deg(90), inventory: { knife: 1, pistol: 1, harpoon: 1, divingGear: 1, inflatableBoat: 0 } },
     { role: 'sapper', x: 108.5, z: 6.75, heading: deg(90), inventory: { pistol: 1, bearTrap: 1, wireCutters: 1, timeBomb: 0 } },
     { role: 'spy', x: 111.5, z: 6.75, heading: deg(90), inventory: { pistol: 1, lethalInjection: 1, firstAid: 6 } },
   ],
   enemies: [
-    // patrol p1 along the plateau, 4 m in front of the start wall
+    // patrol p1 along the plateau, 5 m in front of the start wall
     ...[['e1', 62, 13], ['e2', 60.5, 13], ['e3', 59, 13]].map(([id, x, z], k) => ({
       id, prima: 1 + k, soldierType: k ? 'trooper' : 'sergeant', x, z, heading: deg(0), jail: 'camp_barr',
       squad: { id: 'p1', leader: 'e1', columns: 1 },

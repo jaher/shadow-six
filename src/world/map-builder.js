@@ -52,6 +52,8 @@ import { resolveLighting } from '../engine/lighting.js';
 import { createBuildingBatch, holdLodAttach } from '../art/building-library.js';
 import { resolvePlacementG, wantsShape, placeCat, RULES } from './placement.js';
 import { convexHull } from './placement-geom.js';
+import { boulderRowNavParts, polySolidCells, polySolidRects } from '../art/boulder-row.js';
+import { isProcRuin, procRuinNavParts, procSolids } from '../art/ruin-tower.js';
 import { gateLayout } from './breakables.js';
 import { categoryOf } from '../debug/clip-rules.js';
 import { setStaticSolids, removeStaticSolids, minAreaRect, SOLID_BAND_TOP } from './body-clearance.js';
@@ -213,12 +215,18 @@ function buildStructureCore(s, ctx) {
     // round catalogue prop (rocks, …) given an explicit w × d: oriented rect footprint
     fps = fps.map((f) => ({ ...f, shape: 'rect', x: params.x, z: params.z, w: params.w, d: params.d, rot: params.rot ?? 0 }));
   }
-  // `navParts` ({x, z, w, d, block} rects in the structure's frame, before `rot`): the drawn model's own walls and low
-  // parts as the gameplay footprints, in place of the w × d block — what a wall hides and stops is where it is drawn,
-  // in the browser and in the grid-only builds alike (M7's brick ruins: the shell walls B.HIGH, breach and rubble B.LOW)
-  if (Array.isArray(params.navParts)) {
+  // `navParts` ({x, z, w, d, block} rects or {points, block} polygons in the structure's frame, before `rot`): the
+  // drawn model's own walls and low parts as the gameplay footprints, in place of the w × d block — what a wall hides
+  // and stops is where it is drawn, in the browser and in the grid-only builds alike (M7's brick ruins: the shell walls
+  // B.HIGH, breach and rubble B.LOW; a boulder row's rocks, art/boulder-row.js: each boulder's body-height outline
+  // B.LOW, its section at a guard's eye height B.HIGH)
+  const navParts = Array.isArray(params.navParts) ? params.navParts : Array.isArray(params.boulders) ? boulderRowNavParts(params)
+    : isProcRuin({ type, ...params }) ? procRuinNavParts(params) : null;
+  if (navParts) {
     const rot = params.rot ?? 0, c = Math.cos(rot), s = Math.sin(rot), x0 = params.x ?? 0, z0 = params.z ?? 0;
-    fps = [...fps.filter((f) => !f.block), ...params.navParts.map((p) => ({ shape: 'rect', x: x0 + p.x * c - p.z * s, z: z0 + p.x * s + p.z * c, w: p.w, d: p.d, rot, block: p.block }))];
+    const at = ([u, v]) => [x0 + u * c - v * s, z0 + u * s + v * c];
+    fps = [...fps.filter((f) => !f.block), ...navParts.map((p) => (p.points ? { shape: 'poly', points: p.points.map(at), block: p.block }
+      : { shape: 'rect', x: x0 + p.x * c - p.z * s, z: z0 + p.x * s + p.z * c, w: p.w, d: p.d, rot, block: p.block }))];
   }
   // thin blocking rects (gates, barriers) must stay ≥ 2 cells thick at any rotation, or diagonal ones leak
   fps = fps.map((f) => (f.block && f.shape === 'rect' && Math.min(f.w, f.d) < 2 * ctx.grid.cell
@@ -1159,12 +1167,15 @@ export function* stampBodySolidsG(world, built, groundAt = null, only = null) {
     if (due()) yield;
     if (only && !only.has(b.owner)) continue; // (`only`: these structures measured again, see below)
     if (!b.object3d || TREE_TYPES.includes(b.type) || LINEAR_PROPS.includes(b.type) || b.def.clip === false) continue;
-    if (!BODY_SOLID_CATS.has(categoryOf(b.type, b.def)) || isPlatformProp(b.type)) continue; // a platform is walked on (nav + climb links)
+    // (`solidOutline`: a structure of another category kept as a body solid by its real outline — M3's ruined tower
+    // and wall at the start, which men lie and crawl right along)
+    if ((!BODY_SOLID_CATS.has(categoryOf(b.type, b.def)) && !b.def.solidOutline) || isPlatformProp(b.type)) continue; // a platform is walked on (nav + climb links)
     if (world.bodySolidsGone?.has(b.owner)) continue;
     const gy = groundAt ? groundAt(b.def.x ?? 0, b.def.z ?? 0) : 0;
     // (`top`: its height over the ground, for a shouldered rifle: placement.weaponRoom)
     const top = new THREE.Box3().setFromObject(b.object3d).max.y - gy;
-    if (BODY_SOLID_OUTLINE.has(categoryOf(b.type, b.def))) {
+    // (`solidOutline` / a boulder row: its real outline too — the men standing in the hollows between its rocks)
+    if (BODY_SOLID_OUTLINE.has(categoryOf(b.type, b.def)) || b.def.solidOutline || Array.isArray(b.def.boulders)) {
       for (const R of instanceRects(b.object3d, 0.15, 1.2, gy)) list.push({ owner: b.owner, R: { ...R, top } });
       for (const q of (yield* planCellsG(b.object3d, { minY: 0.15, maxY: 1.2, groundY: gy, cell: 0.25, close: 0, fit: true, wade: SNOW_WADE })) || []) {
         const [p0, p1, , p3] = q, hl = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) / 2, hw = Math.hypot(p3[0] - p0[0], p3[1] - p0[1]) / 2;
@@ -2003,6 +2014,14 @@ export function* buildMapGen(world, mission, opts = {}) {
     if (built.some((b) => b.library && BODY_SOLID_CATS.has(categoryOf(b.type, b.def)))) {
       early.push(after(Promise.all(built.filter((b) => b.library).map((b) => b.library.ready))).then(() => { if (!gone) stampBodySolids(world, built, solidGround); }, () => {}));
     }
+  } else {
+    // grid only: the procedural solids (a boulder row's rock, a ruined tower's and wall's masonry: art/boulder-row.js,
+    // art/ruin-tower.js) at body height from their own shapes, as stampStanding and stampBodySolids measure them on the
+    // drawn meshes — a body (a crawler's head, hands and knees) keeps off the solid itself, not just off its cells
+    const procs = built.map((b) => (b.owner != null ? { b, S: procSolids(b.def) } : null)).filter((q) => q?.S?.polys.length);
+    for (const { b, S } of procs) grid.solidStamp(`solid:${b.owner}`, polySolidCells(S.polys, grid.cell / 2));
+    const solids = procs.filter(({ b }) => Array.isArray(b.def.boulders) || b.def.solidOutline);
+    if (solids.length) setStaticSolids(world, solids.flatMap(({ b, S }) => polySolidRects(S.polys, S.top).map((R) => ({ owner: b.owner, R }))));
   }
   // repeats → instanced batches, only now: every visual measurement above (low surfaces under the feet, standing
   // visuals, head room) reads the repeats' own meshes, which the batch disposes (clip-2: M3 cabins' porch boards)

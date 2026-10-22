@@ -82,7 +82,7 @@ Object.assign(VARIANT_HINTS.hut, { shed_concrete: ['shed_concrete'] });
 VARIANT_HINTS.hut.outhouse_plank = null;
 // M7 art pass: missions/scripts/m07-art.js draws the burnt timber frames, the fish-drying racks and the slipway's timber
 // gantry (never a brick townhouse ruin or four MG nests)
-Object.assign(VARIANT_HINTS.ruins, { burned_timber: null, fish_drying_racks: null });
+Object.assign(VARIANT_HINTS.ruins, { burned_timber: null, fish_drying_racks: null, tower_ruin: null, wall_dry_ruin: null }); // (M3's start ruin: art/ruin-tower.js)
 VARIANT_HINTS.bunker.gantry_timber = null;
 VARIANT_HINTS.house.house_norse_compound = null; // the L-shaped tarred house, the red double house: m07-art.js parts
 Object.assign(VARIANT_HINTS.house, { house_concrete_2st: ['house_coastal_normandy'] });

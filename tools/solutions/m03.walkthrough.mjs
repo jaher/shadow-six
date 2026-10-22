@@ -11,7 +11,7 @@ export const WALKTHROUGH = {
   title: 'Reverse Engineering',
   intro: 'Sysendam, Norway. Destroy the dam bunker, demolish the dam and escape in the truck: player orders only, and no commando ever inside a guard\'s field of view.',
   chapters: [
-    { id: 'A', title: 'The plateau', say: 'Patrol p1 (sergeant e1, troopers e2 and e3) walks the plateau path above the start. All three must go, and none may see another fall.' },
+    { id: 'A', title: 'The plateau', say: 'The squad starts on its feet behind a ruined tower and a broken stone wall, where patrol p1 (sergeant e1, troopers e2 and e3) walks past without seeing them. All three must go, and none may see another fall.' },
     { id: 'B', title: 'The gully', say: 'Two sentries, e4 and e5, hold the gully that leads down to the river.' },
     { id: 'C', title: 'A uniform for the Spy', say: 'Only the Spy can walk among the guards, and she needs a German uniform: one hangs on a clothesline behind the east camp.' },
     { id: 'D', title: 'The Marine under water', say: 'e14 guards the river strip by the clothesline. The Marine takes him from the water.' },
@@ -25,7 +25,7 @@ export const WALKTHROUGH = {
   steps: [
     // A · the plateau
     { cp: 'A1', who: ['sapper', 'greenberet'], look: [[93, 14.8], [96, 15.6]], cones: ['e1', 'e2', 'e3'],
-      say: 'While p1 walks off east, the Green Beret lays his decoy beside the path, switched off, and the Sapper sets a bear trap west of it, off the beat.' },
+      say: 'While p1 walks off east, the Green Beret and the Sapper get down behind the wall and crawl round its end: the decoy beside the path, switched off, and a bear trap west of it, off the beat.' },
     { cp: 'A2', who: 'greenberet', look: ['decoy', 'e1'], cones: ['e1', 'e2', 'e3'],
       say: 'As p1 comes back west, the Green Beret switches the decoy on by radio. The sergeant walks up to it and stares; his troopers stop behind him.',
       beats: [{ on: 'greenberet:decoyToggle', look: ['decoy', 'e1', 'e2', 'e3'], shot: true }] },

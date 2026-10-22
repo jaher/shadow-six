@@ -19,9 +19,10 @@ import { createObjectives, checkObjectives, updateExtractionVehicle } from '../.
 import { CONFIG } from '../../src/config.js';
 import '../../src/abilities/index.js';
 
-export function headlessMission(id) {
+export function headlessMission(id, { patch = null } = {}) {
   Entity.nextId = 1;
-  const mission = normalizeMission(getMission(id), { quiet: true });
+  // (`patch`: def → def, a variant of the mission for a test — e.g. M3 with its old start wall back, tests/unit/prone-wall)
+  const mission = normalizeMission(patch ? patch(getMission(id)) : getMission(id), { quiet: true });
   const world = new World({ size: mission.size, scene: new THREE.Scene(), mission, seed: mission.seed ?? CONFIG.sim.seed });
   world.alarm = new Alarm(world);
   buildMap(world, mission, { meshes: false });

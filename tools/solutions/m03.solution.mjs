@@ -16,7 +16,8 @@ import { wheeling } from './sneak.mjs';
  *
  * Outline (design-spec §7.6 "Intended solution", adapted: e17's sweep covers the raft where it lies, so the uniform
  * cannot come by raft first):
- *   A  plateau: the GB's decoy stops p1 on its way back west, the sergeant (e1) in front staring at it; the Marine
+ *   A  plateau: the team stands hidden behind the ruined tower and wall at the start; the GB's decoy stops p1 on its
+ *      way back west, the sergeant (e1) in front staring at it; the Marine
  *      harpoons his two troopers behind his back (the tail man first), then, decoy off, e1 walks back west into the
  *      Sapper's bear trap. Nobody sees a man die: a trap kill is silent, not invisible (research.md: "a kill inside
  *      someone's cone is still seen") — trapped first, the sergeant fell before the eyes of his troopers walking 1.2 m
@@ -263,7 +264,7 @@ const MARINE_WAIT = [58.2, 37.0]; // prone by the E stair foot (the raft packed:
 const E12_DECOY = [101, 45]; // 12 m N of e12, outside the palisade: he turns his back on the W gate
 const E12_DECOY_WAY = [[92, 44.5], [101, 44.6]];
 const E6_CARRY = [[83, 58], [90, 64], [96.5, 69.5], [101.6, 73.3]]; // down the strip, out of e12's cone while he faces N
-const E8_AMBUSH = [126.4, 47.6]; // between the palisade and the W end of e8's beat (he halts there looking N)
+const E8_AMBUSH = [126.0, 47.1]; // between the palisade and the W end of e8's beat (he halts there looking N): the last cell a crawler fits in before the palisade
 const E8_LANE = [[110, 47.2], [117.5, 47.5], [124.5, 47.5], E8_AMBUSH];
 const E8_WAIT = [105, 46]; // the GB's place in the snow W of e9, out of e8's near band
 const E8_NICHE = [[134.5, 45], [136, 41.5]]; // the gap between the two rocks under the cliff E of the N gate
@@ -337,17 +338,15 @@ export const CREST_PATH = [[29.8, 29.7], [40, 22.4], [52.5, 23.6], [59.35, 34.3]
 export const STAGES = [
   ['A', 'Plateau: decoy + harpoon the troopers, trap the sergeant', async (D) => {
     const e1 = D.get('e1'), e2 = D.get('e2'), e3 = D.get('e3'), gb = D.c('greenberet'), dv = D.c('diver');
-    for (const r of ['sapper', 'greenberet', 'diver', 'spy']) await D.stance(r, 'crawl'); // down at once: p1 sees the start at 36 m
-    D.order('greenberet', { type: 'move', x: 108, z: 2.5 });
-    D.order('diver', { type: 'move', x: 110, z: 2.5 });
-    D.order('spy', { type: 'move', x: 113, z: 2.4 }); // (at 112, 3.5 p1's near band grazes her as it comes back)
+    // the team starts on its feet behind the ruined tower and wall (start_tower, start_wall, start_rocks): p1 walks
+    // its path 5 m S of them and sees nobody there, so nobody goes down — they wait for p1 to walk off east
     await D.until(() => e1.x > 124, 120, 'p1 walks off east');
     // the GB drops the decoy (off) N of the patrol path, W of the wall; the Sapper sets the bear trap W of it, on the
     // line p1's sergeant will walk back to his W turning point (62, 13) from where the decoy will hold him: off the path
     // itself (1.8 m N of it), so nobody steps in it on the beat
     await D.stance('sapper', 'crawl');
     D.order('sapper', { type: 'move', x: TRAP[0], z: TRAP[1] - 0.9 });
-    await D.go('greenberet', 96, 15.1, { tol: 0.3 });
+    await D.go('greenberet', 96, 15.1, { tol: 0.3, stance: 'crawl' }); // (down behind the wall: crawling leaves no prints)
     await D.face('greenberet', 96, 17);
     D.ability('greenberet', 'decoyDrop');
     await D.until(() => Math.hypot(D.c('sapper').x - TRAP[0], D.c('sapper').z - TRAP[1] + 0.9) < 0.3, 60, 'Sapper at the trap spot');
@@ -365,7 +364,7 @@ export const STAGES = [
     // the Marine harpoons the troopers from the wall's W end: the tail man first (the one in front of him does not
     // see him fall behind his back), then the other; the sergeant stares on at the decoy, both behind him
     const [tail, mid] = [e2, e3].sort((a, b) => Math.hypot(b.x - e1.x, b.z - e1.z) - Math.hypot(a.x - e1.x, a.z - e1.z));
-    await D.go('diver', 99.3, 6.4, { tol: 0.3 });
+    await D.go('diver', 99.3, 6.4, { tol: 0.3, stance: 'crawl' });
     D.ability('diver', 'harpoon', tail);
     await D.until(() => !tail.alive, 10, `${tail.tag} harpooned`);
     await D.until(() => D.world.time >= (dv._harpoonT ?? 0) + 0.05, 5, 'reload');
@@ -416,7 +415,15 @@ export const STAGES = [
     // looks (not through the N gate either), then crawls back W and digs in where he will drop the decoy later
     for (const [x, z] of [[86, 16], [83, 22], [82.5, 30], [83, 44], [100, 44], E8_WAIT]) await D.sneak(x, z, { mode: 'crawl', role: 'greenberet', box: 10, forbid: [CAMP], label: 'GB down the gully' });
     await digIn(D);
-    await D.until(() => e8.brain.state === 'IDLE' && Math.cos(e8.heading) > 0.7 && e8.x > 127 && e8.x < 130, 300, 'e8 setting off E');
+    // on a round of e8's when the whole of it goes unseen — up out of the snow, the crawl along the lane behind e8's
+    // back while he walks off E, and dug in again at its W end before he comes back (the cones as predicted: a player
+    // watching e8's cone; the lane's timing against the gully's drifts from run to run, so the moment is read, not
+    // assumed — he goes as e8 sets off E from the W end of his beat, or waits for the next time)
+    const laneWhy = [];
+    const laneClear = () => D.routeClear('greenberet', [...E8_LANE.slice(0, -1), [...E8_AMBUSH, CONFIG.abilities.dig + 0.5]],
+      { speed: 0.85, low: true, delay: CONFIG.abilities.dig + 0.4, why: laneWhy });
+    await D.until(() => { laneWhy.length = 0; return e8.brain.state === 'IDLE' && e8.x < 131 && (Math.cos(e8.heading) > 0.7 || !e8.isMoving) && riseOk(D, laneWhy) && laneClear(); }, 600, 'e8 setting off E, the lane unwatched')
+      .catch((e) => { throw new Error(`${e.message} [${laneWhy.join(' ')}]`); });
     await gbRise(D);
     await D.path('greenberet', E8_LANE, { tol: 0.5 });
     await digIn(D);

@@ -1838,7 +1838,9 @@ Kildread's count is 6 walkers, 1 sentry, patrols of 4 and 3, 2 towers, the boat 
 | pylons | telegraph_pole (`lattice_pylon`) | (60,122) (80,100) (96,62) | | | h 18 | Wires cross the river toward the NE |
 | `cliff_e` | cliff | poly (84,20) (148,20) (148,34) (124,38) (84,42) | | | h 12 | `B.HIGH`; not climbable |
 | `cliff_w` | cliff | poly (63,17) (74,17) (74,34) (65,31) | | | h 10 | The **gully** (x 74–84) between the two cliffs leads from the plateau down to the river; its W end leaves the E bank path to the E stair open |
-| `start_wall` | ruins (`wall_ruin`) | 108 | 8 | 0 | 16 × 1.5 × 1.6 | `B.HIGH`; the team hides north of it |
+| `start_tower` | ruins (`tower_ruin`) | 115.6 | 7.6 | 0 | r 2.35, walls 0.7, head 2.4–6.4 | A ruined round fieldstone watchtower at the start's E end (art/ruin-tower.js): broken head (lowest on the S, 6.4 m on the N), slits, the shell full of rubble (never entered), fallen masonry on a rubble mound at its S foot. Its foot and the mounds `B.LOW`, its eye-high ring `B.HIGH` |
+| `start_wall` | ruins (`wall_dry_ruin`) | 106.7 | 8 | 0 | 13.4 × 0.75, head 1.25–2.6 | A broken dry-stone wall W from the tower to x 100 (where the old one ended), two notches down to 1.25 m. Its plan out to a man's reach (0.4 m) off its long faces `B.LOW` (a man lying along it swings his limbs ~1 m off his line), its eye-high runs `B.HIGH` |
+| `start_rocks` | rocks (`boulder_row`) | 106.7 | 9.3 | 0 | 1.25–2.05 m | Snow-capped granite boulders along the wall's S foot (art/boulder-row.js), the two big ones covering its notches, one against its W end on the N side. Each boulder's body-height outline `B.LOW`, its section at eye height `B.HIGH`. Tower, wall and boulders replaced the 1.6 m `start_wall` stub (user 2026-10-17 / 10-21: "too low"; "a tower on the right side in ruins with a small wall with boulders") |
 | `camp_wall` | wall (`palisade`) | closed poly (98,48) (142,48) (142,96) (126,90) (98,66) | | | h 2.4 | **Gates:** N at x 116–120 (z 48); W at z 55–59 (x 98) |
 | `camp_barr` | hut (`log_cabin`) + flag | 122 | 58 | 0 | 7 × 5 × 3.5 | **Garrison**, pool 10; **jail** for p1 |
 | cabins | hut (`log_cabin`) | (108,54) (116,68) (133,63) (132,82) | | 0 | 6 × 5 × 3.5 | |
@@ -1859,23 +1861,25 @@ Kildread's count is 6 walkers, 1 sentry, patrols of 4 and 3, 2 towers, the boat 
 | `raft` | raft | (64,45), shallow, heading 90 | On site; unused, not suspicious |
 | `evac_truck` | truck, friendly | Spawns at (60,−6) when **o1 and o2** are done; drives to (60,10) at 6 m/s and waits | 6 seats. Once everyone is aboard it drives off north (ESC skips) |
 
-**Commandos** (behind `start_wall`, heading 90).
+**Commandos** (behind `start_wall`, the ruined tower on their right, heading 90).
 
 | Role | Position | Inventory |
 |---|---|---|
-| greenberet | (102.5, 6.75) | knife, pistol, decoy, shovel |
+| greenberet | (103.5, 6.75) | knife, pistol, decoy, shovel |
 | diver | (105.5, 6.75) | knife, pistol, harpoon, divingGear |
 | sapper | (108.5, 6.75) | pistol, trap, cutters |
 | spy | (111.5, 6.75) | pistol, syringe, firstAid 6 |
 
-The team lies against the wall's N face (z 6.75; it was z 3.5, where the patrol e1–e3, walking E along z 13, saw the GB at 13 s once the
-§4.5 still rule noticed men standing still in view; rules R2, 2026-10-12: an idle team at the start is unseen for 120 s+ under the §4.5 still rule).
+The team stands against the wall's N face (z 6.75, 0.8 m off it): an idle team at the start is unseen for 130 s+ (no guard sees any of
+them at all), and the strip along the wall's N face (z 6.25–7.25, x 102–112.5) stays unseen for a standing man the whole time — they
+move along it on their feet. (Before 2026-10-17 the 1.6 m `start_wall` ruin hid only a lying man: rules R2, 2026-10-12, had
+moved the team from z 3.5 to its N face, where p1, walking E along z 13, saw the GB at 13 s.)
 
 **Enemies** (Kildread: 7 walkers, 17 sentries, patrols of 5 and 3, 1 MG, 1 surveillance bunker, 4 garrisons).
 
 | id | # | soldierType, flags | Position | Behaviour |
 |---|---|---|---|---|
-| e1–e3 | [1–3] | sergeant + 2 troopers, squad `p1`, jail `camp_barr` | (62,13) | PINGPONG along the plateau: (62,13) wait 6 look 180 ↔ (146,13) wait 6 look 0. Passes 4 m in front of the start wall |
+| e1–e3 | [1–3] | sergeant + 2 troopers, squad `p1`, jail `camp_barr` | (62,13) | PINGPONG along the plateau: (62,13) wait 6 look 180 ↔ (146,13) wait 6 look 0. Passes 5 m in front of the start wall |
 | e4 | [4] | sentry, holdsPost | (79,22) | Post 200, sweep 35. Top of the gully, facing downhill |
 | e5 | [5] | sentry, investigates | (77,36) | Post 210, sweep 40. Mid-gully |
 | e6 | [6] | sentry, holdsPost | (80,56) | Post 150, **sweep 25**. Gully mouth, watching the water |
