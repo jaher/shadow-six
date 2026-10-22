@@ -27,6 +27,11 @@ export const timeout = 2_400_000;
 const ART = {
   'm17:1': { from: 0.6, why: "a roof's eave hangs low over the wall top he climbs over (head / chest brush it)" },
   'm20:4': { from: 0.6, why: "the tower's door at the ladder's top is drawn shut (his knee touches it stepping in)" },
+  // (the move onto the roof only: the lead knee 1 mm inside its 4 cm radius of the lip as the foot lands past it)
+  'm12:3': { from: 1, why: "a roof's low lip (0.45 m) by the ladder's head: the lead knee brushes it stepping over onto the roof" },
+  // (layout: the ladder leans on a merlon, not at a crenel — its way onto the walk goes through the merlon; on master
+  // the body went through it as the pose let go at the top, 22-30 cm; no clear top to go over it)
+  'm20:3': { from: 0.9, why: "the ladder leans on a merlon of the battlement: the way onto the walk goes through it (layout)" },
   'm08:6': { from: 0, who: 'greenberet', why: "the tank's cage is 0.56 m deep: the tallest man's back clears its hoops only with his knees by the rungs" },
   'm08:7': { from: 0, who: 'greenberet', why: "the tank's cage is 0.56 m deep: the tallest man's back clears its hoops only with his knees by the rungs" },
 };
@@ -167,7 +172,7 @@ export default async function ladderClimb(page, t) {
               const full = u.model._lc.w >= 0.999;
               // (the walk between the link's end and the ladder's own foot is walking, not climbing: not checked)
               const walking = S.lead != null && S.lead < 0.7, A = ART[`${mis}:${lad.L.id}`];
-              const art = A && (!A.who || A.who === name) && S.P >= A.from;
+              const art = A && (!A.who || A.who === name) && (S.Pc ?? S.P) >= A.from; // (Pc: the way up the rungs; P runs on over the move onto the deck)
               if (full && S.onRungs >= 0.999) {
                 M.rung++;
                 M.chest.push(lo(chest)); M.pelvis.push(lo(pel)); M.head.push(lo(head));
@@ -187,7 +192,7 @@ export default async function ladderClimb(page, t) {
                       const hp = o.clone().addScaledVector(fdir, d);
                       if (atFoot && lo(hp) >= 0.25 && hp.y - lad.foot.y < 1) { if (M.clutter.length < 3) M.clutter.push(`${nm} ${d.toFixed(3)} at ${S.P.toFixed(2)}`); break; }
                       if (art) { if (M.art.length < 3) M.art.push(`${nm} ${d.toFixed(3)} at ${S.P.toFixed(2)}`); break; }
-                      M.pen.push(`${nm} ${d.toFixed(3)} at ${S.P.toFixed(2)}`); break;
+                      M.pen.push(`${nm} ${d.toFixed(3)} at ${S.P.toFixed(2)}${S.vault != null ? ` (onto the deck ${S.vault.toFixed(2)}, ${leg})` : ''}`); break;
                     }
                   }
                 }

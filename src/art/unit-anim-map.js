@@ -87,6 +87,9 @@ export function mapAnim(name, c = {}) {
   if (prone) { const p = proneAnim(name, c.weaponClass || weaponClass(c.weapon), c); if (p) return p; }
   // a gunner at a platform MG (render/mg-mount.js) kneels behind its butt, hands on the grips, whatever he is doing there
   if (c.mounted && !/^(die|dead|hit|knockback)/.test(name)) return ['mg_kneel', 'kneel_shoot', 'idle'];
+  // a wall climb posed on the face he climbs (art/wall-climb.js): the walk under the pose, not the one-metre mantle
+  // (it froze on its last frame while he went up; the pose starts with the walk to the face)
+  if (c.wallPose && name === 'climb') return ['walk', 'idle'];
   switch (name) {
     case 'die': return ['die'];
     case 'dead': return ['dead'];

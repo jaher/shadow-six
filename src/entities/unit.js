@@ -1038,16 +1038,22 @@ export class Unit extends Entity {
       if (wp.link?.kind === 'climb' && w) {
         // rule (e) climbs: over the wall's real top (placement.climbTrack), same duration as the flat crossing
         let C = this._climb;
-        if (!C || C.wp !== wp) C = this._climb = { wp, x: this.x, z: this.z, s: 0, T: climbTrack(w.grid, { x: this.x, z: this.z, y: this.y }, wp, { heightOf: ownerHeight(w), r: CLIMB_R }) };
-        const L = C.T.L, use = Math.min(step, L - C.s);
+        if (!C || C.wp !== wp) {
+          const T = climbTrack(w.grid, { x: this.x, z: this.z, y: this.y }, wp, { heightOf: ownerHeight(w), r: CLIMB_R });
+          // (the leg's length at the climb pace: the flat crossing's — or, for a link whose climb that is far too quick
+          // for (mission `climbLinks[].climbTime`, s: M2's palisade), its own time)
+          const lk = w.grid.links?.find((l) => l.id === wp.link.id), tc = lk?.climbTime ?? wp.link.climbTime;
+          C = this._climb = { wp, x: this.x, z: this.z, s: 0, T, Leff: Math.max(T.L, (tc ?? 0) * CONFIG.abilities.climbSpeed) };
+        }
+        const L = C.T.L, Le = C.Leff ?? L, use = Math.min(step, Le - C.s);
         C.s += Math.max(0, use); step -= Math.max(0, use);
         if (L > 1e-6) { dirX = (wp.x - C.x) / L; dirZ = (wp.z - C.z) / L; }
-        const p = climbAt(C.T, L > 1e-6 ? C.s / L : 1);
+        const p = climbAt(C.T, Le > 1e-6 ? C.s / Le : 1);
         this.x = C.x + dirX * p.d; this.z = C.z + dirZ * p.d; this.y = p.y;
         climbing = true;
         // over the top he turns round and climbs down facing the wall (back and rifle away from it)
         if (p.d > C.T.L / 2 && p.y > (wp.y ?? 0) + 0.05) { dirX = -dirX; dirZ = -dirZ; }
-        if (C.s < L - 1e-9) break;
+        if (C.s < Le - 1e-9) break;
         this.x = wp.x; this.z = wp.z;
         if (wp.y !== undefined) this.y = wp.y;
         this._climb = null; climbing = false;

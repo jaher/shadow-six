@@ -22,6 +22,7 @@ import { MeshBVH } from '../../vendor/three-mesh-bvh/index.module.js';
 import { Geo } from './castle-kit.js';
 import { steepLadder } from '../entities/stair-walk.js';
 import { due, runSync } from '../engine/slice.js';
+import { fitClimbsG } from './wall-climb.js';
 
 /**
  * Tuning. lat / latMax: lateral ray spacing and reach (m); dv: ray row spacing (m); fine: rung scan step (m); behind:
@@ -67,9 +68,10 @@ function collectParts(scene, box, skipRoots) {
     if (skipRoots.has(o) || SKIP.test(o.name || '')) return;
     if (/^lod[12]$/.test(o.name)) return; // (the finest level of detail only, whichever the camera shows now)
     if (o.visible === false && o.name !== 'lod0') return;
-    if ((o.isMesh || o.isInstancedMesh) && !o.isSkinnedMesh && !o.isBatchedMesh && o.geometry?.attributes?.position) {
+    // (never drawn: off the camera's layer — the wire belts' standing guard, layer 30 — or writing no colour)
+    if ((o.isMesh || o.isInstancedMesh) && !o.isSkinnedMesh && !o.isBatchedMesh && o.geometry?.attributes?.position && (o.layers.mask & 1)) {
       const mats = [].concat(o.material || []);
-      if (mats.some((x) => x && x.visible !== false && !(x.transparent && x.opacity < 0.2))) {
+      if (mats.some((x) => x && x.visible !== false && x.colorWrite !== false && !(x.transparent && x.opacity < 0.2))) {
         if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
         if (o.isInstancedMesh) for (let i = 0; i < o.count; i++) { o.getMatrixAt(i, m); take(o, M.multiplyMatrices(o.matrixWorld, m)); }
         else take(o, o.matrixWorld);
@@ -91,6 +93,21 @@ function castFirst(bvh, o, d, far) {
   _ray.set(o, d);
   const hit = bvh.raycastFirst(_ray, THREE.DoubleSide, 0, far);
   return hit ? hit.distance : null;
+}
+/**
+ * Distance to the first surface a world ray goes INTO (its face turned towards the ray), or null: a ray that starts
+ * inside a solid (a palisade's stake by the head of a ladder) does not count the face it leaves by.
+ */
+function castEntry(bvh, o, d, far) {
+  if (!bvh) return null;
+  _ray.set(o, d);
+  let best = null;
+  for (const h of bvh.raycast(_ray, THREE.DoubleSide, 0, far)) {
+    const n = h.face?.normal;
+    if (n && n.x * d.x + n.y * d.y + n.z * d.z > 0) continue;
+    if (best == null || h.distance < best) best = h.distance;
+  }
+  return best;
 }
 
 // ------------------------------------------------------------------ the frame
@@ -489,15 +506,53 @@ function measureOnce(link, A, parts) {
     F.room = room; F.rooms = rooms;
   }
   // the headroom over the way off at the top (a doorway's lintel: M20's tower)
+  // (what the ray goes into: one starting inside a palisade's stake by the head of the ladder — M2's camp ladder —
+  // found the stake's own point 0.55 m up and had the climber duck under it)
   {
     let top = Infinity;
     const sT = F.s0 + F.k * Math.min(H, F.over ?? H);
     for (const ds of [0.2, 0.4]) for (const w of [-0.15, 0, 0.15]) {
-      const t = castFirst(parts, o.set(foot.x + fx * (sT + ds) + lx * (w + (F.c ?? 0)), foot.y + H + 0.1, foot.z + fz * (sT + ds) + lz * (w + (F.c ?? 0))), d.set(0, 1, 0), 2.5);
-      if (t != null) top = Math.min(top, t + 0.1);
+      const t = castEntry(parts, o.set(foot.x + fx * (sT + ds) + lx * (w + (F.c ?? 0)), foot.y + H + 0.1, foot.z + fz * (sT + ds) + lz * (w + (F.c ?? 0))), d.set(0, 1, 0), 2.5);
+      // (under 1.2 m there is no way off at all — the link goes there: what the ray found is no lintel over the way
+      // but a parapet's coping, something by it — M12's roofs: the climber held ducking 0.45 m under it, his pelvis
+      // under the roof's edge as he stepped onto it)
+      if (t != null && t + 0.1 >= 1.2) top = Math.min(top, t + 0.1);
     }
     d.set(fx, 0, fz);
     F.topRoom = top;
+  }
+  // a wall standing over the deck at the top (a palisade over its walk: `over` well above H) — its inner face: where
+  // the climber, over it, comes down onto the deck (F.inner: o of that face, negative; null: none measured)
+  F.inner = null;
+  if ((F.over ?? H) > H + 0.25) {
+    const sTop = (A.top.x - foot.x) * fx + (A.top.z - foot.z) * fz, back = new THREE.Vector3(-fx, 0, -fz);
+    const sWall = F.s0 + F.k * (F.over ?? H);
+    let sIn = null;
+    for (const v of [0.35, 0.65, 0.95]) {
+      if (H + v > (F.over ?? H) - 0.05) continue;
+      for (const w of [-0.2, 0, 0.2]) {
+        const s1 = Math.max(sTop, sWall) + 1.2;
+        const t = castEntry(parts, o.set(foot.x + fx * s1 + lx * (w + (F.c ?? 0)), foot.y + H + v, foot.z + fz * s1 + lz * (w + (F.c ?? 0))), back, s1 - sWall + 0.4);
+        if (t != null) sIn = Math.max(sIn ?? -Infinity, s1 - t);
+      }
+    }
+    if (sIn != null) { const n = Math.hypot(1, F.k); F.inner = ((F.s0 + F.k * H) - sIn) / n; }
+  }
+  // a wall top to sit on and go over (the vault: art/ladder-climb.js) — nothing standing on it in the way from the
+  // ladder's line to past its inner face, a man's height over it: a crenel's merlons, an eave, a doorway's head (M20's
+  // towers had him vault through their merlons, M17's eave)
+  F.topClear = true;
+  if ((F.over ?? H) > H + 0.25) {
+    const nn = Math.hypot(1, F.k), sIn = F.inner != null ? (F.s0 + F.k * H) - F.inner * nn : F.s0 + F.k * F.over + 0.3;
+    const dir = new THREE.Vector3(fx, 0, fz);
+    for (const v of [0.35, 0.7, 1.0]) {
+      // (from just behind the rungs at that height: not the ladder's own stiles and rungs standing over the top)
+      const sA = F.s0 + F.k * (F.over + v) + 0.06;
+      for (const w of [-0.15, 0, 0.15]) {
+        const t = castEntry(parts, o.set(foot.x + fx * sA + lx * (w + (F.c ?? 0)), foot.y + F.over + v, foot.z + fz * sA + lz * (w + (F.c ?? 0))), dir, Math.max(0.3, sIn - sA + 0.4));
+        if (t != null) F.topClear = false;
+      }
+    }
   }
   // inside a building (the brick ruins' stair to their roof, M4 / M7 / M17 / M19): walls all round halfway up — the
   // climb is out of sight in there; nothing is built (it would stick out through the roof)
@@ -628,6 +683,25 @@ export function* fitStairSidesG(world, scene, skip = new Set()) {
 // ------------------------------------------------------------------ fitting a map's ladders
 
 /** Whether something is drawn under the top end of a ladder at its height (down rays round the spot, ±0.4 m). */
+/**
+ * The drawn surface a man stands on near height y0 (world) in front of (o in [o0, o1], across the ladder's middle) a
+ * frame: the highest one within 0.45 m over y0 (rays down) — or null (none: the walk grid's height stands).
+ */
+export function surfaceNear(parts, F, y0, [o0, o1]) {
+  if (!parts || !F.ax) return null;
+  const d = new THREE.Vector3(0, -1, 0);
+  let best = null;
+  for (let o = o0; o <= o1 + 1e-6; o += 0.15) for (const w of [-0.12, 0.12]) {
+    const l = (y0 - F.foot.y - o * F.ox.y) / F.ax.y, p = ladderPoint(F, l, o, w);
+    p.y = y0 + 0.6;
+    const t = castEntry(parts, p, d, 0.75);
+    if (t == null) continue;
+    const y = p.y - t;
+    if (y > y0 + 0.01 && y <= y0 + 0.45) best = Math.max(best ?? -Infinity, y);
+  }
+  return best;
+}
+
 function deckAt(parts, top) {
   if (!parts) return null;
   const o = new THREE.Vector3(), d = new THREE.Vector3(0, -1, 0);
@@ -689,6 +763,10 @@ export function* fitLaddersG(world, scene) {
       const parts = collectParts(scene, box, skip);
       F = measureFrame(L, parts);
       F.deck = deckAt(parts, A.top);
+      // (what the climber really stands on at the ladder's foot and on its deck: a tank's plinth, a walk's planks —
+      // the link's ends are on the walk grid's heights)
+      F.footSurf = surfaceNear(parts, F, F.foot.y, [0.3, 0.75]);
+      F.deckSurf = surfaceNear(parts, F, F.top.y, [Math.max(-0.95, (F.topO ?? -0.5) - 0.2), Math.min(-0.2, (F.topO ?? -0.5) + 0.2)]);
     } catch (e) { console.warn('[ladder-frame]', e); F = syntheticFrame(L); }
     frames.set(L.id, F);
     // (the walk grid has a floor at the top but the art has none there — M4 / M6 / M7 / M17 / M19's bombed houses
@@ -710,6 +788,8 @@ export function* fitLaddersG(world, scene) {
   }
   if (group.children.length) scene.add(group);
   world.ladderFrames = frames;
+  // (and the Green Beret's climb links: the faces he really climbs, both ways — art/wall-climb.js)
+  try { yield* fitClimbsG(world, (box) => collectParts(scene, box, skip), due); } catch (e) { console.warn('[ladder-frame] climbs', e); }
   // (and the sides of every flight of stairs: art/rail-arms.js keeps a man's arms inside them)
   try { yield* fitStairSidesG(world, scene, skip); } catch (e) { console.warn('[ladder-frame] stair sides', e); }
   const ms = Math.round(performance.now() - t0);
@@ -745,4 +825,5 @@ export function* fitLaddersG(world, scene) {
 }
 
 /** (debugging aids: the raw ray profile of a link — tools/tests) */
-export const _debug = { collectParts, castFirst, crowding, linkAxes };
+export const _debug = { collectParts, castFirst, castEntry, crowding, linkAxes };
+export { finish as finishFrame, collectParts, castEntry, castFirst };

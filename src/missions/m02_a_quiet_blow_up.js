@@ -317,8 +317,9 @@ export default {
     barr_out: { pool: 5, squads: [{ event: 'RINT', size: 3, exitRoute: [P(70.5, 44), P(66, 50)], loop: OUT_LOOP }] },
   },
   climbLinks: [
-    // GB over the climbable SW edge: river side → wall walk (down into the camp by plat_sw's stair)
-    { a: [23.73, 41.0, 0], b: [23.72, 39.3, 2.2], roles: ['greenberet'] },
+    // GB over the climbable SW edge: river side → wall walk (down into the camp by plat_sw's stair); climbTime: up the
+    // 3.4 m of stakes, over them and down onto the walk at a climber's pace (its 1.7 m crossing took 3.4 s)
+    { a: [23.73, 41.0, 0], b: [23.72, 39.3, 2.2], roles: ['greenberet'], climbTime: 5.0 },
   ],
   ladders: [
     // the camp ladder, left pulled up: lowered from the top of the wall (1.0 s)

@@ -131,7 +131,7 @@ const CROSS = [[28.6, 70], [26.0, 58], LANDING];
 const BACK = [[26.0, 58], [28.6, 70], LAUNCH];
 // the wall: the Green Beret's climb, the camp's ladder, and where each man lies on the wall walk (§4.7: unseen from below)
 const CLIMB_FOOT = [24.25, 40.75], CLIMB_TOP = [23.72, 39.3];
-const CLIMB_T = 5.0; // s: the Green Beret up the wall face
+const CLIMB_T = 6.7; // s: the Green Beret up the wall face (5.1 s at the climb pace: placement.climbEffort)
 const LADDER_FOOT = [27.4, 43.0], LADDER_TOP = [27.0, 42.2];
 const BY_LADDER = [26.5, 41.5]; // on the walk beside the head of the ladder
 const LANDING_TOP = [27.9, 40.9]; // the platform's landing, at the head of its stair

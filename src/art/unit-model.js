@@ -31,7 +31,8 @@ import { proneGround, PRONE_CLIP } from './prone-ground.js';
 import { restOnGround, corpseGround, warmCorpse, CORPSE_BONES } from './corpse-ground.js';
 import { turnStep } from './turn-step.js';
 import { stairGait, stairGround, stairStep, rampGround } from './stair-gait.js';
-import { ladderClimb } from './ladder-climb.js';
+import { ladderClimb, ladderEndShift } from './ladder-climb.js';
+import { climbPlanOf } from './wall-climb.js';
 import { railArms } from './rail-arms.js';
 import { steepLadder } from '../entities/stair-walk.js';
 import { swimFrame, wadeOffset, waterColumn } from './swim-pose.js';
@@ -348,6 +349,15 @@ export class UnitModel {
   }
 
   /** Root matrix of this frame before the runtime solves IK / grounding in world space (the scene updates the rest). */
+  /** Shift the root off a ladder link's end that lies in the ladder's way / against its wall (view only). */
+  _ladderEnd(u) {
+    const w = u.world;
+    if (!w?.ladderFrames?.size || u.alive === false || u.vehicle || u.state === 'inVehicle' || u.state === 'carried' || u.carriedBy || u.stance === 'swim' || u.stance === 'dive') { this._lEnd = null; return; }
+    const sh = ladderEndShift(w, u.x, u.y ?? 0, u.z);
+    this._lEnd = sh;
+    if (sh) { this.root.position.x += sh.x; this.root.position.z += sh.z; }
+  }
+
   _rootMatrix() {
     const r = this.root; r.updateMatrix();
     if (r.parent) r.matrixWorld.multiplyMatrices(r.parent.matrixWorld, r.matrix); else r.matrixWorld.copy(r.matrix);
@@ -378,7 +388,8 @@ export class UnitModel {
     const c = { dog: this.dog, faction: this.opts.faction, role: this.opts.role, actionId: u?.currentActionId ?? null,
       stance: u?.stance ?? 'stand', carried: u?.state === 'carried', tool: u?.readyTool ?? (u?.pendingAbility?.def?.id === 'knife' ? 'knife' : null), load: st ? transportClip(st) : null,
       mounted: !!u?._mgManned,   // at a platform MG (render/mg-mount.js): kneeling behind it
-      waterLayer: this.swimmer };   // the Marine's swim / dive poses (art/swim-pose.js)
+      waterLayer: this.swimmer,   // the Marine's swim / dive poses (art/swim-pose.js)
+      wallPose: !this.dog && !!(u?._climb && climbPlanOf(u)) };   // a wall climb posed on the face (art/wall-climb.js): the mantle clip not under it
     c.weapon = this._wantWeapon(c);   // prone clips follow the carry class of the weapon in hand (unit-anim-map proneAnim)
     return c;
   }
@@ -398,6 +409,7 @@ export class UnitModel {
     if (u && ((u.carrying && u.carrying.kind !== 'interactable') || u.downed || u.state === 'carried' || u.pendingTransport)) want = false;
     if (this.overlay) want = false; // a procedural overlay has his hands (the shovel: art/shovel-dig.js re-checks when it ends)
     if (u?._ladder && steepLadder(u._ladder.link)) want = false; // both hands on the rungs (art/ladder-climb.js), the weapon slung
+    if (u?._climb && climbPlanOf(u)) want = false; // (both hands on the wall he climbs: art/wall-climb.js)
     return want;
   }
 
@@ -487,6 +499,10 @@ export class UnitModel {
     if (this.fallback) { this.anim = name; return this.fallback.setAnim(name, o); }
     if (name === this.anim && !o.restart) return;
     if (this._shot && !(/^(die|dead)/.test(name) || LOCOMOTION.has(name) || name === 'shoot')) { this._shot.next = [name, o]; return; }
+    // (a ladder / a wall climb is posed over whatever plays — art/ladder-climb.js: the clip he was playing goes on under
+    // it, not restarted on the mantle / idle: a clip cut off there jumped his hands and feet as the pose eased in)
+    if ((name === 'climb' || name === 'ladder') && this.clip && this.real?.inner && !this.dog && this.unit
+      && ((name === 'ladder' && this.unit._ladder && steepLadder(this.unit._ladder.link)) || (name === 'climb' && this.unit._climb && climbPlanOf(this.unit)))) { this.anim = name; this._o = { ...o, loop: true }; return; }
     this.anim = name; this._o = o;
     this._apply(!!o.restart);
   }
@@ -498,6 +514,9 @@ export class UnitModel {
     if (R.inner && this.unit?.alive !== false && (this.unit?.blastReact || this._br)) this._blastReact(this.unit);
     // standing / walking in the water: on the bed under it, not on its surface (art/swim-pose.js)
     if (R.inner && this.unit) wadeOffset(this, this.unit);
+    // a ladder link's end in the ladder's way (its foot behind the rungs, against the wall) or against a wall's inner
+    // face at the top: whoever stands there is drawn clear of it (art/ladder-climb.js ladderEndShift)
+    if (R.inner && this.unit && !this.dog) this._ladderEnd(this.unit);
     // the Marine in the water wears the wetsuit body, whatever he plays there (the harpoon shot, gear on / off)
     if (this.swimmer && this.unit) {
       const u = this.unit, wet = !u.vehicle && u.state !== 'inVehicle' && (u.stance === 'swim' || u.stance === 'dive' || !!u.diving);
@@ -518,7 +537,7 @@ export class UnitModel {
       this._weaponFor(this._ctx());
     }
     // on / off a ladder: the weapon slung / back in hand
-    const onLad = !!(this.unit?._ladder && steepLadder(this.unit._ladder.link));
+    const onLad = !!(this.unit?._ladder && steepLadder(this.unit._ladder.link)) || !!(this.unit?._climb && climbPlanOf(this.unit));
     if (R.inner && this.player && this.unit && onLad !== !!this._onLadder) { this._onLadder = onLad; this._weaponFor(this._ctx()); }
     // the contact knife kill's blend-out (abilities/knife.js sets knifeShow): the knife stays in his fist until it ends
     if (R.inner && this.player && this.unit) {
@@ -597,7 +616,7 @@ export class UnitModel {
     // a stance transition on a flight: neither _prone (excludes transitions) nor stairGait (locomotion only) owns
     // the body - the transition ground guard keeps the pelvis out of the treads (see _trGuard)
     if (R.inner && !this.dog) stepped = this._trGuard(tst) || stepped;
-    if (R.inner && !this.dog && !tst && (this._lc || u?._ladder)) stepped = ladderClimb(this, dt, this._guard) || stepped;
+    if (R.inner && !this.dog && !tst && (this._lc || u?._ladder || u?._climb)) stepped = ladderClimb(this, dt, this._guard) || stepped;
     // on a stair, his arms inside its rails (art/rail-arms.js)
     if (R.inner && !this.dog && !tst && !this._rdLast && u?.world?.grid?.flights?.size) stepped = railArms(this, this._guard) || stepped;
     // the Marine swimming / diving: the procedural water poses (art/swim-pose.js)
@@ -615,6 +634,7 @@ export class UnitModel {
     }
     root._mwTok = FRAME.n;
     if (this.pawFalls && R.inner?.takeFootfalls) this._footfalls(R.inner);
+    (this._rootPrev ||= root.position.clone()).copy(root.position); // (art/ladder-climb.js: the root's drawn place across a climb's ease in / out)
   }
 
   /**

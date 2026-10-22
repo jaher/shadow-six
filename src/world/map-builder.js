@@ -2398,7 +2398,7 @@ export function addMissionLinks(grid, mission, o = {}) {
     return { x: p.x, z: p.z, y: y ?? 0 };
   };
   for (const l of mission.climbLinks || []) {
-    const link = grid.addLink(LINK.CLIMB, end(l.a), end(l.b), { roles: l.roles ?? ['greenberet'] });
+    const link = grid.addLink(LINK.CLIMB, end(l.a), end(l.b), { roles: l.roles ?? ['greenberet'], climbTime: l.climbTime });
     out.push({ kind: LINK.CLIMB, link, def: l });
   }
   for (const l of mission.ladders || []) {
