@@ -203,16 +203,57 @@ function linksSig(grid) {
   for (const l of L) if (l.enabled) { n++; s = (s * 31 + (l.id | 0)) % 2147483647; }
   return `${L.length}:${n}:${s}`;
 }
+/**
+ * The links a search under these rules may take (enabled, open to `role`, walked ones only under noLinks), as a key: a
+ * labelling depends on the role only through them — the squad's men and the guards, allowed the same links, share one
+ * (M3's four men boarding the truck built four, ~4 ms each, in one tick). Memoised per links array and enabled state.
+ */
+const _allowed = new WeakMap();
+function allowedSig(grid, role, opts) {
+  const L = grid.links || [];
+  let m = _allowed.get(L);
+  const en = linksSig(grid);
+  if (!m || m.en !== en) { m = { en, map: new Map() }; _allowed.set(L, m); }
+  const k = `${role ?? ''}|${opts.noLinks ? 1 : 0}`;
+  let sig = m.map.get(k);
+  if (sig === undefined) {
+    const ids = [];
+    for (const l of L) if (grid.linkAllowed(l, role) && !(opts.noLinks && !l.walk)) ids.push(l.id);
+    sig = ids.join(',');
+    m.map.set(k, sig);
+  }
+  return sig;
+}
+function areaKey(grid, walkOpts, role, opts, hasLinks) {
+  const sig = hasLinks ? allowedSig(grid, role, opts) : '-';
+  return `${walkOpts.swim ? 1 : 0}${walkOpts.dive ? 1 : 0}${opts.noLinks ? 1 : 0}${opts.noWalkLinks ? 1 : 0}|${sig}`;
+}
+/** The rules (swim, role, noLinks, noWalkLinks) labellings were built for, oldest first (rewarmAreas). */
+const _recent = new WeakMap();
+const RECENT_MAX = 12;
 function areasFor(grid, walkOpts, role, opts, hasLinks) {
   let per = _areas.get(grid);
   if (!per || per.version !== grid.version || per.links !== grid.links) { per = { version: grid.version, links: grid.links, map: new Map() }; _areas.set(grid, per); }
-  const sig = hasLinks ? linksSig(grid) : '-';
-  const key = `${walkOpts.swim ? 1 : 0}${walkOpts.dive ? 1 : 0}${opts.noLinks ? 1 : 0}${opts.noWalkLinks ? 1 : 0}|${role ?? ''}|${sig}`;
+  const key = areaKey(grid, walkOpts, role, opts, hasLinks);
   let lab = per.map.get(key);
   if (lab) return lab;
+  let rec = _recent.get(grid);
+  if (!rec) _recent.set(grid, (rec = new Map()));
+  const rk = `${walkOpts.swim ? 1 : 0}${opts.noLinks ? 1 : 0}${opts.noWalkLinks ? 1 : 0}|${role ?? ''}`;
+  if (!rec.has(rk)) {
+    rec.set(rk, [!!walkOpts.swim, role, !!opts.noLinks, !!opts.noWalkLinks]);
+    if (rec.size > RECENT_MAX) rec.delete(rec.keys().next().value);
+  }
   const cols = grid.cols, rows = grid.rows, N = grid.size, bare = { swim: !!walkOpts.swim, dive: !!walkOpts.dive };
   const open = new Uint8Array(N);
-  for (let j = 0, k = 0; j < rows; j++) for (let i = 0; i < cols; i++, k++) open[k] = grid.isWalkable(i, j, bare) ? 1 : 0;
+  if (bare.dive) for (let j = 0, k = 0; j < rows; j++) for (let i = 0; i < cols; i++, k++) open[k] = grid.isWalkable(i, j, bare) ? 1 : 0;
+  else {
+    // (grid.isWalkable's own test for these rules, cell by cell without the call: no dynamic layer, no mask)
+    const { block, navBlock, fenceHole, bridge, terrain } = grid, swim = bare.swim;
+    for (let k = 0; k < N; k++) {
+      open[k] = block[k] !== B.NONE || (navBlock[k] && !fenceHole[k]) ? 0 : bridge[k] ? 1 : terrain[k] === T.WATER ? (swim ? 1 : 0) : 1;
+    }
+  }
   // (links by cell, the ones this search may take)
   let adj = null;
   if (hasLinks) {
@@ -225,7 +266,7 @@ function areasFor(grid, walkOpts, role, opts, hasLinks) {
     }
   }
   lab = new Int32Array(N);
-  const queue = new Int32Array(N);
+  const queue = new Int32Array(N), elev = grid.elev, runOf = grid.runOf;
   let next = 0;
   for (let s0 = 0; s0 < N; s0++) {
     if (!open[s0] || lab[s0]) continue;
@@ -239,7 +280,9 @@ function areasFor(grid, walkOpts, role, opts, hasLinks) {
         if (ni < 0 || nj < 0 || ni >= cols || nj >= rows) continue;
         const nk = nj * cols + ni;
         if (!open[nk] || lab[nk]) continue;
-        if (!grid.canStep(k, nk) && !grid.canStep(nk, k)) continue;
+        // (grid.canStep either way: the elevation step is symmetric; only a ramp's side needs its own test)
+        if (Math.abs(elev[k] - elev[nk]) > MAX_STEP) continue;
+        if (runOf && runOf[k] !== runOf[nk] && !grid.canStep(k, nk) && !grid.canStep(nk, k)) continue;
         lab[nk] = id; queue[qt++] = nk;
       }
       const ls = adj?.get(k);
@@ -248,6 +291,48 @@ function areasFor(grid, walkOpts, role, opts, hasLinks) {
   }
   per.map.set(key, lab);
   return lab;
+}
+
+/**
+ * The area labelling a search under these rules (findPath's opts: swim / allowWater, role, noLinks, noWalkLinks) would
+ * build at its first use, built now: a cache fill only (keyed like the search's own, rebuilt when the grid changes), so
+ * every search answers the same. The walkthrough runs it on its title card (engine/idle-warm.js): M3's first tick built
+ * the guards' and the squad's labellings, ~5 ms of it.
+ */
+export function warmAreas(grid, opts = {}) {
+  if (!grid?.size || opts.dive) return;
+  const o = { role: opts.role, noLinks: !!opts.noLinks, noWalkLinks: !!opts.noWalkLinks };
+  const hasLinks = (!o.noLinks || !o.noWalkLinks) && grid.links && grid.links.length > 0;
+  areasFor(grid, { swim: !!(opts.swim || opts.allowWater), dive: false }, o.role, o, hasLinks);
+}
+
+/**
+ * Between ticks (Game.render): once the grid has held still for REWARM_AFTER calls since its static layers or links last
+ * changed (a blast's stamp), the labelling of one rule set searches used before that change and the grid now lacks, built
+ * now — a cache fill only (areasFor's own, for the grid as it stands; a search builds the same lazily). M3: the squad's
+ * two labellings (the men, the Diver swimming) were rebuilt in the tick they boarded the truck, ~7 ms of it, 24 s after
+ * the bunker blast that changed the grid. A grid that keeps changing (M11's fireworks) is left alone.
+ * @returns {boolean} one was built
+ */
+export const REWARM_AFTER = 30;
+const _still = new WeakMap();
+export function rewarmAreas(grid) {
+  const rec = grid && _recent.get(grid);
+  if (!rec || !rec.size) return false;
+  const sig = linksSig(grid);
+  let st = _still.get(grid);
+  if (!st || st.version !== grid.version || st.links !== grid.links || st.sig !== sig) { _still.set(grid, (st = { version: grid.version, links: grid.links, sig, n: 0, done: false })); }
+  if (st.done || ++st.n < REWARM_AFTER) return false;
+  for (const [swim, role, noLinks, noWalkLinks] of rec.values()) {
+    const walkOpts = { swim, dive: false }, opts = { noLinks, noWalkLinks };
+    const hasLinks = (!noLinks || !noWalkLinks) && !!grid.links && grid.links.length > 0;
+    const per = _areas.get(grid);
+    if (per && per.version === grid.version && per.links === grid.links && per.map.has(areaKey(grid, walkOpts, role, opts, hasLinks))) continue;
+    areasFor(grid, walkOpts, role, opts, hasLinks);
+    return true;
+  }
+  st.done = true;
+  return false;
 }
 
 /** Expansions after which a search asks whether its goal is shut in a small pocket (goalPocketExcludes). */
@@ -350,6 +435,27 @@ export function findPath(grid, sx, sz, tx, tz, opts = {}) {
   return searchPath(grid, sx, sz, tx, tz, opts, true, null);
 }
 
+/**
+ * grid.isWalkable(i, j, walkOpts) as a closure over the grid's layers (the same test, read live — nothing cached): the
+ * search asks it ~10 times a cell expanded, and M11's blast ticks spent a third of their searches in the call itself.
+ * A dive keeps the grid's own test.
+ */
+function walker(grid, walkOpts) {
+  const { cols, rows, block, navBlock, fenceHole, bridge, terrain } = grid;
+  if (walkOpts.dive || !block || !navBlock || !fenceHole || !bridge || !terrain) return (i, j) => grid.isWalkable(i, j, walkOpts);
+  const dyn = walkOpts.dynamic ? grid.dynamicBlock : null, avoid = walkOpts.avoid || null, swim = !!walkOpts.swim, NONE = B.NONE, WATER = T.WATER;
+  return (i, j) => {
+    if (i < 0 || j < 0 || i >= cols || j >= rows) return false;
+    const k = j * cols + i;
+    if (block[k] !== NONE || (navBlock[k] && !fenceHole[k])) return false;
+    if (dyn && dyn[k] !== NONE) return false;
+    if (avoid && avoid[k]) return false;
+    if (bridge[k]) return true;
+    if (terrain[k] === WATER) return swim;
+    return true;
+  };
+}
+
 /** findPath's A*; `openEnds`: the ladder ends a clearance mask shuts are open as ladder ends (stepped onto to climb,
  * stepped off from it, never walked through); `info.endBlocked`: set when a search without them met one. */
 function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
@@ -367,10 +473,11 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
   const allEnds = walkOpts.avoid && hasLinks ? ladderEnds(grid) : null, ends = openEnds ? allEnds : null;
   const bare = allEnds ? { ...walkOpts, avoid: null } : null;
   const isEnd = (i, j) => allEnds !== null && grid.inBounds(i, j) && allEnds.has(j * cols + i) && grid.isWalkable(i, j, bare);
-  const open = ends ? (i, j) => grid.isWalkable(i, j, walkOpts) || isEnd(i, j) : (i, j) => grid.isWalkable(i, j, walkOpts);
+  const walk = walker(grid, walkOpts);
+  const open = ends ? (i, j) => walk(i, j) || isEnd(i, j) : walk;
   const meet = info && allEnds ? (i, j) => { if (!info.endBlocked && isEnd(i, j)) info.endBlocked = true; } : null;
   // (the goal's pocket counts the ends open either way: a pocket shut without them is shut with them too, or not one)
-  const pocketOpen = allEnds ? (i, j) => grid.isWalkable(i, j, walkOpts) || isEnd(i, j) : open;
+  const pocketOpen = allEnds ? (i, j) => walk(i, j) || isEnd(i, j) : open;
 
   // Start: if the unit stands in a blocked cell (pushed/spawned badly), leave via the nearest walkable one.
   let start = { x: sx, z: sz };
@@ -453,7 +560,7 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
       const ni = i + DI[d], nj = j + DJ[d];
       if (!open(ni, nj)) { if (meet) meet(ni, nj); continue; }
       // No corner cutting: a diagonal step needs both orthogonal neighbours free.
-      if (d >= 4 && (!grid.isWalkable(i + DI[d], j, walkOpts) || !grid.isWalkable(i, j + DJ[d], walkOpts))) continue;
+      if (d >= 4 && (!walk(i + DI[d], j) || !walk(i, j + DJ[d]))) continue;
       const nk = nj * cols + ni;
       if (closed[nk] === id) continue;
       if (!grid.canStep(k, nk)) continue; // elevation discontinuity (raised areas: links only)

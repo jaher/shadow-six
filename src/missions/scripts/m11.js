@@ -394,6 +394,7 @@ export function buildVisuals(world, spec) {
     root.add(portalMesh(p.x, p.z, p.rot, p.y));
   }
   world.scene.add(root);
+  rubbleGeometries(world); // (the tunnel's rubble, made now: tunnelRubble)
   // the quarry's explosive process tanks are Barrel entities (the schema's only explosive): dress them as the
   // white vertical oil tanks they are (the drum mesh goes; the tank goes with the entity when it blows)
   for (const id of spec.tanks || []) {
@@ -421,15 +422,26 @@ export function buildVisuals(world, spec) {
   }
 }
 
+/**
+ * The S portal rubble's nine boulders (art/dressing.js boulderGeometry: seeded, ~6 ms the nine): made with the scenery
+ * as the load ends (buildVisuals), not inside the tick of the blast that brings the tunnel down.
+ */
+function rubbleGeometries(world) {
+  return world._m11RubbleGeo || (world._m11RubbleGeo = Array.from({ length: 9 }, (_, k) => {
+    const r = 0.9 + (k % 3) * 0.5;
+    return boulderGeometry(r, r * 0.8, r * 0.9, 311 + k * 17, 3);
+  }));
+}
+
 /** Rubble filling the S portal once the tunnel has fallen (visual; the cells are blocked by the set-piece). */
 export function tunnelRubble(world, at) {
   if (!world.scene || world._m11Rubble) return;
   world._m11Rubble = true;
   const mat = dressingMaterial('rock'); // placeholder-art pass: fractured boulders (were flat-colour dodecahedra)
-  const grp = new THREE.Group();
+  const grp = new THREE.Group(), geos = rubbleGeometries(world);
   for (let k = 0; k < 9; k++) {
     const r = 0.9 + (k % 3) * 0.5;
-    const m = new THREE.Mesh(boulderGeometry(r, r * 0.8, r * 0.9, 311 + k * 17, 3), mat);
+    const m = new THREE.Mesh(geos[k], mat);
     m.position.set(at[0] + ((k * 37) % 7) - 3, PLATEAU_Y + r * 0.6, at[1] + ((k * 53) % 5) - 2.5);
     m.castShadow = true;
     grp.add(m);

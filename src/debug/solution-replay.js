@@ -236,7 +236,12 @@ export class SolutionReplay {
     this._viewAt = -Infinity;
     this._viewDt = 0;
     this._viewMs = 0;
+    // the visual-only event handlers of the ticks this replay grants (after each frame's draw) wait for the next draw
+    // (Game.step deferVisuals; flushed here every frame, drawn or not, and by Game.render)
+    this._saved.deferVisuals = g.deferVisuals;
+    g.deferVisuals = true;
     g.frame = (dt) => {
+      g.events?.flushLate?.();
       this._frame(dt);
       // a still screen (video mode's title and chapter cards): queued cache fills (engine/idle-warm.js), ≥ 1 a frame and
       // more while they take under IDLE_WARM_MS together (the title card warms a squad's ~150 fitted clips in a few s)
@@ -634,6 +639,7 @@ export class SolutionReplay {
       g.manualTick = s.manualTick;
       if (s.frame) g.frame = s.frame; else delete g.frame;
       if (s.enqueue) g.enqueue = s.enqueue; else delete g.enqueue;
+      g.deferVisuals = s.deferVisuals; // (what the last ticks left is drawn by the next frame: Game.render flushes it)
       g.accumulator = 0;
     }
     if (this._smart && this.director) { this.director.detach(); this.director = null; } // the player's pitch / yaw / bounds back

@@ -227,14 +227,19 @@ export function queueIdleWarm(units) {
     }
   }
   squad.sort((a, b) => a[0] - b[0]); // (stable: the men in their order within a rank)
-  for (const [, R, nm, label] of squad) add(R, nm, label);
+  // the squad's early clips, then the Germans' fitted deaths (M3's first knife kill, t 217: a 7.5 ms fit inside its
+  // tick when the title card was left before the queue reached them), then the rest of the squad's clips
+  const early = squad.filter((q) => q[0] < 99), rest = squad.filter((q) => q[0] >= 99);
+  for (const [, R, nm, label] of early) add(R, nm, label);
   for (const u of units) {
     const R = u.model?.real;
     if (!R?.inner || u.model?.dog || u.faction === 'player') continue;
     const lib = L.rt?.[R.entry?.runtime]?.lib;
     if (!lib?.clips) continue;
     for (const nm of ['die_prone', 'dead_prone']) if (lib.clips.has(nm)) add(R, nm, `${R.characterId} ${nm}`);
+    for (const nm of lib.clips.keys()) if (/^(die|dead)/.test(nm) && FITTED(lib.meta?.[nm], nm, R.entry?.runtime)) add(R, nm, `${R.characterId} ${nm}`);
   }
+  for (const [, R, nm, label] of rest) add(R, nm, label);
   return n;
 }
 

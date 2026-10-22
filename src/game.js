@@ -51,8 +51,10 @@ import { resolveHouseRules, tierFromPreset } from './core/house-rules.js';
 import { nobodyLeftToHelp } from './entities/downed.js';
 import { prepareCharacters, awaitUnitModels, warmUnitModels, warmUnitModelsG, queueIdleWarm, queueAheadModels, charactersFrame, transportFrame, releaseCharacters } from './art/unit-model.js';
 import { idleWarm } from './engine/idle-warm.js';
-import { knifeKillFrame } from './art/knife-kill.js';
+import { knifeKillFrame, queueContactMarks } from './art/knife-kill.js';
 import { barrelCarryFrame } from './art/barrel-carry.js';
+import { warmAvoidMasks, rewarmAvoidMasks } from './world/body-clearance.js';
+import { warmAreas, rewarmAreas } from './world/pathfinding.js';
 import { digWarmObjects } from './art/shovel-dig.js';
 
 /** Let the page paint once (a frame, then a task: the DOM drawn), at most ~50 ms (a hidden tab draws no frames). */
@@ -386,7 +388,13 @@ export class Game {
     // (a clip at a time, the loading screen drawing between them: engine/slice.js)
     this.warmMs = await safeAsync(() => (warmUnitModelsG ? runSliced(warmUnitModelsG(world.entities.filter((e) => e.model?.real))) : warmUnitModels(world.entities.filter((e) => e.model?.real))), 'character grounding');
     // (the rest of the bodies' clip fits: on still screens — the walkthrough's cards — engine/idle-warm.js)
-    safe(() => { idleWarm.clear(); queueIdleWarm(world.entities.filter((e) => e.model?.real)); queueAheadModels(world); }, 'idle warm queue');
+    safe(() => {
+      idleWarm.clear();
+      // (the walk areas the first tick's plans ask for — the guards' patrol routes, the squad's first orders: first in line)
+      for (const u of [...world.commandos, ...world.enemies]) idleWarm.add('walk areas', () => { if (this.world === world) warmAreas(world.grid, u.pathQuery?.() || {}); });
+      queueIdleWarm(world.entities.filter((e) => e.model?.real)); queueAheadModels(world);
+      queueContactMarks([...world.commandos, ...world.enemies], idleWarm); // (the first knife kill's landmarks)
+    }, 'idle warm queue');
     // vehicles, wrecks, lamps, scorch: shaders + textures + vertex buffers on the GPU now, not on the first pan / wreck swap
     // (+ the vehicles the mission brings on later, e.g. M3's escape truck: drawn now, kept off the scene — VehicleMod.laterVehicleModels)
     const later = safe(() => VehicleMod.laterVehicleModels?.(def), 'later vehicles') || [];
@@ -399,6 +407,10 @@ export class Game {
     this.vehicleWarm = await safeAsync(() => warmVehicleArt(r.renderer, r.scene, r.camera, () => this.cameraRig.render(this.renderer, 0),
       { precompile: (f) => this._compileAhead(f, { parts: true }), runFrames: (f) => this._framesInParts(f) }), 'vehicle warm-up');
     for (const m of later) m.root.removeFromParent();
+    // (the boats' underside samples for their rest pose: now, not in the first tick — art/vehicle-model.js warmRest)
+    for (const v of world.vehicles) safe(() => v.model?.warmRest?.(), 'boat rest warm-up');
+    // (the static solids' avoid masks every stance's plans start from: now, not in the first tick's patrol plans)
+    safe(() => warmAvoidMasks(world), 'avoid masks warm-up');
     if (this.world !== world) return prog.cancel(), world;
     // house rules (bodies-design §0.3) + blast/ragdoll physics (§A): Rapier over the finished map, null object on failure
     world.house = resolveHouseRules({ options: this.options, mission: def, tier: tierFromPreset(r.presetName) });
@@ -718,6 +730,7 @@ export class Game {
   unloadMission() {
     // keep the shader programs warm: the next mission's first frame reuses them (engine/program-keeper.js)
     if (this.world) deferMaterialDisposal();
+    this.events?.dropLate?.(); // (the visual handlers still waiting for a draw: their world is going)
     this.textureWarmer?.clear();
     safe(() => this.cones?.dispose?.(), 'cones dispose');
     this.cones = null;
@@ -817,8 +830,20 @@ export class Game {
 
   /** ONE fixed simulation tick (tests call this directly). */
   step(dt = CONFIG.sim.dt) {
+    if (!this.world) return;
+    // (`inStep`: the HUD's event handlers leave layout reads for its next update — ui/messages.js _placeSoon)
+    this.inStep = true;
+    // `deferVisuals` (a host that draws after its ticks, debug/solution-replay.js): the handlers that only draw or
+    // sound (EventBus.onLate: effects, crater marks, blast-front visuals, blood) wait for the next frame's draw
+    // (Game.render flushes them) — a blast's sparks, debris and scorch are built where they are first drawn, not in the
+    // tick that blew it (M3's bunker blast: ~5 ms of its tick). The simulation is the same tick for tick.
+    const ev = this.events, defer = !!this.deferVisuals && !!ev?.onLate;
+    if (defer) ev.deferring = true;
+    try { this._step(dt); } finally { this.inStep = false; if (defer) ev.deferring = false; }
+  }
+
+  _step(dt) {
     const w = this.world;
-    if (!w) return;
     this._flushQueue();
     for (const e of w.entities) e.savePrev?.();
     w.rebuildSpatial();
@@ -1087,6 +1112,11 @@ export class Game {
    */
   render(dt = 0, alpha = 1, draw = true) {
     const w = this.world;
+    // (the visual handlers the last ticks left for this draw: Game.step deferVisuals)
+    this.events.flushLate?.();
+    // (a walk-area labelling the next plans will ask for, built between ticks once the grid holds still: rewarmAreas)
+    // (and a static avoid mask a blast's lost solid left to rebuild: rewarmAvoidMasks) — one or the other a frame
+    if (w?.grid && this.state === 'playing' && !rewarmAreas(w.grid)) rewarmAvoidMasks(w);
     const animDt = this.state === 'playing' ? dt : 0;
     // §6.8: faithful pause freezes scrolling (arrows, edge, middle-drag); the ⚑ active-pause option allows it. The
     // Colonel's tour flies the camera itself (ui/briefing.js sets rig.scripted): no scrolling may fight it either.

@@ -553,6 +553,11 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
     /** Clipping-rule gun reach (world/placement.js turretArc): barrel length / bore height / turret housing. */
     get gun() { return gunInfo(vis, def, dims); },
     update(dt, v) { if (dt > 0 && v) step(dt, v); },
+    /**
+     * Boats: sample the underside of the model drawn now (cached per model instance; ~2–6 ms of triangles) ahead of
+     * the first rest pose — at the mission load, not in the first sim tick that poses the hull. Visual only.
+     */
+    warmRest() { if (def.kind === 'boat' && model.isReady && vis.meta) underside(); },
     setTurretHeading(localRad) {
       st.yaw = -wrapPi(Number.isFinite(localRad) ? localRad : 0);
       // posed at once (the clipping audit sweeps without sim steps; the next step re-applies the same pose)

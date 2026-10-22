@@ -447,14 +447,31 @@ export function stampHeadroom(world, built) {
   const grid = world.grid;
   if (!grid.overLo) return { cells: 0, off: null };
   const keep = new Set(navKeepPoints(world, built).map(([x, z]) => { const c = grid.worldToCell(x, z); return grid.inBounds(c.i, c.j) ? grid.idx(c.i, c.j) : -1; }));
+  // the overhang cells (overLo finite: grid.overCells, kept by overStamp): a re-stamp walks those ~2 000 cells, not the
+  // whole grid (M3: 78 736 cells, ~1 ms of the bunker blast's tick). Visiting order is free: the stamp is a set
+  const overCells = () => {
+    if (grid.overCells) return grid.overCells;
+    const all = [];
+    for (let k = 0; k < grid.overLo.length; k++) if (grid.overLo[k] !== Infinity) all.push(k);
+    return all;
+  };
   const stamp = () => {
     const gy = typeof world.groundY === 'function' ? world.groundY : null, out = new Set();
-    for (let k = 0; k < grid.overLo.length; k++) {
+    // (bounds of that ground first — world.groundYBounds, the deck-aware ground's: a cell whose ground is surely within
+    // HEAD_ROOM of its overhang is stamped, one whose ground cannot come that close is open, both without the feet ring's
+    // ~33 look-ups; the rest asks the ground itself. The same cells as the exact test everywhere)
+    const gyB = gy && typeof world.groundYBounds === 'function' && world.groundYBounds.of === gy ? world.groundYBounds : null, b = [0, 0];
+    for (const k of overCells()) {
       const lo = grid.overLo[k];
       // (open water is swum or rowed, never walked: a lock gate's beam over an open channel — M13's south gate, latched
       // open — must not shut it to divers and boats once a blast re-stamps the head room)
       if (lo === Infinity || keep.has(k) || grid.block[k] !== B.NONE || grid.terrain[k] === T.WATER) continue;
       const i = k % grid.cols, j = (k / grid.cols) | 0, c = grid.cellCenter(i, j);
+      if (gyB) {
+        gyB.call(world, c.x, c.z, b);
+        if (lo - Math.max(grid.elev[k], b[0]) < HEAD_ROOM) { out.add(k); continue; }
+        if (lo - Math.max(grid.elev[k], b[1]) >= HEAD_ROOM) continue;
+      }
       const y = Math.max(grid.elev[k], gy ? gy.call(world, c.x, c.z) : 0);
       if (lo - y < HEAD_ROOM) out.add(k);
     }
@@ -1055,9 +1072,10 @@ export function* stampCrawlStepsG(world, built, groundAt = null) {
     let out = null;
     for (const cells of per.values()) for (const k of cells) (out ||= new Uint8Array(grid.cols * grid.rows))[k] = 1;
     grid.crawlStep = out;
-    return out ? out.reduce((a, v) => a + v, 0) : 0;
+    return out;
   };
-  const n = union();
+  // (the count for the build's log only: not summed again over the whole grid inside a blast's tick)
+  const first = union(), n = first ? first.reduce((a, v) => a + v, 0) : 0;
   // a destroyed structure's steps go with it (its ruin, like its visual nav stamps, stamps none)
   const off = world.events?.on?.('structure:destroyed', (e) => { if (e?.owner != null && per.delete(e.owner)) union(); });
   return { cells: n, off: typeof off === 'function' ? off : null };
@@ -1939,7 +1957,14 @@ export function* buildMapGen(world, mission, opts = {}) {
     // debris) out in the open, with no low surface and no deck within a stride, finds none — its answer is the ground
     // itself, without the ring's ~33 look-ups (it runs for every man every frame, and every flying chunk every tick)
     const SURF_K = 5, coarse = new Set();
-    for (const m of [surf, laneSurf]) if (m) for (const k of m.keys()) { const c = k.indexOf(','); coarse.add(Math.floor(+k.slice(0, c) / SURF_K) * 1048576 + Math.floor(+k.slice(c + 1) / SURF_K)); }
+    // (and the highest sample in each of those squares: groundBelowDeckMax's bound)
+    const coarseMax = new Map();
+    for (const m of [surf, laneSurf]) if (m) for (const [k, v] of m) {
+      const c = k.indexOf(','), q = Math.floor(+k.slice(0, c) / SURF_K) * 1048576 + Math.floor(+k.slice(c + 1) / SURF_K);
+      coarse.add(q);
+      const was = coarseMax.get(q);
+      if (was === undefined || v > was) coarseMax.set(q, v);
+    }
     const ringEmpty = (x, z) => {
       const R = STRIDE_R; // (every sample of FOOT_OFFS lies within ±STRIDE_R of the centre on each axis)
       const ci0 = Math.floor(Math.floor((x - R) / SURF_CELL) / SURF_K), ci1 = Math.floor(Math.floor((x + R) / SURF_CELL) / SURF_K);
@@ -2017,7 +2042,37 @@ export function* buildMapGen(world, mission, opts = {}) {
       }
       return sy !== undefined && sy > g ? sy : g;
     };
+    /**
+     * Bounds of groundBelowDeck(x, z) without the feet ring, into `out` ([low, high]): off a deck the answer is the ground
+     * itself or a ring sample / deck edge above it (never below the ground), a sample at most the highest one in its 1 m
+     * square (a stride's lip drop only lowers it), a deck edge at most STEP_MAX over the ground. On a deck cell: no
+     * bounds (−∞, ∞). (The head room stamp asks them first: most cells are decided without the ring's ~33 look-ups.)
+     */
+    const groundBelowDeckBounds = (x, z, out) => {
+      if (onBridgeCell(grid, x, z)) { out[0] = -Infinity; out[1] = Infinity; return out; }
+      const g = typeof base === 'function' ? base.call(world, x, z) : 0;
+      const R = STRIDE_R; // (the same squares and cells as ringEmpty)
+      const ci0 = Math.floor(Math.floor((x - R) / SURF_CELL) / SURF_K), ci1 = Math.floor(Math.floor((x + R) / SURF_CELL) / SURF_K);
+      const cj0 = Math.floor(Math.floor((z - R) / SURF_CELL) / SURF_K), cj1 = Math.floor(Math.floor((z + R) / SURF_CELL) / SURF_K);
+      let ub = g;
+      for (let ci = ci0; ci <= ci1; ci++) for (let cj = cj0; cj <= cj1; cj++) { const v = coarseMax.get(ci * 1048576 + cj); if (v !== undefined && v > ub) ub = v; }
+      if (decks.length || world.surfaces?.length) {
+        const i0 = Math.floor((x - R) / grid.cell), i1 = Math.floor((x + R) / grid.cell), j0 = Math.floor((z - R) / grid.cell), j1 = Math.floor((z + R) / grid.cell);
+        for (let i = i0; i <= i1 && ub < g + STEP_MAX; i++) for (let j = j0; j <= j1; j++) if (grid.inBounds(i, j) && grid.bridge[grid.idx(i, j)]) { ub = Math.max(ub, g + STEP_MAX); break; }
+      }
+      out[0] = g; out[1] = ub;
+      return out;
+    };
+    /** deckGroundY's bounds (world.groundYBounds while world.groundY is deckGroundY): see groundBelowDeckBounds. */
+    const deckGroundYBounds = (x, z, out) => {
+      const e = grid.elevAt(x, z);
+      groundBelowDeckBounds(x, z, out);
+      if (e > 0.05) { out[0] = Math.max(0, out[0] - e); out[1] = Math.max(0, out[1] - e); }
+      return out;
+    };
+    deckGroundYBounds.of = deckGroundY;
     world.groundY = deckGroundY;
+    world.groundYBounds = deckGroundYBounds;
     world.lyingY = lyingGroundY;
     // modelled plank / snow-cap height (deck_top is the bare structure): measured once the meshes are in
     if (meshes) {
@@ -2256,6 +2311,7 @@ export function* buildMapGen(world, mission, opts = {}) {
       for (const b of batches) b.then?.((h) => h?.dispose());
       world.waterObstacles = null;
       if (world.groundY === terrain?.groundY || (deckGroundY && world.groundY === deckGroundY) || (pavedGroundY && world.groundY === pavedGroundY)) world.groundY = null;
+      if (world.groundYBounds?.of === deckGroundY) world.groundYBounds = null;
       if (lyingGroundY && world.lyingY === lyingGroundY) world.lyingY = null;
       world.scene?.remove(propsRoot);
       if (terrain) { world.scene?.remove(terrain.ground); if (terrain.water) world.scene?.remove(terrain.water); terrain.dispose(); }

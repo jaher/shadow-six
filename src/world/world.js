@@ -94,6 +94,13 @@ export class World {
     return off;
   }
 
+  /** listen() for a handler that only draws or sounds (EventBus.onLate: may run at the next frame's draw). */
+  listenLate(type, fn, capture = null) {
+    const off = this.events.onLate ? this.events.onLate(type, fn, capture) : this.events.on(type, fn);
+    this._subs.push(off);
+    return off;
+  }
+
   // ------------------------------------------------------------ entities
 
   /**

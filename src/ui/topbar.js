@@ -180,15 +180,24 @@ export class TopBar {
     r.talkUntil = this.hud.clock + dur;
     r.p.classList.add('talking');
     r.p.style.setProperty('--talk', String(Math.max(0.3, Math.min(1, level))));
-    this.card.hidden = false;
-    this.card.classList.add('on');
     this.cardImg.src = r.img.src;
     this.cardName.textContent = (ROLE_NAMES[unit.role] || unit.nickname || '').toUpperCase();
     this.cardUnit = unit;
     this.cardUntil = this.hud.clock + dur + UI.speakerLinger;
-    const x = r.p.offsetLeft;
-    this.card.style.left = `${x}px`;
+    // (from inside a sim tick the card is placed — and shown — by the next update: reading the layout after the tick's DOM
+    // writes forces a whole layout mid-tick; shown before it is placed, it would sit a frame at the last speaker's place)
+    if (this.hud.game?.inStep) { this._cardAt = r.p; return true; }
+    this._cardAt = null;
+    this._showCard(r.p);
     return true;
+  }
+
+  /** The speaker card at its portrait `p`, shown; then the HUD's onSpeakerCard hook (video mode keeps it off its bar). */
+  _showCard(p) {
+    this.card.style.left = `${p.offsetLeft}px`;
+    this.card.hidden = false;
+    this.card.classList.add('on');
+    this.hud.onSpeakerCard?.();
   }
 
   /** Armed tool (eye / camera mode on) → its "active" render. */
@@ -200,6 +209,7 @@ export class TopBar {
 
   update(dt) {
     const hud = this.hud, w = hud.world, now = hud.clock;
+    if (this._cardAt) { const p = this._cardAt; this._cardAt = null; if (this.cardUntil) this._showCard(p); }
     if (!w) return;
     const warnOn = hud.options.warnings;
     this._seenT -= dt;
@@ -248,6 +258,7 @@ export class TopBar {
       this.cardUntil = 0;
       this.card.classList.remove('on');
       this.card.hidden = true;
+      this.hud.onSpeakerCard?.();
     }
     this.lamp.classList.toggle('on', !!(w.alarm?.lamp ?? w.alarm?.active));
     this._armed(this.eye, hud.cursor.mode === 'eye');

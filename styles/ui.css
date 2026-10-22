@@ -288,7 +288,9 @@ html.mk-touch .hud-stance { min-width: 59px; min-height: 44px; }
 .hud-message[data-kind="warn"] { color: #ffcf6a; }
 .hud-message[data-kind="alert"] { color: #ff6a52; font-weight: 700; } /* bodies-design §C.7: "TINY IS DOWN — 60 s" */
 .hud-message.pop { animation: msgpop 0.25s ease-out; }
+.hud-message.pop2 { animation: msgpop2 0.25s ease-out; } /* (the same pop under a second name: ui/messages.js restartPop) */
 @keyframes msgpop { from { opacity: 0; transform: translate(-50%, -4px); } }
+@keyframes msgpop2 { from { opacity: 0; transform: translate(-50%, -4px); } }
 .hud-subs { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .hud-sub {
   position: absolute; left: 0; top: 0; max-width: calc(170 * var(--r)); padding: calc(2 * var(--r)) calc(6 * var(--r));
@@ -305,8 +307,10 @@ html.mk-touch .hud-stance { min-width: 59px; min-height: 44px; }
   font: 700 calc(16 * var(--r)) / 1 var(--f-ui); color: #f4d35e; text-shadow: 0 0 2px #000, 0 1px 3px rgba(0, 0, 0, 0.9);
 }
 .hud-mark.pop { animation: markpop 0.3s ease-out; }
+.hud-mark.pop2 { animation: markpop2 0.3s ease-out; }
 @keyframes markpop { from { opacity: 0; margin-top: calc(4 * var(--r)); } }
-@media (prefers-reduced-motion: reduce) { .hud-mark.pop { animation: none; } }
+@keyframes markpop2 { from { opacity: 0; margin-top: calc(4 * var(--r)); } }
+@media (prefers-reduced-motion: reduce) { .hud-mark.pop, .hud-mark.pop2 { animation: none; } }
 
 /* ---------------------------------------------------------------- §5.3 software cursor + tooltip */
 body.ui-softcursor #view canvas { cursor: none !important; }

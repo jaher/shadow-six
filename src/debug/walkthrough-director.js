@@ -11,6 +11,8 @@
  */
 
 import * as THREE from 'three';
+import { anyHit, buildGridG, gridable, gridOf } from './ray-grid.js';
+import { idleWarm } from '../engine/idle-warm.js';
 
 const PX_PER_M = 40; // CSS px per metre at zoom 1 (CONFIG.camera.pxPerMeterAt1x)
 /** Yaws (deg, relative to the player's own) the director may swing to when a building hides the shot. */
@@ -157,6 +159,25 @@ export class Director {
     if (b) cc.bounds = { minX: b.minX - extra, minZ: b.minZ - extra, maxX: b.maxX + extra, maxZ: b.maxZ + extra };
     cc.untrack?.();
     this.setOn(this.on);
+    this._gridAhead();
+  }
+
+  /**
+   * The triangle grids of the structures' shown meshes (debug/ray-grid.js), built ahead on still screens
+   * (engine/idle-warm.js: the walkthrough's title and chapter cards), so the yaw checks of play find them ready.
+   */
+  _gridAhead() {
+    const w = this.wk.world;
+    if (!w?.structures?.size) return;
+    const seen = new Set();
+    for (const st of w.structures.values()) {
+      if (!st.object3d) continue;
+      for (const m of shownMeshes(st.object3d, [])) {
+        if (!gridable(m) || seen.has(m.geometry)) continue;
+        seen.add(m.geometry);
+        idleWarm.add('ray grid', () => { if (!gridOf(m)) { const it = buildGridG(m.geometry, m.material); while (!it.next().done); } });
+      }
+    }
   }
 
   /** Give the camera back as it was (pitch, scroll limits, user scrolling); the cones the player chose stay. */
@@ -231,7 +252,10 @@ export class Director {
    * the nearest offset that shows more of it, held at least 4 s. Checked twice a second (real time). Each check casts
    * up to 25 rays at the structures round the men — a blasted bunker's ruin alone is ~80 000 triangles, ~100 ms of rays
    * in one go — so a check is a job spread over the next frames, at most YAW_RAY_MS of rays a frame (one at least):
-   * the same rays, the same decision, a few frames later.
+   * the same rays, the same decision, a few frames later. A ray walks each mesh's triangle grid (debug/ray-grid.js:
+   * the cells it passes through only, the answer three's Raycaster gives — ~1 ms a ray against a barracks became a few
+   * µs); a mesh met before its grid is built gets it built inside the job, in slices; the structures' meshes are
+   * gridded ahead on the still screens (title and chapter cards: _gridAhead).
    */
   _yaw(shot, el, dt) {
     const y = this.yaw, now = performance.now();
@@ -283,11 +307,13 @@ export class Director {
         shownMeshes(o, objs);
       }
       if (!objs.length) continue;
+      // (a mesh without its triangle grid yet: built here first, a slice per step of this job)
+      for (const m of objs) if (gridable(m) && !gridOf(m)) yield* buildGridG(m.geometry, m.material);
       const dir = this._dir.set(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)); // towards the camera
       this._org.set(p.x, (p.y || 0) + 1.1, p.z).addScaledVector(dir, 0.6);
       this._ray.set(this._org, dir);
       this._ray.far = 80;
-      if (this._ray.intersectObjects(objs, false).length) s += i < must ? 3 : 1;
+      if (anyHit(this._ray, objs)) s += i < must ? 3 : 1; // (= this._ray.intersectObjects(objs, false).length > 0)
       yield;
     }
     return s;

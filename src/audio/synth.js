@@ -18,7 +18,9 @@ function hash(str) { let h = 2166136261; for (const c of str) h = Math.imul(h ^ 
  * Render `dur` seconds by calling f(t, i, noise) per sample; a one-pole low-pass with cutoff `lp` Hz
  * (or a function of t) is applied when given (`poles: 2` = two in series, −12 dB/oct).
  */
-function render(sr, dur, f, { seed = 1, lp = 0, hp = 0, poles = 1 } = {}) {
+function render(sr, dur, f, opts = {}) {
+  if (deferRender) return { deferred: true, sr, dur, f, opts }; // (synthJob: the same render, run in slices)
+  const { seed = 1, lp = 0, hp = 0, poles = 1 } = opts;
   const n = Math.max(1, Math.round(sr * dur));
   const out = new Float32Array(n);
   const rnd = rng(seed);
@@ -33,6 +35,29 @@ function render(sr, dur, f, { seed = 1, lp = 0, hp = 0, poles = 1 } = {}) {
     }
     if (hp) { const a = Math.exp(-TAU * hp / sr); h = a * (h + x - px); px = x; x = h; }
     out[i] = x;
+  }
+  return normalize(out);
+}
+/** While set, render() hands back its arguments instead of rendering (synthJob). */
+let deferRender = false;
+
+/** render() as a sliced job: the same samples in the same order (yields every `slice` samples), the same buffer. */
+function* renderG(sr, dur, f, { seed = 1, lp = 0, hp = 0, poles = 1 } = {}, slice = 2048) {
+  const n = Math.max(1, Math.round(sr * dur));
+  const out = new Float32Array(n);
+  const rnd = rng(seed);
+  let y = 0, y2 = 0, h = 0, px = 0;
+  for (let i = 0; i < n; i++) {
+    const t = i / sr;
+    let x = f(t, i, rnd);
+    if (lp) {
+      const a = 1 - Math.exp(-TAU * (typeof lp === 'function' ? lp(t) : lp) / sr);
+      y += a * (x - y); x = y;
+      if (poles > 1) { y2 += a * (x - y2); x = y2; }
+    }
+    if (hp) { const a = Math.exp(-TAU * hp / sr); h = a * (h + x - px); px = x; x = h; }
+    out[i] = x;
+    if (i % slice === slice - 1) yield;
   }
   return normalize(out);
 }
@@ -199,6 +224,19 @@ export function synth(recipe, sr = 22050, seed = 1) {
   if (RECIPES[recipe]) return RECIPES[recipe](sr, seed);
   if (MOODS[recipe]) return notes(sr, MOODS[recipe], recipe === 'march' || recipe === 'success' || recipe === 'stinger' ? 'brass' : 'strings', 1600);
   return null;
+}
+
+/**
+ * synth() as a sliced job (a generator: yields every `slice` samples, returns what synth() returns — the identical
+ * buffer): a recipe's setup runs at once, its per-sample render a slice at a time, so a placeholder can be rendered
+ * ahead of its first play in ~1 ms pieces (audio/engine.js warmSynth) instead of in the sim tick that plays it.
+ */
+export function* synthJob(recipe, sr = 22050, seed = 1, slice = 2048) {
+  deferRender = true;
+  let j;
+  try { j = synth(recipe, sr, seed); } finally { deferRender = false; }
+  if (!j || !j.deferred) return j;
+  return yield* renderG(j.sr, j.dur, j.f, j.opts, slice);
 }
 
 export const RECIPE_NAMES = Object.freeze([...Object.keys(RECIPES), ...Object.keys(MOODS)]);

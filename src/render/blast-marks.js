@@ -56,7 +56,8 @@ export class BlastMarks {
     this.marks = [];
     this.mesh = null;
     this.visual = typeof document !== 'undefined' && !!scene;
-    this._off = world.events.on('explosion', (e) => this.add(e));
+    // (visual only: at the next draw under a deferring host — EventBus.onLate)
+    this._off = world.events.onLate ? world.events.onLate('explosion', (e) => this.add(e)) : world.events.on('explosion', (e) => this.add(e));
   }
 
   /** Record + draw the mark of explosion event e ({x, z, kind}). */

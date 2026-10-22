@@ -359,6 +359,61 @@ export function avoidMask(world, inflate, ignore = null, prone = false) {
   const g = world?.grid;
   if (!g) return null;
   const pad = inflate + CELL_SLACK;
+  const base = staticMask(world, inflate, prone);
+  const dyn = dynamicObstacles(world, ignore);
+  if (!dyn.length) return base;
+  const mask = base ? base.slice() : new Uint8Array(g.cols * g.rows);
+  for (const R of dyn) stampObstacle(g, mask, R, pad);
+  return mask;
+}
+
+/**
+ * The static solids' part of avoidMask (cached per inflation, and for a crawler with the crawl steps), built ahead for
+ * every stance's tiers at the mission load (warmAvoidMasks): the first tick's patrol plans found it to build (~2 ms).
+ */
+export function warmAvoidMasks(world) {
+  if (!world?.grid) return;
+  for (const st of ['stand', 'crawl']) for (const inf of inflationTiers(st)) { staticMask(world, inf, false); if (st === 'crawl') staticMask(world, inf, true); }
+}
+
+/**
+ * Between ticks (Game.render, after world/pathfinding.js rewarmAreas): once the solids and the crawl steps have held
+ * still for `after` calls since they last changed (a blast takes a wreck's or a wall's solid away), one static mask of
+ * warmAvoidMasks's the cache lacks, built now — the same mask the next plan would build (M3: ~2 ms of the tick the squad
+ * boarded the truck, 24 s after the bunker blast).
+ * @returns {boolean} one was built
+ */
+const _maskStill = new WeakMap();
+export function rewarmAvoidMasks(world, after = 30) {
+  const g = world?.grid;
+  if (!g) return false;
+  const S = world.bodySolids;
+  let st = _maskStill.get(world);
+  if (!st || st.sv !== (S?.version ?? 0) || st.sn !== (S?.list.length ?? 0) || st.cs !== g.crawlStep || st.gv !== g.version) {
+    _maskStill.set(world, (st = { sv: S?.version ?? 0, sn: S?.list.length ?? 0, cs: g.crawlStep, gv: g.version, n: 0, done: false }));
+  }
+  if (st.done || ++st.n < after) return false;
+  const dims = `${g.cols}x${g.rows}`;
+  for (const stance of ['stand', 'crawl']) {
+    for (const inf of inflationTiers(stance)) {
+      for (const prone of stance === 'crawl' ? [false, true] : [false]) {
+        const baseOk = !S?.list.length || S.masks.has(`${inf}|${dims}`);
+        const C = world._crawlStepMasks;
+        const stepsOk = !(prone && g.crawlStep) || (C?.src === g.crawlStep && C.m.has(`${inf}|${dims}|${S?.version ?? 0}|${S?.list.length ?? 0}`));
+        if (baseOk && stepsOk) continue;
+        staticMask(world, inf, prone);
+        return true;
+      }
+    }
+  }
+  st.done = true;
+  return false;
+}
+
+/** avoidMask's cached static part (null: no static solids and no crawl steps for it). */
+function staticMask(world, inflate, prone) {
+  const g = world.grid;
+  const pad = inflate + CELL_SLACK;
   const S = world.bodySolids;
   let base = null;
   if (S?.list.length) {
@@ -388,11 +443,7 @@ export function avoidMask(world, inflate, ignore = null, prone = false) {
     }
     base = steps;
   }
-  const dyn = dynamicObstacles(world, ignore);
-  if (!dyn.length) return base;
-  const mask = base ? base.slice() : new Uint8Array(g.cols * g.rows);
-  for (const R of dyn) stampObstacle(g, mask, R, pad);
-  return mask;
+  return base;
 }
 
 /**

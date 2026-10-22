@@ -20,6 +20,10 @@
  * frames take longer for others' work (a shared machine: CPU and GPU) scales them; a loaded host (unit over 17 ms: its
  * tail grows faster than its median from contention alone) gets 4× / 2× / 4×, and a run that misses on it is played
  * once more. Programs and driver gaps are checked as they are.
+ *
+ * Our own work, whatever the host's load (tests/video-perf-lib.mjs has the measure): every tick's and every frame's
+ * main-thread CPU from trace marks' thread clock, in fast-core ms (a calibration every 8th frame scales out the core's
+ * speed, CORE_MAX at most), GC pauses apart — no tick over 16 ms, frames' p99 ≤ 40 ms and none over 60 ms.
  */
 export const timeout = 5_400_000;
 

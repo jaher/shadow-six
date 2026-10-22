@@ -22,7 +22,7 @@
 
 import { CONFIG } from '../config.js';
 import { BUSSES, SFX, MUSIC, DISTANCE, classOf } from './manifest.js';
-import { synth, synthVoice } from './synth.js';
+import { synth, synthJob, synthVoice } from './synth.js';
 import { PITCH } from './voice-lines.js';
 import { pickAudio, audioExt, aacTwin, useAacAfterFailure } from './formats.js';
 import { ChunkCue } from './music-stream.js';
@@ -39,6 +39,8 @@ export const VOICE_RATE = 32000;
  * a music chunk, a deferred take) is not queued behind them.
  */
 const LOW = Object.freeze({ priority: 'low' });
+/** Wall-clock ms of placeholder rendering a timer slice of warmSynth may take (one render slice at least). */
+export const SYNTH_SLICE_MS = 1;
 /** A deferred one-shot that could not start within this many seconds is dropped (no late gunshots / barks). */
 export const LATE_DROP = { sfx: 0.25, voice: 0.6 };
 /** SFX that decode on first use: loops (engines, swim, crawl), bed takes played as buffers, long non-weapon takes (sirens).
@@ -710,7 +712,39 @@ export class AudioEngine {
     // a multi-second noise render landing inside one sim tick (the M3 dam burst measured 6.8 ms of it).
     // Render them here, with the mission's other decoding, so starting the loop mid-play is node setup only.
     for (const id of ids) if (SFX[id]?.loop && !this.files.get(id)?.length) this.bufferFor(id);
+    this.warmSynth(ids);
     return this.memory();
+  }
+
+  /**
+   * The mission's other synth-only placeholders (no recorded take: a duck flock's wing flurry, a halyard's clank, a gust
+   * — 1–12 ms each to render) rendered ahead of their first play, in SYNTH_SLICE_MS timer slices between frames
+   * (synth.js synthJob: the identical buffer), so the sim tick that first plays one finds it cached instead of
+   * rendering it there (M3 t 163: a 12 ms wing flurry inside a bird-scaring shot's tick). A sound played before its
+   * turn renders at once as before; a newer preload's warm-up replaces this one. Browser only.
+   */
+  warmSynth(ids) {
+    if (typeof window === 'undefined' || typeof setTimeout !== 'function') return;
+    // (only what bufferFor renders: an id with no recorded take at all)
+    const todo = ids.filter((id) => SFX[id] && !SFX[id].bed && !SFX[id].loop && !(this.pinned.get(id) || this.files.get(id))?.length && !this.cache.has(`sfx:${id}`));
+    const gen = (this._synthGen = (this._synthGen || 0) + 1);
+    let job = null, id = null;
+    const step = () => {
+      if (gen !== this._synthGen) return;
+      const t0 = performance.now();
+      do {
+        if (!job) {
+          id = todo.shift();
+          if (id === undefined) return;
+          if (this.cache.has(`sfx:${id}`)) continue; // (played meanwhile)
+          job = synthJob(SFX[id].recipe, this.sr, hashId(id));
+        }
+        const r = job.next();
+        if (r.done) { job = null; const pcm = r.value; if (pcm) this._buffer(`sfx:${id}`, () => pcm); }
+      } while (performance.now() - t0 < SYNTH_SLICE_MS);
+      setTimeout(step, 0);
+    };
+    setTimeout(step, 0);
   }
 
   /** Download a lazy take's compressed bytes (kept; decoded on first use). */

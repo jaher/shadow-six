@@ -97,7 +97,12 @@ export class FX {
     this._explosives = new Map(); // Barrel entity → registry entry
     this._scanned = false;
     this._tick = 0;
-    const on = (ev, fn) => world.listen(ev, (e) => { try { fn(e || {}); } catch (err) { console.error(`[fx] ${ev}`, err); } });
+    // (visual only: under a deferring host — Game.step deferVisuals — they run at the next draw, with the effect clocks
+    // wound back to the event's moment while they spawn: a spark, a puff, a light is born when the blast went off)
+    const sub = typeof world.listenLate === 'function' ? (ev, fn, cap) => world.listenLate(ev, fn, cap) : (ev, fn) => world.listen(ev, fn);
+    const on = (ev, fn) => sub(ev, (e, t, at) => {
+      try { this._at(at, () => fn(e || {})); } catch (err) { console.error(`[fx] ${ev}`, err); }
+    }, () => [this.time, this.vfx ? this.vfx.time : 0]);
     this._unsub = [
       on('explosion', (e) => this.onExplosion(e)),
       on('shot', (e) => this.onShot(e)),
@@ -111,6 +116,15 @@ export class FX {
   }
 
   get count() { return this.items.length; }
+
+  /** Run fn with the effect clocks (this.time, the library's) at `at` = [fx time, vfx time] (EventBus.onLate). */
+  _at(at, fn) {
+    if (!at || (at[0] === this.time && (!this.vfx || at[1] === this.vfx.time))) return fn();
+    const t0 = this.time, v0 = this.vfx ? this.vfx.time : 0;
+    this.time = at[0];
+    if (this.vfx) this.vfx.time = at[1];
+    try { return fn(); } finally { this.time = t0; if (this.vfx) this.vfx.time = v0; }
+  }
   /** Default ground surface of the mission theater. */
   get surface() { return THEATER_SURF[this.theater] || 'dirt'; }
   /** Player option: blood effects (§6.8 blood / censored). */

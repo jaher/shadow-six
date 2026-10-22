@@ -249,6 +249,12 @@ function paramMesh(g0, M) {
   }
 }
 
+/** Is `o` drawn (it and every ancestor visible, up to a scene or a detached root)? */
+function drawn(o) {
+  for (let a = o; a; a = a.parent) if (!a.visible) return false;
+  return true;
+}
+
 /** Per-mesh deformation record. */
 class MeshDeform {
   constructor(mesh, space) {
@@ -257,7 +263,9 @@ class MeshDeform {
     space.updateWorldMatrix(true, false); mesh.updateWorldMatrix(true, false);
     const M = new THREE.Matrix4().copy(space.matrixWorld).invert().multiply(mesh.matrixWorld);   // mesh local → model
     // (the parameterisation of a library mesh is the same for every instance of it: made once)
-    const key = M.elements.map((x) => x.toFixed(6)).join(',');
+    // (to 1 µm: a raft posed anywhere finds the parameterisation made for the warm-up raft at the origin — the same
+    // matrix but for float noise, which printed −0.000000 against 0.000000 and missed it: 4–5 ms in an inflate's first frame)
+    const key = M.elements.map((x) => (Math.round(x * 1e6) / 1e6 + 0).toFixed(6)).join(',');
     let C = PARAMS.get(g0);
     if (!C || C.key !== key) PARAMS.set(g0, (C = { key, ...paramMesh(g0, M) }));
     this.inv = C.inv; this.M = C.M; this.T = C.T; this.I = C.I; this.grp = C.grp;
@@ -431,7 +439,11 @@ export class RaftHull {
     let wr = 0;
     for (let k = 0; k < 4; k++) wr = Math.max(wr, 1 - S.fill[k]);
     this.U.value = Math.pow(clamp(wr, 0, 1), 0.8);
-    for (const md of this.meshes) md.apply(S);
+    // only the meshes drawn now: the other LOD's (and the hull before it is shown) take the state the frame they are
+    // shown — apply(S) is a pure function of S, so the same vertices; ~a third of the hull's CPU each inflate / pack frame
+    for (const md of this.meshes) {
+      if (drawn(md.mesh)) { md.apply(S); md.later = null; } else md.later = { ...S, fill: S.fill.slice() };
+    }
     // the paddles: flat on the floor (folded in with the sides), in their rowlocks once the tubes are up
     for (const pd of this.paddles) {
       const k = clamp(S.paddle, 0, 1);
@@ -456,6 +468,7 @@ export class RaftHull {
     if (!this.on || !this.meshes.length) return null;
     let big = this.meshes[0];
     for (const md of this.meshes) if (md.P.length > big.P.length) big = md;
+    if (big.later) { big.apply(big.later); big.later = null; } // (posed as it would be drawn now)
     return big.meanY();
   }
 

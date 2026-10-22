@@ -6,6 +6,7 @@
  *
  *   node tools/perf/sim-trace.mjs m03 [--root=<checkout>] [--every=60] [--out=trace.json] [--pause]
  * (--pause: the driver's sliced plans hand control back between slices — a macrotask, no tick — as in the live replay)
+ * (--defer: Game.deferVisuals as under the replay: the visual-only event handlers run after each tick, not inside it)
  *   node tools/perf/sim-trace.mjs --diff a.json b.json
  */
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -36,8 +37,11 @@ page.setDefaultTimeout(0);
 await page.goto(`${server.url.replace(/\/$/, '')}/index.html?test=1`);
 await page.waitForFunction(() => document.body.dataset.ready === '1', null, { timeout: 60000 });
 await page.evaluate(async (mid) => { await window.__game.loadMission(mid); window.__game.start(); }, id);
-const out = await page.evaluate(async ([mid, every, slice]) => {
+const out = await page.evaluate(async ([mid, every, slice, defer]) => {
   const G = window.__game, w = G.game.world;
+  // (--defer: the replay's deferVisuals — the visual-only handlers of a tick run after it, as at the next draw)
+  if (defer) G.game.deferVisuals = true;
+  const flush = () => { if (defer) G.game.events.flushLate(); };
   const { makeDriver } = await import('/tools/solutions/driver.mjs');
   const { solve } = await import(`/tools/solutions/${mid}.solution.mjs`);
   const { boardPoint } = await import('/src/abilities/drive.js');
@@ -52,13 +56,13 @@ const out = await page.evaluate(async ([mid, every, slice]) => {
     return fnv(parts.join('|'));
   };
   let pauses = 0;
-  const D = makeDriver(w, { dt, quiet: true, log: () => {}, step: () => { G.game.step(dt); if (w.tick % every === 0) hashes.push(snap()); },
+  const D = makeDriver(w, { dt, quiet: true, log: () => {}, step: () => { flush(); G.game.step(dt); if (w.tick % every === 0) hashes.push(snap()); },
     pause: slice ? () => new Promise((res) => { pauses++; setTimeout(res, 0); }) : null });
   let error = null;
   try { await solve(D, { boardPoint }); } catch (e) { error = String(e?.message || e); }
-  for (let i = 0; i < 600 && G.game.state === 'playing'; i++) { G.game.step(dt); if (w.tick % every === 0) hashes.push(snap()); }
+  for (let i = 0; i < 600 && G.game.state === 'playing'; i++) { flush(); G.game.step(dt); if (w.tick % every === 0) hashes.push(snap()); }
   return { hashes, every, pauses, result: { error, time: +D.t.toFixed(2), state: G.game.state, det: D.detections(), exp: D.exposures().length, cps: D.checkpoints.map((c) => `${c.name.split(' ')[0]}@${c.t}`).join(' ') } };
-}, [id, +arg('every', 60), args.includes('--pause')]);
+}, [id, +arg('every', 60), args.includes('--pause'), args.includes('--defer')]);
 await browser.close(); await server.close();
 console.log(`${id} ${ROOT}: ${out.hashes.length} samples, ${out.pauses} plan pauses, ${JSON.stringify(out.result)}`);
 if (arg('out', '')) writeFileSync(arg('out'), JSON.stringify(out));

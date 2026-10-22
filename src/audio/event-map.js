@@ -125,7 +125,8 @@ export const QUIP_AFTER_CRY = 0.5;
  */
 export function installHandlers(a, events) {
   const subs = [];
-  const on = (t, fn) => subs.push(events.on(t, (e = {}) => fn(e, t)));
+  // (sound only: under a deferring host — Game.step deferVisuals — a sound starts at the next frame, not inside the tick)
+  const on = (t, fn) => subs.push(events.onLate ? events.onLate(t, (e = {}) => fn(e, t)) : events.on(t, (e = {}) => fn(e, t)));
   const sfx = (id, pos, event, o) => id && a.playSfx(id, pos, { event, ...o });
 
   // Wind (step 4w): gust whooshes (ambience bus, gated by "nature sounds"; strong fronts only, one per 45 s at most,

@@ -1243,6 +1243,8 @@ export class Walkthrough extends SolutionReplay {
 
   _buildUi() {
     installStyle();
+    // (the HUD tells when its speaker card is placed or hidden: moved off the bar in the same frame, not up to 150 ms later)
+    if (this.game.hud) this.game.hud.onSpeakerCard = this._onCard = () => this._cardShift();
     const bar = el('div', null, document.body);
     bar.id = 'wt-bar';
     bar.setAttribute('role', 'toolbar');
@@ -1547,6 +1549,7 @@ export class Walkthrough extends SolutionReplay {
     this.scope.detach();
     clearInterval(this._layoutT);
     document.body.style.removeProperty('--wt-card-shift');
+    if (this.game.hud && this.game.hud.onSpeakerCard === this._onCard) this.game.hud.onSpeakerCard = null;
     window.removeEventListener('resize', this._onResize);
     for (const off of this._domOffs || []) off();
     for (const off of this._offs || []) off?.();

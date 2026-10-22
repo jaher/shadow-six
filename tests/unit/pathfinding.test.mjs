@@ -1,6 +1,6 @@
 import { test, assert } from './lib.mjs';
 import { NavGrid, B, T, LINK } from '../../src/world/grid.js';
-import { findPath, pathLength } from '../../src/world/pathfinding.js';
+import { findPath, pathLength, warmAreas, rewarmAreas, REWARM_AFTER } from '../../src/world/pathfinding.js';
 
 /** Every consecutive segment must be walkable. */
 function assertWalkable(g, path, opts) {
@@ -135,4 +135,45 @@ test('a ladder foot a clearance mask shuts is the way up, never a way past', () 
   // down: off the ladder's foot and on along the corridor
   const down = findPath(g, 10, 13, 12, 10.25, { avoid, maxNodes: g.size });
   assert.ok(down && down.some((q) => q.link?.id === L.id), 'down the ladder and off its foot');
+});
+
+test('warmAreas only fills the area cache: searches answer the same with it or without, and after the grid changes', () => {
+  const build = () => {
+    const g = new NavGrid(40, 30);
+    g.fillRect(20, 0, 1, 30, 'block', B.HIGH); // a wall the whole height: two areas
+    g.fillRect(30, 10, 6, 6, 'terrain', T.WATER); // a pond (swimmers only)
+    return g;
+  };
+  const queries = [[2, 2, 35, 20, {}], [2, 2, 10, 25, {}], [25, 2, 33, 13, {}], [25, 2, 33, 13, { swim: true }], [2, 2, 35, 20, { swim: true }]];
+  const run = (g) => queries.map(([a, b, c, d, o]) => JSON.stringify(findPath(g, a, b, c, d, o)));
+  const cold = build(), warm = build();
+  warmAreas(warm, {}); warmAreas(warm, { swim: true }); warmAreas(warm, { role: 'diver', swim: true, noLinks: true });
+  assert.deepEqual(run(warm), run(cold));
+  assert.equal(run(cold)[0], 'null', 'the wall shuts the east half off');
+  // a gap opened after the warm-up (the grid's version moves on): the stale areas are not used
+  for (const g of [cold, warm]) { g.fillRect(20, 12, 1, 3, 'block', B.NONE); g.version++; }
+  assert.deepEqual(run(warm), run(cold));
+  assert.notEqual(run(warm)[0], 'null', 'through the gap');
+});
+
+test('rewarmAreas rebuilds the used labellings once the grid holds still, one a call, and searches answer the same', () => {
+  const build = () => {
+    const g = new NavGrid(40, 30);
+    g.fillRect(20, 0, 1, 30, 'block', B.HIGH);
+    g.fillRect(30, 10, 6, 6, 'terrain', T.WATER);
+    return g;
+  };
+  const queries = [[2, 2, 35, 20, {}], [25, 2, 33, 13, { swim: true }], [2, 2, 10, 25, { role: 'enemy' }]];
+  const run = (g) => queries.map(([a, b, c, d, o]) => JSON.stringify(findPath(g, a, b, c, d, o)));
+  const plain = build(), warm = build();
+  assert.deepEqual(run(warm), run(plain));
+  assert.equal(rewarmAreas(warm), false, 'nothing to build: the labellings are for this grid');
+  for (const g of [plain, warm]) { g.fillRect(20, 12, 1, 3, 'block', B.NONE); g.version++; }
+  let built = 0;
+  for (let n = 0; n < REWARM_AFTER - 1; n++) built += rewarmAreas(warm) ? 1 : 0;
+  assert.equal(built, 0, 'not before the grid held still REWARM_AFTER calls');
+  for (let n = 0; n < 10; n++) built += rewarmAreas(warm) ? 1 : 0;
+  assert.equal(built, 2, 'the two rule sets used (walk, swim), one a call');
+  assert.deepEqual(run(warm), run(plain));
+  assert.notEqual(run(warm)[0], 'null', 'through the gap');
 });

@@ -678,6 +678,7 @@ export function enclosureGaps(records, o = {}) {
  * (grid block or navBlock), or null when the body is already clear (or nothing better is found).
  * @param {import('./grid.js').NavGrid} grid
  */
+const SETTLE_DIRS = { ca: Array.from({ length: 16 }, (_, a) => Math.cos((a * Math.PI) / 8)), sa: Array.from({ length: 16 }, (_, a) => Math.sin((a * Math.PI) / 8)) };
 export function settleBody(grid, x, z, r = 1.0, maxMove = 1.2) {
   if (!grid?.block) return null;
   const c = grid.cell, y0 = grid.elevAt ? grid.elevAt(x, z) : 0;
@@ -687,11 +688,13 @@ export function settleBody(grid, x, z, r = 1.0, maxMove = 1.2) {
     const k = j * grid.cols + i;
     return grid.block[k] !== 0 || !!(grid.navBlock && grid.navBlock[k]);
   };
+  // (the 16 directions' cosines and sines worked out once, not again at every spot tried: the same numbers)
+  const CA = SETTLE_DIRS.ca, SA = SETTLE_DIRS.sa, r0 = r * 0.5;
   const clear = (px, pz) => {
     if (solid(px, pz)) return false;
     for (let a = 0; a < 16; a++) {
-      const ca = Math.cos((a * Math.PI) / 8), sa = Math.sin((a * Math.PI) / 8);
-      for (const rr of [r * 0.5, r]) if (solid(px + ca * rr, pz + sa * rr)) return false;
+      const ca = CA[a], sa = SA[a];
+      if (solid(px + ca * r0, pz + sa * r0) || solid(px + ca * r, pz + sa * r)) return false;
     }
     return true;
   };

@@ -120,6 +120,20 @@ function frameOf(root) {
 
 const MARKS = new Map();
 /**
+ * Queue (engine/idle-warm.js: the walkthrough's still screens) the contact landmarks of every body in `units` — one
+ * task per character: the measure walks a skinned mesh's every vertex (~10 ms), the first knife kill's frame otherwise.
+ * A pure cache fill (the skeleton is put back).
+ */
+export function queueContactMarks(units, idleWarm) {
+  const seen = new Set();
+  for (const u of units) {
+    const m = u?.model, id = m?.characterId;
+    if (!id || seen.has(id) || MARKS.has(id) || !realBody(m)) continue;
+    seen.add(id);
+    idleWarm.add(`contact marks ${id}`, () => { if (!u.removed && u.model === m) contactMarks(m); });
+  }
+}
+/**
  * Contact landmarks of a character, measured once on its skinned LOD0 mesh in the idle pose (the skeleton is put back):
  * mouth / chin (Head frame), throat (neck_01 frame), and root-local depths of the chest front and the back (pack
  * included) at chest height, the belly front. @returns {object|null}

@@ -11,7 +11,44 @@ export class EventBus {
     this._handlers = new Map();
     /** When true, every emit is also passed to `this.tap` (used by the test API / debug log). */
     this.tap = null;
+    /**
+     * While true (a host that draws after its ticks has the visual handlers wait for its next draw: Game.step under
+     * `deferVisuals`), handlers subscribed with onLate() are queued instead of run, until flushLate().
+     */
+    this.deferring = false;
+    /** Queued late handler calls: [fn, payload, type, captured, …]. */
+    this._lateQ = [];
   }
+
+  /**
+   * Subscribe a handler that only draws or sounds — effects, crater marks, the blast front's visuals, audio — and
+   * never touches the simulation. It runs at once, in subscription order with the others, unless the bus is
+   * `deferring`: then the call is queued and made by flushLate() (the next frame, before its draw), in emit order.
+   * `capture()`, when given, is called at emit time and its value passed as the handler's third argument (an effect's
+   * clock at the event, so what it spawns late is born when the event happened).
+   * @param {string} type
+   * @param {(payload: any, type: string, captured?: any) => void} fn
+   * @param {() => any} [capture]
+   * @returns {() => void} unsubscribe function
+   */
+  onLate(type, fn, capture = null) {
+    fn._late = capture || true;
+    return this.on(type, fn);
+  }
+
+  /** Make the queued late handler calls (see onLate). @returns {number} calls made */
+  flushLate() {
+    const q = this._lateQ;
+    if (!q.length) return 0;
+    this._lateQ = [];
+    for (let i = 0; i < q.length; i += 4) {
+      try { q[i](q[i + 1], q[i + 2], q[i + 3]); } catch (err) { console.error(`[events] late handler for "${q[i + 2]}" threw`, err); }
+    }
+    return q.length / 4;
+  }
+
+  /** Forget the queued late calls (the world they were for is gone). */
+  dropLate() { this._lateQ = []; }
 
   /**
    * Subscribe to an event type. Use `'*'` to receive every event as `fn(payload, type)`.
@@ -65,6 +102,7 @@ export class EventBus {
     const set = this._handlers.get(type);
     if (set) {
       for (const fn of [...set]) {
+        if (fn._late && this.deferring) { this._lateQ.push(fn, payload, type, typeof fn._late === 'function' ? fn._late() : undefined); continue; }
         try {
           fn(payload, type);
         } catch (err) {

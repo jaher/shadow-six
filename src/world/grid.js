@@ -775,6 +775,8 @@ export class NavGrid {
     const touched = new Set(this._overStamps.get(key)?.cells.keys() || []);
     for (const k of cells.keys()) touched.add(k);
     if (cells.size) this._overStamps.set(key, { cells: new Map(cells), soft }); else this._overStamps.delete(key);
+    // (the cells with an overhang — overLo finite — kept as a set: the head room stamp walks those, not the whole grid)
+    const over = this.overCells || (this.overCells = new Set());
     for (const k of touched) {
       let lo = Infinity, hi = -Infinity, slo = Infinity, shi = -Infinity;
       for (const st of this._overStamps.values()) {
@@ -783,6 +785,7 @@ export class NavGrid {
         if (st.soft) { if (r[0] < slo) slo = r[0]; if (r[1] > shi) shi = r[1]; } else { if (r[0] < lo) lo = r[0]; if (r[1] > hi) hi = r[1]; }
       }
       this.overLo[k] = lo; this.overHi[k] = hi; this.softLo[k] = slo; this.softHi[k] = shi;
+      if (this.overLo[k] !== Infinity) over.add(k); else over.delete(k);
     }
     this.version++;
   }

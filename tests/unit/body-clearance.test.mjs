@@ -6,7 +6,7 @@ import { Commando } from '../../src/entities/commando.js';
 import { Enemy } from '../../src/entities/enemy.js';
 import {
   BODY, STOP_MARGIN, bodyCapsule, bodyShape, rectSDF, capsuleRectGap, hullRect, bodyGap, unitGap, clearPose, avoidMask, sweepClear,
-  bodyRectGap, bodyReach,
+  bodyRectGap, bodyReach, setStaticSolids, removeStaticSolids, rewarmAvoidMasks, warmAvoidMasks, inflationTiers,
 } from '../../src/world/body-clearance.js';
 
 const DT = 1 / 60;
@@ -187,4 +187,28 @@ test('a slow truck stops short of a crawler lying across its lane: his knee neve
   // (was −0.32: the truck stopped 5 cm off his capsule, the drawn-up knee 0.37 m further out under the bonnet)
   assert.ok(c.alive && min >= 0, `whole body clear of the hull (min gap ${min.toFixed(3)})`);
   assert.ok(tr.x < 31 - 1, `the truck waits short of him (${(tr.x - 31).toFixed(2)})`);
+});
+
+test('rewarmAvoidMasks: after a solid goes, the static masks come back one a call once things hold still — the same masks', () => {
+  const mk = () => {
+    const w = mkWorld();
+    setStaticSolids(w, [{ owner: 1, R: { x: 20, z: 20, h: 0, hl: 3, hw: 2 } }, { owner: 2, R: { x: 40, z: 30, h: 0.5, hl: 2, hw: 2 } }]);
+    warmAvoidMasks(w);
+    removeStaticSolids(w, 1); // (a blast takes one away: the cached masks go)
+    return w;
+  };
+  const lazy = mk(), warm = mk();
+  let built = 0;
+  for (let n = 0; n < 29; n++) built += rewarmAvoidMasks(warm) ? 1 : 0;
+  assert.equal(built, 0, 'not before the solids held still 30 calls');
+  for (let n = 0; n < 20; n++) built += rewarmAvoidMasks(warm) ? 1 : 0;
+  assert.ok(built >= 2, `the stance tiers' masks rebuilt, one a call (${built})`);
+  assert.equal(rewarmAvoidMasks(warm), false, 'then nothing left');
+  assert.equal(lazy.bodySolids.masks.size, 0);
+  assert.ok(warm.bodySolids.masks.size >= 2);
+  for (const st of ['stand', 'crawl']) for (const inf of inflationTiers(st)) {
+    const a = avoidMask(warm, inf, null, st === 'crawl'), b = avoidMask(lazy, inf, null, st === 'crawl');
+    assert.deepEqual(Array.from(a || []), Array.from(b || []), `${st} ${inf}`);
+    assert.ok(a && a.some((v) => v) && !a[0], 'the remaining solid is in the mask, the far corner free');
+  }
 });

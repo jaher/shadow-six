@@ -239,8 +239,11 @@ export class HUD {
     on('structure:destroyed', (e) => { if (e?.type !== 'fence-gap') this._losses.buildings++; }); // (a hole cut in the wire is no building)
     on('objective:update', ({ objective } = {}) => objective?.done && !objective.hidden && this.message(`OBJECTIVE COMPLETED: ${objective.text}`.toUpperCase(), 'info'));
     on('game:state', ({ to } = {}) => this.onState(to));
-    on('mission:won', (p) => this.debrief.won(p));
-    on('mission:lost', (p) => this.debrief.lost(p));
+    // (the debrief grabs its backdrop — a whole extra render — at once, or at the next frame under a deferring host:
+    // EventBus.onLate, debug video mode, where it otherwise rendered inside the mission's last sim tick)
+    const late = (t, fn) => this._subs.push(this.game.events.onLate ? this.game.events.onLate(t, fn) : this.game.events.on(t, fn));
+    late('mission:won', (p) => this.debrief.won(p));
+    late('mission:lost', (p) => this.debrief.lost(p));
     // CORE2 §8.1: escaped with targets left → dialog; (C)ONTINUE gives the objectives 15 s (game.continueEscape)
     on('mission:escaped', () => this.debrief.escapedEarly(() => this.game.continueEscape?.()));
     // CORE2 §8.1: a loss condition started its 5 s countdown — say why on the message line

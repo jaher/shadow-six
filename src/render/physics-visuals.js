@@ -89,9 +89,23 @@ export class PhysicsVisuals {
     this.helmets = new Map();
     this._landed = new Set();
     this.gates = new GateSmashVisuals(world, scene); // gate smash pieces + FX (§3.7 ramming addendum)
-    this._offBlast = world.events?.on?.('blast:front', (ev) => { if (!ev.restore) this._blowOff(ev); this._fenceBlast(ev); });
+    // (visual only: at the next draw under a deferring host — EventBus.onLate)
+    const blast = (ev) => { if (!ev.restore) this._blowOff(ev); this._fenceBlast(ev); };
+    this._offBlast = world.events?.onLate ? world.events.onLate('blast:front', blast) : world.events?.on?.('blast:front', blast);
     /** palisade logs knocked by blasts: InstancedMesh → {base matrices, per-log motion} */
     this.fences = null;
+    // (found now, with the map built — a walk over the whole scene and a copy of every log's matrix, ~2 ms on M3 —
+    // instead of inside the tick of the mission's first blast)
+    this._findFences();
+  }
+
+  /** The scene's palisades (dressing.js 'palisade' InstancedMeshes) and their logs' resting matrices. */
+  _findFences() {
+    if (this.fences) return;
+    this.fences = [];
+    this.scene?.traverse?.((o) => { if (o.isInstancedMesh && o.name === 'palisade') this.fences.push({ mesh: o, base: null, moves: new Map() }); });
+    const M = new THREE.Matrix4();
+    for (const f of this.fences) { const m = f.mesh; f.base = []; for (let i = 0; i < m.count; i++) { m.getMatrixAt(i, M); f.base.push(M.clone()); } }
   }
 
   /**
@@ -99,10 +113,7 @@ export class PhysicsVisuals {
    * landing flat), those a little further lean away from it. The wall's nav / LOS footprint is unchanged.
    */
   _fenceBlast(ev) {
-    if (!this.fences) {
-      this.fences = [];
-      this.scene?.traverse?.((o) => { if (o.isInstancedMesh && o.name === 'palisade') this.fences.push({ mesh: o, base: null, moves: new Map() }); });
-    }
+    this._findFences();
     const R = Math.max(ev.Rk || 0, 2), now = this.world.time;
     const M = new THREE.Matrix4(), p = new THREE.Vector3();
     for (const f of this.fences) {

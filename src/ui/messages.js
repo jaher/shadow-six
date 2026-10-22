@@ -10,6 +10,20 @@ import { el } from './dom.js';
 import { UI } from './ui-config.js';
 import { ACK_KEYS, barkText } from './bark-lines.js';
 
+/**
+ * Replay an element's CSS pop animation: switch between `name` and `name`2 (the same keyframes under two names: a new
+ * animation-name starts it over). The old way — class off, `offsetWidth`, class on — forced a whole page layout at each
+ * call, in the middle of the sim tick that posted the message (M3's bunker blast: three messages, ~0.6 ms each).
+ */
+function restartPop(el, name) {
+  const two = `${name}2`, next = el._popShown === name ? two : name;
+  el.classList.remove(name, two);
+  el.classList.add(next);
+  el._popNext = next;
+}
+/** Called once a frame (Messages.update): what the page now shows, so the next restartPop switches away from it. */
+function shownPop(el) { if (el._popNext) el._popShown = el._popNext; }
+
 export class Messages {
   constructor(hud) {
     this.hud = hud;
@@ -29,9 +43,7 @@ export class Messages {
     this.line.textContent = String(text);
     this.line.dataset.kind = kind;
     this.line.hidden = false;
-    this.line.classList.remove('pop');
-    void this.line.offsetWidth;
-    this.line.classList.add('pop');
+    restartPop(this.line, 'pop');
     this.until = this.hud.clock + UI.messageTime;
     this.history.push({ text: String(text), kind, t: this.hud.clock });
     if (this.history.length > 20) this.history.shift();
@@ -58,8 +70,18 @@ export class Messages {
       return false;
     });
     this.tags.push({ el: tag, unit, until: this.hud.clock + dur });
-    this._place(this.tags[this.tags.length - 1]);
+    this._placeSoon(this.tags[this.tags.length - 1]);
     return res;
+  }
+
+  /**
+   * Place a new tag now — or, from inside a sim tick (game.inStep), on the HUD's next update: its placement reads the
+   * page layout (the speaker's screen point, the tags' sizes), and a read after the tick's DOM writes forces a whole
+   * layout in the middle of the tick (M3's bunker blast: ~0.4 ms a bark). Hidden until then: a frame later, in place.
+   */
+  _placeSoon(t) {
+    if (!this.hud.game?.inStep) return this._place(t);
+    if (!t.unplaced) { t.unplaced = true; t.el.style.visibility = 'hidden'; }
   }
 
   _place(t) {
@@ -94,6 +116,7 @@ export class Messages {
     }
     t._lift = lift;
     t.el.style.transform = `translate(${px}px, ${py - lift}px) translate(-50%, -100%)`;
+    if (t.unplaced) { t.unplaced = false; t.el.style.visibility = ''; }
   }
 
   /**
@@ -106,18 +129,17 @@ export class Messages {
     if (!m) {
       m = { el: el('div', 'hud-mark', this.layer, text), unit, mark: true, until: 0 };
       this.marks.push(m);
-    } else {
-      m.el.classList.remove('pop');
-      void m.el.offsetWidth;
     }
-    m.el.classList.add('pop');
+    restartPop(m.el, 'pop');
     m.until = this.hud.clock + UI.markTime;
-    this._place(m);
+    this._placeSoon(m);
     return m;
   }
 
   update() {
     const now = this.hud.clock;
+    shownPop(this.line);
+    for (const m of this.marks) shownPop(m.el);
     if (!this.line.hidden && now > this.until) this.line.hidden = true;
     this.tags = this.tags.filter((t) => {
       if (now > t.until || t.unit.removed) {
