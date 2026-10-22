@@ -392,8 +392,12 @@ registerAbility({
     }
     const dur = up + t.activationTime;
     c.playAction('use', dur);
+    // a raised ladder lowered from the top: its drawn swing down runs for the action (art/ladder-frame.js; visual only)
+    const ladder = t.interactKind === 'ladder' && !t.lowered;
+    if (ladder) { t.lowerStart = world.time; t.lowerDur = dur; }
     const task = timedTask({
       dur,
+      onCancel: ladder ? () => { if (!t.lowered) t.lowerStart = null; } : undefined,
       steps: [{ at: dur, fn: () => {
         if (t.canUse(c) !== true) return false;
         if (t.enterable && c.disguised) suspiciousAct(world, c, 'door'); // §3.4 door rule

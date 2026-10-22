@@ -27,3 +27,10 @@ ms_props.py <out> c 1
 ms_props.py <out> d 1
 ms_props.py <out> e 1
 ms_props.py <out> drums 1
+# M11 second art pass (add to manifest-maradah with addon_manifest.py ... house_colonial_ms=house_colonial_ms_y,house_colonial_ms_w,house_colonial_ms_l
+#   pipe_rack_ms=pipe_rack_ms mud_tank_ms=mud_tank_ms, then merge the entries into the shipped add-on):
+ms_house.py <out> y 1
+ms_house.py <out> w 1
+ms_house.py <out> l 1
+ms_site.py <out> pipes 1
+ms_site.py <out> mud 1

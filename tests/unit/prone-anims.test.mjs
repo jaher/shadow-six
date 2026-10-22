@@ -198,6 +198,12 @@ test('mapAnim prone branch: carry class picks the crawl / idle / aim / shoot cli
   assert.deepEqual(mapAnim('die', { stance: 'crawl', faction: 'enemy', weapon: 'kar98k' }), ['die_prone', 'die']);
   assert.deepEqual(mapAnim('shoot', { role: 'sniper', actionId: 'sniper' }), ['kneel_shoot', 'shoot']);
   assert.equal(weaponClass('harpoon_gun'), 'long');
+  // a device worked lying down (M2: the camp ladder lowered flat on the wall walk) keeps him down; the standing 'use'
+  // clip stays for a man on his feet, and an action with a clip of its own keeps it
+  assert.deepEqual(mapAnim('use', { stance: 'crawl', actionId: 'use', weapon: 'colt1911' }), ['crawl_idle_unarmed', 'crawl_idle']);
+  assert.deepEqual(mapAnim('use', { stance: 'crawl', actionId: 'use', weapon: 'thompson' }), ['crawl_idle']);
+  assert.deepEqual(mapAnim('use', { stance: 'stand', actionId: 'use' }), ['use']);
+  assert.equal(mapAnim('use', { stance: 'crawl', actionId: 'cutters' })[0], 'cut_wire');
   assert.deepEqual(proneGrip('crawl', 'colt1911', sockets), { hide: true });
   assert.equal(proneGrip('walk', 'kar98k', sockets), null);
 });

@@ -526,6 +526,33 @@ function measureOnce(link, A, parts) {
 
 // ------------------------------------------------------------------ built ladders
 
+/**
+ * A raised ladder's swing as it is lowered: about its top rung's line (the pivot at the top of its stiles), from
+ * straight up to its lean, the way over the outside of the wall. `a0`: the angle (rad) from its lean to straight up.
+ */
+function swingOf(F) {
+  const n = Math.hypot(1, F.k), top = ladderPoint(F, F.build.v1 * n, 0, 0), foot = ladderPoint(F, F.build.v0 * n, 0, 0);
+  const out = new THREE.Vector3(foot.x - top.x, 0, foot.z - top.z);
+  if (out.lengthSq() < 1e-8) out.set(F.fx, 0, F.fz).negate();
+  out.normalize();
+  // (rotating by +a about out × up turns `out` towards up: the ladder's foot swings out from the wall and up)
+  const axis = new THREE.Vector3().crossVectors(out, new THREE.Vector3(0, 1, 0)).normalize();
+  const v = foot.clone().sub(top).normalize();
+  return { pivot: top, axis, a0: Math.PI / 2 - Math.atan2(v.y, v.dot(out)) };
+}
+const _swq = new THREE.Quaternion(), _swv = new THREE.Vector3();
+/** Pose a built ladder `ang` rad up from its lean about its swing's pivot (0: at rest, as built). */
+function swingTo(mesh, S, ang) {
+  if (ang === 0) { mesh.position.set(0, 0, 0); mesh.quaternion.identity(); }
+  else {
+    _swq.setFromAxisAngle(S.axis, ang);
+    mesh.quaternion.copy(_swq);
+    mesh.position.copy(S.pivot).sub(_swv.copy(S.pivot).applyQuaternion(_swq));
+  }
+  mesh.updateMatrix();
+  mesh.updateMatrixWorld(true);
+}
+
 /** Timber ladder geometry for a frame's `build` section (stiles + rungs), world space. */
 function buildLadderMesh(F, seed) {
   const B = F.build, G = new Geo(seed);
@@ -674,8 +701,11 @@ export function* fitLaddersG(world, scene) {
     if (F.build) {
       const mesh = buildLadderMesh(F, `${L.id}:${A.foot.x.toFixed(1)}`);
       mesh.visible = L.enabled !== false;
+      // a raised ladder (drawn once lowered: M2's camp ladder) is drawn in the load's warm-up frame too, so its programs
+      // — the river's mirror pass included — exist before it first shows (it hitched ~110 ms there, M2 walkthrough)
+      if (!mesh.visible) mesh.userData.warmShow = true;
       group.add(mesh);
-      built.push({ mesh, link: L });
+      built.push({ mesh, link: L, swing: mesh.visible ? null : swingOf(F), ang: 0, it: undefined });
     }
   }
   if (group.children.length) scene.add(group);
@@ -685,8 +715,27 @@ export function* fitLaddersG(world, scene) {
   const ms = Math.round(performance.now() - t0);
   return {
     frames, group, ms, counts: [...frames.values()].reduce((a, F) => { a[F.source] = (a[F.source] || 0) + 1; return a; }, {}),
-    /** A raised ladder is drawn once lowered (its link enabled), hidden again when pulled up. */
-    frame() { for (const b of built) { const on = b.link.enabled !== false; if (b.mesh.visible !== on) b.mesh.visible = on; } },
+    /**
+     * A raised ladder is drawn once lowered (its link enabled), hidden again when pulled up. While a man lowers it (the
+     * ladder interactable's `lowerStart`, set by the 'use' ability for its duration) it swings down over the outside
+     * of the wall about its top: from straight up to its lean, falling faster as it goes.
+     */
+    frame() {
+      for (const b of built) {
+        let on = b.link.enabled !== false, ang = 0;
+        if (!on && b.swing) {
+          if (b.it === undefined) b.it = world.interactables?.find((i) => i.interactKind === 'ladder' && i.linkId === b.link.id) ?? null;
+          const it = b.it;
+          if (it?.lowerStart != null) {
+            const u = Math.min(1, Math.max(0, (world.time - it.lowerStart) / (it.lowerDur || 1)));
+            on = true;
+            ang = b.swing.a0 * (1 - u * u);
+          }
+        }
+        if (b.mesh.visible !== on) b.mesh.visible = on;
+        if (b.swing && ang !== b.ang) { b.ang = ang; swingTo(b.mesh, b.swing, ang); }
+      }
+    },
     dispose() {
       group.removeFromParent();
       group.traverse((o) => { if (o.isMesh) o.geometry?.dispose?.(); });

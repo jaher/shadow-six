@@ -82,7 +82,14 @@ const HQ_N = { id: 'hq_n', type: 'barracks', variant: 'hq_domed_terraced', label
 const DRUMS_HQ = [[97.4, 14.3], [96.3, 16.3], [95.2, 18.6]].map(([x, z], k) => ({ id: `drums_hq${k + 1}`, type: 'barrels', variant: 'fuel_drum_stack', x, z, r: 0.35, h: 0.9, block: 1 }));
 const SHED_M = { id: 'shed_m', type: 'hut', variant: 'shed_timber_long', label: 'Lean-to', x: 94, z: 111, rot: deg(-30), w: 7, d: 4, h: 3, mat: 'planks', block: 2,
   asset: 'shed_lean_to_ms', nav: false };
-const PLATEAU_PROPS = [WRECK_R, HQ_N, ...DRUMS_HQ, flagpole('flag_c', 57, 55.5), flagpole('flag_hq', 88.5, 12.5), scrub('bush_n1', 7, 17), scrub('bush_n2', 20, 30), scrub('bush_n3', 41, 30)];
+/** art2 pass: the NW plateau (empty sand before), N of patrol 30's track loop (>= 6 m off it, off every route): a
+ * shot-down recce plane short of the escarpment and the plateau's fuel point by the track's E bend. */
+const NW_PROPS = [
+  { id: 'wreck_p', type: 'ruins', variant: 'aircraft_wreck', label: 'Aircraft wreck', asset: 'aircraft_wreck_ic', nav: false, x: 22, z: 20.5, rot: deg(-25), w: 6, d: 3, h: 1.2, block: 1 },
+  { id: 'dump_p', type: 'barrels', variant: 'drum_stack_yellow', label: 'Fuel dump', asset: 'drum_dump_yellow_bq', nav: false, x: 35.5, z: 21.5, rot: deg(8), w: 5, d: 4, h: 1.2, block: 1 },
+  { id: 'dump_p2', type: 'crates', variant: 'supply_dump_desert', label: 'Supplies', asset: 'supply_dump_desert_a', nav: false, x: 39.6, z: 24.2, rot: deg(-14), w: 2.6, d: 1.6, h: 1.2, block: 2 },
+];
+const PLATEAU_PROPS = [WRECK_R, HQ_N, ...DRUMS_HQ, ...NW_PROPS, flagpole('flag_c', 57, 55.5), flagpole('flag_hq', 88.5, 12.5), scrub('bush_n1', 7, 17), scrub('bush_n2', 20, 30), scrub('bush_n3', 41, 30)];
 const MESA_PROPS = [SHED_M];
 /** Holes (footprints of props on a level, so they keep their block). */
 const holeOf = (s) => (s.w != null && s.d != null ? { poly: rectPoly(s.x, s.z, s.w, s.d, s.rot ?? 0) } : { x: s.x, z: s.z, r: s.r ?? 0.5 });
@@ -144,6 +151,11 @@ const STRUCTURES = [
   ...PLATEAU_PROPS,
   // --- the quarry (floor, sealed): the N rigs, the explosive tanks, the barrels by rig_ne
   RIGS[2], RIGS[3], qTank('tank_q1', 68, 35), qTank('tank_q2', 73.5, 29.8), ...BARRELS.slice(2),
+  // art2 pass: the pit's ground gear, clear of the tanker's lane (>= 3 m), the barrels and the process tanks' pipework, and
+  // N of z 46 (the ridge, 6 m up, hides the floor S of that from the default camera; the sealed pit: nobody walks
+  // here; LOW like what is drawn): a drill-pipe rack at the HQ cliff's foot, the slush tank and mud pump by the W wall
+  { id: 'pipes_q', type: 'crates', variant: 'pipe_rack', label: 'Drill pipe', x: 65.2, z: 29.6, rot: 0, w: 9.6, d: 2.3, h: 0.8, block: 1, asset: 'pipe_rack_ms', nav: false },
+  { id: 'mudtank_q', type: 'crates', variant: 'mud_tank', label: 'Mud tank', x: 64.6, z: 43.4, rot: 0, w: 6.4, d: 3, h: 1.5, block: 1, asset: 'mud_tank_ms', nav: false },
   // --- the inner yard: central bunker (garrison, walkable roof), rig_w, its tanks, the windpump, houses
   { id: 'bunker_c', type: 'flat_roof_house', variant: 'bunker_sandbag_timber', label: 'Bunker', x: 50.5, z: 61, rot: 0, w: 13, d: 8, h: ROOF_Y,
     roofY: ROOF_Y, roofWalk: true, mat: 'sandbag', flag: true, garrison: true, destructible: true, destroyedBy: ['explosion'], hp: 100, bombOnly: true, door: deg(90),
@@ -152,7 +164,7 @@ const STRUCTURES = [
   // rock W of it: its pipework runs out N)
   RIGS[0], { ...wTank('tank_w1', 16, 87), rot: deg(-90), artOffset: [0.5, 0.2] }, wTank('tank_w2', 22, 82), wTank('tank_w3', 28, 76),
   { id: 'windpump', type: 'radio_mast', variant: 'windpump', label: 'Wind pump', x: 39, z: 79, rot: 0, w: 3, d: 3, h: 9, block: 1, asset: 'windpump_ms', nav: false },
-  flat('house_y', 'house_whitewash_flat', 40, 87, 10, 8, 4, [41.4, 91], -20),
+  flat('house_y', 'house_whitewash_flat', 40, 87, 10, 8, 4, [41.4, 91], -20, { asset: 'house_colonial_ms_y', nav: false }), // art2: the settlers' hipped tile-roof house
   { id: 'dugout_y', type: 'hut', variant: 'dugout', label: 'Dugout', x: 62, z: 84.5, rot: 0, w: 4.5, d: 4, h: 2, mat: 'sandbag', enterable: true, door: [62, 86.6],
     asset: 'dugout_sandbag_ms', nav: false },
   { id: 'drums_y', type: 'barrels', variant: 'fuel_drum_stack', x: 51.5, z: 101.5, rot: 0, w: 2, d: 1.2, h: 1.8, block: 2, asset: 'drum_stack_ms', nav: false },
@@ -173,7 +185,7 @@ const STRUCTURES = [
   // --- the SE mesa top (y 4)
   ...MESA_PROPS,
   // --- the S lowlands: the little building (the Sniper's post), crates, the rocky hollow
-  flat('house_l', 'house_whitewash_flat', 62.5, 126, 5, 6, 3.5, [59.9, 126], 9.5), // ∥ the road beside it
+  flat('house_l', 'house_whitewash_flat', 62.5, 126, 5, 6, 3.5, [59.9, 126], 9.5, { asset: 'house_colonial_ms_l', nav: false }), // ∥ the road beside it
   { id: 'crates_s', type: 'crates', variant: 'crate_stack', x: 56, z: 118, rot: 0, w: 4, d: 4, h: 2, block: 2, asset: 'crate_stack_ms_a', nav: false },
   { id: 'pit_se', type: 'crater', variant: 'crater_rocky', x: 78, z: 136, r: 4, h: 0.5, block: 1 },
   ...[[46, 125.3], [51.8, 126.5], [57, 131], [68, 143], [72, 112], [73, 120]].map(([x, z], k) => scrub(`bush_s${k + 1}`, x, z)),
@@ -181,7 +193,7 @@ const STRUCTURES = [
   { id: 'barracks_sw', type: 'barracks', variant: 'barracks_desert', label: 'Barracks', x: 37.5, z: 119.5, rot: 0, w: 9, d: 8, h: 5, mat: 'plaster',
     flag: true, garrison: true, destructible: true, destroyedBy: ['explosion'], hp: 100, door: deg(180), asset: 'barracks_domed_ms', nav: false },
   flat('house_a', 'hq_domed_terraced', 26, 124.5, 10, 12, 6, [31.3, 127], 0, { asset: 'house_domed_ms_a', nav: false }),
-  flat('house_w', 'house_whitewash_flat', 7, 102, 6, 6, 3.5, [7.8, 105.2], -15),
+  flat('house_w', 'house_whitewash_flat', 7, 102, 6, 6, 3.5, [7.8, 105.2], -15, { asset: 'house_colonial_ms_w', nav: false }),
   { id: 'water_tower', type: 'fueltank', variant: 'water_tower_legs', label: 'Water tower', x: 38, z: 132, rot: 0, r: 2, h: 10, block: 1,
     asset: 'water_tower_legs_ms', nav: false },
   tent('tent_1', 10.5, 113), tent('tent_2', 15, 119.5), tent('tent_3', 7.5, 136), tent('tent_4', 16.5, 143), tent('tent_5', 28, 143),
@@ -322,7 +334,7 @@ const FURNITURE = [
   { type: 'floodlight', x: 43, z: 116.3, rot: deg(-60), block: false },
   { type: 'sign', variant: 'wehrmacht', x: 18.6, z: 93.2, rot: 0, text: 'RAUCHEN\nVERBOTEN!', block: false },
   { type: 'sign', variant: 'wehrmacht', x: 41.2, z: 134.8, rot: 0, text: 'TRINKWASSER', block: false },
-  { type: 'sign', variant: 'wehrmacht', x: 49.6, z: 101.5, rot: 0, text: 'BETRIEBS-\nSTOFF', block: false },
+  { type: 'sign', variant: 'wehrmacht', x: 50.7, z: 97.8, rot: 0, text: 'BETRIEBS-\nSTOFF', block: false }, // N of drums_y, off the crater's berm and the road
   { type: 'sign', variant: 'fingerpost', x: 15.2, z: 59.6, rot: deg(-90), text: 'MARADA 3 km', block: false },
 ];
 
@@ -468,6 +480,14 @@ export default {
     ramps: RAMPS,
     rampPads: RAMP_PADS,
     crater: CRATER,
+    craterKeepOut: [[50.1, 99.8, 53, 103.2]], // drums_y on the E lip: the berm stops short of it
+    // art2 pass: the dirt roads drawn on the raised levels (the `terrain` paths under them are unseen); visual only
+    tracks: [
+      { points: [[4, 44.5], [12, 42], [22, 38], [35, 35], [44, 37.5], [50.5, 34], [52.9, 31.3]], width: 4, y: Y }, // ramp head → S portal
+      { points: [[50.5, 34], [54, 40], [50, 45], [44, 43], [44, 37.5]], width: 3.6, y: Y }, // the turning loop
+      { points: [[50, 45], [55, 51], [58.6, 54.3], [61.5, 56.4], [96, 57]], width: 3.6, y: Y }, // the ridge (flag_c on its verge)
+      { points: [[62.4, 14.6], [70, 15], [78, 17], [84.5, 23.4]], width: 3.6, y: Y }, // N portal → HQ door
+    ],
     portals: [{ id: 'tunnel_s', x: 53.4, z: 29.7, rot: deg(120), y: Y }, { id: 'tunnel_n', x: 60.5, z: 17.3, rot: deg(300), y: Y }],
     hide: ['rim_n', 'tunnel_rock', 'quarry_w', 'quarry_s', 'quarry_e', 'spur_start', 'rocks_g2', 'crater', 'plateau_n', 'plateau_hq', 'mesa_se',
       'tunnel'],

@@ -88,6 +88,8 @@ switch to the library only for hinted variants; a hinted `sea_wall` tiles its 8 
   riveted white process tank with valves and handrail; the open timber lean-to, the sandbag dugout, the ruined tower stub; crate
   stacks and a drum stack). Own `*_ms` types; M11 picks them by `asset` with `nav: false`; the quarry tanks (barrel entities)
   dress through `libraryVisual` in `src/missions/scripts/m11.js`.
+  Second pass (`ms_house.py`, `ms_site.py`): the three Italian colonial settlers' houses (`house_colonial_ms_y` hipped tile roof,
+  `_w` sandstone gable, `_l` whitewash gable with a palm shade) and the quarry's rig-site gear (`pipe_rack_ms`, `mud_tank_ms`).
 
 ## Conventions
 - M10 (El Agheila, `manifest-el-agheila.json`): `desert/q_m10.txt` lists the builds (`ic_*.py` on `ic_common.py`: four single-bay

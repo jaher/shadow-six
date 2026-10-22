@@ -55,6 +55,9 @@ function proneAnim(name, wc, c) {
       return gun ? ['prone_shoot', 'prone_aim', 'crawl_idle'] : ['crawl_idle_unarmed', 'crawl_idle'];
     case 'die': return ['die_prone', 'die'];
     case 'dead': return ['dead_prone', 'dead'];
+    // a device worked lying down (the M2 camp ladder lowered flat on the wall walk, a door): he stays down — the
+    // standing 'use' clip drew him upright, in plain view, while the game had him lying hidden
+    case 'use': return !c.actionId || c.actionId === 'use' ? (gun ? ['crawl_idle'] : ['crawl_idle_unarmed', 'crawl_idle']) : null;
     default: return null;
   }
 }
