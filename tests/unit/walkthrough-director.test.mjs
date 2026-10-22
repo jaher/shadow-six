@@ -74,3 +74,24 @@ test('video mode pace: ½× to 4×, skip waits raises it, the pacer refuses othe
   near(ticks, 60 * SKIP_BOOST, 1, 'skip waits: 4x the chosen speed');
   assert.equal(p.rate, SKIP_BOOST);
 });
+
+test('always action: while the step\'s men stand idle the camera turns to another man at work, else the guard they wait for', async () => {
+  const { pickLive, isActing } = await import('../../src/debug/walkthrough-director.js');
+  const man = (role, o = {}) => ({ kind: 'commando', role, alive: true, x: 0, z: 0, path: null, pendingAbility: null, currentAction: null, currentActionId: null, ...o });
+  const guard = (tag, x, z, o = {}) => ({ kind: 'enemy', tag, alive: true, x, z, path: null, ...o });
+  const gb = man('greenberet'), sp = man('sapper', { x: 40 }), spy = man('spy', { x: 80, currentAction: {}, currentActionId: 'distract' });
+  assert.ok(!isActing(gb) && !isActing(spy), 'standing, lying dug in or chatting a guard up is no action');
+  assert.ok(isActing(man('x', { path: [1] })) && isActing(man('x', { pendingAbility: {} })) && isActing(man('x', { currentAction: {}, currentActionId: 'knife' })));
+  assert.equal(pickLive({ who: [gb], commandos: [gb, sp, spy] }), null, 'nothing moves: the usual shot');
+  sp.path = [[1, 1]];
+  assert.equal(pickLive({ who: [gb], commandos: [gb, sp, spy] }), sp, 'the Sapper on the move');
+  const dv = man('diver', { x: 90, pendingAbility: {} });
+  const orderT = new Map([[sp, 10], [dv, 12]]);
+  assert.equal(pickLive({ who: [gb], commandos: [gb, sp, dv], orderT }), dv, 'two at work: the one ordered last');
+  assert.equal(pickLive({ who: [sp], commandos: [gb, sp, dv] }), null, 'the step\'s man acts: the usual shot');
+  sp.path = null; dv.pendingAbility = null;
+  const e19 = guard('e19', 20, 0, { path: [1] }), e7 = guard('e7', 10, 0, { path: [1] }), e9 = guard('e9', 5, 0);
+  assert.equal(pickLive({ who: [gb], commandos: [gb, sp, dv], enemies: [e7, e19, e9], tags: new Set(['e19']) }), e19, 'the guard the step names, walking');
+  assert.equal(pickLive({ who: [gb], commandos: [gb], enemies: [e7, e19, e9] }), e7, 'else the nearest walking guard');
+  assert.equal(pickLive({ who: [gb], commandos: [gb], enemies: [guard('e1', 60, 0, { path: [1] }), e9] }), null, 'none walking near: the usual shot');
+});

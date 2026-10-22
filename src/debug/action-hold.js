@@ -12,7 +12,7 @@
  */
 
 /** Seconds of game time after an action has visibly finished before the director may cut away. */
-export const HOLD_BEAT = 1.0;
+export const HOLD_BEAT = 0.7;
 /** A victim's fall (Unit._updateAnim: 'die' → 'dead' after 1.2 s). */
 export const FALL_S = 1.2;
 /** The longest any hold lasts (s of game time: a safety net, actions end long before); open-ended actions less (HOLD_MAX_BY). */

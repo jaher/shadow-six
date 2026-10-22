@@ -82,7 +82,7 @@ export default async function debugWalkthrough(page, t) {
   t(['e1', 'e2', 'e3'].every((e) => s.forced.includes(e)), `the step's cones are drawn (${s.forced})`);
   const autoBtn = () => page.evaluate(() => { const b = document.querySelector('#wt-bar [data-act=speed-auto]'); return { pressed: b.getAttribute('aria-pressed'), text: b.textContent, skipOff: document.querySelector('#wt-bar [data-act=skip]').hidden }; });
   let ab = await autoBtn();
-  t(s.auto && s.bar.speed === 'auto' && ab.pressed === 'true' && /^AUTO \d\.\d×|^AUTO ½×/.test(ab.text) && ab.skipOff, `a fresh walkthrough plays in AUTO, its speed on the button (${ab.text}; no skip-waits button: AUTO paces the waits)`);
+  t(s.auto && s.bar.speed === 'auto' && ab.pressed === 'true' && /^AUTO (\d+(\.\d)?×|½×|⏩)/.test(ab.text) && ab.skipOff, `a fresh walkthrough plays in AUTO, its speed on the button (${ab.text}; no skip-waits button: AUTO paces the waits)`);
   await page.evaluate(() => { window.__ran = 0; window.shadowSix.enqueue(() => { window.__ran = 1; }); });
   await page.waitForTimeout(300);
   t.equal(await page.evaluate(() => window.__ran), 0, 'a player order is held while the walkthrough plays');
@@ -191,7 +191,7 @@ export default async function debugWalkthrough(page, t) {
   t(fast >= 3, `AUTO speeds up through the quiet crawl (${fast.toFixed(2)}×)`);
   t(atK <= 1.3 && at3 < fast && at3 >= atK, `… and slows down before the knife: ${at3.toFixed(2)}× 3 s before, ${atK.toFixed(2)}× at the kill`);
   t(jump < 6, `smooth ramps, no jump between two frames (at most ${jump.toFixed(2)} octave a second)`);
-  t(/AUTO \d\.\d×|AUTO ½×/.test((await autoBtn()).text), `the button shows the speed (${(await autoBtn()).text})`);
+  t(/AUTO (\d+(\.\d)?×|½×|⏩)/.test((await autoBtn()).text), `the button shows the speed (${(await autoBtn()).text})`);
   await click('#wt-bar [data-act="speed-4"]');
   t(!(await S()).auto, 'a fixed speed leaves AUTO');
 

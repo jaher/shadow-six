@@ -5,7 +5,7 @@
  * and nothing written to the game.
  */
 import { test, assert, near } from './lib.mjs';
-import { paceTarget, AutoPace, PerfCeiling, PaceSensor, SteadyGrant, readTime, inClimax, isTrueWait, waitRate, WAIT, AUTO_PACE, ACTION_RATE, EVENT_WINDOWS } from '../../src/debug/auto-pace.js';
+import { paceTarget, AutoPace, PerfCeiling, PaceSensor, SteadyGrant, readTime, inClimax, isTrueWait, AUTO_PACE, ACTION_RATE, EVENT_WINDOWS } from '../../src/debug/auto-pace.js';
 import { TickPacer } from '../../src/debug/solution-replay.js';
 import { EventBus } from '../../src/core/events.js';
 
@@ -68,8 +68,8 @@ test('auto pace: ½× around a blast (from 0.8 s before the fuse runs out to 3 s
 
 test('auto pace: events, striking distance, near misses, the step\'s subject, captions', () => {
   near(paceTarget({ windows: [{ rate: EVENT_WINDOWS.kill[1], why: 'kill', left: 1 }] }).rate, 1, 1e-9, 'after a kill');
-  near(paceTarget({ windows: [{ rate: 1, why: 'kill', left: -1 }] }).rate, 2, 1e-9, 'then eased back up');
-  assert.equal(paceTarget({ windows: [{ rate: 1, why: 'kill', left: -3 }] }).rate, 4);
+  near(paceTarget({ windows: [{ rate: 1, why: 'kill', left: -0.5 }] }).rate, 2, 1e-9, 'then eased back up, briskly (no dead air)');
+  assert.equal(paceTarget({ windows: [{ rate: 1, why: 'kill', left: -1.5 }] }).rate, 4);
   assert.equal(paceTarget({ windows: [{ rate: 1, why: 'kill' }, { rate: 1.5, why: 'beat' }] }).why, 'kill');
   near(paceTarget({ near: 2 }).rate, 2, 1e-9, 'beside a guard');
   assert.equal(paceTarget({ near: 6 }).rate, 4);
@@ -127,11 +127,6 @@ test('auto pace: a slow-down holds the next speed-up (no pumping), the ceiling a
   assert.ok(Math.max(...r3) <= r0 + 1e-9, `the speed-up waits ~0.5 s after a slow-down (${r0.toFixed(2)} → ${Math.max(...r3).toFixed(2)})`);
   const r4 = run(d, 4, 1.5);
   assert.ok(r4[r4.length - 1] > 3.5, 'then it rises');
-  const hv = new AutoPace(4);
-  hv.handOver(24); // (a true wait at 24× just ended)
-  const r6 = run(hv, 4, 1.5, 4);
-  assert.ok(r6[0] > 22 && r6[r6.length - 1] < 4.3, `down from a wait's speed by the spring (${r6[0].toFixed(1)} → ${r6[r6.length - 1].toFixed(2)})`);
-  for (let i = 1; i < r6.length; i++) assert.ok(Math.abs(Math.log2(r6[i] / r6[i - 1])) < 0.12, `smooth at frame ${i}`);
   const e = new AutoPace(2);
   e.reset(1);
   assert.equal(e.rate, 1);
@@ -180,14 +175,7 @@ test('auto pace: ticks per frame follow the eased speed — no burst after a lon
   assert.equal(perFrame[perFrame.length - 1], 8);
 });
 
-test('auto pace: a true wait runs as fast as a steady 8 ms of ticks a frame allow (the cruise at least, 64× at most)', () => {
-  near(waitRate({ tickMs: 0.4, frameDt: 1 / 60 }), 20, 1e-9, '0.4 ms a tick: 20 ticks a frame → 20×');
-  near(waitRate({ tickMs: 0.2, frameDt: 1 / 30 }), 0.25 * (1000 / 30) / 0.2 / 2, 1e-9, '30 fps: a quarter of the frame for ticks');
-  near(waitRate({ tickMs: 0.5, frameDt: 0.055 }), (0.25 * 55 / 0.5) * (1 / 60) / 0.055, 1e-9, 'slow frames (a loaded machine): a quarter of the frame');
-  near(waitRate({ tickMs: 0.2, frameDt: 0.2, floor: 1 }), (16 / 0.2) * (1 / 60) / 0.2, 1e-9, '16 ms a frame at most');
-  assert.equal(waitRate({ tickMs: 0.05 }), WAIT.max);
-  assert.equal(waitRate({ tickMs: 5, floor: 4 }), 4, 'expensive ticks: no faster than the cruise');
-  // only while the solution waits, nobody acts, nothing to slow for
+test('auto pace: a true wait is the solution waiting with nobody acting and nothing to slow for', () => {
   assert.ok(isTrueWait({ motion: 'idle' }, { why: 'idle' }, { waiting: 'e19 down his beat' }));
   assert.ok(!isTrueWait({ motion: 'idle' }, { why: 'idle' }, { waiting: null }), 'the solution is not waiting (planning, an order)');
   assert.ok(!isTrueWait({ motion: 'idle' }, { why: 'idle' }, { waiting: 'x', busy: true }), 'a man acts');
@@ -242,8 +230,8 @@ test('auto pace sensor: kills, blasts, objectives… open their windows; a key a
   w.events.emit('unit:killed', { unit: e1 });
   let s = S.sample(10.5);
   assert.deepEqual(s.windows.map((x) => [x.why, x.rate]), [['kill', 1]]);
-  near(S.sample(12.5).windows[0].left, -0.5, 1e-9, 'the kill window is 2 s, then eases out');
-  assert.equal(S.sample(19.5).windows.length, 0, 'and is gone');
+  near(S.sample(12).windows[0].left, -0.5, 1e-9, 'the kill window is 1.5 s, then eases out');
+  assert.equal(S.sample(15.5).windows.length, 0, 'and is gone');
   w.time = 20;
   w.events.emit('explosion', { x: 5, z: 5 });
   near(S.sample(21).blastAgo, 1, 1e-9);

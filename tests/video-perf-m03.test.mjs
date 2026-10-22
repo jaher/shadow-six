@@ -41,7 +41,7 @@ export default async function videoPerfM03(page, t) {
     await page.goto(`${url}/index.html?debug&walkthrough=m03${speed === 'auto' ? '' : `&speed=${speed}`}`);
     await page.waitForFunction(() => document.querySelector('#wt-card[data-kind=intro]') && window.shadowSix?.debug?.mode?.replay, null, { timeout: 240000 });
     await page.evaluate(() => {
-      const P = (window.__vp = { on: false, base: [], frames: [], maxTick: 0, maxGap: 0, last: 0, cur: null, progs: 0, nProg: -1, longs: [] });
+      const P = (window.__vp = { on: false, base: [], frames: [], maxTick: 0, maxGap: 0, last: 0, cur: null, progs: 0, nProg: -1, longs: [], slow: [] });
       // long tasks: the main thread held > 50 ms anywhere — in a frame or between two (GC, decode, a stall)
       try { new PerformanceObserver((l) => { if (P.on) for (const e of l.getEntries()) P.longs.push([e.duration, window.shadowSix?.world?.time ?? 0]); }).observe({ type: 'longtask' }); } catch { /* unsupported */ }
       const g = window.shadowSix, step = g.step;
@@ -53,7 +53,7 @@ export default async function videoPerfM03(page, t) {
       const f = (now) => {
         const r = g.debug.mode.replay;
         if (P.last) {
-          if (P.on && r && !r.pacer.turbo && !r._introOn) P.frames.push(now - P.last);
+          if (P.on && r && !r.pacer.turbo && !r._introOn) { const d = now - P.last; P.frames.push(d); if (d > 50) P.slow.push([d, g.world?.time ?? 0]); }
           else if (P.calib) P.base.push(now - P.last);
         }
         P.last = now; P.cur = { end: -1 };
@@ -77,7 +77,8 @@ export default async function videoPerfM03(page, t) {
       const q = (a, p) => { const s = a.slice().sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(s.length * p))] ?? 0; };
       return { n: P.frames.length, base: q(P.base, 0.5), med: q(P.frames, 0.5), p99: q(P.frames, 0.99), max: q(P.frames, 1), over34: P.frames.filter((x) => x > 34).length,
         progs: P.progs, maxTick: P.maxTick, maxGap: P.maxGap, longs: P.longs.length, longMax: Math.max(0, ...P.longs.map((x) => x[0])),
-        longWorst: P.longs.slice().sort((a, b) => b[0] - a[0]).slice(0, 5).map((x) => `${x[0].toFixed(0)}ms@t${x[1].toFixed(1)}`), res: res && { outcome: res.outcome, state: res.state, time: res.time, detections: res.detections, exposures: res.exposures } };
+        longWorst: P.longs.slice().sort((a, b) => b[0] - a[0]).slice(0, 5).map((x) => `${x[0].toFixed(0)}ms@t${x[1].toFixed(1)}`),
+        slowWorst: P.slow.slice().sort((a, b) => b[0] - a[0]).slice(0, 5).map((x) => `${x[0].toFixed(0)}ms@t${x[1].toFixed(1)}`), res: res && { outcome: res.outcome, state: res.state, time: res.time, detections: res.detections, exposures: res.exposures } };
     });
   };
 
@@ -99,7 +100,7 @@ export default async function videoPerfM03(page, t) {
       t.log(`${label}: frames ${r.n}: median ${r.med.toFixed(1)}, p99 ${r.p99.toFixed(1)}, worst ${r.max.toFixed(1)} ms, ${r.over34} over 34 ms ` +
         `(${calm ? 'calm' : 'loaded'} host: bounds worst ${bounds.max.toFixed(0)}, p99 ${bounds.p99.toFixed(0)}, tick ${bounds.tick.toFixed(0)}); programs compiled during play ${r.progs}; ` +
         `longest tick ${r.maxTick.toFixed(1)} ms, longest driver gap ${r.maxGap.toFixed(1)} ms; ${JSON.stringify(r.res)}`);
-      t.log(`${label}: long tasks during play: ${r.longs}, longest ${r.longMax.toFixed(0)} ms (${r.longWorst.join(', ')})`);
+      t.log(`${label}: long tasks during play: ${r.longs}, longest ${r.longMax.toFixed(0)} ms (${r.longWorst.join(', ')}); slowest frames ${r.slowWorst.join(', ')}`);
       ok = r.max <= bounds.max && r.p99 <= bounds.p99 && r.longMax <= bounds.max && r.maxTick <= bounds.tick && r.maxGap < 15 * slow && r.progs === 0;
       if (!ok && calm) break; // a calm host: no second chance
     }

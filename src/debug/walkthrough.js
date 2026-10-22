@@ -27,10 +27,10 @@
 
 import { SolutionReplay } from './solution-replay.js';
 import { normalizeWalkthrough, currentStep, orderAction, targetTag, matchOn, cpId } from './walkthrough-data.js';
-import { Director, freeRect } from './walkthrough-director.js';
+import { Director, freeRect, isActing, pickLive } from './walkthrough-director.js';
 import { ROLE_NAMES } from '../ui/catalogue.js';
 import { PERF } from '../engine/perf-flags.js';
-import { AutoPace, PaceSensor, PerfCeiling, SteadyGrant, paceTarget, readTime, inClimax, isTrueWait, waitRate, WAIT } from './auto-pace.js';
+import { AutoPace, PaceSensor, PerfCeiling, SteadyGrant, paceTarget, readTime, inClimax, isTrueWait } from './auto-pace.js';
 
 export const WALK_SPEEDS = Object.freeze([0.5, 1, 2, 4]);
 /** The speed of a fresh walkthrough (no `speed` in its link): AUTO. `speed=1` is a fixed 1×. */
@@ -43,6 +43,24 @@ export const DEFAULT_WALK_SPEED = 'auto';
 export const WALK_TURBO_MS = 14;
 /** While jumping, the view is redrawn at most this often (ms; never more than 15 % of the wall time: TURBO_VIEW_SHARE). */
 export const WALK_TURBO_VIEW_MS = 200;
+/**
+ * AUTO: a true wait (the solution waits for a guard, a gap, a timer; nobody acts) is skipped like a jump after this
+ * many seconds of game time: its ticks run by wall time (WALK_TURBO_MS a frame, the view redrawn every
+ * WALK_TURBO_VIEW_MS) under a "⏩ waiting: <what for>" tag, then a cut back to the play (user 2026-10-15: "Also no long
+ * quiet periods, always action in the walkthrough").
+ */
+export const SKIP_AFTER = 0.3;
+/** Wall-clock ms of ticks a frame while a wait is skipped (counted from the frame's start: a frame that draws runs fewer). */
+export const SKIP_TICK_MS = 16;
+/**
+ * While a wait is skipped the view is redrawn every SKIP_VIEW_MS (≈15 a second; never more than TURBO_VIEW_SHARE of the
+ * wall time): a fast-forward that keeps moving on screen, never a frozen picture, and no frame over ~20 ms.
+ */
+export const SKIP_VIEW_MS = 66;
+/** AUTO's adaptive tick budget never goes under this (ms a frame): the run keeps moving under a heavy draw. */
+export const MIN_TICK_MS = 1;
+/** Always action: a man or a guard the camera turned to while the step's men wait is kept this long (ms) at least. */
+export const LIVE_DWELL = 2500;
 /** Skip waits: the most the pace is raised while every commando waits. */
 export const SKIP_BOOST = 4;
 /** Wall-clock ms of ticks a displayed frame may run (TickPacer.tickMs): costly stretches slow down, never stall. */
@@ -119,6 +137,9 @@ body.dbg-video .hud-speaker-card{transform:translateY(var(--wt-card-shift,0px))}
 #wt-rewind .wt-sub{font-weight:500;opacity:.85;margin-top:2px}
 #wt-rewind .wt-prog{height:4px;margin-top:10px;background:#ffffff22;border-radius:2px;overflow:hidden}
 #wt-rewind .wt-prog i{display:block;height:100%;background:#7fd6ff;width:0;transition:width .15s linear}
+#wt-skip{position:fixed;z-index:8660;left:50%;transform:translateX(-50%);padding:7px 14px;border-radius:7px;background:rgba(10,11,12,.86);
+  border:1px solid #7fd6ff88;color:#7fd6ff;font:700 14px/1.3 system-ui,sans-serif;letter-spacing:.03em;pointer-events:none;max-width:calc(100vw - 24px);
+  text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #wt-flash{position:fixed;z-index:8650;left:50%;transform:translateX(-50%);padding:6px 12px;border-radius:6px;background:rgba(0,0,0,.75);
   color:#ffe9a8;font:600 13px/1.3 system-ui,sans-serif;pointer-events:none;max-width:calc(100vw - 24px);text-align:center}
 #wt-tl{flex:1 1 100%;display:flex;align-items:center;gap:8px;padding:3px 4px 1px;box-sizing:border-box}
@@ -354,6 +375,8 @@ export class Walkthrough extends SolutionReplay {
       on('alarm:end', () => this._event({ kind: 'alarm', on: false })),
     ].filter(Boolean);
     this.sensor.attach();
+    this.sensor.onEvent = () => this._endSkip(); // (a kill, a blast, a guard turning…: back to the play)
+    this._offs.push(w.events?.on?.('ability:start', () => this._endSkip()));
     this.director.attach();
     hideRewind(); // (a jump back's rebuild is done: this walkthrough's own fast-forward shows the rest)
     // (a scrub back reloaded the mission for one moment: no intro card; the fast-forward to it starts at once)
@@ -393,6 +416,8 @@ export class Walkthrough extends SolutionReplay {
   }
 
   _onOrder(role, u, o) {
+    this._endSkip();
+    (this._orderT ||= new Map()).set(u, this.world.time);
     super._onOrder(role, u, o);
     const tgt = o?.type === 'ability' && o.target && o.target !== u && typeof o.target === 'object' ? o.target : null;
     if (tgt && (Number.isFinite(tgt.x) || tgt.kind)) this._action = { u, t: tgt, until: this.world.time + 6 };
@@ -401,6 +426,7 @@ export class Walkthrough extends SolutionReplay {
   }
 
   _onCheckpoint(cp) {
+    this._endSkip();
     const id = cpId(cp.name);
     if (!this.doneCps.includes(id)) this.doneCps.push(id);
     this._tlMark('cp', id, cp.t);
@@ -412,6 +438,7 @@ export class Walkthrough extends SolutionReplay {
   }
 
   _onStage(id, title) {
+    this._endSkip();
     this.chapterId = id;
     this._tlMark('stage', id, this.world.time);
     // AUTO: a chapter starts at 1× (after its card); the last one's blast and escape are the climax
@@ -477,12 +504,12 @@ export class Walkthrough extends SolutionReplay {
   /**
    * Ms of ticks this frame may run without pushing it into the next vsync step: what the draw (an average of the last
    * frames' views) leaves of the slot it needs — a 25 ms draw is a 33.3 ms frame, so ~6.8 ms of ticks; a 10 ms draw,
-   * ~5.2 ms; a 14 ms draw, ~1.2 ms. Never under WAIT.minTickMs (the run keeps moving), never over the walkthrough's cap.
+   * ~5.2 ms; a 14 ms draw, ~1.2 ms. Never under MIN_TICK_MS (the run keeps moving), never over the walkthrough's cap.
    */
   _tickBudget() {
     const v = 1000 / 60, draw = this._drawMs || 0;
     const slot = v * Math.max(1, Math.ceil((draw + 1.5) / v));
-    return Math.max(WAIT.minTickMs, slot - draw - 1.5);
+    return Math.max(MIN_TICK_MS, slot - draw - 1.5);
   }
 
   _frame(dt) {
@@ -539,6 +566,7 @@ export class Walkthrough extends SolutionReplay {
   _autoStep(dt) {
     const p = this.pacer, w = this.world;
     this.autoDt = dt; // (the frame time the speed was eased over: tests measure the ramps by it)
+    if (this._skip) { if (this.waitLabel && !this._anyBusy()) { this._skipTag(); return; } this._endSkip(); }
     if (p.turbo) return;
     const b = this._burst; // ms of ticks per tick on the last frames (the game step and the solution's own planning)
     const msPerTick = b.ticks ? b.ms / b.ticks : null;
@@ -552,24 +580,70 @@ export class Walkthrough extends SolutionReplay {
     const held = this.holdNow();
     if (held) sig.windows.push({ rate: 1, why: held.id, left: 1 }); // (an action watched until it has visibly finished: 1×)
     const tg = paceTarget(sig, { ceiling, reading, climax });
-    // a true wait (the solution waits for a guard, a gap, a timer; nobody acts; nothing to slow for): as fast as a steady
-    // WAIT.tickMs of ticks a frame allow; anything that happens (an order, an event, a man moving) ends it at once
-    const busy = w.commandos.some((c) => c.alive && (c.pendingAbility || (c.currentAction && c.currentActionId !== 'distract')));
-    if (isTrueWait(sig, tg, { waiting: this.waitLabel, busy })) {
-      const want = waitRate({ tickMs: this.autoCeiling.tickMs, frameDt: this._grant.usual, simDt: this.simDt, floor: ceiling, budgetMs: PERF.adaptiveTicks && this._drawMs ? this._tickBudget() : null });
-      // (up smoothly: at most WAIT.rampPerFrame of an octave a frame, however slow the frames)
-      const lf = Math.log2(this._waitRate || this.autoPace.rate), lw = Math.log2(want);
-      const stepO = Math.min(Math.min(dt, 0.1) * WAIT.rampOctavesPerS, WAIT.rampPerFrame);
-      this._waitRate = 2 ** (lw > lf ? Math.min(lw, lf + stepO) : Math.max(lw, lf - stepO));
-      p.boost = this._waitRate;
-      this.autoPace.handOver(this._waitRate);
-      this.autoWhy = 'wait';
-    } else {
-      if (this._waitRate) { this._waitRate = 0; } // (the wait is over: AUTO's spring takes it down from the wait's speed)
-      p.boost = this.autoPace.step(tg.rate, dt, ceiling);
-      this.autoWhy = tg.why;
-    }
+    // a true wait (the solution waits for a guard, a gap, a timer; nobody acts; nothing to slow for — a caption needs no
+    // slow play when nothing happens: it stays up after the skip) is skipped like a jump once it has lasted SKIP_AFTER s;
+    // anything that happens (an order, an event, an action) ends the skip at once
+    const tq = reading > 0 ? paceTarget(sig, { ceiling, reading: 0, climax }) : tg, busyNow = this._anyBusy();
+    const quiet = isTrueWait(sig, tq, { waiting: this.waitLabel, busy: busyNow });
+    // (why a wait is not skipped, for tests and tuning: a man acting, a man moving, what AUTO slows for)
+    this.waitWhy = !this.waitLabel ? null : quiet ? 'skip' : busyNow ? 'busy' : (sig.motion || 'idle') !== 'idle' ? `moving (${sig.motion})` : tq.why;
+    if (!quiet) this._quietSince = null;
+    else if (this._quietSince == null) this._quietSince = t;
+    else if (t - this._quietSince >= SKIP_AFTER) { this._startSkip(); return; }
+    p.boost = this.autoPace.step(tg.rate, dt, ceiling);
+    this.autoWhy = tg.why;
     this._autoLabel();
+  }
+
+  /** A man acting: on the move (his path, his vehicle's), walking up to an order, an action under way (a chat-up held
+   * for long is no action). */
+  _anyBusy() {
+    return this.world.commandos.some((c) => c.alive && (!!c.path || !!c.vehicle?.path || c.pendingAbility || (c.currentAction && c.currentActionId !== 'distract')));
+  }
+
+  /** Skip a true wait like a jump: ticks by wall time, the view redrawn now and then, a "waiting" tag. */
+  _startSkip() {
+    if (this._skip || this.pacer.turbo || !this.auto) return;
+    this._skip = { label: this.waitLabel, t0: this.world.time, wall: performance.now(), turboMs: this.pacer.turboMs, viewMs: this.turboViewMs };
+    this.pacer.turboMs = SKIP_TICK_MS;
+    this.turboViewMs = SKIP_VIEW_MS;
+    this.pacer.setTurbo(true);
+    this.autoWhy = 'wait';
+    this._capKey = null;
+    this._skipTag();
+    this._syncBar();
+  }
+
+  /** The skip is over (the wait ended, an order, an event, an action): a cut back to the play, AUTO on from 2×. */
+  _endSkip() {
+    const s = this._skip;
+    if (!s) return;
+    this._skip = null;
+    this.turboViewMs = s.viewMs;
+    if (this._seekT == null && !this.toMarker) { this.pacer.turboMs = s.turboMs; if (this.pacer.turbo) this.pacer.setTurbo(false); }
+    (this.skips ||= []).push({ label: s.label, game: this.world.time - s.t0, wall: (performance.now() - s.wall) / 1000 });
+    this._quietSince = null;
+    this._camCut = true;
+    this.autoPace.reset(2);
+    this.pacer.boost = this.autoPace.rate;
+    this._capKey = null;
+    document.getElementById('wt-skip')?.remove();
+    this._syncBar();
+  }
+
+  /** The "⏩ waiting: <what for>" tag under the bar while a wait is skipped. */
+  _skipTag() {
+    let tag = document.getElementById('wt-skip');
+    if (!tag) { installStyle(); tag = el('div', null, document.body); tag.id = 'wt-skip'; tag.setAttribute('role', 'status'); }
+    const txt = `⏩ waiting: ${waitText(this._skip?.label || this.waitLabel || '')}`;
+    if (tag.textContent !== txt) tag.textContent = txt;
+    const bar = rectOf(this._ui);
+    tag.style.top = `${Math.round((bar?.bottom ?? 60) + 8)}px`;
+  }
+
+  _onWait(label) {
+    super._onWait(label);
+    if (!label) this._endSkip(); // (the wait is over: the ticks of this frame stop here, the play goes on at AUTO's pace)
   }
 
   /** The step's acting men and the guards it (or its beat) names: the sensor's "closing in". Cached per step / beat. */
@@ -598,7 +672,7 @@ export class Walkthrough extends SolutionReplay {
     const now = performance.now();
     if (!force && now - (this._autoLabelAt || 0) < 250) return;
     this._autoLabelAt = now;
-    const txt = this.auto ? ` ${this._fmtRate(this.rate)}` : ''; // (textContent "AUTO 3.2×"; the space is not drawn)
+    const txt = this.auto ? ` ${this._skip ? '⏩' : this._fmtRate(this.rate)}` : ''; // (textContent "AUTO 3.2×"; the space is not drawn)
     if (v.textContent !== txt) v.textContent = txt;
     if (this._ui) { this._ui.dataset.rate = this.rate.toFixed(2); this._ui.dataset.why = this.auto ? this.autoWhy : ''; }
   }
@@ -675,7 +749,9 @@ export class Walkthrough extends SolutionReplay {
     const w = this.world;
     const who = this.step?.who || [];
     const units = who.map((r) => w.commandos.find((c) => c.role === r)).filter((c) => c && c.alive);
-    let lead = units.includes(this.focus) ? this.focus : units[0] || this.focus || w.commandos.find((c) => c.alive);
+    // (the lead is the one at work: a step's man standing by while the other walks is framed beside him, not first)
+    const focus = units.includes(this.focus) ? this.focus : null;
+    let lead = (focus && isActing(focus) ? focus : units.find(isActing)) || focus || units[0] || this.focus || w.commandos.find((c) => c.alive);
     if (!lead) return [];
     const pt = (c) => this.resolve(c.role);
     const lp = pt(lead);
@@ -701,6 +777,8 @@ export class Walkthrough extends SolutionReplay {
     const w = this.world, now = w.time;
     const cut = this._camCut;
     this._camCut = false;
+    // a skipped wait: what the men wait for, moving fast (the guard, another man), else the men themselves
+    if (this._skip) { const l = this._liveShot(false); if (l) return { ...l, cut: true, frame: { minSpan: [24, 15] } }; }
     if (this.pacer.turbo) {
       const a = this._actors();
       return { pts: a, must: a.length, cut: true, frame: { minSpan: [26, 16] }, pitch: this._pitch(a) };
@@ -730,6 +808,9 @@ export class Walkthrough extends SolutionReplay {
     const frame = zoom === 'close' ? { minSpan: [10, 6], maxZoom: 1.7 } : zoom === 'wide' ? { minSpan: [30, 18] } : { minSpan: [16, 10] };
     const look = (cue?.look || []).map((r) => this.resolve(r)).filter(Boolean);
     if (cue?.shot && look.length) return { pts: look, must: 1, frame, pitch: this._pitch(look), cut };
+    // always action: the step's men stand idle — then another man at work, else the guard they wait for
+    const live = this._liveShot(cut);
+    if (live) return live;
     const actors = this._actors();
     const pts = [...actors];
     const a0 = actors[0];
@@ -745,10 +826,37 @@ export class Walkthrough extends SolutionReplay {
     return { pts, must: Math.max(1, actors.length), frame, pitch: this._pitch(actors.length ? actors : pts), cut };
   }
 
+  /**
+   * The shot while the step's men stand idle (waiting their moment): another commando at work (the one ordered last),
+   * else a guard on the move the step names (look / cones), else the nearest one walking within 35 m — with the waiting
+   * man beside him when he is close. A pick is kept LIVE_DWELL ms (no ping-pong); null: the step's men act, or nothing
+   * else moves (then the usual shot). User 2026-10-15: "Also no long quiet periods, always action in the walkthrough".
+   */
+  _liveShot(cut) {
+    const w = this.world, now = performance.now();
+    const who = this._paceCtx().actors.filter((u) => u && u.alive !== false && !u.removed);
+    if (!who.length || who.some(isActing)) { this._live = null; return null; }
+    let pick = this._live && now < this._live.until && isActing(this._live.unit) ? this._live : null;
+    if (!pick) {
+      const tags = new Set([...(this.step?.cones || []), ...(this.step?.look || [])].filter((r) => typeof r === 'string'));
+      const unit = pickLive({ who, commandos: w.commandos, enemies: w.enemies, tags, orderT: this._orderT });
+      if (!unit) { this._live = null; return null; }
+      pick = this._live = { unit, until: now + LIVE_DWELL };
+    }
+    const p = this._pointOf(pick.unit);
+    if (!p) return null;
+    const pts = [p];
+    if (pick.unit.kind !== 'commando') {
+      const a = this._pointOf(who[0]);
+      if (a && Math.hypot(a.x - p.x, a.z - p.z) < 30) pts.push(a);
+    }
+    return { pts, must: 1, frame: { minSpan: [18, 11] }, pitch: this._pitch(pts), cut, live: pick.unit.role || pick.unit.tag };
+  }
+
   /** The guards whose cones are drawn now: the step's (or beat's) `cones`, else the ones that matter near the actor. */
   conesNow() {
     const w = this.world;
-    if (this.pacer.turbo) return [];
+    if (this.pacer.turbo && !this._skip) return []; // (a skipped wait shows the cones it waits on)
     const b = this.beat && (this.beat.until == null || w.time <= this.beat.until) ? this.beat : null;
     const live = (e) => e && e.alive !== false && !e.removed && e.vision;
     const tags = b?.cones ?? this.step?.cones ?? null;
@@ -804,6 +912,7 @@ export class Walkthrough extends SolutionReplay {
 
   /** A fixed speed (leaves AUTO). */
   setSpeed(s) {
+    this._endSkip();
     const was = this.auto;
     this.auto = false;
     this.pacer.setSpeed(s);
@@ -904,6 +1013,7 @@ export class Walkthrough extends SolutionReplay {
       return true;
     }
     if (t <= this.world.time) return true; // (already there)
+    if (this._skip) { this.turboViewMs = this._skip.viewMs; this._skip = null; document.getElementById('wt-skip')?.remove(); } // (a scrub supersedes a skipped wait)
     this.toMarker = null;
     this._seekT = t;
     this._seekPause = !!pause;
@@ -967,6 +1077,7 @@ export class Walkthrough extends SolutionReplay {
     if (i < 0 || this.stopped) return false;
     this._showMenu(false);
     this.hold = null;
+    if (this._skip) { this.turboViewMs = this._skip.viewMs; this._skip = null; this.pacer.setTurbo(false); document.getElementById('wt-skip')?.remove(); } // (a jump supersedes a skipped wait)
     this._seekT = null; // (a marker jump supersedes a scrub in flight)
     this.pacer.turboMs = this._turboMsBase;
     if (this._introOn) this._endIntro(true);
@@ -1229,7 +1340,7 @@ export class Walkthrough extends SolutionReplay {
     const bar = this._ui;
     if (!bar) return;
     for (const s of WALK_SPEEDS) bar.querySelector(`[data-act="speed-${s}"]`)?.setAttribute('aria-pressed', String(!this.pacer.turbo && !this.auto && this.pacer.speed === s));
-    bar.querySelector('[data-act=speed-auto]')?.setAttribute('aria-pressed', String(!this.pacer.turbo && this.auto));
+    bar.querySelector('[data-act=speed-auto]')?.setAttribute('aria-pressed', String(this.auto && (!this.pacer.turbo || !!this._skip)));
     const skip = bar.querySelector('[data-act=skip]');
     if (skip && skip.hidden !== this.auto) { skip.hidden = this.auto; this._safe = null; } // (AUTO paces the waits itself)
     const p = bar.querySelector('[data-act=play]');
@@ -1238,7 +1349,7 @@ export class Walkthrough extends SolutionReplay {
     bar.querySelector('[data-act=cc]')?.setAttribute('aria-pressed', String(this.captions));
     bar.querySelector('[data-act=cam]')?.setAttribute('aria-pressed', String(!this.free));
     bar.querySelector('[data-act=chapters]')?.setAttribute('aria-pressed', String(!!this._menu));
-    Object.assign(bar.dataset, { speed: String(this.speedSetting), auto: this.auto ? '1' : '0', paused: this.paused ? '1' : '0', ff: this.pacer.turbo ? '1' : '0',
+    Object.assign(bar.dataset, { speed: String(this.speedSetting), auto: this.auto ? '1' : '0', paused: this.paused ? '1' : '0', ff: this.pacer.turbo && !this._skip ? '1' : '0', wait: this._skip ? '1' : '0',
       free: this.free ? '1' : '0', cc: this.captions ? '1' : '0', skip: this.skipWaits ? '1' : '0' });
     this._autoLabel(true);
   }
@@ -1263,7 +1374,8 @@ export class Walkthrough extends SolutionReplay {
     let pos = st ? `${st.cp} · ${wt.steps.indexOf(st) + 1}/${n}` : ch ? `${ch.id}` : '';
     pos += ` · ${fmtTime(this.world.time)}`;
     let status = '';
-    if (this.pacer.turbo) {
+    if (this._skip) status = `⏩ waiting: ${waitText(this._skip.label)}`;
+    else if (this.pacer.turbo) {
       if (this._seekT != null) {
         status = `⏩ jumping to ${fmtTime(this._seekT)}`;
         cap.dataset.progress = String(Math.max(0, Math.min(1, this.world.time / Math.max(1, this._seekT))));
@@ -1274,7 +1386,6 @@ export class Walkthrough extends SolutionReplay {
       }
     } else if (this.paused) status = '❚❚ paused';
     else if (!this.auto && this.pacer.boost > 1.05) status = `⏩ waiting ×${(this.pacer.speed * this.pacer.boost).toFixed(1)}`;
-    else if (this.auto && this.autoWhy === 'wait' && this.waitLabel) status = `⏩ waiting: ${waitText(this.waitLabel)}`;
     const head = ch ? `${ch.id} · ${ch.title}` : this.stage ? `${this.stage.id} · ${this.stage.title}` : 'Walkthrough';
     let say, who = [];
     if (chapterMode) say = ch.say || '';
@@ -1290,7 +1401,7 @@ export class Walkthrough extends SolutionReplay {
     cap.className = chapterMode ? 'chapter' : '';
     cap.dataset.step = st?.cp || '';
     cap.dataset.chapter = chId || '';
-    cap.dataset.mode = chapterMode ? 'chapter' : this.pacer.turbo ? 'jump' : 'step';
+    cap.dataset.mode = chapterMode ? 'chapter' : this._skip ? 'wait' : this.pacer.turbo ? 'jump' : 'step';
     cap.textContent = '';
     const h = el('div', 'wt-head', cap);
     el('span', null, h, chapterMode ? `Chapter ${ch.id}` : head);
@@ -1298,7 +1409,7 @@ export class Walkthrough extends SolutionReplay {
     if (status) el('span', 'wt-ff', r, status + '  ');
     r.append(pos);
     if (chapterMode) el('span', 'wt-title', cap, ch.title);
-    if (this.pacer.turbo) {
+    if (this.pacer.turbo && !this._skip) {
       el('div', 'wt-say', cap, 'Fast-forwarding through the solution to the chosen step…');
       const pg = el('div', 'wt-prog', cap);
       el('i', null, pg).style.width = `${Math.round(+cap.dataset.progress * 100)}%`;
@@ -1394,6 +1505,7 @@ export class Walkthrough extends SolutionReplay {
     this._menu?.remove();
     this._menu = null;
     document.getElementById('wt-flash')?.remove();
+    document.getElementById('wt-skip')?.remove();
     if (this._introOn) { this._introOn = false; closeCard(); }
     this.director.detach();
     this.sensor.detach();

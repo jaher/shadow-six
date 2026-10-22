@@ -303,7 +303,11 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
       const dead = w.commandos.find((c) => !c.alive);
       return dead ? `${dead.role} died` : null;
     },
-    async wait(sec) { const n = Math.round(sec / dt); for (let i = 0; i < n; i++) await tick(); },
+    async wait(sec) {
+      const n = Math.round(sec / dt), said = sec >= 2 && !!onWait; // (a timer of 2 s or more is a wait too: video mode skips it)
+      if (said) onWait(`a ${+sec.toFixed(1)} s pause`);
+      try { for (let i = 0; i < n; i++) await tick(); } finally { if (said) onWait(null); }
+    },
     async until(pred, maxSec = 120, label = '') {
       const n = Math.round(maxSec / dt);
       let said = false;
@@ -321,12 +325,16 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
     /** until, for a predicate that may await (a sliced plan inside it): the same ticks, the same checks */
     async untilAsync(pred, maxSec = 120, label = '') {
       const n = Math.round(maxSec / dt);
-      for (let i = 0; i < n; i++) {
-        if (await pred()) return true;
-        await tick();
-        const f = D.failed();
-        if (f) throw new Error(`FAILED while waiting ${label}: ${f}`);
-      }
+      let said = false;
+      try {
+        for (let i = 0; i < n; i++) {
+          if (await pred()) return true;
+          if (!said && label) { said = true; onWait?.(label); }
+          await tick();
+          const f = D.failed();
+          if (f) throw new Error(`FAILED while waiting ${label}: ${f}`);
+        }
+      } finally { if (said) onWait?.(null); }
       throw new Error(`timeout ${maxSec}s waiting ${label}`);
     },
     /** a player order (commando.issue); throws with the refusal text when the game refuses it */

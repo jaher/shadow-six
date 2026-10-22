@@ -9,8 +9,9 @@
  *     clip, then a beat (debug/action-hold.js) — the camera on her, her step's caption, AUTO at 1×; only then the
  *     chapter D card and the Marine;
  *  3. the plain SOLUTION replay (▶ SOL / F9) selects the ordered man too;
- *  and a true wait (the solution waiting for p1 to walk off, nobody acting) runs fast in AUTO, the caption saying what
- *  it waits for (user 2026-10-14: "fix those periods of idleness").
+ *  and a true wait (the solution waiting for p1 to walk off, nobody acting) is skipped like a jump in AUTO under a
+ *  "⏩ waiting: <what for>" tag (user 2026-10-14: "fix those periods of idleness"), and the camera never rests on a man
+ *  standing idle while another acts (2026-10-15: "Also no long quiet periods, always action in the walkthrough").
  */
 export const timeout = 600_000;
 
@@ -35,6 +36,8 @@ export default async function debugWalkthroughHold(page, t) {
     const ringed = sel.every((c) => rings.some(([x, z]) => Math.hypot(x - (c.object3d?.position.x ?? c.x), z - (c.object3d?.position.z ?? c.z)) < 0.6));
     const detail = sel.map((c) => `${c.role}:${Math.min(...rings.map(([x, z]) => Math.hypot(x - (c.object3d?.position.x ?? c.x), z - (c.object3d?.position.z ?? c.z)))).toFixed(2)}${c.buried ? ' buried' : ''}${c.underwater ? ' under' : ''}${c.state}`).join(' ');
     const held = g.debug.mode.replay?.holdNow?.()?.unit?.role ?? null;
+    // (a skipped wait draws the view only now and then: the rings follow at the next drawn frame)
+    if (g.debug.mode.replay?.pacer.turbo) return { stable: false };
     return { stable: last === last2, last: last?.role ?? null, sel: sel.map((c) => c.role), want, dom, rings: rings.length, ringed, t: w.time, detail, all: (g.selection?.rings || []).length, held };
   }, arr);
 
@@ -47,12 +50,28 @@ export default async function debugWalkthroughHold(page, t) {
     window.__ord = []; window.__sel = [];
     w.events.on('unit:order', (p) => window.__ord.push({ role: p.unit.role, t: w.time }));
     inp.select = (units, o) => { window.__sel.push(`${w.time.toFixed(2)}:[${units.map((u) => u.role)}]`); return os(units, o); };
-    // a true wait (p1 walking off east, ~2–75 s): AUTO runs it fast and says what it waits for
+    // a true wait (p1 walking off east, ~2–75 s) is skipped like a jump under a "waiting" tag; and to t=200 the camera
+    // never rests on a man standing idle while another acts (user 2026-10-15: "always action in the walkthrough")
     const r = g.debug.mode.replay;
-    window.__wait = { frames: 0, max: 0, cap: '' };
+    window.__wait = { tags: [] };
+    window.__act = { n: 0, idleWhileBusy: 0, ex: [] };
+    const acting = (u) => !!u && u.alive !== false && (!!u.path || !!u.pendingAbility || (!!u.currentAction && !['distract', 'shovel'].includes(u.currentActionId)) || !!u.vehicle?.path);
+    const oc = r.composeShot.bind(r);
+    r.composeShot = () => { const sh = oc(); window.__shotA = sh; return sh; };
     const f = () => {
-      if (r.stopped || w.time > 75) return;
-      if (r.autoWhy === 'wait') { window.__wait.frames++; window.__wait.max = Math.max(window.__wait.max, r.rate); const c = document.getElementById('wt-cap')?.textContent || ''; if (/waiting:/.test(c)) window.__wait.cap = c.slice(0, 160); }
+      if (r.stopped || w.time > 200) return;
+      const tag = document.getElementById('wt-skip')?.textContent || '';
+      if (tag && !window.__wait.tags.includes(tag)) window.__wait.tags.push(tag);
+      const sh = window.__shotA, p = sh?.pts?.[0];
+      if (p && !r.pacer.turbo && !r._held() && !r.paused && !sh.hold && !sh.stiff) {
+        // (the men the shot frames: any commando at one of its points — the action is on screen if one of them acts)
+        const near = (c) => sh.pts.some((q) => Math.hypot((c.vehicle || c).x - q.x, (c.vehicle || c).z - q.z) < 1.2);
+        const inShot = w.commandos.filter((c) => c.alive && near(c));
+        const framed = inShot[0];
+        const other = w.commandos.find((c) => !inShot.includes(c) && acting(c));
+        window.__act.n++;
+        if (framed && !inShot.some(acting) && other) { window.__act.idleWhileBusy++; if (window.__act.ex.length < 5) window.__act.ex.push(`t=${w.time.toFixed(1)} ${framed.role} idle, ${other.role} acting`); }
+      }
       requestAnimationFrame(f);
     };
     requestAnimationFrame(f);
@@ -71,13 +90,18 @@ export default async function debugWalkthroughHold(page, t) {
   t.log(`samples: ${samples.map((s) => `${s.last}:[${s.sel}] ${s.rings} ring(s)`).join(' | ')}`);
   t(samples.length >= 6, `sampled the play (${samples.length})`);
   t(samples.every((s) => s.sel.includes(s.last) || (s.held && s.sel.includes(s.held))), 'the man the last order went to is always selected (or, while another man\'s action is watched to its end, still that man)');
-  t(samples.every((s) => s.dom === s.want && s.dom.length > 0), `the knapsack shows the selected man's items (${samples[0]?.dom})`);
+  t(samples.every((s) => s.dom === s.want && s.dom.length > 0), `the knapsack shows the selected man's items (${samples[0]?.dom})${samples.filter((s) => !(s.dom === s.want && s.dom.length > 0)).slice(0, 4).map((s) => ` [t=${s.t.toFixed(1)} [${s.sel}] shows "${s.dom}" want "${s.want}"]`).join('')}`);
   if (!samples.every((s) => s.rings === s.sel.length && s.ringed)) t.log(`selects: ${(await page.evaluate(() => window.__sel.join(' ')))}`);
   t(samples.every((s) => s.rings === s.sel.length && s.ringed), `a selection ring under every selected man${samples.filter((s) => !(s.rings === s.sel.length && s.ringed)).map((s) => ` [t=${s.t.toFixed(1)} ${s.detail} rings ${s.rings}/${s.all}]`).join('')}`);
   t(roles.size >= 2, `the knapsack and the ring moved from man to man (${[...roles]})`);
   await t.shot('debug-walkthrough-hold-bag');
-  const wt = await page.evaluate(() => window.__wait);
-  t(wt.frames > 20 && wt.max > 4.5 && /waiting: p1 walks off east/.test(wt.cap), `a true wait runs fast (to ${wt.max.toFixed(1)}×, ${wt.frames} frames) and says what for (${wt.cap.replace(/^.*?(⏩)/, '$1').slice(0, 60)})`);
+  await page.waitForFunction(() => window.shadowSix.world.time > 200, null, { timeout: 300000 });
+  const wt = await page.evaluate(() => ({ ...window.__wait, skips: window.shadowSix.debug.mode.replay.skips || [] }));
+  const sk = wt.skips.find((x) => /p1 walks off east/.test(x.label));
+  t.log(`skipped waits: ${wt.skips.map((x) => `${x.label} ${x.game.toFixed(1)} s in ${x.wall.toFixed(2)} s`).join(' | ')}`);
+  t(sk && sk.game > 30 && sk.wall < 3 && wt.tags.some((x) => /⏩ waiting: p1 walks off east/.test(x)), `a true wait is skipped like a jump, under a "waiting" tag (${sk?.game.toFixed(1)} s of game in ${sk?.wall.toFixed(2)} s; tags ${wt.tags.map((x) => `"${x}"`).join(', ')})`);
+  const act = await page.evaluate(() => window.__act);
+  t(act.n > 100 && act.idleWhileBusy / act.n < 0.03, `the camera does not rest on an idle man while another acts (${act.idleWhileBusy}/${act.n} frames${act.ex.length ? ': ' + act.ex.join('; ') : ''})`);
 
   step('2. the clothesline take (C3): watched to its end, then a beat, before the Marine');
   await page.evaluate(() => {

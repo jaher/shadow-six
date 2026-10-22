@@ -40,6 +40,8 @@ export const AUTO_PACE = Object.freeze({
   /** The ease into a key moment: speed ≤ rate × (1 + lead × (seconds to go − preroll)) (the films: lead 1, from 6 s
    * ahead); the preroll (s) lets the eased speed arrive at the rate by the moment itself. */
   lead: 1, preroll: 0.6,
+  /** After an event's window the speed comes back up twice as fast as it eased in (no dead air after the moment). */
+  tailLead: 2,
   /** A charge: ½× from `blastPre` s before it goes off, for `blastPost` s after. */
   blast: 0.5, blastPre: 0.8, blastPost: 3,
   /** The climax (inClimax): the escape after the last blast, as the films' dam blast + escape, ½× for `climaxFor` s. */
@@ -78,12 +80,12 @@ export const ACTION_HOLD = 1.5;
 
 /** Post-event windows: [sim seconds, rate]. */
 export const EVENT_WINDOWS = Object.freeze({
-  kill: [2, 1], objective: [3, 1], capture: [2, 1], alarm: [4, 1], alert: [3, 1], distracted: [2, 1.5],
-  armed: [1.5, 1.5], checkpoint: [1, 2], beat: [2, 1.5], commandoDown: [4, 1],
+  kill: [1.5, 1], objective: [2, 1], capture: [1.5, 1], alarm: [3, 1], alert: [2, 1], distracted: [1.2, 1.5],
+  armed: [1, 1.5], checkpoint: [0.7, 2], beat: [1.5, 1.5], commandoDown: [3, 1],
 });
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const LOG_MIN = Math.log2(AUTO_PACE.min), LOG_MAX = Math.log2(AUTO_PACE.turboMax), LOG_WAIT = 6; // (WAIT.max 64×)
+const LOG_MIN = Math.log2(AUTO_PACE.min), LOG_MAX = Math.log2(AUTO_PACE.turboMax);
 const ALERT_RE = /^(ALERT|COMBAT|SEARCH|INVESTIGATE|ALARM)/;
 const DISTRACT_RE = /^(DECOY|DISTRACTED)/;
 /** The geometry (moves, striking distance, near misses, traps) is refreshed no more often than this (wall ms). */
@@ -125,7 +127,7 @@ export function paceTarget(sig = {}, o = {}) {
   if (Number.isFinite(sig.fuse)) cap(ease(P.blast, sig.fuse - P.blastPre), 'charge');
   if (sig.blastAgo != null && sig.blastAgo >= 0) cap(sig.blastAgo <= P.blastPost ? P.blast : ease(P.blast, sig.blastAgo - P.blastPost), 'blast');
   if (Number.isFinite(sig.trapEta)) cap(ease(1, sig.trapEta - P.preroll), 'trap');
-  for (const w of sig.windows || []) cap(ease(w.rate, -(w.left ?? 1)), w.why); // (then eased back up: no pumping between two kills)
+  for (const w of sig.windows || []) cap(w.rate * (1 + P.tailLead * Math.max(0, -(w.left ?? 1))), w.why); // (then eased back up, briskly: no pumping between two kills, no dead air after one)
   if (sig.near != null && sig.near <= P.nearDist) cap(P.near, 'close');
   if (sig.cone != null && sig.cone <= P.coneDist) cap((P.coneRate + (P.max - P.coneRate) * (sig.cone / P.coneDist)) * (sig.turning ? P.turning : 1), sig.turning ? 'cone turning' : 'cone');
   if (sig.object != null && sig.object <= P.objectNear) cap(P.objectRate, 'at it');
@@ -151,13 +153,6 @@ export class AutoPace {
     this.target = this.rate;
   }
 
-  /** Take over from a true wait running at `rate` (above the ceiling): the spring eases it down from there, no jump. */
-  handOver(rate) {
-    this.x = Math.log2(clamp(rate, AUTO_PACE.min, WAIT.max));
-    this.v = 0;
-    this.hold = AUTO_PACE.upHold;
-  }
-
   /**
    * One displayed frame of `dt` wall seconds; returns the speed. `max`: the ceiling now — the speed never rises above
    * it, and eases down under it when it falls (the frame rate dropped).
@@ -178,9 +173,7 @@ export class AutoPace {
       this.v += a * h;
       this.x += this.v * h;
     }
-    // (above the 8× ceiling only on the way down from a true wait, handOver)
-    if (this.x > Math.max(LOG_MAX, g) && this.v > 0) this.v = 0;
-    if (this.x > LOG_WAIT) { this.x = LOG_WAIT; this.v = Math.min(0, this.v); }
+    if (this.x > LOG_MAX) { this.x = LOG_MAX; this.v = Math.min(0, this.v); }
     if (this.x < LOG_MIN) { this.x = LOG_MIN; this.v = Math.max(0, this.v); }
     return this.rate;
   }
@@ -217,31 +210,9 @@ export class PerfCeiling {
   }
 }
 
-/**
- * A true wait (the solution waits for a guard, a gap in the cones, a timer; nobody acts, nothing to slow for) runs as
- * fast as a steady tick budget a frame allows — 8 ms, or 25 % of a usual frame when frames are slow (≤ 16 ms): the
- * same number of ticks every frame, so no frame is longer than the others (user 2026-10-14: "fix those periods of
- * idleness") — between the cruise and WAIT.max.
- */
-export const WAIT = Object.freeze({ tickMs: 8, share: 0.25, maxTickMs: 16, minTickMs: 1, max: 64, rampOctavesPerS: 2.5, rampPerFrame: 0.1 });
-
 /** Is this a true wait? `sig`/`tg`: PaceSensor sample and paceTarget result; o: {waiting (the solution's wait label), busy (a man acts)}. */
 export function isTrueWait(sig, tg, { waiting = null, busy = false } = {}) {
   return !!waiting && !busy && (sig?.motion || 'idle') === 'idle' && tg?.why === 'idle';
-}
-
-/**
- * The speed of a true wait: the frame's tick budget at `tickMs` a tick (≥ `floor`, the cruise; ≤ WAIT.max).
- * `budgetMs` (video mode's adaptive ticks): the ms the frame's draw leaves of its vsync slot — it only ever lowers the
- * fixed share (down to WAIT.minTickMs), so a heavy draw is not paid on top with 8–16 ms of ticks and a light one gets
- * no more than before.
- */
-export function waitRate({ tickMs = 0.5, frameDt = 1 / 60, simDt = 1 / 60, floor = AUTO_PACE.max, budgetMs = null } = {}) {
-  const fdt = Math.max(frameDt || 1 / 60, 1 / 240);
-  const share = clamp(WAIT.share * fdt * 1000, WAIT.tickMs, WAIT.maxTickMs);
-  const budget = budgetMs != null ? clamp(Math.min(budgetMs, share), WAIT.minTickMs, WAIT.maxTickMs) : share;
-  const perFrame = budget / Math.max(0.05, tickMs || 0.5);
-  return clamp(perFrame * (simDt / fdt), floor, WAIT.max);
 }
 
 /**
@@ -274,6 +245,8 @@ export class SteadyGrant {
 export class PaceSensor {
   constructor(world, { every = 0.2 } = {}) {
     this.world = world;
+    /** Called on every event the sensor hears (the walkthrough ends a skipped wait on it). */
+    this.onEvent = null;
     this.every = every;
     this.windows = [];
     this.blastT = null;
@@ -318,11 +291,13 @@ export class PaceSensor {
   event(kind, t, dur = null) {
     const k = EVENT_WINDOWS[kind];
     if (!k) return;
+    this.onEvent?.(kind);
     this.windows.push({ until: t + (dur ?? k[0]), rate: k[1], why: kind });
   }
 
   blast(t) {
     this.blastT = t;
+    this.onEvent?.('blast');
   }
 
   /** The walkthrough's hooks: a checkpoint reached, a beat fired (hold: its seconds on screen). */
@@ -354,7 +329,7 @@ export class PaceSensor {
    */
   sample(t, ctx = {}, wallMs = null) {
     const w = this.world;
-    this.windows = this.windows.filter((x) => x.rate * (1 + AUTO_PACE.lead * (t - x.until)) < AUTO_PACE.turboMax);
+    this.windows = this.windows.filter((x) => x.rate * (1 + AUTO_PACE.tailLead * (t - x.until)) < AUTO_PACE.turboMax);
     if (t < this._geoT || (t - this._geoT >= this.every && (wallMs == null || !(wallMs - this._geoWall < GEO_WALL_MS)))) {
       this._geoWall = wallMs;
       const c0 = typeof performance !== 'undefined' ? performance.now() : 0;

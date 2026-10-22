@@ -101,6 +101,29 @@ export function freeRect({ width, height, top = 0, bottom = 0, left = 0, right =
   return r;
 }
 
+/** Is unit `u` acting (on the move, his vehicle on the move, walking up to an order, an action under way — a long
+ * chat-up or lying dug in is no action)? */
+export function isActing(u) {
+  if (!u || u.alive === false || u.removed) return false;
+  return !!u.path || !!u.pendingAbility || (!!u.currentAction && !['distract', 'shovel'].includes(u.currentActionId)) || !!(u.vehicle?.path || u.vehicle?.isMoving);
+}
+
+/**
+ * Always action (video mode): what the camera shows while the step's men (`who`) stand idle — another commando at
+ * work, the one ordered last (`orderT`: unit → game time of his last order); else a walking guard the step names
+ * (`tags`: its look / cones), else the nearest guard walking within 35 m of the first idle man. null: the step's men
+ * act (the usual shot), or nothing else moves.
+ */
+export function pickLive({ who = [], commandos = [], enemies = [], tags = new Set(), orderT = null } = {}) {
+  const idle = who.filter((u) => u && u.alive !== false && !u.removed);
+  if (!idle.length || idle.some(isActing)) return null;
+  const others = commandos.filter((c) => !idle.includes(c) && isActing(c)).sort((a, b) => (orderT?.get(b) ?? -1) - (orderT?.get(a) ?? -1));
+  if (others.length) return others[0];
+  const a0 = idle[0], d = (e) => Math.hypot(e.x - a0.x, e.z - a0.z);
+  const walking = enemies.filter((e) => e && e.alive !== false && !e.removed && !!e.path && d(e) < 45);
+  return walking.filter((e) => tags.has(e.tag)).sort((a, b) => d(a) - d(b))[0] || walking.filter((e) => d(e) < 35).sort((a, b) => d(a) - d(b))[0] || null;
+}
+
 /** Critically damped spring step of value `x` (velocity `v`) toward `to`: returns [x, v]. ω: stiffness (1/s). */
 export function spring(x, v, to, w, dt) {
   const f = 1 + 2 * dt * w, oo = w * w, hoo = dt * oo, hhoo = dt * hoo;

@@ -672,3 +672,9 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 - The team waits standing behind it (no prone at t=0); decoy, bear trap and harpoon orders unchanged. GB start 1 m east. Stage C e8 ambush spot moved to a reachable cell.
 - M3 solution won 2703.83 s (= master), 0 detections, 0 exposures. Unit 2232/0; render-budget m03 172 draws / 1.65 M tris (limit 247 / 1.80 M).
 - Known: clipping m03 seed 11 dam east-stair graze 5.4 cm (latent on master, 5.7 cm) → fix/m03-dam-stair-graze in progress; video-perf-m03 worst frame 83.4 ms identical on master → being profiled by the walkthrough always-action work.
+
+## 2026-10-21 — Walkthrough: always action (merged)
+- User: "Also no long quiet periods, always action in the walkthrough".
+- AUTO skips idle labelled waits (jump-paced: 16 ms of ticks a frame, view drawn every 66 ms) under a "⏩ waiting: <label>" tag with the camera on the guard waited on; the camera shows a commando at work whenever the step's men stand idle (2.5 s hold); shorter post-event holds (kill 1.5 s, after an action 0.7 s).
+- M3 opening: p1's 74.6 s walk now passes in ~1.4 s. AUTO totals (wall / longest no-action / sum): M3 837/10.0/166 → 815/9.4/106; M1 217/12.9/62 → 192/6.3/24; M12 482/39.9/139 → 399/23.2/51; M15 2204/316.5/1352 → 1520/160.2/634.
+- Run unchanged (M3 2703.83, 0/0). Unit 2233/0. Follow-ups running: preset=low determinism (since art/m05), M3 camera-cut render spike + M12/M15 skip CPU, portrait touch targets.
