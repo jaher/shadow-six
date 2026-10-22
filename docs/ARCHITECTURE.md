@@ -226,7 +226,7 @@ unsubscribe function and call it between scenarios. **Canonical events** (payloa
 | `bark` | `{unit, line}` | anyone → audio (voice), ui (speech bubble) |
 | `ui:cursor` | `{cursor}` | input/abilities → ui |
 | `ui:warning` | `{unit, kind:'seen'|'held'|'hurt'}` | AI/units → ui (portrait warning flash §6.2) |
-| `ui:move-marker` / `ui:click` | `{x, z}` / `{sfx}` | input / ui → selection, audio |
+| `ui:move-marker` / `ui:click` | `{x, z, run?, kind: 'move' \| 'attack'}` / `{sfx}` | input / ui → selection, audio |
 | `ui:command` | `{command:'menu'|'help'|'notes'|'knapsack-side'|'slots', open?}` (§5.1 Esc, F1, Ctrl+B, Tab) | input → ui |
 | `ui:tooltip` | `{text, x, y}` / `{text:null}` (§5.2 hover tooltip after 0.8 s) | input → ui |
 | `ui:probe` | `{x, z, enemy}` (§5.2 Shift+click ground: red probe marker) | input/game → ui, selection |

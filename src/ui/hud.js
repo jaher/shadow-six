@@ -231,7 +231,7 @@ export class HUD {
     on('unit:held', (p) => p?.held !== false && this.topbar.flag(p?.unit, 'held', 1.5));
     on('shot', (p) => isCommando(p?.target) && this.topbar.flag(p.target, 'hurt'));
     on('unit:damaged', (p) => isCommando(p?.unit) && this.topbar.flag(p.unit, 'hurt'));
-    on('ui:move-marker', (p) => p && this.cursor.marker(p.x, p.z));
+    on('ui:move-marker', (p) => p && p.kind !== 'attack' && this.cursor.marker(p.x, p.z)); // the DOM sparkle is move-only; a kill click gets the red ground converge (render/selection.js)
     on('unit:killed', (p) => {
       if (p?.unit?.kind === 'enemy' || p?.unit?.faction === 'enemy') this._losses.soldiers++;
     });

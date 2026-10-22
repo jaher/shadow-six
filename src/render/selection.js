@@ -1,6 +1,11 @@
 /**
  * Selection markers — rings under selected commandos, fading move-target markers and a dashed path preview.
  *
+ * Click feedback (user 2026-10-21): on a click order, four arrows close in on the destination and fade —
+ * green for a move order, red for a kill order at an enemy ('ui:move-marker' kind, classified by the click
+ * itself in engine/input.js). No disc for a click order: the move-target disc below is a separate marker
+ * (still exercised directly by the ring-pulse tests), and the commando's own selection ring is untouched.
+ *
  * All three are GROUND DECALS in Renderer.decalScene (like the vision cones): drawn right after the world into
  * its colour+depth buffer, depth-tested (no depth writes), so the soldier, his weapon, vehicles, trees and
  * buildings draw OVER the ring where they overlap it (BEL: the unit stands on its circle). They sit on the
@@ -46,6 +51,19 @@ const RUN_COLOR = new THREE.Color().setRGB(2.2, 1.0, -0.4, THREE.LinearSRGBColor
 const GHOST_COLOR = 0xc8ff90; // x-ray rim colour (CONFIG.render.xray.rim)
 const MARKER_LIFE = 0.9; // s
 const MARKER_FADE = 0.3; // s: the marker fades out over the end of its life (it pulses/contracts before that)
+/** Linear HDR red for the kill click marker, calibrated like RING_COLOR (AgX keeps it a clean red). */
+const ATTACK_COLOR = new THREE.Color().setRGB(2.6, -0.45, -0.55, THREE.LinearSRGBColorSpace);
+/** Click-feedback tuning (render-only - nothing here is read by the sim, so replays are untouched). */
+export const CLICK_LIFE = 0.75; // s, total life
+export const CLICK_FADE_AT = 0.65; // fraction of life where the fade-out starts
+export const CLICK_ARROWS = 4; // arrows around the point, each pointing inward at its centre
+export const CLICK_RADIUS = 0.60; // m, arrow-tip distance from the centre at spawn
+export const CLICK_END_RADIUS = 0.10; // m, arrow-tip distance as the converge completes
+export const CLICK_ARROW_LEN = 0.46; // m, tip to tail
+export const CLICK_HEAD_LEN = 0.26; // m, arrowhead length (the rest is shaft)
+export const CLICK_HEAD_HW = 0.16; // m, arrowhead half-width
+export const CLICK_SHAFT_HW = 0.065; // m, shaft half-width
+export const CLICK_LIFT = 0.04; // m above the surface (over the selection ring's lift)
 /** m per chess unit: the resting ring's centre line (chess 0.34) sits at the old ring's 0.47 m around a 1.8 m man. */
 export const RING_SCALE = 0.47 / 0.34;
 /** m per chess unit for move-target markers: resting centre line (chess 0.29) at the old marker's 0.225 m. */
@@ -146,6 +164,8 @@ export class Selection {
     this.rings = [];
     /** @type {{mesh: THREE.Mesh, t: number}[]} */
     this.markers = [];
+    /** @type {{mesh: THREE.Mesh, mat: THREE.Material, x: number, z: number, t: number, kind: string}[]} */
+    this.clickEffects = [];
     this.showPaths = true;
     /** @type {THREE.Line[]} */
     this.pathLines = [];
@@ -167,7 +187,11 @@ export class Selection {
   attach(world) {
     this.detach();
     this.world = world;
-    this._offs.push(world.events.on('ui:move-marker', ({ x, z, run }) => this.marker(x, z, run)));
+    this._offs.push(world.events.on('ui:move-marker', (p) => {
+      if (!p) return;
+      // click feedback is the four inward arrows alone (user 2026-10-21: "4 inward arrows, no circle")
+      this.clickEffect(p.x, p.z, p.kind === 'attack' ? 'attack' : 'move');
+    }));
     this.noise.attach(world);
   }
 
@@ -178,6 +202,8 @@ export class Selection {
     this.world = null;
     for (const m of this.markers) this._disposeMarker(m);
     this.markers = [];
+    for (const e of this.clickEffects) this._disposeClickEffect(e);
+    this.clickEffects = [];
     this._selT.clear();
     for (const r of this.rings) r.visible = false;
     for (const l of this.pathLines) l.visible = false;
@@ -198,6 +224,66 @@ export class Selection {
   _disposeMarker(m) {
     this.group.remove(m.mesh);
     m.mesh.material.dispose();
+  }
+
+  /**
+   * Spawn the click effect at a world point: four arrows around it, each pointing inward at its centre —
+   * 'move' (green) at a move destination, 'attack' (red) on an enemy a kill order was just issued against.
+   * Ground-projected ribbons, so the arrows hug the terrain. Render-only; aged by update() like the markers.
+   * Per arrow: 7 vertices (tip, arrowhead base pair, shaft quad) and 3 triangles.
+   */
+  clickEffect(x, z, kind = 'move') {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(CLICK_ARROWS * 7 * 3), 3));
+    const idx = [];
+    for (let i = 0; i < CLICK_ARROWS; i++) { const b = i * 7; idx.push(b, b + 1, b + 2, b + 3, b + 5, b + 6, b + 3, b + 6, b + 4); }
+    geo.setIndex(idx);
+    const mat = decalMaterial(kind === 'attack' ? ATTACK_COLOR : RING_COLOR, 0.95);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.matrixAutoUpdate = false; mesh.updateMatrix();
+    mesh.renderOrder = 11; // over the selection rings (10)
+    mesh.frustumCulled = false;
+    this.group.add(mesh);
+    const e = { mesh, mat, x, z, t: 0, kind };
+    this.clickEffects.push(e);
+    this._clickFrame(e);
+    return e;
+  }
+
+  /**
+   * Pose one click effect for its age: the four arrows close in on the centre (ease-out), then fade.
+   * Per arrow the vertices are (radial, lateral) offsets in its own frame — tip first, then the flared
+   * arrowhead base, then the narrower shaft running out to the tail (its inner corners tuck under the
+   * head, so the silhouette is one solid arrow). Every vertex is height-sampled: the arrows hug the ground.
+   */
+  _clickFrame(e) {
+    const p = Math.min(1, e.t / CLICK_LIFE);
+    const q = 1 - Math.pow(1 - p, 3);
+    const tip = this._still() ? CLICK_RADIUS : CLICK_RADIUS + (CLICK_END_RADIUS - CLICK_RADIUS) * q; // reduced motion: hold, only fade
+    e.mat.opacity = p < CLICK_FADE_AT ? 0.95 : 0.95 * (1 - (p - CLICK_FADE_AT) / (1 - CLICK_FADE_AT));
+    const pos = e.mesh.geometry.attributes.position;
+    const headBase = tip + CLICK_HEAD_LEN, shaftIn = headBase - 0.04, tail = tip + CLICK_ARROW_LEN;
+    const frame = [
+      [tip, 0],
+      [headBase, CLICK_HEAD_HW], [headBase, -CLICK_HEAD_HW],
+      [shaftIn, CLICK_SHAFT_HW], [shaftIn, -CLICK_SHAFT_HW],
+      [tail, CLICK_SHAFT_HW], [tail, -CLICK_SHAFT_HW],
+    ];
+    for (let i = 0; i < CLICK_ARROWS; i++) {
+      const a = (i / CLICK_ARROWS) * Math.PI * 2 + Math.PI / 4;
+      const ux = Math.cos(a), uz = Math.sin(a), px = -uz, pz = ux; // radial + perpendicular unit vectors
+      for (let v = 0; v < 7; v++) {
+        const wx = e.x + ux * frame[v][0] + px * frame[v][1], wz = e.z + uz * frame[v][0] + pz * frame[v][1];
+        pos.setXYZ(i * 7 + v, wx, surfaceY(this.world, wx, wz) + CLICK_LIFT, wz);
+      }
+    }
+    pos.needsUpdate = true;
+  }
+
+  _disposeClickEffect(e) {
+    this.group.remove(e.mesh);
+    e.mesh.geometry.dispose();
+    e.mat.dispose();
   }
 
   _ring(i) {
@@ -339,6 +425,12 @@ export class Selection {
         continue;
       }
       this._markerFrame(m, still);
+    }
+    for (let i = this.clickEffects.length - 1; i >= 0; i--) {
+      const e = this.clickEffects[i];
+      e.t += dt;
+      if (e.t >= CLICK_LIFE) { this._disposeClickEffect(e); this.clickEffects.splice(i, 1); continue; }
+      this._clickFrame(e);
     }
   }
 

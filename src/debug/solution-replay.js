@@ -30,6 +30,8 @@ import { loadWalkthrough } from './solutions.js';
 import { normalizeWalkthrough } from './walkthrough-data.js';
 import { Director, freeRect } from './walkthrough-director.js';
 import { ActionHolds } from './action-hold.js';
+import { clickMarkerFor } from '../engine/input.js';
+import { ABILITIES } from '../abilities/index.js';
 
 export const SPEEDS = Object.freeze([1, 2, 4, 8]);
 /** Orders to several men within this many seconds of game time from the first one select them together (a group order). */
@@ -331,6 +333,32 @@ export class SolutionReplay {
     this.lastOrder = describeOrder(u, o);
     const tgt = o?.type === 'ability' && o.target && o.target !== u && typeof o.target === 'object' ? o.target : null;
     if (tgt && (Number.isFinite(tgt.x) || tgt.kind)) this._action = { u, t: tgt, until: this.world.time + 6 };
+    this._clickMarker(o);
+  }
+
+  /**
+   * Click feedback for the orders the driver gives (user 2026-10-21: the arrows must show in walkthrough
+   * mode too). The driver gives its orders straight to the units (Commando.issue), never through Input,
+   * so the click path's ui:move-marker never fires in a replay. Emit it here, where every accepted order
+   * is seen (the driver calls onOrder only for accepted orders — D.order throws on a refusal), with the
+   * click's own truth, classified by the click's own clickMarkerFor over the same target shapes
+   * (resolveTarget returns the entity / point itself, exactly what a solution passes): green for a move
+   * order; red only for a kill order on a living enemy; nothing for anything else (stance, stop,
+   * non-lethal abilities, shots at objects or open ground). Render-only — nothing in the sim reads the
+   * event, so the run's ticks and timing are untouched — and a real click cannot double-emit: while the
+   * replay runs, player orders are dropped (game.enqueue is stubbed in start()).
+   */
+  _clickMarker(o) {
+    const ev = this.world?.events;
+    if (!ev?.emit || !o) return;
+    if (o.type === 'move') {
+      if (Number.isFinite(o.x) && Number.isFinite(o.z)) ev.emit('ui:move-marker', { x: o.x, z: o.z, run: !!o.run, kind: 'move' });
+      return;
+    }
+    if (o.type === 'ability') {
+      const marker = clickMarkerFor(ABILITIES[o.id], o.target, this.world);
+      if (marker) ev.emit('ui:move-marker', marker);
+    }
   }
 
   /**

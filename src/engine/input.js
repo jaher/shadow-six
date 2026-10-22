@@ -23,6 +23,7 @@ import { ABILITIES, abilityInCampaign } from '../abilities/index.js';
 import { CONFIG } from '../config.js';
 import { abilitiesForKey, codeOf } from './hotkeys.js';
 import { TouchGame } from '../input/touch-game.js';
+import { shotTarget } from '../abilities/weapons.js';
 
 /** Action → list of KeyboardEvent.code. Edit here to rebind. Chords (Ctrl+S/L/B) are in CTRL_BINDINGS. */
 export const KEY_BINDINGS = {
@@ -82,6 +83,36 @@ export const MOUSE = {
 const WEAPON_IDS = new Set(['pistol', 'rifle', 'sniper', 'sniperRifle', 'smg', 'harpoon', 'grenade']);
 /** Melee abilities: double-click runs to the target (§5.2). */
 const isWeapon = (def) => !!(def.weapon ?? def.keepCursor ?? WEAPON_IDS.has(def.id));
+
+/** Kill abilities that pick an enemy directly: a click issuing one at a living enemy is a kill order. */
+const CLICK_KILL_IDS = new Set(['knife', 'syringe', 'sniper', 'harpoon', 'rifle']);
+/** Point-target firearms: a kill order only when the game's own shot resolution (weapons.shotTarget)
+ *  puts a living enemy at the clicked point, exactly as the shot itself resolves. */
+const CLICK_KILL_POINT_IDS = new Set(['pistol', 'smg', 'beretta']);
+
+/**
+ * Click-feedback classification (render-only; carried by 'ui:move-marker'): the marker an ability click
+ * earns, or null. Red ('attack') is reserved for an issued order whose resolved target is a living enemy
+ * and whose ability kills - targeted killers use the picked enemy; point firearms resolve the point
+ * through shotTarget. Non-lethal enemy abilities (knock-outs, cuffs, distract, lipstick), shots at
+ * objects (barrels, vehicles) and shots at open ground earn no marker: never a colour the order
+ * didn't earn.
+ * @param {object} def ability def that was issued
+ * @param {any} target the target resolveTarget returned for the click
+ * @param {any} world
+ * @returns {{kind: 'attack', x: number, z: number}|null}
+ */
+export function clickMarkerFor(def, target, world) {
+  if (!def || !target) return null;
+  if (CLICK_KILL_IDS.has(def.id)) {
+    return target.kind === 'enemy' && target.alive ? { kind: 'attack', x: target.x, z: target.z } : null;
+  }
+  if (CLICK_KILL_POINT_IDS.has(def.id) && world) {
+    const t = shotTarget(world, target);
+    return t && t.kind === 'enemy' && t.alive ? { kind: 'attack', x: t.x, z: t.z } : null;
+  }
+  return null;
+}
 
 /** Normalise an ability hotkey ('x', 'X', 'KeyX') to a KeyboardEvent.code. */
 export function hotkeyToCode(h) {
@@ -411,6 +442,10 @@ export class Input {
       this.game.enqueue(() => c.issue({ type: 'ability', id, target, run }));
       issued++;
     }
+    // click feedback (render-only): a kill order at an enemy earns the red converging marker there;
+    // every other issued ability (interact, heal, non-lethal, shots at objects/ground) earns none
+    const marker = issued ? clickMarkerFor(t.def, target, this.world) : null;
+    if (marker) this.world.events.emit('ui:move-marker', marker);
     if (issued && !isWeapon(t.def)) {
       // a second click within the double-click window upgrades the walk to a run (§5.2 melee double-click)
       this._lastIssue = { t: performance.now(), id: t.abilityId, target, commandos: t.commandos.slice() };
@@ -782,7 +817,7 @@ export class Input {
     if (!ground || !this.selection.length) return 'none';
     if (!this.canOrder) return 'refused';
     this.orderMove(ground.x, ground.z, isDouble);
-    this.world.events.emit('ui:move-marker', { x: ground.x, z: ground.z, run: isDouble });
+    this.world.events.emit('ui:move-marker', { x: ground.x, z: ground.z, run: isDouble, kind: 'move' });
     return isDouble ? 'run' : 'move';
   }
 
