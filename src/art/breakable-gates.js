@@ -173,6 +173,20 @@ function haltMat() {
   return HALT_MAT;
 }
 
+/**
+ * Where a boom's fork rest is drawn relative to its layout post (world/breakables.js boomLayout `post1`, which the physics,
+ * the body solids and the footway's nav keep): a slim steel post (FORK_HALF square) set FORK_SETBACK back from the footway,
+ * and the pole's free tip stopping POLE_TIP_TRIM short of the layout's end. The footway keeps a man's centre 0.3 m off the
+ * rest's face (world/map-builder.js stampBarrierGaps), but his boot reaches 0.5-0.6 m ahead of it and his hands swing a
+ * hand-span past his hips: a 14 cm timber post on the lane's edge, its 34 cm footing standing 12 cm out of the ground (a
+ * low surface that lifted his boots) and the pole's iron tip 13 cm past the rest's face took a toe 6.3 cm and a boot and a
+ * hand more (clipping seed 11, M2 e6 stepping through the 0.99 m lane at t = 34 s). Drawn this way every part within a
+ * stride of the lane keeps clear of what the nav leaves walkable, or is too thin to be 5 cm deep.
+ */
+export const FORK_HALF = 0.04, FORK_SETBACK = 0.07, POLE_TIP_TRIM = 0.19;
+/** A concrete footing's thickness and the height of its top over the ground: a flush pad, no step (nothing lifts a boot onto it). */
+const FOOTING = { thick: 0.06, top: 0.015 };
+
 /** Boom posts: the pivot post (timber, iron cheek plates, pin, cap, concrete footing), the fork rest, the log gate posts. */
 function boomPost(p) {
   const [hx, hy, hz] = p.h, g = new THREE.Group();
@@ -187,8 +201,11 @@ function boomPost(p) {
     return g;
   }
   const pivot = p.id === 'post0';
-  add(new THREE.BoxGeometry(2 * hx, 2 * hy, 2 * hz), dressingMaterial('creosote'), 0, 0, 0);
-  add(new THREE.BoxGeometry(2 * hx + 0.2, 0.14, 2 * hz + 0.2), dressingMaterial('concrete'), 0, -hy + 0.05, 0); // footing
+  // (the fork rest: slim and set back from the footway, see FORK_HALF; the pivot post beside the pole keeps its section)
+  const sx = pivot ? hx : FORK_HALF, sz = pivot ? hz : FORK_HALF, ox = pivot ? 0 : -FORK_SETBACK;
+  add(new THREE.BoxGeometry(2 * sx, 2 * hy, 2 * sz), dressingMaterial('creosote'), ox, 0, 0);
+  // footing: a pad flush with the ground (top FOOTING.top over it), as wide as the layout's post plus a hand each side
+  add(new THREE.BoxGeometry(2 * hx + 0.2, FOOTING.thick, 2 * hz + 0.2), dressingMaterial('concrete'), ox, FOOTING.top - FOOTING.thick / 2 - hy, 0);
   if (pivot) {
     // the pole turns on a pin in a bearing bolted to the post's face (the post stands 0.3 m behind the pole line)
     const yPole = 1.0 - p.c[1], zPole = -p.c[2];
@@ -205,8 +222,8 @@ function boomPost(p) {
     const nut = add(new THREE.CylinderGeometry(0.04, 0.04, 0.03, 6), ironMat(), 0, yPole, zPole + 0.085);
     nut.rotation.x = Math.PI / 2;
   } else { // fork rest: two flat bars and a rubber saddle the pole drops into
-    for (const sz of [-1, 1]) add(new THREE.BoxGeometry(0.05, 0.26, 0.016), ironMat(), 0, hy + 0.04, sz * 0.082);
-    add(new THREE.BoxGeometry(0.07, 0.02, 0.18), new THREE.MeshStandardMaterial({ color: 0x1b1a19, roughness: 0.9 }), 0, hy + 0.005, 0);
+    for (const side of [-1, 1]) add(new THREE.BoxGeometry(0.05, 0.26, 0.016), ironMat(), ox, hy + 0.04, side * 0.082);
+    add(new THREE.BoxGeometry(0.07, 0.02, 0.18), new THREE.MeshStandardMaterial({ color: 0x1b1a19, roughness: 0.9 }), ox, hy + 0.005, 0);
   }
   return g;
 }
@@ -221,8 +238,8 @@ function counterweight(hx, hy, hz) {
   return g;
 }
 
-/** Pole fittings: the HALT plate hung under the second segment, a red-banded iron end cap on the free end. */
-function poleExtras(m, p) {
+/** Pole fittings: the HALT plate hung under the second segment, a red-banded iron end cap on the free end (`trim`: its tip stops short). */
+function poleExtras(m, p, trim = 0) {
   const r = p.h[1];
   if (p.id === 'pole1') {
     const plate = mk(new THREE.BoxGeometry(0.52, 0.23, 0.012), [ironMat(), ironMat(), ironMat(), ironMat(), haltMat(), haltMat()]);
@@ -232,18 +249,24 @@ function poleExtras(m, p) {
   }
   if (!p.seamMax && p.seamMin) { // free end: iron ferrule
     const f = mk(new THREE.CylinderGeometry(r * 1.06, r * 1.06, 0.07, 12), ironMat());
-    f.rotation.z = Math.PI / 2; f.position.x = p.h[0] - 0.035; m.add(f);
+    f.rotation.z = Math.PI / 2; f.position.x = p.h[0] - trim - 0.035; m.add(f);
   }
 }
 
 /** Mesh for one layout piece, centred on its collider box (rotation rz about z included). */
 function pieceMesh(p, L, kind) {
   const [hx, hy, hz] = p.h;
+  const trim = p.kind === 'pole' && !p.seamMax && p.seamMin && kind === 'boom' ? POLE_TIP_TRIM : 0;
   let m;
   if (p.kind === 'plank') m = mk(splinteredBoard(hx, hy, hz, p.seamBot, p.seamTop), [gateWoodMat(), freshWoodMat(), gateWoodMat()]);
   else if (p.kind === 'rail') m = mk(splinteredRail(hx, hy, hz, p.seamX, p.seamAtMax), [dressingMaterial('logsTarred'), freshWoodMat(), dressingMaterial('logsTarred')]);
   else if (p.kind === 'brace') m = mk(new THREE.BoxGeometry(2 * hx, 2 * hy, 2 * hz), dressingMaterial('logsTarred'));
-  else if (p.kind === 'pole') m = mk(poleSegment(hx, hy, p.seamMin, p.seamMax, { cx: p.c[0], x0: p.x0 }), stripeMat());
+  else if (p.kind === 'pole') {
+    // (the free end stops POLE_TIP_TRIM short of the layout's: see FORK_HALF; the jagged near end and the stripes stay put)
+    const g = poleSegment(hx - trim / 2, hy, p.seamMin, p.seamMax, { cx: p.c[0] - trim / 2, x0: p.x0 });
+    g.translate(-trim / 2, 0, 0);
+    m = mk(g, stripeMat());
+  }
   else if (p.kind === 'weight' && p.round) m = mk(poleSegment(hx, hy, null, null), ironMat());
   else if (p.kind === 'weight') m = counterweight(hx, hy, hz);
   else if (p.kind === 'frame') m = mk(new THREE.BoxGeometry(2 * hx, 2 * hy, 2 * hz), dressingMaterial('galv'));
@@ -260,7 +283,7 @@ function pieceMesh(p, L, kind) {
     else m = boomPost(p);
   } else if (p.kind === 'splinter') m = mk(sliver(hx, hy, hz), freshWoodMat(), false);
   else m = mk(new THREE.BoxGeometry(2 * hx, 2 * hy, 2 * hz), dressingMaterial('planks'));
-  if (p.kind === 'pole') poleExtras(m, p);
+  if (p.kind === 'pole') poleExtras(m, p, trim);
   m.name = `gate-piece:${p.id}`;
   m.position.set(p.c[0], p.c[1], p.c[2]);
   m.rotation.z = p.rz || 0;

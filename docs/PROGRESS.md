@@ -706,3 +706,8 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 - M3 polish (art/m03): the S-bank farm as a Norwegian tun (dwelling house, log byre, stabbur, firewood, skigard fence to the river), a parked Opel Blitz in the station yard, ridge tents, drums and a cart. Verified on master: m03-solution 2703.9 0/0, debug-walkthrough-sim ok, render-budget m03 175 draws / 1.65 M tris, preset-determinism m03 ok.
 - M2 (art/m02): Nissen stores outside the NE wall, Lofoten stockfish racks and faerings on the SW shore, open woodshed, firewood and picket garden in the settlement, library crates. m02-solution 940.2 0 det, render-budget m02 266 draws / 1.25 M tris, preset-determinism m02 ok. Unit 2275/0.
 - With M0–M3 done, the second art pass over M4–M20 started (workflow, 4 lanes, branches art2/mNN).
+
+## 2026-10-22 — Boom gate and sandbox lift grazes (merged)
+- clipping M2 seed 11 (e6's toe 6.3 cm into the boom's fork rest post, after the m00/m01 page history) and b00 seed 11 (diver 5.7 cm into the lift cage floor block) fixed in the drawn geometry only: fork rest post 8 cm and set back, pole tip ends at the rest, flush 6 cm footings (M2/M4 booms); lift cage floor pad 6 cm slab, 6 cm posts. Nav hashes for M2/M4 unchanged.
+- Pose sweeps (guard run gait, crawler, walker): worst 6.8–7.7 cm → 3.0–3.9 cm. New `gate-reach` GPU + unit tests (fail on the old geometry). clipping: all five maps, both seeds clean. m02-solution 940.2 0 det; render-budget m02 unchanged; preset-determinism m02/m04 ok.
+- Not fixed: the far log gate post gpost1 (a crawler's limbs ~13 cm through the body-solid margin; needs a nav/body change; never hit by the audit seeds).

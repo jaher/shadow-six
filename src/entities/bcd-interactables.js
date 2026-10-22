@@ -43,11 +43,17 @@ const box = (w, h, d, color, x, z, y0 = 0) => {
 };
 /** Entity.syncTransform turns a dynamic object3d by headingToRotY (model forward = +z): keep `w` along the heading. */
 const faceHeading = (g) => { if (g?.userData.inner) g.userData.inner.rotation.y = -Math.PI / 2; return g; };
-/** Lift cage: a floor plate and four corner posts (riders stand inside it, not inside a solid block). */
+/**
+ * Lift cage: a floor pad and four corner posts (riders stand inside it, not inside a solid block). Nothing blocks the
+ * nav there, so any man may cross it on the ground: the pad is flush with the ground (a 6 cm slab whose top stands 1.5 cm
+ * over it, not a 10 cm block a crawler or a boot sank into: b00 clipping seed 11, the diver crawling over its corner,
+ * 5.7 cm) and the posts are slim (6 cm square: a limb through one is never 5 cm deep).
+ */
+const CAGE = { pad: 0.06, padTop: 0.015, post: 0.06 };
 const cage = (x, z) => {
-  const g = box(1.8, 0.1, 1.8, dressingMaterial('galv'), x, z);
+  const g = box(1.8, CAGE.pad, 1.8, dressingMaterial('galv'), x, z, CAGE.padTop - CAGE.pad);
   for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.4, 0.1), g.userData.inner.material);
+    const post = new THREE.Mesh(new THREE.BoxGeometry(CAGE.post, 2.4, CAGE.post), g.userData.inner.material);
     post.position.set(sx * 0.85, 1.2, sz * 0.85); post.castShadow = true;
     g.add(post);
   }

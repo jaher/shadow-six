@@ -21,12 +21,13 @@ function placed(def) {
 }
 const top = (g) => Math.max(0, ...lowSurfaces(g, { maxY: 0.8, cell: 0.2 }).values());
 
-test('gate surface: the M2 / M4 booms offer no ground but their posts\' footings', () => {
+test('gate surface: the M2 / M4 booms offer no ground at all (the posts\' footings are flush pads)', () => {
   const defs = [...getMission('m02').structures, ...getMission('m04').structures].filter((s) => s.type === 'gate' && /boom/.test(s.variant || ''));
   assert.equal(defs.length, 4, 'gate_se, gate_outer, boom_x1, boom_x2');
   for (const d of defs) {
     const g = placed(d), y = top(g);
-    assert.ok(y > 0.1 && y < 0.15, `${d.id}: highest low surface ${y.toFixed(3)} m (the concrete footings, 0.12 m)`);
+    // (the footings were 12 cm slabs, a step that lifted a boot beside the fork rest: M2 e6 at t = 34 s, seed 11)
+    assert.ok(y < 0.02, `${d.id}: highest low surface ${y.toFixed(3)} m (the concrete footings stand 1.5 cm out of the ground)`);
     assert.ok(g.userData.gate.leaves.every((l) => l.userData.surface === false), `${d.id}: its leaf is no surface`);
   }
 });
