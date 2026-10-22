@@ -94,14 +94,27 @@ const polar = (r, a) => arc(r, a, a, 1)[0];
  * the rock; no pocket of open ground is left between the crest, the stair and the rock (they showed the valley floor
  * 7 m down through the gap). `abut` keeps those faces plumb on the outline.
  */
-const STAIR_OUT = 0.8; // the rock face beside a stair: on the edge of its 1.6 m treads (the rails stand 8 cm in)
+const STAIR_OUT = 0.8; // the rock's outline (its nav footprint) beside a stair: on the edge of its 1.6 m treads (the rails stand 8 cm in)
+// The rock FACE stands ABUT_SET behind that outline, the treads running out to it as a kerb outside the rails (the stair's
+// `ledge`). A man's rifle is 1.15 m long and his band between the rails keeps his middle at most 0.215 m off the axis, so a
+// rifle held straight across the stair reached 0.935 m: 13 cm into a face 0.8 m out (clipping audit, seed 11: e6 aiming
+// across the E stair, 5.4 cm into abut_e); 1.0 m out it clears (world/rock-faces.js keeps a stepping-back rifle off it).
+const ABUT_SET = 0.2;
 const ABUT_F = 0.5; // how far down its stair (fraction from the top) the rock runs
+/** Which side of a stair (+1 left of the way up, -1 right: its flight's v axis) point `q` lies, off the stair's point `f` of the way down from its top. */
+const sideOf = ([[bx, bz], [tx, tz]], f, q) => {
+  const L = Math.hypot(tx - bx, tz - bz), [ax, az] = stairPt([[bx, bz], [tx, tz]], f, 0);
+  return Math.sign(-(q[0] - ax) * (tz - bz) / L + (q[1] - az) * (tx - bx) / L);
+};
 const abutment = (stair, sign) => {
   // (`head`: the middle of the stair's head, where it meets the arch's end. The little corner between the head, the
   // rock and the crest's end lies under the dam's end block; its ground is out of bounds: `noWalk` dam_end_w / _e.
   // The rock does not wrap round the head: a reflex corner there folded its top cap out over the landing)
   const top = stairPt(stair, 0, -STAIR_OUT), low = stairPt(stair, ABUT_F, -STAIR_OUT);
-  return { low, top, head: stairPt(stair, 0, 0), cut: polar(20.97, sign * 38), end: polar(22.3, sign * 37.6), water: polar(24, sign * 37.6) };
+  const L = Math.hypot(stair[0][0] - stair[1][0], stair[0][1] - stair[1][1]);
+  // `ledge`: the stair builder's kerb along the rock (art/dam-stairs.js), from `low` (L (1 - ABUT_F) from the foot) to the head
+  return { low, top, head: stairPt(stair, 0, 0), cut: polar(20.97, sign * 38), end: polar(22.3, sign * 37.6), water: polar(24, sign * 37.6),
+    ledge: { side: sideOf(stair, ABUT_F, low), s0: r2(L * (1 - ABUT_F)), w: ABUT_SET } };
 };
 const AB_W = abutment(W_STAIR, -1), AB_E = abutment(E_STAIR, 1);
 /**
@@ -277,7 +290,8 @@ export default {
     // `waterFx` = the water running down the face (render/dam-water.js) and the burst's surge line (render/dam-breach.js)
     { id: 'dam', type: 'dam', variant: 'concrete_arch', x: DAM.x, z: DAM.z, rot: deg(DAM.rot), w: 27, d: 3, h: 14, deck: true,
       elev: DAM.elev, walkY: DAM.walk, points: CREST,
-      ramps: [{ id: 'stair_w', points: W_STAIR, width: 1.6, y0: 0.25, y1: DAM.walk, landing: 1.6 }, { id: 'stair_e', points: E_STAIR, width: 1.6, y0: 0.25, y1: DAM.walk, landing: 1.6 }],
+      ramps: [{ id: 'stair_w', points: W_STAIR, width: 1.6, y0: 0.25, y1: DAM.walk, landing: 1.6, ledge: AB_W.ledge },
+        { id: 'stair_e', points: E_STAIR, width: 1.6, y0: 0.25, y1: DAM.walk, landing: 1.6, ledge: AB_E.ledge }],
       waterFx: { downstream: [[44, 35], [50, 43.5], [56, 50]], surge: [[44, 35], [52, 46], [60, 54], [84, 74], [100, 87.5]] },
       hideParts: [SHACK_PART], // its control shack stands on the ground by the truck road (`dam_shack`)
       destructible: true, bombOnly: true, marker: 'dam_charge', hp: 100, destroyFx: ['collapse', 'flood', 'removeCrest'],
@@ -286,7 +300,7 @@ export default {
     // rock rims holding the raised reservoir (S and E shores)
     // (rim_s and abut_e close on the dam's ends and run down beside its stairs: `abutment` above)
     { id: 'rim_s', type: 'cliff', points: [[-1, 29.5], [14, 28.5], [25, 26.6], AB_W.water, AB_W.end, AB_W.cut, AB_W.top, AB_W.low, [14, 34.4], [-1, 35]], h: 7.6, climbable: false,
-      abut: [[AB_W.end, AB_W.cut], [AB_W.cut, AB_W.top], [AB_W.top, AB_W.low]] },
+      abut: [[AB_W.end, AB_W.cut], [AB_W.cut, AB_W.top], [AB_W.top, AB_W.low, ABUT_SET]] },
     // the dam's gate-keeper shack (its own part of the dam asset, `assetPart`) on the ground E of the truck road at the
     // N edge, door to the road, parallel to it, its HALT sign to the camera (12 m clear of cliff_w, which would hide
     // it); nav: false (no climbable roof)
@@ -295,7 +309,7 @@ export default {
     // its S end grows into the dam's E abutment: a massif of its own merging into rim_e (rim_e itself is left as it was:
     // its faces by the truck road, where the escape truck turns, keep their shape)
     { id: 'abut_e', type: 'cliff', points: [[55.9, 15.2], [57.25, 16.4], [58.4, 22], [58.4, 26.3], AB_E.low, AB_E.top, AB_E.cut, AB_E.end, AB_E.water, [55.2, 17.2]], h: 7.6, climbable: false,
-      abut: [[AB_E.low, AB_E.top], [AB_E.top, AB_E.cut], [AB_E.cut, AB_E.end]] },
+      abut: [[AB_E.low, AB_E.top, ABUT_SET], [AB_E.top, AB_E.cut], [AB_E.cut, AB_E.end]] },
     // its front (firing slit + the entrance trench behind its baffle wall) faces NE over the river, the way the gunner
     // looks; `entry` (abilities/bunker-entry.js): in front of the gap between the wire and the baffle → through the
     // gap → into the trench → the entrance face → the doorway, the charge spot inside (the library model's door:

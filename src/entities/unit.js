@@ -31,6 +31,7 @@ const YIELD_STATES = new Set(['IDLE', 'REINFORCE', 'RETURN', 'INVESTIGATE', 'SEA
 import { cornerOffset } from './path-curve.js';
 import { BODY, bodyGap, clearPose, avoidMask, inflationTiers, hasObstacles, hullsNear, pushedBy, deadStance, staticNear, rectSDF, MOVE_MARGIN, STOP_MARGIN } from '../world/body-clearance.js';
 import { pathLength } from '../world/pathfinding.js';
+import { rockFacesNear, inRockFace, NO_FACES } from '../world/rock-faces.js';
 import { gateLayout } from '../world/breakables.js';
 import { runNoiseStep } from '../ai/running-noise.js';
 import { footOf } from '../ai/footprints.js';
@@ -825,12 +826,15 @@ export class Unit extends Entity {
     }
     this._weaponAtX = this.x; this._weaponAtZ = this.z;
     const left = 0.6 - (this._weaponBack || 0); // per aim (≤ 0.6 m in all)
+    const faces = rockFacesNear(w, this.x, this.z, 2.2); // (the barrel reaches 1.15 m, a step back 0.5 m, ± 0.25 m across)
     // parked hulls and wagons count too (taller than the shoulder: a vehicle's own height, a wagon's box)
     const solidAt = (x, z, y) => (w.vehicles || []).some((v) => v !== this.vehicle && !v.removed && !v.hiddenRail && v._inHull?.(x, z, 0) && (v.hullHeight?.() ?? 2) > y)
       || (w.interactables || []).some((it) => it.interactKind === 'pushable' && !it.destroyed && it.size && Math.abs((x - it.x) * Math.cos(it.heading ?? 0) + (z - it.z) * Math.sin(it.heading ?? 0)) <= it.size[0] / 2 + 0.05
         && Math.abs(-(x - it.x) * Math.sin(it.heading ?? 0) + (z - it.z) * Math.cos(it.heading ?? 0)) <= it.size[1] / 2 + 0.05)
       // and the solid props (body clearance: a fuel tank, a crate stack) whose visual reaches past their footprint
       || staticNear(w, x, z, 0.05).some((R) => (R.top ?? 2) > y - (this.y || 0) && rectSDF(x, z, R) < 0.05)
+      // and a massif's plumb face where it meets built work (M3's E stair: its cells can be half rock and open; 5 cm kept)
+      || (faces !== NO_FACES && inRockFace(faces, x, z, y, 0.05))
       // and a boom barrier's pole line above its rest height: the pole swings up through it whenever the gate opens
       || boomLines(w).some((L) => { const px = x - L.x, pz = z - L.z, u = px * L.tx + pz * L.tz, v = -px * L.tz + pz * L.tx;
         return Math.abs(v) < 0.15 && u > L.u0 && u < L.u1 && y - (this.y || 0) > L.y; });

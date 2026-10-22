@@ -288,7 +288,9 @@ function offsetPoly(poly, dist) {
  * height; a separate broken top cap (own UVs → sharp rim, snow collects on it).
  * `abut`: world segments [[[x0, z0], [x1, z1]], …] lying on the outline where the rock meets built work (M3: the dam's
  * ends and its crest stairs): the face along them stands plumb on the outline and is only ever recessed by the noise,
- * so it closes on the concrete with no bulge through it and no gap opening up the face.
+ * so it closes on the concrete with no bulge through it and no gap opening up the face. A segment may carry a third
+ * value, `set` (m): its face then stands that far behind the outline, plumb all the same (M3: the stairs' rock side, set
+ * back 0.2 m so a rifle held across the stair clears it — the stair's `ledge` fills the strip, art/dam-stairs.js).
  * @param {object} p prop params: points (world [x,z] or {x,z}), x, z (group origin), rot, h, id, abut?
  */
 export function buildCliff(p) {
@@ -312,12 +314,13 @@ export function buildCliff(p) {
   const N = ring.length, seed = seedOf(p.id ?? 'cliff') & 0xffff;
   // ring vertices on an `abut` segment (local frame; within 2 cm of it)
   const toLocal = ([x, z]) => { const dx = x - ox, dz = z - oz; return [dx * c + dz * s, -dx * s + dz * c]; };
-  const abutSegs = (p.abut || []).map(([a, b]) => [toLocal(a), toLocal(b)]);
+  const abutSegs = (p.abut || []).map(([a, b, set]) => [toLocal(a), toLocal(b), set || 0]);
   const onSeg = ([x, z], [[ax, az], [bx, bz]]) => {
     const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / L2));
     return Math.hypot(ax + dx * t - x, az + dz * t - z) < 0.02;
   };
-  const abut = ring.map((q) => abutSegs.some((sg) => onSeg(q, sg)));
+  // per ring vertex: how far its face stands behind the outline (a segment's optional third value, `set`), -1 = not on an abutting face
+  const abut = ring.map((q) => abutSegs.reduce((m, sg) => (onSeg(q, sg) ? Math.max(m, sg[2]) : m), -1));
   const nrm = ring.map((_, i) => {
     const [ax, az] = ring[(i - 1 + N) % N], [bx, bz] = ring[(i + 1) % N], l = Math.hypot(bx - ax, bz - az) || 1;
     return [(bz - az) / l, -(bx - ax) / l];
@@ -350,8 +353,9 @@ export function buildCliff(p) {
       // the noise alone goes along the vertex normal
       const O = offs[l] || (offs[l] = offsetPoly(poly, bat)), [e, t] = edgeOf[k];
       // an abutting face: plumb on the outline (no batter), the noise only recessing it (never through the concrete)
-      const A = abut[k] ? poly[e] : O[e], B = abut[k] ? poly[(e + 1) % poly.length] : O[(e + 1) % O.length];
-      const dd = abut[k] ? Math.min(0, 0.5 * (2.1 * col + 0.35 * fine)) - 0.03 : d + bat;
+      const on = abut[k] >= 0;
+      const A = on ? poly[e] : O[e], B = on ? poly[(e + 1) % poly.length] : O[(e + 1) % O.length];
+      const dd = on ? Math.min(0, 0.5 * (2.1 * col + 0.35 * fine)) - 0.03 - abut[k] : d + bat;
       const px = A[0] + (B[0] - A[0]) * t + nx * dd, pz = A[1] + (B[1] - A[1]) * t + nz * dd;
       pos.push(px, yy, pz);
       uv.push((i === N ? arc : arcs[k]) / 5, yy / 5);

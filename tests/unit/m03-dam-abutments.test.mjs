@@ -9,7 +9,10 @@
  *    the face;
  *  - nobody slips into the no-walk foot of the face, not even by a hair off the stair's landing (Unit._followPath),
  *    and no enemy goes there in a full-brain alarm;
- *  - the charge goes on the crest.
+ *  - the charge goes on the crest;
+ *  - the rock face along each stair stands 0.2 m clear of the treads' edge (a rifle held across the stair clears it; the
+ *    treads run out to it as a kerb), and a man aiming across the stair keeps his barrel 5 cm off it (world/rock-faces.js:
+ *    clipping audit seed 11, e6's rifle 5.4 cm into abut_e).
  */
 import { test, assert } from './lib.mjs';
 import { loadGrid } from './mission-check.mjs';
@@ -17,6 +20,10 @@ import { makeSim } from './abilsim.mjs';
 import { getMission } from '../../src/missions/index.js';
 import { pointInPolygon } from '../../src/core/math.js';
 import { buildCliff } from '../../src/art/dressing.js';
+import { buildDamStairs } from '../../src/art/dam-stairs.js';
+import { rockFacesOf, rockFacesNear, inRockFace } from '../../src/world/rock-faces.js';
+import { flightLocal, flightWorld } from '../../src/world/stairs.js';
+import { railShift } from '../../src/entities/stair-walk.js';
 import { waterBodyDescriptors, raisedWaterMasks } from '../../src/art/water.js';
 import { waterBodiesFromGrid } from '../../src/art/water/grid.js';
 import { Alarm } from '../../src/ai/alarm.js';
@@ -203,4 +210,81 @@ test('m03: the dam charge is planted on top of the dam (the crest deck), not at 
     const x = m.x + Math.cos((a * Math.PI) / 180) * m.r * 0.95, z = m.z + Math.sin((a * Math.PI) / 180) * m.r * 0.95, kk = cellOf(g, x, z);
     if (g.walkableAt(x, z)) assert.ok(g.elev[kk] > 7, `(${x.toFixed(2)},${z.toFixed(2)}) within the charge radius walkable at ground level`);
   }
+});
+
+/** The stair's flight (world/stairs.js) of a built grid, and its rock side (+1 left of the way up, -1 right). */
+const flightOf = (g, id) => g.flights.flights.find((f) => f.id === id);
+const faceSide = (f, face) => Math.sign(flightLocal(f, face.ax, face.az).v);
+
+test('m03 abutments: `abut` segments may set their face back (buildCliff): plumb at that distance, the others on the outline', () => {
+  const pts = [[0, 0], [12, 0], [12, 8], [0, 8]];
+  const seg = [[12, 0], [12, 8], 0.2];
+  const mesh = buildCliff({ id: 'rim_e', points: pts, h: 7.6, x: 6, z: 4, abut: [seg] });
+  let hi = -Infinity, lo = Infinity;
+  mesh.traverse((q) => { if (!q.isMesh) return; const p = q.geometry.attributes.position; for (let i = 0; i < p.count; i++) { const x = p.getX(i) + 6, z = p.getZ(i) + 4; if (z > 1 && z < 7 && p.getY(i) > 0 && p.getY(i) < 7 && x > 10.5) { hi = Math.max(hi, x); lo = Math.min(lo, x); } } });
+  assert.ok(hi <= 11.8 + 1e-6, `the face stands at least 0.2 m behind the outline (${hi.toFixed(3)})`);
+  assert.ok(hi > 11.7, `...and no further than the rock's own noise sends it (${hi.toFixed(3)})`);
+});
+
+test('m03 abutments: the stair\'s rock face is set back 0.2 m beyond the tread edge, on the side the rock is, and the treads run out to it', () => {
+  const { grid: g } = loadGrid(def);
+  const faces = rockFacesOf(def.structures);
+  for (const [side, { stair, rim: id }] of Object.entries(STAIRS)) {
+    const f = flightOf(g, stair.id), mine = faces.filter((q) => q.id === id && q.set > 0);
+    assert.equal(mine.length, 1, `${side}: one set-back face along the stair`);
+    const q = mine[0], sg = faceSide(f, q);
+    // it lies along the stair's upper half, on the tread edge's line (0.8 m off the axis, on the rock's side)
+    const a = flightLocal(f, q.ax, q.az), b = flightLocal(f, q.bx, q.bz);
+    assert.ok(Math.abs(Math.abs(a.v) - 0.8) < 0.02 && Math.abs(Math.abs(b.v) - 0.8) < 0.02, `${side}: outline on the tread edge (${a.v.toFixed(2)}, ${b.v.toFixed(2)})`);
+    assert.ok(Math.abs(Math.min(a.s, b.s) - f.sTop * 0.5) < 6.5 && Math.max(a.s, b.s) > f.sTop, `${side}: runs from mid-stair to the head (${a.s.toFixed(1)}..${b.s.toFixed(1)})`);
+    // a point of the stair 0.9 m out on that side is open (the kerb), 1.05 m out is rock; the other side never is
+    const at = (s, v) => { const p = flightWorld(f, s, v); return [p.x, p.z]; };
+    const s0 = (Math.min(a.s, b.s) + Math.max(a.s, b.s)) / 2;
+    const near = rockFacesNear({ rockFaces: faces }, ...at(s0, 0), 2.5);
+    assert.ok(near.length >= 1, `${side}: faces found beside the stair`);
+    assert.ok(!inRockFace(near, ...at(s0, sg * 0.9), 6), `${side}: 0.9 m out is the kerb, not rock`);
+    assert.ok(inRockFace(near, ...at(s0, sg * 0.97), 6, 0.05), `${side}: a barrel 3 cm short of the face is inside its 5 cm margin`);
+    assert.ok(inRockFace(near, ...at(s0, sg * 1.05), 6), `${side}: 1.05 m out is rock`);
+    assert.ok(!inRockFace(near, ...at(s0, -sg * 1.05), 6, 0.05), `${side}: the open side is never rock`);
+    assert.ok(!inRockFace(near, ...at(s0, sg * 1.05), 12), `${side}: above the massif (and its cap) nothing`);
+    // the drawn treads: wider on that side from mid-stair up (to the face), the foot unchanged
+    const extent = (L) => { const lim = [Infinity, -Infinity]; L.traverse((m) => { if (!m.isMesh || !/^dam-stair:/.test(m.name)) return; m.updateMatrixWorld(true); const p = m.geometry.attributes.position;
+      for (let i = 0; i < p.count; i++) { const { s, v } = flightLocal(f, p.getX(i), p.getZ(i)); if (s > f.sTop * 0.6 && s < f.sTop * 0.9) { lim[0] = Math.min(lim[0], v * sg); lim[1] = Math.max(lim[1], v * sg); } } }); return lim; };
+    const grp = buildDamStairs([stair]);
+    const [lo, hi] = extent(grp);
+    assert.ok(Math.abs(hi - 1.0) < 0.02 && Math.abs(lo + 0.8) < 0.02, `${side}: treads reach the face on its side (${hi.toFixed(2)}) and the edge on the other (${lo.toFixed(2)})`);
+    const foot = buildDamStairs([{ ...stair, ledge: undefined }]);
+    assert.ok(Math.abs(extent(foot)[1] - 0.8) < 0.02, `${side}: without a ledge the treads keep their 1.6 m`);
+  }
+});
+
+test('m03 abutments: a man aiming across a dam stair keeps his rifle off the rock face, stepping back inside his band between the rails', () => {
+  const s = makeSim(def, { brains: false });
+  const w = s.world, g = w.grid;
+  assert.ok(w.rockFaces?.length >= 6, `the world carries the massifs' plumb faces (${w.rockFaces?.length})`);
+  const e = w.enemies.find((q) => q.tag === 'e6') || w.enemies[0];
+  let stepped = 0;
+  for (const [id, sg] of [['stair_e', 1], ['stair_w', -1]]) {
+    const f = flightOf(g, id);
+    // beside the rock (mid-stair up to the head), aimed straight across at it, 28° off it either way, from the axis and from either side
+    for (const sM of [7.5, 9, 10.5, 12]) for (const v0 of [-0.2, 0, 0.2]) for (const turn of [-0.5, 0, 0.5]) {
+      const p = flightWorld(f, sM, v0), hd = Math.atan2(f.ux * sg, -f.uz * sg) + turn;
+      Object.assign(e, { x: p.x, z: p.z, y: g.surfaceY(p.x, p.z), heading: hd, path: null, _weaponBack: 0, _weaponAtX: null, vehicle: null, stance: 'stand' });
+      // (the game's order each step: the rifle's step back, then the rails put him back in his band)
+      for (let i = 0; i < 40; i++) {
+        e._keepWeaponRoom(1 / 30);
+        const rs = railShift(e);
+        if (rs) { e.x += rs.x; e.z += rs.z; }
+        e.y = g.surfaceY(e.x, e.z);
+      }
+      const q = flightLocal(f, e.x, e.z), c = Math.cos(hd), sn = Math.sin(hd);
+      assert.ok(Math.abs(q.v) <= 0.215 + 1e-3, `${id} s ${sM} v ${v0} turn ${turn}: inside his band (${q.v.toFixed(3)})`);
+      if (Math.abs(q.v - v0) > 0.01) stepped++;
+      for (const d of [0.3, 0.6, 0.9, 1.15]) for (const k of [-0.25, 0, 0.25]) {
+        const x = e.x + c * d - sn * k, z = e.z + sn * d + c * k;
+        assert.ok(!inRockFace(rockFacesNear(w, x, z, 0.5), x, z, e.y + 1.15, 0.05), `${id} s ${sM} v ${v0} turn ${turn}: barrel ${d} m (${k}) clear of the face`);
+      }
+    }
+  }
+  assert.ok(stepped > 10, `men on the rock side of the stair stepped back (${stepped})`);
 });

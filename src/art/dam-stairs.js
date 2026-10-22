@@ -64,8 +64,11 @@ function polyline(points) {
 }
 
 /**
- * Stairs for every `ramps` entry of a structure def.
- * @param {{points:number[][], width?:number, y0?:number, y1:number, landing?:number}[]} ramps
+ * Stairs for every `ramps` entry of a structure def. `ledge` {side, s0, w}: where a rock face stands `w` m beyond the
+ * treads' edge on that side (+1 left of the way up, -1 right — the flight's own v axis, world/stairs.js flightLocal),
+ * from `s0` m along the stair up to its head (M3: the abutments' set-back faces, dressing.js buildCliff `abut` `set`),
+ * the treads run on out to it as a kerb outside the rails: no slit down beside the stair. Visual only.
+ * @param {{points:number[][], width?:number, y0?:number, y1:number, landing?:number, ledge?:{side:number, s0:number, w:number}}[]} ramps
  * @returns {THREE.Group} world-space group (name 'dam-stairs')
  */
 export function buildDamStairs(ramps) {
@@ -78,9 +81,12 @@ export function buildDamStairs(ramps) {
     const { N, run, landing } = stairTreads(L, y0, y1, r.landing);
     const steps = [], rails = [];
     const topAt = (k) => y0 + ((y1 - y0) * k) / (N - 1);
+    const lg = r.ledge && r.ledge.w > 0 ? r.ledge : null;
     for (let k = 0; k < N; k++) {
-      const len = k < N - 1 ? run : landing, p = at(k < N - 1 ? (k + 0.5) * run : L - landing / 2), top = topAt(k), bottom = -0.4;
-      steps.push(orientedBox(len + 0.02, top - bottom, w, p.x, (top + bottom) / 2, p.z, p.dx, p.dz));
+      const len = k < N - 1 ? run : landing, sc = k < N - 1 ? (k + 0.5) * run : L - landing / 2, p = at(sc), top = topAt(k), bottom = -0.4;
+      // (a tread beside the rock face: wider, out to it on that side)
+      const ext = lg && sc >= lg.s0 ? lg.w : 0, sh = (lg?.side ?? 0) * ext / 2;
+      steps.push(orientedBox(len + 0.02, top - bottom, w + ext, p.x - p.dz * sh, (top + bottom) / 2, p.z + p.dx * sh, p.dx, p.dz));
     }
     // railings: posts every POST_EVERY m on both sides, a sloped top rail and a mid rail between consecutive posts
     const nPost = Math.max(2, Math.round(L / POST_EVERY) + 1);

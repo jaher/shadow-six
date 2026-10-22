@@ -678,3 +678,7 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 - AUTO skips idle labelled waits (jump-paced: 16 ms of ticks a frame, view drawn every 66 ms) under a "⏩ waiting: <label>" tag with the camera on the guard waited on; the camera shows a commando at work whenever the step's men stand idle (2.5 s hold); shorter post-event holds (kill 1.5 s, after an action 0.7 s).
 - M3 opening: p1's 74.6 s walk now passes in ~1.4 s. AUTO totals (wall / longest no-action / sum): M3 837/10.0/166 → 815/9.4/106; M1 217/12.9/62 → 192/6.3/24; M12 482/39.9/139 → 399/23.2/51; M15 2204/316.5/1352 → 1520/160.2/634.
 - Run unchanged (M3 2703.83, 0/0). Unit 2233/0. Follow-ups running: preset=low determinism (since art/m05), M3 camera-cut render spike + M12/M15 skip CPU, portrait touch targets.
+
+## 2026-10-22 — M3 dam stair rock faces (merged)
+- clipping seed 11 failure (e6's rifle 5.4 cm into the E abutment while aiming across the stair) fixed at the cause: `abut` segments may set their plumb face back (`ABUT_SET = 0.2` on both stairs' rock side), treads run out to it as a ledge kerb, and new `src/world/rock-faces.js` gives `Unit._keepWeaponRoom` exact rock faces (barrel 5 cm off). Stress probe: 153 rifle poses in rock → 0.
+- clipping: all five maps, seeds 7/11, 0 penetrations > 5 cm. M3 won 2703.88, 0/0 (debug-walkthrough-sim ok). Unit 2236/0.

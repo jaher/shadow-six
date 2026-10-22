@@ -57,6 +57,7 @@ import { isProcRuin, procRuinNavParts, procSolids } from '../art/ruin-tower.js';
 import { gateLayout } from './breakables.js';
 import { categoryOf } from '../debug/clip-rules.js';
 import { setStaticSolids, removeStaticSolids, minAreaRect, SOLID_BAND_TOP } from './body-clearance.js';
+import { rockFacesOf } from './rock-faces.js';
 import { planHull, planCells, finestMeshes, measureTop, lowSurfaces, overheadCells, dataKey, SNOW_WADE,
   planHullG, planCellsG, deckFieldG, lowSurfacesG, overheadCellsG, standingCellsG } from './placement-visual.js';
 import { due, runSync, runSliced, nextTask } from '../engine/slice.js';
@@ -2002,6 +2003,9 @@ export function* buildMapGen(world, mission, opts = {}) {
     const wc = stampWalkClearance(world, [...navKeepPoints(world, built), ...spawns]);
     if (wc) libLog.push(`raised walks: ${wc} cells beside stakes / railings blocked`);
   };
+  // the massifs' plumb faces where they meet built work (`abut`, M3's dam stairs): exact, for a rifle held out over a cell
+  // that is half rock (world/rock-faces.js)
+  world.rockFaces = rockFacesOf(built.map((b) => b.def));
   // (body clearance, below: the ground under each solid; restampBodySolidsG measures again with it)
   const solidGround = meshes && terrain?.groundY ? (x, z) => terrain.groundY(x, z) : null;
   if (meshes) {
