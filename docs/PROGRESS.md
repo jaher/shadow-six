@@ -701,3 +701,8 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 - M3: turns/10 m 1.83 → 1.00, mean leg 5.3 → 9.5 m (median 1.9 → 4.7), orders/min 11.6 → 6.2, halts 290 → 43. All eleven solutions win 0/0 (M14 2528.7 → 2908.4, M8 15603 → 13918). Planner slices unchanged (worst 12.6 ms).
 - Tests: unit 2259/0, eleven solution tests, m03-straightness, debug-walkthrough family, movement/locomotion/crawl/boat-boarding/preset-determinism. Known: clipping M2 seed 11 e6 foot 6.3 cm into gate_se (same path on master; sample timing) → fix/m02-gate-b00-lift-graze in progress.
 - Running solution lanes told to re-verify on merging master and to try `D.straightDashes`.
+
+## 2026-10-22 — M2 art pass and M3 polish (merged e660a7f9e, 5e804e667) — art ≤ M3 complete
+- M3 polish (art/m03): the S-bank farm as a Norwegian tun (dwelling house, log byre, stabbur, firewood, skigard fence to the river), a parked Opel Blitz in the station yard, ridge tents, drums and a cart. Verified on master: m03-solution 2703.9 0/0, debug-walkthrough-sim ok, render-budget m03 175 draws / 1.65 M tris, preset-determinism m03 ok.
+- M2 (art/m02): Nissen stores outside the NE wall, Lofoten stockfish racks and faerings on the SW shore, open woodshed, firewood and picket garden in the settlement, library crates. m02-solution 940.2 0 det, render-budget m02 266 draws / 1.25 M tris, preset-determinism m02 ok. Unit 2275/0.
+- With M0–M3 done, the second art pass over M4–M20 started (workflow, 4 lanes, branches art2/mNN).

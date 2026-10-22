@@ -90,6 +90,48 @@ function riverPath() {
   return { points: points.map((q) => [+q[0].toFixed(2), +q[1].toFixed(2)]), widths: widths.map((w) => +w.toFixed(2)) };
 }
 
+// ---------------------------------------------------------------- art pass: buildings and set dressing
+// The camp keeps its locked layout (p3 walks 1–1.5 m inside the palisade, e6 / e7 / the garrison's exit fill the yard,
+// and a hut in the yard would cut e7's view of e5's body), so the original's stores ("small cabins and an arched hut")
+// stand outside the NE wall, and the dressing goes where nobody walks: ≥ 1.5 m off every route, ≥ 3 m off every post,
+// start and vehicle, clear of the solution's way (east of the settlement, the landing, the gate and the truck line).
+// Authored on free cells (fixed: no relocation search).
+const dress = (id, x, z, rot, w, d, o) => ({ id, type: 'crates', x, z, rot: deg(rot), w, d, h: 1, block: 1, fixed: true, ...o });
+const LOGS = { variant: 'log_pile', asset: 'log_pile_stack' }, CART = { variant: 'handcart', asset: 'handcart_wood' };
+/** Lofoten stockfish racks (hjell): A-frames of poles hung with cod, along the SW shore (low cover: you see through). */
+const RACK = { variant: 'drying_rack', asset: 'drying_rack_a_snow', h: 4.2 };
+/** A beached faering (the library rowing boat, oars shipped; `keel` = turned keel-up for the winter). */
+const faering = (id, x, z, rot, keel = false) => ({ id, type: 'crates', variant: keel ? 'boat_beached_overturned' : 'boat_beached', x, z, rot: deg(rot),
+  w: 4, d: 1.8, h: 1, block: 1, fixed: true, vehicleArt: 'rowboat', vehicleArtHide: ['oar_l', 'oar_r'], ...(keel ? {} : { vehicleArtY: 0.22 }) });
+const ART_STRUCTURES = [
+  // the camp stores outside the N corner: a Nissen hut (the original's arched hut) square to the NW wall, its door
+  // (NE gable) towards the corner, fuel drums along its back, a handcart by the far gable. It stands at the edge of both
+  // MG platforms' traverse, off their watch lines (t2's man outside the NE wall stays in plain view, m02-barrier)
+  { id: 'store_hut', type: 'hut', variant: 'nissen_store', asset: 'nissen_hut_b', x: 30, z: 7.5, rot: deg(138.5), w: 11, d: 6.2, h: 4.7, fixed: true },
+  { id: 'drums_st', type: 'barrels', variant: 'inert_stack', x: 29, z: 2.6, rot: deg(138.5), w: 2.4, d: 2, h: 1, block: 1, fixed: true },
+  dress('cart_st', 24.4, 12.6, 50, 1.9, 1.4, CART),
+  // the SW shore: two stockfish racks and three faerings drawn up on the snow (one keel-up)
+  dress('rack_1', 18.6, 80, 0, 8.4, 3, RACK), // (3.4 m off the pine at (11, 76): its crown keeps its full spread)
+  dress('rack_2', 4.6, 79.6, 18, 7.6, 3, RACK),
+  faering('boat_s1', 24.4, 77.6, -90),
+  faering('boat_s2', 26.9, 78.6, -60, true),
+  faering('boat_s3', 10.6, 82.6, 0, true),
+  // the settlement: an open woodshed against the W palisade in the SW corner (cordwood under its roof), firewood
+  // between cabA and the woodshed along the W palisade, and by cabB's W gable
+  { id: 'shed_sw', type: 'hut', variant: 'woodshed_open', asset: 'lean_to_canopy', x: 3.35, z: 107, rot: deg(90), w: 4.6, d: 3.4, h: 3, fixed: true, clipAllow: ['logs_sw'] },
+  dress('logs_sw', 3.1, 107, 90, 3.6, 1.4, { ...LOGS, h: 1.2 }),
+  dress('logs_a', 1.9, 101.4, 90, 3, 1.1, LOGS),
+  dress('logs_b', 10.7, 107, 90, 3, 1.2, LOGS),
+];
+/** Street furniture (visual only, never on the walk grid). */
+const ART_FURNITURE = [
+  // a kitchen garden under the snow behind cabB, picket-fenced against the S palisade
+  { type: 'fence', variant: 'picket', points: [[13.2, 112.75], [13.2, 110.6], [18.8, 110.6], [18.8, 112.75]], h: 1.0, block: false },
+  // the depot's board on the gate road's verge, and the stores' lamp
+  { type: 'sign', variant: 'wehrmacht', x: 61.6, z: 57.2, rot: deg(15), text: 'TANKLAGER\nRAUCHEN VERBOTEN', block: false },
+  { type: 'lamp', variant: 'norway_wood', x: 35.8, z: 4.6, rot: deg(-40), block: false }, // by the hut's door (its NE gable)
+];
+
 export default {
   id: 'm02',
   campaign: 'BEL',
@@ -145,6 +187,8 @@ export default {
     { type: 'floodlight', x: 67, z: 35, rot: Math.PI, block: false },
     { type: 'sign', variant: 'fingerpost', x: 59, z: 51, rot: -0.8, text: 'STAMSUND 2 km', block: false },
     { type: 'telegraph', points: [[82, 72], [70, 66], [58, 58]], spacing: 14, h: 6.5, wires: 2, block: false },
+
+    ...ART_FURNITURE,
   ],
   structures: [
     // --- the walled camp (NE bank). Closed palisade W(16,33) → N(42,10) → E(71,35) → S(46,58) → W,
@@ -179,7 +223,7 @@ export default {
     // t1 sits 3 m SW along the NW edge of the aligned barracks' W end
     { id: 't1', type: 'watchtower', variant: 'mg_platform', x: 27.06, z: 26.49, rot: deg(228), w: 3, d: 3, h: 5.5, deckY: 5.5 },
     { id: 't2', type: 'watchtower', variant: 'mg_platform', x: 54.42, z: 23.93, rot: deg(311), w: 3, d: 3, h: 5.5, deckY: 5.5 },
-    { id: 'crates1', type: 'crates', x: 46, z: 48, rot: deg(317.4), w: 2, d: 2, h: 1.2, block: 1 },
+    { id: 'crates1', type: 'crates', variant: 'dock_cargo', asset: 'dock_cargo_a', x: 46, z: 48, rot: deg(317.4), w: 2, d: 2, h: 1.2, block: 1 },
     ...[['bar1', 25, 33], ['bar2', 26, 33], ['bar3', 48.5, 36.2], ['bar4', 49.4, 36.8]]
       .map(([id, x, z]) => ({ id, type: 'barrels', variant: 'fuel_explosive', x, z, r: 0.3, h: 0.9, explosive: 'barrel', carriable: true, destructible: true, hp: 1 })),
     // garrison outside the E corner, parallel to the SE edge that runs on to the gate road (a charge within 6.75 m of the E corner razes it)
@@ -202,6 +246,8 @@ export default {
     // pines: SW bank (shore and settlement), then the NE bank
     ...[[4, 72], [11, 76], [33, 96], [44, 108], [60, 70], [70, 20], [78, 8], [8, 20], [20, 6]]
       .map(([x, z], k) => ({ type: 'pine', x, z, r: 0.6, h: 9 + (k % 5), seed: 311 + k })),
+
+    ...ART_STRUCTURES,
   ],
   vehicles: [
     { id: 'truck', vehicleType: 'truck', variant: 'opel_canvas', x: 50, z: 44, heading: deg(47.4), driveable: true, seats: 6, hits: 30, escape: true },

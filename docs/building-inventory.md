@@ -351,6 +351,9 @@ Each mission lists the §1 ids it needs, with counts. **Bold** marks an objectiv
   - `bunker_concrete` (1 abutment bunker, **D**; about 4 garrison bunkers).
   - `palisade_log` camp with `house_log_cabin` ×4-5.
   - `well`, `tent_ridge_field`, `wall_ruined_stone`.
+  - Art pass (ours, not in the original): an S-bank farm below the station: `stabbur_no` (the M1 Sola kit's storehouse
+    on posts, `manifest-sola`) and a roundpole `skigard` field fence (`src/art/skigard.js`); camp firewood, drums, handcart
+    (`src/art/m03-dressing.js`).
 - **M4 Restore Pride (Stokkan)** [i]:
   - `rail_yard_derelict`.
   - Timber building or barn (`CASETA`) [inf].

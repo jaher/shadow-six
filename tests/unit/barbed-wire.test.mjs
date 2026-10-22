@@ -39,10 +39,14 @@ test('variants: every mission wire variant resolves to a wire type (master + fea
   assert.equal(wireTypeOf({ type: 'wall', variant: 'palisade' }), null);
   assert.equal(wireTypeOf({ type: 'prison_pen', variant: 'wire_cage' }), 'cage');
   assert.equal(wireTypeOf({ type: 'fence', variant: 'wire_on_stakes', wire: 'knife_rest' }), 'knife_rest', 'explicit hint wins');
-  // M1-M3 + sandbox: every fence / wire wall is drawn by the wire layer
+  // M1-M3 + sandbox: every fence / wire wall is drawn by the wire layer — but the M3 farm's roundpole skigard, a
+  // timber fence drawn by its own builder (art/skigard.js via buildFenceKit; tests/unit/art-m03), which must not get wire
   for (const id of ['m00', 'm02', 'm03']) {
     const m = getMission(id);
-    for (const s of m.structures.filter((q) => q.type === 'fence' || /wire/.test(String(q.variant)))) assert.ok(wireTypeOf(s, { missionId: id }), `${id} ${s.id ?? s.type}`);
+    for (const s of m.structures.filter((q) => q.type === 'fence' || /wire/.test(String(q.variant)))) {
+      if (id === 'm03' && s.id === 'skigard') { assert.equal(wireTypeOf(s, { missionId: id }), null, 'skigard: no wire'); continue; }
+      assert.ok(wireTypeOf(s, { missionId: id }), `${id} ${s.id ?? s.type}`);
+    }
   }
 });
 

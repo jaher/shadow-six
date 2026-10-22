@@ -17,6 +17,7 @@ import { dressingMaterial, consolidate, rng, seedOf, boxUV, buildWall, boulderGe
 import { lampParts } from './furniture/lamps.js';
 import { propParts, signTexture, fenceParts } from './furniture/street-props.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { buildSkigard } from './skigard.js';
 
 const HAS_DOM = typeof document !== 'undefined';
 const V2 = (r, y) => new THREE.Vector2(r, y);
@@ -615,6 +616,7 @@ export function buildFenceKit(points, { variant = '', h = 1.8, width = 0.3, id =
   const v = String(variant || ''), g = new THREE.Group(); g.name = `kit:fence:${v || 'rail'}`;
   const R = rng(seedOf(id));
   if (/palisade|stockade/.test(v)) return buildWall(points, { variant: 'palisade', h, width, id });
+  if (/skigard/.test(v)) return buildSkigard(points, { h, id }); // M3 art pass: Norwegian roundpole fence (art/skigard.js)
   if (/rock|rim|boulder/.test(v)) {
     for (let k = 0; k + 1 < points.length; k++) {
       const [ax, az] = points[k], [bx, bz] = points[k + 1], L = Math.hypot(bx - ax, bz - az);

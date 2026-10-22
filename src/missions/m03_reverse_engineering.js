@@ -11,6 +11,8 @@
  * degrees. Briefing text is our own wording (§7.3).
  */
 
+import { M03_DRESSING } from '../art/m03-dressing.js';
+
 const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (enemy-brain reads wp.look * DEG, §4.1)
 
@@ -355,12 +357,15 @@ export default {
     ...[[108, 54], [116, 68], [133, 63], [132, 82]].map(([x, z], k) => ({ id: `cabin_${k + 1}`, type: 'hut', variant: 'log_cabin', x, z, rot: 0, w: 6, d: 5, h: 3.5, snowRoof: true })),
     { id: 'well', type: 'well', x: 124, z: 72, rot: 0, r: 0.8 },
     { id: 'spools', type: 'crates', variant: 'cable_drum', x: 114, z: 61, rot: 0, w: 1.5, d: 1.5, h: 1.5, block: 1 },
-    { id: 'camp_tent', type: 'tent', x: 132, z: 43, rot: 0, w: 4, d: 4, flag: true, garrison: true },
-    { id: 'tent2', type: 'tent', x: 141, z: 42, rot: 0, w: 4, d: 4 },
+    // (art pass: grey European ridge tents, M16 kit tent_ridge_field, on the same footprints)
+    { id: 'camp_tent', type: 'tent', x: 132, z: 43, rot: 0, w: 4, d: 4, flag: true, garrison: true, asset: 'tent_ridge_field' },
+    { id: 'tent2', type: 'tent', x: 141, z: 42, rot: 0, w: 4, d: 4, asset: 'tent_ridge_field' },
     // (the pine by the dam bunker's back stands at (4, 53), off p5's beat: at (6, 50) its needles touched the moved
     // bunker's camouflage net)
     ...[[70.2, 4.2], [70.5, 9], [90, 6], [130, 6], [140, 10], [4, 53], [2, 70], [90, 48], [146, 60]]
       .map(([x, z], k) => ({ type: 'pine', x, z, r: 0.6, h: 9 + (k % 6), seed: 401 + k })),
+    // art pass: set dressing and the S-bank farm (art/m03-dressing.js)
+    ...M03_DRESSING,
   ],
   items: [
     // in the station shed, on its loft floor behind the threshing door (up the ramp: st_shed `entry`)

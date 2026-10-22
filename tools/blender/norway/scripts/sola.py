@@ -285,6 +285,8 @@ if DEST:
 if SNOW and not DEST:                                 # the blown hut: the blast and the fire took the snow off
     import nfx2
     nfx2.PATCHY = 0.3 if VAR == 'relay' else 0.12     # the relay's tar paper and battens show through in patches
-    N.snow()
+    # (no ground drifts under the stabbur: on its stilts the eave-drip mounds of nfx2.snow_drifts read as flat boxy
+    #  slabs around the posts — M3 review; the snowy terrain itself carries the ground snow)
+    N.snow(drifts=VAR != 'stabbur')
 K.finalize(os.path.join(OUT, NAME), ao_res=1024, ao_samples=48, recenter=False)
 print('finalized', NAME)
