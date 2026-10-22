@@ -43,7 +43,7 @@ export default async function debugWalkthroughTouch(_page, t) {
       await page.locator('#wt-bar [data-act=next]').tap(); // A1 done: the Sapper and the Green Beret by the trap
       await page.waitForFunction(() => { const r = window.shadowSix.debug.mode.replay; return r && r.doneCps.includes('A1') && !r.pacer.turbo; }, null, { timeout: 150000 });
       await page.waitForTimeout(3000);
-      const m = await page.evaluate(() => {
+      const measure = () => page.evaluate(() => {
         const R = (n) => { if (!n) return null; const cs = getComputedStyle(n); if (n.hidden || cs.display === 'none' || cs.visibility === 'hidden') return null; const b = n.getBoundingClientRect(); return b.width && b.height ? { l: b.left, t: b.top, r: b.right, b: b.bottom } : null; };
         const over = (a, b) => !!a && !!b && a.l < b.r - 1 && b.l < a.r - 1 && a.t < b.b - 1 && b.t < a.b - 1;
         const bar = R(document.getElementById('wt-bar')), cap = R(document.getElementById('wt-cap'));
@@ -63,6 +63,10 @@ export default async function debugWalkthroughTouch(_page, t) {
           pts, covered, framed: framed.length, rect,
         };
       });
+      // (the director's spring may still be on its way, and a man at the map's edge can sit under the bar for a moment in a short
+      // landscape view: sample until the acting men are framed, not at one arbitrary instant; a director that never frames them fails)
+      let m = await measure();
+      for (let i = 0; i < 40 && !(m.pts.length > 0 && m.covered.length === 0 && m.framed > 0); i++) { await page.waitForTimeout(500); m = await measure(); }
       t.log(tag, JSON.stringify(m));
       t(m.bar.l >= 0 && m.bar.r <= m.vw && m.cap.l >= 0 && m.cap.r <= m.vw && m.cap.b <= m.vh && m.sw <= m.vw, `${tag}: bar and caption fit the screen, no sideways scroll`);
       t(m.minW >= 44 && m.minH >= 44, `${tag}: finger-sized walkthrough buttons (${m.minW}×${m.minH})`);

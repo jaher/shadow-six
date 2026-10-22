@@ -142,14 +142,16 @@ body.dbg-video .hud-speaker-card{transform:translateY(var(--wt-card-shift,0px))}
   text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #wt-flash{position:fixed;z-index:8650;left:50%;transform:translateX(-50%);padding:6px 12px;border-radius:6px;background:rgba(0,0,0,.75);
   color:#ffe9a8;font:600 13px/1.3 system-ui,sans-serif;pointer-events:none;max-width:calc(100vw - 24px);text-align:center}
-#wt-tl{flex:1 1 100%;display:flex;align-items:center;gap:8px;padding:3px 4px 1px;box-sizing:border-box}
+#wt-tl{flex:1 1 100%;display:flex;align-items:center;gap:8px;padding:0 4px;box-sizing:border-box}
 #wt-tl .wt-tl-clock{font:700 12px/1 system-ui,sans-serif;font-variant-numeric:tabular-nums;color:#efe7d2;white-space:nowrap}
 #wt-tl-track{position:relative;flex:1;height:16px;border-radius:8px;background:#ffffff1f;cursor:pointer;touch-action:none}
+/* (the 16px track stays slim to look at; its touch target is the row's full 44px: 14px more above and below it) */
+#wt-tl-track::after{content:'';position:absolute;left:0;right:0;top:-14px;bottom:-14px}
 #wt-tl-fill{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:8px;background:#7fd6ff;pointer-events:none}
 #wt-tl-fill.seeking{background:#ffcf4a}
 #wt-tl .wt-tl-mark{position:absolute;top:3px;width:2px;height:10px;margin-left:-1px;border-radius:1px;background:#ffffff70;pointer-events:none}
 #wt-tl .wt-tl-mark.stage{top:1px;height:14px;background:#ffcf4a}
-#wt-bar #wt-tl button{min-width:38px;height:30px;min-height:30px;padding:0 6px;font-size:11px}
+#wt-bar #wt-tl button{min-width:44px;height:44px;padding:0 6px;font-size:12px}
 `;
 
 function el(tag, cls, parent, text) {

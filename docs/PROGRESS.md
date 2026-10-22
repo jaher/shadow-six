@@ -682,3 +682,8 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 ## 2026-10-22 — M3 dam stair rock faces (merged)
 - clipping seed 11 failure (e6's rifle 5.4 cm into the E abutment while aiming across the stair) fixed at the cause: `abut` segments may set their plumb face back (`ABUT_SET = 0.2` on both stairs' rock side), treads run out to it as a ledge kerb, and new `src/world/rock-faces.js` gives `Unit._keepWeaponRoom` exact rock faces (barrel 5 cm off). Stress probe: 153 rifle poses in rock → 0.
 - clipping: all five maps, seeds 7/11, 0 penetrations > 5 cm. M3 won 2703.88, 0/0 (debug-walkthrough-sim ok). Unit 2236/0.
+
+## 2026-10-22 — Walkthrough bar touch targets (merged)
+- debug-walkthrough-touch failed on master: the scrubber row's −1s/+1s were 38×30. Now 44×44; the 16 px timeline track takes touches over 44 px (invisible ::after). Portrait bar 140 → 150 px, no overflow 360–430 px portrait or 667–932 px landscape.
+- The touch test now samples until the acting men are framed (≤20 s) instead of one fixed instant (the GB sat under the bar at the map's N edge for ~2 s in short landscape views, on master too).
+- debug-walkthrough-touch, -hold, -sim, debug-walkthrough, debug-video-link pass; unit 2233/0.
