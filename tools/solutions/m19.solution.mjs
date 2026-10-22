@@ -890,6 +890,9 @@ async function climbOver(D, a, b, { then = [], via = [], maxSec = 400, label = '
 }
 
 export async function solve(D, ctx = {}) {
+  // every sneak on foot in straight, decisive dashes (dash.mjs; user 2026-10-15: "making it more straight and decisive")
+  // (each leg proven unseen 1 m round him too: M19's file men and dogs are predicted less closely than the cells need)
+  D.straightDashes = { pad: 1 };
   for (const [id, title, fn] of STAGES) {
     if (ctx.from && id < ctx.from) continue;
     ctx.onStage?.(id, title, D.t);

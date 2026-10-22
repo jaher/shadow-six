@@ -1309,7 +1309,9 @@ export class NavGrid {
    * With `opts.clearance` > 0 the two parallel segments offset by ±clearance are tested too, so
    * smoothed paths keep some distance from wall corners. Keep clearance < CELL/2.
    * With `opts.elevRef` (m) every cell must also be within MAX_STEP of that height (same level).
-   * @param {{swim?: boolean, clearance?: number, dynamic?: boolean, elevRef?: number}} [opts]
+   * With `opts.avoidClearance` the avoid mask (body clearance, world/body-clearance.js: already inflated by the body's
+   * reach) is kept only that far off by the offset lines (≤ clearance), the full clearance off the grid's own blocks.
+   * @param {{swim?: boolean, clearance?: number, dynamic?: boolean, elevRef?: number, avoidClearance?: number}} [opts]
    */
   walkableLine(ax, az, bx, bz, opts) {
     const c = this.cell;
@@ -1330,9 +1332,22 @@ export class NavGrid {
     if (r) {
       const len = Math.hypot(bx - ax, bz - az);
       if (len > 1e-6) {
+        // (`avoidClearance`: the avoid mask — body clearance, already inflated by the body's reach — kept only that far
+        // off by the offset lines; `clearance` is for walls and buildings)
+        let side = blocked;
+        const ra = opts.avoid && opts.avoidClearance != null ? Math.min(r, opts.avoidClearance) : null;
+        if (ra != null) {
+          const bare = { ...opts, avoid: null }, av = opts.avoid;
+          side = (k) => { const i = k % cols; if (ref !== undefined && Math.abs(elev[k] - ref) > MAX_STEP) return true; return !this.isWalkable(i, (k - i) / cols, bare); };
+          if (ra > 0) {
+            const ox = (-(bz - az) / len) * ra, oz = ((bx - ax) / len) * ra, inMask = (k) => av[k] === 1;
+            if (this._traverse(ax + ox, az + oz, bx + ox, bz + oz, inMask)) return false;
+            if (this._traverse(ax - ox, az - oz, bx - ox, bz - oz, inMask)) return false;
+          }
+        }
         const nx = (-(bz - az) / len) * r, nz = ((bx - ax) / len) * r;
-        if (this._traverse(ax + nx, az + nz, bx + nx, bz + nz, blocked)) return false;
-        if (this._traverse(ax - nx, az - nz, bx - nx, bz - nz, blocked)) return false;
+        if (this._traverse(ax + nx, az + nz, bx + nx, bz + nz, side)) return false;
+        if (this._traverse(ax - nx, az - nz, bx - nx, bz - nz, side)) return false;
       }
     }
     return true;

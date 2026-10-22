@@ -304,6 +304,7 @@ export class World {
       dive: !!opts.dive,
       maxNodes: opts.maxNodes ?? Math.max(40000, this.grid.size),
       smooth: opts.smooth,
+      taut: !!opts.taut,
       avoid: opts.avoid,
       nearRadius: opts.nearRadius,
       lying: !!opts.lying,

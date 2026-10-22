@@ -19,6 +19,13 @@ import { CONFIG } from '../../src/config.js';
 import { T } from '../../src/world/grid.js';
 import { viewerFor } from '../../src/ai/vehicle-ai.js';
 import { goalReachableGen } from './driver.mjs';
+import { compileDashGen, routeFor } from './dash.mjs';
+
+/** A dash compile run the sliced way when the driver can (D.runSliced: the live replay keeps its frames), else through. */
+function runDash(D, it) {
+  if (D.runSliced) return D.runSliced(it);
+  for (;;) { const r = it.next(); if (r.done) return Promise.resolve(r.value); }
+}
 
 /** (tools/perf: every planSneak result handed to a checker, which plans it again with a reference copy) */
 let __verify = null;
@@ -826,6 +833,8 @@ export function* planSneakGen(D, tx, tz, o = {}) {
   out.reverse();
   out[0][0] = ux; out[0][1] = uz;
   if (!o.shelter) { out[out.length - 1][0] = tx; out[out.length - 1][1] = tz; }
+  // (what the dash compiler re-checks a straighter, quicker way with: the same memoised cones, cells and margins)
+  Object.defineProperty(out, 'ctx', { value: { seen, pass, cellOf, DT, now, ma, mb, holdK, KS, mode, goalOk: o.goalOk || null }, enumerable: false });
   __verify?.(D, tx, tz, o, out, performance.now() - t0v);
   return out;
 }
@@ -836,6 +845,11 @@ export function* planSneakGen(D, tx, tz, o = {}) {
  * ('boat' rows the boat: the order goes to the Marine at the oars).
  */
 export async function sneak(D, tx, tz, o = {}) {
+  const ctx = globalThis.__trailCtx; // (tools/solutions/trail-rec.mjs: which helper gave an order)
+  ctx?.push('sneak');
+  try { return await sneak0(D, tx, tz, o); } finally { ctx?.pop(); }
+}
+async function sneak0(D, tx, tz, o) {
   const w = D.world, mode = o.mode || 'boat', boat = mode === 'boat' ? (o.boat || teamBoat(w)) : null, u = boat || D.c(o.role);
   const tol = o.tol ?? (mode === 'boat' ? 0.9 : 0.4), slack = o.slack ?? (mode === 'boat' ? 0.8 : 0.5), t0 = D.t, maxWait = o.maxWait ?? 400;
   if (mode === 'crawl') await D.stance(o.role, 'crawl');
@@ -862,6 +876,18 @@ export async function sneak(D, tx, tz, o = {}) {
     }
     fails = 0;
     [gx, gz] = plan[plan.length - 1];
+    // on foot: the plan as the fewest straight legs he walks one after the other at his own pace, halting only where
+    // he must wait for a gap in the cones (dash.mjs; user 2026-10-15: "making it more straight and decisive")
+    // (opt-in per solution: D.straightDashes, or o.straight)
+    const legs = mode !== 'boat' && (o.straight ?? D.straightDashes) && D._walkLegs ? await runDash(D, compileDashGen(plan, { speed: u.speed, route: routeFor(u), pad: (o.straight ?? D.straightDashes)?.pad })) : null;
+    if (legs) {
+      const r = await D._walkLegs(legs, { role: o.role, u, tol, slack, label: o.label });
+      if (r === 'done' && !legs.partial) break;
+      if (r === 'done') continue; // (the legs end short of the goal: plan again from there)
+      if (Math.hypot(u.x - gx, u.z - gz) < 0.9 && stopped() && plans > 3) break;
+      try { D.order(who, { type: 'stop' }); } catch { /* already still */ }
+      continue;
+    }
     const segs = [];
     let a = 0;
     while (a < plan.length - 1) {

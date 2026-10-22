@@ -917,7 +917,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
       out[0][0] = ux; out[0][1] = uz;
       if (!o.shelter) { out[out.length - 1][0] = tx; out[out.length - 1][1] = tz; }
       // (what the dash compiler re-checks a straighter, quicker way with: the same memoised cones, cells and margins)
-      out.ctx = { seen: o.blind ? () => false : seen, pass, cellOf, DT, now, ma, mb, holdK, KS: HS + 256, mode };
+      Object.defineProperty(out, 'ctx', { value: { seen: o.blind ? () => false : seen, pass, cellOf, DT, now, ma, mb, holdK, KS: HS + 256, mode }, enumerable: false });
       return out;
     },
     /**
@@ -933,14 +933,15 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
           if (D.t < s.until - 1e-6) { onWait?.(`${label || 'a man'}: a gap in the cones`); while (D.t < s.until - 1e-6) await tick(); onWait?.(null); }
           continue;
         }
-        // (walking on from the leg before he may be a stride early: within the plan's margin before)
-        while (D.t < s.start - (li > 0 && !legs[li - 1].wait ? 0.15 : 1e-6)) await tick();
+        // (walking on from the leg before he may be a stride early: within the plan's margin before; a leg clicked as
+        // planned, `strict`, at its planned moment)
+        while (D.t < s.start - (li > 0 && !legs[li - 1].wait && !s.strict ? 0.15 : 1e-6)) await tick();
         try { D.order(role, { type: 'move', x: s.x, z: s.z }); } catch (e) {
           if (globalThis.process?.env?.SNEAKDBG) log(`    [${D.t.toFixed(2)}] legs: ${e.message}`);
           return 'late';
         }
         // (the next leg a move too: clicked when he is a couple of strides from this one's end, so he walks on into it)
-        const next = legs[li + 1], chain = next && !next.wait;
+        const next = legs[li + 1], chain = next && !next.wait && !next.strict && !s.strict;
         const near = chain ? Math.max(0.12, u.speed * dt * 3) : tol;
         const ts = D.t;
         while (Math.hypot(u.x - s.x, u.z - s.z) > near && D.t < s.end + slack + 1) {
@@ -1007,10 +1008,13 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
         // on foot: the plan as the fewest straight legs he walks one after the other at his own pace, halting only where
         // he must wait for a gap in the cones (dash.mjs; user 2026-10-15: "making it more straight and decisive").
         // Opt-in per solution (D.straightDashes, or o.straight): the solutions not re-tuned for it click as before
-        const legs = mode !== 'raft' && (o.straight ?? D.straightDashes) ? await runGenAsync(compileDashGen(plan, { speed: u.speed, route: routeFor(u) })) : null;
+        const dashWhy = globalThis.process?.env?.SNEAKDBG || globalThis.__SNEAKDBG ? [] : null;
+        const legs = mode !== 'raft' && (o.straight ?? D.straightDashes) ? await runGenAsync(compileDashGen(plan, { speed: u.speed, route: routeFor(u), why: dashWhy, pad: (o.straight ?? D.straightDashes)?.pad })) : null;
+        if (dashWhy?.length) log(`    [${D.t.toFixed(2)}] sneak ${o.label || ''}: plan clicked as planned (${dashWhy.join('; ')})`);
         if (legs) {
           const r = await D._walkLegs(legs, { role: o.role, u, tol, slack, label: o.label });
-          if (r === 'done') break;
+          if (r === 'done' && !legs.partial) break;
+          if (r === 'done') continue; // (the legs end short of the goal: plan again from there)
           if (Math.hypot(u.x - gx, u.z - gz) < 0.9 && stopped() && plans > 3) break;
           try { D.order(o.role, { type: 'stop' }); } catch { /* already still */ }
           continue;

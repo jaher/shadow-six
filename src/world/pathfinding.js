@@ -16,6 +16,8 @@ export const NEAREST_WALKABLE_RADIUS = 3;
 /** Clearance (m) of a path's goal from structure-blocked cells (clearOfWalls; within the goal's own cell). */
 export const GOAL_CLEARANCE = 0.45;
 export const SMOOTH_CLEARANCE = 0.35; // agent body radius (placement rule e): smoothed legs keep arms and rifle off walls
+/** Clearance (m) a taut (player's) path keeps off the body-clearance mask, past the mask's own inflation. */
+export const AVOID_CLEARANCE = 0.2;
 
 /** Min-heap of node indices keyed by an external Float64Array of f-scores. */
 class NodeHeap {
@@ -97,9 +99,10 @@ const DJ = [0, 0, 1, -1, 1, -1, 1, -1];
  * @param {number} sz start z (m)
  * @param {number} tx target x (m)
  * @param {number} tz target z (m)
- * @param {{swim?: boolean, maxNodes?: number, smooth?: boolean, role?: string, dynamic?: boolean, noLinks?: boolean, noWalkLinks?: boolean, dive?: boolean, avoid?: Uint8Array, nearRadius?: number, lying?: boolean}} [opts]
+ * @param {{swim?: boolean, maxNodes?: number, smooth?: boolean, taut?: boolean, role?: string, dynamic?: boolean, noLinks?: boolean, noWalkLinks?: boolean, dive?: boolean, avoid?: Uint8Array, nearRadius?: number, lying?: boolean}} [opts]
  *   dive: a submerged diver, who also passes grid `underpass` cells (NavGrid.isWalkable).
  *   lying: a crawler's path — on and off ramps and stairs head-on, along their middle (alignRuns).
+ *   taut: pull the smoothed path taut (tautenPath: bends only at the real corners; a player's commandos).
  *   avoid: extra keep-out mask (grid.isWalkable opts.avoid; body clearance around vehicles). nearRadius: how far (m) a
  *   blocked start / goal looks for a walkable substitute (default 3).
  *   role: unit role for off-grid links (grid.linkAllowed; undefined → only links open to everyone,
@@ -244,6 +247,34 @@ function goalPocketExcludes(grid, goalK, startK, walkOpts, role, hasLinks, noLin
   return queue;
 }
 
+/**
+ * A free cell to leave a shut start cell by: among the free cells within `nearest`'s distance + 0.5 m of (sx, sz) that
+ * he gets to in a straight line over free cells (his own excepted), the one that costs least from here to the goal (out
+ * to it, then straight on: d(s, c) + d(c, t)). Null: none (the nearest one, as before).
+ */
+function stepOutToward(grid, sx, sz, tx, tz, nearest, walkOpts) {
+  const c = grid.cell, d0 = Math.hypot(nearest.x - sx, nearest.z - sz), R = d0 + 0.5;
+  const si = Math.floor(sx / c), sj = Math.floor(sz / c);
+  const straight = (x, z) => {
+    const L = Math.hypot(x - sx, z - sz), n = Math.max(1, Math.ceil(L / (c / 4)));
+    for (let q = 1; q <= n; q++) {
+      const i = Math.floor((sx + ((x - sx) * q) / n) / c), j = Math.floor((sz + ((z - sz) * q) / n) / c);
+      if ((i !== si || j !== sj) && !grid.isWalkable(i, j, walkOpts)) return false;
+    }
+    return true;
+  };
+  const i0 = Math.floor((sx - R) / c), i1 = Math.floor((sx + R) / c), j0 = Math.floor((sz - R) / c), j1 = Math.floor((sz + R) / c);
+  let best = null, bc = Infinity;
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    if (!grid.isWalkable(i, j, walkOpts)) continue;
+    const x = (i + 0.5) * c, z = (j + 0.5) * c, d = Math.hypot(x - sx, z - sz);
+    if (d > R) continue;
+    const cost = d + Math.hypot(tx - x, tz - z);
+    if (cost < bc - 1e-9 && straight(x, z)) { bc = cost; best = { x, z, i, j }; }
+  }
+  return best;
+}
+
 export function findPath(grid, sx, sz, tx, tz, opts = {}) {
   const info = { endBlocked: false };
   const p = searchPath(grid, sx, sz, tx, tz, opts, false, info);
@@ -285,8 +316,12 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
     return null;
   }
   if (!open(si, sj)) {
-    const n = grid.nearestWalkable(sx, sz, NEAREST_WALKABLE_RADIUS, walkOpts);
+    let n = grid.nearestWalkable(sx, sz, NEAREST_WALKABLE_RADIUS, walkOpts);
     if (!n) return null;
+    // (taut, a player's man on his feet: shut in by the body-clearance mask he steps out on his way — the free cell
+    // within half a metre more than the nearest one that lies most toward the goal — not back to the nearest one behind
+    // him. Not a crawler: his length does not turn or slide out where a free cell's centre does — M15, the Spy)
+    if (opts.taut && !opts.lying && walkOpts.avoid) n = stepOutToward(grid, sx, sz, tx, tz, n, walkOpts) || n;
     si = n.i; sj = n.j; start = { x: n.x, z: n.z };
   }
   // Goal: substitute the nearest walkable cell within 3 m.
@@ -424,12 +459,14 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
   if (opts.smooth === false) return pts;
   // (a crawler, `lying`: on and off the ramps and stairs head-on, along their middle — alignRuns)
   const aligned = (p) => (opts.lying ? alignRuns(grid, p, walkOpts) : p);
-  if (!linkAt.length) return aligned(straightenFlights(grid, smoothPath(grid, pts, walkOpts), walkOpts));
+  // (a crawler keeps the full clearance off the body mask too: he turns his whole length at a corner)
+  const sm = { taut: !!opts.taut, lying: !!opts.lying };
+  if (!linkAt.length) return aligned(straightenFlights(grid, smoothPath(grid, pts, walkOpts, sm), walkOpts));
   // Smooth each grid-only run separately; links are kept verbatim.
   const out = [];
   let from = 0;
   for (const n of [...linkAt, pts.length]) {
-    const seg = smoothPath(grid, pts.slice(from, n), walkOpts);
+    const seg = smoothPath(grid, pts.slice(from, n), walkOpts, sm);
     for (const p of seg) out.push(p);
     from = n;
   }
@@ -572,9 +609,13 @@ export function straightenFlights(grid, pts, walkOpts = {}) {
  * @param {{x:number,z:number}[]} pts
  * @param {{swim?: boolean}} walkOpts
  */
-export function smoothPath(grid, pts, walkOpts) {
+export function smoothPath(grid, pts, walkOpts, { taut = false, lying = false } = {}) {
   if (pts.length <= 2) return pts.slice();
-  const lineOpts = { ...walkOpts, clearance: SMOOTH_CLEARANCE, elevRef: grid.elevAt ? grid.elevAt(pts[0].x, pts[0].z) : undefined };
+  // (taut, a player's path: the body-clearance mask is already inflated by his body's sides — the full clearance
+  // offsets are for walls; kept that far off it too he went a body's width further round every hull and prop, and the
+  // pull failed along their edges: a wavering chain of cell centres. AVOID_CLEARANCE covers what the mask does not:
+  // a standing man's weapon held out ahead, swung round at a corner beside a hull)
+  const lineOpts = { ...walkOpts, clearance: SMOOTH_CLEARANCE, elevRef: grid.elevAt ? grid.elevAt(pts[0].x, pts[0].z) : undefined, ...(taut && !lying ? { avoidClearance: AVOID_CLEARANCE } : null) };
   const out = [pts[0]];
   let anchor = 0;
   while (anchor < pts.length - 1) {
@@ -592,7 +633,101 @@ export function smoothPath(grid, pts, walkOpts) {
     out.push(pts[next]);
     anchor = next;
   }
-  return out;
+  // (a crawler's path stays as the pull leaves it: his 2.35 m length rounds a corner by the curve its own waypoints
+  // shape (entities/path-curve.js), and a corner pulled tighter, or a waypoint fewer, swung it into a solid beside —
+  // M14 / M15. His zigzag was the sneak executor's clicks, not these corners)
+  if (!taut || lying || out.length < 3 || out.some((p) => p.link)) return out;
+  // (a taut leg never comes on to a flight of stairs where the pulled one did not: over its side the rails turn him
+  // back — a link flight's cells are open ground to the grid — M12, the Spy cutting past a stair's foot stood still)
+  const F = grid.flights?.size ? grid.flights.flights : null;
+  // (and by one the pulled corners stay as they are: within 1.2 m of its band, or on a leg that goes on to it — the
+  // rails and the walk round to its end are railPath's and railShift's, entities/stair-walk.js)
+  const fixed = F ? (P, i) => touchesFlight(F, P[i], P[i], 1.2) || touchesFlight(F, P[i - 1], P[i]) || touchesFlight(F, P[i], P[i + 1]) : null;
+  return tautenPath(out, (a, b) => grid.walkableLine(a.x, a.z, b.x, b.z, lineOpts) && !(F && touchesFlight(F, a, b)), { fixed });
+}
+
+/**
+ * Taut string (user 2026-10-15, watching the M3 walkthrough: "Looking at mission 3 the trajectory of commandos is very zig
+ * baggy, making it more straight and decisive. Longer trajectories rather than zig zagging in small trajectories"). The
+ * greedy pull above keeps its corners where the A* chain's cell centres were: a corner rounded in two or three shallow
+ * bends, a bend left near the goal where the real corner is metres back, a kink of a few degrees between two straight
+ * legs. Each corner B (between A and C) slides back along its way in, A → B, as far as the way out to C stays clear,
+ * then along its way out, B → C, as far as the way in from A stays clear (each slide only shortens the path: the corner
+ * settles a body's clearance off the real corner of the wall), and is dropped once A sees C; two corners close
+ * together that round one obstacle become one where their legs meet, when both lines to it are clear. The path then
+ * bends only at the real corners. `lineOk(a, b)`: the run's own line test. Links stay verbatim (callers pass link-free
+ * runs).
+ */
+export function tautenPath(pts, lineOk, { passes = 4, fixed = null, slideCorners = true } = {}) {
+  if (pts.length < 3) return pts.slice();
+  // (`fixed(P, i)`: corner i stays where it is — by a flight of stairs, see smoothPath)
+  const keep = fixed || (() => false);
+  const P = pts.slice();
+  const same = (a, b) => Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.z - b.z) < 1e-6;
+  /** the farthest point from `from` toward `to` (fraction of the way) for which ok(point) holds, ok(from) holding */
+  const slide = (from, to, ok) => {
+    const L = Math.hypot(to.x - from.x, to.z - from.z);
+    if (L < 0.03) return null;
+    let lo = 0, hi = 1;
+    const n = Math.min(12, Math.ceil(Math.log2(L / 0.03)));
+    for (let k = 0; k < n; k++) {
+      const m = (lo + hi) / 2;
+      if (ok({ x: from.x + (to.x - from.x) * m, z: from.z + (to.z - from.z) * m })) lo = m; else hi = m;
+    }
+    return lo * L > 0.03 ? { ...from, x: from.x + (to.x - from.x) * lo, z: from.z + (to.z - from.z) * lo } : null;
+  };
+  for (let pass = 0; pass < passes; pass++) {
+    let changed = false;
+    for (let i = 1; i < P.length - 1; i++) {
+      const A = P[i - 1], C = P[i + 1];
+      if (keep(P, i)) continue;
+      // (a point on the straight line between its neighbours, between them: no corner at all — the same walk)
+      const ax = C.x - A.x, az = C.z - A.z, L = Math.hypot(ax, az), B = P[i];
+      const onLine = L > 1e-6 && Math.abs((B.x - A.x) * az - (B.z - A.z) * ax) / L < 0.01 && ((B.x - A.x) * ax + (B.z - A.z) * az) > 0 && ((C.x - B.x) * ax + (C.z - B.z) * az) > 0;
+      if (onLine || lineOk(A, C)) { P.splice(i, 1); i--; changed = true; continue; }
+      if (!slideCorners) continue;
+      // back along the way in while the way out stays clear (A → point is part of the clear A → B)
+      const q = slide(P[i], A, (X) => lineOk(X, C));
+      if (q) { P[i] = q; changed = true; }
+      // on along the way out while the way in stays clear
+      const r = slide(P[i], C, (X) => lineOk(A, X));
+      if (r) { P[i] = r; changed = true; }
+    }
+    // two close corners rounding one obstacle: one corner where their legs meet
+    for (let i = 1; slideCorners && i + 2 < P.length; i++) {
+      const A = P[i - 1], B = P[i], C = P[i + 1], E = P[i + 2];
+      if (Math.hypot(C.x - B.x, C.z - B.z) > 1.5 || keep(P, i) || keep(P, i + 1)) continue;
+      const ux = B.x - A.x, uz = B.z - A.z, vx = C.x - E.x, vz = C.z - E.z, den = ux * vz - uz * vx;
+      if (Math.abs(den) < 1e-9) continue;
+      const t = ((E.x - A.x) * vz - (E.z - A.z) * vx) / den; // A + u·t on both lines
+      const X = { ...B, x: A.x + ux * t, z: A.z + uz * t };
+      if (t < 1 - 1e-6 || Math.hypot(X.x - B.x, X.z - B.z) > 1 || Math.hypot(X.x - C.x, X.z - C.z) > 1) continue;
+      if (same(X, A) || same(X, E) || !lineOk(A, X) || !lineOk(X, E)) continue;
+      P.splice(i, 2, X);
+      changed = true;
+    }
+    if (!changed) break;
+  }
+  return P;
+}
+
+/** Does segment a → b come within `pad` m of a flight's band (its width, from its foot to its landing's end)? */
+export const FLIGHT_PAD = 0.35;
+export function touchesFlight(flights, a, b, pad = FLIGHT_PAD) {
+  for (const f of flights) {
+    const m = pad, s0 = Math.min(f.sFoot, f.railS?.[0] ?? f.sFoot) - m, s1 = Math.max(f.sTop, f.railS?.[1] ?? f.sTop) + m, hv = f.w / 2 + m;
+    const loc = (p) => { const dx = p.x - f.ox, dz = p.z - f.oz; return [dx * f.ux + dz * f.uz, -dx * f.uz + dz * f.ux]; };
+    const [as, av] = loc(a), [bs, bv] = loc(b);
+    // (Liang–Barsky: the segment clipped to the band's rectangle in the flight's frame)
+    let t0 = 0, t1 = 1, hit = true;
+    for (const [p, q] of [[-(bs - as), as - s0], [bs - as, s1 - as], [-(bv - av), av + hv], [bv - av, hv - av]]) {
+      if (Math.abs(p) < 1e-12) { if (q < 0) { hit = false; break; } continue; }
+      const r = q / p;
+      if (p < 0) { if (r > t1) { hit = false; break; } if (r > t0) t0 = r; } else { if (r < t0) { hit = false; break; } if (r < t1) t1 = r; }
+    }
+    if (hit && t0 <= t1) return true;
+  }
+  return false;
 }
 
 /** Does the line a → b (and its clearance offsets) run over cells within MAX_STEP of flight f's nosing line? */

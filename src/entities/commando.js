@@ -208,6 +208,9 @@ export class Commando extends Unit {
   /** §3.4: no climbing (walls or ladders) while carrying — plan a walking route around the links. */
   pathQuery() {
     const q = super.pathQuery();
+    // a player's man walks taut lines between the real corners (pathfinding tautenPath; user 2026-10-15: "making it
+    // more straight and decisive")
+    q.taut = true;
     if (this.carrying) q.noLinks = true;
     if (this.carrying && this.carrying.kind !== 'interactable') q.swim = false; // §C.1: no swimming with a man
     if (this.downed) { q.noLinks = true; q.noWalkLinks = true; q.swim = false; } // §C.6: he crawls on the flat

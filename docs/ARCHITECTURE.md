@@ -401,7 +401,15 @@ walkable with `swim: true` (the diver) — bridges are always walkable. Neighbou
 (elevation). Off-grid links touching a cell are expanded when `grid.linkAllowed(link, opts.role)`; the waypoint
 reached through a link carries `link: {id, kind}` and `y` (the previous waypoint is the link's other end) — the unit
 walking the path must play climb/ladder there (ABILITIES); the foundation `Unit` just moves and takes `y`.
-Smoothing runs per grid-only run and never across a link or a level change. `lying` (a crawler's path, from
+Smoothing runs per grid-only run and never across a link or a level change. `taut` (a player's commando on his feet,
+`Commando.pathQuery`; user 2026-10-15: "making it more straight and decisive"): `tautenPath` pulls the smoothed path
+taut — each corner slides back along its way in while the way out stays clear, then on along its way out, is dropped
+once its neighbours see each other, and two close corners rounding one obstacle become one — so it bends only at the
+real corners; the body-clearance mask is kept `AVOID_CLEARANCE` (0.2 m) off by the line test's offsets
+(`walkableLine` `avoidClearance`: the mask is already inflated by the body's sides; walls keep `SMOOTH_CLEARANCE`); no
+taut leg newly touches a flight of stairs' band and corners by one stay (`touchesFlight`: railPath / railShift own the
+way on); a start cell the mask shuts is left toward the goal (`stepOutToward`, straight over free cells). Crawlers and
+enemies plan as before (a crawler's corner curve swings his whole length). `lying` (a crawler's path, from
 `Unit.pathQuery`): `alignRuns` puts every point on an `align` run on its axis and lines the path up on it 1.6 m out from
 the end it comes on or off at (`RUN_APPROACH`), so his whole body is straight along the ramp / stair before any of it is
 on it; lying on one, he turns only through headings that keep his body between its sides and never edges out toward

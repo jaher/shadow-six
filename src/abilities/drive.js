@@ -178,6 +178,13 @@ registerAbility({
           }
           // his walk ended short of the door (no way round to it): he gets in from where he stands, by the hull
           if (!commando.path && lastP && !noDoor && doorBoarding(vehicle) && walked > 0.5 && atHull(vehicle, commando, null, true)) { noDoor = true; return 'running'; }
+          // (not a door: walked to the very point the game picked to board from — a beached boat's lies up to ~2.5 m off
+          // its hull, where he would step out — he gets in from there. Else the next point, picked from the side he
+          // now stands on, could be the one he came from: M14's rowboat, to and fro between two corners of its hull)
+          if (!commando.path && lastP && (!doorBoarding(vehicle) || noDoor) && walked > 0.5 && Math.hypot(commando.x - lastP.x, commando.z - lastP.z) < 0.5) {
+            commando.stop(); commando.state = 'busy'; boarding = true; commando.playAction?.('use', board);
+            return 'running';
+          }
           walked += dt;
           if (walked > CONFIG.abilities.approachTimeout) return cant(); // never end silently
           repath -= dt;

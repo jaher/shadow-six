@@ -386,7 +386,8 @@ export const STAGES = [
     D.world.sneakReturnOn = true;
     const p43 = ['p43a', 'p43b', 'p43c'].map((t) => D.get(t));
     const staringF = (e) => e.brain?.state === 'DECOY' && e.brain.phase === 'stare';
-    const allLured = () => staringF(D.get('e38')) && p43.every((e) => !e.alive || (Math.hypot(e.x - 63.4, e.z - 39.1) < 4 && !e.isMoving && !e.path));
+    // (gathered at the decoy and still: the file's last man may stand 4 m off and a little more, as it came in)
+    const allLured = () => staringF(D.get('e38')) && p43.every((e) => !e.alive || (Math.hypot(e.x - 63.4, e.z - 39.1) < 4.5 && !e.isMoving && !e.path));
     // 1) the strike. Gun 4's fuel barrels are watched by three posts: e_flag and e46 a few metres off, e44 across the
     // yard; no barrel can leave the stack while they stand. The Sapper has no charge left for gun 4: a barrel must go
     // to its pit, so these three must die, and their bodies cannot be hidden: e41 and e45, posted farther off, look
@@ -491,8 +492,18 @@ export const STAGES = [
     // turret, he comes down now, the decoy on again by radio (e38, back from the blast, stares at it)
     const sap = D.c('sapper');
     if (Math.hypot(sap.x - G3_HOLD[0], sap.z - G3_HOLD[1]) > 1.5) {
-      if (!D.c('greenberet').decoy?.on) D.ability('greenberet', 'decoyToggle');
-      await ladderDown(D, 'sapper');
+      // (a man of the barracks squads lured to the decoy as well may stand staring with the ladder in sight: then the
+      // decoy goes off until the lured men are back on their rounds, and on again)
+      const lured = () => D.world.enemies.filter((e) => e.alive && e.tag !== 'e38' && e.brain?.state === 'DECOY');
+      for (let tries = 0; ; tries++) {
+        if (tries > 8) throw new Error('G2: the ladder never unwatched');
+        if (!D.c('greenberet').decoy?.on) D.ability('greenberet', 'decoyToggle');
+        const down = await ladderDown(D, 'sapper', { maxSec: tries < 8 ? 240 : 1500 }).then(() => true, (e) => { D.log?.(`DBG G2 descent put off: ${e.message.slice(0, 160)}`); return false; });
+        if (down) break;
+        if (!lured().length) continue;
+        if (D.c('greenberet').decoy?.on) D.ability('greenberet', 'decoyToggle');
+        await D.until(() => !lured().length, 300, 'the lured barracks men back on their rounds');
+      }
       D.checkpoint('G2 in the commotion the Sapper comes down the ladder and back into the gap in the wire');
     }
     // 3) out of the gap in the wire to the north-east beach, and the boat round the ridge for him

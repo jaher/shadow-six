@@ -109,7 +109,9 @@ export default {
     { id: 'mg1', type: 'sandbags', variant: 'mg_ring', x: 22, z: 39.5, rot: deg(90), ring: { r: 1.8 }, h: 1.0, block: 1 },
     // --- south bank
     { id: 'jetty_s', type: 'pier', x: 32, z: 99, rot: deg(270), w: 7, d: 2.5, rendezvous: true },
-    { id: 'house_s', type: 'house', variant: 'timber_2storey', x: 30.5, z: 113, rot: 0, w: 10, d: 8, h: 7, snowRoof: true, enterable: false },
+    // (doorWay false: its door is only drawn — the timber house's porch steps reach 1.3 m north of its footprint and the
+    // disc kept open in front of the door let a guard running past brush them: clipping seed 7)
+    { id: 'house_s', type: 'house', variant: 'timber_2storey', x: 30.5, z: 113, rot: 0, w: 10, d: 8, h: 7, snowRoof: true, enterable: false, doorWay: false },
     { id: 'wall_s', type: 'wall', variant: 'stone_plank_roof', points: [[25.5, 117], [21, 125], [17.5, 132]], width: 0.6, h: 1.8, climbable: true },
     { id: 'sbox', type: 'hut', variant: 'sentry_box', x: 16.5, z: 134, rot: deg(26.6), w: 1.6, d: 1.6, h: 2.4 },
     { id: 'debris', type: 'crates', variant: 'timber_debris', x: 27, z: 127, rot: deg(30), w: 3, d: 2, h: 1, block: 1, asset: 'timber_stack_no' }, // art pass: a snowed-over plank stack

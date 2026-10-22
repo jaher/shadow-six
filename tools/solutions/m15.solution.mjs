@@ -913,6 +913,8 @@ export const STAGES = [
 ];
 
 export async function solve(D, ctx = {}) {
+  // every sneak on foot in straight, decisive dashes (dash.mjs; user 2026-10-15: "making it more straight and decisive")
+  D.straightDashes = true;
   // (the planners see the armoured car's commander, and a patrol's file men walking their leader's way round corners)
   D.world.sneakVehicleEyes = true; D.world.sneakTrail = true; D.world.sneakPaths = true; D.world.sneakSweepSteps = 6; D.world.sneakReturnOn = true;
   for (const [id, title, fn] of STAGES) {

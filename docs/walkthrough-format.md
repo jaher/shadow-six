@@ -145,3 +145,16 @@ You do not need cues for these; they happen in every mission:
   Sniper. Guards by tag (e18) or job (the bunker gunner).
 - No numbers the viewer cannot see (coordinates, timings in ticks). Distances in metres are fine when they matter
   ("13 m from the bunker, inside the gunner's hearing").
+
+### Straight, decisive movement (solutions)
+
+A sneak on foot (`D.sneak` / `sneak.mjs sneak`, mode `crawl` / `walk`) plans on 1 m cells in eight directions, timed
+below a man's own pace. Clicked a few cells at a time, that walked as a zigzag of short legs with a halt before every
+click (user 2026-10-15, watching M3: "Looking at mission 3 the trajectory of commandos is very zig baggy, making it more
+straight and decisive. Longer trajectories rather than zig zagging in small trajectories"). A solution that sets
+`D.straightDashes = true` in `solve()` (M1, M2, M3, M13, M15) walks each plan as the fewest straight legs instead
+(`tools/solutions/dash.mjs compileDash`): every leg the game walks straight (`Unit.planFrom`), every point unseen at
+his real pace by the planner's own cone test and margins, chained without a halt; he stops only where the plan waits
+for a gap, and where a leg can't be proven the rest of that plan is clicked as before. Measure a run's trails with
+`node tools/solutions/trail.mjs mNN` (turns per 10 m, mean straight leg, orders per minute, halts; `--out` for
+`tools/solutions/trail-plot.py`); `tests/m03-straightness.test.mjs` guards M3's.

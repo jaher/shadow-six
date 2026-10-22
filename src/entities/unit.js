@@ -719,7 +719,7 @@ export class Unit extends Entity {
     // (also while the aim is his idle pose on a way his boot is blocked on — a soldier in COMBAT stood at a pine on M3's
     // W edge, his rifle up into its trunk: _locoAnim's toe block)
     if (this._anim === 'aim' || this._anim === 'shoot') this._keepWeaponRoom(dt);
-    else { this._weaponBack = 0; this._weaponAtX = null; }
+    else { this._weaponBack = 0; this._weaponAtX = null; this._weaponV = 0; }
   }
 
   /**
@@ -812,7 +812,7 @@ export class Unit extends Entity {
   }
 
   /**
-   * Placement rule (e) weapons: standing (or kneeling) and aiming, the unit steps back (≤ 0.6 m, a quick 1.6 m/s half step: done before the rifle is up) until the
+   * Placement rule (e) weapons: standing (or kneeling) and aiming, the unit steps back (≤ 0.6 m, a quick half step at 1.6 m/s or faster: done within 0.15 s, before the rifle is up) until the
    * shouldered barrel is out of the wall or building in front of it (placement.weaponRoom); no room: stays put.
    */
   _keepWeaponRoom(dt) {
@@ -840,7 +840,11 @@ export class Unit extends Entity {
         return Math.abs(v) < 0.15 && u > L.u0 && u < L.u1 && y - (this.y || 0) > L.y; });
     const b = left > 1e-3 ? weaponRoom(w.grid, this.x, this.z, this.heading, this.y ?? 0, { heightOf: ownerHeight(w), max: Math.min(0.5, left), solidAt }) : null;
     if (!b) return;
-    const st = Math.min(b, 1.6 * dt), nx = this.x - Math.cos(this.heading) * st, nz = this.z - Math.sin(this.heading) * st;
+    // (a quick half step, done before the rifle is up — the pose blends in over ~0.2 s: at 1.6 m/s, or faster when it
+    // has farther to go, all of it within 0.15 s of the aim. M2 e7 stopped 1 m short of a gate post and raised his
+    // rifle into it while a 0.4 m step back at 1.6 m/s still went on)
+    if (!(this._weaponV > 0)) this._weaponV = Math.max(1.6, b / 0.15);
+    const st = Math.min(b, this._weaponV * dt), nx = this.x - Math.cos(this.heading) * st, nz = this.z - Math.sin(this.heading) * st;
     // (never back into a solid prop, hull or crate: the step guard has already run this step)
     if (hasObstacles(w)) {
       const ig = this._bodyIgnore(), g0 = bodyGap(w, this.x, this.z, this.heading, this.stance, ig);

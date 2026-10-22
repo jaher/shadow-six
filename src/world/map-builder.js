@@ -420,7 +420,8 @@ export function navKeepPoints(world, built) {
   // side keeps the 0.9 m doorway disc
   for (const [, p] of world.structureDoors || []) keep.push([p[0], p[1], DOOR_KEEP_R]);
   for (const b of built) {
-    for (const d of b.library?.doors || []) if (d.approach) keep.push([d.approach.x, d.approach.z, DOOR_KEEP_R]);
+    // (`doorWay: false`: a shut house whose door is only drawn — its porch / steps stay out of the walk; M1 house_s)
+    if (b.def.doorWay !== false) for (const d of b.library?.doors || []) if (d.approach) keep.push([d.approach.x, d.approach.z, DOOR_KEEP_R]);
     // (the asset's real door when there is one: structureDoors above; else the layout's door side)
     if ((b.def.enterable || b.def.garrison) && !world.structureDoors?.has?.(b.def.id)) { const p = doorPoint(b.def); keep.push([p.x, p.z]); }
   }
@@ -484,7 +485,7 @@ export function* stampVisualNavG(world, built, points = []) {
   const labels0 = yield* walkPiecesG(grid), stamps = [];
   // (door approaches of the assets' real doors and link ends; a layout's guessed door side is no way point)
   const realDoors = [...(world.structureDoors?.values?.() || [])];
-  for (const b of built) for (const d of b.library?.doors || []) if (d.approach) realDoors.push([d.approach.x, d.approach.z]);
+  for (const b of built) if (b.def.doorWay !== false) for (const d of b.library?.doors || []) if (d.approach) realDoors.push([d.approach.x, d.approach.z]);
   // (a stair's ends too: its foot must not be closed off by the rails and stringers beside it)
   const linkEnds = [...(grid.links || []).flatMap((l) => [[l.a.x, l.a.z], [l.b.x, l.b.z]]), ...rampEnds(grid)];
   const ways = [...realDoors, ...linkEnds, ...points].map(([x, z]) => { const c = grid.worldToCell(x, z); return [c.i, c.j]; });

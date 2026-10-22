@@ -26,12 +26,15 @@
 export const SAMPLE = 0.25;
 /** Plan cells looked past a failing one when stretching a leg (a shortcut that reappears round a stone). */
 export const LOOK = 6;
+/** Cells per click where the plan is clicked as planned (the executor's old run length). */
+export const RUN = 4;
 
 /**
  * @param {Array<[number, number, number]>} plan planSneak's plan ([x, z, absolute time] per cell; repeats = waits),
  *   carrying `plan.ctx` (planSneakGen: seen, pass, cellOf, DT, now, ma, mb, holdK, KS)
  * @param {{speed: number, route: (ax: number, az: number, bx: number, bz: number) => ({x:number,z:number}[]|null),
- *   maxDetour?: number}} o speed: his real pace (m/s); route: the polyline the game walks from a to b (null: none)
+ *   maxDetour?: number, pad?: number}} o speed: his real pace (m/s); route: the polyline the game walks from a to b (null:
+ *   none); pad: also the cells this far (m) round every point of a leg must be unseen (stricter than the plan's own cells)
  * @returns {Generator<void, Array<{x:number, z:number, start:number, end:number, wait?:boolean, until?:number}>|null>}
  *   legs (moves start the moment the one before ends; `wait` legs hold him until `until`), or null
  */
@@ -39,7 +42,8 @@ export function* compileDashGen(plan, o) {
   const C = plan?.ctx;
   if (!C || plan.length < 2) return null;
   const { seen, pass, cellOf, DT, now, ma, mb, holdK, KS } = C;
-  const v = o.speed, maxDetour = o.maxDetour ?? 1.06;
+  const v = o.speed, maxDetour = o.maxDetour ?? 1.06, why = o.why || null, pad = o.pad ?? 0;
+  const fail = (msg) => { why?.push(msg); return null; };
   if (!(v > 0)) return null;
   const kOf = (t) => Math.round((t - now) / DT);
   const clearCell = (c, k0, k1) => {
@@ -47,22 +51,60 @@ export function* compileDashGen(plan, o) {
     for (let k = Math.max(0, k0); k <= k1; k++) { if (k >= KS) return false; if (seen(c, k)) return false; }
     return true;
   };
-  // nodes: the plan's cells in order, each with when the plan gets there (ta) and leaves (td)
+  // nodes: the plan's cells in order, each with when the plan gets there (ta) and leaves (td), and its plan index
   const nodes = [];
-  for (const [x, z, t] of plan) {
-    const l = nodes[nodes.length - 1];
-    if (l && Math.hypot(l.x - x, l.z - z) < 1e-6) l.td = t;
-    else nodes.push({ x, z, ta: t, td: t });
+  for (let q = 0; q < plan.length; q++) {
+    const [x, z, t] = plan[q], l = nodes[nodes.length - 1];
+    if (l && Math.hypot(l.x - x, l.z - z) < 1e-6) { l.td = t; l.qd = q; } else nodes.push({ x, z, ta: t, td: t, q, qd: q });
   }
+  /**
+   * The rest of the plan from node i clicked as planned (the executor's old way: runs of up to RUN cells in one
+   * direction at their planned moments, the plan's waits), once he is there no later than the plan: he waits there,
+   * unseen, until the plan goes on. The legs walked so far stay straight.
+   */
+  const tail = (i, msg) => {
+    const N = nodes[i];
+    // (he is there no later than the plan leaves it: he waits there, unseen, until it does, and goes on as planned)
+    if (T > N.td + 1e-6) { why?.push(`${msg}; late at node ${i}: plan again from there`); if (!legs.some((l) => !l.wait)) return null; legs.partial = true; return legs; }
+    if (!clearCell(cellOf(P.x, P.z), kOf(T) - ma, kOf(N.td))) return fail(`${msg}; seen waiting for the plan at node ${i}`);
+    why?.push(`${msg}; the rest as planned from node ${i}/${nodes.length}`);
+    if (N.td > T + 1e-6) { const l = legs[legs.length - 1]; if (l?.wait) l.until = N.td; else legs.push({ wait: true, until: N.td, x: P.x, z: P.z }); }
+    let a = N.qd;
+    while (a < plan.length - 1) {
+      const [ax, az, at] = plan[a];
+      if (Math.hypot(plan[a + 1][0] - ax, plan[a + 1][1] - az) < 1e-6) {
+        let b = a + 1; while (b < plan.length - 1 && Math.hypot(plan[b + 1][0] - ax, plan[b + 1][1] - az) < 1e-6) b++;
+        legs.push({ wait: true, until: plan[b][2], x: ax, z: az }); a = b; continue;
+      }
+      const dx = Math.sign(plan[a + 1][0] - ax), dz = Math.sign(plan[a + 1][1] - az);
+      let b = a + 1;
+      while (b < plan.length - 1 && b - a < RUN) {
+        const [bx, bz] = plan[b], [nx, nz] = plan[b + 1];
+        if (Math.hypot(nx - bx, nz - bz) < 1e-6 || Math.sign(nx - bx) !== dx || Math.sign(nz - bz) !== dz) break;
+        b++;
+      }
+      legs.push({ x: plan[b][0], z: plan[b][1], start: at, end: plan[b][2], strict: true });
+      a = b;
+    }
+    return legs;
+  };
+  // eslint-disable-next-line require-yield
+  function* tailGen(i, msg) { return tail(i, msg); }
   const waits = (i) => i > 0 && i < nodes.length - 1 && nodes[i].td - nodes[i].ta > 1e-6;
-  /** he walks polyline `pts` from time T: every SAMPLE m on a passable cell, unseen [k - ma, k + mb] */
-  const walkOk = (pts, T) => {
-    let t = T;
+  /**
+   * he walks polyline `pts` from time T: every SAMPLE m on a passable cell, unseen [k - ma, k + mb] (a generator: a
+   * long leg's cone tests may hand the frame back every few samples)
+   */
+  const walkOk = function* (pts, T) {
+    let t = T, n0 = 0;
     for (let q = 1; q < pts.length; q++) {
       const a = pts[q - 1], b = pts[q], L = Math.hypot(b.x - a.x, b.z - a.z), n = Math.max(1, Math.ceil(L / SAMPLE));
       for (let s = q === 1 ? 0 : 1; s <= n; s++) {
         const x = a.x + ((b.x - a.x) * s) / n, z = a.z + ((b.z - a.z) * s) / n, c = cellOf(x, z), k = kOf(t + (L * s) / n / v);
         if (c < 0 || !pass(c) || !clearCell(c, k - ma, k + mb)) return false;
+        // (`pad` m: the cells that far round him unseen too — a stricter proof than the plan's own cells, opt-in)
+        if (pad > 0) for (const [dx, dz] of [[pad, 0], [-pad, 0], [0, pad], [0, -pad]]) { const c2 = cellOf(x + dx, z + dz); if (c2 >= 0 && c2 !== c && !clearCell(c2, k - ma, k + mb)) return false; }
+        if ((++n0 & 7) === 0) yield;
       }
       t += L / v;
     }
@@ -71,6 +113,8 @@ export function* compileDashGen(plan, o) {
   const polyLen = (pts) => { let L = 0; for (let q = 1; q < pts.length; q++) L += Math.hypot(pts[q].x - pts[q - 1].x, pts[q].z - pts[q - 1].z); return L; };
   const legs = [];
   let P = { x: nodes[0].x, z: nodes[0].z }, T = nodes[0].ta, i = 0, guard = 0;
+  // (legs.partial: the legs end short of the goal — he plans again from where they end)
+  legs.partial = false;
   /** hold where he is from T until `until` (unseen all that while), then go on from there */
   const holdTo = (until) => {
     const c = cellOf(P.x, P.z);
@@ -81,24 +125,26 @@ export function* compileDashGen(plan, o) {
     return true;
   };
   while (i < nodes.length - 1) {
-    if (++guard > 4 * nodes.length + 16) return null;
-    if ((i === 0 && nodes[0].td > T + 1e-6) || waits(i)) { if (!holdTo(Math.max(T, nodes[i].td))) return null; }
+    if (++guard > 4 * nodes.length + 16) return fail('guard');
+    if ((i === 0 && nodes[0].td > T + 1e-6) || waits(i)) { if (!holdTo(Math.max(T, nodes[i].td))) return fail(`wait at node ${i}/${nodes.length} (${P.x},${P.z}) seen before ${nodes[i].td.toFixed(2)}`); }
     // the farthest later cell (not past the plan's next wait) he gets to straight and unseen at his pace
     let best = null, miss = 0;
     for (let j = i + 1; j < nodes.length; j++) {
       const N = nodes[j];
       const r = o.route(P.x, P.z, N.x, N.z);
       const direct = Math.hypot(N.x - P.x, N.z - P.z);
-      const ok = r && r.length >= 2 && Math.hypot(r[r.length - 1].x - N.x, r[r.length - 1].z - N.z) < 0.35 && polyLen(r) <= direct * maxDetour + 0.05 && walkOk(r, T);
+      const ok = r && r.length >= 2 && Math.hypot(r[r.length - 1].x - N.x, r[r.length - 1].z - N.z) < 0.35 && polyLen(r) <= direct * maxDetour + 0.05 && (yield* walkOk(r, T));
       if (ok) { best = { j, r }; miss = 0; } else if (++miss > LOOK) break;
       if (waits(j)) break;
-      if ((j & 7) === 0) yield;
+      // (each candidate asks the game's planner for its path: the live replay may hand the frame back after any of them,
+      // driver PLAN_SLICE_MS — no planning stall)
+      yield;
     }
     if (!best) {
       // early for the next gap: wait here until the plan's own moment to go on (or its moment to reach the next cell)
       const d = Math.hypot(nodes[i + 1].x - P.x, nodes[i + 1].z - P.z);
       const at = [nodes[i].td, nodes[i + 1].ta - d / v].filter((t) => t > T + 1e-6).sort((a, b) => a - b)[0];
-      if (at == null || !holdTo(at)) return null;
+      if (at == null || !holdTo(at)) return yield* tailGen(i, `no straight way on from node ${i}/${nodes.length} (${P.x},${P.z}) at ${T.toFixed(2)}`);
       continue;
     }
     const end = T + polyLen(best.r) / v, N = nodes[best.j];
@@ -106,7 +152,7 @@ export function* compileDashGen(plan, o) {
     P = { x: N.x, z: N.z }; T = end; i = best.j;
   }
   // at the goal he stays: unseen for the plan's hold from when he gets there
-  if (!clearCell(cellOf(P.x, P.z), kOf(T) - ma, kOf(T) + holdK)) return null;
+  if (!clearCell(cellOf(P.x, P.z), kOf(T) - ma, kOf(T) + holdK) || (C.goalOk && !C.goalOk(P.x, P.z, T))) return fail(`goal seen within the hold from ${T.toFixed(2)}`);
   return legs;
 }
 

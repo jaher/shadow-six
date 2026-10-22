@@ -299,6 +299,8 @@ export const STAGES = [
 ];
 
 export async function solve(D, ctx = {}) {
+  // every sneak on foot in straight, decisive dashes (dash.mjs; user 2026-10-15: "making it more straight and decisive")
+  D.straightDashes = true;
   for (const [id, title, fn] of STAGES) {
     if (ctx.from && id < ctx.from) continue;
     ctx.onStage?.(id, title, D.t);
