@@ -107,7 +107,7 @@ const CSS = `
 #wt-card button{all:unset;min-height:44px;padding:0 20px;border-radius:7px;background:#3a4046;cursor:pointer;font:700 14px/44px system-ui,sans-serif;
   letter-spacing:.08em;color:#f3ead2}
 #wt-card button.wt-go{background:#5b4a14;color:#ffdf7a}
-#wt-card button:hover,#wt-card button:focus-visible{outline:2px solid #ffcf4a}
+#wt-card button:hover,#wt-card button:focus-visible{outline:2px solid #ffcf4a;outline-offset:-2px}
 #wt-card ul{list-style:none;padding:0;margin:8px 0;font-size:16px;line-height:1.6}
 @media (max-height:480px){#wt-cap{font-size:14px;line-height:1.3;padding:5px 10px 7px}#wt-cap .wt-head{font-size:10px;margin-bottom:2px}
   #wt-cap.chapter .wt-title{font-size:17px;margin:0 0 2px}#wt-cap .wt-who{font-size:10px;padding:2px 5px}}
