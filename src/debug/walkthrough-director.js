@@ -197,7 +197,10 @@ export class Director {
     this._yaw(shot, elNow, dt);
     const az = this._saved.azimuth + (this.yaw.cur * Math.PI) / 180;
     const view = { az, el: elNow, width: cc.width, height: cc.height, ppm1: cc.cfg?.pxPerMeterAt1x };
-    const want = frameWithPriority(shot.pts, shot.must ?? 1, view, rect, shot.frame);
+    // (`holdZoom`: pans only, at the zoom the camera has — the Sniper's scope settled on a man: a steady zoom lets the
+    // lens reuse its image, render/scope-magnifier.js)
+    const frame = shot.holdZoom && c ? { ...shot.frame, minZoom: c.zoom, maxZoom: c.zoom } : shot.frame;
+    const want = frameWithPriority(shot.pts, shot.must ?? 1, view, rect, frame);
     if (!want) return;
     const far = c && Math.hypot(want.x - c.x, want.z - c.z) > (shot.cutBeyond ?? 70);
     if (!c || far || shot.cut) {
@@ -207,7 +210,8 @@ export class Director {
       const w = shot.stiff ?? 3.2;
       [c.x, c.vx] = spring(c.x, c.vx, want.x, w, k);
       [c.z, c.vz] = spring(c.z, c.vz, want.z, w, k);
-      [c.zoom, c.vzoom] = spring(c.zoom, c.vzoom, want.zoom, w * 0.7, k);
+      if (shot.holdZoom) c.vzoom = 0;
+      else [c.zoom, c.vzoom] = spring(c.zoom, c.vzoom, want.zoom, w * 0.7, k);
       [c.pitch, c.vp] = spring(c.pitch, c.vp, pitch, 2.4, k);
     }
     cc.tracking = null;

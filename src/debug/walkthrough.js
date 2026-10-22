@@ -19,7 +19,9 @@
  *    Desktop keys: Space, B / N, 1–4, 5 / A (AUTO), W, C, F, L, Esc.
  * An action is watched until it has visibly finished (debug/action-hold.js: the clothesline take, a knife, a charge…,
  * plus a beat): the camera stays on the man (an authored `shot` cue still wins), the caption on his step, the next
- * chapter's card waits for it, and AUTO plays it at 1×. Every order selects the man it goes to, as a portrait click
+ * chapter's card waits for it, and AUTO plays it at 1×. Before every sniper shot the Sniper's scope comes up as a player's
+ * would — searching round the man, settling on him, the shot's recoil in the glass, the hit — the clock slowed for it
+ * (debug/walkthrough-scope.js; the shot at its scripted tick). Every order selects the man it goes to, as a portrait click
  * would: his portrait, knapsack, stance hand and ring (debug/solution-replay.js _selectActor).
  * Nothing here touches the simulation: the camera, the drawn cones, the captions and the pacing of wall time only.
  * @module debug/walkthrough
@@ -31,6 +33,7 @@ import { Director, freeRect, isActing, pickLive } from './walkthrough-director.j
 import { ROLE_NAMES } from '../ui/catalogue.js';
 import { PERF } from '../engine/perf-flags.js';
 import { AutoPace, PaceSensor, PerfCeiling, SteadyGrant, paceTarget, readTime, inClimax, isTrueWait } from './auto-pace.js';
+import { ScopeShow, warmScope } from './walkthrough-scope.js';
 
 export const WALK_SPEEDS = Object.freeze([0.5, 1, 2, 4]);
 /** The speed of a fresh walkthrough (no `speed` in its link): AUTO. `speed=1` is a fixed 1×. */
@@ -323,6 +326,10 @@ export class Walkthrough extends SolutionReplay {
     this._cardDeferred = false;
     this._burst = { frame: 0, prev: 0, ms: 0, ticks: 0 };
     this._frameNo = 0;
+    // the Sniper's scope before each sniper shot (debug/walkthrough-scope.js); `_boostSet`: the capped boost it left
+    this.scope = new ScopeShow(this);
+    this._boostFree = null;
+    this._boostSet = null;
   }
 
   // ------------------------------------------------------------ state
@@ -389,6 +396,14 @@ export class Walkthrough extends SolutionReplay {
     this.sensor.onEvent = () => this._endSkip(); // (a kill, a blast, a guard turning…: back to the play)
     this._offs.push(w.events?.on?.('ability:start', () => this._endSkip()));
     this.director.attach();
+    this.scope.attach();
+    // (the scope lens's programs, linked aside while the title card is up — or the jump fast-forwards — not at the shot)
+    if (ScopeShow.wanted(this.world)) {
+      this._scopeWarmT = setTimeout(() => {
+        if (this.stopped) return;
+        this.scopeWarm = warmScope(this.game, { cancelled: () => this.stopped }).then((r) => (this.scopeWarm = r || { skipped: true }), (e) => { this.scopeWarm = { error: String(e?.message || e) }; });
+      }, 250);
+    }
     hideRewind(); // (a jump back's rebuild is done: this walkthrough's own fast-forward shows the rest)
     // (a scrub back reloaded the mission for one moment: no intro card; the fast-forward to it starts at once)
     if (this._toTime != null) {
@@ -434,6 +449,7 @@ export class Walkthrough extends SolutionReplay {
     if (tgt && (Number.isFinite(tgt.x) || tgt.kind)) this._action = { u, t: tgt, until: this.world.time + 6 };
     this._event({ kind: 'order', role, action: orderAction(u, o), target: tgt ? targetTag(tgt) : null });
     this.sensor.order(u, o, this.world.time);
+    this.scope.order(u, o);
   }
 
   _onCheckpoint(cp) {
@@ -537,7 +553,15 @@ export class Walkthrough extends SolutionReplay {
     super._frame(this.auto && !this.pacer.turbo ? g : dt);
     if (this.stopped) return;
     if (this._cardDeferred && (this.pacer.turbo || !this.holdNow())) { this._cardDeferred = false; if (!this.pacer.turbo) this._chapterCard(); }
+    // (the scope's cap on the pace is this frame's only: the pace is worked out from the uncapped speed — unless
+    // something else set it since, a speed change, a skip's end)
+    if (this._boostSet != null && this.pacer.boost === this._boostSet) this.pacer.boost = this._boostFree;
+    this._boostSet = null;
     this._pace(dt);
+    const free = this.pacer.boost;
+    this.scope.frame(dt);
+    // (the AUTO button shows the speed it really plays at: the scope's slow motion too)
+    if (this.pacer.boost !== free) { this._boostFree = free; this._boostSet = this.pacer.boost; if (this.auto) this._autoLabel(true); }
     this.director.update(dt);
   }
 
@@ -802,6 +826,9 @@ export class Walkthrough extends SolutionReplay {
       const a = this._actors();
       return { pts: a, must: a.length, cut: true, frame: { minSpan: [26, 16] }, pitch: this._pitch(a) };
     }
+    // the Sniper's scope is up: the man in the glass is the shot (debug/walkthrough-scope.js)
+    const sc = this.scope.shot();
+    if (sc) return cut ? { ...sc, cut: true } : sc;
     // a charge in its last seconds, a blast: the explosion is the shot
     const bomb = this._bombs.find((b) => !b.removed && !b.exploded && Number.isFinite(b.fuse) && b.fuse <= 4.5);
     this._blasts = this._blasts.filter((b) => b.until > now);
@@ -1516,6 +1543,8 @@ export class Walkthrough extends SolutionReplay {
     if (this._released) return;
     super._release();
     clearTimeout(this._introTimer);
+    clearTimeout(this._scopeWarmT);
+    this.scope.detach();
     clearInterval(this._layoutT);
     document.body.style.removeProperty('--wt-card-shift');
     window.removeEventListener('resize', this._onResize);

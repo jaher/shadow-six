@@ -128,6 +128,11 @@ You do not need cues for these; they happen in every mission:
   visibly finished — the unit's own action, the rest of its clip, its victim's fall — plus a 1 s beat, before the
   camera, the caption or the next chapter's card moves on (src/debug/action-hold.js);
 - every order selects the man it goes to (portrait, knapsack, stance hand, selection ring);
+- every sniper shot is shown through the Sniper's scope (src/debug/walkthrough-scope.js): from the rifle order the real
+  lens comes up off the man (the target is the order's), searches round him, settles on him, the shot's recoil and
+  the hit in the glass, then down — a second shot right after swings to the next man in the same sequence; the
+  director frames the man (with the Sniper and the step's `look` near him) and the clock is slowed for it (the shot's
+  tick is the scripted one);
 - an armed time bomb is framed for the last seconds of its fuse and the blast; a finished objective is held on
   screen for a moment;
 - a guard's cone is drawn while he is in `cones`, in `look`, or close to the actor;

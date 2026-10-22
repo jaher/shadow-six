@@ -13,6 +13,9 @@
  * the frame, from `lensState()`); this layer then swaps the scope sprite for the clear ring + the reticle and the
  * range read-out. The reticle is always dark; no shot shows as a dark circle-and-slash mark, greyed "NO SHOT" range
  * text and a dimmed, desaturated glass. Without WebGL the plain sprite stays.
+ * A scripted aim (setScripted: video mode's Sniper scope before a shot, debug/walkthrough-scope.js) puts the same scope —
+ * the lens, its ring, reticle and range — where the walkthrough aims it, on touch screens too, over whatever the pointer
+ * shows (the native pointer is left alone).
  * @module ui/cursor
  */
 
@@ -56,6 +59,8 @@ export class CursorLayer {
     this.current = 'arrow';
     this.lens = null; // scope magnifier DOM (ring, reticle, range), built on first use
     this._pre = null; // resolve() result computed for the magnifier earlier in this frame
+    /** A scripted scope (setScripted): () => lens state ({x, y, radius, scale, target, range, flash…}) or null. */
+    this.scripted = null;
     this._on(window, 'pointermove', (e) => {
       this.pos = { x: e.clientX, y: e.clientY, over: isView(e.target) };
     }, true);
@@ -186,12 +191,26 @@ export class CursorLayer {
   }
 
   /**
+   * A scripted scope instead of the pointer's (video mode's Sniper before a shot: debug/walkthrough-scope.js): `fn` is
+   * read once per drawn frame, while the frame is drawn, and returns the lens state (lensState's shape, plus `scale` of
+   * the ring and `flash`) or null (no scope this frame). null: the pointer's cursor again.
+   * @param {(() => object|null)|null} fn
+   */
+  setScripted(fn) {
+    this.scripted = typeof fn === 'function' ? fn : null;
+    if (!this.scripted) { this.root.classList.remove('scripted'); this._lens = null; }
+  }
+
+  /**
    * Scope magnifier input for this frame (game.render calls it right after the world frame, before the HUD
    * update): null unless the sniper scope cursor is up over the game view. Valid shot → the enemy under the
    * cursor is passed for the highlight. Touch (long-press aim) only needs `pos` set, like the pointer.
    * @returns {{x:number, y:number, radius:number, bad:boolean, target:any, time:number, sway:boolean, range:number|null}|null}
    */
   lensState() {
+    let sc = null;
+    try { sc = this.scripted?.() || null; } catch { sc = null; }
+    if (sc) { this._pre = { id: 'scope', scripted: true }; return (this._lens = sc); }
     const r = (this._pre = this.resolve());
     if (r.id !== 'scope' || r.native) return (this._lens = null);
     const input = this.hud.game.input, tg = input?.targeting;
@@ -221,7 +240,8 @@ export class CursorLayer {
     if (this.lens?.scale === s) return this.lens;
     this.lens?.root.remove(); // HUD scale changed: rebuild at the new size (the ring's file follows it: icon-art.js fitIcon)
     const root = el('div', 'lens', this.root);
-    root.innerHTML = (iconHTML('cursor/scope.ring', { scale: s }) || '') + RETICLE;
+    // (.fl: the muzzle flash of a scripted shot, over the glass and under the reticle)
+    root.innerHTML = (iconHTML('cursor/scope.ring', { scale: s }) || '') + '<div class="fl"></div>' + RETICLE;
     const rng = el('div', 'rng', root);
     this.lens = { root, rng, text: '', scale: s };
     return this.lens;
@@ -230,6 +250,8 @@ export class CursorLayer {
   update() {
     const r = this._pre || this.resolve();
     this._pre = null;
+    if (r.scripted && this._lens?.scripted) { this._scriptedUpdate(this._lens); this._markers(); return; }
+    if (this.root.classList.contains('scripted')) { this.root.classList.remove('scripted', 'flash'); this.current = null; }
     const show = !r.native;
     this.root.hidden = !show;
     document.body.classList.toggle('ui-softcursor', show);
@@ -249,6 +271,19 @@ export class CursorLayer {
       this._lensUpdate(false);
     }
     this._markers();
+  }
+
+  /** The scripted scope (setScripted) at its own point and scale; the pointer's soft cursor is not drawn meanwhile. */
+  _scriptedUpdate(L) {
+    this.root.hidden = false;
+    this.root.classList.add('scripted');
+    if (this.current !== 'scope' || this._scale !== (this.hud.scale || 1)) { this.current = 'scope'; this._sprite('scope'); }
+    this.root.classList.remove('bad', 'blink');
+    this.forb.hidden = true;
+    this._lensUpdate(true);
+    this.root.classList.toggle('flash', !!L.flash);
+    const k = Number.isFinite(L.scale) && L.scale > 0 ? L.scale : 1;
+    this.root.style.transform = `translate(${L.x}px, ${L.y}px)${k !== 1 ? ` scale(${k.toFixed(3)})` : ''}`;
   }
 
   /** Magnifier on: ring + reticle replace the opaque scope sprite; range / NO SHOT read-out. */

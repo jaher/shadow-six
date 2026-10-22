@@ -192,6 +192,11 @@ button says so). The mission loads fresh, as authored, on a title card (Start, C
 - **An action is watched to its end**: a knife, an injection, a charge, the clothesline take, the raft inflated or
   folded… the camera stays on the man (and his target) until it has visibly finished, then a beat, before it moves
   on to the next man or chapter.
+- **The Sniper's scope before every shot**: the scope comes up as a player's would — the real 2× lens, its ring,
+  reticle and range — off the man, searches round him, settles on him with a breathing sway, a beat, then the shot:
+  the recoil in the glass, the hit, the scope down. Two shots in a row (M2's e4 and e5) are one sequence that swings
+  from the first man to the second. The clock is slowed for it (~2.4 s of wall time in AUTO, ~1.3 s at 4×); the
+  shot still fires at its scripted tick.
 - **The narration**: a chapter card at each stage, then one caption per step saying who does what and why
   (`tools/solutions/<id>.walkthrough.mjs`, format in [docs/walkthrough-format.md](docs/walkthrough-format.md)).
 - **The bar** (finger-sized, under the HUD's top bar on every screen):
