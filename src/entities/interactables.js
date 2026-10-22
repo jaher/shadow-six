@@ -659,6 +659,51 @@ export class Barrel extends Interactable {
     }
   }
 
+  /**
+   * A carried drum rides the carrier's BODY, not his sim transform. Barrel.update places the drum from the
+   * carrier's kinematic position, which has no gait in it: measured in m01 the carrier's pelvis bobs 12.7 cm
+   * peak-to-peak under carry_walk and his hands travel 16 cm, while the drum's rendered height varied by
+   * exactly 0.0 cm — it glided at a dead-constant offset and his hands slid up and down its sides. Pose the
+   * drum here instead (renderUpdate runs after the mixers, the same slot transportFrame uses for carried
+   * men): the pelvis' live offset from its rest spot over his root — the bob, the sway, the lean — moves the
+   * drum with him, lagged a touch so the load feels heavy. Visual only; the sim transform is untouched.
+   */
+  renderUpdate(dt) {
+    const o = this.object3d, c = this.carriedBy;
+    if (!o) return;
+    if (!c || this.exploded || !c.model?.root || !c.object3d) {
+      if (this._ride) { this._ride = null; o.rotation.x = 0; o.rotation.z = 0; }
+      return;
+    }
+    let R = this._ride;
+    if (!R || R.carrier !== c) {
+      let pelvis = null;
+      c.model.root.traverse((n) => { if (!pelvis && (n.isBone || n.type === 'Bone') && n.name === 'pelvis') pelvis = n; });
+      if (!pelvis) { this._ride = null; return; }
+      R = this._ride = { carrier: c, pelvis, rest: null, age: 0, y: 0, f: 0, s: 0 };
+    }
+    R.pelvis.updateWorldMatrix(true, false);
+    const e = R.pelvis.matrixWorld.elements, root = c.object3d.position;
+    const dx = e[12] - root.x, dy = e[13] - root.y, dz = e[14] - root.z;
+    const fx = Math.cos(c.heading), fz = Math.sin(c.heading);
+    const fwd = dx * fx + dz * fz, side = dz * fx - dx * fz;   // the pelvis in his frame (fwd / his left)
+    if (!R.rest) {                                            // baseline once he stands with the load (or after 0.5 s)
+      R.age += dt;
+      if (!c._moving || R.age > 0.5) R.rest = { y: dy, f: fwd, s: side };
+      else return;
+    }
+    const k = dt > 0 ? Math.min(1, dt / 0.12) : 0;            // a heavy load lags the body a little
+    R.y += ((dy - R.rest.y) * 0.92 - R.y) * k;
+    R.f += ((fwd - R.rest.f) * 0.92 - R.f) * k;
+    R.s += ((side - R.rest.s) * 0.92 - R.s) * k;
+    const cl = (v) => Math.max(-0.07, Math.min(0.07, v));
+    o.position.y += R.y;
+    o.position.x += fx * cl(R.f) - fz * cl(R.s);
+    o.position.z += fz * cl(R.f) + fx * cl(R.s);
+    o.rotation.x = cl(-R.f * 1.1);
+    o.rotation.z = cl(R.s * 1.1);
+  }
+
   canUse(commando) {
     if (this.exploded) return 'Nothing there.';
     if (this.carriedBy) return 'Already carried.';
