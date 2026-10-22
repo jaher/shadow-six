@@ -21,6 +21,7 @@
  */
 
 import { Unit } from './unit.js';
+import { angleDiff } from '../core/math.js';
 import { CONFIG } from '../config.js';
 import { ABILITIES, abilitiesForRole } from '../abilities/index.js';
 import { spawnInventory, isUnlimited } from '../items.js';
@@ -199,6 +200,7 @@ export class Commando extends Unit {
     // (a walked link — a flight of stairs, a plank — at his own pace: Unit._followPath slows it on the stairs)
     if (wp?.link && !wp.link.walk) return wp.link.kind === 'climb' ? CONFIG.abilities.climbSpeed : CONFIG.abilities.ladderSpeed;
     if (this.carrying && this.carryMode === 'drag' && this.stance === 'stand') return CONFIG.bodies.drag.speed * this.speedMul; // §C.2
+    if (this.carrying?.interactKind === 'barrel' && this.stance === 'stand') return (U.carryBarrel ?? U.carry) * this.speedMul; // a drum in his arms
     if (this.carrying && this.stance === 'stand') return U.carry * this.speedMul;
     let s = super.speed;
     if (this.role === 'diver' && this.has('inflatableBoat') && this.stance === 'stand') s = Math.max(0.1, s - U.raftCarryPenalty);
@@ -226,9 +228,30 @@ export class Commando extends Unit {
     return this.carrying && this.carryMode === 'drag' ? Math.PI : 0;
   }
 
-  /** §C.2: turning with a dragged man is capped (180°/s). */
+  /** §C.2: turning with a dragged man is capped (180°/s); with a drum in his arms too (abilities.carry.barrel). */
   get moveTurnRate() {
+    if (this.carrying?.interactKind === 'barrel') return Math.min(this.turnRate, CONFIG.abilities.carry.barrel.turnRate);
     return this.carrying && this.carryMode === 'drag' ? Math.min(this.turnRate, CONFIG.bodies.drag.turnRate) : this.turnRate;
+  }
+
+  /**
+   * Pace factor along the path (Unit._followPath): with a drum in his arms he turns round first — no headway while his
+   * heading is more than `pivot[1]` off the way to his waypoint, full pace within `pivot[0]` (a heavy load in front of
+   * him: user 2026-10-22, "a weightless snap pivot" at 540°/s). `_pivoting` (no headway) picks the barrel_turn clip.
+   */
+  pivotScale() {
+    this._pivoting = false;
+    if (this.carrying?.interactKind !== 'barrel' || this.stance !== 'stand') return 1;
+    const wp = this.path?.[this.pathIndex];
+    if (!wp || wp.link) return 1;
+    const dx = wp.x - this.x, dz = wp.z - this.z;
+    if (dx * dx + dz * dz < 0.09) return 1;   // (a waypoint under his feet: no turn to make for it)
+    const [a0, a1] = CONFIG.abilities.carry.barrel.pivot;
+    const err = Math.abs(angleDiff(this.heading, Math.atan2(dz, dx)));
+    if (err <= a0) return 1;
+    if (err >= a1) { this._pivoting = true; return 0; }
+    const u = (a1 - err) / (a1 - a0);
+    return u * u * (3 - 2 * u);
   }
 
   moveTo(x, z, opts = {}) {
@@ -627,6 +650,8 @@ export class Commando extends Unit {
     const c = this.carrying;
     if (!c) return null;
     if (c.kind !== 'interactable' && this.carryMode === 'drag') return moving ? 'drag_walk' : 'drag_idle';
+    // a drum hugged in front of him (tools/characters/barrel): its walk, turning round on the spot, its stand
+    if (c.interactKind === 'barrel') return moving ? (this._pivoting ? 'carry_barrel_turn' : 'carry_barrel') : 'carry_barrel_idle';
     return moving ? 'carry_walk' : 'carry_idle';
   }
 

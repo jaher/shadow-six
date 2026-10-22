@@ -97,6 +97,9 @@ export const CONFIG = {
     run: { greenberet: 5.4, driver: 5.4, default: 4.5 }, // §3.1 [EXE]
     crawl: 0.9, // §3.1 [inf]
     carry: 1.6, // §3.1 GB/Spy carrying a body or barrel; cannot run [rec]
+    // the Green Beret hugging an explosive drum walks it in short heavy steps, a little slower than a man on the shoulder
+    // (user 2026-10-22: "walks it with a heavy, slower gait"; art: the barrel_walk clip, tools/characters/barrel) [rec]
+    carryBarrel: 1.4,
     raftCarryPenalty: 0.9, // §3.1 Marine with packed raft: walk 1.35, run 3.6 (−1 u/tick = −0.9 m/s) [EXE]
     swim: 1.8, // §3.1 Marine swim/dive [rec]
     row: 2.5, // §3.1 raft rowing [rec]
@@ -370,7 +373,16 @@ export const CONFIG = {
     distractRange: 1.5, // §3.3 Spy walks to within 1.5 m
     distractBreak: 3.0, // §3.4 distraction break-off distance/time
     climbSpeed: 0.5, // §3.3 vertical m/s [rec]
-    carry: { pick: 1.0, drop: 0.8, reach: 1.2 }, // §3.3 carryBody / carryBarrel
+    carry: { pick: 1.0, drop: 0.8, reach: 1.2, // §3.3 carryBody / carryBarrel
+      // the Green Beret and an explosive drum (user 2026-10-22: "he bends/crouches to the drum, his hands reach it, and
+      // the drum lifts with his hands"; art: tools/characters/barrel). He stops `reach` from it (a drum is solid: his
+      // body keeps clear of it on the way), then the pick-up steps him in to `stand` m from its centre over the first
+      // `step` s, where he squats and takes it. With it in his arms he turns at most `turnRate` rad/s and, while his
+      // heading is more than `pivot[0]` off the way he is going, walks slower — not at all past `pivot[1]`: he turns
+      // round on the spot first (a heavy load in front of him, not a snap pivot). Set down (0.6 m ahead: dropSpot), he
+      // lets go and steps `back` m back from `backAt` s on (his boots off the drum's foot). [rec]
+      barrel: { stand: 0.74, step: 0.4, turnRate: deg(210), pivot: [deg(30), deg(75)], back: 0.12, backAt: 0.5 },
+    },
     trap: { set: 1.0, pick: 1.0, trigger: 0.5, range: 1.5 }, // §3.3 bear trap
     // SHADOW SIX house rule recoverCharges (§3.4 amendment; not in BEL): the Sapper takes a placed time / remote bomb back.
     // The plant played back: he kneels to it (reach: his hips this close to the charge), takes it at `grab` s — the clock

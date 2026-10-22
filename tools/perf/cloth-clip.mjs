@@ -22,6 +22,7 @@ await page.waitForFunction(() => document.body.dataset.ready === '1', null, { ti
 await page.evaluate(async (o) => {
   const g = window.__game, G = g.game;
   await g.loadMission(o.mission); g.start();
+  G.stop(); // (?test=1: the page's own rAF loop still draws, with real dt, while a frame is awaited — it ran the animations ~3x fast)
   const v = G.world.entities.find((e) => e.kind === 'vehicle' && e.tag === 'truck');
   await v.model.ready;
   G.world.time = o.t0;
@@ -45,7 +46,7 @@ for (let i = 0; i < F; i++) {
     }
     g.advance(1 / 60);
     G.cameraController.centerOn(v.x, v.z);
-    g.render();
+    G.render(1 / 60, 1);   // (the visual sixtieth: the cloth / wheels move by this render, not the stopped rAF loop's)
   }, { i, driveFrom, speed });
   await page.screenshot({ path: join(out, `f${String(i).padStart(4, '0')}.png`) });
 }

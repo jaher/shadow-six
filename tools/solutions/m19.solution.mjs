@@ -537,11 +537,11 @@ function barrelRun(D, id, side, pts, hide, { rest = 3, maxWait = 400, stage = nu
   // (the fence post e33, turned to the decoy, stays turned while it beeps; the body under the barrel is no viewer)
   const ex = () => [...(gb.decoy?.on ? [D.get('e33')] : []), ...(onBody ? [onBody] : [])];
   const b = w.interactables.find((i) => (i.tag ?? i.spawn?.id) === id);
-  const UP = CONFIG.units.stanceUp ?? 0.6, DOWN = CONFIG.units.stanceDown ?? 0.5, C = CONFIG.abilities.carry ?? { pick: 1, drop: 0.8 }, SP = CONFIG.units.carry ?? 1.6;
+  const UP = CONFIG.units.stanceUp ?? 0.6, DOWN = CONFIG.units.stanceDown ?? 0.5, C = CONFIG.abilities.carry ?? { pick: 1, drop: 0.8 }, SP = CONFIG.units.carryBarrel ?? CONFIG.units.carry ?? 1.6; // (a drum in his arms)
   // (the way he really carries it: on the paths the game finds, round whatever the map puts there)
   const way = wayOf(D, side, pts, { tol: onBody ? 0.6 : 0.25, noLinks: true }), len = wayLen(side, way);
   const end = pts[pts.length - 1];
-  const t1 = UP + C.pick + 0.6, t2 = t1 + len / SP + 0.6, t3 = t2 + C.drop + DOWN + 0.6;
+  const t1 = UP + C.pick + 0.6 + 0.6, t2 = t1 + len / SP + 0.6, t3 = t2 + C.drop + DOWN + 0.6; // (t1: + his turn round with it)
   const CR = 0.75;
   /** the standing part, starting `d` s from now, stays unseen */
   const win = (d, why = null, except = ex()) => routeClear(D, [side], { mode: 'walk', from: side, delay: d + t1 / 2, slack: t1 / 2 + 0.4, pad: 1, why, except })

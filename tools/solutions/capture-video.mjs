@@ -102,6 +102,7 @@ async function directorMain({ id, FPS, DRY, MAX_FRAMES }) {
   // ---------------------------------------------------------------- pass 1: logic only, learn the timeline
   await G.loadMission(id);
   G.start();
+  g.stop(); // (?test=1: the page's own rAF loop still draws, with real dt, while a frame is awaited — it ran the animations ~3x fast)
   const ev1 = [], seen1 = new Set(), stages1 = [];
   let w = g.world;
   const off1 = watch(w, ev1);
@@ -129,6 +130,7 @@ async function directorMain({ id, FPS, DRY, MAX_FRAMES }) {
   // ---------------------------------------------------------------- pass 2: the same run, filmed
   await G.loadMission(id);
   G.start();
+  g.stop(); // (?test=1: the page's own rAF loop still draws, with real dt, while a frame is awaited — it ran the animations ~3x fast)
   w = g.world;
   const ev2 = [], seen2 = new Set();
   const off2 = watch(w, ev2);

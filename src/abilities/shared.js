@@ -16,6 +16,8 @@ import { registerAbility } from './registry.js';
 import { CONFIG } from '../config.js';
 import { canPickUp } from '../items.js';
 import { timedTask, bodyNear, interactableNear, freeToAct, inShallow, dropCarried, dropSpot, enemyNear } from './common.js';
+import { bodyGap, hasObstacles } from '../world/body-clearance.js';
+import { wrapAngle } from '../core/math.js';
 import { suspiciousAct } from './system.js';
 import { ACTIVATABLE, BCD_ACTIVATABLE } from '../entities/interactables.js';
 import { tryDress, dressIn, dressTask } from './spy.js';
@@ -26,6 +28,68 @@ import { structureEntry, entryTask, ENTRY_REACH } from './bunker-entry.js';
 import { RAFT, raftTimes, pushRaftAct } from './raft-actions.js';
 
 const A = CONFIG.abilities;
+const BAR = A.carry.barrel;
+const smooth = (x) => { x = Math.min(1, Math.max(0, x)); return x * x * (3 - 2 * x); };
+
+/** The longest clear step (m, ≤ len, 5 cm steps) from where `c` stands along (ux, uz): walkable, level, his body clear of solids. */
+function clearStep(world, c, ux, uz, len, facing = Math.atan2(uz, ux)) {
+  const g = world?.grid, e0 = g?.elevAt ? g.elevAt(c.x, c.z) : 0, solids = !!world && hasObstacles(world);
+  const clear = (s) => {
+    const x = c.x + ux * s, z = c.z + uz * s;
+    if (g && (!g.walkableAt(x, z) || (g.elevAt && Math.abs(g.elevAt(x, z) - e0) > 0.05))) return false;
+    return !solids || bodyGap(world, x, z, facing, 'stand') >= 0;
+  };
+  for (; len > 0.02; len -= 0.05) {
+    let ok = true;
+    for (let k = 1; k <= 4 && ok; k++) ok = clear((len * k) / 4);
+    if (ok) return len;
+  }
+  return 0;
+}
+
+/**
+ * The pick-up's step in to a drum (user 2026-10-22: "he bends/crouches to the drum, his hands reach it"): he stops
+ * `carry.reach` short of it (a drum is solid, his body keeps clear of it on the way) — too far to take it — so the
+ * pick-up steps him straight in until its centre is `barrel.stand` m ahead, over the first `barrel.step` s (eased; the
+ * barrel_lift clip steps the same distance). As far as the way is clear (walkable, level, his body clear of solids —
+ * the drum included), else a shorter step or none. Deterministic. @returns {{from:{x:number,z:number}, ux:number,
+ * uz:number, len:number, t0:number, t1:number}|null}
+ */
+export function barrelStep(world, c, b) {
+  const dx = b.x - c.x, dz = b.z - c.z, d = Math.hypot(dx, dz);
+  if (!(d > BAR.stand + 0.02)) return null;
+  const ux = dx / d, uz = dz / d, len = clearStep(world, c, ux, uz, d - BAR.stand);
+  return len > 0 ? { from: { x: c.x, z: c.z }, ux, uz, len, t0: 0, t1: BAR.step } : null;
+}
+
+/** The step back off a drum just stood down (`barrel.back` m from `barrel.backAt` s to the end), as far as it is clear. */
+function barrelBack(world, c, dur) {
+  const ux = -Math.cos(c.heading), uz = -Math.sin(c.heading), len = clearStep(world, c, ux, uz, BAR.back, c.heading);
+  return len > 0 ? { from: { x: c.x, z: c.z }, ux, uz, len, t0: BAR.backAt, t1: dur } : null;
+}
+/** Move `c` along a planned step at task time tt (eased). */
+function stepTo(c, st, tt) {
+  const k = smooth((tt - st.t0) / (st.t1 - st.t0)) * st.len;
+  c.x = st.from.x + st.ux * k; c.z = st.from.z + st.uz * k;
+}
+
+/** Visual pairing of a drum changing hands (art/barrel-carry.js): `key` pendingLift / pendingDrop on the drum. */
+function barrelHint(b, c, key, dur, t0, spot = null) {
+  b[key] = { by: c, t: t0, dur, spot };
+  return {
+    tick: (dt, tt) => { if (b[key]?.by === c) b[key].t = tt; },
+    clear: () => { if (b[key]?.by === c) b[key] = null; },
+  };
+}
+
+/** Where he stands to lay the drum he carries over a body: `drop` m short of it on his side, or null (not walkable). */
+function hideStand(c, body, world) {
+  const dx = c.x - body.x, dz = c.z - body.z, d = Math.hypot(dx, dz) || 1;
+  const p = { x: body.x + (dx / d) * DROP_AHEAD, z: body.z + (dz / d) * DROP_AHEAD };
+  return world?.grid && !world.grid.walkableAt(p.x, p.z) ? null : p;
+}
+/** abilities/common.js dropSpot: a drum is stood down this far ahead of him (the barrel_put_down clip's distance). */
+const DROP_AHEAD = 0.6;
 
 /**
  * What would H grab at `t` (entity or clicked point)?
@@ -104,7 +168,12 @@ registerAbility({
   id: 'hand', label: 'Hand', icon: '✋', hotkey: 'h', roles: ['greenberet', 'sniper', 'diver', 'sapper', 'driver', 'spy'],
   targeting: 'point', cursor: 'hand', order: 80, group: 'hand', visibleToEnemies: false,
   // an item inside a building: to the outer end of its walk-in (abilities/bunker-entry.js), not to the item
-  range: (c, t, world) => { const w = world ?? c.world; return w && insideEntry(w, handTarget(c, t, w)?.ent) ? ENTRY_REACH - 0.2 : A.hand.reach; },
+  // (a drum over a body: to the spot `DROP_AHEAD` short of it, where the set-down puts the drum on him)
+  range: (c, t, world) => {
+    const w = world ?? c.world, h = w ? handTarget(c, t, w) : null;
+    if (h?.kind === 'hideBody' && hideStand(c, h.ent, w)) return 0.08;
+    return w && insideEntry(w, h?.ent) ? ENTRY_REACH - 0.2 : A.hand.reach;
+  },
   canUse(c, t, world) {
     const f = freeToAct(c);
     if (f !== true) return f;
@@ -116,7 +185,8 @@ registerAbility({
     return handAllowed(c, h, world);
   },
   approachPoint(c, t, world) {
-    const ent = handTarget(c, t, world)?.ent;
+    const h = handTarget(c, t, world), ent = h?.ent;
+    if (h?.kind === 'hideBody') return hideStand(c, ent, world) ?? ent;
     const ie = insideEntry(world, ent);
     return ie ? { x: ie.entry.path[0][0], z: ie.entry.path[0][1] } : ent ?? t;
   },
@@ -154,12 +224,22 @@ function handTask(c, h, world, mode, t0) {
     if (h.kind === 'raft') return raftPackTask(c, h, world);
     const T = transportTimes();
     const dur = h.kind === 'loot' ? CONFIG.bcd.lootTime : h.kind === 'raft' ? A.raftPack : h.kind === 'item' ? A.hand.min : h.kind === 'hideBody' ? A.carry.drop : mode === 'drag' ? T.grab : A.carry.pick;
-    c.playAction(h.kind === 'item' ? 'use' : mode === 'drag' ? 'drag_grab' : mode === 'shoulder' ? 'lift_to_shoulder' : 'plant', dur);
-    const lift = h.kind === 'body' ? liftHint(ent, c, mode, dur, t0) : null;
+    // a drum: he faces it, steps in to it and squats, his hands on its sides, and stands up with it (barrel_lift); laid
+    // over a body: lowered onto him (barrel_put_down) — the drum on his hands meanwhile (art/barrel-carry.js)
+    const drum = h.kind === 'barrel' ? ent : h.kind === 'hideBody' ? c.carrying : null;
+    if (drum) c.faceTowards?.(ent.x, ent.z);
+    // (the clip is played the tick the task starts: one tick longer, it ends with the task, not a tick of idle before
+    // the hold — the drum on his hands would drop to the ground for that frame)
+    c.playAction(h.kind === 'item' ? 'use' : h.kind === 'barrel' ? 'barrel_lift' : h.kind === 'hideBody' ? 'barrel_put_down' : mode === 'drag' ? 'drag_grab' : mode === 'shoulder' ? 'lift_to_shoulder' : 'plant', drum ? dur - t0 + CONFIG.sim.dt : dur);
+    const step = t0 > 0 ? null : h.kind === 'barrel' ? barrelStep(world, c, ent) : h.kind === 'hideBody' ? barrelBack(world, c, dur) : null;
+    const lift = h.kind === 'body' ? liftHint(ent, c, mode, dur, t0)
+      : h.kind === 'barrel' ? barrelHint(ent, c, 'pendingLift', dur, t0)
+        : h.kind === 'hideBody' ? barrelHint(drum, c, 'pendingDrop', dur, t0, { x: ent.x, z: ent.z }) : null;
+    const tick = step ? (dt, tt) => { stepTo(c, step, tt); lift.tick(dt, tt); } : lift?.tick;
     return timedTask({
       dur, t0,
       save: h.kind === 'body' ? () => ({ load: ent.id, mode }) : null,
-      tick: lift?.tick, onCancel: lift?.clear, onEnd: lift?.clear,
+      tick, onCancel: lift?.clear, onEnd: lift?.clear,
       steps: [{ at: dur, fn: () => {
         if (handAllowed(c, h, world) !== true) return false;
         switch (h.kind) {
@@ -169,6 +249,7 @@ function handTask(c, h, world, mode, t0) {
           case 'barrel':
             ent.carriedBy = c;
             c.carrying = ent;
+            ent.carrySpin = wrapAngle((ent.heading || 0) - (c.heading || 0)); // its turn about its axis in his hands
             c.refreshAbilities();
             return true;
           case 'hideBody': {
@@ -176,6 +257,9 @@ function handTask(c, h, world, mode, t0) {
             c.carrying = null;
             barrel.carriedBy = null;
             barrel.x = ent.x; barrel.z = ent.z; barrel.y = 0;
+            barrel.heading = wrapAngle((c.heading || 0) + (barrel.carrySpin || 0)); // stood down as he held it
+            barrel.carrySpin = 0;
+            barrel.snap?.();
             barrel.hidesBody = ent;
             ent.hiddenUnderBarrel = true;
             ent.hiddenBody = true; // removed from perception (§3.4)
@@ -242,15 +326,21 @@ registerAbility({
 function dropTask(c, world, t0) {
     // §C.2 / §C.3: a drag is released in 0.6 s, a shouldered man is put down in 0.8 s (spec), a barrel stood up
     const man = carriesMan(c), drag = man && c.carryMode === 'drag';
+    const drum = c.carrying?.interactKind === 'barrel' ? c.carrying : null;
     const dur = drag ? transportTimes().release : A.carry.drop;
-    c.playAction(drag ? 'drag_release' : man ? 'put_down' : 'plant', dur);
+    c.playAction(drag ? 'drag_release' : man ? 'put_down' : drum ? 'barrel_put_down' : 'plant', drum ? dur - t0 + CONFIG.sim.dt : dur);
     if (man) c.carryTransition = { kind: 'putDown', t: t0, dur, spot: dropSpot(c, 'gentle') }; // visual pairing: the load goes down with him, onto the spot
-    const clear = () => { if (c.carryTransition?.kind === 'putDown') c.carryTransition = null; };
+    // a drum is lowered in his hands onto the spot ahead of him (art/barrel-carry.js), and he steps back off it — the
+    // spot is fixed where he stood when he began
+    const spot = drum ? dropSpot(c, 'gentle') : null;
+    const hint = drum ? barrelHint(drum, c, 'pendingDrop', dur, t0, spot) : null;
+    const back = drum && t0 === 0 ? barrelBack(world, c, dur) : null;
+    const clear = () => { if (c.carryTransition?.kind === 'putDown') c.carryTransition = null; hint?.clear(); };
     return timedTask({
       dur, t0,
-      tick: (dt, tt) => { if (c.carryTransition?.kind === 'putDown') c.carryTransition.t = tt; },
+      tick: (dt, tt) => { if (c.carryTransition?.kind === 'putDown') c.carryTransition.t = tt; hint?.tick(dt, tt); if (back) stepTo(c, back, tt); },
       onCancel: clear, onEnd: clear,
-      steps: [{ at: dur, fn: () => { dropCarried(c, 'gentle'); c.refreshAbilities(); return true; } }],
+      steps: [{ at: dur, fn: () => { dropCarried(c, 'gentle', spot); c.refreshAbilities(); return true; } }],
     });
 }
 

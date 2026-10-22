@@ -12,6 +12,7 @@ import { sneak, clearFor, routeClear, alarmEta, alarmEtaInfo, teamBoat, predict,
 import { T } from '../../src/world/grid.js';
 import { canSee, coneAt } from '../../src/ai/perception.js';
 import { ABILITIES } from '../../src/abilities/registry.js';
+import { CONFIG } from '../../src/config.js';
 
 const objective = (D, id) => D.world.objectives.find((q) => q.id === id).done;
 const boatOf = (D) => D.world.byId?.('boat') || teamBoat(D.world);
@@ -557,9 +558,12 @@ function rungsClear0(D, t0, t1, why, pad, except) {
   const w = D.world;
   const win = typeof t0 === 'function' ? t0 : () => [t0, t1];
   const T0 = Math.min(...RUNGS.map(([, , y]) => win(y)[0])), T1 = Math.max(...RUNGS.map(([, , y]) => win(y)[1]));
+  // (a file man whose leader is off the beat — stood at a lure — mills about beside him in the crowd, his heading
+  // anybody's: barrel-carry branch 2026-10-22, p3c / p1b by the lured p3a / p1a saw the Sapper low on the ladder)
+  const milling = (e) => { const L = e.brain?._leader?.(); return !!L && L !== e && L.alive && !['IDLE', 'REINFORCE', 'RETURN'].includes(L.brain?.state); };
   for (const e of viewersOf(w)) {
     if (except.includes(e)) continue;
-    const moving = walking(e), far = (e.vision.far ?? 36) + pad + 1;
+    const moving = walking(e), far = (e.vision.far ?? 36) + pad + 1, mill = milling(e);
     if (Math.hypot(e.x - 85, e.z - 60) > far + (moving ? 1.2 * T1 + 2 : 0)) continue;
     for (let t = Math.max(0, T0); t <= T1 + 1e-6; t += 0.1) {
       const q = moving ? predict(e, t) : e;
@@ -570,8 +574,9 @@ function rungsClear0(D, t0, t1, why, pad, except) {
         for (const [px, pz] of [[x, z], [x + (q.x - x) * k, z + (q.z - z) * k]]) {
           const dummy = { x: px, z: pz, y, isLow: false, isVisibleToEnemies: true, alive: true, kind: 'commando' };
           // (a squad's man wheeling where its file turns may face any way, as in routeClear)
-          const seen = moving ? walkerSees(e, q, dummy, w, w.time + t) || (wheeling(e, t) && [0, 1, 2, 3, 4, 5, 6, 7].some((r) => walkerSees(e, { ...q, heading: (r * Math.PI) / 4 }, dummy, w, w.time + t)))
-            : staticSees(e, dummy, w, t);
+          const any = mill || (moving && wheeling(e, t));
+          const seen = (moving ? walkerSees(e, q, dummy, w, w.time + t) : staticSees(e, dummy, w, t))
+            || (any && [0, 1, 2, 3, 4, 5, 6, 7].some((r) => walkerSees(e, { x: q.x, z: q.z, y: q.y, heading: (r * Math.PI) / 4 }, dummy, w, w.time + t)));
           if (seen) { why?.push(`${e.tag}:${e.brain?.state}@(${e.x.toFixed(1)},${e.z.toFixed(1)})rungs+${t.toFixed(1)}`); return false; }
         }
       }
@@ -685,8 +690,10 @@ const pathLen = (from, pts) => { let L = 0, p = from; for (const q of pts) { L +
  */
 function descentSeen(D, why) {
   const crawl1 = [G3_WEST[0], G3_CORNER];
-  // (measured: below head height ~1.6 s after setting off from the top, at the foot ~3.6 s, down on his belly ~4.2 s)
-  if (!rungsClear(D, (h) => (h > 0 ? [1.6 + (2.45 - h) / 1.2 - 0.8, 1.6 + (2.45 - h) / 1.2 + 0.8] : [2.8, 5.0]), null, why, 0.3)) return 'rungs';
+  // (measured: below head height ~1.6 s after setting off from the top, at the foot ~3.6 s, down on his belly ~4.2 s;
+  // each rung watched ±1.2 s round that, from the top: a descent half a second slower than the measure — the foot at
+  // +4.2 s — had him seen low on the ladder by p3c / p1b out of a ±0.8 s window, barrel-carry branch 2026-10-22)
+  if (!rungsClear(D, (h) => (h > 0 ? [Math.max(0, 1.6 + (2.45 - h) / 1.2 - 1.2), 1.6 + (2.45 - h) / 1.2 + 1.2] : [2.6, 5.4]), null, why, 0.35)) return 'rungs';
   for (const c1 of [0.8, 1.05]) if (!routeClear(D, crawl1, { mode: 'crawl', from: LADDER_FOOT, speed: c1, delay: 5.4, pad: 1.2, why })) return 'crawl';
   const tCorner = 5.4 + pathLen(LADDER_FOOT, crawl1) / 0.8;
   if (!routeClear(D, [G3_CORNER], { mode: 'crawl', from: G3_CORNER, delay: tCorner, slack: 6, pad: 1.2, why })) return 'corner';
@@ -915,6 +922,9 @@ const BRL_UP = [[55.5, 50.6], [55.7, 47.6]];
 const BRL_OUT = [[55.9, 45.6], [54.2, 45.2], [52.6, 45]];
 /** and crawling back into the passage, to its blind spot */
 const BRL_HOME = [[55.9, 45.6], [55.6, 47], [55.6, 49], [55.75, 50]]; // (to H_A)
+/** his pace with the drum in his arms (CONFIG.units.carryBarrel), the bracket the checks walk him at, and the turn
+ * round on the spot before he walks off with it (abilities.carry.barrel: ≤ 0.6 s for an about-face) */
+const BRL_SP = CONFIG.units.carryBarrel ?? CONFIG.units.carry ?? 1.6, BRL_SPS = [BRL_SP - 0.1, BRL_SP + 0.1], BRL_TURN = 0.6;
 /** Will nobody see the Green Beret fetch the barrel (starting in `delay` s): out of the passage to the stack, the
  * lift, back up the passage to its north end, and a few s standing there with it? */
 function barrelClear(D, brl, delay = 0, why = null) {
@@ -922,18 +932,18 @@ function barrelClear(D, brl, delay = 0, why = null) {
   const lenTo = Math.hypot(BRL_TO[0][0] - gb.x, BRL_TO[0][1] - gb.z) + Math.hypot(BRL_TO[1][0] - BRL_TO[0][0], BRL_TO[1][1] - BRL_TO[0][1]);
   const tPick = delay + 0.7 + lenTo / 2.1;
   const lenUp = Math.hypot(BRL_UP[0][0] - BRL_TO[1][0], BRL_UP[0][1] - BRL_TO[1][1]) + Math.hypot(BRL_UP[1][0] - BRL_UP[0][0], BRL_UP[1][1] - BRL_UP[0][1]);
-  const tUp = tPick + 1.2 + lenUp / 1.5;
+  const tUp = tPick + 1.2 + BRL_TURN + lenUp / BRL_SP;
   return [2.1, 2.3].every((sp) => routeClear(D, BRL_TO, { mode: 'walk', from: [gb.x, gb.z], speed: sp, delay: delay + 0.7, pad: 1.2, why }))
     && routeClear(D, [BRL_TO[1]], { mode: 'walk', from: BRL_TO[1], delay: tPick + 0.6, slack: 1, pad: 1.2, why })
-    && [1.5, 1.7].every((sp) => routeClear(D, BRL_UP, { mode: 'walk', from: BRL_TO[1], speed: sp, delay: tPick + 1.2, pad: 1.2, why }))
+    && BRL_SPS.every((sp) => routeClear(D, BRL_UP, { mode: 'walk', from: BRL_TO[1], speed: sp, delay: tPick + 1.2 + BRL_TURN, pad: 1.2, why }))
     && routeClear(D, [BRL_UP[1]], { mode: 'walk', from: BRL_UP[1], delay: tUp + 2, slack: 2.5, pad: 1.2, why });
 }
 
 /** Will nobody see him carry it out round the shed, set it down and crawl back into the passage (starting now)? */
 function dropClear(D, why = null, after = 0) {
   let L = 0, p = BRL_UP[1]; for (const q of BRL_OUT) { L += Math.hypot(q[0] - p[0], q[1] - p[1]); p = q; }
-  const tDrop = after + 0.2 + L / 1.5;
-  return [1.5, 1.7].every((sp) => routeClear(D, BRL_OUT, { mode: 'walk', from: BRL_UP[1], speed: sp, delay: after + 0.2, pad: 1.2, why }))
+  const tDrop = after + 0.2 + BRL_TURN + L / BRL_SP;
+  return BRL_SPS.every((sp) => routeClear(D, BRL_OUT, { mode: 'walk', from: BRL_UP[1], speed: sp, delay: after + 0.2 + BRL_TURN, pad: 1.2, why }))
     && routeClear(D, [BRL_OUT[2]], { mode: 'walk', from: BRL_OUT[2], delay: tDrop + 0.8, slack: 1, pad: 1.2, why })
     && [0.8, 0.95].every((sp) => routeClear(D, BRL_HOME, { mode: 'crawl', from: BRL_OUT[2], speed: sp, delay: tDrop + 2.2, pad: 1.2, why }))
     && routeClear(D, [H_A], { mode: 'crawl', from: H_A, delay: tDrop + 2.2 + 14, slack: 3, why });
@@ -949,7 +959,7 @@ async function barrelRun(D, brl, { maxSec = 600 } = {}) {
   // (fetch and drop in one go: standing in the passage with the barrel, waiting, he would be in sight sooner or later)
   const tUp = () => { const a = Math.hypot(BRL_TO[0][0] - gb.x, BRL_TO[0][1] - gb.z) + Math.hypot(BRL_TO[1][0] - BRL_TO[0][0], BRL_TO[1][1] - BRL_TO[0][1]);
     const b = Math.hypot(BRL_UP[0][0] - BRL_TO[1][0], BRL_UP[0][1] - BRL_TO[1][1]) + Math.hypot(BRL_UP[1][0] - BRL_UP[0][0], BRL_UP[1][1] - BRL_UP[0][1]);
-    return 0.7 + a / 2.1 + 1.2 + b / 1.5; };
+    return 0.7 + a / 2.1 + 1.2 + BRL_TURN + b / BRL_SP; };
   await D.until(throttle(D, 0.2, () => { why.length = 0; return barrelClear(D, brl, 0, why) && dropClear(D, why, tUp()) && dropClear(D, why, tUp() + 1.5); }), maxSec, 'the barrel fetch unwatched')
     .catch((e) => { throw new Error(`${e.message} [${why.slice(0, 3).join(' ')}]`); });
   D.log?.(`DBG barrel fetch at t=${D.t.toFixed(1)}`);

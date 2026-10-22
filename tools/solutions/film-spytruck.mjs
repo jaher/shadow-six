@@ -43,6 +43,7 @@ try {
         const G = window.__game, g = G.game;
         await G.loadMission('m00');
         G.start();
+        g.stop(); // (?test=1: the page's own rAF loop still draws, with real dt, while a frame is awaited — it ran the animations ~3x fast)
         const w = g.world;
         const { Commando } = await import('/src/entities/commando.js');
         const truck = w.spawnVehicle('truck', { x: 18, z: 27, heading: 0 });
@@ -71,7 +72,8 @@ try {
   });
   const act = (fn) => page.evaluate(fn);
   const say = (text) => page.evaluate((t) => { document.getElementById('capStep').textContent = t; }, text);
-  const stepFrame = () => page.evaluate(() => { const G = window.__game; G.step(); G.step(); G.step(); G.render(); });
+  // (3 ticks, then a render over the same 3 ticks: the page's rAF loop is stopped, so this render is what animates the models)
+  const stepFrame = () => page.evaluate(() => { const G = window.__game; G.step(); G.step(); G.step(); G.game.render(3 * G.CONFIG.sim.dt, 1); });
 
   // ---- the scene, directed from here (3 ticks per frame = 20 fps)
   const out = { disguisedInTruck: null, disguisedAfterExit: null, hasUniformAfter: null };

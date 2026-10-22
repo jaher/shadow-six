@@ -7,6 +7,7 @@
 import { CONFIG } from '../config.js';
 import { ownerHeight } from '../world/placement.js';
 import { bodyGap, clearPose, hasObstacles, deadStance, STOP_MARGIN } from '../world/body-clearance.js';
+import { wrapAngle } from '../core/math.js';
 
 /**
  * A timed ActionTask: runs `steps` (sorted by `at`, seconds from start) once each, then 'done' at `dur`.
@@ -319,7 +320,7 @@ function lyingRoom(w, it, y) {
  * Put down whatever `c` carries at his feet (bodies lie down, barrels stand upright). No animation — the
  * `drop` ability wraps this in its 0.8 s task.
  */
-export function dropCarried(c, how = 'gentle') {
+export function dropCarried(c, how = 'gentle', spot = null) {
   const it = c.carrying;
   if (!it) return null;
   const mode = c.carryMode || null;
@@ -327,9 +328,12 @@ export function dropCarried(c, how = 'gentle') {
   c.carryMode = null;
   c.carryTransition = null;
   const w = c.world;
-  const p = dropSpot(c, how, it, mode);
+  const p = spot ?? dropSpot(c, how, it, mode);   // (`spot`: fixed when the set-down began — he stepped back since)
   it.carriedBy = null;
   it.x = p.x; it.z = p.z; it.y = c.y || 0;
+  // a drum stands as he held it (turned with him: Barrel.carrySpin), where it is at once (no interpolation smear from
+  // the carried position: art/barrel-carry.js put it on that spot)
+  if (it.interactKind === 'barrel') { it.heading = wrapAngle((c.heading || 0) + (it.carrySpin || 0)); it.carrySpin = 0; it.snap?.(); }
   // a man put down off a shoulder lies stretched away from the carrier (visual: the model / settle ragdoll use it)
   if (it.kind !== 'interactable' && mode !== 'drag' && how === 'gentle' && c.world?.house) it.heading = c.heading + Math.PI;
   // a live man knocked off the shoulder lies on his front as he hung: head towards the carrier's back

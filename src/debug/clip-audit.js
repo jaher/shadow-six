@@ -14,6 +14,7 @@ import * as THREE from 'three';
 import { geometryBVH, posedBVH, makePart, itemBox, measurePair } from './clip-geom.js';
 import { categoryOf, classify, overlapKey, naturalPair, explicitAllow, GROUND_LAYER, THIN } from './clip-rules.js';
 import { setCharacterView } from '../art/humanoid-real.js';
+import { barrelCarryFrame } from '../art/barrel-carry.js';
 import { liftAt } from '../world/placement.js';
 import { T } from '../world/grid.js';
 import { isSolidHull, hullsNear, dynamicObstacles } from '../world/body-clearance.js';
@@ -321,6 +322,7 @@ export function refreshPoses(game, dt = 0) {
   if (!w) return;
   try { setCharacterView({ camera: false, pxPerMetre: 400 }); } catch { /* library absent: placeholders */ }
   for (const e of w.entities) { e.syncTransform?.(1); e.renderUpdate?.(Math.max(dt, 1e-3)); } // dt>0: the model re-applies visibility
+  barrelCarryFrame(w); // a carried drum on its carrier's hands (Game.render does the same after the models)
   const scene = game.renderer.scene;
   scene.updateMatrixWorld(true);
   for (const e of w.entities) e.object3d?.updateMatrixWorld?.(true);

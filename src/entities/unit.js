@@ -991,7 +991,9 @@ export class Unit extends Entity {
     this._trackOff = { x: lx0, z: lz0 }; // (an arrival this step puts it back: _arrive)
     // (on a flight of stairs a little slower, a careful jog when running; up / down a ladder at the ladder pace:
     // entities/stair-walk.js)
-    let step = (isLadderLeg(this.path[this.pathIndex]) ? ladderSpeed(this) : stairSpeed(this, this.speed)) * dt * this._avScale;
+    // (a man with a heavy load turns before he walks off: Commando.pivotScale — 0 while he turns round on the spot)
+    const pivot = this.pivotScale ? this.pivotScale() : 1;
+    let step = (isLadderLeg(this.path[this.pathIndex]) ? ladderSpeed(this) : stairSpeed(this, this.speed)) * dt * this._avScale * pivot;
     this.trackV = step / dt; // pace along the path (route progress; the lane and curve ride on top)
     const stride = step, running = this.moveMode === 'run'; // (an arrival this step resets moveMode / path)
     let dirX = 0, dirZ = 0;
@@ -1072,6 +1074,10 @@ export class Unit extends Entity {
       }
     }
     if (!dirX && !dirZ && av) { dirX = av.fx; dirZ = av.fz; }
+    if (!dirX && !dirZ && pivot < 1 && this.path) { // turning round on the spot: toward his waypoint
+      const wp = this.path[this.pathIndex], dx = wp.x - this.x, dz = wp.z - this.z, d = Math.hypot(dx, dz);
+      if (d > 1e-6) { dirX = dx / d; dirZ = dz / d; }
+    }
     if (this._trackOff) { // (no arrival this step: an arrival baked the lane into where he stopped, _arrive)
       this._trackOff = null;
       if (this.path) {

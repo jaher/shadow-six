@@ -31,6 +31,7 @@ await page.waitForFunction(() => document.body.dataset.ready === '1', null, { ti
 const info = await page.evaluate(async ({ m, zoom, sp, warm, hud, follow, lineup, at }) => {
   const g = window.__game, G = g.game;
   await g.loadMission(m); g.start();
+  G.stop(); // (?test=1: the page's own rAF loop still draws, with real dt, while a frame is awaited — it ran the animations ~3x fast)
   g.advance(0.5); G.render(1 / 60, 1);
   const L = G.mapHandle.life;
   for (let k = 0; k < warm * 20; k++) { g.advance(1 / 20); G.render(1 / 20, 1); }

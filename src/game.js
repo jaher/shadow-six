@@ -52,6 +52,7 @@ import { nobodyLeftToHelp } from './entities/downed.js';
 import { prepareCharacters, awaitUnitModels, warmUnitModels, warmUnitModelsG, queueIdleWarm, queueAheadModels, charactersFrame, transportFrame, releaseCharacters } from './art/unit-model.js';
 import { idleWarm } from './engine/idle-warm.js';
 import { knifeKillFrame } from './art/knife-kill.js';
+import { barrelCarryFrame } from './art/barrel-carry.js';
 import { digWarmObjects } from './art/shovel-dig.js';
 
 /** Let the page paint once (a frame, then a task: the DOM drawn), at most ~50 ms (a hidden tab draws no frames). */
@@ -1076,6 +1077,7 @@ export class Game {
         e.renderUpdate?.(animDt);
       }
       safe(() => transportFrame(), 'transport poses'); // carried / dragged men after both skeletons updated (§C.10)
+      safe(() => barrelCarryFrame(w), 'barrel carry'); // a drum on the Green Beret's hands (after his skeleton updated)
       if (w.knifeKills?.length) safe(() => knifeKillFrame(w, alpha, CONFIG.sim.dt), 'knife kill poses'); // contact knife kills: both men posed together
       if (w.spyActs?.length) safe(() => spyActionsFrame(w, alpha, CONFIG.sim.dt), 'spy action poses'); // the Spy's injection / dressing
       // the Marine inflating / packing the raft, and the packed raft on his back (art/raft-actions.js)

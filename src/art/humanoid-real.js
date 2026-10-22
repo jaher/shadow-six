@@ -55,10 +55,11 @@ export const ANIMS = ['idle', 'walk', 'run', 'crawl_idle', 'crawl', 'swim', 'div
   'throw', 'punch', 'plant', 'climb', 'carry_idle', 'carry_walk', 'die', 'dead', 'surrender', 'salute',
   'look_around', 'use'];
 const WATER = new Set(['swim', 'swim_idle', 'dive']);
-const LOCO = new Set(['walk', 'run', 'sprint', 'crawl', 'swim', 'crouch_walk', 'carry_walk', 'drag', 'tied_walk', 'follow_walk', 'downed_crawl', 'drag_walk']);
+// (barrel_turn: steps round on the spot — full rate when zoomed out, like the walks; no ground speed of its own)
+const LOCO = new Set(['walk', 'run', 'sprint', 'crawl', 'swim', 'crouch_walk', 'carry_walk', 'barrel_walk', 'barrel_turn', 'drag', 'tied_walk', 'follow_walk', 'downed_crawl', 'drag_walk']);
 // design-spec §3.1 / §4.1 ground speeds (m/s) used when the caller gives none; keeps the feet planted at game speed
 const SPEED = {
-  player: { walk: 2.25, run: 4.5, crawl: 0.9, swim: 1.8, crouch_walk: 2.25, carry_walk: 1.6, drag: 0.8, drag_walk: 0.8, downed_crawl: 0.3 },
+  player: { walk: 2.25, run: 4.5, crawl: 0.9, swim: 1.8, crouch_walk: 2.25, carry_walk: 1.6, barrel_walk: 1.4, drag: 0.8, drag_walk: 0.8, downed_crawl: 0.3 },
   fast: { run: 5.4 },   // greenberet, driver
   enemy: { walk: 0.9, run: 3.8, crouch_walk: 0.9 },
   neutral: { walk: 2.25, run: 4.5, crawl: 0.9, tied_walk: 1.1, follow_walk: 2.25 },
@@ -72,7 +73,7 @@ let LIB = null, loading = null;
 const HALF_RATE_PX = 50;
 const CRAWLING = /^crawl(_unarmed|_knife)?$/;
 /** Idle loops that step at a quarter rate when zoomed out (breathing: nothing moves against the ground). */
-const IDLE_LOOP = /^(idle|crawl_idle|carry_idle|drag_idle|downed_idle)$/;
+const IDLE_LOOP = /^(idle|crawl_idle|carry_idle|barrel_idle|drag_idle|downed_idle)$/;
 const live = new Set();
 const view = { px: 40, frustum: null, tick: 0 };
 const _m4 = new THREE.Matrix4(), _sph = new THREE.Sphere(new THREE.Vector3(), 1.3);

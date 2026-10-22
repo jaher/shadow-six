@@ -34,6 +34,7 @@ import { makeClothesline } from '../art/clothesline.js';
 import { RULES } from '../world/placement.js';
 import { fuelWreckNav, inLocalQuarter } from '../art/fuel-tanks.js';
 import { buildExplosiveDrum, buildMarkerProp } from '../art/kit-props.js';
+import { gripBones } from '../art/barrel-carry.js';
 import { dressingMaterial, boxUV } from '../art/dressing.js';
 
 /** The breakable gate model under a structure group (art/breakable-gates.js userData.gate) or null. */
@@ -582,6 +583,11 @@ export class Barrel extends Interactable {
     this.fuse = -1;
     this.igniter = null;
     this.hidesBody = null;
+    /** Its turn about its own axis in the carrier's hands: its heading less his when he took it (rad). */
+    this.carrySpin = 0;
+    /** Visual pairing while it changes hands (art/barrel-carry.js; not saved): {by, t, dur, spot}. */
+    this.pendingLift = null;
+    this.pendingDrop = null;
     this.pickRadius = 0.6;
     this.pickHeight = 0.5;
     if (o.keepWreck) {                                   // a process column (M11): the whole tank is the target
@@ -660,19 +666,19 @@ export class Barrel extends Interactable {
   }
 
   /**
-   * A carried drum rides the carrier's BODY, not his sim transform. Barrel.update places the drum from the
-   * carrier's kinematic position, which has no gait in it: measured in m01 the carrier's pelvis bobs 12.7 cm
-   * peak-to-peak under carry_walk and his hands travel 16 cm, while the drum's rendered height varied by
-   * exactly 0.0 cm — it glided at a dead-constant offset and his hands slid up and down its sides. Pose the
-   * drum here instead (renderUpdate runs after the mixers, the same slot transportFrame uses for carried
-   * men): the pelvis' live offset from its rest spot over his root — the bob, the sway, the lean — moves the
-   * drum with him, lagged a touch so the load feels heavy. Visual only; the sim transform is untouched.
+   * A carried drum rides the carrier's hands (art/barrel-carry.js barrelCarryFrame, after every model's update) while
+   * he plays the barrel clips. Without them (a placeholder body, a kit without the clips) it rides his BODY instead: the
+   * pelvis' live offset from its rest spot over his root — the bob, the sway, the lean — moves the drum placed from his
+   * sim transform (Barrel.update has no gait in it), lagged a touch so the load feels heavy. Visual only.
+   * The rest spot is taken once he stands with the load (no pick-up clip playing: the first carried frame still had
+   * him crouched from the pick-up, pelvis 0.55 m against 1.06 standing, and the drum rode 0.47 m high for the whole
+   * carry — capture 2026-10-22) and then follows his mean pose; every offset is clamped (up/down too).
    */
   renderUpdate(dt) {
     const o = this.object3d, c = this.carriedBy;
     if (!o) return;
-    if (!c || this.exploded || !c.model?.root || !c.object3d) {
-      if (this._ride) { this._ride = null; o.rotation.x = 0; o.rotation.z = 0; }
+    if (!c || this.exploded || !c.model?.root || !c.object3d || gripBones(c)) {
+      if (this._ride) { this._ride = null; if (!this._drumPosed) { o.rotation.x = 0; o.rotation.z = 0; } }
       return;
     }
     let R = this._ride;
@@ -680,24 +686,25 @@ export class Barrel extends Interactable {
       let pelvis = null;
       c.model.root.traverse((n) => { if (!pelvis && (n.isBone || n.type === 'Bone') && n.name === 'pelvis') pelvis = n; });
       if (!pelvis) { this._ride = null; return; }
-      R = this._ride = { carrier: c, pelvis, rest: null, age: 0, y: 0, f: 0, s: 0 };
+      R = this._ride = { carrier: c, pelvis, rest: null, y: 0, f: 0, s: 0 };
     }
     R.pelvis.updateWorldMatrix(true, false);
     const e = R.pelvis.matrixWorld.elements, root = c.object3d.position;
     const dx = e[12] - root.x, dy = e[13] - root.y, dz = e[14] - root.z;
     const fx = Math.cos(c.heading), fz = Math.sin(c.heading);
     const fwd = dx * fx + dz * fz, side = dz * fx - dx * fz;   // the pelvis in his frame (fwd / his left)
-    if (!R.rest) {                                            // baseline once he stands with the load (or after 0.5 s)
-      R.age += dt;
-      if (!c._moving || R.age > 0.5) R.rest = { y: dy, f: fwd, s: side };
-      else return;
+    if (!R.rest) {                                            // baseline once he stands with the load
+      if (c._animOverride) return;
+      R.rest = { y: dy, f: fwd, s: side };
     }
+    const kr = dt > 0 ? Math.min(1, dt / 1.5) : 0;            // the rest follows his mean pose (1.5 s)
+    R.rest.y += (dy - R.rest.y) * kr; R.rest.f += (fwd - R.rest.f) * kr; R.rest.s += (side - R.rest.s) * kr;
     const k = dt > 0 ? Math.min(1, dt / 0.12) : 0;            // a heavy load lags the body a little
     R.y += ((dy - R.rest.y) * 0.92 - R.y) * k;
     R.f += ((fwd - R.rest.f) * 0.92 - R.f) * k;
     R.s += ((side - R.rest.s) * 0.92 - R.s) * k;
     const cl = (v) => Math.max(-0.07, Math.min(0.07, v));
-    o.position.y += R.y;
+    o.position.y += cl(R.y);
     o.position.x += fx * cl(R.f) - fz * cl(R.s);
     o.position.z += fz * cl(R.f) + fx * cl(R.s);
     o.rotation.x = cl(-R.f * 1.1);
@@ -712,7 +719,8 @@ export class Barrel extends Interactable {
   }
 
   serialize() {
-    return { ...super.serialize(), exploded: this.exploded, fuse: this.fuse, carriedBy: this.carriedBy?.id ?? null, hidesBody: this.hidesBody?.id ?? null };
+    return { ...super.serialize(), exploded: this.exploded, fuse: this.fuse, carriedBy: this.carriedBy?.id ?? null, hidesBody: this.hidesBody?.id ?? null,
+      ...(this.carrySpin ? { carrySpin: this.carrySpin } : null) };
   }
 
   deserialize(d) {
@@ -722,6 +730,7 @@ export class Barrel extends Interactable {
     const w = this.world;
     this.carriedBy = d.carriedBy != null ? w?.byId(d.carriedBy) || null : null;
     if (this.carriedBy) this.carriedBy.carrying = this;
+    this.carrySpin = d.carrySpin || 0;
     this.hidesBody = d.hidesBody != null ? w?.byId(d.hidesBody) || null : null;
   }
 }

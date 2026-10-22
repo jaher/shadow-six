@@ -11,7 +11,8 @@ const LONG = new Set(['kar98k', 'mp40', 'mg34', 'mg42', 'no4_sniper', 'thompson'
 export const HOLD = { aim: 'aim', aim_up: 'aim', aim_down: 'aim', shoot: 'aim', rifle_shoot: 'aim', kneel_shoot: 'aim', reload: 'aim',
   // prone clips (crawl*, prone_*) are not listed: their hold is the hand grip of prone-grips.js (weapon in the hands)
   crouch_idle: 'sling', crouch_walk: 'sling', go_prone: 'back', get_up: 'back', die_prone: 'drop', dead_prone: 'drop', swim: 'back', swim_idle: 'back', dive: 'back',
-  climb: 'back', drag: 'back', carry_idle: 'back', carry_walk: 'back', carry_barrel: 'back', die: 'drop', dead: 'drop', surrender: 'drop', handsup_held: 'drop' };
+  climb: 'back', drag: 'back', carry_idle: 'back', carry_walk: 'back', carry_barrel: 'back',
+  barrel_walk: 'back', barrel_idle: 'back', barrel_turn: 'back', barrel_lift: 'back', barrel_put_down: 'back', die: 'drop', dead: 'drop', surrender: 'drop', handsup_held: 'drop' };
 // knife: also idle / walk / run - the knife is the equipped weapon only while a knife order is under way (knife crawl-in)
 const HAND_CLIPS = { knife: ['stab', 'aim', 'crouch_walk', 'crouch_idle', 'idle', 'walk', 'run'], syringe: ['syringe'], stick_grenade: ['throw'],
   time_bomb: ['plant'], remote_bomb: ['plant'], luger: ['aim', 'shoot', 'pistol_idle', 'reload'], walther_p38: ['aim', 'shoot', 'pistol_idle', 'reload'],

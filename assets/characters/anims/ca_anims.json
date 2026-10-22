@@ -226,5 +226,54 @@
   "prone": true,
   "hold": "crawl",
   "duration": 0.6
+ },
+ "barrel_idle": {
+  "source": "procedural keyframes (tools/characters/barrel)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "barrel": "hold",
+  "duration": 3.2
+ },
+ "barrel_walk": {
+  "source": "procedural keyframes (tools/characters/barrel)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "loco": true,
+  "barrel": "hold",
+  "groundSpeed": 1.1545,
+  "stride": 0.62,
+  "spm": 135,
+  "duty": 0.64,
+  "duration": 0.8857142857142858
+ },
+ "barrel_turn": {
+  "source": "procedural keyframes (tools/characters/barrel)",
+  "license": "CC0 (project-authored)",
+  "loop": true,
+  "barrel": "hold",
+  "turn": true,
+  "duration": 0.8
+ },
+ "barrel_lift": {
+  "source": "procedural keyframes (tools/characters/barrel)",
+  "license": "CC0 (project-authored)",
+  "loop": false,
+  "barrel": "lift",
+  "contact": 0.5,
+  "d": 0.74,
+  "step": 0.45,
+  "stepT": 0.4,
+  "duration": 1
+ },
+ "barrel_put_down": {
+  "source": "procedural keyframes (tools/characters/barrel)",
+  "license": "CC0 (project-authored)",
+  "loop": false,
+  "barrel": "putDown",
+  "release": 0.48,
+  "d": 0.6,
+  "back": 0.12,
+  "backAt": 0.5,
+  "duration": 0.8
  }
 }

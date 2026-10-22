@@ -20,6 +20,10 @@ const HUMAN = {
   stand_up: ['stand_up', 'idle'], revive_up: ['get_up', 'stand_up', 'idle'], blast_fall: ['blast_fall', 'knockback', 'hit'], hit: ['hit', 'idle'],
   // the Sapper takes a placed charge back (house rule recoverCharges): the plant played back (art/body-clips.js)
   take_charge: ['take_charge', 'kneel_reach', 'plant'],
+  // the Green Beret's explosive drum hugged in front of him (tools/characters/barrel, commandos_a library; the drum rides
+  // his hands: art/barrel-carry.js): its walk, turning round on the spot, its stand, the pick-up and the set-down
+  carry_barrel: ['barrel_walk', 'carry_walk'], carry_barrel_turn: ['barrel_turn', 'barrel_idle', 'carry_idle'],
+  carry_barrel_idle: ['barrel_idle', 'carry_idle'], barrel_lift: ['barrel_lift', 'plant'], barrel_put_down: ['barrel_put_down', 'plant'],
 };
 
 /** Gameplay names a transported man plays whatever he was doing (dead, dying or downed). */
@@ -30,7 +34,7 @@ const DOG = {
   punch: ['attack'], stab: ['attack'], die: ['die'], dead: ['dead'], look_around: ['sniff'], use: ['sniff'],
 };
 /** Locomotion names whose playback rate follows the unit's ground speed (feet planted). */
-export const LOCOMOTION = new Set(['walk', 'run', 'crawl', 'swim', 'dive', 'carry_walk', 'drag_walk', 'downed_crawl']);
+export const LOCOMOTION = new Set(['walk', 'run', 'crawl', 'swim', 'dive', 'carry_walk', 'carry_barrel', 'drag_walk', 'downed_crawl']);
 
 const LONG = new Set(['kar98k', 'no4_sniper', 'harpoon_gun', 'mg34', 'mg42']);
 const SMG = new Set(['thompson', 'mp40']);

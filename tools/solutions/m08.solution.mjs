@@ -857,7 +857,8 @@ function barrelPlan(D, b, to, { pre = [], post = [], bury = true, pad = 0.5, why
   const sl = (k) => [-0.6, 1.2 + late + lag * k];
   const gb = D.c('greenberet');
   const RISE = CONFIG.abilities.rise ?? 1.0, UP = RISE + (CONFIG.units.stanceDown ?? 0.5) + 0.3, DIG = (CONFIG.abilities.dig ?? 2.0) + 0.6;
-  const C = CONFIG.abilities.carry ?? { pick: 1.0, drop: 0.8 }, SP = CONFIG.units.carry ?? 1.6;
+  // (the drum in his arms: carryBarrel, slower than a man on the shoulder, and he turns round with it before he walks off)
+  const C = CONFIG.abilities.carry ?? { pick: 1.0, drop: 0.8 }, SP = CONFIG.units.carryBarrel ?? CONFIG.units.carry ?? 1.6;
   const len = (pts, f) => pts.reduce((a, p) => [a[0] + Math.hypot(p[0] - a[1][0], p[1] - a[1][1]), p], [0, f])[0];
   const start = from ?? [gb.x, gb.z], isBuried = buried ?? gb.buried;
   const up = isBuried ? UP : 0, at = [b.x, b.z];
@@ -867,7 +868,7 @@ function barrelPlan(D, b, to, { pre = [], post = [], bury = true, pad = 0.5, why
   const t1 = t0 + up + 0.2 + len(pre, start) / preSp + (walkPre ? (CONFIG.units.stanceUp ?? 0.6) : 0);
   if (!routeSafe(D, 'greenberet', walkPre ? [[start[0], start[1], CONFIG.units.stanceUp ?? 0.6], ...pre] : pre, { ...o, from: start, delay: t0 + up + 0.2, hold: 0, low: !walkPre, speed: preSp, standLast: walkPre ? 0 : -1, slack: sl(pre.length) })) return null;
   // up, the pick-up, the carry and the drop, standing
-  const hold1 = (walkPre ? 0 : (CONFIG.units.stanceUp ?? 0.6)) + C.pick + 0.3;
+  const hold1 = (walkPre ? 0 : (CONFIG.units.stanceUp ?? 0.6)) + C.pick + 0.3 + 0.6; // (+ his turn round with it)
   if (!routeSafe(D, 'greenberet', [], { ...o, from: at, low: false, delay: t1, hold: hold1, slack: sl(pre.length) })) return null;
   if (!routeSafe(D, 'greenberet', [to], { ...o, from: at, low: false, speed: SP, delay: t1 + hold1, hold: C.drop + 0.6, slack: sl(pre.length + 1) })) return null;
   const t2 = t1 + hold1 + Math.hypot(to[0] - at[0], to[1] - at[1]) / SP + C.drop + 0.6;
