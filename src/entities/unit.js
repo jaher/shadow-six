@@ -1166,23 +1166,19 @@ export class Unit extends Entity {
           const clear = (sgn, span) => { for (let a = 0; ; a = Math.min(span, a + Math.PI / 36)) { if (!this._lyingOnRun(this.heading + sgn * a, run)) return false; if (a >= span) return true; } };
           if (!clear(Math.sign(d), Math.abs(d))) h = clear(-Math.sign(d), 2 * Math.PI - Math.abs(d)) ? wrapAngle(this.heading - Math.sign(d) * rate) : this.heading;
         }
-        this._deckTurn = 0;
       } else if (lying && (this.y || 0) > 1 && h !== this.heading && this._lyingOnDeck(this.heading)) {
-        const d = angleDiff(this.heading, want), wide = Math.abs(d) > Math.PI / 2;
-        const turn = (s) => (s === Math.sign(d) ? h : wrapAngle(this.heading + s * rate));
-        let sgn = wide && this._deckTurn ? this._deckTurn : Math.sign(d);
-        h = turn(sgn);
-        if (!this._lyingOnDeck(h)) {
-          const o = turn(-sgn);
-          if (wide && this._lyingOnDeck(o)) { h = o; sgn = -sgn; } else h = this.heading;
-        }
-        this._deckTurn = sgn;
+        h = this._deckTurnHeading(want, rate, h);
       } else if (lying && w?.grid && h !== this.heading && proneClear(w.grid, this.x, this.z, this.heading)) {
         // on the ground likewise: placement proneClear — his head, hands and feet off walls, fences, the standing
         // visuals and ledges (a man lying along a wall whose way turns back or away: his feet or head would swing into it)
         h = this._groundTurn(want, rate, h);
-        this._deckTurn = 0;
-      } else this._deckTurn = 0;
+      } else if (lying && (this.y || 0) > 1 && h !== this.heading) {
+        // (his heading is already off the deck's walkable cells — stepped off a stair run, where only his sides were
+        // watched, onto a crest narrower than he is long: turning on toward his way would sweep his head over the
+        // parapet, M3 seed 11: the Sapper's hand 14 cm into it) he turns back to the nearest heading with head and feet
+        // over it, and from there the turn above goes on only as far as they stay over it
+        h = this._deckEscape(want, rate, h);
+      }
       this.heading = h;
     }
     // Swimmers switch stance automatically in deep water.
@@ -1518,6 +1514,41 @@ export class Unit extends Entity {
       if (!g.walkableAt(x, z) || Math.abs(g.elevAt(x, z) - e0) >= 1) return false;
     }
     return true;
+  }
+
+  /**
+   * Lying on raised ground with head and feet over the deck at his heading, the heading for this step's turn toward
+   * `want` (`h`: the plain step at `rate`) through headings where they stay over it (_lyingOnDeck; the whole turn, not
+   * just this step — a turn begun and turned back at the first blocked step swung him from side to side the whole
+   * length of the M3 crest): the short way, else the long way round, else his body along his way feet first (want + π)
+   * when that turn fits, else he keeps his heading until his crawl takes him where one does (the ground's _groundTurn).
+   */
+  _deckTurnHeading(want, rate, h) {
+    const H = this.heading;
+    const clear = (sgn, span) => { for (let a = 0; ; a = Math.min(span, a + Math.PI / 36)) { if (!this._lyingOnDeck(H + sgn * a)) return false; if (a >= span) return true; } };
+    const d = angleDiff(H, want);
+    if (clear(Math.sign(d), Math.abs(d))) return h;
+    if (clear(-Math.sign(d), 2 * Math.PI - Math.abs(d))) return wrapAngle(H - Math.sign(d) * rate);
+    const db = angleDiff(H, want + Math.PI);
+    if (Math.abs(db) > 1e-4 && clear(Math.sign(db), Math.abs(db))) return turnTowardsAngle(H, want + Math.PI, rate);
+    return H;
+  }
+
+  /**
+   * Lying on raised ground with head or feet off the deck's walkable cells at his heading (_lyingOnDeck): this step's
+   * heading — a step of `rate` toward the nearest heading (either way round, up to half a turn) at which both are over
+   * it; `h` (the plain step toward his way) when there is none.
+   */
+  _deckEscape(want, rate, h) {
+    const H = this.heading;
+    for (let a = Math.PI / 36; a <= Math.PI + 1e-9; a += Math.PI / 36) {
+      const ccw = this._lyingOnDeck(H + a), cw = this._lyingOnDeck(H - a);
+      if (!ccw && !cw) continue;
+      // (both: the way nearer his own)
+      const sgn = ccw && cw ? Math.sign(angleDiff(H, want)) || 1 : ccw ? 1 : -1;
+      return wrapAngle(H + sgn * Math.min(rate, a));
+    }
+    return h;
   }
 
   /**

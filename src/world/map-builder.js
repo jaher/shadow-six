@@ -488,7 +488,7 @@ export function* stampVisualNavG(world, built, points = []) {
   for (const b of built) if (b.def.doorWay !== false) for (const d of b.library?.doors || []) if (d.approach) realDoors.push([d.approach.x, d.approach.z]);
   // (a stair's ends too: its foot must not be closed off by the rails and stringers beside it)
   const linkEnds = [...(grid.links || []).flatMap((l) => [[l.a.x, l.a.z], [l.b.x, l.b.z]]), ...rampEnds(grid)];
-  const ways = [...realDoors, ...linkEnds, ...points].map(([x, z]) => { const c = grid.worldToCell(x, z); return [c.i, c.j]; });
+  const ways = groundWays(grid, built, [...realDoors, ...linkEnds, ...points]).map(([x, z]) => { const c = grid.worldToCell(x, z); return [c.i, c.j]; });
   for (const b of built) {
     if (due()) yield;
     if (!b.object3d || TREE_TYPES.includes(b.type) || b.def.clip === false) continue;
@@ -620,6 +620,37 @@ export function* stampVisualNavG(world, built, points = []) {
   const relaxedN = stamps.filter((st) => st.lv?.size && !st.soft).length;
   const off = world.events?.on?.('structure:destroyed', (e) => { if (e?.owner != null) { grid.navStamp(`vis:${e.owner}`, []); grid.navStamp(`low:${e.owner}`, []); } });
   return { cells, structures: n, lanes, relaxed: relaxedN, off: typeof off === 'function' ? off : null };
+}
+
+/**
+ * Rule (e) ways: the mission points a structure's raised roof hides from the ground. A structure with `roofWays: false`
+ * (the M3 dam bunker: a walkable roof reached only by its climb link and its `entry` path, never by walking up the
+ * berm) owns the raised level round its centre (the cells a step from one another over MAX_STEP above the ground):
+ * the points standing on it (its crew's post, the charge target, the door's approach, the link's roof end) are no ways
+ * keepWays must hold the visual nav stamps open for. walkPieces labels a cell by 4-connection and no elevation, so
+ * they all counted as ground points the berm's ring was cutting off, and 13 rounds of relaxing opened the ring round
+ * the whole mound (M3 seed 11: e32 ran into the berm, 0.6 m deep). The link's ground end stays a way.
+ * @param {number[][]} ways [x, z] points @returns {number[][]} the points that are on the ground
+ */
+export function groundWays(grid, built, ways) {
+  const roofs = built.filter((b) => b.def?.roofWays === false && Number.isFinite(b.def.x) && Number.isFinite(b.def.z));
+  if (!roofs.length) return ways;
+  const cols = grid.cols, roof = new Set();
+  for (const b of roofs) {
+    const c = grid.worldToCell(b.def.x, b.def.z);
+    if (!grid.inBounds(c.i, c.j) || !(grid.elev[grid.idx(c.i, c.j)] > MAX_STEP)) continue;
+    const st = [grid.idx(c.i, c.j)];
+    roof.add(st[0]);
+    while (st.length) {
+      const k = st.pop(), i = k % cols;
+      for (const nb of [i > 0 ? k - 1 : -1, i < cols - 1 ? k + 1 : -1, k - cols, k + cols]) {
+        if (nb < 0 || nb >= grid.size || roof.has(nb) || !(grid.elev[nb] > MAX_STEP) || !grid.canStep(k, nb)) continue;
+        roof.add(nb);
+        st.push(nb);
+      }
+    }
+  }
+  return ways.filter(([x, z]) => { const c = grid.worldToCell(x, z); return !(grid.inBounds(c.i, c.j) && roof.has(grid.idx(c.i, c.j))); });
 }
 
 /** Walkable pieces of the grid for a walker (4-connected = 8-connected without corner cutting): label per cell, 0 = closed. */
@@ -2007,7 +2038,7 @@ export function* buildMapGen(world, mission, opts = {}) {
     // (never at the price of a way between the mission's points: a lane under low eaves stays a lane)
     if (hr.cells) {
       const st = { key: 'headroom', levels: [new Set(grid._navStamps.get('headroom') || []), new Set()], soft: true };
-      const ways = [...(world.structureDoors?.values?.() || []), ...(grid.links || []).flatMap((l) => [[l.a.x, l.a.z], [l.b.x, l.b.z]]), ...rampEnds(grid), ...missionWayPoints(mission, interactables)];
+      const ways = groundWays(grid, built, [...(world.structureDoors?.values?.() || []), ...(grid.links || []).flatMap((l) => [[l.a.x, l.a.z], [l.b.x, l.b.z]]), ...rampEnds(grid), ...missionWayPoints(mission, interactables)]);
       if (yield* keepWaysG(grid, pieces, ways.map(([x, z]) => { const c = grid.worldToCell(x, z); return [c.i, c.j]; }), [st])) libLog.push(`head room: ${st.lv.size} cells opened (a way under low eaves)`);
     }
     if (hr.off) { const a = visNavOff; visNavOff = () => { a?.(); hr.off(); }; }

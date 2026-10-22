@@ -318,6 +318,9 @@ export default {
     // bunker_snow `main`; its sidecar points fitted 0.72 × 0.74). Past the gap (`face` 1) the baffle walls hide him.
     { id: 'dam_bunker', type: 'bunker', variant: 'surveillance', x: BUNKER.x, z: BUNKER.z, rot: deg(225), w: 4, d: 5, h: 2.4,
       destructible: true, bombOnly: true, hp: 100, crew: ['e34'], marker: 'bunker_charge',
+      // (`roofWays: false`: the crew's post, the charge target, the door's approach and the berm link's roof end stand on the
+      // walkable roof, reached by the link and `entry` only: the nav ring round the berm is not opened for them, map-builder groundWays)
+      roofWays: false,
       entry: { path: [bunkerPt(4.09, -4.0), bunkerPt(3.13, -3.04), bunkerPt(2.07, -3.88), bunkerPt(0.87, -2.68), bunkerPt(0.04, -1.85)], face: 1, charge: BUNKER_CHARGE } },
     // --- the power station (S bank): electrified chain-link fence with a N gap (x 24–28) and the W gate
     { id: 'st_fence', type: 'fence', variant: 'electric', h: 2.5, powered: true, poweredBy: 'fence_switch', cuttable: true,
