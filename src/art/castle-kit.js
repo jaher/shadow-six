@@ -432,6 +432,8 @@ export function flagTop(G, poly, y, o = {}) {
  * Low parapet strip over polygon `poly` (a thin rectangle along a terrace edge) from y to yTop: a stone balustrade
  * (dressed rail on squat balusters between piers) or a solid crenellated wall.
  */
+/** Half the embrasure (m) a crenellated parapet keeps clear where a way crosses it (buildParapet o.gaps). */
+export const GAP_HALF = 0.6;
 export function buildParapet(poly, y, yTop, o = {}) {
   const G = o.G || new Geo(o.seed ?? poly.flat().join(','));
   const p = ccw(poly);
@@ -449,7 +451,14 @@ export function buildParapet(poly, y, yTop, o = {}) {
     for (let u = 0; u <= F.L + 0.01; u += Math.max(2.5, F.L / Math.max(1, Math.round(F.L / 3)))) segBox(G, 'ashlar', F, Math.max(0, u - 0.25), Math.min(F.L, u + 0.25), w0 - 0.08, w1 + 0.08, y, y + H + 0.08, 1.0);
   } else {
     segBox(G, 'ashlar', F, 0, F.L, w0, w1, y - 0.1, y + H * 0.7, 1.0);
-    for (let u = 0.1; u < F.L - 0.6; u += 1.9) segBox(G, 'ashlar', F, u, Math.min(F.L, u + 1.2), w0, w1, y + H * 0.7, y + H + 0.45, 0.97);
+    // (o.gaps: world points where a way crosses the strip — a ladder's head, a climb, a stair — an embrasure there,
+    // GAP_HALF either side clear of merlons: the ladder had leant on one and the man stepped through it, M20's L_in)
+    const gu = (o.gaps || []).map(([x, z]) => (x - a[0]) * F.t[0] + (z - a[1]) * F.t[1]);
+    for (let u = 0.1; u < F.L - 0.6; u += 1.9) {
+      let pieces = [[u, Math.min(F.L, u + 1.2)]];
+      for (const g of gu) pieces = pieces.flatMap(([p0, p1]) => [[p0, Math.min(p1, g - GAP_HALF)], [Math.max(p0, g + GAP_HALF), p1]]);
+      for (const [p0, p1] of pieces) if (p1 - p0 >= 0.3) segBox(G, 'ashlar', F, p0, p1, w0, w1, y + H * 0.7, y + H + 0.45, 0.97);
+    }
     segBox(G, 'dressed', F, 0, F.L, w0 - 0.05, w1 + 0.05, y + H * 0.7, y + H * 0.7 + 0.08, 1.05);
   }
   return o.G ? G : G.build(o.name || 'parapet', { ground: y });

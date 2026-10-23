@@ -137,6 +137,7 @@ export function climbLinkNear(world, x, z, role = 'greenberet') {
 registerAbility({
   id: 'climb', label: 'Climb', icon: '🧗', hotkey: null, roles: ['greenberet'], targeting: 'point', cursor: 'axe',
   order: 43, visibleToEnemies: true, range: 1e9, // walking is the climb itself (path through the link)
+  turnsOnTheWay: true, // (not snapped round to face the clicked end: his walk turns him — on the spot first at a climb's start)
   canUse(c, t, world) {
     const f = freeToAct(c);
     if (f !== true) return f;

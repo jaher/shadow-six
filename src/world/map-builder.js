@@ -2403,7 +2403,7 @@ export function addMissionLinks(grid, mission, o = {}) {
   }
   for (const l of mission.ladders || []) {
     const walk = l.kind === 'stairs' || l.kind === 'plank' ? l.kind : undefined; // walked, not climbed (world/stairs.js)
-    const link = grid.addLink(LINK.LADDER, end([l.x, l.z, l.y ?? 0]), end(l.top), { roles: l.roles ?? null, enabled: !l.raised, walk, heading: l.heading });
+    const link = grid.addLink(LINK.LADDER, end([l.x, l.z, l.y ?? 0]), end(l.top), { roles: l.roles ?? null, enabled: !l.raised, walk, heading: l.heading, climbTime: l.climbTime });
     out.push({ kind: LINK.LADDER, link, def: l });
   }
   return o.records ? out : out.length;

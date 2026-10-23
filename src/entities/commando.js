@@ -485,7 +485,7 @@ export class Commando extends Unit {
         w.events.emit('message', { text: `${this.nickname}: ${typeof ok === 'string' ? ok : "can't do that."}`, kind: 'warn', unit: this });
         return;
       }
-      if (d > 1e-3 && !self) this.faceTowards(tp.x, tp.z);
+      if (d > 1e-3 && !self && !p.def.turnsOnTheWay) this.faceTowards(tp.x, tp.z);
       w.events.emit('ability:start', { unit: this, id: p.def.id, target: p.target ?? null });
       // the id is set before start(): the model picks the action's clip and hand prop as soon as start() plays it
       // (unit-anim-map: shovel → dig, uniform → change_clothes, cutters → cut_wire …)

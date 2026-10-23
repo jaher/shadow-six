@@ -462,6 +462,7 @@ export class UnitModel {
       if (v) { o.moveSpeed = v; this._v = v; this._sent = v; }
     }
     const prev = this.clip;
+    if (prev !== clip) { this._clipPrev = prev; this._clipAt = this.unit?.world?.time ?? 0; } // (art/ladder-climb.js: what played before a climb's walk)
     this.clip = clip; this._turnClip = null;
     this._mwValid = false;
     // standing <-> prone through go_prone / get_up (0.5 / 0.6 s) for runtimes that do not do it themselves
@@ -635,6 +636,7 @@ export class UnitModel {
     root._mwTok = FRAME.n;
     if (this.pawFalls && R.inner?.takeFootfalls) this._footfalls(R.inner);
     (this._rootPrev ||= root.position.clone()).copy(root.position); // (art/ladder-climb.js: the root's drawn place across a climb's ease in / out)
+    this._rootYawPrev = root.rotation.y; // (and its drawn facing)
   }
 
   /**

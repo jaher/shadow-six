@@ -13,6 +13,8 @@ import { angleTo, turnTowardsAngle, angleDiff, wrapAngle, dist } from '../core/m
 import { T, B, MAX_STEP } from '../world/grid.js';
 import { plan as avoidPlan, priority, blocks, givesWay } from './avoidance.js';
 
+/** A climb starts once he faces its way within this (rad): turned further away he turns on the spot first. */
+export const CLIMB_TURN = 0.6;
 /** Body reach (m) kept over a wall while climbing it: torso + pack / slung rifle. */
 const CLIMB_R = 0.45;
 
@@ -277,6 +279,18 @@ export class Unit extends Entity {
     this._onArrive = onArrive;
     this._pathGridVersion = this.world.grid.version;
     return true;
+  }
+
+  /** Is the next leg of his path a ladder's, its foot (the waypoint before it) within `r` m of him? */
+  _toLadderFoot(r) {
+    const p = this.path;
+    if (!p) return false;
+    for (let k = this.pathIndex; k < Math.min(p.length, this.pathIndex + 2); k++) {
+      if (!isLadderLeg(p[k])) continue;
+      const f = k > this.pathIndex ? p[k - 1] : { x: this.x, z: this.z };
+      return Math.hypot(f.x - this.x, f.z - this.z) < r;
+    }
+    return false;
   }
 
   /** Is he halfway up / down a ladder (entities/stair-walk.js)? */
@@ -731,13 +745,33 @@ export class Unit extends Entity {
     super.syncTransform(alpha);
     const o = this.object3d, w = this.world;
     if (o && this._pitched) { o.rotation.x = 0; this._pitched = false; }
-    if (o && (this.stance === 'crawl' || this.stance === 'downed') && this.alive && typeof w?.groundY === 'function' && !this.vehicle) return this._crawlOverSteps(o, w);
-    if (!o || typeof w?.groundY !== 'function' || !this._moving || LOW_STANCES.has(this.stance) || this._climb || this._ladder) return;
-    const run = this.moveMode === 'run', reach = run ? RUN_REACH : WALK_REACH, heel = run ? RUN_HEEL : WALK_HEEL;
-    const x = o.position.x, z = o.position.z, c = Math.cos(this.heading), s = Math.sin(this.heading), g0 = w.groundY(x, z) || 0;
-    let lift = 0;
-    for (const d of [-reach, reach]) lift = Math.max(lift, (w.groundY(x + c * d, z + s * d) || 0) - g0 - heel);
-    if (lift > 0) o.position.y += Math.min(lift, 0.3);
+    if (o && (this.stance === 'crawl' || this.stance === 'downed') && this.alive && typeof w?.groundY === 'function' && !this.vehicle) { this._lift = null; return this._crawlOverSteps(o, w); }
+    if (!o || typeof w?.groundY !== 'function' || LOW_STANCES.has(this.stance) || this._climb || this._ladder || this.vehicle) { this._lift = null; return; }
+    if (this._moving) {
+      const run = this.moveMode === 'run', reach = run ? RUN_REACH : WALK_REACH, heel = run ? RUN_HEEL : WALK_HEEL;
+      const x = o.position.x, z = o.position.z, c = Math.cos(this.heading), s = Math.sin(this.heading), g0 = w.groundY(x, z) || 0;
+      let lift = 0;
+      for (const d of [-reach, reach]) lift = Math.max(lift, (w.groundY(x + c * d, z + s * d) || 0) - g0 - heel);
+      if (lift > 0) o.position.y += Math.min(lift, 0.3);
+    }
+    this._easeLift(o, alpha);
+  }
+
+  /**
+   * The body's lift off the sim's height (the low surfaces under his feet, the stride's ride up a step) eased: at most
+   * 1.8 m/s up, 3 m/s down. Walking up to a 0.35 m plinth — M11's tanks — the boot's reach found its top in one frame
+   * and he rose 30 cm in it; the feet ring's own rings step it 0.23 / 0.29 / 0.35 m. A jump (a placing) starts afresh.
+   */
+  _easeLift(o, alpha) {
+    const t = (this.world?.time ?? 0) - (1 - alpha) * CONFIG.sim.dt, simY = this.prevY + (this.y - this.prevY) * alpha;
+    const off = o.position.y - simY, L = this._lift;
+    if (L && Math.hypot(o.position.x - L.x, o.position.z - L.z) < 1 && t >= L.t) {
+      const dt = t - L.t, v = dt > 0 ? Math.max(L.off - 3 * dt, Math.min(L.off + 1.8 * dt, off)) : L.off;
+      o.position.y = simY + v;
+      this._lift = { t, off: v, x: o.position.x, z: o.position.z };
+      return;
+    }
+    this._lift = { t, off, x: o.position.x, z: o.position.z };
   }
 
   /**
@@ -869,8 +903,10 @@ export class Unit extends Entity {
     const st = this.stance;
     // (on a ladder he goes up its line, the wall it stands against before him: a ladder's top a step inside a wall's
     // body — M17's, M19's, M11's — had him stopped at its foot the first frame up)
+    // (nor his last 1.5 m to a ladder's foot, the ladder his next leg: the structure it is built onto — M2's MG
+    // platforms, whose solid takes in their ladder — stopped him short of it, climbable only from that very spot)
     const skip = !hasObstacles(w) || !this.alive || HIDDEN_STATES.has(this.state) || this.vehicle || this.y > 1
-      || st === 'swim' || st === 'dive' || this._ladder;
+      || st === 'swim' || st === 'dive' || this._ladder || this._toLadderFoot(1.5);
     if (skip) { this._bodyPrev = null; return; }
     const ign = this._bodyIgnore();
     const g = bodyGap(w, this.x, this.z, this.heading, st, ign);
@@ -997,7 +1033,7 @@ export class Unit extends Entity {
     this.trackV = step / dt; // pace along the path (route progress; the lane and curve ride on top)
     const stride = step, running = this.moveMode === 'run'; // (an arrival this step resets moveMode / path)
     let dirX = 0, dirZ = 0;
-    let climbing = false;
+    let climbing = false, climbTurn = false;
     const sp = this.path.length === 1 && this.path[0].steer ? this.path[0] : null;
     if (sp && step > 1e-9) { // steering at a moving slot: the walk direction turns at a body's rate (no kinks)
       const dx = sp.x - this.x, dz = sp.z - this.z, d = Math.hypot(dx, dz);
@@ -1022,13 +1058,13 @@ export class Unit extends Entity {
         // all the way (going down he backs down it); the view puts his hands and feet on its rungs
         let C = this._ladder;
         if (!C || C.wp !== wp) C = this._ladder = ladderTrack(this, wp);
-        const use = Math.max(0, Math.min(step, C.len - C.s));
+        const Le = C.Leff ?? C.len, use = Math.max(0, Math.min(step, Le - C.s));
         C.s += use; step -= use;
-        const t = C.len > 1e-6 ? C.s / C.len : 1;
+        const t = Le > 1e-6 ? C.s / Le : 1;
         this.x = C.from.x + (C.to.x - C.from.x) * t; this.z = C.from.z + (C.to.z - C.from.z) * t; this.y = C.from.y + (C.to.y - C.from.y) * t;
         dirX = C.fx; dirZ = C.fz;
         climbing = true;
-        if (C.s < C.len - 1e-9) break;
+        if (C.s < Le - 1e-9) break;
         this.x = wp.x; this.z = wp.z;
         if (wp.y !== undefined) this.y = wp.y;
         this._ladder = null; climbing = false;
@@ -1038,6 +1074,12 @@ export class Unit extends Entity {
       if (wp.link?.kind === 'climb' && w) {
         // rule (e) climbs: over the wall's real top (placement.climbTrack), same duration as the flat crossing
         let C = this._climb;
+        // (he starts the climb facing the wall: turned away from it — back the way he came over it — he turns round on
+        // the spot first at his turn rate, not about in one frame as the climb began)
+        if ((!C || C.wp !== wp) && Math.hypot(wp.x - this.x, wp.z - this.z) > 1e-3 && !LOW_STANCES.has(this.stance)) {
+          const want = Math.atan2(wp.z - this.z, wp.x - this.x);
+          if (Math.abs(angleDiff(this.heading, want)) > CLIMB_TURN) { dirX = Math.cos(want); dirZ = Math.sin(want); step = 0; climbTurn = true; break; }
+        }
         if (!C || C.wp !== wp) {
           const T = climbTrack(w.grid, { x: this.x, z: this.z, y: this.y }, wp, { heightOf: ownerHeight(w), r: CLIMB_R });
           // (the leg's length at the climb pace: the flat crossing's — or, for a link whose climb that is far too quick
@@ -1126,6 +1168,7 @@ export class Unit extends Entity {
     // waits, must not flick walk / idle every few frames)
     const vNow = Math.hypot(this.vx, this.vz);
     this._moving = !av?.wait || (this._walkAnim ? this._avScale > 0.03 || vNow > 0.1 : this._avScale > 0.15 || vNow > 0.3);
+    if (climbTurn) this._moving = false; // (turning on the spot before a climb: he stands and turns, no stride)
     // Surface height (§10.2 elev): raised areas are reached only through links, so snapping is safe.
     // The ABILITIES team animates link traversal (climb/ladder waypoints carry `link`, see findPath).
     // On a stair (grid ramps) he follows its slope rather than the cell steps, and steps on / off it (from the wall walk

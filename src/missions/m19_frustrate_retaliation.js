@@ -118,7 +118,7 @@ const NORTH = [
     roofWalk: true, roofY: 4.5 },
   { id: 'cliff_w', type: 'cliff', variant: 'rock_face', points: [[0, 19], [5, 19], [5, 46], [0, 46]], h: 12 },
   { id: 'shed', type: 'tank_shed', variant: 'tank_shed_open', label: 'Tank shed', x: 28, z: 17.5, rot: 0, w: 11, d: 12, h: 5, open: 'S', smokestack: true },
-  { id: 'tank_small', type: 'fueltank', variant: 'water_tower_legs_small', x: 20.09, z: 21.82, r: 1.2, h: 3, block: 2, fixed: true },
+  { id: 'tank_small', type: 'fueltank', variant: 'water_tower_legs_small', x: 20.09, z: 21.82, r: 1.2, h: 3, block: 2, fixed: true, ladderTime: 3.8 }, // (its ladder: 8 rungs and the step off, 2.8 s at the ladder pace was half again too quick)
   // (art pass 2: where the map build put it beside the old kit shed, 0.45 m off (20.5, 22); pinned, so the new shed's
   // narrower eaves leave the gameplay where it was)
   { id: 'bunker_n', type: 'bunker', variant: 'bunker_concrete_round', x: 43, z: 18.5, rot: 0, w: 5, d: 5, h: 2.5, mat: 'concrete', bunker: true },

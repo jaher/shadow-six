@@ -52,7 +52,7 @@ const DEG = Math.PI / 180;
  */
 export const LADDER = { on: true, pelvisOut: 0.5, chestOut: 0.33, chestMax: 0.385, headOut: 0.3, kneeMin: 0.085, kneeOut: 0.068, footW: 0.1, handW: 0.16,
   handUp: 1.25, heel: 20 * DEG, swingOut: 0.12, fade: 0.25, spring: 22, leanMax: 40 * DEG, splay: 0.5, outMax: 0.66, vaultH: 0.6,
-  endR: 1.3, clearIn: 0.34 };
+  endR: 1.3, clearIn: 0.34, endIn: 0.52 };
 /**
  * The same on a wall's face (art/wall-climb.js: no ladder — the hold line is FACE.holdOff in front of the face): the
  * body closer in, hands flat on it a little wider, knees just off it; standO: m out of the hold line his feet stand
@@ -172,6 +172,8 @@ const LEAD_WALK = 0.7;
 const LEAD_STRIDE = 1.4;
 /** Natural paces the leg's time is shared out by: walking (m/s), a foot's move up the rungs (s), a vault, a step off (s). */
 const LEAD_PACE = 1.25, CLIMB_MOVE = 0.36, VAULT_S = 1.5, STEP_S = 0.9;
+/** Fastest the drawn body turns in the pose (rad/s, the sim's own turn rate CONFIG.units.turnRate is 9.4). */
+const YAW_RATE = 9;
 
 /** The ladder's stand spots: o (out of the rung line) of the pelvis at its foot; o of the feet on the deck. */
 function footStandO(F) { const K = kOf(F); return clamp(F.footO, K.standO[0], K.standO[1]) + 0.08; }
@@ -179,6 +181,9 @@ function deckFeetO(F) {
   let o = clamp(F.topO, -0.7, -0.25);
   // (clear of a wall's inner face behind the top: a palisade over its walk — he comes down on the walk, not into it)
   if (F.inner != null) o = Math.min(o, F.inner - LADDER.clearIn + 0.05);
+  // (the link's end a short way on: there, not a step short of it — a walk of a few cm started with the trailing boot
+  // back in the parapet behind him, M20's L_in)
+  if (F.topO < o && o - F.topO < 0.45) o = F.topO;
   return o;
 }
 
@@ -199,7 +204,9 @@ export function endShift(F, end) {
       out = { x: p.x - q.x, z: p.z - q.z };
     }
   } else if (F.inner != null && !F.midTop) {
-    const E = local(F, { x: F.top.x, y: F.top.y, z: F.top.z }), oT = F.inner - LADDER.clearIn;
+    // (LADDER.endIn: a stride's length off it — standing there he turns and walks off; at clearIn alone a boot of his
+    // first stride went back into M2's palisade)
+    const E = local(F, { x: F.top.x, y: F.top.y, z: F.top.z }), oT = F.inner - LADDER.endIn;
     if (E.o > oT + 0.03) {
       const p = atHeight(F, F.top.y, oT, E.w, new Vector3()), q = atHeight(F, F.top.y, E.o, E.w, new Vector3());
       out = { x: p.x - q.x, z: p.z - q.z };
@@ -270,6 +277,22 @@ function leadOf(F, T, end) {
   if ((d < (top ? 0.15 : 0.25) && !(top && F.midTop && d > 1e-3)) || !(T.len > 0.1)) return { a: 0 };
   const a = Math.min(top ? 0.4 : 0.55, (d + 0.5) / (d + 0.5 + T.len));
   return { a, segs, d, stand: pts.at(-1), toward: top ? !T.up : T.up, top };
+}
+
+/**
+ * A ladder link's climb up at the posed pace (tools / tests): the walks at its ends, the rungs, the move onto the deck
+ * (s, natural) against the sim's leg at the ladder pace (s). @returns {{nat:number, sim:number, n:number, vault:boolean, walk:number}|null}
+ */
+export function ladderPace(world, link, speed = 0.8) {
+  const F = ladderFrame(world, link);
+  if (!F) return null;
+  const [foot, top] = (link.a.y ?? 0) <= (link.b.y ?? 0) ? [link.a, link.b] : [link.b, link.a];
+  const len = Math.hypot(top.x - foot.x, (top.y ?? 0) - (foot.y ?? 0), top.z - foot.z);
+  const T = { up: true, from: { x: foot.x, z: foot.z, y: foot.y ?? 0 }, to: { x: top.x, z: top.z, y: top.y ?? 0 }, len };
+  const lead = leadOf(F, T, 'foot'), topL = leadOf(F, T, 'top');
+  const n = footRungs(F).length, sch = ladderSchedule(n, n);
+  const tW = (L) => (L.a > 0 ? L.d / LEAD_PACE + 0.35 : 0), tq = (sch.q1 - sch.q0) * CLIMB_MOVE, tv = vaults(F) ? VAULT_S : STEP_S;
+  return { nat: tW(lead) + tW(topL) + tq + tv, sim: len / speed, n, vault: vaults(F), walk: tW(lead) + tW(topL), climb: tq, top: tv, dFoot: lead.d ?? 0, dTop: topL.d ?? 0 };
 }
 
 /** Where on an approach's way (lead.segs) a distance along it is, and which way it is walked there. */
@@ -386,7 +409,7 @@ export function ladderClimb(m, dt, guard) {
   }
   if (enemyGun && C) { S.gun ||= { visible: enemyGun.visible }; enemyGun.visible = false; }
   const F = S.F, T = S.C, root = m.root, W8 = smooth(S.w);
-  const P = clamp(T.len > 1e-6 ? (T.up ? T.s / T.len : 1 - T.s / T.len) : 1, 0, 1);
+  const TL = T.Leff ?? T.len, P = clamp(TL > 1e-6 ? (T.up ? T.s / TL : 1 - T.s / TL) : 1, 0, 1);
   // the ladder's own foot away from the link's end (a ladder built clear of a ruin's beams, beside a canopy), the deck
   // spot past its head away from the top end: he walks between them — the climb itself that much quicker
   if (S.legC !== T) {
@@ -421,11 +444,33 @@ export function ladderClimb(m, dt, guard) {
   if (C && S.r1) S.r1 = null;
   const rH = C ? S.r0 : S.r1, rW = C ? 1 - W8 : W8;
   if (rH && rW > 1e-4 && rH.distanceTo(root.position) < 1.5) root.position.lerp(rH, rW);
-  let dyaw = yawT - root.rotation.y; dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
-  root.rotation.y += dyaw * W8;
+  // (easing out: from where he was drawn facing as the climb ended to the sim's heading — what the climb faced had
+  // turned on as the clip under him came back)
+  if (!C && S.yawOut == null) S.yawOut = S.yawD ?? yawT;
+  if (C) S.yawOut = null;
+  // (easing in: from where he was drawn facing as it took over — not from the sim's heading turning on meanwhile:
+  // going down M2's camp ladder it turned him to face the palisade while the climb walked him along the wall walk,
+  // a boot of the stride under him going into the stakes)
+  if (C && S.yaw0 == null) S.yaw0 = m._rootYawPrev ?? root.rotation.y;
+  if (!C) S.yaw0 = null;
+  const yBase = C ? S.yaw0 : root.rotation.y;
+  let dyaw = (C ? yawT : S.yawOut) - yBase; dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
+  root.rotation.y = yBase + dyaw * W8;
+  // (turning no quicker than a man turns, YAW_RATE: from one of a wall climb's faces to the next, off the walk onto
+  // the climb, the drawn body went round 40-65° in a frame — M2's palisade, M1's wall)
+  if (C && S.yawD != null && dt > 0) {
+    let dd = root.rotation.y - S.yawD; dd = Math.atan2(Math.sin(dd), Math.cos(dd));
+    const mx = YAW_RATE * dt;
+    if (Math.abs(dd) > mx) root.rotation.y = S.yawD + Math.sign(dd) * mx;
+  }
+  S.yawD = root.rotation.y;
   root.updateMatrixWorld(true);
   // (getting up off his belly into it: the get-up played under the ease-in, not a lying body blended upright)
-  const before = W8 < 1 ? (C && S.fadeIn > LADDER.fade ? clipPose(m, 'get_up', clamp(S.w, 0, 1), true) || capturePose(m) : capturePose(m)) : null;
+  // (standing still when the climb began — the walk clip it set going a frame before: the stand under the ease-in, not
+  // the walk's first stride; at the top of M2's camp ladder, his back to the palisade, its boot went into the stakes)
+  if (C && S.fromStand == null) S.fromStand = m.clip === 'walk' && /idle/.test(m._clipPrev || '') && (u.world?.time ?? 0) - (m._clipAt ?? -1) < 0.1;
+  const before = W8 < 1 ? (C && S.fadeIn > LADDER.fade ? clipPose(m, 'get_up', clamp(S.w, 0, 1), true) || capturePose(m)
+    : C && S.fromStand ? clipPose(m, m._clipPrev, 0) || capturePose(m) : capturePose(m)) : null;
   const vault = vaults(F);
   /** The climb pose at progress Pv (0 the ground stance at the foot, 1 standing on the deck past the top). */
   const climbPose = (Pv) => {
@@ -513,8 +558,14 @@ export function ladderClimb(m, dt, guard) {
         // it folds right up, its knee turning over from one frame to the next — then down onto the top as the trailing
         // leg comes over)
         const yHi = Math.min(ov + 0.45, yTop + G.ballH + G.ankleRise + 0.93 * G.leg);
-        pelO = keyed([[0, o0], [0.22, 0.32], [0.38, V.oMid + 0.05], [0.5, V.oMid - 0.05], [0.62, V.oIn - 0.1], [0.8, V.oIn - 0.24], [1, V.oDeck - 0.05]], vu);
-        pelY = keyed([[0, yTop + hipClimb], [0.22, Math.max(yTop + hipClimb, yHi)], [0.38, Math.max(ov + 0.28, yHi - 0.12)], [0.5, ov + 0.16], [0.62, ov + 0.07], [0.8, dk + hipDeck * 0.78], [1, dk + hipDeck]], vu);
+        // (on a thick wall — M20's parapets, 0.9 m — only just over its front as the trailing foot leaves the top rung,
+        // then on to the seat: at its middle the hip was out of that leg's reach and pulled the foot off the rung)
+        const o38 = Math.max(V.oMid + 0.05, V.oF - 0.15);
+        pelO = keyed([[0, o0], [0.22, 0.32], [0.38, o38], [0.5, V.oMid - 0.05], [0.62, V.oIn - 0.1], [0.8, V.oIn - 0.24], [1, V.oDeck - 0.05]], vu);
+        // (the hip over the wall's front as the trailing foot leaves the top rung: no further than that leg reaches
+        // from there — M20's embrasures, the foot pulled off its rung 3-14 cm a moment early)
+        const y38r = topL.ys + G.ballH + G.ankleRise + Math.sqrt(Math.max(0.01, (0.95 * G.leg) ** 2 - (o38 - G.ankleOut) ** 2));
+        pelY = keyed([[0, yTop + hipClimb], [0.22, Math.max(yTop + hipClimb, yHi)], [0.38, Math.max(yTop + hipClimb, Math.min(Math.max(ov + 0.28, yHi - 0.12), y38r))], [0.5, ov + 0.16], [0.62, ov + 0.07], [0.8, dk + hipDeck * 0.78], [1, dk + hipDeck]], vu);
         const swing = (u0, u1, from, side, out = 0) => {
           // (up from the rung, over the wall top — in front of its face, over its inner edge — down its far side to hang
           // there under the seat; then down onto the deck; the trailing leg comes over out to the side, a hurdler's
@@ -522,14 +573,15 @@ export function ladderClimb(m, dt, guard) {
           const sd = side === 'l' ? 1 : -1, w = sd * K.footW, wo = sd * (K.footW + out);
           const t = clamp((vu - u0) / (u1 - u0), 0, 1);
           if (t <= 0) return { p: from.p.clone(), zone: 'rung', ys: from.ys };
-          const hang = atHeight(F, Math.max(dk + G.ballH + 0.05, pelY - G.leg * 0.85), V.oIn - 0.14, w, new Vector3());
+          // (the ball a foot's length off the inner face: the heel behind it went into the parapet, M20's embrasures)
+          const hang = atHeight(F, Math.max(dk + G.ballH + 0.05, pelY - G.leg * 0.85), V.oIn - 0.26, w, new Vector3());
           if (t >= 1) return { p: hang, zone: 'moving', ys: dk };
           // (the trailing leg wide of the hip, its knee raised: up in front of the face out to the side, over the top
           // beside the seat — brought over close by the hip, its ankle passed through the hip joint and the knee
           // turned over in a frame)
           // (up inside the stiles first: a built ladder's stand 0.35 m over the wall top — the foot and knee out to the
           // side in front of them went into them, M15's, M20's turret — out wide only behind them, over the top)
-          const way = out > 0.1 ? [from.p, atHeight(F, ov + 0.2, V.oF + 0.15, w, new Vector3()), atHeight(F, ov + 0.22, V.oF - 0.1, sd * (K.footW + out * 0.6), new Vector3()), atHeight(F, ov + 0.14, V.oIn - 0.05, wo, new Vector3()), hang]
+          const way = out > 0.05 ? [from.p, atHeight(F, ov + 0.2, V.oF + 0.15, w, new Vector3()), atHeight(F, ov + 0.22, V.oF - 0.1, sd * (K.footW + out * 0.6), new Vector3()), atHeight(F, ov + 0.14, V.oIn - 0.05, wo, new Vector3()), hang]
             : [from.p, atHeight(F, ov + 0.15, V.oF + 0.05, wo, new Vector3()), atHeight(F, ov + 0.12, V.oIn - 0.1, wo, new Vector3()), hang];
           return { p: along(way, smooth(t)), zone: 'moving', ys: from.ys };
         };
@@ -538,7 +590,9 @@ export function ladderClimb(m, dt, guard) {
           if (t <= 0) return sw;
           return { p: sw.p.clone().lerp(to.p, smooth(t)), zone: t >= 1 ? 'deck' : 'moving', ys: dk };
         };
-        fr = land(0.6, 0.8, swing(0.12, 0.38, top, 'r'), deckR); fl = land(0.64, 0.84, swing(0.38, 0.62, topL, 'l', 0.33), deckL);
+        // (the trailing leg out as wide as the way over the top lets it: F.topHalf, an embrasure's)
+        const wide = clamp((F.topHalf ?? Infinity) - K.footW - 0.12, 0.06, 0.33);
+        fr = land(0.6, 0.8, swing(0.12, 0.38, top, 'r'), deckR); fl = land(0.64, 0.84, swing(0.38, 0.62, topL, 'l', wide), deckL);
       } else {
         // (the pelvis: up as the lead foot comes up, forward over the deck's edge, standing; under a lintel no higher
         // than it lets him)
@@ -740,7 +794,8 @@ export function ladderClimb(m, dt, guard) {
         twoBoneIK(thigh, calf, foot, ank);
         // (knees in through the gap at the top: a railing either side of the ladder's way onto the deck; over a wall's
         // top in a vault the knee leads forward over it)
-        let splay = f.from === 'deck' || f.to === 'deck' || f.zone === 'deck' || VT ? 0.05 : K.splay;
+        // (stepping onto the deck: knees a touch in — out, the lead knee caught the end of a roof's parapet beside the way, M12)
+        let splay = f.from === 'deck' || f.to === 'deck' || f.zone === 'deck' || VT ? -0.05 : K.splay;
         // (onto the deck: the lead knee forward and up over the edge; in a vault the trailing leg comes over a hurdler's
         // way, its knee out to the side — a knee pointed along the leg would flip from one frame to the next)
         const trail = VT?.mode === 'vault' && s === 'l';
@@ -760,7 +815,9 @@ export function ladderClimb(m, dt, guard) {
           : fdir.clone().addScaledVector(up, 0.5).addScaledVector(wdir, side * 0.05);
         const poleAt = (spl) => {
           const P = fdir.clone().addScaledVector(up, 0.25).addScaledVector(wdir, side * spl);
-          if (bUp > 0) P.lerp(up.clone().addScaledVector(wdir, side * spl * 0.3), bUp);
+          // (up, with forward and out enough that a leg still plumb under the hip keeps a way to point: up alone ran
+          // along it and the knee wandered across to the other stile)
+          if (bUp > 0) P.lerp(up.clone().addScaledVector(fdir, 0.2).addScaledVector(wdir, side * Math.max(0.15, spl * 0.3)), bUp);
           if (bl > 0) P.lerp(mv, bl);
           return P;
         };
@@ -852,12 +909,22 @@ export function ladderClimb(m, dt, guard) {
       }
       if ((g.to ?? g.kind) === 'stile') {
         // (a stile is held where the arm reaches it: the hand slides along it as he goes over the top)
-        const sh = ua.getWorldPosition(new Vector3()), arm = armLength(B, s) * 0.93; // (the knuckles: a hand's breadth past the wrist)
+        // (on a face a little short of full reach: at it the hand fell 2-5 cm short of its hold and slid with him, M1)
+        const sh = ua.getWorldPosition(new Vector3()), arm = armLength(B, s) * (F.face ? 0.95 : 0.985);
         const st = ladderPoint(F, 0, F.face ? -FACE_KNUCKLE : 0.035, side * F.halfW, new Vector3()), axis = ladderDir(F, 'l', new Vector3());
         const along = (v) => st.clone().addScaledVector(axis, v);
         let lo = 0, hi = ((F.railTops?.[side > 0 ? 1 : 0] || F.railTop) - 0.1) * Math.hypot(1, F.k);
         const lNow = local(F, g.p).l;
-        const ok = (l) => along(l).distanceTo(sh) <= arm;
+        // (the wrist's reach, not the knuckles': a hand's breadth back from them the way its fingers will point — on a
+        // face up it, so with the shoulder over the hold the wrist is further off: M1's wall top, the hand short of it
+        // by up to 10 cm and dragged along with him)
+        const hb = mid ? mid.getWorldPosition(new Vector3()).distanceTo(hd.getWorldPosition(new Vector3())) : 0.09;
+        const fingers = (K) => {
+          if (F.face) return up.clone().multiplyScalar(0.97).addScaledVector(fdir, 0.2).normalize();
+          const d = K.clone().sub(sh).setY(0); if (d.lengthSq() < 1e-4) d.copy(fdir);
+          return d.normalize().addScaledVector(wdir, -side * 0.3).normalize();
+        };
+        const ok = (l) => { const K = along(l); return K.addScaledVector(fingers(K), -hb).distanceTo(sh) <= arm; };
         if (!ok(lNow)) {
           // the reachable stretch of the stile nearest the wanted grip (a few steps of bisection from the shoulder's level)
           const lS = clamp(local(F, sh).l, lo, hi);
@@ -868,7 +935,7 @@ export function ladderClimb(m, dt, guard) {
           } else g.p.copy(along(lS));
         }
         // (out of reach even so — he is over the top, the stile behind him: that hand lets go)
-        const miss = along(local(F, g.p).l).distanceTo(sh) - arm;
+        const Kg = along(local(F, g.p).l), miss = Kg.clone().addScaledVector(fingers(Kg), -hb).distanceTo(sh) - arm;
         if (miss > 0) { wt *= clamp(1 - miss / 0.12, 0, 1); if (wt < 0.999) g.kind = 'moving'; }
         if (wt <= 0) { handState[s] = { kind: 'free' }; continue; }
       } else if (g.to === 'top') {
@@ -929,7 +996,9 @@ export function ladderClimb(m, dt, guard) {
     if (turn > 0) { climbPose(L.top ? 1 : 0); at = capturePose(m); }
     const h0 = root.getWorldPosition(new Vector3()).y;
     // (the walk's steps faded into the standing pose as he gets there — a step cut off mid-stride jumped the feet)
-    const ww = 1 - smooth((gw - 0.8) / 0.2);
+    // (and faded in with the pose: easing in he is still turning from where he stood to the way he walks — striding
+    // meanwhile, at the top of M2's camp ladder a boot went into the palisade behind him)
+    const ww = (1 - smooth((gw - 0.8) / 0.2)) * W8;
     const walk = ww > 0 ? clipPose(m, 'walk', Math.round(((gw * L.d) / LEAD_STRIDE % 1) * 48) / 48, true) : null;
     const idle = clipPose(m, 'idle', 0);
     if (idle) mixPose(m, idle, 1, guard);

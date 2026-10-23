@@ -109,7 +109,7 @@ const CAMP = [
   camp('shed_w', 'hut', 'showers_slatted', C(10.8, 2.6), 5, 3, 2.6, { label: 'Showers', mat: 'planks', asset: 'shed_tarred_be' }),
   camp('shed_ne', 'hut', 'shed_slatted', C(47.3, 2.8), 5, 3, 2.6, { mat: 'planks', asset: 'shed_tarred_be' }),
   { id: 'water_tank', type: 'well', variant: 'water_tank_caged', x: C(4.4, 22.9)[0], z: C(4.4, 22.9)[1], r: 1.2, h: 3, block: 2 },
-  camp('fuel_tank', 'fueltank', 'fuel_tank_elevated', C(33.7, 25), 5, 3, 6, { label: 'Fuel tanks', block: 2 }),
+  camp('fuel_tank', 'fueltank', 'fuel_tank_elevated', C(33.7, 25), 5, 3, 6, { label: 'Fuel tanks', block: 2, ladderTime: 8.0 }), // (its ladder's climb: the walk round to it, 12 rungs — 3.4 s at the ladder pace was twice too quick)
   camp('crates_u', 'crates', 'crates_pile', C(47.5, 20.5), 3, 3, 1.5, { block: 1 }),
   camp('crates_w', 'crates', 'crates_logs', C(15, 21.8), 4, 2, 1.2, { block: 1 }),
   { id: 'barrel_1', type: 'barrels', variant: 'fuel_explosive', x: C(41.1, 22.3)[0], z: C(41.1, 22.3)[1], r: 0.3, h: 0.9,

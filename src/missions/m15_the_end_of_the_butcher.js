@@ -237,7 +237,7 @@ const FURNITURE = [
 
 // ---------------------------------------------------------------- ladders (dossier §5.2; everyone climbs)
 const LADDERS = [
-  { id: 'L1', x: cb(5.5, 12.4)[0], z: cb(5.5, 12.4)[1], y: 0, top: [...cb(5.5, BAL_LZ), LEVEL.B], raised: false, heading: deg(285) }, // street → balcony
+  { id: 'L1', x: cb(5.5, 12.4)[0], z: cb(5.5, 12.4)[1], y: 0, top: [...cb(5.5, BAL_LZ), LEVEL.B], raised: false, heading: deg(285), climbTime: 7.2 }, // street → balcony (17 rungs and the vault over its railing: 6.4 s at the ladder pace was a third too quick)
   { id: 'L2', x: cb(7.2, BAL_LZ)[0], z: cb(7.2, BAL_LZ)[1], y: LEVEL.B, top: [...cb(7.2, 7.4), LEVEL.R], raised: false, heading: deg(285) }, // balcony → roof
 ];
 

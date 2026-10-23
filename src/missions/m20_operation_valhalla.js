@@ -250,7 +250,7 @@ const MILITARY = [
   { id: 'gun_hq', type: 'aa_gun', variant: 'towed_field_gun', x: 22, z: 70, rot: 0, w: 3, d: 2, h: 1.6, block: 0, baseY: Y.HQ },
   crates('crates_hq1', 27, 66, 1.4, 1.4, { block: 0, baseY: Y.HQ }), crates('crates_hq2', 29, 67.5, 1.4, 1.4, { block: 0, baseY: Y.HQ }),
   crates('crates_n3', 64, 28, 1.4, 1.4, { block: 0, baseY: Y.N }), crates('crates_n4', 66, 30, 1.4, 1.4, { block: 0, baseY: Y.N }),
-  { id: 'sl_hq', type: 'searchlight', x: 37, z: 76.5, r: 0.6, h: 1.8, block: 0, baseY: Y.HQ },
+  { id: 'sl_hq', type: 'searchlight', x: 36.8, z: 74.8, r: 0.6, h: 1.8, block: 0, baseY: Y.HQ }, // (clear of L_in's head at (36.5, 77): whoever came up it walked through it)
   { id: 'sl_t', type: 'searchlight', x: 30, z: 58.5, r: 0.6, h: 1.8, block: 0, baseY: Y.TUR },
   { id: 'sl_n', type: 'searchlight', x: 93, z: 30, r: 0.6, h: 1.8, block: 0, baseY: Y.N },
   // the poles stand ≥ 4 m off the roads' centrelines (pole_1 off the SW exit road: the tank's way out)
@@ -299,7 +299,7 @@ export const ATGUN = { x: 77, z: 50.5 }; // ≥ 13.5 m (the cannon's minimum ran
 export const L_RNG = ladder('L_rng', [134.5, 71, 0], [138.5, 71, Y.BAT], 0); // "the ladder down into the firing range" [P]
 const LADDERS = [
   ladder('L_in', [36.5, 80, Y.SW], [36.5, 77, Y.HQ], 270), // everyone's way between the SW bastion and T_hq (the Sapper's)
-  ladder('L_hq1', [24.5, 63.5, Y.HQ], [24.5, 60.5, Y.ROOF], 270), // T_hq → the HQ roof ledge
+  ladder('L_hq1', [25.1, 63.5, Y.HQ], [25.1, 60.5, Y.ROOF], 270), // T_hq → the HQ roof ledge (up to a crenel of the château's parapet, x 24.8–25.4: at 24.5 it leant on a merlon and the way onto the roof went through it)
   ladder('L_hq2', [25.5, 60, Y.ROOF], [27.8, 58, Y.TUR], 315), // the roof ledge → the turret deck ("the small ladder")
   L_RNG,
   stairs('S_sw', [37, 95.5, Y.BAT], [35, 89.5, Y.SW], 250), // T_sw → the SW battlements

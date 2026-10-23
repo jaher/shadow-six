@@ -855,7 +855,8 @@ export class NavGrid {
       enabled: opts.enabled ?? true,
       // a ladder link that is walked, not climbed: a flight of stairs or a plank (mission `ladders[].kind`)
       ...(opts.walk ? { walk: opts.walk } : null),
-      // a climb link's own time (s; mission `climbLinks[].climbTime`): its climb is far longer than its crossing
+      // a climb link's own time (s; mission `climbLinks[].climbTime`, `ladders[].climbTime`): its climb is far longer
+      // than its crossing (a ladder's: the walk to it, the way over a wall at its top)
       ...(opts.climbTime > 0 ? { climbTime: opts.climbTime } : null),
       // the facing of a ladder's climber (mission `ladders[].heading`: the ladder faces the other way)
       ...(opts.heading != null ? { heading: opts.heading } : null),

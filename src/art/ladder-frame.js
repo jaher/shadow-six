@@ -391,7 +391,9 @@ function measureOnce(link, A, parts) {
   if (F.source === 'open' && wallTop == null) {
     // what stands at the deck's edge: the highest row still hitting it near the middle (a palisade over its walk)
     const edgeS = F.s0 + FRAME.standoff;
-    rows.forEach((v, j) => { if (cols.some((w, i) => Math.abs(w) <= 0.25 && prof[j][i] != null && prof[j][i] < edgeS + 0.3)) wallTop = Math.max(wallTop ?? 0, v); });
+    // (and a little back from the edge: a roof's parapet set 0.3 m back on its ledge — M12's — is stepped over, the
+    // feet and knees lifted over it, not through it)
+    rows.forEach((v, j) => { if (cols.some((w, i) => Math.abs(w) <= 0.25 && prof[j][i] != null && prof[j][i] < edgeS + 0.65)) wallTop = Math.max(wallTop ?? 0, v); });
   }
   if (F.source === 'wall' || F.source === 'open') {
     // a ladder is built: up to the deck — or over the wall's top when it stands higher than the deck (a palisade)
@@ -541,17 +543,20 @@ function measureOnce(link, A, parts) {
   // a wall top to sit on and go over (the vault: art/ladder-climb.js) — nothing standing on it in the way from the
   // ladder's line to past its inner face, a man's height over it: a crenel's merlons, an eave, a doorway's head (M20's
   // towers had him vault through their merlons, M17's eave)
-  F.topClear = true;
+  F.topClear = true; F.topHalf = Infinity;
   if ((F.over ?? H) > H + 0.25) {
     const nn = Math.hypot(1, F.k), sIn = F.inner != null ? (F.s0 + F.k * H) - F.inner * nn : F.s0 + F.k * F.over + 0.3;
     const dir = new THREE.Vector3(fx, 0, fz);
-    for (const v of [0.35, 0.7, 1.0]) {
+    const blocked = (v, w) => {
       // (from just behind the rungs at that height: not the ladder's own stiles and rungs standing over the top)
       const sA = F.s0 + F.k * (F.over + v) + 0.06;
-      for (const w of [-0.15, 0, 0.15]) {
-        const t = castEntry(parts, o.set(foot.x + fx * sA + lx * (w + (F.c ?? 0)), foot.y + F.over + v, foot.z + fz * sA + lz * (w + (F.c ?? 0))), dir, Math.max(0.3, sIn - sA + 0.4));
-        if (t != null) F.topClear = false;
-      }
+      return castEntry(parts, o.set(foot.x + fx * sA + lx * (w + (F.c ?? 0)), foot.y + F.over + v, foot.z + fz * sA + lz * (w + (F.c ?? 0))), dir, Math.max(0.3, sIn - sA + 0.4)) != null;
+    };
+    for (const v of [0.35, 0.7, 1.0]) for (const w of [-0.15, 0, 0.15]) if (blocked(v, w)) F.topClear = false;
+    // (and how wide the way over it is — an embrasure between two merlons, M20's: the vault's trailing leg comes over
+    // no wider than that, its foot had gone out into the merlon beside it)
+    if (F.topClear) for (const sd of [-1, 1]) for (const w of [0.25, 0.35, 0.45, 0.55, 0.65]) {
+      if ([0.12, 0.35].some((v) => blocked(v, sd * w))) { F.topHalf = Math.min(F.topHalf, w - 0.1); break; }
     }
   }
   // inside a building (the brick ruins' stair to their roof, M4 / M7 / M17 / M19): walls all round halfway up — the

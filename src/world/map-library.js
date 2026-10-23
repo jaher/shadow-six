@@ -103,7 +103,9 @@ export function applyLibraryNav(grid, built, mission, snap) {
       // to the shut loft door — leads nowhere: no link, rather than a dead one)
       const tc = grid.worldToCell(bTop.x, bTop.z);
       if (!grid.inBounds(tc.i, tc.j) || !grid.isWalkable(tc.i, tc.j) || Math.abs(grid.elev[grid.idx(tc.i, tc.j)] - l.y) > 0.6) { out.dead = (out.dead || 0) + 1; continue; }
-      grid.addLink(LINK.LADDER, a, bTop, { roles: null });
+      // (a structure's ladder whose climb takes far longer than its link's length at the ladder pace — the walk round to
+      // a drawn ladder off its link's ends, its rungs well over its top: mission structure `ladderTime`, s)
+      grid.addLink(LINK.LADDER, a, bTop, { roles: null, climbTime: b.def?.ladderTime });
       out.ladders++;
     }
     for (const c of lib.climbEdges) {

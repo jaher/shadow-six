@@ -26,12 +26,6 @@ export const timeout = 2_400_000;
  */
 const ART = {
   'm17:1': { from: 0.6, why: "a roof's eave hangs low over the wall top he climbs over (head / chest brush it)" },
-  'm20:4': { from: 0.6, why: "the tower's door at the ladder's top is drawn shut (his knee touches it stepping in)" },
-  // (the move onto the roof only: the lead knee 1 mm inside its 4 cm radius of the lip as the foot lands past it)
-  'm12:3': { from: 1, why: "a roof's low lip (0.45 m) by the ladder's head: the lead knee brushes it stepping over onto the roof" },
-  // (layout: the ladder leans on a merlon, not at a crenel — its way onto the walk goes through the merlon; on master
-  // the body went through it as the pose let go at the top, 22-30 cm; no clear top to go over it)
-  'm20:3': { from: 0.9, why: "the ladder leans on a merlon of the battlement: the way onto the walk goes through it (layout)" },
   'm08:6': { from: 0, who: 'greenberet', why: "the tank's cage is 0.56 m deep: the tallest man's back clears its hoops only with his knees by the rungs" },
   'm08:7': { from: 0, who: 'greenberet', why: "the tank's cage is 0.56 m deep: the tallest man's back clears its hoops only with his knees by the rungs" },
 };

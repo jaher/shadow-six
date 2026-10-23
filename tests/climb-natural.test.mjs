@@ -10,9 +10,9 @@
  *  - nothing of him inside a solid deeper than PEN.body (a hand gripping a rung or flat on a wall: PEN.hand); a vertex
  *    is inside when it lies straight behind the nearest face and a ray straight up from it leaves by a face first;
  *  - his pelvis never behind (or in) a ladder's rung line near its foot, within its width;
- *  - no jump: the pelvis moves at most JUMP m from one frame to the next;
- *  - no knee turning over: a knee moves at most FLIP m further than its foot from one frame to the next (not the
- *    frame the sim turns him about at a link's end: his whole body turns with it, as on master);
+ *  - no jump: the pelvis moves at most JUMP m from one frame to the next, on it and walking to / from it;
+ *  - no knee turning over: a knee moves at most FLIP m further than its foot from one frame to the next;
+ *  - no turning about in a frame: his body's facing turns at most TURN rad from one frame to the next;
  *  - the climb happens (he gets to the far end and back).
  * On master this fails: the wall climb floated up in front of the palisade and through its stakes, the Sniper walked
  * behind the camp ladder to its link end in the stakes, dropped a metre at its top and slid through the palisade.
@@ -22,6 +22,7 @@ export const timeout = 1_500_000;
 const PEN = { body: 0.065, hand: 0.035 };
 const JUMP = 0.1;
 const FLIP = 0.2;
+const TURN = 0.35;
 
 export default async function climbNatural(page, t) {
   const only = process.env.CLIMB_ONLY || '';
@@ -29,12 +30,12 @@ export default async function climbNatural(page, t) {
     { tag: 'm02 GB palisade', mis: 'm02', who: 'greenberet', kind: 'climb', at: [24.6, 42.3], linkAt: [23.73, 41.0], up: [23.72, 39.3], down: [23.73, 41.0] },
     { tag: 'm02 Sniper camp ladder', mis: 'm02', who: 'sniper', kind: 'ladder', at: [26.0, 45.2], ladder: 'ladder_sw' },
     { tag: 'm02 GB MG ladder', mis: 'm02', who: 'greenberet', kind: 'ladder', linkId: 1 },
+    // (walked up to from 2.5 m out: on master the platform's solid stopped him short of its foot — never climbed)
+    { tag: 'm02 GB MG ladder walked up to', mis: 'm02', who: 'greenberet', kind: 'ladder', linkId: 1, back: 2.5 },
     { tag: 'm01 GB wall_s', mis: 'm01', who: 'greenberet', kind: 'climb', at: [17.6, 127.6], linkAt: [18.18, 127.96], up: [20.32, 129.04], down: [18.18, 127.96] },
     // (from the foot of the cliff: on its top he is kept on his belly — M8's cliff tops — and the pose eases in from that)
     { tag: 'm08 GB cliff', mis: 'm08', who: 'greenberet', kind: 'climb', at: [48, 27.3], linkAt: [48, 22.2], up: [48, 22.2], down: [48, 26.5] },
-    // (the tank stands on a plinth the walk grid does not have: whoever stands at its foot — climber or not — has his
-    // boots in it; listed with the M11 art, not counted here)
-    { tag: 'm11 GB tank ladder', mis: 'm11', who: 'greenberet', kind: 'ladder', drawnFirst: true, back: 2, plinth: 0.35 },
+    { tag: 'm11 GB tank ladder', mis: 'm11', who: 'greenberet', kind: 'ladder', drawnFirst: true, back: 2 },
   ].filter((s) => !only || only.split(',').some((o) => s.tag.includes(o)));
   const bad = [];
   for (const S of SC) {
@@ -107,7 +108,6 @@ export default async function climbNatural(page, t) {
             if (sd >= -0.004 || -sd < 0.8 * hit.distance) continue;
             const uh = bvh.raycastFirst(new THREE.Ray(v.clone(), up), THREE.DoubleSide, 0, 8);
             if (!uh || !(uh.face?.normal?.y > 0)) continue;
-            if (S.plinth && v.y < (foot?.y ?? 0) + S.plinth) continue;
             const W = q.reg[i] === 'hand' ? worstHand : worst;
             if (hit.distance > W.depth) {
               const st = u.model._lc?.state;
@@ -125,8 +125,8 @@ export default async function climbNatural(page, t) {
       };
       const busy = () => !!(u.path || u._ladder || u._climb || u.model._lc);
       const B = u.model.real.inner.bones, pel = () => B.pelvis.getWorldPosition(new THREE.Vector3());
-      const out = { tag: S.tag, frames: 0, jump: 0, jumpAt: '', flip: 0, flipAt: '', behind: 0, behindAt: '', reached: { up: false, down: false } };
-      let prev = null, used = false, prevLeg = null;
+      const out = { tag: S.tag, frames: 0, jump: 0, jumpAt: '', walkJump: 0, walkJumpAt: '', flip: 0, flipAt: '', turn: 0, turnAt: '', behind: 0, behindAt: '', reached: { up: false, down: false } };
+      let prev = null, used = false, prevLeg = null, wasOnFeet = false;
       const legAt = () => ({ kl: B.calf_l.getWorldPosition(new THREE.Vector3()), kr: B.calf_r.getWorldPosition(new THREE.Vector3()), fl: B.foot_l.getWorldPosition(new THREE.Vector3()), fr: B.foot_r.getWorldPosition(new THREE.Vector3()), yaw: u.model.root.rotation.y });
       // (on his feet first: M8's men start on their bellies, and are on them again on a cliff top — getting up is no
       // part of the climb)
@@ -147,12 +147,18 @@ export default async function climbNatural(page, t) {
           // (a jump of the posed body — on the link or easing in / out of it; the walk to it is the walk's own)
           const posed = !!(u._ladder || u._climb || u.model._lc);
           if (prev && posed) { const d = p.distanceTo(prev); if (d > out.jump) { out.jump = d; out.jumpAt = `f${out.frames} ${leg}`; } }
-          prev = p;
+          // (and walking to / from it: M11's tank plinth lifted him 30 cm in a frame as his boot found its top)
+          // (on his feet: getting up off his belly — M8's men start on them — is the get-up clip's own)
+          const onFeet = u.stance === 'stand' && !(u._stanceT > 0) && !u.model._tr;
+          if (prev && !posed && onFeet && wasOnFeet) { const d = p.distanceTo(prev); if (d > out.walkJump) { out.walkJump = d; out.walkJumpAt = `f${out.frames} ${leg}`; } }
+          prev = p; wasOnFeet = onFeet;
           // (a knee swinging round its leg's line — further than its foot moved — turned over)
           const lg = legAt();
-          // (not the frame the sim turns him about at a link's end — his whole body goes round with it, on master too)
-          const about = prevLeg && Math.abs(Math.atan2(Math.sin(lg.yaw - prevLeg.yaw), Math.cos(lg.yaw - prevLeg.yaw))) > Math.PI / 3;
-          if (prevLeg && posed && !about) for (const sd of ['l', 'r']) { const d = lg['k' + sd].distanceTo(prevLeg['k' + sd]) - lg['f' + sd].distanceTo(prevLeg['f' + sd]); if (d > out.flip) { const st = u.model._lc?.state; out.flip = d; out.flipAt = `f${out.frames} ${leg} knee ${sd.toUpperCase()}${st ? ` P ${st.P?.toFixed(2)}${st.vault != null ? ` onto the deck ${st.vault.toFixed(2)}` : ''} ${st.feet?.l?.zone}/${st.feet?.r?.zone} w ${u.model._lc.w.toFixed(2)}` : ''}`; } }
+          // (his facing: the sim turned him about at a climb's start in one frame — M1's wall, M2's palisade, back the way
+          // he came — his whole body round with it)
+          const dy = prevLeg ? Math.abs(Math.atan2(Math.sin(lg.yaw - prevLeg.yaw), Math.cos(lg.yaw - prevLeg.yaw))) : 0;
+          if (dy > out.turn) { const st = u.model._lc?.state; out.turn = dy; out.turnAt = `f${out.frames} ${leg}${st ? ` P ${st.P?.toFixed(2)}${st.vault != null ? ` onto the deck ${st.vault.toFixed(2)}` : ''} w ${u.model._lc.w.toFixed(2)}` : ' unposed'} heading ${u.heading.toFixed(2)} climb ${!!u._climb} ladder ${!!u._ladder}`; }
+          if (prevLeg && posed) for (const sd of ['l', 'r']) { const d = lg['k' + sd].distanceTo(prevLeg['k' + sd]) - lg['f' + sd].distanceTo(prevLeg['f' + sd]); if (d > out.flip) { const st = u.model._lc?.state; out.flip = d; out.flipAt = `f${out.frames} ${leg} knee ${sd.toUpperCase()}${st ? ` P ${st.P?.toFixed(2)}${st.vault != null ? ` onto the deck ${st.vault.toFixed(2)}` : ''} ${st.feet?.l?.zone}/${st.feet?.r?.zone} w ${u.model._lc.w.toFixed(2)}` : ''}`; } }
           prevLeg = lg;
           if (F && p.y - F.foot.y < 1.2) {
             const q = LF.local(F, p);
@@ -180,8 +186,10 @@ export default async function climbNatural(page, t) {
     if (r.penHand.depth > PEN.hand) why.push(`hand ${(r.penHand.depth * 100).toFixed(1)} cm inside (${r.penHand.where})`);
     if (r.behind) why.push(`pelvis behind / in the ladder at its foot ×${r.behind} (${r.behindAt})`);
     if (r.jump > JUMP) why.push(`pelvis jumped ${(r.jump * 100).toFixed(1)} cm in a frame (${r.jumpAt})`);
+    if (r.walkJump > JUMP) why.push(`pelvis jumped ${(r.walkJump * 100).toFixed(1)} cm in a frame walking to / from it (${r.walkJumpAt})`);
+    if (r.turn > TURN) why.push(`turned ${(r.turn * 180 / Math.PI).toFixed(0)}° in a frame (${r.turnAt})`);
     if (r.flip > FLIP) why.push(`a knee turned over: ${(r.flip * 100).toFixed(1)} cm further than its foot in a frame (${r.flipAt})`);
-    t.log(`${why.length ? 'FAIL' : 'ok  '} ${r.tag}: ${r.frames} frames, body in ${(r.pen.depth * 100).toFixed(1)} cm, hand in ${(r.penHand.depth * 100).toFixed(1)} cm, behind ${r.behind}, max pelvis step ${(r.jump * 100).toFixed(1)} cm, knee past foot ${(r.flip * 100).toFixed(1)} cm${why.length ? ' — ' + why.join(' / ') : ''}`);
+    t.log(`${why.length ? 'FAIL' : 'ok  '} ${r.tag}: ${r.frames} frames, body in ${(r.pen.depth * 100).toFixed(1)} cm, hand in ${(r.penHand.depth * 100).toFixed(1)} cm, behind ${r.behind}, max pelvis step ${(r.jump * 100).toFixed(1)} cm (walking ${(r.walkJump * 100).toFixed(1)}), max turn ${(r.turn * 180 / Math.PI).toFixed(0)}°, knee past foot ${(r.flip * 100).toFixed(1)} cm${why.length ? ' — ' + why.join(' / ') : ''}`);
     if (why.length) bad.push(`${r.tag}: ${why.join(' / ')}`);
   }
   t(!bad.length, `climbing: ${bad.join(' || ')}`);

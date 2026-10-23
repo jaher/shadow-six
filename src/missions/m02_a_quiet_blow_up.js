@@ -323,7 +323,7 @@ export default {
   ],
   ladders: [
     // the camp ladder, left pulled up: lowered from the top of the wall (1.0 s)
-    { id: 'ladder_sw', x: 27.4, z: 43.0, y: 0, top: [27, 42.2, 2.2], raised: true, lowerTime: 1.0, heading: deg(130) },
+    { id: 'ladder_sw', x: 27.4, z: 43.0, y: 0, top: [27, 42.2, 2.2], raised: true, lowerTime: 1.0, heading: deg(130), climbTime: 5.6 }, // (the walk to it, 9 rungs, the vault over the palisade onto the walk: 3.0 s at the ladder pace was twice too quick)
   ],
   triplines: [],
   objectives: [

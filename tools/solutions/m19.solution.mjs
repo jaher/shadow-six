@@ -22,6 +22,7 @@
  */
 import { ABILITIES as ABIL } from '../../src/abilities/registry.js';
 import { CONFIG } from '../../src/config.js';
+import { CLIMB_TURN } from '../../src/entities/unit.js';
 import { canSee, coneAt } from '../../src/ai/perception.js';
 import { sneak, clearFor, routeClear, unwitnessed, bodySeen, predict, teamBoat, viewersOf, walking, walkerSees, staticSees, dummyAt } from './sneak.mjs';
 
@@ -663,15 +664,16 @@ async function snipe(D, target, { quiet = 0, later = [], maxSec = 300, label = '
 
 /**
  * The upright climb over a palisade link a → b as the game moves a man (measured in the sim): he
- * stands up at a, steps 0.5 m to the foot, goes up 3 m in 2 s, over the top at 1.5 m/s, down in 2 s, steps off at b and
+ * stands up at a, turns on the spot to face the wall when he lies turned away from it more than CLIMB_TURN (`turn` s:
+ * climbTurn), steps 0.5 m to the foot, goes up 3 m in 2 s, over the top at 1.5 m/s, down in 2 s, steps off at b and
  * stands there until he is down again. Samples [τ, x, z, y] from the moment he starts to stand up.
  */
-function climbProfile(a, b) {
+function climbProfile(a, b, turn = 0) {
   const UP = CONFIG.units.stanceUp ?? 0.6, DOWN = (CONFIG.units.stanceDown ?? 0.5) + 0.3, H = 3.02, V = 1.5, WALK = 1.5;
   const L = Math.hypot(b[0] - a[0], b[1] - a[1]), ux = (b[0] - a[0]) / L, uz = (b[1] - a[1]) / L;
   const out = [], put = (t, s, y) => out.push([t, a[0] + ux * s, a[1] + uz * s, y]);
   const s1 = 0.5, s2 = L - 0.55, tIn = s1 / WALK, tUp = H / V, tTop = (s2 - s1) / V, tOut = (L - s2) / WALK;
-  const legs = [[UP, (f) => [0, 0]], [tIn, (f) => [s1 * f, 0]], [tUp, (f) => [s1, H * f]], [tTop, (f) => [s1 + (s2 - s1) * f, H]],
+  const legs = [[UP + turn, (f) => [0, 0]], [tIn, (f) => [s1 * f, 0]], [tUp, (f) => [s1, H * f]], [tTop, (f) => [s1 + (s2 - s1) * f, H]],
     [tUp, (f) => [s2, H * (1 - f)]], [tOut, (f) => [s2 + (L - s2) * f, 0]], [DOWN, (f) => [L, 0]]];
   let t = 0;
   for (const [dt, at] of legs) {
@@ -680,6 +682,12 @@ function climbProfile(a, b) {
     t += dt;
   }
   return out;
+}
+
+/** The turn on the spot (s) before a climb a → b, lying at a facing `h` (the game turns him to within CLIMB_TURN). */
+function climbTurn(h, a, b) {
+  const d = Math.abs(Math.atan2(Math.sin(Math.atan2(b[1] - a[1], b[0] - a[0]) - h), Math.cos(Math.atan2(b[1] - a[1], b[0] - a[0]) - h)));
+  return Math.max(0, d - CLIMB_TURN) / CONFIG.units.turnRate + (d > CLIMB_TURN ? 1 / 60 : 0);
 }
 
 /** Headings from `a` to `b` the short way round (the way an enemy's body turns), every 0.2 rad; both ways only for a
@@ -697,8 +705,8 @@ function arcHeadings(a, b) {
  * Would the whole upright climb a → b (climbProfile), started `delay` s from now (± `slack`), go unseen — by every man
  * on either side of the palisade, the man up on top of it (3 m up) included?
  */
-function climbClear(D, a, b, delay, { slack = 0.6, why = null } = {}) {
-  const w = D.world, prof = climbProfile(a, b), m0 = w.sneakMargin;
+function climbClear(D, a, b, delay, { slack = 0.6, why = null, turn = 0 } = {}) {
+  const w = D.world, prof = climbProfile(a, b, turn), m0 = w.sneakMargin;
   w.sneakMargin = 0.03; // (a walker's glances: a hair wider than the model's ±14°)
   try { return climbClear0(D, w, a, b, prof, delay, slack, why); } finally { w.sneakMargin = m0; }
 }
@@ -819,7 +827,9 @@ function withoutLorry(D, fn) {
  */
 async function climbOver(D, a, b, { then = [], via = [], maxSec = 400, label = 'climb', wait = 10, home = null } = {}) {
   const gb = D.c('greenberet'), why = [];
-  const tc = climbProfile(a, b).at(-1)[0];
+  // (lying at the foot he faces the way he crawled there: turned well away from the wall he turns on the spot first)
+  const approach = via.length ? via.at(-1) : [gb.x, gb.z], turn = climbTurn(Math.atan2(a[1] - approach[1], a[0] - approach[0]), a, b);
+  const tc = climbProfile(a, b, turn).at(-1)[0];
   let next = -1, nd = 0, plan = null;
   const post = (d, w) => routeClear(D, [b], { mode: 'crawl', from: b, delay: d + tc + 1, slack: 1.5, why: w })
     && (!then.length || routeClear(D, then, { mode: 'crawl', from: b, speed: 0.75, delay: d + tc + 0.5, slack: 1, pad: 0.8, why: w }));
@@ -845,7 +855,7 @@ async function climbOver(D, a, b, { then = [], via = [], maxSec = 400, label = '
     } finally { W.sneakHaltExact = ex0; W.sneakTurns = tu0; W.sneakTurnTie = undefined; }
     // (the base lorry parked by e27 hides the climb from him: counted only while it will still stand there)
     const held = lorryParkedFor(D);
-    const tryD = (d, w) => climbClear(D, a, b, d, { slack: 0.4, why: w }) && post(d, w);
+    const tryD = (d, w) => climbClear(D, a, b, d, { slack: 0.4, why: w, turn }) && post(d, w);
     for (const d of ds) if (d + tc + 0.5 <= held && tryD(d, d === ds[0] ? why : null)) { plan = D.t + d; return true; }
     const rest = ds.filter((d) => d + tc + 0.5 > held);
     const hit = rest.length ? withoutLorry(D, () => rest.find((d) => tryD(d, d === rest[0] ? why : null))) : undefined;
@@ -872,12 +882,12 @@ async function climbOver(D, a, b, { then = [], via = [], maxSec = 400, label = '
       const back = async () => { next = -1; if (home) for (const [x, z] of [...via].reverse().concat([home])) await D.go('greenberet', x, z, { tol: 0.4, max: 30 }); };
       if (D.t > plan) { dbg(D, `${label}: at the foot ${(D.t - plan).toFixed(1)} s late: another window`); await back(); continue; }
       await D.until(() => D.t >= plan - 1e-6, 30, `${label} tick`);
-      const fin = (w) => climbClear(D, a, b, 0, { slack: 0.1, why: w });
+      const fin = (w) => climbClear(D, a, b, 0, { slack: 0.1, why: w, turn });
       if (lorryParkedFor(D) >= tc + 0.5 ? fin(why) : withoutLorry(D, () => fin(why))) break;
       dbg(D, `${label}: no longer clear on the tick (${why.slice(-2).join(' ')}): another window`); await back();
     }
   } finally { D.world.sneakHeel = prevH; }
-  const trace = [], prof = DBG ? climbProfile(a, b) : null, t0 = D.t;
+  const trace = [], prof = DBG ? climbProfile(a, b, turn) : null, t0 = D.t;
   const rec = () => { if (DBG) { const p = prof.find((q) => q[0] >= D.t - t0 - 1e-6) || prof.at(-1); trace.push(`${(D.t - t0).toFixed(2)}:${gb.x.toFixed(2)}/${(gb.y || 0).toFixed(2)}~${p[1].toFixed(2)}/${p[3].toFixed(2)}${gb.stance[0]}`); } return true; };
   await D.stance('greenberet', 'stand');
   rec();

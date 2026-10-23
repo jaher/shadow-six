@@ -393,7 +393,11 @@ export function ladderTrack(u, wp) {
   if (h < 0.05) { const a = L?.heading ?? u.heading ?? 0; fx = Math.cos(a); fz = Math.sin(a); h = 1; }
   fx /= h; fz /= h;
   const len = Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z);
-  return { wp, from, to, foot, top, fx, fz, len, up, s: 0, link: L };
+  // (a ladder whose leg takes longer than its length at the ladder pace — mission `ladders[].climbTime`, s: M2's camp
+  // ladder over the palisade — that much slower all the way, from wherever on it he starts)
+  const full = L ? Math.hypot(L.a.x - L.b.x, (L.a.y ?? 0) - (L.b.y ?? 0), L.a.z - L.b.z) : len;
+  const Leff = len * Math.max(1, L?.climbTime > 0 && full > 1e-6 ? (L.climbTime * ladderSpeed(u)) / full : 1);
+  return { wp, from, to, foot, top, fx, fz, len, Leff, up, s: 0, link: L };
 }
 
 /** Climbing speed on a ladder (m/s along it): §3.2 everyone climbs ladders at CONFIG.abilities.ladderSpeed. */

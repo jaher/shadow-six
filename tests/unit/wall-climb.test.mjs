@@ -135,6 +135,6 @@ test('ladder: a top end against the inner face of the wall over the deck is draw
   F.topO = -0.3;
   const sh = endShift(F, 'top');
   assert.ok(sh && sh.z > 0, 'onto the deck');
-  near(0.3 + sh.z, 0.4 + LADDER.clearIn, 1e-6, `${LADDER.clearIn} m clear of the inner face`);
+  near(0.3 + sh.z, 0.4 + LADDER.endIn, 1e-6, `${LADDER.endIn} m clear of the inner face (a stride: he turns and walks off there)`);
   assert.equal(endShift(frame({ s0: 0, top: [0, 1.5], inner: -0.4 }), 'top'), null, 'a top end well on the deck stays');
 });

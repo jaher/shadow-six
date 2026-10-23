@@ -94,6 +94,19 @@ function bodyRects(m) {
   return (m.structures || []).filter((s) => ['hq', 'hq_wing', 'n_range'].includes(s.id)).map((s) => [s.x - s.w / 2, s.z - s.d / 2, s.x + s.w / 2, s.z + s.d / 2]);
 }
 
+/** Where the mission's ladders, stairs and climbs cross a parapet strip (their middle inside it): [[x, z], …]. */
+function waysOver(m, poly) {
+  const ways = [...(m.ladders || []).map((l) => [[l.x, l.z], [l.top[0], l.top[1]]]), ...(m.climbLinks || []).map((c) => [[c.a[0], c.a[1]], [c.b[0], c.b[1]]])];
+  const inside = (x, z) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, zi] = poly[i], [xj, zj] = poly[j]; if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c; } return c; };
+  const out = [];
+  for (const [p, q] of ways) {
+    let sx = 0, sz = 0, n = 0;
+    for (let k = 0; k <= 80; k++) { const t = k / 80, x = p[0] + (q[0] - p[0]) * t, z = p[1] + (q[1] - p[1]) * t; if (inside(x, z)) { sx += x; sz += z; n++; } }
+    if (n) out.push([sx / n, sz / n]);
+  }
+  return out;
+}
+
 /** The raised levels (`cliff` ids t_*): masonry terraces; the 1-cell parapet strips: balustrades / crenels. */
 function* levels(w, m) {
   let n = 0;
@@ -102,7 +115,7 @@ function* levels(w, m) {
     if (s.type !== 'cliff' || !/^t_/.test(s.id || '')) continue;
     let v;
     // parapet strips stand PARAPET_H (1.4 m) above their level; the forecourt balustrade (t_par_hq_b*) is open work
-    if (/^t_par/.test(s.id)) v = buildParapet(s.points, s.h - PARAPET_H, s.h, { seed: s.id, style: /_hq_b/.test(s.id) ? 'balustrade' : 'crenel' });
+    if (/^t_par/.test(s.id)) v = buildParapet(s.points, s.h - PARAPET_H, s.h, { seed: s.id, style: /_hq_b/.test(s.id) ? 'balustrade' : 'crenel', gaps: waysOver(m, s.points) });
     else v = buildTerrace(s.points, s.h, { seed: s.id, top: s.id === 't_hq' ? 'setts' : 'flags', skip: bodyRects(m) });
     if (swapVisual(w, s.id, v)) n++;
   }
