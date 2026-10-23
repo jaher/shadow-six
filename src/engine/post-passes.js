@@ -8,7 +8,10 @@
  *    the XRAY_LAYER objects of the decal scene with their own materials (the muted selection-ring/path ghosts
  *    of render/selection.js, GreaterDepth + margin), so a hidden selected commando keeps a visible ring. Each
  *    unit's silhouette draw is wrapped in a GPU occlusion query → isHidden(root) (is he x-rayed right now?), which
- *    arms his ring ghost only while he is actually hidden.
+ *    arms his ring ghost only while he is actually hidden. A commando with any part directly visible gets no
+ *    silhouette at all: a probe draw (writes off, LessEqual depth against the same world depth, same queries)
+ *    records per root whether any fragment reaches the visible surface, and the silhouette is reserved for a
+ *    commando the player cannot see at all — a partly visible commando reads as himself in every mode.
  *  - makeLUTTexture: RGBA8 Data3DTexture for three's LUTPass (display-referred grade after OutputPass).
  * @module engine/post-passes
  */
@@ -52,6 +55,8 @@ function chainVisible(o) {
 
 /**
  * Silhouettes for occluded friendly units. getTargets() → Object3D roots (the commandos' render proxies).
+ * Only a root with no directly visible part is silhouetted (visibility probe in render()); a partly visible
+ * commando keeps his real materials everywhere — the ghost is for a man the player cannot see at all.
  * `margin` (m): parts less than this far behind the visible surface are not drawn (the unit's own limbs,
  * feet in uneven ground), implemented as a depth polygon offset toward the camera.
  * Look (art review): a dark team-green fill with a bright rim (matcap on the view-space normal), so the
@@ -72,9 +77,17 @@ export class XRayPass extends Pass {
       fog: false, toneMapped: true, side: THREE.FrontSide, polygonOffset: true, polygonOffsetFactor: 0, polygonOffsetUnits: -8000,
     });
     this.material.name = 'xray-silhouette';
+    // visibility probe: the same meshes drawn with every write off and LessEqual depth — a fragment that reaches
+    // the stored world depth is a part of the commando the player can actually see (see render()).
+    this.probeMaterial = new THREE.MeshBasicMaterial({
+      colorWrite: false, depthWrite: false, depthTest: true, depthFunc: THREE.LessEqualDepth, fog: false,
+    });
+    this.probeMaterial.name = 'xray-visibility-probe';
     this.drawn = 0;
     /** root → true when some of it was drawn as a silhouette in the last resolved frame (see isHidden). */
     this.hidden = new WeakMap();
+    /** root → true when the visibility probe found part of it at the visible surface in the last resolved frame. */
+    this.seenVisible = new WeakMap();
     this._pending = [];
     this._pool = [];
     this._probe = null;
@@ -90,7 +103,7 @@ export class XRayPass extends Pass {
     // layer bit set on his meshes would draw him on (the pass renders by layer, not by the target list)
     const now = new Set();
     for (const r of roots) if (r) now.add(r);
-    if (this._live) for (const r of this._live) if (!now.has(r)) { r.traverse((o) => { if (o.isMesh) o.layers.disable(XRAY_LAYER); }); this.hidden.delete(r); }
+    if (this._live) for (const r of this._live) if (!now.has(r)) { r.traverse((o) => { if (o.isMesh) o.layers.disable(XRAY_LAYER); }); this.hidden.delete(r); this.seenVisible.delete(r); }
     this._live = now;
     let n = 0;
     for (const r of roots) {
@@ -108,7 +121,6 @@ export class XRayPass extends Pass {
     const gl = (this._gl = renderer.getContext());
     this._resolveProbes(gl);
     if (!n) return;
-    if (!this._noQueries) this._probe = { gl, list: [], active: null };
     // the scene lights join the x-ray layer: a light set that differs from the main pass bumps three's lights-state
     // version, and every lit material then recomputes its program parameters in the next pass (per frame, per material)
     if (!this._lightScan || ++this._lightScan > 30 || this.scene.children.length !== this._lightKids) {
@@ -126,31 +138,43 @@ export class XRayPass extends Pass {
     const prevMask = cam.layers.mask, prevOverride = s.overrideMaterial, prevBg = s.background;
     const prevAuto = renderer.autoClear, prevShadow = renderer.shadowMap.autoUpdate;
     cam.layers.set(XRAY_LAYER);
-    s.overrideMaterial = this.material;
     s.background = null;
     renderer.autoClear = false;
     renderer.shadowMap.autoUpdate = false;
     renderer.setRenderTarget(this.renderToScreen ? null : readBuffer);
-    // decal ghosts first (the selection ring under a hidden commando), so his silhouette draws over them
-    if (this.decalScene?.children.length) renderer.render(this.decalScene, cam);
     // only the targets' top-level subtrees (and those holding lights: same light set as the main pass) are walked:
     // three would otherwise visit every node of the scene to find the few on the x-ray layer
     const keep = (this._keep ||= new Set()), hid = (this._hid ||= []);
     keep.clear(); hid.length = 0;
     for (const r of roots) { let t = r; while (t?.parent && t.parent !== s) t = t.parent; if (t?.parent === s) keep.add(t); }
     for (const top of s.children) if (top.visible && !keep.has(top) && !top.isLight && !this._litTops?.has(top)) { top.visible = false; hid.push(top); }
+    const gated = [];
     try {
+      // visibility probe first (writes off, LessEqual depth): any fragment reaching the visible surface marks its
+      // root as seen — results resolve a frame or two later, like isHidden's. A seen commando leaves the silhouette
+      // draw for this frame, so wherever part of him can be seen he renders with his real materials; only a
+      // commando with no visible part at all keeps the ghost (his silhouette queries still run, below).
+      if (!this._noQueries) {
+        this._probe = { gl, list: [], active: null };
+        s.overrideMaterial = this.probeMaterial;
+        try { renderer.render(s, cam); } finally { this._collectProbe(true); }
+      }
+      for (const r of roots) {
+        if (this.seenVisible.get(r) !== true) continue;
+        this.hidden.set(r, false); // a gated root draws no silhouette: isHidden must not go stale-true off old queries
+        r.traverse((o) => { if (o.isMesh && o.layers.isEnabled(XRAY_LAYER)) { o.layers.disable(XRAY_LAYER); gated.push(o); } });
+      }
+      // decal ghosts first (the selection ring under a hidden commando), so his silhouette draws over them
+      if (this.decalScene?.children.length) renderer.render(this.decalScene, cam);
+      if (!this._noQueries) this._probe = { gl, list: [], active: null };
+      s.overrideMaterial = this.material;
       renderer.render(s, cam);
     } finally {
+      for (const o of gated) o.layers.enable(XRAY_LAYER);
+      gated.length = 0;
       for (const top of hid) top.visible = true;
       hid.length = 0;
-      const p = this._probe;
-      if (p) {
-        if (p.active) gl.endQuery(gl.ANY_SAMPLES_PASSED_CONSERVATIVE); // a draw threw between the hooks
-        if (p.list.length) this._pending.push(p.list);
-        this._probe = null;
-        while (this._pending.length > 6) for (const e of this._pending.shift()) gl.deleteQuery(e.q);
-      }
+      this._collectProbe(false);
     }
     renderer.shadowMap.autoUpdate = prevShadow;
     renderer.autoClear = prevAuto;
@@ -191,29 +215,42 @@ export class XRayPass extends Pass {
     };
   }
 
-  /** Read back finished query batches (oldest first; each batch is one pass render) into `hidden`. */
+  /** Close out the armed probe batch (vis = the visibility probe, otherwise the silhouette draw) and queue it. */
+  _collectProbe(vis) {
+    const p = this._probe;
+    if (!p) return;
+    if (p.active) p.gl.endQuery(p.gl.ANY_SAMPLES_PASSED_CONSERVATIVE); // a draw threw between the hooks
+    if (p.list.length) this._pending.push({ list: p.list, vis });
+    this._probe = null;
+    while (this._pending.length > 6) for (const e of this._pending.shift().list) p.gl.deleteQuery(e.q);
+  }
+
+  /** Read back finished query batches (oldest first) into `hidden` (silhouette) / `seenVisible` (probe). */
   _resolveProbes(gl) {
     if (typeof gl.createQuery !== 'function') { this._noQueries = true; return; }
-    const seen = new Map();
+    const seen = new Map(), seenVis = new Map();
     while (this._pending.length) {
-      const batch = this._pending[0];
-      if (!gl.getQueryParameter(batch[batch.length - 1].q, gl.QUERY_RESULT_AVAILABLE)) break;
+      const batch = this._pending[0], list = batch.list;
+      if (!gl.getQueryParameter(list[list.length - 1].q, gl.QUERY_RESULT_AVAILABLE)) break;
       this._pending.shift();
-      for (const e of batch) {
+      const acc = batch.vis ? seenVis : seen;
+      for (const e of list) {
         const any = !!gl.getQueryParameter(e.q, gl.QUERY_RESULT);
-        seen.set(e.root, (seen.get(e.root) || false) || any);
+        acc.set(e.root, (acc.get(e.root) || false) || any);
         this._pool.push(e.q);
       }
     }
     for (const [root, v] of seen) this.hidden.set(root, v);
+    for (const [root, v] of seenVis) this.seenVisible.set(root, v);
   }
 
   dispose() {
     const gl = this._gl;
-    if (gl) for (const q of [...this._pending.flat().map((e) => e.q), ...this._pool]) gl.deleteQuery(q);
+    if (gl) for (const q of [...this._pending.flatMap((b) => b.list).map((e) => e.q), ...this._pool]) gl.deleteQuery(q);
     this._pending = []; this._pool = [];
     this.material.matcap?.dispose();
     this.material.dispose();
+    this.probeMaterial.dispose();
   }
 }
 
