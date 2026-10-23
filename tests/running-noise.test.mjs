@@ -90,7 +90,9 @@ export default async function runningNoise(page, t) {
       g.step(); G.render(1 / 60, 1);
       hs.push(R.s.heading);
       const cone = G.cones?.cones?.get?.(R.s); // the drawn cone (the noise-turn flash shows it) follows his heading
-      if (cone?.group?.visible && cone._key) { cones.push(Math.abs(wrap(cone._key.h - coneAt(R.s).heading))); drawn.push(cone._key.h); }
+      // (the shader window it was last given: the heading the sector is drawn at, as of this very frame)
+      const win = cone?.group?.visible && cone.drawnWindow?.();
+      if (win) { cones.push(Math.abs(wrap(win.heading - coneAt(R.s).heading))); drawn.push(win.heading); }
       const st = R.s.model?._turnStep;
       if (st?.feet) planted++;
       if (st?.step && feet.at(-1) !== st.step.s) feet.push(st.step.s);

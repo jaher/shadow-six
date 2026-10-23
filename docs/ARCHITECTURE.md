@@ -825,6 +825,12 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   few frames late instead of a hitch; a cone's first build is whole. While a budgeted walker walks his sector is built
   coarse (1.5° base rays, 0.25 m edges, 0.15 m corners, 2 m drape); standing still, the exact sector (== canSee,
   tests/unit/cone-height). `groundSampler` fills its 1 m lattice point by point as cones first reach it.
+  `VisionCones.update(camera)` (one view: `Game._updateCones` passes the rig's view camera as `CameraRig.update` has just set
+  it — `renderer.camera` is the last draw's copy, a frame behind) leaves a cone alone that can show nowhere in the view: its
+  built sector's drawn corners (`VisionCone._bounds`) and the cone its guard would draw now (his heading / reach as he
+  stands, the sector's exact box, heights sampled from the ground under it, `VIEW_PAD` 6 m past the screen edge so a sector
+  is built before it shows) both miss the frustum. A cone that can show is refreshed in that same call, before the draw.
+  `VisionCone.drawnWindow()` is the window the shader was last given (tests/running-noise, tests/cone-view).
 - `Selection` (`src/render/selection.js`): selection rings under selected commandos, move-target markers,
   optional dashed path preview — all ground decals in `renderer.decalScene` (depth-tested like the vision cones:
   the soldier, his weapon, vehicles, trees and roofs are drawn over the ring). They sit on the surface at the unit's

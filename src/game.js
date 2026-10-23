@@ -1237,8 +1237,10 @@ export class Game {
       const Cones = pick(ConeMod, 'VisionCones', 'default');
       this.cones = safe(() => (Cones ? new Cones(w, this.renderer.decalScene || this.renderer.overlayScene) : null), 'vision-cones') || { update() {}, dispose() {} };
     }
-    // (one view: its camera — cones off the screen wait; several views: every cone)
-    safe(() => this.cones.update((this.cameraRig?.count ?? 1) > 1 ? null : this.renderer.camera), 'vision-cones');
+    // (one view: its camera as CameraRig.update has just set it — not renderer.camera, the copy the last draw made of it,
+    // a frame behind — cones off the screen wait; several views: every cone)
+    const rig = this.cameraRig;
+    safe(() => this.cones.update((rig?.count ?? 1) > 1 ? null : rig?.active?.camera || this.renderer.camera), 'vision-cones');
   }
 
   // ------------------------------------------------------------ save / load

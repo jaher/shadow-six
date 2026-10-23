@@ -29,7 +29,7 @@
 import * as THREE from 'three';
 import { ownerHeight } from '../world/placement.js';
 import { CONFIG } from '../config.js';
-import { coneAt, probe as probeCone, postOwner, levelHides, targetHeight, lowCoverMode } from '../ai/perception.js';
+import { coneAt, headTheta, ellipseFar, probe as probeCone, postOwner, levelHides, targetHeight, lowCoverMode } from '../ai/perception.js';
 
 const Y = 0.07;
 /** Rebuild thresholds: 2 cm / ~0.06°. */
@@ -433,6 +433,8 @@ export class VisionCone {
     this._colorKey = null;
     /** The built sector {x, z, vy, el, gv, a0, a1, reach}, or null. */
     this._sector = null;
+    /** The box of the sector's drawn corners (world x / z before the group's ride-along offset), or null (_commit). */
+    this._bounds = null;
     this._cone = null;
     /** Number of sector rebuilds and rays of the last one (tests/perf). */
     this.rebuilds = 0;
@@ -648,11 +650,24 @@ export class VisionCone {
       if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; if (z < z0) z0 = z; if (z > z1) z1 = z;
     }
     const bs = geo.boundingSphere || (geo.boundingSphere = new THREE.Sphere());
-    if (n < 3) { bs.center.set(0, 0, 0); bs.radius = 0; return; }
+    // (the same corners' box, kept for VisionCones' look at the view: what this sector can show, exactly)
+    const bb = this._bounds || (this._bounds = { x0: 0, y0: 0, z0: 0, x1: 0, y1: 0, z1: 0 });
+    if (n < 3) { bb.x0 = bb.y0 = bb.z0 = 1; bb.x1 = bb.y1 = bb.z1 = 0; bs.center.set(0, 0, 0); bs.radius = 0; return; }
+    bb.x0 = x0; bb.y0 = y0; bb.z0 = z0; bb.x1 = x1; bb.y1 = y1; bb.z1 = z1;
     const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cz = (z0 + z1) / 2;
     let r2 = 0;
     for (let i = 0; i < n; i += 3) { const dx = a[i] - cx, dy = a[i + 1] - cy, dz = a[i + 2] - cz, d2 = dx * dx + dy * dy + dz * dz; if (d2 > r2) r2 = d2; }
     bs.center.set(cx, cy, cz); bs.radius = Math.sqrt(r2);
+  }
+
+  /**
+   * The window the shader was last told to draw (the uniforms of the last update: the head's apex, heading ± halfFov,
+   * near / far) — what is on the screen, whatever the guard has done since. Tests: the drawn cone == his cone.
+   * @returns {{x:number, z:number, heading:number, halfFov:number, near:number, far:number}}
+   */
+  drawnWindow() {
+    const u = this._u;
+    return { x: u.apex.value.x, z: u.apex.value.y, heading: u.head.value, halfFov: u.half.value, near: u.near.value, far: u.far.value };
   }
 
   /**
@@ -720,6 +735,93 @@ const PARKED_MAX = 8;
 /** VisionCones: ms a frame for the first builds of the cones shown only because video mode forces them. */
 const FIRST_BUDGET_MS = 3;
 
+const _fr = new THREE.Frustum(), _frM = new THREE.Matrix4(), _box = new THREE.Box3();
+/**
+ * Metres past the view's edge a cone still counts as in view (VisionCones.update): the sector a cone is about to show is
+ * built (or kept built) this far ahead of the screen edge — the camera pans 30 m/s ÷ zoom, 0.5 m a frame at 1× — so a
+ * cone scrolling into view is there before its first pixel; also covers an explosion's camera shake (< 1 m).
+ */
+const VIEW_PAD = 6;
+/** The same, for a sector already built: what it shows is its drawn corners' box (only the shake's slack). */
+const DRAWN_PAD = 1;
+/** Relief slack (m) round the ground samples under a cone that is not built yet: below / above (raised cells, rooftops). */
+const RELIEF_LO = 1, RELIEF_HI = 4;
+const HALF_PI = Math.PI / 2;
+
+/**
+ * The view frustum of `camera` as its pose stands now. (Its world matrices are brought up to date here: Game passes the
+ * rig's view camera, set this frame by CameraRig.update — not renderer.camera, the draw-time copy of it, a frame behind.)
+ */
+function viewFrustum(camera) {
+  if (!camera?.projectionMatrix) return null;
+  camera.updateMatrixWorld();
+  return _fr.setFromProjectionMatrix(_frM.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse), camera.coordinateSystem, camera.reversedDepth);
+}
+
+/** Is the box (x0..x1, y0..y1, z0..z1), `pad` m wider in x and z, in view `fr`? */
+function boxInView(fr, x0, y0, z0, x1, y1, z1, pad) {
+  _box.min.set(x0 - pad, y0, z0 - pad); _box.max.set(x1 + pad, y1, z1 + pad);
+  return fr.intersectsBox(_box);
+}
+
+// (scratch of fanInView / fanRelief: no closure or box made per cone per frame)
+let _gx0 = 0, _gx1 = 0, _gz0 = 0, _gz1 = 0, _gy0 = 0, _gy1 = 0;
+/** Grow the scratch box (_gx0.._gz1) by the point at angle `a`, `r` m from (x, z). */
+function growFan(x, z, a, r) {
+  const px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r;
+  if (px < _gx0) _gx0 = px; if (px > _gx1) _gx1 = px; if (pz < _gz0) _gz0 = pz; if (pz > _gz1) _gz1 = pz;
+}
+/**
+ * Could the circular sector from (x, z) over the absolute angles a0..a1 out to `r` — its exact bounding box (the apex,
+ * both edges' ends and every axis extreme the arc passes through), `pad` m wider — and heights lo..hi be in view `fr`?
+ */
+function fanInView(fr, x, z, a0, a1, r, lo, hi, pad) {
+  if (a1 - a0 > TAU) a1 = a0 + TAU;
+  _gx0 = _gx1 = x; _gz0 = _gz1 = z;
+  growFan(x, z, a0, r); growFan(x, z, a1, r);
+  for (let k = Math.ceil(a0 / HALF_PI); k * HALF_PI < a1; k++) growFan(x, z, k * HALF_PI, r);
+  return boxInView(fr, _gx0, lo, _gz0, _gx1, hi, _gz1, pad);
+}
+
+/** Widen the scratch heights (_gy0, _gy1) by the drawn height of the ground at (x, z): the cone's own (Y + raised cell + terrain). */
+function reliefAt(gs, grid, x, z) {
+  const y = Y + (grid ? grid.elevAt(x, z) : 0) + (gs ? gs(x, z) : 0);
+  if (y < _gy0) _gy0 = y; if (y > _gy1) _gy1 = y;
+}
+/**
+ * The heights (m) a fan not built yet can be drawn at: the ground (and raised cells) sampled at its apex and along two
+ * arcs, and the guard's own, with RELIEF_LO / RELIEF_HI slack, left in _gy0 / _gy1.
+ */
+function fanRelief(e, world, a0, a1, r) {
+  _gy0 = _gy1 = e.y || 0;
+  const gs = groundSampler(world), grid = world?.grid?.elevAt ? world.grid : null;
+  if (gs || grid) {
+    reliefAt(gs, grid, e.x, e.z);
+    for (let q = 0; q <= 4; q++) {
+      const a = a0 + ((a1 - a0) * q) / 4, ca = Math.cos(a), sa = Math.sin(a);
+      reliefAt(gs, grid, e.x + ca * r * 0.5, e.z + sa * r * 0.5); reliefAt(gs, grid, e.x + ca * r, e.z + sa * r);
+    }
+  }
+  _gy0 -= RELIEF_LO; _gy1 += RELIEF_HI;
+}
+
+/**
+ * Could cone `c` of `e` show in view `fr`? Either through what is drawn now (its sector's corners, where the group
+ * rides) or through what it would draw once refreshed (his cone NOW — worked out here from the guard as he stands: a
+ * skipped cone's own copy of it is as old as its last refresh — over its whole reach, VIEW_PAD m ahead of the screen).
+ */
+function coneInView(fr, e, c) {
+  const B = c._bounds, p = c.group.position;
+  if (B && B.x0 <= B.x1 && boxInView(fr, B.x0 + p.x, B.y0, B.z0 + p.z, B.x1 + p.x, B.y1, B.z1 + p.z, DRAWN_PAD)) return true;
+  const v = e.vision;
+  if (!v) return !B;
+  const theta = headTheta(e, e.world?.time ?? c.world?.time ?? 0), a = v.far ?? v.range ?? 0;
+  const far = v.elliptical ? ellipseFar(a, theta, v.ellipseRatio) : a, r = Math.max(far, a);
+  const h = e.heading + theta, hw = v.fov / 2 + SECTOR_MARGIN, a0 = h - hw, a1 = h + hw;
+  fanRelief(e, e.world || c.world, a0, a1, r);
+  return fanInView(fr, e.x, e.z, a0, a1, r, _gy0, _gy1, VIEW_PAD);
+}
+
 /**
  * Keeps the shown cone(s) in `scene` (Renderer.decalScene). BEL shows ONE cone at a time
  * (CONFIG.stealth.multiCone): turning a cone on (enemy.coneVisible = true, the eye button / click) hides the
@@ -729,28 +831,6 @@ const FIRST_BUDGET_MS = 3;
  * alpha for 1 s. Probe marker: setProbe(x, z[, enemy]) drops the red 0.6 m ring; the first enemy whose cone (standing
  * test) contains it gets its cone shown and the ring pulses; each marker triggers once; clearProbe().
  */
-const _fr = new THREE.Frustum(), _frM = new THREE.Matrix4(), _box = new THREE.Box3(), _bp = new THREE.Vector3();
-/** The camera's view frustum (its matrices as last updated). */
-function viewFrustum(camera) {
-  if (!camera?.projectionMatrix || !camera.matrixWorldInverse) return null;
-  return _fr.setFromProjectionMatrix(_frM.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
-}
-/** Is the fan from (x, z) over angles a0..a1 out to `r` (its bounding box, + 2 m) in view `fr`? */
-function fanInView(fr, x, y, z, a0, a1, r) {
-  _box.min.set(x, y, z); _box.max.set(x, y, z);
-  const n = Math.max(2, Math.ceil((a1 - a0) / (30 * DEG)) + 1);
-  for (let q = 0; q < n; q++) { const a = a0 + ((a1 - a0) * q) / (n - 1); _box.expandByPoint(_bp.set(x + Math.cos(a) * r, y, z + Math.sin(a) * r)); }
-  _box.min.x -= 2; _box.min.z -= 2; _box.max.x += 2; _box.max.z += 2; _box.min.y -= 3; _box.max.y += 4;
-  return fr.intersectsBox(_box);
-}
-/** Could cone `c` of `e` show in view `fr`: the sector it drew last where it is drawn now, or his cone now? */
-function coneInView(fr, e, c) {
-  const y = e.y || 0, S = c._sector, k = c._cone || coneAt(e);
-  if (S && fanInView(fr, S.x + c.group.position.x, y, S.z + c.group.position.z, S.a0, S.a1, S.reach)) return true;
-  if (!k) return !S;
-  return fanInView(fr, e.x, y, e.z, k.heading - k.halfFov - SECTOR_MARGIN, k.heading + k.halfFov + SECTOR_MARGIN, Math.max(k.far, e.vision?.far ?? e.vision?.range ?? k.far));
-}
-
 export class VisionCones {
   constructor(world, scene, opts = {}) {
     this.world = world;
@@ -839,10 +919,12 @@ export class VisionCones {
   }
 
   /**
-   * Per-frame refresh (call from Game.render). `camera` (the frame's one view; none: every cone): a shown cone neither
-   * whose guard nor whose built sector is in its view is left as it is — no sector rebuilt for a cone off the screen
-   * (video mode shows the step's guards' cones wherever they walk: M11's yard patrol, four walkers rebuilt every frame or
-   * two at 4×, ~1.7 ms a frame, while the camera was on the Sapper elsewhere); back in view it is refreshed as usual.
+   * Per-frame refresh (call from Game.render). `camera` (the frame's one view, as the rig set it this frame; none: every
+   * cone): a shown cone that can show nowhere in it — neither its built sector as drawn, nor the cone his guard would
+   * draw once refreshed (his cone as he stands now, over its whole reach, VIEW_PAD m beyond the screen's edge) — is left as
+   * it is: no sector rebuilt for a cone off the screen (video mode shows the step's guards' cones wherever they walk:
+   * M11's yard patrol, four walkers rebuilt every frame or two at 4×, ~1.7 ms a frame, while the camera was on the Sapper
+   * elsewhere). A cone that can show is refreshed as ever, in the same call — before the frame draws it.
    */
   update(camera = null) {
     const w = this.world;
