@@ -113,25 +113,29 @@ export function sampleXZ(p, vx, vz, h, dx = 0, out = { x: 0, z: 0 }) {
 export function restPose(pts, sup, o = {}) {
   const k = o.k ?? REST.k, rho = o.rho ?? REST.rho, M = o.maxTilt ?? REST.maxTilt, A0 = o.A0 ?? 0, B0 = o.B0 ?? 0;
   const xc = o.com?.[0] ?? 0, zc = o.com?.[1] ?? 0;
-  const n = pts.length, s = new Float64Array(n), live = [];
-  for (let i = 0; i < n; i++) { s[i] = sup[i] - pts[i].y; if (s[i] > -1e6) live.push(i); }
-  if (!live.length) return null;
-  const clampT = (v) => Math.max(-M, Math.min(M, v));
+  // (the supports and the live samples in scratch arrays kept between calls, the energy and the clamp written out: a
+  // half-beached boat is solved every tick — the arrays, the closures and the numbers boxed for them were steady
+  // garbage; the same arithmetic in the same order)
+  const n = pts.length;
+  if (_restS.length < n) { _restS = new Float64Array(n * 2); _restLive = new Int32Array(n * 2); }
+  const s = _restS, live = _restLive;
+  let nl = 0;
+  for (let i = 0; i < n; i++) { s[i] = sup[i] - pts[i].y; if (s[i] > -1e6) live[nl++] = i; }
+  if (!nl) return null;
   const W = o.warm, warm = W && Number.isFinite(W.h) && Number.isFinite(W.A) && Number.isFinite(W.B);
-  let A = clampT(warm ? W.A : A0), B = clampT(warm ? W.B : B0), h = -Infinity;
+  let A = Math.max(-M, Math.min(M, warm ? W.A : A0)), B = Math.max(-M, Math.min(M, warm ? W.B : B0)), h = -Infinity;
   if (warm) h = W.h;
-  else for (const i of live) h = Math.max(h, s[i] - A * pts[i].z - B * pts[i].x); // touching at the highest support
-  const energy = (h, A, B) => {
-    let e = h + A * zc + B * xc + 0.5 * rho * ((A - A0) ** 2 + (B - B0) ** 2);
-    for (const i of live) { const d = s[i] - h - A * pts[i].z - B * pts[i].x; if (d > 0) e += 0.5 * k * d * d; }
-    return e;
-  };
-  let E = energy(h, A, B), it = 0;
+  else for (let q = 0; q < nl; q++) { const i = live[q]; h = Math.max(h, s[i] - A * pts[i].z - B * pts[i].x); } // touching at the highest support
+  // E(h, A, B) — energy() of old, inline
+  let E = h + A * zc + B * xc + 0.5 * rho * ((A - A0) ** 2 + (B - B0) ** 2);
+  for (let q = 0; q < nl; q++) { const i = live[q]; const d = s[i] - h - A * pts[i].z - B * pts[i].x; if (d > 0) E += 0.5 * k * d * d; }
+  let it = 0;
   for (; it < (o.iters ?? REST.iters); it++) {
     // gradient + Hessian over the touching samples (d ≥ 0: the first contact counts, so the Hessian is never singular)
     let gh = 1, gA = zc + rho * (A - A0), gB = xc + rho * (B - B0);
     let Hhh = 0, HhA = 0, HhB = 0, HAA = rho, HAB = 0, HBB = rho;
-    for (const i of live) {
+    for (let q = 0; q < nl; q++) {
+      const i = live[q];
       const z = pts[i].z, x = pts[i].x, d = s[i] - h - A * z - B * x;
       if (d < -1e-9) continue;
       gh -= k * d; gA -= k * d * z; gB -= k * d * x;
@@ -149,8 +153,9 @@ export function restPose(pts, sup, o = {}) {
     // backtracking line search on E (convex: the Newton direction always descends)
     let t = 1, nh = h, nA = A, nB = B, nE = E;
     for (let q = 0; q < 60; q++, t *= 0.5) {
-      nh = h - t * dh; nA = clampT(A - t * dA); nB = clampT(B - t * dB);
-      nE = energy(nh, nA, nB);
+      nh = h - t * dh; nA = Math.max(-M, Math.min(M, A - t * dA)); nB = Math.max(-M, Math.min(M, B - t * dB));
+      nE = nh + nA * zc + nB * xc + 0.5 * rho * ((nA - A0) ** 2 + (nB - B0) ** 2);
+      for (let r = 0; r < nl; r++) { const i = live[r]; const d = s[i] - nh - nA * pts[i].z - nB * pts[i].x; if (d > 0) nE += 0.5 * k * d * d; }
       if (nE <= E - 1e-12 * t) break;
     }
     if (!(nE < E)) break;
@@ -159,9 +164,11 @@ export function restPose(pts, sup, o = {}) {
     if (moved < 1e-7) { it++; break; }
   }
   let contacts = 0;
-  for (const i of live) if (s[i] - h - A * pts[i].z - B * pts[i].x > -0.002) contacts++;
+  for (let q = 0; q < nl; q++) { const i = live[q]; if (s[i] - h - A * pts[i].z - B * pts[i].x > -0.002) contacts++; }
   return { h, A, B, iters: it, contacts };
 }
+/** restPose's scratch: support height minus sample height, and the samples with a support. */
+let _restS = new Float64Array(0), _restLive = new Int32Array(0);
 
 /**
  * Pose of a boat from its floating pose and the ground under it.

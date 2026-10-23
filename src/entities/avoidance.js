@@ -46,7 +46,30 @@ export function priority(u) {
 /** Numeric tie-break key (ids are numbers in play, strings in some tests). */
 // (one comparable kind: a number against a string compares false both ways — a squad from a barracks ('b#0.0.1')
 // meeting a placed man (7) had neither give way)
-const idKey = (u) => (typeof u.id === 'number' ? 'n' + String(u.id).padStart(10, '0') : 's' + String(u.id ?? u.tag ?? ''));
+const idKey = (u) => {
+  // (memoised per numeric id: compared for every pair of men in reach every tick — two fresh strings each time)
+  if (typeof u.id === 'number') { let k = ID_KEYS.get(u.id); if (k === undefined) ID_KEYS.set(u.id, (k = 'n' + String(u.id).padStart(10, '0'))); return k; }
+  return 's' + String(u.id ?? u.tag ?? '');
+};
+const ID_KEYS = new Map();
+/** plan()'s reach filter without a closure per call: the walker and his ghosts, set round the one query. */
+let _fu = null, _fg = null;
+const NO_GHOSTS = Object.freeze([]);
+const nearFilter = (n) => blocks(_fu, n) && !_fg.includes(n.id);
+/** plan()'s obstacle records, reused call to call (plan is never re-entered: nothing it calls plans). */
+const _obs = [];
+let _obsN = 0;
+function obsAt(n, x, z, vx, vz) {
+  let o = _obs[_obsN];
+  if (!o) _obs[_obsN] = o = { n: null, x: 0.5, z: 0.5, vx: 0.5, vz: 0.5 };
+  o.n = n; o.x = x; o.z = z; o.vx = vx; o.vz = vz;
+  _obsN++;
+  return o;
+}
+/** A plan() result to refill (Unit keeps one: read within its _avoidPlan only). */
+export function newPlan() {
+  return { shift: 0.5, wait: false, slow: false, waitFor: null, block: null, calm: true, blockers: [], claim: null, blockAhead: Infinity, queue: null, queueAhead: Infinity, meetN: null, meetT: Infinity };
+}
 
 /** Does `u` give way to `n` (lower right of way; equal: the higher id)? */
 export function givesWay(u, n) {
@@ -61,32 +84,49 @@ export function givesWay(u, n) {
  *   (m, + = left of travel); wait: hold position this tick; block: a standing man in the way (ghost timer);
  *   calm: the lane may drift back towards the path by `back` without closing in on anybody (within clear + hyst)
  */
-export function plan(u, fx, fz, speed, back = 0) {
+export function plan(u, fx, fz, speed, back = 0, into = null) {
+  try { return planIn(u, fx, fz, speed, back, into); } finally {
+    for (let i = 0; i < _obsN; i++) _obs[i].n = null; // (the reused records keep no man alive past the call)
+    _obsN = 0;
+  }
+}
+function planIn(u, fx, fz, speed, back, into) {
   const A = AV(), w = u.world;
-  const out = { shift: 0, wait: false, slow: false, waitFor: null, block: null, calm: true, blockers: [], claim: null, blockAhead: Infinity, queue: null, queueAhead: Infinity, meetN: null, meetT: Infinity };
+  // (`into`: the caller's own result, refilled to the same fields and values as the fresh literal)
+  let out;
+  if (into) {
+    out = into;
+    out.shift = 0; out.wait = false; out.slow = false; out.waitFor = null; out.block = null; out.calm = true; out.blockers.length = 0; out.claim = null;
+    out.blockAhead = Infinity; out.queue = null; out.queueAhead = Infinity; out.meetN = null; out.meetT = Infinity;
+  } else out = { shift: 0, wait: false, slow: false, waitFor: null, block: null, calm: true, blockers: [], claim: null, blockAhead: Infinity, queue: null, queueAhead: Infinity, meetN: null, meetT: Infinity };
   if (!w?.entitiesInRadius) return out;
   const lx = -fz, lz = fx; // left of travel
   const vux = fx * speed, vuz = fz * speed;
-  const ghosts = u._ghostIds || [];
-  const near = w.entitiesInRadius(u.x, u.z, A.look, (n) => blocks(u, n) && !ghosts.includes(n.id));
+  _fu = u; _fg = u._ghostIds || NO_GHOSTS;
+  let near;
+  try { near = w.entitiesInRadius(u.x, u.z, A.look, nearFilter); } finally { _fu = null; _fg = null; }
   let lo = -Infinity, hi = Infinity; // admissible shift interval
   const pu = priority(u);
   // a man about to stop on his goal is also an obstacle standing there (a group forming up: the near-side man
   // must not be walked into as he arrives) — the lane opens before he is there
   // (sent to the same spot as me: whoever is nearer takes it, the other stops beside it — `claim`, Unit._avoidPlan)
-  const obs = [], mine = u.path && !u.path[u.path.length - 1].steer ? u.path[u.path.length - 1] : null;
+  _obsN = 0;
+  const mine = u.path && !u.path[u.path.length - 1].steer ? u.path[u.path.length - 1] : null;
   const myD = mine ? Math.hypot(mine.x - u.x, mine.z - u.z) : Infinity;
-  for (const n of near) {
-    obs.push({ n, x: n.x, z: n.z, vx: n.vx || 0, vz: n.vz || 0 });
+  for (let ni = 0; ni < near.length; ni++) {
+    const n = near[ni];
+    obsAt(n, n.x, n.z, n.vx || 0, n.vz || 0);
     const g = n.path && n.pathIndex === n.path.length - 1 ? n.path[n.path.length - 1] : null;
     const gd = g ? Math.hypot(g.x - n.x, g.z - n.z) : Infinity;
     if (mine) { // his spot (where he stands, or the goal he is nearer to than I am to mine) on top of my goal
       const s = !n.path ? n : g && !g.steer && (gd < myD - 1e-6 || (Math.abs(gd - myD) <= 1e-6 && idKey(n) < idKey(u))) ? g : null;
       if (s && Math.hypot(s.x - mine.x, s.z - mine.z) < A.clear && (!out.claim || Math.hypot(s.x - u.x, s.z - u.z) < Math.hypot(out.claim.x - u.x, out.claim.z - u.z))) out.claim = { x: s.x, z: s.z, n };
     }
-    if (g && !g.steer && priority(n) < 3 && gd < A.arriveLook && !(mine && Math.hypot(g.x - mine.x, g.z - mine.z) < A.clear)) obs.push({ n, x: g.x, z: g.z, vx: 0, vz: 0 });
+    if (g && !g.steer && priority(n) < 3 && gd < A.arriveLook && !(mine && Math.hypot(g.x - mine.x, g.z - mine.z) < A.clear)) obsAt(n, g.x, g.z, 0, 0);
   }
-  for (const o of obs) {
+  const nObs = _obsN, obs = _obs;
+  for (let oi = 0; oi < nObs; oi++) {
+    const o = obs[oi];
     const n = o.n, px = o.x - u.x, pz = o.z - u.z;
     const nvx = o.vx, nvz = o.vz, nMoving = nvx * nvx + nvz * nvz > A.moving * A.moving;
     const pn = priority(n);
@@ -138,11 +178,11 @@ export function plan(u, fx, fz, speed, back = 0) {
     let side = cx * lx + cz * lz; // his lateral place at closest approach (+ = on my left)
     // a standing man nearly dead ahead: go round him on the side with more room from the other men about (a man
     // stopped on his slot in a formation is not passed on the side where a mate is walking up)
-    if (!nMoving && Math.abs(side) < 0.3 * A.clear && obs.length > 1) {
+    if (!nMoving && Math.abs(side) < 0.3 * A.clear && nObs > 1) {
       const room = (sg) => {
         const qx = u.x + fx * ahead + lx * sg * A.clear, qz = u.z + fz * ahead + lz * sg * A.clear, tq = Math.max(0, ahead) / Math.max(0.3, speed);
         let m = Infinity;
-        for (const q of obs) if (q.n !== n) m = Math.min(m, Math.hypot(q.x + q.vx * tq - qx, q.z + q.vz * tq - qz));
+        for (let qi = 0; qi < nObs; qi++) { const q = obs[qi]; if (q.n !== n) m = Math.min(m, Math.hypot(q.x + q.vx * tq - qx, q.z + q.vz * tq - qz)); }
         return m;
       };
       const rl = room(1), rr = room(-1);

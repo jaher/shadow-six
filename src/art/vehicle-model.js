@@ -53,6 +53,8 @@ export const LIB_VARIANT = Object.freeze({
   r75: 'motorcycle', sidecar: 'motorcycle', horch901: 'horch', willys_mb: 'willys',
 });
 
+/** A LOD group node of a loaded vehicle model (boatPose / shownInstance). */
+const LOD_NAME = /_lod\d+$/;
 /** Left-hand drive: the driver's door is on the vehicle's left. Only the R75's sidecar sits on the right. */
 const DRIVER_SIDE = -1; // entity frame: side +1 = right (heading + π/2), -1 = left
 
@@ -876,11 +878,18 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
     if (!w || !model.isReady || !vis.meta) return null;
     const t = (w.time ?? st.t) + (hashId(spawn.id) % 17);
     const k = def.raft ? 1.4 : clamp(6 / (dims.l || 6), 0.4, 1.2);
-    const R = st.rest || (st.rest = { key: '', near: false, pts: null, ground: null, water: null, q: null, level: -0.1 });
+    const R = st.rest || (st.rest = { key: '', near: false, pts: null, ground: null, water: null, q: null, level: -0.1, kx: NaN, kz: NaN, kh: NaN, kdx: NaN, kready: null, kinst: null });
     // ground / water under the hull: read again when the hull has moved (or the terrain mesh came in)
     const ready = terrainReady(w), dx = body.position.x, h = v.heading || 0;
     const inst = shownInstance(); // (the intact model, or the wreck once it is in)
-    const key = `${v.x.toFixed(3)},${v.z.toFixed(3)},${h.toFixed(4)},${dx.toFixed(3)},${ready ? 1 : 0},${inst?.id ?? 0}`;
+    // (the key string is built only when one of the numbers it is made of changed: a boat lying still kept building the
+    // same string every tick — the same key, so the same answer)
+    const instId = inst?.id ?? 0;
+    let key = R.key;
+    if (R.kx !== v.x || R.kz !== v.z || R.kh !== h || R.kdx !== dx || R.kready !== ready || R.kinst !== instId) {
+      key = `${v.x.toFixed(3)},${v.z.toFixed(3)},${h.toFixed(4)},${dx.toFixed(3)},${ready ? 1 : 0},${instId}`;
+      R.kx = v.x; R.kz = v.z; R.kh = h; R.kdx = dx; R.kready = ready; R.kinst = instId;
+    }
     if (key !== R.key) {
       R.key = key;
       const G = groundOf(w), Wl = waterOf(w), beach = BEACHED.has(lt), xz = { x: 0, z: 0 };
@@ -931,7 +940,14 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
 
   /** The model instance shown (intact or wreck root: the visual's child holding the LOD groups), or null. */
   function shownInstance() {
-    for (const c of vis.object3d.children) if (c.visible && c.children.some((q) => /_lod\d+$/.test(q.name))) return c;
+    // (loops and one module regex: asked every tick for a boat — the closure and the regex literal were made each time)
+    const cs = vis.object3d.children;
+    for (let i = 0; i < cs.length; i++) {
+      const c = cs[i];
+      if (!c.visible) continue;
+      const qs = c.children;
+      for (let j = 0; j < qs.length; j++) if (LOD_NAME.test(qs[j].name)) return c;
+    }
     return null;
   }
 

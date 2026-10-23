@@ -584,23 +584,45 @@ export class VisionCone {
     };
     for (let r = 0; r + 1 < angles.length; r++) {
       const ca = Math.cos(angles[r]), sa = Math.sin(angles[r]), cb = Math.cos(angles[r + 1]), sb = Math.sin(angles[r + 1]);
-      pairSpans(spans[r], spans[r + 1], (r0a, r1a, r0b, r1b, kind) => {
-        const lv = kind === NEAR ? 1 : 0;
-        const m = Math.max(1, Math.min(64, Math.ceil(Math.max(r1a - r0a, r1b - r0b) / slice)));
-        // corners carried from one slice to the next: each ground height is looked up once
-        let Ax = ex + ca * r0a, Az = ez + sa * r0a, Bx = ex + cb * r0b, Bz = ez + sb * r0b;
-        let eA = el ? el(Ax, Az) : 0, eB = el ? el(Bx, Bz) : 0;
-        let yA = Y + eA + g(Ax, Az), yB = Y + eB + g(Bx, Bz);
-        for (let q = 1; q <= m; q++) {
-          const uu = q / m, ra = r0a + (r1a - r0a) * uu, rb = r0b + (r1b - r0b) * uu;
-          const Cx = ex + ca * ra, Cz = ez + sa * ra, Dx = ex + cb * rb, Dz = ez + sb * rb;
-          const eC = el ? el(Cx, Cz) : 0, eD = el ? el(Dx, Dz) : 0;
-          const yC = Y + eC + g(Cx, Cz), yD = Y + eD + g(Dx, Dz);
-          if (el && Math.max(eA, eB, eC, eD) - Math.min(eA, eB, eC, eD) > 0.6) riser(lv, ca, sa, cb, sb, r0a + (r1a - r0a) * (q - 1) / m, ra, r0b + (r1b - r0b) * (q - 1) / m, rb, 1);
-          else put(lv, Ax, yA, Az, Bx, yB, Bz, Cx, yC, Cz, Dx, yD, Dz);
-          Ax = Cx; Az = Cz; Bx = Dx; Bz = Dz; eA = eC; eB = eD; yA = yC; yB = yD;
+      // pairSpans(spans[r], spans[r + 1], quad) and put() written out: the same quads in the same order, the same
+      // floats in the buffer — a closure per ray pair and a dozen numbers boxed per quad were the cone rebuilds' garbage
+      const SA = spans[r], SB = spans[r + 1];
+      for (let i = 0; i < SA.length; i++) {
+        const sa0 = SA[i];
+        let hits = 0;
+        for (let j = 0; j < SB.length; j++) { const b = SB[j]; if (b.k === sa0.k && b.r1 > sa0.r0 && b.r0 < sa0.r1) hits++; }
+        for (let j = 0; j < SB.length; j++) {
+          const b = SB[j];
+          if (!(b.k === sa0.k && b.r1 > sa0.r0 && b.r0 < sa0.r1)) continue;
+          let back = 0;
+          for (let c = 0; c < SA.length; c++) { const cc = SA[c]; if (cc.k === b.k && cc.r1 > b.r0 && cc.r0 < b.r1) back++; }
+          let r0a, r1a, r0b, r1b;
+          if (hits === 1 && back === 1) { r0a = sa0.r0; r1a = sa0.r1; r0b = b.r0; r1b = b.r1; } else { const lo = Math.max(sa0.r0, b.r0), hi = Math.min(sa0.r1, b.r1); r0a = lo; r1a = hi; r0b = lo; r1b = hi; }
+          const lv = sa0.k === NEAR ? 1 : 0;
+          const m = Math.max(1, Math.min(64, Math.ceil(Math.max(r1a - r0a, r1b - r0b) / slice)));
+          // corners carried from one slice to the next: each ground height is looked up once
+          let Ax = ex + ca * r0a, Az = ez + sa * r0a, Bx = ex + cb * r0b, Bz = ez + sb * r0b;
+          let eA = el ? el(Ax, Az) : 0, eB = el ? el(Bx, Bz) : 0;
+          let yA = Y + eA + g(Ax, Az), yB = Y + eB + g(Bx, Bz);
+          for (let q = 1; q <= m; q++) {
+            const uu = q / m, ra = r0a + (r1a - r0a) * uu, rb = r0b + (r1b - r0b) * uu;
+            const Cx = ex + ca * ra, Cz = ez + sa * ra, Dx = ex + cb * rb, Dz = ez + sb * rb;
+            const eC = el ? el(Cx, Cz) : 0, eD = el ? el(Dx, Dz) : 0;
+            const yC = Y + eC + g(Cx, Cz), yD = Y + eD + g(Dx, Dz);
+            if (el && Math.max(eA, eB, eC, eD) - Math.min(eA, eB, eC, eD) > 0.6) riser(lv, ca, sa, cb, sb, r0a + (r1a - r0a) * (q - 1) / m, ra, r0b + (r1b - r0b) * (q - 1) / m, rb, 1);
+            else { // put(lv, A, B, C, D)
+              grow(o, 18);
+              const a = o.a, l = o.l, n = o.n;
+              a[n] = Ax; a[n + 1] = yA; a[n + 2] = Az; a[n + 3] = Bx; a[n + 4] = yB; a[n + 5] = Bz; a[n + 6] = Cx; a[n + 7] = yC; a[n + 8] = Cz;
+              a[n + 9] = Cx; a[n + 10] = yC; a[n + 11] = Cz; a[n + 12] = Bx; a[n + 13] = yB; a[n + 14] = Bz; a[n + 15] = Dx; a[n + 16] = yD; a[n + 17] = Dz;
+              const v = n / 3;
+              for (let w = 0; w < 6; w++) l[v + w] = lv;
+              o.n = n + 18;
+            }
+            Ax = Cx; Az = Cz; Bx = Dx; Bz = Dz; eA = eC; eB = eD; yA = yC; yB = yD;
+          }
         }
-      });
+      }
       yield;
     }
   }

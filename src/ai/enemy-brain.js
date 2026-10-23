@@ -21,7 +21,7 @@ import { CONFIG, velToSpeed } from '../config.js';
 import { searchStats } from '../world/pathfinding.js';
 import { hasObstacles, bodyGap, MOVE_MARGIN } from '../world/body-clearance.js';
 import { angleTo, angleDiff, wrapAngle } from '../core/math.js';
-import { perceive, canSee, hears, coneAt, headTheta } from './perception.js';
+import { perceive, canSee, hears, coneAt, headTheta, newCone } from './perception.js';
 import { archetypeOf, isPatrolMember } from './archetypes.js';
 import { ensureAI } from './director.js';
 import { BCD_BRAIN_STATES } from './bcd-enemy.js';
@@ -40,6 +40,12 @@ const WP_NEAR = 1.0;
 /** Spec brain states (design-spec §4.6). */
 /** An empty seen list, shared (the brain's _seen is only read: iterated, counted, searched). */
 const SEEN_NONE = Object.freeze([]);
+const _STEER = { clearance: 0.3, elevRef: 0.5 };
+/** A squad's members (a Set: they only ever join, EnemyBrain.attach) as an array in the Set's order, kept beside it. */
+function squadList(sq) {
+  if (!sq._list || sq._listN !== sq.members.size) { sq._list = [...sq.members]; sq._listN = sq.members.size; }
+  return sq._list;
+}
 export const BRAIN_STATES = Object.freeze(['IDLE', 'INVESTIGATE', 'DECOY', 'TRACKS', 'BODY', 'CHALLENGE', 'HOLD',
   'ARREST', 'COMBAT', 'SEARCH', 'RETURN', 'DISTRACTED', 'ALARM_RUN', 'REINFORCE', 'DEAD']);
 
@@ -551,7 +557,24 @@ export class EnemyBrain {
       e.knockedDown = null;
     }
     this._turnStep(dt); // a turn on the spot first: this step's cone (perception) is the one he turned to
-    this._smoothHead(() => this._think(dt));
+    this._smoothThink(dt);
+  }
+
+  /** _smoothHead(() => this._think(dt)) without the closure (every guard, every tick). */
+  _smoothThink(dt) {
+    const e = this.enemy, w = this.world;
+    if (this._headDepth > 0 || !w || !e.vision) return this._think(dt);
+    const t = w.time, seq = this._turnSeq, th = headTheta(e, t);
+    this._headDepth++;
+    try {
+      return this._think(dt);
+    } finally {
+      this._headDepth--;
+      if (this._turnSeq !== seq && !AWARE.has(this.state)) {
+        const c = (e.headCarry || 0) + angleDiff(headTheta(e, t), th);
+        e.headCarry = Math.abs(c) < 1e-9 ? 0 : c;
+      }
+    }
   }
 
   /** Perception and the state behaviour of one step (update). */
@@ -592,19 +615,25 @@ export class EnemyBrain {
     if (!e.vision || !this.arch.reacts || e.state === 'captured') return;
     const S = this.state;
     const wantPrints = e.flags.followsTracks && (S === 'IDLE' || S === 'REINFORCE' || S === 'RETURN' || S === 'SEARCH');
-    const res = perceive(e, w, { prints: wantPrints, bodies: !e.flags.ignoresBodies || this.arch.script === 'courier' });
+    // (the result, its cone and the options: this brain's own, refilled each tick — read only within this pass)
+    const po = this._pOpt || (this._pOpt = { prints: false, bodies: true, out: { cone: null, commandos: SEEN_NONE, bodies: SEEN_NONE, prints: SEEN_NONE }, coneOut: newCone() });
+    po.prints = wantPrints; po.bodies = !e.flags.ignoresBodies || this.arch.script === 'courier';
+    const res = perceive(e, w, po);
     let seen = res.commandos.length ? res.commandos.filter((s) => s.unit.state !== 'captured') : SEEN_NONE;
     if (this.arch.vehicleOnly) seen = SEEN_NONE;
     this._seen = seen;
-    for (const s of seen) {
+    // (indexed loops below: the shared frozen empty lists take for-of off its fast path — an iterator per loop, every
+    // guard every tick)
+    for (let i = 0; i < seen.length; i++) {
+      const s = seen[i];
       e.lastSeen = { target: s.unit, x: s.unit.x, z: s.unit.z, t: w.time };
     }
     if (seen.length) this._onCommandoSeen(seen);
     if (this.arch.script === 'gunner') this._gunnerLook();
     if (!e.alive || AWARE.has(this.state)) return;
     // bodies (full cone) and wounded comrades
-    for (const b of res.bodies) {
-      const u = b.unit;
+    for (let i = 0; i < res.bodies.length; i++) {
+      const u = res.bodies[i].unit;
       if (u.bodyNoticed || u.hiddenBody) continue;
       if (this.arch.script === 'courier') return this._startAlarmRun(u.x, u.z);
       if (this.arch.script === 'engineer') return this._scriptAlarm(u.x, u.z);
@@ -621,7 +650,8 @@ export class EnemyBrain {
       // trail end until the prints expired)
       const tr = this._trail;
       let newest = null;
-      for (const p of res.prints) {
+      for (let i = 0; i < res.prints.length; i++) {
+        const p = res.prints[i];
         if (tr && p.ownerId === tr.ownerId && p.t <= tr.t + 1e-6) continue;
         if (!newest || p.t > newest.t) newest = p;
       }
@@ -1698,7 +1728,8 @@ export class EnemyBrain {
   /** Straight walkable line from this man to p (same level, body clearance): steer at it without A*. */
   _steerable(p) {
     const e = this.enemy, w = this.world, g = w.grid;
-    if (!g.walkableLine(e.x, e.z, p.x, p.z, { clearance: 0.3, elevRef: g.elevAt(e.x, e.z) })) return false;
+    _STEER.elevRef = g.elevAt(e.x, e.z); // (one options object refilled: walkableLine only reads it while it runs)
+    if (!g.walkableLine(e.x, e.z, p.x, p.z, _STEER)) return false;
     // nor through a solid the grid does not hold (a vehicle hull, a wreck, a crate: body-clearance.js) — those he
     // paths round (Unit._planPath); steering straight walked a file into a passing half-track's way (M11)
     if (!hasObstacles(w) || (e.y || 0) > 1) return true;
@@ -1717,24 +1748,37 @@ export class EnemyBrain {
     return sq.flip ? out.reverse() : out;
   }
 
+  /** this man's index in _mates(lead) (-1: not among them), and their count in `_matesN` — without the arrays (every
+   *  follower, several times a tick). The squad's members in their Set order: a list kept beside it (members only join). */
+  _mateIndex(lead) {
+    const e = this.enemy, sq = this.world.ai.squads.get(e.squad.id), L = squadList(sq);
+    let n = 0, pos = -1;
+    for (let i = 0; i < L.length; i++) { const m = L[i]; if (m.alive && m !== lead && !m.removed) { if (m === e) pos = n; n++; } }
+    this._matesN = n;
+    return pos < 0 ? -1 : sq.flip ? n - 1 - pos : pos;
+  }
+
   /**
    * Breadcrumb point of this member: k·1.2 m behind the leader along its trail, in `columns` columns.
    * @param {number} [ahead] metres further up the trail (the pure-pursuit aim point that smooths merges and corners)
    */
   _followPoint(lead, ahead = 0) {
     const e = this.enemy, sq = this.world.ai.squads.get(e.squad.id);
-    const k = this._mates(lead).indexOf(e);
+    const k = this._mateIndex(lead);
     if (k < 0) return null;
     const cols = Math.max(1, e.squad.columns || 1);
     const rank = Math.floor(k / cols) + 1, col = cols > 1 ? this._column(lead, k, cols) : 0;
     const want = Math.max(0.3, rank * CONFIG.ai.squadSpacing - ahead);
-    let acc = 0, prev = { x: lead.x, z: lead.z };
+    // (the previous trail point as two numbers: the same walk without an object per call)
+    let acc = 0, prevX = lead.x, prevZ = lead.z;
     let pt = null;
-    for (const p of sq.trail) {
-      const seg = Math.hypot(p.x - prev.x, p.z - prev.z);
-      if (acc + seg >= want) { const f = seg > 0 ? (want - acc) / seg : 0; pt = { x: prev.x + (p.x - prev.x) * f, z: prev.z + (p.z - prev.z) * f }; break; }
+    const trail = sq.trail;
+    for (let i = 0; i < trail.length; i++) {
+      const p = trail[i];
+      const seg = Math.hypot(p.x - prevX, p.z - prevZ);
+      if (acc + seg >= want) { const f = seg > 0 ? (want - acc) / seg : 0; pt = { x: prevX + (p.x - prevX) * f, z: prevZ + (p.z - prevZ) * f }; break; }
       acc += seg;
-      prev = p;
+      prevX = p.x; prevZ = p.z;
     }
     // trail shorter than the slot (fresh leg after a halt): fall in diagonally, `want` short of the leader on the
     // straight line from this man (no detour back to the halt point, never ahead of the leader)
@@ -1749,7 +1793,7 @@ export class EnemyBrain {
       if (ls > 0.1 && -(dx * lvx + dz * lvz) / ls > -0.6) pt = { x: e.x, z: e.z, hold: true };
       else pt = { x: lead.x - (dx / dl) * want, z: lead.z - (dz / dl) * want };
     }
-    if (!pt) pt = { x: prev.x - Math.cos(lead.heading) * (want - acc), z: prev.z - Math.sin(lead.heading) * (want - acc) };
+    if (!pt) pt = { x: prevX - Math.cos(lead.heading) * (want - acc), z: prevZ - Math.sin(lead.heading) * (want - acc) };
     if (cols > 1) { // after an odd number of about turns the leader faces the other way: each man keeps his world side
       const off = (col - (cols - 1) / 2) * 1.2 * (sq.flip ? -1 : 1);
       pt.x += -Math.sin(lead.heading) * off; pt.z += Math.cos(lead.heading) * off;
@@ -1763,7 +1807,8 @@ export class EnemyBrain {
    */
   _column(lead, k, cols) {
     const e = this.enemy, sq = this.world.ai.squads.get(e.squad.id);
-    const n = this._mates(lead).length;
+    this._mateIndex(lead);
+    const n = this._matesN;
     if (!sq.cols || sq.colsN !== n) { sq.cols = new Map(); sq.colsN = n; } // a man fell: re-form the ranks
     if (!sq.cols.has(e.id)) {
       const mates = this._mates(lead), r0 = Math.floor(k / cols) * cols;
@@ -1861,12 +1906,23 @@ export class EnemyBrain {
       want = d < (v0 < 0.05 ? 2 * F.stop : F.stop) || err < 0 ? 0 : Math.min(top, Math.max(F.minWalk, Math.sqrt(2 * F.decel * d)));
     }
     if (!halted) { // keep clear of the mates ahead of him in the file (and the leader)
-      const mates = this._mates(lead), k = mates.indexOf(e);
+      // (the mates ahead of him in _mates(lead) order — the first k of them — walked in place: no array, no closure)
+      const k = this._mateIndex(lead), n = this._matesN, sq = this.world.ai.squads.get(e.squad.id), L = squadList(sq);
       // only men in front of him on his way (one beside him is the avoidance lane's business)
       const ux = pt.x - e.x, uz = pt.z - e.z, ul = Math.hypot(ux, uz) || 1;
-      const inFront = (m) => ((m.x - e.x) * ux + (m.z - e.z) * uz) / ul > 0.3;
-      let gap = inFront(lead) ? Math.hypot(lead.x - e.x, lead.z - e.z) : Infinity;
-      for (let j = 0; j < k; j++) if (inFront(mates[j])) gap = Math.min(gap, Math.hypot(mates[j].x - e.x, mates[j].z - e.z));
+      let gap = ((lead.x - e.x) * ux + (lead.z - e.z) * uz) / ul > 0.3 ? Math.hypot(lead.x - e.x, lead.z - e.z) : Infinity;
+      if (k > 0) {
+        // mates[j] for j < k: in list order unflipped, from the far end flipped (mates = the filtered list, reversed)
+        let idx = 0;
+        for (let i = 0; i < L.length; i++) {
+          const m = L[i];
+          if (!(m.alive && m !== lead && !m.removed)) continue;
+          const j = sq.flip ? n - 1 - idx : idx;
+          idx++;
+          if (j >= k) continue;
+          if (((m.x - e.x) * ux + (m.z - e.z) * uz) / ul > 0.3) gap = Math.min(gap, Math.hypot(m.x - e.x, m.z - e.z));
+        }
+      }
       // standing behind a mate he waits for a real gap (minGap + gapHyst) before he steps off: a file moving off
       // after a halt does not stop-start at a crawl (walk / idle flicker)
       want = v0 < 0.05 && gap < F.minGap + F.gapHyst ? 0 : Math.min(want, Math.max(0, (gap - F.minGap) * F.gapGain));

@@ -14,6 +14,7 @@
  * @module engine/program-variants
  */
 import * as THREE from 'three';
+import { PERF } from './perf-flags.js';
 
 /** Program-relevant object features ('' = a plain static mesh). Interned: the same string object per feature set (asked
  *  for every mesh of every override pass, every frame — a string built each time was a stream of garbage). */
@@ -37,6 +38,64 @@ export function variantKey(o) {
     KEYS.set(id, k);
   }
   return k;
+}
+
+/**
+ * The material InstancedMesh users of `m` draw with, when `m` is also drawn on plain meshes (a building batch beside the
+ * same kit's single buildings): three keeps one program per material, so a material drawn for both kinds in a frame
+ * re-derives its program (getProgram: the parameters object and the cache key string) at every switch — 1 500–3 300
+ * times a second on M3 with the kit's shared materials in view, garbage each time. The variant is an Object.create of
+ * `m`: every property reads through to `m` — the same values, live (a texture swapped, needsUpdate, an envMap bound,
+ * the shader hooks and their userData) — and the same material id (three's draw order is unchanged); it only has its
+ * own three state (its program) and its own event listeners. Disposed with `m`. Materials three itself writes to while
+ * drawing (double-sided transparent, transmissive) and shader materials keep `m`.
+ * @param {THREE.Material} m @returns {THREE.Material}
+ */
+const INST = new WeakMap(), VARIANTS = new WeakSet();
+export function instancedVariant(m) {
+  if (!m?.isMaterial || VARIANTS.has(m) || m.isShaderMaterial || (m.transparent && m.side === THREE.DoubleSide) || m.transmission > 0) return m;
+  let v = INST.get(m);
+  if (!v) {
+    v = Object.create(m);
+    v._listeners = {}; // (its own: three's dispose hook for its program goes on the variant)
+    INST.set(m, v); VARIANTS.add(v);
+    m.addEventListener('dispose', () => v.dispose());
+  }
+  return v;
+}
+
+/**
+ * Every InstancedMesh under `root` whose material is also drawn by a plain (or skinned) mesh there gets the material's
+ * instancedVariant (Game, once the map is built, before the warm-up frame compiles what it draws). @returns {number}
+ */
+export function splitInstancedMaterials(root) {
+  const plain = new Set(), inst = [];
+  root?.traverse?.((o) => {
+    if (!o.material) return;
+    if (o.isInstancedMesh) inst.push(o);
+    else if (o.isMesh || o.isSkinnedMesh) { if (Array.isArray(o.material)) for (const m of o.material) plain.add(m); else plain.add(o.material); }
+  });
+  let n = 0;
+  for (const o of inst) {
+    const base = o.material;
+    let v = base;
+    if (Array.isArray(base)) { if (base.some((m) => plain.has(m))) v = base.map((m) => (plain.has(m) ? instancedVariant(m) : m)); } else if (plain.has(base)) v = instancedVariant(base);
+    if (v === base) continue;
+    // (both kept on the mesh: the perf switch PERF.instancedVariants puts the shared material back — tools/perf/ab-pixels)
+    o.__splitBase = base; o.__splitVariant = v;
+    o.material = splitOn ? v : base;
+    n++;
+  }
+  return n;
+}
+
+let splitOn = true;
+/** Apply PERF.instancedVariants (off: the instanced meshes draw with the shared material again). Renderer, per frame. */
+export function syncInstancedVariants(root) {
+  const on = PERF.instancedVariants !== false;
+  if (on === splitOn) return;
+  splitOn = on;
+  root?.traverse?.((o) => { if (o.__splitVariant) o.material = on ? o.__splitVariant : o.__splitBase; });
 }
 
 export class VariantCache {

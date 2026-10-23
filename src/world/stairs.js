@@ -198,8 +198,11 @@ export class StairField {
   /** flightAt with its options as arguments (unitFlight: every man, every tick — no options object). */
   flightAtP(x, z, y, pad = 0.6, side = 0.15, tol = 0.45, link = null) {
     let best = null;
-    for (const f of this.near(x, z, pad + side)) {
-      const { s, v } = flightLocal(f, x, z);
+    // (indexed, flightLocal written out: the shared frozen empty list of near() takes for-of off its fast path — an
+    // iterator and a result object per call, every man every tick)
+    const nf = this.near(x, z, pad + side);
+    for (let i = 0; i < nf.length; i++) {
+      const f = nf[i], dx = x - f.ox, dz = z - f.oz, s = dx * f.ux + dz * f.uz, v = -dx * f.uz + dz * f.ux;
       // (a stair link's flight for a man walking that link — or about to, or just off it: at its foot or its top)
       if (f.link && f.link.id !== link && s > f.sFoot + 0.2 && s < f.sTop - 0.2) continue;
       if (Math.abs(v) > f.w / 2 + side || s < f.sFoot - pad || s > f.sTop + pad) continue;
@@ -218,9 +221,11 @@ export class StairField {
    * the ground beside the stair). @returns {number|null}
    */
   simY(x, z, e, maxStep = 0.6) {
-    for (const f of this.near(x, z, 0.8)) {
+    const nf = this.near(x, z, 0.8);
+    for (let i = 0; i < nf.length; i++) {
+      const f = nf[i];
       if (f.link) continue;
-      const { s, v } = flightLocal(f, x, z);
+      const dx = x - f.ox, dz = z - f.oz, s = dx * f.ux + dz * f.uz, v = -dx * f.uz + dz * f.ux;
       if (Math.abs(v) > f.w / 2 + 0.25 || s <= f.sFoot - 0.5 || s >= f.sTop + 0.5) continue;
       const y = lineAt(f, s);
       if (Math.abs(v) <= f.w / 2 || Math.abs(y - e) <= maxStep) return y;
@@ -230,9 +235,11 @@ export class StairField {
 
   /** Is (x, z) on or within `m` m of a (non-link) flight's run? */
   nearRun(x, z, m = 1) {
-    for (const f of this.near(x, z, m)) {
+    const nf = this.near(x, z, m);
+    for (let i = 0; i < nf.length; i++) {
+      const f = nf[i];
       if (f.link) continue;
-      const { s, v } = flightLocal(f, x, z);
+      const dx = x - f.ox, dz = z - f.oz, s = dx * f.ux + dz * f.uz, v = -dx * f.uz + dz * f.ux;
       if (Math.abs(v) <= f.w / 2 + m && s >= f.sFoot - m && s <= f.sTop + m) return true;
     }
     return false;

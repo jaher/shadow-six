@@ -97,6 +97,7 @@ import { sessionCache } from './engine/asset-cache.js';
 import { deferMaterialDisposal, flushMaterialDisposal, holdingMaterials } from './engine/program-keeper.js';
 import { TextureWarmer, releaseUnloadTextures, texturesLoading, texturesLoaded } from './engine/texture-memory.js';
 import { compileAhead, framesInParts } from './engine/parallel-compile.js';
+import { splitInstancedMaterials } from './engine/program-variants.js';
 import { runSliced, runSync, due, nextTask } from './engine/slice.js';
 import { fitLadders, fitLaddersG } from './art/ladder-frame.js';
 
@@ -481,6 +482,9 @@ export class Game {
     // (+ a wreck's scorch decal in the ground-decal scene, where wrecks draw it — art/vehicle-model.js)
     const scorchWarm = def.size && r.decalScene ? safe(() => vehicleDecalWarm(), 'scorch warm-up') : null;
     if (scorchWarm) { scorchWarm.position.x = def.size[0] / 2; scorchWarm.position.z = def.size[1] / 2; r.decalScene.add(scorchWarm); }
+    // a material drawn by plain and instanced meshes alike: its own variant for the instanced ones (no program
+    // re-derived at every switch between the two kinds — engine/program-variants.js)
+    safe(() => splitInstancedMaterials(r.scene), 'instanced material variants');
     if (CONFIG.render.warmFrame !== false) {
       const extra = [...ruins.flatMap((rr) => rr.roots), ...(dig?.objects || []), ...wireWarm, ...(raftWarm?.objects || []), ...(spyWarm?.objects || [])];
       const xray = [...(dig?.xray || []), ...(raftWarm?.xray || []), ...(spyWarm?.xray || [])];
@@ -858,33 +862,25 @@ export class Game {
   _step(dt) {
     const w = this.world;
     this._flushQueue();
-    for (const e of w.entities) e.savePrev?.();
+    const ents = w.entities;
+    for (let i = 0; i < ents.length; i++) ents[i].savePrev?.();
     w.rebuildSpatial();
-    safe(() => w.refreshDynamicOccluders(), 'occluders');
-    const run = (list) => {
-      for (let i = 0; i < list.length; i++) {
-        const e = list[i];
-        if (e.removed) continue;
-        try {
-          e.update(dt);
-        } catch (err) {
-          console.error(`[game] ${e.kind} #${e.id} update failed`, err);
-        }
-      }
-    };
-    run(w.commandos);
-    run(w.enemies);
-    safe(() => w.runBelTicks(dt), 'belTick'); // §10.1 tick-integer rules (nervousness…) at 20 Hz
-    run(w.vehicles);
-    run(w.projectiles);
-    run(w.interactables);
-    safe(() => w.physics.step(dt), 'physics'); // bodies-design §1 tick order: after interactables, before objectives
+    // (the guarded calls written out — safe(() => …) and the list runner were closures made every tick; the same calls
+    // in the same order, a failure logged and skipped as safe() does)
+    try { w.refreshDynamicOccluders(); } catch (err) { stepFailed('occluders', err); }
+    runUpdates(w.commandos, dt);
+    runUpdates(w.enemies, dt);
+    try { w.runBelTicks(dt); } catch (err) { stepFailed('belTick', err); } // §10.1 tick-integer rules (nervousness…) at 20 Hz
+    runUpdates(w.vehicles, dt);
+    runUpdates(w.projectiles, dt);
+    runUpdates(w.interactables, dt);
+    try { w.physics.step(dt); } catch (err) { stepFailed('physics', err); } // bodies-design §1 tick order: after interactables, before objectives
     w.alarm?.update(dt);
     const res = checkObjectives(w);
-    safe(() => updateExtractionVehicle(w, (this._endFlags ||= {})), 'extraction'); // §7.6 scripted escape vehicle
-    safe(() => w.fx?.update?.(dt), 'fx');
-    if (w.blood) safe(() => w.blood.update(dt), 'blood');
-    safe(() => (this.mapHandle?.update ? this.mapHandle.update(dt) : this.mapHandle?.terrain?.update?.(dt)), 'map');
+    try { updateExtractionVehicle(w, (this._endFlags ||= {})); } catch (err) { stepFailed('extraction', err); } // §7.6 scripted escape vehicle
+    try { w.fx?.update?.(dt); } catch (err) { stepFailed('fx', err); }
+    if (w.blood) { try { w.blood.update(dt); } catch (err) { stepFailed('blood', err); } }
+    try { if (this.mapHandle?.update) this.mapHandle.update(dt); else this.mapHandle?.terrain?.update?.(dt); } catch (err) { stepFailed('map', err); }
     w.flushRemovals();
     w.time += dt;
     w.tick++;
@@ -1342,6 +1338,21 @@ function drawnMeshes(root) {
 }
 
 /** Run fn, logging (as a warning, so tests don't fail on optional systems) and returning null on error. */
+/** One tick's update of every live entity of a list (Game._step); a failure is logged and the next one runs. */
+function runUpdates(list, dt) {
+  for (let i = 0; i < list.length; i++) {
+    const e = list[i];
+    if (e.removed) continue;
+    try {
+      e.update(dt);
+    } catch (err) {
+      console.error(`[game] ${e.kind} #${e.id} update failed`, err);
+    }
+  }
+}
+/** safe()'s report, for the calls Game._step guards inline. */
+function stepFailed(label, err) { console.warn(`[game] ${label} failed:`, err); }
+
 function safe(fn, label) {
   try {
     return fn();

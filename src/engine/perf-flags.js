@@ -10,6 +10,9 @@ export const PERF = {
   adaptiveTicks: true,
   /** Sparse grass chunks of one archetype drawn as one merged mesh (art/terrain/grass.js); off = one draw per chunk. */
   grassMerge: true,
+  /** InstancedMeshes sharing a material with plain meshes draw with its own variant (engine/program-variants.js
+   *  splitInstancedMaterials); off = the shared material, its program re-derived at every switch. */
+  instancedVariants: true,
 };
 
 if (typeof window !== 'undefined') window.__perf = PERF;

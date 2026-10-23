@@ -1151,12 +1151,21 @@ export class Walkthrough extends SolutionReplay {
     const key = `${total.toFixed(1)}|${this._tl.marks.length}|${this._tl.total != null ? 1 : 0}`;
     if (key !== this._tlKey) {
       this._tlKey = key;
-      track.querySelectorAll('.wt-tl-mark').forEach((n) => n.remove());
-      if (total > 0) for (const m of this._tl.marks) {
-        const d = el('div', `wt-tl-mark${m.kind === 'stage' ? ' stage' : ''}`, track);
-        d.style.left = `${(Math.max(0, Math.min(1, m.t / total)) * 100).toFixed(2)}%`;
-        d.title = `${m.id} · ${fmtTime(m.t)}`;
+      // (the marks are made again only when they changed; a total that grows with the clock — a first run, no total
+      // kept yet — only moves them: rebuilding ~40 elements every tenth of a second was steady garbage in the page)
+      const marks = this._tl.marks, els = this._tlMarkEls;
+      const same = total > 0 && els && els.length === marks.length && els.every((d, i) => d.isConnected && d._wtMark === `${marks[i].kind}|${marks[i].id}|${marks[i].t}`);
+      if (!same) {
+        track.querySelectorAll('.wt-tl-mark').forEach((n) => n.remove());
+        this._tlMarkEls = [];
+        if (total > 0) for (const m of marks) {
+          const d = el('div', `wt-tl-mark${m.kind === 'stage' ? ' stage' : ''}`, track);
+          d.title = `${m.id} · ${fmtTime(m.t)}`;
+          d._wtMark = `${m.kind}|${m.id}|${m.t}`;
+          this._tlMarkEls.push(d);
+        }
       }
+      if (total > 0) for (let i = 0; i < marks.length; i++) this._tlMarkEls[i].style.left = `${(Math.max(0, Math.min(1, marks[i].t / total)) * 100).toFixed(2)}%`;
     }
   }
 
@@ -1488,6 +1497,17 @@ export class Walkthrough extends SolutionReplay {
     if (st && !this._held() && !this.pacer.turbo && say !== this._readSay) { this._readSay = say; this._readUntil = performance.now() + readTime(say) * 1000; }
     const key = [head, pos.replace(/ · \d+:\d\d$/, ''), status, say, who.join(), chapterMode ? 1 : 0, Math.floor(this.world.time)].join('|');
     if (key === this._capKey) return;
+    // only the clock moved on (a second of game time): its text in place — the same caption, not rebuilt every second
+    // (each rebuild was a handful of elements, their styles and layout made anew: steady garbage in the page's heap)
+    const shape = key.slice(0, key.lastIndexOf('|'));
+    // (not fast-forwarding: its progress bar is drawn with the rebuild)
+    if (this._capKey != null && shape === this._capShape && !(this.pacer.turbo && !this._skip) && this._capPos?.isConnected && cap.contains(this._capPos)) {
+      this._capKey = key;
+      this._capPos.data = pos;
+      return;
+    }
+    this._capShape = shape;
+    this._capPos = null;
     this._capKey = key;
     cap.className = chapterMode ? 'chapter' : '';
     cap.dataset.step = st?.cp || '';
@@ -1499,6 +1519,7 @@ export class Walkthrough extends SolutionReplay {
     const r = el('span', 'wt-pos', h);
     if (status) el('span', 'wt-ff', r, status + '  ');
     r.append(pos);
+    this._capPos = r.lastChild; // (the clock's text node: updated in place while nothing else changes)
     if (chapterMode) el('span', 'wt-title', cap, ch.title);
     if (this.pacer.turbo && !this._skip) {
       el('div', 'wt-say', cap, 'Fast-forwarding through the solution to the chosen step…');

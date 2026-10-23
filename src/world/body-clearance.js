@@ -141,7 +141,7 @@ const DRUM_R = 0.42;
  */
 function moverEntities(world) {
   const list = world?.interactables;
-  if (!list?.length) return [];
+  if (!list?.length) return NO_SOLIDS;
   const c = world._bodyMovers;
   if (c && c.list === list && c.n === list.length) return c.out;
   const out = list.filter((it) => it.interactKind === 'barrel' || it.interactKind === 'pushable');
@@ -168,19 +168,41 @@ export function moverShape(it) {
  * `near` {x, z, reach} only those within `reach` m of their shape (cheap prefilter before any shape is built).
  */
 export function dynamicObstacles(world, ignore = null, near = null) {
-  const skip = (e) => e === ignore || (Array.isArray(ignore) && ignore.includes(e));
-  const out = [];
-  const far = (e, r) => !!near && Math.hypot(e.x - near.x, e.z - near.z) > r + near.reach;
-  for (const v of world?.vehicles || []) {
-    if (!isSolidHull(v) || skip(v)) continue;
-    const d = v.model?.dims;
-    if (far(v, Math.hypot(Math.max(v.def.size[0], d?.l || 0), Math.max(v.def.size[1], d?.w || 0)) / 2)) continue;
-    const R = hullRect(v); R.src = v; out.push(R);
+  return dynamicInto(world, ignore, !!near, near ? near.x : 0, near ? near.z : 0, near ? near.reach : 0, null) || [];
+}
+
+/** Math.hypot(dx, dz) > lim, the squared distance deciding every case not within 1e-9 of the edge (those: the exact
+ *  hypot test) — the same answer, without a hypot per obstacle per query (as staticInto). */
+function beyond(dx, dz, lim) {
+  const d2 = dx * dx + dz * dz, l2 = lim * lim;
+  if (d2 > l2 * (1 + 1e-9) + 1e-12) return true;
+  if (d2 < l2 * (1 - 1e-9)) return false;
+  return Math.hypot(dx, dz) > lim;
+}
+
+/** dynamicObstacles pushed onto `out` (null: an array made at the first one; null back when none) — the same shapes
+ *  in the same order, without its closures (asked for every man's body every step). */
+function dynamicInto(world, ignore, hasNear, nx, nz, reach, out) {
+  const ignArr = Array.isArray(ignore);
+  const vs = world?.vehicles;
+  if (vs) {
+    for (let i = 0; i < vs.length; i++) {
+      const v = vs[i];
+      if (!isSolidHull(v) || v === ignore || (ignArr && ignore.includes(v))) continue;
+      if (hasNear) {
+        const d = v.model?.dims;
+        if (beyond(v.x - nx, v.z - nz, Math.hypot(Math.max(v.def.size[0], d?.l || 0), Math.max(v.def.size[1], d?.w || 0)) / 2 + reach)) continue;
+      }
+      const R = hullRect(v); R.src = v; (out ||= []).push(R);
+    }
   }
-  for (const it of moverEntities(world)) {
-    if (skip(it) || far(it, it.size ? Math.hypot(it.size[0], it.size[1]) / 2 : DRUM_R)) continue;
+  const ms = moverEntities(world);
+  for (let i = 0; i < ms.length; i++) {
+    const it = ms[i];
+    if (it === ignore || (ignArr && ignore.includes(it))) continue;
+    if (hasNear && beyond(it.x - nx, it.z - nz, (it.size ? Math.hypot(it.size[0], it.size[1]) / 2 : DRUM_R) + reach)) continue;
     const R = moverShape(it);
-    if (R) out.push(R);
+    if (R) (out ||= []).push(R);
   }
   return out;
 }
@@ -220,10 +242,14 @@ export function removeStaticSolids(world, owner) {
 
 /** Static solids within `reach` m of (x, z) (bucket lookup + circle prefilter). */
 export function staticNear(world, x, z, reach) {
+  return staticInto(world, x, z, reach, null) || NO_SOLIDS;
+}
+
+/** staticNear pushed onto `out` (null: an array made at the first one; null back when none). */
+function staticInto(world, x, z, reach, out) {
   const S = world?.bodySolids;
-  if (!S?.list.length) return NO_SOLIDS;
+  if (!S?.list.length) return out;
   // (a list only once something is near — one shared, frozen empty list otherwise: asked for every man every tick)
-  let out = NO_SOLIDS;
   const q = (S.query = (S.query || 0) + 1);
   for (let bj = Math.floor((z - reach) / BUCKET); bj <= Math.floor((z + reach) / BUCKET); bj++) {
     for (let bi = Math.floor((x - reach) / BUCKET); bi <= Math.floor((x + reach) / BUCKET); bi++) {
@@ -241,8 +267,7 @@ export function staticNear(world, x, z, reach) {
         const dx = x - R.x, dz = z - R.z, d2 = dx * dx + dz * dz, lim = o.rad + reach, l2 = lim * lim;
         if (d2 > l2 * (1 + 1e-9) + 1e-12) continue;
         if (!(d2 < l2 * (1 - 1e-9)) && Math.hypot(dx, dz) > lim) continue;
-        if (out === NO_SOLIDS) out = [];
-        out.push(o.R);
+        (out ||= []).push(o.R);
       }
     }
   }
@@ -258,9 +283,8 @@ export function hasObstacles(world) {
 
 /** Solid obstacles (hulls, movers, static solids) near (x, z) within `reach` m of their shape. */
 export function hullsNear(world, x, z, reach, ignore = null) {
-  const out = dynamicObstacles(world, ignore, { x, z, reach });
-  for (const R of staticNear(world, x, z, reach)) out.push(R);
-  return out;
+  // (callers only read it: a shared, frozen empty list when nothing is near)
+  return staticInto(world, x, z, reach, dynamicInto(world, ignore, true, x, z, reach, null)) || NO_SOLIDS;
 }
 
 /**
@@ -269,12 +293,20 @@ export function hullsNear(world, x, z, reach, ignore = null) {
  * @param {object|object[]} [ignore] entities to skip (the vehicle he is getting out of, the drum he picks up)
  */
 export function bodyGap(world, x, z, heading, stance, ignore = null) {
-  const hulls = hullsNear(world, x, z, bodyReach(stance) + 0.5, ignore);
+  const hulls = hullsNear(world, x, z, bodyReachOf(stance) + 0.5, ignore);
   if (!hulls.length) return Infinity;
   const B = bodyParts(x, z, heading, stance);
   let g = Infinity;
   for (const R of hulls) g = Math.min(g, partsGap(B, R));
   return g;
+}
+
+/** bodyReach, memoised by stance (a constant of the stance: asked for every man every step). */
+const REACH = new Map();
+function bodyReachOf(stance) {
+  let r = REACH.get(stance);
+  if (r === undefined) REACH.set(stance, (r = bodyReach(stance)));
+  return r;
 }
 
 /** How far (m) any part of a body in this stance reaches from the unit position. */
@@ -337,11 +369,22 @@ function stampObstacle(g, mask, R, pad) {
   // above its body: a click up there plans up the ladder, not to the ground beside it. Not a terrace beside a taller
   // solid: up there only within a metre of its top)
   const over = R.y0 != null && g.elev ? R.y0 + Math.max(SOLID_BAND_TOP, (R.top ?? 0) - 1.2) : Infinity;
+  // (rectSDF(cell centre, R) < pad written out for the cells of the square: cellCenter / rectSDF made an object and
+  // boxed a number per cell, for every hull on every avoid mask a plan asks for. The rect's cos / sin are the same
+  // numbers per cell; the hypot is compared through its square except within 1e-9 of the edge — the same answers)
+  const disc = R.r != null, c = disc ? 0 : Math.cos(R.h), s = disc ? 0 : Math.sin(R.h), cell = g.cell, cols = g.cols, elev = g.elev;
   for (let j = Math.max(0, c0.j); j <= Math.min(g.rows - 1, c1.j); j++) {
-    for (let i = Math.max(0, c0.i); i <= Math.min(g.cols - 1, c1.i); i++) {
-      const p = g.cellCenter(i, j), k = j * g.cols + i;
-      const d = rectSDF(p.x, p.z, R);
-      if (d < pad && !(g.elev?.[k] >= over)) mask[k] = 1;
+    for (let i = Math.max(0, c0.i); i <= Math.min(cols - 1, c1.i); i++) {
+      const k = j * cols + i, px = (i + 0.5) * cell, pz = (j + 0.5) * cell;
+      let inside;
+      if (disc) inside = !beyond(px - R.x, pz - R.z, pad + R.r) && Math.hypot(px - R.x, pz - R.z) - R.r < pad;
+      else {
+        const dx = px - R.x, dz = pz - R.z;
+        const a = Math.abs(dx * c + dz * s) - R.hl, b = Math.abs(-dx * s + dz * c) - R.hw;
+        const ma = Math.max(a, 0), mb = Math.max(b, 0), m2 = Math.min(Math.max(a, b), 0);
+        inside = !beyond(ma, mb, pad - m2) && Math.hypot(ma, mb) + m2 < pad;
+      }
+      if (inside && !(elev?.[k] >= over)) mask[k] = 1;
     }
   }
 }

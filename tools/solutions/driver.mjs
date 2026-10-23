@@ -12,7 +12,7 @@
  * Helpers that look ahead (seers, clearAhead, whoSees) read the same §4.2 cone rules the AI uses
  * (src/ai/perception.js): the script watches the cones like a player does before moving a man.
  */
-import { canSee, coneAt, pointInCone, targetClass } from '../../src/ai/perception.js';
+import { canSee, coneAt, pointInCone, targetClass, newCone } from '../../src/ai/perception.js';
 import { viewerFor, canSeeVehicle } from '../../src/ai/vehicle-ai.js';
 import { T } from '../../src/world/grid.js';
 import { CONFIG } from '../../src/config.js';
@@ -82,7 +82,7 @@ function haltPose(wp, into, x, z, h) {
  * Could walking enemy `e`, predicted at `q` (x, z, heading) at sim time `tAbs`, see `dummy`? Conservative: his head is
  * tried at the predicted heading and at both ends of his sweep (walking men glance about).
  */
-const _seeOpt = { cone: null };
+const _seeOpt = { cone: null }, _seeCone = newCone(), _seeCone2 = newCone(); // (_seeCone2: clearAhead / routeClear's posted men)
 function walkerSees(e, q, dummy, w, tAbs) {
   const amp = e.sweepAmp ?? e.vision?.sweep ?? 0; // radians (normalised vision data)
   // (no head reaches past the cone's longest far radius — perception.coneAt: a, or b = a·ratio for a wide ellipse)
@@ -98,7 +98,7 @@ function walkerSees(e, q, dummy, w, tAbs) {
       const off = io === 0 ? 0 : io === 1 ? amp / 2 : io === 2 ? -amp / 2 : io === 3 ? amp : -amp;
       const g = Object.create(e);
       g.x = q.x; g.z = q.z; g.heading = hd; g.sweepActive = false; g.headOffset = off; // head turned `off` (elliptical far)
-      const cone = coneAt(g, tAbs);
+      const cone = coneAt(g, tAbs, _seeCone); // (one cone refilled: read only by the test below)
       _seeOpt.cone = cone;
       const seen = pointInCone(cone, dummy.x, dummy.z) && canSee(g, dummy, w, _seeOpt) !== 'none';
       _seeOpt.cone = null;
@@ -156,10 +156,18 @@ const TAU = Math.PI * 2; // (as perception.js: seesAnyHeads works out a head's b
  * The bands are worked out exactly as pointInCone does (the same arithmetic); a list that is not one guard at one eye
  * is asked head by head.
  */
+const NO_OPTS = Object.freeze({});
+const _seeHO = { cone: null };
+/** see(viewer, d, w, {cone}) with one options object refilled (see only reads it while it runs). */
+function seeWith(see, viewer, d, w, cone) {
+  _seeHO.cone = cone;
+  try { return see(viewer, d, w, _seeHO); } finally { _seeHO.cone = null; }
+}
 export function seesAnyHeads(L, d, w, see) {
   let S = L._heads;
   if (S === undefined) S = L._heads = headsSummary(L);
-  if (!S) { for (let i = 0; i < L.length; i += 2) { const cone = L[i + 1]; if (pointInCone(cone, d.x, d.z) && see(L[i], d, w, { cone }) !== 'none') return true; } return false; }
+  // (see's options: one object refilled — `see` only reads it while it runs; asked for every head of every look-ahead)
+  if (!S) { for (let i = 0; i < L.length; i += 2) { const cone = L[i + 1]; if (pointInCone(cone, d.x, d.z) && seeWith(see, L[i], d, w, cone) !== 'none') return true; } return false; }
   const dx = d.x - S.x, dz = d.z - S.z, d2 = dx * dx + dz * dz;
   if (d2 > S.far2) return false; // (beyond every head's reach)
   const bear = d2 > 1e-12 ? Math.atan2(dz, dx) : 0;
@@ -167,16 +175,16 @@ export function seesAnyHeads(L, d, w, see) {
     // (outside the arc every aperture lies in — tried a turn either way round — no head has the point in its cone)
     let b = bear - S.h0;
     b -= TAU * Math.round(b / TAU);
-    const [a0, a1] = S.arc, inArc = (v) => v >= a0 && v <= a1;
-    if (!inArc(b) && !inArc(b + TAU) && !inArc(b - TAU)) return false;
+    const a0 = S.arc[0], a1 = S.arc[1], bp = b + TAU, bm = b - TAU;
+    if (!(b >= a0 && b <= a1) && !(bp >= a0 && bp <= a1) && !(bm >= a0 && bm <= a1)) return false;
   }
   let cls;
   for (let i = 0; i < L.length; i += 2) {
     const cone = L[i + 1];
     if (!cone || d2 > cone.far * cone.far) continue;
     if (d2 > 1e-12) { let a = bear - cone.heading; a -= TAU * Math.round(a / TAU); if (Math.abs(a) > cone.halfFov) continue; }
-    if (!(d2 <= cone.near * cone.near)) { if (cls === undefined) cls = targetClass(d, {}, L[i]); if (cls === 'near') continue; } // (far band: not for a crawler)
-    return see(L[i], d, w, { cone }) !== 'none';
+    if (!(d2 <= cone.near * cone.near)) { if (cls === undefined) cls = targetClass(d, NO_OPTS, L[i]); if (cls === 'near') continue; } // (far band: not for a crawler)
+    return seeWith(see, L[i], d, w, cone) !== 'none';
   }
   return false;
 }
@@ -292,8 +300,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
   let idleRafts = false; // (D.watchIdleRafts: an unused raft at its mission spawn counts too)
   let crewedRafts = false; // (D.watchCrewedRafts: a raft with a crew aboard counts by its hull too)
   let lastRaft = null; // (the raft last seen deployed: planSneak plans a packed raft's next leg with it, from `o.from`)
-  const viewers = () => {
-    const out = [];
+  const viewers = (out = []) => {
     for (const e of w.enemies) if (e.alive && !e.removed && e.vision && !e.incapacitated && e.brain?.arch?.reacts !== false) out.push(e);
     // armed enemy crews (tank, patrol boat) see with the vehicle's own cone (vehicle-ai spotCommando)
     for (const v of w.vehicles || []) if (v.vision && !v.removed && !v.driver && v.crewed && v.def?.weapons?.length) out.push(viewerFor(v));
@@ -308,8 +315,12 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
     x.to = w.time; x.ticks++;
     if (band === 'near') x.band = 'near';
   };
+  // (watchTick runs after every tick of a whole walkthrough: its lists, cone and options are kept and refilled — the
+  // same men, in the same order, tried with the same rule)
+  const _wcs = [], _wrafts = [], _wrowed = [], _wviewers = [], _wcone = newCone(), _wopt = { cone: null };
   const watchTick = () => {
-    const cs = w.commandos.filter((c) => c.alive);
+    const cs = _wcs; cs.length = 0;
+    for (let i = 0; i < w.commandos.length; i++) { const c = w.commandos[i]; if (c.alive) cs.push(c); }
     if (!cs.length) return;
     // a used raft lying empty is evidence too (§4.3): in any live cone with a clear line of sight, any band, it is seen
     // — whoever lies hidden beside it (under water, crawling unseen) does not make it innocent
@@ -317,20 +328,32 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
     // empty one; the men sit at its centre, so their own test alone misses the near tube); with `D.watchIdleRafts()`
     // also the team's raft still lying where the mission put it. (Both opt-in: solutions written before them — M3 —
     // are held to the crew's own test.)
-    const rafts = (w.vehicles || []).filter((v) => v.def?.raft && !v.removed && !v.destroyed
-      && (v.occupants?.length ? crewedRafts : (v.used || idleRafts)));
+    const rafts = _wrafts, rowed = _wrowed, vs = w.vehicles || [];
+    rafts.length = 0; rowed.length = 0;
+    for (let i = 0; i < vs.length; i++) {
+      const v = vs[i];
+      if (v.def?.raft && !v.removed && !v.destroyed && (v.occupants?.length ? crewedRafts : (v.used || idleRafts))) rafts.push(v);
+    }
     // a boat rowed by the team is seen by its hull (ai/director _rowedBoats: the hull edge nearest the guard in his cone)
-    const rowed = (w.vehicles || []).filter((v) => v.def?.boat && !v.def.raft && !v.removed && !v.destroyed && v.driver?.faction === 'player');
-    for (const e of viewers()) {
-      for (const v of rafts) if (canSeeVehicle(e, v, w)) note(e, `${v.occupants?.length ? 'crewed' : v.used ? 'empty' : 'idle'} ${tagOf(v)}`, 'raft', v.x, v.z);
-      for (const v of rowed) if (canSeeVehicle(e, v, w)) note(e, `${tagOf(v)} hull`, 'boat', v.x, v.z);
-      const cone = coneAt(e, w.time);
-      for (const c of cs) {
-        const band = canSee(e, c, w, { cone });
+    for (let i = 0; i < vs.length; i++) {
+      const v = vs[i];
+      if (v.def?.boat && !v.def.raft && !v.removed && !v.destroyed && v.driver?.faction === 'player') rowed.push(v);
+    }
+    const vw = viewers(_wviewers);
+    for (let vi = 0; vi < vw.length; vi++) {
+      const e = vw[vi];
+      for (let i = 0; i < rafts.length; i++) { const v = rafts[i]; if (canSeeVehicle(e, v, w)) note(e, `${v.occupants?.length ? 'crewed' : v.used ? 'empty' : 'idle'} ${tagOf(v)}`, 'raft', v.x, v.z); }
+      for (let i = 0; i < rowed.length; i++) { const v = rowed[i]; if (canSeeVehicle(e, v, w)) note(e, `${tagOf(v)} hull`, 'boat', v.x, v.z); }
+      const cone = coneAt(e, w.time, _wcone);
+      _wopt.cone = cone;
+      for (let i = 0; i < cs.length; i++) {
+        const c = cs[i];
+        const band = canSee(e, c, w, _wopt);
         if (band === 'none') continue;
         note(e, c.vehicle ? `${c.role} in ${tagOf(c.vehicle)}` : `${c.role} ${c.stance}`, band, c.x, c.z);
       }
     }
+    _wopt.cone = null; vw.length = 0; rafts.length = 0; rowed.length = 0; cs.length = 0;
   };
   const halt = () => { if (aborted?.()) throw new SolutionAborted(); };
   // side tasks (D.meanwhile): checked every tick before it runs, each until it returns true
@@ -499,7 +522,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
         }
         if (d > far) continue;
         for (let t = from; t <= dur + 1e-6; t += 0.1) {
-          if (canSee(e, dummy, w, { cone: coneAt(e, w.time + t) }) !== 'none') { if (why) why.push(`${e.tag}@+${t.toFixed(1)}`); return false; }
+          if (seeWith(canSee, e, dummy, w, coneAt(e, w.time + t, _seeCone2)) !== 'none') { if (why) why.push(`${e.tag}@+${t.toFixed(1)}`); return false; }
         }
       }
       return true;
@@ -532,7 +555,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
           if (dd > far) continue;
           if (dd < minDist && moving) { if (why) why.push(`${e.tag} close@(${sx.toFixed(1)},${sz.toFixed(1)})+${st.toFixed(1)}`); return false; } // too close to trust a cone
           dummy.x = sx; dummy.z = sz; dummy.y = w.grid.elevAt?.(sx, sz) ?? 0;
-          const sees = moving ? walkerSees(e, q, dummy, w, w.time + st) : canSee(e, dummy, w, { cone: coneAt(e, w.time + st) }) !== 'none';
+          const sees = moving ? walkerSees(e, q, dummy, w, w.time + st) : seeWith(canSee, e, dummy, w, coneAt(e, w.time + st, _seeCone2)) !== 'none';
           if (sees) { if (why) why.push(`${e.tag}@(${sx.toFixed(1)},${sz.toFixed(1)})+${st.toFixed(1)}`); return false; }
         }
       }
@@ -879,10 +902,14 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
       // (each viewer's reach, and a squared-distance pre-filter: only a point surely beyond it skips the exact hypot test)
       const sFar = statics.map((e) => e.vision?.far ?? 36), sReach2 = sFar.map((f) => (f + 1) * (f + 1) * (1 + 1e-9) + 1e-9);
       const wFar = walkers.map((e) => e.vision?.far ?? 36), wReach2 = wFar.map((f) => (f + walkerPad + 3) * (f + walkerPad + 3) * (1 + 1e-9) + 1e-9);
+      // (the dummies and canSee's options refilled per question, not made: seen() is asked for every (cell, step) a
+      // search touches — the same fields and values as dummyAt's, read only while canSee / seesAny run)
+      const dS = dummyAt(0.5, 0.5), dS2 = dummyAt(0.5, 0.5), seeO = { cone: null };
+      const dummyInto = (o, x, z) => { o.x = x; o.z = z; if (mode !== 'raft') o.y = g.elevAt?.(x, z) ?? 0; return o; };
       const seen = (c, k) => {
         const key = c * KS + k;
         const m = seenMemo[key]; if (m) return m === 2;
-        const x = cx(c), z = cz(c), d = dummyAt(x, z);
+        const x = cx(c), z = cz(c), d = dummyInto(dS, x, z);
         let s = false;
         for (let i = 0; i < statics.length; i++) {
           const e = statics[i], ex = e.x - x, ez = e.z - z;
@@ -890,15 +917,17 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
           const dd = Math.hypot(ex, ez), far = sFar[i], near = e.vision?.near ?? far / 2;
           if (dd > far + 1) continue;
           const cone = sCone(i, k);
-          if (pointInCone(cone, x, z) && canSee(e, d, w, { cone }) !== 'none') { s = true; break; }
+          seeO.cone = cone;
+          if (pointInCone(cone, x, z) && canSee(e, d, w, seeO) !== 'none') { s = true; break; }
           // at the edge of the band that matters (a crawler: the near band; a raft or a standing man: the far one) the
           // unit's own path may wander a little: the cell 1 m nearer the guard must be clear too
           const edge = mode === 'crawl' ? near : far;
           if (dd > edge - edgePad && dd < edge + edgePad) {
-            const f = edgePad / dd, d2 = dummyAt(x + (e.x - x) * f, z + (e.z - z) * f);
-            if (pointInCone(cone, d2.x, d2.z) && canSee(e, d2, w, { cone }) !== 'none') { s = true; break; }
+            const f = edgePad / dd, d2 = dummyInto(dS2, x + (e.x - x) * f, z + (e.z - z) * f);
+            if (pointInCone(cone, d2.x, d2.z) && canSee(e, d2, w, seeO) !== 'none') { s = true; break; }
           }
         }
+        seeO.cone = null;
         if (!s) walk: for (let wi = 0; wi < walkers.length; wi++) {
           const e = walkers[wi];
           for (const dk of walkerSlack) {
@@ -909,14 +938,14 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
             if (dd > far + walkerPad + 3) continue;
             if (dd < keepWalker || seesAny(headViews(wi, kk, -1), d)) { s = true; break walk; }
             // a man where his beat turns about (a halt, a corner) — a squad's man wheeling to his new place: any heading
-            if (wheels(wi, kk) && [0, 1, 2, 3, 4, 5, 6, 7].some((r) => seesAny(headViews(wi, kk, r), d))) { s = true; break walk; }
+            if (wheels(wi, kk)) { let any = false; for (let r = 0; r < 8 && !any; r++) any = seesAny(headViews(wi, kk, r), d); if (any) { s = true; break walk; } }
             // a walker's predicted place and pace are approximate: try the cell `walkerPad` m nearer to him as well (a
             // crawler: 1.5 m nearer when he is at the edge of the near band, the only one that sees a man lying down)
             // (a squad's man keeps only roughly to his leader's prediction plus his present offset: 2 m more for him)
             const near = e.vision?.near ?? far / 2, sq = e.squad?.id != null && mode === 'raft' ? 2 : 0;
             const pad = (walkerPad ? walkerPad + sq : 0) || (mode === 'crawl' && dd > near - 3 && dd < near + crawlPad + 0.5 ? crawlPad : 0);
             if (pad > 0 && dd > pad) {
-              const f = pad / dd, d2 = dummyAt(x + (q.x - x) * f, z + (q.z - z) * f);
+              const f = pad / dd, d2 = dummyInto(dS2, x + (q.x - x) * f, z + (q.z - z) * f);
               if (seesAny(headViews(wi, kk, -1), d2)) { s = true; break walk; }
             }
           }

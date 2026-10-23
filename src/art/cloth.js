@@ -26,6 +26,7 @@ export class VerletCloth {
   constructor(attrs, o) {
     this.pos = attrs.position; this.nor = attrs.normal;
     this.nx = o.nx; this.ny = o.ny;
+    this._ws = 0.5; this._h = 0.5; this._gust = 0.5; // (a step's wind speed, time step and gust: _step sets them for _tri)
     const n = this.nx * this.ny, P = this.pos.array;
     this.x = Float32Array.from(P.subarray(0, n * 3));
     this.px = Float32Array.from(this.x);
@@ -130,10 +131,14 @@ export class VerletCloth {
     this.t += h;
     // aerodynamic force per triangle (two per cell), velocity from the Verlet history
     const ws = Math.hypot(W[0], W[1], W[2]);
+    // (the step's numbers in fields, the triangle's place along the fly as an integer: _tri runs for every triangle of
+    // every step, and doubles handed to it as arguments were boxed numbers each call — the same values: u = i2 / (2 (nx − 1))
+    // is i / (nx − 1) and (i + 0.5) / (nx − 1) exactly)
+    this._ws = ws; this._h = h; this._gust = gust;
     for (let j = 0; j + 1 < ny; j++) for (let i = 0; i + 1 < nx; i++) {
       const a = j * nx + i, b = a + 1, c = a + nx, d = c + 1;
-      this._tri(a, c, b, W, ws, h, gust, i / (nx - 1));
-      this._tri(b, c, d, W, ws, h, gust, (i + 0.5) / (nx - 1));
+      this._tri(a, c, b, W, 2 * i);
+      this._tri(b, c, d, W, 2 * i + 1);
     }
     const damp = 1 - this.damping, h2 = h * h;
     for (let k = 0, n = nx * ny; k < n; k++) {
@@ -167,7 +172,8 @@ export class VerletCloth {
     }
   }
 
-  _tri(a, b, c, W, ws, h, gust, u) {
+  _tri(a, b, c, W, i2) {
+    const ws = this._ws, h = this._h, gust = this._gust, u = i2 / (2 * (this.nx - 1));
     const x = this.x, px = this.px, f = this.f, A = a * 3, B = b * 3, Cc = c * 3;
     const e1x = x[B] - x[A], e1y = x[B + 1] - x[A + 1], e1z = x[B + 2] - x[A + 2];
     const e2x = x[Cc] - x[A], e2y = x[Cc + 1] - x[A + 1], e2z = x[Cc + 2] - x[A + 2];

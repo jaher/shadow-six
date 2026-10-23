@@ -68,7 +68,7 @@ export function headTheta(enemy, t) {
  * @param {number} [t] sim time (default enemy.world.time)
  * @returns {Cone|null} null when the viewer has no cone (vision null)
  */
-export function coneAt(enemy, t) {
+export function coneAt(enemy, t, out = null) {
   const v = enemy.vision;
   if (!v) return null;
   const time = t ?? enemy.world?.time ?? 0;
@@ -77,10 +77,22 @@ export function coneAt(enemy, t) {
   const far = v.elliptical ? ellipseFar(a, theta, v.ellipseRatio) : a;
   const near = v.elliptical ? far / 2 : Math.min(v.near ?? v.nearRange, far);
   const vy = enemy.y || 0;
+  // `out` (a caller's own Cone, refilled: the per-tick perception of every guard — a fresh cone and its nine boxed
+  // numbers each tick was a steady stream of garbage); the same fields and values as the literal
+  if (out) {
+    out.x = enemy.x; out.z = enemy.z; out.y = vy + (v.eyeHeight ?? CONFIG.stealth.eyeHeight); out.vy = vy;
+    out.heading = enemy.heading + theta; out.theta = theta; out.halfFov = v.fov / 2; out.near = near; out.far = far;
+    out.elevated = !!(v.elevated || enemy.elevated); out.overlooks = !!v.overlooks; out.overWalls = !!v.overWalls;
+    return out;
+  }
   return {
     x: enemy.x, z: enemy.z, y: vy + (v.eyeHeight ?? CONFIG.stealth.eyeHeight), vy,
     heading: enemy.heading + theta, theta, halfFov: v.fov / 2, near, far, elevated: !!(v.elevated || enemy.elevated), overlooks: !!v.overlooks, overWalls: !!v.overWalls,
   };
+}
+/** A Cone to refill with coneAt(…, out) (fields in the literal's order, numbers as doubles from the start). */
+export function newCone() {
+  return { x: 0.5, z: 0.5, y: 0.5, vy: 0.5, heading: 0.5, theta: 0.5, halfFov: 0.5, near: 0.5, far: 0.5, elevated: false, overlooks: false, overWalls: false };
 }
 
 /**
@@ -205,7 +217,9 @@ export function canSee(viewer, target, world, o = {}) {
   } else los = world.grid.lineOfSight(cone.x, cone.z, target.x, target.z, { viewerElevated: cone.elevated, targetLow: low, viewerY: cone.vy ?? 0, targetY: ty, dynamic, ownHull: viewer.ownHull, ownOwner: postOwner(viewer, world), targetHull });
   return los ? zone : 'none';
 }
-const _sightOpts = { eyeY: 0, targetY: 0, targetLow: false, viewerY: undefined, targetBaseY: 0, lowCover: 'block', heightOf: null, dynamic: true, ownHull: undefined, ownOwner: 0, targetHull: undefined };
+// (every field is set before each use: the numbers start as doubles so each store refills the field in place — a field
+// that once held `undefined` boxes a fresh number per store)
+const _sightOpts = { eyeY: 0.5, targetY: 0.5, targetLow: false, viewerY: 0.5, targetBaseY: 0.5, lowCover: 'block', heightOf: null, dynamic: true, ownHull: undefined, ownOwner: 0, targetHull: undefined };
 
 /**
  * §4.2 low cover (B.LOW) and a low target, BEL's rule: from the ground it hides him wherever he lies behind it
@@ -284,9 +298,12 @@ export function bodiesOf(world) {
  */
 export function perceive(enemy, world, o = {}) {
   // (garbage per call, for every guard every tick, cut without changing a result: the empty lists are one shared frozen
-  // array until something is seen, canSee's options one module object, the body walk inline instead of closures)
-  const res = { cone: null, commandos: NONE, bodies: NONE, prints: NONE };
-  const cone = o.cone || coneAt(enemy, world.time);
+  // array until something is seen, canSee's options one module object, the body walk inline instead of closures;
+  // `o.out` / `o.coneOut`: the caller's own result and cone, refilled — the brain's per-tick pass, read within it)
+  let res = o.out;
+  if (res) { res.cone = null; res.commandos = NONE; res.bodies = NONE; res.prints = NONE; }
+  else res = { cone: null, commandos: NONE, bodies: NONE, prints: NONE };
+  const cone = o.cone || coneAt(enemy, world.time, o.coneOut || null);
   if (!cone) return res;
   res.cone = cone;
   const max = CONFIG.stealth.seenListMax;

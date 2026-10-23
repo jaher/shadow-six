@@ -8,12 +8,6 @@
 
 const MAX_TURN_COS = -0.5; // cos 120°
 
-/** Unit vector a→b and its length. */
-function dir(a, b) {
-  const dx = b.x - a.x, dz = b.z - a.z, l = Math.hypot(dx, dz);
-  return l > 1e-6 ? { x: dx / l, z: dz / l, l } : null;
-}
-
 /**
  * Offset (track → curve) at track point (tx, tz) on leg `idx` of `path` (walking towards path[idx]), or null.
  * @param {{x:number,z:number,link?:object,steer?:boolean}[]} path
@@ -25,25 +19,30 @@ export function cornerOffset(path, idx, from, tx, tz, r0) {
   const W = path[idx];
   if (!W || W.steer) return null;
   // approaching corner W (next leg W → path[idx + 1]) or leaving corner V = the leg's start (previous leg V0 → V)
+  // (the two candidates and their unit vectors as plain numbers: asked for every walker every step — the candidate
+  // records, direction objects and curve ends were steady garbage; the same tests in the same order)
   const dW = Math.hypot(W.x - tx, W.z - tz);
   const V = idx > 0 ? path[idx - 1] : null, V0 = idx > 1 ? path[idx - 2] : null;
-  const cands = [];
-  if (idx + 1 < path.length) cands.push({ A: idx > 0 ? path[idx - 1] : from, C: W, B: path[idx + 1], s: -dW });
-  if (V && V0) cands.push({ A: V0, C: V, B: W, s: Math.hypot(tx - V.x, tz - V.z) });
-  for (const c of cands) {
-    if (!c.A || c.C.link || c.B.link || (c.A.link && c.s < 0)) continue;
-    if ((c.C.y ?? 0) !== (c.B.y ?? 0) || (c.A.y ?? 0) !== (c.C.y ?? 0)) continue;
-    const din = dir(c.A, c.C), dout = dir(c.C, c.B);
-    if (!din || !dout) continue;
-    const cos = din.x * dout.x + din.z * dout.z;
+  for (let ci = 0; ci < 2; ci++) {
+    let A, C, B, cs;
+    if (ci === 0) { if (!(idx + 1 < path.length)) continue; A = idx > 0 ? path[idx - 1] : from; C = W; B = path[idx + 1]; cs = -dW; }
+    else { if (!(V && V0)) continue; A = V0; C = V; B = W; cs = Math.hypot(tx - V.x, tz - V.z); }
+    if (!A || C.link || B.link || (A.link && cs < 0)) continue;
+    if ((C.y ?? 0) !== (B.y ?? 0) || (A.y ?? 0) !== (C.y ?? 0)) continue;
+    const ix = C.x - A.x, iz = C.z - A.z, il = Math.hypot(ix, iz);
+    if (!(il > 1e-6)) continue; // (dir(A, C) null)
+    const ox = B.x - C.x, oz = B.z - C.z, ol = Math.hypot(ox, oz);
+    if (!(ol > 1e-6)) continue; // (dir(C, B) null)
+    const dinX = ix / il, dinZ = iz / il, doutX = ox / ol, doutZ = oz / ol;
+    const cos = dinX * doutX + dinZ * doutZ;
     if (cos < MAX_TURN_COS || cos > 0.9995) continue;
     // a tighter radius for a sharper turn (the apex slows less), never more than half of either leg
-    const r = Math.min(r0 * (0.5 + 0.5 * cos + 0.25), din.l / 2, dout.l / 2);
-    if (r < 0.05 || Math.abs(c.s) >= r) continue;
-    const s = c.s + r, u = s / (2 * r); // 0 at the entry point, 1 at the exit point
-    const E = { x: c.C.x - din.x * r, z: c.C.z - din.z * r }, X = { x: c.C.x + dout.x * r, z: c.C.z + dout.z * r };
-    const bx = (1 - u) * (1 - u) * E.x + 2 * u * (1 - u) * c.C.x + u * u * X.x;
-    const bz = (1 - u) * (1 - u) * E.z + 2 * u * (1 - u) * c.C.z + u * u * X.z;
+    const r = Math.min(r0 * (0.5 + 0.5 * cos + 0.25), il / 2, ol / 2);
+    if (r < 0.05 || Math.abs(cs) >= r) continue;
+    const s = cs + r, u = s / (2 * r); // 0 at the entry point, 1 at the exit point
+    const Ex = C.x - dinX * r, Ez = C.z - dinZ * r, Xx = C.x + doutX * r, Xz = C.z + doutZ * r;
+    const bx = (1 - u) * (1 - u) * Ex + 2 * u * (1 - u) * C.x + u * u * Xx;
+    const bz = (1 - u) * (1 - u) * Ez + 2 * u * (1 - u) * C.z + u * u * Xz;
     return { x: bx - tx, z: bz - tz };
   }
   return null;

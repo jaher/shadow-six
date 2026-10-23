@@ -36,7 +36,7 @@ import { THEATER_LIGHTING, resolveLighting, analyzeHDR, autoEnvIntensity } from 
 import { gradeFor, bakeLUTData } from './grade.js';
 import { SanitizePass, XRayPass, makeLUTTexture } from './post-passes.js';
 import { installTextureMemory } from './texture-memory.js';
-import { assignShadowVariants, checkShadowVariants } from './program-variants.js';
+import { assignShadowVariants, checkShadowVariants, syncInstancedVariants } from './program-variants.js';
 import { ShadowReachCull } from './shadow-cull.js';
 import { installGpuCompressor } from './gpu-compress.js';
 import { installShadowDepthPass } from './depth-merge.js';
@@ -735,6 +735,7 @@ export class Renderer {
   render(dt = 1 / 60) {
     if (!this.camera) return;
     this.frame++;
+    syncInstancedVariants(this.scene); // (a no-op unless the perf switch flipped)
     // shadow casters by program variant (instanced, skinned…): no depth-program churn in the shadow pass
     if (this.preset.shadows && (this.frame % 30 === 1 || this.scene.children.length !== this._variantScan)) {
       this._variantScan = this.scene.children.length;

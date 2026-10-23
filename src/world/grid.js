@@ -85,6 +85,12 @@ export function overWallsTest(ow) {
  * the line hides every target whose sight slope is below it (highest at the near edge for a top above the eye, at the
  * far edge for one below it). Shared by sightLine and sightRay so the drawn cone and detection agree.
  */
+/** sightRay's march state (it never re-enters): the steepest obstacle slope per target kind (0 standing, 1 low), the
+ *  open floors crossed per kind (their surface heights FE and slopes FM, FN of them), per-height flags. */
+const SR = { M: new Float64Array(2), FE: [new Float64Array(64), new Float64Array(64)], FM: [new Float64Array(64), new Float64Array(64)], FN: new Int32Array(2), low: new Uint8Array(8), hid: new Uint8Array(8) };
+/** _traverse's current cell entry / exit (parametric), for its visitor. */
+const TV = new Float64Array(2);
+
 export function sightSlope(rise, d0, d1) {
   return rise > 0 ? rise / Math.max(d0, 1e-6) : rise / Math.max(d1, 1e-6);
 }
@@ -761,8 +767,8 @@ export class NavGrid {
     let n = 0;
     for (let j = Math.max(0, c0.j); j <= Math.min(this.rows - 1, c1.j); j++) {
       for (let i = Math.max(0, c0.i); i <= Math.min(this.cols - 1, c1.i); i++) {
-        const p = this.cellCenter(i, j);
-        const dx = p.x - cx, dz = p.z - cz;
+        // (cellCenter written out: an object per cell of every hull, every tick a vehicle moves)
+        const dx = (i + 0.5) * this.cell - cx, dz = (j + 0.5) * this.cell - cz;
         const u = dx * c + dz * s, v = -dx * s + dz * c;
         if (Math.abs(u) <= w / 2 && Math.abs(v) <= d / 2) {
           const k = this.idx(i, j);
@@ -963,8 +969,9 @@ export class NavGrid {
 
   /**
    * Visit the cells crossed by segment A→B (Amanatides–Woo DDA), in order, excluding A's cell and
-   * B's cell. `visit(k, tEnter, tExit)` returns true to stop; tEnter / tExit are the parametric entry and exit
-   * (0..1; a side cell touched exactly at a corner has tExit = tEnter).
+   * B's cell. `visit(k)` returns true to stop; the cell's parametric entry and exit are TV[0] / TV[1] as it is called
+   * (0..1; a side cell touched exactly at a corner has exit = entry) — read them first thing: numbers handed in a
+   * typed array, not as arguments (a double argument to a callback is a boxed number per cell: steady garbage).
    * @returns {boolean} true if stopped by the visitor
    */
   _traverse(ax, az, bx, bz, visit) {
@@ -986,8 +993,8 @@ export class NavGrid {
         t = tMaxX;
         if (t > 1) return false;
         const ni = i + stepI, nj = j + stepJ;
-        if (!(ni === ti && j === tj) && this.inBounds(ni, j) && visit(this.idx(ni, j), t, t)) return true;
-        if (!(i === ti && nj === tj) && this.inBounds(i, nj) && visit(this.idx(i, nj), t, t)) return true;
+        if (!(ni === ti && j === tj) && this.inBounds(ni, j)) { TV[0] = t; TV[1] = t; if (visit(this.idx(ni, j))) return true; }
+        if (!(i === ti && nj === tj) && this.inBounds(i, nj)) { TV[0] = t; TV[1] = t; if (visit(this.idx(i, nj))) return true; }
         i = ni; j = nj;
         tMaxX += tDeltaX; tMaxZ += tDeltaZ;
       } else if (tMaxX < tMaxZ) {
@@ -1001,7 +1008,8 @@ export class NavGrid {
       }
       if (i === ti && j === tj) return false;
       if (!this.inBounds(i, j)) return false;
-      if (visit(this.idx(i, j), t, Math.min(1, tMaxX, tMaxZ))) return true;
+      TV[0] = t; TV[1] = Math.min(1, tMaxX, tMaxZ);
+      if (visit(this.idx(i, j))) return true;
     }
     return false;
   }
@@ -1032,7 +1040,8 @@ export class NavGrid {
     const block = this.block, dyn = this.dynamicBlock, elev = this.elev;
     const ownOwner = opts?.ownOwner || 0, owner = this.owner, pass = opts?.passOwners || null;
     const over = overWallsTest(opts?.overWalls);
-    const blocked = this._traverse(ax, az, bx, bz, (k, t) => {
+    const blocked = this._traverse(ax, az, bx, bz, (k) => {
+      const t = TV[0];
       // the viewer's own bunker: he looks out of its slit; a `passOwners` structure: the bullet goes through
       const b = (ownOwner && owner[k] === ownOwner) || (pass && owner[k] && pass.has(owner[k])) ? B.NONE : block[k];
       if ((b === B.HIGH || (lowBlocks && b === B.LOW)) && !(over && over(k, t))) return true;
@@ -1181,13 +1190,54 @@ export class NavGrid {
     const own = useDyn && o.ownHull ? this._hullTest(o.ownHull) : null;
     const tgt = useDyn && o.targetHull ? this._hullTest(o.targetHull) : null;
     const vy = o.viewerY ?? null, ty = o.targetBaseY ?? null, elev = this.elev;
-    const blocked = this._traverse(ax, az, bx, bz, (k, t0, t1) => {
-      const top = this.sightTop(k, o, own, tgt, low);
-      if (top === Infinity) return true;
-      if (top === elev[k] && ((vy != null && Math.abs(top - vy) <= LEVEL_TOL) || (ty != null && Math.abs(top - ty) <= LEVEL_TOL))) return false; // a man's own floor
-      return s < sightSlope(top - eye, t0 * D, t1 * D);
-    });
-    return !blocked;
+    // (the _traverse march written out, the cell test inline — up to three cells a step: the two side cells of an exact
+    // corner, then the cell entered: the most frequent sight test of the sim, whose visitor closure and context per
+    // call (and boxed numbers per cell) were steady garbage. The same cells, in the same order, with the same t.)
+    const c = this.cell;
+    let i = Math.floor(ax / c), j = Math.floor(az / c);
+    const ti = Math.floor(bx / c), tj = Math.floor(bz / c);
+    const dx = bx - ax, dz = bz - az;
+    const stepI = dx > 0 ? 1 : dx < 0 ? -1 : 0;
+    const stepJ = dz > 0 ? 1 : dz < 0 ? -1 : 0;
+    const tDeltaX = stepI ? Math.abs(c / dx) : Infinity;
+    const tDeltaZ = stepJ ? Math.abs(c / dz) : Infinity;
+    let tMaxX = stepI > 0 ? ((i + 1) * c - ax) / dx : stepI < 0 ? (i * c - ax) / dx : Infinity;
+    let tMaxZ = stepJ > 0 ? ((j + 1) * c - az) / dz : stepJ < 0 ? (j * c - az) / dz : Infinity;
+    const maxSteps = Math.abs(ti - i) + Math.abs(tj - j) + 2;
+    for (let st = 0; st < maxSteps; st++) {
+      let t, sideA = -1, sideB = -1;
+      if (Math.abs(tMaxX - tMaxZ) < 1e-12) {
+        t = tMaxX;
+        if (t > 1) return true;
+        const ni = i + stepI, nj = j + stepJ;
+        if (!(ni === ti && j === tj) && this.inBounds(ni, j)) sideA = this.idx(ni, j);
+        if (!(i === ti && nj === tj) && this.inBounds(i, nj)) sideB = this.idx(i, nj);
+        i = ni; j = nj;
+        tMaxX += tDeltaX; tMaxZ += tDeltaZ;
+      } else if (tMaxX < tMaxZ) {
+        t = tMaxX;
+        if (t > 1) return true;
+        i += stepI; tMaxX += tDeltaX;
+      } else {
+        t = tMaxZ;
+        if (t > 1) return true;
+        j += stepJ; tMaxZ += tDeltaZ;
+      }
+      // visits this step: side A (t, t), side B (t, t), then the cell entered (t, min(1, tMaxX, tMaxZ)) unless the end
+      for (let v = 0; v < 3; v++) {
+        let k, t1 = t;
+        if (v === 0) { if (sideA < 0) continue; k = sideA; } else if (v === 1) { if (sideB < 0) continue; k = sideB; } else {
+          if (i === ti && j === tj) return true;
+          if (!this.inBounds(i, j)) return true;
+          k = this.idx(i, j); t1 = Math.min(1, tMaxX, tMaxZ);
+        }
+        const top = this.sightTop(k, o, own, tgt, low);
+        if (top === Infinity) return false;
+        if (top === elev[k] && ((vy != null && Math.abs(top - vy) <= LEVEL_TOL) || (ty != null && Math.abs(top - ty) <= LEVEL_TOL))) continue; // a man's own floor
+        if (s < sightSlope(top - eye, t * D, t1 * D)) return false;
+      }
+    }
+    return true;
   }
 
   /**
@@ -1206,7 +1256,13 @@ export class NavGrid {
    * @returns {number[][][]} intervals[i] = [[d0, d1], …]
    */
   sightRay(ax, az, angle, maxDist, heights, o) {
-    const out = heights.map(() => []);
+    // (the march below keeps its state in module scratch — the obstacle slopes and open floors per target kind, the
+    // per-height flags — and its steps written out: every drawn cone casts hundreds of these rays a rebuild, and the
+    // closures, records and arrays made per ray were the largest steady garbage of the frame. The same steps, the same
+    // arithmetic and the same intervals as before.)
+    const NH = heights.length;
+    const out = [];
+    for (let n = 0; n < NH; n++) out.push([]);
     const dx = Math.cos(angle), dz = Math.sin(angle);
     let L = maxDist;
     if (!o.pastEdge) { // (o.pastEdge: the border does not cut the ray; the march below still ends at the last cell)
@@ -1217,92 +1273,102 @@ export class NavGrid {
     }
     if (!(L > 0)) return out;
     const eye = o.eyeY, vy = o.viewerY ?? null;
-    const lowOf = heights.map((_, n) => !!o.lowOf?.[n]);
+    const S = SR;
+    if (S.low.length < NH) { S.low = new Uint8Array(NH * 2); S.hid = new Uint8Array(NH * 2); }
+    const lowOf = S.low, hidden = S.hid;
+    for (let n = 0; n < NH; n++) { lowOf[n] = o.lowOf?.[n] ? 1 : 0; hidden[n] = 0; }
     const useDyn = o.dynamic !== false;
     const own = useDyn && o.ownHull ? this._hullTest(o.ownHull) : null;
     const hide = o.hide || null;
-    const c = this.cell;
+    const c = this.cell, elev = this.elev, block = this.block, dyn = this.dynamicBlock;
     let i = Math.floor(ax / c), j = Math.floor(az / c);
     const stepI = dx > 1e-12 ? 1 : dx < -1e-12 ? -1 : 0, stepJ = dz > 1e-12 ? 1 : dz < -1e-12 ? -1 : 0;
     const tDeltaX = stepI ? Math.abs(c / dx) : Infinity, tDeltaZ = stepJ ? Math.abs(c / dz) : Infinity;
     let tMaxX = stepI > 0 ? ((i + 1) * c - ax) / dx : stepI < 0 ? (i * c - ax) / dx : Infinity;
     let tMaxZ = stepJ > 0 ? ((j + 1) * c - az) / dz : stepJ < 0 ? (j * c - az) / dz : Infinity;
-    const push = (n, d0, d1) => {
-      if (!(d1 > d0)) return;
-      const iv = out[n], last = iv[iv.length - 1];
-      if (last && d0 - last[1] <= 1e-9) last[1] = Math.max(last[1], d1); else iv.push([d0, d1]);
-    };
     // what the cells crossed so far block, for a standing (0) and a low (1) target: M = the steepest blocking slope of
     // the obstacles; the open floors (top = surface) by level, so a target never counts his own floor (sightLine's
     // LEVEL_TOL rule) and the viewer's floor is left out altogether
-    const st = [{ M: -Infinity, floors: [] }, { M: -Infinity, floors: [] }];
-    const slopeFor = (S, base) => {
-      let m = S.M;
-      for (const f of S.floors) if (Math.abs(f.e - base) > LEVEL_TOL && f.M > m) m = f.M;
-      return m;
-    };
-    const cross = (S, k, top, d0, d1) => {
-      const sl = top === Infinity ? Infinity : sightSlope(top - eye, d0, d1);
-      if (top !== this.elev[k]) { if (sl > S.M) S.M = sl; return; } // an obstacle
-      if (vy != null && Math.abs(top - vy) <= LEVEL_TOL) return; // the viewer's own floor
-      let f = null;
-      for (const g of S.floors) if (g.e === top) { f = g; break; }
-      if (!f) S.floors.push(f = { e: top, M: -Infinity });
-      if (sl > f.M) f.M = sl;
-    };
+    const M = S.M, FE = S.FE, FM = S.FM, FN = S.FN;
+    M[0] = -Infinity; M[1] = -Infinity; FN[0] = 0; FN[1] = 0;
     // a target standing in cell k between d0 and d1 (perception's per-level rules memoised by the surface height: a
     // ray crosses few distinct levels)
     let hBase = NaN;
-    const hidden = heights.map(() => false);
-    const reach = (k, d0, d1) => {
-      const base = this.elev[k];
-      if (hide && base !== hBase) { hBase = base; for (let n = 0; n < heights.length; n++) hidden[n] = !!hide(k, base, n); }
-      const m0 = slopeFor(st[0], base), m1 = slopeFor(st[1], base);
-      for (let n = 0; n < heights.length; n++) {
-        if (hide && hidden[n]) continue;
-        const M = lowOf[n] ? m1 : m0;
-        if (M === -Infinity) { push(n, d0, d1); continue; }
-        const a = base + heights[n] - eye; // visible at d ⇔ a / d ≥ M
-        if (a >= 0) { if (M <= 0) push(n, d0, d1); else push(n, d0, Math.min(d1, a / M)); }
-        else if (M < 0) push(n, Math.max(d0, a / M), d1);
-      }
-    };
-    const block = this.block, dyn = this.dynamicBlock;
-    const lowAt = (k) => block[k] === B.LOW || (useDyn && dyn[k] === B.LOW);
-    // the cell's top for a standing target (ts) and for a low one (low cover counts only there)
-    const crossBoth = (k, d0, d1, ts = this.sightTop(k, o, own, null, false)) => {
-      const tl = ts !== Infinity && lowAt(k) ? this.sightTop(k, o, own, null, true) : ts;
-      cross(st[0], k, ts, d0, d1); cross(st[1], k, tl, d0, d1);
-      return ts === Infinity;
-    };
     let d = 0, first = true, lastK = -1;
     for (let guard = 0; guard < 1e6 && d < L; guard++) {
+      let k, d1, last = false;
       if (!this.inBounds(i, j)) { // past the map edge (o.pastEdge): the last cell's surface, seen as far as the slopes crossed so far allow, to the ray's end
-        if (o.pastEdge && lastK >= 0) reach(lastK, d, L);
-        break;
-      }
-      const k = this.idx(i, j);
-      const corner = Math.abs(tMaxX - tMaxZ) < 1e-12;
-      const dExit = Math.min(tMaxX, tMaxZ, L);
+        if (!(o.pastEdge && lastK >= 0)) break;
+        k = lastK; d1 = L; last = true;
+      } else k = this.idx(i, j);
+      const corner = !last && Math.abs(tMaxX - tMaxZ) < 1e-12;
+      const dExit = last ? L : Math.min(tMaxX, tMaxZ, L);
       // a wall / building / hull face: nothing beyond, nobody stands in it
-      const ts = first ? 0 : this.sightTop(k, o, own, null, false);
+      const ts = last || first ? 0 : this.sightTop(k, o, own, null, false);
       if (ts === Infinity) break;
-      reach(k, d, dExit);
+      if (!last) d1 = dExit;
+      // reach(k, d, d1)
+      {
+        const base = elev[k];
+        if (hide && base !== hBase) { hBase = base; for (let n = 0; n < NH; n++) hidden[n] = hide(k, base, n) ? 1 : 0; }
+        let m0 = M[0], m1 = M[1];
+        for (let f = 0, nf = FN[0], fe = FE[0], fm = FM[0]; f < nf; f++) if (Math.abs(fe[f] - base) > LEVEL_TOL && fm[f] > m0) m0 = fm[f];
+        for (let f = 0, nf = FN[1], fe = FE[1], fm = FM[1]; f < nf; f++) if (Math.abs(fe[f] - base) > LEVEL_TOL && fm[f] > m1) m1 = fm[f];
+        for (let n = 0; n < NH; n++) {
+          if (hide && hidden[n]) continue;
+          const Mn = lowOf[n] ? m1 : m0;
+          let p0 = d, p1 = d1;
+          if (Mn !== -Infinity) {
+            const av = base + heights[n] - eye; // visible at d ⇔ av / d ≥ M
+            if (av >= 0) { if (!(Mn <= 0)) p1 = Math.min(d1, av / Mn); } else if (Mn < 0) p0 = Math.max(d, av / Mn); else continue;
+          }
+          if (!(p1 > p0)) continue; // push(n, p0, p1)
+          const iv = out[n], lv = iv[iv.length - 1];
+          if (lv && p0 - lv[1] <= 1e-9) lv[1] = Math.max(lv[1], p1); else iv.push([p0, p1]);
+        }
+      }
+      if (last) break;
       lastK = k;
-      if (!first) crossBoth(k, d, dExit, ts);
+      // crossBoth: the cell entered (ts, d → dExit), then — exactly through a corner, after d = dExit — both side cells
+      // at that point (as _traverse: a corner can't be peeked through)
+      const wasFirst = first;
       first = false;
+      if (!wasFirst) this._srCrossBoth(k, ts, d, dExit, o, own, eye, vy, useDyn, block, dyn);
       if (dExit >= L) break;
       d = dExit;
       if (corner) {
-        // exactly through a corner: both side cells are crossed at that point (as _traverse: a corner can't be peeked through)
         const ni = i + stepI, nj = j + stepJ;
         let wall = false;
-        for (const [si, sj] of [[ni, j], [i, nj]]) if (this.inBounds(si, sj) && crossBoth(this.idx(si, sj), d, d)) wall = true;
+        if (this.inBounds(ni, j)) { const kk = this.idx(ni, j); if (this._srCrossBoth(kk, this.sightTop(kk, o, own, null, false), d, d, o, own, eye, vy, useDyn, block, dyn)) wall = true; }
+        if (this.inBounds(i, nj)) { const kk = this.idx(i, nj); if (this._srCrossBoth(kk, this.sightTop(kk, o, own, null, false), d, d, o, own, eye, vy, useDyn, block, dyn)) wall = true; }
         if (wall) break;
         i = ni; j = nj; tMaxX += tDeltaX; tMaxZ += tDeltaZ;
       } else if (tMaxX < tMaxZ) { i += stepI; tMaxX += tDeltaX; } else { j += stepJ; tMaxZ += tDeltaZ; }
     }
     return out;
+  }
+
+  /** sightRay's crossing of cell k (top ts for a standing target) between d0 and d1: its slopes into the scratch state
+   *  of both target kinds (an obstacle raises M, an open floor its level's slope). @returns {boolean} a wall */
+  _srCrossBoth(k, ts, d0, d1, o, own, eye, vy, useDyn, block, dyn) {
+    // (the cell's top for a low target: low cover counts only there)
+    const tl = ts !== Infinity && (block[k] === B.LOW || (useDyn && dyn[k] === B.LOW)) ? this.sightTop(k, o, own, null, true) : ts;
+    const S = SR, e = this.elev[k];
+    for (let s = 0; s < 2; s++) {
+      const top = s ? tl : ts;
+      const sl = top === Infinity ? Infinity : sightSlope(top - eye, d0, d1);
+      if (top !== e) { if (sl > S.M[s]) S.M[s] = sl; continue; } // an obstacle
+      if (vy != null && Math.abs(top - vy) <= LEVEL_TOL) continue; // the viewer's own floor
+      const fe = S.FE[s], n = S.FN[s];
+      let f = -1;
+      for (let q = 0; q < n; q++) if (fe[q] === top) { f = q; break; }
+      if (f < 0) {
+        if (n === fe.length) { const g = new Float64Array(n * 2), h = new Float64Array(n * 2); g.set(fe); h.set(S.FM[s]); S.FE[s] = g; S.FM[s] = h; }
+        f = n; S.FE[s][f] = top; S.FM[s][f] = -Infinity; S.FN[s] = n + 1;
+      }
+      if (sl > S.FM[s][f]) S.FM[s][f] = sl;
+    }
+    return ts === Infinity;
   }
 
   /**
@@ -1328,7 +1394,8 @@ export class NavGrid {
     const ownOwner = opts?.ownOwner || 0, owner = this.owner;
     // a viewer high over a wall (overWalls): the cone runs on past walls under the sight line to its far end
     const over = overWallsTest(opts?.overWalls && { ...opts.overWalls, scale: ext });
-    this._traverse(ax, az, ex, ez, (k, t) => {
+    this._traverse(ax, az, ex, ez, (k) => {
+      const t = TV[0];
       if ((block[k] === B.HIGH && !(ownOwner && owner[k] === ownOwner) && !(over && over(k, t))) || elev[k] > hy || (useDyn && dyn[k] === B.HIGH && !(own && own(k)))) {
         hitT = t * ext;
         return true;
@@ -1363,11 +1430,16 @@ export class NavGrid {
     const ref = opts && opts.elevRef;
     const elev = this.elev;
     if (ref !== undefined && (Math.abs(this.elevAt(ax, az) - ref) > MAX_STEP || Math.abs(this.elevAt(bx, bz) - ref) > MAX_STEP)) return false;
-    const blocked = (k) => {
-      const i = k % cols;
-      if (ref !== undefined && Math.abs(elev[k] - ref) > MAX_STEP) return true;
-      return !this.isWalkable(i, (k - i) / cols, opts);
-    };
+    // (the cell test is one function per grid, its rules in fields set for this call — walkableLine never re-enters: a
+    // closure per call was steady garbage, path smoothing and every man's lane ask it many times a tick. `+ref`: the
+    // number the subtraction used — null as 0)
+    this._wlHasRef = ref !== undefined; this._wlRef = ref !== undefined ? +ref : 0; this._wlOpts = opts;
+    const blocked = this._wlBlocked || (this._wlBlocked = (k) => {
+      const i = k % this.cols;
+      if (this._wlHasRef && Math.abs(this.elev[k] - this._wlRef) > MAX_STEP) return true;
+      return !this.isWalkable(i, (k - i) / this.cols, this._wlOpts);
+    });
+    // (`_wlOpts` keeps the last call's options until the next one: the grid's own, nothing a mission unload misses)
     if (this._traverse(ax, az, bx, bz, blocked)) return false;
     if (this.runs && this.crossesRunSide(ax, az, bx, bz)) return false; // (on to a ramp / stair over its side)
     const r = opts && opts.clearance;

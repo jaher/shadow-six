@@ -323,13 +323,17 @@ function besideLinkFlight(u) {
   const F = u.world?.grid?.flights, y = u.y ?? 0;
   if (!F?.size) return null;
   const wp = u.path?.[u.pathIndex], onLink = wp?.link?.walk === 'stairs' ? wp.link.id : null;
-  for (const f of F.near(u.x, u.z, 1.2)) {
+  // (indexed, flightLocal written out: near()'s shared frozen empty list takes for-of off its fast path — every man,
+  // every tick)
+  const nf = F.near(u.x, u.z, 1.2);
+  for (let i = 0; i < nf.length; i++) {
+    const f = nf[i];
     if (!f.link || f.link.id === onLink) continue;
-    const q = flightLocal(f, u.x, u.z);
-    if (q.s < 0.1 || q.s > f.sTop - 0.1 || y < f.levels[0] - 0.3 || y > lineAt(f, q.s) + 0.3) continue;
-    const out = f.w / 2 + CHEEK + railBody(u), av = Math.abs(q.v);
+    const dx = u.x - f.ox, dz = u.z - f.oz, qs = dx * f.ux + dz * f.uz, qv = -dx * f.uz + dz * f.ux;
+    if (qs < 0.1 || qs > f.sTop - 0.1 || y < f.levels[0] - 0.3 || y > lineAt(f, qs) + 0.3) continue;
+    const out = f.w / 2 + CHEEK + railBody(u), av = Math.abs(qv);
     if (av >= out - 1e-4) continue;
-    const dv = (q.v < 0 ? -1 : 1) * out - q.v;
+    const dv = (qv < 0 ? -1 : 1) * out - qv;
     return { x: -f.uz * dv, z: f.ux * dv };
   }
   return null;
