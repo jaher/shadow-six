@@ -180,11 +180,15 @@ const E7_LOOP = [P(104, 50), P(138, 50, 3, 90), P(138, 89), P(116, 78), P(104, 6
  * they were. `h`: each part's sight height (its lowest eye-high head; checked by tests/unit/start-ruin.test.mjs).
  */
 // tower: tops [deg, h] round its ring (0 = E, 90 = S towards the path), broken down to 2.5 m on the S, 6.4 m on the N;
-// slits [deg, sill y]; fallen heaps [deg, spread°, blocks] round its foot; fill: the rubble heap inside the shell
+// door [deg, width deg, lintel y]: a doorway pierced in the S face, passable into a cleared pocket in the
+// rubble fill (user 2026-10-23); slits [deg, sill y] -- the door's pair flank it low (the S face stands only
+// ~3.1 m there, so their sills sit at 1.7: loopholes over the path), the back's three ride high on the tall
+// N/W faces; fallen heaps [deg, spread°, blocks] round its foot; fill: the rubble heap inside the shell
 const START_TOWER = {
   id: 'start_tower', type: 'ruins', variant: 'tower_ruin', x: 115.6, z: 7.6, rot: 0, r: 2.35, t: 0.7, w: 5.1, d: 5.1, h: 2.38, block: 2, seed: 'm03:tower',
   tops: [[0, 5.0], [30, 4.2], [55, 3.1], [80, 2.5], [105, 2.6], [130, 3.3], [160, 4.0], [195, 4.6], [230, 5.7], [265, 6.4], [300, 6.1], [335, 5.6]],
-  slits: [[300, 3.2], [20, 2.4], [240, 3.4]], fill: 1.3, fallen: [[80, 55, 14], [130, 30, 6]],
+  door: [90, 28, 2.05],
+  slits: [[300, 3.2], [20, 2.4], [240, 3.4], [55, 1.7], [125, 1.7]], fill: 1.3, fallen: [[52, 24, 8], [124, 20, 8], [130, 30, 6]],
 };
 // wall: tops [u, h] along it from its W end (u 0 at x 100); fallen [u, stones] in front of its notches
 const START_WALL = {
@@ -381,6 +385,9 @@ export default {
   vehicles: [
     { id: 'raft', vehicleType: 'raft', x: 64, z: 45, heading: deg(90), inflated: true, suspicious: false, operators: ['diver'] },
   ],
+  // the start tower's doorway (start_tower): the way in from the path and the cleared pocket inside it. The
+  // ring mesh's own body clearance squeezed the passage shut in the real game (map-builder navKeepPoints)
+  navKeep: [[115.6, 11.35, 0.6], [115.6, 10.35, 0.6], [115.6, 9.4, 0.6], [115.6, 8.6, 0.6]],
   commandos: [
     { role: 'greenberet', x: 103.5, z: 6.75, heading: deg(90), inventory: { knife: 1, pistol: 1, decoy: 1, shovel: 1 } },
     { role: 'diver', x: 105.5, z: 6.75, heading: deg(90), inventory: { knife: 1, pistol: 1, harpoon: 1, divingGear: 1, inflatableBoat: 0 } },

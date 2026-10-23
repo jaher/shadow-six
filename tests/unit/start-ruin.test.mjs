@@ -16,7 +16,7 @@
 import { test, assert } from './lib.mjs';
 import { headlessMission } from '../../tools/solutions/headless.mjs';
 import { boulderRowNavParts, boulderTopAt, boulderBandHull, buildBoulderRow, SIGHT_Y, BODY_BAND } from '../../src/art/boulder-row.js';
-import { towerNavParts, wallNavParts, towerSectors, wallColumns, towerHeight, wallHeight, buildRuinTower, buildRuinWall } from '../../src/art/ruin-tower.js';
+import { towerNavParts, wallNavParts, towerSectors, wallColumns, towerHeight, wallHeight, buildRuinTower, buildRuinWall, towerDoorSpan } from '../../src/art/ruin-tower.js';
 import { canSee } from '../../src/ai/perception.js';
 import { ownerHeight } from '../../src/world/placement.js';
 import { shotSight } from '../../src/abilities/common.js';
@@ -70,7 +70,15 @@ test('start ruin: what you see is what blocks — the masonry and the rock are t
     });
     assert.ok(n > 100 && out === 0, `${d.id}: ${out} of ${n} drawn masonry vertices at body height outside its plan`);
   }
-  const tHigh = towerNavParts(TOWER).filter((p) => p.block === B.HIGH).length, tTall = towerSectors(TOWER).filter((q) => q[2] > SIGHT_Y).length;
+  const tHigh = towerNavParts(TOWER).filter((p) => p.block === B.HIGH).length;
+  // a sector stands eye-high where both its heads are -- but the doorway pierces its span: the solid ranges
+  // either side of the opening are what carry B.HIGH (the lintel stands over eye height, so the opening itself
+  // never blocks; a lintel at or under eye height would leave the sector whole and fail this count)
+  const doorSpan = towerDoorSpan(TOWER), solidRanges = (a0, a1) => {
+    if (!doorSpan || doorSpan.lintel <= SIGHT_Y || a1 <= doorSpan.a0 || a0 >= doorSpan.a1) return 1;
+    return (a0 < doorSpan.a0 ? 1 : 0) + (a1 > doorSpan.a1 ? 1 : 0);
+  };
+  const tTall = towerSectors(TOWER).filter((q) => q[2] > SIGHT_Y).reduce((n, q) => n + solidRanges(q[0], q[1]), 0);
   assert.equal(tHigh, tTall, 'a tower sector is eye-high where both its heads are');
   for (const [u0, u1, h] of wallColumns(WALL)) {
     const mid = [WALL.x - WALL.w / 2 + (u0 + u1) / 2, WALL.z], high = wallNavParts(WALL).filter((p) => p.block === B.HIGH).map((p) => p.points.map(toWorld(WALL)));

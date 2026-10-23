@@ -11,6 +11,10 @@
  *    stones on the wall heads, a few arrow slits, the battered foot in a talus of fallen masonry, a rubble heap filling
  *    the shell (collapsed floors) and more fallen on the breach side. Parts: the disc out to the talus B.LOW (stops a walker; the
  *    shell is never entered), the ring of wall wherever it stands eye-high B.HIGH, the fallen heaps B.LOW.
+ *    A def may pierce its ring with a doorway (`door: [deg, width, lintel]`): the shell then stands only above
+ *    the lintel across the span, the talus is trodden flat for a threshold, the fill is notched into a cleared
+ *    pocket, and the parts follow exactly -- the corridor is cut out of the disc and out of the ring's B.HIGH,
+ *    so what is drawn is what blocks, and a man can walk in.
  *  - wall `{x, z, rot, w, t, tops: [[u, h], …], seed}` (u m along it from its W end, the def's frame as every prop's):
  *    a dry-stone wall w long and t thick, its broken top `wallColumns` (a ragged head), loose top stones and
  *    a footing course. Parts: its plan (out to a man's reach off its faces, WALL_REACH) B.LOW, the spans standing
@@ -110,14 +114,49 @@ function convex(P) {
 const footR = (def) => def.r + 0.62;
 
 /**
+ * The tower's doorway, if its def carries one (`door: [deg, width, lintel]`): its centre and span (rad) and
+ * lintel height -- the one place the drawing and the parts both read it from.
+ */
+export function towerDoorSpan(def) {
+  if (!def.door) return null;
+  const [deg, wDeg, lintel] = def.door, c = deg * DEG, half = (wDeg / 2) * DEG;
+  return { c, a0: c - half, a1: c + half, lintel };
+}
+/** [a0, a1] minus a door span: the sub-ranges of a sector that stay solid, each with the overlap to add at
+ * its ends (a hair past a sector boundary, never into the span). */
+const clipSpan = (a0, a1, door) => {
+  if (a1 <= door.a0 || a0 >= door.a1) return [[a0, a1, 0.002, 0.002]];
+  const out = [];
+  if (a0 < door.a0) out.push([a0, door.a0, 0.002, 0]);
+  if (a1 > door.a1) out.push([door.a1, a1, 0, 0.002]);
+  return out;
+};
+/** How far into the shell the doorway's cleared pocket runs (m from the axis): the fill's core inside it stays solid. */
+const DOOR_POCKET_R = 0.95;
+
+/**
  * Gameplay parts of a ruined tower (map-builder navParts, the def's own frame: x, z at the origin, no rot):
- * the disc to its battered foot and the fallen heaps B.LOW, then the ring's eye-high sectors B.HIGH.
+ * the disc to its battered foot and the fallen heaps B.LOW, then the ring's eye-high sectors B.HIGH. A def
+ * with a doorway: the disc is pie wedges with the doorway's corridor cut out of it (in the span only the
+ * fill's core inside the cleared pocket stays B.LOW) and the ring's B.HIGH stops at the span's edges.
  * @returns {{points: number[][], block: number}[]}
  */
 export function towerNavParts(def) {
   const toLocal = ([x, z]) => [+(x - def.x).toFixed(3), +(z - def.z).toFixed(3)];
-  const low = [{ points: circlePoly(def.x, def.z, footR(def)).map(toLocal), block: B.LOW }, ...fallenHulls(def).map((h) => ({ points: h.map(toLocal), block: B.LOW }))];
-  const high = towerSectors(def).filter(([, , h]) => h > SIGHT_Y).map(([a0, a1]) => ({ points: sectorPoly(def.x, def.z, def.r - def.t, def.r, a0 - 0.002, a1 + 0.002).map(toLocal), block: B.HIGH }));
+  const door = towerDoorSpan(def), low = [], high = [];
+  if (!door) low.push({ points: circlePoly(def.x, def.z, footR(def)).map(toLocal), block: B.LOW });
+  else {
+    for (const [a0, a1] of towerSectors(def)) for (const [s0, s1, e0, e1] of clipSpan(a0, a1, door))
+      low.push({ points: sectorPoly(def.x, def.z, 0, footR(def), s0 - e0, s1 + e1).map(toLocal), block: B.LOW });
+    low.push({ points: sectorPoly(def.x, def.z, 0, DOOR_POCKET_R, door.a0, door.a1).map(toLocal), block: B.LOW });
+  }
+  low.push(...fallenHulls(def).map((h) => ({ points: h.map(toLocal), block: B.LOW })));
+  for (const [a0, a1, h] of towerSectors(def)) {
+    if (h <= SIGHT_Y) continue;
+    if (!door) { high.push({ points: sectorPoly(def.x, def.z, def.r - def.t, def.r, a0 - 0.002, a1 + 0.002).map(toLocal), block: B.HIGH }); continue; }
+    for (const [s0, s1, e0, e1] of clipSpan(a0, a1, door))
+      high.push({ points: sectorPoly(def.x, def.z, def.r - def.t, def.r, s0 - e0, s1 + e1).map(toLocal), block: B.HIGH });
+  }
   return [...low, ...high];
 }
 /** The lowest head of the tower's ring (its sight height). */
@@ -160,10 +199,10 @@ function stone(G, mat, x, y, z, sx, sy, sz, yaw, R, tip = 0) {
 }
 
 /** One sector of the tower's shell: outer and inner faces, its broken head sloping from h0 (at a0) to h1 (at a1). */
-function wedge(G, mat, ri, ro, a0, a1, h0, h1, tone) {
+function wedge(G, mat, ri, ro, a0, a1, h0, h1, tone, y0 = 0) {
   const P = (r, a, y) => [Math.cos(a) * r, y, Math.sin(a) * r];
-  G.quad(mat, P(ro, a0, 0), P(ro, a0, h0), P(ro, a1, h1), P(ro, a1, 0), tone);        // outer (as Geo.ring)
-  G.quad(mat, P(ri, a0, 0), P(ri, a1, 0), P(ri, a1, h1), P(ri, a0, h0), tone * 0.92); // inner, facing the centre
+  G.quad(mat, P(ro, a0, y0), P(ro, a0, h0), P(ro, a1, h1), P(ro, a1, y0), tone);        // outer (as Geo.ring)
+  G.quad(mat, P(ri, a0, y0), P(ri, a1, y0), P(ri, a1, h1), P(ri, a0, h0), tone * 0.92); // inner, facing the centre
   G.quad(mat, P(ro, a0, h0), P(ri, a0, h0), P(ri, a1, h1), P(ro, a1, h1), tone);      // the head
 }
 
@@ -172,7 +211,12 @@ function talusY(def, a, d) {
   const sd = seedOf(`${def.seed ?? 'tower'}:talus`) & 0xffff, out = footR(def) + 0.12 * fbm(a * 2.1, 0.3, 0, sd, 2);
   const t = Math.min(1, Math.max(0, (d - def.r) / (out - def.r)));
   const lump = 1 + 0.45 * fbm(Math.cos(a) * d * 2.2, Math.sin(a) * d * 2.2, 0.7, sd + 5, 3);
-  return Math.max(0, 0.46 * Math.pow(1 - t, 1.3) * lump + 0.05 * fbm(Math.cos(a) * d * 7, Math.sin(a) * d * 7, 1.1, sd + 9, 2) * (1 - t));
+  const y = Math.max(0, 0.46 * Math.pow(1 - t, 1.3) * lump + 0.05 * fbm(Math.cos(a) * d * 7, Math.sin(a) * d * 7, 1.1, sd + 9, 2) * (1 - t));
+  if (!def.door) return y;
+  // a doorway's worn threshold: the talus trodden flat across its span, feathered at the edges
+  const door = towerDoorSpan(def), rel = Math.abs(Math.atan2(Math.sin(a - door.c), Math.cos(a - door.c))), half = (door.a1 - door.a0) / 2;
+  const f = Math.min(1, Math.max(0, (rel - half) / 0.09));
+  return y * (0.1 + 0.9 * f * f * (3 - 2 * f));
 }
 /** The talus mesh: a lumpy heap of fallen fieldstone round the foot, feathered into the snow at its rim. */
 function talus(G, def, R) {
@@ -189,33 +233,71 @@ export function buildRuinTower(def) {
   const R = rng(seedOf(`${def.seed ?? 'tower'}:art`)), G = new Geo(def.seed ?? 'tower');
   const r = def.r, ri = def.r - def.t, x = 0, z = 0;
   const L = (wx, wz) => [wx - def.x, wz - def.z];
+  const door = towerDoorSpan(def);
   // the shell: sector by sector up to its head, the courses of a break stepping down (end faces show the thickness)
   for (const [a0, a1, h, h0, h1] of towerSectors(def)) {
-    wedge(G, 'ruinStone', ri, r, a0, a1, h0, h1, 0.9 + R() * 0.12);
+    const tone = 0.9 + R() * 0.12;
+    if (!door || a1 <= door.a0 || a0 >= door.a1) {
+      wedge(G, 'ruinStone', ri, r, a0, a1, h0, h1, tone);
+    } else {
+      // pierced by the doorway: full height outside the span, above the lintel only within it (the head
+      // sloping on across the break, interpolated at the span's edges)
+      const at = (a) => h0 + ((h1 - h0) * (a - a0)) / (a1 - a0), segs = [];
+      if (a0 < door.a0) segs.push([a0, door.a0, 0]);
+      segs.push([Math.max(a0, door.a0), Math.min(a1, door.a1), door.lintel]);
+      if (a1 > door.a1) segs.push([door.a1, a1, 0]);
+      for (const [s0, s1, base] of segs) wedge(G, 'ruinStone', ri, r, s0, s1, at(s0), at(s1), tone, base);
+    }
     // a loose stone on the wall head here and there
     if (R() < 0.18) {
       const a = a0 + (a1 - a0) * R(), rr = ri + 0.15 + R() * (def.t - 0.3), s = 0.16 + R() * 0.12;
       stone(G, 'ruinStone', Math.cos(a) * rr, h - 0.02, Math.sin(a) * rr, s * 1.5, s * 0.5, s, a + R(), R, 0.3);
     }
   }
+  if (door) {
+    // the doorway itself: jamb faces at the span's edges, the lintel's underside, a worn threshold slab
+    const P = (rr, a, y) => [Math.cos(a) * rr, y, Math.sin(a) * rr], Ld = door.lintel;
+    G.quad('ruinStone', P(r, door.a0, 0), P(r, door.a0, Ld), P(ri, door.a0, Ld), P(ri, door.a0, 0), 0.94);
+    G.quad('ruinStone', P(ri, door.a1, 0), P(ri, door.a1, Ld), P(r, door.a1, Ld), P(r, door.a1, 0), 0.94);
+    G.quad('ruinStone', P(r, door.a0, Ld), P(r, door.a1, Ld), P(ri, door.a1, Ld), P(ri, door.a0, Ld), 0.8);
+    G.box('ruinStone', Math.cos(door.c) * (r - def.t / 2), 0.035, Math.sin(door.c) * (r - def.t / 2), 1.05, 0.07, 0.8, door.c + Math.PI / 2, 0.95);
+  }
   // the battered foot (a wider course of big stones round its base) and the talus of fallen masonry heaped round it
-  G.cyl('rubble', x, -0.25, z, r + 0.22, r, 0.85, TOWER_SEG, 0.95, { caps: false });
+  if (door) G.cyl('rubble', x, -0.25, z, r + 0.22, r, 0.85, TOWER_SEG, 0.95, { caps: false, a0: door.a1, arc: Math.PI * 2 - (door.a1 - door.a0) });
+  else G.cyl('rubble', x, -0.25, z, r + 0.22, r, 0.85, TOWER_SEG, 0.95, { caps: false });
   talus(G, def, R);
   for (let k = 0; k < 26; k++) {
     const a = R() * Math.PI * 2, d = r + 0.12 + R() * 0.5, s = 0.18 + R() * 0.18;
+    if (door && a > door.a0 - 0.08 && a < door.a1 + 0.08) continue; // none strewn across the doorway
     stone(G, R() < 0.65 ? 'ruinStone' : 'rubble', Math.cos(a) * d, talusY(def, a, d) - s * 0.35, Math.sin(a) * d, s * 1.3, s * 0.7, s, R() * 3, R, 0.35);
   }
   // arrow slits on its standing side (dark recesses in the face)
   for (const [deg, y] of def.slits || []) {
     const a = deg * DEG;
+    if (door && a > door.a0 && a < door.a1) continue; // (a slit never pierces the doorway's span)
     if (towerTop(def, deg) < y + 1.2) continue;
     G.box('iron', Math.cos(a) * (r + 0.005), y + 0.5, Math.sin(a) * (r + 0.005), 0.06, 1.0, 0.16, a, 0.2);
     G.box('ruinStone', Math.cos(a) * (r + 0.02), y - 0.06, Math.sin(a) * (r + 0.02), 0.12, 0.12, 0.42, a, 1.05); // sill
   }
   // the shell full of its fallen floors and upper walls: a rubble heap inside, blocks on it
-  G.cyl('rubble', x, 0, z, ri - 0.02, 0.35, def.fill ?? 1.3, 18, 0.85);
+  const fillH = def.fill ?? 1.3;
+  if (door) {
+    // the heap notched at the doorway: its slope runs round the rest of the shell, cut faces close the
+    // notch's sides, and its top cap is fanned round the cleared pocket
+    G.cyl('rubble', x, 0, z, ri - 0.02, 0.35, fillH, 18, 0.85, { a0: door.a1, arc: Math.PI * 2 - (door.a1 - door.a0) });
+    for (const [ae, flip] of [[door.a0, false], [door.a1, true]]) {
+      const A = [Math.cos(ae) * (ri - 0.02), 0, Math.sin(ae) * (ri - 0.02)], Bp = [Math.cos(ae) * 0.35, fillH, Math.sin(ae) * 0.35], C = [x, fillH, z], D = [x, 0, z];
+      if (flip) G.quad('rubble', A, D, C, Bp, 0.85); else G.quad('rubble', A, Bp, C, D, 0.85);
+    }
+    for (let k = 0; k < 36; k++) {
+      const a = (k / 36) * Math.PI * 2, b = ((k + 1) / 36) * Math.PI * 2, m = (a + b) / 2;
+      if (m > door.a0 && m < door.a1) continue;
+      G.tri('rubble', [x, fillH, z], [Math.cos(b) * 0.35, fillH, Math.sin(b) * 0.35], [Math.cos(a) * 0.35, fillH, Math.sin(a) * 0.35], 0.85);
+    }
+  } else G.cyl('rubble', x, 0, z, ri - 0.02, 0.35, fillH, 18, 0.85);
   for (let k = 0; k < 7; k++) {
-    const a = R() * Math.PI * 2, d = R() * (ri - 0.5), s = 0.2 + R() * 0.2, y = (def.fill ?? 1.3) * (1 - d / ri) * 0.85;
+    const a = R() * Math.PI * 2, d = R() * (ri - 0.5), s = 0.2 + R() * 0.2, y = fillH * (1 - d / ri) * 0.85;
+    if (door && d > 0.5 && a > door.a0 - 0.05 && a < door.a1 + 0.05) continue; // none in the cleared pocket
     stone(G, 'ruinStone', Math.cos(a) * d, y - 0.1, Math.sin(a) * d, s * 1.4, s * 0.45, s, R() * 3, R, 0.6);
   }
   // fallen masonry round its foot (the breach side): a low mound of rubble and stones lying on and round it, half sunk
