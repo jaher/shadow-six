@@ -37,7 +37,8 @@ export function startHidden(world, pairs) {
   return n;
 }
 
-/** Block the cells of axis-aligned rects [{x, z, w, d}] (roof props standing on raised cells). */
+/** Block the cells of axis-aligned rects [{x, z, w, d, block?}] (roof props standing on raised cells; `block` B.HIGH by
+ * default, B.LOW for the low goods on the terraces: they stop a walker, a prone man or a body behind them hides as at street level). */
 export function blockRoofRects(world, rects) {
   const g = world.grid;
   if (!g) return 0;
@@ -47,7 +48,8 @@ export function blockRoofRects(world, rects) {
     const j0 = Math.floor((r.z - r.d / 2) / g.cell), j1 = Math.floor((r.z + r.d / 2 - 1e-6) / g.cell);
     for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
       if (!g.inBounds(i, j)) continue;
-      g.block[g.idx(i, j)] = B.HIGH; n++;
+      const k = g.idx(i, j);
+      g.block[k] = Math.max(g.block[k], r.block ?? B.HIGH); n++;
     }
   }
   if (n) g.version++;
@@ -169,7 +171,7 @@ export function southHears(w, n, poly) {
 
 /** Extruded polygon (top at y, vertical sides down to 0). */
 function prism(poly, y, top, side) {
-  return terrainPrism(poly, y, { top: 'ashlar', side: 'limewash', tile: 1.8 }); // placeholder-art pass (art/kit-terrain.js); art pass: dressed stone terrace
+  return terrainPrism(poly, y, { top: 'ashlar', side: 'ashlar', tile: 1.8 }); // placeholder-art pass (art/kit-terrain.js); art pass: dressed stone terrace (pass 2: its faces in coursed ashlar too, not a blank limewash)
 }
 
 const ART = { stone: 0xd9cfbb, shade: 0x5a4a3a, trim: 0xb8986a, tile: 0x3f7a5a };

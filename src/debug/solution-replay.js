@@ -250,6 +250,8 @@ export class SolutionReplay {
       this._viewDt += dt;
       const now = performance.now();
       if (this.pacer.turbo && !this.stopped && now - this._viewAt < Math.max(this.turboViewMs, this._viewMs / TURBO_VIEW_SHARE)) return undefined;
+      // (a subclass's frame of ticks only: video mode's 4× skipping a wait draws every other frame — walkthrough.js)
+      if (this._tickOnly && !this.pacer.turbo && !this.stopped) return undefined;
       this._viewAt = now;
       const vdt = Math.min(this._viewDt, CONFIG.render?.maxDelta ?? 0.25);
       this._viewDt = 0;
@@ -270,7 +272,7 @@ export class SolutionReplay {
     const D = this.sol.makeDriver(this.world, {
       step: () => this._step(), dt: this.simDt, quiet: true, log: () => {},
       aborted: () => this.stopped,
-      onOrder: (role, u, o) => this._onOrder(role, u, o),
+      onOrder: (role, u, o, meta) => this._onOrder(role, u, o, meta),
       onCheckpoint: (cp) => this._onCheckpoint(cp),
       onWait: (label) => this._onWait(label),
       pause: () => this._pause(),

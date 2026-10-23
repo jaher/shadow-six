@@ -83,6 +83,7 @@ src/render/vfx/*.js                   VEHICLES/FX — final VFX library (GPU par
 src/render/selection.js               foundation — selection rings, move markers, path preview (ground decals)
 src/render/scope-magnifier.js         foundation — sniper scope 2× magnifier (lens camera → small RT → glass composite in the canvas)
 src/render/noise-rings.js             AI — runningNoise cue: a ring per running step growing to its hearing radius (ground decal)
+src/render/decoy-waves.js             AI — decoy cue: three translucent sound-wave rings per beep, the leader out to the hearing radius (ground decal, one draw per decoy)
 src/art/materials.js                  ART
 src/art/anti-tiling.js                ART — anti-tiling patch for kit / dressing / castle / library-building finishes: hex tiling with a variance-preserving blend (iso finishes, medium+), low-frequency swap (structured ones), world-space macro tone / grime / streaks / damp / dust (no per-object variation: abutting pieces stay seamless); anti-tiling-glsl.js: shared hex + noise GLSL
 src/art/humanoid.js                   ART — placeholder capsule soldier (fallback: ?chars=0, node tests, load failure)
@@ -835,7 +836,12 @@ Hook lines only elsewhere: `Interactable.setOpen/ramBreak/_applyDestroyedState/s
   a frame or two of lag), so a soldier in plain view gets no ghost over a truck cab in front of his ring; path ghosts
   stay armed. BCD overlays (`render/bcd-overlay.js`: puppet range disc + ring, knock-out arcs) are ground decals in the
   same group, bent over `world.groundY`; so are the noise rings (`render/noise-rings.js`, house rule `runningNoise`,
-  option NOISE RINGS: one amber ring per running step growing to its hearing radius over 0.6 s). Library bridge/pier decks are calibrated to the modelled planks
+  option NOISE RINGS: one amber ring per running step growing to its hearing radius over 0.6 s); and the decoy's sound waves
+  (`render/decoy-waves.js`: on every `noise` event of kind `decoy` — the one its beep plays from — three thin translucent rings
+  expand over the ground, the leader to the event's radius (13.5 m) in 1.0 s, the others to 0.8 R / 0.6 R, gone by 1.28 s, before the
+  next beep at 1.5 s. One polar-grid mesh per decoy draped once on `groundY` (+5 cm, polygonOffset; faded out on another `elev` level
+  or a cliff face), the rings drawn by its fragment shader on the interpolated SIM clock; its program is linked by the load's warm-up
+  frame (`prewarm()`, `userData.warmShow`); off under reduced motion). Library bridge/pier decks are calibrated to the modelled planks
   (`map-library.js calibrateDeck`: snow caps sit ~8 cm above the sidecar `deck_top`), so units and decals stand on
   the rendered deck. Over a raised walk (grid `elev` > 0: a dam crest, stair treads, tower decks) `world.groundY` adds
   nothing unless a modelled surface rises above that height, since the grid already holds the absolute walking

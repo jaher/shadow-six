@@ -238,7 +238,7 @@ function alongPath(u, dist, stopAtEnd = false) {
 /**
  * @param {import('../../src/world/world.js').World} world
  * @param {{step: () => (void|Promise<void>), dt?: number, log?: (s: string) => void, quiet?: boolean,
- *   aborted?: () => boolean, onOrder?: (role: string, unit: object, order: object) => void,
+ *   aborted?: () => boolean, onOrder?: (role: string, unit: object, order: object, meta?: {quiet?: boolean}) => void,
  *   onCheckpoint?: (cp: object) => void, onWait?: (label: string|null) => void, pause?: () => Promise<void>}} o
  *   aborted: once true, every tick and every order throws SolutionAborted (the replay was stopped: no order may
  *   reach the game after that, even from a solution's own try/catch); onOrder: after each accepted player order;
@@ -339,6 +339,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
   const tick = async () => { halt(); if (side.length) runSide(); const r = step(); if (r && typeof r.then === 'function') await r; halt(); if (watch) watchTick(); };
   const checkpoints = [];
 
+  let noting = null; // (D.waitNote's label while it stands)
   const D = {
     world: w, events, checkpoints, dt, log,
     get t() { return w.time; },
@@ -365,6 +366,9 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
       const dead = w.commandos.find((c) => !c.alive);
       return dead ? `${dead.role} died` : null;
     },
+    /** Tell video mode what the solution is waiting for (or null: it goes on) without a tick — a sneak whose man lies
+     *  still between failed legs (sneak.mjs): AUTO runs such a wait fast, as it does an until's; changes nothing in the run */
+    waitNote(label) { noting = label || null; onWait?.(noting); },
     async wait(sec) {
       const n = Math.round(sec / dt), said = sec >= 2 && !!onWait; // (a timer of 2 s or more is a wait too: video mode skips it)
       if (said) onWait(`a ${+sec.toFixed(1)} s pause`);
@@ -407,7 +411,8 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
         const tgt = o.target?.tag ?? o.target?.id ?? o.target;
         throw new Error(`order refused ${role} ${JSON.stringify({ ...o, target: tgt })}: ${JSON.stringify(u.lastRefusal?.text ?? null)}`);
       }
-      onOrder?.(role, u, o);
+      // (an order given while a waitNote stands — a sneak's futile leg, planned again — is part of that wait: `quiet`)
+      onOrder?.(role, u, o, noting ? { quiet: true } : undefined);
       return true;
     },
     ability(role, id, target) { return D.order(role, { type: 'ability', id, target: target ?? D.c(role) }); },

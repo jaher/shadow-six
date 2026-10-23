@@ -109,8 +109,10 @@ export function coneFan(enemy, grid, o = {}) {
  * an occluder corner is split at the far edge (default 0.02) — coarser for a walker's cone while he walks.
  */
 export function* coneFanSteps(enemy, grid, o = {}) {
-  const cone = coneAt(enemy, o.t);
-  if (!cone) return null;
+  // (`o.apex` {x, z}: the fan cast from there instead — VisionCone's walker cone, built where he is about to be)
+  const cone0 = coneAt(enemy, o.t);
+  if (!cone0) return null;
+  const cone = o.apex ? { ...cone0, x: o.apex.x, z: o.apex.z } : cone0;
   const S = CONFIG.stealth;
   const world = o.world || enemy.world || null;
   // `o.sector` {a0, a1}: the fan over that absolute angle range instead of the head's window, out to the profile's
@@ -330,6 +332,8 @@ function triGeometry() {
  * uncoloured patches inside the cone (and paint outside it) — hence the small epsilon, and update()'s rule that
  * a rebuild the frame budget has starved past this distance finishes at once instead of riding any farther. */
 const MOVE_EPS = 0.15;
+/** How far ahead of a walker (m, along his last step) his coarse sector is cast: just under MOVE_EPS (update()). */
+const LEAD_EPS = 0.9 * MOVE_EPS;
 /**
  * A walker's cone while he walks (render only; VisionCones' budgeted rebuilds): base rays 1.5° apart, edges to 0.25 m,
  * occluder corners to 0.15 m, the drape sliced every 2 m. Once he stands still the exact sector is built (the settled
@@ -462,8 +466,13 @@ export class VisionCone {
     if (this._unparked) { this._unparked = false; this._lastX = null; if (this._sector && off(this._sector)) { this._sector = null; this._job = null; } }
     const S = this._sector;
     // walking: the apex moved since the last frame (a budgeted walker's cone is built coarse until he stands still)
-    const moving = this._lastX != null && Math.hypot(cone.x - this._lastX, cone.z - this._lastZ) > 1e-4;
+    const mdx = this._lastX != null ? cone.x - this._lastX : 0, mdz = this._lastX != null ? cone.z - this._lastZ : 0, md = Math.hypot(mdx, mdz);
+    const moving = md > 1e-4;
     this._lastX = cone.x; this._lastZ = cone.z;
+    // a walker's coarse sector is cast from LEAD_EPS ahead along his last step: the ride-along error then runs from
+    // -LEAD_EPS through 0 to +MOVE_EPS before the next rebuild — the same worst parallax, about half the rebuilds
+    // (4×: a walking guard covered MOVE_EPS in 1–2 frames, ~1.2 ms a rebuild, four forced cones ~2.7 ms a frame)
+    const lead = moving ? { x: cone.x + (mdx / md) * LEAD_EPS, z: cone.z + (mdz / md) * LEAD_EPS } : null;
     const stale = !S || off(S) || (S.coarse && !moving); // (settled: the exact sector)
     if (!stale) { this._job = null; this.group.position.set(cone.x - S.x, 0, cone.z - S.z); return false; }
     if (!S && first) {
@@ -495,13 +504,13 @@ export class VisionCone {
       // starved past the ride-along tolerance (many cones shown, a long coarse build): finish at once, from where
       // he stands now — riding farther would draw the shadows of near occluders metres off (see MOVE_EPS)
       this._job = null;
-      const it = this._buildSteps(enemy, cone, world, grid, gv, reach, coarse);
+      const it = this._buildSteps(enemy, cone, world, grid, gv, reach, coarse, coarse ? lead : null);
       let r = it.next();
       while (!r.done) r = it.next();
       this._finish(r.value, cone);
       return true;
     }
-    if (!this._job) this._job = this._buildSteps(enemy, cone, world, grid, gv, reach, coarse);
+    if (!this._job) this._job = this._buildSteps(enemy, cone, world, grid, gv, reach, coarse, coarse ? lead : null);
     while (!budget.steps || now() < budget.until) { // (at least one step a frame overall: a rebuild always gets on)
       budget.steps = (budget.steps || 0) + 1;
       const r = this._job.next();
@@ -514,7 +523,7 @@ export class VisionCone {
    * A sector rebuild in steps (generator): the fan over the head's whole sweep (+ margin), then its draped mesh into
    * the staging buffer; returns what _finish needs.
    */
-  *_buildSteps(enemy, cone, world, grid, gv, reach, coarse) {
+  *_buildSteps(enemy, cone, world, grid, gv, reach, coarse, lead = null) {
     // the sector: the head's whole sweep round its centre (body heading + head offset), plus a margin
     const amp = enemy.sweepActive ? Math.abs((enemy.sweepAmp ?? enemy.vision?.sweep ?? 0) * (enemy.sweepW ?? 1)) : 0;
     let c = (enemy.heading || 0) + (enemy.headOffset || 0) + (enemy.headCarry || 0);
@@ -523,7 +532,7 @@ export class VisionCone {
     a0 = Math.min(a0, cone.heading - cone.halfFov - DEG); a1 = Math.max(a1, cone.heading + cone.halfFov + DEG);
     if (a1 - a0 > TAU) { a0 = cone.heading - Math.PI; a1 = a0 + TAU; }
     const fan = yield* coneFanSteps(enemy, grid && (grid.sightRay || grid.castRay) ? grid : null,
-      { maxRays: this.cap - 2, world, cache: this._rays || (this._rays = {}), sector: { a0, a1 }, pastEdge: true, ...(coarse ? COARSE : null) });
+      { maxRays: this.cap - 2, world, cache: this._rays || (this._rays = {}), sector: { a0, a1 }, pastEdge: true, ...(coarse ? COARSE : null), apex: lead });
     const buf = this._stage || (this._stage = { a: new Float32Array(3 * 1024), l: new Float32Array(1024), n: 0 });
     buf.n = 0;
     yield* this._meshSteps(fan, world, grid, buf, coarse ? SLICE_COARSE : SLICE);
@@ -698,6 +707,28 @@ const FIRST_BUDGET_MS = 3;
  * alpha for 1 s. Probe marker: setProbe(x, z[, enemy]) drops the red 0.6 m ring; the first enemy whose cone (standing
  * test) contains it gets its cone shown and the ring pulses; each marker triggers once; clearProbe().
  */
+const _fr = new THREE.Frustum(), _frM = new THREE.Matrix4(), _box = new THREE.Box3(), _bp = new THREE.Vector3();
+/** The camera's view frustum (its matrices as last updated). */
+function viewFrustum(camera) {
+  if (!camera?.projectionMatrix || !camera.matrixWorldInverse) return null;
+  return _fr.setFromProjectionMatrix(_frM.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+}
+/** Is the fan from (x, z) over angles a0..a1 out to `r` (its bounding box, + 2 m) in view `fr`? */
+function fanInView(fr, x, y, z, a0, a1, r) {
+  _box.min.set(x, y, z); _box.max.set(x, y, z);
+  const n = Math.max(2, Math.ceil((a1 - a0) / (30 * DEG)) + 1);
+  for (let q = 0; q < n; q++) { const a = a0 + ((a1 - a0) * q) / (n - 1); _box.expandByPoint(_bp.set(x + Math.cos(a) * r, y, z + Math.sin(a) * r)); }
+  _box.min.x -= 2; _box.min.z -= 2; _box.max.x += 2; _box.max.z += 2; _box.min.y -= 3; _box.max.y += 4;
+  return fr.intersectsBox(_box);
+}
+/** Could cone `c` of `e` show in view `fr`: the sector it drew last where it is drawn now, or his cone now? */
+function coneInView(fr, e, c) {
+  const y = e.y || 0, S = c._sector, k = c._cone || coneAt(e);
+  if (S && fanInView(fr, S.x + c.group.position.x, y, S.z + c.group.position.z, S.a0, S.a1, S.reach)) return true;
+  if (!k) return !S;
+  return fanInView(fr, e.x, y, e.z, k.heading - k.halfFov - SECTOR_MARGIN, k.heading + k.halfFov + SECTOR_MARGIN, Math.max(k.far, e.vision?.far ?? e.vision?.range ?? k.far));
+}
+
 export class VisionCones {
   constructor(world, scene, opts = {}) {
     this.world = world;
@@ -785,8 +816,13 @@ export class VisionCones {
     p.mesh.scale.setScalar(p.triggered ? 1 + 0.3 * Math.abs(Math.sin((now - p.t0) * 5)) : 1);
   }
 
-  /** Per-frame refresh (call from Game.render). */
-  update() {
+  /**
+   * Per-frame refresh (call from Game.render). `camera` (the frame's one view; none: every cone): a shown cone neither
+   * whose guard nor whose built sector is in its view is left as it is — no sector rebuilt for a cone off the screen
+   * (video mode shows the step's guards' cones wherever they walk: M11's yard patrol, four walkers rebuilt every frame or
+   * two at 4×, ~1.7 ms a frame, while the camera was on the Sapper elsewhere); back in view it is refreshed as usual.
+   */
+  update(camera = null) {
     const w = this.world;
     for (const e of w.enemies) if (e.coneVisible && !this.shown.includes(e)) this._promote(e);
     this.shown = this.shown.filter((e) => e.coneVisible && w.enemies.includes(e));
@@ -816,7 +852,12 @@ export class VisionCones {
     const budget = { until: now() + (this.opts.budgetMs ?? CONFIG.stealth.coneBudgetMs ?? 0.5), steps: 0 };
     const first = { until: now() + (this.opts.firstBudgetMs ?? FIRST_BUDGET_MS), steps: 0 };
     const n = shown.length, r0 = n ? (this._rr = ((this._rr ?? -1) + 1) % n) : 0;
-    for (let k = 0; k < n; k++) { const [e, cone, defer] = shown[(r0 + k) % n]; cone.update(e, budget, defer && this.deferForced ? first : null); }
+    const fr = camera ? viewFrustum(camera) : null;
+    for (let k = 0; k < n; k++) {
+      const [e, cone, defer] = shown[(r0 + k) % n];
+      if (fr && !coneInView(fr, e, cone)) continue;
+      cone.update(e, budget, defer && this.deferForced ? first : null);
+    }
     for (const [e, cone] of this.cones) if (!w.enemies.includes(e)) { cone.dispose(); this.cones.delete(e); }
     for (const [e, cone] of this.parked) if (!live(e) || !w.enemies.includes(e)) { cone.dispose(); this.parked.delete(e); }
   }

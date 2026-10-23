@@ -63,6 +63,8 @@ const CRATER = [[30, 96], [39, 94], [47, 95], [50, 99], [50, 110], [44, 114], [3
 /** The tunnel bore (y 6) from the S portal on the loop to the N portal on the HQ plateau, and its collapse area. */
 const BORE = { a: [52.6, 31], b: [62.4, 14], width: 4 };
 export const TUNNEL_POLY = [[50, 29.5], [55.2, 32.5], [65, 15.5], [59.8, 12.5]];
+/** Where the tunnel's rubble lies once it has fallen (the S portal: tunnelRubble, built hidden at load). */
+const RUBBLE_AT = [53.4, 30.2];
 
 /** T9 the W road: three ramp legs from gate 1's forecourt up round the scarp's W end to the plateau. */
 const RAMPS = [
@@ -455,7 +457,7 @@ export default {
       do: [{ drive: 'ht_n', to: [[70, 12.5], [63, 13.5]], speed: 5 }] },
     // a half-track caught in the bore when it falls is crushed with it [P tip] (collapse kills units only, D6)
     { on: 'structure:destroyed', match: { id: 'tunnel_fall' }, once: true, do: [{ run: (w) => {
-      tunnelRubble(w, [53.4, 30.2]);
+      tunnelRubble(w, RUBBLE_AT);
       const v = w.byId('ht_n');
       if (v && !v.destroyed && inside(TUNNEL_POLY, v.x, v.z)) v.destroy(null, 'explosion');
       // (on its way to the bore: its drive now ends at the N portal, short of the rubble)
@@ -493,6 +495,7 @@ export default {
       'tunnel'],
     lift: LIFT,
     tanks: ['tank_q1', 'tank_q2'],
+    rubble: RUBBLE_AT, // (the tunnel's rubble, built hidden at load: tunnelRubble)
   }),
   // the vacant half-track, driven by the team: all living commandos aboard and it reaches the W edge on the
   // plateau at the top of the W road (spec disagreement table "M11 exit → W/NW"; the TA's "east" is overruled)

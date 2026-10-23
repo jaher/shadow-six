@@ -554,6 +554,12 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
     get gun() { return gunInfo(vis, def, dims); },
     update(dt, v) { if (dt > 0 && v) step(dt, v); },
     /**
+     * Per displayed frame, before the crew figures are posed (vehicle.renderUpdate): the seat holders put where their
+     * sockets are after the frame's ticks (once — at 4× a frame runs eight ticks; each one updated the whole model's
+     * matrices for them). Visual only.
+     */
+    frame() { if (st.holdersDirty) { st.holdersDirty = false; syncHolders(); } },
+    /**
      * Boats: sample the underside of the model drawn now (cached per model instance; ~2–6 ms of triangles) ahead of
      * the first rest pose — at the mission load, not in the first sim tick that poses the hull. Visual only.
      */
@@ -772,7 +778,8 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
     suspension(dt, v, accel);
     berth(dt, v);
     doors(dt);
-    if (st.holders.length) syncHolders();
+    // (the crew's seat holders follow their sockets in the frame's draw, not at every tick: vehicle.renderUpdate → frame())
+    if (st.holders.length) st.holdersDirty = true;
     if (st.pennants) { const h = v.heading || 0; st.pennants.setVelocity(Math.cos(h) * speed, Math.sin(h) * speed); }
     lamps(v, crewed, speed);
     if (st.lampsOn && v.world?.groundY && (st.poolT -= dt) <= 0) { st.poolT = Math.abs(speed) > 0.2 ? 0.25 : 2; fitPools(v.world); }
@@ -1150,6 +1157,7 @@ export function createLibraryVehicleModel(type, def = {}, spawn = {}) {
     const ems = vis.emitters.filter((e) => e.kind === 'exhaust');
     if (!ems.length) return;
     const grey = 0.62 - 0.3 * load;
+    vis.object3d.updateMatrixWorld(true); // (the emitters where this tick posed them: no longer done for the holders each tick)
     for (const e of ems) {
       e.object.getWorldPosition(_w);
       _d.set(0, 0, 1).transformDirection(e.object.matrixWorld);

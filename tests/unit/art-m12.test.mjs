@@ -67,7 +67,7 @@ test('art m12: medina kit houses dress the facades but keep the gameplay box (�
 });
 
 test('art m12: market goods (carts, sacks, baskets, tarps, rugs) replace the crate stacks on the same footprints', () => {
-  for (const s of m12.structures.filter((q) => q.type === 'crates' && /cart|sacks|basket|tarp|bales|cushions/.test(q.variant))) {
+  for (const s of m12.structures.filter((q) => q.type === 'crates' && !q.asset && /cart|sacks|basket|tarp|bales|cushions/.test(q.variant))) { // (library pieces, e.g. the yard's handcart_wood, are the library's)
     const g = buildCrates(s);
     assert.match(g.name, /^medina:goods:/, s.id);
     g.updateMatrixWorld(true);
@@ -86,4 +86,44 @@ test('art m12: paving and street furniture are visual only (no nav or sight chan
   assert.ok(m12.pavements.length >= 2 && m12.pavements.every((p) => p.grid === false));
   assert.ok(m12.furniture.length >= 6 && m12.furniture.every((f) => f.block === false));
   for (const id of ['truck_q', 'car_q', 'moto_q']) assert.ok(byId(id)?.vehicleArt, id);
+});
+
+// ---------------------------------------------------------------- art pass 2 (art/m12-dressing.js)
+const rectHas = (s, x, z, pad = 0) => {
+  const c = Math.cos(s.rot ?? 0), sn = Math.sin(s.rot ?? 0), dx = x - s.x, dz = z - s.z;
+  const u = dx * c + dz * sn, v = -dx * sn + dz * c;
+  return Math.abs(u) <= s.w / 2 - pad && Math.abs(v) <= s.d / 2 - pad;
+};
+const segD = (px, pz, a, b) => {
+  const dx = b.x - a.x, dz = b.z - a.z, L2 = dx * dx + dz * dz || 1, t = Math.max(0, Math.min(1, ((px - a.x) * dx + (pz - a.z) * dz) / L2));
+  return Math.hypot(px - a.x - dx * t, pz - a.z - dz * t);
+};
+
+test('art m12 pass 2: roof props are fixed on their own roof (the placement pass no longer hangs them in the air off it)', () => {
+  const roofs = m12.structures.filter((s) => s.roofWalk && s.w);
+  const lifted = m12.structures.filter((s) => s.baseY != null && /^(crates|barrels)$/.test(s.type));
+  assert.ok(lifted.length >= 12);
+  for (const s of lifted) {
+    assert.equal(s.fixed, true, s.id);
+    if (s.id === 'big_box') continue; // (on the mosque platform: a cliff polygon, not a roof)
+    const half = Math.max(s.w ?? 2 * s.r, s.d ?? 2 * s.r) / 2;
+    assert.ok(roofs.some((r) => Math.abs((r.h ?? 0) - s.baseY) < 0.01 && rectHas(r, s.x, s.z, half + 0.3)), `${s.id} stands inside a y ${s.baseY} roof`);
+  }
+});
+
+test('art m12 pass 2: the dressing is fixed, off every house and ≥ 4 m off every street guard\'s beat and post', async () => {
+  const { M12_DRESSING, M12_PAVEMENTS } = await import('../../src/art/m12-dressing.js');
+  assert.ok(M12_DRESSING.length >= 12 && M12_PAVEMENTS.length >= 4);
+  assert.equal(m12.vegetation?.reeds, false, 'a salt harbour: no reed stands');
+  const houses = m12.structures.filter((s) => /^(flat_roof_house|house|barracks|mosque)$/.test(s.type) && s.w);
+  for (const s of M12_DRESSING) {
+    assert.ok(m12.structures.includes(s), s.id);
+    assert.equal(s.fixed, true, s.id);
+    for (const h of houses) assert.ok(!rectHas(h, s.x, s.z), `${s.id} inside ${h.id}`);
+    for (const e of m12.enemies.filter((q) => !(q.y > 0))) { // (the street's men: a roof man's beat is 4–10 m above)
+      const pts = e.route?.points ?? [{ x: e.x, z: e.z }];
+      const d = pts.length > 1 ? Math.min(...pts.slice(1).map((p, k) => segD(s.x, s.z, pts[k], p))) : Math.hypot(s.x - e.x, s.z - e.z);
+      assert.ok(d >= 4, `${s.id} is ${d.toFixed(2)} m off ${e.id}'s beat`);
+    }
+  }
 });

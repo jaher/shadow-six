@@ -56,6 +56,7 @@
 import { plateauWalkways, rectPoly } from './scripts/m05.js';
 import { m12Script, startHidden } from './scripts/m12.js';
 import { joinStructures } from './schema.js';
+import { M12_DRESSING, M12_PAVEMENTS } from '../art/m12-dressing.js';
 
 const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (enemy-brain)
@@ -237,21 +238,28 @@ const PROPS = [
   { id: 'moto_q', type: 'crates', variant: 'moto_parked', label: 'Motorcycle', x: 19.2, z: 117.8, rot: 0, w: 2.4, d: 1.7, h: 1.1, block: 1, vehicleArt: 'r75_sidecar' },
   ...[[2.5, 116.5], [50.5, 118.8]].map(([x, z], k) => ({ id: `palm_q${k + 1}`, type: 'palm', x, z, r: 0.5, h: 9 })),
 ];
-/** Props standing on roofs: cosmetic (raised cells lose their block), lifted by the script to their level. */
+/**
+ * Props standing on roofs: cosmetic (raised cells lose their block), lifted by the script to their level. `fixed`: the
+ * placement pass (which knows no roof level) used to push them out of the house under them, so they hung in the air
+ * over the back yards and alleys (art pass 2); each stands off every beat and route on its roof (≥ 2.5 m, the M12
+ * solution traced) so nobody walks through a drawn barrel or crate.
+ */
 const ROOF_PROPS = [
-  barrel('barrel_t1', 4, 39, { baseY: LEVEL.A }), barrel('barrel_t2', 6, 38.5, { baseY: LEVEL.A }), barrel('barrel_t3', 8, 39.5, { baseY: LEVEL.A }),
-  barrel('barrel_s1', 11.5, 36, { baseY: LEVEL.B }),
-  crate('crates_c', 'crates_pile', 41.2, 19.4, 1.6, 1.4, 1.2, { baseY: LEVEL.C }), // "the crates" of e6 (on C)
-  crate('crates_souk1', 'crates_pile', 56, 29, 1.4, 1.4, 1.2, { baseY: LEVEL.B }), // the "pile of boxes"
-  crate('crates_souk2', 'crates_pile', 58, 30.5, 1.4, 1.4, 1.2, { baseY: LEVEL.B }),
-  crate('crates_souk3', 'crates', 57.5, 32.5, 1.2, 1.2, 1.1, { baseY: LEVEL.B }),
-  crate('basket_souk', 'basket', 60, 39, 0.8, 0.8, 0.8, { baseY: LEVEL.B }),
-  crate('bales_souk', 'bales', 49.5, 26.5, 1.6, 1.2, 1.0, { baseY: LEVEL.B }),
-  crate('cushions', 'cushions_rugs', 22, 18, 1.8, 1.2, 0.6, { baseY: LEVEL.B }), // "hide him behind the cushions"
-  crate('big_box', 'crate_big', 51.5, 88, 2, 2, 1.8, { baseY: LEVEL.P }), // Kildread's "big box" lure spot on the platform
+  // three barrels in house_tile's NE corner, off e2's beat (they stood on it)
+  ...[[8.85, 37.85], [8.1, 37.85], [8.5, 38.55]].map(([x, z], k) => barrel(`barrel_t${k + 1}`, x, z, { baseY: LEVEL.A, fixed: true })),
+  barrel('barrel_s1', 10.85, 26.9, { baseY: LEVEL.B, fixed: true }), // w_block_rear's NW corner (off S1's head)
+  crate('crates_c', 'crates_pile', 38.9, 19.0, 1.6, 1.4, 1.2, { baseY: LEVEL.C, rot: R30, fixed: true }), // "the crates" of e6 (on C; they hung half off its NE edge)
+  // the souk roof's "pile of boxes" along its NE parapet (square to it), off e10's beat and the Sniper's and the Spy's ways
+  crate('crates_souk1', 'crates_pile', 59.95, 31.75, 1.4, 1.4, 1.2, { baseY: LEVEL.B, rot: R60, fixed: true }),
+  crate('crates_souk2', 'crates_pile', 60.85, 33.3, 1.4, 1.4, 1.2, { baseY: LEVEL.B, rot: R60, fixed: true }),
+  crate('crates_souk3', 'crates', 63.0, 39.2, 1.2, 1.2, 1.1, { baseY: LEVEL.B, rot: R60, fixed: true }),
+  crate('basket_souk', 'basket', 62.0, 40.6, 0.8, 0.8, 0.8, { baseY: LEVEL.B, fixed: true }),
+  crate('bales_souk', 'bales', 52.8, 32.4, 1.6, 1.2, 1.0, { baseY: LEVEL.B, rot: R60, fixed: true }),
+  crate('cushions', 'cushions_rugs', 22, 18, 1.8, 1.2, 0.6, { baseY: LEVEL.B, fixed: true }), // "hide him behind the cushions"
+  crate('big_box', 'crate_big', 51.5, 88, 2, 2, 1.8, { baseY: LEVEL.P, fixed: true }), // Kildread's "big box" lure spot on the platform
 ];
 
-const STRUCTURES = [...BACKDROP, ...WEST, ...EAST, ...MOSQUE, ...QUAY, ...PROPS, ...ROOF_PROPS];
+const STRUCTURES = [...BACKDROP, ...WEST, ...EAST, ...MOSQUE, ...QUAY, ...PROPS, ...ROOF_PROPS, ...M12_DRESSING];
 
 // ---------------------------------------------------------------- ladders and stairs (dossier §6; everyone)
 const ladder = (id, x, z, y, top, extra = {}) => ({ id, x, z, y, top, raised: false, ...extra });
@@ -385,6 +393,11 @@ export const START_HIDDEN = [['greenberet', 'w_block_front', { x: 16.5, z: 44.2 
 /** Lifted roof props [id, y] and the re-blocked roof props (the shack, the kiosk, the big box on the platform). */
 const LIFT = [['sn_hut', LEVEL.B], ['kiosk', LEVEL.B], ['l2_hut', LEVEL.B], ...ROOF_PROPS.map((s) => [s.id, s.baseY]), ...MOSQUE_WALLS.map((s) => [s.id, LEVEL.P]), ...ARC_WALLS.map((s) => [s.id, LEVEL.ARC])];
 const REBLOCK = [{ x: 53, z: 15.5, w: 5, d: 5 }, { x: 64.5, z: 51.5, w: 6, d: 6 }, { x: 50, z: 29.8, w: 2.4, d: 2.4 }, { x: 51.5, z: 88, w: 2, d: 2 }];
+/** Art pass 2: the low roof goods block their cells too (B.LOW, as the same crates and barrels do in the street), so what
+ *  is drawn on a terrace is what stops a man there — nobody walks through a barrel any more (the drawn extents: a barrel
+ *  prop is a cluster of 2–3). The big box keeps its B.HIGH rect above. */
+const ROOF_GOODS_BLOCK = ROOF_PROPS.filter((s) => s.id !== 'big_box').map((s) => ({ x: s.x, z: s.z, block: 1,
+  ...(s.type === 'barrels' ? { w: 1.2, d: 1.1 } : s.rot ? { w: 2, d: 2 } : { w: s.w, d: s.d }) }));
 /** The south zone (the harbour HQ's side of z 66). */
 const Z_SEHQ = [[0, 66], [76, 66], [76, 120], [0, 120]];
 /** Walkable roofs for the parapet / terrace-wall pass (first match wins), the planks it leaves open. */
@@ -423,6 +436,7 @@ export default {
   lighting: { sunElevDeg: 45, sunAzimuthDeg: 135, kelvin: 5500, hdri: 'clear', fog: 220, lut: 'tunis' },
   water: { velocity: 0, angleDeg: 0, turbulence: 0.15 }, // the still harbour basin
   shoreShallowWidth: 0, // quay walls: no shallows
+  vegetation: { reeds: false }, // art pass 2: a salt-water harbour basin walled in granite, no reed stands along the quays
   baseTerrain: 'ground',
   terrain: [
     // T1 the harbour basin (deep; no boat in this mission)
@@ -436,8 +450,11 @@ export default {
   // Its edges run under the wall bases (the palace front, the mosque platform up to the minaret) so no sand wedge shows,
   // and the quay's carries on past the S / E map edges (the apron), like the road under it, instead of stopping there.
   pavements: [
-    { id: 'pave_court', surface: 'setts', points: [[0, 37], [20, 37], [30.8, 36.5], [30.8, 29.1], [31.4, 29.1], [32.9, 31.9], [46.75, 23.9], [50, 26.5], [58, 50], [52, 52.4], [48, 47.6], [0, 47.05]], wear: 0.6, weeds: 0.25, cracks: 0.3, patches: 0, puddles: 0.05, grid: false },
+    { id: 'pave_court', surface: 'setts', points: [[0, 37], [20, 37], [30.8, 36.5], [30.8, 29.1], [31.4, 29.1], [32.9, 31.9], [46.75, 23.9], [50, 26.5], [58, 50], [52, 52.4], [48, 47.6], [0, 47.05]], wear: 0.6, weeds: 0.25, cracks: 0.3, patches: 0, puddles: 0.05, grid: false,
+      quay: { edges: [9, 10], bollards: 0, rings: true } }, // art pass 2: granite coping + mooring rings on the N quay (no bollards: the courtyard beats run along it)
+    { id: 'pave_nq_foot', surface: 'asphalt', points: [[-6, 47.0], [40, 47.0], [48, 47.75], [51.9, 52.3], [50.2, 53.8], [46.6, 50.3], [40, 49.8], [-6, 49.8]], edge: 'hard', wear: 0.2, weeds: 0, cracks: 0, patches: 0, puddles: 0, grid: false },
     { id: 'pave_quay', surface: 'setts', points: [[-6, 121.2], [0, 114], [20, 90.6], [20.1, 84.5], [22.2, 80.9], [38.15, 108.7], [52.2, 100.3], [52.2, 91.2], [55.5, 91.2], [55.5, 97], [64, 97], [64, 86], [76, 86], [84, 86], [84, 128], [-6, 128]], wear: 0.7, weeds: 0.3, cracks: 0.35, patches: 0, puddles: 0.05, grid: false },
+    ...M12_PAVEMENTS, // art pass 2: the back yards (art/m12-dressing.js)
   ],
   // bracket lamps on the courtyard houses, globe lamps on the S shore, the harbour command's telephone line along the S
   // quay, its board; all visual only (block:false) so no route or sight line changes
@@ -449,6 +466,8 @@ export default {
     { type: 'lamp', variant: 'harbour', x: 4.6, z: 110.2, rot: deg(40), block: false },
     { type: 'lamp', variant: 'harbour', x: 40.5, z: 118.6, rot: deg(-90), block: false },
     { type: 'telegraph', points: [[1, 119], [30, 119], [56, 118.9], [75.5, 117.5]], spacing: 13, h: 7, wires: 3, block: false },
+    // art pass 2: a cork lifebuoy on its post against the S quay's parapet (facing the quay; nobody's beat comes near)
+    { type: 'lifebuoy', x: 14.02, z: 98.64, rot: deg(-50.3), block: false },
     { type: 'sign', variant: 'wehrmacht', x: 34.2, z: 118.9, rot: deg(-90), text: 'HAFENKOMMANDANTUR\nTUNIS', block: false },
   ],
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
@@ -500,7 +519,7 @@ export default {
     prisms: [{ poly: PLATFORM, y: LEVEL.P }],
     hide: ['mosque_platform'],
     lift: LIFT,
-    block: REBLOCK,
+    block: [...REBLOCK, ...ROOF_GOODS_BLOCK],
     lines: MOSQUE_LINES,
     flights: Object.values(FLIGHTS).map((f) => ({ a: { x: f.a[0], y: f.y0, z: f.a[1] }, b: { x: f.b[0], y: f.y1, z: f.b[1] }, width: f.width ?? FLIGHT_W, cheeks: f.cheeks })),
     // (the flights' feet stand mid-roof: no parapet gap round them; the gaps the stair links' old ends opened stay —

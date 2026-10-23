@@ -406,6 +406,7 @@ export class Vehicle extends Entity {
 
   /** Per-frame visuals: enemy crew figures on open vehicles (art/vehicle-crew.js; built on the first frame). */
   renderUpdate(dt) {
+    this.model.frame?.(); // (seat holders after this frame's ticks)
     if (this._crewFig === undefined && this.model.isReady !== false) this._crewFig = this.world ? createCrewFigures(this) : undefined;
     this._crewFig?.update(dt);
   }

@@ -953,6 +953,16 @@ export function* planSneakGen(D, tx, tz, o = {}) {
 }
 
 /**
+ * D.wait(sec) told to video mode as a wait (`label`: AUTO runs it fast under a "⏩ waiting" tag — D.wait tells it only
+ * from 2 s): the same number of ticks, round(sec / dt).
+ */
+async function waitTold(D, sec, label) {
+  const n = Math.round(sec / D.dt);
+  let k = 0;
+  await D.until(() => k++ >= n, sec + 1, label);
+}
+
+/**
  * Go to (tx, tz) on a planSneak plan, like a player timing each dash: wait where the plan waits, click each straight
  * run of cells at its planned moment, and plan again from where he is whenever he falls behind. mode as planSneak
  * ('boat' rows the boat: the order goes to the Marine at the oars).
@@ -970,81 +980,96 @@ async function sneak0(D, tx, tz, o) {
   const who = mode === 'boat' ? 'diver' : o.role;
   const go = (x, z) => D.order(who, { type: 'move', x, z });
   const stopped = () => mode === 'boat' ? (boat.speed || 0) < 0.1 && !boat.goal : !u.path && !u.isMoving;
-  let plans = 0, fails = 0, gx = tx, gz = tz;
-  while (Math.hypot(u.x - gx, u.z - gz) > tol) {
-    if (D.t - t0 > maxWait) {
-      const why = []; planSneak(D, tx, tz, { ...o, why });
-      throw new Error(`sneak ${o.label || ''} → (${tx},${tz}): no way after ${maxWait}s, at (${u.x.toFixed(1)},${u.z.toFixed(1)}) [${why.join(' ')}]`);
-    }
-    if (!stopped()) { await D.wait(D.dt); continue; }
-    const plan = await planSneakAsync(D, tx, tz, o);
-    plans++;
-    if (!plan) {
-      if (o.noWait) return false;
-      const sb = o.shelterBox ?? 6, sh = o.shelterHorizon ?? 30;
-      const here = await planSneakAsync(D, u.x, u.z, { ...o, shelter: true, hold: o.shelterHold ?? 8, box: sb, horizon: sh, maxExpand: 60000 });
-      if (here && here.length > 1) { await sneak(D, here[here.length - 1][0], here[here.length - 1][1], { ...o, hold: o.shelterHold ?? 8, label: `${o.label || ''} (shelter)`, noWait: true, box: sb, horizon: sh }); fails = 0; }
-      else await D.wait(o.retry ?? (here ? Math.min(0.5 + 0.25 * fails++, 2.5) : 0.5));
-      continue;
-    }
-    fails = 0;
-    [gx, gz] = plan[plan.length - 1];
-    // on foot: the plan as the fewest straight legs he walks one after the other at his own pace, halting only where
-    // he must wait for a gap in the cones (dash.mjs; user 2026-10-15: "making it more straight and decisive")
-    // (opt-in per solution: D.straightDashes, or o.straight)
-    const legs = mode !== 'boat' && (o.straight ?? D.straightDashes) && D._walkLegs ? await runDash(D, compileDashGen(plan, { speed: u.speed, route: routeFor(u), pad: (o.straight ?? D.straightDashes)?.pad })) : null;
-    if (legs) {
-      const r = await D._walkLegs(legs, { role: o.role, u, tol, slack, label: o.label });
-      if (r === 'done' && !legs.partial) break;
-      if (r === 'done') continue; // (the legs end short of the goal: plan again from there)
+  let plans = 0, fails = 0, gx = tx, gz = tz, noted = false;
+  try {
+    while (Math.hypot(u.x - gx, u.z - gz) > tol) {
+      if (D.t - t0 > maxWait) {
+        const why = []; planSneak(D, tx, tz, { ...o, why });
+        throw new Error(`sneak ${o.label || ''} → (${tx},${tz}): no way after ${maxWait}s, at (${u.x.toFixed(1)},${u.z.toFixed(1)}) [${why.join(' ')}]`);
+      }
+      if (!stopped()) { await D.wait(D.dt); continue; }
+      const plan = await planSneakAsync(D, tx, tz, o);
+      plans++;
+      if (!plan) {
+        if (o.noWait) return false;
+        const sb = o.shelterBox ?? 6, sh = o.shelterHorizon ?? 30;
+        const here = await planSneakAsync(D, u.x, u.z, { ...o, shelter: true, hold: o.shelterHold ?? 8, box: sb, horizon: sh, maxExpand: 60000 });
+        if (here && here.length > 1) { await sneak(D, here[here.length - 1][0], here[here.length - 1][1], { ...o, hold: o.shelterHold ?? 8, label: `${o.label || ''} (shelter)`, noWait: true, box: sb, horizon: sh }); fails = 0; }
+        else await waitTold(D, o.retry ?? (here ? Math.min(0.5 + 0.25 * fails++, 2.5) : 0.5), `${o.label || 'a man'}: a gap in the cones`);
+        continue;
+      }
+      fails = 0;
+      [gx, gz] = plan[plan.length - 1];
+      // on foot: the plan as the fewest straight legs he walks one after the other at his own pace, halting only where
+      // he must wait for a gap in the cones (dash.mjs; user 2026-10-15: "making it more straight and decisive")
+      // (opt-in per solution: D.straightDashes, or o.straight)
+      const legs = mode !== 'boat' && (o.straight ?? D.straightDashes) && D._walkLegs ? await runDash(D, compileDashGen(plan, { speed: u.speed, route: routeFor(u), pad: (o.straight ?? D.straightDashes)?.pad })) : null;
+      if (legs) {
+        const r = await D._walkLegs(legs, { role: o.role, u, tol, slack, label: o.label });
+        if (r === 'done' && !legs.partial) break;
+        if (r === 'done') continue; // (the legs end short of the goal: plan again from there)
+        if (Math.hypot(u.x - gx, u.z - gz) < 0.9 && stopped() && plans > 3) break;
+        try { D.order(who, { type: 'stop' }); } catch { /* already still */ }
+        continue;
+      }
+      const segs = [];
+      let a = 0;
+      while (a < plan.length - 1) {
+        const [ax, az, at] = plan[a];
+        if (Math.hypot(plan[a + 1][0] - ax, plan[a + 1][1] - az) < 1e-6) {
+          let b = a + 1; while (b < plan.length - 1 && Math.hypot(plan[b + 1][0] - ax, plan[b + 1][1] - az) < 1e-6) b++;
+          segs.push({ wait: true, until: plan[b][2] }); a = b; continue;
+        }
+        const dx = Math.sign(plan[a + 1][0] - ax), dz = Math.sign(plan[a + 1][1] - az);
+        let b = a + 1;
+        while (b < plan.length - 1 && b - a < (o.run ?? 4)) {
+          const [bx, bz] = plan[b], [nx, nz] = plan[b + 1];
+          if (Math.hypot(nx - bx, nz - bz) < 1e-6 || Math.sign(nx - bx) !== dx || Math.sign(nz - bz) !== dz) break;
+          b++;
+        }
+        segs.push({ x: plan[b][0], z: plan[b][1], start: at, end: plan[b][2] });
+        a = b;
+      }
+      let late = false;
+      const p0x = u.x, p0z = u.z;
+      for (const s of segs) {
+        if (s.wait) {
+          // (lying or standing still for a gap in the cones: told to video mode as a wait — AUTO runs it fast under a
+          // "⏩ waiting" tag, as it does the straight dashes' waits (D._walkLegs) — the same ticks either way)
+          if (s.until - D.t >= 0.5) await D.until(() => D.t >= s.until - 1e-6, s.until - D.t + 1, `${o.label || 'a man'}: a gap in the cones`);
+          else while (D.t < s.until - 1e-6) await D.wait(D.dt);
+          continue;
+        }
+        if (s.start - D.t >= 0.5) await D.until(() => D.t >= s.start - 1e-6, s.start - D.t + 1, `${o.label || 'a man'}: a gap in the cones`);
+        else while (D.t < s.start - 1e-6) await D.wait(D.dt);
+        try { go(s.x, s.z); } catch {
+          let ok = false;
+          for (const q of segs.slice(segs.indexOf(s) + 1)) { if (q.wait || ok) continue; try { go(q.x, q.z); ok = true; } catch { /* next */ } }
+          if (!ok && mode === 'boat') {
+            const h = boat.heading;
+            for (const dd of [-1.6, 1.6]) { if (ok) break; try { go(boat.x + Math.cos(h) * dd, boat.z + Math.sin(h) * dd); ok = true; } catch { /* other way */ } }
+          }
+          await D.wait(D.dt);
+          if (ok) { for (let n = 0; n < 90 && !stopped(); n++) await D.wait(D.dt); }
+          late = true; break;
+        }
+        const ts = D.t;
+        while (Math.hypot(u.x - s.x, u.z - s.z) > tol && D.t < s.end + slack + 1) {
+          await D.wait(D.dt);
+          if (D.t > ts + 0.5 && stopped() && Math.hypot(u.x - s.x, u.z - s.z) > tol) break;
+        }
+        const f = D.failed(); if (f) throw new Error(`FAILED sneaking ${o.label || ''}: ${f}`);
+        if (D.t > s.end + slack || Math.hypot(u.x - s.x, u.z - s.z) > tol) { late = true; break; }
+      }
+      // (a plan whose legs got him nowhere — a cell the game will not take him to, by a parked hull — is planned again
+      // until the guards' places give another: he lies still meanwhile, a wait for video mode; no tick changes)
+      const still = Math.hypot(u.x - p0x, u.z - p0z) < 0.2;
+      if (late && still) { D.waitNote?.(`${o.label || 'a man'}: a gap in the cones`); noted = true; } // (again: an until in between said null)
+      else if (noted) { D.waitNote?.(null); noted = false; }
+      if (!late) break;
       if (Math.hypot(u.x - gx, u.z - gz) < 0.9 && stopped() && plans > 3) break;
       try { D.order(who, { type: 'stop' }); } catch { /* already still */ }
-      continue;
     }
-    const segs = [];
-    let a = 0;
-    while (a < plan.length - 1) {
-      const [ax, az, at] = plan[a];
-      if (Math.hypot(plan[a + 1][0] - ax, plan[a + 1][1] - az) < 1e-6) {
-        let b = a + 1; while (b < plan.length - 1 && Math.hypot(plan[b + 1][0] - ax, plan[b + 1][1] - az) < 1e-6) b++;
-        segs.push({ wait: true, until: plan[b][2] }); a = b; continue;
-      }
-      const dx = Math.sign(plan[a + 1][0] - ax), dz = Math.sign(plan[a + 1][1] - az);
-      let b = a + 1;
-      while (b < plan.length - 1 && b - a < (o.run ?? 4)) {
-        const [bx, bz] = plan[b], [nx, nz] = plan[b + 1];
-        if (Math.hypot(nx - bx, nz - bz) < 1e-6 || Math.sign(nx - bx) !== dx || Math.sign(nz - bz) !== dz) break;
-        b++;
-      }
-      segs.push({ x: plan[b][0], z: plan[b][1], start: at, end: plan[b][2] });
-      a = b;
-    }
-    let late = false;
-    for (const s of segs) {
-      if (s.wait) { while (D.t < s.until - 1e-6) await D.wait(D.dt); continue; }
-      while (D.t < s.start - 1e-6) await D.wait(D.dt);
-      try { go(s.x, s.z); } catch {
-        let ok = false;
-        for (const q of segs.slice(segs.indexOf(s) + 1)) { if (q.wait || ok) continue; try { go(q.x, q.z); ok = true; } catch { /* next */ } }
-        if (!ok && mode === 'boat') {
-          const h = boat.heading;
-          for (const dd of [-1.6, 1.6]) { if (ok) break; try { go(boat.x + Math.cos(h) * dd, boat.z + Math.sin(h) * dd); ok = true; } catch { /* other way */ } }
-        }
-        await D.wait(D.dt);
-        if (ok) { for (let n = 0; n < 90 && !stopped(); n++) await D.wait(D.dt); }
-        late = true; break;
-      }
-      const ts = D.t;
-      while (Math.hypot(u.x - s.x, u.z - s.z) > tol && D.t < s.end + slack + 1) {
-        await D.wait(D.dt);
-        if (D.t > ts + 0.5 && stopped() && Math.hypot(u.x - s.x, u.z - s.z) > tol) break;
-      }
-      const f = D.failed(); if (f) throw new Error(`FAILED sneaking ${o.label || ''}: ${f}`);
-      if (D.t > s.end + slack || Math.hypot(u.x - s.x, u.z - s.z) > tol) { late = true; break; }
-    }
-    if (!late) break;
-    if (Math.hypot(u.x - gx, u.z - gz) < 0.9 && stopped() && plans > 3) break;
-    try { D.order(who, { type: 'stop' }); } catch { /* already still */ }
-  }
-  return true;
+    return true;
+  } finally { if (noted) D.waitNote?.(null); }
 }

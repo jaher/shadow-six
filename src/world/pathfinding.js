@@ -91,6 +91,8 @@ function buffers(grid) {
 const EMPTY_SETS = Object.freeze([]);
 const DI = [1, -1, 0, 0, 1, 1, -1, -1];
 const DJ = [0, 0, 1, -1, 1, -1, 1, -1];
+/** The map sides a step in each direction needs room on (areasFor's flood: 1 east, 2 west, 4 south, 8 north). */
+const NBR_NEED = [1, 2, 4, 8, 5, 9, 6, 10];
 
 /**
  * Find a path on the NavGrid.
@@ -158,6 +160,63 @@ export function hugsObstacle(grid, i, j) {
 }
 
 /**
+ * The static layers every search reads at each neighbour, worked out once per grid version (like areasFor's labels,
+ * kept until the grid's layers change): `open[swim]` — grid.isWalkable's static test (block, nav stamps, cut fence
+ * holes, bridges, water) without the dynamic layer or a clearance mask; `mul` — the step's cost factor on that cell
+ * (WATER_COST on water or shallows off a bridge, else HUG_COST beside a wall: hugsObstacle, else 1). Same answers as
+ * the tests made cell by cell; a blast's tick reads them a few hundred thousand times.
+ */
+const _layers = new WeakMap();
+/** staticLayers' open test for cells [k0, k1) into `o`. */
+function openRows(grid, swim, o, k0, k1) {
+  const { block, navBlock, fenceHole, bridge, terrain } = grid, NONE = B.NONE;
+  for (let k = k0; k < k1; k++) o[k] = block[k] !== NONE || (navBlock[k] && !fenceHole[k]) ? 0 : bridge[k] ? 1 : terrain[k] === T.WATER ? (swim ? 1 : 0) : 1;
+}
+/** staticLayers' step cost factor for rows [j0, j1) into `m`. */
+function mulRows(grid, m, j0, j1) {
+  const { block, navBlock, bridge, terrain, cols, rows } = grid, NONE = B.NONE;
+  const wall = (q) => block[q] !== NONE || !!navBlock[q];
+  for (let j = j0, k = j0 * cols; j < j1; j++) {
+    for (let i = 0; i < cols; i++, k++) {
+      const t = terrain[k];
+      if ((t === T.WATER || t === T.SHALLOW) && !bridge[k]) m[k] = WATER_COST;
+      else m[k] = (i + 1 < cols && wall(k + 1)) || (i > 0 && wall(k - 1)) || (j + 1 < rows && wall(k + cols)) || (j > 0 && wall(k - cols)) ? HUG_COST : 1;
+    }
+  }
+}
+/** staticLayers for tests: the per-version open / cost layers a search reads (tests/unit/static-layers). */
+export function staticLayersOf(grid, swim = false) { return staticLayers(grid, swim); }
+function staticLayers(grid, swim, costs = true) {
+  let L = _layers.get(grid);
+  if (!L || L.version !== grid.version || L.size !== grid.size || L.links !== grid.links || L.index !== grid._linkIndex) {
+    // the grid changed within known rows only since L (NavGrid.dirtyRowsSince: a blast's destroyed solids and nav
+    // stamps): those rows (± 1: a cell's cost reads its neighbours) are redone on copies — a search still running on L
+    // keeps its own arrays — instead of the whole grid in the blast's tick
+    const same = L && L.size === grid.size && L.links === grid.links && L.index === grid._linkIndex;
+    const d = same ? grid.dirtyRowsSince?.(L.version) : null;
+    const P = d ? L : null;
+    L = { version: grid.version, size: grid.size, links: grid.links, index: grid._linkIndex, open: [null, null], mul: null, linked: undefined };
+    if (P) {
+      const j0 = Math.max(0, d.j0 - 1), j1 = Math.min(grid.rows, d.j1 + 2), k0 = j0 * grid.cols, k1 = j1 * grid.cols;
+      for (const si of [0, 1]) if (P.open[si]) { const o = P.open[si].slice(); if (j1 > j0) openRows(grid, si === 1, o, k0, k1); L.open[si] = o; }
+      if (P.mul) { const m = P.mul.slice(); if (j1 > j0) mulRows(grid, m, j0, j1); L.mul = m; }
+      L.linked = P.linked;
+    }
+    _layers.set(grid, L);
+  }
+  const si = swim ? 1 : 0, N = grid.size;
+  if (!L.open[si]) { const o = new Uint8Array(N); openRows(grid, swim, o, 0, N); L.open[si] = o; }
+  if (!costs) return L; // (areasFor: the open cells only)
+  if (!L.mul) { const m = new Float64Array(N); mulRows(grid, m, 0, grid.rows); L.mul = m; }
+  // (the cells a link touches — grid.linksAt's own index — as flags: most expanded cells have none to look up)
+  if (L.linked === undefined) {
+    const idx = grid._linkIndex;
+    if (idx instanceof Map) { const f = new Uint8Array(N); for (const k of idx.keys()) if (k >= 0 && k < N) f[k] = 1; L.linked = f; } else L.linked = null;
+  }
+  return L;
+}
+
+/**
  * Failed searches remembered within one epoch (World.findPath passes the world tick as `opts.memo`): a search that
  * failed after reaching EVERY cell it could reach (its heap ran dry, not its node cap) leaves the set R of those cells —
  * whatever its goal was. A later search under the same walk rules (swim / dive, the same avoid mask, role, links) from a
@@ -176,7 +235,7 @@ const FAIL_MEMO_MAX = 24;
 function failMemo(grid, epoch) {
   let m = failMemos.get(grid);
   if (!m || m.epoch !== epoch || m.version !== grid.version) {
-    m = { epoch, version: grid.version, sets: new Map(), pockets: new Map(), n: 0 };
+    m = { epoch, version: grid.version, sets: new Map(), pockets: new Map(), wide: new Set(), n: 0 };
     failMemos.set(grid, m);
   }
   return m;
@@ -245,24 +304,20 @@ function areasFor(grid, walkOpts, role, opts, hasLinks) {
     if (rec.size > RECENT_MAX) rec.delete(rec.keys().next().value);
   }
   const cols = grid.cols, rows = grid.rows, N = grid.size, bare = { swim: !!walkOpts.swim, dive: !!walkOpts.dive };
-  const open = new Uint8Array(N);
-  if (bare.dive) for (let j = 0, k = 0; j < rows; j++) for (let i = 0; i < cols; i++, k++) open[k] = grid.isWalkable(i, j, bare) ? 1 : 0;
-  else {
-    // (grid.isWalkable's own test for these rules, cell by cell without the call: no dynamic layer, no mask)
-    const { block, navBlock, fenceHole, bridge, terrain } = grid, swim = bare.swim;
-    for (let k = 0; k < N; k++) {
-      open[k] = block[k] !== B.NONE || (navBlock[k] && !fenceHole[k]) ? 0 : bridge[k] ? 1 : terrain[k] === T.WATER ? (swim ? 1 : 0) : 1;
-    }
-  }
+  let open;
+  if (bare.dive) { open = new Uint8Array(N); for (let j = 0, k = 0; j < rows; j++) for (let i = 0; i < cols; i++, k++) open[k] = grid.isWalkable(i, j, bare) ? 1 : 0; }
+  // (grid.isWalkable's own test for these rules, cell by cell: no dynamic layer, no mask — the searches' own copy)
+  else open = staticLayers(grid, bare.swim, false).open[bare.swim ? 1 : 0];
   // (links by cell, the ones this search may take)
-  let adj = null;
+  let adj = null, adjAt = null;
   if (hasLinks) {
-    adj = new Map();
+    adj = new Map(); adjAt = new Uint8Array(N);
     for (const L of grid.links) {
       if (!grid.linkAllowed(L, role) || (opts.noLinks && !L.walk)) continue;
       if (!open[L.ka] || !open[L.kb]) continue;
       (adj.get(L.ka) || adj.set(L.ka, []).get(L.ka)).push(L.kb);
       (adj.get(L.kb) || adj.set(L.kb, []).get(L.kb)).push(L.ka);
+      adjAt[L.ka] = adjAt[L.kb] = 1;
     }
   }
   lab = new Int32Array(N);
@@ -274,19 +329,19 @@ function areasFor(grid, walkOpts, role, opts, hasLinks) {
     let qh = 0, qt = 0;
     queue[qt++] = s0; lab[s0] = id;
     while (qh < qt) {
-      const k = queue[qh++], i = k % cols, j = (k - i) / cols;
+      const k = queue[qh++], i = k % cols;
+      // (the 8 neighbours by index offset; `m`: which sides of the map this cell is not on — same cells, same tests)
+      const m = (i + 1 < cols ? 1 : 0) | (i > 0 ? 2 : 0) | (k + cols < N ? 4 : 0) | (k >= cols ? 8 : 0), ek = elev[k];
       for (let d = 0; d < 8; d++) {
-        const ni = i + DI[d], nj = j + DJ[d];
-        if (ni < 0 || nj < 0 || ni >= cols || nj >= rows) continue;
-        const nk = nj * cols + ni;
+        if ((m & NBR_NEED[d]) !== NBR_NEED[d]) continue;
+        const nk = k + DI[d] + DJ[d] * cols;
         if (!open[nk] || lab[nk]) continue;
         // (grid.canStep either way: the elevation step is symmetric; only a ramp's side needs its own test)
-        if (Math.abs(elev[k] - elev[nk]) > MAX_STEP) continue;
+        if (Math.abs(ek - elev[nk]) > MAX_STEP) continue;
         if (runOf && runOf[k] !== runOf[nk] && !grid.canStep(k, nk) && !grid.canStep(nk, k)) continue;
         lab[nk] = id; queue[qt++] = nk;
       }
-      const ls = adj?.get(k);
-      if (ls) for (const nk of ls) if (!lab[nk]) { lab[nk] = id; queue[qt++] = nk; }
+      if (adjAt && adjAt[k]) for (const nk of adj.get(k)) if (!lab[nk]) { lab[nk] = id; queue[qt++] = nk; }
     }
   }
   per.map.set(key, lab);
@@ -359,7 +414,7 @@ function ladderEnds(grid) {
  * blown inside a bunker nobody can walk into: every guard who hears it flooded the whole map, ~20 ms each).
  * @returns {number[]|null} the pocket's cells, or null = can't tell (it is larger, or holds the start): search on
  */
-function goalPocketExcludes(grid, goalK, startK, walkOpts, role, hasLinks, noLinks, open = (i, j) => grid.isWalkable(i, j, walkOpts)) {
+function goalPocketExcludes(grid, goalK, startK, walkOpts, role, hasLinks, noLinks, open = (i, j) => grid.isWalkable(i, j, walkOpts), info = null) {
   const cols = grid.cols;
   let mark = _pocketSeen.get(grid);
   if (!mark || mark.a.length !== grid.size) { mark = { a: new Uint32Array(grid.size), id: 0 }; _pocketSeen.set(grid, mark); }
@@ -379,7 +434,7 @@ function goalPocketExcludes(grid, goalK, startK, walkOpts, role, hasLinks, noLin
       if (d >= 4 && (!grid.canStep(pk, pj * cols + i) || !grid.canStep(pk, j * cols + pi))) continue;
       if (pk === startK) return null;
       seen[pk] = id; queue.push(pk);
-      if (queue.length > POCKET_MAX) return null;
+      if (queue.length > POCKET_MAX) { if (info) info.wide = true; return null; }
     }
     if (hasLinks) {
       for (const L of grid.linksAt(k)) {
@@ -390,7 +445,7 @@ function goalPocketExcludes(grid, goalK, startK, walkOpts, role, hasLinks, noLin
         if (!open(pi, pj)) continue;
         if (pk === startK) return null;
         seen[pk] = id; queue.push(pk);
-        if (queue.length > POCKET_MAX) return null;
+        if (queue.length > POCKET_MAX) { if (info) info.wide = true; return null; }
       }
     }
   }
@@ -540,6 +595,18 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
   let expanded = 0;
   let found = false, capped = false;
   const terrain = grid.terrain, bridge = grid.bridge;
+  // (the common case — on foot or swimming, no ladder ends to open: `open` is grid.isWalkable(walkOpts) — tested inline
+  // on the layers, cell by cell: the same answers without the call and its option lookups per neighbour)
+  const fast = !walkOpts.dive && ends === null && !!grid.block && !!grid.navBlock && !!grid.fenceHole && !!bridge && !!terrain, rows = grid.rows;
+  const { block, navBlock, fenceHole, dynamicBlock } = grid, dyn = walkOpts.dynamic, avoid = walkOpts.avoid;
+  const SL = fast ? staticLayers(grid, swim) : null, sOpen = SL ? SL.open[swim ? 1 : 0] : null, mul = SL ? SL.mul : null, linked = SL ? SL.linked : null;
+  const walkK = (q) => sOpen[q] === 1 && !(dyn && dynamicBlock[q] !== B.NONE) && !(avoid && avoid[q]);
+  // (grid.canStep, inline: the elevation step, then a ramp / stair run's sides — the grid's own test)
+  const elev = grid.elev, runOf = grid.runOf;
+  const stepK = (a, q) => Math.abs(elev[a] - elev[q]) <= MAX_STEP && (!runOf || runOf[a] === runOf[q] || grid.canStep(a, q));
+  // (hugsObstacle, inline: an edge neighbour blocked by a structure)
+  const hugsK = (hi, hj, q) => (hi + 1 < cols && (block[q + 1] !== B.NONE || !!navBlock[q + 1])) || (hi > 0 && (block[q - 1] !== B.NONE || !!navBlock[q - 1]))
+    || (hj + 1 < rows && (block[q + cols] !== B.NONE || !!navBlock[q + cols])) || (hj > 0 && (block[q - cols] !== B.NONE || !!navBlock[q - cols]));
 
   while (heap.size > 0) {
     const k = heap.pop();
@@ -549,27 +616,40 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
     if (++expanded > maxNodes) { capped = true; break; }
     searchStats.expanded++;
     // (a long search: is the goal shut in a small pocket this start cannot be in? then it fails — no need to flood)
-    if (expanded === POCKET_AT) {
-      const pocket = goalPocketExcludes(grid, goalK, startK, walkOpts, role, hasLinks, !!opts.noLinks, pocketOpen);
+    // (a goal already found this epoch to have more than POCKET_MAX cells able to reach it is in no small pocket, whatever
+    // the start: that enumeration never depended on the start but to stop at it — three guards off to one blast ask once)
+    if (expanded === POCKET_AT && !(memo && memo.wide.has(`${memoKey}|${goalK}`))) {
+      const po = { wide: false };
+      const pocket = goalPocketExcludes(grid, goalK, startK, walkOpts, role, hasLinks, !!opts.noLinks, pocketOpen, po);
       if (pocket) { if (memo) memo.pockets.set(`${memoKey}|${goalK}`, new Set(pocket)); return null; }
+      if (po.wide && memo) memo.wide.add(`${memoKey}|${goalK}`);
     }
     const i = k % cols, j = (k - i) / cols;
     // (a ladder end the clearance mask shuts, reached on foot: only its ladder goes on from it)
     const endOnly = ends !== null && walkOpts.avoid[k] && via[k] === 0 && k !== startK;
     for (let d = 0; d < 8 && !endOnly; d++) {
       const ni = i + DI[d], nj = j + DJ[d];
-      if (!open(ni, nj)) { if (meet) meet(ni, nj); continue; }
-      // No corner cutting: a diagonal step needs both orthogonal neighbours free.
-      if (d >= 4 && (!walk(i + DI[d], j) || !walk(i, j + DJ[d]))) continue;
       const nk = nj * cols + ni;
+      if (fast) {
+        // (grid.isWalkable under these rules, inline: in bounds, the static layers, the vehicles, the mask)
+        if (ni < 0 || nj < 0 || ni >= cols || nj >= rows || !walkK(nk)) { if (meet) meet(ni, nj); continue; }
+        if (d >= 4 && (!walkK(j * cols + ni) || !walkK(nk - DI[d]))) continue;
+      } else {
+        if (!open(ni, nj)) { if (meet) meet(ni, nj); continue; }
+        // No corner cutting: a diagonal step needs both orthogonal neighbours free.
+        if (d >= 4 && (!walk(i + DI[d], j) || !walk(i, j + DJ[d]))) continue;
+      }
       if (closed[nk] === id) continue;
-      if (!grid.canStep(k, nk)) continue; // elevation discontinuity (raised areas: links only)
-      if (d >= 4 && (!grid.canStep(k, j * cols + ni) || !grid.canStep(k, nj * cols + i))) continue;
+      if (!stepK(k, nk)) continue; // elevation discontinuity (raised areas: links only)
+      if (d >= 4 && (!stepK(k, j * cols + ni) || !stepK(k, nk - DI[d]))) continue;
       let step = d >= 4 ? SQRT2 : 1;
-      const t = terrain[nk];
-      if ((t === T.WATER || t === T.SHALLOW) && !bridge[nk]) step *= WATER_COST;
-      // clearance (placement rule e): a body is ~0.35 m wide with arms and rifle — prefer cells not touching a wall
-      else if (hugsObstacle(grid, ni, nj)) step *= HUG_COST;
+      if (mul) step *= mul[nk]; // (the same factor, worked out per grid version: staticLayers)
+      else {
+        const t = terrain[nk];
+        if ((t === T.WATER || t === T.SHALLOW) && !bridge[nk]) step *= WATER_COST;
+        // clearance (placement rule e): a body is ~0.35 m wide with arms and rifle — prefer cells not touching a wall
+        else if (hugsK(ni, nj, nk)) step *= HUG_COST;
+      }
       const ng = g[k] + step;
       if (stamp[nk] !== id || ng < g[nk]) {
         stamp[nk] = id;
@@ -581,7 +661,7 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
       }
     }
     // Off-grid links (climb edges, ladders) touching this cell.
-    if (hasLinks) {
+    if (hasLinks && (!linked || linked[k])) {
       for (const L of grid.linksAt(k)) {
         if (!grid.linkAllowed(L, role) || (opts.noLinks && !L.walk)) continue;
         const nk = L.ka === k ? L.kb : L.ka;

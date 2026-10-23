@@ -68,6 +68,10 @@ const BASE = { enabled: true, types: ['bf109', 'ju52'], interval: [150, 300], fi
  * @param {object} def mission definition (`ambient.flyovers`, `id`, `lighting` / `theater` for night)
  * @param {{night?: boolean}} [o] night flag when already resolved (the vehicle art context)
  */
+/** Object3D.updateMatrixWorld for a node whose subtree sits out the frame's matrix update while it is frozen
+ *  (matrixWorldAutoUpdate false): neither its own matrices nor its children's are touched. */
+function skipFrozen(force) { if (this.matrixWorldAutoUpdate) THREE.Object3D.prototype.updateMatrixWorld.call(this, force); }
+
 export function flyoverConfig(def, o = {}) {
   const own = def?.ambient?.flyovers;
   if (own === false || own?.enabled === false) return null;
@@ -385,6 +389,17 @@ export function createFlyovers(world, def, o = {}) {
   for (const c of pool) c.pass = -1;
   const ready = Promise.all(pool.map((c) => Promise.all([c.a.vis.ready, c.b.vis.ready]).catch(() => null)));
 
+  // an aircraft between passes is hidden: its ~150 nodes (model, blur discs, shadow twin) are left out of the frame's
+  // scene-wide matrix update until it flies again (M11: 2 700 of the scene's 11 000 nodes, every frame)
+  // (three r186 walks every child whatever its parent's matrixWorldAutoUpdate: a hidden holder skips its whole subtree)
+  const freezeHidden = () => {
+    for (const c of pool) for (const h of [c.a.holder, c.b.holder]) {
+      if (!h) continue;
+      h.matrixWorldAutoUpdate = !!h.visible;
+      if (h.updateMatrixWorld !== skipFrozen) h.updateMatrixWorld = skipFrozen;
+    }
+  };
+
   const api = {
     group, config: cfg,
     /** settles once the aircraft built at load are in place (their models cloned, discs and shadow twins set up) */
@@ -402,7 +417,8 @@ export function createFlyovers(world, def, o = {}) {
         c.dither.userData.dens.value = 0.8;
       }
       const gv = group.visible; group.visible = true;
-      return { n: shown.length, done: () => { for (const [h, v, p] of shown) { h.visible = v; h.position.copy(p); } group.visible = gv; } };
+      for (const [h] of shown) h.matrixWorldAutoUpdate = true;
+      return { n: shown.length, done: () => { for (const [h, v, p] of shown) { h.visible = v; h.position.copy(p); } group.visible = gv; freezeHidden(); } };
     },
     schedule: () => sched,
     active: () => [...live.keys()].map((k) => sched[k]),
@@ -423,6 +439,7 @@ export function createFlyovers(world, def, o = {}) {
         nearPad = Math.max(nearPad, d + 5);
       }
       if (world.game?.state === 'playing') { for (const p of now) sound(p, t); silence(new Set(now.map((p) => `flyover:${p.k}`))); } else silence();
+      freezeHidden();
     },
     dispose() {
       silence(); stopTick?.();

@@ -394,7 +394,12 @@ export function buildVisuals(world, spec) {
     root.add(portalMesh(p.x, p.z, p.rot, p.y));
   }
   world.scene.add(root);
-  rubbleGeometries(world); // (the tunnel's rubble, made now: tunnelRubble)
+  // the tunnel's rubble, hidden until it falls (tunnelRubble shows it; the load's warm-up frame draws it: warmShow)
+  if (spec.rubble && !world._m11RubbleGrp) {
+    const rb = rubbleGroup(world, spec.rubble);
+    rb.visible = false; rb.userData.warmShow = true; rb.userData.at = spec.rubble.slice();
+    world._m11RubbleGrp = rb; world.scene.add(rb);
+  }
   // the quarry's explosive process tanks are Barrel entities (the schema's only explosive): dress them as the
   // white vertical oil tanks they are (the drum mesh goes; the tank goes with the entity when it blows)
   for (const id of spec.tanks || []) {
@@ -433,12 +438,11 @@ function rubbleGeometries(world) {
   }));
 }
 
-/** Rubble filling the S portal once the tunnel has fallen (visual; the cells are blocked by the set-piece). */
-export function tunnelRubble(world, at) {
-  if (!world.scene || world._m11Rubble) return;
-  world._m11Rubble = true;
+/** The rubble's boulders at the S portal `at` (hidden until the tunnel falls: buildVisuals builds it at load). */
+function rubbleGroup(world, at) {
   const mat = dressingMaterial('rock'); // placeholder-art pass: fractured boulders (were flat-colour dodecahedra)
   const grp = new THREE.Group(), geos = rubbleGeometries(world);
+  grp.name = 'm11:tunnel_rubble';
   for (let k = 0; k < 9; k++) {
     const r = 0.9 + (k % 3) * 0.5;
     const m = new THREE.Mesh(geos[k], mat);
@@ -446,7 +450,18 @@ export function tunnelRubble(world, at) {
     m.castShadow = true;
     grp.add(m);
   }
-  world.scene.add(grp);
+  return grp;
+}
+
+/** Rubble filling the S portal once the tunnel has fallen (visual; the cells are blocked by the set-piece). Shown from
+ * the copy buildVisuals made at load (`spec.rubble`: same place — drawn by the load's warm-up frame, its boulders not
+ * built inside the blast's tick), else built now. */
+export function tunnelRubble(world, at) {
+  if (!world.scene || world._m11Rubble) return;
+  world._m11Rubble = true;
+  const pre = world._m11RubbleGrp;
+  if (pre && pre.userData.at[0] === at[0] && pre.userData.at[1] === at[1]) { delete pre.userData.warmShow; pre.visible = true; return; }
+  world.scene.add(rubbleGroup(world, at));
 }
 
 /**

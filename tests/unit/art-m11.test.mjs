@@ -140,3 +140,28 @@ test('art m11: the process tank\'s caged ladder goes up to its roof landing (wal
   assert.ok(Math.hypot(l.a[0] - cx, l.a[1] - cz) > R + 0.6, 'its foot out in front of the ladder');
   assert.ok(L.points.every((p) => Math.hypot(p[0] - cx, p[1] - cz) < R), 'the landing inside the shell\'s rim');
 });
+
+test('art m11: the tunnel\'s rubble is built hidden at load (drawn by the warm-up frame) and only shown when the tunnel falls', async () => {
+  const THREE = await import('three');
+  const { buildVisuals, tunnelRubble } = await import('../../src/missions/scripts/m11.js');
+  const world = { scene: new THREE.Scene(), structures: new Map(), byId: () => null, groundY: () => 0 };
+  buildVisuals(world, { rubble: [53.4, 30.2] });
+  const rb = world.scene.getObjectByName('m11:tunnel_rubble');
+  assert.ok(rb, 'rubble built at load');
+  assert.equal(rb.visible, false);
+  assert.equal(rb.userData.warmShow, true, 'the warm-up frame draws it (its programs exist before the blast)');
+  assert.equal(rb.children.length, 9);
+  const n = world.scene.children.length;
+  tunnelRubble(world, [53.4, 30.2]);
+  assert.equal(rb.visible, true);
+  assert.ok(!rb.userData.warmShow);
+  assert.equal(world.scene.children.length, n, 'no second rubble built in the blast\'s tick');
+  tunnelRubble(world, [53.4, 30.2]);
+  assert.equal(world.scene.children.length, n);
+  // (somewhere else — no copy built for it: built then)
+  const w2 = { scene: new THREE.Scene(), structures: new Map(), byId: () => null, groundY: () => 0 };
+  buildVisuals(w2, { rubble: [53.4, 30.2] });
+  const n2 = w2.scene.children.length;
+  tunnelRubble(w2, [10, 10]);
+  assert.equal(w2.scene.children.length, n2 + 1);
+});

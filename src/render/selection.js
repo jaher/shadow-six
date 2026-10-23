@@ -35,6 +35,7 @@
 import * as THREE from 'three';
 import { BcdOverlay } from './bcd-overlay.js';
 import { NoiseRings } from './noise-rings.js';
+import { DecoyWaves } from './decoy-waves.js';
 import { XRAY_LAYER } from '../engine/post-passes.js';
 import { reducedMotion } from './fx.js';
 import { CHESS_MARKER, CHESS_RING, RING_PROFILE_GLSL, ringShape } from './ring-pulse.js';
@@ -181,6 +182,8 @@ export class Selection {
     this.pulseT = null;
     /** house rule runningNoise: a ring per running step, growing to its hearing radius (option "NOISE RINGS") */
     this.noise = new NoiseRings(this.group);
+    /** the Green Beret's decoy: three translucent sound-wave rings out to its hearing radius on every beep (render/decoy-waves.js) */
+    this.decoyWaves = new DecoyWaves(this.group);
   }
 
   /** Bind to a world's events (move markers). Call on every mission load. */
@@ -193,10 +196,12 @@ export class Selection {
       this.clickEffect(p.x, p.z, p.kind === 'attack' ? 'attack' : 'move');
     }));
     this.noise.attach(world);
+    this.decoyWaves.attach(world);
   }
 
   detach() {
     this.noise.detach();
+    this.decoyWaves.detach();
     for (const off of this._offs) off();
     this._offs = [];
     this.world = null;
@@ -376,12 +381,14 @@ export class Selection {
   /**
    * Per-frame refresh (render time, not sim time).
    * @param {number} dt frame delta (s)
+   * @param {number} [alpha] interpolation factor between the previous and current sim tick (the decoy waves' clock)
    */
-  update(dt) {
+  update(dt, alpha = 1) {
     const w = this.world;
     if (w?.rules?.puppet) (this.bcd ||= new BcdOverlay(this.group, () => this.world)).update(w); // BCD puppet disc / knock-out arcs
     else this.bcd?.update(null);
     this.noise.update(dt);
+    this.decoyWaves.update(dt, alpha);
     const sel = w ? w.commandos.filter((c) => c.selected && c.alive) : [];
     const now = this.clock(), still = this._still();
     for (const c of this._selT.keys()) if (!sel.includes(c)) this._selT.delete(c);
@@ -447,6 +454,7 @@ export class Selection {
   dispose() {
     this.bcd?.dispose();
     this.noise.dispose();
+    this.decoyWaves.dispose();
     this.detach();
     this.scene.remove(this.group);
     this.ringGeo.dispose();

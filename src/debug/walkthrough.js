@@ -78,6 +78,26 @@ export const SKIP_BOOST = 4;
 /** Wall-clock ms of ticks a displayed frame may run (TickPacer.tickMs): costly stretches slow down, never stall. */
 export const WALK_TICK_MS = 12;
 /**
+ * A fixed speed (4×) keeps each frame within the vsyncs its draw takes (one on a calm host): its ticks get what the draw
+ * leaves of them (as AUTO's do) — of one vsync more once the run lags a frame's worth of ticks behind its speed, so a
+ * heavy stretch plays at its speed at a lower frame rate rather than slower than it. (Each frame used to run up to WALK_TICK_MS of ticks: a frame that missed a
+ * vsync owed 8 ticks the next and missed again — 4× sat at ~30 fps on a calm host, M11 half its frames.) Skipping
+ * waits (×4 more), past SKIP_ALTERNATE, the frames alternate between a draw and a frame of ticks only (up to the
+ * cap): the skip shows at 30 fps with no frame holding the main thread past a vsync.
+ */
+export const SKIP_ALTERNATE = 1.5;
+/** A fixed speed's tick cap this frame (ms; TickPacer.tickMs): `base` (WALK_TICK_MS) for a frame of ticks only. */
+export function fixedTickMs(base, drawMs, lagTicks, frameTicks, tickOnly = false) {
+  if (tickOnly || !(drawMs > 0)) return base;
+  // (the vsyncs the draw itself takes — a loaded host's slow draw: its slack is the ticks' — one more when lagging)
+  const v = 1000 / 60, own = Math.max(1, Math.ceil((drawMs + 1.5 + MIN_TICK_MS) / v)), slots = own + (lagTicks >= frameTicks ? 1 : 0);
+  return Math.min(base, Math.max(MIN_TICK_MS, slots * v - drawMs - 1.5));
+}
+/** Skipping waits at a fixed speed: is this a frame of ticks only (the last one drew, the boost past SKIP_ALTERNATE)? */
+export function skipTickOnly(boost, turbo, drawMs, drewLast) {
+  return !turbo && boost >= SKIP_ALTERNATE && drawMs > 0 && !!drewLast;
+}
+/**
  * Wall-clock ms of ticks per frame while scrubbing to a time: the plain fast-forward's budget (the view is
  * still redrawn every WALK_TURBO_VIEW_MS, so the timeline's clock and fill move while the jump runs).
  */
@@ -441,10 +461,12 @@ export class Walkthrough extends SolutionReplay {
     this._calmUntil = Math.max(this._calmUntil, this.world.time + sec);
   }
 
-  _onOrder(role, u, o) {
-    this._endSkip();
+  _onOrder(role, u, o, meta) {
+    // (an order inside a wait the solution reports — `quiet`: a sneak's leg the game would not take, planned again — does
+    // not end its skip; one that sets a man going ends it on the next frame: _anyBusy)
+    if (!(meta?.quiet && this._skip)) this._endSkip();
     (this._orderT ||= new Map()).set(u, this.world.time);
-    super._onOrder(role, u, o);
+    super._onOrder(role, u, o, meta);
     const tgt = o?.type === 'ability' && o.target && o.target !== u && typeof o.target === 'object' ? o.target : null;
     if (tgt && (Number.isFinite(tgt.x) || tgt.kind)) this._action = { u, t: tgt, until: this.world.time + 6 };
     this._event({ kind: 'order', role, action: orderAction(u, o), target: tgt ? targetTag(tgt) : null });
@@ -542,10 +564,17 @@ export class Walkthrough extends SolutionReplay {
   _frame(dt) {
     this._frameNo++;
     // (the view's draw time, smoothed: _viewMs is the last drawn frame's Game.frame, ticks excluded)
-    if (this._viewMs > 0 && !this.pacer.turbo) this._drawMs = this._drawMs ? this._drawMs * 0.85 + this._viewMs * 0.15 : this._viewMs;
+    if (this._viewMs > 0 && !this.pacer.turbo && this._drewLast !== false) this._drawMs = this._drawMs ? this._drawMs * 0.85 + this._viewMs * 0.15 : this._viewMs;
     this._tickMsBase ??= this.pacer.tickMs;
-    // (AUTO only: its pace is its own to set; a fixed speed — 4× — keeps its tick cap and plays at the speed it shows)
-    this.pacer.tickMs = PERF.adaptiveTicks && this.auto && this._drawMs ? Math.min(this._tickMsBase, this._tickBudget()) : this._tickMsBase;
+    // (AUTO: its pace is its own to set; a fixed speed — 4× — fits its ticks to the vsync and keeps its speed by
+    // taking a second slot when it lags a frame's worth behind: fixedTickMs. Skipping waits, a frame of ticks only after
+    // each drawn one — SolutionReplay's frame hook reads _tickOnly)
+    this._tickOnly = PERF.adaptiveTicks && !this.auto && skipTickOnly(this.pacer.boost, this.pacer.turbo, this._drawMs, this._drewLast);
+    this._drewLast = !this._tickOnly;
+    const frameTicks = this.pacer.speed * this.pacer.boost * (1 / 60) / this.pacer.simDt;
+    this.pacer.tickMs = !PERF.adaptiveTicks ? this._tickMsBase
+      : this.auto ? (this._drawMs ? Math.min(this._tickMsBase, this._tickBudget()) : this._tickMsBase)
+        : this.pacer.turbo ? this._tickMsBase : fixedTickMs(this._tickMsBase, this._drawMs, this.pacer.budget, frameTicks, this._tickOnly);
     // AUTO grants ticks for a steady frame time: one long frame (a hitch, a shader compile) is not paid back with a
     // burst of ticks on the next — at most 1.25× a usual frame's worth, the rest of the lag is let go (the pace is
     // wall time only) — so the ticks per frame follow the eased speed and never pile up into a second hitch
@@ -640,7 +669,21 @@ export class Walkthrough extends SolutionReplay {
   /** A man acting: on the move (his path, his vehicle's), walking up to an order, an action under way (a chat-up held
    * for long is no action). */
   _anyBusy() {
-    return this.world.commandos.some((c) => c.alive && (!!c.path || !!c.vehicle?.path || c.pendingAbility || (c.currentAction && c.currentActionId !== 'distract')));
+    return this.world.commandos.some((c) => c.alive && (this._pathMoving(c) || !!c.vehicle?.path || c.pendingAbility || (c.currentAction && c.currentActionId !== 'distract')));
+  }
+
+  /**
+   * A man's path is action while he moves along it: an order the game refuses (his path gone a tick later, him where he
+   * was — M11's Sapper lying by the parked half-track, his sneak planned again every 0.5 s for half a minute) is none,
+   * and must not end the skip of that wait every half second. (A new order's first tick reads as still: one tick late.)
+   */
+  _pathMoving(c) {
+    if (!c.path) return false;
+    const seen = (this._pathSeen ||= new WeakMap()), tick = this.world.tick;
+    const r = seen.get(c);
+    if (!r) { seen.set(c, { x: c.x, z: c.z, tick, moving: true }); return true; }
+    if (r.tick !== tick) { r.moving = Math.hypot(c.x - r.x, c.z - r.z) > 1e-3; r.x = c.x; r.z = c.z; r.tick = tick; }
+    return r.moving;
   }
 
   /** Skip a true wait like a jump: ticks by wall time, the view redrawn now and then, a "waiting" tag. */

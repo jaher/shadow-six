@@ -97,6 +97,7 @@ test('m07: the parties meet only by boat — group A reaches the crate, the dock
   // gate_n is the only way into the dockyard; the NE gate is locked (opening it would join the pocket to the village side)
   const gate = ctx.handle.structures.get('gate_n');
   for (let k = 0; k < g.size; k++) if (g.owner[k] === gate.owner) g.block[k] = B.HIGH;
+  g.version++; // (a writer of the grid's layers bumps its version: the searches' per-version layers)
   assert.ok(!reach(g, GROUP_A, A.dock, 'sapper'), 'with gate_n shut the dock is closed');
   assert.ok(M().structures.find((s) => s.id === 'gate_ne').locked);
 });

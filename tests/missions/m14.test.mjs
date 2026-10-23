@@ -113,6 +113,7 @@ test('m14: levels — the ridge is GB-only (5 climb spots), g1 and bar_n roofs G
     const k = g.idx(Math.floor(x / g.cell), Math.floor(z / g.cell));
     if (g.elev[k] < 0.3 && z > 76 && z < 92) g.block[k] = B.HIGH;
   }
+  g.version++; // (a writer of the grid's layers bumps its version: the searches' per-version layers)
   assert.ok(!reach(g, START, { x: 30, z: 70 }, 'sapper'), 'without the E passes the N half is cut off (sapper)');
 });
 

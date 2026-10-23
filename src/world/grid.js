@@ -49,6 +49,8 @@ export const LOW_TOP = 1.0;
 export const LEVEL_TOL = 0.5;
 /** Link kinds (§7.3 climbLinks / ladders). */
 const EMPTY = Object.freeze([]);
+/** Version bumps NavGrid keeps the touched rows of (dirtyRowsSince). */
+const DIRTY_LOG = 64;
 export const LINK = Object.freeze({ CLIMB: 'climb', LADDER: 'ladder' });
 
 /**
@@ -342,6 +344,35 @@ export class NavGrid {
   }
 
   /**
+   * version++ for a change confined to cell rows j0..j1 (an empty range: nothing a cell layer holds). The last
+   * DIRTY_LOG such bumps are kept while nothing else bumps the version in between (a writer's own `version++`
+   * starts the log afresh): dirtyRowsSince tells a per-version cache (pathfinding's staticLayers) which rows to redo.
+   */
+  _bumpRows(j0, j1) {
+    let log = this._dirtyLog;
+    if (!log || (log.length && log[log.length - 1].v !== this.version)) log = this._dirtyLog = [];
+    log.push({ v: this.version + 1, j0, j1 });
+    if (log.length > DIRTY_LOG) log.shift();
+    this.version++;
+  }
+
+  /** The rows {j0, j1} every version bump after `version` up to now touched, or null when not known (redo everything). */
+  dirtyRowsSince(version) {
+    const log = this._dirtyLog;
+    if (!log || !log.length || version >= this.version || log[log.length - 1].v !== this.version || log[0].v > version + 1) return null;
+    let j0 = Infinity, j1 = -Infinity;
+    for (let n = log.length - 1; n >= 0 && log[n].v > version; n--) { if (log[n].j0 < j0) j0 = log[n].j0; if (log[n].j1 > j1) j1 = log[n].j1; }
+    return { j0, j1 };
+  }
+
+  /** Rows j0..j1 spanned by cell indices `cells` (an iterable). */
+  _rowsOf(cells, out = { j0: Infinity, j1: -Infinity }) {
+    const cols = this.cols;
+    for (const k of cells) { const j = (k / cols) | 0; if (j < out.j0) out.j0 = j; if (j > out.j1) out.j1 = j; }
+    return out;
+  }
+
+  /**
    * Fill an axis-aligned rectangle given by its min corner (x, z) and size (w, d).
    * A cell is filled when its centre lies inside the rectangle.
    * @param {string} layerName 'terrain' | 'block' | 'bridge' | 'owner'
@@ -376,7 +407,7 @@ export class NavGrid {
         if (pointInPolygon((i + 0.5) * c, (j + 0.5) * c, points)) this._write(j * this.cols + i, layer, value, owner);
       }
     }
-    this.version++;
+    this._bumpRows(j0, j1);
   }
 
   /**
@@ -489,16 +520,18 @@ export class NavGrid {
    * @returns {number} number of cells cleared
    */
   clearOwner(owner) {
-    let n = 0;
+    let n = 0, k0 = -1, k1 = -1;
     for (let k = 0; k < this.size; k++) {
       if (this.owner[k] === owner) {
         this.block[k] = B.NONE;
         this.bridge[k] = 0;
         this.owner[k] = 0;
+        if (k0 < 0) k0 = k;
+        k1 = k;
         n++;
       }
     }
-    if (n) this.version++;
+    if (n) this._bumpRows((k0 / this.cols) | 0, (k1 / this.cols) | 0);
     return n;
   }
 
@@ -759,7 +792,9 @@ export class NavGrid {
     if (prev) for (const k of prev) if (!next.has(k) && this.navBlock[k]) this.navBlock[k]--;
     for (const k of next) if (!prev || !prev.has(k)) this.navBlock[k] = Math.min(255, this.navBlock[k] + 1);
     if (next.size) this._navStamps.set(key, next); else this._navStamps.delete(key);
-    this.version++;
+    const r = this._rowsOf(next);
+    if (prev) this._rowsOf(prev, r);
+    this._bumpRows(r.j0, r.j1);
   }
 
   /**
@@ -787,7 +822,8 @@ export class NavGrid {
       this.overLo[k] = lo; this.overHi[k] = hi; this.softLo[k] = slo; this.softHi[k] = shi;
       if (this.overLo[k] !== Infinity) over.add(k); else over.delete(k);
     }
-    this.version++;
+    const r = this._rowsOf(touched);
+    this._bumpRows(r.j0, r.j1);
   }
 
   /**

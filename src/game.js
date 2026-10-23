@@ -446,6 +446,15 @@ export class Game {
     // a slice at a time; the warm-up frame below is that first frame and puts it in the scene as it always did
     if (this.mapHandle?.prepareG) await safeAsync(() => runSliced(this.mapHandle.prepareG()), 'map first-frame build');
     if (this.world !== world) return prog.cancel(), world;
+    // the mission's own scenery (its script's `visuals`: M11's ramps, portals and oil crater, M12's platform…): built
+    // now, before the warm-up frame below draws the map — not by the script's first run on the first tick of play (its
+    // textures still loading: dark surfaces for the first frames), and not after the warm-up either (its programs then
+    // compiled during play, the first time the camera saw them: M11's crater wellhead, a 167 ms frame in video mode).
+    // The script finds it built (missions/setpieces.js; idempotent, no sim state)
+    await safeAsync(() => def.script?.visuals?.(world), 'mission visuals'); // (may be a sliced job: M20's castle)
+    if (this.world !== world) return prog.cancel(), world;
+    // (and what a model builds on its first update: `model.prepare(entity)` — the cable car's line)
+    for (const e of world.entities) if (typeof e.model?.prepare === 'function') safe(() => e.model.prepare(e), 'model prepare');
     // every pass's programs for everything on the map (shadow depth, AO normals, mirror, x-ray variants): compiled now,
     // not as first-sight hitches when the camera reaches them during play
     if (ruins.length) await safeAsync(() => Promise.race([Promise.all(ruins.map((rr) => rr.ready)), new Promise((ok) => setTimeout(ok, 8000))]), 'ruins');
@@ -457,6 +466,7 @@ export class Game {
     const dig = gb ? safe(() => digWarmObjects(gb.x, gb.z, (world.groundY?.(gb.x, gb.z) || 0) + (gb.y || 0)), 'dig warm-up') : null;
     safe(() => world.blood?.layers?.pools?.warmMesh?.(), 'blood pools warm-up'); // (drawn by the warm-up frame only)
     safe(() => this.selection?.noise?.prewarm?.(), 'noise ring warm-up'); // (the first running step's ring)
+    safe(() => this.selection?.decoyWaves?.prewarm?.(), 'decoy wave warm-up'); // (the first decoy beep's sound waves)
     const wireWarm = safe(() => this.mapHandle?.wire?.warmObjects?.(), 'wire warm-up') || []; // (a cut's flaps and hollow)
     // (+ the raft deflated / inflating and the strapped pack, where the Marine can inflate or pack one: art/raft-actions.js)
     const diver = world.commandos.find((c) => c.role === 'diver'), rv = world.vehicles.find((v) => v.vehicleType === 'raft') || diver;
@@ -511,13 +521,7 @@ export class Game {
     const first = world.commandos.find((c) => c.alive);
     if (first) this.input.select([first]);
     this.accumulator = 0;
-    // the mission's own scenery (its script's `visuals`: M11's ramps and portals, M12's platform…): built now, as the
-    // load ends — not by the script's first run on the first tick of play, its textures still loading (dark surfaces
-    // for the first frames) and its programs compiling then; the script finds it built (missions/setpieces.js)
-    await safeAsync(() => def.script?.visuals?.(world), 'mission visuals'); // (may be a sliced job: M20's castle)
-    if (this.world !== world) return prog.cancel(), world;
-    // (and what a model builds on its first update: `model.prepare(entity)` — the cable car's line)
-    for (const e of world.entities) if (typeof e.model?.prepare === 'function') safe(() => e.model.prepare(e), 'model prepare');
+    // (the mission's own scenery was built before the warm-up frame: see 'mission visuals' above)
     // (the ladders measured again over that scenery — what _laddersFrame did on the first tick of play — sliced)
     if (def.script?.visuals && this.ladders) {
       safe(() => this.ladders.dispose(), 'ladders dispose');
@@ -1165,7 +1169,7 @@ export class Game {
     }
     if (w?.fx) safe(() => w.fx.frame?.(), 'fx frame'); // VFX sort/upload, lights, decals (sim runs in step())
     if (w?.blood) safe(() => w.blood.frame(), 'blood frame'); // pool flow sims + atlas uploads, stain uniforms
-    this.selection.update(dt);
+    this.selection.update(dt, alpha);
     this.input.update?.(dt);
     // world matrices once per frame, not once per render pass (main, GTAO normals, x-ray, water, …): with 46 skinned
     // characters (~100 nodes each) the per-pass scene.updateMatrixWorld was the single largest CPU cost
@@ -1235,7 +1239,8 @@ export class Game {
       const Cones = pick(ConeMod, 'VisionCones', 'default');
       this.cones = safe(() => (Cones ? new Cones(w, this.renderer.decalScene || this.renderer.overlayScene) : null), 'vision-cones') || { update() {}, dispose() {} };
     }
-    safe(() => this.cones.update(), 'vision-cones');
+    // (one view: its camera — cones off the screen wait; several views: every cone)
+    safe(() => this.cones.update((this.cameraRig?.count ?? 1) > 1 ? null : this.renderer.camera), 'vision-cones');
   }
 
   // ------------------------------------------------------------ save / load

@@ -127,8 +127,10 @@ test('m02: sealed camp — gate and raised ladder; wall walk; zones → alarm; g
     const x = (k % grid.cols + 0.5) * grid.cell - fw[0], z = (Math.floor(k / grid.cols) + 0.5) * grid.cell - fw[1];
     if (Math.hypot(x, z) < 1.3 && !grid.navBlock[k]) { grid.navBlock[k] = 1; shut.push(k); }
   }
+  grid.version++; // (a writer of the grid's layers bumps its version: the searches' per-version layers)
   assert.equal(findPath(grid, 23, 45, 40, 30, { role: 'sniper' }), null, 'footway shut, boom down, ladder up: no way in');
   for (const k of shut) grid.navBlock[k] = 0;
+  grid.version++;
   assert.ok(findPath(grid, 23, 45, 40, 30, { role: 'greenberet' }), 'GB climbs the SW wall');
   applyIntendedAbilities(ctx);
   assert.ok(findPath(grid, 23, 45, 40, 30, { role: 'sniper' }), 'lowered ladder / raised barrier');
