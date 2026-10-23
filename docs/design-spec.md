@@ -355,8 +355,9 @@ The animation names are the humanoid names from ARCHITECTURE. Each voice cue is 
   3. While on, it emits a **decoy noise pulse every 1.5 s** (`INTERVALOSND 30`) with a 13.5 m radius (§4.4).
   4. **H** on the decoy picks it up again (he must walk to it). This restores the Q item and cancels the activator.
   - Enemies react as in §4.6 `DECOY`. The BEEP technique (toggling it on and off quickly to pull one or two guards) must work: each pulse is a separate stimulus.
-  - SFX `decoy_beep`, positional. Visual (SHADOW SIX, user 2026-10-22 "transparent air blast … like sound wave"): each pulse sends three thin translucent
-    rings over the ground (the leader reaches the 13.5 m hearing radius, the others fall short), starting with the beep; render only (`render/decoy-waves.js`).
+  - SFX `decoy_beep`, positional. Visual (SHADOW SIX, user 2026-10-22 "transparent air blast … like sound wave", then "I would rather have the air bend / refract
+    with a spherical sound wave around the decoy"): each pulse sends three spherical shells of bent air out from the radio (the leader reaches the 13.5 m hearing radius,
+    the others fall short), starting with the beep; the scene behind each shell is refracted, nothing is painted; render only (`render/decoy-waves.js`, `render/decoy-refraction.js`).
 - **Shovel (F).**
   - Allowed only when the ground cell is `SNOW` or `SAND`, and only in missions 1–11.
   - `use` animation for 2.0 s, with a snow or sand spray FX. He then becomes `state:'hidden'` with `buried:true` and a slight mound decal.

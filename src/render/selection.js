@@ -182,8 +182,8 @@ export class Selection {
     this.pulseT = null;
     /** house rule runningNoise: a ring per running step, growing to its hearing radius (option "NOISE RINGS") */
     this.noise = new NoiseRings(this.group);
-    /** the Green Beret's decoy: three translucent sound-wave rings out to its hearing radius on every beep (render/decoy-waves.js) */
-    this.decoyWaves = new DecoyWaves(this.group);
+    /** the Green Beret's decoy: three spherical shells of refracted air out to its hearing radius on every beep (render/decoy-waves.js, decoy-refraction.js) */
+    this.decoyWaves = new DecoyWaves();
   }
 
   /** Bind to a world's events (move markers). Call on every mission load. */

@@ -165,6 +165,7 @@ export class Game {
     this.pendingEnd = null;
     this.selection = new Selection(this.renderer.decalScene);
     this.selection.xrayHidden = (o) => this.renderer.passes?.xray?.isHidden(o) ?? true;
+    safe(() => this.selection.decoyWaves.install(this.renderer), 'decoy refraction pass'); // (a post pass after the world: the bent air of a beeping decoy)
     assets.init(this.renderer.renderer, this.events);
     // the bodies' HD textures stream in after each loading screen (engine/hd-textures.js, perf/download-speed-2)
     safe(() => startHdTextures({ renderer: this.renderer.renderer, playing: () => this.state === 'playing', active: () => !!this.world }), 'hd textures');
@@ -467,7 +468,6 @@ export class Game {
     const dig = gb ? safe(() => digWarmObjects(gb.x, gb.z, (world.groundY?.(gb.x, gb.z) || 0) + (gb.y || 0)), 'dig warm-up') : null;
     safe(() => world.blood?.layers?.pools?.warmMesh?.(), 'blood pools warm-up'); // (drawn by the warm-up frame only)
     safe(() => this.selection?.noise?.prewarm?.(), 'noise ring warm-up'); // (the first running step's ring)
-    safe(() => this.selection?.decoyWaves?.prewarm?.(), 'decoy wave warm-up'); // (the first decoy beep's sound waves)
     const wireWarm = safe(() => this.mapHandle?.wire?.warmObjects?.(), 'wire warm-up') || []; // (a cut's flaps and hollow)
     // (+ the raft deflated / inflating and the strapped pack, where the Marine can inflate or pack one: art/raft-actions.js)
     const diver = world.commandos.find((c) => c.role === 'diver'), rv = world.vehicles.find((v) => v.vehicleType === 'raft') || diver;
@@ -628,6 +628,9 @@ export class Game {
       }
       // (the ground decals' scene too: the selection's noise rings…)
       r.decalScene?.traverse((o) => { if (o.userData?.warmShow && !o.visible) { few.push(o, 'visible', false); o.visible = true; } });
+      // (and the decoy's refraction pass, in the composer: its copies and its shell draw, a few pixels each)
+      const refr = this.selection?.decoyWaves?.pass;
+      if (refr) { few.push(refr, 'warm', false); refr.warm = true; }
       // a vision cone (one guard's: the cones come and go with video mode's steps) and the selection's path line
       const cones = this.cones, forced0 = cones?.forced, foe = w.enemies.find((e) => e.alive && e.vision);
       if (cones && 'forced' in cones && foe) { cones.forced = new Set([foe]); cones.deferForced = false; safe(() => cones.update(), 'warm cone'); cones.deferForced = true; }
