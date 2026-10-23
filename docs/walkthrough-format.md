@@ -33,8 +33,10 @@ and its mission). Format version: **1** (stable; new fields will only ever be op
   them fast and slows down by itself for the moments that matter, and the caption stays on the step being waited for.
   AUTO reads the step too: its `who` closing in on a guard named in its `look` slows the play down ahead of the
   action, and a new caption is never played faster than 2.5× while it is read. A true wait (nobody acts, the solution
-  waits in a `D.until`, a sneak's gap or a timer of 2 s or more) is skipped like a jump under a tag reading
-  "⏩ waiting: <the until's label>": so write those labels for a viewer ("e19 down his beat, p5 by the decoy").
+  waits in a `D.until`, a sneak's gap or a timer of 2 s or more) is skipped as a time-lapse — drawn every frame, as fast
+  as the frame budget allows, the AUTO eases still on (a guard walking onto a set trap brings it down to 1× at the
+  snap) — under a tag reading "⏩ waiting: <the until's label>": so write those labels for a viewer ("e19 down his
+  beat, p5 by the decoy"). A boat rowed or a vehicle driven is never a wait, even turning on the spot between legs.
 
 ## The file
 

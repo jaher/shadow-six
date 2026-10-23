@@ -47,6 +47,19 @@ export class ActionHolds {
     if (h) h.end = t + clipLeft(unit);
   }
 
+  /**
+   * A moment no commando's action is under way for — a set trap snapping shut on a guard (`unit`: the victim, `target`:
+   * the trap) — watched while he falls, plus the beat: the director frames it, AUTO plays it at 1×, the next chapter's
+   * card waits for it (M2: the card went up at the very tick of the snap and the fall was seen 4.5 s later).
+   */
+  watch(unit, id, target, t, meta = {}) {
+    if (!unit) return null;
+    const h = { unit, id, target: target && target !== unit ? target : null, t0: t, end: t, fallEnd: t + FALL_S, meta };
+    this.list = this.list.filter((x) => x.unit !== unit);
+    this.list.push(h);
+    return h;
+  }
+
   /** A man died: the hold of his killer (or of the action aimed at him) lasts while he falls. */
   killed(victim, killer, t) {
     for (const h of this.list) if (h.unit === killer || (h.target && h.target === victim)) h.fallEnd = t + FALL_S;

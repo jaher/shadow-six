@@ -252,23 +252,27 @@ export class WakeTracker {
       const cls = this._classOf(e);
       if (!cls) { this.state.delete(e); continue; }
       seen.add(e);
-      const wet = this.isWet(e.x, e.z);
+      // (where it is DRAWN this frame — between its last two ticks, Entity.syncTransform ran first — not its last tick:
+      // a frame that ran 0, 1 or 2 ticks (60 Hz sim on a 144 Hz screen, a replay at 2.5×) must not read as a boat
+      // stopping and lurching on — its wake flickered on and off with the ticks)
+      const o = e.object3d?.position, ex = o && Number.isFinite(o.x) ? o.x : e.x, ez = o && Number.isFinite(o.z) ? o.z : e.z;
+      const wet = this.isWet(ex, ez);
       let st = this.state.get(e);
-      if (!st) { this.state.set(e, st = { x: e.x, z: e.z, wet, alive: e.alive !== false, acc: 0 }); continue; }
+      if (!st) { this.state.set(e, st = { x: ex, z: ez, wet, alive: e.alive !== false, acc: 0 }); continue; }
       const alive = e.alive !== false;
-      if (wet && !st.wet) this.splash(e.x, e.z, cls === 'boat' ? 1.4 : alive ? 0.6 : 1);   // wades / falls in
+      if (wet && !st.wet) this.splash(ex, ez, cls === 'boat' ? 1.4 : alive ? 0.6 : 1);   // wades / falls in
       else if (!wet && st.wet && cls !== 'boat') this._emit(st.x, st.z, 0.03, 0.5, 0.2);   // climbs out
-      if (wet && st.alive && !alive) this.splash(e.x, e.z, 0.9);                          // dies in the water
-      const dx = e.x - st.x, dz = e.z - st.z, v = Math.hypot(dx, dz) / dt;
+      if (wet && st.alive && !alive) this.splash(ex, ez, 0.9);                          // dies in the water
+      const dx = ex - st.x, dz = ez - st.z, v = Math.hypot(dx, dz) / dt;
       st.acc += dt;
       const W = WAKE[cls];
-      if (cls === 'boat') this._boat(e, st, wet, alive, dx, dz, v, dt);
+      if (cls === 'boat') this._boat(e, st, wet, alive, dx, dz, v, dt, ex, ez);
       else if (wet && alive && v > 0.15 && v < 40 && st.acc >= W.dt) {
         st.acc = 0;
-        st.flip = !st.flip; this._emit(e.x, e.z, (st.flip ? -1 : 0.6) * W.s * Math.min(2, 0.6 + v / 2), W.r, W.foam); // strokes
+        st.flip = !st.flip; this._emit(ex, ez, (st.flip ? -1 : 0.6) * W.s * Math.min(2, 0.6 + v / 2), W.r, W.foam); // strokes
       }
-      if (cls === 'dive' && wet && alive) this._bubbles(e, st, dt);
-      st.x = e.x; st.z = e.z; st.wet = wet; st.alive = alive;
+      if (cls === 'dive' && wet && alive) this._bubbles(e, st, dt, ex, ez);
+      st.x = ex; st.z = ez; st.wet = wet; st.alive = alive;
     }
     for (const e of [...this.state.keys()]) if (!seen.has(e)) this.state.delete(e);
   }
@@ -277,14 +281,14 @@ export class WakeTracker {
    * A diver's exhaled bubbles (design-spec §3.4 "bubble trail"): every 0.6-1.6 s a little cluster of boils breaks the
    * surface over his head (≈0.7 m ahead of his hips), a few small foam specks that fade — while he swims or hovers.
    */
-  _bubbles(e, st, dt) {
+  _bubbles(e, st, dt, ex = e.x, ez = e.z) {
     st.bub = (st.bub ?? 0.3 + this._rand()) - dt;
     if (st.bub > 0) return;
     st.bub = 0.6 + this._rand();
     const h = e.heading || 0, fx = Math.cos(h), fz = Math.sin(h), n = 2 + Math.floor(this._rand() * 2);
     for (let k = 0; k < n; k++) {
       const a = this._rand() * Math.PI * 2, r = 0.05 + this._rand() * 0.18;
-      this._emit(e.x + fx * 0.7 + Math.cos(a) * r, e.z + fz * 0.7 + Math.sin(a) * r, 0.006, 0.12 + this._rand() * 0.08, 0.45 + this._rand() * 0.3);
+      this._emit(ex + fx * 0.7 + Math.cos(a) * r, ez + fz * 0.7 + Math.sin(a) * r, 0.006, 0.12 + this._rand() * 0.08, 0.45 + this._rand() * 0.3);
     }
   }
 
@@ -295,7 +299,7 @@ export class WakeTracker {
    * for rowed craft, alternating paddle strokes (a catch ring + a swirl left astern). At rest: quiet water, only a
    * faint lap every few seconds and no foam; the last wake keeps spreading and fades.
    */
-  _boat(e, st, wet, alive, dx, dz, v, dt) {
+  _boat(e, st, wet, alive, dx, dz, v, dt, ex = e.x, ez = e.z) {
     const P = st.prof || (st.prof = boatProfile(e.def));
     // hull size: the registry footprint, or the true-scale library hull when it is bigger (the patrol boat)
     const md = e.model?.library ? e.model.dims : null;
@@ -308,10 +312,10 @@ export class WakeTracker {
       st.fx = fx; st.fz = fz;
       const k = Math.min(1.6, 0.35 + sv / 3.2), kb = Math.min(1.5, (sv / 3) ** 2);
       // bow wave (∝ v²): the hull pushes the surface down ahead of it, a little spray at speed
-      this._emit(e.x + fx * len * 0.5, e.z + fz * len * 0.5, -(0.006 + 0.022 * P.bow * kb), beam * 0.6, 0.15 * P.bow * kb);
+      this._emit(ex + fx * len * 0.5, ez + fz * len * 0.5, -(0.006 + 0.022 * P.bow * kb), beam * 0.6, 0.15 * P.bow * kb);
       // wash astern: broken, uneven foam (seeded jitter), slewed outward in a turn
       const slew = Math.max(-1, Math.min(1, turn / 1.5)) * beam * 0.35, jit = (this._rand() - 0.5) * beam * 0.3;
-      this._emit(e.x - fx * len * 0.55 + px * (jit - slew), e.z - fz * len * 0.55 + pz * (jit - slew), -0.005 * k,
+      this._emit(ex - fx * len * 0.55 + px * (jit - slew), ez - fz * len * 0.55 + pz * (jit - slew), -0.005 * k,
         beam * (0.26 + 0.14 * this._rand()), Math.min(1, P.wash * k * (0.6 + 0.8 * this._rand())));
       // Kelvin arms: a crest pair every 0.2 s at the bow shoulders
       st.crestAcc = (st.crestAcc || 0) + dt;
@@ -320,7 +324,7 @@ export class WakeTracker {
         const life = Math.min(3.4, 1.8 + sv * 0.4), lat = sv * KELVIN_TAN, amt = P.crest * Math.min(1, 0.35 + sv / 3.5);
         for (let a = 0; a < 2; a++) {
           const sg = a ? 1 : -1, arm = arms[a];
-          arm.push({ x: e.x + fx * len * 0.3 + px * beam * 0.5 * sg, z: e.z + fz * len * 0.3 + pz * beam * 0.5 * sg,
+          arm.push({ x: ex + fx * len * 0.3 + px * beam * 0.5 * sg, z: ez + fz * len * 0.3 + pz * beam * 0.5 * sg,
             vx: px * sg * lat, vz: pz * sg * lat, age: 0, life, amt });
           if (arm.length > 24) arm.splice(0, arm.length - 24);
         }
@@ -330,7 +334,7 @@ export class WakeTracker {
         st.strokeT = (st.strokeT || 0) + dt;
         if (st.strokeT >= P.stroke) {
           st.strokeT = 0; st.side = -(st.side || 1);
-          const ox = e.x - fx * len * 0.05 + px * beam * 0.62 * st.side, oz = e.z - fz * len * 0.05 + pz * beam * 0.62 * st.side;
+          const ox = ex - fx * len * 0.05 + px * beam * 0.62 * st.side, oz = ez - fz * len * 0.05 + pz * beam * 0.62 * st.side;
           this._emit(ox, oz, 0.02, 0.5, 0.45);
           puddles.push({ x: ox - fx * 0.6, z: oz - fz * 0.6, t: 0.3 });
         }
@@ -340,7 +344,7 @@ export class WakeTracker {
       if (P.oars) st.rowStill = (st.rowStill ?? 9) + dt;
       if (wet && alive) { // quiet: a faint lap round the hull every few seconds, no foam
         st.lap = (st.lap || 0) + dt;
-        if (st.lap >= 2.6) { st.lap = 0; this._emit(e.x, e.z, 0.006, beam * 0.8, 0); }
+        if (st.lap >= 2.6) { st.lap = 0; this._emit(ex, ez, 0.006, beam * 0.8, 0); }
       }
     }
     // oars (rowboat): the row clock runs while the boat makes way (a display frame without a sim tick is not a stop);
@@ -353,7 +357,7 @@ export class WakeTracker {
         st.rowU -= 1;
         const fx = st.hx, fz = st.hz, px = -fz, pz = fx;
         for (const sg of [1, -1]) {
-          const ox = e.x + fx * OAR_CATCH.fwd + px * OAR_CATCH.side * sg, oz = e.z + fz * OAR_CATCH.fwd + pz * OAR_CATCH.side * sg;
+          const ox = ex + fx * OAR_CATCH.fwd + px * OAR_CATCH.side * sg, oz = ez + fz * OAR_CATCH.fwd + pz * OAR_CATCH.side * sg;
           this._emit(ox, oz, 0.02, 0.5, 0.45);
           puddles.push({ x: ox, z: oz, t: ROW.drive * per });
         }
@@ -366,7 +370,7 @@ export class WakeTracker {
     // crest particles: out at tan(θ)·v, drifting with the current. Each arm is drawn as capsules between
     // neighbouring particles (a continuous crest line), a third of them per frame (round robin)
     if (!arms[0].length && !arms[1].length) return;
-    const fl = this.flowAt ? this.flowAt(e.x, e.z) : null, cx = fl?.[0] || 0, cz = fl?.[1] || 0;
+    const fl = this.flowAt ? this.flowAt(ex, ez) : null, cx = fl?.[0] || 0, cz = fl?.[1] || 0;
     st.rr = ((st.rr || 0) + 1) % 3;
     for (const arm of arms) {
       for (let i = arm.length - 1; i >= 0; i--) {

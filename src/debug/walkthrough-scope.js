@@ -250,7 +250,7 @@ export class ScopeShow {
     this.sniper = u;
     // (no ticks granted ahead may run on now: a budget carried from a fast stretch — skip waits at 4× × 4 — would spend
     // the rifle's whole aim in a frame or two; the next frame grants the scope's pace)
-    this.wk.pacer.budget = 0;
+    this.wk.pacer.budget = Math.min(this.wk.pacer.budget, 0.999);
     if (this.drop != null) this.up0 = this.s; // (it was coming down: back up for the next man)
     this.drop = null;
     const kind = swing ? 'swing' : 'first';

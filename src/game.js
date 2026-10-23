@@ -1080,7 +1080,9 @@ export class Game {
   /** One displayed frame: accumulate sim ticks (unless manualTick), then render. */
   _frame(dt) {
     const simDt = CONFIG.sim.dt;
-    let alpha = 1;
+    // (a clock granted from outside — the debug replays: debug/solution-replay.js — may say where between its last two
+    // ticks this frame falls: `renderAlpha`, so the entities are drawn interpolated as in the game's own loop)
+    let alpha = this.manualTick && Number.isFinite(this.renderAlpha) ? Math.max(0, Math.min(1, this.renderAlpha)) : 1;
     if (this.world && this.state === 'playing' && !this.manualTick) {
       this.accumulator += dt * this.timeScale;
       let steps = 0;

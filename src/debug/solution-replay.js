@@ -77,16 +77,40 @@ export class TickPacer {
     this.turbo = false;
     this.budget = 0;
     this.deadline = 0;
+    /**
+     * The budget the last frame's ticks left (in ticks, before this frame's grant): how far the clock owed is past the
+     * last tick. Below 1 it is where between the last two ticks this frame's picture falls (alpha()).
+     */
+    this.lead = 0;
+    /**
+     * At most this many frames' grants may wait in the budget (null: up to maxPerFrame): a frame whose ticks were cut
+     * short by `tickMs` lets the rest go instead of paying it back in a burst of ticks on a later frame (the picture
+     * would jump: M2's raft, 31 ticks in one frame). Video mode's AUTO sets it (its pace is wall time only).
+     */
+    this.lagFrames = null;
   }
 
   /** A displayed frame of `dt` real seconds at wall time `now` (ms). */
   frame(dt, now) {
-    if (this.paused) { this.budget = 0; return; }
-    if (this.turbo) { this.deadline = now + this.turboMs; return; }
+    // (paused: nothing owed beyond the part of a tick the picture stands at — it stays where it was, and goes on from there)
+    if (this.paused) { this.budget = Math.min(this.budget, 0.999); this.lead = this.budget; return; }
+    if (this.turbo) { this.deadline = now + this.turboMs; this.lead = 1; return; }
     this.tickFrom = -1;
     const d = Math.max(0, Math.min(dt, CONFIG.render?.maxDelta ?? 0.25));
-    const k = this.speed * this.boost;
-    this.budget = Math.min(this.budget + (d * k) / this.simDt, this.maxPerFrame * Math.max(1, k));
+    const k = this.speed * this.boost, g = (d * k) / this.simDt;
+    if (this.lagFrames != null && this.budget > 1 + g * this.lagFrames) this.budget = 1 + g * this.lagFrames;
+    this.lead = this.budget;
+    this.budget = Math.min(this.budget + g, this.maxPerFrame * Math.max(1, k));
+  }
+
+  /**
+   * Where this frame's picture falls between the last two ticks (0 = the one before the last, 1 = the last): the part
+   * of a tick the clock owed was past the last tick when the frame started. The frame draws before its own ticks run,
+   * so the picture runs one tick behind the clock and advances by exactly the frame's grant — even steps whatever the
+   * ticks per frame (2, 3, 2, 3… at 2.5×). 1 while fast-forwarding, paused or behind (a frame's ticks cut short).
+   */
+  alpha() {
+    return this.turbo || this.paused ? 1 : Math.max(0, Math.min(1, this.lead));
   }
 
   /** May a tick run now? */
@@ -255,8 +279,11 @@ export class SolutionReplay {
       this._viewAt = now;
       const vdt = Math.min(this._viewDt, CONFIG.render?.maxDelta ?? 0.25);
       this._viewDt = 0;
-      // animation time follows the sim speed (legs keep pace with the ground covered at 8×)
-      const out = frame.call(g, vdt * this._animScale());
+      // animation time follows the sim speed (legs keep pace with the ground covered at 8×); the entities drawn where
+      // the clock is between the last two ticks (TickPacer.alpha: even steps at any speed)
+      g.renderAlpha = this.renderAlpha;
+      let out;
+      try { out = frame.call(g, vdt * this._animScale()); } finally { g.renderAlpha = null; }
       this._viewMs = performance.now() - now; // (how long a draw takes here: the fast-forward's next view waits for it)
       return out;
     };
@@ -266,6 +293,7 @@ export class SolutionReplay {
       ev.on('ability:start', (p) => this.holds.start(p?.unit, p?.id, p?.target ?? null, T(), this._holdMeta())),
       ev.on('ability:end', (p) => this.holds.end(p?.unit, p?.id, T())),
       ev.on('unit:killed', (p) => this.holds.killed(p?.unit, p?.killer, T())),
+      ev.on('trap:sprung', (p) => this.holds.watch(p?.victim, 'trap', p?.trap ?? null, T(), this._holdMeta())),
     ] : [];
     if (this.toMarker) this.pacer.setTurbo(true);
     this._buildUi();
@@ -468,6 +496,8 @@ export class SolutionReplay {
     if (g.state === 'won' || g.state === 'lost') {
       // the game is over: wake the driver so its end loop sees it
     } else if (g.state === 'playing' && !this.isFrozen()) this.pacer.frame(dt, performance.now());
+    // (where this frame's picture falls between the last two ticks: the draw and the camera's points — _at)
+    this.renderAlpha = this.pacer.alpha();
     // a sliced plan goes on in this frame (after its draw, like the ticks)
     const pw = this._pauseWaiter;
     if (pw) { this._pauseWaiter = null; pw.res(); }
@@ -504,12 +534,24 @@ export class SolutionReplay {
 
   // ------------------------------------------------------------ what the smart camera frames
 
+  /**
+   * Where entity `e` is drawn this frame (x, z): between its last two ticks by the frame's renderAlpha, as Game.render
+   * draws it — the camera framed on the drawn man, not on the tick ahead (a camera cut to him every frame, a skipped
+   * wait's, moves as smoothly as he does).
+   */
+  _at(e) {
+    const a = this.renderAlpha ?? 1;
+    if (a >= 1 || !Number.isFinite(e.prevX) || !Number.isFinite(e.prevZ)) return { x: e.x, z: e.z };
+    return { x: e.prevX + (e.x - e.prevX) * a, z: e.prevZ + (e.z - e.prevZ) * a };
+  }
+
   /** A camera point for a unit (his vehicle while he rides), `unseen` when hidden by design — as the walkthrough's resolve(). */
   _pointOf(u) {
     const w = this.world;
     const e = u?.vehicle && !u.vehicle.removed ? u.vehicle : u;
     if (!e || e.removed) return null;
-    const p = { x: e.x, z: e.z, y: e.y ?? (w.grid?.elevAt?.(e.x, e.z) ?? 0) };
+    const { x, z } = this._at(e);
+    const p = { x, z, y: e.y ?? (w.grid?.elevAt?.(x, z) ?? 0) };
     if (u.insideStructure || u.buried || u.underwater || u.diving || u.object3d?.visible === false) p.unseen = true;
     return p;
   }
@@ -600,7 +642,7 @@ export class SolutionReplay {
   togglePause() {
     const g = this.game;
     if (g.state === 'playing' || g.state === 'paused') g.togglePause();
-    this.pacer.budget = 0;
+    this.pacer.budget = Math.min(this.pacer.budget, 0.999); // (no backlog; the picture stays where it is)
     this._syncBar();
   }
 

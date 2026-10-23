@@ -9,7 +9,8 @@
  *     clip, then a beat (debug/action-hold.js) — the camera on her, her step's caption, AUTO at 1×; only then the
  *     chapter D card and the Marine;
  *  3. the plain SOLUTION replay (▶ SOL / F9) selects the ordered man too;
- *  and a true wait (the solution waiting for p1 to walk off, nobody acting) is skipped like a jump in AUTO under a
+ *  and a true wait (the solution waiting for p1 to walk off, nobody acting) is skipped as a time-lapse in AUTO — drawn
+ *  every frame, as fast as the frame budget allows (user 2026-10-22, M2: "why the boat doesnt flow smoothly") — under a
  *  "⏩ waiting: <what for>" tag (user 2026-10-14: "fix those periods of idleness"), and the camera never rests on a man
  *  standing idle while another acts (2026-10-15: "Also no long quiet periods, always action in the walkthrough").
  */
@@ -53,7 +54,7 @@ export default async function debugWalkthroughHold(page, t) {
     // a true wait (p1 walking off east, ~2–75 s) is skipped like a jump under a "waiting" tag; and to t=200 the camera
     // never rests on a man standing idle while another acts (user 2026-10-15: "always action in the walkthrough")
     const r = g.debug.mode.replay;
-    window.__wait = { tags: [] };
+    window.__wait = { tags: [], lapse: 0, drawn: 0, view: null };
     window.__act = { n: 0, idleWhileBusy: 0, ex: [] };
     const acting = (u) => !!u && u.alive !== false && (!!u.path || !!u.pendingAbility || (!!u.currentAction && !['distract', 'shovel'].includes(u.currentActionId)) || !!u.vehicle?.path);
     const oc = r.composeShot.bind(r);
@@ -62,6 +63,9 @@ export default async function debugWalkthroughHold(page, t) {
       if (r.stopped || w.time > 200) return;
       const tag = document.getElementById('wt-skip')?.textContent || '';
       if (tag && !window.__wait.tags.includes(tag)) window.__wait.tags.push(tag);
+      // (a skipped wait is a time-lapse drawn every frame: user 2026-10-22, "why the boat doesnt flow smoothly")
+      if (r._skip && !r.pacer.turbo) { window.__wait.lapse++; if (r._viewAt !== window.__wait.view) window.__wait.drawn++; }
+      window.__wait.view = r._viewAt;
       const sh = window.__shotA, p = sh?.pts?.[0];
       if (p && !r.pacer.turbo && !r._held() && !r.paused && !sh.hold && !sh.stiff) {
         // (the men the shot frames: any commando at one of its points — the action is on screen if one of them acts)
@@ -99,7 +103,8 @@ export default async function debugWalkthroughHold(page, t) {
   const wt = await page.evaluate(() => ({ ...window.__wait, skips: window.shadowSix.debug.mode.replay.skips || [] }));
   const sk = wt.skips.find((x) => /p1 walks off east/.test(x.label));
   t.log(`skipped waits: ${wt.skips.map((x) => `${x.label} ${x.game.toFixed(1)} s in ${x.wall.toFixed(2)} s`).join(' | ')}`);
-  t(sk && sk.game > 30 && sk.wall < 3 && wt.tags.some((x) => /⏩ waiting: p1 walks off east/.test(x)), `a true wait is skipped like a jump, under a "waiting" tag (${sk?.game.toFixed(1)} s of game in ${sk?.wall.toFixed(2)} s; tags ${wt.tags.map((x) => `"${x}"`).join(', ')})`);
+  t(sk && sk.game > 30 && sk.game / sk.wall >= 6 && wt.tags.some((x) => /⏩ waiting: p1 walks off east/.test(x)), `a true wait is skipped as a time-lapse, under a "waiting" tag (${sk?.game.toFixed(1)} s of game in ${sk?.wall.toFixed(2)} s; tags ${wt.tags.map((x) => `"${x}"`).join(', ')})`);
+  t(wt.lapse > 30 && wt.drawn >= wt.lapse * 0.95, `the time-lapse is drawn every frame (${wt.drawn} of ${wt.lapse} frames)`);
   const act = await page.evaluate(() => window.__act);
   t(act.n > 100 && act.idleWhileBusy / act.n < 0.03, `the camera does not rest on an idle man while another acts (${act.idleWhileBusy}/${act.n} frames${act.ex.length ? ': ' + act.ex.join('; ') : ''})`);
 

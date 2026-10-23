@@ -32,7 +32,7 @@ import { normalizeWalkthrough, currentStep, orderAction, targetTag, matchOn, cpI
 import { Director, freeRect, isActing, pickLive } from './walkthrough-director.js';
 import { ROLE_NAMES } from '../ui/catalogue.js';
 import { PERF } from '../engine/perf-flags.js';
-import { AutoPace, PaceSensor, PerfCeiling, SteadyGrant, paceTarget, readTime, inClimax, isTrueWait } from './auto-pace.js';
+import { AUTO_PACE, AutoPace, PaceSensor, PerfCeiling, SteadyGrant, paceTarget, readTime, inClimax, isTrueWait, underWay, trapEta } from './auto-pace.js';
 import { ScopeShow, warmScope } from './walkthrough-scope.js';
 
 export const WALK_SPEEDS = Object.freeze([0.5, 1, 2, 4]);
@@ -53,13 +53,32 @@ export const WALK_TURBO_VIEW_MS = 200;
  * quiet periods, always action in the walkthrough").
  */
 export const SKIP_AFTER = 0.3;
-/** Wall-clock ms of ticks a frame while a wait is skipped (counted from the frame's start: a frame that draws runs fewer). */
-export const SKIP_TICK_MS = 16;
 /**
- * While a wait is skipped the view is redrawn every SKIP_VIEW_MS (≈15 a second; never more than TURBO_VIEW_SHARE of the
- * wall time): a fast-forward that keeps moving on screen, never a frozen picture, and no frame over ~20 ms.
+ * A skipped plan (the solution searching for its next move, the clock standing still: THINK_SKIP_MS) runs like a jump:
+ * wall-clock ms of the search a frame (counted from the frame's start: a frame that draws runs fewer).
  */
+export const SKIP_TICK_MS = 16;
+/** …and its view (nothing moves meanwhile) is redrawn every SKIP_VIEW_MS (never more than TURBO_VIEW_SHARE of the wall time). */
 export const SKIP_VIEW_MS = 66;
+/**
+ * A skipped true wait is a time-lapse drawn every frame (user 2026-10-22, M2: "why the boat doesnt flow smoothly" —
+ * its skips were drawn 4-12 times a second): as fast as the frame allows, up to AUTO_PACE.skipMax — the ticks of a frame
+ * get what its draw leaves of its vsync slot, or of a LAPSE_FRAME_MS frame (≥ 30 fps with the solution's plan slices on top) — eased in and out like any
+ * other speed (_autoBudget).
+ */
+export const LAPSE_FRAME_MS = 26;
+/** AUTO's speed stays within this share of what the frame can run (PerfCeiling.rateFor): ticks per frame never fall behind. */
+export const FIT_SHARE = 0.85;
+/** AUTO: at most this many frames' grants wait in the tick budget (TickPacer.lagFrames): the rest is let go, never paid back in a burst. */
+export const LAG_FRAMES = 0.5;
+/** AUTO keeps the frame rate unless its play speed would fall under this there (then ~30 fps at the speed: _autoBudget). */
+export const SLOW_RATE = 2.5;
+/** The solution driver's plan slice (tools/solutions/driver.mjs PLAN_SLICE_MS): a slice runs this long before it hands back. */
+const PLAN_SLICE = 6;
+/** AUTO: a frame's own work (its draw, its ticks, a plan's slice) is kept under this (wall ms): a slow draw leaves fewer ticks. */
+export const FRAME_OWN_MS = 44;
+/** The least wall ms of ticks a time-lapse frame runs (a draw over LAPSE_FRAME_MS leaves no slot). */
+export const MIN_LAPSE_MS = 4;
 /**
  * AUTO: a plan the solution searches for longer than this (wall ms; its sliced search, driver.mjs PLAN_SLICE_MS a frame:
  * the clock stands still meanwhile and nobody moves) is skipped like a wait — the search gets the skip's frame budget
@@ -75,6 +94,8 @@ export const MIN_TICK_MS = 1;
 export const LIVE_DWELL = 2500;
 /** Skip waits: the most the pace is raised while every commando waits. */
 export const SKIP_BOOST = 4;
+/** Skip waits at a fixed speed: no boost while a guard is this many seconds from walking onto a set trap. */
+export const TRAP_WATCH = 8;
 /** Wall-clock ms of ticks a displayed frame may run (TickPacer.tickMs): costly stretches slow down, never stall. */
 export const WALK_TICK_MS = 12;
 /**
@@ -557,24 +578,66 @@ export class Walkthrough extends SolutionReplay {
    */
   _tickBudget() {
     const v = 1000 / 60, draw = this._drawMs || 0;
-    const slot = v * Math.max(1, Math.ceil((draw + 1.5) / v));
+    // (the slot the frames really get: when the host draws them every 33 ms anyway — a busy GPU, a loaded machine — the
+    // ticks may use that slot; sized by the frame's draw alone they got ~1 ms of it, a 1× stretch fell behind by 7
+    // ticks and paid them back in one frame: M2's patrol boat, 0.33 m in a frame)
+    const host = this._hostMs > 0 ? Math.round(this._hostMs / v) : 1;
+    const slot = v * Math.max(1, host, Math.ceil((draw + 1.5) / v));
     return Math.max(MIN_TICK_MS, slot - draw - 1.5);
+  }
+
+  /**
+   * AUTO's ticks of a frame (TickPacer.tickMs). The frame rate first: what the draw leaves of its vsync slot (the slot
+   * the host really gives the frames: _tickBudget) — unless a play speed of SLOW_RATE is out of reach there (a slow draw,
+   * dear ticks: then up to a LAPSE_FRAME_MS frame, at most WALK_TICK_MS of ticks: ~30 fps at the speed wanted, evenly,
+   * not 60 at ~1× with the ticks falling behind). A skipped wait's time-lapse always may take a LAPSE_FRAME_MS frame.
+   * A draw over LAPSE_FRAME_MS (a loaded machine) leaves no slot at all: the ticks still get a quarter of the draw's time (a third
+   * in a time-lapse), at most WALK_TICK_MS — the run moves on, the frame only that much longer.
+   */
+  _autoBudget(lapse = false) {
+    const b60 = this._tickBudget(), draw = this._drawMs || 0;
+    // (and never past FRAME_OWN_MS of a frame's own work with a plan's slices on top — a piece of a plan between its
+    // yields runs past PLAN_SLICE: M2's trip look-ahead, one 3 m chunk against every guard — so a 30 ms draw keeps ~2 ms)
+    const look = Math.max(PLAN_SLICE, this._overrun || 0);
+    const most = Math.max(MIN_TICK_MS, FRAME_OWN_MS - draw - PLAN_SLICE - look);
+    const wide = Math.min(most, Math.max(b60, LAPSE_FRAME_MS - draw - 1.5 - (this._overrun || 0), MIN_LAPSE_MS, Math.min(WALK_TICK_MS, (lapse ? 0.35 : 0.25) * draw)));
+    if (lapse) return wide;
+    // (hysteresis: the 30 fps budget is taken below SLOW_RATE at 60, given back above 1.3× it)
+    const r60 = this.autoCeiling.rateFor(b60 * FIT_SHARE, this._slotMs(b60));
+    this._wideTicks = this._wideTicks ? r60 < SLOW_RATE * 1.3 : r60 < SLOW_RATE;
+    return Math.min(this._tickMsBase ?? WALK_TICK_MS, this._wideTicks ? wide : b60);
+  }
+
+  /** The frame time (ms, whole vsyncs) of a frame that draws and runs `tickMs` of ticks — at least the host's own. */
+  _slotMs(tickMs) {
+    const v = 1000 / 60;
+    return v * Math.max(1, Math.ceil(((this._drawMs || 0) + tickMs + 1.5) / v - 1e-6), this._hostMs > 0 ? Math.round(this._hostMs / v) : 1);
   }
 
   _frame(dt) {
     this._frameNo++;
+    // (the solution's look-ahead that runs on after a frame's last tick — a check after it, a plan's piece past its
+    // slice: M2's trip waits, 5-20 ms — measured against the frame's tick budget: the next frames' ticks leave room
+    // for it, so a frame's own work stays what _autoBudget allows; a decaying maximum)
+    const pc = this.pacer;
+    if (pc.tickFrom >= 0 && this._workEnd > pc.tickFrom) {
+      const over = Math.max(0, this._workEnd - pc.tickFrom - pc.tickMs);
+      this._overrun = Math.max(over, (this._overrun || 0) * 0.97);
+    } else if (this._overrun) this._overrun *= 0.97;
     // (the view's draw time, smoothed: _viewMs is the last drawn frame's Game.frame, ticks excluded)
     if (this._viewMs > 0 && !this.pacer.turbo && this._drewLast !== false) this._drawMs = this._drawMs ? this._drawMs * 0.85 + this._viewMs * 0.15 : this._viewMs;
     this._tickMsBase ??= this.pacer.tickMs;
-    // (AUTO: its pace is its own to set; a fixed speed — 4× — fits its ticks to the vsync and keeps its speed by
-    // taking a second slot when it lags a frame's worth behind: fixedTickMs. Skipping waits, a frame of ticks only after
-    // each drawn one — SolutionReplay's frame hook reads _tickOnly)
+    // (AUTO: its pace is its own to set — _autoBudget; a fixed speed — 4× — fits its ticks to the vsync and keeps its
+    // speed by taking a second slot when it lags a frame's worth behind: fixedTickMs. Skipping waits at a fixed speed, a
+    // frame of ticks only after each drawn one — SolutionReplay's frame hook reads _tickOnly)
     this._tickOnly = PERF.adaptiveTicks && !this.auto && skipTickOnly(this.pacer.boost, this.pacer.turbo, this._drawMs, this._drewLast);
     this._drewLast = !this._tickOnly;
     const frameTicks = this.pacer.speed * this.pacer.boost * (1 / 60) / this.pacer.simDt;
     this.pacer.tickMs = !PERF.adaptiveTicks ? this._tickMsBase
-      : this.auto ? (this._drawMs ? Math.min(this._tickMsBase, this._tickBudget()) : this._tickMsBase)
+      : this.auto ? (this._drawMs ? this._autoBudget(!!this._skip && !this.pacer.turbo) : this._tickMsBase)
         : this.pacer.turbo ? this._tickMsBase : fixedTickMs(this._tickMsBase, this._drawMs, this.pacer.budget, frameTicks, this._tickOnly);
+    // (AUTO's pace is wall time only: ticks a frame could not run are let go, never paid back in a burst)
+    this.pacer.lagFrames = this.auto ? LAG_FRAMES : null;
     // AUTO grants ticks for a steady frame time: one long frame (a hitch, a shader compile) is not paid back with a
     // burst of ticks on the next — at most 1.25× a usual frame's worth, the rest of the lag is let go (the pace is
     // wall time only) — so the ticks per frame follow the eased speed and never pile up into a second hitch
@@ -606,9 +669,11 @@ export class Walkthrough extends SolutionReplay {
         if (!c.alive) continue;
         const q = c.vehicle || c, last = m.pos.get(c);
         if (last && Math.hypot(q.x - last.x, q.z - last.z) > 0.1 * Math.max(0.25, t - m.t)) moving = true;
-        if (c.currentAction || c.pendingAbility || c.carrying) moving = true;
+        if (c.currentAction || c.pendingAbility || c.carrying || underWay(c)) moving = true;
         m.pos.set(c, { x: q.x, z: q.z });
       }
+      // (a guard walking onto a set trap: its snap is watched at the chosen speed, not skipped through)
+      if (!moving && trapEta(w) < TRAP_WATCH) moving = true;
       m.moving = moving;
       m.t = t;
     }
@@ -631,12 +696,29 @@ export class Walkthrough extends SolutionReplay {
     const p = this.pacer, w = this.world;
     this.autoDt = dt; // (the frame time the speed was eased over: tests measure the ramps by it)
     // (a skipped wait goes on while the solution waits, or plans its next move, and nobody acts)
-    if (this._skip) { if ((this.waitLabel || this._thinking) && !this._anyBusy()) { this._skipTag(); return; } this._endSkip(); }
+    if (this._skip) {
+      if (!((this.waitLabel || this._thinking) && !this._anyBusy())) this._endSkip();
+      else if (this._skip.turbo) {
+        // a skipped plan (the clock stands still: nothing moves) runs like a jump; once it has its answer and a wait
+        // goes on, it goes on as the wait's time-lapse
+        if (this._thinking || !this.waitLabel) { this._skipTag(); return; }
+        this._lapseFromPlan();
+      }
+    }
     if (p.turbo) return;
     const b = this._burst; // ms of ticks per tick on the last frames (the game step and the solution's own planning)
     const msPerTick = b.ticks ? b.ms / b.ticks : null;
+    // (the host's own slot: frames coming slower than our own draw and ticks need — a busy GPU, a loaded machine — set
+    // the slot the ticks may use: _tickBudget; frames late because of our own work do not)
+    if (dt > 0) {
+      const v = 1000 / 60, n = Math.max(1, Math.round((dt * 1000) / v)), own = Math.max(1, Math.ceil(((this._viewMs || 0) + b.ms + 1.5) / v));
+      const host = n > own ? n * v : v;
+      this._hostMs = this._hostMs ? this._hostMs + (host - this._hostMs) * Math.min(1, dt / 0.5) : host;
+    }
     b.ms = 0; b.ticks = 0;
-    const ceiling = this.autoCeiling.frame(dt, msPerTick);
+    // the frame rate's ceiling, and never above what a frame can run (the ticks of a faster speed would fall behind)
+    const pb = this._autoBudget();
+    const ceiling = Math.max(1, Math.min(this.autoCeiling.frame(dt, msPerTick), this.autoCeiling.rateFor(pb * FIT_SHARE, this._slotMs(pb))));
     if (this.paused || this._held()) { p.boost = this.autoPace.rate; this._thinkSince = null; return; }
     // a long plan, nobody acting: skipped like a wait (THINK_SKIP_MS)
     if (this._thinking && !this._anyBusy()) {
@@ -658,18 +740,39 @@ export class Walkthrough extends SolutionReplay {
     const quiet = isTrueWait(sig, tq, { waiting: this.waitLabel, busy: busyNow });
     // (why a wait is not skipped, for tests and tuning: a man acting, a man moving, what AUTO slows for)
     this.waitWhy = !this.waitLabel ? null : quiet ? 'skip' : busyNow ? 'busy' : (sig.motion || 'idle') !== 'idle' ? `moving (${sig.motion})` : tq.why;
-    if (!quiet) this._quietSince = null;
+    // a skipped wait: its time-lapse, as fast as a frame allows (every frame drawn), every ease of paceTarget still on —
+    // so a moment coming (a guard walking onto a trap) brings it down smoothly, and below the play's own speed it is
+    // play again: no cut, the speed goes on from there
+    // (a time-lapse is worth it only well above the play's speed: a moment near — a trap 4 s off — plays on instead)
+    const lapseB = this._autoBudget(true);
+    const lapse = Math.max(ceiling, Math.min(AUTO_PACE.skipMax, this.autoCeiling.rateFor(lapseB * FIT_SHARE, this._slotMs(lapseB))));
+    const ts = quiet ? paceTarget(sig, { skip: lapse, reading: 0, climax }) : null;
+    // (hysteresis: a time-lapse starts from 1.5× the play's own speed and goes on down to 1.1× it — a speed hovering
+    // round one threshold must not start and stop it every second, its tag and the camera's cut to the wait with it)
+    const play = Math.min(ceiling, AUTO_PACE.max);
+    const worth = !!ts && ts.rate > (this._skip ? Math.max(2, 1.1 * play) : Math.max(2.5, 1.5 * play));
+    if (this._skip) {
+      if (worth) {
+        p.boost = this.autoPace.step(ts.rate, dt, lapse);
+        this.autoWhy = 'wait';
+        this._skipTag();
+        this._autoLabel();
+        return;
+      }
+      this._endSkip({ cut: false });
+    }
+    if (!quiet || !worth) this._quietSince = null;
     else if (this._quietSince == null) this._quietSince = t;
-    else if (t - this._quietSince >= SKIP_AFTER) { this._startSkip(); return; }
+    else if (t - this._quietSince >= SKIP_AFTER) this._startSkip();
     p.boost = this.autoPace.step(tg.rate, dt, ceiling);
-    this.autoWhy = tg.why;
+    this.autoWhy = this._skip ? 'wait' : tg.why;
     this._autoLabel();
   }
 
-  /** A man acting: on the move (his path, his vehicle's), walking up to an order, an action under way (a chat-up held
-   * for long is no action). */
+  /** A man acting: on the move (his path, his vehicle's: a raft rowed, turning on the spot too), walking up to an order,
+   * an action under way (a chat-up held for long is no action). */
   _anyBusy() {
-    return this.world.commandos.some((c) => c.alive && (this._pathMoving(c) || !!c.vehicle?.path || c.pendingAbility || (c.currentAction && c.currentActionId !== 'distract')));
+    return this.world.commandos.some((c) => c.alive && (this._pathMoving(c) || underWay(c) || c.pendingAbility || (c.currentAction && c.currentActionId !== 'distract')));
   }
 
   /**
@@ -686,34 +789,81 @@ export class Walkthrough extends SolutionReplay {
     return r.moving;
   }
 
-  /** Skip a true wait like a jump: ticks by wall time, the view redrawn now and then, a "waiting" tag. */
+  /**
+   * Skip a true wait: a time-lapse under a "waiting" tag (every frame drawn, as fast as the frame allows: _autoStep);
+   * a long plan (PLAN_WAIT: the clock stands still, nothing moves) like a jump — its search runs by wall time, the view
+   * redrawn now and then.
+   */
   _startSkip(label = this.waitLabel) {
     if (this._skip || this.pacer.turbo || !this.auto) return;
-    this._skip = { label, t0: this.world.time, wall: performance.now(), turboMs: this.pacer.turboMs, viewMs: this.turboViewMs };
-    this.pacer.turboMs = SKIP_TICK_MS;
-    this.turboViewMs = SKIP_VIEW_MS;
-    this.pacer.setTurbo(true);
+    // (a plan inside a wait — the clock runs between its checks — is the wait's time-lapse; a plan alone, a jump)
+    const plan = label === PLAN_WAIT && !this.waitLabel;
+    this._skip = { label, t0: this.world.time, wall: performance.now(), turboMs: this.pacer.turboMs, viewMs: this.turboViewMs, turbo: plan };
+    if (plan) {
+      this.pacer.turboMs = SKIP_TICK_MS;
+      this.turboViewMs = SKIP_VIEW_MS;
+      this.pacer.setTurbo(true);
+    }
     this.autoWhy = 'wait';
     this._capKey = null;
     this._skipTag();
     this._syncBar();
   }
 
-  /** The skip is over (the wait ended, an order, an event, an action): a cut back to the play, AUTO on from 2×. */
-  _endSkip() {
+  /** A skipped plan found its move and the solution waits on: the skip goes on as the wait's time-lapse. */
+  _lapseFromPlan() {
+    const s = this._skip;
+    if (!s?.turbo) return;
+    s.turbo = false;
+    this.turboViewMs = s.viewMs;
+    if (this._seekT == null && !this.toMarker) { this.pacer.turboMs = s.turboMs; if (this.pacer.turbo) this.pacer.setTurbo(false); }
+  }
+
+  /**
+   * The skip is over. `cut` (the wait ended, an order, an event, an action): a cut back to the play, AUTO on from 2×,
+   * the ticks still owed from the time-lapse let go. Else (the time-lapse eased down to the play's speed: a moment
+   * coming) the play goes on from there, no cut.
+   */
+  _endSkip({ cut = true } = {}) {
     const s = this._skip;
     if (!s) return;
     this._skip = null;
     this.turboViewMs = s.viewMs;
     if (this._seekT == null && !this.toMarker) { this.pacer.turboMs = s.turboMs; if (this.pacer.turbo) this.pacer.setTurbo(false); }
-    (this.skips ||= []).push({ label: s.label, game: this.world.time - s.t0, wall: (performance.now() - s.wall) / 1000 });
+    (this.skips ||= []).push({ label: s.label, game: this.world.time - s.t0, wall: (performance.now() - s.wall) / 1000, cut });
     this._quietSince = null;
-    this._camCut = true;
-    this.autoPace.reset(2);
-    this.pacer.boost = this.autoPace.rate;
+    if (cut) {
+      this._camCut = true;
+      this.autoPace.reset(2);
+      this.pacer.boost = this.autoPace.rate;
+      this.pacer.budget = Math.min(this.pacer.budget, 0.999);
+    }
     this._capKey = null;
     document.getElementById('wt-skip')?.remove();
     this._syncBar();
+  }
+
+  /**
+   * AUTO: a sliced plan (the solution's look-ahead, every few ticks of a wait: M2's patrol-boat waits) goes on in this
+   * frame while the frame's tick budget lasts — as a jump's does — instead of standing the clock still until the next
+   * frame (the steps of the play, or of a time-lapse, would bunch up: a frame with no tick, then a frame of two).
+   */
+  _pause() {
+    const p = this.pacer, now = performance.now();
+    if (this.auto && !(this._skip?.turbo) && !p.turbo && !this.stopped) {
+      if (p.tickFrom < 0) p.tickFrom = now;
+      // (room left for more of it: a slice runs up to the driver's PLAN_SLICE_MS before it asks again — longer when one
+      // piece of the plan between its yields is long, M2's trip look-ahead over a clear crossing)
+      if (now - p.tickFrom < p.tickMs - 2 * PLAN_SLICE) return Promise.resolve();
+    }
+    this._workEnd = now; // (this frame's ticks and look-ahead end here: _frame measures the overrun)
+    return super._pause();
+  }
+
+  _step() {
+    const r = super._step();
+    if (r) this._workEnd = performance.now(); // (no tick may run now: this frame's ticks and look-ahead end here)
+    return r;
   }
 
   /** The "⏩ waiting: <what for>" tag under the bar while a wait is skipped. */
@@ -797,7 +947,8 @@ export class Walkthrough extends SolutionReplay {
     const w = this.world;
     const P = (x, z, y = null) => (Number.isFinite(x) && Number.isFinite(z) ? { x, z, y: y ?? (w.grid?.elevAt?.(x, z) ?? 0) } : null);
     const ent = (e) => {
-      const p = e && !e.removed ? P(e.x, e.z, e.y) : null;
+      const at = e && !e.removed ? this._at(e) : null; // (where it is drawn this frame)
+      const p = at ? P(at.x, at.z, e.y) : null;
       // (a man inside a bunker, dug into the snow or under water is hidden by design: no yaw swing for him)
       if (p && (e.insideStructure || e.buried || e.underwater || e.diving || e.object3d?.visible === false)) p.unseen = true;
       return p;
@@ -991,7 +1142,7 @@ export class Walkthrough extends SolutionReplay {
   togglePause() {
     if (this._introOn) { this._endIntro(); return; }
     this.pacer.paused = !this.pacer.paused;
-    this.pacer.budget = 0;
+    this.pacer.budget = Math.min(this.pacer.budget, 0.999); // (no backlog; the picture stays where it is)
     this._syncBar();
   }
 

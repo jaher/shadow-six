@@ -34,6 +34,11 @@ export const AUTO_PACE = Object.freeze({
   max: 4,
   /** Dead time may go this fast while the frame rate holds (PerfCeiling). */
   turboMax: 8,
+  /**
+   * A skipped true wait (debug/walkthrough.js): a time-lapse drawn every frame, as fast as the frame budget allows
+   * (PerfCeiling.rateFor) up to this, eased in and out like any other speed.
+   */
+  skipMax: 24,
   /** The films' cruise (walk 4×, crawl 8×, idle 16×) under the 4× ceiling, and above it while the frame rate holds. */
   cruise: Object.freeze({ walk: 4, crawl: 4, idle: 4 }),
   turboCruise: Object.freeze({ walk: 4, crawl: 6, idle: 8 }),
@@ -85,13 +90,19 @@ export const EVENT_WINDOWS = Object.freeze({
 });
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const LOG_MIN = Math.log2(AUTO_PACE.min), LOG_MAX = Math.log2(AUTO_PACE.turboMax);
+const LOG_MIN = Math.log2(AUTO_PACE.min), LOG_MAX = Math.log2(AUTO_PACE.skipMax);
+/** Is commando `c` aboard a vehicle that is going somewhere (rowed, driven: a goal or a route; turning on the spot too)? */
+export const underWay = (c) => { const v = c?.vehicle; return !!v && !v.removed && !!(v.goal || v.path); };
 const ALERT_RE = /^(ALERT|COMBAT|SEARCH|INVESTIGATE|ALARM)/;
 const DISTRACT_RE = /^(DECOY|DISTRACTED)/;
 /** The geometry (moves, striking distance, near misses, traps) is refreshed no more often than this (wall ms). */
 export const GEO_WALL_MS = 45;
 /** A near miss: a man at work within this many metres of the band of a cone he would be seen in (a man lying still: half). */
 const NEAR_MISS = 3;
+/** A guard this far (m) from a set trap, heading for it, is watched walking onto it; beyond 10 m only one passing within TRAP_MISS m of it. */
+export const TRAP_LOOK = 25, TRAP_MISS = 2.5;
+/** A guard following footprints (TRACKS) within this many metres of a set trap is watched whichever way he faces. */
+export const TRAP_TRACKS = 15;
 /** A cone `M` m bigger all round (both bands' reach, its aperture by M at distance d). */
 const grown = (k, M, d) => ({ ...k, far: k.far + M, near: k.near + M, halfFov: Math.min(Math.PI, k.halfFov + Math.asin(Math.min(1, M / Math.max(d, M)))) });
 
@@ -113,14 +124,17 @@ export function readTime(text) {
 
 /**
  * The speed AUTO wants now. `sig`: a PaceSensor.sample(); `o`: {ceiling (4, or up to 8 while the frame rate holds),
- * reading (wall s left to read the caption), climax (the last chapter is on)}. Returns {rate, why}.
+ * reading (wall s left to read the caption), climax (the last chapter is on), skip (a skipped true wait: its
+ * time-lapse speed, up to skipMax — the cruise of the wait; every ease below still applies: a guard walking onto a
+ * trap brings it down as smoothly as any other moment)}. Returns {rate, why}.
  */
 export function paceTarget(sig = {}, o = {}) {
   const P = AUTO_PACE;
-  const ceil = clamp(o.ceiling ?? P.max, P.min, P.turboMax);
+  const skip = o.skip > 0 ? clamp(o.skip, P.min, P.skipMax) : 0;
+  const ceil = skip || clamp(o.ceiling ?? P.max, P.min, P.turboMax);
   const cruise = ceil > P.max ? P.turboCruise : P.cruise;
   const motion = sig.motion || 'idle';
-  let rate = Math.min(ceil, cruise[motion] ?? P.max), why = motion;
+  let rate = Math.min(ceil, skip || (cruise[motion] ?? P.max)), why = skip ? 'wait' : motion;
   const cap = (v, w) => { if (v < rate) { rate = v; why = w; } };
   const ease = (r, eta) => r * (1 + P.lead * Math.max(0, eta));
   if (sig.action) cap(ease(sig.action.rate, sig.action.eta - P.preroll), sig.action.id);
@@ -147,7 +161,7 @@ export class AutoPace {
   get rate() { return 2 ** this.x; }
 
   reset(rate = 1) {
-    this.x = Math.log2(clamp(rate, AUTO_PACE.min, AUTO_PACE.turboMax));
+    this.x = Math.log2(clamp(rate, AUTO_PACE.min, AUTO_PACE.skipMax));
     this.v = 0;
     this.hold = 0;
     this.target = this.rate;
@@ -159,7 +173,7 @@ export class AutoPace {
    */
   step(target, dt, max = AUTO_PACE.turboMax) {
     const P = AUTO_PACE;
-    const g = Math.min(Math.log2(clamp(target, P.min, P.turboMax)), Math.log2(clamp(max, P.min, P.turboMax)));
+    const g = Math.min(Math.log2(clamp(target, P.min, P.skipMax)), Math.log2(clamp(max, P.min, P.skipMax)));
     this.target = 2 ** g;
     if (!(dt > 0)) return this.rate;
     if (g < this.x - 0.03) this.hold = P.upHold;
@@ -207,6 +221,17 @@ export class PerfCeiling {
       this.ceiling = want < this.ceiling ? want : Math.min(want, this.ceiling + d * 0.5); // up by ½× a second
     }
     return this.ceiling;
+  }
+
+  /**
+   * The sim speed whose ticks (at the recent wall ms a tick costs, the solution's planning between ticks included) take
+   * `budgetMs` of a displayed frame at the recent frame time: what a frame can run without falling behind — or
+   * Infinity before any tick was timed. A speed above it would leave ticks owed at every frame's end (paid back in a
+   * burst, or let go: uneven steps either way).
+   */
+  rateFor(budgetMs, frameMs = this.fdt * 1000) {
+    if (!(this.tickMs > 0)) return Infinity;
+    return (Math.max(0, budgetMs) / this.tickMs) * (this.simDt / Math.max(frameMs / 1000, 1 / 120));
   }
 }
 
@@ -309,9 +334,9 @@ export class PaceSensor {
     if (o?.type === 'ability' && ACTION_RATE[o.id] != null && u) this._ordered = { u, id: o.id, t };
   }
 
-  /** A man at work: moving (over the last half second), walking up to an order, acting (not a long chat-up). */
+  /** A man at work: moving (over the last half second), walking up to an order, acting (not a long chat-up), at the oars or the wheel of a vehicle under way. */
   _busy(c) {
-    return this._mot.moving.has(c) || !!c.pendingAbility || (!!c.currentAction && c.currentActionId !== 'distract');
+    return this._mot.moving.has(c) || !!c.pendingAbility || (!!c.currentAction && c.currentActionId !== 'distract') || underWay(c);
   }
 
   _nearMen(e, r) {
@@ -396,7 +421,9 @@ export class PaceSensor {
       for (const c of w.commandos || []) {
         if (!c.alive) continue;
         const p = c.vehicle && !c.vehicle.removed ? c.vehicle : c, q = m.pos.get(c);
-        if (q && span < 5 && Math.hypot(p.x - q.x, p.z - q.z) > 0.12 * span) {
+        // (a vehicle under way counts the whole time it goes somewhere: a raft turning on the spot at a waypoint of its
+        // crossing too — M2, ~1 s still between legs, read as nobody moving and skipped as a wait, the whole crossing)
+        if ((q && span < 5 && Math.hypot(p.x - q.x, p.z - q.z) > 0.12 * span) || underWay(c)) {
           m.moving.add(c);
           if (!c.vehicle && c.stance === 'crawl') crawl = true; else walk = true;
         }
@@ -462,18 +489,32 @@ export class PaceSensor {
     this._ang = ang;
     g.cone = cone;
     g.turning = turning;
-    // a guard walking onto a set bear trap: seconds to it
-    let trapEta = Infinity;
-    for (const tr of w.interactables || []) {
-      if (tr.interactKind !== 'trap' || tr.sprung || tr.removed) continue;
-      for (const e of guards) {
-        const d = Math.hypot(e.x - tr.x, e.z - tr.z);
-        if (d > 10 || !e.isMoving) continue;
-        const h = Math.atan2(tr.z - e.z, tr.x - e.x) - e.heading;
-        if (Math.cos(h) < 0.7) continue;
-        trapEta = Math.min(trapEta, d / 1.5);
-      }
-    }
-    g.trapEta = trapEta;
+    g.trapEta = trapEta(w, guards);
   }
+}
+
+/**
+ * Seconds until a guard walks onto a set bear trap (Infinity: none coming): one within 10 m heading roughly its way, or
+ * (TRAP_LOOK) farther off heading straight for it (passing within TRAP_MISS m) — a skipped wait's time-lapse is brought
+ * down from there, in a few seconds of wall time, to 1× at the snap (M2: the trap used to go off inside a 50× skip).
+ * `guards`: the living, free guards (default: all of the world's).
+ */
+export function trapEta(w, guards = null) {
+  let eta = Infinity;
+  for (const tr of w?.interactables || []) {
+    if (tr.interactKind !== 'trap' || tr.sprung || tr.removed) continue;
+    for (const e of guards || w.enemies || []) {
+      if (!guards && (!e.alive || e.removed || e.incapacitated || e.state === 'inVehicle')) continue;
+      const d = Math.hypot(e.x - tr.x, e.z - tr.z);
+      if (d > TRAP_LOOK || !e.isMoving) continue;
+      const h = Math.atan2(tr.z - e.z, tr.x - e.x) - e.heading, c = Math.cos(h);
+      // (a guard following footprints near a trap goes where they lead — the trail laid over it: M2's e1 and e3 turn
+      // through the palisade's gap onto it only metres before it)
+      const tracking = e.brain?.state === 'TRACKS' && d <= TRAP_TRACKS;
+      if (!tracking && (d > 10 ? c < 0.5 || d * Math.abs(Math.sin(h)) > TRAP_MISS : c < 0.7)) continue;
+      const sp = Number.isFinite(e.speed) && e.speed > 0.3 ? e.speed : 1.5;
+      eta = Math.min(eta, d / sp);
+    }
+  }
+  return eta;
 }
