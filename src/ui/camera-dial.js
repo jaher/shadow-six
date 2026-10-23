@@ -14,6 +14,8 @@
  *  - drag horizontally: yaw follows the drag (CameraRig.setYaw)
  *  - drag vertically: pitch follows (CameraRig.setPitch, 25-60, detent snap at the 40 home)
  *  - double-click: back to the defaults (CONFIG.camera yaw / pitch)
+ * Starting a drag (or the double-click reset) while a walkthrough director holds the camera
+ * hands the camera to the user, like the view's own camera inputs do.
  * While the dial is dragged the rig's edge scroll is suspended, so grabbing the dial in the
  * corner never pans the map out from under the pointer; the settle also reports through
  * rig.onUserYaw, keeping the Options CAMERA ANGLE truthful like the hold-rotate keys do.
@@ -76,6 +78,17 @@ export class CameraDial {
     this.update();
   }
 
+  /** A walkthrough director is driving the camera: grabbing the dial is the user taking it
+   *  back — the same rule the view's own inputs follow (drag / wheel / arrows all call the
+   *  walkthrough's setFree(true)). The debug mode installs itself as game.debug.mode (?debug
+   *  only) and holds the live session as .replay; absent any of that this is a no-op, and the
+   *  dial keeps no dependency on the debug module. setFree runs the walkthrough's own bar
+   *  refresh, so the CAM button's pressed state follows the disengage. */
+  _freeWalkthroughCamera() {
+    const wt = this.hud.game?.debug?.mode?.replay;
+    if (wt?.isWalkthrough && !wt.free) wt.setFree(true);
+  }
+
   _wire() {
     const face = this.face;
     face.addEventListener('pointerdown', (e) => {
@@ -83,6 +96,7 @@ export class CameraDial {
       const rig = this.rig || this.hud.game?.cameraRig;
       if (!rig) return;
       this.rig = rig;
+      this._freeWalkthroughCamera();
       e.preventDefault();
       e.stopPropagation();
       face.setPointerCapture?.(e.pointerId);
@@ -114,6 +128,7 @@ export class CameraDial {
       const rig = this.rig || this.hud.game?.cameraRig;
       if (!rig) return;
       this.rig = rig;
+      this._freeWalkthroughCamera();
       rig.setYaw(CONFIG.camera.yawDeg);
       rig.setPitch(CONFIG.camera.pitchDeg);
       rig.onUserYaw?.(Math.round(CONFIG.camera.yawDeg));
