@@ -12,6 +12,7 @@ import { ABILITIES } from '../abilities/index.js';
 import { el } from './dom.js';
 import { computeUiScale, loadOptions, saveOptions, VOLUME_CHANNELS } from './ui-config.js';
 import { TopBar } from './topbar.js';
+import { CameraDial } from './camera-dial.js';
 import { Notebook } from './notebook.js';
 import { Knapsack } from './knapsack.js';
 import { StanceButton } from './stance-button.js';
@@ -73,6 +74,8 @@ export class HUD {
     this.tracked = null;
     this._losses = { soldiers: 0, vehicles: 0, buildings: 0 };
     this.topbar = new TopBar(this);
+    this.cameraDial = new CameraDial(this, this.topbar.icons); // camera dial in the icon row
+    this.topbar.icons.insertBefore(this.cameraDial.wrap, this.topbar.eye); // dial sits immediately LEFT of the eye — the eye stays the rightmost icon
     /** §6.3 talking portraits (docs/talking-portraits.md): per-mission TalkingPortraits, null while off / loading. */
     this.portraits = null;
     this.portraitsBase = 'assets/portraits/';
@@ -548,6 +551,7 @@ export class HUD {
       if (t && (t.removed || t.alive === false)) this.tracked = null;
       else if (t && this.game.state === 'playing') this.game.cameraController?.centerOn(t.x, t.z);
       this.topbar.update(dt);
+      this.cameraDial?.update();
       this.knapsack.update();
       this.stance.update();
       // touch mode toggled or the roster changed: refit the finger-sized HUD (cheap check, no layout read)

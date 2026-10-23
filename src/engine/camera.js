@@ -106,6 +106,25 @@ export class CameraController {
     return THREE.MathUtils.radToDeg(this.azimuth);
   }
 
+  /**
+   * Camera pitch (deg below horizontal, clamped 25-60); keeps the target. Mirror of setYaw: the
+   * footprint / clamp math reads this.elevation live, so a pitch change re-aims the same way.
+   */
+  setPitch(deg) {
+    const a = THREE.MathUtils.degToRad(clamp(Number(deg) || this.cfg.pitchDeg, 25, 60));
+    if (a === this.elevation) return;
+    this.elevation = a;
+    const f = this.focusTarget(this.target.x, this.target.z);
+    this.target.x = f.x;
+    this.target.z = f.z;
+    this._applyTransform();
+  }
+
+  /** Current pitch in degrees. */
+  get pitchDeg() {
+    return THREE.MathUtils.radToDeg(this.elevation);
+  }
+
   /** CSS pixels per metre (along screen x) at the current zoom (§2.2: 40 × zoom). */
   pxPerMeter(zoom = this.zoom) {
     return this.cfg.pxPerMeterAt1x * zoom;
@@ -895,6 +914,16 @@ export class CameraRig {
     this.cfg.yawDeg = Number(deg) || 0;
     for (const v of this.views) v.setYaw(this.cfg.yawDeg);
   }
+
+  /** Camera pitch (deg) for every view, current and future: mirrors setYaw (CameraController clamps 25-60). */
+  setPitch(deg) {
+    this.cfg.pitchDeg = clamp(Number(deg) || this.cfg.pitchDeg, 25, 60);
+    for (const v of this.views) v.setPitch(this.cfg.pitchDeg);
+  }
+
+  /** Active view yaw / pitch (deg), for HUD readouts (camera dial). */
+  get yawDeg() { return this.active.yawDeg; }
+  get pitchDeg() { return this.active.pitchDeg; }
 
   /** Touch TURN buttons (ui/touch.js): the hold state of one side ('l' | 'r'). */
   touchRotate(side, down) {

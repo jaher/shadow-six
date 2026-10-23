@@ -118,6 +118,13 @@
 .hud-icons { display: flex; align-items: center; gap: calc(4 * var(--r)); padding-right: calc(2 * var(--r)); flex: 0 0 auto; }
 .hud-icon { position: relative; padding: 0; border: 0; background: none; color: #e4dcc4; cursor: pointer; pointer-events: auto; }
 .hud-icon svg { width: 100%; height: 100%; display: block; }
+
+/* camera dial: gizmo control in the top bar icon row, left of the eye: projected ground disc + Y/P readout */
+.hud-camdial-wrap { display: flex; align-items: center; gap: calc(3 * var(--r)); flex: 0 0 auto; pointer-events: auto; }
+.camdial-read { text-align: right; font: 600 calc(9 * var(--r)) / 1.3 var(--f-ui); color: var(--brass-hi); text-shadow: 0 0 2px #000; white-space: nowrap; }
+.hud-camdial { position: relative; width: calc(41 * var(--r)); height: calc(41 * var(--r)); flex: 0 0 auto; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.hud-camdial:active { cursor: grabbing; }
+.hud-camdial svg { width: 100%; height: 100%; display: block; }
 /* rendered icons (icon-art.js): every state variant is its own render, stacked; applyToolState() shows one */
 .hud-icon > .ico, .hud-hand > .ico, .hud-stance > .ico { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: contain; pointer-events: none; user-select: none; }
 .hud-icon > img.ico[hidden], .hud-hand > img.ico[hidden], .hud-stance > img.ico[hidden] { display: none !important; }
