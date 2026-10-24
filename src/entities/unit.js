@@ -228,11 +228,11 @@ export class Unit extends Entity {
    * @param {{run?: boolean, onArrive?: (u: Unit) => void}} [opts]
    * @returns {boolean} false when no path exists (or the unit can't move)
    */
-  moveTo(x, z, { run = false, onArrive = null } = {}) {
+  moveTo(x, z, { run = false, onArrive = null, bare = false } = {}) {
     if (!this.alive || !this.world || IMMOBILE_STATES.has(this.state) || this.buried) return false;
     // from the path track: a dodging walker keeps its lane (avoidance.js), so re-paths do not shift the route
     // (halfway up / down a ladder: planned from its end, which he climbs on to first)
-    let path = this._onLadder() ? this._planFromLadder(x, z) : this._planPath(x, z);
+    let path = this._onLadder() ? this._planFromLadder(x, z, bare) : this._planPath(x, z, null, bare);
     if (!path) return false;
     path = railPath(this, path, { x, z }); // (up / down a stair head-on, its middle between the rails: user 2026-10-11)
     this._bodyBlockT = 0;
@@ -312,11 +312,11 @@ export class Unit extends Entity {
   _onLadder() { const L = this._ladder; return !!(L && this.path?.[this.pathIndex] === L.wp); }
 
   /** A path to (x, z) that first climbs on to the end of the ladder he is on (moveTo mid-ladder). */
-  _planFromLadder(x, z) {
+  _planFromLadder(x, z, bare = false) {
     const L = this._ladder, at = { x: this.x, z: this.z, y: this.y };
     this.x = L.wp.x; this.z = L.wp.z; this.y = L.wp.y ?? this.y;
     let p;
-    try { p = this._planPath(x, z); } finally { this.x = at.x; this.z = at.z; this.y = at.y; }
+    try { p = this._planPath(x, z, null, bare); } finally { this.x = at.x; this.z = at.z; this.y = at.y; }
     return p ? [L.wp, ...p.slice(1)] : null;
   }
 
@@ -327,10 +327,12 @@ export class Unit extends Entity {
    * Path to (x, z) keeping the whole body clear of solid obstacles — vehicle hulls, wrecks, drums, pushables, crates,
    * rocks (world/body-clearance.js): each inflation tier of the stance in turn (a crawler first keeps room to turn
    * any way, then only to lie parallel), the tighter tier when it is much shorter or ends nearer the click, and the
-   * bare grid path when the obstacles box him in (the step guard still keeps his body out of them).
+   * bare grid path when the obstacles box him in — or at once when `bare` is set (the step guard still
+   * keeps his body out of them).
    */
-  _planPath(x, z, from = null) {
+  _planPath(x, z, from = null, bare = false) {
     const w = this.world, q = this.pathQuery(), tr = from || this.track; // (from his path track, see moveTo)
+    if (bare) return w.findPath(tr.x, tr.z, x, z, q);
     // (a crawler also goes round steps, porches and plinths: his body would lie into their sides, grid.crawlStep)
     const prone = this.stance === 'crawl' && !!w.grid?.crawlStep;
     if ((!hasObstacles(w) && !prone) || this.y > 1) return w.findPath(tr.x, tr.z, x, z, q);

@@ -528,7 +528,19 @@ export class Commando extends Unit {
     if (!this.path || (p.repathT <= 0 && moved && !onLink)) {
       p.repathT = CONFIG.abilities.approachRepath;
       p.lastTp = { x: tp.x, z: tp.z };
-      const went = this.moveTo(tp.x, tp.z, { run: p.run });
+      let went = this.moveTo(tp.x, tp.z, { run: p.run });
+      // (stranded out of range: the clearance plan ends where he already stands, still short of the ability's
+      // reach, and re-planning returns that same end — body-clearance's substituted goal can sit beyond reach
+      // beside clustered solids (M1: the drum b1 between b2/b3, approached from the south, ends 1.251 m out
+      // against a 1.2 m reach, so the order would idle until the approach timeout). Re-plan that one leg on
+      // the bare grid; the step guard still keeps his body out of the solids themselves.)
+      if (went && !moved && !p.bareTried && p.lastEnd && this.moveTarget
+        && Math.hypot(this.moveTarget.x - p.lastEnd.x, this.moveTarget.z - p.lastEnd.z) < 0.01
+        && Math.hypot(this.x - this.moveTarget.x, this.z - this.moveTarget.z) < 0.75 && d > range) {
+        p.bareTried = true;
+        went = this.moveTo(tp.x, tp.z, { run: p.run, bare: true });
+      }
+      p.lastEnd = this.moveTarget ? { x: this.moveTarget.x, z: this.moveTarget.z } : null;
       if (this.diving && (!went || (this.moveTarget && Math.hypot(tp.x - this.moveTarget.x, tp.z - this.moveTarget.z) > range + 0.1))) {
         // §3.4 diving gear: the walk-up ends at the water's edge, short of the target — refuse the order
         // instead of swimming there and doing nothing (M16 review: knife on the island pair from the water)
