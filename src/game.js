@@ -1141,7 +1141,9 @@ export class Game {
       // step 4w: publish the wind at the interpolated SIM time (frozen while paused, deterministic) before anything samples it
       if (w.wind) safe(() => w.wind.frame(Math.max(0, w.time - (1 - Math.min(1, alpha)) * CONFIG.sim.dt), cc0.target), 'wind');
       const rig = this.cameraRig, cam = (rig.count ?? 1) > 1 ? false : rig.active?.camera || this.renderer.camera;
-      safe(() => charactersFrame(cam, cc0.pxPerMeter?.() ?? 40), 'characters view'); // LOD + off-screen culling/throttling
+      // ?debug inspects the men: the character view runs at the full-detail density (the warm close-up's
+      // 400 px/m), so bodies stay on the full-detail LOD with their kit at any inspection zoom.
+      safe(() => charactersFrame(cam, this.debug ? 400 : (cc0.pxPerMeter?.() ?? 40)), 'characters view'); // LOD + off-screen culling/throttling
       safe(() => tickVehicles(animDt, cam || this.renderer.camera, w.wind ?? null), 'vehicles view'); // LOD by zoom, windsocks
       for (const e of w.entities) {
         e.syncTransform?.(alpha);
