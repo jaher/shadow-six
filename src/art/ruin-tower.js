@@ -297,37 +297,56 @@ function shellPiece(G, poly, at, tone, y0, ri, ro) {
     G.tri('ruinStone', [poly[0][0], at(poly[0][2]), poly[0][1]], [poly[i][0], at(poly[i][2]), poly[i][1]], [poly[i + 1][0], at(poly[i + 1][2]), poly[i + 1][1]], tone);
 }
 
-/** The rubble fill's slope with a doorway (a cone: base ri - 0.02 -> 0.35 at fillH), notched by the
- * doorway's straight slot: built as rings of points, and a ring point inside the slot is slid along its
- * ring onto the nearer jamb plane (or, where the ring is narrower than the slot, onto the slot's side
- * line), so the slope's cut edge lies exactly on the planes; cells wholly inside the slot are skipped.
- * Flat faces close the notch: its cheeks on the jamb planes and its back on the centre plane -- the
- * heap's cross-sections the slot cuts away. */
-function fillNotched(G, door, ri, fillH) {
+/**
+ * The rubble fill's surface height (m) at angle `a`, radius `rho`: the cone from the shell's foot
+ * (rb = ri - 0.02) up to its top ring (rt = 0.35) at fillH, roughened by seeded fbm (the talus'
+ * own vocabulary) that fades out at the foot -- the heap meets the shell cleanly at the ground,
+ * but its slope and crown are lumpy, not turned on a lathe. Wrap-safe: the noise reads the
+ * point's own cos/sin, so the ring's seam agrees with itself.
+ */
+function fillHeightAt(def, ri, fillH, a, rho) {
+  const rb = ri - 0.02, rt = 0.35, sd = seedOf(`${def.seed ?? 'tower'}:fill`) & 0xffff;
+  const f = Math.min(1, Math.max(0, (rb - rho) / (rb - rt)));
+  if (f <= 0) return 0;
+  const lump = 0.34 * fbm(Math.cos(a) * 1.9 + 4.7, Math.sin(a) * 1.9 + 2.3, rho * 0.9, sd, 3)
+    + 0.16 * fbm(Math.cos(a) * 4.6 + 9.1, Math.sin(a) * 4.6 + 5.2, rho * 1.7, sd + 7, 2);
+  return Math.max(0.06, fillH * f + fillH * 0.26 * lump * Math.sin(Math.min(1, f * 1.15) * Math.PI * 0.5));
+}
+
+/** The rubble fill's slope with a doorway (a cone: base ri - 0.02 -> 0.35 at fillH, its surface
+ * fillHeightAt's lumpy cone), notched by the doorway's straight slot: built as rings of points,
+ * and a ring point inside the slot is slid along its ring onto the nearer jamb plane (or, where
+ * the ring is narrower than the slot, onto the slot's side line), so the slope's cut edge lies
+ * exactly on the planes; cells wholly inside the slot are skipped. Flat faces close the notch:
+ * its cheeks on the jamb planes and its back on the centre plane -- the heap's cross-sections
+ * the slot cuts away, their top edges riding the same lumpy surface (a hair proud, so the slope
+ * never gaps against them).
+ */
+function fillNotched(G, def, door, ri, fillH, R) {
   const NA = 72, NY = 6, rb = ri - 0.02, rt = 0.35, half = door.half;
-  const rhoJ = (j) => rb + ((rt - rb) * j) / NY, yJ = (j) => (fillH * j) / NY;
+  const rhoJ = (j) => rb + ((rt - rb) * j) / NY;
   const rel = (a) => Math.atan2(Math.sin(a - door.c), Math.cos(a - door.c));
   const inside = (a, rho) => { const q = rel(a); return Math.cos(q) > 0 && Math.abs(Math.sin(q)) * rho < half; };
   const P = (j, i) => {
     const rho = rhoJ(j); let a = (i / NA) * Math.PI * 2;
     if (inside(a, rho)) { const lim = rho >= half ? Math.asin(half / rho) : Math.PI / 2; a = door.c + (rel(a) < 0 ? -lim : lim); }
-    return [Math.cos(a) * rho, yJ(j), Math.sin(a) * rho];
+    return [Math.cos(a) * rho, fillHeightAt(def, ri, fillH, a, rho), Math.sin(a) * rho];
   };
   for (let j = 0; j < NY; j++) for (let i = 0; i < NA; i++) {
     const i1 = (i + 1) % NA, a0 = (i / NA) * Math.PI * 2, a1 = ((i + 1) / NA) * Math.PI * 2;
     if (inside(a0, rhoJ(j)) && inside(a1, rhoJ(j)) && inside(a0, rhoJ(j + 1)) && inside(a1, rhoJ(j + 1))) continue; // the slot's own cells
-    G.quad('rubble', P(j, i), P(j + 1, i), P(j + 1, i1), P(j, i1), 0.85);
+    G.quad('rubble', P(j, i), P(j + 1, i), P(j + 1, i1), P(j, i1), 0.78 + R() * 0.14);
   }
   const Q = (s, d, y) => [Math.cos(door.c) * d - Math.sin(door.c) * s, y, Math.sin(door.c) * d + Math.cos(door.c) * s];
-  const yTop = (fillH * (rb - half)) / (rb - rt); // where the slope's surface crosses a jamb plane's centre line
   for (const sgn of [-1, 1]) {
     const V = [];
-    for (let j = 0; j <= NY; j++) { const rho = rhoJ(j); if (rho > half) V.push(Q(sgn * half, Math.sqrt(rho * rho - half * half), yJ(j))); }
-    V.push(Q(sgn * half, 0, yTop), Q(sgn * half, 0, 0));
-    for (let k = 1; k + 1 < V.length; k++) { if (sgn < 0) G.tri('rubble', V[0], V[k], V[k + 1], 0.85); else G.tri('rubble', V[0], V[k + 1], V[k], 0.85); }
+    for (let j = 0; j <= NY; j++) { const rho = rhoJ(j); if (rho > half) V.push(Q(sgn * half, Math.sqrt(rho * rho - half * half), fillHeightAt(def, ri, fillH, door.c + sgn * Math.asin(half / rho), rho))); }
+    V.push(Q(sgn * half, 0, fillHeightAt(def, ri, fillH, door.c + sgn * Math.PI / 2, half) + 0.03), Q(sgn * half, 0, 0));
+    for (let k = 1; k + 1 < V.length; k++) { const tone = 0.78 + R() * 0.12; if (sgn < 0) G.tri('rubble', V[0], V[k], V[k + 1], tone); else G.tri('rubble', V[0], V[k + 1], V[k], tone); }
   }
-  const BV = [[-half, 0], [half, 0], [half, yTop], [rt, fillH], [-rt, fillH], [-half, yTop]].map(([s, y]) => Q(s, 0, y));
-  for (let k = 1; k + 1 < BV.length; k++) G.tri('rubble', BV[0], BV[k + 1], BV[k], 0.85);
+  const yB = (rho, sgn) => fillHeightAt(def, ri, fillH, door.c + sgn * Math.PI / 2, rho) + 0.03;
+  const BV = [[-half, 0], [half, 0], [half, yB(half, 1)], [rt, yB(rt, 1)], [-rt, yB(rt, -1)], [-half, yB(half, -1)]].map(([s, y]) => Q(s, 0, y));
+  for (let k = 1; k + 1 < BV.length; k++) G.tri('rubble', BV[0], BV[k + 1], BV[k], 0.78 + R() * 0.12);
 }
 
 /** The ruined tower, in the def's own frame (the caller places it: x, z at the origin). */
@@ -355,7 +374,7 @@ export function buildRuinTower(def) {
     // a loose stone on the wall head here and there
     if (R() < 0.18) {
       const a = a0 + (a1 - a0) * R(), rr = ri + 0.15 + R() * (def.t - 0.3), s = 0.16 + R() * 0.12;
-      stone(G, 'ruinStone', Math.cos(a) * rr, h - 0.02, Math.sin(a) * rr, s * 1.5, s * 0.5, s, a + R(), R, 0.3);
+      stone(G, 'ruinStone', Math.cos(a) * rr, h0 + ((h1 - h0) * (a - a0)) / (a1 - a0) - 0.02, Math.sin(a) * rr, s * 1.5, s * 0.5, s, a + R(), R, 0.3);
     }
   }
   if (door) {
@@ -387,20 +406,34 @@ export function buildRuinTower(def) {
   }
   // the shell full of its fallen floors and upper walls: a rubble heap inside, blocks on it
   const fillH = def.fill ?? 1.3;
+  // the heap's surface at a loose stone's spot: the lumpy cone on its slope, the domed cap inside
+  // its top ring -- a stone sits ON it, nestled a little in, never sunk to a shard in it
+  const capY = fillH + 0.1;
+  const surfY = (a, d) => (d >= 0.35 || !door ? fillHeightAt(def, ri, fillH, a, Math.max(d, 0.35))
+    : fillHeightAt(def, ri, fillH, a, 0.35) + (capY - fillHeightAt(def, ri, fillH, a, 0.35)) * (1 - d / 0.35));
   if (door) {
     // the heap notched by the doorway's straight slot: its slope clipped on the jamb planes, cut faces
-    // closing the notch's sides and back, and its top cap fanned round the cleared pocket
-    fillNotched(G, door, ri, fillH);
+    // closing the notch's sides and back, and its top cap fanned round the cleared pocket -- domed
+    // now, its rim on the lumpy surface, not a flat lid
+    fillNotched(G, def, door, ri, fillH, R);
     for (let k = 0; k < 36; k++) {
       const a = (k / 36) * Math.PI * 2, b = ((k + 1) / 36) * Math.PI * 2, m = (a + b) / 2;
       if (doorD(door.c, Math.cos(m), Math.sin(m)) > 0) continue; // (the cap's front half is the slot's: the heap's top ring is narrower than the passage)
-      G.tri('rubble', [x, fillH, z], [Math.cos(b) * 0.35, fillH, Math.sin(b) * 0.35], [Math.cos(a) * 0.35, fillH, Math.sin(a) * 0.35], 0.85);
+      G.tri('rubble', [x, capY, z], [Math.cos(b) * 0.35, fillHeightAt(def, ri, fillH, b, 0.35), Math.sin(b) * 0.35], [Math.cos(a) * 0.35, fillHeightAt(def, ri, fillH, a, 0.35), Math.sin(a) * 0.35], 0.78 + R() * 0.14);
+    }
+    // rubble slumped into the cleared pocket against its back face, inside the pocket's blocked
+    // core (the parts' own core: a man never stands there) -- the heap's stones, tumbled in and
+    // settled, so the notch's back is a pile, not a sawn face: [s, d, base, sx, sy, sz]
+    const Qp = (s, d) => [Math.cos(door.c) * d - Math.sin(door.c) * s, Math.sin(door.c) * d + Math.cos(door.c) * s];
+    for (const [s, d, base, sx, sy, sz] of [[-0.16, 0.2, 0, 0.48, 0.3, 0.38], [0.17, 0.17, 0, 0.42, 0.26, 0.34], [0, 0.38, 0, 0.52, 0.34, 0.4], [-0.03, 0.22, 0.24, 0.36, 0.24, 0.3]]) {
+      const [px, pz] = Qp(s, d);
+      stone(G, 'rubble', px, base - 0.03, pz, sx, sy, sz, door.c + (R() - 0.5) * 0.8, R, 0.5);
     }
   } else G.cyl('rubble', x, 0, z, ri - 0.02, 0.35, fillH, 18, 0.85);
   for (let k = 0; k < 7; k++) {
-    const a = R() * Math.PI * 2, d = R() * (ri - 0.5), s = 0.2 + R() * 0.2, y = fillH * (1 - d / ri) * 0.85;
-    if (door && d > 0.5 && doorD(door.c, Math.cos(a) * d, Math.sin(a) * d) > 0 && Math.abs(doorS(door.c, Math.cos(a) * d, Math.sin(a) * d)) < door.half + 0.05) continue; // none in the cleared pocket
-    stone(G, 'ruinStone', Math.cos(a) * d, y - 0.1, Math.sin(a) * d, s * 1.4, s * 0.45, s, R() * 3, R, 0.6);
+    const a = R() * Math.PI * 2, d = R() * (ri - 0.5), s = 0.2 + R() * 0.2;
+    if (door && d > 0.35 && doorD(door.c, Math.cos(a) * d, Math.sin(a) * d) > 0 && Math.abs(doorS(door.c, Math.cos(a) * d, Math.sin(a) * d)) < door.half + s * 0.7) continue; // none in the cleared pocket
+    stone(G, 'ruinStone', Math.cos(a) * d, surfY(a, d) - 0.07, Math.sin(a) * d, s * 1.4, s * 0.45, s, R() * 3, R, 0.6);
   }
   // fallen masonry round its foot (the breach side): a low mound of rubble and stones lying on and round it, half sunk
   for (const [wx, wz, mr, mh] of towerMounds(def)) { const [lx, lz] = L(wx, wz); G.cyl('rubble', lx, -0.04, lz, mr, mr * 0.35, mh, 14, 0.85); }
