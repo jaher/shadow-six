@@ -69,8 +69,10 @@ const DEFAULT_WEAPON = { greenberet: 'colt1911', sniper: 'no4_sniper', marine: '
   sapper: 'walther_p38', driver: 'thompson', driver_burns: 'thompson', spy: 'walther_p38' };
 
 let LIB = null, loading = null;
-/** Below this many px/m (LOD1/LOD2 sizes) mixers step every 2nd frame with the accumulated dt. */
-const HALF_RATE_PX = 50;
+/** Below this many px/m mixers step every 2nd frame with the accumulated dt, and applyLOD strips kit extras /
+ * posture / GTAO (the far state). 40 = the default 1x density: the strip now engages only at the 0.5x wide
+ * view (20 px/m); at 50 it fired in the default view and stripped every soldier in normal play. */
+const HALF_RATE_PX = 40;
 const CRAWLING = /^crawl(_unarmed|_knife)?$/;
 /** Idle loops that step at a quarter rate when zoomed out (breathing: nothing moves against the ground). */
 const IDLE_LOOP = /^(idle|crawl_idle|carry_idle|barrel_idle|drag_idle|downed_idle)$/;

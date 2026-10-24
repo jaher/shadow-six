@@ -32,8 +32,9 @@ export function fixLibMeta(lib) {
   return lib;
 }
 
-// LOD thresholds (anim_check lodsheet: LOD0/1/2 read the same at 40 and 80 px/m)
-export const enemyLodFor = (px) => px >= 120 ? 'LOD0' : px >= 50 ? 'LOD1' : 'LOD2';
+// LOD thresholds: the commando ladder (lodFor 60/28). The old 120/50 left LOD0 unreachable at every game zoom
+// (zoom caps at 2x = 80 px/m) and put the default 1x view (40 px/m) on the LOD2 body.
+export const enemyLodFor = (px) => px >= 60 ? 'LOD0' : px >= 28 ? 'LOD1' : 'LOD2';
 // gait variant by requested ground speed (enemy_anims.glb walk_fast / run_slow / run_fast = commandos_b re-synthesis):
 // alert walk 1.8 m/s was a 170-178 steps/min shuffle on the 0.92 m/s walk; run 3.8 m/s skated the left heel on the UAL jog
 export const GAIT = { walk: [['walk', 1.45], ['walk_fast', 1e9]], run: [['run_slow', 4.15], ['run', 4.95], ['run_fast', 1e9]] };
