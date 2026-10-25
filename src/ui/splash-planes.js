@@ -7,8 +7,11 @@
  * drawn in code, warm under-rim from the fires below); per frame it is a handful of drawImage calls, and between passes
  * there is no per-frame cost at all — one timer schedules the next pass and the rAF loop runs only while a pass
  * or its smoke is alive. The corridor is measured off the live layout at every pass: below the wordmark block
- * (.bt-top) and above the hero's face box (HERO_FACE), so the formation never crosses either; the bomb line keeps
- * to the open field left of the hero and is skipped outright on screens too narrow to hold it. Under reduced
+ * to the open field left of the hero and is skipped only when the bursts would actually reach the figure
+ * (the stick's right edge plus the fireball's reach is measured against the face box's left edge — an
+ * earlier flat cutoff at 0.42 of the window width sat within a few px of that edge at squarish aspects
+ * and flickered with the hero's idle animation, silently killing the drops). On a very short stage the
+ * lane is retried with tight clearances rather than sitting the pass out. Under reduced
  * motion there are no passes, like the embers.
  * @module ui/splash-planes
  */
@@ -230,17 +233,27 @@ export class SplashPlanes {
     const s = Math.min(b.width / hero.naturalWidth, b.height / hero.naturalHeight); // object-fit: contain
     const iw = hero.naturalWidth * s, ih = hero.naturalHeight * s;
     const ix = b.x + (b.width - iw) / 2, iy = b.y + (b.height - ih);                 // object-position: 50% 100%
-    const corridorTop = top.bottom - cr.top + 8;
-    const faceTop = iy + HERO_FACE.y0 * ih - cr.top - 8;
-    const corridorH = faceTop - corridorTop;
-    if (corridorH < 24) return null;                       // no clean lane on this screen: sit this pass out
+    const corridorTopRaw = top.bottom - cr.top;
+    const faceTopRaw = iy + HERO_FACE.y0 * ih - cr.top;
+    let corridorTop = corridorTopRaw + 8;
+    let faceTop = faceTopRaw - 8;
+    let corridorH = faceTop - corridorTop;
+    if (corridorH < 24) {                                  // very short stage: retry with tight clearances
+      corridorTop = corridorTopRaw + 3;                    // rather than no pass at all — the lane still
+      faceTop = faceTopRaw - 3;                            // clears the wordmark and the face box, just
+      corridorH = faceTop - corridorTop;                   // with less air around the formation
+      if (corridorH < 16) return null;                     // genuinely no lane on this screen: sit it out
+    }
     const size = Math.min(0.052 * ch, (corridorH - 6) / 1.36);
     const horizon = HORIZON * ch;
     // bomb line: only with open field left of the figure (proxied by the face box's left edge — the body's
-    // parts stay within it at the horizon line) — never under the hero, and skipped on narrow screens
+    // parts stay within it at the horizon line) — never under the hero. Judged on the actual geometry:
+    // the stick's right edge plus the burst's reach must clear that edge (the gap at ordinary landscape
+    // sizes is then 60+ px, far beyond the hero rect's idle-animation drift, so the verdict is stable)
     let drops = null;
     const faceLeftVp = ix + HERO_FACE.x0 * iw;             // viewport px
-    if (faceLeftVp > 0.42 * innerWidth) {
+    const stickRightVp = IMPACTS[IMPACTS.length - 1] * innerWidth + 0.006 * cw; // rightmost burst centre + jitter
+    if (faceLeftVp - stickRightVp > 1.5 * (size * 0.62)) { // 1.5x the fireball radius R = size * 0.62 (_boom)
       const v = (1.38 * cw) / PASS_TIME;
       const g = 2 * (horizon - (corridorTop + corridorH / 2)) / (FALL_TIME * FALL_TIME);
       drops = IMPACTS.map((f) => {
