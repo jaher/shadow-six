@@ -368,8 +368,23 @@ def mills(name='mills'):
     """No. 36M grenade: cast iron, dark green-khaki paint, chipped to grey iron on the segments' ridges."""
     m, nt, b = new(name); L = nt.links
     edge, cav = wear_masks(nt)
-    col = mix_rgb(nt, LIN((62, 70, 48)), LIN((80, 78, 72)), math(nt, 'MULTIPLY', edge, 0.8), 'MIX', (-200, 300))
+    col = mix_rgb(nt, LIN((76, 82, 56)), LIN((116, 114, 102)), math(nt, 'MULTIPLY', edge, 0.85), 'MIX', (-200, 300))
     L.new(col, b.inputs['Base Color'])
-    L.new(maprange(nt, edge, 0, 1, 0.65, 0.45), b.inputs['Roughness'])
+    L.new(maprange(nt, edge, 0, 1, 0.6, 0.38), b.inputs['Roughness'])
     L.new(maprange(nt, edge, 0, 1, 0.0, 0.7), b.inputs['Metallic'])
+    return m
+
+
+def gunmetal(name='gunmetal'):
+    """Worn bare steel for the grenade's fuze head, lever and ring: mid-grey and bright on the edges, so the
+    fittings read against the dark painted body (they were blackened steel before and vanished into it)."""
+    m, nt, b = new(name); L = nt.links
+    w = coords(nt)
+    n = noise(nt, w, 300.0, 5.0, 0.6, (-1000, 300))
+    edge, cav = wear_masks(nt)
+    col = mix_rgb(nt, LIN((92, 92, 88)), LIN((160, 158, 150)), math(nt, 'MULTIPLY', edge, 0.75), 'MIX', (-200, 300))
+    col = mix_rgb(nt, col, LIN((52, 52, 50)), math(nt, 'MULTIPLY', cav, 0.5), 'MULTIPLY', (-100, 300))
+    L.new(col, b.inputs['Base Color'])
+    b.inputs['Metallic'].default_value = 0.9
+    L.new(maprange(nt, n.outputs['Fac'], 0.3, 0.7, 0.36, 0.52), b.inputs['Roughness'])
     return m

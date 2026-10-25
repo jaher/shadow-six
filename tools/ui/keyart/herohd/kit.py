@@ -291,14 +291,16 @@ def flap(name, w, h, d, drop, mat, coll=None, r=0.018, thick=0.003):
     return ob
 
 
-def pouch(name, surf, at, side, mat, brass, coll=None, w=0.150, h=0.190, d=0.062, axis_y=-0.025):
-    """P37 basic pouch hooked on the belt, its back on the chest: body + lid flap + press stud + top buckle."""
+def pouch(name, surf, at, side, mat, brass, coll=None, w=0.112, h=0.114, d=0.056, axis_y=-0.025):
+    """P37 basic pouch hooked on the belt, its back on the chest: body + lid flap + press stud + top buckle.
+    Sized to the real thing (~11 cm wide x ~15 cm tall on the man) — the first build's 150 x 190 mm read
+    gigantic on screen (~13 x 28 cm in figure proportion)."""
     loc, x, y, z = frame_at(surf, at)
     out = np.array([loc[0], loc[1] - axis_y, 0.0]); out /= np.linalg.norm(out)
     # tilt with the chest: average outward normal over the pouch footprint
     ns = []
     for u in (-0.06, 0.0, 0.06):
-        for v in (0.0, 0.08, 0.16):
+        for v in (0.0, 0.045, 0.09):
             l2, n2 = surf.near(loc + x * u + y * v)
             ns.append(n2 if n2 @ out > 0 else -n2)
     z = np.mean(ns, 0); z /= np.linalg.norm(z)
@@ -312,27 +314,55 @@ def pouch(name, surf, at, side, mat, brass, coll=None, w=0.150, h=0.190, d=0.062
                 p = o + x * u + y * v
                 l2, n2 = surf.near(p)
                 if n2 @ z < 0: n2 = -n2
-                worst = min(worst, (p - l2) @ n2 - 0.006)
+                worst = min(worst, (p - l2) @ n2 - 0.0045)
         if worst >= 0: break
         o = o - z * worst
     boxm = bpy.data.materials.get('webbing_box') or mats.webbing_box()
+    # each pouch settles differently under its load: stable per-side seed, a whisper of size difference
+    rng = np.random.default_rng(7101 if side > 0 else 4102)
+    w, h, d = w * (1 + 0.008 * (rng.random() - 0.5)), h * (1 + 0.008 * (rng.random() - 0.5)), d * (1 + 0.012 * (rng.random() - 0.5))
     box = rounded_box(name, w, h, d, 0.016, boxm, coll, bulge=0.006, stitch=True, cuts=16)
-    # contents: two magazines stand in the pouch -> two soft vertical ridges on the front; a little sag and lumpiness
-    rng = np.random.default_rng(abs(hash(name)) % 1000)
-    ph = rng.uniform(0, 6.28, 3)
+    # contents and gravity: two magazines stand in the pouch (soft ridges on the front); the loaded front bellies
+    # low, the bottom swings off the body and dips between its corners, the sides crease and draw in a little
+    ph = rng.uniform(0, 6.28, 4)
+    belly = 0.006 + 0.002 * rng.random()
+    sag = 0.0028 + 0.0018 * rng.random()
+    hang = 0.0035 + 0.002 * rng.random()
+    ridge_c = (-0.42 + 0.09 * (rng.random() - 0.5), 0.42 + 0.09 * (rng.random() - 0.5))
+    ridge_a = 0.0034 + 0.0015 * rng.random()
     for v in box.data.vertices:
         u, t = v.co.x / (w / 2), v.co.y / (h / 2)
-        if v.co.z > d * 0.55:
-            ridge = sum(math.exp(-((u - c) / 0.3) ** 2) for c in (-0.42, 0.42))
-            v.co.z += 0.006 * ridge * max(0.0, 1 - t * t) ** 0.5
-        v.co.z += 0.0015 * math.sin(u * 2.3 + ph[0]) * math.sin(t * 1.7 + ph[1])
-        if v.co.y < -h * 0.3: v.co.x *= 1 + 0.03 * (-v.co.y / (h / 2) - 0.6)
+        low = max(0.0, (-t - 0.45) / 0.55)                       # 0 mid-height -> 1 at the bottom edge
+        if v.co.z > d * 0.45:
+            front = (v.co.z / d - 0.45) / 0.55
+            ridge = sum(math.exp(-((u - c) / 0.3) ** 2) for c in ridge_c)
+            v.co.z += ridge_a * ridge * max(0.0, 1 - t * t) ** 0.5
+            v.co.z += belly * math.exp(-((t + 0.30) / 0.62) ** 2) * max(0.0, 1 - u * u) ** 0.6 * front
+            v.co.z -= 0.0020 * math.exp(-((abs(u) - 0.86) / 0.09) ** 2) * max(0.0, -t) * front   # side creases
+        v.co.z += 0.0021 * math.sin(u * 2.3 + ph[0]) * math.sin(t * 1.7 + ph[1])
+        v.co.z += 0.0011 * math.sin(u * 5.1 + ph[2]) * math.sin(t * 3.9 + ph[3])
+        v.co.z += hang * low * low * (v.co.z / d)                # the bottom swings out under its own weight
+        if t < -0.5:
+            v.co.y -= sag * ((-t - 0.5) / 0.5) ** 2 * (1 - u * u)   # bottom centre dips between the corners
+            v.co.x *= 1 - 0.045 * low                            # sides draw in toward the bottom
     box.matrix_world = mat4(o + y * 0.0, x, y, z)
     for v in box.data.vertices: v.co.y += h / 2           # origin at the bottom centre
-    lid = flap(name + '_lid', w + 0.008, h, d + 0.012, 0.072, boxm, coll)
+    lid = flap(name + '_lid', w + 0.008, h, d + 0.012, 0.048, boxm, coll)
     lid.matrix_world = box.matrix_world.copy()
+    # the lid settles with the body: it follows the belly where it crosses the front, and its free edge dips
+    # lowest mid-width and kicks off the front a little, like cloth held by the press stud
+    for v in lid.data.vertices:
+        u = v.co.x / (w / 2)
+        tf = v.co.y / h
+        front = max(0.0, (v.co.z / (d + 0.012) - 0.45) / 0.55)
+        v.co.z += belly * math.exp(-((2 * tf - 1 + 0.30) / 0.62) ** 2) * max(0.0, 1 - u * u) ** 0.6 * front
+        if v.co.y < h - 0.02:
+            dropf = min(1.0, (h - 0.02 - v.co.y) / 0.048)
+            v.co.y -= 0.0032 * dropf * (1 - u * u)
+            v.co.z += 0.0022 * dropf * dropf
     stud = cylinder(name + '_stud', 0.0065, 0.004, brass, coll, seg=20)
-    stud.matrix_world = mat4(o + y * (h - 0.058) + z * (d + 0.0165 + 0.004), x, y, z)
+    belly_s = belly * math.exp(-(((h - 0.040) / h * 2 - 1 + 0.30) / 0.62) ** 2)
+    stud.matrix_world = mat4(o + y * (h - 0.040) + z * (d + 0.0205 + belly_s), x, y, z)
     bk = brass_buckle(name + '_buckle', 0.032, 0.03, 0.0045, 0.003, brass, coll)
     top = o + y * (h + 0.004) + z * (d * 0.35) + x * (side * w * 0.3)
     bk.matrix_world = mat4(top + y * 0.002, x, y, z)

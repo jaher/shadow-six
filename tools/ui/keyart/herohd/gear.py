@@ -100,20 +100,21 @@ def mills(M, body_m, metal, coll=None):
         prof.append((max(r, 0.009), z))
     body = lathe('mills_body', prof, body_m, 48, coll)
     body.matrix_world = M
-    # segment grooves: displace the surface in a 6 x 8 grid pattern
+    # segment grooves: displace the surface in a 6 x 8 grid pattern — deep and wide enough to still read as
+    # cast segmentation after the subsurf pass (the first cut smoothed away and the bomb read as a smooth blob)
     for v in body.data.vertices:
         a = math.atan2(v.co.y, v.co.x)
-        g1 = abs(math.sin(a * 4)) ** 0.15
-        g2 = abs(math.sin((v.co.z + 0.012) / 0.0885 * math.pi * 5.5)) ** 0.15
+        g1 = abs(math.sin(a * 4)) ** 0.3
+        g2 = abs(math.sin((v.co.z + 0.012) / 0.0885 * math.pi * 5.5)) ** 0.3
         f = min(g1, g2)
         rr = math.hypot(v.co.x, v.co.y)
         if rr > 0.012:
-            k = (rr - 0.0035 * (1 - f)) / rr
+            k = (rr - 0.0052 * (1 - f)) / rr
             v.co.x *= k; v.co.y *= k
     sub = body.modifiers.new('sub', 'SUBSURF'); sub.levels = 1; sub.render_levels = 1
     head = lathe('mills_fuze', [(0.0, 0.0), (0.009, 0.0), (0.0105, -0.004), (0.0105, -0.013), (0.0, -0.013)], metal, 32, coll)
     head.matrix_world = M
-    lever = kit.rounded_box('mills_lever', 0.014, 0.075, 0.0016, 0.0007, metal, coll)
+    lever = kit.rounded_box('mills_lever', 0.016, 0.075, 0.0016, 0.0007, metal, coll)
     lever.matrix_world = M @ Matrix.Translation((0.0, 0.031, -0.05)) @ Matrix.Rotation(math.radians(90), 4, 'X') @ Matrix.Rotation(math.radians(-4), 4, 'X')
     ring = bpy.data.objects.new('mills_ring', bpy.data.meshes.new('mills_ring')); (coll or bpy.context.scene.collection).objects.link(ring)
     bm = bmesh.new(); bmesh.ops.create_circle(bm, cap_ends=False, radius=0.011, segments=24); bm.to_mesh(ring.data); bm.free()
@@ -249,7 +250,7 @@ def equip(smock, rig, Z, coll=None):
     hp, hn = BP[k], BN[k] / np.linalg.norm(BN[k])
     zx = np.cross(np.array([0, 0, 1.0]), hn); zx /= np.linalg.norm(zx)
     Mg = mat4(hp + hn * 0.036, zx, hn, np.array([0, 0, 1.0]))
-    out['mills'] = mills(Mg, mats.mills(), blk, coll)
+    out['mills'] = mills(Mg, mats.mills(), mats.gunmetal(), coll)
     # water bottle on the right hip, hanging from the belt
     sp = surf.ray((-1.0, 0.5 * (yf + yb) - 0.02, zb - 0.02), (1, 0, 0), 2.0)[0]
     nb = np.array([-1.0, -0.75, 0.0]); nb /= np.linalg.norm(nb)

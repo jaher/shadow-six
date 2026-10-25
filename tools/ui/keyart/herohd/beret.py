@@ -1,5 +1,6 @@
 """The green beret: an analytic felt shell round a band fitted to the rest-pose head (the band is the head's section
-by a tilted plane, pushed out 4 mm), the crown pulled down over the right ear and tight over the left eye where a
+by a tilted plane, pushed out 4 mm), a compact, close-fitting crown with a short flop of cloth over the right ear,
+and tight over the left eye where a
 brass cap badge sits (a generic badge: crowned oval with a dagger, no real regiment's), a black leather binding with
 the drawstring bow at the back. Built on the rest-pose head; dress.py carries it into the pose with the head bone."""
 import math
@@ -49,11 +50,11 @@ def build(body, rig, eyes_z, brow_front_y, coll=None, seed=3):
     bvh = BVHTree.FromPolygons([Vector(p) for p in co], [t.vertices[:] for t in me0.loop_triangles])
     hp = co[w > 0.5]
     top = hp[np.argmax(hp[:, 2])]
-    # band plane: ~5 cm above the eyes at the front, above the ears at the sides, low at the back
+    # band plane: worn low — ~3 cm above the eyes at the front (just over the brows), above the ears at the sides, low at the back
     # band plane through the forehead (2.5 cm above the brows) and the occiput (just above eye level, behind)
     yf = brow_front_y - 0.01
     yb = top[1] + 0.09
-    zf, zb = eyes_z + 0.047, eyes_z + 0.004
+    zf, zb = eyes_z + 0.032, eyes_z - 0.002
     c = np.array([0.0, 0.5 * (yf + yb), 0.5 * (zf + zb)])
     n_ = np.array([0.0, (zf - zb) / (yb - yf), 1.0]); n_ /= np.linalg.norm(n_)
     ring, th, rr, ex, ey = band_ring(bvh, c, n_)
@@ -63,32 +64,49 @@ def build(body, rig, eyes_z, brow_front_y, coll=None, seed=3):
     right = 0.5 * (1 - np.cos(th)) ** 1.0                # 1 on the character's right
     back = 0.5 * (1 + np.sin(th))
     badge = np.exp(-((np.angle(np.exp(1j * (th - math.radians(-62))))) / 0.6) ** 2)
-    pouf = 0.008 + 0.075 * right ** 1.5 + 0.022 * back * (1 - right) + 0.012 * (1 - badge)   # outward fullness
-    phi0 = 0.30 + 0.10 * right                           # elevation (rad) of the fullest point
-    droop = 0.030 * right ** 2                           # the fullness sags down on the right
+    pouf = 0.003 + 0.007 * right ** 1.5 + 0.004 * back * (1 - right) + 0.004 * (1 - badge)   # outward fullness: minimal, the felt hugs the skull
+    phi0 = 0.26 + 0.06 * right                           # elevation (rad) of the fullest point
+    droop = 0.006 * right ** 2                           # the fullness sags down on the right
+    # the short flop: on the front-right the felt tips just past the band and points down a little way beside the
+    # head (the classic card's wear). Profile rows there run slightly below the band plane (phi < 0), staying
+    # close to the skull — a compact beret, not a drape.
+    dth = np.angle(np.exp(1j * (th - math.radians(-145))))
+    drape = np.exp(-(dth / 0.45) ** 2)                     # 1 at the flop centre (front-right), ~0 elsewhere
+    shift = 0.30 * drape                                  # how far below the band plane each column's profile reaches
     ctr = c + n_ * 0.02
     G = np.zeros((n, K, 3))
+    PHI = np.zeros((n, K))
     for k in range(n):
         rad = (ring[k] - c); rad /= np.linalg.norm(rad)
         for j in range(K):
-            phi = (math.pi / 2) * (j / (K - 1)) ** 0.9
+            phi_b = (math.pi / 2) * (j / (K - 1)) ** 0.9
+            phi = phi_b - shift[k] * (1 - phi_b / (math.pi / 2)) ** 1.5
+            PHI[k, j] = phi
             d = rad * math.cos(phi) + n_ * math.sin(phi)
             if j == K - 1: d = n_ + rad * 1e-3
             hit, nrm, _, _ = bvh.ray_cast(Vector(ctr), Vector(d / np.linalg.norm(d)), 0.3)
-            if j == 0 or hit is None:
-                S = ring[k] + n_ * 0.002 if j == 0 else ctr + d * 0.1
+            if hit is not None and not (j == 0 and shift[k] <= 0.03):
+                S = np.array(hit); N = np.array(nrm)
+            elif j == 0:
+                S = ring[k] + n_ * 0.002
                 N = rad
             else:
-                S = np.array(hit); N = np.array(nrm)
-            bump = math.exp(-((phi - phi0[k]) / 0.42) ** 2) * min(1.0, phi / 0.16)
-            if phi > phi0[k]: bump = max(bump, 0.75 * math.exp(-((phi - phi0[k]) / 0.9) ** 2))
-            clr = 0.003 + 0.006 * min(1.0, phi / 0.3) + pouf[k] * bump
+                S = ctr + d * 0.1
+                N = rad
+            if phi >= 0:
+                bump = math.exp(-((phi - phi0[k]) / 0.42) ** 2) * min(1.0, phi / 0.16)
+                if phi > phi0[k]: bump = max(bump, 0.6 * math.exp(-((phi - phi0[k]) / 0.9) ** 2))
+                clr = 0.0025 + 0.004 * min(1.0, phi / 0.3) + pouf[k] * bump
+            else:
+                f = -phi / max(shift[k], 1e-6)                       # 0 at the band, 1 at the tip
+                bump = 0.22 * math.exp(-(phi / 0.24) ** 2)            # the bend over the band stays close, fading down
+                clr = 0.004 + pouf[k] * bump + 0.005 * f ** 1.3      # a little clearance toward the tip of the flop
             P = S + N * clr - n_ * droop[k] * bump
             G[k, j] = P
     # the crown is a stretched felt disc: a smooth min against a plane tilted down to the right
-    tn = n_ + ex * 0.42 + ey * 0.05; tn /= np.linalg.norm(tn)
+    tn = n_ + ex * 0.18 + ey * 0.05; tn /= np.linalg.norm(tn)
     sk = np.array([np.array(bvh.ray_cast(Vector(ctr), Vector(n_), 0.3)[0])])[0]
-    tp = sk + tn * 0.014
+    tp = sk + tn * 0.002
     kk = 0.012
     for k in range(n):
         for j in range(K):
@@ -104,8 +122,16 @@ def build(body, rig, eyes_z, brow_front_y, coll=None, seed=3):
             s_ = j / (K - 1)
             f = (math.sin(th[k] * 7 + ph[0] + s_ * 3) * 0.5 + math.sin(th[k] * 3 + ph[1] - s_ * 2) * 0.7
                  + math.sin(th[k] * 13 + ph[2] + s_ * 6) * 0.25)
-            amp = 0.0016 * math.sin(math.pi * min(1.0, s_ * 1.4)) * (0.3 + 0.7 * right[k]) * (1 - 0.7 * badge[k])
+            amp = 0.0009 * math.sin(math.pi * min(1.0, s_ * 1.4)) * (0.3 + 0.7 * right[k]) * (1 - 0.7 * badge[k])
             G[k, j] += rad * amp * f
+    # a soft lengthwise fold down the hanging flap
+    for k in range(n):
+        if shift[k] <= 0.03: continue
+        rad = (ring[k] - c); rad /= np.linalg.norm(rad)
+        for j in range(K):
+            if PHI[k, j] < 0:
+                f = -PHI[k, j] / shift[k]
+                G[k, j] += rad * (0.0015 * math.sin(f * 4.2 + th[k] * 2.0) * f * drape[k])
     # mesh: grid (n around x K up), the centre closed with a fan
     bm = bmesh.new()
     V = [[bm.verts.new(tuple(G[k, j])) for j in range(K)] for k in range(n)]
@@ -130,7 +156,7 @@ def build(body, rig, eyes_z, brow_front_y, coll=None, seed=3):
     smo = ob.modifiers.new('smooth', 'SMOOTH'); smo.factor = 0.6; smo.iterations = 3
     sd = ob.modifiers.new('sd', 'SOLIDIFY'); sd.thickness = 0.003; sd.offset = -1
     sub = ob.modifiers.new('sub', 'SUBSURF'); sub.levels = 1; sub.render_levels = 2
-    ob.data.materials.append(mats.felt())
+    ob.data.materials.append(mats.felt('beret', (17, 25, 18)))   # near-black green, the classic card's tone
     # leather binding: a strip round the band ring, 12 mm tall, 1.5 mm proud
     bm = bmesh.new()
     lo = [bm.verts.new(tuple(ring[k] + (ring[k] - c) / np.linalg.norm(ring[k] - c) * 0.0012 - n_ * 0.001)) for k in range(n)]

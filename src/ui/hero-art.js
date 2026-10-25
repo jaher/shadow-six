@@ -16,7 +16,7 @@ export const HERO_HEIGHTS = [900, 1350, 1800, 2700];
  * down; tools/ui/keyart/herohd/facebox.py): the splash layout
  * keeps the wordmark, tagline and prompt off it (tests/ui-hero.test.mjs).
  */
-export const HERO_FACE = { x0: 0.331, y0: 0.15, x1: 0.612, y1: 0.338 };
+export const HERO_FACE = { x0: 0.362, y0: 0.16, x1: 0.608, y1: 0.338 };
 
 /**
  * @param {number} cssHeight viewport height in CSS px

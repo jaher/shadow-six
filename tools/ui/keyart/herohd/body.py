@@ -8,26 +8,28 @@ from mathutils import Vector
 import mh
 
 # shape: no real person; a lean, muscular man of about 30 with a square jaw, heavy brow and a once-broken nose
-MACRO = dict(gender=1.0, age=0.58, muscle=0.80, weight=0.44, height=0.53, proportions=0.8)
+MACRO = dict(gender=1.0, age=0.58, muscle=0.86, weight=0.41, height=0.53, proportions=0.8)
 FACE = {
-    'head/head-square': 0.32, 'head/head-age': 0.4, 'head/head-fat': -0.6, 'head/head-oval': 0.1,
-    'chin/chin-bones': 0.5, 'chin/chin-prominent': 0.4, 'chin/chin-width': 0.05, 'chin/chin-height': 0.15, 'chin/chin-cleft': 0.2,
-    'neck/neck-scale-horiz': 0.3, 'neck/neck-scale-depth': 0.15, 'neck/neck-double': -0.5,
+    'head/head-square': 0.48, 'head/head-age': 0.4, 'head/head-fat': -0.6, 'head/head-oval': 0.1,
+    'chin/chin-bones': 0.62, 'chin/chin-prominent': 0.4, 'chin/chin-width': 0.22, 'chin/chin-height': 0.15, 'chin/chin-cleft': 0.2,
+    'neck/neck-scale-horiz': 0.38, 'neck/neck-scale-depth': 0.2, 'neck/neck-double': -0.5,
     'nose/nose-hump': 0.45, 'nose/nose-scale-vert': 0.15, 'nose/nose-width1': 0.1, 'nose/nose-point-width': 0.05,
     'nose/nose-greek': -0.2, 'nose/nose-scale-depth': 0.1,
-    'eyebrows/eyebrows-trans': ('forward', 0.45), 'eyebrows/eyebrows-angle': ('down', 0.25),
+    'eyebrows/eyebrows-trans': ('forward', 0.60), 'eyebrows/eyebrows-angle': ('down', 0.34),
     'cheek/l-cheek-bones': 0.5, 'cheek/r-cheek-bones': 0.5, 'cheek/l-cheek-inner': -0.35, 'cheek/r-cheek-inner': -0.35,
     'cheek/l-cheek-volume': -0.6, 'cheek/r-cheek-volume': -0.6,
-    'forehead/forehead-trans': ('forward', 0.15), 'forehead/forehead-nubian': 0.15, 'forehead/forehead-temple': -0.3,
+    'forehead/forehead-trans': ('forward', 0.24), 'forehead/forehead-nubian': 0.15, 'forehead/forehead-temple': -0.3,
     'mouth/mouth-scale-horiz': 0.12, 'mouth/mouth-upperlip-volume': -0.15,
     # a set, determined face: brows lowered, eyes narrowed a little, lips pressed (MakeHuman expression units)
-    'expression/units/caucasian/eyebrows-left-down.target': 0.3, 'expression/units/caucasian/eyebrows-right-down.target': 0.3,
-    'expression/units/caucasian/eye-left-slit.target': 0.1, 'expression/units/caucasian/eye-right-slit.target': 0.1,
-    'expression/units/caucasian/mouth-compression.target': 0.1, 'mouth/mouth-lowerlip-volume': 0.1,
+    'expression/units/caucasian/eyebrows-left-down.target': 0.42, 'expression/units/caucasian/eyebrows-right-down.target': 0.42,
+    'expression/units/caucasian/eye-left-slit.target': 0.16, 'expression/units/caucasian/eye-right-slit.target': 0.16,
+    'expression/units/caucasian/mouth-compression.target': 0.18, 'mouth/mouth-lowerlip-volume': 0.1,
     'eyes/l-eye-height2': -0.2, 'eyes/r-eye-height2': -0.2, 'eyes/l-eye-bag': ('in', 0.2), 'eyes/r-eye-bag': ('in', 0.2),
-    'torso/torso-vshape': 0.35, 'torso/torso-muscle-pectoral': 0.3, 'torso/torso-muscle-dorsi': 0.3,
-    'armslegs/r-lowerarm-muscle': 0.4, 'armslegs/l-lowerarm-muscle': 0.4, 'armslegs/r-upperarm-muscle': 0.35,
-    'armslegs/l-upperarm-muscle': 0.35, 'armslegs/r-lowerarm-fat': -0.4, 'armslegs/l-lowerarm-fat': -0.4,
+    'torso/torso-vshape': 0.42, 'torso/torso-muscle-pectoral': 0.3, 'torso/torso-muscle-dorsi': 0.3,
+    'armslegs/r-lowerarm-muscle': 0.9, 'armslegs/l-lowerarm-muscle': 0.9, 'armslegs/r-upperarm-muscle': 0.85,
+    'armslegs/l-upperarm-muscle': 0.85, 'armslegs/r-upperarm-fat': -0.45, 'armslegs/l-upperarm-fat': -0.45,
+    'armslegs/r-upperarm-shoulder-muscle': 0.45, 'armslegs/l-upperarm-shoulder-muscle': 0.45,
+    'armslegs/r-lowerarm-fat': -0.55, 'armslegs/l-lowerarm-fat': -0.55,
     'armslegs/r-hand-scale': 0.12, 'armslegs/l-hand-scale': 0.12, 'armslegs/r-hand-fingers-diameter': 0.2,
     'armslegs/l-hand-fingers-diameter': 0.2,
 }
@@ -41,9 +43,50 @@ def shaped(root, face=None, macro=None):
     return H
 
 
+def arm_sculpt(H, body):
+    """The definition the targets cannot give: radial mass around the shoulder-elbow-hand axes, separated into a
+    biceps belly on the front of the upper arm, triceps behind, a deltoid cap over the shoulder joint, and the
+    forearm's flexor mass high under the elbow tapering to corded tendons at the wrist — lean and hard, not smooth
+    bulk. Positions only, on the rest mesh; skin weights, UVs and the rig (built from H) are untouched."""
+    V = np.array([v.co for v in body.data.vertices], dtype=np.float64)
+    J = lambda g: mh.mh2b(H.gcenter(g)[None])[0].astype(np.float64)
+    front = np.array([0.0, -1.0, 0.0]); up = np.array([0.0, 0.0, 1.0])
+    disp = np.zeros_like(V)
+    for s in ('l', 'r'):
+        S, E, W = J(f'joint-{s}-shoulder'), J(f'joint-{s}-elbow'), J(f'joint-{s}-hand')
+        for A, B, upper in ((S, E, True), (E, W, False)):
+            ax = B - A; L = float(np.linalg.norm(ax)); ax = ax / L
+            rel = V - A
+            t = (rel @ ax) / L                       # parameter along the bone, 0 at A, 1 at B
+            cp = A + np.outer(np.clip(t, 0.0, 1.0) * L, ax)
+            rv = V - cp; r = np.linalg.norm(rv, axis=1)
+            gate = (r > 1e-5) & (r < (0.088 if upper else 0.072)) & (t > -0.03) & (t < 1.04)
+            if not gate.any(): continue
+            rh = rv[gate] / r[gate, None]; tt = np.clip(t[gate], 0.0, 1.0)
+            fr = np.clip(rh @ front, 0.0, 1.0); bk = np.clip(rh @ -front, 0.0, 1.0); tp = np.clip(rh @ up, 0.0, 1.0)
+            if upper:
+                d = (0.0030 * np.sin(np.pi * tt) ** 0.9
+                     + 0.0048 * np.exp(-(((tt - 0.45) / 0.21) ** 2)) * (0.25 + 0.75 * fr ** 1.5)
+                     + 0.0038 * np.exp(-(((tt - 0.55) / 0.24) ** 2)) * (0.25 + 0.75 * bk ** 1.5)
+                     + 0.0042 * np.exp(-(((tt - 0.07) / 0.11) ** 2)) * (0.35 + 0.65 * tp))
+                d = d * smooth01(t[gate], -0.02, 0.08)
+            else:
+                u = np.cross(ax, front); u = u / (np.linalg.norm(u) + 1e-9)
+                w2 = np.cross(ax, u)
+                ang = np.arctan2(rh @ w2, rh @ u)
+                d = ((0.0018 * (1 - tt) + 0.0048 * np.exp(-(((tt - 0.24) / 0.30) ** 2))) * (0.45 + 0.55 * fr)
+                     + 0.0009 * np.sin(ang * 3.0 + 1.3) * np.exp(-(((tt - 0.78) / 0.20) ** 2)) * (0.3 + 0.7 * fr))
+            disp[gate] += rh * d[:, None]
+    for v, dv in zip(body.data.vertices, disp):
+        if dv.any(): v.co = Vector(V[v.index] + dv)
+    body.data.update()
+    print('ARM SCULPT max displacement %.1f mm' % (1000 * float(np.linalg.norm(disp, axis=1).max())))
+
+
 def make(root, face=None, macro=None):
     H = shaped(root, face, macro)
     body = H.build_mesh('body')
+    arm_sculpt(H, body)
     rig = H.build_rig(body, name='hero.rig')
     # region weights need the full index space (joint cubes) -> before finish_mesh
     regions(H, body)
@@ -159,6 +202,27 @@ def regions(H, body):
         band = smooth01(half - np.abs(z - zc), 0.0, 0.0018) * smooth01(dx, -0.022, -0.018) * smooth01(-dx, -0.031, -0.026)
         brow = np.maximum(brow, band * (y < e[1] + 0.01))
     _vg(body, 'k_brow', brow * used)
+    # a short healed scar across the left cheekbone: a thin diagonal streak in (x, z), soft-edged
+    eL = lm['eyeL']
+    p0 = np.array([eL[0] + 0.014, eL[2] - 0.030])
+    p1 = np.array([eL[0] + 0.030, eL[2] - 0.047])
+    ab = p1 - p0; L2 = float(ab @ ab)
+    tt = np.clip(((V[:, [0, 2]] - p0) @ ab) / L2, 0, 1)
+    dseg = np.linalg.norm(V[:, [0, 2]] - (p0 + np.outer(tt, ab)), axis=1)
+    scar = smooth01(0.0032 - dseg, 0.0, 0.0016) * np.clip(headw * 1.5, 0, 1) * (y < E[1] + 0.01)
+    _vg(body, 'k_scar', scar * used)
+    # fresh scratches: two thin grazes on the forehead, two on the left cheek — tight, soft-edged streaks
+    def _streak(a, b):
+        aa = np.array(a); bb = np.array(b); ab2 = bb - aa; LL = float(ab2 @ ab2)
+        t2 = np.clip(((V[:, [0, 2]] - aa) @ ab2) / LL, 0, 1)
+        dd = np.linalg.norm(V[:, [0, 2]] - (aa + np.outer(t2, ab2)), axis=1)
+        return smooth01(0.0026 - dd, 0.0, 0.0012)
+    scr = np.maximum.reduce([
+        _streak((eL[0] - 0.004, eL[2] + 0.030), (eL[0] + 0.020, eL[2] + 0.045)),
+        _streak((eL[0] + 0.002, eL[2] + 0.024), (eL[0] + 0.019, eL[2] + 0.036)),
+        _streak((eL[0] + 0.006, eL[2] - 0.016), (eL[0] + 0.016, eL[2] - 0.033)),
+        _streak((eL[0] + 0.018, eL[2] - 0.009), (eL[0] + 0.024, eL[2] - 0.021))])
+    _vg(body, 'k_scratch', scr * np.clip(headw * 1.5, 0, 1) * (y < E[1] + 0.01) * used)
     # forearm + back-of-hand hair
     arm = np.zeros(len(V))
     for side in ('l', 'r'):
@@ -185,7 +249,7 @@ def node(nt, kind, loc=(0, 0), **inputs):
     return n
 
 
-def skin_material(H, name='skin', tex=SKIN_TEX, grime=0.4, beard=0.6, soot=0.55):
+def skin_material(H, name='skin', tex=SKIN_TEX, grime=0.48, beard=0.9, soot=0.55):
     m = bpy.data.materials.new(name); m.use_nodes = True
     nt = m.node_tree; L = nt.links
     bsdf = nt.nodes['Principled BSDF']
@@ -201,7 +265,7 @@ def skin_material(H, name='skin', tex=SKIN_TEX, grime=0.4, beard=0.6, soot=0.55)
     L.new(n1.outputs['Fac'], blot.inputs['Value'])
     red = node(nt, 'ShaderNodeMix', (-450, 300)); red.data_type = 'RGBA'; red.blend_type = 'MULTIPLY'
     red.inputs['B'].default_value = (1.0, 0.86, 0.80, 1)
-    mul = node(nt, 'ShaderNodeMath', (-700, 0)); mul.operation = 'MULTIPLY'; mul.inputs[1].default_value = 0.45
+    mul = node(nt, 'ShaderNodeMath', (-700, 0)); mul.operation = 'MULTIPLY'; mul.inputs[1].default_value = 0.55
     L.new(blot.outputs['Result'], mul.inputs[0]); L.new(mul.outputs[0], red.inputs['Factor']); L.new(hsv.outputs['Color'], red.inputs['A'])
     # grime: a coarser noise, darker and browner, stronger in creases (AO)
     n2 = node(nt, 'ShaderNodeTexNoise', (-1100, -300)); n2.inputs['Scale'].default_value = 9; n2.inputs['Detail'].default_value = 8; n2.inputs['Roughness'].default_value = 0.7
@@ -227,11 +291,18 @@ def skin_material(H, name='skin', tex=SKIN_TEX, grime=0.4, beard=0.6, soot=0.55)
     L.new(tc.outputs['Object'], bn.inputs['Vector'])
     bk = node(nt, 'ShaderNodeMath', (-200, 650)); bk.operation = 'MULTIPLY'
     bk2 = node(nt, 'ShaderNodeMapRange', (-400, 750)); bk2.inputs['From Min'].default_value = 0.3; bk2.inputs['From Max'].default_value = 0.7
-    bk2.inputs['To Min'].default_value = beard * 0.6; bk2.inputs['To Max'].default_value = beard
+    bk2.inputs['To Min'].default_value = beard * 0.5; bk2.inputs['To Max'].default_value = beard
     L.new(bn.outputs['Fac'], bk2.inputs['Value']); L.new(bat.outputs[0], bk.inputs[0]); L.new(bk2.outputs['Result'], bk.inputs[1])
+    bn2 = node(nt, 'ShaderNodeTexNoise', (-650, 850)); bn2.inputs['Scale'].default_value = 650; bn2.inputs['Detail'].default_value = 3
+    L.new(tc.outputs['Object'], bn2.inputs['Vector'])
+    bp = node(nt, 'ShaderNodeMapRange', (-400, 850)); bp.inputs['From Min'].default_value = 0.35; bp.inputs['From Max'].default_value = 0.75
+    bp.inputs['To Min'].default_value = 0.55; bp.inputs['To Max'].default_value = 1.0
+    L.new(bn2.outputs['Fac'], bp.inputs['Value'])
+    bkp = node(nt, 'ShaderNodeMath', (-100, 650)); bkp.operation = 'MULTIPLY'
+    L.new(bk.outputs[0], bkp.inputs[0]); L.new(bp.outputs['Result'], bkp.inputs[1])
     bsh = node(nt, 'ShaderNodeMix', (0, 450)); bsh.data_type = 'RGBA'; bsh.blend_type = 'MULTIPLY'
-    bsh.inputs['B'].default_value = (0.36, 0.34, 0.36, 1)
-    L.new(dirt.outputs['Result'], bsh.inputs['A']); L.new(bk.outputs[0], bsh.inputs['Factor'])
+    bsh.inputs['B'].default_value = (0.30, 0.285, 0.305, 1)
+    L.new(dirt.outputs['Result'], bsh.inputs['A']); L.new(bkp.outputs[0], bsh.inputs['Factor'])
     # soot and dirt from the night's work: smudged patches, wiped streaks (object space), darker in the creases
     sn = node(nt, 'ShaderNodeTexNoise', (-650, 900)); sn.inputs['Scale'].default_value = 7.0; sn.inputs['Detail'].default_value = 9
     sn.inputs['Roughness'].default_value = 0.68; sn.inputs['Distortion'].default_value = 0.6
@@ -248,7 +319,21 @@ def skin_material(H, name='skin', tex=SKIN_TEX, grime=0.4, beard=0.6, soot=0.55)
     soo = node(nt, 'ShaderNodeMix', (150, 450)); soo.data_type = 'RGBA'; soo.blend_type = 'MULTIPLY'
     soo.inputs['B'].default_value = (0.32, 0.29, 0.26, 1)
     L.new(bsh.outputs['Result'], soo.inputs['A']); L.new(sr.outputs['Result'], soo.inputs['Factor'])
-    L.new(soo.outputs['Result'], bsdf.inputs['Base Color'])
+    # the scar: paler, pinker skin along the k_scar streak
+    scat = node(nt, 'ShaderNodeAttribute', (-600, 1250)); scat.attribute_name = 'k_scar'
+    scf = node(nt, 'ShaderNodeMath', (-400, 1250)); scf.operation = 'MULTIPLY'; scf.inputs[1].default_value = 0.55
+    L.new(scat.outputs['Fac'], scf.inputs[0])
+    scm = node(nt, 'ShaderNodeMix', (350, 450)); scm.data_type = 'RGBA'
+    scm.inputs['B'].default_value = (0.80, 0.62, 0.54, 1)
+    L.new(soo.outputs['Result'], scm.inputs['A']); L.new(scf.outputs[0], scm.inputs['Factor'])
+    # fresh scratches: raw, redder skin along the k_scratch streaks
+    fsat = node(nt, 'ShaderNodeAttribute', (-600, 1400)); fsat.attribute_name = 'k_scratch'
+    fsf = node(nt, 'ShaderNodeMath', (-400, 1400)); fsf.operation = 'MULTIPLY'; fsf.inputs[1].default_value = 0.9
+    L.new(fsat.outputs['Fac'], fsf.inputs[0])
+    fsm = node(nt, 'ShaderNodeMix', (550, 450)); fsm.data_type = 'RGBA'
+    fsm.inputs['B'].default_value = (0.48, 0.16, 0.12, 1)
+    L.new(scm.outputs['Result'], fsm.inputs['A']); L.new(fsf.outputs[0], fsm.inputs['Factor'])
+    L.new(fsm.outputs['Result'], bsdf.inputs['Base Color'])
     # subsurface (random walk, skin radii), a sweaty sheen in the light
     bsdf.subsurface_method = 'RANDOM_WALK_SKIN'
     bsdf.inputs['Subsurface Weight'].default_value = 1.0
@@ -256,12 +341,12 @@ def skin_material(H, name='skin', tex=SKIN_TEX, grime=0.4, beard=0.6, soot=0.55)
     bsdf.inputs['Subsurface Scale'].default_value = 0.0045
     bsdf.inputs['Specular IOR Level'].default_value = 0.55
     # roughness: 0.42 +/- pores/oil, grime rougher
-    rn = node(nt, 'ShaderNodeMapRange', (-350, -150)); rn.inputs['To Min'].default_value = 0.34; rn.inputs['To Max'].default_value = 0.56
+    rn = node(nt, 'ShaderNodeMapRange', (-350, -150)); rn.inputs['To Min'].default_value = 0.38; rn.inputs['To Max'].default_value = 0.62
     L.new(n1.outputs['Fac'], rn.inputs['Value'])
     rsum = node(nt, 'ShaderNodeMath', (-150, -150)); rsum.operation = 'ADD'; rsum.use_clamp = True
     L.new(rn.outputs['Result'], rsum.inputs[0]); L.new(gk.outputs[0], rsum.inputs[1])
     L.new(rsum.outputs[0], bsdf.inputs['Roughness'])
-    bsdf.inputs['Coat Weight'].default_value = 0.12; bsdf.inputs['Coat Roughness'].default_value = 0.35
+    bsdf.inputs['Coat Weight'].default_value = 0.08; bsdf.inputs['Coat Roughness'].default_value = 0.35
     # pores + fine wrinkles: voronoi (pores, ~0.6 mm) and stretched noise, in object space
     vor = node(nt, 'ShaderNodeTexVoronoi', (-900, -800)); vor.feature = 'DISTANCE_TO_EDGE'; vor.inputs['Scale'].default_value = 900
     L.new(tc.outputs['Object'], vor.inputs['Vector'])
@@ -271,10 +356,35 @@ def skin_material(H, name='skin', tex=SKIN_TEX, grime=0.4, beard=0.6, soot=0.55)
     L.new(tc.outputs['Object'], n3.inputs['Vector'])
     hsum = node(nt, 'ShaderNodeMath', (-500, -900)); hsum.operation = 'MULTIPLY_ADD'
     L.new(n3.outputs['Fac'], hsum.inputs[0]); hsum.inputs[1].default_value = 0.6; L.new(pore.outputs['Result'], hsum.inputs[2])
-    bump = node(nt, 'ShaderNodeBump', (-250, -800)); bump.inputs['Strength'].default_value = 0.32; bump.inputs['Distance'].default_value = 0.0003
+    bump = node(nt, 'ShaderNodeBump', (-250, -800)); bump.inputs['Strength'].default_value = 0.5; bump.inputs['Distance'].default_value = 0.00045
     L.new(hsum.outputs[0], bump.inputs['Height'])
     L.new(bump.outputs['Normal'], bsdf.inputs['Normal'])
     L.new(bump.outputs['Normal'], bsdf.inputs['Coat Normal'])
+    # pore speckle in the colour: pores read in the albedo too, not only in the bump
+    pfk = node(nt, 'ShaderNodeMath', (-400, -650)); pfk.operation = 'MULTIPLY'; pfk.inputs[1].default_value = 0.30
+    L.new(pore.outputs['Result'], pfk.inputs[0])
+    pdm = node(nt, 'ShaderNodeMix', (750, 450)); pdm.data_type = 'RGBA'; pdm.blend_type = 'MULTIPLY'
+    pdm.inputs['B'].default_value = (0.84, 0.80, 0.77, 1)
+    L.new(fsm.outputs['Result'], pdm.inputs['A']); L.new(pfk.outputs[0], pdm.inputs['Factor'])
+    L.new(pdm.outputs['Result'], bsdf.inputs['Base Color'])
+    # pores break up the roughness too (rims catch light differently from the pore floor)
+    prk = node(nt, 'ShaderNodeMath', (-400, -250)); prk.operation = 'MULTIPLY'; prk.inputs[1].default_value = 0.18
+    L.new(pore.outputs['Result'], prk.inputs[0])
+    rfin = node(nt, 'ShaderNodeMath', (50, -150)); rfin.operation = 'ADD'; rfin.use_clamp = True
+    L.new(rsum.outputs[0], rfin.inputs[0]); L.new(prk.outputs[0], rfin.inputs[1])
+    L.new(rfin.outputs[0], bsdf.inputs['Roughness'])
+    # scratch grooves cut into the bump; a fine grain noise roughens the pore field
+    sgr = node(nt, 'ShaderNodeMath', (-700, -1150)); sgr.operation = 'MULTIPLY'; sgr.inputs[1].default_value = -1.0
+    L.new(fsat.outputs['Fac'], sgr.inputs[0])
+    n4 = node(nt, 'ShaderNodeTexNoise', (-900, -1300)); n4.inputs['Scale'].default_value = 2400; n4.inputs['Detail'].default_value = 2
+    L.new(tc.outputs['Object'], n4.inputs['Vector'])
+    gk2 = node(nt, 'ShaderNodeMath', (-700, -1300)); gk2.operation = 'MULTIPLY'; gk2.inputs[1].default_value = 0.35
+    L.new(n4.outputs['Fac'], gk2.inputs[0])
+    htot = node(nt, 'ShaderNodeMath', (-450, -1150)); htot.operation = 'ADD'
+    L.new(hsum.outputs[0], htot.inputs[0]); L.new(sgr.outputs[0], htot.inputs[1])
+    hfin = node(nt, 'ShaderNodeMath', (-350, -1050)); hfin.operation = 'ADD'
+    L.new(htot.outputs[0], hfin.inputs[0]); L.new(gk2.outputs[0], hfin.inputs[1])
+    L.new(hfin.outputs[0], bump.inputs['Height'])
     return m
 
 
