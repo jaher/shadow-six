@@ -1,7 +1,8 @@
 /**
  * Boot (docs/menus-art-direction.md S01, S03 + amendments A5, B10, B12): the fan-tribute disclaimer on black paper,
  * our 16 mm film-leader ident (3·2·1 sweep, burn-through to the embossed emblem and wordmark), then the title splash:
- * one frontal hero in three parallax layers before the burning emplacement, ≤ 30 embers, the worn wordmark, the red
+ * one frontal hero in three parallax layers before the burning emplacement, a distant bomber formation that now
+ * and then crosses the sky and puts a small stick of bombs on the far field (splash-planes.js), ≤ 30 embers, the worn wordmark, the red
  * tagline and "LOADING…" over a filling brass rule that turns into a pulsing "PRESS ANY KEY". The first input also
  * unlocks Web Audio and fades the menu loop in (B10). S02 (the newsreel) hooks in here once its film exists.
  * @module ui/boot
@@ -10,6 +11,7 @@
 import { el } from './dom.js';
 import { DISCLAIMER } from './screens.js';
 import { SplashFx } from './splash-fx.js';
+import { SplashPlanes } from './splash-planes.js';
 import { pressPrompt, isTouchUI } from './touch.js';
 import { heroHeight, heroUrl, skyWidth, skyUrl } from './hero-art.js';
 import { dprNow } from './icon-art.js';
@@ -143,6 +145,13 @@ export class Boot {
     const sw = skyWidth(innerWidth, innerHeight, dprNow());
     skyAvif.srcset = skyUrl(sw, 'avif');
     sky.src = skyUrl(sw, 'webp');
+    // a distant bomber formation crossing the sky now and then (canvas 2D, its own layer over the plate,
+    // under the light pass, so the hero occludes it; silent under reduced motion)
+    const pc = el('canvas', 'bt-l planes', art);
+    this.planes?.dispose();
+    this.planes = new SplashPlanes(pc, { still: this.hud.kit.reducedMotion });
+    if (this.planes.alive) this.planes.start();
+    else pc.remove();
     // live fire + volumetric searchlight (WebGL2); the painted fire is the fallback
     const fxc = el('canvas', 'bt-l fx', art);
     this.fx?.dispose();
@@ -274,6 +283,8 @@ export class Boot {
     this.root.hidden = true;
     this.fx?.dispose();
     this.fx = null;
+    this.planes?.dispose();
+    this.planes = null;
     this.root.replaceChildren();
     this.root.className = 'bt';
     this.promptEl = this.ruleFill = null;
