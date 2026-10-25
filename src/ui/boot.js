@@ -145,7 +145,7 @@ export class Boot {
     const sw = skyWidth(innerWidth, innerHeight, dprNow());
     skyAvif.srcset = skyUrl(sw, 'avif');
     sky.src = skyUrl(sw, 'webp');
-    // a distant bomber formation crossing the sky now and then (canvas 2D, its own layer over the plate,
+    // a distant fighter formation (Spitfires) crossing the sky now and then (canvas 2D, its own layer over the plate,
     // under the light pass, so the hero occludes it; silent under reduced motion)
     const pc = el('canvas', 'bt-l planes', art);
     this.planes?.dispose();
@@ -162,6 +162,15 @@ export class Boot {
       const f = el('img', 'bt-l fire', art);
       f.alt = '';
       f.src = 'assets/ui/keyart/fire.svg';
+    }
+    // drifting embers — created BEFORE the hero on purpose: paint order in `art` is DOM order (sky, planes,
+    // fx, embers, hero), so the figure occludes the sparkles where they drift behind him; none cross his face
+    const embers = el('div', 'bt-embers', art);
+    if (!this.hud.kit.reducedMotion) {
+      for (let i = 0; i < 30; i++) { // B12: ≤ 30 sprites
+        const e = el('i', null, embers);
+        e.style.cssText = `--x:${(i * 37) % 100}%;--d:${2.4 + ((i * 13) % 17) / 6}s;--delay:${-((i * 7) % 23) / 5}s;--dx:${((i * 29) % 21) - 10}px`;
+      }
     }
     // the hero: an offline Cycles render (tools/ui/keyart/herohd) in four heights, AVIF with a WebP fallback, the
     // smallest one at least as tall as the viewport in device pixels (hero-art.js); a resize (rotation, fullscreen)
@@ -198,13 +207,6 @@ export class Boot {
       mq.addEventListener?.('change', on);
     };
     watchDpr();
-    const embers = el('div', 'bt-embers', art);
-    if (!this.hud.kit.reducedMotion) {
-      for (let i = 0; i < 30; i++) { // B12: ≤ 30 sprites
-        const e = el('i', null, embers);
-        e.style.cssText = `--x:${(i * 37) % 100}%;--d:${2.4 + ((i * 13) % 17) / 6}s;--delay:${-((i * 7) % 23) / 5}s;--dx:${((i * 29) % 21) - 10}px`;
-      }
-    }
     const top = el('div', 'bt-top', sp);
     const wm = el('div', 'mk-wm bt-wordmark', top); // worn-steel fill clipped to the wordmark outlines
     wm.setAttribute('role', 'img');

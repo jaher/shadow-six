@@ -1,9 +1,10 @@
 /**
- * S03 title splash: a distant bomber formation that now and then crosses the sky behind the hero and, mid-pass,
- * puts a small stick of bombs on the far field — a flash, a fireball bloom and a smoke plume that lingers on the
- * horizon, in the burning tank's dusk palette. Canvas 2D on its own `.bt-l` layer, between the painted sky plate
- * and the light pass, so the hero always occludes it. Silhouettes are prerendered sprites (a bomber profile drawn
- * in code, warm under-rim from the fires below); per frame it is a handful of drawImage calls, and between passes
+ * S03 title splash: a distant fighter formation — Spitfires — that now and then crosses the sky behind the hero
+ * and, mid-pass, puts sticks of bombs on the far field: each burst lights the sky above it for about a second,
+ * then a flash, a fireball bloom and a smoke plume that lingers on the horizon, in the burning tank's dusk
+ * palette. Canvas 2D on its own `.bt-l` layer, between the painted sky plate
+ * and the light pass, so the hero always occludes it. Silhouettes are prerendered sprites (a Spitfire profile
+ * drawn in code, warm under-rim from the fires below); per frame it is a handful of drawImage calls, and between passes
  * there is no per-frame cost at all — one timer schedules the next pass and the rAF loop runs only while a pass
  * or its smoke is alive. The corridor is measured off the live layout at every pass: below the wordmark block
  * (.bt-top) and above the hero's face box (HERO_FACE), so the formation never crosses either; the bomb line keeps
@@ -24,9 +25,14 @@ const FORMATION = [
   [-2.85, -0.38, 0.91, 0.78],
   [-2.85, 0.38, 0.91, 0.78],
 ];
-/** Formation slots that carry a bomb (the leader and the two inner pairs — a five-bomb stick). */
+/** The sprite is drawn this much larger than the layout unit — at unit size the Spitfire's identifiers
+ * (elliptical wing, prop, canopy) blur into a generic speck at full-screen video scale. */
+const SPRITE_SCALE = 1.18;
+/** Formation slots that carry bombs (the leader and the two inner pairs). */
 const BOMBERS = [0, 1, 2, 3, 4];
-/** Impact points of the stick, as fractions of the viewport width (the open field left of the hero). */
+/** Bombs per stick and their release spacing — a short falling column the eye can catch, not a single speck. */
+const STICK = 3, STICK_GAP = 0.18;
+/** Anchor impact points of the sticks, as fractions of the viewport width (the open field left of the hero). */
 const IMPACTS = [0.13, 0.18, 0.23, 0.28, 0.325];
 const FIRST_DELAY = 5000;               // ms after the splash is up before the first pass
 const GAP_MIN = 55000, GAP_VAR = 55000; // idle gap between passes: 55–110 s
@@ -34,54 +40,87 @@ const PASS_TIME = 17;                   // s for the leader to cross the stage
 const FALL_TIME = 1.9;                  // s a bomb falls from the corridor to the horizon
 const HORIZON = 0.79;                   // horizon line of the sky plate, as a fraction of the layer height
 
-/** Bomber silhouette (side profile, nose right) in a 240-unit box; origin at the fuselage centre. */
-function bomberSprite() {
+/**
+ * Spitfire silhouette (side profile, nose right) in a 240-unit box; origin at the fuselage centre. The
+ * identifiers are drawn to read at ~55 px on screen: the elliptical wing slung under a slim fuselage, the
+ * single nose prop (blur disc + blade) with its pointed spinner, the bubble canopy, and the rounded fin.
+ */
+function spitfireSprite() {
   const U = 240, SS = 2; // supersample
   const c = document.createElement('canvas');
   c.width = (U + 24) * SS; c.height = (0.62 * U + 24) * SS;
   const g = c.getContext('2d');
   g.scale(SS, SS);
   g.translate(12 + U / 2, 12 + 0.31 * U);
-  const body = new Path2D();
-  body.moveTo(120, 2);
-  body.bezierCurveTo(120, -13, 100, -20, 79, -23);          // nose top
-  body.bezierCurveTo(62, -28, 48, -28, 36, -24);            // cockpit hump
-  body.lineTo(-67, -18);                                    // dorsal line
-  body.bezierCurveTo(-86, -16, -96, -24, -100, -48);        // fin leading edge
-  body.bezierCurveTo(-102, -63, -106, -65, -109, -62);      // fin top
-  body.lineTo(-114, -7);                                    // rudder trailing edge
-  body.bezierCurveTo(-115, 7, -110, 13, -96, 14);           // tail underside
-  body.lineTo(67, 20);                                      // belly
-  body.bezierCurveTo(101, 21, 120, 14, 120, 2);             // nose underside
+  const body = new Path2D();                                // slim fuselage + rounded fin, one outline
+  body.moveTo(106, -6);
+  body.bezierCurveTo(100, -13, 88, -16, 70, -16.5);         // cowling top
+  body.bezierCurveTo(50, -17, 38, -15, 28, -13.5);          // to the windscreen base
+  body.lineTo(-30, -10.5);                                  // dorsal line aft of the canopy
+  body.bezierCurveTo(-48, -9.5, -58, -9, -66, -10);
+  body.bezierCurveTo(-78, -12, -88, -22, -93, -31);         // fin leading edge, one smooth sweep
+  body.bezierCurveTo(-96, -36, -103, -36.5, -106, -32);     // rounded fin top
+  body.bezierCurveTo(-109, -26, -110, -14, -110, -4);       // rudder trailing edge
+  body.bezierCurveTo(-110, 1, -106, 4, -98, 5);             // tail cone
+  body.lineTo(-40, 7.5);                                    // underside
+  body.bezierCurveTo(-16, 10, 2, 12.5, 20, 13);             // belly (radiator dip under the wing)
+  body.bezierCurveTo(48, 13.5, 78, 11, 94, 8);              // cowling underside
+  body.bezierCurveTo(100, 7, 104, 3, 106, -1);
   body.closePath();
-  const wing = new Path2D();                                // near wing, edge-on wedge under the fuselage
-  wing.moveTo(41, 7); wing.lineTo(5, 48); wing.lineTo(-14, 48); wing.lineTo(12, 5); wing.closePath();
-  const tail = new Path2D();                                // tailplane wedge
-  tail.moveTo(-120, 11); tail.lineTo(-79, 11); tail.lineTo(-86, 24); tail.lineTo(-116, 20); tail.closePath();
-  const grad = g.createLinearGradient(0, -65, 0, 48);
+  const wing = new Path2D();                                // the elliptical wing, slung low
+  wing.ellipse(6, 15.5, 56, 10.5, -0.05, 0, Math.PI * 2);
+  const tail = new Path2D();                                // elliptical tailplane
+  tail.ellipse(-97, 3, 21, 5, 0.03, 0, Math.PI * 2);
+  const canopy = new Path2D();                              // bubble canopy
+  canopy.moveTo(28, -12.5);
+  canopy.bezierCurveTo(24, -21, 12, -27, 0, -27.5);
+  canopy.bezierCurveTo(-12, -28, -24, -20, -29, -11);
+  canopy.closePath();
+  const grad = g.createLinearGradient(0, -40, 0, 36);
   grad.addColorStop(0, '#252d36'); grad.addColorStop(0.55, '#0b0e13'); grad.addColorStop(1, '#05070a');
   g.fillStyle = grad;
-  g.fill(body); g.fill(wing); g.fill(tail);
-  const rim = g.createLinearGradient(0, -4, 0, 48);         // warm under-rim from the fires below
+  g.fill(wing); g.fill(body); g.fill(tail);                 // wing first: the fuselage paints over its root,
+                                                            // so the ellipse tucks under the body as one
+                                                            // silhouette instead of reading as a loose ring
+  const rim = g.createLinearGradient(0, -4, 0, 36);         // warm under-rim from the fires below
   rim.addColorStop(0, 'rgba(255,138,64,0)');
   rim.addColorStop(1, 'rgba(255,138,64,0.34)');
-  const sheen = g.createLinearGradient(0, -65, 0, -24);     // faint cool sheen on the back and fin
+  const sheen = g.createLinearGradient(0, -40, 0, -14);     // faint cool sheen on the back and fin
   sheen.addColorStop(0, 'rgba(170,190,210,0.13)');
   sheen.addColorStop(1, 'rgba(170,190,210,0)');
-  for (const part of [body, wing]) {                        // clip per part (a second clip() would intersect)
-    g.save(); g.clip(part);
-    g.fillStyle = rim; g.fillRect(-120, -4, 240, 52);
-    g.fillStyle = sheen; g.fillRect(-120, -65, 240, 41);
+  for (const part of [body, tail]) {                       // clip per part (a second clip() would intersect);
+    g.save(); g.clip(part);                                 // the wing stays unflooded — its warm cue is the
+    g.fillStyle = rim; g.fillRect(-120, -4, 240, 40);       // lit lower-edge stroke below, or the whole
+    g.fillStyle = sheen; g.fillRect(-120, -40, 240, 26);    // ellipse washes out as a glowing disc
     g.restore();
   }
   g.strokeStyle = 'rgba(255,150,80,0.30)';                  // lit lower edges only (clip to the belly half)
   g.lineWidth = 2.2;
-  g.save(); g.beginPath(); g.rect(-122, 2, 244, 50); g.clip();
-  g.stroke(body); g.stroke(wing); g.restore();
-  g.fillStyle = 'rgba(200,212,224,0.10)';                   // prop blur: two faint discs on the wing line
-  for (const [px, py, r] of [[37, 5, 38], [17, 12, 34]]) {
-    g.beginPath(); g.ellipse(px, py, 3.2, r, 0, 0, Math.PI * 2); g.fill();
-  }
+  g.save(); g.beginPath(); g.rect(-122, 2, 244, 38); g.clip();
+  g.stroke(body); g.restore();
+  g.save(); g.beginPath(); g.rect(-122, 15, 244, 25); g.clip(); // the wing's arc only where it clears the
+  g.stroke(wing); g.restore();                                  // belly — no outline across the fuselage
+  const glass = g.createLinearGradient(0, -28, 0, -10);     // canopy glass: pale sky tone over the dome
+  glass.addColorStop(0, 'rgba(150,180,205,0.7)');
+  glass.addColorStop(1, 'rgba(24,32,42,0.9)');
+  g.fillStyle = glass; g.fill(canopy);
+  g.strokeStyle = 'rgba(0,0,0,0.4)'; g.lineWidth = 1.4; g.stroke(canopy);
+  g.fillStyle = 'rgba(200,212,224,0.15)';                   // prop blur disc at the nose
+  g.beginPath(); g.ellipse(116, -1, 3.4, 41, 0, 0, Math.PI * 2); g.fill();
+  g.save();                                                 // one blade caught dark against the sky
+  g.translate(116, -1); g.rotate(0.10);
+  g.fillStyle = 'rgba(8,10,13,0.85)'; g.fillRect(-1.6, -38, 3.2, 76);
+  g.restore();
+  const spinner = new Path2D();                             // pointed spinner cone over the hub
+  spinner.moveTo(124, 0);
+  spinner.bezierCurveTo(118, -6, 110, -7.5, 102, -6);
+  spinner.lineTo(102, 6);
+  spinner.bezierCurveTo(110, 7.5, 118, 6, 124, 0);
+  spinner.closePath();
+  g.fillStyle = grad; g.fill(spinner);
+  g.save(); g.clip(spinner);
+  g.fillStyle = rim; g.fillRect(100, -4, 26, 12);
+  g.restore();
   // anchor: fuselage centre sits at (12 + U/2, 12 + 0.31U) of (U + 24) x (0.62U + 24), in unscaled units
   return { c, ss: SS, ax: (12 + U / 2) / (U + 24), ay: (12 + 0.31 * U) / (0.62 * U + 24), ref: U };
 }
@@ -102,13 +141,15 @@ function bombSprite() {
   body.lineTo(2, 5.6);
   body.bezierCurveTo(12, 5.6, 20, 4.4, 20, 0);
   body.closePath();
-  g.fillStyle = '#0a0c10';
+  g.fillStyle = '#04050a';
   g.fill(body);
   g.fillRect(-21, -6.5, 5, 13);                             // box fin (vertical)
   g.fillRect(-21, -1.8, 5, 3.6);                            // box fin (horizontal)
-  g.strokeStyle = 'rgba(255,150,80,0.35)';
+  g.strokeStyle = 'rgba(255,150,80,0.5)';
   g.lineWidth = 1;
   g.save(); g.beginPath(); g.rect(-22, 0, 44, 7); g.clip(); g.stroke(body); g.restore();
+  g.strokeStyle = 'rgba(195,210,225,0.30)';                  // cool sheen along the back, so the falling
+  g.save(); g.beginPath(); g.rect(-22, -7, 44, 7); g.clip(); g.stroke(body); g.restore(); // silhouette reads against dark sky too
   return { c, ss: SS, ref: 41 }; // ref: the body length in drawing units (x -21..20)
 }
 
@@ -126,7 +167,7 @@ export class SplashPlanes {
     try {
       this.ctx = canvas.getContext('2d');
       if (!this.ctx) return;
-      this._bomber = bomberSprite();
+      this._fighter = spitfireSprite();
       this._bomb = bombSprite();
       this.alive = true;
     } catch (err) {
@@ -146,7 +187,7 @@ export class SplashPlanes {
     const lay = this._layout();
     if (!lay) { this._schedule(); return; }
     this._lay = lay;
-    this._pass = { t: 0, dropped: new Set() };
+    this._pass = { t: 0, sticks: new Map() };
     this._bombs = [];
     this._booms = [];
     let last = performance.now(), acc = 1;
@@ -218,15 +259,21 @@ export class SplashPlanes {
     const p = this._pass, lay = this._lay;
     p.t += dt;
     const leadX = -0.30 * lay.w + lay.v * p.t;
-    // release: each bomber drops as it crosses its release line, so the stick walks along the field
+    // release: as each bomb-carrying fighter crosses its release line it lets go a stick of STICK bombs,
+    // STICK_GAP apart, each from the fighter's live position, so the stick walks along the field as it falls
     if (lay.drops) {
       FORMATION.forEach(([dx], i) => {
         const slot = BOMBERS.indexOf(i);
-        if (slot < 0 || p.dropped.has(i)) return;
-        const x = leadX + dx * lay.s;
-        if (x >= lay.drops[slot].releaseX) {
-          p.dropped.add(i);
-          this._bombs.push({ x, y: lay.cy + FORMATION[i][1] * lay.s + lay.s * 0.12, vx: lay.v, vy: 0, t: 0, g: lay.drops[slot].g });
+        if (slot < 0) return;
+        let st = p.sticks.get(i);
+        if (!st) {
+          if (leadX + dx * lay.s < lay.drops[slot].releaseX) return;
+          st = { left: STICK, next: p.t };
+          p.sticks.set(i, st);
+        }
+        while (st.left > 0 && p.t >= st.next) {
+          st.left -= 1; st.next += STICK_GAP;
+          this._bombs.push({ x: leadX + dx * lay.s, y: lay.cy + FORMATION[i][1] * lay.s + lay.s * 0.12, vx: lay.v, vy: 0, t: 0, g: lay.drops[slot].g });
         }
       });
     }
@@ -255,16 +302,17 @@ export class SplashPlanes {
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
     ctx.setTransform(w / lay.w, 0, 0, h / lay.h, 0, 0); // layout coords, stretched over the layer's current box
     ctx.clearRect(0, 0, lay.w, lay.h);
-    const spr = this._bomber, t = this._pass.t;
+    const spr = this._fighter, t = this._pass.t;
     for (let i = FORMATION.length - 1; i >= 0; i--) {
       const [dx, dy, sf, haze] = FORMATION[i];
       const x = leadX + dx * lay.s, y = lay.cy + dy * lay.s + Math.sin(t * 0.9 + i * 1.7) * 1.6;
-      const dw = (spr.c.width / spr.ss) * (lay.s * sf) / spr.ref, dh = (spr.c.height / spr.ss) * (lay.s * sf) / spr.ref;
+      const dw = (spr.c.width / spr.ss) * (lay.s * sf) / spr.ref * SPRITE_SCALE, dh = (spr.c.height / spr.ss) * (lay.s * sf) / spr.ref * SPRITE_SCALE;
       ctx.globalAlpha = haze;
       ctx.drawImage(spr.c, x - dw * spr.ax, y - dh * spr.ay, dw, dh);
     }
     ctx.globalAlpha = 1;
-    const bs = this._bomb, bl = 15 * (lay.s / 54); // bomb body length in css px, scaled with the formation
+    const bs = this._bomb, bl = 30 * (lay.s / 54); // bomb body length in css px, scaled with the formation
+    // (~2x the first cut: at full-screen video scale a ~15 px speck fell by unnoticed)
     for (const b of this._bombs) {
       const dw = (bs.c.width / bs.ss) * bl / bs.ref, dh = (bs.c.height / bs.ss) * bl / bs.ref;
       ctx.save();
@@ -280,6 +328,17 @@ export class SplashPlanes {
   _boom(b) {
     const { ctx } = this, lay = this._lay, y = lay.horizon, R = lay.s * 0.62;
     const flick = 0.85 + 0.3 * Math.sin(b.seed + b.t * 41) * Math.sin(b.seed * 2.7 + b.t * 29);
+    if (b.t < 1.1) { // the burst lights the sky above it: a soft warm glow that swells with the fireball
+      // and fades over ~1 s, like distant explosions under low cloud — a glow, not a strobe
+      const env = b.t < 0.14 ? 0.45 + 0.55 * (b.t / 0.14) : Math.max(0, 1 - (b.t - 0.14) / 0.96);
+      const r = R * (3.4 + 1.8 * Math.min(1, b.t / 0.7)), gy = y - R * 2.0;
+      const gr = ctx.createRadialGradient(b.x, gy, 0, b.x, gy, r);
+      gr.addColorStop(0, `rgba(255,158,64,${0.32 * env})`);
+      gr.addColorStop(0.55, `rgba(255,120,44,${0.17 * env})`);
+      gr.addColorStop(1, 'rgba(255,110,40,0)');
+      ctx.fillStyle = gr;
+      ctx.beginPath(); ctx.arc(b.x, gy, r, 0, Math.PI * 2); ctx.fill();
+    }
     if (b.t < 1.2) { // ground glow while it burns
       const a = 0.22 * (1 - b.t / 1.2);
       ctx.save(); ctx.translate(b.x, y + 2); ctx.scale(1, 0.32);
