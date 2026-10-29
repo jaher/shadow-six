@@ -4,21 +4,24 @@
  * corridor, per mission (the grid-only build's footprints, as tests/unit/rails-clear.test.mjs checks them).
  * Usage: node tools/layout/rail-report.mjs [--near 3] [--json] [mNN…]
  *   --near m   also list items up to m metres past their corridor (marked "near")
- *   --view     also list (advisory) structures whose height hides the rails from the default camera (pitch 40, yaw 15)
+ *   --view     also list the structures that hide rail heads from the default camera (pitch 40, yaw 15; viewHidden, the
+ *              library models' drawn walls and roofs: tests/unit/rail-drawn.mjs drawnSolids); --yaw d / --pitch d another view
+ *              (as drawn, in the browser: tools/layout/rail-view-probe.mjs)
  * ALLOWED lines: what a per-rail `onRails: { <rail id>: '<reason>' }` tag lets run over its one track (M4's wire over siding_a).
  */
 import { register } from 'node:module';
 
 register('../../tests/unit/resolve-hooks.mjs', import.meta.url); // 'three' → vendor/
 const { MISSIONS } = await import('../../src/missions/index.js');
-const { railClearance, viewCover } = await import('../../src/missions/rail-clearance.js');
+const { railClearance, viewHidden } = await import('../../src/missions/rail-clearance.js');
 const { loadGrid } = await import('../../tests/unit/mission-check.mjs');
-const { drawnPlans } = await import('../../tests/unit/rail-drawn.mjs');
+const { drawnPlans, drawnSolids } = await import('../../tests/unit/rail-drawn.mjs');
 const { vehicleDef } = await import('../../src/entities/vehicle.js');
 
 const args = process.argv.slice(2);
-const near = args.includes('--near') ? +args[args.indexOf('--near') + 1] : 0;
-const ids = args.filter((a, i) => !a.startsWith('--') && args[i - 1] !== '--near');
+const opt = (k, d) => (args.includes(k) ? +args[args.indexOf(k) + 1] : d);
+const near = opt('--near', 0), yawDeg = opt('--yaw', 15), pitchDeg = opt('--pitch', 40);
+const ids = args.filter((a, i) => !a.startsWith('--') && !['--near', '--yaw', '--pitch'].includes(args[i - 1]));
 const vehicleSize = (t) => { try { return vehicleDef(t)?.size ?? null; } catch { return null; } };
 const all = [];
 let bad = 0;
@@ -36,7 +39,11 @@ for (const m of MISSIONS) {
     console.log(`  ${tag.padEnd(8)} ${h.id.padEnd(26)} ${h.type.padEnd(14)} ${h.variant.slice(0, 24).padEnd(24)} ${h.rail.padEnd(12)} ${h.kind.padEnd(8)} dist ${h.dist.toFixed(2)} need ${h.need.toFixed(2)} (${h.overlap > 0 ? '+' : ''}${h.overlap.toFixed(2)})`);
   }
   for (const a of r.allowed) console.log(`  ALLOWED  ${a.id.padEnd(26)} ${a.type.padEnd(14)} ${a.variant.slice(0, 24).padEnd(24)} ${a.rail.padEnd(12)} ${a.kind.padEnd(8)} dist ${a.dist.toFixed(2)} need ${a.need.toFixed(2)} — ${a.why}`);
-  if (args.includes('--view')) for (const v of viewCover(def, handle.structures, { vehicleSize })) console.log(`  view     ${v.id.padEnd(26)} ${v.type.padEnd(14)} h ${v.h} hides ${v.rail} rails by ${v.cover.toFixed(2)} m`);
+  if (args.includes('--view')) {
+    for (const v of viewHidden(def, handle.structures, { vehicleSize, solids: await drawnSolids(def), yawDeg, pitchDeg })) {
+      console.log(`  view     ${v.id.padEnd(26)} ${v.type.padEnd(14)} h ${String(v.h).padEnd(6)} hides ${v.hidden.toFixed(1).padStart(5)} m of ${v.rail} rail heads (${v.track.toFixed(1)} m of line, s ${v.s.join('–')})${v.tag ? `  [${v.tag}]` : ''}`);
+    }
+  }
 }
 if (args.includes('--json')) console.log(JSON.stringify(all, null, 1));
 else console.log(`\n${bad} structure overlap(s)`);

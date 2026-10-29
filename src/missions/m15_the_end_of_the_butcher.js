@@ -43,6 +43,20 @@ export const loc = (cx, cz, lx, lz, rot = ROT) => {
 /** Levels (dossier §4.3): B the balcony, R the flat roof of the corner block. */
 export const LEVEL = { B: 4.5, R: 12.5 };
 
+/**
+ * Rails in view (user 10-29: "move the tall street buildings that hide the rails back so the tracks show" — yes): the
+ * tram street's S side stays as built. From the default camera (pitch 40, yaw 15) a top h m high hides 1.03 h of this
+ * street behind it; the tram's axis runs 10.3 m off the corner block's and the flat roof's N faces and 4.5 m off the
+ * HQ's, so clearing the rails would take setbacks of 10, 4.5 and 9 m (or blocks no taller than 9, 9 and 6 m, drawn now
+ * 18.9, 13.4 and 21.2 m) — each moves what the mission is built on. tests/unit/rails-clear.test.mjs keeps them to
+ * what they hide now.
+ */
+const RAIL_VIEW_KEPT = {
+  corner: 'kept: the Café de la Paix block fills its block from the tram street to the fountain square; door D1, the balcony and the uniform on its S face and the W avenue\'s hide under its NW corner fix it',
+  roof: 'kept: the Sniper\'s flat roof R (level 12.5), the dossier\'s perch at its NE corner over the garden',
+  hq: 'kept: the target — its demolition point by the rear door must stay within reach of the tanker parked on the rails',
+};
+
 // ---------------------------------------------------------------- the corner block (dossier §5.2)
 export const CB = { x: 20, z: 50, w: 26, d: 22 };
 const cb = (lx, lz) => loc(CB.x, CB.z, lx, lz);
@@ -55,10 +69,10 @@ export const UNIFORM = cb(3.5, BAL_LZ); // the clothes rack on the balcony
 export const SNIPER_SPOT = cb(12, -10); // R's NE corner: the shot at the garden's NE corner
 const CORNER = [
   { id: 'corner_block', type: 'house', variant: 'townhouse_corner_turret', label: 'Café de la Paix', x: cwX, z: cwZ, rot: deg(ROT),
-    w: 14, d: CB.d, h: 16, mat: 'plaster', roof: 'roofTar', enterable: true, door: D1, awnings: true,
+    w: 14, d: CB.d, h: 16, mat: 'plaster', roof: 'roofTar', enterable: true, door: D1, awnings: true, railView: RAIL_VIEW_KEPT.corner,
     walkways: [{ points: [cb(-11.5, BAL_LZ), cb(8, BAL_LZ)], width: 2.2, y: LEVEL.B }] },
   { id: 'corner_roof', type: 'flat_roof_house', variant: 'townhouse_corner_flat_roof', x: crX, z: crZ, rot: deg(ROT),
-    w: 12, d: 19.8, h: LEVEL.R, mat: 'plaster', roofWalk: true, parapet: 0.8 },
+    w: 12, d: 19.8, h: LEVEL.R, mat: 'plaster', roofWalk: true, parapet: 0.8, railView: RAIL_VIEW_KEPT.roof },
   { id: 'corner_turret', type: 'house', variant: 'townhouse_round_turret', x: ctX, z: ctZ, rot: deg(ROT), w: 5, d: 2.2, h: 16, mat: 'plaster', roof: 'roofTar' },
 ];
 
@@ -72,7 +86,7 @@ const HQ = [
   { id: 'hq', type: 'villa', variant: 'mansion_hq_mansard', label: 'Schleper\'s headquarters', x: HQ_N.x, z: HQ_N.z, rot: deg(ROT),
     w: HQ_N.w, d: HQ_N.d, h: 15, mat: 'brick', roof: 'roofTar', banners: true, flag: false, garrison: true,
     destructible: true, bombOnly: true, targetAt: HQ_TARGET_LOCAL, marker: 'hq_point', hp: 100, destroyFx: ['bigBlast', 'fire'], quietDestroy: true, // the trigger announces it (one message)
-    door: deg(270) }, // the rear door on the N face: the garrison's exit
+    door: deg(270), railView: RAIL_VIEW_KEPT.hq }, // the rear door on the N face: the garrison's exit
   { id: 'hq_wing', type: 'villa', variant: 'mansion_hq_mansard_wing', x: 56.5, z: 74.5, rot: deg(ROT), w: 19, d: 11, h: 15,
     mat: 'brick', roof: 'roofTar', steps: false },
   // the garden wall: brick to 1.2 m with a railing above (blocks feet, not eyes); the gate gap at (40, 56.3)

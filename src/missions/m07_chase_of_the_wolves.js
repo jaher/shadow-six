@@ -122,7 +122,8 @@ const BUILDINGS = [
   // post on the sleepers; its posts now 2.9 m or more off the track's ballast either side)
   ...[[-5, -3], [-5, 3], [5, -3], [5, 3]].map(([lx, lz], k) => {
     const c = Math.cos(deg(35)), s = Math.sin(deg(35));
-    return { id: `gantry_post_${k + 1}`, type: 'bunker', variant: 'gantry_timber', x: +(ART_GANTRY.x + lx * c - lz * s).toFixed(2), z: +(ART_GANTRY.z + lx * s + lz * c).toFixed(2), rot: deg(41.7), w: 0.8, d: 0.8, h: 6, mat: 'woodDark', block: 2 };
+    return { id: `gantry_post_${k + 1}`, type: 'bunker', variant: 'gantry_timber', x: +(ART_GANTRY.x + lx * c - lz * s).toFixed(2), z: +(ART_GANTRY.z + lx * s + lz * c).toFixed(2), rot: deg(41.7), w: 0.8, d: 0.8, h: 6, mat: 'woodDark', block: 2,
+      railView: 'the slipway gantry: its portal posts stand either side of the slip rails by design (rails in view, 10-29)' };
   }),
   // the village (tarred / red-painted timber, all enterable)
   // (art pass: h_big and h_4 are compounds of library houses, ART.parts; the rest one Norwegian model each. Breathing

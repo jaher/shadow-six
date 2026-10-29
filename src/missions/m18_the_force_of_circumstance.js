@@ -56,6 +56,8 @@ const REED_NECK = [[77, 27.5], [80, 21], [88.5, 19], [90, 28], [84, 31]];
 export const RAIL = [[212, 13.5], [200.6, 24.5], [139.5, 84.3], [103, 120.3], [73.2, 150], [62, 161]];
 /** The plank platform's centre (rails clear: 0.875 m back from (188, 33.5) towards the station, half its old depth). */
 const PLATFORM = [187.38, 32.88];
+/** house_road's centre (rails in view, user 10-29: set back 3.5 m from the line, towards the road; was (177, 59)). */
+const HOUSE_ROAD = [179.5, 61.5];
 const ROADS = {
   nw: [[0, 25], [25.7, 54]],
   bridgehead: [[91.5, 108.5], [103, 121], [119, 130]],
@@ -123,7 +125,10 @@ const EAST = [
   // freight wagons on the stub siding N of the station (cover; parallel to the main line and the station since the art pass)
   { id: 'wagon_1', type: 'train_car', variant: 'rail_yard_derelict_boxcar', x: 194, z: 19.5, rot: deg(-45), w: 10, d: 3, h: 3.5 },
   // zone B: the timber house by the road (hideout), the house block round its yard, the grey townhouse, the fountain
-  house('house_road', 'farmhouse_normandy', 177, 59, 10, 8, 9, { asset: 'farmhouse_mosan_a', mat: 'woodDark', enterable: true, door: deg(90) }),
+  // (rails in view, user 10-29: its NW face stood 3.4 m from the near rail and the default camera (pitch 40, yaw 15) saw
+  // neither rail behind its roof for 13 m; set back 3.5 m square to the line — as in M16; its log pile stays, still
+  // against its SW gable end, clear of Patrol 15's beat)
+  house('house_road', 'farmhouse_normandy', ...HOUSE_ROAD, 10, 8, 9, { asset: 'farmhouse_mosan_a', mat: 'woodDark', enterable: true, door: deg(90) }),
   house('blk_n', 'house_belgian_brick', 188, 73, 8, 8, 10, { asset: 'house_belgian_brick_a', mat: 'brick' }),
   house('blk_w', 'house_belgian_brick', 182, 85, 10, 8, 10, { asset: 'house_belgian_brick_b', mat: 'brick' }),
   house('blk_e', 'house_belgian_brick', 192, 82, 8, 10, 10, { asset: 'house_belgian_brick_w', mat: 'brick', enterable: true, door: deg(180) }),

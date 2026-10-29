@@ -10,16 +10,21 @@
  * (`onRails: { siding_a: … }` on the wire). It covers that wire over that track and nothing else — a building on any
  * track, a wire over any other track, a wire along the siding, a wire over a live train or tram line are all still
  * caught, and the wire's own posts (the knife rests' trestles) must stand clear of every track bed.
+ *
+ * And the rails in view (user 2026-10-29, the tall street buildings that hid the tracks set back): no building hides
+ * rail heads from the default camera (pitch 40, yaw 15; viewHidden with the library models' drawn walls and roofs,
+ * report: rail-report.mjs --view) beyond the narrow view allowances kept on purpose (VIEW_ALLOW; the mission's
+ * `railView` tag says why where the structure stands).
  */
 import { test, assert, near } from './lib.mjs';
 import { MISSIONS } from '../../src/missions/index.js';
 import { loadGrid } from './mission-check.mjs';
 import { vehicleDef } from '../../src/entities/vehicle.js';
 import { normalizeMission } from '../../src/missions/schema.js';
-import { railClearance, railLines, railBeds, trackCentreline, bedHalf, CLEAR, onRailsReason, railAllowance, crossingOnly } from '../../src/missions/rail-clearance.js';
+import { railClearance, railLines, railBeds, trackCentreline, bedHalf, CLEAR, onRailsReason, railAllowance, crossingOnly, viewHidden } from '../../src/missions/rail-clearance.js';
 import { Run, bedArcs, restStations, buildWireRun, Parts, wireTypeOf } from '../../src/art/wire-obstacles.js';
 import { missionWire } from '../../src/art/wire-missions.js';
-import { drawnPlans } from './rail-drawn.mjs';
+import { drawnPlans, drawnSolids } from './rail-drawn.mjs';
 
 const vehicleSize = (t) => { try { return vehicleDef(t)?.size ?? null; } catch { return null; } };
 const fmt = (h) => `${h.id} (${h.type} ${h.variant}) ${h.dist.toFixed(2)} m from ${h.rail} (${h.kind}), needs ${h.need.toFixed(2)}`;
@@ -194,4 +199,89 @@ test('rails clear: the cases fixed on 2026-10-28 stay fixed (M4 crossing shack a
   assert.ok(near('m16', 'platform', 'train') >= 2.2, 'the M16 platform clear of the train');
   assert.ok(near('m18', 'platform', 'train') >= 2.2, 'the M18 platform clear of the train');
   assert.ok(near('m07', 'gantry_post_3', 'slip_rails') >= 1.8, 'the gantry posts beside the slip rails');
+});
+
+// ------------------------------------------------------------------------------------------------ rails in view
+
+test('rails in view: the default camera hides what stands between it and the rails (prisms and a gable roof)', () => {
+  // a straight E-W line at z 0; the camera looks north-north-west (yaw 15) 40° down: a top at height h hides the
+  // ground 1.19 h behind it along the view, 1.15 h square to this line (h·cot 40°·cos 15°)
+  const def = { id: 'tview', structures: [{ id: 'line', type: 'rail_track', points: [[-40, 0], [40, 0]] }] };
+  const box = (z0, h) => ({ type: 'house', def: { id: 'b', type: 'house', x: 0, z: z0 + 4, w: 10, d: 8, h },
+    footprints: [{ shape: 'rect', x: 0, z: z0 + 4, w: 10, d: 8, rot: 0, block: 2 }] });
+  const hid = (b, o) => viewHidden(def, new Map([['b', b]]), o).find((v) => v.rail === 'line')?.hidden ?? 0;
+  assert.ok(hid(box(4, 9)) >= 20, 'a 9 m block whose face stands 4 m S of the line hides both rails along its length');
+  assert.equal(hid(box(12, 9)), 0, 'its face 12 m back (1.15 × 9 = 10.4 m < 12 − 0.72): the rails show');
+  assert.equal(hid(box(-12, 9)), 0, 'beyond the line (the far side from the camera) it hides nothing of it');
+  assert.ok(hid(box(4, 9), { yawDeg: 0 }) >= 20 && hid(box(12, 9), { pitchDeg: 25 }) > 0, 'other views: yaw 0, a lower pitch reaches further');
+  // a gabled house: walls to its 3.3 m eaves, the ridge 9 m high along its 10 m axis, 4 m behind its face
+  const gable = (z0) => {
+    const P = [[-5, z0], [5, z0], [5, z0 + 8], [-5, z0 + 8]];
+    return new Map([['b', [{ poly: P, y0: 0, top: 3.3 }, { poly: P, eave: 3.3, ridge: 9, kind: 'gable' }]]]);
+  };
+  const hidG = (z0) => viewHidden(def, new Map([['b', box(z0, 9)]]), { solids: gable(z0) }).find((v) => v.rail === 'line')?.hidden ?? 0;
+  assert.ok(hidG(6) >= 10, 'its ridge (10 m back, 10.4 m reach) hides the rails');
+  assert.equal(hidG(8), 0, 'set back 2 m more, ridge and eaves both draw short of the near rail');
+  assert.ok(hidG(8) < hid(box(8, 9)), 'a roof hides less than a block of its full height');
+});
+
+/** Rail heads hidden below this (m, both rails, 0.5 m samples) are noise: a post's sliver, the static model's slack. */
+const VIEW_TOL = 2;
+/**
+ * The only structures allowed to hide rail heads from the default camera, each to at most `max` m of rail head (what
+ * viewHidden measures now + 1 m) on its `rail`, and why (its mission's `railView` tag says so where it stands: a tag
+ * alone allows nothing); an entry no longer needed must go (they stay narrow). Calibrated against the render
+ * (tools/layout/rail-view-probe.mjs: rays from both rail heads through every drawn mesh): every building and tall
+ * structure it finds hiding a rail is caught here; it also sees what this check leaves out (trees, low walls, the
+ * crossing booms), and the static model over-reads a few (M4's gutted ruin, M7's crane leg and U-boat, crate piles).
+ */
+const VIEW_ALLOW = {
+  m04: {
+    shack_x: { rail: 'rail_main', max: 5.5, why: 'the crossing keeper\'s shack by the level crossing (moved off the line 10-28): e41\'s post, the lorry driver\'s errands and the Green Beret\'s hide are built round it; its roof hides ~3 m of the near rail' },
+    ruin_house: { rail: 'siding_a', max: 3.5, why: 'the static model stands the bombed shell\'s walls to its top floor; drawn, its broken walls leave the dead siding in view' },
+  },
+  m07: {
+    gantry_post_3: { rail: 'slip_rails', max: 4, why: 'the slipway gantry straddles the slip rails by design' },
+    gantry_post_4: { rail: 'slip_rails', max: 3.5, why: 'the slipway gantry straddles the slip rails by design' },
+  },
+  m15: {
+    corner_block: { rail: 'tram_track', max: 39, why: 'kept: the tram street\'s S side as the mission is built (m15 RAIL_VIEW_KEPT)' },
+    corner_roof: { rail: 'tram_track', max: 29, why: 'kept: the Sniper\'s roof R (m15 RAIL_VIEW_KEPT)' },
+    hq: { rail: 'tram_track', max: 37, why: 'kept: the target beside the rails (m15 RAIL_VIEW_KEPT)' },
+  },
+  m19: { crane: { rail: 'rail_se', max: 8, why: 'the yard crane at the SE spur\'s end, by design' } },
+};
+
+test('rails in view: no building hides the rails from the default camera (pitch 40, yaw 15) beyond its allowance, in any mission', async () => {
+  const bad = [], used = new Set();
+  let lines = 0;
+  for (const m of MISSIONS) {
+    const { def, handle } = loadGrid(m);
+    if (!railLines(def, { vehicleSize }).some((r) => r.kind !== 'run')) continue;
+    const hits = viewHidden(def, handle.structures, { vehicleSize, solids: await drawnSolids(def) });
+    lines++;
+    for (const v of hits) {
+      const a = VIEW_ALLOW[m.id]?.[v.id];
+      if (v.hidden < VIEW_TOL && !v.tag) continue;
+      if (a && a.rail === v.rail) used.add(`${m.id}/${v.id}`);
+      const at = `${m.id}: ${v.id} (${v.type}, ${v.h} m) hides ${v.hidden} m of ${v.rail}'s rail heads (s ${v.s.join('–')})`;
+      if (!a || a.rail !== v.rail) { if (v.hidden >= VIEW_TOL) bad.push(`${at}${v.tag ? ` [tagged: ${v.tag}]` : ''} — set it back from the line (rail-report.mjs --view)`); }
+      else if (v.hidden > a.max) bad.push(`${at}, more than its allowance ${a.max} m (${a.why})`);
+    }
+  }
+  for (const [mid, o] of Object.entries(VIEW_ALLOW)) for (const id of Object.keys(o)) if (!used.has(`${mid}/${id}`)) bad.push(`${mid}: ${id} no longer hides its rails — remove its allowance`);
+  assert.ok(lines >= 8, `missions with rails (${lines})`);
+  assert.deepEqual(bad, []);
+});
+
+test('rails in view: the houses set back on 2026-10-29 stay clear (M16 / M18 house_road)', async () => {
+  for (const id of ['m16', 'm18']) {
+    const { def, handle } = loadGrid(MISSIONS.find((m) => m.id === id));
+    const hits = viewHidden(def, new Map([['house_road', handle.structures.get('house_road')]]), { vehicleSize, solids: await drawnSolids(def) });
+    assert.deepEqual(hits.map((v) => `${v.id} ${v.hidden} m`), [], `${id}: house_road hides no rail head`);
+    // (it stood 4.15 m off the line's axis and hid 13.5 m of it: now 7.7 m)
+    const r = railLines(def, { vehicleSize }).find((q) => q.id === 'rail_main');
+    const f = railClearance(def, new Map([['house_road', handle.structures.get('house_road')]]), { vehicleSize, near: 10 }).hits.find((h) => h.id === 'house_road' && h.rail === r.id);
+    assert.ok(f && f.dist >= 7.5, `${id}: house_road ${f?.dist} m off the rail_main axis`);
+  }
 });

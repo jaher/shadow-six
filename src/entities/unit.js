@@ -1275,7 +1275,10 @@ export class Unit extends Entity {
         // groundAt().terrain is the NAME ('snow'); compare the numeric terrainCode with T.* (the payload keeps
         // the name — audio's stepSfx and the trail renderer key on it).
         const g = w.groundAt(this.x, this.z), c = g.terrainCode;
-        if (c === T.SNOW || c === T.SAND || c === T.MUD) {
+        // (never on a climb or a ladder: hands and boots on the rock face or the rungs print nothing in the snow below —
+        // M5's east-face climb left a line of ground prints up the cliff that Patrol 19 followed from the field; the
+        // pace keeps counting, so the prints before and after fall where they did)
+        if (!climbing && (c === T.SNOW || c === T.SAND || c === T.MUD)) {
           w.events.emit('footprint', { x: this.x, z: this.z, heading: this.heading, t: w.time, owner: this, aiVisible: (c !== T.MUD || !!w.rules?.mudTracks) && this.faction === 'player' && !this.disguised, terrain: g.terrain, foot: footOf(this) }); // §4.8: a disguised Spy's boot prints read as a German's; BCD §1.10: soft paths leave tracks; a guard dog's paws are its own side's
         }
       }

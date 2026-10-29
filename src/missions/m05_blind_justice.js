@@ -26,6 +26,9 @@
  *    go (24,90)/(24,72)/(34,66)/(44,66) instead of the dossier's (24,72)/(36,58)/(44,69) (they skirt h4/h6);
  *  - pm's N end is (35,49), S of h2 (not (37,42)): the E end of h1 and e3's beat must stay outside its 18 m
  *    near band, as in Kildread's lure behind h1 (fix round, dossier §8.3 updated);
+ *  - beat ends kept clear of the drawn cabins (the game's nav keeps a man off a model's walls): e3's W end (19.6,34.4)
+ *    not (19,33) (h1's S corner), pm's middle point (35.5,55.5) not (34,56) (h4's N corner) and its S end (45.6,68.4)
+ *    not (44,69) (h6's N corner) — at the old points both patrols stood stuck, turning on the spot (tests/m05-routes);
  *  - the cable car keeps its riders aboard at the far station (set-piece keepAboard) and a disguised Spy may
  *    board it in view (`rules.spyMayBoard`), so Route B (§12) plays; mines use the 3 m `mine` blast class.
  */
@@ -151,7 +154,7 @@ const ENEMIES = [
   // ===== the village (Prima 1–7)
   walker('e1', 1, 14.5, 30, 90, [P(14.5, 30, 4, 180), P(17, 37.5, 4, 90)], { tracks: true }),
   walker('e2', 2, 15, 38.5, 150, [P(15, 38.5, 3, 270), P(5, 46, 3, 180)]),
-  walker('e3', 3, 19, 33, 0, [P(19, 33, 3, 90), P(32, 31, 3, 0)]),
+  walker('e3', 3, 19.6, 34.4, 0, [P(19.6, 34.4, 3, 90), P(32, 31, 3, 0)]),
   sentry('e4', 4, 29.5, 24.5, 0, 40, false, { period: 5 }),
   walker('e5', 5, 5, 55, 0, [P(5, 55, 3, 270), P(19, 55, 3, 0)], { tracks: true }),
   walker('e6', 6, 3, 60, 90, [P(3, 60, 3, 0), P(3, 74, 3, 0)]),
@@ -166,7 +169,7 @@ const ENEMIES = [
   // ===== patrols in the lower field. pm (2): near the uniform, never within the phone's 13.5 m. Its N end sits
   // S of h2 (Kildread's map shows the pair at (41,53)): the E end of h1 and e3's beat stay beyond its 18 m
   // near band, so tracks there are safe ("behind the house near the right end... no danger" [Kild])
-  ...patrol('pm', null, [[35, 49], [35, 47.8]], 90, [P(35, 49, 3, 270), P(34, 56), P(44, 69, 3, 90)], {
+  ...patrol('pm', null, [[35, 49], [35, 47.8]], 90, [P(35, 49, 3, 270), P(35.5, 55.5), P(45.6, 68.4, 3, 90)], {
     reactEvents: ['RINT'], alarmRoute: { run: { x: 40, z: 97, vel: 2.7 }, loop: { type: 'LOOP', vel: 1.8, points: G1_LOOP } } }),
   // Patrol 19 (4): along the beaten track to the cliff foot; keeps its beat on the alarm
   ...patrol('p19', 19, [[44, 99], [43.8, 97.8], [43.6, 96.6], [43.4, 95.4]], 75,

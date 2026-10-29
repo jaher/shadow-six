@@ -25,6 +25,8 @@ import { extendEnds } from '../art/props-extra.js';
 export const CLEAR = Object.freeze({ static: 0.3, running: 0.5, natural: 0.25 });
 /** Sleeper half-length (m, buildRailTrack: 2.5 m sleepers). */
 export const SLEEPER_HALF = 1.25;
+/** The rail heads' lateral offsets (m) from a standard-gauge line's centre (1.435 m: buildRailTrack, the tram's grooved rails). */
+export const HEADS = Object.freeze([-1.435 / 2, 1.435 / 2]);
 /** Ballast half-width of a drawn rail_track of `width` (buildRailTrack: bw = max(2.6, width + 0.6)). */
 export const bedHalf = (width = 2.4) => Math.max(2.6, width + 0.6) / 2;
 
@@ -68,11 +70,11 @@ export function railLines(def, o = {}) {
       if (run.length < 2) continue;
       if (s.type === 'rail_track') {
         const half = bedHalf(s.width ?? 2.4);
-        const r = { id, kind: 'track', half: half + CLEAR.static, sleeper: SLEEPER_HALF + CLEAR.natural, line: trackCentreline(run) };
+        const r = { id, kind: 'track', half: half + CLEAR.static, sleeper: SLEEPER_HALF + CLEAR.natural, heads: HEADS, line: trackCentreline(run) };
         out.push(r); drawn.push(r);
       } else {
         const half = (s.width ?? 2.2) / 2; // grooved rails flush in the setts, granite edging (art/props-extra.js)
-        const r = { id, kind: 'tram', half: half + CLEAR.static, sleeper: 0.72 + 0.2 + CLEAR.natural, line: extendEnds(run.map(pt), s.drawEnds) };
+        const r = { id, kind: 'tram', half: half + CLEAR.static, sleeper: 0.72 + 0.2 + CLEAR.natural, heads: HEADS, line: extendEnds(run.map(pt), s.drawEnds) };
         out.push(r); drawn.push(r);
       }
     }
@@ -81,7 +83,10 @@ export function railLines(def, o = {}) {
     if (!r.rails) continue;
     const S = sampleCenterline(r.points, 0.25, !!r.spline).map((q) => [q.x, q.z]);
     // embedded dock / tram rails: a wagon (≈ 3 m wide) may stand anywhere on them
-    out.push({ id: r.id, kind: 'road', half: 1.5 + CLEAR.static, sleeper: r.rails.gauge / 2 + 0.2 + CLEAR.natural, line: S });
+    // (its rail heads as art/pavement buildRails lays them: per track ± half the gauge about the offset, left normal +)
+    const R = r.rails, tracks = R.tracks > 1 ? [-R.spacing / 2, R.spacing / 2] : [0];
+    out.push({ id: r.id, kind: 'road', half: 1.5 + CLEAR.static, sleeper: R.gauge / 2 + 0.2 + CLEAR.natural,
+      heads: tracks.flatMap((t) => [R.offset + t - R.gauge / 2, R.offset + t + R.gauge / 2]), line: S });
   }
   for (const v of def.vehicles || []) {
     if (!Array.isArray(v.track) || v.track.length < 2 || v.vehicleType === 'cable_car') continue;
@@ -94,7 +99,7 @@ export function railLines(def, o = {}) {
   }
   for (const it of def.interactables || []) {
     if (!Array.isArray(it?.rail) || it.rail.length < 2) continue;
-    out.push({ id: it.id ?? 'pushable', kind: 'pushable', half: 1.5 + CLEAR.static, sleeper: SLEEPER_HALF + CLEAR.natural, line: it.rail.map(pt) });
+    out.push({ id: it.id ?? 'pushable', kind: 'pushable', half: 1.5 + CLEAR.static, sleeper: SLEEPER_HALF + CLEAR.natural, heads: HEADS, line: it.rail.map(pt) });
   }
   return out;
 }
@@ -330,40 +335,123 @@ export function railBeds(def) {
 /** Plan radius (m) of a street-furniture item without its own size (a lamp post, a sign, a milestone). */
 const FURNITURE_R = 0.35;
 
-/** Default heights (m) by type when a def gives none (advisory view check only). */
-const H_DEFAULT = { barracks: 5, house: 7, flat_roof_house: 5, hut: 3.5, bunker: 2.5, minaret: 8, tent: 2.5, ruins: 5, wall: 2, fence: 1.5, hangar: 9 };
+
+// ------------------------------------------------------------------------------------------------ default-camera view
 
 /**
- * Advisory (tools/layout/rail-report.mjs --view): structures whose drawn height covers the rail heads from the default
- * camera (orthographic, pitch `pitchDeg` below the horizon, yaw `yawDeg`): a top at height h is drawn h·cot(pitch)
- * up-screen of its foot, so a building on the camera's side of a track hides the rails behind it when its footprint,
- * swept that far along the view, reaches them. @returns {{id, rail, cover:number, h:number}[]} cover = m of the sweep
- * past the near rail head (> 0 = rails hidden)
+ * Low dressing the view check leaves to the corridor check (railClearance keeps it off the rails): crate piles and
+ * sandbags, drawn sparser than their footprints (a prism over the footprint over-reads them: M13's dock cargo).
  */
-export function viewCover(def, structures, o = {}) {
-  const yaw = ((o.yawDeg ?? 15) * Math.PI) / 180, cot = 1 / Math.tan(((o.pitchDeg ?? 40) * Math.PI) / 180);
-  const dir = [-Math.sin(yaw), -Math.cos(yaw)]; // the view's horizontal direction (yaw 0: north, -z, is up-screen)
-  const rails = railLines(def, o).filter((r) => r.kind !== 'run');
+const VIEW_SKIP = new Set(['crates', 'sandbags']);
+/** Default heights (m) by type when a def gives none (view check). */
+const H_DEFAULT = { barracks: 5, house: 7, flat_roof_house: 5, hut: 3.5, bunker: 2.5, minaret: 8, tent: 2.5, ruins: 5, wall: 2, fence: 1.5, hangar: 9 };
+
+/** A structure without a drawn model: its blocking footprints (else its def plan) as prisms to its def height. */
+function defSolids(s, b) {
+  const h = s.h ?? H_DEFAULT[b.type ?? s.type] ?? 0;
+  if (!(h > 1.5)) return [];
+  let shapes = (b.footprints || []).filter((f) => f.block).map(footprintShape).filter((q) => q?.poly);
+  if (!shapes.length) shapes = [defShape(s)].filter((q) => q?.poly);
+  const y0 = s.elev ?? 0;
+  return shapes.map((q) => ({ poly: q.poly, y0, top: y0 + h }));
+}
+
+/** A 4-point roof outline's frame: centre, unit long axis eu / short axis ev, half-lengths hu ≥ hv. */
+function rectFrame(P) {
+  const c = [(P[0][0] + P[1][0] + P[2][0] + P[3][0]) / 4, (P[0][1] + P[1][1] + P[2][1] + P[3][1]) / 4];
+  const a = [P[1][0] - P[0][0], P[1][1] - P[0][1]], b = [P[2][0] - P[1][0], P[2][1] - P[1][1]];
+  const la = Math.hypot(...a) || 1e-9, lb = Math.hypot(...b) || 1e-9;
+  const [L, l, Ll, ll] = la >= lb ? [a, b, la, lb] : [b, a, lb, la];
+  return { c, eu: [L[0] / Ll, L[1] / Ll], ev: [l[0] / ll, l[1] / ll], hu: Ll / 2, hv: ll / 2 };
+}
+
+/** Does the segment ab meet the polygon P (an end inside, or an edge crossed)? */
+function segHitsPoly(a, b, P) {
+  if (inPoly(a[0], a[1], P) || inPoly(b[0], b[1], P)) return true;
+  for (let k = 0; k < P.length; k++) if (segsCross(a, b, P[k], P[(k + 1) % P.length])) return true;
+  return false;
+}
+
+/**
+ * Is the ground point (x, z) hidden by solid q? The ray from it towards the camera is, at height y, horizontally at
+ * (x, z) − y·k·dir (k = cot pitch). A prism {poly, y0, top}: that track between y0 and top meets its plan. A roof
+ * {poly, eave, ridge, kind}: between the eaves and the ridge the roof's section shrinks linearly across its long axis
+ * (a gable; a hip also from its ends) — solved exactly as linear inequalities in y.
+ */
+function hides(q, x, z, k, dir) {
+  if (q.top != null) return segHitsPoly([x - q.y0 * k * dir[0], z - q.y0 * k * dir[1]], [x - q.top * k * dir[0], z - q.top * k * dir[1]], q.poly);
+  if (q.poly.length !== 4) return segHitsPoly([x - q.eave * k * dir[0], z - q.eave * k * dir[1]], [x - q.ridge * k * dir[0], z - q.ridge * k * dir[1]], q.poly);
+  const f = q._f ?? (q._f = rectFrame(q.poly));
+  const px = x - f.c[0], pz = z - f.c[1];
+  const u0 = px * f.eu[0] + pz * f.eu[1], v0 = px * f.ev[0] + pz * f.ev[1];
+  const du = -k * (dir[0] * f.eu[0] + dir[1] * f.eu[1]), dv = -k * (dir[0] * f.ev[0] + dir[1] * f.ev[1]);
+  const a = f.hv / Math.max(1e-6, q.ridge - q.eave); // plan metres the slope gives up per metre of height
+  let lo = q.eave, hi = q.ridge;
+  const le = (c, d) => { if (c > 1e-12) hi = Math.min(hi, d / c); else if (c < -1e-12) lo = Math.max(lo, d / c); else if (d < 0) hi = -Infinity; };
+  // |v0 + y·dv| ≤ a·(ridge − y)
+  le(dv + a, a * q.ridge - v0); le(a - dv, a * q.ridge + v0);
+  if (q.kind === 'hip') { const e = f.hu - f.hv; le(du + a, e + a * q.ridge - u0); le(a - du, e + a * q.ridge + u0); } else { le(du, f.hu - u0); le(-du, f.hu + u0); }
+  return lo <= hi;
+}
+
+/** A rail line's heads sampled every `step` m along its centre line: [x, z, s]. */
+function headSamples(r, step) {
+  const out = [], L = r.line;
+  let j = 0, s0 = 0;
+  for (let i = 0; ; i++) {
+    const s = i * step;
+    while (j + 1 < L.length && s0 + Math.hypot(L[j + 1][0] - L[j][0], L[j + 1][1] - L[j][1]) < s) { s0 += Math.hypot(L[j + 1][0] - L[j][0], L[j + 1][1] - L[j][1]); j++; }
+    if (j + 1 >= L.length) break;
+    const a = L[j], b = L[j + 1], len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1e-9, t = Math.min(1, (s - s0) / len);
+    const nx = -(b[1] - a[1]) / len, nz = (b[0] - a[0]) / len, cx = a[0] + (b[0] - a[0]) * t, cz = a[1] + (b[1] - a[1]) * t;
+    for (const o of r.heads) out.push([cx + nx * o, cz + nz * o, s]);
+  }
+  return out;
+}
+
+/**
+ * The default-camera view check (user 2026-10-29: the tall street buildings that hid the tracks set back): which
+ * structures hide rail heads from the default camera — orthographic, `pitchDeg` (40) below the horizon, turned `yawDeg`
+ * (15; yaw 0 = north up-screen). A rail head point is hidden when its ray towards the camera passes inside a solid
+ * (hides): `o.solids` (tests/unit/rail-drawn.mjs drawnSolids: a library model's walls to its eaves and its gable / hip
+ * / flat roofs, from its sidecar) by structure id, else the structure's blocking footprints (else its def plan) as
+ * prisms to its def height. Natural features (trees, rocks), rolling stock and things on the rails by design
+ * (onRailsReason) are not counted; low walls and fences (line footprints), crate piles and sandbags (VIEW_SKIP) neither. A structure that hides rails on
+ * purpose says why in `railView` (reported as `tag`; tests/unit/rails-clear.test.mjs keeps each to its allowance).
+ * The render's ground truth (rays through every drawn mesh, GPU): tools/layout/rail-view-probe.mjs.
+ * @param {object} def mission def (normalized) @param {Map} structures grid-only build (map-builder handle.structures)
+ * @param {{solids?: Map<string, object[]>, yawDeg?: number, pitchDeg?: number, step?: number, vehicleSize?: Function}} [o]
+ * @returns {{id:string, type:string, rail:string, kind:string, h:number, hidden:number, track:number, s:number[], tag:string|null}[]}
+ *   hidden = metres of rail head hidden (both rails, sampled every `step` = 0.5 m), track = metres of line with a head
+ *   hidden, s = [from, to] along the rail's centre line (m); sorted by `hidden`
+ */
+export function viewHidden(def, structures, o = {}) {
+  const yaw = ((o.yawDeg ?? 15) * Math.PI) / 180, k = 1 / Math.tan(((o.pitchDeg ?? 40) * Math.PI) / 180), step = o.step ?? 0.5;
+  const dir = [-Math.sin(yaw), -Math.cos(yaw)]; // the view's horizontal direction (camera → scene)
+  const rails = railLines(def, o).filter((r) => r.kind !== 'run' && r.heads?.length);
+  const samples = rails.map((r) => headSamples(r, step));
   const out = [];
   for (const [id, b] of structures) {
     const s = b.def || {}, type = b.type ?? s.type;
-    if (onRailsReason({ ...s, type }) != null || NATURAL_TYPES.has(type)) continue;
-    const h = s.h ?? H_DEFAULT[type] ?? 0;
-    if (!(h > 1.5)) continue;
-    let shapes = (b.footprints || []).filter((f) => f.block).map(footprintShape).filter((q) => q?.poly);
-    if (!shapes.length) shapes = [defShape(s)].filter((q) => q?.poly);
-    const L = h * cot;
-    for (const r of rails) {
-      let best = -Infinity;
-      for (const sh of shapes) {
-        // the swept plan: the polygon's points stepped along the view (convex enough for a clearance estimate)
-        for (let k = 0; k <= 8; k++) {
-          const P = sh.poly.map(([x, z]) => [x + dir[0] * L * k / 8, z + dir[1] * L * k / 8]);
-          best = Math.max(best, 0.8 - shapeLineDist({ poly: P }, r.line));
-        }
+    if (onRailsReason({ ...s, type }) != null || NATURAL_TYPES.has(type) || VIEW_SKIP.has(type)) continue;
+    const solids = o.solids?.get(id) ?? defSolids(s, b);
+    if (!solids.length) continue;
+    const top = Math.max(...solids.map((q) => q.ridge ?? q.top));
+    // the hidden ground lies within the plan stretched top·k along the view
+    let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+    for (const q of solids) for (const [x, z] of q.poly) { x0 = Math.min(x0, x); z0 = Math.min(z0, z); x1 = Math.max(x1, x); z1 = Math.max(z1, z); }
+    const ex = top * k * dir[0], ez = top * k * dir[1];
+    x0 += Math.min(0, ex); x1 += Math.max(0, ex); z0 += Math.min(0, ez); z1 += Math.max(0, ez);
+    rails.forEach((r, ri) => {
+      let n = 0, s0 = Infinity, s1 = -Infinity;
+      const along = new Set();
+      for (const [x, z, sa] of samples[ri]) {
+        if (x < x0 || x > x1 || z < z0 || z > z1 || !solids.some((q) => hides(q, x, z, k, dir))) continue;
+        n++; along.add(sa); s0 = Math.min(s0, sa); s1 = Math.max(s1, sa);
       }
-      if (best > 0) out.push({ id, type, rail: r.id, h, cover: +best.toFixed(2) });
-    }
+      if (n) out.push({ id, type, rail: r.id, kind: r.kind, h: +top.toFixed(2), hidden: n * step, track: along.size * step,
+        s: [+s0.toFixed(1), +s1.toFixed(1)], tag: s.railView ?? null });
+    });
   }
-  return out.sort((a, b) => b.cover - a.cover);
+  return out.sort((a, b) => b.hidden - a.hidden);
 }

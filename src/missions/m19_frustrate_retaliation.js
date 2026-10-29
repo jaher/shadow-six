@@ -158,7 +158,8 @@ const YARD = [
     fixed: true, // (at the rail's end: the map build would move it 1.3 m off the cart's route, onto the strip by the palisade)
     artFill: [1.08, 0.465], clip: false }, // (art pass 2: the buffer stop drawn on the old crate pile's 1.6 × 0.9 m; its body
     // clearance is the old pile's, cell for cell (BUFFER_CLEAR): the Green Beret lies in the hollow E of it before the climb)
-  { id: 'crane', type: 'radio_mast', variant: 'crane_jib_yard', x: 84.5, z: 65.5, rot: 0, w: 2.5, d: 2.5, h: 7, block: 2 },
+  { id: 'crane', type: 'radio_mast', variant: 'crane_jib_yard', x: 84.5, z: 65.5, rot: 0, w: 2.5, d: 2.5, h: 7, block: 2,
+    railView: 'the yard crane at the SE spur\'s end, beside the track it serves, by design (rails in view, 10-29)' },
   coal('coal_se', 90, 69.5, 2.5),
   { id: 'boiler', type: 'house', variant: 'boiler_house', label: 'Boiler house', x: 94.5, z: 52, rot: 0, w: 9, d: 11, h: 7, mat: 'brick',
     enterable: true, door: deg(90) },

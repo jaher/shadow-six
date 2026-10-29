@@ -123,7 +123,11 @@ const EAST = [
   // them; now half as deep, its back edge where it was, its front 2.3 m off the axis: the train's hull ±1.7 m + 0.5)
   { id: 'platform', type: 'pier', variant: 'station_platform_planks', x: PLATFORM[0], z: PLATFORM[1], rot: deg(-45), w: 22, d: 1.75 },
   // zone B: the timber house by the road (hideout), the house block round its yard, the grey townhouse, the fountain
-  house('house_road', 'farmhouse_normandy', 177, 59, 10, 8, 9, { asset: 'farmhouse_mosan_a', mat: 'woodDark', enterable: true, door: deg(90) }),
+  // (rails in view, user 10-29: its NW face stood 3.4 m from the near rail and the default camera (pitch 40, yaw 15) saw
+  // neither rail behind its roof for 13 m; set back 3.5 m square to the line, towards the road (was (177, 59)): its
+  // ridge and chimneys now draw short of the near rail, its SE face 1.9 m off the road's edge; e7's turn by the door
+  // moved with it)
+  house('house_road', 'farmhouse_normandy', 179.5, 61.5, 10, 8, 9, { asset: 'farmhouse_mosan_a', mat: 'woodDark', enterable: true, door: deg(90) }),
   house('blk_n', 'house_belgian_brick', 188, 73, 8, 8, 10, { asset: 'house_belgian_brick_a', mat: 'brick' }),
   house('blk_w', 'house_belgian_brick', 182, 85, 10, 8, 10, { asset: 'house_belgian_brick_b', mat: 'brick' }),
   house('blk_e', 'house_belgian_brick', 192, 82, 8, 10, 10, { asset: 'house_belgian_brick_w', mat: 'brick', enterable: true, door: deg(180) }),
@@ -262,7 +266,7 @@ const ZONE_A = [ // the station (Prima Phase 1)
 const ZONE_B = [ // the E village (Prima Phases 1–2)
   walker('e5', 5, P(175, 43.5, 4, 0), P(163, 55, 4, 180)),
   sentry('e6', 6, 168, 66.5, 90, 60),
-  walker('e7', 7, P(150, 86, 5, 225), P(181, 64, 4, 90)), // up the road to house_road's door and back
+  walker('e7', 7, P(150, 86, 5, 225), P(183.5, 66.5, 4, 90)), // up the road to house_road's door and back (rails in view: was (181, 64), moved with the house)
   walker('e8', 8, P(172.5, 78, 6, 225), P(172.5, 90, 4, 180)),
   sentry('e9', 9, 168, 106, 180, 40),
   walker('e10', 10, P(186, 97, 4, 0), P(182, 111, 5, 90)),

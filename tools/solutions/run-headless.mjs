@@ -4,7 +4,7 @@
  * library-mesh nav clearance (buildMap meshes:false), so paths and timings drift from the game; the reference run is
  * tools/solutions/run-browser.mjs.
  *   node tools/solutions/run-headless.mjs m03 [--quiet] [--json out.json] [--until <stage id>]
- * Exit code 0 when every objective is done with no commando detected (enemy:spotted / challenge / unmasked / tainted).
+ * Exit code 0 when every required objective is done with no commando detected (enemy:spotted / challenge / unmasked / tainted).
  */
 import { headlessDriver } from './headless.mjs';
 import { boardPoint } from '../../src/abilities/drive.js';
@@ -34,7 +34,8 @@ try {
 const obj = Object.fromEntries(D.world.objectives.map((o) => [o.id, o.done]));
 const exposed = D.exposureReport();
 if (exposed.length) console.log(`EXPOSED ${exposed.length}:\n  ${exposed.join('\n  ')}`);
-const ok = !error && Object.values(obj).every(Boolean) && D.detections() === 0 && !exposed.length;
+// (the game's own win rule: every REQUIRED objective done — an optional one, M5's barracks, may stay undone)
+const ok = !error && D.world.objectives.every((o) => o.done || o.required === false) && D.detections() === 0 && !exposed.length;
 const report = { mission: id, ok, error: error ? String(error.message || error) : null, time: +D.t.toFixed(2), objectives: obj,
   detections: D.detections(), exposures: exposed, kills: D.events.filter((e) => e.name === 'unit:killed').map((e) => e.line), alarms: D.events.filter((e) => e.name === 'alarm:zone').map((e) => `${e.t.toFixed(1)} ${e.line}`),
   checkpoints: D.checkpoints, wallMs: Date.now() - t0 };
