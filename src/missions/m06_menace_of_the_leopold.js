@@ -22,6 +22,7 @@
 
 import { joinStructures } from './schema.js';
 import { bombedRuin } from './scripts/bombed-ruin.js';
+import { M06_ART2 } from '../art/m06-dressing.js';
 const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (enemy-brain reads wp.look * DEG, §4.1)
 
@@ -51,6 +52,10 @@ const CHARGE = {
 const tower = (id, x, z, r, h, mat = 'woodDark', variant = 'tower_round_log') =>
   ({ id, type: 'minaret', variant, asset: variant, x, z, rot: 0, r, h, mat, block: 2 }); // art pass: Masi add-on builds
 
+/** Where w_x1 (48,17)→(66,37) crosses w_x2 (46,37)→(63,24): w_x2 carries a collinear vertex there (its junction pier). */
+const X_CROSS = (() => { const [a, b, c, d] = [[48, 17], [66, 37], [46, 37], [63, 24]], r = [b[0] - a[0], b[1] - a[1]], q = [d[0] - c[0], d[1] - c[1]];
+  const t = ((c[0] - a[0]) * q[1] - (c[1] - a[1]) * q[0]) / (r[0] * q[1] - r[1] * q[0]); return [a[0] + r[0] * t, a[1] + r[1] * t]; })();
+
 /** Czech hedgehog (road barricade / wire belts): low, blocks movement, see-through above 1 m. */
 const hedgehog = (id, x, z) => ({ id, type: 'crates', variant: 'czech_hedgehog', x, z, rot: deg(45), w: 1.4, d: 1.4, h: 1.2, block: 1 });
 
@@ -72,9 +77,11 @@ const HQ_LOOP = [P(103, 81), P(104, 68), P(96, 62), P(80, 64), P(78, 88), P(100,
 
 // ---------------------------------------------------------------- art pass: set dressing (visual only, clear of every
 // route, post and cone: furniture never touches the walk grid (block false), the drums are drawn only (block 0)
-/** A parked BMW R75 combination at the HQ door, an Opel Blitz by the NE ruin (free ground, out of every walk). */
+/** A parked BMW R75 combination at the HQ door, an Opel Blitz by the NE ruin (free ground, out of every walk). Art pass 2:
+ *  the R75 moved 2.3 m W (85.5 → 83.2), out from under pine (91,100)'s crown at the default camera, still 1.55 m off the
+ *  HQ garrison's alarm loop. */
 const PARKED = [
-  { id: 'moto_hq', type: 'crates', variant: 'vehicle_parked', label: 'Motorcycle', x: 85.5, z: 85.4, rot: 0, w: 2.4, d: 1.7, h: 1.1, block: 1,
+  { id: 'moto_hq', type: 'crates', variant: 'vehicle_parked', label: 'Motorcycle', x: 83.2, z: 85.6, rot: 0, w: 2.4, d: 1.7, h: 1.1, block: 1,
     vehicleArt: 'r75_sidecar' },
   { id: 'truck_ne', type: 'crates', variant: 'truck_parked', label: 'Truck', x: 124.5, z: 30.6, rot: deg(180), w: 6, d: 2.3, h: 2.6, block: 1,
     vehicleArt: 'opel_blitz_cargo' },
@@ -199,11 +206,12 @@ export default {
     { id: 'cart_n', type: 'train_car', variant: 'tip_cart', x: 48.5, z: 3.5, rot: deg(40), w: 3, d: 2, h: 1.5, block: 1 },
     // --- walls (stone with an iron-railing top), barbed wire, the road barricade
     ...[
-      ['w_x1', [[48, 17], [66, 37]]], ['w_x2', [[46, 37], [63, 24]]], ['w_n', [[55, 3], [65, 14]]], ['w_nn', [[30, 0], [35, 10]]],
+      ['w_x1', [[48, 17], [66, 37]]], ['w_x2', [[46, 37], X_CROSS, [63, 24]]], ['w_n', [[55, 3], [65, 14]]], ['w_nn', [[30, 0], [35, 10]]],
       ['w_sw', [[38, 53], [57, 77]]], ['w_s', [[61, 79.75], [72, 79.75]]], ['w_brk', [[70, 51], [74, 43], [78, 51]]], ['w_ch', [[86, 16], [92, 27]]],
       ['w_hq', [[100, 70], [106, 65]]], ['w_gun', [[120, 68], [126, 77]]], ['w_ne', [[113, 53], [114.9, 52]], [[130, 44.05], [132, 43]]], ['w_yard', [[0, 45], [9, 40], [10, 47]]],
     ].map(([id, points, rest]) => ({ id, type: 'wall', variant: 'stone_railing', mat: 'stone', ...(rest ? { segments: [points, rest] } : { points }), h: 2.2, width: 0.5,
-      // the "X" N of the central barracks is one masonry crossing (art pass: railing walls on piers meet there)
+      // the "X" N of the central barracks is one masonry crossing (art pass: railing walls on piers meet there; art pass 2:
+      // w_x2 bends — collinear — at the crossing point X_CROSS, so its pier stands on the crossing and w_x1's railing runs into it)
       ...(/^w_x[12]$/.test(id) ? { clipAllow: [id === 'w_x1' ? 'w_x2' : 'w_x1'] } : {}) })),
     // (w_ne stops at ruin_ne's walls: inside, the ruin's upper floor is the way across)
     { id: 'wire_n', type: 'fence', variant: 'barbed_wire', points: [[35, 11], [44, 14], [48, 16]], h: 1.2 },
@@ -234,6 +242,8 @@ export default {
       [128, 62], [131, 68], [68, 86], [60, 95], [104, 89], [91, 100], [7, 90], [22, 88], [27, 96], [12, 102], [17, 99]]
       .map(([x, z], k) => ({ type: 'pine', x, z, r: 0.5, h: 9 + (k % 6), seed: 601 + k })),
     ...PARKED, ...DRUMS,
+    // art pass 2: set dressing (art/m06-dressing.js)
+    ...M06_ART2,
   ], [['ruin_w', 'turret_w'], ['ruin_w', 'tower_nw'], ['ruin_ne', 'ruin_ne_tw'], ['ruin_ne', 'ruin_ne_te'], ['chapel', 'chapel_tower'], ['hq', 'hq_tower'], ['hq', 'hq_leanto'], ['tent_5', 'tent_6']]),
   furniture: FURNITURE,
   items: [],

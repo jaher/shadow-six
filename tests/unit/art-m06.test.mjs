@@ -130,3 +130,42 @@ test('art m06: nobody walks through the W ruin\'s stone flights at ground level 
   for (const [x, z] of [[30, 49.3], [47.3, 45.3]]) assert.ok(!blocked(x, z), `the foot of the flight at ${x},${z} stays open`);
   assert.ok(findPath(g, 27, 48, 33, 48, { maxNodes: 200000 }), 'a man walks round the S flight');
 });
+
+test('art m06 pass 2: purposeful dressing on rule-clean spots (off every beat, loop, post, the car\'s road and the solution\'s ways)', async () => {
+  const { M06_ART2 } = await import('../../src/art/m06-dressing.js');
+  const ids = new Set(M06_ART2.map((s) => s.id));
+  for (const s of M06_ART2) assert.ok(byId(s.id) === s, `${s.id} spread into the mission`);
+  for (const id of ['logs_barr', 'fuel_hq', 'crates_ck', 'fuel_ck', 'lorry_x', 'timber_x', 'shed_ch']) assert.ok(ids.has(id), id);
+  const segD = (p, a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], L = dx * dx + dz * dz, t = L ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / L)) : 0; return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dz); };
+  const lines = [], posts = [];
+  const poly = (pts, closed) => { for (let i = 1; i < pts.length; i++) lines.push([pts[i - 1], pts[i]]); if (closed) lines.push([pts[pts.length - 1], pts[0]]); };
+  const xz = (ps) => ps.map((p) => [p.x, p.z]);
+  for (const e of m06.enemies) {
+    if (e.route) poly(xz(e.route.points), e.route.type === 'LOOP'); else if (!e.vehicle) posts.push([e.x, e.z]);
+    if (e.alarmRoute?.loop) poly(xz(e.alarmRoute.loop.points), true);
+  }
+  for (const b of Object.values(m06.barracks)) for (const q of b.squads) { poly(xz(q.exitRoute)); poly(xz(q.loop), true); }
+  const road = []; for (const v of m06.vehicles) { const pts = xz(v.route.points); for (let i = 1; i < pts.length; i++) road.push([pts[i - 1], pts[i]]); }
+  // the scripted solution's ways (sol/m06: W field, SW snow, S edge, SE walk, E edge, the gun corridor, the NE passage)
+  const SOL = [[[9.5, 63.5], [2.5, 93.5], [30, 96], [48.5, 100.5], [52, 103], [75, 104], [88, 101], [92.3, 88.8], [115.3, 94.3], [120.1, 100.7], [130.5, 96],
+    [130.5, 80], [128, 72], [124, 64], [118, 60], [108.5, 58.5], [100.5, 59.5]], [[100.5, 72.5], [98.5, 69.5], [99.5, 61.5]],
+  [[100.5, 40.5], [104.3, 42.3], [107, 39], [108.4, 38.4], [108.3, 35.3], [109.3, 34.3], [117.5, 27.5], [120.5, 8.5]]];
+  const lean = byId('hq_leanto'), inLean = (s) => Math.abs(s.x - lean.x) < lean.w / 2 && Math.abs(s.z - lean.z) < lean.d / 2;
+  for (const s of M06_ART2) {
+    assert.ok(s.fixed && (s.block ?? 1) >= 1 && (s.asset || s.vehicleArt || s.type === 'crates' || s.variant === 'fuel_drums'), `${s.id}: drawn library piece that blocks`);
+    // the body's corners (half extents, rotated)
+    const c = Math.cos(s.rot || 0), n = Math.sin(s.rot || 0), pts = [[0, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]].map(([u, v]) => [s.x + (u * s.w / 2) * c - (v * s.d / 2) * n, s.z + (u * s.w / 2) * n + (v * s.d / 2) * c]);
+    const dmin = (L) => Math.min(...pts.flatMap((p) => L.map(([a, b]) => segD(p, a, b))));
+    // (the HQ lean-to's cordwood and drums stand inside its LOW footprint, which the alarm loop already walks round)
+    if (!inLean(s)) assert.ok(dmin(lines) >= 1.3, `${s.id} ${dmin(lines).toFixed(2)} m off a beat / loop`);
+    assert.ok(Math.min(...posts.map(([x, z]) => Math.hypot(x - s.x, z - s.z))) >= 3, `${s.id} off every post`);
+    assert.ok(dmin(road) >= 5, `${s.id} off the armoured car's road`);
+    assert.ok(Math.min(...SOL.map((pl) => dmin(pl.slice(1).map((p, i) => [pl[i], p])))) >= 8, `${s.id} off the solution's ways`);
+  }
+  // the X: w_x2 bends (collinear) where it crosses w_x1, so a pier stands on the crossing
+  const x1 = byId('w_x1').points, x2 = byId('w_x2').points;
+  assert.equal(x2.length, 3);
+  assert.ok(segD(x2[1], x1[0], x1[1]) < 1e-6 && segD(x2[1], x2[0], x2[2]) < 1e-6, 'pier on the crossing, w_x2 still straight');
+  // the R75 out from under pine (91,100)'s crown at the default camera
+  assert.ok(byId('moto_hq').x <= 83.5);
+});

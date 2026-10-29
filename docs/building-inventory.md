@@ -390,7 +390,12 @@ Each mission lists the §1 ids it needs, with counts. **Bold** marks an objectiv
   - `fortified_block_tower`.
   - `tent_ridge_field` ×about 15.
   - `mg_nest_sandbag`, `czech_hedgehog` with wire, `crater`s, log stacks.
-  - A burned ruin (S).
+  - A bombed brick ruin (S; the shared `bombed-ruin.js`, scaled to its 10×8 m footprint).
+  - art pass 2 (`src/art/m06-dressing.js`, every piece drawn to its LOW/HIGH block): cordwood (`log_pile_stack`) along
+    the central barracks' W gable, a fuel-drum cluster under the HQ lean-to, the cookhouse stores (crate stack and
+    drums) in the tent lines, the base's Opel Blitz and a `timber_stack_no` in the lee of the "X" walls (a junction pier
+    where they cross), an open woodshed (`lean_to_canopy`) NE of the chapel tower; the HQ's R75 out from under the pine.
+    All ≥ 15 m off the merged M6 solution's trail.
 - **M7 Chase of the Wolves (Arendal)** [i]:
   - **`uboat_pen_open`** with **`uboat_docked` ×2**.
   - `crane_dock_portal`.
