@@ -294,8 +294,12 @@ const STRUCTURES = [
   { id: 'h8', type: 'flat_roof_house', variant: 'stone_hut', x: 38, z: 105.5, rot: deg(335), w: 9, d: 6, h: 4, mat: 'stone', roofWalk: false, enterable: true },
   { id: 'pole_s', type: 'telegraph_pole', variant: 'wall_telephone', x: 36, z: 113.5, r: 0.15, h: 7 },
   tent('tent_4', 37, 120), tent('tent_5', 42, 116.5), tent('tent_6', 43, 125),
-  // (art pass 2: `hideMats` — the snow twin's garnished net on poles drew as a shredded white sheet; the bunker stands bare)
-  { id: 'g2_bunker', type: 'bunker', variant: 'concrete_flag', x: 94, z: 118, rot: 0, w: 8, d: 6, h: 3, flag: true, garrison: true, hideMats: 'hessian|camo_netting|timber_grey' },
+  // (art pass 2: `hideMats` — the snow twin's garnished net on poles drew as a shredded white sheet; the bunker stands bare.
+  // The twin's baked AO atlas still holds the net's shadow (the roof's E half, its E lip, the berm under the net's skirt
+  // rendered near-black wherever the sun does not reach): `dropAo` switches the baked AO off the snow, earth and roof slab,
+  // and `keepSnowOn` leaves the berm its own snow where the net's snow is stripped, so the E side matches the W and N)
+  { id: 'g2_bunker', type: 'bunker', variant: 'concrete_flag', x: 94, z: 118, rot: 0, w: 8, d: 6, h: 3, flag: true, garrison: true,
+    hideMats: 'hessian|camo_netting|timber_grey', keepSnowOn: 'kit:mud', dropAo: 'kit:snow|kit:mud|kit:concrete_slab' },
   { id: 'rock_sw', type: 'rocks', x: 1.5, z: 124, rot: 0, w: 3, d: 3, h: 2 },
   // --- the summit (y 16)
   ...SUMMIT, ...SUMMIT_FLAT, ...SUMMIT_DRESS, ...DRUMS,

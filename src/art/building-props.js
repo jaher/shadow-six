@@ -474,12 +474,24 @@ export function libraryVisual(type, p = {}, ctx = {}) {
   dressParts?.(b);
   // `hideMats` (a material-name regex source): the asset's meshes in those materials hidden and the snow lying on them
   // stripped, per LOD (M5's g2_bunker: the snow twin's garnished camouflage net on poles drew as a shredded white sheet
-  // with dark holes from the default camera); hidden before the body clearance is measured, so the nav follows it
+  // with dark holes from the default camera); hidden before the body clearance is measured, so the nav follows it.
+  // `keepSnowOn` (a material-name regex source): the snow lying right on those surfaces (the bunker's earth berm) stays
+  // where the net's own snow goes, so the berm is not left a bare brown ribbon along the net's old skirt: drawn by a twin
+  // of the snow mesh that is no nav / clip-audit geometry (userData.clip = false), so the walk grid is what hideMats left.
+  // `dropAo` (a material-name regex source): those materials' baked ambient-occlusion map switched off, on this
+  // building's own copies of them: the twin's AO atlas was baked with the net over it, so once the net is hidden its
+  // shadow stays in the roof, the roof's lip and the berm (near-black wherever the sun does not reach)
   if (p.hideMats) {
-    const rx = new RegExp(p.hideMats);
-    hideAssetMats(b.object3d, rx);
+    const rx = new RegExp(p.hideMats), keepOn = p.keepSnowOn ? new RegExp(p.keepSnowOn) : null;
+    hideAssetMats(b.object3d, rx, keepOn);
     const prev = b.object3d.userData.onLodAttached;
-    b.object3d.userData.onLodAttached = (...args) => { prev?.(...args); hideAssetMats(b.object3d, rx); };
+    b.object3d.userData.onLodAttached = (...args) => { prev?.(...args); hideAssetMats(b.object3d, rx, keepOn); };
+  }
+  if (p.dropAo) {
+    const rx = new RegExp(p.dropAo);
+    dropAssetAo(b.object3d, rx);
+    const prev = b.object3d.userData.onLodAttached;
+    b.object3d.userData.onLodAttached = (...args) => { prev?.(...args); dropAssetAo(b.object3d, rx); };
   }
   if (/^oil_tank_column/.test(b.asset)) {
     // M11: the pale pipe run with red flanges and valves to the neighbouring column(s) (art/fuel-pipes.js)
@@ -722,31 +734,96 @@ export function cutParts(root, parts, keep) {
 
 /**
  * Hide the meshes of a library building (`root`, every LOD) drawn in a material whose name matches `rx`, and strip the
- * snow (kit:snow) lying on them (stripDrape). @returns {number} meshes newly hidden
+ * snow (kit:snow) lying on them (stripDrape) — the snow lying right on the surfaces matching `keepOn` is kept as a
+ * visual-only twin mesh (no nav, no clip audit). @returns {number} meshes newly hidden
  */
-export function hideAssetMats(root, rx) {
+export function hideAssetMats(root, rx, keepOn = null) {
   let n = 0;
   root.traverse((o) => { if (o.isMesh && o.visible && [].concat(o.material).some((m) => rx.test(m?.name || ''))) { o.visible = false; n++; } });
-  if (n) stripDrape(root, rx, /snow/);
+  if (n) stripDrape(root, rx, /snow/, 0.35, keepOn);
   return n;
 }
 
 /**
- * Remove the triangles of `drape` meshes (snow cover) lying on hidden `host` meshes (crags) of the same LOD: a drape
- * triangle whose three vertices are within 0.35 m of a host vertex is dropped (geometry cloned, never shared).
+ * Switch the baked ambient-occlusion map off the materials of a library building (`root`, every LOD) whose name
+ * matches `rx`: each mesh's material is replaced by a copy of its own (aoMapIntensity 0: the same program, so no new
+ * shader; textures shared; never the library's shared material, which another mission's building of the asset keeps).
+ * @returns {number} meshes newly switched
  */
-export function stripDrape(root, hostRe, drapeRe, tol = 0.35) {
+export function dropAssetAo(root, rx) {
+  const copies = new Map();
+  const has = (m) => m?.aoMap && m.aoMapIntensity !== 0 && rx.test(m.name || '');
+  let n = 0;
+  root.traverse((o) => {
+    if (!o.isMesh || ![].concat(o.material).some(has)) return;
+    const swap = (m) => {
+      if (!has(m)) return m;
+      let c = copies.get(m);
+      if (!c) {
+        c = m.clone();
+        // Material#copy leaves the shader hooks out (anti-tiling's patch and its program key): the same shader source
+        if (Object.prototype.hasOwnProperty.call(m, 'onBeforeCompile')) c.onBeforeCompile = m.onBeforeCompile;
+        if (Object.prototype.hasOwnProperty.call(m, 'customProgramCacheKey')) c.customProgramCacheKey = m.customProgramCacheKey;
+        c.aoMapIntensity = 0;
+        copies.set(m, c);
+      }
+      return c;
+    };
+    o.material = Array.isArray(o.material) ? o.material.map(swap) : swap(o.material);
+    n++;
+  });
+  return n;
+}
+
+/**
+ * Highest surface of `meshes` over each `cell`-metre cell of the plan (LOD frame: `inv` maps world to it): `at(x, z)`
+ * is its y, or null where there is none. (Cells whose centre a triangle covers, and every vertex's own cell.)
+ */
+function topField(meshes, inv, cell = 0.2) {
+  const top = new Map(), key = (i, j) => (i + 4096) * 8192 + (j + 4096);
+  const put = (i, j, y) => { const k = key(i, j); if (!(top.get(k) >= y)) top.set(k, y); };
+  const P = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()], m = new THREE.Matrix4();
+  for (const o of meshes) {
+    const pos = o.geometry.attributes.position, idx = o.geometry.index, count = idx ? idx.count : pos.count;
+    m.multiplyMatrices(inv, o.matrixWorld);
+    for (let t = 0; t + 2 < count; t += 3) {
+      for (let k = 0; k < 3; k++) P[k].fromBufferAttribute(pos, idx ? idx.getX(t + k) : t + k).applyMatrix4(m);
+      const [a, b, c] = P, d = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z);
+      for (const q of P) put(Math.round(q.x / cell), Math.round(q.z / cell), q.y);
+      if (Math.abs(d) < 1e-9) continue;
+      const i0 = Math.ceil(Math.min(a.x, b.x, c.x) / cell), i1 = Math.floor(Math.max(a.x, b.x, c.x) / cell);
+      const j0 = Math.ceil(Math.min(a.z, b.z, c.z) / cell), j1 = Math.floor(Math.max(a.z, b.z, c.z) / cell);
+      for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+        const x = i * cell, z = j * cell;
+        const l1 = ((b.z - c.z) * (x - c.x) + (c.x - b.x) * (z - c.z)) / d, l2 = ((c.z - a.z) * (x - c.x) + (a.x - c.x) * (z - c.z)) / d, l3 = 1 - l1 - l2;
+        if (l1 >= -1e-6 && l2 >= -1e-6 && l3 >= -1e-6) put(i, j, l1 * a.y + l2 * b.y + l3 * c.y);
+      }
+    }
+  }
+  return { at: (x, z) => { const y = top.get(key(Math.round(x / cell), Math.round(z / cell))); return y === undefined ? null : y; } };
+}
+
+/**
+ * Remove the triangles of `drape` meshes (snow cover) lying on hidden `host` meshes (crags) of the same LOD: a drape
+ * triangle whose three vertices are within 0.35 m of a host vertex is dropped (geometry cloned, never shared) — unless
+ * its three vertices lie on a visible `keepRe` surface of the LOD (within a skin of it: the drape's own layer on that
+ * ground, which the hosts only stood over): those are drawn by a twin of the drape mesh that is no nav / clipping
+ * geometry (`userData.clip = false`), so what the stripped mesh leaves the nav and the clip audit is what they measured
+ * without the spared snow.
+ */
+export function stripDrape(root, hostRe, drapeRe, tol = 0.35, keepRe = null) {
   const lods = [];
   root.traverse((n) => { if (/^lod\d$/.test(n.name)) lods.push(n); });
   if (!lods.length) lods.push(root);
   const matOf = (o, re) => [].concat(o.material).some((m) => re.test(m?.name || ''));
   const v = new THREE.Vector3();
   for (const lod of lods) {
-    const hosts = [], drapes = [];
-    lod.traverse((o) => { if (o.isMesh && !o.userData.drapeStripped) { if (matOf(o, hostRe)) hosts.push(o); else if (matOf(o, drapeRe)) drapes.push(o); } });
+    const hosts = [], drapes = [], grounds = [], twins = [];
+    lod.traverse((o) => { if (o.isMesh && !o.userData.drapeStripped) { if (matOf(o, hostRe)) hosts.push(o); else if (matOf(o, drapeRe)) drapes.push(o); else if (keepRe && o.visible && matOf(o, keepRe)) grounds.push(o); } });
     if (!hosts.length || !drapes.length) continue;
     lod.updateMatrixWorld(true);
     const inv = new THREE.Matrix4().copy(lod.matrixWorld).invert();
+    const ground = grounds.length ? topField(grounds, inv) : null;
     // cells as numbers (exact: three indices packed in 12 bits each) when every vertex of the LOD falls within the
     // packable range (checked on the meshes' boxes), else as "i,j,k" strings: the same cells, the same test
     const box = new THREE.Box3(), bb = new THREE.Box3();
@@ -766,18 +843,33 @@ export function stripDrape(root, hostRe, drapeRe, tol = 0.35) {
       for (let a = -1; a <= 1; a++) for (let c = -1; c <= 1; c++) for (let e = -1; e <= 1; e++) if (cell.has(pack(i + a, j + c, k + e))) return true; return false; };
     for (const d of drapes) {
       const g = d.geometry, pos = g.attributes.position, idx = g.index, m = new THREE.Matrix4().multiplyMatrices(inv, d.matrixWorld);
-      const count = idx ? idx.count : pos.count, keep = [];
+      const count = idx ? idx.count : pos.count, keep = [], spared = [];
       const onHost = (i) => { v.fromBufferAttribute(pos, i).applyMatrix4(m); return near(v.x, v.y, v.z); };
+      // (a vertex within 0.25 m over / 0.35 m under the ground's top in its 0.2 m cell: its slope's rise across a cell)
+      const onGround = (i) => { v.fromBufferAttribute(pos, i).applyMatrix4(m); const h = ground.at(v.x, v.z); return h !== null && v.y - h < 0.25 && v.y - h > -0.35; };
       for (let t = 0; t + 2 < count; t += 3) {
         const a = idx ? idx.getX(t) : t, b2 = idx ? idx.getX(t + 1) : t + 1, c = idx ? idx.getX(t + 2) : t + 2;
         if (!(onHost(a) && onHost(b2) && onHost(c))) keep.push(a, b2, c);
+        else if (ground && onGround(a) && onGround(b2) && onGround(c)) spared.push(a, b2, c);
       }
       if (keep.length === count) continue;
       const ng = g.clone();
       ng.setIndex(keep);
       d.geometry = ng; d.userData.drapeStripped = true;
       if (!keep.length) d.visible = false;
+      if (spared.length) {
+        const tg = new THREE.BufferGeometry();
+        for (const k of Object.keys(ng.attributes)) tg.setAttribute(k, ng.attributes[k]);
+        tg.setIndex(spared);
+        const tw = new THREE.Mesh(tg, d.material);
+        tw.name = `${d.name}#spared`; tw.matrixAutoUpdate = d.matrixAutoUpdate; tw.matrix.copy(d.matrix);
+        tw.position.copy(d.position); tw.quaternion.copy(d.quaternion); tw.scale.copy(d.scale);
+        tw.castShadow = d.castShadow; tw.receiveShadow = d.receiveShadow; tw.renderOrder = d.renderOrder; tw.layers.mask = d.layers.mask;
+        tw.userData.clip = false; tw.userData.drapeStripped = true;
+        twins.push([d.parent, tw]);
+      }
     }
+    for (const [parent, tw] of twins) { parent?.add(tw); tw.updateMatrixWorld(true); } // (matrices current for whoever measures next)
   }
 }
 

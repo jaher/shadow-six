@@ -386,7 +386,12 @@ Each mission lists the §1 ids it needs, with counts. **Bold** marks an objectiv
     square between h2, h3 and h4, the autogyro's windsock and three low granite outcrops round it by the summit's W rim (cut
     out of the plateau walkways); the HQ is the smaller log house (`log_cabin_a`) at its true scale, h4's logs a
     `log_pile_stack`; the SE bunker drops its snow twin's garnished net on poles (`hideMats`: it read as a shredded sheet
-    with dark holes from the default camera).
+    with dark holes from the default camera). The twin's baked AO atlas (uv1, shared by every kit material of the asset) was
+    baked with that net over it, so its shadow stayed in the roof's E half, the E lip and the berm under the net's skirt and
+    drew them near-black wherever the sun misses: `dropAo` switches the baked AO off the building's own copies of the
+    snow, earth and roof-slab materials (the walls keep theirs; M3's bunker, with its net, is untouched), and
+    `keepSnowOn: 'kit:mud'` leaves the berm the snow that lies right on it where the net's snow is stripped (drawn by a
+    twin of the snow mesh marked `userData.clip = false`: the walk grid and the clip audit are what `hideMats` left).
 - **M6 Menace of the Leopold (Masi)** [i, critic]:
   - `house_bombed_log` ×2 (interior; the first is the way in).
   - **`railway_gun_k5`**, plus a flatcar and an open wagon on the rail.

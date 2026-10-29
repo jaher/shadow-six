@@ -258,3 +258,127 @@ test('art m05 pass 2: the SE bunker stands bare: its snow twin\'s net on poles h
   assert.equal(after.onNet, 0, 'no snow left hanging where the net was');
   assert.equal(after.roofW, before.roofW, 'the roof keeps its snow');
 });
+
+/** The bunker_snow GLB's LOD0 (geometry only: no textures, the materials keep their names and their AO map slot). */
+const loadBunkerSnow = async () => {
+  const { GLTFLoader } = await import('../../src/engine/glb-gzip.js');
+  const { MeshoptDecoder } = await import('three/addons/libs/meshopt_decoder.module.js');
+  const { readGlbArrayBuffer } = await import('../../tools/glb-io.mjs');
+  const L = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+  L.register(() => ({ name: 'notex', loadTexture: () => Promise.resolve(new THREE.Texture()) }));
+  const g = await new Promise((res, rej) => L.parse(readGlbArrayBuffer(P('assets/models/buildings/military/bunker_snow.glb')), '', res, rej));
+  const root = new THREE.Group(); g.scene.name = 'lod0'; root.add(g.scene); root.updateMatrixWorld(true);
+  return root;
+};
+
+test('art m05 pass 2b: the SE bunker\'s east side reads as part of the snowy bunker: the berm keeps its own snow where the net\'s goes, the AO baked with the net is switched off (M5 only)', async () => {
+  const { hideAssetMats, dropAssetAo } = await import('../../src/art/building-props.js');
+  const g2 = S('g2_bunker');
+  assert.match(g2.keepSnowOn, /mud/, 'the berm keeps its snow');
+  assert.match(g2.dropAo, /snow/); assert.match(g2.dropAo, /mud/); assert.match(g2.dropAo, /slab/);
+  assert.doesNotMatch(g2.dropAo, /formwork/, 'the walls keep their baked AO (their darkness is the model\'s own)');
+  // M5 only: no other structure of any mission takes the options (M3's dam bunker keeps its net and its baked AO)
+  for (const m of MISSIONS) for (const s of m.structures || []) {
+    if (m.id === 'm05' && s.id === 'g2_bunker') continue;
+    assert.ok(s.hideMats === undefined && s.keepSnowOn === undefined && s.dropAo === undefined, `${m.id}/${s.id} takes the net / AO options`);
+  }
+  const rx = new RegExp(g2.hideMats), keepOn = new RegExp(g2.keepSnowOn);
+  // snow triangles (sidecar frame, centroids) lying on the berm's earth: within 0.25 m over the earth under them; hanging on the net's old skirt: over 0.45 m
+  const rays = (root) => {
+    const mud = [], v = new THREE.Vector3();
+    root.traverse((o) => { if (!o.isMesh || !/^kit:mud/.test([].concat(o.material)[0].name)) return;
+      const p = o.geometry.attributes.position, idx = o.geometry.index;
+      for (let t = 0; t + 2 < (idx ? idx.count : p.count); t += 3) mud.push([0, 1, 2].map((k) => v.fromBufferAttribute(p, idx ? idx.getX(t + k) : t + k).applyMatrix4(o.matrixWorld).clone()));
+    });
+    const top = (x, z) => {
+      let best = null;
+      for (const [a, b, c] of mud) {
+        const d = (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z);
+        if (Math.abs(d) < 1e-9) continue;
+        const l1 = ((b.z - c.z) * (x - c.x) + (c.x - b.x) * (z - c.z)) / d, l2 = ((c.z - a.z) * (x - c.x) + (a.x - c.x) * (z - c.z)) / d, l3 = 1 - l1 - l2;
+        if (l1 < -1e-6 || l2 < -1e-6 || l3 < -1e-6) continue;
+        const y = l1 * a.y + l2 * b.y + l3 * c.y;
+        if (best === null || y > best) best = y;
+      }
+      return best;
+    };
+    const n = { lying: 0, hanging: 0, onNet: 0 }, c = new THREE.Vector3();
+    root.traverse((o) => {
+      if (!o.isMesh || !o.visible || !/^kit:snow/.test([].concat(o.material)[0].name)) return;
+      const p = o.geometry.attributes.position, idx = o.geometry.index;
+      for (let t = 0; t + 2 < (idx ? idx.count : p.count); t += 3) {
+        c.set(0, 0, 0);
+        for (let k = 0; k < 3; k++) c.add(v.fromBufferAttribute(p, idx ? idx.getX(t + k) : t + k).applyMatrix4(o.matrixWorld));
+        c.multiplyScalar(1 / 3);
+        if (c.x > 0.6 && c.x < 5.8 && c.z > -4.8 && c.z < 2.5 && c.y > 3.3) n.onNet++;
+        if (!(c.x > 5.0 && c.x < 6.8 && c.z > -5.4 && c.z < 2.4)) continue; // the east berm under the net's skirt (past the roof slab's own snow edge, x 4.8)
+        const h = top(c.x, c.z);
+        if (h === null) continue;
+        if (c.y - h < 0.25) n.lying++; else if (c.y - h > 0.45) n.hanging++;
+      }
+    });
+    return n;
+  };
+  const strip = await loadBunkerSnow(); hideAssetMats(strip, rx); const without = rays(strip);
+  const keep = await loadBunkerSnow(); hideAssetMats(keep, rx, keepOn); const withKeep = rays(keep);
+  assert.ok(withKeep.lying >= without.lying + 60, `the berm's own snow comes back (${without.lying} → ${withKeep.lying} triangles lying on the earth)`);
+  assert.equal(withKeep.hanging, 0, 'none of the net\'s snow hangs over the berm');
+  assert.equal(withKeep.onNet, 0, 'no snow left hanging where the net was');
+  // the spared snow is drawn by a twin mesh that is no nav / clipping geometry: what the nav analyses and the clip audit
+  // measure (every mesh not marked userData.clip = false) is exactly what the plain strip leaves
+  const measured = (root) => {
+    const sig = [];
+    root.traverse((o) => {
+      if (!o.isMesh || !o.visible) return;
+      for (let q = o; q; q = q.parent) if (q.userData?.clip === false) return;
+      sig.push(`${[].concat(o.material)[0].name}:${(o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count)}`);
+    });
+    return sig.sort().join(' ');
+  };
+  assert.equal(measured(keep), measured(strip), 'the nav / clip-audit view of the bunker is the same with the berm snow spared');
+  let twins = 0; keep.traverse((o) => { if (o.isMesh && o.userData.clip === false && /^kit:snow/.test([].concat(o.material)[0].name)) { twins++; assert.ok(o.userData.drapeStripped, 'a second pass (a late LOD attach) leaves the twin alone'); } });
+  assert.equal(twins, 1, 'one twin for the snow mesh');
+  hideAssetMats(keep, rx, keepOn); assert.equal(rays(keep).lying, withKeep.lying, 'a second pass changes nothing');
+  // the options never reach the library's shared materials: the building's own copies lose the AO map, the others keep it
+  const lib = await loadBunkerSnow();
+  const shared = new Map(); lib.traverse((o) => { if (o.isMesh) for (const m of [].concat(o.material)) shared.set(m, m.aoMapIntensity); });
+  const rd = new RegExp(g2.dropAo);
+  assert.ok(dropAssetAo(lib, rd) >= 3, 'snow, earth and roof slab meshes switched');
+  for (const [m, was] of shared) assert.equal(m.aoMapIntensity, was, `${m.name}: the shared material is left alone`);
+  lib.traverse((o) => {
+    if (!o.isMesh) return;
+    for (const m of [].concat(o.material)) {
+      if (!m.aoMap) continue;
+      if (rd.test(m.name)) { assert.equal(m.aoMapIntensity, 0, `${m.name} AO off`); assert.ok(!shared.has(m), `${m.name} is the building's own copy`); }
+      else assert.equal(m.aoMapIntensity, 1, `${m.name} keeps its baked AO`);
+    }
+  });
+  assert.equal(dropAssetAo(lib, rd), 0, 'idempotent (every LOD attach runs it again)');
+});
+
+test('art m05 pass 2b: dropAssetAo copies a material once per building, keeps its textures and its shader hooks (anti-tiling), leaves the original', async () => {
+  const { dropAssetAo } = await import('../../src/art/building-props.js');
+  const ao = new THREE.Texture(), map = new THREE.Texture();
+  const snow = new THREE.MeshStandardMaterial({ name: 'kit:snow', map, aoMap: ao });
+  snow.onBeforeCompile = () => {}; snow.customProgramCacheKey = () => 'at:iso';
+  const wall = new THREE.MeshStandardMaterial({ name: 'kit:concrete_formwork~e5e5e0', map, aoMap: ao });
+  const bare = new THREE.MeshStandardMaterial({ name: 'kit:snow_bare' }); // (no AO map: nothing to switch)
+  const geo = new THREE.BufferGeometry();
+  const root = new THREE.Group();
+  const a = new THREE.Mesh(geo, snow), b = new THREE.Mesh(geo, [wall, snow]), c = new THREE.Mesh(geo, wall), d = new THREE.Mesh(geo, bare);
+  root.add(a, b, c, d);
+  assert.equal(dropAssetAo(root, /^kit:snow/), 2, 'the two meshes drawn in the snow');
+  const copy = a.material;
+  assert.notEqual(copy, snow, 'a copy, not the library material');
+  assert.equal(copy.aoMapIntensity, 0);
+  assert.equal(copy.aoMap, ao, 'the AO texture stays on the copy (the same program: no new shader)');
+  assert.equal(copy.map, map, 'textures shared');
+  assert.equal(copy.name, 'kit:snow');
+  assert.equal(copy.onBeforeCompile, snow.onBeforeCompile, 'anti-tiling\'s shader patch kept');
+  assert.equal(copy.customProgramCacheKey(), 'at:iso', 'and its program key');
+  assert.equal(b.material[1], copy, 'one copy per source material');
+  assert.equal(b.material[0], wall, 'a multi-material mesh keeps the others');
+  assert.equal(c.material, wall); assert.equal(d.material, bare);
+  assert.equal(snow.aoMapIntensity, 1, 'the library material is untouched');
+  assert.equal(dropAssetAo(root, /^kit:snow/), 0, 'run twice: nothing left to switch');
+});
