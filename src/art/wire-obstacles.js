@@ -165,6 +165,7 @@ function ctxFor(run, def, o) {
   const C = {
     run, def, rnd, G, out, P: o.parts, look: o.look, snow: o.snow ?? 0, runKey: o.runKey, theater: o.theater,
     h: def.h ?? 1.2, width: def.width ?? 0.3, cut: def.type !== 'wall' && def.cuttable !== false && !def.reinforced, solidAt: o.solidAt || (() => false), offMap: o.offMap || (() => false),
+    rails: o.rails?.length ? o.rails : null,   // the drawn track beds [{line, half}] the posts keep off (knifeRest)
     /** World point at arc d, height y above the ground there, offset `off` towards the outside. */
     fix(d, y, off = 0) { const a = run.at(d), x = a.x + a.nx * off * out, z = a.z + a.nz * off * out; return [x, G(x, z) + y, z]; },
     /** A wire item (catenary span a→b) with the run-arc range [da, db] for the cut gaps. */
@@ -314,36 +315,98 @@ function tripleConcertina(C) {
   if (/hedgehog/.test(String(C.def.variant))) hedgehogs(C, C.def.hedgehogEvery ?? 6, 1.6, 1.75);
 }
 
+/** An X-trestle's feet stand this far either side of the run (knifeRest: legs 1.4 m spread at the ground). */
+export const KNIFE_FOOT = 0.7;
+/** Knife-rest unit (m between trestle stations) and the inset of a unit's own trestles from its ends. */
+const KNIFE_UNIT = 3.5, KNIFE_INSET = 0.12;
+
+/**
+ * Where along `run` an X-trestle may not stand: the arc intervals [[a, b]…] (exclusive) where a trestle's two feet
+ * (±KNIFE_FOOT across the run) would be within a rail bed's `half` of its centre line. rails: [{line: [[x, z]…], half}]
+ * (the drawn tracks, missions/rail-clearance.js railBeds: ballast + 0.3 m). a and b are clear positions, 0.05 m apart
+ * from the first forbidden sample on either side. Pure.
+ */
+export function bedArcs(run, rails, step = 0.05) {
+  if (!rails?.length) return [];
+  const bb = run.p.reduce((o, [x, z]) => [Math.min(o[0], x), Math.min(o[1], z), Math.max(o[2], x), Math.max(o[3], z)], [Infinity, Infinity, -Infinity, -Infinity]);
+  const near = rails.filter((r) => r.line.length > 1 && r.line.some(([x, z]) => x > bb[0] - r.half - 1 && x < bb[2] + r.half + 1 && z > bb[1] - r.half - 1 && z < bb[3] + r.half + 1));
+  if (!near.length) return [];
+  const segD = (px, pz, a, b) => {
+    const dx = b[0] - a[0], dz = b[1] - a[1], t = Math.max(0, Math.min(1, ((px - a[0]) * dx + (pz - a[1]) * dz) / (dx * dx + dz * dz || 1e-12)));
+    return Math.hypot(px - a[0] - dx * t, pz - a[1] - dz * t);
+  };
+  const bad = (x, z) => near.some((r) => { for (let k = 0; k + 1 < r.line.length; k++) if (segD(x, z, r.line[k], r.line[k + 1]) < r.half) return true; return false; });
+  const out = [];
+  let from = null;   // the last clear sample before the forbidden stretch being walked
+  const n = Math.ceil(run.length / step);
+  for (let i = 0; i <= n; i++) {
+    const d = Math.min(run.length, i * step), a = run.at(d);
+    const hit = bad(a.x + a.nx * KNIFE_FOOT, a.z + a.nz * KNIFE_FOOT) || bad(a.x - a.nx * KNIFE_FOOT, a.z - a.nz * KNIFE_FOOT);
+    if (hit && from == null) from = Math.max(0, (i - 1) * step);
+    else if (!hit && from != null) { out.push([from, d]); from = null; }
+  }
+  if (from != null) out.push([from, run.length]);
+  return out;
+}
+
+/**
+ * The trestle stations (arc lengths, run start to end) of a knife-rest run: `round(length / 3.5)` equal units butted
+ * end to end — with the one change that where a rail bed lies under the wire (`bedArcs`) the posts whose trestles would
+ * stand on it move along the run: one longer unit spans the bed between a post either side of it, and the posts within
+ * 2.4 m of that unit are re-spaced between it and the first post beyond them. Every other post stays where it was; the
+ * run's end posts never move. Pure; no arcs = the plain equal units.
+ */
+export function restStations(run, arcs = []) {
+  const n = Math.max(1, Math.round(run.length / KNIFE_UNIT)), U = run.length / n, MIN = 2.4;
+  let st = Array.from({ length: n + 1 }, (_, k) => k * U);
+  // `m` equal units from p to q: the posts between them
+  const sub = (p, q) => { const m = Math.max(1, Math.round((q - p) / KNIFE_UNIT)); return Array.from({ length: m - 1 }, (_, j) => p + ((q - p) * (j + 1)) / m); };
+  for (const [a, b] of arcs) {
+    const A = a - KNIFE_INSET, B = b + KNIFE_INSET;   // the clear posts either side: their trestles at a and b
+    if (A <= 0 || B >= run.length || !st.some((q, k) => k > 0 && k < st.length - 1 && q + KNIFE_INSET > a && q - KNIFE_INSET < b)) continue;
+    let l = 0, r = st.length - 1;
+    for (let k = 0; k < st.length; k++) if (st[k] <= A - MIN) l = k;
+    for (let k = st.length - 1; k >= 0; k--) if (st[k] >= B + MIN) r = k;
+    st = [...st.slice(0, l + 1), ...sub(st[l], A), A, B, ...sub(B, st[r]), ...st.slice(r)];
+  }
+  return st;
+}
+
 /** Knife rests (§4.5): 3.5 m timber beams on X-trestles, wound with strands and a zig-zag, butted end to end. */
 function knifeRest(C) {
   const { run } = C, steel = /steel/.test(String(C.def.variant)), legK = steel ? 'angle' : C.theater === 'snow' ? 'stake' : 'stakeGrey';
-  const units = Math.max(1, Math.round(run.length / 3.5)), U = run.length / units;
+  // a rail bed under the run: no trestle foot on it (the post that would stand there moves along the run, restStations),
+  // and the strands of the unit that spans it hang clear above the rail heads (0.16 m)
+  const arcs = C.rails ? bedArcs(run, C.rails) : [], st = restStations(run, arcs), units = st.length - 1;
   for (let u = 0; u < units; u++) {
-    const d0 = u * U + 0.12, d1 = (u + 1) * U - 0.12, yaw = (C.rnd() * 2 - 1) * 0.08;
+    const s0 = st[u], s1 = st[u + 1], U = s1 - s0;
+    const d0 = s0 + KNIFE_INSET, d1 = s1 - KNIFE_INSET, yaw = (C.rnd() * 2 - 1) * 0.08;
+    const over = arcs.some(([a, b]) => d0 < b && d1 > a);
     const A = run.at(d0), B = run.at(d1), m = [(A.x + B.x) / 2, (A.z + B.z) / 2], hl = (d1 - d0) / 2;
     const tx = A.tx * Math.cos(yaw) - A.tz * Math.sin(yaw), tz = A.tx * Math.sin(yaw) + A.tz * Math.cos(yaw), nx = tz, nz = -tx;
     const at = (s, a, y) => { const x = m[0] + tx * s + nx * a, z = m[1] + tz * s + nz * a; return [x, C.G(x, z) + y, z]; };
     const at0 = (s, a, y) => { const x = m[0] + tx * s + nx * a, z = m[1] + tz * s + nz * a; return [x, C.G(m[0], m[1]) + y, z]; };
     const yc = 0.72;
     for (const s of [-hl, hl]) {   // X-trestle: two legs crossing at the beam
-      C.P.add(legK, beamMatrix(at(s, -0.7, -0.05), at0(s, 0.5, 1.25), steel ? 0.04 : 0.055, steel ? 0.04 : 0.055, C.rnd()));
-      C.P.add(legK, beamMatrix(at(s, 0.7, -0.05), at0(s, -0.5, 1.25), steel ? 0.04 : 0.055, steel ? 0.04 : 0.055, C.rnd()));
+      C.P.add(legK, beamMatrix(at(s, -KNIFE_FOOT, -0.05), at0(s, 0.5, 1.25), steel ? 0.04 : 0.055, steel ? 0.04 : 0.055, C.rnd()));
+      C.P.add(legK, beamMatrix(at(s, KNIFE_FOOT, -0.05), at0(s, -0.5, 1.25), steel ? 0.04 : 0.055, steel ? 0.04 : 0.055, C.rnd()));
     }
     C.P.add(steel ? 'angle' : 'beam', beamMatrix(at0(-hl - 0.15, 0, yc), at0(hl + 0.15, 0, yc), steel ? 0.05 : 0.11, steel ? 0.05 : 0.11, 0.6));
     C.P.count('knifeRests');
-    // 6 strands end to end on the X arms (the leg points at three heights, both legs)
-    const leg = (s, sgn, f) => { const lo = at(s, -0.7 * sgn, -0.05), hi = at0(s, 0.5 * sgn, 1.25); return [lo[0] + (hi[0] - lo[0]) * f, lo[1] + (hi[1] - lo[1]) * f, lo[2] + (hi[2] - lo[2]) * f]; };
-    for (const sgn of [-1, 1]) for (const f of [0.15, 0.4, 0.92]) C.span(leg(-hl, sgn, f), leg(hl, sgn, f), u * U, (u + 1) * U, { sag: 0.03, sway: 0.2 });
-    // zig-zag spiral round the frame: one wrap per 0.4 m, an ellipse through the X arms
+    // 6 strands end to end on the X arms (the leg points at three heights, both legs; over a rail bed the lowest pair
+    // sits on the legs at 0.39 m, not 0.15 m: above the rail heads)
+    const leg = (s, sgn, f) => { const lo = at(s, -KNIFE_FOOT * sgn, -0.05), hi = at0(s, 0.5 * sgn, 1.25); return [lo[0] + (hi[0] - lo[0]) * f, lo[1] + (hi[1] - lo[1]) * f, lo[2] + (hi[2] - lo[2]) * f]; };
+    for (const sgn of [-1, 1]) for (const f of over ? [0.34, 0.55, 0.92] : [0.15, 0.4, 0.92]) C.span(leg(-hl, sgn, f), leg(hl, sgn, f), s0, s1, { sag: 0.03, sway: 0.2 });
+    // zig-zag spiral round the frame: one wrap per 0.4 m, an ellipse through the X arms (flattened at 0.3 m over a bed)
     const zz = [], n = Math.round((2 * hl) / 0.4) * 8;
     for (let i = 0; i <= n; i++) {
-      const s = -hl + (2 * hl * i) / n, th = (i / 8) * Math.PI * 2;
-      zz.push(at0(s, Math.sin(th) * 0.55, yc + Math.cos(th) * 0.48 + 0.03 * Math.sin(th * 2.3)));
+      const s = -hl + (2 * hl * i) / n, th = (i / 8) * Math.PI * 2, y = yc + Math.cos(th) * 0.48 + 0.03 * Math.sin(th * 2.3);
+      zz.push(at0(s, Math.sin(th) * 0.55, over ? Math.max(0.3, y) : y));
     }
     C.P.wire(zz, { look: C.look, r: 0.0026, sway: 0.15, phase: C.rnd(), rust: C.rnd() * 0.4, barbs: { spacing: 0.12, points: 4 }, snow: C.snow, runKey: C.runKey,
-      sArr: zz.map((_, i) => u * U + (U * i) / n), cuttable: C.cut, tails: 'soft' });
+      sArr: zz.map((_, i) => s0 + (U * i) / n), cuttable: C.cut, tails: 'soft' });
     // a loose loop hanging off one side
-    if (C.rnd() < 0.7) C.span(at0(-hl * 0.5, -0.45, 0.95), at0(hl * 0.3, -0.5, 0.9), u * U, (u + 1) * U, { sag: 0.35, sway: 0.6 });
+    if (C.rnd() < 0.7) C.span(at0(-hl * 0.5, -0.45, 0.95), at0(hl * 0.3, -0.5, 0.9), s0, s1, { sag: 0.35, sway: 0.6 });
   }
 }
 
@@ -1291,7 +1354,8 @@ function holeShadeMaterial(theater) {
 /**
  * Build the mission wire layer from the tagged runs under `root`.
  * opts: {groundAt(x, z), theater, snow (0..1), world, grid, missionId, sunDir (THREE.Vector3, towards the sun),
- *   material(name) → dressing material, night}.
+ *   material(name) → dressing material, night, rails: [{line: [[x, z]…], half}] the drawn track beds (missions/rail-clearance.js
+ *   railBeds) the knife rests' trestles keep off}.
  * @returns {{group, runs, update(dt), rebuild(), setGaps(map), stats, dispose()}|null}
  */
 export function buildWireLayer(root, opts = {}) {
@@ -1317,7 +1381,7 @@ export function buildWireLayer(root, opts = {}) {
     if (mw) r = { ...r, def: { ...r.def, ...mw } };
     const c = cen.get(r.def.id ?? r.def.variant ?? '?'), runKey = `${r.def.id ?? 'wire'}#${i}`;
     const C = buildWireRun(type, r.points, r.def, { parts, groundAt: G, look: wireLookOf(r.def, theater), snow, theater, runKey, runIndex: i,
-      inside: c && c[2] > 2 ? [c[0] / c[2], c[1] / c[2]] : null, solidAt, offMap, coping: r.coping });
+      inside: c && c[2] > 2 ? [c[0] / c[2], c[1] / c[2]] : null, solidAt, offMap, coping: r.coping, rails: opts.rails });
     if (C) runs.push({ key: runKey, type, def: r.def, run: C.run, cut: C.cut, brackets: C.brackets || null });
   });
   const group = new THREE.Group();
@@ -1617,7 +1681,7 @@ function attachRuntime(h, opts) {
 /**
  * Map-builder entry (one hook line): the mission's wire layer on the finished terrain, added under `propsRoot`
  * (before coverPropsWithSnow, so posts and frames take the shared prop snow; the ribbons draw their own).
- * o: {terrain, theater, mission, world, renderer, material, night}
+ * o: {terrain, theater, mission, world, renderer, material, night, rails (the mission's drawn track beds, see buildWireLayer)}
  */
 export function buildMissionWire(propsRoot, o = {}) {
   try {
@@ -1625,7 +1689,7 @@ export function buildMissionWire(propsRoot, o = {}) {
     const snow = o.theater === 'snow' ? 1 : (o.mission?.lighting?.snow ?? (o.mission?.groundPalette === 'frost' ? 0.35 : 0));
     const layer = buildWireLayer(propsRoot, {
       groundAt: o.terrain?.heightAt || (() => 0), theater: o.theater, snow, world: o.world, grid: o.world?.grid,
-      missionId: o.mission?.id, sunDir: o.renderer?.sunDir || null, material: o.material, night: !!o.night, deferBarbs: o.deferBarbs ?? true,
+      missionId: o.mission?.id, sunDir: o.renderer?.sunDir || null, material: o.material, night: !!o.night, rails: o.rails, deferBarbs: o.deferBarbs ?? true,
       deferStrands: o.deferStrands ?? !!o.renderer, // (the game: a cut's rebuild over the next frames; tools / tests: at once)
     });
     if (layer) propsRoot.add(layer.group);

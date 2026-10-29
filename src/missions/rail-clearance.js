@@ -12,6 +12,9 @@
  * keep off the sleepers (CLEAR.natural past the sleeper ends): a cutting or a wood may come close to the line.
  * Things that stand on rails by design never count: rolling stock (`train_car`, the railway gun), the bridges that
  * carry the line, buffer stops, and any structure tagged `onRails: '<reason>'` (a slipway cradle, a mine adit portal).
+ * A tag can also be narrow: `onRails: { <rail id>: '<reason>' }` lets a wall, fence or wire run OVER that one drawn
+ * track (once, at 45° or more — `crossingOnly`), and nothing else: not another rail, not a line a vehicle runs on, not a
+ * tram line, not a building (M4's barbed wire over the dead siding_a). The allowed crossings come back as `allowed`.
  * @module missions/rail-clearance
  */
 import * as THREE from 'three';
@@ -182,12 +185,53 @@ export function shapeLineDist(sh, line) {
 /** Is a structure exempt (stands on the rails by design)? @returns {string|null} the reason */
 export function onRailsReason(s) {
   if (!s) return 'none';
-  if (s.onRails) return String(s.onRails);
+  if (s.onRails && typeof s.onRails !== 'object') return String(s.onRails);   // (an object tag is per rail: railAllowance)
   if (RAIL_TYPES.has(s.type)) return 'rail';
   if (SKIP_TYPES.has(s.type)) return s.type === 'train_car' || s.type === 'railway_gun' ? 'rolling stock' : s.type === 'rail_bridge' ? 'carries the line' : 'ground';
   if (typeof s.variant === 'string' && ON_RAIL_VARIANT.test(s.variant)) return 'belongs on the track';
   if (typeof s.vehicleArt === 'string' && ROLLING_ART.test(s.vehicleArt)) return 'rolling stock';
   return null;
+}
+
+/**
+ * Does the wall / fence / wire `s` (`points` or `segments`) cross the rail line `r` in one clean pass: one visit to its
+ * corridor, entering on one side of the centre line and leaving on the other, the way through no longer than a 45°
+ * crossing's (so not along the track, not a post in it, not a run that ends on it)? Pure; the line is sampled 0.1 m.
+ */
+export function crossingOnly(s, r) {
+  const runs = Array.isArray(s?.segments) ? s.segments : Array.isArray(s?.points) ? [s.points] : [];
+  if (!runs.length || !r.line?.length) return false;
+  const near = (q) => {   // the nearest centre-line segment: distance and which side of it q lies
+    let best = { d: Infinity, side: 0 };
+    for (let k = 0; k + 1 < r.line.length; k++) {
+      const a = r.line[k], b = r.line[k + 1], d = segDist(q[0], q[1], a, b);
+      if (d < best.d) best = { d, side: Math.sign((b[0] - a[0]) * (q[1] - a[1]) - (b[1] - a[1]) * (q[0] - a[0])) };
+    }
+    return best;
+  };
+  const step = 0.1, hw = (s.width ?? 0.5) / 2, maxLen = 2 * (r.half + hw) * Math.SQRT2 + step;
+  let visits = 0;
+  for (const run of runs) {
+    let entry = null, last = null, len = 0;
+    const close = () => { if (!entry || !last || entry.side * last.side >= 0 || len > maxLen) return false; entry = null; len = 0; return true; };
+    for (const q of densify(run.map(pt), step)) {
+      const n = near(q);
+      if (n.d < r.half) { if (!entry) { entry = n; visits++; } last = n; len += step; } else if (entry && !close()) return false;
+    }
+    if (entry && !close()) return false;   // the run ends inside the corridor
+  }
+  return visits === 1;
+}
+
+/**
+ * The reason a structure may run over the rail line `r` (its `onRails: { <rail id>: '<reason>' }`), or null. Only for a
+ * drawn rail_track (kind 'track': never a line a vehicle runs on — that is its own line —, a tram line, a road's rails
+ * or a pushable's), and only for a wall / fence / wire that crosses it once (crossingOnly). Pure.
+ */
+export function railAllowance(s, r) {
+  const t = s?.onRails;
+  if (!t || typeof t !== 'object' || r.kind !== 'track' || typeof t[r.id] !== 'string' || !t[r.id]) return null;
+  return crossingOnly(s, r) ? t[r.id] : null;
 }
 
 /**
@@ -212,12 +256,13 @@ export function drawnPoly(s, pts, ext, turn, sx, sz) {
  * @param {Map<string, {type:string, def:object, footprints:object[]}>} structures grid-only build (map-builder handle.structures)
  * @param {{vehicleSize?:Function, near?:number, drawn?:Map<string, {poly:number[][]}[]>}} [o] near: also list items up to this
  *   far past the corridor (report); drawn: the drawn plans of library visuals (drawnPlan) by structure id
- * @returns {{rails: object[], hits: {id:string, type:string, variant:string, rail:string, kind:string, natural:boolean, dist:number, need:number, overlap:number}[]}}
+ * @returns {{rails: object[], hits: {id:string, type:string, variant:string, rail:string, kind:string, natural:boolean, dist:number, need:number, overlap:number}[],
+ *   allowed: object[]}} allowed: the same rows (+ `why`) for what an `onRails: { <rail id>: … }` tag lets run over its one track
  */
 export function railClearance(def, structures, o = {}) {
   const rails = railLines(def, o);
-  const hits = [];
-  if (!rails.length) return { rails, hits };
+  const hits = [], allowed = [];
+  if (!rails.length) return { rails, hits, allowed };
   // a line over a rail bridge runs on its deck, above whatever stands below it (rock rims, the gorge, its piers)
   const decks = (def.structures || []).filter((s) => s?.type === 'rail_bridge' && Number.isFinite(s.x) && s.w > 0 && s.d > 0)
     .map((s) => footprintShape({ shape: 'rect', x: s.x, z: s.z, w: s.w + 1, d: s.d + 1, rot: s.rot ?? 0 }).poly);
@@ -250,8 +295,12 @@ export function railClearance(def, structures, o = {}) {
         const d = shapeLineDist(sh, part);
         if (d - needOf(sh) < dist - need) { dist = d; need = needOf(sh); }
       }
-      if (dist < need + (o.near ?? 0)) hits.push({ id, type: b.type ?? s.type, variant: String(s.variant ?? ''), rail: r.id, kind: r.kind, natural,
-        dist: +dist.toFixed(3), need: +need.toFixed(3), overlap: +(need - dist).toFixed(3) });
+      if (dist < need + (o.near ?? 0)) {
+        const row = { id, type: b.type ?? s.type, variant: String(s.variant ?? ''), rail: r.id, kind: r.kind, natural,
+          dist: +dist.toFixed(3), need: +need.toFixed(3), overlap: +(need - dist).toFixed(3) };
+        const why = dist < need ? railAllowance(s, r) : null;   // (per-rail tag: this wire over this dead siding)
+        if (why) allowed.push({ ...row, why }); else hits.push(row);
+      }
     }
   }
   // street furniture (world/roads.js `furniture`: lamps, signs, benches, milestones): a post or a small plan
@@ -267,7 +316,15 @@ export function railClearance(def, structures, o = {}) {
     }
   }
   hits.sort((a, b) => b.overlap - a.overlap);
-  return { rails, hits };
+  return { rails, hits, allowed };
+}
+
+/**
+ * The drawn track beds of a mission for the wire layer (art/wire-obstacles.js `rails`): {id, line, half} — a rail_track's
+ * centre line and its static corridor (ballast + CLEAR.static), which the posts of a wire over it stand outside.
+ */
+export function railBeds(def) {
+  return railLines(def).filter((r) => r.kind === 'track').map(({ id, line, half }) => ({ id, line, half }));
 }
 
 /** Plan radius (m) of a street-furniture item without its own size (a lamp post, a sign, a milestone). */

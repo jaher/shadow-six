@@ -178,9 +178,7 @@ const INLET = [
   { id: 'crossing_box', type: 'generator', variant: 'crossing_control_box', x: 180.15, z: 66.55, rot: deg(45), w: 0.8, d: 0.6, h: 1.4, block: 1 },
   { id: 'shack_x', type: 'hut', variant: 'crossing_shack', asset: 'log_cabin_a_snow', x: 173.06, z: 77.05, rot: deg(45), w: 2.8, d: 2.8, h: 3.5, enterable: true },
   // dead sidings into the derelict rail yard
-  // (rails clear: the wire's stakes stood on this dead siding; its rails are lifted for 6 m where the wire crosses)
-  { id: 'siding_a', type: 'rail_track', variant: 'rusty', segments: [[BR_A, [91.3, 151], [79, 157], [74.6, 157.2]],
-    [[68.3, 157.4], [66, 157.5], [51.7, 149.8], [44, 142], [17.6, 120], [10, 114]]] },
+  { id: 'siding_a', type: 'rail_track', variant: 'rusty', points: [BR_A, [91.3, 151], [79, 157], [66, 157.5], [51.7, 149.8], [44, 142], [17.6, 120], [10, 114]] },
   // (rails clear: it bends 2 m NW past the bombed house, whose rubble lay across its rails; handcar_y and buffer_b on it)
   { id: 'siding_b', type: 'rail_track', variant: 'rusty', points: [[0, 125], [12.54, 137.21], [16.14, 142.81], [19.38, 146.66], [24.17, 150.35], [27.8, 152.35], [29.7, 154]] },
   { id: 'buffer_a', type: 'crates', variant: 'buffer_stop', x: 10, z: 114, rot: deg(40), w: 1, d: 2.6, h: 1.2, block: 1 },
@@ -206,7 +204,13 @@ const SW_BANK = [
   mgRing('mg_br', 97.7, 153.8, 290),
   // knife-rests with barbed wire: split the yard (W) from the bridge approach (E); the one way through is the
   // N opening beside `rocks_rim` (x 78–84, z 125–133). Impassable for vehicles too.
+  // It crosses the dead siding_a at (71.4, 157.3) with the rails unbroken under it. Asked (10-29) "buffer stops at the cut
+  // ends, or continuous rails with the wire running over them?", the user answered: "Continuous rails". So the one allowance
+  // in the rails-clear test (`onRails`, per rail: this wire over this dead siding and nothing else — tests/unit/rails-clear
+  // pins it): the knife rests' trestles stand either side of the bed (art/wire-obstacles.js restStations shifts the post
+  // that would stand on it along the run) and the strands pass over the rail heads.
   { id: 'wire', type: 'fence', variant: 'wire_on_stakes', h: 1.4, width: 0.6,
+    onRails: { siding_a: 'the wire runs over the dead siding: "Continuous rails" (user 10-29, to "buffer stops or continuous rails with the wire over them?")' },
     points: [[79, 141], [74.7, 146.8], [72.7, 152.7], [71.4, 157.3], [70.1, 161.9], [68.1, 165.8], [65.5, 171]] },
   // groves: the start grove hides the team; the centre grove by the wire
   ...scatter(0.5, 10, 149, 163, 12, 4101),

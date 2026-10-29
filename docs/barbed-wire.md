@@ -357,6 +357,12 @@ pattern with a pitch of 8 cm, which tells the eye "twisted" at zoom 2.
   - a few loose loops hanging.
 - **Steel versions:** angle-iron frames, rust.
 - **Snow:** sits on beams and X crossings.
+- **Over a railway:** a run that crosses a drawn `rail_track` (M4's wire over the dead `siding_a`; the beds come from
+  `missions/rail-clearance.js railBeds`, ballast + 0.3 m) never stands a trestle foot on the bed. `bedArcs` finds the stretch
+  of the run where a foot would; `restStations` moves the posts that would stand there along the run (one longer unit
+  spans the bed between two posts either side of it, the posts within 2.4 m of it are re-spaced, every other post stays).
+  The unit over the bed hangs its lowest strands at 0.39 m (rail heads are 0.16 m) and flattens the zig-zag at 0.3 m.
+  The rails stay unbroken under the wire (user 2026-10-29: "Continuous rails").
 
 ### 4.6 `hedgehog_belt`
 

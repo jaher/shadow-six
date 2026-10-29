@@ -32,6 +32,7 @@ import { buildDamStairs, stairTopAt } from '../art/dam-stairs.js';
 import { StairField, damFlights, platformFlight, linkFlight } from './stairs.js';
 import { createDamWater, createDamWaterG, hasDamWater, loadDamPoolTextures } from '../render/dam-water.js';
 import { buildMissionWire } from '../art/wire-obstacles.js';
+import { railBeds } from '../missions/rail-clearance.js';
 import * as WaterModule from '../art/water/index.js';
 import { buildExtraProp, isExtraProp, isPlatformProp } from '../art/props-extra.js';
 import { installSetpieces } from '../missions/setpieces.js';
@@ -1909,7 +1910,8 @@ export function* buildMapGen(world, mission, opts = {}) {
     world.scene?.add(terrain.ground);
     if (terrain.water) world.scene?.add(terrain.water);
     if (due()) yield;
-    wire = buildMissionWire(propsRoot, { terrain, theater, mission, world, renderer: opts.renderer, material: dressingMaterial, night: theater === 'night' || !!mission.lighting?.night });
+    wire = buildMissionWire(propsRoot, { terrain, theater, mission, world, renderer: opts.renderer, material: dressingMaterial, night: theater === 'night' || !!mission.lighting?.night,
+      rails: railBeds(mission) }); // (the drawn tracks: a wire's knife-rest trestles keep their feet off the ballast)
     // the cuttable fences' posts, as drawn: the cutters keep a hole clear of them (abilities/sapper.js planHole)
     world.fencePosts = wire?.posts?.length ? wire.posts : null;
     world.scene?.add(propsRoot);

@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { test, assert, near } from './lib.mjs';
 import { catenary, measuredSag, barbStations, concertinaPath, wireLod, barbVisFor, WireBuffer, arcLengths, INST_STRIDE } from '../../src/art/barbed-wire.js';
-import { wireTypeOf, wireLookOf, WIRE_TYPES, buildWireRun, buildWireLayer, Parts, assembleRibbons, cutPath, curlTail, panelGeometry } from '../../src/art/wire-obstacles.js';
+import { wireTypeOf, wireLookOf, WIRE_TYPES, buildWireRun, buildWireLayer, Parts, assembleRibbons, cutPath, curlTail, panelGeometry, Run, bedArcs, restStations, KNIFE_FOOT } from '../../src/art/wire-obstacles.js';
 import { buildWall } from '../../src/art/dressing.js';
 import { World } from '../../src/world/world.js';
 import { B } from '../../src/world/grid.js';
@@ -245,4 +245,42 @@ test('M4–M20: every wire structure draws as its obstacle type (art/wire-missio
   const K = new Parts();
   buildWireRun('chainlink', [[0, 0], [9, 0]], { id: 'pen', type: 'prison_pen', h: 2, kennel: true }, { parts: K });
   assert.ok(!K.inst.get('angleThin') && !K.inst.get('plate'), 'kennel: no barbed outriggers, no warning plates');
+});
+
+test('knife rests over a rail bed (M4 wire over the dead siding): the posts that would stand on it move along the run, the others stay; the unit over it hangs its strands above the rails', () => {
+  // a 40 m run along x over a track along z at x = 18.2 (where the plain run has a post: trestles at 18.06 and 18.30)
+  const pts = [[0, 0], [40, 0]], run = new Run(pts), X = 18.2, bed = { line: Array.from({ length: 41 }, (_, i) => [X, -10 + i * 0.5]), half: 1.8 };
+  const base = restStations(run);
+  assert.equal(base.length, 12, 'round(40 / 3.5) = 11 equal units');
+  near(base[5], 40 * 5 / 11, 1e-9, 'equal units');
+  assert.deepEqual(restStations(run, bedArcs(run, [])), base, 'no beds, no change');
+  assert.deepEqual(bedArcs(run, [{ line: [[100, 100], [100, 120]], half: 1.8 }]), [], 'a bed far from the run: no arcs');
+  // the feet (±0.7 across the run) are 1.8 m from the track at x = X ∓ 1.8: the forbidden stretch
+  const arcs = bedArcs(run, [bed]);
+  assert.equal(arcs.length, 1);
+  near(arcs[0][0], X - 1.8, 0.06, 'clear up to here'); near(arcs[0][1], X + 1.8, 0.06, 'and again from here');
+  const st = restStations(run, arcs), [a, b] = arcs[0];
+  // only the posts near the bed change: the rest stay where they were
+  for (const q of base) if (q < a - 8 || q > b + 8) assert.ok(st.some((r) => Math.abs(r - q) < 1e-9), `post at ${q.toFixed(2)} stays`);
+  assert.deepEqual(st.filter((q, k) => k > 0 && k < st.length - 1 && q + 0.12 > a && q - 0.12 < b), [], 'no post with a trestle in the bed stretch');
+  const k = st.findIndex((q, j) => j > 0 && st[j - 1] + 0.12 <= a + 1e-6 && q - 0.12 >= b - 1e-6);
+  assert.ok(k > 0, `one unit spans the bed between a post either side of it (${st.map((q) => q.toFixed(1)).join(' ')})`);
+  for (let j = 1; j < st.length; j++) assert.ok(st[j] - st[j - 1] > 1.9 && st[j] - st[j - 1] < 6, `no stub or giant unit (${(st[j] - st[j - 1]).toFixed(2)} m)`);
+  assert.equal(st[0], 0); assert.equal(st[st.length - 1], 40);
+  // as drawn: no leg foot within the bed's ballast + 0.1 m of the track; built without the bed a trestle stands on it
+  const feet = (rails) => {
+    const P = new Parts();
+    buildWireRun('knife_rest', pts, { id: 'kr', type: 'fence', variant: 'wire_on_stakes', h: 1.4, width: 0.6 }, { parts: P, rails, theater: 'snow', runKey: 'kr#0' });
+    return { P, xs: [...P.inst.values()].flat().filter((M) => M.elements[13] < 0.3).map((M) => M.elements[12]) };
+  };
+  const withBed = feet([bed]), plain = feet(null);
+  assert.ok(withBed.xs.every((x) => Math.abs(x - X) >= 1.6), 'no foot on the ballast (1.5 m) or its 0.1 m margin');
+  assert.ok(plain.xs.some((x) => Math.abs(x - X) < 0.5), 'control: the plain recipe stands a trestle on the track');
+  assert.equal(withBed.xs.length - plain.xs.length, 4 * (st.length - base.length), 'four legs a unit (two trestles of two): only the units the re-spacing adds or drops');
+  // the strands over the bed clear the rail heads (0.16 m), the plain ones do not
+  const lowest = (P) => Math.min(...P.items.flatMap((it) => it.path.filter((q) => Math.abs(q[0] - X) < 1.0).map((q) => q[1])));
+  assert.ok(lowest(withBed.P) >= 0.2 && lowest(plain.P) < 0.2, `strands over the rails: ${lowest(withBed.P).toFixed(2)} m (plain ${lowest(plain.P).toFixed(2)} m)`);
+  // the cut-gap arcs of the strands still follow the run
+  for (const it of withBed.P.items) assert.ok(it.sArr.every((v) => v >= -1e-9 && v <= 40 + 1e-9), 'strand arcs inside the run');
+  assert.equal(KNIFE_FOOT, 0.7);
 });

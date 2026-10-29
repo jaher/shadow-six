@@ -120,6 +120,22 @@ test('an edge run that crosses a railway carried on out there leaves a gap for i
   for (const w of wire) for (const p of w.points) for (const r of rails) assert.ok(segD(p, ...r.points) >= 2.2, `wire end ${p} ${segD(p, ...r.points).toFixed(2)} m off ${r.id}`);
 });
 
+test('the edge runs leave M4\'s siding_a crossing alone: siding_a is not carried over the apron, the wire has its one gap at the main line', () => {
+  const m = normalizeMission(getMission('m04')), [W, D] = m.size, len = CONFIG.apron.width + 12;
+  const train = m.vehicles.find((v) => v.vehicleType === 'train');
+  const R = edgeStructureRuns(m.structures, W, D, len, { railReach: true, tracks: [train.track] });
+  // (the wire crosses the dead siding inside the map, rails unbroken under it — user 2026-10-29 "Continuous rails": the gap
+  // code of the apron only meets a railway carried on out there, and siding_a ends at its buffer stop inside the map)
+  assert.ok(!R.some((r) => r.def.id === 'siding_a'), 'siding_a ends inside the map: not carried on');
+  assert.deepEqual(R.filter((r) => r.def.type === 'rail_track').map((r) => r.id).sort(), ['rail_main:edge0', 'rail_main:edge1', 'siding_b:edge0']);
+  const wire = R.filter((r) => r.def.id === 'wire'), main = R.find((r) => r.id === 'rail_main:edge1');
+  assert.equal(wire.length, 2, 'the wire past the S edge: two pieces, one gap');
+  const gap = [(wire[0].points[1][0] + wire[1].points[0][0]) / 2, (wire[0].points[1][1] + wire[1].points[0][1]) / 2];
+  const [a, b] = main.points, dx = b[0] - a[0], dz = b[1] - a[1], t = Math.max(0, Math.min(1, ((gap[0] - a[0]) * dx + (gap[1] - a[1]) * dz) / (dx * dx + dz * dz)));
+  assert.ok(Math.hypot(gap[0] - a[0] - dx * t, gap[1] - a[1] - dz * t) < 1, `the gap ${gap.map((v) => v.toFixed(1))} is on the main line's continuation`);
+  assert.ok(Math.min(...wire[0].points.map((p) => p[1])) >= D - 1e-6 && wire[0].points[0][1] === D, 'the first piece starts on the S edge: nothing of the in-map run is cut');
+});
+
 test('a street of flat-roofed houses ending flush on an edge carries on as a town past it (M12 house_e1..e3 on x = W)', () => {
   const m = normalizeMission(getMission('m12')), [W, D] = m.size;
   const B = edgeBuildingRows(m.structures, W, D), houses = B.filter((b) => b.kind === 'house');
