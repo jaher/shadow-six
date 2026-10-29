@@ -196,7 +196,9 @@ export default {
     tower('tower_s', 58.5, 80, 2.25, 7),
     // --- railway: main line NW → SE with the gun on it, dead-end spur NE; parked wagons (no traffic)
     { id: 'rail_main', type: 'rail_track', points: [[46, 2], [58, 12], [72, 24], [80, 33], [88, 43], [100, 55], [110, 66], [125, 80], [133, 88]] },
-    { id: 'rail_spur', type: 'rail_track', points: [[72, 24], [80, 28.5], [88, 31], [100, 32], [110, 30], [120, 22], [130.5, 10.5]] },
+    // (rails clear, user 10-28: the dead-end spur bends 3.4 m further north past the NE ruin — from the default camera
+    // its roof and west tower stood over the rails, 4 m behind them; visual only, no footprint)
+    { id: 'rail_spur', type: 'rail_track', points: [[72, 24], [80, 28.5], [88, 30.6], [100, 29.8], [110, 26.6], [119.5, 20.4], [130.5, 10.5]] },
     { id: 'leopold', type: 'railway_gun', variant: 'railway_gun_k5', x: GUN.x, z: GUN.z, rot: deg(GUN.rot), w: GUN.w, d: GUN.d, h: 6,
       label: 'The Leopold railway gun', barrelElevDeg: 30, // barrel raised ~30°, muzzle SE (art: building library)
       destructible: true, bombOnly: true, marker: 'leopold_charge', hp: 100, destroyFx: ['bigBlast', 'barrelDrop', 'fire'] },

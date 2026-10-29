@@ -30,6 +30,8 @@ import { missionCarves } from './terrain/carve.js';
 import { hedgerowPlacements } from './terrain/forest-fill.js';
 import { cellWetAt, onDryLand, keepOffWater, APRON_SHORE_MARGIN } from '../world/veg-shore.js';
 import { terrainMaterial, splatTexture, sampleCells, cellSignedDistance, carveDepth, WATER_DEPTH, ICE_DEPTH } from './terrain/terrain.js';
+import { buildRailBridge } from './kit-terrain.js';
+import { consolidate } from './dressing.js';
 
 const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
@@ -281,6 +283,47 @@ const hash2 = (i, j, s) => { let h = (i * 374761393 + j * 668265263 + s * 224682
  * scenery stood twice as tall as the map's own trees (M1: an 18 m spruce on the fjord's waterline beside 9 m map
  * spruces, user 2026-10-08 "giant tree standing on the water"). `mission.apron.trees` scales the forest (0 = none).
  */
+/**
+ * Low plate-girder bridges (art/kit-terrain.js buildRailBridge, its own track left out: the edge run's sleepers and
+ * rails lie on its planks) where a railway carried on past the map edge (`rail` flat lines, world/map-builder.js edge
+ * runs) crosses water: one per wet stretch, 2.5 m onto either bank, consolidated (a few draws). Visual only.
+ * @param {{points:number[][], rail?:boolean}[]} lines @param {(x:number, z:number) => boolean} wet
+ * @returns {THREE.Group|null}
+ */
+export function railTrestles(lines, wet, step = 0.5) {
+  const spans = [];
+  for (const l of lines) {
+    if (!l.rail) continue;
+    for (let k = 0; k + 1 < l.points.length; k++) {
+      const [ax, az] = l.points[k], [bx, bz] = l.points[k + 1], L = Math.hypot(bx - ax, bz - az);
+      if (L < 1) continue;
+      const ux = (bx - ax) / L, uz = (bz - az) / L;
+      let s0 = null;
+      for (let s = 0; s <= L + 1e-9; s += step) {
+        const w = wet(ax + ux * s, az + uz * s), last = s + step > L + 1e-9;
+        if (w && s0 == null) s0 = s;
+        if (s0 != null && (!w || last)) { spans.push({ ax, az, ux, uz, s0: Math.max(0, s0 - 2.5), s1: Math.min(L, s + 2.5) }); s0 = null; }
+      }
+    }
+  }
+  const g = new THREE.Group(); g.name = 'apron:railTrestles';
+  for (const sp of spans) {
+    const w = sp.s1 - sp.s0;
+    if (w < 3) continue;
+    const b = buildRailBridge({ w, d: 4, h: 2.5, variant: 'plate_girder' });
+    for (const c of [...b.children]) if (c.name === 'kit:rail_track') b.remove(c);
+    const m = (sp.s0 + sp.s1) / 2;
+    b.position.set(sp.ax + sp.ux * m, -0.34, sp.az + sp.uz * m); // planks' top 6 cm up: the run's ballast under, its sleepers on
+    b.rotation.y = -Math.atan2(sp.uz, sp.ux);
+    g.add(b);
+  }
+  if (!g.children.length) return null;
+  const c = consolidate(g);
+  c.name = 'apron:railTrestles';
+  c.userData.apron = true;
+  return c;
+}
+
 export function apronTrees(f, mission = {}, trees = [], theater = 'temperate', cfg = CONFIG.apron, avoid = null, wetAt = null) {
   return runSync(apronTreesG(f, mission, trees, theater, cfg, avoid, wetAt));
 }
@@ -416,6 +459,10 @@ export function* createApronG(R, parent, t, grid, mission, theater, o = {}) {
   const wetAt = o.shore?.wetAt || cellWetAt(f.grid, APRON_SHORE_MARGIN + 0.5, f.ox, f.oz);
   if (due()) yield;
   const defs = (yield* apronTreesG(f, mission, o.trees || [], theater, CONFIG.apron, (x, z) => H.flatAt(x, z) > 0.2, wetAt)).filter((d) => !hedges.length || !nearHedge(d.x, d.z));
+  // a railway carried on past the edge that meets the apron's water crosses it on a low bridge (the 'once' trains run
+  // out over it, entities/rail-runout.js: M16 / M18's river south of the map)
+  const trestles = railTrestles(o.flatLines || [], (x, z) => !f.inMap(x, z) && wetAt(x, z) > -0.5);
+  if (trestles) parent.add(trestles);
   stats.treeDefs = defs.length; stats.hedges = boc.hedgerows.length; stats.hedgePlants = hedges.length;
   const forest = (async () => {
     if ((!defs.length && !hedges.length) || !o.createVegetation || !o.treePlacement) return null;
@@ -446,6 +493,7 @@ export function* createApronG(R, parent, t, grid, mission, theater, o = {}) {
     dispose() {
       disposed = true;
       parent.remove(mesh, skirt);
+      if (trestles) { parent.remove(trestles); trestles.traverse((m) => m.geometry?.dispose()); }
       grass?.setApron(null);
       geo.dispose(); skirt.geometry.dispose(); mat.dispose(); tA.dispose(); tB.dispose();
       veg?.dispose(); veg = null;

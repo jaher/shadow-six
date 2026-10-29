@@ -816,3 +816,9 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 - Solution: wins at t=2164.2 with 0 detections and 0 exposures; straight dashes, decoy only while e30 is on the east part of his beat, Green Beret along the truck lane, captions match play.
 - Art: barracks firewood, HQ lean-to fuel point, base lorry and timber in the X's lee, chapel woodshed, cookhouse stores, X crossing pier; S ruin stays the bombed brick ruin.
 - Tests: unit 2366/0; m06/m03/debug solution GPU tests pass.
+
+## 2026-10-29 — Trains leave the map whole; no building on the rails (merged 187a0ee2f)
+- User: "Make sure no buildings are on top of rails and the train leaves fully the map, not stops at the edge and disappears".
+- Trains (M4, M16, M18): the drawn train runs in from and out to 102.8 m past the map edge (beyond every allowed view) on rails that follow its own track (low girder bridge over the river past M16/M18's S edge); the sim (kill box, blocking, stops, events, hiddenRail) is unchanged; M4's 34 s period uses a second run-out model. M15 tram rails drawn 6.5 m past both stops.
+- Rails clear in every mission: M4 crossing shack and crossing box off the main line, siding rails lifted under the wire, siding_b bent past the ruin's rubble; M7 gantry centred on the slip rails, crates/bollard/lamp/U-boat clear; M13 quay rail around crate_e1; M16/M18 platform deck narrowed off the track, lamps moved; M6 decorative spur 3.4 m N; M19 adit tagged onRails by design. New unit tests rails-clear (all missions, drawn outlines) and rail-runout.
+- Tests: unit 2387/0; m16 won 1445.7 0/0 (same checkpoints; station guards' starts differ after the platform fix), m06 2164.2 0/0 trace identical, m13/m15/m19 pass; edges-void, preset-determinism, debug-walkthrough-sim ok. M15 render-budget tris over budget on master too (owner's LOD change).

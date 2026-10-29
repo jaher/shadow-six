@@ -51,6 +51,8 @@ const ISLAND_N = [[87.3, 39.6], [88, 25], [98.1, 13.8], [107.5, 10.4], [113.9, 7
   [105.3, 27.2], [98.1, 30.6], [90.9, 38.4]];
 /** T11 the railway (both ends off the map); the train stops with its engine at (160, 64.3), coaches by the platform. */
 export const RAIL = [[212, 13.5], [200.6, 24.5], [139.5, 84.3], [103, 120.3], [73.2, 150], [62, 161]];
+/** The plank platform's centre (rails clear: 0.875 m back from (188, 33.5) towards the station, half its old depth). */
+const PLATFORM = [187.38, 32.88];
 const ROADS = {
   nw: [[0, 25], [25.7, 54]],                                          // T7 to the bridge's W end
   bridgehead: [[91.5, 108.5], [103, 121], [119, 130]],               // T8 over the level crossing
@@ -117,7 +119,9 @@ const EAST = [
   // zone A: the station (garrison g_station) and its plank platform
   { id: 'station', type: 'barracks', variant: 'station_building', asset: 'station_halt_be', x: 182, z: 28.6, rot: deg(-45), w: 12, d: 7, h: 7, mat: 'brick',
     flag: true, garrison: true, door: deg(90) },
-  { id: 'platform', type: 'pier', variant: 'station_platform_planks', x: 188, z: 33.5, rot: deg(-45), w: 22, d: 3.5 },
+  // (rails clear, user 10-28: the planks reached 0.5 m from the track's axis, over its near rail — the train ran through
+  // them; now half as deep, its back edge where it was, its front 2.3 m off the axis: the train's hull ±1.7 m + 0.5)
+  { id: 'platform', type: 'pier', variant: 'station_platform_planks', x: PLATFORM[0], z: PLATFORM[1], rot: deg(-45), w: 22, d: 1.75 },
   // zone B: the timber house by the road (hideout), the house block round its yard, the grey townhouse, the fountain
   house('house_road', 'farmhouse_normandy', 177, 59, 10, 8, 9, { asset: 'farmhouse_mosan_a', mat: 'woodDark', enterable: true, door: deg(90) }),
   house('blk_n', 'house_belgian_brick', 188, 73, 8, 8, 10, { asset: 'house_belgian_brick_a', mat: 'brick' }),
@@ -200,8 +204,8 @@ const PAVEMENTS = [
 ];
 const FURNITURE = [
   // platform lamps at both ends of the plank platform, a lamp on the station forecourt
-  { type: 'lamp', variant: 'platform', x: local(188, 33.5, deg(-45), 8.5, 0.6)[0], z: local(188, 33.5, deg(-45), 8.5, 0.6)[1], rot: deg(45), block: false },
-  { type: 'lamp', variant: 'platform', x: local(188, 33.5, deg(-45), -8.5, 0.6)[0], z: local(188, 33.5, deg(-45), -8.5, 0.6)[1], rot: deg(45), block: false },
+  { type: 'lamp', variant: 'platform', x: local(188, 33.5, deg(-45), 8.5, -1.075)[0], z: local(188, 33.5, deg(-45), 8.5, -1.075)[1], rot: deg(45), block: false },
+  { type: 'lamp', variant: 'platform', x: local(188, 33.5, deg(-45), -8.5, -1.075)[0], z: local(188, 33.5, deg(-45), -8.5, -1.075)[1], rot: deg(45), block: false },
   { type: 'lamp', variant: 'paris_single', x: ST(5.5, -8.8)[0], z: ST(5.5, -8.8)[1], rot: deg(-135), block: false },
   // St Andrew's crosses on the verge of each approach to the level crossing, a fingerpost in the SW corner of the
   // S-road junction, kilometre stones on the NE road (all clear of the carriageway: art-m16 test)

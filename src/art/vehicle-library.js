@@ -485,6 +485,21 @@ export function createVehicleVisual(type, opts = {}) {
       }
     },
     update(dt, o = {}) { S.last = o; if (S.cur && S.cur === S.intact) drive(S.cur, dt, o); },
+    /** (internal) the instance drawn now, for syncMotion */
+    _inst: () => S.cur,
+    /**
+     * Take another visual's moving parts as they are — wheel / spin angles, track belt offsets, the odometer — and pose
+     * them (same model): a drawn twin taking over seamlessly (entities/vehicle.js 'once' train run-out).
+     */
+    syncMotion(other) {
+      const a = S.cur, b = other?._inst?.();
+      if (!a || !b || a === b || a.model !== b.model) return false;
+      for (const [name, p] of a.parts) { const q = b.parts.get(name); if (q && Number.isFinite(q.angle)) p.angle = q.angle; }
+      a.tracks.forEach((t, i) => { if (b.tracks[i]) t.offset = b.tracks[i].offset; });
+      a.odo = b.odo;
+      if (a === S.intact) drive(a, 0, S.last);
+      return true;
+    },
     setZoom(z) { S.zoom = z; show(); },
     dispose() { V.live.delete(h); object3d.removeFromParent(); for (const x of [S.intact, S.wreck]) x?.tracks.forEach((t) => t.texs.forEach((tx) => tx.dispose())); },
   };
@@ -510,6 +525,7 @@ function createConsist(type, T, opts) {
     setDestroyed: (on = true) => Promise.all(cars.map((c) => c.setDestroyed(on))),
     setPart: (n, t) => cars.forEach((c) => c.setPart(n, t)), setToggle: (n, on) => cars.forEach((c) => c.setToggle(n, on)),
     update: (dt, o) => cars.forEach((c) => c.update(dt, o)), setZoom: (z) => cars.forEach((c) => c.setZoom(z)),
+    syncMotion: (other) => cars.every((c, i) => c.syncMotion(other?.cars?.[i])),
     dispose: () => { cars.forEach((c) => c.dispose()); object3d.removeFromParent(); },
   };
   h.ready = Promise.all(cars.map((c) => c.ready)).then(() => {

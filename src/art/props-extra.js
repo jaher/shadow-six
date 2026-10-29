@@ -179,8 +179,11 @@ function buildLinearExtra(type, p, ctx = {}) {
   // a hinted library wall section (e.g. sea_wall `at_wall_segment`, 8 m) is tiled along each run, front (+z) to the
   // run's right-hand side; the placeholder box stays where the library is off or the asset is missing
   const tile = ctx.library !== false && libraryHinted(type, p);
-  for (let k = 0; k + 1 < pts.length; k++) {
-    const [ax, az] = pts[k], [bx, bz] = pts[k + 1];
+  // tram_track `drawEnds` [m, m]: the rails drawn on past the first / last point (a tram standing at its terminus has
+  // its whole length on them); the terrain footprint below keeps the authored line
+  const drawn = type === 'tram_track' && Array.isArray(p.drawEnds) ? extendEnds(pts, p.drawEnds) : pts;
+  for (let k = 0; k + 1 < drawn.length; k++) {
+    const [ax, az] = drawn[k], [bx, bz] = drawn[k + 1];
     const len = Math.hypot(bx - ax, bz - az);
     if (len < 1e-6) continue;
     const rot = Math.atan2(bz - az, bx - ax);
@@ -207,6 +210,16 @@ function buildLinearExtra(type, p, ctx = {}) {
   if (type === 'tram_track') footprints.push({ shape: 'line', points: pts, width, terrain: T.ROAD });
   if (ctx.library !== false && ctx.dressing !== false) kitify(root); // placeholder-art pass: textured finishes
   return { object3d: root, footprints, castsShadow: type !== 'tram_track' };
+}
+
+/** A polyline with its first / last segment carried on `a` / `b` m past its ends. */
+export function extendEnds(pts, [a = 0, b = 0] = []) {
+  const P = pts.map((q) => [q[0], q[1]]), n = P.length;
+  if (n < 2) return P;
+  const on = (p, q, d) => { const dx = p[0] - q[0], dz = p[1] - q[1], m = Math.hypot(dx, dz) || 1; return [p[0] + (dx / m) * d, p[1] + (dz / m) * d]; };
+  if (a > 0) P[0] = on(P[0], P[1], a);
+  if (b > 0) P[n - 1] = on(P[n - 1], P[n - 2], b);
+  return P;
 }
 
 /** Tile a run a→b with library sections of ~`tileLen` m (scaled to fit exactly); false → caller builds the box. */

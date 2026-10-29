@@ -27,6 +27,8 @@ import { installM07Art } from './scripts/m07-art.js';
 import { bombedRuin } from './scripts/bombed-ruin.js';
 
 const deg = (d) => (d * Math.PI) / 180;
+/** The slipway gantry's centre (ART.gantry), on the slip rails' centre line. */
+const ART_GANTRY = { x: 35, z: 85.5 };
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (enemy-brain reads wp.look * DEG)
 
 /** Rect pier/jetty between two points (width `w`): centre, length, rotation. */
@@ -116,10 +118,11 @@ const BUILDINGS = [
     flag: true, banners: true, garrison: true, destructible: true, hp: 100, door: Math.PI, artTurn: 1, artFill: [0.85, 1] }, // (art) front door W
   { ...house('house_mid', 50.4, 73.5, 11, 9, 6, [50.4, 78.8], 'barracks_rendered_hip'), asset: 'barracks_c_snow' },
   // the timber gantry over the slip rails: two portals (B.HIGH posts), open between them; the square posts stand
-  // square to w_inner (41.7°) beside it
+  // square to w_inner (41.7°) beside it. (rails clear, user 10-28: centred on the rails — it stood 1.8 m off them, a
+  // post on the sleepers; its posts now 2.9 m or more off the track's ballast either side)
   ...[[-5, -3], [-5, 3], [5, -3], [5, 3]].map(([lx, lz], k) => {
     const c = Math.cos(deg(35)), s = Math.sin(deg(35));
-    return { id: `gantry_post_${k + 1}`, type: 'bunker', variant: 'gantry_timber', x: +(34 + lx * c - lz * s).toFixed(2), z: +(84 + lx * s + lz * c).toFixed(2), rot: deg(41.7), w: 0.8, d: 0.8, h: 6, mat: 'woodDark', block: 2 };
+    return { id: `gantry_post_${k + 1}`, type: 'bunker', variant: 'gantry_timber', x: +(ART_GANTRY.x + lx * c - lz * s).toFixed(2), z: +(ART_GANTRY.z + lx * s + lz * c).toFixed(2), rot: deg(41.7), w: 0.8, d: 0.8, h: 6, mat: 'woodDark', block: 2 };
   }),
   // the village (tarred / red-painted timber, all enterable)
   // (art pass: h_big and h_4 are compounds of library houses, ART.parts; the rest one Norwegian model each. Breathing
@@ -145,7 +148,8 @@ const BUILDINGS = [
 /** The dock: finger pier (an island), gangways, the two U-boats, rails, crane, gun pits; the marina jetties. */
 const WATERSIDE = [
   // the granite quay face (the T8 strip is its land side): iron bollards every 6 m, decor only (no block)
-  ...Array.from({ length: 11 }, (_, k) => ({ id: `quay_bollard_${k + 1}`, type: 'sign', variant: 'quay_granite_bollard', x: +(2.2 + k * 4.45).toFixed(2), z: +(102.4 + k * 4.02).toFixed(2), r: 0.2, h: 0.6, block: 0 })),
+  // (rails clear: the third one half a metre along the quay, off the slip rails' sleepers where they cross the edge)
+  ...Array.from({ length: 11 }, (_, k) => ({ id: `quay_bollard_${k + 1}`, type: 'sign', variant: 'quay_granite_bollard', x: +(2.2 + k * 4.45 + (k === 2 ? 0.37 : 0)).toFixed(2), z: +(102.4 + k * 4.02 + (k === 2 ? 0.34 : 0)).toFixed(2), r: 0.2, h: 0.6, block: 0 })),
   // (art: the library T pier's head, stretched to 20 m across, lay over both U-boats' sterns and torpedo stacks: only
   // the walk deck is drawn, its head cut back to the deck's width; ART.pierRoot re-decks the root)
   span('pier', [0, 126], [35, 158.5], 8, { variant: 'uboat_pen_open', hideParts: [{ box: [-28, 2.05, -21.5, 6.5], pad: 0 }, { box: [-28, -6.5, -21.5, -2.05], pad: 0 }] }),
@@ -154,7 +158,8 @@ const WATERSIDE = [
   span('gw_2', [24.2, 136.1], [19.8, 140.9], 1.5, { variant: 'steel_gangway' }),
   uboat('uboat_1'), uboat('uboat_2'),
   tower('uboat_1_tower', UBOATS.uboat_1, 'uboat_1'), tower('uboat_2_tower', UBOATS.uboat_2, 'uboat_2'),
-  { id: 'slip_rails', type: 'rail_track', points: [[41, 81.6], [30, 89], [18, 100], [7.5, 112], [5, 116]] },
+  // (rails clear: they end 3.6 m out from the quay edge, under the water, short of uboat_1's bow — they ran on under it)
+  { id: 'slip_rails', type: 'rail_track', points: [[41, 81.6], [30, 89], [18, 100], [7.5, 112]] },
   { id: 'crane_dock', type: 'bunker', variant: 'crane_dock_portal', x: 36, z: 112, rot: deg(45), w: 1.2, d: 1.2, h: 12, mat: 'metalRust', block: 2 },
   { id: 'gun22_pit', type: 'sandbags', variant: 'gun_pit_open', x: 5, z: 93, rot: deg(120), ring: { r: 3, arc: 300 }, h: 0.8, block: 1 },
   { id: 'gun23_pit', type: 'sandbags', variant: 'gun_pit_open', x: 47, z: 139, rot: deg(110), ring: { r: 3, arc: 300 }, h: 0.8, block: 1 },
@@ -201,7 +206,8 @@ const PROPS = [
   // air-drop crate under a draped parachute (the charges), crate stacks
   { id: 'airdrop', type: 'crates', variant: 'airdrop_crate', x: 15, z: 4.5, rot: 0, w: 1.2, d: 1.2, h: 1.0, block: 0 },
   { id: 'parachute', type: 'sign', variant: 'parachute_draped', x: 12, z: 7.8, r: 0.5, h: 3, block: 0 },
-  ...[[20, 95], [38, 116], [47, 60]].map(([x, z], k) => ({ id: `crates_${k + 1}`, type: 'crates', variant: 'dock_cargo', asset: ['dock_cargo_a', 'dock_cargo_c', 'dock_cargo_b'][k], x, z, rot: 0, w: 2, d: 2, h: 1.2, block: 1 })),
+  // (rails clear: crates_1 1.3 m back off the slip rails — its corner stood on their sleepers)
+  ...[[19.1, 94.1], [38, 116], [47, 60]].map(([x, z], k) => ({ id: `crates_${k + 1}`, type: 'crates', variant: 'dock_cargo', asset: ['dock_cargo_a', 'dock_cargo_c', 'dock_cargo_b'][k], x, z, rot: 0, w: 2, d: 2, h: 1.2, block: 1 })),
   // the hedgehog in the crag gap
   { id: 'hedgehog_n', type: 'crates', variant: 'czech_hedgehog', x: 46, z: 23, rot: deg(45), w: 1.4, d: 1.4, h: 1.2, block: 1 },
   // rocks: the start rock that hides group B, two boulders, the low chain E of it, the mole rim
@@ -244,7 +250,8 @@ const DRESSING = [
  *  the quay, a telegraph line along the beach road, the dockyard's no-entry board, a fingerpost, a rail fence. */
 const FURNITURE = [
   ...[[109, 79.6, 0], [121, 82.2, 180], [127.5, 78.8, 0], [97, 76.4, 90], [33, 71.8, 45]].map(([x, z, r]) => ({ type: 'lamp', variant: 'norway_wood', x, z, rot: deg(r), block: false })),
-  ...[[12.8, 108.7], [26.9, 121.4], [41, 134.1]].map(([x, z]) => ({ type: 'lamp', variant: 'harbour', x, z, rot: deg(222), block: false })),
+  // (rails clear: the first half a metre along the quay, off the slip rails)
+  ...[[13.17, 109.04], [26.9, 121.4], [41, 134.1]].map(([x, z]) => ({ type: 'lamp', variant: 'harbour', x, z, rot: deg(222), block: false })),
   { type: 'telegraph', points: [[94, 104], [108, 107], [124, 104.5], [133, 103]], spacing: 12, h: 6.5, wires: 2, block: false },
   { type: 'sign', variant: 'wehrmacht', x: 31.2, z: 62.6, rot: deg(-50), text: 'KRIEGSMARINE\nSPERRGEBIET', block: false },
   { type: 'sign', variant: 'fingerpost', x: 93, z: 63, rot: deg(-90), text: 'GRIMSTAD 18 km', block: false },
@@ -261,7 +268,7 @@ const STRUCTURES = [...CLIFFS, ...BUILDINGS, ...WATERSIDE, ...WALLS, ...PROPS, .
  * house. Every footprint stays the mission's.
  */
 export const ART = {
-  gantry: { x: 34, z: 84, rot: 35, span: 10, gap: 6, h: 6, posts: ['gantry_post_1', 'gantry_post_2', 'gantry_post_3', 'gantry_post_4'] },
+  gantry: { ...ART_GANTRY, rot: 35, span: 10, gap: 6, h: 6, posts: ['gantry_post_1', 'gantry_post_2', 'gantry_post_3', 'gantry_post_4'] },
   sink: ['uboat_1', 'uboat_2'],
   // the finger pier's root, where the library T pier's head was cut away (its 8.9 m from the root end; m along the axis)
   pierRoot: { id: 'pier', from: -23.9, to: -14.7, width: 6.48 },

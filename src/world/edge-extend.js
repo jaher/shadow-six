@@ -197,9 +197,13 @@ const BARRIER = new Set(['wall', 'fence']);
  * Visual continuations of the mission's linear structures (walls, fences, wire, rails, trenches) that end on a map
  * edge (edgeLineExtensions): the full `len` for boundary-like runs, a short broken-off stub for ruins / broken
  * fences, none for building walls (sheds). The mission's own runs, nav grid and footprints are untouched.
+ * `o.railReach` (the drawn map, world/map-builder.js): a railway goes on as far as the view can follow it — `len` m
+ * past the edge it crosses, measured square to that edge (a line leaving at 45° runs √2 × len) — and where a train's
+ * track (`o.tracks`, vehicle track polylines) carries on past the same crossing, along that track's end segment: the
+ * drawn rails are the ones its run-in / run-out keeps to (entities/rail-runout.js).
  * @returns {{def:object, points:number[][], id:string}[]}
  */
-export function edgeStructureRuns(structures, W, D, len) {
+export function edgeStructureRuns(structures, W, D, len, o = {}) {
   const out = [];
   for (const s of structures || []) {
     if (!EDGE_RUN_TYPES.includes(s?.type)) continue;
@@ -208,7 +212,12 @@ export function edgeStructureRuns(structures, W, D, len) {
     const L = /ruin|burnt|broken/.test(v) ? 9 : len;
     const runs = s.segments || (s.points ? [s.points] : []);
     let k = 0;
-    for (const run of runs) for (const e of edgeLineExtensions(run, W, D, L)) out.push({ def: s, points: e, id: `${s.id ?? s.type}:edge${k++}` });
+    for (const run of runs) {
+      for (let e of edgeLineExtensions(run, W, D, L)) {
+        if (o.railReach && s.type === 'rail_track') e = railReach(e, W, D, L, o.tracks || []);
+        out.push({ def: s, points: e, id: `${s.id ?? s.type}:edge${k++}` });
+      }
+    }
   }
   // two walls / fences that cross out there: the one that gets there later stops at the other (a railing meets a
   // canal's parapet instead of carrying on through it and across the water: M15 ruins_nw_rail / parapet_w1)
@@ -224,7 +233,52 @@ export function edgeStructureRuns(structures, W, D, len) {
     const k = Math.max(0, t - back);
     cut[i] = [a[0] + (cut[i][0] - a[0]) * k, a[1] + (cut[i][1] - a[1]) * k];
   }
+  // a wall / fence (or wire) run that crosses a railway carried on out there leaves a gap for the track — the ballast
+  // and the trains' hulls (±1.7 m) + 0.5 m clear of it — and goes on beyond (M4: the wire's run past the S edge
+  // across the main line's)
+  const more = [];
+  for (let i = 0; i < out.length; i++) for (let j = 0; j < out.length; j++) {
+    if (!BARRIER.has(out[i].def.type) || out[j].def.type !== 'rail_track') continue;
+    const [a] = out[i].points, [c, d] = out[j].points;
+    const t = segParam(a, cut[i], c, d);
+    if (t == null) continue;
+    const ux = cut[i][0] - a[0], uz = cut[i][1] - a[1], L = Math.hypot(ux, uz) || 1;
+    const vx = d[0] - c[0], vz = d[1] - c[1], M = Math.hypot(vx, vz) || 1;
+    const sin = Math.max(0.25, Math.abs(ux * vz - uz * vx) / (L * M));
+    const back = (2.2 + (out[i].def.width ?? 0.5) / 2) / sin / L;
+    if (t + back < 1) more.push({ ...out[i], id: `${out[i].id}:beyond`, points: [[a[0] + ux * (t + back), a[1] + uz * (t + back)], [...cut[i]]] });
+    const k = Math.max(0, t - back);
+    cut[i] = [a[0] + ux * k, a[1] + uz * k];
+  }
+  out.push(...more); cut.push(...more.map((r) => r.points[1]));
   return out.map((r, i) => ({ ...r, points: [r.points[0], cut[i]] })).filter((r) => Math.hypot(r.points[1][0] - r.points[0][0], r.points[1][1] - r.points[0][1]) > 0.5);
+}
+
+/**
+ * A rail edge run [a, a + d·len] re-aimed along a vehicle track's end segment that leaves the map through `a` (passes
+ * within 1.5 m of it, ≤ 6° off d), and lengthened to reach `len` m square to the side it crosses.
+ */
+function railReach([a, b], W, D, len, tracks) {
+  let dx = b[0] - a[0], dz = b[1] - a[1];
+  const m = Math.hypot(dx, dz) || 1;
+  dx /= m; dz /= m;
+  for (const t of tracks) {
+    const T = (t || []).map((q) => (Array.isArray(q) ? [+q[0], +q[1]] : [+q.x, +q.z]));
+    if (T.length < 2) continue;
+    for (const [p, q] of [[T[0], T[1]], [T[T.length - 1], T[T.length - 2]]]) {
+      let ux = p[0] - q[0], uz = p[1] - q[1];
+      const l = Math.hypot(ux, uz);
+      if (l < 1e-6) continue;
+      ux /= l; uz /= l; // outward along the track's end segment
+      const off = Math.abs((a[0] - p[0]) * uz - (a[1] - p[1]) * ux);
+      if (off <= 1.5 && ux * dx + uz * dz >= Math.cos((6 * Math.PI) / 180)) { dx = ux; dz = uz; }
+    }
+  }
+  const s = sidesOf(a, W, D, 1.6);
+  let best = 0;
+  for (let q = 0; q < 4; q++) if (s & (1 << q)) best = Math.max(best, dx * SIDES[q][0] + dz * SIDES[q][1]);
+  const L = len / Math.max(0.25, best || 1);
+  return [[a[0], a[1]], [a[0] + dx * L, a[1] + dz * L]];
 }
 
 /** Where segment ab meets segment cd, as the parameter along ab (0..1), or null. */

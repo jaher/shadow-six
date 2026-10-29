@@ -1875,7 +1875,8 @@ export function* buildMapGen(world, mission, opts = {}) {
   // 6c. linear structures (walls, fences, wire, rails) that end on a map edge carry on over the scenery apron instead
   // of stopping on the boundary line; visual only, the nav grid keeps the mission's runs (world/edge-extend.js)
   const edgeRuns = realTerrain && mission.apron?.extend !== false
-    ? edgeStructureRuns(mission.structures, grid.width, grid.depth, (mission.apron?.width ?? CONFIG.apron.width) + 12) : [];
+    ? edgeStructureRuns(mission.structures, grid.width, grid.depth, (mission.apron?.width ?? CONFIG.apron.width) + 12,
+      { railReach: true, tracks: (mission.vehicles || []).filter((v) => Array.isArray(v.track) && v.vehicleType !== 'cable_car').map((v) => v.track) }) : [];
   if (edgeRuns.length) {
     const g = new THREE.Group();
     g.name = 'props:edgeRuns';
@@ -1904,7 +1905,7 @@ export function* buildMapGen(world, mission, opts = {}) {
     // real terrain: the water system (src/art/water) owns the surface → buildTerrain returns water: null
     // placeholder ground takes the mission's `groundPalette` (e.g. 'frost', M18 §2.4); real terrain keeps the theater
     terrain = yield* buildTerrainG(grid, realTerrain ? theater : (mission.groundPalette || theater), realTerrain ? { renderer: opts.renderer, mission, trees, forests, ownWater: true, roads, gate: terrainGate || undefined,
-      edgeLines: [...edgeRuns.map((r) => ({ points: r.points, hw: (r.def.width ?? 0.5) / 2 + 0.6 })), ...edgeBuildingFlatLines(edgeHouses)] } : {});
+      edgeLines: [...edgeRuns.map((r) => ({ points: r.points, hw: (r.def.width ?? 0.5) / 2 + 0.6, rail: r.def.type === 'rail_track' })), ...edgeBuildingFlatLines(edgeHouses)] } : {});
     world.scene?.add(terrain.ground);
     if (terrain.water) world.scene?.add(terrain.water);
     if (due()) yield;

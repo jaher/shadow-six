@@ -31,7 +31,8 @@ import { createVehicleModel, VEHICLE_MODELS } from '../art/vehicles.js';
 import { createLibraryVehicleModel, seatSide, vehicleArtContext } from '../art/vehicle-model.js';
 import { createKitVehicleModel } from '../art/kit-vehicles.js';
 import { createCrewFigures } from '../art/vehicle-crew.js';
-import { angleTo, turnTowardsAngle, angleDiff } from '../core/math.js';
+import { angleTo, turnTowardsAngle, angleDiff, headingToRotY } from '../core/math.js';
+import { runoutGeometry, runoutState, runoutPose, needsGhost, railExtent } from './rail-runout.js';
 import { B, T, MAX_STEP } from '../world/grid.js';
 import { hullRect, isSolidHull, bodyShape, bodyGap, bodyRectGap, bodyReach } from '../world/body-clearance.js';
 import { makeVision } from './enemy.js';
@@ -409,6 +410,14 @@ export class Vehicle extends Entity {
     this.model.frame?.(); // (seat holders after this frame's ticks)
     if (this._crewFig === undefined && this.model.isReady !== false) this._crewFig = this.world ? createCrewFigures(this) : undefined;
     this._crewFig?.update(dt);
+    const ro = this._runout;
+    if (ro?.ghostModel && ro.ghostOn) { ro.ghostModel.update?.(dt, ro.ghostView); ro.ghostModel.frame?.(); } // the run-out twin's wheels, smoke
+  }
+
+  /** Render pose; a 'once' train's run-in / run-out past the map edge between its passes (entities/rail-runout.js). */
+  syncTransform(alpha = 1) {
+    if (!this._runout) return super.syncTransform(alpha);
+    this._runoutFrame(alpha);
   }
 
   // ---------------------------------------------------------------- operators & passengers
@@ -1367,7 +1376,8 @@ export class Vehicle extends Entity {
     else if (arc) { this.turretHeading = clampTraverse(arc, this.turretHeading); this.model.setGunLift?.(liftAt(arc, this.turretHeading)); }
     this._turretKeep = this.turretHeading;
     this.model.setTurretHeading?.(this.turretHeading - this.heading);
-    this.model.update?.(dt, this);
+    // a 'once' train between its passes: its drawn consist runs in / out past the map edge (visual only)
+    this.model.update?.(dt, this.def.rail ? this._runoutTick() : this);
   }
 
   /** One step of the straight-line drive / scripted route (§3.7). */
@@ -1889,6 +1899,93 @@ export class Vehicle extends Entity {
     this.heading = angleTo(a.x, a.z, b.x, b.z) + (this.railDir < 0 ? Math.PI : 0);
   }
 
+  // ---------------------------------------------------------------- 'once' train: run-in / run-out (presentation)
+
+  /**
+   * Per sim tick, after _updateRail: the drawn state of a 'once' train between its passes (entities/rail-runout.js
+   * runoutState, from the sim state alone + the time of its last hide) and what its model is updated as this tick —
+   * the entity, or a view of it at its run-in / run-out pose (wheels and rods turning, smoke, lamps). Reads the sim,
+   * never writes it. @returns {Vehicle|object} the model's update target
+   */
+  _runoutTick() {
+    const ro = this._runout !== undefined ? this._runout : this._runoutInit();
+    if (!ro) return this;
+    ro.st = runoutState(this, ro.geo, this.world.time + CONFIG.sim.dt, ro.hideAt, CONFIG.sim.dt); // (world.time steps after the ticks)
+    ro.hideAt = ro.st.hideAt;
+    if (this.railRunning) return this;
+    const show = ro.st.lead ?? (ro.ghost ? null : ro.st.out);
+    if (!show) return this;
+    const p = runoutPose(ro.geo, this.trackLen, show.s);
+    Object.assign(ro.over, { x: p.x, z: p.z, heading: p.heading, speed: show.speed, hiddenRail: false });
+    return ro.view;
+  }
+
+  /** The run-in / run-out presenter of a 'once' rail vehicle in a world (null cached when it has none). */
+  _runoutInit() {
+    const w = this.world;
+    if (!w) return null; // (not cached: it may join a world later)
+    if (!(this.schedule?.mode === 'once' && this.track?.length >= 2 && w.width > 0 && w.depth > 0)) { this._runout = null; return null; }
+    const geo = runoutGeometry(this.track, w.width, w.depth, railExtent(this.def));
+    const over = {}, ghostOver = {};
+    const view = (o) => new Proxy(this, { get: (t, k) => (k in o ? o[k] : Reflect.get(t, k)) });
+    this._runout = { geo, ghost: needsGhost(geo, this.schedule), hideAt: null, st: null, over, view: view(over),
+      ghostModel: null, ghostOn: false, ghostOver, ghostView: view(ghostOver) };
+    return this._runout;
+  }
+
+  /**
+   * Per frame: the entity's model at its (interpolated) sim pose while it runs, else at its run-in — or its run-out
+   * when it has no twin; the twin ("ghost", M4) at the run-out while the entity's model is busy with the next pass.
+   */
+  _runoutFrame(alpha) {
+    const ro = this._runout, o = this.object3d, S = this.schedule, dt = CONFIG.sim.dt;
+    const late = (1 - Math.min(1, Math.max(0, alpha))) * dt;
+    const { lead, out } = runoutState(this, ro.geo, this.world.time, ro.hideAt, dt, late);
+    if (this.railRunning) {
+      // (in the tick it appears at the track's start its pre-tick pose is where it was hidden: no streak across the map)
+      const jump = Math.hypot(this.x - this.prevX, this.z - this.prevZ) > Math.max(2, 3 * S.speed * dt);
+      super.syncTransform(jump ? 1 : alpha);
+      if (o) o.visible = true;
+    } else if (o) {
+      const show = lead ?? (ro.ghost ? null : out);
+      o.visible = !!show;
+      if (show) this._runoutPlace(o, show.s);
+    }
+    if (!ro.ghost) return;
+    if (out && !ro.ghostModel) this._runoutGhost(ro);
+    const g = ro.ghostModel?.root;
+    if (!g) return;
+    // the twin takes the run-out over where the entity's model left it: its wheels and rods as they were
+    if (out && !ro.ghostOn) ro.ghostModel.visual?.syncMotion?.(this.model.visual);
+    ro.ghostOn = !!out;
+    g.visible = !!out;
+    if (!out) return;
+    const p = this._runoutPlace(g, out.s);
+    Object.assign(ro.ghostOver, { x: p.x, z: p.z, heading: p.heading, speed: out.speed, hiddenRail: false });
+  }
+
+  /** Pose an object (the entity's model root or its twin's) at track parameter `s` past the track's ends. */
+  _runoutPlace(obj, s) {
+    const p = runoutPose(this._runout.geo, this.trackLen, s), w = this.world;
+    // on the map the ground the sim pose stands on; past its edge the drawn rails' level (the apron is levelled under them)
+    const inMap = p.x >= 0 && p.x <= w.width && p.z >= 0 && p.z <= w.depth;
+    obj.position.set(p.x, (this.y || 0) + (inMap && w.groundY ? w.groundY(p.x, p.z) || 0 : 0), p.z);
+    obj.rotation.y = headingToRotY(p.heading);
+    return p;
+  }
+
+  /** The run-out twin: a second model of this vehicle (same look), in the scene, no entity. */
+  _runoutGhost(ro) {
+    const w = this.world;
+    if (!w?.scene || ro.ghostModel) return;
+    const m = modelFor(this.vehicleType, this.def, this.spawn);
+    if (!m?.root) return;
+    m.root.visible = false;
+    m.root.name = `${m.root.name}:runout`;
+    w.scene.add(m.root);
+    ro.ghostModel = m;
+  }
+
   // ---------------------------------------------------------------- weapons (§3.7 armed vehicles, Ctrl+click)
 
   /** Who gets the credit / is the shooter for kills: the commando operator, else the vehicle. */
@@ -2191,6 +2288,7 @@ export class Vehicle extends Entity {
     if (Array.isArray(d.crew)) d.crew.forEach((a, k) => { if (this.crew[k]) this.crew[k].alive = a; });
     if (d.rail && this.def.rail) {
       Object.assign(this, { railS: d.rail.s, railT: d.rail.t, railDir: d.rail.dir, railRunning: d.rail.running });
+      if (this._runout) this._runout.hideAt = null; // (a run-out of another timeline: re-derived while hidden)
       this.hiddenRail = !d.rail.running && this.schedule?.mode === 'once';
       if (this.object3d) this.object3d.visible = !this.hiddenRail;
     }

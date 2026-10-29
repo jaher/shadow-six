@@ -98,14 +98,26 @@ test('walls, fences, wire, rails and telegraph lines that end on an edge carry o
   for (const [id, ids] of Object.entries(want)) {
     const m = normalizeMission(getMission(id)), [W, D] = m.size, R = edgeStructureRuns(m.structures, W, D, len);
     for (const w of ids) {
-      const r = R.find((x) => x.def.id === w);
+      const rs = R.filter((x) => x.def.id === w), r = rs[0];
       assert.ok(r, `${id}: ${w} carries on (${R.map((x) => x.id).join(', ')})`);
-      const [a, b] = r.points;
+      const [a] = r.points;
+      // (a run that crosses a railway carried on out there goes on beyond a gap for the track: its farthest piece)
+      const b = rs.map((x) => x.points[1]).sort((p, q) => Math.min(p[0], p[1], W - p[0], D - p[1]) - Math.min(q[0], q[1], W - q[0], D - q[1]))[0];
       assert.ok(Math.min(a[0], a[1], W - a[0], D - a[1]) <= 1.6, `${id}: ${w} starts on the edge ${a}`);
       assert.ok(Math.min(b[0], b[1], W - b[0], D - b[1]) < -len * 0.25, `${id}: ${w} runs out over the apron ${b}`);
     }
     assert.ok(!R.some((x) => /shed/.test(x.def.variant ?? '')), `${id}: no shed wall carried on`);
   }
+});
+
+test('an edge run that crosses a railway carried on out there leaves a gap for its trains (M4: the wire past the S edge)', () => {
+  const m = normalizeMission(getMission('m04')), [W, D] = m.size, len = CONFIG.apron.width + 12;
+  const train = m.vehicles.find((v) => v.vehicleType === 'train');
+  const R = edgeStructureRuns(m.structures, W, D, len, { railReach: true, tracks: [train.track] });
+  const wire = R.filter((r) => r.def.id === 'wire'), rails = R.filter((r) => r.def.type === 'rail_track');
+  assert.equal(wire.length, 2, 'the wire in two pieces');
+  const segD = (p, a, b) => { const dx = b[0] - a[0], dz = b[1] - a[1], t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / (dx * dx + dz * dz))); return Math.hypot(p[0] - a[0] - dx * t, p[1] - a[1] - dz * t); };
+  for (const w of wire) for (const p of w.points) for (const r of rails) assert.ok(segD(p, ...r.points) >= 2.2, `wire end ${p} ${segD(p, ...r.points).toFixed(2)} m off ${r.id}`);
 });
 
 test('a street of flat-roofed houses ending flush on an edge carries on as a town past it (M12 house_e1..e3 on x = W)', () => {

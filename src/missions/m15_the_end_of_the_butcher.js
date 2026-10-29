@@ -161,7 +161,9 @@ const SOUTH = [
 /** The tram's line (one track used); the two stops are track points with a 12 s wait. */
 export const TRACK = [[5, 23.71], [20, 28], [31, 31.52, 12], [45, 36], [55, 39.2, 12], [70, 44], [76, 45.67]];
 const STREET = [
-  { id: 'tram_track', type: 'tram_track', variant: 'tram_track_catenary', points: TRACK.map(([x, z]) => [x, z]), width: 2.2 },
+  // (rails clear, user 10-28: the tram stops with its middle on the track's last point — its rails are drawn 6.5 m on
+  // past both, so its whole length stands on them; the street's grid keeps the authored line)
+  { id: 'tram_track', type: 'tram_track', variant: 'tram_track_catenary', points: TRACK.map(([x, z]) => [x, z]), width: 2.2, drawEnds: [6.5, 6.5] },
   { id: 'tram_stop_1', type: 'sign', variant: 'tram_stop_shelter', x: 30, z: 36.3, h: 2.6 },
   { id: 'tram_stop_2', type: 'sign', variant: 'tram_stop_shelter', x: 56.5, z: 36, h: 2.6 },
   ...[[6, 17], [24, 35.8], [64, 28.2], [42, 96]].map(([x, z], k) => ({ id: `lamp_${k + 1}`, type: 'lamp_post', variant: 'lamp_cast_iron', x, z, h: 4.5 })),

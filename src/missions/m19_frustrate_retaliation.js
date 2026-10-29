@@ -114,9 +114,9 @@ const barrel = (id, x, z) => ({ id, type: 'barrels', variant: 'fuel_explosive', 
 const NORTH = [
   { id: 'office', type: 'barracks', variant: 'mining_office', label: 'Mining office', x: 6, z: 14, rot: 0, w: 12, d: 9, h: 9, mat: 'woodDark',
     flag: true, garrison: true, door: deg(0), destructible: true },
-  { id: 'headframe', type: 'mine_building', variant: 'timber_adit', label: 'Pithead', x: 8.5, z: 31, rot: 0, w: 7, d: 10, h: 4.5, mat: 'planks',
+  { id: 'headframe', type: 'mine_building', variant: 'timber_adit', label: 'Pithead', x: 8.5, z: 31, rot: 0, w: 7, d: 10, h: 4.5, mat: 'planks', onRails: 'the adit shed: the mine railway runs out of the mountain under it',
     roofWalk: true, roofY: 4.5 },
-  { id: 'cliff_w', type: 'cliff', variant: 'rock_face', points: [[0, 19], [5, 19], [5, 46], [0, 46]], h: 12 },
+  { id: 'cliff_w', type: 'cliff', variant: 'rock_face', points: [[0, 19], [5, 19], [5, 46], [0, 46]], h: 12, onRails: 'the adit mouth: the mine railway runs into the rock' },
   { id: 'shed', type: 'tank_shed', variant: 'tank_shed_open', label: 'Tank shed', x: 28, z: 17.5, rot: 0, w: 11, d: 12, h: 5, open: 'S', smokestack: true },
   { id: 'tank_small', type: 'fueltank', variant: 'water_tower_legs_small', x: 20.09, z: 21.82, r: 1.2, h: 3, block: 2, fixed: true, ladderTime: 3.8 }, // (its ladder: 8 rungs and the step off, 2.8 s at the ladder pace was half again too quick)
   // (art pass 2: where the map build put it beside the old kit shed, 0.45 m off (20.5, 22); pinned, so the new shed's

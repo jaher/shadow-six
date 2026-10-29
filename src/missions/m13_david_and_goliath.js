@@ -208,9 +208,10 @@ const SOUTH = [
 const GUN_PIT = { id: 'gun_pit', type: 'sandbags', variant: 'gun_pit_open', x: 16.5, z: 145, rot: deg(112), ring: { r: 3, arc: 144 }, h: 0.8, block: 1 };
 /** The dock railway: one track let into the setts, in from the E edge along the empty E-quay strip, round past the
  *  garage (W of crate_e1) and W along the mid mole (flush, visual only); a covered goods wagon stands on its straight E
- *  spur, behind e12's back and 1.8 m clear of the telegraph line. */
+ *  spur, behind e12's back and 1.8 m clear of the telegraph line. (Rails clear, user 10-28: the bend swings 1.1 m
+ *  wider round crate_e1, whose corner stood on the rails; the grid is the same, the rails being flush.) */
 const QUAY_RAIL = { id: 'quay_rail', surface: 'setts', width: 2.2, edge: 'hard', spline: true, rails: { tracks: 1 },
-  points: [[97, 82], [90, 82], [84, 82], [76, 82], [71, 82.6], [68.2, 84.6], [66.8, 87.8], [66.3, 92], [66.2, 98], [65, 103.4], [61.5, 107.5], [55, 109], [47, 109.2], [37, 109.2]],
+  points: [[97, 82], [90, 82], [84, 82], [76, 82], [71, 82.2], [68.0, 83.0], [66.2, 85.5], [65.9, 88.8], [66.1, 92], [66.2, 98], [65, 103.4], [61.5, 107.5], [55, 109], [47, 109.2], [37, 109.2]],
   wear: 0.5, cracks: 0.3, patches: 0, weeds: 0.3, puddles: 0.1, manholes: 0 };
 const WAGON = { id: 'wagon_e', type: 'train_car', variant: 'covered_goods', x: 80.5, z: 82, rot: 0, w: 8, d: 3, h: 3.5 };
 

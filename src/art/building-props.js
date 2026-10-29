@@ -127,6 +127,9 @@ Object.assign(VARIANT_HINTS.crates, { dock_cargo: ['dock_cargo_a', 'dock_cargo_b
 export const PLACEHOLDER_HINTS = {
   villa: { hq_villa_brick: ['villa_hq'], mansion_hq_mansard: ['villa_hq_b', 'villa_hq'], mansion_hq_mansard_wing: ['villa_hq', 'villa_hq_b'] },
   cable_car_station: { lower: ['cable_station_lower'], upper_blockhouse: ['cable_station_upper'] },
+  // a station's plank platform beside the rails (M16 / M18): the plain plank deck on its footprint, not the library's
+  // T-pier — fitted onto a platform its T head stood out 4 m either side, over the track (rails clear, user 10-28)
+  pier: { station_platform_planks: null },
   watermill: { watermill: ['watermill_a', 'watermill_b'] },
   lock_gate: { lock_gates: ['lock_gates'] },
   control_shack: { guard_hut_a: ['guard_hut_a'] },

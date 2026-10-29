@@ -170,11 +170,19 @@ const INLET = [
   // (165.1, 73.8)); open, closed while the train is near (script). And the crossing keeper's shack.
   { id: 'boom_x1', type: 'gate', variant: 'barrier_boom', x: 168.9, z: 81.4, rot: deg(315), w: 6, open: true },
   { id: 'boom_x2', type: 'gate', variant: 'barrier_boom', x: 161.1, z: 73.6, rot: deg(315), w: 6, open: true },
-  { id: 'crossing_box', type: 'generator', variant: 'crossing_control_box', x: 178.2, z: 64.6, rot: deg(45), w: 0.8, d: 0.6, h: 1.4, block: 1 },
-  { id: 'shack_x', type: 'hut', variant: 'crossing_shack', x: 171.5, z: 74.0, rot: deg(45), w: 4, d: 4, h: 3.5, enterable: true },
+  // (rails clear, user 10-28 "no buildings on top of rails": the box stood on the main line, 0.14 m off its axis, and
+  // the shack straddled the near rail, its face 0.05 m off it — the train ran through both. Both moved off the line: the
+  // box 2.8 m SE; the shack 3.2 m SE and 1 m SW, 2.8 m square (the log cabin's eaves and annexes reach ~1.5 m past its walls), its
+  // drawn model 2.2 m or more off the axis, clear of the train's hull (±1.6 m drawn); e41's post beside its NE face, the lorry
+  // driver's errand stops clear of it)
+  { id: 'crossing_box', type: 'generator', variant: 'crossing_control_box', x: 180.15, z: 66.55, rot: deg(45), w: 0.8, d: 0.6, h: 1.4, block: 1 },
+  { id: 'shack_x', type: 'hut', variant: 'crossing_shack', asset: 'log_cabin_a_snow', x: 173.06, z: 77.05, rot: deg(45), w: 2.8, d: 2.8, h: 3.5, enterable: true },
   // dead sidings into the derelict rail yard
-  { id: 'siding_a', type: 'rail_track', variant: 'rusty', points: [BR_A, [91.3, 151], [79, 157], [66, 157.5], [51.7, 149.8], [44, 142], [17.6, 120], [10, 114]] },
-  { id: 'siding_b', type: 'rail_track', variant: 'rusty', points: [[0, 125], [29.7, 154]] },
+  // (rails clear: the wire's stakes stood on this dead siding; its rails are lifted for 6 m where the wire crosses)
+  { id: 'siding_a', type: 'rail_track', variant: 'rusty', segments: [[BR_A, [91.3, 151], [79, 157], [74.6, 157.2]],
+    [[68.3, 157.4], [66, 157.5], [51.7, 149.8], [44, 142], [17.6, 120], [10, 114]]] },
+  // (rails clear: it bends 2 m NW past the bombed house, whose rubble lay across its rails; handcar_y and buffer_b on it)
+  { id: 'siding_b', type: 'rail_track', variant: 'rusty', points: [[0, 125], [12.54, 137.21], [16.14, 142.81], [19.38, 146.66], [24.17, 150.35], [27.8, 152.35], [29.7, 154]] },
   { id: 'buffer_a', type: 'crates', variant: 'buffer_stop', x: 10, z: 114, rot: deg(40), w: 1, d: 2.6, h: 1.2, block: 1 },
   { id: 'buffer_b', type: 'crates', variant: 'buffer_stop', x: 29.3, z: 153.6, rot: deg(45), w: 1, d: 2.6, h: 1.2, block: 1 },
 ];
