@@ -472,6 +472,15 @@ export function libraryVisual(type, p = {}, ctx = {}) {
     bb.object3d.userData.onLodAttached = (...args) => { prev?.(...args); run(); };
   } : null;
   dressParts?.(b);
+  // `hideMats` (a material-name regex source): the asset's meshes in those materials hidden and the snow lying on them
+  // stripped, per LOD (M5's g2_bunker: the snow twin's garnished camouflage net on poles drew as a shredded white sheet
+  // with dark holes from the default camera); hidden before the body clearance is measured, so the nav follows it
+  if (p.hideMats) {
+    const rx = new RegExp(p.hideMats);
+    hideAssetMats(b.object3d, rx);
+    const prev = b.object3d.userData.onLodAttached;
+    b.object3d.userData.onLodAttached = (...args) => { prev?.(...args); hideAssetMats(b.object3d, rx); };
+  }
   if (/^oil_tank_column/.test(b.asset)) {
     // M11: the pale pipe run with red flanges and valves to the neighbouring column(s) (art/fuel-pipes.js)
     const same = (q) => q === p || (q.id != null && q.id === p.id && q.x === p.x && q.z === p.z);
@@ -708,6 +717,17 @@ export function cutParts(root, parts, keep) {
       o.geometry = subsetGeometry(g, kept);
     }
   }
+  return n;
+}
+
+/**
+ * Hide the meshes of a library building (`root`, every LOD) drawn in a material whose name matches `rx`, and strip the
+ * snow (kit:snow) lying on them (stripDrape). @returns {number} meshes newly hidden
+ */
+export function hideAssetMats(root, rx) {
+  let n = 0;
+  root.traverse((o) => { if (o.isMesh && o.visible && [].concat(o.material).some((m) => rx.test(m?.name || ''))) { o.visible = false; n++; } });
+  if (n) stripDrape(root, rx, /snow/);
   return n;
 }
 

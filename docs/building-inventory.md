@@ -381,6 +381,12 @@ Each mission lists the §1 ids it needs, with counts. **Bold** marks an objectiv
   - `wall_telephone` ×2.
   - `bunker_concrete` (flagged, **D**).
   - A minefield.
+  - art pass 2 (`src/art/m05-dressing.js`, every piece drawn to its block and clear of the solution's trail): the farm's
+    stabbur (`stabbur_no`, the Sola kit's snow twin) behind the start house, the village well (kit fieldstone well) in the
+    square between h2, h3 and h4, the autogyro's windsock and three low granite outcrops round it by the summit's W rim (cut
+    out of the plateau walkways); the HQ is the smaller log house (`log_cabin_a`) at its true scale, h4's logs a
+    `log_pile_stack`; the SE bunker drops its snow twin's garnished net on poles (`hideMats`: it read as a shredded sheet
+    with dark holes from the default camera).
 - **M6 Menace of the Leopold (Masi)** [i, critic]:
   - `house_bombed_log` ×2 (interior; the first is the way in).
   - **`railway_gun_k5`**, plus a flatcar and an open wagon on the rail.

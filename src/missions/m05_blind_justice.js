@@ -35,6 +35,7 @@
 
 import { plateauWalkways, holesOf, spawnSurvivor, m05Script, SUMMIT_Y } from './scripts/m05.js';
 import { joinStructures } from './schema.js';
+import { M05_DRESSING, M05_SUMMIT } from '../art/m05-dressing.js';
 
 const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (§4.1)
@@ -76,6 +77,7 @@ const SUMMIT = [
     flag: true, garrison: true, destructible: true, destroyedBy: ['explosion'], hp: 100 }, // door: the SW long side (default +90°)
   { id: 'pole_top', type: 'telegraph_pole', x: 82, z: 49, r: 0.15, h: 7, wireTo: 'top_station', fixed: true },
   ...[[100, 36], [101, 41], [106, 46]].map(([x, z], k) => ({ id: `pine_top_${k + 1}`, type: 'pine', x, z, r: 0.45, h: 10 + k, seed: 5300 + k, fixed: true })),
+  ...M05_SUMMIT, // art pass 2 (art/m05-dressing.js): the autogyro's windsock, granite outcrops on the N / W rims and the NE corner
 ];
 // (summit points carry `fixed`: they stand on the raised plateau, so the ground placement rules (world/placement.js),
 // which can only ever keep them where they are, skip the futile relocation search: a faster load)
@@ -272,7 +274,7 @@ const STRUCTURES = [
   drums('drums_h3', 18.5, 51),
   crates('crates_h3', 8, 57.5, 3, 2.5, 1.2, 20),
   cabin('h4', 29.5, 62.5, 12, 7, { asset: 'log_cabin_b' }),
-  crates('logs_h4', 35.3, 61.8, 3, 2, 1.2, 328, 'log_pile'),
+  { ...crates('logs_h4', 35.3, 61.8, 3, 2, 1.2, 328, 'log_pile'), asset: 'log_pile_stack' }, // the logs stacked on h4's E gable (§5.2)
   cabin('h5', 12, 72, 13, 7, { asset: 'log_cabin_b' }),
   cabin('h5_wing', 9, 66, 5, 6, { asset: 'log_cabin_a' }),
   crates('crates_h5', 21, 69, 2, 3, 1.5),
@@ -282,7 +284,8 @@ const STRUCTURES = [
   // --- the lower camp (centre)
   { id: 'woodshed', type: 'hut', variant: 'woodshed_open', x: 46.5, z: 54, rot: deg(328), w: 6, d: 4, h: 3, asset: 'lean_to_canopy' },
   { id: 'pole_n', type: 'telegraph_pole', variant: 'wall_telephone', x: 50.5, z: 51, r: 0.15, h: 7, wireTo: 'lower_station' },
-  { id: 'g1_hq', type: 'barracks', variant: 'log_hq_flag', x: 54, z: 57, rot: deg(328), w: 8, d: 6, h: 4, flag: true, garrison: true },
+  // (art pass 2: the smaller log house at its true scale, not the village cabin shrunk to 75 % of its length)
+  { id: 'g1_hq', type: 'barracks', variant: 'log_hq_flag', asset: 'log_cabin_a', x: 54, z: 57, rot: deg(328), w: 8, d: 6, h: 4, flag: true, garrison: true },
   tent('tent_1', 51, 64), tent('tent_2', 62, 62), tent('tent_3', 68, 68),
   { id: 'lower_station', type: 'cable_car_station', variant: 'lower', x: 33, z: 86, rot: deg(335), w: 9, d: 8, h: 8 },
   { id: 'lower_deck', type: 'pier', variant: 'timber_deck', x: 41, z: 93, rot: deg(335), w: 10, d: 6, h: 0.4 },
@@ -291,12 +294,14 @@ const STRUCTURES = [
   { id: 'h8', type: 'flat_roof_house', variant: 'stone_hut', x: 38, z: 105.5, rot: deg(335), w: 9, d: 6, h: 4, mat: 'stone', roofWalk: false, enterable: true },
   { id: 'pole_s', type: 'telegraph_pole', variant: 'wall_telephone', x: 36, z: 113.5, r: 0.15, h: 7 },
   tent('tent_4', 37, 120), tent('tent_5', 42, 116.5), tent('tent_6', 43, 125),
-  { id: 'g2_bunker', type: 'bunker', variant: 'concrete_flag', x: 94, z: 118, rot: 0, w: 8, d: 6, h: 3, flag: true, garrison: true },
+  // (art pass 2: `hideMats` — the snow twin's garnished net on poles drew as a shredded white sheet; the bunker stands bare)
+  { id: 'g2_bunker', type: 'bunker', variant: 'concrete_flag', x: 94, z: 118, rot: 0, w: 8, d: 6, h: 3, flag: true, garrison: true, hideMats: 'hessian|camo_netting|timber_grey' },
   { id: 'rock_sw', type: 'rocks', x: 1.5, z: 124, rot: 0, w: 3, d: 3, h: 2 },
   // --- the summit (y 16)
   ...SUMMIT, ...SUMMIT_FLAT, ...SUMMIT_DRESS, ...DRUMS,
   ...TREES,
   ...DRESSING,
+  ...M05_DRESSING, // art pass 2 (art/m05-dressing.js): the stabbur behind the start house, the village well
 ];
 
 export default {
