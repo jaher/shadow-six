@@ -266,7 +266,7 @@ export function buildKitHouse(p, theater = 'temperate') {
     }
     // a stairhead / water tank on desert roofs, a chimney in Europe
     if (p.roofWalk) { /* clear roof */ } else if (theater === 'desert' && w * d > 50 && R() < 0.6) g.add(tbox(1.8, 1.9, 1.6, wallMat, -w / 2 + 1.3, h + 0.95, -d / 2 + 1.2, 2.2));
-    else if (theater !== 'desert') flueStack(g, 0.6, 0.6, h, h + 1.2, dressingMaterial('brick'), w * 0.3, -d * 0.25);
+    else if (theater !== 'desert' && p.chimney !== false) flueStack(g, 0.6, 0.6, h, h + 1.2, dressingMaterial('brick'), w * 0.3, -d * 0.25);
   } else {
     // pitched roof along the longer side, 0.35 m overhang
     const along = w >= d, L = (along ? w : d) + 0.6, span = (along ? d : w) + 0.6, rise = Math.min(4, span * 0.38);
@@ -275,7 +275,8 @@ export function buildKitHouse(p, theater = 'temperate') {
     geo.translate(0, 0, -L / 2);
     if (along) geo.rotateY(Math.PI / 2);
     const roof = mesh(boxUV(geo, 2), dressingMaterial(S.pitched)); roof.position.y = h; g.add(roof);
-    flueStack(g, 0.5, 0.5, h + rise * 0.6 - 0.5, h + rise * 0.6 + 0.5, dressingMaterial(theater === 'snow' ? 'fieldstone' : 'brick'), (along ? 1 : 0) * w * 0.25, (along ? 0 : 1) * d * 0.25);
+    // (`chimney: false`: none — a coach house or a garage has no hearth)
+    if (p.chimney !== false) flueStack(g, 0.5, 0.5, h + rise * 0.6 - 0.5, h + rise * 0.6 + 0.5, dressingMaterial(theater === 'snow' ? 'fieldstone' : 'brick'), (along ? 1 : 0) * w * 0.25, (along ? 0 : 1) * d * 0.25);
   }
   // variant accents
   if (/awning|souk|shop/.test(v) && !medina) {

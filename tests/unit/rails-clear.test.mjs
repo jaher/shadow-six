@@ -244,11 +244,6 @@ const VIEW_ALLOW = {
     gantry_post_3: { rail: 'slip_rails', max: 4, why: 'the slipway gantry straddles the slip rails by design' },
     gantry_post_4: { rail: 'slip_rails', max: 3.5, why: 'the slipway gantry straddles the slip rails by design' },
   },
-  m15: {
-    corner_block: { rail: 'tram_track', max: 39, why: 'kept: the tram street\'s S side as the mission is built (m15 RAIL_VIEW_KEPT)' },
-    corner_roof: { rail: 'tram_track', max: 29, why: 'kept: the Sniper\'s roof R (m15 RAIL_VIEW_KEPT)' },
-    hq: { rail: 'tram_track', max: 37, why: 'kept: the target beside the rails (m15 RAIL_VIEW_KEPT)' },
-  },
   m19: { crane: { rail: 'rail_se', max: 8, why: 'the yard crane at the SE spur\'s end, by design' } },
 };
 
@@ -284,4 +279,19 @@ test('rails in view: the houses set back on 2026-10-29 stay clear (M16 / M18 hou
     const f = railClearance(def, new Map([['house_road', handle.structures.get('house_road')]]), { vehicleSize, near: 10 }).hits.find((h) => h.id === 'house_road' && h.rail === r.id);
     assert.ok(f && f.dist >= 7.5, `${id}: house_road ${f?.dist} m off the rail_main axis`);
   }
+});
+
+test('rails in view: M15\'s tram street set back on 2026-10-29 stays clear (the corner block, roof R, the HQ and its communs)', async () => {
+  // (user 10-29 "M15, move the buildings": the three hid ~95 m of rail head as drawn — corner_block 33.5, corner_roof 30,
+  // hq 32 by tools/layout/rail-view-probe.mjs — and are 9 m back from the street now, their S faces where they were)
+  const { def, handle } = loadGrid(MISSIONS.find((m) => m.id === 'm15'));
+  const ids = ['corner_block', 'corner_roof', 'corner_turret', 'corner_garden_wall', 'hq', 'hq_communs', 'hq_wing'];
+  const hits = viewHidden(def, new Map(ids.map((id) => [id, handle.structures.get(id)])), { vehicleSize, solids: await drawnSolids(def) });
+  assert.deepEqual(hits.map((v) => `${v.id} ${v.hidden} m`), [], 'nothing on the tram street\'s S side hides a rail head');
+  const f = railClearance(def, new Map(ids.map((id) => [id, handle.structures.get(id)])), { vehicleSize, near: 30 }).hits.filter((h) => h.rail === 'tram_track');
+  const at = (id) => Math.min(...f.filter((h) => h.id === id).map((h) => h.dist));
+  assert.ok(at('corner_block') >= 17.5 && at('corner_roof') >= 17.5, `the block's N faces ${at('corner_block')} / ${at('corner_roof')} m off the tram's axis (were 10.3)`);
+  assert.ok(at('hq') >= 12.5, `the house ${at('hq')} m off it (was 4.5)`);
+  // (the communs keep the street line and the demolition point; low enough to hide nothing: walls 3 m under a pitched roof)
+  assert.ok(at('hq_communs') <= 5 && def.structures.find((s) => s.id === 'hq_communs').h <= 3.3, 'the communs on the street, one storey');
 });

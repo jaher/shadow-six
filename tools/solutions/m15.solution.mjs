@@ -16,9 +16,10 @@
  *        (its round lasts as long as the tram's run: from then on it is away at every such stop), stops e19; the
  *        Driver gets off at S2, into the van, and drives it to the north-west road for the Sniper and the Marine.
  *   I    she stops e21; the Driver crawls into the fuel lot and takes the tanker; he parks it behind the tram at the
- *        line's east end, by the HQ's corner, and jumps into the tram: it sets off and blows the tanker and the HQ up.
+ *        line's east end, by the corner of the HQ's service range, and jumps into the tram: it sets off and blows the
+ *        tanker, the range and the house behind it up.
  *   J    he rides to the west end and back to the van; the van stops by the townhouse; the Sniper fires once (silent)
- *        at the pause; everyone gets in and the van drives out.
+ *        at the pause, when nobody would see him climb back in; everyone gets in and the van drives out.
  * Walkthrough (debug video mode): m15.walkthrough.mjs. Regression test: tests/m15-solution.test.mjs.
  * It plays the same in the headless sim (run-headless) and in the real game (run-browser), whose nav grid also has
  * the meshes' clearance (map-builder rule e): the guards walk slightly other ways there, halt a little short of their
@@ -473,7 +474,8 @@ const TO_LOT = [[16, 14.5], [31, 17.2], [33.8, 13], [36.5, 9]];
 /** the tanker out of the lot (wide of e21) and east to the north pavement past S2, 4.85 m off the rails (the tram's
  * blocker box reaches 4.45 m): its waiting place */
 const TANKER_OUT = [[40.3, 12.5], [39.6, 19.6], [40, 23], [45.5, 28.5], [51, 32.2], [56.5, 33.0], [60.5, 35.9]]; // (south of the S2 shelter's post)
-/** beside the rear of the tram standing at the east end, south of the rails, 6 m from the HQ's back corner (it parks
+/** beside the rear of the tram standing at the east end, south of the rails, 6 m from the corner of the HQ's service range
+ * on the street (the demolition point; the house stands back behind it since 10-29) (it parks
  * at about (68.2, 44.9)); where the Driver steps out (north-east side, behind the tanker from the yard) */
 const TANKER_PARK = [68.6, 45.4], DROP_EXIT = [70.3, 44.0];
 /** from the tram's north side at the west terminus up the north-west road */
@@ -499,6 +501,25 @@ function tramClearOf(tram, x, secs, r = 7) {
   const v = 6, wait = tram.speed === 0 ? Math.max(0, tram.waitT || 0) : 0;
   for (let t = 0; t <= secs; t += 0.5) { const tx = tram.x + tram.railDir * v * Math.max(0, t - wait); if (Math.abs(Math.min(76, Math.max(5, tx)) - x) < r) return false; }
   return true;
+}
+/**
+ * Would a walking man or a patrol (alarmed, he may look any way) be within `r` m of any of `pts` with a clear line to it
+ * in the next `secs` s (± 1 s)? The tag (why[]), or false.
+ */
+function patrolNear(D, pts, r, secs, why = null) {
+  const g = D.world.grid;
+  for (const e of viewersOf(D.world)) {
+    if (e.vehEye || !(walking(e) || e.squad)) continue;
+    for (let t = 0; t <= secs + 1e-6; t += 0.5) {
+      for (const o of [-1, 0, 1]) {
+        const q = walking(e) ? predict(e, Math.max(0, t + o)) : e;
+        for (const [x, z] of pts) {
+          if (Math.hypot(q.x - x, q.z - z) < r && g.lineOfSight(q.x, q.z, x, z)) { why?.push(`${e.tag} near@(${x.toFixed(1)},${z.toFixed(1)})+${t.toFixed(1)}`); return true; }
+        }
+      }
+    }
+  }
+  return false;
 }
 /** drive vehicle `v` (the Driver at the wheel) to (x, z) */
 async function drive(D, v, x, z, { run = false, max = 60 } = {}) {
@@ -835,7 +856,7 @@ export const STAGES = [
     for (const p of TANKER_OUT) await drive(D, tk, ...p);
     await D.until(() => (tk.speed || 0) < 0.05, 10, 'the tanker parked');
     D.checkpoint('I3 the tanker waits on the north pavement');
-    // as the tram stands at the line's east end, a few metres from the HQ's back corner: the tanker runs in beside
+    // as the tram stands at the line's east end, a few metres from the corner of the HQ's service range: the tanker runs in beside
     // its rear on the rails' south side, the Driver jumps out and climbs into the tram (it hides him from the yard);
     // when it sets off west it smashes into the tanker: an "accident" that takes the HQ with it and raises no alarm
     await waitFor(D, (why) => {
@@ -889,12 +910,19 @@ export const STAGES = [
     await D.stance('sniper', 'crawl');
     await D.go('sniper', ...SHOT_SPOT, { tol: 0.4, max: 20 });
     // (the tram must not run across the line of fire meanwhile: it crosses the rails at x 43)
+    // (and the way back is decided with the shot: nobody may see him kneel there, get up, walk to the van's door and
+    // climb in — a man seen getting in marks the van for every gun in the street — and as the guards find the body
+    // within seconds and heads turn, no one walking may be within 12 m of the van meanwhile, whichever way he looks)
     for (let k = 0; k < 4 && gen.alive; k++) {
       await waitFor(D, (why) => {
         if (!atPause(1.5)) { why.push('the general not at his pause'); return false; }
         if (!los() || !tramClearOf(tram, SHOT_RAILS_X, 3, 9)) { why.push('no line'); return false; }
-        return !standSeen(D, [[...SHOT_SPOT, 0, 0], [...SHOT_SPOT, 0, 0.7], [...SHOT_SPOT, 0, 1.4]], { slack: 0.6, why });
-      }, 600, 'the shot');
+        const vb = boardPoint(van, sn), L = Math.hypot(vb.x - sn.x, vb.z - sn.z), t1 = 2.1 + L / 1.0;
+        const back = [[...SHOT_SPOT, 0, 0], [...SHOT_SPOT, 0, 0.7], [...SHOT_SPOT, 0, 1.4], [...SHOT_SPOT, 0, 2.1],
+          ...timed(SHOT_SPOT, [[vb.x, vb.z]], 1.0, 2.1), [vb.x, vb.z, 0, t1 + 1.2], [vb.x, vb.z, 0, t1 + 2.5]];
+        if (standSeen(D, back, { slack: 0.6, why })) return false;
+        return !patrolNear(D, [SHOT_SPOT, [vb.x, vb.z]], 12, t1 + 3, why);
+      }, 1500, 'the shot');
       D.ability('sniper', 'sniper', gen);
       try { await D.until(() => !gen.alive, 3, 'the general shot'); } catch (err) { D.log(`WARN the shot failed (${err.message}): again`); }
     }

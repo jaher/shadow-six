@@ -1,21 +1,24 @@
-# townhouse_fr.py variant 'flat' (exec'd in its namespace): the corner block's E part, 12 x 19.8, flat walkable roof R
-HX, HY = 6.0, 9.9
+# townhouse_fr.py variant 'flat' (exec'd in its namespace): the corner block's E part, 12 x 10.8, flat walkable roof R
+# (2026-10-29, user "M15, move the buildings": 10.8 m deep, was 19.8 — its S face with balcony B stays put and its N face
+# lines up with the W part's, behind the block's front garden, so the tram rails show from the default camera)
+HX, HY = 6.0, 5.4
 ZR = 12.5                                          # walkable roof (mission LEVEL.R), parapet 0.8
+EL = 2 * HY                                        # the E face (garden street) runs S -> N along edge 1
 G = rect(-HX, -HY, HX, HY)
 # ---- ground floor: brasserie under the balcony (S), a shop on the tram street (N), hotel entrance on the garden street (E)
 shops = [K.opening(G, 0, 3.6, 5.6, 3.95, 0.0, T, 'rect', 'window'),        # S: brasserie front (under the balcony)
          K.opening(G, 2, 3.4, 4.6, 3.95, 0.0, T, 'rect', 'window'),        # N: quincaillerie
-         K.opening(G, 1, 4.0, 4.6, 3.95, 0.0, T, 'rect', 'window')]        # E: boucherie
-hotel = K.opening(G, 1, 12.6, 1.8, 3.2, 0.0, T, 'segment', 'door')
+         K.opening(G, 1, 3.0, 4.2, 3.95, 0.0, T, 'rect', 'window')]        # E: boucherie
+hotel = K.opening(G, 1, EL - 3.0, 1.8, 3.2, 0.0, T, 'segment', 'door')
 gw = [K.opening(G, 2, 9.5, 1.2, 2.1, 1.0, T, 'segment', 'window'),
-      K.opening(G, 1, 16.6, 1.2, 2.1, 1.0, T, 'segment', 'window')]
+      K.opening(G, 1, EL - 1.15, 1.0, 2.1, 1.0, T, 'segment', 'window')]
 fs = upper_windows(G, 0, (1.5, 4.5), Z1, ZR, french_first=True, balconette=[(0, 8.6)], shutters=0.25)
 fn = upper_windows(G, 2, (1.5, 4.5, 7.5, 10.5), Z1, ZR, balconette=[(2, 8.6)], shutters=0.35)
-fe = upper_windows(G, 1, (1.8, 5.1, 8.4, 11.7, 15.0, 18.0), Z1, ZR, balconette=[(1, 8.6)], shutters=0.35)
+fe = upper_windows(G, 1, tuple(round(EL * (k + 0.5) / 3, 2) for k in range(3)), Z1, ZR, balconette=[(1, 8.6)], shutters=0.35)
 K.wall_ring(G, ZR, T, STONE, shops + [hotel] + gw + fs + fn + fe, plinth=('granite', 0.4, 0.04), name='walls', mat_tint=CREAM)
 for F, (txt, col, awn, dx, did, goods) in zip(shops, [('BRASSERIE', (0.30, 0.12, 0.10), (0.62, 0.12, 0.10), 1.8, 'brasserie', (0.6, 0.45, 0.3)),
                                                       ('QUINCAILLERIE', (0.24, 0.26, 0.22), (0.30, 0.36, 0.28), -1.5, 'shop_n', (0.45, 0.42, 0.38)),
-                                                      ('BOUCHERIE', (0.40, 0.14, 0.12), (0.62, 0.14, 0.12), 1.5, 'shop_e', (0.7, 0.35, 0.3))]):
+                                                      ('BOUCHERIE', (0.40, 0.14, 0.12), (0.62, 0.14, 0.12), 1.3, 'shop_e', (0.7, 0.35, 0.3))]):
     shopfront(F, col, sign=txt, awning=awn, door_x=dx, did=did, goods=goods, awn_depth=0.0 if did == 'brasserie' else 1.4, name='shop_' + did)
 K.door(hotel, 'hotel', 'double', DOOR['varnish'], step='granite', lintel=None, surround=TRIM, fanlight=True)
 text3d('HOTEL DU NORD', hotel.p(0, 3.65, 0.06), hotel.n, size=0.3, depth=0.03, name='hotel_sign')
@@ -54,6 +57,6 @@ K.railing((bx0, by + 0.05, Z1), (bx1, by + 0.05, Z1), 1.0, 'iron', spacing=0.2, 
 K.railing((bx1, by + 0.05, Z1), (bx1, -HY, Z1), 1.0, 'iron', spacing=0.2, name='balcony_rail_e')
 # laundry line + clothes rack on the balcony (the uniform's rack is the mission's own interactable)
 weather(-HX, HX, -HY, ZR)
-K.decal('poster_fr', (HX + 0.03, 8.5, 1.9), (1, 0, 0), 0.8, 1.1, alpha=0.9)
-K.wall_lantern((HX, 10.6, 0), (1, 0, 0), 3.4)
+K.decal('poster_fr', (HX + 0.03, -HY + 6.0, 1.9), (1, 0, 0), 0.8, 1.1, alpha=0.9)
+K.wall_lantern((HX, -HY + 8.95, 0), (1, 0, 0), 3.4)                   # between the hotel door and its window
 K.anchor('roof_r', (0, 0, ZR))

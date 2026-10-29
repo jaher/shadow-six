@@ -155,7 +155,7 @@ test('flues: opened once per template by the asset fixups; the smoke rises from 
     assert.equal(smokePoints('mine_office_de', M.assets.mine_office_de.anchors).length, 1);
     const th = await load('townhouse_corner_w', 0), ft = openChimneyFlues(th, M.assets.townhouse_corner_w.anchors, { name: 'townhouse_corner_w' });
     const sp = smokePoints('townhouse_corner_w', M.assets.townhouse_corner_w.anchors);
-    assert.equal(sp.length, 4, 'four stacks, four plumes');
+    assert.equal(sp.length, 3, 'three stacks, three plumes'); // (the W part 13 m deep since 10-29: two stacks on its E fire wall, one on its N slope)
     for (const q of sp) assert.ok(ft.some((x) => x.kind === 'pot' && x.mouth === q.pos), 'each from one of its pots');
   } finally { resetFlues(); }
 });

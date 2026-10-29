@@ -312,12 +312,15 @@ test('m15: fix #7 — the silent accident shows the blast and fire, one message,
   assert.ok(blasts.some((e) => e.kind === 'structure' && e.accident), 'an accident explosion event drives the FX');
   assert.deepEqual(zoneEvents(w), [], 'still no alarm');
   assert.equal(s.msgs.filter((t) => /headquarters/i.test(t)).length, 1, `one message: ${JSON.stringify(s.msgs)}`);
-  const wing = w.structures.get('hq_wing').object3d;
-  assert.ok(Math.abs(wing.scale.y - 0.35) < 1e-9, 'the wing is down');
-  // a quick load rebuilds the meshes (full-height wing) and restores hq.destroyed: the tick re-applies the ruin
-  wing.scale.y = 1; wing.userData.m15Ruined = false;
+  // (the S wing and, since the house stands back from the tram street (10-29), its service range there)
+  for (const id of ['hq_wing', 'hq_communs']) {
+    const part = w.structures.get(id).object3d;
+    assert.ok(Math.abs(part.scale.y - 0.35) < 1e-9, `${id} is down`);
+    // a quick load rebuilds the meshes (full height) and restores hq.destroyed: the tick re-applies the ruin
+    part.scale.y = 1; part.userData.m15Ruined = false;
+  }
   m15Tick(w);
-  assert.ok(Math.abs(wing.scale.y - 0.35) < 1e-9, 'the wing is down again after a load');
+  for (const id of ['hq_wing', 'hq_communs']) assert.ok(Math.abs(w.structures.get(id).object3d.scale.y - 0.35) < 1e-9, `${id} is down again after a load`);
 });
 
 test('m15: fix #8 — the uniformed Spy boarding the van in view is not unmasked, and the van stays untainted (§9, Variant B)', () => {
@@ -434,4 +437,26 @@ test('m15 retune (sol/m15) — e6 at the head of the W stairs watches the canal 
     const far = (a * bb) / Math.hypot(bb * Math.cos(th), a * Math.sin(th)), d = Math.hypot(p.x - e6.x, p.z - e6.z);
     assert.ok(off > reachDeg || far < d - 3, `${name} is ${off.toFixed(0)}° off e6's heading (his cone reaches ${reachDeg}°, his far band ${far.toFixed(1)} m there; it is ${d.toFixed(1)} m away)`);
   }
+});
+
+test('m15 rails in view (10-29) — the house stands back behind its communs, whose NE corner is still the demolition point; the corner block keeps its S face behind a closed forecourt', () => {
+  const m = M(), S = (id) => m.structures.find((s) => s.id === id);
+  const corners = (s) => [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) => {
+    const c = Math.cos(s.rot), n = Math.sin(s.rot), lx = (a * s.w) / 2, lz = (b * s.d) / 2;
+    return [s.x + lx * c - lz * n, s.z + lx * n + lz * c];
+  });
+  const nearest = (s, p) => Math.min(...corners(s).map(([x, z]) => Math.hypot(x - p.x, z - p.z)));
+  // the communs (one storey) carry the demolition point on the street; the tanker's spot on the rails still reaches it
+  const communs = S('hq_communs'), house = S('hq');
+  assert.ok(nearest(communs, HQ_POINT) < 0.3, `the communs' corner ${nearest(communs, HQ_POINT).toFixed(2)} m from the point`);
+  assert.ok(nearest(house, HQ_POINT) > 8.5, 'the house itself stands back from it');
+  assert.ok(Math.hypot(TANKER_ON_RAILS.x - HQ_POINT.x, TANKER_ON_RAILS.z - HQ_POINT.z) <= HQ_REACH - 2.5, 'the tanker on the rails reaches it');
+  assert.ok(communs.h <= 3.3 && house.d === 13 && communs.d === 9, 'a one-storey range on the old N block\'s N 9 m');
+  // the garden door and the main door still open onto the garden and the yard (the house's S 13 m are where they were)
+  const g = loadGrid(m).grid;
+  assert.ok(g.walkableAt(GARDEN_DOOR.x, GARDEN_DOOR.z) && g.walkableAt(MAIN_DOOR.x, MAIN_DOOR.z));
+  // the corner block: D1, the uniform and the perch where the mission needs them; its forecourt is closed (no way in)
+  assert.ok(reach(g, { x: 20, z: 30 }, pt(D1), 'spy'), 'D1 from the tram street');
+  assert.ok(!reach(g, { x: 20, z: 32 }, cen(S('corner_garden_wall').points), 'spy'), 'nobody walks into the forecourt');
+  assert.equal(m.structures.find((s) => s.id === 'corner_garden_wall').block, 1, 'its wall is low cover (brick to 0.6 m under the railing)');
 });

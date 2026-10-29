@@ -88,6 +88,7 @@ VARIANT_HINTS.hut.outhouse_plank = null;
 Object.assign(VARIANT_HINTS.ruins, { burned_timber: null, fish_drying_racks: null, tower_ruin: null, wall_dry_ruin: null }); // (M3's start ruin: art/ruin-tower.js)
 VARIANT_HINTS.bunker.gantry_timber = null;
 VARIANT_HINTS.ruins.brick_heap = null; // M15 art pass 2: a heap of bomb-broken brickwork (art/brick-rubble.js), never a whole ruined house
+VARIANT_HINTS.house.hq_garage_range_brick = null; // M15 (10-29): the HQ's one-storey service range on the tram street, a kit brick range (every library house stands 9 m+)
 VARIANT_HINTS.house.house_norse_compound = null; // the L-shaped tarred house, the red double house: m07-art.js parts
 Object.assign(VARIANT_HINTS.house, { house_concrete_2st: ['house_coastal_normandy'] });
 Object.assign(VARIANT_HINTS.bunker, { blockhouse_small: ['blockhouse_small'] });

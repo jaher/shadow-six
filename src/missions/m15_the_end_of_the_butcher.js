@@ -18,6 +18,9 @@
  *  - the corner block is 26 × 22 (not 30 × 25) so the W avenue stays open, and it is split into its W part
  *    (house, door D1), the flat roof R (y 12.5) and the SE turret; the balcony B (y 4.5) is a walkway along its
  *    S face (rotated with the block, not an axis-aligned rect);
+ *  - (rails in view, 10-29) the corner block's buildings stand on the S 13 m of that plot and the N 9 m are its walled
+ *    forecourt (where the dossier draws its front garden, corner_garden); the HQ's N block likewise keeps the house on its S 13 m, and a one-storey
+ *    service range (communs) on the street side carries the demolition point (dossier §5.6);
  *  - the tram runs x 5 → 76 on the map (not from off-map); stops S1/S2 lie on the track polyline;
  *  - gates are open gaps (the dossier has them all open); the SdKfz stands 3.5 m further S, clear of the block;
  *  - the general's run, car priority, "through the house" crossing, hearing filter, HQ demolition point and silent
@@ -44,49 +47,66 @@ export const loc = (cx, cz, lx, lz, rot = ROT) => {
 export const LEVEL = { B: 4.5, R: 12.5 };
 
 /**
- * Rails in view (user 10-29: "move the tall street buildings that hide the rails back so the tracks show" — yes): the
- * tram street's S side stays as built. From the default camera (pitch 40, yaw 15) a top h m high hides 1.03 h of this
- * street behind it; the tram's axis runs 10.3 m off the corner block's and the flat roof's N faces and 4.5 m off the
- * HQ's, so clearing the rails would take setbacks of 10, 4.5 and 9 m (or blocks no taller than 9, 9 and 6 m, drawn now
- * 18.9, 13.4 and 21.2 m) — each moves what the mission is built on. tests/unit/rails-clear.test.mjs keeps them to
- * what they hide now.
+ * Rails in view (user 10-29: "M15, move the buildings"). From the default camera (pitch 40, yaw 15) a top h m high hides
+ * 1.03 h of the tram street behind it. The corner block and the HQ stood 10.3 and 4.5 m off the tram's axis, drawn 18.9
+ * (the W part), 13.4 (roof R) and 21.2 m high, and hid ~95 m of rail head between them. Now both stand back from the
+ * street on the side the mission does not use: the corner block keeps its S face (door D1, terrace / balcony B, the
+ * uniform, ladders L1 / L2, the turret, e13–e15's beats) and is 9 m shallower behind a walled, paved forecourt (where
+ * the dossier draws its front garden, `corner_garden`, §5.2); the HQ keeps its garden face, the S wing and the car yard, its house 9 m shallower
+ * behind a one-storey service range (communs) on the street, whose corner is still the demolition point the tanker
+ * parked on the rails reaches (§5.1). tests/unit/rails-clear.test.mjs checks that nothing hides the rails now.
  */
-const RAIL_VIEW_KEPT = {
-  corner: 'kept: the Café de la Paix block fills its block from the tram street to the fountain square; door D1, the balcony and the uniform on its S face and the W avenue\'s hide under its NW corner fix it',
-  roof: 'kept: the Sniper\'s flat roof R (level 12.5), the dossier\'s perch at its NE corner over the garden',
-  hq: 'kept: the target — its demolition point by the rear door must stay within reach of the tanker parked on the rails',
-};
+export const SETBACK = 9;
 
 // ---------------------------------------------------------------- the corner block (dossier §5.2)
+/** The block's plot (26 × 22 on axis A, S face at lz 11); its buildings stand on the S 13 m, its forecourt on the N 9 m. */
 export const CB = { x: 20, z: 50, w: 26, d: 22 };
 const cb = (lx, lz) => loc(CB.x, CB.z, lx, lz);
+const CB_N = -CB.d / 2 + SETBACK; // the block's N face (lz −2): 18.5–19.5 m off the tram's axis
 const BAL_LZ = 9.9; // the balcony strip (lz 8.8–11) along the S face
-const [cwX, cwZ] = cb(-6, 0);
-const [crX, crZ] = cb(7, -1.1);
+const [cwX, cwZ] = cb(-6, (CB_N + CB.d / 2) / 2);
+const [crX, crZ] = cb(7, (CB_N + 8.8) / 2);
 const [ctX, ctZ] = cb(10.5, BAL_LZ);
 export const D1 = cb(-9, 11.9); // the team's hide (door on the S face, "near the half-track")
 export const UNIFORM = cb(3.5, BAL_LZ); // the clothes rack on the balcony
-export const SNIPER_SPOT = cb(12, -10); // R's NE corner: the shot at the garden's NE corner
+export const SNIPER_SPOT = cb(12, CB_N + 1); // R's NE corner: the shot at the garden's NE corner
 const CORNER = [
   { id: 'corner_block', type: 'house', variant: 'townhouse_corner_turret', label: 'Café de la Paix', x: cwX, z: cwZ, rot: deg(ROT),
-    w: 14, d: CB.d, h: 16, mat: 'plaster', roof: 'roofTar', enterable: true, door: D1, awnings: true, railView: RAIL_VIEW_KEPT.corner,
+    w: 14, d: CB.d / 2 - CB_N, h: 16, mat: 'plaster', roof: 'roofTar', enterable: true, door: D1, awnings: true,
     walkways: [{ points: [cb(-11.5, BAL_LZ), cb(8, BAL_LZ)], width: 2.2, y: LEVEL.B }] },
   { id: 'corner_roof', type: 'flat_roof_house', variant: 'townhouse_corner_flat_roof', x: crX, z: crZ, rot: deg(ROT),
-    w: 12, d: 19.8, h: LEVEL.R, mat: 'plaster', roofWalk: true, parapet: 0.8, railView: RAIL_VIEW_KEPT.roof },
+    w: 12, d: 8.8 - CB_N, h: LEVEL.R, mat: 'plaster', roofWalk: true, parapet: 0.8 },
   { id: 'corner_turret', type: 'house', variant: 'townhouse_round_turret', x: ctX, z: ctZ, rot: deg(ROT), w: 5, d: 2.2, h: 16, mat: 'plaster', roof: 'roofTar' },
+  // the forecourt (lx ±13, lz −11 … −2, setts): a wall of brick to 0.6 m under an iron railing (low cover, like the canal
+  // parapets), closed all round
+  // (its ends run 0.6 m into the block's N face: a wall that only touches a corner leaves a gap to slip through)
+  { id: 'corner_garden_wall', type: 'wall', variant: 'wall_brick_railing', points: [cb(-13, CB_N + 0.6), cb(-13, -11), cb(13, -11), cb(13, CB_N + 0.6)], h: 1.6, width: 0.5, mat: 'brick', block: 1 },
+  // inside, on the setts: two clipped box shrubs either side of the café's frontage
+  ...[[-9.5, -6.5], [-2.5, -6.5]].map(([lx, lz], k) => ({ id: `corner_box_${k + 1}`, type: 'bush', variant: 'box_parterre', x: cb(lx, lz)[0], z: cb(lx, lz)[1], r: 0.7, h: 0.9 })),
 ];
 
 // ---------------------------------------------------------------- the HQ block (dossier §5.1)
+/** The N block's plot (14 × 22 on axis A): the house on its S 13 m, its one-storey service range on the N 9 m. */
 const HQ_N = { x: 63, z: 58, w: 14, d: 22 };
-const hqL = [r2(HQ_POINT.x - HQ_N.x), r2(HQ_POINT.z - HQ_N.z)];
-// world → local offset of the demolition point (targetAt is in the block frame)
+const hqAt = (lx, lz) => loc(HQ_N.x, HQ_N.z, lx, lz);
+const HQ_HOUSE_D = HQ_N.d - SETBACK;
+const [hqX, hqZ] = hqAt(0, (HQ_N.d - HQ_HOUSE_D) / 2);
+const [rgX, rgZ] = hqAt(0, (SETBACK - HQ_N.d) / 2);
+/** Where the garrison comes out: the service range's door on the tram street. */
+const HQ_REAR_DOOR = hqAt(0, -HQ_N.d / 2 - 0.8);
+const hqL = [r2(HQ_POINT.x - hqX), r2(HQ_POINT.z - hqZ)];
+// world → local offset of the demolition point (targetAt is in the house's frame: the range's NE corner, N of it)
 const c15 = Math.cos(deg(ROT)), s15 = Math.sin(deg(ROT));
 const HQ_TARGET_LOCAL = [r2(hqL[0] * c15 + hqL[1] * s15), r2(-hqL[0] * s15 + hqL[1] * c15)];
 const HQ = [
-  { id: 'hq', type: 'villa', variant: 'mansion_hq_mansard', label: 'Schleper\'s headquarters', x: HQ_N.x, z: HQ_N.z, rot: deg(ROT),
-    w: HQ_N.w, d: HQ_N.d, h: 15, mat: 'brick', roof: 'roofTar', banners: true, flag: false, garrison: true,
+  { id: 'hq', type: 'villa', variant: 'mansion_hq_mansard', label: 'Schleper\'s headquarters', x: hqX, z: hqZ, rot: deg(ROT),
+    w: HQ_N.w, d: HQ_HOUSE_D, h: 15, mat: 'brick', roof: 'roofTar', banners: true, flag: false, garrison: true, artTurn: 1, // (its porch on the garden side, as before)
     destructible: true, bombOnly: true, targetAt: HQ_TARGET_LOCAL, marker: 'hq_point', hp: 100, destroyFx: ['bigBlast', 'fire'], quietDestroy: true, // the trigger announces it (one message)
-    door: deg(270), railView: RAIL_VIEW_KEPT.hq }, // the rear door on the N face: the garrison's exit
+    door: 0 }, // the house's door onto the car yard (registry); its garrison comes out of the service range's door (the squads' first exit point)
+  // the communs (service range) on the tram street: coach house turned motor pool and guardroom, one storey under slate; its NE
+  // corner by the yard gate is the HQ's demolition point (a lorry of fuel blowing up against it takes the house)
+  { id: 'hq_communs', type: 'house', variant: 'hq_garage_range_brick', label: 'the headquarters\' service range', x: rgX, z: rgZ, rot: deg(ROT + 180),
+    w: HQ_N.w, d: SETBACK, h: 3, mat: 'brick', chimney: false },
   { id: 'hq_wing', type: 'villa', variant: 'mansion_hq_mansard_wing', x: 56.5, z: 74.5, rot: deg(ROT), w: 19, d: 11, h: 15,
     mat: 'brick', roof: 'roofTar', steps: false },
   // the garden wall: brick to 1.2 m with a railing above (blocks feet, not eyes); the gate gap at (40, 56.3)
@@ -182,7 +202,8 @@ const STREET = [
   { id: 'tram_stop_2', type: 'sign', variant: 'tram_stop_shelter', x: 56.5, z: 36, h: 2.6 },
   ...[[6, 17], [24, 35.8], [64, 28.2], [42, 96]].map(([x, z], k) => ({ id: `lamp_${k + 1}`, type: 'lamp_post', variant: 'lamp_cast_iron', x, z, h: 4.5 })),
   // the rest of the curb lamps (dossier §5.4 "~40"): pure decoration, no footprint (block 0), so no gameplay effect
-  ...[[15, 20.5], [33, 25.5], [39, 24], [56, 27], [72, 30.8], [79, 33], [4, 33], [36, 39.8], [3.5, 48], [3.5, 63], [24, 44], [24, 58],
+  // (lamp_15 stood inside the corner block, now its forecourt: on the S curb in front of the forecourt since 10-29)
+  ...[[15, 20.5], [33, 25.5], [39, 24], [56, 27], [72, 30.8], [79, 33], [4, 33], [36, 39.8], [3.5, 48], [3.5, 63], [14.4, 32.2], [24, 58],
     [38.5, 47], [34.5, 63], [12, 86], [30, 88], [46, 84.5], [52, 89], [60, 86], [70, 86], [66, 90], [74, 96], [36, 100.5], [56, 101],
     [66, 103], [8, 116], [28, 123.5], [42, 126.5], [70, 136.5]].map(([x, z], k) => ({ id: `lamp_${k + 5}`, type: 'lamp_post', variant: 'lamp_cast_iron', x, z, h: 4.5, block: 0 })),
 ];
@@ -216,7 +237,7 @@ const SETTS = { surface: 'setts', angle: deg(ROT), edge: 'hard', grid: false, we
 const PAVEMENTS = [
   // the tram street and the NW road, from the ruins / townhouse / fuel lot / cemetery down to the corner block and garden
   { id: 'setts_n', ...SETTS, points: [[11, 0], [16, -20], [36, -20], [33, 0], [33, 17], [41, 20], [41, 22], [81, 31], [101, 36.2], [101, 57.2], [81, 52], [72.6, 49.2], [59.1, 45.6],
-    [58, 42.5], [45, 39], [1.26, 27.28]] }, // (the border with setts_m runs on the 15° grid, under the corner block)
+    [58, 42.5], [45, 39], [1.26, 27.28]] }, // (the border with setts_m runs on the 15° grid, under the corner block and its forecourt)
   // the W avenue, the garden street, the HQ yard and the E street down to the fountain square and the park strips
   { id: 'setts_m', ...SETTS, points: [[1.26, 27.28], [45, 39], [36, 69.5], [47.3, 72], [48.7, 66.7], [53.4, 66.8], [59.1, 45.6], [72.6, 49.2], [81, 52], [101, 57.2], [101, 108], [81, 108],
     [68, 106], [61, 100], [60, 95], [22, 90], [11, 88], [6, 88], [9, 76], [0, 74], [-20, 74], [-20, 22.64], [0, 28], [1, 28]] },
@@ -305,7 +326,7 @@ const ENEMIES = [
   walker('e13', 13, [P(...cb(-11, 12.9), 3, 195), P(...cb(4.6, 12.9), 5, 15)]),
   walker('e14', 14, [P(...bal(-10.5), 4, 195), P(...bal(-2), 4, 15)], { y: LEVEL.B }),
   sentry('e15', 15, ...bal(1.5), 195, 30, lvl(LEVEL.B)),
-  sentry('e16', 16, ...cb(2, -10), 15, 90, lvl(LEVEL.R)),
+  sentry('e16', 16, ...cb(2, CB_N + 1), 15, 90, lvl(LEVEL.R)), // (the roof's NW corner, on the block set back 10-29)
   // ===== the HQ: gate, garden, yard (Phases 3–4)
   sentry('e26', 26, 38.3, 55.2, 195, 60),
   walker('e27', 27, [P(36, 44, 4, 285), P(33, 61.5, 4, 105)]),
@@ -372,9 +393,9 @@ const BARRACKS = {
   // Kildread's "1 bunker": the HQ garrison pours out of the rear door on the alarm; a destroyed HQ releases nobody
   hq: { pool: 8, squads: [
     { id: 'hq_yard', event: 'RINT', size: 4, leader: 'sergeant', exitVel: 2.7, loopVel: 1.8,
-      exitRoute: [P(70, 46.8), P(77, 47.5), P(77.5, 54)], loop: [P(74, 75), P(76, 55), P(61, 43.5), P(40, 35), P(36.5, 52), P(40, 80), P(70, 86.5)] },
+      exitRoute: [P(...HQ_REAR_DOOR), P(77, 47.5), P(77.5, 54)], loop: [P(74, 75), P(76, 55), P(61, 43.5), P(40, 35), P(36.5, 52), P(40, 80), P(70, 86.5)] },
     { id: 'hq_street', event: 'RINT', size: 4, leader: 'sergeant', exitVel: 2.7, loopVel: 1.8,
-      exitRoute: [P(70, 46.8), P(55, 40.2), P(38, 44)], loop: [P(36, 56), P(26, 74), P(2, 70), P(1.5, 40), P(36, 40)] },
+      exitRoute: [P(...HQ_REAR_DOOR), P(55, 40.2), P(38, 44)], loop: [P(36, 56), P(26, 74), P(2, 70), P(1.5, 40), P(36, 40)] },
   ] },
 };
 
@@ -422,7 +443,8 @@ export default {
   furniture: FURNITURE,
   markers: [{ id: 'hq_point', x: HQ_POINT.x, z: HQ_POINT.z, r: 6.75, target: 'hq' }],
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures
-  structures: joinStructures(STRUCTURES, [['corner_block', 'corner_roof'], ['corner_roof', 'corner_turret'], ['hq', 'hq_wing']]),
+  structures: joinStructures(STRUCTURES, [['corner_block', 'corner_roof'], ['corner_roof', 'corner_turret'], ['hq', 'hq_wing'], ['hq', 'hq_communs'],
+    ['corner_garden_wall', 'corner_block'], ['corner_garden_wall', 'corner_roof']]),
   items: [],
   // §3.4 the Spy's uniform on the clothes rack on the balcony (level B)
   // (art pass: the rack's posts stand on the balcony at 4.5 m, 0.65 m in from the walkway's centre line, along the facade)

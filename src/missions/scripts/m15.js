@@ -10,8 +10,9 @@
  *    car (the stock run fires wherever a stopped runner stands after 0.5 s, see scripts/m16.js). The brain is
  *    parked in ALARM_RUN with `goal.fired` set (its own run is then inert) and m15Tick steers him.
  *  - The HQ demolition point (dossier §5.1, §14 E3/E6): `hq` is bomb-only for the engine; a `barrel`/`bomb` class
- *    blast within 6.75 m of its NE corner destroys it here. An accident blast (the tram hitting the tanker)
- *    destroys it SILENTLY: an `accident` explosion event (FX only), no noise, so no alarm (the stock destroy() is always noisy).
+ *    blast within HQ_REACH of the corner of its service range by the yard gate destroys it here. An accident blast
+ *    (the tram hitting the tanker) destroys it SILENTLY: an `accident` explosion event (FX only), no noise, so no alarm
+ *    (the stock destroy() is always noisy). The S wing and the service range go with it (ruinWing, look only).
  *  - The drive-off: the van, once everyone is aboard after o1 + o2, path-finds to the NW road instead of the
  *    engine's straight [exit, leave] run (it starts in the cemetery, behind a fence).
  *  - The sunken stairs (dossier §4.2: "a body left on S1 below y −1.5 is hidden from the street, the parapet occludes
@@ -23,10 +24,12 @@
 import { CONFIG } from '../../config.js';
 
 /**
- * The HQ's demolition point (the N block's NE corner by the rear door) and its reach. 7.5 m, a little past the barrel
- * damage ring (6.75): in the real game the block's mesh clearance (map-builder rule e) and the tram standing at the
- * line's east end keep a lorry's centre ~7 m from the corner at best, so at 6.75 a fuel tanker parked against both —
- * where the departing tram hits it — fell just short (the data-footprint nav lets it 6 m in).
+ * The HQ's demolition point and its reach: the NE corner of its N block by the yard gate — since 2026-10-29 (the house
+ * set back from the tram street so the rails show) the corner of its one-storey service range there, on the same spot:
+ * a lorry of fuel blowing up against the range (coach house, motor pool) takes the house behind it. 7.5 m, a little
+ * past the barrel damage ring (6.75): in the real game the block's mesh clearance (map-builder rule e) and the tram
+ * standing at the line's east end keep a lorry's centre ~7 m from the corner at best, so at 6.75 a fuel tanker parked
+ * against both — where the departing tram hits it — fell just short (the data-footprint nav lets it 6 m in).
  */
 export const HQ_POINT = { x: 72.4, z: 49.2 };
 export const HQ_REACH = 7.5;
@@ -225,20 +228,26 @@ export function destroyHQ(w, p = {}) {
   return true;
 }
 
+/** The parts that go with the house: the S wing and the service range on the tram street. */
+export const HQ_PARTS = ['hq_wing', 'hq_communs'];
+
 /**
- * The S wing goes with the N block (look only: its footprint stays). Derived from the serialized `hq.destroyed`,
- * so m15Tick re-applies it after a quick load (idempotent).
+ * The S wing and the service range go with the house (look only: their footprints stay). Derived from the serialized
+ * `hq.destroyed`, so m15Tick re-applies it after a quick load (idempotent). @returns {boolean} any part ruined now
  */
 export function ruinWing(w) {
-  const wing = w.structures?.get?.('hq_wing')?.object3d;
-  if (!wing || wing.userData.m15Ruined) return false;
-  wing.userData.m15Ruined = true;
-  wing.scale.y = 0.35;
-  // the same burnt material the N block got from _applyDestroyedState
-  let burnt = null;
+  let any = false, burnt = null;
+  // the same burnt material the house got from _applyDestroyedState
   w.byId?.('hq')?.object3d?.traverse?.((o) => { if (!burnt && o.isMesh) burnt = o.material; });
-  if (burnt) wing.traverse?.((o) => { if (o.isMesh) o.material = burnt; });
-  return true;
+  for (const id of HQ_PARTS) {
+    const part = w.structures?.get?.(id)?.object3d;
+    if (!part || part.userData.m15Ruined) continue;
+    part.userData.m15Ruined = true;
+    part.scale.y = 0.35;
+    if (burnt) part.traverse?.((o) => { if (o.isMesh) o.material = burnt; });
+    any = true;
+  }
+  return any;
 }
 
 // ---------------------------------------------------------------- the drive-off
@@ -270,8 +279,8 @@ export function smoulderHQ(w) {
   if (t < (w._m15SmokeT ?? -1)) return 0;
   w._m15SmokeT = t + 1.2;
   const k = (w._m15SmokeN = (w._m15SmokeN || 0) + 1);
-  const hq = w.byId?.('hq'), wing = w.structures?.get?.('hq_wing');
-  const pts = [hq, wing?.def].filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.z));
+  const hq = w.byId?.('hq'), parts = HQ_PARTS.map((id) => w.structures?.get?.(id)?.def);
+  const pts = [hq, ...parts].filter((p) => p && Number.isFinite(p.x) && Number.isFinite(p.z));
   let n = 0;
   for (const [i, p] of pts.entries()) {
     const jx = Math.sin(k * 2.3 + i) * 3, jz = Math.cos(k * 1.7 + i) * 2;
