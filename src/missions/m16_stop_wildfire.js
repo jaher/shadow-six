@@ -36,6 +36,7 @@
 import { m16Tick, DETONATORS, CHARGES, SAPPERS } from './scripts/m16.js';
 import { explosionReach } from '../abilities/explosions.js';
 import { joinStructures } from './schema.js';
+import { M16_DRESSING, M16_PAVEMENTS, M16_TERRAIN } from '../art/m16-dressing.js';
 
 const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (enemy-brain reads wp.look * DEG)
@@ -73,6 +74,7 @@ const TERRAIN = [
   { type: 'circle', terrain: 'ground', x: 180, z: 97, r: 6 },
   { type: 'circle', terrain: 'ground', x: 18, z: 10, r: 10 },
   { type: 'circle', terrain: 'ground', x: 44, z: 22, r: 11 },
+  ...M16_TERRAIN, // art pass 2: the farm garden's dug beds (art/m16-dressing.js)
 ];
 
 // ---------------------------------------------------------------- structures (dossier §5)
@@ -215,7 +217,9 @@ const FURNITURE = [
   { type: 'bench', x: 180.6, z: 92.4, rot: deg(-135), block: false },
 ];
 
-const STRUCTURES = [...BRIDGE_SET, ...EAST, ...WEST, ...RAILWAY, ...PARKED];
+// (art pass 2: set dressing — the farm garden and woodshed, the camp lorry and stores, the island boat, wheat stooks:
+// art/m16-dressing.js)
+const STRUCTURES = [...BRIDGE_SET, ...EAST, ...WEST, ...RAILWAY, ...PARKED, ...M16_DRESSING];
 
 // ---------------------------------------------------------------- enemies (dossier §8; Prima numbers 1–26)
 /** Lone walker: PINGPONG between a and b (1.0 m/s), starting at a facing b. */
@@ -371,7 +375,7 @@ export default {
   water: { velocity: 0.2, angleDeg: 225, turbulence: 0.2, color: '#1f5f60' },
   baseTerrain: 'grass',
   terrain: TERRAIN,
-  pavements: PAVEMENTS,
+  pavements: [...PAVEMENTS, ...M16_PAVEMENTS],
   furniture: FURNITURE,
   markers: [
     { id: 'plunger_w', ...DETONATORS.D_W, r: 2 },

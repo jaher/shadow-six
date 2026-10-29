@@ -98,6 +98,9 @@ const SETS = {
   sod: ['turf_grass', 0xffffff, 0x4f5a34, 1.0],
   concreteBunker: ['concrete_bunker', 0xffffff, 0x8b8a86, 1.0],
   snow: ['snow_soft', 0xffffff, 0xdfdfde, 0.5],
+  // M16 art pass 2: the wheat stooks (art/wheat-stooks.js) — the thatch maps (dark weathered reed, ≈ 0.10 / 0.07 / 0.03
+  // linear) lifted by a linear colour gain (5th entry) to the pale gold of a fresh harvest
+  straw: ['roof_thatch', 0xffffff, 0xcdb27a, 0.8, [4.6, 4.3, 3.4]],
 };
 
 /**
@@ -110,7 +113,7 @@ export function dressingMaterial(name) {
 }
 
 function makeDressingMaterial(name) {
-  const [file, tint, flat, nrm] = SETS[name] || SETS.concrete;
+  const [file, tint, flat, nrm, gain] = SETS[name] || SETS.concrete;
   let m;
   if (!HAS_DOM) m = new THREE.MeshStandardMaterial({ color: flat, roughness: 0.9 });
   else {
@@ -121,6 +124,7 @@ function makeDressingMaterial(name) {
       roughness: 1, metalness: 1,
     });
     antiTile(m, { lib: file });   // hex tiling / low-frequency swap + world-space macro variation (art/anti-tiling.js)
+    if (gain) m.color.setRGB(...gain);
   }
   m.name = `dressing:${name}`;
   m.userData.dressing = true;

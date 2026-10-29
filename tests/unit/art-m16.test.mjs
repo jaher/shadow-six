@@ -145,3 +145,72 @@ test('art m16: the rusty bulldozer is a detailed build (shoe-by-shoe tracks, wor
     assert.ok(existsSync(P(`assets/textures/lib/1k/${m}.jpg`)) && existsSync(P(`assets/textures/lib/512/${m}.jpg`)), `${m} 1k + 512`);
   }
 });
+
+test('art m16 (pass 2): set dressing spread in, ≥ 5 m off every guard post and beat and ≥ 8 m off the start; inside the map', async () => {
+  const { M16_DRESSING, GARDEN_FENCE } = await import('../../src/art/m16-dressing.js');
+  const segD = ([px, pz], [ax, az], [bx, bz]) => {
+    const dx = bx - ax, dz = bz - az, L = dx * dx + dz * dz, t = L ? Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / L)) : 0;
+    return Math.hypot(px - ax - t * dx, pz - az - t * dz);
+  };
+  const beats = [];
+  for (const e of m16.enemies) {
+    beats.push([[e.x, e.z], [e.x, e.z]]);
+    const r = e.route?.points || [];
+    for (let k = 0; k < r.length; k++) beats.push([[r[k].x, r[k].z], [r[(k + 1) % r.length].x, r[(k + 1) % r.length].z]]);
+  }
+  /** The piece's outline: a run's vertices, else its footprint's corners (and centre). */
+  const outline = (s) => (s.points ? s.points : [[0, 0], [-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => {
+    const lx = (u * (s.w ?? 1)) / 2, lz = (v * (s.d ?? 1)) / 2, c = Math.cos(s.rot ?? 0), n = Math.sin(s.rot ?? 0);
+    return [s.x + lx * c - lz * n, s.z + lx * n + lz * c];
+  }));
+  assert.ok(M16_DRESSING.length >= 12);
+  const [W, D] = m16.size;
+  for (const s of M16_DRESSING) {
+    assert.ok(m16.structures.find((q) => q.id === s.id), `${s.id} in the mission`);
+    for (const p of outline(s)) {
+      const d = Math.min(...beats.map(([a, b]) => segD(p, a, b)));
+      assert.ok(d >= 5, `${s.id} (${p[0].toFixed(1)}, ${p[1].toFixed(1)}) ${d.toFixed(1)} m from a guard's post / beat`);
+      for (const c of m16.commandos) assert.ok(Math.hypot(p[0] - c.x, p[1] - c.z) > 8, `${s.id} off the start`);
+      assert.ok(p[0] > 0.5 && p[0] < W - 0.5 && p[1] > 0.5 && p[1] < D - 0.5, `${s.id} inside the map`);
+    }
+    const truck = m16.vehicles.find((q) => q.id === 'truck');
+    assert.ok(Math.min(...outline(s).map(([x, z]) => Math.hypot(x - truck.x, z - truck.z))) > 12, `${s.id} off the escape lorry's stand`);
+  }
+  // the garden is closed but for its gate (≥ 1 m between the gate posts), and its fence draws pickets, not post-and-rail
+  assert.ok(Math.hypot(GARDEN_FENCE[0][0] - GARDEN_FENCE.at(-1)[0], GARDEN_FENCE[0][1] - GARDEN_FENCE.at(-1)[1]) >= 1.0, 'the garden gate opening');
+  const { buildFenceKit } = await import('../../src/art/kit-props.js');
+  assert.equal(buildFenceKit(GARDEN_FENCE, { variant: 'picket_garden', h: 1.05 }).name, 'kit:fence_picket');
+  // the parked lorry and the beached boat are library vehicles
+  const vm = JSON.parse(readFileSync(P('assets/models/vehicles/manifest.json')));
+  for (const s of M16_DRESSING.filter((q) => q.vehicleArt)) assert.ok((vm.assets || vm)[s.vehicleArt], s.vehicleArt);
+});
+
+test('art m16 (pass 2): wheat stooks stand inside their footprints, each blocks where it is drawn, one row = two draws', async () => {
+  const THREE = await import('three');
+  const { buildStooks } = await import('../../src/art/wheat-stooks.js');
+  const { STOOK, stookCount, stookX } = await import('../../src/art/stook-layout.js');
+  const rows = m16.structures.filter((s) => s.variant === 'wheat_stooks');
+  assert.ok(rows.length >= 3);
+  for (const s of rows) {
+    assert.equal(s.navParts.length, stookCount(s), s.id);
+    for (const [k, np] of s.navParts.entries()) {
+      assert.equal(np.block, 1, `${s.id} stook ${k} low cover`);
+      assert.ok(Math.abs(np.x - stookX(k, s.navParts.length, s.w)) < 1e-9 && Math.abs(np.x) + np.w / 2 <= s.w / 2 + 1e-9, `${s.id} stook ${k} in the row`);
+    }
+    const g = buildStooks(s); g.updateMatrixWorld(true);
+    let meshes = 0; g.traverse((o) => { if (o.isMesh) meshes++; });
+    assert.equal(meshes, 2, `${s.id} merged per material`);
+    // every drawn stook stays inside its own rect (no sheaf in the gaps the walk grid leaves open), no higher than h
+    const pos = new THREE.Vector3();
+    g.traverse((o) => {
+      if (!o.isMesh) return;
+      const a = o.geometry.attributes.position;
+      for (let i = 0; i < a.count; i++) {
+        pos.fromBufferAttribute(a, i);
+        const inside = s.navParts.some((np) => Math.abs(pos.x - np.x) <= np.w / 2 + 0.05 && Math.abs(pos.z - np.z) <= np.d / 2 + 0.05);
+        assert.ok(inside, `${s.id}: vertex (${pos.x.toFixed(2)}, ${pos.z.toFixed(2)}) outside every stook rect`);
+        assert.ok(pos.y <= STOOK.h + 0.02, `${s.id}: crest ${pos.y.toFixed(2)}`);
+      }
+    });
+  }
+});

@@ -31,6 +31,7 @@ import { buildMgPlatform } from './mg-platform.js';
 import { isBreakableGate } from '../world/breakables.js';
 import { addCableNode } from './cable-attach.js';
 import { buildRocks, buildCliff, buildWall, buildTent, buildRuins, buildSandbags, buildCrates, buildGenerator, buildLattice, buildPole } from './dressing.js';
+import { buildStooks, buildGardenBeds } from './wheat-stooks.js';
 import { buildDrumCluster, buildWellVariant, buildGroundSearchlight, buildLampPost, buildSignVariant, buildFenceKit } from './kit-props.js';
 import { buildRailTrack, buildTrench, buildCraterKit } from './kit-terrain.js';
 import { buildKitHouse, buildNissenHut, buildDockCrane } from './kit-buildings.js';
@@ -226,7 +227,8 @@ const BUILDERS = {
     return buildRuins(p);
   },
   sandbags: (p, def, ctx) => (dressingOn(ctx) ? buildSandbags(p) : box(p.w, p.h ?? 1, p.d, def.mat)),
-  crates: (p, def, ctx) => (!dressingOn(ctx) ? box(p.w, p.h ?? 1, p.d, def.mat) : p.variant === 'fuel_drums' ? buildFuelDrumStack(p) : buildCrates(p)), // (M17: art/fuel-drums.js)
+  crates: (p, def, ctx) => (!dressingOn(ctx) ? box(p.w, p.h ?? 1, p.d, def.mat) : p.variant === 'fuel_drums' ? buildFuelDrumStack(p)
+    : p.variant === 'wheat_stooks' ? buildStooks(p) : p.variant === 'garden_beds' ? buildGardenBeds(p) : buildCrates(p)), // (M17: art/fuel-drums.js; M16: art/wheat-stooks.js)
   generator: (p, def, ctx) => (dressingOn(ctx) ? buildGenerator(p) : box(p.w, p.h ?? 1, p.d, def.mat)),
   barracks: (p, def, ctx) => {
     // placeholder-art pass: a textured kit building when the library has no fitting asset (art/kit-buildings.js)

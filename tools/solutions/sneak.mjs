@@ -709,6 +709,16 @@ export function alarmEtaInfo(D, x, z, horizon = 30, { step = 0.5, except = [] } 
 }
 export function alarmEta(D, x, z, horizon = 30, o = {}) { return alarmEtaInfo(D, x, z, horizon, o).t; }
 
+/** Is (x, z) inside polygon `poly` ([[x, z], …])? */
+function inPoly(poly, x, z) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, zi] = poly[i], [xj, zj] = poly[j];
+    if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
 /** The open boat the team rows (the first player boat on the map: raft, rowboat). */
 export function teamBoat(w) {
   return (w.vehicles || []).find((v) => !v.removed && !v.destroyed && v.isBoat && !v.crewed && !v.def?.enclosed && v.vehicleType !== 'patrolboat');
@@ -763,6 +773,7 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     if (mode === 'boat') ok = [[0, 0], [0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]].every(([a, b]) => boat.passableAt(x + a, z + b));
     else { const t = g.terrainAt(x, z); ok = g.walkableAt(x, z, walkOpt) && (o.wade || (t !== T.WATER && t !== T.SHALLOW)); }
     if (ok) ok = !statics.some((e) => Math.hypot(e.x - x, e.z - z) < keep) && !(o.avoid || []).some(([ax, az, r]) => Math.hypot(ax - x, az - z) < r)
+      && !(o.forbid || []).some((poly) => inPoly(poly, x, z)) // (`forbid`: polygons [[x, z], …] never entered, as driver.planSneak)
       && (mode === 'boat' || !mates.some((m) => Math.hypot(m.x - x, m.z - z) < 1.2));
     passMemo[c] = ok ? 1 : -1;
     return ok;

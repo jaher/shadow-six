@@ -282,6 +282,9 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
   rec('structure:destroyed', (p) => `${p.structure?.id ?? p.id ?? tagOf(p)}`);
   const who = (e) => e ? `${tagOf(e)}[${e.brain?.state}@${e.x?.toFixed(1)},${e.z?.toFixed(1)} h${((e.heading * 180 / Math.PI + 360) % 360).toFixed(0)} sw${e.sweepActive ? 1 : 0}]` : '?';
   rec('vehicle:tainted', (p) => `${tagOf(p.vehicle)} by ${who(p.by)}`);
+  // (a mission's own script tainting a vehicle — M6's evacuation truck driven in hostile after the blast — names no
+  // guard: nobody saw anything, so it is not a detection)
+  offs.push(w.events.on('vehicle:tainted', (p) => { if (!p.by) { const e = events.at(-1); if (e?.name === 'vehicle:tainted') e.scripted = true; } }));
   // shots at a vehicle (a tainted one, or a used raft seen lying empty, §4.3)
   rec('shot', (p) => (p.target?.kind === 'vehicle' ? `${tagOf(p.shooter)} at ${p.target.vehicleType} ${tagOf(p.target)}` : null));
   rec('enemy:state', (p) => (p.to === 'COMBAT' || p.to === 'HOLD') ? `${tagOf(p.enemy)} ${p.from}->${p.to}` : null);
@@ -381,7 +384,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
     predict: (e, t) => predictEnemy(e, t),
     item: (id) => w.interactables.find((i) => i.tag === id || i.spawn?.id === id || i.switchId === id || i.def?.id === id),
     /** detections of a commando so far (the solution must keep this at 0) */
-    detections: () => events.filter((e) => e.name === 'enemy:spotted' || e.name === 'enemy:challenge' || e.name === 'enemy:unmasked-spy' || e.name === 'vehicle:tainted').length,
+    detections: () => events.filter((e) => e.name === 'enemy:spotted' || e.name === 'enemy:challenge' || e.name === 'enemy:unmasked-spy' || (e.name === 'vehicle:tainted' && !e.scripted)).length,
     /** every time a commando, a used raft (empty or by its crewed hull) or a rowed boat was inside a live cone and SEEN (see watchTick) */
     exposures: () => [...exposures.values()],
     exposureReport: () => [...exposures.values()].map((x) => `${x.viewer} saw ${x.target} (${x.band}) ${x.ticks} ticks t=${x.from.toFixed(2)}–${x.to.toFixed(2)} first at ${x.at}`),

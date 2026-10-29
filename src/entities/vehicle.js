@@ -1734,7 +1734,11 @@ export class Vehicle extends Entity {
     const R = hullRect(this, x, z, h), c = Math.cos(h), s = Math.sin(h), w = this.world;
     const side = this.driver?.faction ?? this.faction ?? 'enemy';
     return under.filter((u) => {
-      if (u.kind !== 'enemy' || u.faction === side || u.stance === 'crawl' || u.stance === 'downed' || u.state !== 'active') return true;
+      if (u.kind !== 'enemy' || u.stance === 'crawl' || u.stance === 'downed' || u.state !== 'active') return true;
+      // a man of the vehicle's own side: the hull plans round him; only one it has waited on for over 3 s (a sentry
+      // planted on its route, every replan blocked by him: M6 e14 and the armoured car's turn-round) steps aside
+      const own = u.faction === side;
+      if (own && !(this.blockedT > 3)) return true;
       if (u.stepAside?.by === this && w.time < u.stepAside.until && u.path) return true; // on his way out
       const dx = u.x - x, dz = u.z - z, along = dx * c + dz * s, lat = -dx * s + dz * c;
       const off = R.hw + bodyShape(u.stance).r + 0.25;
@@ -1745,7 +1749,7 @@ export class Vehicle extends Entity {
         if (bodyRectGap(px, pz, hd, u.stance, R) < 0.1 || bodyGap(w, px, pz, hd, u.stance, this) < 0.1) continue;
         if (!u.walkStraight?.(px, pz, { run: true, onArrive: () => { u.heading = hd; } })) continue;
         u.stepAside = { by: this, until: w.time + 2.5 };
-        if (this.driver && this.driver.faction === 'player') this.taint(u);
+        if (!own && this.driver && this.driver.faction === 'player') this.taint(u);
         return true;
       }
       return true;
