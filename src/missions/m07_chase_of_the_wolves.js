@@ -478,6 +478,14 @@ export default {
   climbLinks: [],
   ladders: [],
   triplines: [],
+  // places the mesh-derived nav stamps keep reachable (map-builder missionWayPoints): the two charge spots on the after
+  // decks (over the pier and gangway 1, whose own hand rails closed it in the drawn game), and the W wedge by the inlet
+  // through the gap at (20.3,60.6) beside the gate hut (§5 clothesline: the bodies go there; the hut's eaves and the
+  // wall's end post would otherwise close it to walking in the drawn game)
+  navKeep: [[U1.x, U1.z], [U2.x, U2.z], [15.5, 62]],
+  // (its decks over water are walkers' ways the stamps give way on — the pier, the gangways; their measured railings
+  // stay as drawn: grid.deckWays 'water')
+  deckWays: 'water',
   objectives: [
     { id: 'o1', text: 'Sink the first U-boat (a charge on the after deck, by the torpedoes)', type: 'destroy', targets: ['uboat_1'], marker: 'u1_charge', required: true, bombOnly: true },
     { id: 'o2', text: 'Sink the second U-boat (a charge on the after deck, by the torpedoes)', type: 'destroy', targets: ['uboat_2'], marker: 'u2_charge', required: true, bombOnly: true },

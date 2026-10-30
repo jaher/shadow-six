@@ -902,6 +902,9 @@ async function bridgeheadStrike(D, { onShots = null } = {}) {
       await goTogether(D, [['greenberet', BH_RUN], ['diver', MAR_RUN]], { run: true });
     })();
     await snipe(D, e25, { maxSec: 3, every: 0.05 });
+    // (the runners are the only flow stepping the world from here: a drawn run may pace its frames again — the film draws none
+    // inside an unpaced stretch, so this is where its footage of the strike picks up)
+    D.unpaced = false;
     await runners;
   } finally { D.unpaced = false; }
   onShots?.();

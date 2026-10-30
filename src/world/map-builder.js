@@ -348,7 +348,7 @@ const VIS_NAV_CATS = new Set(['building', 'tower', 'tent', 'ruins', 'prop', 'roc
  * structure is destroyed.
  * @returns {{cells: number, structures: number}}
  */
-/** The mission's points whose ways the nav stamps keep open: spawns, posts, pickups, devices, exits. @returns {number[][]} */
+/** The mission's points whose ways the nav stamps keep open: spawns, posts, pickups, devices, exits, navKeep. @returns {number[][]} */
 /** Both ends of every stair / ramp on the grid (grid.addRamp: top a, foot b), [x, z] each. */
 export const rampEnds = (grid) => (grid.ramps || []).filter((r) => !r.viewOnly).flatMap((r) => [[r.ax, r.az], [r.bx, r.bz]]);
 
@@ -361,6 +361,9 @@ export function missionWayPoints(mission, interactables = []) {
     if (it.params?.stand) add(it.params.stand.x, it.params.stand.z); // where a switch station's operator stands
   }
   for (const z of [mission.extraction, mission.rendezvous]) if (z) add(z.x, z.z);
+  // the places a mission names to keep reachable (`navKeep`: M7's U-boat charge spots over the pier and a gangway whose
+  // hand rails the stamps had closed, and a dead-end pocket its plan uses, the W wedge)
+  for (const p of mission.navKeep || []) if (Array.isArray(p)) add(p[0], p[1]);
   return out;
 }
 
@@ -503,7 +506,7 @@ export function* stampVisualNavG(world, built, points = []) {
   // decks' railings (buildMap's `deck:` stamps) are such stamps too: the pieces are labelled without them, and where they
   // cut a way they give way like the drawn ones (M4: the pier stair's two flights and the pier deck meet inside each
   // other's railings, and the boat could not be reached from the plateau)
-  const decks = !grid.deckWays ? [] : [...(grid._navStamps || [])].filter(([key]) => key.startsWith('deck:')).map(([key, set]) => ({ key, levels: [new Set(set), new Set()] }));
+  const decks = grid.deckWays !== true ? [] : [...(grid._navStamps || [])].filter(([key]) => key.startsWith('deck:')).map(([key, set]) => ({ key, levels: [new Set(set), new Set()] }));
   for (const st of decks) grid.navStamp(st.key, []);
   const labels0 = yield* walkPiecesG(grid), stamps = [];
   for (const st of decks) { grid.navStamp(st.key, st.levels[0]); stamps.push(st); }
@@ -730,7 +733,7 @@ export function keepWays(grid, labels0, ways, stamps) { return runSync(keepWaysG
 export function* keepWaysG(grid, labels0, ways, stamps) {
   let steps = 0;
   // (a `deckWays` mission may take more rounds: M4's pier stair is the last of its many cuts to be reached)
-  for (let round = 0, rounds = grid.deckWays ? 32 : 16; round < rounds; round++) {
+  for (let round = 0, rounds = grid.deckWays === true ? 32 : 16; round < rounds; round++) {
     const lab = yield* walkPiecesG(grid), rep = new Map(), cut = [];
     for (const [i, j] of ways) {
       if (!grid.inBounds(i, j)) continue;
@@ -755,7 +758,7 @@ export function* keepWaysG(grid, labels0, ways, stamps) {
     const between = (k) => near(k, 3, (seen) => sides.some(([a, b]) => seen.has(a) && seen.has(b)));
     const rim = (k) => near(k, 2, (seen) => [...seen].some((v) => pocket.has(v)));
     let hems = between;
-    // (open water is no walker's way; in a `deckWays` mission a deck over it is: a pier's, a bridge's)
+    // (open water is no walker's way; in a `deckWays` mission a deck over it is: a pier's, a bridge's, a gangway's)
     const wet = (k) => grid.terrain[k] === T.WATER && !(grid.deckWays && grid.bridge[k]);
     if (!stamps.some((st) => [...stampCells(st)].some((k) => !wet(k) && between(k)))) hems = rim;
     let moved = 0;
@@ -1661,8 +1664,9 @@ export function* buildMapGen(world, mission, opts = {}) {
   const grid = world.grid;
   // (`hullDrawn`: hulls clear what is drawn, not the walkers' clearance round it — grid.hullBlocked; M20)
   grid.hullDrawn = !!mission.hullDrawn;
-  // (`deckWays`: its decks over water, and their measured railings, are ways keepWays holds open — grid.deckWays; M4)
-  grid.deckWays = !!mission.deckWays;
+  // (`deckWays`: its decks over water, and their measured railings, are ways keepWays holds open — grid.deckWays; M4.
+  // 'water': its decks over water only, the measured railings stay as drawn — M7)
+  grid.deckWays = mission.deckWays === 'water' ? 'water' : !!mission.deckWays;
   const theater = opts.theater || mission.theater || 'temperate';
   const meshes = opts.meshes !== false;
   // final terrain: tree structures keep their grid footprints (fixed occluders) but are drawn by the vegetation system

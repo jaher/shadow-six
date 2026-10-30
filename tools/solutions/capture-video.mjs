@@ -389,14 +389,28 @@ async function directorMain({ id, FPS, DRY, OPENING_SEC, HAS, FRAME_WAITS: FRAME
   const pickFocus = (u) => { if (!u) return; pending = u; };
   const D = makeDriver(w, {
     dt, quiet: true, log: () => {}, skipEscape: () => g.skipExtraction(), // (§7.6 ESC: as the logic run)
-    step: async () => {
-      g.step(dt);
-      if (tr2) dumpAt(w, tr2, dump2);
-      rec.pump();
-      objectivesDone(w, seen2, ev2);
-      return tick();
+    step: () => {
+      // A stretch in which two flows of the solution step the world in turn (driver `unpaced`: M4's bridgehead strike) is ticked at
+      // once and draws no frame, as the logic-only pass ticks it. The order the flows tick in is fixed by the promise hops each takes
+      // between two ticks, and an async step, or one that waits for a frame while the other flow ticks on, gives another order: M4's
+      // drawn run parted from the logic-only one there (checkpoints 0.15 s apart, the post-blast run to the boat, tuned to the exact
+      // timeline, then seen: `--trace` found the tick). A solution marks such a stretch as short as it can.
+      if (D.unpaced) { stepWorld(); unpacedTicks++; return undefined; }
+      if (unpacedTicks) { unpacedTicks = 0; scope?.end(); } // (a Sniper's show over a stretch that was not drawn is over)
+      return stepDrawn();
     },
   });
+  let unpacedTicks = 0;
+  const stepWorld = () => {
+    g.step(dt);
+    if (tr2) dumpAt(w, tr2, dump2);
+    rec.pump();
+    objectivesDone(w, seen2, ev2);
+  };
+  const stepDrawn = async () => {
+    stepWorld();
+    return tick();
+  };
   // The Sniper's scope before every sniper shot (the user's standing request, 2026-10-22: "we should see the sniper scope moving
   // around before sniper hits target"): the game's own scope show (debug/walkthrough-scope.js) on the film's clock. The scope comes
   // up off the man, searches round him, finds him and settles; the film slows to the pace that lands the shot at the end of the

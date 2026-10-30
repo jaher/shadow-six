@@ -201,7 +201,9 @@ export class NavGrid {
     /**
      * A mission's opt-in (`deckWays`, map-builder): its decks over water are walkers' ways that keepWays reopens like dry
      * ground, and its measured decks' railings (`deck:` stamps) give way at a cut too (M4: the pier stair's flights and
-     * the pier deck meet inside each other's railings). Elsewhere the stamps stay as they were tuned. @type {boolean}
+     * the pier deck meet inside each other's railings). 'water': the decks over water only, the measured railings stay
+     * (M7: gangway 1's own hand rails shut U-boat 1's after deck off from the pier). Elsewhere the stamps stay as they
+     * were tuned. @type {boolean|'water'}
      */
     this.deckWays = false;
     /**

@@ -233,6 +233,29 @@ test('ways (e): in a deckWays mission a stamp across a deck over water that cuts
   assert.ok(!sw.lv?.size, 'the stamp over open water keeps its cells');
 });
 
+test('ways (e): in a deckWays \'water\' mission a gangway over deep water between two decks is a way: a stamp shutting it steps down (M7 gw_1)', async () => {
+  const { walkPieces, keepWays, missionWayPoints } = await import('../../src/world/map-builder.js');
+  // two decks (bridge cells over water) joined by a 1 m gangway at x 9..10, z 2..4: its own rails' stamp shut it
+  const g = new NavGrid(20, 10);
+  g.deckWays = 'water'; // (the mission's opt-in, M7: decks over water only)
+  g.fillRect(0, 0, 20, 10, 'terrain', 5); // all deep water (T.WATER)
+  g.fillRect(0, 0, 20, 2, 'bridge', 1); g.fillRect(0, 4, 20, 2, 'bridge', 1); g.fillRect(9, 2, 1, 2, 'bridge', 1);
+  const labels0 = walkPieces(g), ways = [[4, 2], [4, 10]]; // a charge spot on each deck
+  const rails = new Set();
+  for (let j = 4; j < 8; j++) for (let i = 16; i < 22; i++) rails.add(g.idx(i, j));
+  const st = { key: 'vis:gangway', levels: [rails, new Set()] };
+  g.navStamp('vis:gangway', rails);
+  assert.ok(!g.isWalkable(18, 5), 'shut by the stamp');
+  assert.ok(keepWays(g, labels0, ways, [st]) >= 1, 'it steps down');
+  assert.ok(g.isWalkable(18, 5) && g.isWalkable(19, 6), 'the gangway is open again');
+  // the places a mission names to keep reachable are way points (its markers are not, unless named)
+  const pts = missionWayPoints({ markers: [{ id: 'u1_charge', x: 10.4, z: 122.7 }], navKeep: [[10.4, 122.7], [2.8, 138.1], [15.5, 62]] });
+  assert.deepEqual(pts, [[10.4, 122.7], [2.8, 138.1], [15.5, 62]], 'navKeep points');
+  assert.deepEqual(missionWayPoints({ markers: [{ id: 'u1_charge', x: 10.4, z: 122.7 }] }), [], 'a marker alone is no way point (missions as tuned)');
+  const { normalizeMission } = await import('../../src/missions/schema.js');
+  assert.deepEqual(normalizeMission({ id: 't', size: [10, 10], navKeep: [[1, 2]] }, { quiet: true }).navKeep, [[1, 2]], 'navKeep kept by the schema');
+});
+
 test('pickups (e): the crate on the ground is walked round and taken from its edge; picked up, the way is free', async () => {
   const { World } = await import('../../src/world/world.js');
   const { createPickup } = await import('../../src/entities/interactables.js');

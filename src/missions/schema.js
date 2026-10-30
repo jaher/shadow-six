@@ -325,6 +325,8 @@ export function normalizeMission(def, opts = {}) {
     ladders: arr(def.ladders).map((l) => ({ raised: false, y: 0, ...l, top: [l.top[0], l.top[1], l.top[2] ?? 0] })),
     triplines: arr(def.triplines),
     noWalk: arr(def.noWalk).map((n, i) => ({ ...n, id: n.id ?? `nowalk${i}` })),
+    // places the mesh-derived nav stamps must keep reachable (map-builder missionWayPoints): [x, z] each
+    navKeep: arr(def.navKeep),
     barracks: Object.fromEntries(Object.entries(def.barracks || {}).map(([k, b]) => [k, {
       pool: num(b.pool, 5),
       squads: arr(b.squads).map((s) => ({ event: 'RINT', size: 2, exitRoute: [], loop: [], ...s })),

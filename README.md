@@ -44,6 +44,12 @@ The Marine harpoons three guards, the Green Beret knifes four and works a decoy,
 
 [![Mission 3 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 10 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m03.jpg)](docs/screenshots/storyboards/m03.jpg)
 
+### Mission 4 · Restore Pride
+
+The Marine harpoons e2 from the corner of the rubble in the yard south, and the Green Beret knifes e1 and e3 behind him; at the wire gap the Green Beret plants his decoy, draws e17 over to it and knifes him, and in the centre grove he knifes e12 while a train runs between him and e19; at the bridge the Sniper shoots e19, the machine-gunner e20 and e25 as Patrol 19 turns away, the Green Beret and the Marine come out behind the file and the Green Beret knifes the other four, and the Sniper shoots the courier e26 at the far end; the team crosses the deck between two trains; the Driver and the Sapper take the courier's motorcycle to the RAF air-drop, where the Sapper takes the charge; the Green Beret's decoy draws e54 off the cliff edge and the Driver runs him down, and a second decoy turns the lawn guard e59 away from the pier shed; the Driver rides the Sapper behind the supply lorry to the villa's front steps, the Sapper sets a time bomb there and is back on the motorcycle when the headquarters goes up (the lorry driver at the door dies with it), the Sniper shoots the pier guard e56, and all five run down the pier stair and step aboard the patrol boat while e13 looks away. *Game time 35:10 (film 6:25), 0 detections, 16 kills, all 5 commandos alive.*
+
+[![Mission 4 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 10 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m04.jpg)](docs/screenshots/storyboards/m04.jpg)
+
 ### Mission 5 · Blind Justice
 
 The Spy rides the cable car in a German uniform and injects five guards; the Green Beret knifes one, climbs the east cliff and puts a fuel drum by the radar; the Spy's pistol shots set off the drums that destroy the barracks (with a three-man patrol) and the radar, and both fly out in the autogyro. *Game time 14:59 (film 3:05), 0 detections, 9 kills, both commandos alive.*
@@ -135,9 +141,9 @@ first, see [Status](#status)); until then it keeps its single in-game frame.
 
 <table>
 <tr>
-<td align="center" width="33%"><a href="verify/reference/gameplay-m04.png"><img src="verify/reference/gameplay-m04.png" width="100%" alt="Mission 4: The German headquarters villa exploding in the village square."></a><br><sub><b>Mission 4</b> · Restore Pride</sub></td>
 <td align="center" width="33%"><a href="verify/reference/gameplay-m07.png"><img src="verify/reference/gameplay-m07.png" width="100%" alt="Mission 7: The first U-boat blowing up at the pier as the after-deck charge detonates."></a><br><sub><b>Mission 7</b> · Chase of the Wolves</sub></td>
 <td align="center" width="33%"><a href="verify/reference/gameplay-m17.png"><img src="verify/reference/gameplay-m17.png" width="100%" alt="Mission 17: The squad moving up the snowy forest road, point man ringed."></a><br><sub><b>Mission 17</b> · Before Dawn</sub></td>
+<td></td>
 </tr>
 </table>
 

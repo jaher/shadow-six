@@ -361,11 +361,42 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
     }
     _wopt.cone = null; vw.length = 0; rafts.length = 0; rowed.length = 0; cs.length = 0;
   };
-  const halt = () => { if (aborted?.()) throw new SolutionAborted(); };
+  const halt = () => { if (aborted?.()) throw new SolutionAborted(); if (parFail) throw parFail; };
   // side tasks (D.meanwhile): checked every tick before it runs, each until it returns true
   const side = [];
   const runSide = () => { for (const f of side.slice()) if (f()) side.splice(side.indexOf(f), 1); };
-  const tick = async () => { halt(); if (side.length) runSide(); const r = step(); if (r && typeof r.then === 'function') await r; halt(); if (watch) watchTick(); };
+  const tick1 = async () => { halt(); if (side.length) runSide(); const r = step(); if (r && typeof r.then === 'function') await r; halt(); if (watch) watchTick(); };
+  // parallel flows (D.parallel): two parties ordered at once, each in its own async flow. The world steps once every
+  // flow waits on a tick (a barrier), so each flow's waits are driven by the same ticks, in a fixed order (the order the
+  // flows parked in); one flow alone steps it at once, as before
+  // After the step the flows are resumed one at a time, in the order they parked: the next one goes when the last has
+  // parked again or ended — a flow that hands the frame back while it plans (the live replay's sliced searches) keeps
+  // its turn, so the flows act in the same order, and park in the same order, as in a logic-only run.
+  let flows = 1, parked = [], parFail = null, queue = null;
+  const advance = () => {
+    const p = queue.shift();
+    if (!queue.length) queue = null;
+    p.res();
+  };
+  const release = () => {
+    const ps = parked;
+    parked = [];
+    tick1().then(() => { queue = ps.slice(1); if (!queue.length) queue = null; ps[0].res(); }, (e) => { for (const p of ps) p.rej(e); });
+  };
+  const tick = () => {
+    if (flows <= 1 && !parked.length && !queue) return tick1();
+    return new Promise((res, rej) => {
+      parked.push({ res, rej });
+      if (queue) advance();
+      else if (parked.length >= flows) release();
+    });
+  };
+  // what the solution waits for (video mode's "⏩ waiting" tag): the labels standing — with parallel flows the last one
+  // standing is shown (one flow's wait ending does not clear the other's); one flow alone says null as it always did
+  const waiting = [];
+  const topWait = () => (flows > 1 && waiting.length ? waiting[waiting.length - 1] : null);
+  const sayWait = (l) => { waiting.push(l); onWait?.(l); };
+  const unsayWait = (l) => { const i = waiting.lastIndexOf(l); if (i >= 0) waiting.splice(i, 1); onWait?.(topWait()); };
   const checkpoints = [];
 
   let noting = null; // (D.waitNote's label while it stands)
@@ -406,11 +437,18 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
     },
     /** Tell video mode what the solution is waiting for (or null: it goes on) without a tick — a sneak whose man lies
      *  still between failed legs (sneak.mjs): AUTO runs such a wait fast, as it does an until's; changes nothing in the run */
-    waitNote(label) { noting = label || null; onWait?.(noting); },
+    waitNote(label) {
+      const was = noting;
+      noting = label || null;
+      if (was) { const i = waiting.lastIndexOf(was); if (i >= 0) waiting.splice(i, 1); }
+      if (noting) waiting.push(noting);
+      onWait?.(noting ?? topWait());
+    },
     async wait(sec) {
       const n = Math.round(sec / dt), said = sec >= 2 && !!onWait; // (a timer of 2 s or more is a wait too: video mode skips it)
-      if (said) onWait(`a ${+sec.toFixed(1)} s pause`);
-      try { for (let i = 0; i < n; i++) await tick(); } finally { if (said) onWait(null); }
+      const l = `a ${+sec.toFixed(1)} s pause`;
+      if (said) sayWait(l);
+      try { for (let i = 0; i < n; i++) await tick(); } finally { if (said) unsayWait(l); }
     },
     async until(pred, maxSec = 120, label = '') {
       const n = Math.round(maxSec / dt);
@@ -418,12 +456,12 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
       try {
         for (let i = 0; i < n; i++) {
           if (pred()) return true;
-          if (!said && label) { said = true; onWait?.(label); }
+          if (!said && label) { said = true; sayWait(label); }
           await tick();
           const f = D.failed();
           if (f) throw new Error(`FAILED while waiting ${label}: ${f}`);
         }
-      } finally { if (said) onWait?.(null); }
+      } finally { if (said) unsayWait(label); }
       throw new Error(`timeout ${maxSec}s waiting ${label}`);
     },
     /** until, for a predicate that may await (a sliced plan inside it): the same ticks, the same checks */
@@ -433,12 +471,12 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
       try {
         for (let i = 0; i < n; i++) {
           if (await pred()) return true;
-          if (!said && label) { said = true; onWait?.(label); }
+          if (!said && label) { said = true; sayWait(label); }
           await tick();
           const f = D.failed();
           if (f) throw new Error(`FAILED while waiting ${label}: ${f}`);
         }
-      } finally { if (said) onWait?.(null); }
+      } finally { if (said) unsayWait(label); }
       throw new Error(`timeout ${maxSec}s waiting ${label}`);
     },
     /** a player order (commando.issue); throws with the refusal text when the game refuses it */
@@ -801,6 +839,28 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
      * the Sapper crawls off elsewhere), as a player gives orders to two men at once. `D.pending(fn)`: still running?
      */
     meanwhile(fn) { side.push(fn); return fn; },
+    /**
+     * Two parties ordered at once: run the async flows `fns` side by side (each may wait, sneak, until… as a solution
+     * does) — the world steps once all of them wait on a tick, so their waits share the same ticks and the run is the
+     * same every time (the flows act in the order given). Resolves with their results when all have finished; the
+     * first error ends the others at their next tick and is thrown.
+     */
+    async parallel(...fns) {
+      flows += fns.length - 1;
+      let first = null;
+      const run = async (fn) => {
+        try { return await fn(); } catch (e) { if (!first) { first = e; parFail = e; } throw e; } finally {
+          flows--;
+          if (queue) advance();
+          else if (parked.length && parked.length >= flows) release();
+        }
+      };
+      const rs = await Promise.allSettled(fns.map(run));
+      flows++;
+      parFail = null;
+      if (first) throw first;
+      return rs.map((r) => r.value);
+    },
     pending(fn) { return side.includes(fn); },
     /**
      * A drive order's turn plan made beforehand, sliced: the vehicle `role` drives plans its multi-point turn toward
@@ -1067,7 +1127,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
       for (let li = 0; li < legs.length; li++) {
         const s = legs[li];
         if (s.wait) {
-          if (D.t < s.until - 1e-6) { onWait?.(`${label || 'a man'}: a gap in the cones`); while (D.t < s.until - 1e-6) await tick(); onWait?.(null); }
+          if (D.t < s.until - 1e-6) { const gl = `${label || 'a man'}: a gap in the cones`; sayWait(gl); try { while (D.t < s.until - 1e-6) await tick(); } finally { unsayWait(gl); } }
           continue;
         }
         // (walking on from the leg before he may be a stride early: within the plan's margin before; a leg clicked as
@@ -1178,7 +1238,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
         let late = false;
         for (const s of segs) {
           if (s.wait) {
-            if (D.t < s.until - 1e-6) { onWait?.(`${o.label || 'a man'}: a gap in the cones`); while (D.t < s.until - 1e-6) await tick(); onWait?.(null); }
+            if (D.t < s.until - 1e-6) { const gl = `${o.label || 'a man'}: a gap in the cones`; sayWait(gl); try { while (D.t < s.until - 1e-6) await tick(); } finally { unsayWait(gl); } }
             continue;
           }
           while (D.t < s.start - 1e-6) await tick();

@@ -243,7 +243,9 @@ export function predict(e, t, depth = 0) {
   if (lead && lead !== e && lead.alive && b.state !== 'DISTRACTED' && b.state === lead.brain?.state) {
     const lag = Math.hypot(e.x - lead.x, e.z - lead.z) / (lead.speed ?? 1.0);
     const q = predict(lead, t, 1), ql = t > lag ? predict(lead, t - lag, 1) : { heading: e.heading };
-    return { x: q.x + (e.x - lead.x), z: q.z + (e.z - lead.z), heading: ql.heading };
+    // (`w.sneakFileHalt`, opt-in) a file man walking behind his walking leader looks ahead as the leader does (only at
+    // a halt does his head sweep: walkerViews' amplitude follows the leader's halt flag, not the man's own sweep)
+    return { x: q.x + (e.x - lead.x), z: q.z + (e.z - lead.z), heading: ql.heading, ...(e.world?.sneakFileHalt ? { halt: q.halt } : {}) };
   }
   const ROUTE_STATES = ['IDLE', 'REINFORCE', 'RETURN'];
   // a file whose leader is off his beat (drawn to a lure, searching...) holds round him: where he goes, they go
@@ -536,6 +538,9 @@ export function staticSees(e, d, w, t) {
   return hs.some((h) => { const g = ghostOn(m); g.heading = h; return canSee(g, d, w, { cone: coneAt(g, w.time + t) }) !== 'none'; });
 }
 
+/** A deck over water (a pier, a moored hull's deck, a bridge): dry footing for a man, whatever the terrain under it. */
+function onDeck(g, x, z) { const { i, j } = g.worldToCell(x, z); return g.inBounds(i, j) && !!g.bridge?.[g.idx(i, j)]; }
+
 /** Target dummies: a man ('crawl' low, 'walk'/'stand' upright), a boat (open, the men seated in it), a body. */
 export function dummyAt(w, mode, x, z) {
   if (mode === 'boat') return { x, z, y: 0, state: 'inVehicle', vehicle: { isOpenBoat: true, def: { seated: true, occludes: false } }, isVisibleToEnemies: true, alive: true, hull: true };
@@ -596,6 +601,8 @@ export function clearFor(D, pts, dur = 2, { mode = 'walk', except = null, why = 
 /**
  * Would a man (mode 'crawl' / 'walk') or a boat ('boat') going along `pts` from `from` (default: where he is) at
  * `speed` m/s, setting off in `delay` s, stay unseen? Each sample is tried at the moment he passes it (± `slack` s).
+ * `wheel: false` drops the squad men's any-heading turn at the corners of their rounds (for a caller that has checked
+ * how a given squad really turns).
  */
 export function routeClear(D, pts, o = {}) {
   const it = routeClearGen(D, pts, o);
@@ -603,7 +610,7 @@ export function routeClear(D, pts, o = {}) {
 }
 
 /** routeClear as a generator (the same answer; it yields every few looks: a sliced wait hands the frame back). */
-export function* routeClearGen(D, pts, { mode = 'walk', from, speed, delay = 0, step = 0.75, slack = 0.5, slackRate = 0, hold = 0, why = null, except = null, keepWalker = 4, pad = 0, hint = null } = {}) {
+export function* routeClearGen(D, pts, { mode = 'walk', from, speed, delay = 0, step = 0.75, slack = 0.5, slackRate = 0, hold = 0, why = null, except = null, keepWalker = 4, pad = 0, hint = null, wheel = true } = {}) {
   const w = D.world;
   const sp = speed ?? (mode === 'boat' ? 2.5 : mode === 'crawl' ? 0.9 : 1.5);
   let [x, z] = from ?? (() => { throw new Error('routeClear: from'); })();
@@ -638,7 +645,7 @@ export function* routeClearGen(D, pts, { mode = 'walk', from, speed, delay = 0, 
           seen = dd < keepWalker || walkerSees(e, q, dummyFor(w, mode, sx, sz, q.x, q.z), w, w.time + tt)
             || (p2 && walkerSees(e, q, padded(dummyFor(w, mode, p2[0], p2[1], q.x, q.z), w.grid.elevAt?.(sx, sz) ?? 0), w, w.time + tt))
             // a squad man wheeling round at a corner of its round may face any way
-            || (wheeling(e, tt) && [0, 1, 2, 3, 4, 5, 6, 7].some((r) => walkerSees(e, { ...q, heading: (r * Math.PI) / 4 }, dummyFor(w, mode, sx, sz, q.x, q.z), w, w.time + tt)));
+            || (wheel && wheeling(e, tt) && [0, 1, 2, 3, 4, 5, 6, 7].some((r) => walkerSees(e, { ...q, heading: (r * Math.PI) / 4 }, dummyFor(w, mode, sx, sz, q.x, q.z), w, w.time + tt)));
         } else {
           if (Math.hypot(e.x - sx, e.z - sz) > far + hull + pad) continue;
           const p2 = near(e.x, e.z);
@@ -841,7 +848,7 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     const x = cx(c), z = cz(c);
     let ok;
     if (mode === 'boat') ok = [[0, 0], [0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]].every(([a, b]) => boat.passableAt(x + a, z + b));
-    else { const t = g.terrainAt(x, z); ok = g.walkableAt(x, z, walkOpt) && (o.wade || (t !== T.WATER && t !== T.SHALLOW)); }
+    else { const t = g.terrainAt(x, z); ok = g.walkableAt(x, z, walkOpt) && (o.wade || (t !== T.WATER && t !== T.SHALLOW) || onDeck(g, x, z)); }
     if (ok) ok = !statics.some((e) => Math.hypot(e.x - x, e.z - z) < keep) && !(o.avoid || []).some(([ax, az, r]) => Math.hypot(ax - x, az - z) < r)
       && !(o.forbid || []).some((poly) => inPoly(poly, x, z)) // (`forbid`: polygons [[x, z], …] never entered, as driver.planSneak)
       && (mode === 'boat' || !mates.some((m) => Math.hypot(m.x - x, m.z - z) < 1.2));
