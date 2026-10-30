@@ -2,7 +2,24 @@
  * The cut for the M18 solution film (tools/solutions/capture-video.mjs): stage titles, step captions, title / end
  * cards, fixed camera shots and real-time windows. Times come from a logic-only pass of the same run (cp(k) = time of
  * checkpoint k, objT(o) = time objective o was done).
+ *
+ *  - FRAME_WAITS: M18 is 28 game minutes of stealth and much of it is waiting for a moment (the first pair in the south-east corner
+ *    for the edge's one gap, the second pair behind them, the Marine under water by the north island for e20's quiet moment, the boat
+ *    in open water for Patrol 46 to turn north). The speed director runs those at 16x and more, and the camera, staying on the man who
+ *    lies still, would show a bare patch of ground with the guards the wait is for pacing at its edge; with the wait framing the
+ *    camera shows him together with the guards the walkthrough step names (docs/mission-videos.md). The cut's own `shots` still win
+ *    over it.
+ *
+ * What it does not mend: three stretches of stage B in which the picture is a dark field with one man in it, the clock racing at 8x
+ * to 16x (the first pair edging west in the corner, B0b to B1, 3 s of film; its crawl along the south edge, B1 to B2, 6 s; its wait in
+ * the lorry's lee for the second pair, B3 to B4, 4.5 s). The film of 2026-10-30 has them time-lapsed after the capture (every 2nd, 4th
+ * and 3rd frame of those stretches kept, 9 s of film less: 4:20 instead of 4:29, and the speed badge there is the capture's, not the
+ * lapse's); windows at 32x over those steps are the way to mend them at the source (it needs a new capture, 20 minutes). F3's fixed
+ * shot (95, 124, zoom 0.6) keeps the lorry at the picture's top-right edge for most of the 8 s of film before F3 (its route goes up
+ * the road and round over the grass): a centre further north-east would hold it.
  */
+export const FRAME_WAITS = true;
+
 export const TITLES = {
   A: 'A · Off the start: down to the SE corner of the fields',
   B: 'B · Two by two along the last metre of the south edge',

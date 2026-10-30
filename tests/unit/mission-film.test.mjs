@@ -696,6 +696,27 @@ test('m19.cut: the wait framing is on and the Green Beret\'s two long waits for 
   assert.deepEqual(notes(() => undefined, () => undefined, []), []);
 });
 
+test('m18.cut: the wait framing is on; titles and captions are the walkthrough\'s chapters and steps, the bridge\'s blast and the lorry\'s drives are filmed, the end card says what the run did', async () => {
+  const cut = await import('../../tools/solutions/m18.cut.mjs');
+  const { WALKTHROUGH: W } = await import('../../tools/solutions/m18.walkthrough.mjs');
+  assert.equal(cut.FRAME_WAITS, true, 'a stealth mission of waits: the camera shows the guards the wait is for');
+  assert.deepEqual(Object.keys(cut.TITLES), W.chapters.map((c) => c.id), 'one stage title per chapter');
+  assert.deepEqual(Object.keys(cut.CAPTIONS).sort(), W.steps.map((s) => s.cp).sort(), 'one caption per step: the cut words every checkpoint');
+  for (const [k, c] of Object.entries(cut.CAPTIONS)) assert.ok(c.length > 0 && c.length <= CAPTION_MAX, `${k}: ${c.length} characters`);
+  // the times of the film of 2026-10-30 (pass 1 of the final run)
+  const at = { D2: 918.7, E0: 1033.2, E0b: 1061.2, F3: 1479.4, F4: 1488.4, G1: 1673.3, G2: 1674.0 }, cp = (k) => at[k], objT = (o) => (o === 'o1' ? 1674.0 : undefined);
+  const S = cut.shots(cp, objT), Wn = cut.windows(cp, objT);
+  assert.ok(S.every((s) => s.t1 > s.t0 && Number.isFinite(s.x) && Number.isFinite(s.z) && s.zoom > 0.3 && s.zoom < 1.3), 'shots frame something');
+  assert.ok(S.some((s) => s.t0 < 1674.0 && s.t1 > 1674.0 && s.zoom <= 0.6 && s.prio >= 2), 'the span falling is one wide shot');
+  assert.ok(Wn.every((w) => w.t1 > w.t0 && w.speed >= 1 && w.speed <= 2), 'windows are the real-time beats (the dive, the harpoons, the lorry\'s drives, the blast)');
+  assert.ok(Wn.some((w) => w.t0 < 1674.0 && w.t1 > 1674.6 && w.speed === 1), 'the blast and the escape are in real time');
+  assert.deepEqual([cut.windows(() => undefined, () => undefined), cut.shots(() => undefined, () => undefined)], [[], []], 'a run without those checkpoints gets no cut');
+  const D = { events: [{ name: 'unit:killed' }, { name: 'unit:killed' }, { name: 'unit:killed' }, { name: 'other' }], detections: () => 0 };
+  const card = cut.END_CARD({ time: 1674.6, objectives: [{ done: true, text: 'Blow up the bridge' }, { done: true, text: 'Escape' }] }, D);
+  assert.ok(card.includes('27:54') && card.includes('detections: 0') && card.includes('enemies killed: 3') && card.includes('all four commandos alive'), 'the end card gives the run\'s time, detections and kills');
+  assert.ok(cut.TITLE_CARD.includes('Mission 18') && cut.TITLE_CARD.includes('never spotted'));
+});
+
 test('film-camera: the view is centred on the walking surface (a deck), not on the terrain relief under it', () => {
   // M5: the summit is a 16 m deck; the barracks' footprint (a 6 m radius here) has no walking surface and the relief under it says 0.5
   const world = { groundY: () => 0.5, grid: { surfaceY: (x, z) => (Math.hypot(x - 100, z - 50) < 6 ? 0 : 16) } };

@@ -104,6 +104,12 @@ The Spy takes the German uniform from the clothesline and drives the lorry onto 
 
 [![Mission 16 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 5 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m16.jpg)](docs/screenshots/storyboards/m16.jpg)
 
+### Mission 18 · The Force of Circumstance
+
+The Marine dives under the bridge to the north island, harpoons the sentry beside the moored boat and carries the boat back; he harpoons the machine-gunner and a walker on the bridge island from the water and rows the Sapper over, and the Sapper takes the three German charges from the green case; the Driver takes the lorry, with the other three aboard, up to the end of the bridge deck, where the Germans take it for one of their own; the Sapper crawls out, sets a charge at each of the three marked points and, back at the lorry's door, sets all three off, so that the span falls into the Maas; all four drive out in the lorry. The Green Beret takes no part but to ride in it. *Game time 27:54 (film 4:20), 0 detections, 3 kills, all 4 commandos alive.*
+
+[![Mission 18 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 7 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m18.jpg)](docs/screenshots/storyboards/m18.jpg)
+
 ### Mission 19 · Frustrate Retaliation
 
 The Marine dives to the moored rowboat and ferries the team across the river; the Sniper shoots three guards and a guard dog from outside the palisade; the Green Beret climbs in, knifes one guard, lays a decoy and sets three barrels by the V2 rockets; the Sniper's fifth and sixth rounds into the barrels destroy all three rockets, and the Marine lets the current carry the boat out with all four aboard. *Game time 33:43 (film 4:25), 0 detections, 5 kills, all 4 commandos alive.*
@@ -129,7 +135,7 @@ first, see [Status](#status)); until then it keeps its single in-game frame.
 </tr>
 <tr>
 <td align="center" width="33%"><a href="verify/reference/gameplay-m17.png"><img src="verify/reference/gameplay-m17.png" width="100%" alt="Mission 17: The squad moving up the snowy forest road, point man ringed."></a><br><sub><b>Mission 17</b> · Before Dawn</sub></td>
-<td align="center" width="33%"><a href="verify/reference/gameplay-m18.png"><img src="verify/reference/gameplay-m18.png" width="100%" alt="Mission 18: The Maas bridge mid-collapse into the river, charges fired at the three marked points (&quot;THE BRIDGE IS DOWN&quot;)."></a><br><sub><b>Mission 18</b> · The Force of Circumstance</sub></td>
+<td></td>
 <td></td>
 </tr>
 </table>
