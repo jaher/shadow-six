@@ -647,6 +647,12 @@ test('m10.cut: only the wait framing is switched on (the rest is the generic dir
   assert.deepEqual(Object.keys(cut), ['FRAME_WAITS'], 'nothing else is overridden: titles, captions, cards, shots and speeds stay the generic ones');
 });
 
+test('m09.cut: only the wait framing is switched on (the rest is the generic director\'s)', async () => {
+  const cut = await import('../../tools/solutions/m09.cut.mjs');
+  assert.equal(cut.FRAME_WAITS, true, 'a stealth mission of waits: the camera shows the guards the wait is for');
+  assert.deepEqual(Object.keys(cut), ['FRAME_WAITS'], 'nothing else is overridden: titles, captions, cards, shots and speeds stay the generic ones');
+});
+
 test('m20.cut: only the wait framing is switched on (the rest is the generic director\'s)', async () => {
   const cut = await import('../../tools/solutions/m20.cut.mjs');
   assert.equal(cut.FRAME_WAITS, true, 'a stealth mission of waits: the camera shows the guards the wait is for');

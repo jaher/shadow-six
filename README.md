@@ -62,6 +62,12 @@ The Green Beret knifes sixteen guards from behind, several drawn in by a decoy, 
 
 [![Mission 8 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 27 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m08.jpg)](docs/screenshots/storyboards/m08.jpg)
 
+### Mission 9 · A Courtesy Call
+
+The Green Beret knifes seven guards (the three-man patrol outside the south-east wall, the forecourt's e3 and the three-man patrol outside the west wall) and carries the forecourt's dead out of sight; the Sniper shoots five (the forecourt's e2 and e1, and the courtyard patrol's three men through the gap while the Spy holds their sergeant in talk); the Spy, in German uniform, injects six (the north yard's four guards and the east gate's two); the Sapper plants a remote bomb at the barracks door and another between the radio hut and the dish; the Driver parks the fuel tanker across the Panzers' bays; the first blast razes the barracks and raises the alarm, the woken Panzers shoot the tanker and its fireball wrecks all three, and the Green Beret's pistol shots set off a fuel drum at the bunker and the drum pile (weapons store and command post); all five drive out in the lorry that comes in along the west road. *Game time 12:45 (film 4:20), 0 detections, 18 kills, all 5 commandos alive.*
+
+[![Mission 9 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 8 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m09.jpg)](docs/screenshots/storyboards/m09.jpg)
+
 ### Mission 10 · Operation Icarus
 
 The Green Beret knifes twelve guards (the four sentries in the ruins, Patrol 4's three men, the guard on the compound's west wall and the compound's four, five of them drawn to a decoy first) and frees McRae from the cage; the Sapper's time bomb destroys the bomb store; the Sniper shoots two machine-gunners covering the road up to the airfield and the Sapper's two grenades kill the nine men in the dugout at the ramp head; McRae flies the Junkers out with the team aboard. *Game time 21:14 (film 4:53), 0 detections, 23 kills, all 4 commandos alive.*
@@ -131,12 +137,7 @@ first, see [Status](#status)); until then it keeps its single in-game frame.
 <tr>
 <td align="center" width="33%"><a href="verify/reference/gameplay-m04.png"><img src="verify/reference/gameplay-m04.png" width="100%" alt="Mission 4: The German headquarters villa exploding in the village square."></a><br><sub><b>Mission 4</b> · Restore Pride</sub></td>
 <td align="center" width="33%"><a href="verify/reference/gameplay-m07.png"><img src="verify/reference/gameplay-m07.png" width="100%" alt="Mission 7: The first U-boat blowing up at the pier as the after-deck charge detonates."></a><br><sub><b>Mission 7</b> · Chase of the Wolves</sub></td>
-<td align="center" width="33%"><a href="verify/reference/gameplay-m09.png"><img src="verify/reference/gameplay-m09.png" width="100%" alt="Mission 9: The radio hut exploding inside the walled compound."></a><br><sub><b>Mission 9</b> · A Courtesy Call</sub></td>
-</tr>
-<tr>
 <td align="center" width="33%"><a href="verify/reference/gameplay-m17.png"><img src="verify/reference/gameplay-m17.png" width="100%" alt="Mission 17: The squad moving up the snowy forest road, point man ringed."></a><br><sub><b>Mission 17</b> · Before Dawn</sub></td>
-<td></td>
-<td></td>
 </tr>
 </table>
 
