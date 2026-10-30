@@ -422,6 +422,9 @@ export class Walkthrough extends SolutionReplay {
   start() {
     const w = this.world;
     const on = (name, fn) => w.events?.on?.(name, fn);
+    // (the title card, a held chapter card, a jump: still screens — the HD upgrades go on at the briefing's pace there)
+    this._still = () => this._stillScreen();
+    this.game.stillScreen = this._still;
     this._offs = [
       on('unit:killed', (p) => { this._event({ kind: 'kill', tag: targetTag(p.unit) }); this._calm(2.5); }),
       on('enemy:state', (p) => {
@@ -1782,6 +1785,7 @@ export class Walkthrough extends SolutionReplay {
   _release() {
     if (this._released) return;
     super._release();
+    if (this.game.stillScreen === this._still) this.game.stillScreen = null;
     clearTimeout(this._introTimer);
     clearTimeout(this._scopeWarmT);
     this.scope.detach();

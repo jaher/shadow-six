@@ -293,12 +293,16 @@ function areaKey(grid, walkOpts, role, opts, hasLinks) {
 /** The rules (swim, role, noLinks, noWalkLinks) labellings were built for, oldest first (rewarmAreas). */
 const _recent = new WeakMap();
 const RECENT_MAX = 12;
-function areasFor(grid, walkOpts, role, opts, hasLinks) {
-  let per = _areas.get(grid);
-  if (!per || per.version !== grid.version || per.links !== grid.links) { per = { version: grid.version, links: grid.links, map: new Map() }; _areas.set(grid, per); }
-  const key = areaKey(grid, walkOpts, role, opts, hasLinks);
-  let lab = per.map.get(key);
-  if (lab) return lab;
+/** The labelling areasFor would return, when this grid version already has it (built by a search, warmAreas or
+ * rewarmAreas); else null — nothing is built. */
+function areasCached(grid, walkOpts, role, opts, hasLinks) {
+  const per = _areas.get(grid);
+  const lab = per && per.version === grid.version && per.links === grid.links ? per.map.get(areaKey(grid, walkOpts, role, opts, hasLinks)) : null;
+  if (!lab) noteRules(grid, walkOpts, role, opts); // (a search ran under these rules without it: rewarmAreas builds it)
+  return lab || null;
+}
+/** Note the rules (swim, role, noLinks, noWalkLinks) a search ran under, for rewarmAreas (newest last, RECENT_MAX kept). */
+function noteRules(grid, walkOpts, role, opts) {
   let rec = _recent.get(grid);
   if (!rec) _recent.set(grid, (rec = new Map()));
   const rk = `${walkOpts.swim ? 1 : 0}${opts.noLinks ? 1 : 0}${opts.noWalkLinks ? 1 : 0}|${role ?? ''}`;
@@ -306,6 +310,14 @@ function areasFor(grid, walkOpts, role, opts, hasLinks) {
     rec.set(rk, [!!walkOpts.swim, role, !!opts.noLinks, !!opts.noWalkLinks]);
     if (rec.size > RECENT_MAX) rec.delete(rec.keys().next().value);
   }
+}
+function areasFor(grid, walkOpts, role, opts, hasLinks) {
+  let per = _areas.get(grid);
+  if (!per || per.version !== grid.version || per.links !== grid.links) { per = { version: grid.version, links: grid.links, map: new Map() }; _areas.set(grid, per); }
+  const key = areaKey(grid, walkOpts, role, opts, hasLinks);
+  let lab = per.map.get(key);
+  if (lab) return lab;
+  noteRules(grid, walkOpts, role, opts);
   const cols = grid.cols, rows = grid.rows, N = grid.size, bare = { swim: !!walkOpts.swim, dive: !!walkOpts.dive };
   let open;
   if (bare.dive) { open = new Uint8Array(N); for (let j = 0, k = 0; j < rows; j++) for (let i = 0; i < cols; i++, k++) open[k] = grid.isWalkable(i, j, bare) ? 1 : 0; }
@@ -393,6 +405,8 @@ export function rewarmAreas(grid) {
   return false;
 }
 
+/** Expansions after which a search without this grid version's area labelling at hand builds it and asks it (searchPath). */
+export const AREAS_AT = 2000;
 /** Expansions after which a search asks whether its goal is shut in a small pocket (goalPocketExcludes). */
 export const POCKET_AT = 2500;
 /** Largest pocket (cells) worth enumerating for that question. */
@@ -483,9 +497,43 @@ function stepOutToward(grid, sx, sz, tx, tz, nearest, walkOpts) {
   return best;
 }
 
+/**
+ * The last search findPath ran to its goal on a grid, kept for the one after it when that one asks the same or differs
+ * only in its body-clearance mask (`avoid`) — Unit._planPath asks the same way once per inflation tier, every guard who hears a
+ * blast (M2's depot: ~30 searches in its tick). Neither mask holding a cell within REUSE_PAD of the box the first search
+ * looked at (start and goal, every cell it expanded and their neighbours, the links' far ends — the smoothing's lines
+ * run between its path's points, inside it), both searches test the same cells with the same answers: the same path,
+ * the same cells expanded (counted again on searchStats). Never for a search that moved its start or goal (the nearest
+ * free cell: a ring search), went past AREAS_AT cells (caches keyed by its mask), a dynamic one (the vehicle layer is
+ * restamped within a tick), a dive, a crawler's (alignRuns looks further) — and only within one grid version and epoch.
+ */
+const _lastFound = new WeakMap();
+const REUSE_PAD = 2;
+const sameRules = (a, b) => a.role === b.role && !!a.noLinks === !!b.noLinks && !!a.noWalkLinks === !!b.noWalkLinks && !!a.swim === !!b.swim
+  && (a.maxNodes ?? 40000) === (b.maxNodes ?? 40000) && a.smooth === b.smooth && !!a.taut === !!b.taut && a.memo === b.memo;
+function maskClear(grid, m, box) {
+  if (!m) return true;
+  const cols = grid.cols, i0 = Math.max(0, box[0] - REUSE_PAD), j0 = Math.max(0, box[1] - REUSE_PAD);
+  const i1 = Math.min(cols - 1, box[2] + REUSE_PAD), j1 = Math.min(grid.rows - 1, box[3] + REUSE_PAD);
+  for (let j = j0; j <= j1; j++) for (let k = j * cols + i0, e = j * cols + i1; k <= e; k++) if (m[k]) return false;
+  return true;
+}
+const copyPath = (p) => p.map((q) => (q.link ? { ...q, link: { ...q.link } } : { ...q }));
 export function findPath(grid, sx, sz, tx, tz, opts = {}) {
-  const info = { endBlocked: false };
+  const plain = !opts.dynamic && !opts.dive && !opts.lying;
+  if (plain) {
+    const L = _lastFound.get(grid);
+    if (L && L.version === grid.version && L.sx === sx && L.sz === sz && L.tx === tx && L.tz === tz
+      && sameRules(opts, L.opts) && (opts.avoid === L.avoid || maskClear(grid, opts.avoid, L.box))) {
+      searchStats.expanded += L.expanded;
+      return copyPath(L.path);
+    }
+  }
+  const info = { endBlocked: false, moved: false, box: null, expanded: 0 };
   const p = searchPath(grid, sx, sz, tx, tz, opts, false, info);
+  if (p && plain && info.box && !info.moved && info.expanded < AREAS_AT && maskClear(grid, opts.avoid, info.box)) {
+    _lastFound.set(grid, { version: grid.version, sx, sz, tx, tz, avoid: opts.avoid || null, opts: { ...opts }, box: info.box, expanded: info.expanded, path: copyPath(p) });
+  }
   if (p || !info.endBlocked) return p;
   // (shut out where a body-clearance mask covers a ladder's end — a tank ladder's foot a step from its shell, M8's deck
   // ladders: again, the ladder ends open as the ladders' own ends only. A search that never needs them runs as it
@@ -553,6 +601,7 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
     // him. Not a crawler: his length does not turn or slide out where a free cell's centre does — M15, the Spy)
     if (opts.taut && !opts.lying && walkOpts.avoid) n = stepOutToward(grid, sx, sz, tx, tz, n, walkOpts) || n;
     si = n.i; sj = n.j; start = { x: n.x, z: n.z };
+    if (info) info.moved = true;
   }
   // Goal: substitute the nearest walkable cell within 3 m.
   let goal = { x: tx, z: tz };
@@ -561,22 +610,34 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
     const n = grid.nearestWalkable(tx, tz, nearR, walkOpts);
     if (!n) return null;
     gi = n.i; gj = n.j; goal = { x: n.x, z: n.z };
+    if (info) info.moved = true;
   }
   // (a stride's reach off the wall: the leading boot of a unit arriving at a run stops short of it)
   goal = clearOfWalls(grid, goal.x, goal.z, gi, gj, GOAL_CLEARANCE);
   if (si === gi && sj === gj) return [start, goal];
 
   const startK = sj * cols + si, goalK = gj * cols + gi;
-  // (the goal in another walkable area than the start: no search can join them — areasFor)
-  if (!walkOpts.dive) {
-    const lab = areasFor(grid, walkOpts, role, opts, hasLinks);
-    if (lab[startK] && lab[goalK] && lab[startK] !== lab[goalK]) return null;
+  // (the goal in another walkable area than the start: no search can join them — areasFor. Asked at once when this grid
+  // version's labelling is at hand; else only when the search runs on past AREAS_AT cells or ends without the goal —
+  // a search that finds its goal never needed it (a blast's tick: every guard who heard it off to it, the labelling
+  // built anew after each of the blast's version bumps, ~1.5–3 ms a time). The same answer: a search that finds its
+  // goal joins two cells of one area, and one that learns late that the areas differ returns null as it would have at
+  // once — the cells it expanded taken back off searchStats, its ladder-end note (info.endBlocked) as it found it)
+  let areasDone = !!walkOpts.dive;
+  if (!areasDone) {
+    const lab = areasCached(grid, walkOpts, role, opts, hasLinks);
+    if (lab) { areasDone = true; if (lab[startK] && lab[goalK] && lab[startK] !== lab[goalK]) return null; }
   }
+  const apart = () => {
+    areasDone = true;
+    const lab = areasFor(grid, walkOpts, role, opts, hasLinks);
+    return !!(lab[startK] && lab[goalK] && lab[startK] !== lab[goalK]);
+  };
   // (a failed search this epoch reached this start but not this goal: the goal is out of this start's reach too)
   const memo = opts.memo != null && !walkOpts.dynamic ? failMemo(grid, opts.memo) : null;
   const memoKey = memo ? failKey(walkOpts, opts) + (ends ? '|ends' : '') : null;
   if (memo) {
-    for (const reach of memo.sets.get(memoKey) || EMPTY_SETS) if (reach[startK] && !reach[goalK]) { if (info && reach.endBlocked) info.endBlocked = true; return null; }
+    for (const reach of memo.sets.get(memoKey) || EMPTY_SETS) if (reach[startK] && !reach[goalK]) { if (!areasDone && apart()) return null; if (info && reach.endBlocked) info.endBlocked = true; return null; }
     // (or this goal's pocket — every cell that can reach it — was enumerated this epoch, without this start)
     const pocket = memo.pockets.get(`${memoKey}|${goalK}`);
     if (pocket && !pocket.has(startK)) return null;
@@ -597,6 +658,11 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
   heap.push(startK);
   let expanded = 0;
   let found = false, capped = false;
+  // (what an at-once area answer would have left: see `apart` above)
+  const expanded0 = searchStats.expanded, endBlocked0 = info ? info.endBlocked : false;
+  // (the box of cells the search looks at: the cells it expands, the links' far ends — findPath's reuse)
+  let bi0 = Math.min(si, gi), bi1 = Math.max(si, gi), bj0 = Math.min(sj, gj), bj1 = Math.max(sj, gj);
+  const giveBack = () => { searchStats.expanded = expanded0; if (info) info.endBlocked = endBlocked0; return null; };
   const terrain = grid.terrain, bridge = grid.bridge;
   // (the common case — on foot or swimming, no ladder ends to open: `open` is grid.isWalkable(walkOpts) — tested inline
   // on the layers, cell by cell: the same answers without the call and its option lookups per neighbour)
@@ -618,6 +684,7 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
     if (k === goalK) { found = true; break; }
     if (++expanded > maxNodes) { capped = true; break; }
     searchStats.expanded++;
+    if (expanded === AREAS_AT && !areasDone && apart()) return giveBack();
     // (a long search: is the goal shut in a small pocket this start cannot be in? then it fails — no need to flood)
     // (a goal already found this epoch to have more than POCKET_MAX cells able to reach it is in no small pocket, whatever
     // the start: that enumeration never depended on the start but to stop at it — three guards off to one blast ask once)
@@ -628,6 +695,8 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
       if (po.wide && memo) memo.wide.add(`${memoKey}|${goalK}`);
     }
     const i = k % cols, j = (k - i) / cols;
+    if (i < bi0) bi0 = i; else if (i > bi1) bi1 = i;
+    if (j < bj0) bj0 = j; else if (j > bj1) bj1 = j;
     // (a ladder end the clearance mask shuts, reached on foot: only its ladder goes on from it)
     const endOnly = ends !== null && walkOpts.avoid[k] && via[k] === 0 && k !== startK;
     for (let d = 0; d < 8 && !endOnly; d++) {
@@ -670,6 +739,8 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
         const nk = L.ka === k ? L.kb : L.ka;
         if (closed[nk] === id) continue;
         const ni = nk % cols, nj = (nk - ni) / cols;
+        if (ni < bi0) bi0 = ni; else if (ni > bi1) bi1 = ni;
+        if (nj < bj0) bj0 = nj; else if (nj > bj1) bj1 = nj;
         if (!open(ni, nj)) { if (meet) meet(ni, nj); continue; }
         const ng = g[k] + Math.hypot(ni - i, nj - j) + L.cost / c;
         if (stamp[nk] !== id || ng < g[nk]) {
@@ -684,6 +755,7 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
     }
   }
   if (!found) {
+    if (!areasDone && apart()) return giveBack();
     // every cell this start reaches is closed now: remember them for the epoch (see failMemo)
     if (memo && !capped && memo.n < FAIL_MEMO_MAX) {
       const reach = new Uint8Array(grid.size);
@@ -696,6 +768,12 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
     return null;
   }
 
+  if (info) {
+    // (and the goal point clearOfWalls set, the start point: the path's smoothing draws its lines between them)
+    const gpi = Math.floor(goal.x / c), gpj = Math.floor(goal.z / c), spi = Math.floor(start.x / c), spj = Math.floor(start.z / c);
+    info.box = [Math.min(bi0, gpi, spi), Math.min(bj0, gpj, spj), Math.max(bi1, gpi, spi), Math.max(bj1, gpj, spj)];
+    info.expanded = expanded;
+  }
   // Reconstruct cell chain.
   const cellsRev = [];
   for (let k = goalK; k !== -1; k = parent[k]) cellsRev.push(k);

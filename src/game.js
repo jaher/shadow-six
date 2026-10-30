@@ -169,8 +169,16 @@ export class Game {
     this.selection.xrayHidden = (o) => this.renderer.passes?.xray?.isHidden(o) ?? true;
     safe(() => this.selection.decoyWaves.install(this.renderer), 'decoy refraction pass'); // (a post pass after the world: the bent air of a beeping decoy)
     assets.init(this.renderer.renderer, this.events);
+    /**
+     * A still screen over a running game (debug video mode: the walkthrough's title card, a chapter card held, a jump's
+     * fast-forward — debug/walkthrough.js sets it): nothing moves that a hitch would show, so the HD upgrades go on at
+     * the briefing's pace there, not play's (perf/m02: the title card is up while the state is already 'playing' — the
+     * terrain arrays' GPU compression then landed in the first seconds of play, 70–120 ms frames). null: none.
+     * @type {(() => boolean)|null}
+     */
+    this.stillScreen = null;
     // the bodies' HD textures stream in after each loading screen (engine/hd-textures.js, perf/download-speed-2)
-    safe(() => startHdTextures({ renderer: this.renderer.renderer, playing: () => this.state === 'playing', active: () => !!this.world }), 'hd textures');
+    safe(() => startHdTextures({ renderer: this.renderer.renderer, playing: () => this.state === 'playing' && !this.stillScreen?.(), active: () => !!this.world }), 'hd textures');
 
     const createAudio = pick(AudioMod, 'createAudio', 'default');
     this.audio = safe(() => createAudio?.(this.events), 'audio') || null;

@@ -895,3 +895,6 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 
 ## 2026-10-30 — Characters detail perf merged to master (perf lane 2)
 - perf/characters-detail merged (d431d3f68): skeletons update once per drawn frame, the kit is instanced, far idle steps are staggered, bones are pruned, the scope lens keeps the kit batches. characters-perf 4.10 ms/frame for 46 characters; unit 2514/0; render-budget m03/m11/m18, m03-solution and debug-walkthrough-sim passed. Later master commits merged in untested; video-perf-mission not run.
+
+## 2026-10-30 — M02 perf merged to master (perf lane 3)
+- perf/m02 merged (25cbc7366): raft-trip wait look-ahead 0.70->0.27 ms/tick, blast path reuse, hypot2/3 allocation 2.1->0.6 GB/run, pixel-store cache, HD upgrades paced on walkthrough still screens; sim identical (m02-solution win 1200.9). Unit 2531 passed. Wall-clock video-perf still shows shared-host spikes (66.7 ms worst); own CPU within bounds.

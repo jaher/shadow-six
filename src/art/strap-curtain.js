@@ -21,6 +21,8 @@
  */
 import * as THREE from 'three';
 import { canvasEval, canvasUniforms, canvasStateOf } from './cloth-wind.js';
+// (Math.hypot's double without its garbage: ~600 calls a tick here, ~2 GB of arrays over an M2 run — core/math.js hypot3)
+import { hypot3 } from '../core/math.js';
 
 /** Tunables. */
 export const STRAP_K = Object.freeze({
@@ -101,7 +103,7 @@ function chain(s) {
   const K = STRAP_K, P = s.P, n = K.seg + 1, l = s.l;
   for (let k = 1; k < n; k++) {
     const i = (k - 1) * 3, j = k * 3;
-    const dx = P[j] - P[i], dy = P[j + 1] - P[i + 1], dz = P[j + 2] - P[i + 2], d = Math.hypot(dx, dy, dz) || 1e-9;
+    const dx = P[j] - P[i], dy = P[j + 1] - P[i + 1], dz = P[j + 2] - P[i + 2], d = hypot3(dx, dy, dz) || 1e-9;
     const e = (d - l) / d;
     if (k === 1) { P[j] -= dx * e; P[j + 1] -= dy * e; P[j + 2] -= dz * e; continue; }
     const hx = dx * e * 0.5, hy = dy * e * 0.5, hz = dz * e * 0.5;
@@ -249,7 +251,7 @@ function lengths(s) {
   const P = s.P, n = STRAP_K.seg + 1, l = s.l;
   for (let k = 1; k < n; k++) {
     const i = (k - 1) * 3, j = k * 3;
-    const dx = P[j] - P[i], dy = P[j + 1] - P[i + 1], dz = P[j + 2] - P[i + 2], d = Math.hypot(dx, dy, dz) || 1e-9, e = l / d;
+    const dx = P[j] - P[i], dy = P[j + 1] - P[i + 1], dz = P[j + 2] - P[i + 2], d = hypot3(dx, dy, dz) || 1e-9, e = l / d;
     P[j] = P[i] + dx * e; P[j + 1] = P[i + 1] + dy * e; P[j + 2] = P[i + 2] + dz * e;
   }
 }
@@ -341,7 +343,7 @@ export const strapOffset = (C, i, k = STRAP_K.seg) => C.straps[i].P[k * 3] - C.s
 /** Speed of the fastest link over the last substep (m/s): settled when tiny. */
 export function curtainMotion(C) {
   let m = 0;
-  for (const s of C.straps) for (let j = 3; j < s.P.length; j += 3) m = Math.max(m, Math.hypot(s.P[j] - s.Q[j], s.P[j + 1] - s.Q[j + 1], s.P[j + 2] - s.Q[j + 2]));
+  for (const s of C.straps) for (let j = 3; j < s.P.length; j += 3) m = Math.max(m, hypot3(s.P[j] - s.Q[j], s.P[j + 1] - s.Q[j + 1], s.P[j + 2] - s.Q[j + 2]));
   return m / STRAP_K.maxDt;
 }
 

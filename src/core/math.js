@@ -16,8 +16,51 @@ export const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
 /** @param {number} a @param {number} b @param {number} t */
 export const lerp = (a, b, t) => a + (b - a) * t;
 
-/** Euclidean distance between (ax,az) and (bx,bz). */
-export const dist = (ax, az, bx, bz) => Math.hypot(bx - ax, bz - az);
+/**
+ * Math.hypot(a, b), bit for bit, without its garbage (perf/m02). V8's builtin (builtins/math.tq MathHypot) takes the
+ * absolute values, scales them by the largest, Kahan-sums their squares and returns the root times the largest
+ * (Infinity before NaN, then NaN, then 0) — and allocates an array for those absolute values at every call: V8 never
+ * inlines it, so each call leaves ~56 bytes of garbage (M2's rear strap curtain alone made ~2 GB of it in one run, the
+ * game's biggest allocator there). This is the same arithmetic in the same order: the same double, no allocation once
+ * optimised, ~2.4× faster (tests/unit/hypot.test.mjs checks it against Math.hypot).
+ */
+export function hypot2(a, b) {
+  a = +a; b = +b;
+  const nan = a !== a || b !== b;
+  const x = Math.abs(a), y = Math.abs(b);
+  let max = 0;
+  if (x > max) max = x;
+  if (y > max) max = y;
+  if (max === Infinity) return Infinity;
+  if (nan) return NaN;
+  if (max === 0) return 0;
+  let sum = 0, comp = 0, n = x / max, s = n * n - comp, p = sum + s;
+  comp = (p - sum) - s; sum = p;
+  n = y / max; s = n * n - comp; p = sum + s; comp = (p - sum) - s; sum = p;
+  return Math.sqrt(sum) * max;
+}
+
+/** Math.hypot(a, b, c), bit for bit, without its garbage (see hypot2). */
+export function hypot3(a, b, c) {
+  a = +a; b = +b; c = +c;
+  const nan = a !== a || b !== b || c !== c;
+  const x = Math.abs(a), y = Math.abs(b), z = Math.abs(c);
+  let max = 0;
+  if (x > max) max = x;
+  if (y > max) max = y;
+  if (z > max) max = z;
+  if (max === Infinity) return Infinity;
+  if (nan) return NaN;
+  if (max === 0) return 0;
+  let sum = 0, comp = 0, n = x / max, s = n * n - comp, p = sum + s;
+  comp = (p - sum) - s; sum = p;
+  n = y / max; s = n * n - comp; p = sum + s; comp = (p - sum) - s; sum = p;
+  n = z / max; s = n * n - comp; p = sum + s; comp = (p - sum) - s; sum = p;
+  return Math.sqrt(sum) * max;
+}
+
+/** Euclidean distance between (ax,az) and (bx,bz) (Math.hypot's double: hypot2). */
+export const dist = (ax, az, bx, bz) => hypot2(bx - ax, bz - az);
 
 /** Squared distance between (ax,az) and (bx,bz). */
 export const dist2 = (ax, az, bx, bz) => {

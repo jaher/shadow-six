@@ -210,17 +210,26 @@ async function trip(D, who, { dry, ascent, last = false }) {
   const prep = edgeT + (dry ? 0.6 : 1.5 + 2.5) + CONFIG.abilities.raftDeploy; // (up on his feet) or (gear off, out of the shallows), then the raft
   const boardT = 3.5 * who.length; // each man up, a few steps and in
   const startT = prep + boardT + 0.5, landT = startT + ROW_T + 1.5;
-  await waitFor(D, function* (why) {
-    // (the crossing first: it is what the patrol boat rules out most of the time)
-    if (!(yield* routeClearG(D, CROSS, { mode: 'boat', from: LAUNCH, speed: 2.5, delay: startT, slack: 1.5, why }))) return false;
-    if (dry && !routeClear(D, [EDGE], { mode: 'walk', from: [dv.x, dv.z], speed: 1.3, delay: 0.6, slack: 1, why })) return false;
-    if (!(yield* holdClearG(D, ...LAUNCH, edgeT, prep - edgeT, 'walk', why))) return false;
-    if (!(yield* holdClearG(D, ...LAUNCH, prep, boardT + 1, 'boat', why))) return false;
-    for (const r of who) if (!(yield* holdClearG(D, D.c(r).x, D.c(r).z, prep, boardT, 'walk', why))) return false;
-    if (!(yield* holdClearG(D, ...LANDING, landT, PACK_T, 'boat', why)) || !(yield* holdClearG(D, ...LANDING, landT + 1, PACK_T, 'walk', why))) return false;
+  // the trip's conditions, all of which must hold: the one that failed last is asked first next time (the patrol boat
+  // rules out the crossing most of the time, the landing or the climb the rest — each a whole look-ahead of every
+  // guard), and within the crossing its last blocker first (routeClear `hint`): the same answer, a fraction of the work
+  const crossHint = {};
+  const conds = [
+    (why) => routeClearG(D, CROSS, { mode: 'boat', from: LAUNCH, speed: 2.5, delay: startT, slack: 1.5, why, hint: crossHint }),
+    ...(dry ? [function* (why) { return routeClear(D, [EDGE], { mode: 'walk', from: [dv.x, dv.z], speed: 1.3, delay: 0.6, slack: 1, why }); }] : []),
+    (why) => holdClearG(D, ...LAUNCH, edgeT, prep - edgeT, 'walk', why),
+    (why) => holdClearG(D, ...LAUNCH, prep, boardT + 1, 'boat', why),
+    ...who.map((r) => (why) => holdClearG(D, D.c(r).x, D.c(r).z, prep, boardT, 'walk', why)),
+    (why) => holdClearG(D, ...LANDING, landT, PACK_T, 'boat', why),
+    (why) => holdClearG(D, ...LANDING, landT + 1, PACK_T, 'walk', why),
     // (and from the landing straight up the wall, every man of them, before the boat comes back: nowhere on the strip
     // under the wall is out of its gunner's sight)
-    for (const a of ascent) if ((yield* outingClearG(D, a.role, LANDING, a.steps, why, { delay: landT + PACK_T })) === false) return false;
+    ...ascent.map((a) => function* (why) { return (yield* outingClearG(D, a.role, LANDING, a.steps, why, { delay: landT + PACK_T })) !== false; }),
+  ];
+  let failed = 0;
+  await waitFor(D, function* (why) {
+    if (!(yield* conds[failed](why))) return false;
+    for (let k = 0; k < conds.length; k++) if (k !== failed && !(yield* conds[k](why))) { failed = k; return false; }
     return true;
   }, 900, `the patrol boat's back turned, the camp looking away (raft: ${who.join(', ')})`);
   if (dry) { await D.stance('diver', 'stand'); await D.go('diver', ...EDGE, { tol: 0.4 }); }

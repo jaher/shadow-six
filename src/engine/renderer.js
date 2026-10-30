@@ -147,6 +147,34 @@ export function eightBitTargets(...rts) {
   for (const rt of rts) if (rt?.texture && rt.texture.type === THREE.HalfFloatType) { rt.texture.type = THREE.UnsignedByteType; rt.dispose(); }
 }
 
+/** The unpack rows three saves and restores round a sub-image upload (WebGLTextures updateTexture, copyTextureToTexture). */
+const UNPACK_ROWS = ['UNPACK_ROW_LENGTH', 'UNPACK_IMAGE_HEIGHT', 'UNPACK_SKIP_PIXELS', 'UNPACK_SKIP_ROWS', 'UNPACK_SKIP_IMAGES'];
+/**
+ * Keep three's pixel-store cache filled (perf/m02). three's WebGLState answers getParameter(UNPACK_ROW_LENGTH …) from its
+ * cache only for a value it set itself through state.pixelStorei; its reset() — renderer.resetState, after every GPU
+ * compressor job (engine/gpu-compress.js: the HD upgrades of the first minutes of play) and dropShadowColour — sets those
+ * rows to 0 with gl.pixelStorei and empties the cache. The next sub-image upload — the vfx pool's dirty rows
+ * (render/vfx/pool.js updateRanges), the blood atlas and mask copies (copyTextureToTexture) — then reads them with
+ * gl.getParameter, and Chromium answers UNPACK_ROW_LENGTH / UNPACK_IMAGE_HEIGHT with a synchronous round trip to the GPU
+ * process that waits for all the work queued before it (tools: commandos-shots/perf_m02/tools/getparam-bench.mjs): M2's
+ * walkthrough spent 55 ms inside one such call right after an HD upgrade's upload bands — a 74 ms long task. After each
+ * reset the cache gets the zeros reset() has just set (a pixelStorei of the same value: no GL round trip, no change).
+ * @param {THREE.WebGLRenderer} renderer
+ */
+export function keepUnpackCache(renderer) {
+  const gl = renderer?.getContext?.();
+  if (!gl || typeof renderer.resetState !== 'function' || renderer.__unpackCache) return;
+  const names = UNPACK_ROWS.map((n) => gl[n]).filter((p) => p !== undefined);
+  const prime = () => {
+    const st = renderer.state; // (a restored context brings a new WebGLState)
+    if (st?.pixelStorei && !gl.isContextLost?.()) for (const p of names) st.pixelStorei(p, 0);
+  };
+  const reset = renderer.resetState;
+  renderer.resetState = function (...a) { const out = reset.apply(this, a); prime(); return out; };
+  renderer.__unpackCache = true;
+  prime(); // (a fresh context's rows are 0)
+}
+
 const _v = new THREE.Vector3();
 const _m = new THREE.Matrix4();
 const _up = new THREE.Vector3(0, 1, 0);
@@ -177,6 +205,7 @@ export class Renderer {
     /** @type {THREE.WebGLRenderer} */
     this.renderer = r;
     this.domElement = r.domElement;
+    keepUnpackCache(r); // no synchronous getParameter round trip in a sub-image upload after a resetState
     installTextureMemory(r); // a restored context refills the textures whose page copy was released
     installGpuCompressor(r); // material maps go to the GPU as BC7 / ASTC (engine/gpu-compress.js)
     installShadowDepthPass(r); // library buildings' merged depth meshes stand in for their parts here (engine/depth-merge.js)

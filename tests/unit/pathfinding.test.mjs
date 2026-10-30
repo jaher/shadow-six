@@ -1,6 +1,6 @@
 import { test, assert } from './lib.mjs';
 import { NavGrid, B, T, LINK } from '../../src/world/grid.js';
-import { findPath, pathLength, warmAreas, rewarmAreas, REWARM_AFTER } from '../../src/world/pathfinding.js';
+import { findPath, pathLength, warmAreas, rewarmAreas, REWARM_AFTER, AREAS_AT, searchStats } from '../../src/world/pathfinding.js';
 
 /** Every consecutive segment must be walkable. */
 function assertWalkable(g, path, opts) {
@@ -176,4 +176,38 @@ test('rewarmAreas rebuilds the used labellings once the grid holds still, one a 
   assert.equal(built, 2, 'the two rule sets used (walk, swim), one a call');
   assert.deepEqual(run(warm), run(plain));
   assert.notEqual(run(warm)[0], 'null', 'through the gap');
+});
+
+test('a search without the area labelling at hand answers as with it, and counts the same cells searched', () => {
+  // west: a big field (more than AREAS_AT cells) and a small pen (fewer); east: the goals, behind a wall none can pass
+  const build = () => {
+    const g = new NavGrid(80, 40);
+    g.fillRect(50, 0, 1, 40, 'block', B.HIGH);
+    g.fillRect(0, 30, 6, 1, 'block', B.HIGH); g.fillRect(6, 30, 1, 10, 'block', B.HIGH); // the pen: x < 6, z > 30.5
+    return g;
+  };
+  const queries = [
+    [2, 2, 70, 20, {}], // field -> east: past AREAS_AT cells, then the labelling
+    [2, 35, 70, 20, {}], // pen -> east: the pen runs dry first
+    [2, 2, 45, 38, {}], // field -> field: found
+    [2, 35, 3, 31, {}], // pen -> pen: found
+    [2, 2, 70, 20, { maxNodes: 500 }], // capped before AREAS_AT
+    [2, 2, 70, 20, { memo: 7 }], [2, 2, 70, 20, { memo: 7 }], [30, 20, 70, 5, { memo: 7 }], // remembered failures
+  ];
+  const one = (g, [a, b, c, d, o]) => { const e0 = searchStats.expanded; const p = findPath(g, a, b, c, d, o); return [JSON.stringify(p), searchStats.expanded - e0]; };
+  const run = (g) => queries.map((q) => one(g, q));
+  const cold = build(), warm = build();
+  assert.ok(cold.size / 2 > AREAS_AT, 'the field outgrows AREAS_AT');
+  warmAreas(warm, {});
+  // (each query on a grid of its own, no labelling built yet — the remembered failures together, in order)
+  let fresh = null;
+  const a = queries.map((q, n) => one(n < 5 || n === 5 ? (fresh = build()) : fresh, q)), b = run(warm);
+  assert.deepEqual(a, b, 'the same paths, the same cells searched');
+  assert.equal(a[0][0], 'null'); assert.equal(a[0][1], 0, 'an unreachable goal costs no search');
+  assert.notEqual(a[2][0], 'null'); assert.ok(a[2][1] > 0);
+  // and after a change (the stale labelling never used): a gap in the wall
+  for (const g of [cold, warm]) { g.fillRect(50, 12, 1, 3, 'block', B.NONE); g.version++; }
+  warmAreas(warm, {});
+  assert.deepEqual(run(cold), run(warm));
+  assert.notEqual(run(cold)[0][0], 'null', 'through the gap');
 });
