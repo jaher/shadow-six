@@ -27,6 +27,7 @@
  */
 import { clearFor, routeClear, unwitnessed, bodySeen, predict, walking } from './sneak.mjs';
 import { canSee, coneAt } from '../../src/ai/perception.js';
+import { mirrorOf, ghostOn } from './ghost.mjs';
 
 const DBG = !!globalThis.process?.env?.M12DBG || !!globalThis.__M3DBG;
 
@@ -35,10 +36,10 @@ const bare = (u) => ({ x: u.x, z: u.z, y: u.y || 0, isLow: false, isVisibleToEne
 
 /** Does `e` (now, and over the next `ahead` s as predicted) have the bare man at (x, z, y) in his cone? */
 function eyesOn(D, e, man, ahead = 1.2) {
-  const w = D.world;
+  const w = D.world, me = mirrorOf(e); // (his ghosts read him through a mirror: ghost.mjs)
   for (let t = 0; t <= ahead + 1e-6; t += 0.2) {
     const q = walking(e) ? predict(e, t) : { x: e.x, z: e.z, heading: e.heading };
-    const g = Object.create(e); g.x = q.x; g.z = q.z; g.heading = q.heading;
+    const g = ghostOn(me); g.x = q.x; g.z = q.z; g.heading = q.heading;
     if (canSee(g, man, w, { cone: coneAt(g, w.time + t) }) !== 'none') return true;
   }
   return false;
@@ -58,10 +59,11 @@ function glanced(D, man, skip = [], ahead = 1.5, turn = 0.7) {
     if (Math.hypot(e.x - man.x, e.z - man.z) < (e.vision.far ?? 36) + 3 && canSee(e, man, w) !== 'none') return e.tag;
     if (!(e.route?.length > 1) || !walking(e)) continue; // (a post's sweep is modelled: coneAt)
     if (Math.hypot(e.x - man.x, e.z - man.z) > (e.vision.far ?? 36) + 3) continue;
+    const me = mirrorOf(e); // (his ghosts read him through a mirror: ghost.mjs)
     for (let t = 0; t <= ahead + 1e-6; t += 0.5) {
       const q = walking(e) ? predict(e, t) : { x: e.x, z: e.z, heading: e.heading };
       for (const dd of [0, 0.5, -0.5]) for (let o = -turn; o <= turn + 1e-6; o += turn / 4) {
-        const g = Object.create(e); g.x = q.x + Math.cos(q.heading) * dd; g.z = q.z + Math.sin(q.heading) * dd; g.heading = q.heading + o; g.sweepActive = false; g.headOffset = 0;
+        const g = ghostOn(me); g.x = q.x + Math.cos(q.heading) * dd; g.z = q.z + Math.sin(q.heading) * dd; g.heading = q.heading + o; g.sweepActive = false; g.headOffset = 0;
         if (canSee(g, man, w, { cone: coneAt(g, w.time + t) }) !== 'none') return e.tag;
       }
     }

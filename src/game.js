@@ -188,6 +188,8 @@ export class Game {
       if (this.world && (this.state === 'playing' || this.state === 'paused') && !this.manualTick) autoSave(this);
     };
     window.addEventListener('beforeunload', this._onUnload);
+    /** Inside a sim tick (step): see there. (Declared here: a field first added in play reshaped the game object.) */
+    this.inStep = false;
   }
 
   /** The active camera view (CameraController) of the multi-view rig. */

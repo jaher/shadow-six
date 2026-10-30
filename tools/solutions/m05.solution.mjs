@@ -22,6 +22,7 @@
 import { CONFIG } from '../../src/config.js';
 import { canSee, coneAt } from '../../src/ai/perception.js';
 import { sneak, clearFor, routeClear, unwitnessed, bodySeen, viewersOf, walking, predict } from './sneak.mjs';
+import { mirrorOf } from './ghost.mjs';
 
 const DBG = !!(globalThis.process?.env?.M05DBG || globalThis.__M3DBG);
 /** (dev) stop the run right after this checkpoint id */
@@ -74,7 +75,7 @@ async function kill(D, role, tag, stash, { strict = false, when = () => true, ma
   const SP = CONFIG.units.carry ?? 1.6, PICK = CONFIG.abilities.carry?.pick ?? 1.0;
   const why = [];
   let next = 0;
-  const upright = Object.create(u, { isLow: { value: false } });
+  let upright = null; // (him upright: a ghost made at each try, reading him as he is then — ghost.mjs)
   let nlog = 0, apNow = null;
   await D.until(() => {
     if (D.t < next) return false;
@@ -97,11 +98,12 @@ async function kill(D, role, tag, stash, { strict = false, when = () => true, ma
       const q = { x, z, heading: e.heading };
       const at = { x: e.x, z: e.z };
       const posts = viewersOf(D.world).filter((v) => !walking(v));
-      const killer = Object.create(u, { isLow: { value: false }, x: { value: q.x }, z: { value: q.z } });
+      const killer = Object.create(mirrorOf(u), { isLow: { value: false }, x: { value: q.x }, z: { value: q.z } });
       if (!unwitnessed(D, at, killer, { at: ta, ahead: 1.6, strict, why, except: [e] }) || !unwitnessed(D, at, killer, { at: ta, ahead: 1.6, strict: true, except: [e, ...posts], why })) { why.push('witness'); return false; }
       if (carry && !routeClear(D, carryWay(D, role, [e.x, e.z], [...via, stash]), { mode: 'walk', from: [e.x, e.z], speed: SP * 0.9, delay: ta + 2.4 + PICK, hold: 1.5, slack: 0.8, why, except: [e], keepWalker: 2 })) return false;
       return true;
     }
+    upright = Object.create(mirrorOf(u), { isLow: { value: false } });
     const back = Math.abs(Math.atan2(Math.sin(Math.atan2(u.z - e.z, u.x - e.x) - e.heading), Math.cos(Math.atan2(u.z - e.z, u.x - e.x) - e.heading)));
     if (back < (95 * Math.PI) / 180 || canSee(e, upright, D.world, { ignoreDisguise: true }) !== 'none') { why.push('victim faces him'); return false; }
     const posts = viewersOf(D.world).filter((v) => !walking(v));
@@ -166,12 +168,12 @@ async function hop(D, role, pts, { hold = 6, pad = 0.6, slack = 0.6, maxWait = 3
  * over the next `ahead` s (walkers as predicted, posts with their sweep), or null. `except`: men who do not count.
  */
 function eyesOn(D, u, { ahead = 1.2, except = [] } = {}) {
-  const w = D.world, man = Object.create(u, { disguised: { value: false } });
+  const w = D.world, man = Object.create(mirrorOf(u), { disguised: { value: false } });
   for (const e of w.enemies) {
     if (!e.alive || e.removed || !e.vision || e.incapacitated || except.includes(e)) continue;
     for (let t = 0; t <= ahead + 1e-6; t += 0.2) {
       const q = walking(e) ? predict(e, t) : { x: e.x, z: e.z, heading: e.heading };
-      const g = Object.create(e, { x: { value: q.x }, z: { value: q.z }, heading: { value: q.heading } });
+      const g = Object.create(mirrorOf(e), { x: { value: q.x }, z: { value: q.z }, heading: { value: q.heading } });
       if (canSee(g, man, w, { cone: coneAt(g, w.time + t) }) !== 'none') return e;
     }
   }
@@ -180,7 +182,7 @@ function eyesOn(D, u, { ahead = 1.2, except = [] } = {}) {
 
 /** A clear line of sight from `e` standing at `q` to a man standing at (x, z) (his cone turned straight at him). */
 function lineOfSight(D, e, q, x, z, brg) {
-  const g = Object.create(e, { x: { value: q.x }, z: { value: q.z }, heading: { value: brg }, sweepActive: { value: false }, headOffset: { value: 0 }, headCarry: { value: 0 } });
+  const g = Object.create(mirrorOf(e), { x: { value: q.x }, z: { value: q.z }, heading: { value: brg }, sweepActive: { value: false }, headOffset: { value: 0 }, headCarry: { value: 0 } });
   return canSee(g, { x, z, y: 0, isLow: false, kind: 'commando', alive: true, isVisibleToEnemies: true }, D.world) !== 'none';
 }
 

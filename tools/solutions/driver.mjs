@@ -12,6 +12,8 @@
  * Helpers that look ahead (seers, clearAhead, whoSees) read the same §4.2 cone rules the AI uses
  * (src/ai/perception.js): the script watches the cones like a player does before moving a man.
  */
+import { takeHeap, giveHeap, takeSet, giveSet } from './state-heap.mjs';
+import { mirrorOf, ghostOn } from './ghost.mjs';
 import { canSee, coneAt, pointInCone, targetClass, newCone } from '../../src/ai/perception.js';
 import { viewerFor, canSeeVehicle } from '../../src/ai/vehicle-ai.js';
 import { T } from '../../src/world/grid.js';
@@ -92,11 +94,12 @@ function walkerSees(e, q, dummy, w, tAbs) {
   // (the same heads in the same order as `for (hd of [heading, alt?]) for (off of [0, ±amp/2, ±amp])`, without the
   // arrays: this runs for every walker, every sample of every look-ahead)
   const nh = q.alt != null ? 2 : 1, no = amp ? 5 : 1;
+  const m = mirrorOf(e); // (his ghosts read his fields through a mirror, never through him: ghost.mjs)
   for (let ih = 0; ih < nh; ih++) {
     const hd = ih ? q.alt : q.heading;
     for (let io = 0; io < no; io++) {
       const off = io === 0 ? 0 : io === 1 ? amp / 2 : io === 2 ? -amp / 2 : io === 3 ? amp : -amp;
-      const g = Object.create(e);
+      const g = ghostOn(m);
       g.x = q.x; g.z = q.z; g.heading = hd; g.sweepActive = false; g.headOffset = off; // head turned `off` (elliptical far)
       const cone = coneAt(g, tAbs, _seeCone); // (one cone refilled: read only by the test below)
       _seeOpt.cone = cone;
@@ -147,8 +150,8 @@ export function* goalReachableGen({ s1, tx, tz, W, H, x0, z0, cx, cz, k0, holdK,
 const TAU = Math.PI * 2; // (as perception.js: seesAnyHeads works out a head's band exactly as pointInCone does)
 
 /**
- * Does any head of `L` see `d`? `L`: one guard's heads at one eye — [viewer, cone, …], every viewer an Object.create of
- * the same guard at the same point, differing only by where its head looks (sneak.mjs walkerViews, a planner's
+ * Does any head of `L` see `d`? `L`: one guard's heads at one eye — [viewer, cone, …], every viewer a ghost of the same
+ * guard (ghost.mjs) at the same point, differing only by where its head looks (sneak.mjs walkerViews, a planner's
  * headViews) — asked of `see` (perception's canSee or a wrapper of it) as `pointInCone(cone, d) && see(viewer, d, w,
  * {cone}) !== 'none'` head by head. The same answer, asked once: the heads' cones differ only by heading and reach, and
  * once a head has the point in a band its class is seen in (a crawler: the near band), everything else `see` asks —
@@ -878,6 +881,8 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
       // cone per step, a walker's head positions and cones per step; a cell outside a cone's geometry is not seen by it,
       // so perception.canSee is asked only inside one. The same answers as asking afresh each time, a fraction the cost.)
       const qMemo = walkers.map(() => []), wheelMemo = walkers.map(() => []), viewMemo = walkers.map(() => new Map());
+      // (each walker's ghosts read his fields through his mirror — ghost.mjs: never through him — refreshed once a plan)
+      const mirrors = walkers.map(mirrorOf);
       const predAt = (wi, k) => { const a = qMemo[wi]; let q = a[k]; if (q === undefined) q = a[k] = predictEnemy(walkers[wi], k * DT); return q; };
       const wheels = (wi, k) => {
         // (a squad's man where the file turns a corner or about wheels round to his new place)
@@ -898,7 +903,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
           const amp = e.sweepAmp ?? e.vision?.sweep ?? 0;
           L = [];
           for (const hd of q.alt != null ? [q.heading, q.alt] : [q.heading]) for (const off of amp ? [0, amp / 2, -amp / 2, amp, -amp] : [0]) {
-            const v = Object.create(e);
+            const v = ghostOn(mirrors[wi]);
             v.x = q.x; v.z = q.z; v.heading = hd; v.sweepActive = false; v.headOffset = off; // (as walkerSees)
             L.push(v, coneAt(v, tAbs));
           }
@@ -980,33 +985,33 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
       passMemo[s0] = 1; passMemo[s1] = 1;
       const hfun = o.shelter ? () => 0 : (c) => Math.hypot(cx(c) - tx, cz(c) - tz) / speed / DT;
       // A* on (cell, step): binary heap on f = step + h
-      const heap = [], prev = new Map(), done = new Set();
+      // (the open list and the reached states in typed arrays, reused plan after plan — state-heap.mjs: no [f, c, k]
+      // array per push, no Map and Set of tens of thousands of entries to outlive the young generation; given back at
+      // every return below)
+      const heap = takeHeap(), prev = takeSet();
+      const give = () => { giveHeap(heap); giveSet(prev); };
       const push = (f, c, k, from) => {
         const key = c * (HS + 256) + k;
         if (prev.has(key)) return; prev.set(key, from);
-        heap.push([f, c, k]); let i = heap.length - 1;
-        while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; }
-      };
-      const pop = () => {
-        const top = heap[0], last = heap.pop();
-        if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } }
-        return top;
+        heap.push(f, c, k);
       };
       const k0 = o.startDelay ? Math.round(o.startDelay / DT) : 0, holdK = Math.round((o.hold ?? 3) / DT);
       // (no goal state can ever be accepted: the search would only grind to its cap and fail — the same null, now)
       if (!o.shelter && !o.blind && !(yield* goalReachableGen({ s1, tx, tz, W, H, x0, z0, cx, cz, k0, holdK, seen, raft: mode === 'raft', kMax: Math.max(k0, HS - 1 + Math.max(1, Math.ceil(Math.SQRT2 / speed / DT))) }))) {
         if (o.why) o.why.push(`goal (${tx},${tz}) never unseen for ${(holdK * DT).toFixed(1)} s within the horizon`);
         if (o.stats) Object.assign(o.stats, { expanded: 0, found: false, pre: true, cells: W * H, HS });
+        give();
         return null;
       }
       push(k0 + hfun(s0), s0, k0, -1);
       let found = null, n = 0;
       const maxN = o.maxExpand ?? 300000;
       while (heap.length && n < maxN) {
-        const [, c, k] = pop();
+        heap.pop();
+        const c = heap.topC, k = heap.topK;
         const key = c * (HS + 256) + k;
-        if (done.has(key)) continue;
-        done.add(key); n++;
+        if (prev.isDone(key)) continue;
+        prev.markDone(key); n++;
         if ((n & 15) === 0) yield; // (each state asks seen() of its neighbours: often, so a slice stays within PLAN_SLICE_MS)
         // he may stay a while where he stops (`shelter`: any cell he can lie in unseen for `hold` s will do)
         // (a click on a cell edge: either cell touching it will do)
@@ -1035,7 +1040,8 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
         Object.assign(o.stats, { expanded: n, maxN, found: !!found, heapLeft: heap.length, seen: seenMemo.reduce((a, v) => a + (v ? 1 : 0), 0), cells: W * H, HS, statics: statics.length, walkers: walkers.length, goalClear });
       }
       if (!found) {
-        if (o.why) { let bc = s0, bd = Infinity; for (const key of done) { const c = Math.floor(key / (HS + 256)), d = Math.hypot(cx(c) - tx, cz(c) - tz); if (d < bd) { bd = d; bc = c; } } o.why.push(`closest (${cx(bc)},${cz(bc)}) ${bd.toFixed(1)} m, ${n} expanded`); }
+        if (o.why) { let bc = s0, bd = Infinity; for (const key of prev.doneKeys()) { const c = Math.floor(key / (HS + 256)), d = Math.hypot(cx(c) - tx, cz(c) - tz); if (d < bd) { bd = d; bc = c; } } o.why.push(`closest (${cx(bc)},${cz(bc)}) ${bd.toFixed(1)} m, ${n} expanded`); }
+        give();
         return null;
       }
       const out = [];
@@ -1043,6 +1049,7 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
         const c = Math.floor(key / (HS + 256)), k = key % (HS + 256);
         out.push([cx(c), cz(c), now + k * DT]);
       }
+      give();
       out.reverse();
       out[0][0] = ux; out[0][1] = uz;
       if (!o.shelter) { out[out.length - 1][0] = tx; out[out.length - 1][1] = tz; }

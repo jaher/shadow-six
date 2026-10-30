@@ -889,3 +889,6 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 
 ## 2026-10-30 — M04 merged to master (lane A)
 - Solution merged 625afeb9f (win 2110.9 s, 0 detections / 0 exposures, 16 kills, 39 checkpoints; cold-link walkthrough = logic run). Second art pass merged 991452608. Media: commandos-shots/solutions/m04-sheet.jpg, commandos-shots/art/m04-p2-before-after.jpg.
+
+## 2026-10-30 — GC round 2 merged to master (perf lane 3)
+- perf/gc-heap-2 merged (a55881ec2): solution ghosts read units through mirrors, pooled planner open lists, declared hidden-class shapes, doubleFields. M3 GC majors 47->39, V8 peak 301->233 MB; sim-trace identical on all 19 solved missions; unit tests 2502 passed. Media: commandos-shots/perf/gc2-m03-before-after.jpg (and m11, m09, deopts).

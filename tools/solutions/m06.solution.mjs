@@ -9,6 +9,7 @@
 import { clearFor, routeClear, unwitnessed, bodySeen, predict, walking, sneak, staticSees, dummyAt } from './sneak.mjs';
 import { canSee, coneAt } from '../../src/ai/perception.js';
 import { boardPoint } from '../../src/abilities/drive.js';
+import { mirrorOf, ghostOn } from './ghost.mjs';
 
 const DBG = !!globalThis.process?.env?.M06DBG;
 /** (dev) stop the run right after this checkpoint id */
@@ -42,10 +43,10 @@ const bare = (u) => ({ x: u.x, z: u.z, y: u.y || 0, isLow: false, isVisibleToEne
 
 /** Does `e` (now, and over the next `ahead` s as predicted) have the man `man` in his cone? */
 function eyesOn(D, e, man, ahead = 1.2) {
-  const w = D.world;
+  const w = D.world, me = mirrorOf(e); // (his ghosts read him through a mirror: ghost.mjs)
   for (let t = 0; t <= ahead + 1e-6; t += 0.2) {
     const q = walking(e) ? predict(e, t) : { x: e.x, z: e.z, heading: e.heading };
-    const g = Object.create(e); g.x = q.x; g.z = q.z; g.heading = q.heading;
+    const g = ghostOn(me); g.x = q.x; g.z = q.z; g.heading = q.heading;
     if (canSee(g, man, w, { cone: coneAt(g, w.time + t) }) !== 'none') return true;
   }
   return false;

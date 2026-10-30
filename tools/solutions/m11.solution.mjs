@@ -35,6 +35,7 @@ import { canSee, coneAt } from '../../src/ai/perception.js';
 import { viewerFor } from '../../src/ai/vehicle-ai.js';
 import { predictEnemy } from './driver.mjs';
 import { sneak, clearFor, routeClear, unwitnessed, bodySeen, viewersOf, walking } from './sneak.mjs';
+import { mirrorOf } from './ghost.mjs';
 
 const DBG = !!(globalThis.process?.env?.M11DBG || globalThis.__M3DBG);
 const dbg = (D, s) => { if (DBG) D.log(`DBG ${D.t.toFixed(1)} ${s}`); };
@@ -86,14 +87,16 @@ async function kill(D, role, tag, stash, { strict = false, when = () => true, ma
   const SP = CONFIG.units.carry ?? 1.6, PICK = CONFIG.abilities.carry?.pick ?? 1.0;
   const why = [];
   let next = 0, nlog = 0;
-  // (he strikes standing, whatever he lies or crawls like now: the check takes him upright)
-  const upright = Object.create(u, { isLow: { value: false } });
+  // (he strikes standing, whatever he lies or crawls like now: the check takes him upright — a ghost made at each try,
+  // reading him as he is then, through his mirror: ghost.mjs)
+  let upright = null;
   await D.until(() => {
     if (D.t < next) return false;
     next = D.t + 0.25;
     why.length = 0;
     if (!when()) { why.push('when'); if (DBG && D.t > nlog) { nlog = D.t + 2; dbg(D, `  ${tag} not yet: at (${e.x.toFixed(1)},${e.z.toFixed(1)}) ${e.brain?.state} atWait=${e.brain?.atWait} waitT=${e.brain?.waitT?.toFixed?.(1)}`); } return false; }
     // (and from behind: the victim himself must not see the act coming — a man who sees the Spy draw the needle unmasks him)
+    upright = Object.create(mirrorOf(u), { isLow: { value: false } });
     const back = Math.abs(Math.atan2(Math.sin(Math.atan2(u.z - e.z, u.x - e.x) - e.heading), Math.cos(Math.atan2(u.z - e.z, u.x - e.x) - e.heading)));
     if (back < (95 * Math.PI) / 180 || canSee(e, upright, D.world, { ignoreDisguise: true }) !== 'none') { why.push('victim faces him'); if (DBG && D.t > nlog) { nlog = D.t + 1; dbg(D, `  ${tag}: faces him (back ${(back * 57.3).toFixed(0)}°, killer at ${u.x.toFixed(1)},${u.z.toFixed(1)})`); } return false; }
     // (walkers glance about as they go: tried with every glance of the head — strict; posts by their own sweep)

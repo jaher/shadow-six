@@ -14,6 +14,7 @@ import { CONFIG, rulesFor } from '../config.js';
 import { resolveHouseRules } from '../core/house-rules.js';
 import { NULL_PHYSICS } from '../physics/null-physics.js';
 import { WindField } from './wind.js';
+import { doubleFields } from '../core/shapes.js';
 
 /** Spatial hash bucket size (m). */
 const HASH_CELL = 4;
@@ -51,16 +52,16 @@ export class World {
     this.depth = size[1];
     this.grid = new NavGrid(size[0], size[1]);
     this.rng = new Rng(seed);
-    this.time = 0;
+    doubleFields(this, 0, 'time'); // (fractional from the first tick: a double-valued field from the start — core/shapes.js)
     this.tick = 0;
     /** Mission wind (step 4w): pure function of (x, z, sim time) — deterministic, frozen while paused. */
     this.wind = WindField.forMission(mission || {}, { W: size[0], D: size[1], seed: (seed >>> 0) % 997 + 1 });
     this.wind.events = this.events; // 'wind:flag' (halyard clank) etc.
     /** Mission clock (s) for scoring (§8.2): sim time spent in 'playing'; saved with the game. */
-    this.clock = 0;
+    doubleFields(this, 0, 'clock');
     /** Number of 20 Hz tick-integer rule ticks run so far (§10.1). */
     this.belTick = 0;
-    this._belAcc = 0;
+    doubleFields(this, 0, '_belAcc');
     this._belSubs = [];
 
     /** @type {import('../entities/entity.js').Entity[]} */
@@ -85,6 +86,16 @@ export class World {
     this._hash = new Map();
     this._subs = [];
     this._removals = [];
+
+    // (caches and transient records other modules keep on the world — placement, avoidance, body clearance, the AI's
+    // per-tick budgets, knife / raft / spy acts, flyovers, set pieces — declared here, undefined until first used as when
+    // absent: the world keeps one hidden-class shape; a field first added in play threw away the optimised code of
+    // everything that reads the world)
+    this._ownerH = undefined; this._shiftFr = undefined; this._bodyMovers = undefined; this._avoidCache = undefined;
+    this._shotThrough = undefined; this._boomLines = undefined; this._vehicleAI = undefined;
+    this._investBudget = undefined; this._routeBudget = undefined; this.knifeKills = undefined;
+    this.raftActs = undefined; this.spyActs = undefined; this.flyovers = undefined; this.setpieces = undefined; this._pathMemos = undefined;
+    this._spMeshes = undefined;
   }
 
   // ------------------------------------------------------------ events

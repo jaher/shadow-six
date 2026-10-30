@@ -121,6 +121,14 @@ export class Commando extends Unit {
     this.noCrawl = !!(spawn.noCrawl ?? (role === 'guest' && spawn.follow));
     this.guestId = role === 'guest' ? spawn.guestId ?? spawn.id ?? null : null;
     this._followT = 0;
+    // (set later by his abilities and their visuals: declared here, as Unit's own — one shape for every commando)
+    this._dragTrail = undefined; this._heelAt = undefined; this._moveRefusal = undefined;
+    this.currentActionTarget = undefined; this._deedT = undefined; this.kneeling = undefined;
+    this._boltT = undefined; this._afterRise = undefined; this.boardFrom = undefined; this.dig = undefined;
+    this._lastShotT = undefined; this._harpoonT = undefined; this._raftPack = undefined;
+    this.pendingTransport = undefined; this._door = undefined; this.decoy = undefined; this.cutWire = undefined;
+    this.scripted = undefined; this.insideStructure = undefined; this._digVis = undefined; this.inGround = undefined;
+    this._cutVis = undefined; this.knifeShow = undefined;
   }
 
   onAdded(world) {

@@ -34,6 +34,7 @@ import { ROLE_NAMES } from '../ui/catalogue.js';
 import { PERF } from '../engine/perf-flags.js';
 import { AUTO_PACE, AutoPace, PaceSensor, PerfCeiling, SteadyGrant, paceTarget, readTime, inClimax, isTrueWait, underWay, trapEta } from './auto-pace.js';
 import { ScopeShow, warmScope } from './walkthrough-scope.js';
+import { doubleFields } from '../core/shapes.js';
 
 export const WALK_SPEEDS = Object.freeze([0.5, 1, 2, 4]);
 /** The speed of a fresh walkthrough (no `speed` in its link): AUTO. `speed=1` is a fixed 1×. */
@@ -348,11 +349,11 @@ export class Walkthrough extends SolutionReplay {
     this._blasts = [];
     this._objHold = null;
     this._action = null;
-    this._calmUntil = 0;
+    doubleFields(this, 0, '_calmUntil'); // (times: double-valued fields from the start — core/shapes.js)
     this._idleSince = null;
     this._motion = { t: -1, pos: new Map(), moving: true };
     this._safe = null;
-    this._safeAt = 0;
+    doubleFields(this, 0, '_safeAt');
     this._doneObj = new Set();
     // AUTO speed (debug/auto-pace.js): pacer.speed stays 1× and pacer.boost carries the eased speed
     this.auto = auto;
@@ -362,7 +363,7 @@ export class Walkthrough extends SolutionReplay {
     this.sensor = new PaceSensor(this.world);
     this._grant = new SteadyGrant();
     this.autoWhy = '';
-    this._readUntil = 0;
+    doubleFields(this, 0, '_readUntil');
     this._lastChapterT0 = null;
     this._cardDeferred = false;
     this._burst = { frame: 0, prev: 0, ms: 0, ticks: 0 };

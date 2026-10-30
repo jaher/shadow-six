@@ -21,6 +21,7 @@ import { CONFIG, velToSpeed } from '../config.js';
 import { searchStats } from '../world/pathfinding.js';
 import { hasObstacles, bodyGap, MOVE_MARGIN } from '../world/body-clearance.js';
 import { angleTo, angleDiff, wrapAngle } from '../core/math.js';
+import { doubleFields } from '../core/shapes.js';
 import { perceive, canSee, hears, coneAt, headTheta, newCone } from './perception.js';
 import { archetypeOf, isPatrolMember } from './archetypes.js';
 import { ensureAI } from './director.js';
@@ -88,12 +89,12 @@ export class EnemyBrain {
     /** Home state: IDLE, or REINFORCE for released barracks squads (§4.9). */
     this.idleState = 'IDLE';
     this.state = 'IDLE';
-    this.t = 0; // time in state (s)
+    doubleFields(this, 0, 't'); // time in state (s) (a double-valued field from the start: core/shapes.js)
     this.phase = null; // sub-phase inside a state
-    this.pt = 0; // time in phase (s)
+    doubleFields(this, 0, 'pt'); // time in phase (s)
     this.routeIndex = 0;
     this.routeDir = 1;
-    this.waitT = 0;
+    doubleFields(this, 0, 'waitT');
     this.atWait = false;
     this.target = null;
     this.anchor = null; // held commando position (§4.5 0.3 m rule)
@@ -125,6 +126,13 @@ export class EnemyBrain {
     this._seen = [];
     this._stuckRef = null;
     this._repathT = 0;
+    // (set later — attach, routes, squads, noises, the perception options — declared here, undefined until then as when
+    // absent: one hidden-class shape for every brain; a field first added in play threw away the optimised AI code)
+    this.bcd = undefined; this.routeVel = undefined; this._home = undefined; this._routeType = undefined;
+    this._loopStart = undefined; this._committedRun = undefined; this._pOpt = undefined; this._wpGoal = undefined;
+    this._homeGoal = undefined; this._wayPt = undefined; this._preNoise = undefined; this._stepNoise = undefined;
+    this.combatReady = undefined; this._shockT = undefined; this._lastPrint = undefined; this._matesN = undefined;
+    this._goT = undefined; this._fv = undefined;
   }
 
   /** Called when the enemy is added to the world. */

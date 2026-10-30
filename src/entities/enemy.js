@@ -83,6 +83,14 @@ export class Enemy extends Unit {
     this.ko = null;
     this.koT = 0;
     this.puppetOf = null;
+    // (set later by his brain, perception, the alarm and the visuals: declared here, as Unit's own — one shape for every
+    // enemy)
+    this.sweepActive = undefined; this.sweepAmp = undefined; this.sweepPeriod = undefined;
+    this.headOffset = undefined; this.headCarry = undefined; this.sweepW = undefined; this._postOwner = undefined;
+    this.knifeHold = undefined; this._mgmTries = undefined; this._mgm = undefined; this._mgManned = undefined;
+    this.hiddenUnderBarrel = undefined; this._reacted = undefined; this._distractedBy = undefined;
+    this._claimedBy = undefined; this.discovered = undefined; this.muffledCry = undefined;
+    this.stepAside = undefined;
     this.brain = createBrain(this);
   }
 

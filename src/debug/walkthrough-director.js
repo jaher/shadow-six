@@ -274,12 +274,13 @@ export class Director {
   /** One yaw check (a generator: it yields after every ray; see _yaw). */
   * _yawCheck(pts, must, el) {
     const y = this.yaw;
-    const score = function* (off) { return yield* this._hidden(pts, must, this._saved.azimuth + (off * Math.PI) / 180, el); }.bind(this);
-    const cur = yield* score(y.want);
+    // (each yaw's score is _hidden from there, asked inline: a generator function made per check — its own prototype
+    // object each time — threw away optimised code at every check, ~100 deopts a walkthrough)
+    const cur = yield* this._hidden(pts, must, this._saved.azimuth + (y.want * Math.PI) / 180, el);
     if (cur > 0 || (y.want !== 0 && performance.now() - y.since > 4000)) {
       let best = y.want, bestS = cur;
       for (const off of YAW_OFFSETS) {
-        const sc = off === y.want ? cur : yield* score(off);
+        const sc = off === y.want ? cur : yield* this._hidden(pts, must, this._saved.azimuth + (off * Math.PI) / 180, el);
         if (sc < bestS - 1e-9 || (sc === bestS && Math.abs(off) < Math.abs(best))) { best = off; bestS = sc; }
       }
       const now = performance.now();

@@ -195,7 +195,8 @@ export class PhysicsWorld {
     for (const b of this.blasts.splice(0)) applyBlast(this, b);
     // explosion kills that no blast reached (e.g. a unit flagged by an event without an explosion) → settle
     for (const u of w.commandos.concat(w.enemies)) {
-      if (u._blastKill != null && u._blastKill <= w.tick) { delete u._blastKill; if (!this.ragdollOf(u)) this._scheduleSettle(u); }
+      // (`_blastKill` cleared, never deleted: a unit that loses a field drops to a slow dictionary shape for good)
+      if (u._blastKill != null && u._blastKill <= w.tick) { u._blastKill = undefined; if (!this.ragdollOf(u)) this._scheduleSettle(u); }
       // a body put down again (carry / drag) settles where it lies
       if (u.alive === false) {
         if (u.state === 'carried') {

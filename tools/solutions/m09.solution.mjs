@@ -31,6 +31,7 @@ import { canSee, coneAt } from '../../src/ai/perception.js';
 import { CONFIG } from '../../src/config.js';
 import { shotClear } from '../../src/abilities/weapons.js';
 import { TANKER_SPOT } from '../../src/missions/m09_a_courtesy_call.js';
+import { mirrorOf, ghostOn, ghost } from './ghost.mjs';
 
 const ENV = globalThis.process?.env ?? {};
 const DBG = !!ENV.M09DBG || !!globalThis.__M3DBG;
@@ -68,10 +69,10 @@ function dbg(D, why, label) {
 
 /** Does `e` (now, and over the next `ahead` s as predicted) have the man `man` in his cone? */
 function eyesOn(D, e, man, ahead = 1.2) {
-  const w = D.world;
+  const w = D.world, me = mirrorOf(e); // (his ghosts read him through a mirror: ghost.mjs)
   for (let t = 0; t <= ahead + 1e-6; t += 0.2) {
     const q = walking(e) ? predict(e, t) : { x: e.x, z: e.z, heading: e.heading };
-    const g = Object.create(e); g.x = q.x; g.z = q.z; g.heading = q.heading;
+    const g = ghostOn(me); g.x = q.x; g.z = q.z; g.heading = q.heading;
     if (canSee(g, man, w, { cone: coneAt(g, w.time + t) }) !== 'none') return true;
   }
   return false;
@@ -88,10 +89,11 @@ function glanced(D, man, skip = [], ahead = 1.5, turn = 0.7) {
     if (Math.hypot(e.x - man.x, e.z - man.z) < (e.vision.far ?? 36) + 3 && canSee(e, man, w) !== 'none') return e.tag;
     if (!(e.route?.length > 1) || !walking(e)) continue;
     if (Math.hypot(e.x - man.x, e.z - man.z) > (e.vision.far ?? 36) + 3) continue;
+    const me = mirrorOf(e); // (his ghosts read him through a mirror: ghost.mjs)
     for (let t = 0; t <= ahead + 1e-6; t += 0.5) {
       const q = walking(e) ? predict(e, t) : { x: e.x, z: e.z, heading: e.heading };
       for (const dd of [0, 0.5, -0.5]) for (let o = -turn; o <= turn + 1e-6; o += turn / 4) {
-        const g = Object.create(e); g.x = q.x + Math.cos(q.heading) * dd; g.z = q.z + Math.sin(q.heading) * dd; g.heading = q.heading + o; g.sweepActive = false; g.headOffset = 0;
+        const g = ghostOn(me); g.x = q.x + Math.cos(q.heading) * dd; g.z = q.z + Math.sin(q.heading) * dd; g.heading = q.heading + o; g.sweepActive = false; g.headOffset = 0;
         if (canSee(g, man, w, { cone: coneAt(g, w.time + t) }) !== 'none') return e.tag;
       }
     }
@@ -109,12 +111,12 @@ function wheelSees(D, pts, dur = 2, { low = true, except = [] } = {}) {
   const w = D.world;
   for (const e of w.enemies) {
     if (!e.alive || e.removed || !e.vision || !e.squad || except.includes(e)) continue;
-    const far = (e.vision.far ?? 36) + 1;
+    const far = (e.vision.far ?? 36) + 1, me = mirrorOf(e); // (his ghosts read him through a mirror: ghost.mjs)
     for (let t = 0; t <= dur + 1e-6; t += 0.5) {
       const q = walking(e) ? predict(e, t) : { x: e.x, z: e.z };
       for (const [x, z] of pts) {
         if (Math.hypot(x - q.x, z - q.z) > far) continue;
-        const g = Object.create(e); g.x = q.x; g.z = q.z; g.heading = Math.atan2(z - q.z, x - q.x); g.sweepActive = false; g.headOffset = 0;
+        const g = ghostOn(me); g.x = q.x; g.z = q.z; g.heading = Math.atan2(z - q.z, x - q.x); g.sweepActive = false; g.headOffset = 0;
         const tgt = low ? { x, z, y: 0, kind: 'body', alive: false, hp: 0 } : { x, z, y: 0, isLow: false, isVisibleToEnemies: true, alive: true, kind: 'commando' };
         if (canSee(g, tgt, w) !== 'none') return e.tag;
       }
@@ -145,7 +147,7 @@ async function knife(D, victim, { ready = () => true, later = [], quiet = 90, ma
     if (eyesOn(D, victim, me, 1.6)) return dbg(D, ['victim looks'], `knife ${victim.tag}`);
     if (!unwitnessed(D, victim, me, { ahead: 1.6, strict: true, why })) return dbg(D, why, `knife ${victim.tag}`);
     // (and where the body ends up: struck from behind a man pitches forward onto his face, a metre on)
-    const fall = Object.create(victim); fall.x = victim.x + Math.cos(victim.heading) * 1.0; fall.z = victim.z + Math.sin(victim.heading) * 1.0;
+    const fall = ghost(victim); fall.x = victim.x + Math.cos(victim.heading) * 1.0; fall.z = victim.z + Math.sin(victim.heading) * 1.0;
     if (!unwitnessed(D, fall, me, { ahead: 1.6, strict: true, why, except: [victim] })) return dbg(D, why, `knife ${victim.tag}: the fall`);
     const L = Math.hypot(gb.x - victim.x, gb.z - victim.z) || 1, sx = victim.x + ((gb.x - victim.x) / L) * 1.0, sz = victim.z + ((gb.z - victim.z) / L) * 1.0;
     if (!clearFor(D, [[gb.x, gb.z], [(gb.x + victim.x) / 2, (gb.z + victim.z) / 2], [sx, sz]], crawl ? 3 : 2, { mode: 'walk', except: [victim], why })) return dbg(D, why, `knife ${victim.tag}`);
@@ -279,12 +281,12 @@ function fireLine(D, sn, t) {
  * (each within `range`): the nearest to `near`, or null.
  */
 function sniperSpot(D, targets, near, { box = 4, range = 40 } = {}) {
-  const sn = D.c('sniper'), g = D.world.grid;
+  const sn = D.c('sniper'), g = D.world.grid, msn = mirrorOf(sn); // (his ghosts read him through a mirror: ghost.mjs)
   let best = null, bd = Infinity;
   for (let dx = -box; dx <= box; dx += 0.5) for (let dz = -box; dz <= box; dz += 0.5) {
     const x = near[0] + dx, z = near[1] + dz, d = Math.hypot(dx, dz);
     if (d >= bd || !g.walkableAt(x, z)) continue;
-    const me = Object.create(sn, { x: { value: x }, z: { value: z }, kneeling: { value: true } });
+    const me = Object.create(msn, { x: { value: x }, z: { value: z }, kneeling: { value: true } });
     if (targets.every((t) => Math.hypot(t.x - x, t.z - z) <= range && shotClear(D.world, me, t, true))) { best = [x, z]; bd = d; }
   }
   return best;

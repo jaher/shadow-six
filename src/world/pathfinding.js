@@ -174,14 +174,17 @@ function openRows(grid, swim, o, k0, k1) {
 }
 /** staticLayers' step cost factor for rows [j0, j1) into `m`. */
 function mulRows(grid, m, j0, j1) {
+  // (a row per call: one long call with the loop over a row inside was compiled on the stack for the row loop and thrown
+  // out again at every row's end — ~200 deopts, a few ms, at the first search of a mission)
+  for (let j = j0; j < j1; j++) mulRow(grid, m, j);
+}
+function mulRow(grid, m, j) {
   const { block, navBlock, bridge, terrain, cols, rows } = grid, NONE = B.NONE;
-  const wall = (q) => block[q] !== NONE || !!navBlock[q];
-  for (let j = j0, k = j0 * cols; j < j1; j++) {
-    for (let i = 0; i < cols; i++, k++) {
-      const t = terrain[k];
-      if ((t === T.WATER || t === T.SHALLOW) && !bridge[k]) m[k] = WATER_COST;
-      else m[k] = (i + 1 < cols && wall(k + 1)) || (i > 0 && wall(k - 1)) || (j + 1 < rows && wall(k + cols)) || (j > 0 && wall(k - cols)) ? HUG_COST : 1;
-    }
+  for (let i = 0, k = j * cols; i < cols; i++, k++) {
+    const t = terrain[k];
+    if ((t === T.WATER || t === T.SHALLOW) && !bridge[k]) m[k] = WATER_COST;
+    else m[k] = (i + 1 < cols && (block[k + 1] !== NONE || !!navBlock[k + 1])) || (i > 0 && (block[k - 1] !== NONE || !!navBlock[k - 1]))
+      || (j + 1 < rows && (block[k + cols] !== NONE || !!navBlock[k + cols])) || (j > 0 && (block[k - cols] !== NONE || !!navBlock[k - cols])) ? HUG_COST : 1;
   }
 }
 /** staticLayers for tests: the per-version open / cost layers a search reads (tests/unit/static-layers). */

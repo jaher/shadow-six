@@ -1133,6 +1133,31 @@ const isBitmap = (x) => typeof ImageBitmap !== 'undefined' && x instanceof Image
 const BAND_BYTES = 2 << 20;
 /** Bytes per read-back call (made while the GPU is idle: a plain copy). */
 const READ_BYTES = 1 << 20;
+
+/**
+ * A compression job's blocks back from its pixel buffer once the fence passed: level by level, pausing between (a sliced
+ * job), in reads of READ_BYTES or more (each read is a round trip to the GPU process). Deletes the buffer and the fence.
+ * @returns {Generator<void, Uint8Array[]>} the levels' blocks (views of one buffer)
+ */
+function* collectBlocks(stats, gl, pbo, sync, plan, total) {
+  const all = new Uint8Array(total);
+  for (let a = 0; a < total;) {
+    const t0 = performance.now();
+    let b = a;
+    for (const L of plan) if (L.off >= b && (b === a || L.off + L.bytes - a <= READ_BYTES)) b = L.off + L.bytes;
+    if (b <= a) b = total;
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
+    gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, a, all, a, b - a);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    stats.mainMs += performance.now() - t0;
+    stats.readMs += performance.now() - t0;
+    a = b;
+    if (a < total && due()) yield;
+  }
+  gl.deleteBuffer(pbo);
+  gl.deleteSync(sync);
+  return plan.map((L) => all.subarray(L.off, L.off + L.bytes));
+}
 /** Banded uploads on (the one-call three path otherwise: `?gpubands=0` compares). */
 const BANDS = SLICED && !(typeof location !== 'undefined' && /[?&]gpubands=0\b/.test(location.search));
 
@@ -1450,25 +1475,9 @@ export class GpuCompressor {
     gl.flush();
     // the blocks back from the pixel buffer once the fence passed: level by level, pausing between (a sliced job)
     // (in reads of READ_BYTES or more: each read is a round trip to the GPU process — one per level costs more than it saves)
-    const collectG = function* collectG() {
-      const all = new Uint8Array(total);
-      for (let a = 0; a < total;) {
-        const t0 = performance.now();
-        let b = a;
-        for (const L of plan) if (L.off >= b && (b === a || L.off + L.bytes - a <= READ_BYTES)) b = L.off + L.bytes;
-        if (b <= a) b = total;
-        gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
-        gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, a, all, a, b - a);
-        gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
-        this.stats.mainMs += performance.now() - t0;
-        this.stats.readMs += performance.now() - t0;
-        a = b;
-        if (a < total && due()) yield;
-      }
-      gl.deleteBuffer(pbo);
-      gl.deleteSync(sync);
-      return plan.map((L) => all.subarray(L.off, L.off + L.bytes));
-    }.bind(this);
+    // (one module generator, not a generator function made per job: each of those brought a prototype object of its own
+    // that V8 set up as a prototype — a fresh hidden class per job for the code that steps it)
+    const collectG = () => collectBlocks(this.stats, gl, pbo, sync, plan, total);
     const collect = () => { const g = collectG(); let r = g.next(); while (!r.done) r = g.next(); return r.value; };
     return { sync, collect, collectG, fail: () => { if (!gl.isContextLost()) { gl.deleteBuffer(pbo); gl.deleteSync(sync); } } };
   }

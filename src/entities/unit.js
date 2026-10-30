@@ -10,6 +10,7 @@ import { Entity } from './entity.js';
 import { createUnitModel } from '../art/unit-model.js';
 import { CONFIG, velToSpeed } from '../config.js';
 import { angleTo, turnTowardsAngle, angleDiff, wrapAngle, dist } from '../core/math.js';
+import { doubleFields } from '../core/shapes.js';
 import { T, B, MAX_STEP } from '../world/grid.js';
 import { plan as avoidPlan, priority, blocks, givesWay, newPlan } from './avoidance.js';
 
@@ -153,21 +154,39 @@ export class Unit extends Entity {
     this.turnRate = CONFIG.units.turnRate;
     this.speedMul = 1;
     /** Local avoidance (avoidance.js): lane offset off the path track (m), its lateral speed, wait ramp, velocity. */
-    this._laneX = 0; this._laneZ = 0; this._laneV = 0; this._curveX = 0; this._curveZ = 0; this._mdirX = 0; this._mdirZ = 0; this._avScale = 1; this._blockT = 0; this._ghostIds = null; this._holdFor = null; this._yieldAt = null; this._ghostT = null;
-    this.vx = 0; this.vz = 0;
+    // (these numbers turn fractional in play: double-valued fields from the start — core/shapes.js)
+    doubleFields(this, 0, '_laneX', '_laneZ', '_laneV', '_curveX', '_curveZ', '_mdirX', '_mdirZ'); doubleFields(this, 1, '_avScale'); doubleFields(this, 0, '_blockT');
+    this._ghostIds = null; this._holdFor = null; this._yieldAt = null; this._ghostT = null;
+    doubleFields(this, 0, 'vx', 'vz');
     this.radius = CONFIG.units.radius;
     this.pickRadius = CONFIG.units.pickRadius;
     this.killer = null;
     this.deathCause = null;
     this.deathTime = null;
     this._onArrive = null;
-    this._footstepT = 0;
-    this._stanceT = 0;
+    doubleFields(this, 0, '_footstepT', '_stanceT');
     this._pathGridVersion = -1;
     this._anim = null;
     this._animOverride = null; // {name, t}
     this._moving = false;
 
+    // Fields the unit's own methods and other modules set later (steps, avoidance, carrying, weapons, blood…), declared
+    // here, undefined until first set — exactly as when absent (nothing tests them with `in` or lists his keys): every
+    // unit of a class keeps one hidden-class shape (V8) whatever he does. A field first added in play reshaped him and
+    // threw away the optimised code of everything that handles units (~100 functions at a time; ~2 000 such deopts in
+    // an M3 walkthrough, and the unit code megamorphic by the end: 4 commandos in 4 shapes, 31 shapes for 34 enemies).
+    this._lift = undefined; this.trackV = undefined; this._walkAnim = undefined; this._bodyBlockT = undefined;
+    this._bodyPrevO = undefined; this._bodyPrev = undefined; this._runNoiseD = undefined; this._toeT = undefined;
+    this._weaponBack = undefined; this._weaponAtX = undefined; this._weaponAtZ = undefined;
+    this._weaponV = undefined; this._bodyProg = undefined; this._bodyRepaths = undefined; this._settled = undefined;
+    this._settleHeading = undefined; this._planO = undefined; this._avRes = undefined; this._trackOffO = undefined;
+    this._trackOff = undefined; this._pivoting = undefined; this._apartHeld = undefined; this._leanV = undefined;
+    this._curveF = undefined; this._lieDown = undefined; this._pitched = undefined; this._turnInPlace = undefined;
+    this._straight = undefined; this._ladder = undefined; this._climb = undefined; this.bloodyFeet = undefined;
+    this.blastReact = undefined; this.idleAnim = undefined; this.vehicle = undefined; this._rd = undefined;
+    this.pendingLift = undefined; this._preCarryState = undefined; this._rdCarried = undefined;
+    this.carryDrop = undefined; this.helmetOff = undefined; this.lastHurtBy = undefined;
+    this.blastDoomed = undefined; this._blastKill = undefined; // (blast flags: cleared after, never deleted — explosions.js, world-physics)
     this.model = opts.model || createUnitModel({ faction: this.faction, role: this.role, ...(opts.modelOpts || {}) });
     if (this.model && typeof this.model === 'object') this.model.unit = this; // real characters read stance/action/speed
     this.object3d = this.model.root;

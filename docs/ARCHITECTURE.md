@@ -1806,6 +1806,14 @@ Emitters add the events they own; AUDIO never needs another team to call it.
     art (the placed buildings' LOD0, the map's gameplay stamps, the static vehicles' models) is awaited however long it
     takes (`engine/gameplay-inputs.js`), never raced against a clock; gameplay never reads the drawn water
     (`world.waterLevelAt`, art/water.js `gameplayWaterLevel`).
+    Hidden classes (V8) of the long-lived simulation objects stay put while they play (GC round 2): a live unit is never
+    a prototype — the solutions' look-ahead ghosts are `Object.create` of his mirror (`tools/solutions/ghost.mjs`:
+    `ghost`, `mirrorOf` + `ghostOn` for several in one call or plan; a ghost that must outlive a tick is made again at
+    each try), since every later change of a prototype's shape threw away all the code that read through it; units
+    never lose a field (cleared, not `delete`d); the fields first set in play are declared in the constructors
+    (`undefined`); number fields that turn fractional are double-valued from the start (`core/shapes.js` doubleFields:
+    a whole first value made V8 rebuild the class's hidden-class tree, 100+ maps, the first time one turned fractional).
+    The planners' open list and reached states are typed and pooled (`state-heap.mjs`: StateHeap, StateSet).
     Video mode keeps first-use costs out of play: the load stages the ruins a blast reveals (`prepareDestroy`, detached
     groups at the same world matrices: the same deformation bit for bit) and its warm-up frame draws them with the dam
     burst, the escape truck (`laterVehicleModels`), blood, dig sites, a cone, LODs and stained / submerged men;

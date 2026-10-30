@@ -32,6 +32,7 @@ import { Director, freeRect } from './walkthrough-director.js';
 import { ActionHolds } from './action-hold.js';
 import { clickMarkerFor } from '../engine/input.js';
 import { ABILITIES } from '../abilities/index.js';
+import { doubleFields } from '../core/shapes.js';
 
 export const SPEEDS = Object.freeze([1, 2, 4, 8]);
 /** Orders to several men within this many seconds of game time from the first one select them together (a group order). */
@@ -228,7 +229,7 @@ export class SolutionReplay {
     this._smart = false;
     /** The last ability order's target ({u, t, until}), a subject of the shot while the action runs. */
     this._action = null;
-    this._dt = 0;
+    doubleFields(this, 0, '_dt'); // (times: double-valued fields from the start — core/shapes.js)
     this._safe = null;
     this._safeAt = 0;
     this._waiter = null;
@@ -258,8 +259,7 @@ export class SolutionReplay {
     g.manualTick = true;
     g.accumulator = 0;
     this._viewAt = -Infinity;
-    this._viewDt = 0;
-    this._viewMs = 0;
+    doubleFields(this, 0, '_viewDt', '_viewMs');
     // the visual-only event handlers of the ticks this replay grants (after each frame's draw) wait for the next draw
     // (Game.step deferVisuals; flushed here every frame, drawn or not, and by Game.render)
     this._saved.deferVisuals = g.deferVisuals;

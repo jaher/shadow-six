@@ -20,6 +20,7 @@
 import { clearFor, routeClear, unwitnessed, bodySeen, predict, walking, sneak as sneak0 } from './sneak.mjs';
 import { canSee, coneAt } from '../../src/ai/perception.js';
 import { shotClear } from '../../src/abilities/weapons.js';
+import { mirrorOf, ghostOn, ghost } from './ghost.mjs';
 
 const DBG = !!globalThis.process?.env?.M10DBG || !!globalThis.__M3DBG;
 
@@ -41,10 +42,10 @@ function fireLine(D, sn, t) {
 
 /** Does `e` (now, and over the next `ahead` s as predicted) have the man `man` in his cone? */
 function eyesOn(D, e, man, ahead = 1.2) {
-  const w = D.world;
+  const w = D.world, me = mirrorOf(e); // (his ghosts read him through a mirror: ghost.mjs)
   for (let t = 0; t <= ahead + 1e-6; t += 0.2) {
     const q = walking(e) ? predict(e, t) : { x: e.x, z: e.z, heading: e.heading };
-    const g = Object.create(e); g.x = q.x; g.z = q.z; g.heading = q.heading;
+    const g = ghostOn(me); g.x = q.x; g.z = q.z; g.heading = q.heading;
     if (canSee(g, man, w, { cone: coneAt(g, w.time + t) }) !== 'none') return true;
   }
   return false;
@@ -82,7 +83,7 @@ async function knife(D, victim, { ready = () => true, later = [], quiet = 90, ma
     if (eyesOn(D, victim, me, 1.6)) return dbg(D, ['victim looks'], `knife ${victim.tag}`);
     if (!unwitnessed(D, victim, me, { ahead: 1.6, strict: true, why })) return dbg(D, why, `knife ${victim.tag}`);
     // (and where the body ends up: struck from behind a man pitches forward onto his face, a metre on)
-    const fall = Object.create(victim); fall.x = victim.x + Math.cos(victim.heading) * 1.0; fall.z = victim.z + Math.sin(victim.heading) * 1.0;
+    const fall = ghost(victim); fall.x = victim.x + Math.cos(victim.heading) * 1.0; fall.z = victim.z + Math.sin(victim.heading) * 1.0;
     if (!unwitnessed(D, fall, me, { ahead: 1.6, strict: true, why, except: [victim] })) return dbg(D, why, `knife ${victim.tag}: the fall`);
     // (where he stands up to strike: at the victim's side towards him, about a metre off)
     const L = Math.hypot(gb.x - victim.x, gb.z - victim.z) || 1, sx = victim.x + ((gb.x - victim.x) / L) * 1.0, sz = victim.z + ((gb.z - victim.z) / L) * 1.0;

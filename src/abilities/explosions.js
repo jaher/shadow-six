@@ -162,7 +162,7 @@ export function applyExplosion(world, x, z, cls, source = null, opts = {}) {
       if (explosionDestroysStructure(cls, e, d, { world, x, z })) { (e.destroy ? e.destroy(killer, cls) : e.takeDamage?.(KILL, killer, cls)); out.structures.push(e); }
     }
   }
-  } finally { for (const e of doomed) delete e.blastDoomed; }
+  } finally { for (const e of doomed) e.blastDoomed = undefined; } // (cleared, not deleted: a unit that loses a field drops to a slow dictionary shape)
   // carried barrels explode with their carrier's position
   for (const b of world.interactables) {
     if (b.interactKind === 'barrel' && b.carriedBy && !b.exploded && Math.hypot(b.x - x, b.z - z) <= (E.chain || 0)) {

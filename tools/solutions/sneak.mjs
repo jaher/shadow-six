@@ -14,6 +14,8 @@
  * Marine at the oars), so it runs on any mission with a raft or a rowboat.
  * @module tools/solutions/sneak
  */
+import { takeHeap, giveHeap, takeSet, giveSet } from './state-heap.mjs';
+import { mirrorOf, ghostOn, ghost, protoOf } from './ghost.mjs';
 import { canSee as canSee0, coneAt, pointInCone, ellipseFar } from '../../src/ai/perception.js';
 import { CONFIG } from '../../src/config.js';
 import { T } from '../../src/world/grid.js';
@@ -175,6 +177,15 @@ function trailPoint(e, lead, t) {
 }
 
 /**
+ * Per-walker records of this planner (his legs' ways, where he was seen halting), kept beside him, not on him: a field
+ * first added to an enemy mid-walkthrough reshaped him (V8) and threw away the optimised code of everything that
+ * handles units. Read as a field would be: a ghost of him (ghost.mjs: protoOf leads from his mirror to him) sees his
+ * record until it gets its own.
+ */
+const LEGS = new WeakMap(), HALTS = new WeakMap();
+const sideOf = (M, e) => { for (let o = e; o && typeof o === 'object'; o = protoOf(o)) if (M.has(o)) return M.get(o); return undefined; };
+
+/**
  * Where enemy `e` will be (and face) `t` s from now. A man on his route (IDLE / REINFORCE / RETURN) is walked along it
  * — the rest of his current path, then waypoint to waypoint with each halt's wait and look (LOOP / PINGPONG as the
  * brain advances it); at a halt he may still face the way he came for its first seconds (`alt`). A squad member keeps
@@ -195,17 +206,18 @@ function legWay(e, from, i) {
     return P.slice(e.pathIndex ?? 0).map((p) => [p.x, p.z]);
   }
   const ver = w.grid?.version ?? 0;
-  if (!e._sneakLegs || e._sneakLegs.ver !== ver) e._sneakLegs = { ver, m: new Map() };
+  let L = sideOf(LEGS, e);
+  if (!L || L.ver !== ver) LEGS.set(e, (L = { ver, m: new Map() }));
   const k = `${from}>${i}`;
-  if (!e._sneakLegs.m.has(k)) {
+  if (!L.m.has(k)) {
     const a = r[from], q = e.pathQuery?.() ?? {};
     // (`w.sneakOwnPaths`, opt-in: the way his own move order plans — Unit.planFrom: round the clearance masks of the
     // solids the game draws, which the plain search walks through: in the game M20's Patrol 57 went round a wagon)
     const p = w.sneakOwnPaths && typeof e.planFrom === 'function' ? e.planFrom(a.x, a.z, wp.x, wp.z) : w.findPath?.(a.x, a.z, wp.x, wp.z, q);
     // (ending where the way ends: a point the nav keeps him off — a mesh's clearance — he halts short of, WP_NEAR)
-    e._sneakLegs.m.set(k, p && p.length > 1 ? p.slice(1).map((n) => [n.x, n.z]) : null);
+    L.m.set(k, p && p.length > 1 ? p.slice(1).map((n) => [n.x, n.z]) : null);
   }
-  return e._sneakLegs.m.get(k);
+  return L.m.get(k);
 }
 
 export function predict(e, t, depth = 0) {
@@ -276,7 +288,7 @@ export function predict(e, t, depth = 0) {
   // from point to point: round the corners the game's nav makes him take (its mesh clearances in the browser)
   const paths = !!e.world?.sneakPaths;
   // (and halts where he was last seen halting at that point: the game's own planner may stop him a little short of it)
-  if (paths && b.atWait && Math.hypot(e.x - r[b.routeIndex ?? 0].x, e.z - r[b.routeIndex ?? 0].z) < 1.5) (e._sneakHalts ??= {})[b.routeIndex ?? 0] = [e.x, e.z];
+  if (paths && b.atWait && Math.hypot(e.x - r[b.routeIndex ?? 0].x, e.z - r[b.routeIndex ?? 0].z) < 1.5) { let hs = sideOf(HALTS, e); if (hs == null) HALTS.set(e, (hs = {})); hs[b.routeIndex ?? 0] = [e.x, e.z]; }
   let prev = null;
   for (let guard = 0; guard < 64; guard++) {
     const wp = r[i];
@@ -291,7 +303,7 @@ export function predict(e, t, depth = 0) {
         if (left * sp <= L) return { x: x + (dx / L) * left * sp, z: z + (dz / L) * left * sp, heading: h, halt: false, turnFrom: h0, turnT: left };
         left -= L / sp; tLeg += L / sp; x = px; z = pz;
       }
-      const hs = e._sneakHalts?.[i];
+      const hs = sideOf(HALTS, e)?.[i];
       if (hs && Math.hypot(hs[0] - x, hs[1] - z) < 1.5) { x = hs[0]; z = hs[1]; }
     } else {
       const dx = wp.x - x, dz = wp.z - z, L = Math.hypot(dx, dz);
@@ -376,6 +388,7 @@ export function walkerSees(e, q, dummy, w, tAbs) {
   let maxOff = 0;
   for (const off of offs) maxOff = Math.max(maxOff, Math.abs((off || 0) + 0));
   const lim = half + maxOff + 1e-6;
+  let m = null; // (his mirror, refreshed at the first head that needs a ghost: ghost.mjs)
   for (const hd of hds) {
     // (a body heading whose every head offset leaves the point outside the aperture: none of its heads can see it)
     if (d2 > 1e-12) { let an = bear - hd; an -= TAU * Math.round(an / TAU); if (Math.abs(an) > lim) continue; } // (NaN: tried, as pointInCone would)
@@ -387,7 +400,7 @@ export function walkerSees(e, q, dummy, w, tAbs) {
         an -= TAU * Math.round(an / TAU);
         if (Math.abs(an) > half) continue;
       }
-      const g = Object.create(e);
+      const g = ghostOn(m ??= mirrorOf(e));
       g.x = q.x; g.z = q.z; g.heading = hd; g.sweepActive = false; g.headOffset = off; g.headCarry = 0;
       const cone = coneAt(g, tAbs);
       if (pointInCone(cone, dummy.x, dummy.z) && canSee(g, dummy, w, { cone }) !== 'none') return true;
@@ -402,11 +415,11 @@ export function walkerSees(e, q, dummy, w, tAbs) {
  * a vehicle's eye at its predicted heading ± a little; a halted man under `w.sneakHaltExact` where his sweep puts his
  * head; anyone else at the predicted heading and both ends of his sweep (and at a halt the heading he came with).
  */
-export function walkerViews(e, q, w, tAbs) {
+export function walkerViews(e, q, w, tAbs, m = mirrorOf(e)) {
   const L = [];
   L._oneEye = true; // (seesAny: one guard at one eye)
   const add = (hd, off, sweepless) => {
-    const g = Object.create(e);
+    const g = ghostOn(m);
     g.x = q.x; g.z = q.z; g.heading = hd;
     if (sweepless) { g.sweepActive = false; g.headOffset = off; g.headCarry = 0; }
     L.push(g, coneAt(g, tAbs));
@@ -517,9 +530,10 @@ export function staticSees(e, d, w, t) {
       if (!ch.some((h) => within(h, half + 1e-6)) && !(hs ? hs.some((h) => within(h + base, lim)) : within(e.heading + base, lim))) return false;
     }
   }
-  if (ch.length && ch.some((h) => { const g = Object.create(e); g.heading = h; g.sweepActive = false; g.headOffset = 0; g.headCarry = 0; return canSee(g, d, w, { cone: coneAt(g, w.time + t) }) !== 'none'; })) return true;
+  const m = ch.length || hs ? mirrorOf(e) : null; // (his ghosts read him through a mirror: ghost.mjs)
+  if (ch.length && ch.some((h) => { const g = ghostOn(m); g.heading = h; g.sweepActive = false; g.headOffset = 0; g.headCarry = 0; return canSee(g, d, w, { cone: coneAt(g, w.time + t) }) !== 'none'; })) return true;
   if (!hs) return canSee(e, d, w, { cone: coneAt(e, w.time + t) }) !== 'none';
-  return hs.some((h) => { const g = Object.create(e); g.heading = h; return canSee(g, d, w, { cone: coneAt(g, w.time + t) }) !== 'none'; });
+  return hs.some((h) => { const g = ghostOn(m); g.heading = h; return canSee(g, d, w, { cone: coneAt(g, w.time + t) }) !== 'none'; });
 }
 
 /** Target dummies: a man ('crawl' low, 'walk'/'stand' upright), a boat (open, the men seated in it), a body. */
@@ -679,8 +693,9 @@ export function unwitnessed(D, victim, killer, { ahead = 0.4, at = 0, why = null
       const turned = strict && !mv && ph != null && (tg != null || e.brain?.noiseTurnT > 0 || Math.abs(Math.atan2(Math.sin(e.heading - ph), Math.cos(e.heading - ph))) > 0.1);
       const mid = (a, b) => Math.atan2(Math.sin(a) + Math.sin(b), Math.cos(a) + Math.cos(b));
       const heads = turned ? [q.heading, ph, mid(q.heading, ph), ...(tg != null ? [tg, mid(q.heading, tg)] : [])] : [q.heading];
+      const me = mirrorOf(e); // (his ghosts read him through a mirror: ghost.mjs)
       const seenBy = heads.some((h) => {
-        const g = Object.create(e); g.x = q.x; g.z = q.z; g.heading = h;
+        const g = ghostOn(me); g.x = q.x; g.z = q.z; g.heading = h;
         const cone = coneAt(g, w.time + t);
         return canSee(g, body, w, { cone }) !== 'none' || (killer.alive !== false && canSee(g, killer, w, { cone, ignoreDisguise: true }) !== 'none');
       });
@@ -730,7 +745,7 @@ export function glanceCone(e, t, pad = 0.6) {
   rel -= Math.floor(rel / cyc) * cyc; // time since the latest glance start (0 ≤ rel < cyc), once t ≥ s0
   if (t < s0 - pad) return null;
   if (!(rel <= G.dur + pad || rel >= cyc - pad)) return null;
-  const g = Object.create(e);
+  const g = ghost(e);
   g.heading = Math.atan2(p.z - e.z, p.x - e.x); g.sweepActive = false; g.headOffset = 0; g.headCarry = 0;
   return coneAt(g, w.time + t);
 }
@@ -864,11 +879,13 @@ export function* planSneakGen(D, tx, tz, o = {}) {
   const sCones = statics.map(() => []);
   const sCone = (i, k) => { const a = sCones[i], j = Math.round(k * SUB); let c = a[j]; if (c === undefined) c = a[j] = coneAt(statics[i], now + k * DT); return c; };
   const viewMemo = walkers.map(() => new Map());
+  // (each walker's ghosts read his fields through his mirror — ghost.mjs: never through him — refreshed once a plan)
+  const wMirror = walkers.map(mirrorOf);
   /** walkerViews of walker e at step kk (heading r·45° when r ≥ 0, as the wheeling check tries it) */
   const headViews = (e, kk, r) => {
-    const m = viewMemo[wIdx.get(e)], key = kk * 9 + r + 1;
+    const wi = wIdx.get(e), m = viewMemo[wi], key = kk * 9 + r + 1;
     let L = m.get(key);
-    if (!L) { const q = predAt(e, kk); m.set(key, L = walkerViews(e, r < 0 ? q : { ...q, heading: (r * Math.PI) / 4 }, w, now + kk * DT)); }
+    if (!L) { const q = predAt(e, kk); m.set(key, L = walkerViews(e, r < 0 ? q : { ...q, heading: (r * Math.PI) / 4 }, w, now + kk * DT, wMirror[wi])); }
     return L;
   };
   const KS = HS + 256, seenMemo = new Uint8Array(W * H * KS);
@@ -963,17 +980,14 @@ export function* planSneakGen(D, tx, tz, o = {}) {
   }
   passMemo[s0] = 1; passMemo[s1] = 1;
   const hfun = o.shelter ? () => 0 : (c) => Math.hypot(cx(c) - tx, cz(c) - tz) / speed / DT;
-  const heap = [], prev = new Map(), done = new Set();
+  // (the open list and the reached states in typed arrays, reused plan after plan — state-heap.mjs: no [f, c, k] array
+  // per push, no Map and Set of tens of thousands of entries to outlive the young generation; given back at every return)
+  const heap = takeHeap(), prev = takeSet();
+  const give = () => { giveHeap(heap); giveSet(prev); };
   const push = (f, c, k, from) => {
     const key = c * (HS + 256) + k;
     if (prev.has(key)) return; prev.set(key, from);
-    heap.push([f, c, k]); let i = heap.length - 1;
-    while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; }
-  };
-  const pop = () => {
-    const top = heap[0], last = heap.pop();
-    if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } }
-    return top;
+    heap.push(f, c, k);
   };
   const k0 = o.startDelay ? Math.round(o.startDelay / DT) : 0, holdK = Math.round((o.hold ?? 3) / DT);
   // (no goal state can ever be accepted — every cell he may stop at stays watched within every `hold` window up to the
@@ -981,16 +995,18 @@ export function* planSneakGen(D, tx, tz, o = {}) {
   if (!o.shelter && !(yield* goalReachableGen({ s1, tx, tz, W, H, x0, z0, cx, cz, k0, holdK, seen, raft: mode === 'boat', kMax: Math.max(k0, HS - 1 + Math.max(1, Math.ceil(Math.SQRT2 / speed / DT))) }))) {
     if (o.why) o.why.push(`goal (${tx},${tz}) never unseen for ${(holdK * DT).toFixed(1)} s within the horizon`);
     __verify?.(D, tx, tz, o, null, performance.now() - t0v);
+    give();
     return null;
   }
   push(k0 + hfun(s0), s0, k0, -1);
   let found = null, n = 0;
   const maxN = o.maxExpand ?? 300000;
   while (heap.length && n < maxN) {
-    const [, c, k] = pop();
+    heap.pop();
+    const c = heap.topC, k = heap.topK;
     const key = c * (HS + 256) + k;
-    if (done.has(key)) continue;
-    done.add(key); n++;
+    if (prev.isDone(key)) continue;
+    prev.markDone(key); n++;
     // (each state asks seen() of its neighbours, and fresh cells × steps cost more: a slice stays within PLAN_SLICE_MS)
     if ((n & 15) === 0 || work >= 16) { work = 0; yield; }
     const atGoal = o.shelter || c === s1 || (mode !== 'boat' && Math.hypot(cx(c) - tx, cz(c) - tz) <= 0.55);
@@ -1013,7 +1029,8 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     }
   }
   if (!found) {
-    if (o.why) { let bc = s0, bd = Infinity; for (const key of done) { const c = Math.floor(key / (HS + 256)), d = Math.hypot(cx(c) - tx, cz(c) - tz); if (d < bd) { bd = d; bc = c; } } o.why.push(`closest (${cx(bc)},${cz(bc)}) ${bd.toFixed(1)} m, ${n} expanded`); }
+    if (o.why) { let bc = s0, bd = Infinity; for (const key of prev.doneKeys()) { const c = Math.floor(key / (HS + 256)), d = Math.hypot(cx(c) - tx, cz(c) - tz); if (d < bd) { bd = d; bc = c; } } o.why.push(`closest (${cx(bc)},${cz(bc)}) ${bd.toFixed(1)} m, ${n} expanded`); }
+    give();
     __verify?.(D, tx, tz, o, null, performance.now() - t0v);
     return null;
   }
@@ -1022,6 +1039,7 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     const c = Math.floor(key / (HS + 256)), k = key % (HS + 256);
     out.push([cx(c), cz(c), now + k * DT]);
   }
+  give();
   out.reverse();
   out[0][0] = ux; out[0][1] = uz;
   if (!o.shelter) { out[out.length - 1][0] = tx; out[out.length - 1][1] = tz; }

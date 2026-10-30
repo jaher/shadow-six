@@ -38,6 +38,7 @@ import { steepLadder } from '../entities/stair-walk.js';
 import { swimFrame, wadeOffset, waterColumn } from './swim-pose.js';
 import { due, runSync } from '../engine/slice.js';
 import { earlyFetch } from '../engine/early-fetch.js';
+import { doubleFields } from '../core/shapes.js';
 
 const PRONE_SHOT = /^prone_(shoot|shoot_smg|pistol_shoot)$/;
 /** The Spy's pending orders whose action blends in from the last pose shown (art/spy-actions.js). */
@@ -340,11 +341,24 @@ export class UnitModel {
     /** The Marine: swims and dives (art/swim-pose.js poses him in the water; his wetsuit body while he is in it). */
     this.swimmer = this.player && opts.role === 'diver';
     this.anim = 'idle'; this.clip = null; this.disguised = false; this.unit = null;
-    this._o = {}; this._v = 0; this._sent = 0; this._last = null; this._idleN = 0; this._weapon = undefined; this._carried = false; this._stance = 'stand';
+    this._o = {}; doubleFields(this, 0, '_v', '_sent'); this._last = null; this._idleN = 0; this._weapon = undefined; this._carried = false; this._stance = 'stand';
     this._guard = new BoneGuard(); this._rdGuard = new StickyGuard(); this._blend = null;
     this._guardWriter = { before: (b) => this._guard.touch(b), after() {} };
     /** Optional procedural pose written after the mixer: (model, dt, guard) => pose changed (art/shovel-dig.js). */
     this.overlay = null;
+    // (state the pose layers keep on the model — corpse ground, turn steps, stair gait, swimming, ragdoll, knife / raft /
+    // spy acts, transport, ladders — declared here, undefined until first set as when absent: one hidden-class shape
+    // for every model; a field first added in play threw away the optimised code of the whole animation layer)
+    this._cgMesh = undefined; this._lEnd = undefined; this._turnStep = undefined; this._pg = undefined;
+    this._rdBones = undefined; this._idleSeen = undefined; this._swim = undefined; this._sg = undefined;
+    this.pawFalls = undefined; this._actId = undefined; this._preKnife = undefined; this._knifeShow = undefined;
+    this._handsFull = undefined; this._br = undefined; this._wet = undefined; this._raftHandErr = undefined;
+    this._trg = undefined; this._rdFrom = undefined; this._rdBase = undefined; this._rdBaseKey = undefined;
+    this._rdLast = undefined; this._cgWorld = undefined; this._cgWorldGY = undefined; this._cgGround = undefined;
+    this._cgBones = undefined; this._cgSigArr = undefined; this._cgLat = undefined; this._cgK = undefined;
+    this._cgCache = undefined; this._tp = undefined; this._carryOn = undefined; this._tst = undefined;
+    this._tstDt = undefined; this._gait = undefined; this._legLag = undefined; this._sway = undefined;
+    this._lastBodyW = undefined; this._lc = undefined;
     this.ready = real.ready.then(() => this._onReady());
   }
 

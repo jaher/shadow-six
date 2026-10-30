@@ -35,6 +35,7 @@ import { ABILITIES } from '../../src/abilities/registry.js';
 import { boardPoint } from '../../src/abilities/drive.js';
 import { arcStep } from '../../src/entities/vehicle-maneuver.js';
 import { sneak, planSneak, clearFor, routeClear, routeClearGen, unwitnessed, bodySeen, predict, walking, viewersOf, walkerViews, walkerSees, seesAny, inflateCone, dummyAt, glanceCone } from './sneak.mjs';
+import { mirrorOf, ghostOn, ghost } from './ghost.mjs';
 
 const DBG = !!(globalThis.process?.env?.M20DBG || globalThis.__M3DBG);
 let dbgN = 0;
@@ -276,10 +277,10 @@ function untilA(D, pred, maxSec, label) {
 
 /** Does `e` (now, and over the next `ahead` s as predicted) have `man` in his cone? */
 function eyesOn(D, e, man, ahead = 1.2) {
-  const w = D.world;
+  const w = D.world, me = mirrorOf(e); // (his ghosts read him through a mirror: ghost.mjs)
   for (let t = 0; t <= ahead + 1e-6; t += 0.2) {
     const q = walking(e) ? predict(e, t) : { x: e.x, z: e.z, heading: e.heading };
-    const g = Object.create(e); g.x = q.x; g.z = q.z; g.heading = q.heading;
+    const g = ghostOn(me); g.x = q.x; g.z = q.z; g.heading = q.heading;
     if (canSee(g, man, w, { cone: coneAt(g, w.time + t) }) !== 'none') return true;
   }
   return false;
@@ -296,10 +297,11 @@ function glanced(D, man, skip = [], ahead = 1.5, turn = 0.7) {
     if (Math.hypot(e.x - man.x, e.z - man.z) < (e.vision.far ?? 36) + 3 && canSee(e, man, w) !== 'none') return e.tag;
     if (!(e.route?.length > 1) || !walking(e)) continue;
     if (Math.hypot(e.x - man.x, e.z - man.z) > (e.vision.far ?? 36) + 3) continue;
+    const me = mirrorOf(e); // (his ghosts read him through a mirror: ghost.mjs)
     for (let t = 0; t <= ahead + 1e-6; t += 0.5) {
       const q = predict(e, t);
       for (const dd of [0, 0.5, -0.5]) for (let o = -turn; o <= turn + 1e-6; o += turn / 4) {
-        const g = Object.create(e); g.x = q.x + Math.cos(q.heading) * dd; g.z = q.z + Math.sin(q.heading) * dd; g.heading = q.heading + o; g.sweepActive = false; g.headOffset = 0;
+        const g = ghostOn(me); g.x = q.x + Math.cos(q.heading) * dd; g.z = q.z + Math.sin(q.heading) * dd; g.heading = q.heading + o; g.sweepActive = false; g.headOffset = 0;
         if (canSee(g, man, w, { cone: coneAt(g, w.time + t) }) !== 'none') return e.tag;
       }
     }
@@ -313,7 +315,7 @@ function glanced(D, man, skip = [], ahead = 1.5, turn = 0.7) {
  * the corpse clear of walls, standing visuals and solids — in the game the library's solids too, none headless.
  */
 export function corpseSpot(w, killer, victim, trace = null) {
-  const k = Object.create(killer); k.stance = 'stand'; // (he strikes on his feet)
+  const k = ghost(killer); k.stance = 'stand'; // (he strikes on his feet)
   const plan = contactPlan(w, k, victim), g = w.grid;
   let x = victim.x, z = victim.z, h = victim.heading || 0, fall = -1, st = victim.stance || 'stand';
   if (plan) {

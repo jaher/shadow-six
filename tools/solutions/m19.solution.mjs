@@ -25,6 +25,7 @@ import { CONFIG } from '../../src/config.js';
 import { CLIMB_TURN } from '../../src/entities/unit.js';
 import { canSee, coneAt } from '../../src/ai/perception.js';
 import { sneak, clearFor, routeClear, unwitnessed, bodySeen, predict, teamBoat, viewersOf, walking, walkerSees, staticSees, dummyAt } from './sneak.mjs';
+import { mirrorOf, ghostOn } from './ghost.mjs';
 
 const DBG = !!(globalThis.process?.env?.M19DBG || globalThis.__M3DBG);
 const dbg = (D, s) => { if (DBG) D.log(`DBG ${D.t.toFixed(1)} ${s}`); };
@@ -514,8 +515,8 @@ function wayLegs(from, way, speed, t0) {
 function asIsClear(D, e, legs, why = null) {
   if (!e?.alive) return true;
   const w = D.world, A = e.sweepActive ? (e.sweepAmp ?? e.vision?.sweep ?? 0) : 0;
-  const heads = [];
-  for (let o = -A; o <= A + 1e-6; o += 0.1) { const g = Object.create(e); g.sweepActive = false; g.headOffset = o; g.headCarry = 0; heads.push([g, coneAt(g, w.time)]); }
+  const heads = [], me = mirrorOf(e); // (his ghosts read him through a mirror: ghost.mjs)
+  for (let o = -A; o <= A + 1e-6; o += 0.1) { const g = ghostOn(me); g.sweepActive = false; g.headOffset = o; g.headCarry = 0; heads.push([g, coneAt(g, w.time)]); }
   if (!heads.length) heads.push([e, coneAt(e, w.time)]);
   for (const [a, b] of legs) {
     const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 0.5));
@@ -612,12 +613,12 @@ function acrossClear(D, sn, dur = 2, why = null) {
   for (const tag of ACROSS) {
     const e = D.get(tag);
     if (!e?.alive || !e.vision) continue;
-    const far = (e.vision.far ?? 36) + 1;
+    const far = (e.vision.far ?? 36) + 1, me = mirrorOf(e); // (his ghosts read him through a mirror: ghost.mjs)
     for (let t = 0; t <= dur + 1e-6; t += 0.25) {
       const q = predict(e, t);
       if (Math.hypot(q.x - sn.x, q.z - sn.z) > far) continue;
       for (let off = -35; off <= 35; off += 5) {
-        const g = Object.create(e);
+        const g = ghostOn(me);
         g.x = q.x; g.z = q.z; g.heading = q.heading + (off * Math.PI) / 180; g.sweepActive = false; g.headOffset = 0; g.headCarry = 0;
         if (canSee(g, d, w, { cone: coneAt(g, w.time + t) }) !== 'none') { why?.push(`${tag} across +${t.toFixed(1)}`); return false; }
       }

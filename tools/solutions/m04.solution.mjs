@@ -11,6 +11,7 @@ import { canSee, coneAt } from '../../src/ai/perception.js';
 import { runNoiseRadius, stepSurface } from '../../src/ai/running-noise.js';
 import { boardPoint } from '../../src/abilities/drive.js';
 import { sneak, clearFor, routeClear, unwitnessed, bodySeen as bodySeen0, predict, viewersOf, walking, walkerSees, staticSees, withoutMovers, wheeling } from './sneak.mjs';
+import { ghost, mirrorOf, ghostOn } from './ghost.mjs';
 
 const DBG = !!(globalThis.process?.env?.M04DBG || globalThis.__M3DBG);
 const dbg = (D, s) => { if (DBG) D.log(`DBG ${D.t.toFixed(1)} ${s}`); };
@@ -1038,6 +1039,7 @@ function seenAfterBlast(D, samples, { low = false, slack = 0.15, why = null, exc
     // (a man turning: every heading up to 60 degrees on round his way)
     const tn = !mv && TURNING.get(e), fan = tn && D.t - tn.t < 0.4 ? Array.from({ length: 7 }, (_, k) => e.heading + tn.dir * k * 0.175) : [];
     const hs = [e.heading, ...(tg != null ? [tg] : []), ...fan];
+    let me = null; // (his ghosts read him through a mirror, made at the first: ghost.mjs)
     for (const [x, z, , t] of samples) {
       for (const o of [-slack, 0, slack]) {
         const tt = Math.max(0, t + o), q = mv ? predict(e, tt) : e;
@@ -1046,7 +1048,7 @@ function seenAfterBlast(D, samples, { low = false, slack = 0.15, why = null, exc
         const seen = mv ? walkerSees(e, q, d, w, w.time + tt)
           : hs.some((h) => {
             // (his head's sweep fades back in over 1 s after a turn: by then it swings its whole width again)
-            const g = Object.create(e); g.heading = h; if (e.sweepActive) g.sweepW = Math.min(1, (e.sweepW ?? 1) + tt / SWEEP_IN);
+            const g = ghostOn(me ??= mirrorOf(e)); g.heading = h; if (e.sweepActive) g.sweepW = Math.min(1, (e.sweepW ?? 1) + tt / SWEEP_IN);
             return canSee(g, d, w, { cone: coneAt(g, w.time + tt) }) !== 'none';
           });
         if (seen) { why?.push(`${e.tag}@(${x.toFixed(1)},${z.toFixed(1)})+${tt.toFixed(1)}`); return true; }
@@ -1074,7 +1076,7 @@ function heardAfterBlast(D, samples, why = null) {
  * copy of him: nothing about him changes) — up on the plateau, to the stair head; `pts` when there is no plan.
  */
 function runWay(D, role, [fx, fz], spot, pts) {
-  const u = D.c(role), g = Object.create(u);
+  const u = D.c(role), g = ghost(u); // (through his mirror, never him: ghost.mjs)
   g.stance = 'stand';
   const p = g.planFrom?.(fx, fz, spot[0], spot[1]);
   if (!p?.length) return pts;

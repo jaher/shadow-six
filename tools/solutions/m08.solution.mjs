@@ -22,6 +22,7 @@ import { canSee, coneAt, pointInCone } from '../../src/ai/perception.js';
 import { CONFIG } from '../../src/config.js';
 import { ABILITIES } from '../../src/abilities/registry.js';
 import { angleDiff } from '../../src/core/math.js';
+import { mirrorOf, ghostOn, ghost, protoOf } from './ghost.mjs';
 
 /** shortest signed angle a→b (rad) */
 const dAng = (a, b) => { let d = (b - a) % (2 * Math.PI); if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI; return d; };
@@ -177,12 +178,18 @@ export function predict(e, t, depth = 0) {
 
 const deg = (h) => ((h * 180) / Math.PI + 360) % 360;
 
+// (kept beside each guard, not on him — a field first added to an enemy in play reshaped every unit's code, V8 — and
+// read as the field was: a ghost (Object.create of him) shares his cache)
+const LEG_PATHS = new WeakMap();
+const legPathsOf = (e) => { for (let o = e; o && typeof o === 'object'; o = protoOf(o)) if (LEG_PATHS.has(o)) return LEG_PATHS.get(o); return undefined; };
 /** The path enemy `e` would plan from (x, z) to waypoint `wp` (cached per guard and leg; straight if none). */
 function legPath(e, x, z, wp) {
-  const c = (e._legPaths ??= new Map()), k = `${x.toFixed(1)},${z.toFixed(1)}>${wp.x},${wp.z}`;
+  let c = legPathsOf(e);
+  if (c == null) LEG_PATHS.set(e, (c = new Map()));
+  const k = `${x.toFixed(1)},${z.toFixed(1)}>${wp.x},${wp.z}`;
   if (!c.has(k)) {
     let p = null;
-    try { const g = Object.create(e); g.x = x; g.z = z; p = g._planPath?.(wp.x, wp.z); } catch { p = null; }
+    try { const g = ghost(e); g.x = x; g.z = z; p = g._planPath?.(wp.x, wp.z); } catch { p = null; }
     c.set(k, p?.length ? p.map((q) => ({ x: q.x, z: q.z })) : [wp]);
   }
   return c.get(k);
@@ -247,9 +254,10 @@ export function sees(e, q, dummy, w, tAbs, moving, fan = false) {
   const FAN = fan && q.wait ? Array.from({ length: 11 }, (_, i) => ((PW.sweep * Math.PI) / 180) * (i / 5 - 1)) : null;
   // (and on a leg, a path bent round something in the real game: up to 20° either way)
   const LEG = fan ? [0, 0.17, -0.17, 0.35, -0.35] : [0, J, -J];
+  let me = null;
   // (a man staring at a lure holds his head on it: no sweep, no bend)
   for (const pos of q.alt ? [q, ...q.alt] : [q]) for (const hd of q.hs) for (const off of q.stare ? [0] : FAN ?? (q.wait ? (q.early ? [0, swAt(-0.4), swAt(0), swAt(0.4)] : [0, swAt(-0.1), swAt(0), swAt(0.1)]) : LEG)) {
-    const g = Object.create(e);
+    const g = ghostOn(me ??= mirrorOf(e)); // (his ghosts read him through a mirror: ghost.mjs)
     g.x = pos.x; g.z = pos.z; g.heading = hd; g.sweepActive = false; g.headOffset = off;
     if (canSee(g, dummy, w, { cone: coneAt(g, tAbs) }) !== 'none') return true;
   }
@@ -341,7 +349,7 @@ function planned(D, role, pts, from = null) {
   let [x, z] = from ?? [u.x, u.z];
   for (const p of pts) {
     let path = null;
-    try { const g = Object.create(u); g.x = x; g.z = z; path = g._planPath?.(p[0], p[1]); } catch { path = null; }
+    try { const g = ghost(u); g.x = x; g.z = z; path = g._planPath?.(p[0], p[1]); } catch { path = null; }
     if (path?.length > 1) for (const q of path.slice(1, -1)) if (Math.hypot(q.x - x, q.z - z) > 0.05) out.push([q.x, q.z]);
     out.push(p);
     [x, z] = p;
@@ -712,7 +720,7 @@ async function snipe(D, tag, [x, z], { dur = 2.5, maxWait = 120, when = () => tr
 async function shootSeq(D, spot, tags, { maxWait = 600, tick = null, H = 15, why: whyOut = null, robust = 1 } = {}) {
   const sn = D.c('sniper'), w = D.world, AIM = 0.6, STEP = 1.1;
   const inSights = (e, dt) => {
-    const q = walker(e) ? predict(e, dt) : e, g = Object.create(e);
+    const q = walker(e) ? predict(e, dt) : e, g = ghost(e);
     for (const [k, v] of Object.entries({ x: q.x, z: q.z })) Object.defineProperty(g, k, { value: v, writable: true });
     return ABILITIES.sniper.canUse(sn, g, w) === true;
   };

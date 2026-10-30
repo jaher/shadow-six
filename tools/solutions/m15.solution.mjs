@@ -33,6 +33,7 @@ import { GENERAL_PAUSE } from '../../src/missions/m15_the_end_of_the_butcher.js'
 import { boardPoint } from '../../src/abilities/drive.js';
 import { shotSight } from '../../src/abilities/common.js';
 import { sneak, clearFor, routeClear, unwitnessed, bodySeen, predict, viewersOf, walking, walkerSees, staticSees, withoutMovers, wheeling } from './sneak.mjs';
+import { ghost } from './ghost.mjs';
 
 const DBG = !!(globalThis.process?.env?.M15DBG || globalThis.__M3DBG);
 const dbg = (D, s) => { if (DBG) D.log(`DBG ${D.t.toFixed(1)} ${s}`); };
@@ -91,7 +92,7 @@ function wayThrough(D, role, pts, { stance = 'crawl' } = {}) {
   const plan = (x0, z0, tx, tz) => {
     own = false;
     if (typeof u._planPath !== 'function') return D.world.findPath(x0, z0, tx, tz, { role: u.role });
-    const g = Object.create(u); // (him, standing at (x0, z0) in that stance: no dodge lane, no corner curve)
+    const g = ghost(u); // (him, standing at (x0, z0) in that stance: no dodge lane, no corner curve — through his mirror: ghost.mjs)
     Object.assign(g, { x: x0, z: z0, stance, _laneX: 0, _laneZ: 0, _curveX: 0, _curveZ: 0 });
     const p = g._planPath(tx, tz);
     if (p) { own = true; return p; }
@@ -902,7 +903,7 @@ export const STAGES = [
     for (const p of VAN_TO_SHOT) await drive(D, van, ...p);
     await D.until(() => (van.speed || 0) < 0.05, 5, 'the van stopped');
     D.checkpoint('J2 the van stops on the tram street');
-    const los = () => { const c = Object.create(sn); c.x = SHOT_SPOT[0]; c.z = SHOT_SPOT[1]; c.y = 0; c.kneeling = true; return shotSight(D.world, c, gen, true); };
+    const los = () => { const c = ghost(sn); c.x = SHOT_SPOT[0]; c.z = SHOT_SPOT[1]; c.y = 0; c.kneeling = true; return shotSight(D.world, c, gen, true); };
     const atPause = (left) => Math.hypot(gen.x - GENERAL_PAUSE.x, gen.z - GENERAL_PAUSE.z) < 0.8 && gen.brain?.atWait && gen.brain.waitT > left;
     await waitFor(D, (why) => (atPause(11) ? (los() ? clearFor(D, [[van.x, van.z], SHOT_SPOT], 10, { mode: 'crawl', why }) : (why.push('no line'), false)) : (why.push('the general not at his pause'), false)), 1500, 'the general at his pause');
     D.order('sniper', { type: 'exit' });

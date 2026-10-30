@@ -28,6 +28,7 @@
 import { canSee, coneAt } from '../../src/ai/perception.js';
 import { shotClear } from '../../src/abilities/weapons.js';
 import { predictEnemy } from './driver.mjs';
+import { mirrorOf, ghostOn, ghost } from './ghost.mjs';
 
 const alive = (D) => D.world.enemies.filter((e) => e.alive && !e.removed && e.vision);
 const walking = (e) => !!(e.isMoving || e.path || (e.route && e.route.length > 1 && !e.brain?.distractedBy));
@@ -50,9 +51,10 @@ function seesAt(D, e, dummy, t) {
     hs.push(h0 + (d * k) / 12);
     if (Math.abs(d) > 2.9) hs.push(h0 + ((d - Math.sign(d) * 2 * Math.PI) * k) / 12);
   }
+  const me = mirrorOf(e); // (his ghosts read him through a mirror: ghost.mjs)
   for (const h of hs) {
     for (const off of amp ? [0, amp / 2, -amp / 2, amp, -amp] : [0]) { // a walker's head turns: try the whole sweep
-      const g = Object.create(e);
+      const g = ghostOn(me);
       g.x = q.x; g.z = q.z; g.heading = h; g.sweepActive = false; g.headOffset = off;
       if (canSee(g, dummy, w, { cone: coneAt(g, w.time + t) }) !== 'none') return true;
     }
@@ -100,7 +102,7 @@ function inSights(D, e, lead = 0.8) {
   const sn = D.c('sniper'), w = D.world, R = 44;
   if (Math.hypot(e.x - sn.x, e.z - sn.z) > R || !shotClear(w, sn, e, true)) return false;
   if (!walking(e)) return true;
-  const q = predictEnemy(e, lead), g = Object.create(e);
+  const q = predictEnemy(e, lead), g = ghost(e);
   g.x = q.x; g.z = q.z;
   return Math.hypot(g.x - sn.x, g.z - sn.z) <= R && shotClear(w, sn, g, true);
 }
@@ -110,7 +112,7 @@ function inSights(D, e, lead = 0.8) {
  * earliest the Sniper can fire again (aim and bolt). */
 function shotWindow(D, e, horizon = 30, except = [], from = 0) {
   const sn = D.c('sniper'), w = D.world, R = 44;
-  const at = (t) => { const q = predictEnemy(e, t), g = Object.create(e); g.x = q.x; g.z = q.z; return g; };
+  const me = mirrorOf(e), at = (t) => { const q = predictEnemy(e, t), g = ghostOn(me); g.x = q.x; g.z = q.z; return g; }; // (his ghosts read him through a mirror: ghost.mjs)
   const clear = (t) => { const g = at(t); return Math.hypot(g.x - sn.x, g.z - sn.z) <= R && shotClear(w, sn, g, true); };
   let t0 = null;
   for (let t = from; t <= horizon; t += 0.25) {

@@ -8,6 +8,7 @@
  */
 
 import { headingToRotY, lerpAngle } from '../core/math.js';
+import { doubleFields } from '../core/shapes.js';
 
 export class Entity {
   /** Next numeric id. Reset to 1 by the Game on every mission load (deterministic ids for saves). */
@@ -28,18 +29,13 @@ export class Entity {
     this.tag = tag;
     /** @type {import('../world/world.js').World|null} */
     this.world = null;
-    this.x = x;
-    this.z = z;
-    this.y = y;
-    this.heading = heading;
+    // (place and heading: double-valued fields from the start, whatever the spawn's numbers — core/shapes.js)
+    doubleFields(this, x, 'x'); doubleFields(this, z, 'z'); doubleFields(this, y, 'y'); doubleFields(this, heading, 'heading');
     this.alive = true;
     this.removed = false;
     /** @type {import('three').Object3D|null} */
     this.object3d = null;
-    this.prevX = x;
-    this.prevZ = z;
-    this.prevY = y;
-    this.prevHeading = heading;
+    doubleFields(this, x, 'prevX'); doubleFields(this, z, 'prevZ'); doubleFields(this, y, 'prevY'); doubleFields(this, heading, 'prevHeading');
   }
 
   /** Simulation update (fixed step). */

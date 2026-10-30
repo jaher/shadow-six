@@ -65,7 +65,7 @@ export function applyBlast(pw, ev) {
     const gy = groundAt(w, u.x, u.z) + (u.y || 0);
     const occ = occlusion(pw.rw, pw.R, w, bp, u.x, u.z, gy);
     if (u.alive === false) {
-      if (!pw.eligible(u) || u.soldierType === 'dog') { delete u._blastKill; continue; }
+      if (!pw.eligible(u) || u.soldierType === 'dog') { u._blastKill = undefined; continue; } // (cleared, not deleted: see world-physics)
       const fresh = u._blastKill != null || w.time - (u.deathTime ?? -1e9) < P.ragdoll.settleAt;
       const area = fresh ? P.blast.area.body : P.blast.area.body * 0.5;
       const imp = blastImpulse(bp, u.x, gy + 1, u.z, area, P.ragdoll.mass, P.blast.maxDvBody, occ, u.id);
@@ -89,7 +89,7 @@ export function applyBlast(pw, ev) {
   // ragdolls: biggest impulse first, ties by id; over the cap → canned clip (+ settle if a slot frees later)
   bodies.sort((a, b) => b.imp.J - a.imp.J || a.u.id - b.u.id);
   for (const { u, imp, fresh } of bodies) {
-    delete u._blastKill;
+    u._blastKill = undefined;
     const pend = pw.pendingSettle.findIndex((p) => p.unit === u);
     if (pend >= 0) pw.pendingSettle.splice(pend, 1);
     if (!pw.canRagdoll()) { if (fresh) pw._scheduleSettle(u); continue; }

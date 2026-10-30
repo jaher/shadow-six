@@ -244,6 +244,12 @@ export class NavGrid {
     this._nextLinkId = 1;
     /** Bumped on every write so caches (cone meshes, path caches) can invalidate. */
     this.version = 0;
+    // (set later — ramps and stair runs as the map adds them, the body-top cache, walkableLine's per-grid visitor and
+    // its last call's options — declared here so the grid keeps one hidden-class shape: a field first added in play
+    // threw away the optimised code of everything that reads the grid)
+    this.ramps = undefined; this.runs = undefined; this.runOf = undefined;
+    this._bb = undefined; this._bbOn = undefined; this._bbVer = undefined;
+    this._wlHasRef = false; this._wlRef = NaN; this._wlOpts = null; this._wlBlocked = null; // (NaN: a double field)
   }
 
   /** Layer lookup by name. */
@@ -1526,7 +1532,8 @@ export class NavGrid {
   nearestWalkable(x, z, maxDist = 3, opts) {
     const c = this.cell;
     const ci = Math.floor(x / c), cj = Math.floor(z / c);
-    if (this.isWalkable(ci, cj, opts)) return { ...this.cellCenter(ci, cj), i: ci, j: cj };
+    // ({x, z, i, j} literals: a spread of cellCenter's {x, z} plus i, j reshaped every {x, z} point in the program)
+    if (this.isWalkable(ci, cj, opts)) return { x: (ci + 0.5) * c, z: (cj + 0.5) * c, i: ci, j: cj };
     const maxR = Math.ceil(maxDist / c);
     let best = null, bestD = Infinity;
     for (let r = 1; r <= maxR; r++) {
@@ -1535,9 +1542,9 @@ export class NavGrid {
           if (Math.max(Math.abs(di), Math.abs(dj)) !== r) continue;
           const i = ci + di, j = cj + dj;
           if (!this.isWalkable(i, j, opts)) continue;
-          const p = this.cellCenter(i, j);
-          const d = Math.hypot(p.x - x, p.z - z);
-          if (d < bestD && d <= maxDist + c) { bestD = d; best = { ...p, i, j }; }
+          const px = (i + 0.5) * c, pz = (j + 0.5) * c;
+          const d = Math.hypot(px - x, pz - z);
+          if (d < bestD && d <= maxDist + c) { bestD = d; best = { x: px, z: pz, i, j }; }
         }
       }
       // Any cell in a later ring is at least (r * c) away; stop when that exceeds the best found.

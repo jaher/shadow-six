@@ -436,6 +436,15 @@ export class Vehicle extends Entity {
     this.object3d = this.model.root;
     this.waitT = 0;
     if (D.rail) this._initRail(spawn);
+    // (set later — driving, routes, boarding, blasts, the hull's measures — declared here, undefined until then as when
+    // absent: one hidden-class shape per vehicle class; a field first added in play threw away the optimised code)
+    this._turretKeep = undefined; this._hdSize = undefined; this._halfDiag = undefined; this.blastRock = undefined;
+    this.blastFlip = undefined; this._arcKey = undefined; this._arc = undefined; this._boarders = undefined;
+    this.seats = undefined; this.reversing = undefined; this.steerK = undefined; this._planMemo = undefined;
+    this._skipHulls = undefined; this._blocker = undefined; this.blockedT = undefined; this.passedExit = undefined;
+    this.proxy = undefined; this.offMapOK = undefined; this._routeJob = undefined; this._routeFail = undefined;
+    this._hullH = undefined; this.wreckBaked = undefined; this.deployedBy = undefined; this.drivenOff = undefined;
+    this._rocked = undefined;
     this.brain = createVehicleBrain(this, spawn);
   }
 
