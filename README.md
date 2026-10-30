@@ -62,6 +62,12 @@ The Green Beret knifes sixteen guards from behind, several drawn in by a decoy, 
 
 [![Mission 8 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 27 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m08.jpg)](docs/screenshots/storyboards/m08.jpg)
 
+### Mission 10 · Operation Icarus
+
+The Green Beret knifes twelve guards (the four sentries in the ruins, Patrol 4's three men, the guard on the compound's west wall and the compound's four, five of them drawn to a decoy first) and frees McRae from the cage; the Sapper's time bomb destroys the bomb store; the Sniper shoots two machine-gunners covering the road up to the airfield and the Sapper's two grenades kill the nine men in the dugout at the ramp head; McRae flies the Junkers out with the team aboard. *Game time 21:14 (film 4:53), 0 detections, 23 kills, all 4 commandos alive.*
+
+[![Mission 10 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 8 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m10.jpg)](docs/screenshots/storyboards/m10.jpg)
+
 ### Mission 11 · In the Soup
 
 The Spy, in uniform, injects the gate sentry and four valley guards; the Sapper plants three remote bombs; the Driver takes the half-track through the yard and fires its gun at the quarry's fuel truck, which takes both quarry rigs, and the Sapper's detonator takes the yard and valley rigs; all five drive out in the half-track. *Game time 17:11 (film 4:26), 0 detections, 5 kills, all 5 commandos alive.*
@@ -116,14 +122,9 @@ first, see [Status](#status)); until then it keeps its single in-game frame.
 <td align="center" width="33%"><a href="verify/reference/gameplay-m09.png"><img src="verify/reference/gameplay-m09.png" width="100%" alt="Mission 9: The radio hut exploding inside the walled compound."></a><br><sub><b>Mission 9</b> · A Courtesy Call</sub></td>
 </tr>
 <tr>
-<td align="center" width="33%"><a href="verify/reference/gameplay-m10.png"><img src="verify/reference/gameplay-m10.png" width="100%" alt="Mission 10: The airfield bomb store going up in a fireball."></a><br><sub><b>Mission 10</b> · Operation Icarus</sub></td>
 <td align="center" width="33%"><a href="verify/reference/gameplay-m17.png"><img src="verify/reference/gameplay-m17.png" width="100%" alt="Mission 17: The squad moving up the snowy forest road, point man ringed."></a><br><sub><b>Mission 17</b> · Before Dawn</sub></td>
 <td align="center" width="33%"><a href="verify/reference/gameplay-m18.png"><img src="verify/reference/gameplay-m18.png" width="100%" alt="Mission 18: The Maas bridge mid-collapse into the river, charges fired at the three marked points (&quot;THE BRIDGE IS DOWN&quot;)."></a><br><sub><b>Mission 18</b> · The Force of Circumstance</sub></td>
-</tr>
-<tr>
 <td align="center" width="33%"><a href="verify/reference/gameplay-m20.png"><img src="verify/reference/gameplay-m20.png" width="100%" alt="Mission 20: The castle HQ roof blown in and still smoking after the charge."></a><br><sub><b>Mission 20</b> · Operation Valhalla</sub></td>
-<td></td>
-<td></td>
 </tr>
 </table>
 
