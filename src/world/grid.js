@@ -9,6 +9,9 @@
 import { pointInPolygon } from '../core/math.js';
 import { due } from '../engine/slice.js';
 
+/** nav stamp keys that are the walkers' clearances only (grid.visBlock): hulls test their own (hullBlocked) */
+const WALKER_STAMP = /^(vis:|low:|headroom$)/;
+
 /** Cell size in metres. */
 export const CELL = 0.5;
 
@@ -177,6 +180,24 @@ export class NavGrid {
      */
     this.navBlock = new Uint8Array(n);
     this._navStamps = new Map();
+    /**
+     * Of navBlock, the count of the walkers' own stamps (WALKER_STAMP): a structure's visual stamp (`vis:`, map-builder
+     * stampVisualNav: what is drawn at body height with the walkers' body clearance round it, RULES.bodyNav), the
+     * clearance round its low parts (`low:`: a step's face, a plinth, a kerb — their tops are walked on), the head room
+     * under its overhangs (`headroom`). A hull keeps its own clearances (its outline, its height under an overhang:
+     * grid.overLo, a step up: grid.elev): it tests only what is drawn there, without the walkers' ring — the `hull:`
+     * stamps in hullBlock (hullBlocked). @type {Uint8Array}
+     */
+    this.visBlock = new Uint8Array(n);
+    /** @type {Uint8Array} */
+    this.hullBlock = new Uint8Array(n);
+    this._hullStamps = new Map();
+    /**
+     * A mission's opt-in (`hullDrawn`, map-builder): its hulls test hullBlocked, not every nav stamp. Elsewhere vehicles
+     * keep the walkers' clearance as their own (their routes were laid and tuned on it: M6's armoured car took another
+     * way past the farm with it off and found the Green Beret). @type {boolean}
+     */
+    this.hullDrawn = false;
     /**
      * Mission `noWalk` areas (map-builder stampNoWalk; M3: the foot of the dam's face): 1 = nobody may be there, not
      * even a body coming to rest (it is moved out, physics/feedback.js). Their cells are navBlock stamps too. null = none.
@@ -794,13 +815,37 @@ export class NavGrid {
    * @param {string} key @param {Iterable<number>} cells
    */
   navStamp(key, cells) {
-    const prev = this._navStamps.get(key), next = new Set(cells);
-    if (prev) for (const k of prev) if (!next.has(k) && this.navBlock[k]) this.navBlock[k]--;
-    for (const k of next) if (!prev || !prev.has(k)) this.navBlock[k] = Math.min(255, this.navBlock[k] + 1);
+    const prev = this._navStamps.get(key), next = new Set(cells), vis = WALKER_STAMP.test(key);
+    if (prev) for (const k of prev) if (!next.has(k) && this.navBlock[k]) { this.navBlock[k]--; if (vis && this.visBlock[k]) this.visBlock[k]--; }
+    for (const k of next) if (!prev || !prev.has(k)) { this.navBlock[k] = Math.min(255, this.navBlock[k] + 1); if (vis) this.visBlock[k] = Math.min(255, this.visBlock[k] + 1); }
     if (next.size) this._navStamps.set(key, next); else this._navStamps.delete(key);
     const r = this._rowsOf(next);
     if (prev) this._rowsOf(prev, r);
     this._bumpRows(r.j0, r.j1);
+  }
+
+  /**
+   * A drawn footprint for hulls (see hullBlock): replaces the cells previously stamped under `key` with `cells`.
+   * @param {string} key @param {Iterable<number>} cells
+   */
+  hullStamp(key, cells) {
+    const prev = this._hullStamps.get(key), next = new Set(cells);
+    if (prev) for (const k of prev) if (!next.has(k) && this.hullBlock[k]) this.hullBlock[k]--;
+    for (const k of next) if (!prev || !prev.has(k)) this.hullBlock[k] = Math.min(255, this.hullBlock[k] + 1);
+    if (next.size) this._hullStamps.set(key, next); else this._hullStamps.delete(key);
+    const r = this._rowsOf(next);
+    if (prev) this._rowsOf(prev, r);
+    this._bumpRows(r.j0, r.j1);
+  }
+
+  /**
+   * Does cell `k`'s nav block stop a hull (in a `hullDrawn` mission)? Any nav stamp but the walkers' own (a wagon
+   * parked, a no-walk area), or what a structure draws there itself — not the walkers' clearances round it (a tank's
+   * nose and outline keep their own): in the browser M20's Panzer III could get neither between the hut h_w3 and the
+   * barracks nor into the SW gate's passage, past the rings round that hut and the gatehouse's towers.
+   */
+  hullBlocked(k) {
+    return this.navBlock[k] > this.visBlock[k] || this.hullBlock[k] > 0;
   }
 
   /**

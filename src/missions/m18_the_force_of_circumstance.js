@@ -38,6 +38,7 @@
 import { m18Tick, onBridgeDown, MARKERS } from './scripts/m18.js';
 import { joinStructures } from './schema.js';
 import './scripts/m16.js'; // registers the `deck_underpass` set-piece (same bridge)
+import { M18_DRESSING, M18_PAVEMENTS } from '../art/m18-dressing.js';
 
 const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (enemy-brain reads wp.look * DEG)
@@ -236,7 +237,9 @@ const FURNITURE = [
   { type: 'sign', variant: 'wehrmacht', x: 20.5, z: 40, rot: deg(-50), text: 'HALT!\nSPERRGEBIET', block: false },
 ];
 
-const STRUCTURES = [...BRIDGE_SET, ...EAST, ...WEST, ...RAILWAY, ...DRESSING];
+// (art pass 2: the station's stub siding and buffer stop, the firing-cable reel and the boat on the bridge island, the
+// burnt-out jeep and its crater W of the start: art/m18-dressing.js)
+const STRUCTURES = [...BRIDGE_SET, ...EAST, ...WEST, ...RAILWAY, ...DRESSING, ...M18_DRESSING];
 
 // ---------------------------------------------------------------- enemies (dossier §8; Prima numbers 1–31)
 /** Lone walker: PINGPONG (or LOOP) over `pts` (1.0 m/s), starting at the first point facing the second. */
@@ -414,7 +417,7 @@ export default {
   water: { velocity: 0.2, angleDeg: 225, turbulence: 0.25, color: '#1c4f55' },
   baseTerrain: 'grass',
   terrain: TERRAIN,
-  pavements: PAVEMENTS,
+  pavements: [...PAVEMENTS, ...M18_PAVEMENTS], // (art pass 2: setts round the village fountain)
   furniture: FURNITURE,
   markers: MARKERS.map((m) => ({ ...m })),
   // placement rule (c): deliberate compound joins (wings, towers, party walls) — joinStructures

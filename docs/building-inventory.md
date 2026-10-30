@@ -550,6 +550,11 @@ Each mission lists the §1 ids it needs, with counts. **Bold** marks an objectiv
   - `tent_ridge_field` ×about 6.
   - M18 only: SE fields barracks.
   - `well`, `fence_picket_timber`, `telegraph_pole`s.
+  - M18 art pass 2 (`src/art/m18-dressing.js`, every piece drawn to its block): the freight wagon's stub siding (in
+    from past the NE edge) and its rail-built buffer stop with the Sh 2 board (`buffer_stop_std`, art/buffer-stop.js);
+    the green case of German charges drawn as one (`explosives_case`, art/explosives-case.js) with a firing-cable reel;
+    the garrison's rowing boat keel up on the bridge island's S beach; setts round the village fountain; a burnt-out
+    US jeep (`willys_mb` wreck) by its shell crater W of the start walls, in the opening view.
 - **M17 Before Dawn (Riveauvillé)** [i, critic]:
   - `mobile_bridge_sliding` (ravine).
   - `bridge_timber_deck_long` (river).

@@ -17,6 +17,7 @@
 
 import * as THREE from 'three';
 import { terrainPrism, terrainRamp } from '../../art/kit-terrain.js';
+import { buildAirstrip } from '../../art/airstrip.js';
 import { plateauWalkways } from './m05.js';
 import { normalizeVehicleRoute } from '../../ai/vehicle-ai.js';
 
@@ -147,6 +148,8 @@ export function buildShelfVisuals(world, spec) {
   root.name = 'm10:terrain';
   root.add(prism(spec.shelf, SHELF_Y - 0.02, 0x9f8866, 0x8a7458));
   root.add(rampMesh(spec.ramp.a, spec.ramp.b, spec.ramp.width, 0x8f7a5a));
+  // art pass 2: the landing ground's markings on the shelf top (the terrain's runway paint lies under the prism)
+  if (spec.airstrip) root.add(buildAirstrip(spec.airstrip));
   world.scene.add(root);
   for (const id of spec.hide || []) { const o = world.structures?.get(id)?.object3d; if (o) o.visible = false; }
   for (const id of spec.lift || []) {

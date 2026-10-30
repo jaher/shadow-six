@@ -16,12 +16,16 @@ import { due, runSync } from '../../engine/slice.js';
 import { buildFlakTowed, buildFlakEmplacement, buildFieldGun, buildTargetFrame, buildBulletStop, buildSearchlight, buildRangeBerm, buildLeverBox } from '../../art/field-guns.js';
 
 const PARAPET_H = 1.4; // == m20_operation_valhalla.js PARAPET_H
+const BALUSTRADE_H = 1.7; // == m20_operation_valhalla.js BALUSTRADE_H (the forecourt screen hides a standing man)
 
 /** The castle's centre (outward normals of the curtain point away from it). */
 export const CASTLE_INSIDE = [88, 72];
 
-/** Replace structure `id`'s placeholder children by `visual` (world coordinates). */
-export function swapVisual(w, id, visual) {
+/**
+ * Replace structure `id`'s placeholder children by `visual` (world coordinates). `ready`: a library model's load (it may
+ * still be loading: Game.loadMission waits for it before it measures the art — a slow link left M20's V2s unstamped).
+ */
+export function swapVisual(w, id, visual, ready = null) {
   const o = w.structures?.get?.(id)?.object3d;
   if (!o || !visual) return false;
   for (const c of o.children) c.visible = false;
@@ -31,6 +35,8 @@ export function swapVisual(w, id, visual) {
   visual.name = `m20art:${id}`;
   o.add(visual);
   o.userData.m20Art = true;
+  o.userData.artSwapped = true; // (Game.loadMission measures its standing visuals again on this art)
+  if (ready) o.userData.artReady = ready;
   return true;
 }
 
@@ -114,8 +120,9 @@ function* levels(w, m) {
     if (due()) yield;
     if (s.type !== 'cliff' || !/^t_/.test(s.id || '')) continue;
     let v;
-    // parapet strips stand PARAPET_H (1.4 m) above their level; the forecourt balustrade (t_par_hq_b*) is open work
-    if (/^t_par/.test(s.id)) v = buildParapet(s.points, s.h - PARAPET_H, s.h, { seed: s.id, style: /_hq_b/.test(s.id) ? 'balustrade' : 'crenel', gaps: waysOver(m, s.points) });
+    // parapet strips stand PARAPET_H (1.4 m) above their level; the forecourt screen (t_par_hq_b*) BALUSTRADE_H, a solid
+    // wall (it hides a man on his feet: open work would show what the guards cannot see); gaps where a way crosses
+    if (/^t_par/.test(s.id)) { const screen = /_hq_b/.test(s.id); v = buildParapet(s.points, s.h - (screen ? BALUSTRADE_H : PARAPET_H), s.h, { seed: s.id, style: 'crenel', gaps: waysOver(m, s.points) }); }
     else v = buildTerrace(s.points, s.h, { seed: s.id, top: s.id === 't_hq' ? 'setts' : 'flags', skip: bodyRects(m) });
     if (swapVisual(w, s.id, v)) n++;
   }
@@ -220,7 +227,7 @@ function* rockets(w, m) {
     const lib = libraryVisual('v2_rocket', { ...s, asset: s.id === 'v2b' ? 'v2_meillerwagen_b' : 'v2_meillerwagen' }, { theater: m.theater, missionId: m.id });
     if (!lib) continue;
     const o = w.structures?.get?.(s.id)?.object3d;
-    if (swapVisual(w, s.id, lib.object3d)) {
+    if (swapVisual(w, s.id, lib.object3d, lib.ready)) {
       n++;
       if (o) o.userData.destroy = () => lib.object3d.userData.destroy?.();
     }

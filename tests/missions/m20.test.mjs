@@ -16,6 +16,7 @@ import { belLoadout, spawnInventory } from '../../src/items.js';
 import { makeSim } from '../unit/abilsim.mjs';
 import { Alarm } from '../../src/ai/alarm.js';
 import { canSee } from '../../src/ai/perception.js';
+import { ownerHeight } from '../../src/world/placement.js';
 import { applyExplosion } from '../../src/abilities/explosions.js';
 import { meleeReachable } from '../../src/abilities/knife.js';
 import { createObjectives, checkObjectives, updateExtractionVehicle } from '../../src/core/objectives.js';
@@ -334,9 +335,10 @@ const spawnOf = (id) => M().enemies.find((e) => e.id === id);
 
 test('m20 fix: parapets — the W quarter, T_nw and the SW battlements do not see the HQ terrace\'s S strip or the SW bastion; the turret is still seen', () => {
   const g = loadGrid(M()).grid;
-  for (const [id, poly, y] of PARAPETS) {
+  for (const [id, poly, y, h = 1.4] of PARAPETS) {
     const cx = (poly[0][0] + poly[2][0]) / 2, cz = (poly[0][1] + poly[2][1]) / 2;
-    assert.ok(Math.abs(g.elevAt(cx, cz) - (y + 1.4)) < 0.01, `${id} stands 1.4 m above its level`);
+    assert.ok(Math.abs(g.elevAt(cx, cz) - (y + h)) < 0.01, `${id} stands ${h} m above its level`);
+    assert.ok(h === 1.4 || /^t_par_hq_b/.test(id), `${id}: only the forecourt screen is taller`);
   }
   // the playtest's watchers: e29 on his walk (53, 75.8), e32 at the foot of S_gw, e30/e31 by the clothesline, e7, e33/e34
   const watchers = [{ x: 53, z: 75.8 }, { x: 58, z: 76.5 }, spawnOf('e32'), spawnOf('e30'), spawnOf('e31'), spawnOf('e28'),
@@ -374,6 +376,46 @@ test('m20 fix: the balustrade — the door guards and e40 do not see e1\'s walk 
   assert.ok(Math.abs(b - 180) > 35 + e40.post.sweep, 'e2\'s post lies outside e40\'s sweep');
   const e50 = spawnOf('e50');
   for (const [x, z] of [[102, 28.5], [103, 29], [100, 29]]) assert.ok(!sees(g, e50, x, z), `e50 does not see (${x},${z}) on T_n`);
+});
+
+test('m20 fix: the forecourt screen hides a man on his feet — the door guards and e40 never see the GB stand on the strip\'s W half (sol/m20)', () => {
+  // perception's own rule (eye 1.65 m → a standing man's chest 1.4 m): the 1.4 m balustrade hid only prone men
+  const s = m20Sim(), w = s.world, gb = s.cmd('greenberet');
+  gb.setStance('stand');
+  for (const tag of ['e35', 'e36', 'e39', 'e40']) {
+    const e = s.get(tag);
+    for (const [x, z] of [[8, 73], [13, 73], [18, 73], [15, 76.5], [10, 76], [7.3, 73], [5, 77]]) {
+      place(gb, x, z, Y.HQ);
+      e.heading = Math.atan2(z - e.z, x - e.x); e.sweepActive = false; e.headOffset = 0;
+      assert.equal(canSee(e, gb, w), 'none', `${tag} does not see a man standing at (${x},${z}) on the S strip`);
+    }
+  }
+  // the opening (x 23–33.5) stays open: e40 sees a man on his feet on the strip in front of it
+  const e40 = s.get('e40');
+  place(gb, 28, 73, Y.HQ);
+  e40.heading = Math.atan2(73 - e40.z, 28 - e40.x);
+  assert.notEqual(canSee(e40, gb, w), 'none', 'through the opening the forecourt still sees the strip');
+});
+
+test('m20 fix: the château stands 20 m above its terrace for sight too — the turret does not see over it to the strip behind it (sol/m20)', () => {
+  // its roof ledge walkway made it a level owner, measured from the ground (top 20 m: under the turret guard's eye at 27.65)
+  const s = m20Sim(), w = s.world, gb = s.cmd('greenberet'), e3 = s.get('e3');
+  e3.sweepActive = false; e3.headOffset = 0;
+  const k = w.grid.idx(Math.floor(15 / w.grid.cell), Math.floor(50 / w.grid.cell));
+  assert.ok(Math.abs(w.grid.blockBase(k) + ownerHeight(w)(k) - (Y.HQ + 20)) < 1e-6, 'the château tops out at 33 m');
+  for (const [x, z, st] of [[8, 73, 'stand'], [12, 73, 'stand'], [15, 76.5, 'stand'], [7.3, 73, 'crawl']]) {
+    place(gb, x, z, Y.HQ); gb.setStance(st); gb._stanceT = 0;
+    e3.heading = Math.atan2(z - e3.z, x - e3.x);
+    assert.equal(canSee(e3, gb, w), 'none', `e3 does not see (${x},${z}) behind the château`);
+    assert.equal(canSee(e3, { x, z, y: Y.HQ, kind: 'body' }, w), 'none', `nor a body there`);
+  }
+  // the strip in front of the opening and the forecourt's E part stay in his view
+  gb.setStance('stand'); gb._stanceT = 0;
+  for (const [x, z] of [[30, 73], [33, 66]]) {
+    place(gb, x, z, Y.HQ);
+    e3.heading = Math.atan2(z - e3.z, x - e3.x);
+    assert.notEqual(canSee(e3, gb, w), 'none', `e3 sees (${x},${z})`);
+  }
 });
 
 test('m20 fix: sentry sweeps are out of step (periods 9–12 s per post); the playtest pair e9/e20 differ', () => {
@@ -430,4 +472,20 @@ test('m20 fix: the N court\'s army wagons get a wagon mesh (wheels, hood), not t
     assert.ok(meshes.length >= 7, `${d.id}: bed, 4 wheels, drawbar, hood`);
     assert.ok(Math.hypot(m.position.x - d.x, m.position.z - d.z) < 1e-6);
   }
+});
+
+test('m20 fix: the team lies unseen at its starts — no live cone holds a prone man there for 4 minutes (e4 saw the W group S of rk_w1)', async () => {
+  const { headlessMission } = await import('../../tools/solutions/headless.mjs');
+  const s = headlessMission('m20'), w = s.world;
+  const seen = new Set();
+  for (let i = 0, n = Math.round(240 / s.dt); i < n; i++) {
+    s.step();
+    if (i % 6) continue;
+    for (const e of w.enemies) {
+      if (!e.alive || !e.vision) continue;
+      for (const c of w.commandos) if (canSee(e, c, w) !== 'none') seen.add(`${e.tag} saw ${c.role} at ${w.time.toFixed(1)} s`);
+    }
+  }
+  assert.deepEqual([...seen].slice(0, 5), [], 'nobody sees a man at his start');
+  for (const c of w.commandos) assert.equal(c.stance, 'crawl', `${c.role} still prone`);
 });

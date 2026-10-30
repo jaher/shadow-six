@@ -129,3 +129,54 @@ test('art m18: the SE-fields wreck is the red crawler (dossier §5.2 "red tracto
   assert.doesNotMatch(glb, /paint_rust_ochre/);
   assert.ok(JSON.parse(readFileSync(P('assets/textures/lib/materials.json'))).materials.paint_rust_red, 'registered material');
 });
+
+// ------------------------------------------------------------------------------------------ second art pass (art/m18-dressing.js)
+test('art m18 pass 2: the freight wagon stands on its stub siding, which ends at a rail-built buffer stop short of the station', () => {
+  const sid = S('siding_n'), buf = S('buffer_n'), wag = S('wagon_1'), st = S('station');
+  assert.equal(sid.type, 'rail_track');
+  const pts = sid.points.map(([x, z]) => ({ x, z }));
+  // the wagon's axis lies on the straight part of the siding (≤ 2 cm), parallel to it
+  const d = Math.min(...pts.slice(1).map((b, i) => segD(wag, pts[i], b)));
+  assert.ok(d < 0.02, `wagon ${d.toFixed(3)} m off the siding`);
+  const [a, b] = [pts[pts.length - 2], pts[pts.length - 1]];
+  assert.ok(Math.abs(Math.atan2(b.z - a.z, b.x - a.x) - (wag.rot + Math.PI)) < 1e-6 || Math.abs(Math.atan2(a.z - b.z, a.x - b.x) - wag.rot) < 1e-6, 'parallel');
+  // its far end lies past the NE map edge (the edge extension carries it on); the near end is the buffer stop
+  assert.ok(pts[0].x > m18.size[0], 'runs off the map');
+  assert.ok(Math.hypot(b.x - buf.x, b.z - buf.z) < 1e-6 && buf.variant === 'buffer_stop_std' && buf.block === 1);
+  // the stop's beam faces the wagon (local +x along the siding towards it), 1 m short of the wagon's buffers, and its back
+  // stands ≥ 1.2 m off the station's NE gable (the station's local x: its long axis)
+  const ax = Math.cos(buf.rot), az = Math.sin(buf.rot), along = (wag.x - buf.x) * ax + (wag.z - buf.z) * az;
+  assert.ok(along > 6 && along < 7.5, `wagon ${along.toFixed(2)} m along the stop's face`);
+  const lx = (buf.x - st.x) * Math.cos(st.rot) + (buf.z - st.z) * Math.sin(st.rot);
+  assert.ok(lx - buf.w / 2 - st.w / 2 >= 1.2, `stop ${(lx - buf.w / 2 - st.w / 2).toFixed(2)} m off the gable`);
+});
+
+test('art m18 pass 2: the green case of charges and the buffer stop are drawn by their own kit builders, not crate stacks', async () => {
+  const { buildProp } = await import('../../src/art/props.js');
+  const names = (res) => { const n = []; res.object3d.traverse((q) => n.push(q.name)); return n.join(' '); };
+  assert.match(names(buildProp('crates', S('crate_bombs'), { theater: 'temperate' })), /kit:explosives_case/);
+  assert.match(names(buildProp('crates', S('buffer_n'), { theater: 'temperate' })), /kit:buffer_stop/);
+  assert.doesNotMatch(names(buildProp('crates', S('crate_bombs'), { theater: 'temperate' })), /dressing:crates/);
+});
+
+test('art m18 pass 2: the new pieces keep clear of every route, post, spawn and vehicle path; the jeep ≥ 8 m off the start', () => {
+  const ids = ['buffer_n', 'reel_case', 'boat_isl', 'jeep_wreck', 'crater_se'];
+  const dress = ids.map(S);
+  assert.ok(dress.every(Boolean), ids.join());
+  const segs = [];
+  const add = (pts, loop) => { for (let i = 0; i + 1 < pts.length; i++) segs.push([pts[i], pts[i + 1]]); if (loop) segs.push([pts[pts.length - 1], pts[0]]); };
+  for (const e of m18.enemies) if (e.route?.points) add(e.route.points, e.route.type === 'LOOP');
+  for (const v of m18.vehicles) if (v.route?.points) add(v.route.points, v.route.type === 'LOOP');
+  for (const b of Object.values(m18.barracks)) for (const sq of b.squads) { add(sq.exitRoute); add(sq.loop, true); }
+  const spots = [...m18.enemies, ...m18.vehicles];
+  for (const s of dress) {
+    const r = s.r != null ? 1.5 * s.r : Math.hypot(s.w, s.d) / 2; // (a crater's rim and clods reach 1.5 r)
+    const dr = Math.min(...segs.map(([a, b]) => segD(s, a, b)));
+    assert.ok(dr - r >= 1, `${s.id}: ${(dr - r).toFixed(2)} m from a route`);
+    for (const u of spots) assert.ok(Math.hypot(u.x - s.x, u.z - s.z) - r >= 1.5, `${s.id} on ${u.id}`);
+  }
+  const jeep = S('jeep_wreck'), r = Math.hypot(jeep.w, jeep.d) / 2;
+  for (const c of m18.commandos) assert.ok(Math.hypot(c.x - jeep.x, c.z - jeep.z) - r >= 8, `jeep by the ${c.role}`);
+  assert.equal(jeep.vehicleArt, 'willys_mb');
+  assert.equal(jeep.wreck, true);
+});

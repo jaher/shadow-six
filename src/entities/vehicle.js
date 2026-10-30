@@ -321,6 +321,30 @@ function canSeeUnit(viewer, unit, world) {
   return perceptionCanSee(viewer, unit, world) !== 'none';
 }
 
+/**
+ * The highest point of a mesh's triangles that are more than a sliver across (4 cm or more in x or z): a whip aerial —
+ * a column of triangles a few millimetres wide — is no part of the hull a gallery or an arch must clear (it bends).
+ * (M20's Panzer III measured 3.53 m by its aerial and 2.66 m by its turret hatch: it stuck under the inner gate's raised
+ * portcullis, 3.2 m up, the only way out of the N court.) An instanced or skinned mesh counts by its bounding box.
+ */
+const _sa = new THREE.Vector3(), _sb = new THREE.Vector3(), _sc = new THREE.Vector3();
+function solidTop(n) {
+  const g = n.geometry, P = g?.attributes?.position;
+  if (!P || n.isInstancedMesh || n.isSkinnedMesh) { const bb = new THREE.Box3().setFromObject(n); return bb.isEmpty() ? -Infinity : bb.max.y; }
+  const I = g.index, cnt = I ? I.count : P.count, m = n.matrixWorld;
+  let top = -Infinity;
+  for (let t = 0; t + 2 < cnt; t += 3) {
+    _sa.fromBufferAttribute(P, I ? I.getX(t) : t).applyMatrix4(m);
+    _sb.fromBufferAttribute(P, I ? I.getX(t + 1) : t + 1).applyMatrix4(m);
+    _sc.fromBufferAttribute(P, I ? I.getX(t + 2) : t + 2).applyMatrix4(m);
+    const hi = Math.max(_sa.y, _sb.y, _sc.y);
+    if (hi <= top) continue;
+    const ex = Math.max(_sa.x, _sb.x, _sc.x) - Math.min(_sa.x, _sb.x, _sc.x), ez = Math.max(_sa.z, _sb.z, _sc.z) - Math.min(_sa.z, _sb.z, _sc.z);
+    if (ex >= 0.04 || ez >= 0.04) top = hi;
+  }
+  return top;
+}
+
 export class Vehicle extends Entity {
   /**
    * @param {{vehicleType?:string, x:number, z:number, heading?:number, id?:string, driveable?:boolean,
@@ -772,7 +796,9 @@ export class Vehicle extends Entity {
       if (g.block[k] === B.HIGH && !g.bridge[k]) return false;
     } else {
       if (g.block[k] !== B.NONE && !this._rammable(x, z)) return false;
-      if (g.navBlock?.[k]) return false; // what the visuals occupy (steps, woodpiles, tower legs; placement rule e)
+      // what the visuals occupy (steps, woodpiles, tower legs; placement rule e) — in a `hullDrawn` mission not the
+      // walkers' clearance round them (grid.hullBlocked)
+      if (g.navBlock?.[k] && (!g.hullDrawn || g.hullBlocked(k))) return false;
       // eaves, porch roofs, balconies lower than the hull + turret (placement rule e overhead clearance)
       if (g.overLo && g.overLo[k] < Infinity && g.overLo[k] < this._groundAt(x, z) + this.hullHeight() + 0.1) return false;
       if (t === T.WATER && !g.bridge[k]) return false;
@@ -792,16 +818,25 @@ export class Vehicle extends Entity {
     return typeof gy === 'function' ? gy.call(w, x, z) : 0;
   }
 
-  /** Height of the hull + turret / cab / canvas above its ground (m, the model's bounds; fallback 2.4). */
+  /** Height of the hull + turret / cab / canvas above its ground (m: the model's bounds — in a `hullDrawn` mission its solid top, no aerial; fallback 2.4). */
   hullHeight() {
     if (this._hullH != null) return this._hullH;
     const o = this.object3d;
     let h = this.def.height ?? 2.4, meshes = 0;
     if (o) {
       o.updateMatrixWorld(true);
-      o.traverse((n) => { if (n.isMesh) meshes++; });
-      const b = new THREE.Box3().setFromObject(o);
-      if (meshes && !b.isEmpty()) h = Math.max(0.5, b.max.y - o.position.y);
+      if (this.world?.grid?.hullDrawn) {
+        // (a `hullDrawn` mission: the top of what is more than a sliver across — solidTop, not a whip aerial's tip.
+        // Elsewhere the model's bounds, as the routes were tuned on: M11's half-tracks, 2.29 m by their hulls and 3.74 m
+        // by their aerials, took other ways under the tunnels and stuck)
+        let top = -Infinity;
+        o.traverse((n) => { if (n.isMesh) { meshes++; top = Math.max(top, solidTop(n)); } });
+        if (meshes && top > -Infinity) h = Math.max(0.5, top - o.position.y);
+      } else {
+        o.traverse((n) => { if (n.isMesh) meshes++; });
+        const b = new THREE.Box3().setFromObject(o);
+        if (meshes && !b.isEmpty()) h = Math.max(0.5, b.max.y - o.position.y);
+      }
     }
     if (meshes) this._hullH = h; // a model still loading (truck GLB) is measured again later
     return h;
@@ -905,7 +940,7 @@ export class Vehicle extends Entity {
     if (!g.inBounds(i, j)) return !!this.offMapOK;
     const k = g.idx(i, j);
     if (g.block[k] !== B.NONE && !g.bridge[k] && !this._rammable(x, z)) return false;
-    if (g.navBlock?.[k]) return false;
+    if (g.navBlock?.[k] && (!g.hullDrawn || g.hullBlocked(k))) return false;
     if (g.overLo && g.overLo[k] < Infinity && g.overLo[k] < this._groundAt(x, z) + this.hullHeight() + 0.1) return false;
     if (g.elev && g.elev[k] > y0 + 0.3) {
       // higher than the hull's floor: the rest of a ramp it stands on (no step up on the way out from its centre),

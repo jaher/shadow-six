@@ -20,6 +20,11 @@ const HASH_CELL = 4;
 
 /** Nobody near: one shared, frozen empty list (World.entitiesInRadius). */
 const NO_ENTITIES = Object.freeze([]);
+/** A path's own copy (its points and their link records): an answer given twice is never shared. */
+function copyPath(p) {
+  return p ? p.map((q) => (q.link ? { ...q, link: { ...q.link } } : { ...q })) : p;
+}
+
 export class World {
   /**
    * @param {object} opts
@@ -302,7 +307,12 @@ export class World {
    * @returns {{x:number, z:number, y?:number, link?:{id:number, kind:string}}[] | null}
    */
   findPath(fromX, fromZ, toX, toZ, opts = {}) {
-    return findPath(this.grid, fromX, fromZ, toX, toZ, {
+    // (the same query twice in one tick — a guard swung round by the shot, the shell and the shout of one moment, a file
+    // of men told the same way — is answered from the first: the grid has not moved. Not the dynamic layer's searches.)
+    const memo = opts.dynamic ? null : this._pathMemo(opts.avoid);
+    const key = memo ? `${fromX},${fromZ},${toX},${toZ},${opts.role},${!!opts.noLinks},${!!opts.noWalkLinks},${!!(opts.swim || opts.allowWater)},${!!opts.dive},${opts.maxNodes},${opts.smooth},${!!opts.taut},${opts.nearRadius},${!!opts.lying}` : null;
+    if (memo && memo.has(key)) return copyPath(memo.get(key));
+    const p = findPath(this.grid, fromX, fromZ, toX, toZ, {
       role: opts.role,
       dynamic: !!opts.dynamic,
       noLinks: !!opts.noLinks,
@@ -318,6 +328,18 @@ export class World {
       // (failed searches are remembered for the rest of this tick: pathfinding failMemo — the same answers, at once)
       memo: this.tick,
     });
+    if (memo) memo.set(key, copyPath(p));
+    return p;
+  }
+
+  /** This tick's answered path queries for an avoid mask (by identity; null: none), cleared as the tick or grid moves. */
+  _pathMemo(avoid) {
+    let M = this._pathMemos;
+    if (!M || M.tick !== this.tick || M.version !== this.grid.version) M = this._pathMemos = { tick: this.tick, version: this.grid.version, none: new Map(), byMask: new WeakMap() };
+    if (!avoid) return M.none;
+    let m = M.byMask.get(avoid);
+    if (!m) M.byMask.set(avoid, (m = new Map()));
+    return m;
   }
 
   /**

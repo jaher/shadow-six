@@ -11,43 +11,97 @@ with three.js. Six specialists, enemy vision cones, a fixed 3/4 camera and WWII 
 > No assets from the original game are used; all art, audio and code are original or CC0/redistributable
 > (see [CREDITS.md](CREDITS.md)).
 
-## Mission reference screenshots
+## Mission storyboards
 
-Reference frames from the web build: the dam breach in mission 3, a U-boat at
-the pier in mission 7, the battleship at Le Havre in mission 13, and the V2
-rockets on their pads in mission 19.
+A mission with a scripted solution can be filmed: the art opening (the title card over a slow pan of the map, from the
+objective to the team's start), then the whole solution played in the real game with player orders only and captioned
+step by step, down to the *Mission complete* card. Each sheet below is a 4 × 4 contact sheet of one film, in film
+order (click it for the full-size image); the numbers are the film's own: game time, detections, enemies killed,
+commandos alive. More films are on the way. How to make one: [Film a mission](#film-a-mission); the films themselves
+are not in the repository.
 
-| Mission | Action frame | Scene frames |
-|---|---|---|
-| m01 — Baptism of Fire | [![Mission 1 action frame: Gameplay: patrol crossing the snowy airfield village below the relay mast, staff car parked by the houses.](verify/reference/gameplay-m01.png)](verify/reference/gameplay-m01.png) | [![Mission 1 scene: The relay mast and snow-roofed hut on the Sola airfield, Kübelwagen parked alongside.](verify/reference/scene-m01-relay-mast.png)](verify/reference/scene-m01-relay-mast.png)<br>[![Mission 1 scene: The Green Beret ashore by the inflatable raft, a sentry standing a few metres away on the icy shore.](verify/reference/scene-m01-raft-stealth.png)](verify/reference/scene-m01-raft-stealth.png) |
-| m02 — A Quiet Blow-Up | [![Mission 2 action frame: ACTION: the fuel depot detonating — fireball hurling guards into the snow mid-blast.](verify/reference/gameplay-m02.png)](verify/reference/gameplay-m02.png) | [![Mission 2 scene: The patrol boat moored in the ice-choked harbour channel below the depot pier.](verify/reference/scene-m02-patrol-boat.png)](verify/reference/scene-m02-patrol-boat.png)<br>[![Mission 2 scene: Stealth approach on the fuel depot: a sentry's view cone sweeping the yard, guards reacting ("Achtung!"), commando at the cone's edge.](verify/reference/scene-m02-depot-approach.png)](verify/reference/scene-m02-depot-approach.png) |
-| m03 — Reverse Engineering | [![Mission 3 action frame: ACTION: the crest charge going off on the Sysendam dam — fireball on the crest, spillway bursting, "OBJECTIVE COMPLETED: DEMOLISH THE DAM".](verify/reference/gameplay-m03.png)](verify/reference/gameplay-m03.png) | [![Mission 3 scene: The Sysendam dam intact from the lake side, the Sapper standing on the crest.](verify/reference/scene-m03-dam-intact.png)](verify/reference/scene-m03-dam-intact.png)<br>[![Mission 3 scene: The Spy working into the garrison camp below the cliffs and power lines.](verify/reference/scene-m03-camp-infiltration.png)](verify/reference/scene-m03-camp-infiltration.png) |
-| m04 — Restore Pride | [![Mission 4 action frame: ACTION: the German headquarters villa exploding in the village square.](verify/reference/gameplay-m04.png)](verify/reference/gameplay-m04.png) | [![Mission 4 scene: The headquarters villa in the village square before the attack.](verify/reference/scene-m04-villa-square.png)](verify/reference/scene-m04-villa-square.png)<br>[![Mission 4 scene: A Panzer II on the shoreline road through the village, sentries nearby.](verify/reference/scene-m04-panzer-village.png)](verify/reference/scene-m04-panzer-village.png) |
-| m05 — Blind Justice | [![Mission 5 action frame: Gameplay: summit building with the escape autogyro at the frame edge.](verify/reference/gameplay-m05.png)](verify/reference/gameplay-m05.png) | [![Mission 5 scene: The escape autogyro on the summit pad beside the radar-station building.](verify/reference/scene-m05-autogyro.png)](verify/reference/scene-m05-autogyro.png)<br>[![Mission 5 scene: The cable-car station with the red gondola, mid-mountain.](verify/reference/scene-m05-cable-car.png)](verify/reference/scene-m05-cable-car.png) |
-| m06 — Menace of the Leopold | [![Mission 6 action frame: ACTION: the Leopold railway gun ablaze along its train after the planted charge.](verify/reference/gameplay-m06.png)](verify/reference/gameplay-m06.png) | [![Mission 6 scene: The Leopold railway gun intact on its siding by the stone tower.](verify/reference/scene-m06-leopold-intact.png)](verify/reference/scene-m06-leopold-intact.png)<br>[![Mission 6 scene: The chapel and station building under the Finnmark light, train on the siding.](verify/reference/scene-m06-chapel.png)](verify/reference/scene-m06-chapel.png) |
-| m07 — Chase of the Wolves | [![Mission 7 action frame: ACTION: the first U-boat blowing up at the pier as the after-deck charge detonates.](verify/reference/gameplay-m07.png)](verify/reference/gameplay-m07.png) | [![Mission 7 scene: A U-boat moored at the snowy pier (bow and deck along the quay), the Marine on the dock, halftrack on the harbour road.](verify/reference/scene-m07-uboat-pier.png)](verify/reference/scene-m07-uboat-pier.png)<br>[![Mission 7 scene: Snowy harbour-side houses with a patrol threading between them.](verify/reference/scene-m07-harbour-village.png)](verify/reference/scene-m07-harbour-village.png) |
-| m08 — Pyrotechnics | [![Mission 8 action frame: Gameplay: desert gun pit and mortar position, commando on the move, anti-tank obstacles.](verify/reference/gameplay-m08.png)](verify/reference/gameplay-m08.png) | [![Mission 8 scene: Desert gun pits: the big gun and AA position inside their walled enclosures at Tell el Eisa.](verify/reference/scene-m08-gun-pits.png)](verify/reference/scene-m08-gun-pits.png)<br>[![Mission 8 scene: The Green Beret slipping through the mud-brick village, truck parked by the houses.](verify/reference/scene-m08-desert-village.png)](verify/reference/scene-m08-desert-village.png) |
-| m09 — A Courtesy Call | [![Mission 9 action frame: ACTION: the radio hut exploding inside the walled compound.](verify/reference/gameplay-m09.png)](verify/reference/gameplay-m09.png) | [![Mission 9 scene: Three Panzers parked in a row under the vehicle shed, tanker truck alongside.](verify/reference/scene-m09-tank-column.png)](verify/reference/scene-m09-tank-column.png)<br>[![Mission 9 scene: Inside the walled compound: the weapons store and command post.](verify/reference/scene-m09-walled-compound.png)](verify/reference/scene-m09-walled-compound.png) |
-| m10 — Operation Icarus | [![Mission 10 action frame: ACTION: the airfield bomb store going up in a fireball.](verify/reference/gameplay-m10.png)](verify/reference/gameplay-m10.png) | [![Mission 10 scene: A Ju-52 transport on the El Agheila strip, close enough to read the fuselage codes.](verify/reference/scene-m10-ju52.png)](verify/reference/scene-m10-ju52.png)<br>[![Mission 10 scene: Two Stukas parked wingtip to wingtip on the desert airfield.](verify/reference/scene-m10-stuka-line.png)](verify/reference/scene-m10-stuka-line.png) |
-| m11 — In the Soup | [![Mission 11 action frame: ACTION: a drilling rig ablaze ("DRILLING RIG DESTROYED") among the storage tanks.](verify/reference/gameplay-m11.png)](verify/reference/gameplay-m11.png) | [![Mission 11 scene: A derrick and storage tanks in the Maradah oil field.](verify/reference/scene-m11-oil-rigs.png)](verify/reference/scene-m11-oil-rigs.png)<br>[![Mission 11 scene: The western tank farm: three storage tanks under their derrick, palms at the edge of frame.](verify/reference/scene-m11-tank-farm.png)](verify/reference/scene-m11-tank-farm.png) |
-| m12 — Up on the Roof | [![Mission 12 action frame: Gameplay: commandos crossing the Tunis rooftops.](verify/reference/gameplay-m12.png)](verify/reference/gameplay-m12.png) | [![Mission 12 scene: Commandos crossing the white Tunis rooftops.](verify/reference/scene-m12-rooftops.png)](verify/reference/scene-m12-rooftops.png)<br>[![Mission 12 scene: The Spy on a rooftop above a street patrol threading the medina lanes.](verify/reference/scene-m12-street-patrol.png)](verify/reference/scene-m12-street-patrol.png) |
-| m13 — David and Goliath | [![Mission 13 action frame: Gameplay: the battleship at berth under the harbour crane — the Goliath at rest (deck charges did not damage it, so no blast frame).](verify/reference/gameplay-m13.png)](verify/reference/gameplay-m13.png) | [![Mission 13 scene: The battleship's bow and forward turrets at berth under the harbour crane.](verify/reference/scene-m13-battleship.png)](verify/reference/scene-m13-battleship.png)<br>[![Mission 13 scene: The submarine tied up at the pier in the harbour basin.](verify/reference/scene-m13-sub-pen.png)](verify/reference/scene-m13-sub-pen.png) |
-| m14 — D-Day Kick Off | [![Mission 14 action frame: Gameplay: the beach casemate, wire and obstacles with troops ashore on Juno.](verify/reference/gameplay-m14.png)](verify/reference/gameplay-m14.png) | [![Mission 14 scene: The grass-roofed beach casemate with its garrison on the roof, wire and obstacles below.](verify/reference/scene-m14-juno-beach.png)](verify/reference/scene-m14-juno-beach.png)<br>[![Mission 14 scene: A beach-defence casemate and MG positions above the Juno shore road.](verify/reference/scene-m14-casemate.png)](verify/reference/scene-m14-casemate.png) |
-| m15 — The End of the Butcher | [![Mission 15 action frame: Gameplay: commandos on the riverside street with the tram.](verify/reference/gameplay-m15.png)](verify/reference/gameplay-m15.png) | [![Mission 15 scene: The tram on the riverside street in Compiègne, the Spy watching from the pavement.](verify/reference/scene-m15-tram.png)](verify/reference/scene-m15-tram.png)<br>[![Mission 15 scene: An Sd.Kfz. half-track parked on the street as a troop column marches past.](verify/reference/scene-m15-sdkfz-street.png)](verify/reference/scene-m15-sdkfz-street.png) |
-| m16 — Stop Wildfire | [![Mission 16 action frame: Gameplay: the locomotive waiting at the station by the Maas bridge line.](verify/reference/gameplay-m16.png)](verify/reference/gameplay-m16.png) | [![Mission 16 scene: The station house and platform by the Maas bridge line, squad prone in the field behind.](verify/reference/scene-m16-station.png)](verify/reference/scene-m16-station.png)<br>[![Mission 16 scene: A truck waiting at the level crossing as a patrol marches across the tracks.](verify/reference/scene-m16-rail-crossing.png)](verify/reference/scene-m16-rail-crossing.png) |
-| m17 — Before Dawn | [![Mission 17 action frame: Gameplay: the squad moving up the snowy forest road, point man ringed.](verify/reference/gameplay-m17.png)](verify/reference/gameplay-m17.png) | [![Mission 17 scene: Dawn on the forest road: view cones, dialogue, and the bridge gantry ahead of the squad.](verify/reference/scene-m17-dawn-road.png)](verify/reference/scene-m17-dawn-road.png)<br>[![Mission 17 scene: The fenced prisoner pen with its guard truck, before the breakout.](verify/reference/scene-m17-prison-pen.png)](verify/reference/scene-m17-prison-pen.png) |
-| m18 — The Force of Circumstance | [![Mission 18 action frame: ACTION: the Maas bridge mid-collapse into the river, charges fired at the three marked points ("THE BRIDGE IS DOWN").](verify/reference/gameplay-m18.png)](verify/reference/gameplay-m18.png) | [![Mission 18 scene: The Maas bridge intact — steel truss, island hut and the sandbagged MG post.](verify/reference/scene-m18-bridge-intact.png)](verify/reference/scene-m18-bridge-intact.png)<br>[![Mission 18 scene: The little station building with its flag and a wagon on the siding.](verify/reference/scene-m18-station.png)](verify/reference/scene-m18-station.png) |
-| m19 — Frustrate Retaliation | [![Mission 19 action frame: ACTION: a V2 rocket destroyed on its launch pad, second rocket still standing alongside.](verify/reference/gameplay-m19.png)](verify/reference/gameplay-m19.png) | [![Mission 19 scene: All three V2 rockets standing on their pads between the site houses, intact.](verify/reference/scene-m19-v2-pads.png)](verify/reference/scene-m19-v2-pads.png)<br>[![Mission 19 scene: The west yard: fuel tanks and a tank hull under the workshop shed.](verify/reference/scene-m19-west-yard.png)](verify/reference/scene-m19-west-yard.png) |
-| m20 — Operation Valhalla | [![Mission 20 action frame: ACTION (aftermath): the castle HQ roof blown in and still smoking after the charge.](verify/reference/gameplay-m20.png)](verify/reference/gameplay-m20.png) | [![Mission 20 scene: Gundelfingen castle intact, a commando ringed at the HQ door.](verify/reference/scene-m20-castle.png)](verify/reference/scene-m20-castle.png)<br>[![Mission 20 scene: Two V2 rockets on transport trailers in the castle courtyard, guards patrolling.](verify/reference/scene-m20-v2-site.png)](verify/reference/scene-m20-v2-site.png) |
+### Sandbox (mission 0)
 
-The complete per-mission set — action frames plus non-explosion scene
-references for missions 1–20 — is catalogued in
+The Sniper shoots the officer, the compound patrol and the bridge sentry; the Sapper's bear trap takes the road patrol and his time bomb the fuel depot; the Green Beret knifes the depot guard. *Game time 6:08 (film 1:36), 0 detections, 5 kills, all 3 commandos alive.*
+
+[![The sandbox storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 5 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m00.jpg)](docs/screenshots/storyboards/m00.jpg)
+
+### Mission 1 · Baptism of Fire
+
+The Green Beret knifes the road sentry; the Marine swims round the peninsula, harpoons a second guard and rafts the Green Beret up the fjord; the Green Beret carries a fuel drum to the relay station and sets it off with one pistol shot. The Driver takes no part. *Game time 18:10 (film 2:20), 0 detections, 2 kills, all 3 commandos alive.*
+
+[![Mission 1 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 6 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m01.jpg)](docs/screenshots/storyboards/m01.jpg)
+
+### Mission 2 · A Quiet Blow-Up
+
+The Sapper's bear trap takes two guards, the Marine's speargun one, the Sniper two shots across the river and the Green Beret's knife two more inside the camp; the Marine rafts the team over, the Sapper blows the fuel depot and the Driver drives the truck out. *Game time 20:00 (film 3:34), 0 detections, 7 kills, all 5 commandos alive.*
+
+[![Mission 2 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 11 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m02.jpg)](docs/screenshots/storyboards/m02.jpg)
+
+### Mission 3 · Reverse Engineering
+
+The Marine harpoons three guards, the Green Beret knifes four and works a decoy, the Sapper's trap takes the sergeant, the Spy takes a uniform and switches the fence off; the Sapper's charges destroy the bunker (and its gunner) and the dam, and all four leave in the truck. *Game time 45:03 (film 8:19), 0 detections, 9 kills, all 4 commandos alive.*
+
+[![Mission 3 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 10 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m03.jpg)](docs/screenshots/storyboards/m03.jpg)
+
+### Mission 5 · Blind Justice
+
+The Spy rides the cable car in a German uniform and injects five guards; the Green Beret knifes one, climbs the east cliff and puts a fuel drum by the radar; the Spy's pistol shots set off the drums that destroy the barracks (with a three-man patrol) and the radar, and both fly out in the autogyro. *Game time 14:59 (film 3:05), 0 detections, 9 kills, both commandos alive.*
+
+[![Mission 5 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 8 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m05.jpg)](docs/screenshots/storyboards/m05.jpg)
+
+### Mission 6 · Menace of the Leopold
+
+The Green Beret knifes one guard and lays a decoy; the Sniper shoots one guard on the way in and two after the blast; the Sapper's charge destroys the Leopold railway gun and a guard beside it; all three board the truck. *Game time 36:04 (film 4:47), 0 detections, 5 kills, all 3 commandos alive.*
+
+[![Mission 6 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 8 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m06.jpg)](docs/screenshots/storyboards/m06.jpg)
+
+### Mission 11 · In the Soup
+
+The Spy, in uniform, injects the gate sentry and four valley guards; the Sapper plants three remote bombs; the Driver takes the half-track through the yard and fires its gun at the quarry's fuel truck, which takes both quarry rigs, and the Sapper's detonator takes the yard and valley rigs; all five drive out in the half-track. *Game time 17:11 (film 4:26), 0 detections, 5 kills, all 5 commandos alive.*
+
+[![Mission 11 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 8 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m11.jpg)](docs/screenshots/storyboards/m11.jpg)
+
+### Storyboards to come
+
+The storyboard of each of these missions comes when its film is done (a film needs the mission's scripted solution
+first, see [Status](#status)); until then it keeps its single in-game frame.
+
+<table>
+<tr>
+<td align="center" width="33%"><a href="verify/reference/gameplay-m04.png"><img src="verify/reference/gameplay-m04.png" width="100%" alt="Mission 4: The German headquarters villa exploding in the village square."></a><br><sub><b>Mission 4</b> · Restore Pride</sub></td>
+<td align="center" width="33%"><a href="verify/reference/gameplay-m07.png"><img src="verify/reference/gameplay-m07.png" width="100%" alt="Mission 7: The first U-boat blowing up at the pier as the after-deck charge detonates."></a><br><sub><b>Mission 7</b> · Chase of the Wolves</sub></td>
+<td align="center" width="33%"><a href="verify/reference/gameplay-m08.png"><img src="verify/reference/gameplay-m08.png" width="100%" alt="Mission 8: Desert gun pit and mortar position, commando on the move, anti-tank obstacles."></a><br><sub><b>Mission 8</b> · Pyrotechnics</sub></td>
+</tr>
+<tr>
+<td align="center" width="33%"><a href="verify/reference/gameplay-m09.png"><img src="verify/reference/gameplay-m09.png" width="100%" alt="Mission 9: The radio hut exploding inside the walled compound."></a><br><sub><b>Mission 9</b> · A Courtesy Call</sub></td>
+<td align="center" width="33%"><a href="verify/reference/gameplay-m10.png"><img src="verify/reference/gameplay-m10.png" width="100%" alt="Mission 10: The airfield bomb store going up in a fireball."></a><br><sub><b>Mission 10</b> · Operation Icarus</sub></td>
+<td align="center" width="33%"><a href="verify/reference/gameplay-m12.png"><img src="verify/reference/gameplay-m12.png" width="100%" alt="Mission 12: Commandos crossing the Tunis rooftops."></a><br><sub><b>Mission 12</b> · Up on the Roof</sub></td>
+</tr>
+<tr>
+<td align="center" width="33%"><a href="verify/reference/gameplay-m13.png"><img src="verify/reference/gameplay-m13.png" width="100%" alt="Mission 13: The battleship at berth under the harbour crane."></a><br><sub><b>Mission 13</b> · David and Goliath</sub></td>
+<td align="center" width="33%"><a href="verify/reference/gameplay-m14.png"><img src="verify/reference/gameplay-m14.png" width="100%" alt="Mission 14: The beach casemate, wire and obstacles with troops ashore on Juno."></a><br><sub><b>Mission 14</b> · D-Day Kick Off</sub></td>
+<td align="center" width="33%"><a href="verify/reference/gameplay-m15.png"><img src="verify/reference/gameplay-m15.png" width="100%" alt="Mission 15: Commandos on the riverside street with the tram."></a><br><sub><b>Mission 15</b> · The End of the Butcher</sub></td>
+</tr>
+<tr>
+<td align="center" width="33%"><a href="verify/reference/gameplay-m16.png"><img src="verify/reference/gameplay-m16.png" width="100%" alt="Mission 16: The locomotive waiting at the station by the Maas bridge line."></a><br><sub><b>Mission 16</b> · Stop Wildfire</sub></td>
+<td align="center" width="33%"><a href="verify/reference/gameplay-m17.png"><img src="verify/reference/gameplay-m17.png" width="100%" alt="Mission 17: The squad moving up the snowy forest road, point man ringed."></a><br><sub><b>Mission 17</b> · Before Dawn</sub></td>
+<td align="center" width="33%"><a href="verify/reference/gameplay-m18.png"><img src="verify/reference/gameplay-m18.png" width="100%" alt="Mission 18: The Maas bridge mid-collapse into the river, charges fired at the three marked points (&quot;THE BRIDGE IS DOWN&quot;)."></a><br><sub><b>Mission 18</b> · The Force of Circumstance</sub></td>
+</tr>
+<tr>
+<td align="center" width="33%"><a href="verify/reference/gameplay-m19.png"><img src="verify/reference/gameplay-m19.png" width="100%" alt="Mission 19: A V2 rocket destroyed on its launch pad, second rocket still standing alongside."></a><br><sub><b>Mission 19</b> · Frustrate Retaliation</sub></td>
+<td align="center" width="33%"><a href="verify/reference/gameplay-m20.png"><img src="verify/reference/gameplay-m20.png" width="100%" alt="Mission 20: The castle HQ roof blown in and still smoking after the charge."></a><br><sub><b>Mission 20</b> · Operation Valhalla</sub></td>
+<td></td>
+</tr>
+</table>
+
+The earlier reference set, an action frame and two scene frames for each of missions 1 to 20, is catalogued in
 [verify/reference/README.md](verify/reference/README.md).
 
 ## What you get
 
-- **The Behind Enemy Lines campaign**, rebuilt mission by mission from the original's 20 missions: missions 1–3
-  are playable now, the rest are on the way (see [Status](#status)).
+- **The Behind Enemy Lines campaign**, rebuilt mission by mission from the original's 20 missions: all twenty play
+  now, some more finished than others (see [Status](#status)).
 - **Six commandos with their original abilities and weapons**: the Green Beret (knife, decoy, shovel, climbing),
   Sniper, Marine (harpoon, boat, diving gear), Sapper (time and remote bombs, grenades, traps), Driver and Spy
   (uniform, lethal injection); each carries only what he had in 1998.
@@ -60,16 +114,25 @@ references for missions 1–20 — is catalogued in
   in the trees and flags, fire, smoke and explosions, physically based lighting.
 - **Briefings, debriefings, quick save / load and a sandbox** to learn the controls; the *Beyond the Call of
   Duty* gadgets and units exist behind their own ruleset (sandbox only for now).
+- **Solutions you can watch**: the finished missions come with a scripted full solution, played with player orders
+  only and without a single detection. Replay it live in the game, or follow it as a captioned walkthrough with a
+  camera director (both under `?debug`, see [Debug mode](#debug-mode)); `tools/solutions/film-mission.mjs` films it
+  (see the [storyboards](#mission-storyboards)).
 
 ## Status
 
-Work in progress.
+Work in progress. All twenty missions of the *Behind Enemy Lines* campaign are in the build and playable (in
+campaign order, or any of them at once with `?debug`), with art (terrain, water, buildings, vehicles, animated
+soldiers and commandos), vision cones, alarms, the knapsack, stealth kills, carrying bodies, explosives, briefings,
+debriefings, and saving and loading. They are at different stages of finish:
 
-- **Playable now:** missions 1 to 3 of the *Behind Enemy Lines* campaign, with realistic art: snow terrain,
-  water, buildings, vehicles, animated soldiers and commandos, vision cones, alarms, the knapsack, stealth kills,
-  carrying bodies, explosives, briefings, debriefings, and saving and loading.
-- **Work in progress:** missions 4 to 20, the *Beyond the Call of Duty* campaign and some systems and polish.
-  They are being built on separate branches and will be published as they are finished.
+- **Art and a scripted solution finished:** the sandbox (M0) and missions 1, 2, 3, 5, 6, 8, 11, 12, 13, 14, 15, 16
+  and 19. A solution is a full run with player orders only that wins without a single detection; it replays in the
+  game, plays as a captioned walkthrough and can be filmed (see [Mission storyboards](#mission-storyboards)).
+- **Solution merged, art in review:** mission 20.
+- **In progress:** missions 10 and 18 (their art is done, their solutions are being written).
+- **Still to come:** missions 4, 7, 9 and 17 (a further art pass and a scripted solution each), the *Beyond the
+  Call of Duty* campaign and some systems and polish. Work is merged and published as it is finished.
 
 ## System requirements
 
@@ -103,7 +166,7 @@ URL parameters:
 
 | Parameter | Effect |
 | --- | --- |
-| `?mission=m01` | Skip the title screen and load a mission (`m01`–`m03`; `m00` is the sandbox). |
+| `?mission=m01` | Skip the title screen and load a mission (`m01`–`m20`; `m00` is the sandbox). |
 | `?preset=low\|medium\|high\|ultra` | Rendering quality preset. |
 | `?test=1` | Test mode: the simulation only advances through `window.__game.advance(s)`. |
 | `?debug` | Debug mode: the DEBUG LEVEL SELECT instead of the title (see [Debug mode](#debug-mode)). `?debug=cones` also shows every vision cone. |
@@ -154,12 +217,12 @@ Below the table, a **perf graph** shows the last 15 seconds: each frame's time a
 
 ### Solution replays
 
-Missions with a saved full solution (today Mission 3, *Reverse Engineering*: `tools/solutions/m03.solution.mjs`, the
-same script the `m03-solution` regression test plays) can be watched being solved inside the game. In DEBUG LEVEL
-SELECT pick **▶ … — play the solution** under *Solution replays*; in a mission press **F9** or the small **▶ SOL**
-button beside DEBUG. The mission is loaded fresh, as authored (the select's *All commandos*, *Invulnerable*, *Enemies
-blind & deaf*, time of day and wind are ignored while it plays), and the solution's player orders are issued live in
-the real game loop, starting at 1× (real time). The bar at the top has:
+Missions with a saved full solution (`tools/solutions/<id>.solution.mjs`: so far the sandbox and missions 1, 2, 3, 5,
+6, 8, 11 to 16, 19 and 20; the script is the one the mission's `<id>-solution` regression test plays) can be watched
+being solved inside the game. In DEBUG LEVEL SELECT pick **▶ … — play the solution** under *Solution replays*; in a
+mission press **F9** or the small **▶ SOL** button beside DEBUG. The mission is loaded fresh, as authored (the select's
+*All commandos*, *Invulnerable*, *Enemies blind & deaf*, time of day and wind are ignored while it plays), and the
+solution's player orders are issued live in the real game loop, starting at 1× (real time). The bar at the top has:
 
 | Control | Effect |
 | --- | --- |
@@ -217,6 +280,29 @@ The walkthrough never changes the simulation: it wins exactly like the scripted 
 (`tests/debug-walkthrough-sim.test.mjs`) — opened from a cold link too, however slow the connection: the load waits for
 everything the gameplay world measures on the art, never racing it against a clock, so the run is the tested one tick
 for tick (`tests/debug-walkthrough-cold.test.mjs`: M2 and M3 cold, M2 through a 4 Mbit/s link).
+
+### Film a mission
+
+Any mission with a solution can be filmed: the art opening (the title card over a slow pan of the map, from the
+objective to the team's start), then the whole solution played in the real game with player orders only and captioned
+step by step, with a soundtrack mixed from the game's own music, ambience and effects. One command makes the MP4 and a
+4 × 4 contact sheet of its key frames (the [storyboards](#mission-storyboards) are those sheets):
+
+```sh
+# writes ../commandos-shots/videos/m01.mp4 and m01-sheet.jpg
+node tools/solutions/film-mission.mjs m01 --sheet
+```
+
+It needs `npm install` (playwright-core) and a GPU, and takes from a few minutes to half an hour or more, depending on
+the mission: it plays the solution twice, first without drawing to learn when things happen (kills, blasts,
+checkpoints), then frame by frame, so run it in the background and read its progress lines. It also needs an `ffmpeg`
+with libx264 and AAC (`--ffmpeg <bin>`, `$FFMPEG`, or the PATH). It checks the run (both passes won with identical
+checkpoints, the file decodes with video and audio, its length matches the frames, it is audible and not clipping)
+and ends with one `FILM_RESULT {json}` line; the exit code is 0 only when every check passed. Options:
+`--videos <dir>` (or `$FILM_VIDEOS`; default `../commandos-shots/videos`), `--no-opening`, `--keep-frames`,
+`--mix-only`, `--bitrate 1400k` or `--crf 26`. An optional `tools/solutions/<id>.cut.mjs` words the captions and sets
+fixed shots and speeds for one mission; the details are in [docs/mission-videos.md](docs/mission-videos.md). Films are
+never committed to the repository.
 
 ## Controls
 
@@ -308,13 +394,17 @@ src/entities/         units, commandos, enemies, vehicles, projectiles, interact
 src/ai/               perception, enemy brain, alarm
 src/abilities/        one file per ability
 src/engine/           renderer, camera, input, asset loading
+src/input/            touch gestures and in-mission touch controls
+src/physics/          blast, debris and ragdoll physics (Rapier)
 src/render/           vision cones, selection markers, effects
 src/art/              models, materials, terrain, water, characters
 src/ui/, src/audio/   menus, HUD, briefings, credits; audio
-src/missions/         mission definitions (m00 sandbox, m01–m03)
+src/debug/            debug mode: level select, solution replay, video mode (walkthrough), info HUD
+src/missions/         mission definitions (m00 sandbox, m01–m20 the BEL campaign, b00 the BCD sandbox)
 assets/               textures, models, HDRIs, audio, portraits, fonts (see CREDITS.md)
 vendor/               three.js r186 and addons
-tools/                dev server, web build (tools/build), asset build scripts (Blender, audio, portraits)
+tools/                dev server, web build (tools/build), asset build scripts (Blender, audio, portraits),
+                      mission solutions, walkthroughs and films (tools/solutions)
 tests/                browser tests and unit tests
 docs/                 architecture, design spec, research notes, screenshots
 ```

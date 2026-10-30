@@ -37,7 +37,7 @@ import { rockFacesNear, inRockFace, NO_FACES } from '../world/rock-faces.js';
 import { gateLayout } from '../world/breakables.js';
 import { runNoiseStep } from '../ai/running-noise.js';
 import { footOf } from '../ai/footprints.js';
-import { stairSpeed, linkWalkY, isLadderLeg, ladderTrack, ladderSpeed, onStairRun, railShift, railPath, railRoom, railPoint } from './stair-walk.js';
+import { stairSpeed, linkWalkY, isLadderLeg, ladderTrack, ladderSpeed, onStairRun, nearStairRun, railShift, railPath, railRoom, railPoint } from './stair-walk.js';
 
 const LOW_STANCES = new Set(['crawl', 'swim', 'dive', 'downed']);
 /**
@@ -231,8 +231,9 @@ export class Unit extends Entity {
   moveTo(x, z, { run = false, onArrive = null, bare = false } = {}) {
     if (!this.alive || !this.world || IMMOBILE_STATES.has(this.state) || this.buried) return false;
     // from the path track: a dodging walker keeps its lane (avoidance.js), so re-paths do not shift the route
-    // (halfway up / down a ladder: planned from its end, which he climbs on to first)
-    let path = this._onLadder() ? this._planFromLadder(x, z, bare) : this._planPath(x, z, null, bare);
+    // (halfway up / down a ladder: planned from its end, which he climbs on to first; halfway over a wall on a climb
+    // link the same: he finishes the climb from where he hangs)
+    let path = this._onLadder() ? this._planFromLadder(x, z, bare) : this._onClimb() ? this._planFromClimb(x, z, bare) : this._planPath(x, z, null, bare);
     if (!path) return false;
     path = railPath(this, path, { x, z }); // (up / down a stair head-on, its middle between the rails: user 2026-10-11)
     this._bodyBlockT = 0;
@@ -241,7 +242,7 @@ export class Unit extends Entity {
     this._settled = false;
     this._settleHeading = null;
     this.path = path;
-    this.pathIndex = path.length > 1 && path[0] !== this._ladder?.wp ? 1 : 0;
+    this.pathIndex = path.length > 1 && path[0] !== this._ladder?.wp && path[0] !== this._climb?.wp ? 1 : 0;
     this.moveTarget = path[path.length - 1];
     this.moveMode = run && this.stance === 'stand' ? 'run' : 'walk';
     this._onArrive = onArrive;
@@ -318,6 +319,21 @@ export class Unit extends Entity {
     let p;
     try { p = this._planPath(x, z, null, bare); } finally { this.x = at.x; this.z = at.z; this.y = at.y; }
     return p ? [L.wp, ...p.slice(1)] : null;
+  }
+
+  /** Is he halfway over a wall on a climb link (the GB's climb: `_climb`, placement.climbTrack)? */
+  _onClimb() { const C = this._climb; return !!(C && this.path?.[this.pathIndex] === C.wp); }
+
+  /**
+   * A path to (x, z) that first finishes the climb he is on (moveTo while hanging on a wall: the dossier's "stop
+   * mid-climb and wait"): planned from the link's far end, the climb kept (it goes on from his height).
+   */
+  _planFromClimb(x, z, bare = false) {
+    const C = this._climb, at = { x: this.x, z: this.z, y: this.y };
+    this.x = C.wp.x; this.z = C.wp.z; this.y = C.wp.y ?? this.y;
+    let p;
+    try { p = this._planPath(x, z, null, bare); } finally { this.x = at.x; this.z = at.z; this.y = at.y; }
+    return p ? [C.wp, ...p.slice(1)] : null;
   }
 
   /** Where he is on his path track (position minus the avoidance lane and corner curve): route progress. */
@@ -819,7 +835,7 @@ export class Unit extends Entity {
   _heelBlocked() {
     const g = this.world?.grid;
     if (!g) return false;
-    if (g.flights?.size && onStairRun(this)) return true;
+    if (g.flights?.size && nearStairRun(this)) return true; // (from a stride before the flight: stair-walk nearStairRun)
     const c = Math.cos(this.heading), s = Math.sin(this.heading);
     for (const d of [0.45, 0.65, 0.85]) for (const v of [-0.15, 0, 0.15]) {
       const x = this.x - c * d - s * v, z = this.z - s * d + c * v, { i, j } = g.worldToCell(x, z);

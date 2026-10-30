@@ -29,7 +29,7 @@ import { buildTerrainG, canBuildRealTerrain, TREE_TYPES, coverPropsWithSnow, set
 import { buildWaterAsync, raisedWaterMasks, gameplayWaterLevel } from '../art/water.js';
 import { buildWalkDeck, WALK_SHIFT, dressingMaterial } from '../art/dressing.js';
 import { buildDamStairs, stairTopAt } from '../art/dam-stairs.js';
-import { StairField, damFlights, platformFlight, linkFlight } from './stairs.js';
+import { StairField, damFlights, platformFlight, linkFlight, flightLocal, lineAt } from './stairs.js';
 import { createDamWater, createDamWaterG, hasDamWater, loadDamPoolTextures } from '../render/dam-water.js';
 import { buildMissionWire } from '../art/wire-obstacles.js';
 import { railBeds } from '../missions/rail-clearance.js';
@@ -596,7 +596,9 @@ export function* stampVisualNavG(world, built, points = []) {
       if (withCover && deck && pairs.length) for (const k of deckCover(grid, b.object3d, pairs, out, free, m)) out.add(k);
       // …and its open edges: a deck cell whose surface drops more than a step within the body clearance (a boot
       // over the edge of a pier on the bank, of a raised crest) — not its landings, flush with the ground
-      if (withCover && deckTops) for (const k of deckEdges(grid, b.owner, deckTops, m, free, typeof world.groundY === 'function' ? (x, z) => world.groundY(x, z) : null)) out.add(k);
+      // (not for hulls — withCover 'hull': a deck's own edges are its railings and the water beside it, and the tops a
+      // deck's surface is read from take in its rail and post tops: M20's SW bridge closed a cell inside its rail's end)
+      if (withCover && withCover !== 'hull' && deckTops) for (const k of deckEdges(grid, b.owner, deckTops, m, free, typeof world.groundY === 'function' ? (x, z) => world.groundY(x, z) : null)) out.add(k);
       return out;
     };
     // a deck keeps its way across (end to end over the deck and dry ground) and its ends: the full body clearance
@@ -625,7 +627,9 @@ export function* stampVisualNavG(world, built, points = []) {
     }
     if (!levels.length || !levels[0].size) continue;
     const key = `vis:${b.owner}`;
-    stamps.push({ key, levels: [...levels, new Set()] }); // (none: the last resort when what stands there cuts a way)
+    // (none: the last resort when what stands there cuts a way). `core`: what is drawn there, without the walkers'
+    // clearance — the hulls' stamp (grid.hullBlock), whatever margin the walkers' crossing of a deck kept
+    stamps.push({ key, owner: b.owner, levels: [...levels, new Set()], core: stampAt(0, deck ? 'hull' : true) });
     grid.navStamp(key, levels[0]);
     cells += levels[0].size; n++;
   }
@@ -635,8 +639,11 @@ export function* stampVisualNavG(world, built, points = []) {
   if (due()) yield;
   const relaxed = yield* keepWaysG(grid, labels0, ways, stamps);
   if (relaxed) cells = stamps.reduce((a, st) => a + stampCells(st).size, 0);
+  // the drawn footprints for hulls (grid.hullBlock, hullBlocked): what is drawn, without the walkers' ring round it —
+  // and where a way had to be opened through it for the walkers, only what still stands there for them
+  for (const st of stamps) if (st.core) { const fin = stampCells(st); grid.hullStamp(`hull:${st.owner}`, [...st.core].filter((k) => fin.has(k))); }
   const relaxedN = stamps.filter((st) => st.lv?.size && !st.soft).length;
-  const off = world.events?.on?.('structure:destroyed', (e) => { if (e?.owner != null) { grid.navStamp(`vis:${e.owner}`, []); grid.navStamp(`low:${e.owner}`, []); } });
+  const off = world.events?.on?.('structure:destroyed', (e) => { if (e?.owner != null) { grid.navStamp(`vis:${e.owner}`, []); grid.navStamp(`low:${e.owner}`, []); grid.hullStamp(`hull:${e.owner}`, []); } });
   return { cells, structures: n, lanes, relaxed: relaxedN, off: typeof off === 'function' ? off : null };
 }
 
@@ -1552,9 +1559,39 @@ export function buildStairField(built, grid, links = []) {
     const d = links.find((r) => r.link === l)?.def;
     const ends = d ? { a: { x: d.x, z: d.z, y: d.y ?? 0 }, b: { x: d.top[0], z: d.top[1], y: d.top[2] ?? 0 } } : {};
     // (`width` / `risers`: a drawn stair that is not castle-kit's 1.8 m flight of 0.2 m steps — M9's barracks stair)
-    flights.push(linkFlight(l, { id: d?.id ?? `link${l.id}`, ...ends, ...(d?.width ? { width: d.width } : null), ...(d?.risers ? { risers: d.risers } : null) }));
+    const f = linkFlight(l, { id: d?.id ?? `link${l.id}`, ...ends, ...(d?.width ? { width: d.width } : null), ...(d?.risers ? { risers: d.risers } : null) });
+    if (f && d?.solid) f.solid = true;
+    flights.push(f);
   }
   return new StairField(flights);
+}
+
+/**
+ * A solid flight's masonry (a stair link drawn as stone down to the ground: M20's castle-kit flights, mission
+ * `solid`): the floor cells beside its run under it — its width, its cheek walls and a man's body
+ * (stair-walk besideLinkFlight's reach) — are no way on foot. The pathfinder took them for open ground and the stair
+ * walk then shoved a man there back out for ever (sol/m20: stuck by the W quarter's stairs). Its foot and its top
+ * stay open; so do cells at its height (a level beside it, its landing).
+ * @returns {number} cells stamped
+ */
+export function stampSolidFlights(grid, field) {
+  const cells = [], c = grid.cell, OUT = 0.3 + 0.38; // (stair-walk CHEEK + RAIL_BODY.stand)
+  for (const f of field?.flights || []) {
+    if (!f.solid || !f.link) continue;
+    const reach = f.w / 2 + OUT, b = f.box;
+    for (let j = Math.floor((b[1] - reach) / c); j <= Math.floor((b[3] + reach) / c); j++) {
+      for (let i = Math.floor((b[0] - reach) / c); i <= Math.floor((b[2] + reach) / c); i++) {
+        if (!grid.inBounds(i, j)) continue;
+        const x = (i + 0.5) * c, z = (j + 0.5) * c, q = flightLocal(f, x, z);
+        if (q.s < 0.6 || q.s > f.sTop - 0.3 || Math.abs(q.v) >= reach) continue;
+        const k = grid.idx(i, j);
+        if (grid.elev[k] > f.levels[0] + 0.3 || grid.elev[k] > lineAt(f, q.s) - 0.5) continue; // (a level beside it, its height)
+        cells.push(k);
+      }
+    }
+  }
+  if (cells.length) grid.navStamp('flight:solid', cells);
+  return cells.length;
 }
 
 /** Standing point in front of a structure's door (local direction `door` rad from `rot`; default: +90° = south face at rot 0). */
@@ -1601,6 +1638,8 @@ export function* buildMapGen(world, mission, opts = {}) {
   if (gate) holdLodAttach(gate);
   mission = normalizeMission(mission); // design-spec §7.3 (idempotent)
   const grid = world.grid;
+  // (`hullDrawn`: hulls clear what is drawn, not the walkers' clearance round it — grid.hullBlocked; M20)
+  grid.hullDrawn = !!mission.hullDrawn;
   const theater = opts.theater || mission.theater || 'temperate';
   const meshes = opts.meshes !== false;
   // final terrain: tree structures keep their grid footprints (fixed occluders) but are drawn by the vegetation system
@@ -1850,6 +1889,7 @@ export function* buildMapGen(world, mission, opts = {}) {
   // walks their nosing line (grid.surfaceY), the view puts the feet on their treads (art/stair-gait.js). Attached after
   // every nav stamp above, which knows nothing of them.
   world.stairs = grid.flights = buildStairField(built, grid, links);
+  stampSolidFlights(grid, grid.flights);
   if (due()) yield;
 
   // 5c. placement rule (e): what the visuals occupy outside their gameplay footprints blocks walking (browser)
@@ -2159,7 +2199,7 @@ export function* buildMapGen(world, mission, opts = {}) {
       // (only those: the others keep their stamps; a batched repeat is drawn by its batch, its stamps stay)
       const late = meshless.filter((b) => !b.batched);
       if (gone || !late.length) return;
-      for (const b of late) { grid.navStamp(`vis:${b.owner}`, []); grid.navStamp(`low:${b.owner}`, []); }
+      for (const b of late) { grid.navStamp(`vis:${b.owner}`, []); grid.navStamp(`low:${b.owner}`, []); grid.hullStamp(`hull:${b.owner}`, []); }
       grid.navStamp('headroom', []); grid.navStamp('walk:clear', []);
       stampVisualNav(world, late, missionWayPoints(mission, interactables));
       stampOverhead(world, late);
@@ -2296,6 +2336,31 @@ export function* buildMapGen(world, mission, opts = {}) {
     *restampBodySolidsG(owners) {
       if (!meshes || gone || !owners?.size) return 0;
       return (yield* stampBodySolidsG(world, built, solidGround, owners)).count;
+    },
+    /**
+     * The standing visuals (placement rule (e): what a body is laid clear of, and the raised walks' clearance beside
+     * them) measured again on what a mission's own art drew in place of a structure's placeholder. A mission's visuals
+     * (scripts/m20-art.js swapVisual: the castle masonry over the raised levels' placeholder rock) are built as the load
+     * ends, after the map's stamps: the hidden rock, bulging a metre past its level, still shoved a body off a screen it
+     * lay clear of (M20 e38, into the turret's sight). Game.loadMission calls this with the swapped owners.
+     */
+    *restampStandingG(owners) {
+      if (!meshes || gone || !owners?.size) return 0;
+      const list = built.filter((b) => owners.has(b.owner));
+      // every rule (e) stamp the build made on their placeholders, made again on the art: what they occupy at body
+      // height (the visual nav, step 5c), their overhangs (and the head room under them), their standing visuals, the
+      // raised walks' clearance. (M20's SW and SE gatehouses: the kit placeholder's leaves are shut across the arch
+      // and its arch roof is low — both gates were closed to walkers in the game while open headless, and Patrol 26
+      // went round outside)
+      for (const b of list) { grid.navStamp(`vis:${b.owner}`, []); grid.navStamp(`low:${b.owner}`, []); grid.hullStamp(`hull:${b.owner}`, []); grid.overStamp(`over:${b.owner}`, new Map()); }
+      const vn = yield* stampVisualNavG(world, list, missionWayPoints(mission, interactables));
+      if (vn.off) { const a = visNavOff; visNavOff = () => { a?.(); vn.off(); }; }
+      yield* stampOverheadG(world, list);
+      for (const b of list) grid.solidStamp(`solid:${b.owner}`, []);
+      grid.navStamp('walk:clear', []);
+      yield* stampBodies(list); // (the head room from every overhang, then the standing visuals and the walk clearance)
+      grid.version++;
+      return vn.cells;
     },
     get damWater() { return damWater; },
     get windFx() { return windFx; },

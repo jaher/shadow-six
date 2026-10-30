@@ -560,9 +560,17 @@ export function buildTwinGatehouse(o) {
   const G = new Geo(o.seed ?? `${o.x},${o.z}`), F = localFrame(o.x, o.z, o.rot ?? 0), R = G.R;
   const W2 = (o.w ?? 12) / 2, D2 = (o.d ?? 8) / 2, Y = o.walkY ?? 7, P2 = (o.passage ?? 4.5) / 2;
   const spring = 3.4, rise = 2.4;
+  // the open leaves stand in rebates cut into the passage walls (LEAF_W across, RB deep, up to LEAF_TOP), flush with the
+  // stone: the whole passage width is the way through (M20: a Panzer III, 2.9 m, through the 4.5 m SW gate — leaves
+  // standing proud of the walls took a cell of it on each side)
+  const LEAF_W = [-2.65, -0.25], LEAF_TOP = spring + 0.65, RB = 0.14;
   for (const s of [-1, 1]) {
     const ua = s < 0 ? -W2 : P2, ub = s < 0 ? -P2 : W2, uo = s * W2;
-    segBox(G, 'ashlar', F, ua, ub, -D2, D2, -1.6, Y - 0.02, 1);
+    const uf = s * P2, ur = s * (P2 + RB); // (the passage face, the rebate's back)
+    segBox(G, 'ashlar', F, s < 0 ? ua : ur, s < 0 ? ur : ub, -D2, D2, -1.6, Y - 0.02, 1);
+    for (const [w0, w1, y0, y1] of [[-D2, LEAF_W[0], -1.6, Y - 0.02], [LEAF_W[1], D2, -1.6, Y - 0.02], [LEAF_W[0], LEAF_W[1], LEAF_TOP, Y - 0.02], [LEAF_W[0], LEAF_W[1], -1.6, 0]]) {
+      segBox(G, 'ashlar', F, Math.min(uf, ur), Math.max(uf, ur), w0, w1, y0, y1, 1);
+    }
     segBox(G, 'flags', F, ua, ub, -D2, D2, Y - 0.02, Y, 1);
     segBox(G, 'rubble', F, ua, ub, D2 - 0.02, D2 + 0.02, -1.6, 2.2, 0.95, { taperOut: 0.9 });
     segBox(G, 'dressed', F, ua, ub, D2 - 0.04, D2 + 0.16, 2.15, 2.4, 1.02);
@@ -580,8 +588,8 @@ export function buildTwinGatehouse(o) {
     segBox(G, 'dressed', F, um - 0.06, um + 0.06, -D2 - 0.06, -D2, 3.2, 4.4, 1.05);
     segBox(G, 'dressed', F, um - 0.6, um + 0.6, -D2 - 0.1, -D2, 3.05, 3.2, 1.05);
     segBox(G, 'dressed', F, um - 0.6, um + 0.6, -D2 - 0.1, -D2, 4.4, 4.6, 1.05);
-    // the open oak leaves, swung back against the passage walls
-    segBox(G, 'planks', F, s * (P2 - 0.16), s * (P2 - 0.04), -2.6, -0.3, 0.05, spring + 0.6, 0.85);
+    // the open oak leaves, swung back into their rebates in the passage walls
+    segBox(G, 'planks', F, Math.min(s * (P2 + 0.01), s * (P2 + 0.13)), Math.max(s * (P2 + 0.01), s * (P2 + 0.13)), LEAF_W[0] + 0.05, LEAF_W[1] - 0.05, 0.05, LEAF_TOP - 0.05, 0.85);
     wallLantern(G, F, s * (P2 + 0.75), D2, 3.6);
   }
   archHead(G, F, 0, P2, -D2, D2, spring, rise, Y - 0.02);

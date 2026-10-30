@@ -1,146 +1,134 @@
 #!/usr/bin/env node
 /**
- * Encode a captured solution film (tools/solutions/capture-video.mjs) to MP4 with a soundtrack from the game's own
- * assets: the Norway start stinger, the mission music chain (mission_alert while the bunker's alarm runs, the success
- * cue at the end), a snow-wind bed and sound effects on the events of the run (knife, harpoon, trap, the two blasts,
- * fence switch, cutters, the truck).
+ * Encode a captured mission film (tools/solutions/capture-video.mjs) to MP4 with the mission's own soundtrack, built
+ * from the game's audio assets and tables — nothing here is written for one mission:
  *   node tools/solutions/mix-video.mjs <capture dir> <out.mp4> [--ffmpeg <bin>] [--crf 26]
- *     [--bitrate 850k] [--abitrate 128k] [--scale 1280x720]
- * --bitrate switches to a two-pass encode at that average video bitrate (to fit a size budget, e.g. a phone copy).
- * The mix is loudness-normalised to -16 LUFS and peak-limited to -2 dBFS.
+ *     [--bitrate 1400k] [--abitrate 192k] [--scale 1280x720] [--lufs -16]
+ *     [--audio-only <out.wav|.m4a>] [--plan <plan.json>] [--keep-wav]
+ * Music: the mission's start stinger (src/audio/music-cues.js startCueFor: Norway start_1 … Final Assault start_5, covert
+ * start_6), then the tension chain as the game's MusicDirector chains it, with the alert layer in while the game's own
+ * ThreatTracker says guards are in combat or searching or the alarm runs (the alarm music), and the success cue at the win.
+ * Ambience: the theatre's beds from the game's AMBIENCE / MISSION_AMBIENCE tables (snow and fjord wind, desert wind,
+ * surf, birds, crickets, town, the M2 / M3 / M19 rivers, M3's waterfall following the camera).
+ * Effects: the cue sheet the capture recorded by running the game's own audio handlers over the filmed run — shots by
+ * weapon, knives, harpoons, traps, blasts, bombs and their ticking, vehicles, doors, the raft, digging, footsteps in the
+ * real-time stretches, the siren — each with the game's gain and distance model from the view centre, recorded takes
+ * where the game has them and its own synth recipes where it has not (film-audio.mjs, film-mixer.mjs).
+ * The sum is loudness-normalised (two-pass linear, −16 LUFS, true peak −2 dBTP) and peak-limited.
+ * --bitrate switches to a two-pass x264 encode at that average video bitrate (a size budget, e.g. a phone copy).
+ * --audio-only renders just the soundtrack (to compare mixes without frames); --plan dumps the plan as JSON.
  */
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, writeFileSync, rmSync } from 'node:fs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { join, resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { planSoundtrack, LAYERS } from './film-audio.mjs';
+import { SoundBank, renderPlan, writeWav, readJson } from './film-mixer.mjs';
+import { findFfmpeg } from './film-ffmpeg.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const argv = process.argv.slice(2);
-const [dir, out] = argv.filter((a, i) => !a.startsWith('--') && !(i > 0 && argv[i - 1].startsWith('--')));
-const fi = process.argv.indexOf('--ffmpeg');
-const FF = fi > 0 ? process.argv[fi + 1] : process.env.FFMPEG || 'ffmpeg';
-const ci = process.argv.indexOf('--crf');
-const CRF = ci > 0 ? +process.argv[ci + 1] : 26;
-const opt = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
-const VBR = opt('--bitrate', null), ABR = opt('--abitrate', '192k'), SCALE = opt('--scale', null);
+const FLAGS_WITH_VALUE = new Set(['--ffmpeg', '--crf', '--bitrate', '--abitrate', '--scale', '--lufs', '--audio-only', '--plan']);
+const [dir, out] = argv.filter((a, i) => !a.startsWith('--') && !(i > 0 && FLAGS_WITH_VALUE.has(argv[i - 1])));
+const opt = (k, d) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : d; };
+const FF = findFfmpeg(opt('--ffmpeg', null)); // (an ffmpeg with libx264: --ffmpeg, $FFMPEG, the PATH, the imageio_ffmpeg builds)
+const CRF = +opt('--crf', 26), VBR = opt('--bitrate', null), ABR = opt('--abitrate', '192k'), SCALE = opt('--scale', null), LUFS = +opt('--lufs', -16);
+const AUDIO_ONLY = opt('--audio-only', null), PLAN_OUT = opt('--plan', null);
+if (!dir || (!out && !AUDIO_ONLY)) { console.error('usage: mix-video.mjs <capture dir> <out.mp4> [options]  (see the header)'); process.exit(2); }
+
+const imp = (p) => import(pathToFileURL(join(ROOT, p)).href);
 const T = JSON.parse(readFileSync(join(dir, 'timeline.json'), 'utf8'));
-const fps = T.fps, frames = T.frames, V = frames.length / fps;
-const M = (n) => join(ROOT, 'assets/audio/music', n + '.ogg');
-const S = (d, f) => join(ROOT, 'assets/audio/sfx', d, f);
+const log = (m) => console.log(m);
 
-const dur = (f) => {
-  const r = spawnSync(FF, ['-i', f], { encoding: 'utf8' });
-  const m = /Duration: (\d+):(\d+):([\d.]+)/.exec(r.stderr);
-  return m ? +m[1] * 3600 + +m[2] * 60 + +m[3] : 0;
+// ---------------------------------------------------------------- the game's own tables
+const { SFX, ambienceFor } = await imp('src/audio/manifest.js');
+const { spatialize } = await imp('src/audio/engine.js');
+const { MISSION_CHAIN, nextSegment, ThreatTracker, CALM_HOLD } = await imp('src/audio/music-director.js');
+const { startCueFor, missionNumber } = await imp('src/audio/music-cues.js');
+const { synth, RECIPE_NAMES } = await imp('src/audio/synth.js');
+const musicManifest = readJson(join(ROOT, 'assets/audio/music/manifest.json'));
+const sfxManifest = readJson(join(ROOT, 'assets/audio/sfx/manifest.json'));
+
+// a timeline from before the cue sheet (the M3 films of October): the mission's own data from its definition; no effects
+if (!T.mission) {
+  let def = { id: T.id, theater: 'snow' };
+  try { def = (await imp('src/missions/index.js')).getMission(T.id) || def; } catch { /* the id alone */ }
+  T.mission = { id: T.id, n: missionNumber(def), title: def.title, theater: def.theater, night: !!def.night || (def.lighting?.sunElevDeg ?? 30) < 0, startCue: startCueFor(def), ambience: ambienceFor(def), yaw: 0.26 };
+  log(`(no cue sheet in this timeline: ${T.id} music and ambience only)`);
+}
+
+// ---------------------------------------------------------------- sources: recorded takes by round robin, else the game's synth recipe
+const takes = new Map(); // sfx category → absolute .ogg files
+for (const s of sfxManifest.sounds) {
+  const f = (s.files || []).find((x) => x.endsWith('.ogg'));
+  if (!f) continue;
+  if (!takes.has(s.category)) takes.set(s.category, []);
+  takes.get(s.category).push(join(ROOT, 'assets/audio/sfx', f));
+}
+const rr = new Map();
+const pick = (cat) => { const l = takes.get(cat); if (!l?.length) return null; const n = rr.get(cat) ?? 0; rr.set(cat, n + 1); return l[n % l.length]; };
+const source = (id) => {
+  if (LAYERS[id]) { const l = LAYERS[id].map((cat) => ({ src: `file:${pick(cat)}`, category: cat })).filter((s) => !s.src.endsWith(':null')); if (l.length) return l; }
+  const def = SFX[id];
+  if (!def) return null;
+  for (const cat of def.alias || []) { const f = pick(cat); if (f) return { src: `file:${f}`, category: cat }; }
+  return RECIPE_NAMES.includes(def.recipe) ? { src: `synth:${def.recipe}`, category: 'synth' } : null;
 };
-/** a music file's length without its silent tail (the cues end on ~3.4 s of silence: chained raw they leave a gap) */
-const audible = (f) => {
-  const d = dur(f);
-  const r = spawnSync(FF, ['-hide_banner', '-i', f, '-af', 'silencedetect=n=-40dB:d=0.5', '-f', 'null', '-'], { encoding: 'utf8' });
-  const st = [...r.stderr.matchAll(/silence_start: ([\d.]+)/g)].map((m) => +m[1]);
-  const en = [...r.stderr.matchAll(/silence_end: ([\d.]+)/g)].map((m) => +m[1]);
-  return st.length && en.length === st.length && en[en.length - 1] > d - 0.1 ? st[st.length - 1] + 0.3 : d;
-};
-// video time of game time t (the first non-card frame at or after it)
-const firstPlay = frames.findIndex((f) => !f.card);
-const lastPlay = frames.length - 1 - [...frames].reverse().findIndex((f) => !f.card);
-const vt = (t) => { for (let i = firstPlay; i < frames.length; i++) if (!frames[i].card && frames[i].t >= t - 1e-3) return i / fps; return lastPlay / fps; };
-const ev = T.pass2.events, dev = T.pass2.driverEvents;
-const cpT = (k) => ev.find((e) => e.kind === 'checkpoint' && e.name.startsWith(k + ' '))?.t;
-const objT = (o) => ev.find((e) => e.kind === 'objective' && e.id === o)?.t;
-const endCard = frames.findIndex((f) => f.card === 'end') / fps;
+const music = (cue) => (musicManifest.cues[cue] ? musicManifest.meta?.[cue] || {} : null);
+const env = { SFX, spatialize, music, nextSegment: (cur, has) => nextSegment(cur, has, MISSION_CHAIN), ThreatTracker, CALM_HOLD, source };
 
-/** clips: { file, at (video s), len, fin, fout, vol, loop } */
-const clips = [];
-const clip = (file, at, o = {}) => { if (existsSync(file) && at < V) clips.push({ file, at, fin: 0, fout: 0, vol: 1, ...o }); };
+// ---------------------------------------------------------------- plan, render, normalise
+const plan = planSoundtrack(T, env);
+if (PLAN_OUT) writeFileSync(PLAN_OUT, JSON.stringify(plan));
+const V = plan.V;
+log(`film ${V.toFixed(1)} s (opening ${plan.openEnd.toFixed(1)} s) · ${T.mission.title || T.id} · stinger ${plan.music.startCue} · theatre ${T.mission.theater}`);
+const bank = new SoundBank({ ff: FF, root: ROOT, synth, musicManifest });
+const mix = renderPlan(plan, bank, { log });
+const wav = join(dirname(resolve(AUDIO_ONLY || out)), `.mix-${process.pid}.wav`);
+writeWav(wav, mix);
 
-// --- music
-const stinger = M('start_1');
-clip(stinger, 0.2, { vol: 0.9, fout: 2 });
-const chain = ['mission_tension_a', 'mission_bridge_1', 'mission_tension_b', 'mission_bridge_2', 'mission_tension_c', 'mission_bridge_3'];
-const XF = 3;
-const alarmOn = objT('o1') != null ? vt(objT('o1')) : null;
-const alarmOff = cpT('G4') != null ? vt(cpT('G4') - 55) : null; // the siren stops ~60 s of game time before G4
-const winAt = objT('o3') ?? ev.find((e) => e.kind === 'end')?.t;
-const musicEnd = winAt != null ? vt(winAt) : endCard;
-let k = 0;
-const runChain = (from, to) => {
-  let at = from;
-  while (at < to - 1) {
-    const f = M(chain[k++ % chain.length]), d = audible(f);
-    const len = Math.min(d, to - at);
-    clip(f, at, { len, fin: XF, fout: len < d ? 2 : XF, vol: 0.8 });
-    at += d - XF;
+/**
+ * Loudness: a peak limiter first (a shot or a blast is ten dB over the score: without it they would hold the whole mix
+ * down at the true-peak limit), then two-pass linear normalisation to the target — one gain for the film, its dynamics
+ * kept — or, when the peaks do not let that gain through, the dynamic one-pass loudnorm the M3 film used.
+ */
+const PRE = 'alimiter=limit=0.4:attack=3:release=40:level=false';
+function normaliser() {
+  const base = `loudnorm=I=${LUFS}:TP=-2:LRA=20`;
+  const r = spawnSync(FF, ['-hide_banner', '-nostats', '-i', wav, '-af', `${PRE},${base}:print_format=json`, '-f', 'null', '-'], { encoding: 'utf8', maxBuffer: 1 << 26 });
+  const m = /\{[^{}]*"input_i"[^{}]*\}/.exec(r.stderr || '');
+  if (!m) return `${PRE},${base}`; // (single pass, dynamic)
+  const j = JSON.parse(m[0]);
+  const gain = LUFS - +j.input_i; // the one gain that lands the film on the target
+  const feasible = +j.input_tp + gain <= -2 && +j.input_lra <= 20; // (and its peaks stay under the true-peak limit)
+  log(`loudness before: ${j.input_i} LUFS, true peak ${j.input_tp} dBTP, range ${j.input_lra} LU; the linear gain would be ${gain.toFixed(1)} dB${feasible ? '' : ' — too much for the peaks: dynamic loudnorm instead'}`);
+  if (!feasible) return `${PRE},loudnorm=I=${LUFS}:TP=-2:LRA=11`;
+  return `${PRE},${base}:measured_I=${j.input_i}:measured_LRA=${j.input_lra}:measured_TP=${j.input_tp}:measured_thresh=${j.input_thresh}:offset=${gain.toFixed(2)}:linear=true`;
+}
+const chain = `${normaliser()},aresample=48000,alimiter=limit=0.79:level=false,afade=t=out:st=${(V - 2).toFixed(2)}:d=2,atrim=0:${V.toFixed(3)}`;
+try {
+  if (AUDIO_ONLY) {
+    const codec = /\.m4a$/i.test(AUDIO_ONLY) ? ['-c:a', 'aac', '-b:a', ABR] : ['-c:a', 'pcm_s16le'];
+    execFileSync(FF, ['-y', '-loglevel', 'error', '-i', wav, '-af', chain, ...codec, AUDIO_ONLY], { stdio: 'inherit' });
+    log(`soundtrack -> ${AUDIO_ONLY}`);
+  } else {
+    const fps = T.fps, frames = join(dir, 'frames/%06d.jpg');
+    const vf = SCALE ? ['-vf', `scale=${SCALE.replace('x', ':')}:flags=lanczos`] : [];
+    const venc = VBR ? ['-c:v', 'libx264', '-preset', 'slow', '-b:v', VBR, '-maxrate', `${Math.round(parseInt(VBR) * 2)}k`, '-bufsize', `${Math.round(parseInt(VBR) * 4)}k`]
+      : ['-c:v', 'libx264', '-preset', 'slow', '-crf', String(CRF)];
+    const passlog = join(dirname(resolve(out)), `.x264pass-${process.pid}`);
+    if (VBR) {
+      log(`pass 1 (${VBR}) ...`);
+      execFileSync(FF, ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', frames, ...vf, ...venc, '-pass', '1', '-passlogfile', passlog, '-pix_fmt', 'yuv420p', '-an', '-f', 'null', '/dev/null'], { stdio: 'inherit' });
+    }
+    log(`encoding -> ${out}`);
+    const m = T.mission, title = `SHADOW SIX${m.n ? ` · Mission ${m.n}` : ''} · ${m.title || T.id}`;
+    execFileSync(FF, ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', frames, '-i', wav, '-af', chain, '-map', '0:v', '-map', '1:a', ...vf, ...venc,
+      ...(VBR ? ['-pass', '2', '-passlogfile', passlog] : []), '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-c:a', 'aac', '-b:a', ABR,
+      '-metadata', `title=${title}`, '-metadata', `comment=${m.subtitle || ''} — the full solution, player orders only`, '-shortest', out], { stdio: 'inherit' });
+    if (VBR) for (const f of [`${passlog}-0.log`, `${passlog}-0.log.mbtree`]) try { rmSync(f, { force: true }); } catch { /* ignore */ }
   }
-};
-runChain(14, alarmOn ?? musicEnd);
-if (alarmOn != null) {
-  const al = M('mission_alert'), d = audible(al), end = Math.min(alarmOff ?? alarmOn + d, musicEnd);
-  for (let at = alarmOn; at < end - 1; at += d - 2) clip(al, at, { len: Math.min(d, end - at + 2), fin: 0.5, fout: 3, vol: 0.6 });
-  runChain(end, musicEnd);
+} finally {
+  if (!argv.includes('--keep-wav') && existsSync(wav)) rmSync(wav, { force: true });
 }
-clip(M('success_1'), musicEnd + 0.3, { vol: 0.9 });
-
-// --- ambience: snow wind all through (looped; the soft procedural bed at −24 LUFS, ≈ 13 dB under the score as in the
-// game, src/audio/manifest.js AMBIENCE), the river after the dam goes
-clip(S('wind_cold', 'wind_cold_proc_0.ogg'), 0, { len: V, loop: true, vol: 0.22, fin: 2, fout: 3 });
-if (objT('o2') != null) clip(S('river', 'river_proc_0.ogg'), vt(objT('o2')) + 1, { len: Math.max(1, endCard - vt(objT('o2')) - 1), loop: true, vol: 0.7, fin: 2, fout: 2 });
-
-// --- effects on the run's events
-const kills = ev.filter((e) => e.kind === 'kill');
-for (const e of kills) {
-  const at = vt(e.t), by = dev.find((d) => d.name === 'unit:killed' && d.line.startsWith(e.tag + ' '))?.line || '';
-  if (e.tag === 'e1') { clip(S('k_metal_latch', 'metalLatch.ogg'), at - 0.05, { vol: 1 }); clip(S('k_hit_flesh', 'impactPunch_medium_001.ogg'), at, { vol: 0.8 }); }
-  else if (/diver/.test(by)) clip(S('k_hit_flesh', 'impactPunch_medium_003.ogg'), at, { vol: 0.9 });
-  else if (/greenberet/.test(by)) clip(S('knife_stab', 'knife_stab_344404_0.ogg'), at - 0.1, { vol: 1 });
-}
-for (const o of ['o1', 'o2']) {
-  if (objT(o) == null) continue;
-  clip(S('explosion_large', 'explosion_large_156500_0.ogg'), vt(objT(o)), { vol: 1.0 });
-  clip(S('explosion_distant', 'explosion_distant_320788_1.ogg'), vt(objT(o)) + 0.15, { vol: 0.6 });
-}
-if (alarmOn != null) clip(S('siren_handcrank', 'siren_handcrank_239498_0.ogg'), alarmOn + 1.5, { len: Math.max(2, Math.min(20, (alarmOff ?? alarmOn + 20) - alarmOn - 1.5)), vol: 0.35, fin: 1, fout: 3 });
-const at = (key, f, o) => { const t = cpT(key); if (t != null) clip(f, vt(t), o); };
-at('C3', S('k_cloth', 'cloth2.ogg'), { vol: 1 }); // the Spy dresses
-at('E2', S('k_ui_switch', 'switch_004.ogg'), { vol: 1 }); // fence power off
-at('G3', S('k_metal_click', 'metalClick.ogg'), { vol: 1 }); // the wire cut
-at('E3', S('k_cloth', 'cloth3.ogg'), { vol: 0.9 });
-at('C1', S('k_dig', 'impactMining_001.ogg'), { vol: 0.8 }); // the GB digs in
-at('H3', S('k_dig', 'impactMining_002.ogg'), { vol: 0.8 });
-at('I2', S('bomb_tick1', 'bomb_tick1_487730_0.ogg'), { vol: 0.8 }); // charge one
-at('I3', S('bomb_tick1', 'bomb_tick1_487730_1.ogg'), { vol: 0.8 }); // charge two
-if (cpT('J1') != null) {
-  const t0 = Math.max(0, vt(cpT('J1')) - 4), t1 = winAt != null ? vt(winAt) + 3 : t0 + 8;
-  clip(S('truck_engine', 'truck_engine_405086_0.ogg'), t0, { len: t1 - t0, loop: true, vol: 0.6, fin: 2, fout: 2 });
-}
-
-// --- ffmpeg graph
-const args = ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', join(dir, 'frames/%06d.jpg')];
-const parts = [];
-clips.forEach((c, i) => {
-  if (c.loop) args.push('-stream_loop', '-1');
-  args.push('-i', c.file);
-  const len = c.len ?? Math.max(0.1, dur(c.file));
-  let f = `[${i + 1}:a]aformat=sample_rates=48000:channel_layouts=stereo,atrim=0:${len.toFixed(3)},asetpts=PTS-STARTPTS`;
-  if (c.fin) f += `,afade=t=in:st=0:d=${c.fin}`;
-  if (c.fout) f += `,afade=t=out:st=${Math.max(0, len - c.fout).toFixed(3)}:d=${c.fout}`;
-  f += `,volume=${c.vol},adelay=${Math.round(Math.max(0, c.at) * 1000)}:all=1[a${i}]`;
-  parts.push(f);
-});
-parts.push(`${clips.map((_, i) => `[a${i}]`).join('')}amix=inputs=${clips.length}:normalize=0:dropout_transition=0,loudnorm=I=-16:TP=-2:LRA=11,aresample=48000,alimiter=limit=0.79:level=false,afade=t=out:st=${(V - 2).toFixed(2)}:d=2,atrim=0:${V.toFixed(3)}[aout]`);
-const vf = SCALE ? ['-vf', `scale=${SCALE.replace('x', ':')}:flags=lanczos`] : [];
-const venc = VBR ? ['-c:v', 'libx264', '-preset', 'slow', '-b:v', VBR, '-maxrate', String(Math.round(parseInt(VBR) * 2)) + 'k', '-bufsize', String(Math.round(parseInt(VBR) * 4)) + 'k']
-  : ['-c:v', 'libx264', '-preset', 'slow', '-crf', String(CRF)];
-const passlog = join(dirname(resolve(out)), '.x264pass-' + process.pid);
-if (VBR) { // pass 1: video only
-  console.log(`pass 1 (${VBR}) ...`);
-  execFileSync(FF, ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', join(dir, 'frames/%06d.jpg'), ...vf, ...venc,
-    '-pass', '1', '-passlogfile', passlog, '-pix_fmt', 'yuv420p', '-an', '-f', 'null', '/dev/null'], { stdio: 'inherit' });
-}
-args.push('-filter_complex', parts.join(';'), '-map', '0:v', '-map', '[aout]', ...vf, ...venc,
-  ...(VBR ? ['-pass', '2', '-passlogfile', passlog] : []), '-pix_fmt', 'yuv420p', '-movflags', '+faststart',
-  '-c:a', 'aac', '-b:a', ABR, '-shortest', out);
-console.log(`video ${V.toFixed(1)} s, ${clips.length} audio clips -> ${out}`);
-execFileSync(FF, args, { stdio: 'inherit' });
-if (VBR) for (const f of [passlog + '-0.log', passlog + '-0.log.mbtree']) try { execFileSync('rm', ['-f', f]); } catch {}
-console.log('done');
+log('done');

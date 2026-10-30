@@ -1380,7 +1380,10 @@ export function buildWireLayer(root, opts = {}) {
     if (!type) return;
     if (mw) r = { ...r, def: { ...r.def, ...mw } };
     const c = cen.get(r.def.id ?? r.def.variant ?? '?'), runKey = `${r.def.id ?? 'wire'}#${i}`;
-    const C = buildWireRun(type, r.points, r.def, { parts, groundAt: G, look: wireLookOf(r.def, theater), snow, theater, runKey, runIndex: i,
+    // a run on a raised level stands `baseY` over the terrain (M10's rim wire on the y-5 airfield shelf, whose walk
+    // surface is walkway strips over a flat heightmap: on the terrain it drew inside the shelf prism, unseen)
+    const lift = r.def.baseY > 0 ? r.def.baseY : 0, Gr = lift ? (x, z) => G(x, z) + lift : G;
+    const C = buildWireRun(type, r.points, r.def, { parts, groundAt: Gr, look: wireLookOf(r.def, theater), snow, theater, runKey, runIndex: i,
       inside: c && c[2] > 2 ? [c[0] / c[2], c[1] / c[2]] : null, solidAt, offMap, coping: r.coping, rails: opts.rails });
     if (C) runs.push({ key: runKey, type, def: r.def, run: C.run, cut: C.cut, brackets: C.brackets || null });
   });

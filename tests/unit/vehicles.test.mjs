@@ -1,4 +1,5 @@
 /** VEHICLES: registry, operators/capacity, straight-line driving, run-over, damage classes, taint, guns, torpedo, trains. */
+import * as THREE from 'three';
 import { test, assert, near } from './lib.mjs';
 import { CONFIG } from '../../src/config.js';
 import { World } from '../../src/world/world.js';
@@ -692,4 +693,43 @@ test('placement rules (d/e): the drive probe sees a lone post anywhere across th
   const high = new Map(); for (const k of w2.grid.rectCells(30, 30, 1, 6)) high.set(k, [4.5, 6]);
   w2.grid.overStamp('cab', high);
   assert.ok(tk2.passableAt(30, 30), 'a high gallery lets it through');
+});
+
+test('hull height: a whip aerial is no part of the hull an arch must clear (M20: the Panzer III under the inner gate)', () => {
+  const w = mkWorld(), tk = w.spawnVehicle('panzer3', { x: 20, z: 30, heading: 0 });
+  w.grid.hullDrawn = true; // (the mission opt-in: hulls are what is drawn)
+  const box = (sx, sy, sz, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), new THREE.MeshBasicMaterial()); m.position.set(x, y, z); return m; };
+  const g = new THREE.Group();
+  g.position.set(20, 0, 30);
+  g.add(box(5.5, 1.6, 2.9, 0, 0.8, 0)); // hull
+  g.add(box(2.0, 0.8, 2.0, 0, 2.0, 0)); // turret, 2.4 m
+  g.add(box(0.01, 1.6, 0.01, 2.1, 2.4, -1.05)); // the aerial, up to 3.2 m: a column 1 cm across
+  tk.object3d = g; tk._hullH = null;
+  near(tk.hullHeight(), 2.4, 1e-6, 'the turret top, not the aerial tip');
+  // a hatch-handle-sized bar on the turret (30 cm long) still counts
+  g.add(box(0.3, 0.05, 0.03, 0, 2.425, 0)); tk._hullH = null;
+  near(tk.hullHeight(), 2.45, 1e-6, 'a bar across the turret is hull');
+  // under a 3.0 m portcullis: through (the aerial tip at 3.2 m would have stopped it)
+  const grate = new Map(); for (const k of w.grid.rectCells(30, 30, 1, 6)) grate.set(k, [3.0, 4.0]);
+  w.grid.overStamp('portcullis', grate);
+  assert.ok(tk.passableAt(30, 30), 'it drives under the raised portcullis');
+  // elsewhere (no opt-in) the model's bounds, aerial and all, as before
+  w.grid.hullDrawn = false; tk._hullH = null;
+  near(tk.hullHeight(), 3.2, 1e-6, 'without hullDrawn: the bounds, the aerial tip');
+});
+
+test('hull clearance (mission hullDrawn, M20): a hull clears what is drawn, not the walkers\' ring round it — elsewhere both', () => {
+  const w = mkWorld(), tk = w.spawnVehicle('panzer3', { x: 20, z: 30, heading: 0 }), g = w.grid;
+  const ring = g.rectCells(30, 30, 1, 1), core = g.rectCells(34, 30, 1, 1), parked = g.rectCells(38, 30, 1, 1);
+  g.navStamp('vis:900001', ring); // the walkers' clearance round something drawn
+  g.navStamp('vis:900002', core); g.hullStamp('hull:900002', core); // …and what is drawn there itself
+  g.navStamp('wagon', parked); // another kind of nav block (not the walkers' own)
+  assert.ok(!tk.passableAt(30, 30) && !tk.passableAt(34, 30) && !tk.passableAt(38, 30), 'off by default: every nav stamp stops a hull (as it always did)');
+  g.hullDrawn = true;
+  assert.ok(tk.passableAt(30, 30), 'hullDrawn: through the walkers\' ring');
+  assert.ok(!tk.passableAt(34, 30), 'hullDrawn: not through what is drawn');
+  assert.ok(!tk.passableAt(38, 30), 'hullDrawn: not through other nav stamps');
+  g.navStamp('vis:900001', []);
+  g.navStamp('vis:900002', []); g.hullStamp('hull:900002', []);
+  assert.ok(tk.passableAt(34, 30), 'stamps removed with their structure');
 });

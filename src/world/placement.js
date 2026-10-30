@@ -880,10 +880,15 @@ export function liftAt(arc, h, step = 5) {
 export function ownerHeight(world) {
   if (world._ownerH && world._ownerH.src === world.structures) return world._ownerH.fn;
   const byOwner = new Map();
+  const levels = world.grid?.levelOwners;
   for (const s of world.structures?.values?.() || []) {
     if (s.owner == null) continue;
     const cat = placeCat({ type: s.type, ...s.def });
-    byOwner.set(s.owner, s.def?.h ?? OBSTACLE_H[cat] ?? 2);
+    // a building that raises a level of its own (a roof ledge walkway: a level owner, whose blocked cells blockBase
+    // measures from the ground) but stands on a terrace (`baseY`: M20's château on its 13 m terrace) tops out at the
+    // terrace + its height, not at its height (the turret guard saw over it to the strip behind it: sol/m20)
+    const lift = s.def?.baseY > 0 && levels?.has(s.owner) ? s.def.baseY : 0;
+    byOwner.set(s.owner, (s.def?.h ?? OBSTACLE_H[cat] ?? 2) + lift);
   }
   const fn = (k) => { const o = world.grid?.owner?.[k]; return o ? byOwner.get(o) ?? null : null; };
   world._ownerH = { src: world.structures, fn };

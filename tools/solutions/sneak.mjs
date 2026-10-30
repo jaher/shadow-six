@@ -199,7 +199,9 @@ function legWay(e, from, i) {
   const k = `${from}>${i}`;
   if (!e._sneakLegs.m.has(k)) {
     const a = r[from], q = e.pathQuery?.() ?? {};
-    const p = w.findPath?.(a.x, a.z, wp.x, wp.z, q);
+    // (`w.sneakOwnPaths`, opt-in: the way his own move order plans — Unit.planFrom: round the clearance masks of the
+    // solids the game draws, which the plain search walks through: in the game M20's Patrol 57 went round a wagon)
+    const p = w.sneakOwnPaths && typeof e.planFrom === 'function' ? e.planFrom(a.x, a.z, wp.x, wp.z) : w.findPath?.(a.x, a.z, wp.x, wp.z, q);
     // (ending where the way ends: a point the nav keeps him off — a mesh's clearance — he halts short of, WP_NEAR)
     e._sneakLegs.m.set(k, p && p.length > 1 ? p.slice(1).map((n) => [n.x, n.z]) : null);
   }
@@ -443,11 +445,22 @@ function headsOf(e, q, w, tAbs) {
   return { hds: [q.heading, ...(q.alt != null ? [q.alt] : []), ...((w.sneakTurns === true || w.sneakTurns?.has?.(e.tag)) ? turnHeadings(q, w) : []), ...cryHeadings(q, w, tAbs)], offs };
 }
 
-/** Does any of walkerViews' heads see `d`? (a point outside a cone's geometry is never seen by it: canSee not asked) */
-export function seesAny(L, d, w) {
-  if (L._oneEye) return seesAnyHeads(L, d, w, canSee); // (walkerViews' heads: one guard at one eye, asked once)
-  for (let i = 0; i < L.length; i += 2) { const cone = L[i + 1]; if (pointInCone(cone, d.x, d.z) && canSee(L[i], d, w, { cone }) !== 'none') return true; }
+/** Does any of walkerViews' heads see `d`? (a point outside a cone's geometry is never seen by it: canSee not asked)
+ * `m` (optional): every cone inflated by inflateCone(cone, m). */
+export function seesAny(L, d, w, m = null) {
+  if (L._oneEye && !m) return seesAnyHeads(L, d, w, canSee); // (walkerViews' heads: one guard at one eye, asked once)
+  for (let i = 0; i < L.length; i += 2) { const cone = m ? inflateCone(L[i + 1], m) : L[i + 1]; if (pointInCone(cone, d.x, d.z) && canSee(L[i], d, w, { cone }) !== 'none') return true; }
   return false;
+}
+
+/**
+ * A cone widened by `m` = [deg, metres] (half-aperture + deg, both bands + metres): planners sample the cones every
+ * 0.1–0.2 s, and a fast sweep's edge (an elliptical band shrinking as the head swings out) crosses a spot in a tick or
+ * two between samples; the widened cone covers what the real one sweeps over meanwhile.
+ */
+export function inflateCone(cone, m) {
+  if (!cone || !m) return cone;
+  return { ...cone, halfFov: cone.halfFov + (m[0] * Math.PI) / 180, near: cone.near + m[1], far: cone.far + m[1] };
 }
 
 /** A guard on the move, or one with a route he walks (a man staring at a lure stands still). */
@@ -563,7 +576,13 @@ export function clearFor(D, pts, dur = 2, { mode = 'walk', except = null, why = 
  * Would a man (mode 'crawl' / 'walk') or a boat ('boat') going along `pts` from `from` (default: where he is) at
  * `speed` m/s, setting off in `delay` s, stay unseen? Each sample is tried at the moment he passes it (± `slack` s).
  */
-export function routeClear(D, pts, { mode = 'walk', from, speed, delay = 0, step = 0.75, slack = 0.5, slackRate = 0, hold = 0, why = null, except = null, keepWalker = 4, pad = 0, hint = null } = {}) {
+export function routeClear(D, pts, o = {}) {
+  const it = routeClearGen(D, pts, o);
+  for (;;) { const r = it.next(); if (r.done) return r.value; }
+}
+
+/** routeClear as a generator (the same answer; it yields every few looks: a sliced wait hands the frame back). */
+export function* routeClearGen(D, pts, { mode = 'walk', from, speed, delay = 0, step = 0.75, slack = 0.5, slackRate = 0, hold = 0, why = null, except = null, keepWalker = 4, pad = 0, hint = null } = {}) {
   const w = D.world;
   const sp = speed ?? (mode === 'boat' ? 2.5 : mode === 'crawl' ? 0.9 : 1.5);
   let [x, z] = from ?? (() => { throw new Error('routeClear: from'); })();
@@ -577,7 +596,8 @@ export function routeClear(D, pts, { mode = 'walk', from, speed, delay = 0, step
   // (`hold` s: he lies on at the end of the way that long, waiting for what comes next)
   for (let h = 0.5; h <= hold + 1e-6; h += 0.5) samples.push([x, z, t + h]);
   /** Where viewer `e` sees him (the `why` entry), or null. */
-  const seenBy = (e, moving) => {
+  let looks = 0;
+  const seenBy = function* seenBy(e, moving) {
     const far = (e.vision.far ?? 36) + 1;
     // (a post sweeping his head may swing his cone across a point within half a second: finer steps for him)
     const ostep = Math.min(!moving && e.sweepActive ? 0.15 : 0.5, Math.max(0.1, slack));
@@ -585,6 +605,7 @@ export function routeClear(D, pts, { mode = 'walk', from, speed, delay = 0, step
       // (`slackRate`: the farther ahead, the less sure the timing: slack + slackRate s per s ahead)
       const sl = slack + slackRate * st;
       for (let o = -sl; o <= sl + 1e-6; o += ostep) {
+        if ((++looks & 15) === 0) yield;
         const tt = Math.max(0, st + o), hull = mode === 'boat' ? HULL : 0;
         let seen;
         // (`pad`: a man at the very edge of a band may be a step nearer than planned: the point `pad` m nearer too)
@@ -611,7 +632,7 @@ export function routeClear(D, pts, { mode = 'walk', from, speed, delay = 0, step
   if (!hint) {
     for (const e of viewersOf(w)) {
       if (except?.includes?.(e)) continue;
-      const r = seenBy(e, walking(e));
+      const r = yield* seenBy(e, walking(e));
       if (r) { why?.push(r); return false; }
     }
     return true;
@@ -623,10 +644,10 @@ export function routeClear(D, pts, { mode = 'walk', from, speed, delay = 0, step
   const views = viewersOf(w).filter((e) => !except?.includes?.(e)), moving = new Map();
   for (const e of views) moving.set(e, walking(e));
   if (w.sneakPaths) for (const e of views) if (moving.get(e)) predict(e, 0); // (and where each walker halts: predict's halt record)
-  if (hint.e && moving.has(hint.e)) { const r = seenBy(hint.e, moving.get(hint.e)); if (r) { why?.push(r); return false; } }
+  if (hint.e && moving.has(hint.e)) { const r = yield* seenBy(hint.e, moving.get(hint.e)); if (r) { why?.push(r); return false; } }
   for (const e of views) {
     if (e === hint.e) continue;
-    const r = seenBy(e, moving.get(e));
+    const r = yield* seenBy(e, moving.get(e));
     if (r) { hint.e = e; why?.push(r); return false; }
   }
   return true;
@@ -674,10 +695,37 @@ export function bodySeen(D, x, z, dur = 120, { step = 0.5, except = [] } = {}) {
     const moving = walking(e), far = (e.vision.far ?? 36) + 1;
     for (let t = 0; t <= dur; t += step) {
       if (moving) { const q = predict(e, t); if (Math.hypot(q.x - x, q.z - z) > far) continue; if (walkerSees(e, q, d, w, w.time + t)) { out.add(e.tag); break; } }
-      else { if (Math.hypot(e.x - x, e.z - z) > far) break; if (canSee(e, d, w, { cone: coneAt(e, w.time + t) }) !== 'none') { out.add(e.tag); break; } }
+      else {
+        if (Math.hypot(e.x - x, e.z - z) > far) break;
+        if (canSee(e, d, w, { cone: coneAt(e, w.time + t) }) !== 'none') { out.add(e.tag); break; }
+        const gc = glanceCone(e, t); // (`w.sneakGlances`: a paired sentry turning to his partner)
+        if (gc && pointInCone(gc, x, z) && canSee(e, d, w, { cone: gc }) !== 'none') { out.add(e.tag); break; }
+      }
     }
   }
   return [...out];
+}
+
+/**
+ * (opt-in `w.sneakGlances`) §4.6 partner glance: a sentry with a partner turns to him for CONFIG.ai.partnerGlance.dur s
+ * every `.every` s (enemy-brain _partnerGlance; its countdown is brain.glanceT). His cone `t` s from now while he glances
+ * (± `pad` s: the turn there and back), else null.
+ */
+export function glanceCone(e, t, pad = 0.6) {
+  const w = e.world, b = e.brain, G = CONFIG.ai?.partnerGlance;
+  if (!w?.sneakGlances || !e.partner || !b || b.glanceT == null || !G || b.state !== 'IDLE') return null;
+  const p = w.byId?.(e.partner);
+  if (!p || !p.alive) return null;
+  const cyc = G.every + G.dur;
+  // the next glance starts at glanceT (≤ 0: one is on now, it started -glanceT s ago)
+  let s0 = b.glanceT;
+  let rel = t - s0;
+  rel -= Math.floor(rel / cyc) * cyc; // time since the latest glance start (0 ≤ rel < cyc), once t ≥ s0
+  if (t < s0 - pad) return null;
+  if (!(rel <= G.dur + pad || rel >= cyc - pad)) return null;
+  const g = Object.create(e);
+  g.heading = Math.atan2(p.z - e.z, p.x - e.x); g.sweepActive = false; g.headOffset = 0; g.headCarry = 0;
+  return coneAt(g, w.time + t);
 }
 
 /**
@@ -803,8 +851,11 @@ export function* planSneakGen(D, tx, tz, o = {}) {
   const wIdx = new Map(walkers.map((e, i) => [e, i])), qMemo = walkers.map(() => []), wheelMemo = walkers.map(() => []);
   const predAt = (e, k) => { const a = qMemo[wIdx.get(e)]; let q = a[k]; if (q === undefined) q = a[k] = predict(e, k * DT); return q; };
   const wheels = (e, k) => { const a = wheelMemo[wIdx.get(e)]; let r = a[k]; if (r === undefined) r = a[k] = wheeling(e, k * DT); return r; };
+  // (`o.subSteps` n, opt-in: a post's cone is also tried n − 1 times between two steps — a fast sweep's band edge crosses
+  // a spot in a tick or two, between the samples; k is then a fractional step; the cell itself only, not edgePad nearer)
+  const SUB = Math.max(1, o.subSteps ?? 1);
   const sCones = statics.map(() => []);
-  const sCone = (i, k) => { const a = sCones[i]; let c = a[k]; if (c === undefined) c = a[k] = coneAt(statics[i], now + k * DT); return c; };
+  const sCone = (i, k) => { const a = sCones[i], j = Math.round(k * SUB); let c = a[j]; if (c === undefined) c = a[j] = coneAt(statics[i], now + k * DT); return c; };
   const viewMemo = walkers.map(() => new Map());
   /** walkerViews of walker e at step kk (heading r·45° when r ≥ 0, as the wheeling check tries it) */
   const headViews = (e, kk, r) => {
@@ -845,22 +896,30 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     }
     return false;
   };
+  let work = 0; // (cells × steps worked out afresh since the last yield: a slice is so many of them, not so many states)
   const seen = (c, k) => {
     const key = c * KS + k;
     const m = seenMemo[key]; if (m) return m === 2;
+    work++;
     const x = cx(c), z = cz(c), hull = mode === 'boat' ? HULL : 0;
     let s = false;
     for (const i of statCand(c)) {
+      if (s) break;
       const e = statics[i];
       const dd = Math.hypot(e.x - x, e.z - z), far = e.vision?.far ?? 36, near = e.vision?.near ?? far / 2;
-      if (dd > far + 1 + hull) continue;
-      const cone = sCone(i, k), d = dummyFor(w, mode, x, z, e.x, e.z);
-      if (pointInCone(cone, d.x, d.z) && canSee(e, d, w, { cone }) !== 'none') { s = true; break; }
-      // at the edge of the band that matters the unit's own path may wander a little: the cell `edgePad` m nearer too
-      const bandEdge = mode === 'crawl' ? near : far;
-      if (dd > bandEdge - edgePad && dd < bandEdge + edgePad) {
-        const f = edgePad / dd, d2 = dummyAt(w, mode, x + (e.x - x) * f, z + (e.z - z) * f);
-        if (pointInCone(cone, d2.x, d2.z) && canSee(e, d2, w, { cone }) !== 'none') { s = true; break; }
+      for (let sub = 0; sub < SUB; sub++) {
+        const ks = k + sub / SUB;
+        const cone = o.coneMargin ? inflateCone(sCone(i, ks), o.coneMargin) : sCone(i, ks), d = dummyFor(w, mode, x, z, e.x, e.z);
+        // (`o.postMargin` [deg, m], opt-in: posts' cones only widened, for the cell itself — he is between two cell
+        // centres as he moves on, a fraction of a metre aside)
+        const pc = o.postMargin ? inflateCone(cone, o.postMargin) : cone;
+        if (pointInCone(pc, d.x, d.z) && canSee(e, d, w, { cone: pc }) !== 'none') { s = true; break; }
+        // at the edge of the band that matters the unit's own path may wander a little: the cell `edgePad` m nearer too
+        const bandEdge = mode === 'crawl' ? near : far;
+        if (sub === 0 && dd > bandEdge - edgePad && dd < bandEdge + edgePad) {
+          const f = edgePad / dd, d2 = dummyAt(w, mode, x + (e.x - x) * f, z + (e.z - z) * f);
+          if (pointInCone(cone, d2.x, d2.z) && canSee(e, d2, w, { cone }) !== 'none') { s = true; break; }
+        }
       }
     }
     if (!s) walk: for (let wi = 0; wi < walkers.length; wi++) for (const dk of walkerSlack) {
@@ -871,8 +930,8 @@ export function* planSneakGen(D, tx, tz, o = {}) {
       const d = dummyFor(w, mode, x, z, q.x, q.z);
       // (`o.keepFrom`: {tag: r} — never within r m of these men, whichever way they face: a patrol file whose men
       // fall out of step and swing round at its turns is not predicted well enough to slip past its cones)
-      if (dd < keepWalker || (o.keepFrom?.[e.tag] && dd < o.keepFrom[e.tag]) || seesAny(headViews(e, kk, -1), d, w)) { s = true; break walk; }
-      if (wheels(e, kk) && [0, 1, 2, 3, 4, 5, 6, 7].some((r) => seesAny(headViews(e, kk, r), d, w))) { s = true; break walk; }
+      if (dd < keepWalker || (o.keepFrom?.[e.tag] && dd < o.keepFrom[e.tag]) || seesAny(headViews(e, kk, -1), d, w, o.coneMargin)) { s = true; break walk; }
+      if (wheels(e, kk) && [0, 1, 2, 3, 4, 5, 6, 7].some((r) => seesAny(headViews(e, kk, r), d, w, o.coneMargin))) { s = true; break walk; }
       const near = e.vision?.near ?? far / 2, sq = e.squad?.id != null && mode === 'boat' ? 2 : 0;
       const pad = (walkerPad ? walkerPad + sq : 0) || (mode === 'crawl' && dd > near - 3 && dd < near + crawlPad + 0.5 ? crawlPad : 0);
       if (pad > 0 && dd > pad) {
@@ -925,7 +984,8 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     const key = c * (HS + 256) + k;
     if (done.has(key)) continue;
     done.add(key); n++;
-    if ((n & 15) === 0) yield; // (each state asks seen() of its neighbours: often, so a slice stays within PLAN_SLICE_MS)
+    // (each state asks seen() of its neighbours, and fresh cells × steps cost more: a slice stays within PLAN_SLICE_MS)
+    if ((n & 15) === 0 || work >= 16) { work = 0; yield; }
     const atGoal = o.shelter || c === s1 || (mode !== 'boat' && Math.hypot(cx(c) - tx, cz(c) - tz) <= 0.55);
     if (atGoal && clear(c, k, k + holdK) && (!o.goalOk || o.goalOk(cx(c), cz(c), now + k * DT))) { found = [c, k]; break; }
     if (k >= HS) continue;
@@ -940,8 +1000,9 @@ export function* planSneakGen(D, tx, tz, o = {}) {
       if (di && dj && (!pass(j * W + ni) || !pass(nj * W + i))) continue;
       if (!edge(c, nc)) continue;
       const steps = Math.max(1, Math.ceil((di && dj ? Math.SQRT2 : 1) / speed / DT));
-      if ((!(c === s0 && k === k0) && !clear(c, k - ma, k + steps)) || !clear(nc, k - ma, k + steps + mb)) continue;
+      if ((!(c === s0 && k === k0) && !clear(c, k - ma, k + steps)) || !clear(nc, k - ma, k + steps + mb)) { if (work >= 16) { work = 0; yield; } continue; }
       push(k + steps + hfun(nc), nc, k + steps, key);
+      if (work >= 16) { work = 0; yield; }
     }
   }
   if (!found) {
@@ -967,10 +1028,11 @@ export function* planSneakGen(D, tx, tz, o = {}) {
  * D.wait(sec) told to video mode as a wait (`label`: AUTO runs it fast under a "⏩ waiting" tag — D.wait tells it only
  * from 2 s): the same number of ticks, round(sec / dt).
  */
-async function waitTold(D, sec, label) {
-  const n = Math.round(sec / D.dt);
-  let k = 0;
-  await D.until(() => k++ >= n, sec + 1, label);
+export async function waitTold(D, sec, label) {
+  // (by the clock, not by the condition's calls: a solution may try its waits' conditions less often than every tick —
+  // M20 every tenth of a second — and a count of calls then ran six times too long, past the wait's own timeout)
+  const end = D.t + Math.round(sec / D.dt) * D.dt - 1e-6;
+  await D.until(() => D.t >= end, sec + 1, label);
 }
 
 /**
@@ -1004,8 +1066,16 @@ async function sneak0(D, tx, tz, o) {
       if (!plan) {
         if (o.noWait) return false;
         const sb = o.shelterBox ?? 6, sh = o.shelterHorizon ?? 30;
-        const here = await planSneakAsync(D, u.x, u.z, { ...o, shelter: true, hold: o.shelterHold ?? 8, box: sb, horizon: sh, maxExpand: 60000 });
-        if (here && here.length > 1) { await sneak(D, here[here.length - 1][0], here[here.length - 1][1], { ...o, hold: o.shelterHold ?? 8, label: `${o.label || ''} (shelter)`, noWait: true, box: sb, horizon: sh }); fails = 0; }
+        let here = await planSneakAsync(D, u.x, u.z, { ...o, shelter: true, hold: o.shelterHold ?? 8, box: sb, horizon: sh, maxExpand: 60000 });
+        // (`w.sneakFlee`, opt-in: no shelter near him and where he lies seen within seconds — a patrol coming his way — then
+        // one twice as far, held for less long, rather than lying on: in the game Patrol 57 walked onto a man who had
+        // nowhere left to go)
+        let fled = null;
+        if (!here && w.sneakFlee && !(await (D.runSliced ? D.runSliced(routeClearGen(D, [], { mode, from: [u.x, u.z], hold: 4, slack: 0.3 })) : routeClear(D, [], { mode, from: [u.x, u.z], hold: 4, slack: 0.3 })))) {
+          fled = { box: sb * 2, hold: 3 };
+          here = await planSneakAsync(D, u.x, u.z, { ...o, shelter: true, hold: fled.hold, box: fled.box, horizon: sh, maxExpand: 150000 });
+        }
+        if (here && here.length > 1) { await sneak(D, here[here.length - 1][0], here[here.length - 1][1], { ...o, hold: fled?.hold ?? o.shelterHold ?? 8, label: `${o.label || ''} (shelter)`, noWait: true, box: fled?.box ?? sb, horizon: sh }); fails = 0; }
         else await waitTold(D, o.retry ?? (here ? Math.min(0.5 + 0.25 * fails++, 2.5) : 0.5), `${o.label || 'a man'}: a gap in the cones`);
         continue;
       }
@@ -1047,8 +1117,22 @@ async function sneak0(D, tx, tz, o) {
         if (s.wait) {
           // (lying or standing still for a gap in the cones: told to video mode as a wait — AUTO runs it fast under a
           // "⏩ waiting" tag, as it does the straight dashes' waits (D._walkLegs) — the same ticks either way)
-          if (s.until - D.t >= 0.5) await D.until(() => D.t >= s.until - 1e-6, s.until - D.t + 1, `${o.label || 'a man'}: a gap in the cones`);
-          else while (D.t < s.until - 1e-6) await D.wait(D.dt);
+          // (`w.sneakRecheck` s, opt-in: a long wait is looked at again that often — the walkers as they walk now, not as
+          // they were foreseen when he planned (in the game a patrol's way round a wagon came onto a man waiting): seen
+          // there before the wait is out, he plans afresh)
+          const re = w.sneakRecheck;
+          let stale = false;
+          while (D.t < s.until - 1e-6) {
+            const stop = re ? Math.min(s.until, D.t + re) : s.until;
+            if (stop - D.t >= 0.5) await D.until(() => D.t >= stop - 1e-6, stop - D.t + 1, `${o.label || 'a man'}: a gap in the cones`);
+            else while (D.t < stop - 1e-6) await D.wait(D.dt);
+            if (re && s.until - D.t > 0.3) {
+              const hold = s.until - D.t + 1;
+              const ok = await (D.runSliced ? D.runSliced(routeClearGen(D, [], { mode, from: [u.x, u.z], hold, slack: 0.3, except: o.except })) : routeClear(D, [], { mode, from: [u.x, u.z], hold, slack: 0.3, except: o.except }));
+              if (!ok) { stale = true; break; }
+            }
+          }
+          if (stale) { late = true; break; }
           continue;
         }
         if (s.start - D.t >= 0.5) await D.until(() => D.t >= s.start - 1e-6, s.start - D.t + 1, `${o.label || 'a man'}: a gap in the cones`);

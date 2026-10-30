@@ -455,6 +455,16 @@ export class Game {
     // The script finds it built (missions/setpieces.js; idempotent, no sim state)
     await safeAsync(() => def.script?.visuals?.(world), 'mission visuals'); // (may be a sliced job: M20's castle)
     if (this.world !== world) return prog.cancel(), world;
+    // what that art drew in place of a structure's placeholder (`userData.artSwapped`: M20's masonry over its levels'
+    // rock) is what a body is laid clear of: its standing visuals measured again on it (map-builder restampStandingG)
+    // (measured once all of it is drawn: a library model swapped in may still be loading — M20's V2s over a slow link
+    // were measured with nothing drawn yet, and played unstamped: engine/gameplay-inputs.js)
+    const artReady = [...(world.structures?.values?.() || [])].map((s) => s?.object3d?.userData?.artSwapped && s.object3d.userData.artReady).filter((p) => p && typeof p.then === 'function');
+    if (artReady.length) await safeAsync(() => awaitGameplayInput(Promise.allSettled(artReady), 'the mission art\'s library models'), 'mission art');
+    if (this.world !== world) return prog.cancel(), world;
+    const swapped = new Set([...(world.structures?.values?.() || [])].filter((s) => s?.object3d?.userData?.artSwapped && s.owner != null).map((s) => s.owner));
+    if (swapped.size && this.mapHandle?.restampStandingG) await safeAsync(() => runSliced(this.mapHandle.restampStandingG(swapped)), 'standing visuals');
+    if (this.world !== world) return prog.cancel(), world;
     // (and what a model builds on its first update: `model.prepare(entity)` — the cable car's line)
     for (const e of world.entities) if (typeof e.model?.prepare === 'function') safe(() => e.model.prepare(e), 'model prepare');
     // every pass's programs for everything on the map (shadow depth, AO normals, mirror, x-ray variants): compiled now,

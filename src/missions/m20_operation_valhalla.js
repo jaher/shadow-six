@@ -68,13 +68,20 @@ export const T_NE = [[102, 32], [112, 32], [128, 45], [128, 51], [102, 51]];
  * The turret (y 26) still sees and is seen over all of them [P "some of the soldiers below can see the tower"].
  */
 export const PARAPET_H = 1.4;
+/**
+ * The forecourt screen (t_par_hq_b*) stands taller than the edge parapets: the sight line runs from a guard's eye
+ * (1.65 m) to a standing man's chest (1.4 m: perception targetHeight), so a 1.4 m balustrade hid only men lying down —
+ * the door guards and e40 saw e1's walk and a man on his feet anywhere on the strip's W half (Prima's "runs after
+ * Soldier 1 and knifes him" was seen). Above eye height it hides a standing man too (sol/m20).
+ */
+export const BALUSTRADE_H = 1.7;
 export const PARAPETS = [
   ['t_par_hq_e', [[37.4, 72.5], [38, 72.5], [38, 78], [37.4, 78]], Y.HQ],
   ['t_par_hq_s', [[22, 77.5], [37.4, 77.5], [37.4, 78], [22, 78]], Y.HQ],
   ['t_par_sw_e', [[37.4, 78], [38, 78], [38, 91], [37.4, 91]], Y.SW],
   ['t_par_sw_s', [[22, 90.4], [38, 90.4], [38, 91], [22, 91]], Y.SW],
-  ['t_par_hq_b', [[4, 68.5], [23, 68.5], [23, 69], [4, 69]], Y.HQ],
-  ['t_par_hq_b2', [[33.5, 68.5], [37.4, 68.5], [37.4, 69], [33.5, 69]], Y.HQ],
+  ['t_par_hq_b', [[4, 68.5], [23, 68.5], [23, 69], [4, 69]], Y.HQ, BALUSTRADE_H],
+  ['t_par_hq_b2', [[33.5, 68.5], [37.4, 68.5], [37.4, 69], [33.5, 69]], Y.HQ, BALUSTRADE_H],
   ['t_par_n', [[92, 31.4], [104, 31.4], [104, 32], [92, 32]], Y.N],
 ];
 /** The crag under the HQ and the W wall (impassable). */
@@ -199,8 +206,8 @@ const LEVELS = [
   level('t_sw', 'bastion_limestone', T_SW, Y.SW),
   level('t_hq', 'terrace_limestone', T_HQ, Y.HQ),
   // parapets and the forecourt balustrade (1.4 m stone, one cell): edge cover for the terraces [P "keep to the centre"]
-  ...PARAPETS.map(([id, poly, y]) => ({ id, type: 'cliff', variant: 'parapet_limestone', mat: 'stone', points: poly, h: y + PARAPET_H, block: 0,
-    walkways: plateauWalkways(poly, [], y + PARAPET_H) })),
+  ...PARAPETS.map(([id, poly, y, ph = PARAPET_H]) => ({ id, type: 'cliff', variant: 'parapet_limestone', mat: 'stone', points: poly, h: y + ph, block: 0,
+    walkways: plateauWalkways(poly, [], y + ph) })),
   { id: 'turret', type: 'watchtower', variant: 'turret_round_crenellated', label: 'Turret', x: 29, z: 57, rot: 0, w: 5, d: 5, h: Y.TUR, deckY: Y.TUR },
 ];
 
@@ -220,7 +227,9 @@ const BUILDINGS = [
   { id: 'bk_s', type: 'barracks', variant: 'hut_timber_barrack', label: 'Barracks', x: 76, z: 97, rot: deg(-30), w: 11, d: 7, h: 4.5,
     mat: 'planks', flag: true, garrison: true, door: deg(270), destructible: true, chimney: STOVE },
   { id: 'h_st', type: 'house', variant: 'house_half_timber_steeple', x: 66, z: 86, rot: deg(-20), w: 10, d: 7, h: 7, mat: 'plaster', roof: 'roofSlate', chimney: false },
-  hut('h_w1', 54, 82, -30, { chimney: STOVE }), hut('h_w2', 50, 97, -45, { artOffset: [0.5, -0.5] }), hut('h_w3', 60, 100.5, -45, { w: 8, d: 5 }), // ∥ cw_sw
+  // (h_w3 ∥ cw_sw, 6 m long: 2 m shorter at its SW end than first drawn, its NE end and NW face where they were — the
+  // Panzer III turns into the SW gate's mouth past its S corner; e24's beat round it is unchanged)
+  hut('h_w1', 54, 82, -30, { chimney: STOVE }), hut('h_w2', 50, 97, -45, { artOffset: [0.5, -0.5] }), hut('h_w3', 60.71, 99.79, -45, { w: 6, d: 5 }),
   hut('h_s1', 88, 106, -30, { chimney: STOVE }), hut('h_s2', 72, 110, -30),
   hut('h_s3', 88, 118, 15.6, { label: 'Hut', enterable: true, door: deg(270) }), // ∥ cw_s
   hut('h_s4', 96, 106, -30, { w: 8 }), hut('h_s5', 103.55, 114.1, 20, { w: 8, d: 5 }),
@@ -290,7 +299,10 @@ const CLIMBS = [
   { id: 'cl_in', a: [30, 77, Y.HQ], b: [30, 80, Y.SW], roles: ['greenberet'] }, // "the drainpipe" [fd]: T_hq → the SW bastion
 ];
 const ladder = (id, bottom, top, heading, extra = {}) => ({ id, x: bottom[0], z: bottom[1], y: bottom[2] ?? 0, top, raised: false, heading: deg(heading), ...extra });
-const stairs = (id, bottom, top, heading) => ladder(id, bottom, top, heading, { kind: 'stairs' });
+// (`solid`: castle-kit's stone flights are masonry down to the ground: nobody walks beside a flight's run under it —
+// map-builder stampSolidFlights; the pathfinder took those cells for open ground and the stair walk shoved a man
+// there back for ever, sol/m20)
+const stairs = (id, bottom, top, heading) => ladder(id, bottom, top, heading, { kind: 'stairs', solid: true });
 const plank = (id, a, b, heading) => ladder(id, a, b, heading, { kind: 'plank' });
 /** The Sniper's firing point (e44's post) and the AT gunner (§14 E6: 41 m, inside the rifle's 45 m). */
 export const SNIPER_POST = { x: 114, z: 27.5, y: Y.BAT };
@@ -357,7 +369,9 @@ const WALL_MEN = [ // §8.2 the battlements, counter-clockwise (Prima Phase 2)
   sentry('e8', 8, 106, 122, Y.BAT, 120, 40),
   sentry('e9', 9, 124, 108.5, Y.BAT, 135, 40), // in view of the range below [P]
   walker('e10', 10, Y.BAT, [P(139, 95, 4, 0), P(139, 86.5, 4, 0)]), // watches the E field and the moat [NL]
-  sentry('e11', 11, 139, 62, Y.BAT, 0, 90),
+  // on the walk's inner half: from its middle his near band (18 m) reached the E map edge (157), so the E group could not
+  // crawl S out of the NE fields at all (sol/m20); from here a 1.5 m lane along the edge stays beyond it
+  sentry('e11', 11, 137.2, 62, Y.BAT, 0, 90),
 ];
 const RANGE_MEN = [ // §8.3 the firing range (Prima Phase 3)
   sentry('e12', 12, 132, 73.5, 0, 200, 40),
@@ -373,7 +387,9 @@ const RANGE_MEN = [ // §8.3 the firing range (Prima Phase 3)
   sentry('e62', null, 102, 108.5, 0, 45, 30), // "the soldier across the street" [P]
 ];
 /** Patrol 26 (4 men): through the SW gate, the junction, the SE gate and back round the S field outside [P][ooc][DE]. */
-export const P26_ROUTE = [P(36, 140, 5, 0), P(54, 127.5), P(57, 114), P(70, 101), P(80, 93, 4, 0), P(98, 99), P(116, 114),
+// (the halt by the barracks' S corner at (81, 92.2): the game draws the barracks wider than its footprint, and at (80, 93)
+// the four never reached their halt — their walks ended 1.3 m short, past the route's tolerance — and stood re-planning)
+export const P26_ROUTE = [P(36, 140, 5, 0), P(54, 127.5), P(57, 114), P(70, 101), P(81, 92.2, 4, 0), P(98, 99), P(116, 114),
   P(124.5, 123), P(110, 140, 5, 90), P(70, 145)];
 const SW_MEN = [ // §8.4 the SW gate and the W quarter (Prima Phase 4)
   ...patrol(['p26', 'p26b', 'p26c', 'p26d'], 26, 'p26', P26_ROUTE),
@@ -439,12 +455,14 @@ const VEHICLES = [
 
 // ---------------------------------------------------------------- commandos (§3.8 row 20, exact; §3.8 team order): prone behind their rocks
 const COMMANDOS = [
-  { role: 'greenberet', x: 9, z: 91.5, heading: deg(270), stance: 'crawl', inventory: { knife: 1, pistol: 1, decoy: 1 } },
+  // the W group lies W of rk_w1: at the dossier's (9,91.5)/(12,92.5), S of the rock, e4 on the SW bastion saw them
+  // prone from his W halt (near band, 0.7 s in); W of the rock they are beyond his near band and under the rock
+  { role: 'greenberet', x: 4.5, z: 87, heading: deg(270), stance: 'crawl', inventory: { knife: 1, pistol: 1, decoy: 1 } },
   { role: 'sniper', x: 152.5, z: 31, heading: deg(180), stance: 'crawl', inventory: { pistol: 1, sniperRifle: 5 } },
   { role: 'diver', x: 154.5, z: 32.5, heading: deg(180), stance: 'crawl', inventory: { knife: 1, pistol: 1, harpoon: 1, divingGear: 1, inflatableBoat: 0 } },
   { role: 'sapper', x: 152.5, z: 35, heading: deg(180), stance: 'crawl', inventory: { pistol: 1, bearTrap: 1, grenade: 2, remoteBomb: 2 } },
   { role: 'driver', x: 154.5, z: 36.5, heading: deg(180), stance: 'crawl', inventory: { pistol: 1, firstAid: 6 } }, // the medic
-  { role: 'spy', x: 12, z: 92.5, heading: deg(270), stance: 'crawl', inventory: { pistol: 1, lethalInjection: 1 } }, // no uniform
+  { role: 'spy', x: 4.5, z: 89.5, heading: deg(270), stance: 'crawl', inventory: { pistol: 1, lethalInjection: 1 } }, // no uniform
 ];
 
 // ---------------------------------------------------------------- zones and garrisons (dossier §9)
@@ -571,6 +589,9 @@ export default {
   script: m20Script,
   // the player drives the tank out: all living men aboard, o1 + o2 done, inside the SW road's exit
   extraction: { vehicleId: 'pz3', exit: EXIT },
+  // (the Panzer III clears what the castle draws, not the walkers' clearance round it — grid.hullBlocked: through the
+  // SW gate's 4.5 m passage and between h_w3 and the barracks, design E9)
+  hullDrawn: true,
   alarmFail: null,
   par: { time: 1080 },
   cameraStart: { x: 20, z: 88, zoom: 1 },

@@ -29,6 +29,7 @@ import {
   SHELF_Y, shelfStrips, segmentHoles, rampWalkways, m10Script, m10Tick, setVehicleRoute, startDrive,
 } from './scripts/m10.js';
 import { rectPoly } from './scripts/m05.js';
+import { M10_DRESSING, M10_AIRSTRIP } from '../art/m10-dressing.js';
 
 const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (enemy-brain)
@@ -56,8 +57,9 @@ const AIRFIELD = [
   { id: 'crates_af', type: 'crates', variant: 'ammo_crates', x: 99, z: 45.5, rot: 0, w: 5, d: 3, h: 1.1, block: 1 },
   { id: 'drums_af_e', type: 'barrels', variant: 'drum_pyramid', x: 113, z: 45, rot: 0, w: 4, d: 4, h: 1.8, block: 1 },
   { id: 'drums_af_w', type: 'barrels', variant: 'drum_pyramid', x: 21, z: 42, rot: 0, w: 4, d: 4, h: 1.8, block: 1 },
-  wire('belt_rim_w', [[0, 49.5], [49, 50]]),
-  wire('belt_rim_e', [[87, 50], [119, 49.5]]),
+  // (baseY: drawn on the shelf top: on the terrain the wire layer laid them inside the y-5 shelf prism, unseen; art pass 2)
+  { ...wire('belt_rim_w', [[0, 49.5], [49, 50]]), baseY: Y },
+  { ...wire('belt_rim_e', [[87, 50], [119, 49.5]]), baseY: Y },
   // art pass: airfield ground equipment (library vehicles drawn on the shelf, off the Ju 52's taxi run and every
   // dugout squad's loop): a fuel bowser and a bomb trolley by the Stukas, the starter cart behind the Junkers' tail,
   // the dugout's Kubelwagen, the windsock in the NE corner
@@ -309,6 +311,7 @@ const STRUCTURES = [
   { id: 'ramp', type: 'road', variant: 'road_ramp', points: [RAMP.a.slice(0, 2), RAMP.b.slice(0, 2)], width: RAMP.width,
     walkways: rampWalkways(RAMP.a, RAMP.b, RAMP.width, RAMP.steps) },
   ...AIRFIELD, ...AIR_DRUMS, ...RUINS, ...COMPOUND, ...APRON_S, ...FIELD, ...PARKED,
+  ...M10_DRESSING, // art pass 2 (art/m10-dressing.js): the burnt-out armoured car in the E field, the dump outside the apron's E fence, the graves
 ];
 
 // ---------------------------------------------------------------- enemies (dossier §8; Prima numbers where sure)
@@ -543,7 +546,7 @@ export default {
       when: (_p, w) => !objDone(w, 'o2') && !(w.time - (w._m10?.t6 ?? -Infinity) < 10),
       do: [{ run: (w) => { w._m10 = w._m10 || {}; w._m10.t6 = w.time; } }, { message: 'McRae: "Not before that bomb store goes up. Orders."', kind: 'info' }] },
   ],
-  script: m10Script({ shelf: SHELF, ramp: RAMP, hide: ['shelf'], lift: LIFT_ALL }),
+  script: m10Script({ shelf: SHELF, ramp: RAMP, hide: ['shelf'], lift: LIFT_ALL, airstrip: M10_AIRSTRIP }), // (art pass 2: the landing ground drawn on the shelf)
   // the Ju 52 is on the airfield from the start; once McRae is free, the store is down and every living man is
   // aboard, McRae taxis W down the runway, over the dugout, and takes off off the W edge
   extraction: { vehicleId: 'ju52', spawnAt: { x: 91, z: 20, heading: deg(180) }, spawnWhen: ['o1', 'o2'],

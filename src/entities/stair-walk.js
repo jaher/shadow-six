@@ -346,6 +346,21 @@ export function onStairRun(u) {
 }
 
 /**
+ * On a flight's run (onStairRun), or within `pad` m of its foot or head with his way taking him onto it or just off it
+ * (the waypoint he walks to, the next or the last is the flight's link): the stride a runner shows there (Unit._heelBlocked
+ * → the brisk stair walk) is set before the first tread, not on it. (A run's clip handed over to the walk 0.3 m before
+ * the head crossfaded over the first treads: a Green Beret running down M20's S_sw from a standstill 0.6 m before its
+ * head re-planted a foot on its tread and then skipped seven — stairs-matrix.)
+ */
+export function nearStairRun(u, pad = 1.0) {
+  if (onStairRun(u)) return true;
+  const p = u.path, i = u.pathIndex ?? 0;
+  if (!p || ![p[i], p[i + 1], p[i - 1]].some((wp) => wp?.link?.walk === 'stairs')) return false;
+  const at = unitFlight(u, pad);
+  return !!at && at.s > at.f.sFoot - pad && at.s < at.f.sTop + pad;
+}
+
+/**
  * Height of a man walking a walked link (`wp.link.walk`: a stair link's nosing line, a plank's straight line between
  * its ends) at (x, z), or null when the current waypoint is not one.
  */
