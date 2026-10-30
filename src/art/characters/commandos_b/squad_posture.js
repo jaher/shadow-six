@@ -7,7 +7,6 @@
 // The bones it touches are restored to the mixer's values before the next mixer.update (PropertyMixer skips writes of
 // unchanged values, so an overlay would otherwise accumulate on held keys).
 import * as THREE from 'three';
-import { ik2 } from './synth.js';
 import { mulberry32 } from '../pipeline/variety.js';
 
 export const STANDING = new Set(['idle', 'look_around', 'fold_arms', 'idle_hands_back', 'talk', 'smoke', 'pistol_idle']);
@@ -36,22 +35,68 @@ export function installPosture(h, j) {
   };
   const up0 = h.update.bind(h);
   h.update = (dt) => { if (dirty) { for (const s of saved) { s.b.quaternion.copy(s.q); s.b.position.copy(s.p); } dirty = false; } up0(dt); };
-  const L = (o) => root.worldToLocal(o.getWorldPosition(new THREE.Vector3()));
+  // perf/characters-detail: the overlay's world-space reads used three's getWorldPosition / getWorldQuaternion (each
+  // re-walks the whole chain from the scene) and whole-subtree updateMatrixWorld(true) after each write: ~500 node
+  // updates a step. Here only the bones it reads are kept fresh, with the same products in the same order
+  // (updateMatrix + parent.matrixWorld × matrix), so every value — and the pose — is bit for bit the same.
+  const below = (b) => { const a = []; for (let o = b; o && o !== B.pelvis; o = o.parent) a.unshift(o); return a; };
+  const NECK = B.neck_01 || B.spine_03;
+  const spineDown = (top) => below(NECK).filter((o) => o === top || isBelow(o, top));
+  const isBelow = (o, top) => { for (let q = o.parent; q; q = q.parent) if (q === top) return true; return false; };
+  const LEGS = ['l', 'r'].map((s) => [B['thigh_' + s], B['calf_' + s], B['foot_' + s]]).filter((g) => g.every(Boolean));
+  const legChains = LEGS.map((g) => below(g[2]));
+  const fresh = (o) => { if (o.matrixAutoUpdate) o.updateMatrix(); if (o.matrixWorldAutoUpdate) o.matrixWorld.multiplyMatrices(o.parent.matrixWorld, o.matrix); };
+  const freshAll = (list) => { for (const o of list) fresh(o); };
+  const rootInv = new THREE.Matrix4(), _p = new THREE.Vector3(), _s = new THREE.Vector3();
+  const L = (o) => new THREE.Vector3().setFromMatrixPosition(o.matrixWorld).applyMatrix4(rootInv);
+  const WQ = (o) => { const q = new THREE.Quaternion(); o.matrixWorld.decompose(_p, q, _s); return q; };
+  const WP = (o) => new THREE.Vector3().setFromMatrixPosition(o.matrixWorld);
+  // synth.js ik2 (keepEnd, maxReach 0.999) on fresh matrices: a, b, c re-made after each write
+  const ik2f = (a, b, c, target, pole) => {
+    fresh(a); fresh(b); fresh(c);
+    const cw = WQ(c);
+    const pa = WP(a), pb = WP(b), pc = WP(c);
+    const l1 = pa.distanceTo(pb), l2 = pb.distanceTo(pc);
+    const t = target.clone().sub(pa); let d = t.length();
+    d = THREE.MathUtils.clamp(d, Math.abs(l1 - l2) + 1e-3, (l1 + l2) * 0.999);
+    const tn = t.clone().normalize();
+    const ref = (pole ? pole.clone() : pb.clone()).sub(pa);
+    let bend = ref.addScaledVector(tn, -ref.dot(tn));
+    if (bend.lengthSq() < 1e-8) bend = pb.clone().sub(pa).addScaledVector(tn, -pb.clone().sub(pa).dot(tn));
+    if (bend.lengthSq() < 1e-8) bend.set(0, 0, 1).addScaledVector(tn, -tn.z);
+    bend.normalize();
+    const cosA = THREE.MathUtils.clamp((l1 * l1 + d * d - l2 * l2) / (2 * l1 * d), -1, 1);
+    const sinA = Math.sqrt(1 - cosA * cosA);
+    const midT = pa.clone().addScaledVector(tn, l1 * cosA).addScaledVector(bend, l1 * sinA);
+    const endT = pa.clone().addScaledVector(tn, d);
+    const setWQ = (bone, q, after) => { bone.quaternion.copy(WQ(bone.parent).invert().multiply(q)); fresh(bone); for (const o of after) fresh(o); };
+    const swing = (bone, from, to, after) => {
+      const p = WP(bone); const u = from.clone().sub(p).normalize(), v = to.clone().sub(p).normalize();
+      setWQ(bone, new THREE.Quaternion().setFromUnitVectors(u, v).multiply(WQ(bone)), after);
+    };
+    swing(a, pb, midT, [b, c]);
+    swing(b, WP(c), endT, [c]);
+    setWQ(c, cw, []);
+  };
   h._post.unshift(() => {
     if (!P.enabled || !STANDING.has(h._anim)) return;
     for (const s of saved) { s.q.copy(s.b.quaternion); s.p.copy(s.b.position); }
     dirty = true;
-    root.updateMatrixWorld(true);
+    // the chain from the scene down to the pelvis, then the spine to the neck and both legs below it
+    B.pelvis.updateWorldMatrix(true, false);
+    rootInv.copy(root.matrixWorld).invert();
+    freshAll(below(NECK)); for (const c of legChains) freshAll(c);
     // (1) torso: neck over pelvis
-    const pel = L(B.pelvis), neck = L(B.neck_01 || B.spine_03);
+    const pel = L(B.pelvis), neck = L(NECK);
     const ang = Math.atan2(neck.z - pel.z, neck.y - pel.y);
     const d = ang - P.lean;
     if (Math.abs(d) > 0.01) {
       _ax.set(1, 0, 0).transformDirection(root.matrixWorld);
       for (const [n, k] of [['spine_01', 0.55], ['spine_02', 0.45]]) {
         const b = B[n]; if (!b) continue;
-        _q.setFromAxisAngle(_ax, -d * k).multiply(b.getWorldQuaternion(new THREE.Quaternion()));
-        b.quaternion.copy(b.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(_q)); b.updateMatrixWorld(true);
+        _q.setFromAxisAngle(_ax, -d * k).multiply(WQ(b));
+        b.quaternion.copy(WQ(b.parent).invert().multiply(_q));
+        freshAll(spineDown(b));
       }
     }
     // (2)+(3) stance width and pelvis height
@@ -59,7 +104,7 @@ export function installPosture(h, j) {
     if (legs.length !== 2) return;
     // body over the feet: move the pelvis so the neck is above the ankle midpoint (+ small seeded lean)
     const a0 = L(legs[0].f), a1 = L(legs[1].f), midZ = (a0.z + a1.z) / 2;
-    const nk = L(B.neck_01 || B.spine_03), dz0 = THREE.MathUtils.clamp(midZ + 0.03 + P.lean * 0.4 - nk.z, -0.12, 0.12);
+    const nk = L(NECK), dz0 = THREE.MathUtils.clamp(midZ + 0.03 + P.lean * 0.4 - nk.z, -0.12, 0.12);
     const pel2 = pel.clone(); pel2.z += dz0;
     let dy = 0.08;
     for (const g of legs) {
@@ -74,16 +119,16 @@ export function installPosture(h, j) {
     }
     dy = Math.max(0, dy);
     if (dy > 0.002 || Math.abs(dz0) > 0.002) {
-      const pw = B.pelvis.getWorldPosition(new THREE.Vector3());
+      const pw = WP(B.pelvis);
       _a.copy(pel2).setY(pel.y + dy); root.localToWorld(_a);
       B.pelvis.position.add(B.pelvis.parent.worldToLocal(_a.clone()).sub(B.pelvis.parent.worldToLocal(pw)));
-      B.pelvis.updateMatrixWorld(true);
+      fresh(B.pelvis); for (const c of legChains) freshAll(c);
     }
     // (4) legs: IK to the narrowed ankle targets at the clip's ankle height, knees toward the front
     for (const g of legs) {
       const tgt = root.localToWorld(g.ank.clone());
       const knee = L(g.c); knee.z += 0.4; root.localToWorld(knee);
-      ik2(g.t, g.c, g.f, tgt, knee);
+      ik2f(g.t, g.c, g.f, tgt, knee);
     }
   });
   return P;

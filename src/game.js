@@ -49,6 +49,8 @@ import { BlastMarks } from './render/blast-marks.js';
 import { BloodSystem } from './render/blood/index.js';
 import { resolveHouseRules, tierFromPreset } from './core/house-rules.js';
 import { nobodyLeftToHelp } from './entities/downed.js';
+import { beginDrawnFrame, endDrawnFrame } from './engine/pose-frame.js';
+import { kitBegin, kitEnd } from './art/kit-batch.js';
 import { prepareCharacters, awaitUnitModels, warmUnitModels, warmUnitModelsG, queueIdleWarm, queueAheadModels, charactersFrame, transportFrame, releaseCharacters } from './art/unit-model.js';
 import { idleWarm } from './engine/idle-warm.js';
 import { awaitGameplayInput } from './engine/gameplay-inputs.js';
@@ -664,8 +666,12 @@ export class Game {
         if (cones && 'forced' in cones && foe) { cones.forced = forced0; safe(() => cones.update(), 'warm cone'); }
       };
       if (only !== 'close') {
-        safe(() => w.water?.system?.renderMirror?.(), 'warm water mirror'); // (deferred by Game.render's mirrorLater)
-        r.render(0);
+        // (the kit batches' instanced programs; the close-ups below draw the kit meshes themselves: clean and stained)
+        safe(() => kitBegin(scene, true), 'warm kit batches'); // (and the kit meshes' own programs: keep)
+        try {
+          safe(() => w.water?.system?.renderMirror?.(), 'warm water mirror'); // (deferred by Game.render's mirrorLater)
+          r.render(0);
+        } finally { kitEnd(); }
       }
       if (only === 'world') return Math.round(performance.now() - t0); // (the finally below restores)
       // the men again with blood on them (blood/stains.js: the stained variant of every character material compiles at
@@ -1199,11 +1205,13 @@ export class Game {
     if (draw) {
       scene.updateMatrixWorld();
       scene.matrixWorldAutoUpdate = false;
+      beginDrawnFrame(); // every pose is final: each skeleton skins once for all the passes below (engine/pose-frame.js)
+      safe(() => kitBegin(scene), 'kit batches'); // the Germans' kit and guns: one instanced draw per item for the platoon (art/kit-batch.js)
       try {
         if (w?.water?.system?.renderMirror) safe(() => w.water.system.renderMirror(), 'water mirror');
         this.cameraRig.render(this.renderer, dt);
         if (w) safe(() => this._scopeFrame(), 'scope magnifier'); // §5.3 sniper scope: 2× lens into the same canvas
-      } finally { scene.matrixWorldAutoUpdate = autoMW; }
+      } finally { kitEnd(); endDrawnFrame(); scene.matrixWorldAutoUpdate = autoMW; }
     }
     safe(() => this.hud?.update?.(dt), 'hud');
   }

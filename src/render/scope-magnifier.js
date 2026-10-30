@@ -30,6 +30,7 @@
 
 import * as THREE from 'three';
 import { xrayMatcap } from '../engine/post-passes.js';
+import { kitSolo } from '../art/kit-batch.js';
 
 /** Tunables. Sizes are BEL reference px (the cursor art is 88 × 88, its glass r ≈ 36). */
 export const SCOPE = {
@@ -298,11 +299,13 @@ export class ScopeMagnifier {
     const cam = this.camera;
     _frustum.setFromProjectionMatrix(_pv.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
     // whole top-level subtrees (men, vehicles, buildings) outside the window: bounds cached in the child's own frame
-    // (so they follow it as it moves), one stale entry refreshed per lens render
+    // (so they follow it as it moves), one stale entry refreshed per lens render. Not a root flagged lensKeep: what it
+    // holds moves without it (art/kit-batch.js: the platoon's kit instanced in world space), so cached bounds go stale
+    // — its batches are drawn (the empty ones are skipped through the _nfc list below)
     const B = this._roots;
     let refreshed = false;
     for (const o of scene.children) {
-      if (!o.visible || !o.children.length || o.isLight) continue;
+      if (!o.visible || !o.children.length || o.isLight || o.userData.lensKeep) continue;
       let b = B.get(o);
       // a child added or removed (effects spawned under a root): now; men re-pose: often; static dressing: rarely
       if (b === undefined || b.n !== o.children.length || (!refreshed && now - b.t > (b.s?.pad > 1 ? 60 : 600))) {
@@ -475,6 +478,9 @@ export class ScopeMagnifier {
     try {
       r.autoClear = true;
       r.setRenderTarget(this.rtA);
+      // a German's kit and gun are drawn by the platoon's batches in a drawn frame (art/kit-batch.js): the target's by
+      // his own meshes again, so the highlight's depth-equal pass meets them exactly and his own subtree holds them
+      if (target?.object3d) kitSolo(target.object3d);
       this._hideOutside(scene);
       this._draw(r, scene, cam);
       let out = this.rtA;

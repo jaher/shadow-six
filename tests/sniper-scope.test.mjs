@@ -74,6 +74,32 @@ export async function stage(page, t) {
   return { setup, aim };
 }
 
+/** Eight drawn frames with the lens up: was the kit batches' root ever culled by the lens, and did its highlight draw
+ *  every visible mesh of the target (kit and gun on the layers, one draw each)? */
+function kitInLens(page) {
+  return page.evaluate(() => {
+    const G = window.__game.game, M = G.scopeMagnifier, r = G.renderer.renderer;
+    const o = { renders: 0, kitRootCulled: 0, target: null, want: 0, kit: 0, off: 0, calls: 0 }, hide = M._hideOutside, hl = M._highlight;
+    M._hideOutside = function (scene) { hide.call(this, scene); o.renders++; if (this._hid.some((x) => x.userData.lensKeep)) o.kitRootCulled++; };
+    M._highlight = function (rr, root) {
+      let want = 0, kit = 0, off = 0;
+      root.traverseVisible((x) => { if (x.isMesh && x.material) { want++; if (x.userData.kitBatched) { kit++; if (!x.layers.test(this.camera.layers)) off++; } } });
+      const c0 = r.info.render.calls;
+      hl.call(this, rr, root);
+      Object.assign(o, { want, kit, off, calls: r.info.render.calls - c0 });
+    };
+    try { for (let i = 0; i < 8; i++) G.render(0, 1); } finally { M._hideOutside = hide; M._highlight = hl; }
+    o.target = M.stats.target;
+    return o;
+  });
+}
+function kitChecks(t, k, label) {
+  t(k.renders > 0, `${label}: the lens rendered (${k.renders} renders in 8 frames)`);
+  t.equal(k.kitRootCulled, 0, `${label}: the kit batches' root never culled by the lens`);
+  t(k.kit > 0, `${label}: the target carries batched kit (${k.kit} meshes)`);
+  t(k.off === 0 && k.calls === k.want, `${label}: the highlight draws all ${k.want} of his meshes, kit and gun included (${k.calls} draws, ${k.off} off the layers)`);
+}
+
 const rgb = (c) => (String(c).match(/[\d.]+/g) || [255, 255, 255]).slice(0, 3).map(Number);
 const lum = (c) => { const [r, g, b] = rgb(c); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
 const chroma = (c) => { const v = rgb(c); return Math.max(...v) - Math.min(...v); };
@@ -114,6 +140,60 @@ export default async function sniperScope(page, t) {
   t(chroma(v.rngColor) < 24, `range text neutral, not tinted (${v.rngColor})`);
   t.equal(v.target, aim.id, 'the enemy under the cursor is highlighted');
   t(/^\d+ m$/.test(v.text), `range read-out "${v.text}"`);
+
+  // --- the Germans' kit and guns are drawn batched across the platoon in a drawn frame (art/kit-batch.js): the glass
+  // still shows the target's rifle and kit, glowing with him (his own meshes in the world and highlight passes), and
+  // never culls the batches' root by stale bounds
+  const k1 = await kitInLens(page);
+  t.log('kit in lens ' + JSON.stringify(k1));
+  kitChecks(t, k1, 'first target');
+
+  // --- a second target 60+ m from the first, a few lens frames later (the sniper moved, the view with him): bounds the
+  // lens cached for the batches' root at the first (world-space instances under an unmoving root) must not cull his kit
+  const far = await page.evaluate(({ sid, cands, skip }) => {
+    const g = window.__game, G = g.game, w = G.world, inp = G.input, sn = w.entities.find((e) => e.id === sid);
+    const first = w.entities.find((e) => e.id === skip);
+    for (const c of cands) {
+      const en = w.entities.find((e) => e.id === c.id);
+      if (!en || c.id === skip || Math.hypot(en.x - first.x, en.z - first.z) < 60) continue;
+      for (const d of [14, 18, 10]) for (let k = 0; k < 12; k++) {
+        const a = (k / 12) * Math.PI * 2, x = en.x + Math.cos(a) * d, z = en.z + Math.sin(a) * d;
+        sn.x = x; sn.z = z; if (sn.prevX !== undefined) { sn.prevX = x; sn.prevZ = z; }
+        g.centerOn((en.x + x) / 2, (en.z + z) / 2); G.render(0, 1);
+        if (!inp.targeting && !inp.beginTargeting('sniper')) return { err: 'no targeting' };
+        const p = G.cameraController.worldToScreen(en.x, (en.y || 0) + 0.9, en.z);
+        inp._updateTargetCursor(p.x, p.y);
+        if (inp.cursor !== 'forbidden') return { id: en.id, x: p.x, y: p.y, dist: Math.round(Math.hypot(en.x - first.x, en.z - first.z)) };
+      }
+    }
+    return { err: 'no second target 60+ m away' };
+  }, { sid: setup.sn, cands: setup.enemies, skip: aim.id });
+  t.log('second target ' + JSON.stringify(far));
+  t(!far.err, 'staged a second valid shot 60+ m from the first: ' + JSON.stringify(far));
+  if (!far.err) {
+    await page.mouse.move(far.x - 30, far.y - 30);
+    await page.mouse.move(far.x, far.y, { steps: 3 });
+    const k2 = await kitInLens(page);
+    t.log('kit in lens (second target) ' + JSON.stringify(k2));
+    t.equal(k2.target, far.id, 'the second enemy is the lens target');
+    kitChecks(t, k2, 'second target');
+  }
+  // back to the first target (sniper where the stage put him, view on both, cursor on the enemy) for the checks below
+  const back = await page.evaluate(({ sid, id, sx, sz }) => {
+    const g = window.__game, G = g.game, w = G.world, inp = G.input, sn = w.entities.find((e) => e.id === sid), en = w.entities.find((e) => e.id === id);
+    sn.x = sx; sn.z = sz; if (sn.prevX !== undefined) { sn.prevX = sx; sn.prevZ = sz; }
+    g.centerOn((en.x + sx) / 2, (en.z + sz) / 2); G.render(0, 1);
+    if (!inp.targeting) inp.beginTargeting('sniper');
+    const p = G.cameraController.worldToScreen(en.x, (en.y || 0) + 0.9, en.z);
+    inp._updateTargetCursor(p.x, p.y);
+    return { x: p.x, y: p.y, cursor: inp.cursor };
+  }, { sid: setup.sn, id: aim.id, sx: aim.sx, sz: aim.sz });
+  t(back.cursor !== 'forbidden', 'back on the first target: valid shot ' + JSON.stringify(back));
+  aim.x = back.x; aim.y = back.y;
+  await page.mouse.move(aim.x - 30, aim.y - 30);
+  await page.mouse.move(aim.x, aim.y, { steps: 3 });
+  await frames(4);
+  t.equal((await lens()).target, aim.id, 'the first enemy is the lens target again');
 
   // lens pixels straight from the canvas, right after a frame: mean RGB on a ring at half the glass radius
   // hover name tag (tooltip) sits outside the 88-px scope ring while the lens is up

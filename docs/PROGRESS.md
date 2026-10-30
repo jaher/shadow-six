@@ -892,3 +892,6 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 
 ## 2026-10-30 — GC round 2 merged to master (perf lane 3)
 - perf/gc-heap-2 merged (a55881ec2): solution ghosts read units through mirrors, pooled planner open lists, declared hidden-class shapes, doubleFields. M3 GC majors 47->39, V8 peak 301->233 MB; sim-trace identical on all 19 solved missions; unit tests 2502 passed. Media: commandos-shots/perf/gc2-m03-before-after.jpg (and m11, m09, deopts).
+
+## 2026-10-30 — Characters detail perf merged to master (perf lane 2)
+- perf/characters-detail merged (d431d3f68): skeletons update once per drawn frame, the kit is instanced, far idle steps are staggered, bones are pruned, the scope lens keeps the kit batches. characters-perf 4.10 ms/frame for 46 characters; unit 2514/0; render-budget m03/m11/m18, m03-solution and debug-walkthrough-sim passed. Later master commits merged in untested; video-perf-mission not run.

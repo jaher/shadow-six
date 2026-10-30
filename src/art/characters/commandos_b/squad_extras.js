@@ -31,6 +31,14 @@ function mat(k) {
   return M[k];
 }
 const mesh = (geo, k) => { const m = new THREE.Mesh(geo, mat(k)); m.castShadow = true; m.receiveShadow = true; return m; };
+// one geometry per item shape for every man (never disposed per man): the kit of a whole platoon draws as one
+// instanced batch per item (art/kit-batch.js)
+const GEO = new Map();
+const geo = (Ctor, ...a) => {   // (keyed by the class itself: names are mangled in the web build)
+  let byArgs = GEO.get(Ctor); if (!byArgs) GEO.set(Ctor, (byArgs = new Map()));
+  const k = a.join(','); let g = byArgs.get(k); if (!g) byArgs.set(k, (g = new Ctor(...a)));
+  return g;
+};
 
 // skinned surface sample in root-local (unscaled) space at the current pose. Session cache (engine/asset-cache.js):
 // the same body (content-hashed geometry) in the same pose (bone matrices relative to the root) gives the same
@@ -74,28 +82,28 @@ export function addExtras(h, j, info) {
   if (r() < 0.55) {
     const y = belt + 0.2 + r() * 0.04, z = backZ(P, y) - 0.045;
     const g = new THREE.Group();
-    const body = mesh(new THREE.CapsuleGeometry(0.04, 0.1, 3, 10), 'tin'); body.scale.set(1, 1, 0.95); g.add(body);
-    const strap = mesh(new THREE.BoxGeometry(0.1, 0.012, 0.085), 'leather'); strap.position.y = 0.02; g.add(strap);
+    const body = mesh(geo(THREE.CapsuleGeometry, 0.04, 0.1, 3, 10), 'tin'); body.scale.set(1, 1, 0.95); g.add(body);
+    const strap = mesh(geo(THREE.BoxGeometry, 0.1, 0.012, 0.085), 'leather'); strap.position.y = 0.02; g.add(strap);
     place(h, 'spine_03', g, new THREE.Vector3((r() - 0.5) * 0.04, y, z), 0, 0, Math.PI / 2 + (r() - 0.5) * 0.2); got.push('mess_tin');
   }
   // rolled Zeltbahn across the back above the belt
   if (r() < 0.4) {
     const y = belt + 0.07, z = backZ(P, y, 0.1) - 0.05;
-    const roll = mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.36, 10), 'zelt');
+    const roll = mesh(geo(THREE.CylinderGeometry, 0.045, 0.045, 0.36, 10), 'zelt');
     place(h, 'spine_01', roll, new THREE.Vector3(0, y, z), 0, 0, Math.PI / 2); got.push('zeltbahn');
   }
   // entrenching tool (blade in leather carrier + handle) behind the left hip
   if (r() < 0.5) {
     const s = 1, y = belt - 0.13, x = sideX(P, y, s) * 0.85, z = backZ(P, y, 0.2) * 0.4 - 0.02;
     const g = new THREE.Group();
-    const bl = mesh(new THREE.BoxGeometry(0.15, 0.17, 0.02), 'leather'); g.add(bl);
-    const hd = mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.3, 6), 'wood'); hd.position.y = 0.2; g.add(hd);
+    const bl = mesh(geo(THREE.BoxGeometry, 0.15, 0.17, 0.02), 'leather'); g.add(bl);
+    const hd = mesh(geo(THREE.CylinderGeometry, 0.014, 0.014, 0.3, 6), 'wood'); hd.position.y = 0.2; g.add(hd);
     place(h, 'pelvis', g, new THREE.Vector3(x + 0.02, y, z), -0.9 * s, 0.1, 0.15); got.push('shovel');
   }
   // gas-cape pouch on the chest (gas-mask can strap)
   if (r() < 0.3) {
     const y = belt + 0.28, z = -backZ(P, y) * 0 + 0.0; const zf = (() => { let m = 0; for (let i = 0; i < P.length; i += 3) if (Math.abs(P[i + 1] - y) < 0.025 && Math.abs(P[i] + 0.06) < 0.04) m = Math.max(m, P[i + 2]); return m; })();
-    const p = mesh(new THREE.BoxGeometry(0.1, 0.075, 0.03), 'cape');
+    const p = mesh(geo(THREE.BoxGeometry, 0.1, 0.075, 0.03), 'cape');
     place(h, 'spine_03', p, new THREE.Vector3(-0.06, y, zf + 0.015 + z), 0, 0.1, 0.25); got.push('gas_cape');
   }
   // helmet band (+ foliage) - measured from the helmet mesh itself

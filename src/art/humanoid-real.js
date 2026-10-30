@@ -22,6 +22,10 @@
  * Pooling for 60+ soldiers: one parsed template (GLB, geometry, atlas, adapted clips) per character id shared by every
  * instance; one AnimationMixer per instance, stepped by update(dt) at full rate on screen and every 4th call off
  * screen (dt accumulated, so the pose is right when it comes back), frozen once a corpse has settled.
+ * Full detail at the default zoom, cheap (perf/characters-detail): a man's skinned meshes share one skeleton, skinned
+ * once per drawn frame (engine/pose-frame.js); bones carrying nothing are skipped by the render walks (pruneBones);
+ * the Germans' kit extras and guns are drawn instanced across the platoon (art/kit-batch.js); breathing idles step
+ * at 15 Hz up to IDLE_RATE_PX.
  * @module art/humanoid-real
  */
 import * as THREE from 'three';
@@ -30,6 +34,8 @@ import { runSliced } from '../engine/slice.js';
 import { scoped, touch, sceneBytes, disposeScene } from '../engine/scoped-assets.js';
 import { syringeWeapon } from './syringe-prop.js';
 import { chargeWeapon } from './demolition-charge.js';
+import { poseOncePerFrame } from '../engine/pose-frame.js';
+import { registerKit, unregisterKit, disposeKit } from './kit-batch.js';
 
 const ROOT = new URL('../../assets/characters/', import.meta.url);
 const url = (p) => new URL(p, ROOT).href;
@@ -76,6 +82,22 @@ const HALF_RATE_PX = 40;
 const CRAWLING = /^crawl(_unarmed|_knife)?$/;
 /** Idle loops that step at a quarter rate when zoomed out (breathing: nothing moves against the ground). */
 const IDLE_LOOP = /^(idle|crawl_idle|carry_idle|barrel_idle|drag_idle|downed_idle)$/;
+/**
+ * The breathing loops also step at a quarter rate (15 Hz, dt accumulated) below this many px/m — at the default 1x
+ * view too, as before 583a851bb moved HALF_RATE_PX (that commit was about the far strip: the kit, posture and AO stay
+ * on at 1x). A 15 Hz breathing pose lags the 60 Hz one by at most 0.29 px at 40 px/m at the joints (head, hands,
+ * elbows; measured on the characters-perf platoon: idle 0.25-0.29, idle_hands_back 0.22-0.26, fold_arms 0.19-0.23 px)
+ * and 0.32 px on the skinned body surface (idle 0.32, idle_hands_back 0.30), so the frames look the same, and the
+ * standing men no longer cost a full mixer + posture solve each frame.
+ */
+const IDLE_RATE_PX = 50;
+/**
+ * Idle variants that move more than that (body surface: sampled skinned vertices, 3D distance at 40 px/m, an upper
+ * bound of the screen motion): look_around turns the head 1.67 px in 3 frames, full rate from 40 px/m; fold_arms
+ * moves 0.65 px in 3 frames, so it steps at 30 Hz (lag one frame: 0.23 px, within the breathing loops' 15 Hz lag).
+ */
+const BUSY_IDLE = new Set(['look_around']);
+const HALF_IDLE = new Set(['fold_arms']);
 const live = new Set();
 const view = { px: 40, frustum: null, tick: 0 };
 const _m4 = new THREE.Matrix4(), _sph = new THREE.Sphere(new THREE.Vector3(), 1.3);
@@ -250,7 +272,7 @@ export function missionCharacterUrls(missionId, { roles = [], mission } = {}) {
   return [...out];
 }
 
-let autoSeed = 0;
+let autoSeed = 0, stagger = 0;
 function resolve(opts) {
   const man = LIB.manifest, C = man.characters;
   if (opts.id && C[opts.id]) return { id: opts.id, disguise: opts.id === 'spy' ? man.roles.spy.disguise : null };
@@ -296,6 +318,65 @@ function kitOf(h) {
   return (h._kit = { meshes, extras });
 }
 
+/**
+ * Skinning work of a built character (perf/characters-detail): meshes whose skeletons have the same bones and the
+ * same inverse bind matrices (LOD bodies, headgear, outfit of one clone) share one Skeleton — the bone matrices are
+ * identical, so one update and one bone texture serve them all (the enemy runtime's perfSetup does this for the
+ * Germans) — and every skeleton skins once per drawn frame (engine/pose-frame.js).
+ */
+function shareSkeletons(h) {
+  const first = [];
+  h.object.traverse((m) => {
+    if (!m.isSkinnedMesh || !m.skeleton) return;
+    const sk = m.skeleton;
+    const same = first.find((f) => f === sk || (f.bones.length === sk.bones.length && f.bones.every((b, i) => b === sk.bones[i])
+      && f.boneInverses.every((bi, i) => bi.equals(sk.boneInverses[i]))));
+    if (same) m.skeleton = same;
+    else first.push(sk);
+    poseOncePerFrame(m.skeleton);
+  });
+}
+
+/**
+ * Render walks (main pass + shadow map, GTAO prepass, x-ray, water mirror…) visit every node of a visible subtree, and a
+ * man's ~65 bones are most of his ~100 nodes. A bone whose subtree holds nothing but bones draws nothing, so it is
+ * marked invisible: the walks skip it, while skinning still reads its world matrix (updateMatrixWorld ignores
+ * `visible`). A bone that gets something attached later (a gun in the hand, a prop, kit: Object3D 'childadded') is
+ * shown again with its ancestors. Nothing else reads a bone's `visible`.
+ */
+function pruneBones(h) {
+  const mark = (b) => {
+    let any = false;
+    for (const c of b.children) any = (c.isBone ? mark(c) : true) || any;
+    b.visible = any;
+    return any;
+  };
+  const show = (e) => {
+    const c = e.child;
+    let carries = !c.isBone;
+    if (!carries) c.traverse((o) => { if (!o.isBone) carries = true; });
+    if (carries) for (let b = e.target; b && b.isBone && !b.visible; b = b.parent) b.visible = true;
+  };
+  const tops = [];
+  h.object.traverse((o) => {
+    if (!o.isBone) return;
+    o.addEventListener('childadded', show);
+    if (!o.parent?.isBone) tops.push(o);
+    // the mixer writes ~65 bone quaternions a step and three re-derives each bone's Euler `rotation` from it (a matrix +
+    // asin/atan2 per write): nothing reads a bone's Euler angles (poses are quaternions), so the copy is not kept
+    o.quaternion._onChange(NO_EULER);
+  });
+  for (const b of tops) mark(b);
+}
+const NO_EULER = () => {};
+
+/** A German's rigid kit for art/kit-batch.js: his squad extras and his gun (the rest of his meshes are skinned). */
+function batchKit(h) {
+  const out = [...kitOf(h).extras];
+  h.weapon?.traverse((o) => { if (o.isMesh) out.push(o); });
+  return out;
+}
+
 function findBone(h, name) {
   const b = h.bones || {}; if (b[name]) return b[name];
   const lc = name.toLowerCase(); for (const k in b) if (k.toLowerCase() === lc) return b[k];
@@ -318,7 +399,8 @@ export function createRealHumanoid(opts = {}) {
   const faction = entry.faction;
   const root = new THREE.Group(); root.name = `real:${R.id}`;
   const body = new THREE.Group(); body.name = 'body'; root.add(body);   // built bodies live here (culling toggles it)
-  const st = { anim: 'idle', o: {}, colors: null, disguise: !!opts.disguise, lodPx: null, acc: 0, n: 0, h: 0, deadT: 0, frozen: false };
+  // (h: the reduced-rate step counter, staggered over the men so their 15 / 30 Hz steps spread over the frames)
+  const st = { anim: 'idle', o: {}, colors: null, disguise: !!opts.disguise, lodPx: null, acc: 0, n: 0, h: (stagger++ & 3), deadT: 0, frozen: false };
   let land = null, water = null, cur = null;
   const both = () => [land, water].filter(Boolean);
 
@@ -401,7 +483,9 @@ export function createRealHumanoid(opts = {}) {
       // move against the root every frame, and a pose that only catches up every other frame makes the planted foot
       // slide on alternate frames — the walk reads as a jerk (playtest)
       // (a standing idle — a breathing loop — at 15 Hz: it pays for the walkers' full rate)
-      if ((st.lodPx ?? view.px) < HALF_RATE_PX && !LOCO.has(model.anim) && !CRAWLING.test(model.anim) && (++st.h & (IDLE_LOOP.test(model.anim) ? 3 : 1))) return false;
+      const px = st.lodPx ?? view.px;
+      if (px < HALF_RATE_PX && !LOCO.has(model.anim) && !CRAWLING.test(model.anim) && (++st.h & (IDLE_LOOP.test(model.anim) ? 3 : 1))) return false;
+      if (px >= HALF_RATE_PX && px < IDLE_RATE_PX && IDLE_LOOP.test(model.anim) && !BUSY_IDLE.has(cur._anim) && (++st.h & (HALF_IDLE.has(cur._anim) ? 1 : 3))) return false;
       const step = st.acc; st.acc = 0;
       cur.update(step);
       if ((model.anim === 'dead' || model.anim === 'dead_prone') && (st.deadT += step) > 1.5) st.frozen = true;   // settled corpse: stop stepping its mixer
@@ -448,6 +532,7 @@ export function createRealHumanoid(opts = {}) {
     dispose() {
       live.delete(model); root.removeFromParent();
       for (const h of both()) {
+        if (h._kitBatched) unregisterKit(h._kitBatched);
         if (h.mixer) { h.mixer.stopAllAction(); h.mixer.uncacheRoot(h.object); }
         h.object.removeFromParent();
         // each clone has its own Skeleton: free its bone texture (the template's geometry / materials stay shared)
@@ -460,12 +545,14 @@ export function createRealHumanoid(opts = {}) {
     const disguiseTpl = R.disguise ? await template(R.disguise) : null;
     land = await build(R.id, disguiseTpl);
     if (R.water) water = await build(R.water, null);
-    for (const h of both()) { h.object.visible = false; body.add(h.object); }
+    for (const h of both()) { h.object.visible = false; body.add(h.object); shareSkeletons(h); pruneBones(h); }
     if (!live.has(model)) { for (const h of both()) h.object.removeFromParent(); return model; }   // disposed while loading
     cur = land; cur.object.visible = true; model.inner = cur;
     if (st.colors) model.setColors(st.colors);
     model.setDisguise(st.disguise);
     applyLOD();
+    // the Germans' kit extras and guns draw batched across the platoon (art/kit-batch.js)
+    if (entry.group === 'enemies') for (const h of both()) { h._kitBatched = batchKit(h); registerKit(h._kitBatched); }
     play(st.anim, { ...st.o, fade: 0 });
     cur.update(0);
     return model;
@@ -490,7 +577,7 @@ export function setCharacterView({ camera = null, pxPerMetre = null } = {}) {
 }
 
 /** Dispose every live character (mission unload). */
-export function disposeAllCharacters() { for (const m of [...live]) m.dispose(); }
+export function disposeAllCharacters() { for (const m of [...live]) m.dispose(); disposeKit(); }
 
 /** Live character count (debug / perf overlay). */
 export function liveCharacterCount() { return live.size; }

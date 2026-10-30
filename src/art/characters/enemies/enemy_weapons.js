@@ -114,15 +114,26 @@ function slingProbe(h, w) {
   const si = sm.geometry.attributes.skinIndex, sw = sm.geometry.attributes.skinWeight;
   return { sm, pts: sel.map(({ i, b }) => ({ u: under.get(b), p: V().fromBufferAttribute(P, i).applyMatrix4(sm.bindMatrix), j: [si.getX(i), si.getY(i), si.getZ(i), si.getW(i)], k: [sw.getX(i), sw.getY(i), sw.getZ(i), sw.getW(i)] })) };
 }
-const _m = new THREE.Matrix4(), _acc = new THREE.Vector3(), _t = new THREE.Vector3(), _inv = new THREE.Matrix4();
+const _acc = new THREE.Vector3(), _t = new THREE.Vector3(), _inv = new THREE.Matrix4();
+const FINGER_BONE = /^(thumb|index|middle|ring|pinky)_0/;   // (the bones enemy_runtime.js updBones does not renew)
+// a bone's skinning matrix once per press (24 points share a dozen bones): the same product, computed once
+const _bm = [], _bmAt = []; let _stamp = 0;
+const boneM = (sk, j) => { if (_bmAt[j] !== _stamp) { (_bm[j] ||= new THREE.Matrix4()).multiplyMatrices(sk.bones[j].matrixWorld, sk.boneInverses[j]); _bmAt[j] = _stamp; } return _bm[j]; };
 function slingPress(h, w) {
   const key = '_sling_' + h.weaponName, C = h._rt || h;
-  if (C[key] === undefined) C[key] = slingProbe(h, w);
+  // (the probe skins the body mesh's vertices: the whole man current first — updBones leaves the fingers and the meshes
+  // to the unit's own refresh, the posture overlay no longer renews him whole)
+  if (C[key] === undefined) { h.object.updateMatrixWorld(true); C[key] = slingProbe(h, w); }
   const pr = C[key]; if (!pr) return;
   const sk = pr.sm.skeleton; _inv.copy(w.matrixWorld).invert(); let c = -9;
+  // (updBones leaves the finger bones to the unit model's refresh: a probe point skinned to a finger — a hand behind the
+  // back under the slung gun — renews that finger's chain first, the value updBones used to give it)
+  if (pr.fingers === undefined) pr.fingers = [...new Set(pr.pts.flatMap((q) => q.j.filter((j, k) => q.k[k] && FINGER_BONE.test(sk.bones[j]?.name || ''))))];
+  for (const j of pr.fingers) sk.bones[j].updateWorldMatrix(true, false);
+  _stamp++;
   for (const q of pr.pts) {
     _acc.set(0, 0, 0);
-    for (let k = 0; k < 4; k++) { if (!q.k[k]) continue; _m.multiplyMatrices(sk.bones[q.j[k]].matrixWorld, sk.boneInverses[q.j[k]]); _acc.addScaledVector(_t.copy(q.p).applyMatrix4(_m), q.k[k]); }
+    for (let k = 0; k < 4; k++) { if (!q.k[k]) continue; _acc.addScaledVector(_t.copy(q.p).applyMatrix4(boneM(sk, q.j[k])), q.k[k]); }
     c = Math.max(c, _acc.applyMatrix4(_inv).y - q.u);
   }
   const shift = THREE.MathUtils.clamp(c + PRESS_GAP, -0.09, 0.06); if (Math.abs(shift) < 1e-4) return;

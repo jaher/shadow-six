@@ -21,9 +21,23 @@ const wpos = (o) => o.getWorldPosition(V());
 const palm = (B, s) => wpos(B['hand_' + s]).lerp(wpos(B['middle_01_' + s]), 0.55);
 
 // perf: refresh only the skeleton's world matrices (not LOD meshes, props, weapon): the unit's own matrix + the bone tree
+// — without the 30 finger bones (perf/characters-detail): the solvers that call this read hands, arms, spine, head,
+// pelvis and legs straight from matrixWorld, and a finger only through getWorldPosition (which re-walks its chain) —
+// the sling press renews its own finger points (enemy_weapons.js slingPress); the unit model's own refresh after the
+// pose solvers renews every bone before the frame draws
+const FINGER = /^(thumb|index|middle|ring|pinky)_0/;
+function refresh(o) {   // Object3D.updateMatrixWorld(true), finger subtrees left out
+  if (o.matrixAutoUpdate) o.updateMatrix();
+  if (o.matrixWorldAutoUpdate === true) o.matrixWorld.multiplyMatrices(o.parent.matrixWorld, o.matrix);
+  o.matrixWorldNeedsUpdate = false;
+  for (const c of o.children) {
+    if (!c.isBone) c.updateMatrixWorld(true);
+    else if (!(c._finger ??= FINGER.test(c.name))) refresh(c);
+  }
+}
 export function updBones(h) {
   if (!h._boneTop) { let b = h.bones.pelvis; while (b.parent && b.parent !== h.object) b = b.parent; h._boneTop = b; }
-  h.object.updateWorldMatrix(true, false); h._boneTop.updateMatrixWorld(true);
+  h.object.updateWorldMatrix(true, false); refresh(h._boneTop);
 }
 
 export function fixLibMeta(lib) {

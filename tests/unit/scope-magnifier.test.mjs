@@ -2,7 +2,8 @@
 import * as THREE from 'three';
 import { test, assert, near } from './lib.mjs';
 import { CameraController } from '../../src/engine/camera.js';
-import { SCOPE, aimLensCamera, breathSway, glassRadius, lensFrustum, lensReuseFrames, lensTargetSize } from '../../src/render/scope-magnifier.js';
+import { SCOPE, ScopeMagnifier, aimLensCamera, breathSway, glassRadius, lensFrustum, lensReuseFrames, lensTargetSize } from '../../src/render/scope-magnifier.js';
+import { registerKit, kitBegin, kitEnd, disposeKit } from '../../src/art/kit-batch.js';
 
 function view(yawDeg, zoom, w = 1920, h = 1080) {
   const c = new CameraController({ config: { yawDeg } });
@@ -85,4 +86,80 @@ test('lens reuse keeps the amortised CPU a frame within 80% of the 0.5 ms budget
     assert.ok(n < SCOPE.maxReuse || n === SCOPE.maxReuse, 'bounded');
     if (n < SCOPE.maxReuse) assert.ok((ms + n * re) / (n + 1) <= 0.4 + 1e-9, `${ms} ms render, ${re} ms reuse → ${n} reuses within 0.4 ms`);
   }
+});
+
+// --- the Germans' batched kit (art/kit-batch.js) in the lens: men 70 m apart, each a body + a rifle drawn by a batch
+function platoonKit() {
+  const scene = new THREE.Scene(), men = [], mat = new THREE.MeshStandardMaterial();
+  const rifleGeo = new THREE.BoxGeometry(0.05, 0.05, 1), rifleMat = new THREE.MeshStandardMaterial({ color: 0x332211 });
+  for (const [x, z] of [[0, 0], [70, 0], [0, 40]]) {
+    const man = new THREE.Group(); man.position.set(x, 0, z); scene.add(man);
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.8, 0.3), mat); body.position.y = 0.9; man.add(body);
+    const rifle = new THREE.Mesh(rifleGeo, rifleMat); rifle.position.set(0.2, 1.2, 0); man.add(rifle);
+    men.push({ man, body, rifle });
+  }
+  scene.updateMatrixWorld(true);
+  registerKit(men.map((m) => m.rifle));
+  return { scene, men, kitRoot: () => scene.children.find((o) => o.name === 'kit-batch') };
+}
+/** The lens camera straight down on (x, z), a 4 m window (as aimLensCamera leaves it: matrices current). */
+function aimDown(M, x, z) {
+  const c = M.camera;
+  c.left = c.bottom = -2; c.right = c.top = 2; c.near = 1; c.far = 100; c.updateProjectionMatrix();
+  c.up.set(0, 0, -1); c.position.set(x, 50, z); c.lookAt(x, 0, z); c.updateMatrixWorld(); c.matrixWorldInverse.copy(c.matrixWorld).invert();
+}
+
+test('scope lens: the kit batches\' root is never culled whole — a second target far from the first keeps his rifle in the glass', () => {
+  disposeKit();
+  const { scene, men, kitRoot } = platoonKit(), M = new ScopeMagnifier({});
+  men[1].man.visible = false;                         // off screen while the first target is in the glass
+  kitBegin(scene);
+  aimDown(M, 0, 0);
+  M._hideOutside(scene);
+  assert.equal(kitRoot().visible, true, 'first target: his kit is drawn');
+  assert.equal(men[2].man.visible, false, 'a man outside the window is still culled whole');
+  M._unhide(); kitEnd();
+  men[0].man.visible = false; men[1].man.visible = true;   // the view moves 70 m to the second target
+  kitBegin(scene);
+  aimDown(M, 70, 0);
+  M._hideOutside(scene);
+  assert.equal(kitRoot().visible, true, 'second target: the batches are not culled by bounds cached at the first');
+  const live = kitRoot().children.filter((p) => p.visible && p.count && !M._hid.includes(p));
+  assert.equal(live.length, 1, 'his rifle batch is drawn');
+  const im = new THREE.Matrix4();
+  const at = [...Array(live[0].count).keys()].map((i) => (live[0].getMatrixAt(i, im), im.elements[12]));
+  assert.ok(at.some((x) => Math.abs(x - 70.2) < 1e-4), 'with his rifle at his hands');
+  M._unhide(); kitEnd();
+  disposeKit();
+});
+
+test('scope lens: the valid target is drawn by his own kit meshes in the world and highlight passes (depth-equal glow on his rifle)', () => {
+  disposeKit();
+  const { scene, men, kitRoot } = platoonKit(), M = new ScopeMagnifier({ scene });
+  M.hlMat = new THREE.MeshBasicMaterial();
+  kitBegin(scene);
+  aimDown(M, 0, 0);
+  assert.equal(men[0].rifle.layers.mask, 0, 'the batch draws his rifle in the main view');
+  const passes = [];   // per r.render: what three would draw (visible chain, on the camera's layers)
+  const r = {
+    info: { render: { frame: 1, calls: 0 } }, autoClear: true, shadowMap: { autoUpdate: true },
+    getRenderTarget: () => null, setRenderTarget() {},
+    render(s, cam) { const d = []; s.traverseVisible((o) => { if ((o.isMesh) && o.layers.test(cam.layers)) d.push([o, o.material]); }); passes.push(d); },
+  };
+  M._renderWorld(r, null, { id: 7, object3d: men[0].man });
+  assert.equal(passes.length, 2, 'world + highlight');
+  const [world, hl] = passes;
+  assert.ok(world.some(([o]) => o === men[0].rifle), 'world pass: his rifle by its own mesh (as without batches)');
+  const rifles = world.filter(([o]) => o.isInstancedMesh && o.geometry === men[0].rifle.geometry).map(([o]) => o);
+  assert.equal(rifles.length, 1, 'one batch of rifles in the world pass');
+  const im = new THREE.Matrix4(), xs = [];
+  for (let i = 0; i < rifles[0].count; i++) { rifles[0].getMatrixAt(i, im); xs.push(`${im.elements[12].toFixed(1)},${im.elements[14].toFixed(1)}`); }
+  assert.deepEqual(xs.sort(), ['0.2,40.0', '70.2,0.0'], 'the others\' rifles batched, not his (no double draw)');
+  const batch = rifles[0];
+  assert.deepEqual(hl.map(([o]) => o), [men[0].body, men[0].rifle], 'highlight: body and rifle');
+  assert.ok(hl.every(([, m]) => m === M.hlMat), 'both in the highlight material');
+  assert.equal(men[0].rifle.material, batch.material, 'material restored');
+  kitEnd();
+  assert.equal(men[0].rifle.layers.mask, 1);
+  disposeKit();
 });
