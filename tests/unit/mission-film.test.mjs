@@ -18,6 +18,7 @@ import { MISSION_CHAIN, nextSegment, ThreatTracker, CALM_HOLD } from '../../src/
 import { startCueFor, CHAPTERS } from '../../src/audio/music-cues.js';
 import { MISSIONS } from '../../src/missions/index.js';
 import { findFfmpeg } from '../../tools/solutions/film-ffmpeg.mjs';
+import { parsePeakDb, bitrateCandidates, pickBitrate, chooseAudioBitrate } from '../../tools/solutions/film-aac.mjs';
 import { captionPlan, captionQueue, captionText, firstSentence, readingTime, READ_MIN, READ_MAX, CAPTION_MAX } from '../../tools/solutions/film-captions.mjs';
 import { standHeight, waitPoints, waitFrame, WAIT_FRAME } from '../../tools/solutions/film-camera.mjs';
 
@@ -88,6 +89,7 @@ test('opening: a long map drops its optional stops to stay in the budget; a miss
 test('opening: labels read like captions', () => {
   assert.equal(stopLabel(M1[1]), 'Objective: Destroy the relay station');
   assert.equal(stopLabel(M1[2]), '2 guards cover this ground');
+  assert.equal(stopLabel({ kind: 'danger', text: 'Watch this spot: 1 guard covers it. Study their cones before you move.' }), '1 guard covers this ground', 'one guard: singular (M10\'s densest spot)');
   assert.equal(stopLabel({ kind: 'extraction' }), 'Extraction: every man comes back here');
   assert.equal(stopLabel({ kind: 'start' }), 'The team goes in here');
   const p = planOpening(M1, { start: { x: 16, z: 158 } });
@@ -481,6 +483,43 @@ test('film-ffmpeg: finds an ffmpeg that can encode H.264 + AAC (or says so), and
   assert.equal(findFfmpeg('/nonexistent/ffmpeg'), bin, 'a bad request falls back rather than failing');
 });
 
+test('film-aac: the encoder\'s burst of full-scale samples is read from astats, and a bitrate whose decode has one is passed over', () => {
+  const log = '[Parsed_astats_0 @ 0x1] Channel: 1\n[Parsed_astats_0 @ 0x1] Peak level dB: -3.957502\n[Parsed_astats_0 @ 0x1] Channel: 2\n[Parsed_astats_0 @ 0x1] Peak level dB: 0.612345\n[Parsed_astats_0 @ 0x1] Overall\n[Parsed_astats_0 @ 0x1] DC offset: 0.000001\n[Parsed_astats_0 @ 0x1] Peak level dB: 0.612345\n';
+  near(parsePeakDb(log), 0.612345, 1e-9, 'the overall line, which comes last');
+  assert.equal(parsePeakDb('[Parsed_astats_0 @ 0x1] Overall\n[Parsed_astats_0 @ 0x1] Peak level dB: -inf\n'), -Infinity, 'a silent file');
+  assert.ok(Number.isNaN(parsePeakDb('no stats here')), 'nothing measured: NaN');
+  assert.deepEqual(bitrateCandidates('192k'), ['192k', '224k', '160k', '256k'], 'the wanted one, then 32k up, 32k down, 64k up');
+  assert.deepEqual(bitrateCandidates('96k'), ['96k', '128k', '160k'], 'never under 96k');
+  assert.deepEqual(bitrateCandidates('xyz'), ['xyz'], 'something that is not a bitrate is left alone');
+  const tr = (...p) => p.map((peak, i) => ({ bitrate: `${160 + 32 * i}k`, peak }));
+  assert.equal(pickBitrate(tr(-4, 0.6)).bitrate, '160k', 'the first clean one is kept');
+  assert.equal(pickBitrate(tr(0.6, -4, -5)).bitrate, '192k', 'a glitched first one is passed over for the next clean one');
+  assert.equal(pickBitrate(tr(0.6, 1.1, 0.2)).bitrate, '224k', 'none clean: the quietest');
+  assert.equal(pickBitrate(tr(NaN, 0.9)).bitrate, '192k', 'a failed trial counts as the worst');
+  assert.equal(pickBitrate(tr(-1.0)).bitrate, '160k', 'the limit itself is allowed');
+});
+
+test('film-aac: a clean tone keeps the wanted bitrate; an impossible limit falls back to the quietest trial; no trial files are left', async () => {
+  let FF;
+  try { FF = findFfmpeg(); } catch { return; }
+  const { mkdtempSync, readdirSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { spawnSync } = await import('node:child_process');
+  const dir = mkdtempSync(join(tmpdir(), 'film-aac-'));
+  try {
+    const wav = join(dir, 'tone.wav');
+    assert.equal(spawnSync(FF, ['-y', '-v', 'error', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=3:sample_rate=48000', '-af', 'volume=-12dB', wav]).status, 0);
+    const lines = [], chain = 'aresample=48000,atrim=0:3';
+    assert.equal(chooseAudioBitrate({ ff: FF, input: wav, chain, bitrate: '192k', tmp: join(dir, '.aac'), log: (m) => lines.push(m) }), '192k', 'a quiet tone decodes cleanly at the first bitrate');
+    assert.equal(lines.length, 1);
+    assert.match(lines[0], /^audio 192k: decoded peak -\d+\.\d dBFS$/);
+    const pick = chooseAudioBitrate({ ff: FF, input: wav, chain, bitrate: '192k', tmp: join(dir, '.aac'), limit: -90, log: (m) => lines.push(m) });
+    assert.ok(['192k', '224k', '160k', '256k'].includes(pick), `${pick}: one of the four tried`);
+    assert.ok(lines.some((l) => /no bitrate stayed under -90 dBFS/.test(l)), 'it says so');
+    assert.deepEqual(readdirSync(dir).filter((f) => f.startsWith('.aac')), [], 'the trial encodes are removed');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 // ---------------------------------------------------------------- the cuts (tools/solutions/<id>.cut.mjs)
 test('m01.cut: the raft\'s wait is filmed from the beach; windows, shots and notes line up with the checkpoints and the captions can be read', async () => {
   const { shots, windows, notes, CAPTIONS } = await import('../../tools/solutions/m01.cut.mjs');
@@ -600,6 +639,55 @@ test('m15.cut: only the wait framing is switched on (the rest is the generic dir
   const cut = await import('../../tools/solutions/m15.cut.mjs');
   assert.equal(cut.FRAME_WAITS, true, 'a stealth mission of waits: the camera shows the guards the wait is for');
   assert.deepEqual(Object.keys(cut), ['FRAME_WAITS'], 'nothing else is overridden: titles, captions, cards, shots and speeds stay the generic ones');
+});
+
+test('m10.cut: only the wait framing is switched on (the rest is the generic director\'s)', async () => {
+  const cut = await import('../../tools/solutions/m10.cut.mjs');
+  assert.equal(cut.FRAME_WAITS, true, 'a stealth mission of waits: the camera shows the guards the wait is for');
+  assert.deepEqual(Object.keys(cut), ['FRAME_WAITS'], 'nothing else is overridden: titles, captions, cards, shots and speeds stay the generic ones');
+});
+
+test('m16.cut: the wait framing is on, the Spy\'s wait at the clothesline is one wide shot at 32x with a note, A3 and the siren have notes that can be read (the rest is the generic director\'s)', async () => {
+  const cut = await import('../../tools/solutions/m16.cut.mjs');
+  assert.equal(cut.FRAME_WAITS, true, 'a stealth mission of waits: the camera shows the guards the wait is for');
+  const at = { A2: 127.58, A3: 355.9, A4: 631.85, E5: 1164.35 }, cp = (k) => at[k];
+  const N = cut.notes(cp, () => undefined, []), W = cut.windows(cp, () => undefined, []), S = cut.shots(cp, () => undefined, []);
+  assert.deepEqual([N.length, W.length, S.length], [3, 1, 1], 'A3\'s two sentences, the wait and the siren; one window and one shot for the wait');
+  for (let i = 1; i < N.length; i++) assert.ok(N[i].t0 >= N[i - 1].t1 - 1e-9, 'notes do not overlap');
+  for (const n of N) assert.ok(n.text.length <= CAPTION_MAX, 'a note fits the caption box');
+  // A3: the whole step (the director runs it at 8x to 24x: even at 24x the note is up its reading time)
+  near(N[0].t0, at.A2, 1e-9, 'it takes the step over at once'); assert.ok(N[0].t1 <= at.A3 && (N[0].t1 - N[0].t0) / 24 >= readingTime(N[0].text), 'it is up until A3 and can be read at 24x');
+  // the wait: the Spy is in the field's corner (34 s after A3) and the dash up to the line (the last ~28 s before A4) is the generic director's
+  near(W[0].speed, 32, 1e-9, 'the director\'s long-wait cruise'); assert.ok(W[0].t0 >= at.A3 + 34 && W[0].t1 <= at.A4 - 28 && W[0].t1 > W[0].t0 + 100, 'from the corner to the dash');
+  near(N[1].t0, W[0].t0, 1e-9, 'the note goes up with the window'); near(N[1].t1, W[0].t1, 1e-9);
+  assert.ok((W[0].t1 - W[0].t0) / W[0].speed >= readingTime(N[1].text), 'the wait note is on screen its reading time at 32x');
+  assert.ok(S[0].t0 <= W[0].t0 && S[0].t1 >= W[0].t1 - 1e-9 && (S[0].prio ?? 0) >= 1 && S[0].zoom >= 0.5 && S[0].zoom <= 0.8, 'a medium-wide fixed shot that covers the window and wins over the wait framing');
+  // (the patrol's loop (173-199, 92-104), e10's beat (182-186, 97-111), the clothesline (~199, 100) and the Spy\'s corner (199, 123.5), all inside 53 m across)
+  const half = 32 / S[0].zoom / 2, halfZ = (32 / S[0].zoom * 9 / 16 / 2) / Math.sin(40 * Math.PI / 180);
+  for (const [x, z] of [[173, 99], [199, 94], [186, 97], [182, 111], [199, 123.5]]) assert.ok(Math.abs(x - S[0].x) < half && Math.abs(z - S[0].z) < halfZ, `(${x}, ${z}) is in the shot`);
+  // the siren: at the alarm, for 10 game seconds (even at 1x the note is up its reading time)
+  near(N[2].t0, at.E5, 1e-9, 'the note goes up at the alarm (checkpoint E5: the fifth sapper falls, objective 1 is done, the siren sounds)');
+  assert.ok(N[2].t1 - N[2].t0 >= readingTime(N[2].text), 'even at 1x it is on screen its reading time');
+  assert.deepEqual([cut.notes(() => undefined, () => undefined, []), cut.windows(() => undefined, () => undefined, []), cut.shots(() => undefined, () => undefined, [])], [[], [], []], 'a run without those checkpoints gets no cut');
+  assert.deepEqual(Object.keys(cut).sort(), ['FRAME_WAITS', 'notes', 'shots', 'windows'], 'nothing else is overridden: titles, captions, cards and the other speeds stay the generic ones');
+});
+
+test('m19.cut: the wait framing is on and the Green Beret\'s two long waits for the climb window are time-lapsed, the first captioned', async () => {
+  const { FRAME_WAITS, windows, notes } = await import('../../tools/solutions/m19.cut.mjs');
+  const at = { E4: 973.7, F1: 1299.7, H1: 1746.8, H2: 1892.8 }, cp = (k) => at[k];
+  assert.equal(FRAME_WAITS, true);
+  const W = windows(cp, () => undefined, []), N = notes(cp, () => undefined, []);
+  assert.equal(W.length, 2);
+  assert.ok(W.every((w) => w.speed >= 32 && w.t1 - w.t0 > 80), 'long waits, time-lapsed');
+  assert.ok(W[0].t0 > at.E4 + 20 && W[0].t1 < at.F1 - 20, 'the first inside E4 to F1, off the crawl in and the crawl on to the climb');
+  assert.ok(W[1].t0 > at.H1 + 20 && W[1].t1 < at.H2 - 20, 'the second inside H1 to H2');
+  assert.equal(N.length, 1);
+  assert.ok(N[0].t0 < W[0].t0 && N[0].t1 > W[0].t1 && N[0].text.length <= CAPTION_MAX, 'the first time-lapse is captioned, the caption fits the box');
+  // film seconds on screen: the time-lapse plus the 8 s either side at the director's 16x
+  const film = (W[0].t1 - W[0].t0) / W[0].speed + 16 / 16;
+  assert.ok(film >= readingTime(N[0].text), `the caption is on screen ${film.toFixed(1)} s`);
+  assert.deepEqual(windows(() => undefined, () => undefined, []), [], 'no checkpoints from pass 1: no window');
+  assert.deepEqual(notes(() => undefined, () => undefined, []), []);
 });
 
 test('film-camera: the view is centred on the walking surface (a deck), not on the terrain relief under it', () => {

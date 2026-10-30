@@ -16,6 +16,8 @@
  * where the game has them and its own synth recipes where it has not (film-audio.mjs, film-mixer.mjs).
  * The sum is loudness-normalised (two-pass linear, −16 LUFS, true peak −2 dBTP) and peak-limited.
  * --bitrate switches to a two-pass x264 encode at that average video bitrate (a size budget, e.g. a phone copy).
+ * The AAC bitrate is checked first (film-aac.mjs): the soundtrack is encoded alone, decoded and measured, and a bitrate whose decode
+ * has a burst of full-scale samples (a native-encoder glitch at a sharp transient) is passed over for the next one; --no-aac-check skips it.
  * --audio-only renders just the soundtrack (to compare mixes without frames); --plan dumps the plan as JSON.
  */
 import { readFileSync, existsSync, writeFileSync, rmSync } from 'node:fs';
@@ -25,6 +27,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { planSoundtrack, LAYERS } from './film-audio.mjs';
 import { SoundBank, renderPlan, writeWav, readJson } from './film-mixer.mjs';
 import { findFfmpeg } from './film-ffmpeg.mjs';
+import { chooseAudioBitrate } from './film-aac.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const argv = process.argv.slice(2);
@@ -106,9 +109,11 @@ function normaliser() {
   return `${PRE},${base}:measured_I=${j.input_i}:measured_LRA=${j.input_lra}:measured_TP=${j.input_tp}:measured_thresh=${j.input_thresh}:offset=${gain.toFixed(2)}:linear=true`;
 }
 const chain = `${normaliser()},aresample=48000,alimiter=limit=0.79:level=false,afade=t=out:st=${(V - 2).toFixed(2)}:d=2,atrim=0:${V.toFixed(3)}`;
+// (the encoder's glitch is bitrate-specific: the bitrate is chosen by a trial encode of the soundtrack alone, before the film's own)
+const aacBitrate = (aac) => (!aac || argv.includes('--no-aac-check') ? ABR : chooseAudioBitrate({ ff: FF, input: wav, chain, bitrate: ABR, tmp: join(dirname(resolve(AUDIO_ONLY || out)), `.aac-${process.pid}`), log }));
 try {
   if (AUDIO_ONLY) {
-    const codec = /\.m4a$/i.test(AUDIO_ONLY) ? ['-c:a', 'aac', '-b:a', ABR] : ['-c:a', 'pcm_s16le'];
+    const aac = /\.m4a$/i.test(AUDIO_ONLY), codec = aac ? ['-c:a', 'aac', '-b:a', aacBitrate(true)] : ['-c:a', 'pcm_s16le'];
     execFileSync(FF, ['-y', '-loglevel', 'error', '-i', wav, '-af', chain, ...codec, AUDIO_ONLY], { stdio: 'inherit' });
     log(`soundtrack -> ${AUDIO_ONLY}`);
   } else {
@@ -121,10 +126,11 @@ try {
       log(`pass 1 (${VBR}) ...`);
       execFileSync(FF, ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', frames, ...vf, ...venc, '-pass', '1', '-passlogfile', passlog, '-pix_fmt', 'yuv420p', '-an', '-f', 'null', '/dev/null'], { stdio: 'inherit' });
     }
-    log(`encoding -> ${out}`);
+    const abr = aacBitrate(true);
+    log(`encoding -> ${out}${abr !== ABR ? ` (audio ${abr})` : ''}`);
     const m = T.mission, title = `SHADOW SIX${m.n ? ` · Mission ${m.n}` : ''} · ${m.title || T.id}`;
     execFileSync(FF, ['-y', '-loglevel', 'error', '-framerate', String(fps), '-i', frames, '-i', wav, '-af', chain, '-map', '0:v', '-map', '1:a', ...vf, ...venc,
-      ...(VBR ? ['-pass', '2', '-passlogfile', passlog] : []), '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-c:a', 'aac', '-b:a', ABR,
+      ...(VBR ? ['-pass', '2', '-passlogfile', passlog] : []), '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-c:a', 'aac', '-b:a', abr,
       '-metadata', `title=${title}`, '-metadata', `comment=${m.subtitle || ''} — the full solution, player orders only`, '-shortest', out], { stdio: 'inherit' });
     if (VBR) for (const f of [`${passlog}-0.log`, `${passlog}-0.log.mbtree`]) try { rmSync(f, { force: true }); } catch { /* ignore */ }
   }

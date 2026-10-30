@@ -40,7 +40,7 @@ export function stopLabel(s) {
     }
     case 'danger': {
       const m = /(\d+)\s+guards?/i.exec(text);
-      return m ? `${m[1]} guards cover this ground` : 'Guards cover this ground';
+      return m ? `${m[1]} ${+m[1] === 1 ? 'guard covers' : 'guards cover'} this ground` : 'Guards cover this ground'; // (M10's densest spot has one)
     }
     case 'extraction': return 'Extraction: every man comes back here';
     case 'start': return 'The team goes in here';

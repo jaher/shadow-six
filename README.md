@@ -56,11 +56,53 @@ The Green Beret knifes one guard and lays a decoy; the Sniper shoots one guard o
 
 [![Mission 6 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 8 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m06.jpg)](docs/screenshots/storyboards/m06.jpg)
 
+### Mission 8 · Pyrotechnics
+
+The Green Beret knifes sixteen guards from behind, several drawn in by a decoy, and carries three barrels into place in and beside the oil store; the Sniper shoots five guards, and his sixth round sets off a chain of barrels that destroys the oil store, the reservoir and both fuel tanks (and three more guards); both leave in the jeep. *Game time 111:28 (film 10:10), 0 detections, 24 kills, both commandos alive.*
+
+[![Mission 8 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 27 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m08.jpg)](docs/screenshots/storyboards/m08.jpg)
+
 ### Mission 11 · In the Soup
 
 The Spy, in uniform, injects the gate sentry and four valley guards; the Sapper plants three remote bombs; the Driver takes the half-track through the yard and fires its gun at the quarry's fuel truck, which takes both quarry rigs, and the Sapper's detonator takes the yard and valley rigs; all five drive out in the half-track. *Game time 17:11 (film 4:26), 0 detections, 5 kills, all 5 commandos alive.*
 
 [![Mission 11 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 8 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m11.jpg)](docs/screenshots/storyboards/m11.jpg)
+
+### Mission 12 · Up on the Roof
+
+The Spy, in uniform, injects eleven guards from behind and holds others in talk with their backs turned; the Green Beret knifes eight and opens the cell door to free the Informer; the Sniper shoots five roof guards one after another; the Green Beret, the Sniper and the Informer crawl over the roofs to the mosque platform, and all four drive off in the car on the quay. *Game time 16:22 (film 4:08), 0 detections, 24 kills, all 3 commandos alive.*
+
+[![Mission 12 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 8 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m12.jpg)](docs/screenshots/storyboards/m12.jpg)
+
+### Mission 13 · David and Goliath
+
+The Marine spears eleven guards from the water, opens both lock gates and rafts the team in; the Green Beret knifes six, the Sniper shoots four and the Sapper's bear trap takes one; the Driver blocks the garage door with a truck; the Marine's mini-sub torpedo sinks the battleship by the bow, the Sapper's remote charge blows the fuel tanks and the Driver sinks a patrol boat with the pier gun; all five row out to the red buoy. *Game time 53:19 (film 9:29), 0 detections, 22 kills, all 5 commandos alive.*
+
+[![Mission 13 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 12 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m13.jpg)](docs/screenshots/storyboards/m13.jpg)
+
+### Mission 14 · D-Day Kick Off
+
+The Marine rows the boat and spears ten guards; the Sniper shoots seven; the Green Beret knifes one, holds a guard's eyes with a decoy and stands a fuel barrel by gun 4; the Sapper sets remote charges on guns 1, 2 and 3; the Sniper's shot into the barrel destroys gun 4 and the Sapper fires the other three from the sea (four guards die with them); all five row out to the red buoy. *Game time 46:07 (film 7:05), 0 detections, 22 kills, all 5 commandos alive.*
+
+[![Mission 14 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 7 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m14.jpg)](docs/screenshots/storyboards/m14.jpg)
+
+### Mission 15 · The End of the Butcher
+
+The Spy takes a German uniform from a balcony, injects seven guards and holds a patrol in talk; the Marine spears one guard from under the water; the Driver parks the fuel tanker on the tram line and drives the tram into it, which destroys the headquarters as an accident, with no alarm; the Sniper shoots General Schleper with one round at the corner of his garden; all four leave in the van. *Game time 92:29 (film 9:10), 0 detections, 9 kills, all 4 commandos alive.*
+
+[![Mission 15 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 10 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m15.jpg)](docs/screenshots/storyboards/m15.jpg)
+
+### Mission 16 · Stop Wildfire
+
+The Spy takes the German uniform from the clothesline and drives the lorry onto the bridge with the Sniper and the Marine aboard; the Spy holds one engineer in talk while the Sniper shoots the four bridge engineers and a sentry; the passing train runs down three more guards; all three drive off in the lorry by the south road. *Game time 20:04 (film 3:15), 0 detections, 8 kills, all 3 commandos alive.*
+
+[![Mission 16 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 5 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m16.jpg)](docs/screenshots/storyboards/m16.jpg)
+
+### Mission 19 · Frustrate Retaliation
+
+The Marine dives to the moored rowboat and ferries the team across the river; the Sniper shoots three guards and a guard dog from outside the palisade; the Green Beret climbs in, knifes one guard, lays a decoy and sets three barrels by the V2 rockets; the Sniper's fifth and sixth rounds into the barrels destroy all three rockets, and the Marine lets the current carry the boat out with all four aboard. *Game time 33:43 (film 4:25), 0 detections, 5 kills, all 4 commandos alive.*
+
+[![Mission 19 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 9 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m19.jpg)](docs/screenshots/storyboards/m19.jpg)
 
 ### Storyboards to come
 
@@ -71,26 +113,16 @@ first, see [Status](#status)); until then it keeps its single in-game frame.
 <tr>
 <td align="center" width="33%"><a href="verify/reference/gameplay-m04.png"><img src="verify/reference/gameplay-m04.png" width="100%" alt="Mission 4: The German headquarters villa exploding in the village square."></a><br><sub><b>Mission 4</b> · Restore Pride</sub></td>
 <td align="center" width="33%"><a href="verify/reference/gameplay-m07.png"><img src="verify/reference/gameplay-m07.png" width="100%" alt="Mission 7: The first U-boat blowing up at the pier as the after-deck charge detonates."></a><br><sub><b>Mission 7</b> · Chase of the Wolves</sub></td>
-<td align="center" width="33%"><a href="verify/reference/gameplay-m08.png"><img src="verify/reference/gameplay-m08.png" width="100%" alt="Mission 8: Desert gun pit and mortar position, commando on the move, anti-tank obstacles."></a><br><sub><b>Mission 8</b> · Pyrotechnics</sub></td>
-</tr>
-<tr>
 <td align="center" width="33%"><a href="verify/reference/gameplay-m09.png"><img src="verify/reference/gameplay-m09.png" width="100%" alt="Mission 9: The radio hut exploding inside the walled compound."></a><br><sub><b>Mission 9</b> · A Courtesy Call</sub></td>
+</tr>
+<tr>
 <td align="center" width="33%"><a href="verify/reference/gameplay-m10.png"><img src="verify/reference/gameplay-m10.png" width="100%" alt="Mission 10: The airfield bomb store going up in a fireball."></a><br><sub><b>Mission 10</b> · Operation Icarus</sub></td>
-<td align="center" width="33%"><a href="verify/reference/gameplay-m12.png"><img src="verify/reference/gameplay-m12.png" width="100%" alt="Mission 12: Commandos crossing the Tunis rooftops."></a><br><sub><b>Mission 12</b> · Up on the Roof</sub></td>
-</tr>
-<tr>
-<td align="center" width="33%"><a href="verify/reference/gameplay-m13.png"><img src="verify/reference/gameplay-m13.png" width="100%" alt="Mission 13: The battleship at berth under the harbour crane."></a><br><sub><b>Mission 13</b> · David and Goliath</sub></td>
-<td align="center" width="33%"><a href="verify/reference/gameplay-m14.png"><img src="verify/reference/gameplay-m14.png" width="100%" alt="Mission 14: The beach casemate, wire and obstacles with troops ashore on Juno."></a><br><sub><b>Mission 14</b> · D-Day Kick Off</sub></td>
-<td align="center" width="33%"><a href="verify/reference/gameplay-m15.png"><img src="verify/reference/gameplay-m15.png" width="100%" alt="Mission 15: Commandos on the riverside street with the tram."></a><br><sub><b>Mission 15</b> · The End of the Butcher</sub></td>
-</tr>
-<tr>
-<td align="center" width="33%"><a href="verify/reference/gameplay-m16.png"><img src="verify/reference/gameplay-m16.png" width="100%" alt="Mission 16: The locomotive waiting at the station by the Maas bridge line."></a><br><sub><b>Mission 16</b> · Stop Wildfire</sub></td>
 <td align="center" width="33%"><a href="verify/reference/gameplay-m17.png"><img src="verify/reference/gameplay-m17.png" width="100%" alt="Mission 17: The squad moving up the snowy forest road, point man ringed."></a><br><sub><b>Mission 17</b> · Before Dawn</sub></td>
 <td align="center" width="33%"><a href="verify/reference/gameplay-m18.png"><img src="verify/reference/gameplay-m18.png" width="100%" alt="Mission 18: The Maas bridge mid-collapse into the river, charges fired at the three marked points (&quot;THE BRIDGE IS DOWN&quot;)."></a><br><sub><b>Mission 18</b> · The Force of Circumstance</sub></td>
 </tr>
 <tr>
-<td align="center" width="33%"><a href="verify/reference/gameplay-m19.png"><img src="verify/reference/gameplay-m19.png" width="100%" alt="Mission 19: A V2 rocket destroyed on its launch pad, second rocket still standing alongside."></a><br><sub><b>Mission 19</b> · Frustrate Retaliation</sub></td>
 <td align="center" width="33%"><a href="verify/reference/gameplay-m20.png"><img src="verify/reference/gameplay-m20.png" width="100%" alt="Mission 20: The castle HQ roof blown in and still smoking after the charge."></a><br><sub><b>Mission 20</b> · Operation Valhalla</sub></td>
+<td></td>
 <td></td>
 </tr>
 </table>
