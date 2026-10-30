@@ -16,7 +16,7 @@
 
 import * as THREE from 'three';
 import { createVehicleVisual, vehicleLibraryReady, resolveVehicle } from './vehicle-library.js';
-import { vehicleArtReady, vehicleArtContext, noteVehicleArt, addVehicleTicker, markShared } from './vehicle-model.js';
+import { vehicleArtReady, vehicleArtContext, noteVehicleArt, addVehicleTicker, addVehicleReleaser, markShared } from './vehicle-model.js';
 import { createWindsockSock } from './windsock-sock.js';
 import { iceFloe } from './kit-props.js';
 
@@ -96,6 +96,9 @@ export function dressStaticVehicles(world, def) {
     }
     const vis = createVehicleVisual(asset, { theater, seed: id.length * 31 + (s.def?.x | 0), paint: s.def?.paint, destroyed: !!s.def?.wreck });
     if (!vis) continue;
+    // released with the mission's vehicles: a visual is listed live (art/vehicle-library.js) until disposed, and its
+    // object3d holds the whole unloaded world through its parents (every load leaked one: tests/memory)
+    addVehicleReleaser(() => vis.dispose());
     const holder = new THREE.Group(); holder.name = `static-vehicle:${asset}`;
     holder.rotation.y = Math.PI / 2; // structure local +X = its heading; the library model faces +Z
     // `vehicleArtY` (m): the model sits that much higher / lower (M7: a U-boat trimmed down to the walk deck at the

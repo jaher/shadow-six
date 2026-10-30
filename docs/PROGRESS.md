@@ -898,3 +898,6 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 
 ## 2026-10-30 — M02 perf merged to master (perf lane 3)
 - perf/m02 merged (25cbc7366): raft-trip wait look-ahead 0.70->0.27 ms/tick, blast path reuse, hypot2/3 allocation 2.1->0.6 GB/run, pixel-store cache, HD upgrades paced on walkthrough still screens; sim identical (m02-solution win 1200.9). Unit 2531 passed. Wall-clock video-perf still shows shared-host spikes (66.7 ms worst); own CPU within bounds.
+
+## 2026-10-30 — Test-health fixes merged to master (perf lane 1)
+- fix/test-health merged (311bba43f): tests staged on open ground, measurements on settled textures, memory and GPU-memory cycle fixes, doc shots written to tests/out. Unit 2529 passed / 0 failed; 15 GPU tests passed (anti-tiling kit-cost 0.8 ms bound flaked at 0.9-1.0 ms under host load ~10, passed on rerun; bound unchanged).

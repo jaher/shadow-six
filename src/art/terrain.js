@@ -23,14 +23,14 @@ import { SPECIES } from './terrain/treegen.js';
 import { farmland } from './terrain/bocage.js';
 import { addSnowCover } from './terrain/snowfx.js';
 import { CONFIG } from '../config.js';
-import { dataKey } from '../engine/asset-cache.js';
+import { dataKey, sessionCache } from '../engine/asset-cache.js';
 import { screenDensity, startDensity } from '../engine/texel-budget.js';
 import { HD_TEXTURES, registerHdJob } from '../engine/hd-textures.js';
 import { terrainLayerUrls } from './terrain/terrain.js';
 import { createApronG } from './apron.js';
 import { buildApronFieldG, extendPath } from '../world/apron-field.js';
 import { edgeCrossings } from '../world/edge-extend.js';
-import { buildShoreFieldG } from '../world/shore-field.js';
+import { buildShoreFieldG, shoreFeatures } from '../world/shore-field.js';
 import { due, runSync, runSliced } from '../engine/slice.js';
 import { structureRecords, obstacle, pruneTree, OBSTACLE_H } from '../world/placement.js';
 import { polyDist } from '../world/placement-geom.js';
@@ -499,8 +499,16 @@ export function* buildTerrainG(grid, theater = 'temperate', ctx = {}) {
   let apronField = null, shore = null;
   try {
     if (mission && ctx.apron !== false) apronField = yield* buildApronFieldG(grid, mission);
-    shore = yield* buildShoreFieldG(apronField?.grid ?? grid, mission || {}, apronField
-      ? { ox: apronField.ox, oz: apronField.oz, feats: apronField.feats, W: apronField.W, D: apronField.D } : { W: grid.width, D: grid.depth });
+    const codes = apronField?.grid ?? grid, mis = mission || {};
+    const so = apronField ? { ox: apronField.ox, oz: apronField.oz, feats: apronField.feats, W: apronField.W, D: apronField.D } : { W: grid.width, D: grid.depth };
+    // a pure function of the code grid, the mission's water features and these options (read-only once built): a
+    // restart / reload takes it from the session cache instead of rebuilding its distance fields (~230 ms of M1's restart)
+    const shoreKey = `shore:${dataKey((h) => {
+      h.num(codes.cols); h.num(codes.rows); h.num(codes.cell); h.words(new Uint8Array(codes.terrain.buffer, codes.terrain.byteOffset, codes.terrain.byteLength));
+      h.str(JSON.stringify(so)); h.str(JSON.stringify(so.feats ? null : shoreFeatures(mis)));
+      h.str(String(mis.baseTerrain || '')); h.num(mis.shoreShallowWidth || 0); h.num(mis.size?.[0] || 0); h.num(mis.size?.[1] || 0);
+    })}`;
+    shore = yield* sessionCache.memoGen(shoreKey, () => buildShoreFieldG(codes, mis, so), { bytes: (v) => (v?.wet?.byteLength || 0) + (v?.deep?.byteLength || 0) });
   } catch (e) { console.error('[shore] field failed', e); shore = null; }
   // everything planted on the map (pure: plantingPlan) — the mission's trees, forest fill, hedgerows, orchards
   if (due()) yield;

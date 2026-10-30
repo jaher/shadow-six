@@ -115,6 +115,16 @@ export function missionList() {
   return Array.isArray(m) ? m : [];
 }
 
+/**
+ * `p`, or after `ms` ms, whichever first; the timer is cleared once `p` settles. An armed timer keeps its promise's
+ * reactions — the whole load's async context, its world included — alive until it fires: a reload inside the window
+ * held the previous world too (tests/memory, M1 → M1 → M1 grew ~30 MB a load).
+ */
+function settleWithin(p, ms) {
+  let t;
+  return Promise.race([p, new Promise((ok) => { t = setTimeout(ok, ms); })]).finally(() => clearTimeout(t));
+}
+
 export class Game {
   /**
    * @param {HTMLElement} container element that receives the canvas (#view)
@@ -359,7 +369,7 @@ export class Game {
     } finally { openGate(); }
     // ground textures, grass and trees build asynchronously (decode + splat + tree workers): wait, bounded
     const ready = this.mapHandle?.ready;
-    if (ready) await safeAsync(() => Promise.race([ready, new Promise((ok) => setTimeout(ok, 20000))]), 'terrain');
+    if (ready) await safeAsync(() => settleWithin(ready, 20000), 'terrain');
     // …but what the gameplay world measures on the art (the trees' branches: gun arcs; library buildings that were
     // still loading; the decks' calibration) is in before play, however slow the rest (a weak machine or a slow link
     // past the 20 s above) — and however slow it is itself: never raced, never a stamp landing mid-game, so a cold link
@@ -426,7 +436,7 @@ export class Game {
     // (their models complete — a covered lorry's canvas and rear straps are built after its GLB, a slice at a time —
     // before their frames are drawn: the straps' programs too)
     const vehReady = [...later, ...world.entities.map((e) => e.model)].map((m) => m?.ready).filter((p) => p && typeof p.then === 'function');
-    if (vehReady.length) await safeAsync(() => Promise.race([Promise.all(vehReady), new Promise((ok) => setTimeout(ok, 8000))]), 'vehicle models');
+    if (vehReady.length) await safeAsync(() => settleWithin(Promise.all(vehReady), 8000), 'vehicle models');
     // (its programs linked aside first and its frames drawn a share of the scene per task: engine/parallel-compile.js)
     this.vehicleWarm = await safeAsync(() => warmVehicleArt(r.renderer, r.scene, r.camera, () => this.cameraRig.render(this.renderer, 0),
       { precompile: (f) => this._compileAhead(f, { parts: true }), runFrames: (f) => this._framesInParts(f) }), 'vehicle warm-up');
@@ -451,13 +461,13 @@ export class Game {
     const trails = world.terrain?.terrain?.trails;
     if (trails && world.blood) trails.onStep = (e) => world.blood?.onStep(e); // bloody boot prints on the real footfalls
     // first-hit hitch: compile the stain / spatter programs now (bounded; a slow driver just finishes later)
-    if (world.blood?.warm) await safeAsync(() => Promise.race([world.blood.warm(r.renderer, r.camera), new Promise((ok) => setTimeout(ok, 4000))]), 'blood warm-up');
-    if (world.marks?.warm) await safeAsync(() => Promise.race([world.marks.warm(r.renderer, r.camera), new Promise((ok) => setTimeout(ok, 4000))]), 'blast marks warm-up'); // crater decal program + atlas
-    if (world.fx?.vfx?.warm) await safeAsync(() => Promise.race([world.fx.vfx.warm(r.renderer, r.camera), new Promise((ok) => setTimeout(ok, 4000))]), 'vfx warm-up'); // smoke / fire / debris programs
+    if (world.blood?.warm) await safeAsync(() => settleWithin(world.blood.warm(r.renderer, r.camera), 4000), 'blood warm-up');
+    if (world.marks?.warm) await safeAsync(() => settleWithin(world.marks.warm(r.renderer, r.camera), 4000), 'blast marks warm-up'); // crater decal program + atlas
+    if (world.fx?.vfx?.warm) await safeAsync(() => settleWithin(world.fx.vfx.warm(r.renderer, r.camera), 4000), 'vfx warm-up'); // smoke / fire / debris programs
     // the blood's drawn layers come from a lazily loaded module: in the scene by now, whatever the network and the
     // machine's speed (the warm-up frame below raced them: the wind particles and the fish joined the scene before or
     // after them, depending on how long the warm-ups above took)
-    if (world.blood?.layersReady) await safeAsync(() => Promise.race([world.blood.layersReady, new Promise((ok) => setTimeout(ok, 4000))]), 'blood layers');
+    if (world.blood?.layersReady) await safeAsync(() => settleWithin(world.blood.layersReady, 4000), 'blood layers');
     // what the map builds on its first frame (the dam's water: rays down its face and a flow bake, ~1.7 s on M3), now,
     // a slice at a time; the warm-up frame below is that first frame and puts it in the scene as it always did
     if (this.mapHandle?.prepareG) await safeAsync(() => runSliced(this.mapHandle.prepareG()), 'map first-frame build');
@@ -483,7 +493,7 @@ export class Game {
     for (const e of world.entities) if (typeof e.model?.prepare === 'function') safe(() => e.model.prepare(e), 'model prepare');
     // every pass's programs for everything on the map (shadow depth, AO normals, mirror, x-ray variants): compiled now,
     // not as first-sight hitches when the camera reaches them during play
-    if (ruins.length) await safeAsync(() => Promise.race([Promise.all(ruins.map((rr) => rr.ready)), new Promise((ok) => setTimeout(ok, 8000))]), 'ruins');
+    if (ruins.length) await safeAsync(() => settleWithin(Promise.all(ruins.map((rr) => rr.ready)), 8000), 'ruins');
     if (this.world !== world) return prog.cancel(), world;
     await paintOnce();
     if (this.world !== world) return prog.cancel(), world;
@@ -501,7 +511,7 @@ export class Game {
     // (+ the Spy's take and dressing props: her caps as loose props, the officer's cap, U's bundle — art/spy-actions.js)
     const spyWarm = safe(() => spyWarmObjects(world), 'spy warm-up');
     // (+ the ambient aircraft, built at load: shown over the middle of the map for the warm-up frame — render/flyovers.js)
-    if (world.flyovers?.ready) await safeAsync(() => Promise.race([world.flyovers.ready, new Promise((ok) => setTimeout(ok, 4000))]), 'flyover models');
+    if (world.flyovers?.ready) await safeAsync(() => settleWithin(world.flyovers.ready, 4000), 'flyover models');
     const flyWarm = def.size ? safe(() => world.flyovers?.warmShow?.(def.size[0] / 2, 20, def.size[1] / 2), 'flyover warm-up') : null;
     // (+ a wreck's scorch decal in the ground-decal scene, where wrecks draw it — art/vehicle-model.js)
     const scorchWarm = def.size && r.decalScene ? safe(() => vehicleDecalWarm(), 'scorch warm-up') : null;

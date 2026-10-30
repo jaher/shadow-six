@@ -7,6 +7,7 @@ import { test, assert } from './lib.mjs';
 import { useManifest, pickAsset } from '../../src/art/building-props.js';
 import { mergeManifest, EXTRA_MANIFESTS } from '../../src/art/building-library.js';
 import { buildWall } from '../../src/art/dressing.js';
+import { isSmokeAnchor } from '../../src/art/chimney-flues.js';
 import { MISSIONS } from '../../src/missions/index.js';
 
 const P = (f) => new URL(`../../${f}`, import.meta.url);
@@ -34,6 +35,9 @@ test('art m01: the relay hut, the stabbur, the plank stack and the road rubble d
     assert.ok(pickAsset(s.type, s, { theater: 'snow', missionId: 'm01' })?.name.startsWith(name), id);
   }
   assert.equal(man.assets.relay_station_no.destroyedVariant, 'relay_station_no_destroyed');
+  // the signals hut's stove is lit: its stovepipe anchor is a smoking one (render/fx.js keys on the kind; the M1 plume
+  // the chimney-smoke GPU test frames rises from it, as from the placeholder hut's stack before the art pass)
+  for (const n of ['relay_station_no', 'relay_station_no_snow']) assert.ok(man.assets[n].anchors.some((an) => an.name === 'smoke' && isSmokeAnchor(an)), `${n}: the stovepipe smokes`);
   const rb = man.assets.rubble_fieldstone_low_no;
   assert.ok(rb.footprints.every((f) => f.block === 'LOW') && rb.height <= 1.3, 'the rubble is low cover as drawn');
   const r = S('relay_hut');

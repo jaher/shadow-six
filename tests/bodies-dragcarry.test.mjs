@@ -2,7 +2,8 @@
  * bodies-design §C / §E browser (part C) on M1 (snow): a Driver drags a body by the armpits (grab 1.0 s, walking
  * backwards at 0.8 m/s, heel furrow + smear, release 0.6 s); the Green Beret lifts one onto his shoulders (1.0 s),
  * carries it, lowers it to a drag (Shift+H, 0.8 s), lifts it again (H, 1.0 s) and puts it down (0.8 s); a carrier who
- * is hit drops the man (a ragdoll off the shoulder). Frame strips → docs/screenshots/bodies-dragcarry-*.jpg.
+ * is hit drops the man (a ragdoll off the shoulder). Frame strips → tests/out/bodies-dragcarry-*.jpg
+ * (docs/screenshots with DOC_SHOTS=1).
  * Carry legs: the carrier's / dragger's legs step while he moves (a clip flip every tick used to freeze them) and the
  * load's legs swing with his steps; standing still, they keep still.
  * The DOWNED / revive half is bodies-dragcarry-downed.test.mjs.

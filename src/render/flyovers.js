@@ -254,7 +254,9 @@ export function trimPitch(meta) {
 function buildCraft(type, theater, seed, group) {
   const T = FLYOVER_TYPES[type];
   const mk = () => {
-    const vis = createVehicleVisual(T.lib, { theater, seed });
+    // never destroyed: no wreck instance (the load's vehicle warm-up built one in each, whose meshes the shadow twin
+    // then held with their own materials, outside its shadow-only conversion)
+    const vis = createVehicleVisual(T.lib, { theater, seed, wreck: false });
     const holder = new THREE.Group(), trim = new THREE.Group();
     holder.rotation.order = 'YXZ'; holder.visible = false;
     holder.add(trim); trim.add(vis.object3d); group.add(holder);

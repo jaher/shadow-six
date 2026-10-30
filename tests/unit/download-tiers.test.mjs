@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import * as THREE from 'three';
 import { test, assert } from './lib.mjs';
 import { glbJson, readGlb } from '../../tools/glb-io.mjs';
-import { registerHdTexture, startHdTextures, hdTexturesIdle, pendingHdTextures, resetHdTextures, hdTextureStats } from '../../src/engine/hd-textures.js';
+import { registerHdTexture, registerHdJob, startHdTextures, hdTexturesIdle, pendingHdTextures, resetHdTextures, hdTextureStats } from '../../src/engine/hd-textures.js';
 import { afterLoadScreen, loadScreenUp, loadScreenDown, isLoadScreenDown, loadGeneration } from '../../src/engine/post-load.js';
 import { TalkingPortraits } from '../../src/ui/talking-portraits.js';
 import { AudioEngine } from '../../src/audio/engine.js';
@@ -58,6 +58,22 @@ test('char tiers: every body GLB embeds half-size atlases and names its HD origi
     }
   }
   assert.ok(n >= 115, `${n} body GLBs`);
+});
+
+test('hd-textures: a job registered again under its key replaces the queued one (the newest owner runs; the old one is let go)', async () => {
+  resetHdTextures();
+  loadScreenUp();
+  const ran = [];
+  registerHdJob('terrain:snow:1k_albedo.layers', { run: async () => { ran.push('first load'); } });
+  loadScreenUp(); // a reload before the first load's upgrades ran (its terrain disposed)
+  registerHdJob('terrain:snow:1k_albedo.layers', { run: async () => { ran.push('second load'); } });
+  assert.deepEqual(pendingHdTextures(), ['terrain:snow:1k_albedo.layers'], 'one entry per key');
+  startHdTextures({ deps: { idle: async () => {} } });
+  loadScreenDown();
+  await new Promise((ok) => setTimeout(ok, 5));
+  await hdTexturesIdle(); // (its idle resolves at once: the run ends)
+  assert.deepEqual(ran, ['second load']);
+  resetHdTextures();
 });
 
 test('hd-textures: registered textures upgrade after the loading screen, in order, in place (same Texture object)', async () => {
@@ -126,6 +142,7 @@ test('hd-textures: a texture disposed by its owner is dropped; a wrong HD size k
   assert.equal(t3.image.width, 1024, 'resumed after that load');
   resetHdTextures();
 });
+
 
 test('post-load: work queued during a load runs once the loading screen is down; at once otherwise', () => {
   loadScreenDown();

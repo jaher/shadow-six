@@ -4,16 +4,22 @@
  * stubbed so frames land at exact times after the selection: at t = 0 the ring is wide and bright, at t = 0.9 s it
  * has contracted (centre line ≈ 0.49 m vs ≈ 0.59 m) and dimmed; at t = 1.2 s it snaps back to the t = 0 frame.
  * Then the live real-time clock with the game PAUSED still animates it, and reduced motion freezes it.
- * Saves docs/screenshots/ring-pulse-strip.jpg: 8 frames, one every 0.15 s after selecting.
+ * Saves tests/out/ring-pulse-strip.jpg (docs/screenshots with DOC_SHOTS=1): 8 frames, one every 0.15 s after selecting.
  */
 import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { TESTS_DIR } from './harness.mjs';
+import { docShotPath } from './harness.mjs';
+
+export const timeout = 180_000; // M1's HD upgrades land first (~40 s on a loaded host)
 
 export default async function ringPulse(page, t) {
   const res = await page.evaluate(async () => {
     const g = window.__game, G = g.game, R = G.renderer, S = G.selection;
     await g.loadMission('m01'); g.start();
+    // the settled look first: every texture in and every HD upgrade landed (engine/hd-textures.js swaps the ground's
+    // smaller first copies in place a few at a time after a load — one landing between two samples moved the measured
+    // ring by 6-7 mm on a loaded host)
+    await (await import('/src/engine/texture-memory.js')).texturesLoaded();
+    { const HD = await import('/src/engine/hd-textures.js'); for (let i = 0; i < 300 && HD.pendingHdTextures().length; i++) { await HD.hdTexturesIdle(); await new Promise((r) => setTimeout(r, 100)); } }
     const w = G.world, c = w.commandos[0];
     for (const e of w.enemies) e.brain && (e.brain.frozen = true);
     c.path = null;
@@ -96,7 +102,7 @@ export default async function ringPulse(page, t) {
   t(m.paused === 'paused', `game paused during the live check (${m.paused})`);
   t(Math.abs(l1.radius - l0.radius) > 0.03, `real-time pulse animates while paused (${l0.radius} → ${l1.radius} m)`);
   t(Math.abs(r1.radius - r0.radius) < 0.005 && r0.radius < 0.52, `reduced motion: static resting ring (${r0.radius}, ${r1.radius} m)`);
-  const out = join(TESTS_DIR, '..', 'docs', 'screenshots', 'ring-pulse-strip.jpg');
+  const out = docShotPath('ring-pulse-strip.jpg');
   writeFileSync(out, Buffer.from(strip.split(',')[1], 'base64'));
   t.log(`strip → ${out}`);
 }

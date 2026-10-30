@@ -628,7 +628,10 @@ function wire(audio, events, subs, rand, opts) {
     if (audio.musicDir?.state === 'mission') audio.musicDir.stopMission(1.0);
     // the in-mission score (start stinger, tension chain, alert) downloads once the loading screen is down, while the
     // briefing (its own music already in) is read (engine/post-load.js)
-    afterLoadScreen(() => { if (audio.mission === e.mission) audio.musicDir?.prefetchMission(audio._startCue()); });
+    // (the closure keeps the mission def only, not the event: a load that never reaches play — tests, a load replaced by
+    // the next — leaves it queued, and the event's world (the whole previous map) with it)
+    const mission = e.mission;
+    afterLoadScreen(() => { if (audio.mission === mission) audio.musicDir?.prefetchMission(audio._startCue()); });
     audio.ambience.forEach((l) => l.handle?.stop(0.5));
     audio.ambience = [];
     audio.director.reset();

@@ -21,6 +21,14 @@ export const TESTS_DIR = dirname(fileURLToPath(import.meta.url));
 export const ROOT = resolve(TESTS_DIR, '..');
 export const OUT_DIR = join(TESTS_DIR, 'out');
 
+/** Path for a test's documentation screenshot: tests/out/<name> on a plain run, so running the tests never rewrites
+ *  tracked files; DOC_SHOTS=1 writes docs/screenshots/<name> to refresh the docs copies on purpose. */
+export function docShotPath(name) {
+  const dir = process.env.DOC_SHOTS === '1' ? join(ROOT, 'docs', 'screenshots') : OUT_DIR;
+  mkdirSync(dir, { recursive: true });
+  return join(dir, name);
+}
+
 const PW_LOCAL = join(ROOT, 'node_modules/playwright-core/index.mjs');
 /** Fallback for git worktrees without node_modules: $PLAYWRIGHT_CORE, else the main checkout's copy. */
 const PW_ABS = process.env.PLAYWRIGHT_CORE || (() => {

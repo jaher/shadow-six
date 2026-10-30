@@ -487,6 +487,12 @@ html.mk-touch .hud-portrait::after, html.mk-touch .hud-icon:not(.hud-lamp)::afte
   content: ''; position: absolute; z-index: -1; top: 0; left: 50%; transform: translateX(-50%);
   width: max(100%, 44px); height: max(100%, 48px);
 }
+/* the camera dial (src/ui/camera-dial.js, 41 ref px: 28-41 px on a phone) gets the same pad; the eye's pad next to it
+   would paint over a centred one, so the dial's hangs leftwards from its right edge, under the Y/P readout */
+html.mk-touch .hud-camdial::after {
+  content: ''; position: absolute; z-index: -1; top: 0; right: 0;
+  width: max(100%, 44px); height: max(100%, 48px);
+}
 html.mk-touch .hud-tbtn { min-height: 44px; min-width: 44px; justify-content: center; }
 html.mk-touch .hud-help { width: max(calc(24 * var(--r)), 44px); }
 /* the right column (notebook) starts below those 48 px pads, so no pad lies over the top edge of the open map */

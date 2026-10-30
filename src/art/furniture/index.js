@@ -11,6 +11,7 @@ import { lampParts, LAMP_LIGHT } from './lamps.js';
 import { propParts, signTexture, wireGeometry, fenceParts } from './street-props.js';
 import { dressingMaterial, buildPole } from '../dressing.js';
 import { applySway } from '../cloth-wind.js';
+import { scopedMemo } from '../../engine/scoped-assets.js';
 import { cablePoints, conductorSpans } from '../cable-attach.js';
 
 const HAS_DOM = typeof document !== 'undefined';
@@ -18,7 +19,15 @@ const MAT = new Map();
 /** Shared furniture materials. glass: lit lantern glass (emissive driven by street-lights), glassDim: blackout. */
 export function furnitureMaterial(name, extra = null) {
   const key = name + (extra ? '|' + extra : '');
+  // a board / poster face owns a canvas texture (street-props signTexture): scoped with it to the missions that draw it
+  if (HAS_DOM && (name === 'sign' || name === 'poster')) return scopedMemo('furniture:mat', MAT, key, () => makeMaterial(name, extra, key), { free: (m) => m.dispose() });
   if (MAT.has(key)) return MAT.get(key);
+  const m = makeMaterial(name, extra, key);
+  MAT.set(key, m);
+  return m;
+}
+
+function makeMaterial(name, extra, key) {
   const S = (o) => new THREE.MeshStandardMaterial(o);
   let m;
   switch (name) {
@@ -38,7 +47,6 @@ export function furnitureMaterial(name, extra = null) {
     default: m = S({ color: 0x808080 });
   }
   m.name = `furniture:${key.replace(/[^\w|:.-]/g, "_")}`; // (SHADER_NAME: no newlines)
-  MAT.set(key, m);
   return m;
 }
 

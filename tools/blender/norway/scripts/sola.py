@@ -68,7 +68,7 @@ if VAR in ('relay', 'relayd'):
     R = K.roof_gable((x0 + x1) / 2, 0, x1 - x0, y1 - y0, ZE, PITCH, 'tar_paper', eave_oh=0.4, gable_oh=0.3, thick=0.08,
                      gutters=False)
     N.roof_battens(R, spacing=0.8)
-    N.stovepipe(x0 + 0.9, 0.9, ZE - 0.2, zr + 0.75)
+    N.stovepipe(x0 + 0.9, 0.9, ZE - 0.2, zr + 0.75, kind='smoke')  # the signals hut's stove is lit (M1 chimney smoke)
     zr2 = R.z_ridge
     # the dipole: two ridge poles (gable ends), spreader cross-arms, the wire span with end insulators, the feeder down
     bm = K.bm_new()

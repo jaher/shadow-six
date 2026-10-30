@@ -134,6 +134,8 @@ export function buildAirstrip(spec) {
     tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8; tex.name = 'airstrip';
     mat.map = tex;
   }
+  // the map's unload disposes geometries only: the canvas (M10: 1904 × 760, 7.4 MB with mips) goes with the plane
+  geo.addEventListener('dispose', () => { mat.map?.dispose(); mat.dispose(); });
   const m = new THREE.Mesh(geo, mat);
   m.position.set(x0 + W / 2, spec.y, z0 + D / 2);
   m.name = 'kit:airstrip';

@@ -335,14 +335,16 @@ def roof_battens(R, spacing=0.9, mid='timber_tarred', name='battens'):
     return K.part(bm, mid, name=name, uv='beam', axis=(0, 1, 0), grime=0.4)
 
 
-def stovepipe(x, y, z0, z1, name='stovepipe'):
+def stovepipe(x, y, z0, z1, name='stovepipe', kind=None):
+    """Galvanised stovepipe with a rain hat; its 'smoke' anchor smokes in the game only with kind='smoke' (render/fx.js
+    keys on the anchor kind: a kindless anchor gets an open flue but stays cold)."""
     bm = bmesh.new()
     K.cyl_bm(bm, (x, y, z0), (x, y, z1), 0.08, 10)
     K.cyl_bm(bm, (x, y, z1 + 0.12), (x, y, z1 + 0.14), 0.2, 10, r1=0.02)
     for a in (0, 2.1, 4.2):
         K.cyl_bm(bm, (x + math.cos(a) * 0.07, y + math.sin(a) * 0.07, z1 - 0.02), (x + math.cos(a) * 0.12, y + math.sin(a) * 0.12, z1 + 0.13), 0.008, 4)
     K.part(bm, 'steel_galv', name=name, smooth=True, grime=0.8, mat_tint=(0.55, 0.52, 0.5))
-    K.anchor('smoke', (x, y, z1 + 0.2))
+    K.anchor('smoke', (x, y, z1 + 0.2), **({'kind': kind} if kind else {}))
 
 
 def rowboat(c, heading=(0, -1, 0), Lb=5.4, B=1.45, D=0.55, tilt=0.0, paint=(0.86, 0.84, 0.78), name='boat'):

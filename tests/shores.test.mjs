@@ -20,16 +20,20 @@ async function edgeMetric(page, id, centres) {
       vertexShader: 'varying float vY; void main() { vec4 w = modelMatrix * vec4(position, 1.0); vY = w.y; gl_Position = projectionMatrix * viewMatrix * w; }',
       fragmentShader: `varying float vY; void main() { gl_FragColor = vec4(vec3(vY < ${WL.toFixed(3)} ? 0.0 : 1.0), 1.0); }`,
     });
-    const m = new THREE.Mesh(mesh.geometry, mat);
-    m.matrixAutoUpdate = false; m.matrix.copy(mesh.matrixWorld); m.matrixWorld.copy(mesh.matrixWorld);
-    const sc = new THREE.Scene(); sc.add(m); sc.background = new THREE.Color(1, 0, 0);
+    // the terrain as the game draws it: since 16-bit chunk rows (engine/chunking.js) the mesh is a proxy whose row children
+    // draw it (each with its own index; the proxy's whole index is dropped), so a bare Mesh on mesh.geometry drew no
+    // shore. The proxy forwards a material swap to its rows; everything else in the scene is hidden for the frame
+    const sc = G.renderer.scene, keep = new Set(), hidden = [], bg = sc.background, mat0 = mesh.material;
+    for (let o = mesh; o; o = o.parent) keep.add(o);
+    for (const a of keep) if (a !== mesh) for (const c of a.children) if (!keep.has(c) && c.visible) { c.visible = false; hidden.push(c); }
+    sc.background = new THREE.Color(1, 0, 0);
     const out = [];
     G.cameraRig.setYaw(15); g.setZoom(2);
     for (const [cx, cz] of centres) {
       G.cameraController.centerOn(cx, cz);
       g.render();
       const cv = gl.domElement, w = cv.width, h = cv.height;
-      gl.setRenderTarget(null); gl.render(sc, cam);
+      gl.setRenderTarget(null); mesh.material = mat; gl.render(sc, cam); mesh.material = mat0;
       const c2 = document.createElement('canvas'); c2.width = w; c2.height = h;
       const ctx = c2.getContext('2d', { willReadFrequently: true });
       ctx.drawImage(cv, 0, 0);
@@ -62,6 +66,8 @@ async function edgeMetric(page, id, centres) {
       const r = P.map(([x, y]) => Math.hypot((x - sx) / ppm, (y - sy) / ppm));
       out.push({ turn, rMin: Math.min(...r), rMax: Math.max(...r), ppm, chords: Q.length });
     }
+    for (const c of hidden) c.visible = true;
+    sc.background = bg;
     mat.dispose();
     G.cameraRig.setYaw(15); g.setZoom(1);
     return out;

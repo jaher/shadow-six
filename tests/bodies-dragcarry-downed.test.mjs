@@ -2,9 +2,10 @@
  * bodies-design §C.6–§C.8 / §E browser (buddy rescue) on M1 (snow): the Diver takes a lethal (downable) hit and goes
  * DOWNED (collapse, breathing on the snow, the portrait's red bleed-out ring and seconds), crawls one-armed at 0.3 m/s,
  * the Green Beret drags him to cover (Shift+H), the Driver (medic) revives him with the first-aid kit (K, 4 s) and he
- * gets up with 34 HP. Frame strips + a HUD shot → docs/screenshots/bodies-dragcarry-downed-*.jpg.
+ * gets up with 34 HP. Frame strips + a HUD shot → tests/out/bodies-dragcarry-downed-*.jpg (docs/screenshots with DOC_SHOTS=1).
  */
 import { saveJpeg } from './bodies-physics.test.mjs';
+import { docShotPath } from './harness.mjs';
 
 export default async function bodiesDowned(page, t) {
   await page.evaluate(async () => {
@@ -41,7 +42,7 @@ export default async function bodiesDowned(page, t) {
   });
   // the whole screen with the HUD: the downed portrait (red pulse, bleed-out ring + seconds) and the alert line
   await page.waitForTimeout(900); // portrait stills fade in
-  await page.screenshot({ path: new URL('../docs/screenshots/bodies-dragcarry-downed-hud.jpg', import.meta.url).pathname, type: 'jpeg', quality: 82 });
+  await page.screenshot({ path: docShotPath('bodies-dragcarry-downed-hud.jpg'), type: 'jpeg', quality: 82 });
   const r = await page.evaluate(async () => {
     const { H, sp, s1, view, tick, at, dv, gb, dr, out } = window.__bd;
     const G = window.__game.game;

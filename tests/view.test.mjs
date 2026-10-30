@@ -40,14 +40,17 @@ export default async function view(page, t) {
     g.centerOn(30, 30);
     const stats = {};
     for (const p of ['low', 'high']) { g.setPreset(p); g.render(); stats[p] = g.renderStats(); }
-    const cones = G.renderer.decalScene.children.length;
+    // shown cones = visible 'vision-cone' groups: a hidden guard's cone is parked in the decal scene for reuse
+    // (render/vision-cone.js _park), so the scene's child count no longer moves with what is shown
+    const shownCones = () => G.renderer.decalScene.children.filter((o) => o.name === 'vision-cone' && o.visible).length;
+    const cones = shownCones(), kids = G.renderer.decalScene.children.length;
     for (const e of G.world.enemies) g.setCone(e.id, true);
     g.render();
-    const conesAfter = G.renderer.decalScene.children.length;
+    const conesAfter = shownCones(), kidsAfter = G.renderer.decalScene.children.length;
     const inOverlay = G.renderer.overlayScene.children.filter((o) => o.name === 'vision-cone').length;
-    return { ...out, stats, cones, conesAfter, inOverlay, enemies: G.world.enemies.length };
+    return { ...out, stats, cones, conesAfter, kids, kidsAfter, inOverlay, enemies: G.world.enemies.length };
   });
-  t.log(JSON.stringify({ stats: r.stats, shadow: r.shadow, cones: r.conesAfter }));
+  t.log(JSON.stringify({ stats: r.stats, shadow: r.shadow, cones: [r.cones, r.conesAfter], decalKids: [r.kids, r.kidsAfter], enemies: r.enemies }));
   for (const c of r.corners) {
     // design-spec §2.3: the view may show up to boundsMargin (4 m) beyond the map edge; with yaw the slanted view
     // corners may overshoot by playOvershoot() so every map point stays reachable (0 at yaw 0)
@@ -67,6 +70,6 @@ export default async function view(page, t) {
   r.shadow.forEach((ok, i) => t(ok, `shadow camera covers all corners at y=0..H (case ${i})`));
   t(r.stats.low.calls > 20, `whole-frame draw calls (low: ${r.stats.low.calls})`);
   t(r.stats.high.triangles > 5000, `whole-frame triangles (high: ${r.stats.high.triangles})`);
-  t(r.conesAfter === r.cones + 1, 'the vision cone lives in the decal scene (one shown at a time, design-spec §4.2)');
+  t(r.cones === 0 && r.conesAfter === 1, `the vision cone lives in the decal scene, one shown at a time (design-spec §4.2): ${r.cones} → ${r.conesAfter} of ${r.enemies} guards`);
   t.equal(r.inOverlay, 0, 'no vision cones in the always-on-top overlay');
 }

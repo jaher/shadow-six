@@ -7,7 +7,7 @@
  *   - t1 / t2 are open timber MG platforms: the gunner up there (deck 5.5 m) kneels at the MG (its mount laid along his
  *     heading, his hands on the grips), sees a man in his arc and fires; the daylight flash leaves the MG muzzle;
  *   - plat_sw: units walk up the stair onto the landing / wall walk and back down into the camp, following its slope.
- * Screens (docs/screenshots): m2-barrier-lowered(-z2), m2-barrier-smashed(-z2), m2-barrier-mg-platform(-z2),
+ * Screens (tests/out; docs/screenshots with DOC_SHOTS=1): m2-barrier-lowered(-z2), m2-barrier-smashed(-z2), m2-barrier-mg-platform(-z2),
  * m2-barrier-access-platform(-z2) — default camera (zoom 1) and zoom 2.
  */
 import { saveJpeg } from './bodies-physics.test.mjs';

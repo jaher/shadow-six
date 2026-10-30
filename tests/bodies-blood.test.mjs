@@ -3,7 +3,8 @@
  * soaks into the snow with a darker core and a pink halo), a knife kill (arterial spurt, the attacker's sleeve), a fresh
  * body dragged (heel furrow + smear with halo, lying IN the furrow) and one carried on the shoulder (drips + bloody boot
  * prints of the carrier), clothing stains; a quick save → load re-simulates the same pool masks; censored mode shows
- * no blood. Screenshots → docs/screenshots/bodies-blood-snow-*.jpg (game zoom strip + 1:1 close-ups at zoom 4).
+ * no blood. Screenshots → tests/out/bodies-blood-snow-*.jpg, docs/screenshots with DOC_SHOTS=1 (game zoom strip +
+ * 1:1 close-ups at zoom 4).
  */
 import { saveJpeg } from './bodies-physics.test.mjs';
 

@@ -1,16 +1,14 @@
 /**
  * bodies-design §E browser (part A, physics): a grenade among M1 guards on open snow → ragdolls fly, land and settle on
  * the terrain (frame strip), survivors react; the crater + scorch marks; a quick save mid-flight loads and the bodies
- * settle; censored mode draws graves. Screenshots → docs/screenshots/bodies-physics-*.jpg.
+ * settle; censored mode draws graves. Screenshots → tests/out/bodies-physics-*.jpg (docs/screenshots with DOC_SHOTS=1).
  */
-import { writeFileSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
-import { ROOT } from './harness.mjs';
+import { writeFileSync } from 'node:fs';
+import { docShotPath } from './harness.mjs';
 
-const SHOTS = join(ROOT, 'docs/screenshots');
+/** A documentation JPEG (data URL) → tests/out/<name>, or docs/screenshots/<name> with DOC_SHOTS=1 (harness docShotPath). */
 export function saveJpeg(name, dataUrl) {
-  mkdirSync(SHOTS, { recursive: true });
-  writeFileSync(join(SHOTS, name), Buffer.from(dataUrl.split(',')[1], 'base64'));
+  writeFileSync(docShotPath(name), Buffer.from(dataUrl.split(',')[1], 'base64'));
 }
 
 export default async function bodiesPhysics(page, t) {

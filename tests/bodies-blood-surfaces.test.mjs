@@ -2,7 +2,8 @@
  * bodies-design §B.3 browser: the same kill on different grounds — M2 snow and a hard / wooden floor (the M2 bridge
  * deck or rock), the temperate sandbox (grass: blades soak red), and the sandbox dressed as desert (sand: a dark matte
  * patch). Each at 45 s (wet: glossy, reflective) and after 12 min (dried: dark crust / brown, snow still vivid ×4).
- * Screenshot → docs/screenshots/bodies-blood-surfaces.jpg (1:1 crops at zoom 4, body hidden to show the pool).
+ * Screenshot → tests/out/bodies-blood-surfaces.jpg, docs/screenshots with DOC_SHOTS=1 (1:1 crops at zoom 4, body
+ * hidden to show the pool).
  */
 import { saveJpeg } from './bodies-physics.test.mjs';
 

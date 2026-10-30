@@ -425,10 +425,11 @@ function drive(inst, dt, o) {
 /**
  * Create a vehicle visual. Returns at once; `ready` resolves when the GLBs are in (instant when preloaded).
  * @param {string} type registry type ('kubelwagen', 'panzer4', 'train', …), alias or asset name ('panzer3_l')
- * @param {{theater?: string, seed?: number, destroyed?: boolean, asset?: string, paint?: string}} [opts]
+ * @param {{theater?: string, seed?: number, destroyed?: boolean, asset?: string, paint?: string, wreck?: boolean}} [opts]
+ *   wreck false: a visual that is never destroyed (ambient flyovers) — no wreck instance, not even the warm-up's
  * @returns {{object3d: THREE.Group, ready: Promise<any>, type: string, asset: string, paint: string,
  *   parts: Object<string, THREE.Object3D>, sockets: object, emitters: object[], contacts: object[], muzzles: object[],
- *   lights: object[], meta: object|null, destroyed: boolean, setDestroyed: (on?: boolean) => Promise<void>,
+ *   lights: object[], meta: object|null, destroyed: boolean, hasWreck: boolean, setDestroyed: (on?: boolean) => Promise<void>,
  *   setPart: (name: string, t: number) => void, setToggle: (name: string, on: boolean) => void,
  *   update: (dt: number, o?: object) => void, setZoom: (z: number) => void, dispose: () => void}|null}
  */
@@ -438,6 +439,7 @@ export function createVehicleVisual(type, opts = {}) {
   if (T?.consist && !opts.asset) return createConsist(type, T, opts);
   const r = resolveVehicle(type, opts);
   if (!r) return null;
+  if (opts.wreck === false) r.wreck = null;
   const object3d = new THREE.Group(); object3d.name = `vehicle:${r.asset}`;
   const S = { intact: null, wreck: null, cur: null, destroyed: false, zoom: V.zoom, last: {} };
   const empty = { parts: new Map(), sockets: {}, emitters: [], contacts: [], muzzles: [], lights: [], meta: null };
@@ -460,6 +462,7 @@ export function createVehicleVisual(type, opts = {}) {
     get sockets() { return inst().sockets; }, get emitters() { return inst().emitters; },
     get contacts() { return inst().contacts; }, get muzzles() { return inst().muzzles; },
     get lights() { return inst().lights; }, get meta() { return inst().meta; }, get destroyed() { return S.destroyed; },
+    get hasWreck() { return !!r.wreck; },
     async setDestroyed(on = true) {
       S.destroyed = on;
       if (on && r.wreck) { if (!S.wreck) S.wreck = await make(r.wreck, null); if (S.destroyed) S.cur = S.wreck; }

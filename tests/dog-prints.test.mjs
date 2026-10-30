@@ -24,7 +24,9 @@ export default async function dogPrints(page, t) {
     const trails = TH.terrain.trails;
     W.enemies.forEach(H.freeze);
     for (const e of W.enemies) e.coneVisible = false;
-    const spot = H.openSpot(W, 100, 60, 14);
+    // open snow by the camp; M3's art (the camp's trodden ground, the river banks) left no 14 m disc of it there, so an
+    // 8 m one when the wide one is gone (the staging spans −7 … +4 m along x, the marker +7 m)
+    const spot = H.openSpot(W, 100, 60, 14) || H.openSpot(W, 100, 60, 8);
     H.clearArea(W, spot.x, spot.z, 26);
     g.setZoom?.(2);
     const dog = new Enemy({ id: 'dp_dog', soldierType: 'dog', x: spot.x - 7, z: spot.z - 2, heading: 0 });
@@ -40,7 +42,7 @@ export default async function dogPrints(page, t) {
     const soleAt = (q) => { q.b.updateWorldMatrix(true, false); return v.copy(q.s).applyMatrix4(q.b.matrixWorld); };
     trails.stamp = (kind, x, z, h, o = {}) => {
       if (o.record === true) return stamp0(kind, x, z, h, o);   // stamp()'s own re-entry for record:false calls
-      const e = { kind, id: o.id, foot: o.foot ?? null, x, z, w: o.width ?? null, l: o.length ?? null, side: o.side ?? null, frame, phase, clip: dog.model.clip, gait: inner.anim };
+      const e = { kind, id: o.id, foot: o.foot ?? null, x, z, gy: TH.groundY(x, z), w: o.width ?? null, l: o.length ?? null, side: o.side ?? null, frame, phase, clip: dog.model.clip, gait: inner.anim };
       if (o.id === 'u' + dog.id && kind === 'paw') {
         const d = soles.map((q) => { const p = soleAt(q); return { q, n: q.name, side: q.side, d: Math.hypot(p.x - x, p.z - z), y: p.y }; }).sort((a, b) => a.d - b.d);
         e.near = d[0]; e.best = d[0].d;
@@ -96,6 +98,7 @@ export default async function dogPrints(page, t) {
       for (let k = 0; k + 1 < S.length; k++) if (S[k + 1].frame - S[k].frame <= 4) { pairs++; if (S[k].side === -S[k + 1].side && S[k].near?.n[0] !== S[k + 1].near?.n[0]) paired++; k++; }
       out[ph] = { n: S.length, kinds: [...new Set(S.map((e) => `${e.kind}:${e.foot}`))], dist: +dist.toFixed(2), gaits: [...new Set(S.map((e) => e.gait))],
         nearMax: +Math.max(...S.map((e) => e.near?.d ?? 9)).toFixed(3), bestMax: +Math.max(...S.filter((e) => frame - e.frame > 10).map((e) => e.best ?? 9)).toFixed(3), sideOk: S.every((e) => e.near && e.near.side === e.side), soleY: +Math.max(...S.map((e) => e.near?.y ?? 9)).toFixed(3),
+        lift: +Math.max(...S.map((e) => (e.near?.y ?? 9) - e.gy)).toFixed(3), // pads over the snow under each print
         across: +across(S).toFixed(3), pairs, paired, w: +Math.max(...S.map((e) => e.w)).toFixed(3), l: +Math.max(...S.map((e) => e.l)).toFixed(3),
         perStride: +(S.length / Math.max(0.01, dist)).toFixed(2) };
     }
@@ -120,7 +123,7 @@ export default async function dogPrints(page, t) {
     t.ok(d.nearMax < 0.05, `${ph}: every print at its paw's pads as they come down (worst ${d.nearMax} m)`);
     t.ok(d.bestMax < 0.02, `${ph}: …and under them once planted (worst ${d.bestMax} m)`);
     t.ok(d.sideOk, `${ph}: left prints from left paws, right from right`);
-    t.ok(d.soleY - r.groundY < 0.06, `${ph}: the pads are down when the print appears (highest ${(d.soleY - r.groundY).toFixed(3)} m above the snow)`);
+    t.ok(d.lift < 0.06, `${ph}: the pads are down when the print appears (highest ${d.lift} m above the snow under it)`);
     t.ok(d.across < 0.2, `${ph}: a narrow trail (${d.across} m across)`);
     t.ok(d.w < 0.1 && d.l < 0.1, `${ph}: paw-sized prints (${d.w} × ${d.l} m)`);
   }

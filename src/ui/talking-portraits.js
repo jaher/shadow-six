@@ -600,6 +600,9 @@ export class TalkingPortraits {
     this.slots.clear(); this.card = null;
     this.blobs.clear(); // object URLs belong to the session cache
     this.ctx?.close?.(); this.ctx = null; this.ok = false;
+    // (no unit kept: a load that never reaches play leaves this instance in engine/post-load.js's queue, and a unit
+    // holds its whole world)
+    this._sel = null; this.cur = null;
   }
 }
 

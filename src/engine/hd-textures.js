@@ -110,8 +110,13 @@ function queueKick() {
  *   run: () => Promise<any>, owner?: object}} job owner: an object whose 'dispose' event drops the job
  */
 export function registerHdJob(key, { urls = [], run, owner = null } = {}) {
-  if (OFF || !key || typeof run !== 'function' || entries.has(key)) return;
-  const e = { url: key, size: null, order: regOrder++, rank: rankOf(key), texs: new Set(), params: new WeakMap(), job: { urls, run } };
+  if (OFF || !key || typeof run !== 'function') return;
+  const old = entries.get(key);
+  if (old && !old.job) return; // (a texture's URL of that name: left to it)
+  // the latest registration of a job replaces a queued one: a job left by a load whose upgrades never ran (a reload or a
+  // mission left during its briefing; tests that load without playing) kept its owner — the terrain, the whole previous
+  // world — and the new terrain's own upgrade was never queued (the old job then ran for its disposed terrain: nothing)
+  const e = { url: key, size: null, order: old ? old.order : regOrder++, rank: rankOf(key), texs: new Set(), params: new WeakMap(), job: { urls, run } };
   entries.set(key, e);
   owner?.addEventListener?.('dispose', () => { if (entries.get(key) === e) entries.delete(key); });
   hdTextureStats.registered++;

@@ -113,6 +113,11 @@ export function dressingMaterial(name) {
   return scopedMemo('dressing:mat', MATS, key, () => makeDressingMaterial(name), { free: (m) => m.dispose() });
 }
 
+/** The library texture set a dressing material draws (its maps are textures/lib/<tier>/<set>_diff.jpg …). */
+export function dressingTextureSet(name) {
+  return (SETS[name] || SETS.concrete)[0];
+}
+
 function makeDressingMaterial(name) {
   const [file, tint, flat, nrm, gain] = SETS[name] || SETS.concrete;
   let m;

@@ -27,7 +27,12 @@ function install() {
   S.frame = (b) => { g.step(); G.render(1 / 60, 1); if (b) G.cameraController.centerOn(b.x, b.z); };
   S.run = async (n, b, fn) => { for (let k = 0; k < n; k++) { S.frame(b); fn?.(k); if (k % 10 === 9) await new Promise((r) => setTimeout(r, 0)); } };
   S.clear = async (id) => {
+    G.run(); // (a load may slice its work over displayed frames)
     await g.loadMission(id); g.start();
+    // explicit frames only: the page's own rAF frames render with wall-clock dt between the test's frames, and the
+    // stroke clocks (the wake's row clock, the paddlers') run on display time — the strokes' phase in a window, and so
+    // which catches and side changes it sees, then depended on the machine's load
+    G.stop();
     const w = G.world;
     for (const e of [...w.enemies]) w.remove(e);
     w.flushRemovals?.();
@@ -382,11 +387,32 @@ export default async function (page, t) {
     const g0 = S.bc.STOW.at(S.bc.STOW.d0.clone().multiplyScalar(-0.5).toArray()), g1 = S.bc.STOW.at(S.bc.STOW.d0.clone().multiplyScalar(0.95).toArray());
     const spareHull = H.seg(g0, g1).length;
     // under way: his stroke side, stroke by stroke
-    b.driver.issue({ type: 'move', x: 27.9, z: 49.6 });
+    // a long straight leg on open water: ~1.25 s strokes on the test's own frames (~3.4 m each), so two whole side runs
+    // between the partial first and last ones take ~30 m of paddling — a turn would put his strokes on its outside, and
+    // the crew's leg to (27.9, 49.6) leaves him only ~5 strokes. The bearing (5° steps) with the longest straight line
+    // keeping the raft's beam (± 1.2 m) over deep water (nav grid), up to 40 m; he stops 2 m short of its end
+    const gr = w.grid, wet = (x, z) => { const c = gr.worldToCell(x, z); return gr.isWater(c.i, c.j); };
+    const from = [+b.x.toFixed(1), +b.z.toFixed(1)];
+    let leg = null, open = 0;
+    for (let a = 0; a < 360; a += 5) {
+      const dx = Math.cos(a * Math.PI / 180), dz = Math.sin(a * Math.PI / 180);
+      let d = 1;
+      while (d <= 40 && [-1.2, 0, 1.2].every((q) => wet(b.x + dx * d - dz * q, b.z + dz * d + dx * q))) d += 0.5;
+      if (d - 0.5 > open) { open = d - 0.5; leg = [+(b.x + dx * (open - 2)).toFixed(1), +(b.z + dz * (open - 2)).toFixed(1)]; }
+    }
+    const [lx, lz] = leg || [27.9, 49.6];
+    b.driver.issue({ type: 'move', x: lx, z: lz });
+    // first the turn onto the leg (his strokes go on its outside), then, under way straight, stroke by stroke
+    let turned = 0;
+    for (let k = 0; k < 400 && turned < 20; k++) { await S.run(1, b); turned = cf.rig.act > 0.99 && Math.abs(cf.rig.yawRate) < 0.3 && (b.speed || 0) > 1 ? turned + 1 : 0; }
     const sides = [];
-    let lastN = null;
-    await S.run(240, b, () => { if (cf.rig.act > 0.99 && cf.rig.n !== lastN) { lastN = cf.rig.n; sides.push(cf.rig.st.s); } });
-    return { n: b.occupants.length, spare, spareHull, sides };
+    let lastN = cf.rig.n, runs = 0;
+    // until two whole runs (one each side) lie between the partial first and last ones, at most 15 s: the strokes run
+    // on the test's own frames only (G.stop() in S.clear)
+    for (let k = 0; k < 900 && runs < 4; k += 10) {
+      await S.run(10, b, () => { if (cf.rig.act > 0.99 && cf.rig.n !== lastN) { lastN = cf.rig.n; if (cf.rig.st.s !== sides[sides.length - 1]) runs++; sides.push(cf.rig.st.s); } });
+    }
+    return { n: b.occupants.length, spare, spareHull, sides, from, leg, open, to: [+b.x.toFixed(1), +b.z.toFixed(1)] };
   });
   t.log(JSON.stringify(solo));
   const sp = solo.spare;

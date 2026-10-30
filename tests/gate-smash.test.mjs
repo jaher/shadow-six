@@ -2,7 +2,7 @@
  * Gate smash (design-spec §3.7 ramming addendum), browser: M2's escape truck rams gate_se at escape speed → the
  * pre-fractured gate breaks into Rapier pieces that fly, settle within ~4 s and freeze into wreckage with no piece
  * inside another, the ground or a wall; the truck keeps going and the mission completes. A slow push stops at the
- * gate and the gate holds. Screens: docs/screenshots/gate-smash-strip.jpg (8 frames, default camera) and
+ * gate and the gate holds. Screens (tests/out; docs/screenshots with DOC_SHOTS=1): gate-smash-strip.jpg (8 frames, default camera) and
  * gate-smash-close.jpg (zoom 2 aftermath).
  */
 import { saveJpeg } from './bodies-physics.test.mjs';

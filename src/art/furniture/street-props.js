@@ -7,6 +7,7 @@
  * @module art/furniture/street-props
  */
 import * as THREE from 'three';
+import { scopedMemo, textureBytes } from '../../engine/scoped-assets.js';
 
 const V2 = (r, y) => new THREE.Vector2(r, y);
 const lathe = (pts, seg = 12, y0 = 0) => new THREE.LatheGeometry(pts.map(([r, y]) => V2(r, y + y0)), seg);
@@ -103,10 +104,17 @@ export function propParts(type, o = {}) {
 // ------------------------------------------------------------------------------------------ canvas textures
 
 const CANVAS = new Map();
-/** Canvas texture: sign text (black on yellow Wehrmacht board / blue enamel plate / white milestone) or posters. */
+/**
+ * Canvas texture: sign text (black on yellow Wehrmacht board / blue enamel plate / white milestone) or posters.
+ * Scoped to the missions that draw it (engine/scoped-assets.js): once no kept mission uses a text its GPU copy is freed,
+ * instead of every board of the session staying uploaded (tests/memory-cycle).
+ */
 export function signTexture(kind, text = '') {
-  const key = kind + '|' + text;
-  if (CANVAS.has(key) || typeof document === 'undefined') return CANVAS.get(key) || null;
+  if (typeof document === 'undefined') return null;
+  return scopedMemo('street:sign', CANVAS, kind + '|' + text, () => drawSign(kind, text), { bytes: textureBytes, free: (t) => t.dispose() });
+}
+
+function drawSign(kind, text) {
   const c = document.createElement('canvas');
   c.width = 256; c.height = kind === 'poster' ? 512 : 128;
   const g = c.getContext('2d');
@@ -144,7 +152,6 @@ export function signTexture(kind, text = '') {
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   if (kind === 'poster') { t.wrapS = THREE.RepeatWrapping; t.repeat.set(3, 1); }
-  CANVAS.set(key, t);
   return t;
 }
 

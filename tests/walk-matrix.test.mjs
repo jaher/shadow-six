@@ -32,7 +32,9 @@ export default async function walkMatrix(page, t) {
     for (const e of W.enemies) e.coneVisible = false;
     const hurt = [];
     for (const ev of ['unit:damaged', 'unit:downed', 'unit:killed']) W.events.on(ev, (p) => hurt.push(`${ev} ${p.unit?.tag || p.unit?.id} by ${p.source?.tag || p.source?.id || p.source || ''} ${p.cause || ''} t=${W.time.toFixed(1)}`));
-    const spot = H.openSpot(W, 100, 60, 14);
+    // open snow by the camp; M3's art (the camp's trodden ground, the river banks) left no 14 m disc of it there, so an
+    // 8 m one when the wide one is gone (the staging spans −7 … +4 m along x, the marker +7 m)
+    const spot = H.openSpot(W, 100, 60, 14) || H.openSpot(W, 100, 60, 8);
     H.clearArea(W, spot.x, spot.z, 26);
     g.setZoom?.(2);
     const inv = new THREE.Matrix4();

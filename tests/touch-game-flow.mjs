@@ -8,9 +8,8 @@
  * scrolled into view, EXIT by tap) in landscape and upright. Multi-touch goes through CDP Input.dispatchTouchEvent (src/input/touch-game.js).
  */
 import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { DEVICES } from './touch-flow.mjs';
-import { ROOT } from './harness.mjs';
+import { docShotPath } from './harness.mjs';
 
 const IGNORED = [/GPU stall due to ReadPixels/i, /GL Driver Message/i, /Automatic fallback to software WebGL/i];
 
@@ -59,8 +58,8 @@ export async function openPhone(t, name) {
     t(box, `${name}: "${sel}" is on screen`);
     await page.touchscreen.tap(box.x, box.y);
   };
-  /** docs/screenshots/touch-game-<n>.jpg at CSS-pixel size (≤ 1000 px wide). */
-  const shot = (n) => page.screenshot({ path: join(ROOT, 'docs', 'screenshots', `touch-game-${n}.jpg`), type: 'jpeg', quality: 72, scale: 'css' });
+  /** tests/out/touch-game-<n>.jpg (docs/screenshots with DOC_SHOTS=1) at CSS-pixel size (≤ 1000 px wide). */
+  const shot = (n) => page.screenshot({ path: docShotPath(`touch-game-${n}.jpg`), type: 'jpeg', quality: 72, scale: 'css' });
   return { ctx, page, errs, touch, drag, pinch, tapEl, shot, vp: dev.viewport };
 }
 
@@ -367,7 +366,8 @@ async function hudPinchStage(c) {
  * Stage 2c: the notebook minimap with a finger (src/ui/notebook-touch.js). A tap opens it and it stays open after the
  * finger lifts; a tap on it closes it again; a drag on the open map moves the view; a pinch zooms the sketch (never
  * the page); the dog-ear opens BRIEFING NOTES with one tap; none of it reaches the game map (no orders).
- * Pixel 7 writes docs/screenshots/notebook-tap-toggle.jpg (closed | open after the tap, finger lifted | closed again).
+ * Pixel 7 writes tests/out/notebook-tap-toggle.jpg (docs/screenshots with DOC_SHOTS=1) (closed | open after the
+ * tap, finger lifted | closed again).
  */
 async function notebookStage(c) {
   const { t, S, tag, page, tick } = c;
@@ -483,7 +483,7 @@ async function notebookStage(c) {
       });
       return cv.toDataURL('image/jpeg', 0.8);
     }, frames);
-    writeFileSync(join(ROOT, 'docs', 'screenshots', 'notebook-tap-toggle.jpg'), Buffer.from(url.split(',')[1], 'base64'));
+    writeFileSync(docShotPath('notebook-tap-toggle.jpg'), Buffer.from(url.split(',')[1], 'base64'));
   }
 }
 
@@ -509,7 +509,7 @@ async function portraitStage(c) {
       return { w: x1 - x0 + 1, h: y1 - y0 + 1 };
     };
     const out = {};
-    for (const e of vis('.hud-portrait, .hud-icon:not(.hud-lamp), .hud-hand, .touch-menu')) {
+    for (const e of vis('.hud-portrait, .hud-icon:not(.hud-lamp), .hud-camdial, .hud-hand, .touch-menu')) {
       out[e.dataset.role || e.className.split(' ').find((k) => k !== 'hud-icon') || e.className] = span(e, (x, y) => { const h = document.elementFromPoint(x, y); return h === e || e.contains(h); });
     }
     const kn = document.querySelector('.hud-knapsack'), kr = kn.getBoundingClientRect();
@@ -547,6 +547,19 @@ async function portraitStage(c) {
   await helpFits(c, 'portrait');
   await page.setViewportSize({ width: W, height: H });
   await page.waitForTimeout(300);
+  // back in landscape: the camera dial (top bar, left of the eye; 41 px here) reaches 44 × 44 px with its pad too
+  await page.evaluate(() => window.__game.render());
+  const dial = await page.evaluate(() => {
+    const e = document.querySelector('.hud-camdial'), r = e.getBoundingClientRect();
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    for (let y = Math.max(0, r.top - 30); y < r.bottom + 30; y++) for (let x = Math.max(0, r.left - 30); x < r.right + 30; x++) {
+      const h = document.elementFromPoint(x, y);
+      if (h === e || e.contains(h)) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+    }
+    return { box: [Math.round(r.width), Math.round(r.height)], w: x1 - x0 + 1, h: y1 - y0 + 1 };
+  });
+  t.log(tag, 'landscape camera dial', JSON.stringify(dial));
+  t(dial.w >= 44 && dial.h >= 44, `${tag} landscape: the camera dial is a ≥ 44 × 44 px target (${JSON.stringify(dial)})`);
 }
 
 /** Stage 3: portraits, long press (cone), the eye tool, the knife from the bag + CANCEL, then knife the guard, MENU. */

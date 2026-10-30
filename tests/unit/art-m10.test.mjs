@@ -226,6 +226,14 @@ test('art m10 pass 2: the landing ground lies flat on the shelf top inside the r
   assert.ok(T.z + T.span / 2 <= A.strip.z0 + 1 && inPoly([T.x - T.w, T.z - T.span / 2], shelf) && inPoly([T.x + T.len, T.z + T.span / 2], shelf));
 });
 
+test('art m10: the airstrip decal frees its material (and canvas map) with its geometry (the map unload disposes geometries only)', () => {
+  const m = buildAirstrip(M10_AIRSTRIP);
+  let freed = 0;
+  m.material.addEventListener('dispose', () => freed++);
+  m.geometry.dispose();
+  assert.equal(freed, 1, 'material disposed with the plane (tests/memory-cycle: M10 left a 1904 × 760 canvas on the GPU)');
+});
+
 test('art m10 pass 2: the new pieces stand clear of every route, post, spawn, the solution walks and the Junkers\' sweep', () => {
   const ids = ['wreck_sdkfz', 'crater_e', 'dump_stores_e', 'dump_drums_e', 'dump_crates_e', 'graves_sw'];
   assert.deepEqual(M10_DRESSING.map((q) => q.id).sort(), [...ids].sort());

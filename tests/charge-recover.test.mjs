@@ -142,7 +142,9 @@ export default async function chargeRecover(page, t) {
   // ---------------- touch: a tap on the charge (Pixel 7, landscape)
   const P = await openPhone(t, 'Pixel 7');
   try {
-    await P.page.evaluate(LOAD, { x: 24, z: 46 });
+    // open ground W of the paddock fence (the M0 art pass parked a lorry at (26, 45.6), 8e86e2e74: the old spot (24, 46)
+    // stood the Sapper against it, and he never got back to the charge)
+    await P.page.evaluate(LOAD, { x: 14, z: 46 });
     c = await P.page.evaluate(PLANT);
     await P.page.evaluate(() => { const G = window.__game.game; G.input.select(G.world.commandos.filter((u) => u.role === 'sapper')); window.__game.render(); });
     t.log('touch planted', JSON.stringify(c));

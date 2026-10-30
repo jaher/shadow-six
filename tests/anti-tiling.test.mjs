@@ -9,11 +9,12 @@
  *  - paving (gallery, high): granite quay and flag plaza (slab shuffle), setts road (course shuffle + per-stone
  *    variation), Belgian blocks, tar macadam (hex tiling)
  *  - ground (M1, low preset: a single texture sample): the 3 m repeat of the rocky / old-snow layers (domain warp)
- *  - kit terrain (M11 plateau, high): the sand prism's 12 m procedural texture (generic material hex tiling)
+ *  - kit terrain (M11 plateau, high): the sand prisms (12 m procedural texture until art pass 2, now the library sand set
+ *    at a 3 m repeat; measured at a 12 m lag, a whole number of repeats either way; generic material hex tiling)
  * Seams (fix/anti-tiling-seams): two abutting pieces of plaster floor and brick wall (separate meshes with continuous
  * world-scale uvs) must show no luminance step along their shared edge beyond the texture's own step inside a piece
- * (a per-object uv offset / tone did); the M11 procedural textures must tile and be crease-free (their straight seams
- * were cut up by hex tiling into straight seams all over the plateau).
+ * (a per-object uv offset / tone did); the textures the M11 plateau draws must tile and be crease-free (the procedural
+ * ones' straight seams were cut up by hex tiling into straight seams all over the plateau; now its library albedos).
  * Perf: the paving's anti-tiling (gallery) and the kit materials' hex tiling (M12 rooftops) are toggled on / off in
  * the same page; each costs well under a millisecond per frame on high.
  */
@@ -187,13 +188,22 @@ export default async function (page, t) {
     await load('m11', 'high');
     for (const u of [...G.world.commandos, ...G.world.enemies]) if (u.object3d) u.object3d.visible = false;
     out.m11 = measure({ zoom: 0.5, cx: 26, cz: 26, rect: [6, 16, 40, 38], y: 6, T: 12 });
-    // its procedural sand / strata textures tile (no step where a repeat ends) and have no creases (smooth noise fade):
-    // a straight seam in the texture becomes a straight seam on the plateau every 12 m, and more under hex tiling
+    // the textures its prisms draw tile (no step where a repeat ends) and have no creases: a straight seam in a texture
+    // becomes a straight seam on the plateau every repeat, and more under hex tiling. Since M11 art pass 2 (cf444e8fb)
+    // the prisms are library PBR sets (art/kit-terrain.js terrainPrism → dressing 'sand' / 'rockOchre', 3 m repeat), not
+    // the procedural DataTextures: their maps are GPU-compressed in place, so the albedo files they load are read here
     {
-      const texs = [];
-      G.renderer.scene.getObjectByName('m11:terrain')?.traverse((o) => { if (o.isMesh) for (const m of [].concat(o.material)) if (m.map?.isDataTexture && !texs.includes(m.map)) texs.push(m.map); });
-      out.m11tex = texs.slice(0, 2).map((t) => {
-        const { data, width: n } = t.image, px = (x, y) => data[((y % n) * n + (x % n)) * 4];
+      const { dressingTextureSet } = await import('/src/art/dressing.js');
+      const { libTextureURL } = await import('/src/art/building-library.js');
+      const sets = [];
+      G.renderer.scene.getObjectByName('m11:terrain')?.traverse((o) => { if (o.isMesh) for (const m of [].concat(o.material)) if (m.map && /^dressing:/.test(m.name) && !sets.includes(m.name.slice(9))) sets.push(m.name.slice(9)); });
+      out.m11tex = [];
+      for (const set of sets.slice(0, 2)) {
+        const file = `${dressingTextureSet(set)}_diff.jpg`, u = libTextureURL(file);
+        const bmp = await createImageBitmap(await (await fetch(u.hd || u.url)).blob());
+        const n = Math.min(bmp.width, bmp.height), cv = new OffscreenCanvas(n, n), cx = cv.getContext('2d');
+        cx.drawImage(bmp, 0, 0, n, n);
+        const data = cx.getImageData(0, 0, n, n).data, px = (x, y) => data[((y % n) * n + (x % n)) * 4];
         let wrap = 0, inner = 0, crease = 0, flat = 0, nc = 0, nf = 0;
         for (let y = 0; y < n; y++) {
           wrap += Math.abs(px(n - 1, y) - px(0, y)) + Math.abs(px(y, n - 1) - px(y, 0));
@@ -203,8 +213,8 @@ export default async function (page, t) {
             if (x % 32 === 0) { crease += d2; nc++; } else { flat += d2; nf++; }
           }
         }
-        return { wrapStep: +(wrap / (2 * n) / (inner / (2 * n * (n - 2)))).toFixed(2), crease: +((crease / nc) / (flat / nf)).toFixed(2) };
-      });
+        out.m11tex.push({ set, file: (u.hd || u.url).split('/').slice(-2).join('/'), wrapStep: +(wrap / (2 * n) / (inner / (2 * n * (n - 2)))).toFixed(2), crease: +((crease / nc) / (flat / nf)).toFixed(2) });
+      }
     }
 
     // ---- kit / library materials: hex tiling on / off (M12 rooftops, zoom 0.5, high) --------------------

@@ -182,7 +182,8 @@ export async function warmVehicleArt(renderer, scene, camera, renderFrame = null
   if (!renderer || !scene || !camera || !vehicleArtReady()) return { ms: 0, visuals: 0, wrecks: 0 };
   const vis = liveVehicleVisuals();
   await Promise.all(vis.map((h) => h.ready?.catch?.(() => null)));
-  const swap = vis.filter((h) => h.destroyed === false); // single models shown intact (consists forward to their cars)
+  // single models shown intact (consists forward to their cars); not those never destroyed (no wreck: the flyovers)
+  const swap = vis.filter((h) => h.destroyed === false && h.hasWreck !== false);
   await Promise.all(swap.map((h) => h.setDestroyed(true).catch(() => null)));
   const wrecks = swap.filter((h) => h.destroyed).length;
   const group = new THREE.Group(); group.name = 'vehicle-warmup';
@@ -1218,6 +1219,12 @@ export function tickVehicles(dt, camera, wind = null) {
  * Register a per-frame ticker `fn(dt, wind, camera)` (returns the unregister function); `onRelease` runs at the
  * mission unload (ambient flyovers stop their engine loops, free their aircraft).
  */
+/** Run `fn` when the mission's vehicles are released (releaseVehicles, on unload). @returns {() => void} unregister */
+export function addVehicleReleaser(fn) {
+  S.releasers.add(fn);
+  return () => S.releasers.delete(fn);
+}
+
 export function addVehicleTicker(fn, onRelease = null) {
   S.tickers.add(fn);
   if (onRelease) S.releasers.add(onRelease);

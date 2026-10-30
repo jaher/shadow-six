@@ -83,6 +83,7 @@ export class TopBar {
     this.row.replaceChildren();
     this.cards.clear();
     this.warn.clear();
+    this.cardUnit = null; // (the last speaker of the previous mission: a unit holds its whole world)
     const order = CONFIG.units.selectOrder || [];
     const list = [...(world?.commandos || [])].sort((a, b) => {
       const ga = a.role === 'guest' || a.guest ? 1 : 0, gb = b.role === 'guest' || b.guest ? 1 : 0;

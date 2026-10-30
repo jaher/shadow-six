@@ -107,6 +107,12 @@ export default async function (page, t) {
       const gal = (await import('/src/missions/dev/wire-gallery.js')).default;
       await G.loadMission({ ...gal, theater, weather: { wind: { speed: 0 } } }); g.start(); g.advance(0.5); G.render(1 / 60, 1);
       await G.mapHandle.ready;
+      // the settled look: every texture loaded and every smaller first copy replaced by its full one (engine/hd-textures.js
+      // upgrades them after a load, a few at a time). Measured while they landed, the desert count sat on its bound:
+      // 23-24 of 49 strands before the upgrades, 25 after — pass or fail by timing
+      const TM = await import('/src/engine/texture-memory.js'), HD = await import('/src/engine/hd-textures.js');
+      await TM.texturesLoaded();
+      for (let i = 0; i < 300 && HD.pendingHdTextures().length; i++) { await HD.hdTexturesIdle(); await new Promise((r) => setTimeout(r, 100)); }
       const W = G.mapHandle.wire, cam = G.cameraController.camera, cnv = G.renderer.renderer.domElement;
       W.finishBarbs();
       const c2 = document.createElement('canvas'); c2.width = cnv.width; c2.height = cnv.height;
