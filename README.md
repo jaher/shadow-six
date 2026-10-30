@@ -62,6 +62,12 @@ The Green Beret knifes one guard and lays a decoy; the Sniper shoots one guard o
 
 [![Mission 6 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 8 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m06.jpg)](docs/screenshots/storyboards/m06.jpg)
 
+### Mission 7 · Chase of the Wolves
+
+West, the Spy takes a German uniform from the clothesline, injects the gunner of gun 23 and the dock yard's two walkers, e15 and e16, holds patrol 14 in talk while the Sapper takes the four time bombs from the air-drop crate, and holds patrol 21 at the slipway while the Sapper and the Driver crawl down the yard to the quay's edge; east, the Green Beret's decoy holds the heights' two sentries and patrol 3 and a line of prints draws e5 to it, the Green Beret knifes e4, e6 and the rear man of patrol 10 while the Marine harpoons its sergeant and then e11 from the water, and the Marine takes the rowboat, the Green Beret steps in, and he rows it round the lighthouse to the pens; at gun 23 the rowboat picks up the Sapper, the Driver and the Spy, who keeps e20 in talk; the Sapper sets a time bomb by the torpedoes on U-boat 1's after deck and, from the rowboat, another on U-boat 2; all five row round the lighthouse to the red buoy. *Game time 37:18 (film 6:06), 0 detections, 8 kills, all 5 commandos alive.*
+
+[![Mission 7 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 4 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m07.jpg)](docs/screenshots/storyboards/m07.jpg)
+
 ### Mission 8 · Pyrotechnics
 
 The Green Beret knifes sixteen guards from behind, several drawn in by a decoy, and carries three barrels into place in and beside the oil store; the Sniper shoots five guards, and his sixth round sets off a chain of barrels that destroys the oil store, the reservoir and both fuel tanks (and three more guards); both leave in the jeep. *Game time 111:28 (film 10:10), 0 detections, 24 kills, both commandos alive.*
@@ -141,8 +147,8 @@ first, see [Status](#status)); until then it keeps its single in-game frame.
 
 <table>
 <tr>
-<td align="center" width="33%"><a href="verify/reference/gameplay-m07.png"><img src="verify/reference/gameplay-m07.png" width="100%" alt="Mission 7: The first U-boat blowing up at the pier as the after-deck charge detonates."></a><br><sub><b>Mission 7</b> · Chase of the Wolves</sub></td>
 <td align="center" width="33%"><a href="verify/reference/gameplay-m17.png"><img src="verify/reference/gameplay-m17.png" width="100%" alt="Mission 17: The squad moving up the snowy forest road, point man ringed."></a><br><sub><b>Mission 17</b> · Before Dawn</sub></td>
+<td></td>
 <td></td>
 </tr>
 </table>
