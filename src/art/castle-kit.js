@@ -40,6 +40,11 @@ export const CASTLE_SETS = {
   paint: ['steel_painted', 0x8a8f7e, 0x5d6253, 1.5, 0.7],     // Wehrmacht field grey (dunkelgrau RAL 7021 weathered)
   rubber: ['cast_iron', 0x3a3a3a, 0x222222, 1.0, 0.5],
   signal: ['steel_painted', 0xc8382a, 0x9a2a1e, 1.5, 0.6],   // signal red (lever handles, warning bands)
+  // M20 second art pass (art/m20-dressing.js): spruce bark, the pale end grain of fresh-cut logs, filled sandbags, sand
+  bark: ['log_hewn', 0x8c7a64, 0x4d4236, 1.3, 1.3],
+  endgrain: ['plaster_rough', 0xead2a2, 0xc9ab78, 0.6, 0.5],
+  burlap: ['burlap_bag', 0xcfc2a0, 0x8a7d5f, 0.8, 1.1],
+  sand: ['sand', 0xc9b998, 0x9a8a6a, 1.6, 0.9],
 };
 
 const TEX = new Map(), MATS = new Map();

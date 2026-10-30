@@ -447,6 +447,46 @@ test('m01.cut: the raft\'s wait is filmed from the beach; windows, shots and not
   assert.deepEqual([windows(() => undefined), shots(() => undefined), notes(() => undefined)], [[], [], []], 'a run without those checkpoints gets no cut');
 });
 
+test('m11.cut: the Sapper\'s three charges are filmed in real time and the camera visits the rigs the quarry burst left out of the picture', async () => {
+  const { shots, windows, notes, TITLES } = await import('../../tools/solutions/m11.cut.mjs');
+  const at = { G2: 941.9 }, cp = (k) => at[k];
+  const ev = [ // (pass 1's events: the yard rig's charge, the tunnel mouth's, the valley rig's; a kill and a blast are not charges)
+    { t: 299.6, kind: 'plant', what: 'remote', by: 'sapper', x: 31.5, y: 0, z: 84.2 },
+    { t: 120, kind: 'kill', tag: 'e21', x: 80, y: 0, z: 90 },
+    { t: 596.2, kind: 'plant', what: 'remote', by: 'sapper', x: 51.3, y: 6, z: 32.6 },
+    { t: 745.4, kind: 'plant', what: 'remote', by: 'sapper', x: 89.5, y: 0, z: 80.5 },
+    { t: 941.9, kind: 'blast', what: 'structure', x: 80, y: 6, z: 33 },
+  ];
+  const W = windows(cp, () => undefined, ev), S = shots(cp, () => undefined, ev), N = notes(cp, () => undefined, ev);
+  assert.equal(W.length, 4, 'one window per charge, one for the visit');
+  assert.ok(W.every((w) => w.speed <= 1.5 && w.t1 > w.t0), 'real time: nobody is a dot at 8×');
+  for (const [i, p] of ev.filter((e) => e.kind === 'plant').entries()) assert.ok(W[i].t0 < p.t && W[i].t1 > p.t + 1, `charge ${i + 1}: from before his hand goes down (1 s) to after the bomb is there`);
+  const plantShots = S.slice(0, 3);
+  assert.deepEqual(plantShots.map((s) => [s.x, s.z]), [[31.5, 84.2], [51.3, 32.6], [89.5, 80.5]], 'each charge is filmed where it was set');
+  const tour = S.slice(3);
+  assert.equal(tour.length, 3);
+  assert.ok(tour[0].t0 >= at.G2 + 5 - 1e-9, 'the visit starts after the director\'s own quarry shot (5 s after the burst)');
+  for (let i = 1; i < tour.length; i++) near(tour[i].t0, tour[i - 1].t1, 1e-9, 'the shots of the visit run on from one another');
+  assert.ok(tour[0].z > 80 && tour[0].x < 40, 'first the yard rig (30.5, 89)');
+  assert.ok(tour[1].z < 40 && tour[1].x > 45 && tour[1].x < 60, 'then the tunnel mouth (53, 30)');
+  assert.ok(tour[2].x > 90 && tour[2].z > 75, 'then the valley rig (95, 81.5)');
+  assert.ok(S.every((s) => s.t1 > s.t0 && Number.isFinite(s.x) && Number.isFinite(s.z) && s.zoom > 0.3 && s.zoom < 1.3), 'shots frame something');
+  assert.ok(tour.every((s) => (s.prio ?? 0) >= 1), 'the visit wins over a kill shot that overlaps it');
+  near(W[3].t0, tour[0].t0, 1e-9, 'the visit\'s window covers its shots'); near(W[3].t1, tour[2].t1, 1e-9);
+  assert.equal(N.length, 6);
+  for (let i = 1; i < N.length; i++) assert.ok(N[i].t0 >= N[i - 1].t1 - 1e-9, 'notes do not overlap');
+  for (const n of N) {
+    assert.ok(n.text.length <= CAPTION_MAX, 'a note fits the caption box');
+    let film = 0; // film seconds the note is on screen: each window's share of it, at that window's speed
+    for (const w of W) film += Math.max(0, Math.min(n.t1, w.t1) - Math.max(n.t0, w.t0)) / w.speed;
+    assert.ok(film >= readingTime(n.text), `"${n.text.slice(0, 30)}…" is on screen ${film.toFixed(1)} s: less than its reading time`);
+  }
+  assert.match(TITLES.H, /^H · /, 'the stage title that runs through the visit still names its stage');
+  const noPlants = notes(cp, () => undefined, []);
+  assert.equal(noPlants.length, 3, 'without the charges the step captions are left alone (only the visit is worded)');
+  assert.deepEqual([windows(() => undefined, () => undefined, []), shots(() => undefined, () => undefined, []), notes(() => undefined, () => undefined, [])], [[], [], []], 'a run without those checkpoints or charges gets no cut');
+});
+
 // ---------------------------------------------------------------- the camera's ground and the step captions
 test('film-camera: the view is centred on the walking surface (a deck), not on the terrain relief under it', () => {
   // M5: the summit is a 16 m deck; the barracks' footprint (a 6 m radius here) has no walking surface and the relief under it says 0.5

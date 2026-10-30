@@ -34,6 +34,7 @@
 import { plateauWalkways, rectPoly } from './scripts/m05.js';
 import { m20Script } from './scripts/m20.js';
 import { joinStructures } from './schema.js';
+import { M20_DRESSING, M20_DRESSING_JOINS } from '../art/m20-dressing.js';
 
 const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (enemy-brain)
@@ -214,7 +215,10 @@ const LEVELS = [
 /** §5.2 buildings. The château (o1) is lifted onto its terrace by the script. */
 export const HQ = { id: 'hq', type: 'house', variant: 'chateau_hq', label: 'Headquarters', x: 15.5, z: 50, rot: 0, w: 22, d: 24, h: 20,
   mat: 'stone', roof: 'roofSlate', flag: true, destructible: true, bombOnly: true, baseY: Y.HQ,
-  walkways: [{ points: [[19.5, 60], [26, 60]], width: 3, y: Y.ROOF }] }; // the roof ledge under the turret (NL "the ladder up")
+  walkways: [{ points: [[19.5, 60], [26, 60]], width: 3, y: Y.ROOF }], // the roof ledge under the turret (NL "the ladder up")
+  // art pass 2: the porch steps' baked AO came out black at both ends of the flight (two black slabs at the door from
+  // the default camera): the dressed-stone trim keeps the live AO only
+  dropAo: 'kit:limestone_smooth' };
 const BUILDINGS = [
   HQ,
   { id: 'hq_wing', type: 'house', variant: 'chateau_wing', x: 32.25, z: 42, rot: 0, w: 11.5, d: 20, h: 8, mat: 'stone', roof: 'roofSlate', baseY: Y.HQ },
@@ -258,7 +262,10 @@ const MILITARY = [
   { id: 'flak_n', type: 'flak', variant: 'flak38_quad_round_emplacement', x: 88, z: 19, r: 2.2, h: 1, block: 0, baseY: Y.N },
   { id: 'gun_hq', type: 'aa_gun', variant: 'towed_field_gun', x: 22, z: 70, rot: 0, w: 3, d: 2, h: 1.6, block: 0, baseY: Y.HQ },
   crates('crates_hq1', 27, 66, 1.4, 1.4, { block: 0, baseY: Y.HQ }), crates('crates_hq2', 29, 67.5, 1.4, 1.4, { block: 0, baseY: Y.HQ }),
-  crates('crates_n3', 64, 28, 1.4, 1.4, { block: 0, baseY: Y.N }), crates('crates_n4', 66, 30, 1.4, 1.4, { block: 0, baseY: Y.N }),
+  crates('crates_n3', 64, 28, 1.4, 1.4, { block: 0, baseY: Y.N }),
+  // (art pass 2: authored at (66, 30), the browser's placement pushed its drawn stack 2.9 m S, over the N range's
+  // cornice, 9.5 m up in the air; it stands on the rampart beside where it was drawn, 0.6 m in from the edge, pinned)
+  crates('crates_n4', 66.9, 30.75, 1.4, 1.2, { block: 0, baseY: Y.N, fixed: true }),
   { id: 'sl_hq', type: 'searchlight', x: 36.8, z: 74.8, r: 0.6, h: 1.8, block: 0, baseY: Y.HQ }, // (clear of L_in's head at (36.5, 77): whoever came up it walked through it)
   { id: 'sl_t', type: 'searchlight', x: 30, z: 58.5, r: 0.6, h: 1.8, block: 0, baseY: Y.TUR },
   { id: 'sl_n', type: 'searchlight', x: 93, z: 30, r: 0.6, h: 1.8, block: 0, baseY: Y.N },
@@ -289,7 +296,9 @@ const NATURE = [
   ...[[33, 118], [39, 125], [146, 60], [152, 88], [134, 150], [152, 108], [145, 26], [153, 22], [6, 105]].map(([x, z], k) => tree(x, z, k)),
 ];
 
-const STRUCTURES = [...CURTAIN, ...LEVELS, ...BUILDINGS, ...MILITARY, ...RANGE_PROPS, ...NATURE];
+// (art pass 2 set dressing: the forest-edge log piles, the range's works corner, the N Flak's ammunition and rangefinder,
+// the NE terrace's fire point, the SE road's wayside cross: art/m20-dressing.js)
+const STRUCTURES = [...CURTAIN, ...LEVELS, ...BUILDINGS, ...MILITARY, ...RANGE_PROPS, ...NATURE, ...M20_DRESSING];
 
 // ---------------------------------------------------------------- links (dossier §6.1): climbs (GB), ladders + stairs (everyone)
 /** The castle's single climb spot: the W wall below the HQ [P][DE "only one possibility"][NL][ooc]. */
@@ -537,7 +546,8 @@ export default {
     ['cw_sw', 'gh_sw'], ['cw_s', 'gh_sw'], ['cw_s', 'gh_se'], ['cw_e1', 'gh_se'], ['cw_w', 'crag'], ['cw_w', 't_hq'],
     ['cw_w', 't_sw'], ['cw_w', 't_par_hq_s'], ['cw_sw', 't_sw'], ['cw_e2', 't_n'], ['crag', 'n_range'], ['gh_in', 't_wb'],
     ['blk_ne', 't_ne'], ['n_range', 't_n'], ['n_range', 't_ne'], ['n_range', 't_nw'], ['n_range', 't_par_n'], ['hq', 't_hq'],
-    ['hq_wing', 't_hq'], ['turret', 't_hq'], ['flak_hq', 't_hq'], ['flak_n', 't_n'], ['sl_hq', 't_par_hq_e'], ['sl_t', 'turret']]),
+    ['hq_wing', 't_hq'], ['turret', 't_hq'], ['flak_hq', 't_hq'], ['flak_n', 't_n'], ['sl_hq', 't_par_hq_e'], ['sl_t', 'turret'],
+    ...M20_DRESSING_JOINS]), // (art pass 2: the N Flak's ammunition, rangefinder and barrel cases on T_n, the fire point on T_ne)
   items: [],
   // §3.4 the Spy's uniform on the clothesline in the W quarter ('use' it: the uniform goes in his kit; he then puts it on)
   interactables: [{ id: 'uniform_line', interactKind: 'clothesline', x: 42.5, z: 87.5 }],

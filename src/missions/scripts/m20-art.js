@@ -14,6 +14,7 @@ import { libraryVisual } from '../../art/building-props.js';
 import { buildCliff } from '../../art/dressing.js';
 import { due, runSync } from '../../engine/slice.js';
 import { buildFlakTowed, buildFlakEmplacement, buildFieldGun, buildTargetFrame, buildBulletStop, buildSearchlight, buildRangeBerm, buildLeverBox } from '../../art/field-guns.js';
+import { M20_DRESSING_BUILDERS } from '../../art/m20-dressing.js';
 
 const PARAPET_H = 1.4; // == m20_operation_valhalla.js PARAPET_H
 const BALUSTRADE_H = 1.7; // == m20_operation_valhalla.js BALUSTRADE_H (the forecourt screen hides a standing man)
@@ -151,7 +152,9 @@ function* towers(w, m) {
     if (due()) yield;
     let v = null;
     const y0 = s.baseY ?? 0;
-    if (s.id === 'turret') v = buildRoundTower({ x: s.x, z: s.z, r: s.w / 2, y0: 13, deckY: s.deckY ?? s.h, door: Math.PI / 2, seed: s.id });
+    const dress = M20_DRESSING_BUILDERS[s.variant];
+    if (dress) { v = dress({ ...s, y0: 0, seed: s.seed ?? s.id }); v.position.y += y0; } // art pass 2 set dressing (art/m20-dressing.js)
+    else if (s.id === 'turret') v = buildRoundTower({ x: s.x, z: s.z, r: s.w / 2, y0: 13, deckY: s.deckY ?? s.h, door: Math.PI / 2, seed: s.id });
     else if (/castle_range/.test(s.variant || '')) v = buildRange({ x: s.x, z: s.z, rot: s.rot, w: s.w, d: s.d, h: s.h, roofed: false, hidden: rangeHidden(m, s), seed: s.id }); // T_n is its roof
     else if (/stair_(tower|block)/.test(s.variant || '')) v = buildStairTower({ x: s.x, z: s.z, rot: s.rot, w: s.w, d: s.d, h: s.h, y0, seed: s.id });
     else if (s.variant === 'bartizan_round_decor') v = new Geo(s.id).build('bartizan'); // the curtain draws the S-corner bartizan

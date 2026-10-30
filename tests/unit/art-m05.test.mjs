@@ -277,10 +277,12 @@ test('art m05 pass 2b: the SE bunker\'s east side reads as part of the snowy bun
   assert.match(g2.keepSnowOn, /mud/, 'the berm keeps its snow');
   assert.match(g2.dropAo, /snow/); assert.match(g2.dropAo, /mud/); assert.match(g2.dropAo, /slab/);
   assert.doesNotMatch(g2.dropAo, /formwork/, 'the walls keep their baked AO (their darkness is the model\'s own)');
-  // M5 only: no other structure of any mission takes the options (M3's dam bunker keeps its net and its baked AO)
+  // M5 only: no other structure of any mission takes the options (M3's dam bunker keeps its net and its baked AO) —
+  // but M20's château, whose porch steps' baked AO drew black, drops the AO of its dressed-stone trim (art2/m20)
   for (const m of MISSIONS) for (const s of m.structures || []) {
     if (m.id === 'm05' && s.id === 'g2_bunker') continue;
-    assert.ok(s.hideMats === undefined && s.keepSnowOn === undefined && s.dropAo === undefined, `${m.id}/${s.id} takes the net / AO options`);
+    const ownAo = m.id === 'm20' && s.id === 'hq' && s.dropAo === 'kit:limestone_smooth';
+    assert.ok(s.hideMats === undefined && s.keepSnowOn === undefined && (s.dropAo === undefined || ownAo), `${m.id}/${s.id} takes the net / AO options`);
   }
   const rx = new RegExp(g2.hideMats), keepOn = new RegExp(g2.keepSnowOn);
   // snow triangles (sidecar frame, centroids) lying on the berm's earth: within 0.25 m over the earth under them; hanging on the net's old skirt: over 0.45 m

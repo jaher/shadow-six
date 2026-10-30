@@ -593,6 +593,14 @@ Each mission lists the §1 ids it needs, with counts. **Bold** marks an objectiv
   - `water_gate_underwater` with lever.
   - Gatehouses ×2 with `moat_bridge` ×2.
   - `outhouse`, `telegraph_pole`s.
+  - M20 art pass 2 (`src/art/m20-dressing.js`, procedural on castle-kit Geo; every piece where the solution's men never
+    come and off every sight line a guard holds on them): two Holzpolter of spruce logs along the Black Forest edge
+    outside the NE wall (`log_pile_spruce`, B.LOW); the range's works corner by the well and the fire-water basin
+    (`sandbag_point`: filled sandbags, sand mound, shovel, barrow; `target_rack` of spare targets; B.LOW); the N Flak's
+    ready ammunition, 1 m rangefinder and barrel cases on T_n; a Luftschutz fire point on T_ne (red buckets, sand box,
+    beater, water tub); a Black Forest wayside cross under its little roof by the SE road. Fixes: the T_n crate stack
+    the browser placement pushed over the N range's cornice (floating 9.5 m up) pinned on the rampart; the château's
+    porch steps (baked AO black at both ends) keep the live AO only (`dropAo`).
 
 ### BCD
 - **B1 Dying Light (Guernsey)** [i]. [MIS: 4 `CASA`, 3 `CUARTEL`, 4 `ESCALA`, 3 MG nests]

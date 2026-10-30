@@ -120,6 +120,8 @@ async function directorMain({ id, FPS, DRY, OPENING_SEC, HAS, MAX_FRAMES }) {
     const offs = [];
     offs.push(w.events.on('unit:killed', (p) => { const b = p.by ?? p.killer ?? p.source; sink.push({ t: w.time, kind: 'kill', tag: p.unit?.tag, who: p.unit?.kind, by: b?.role ?? b?.tag, x: p.unit?.x, y: p.unit?.y ?? 0, z: p.unit?.z }); }));
     offs.push(w.events.on('explosion', (p) => { if (Number.isFinite(p?.x) && Number.isFinite(p?.z)) sink.push({ t: w.time, kind: 'blast', what: p.kind, x: p.x, y: standHeight(w, p.x, p.z), z: p.z }); }));
+    // a charge set (the Sapper's hand goes down for a second, then the bomb is there): no generic shot of its own, but a cut can film it (m11.cut.mjs)
+    offs.push(w.events.on('bomb:armed', (p) => { const b = p?.bomb; if (b && Number.isFinite(b.x) && Number.isFinite(b.z)) sink.push({ t: w.time, kind: 'plant', what: p.kind, by: p.unit?.role, x: b.x, y: standHeight(w, b.x, b.z), z: b.z }); }));
     return () => offs.forEach((o) => o?.());
   };
   const objectivesDone = (w, seen, sink) => {
@@ -216,10 +218,11 @@ async function directorMain({ id, FPS, DRY, OPENING_SEC, HAS, MAX_FRAMES }) {
     shots.push({ t0: e.t - 3.5, t1: e.t + 5, x: e.x, y: e.y, z: e.z, zoom: 0.6, prio: 1 });
   }
   for (const e of ev1.filter((e) => e.kind === 'objective')) windows.push({ t0: e.t - 2, t1: e.t + 4, speed: 1 });
-  for (const s of CUT.shots?.(cp, objT) ?? []) shots.push(s);
-  for (const s of CUT.windows?.(cp, objT) ?? []) windows.push(s);
-  const follows = CUT.follows?.(cp, objT) ?? []; // { t0, t1, role, zoom }: the camera stays on that man (not the last one ordered)
-  const notes = CUT.notes?.(cp, objT) ?? [];     // { t0, t1, text }: a caption for a stretch (game time), in place of the step caption — the step captions only change at checkpoints
+  // (a cut's hooks get the checkpoints' times, the objectives' times and pass 1's events — kills, blasts, charges set (`plant`), objectives — each `{ t, kind, x, y, z, … }`)
+  for (const s of CUT.shots?.(cp, objT, ev1) ?? []) shots.push(s);
+  for (const s of CUT.windows?.(cp, objT, ev1) ?? []) windows.push(s);
+  const follows = CUT.follows?.(cp, objT, ev1) ?? []; // { t0, t1, role, zoom }: the camera stays on that man (not the last one ordered)
+  const notes = CUT.notes?.(cp, objT, ev1) ?? [];     // { t0, t1, text }: a caption for a stretch (game time), in place of the step caption — the step captions only change at checkpoints
 
   // ---------------------------------------------------------------- shared pieces of the opening and of pass 2
   /** the film camera of the world just loaded: the view may go 20 m past the map's scroll limits, so a man at the map's edge
