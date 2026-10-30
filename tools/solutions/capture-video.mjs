@@ -2,7 +2,7 @@
 /**
  * Film a mission solution in the real game (headless GPU Chromium, ?test=1): JPEG frames + a timeline for the mix.
  *   node tools/solutions/capture-video.mjs m03 --out <dir> [--max-frames N] [--fps 30] [--size 1280x720]
- *     [--no-opening] [--opening-sec 17] [--dry]
+ *     [--no-opening] [--opening-sec 17] [--frame-waits] [--dry]
  *
  * Pass 1 plays the solution logic-only (no frames, ~15 s) to learn WHEN things happen (kills, objectives,
  * checkpoints). Pass 2 reloads the mission and plays it again, this time drawing: every tick is Game.step(dt) and
@@ -18,6 +18,7 @@
  * Art opening (tools/solutions/film-opening.mjs): before the solution a slow pan over the places of the game's own
  * briefing tour (objectives, danger, extraction, the team's start) in a world of its own, stepped in real time and
  * discarded, under the mission's title card (≤ 20 s; --no-opening to skip). The solution then runs on a fresh load.
+ * A cut's `openingStops(tourStops, world, def)` may name the places and their order itself (m12.cut.mjs).
  * Sound: the game's own audio handlers (src/audio/event-map.js installHandlers) listen to the filmed run through a
  * recorder, so the timeline carries a cue sheet (what the game would have played, when, where) for mix-video.mjs.
  * Output: <out>/frames/000000.jpg…, <out>/timeline.json (frames: t, speed, card, camera; events with frame indices;
@@ -30,14 +31,18 @@ import { fileURLToPath } from 'node:url';
 
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : d; };
-const id = args.find((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1].startsWith('--') && !['--dry', '--no-opening'].includes(args[i - 1])));
-if (!id) { console.error('usage: capture-video.mjs <mission id, e.g. m01> --out <dir> [--no-opening] [--opening-sec 17] [--max-frames N] [--dry]'); process.exit(2); }
+const id = args.find((a, i) => !a.startsWith('--') && !(i > 0 && args[i - 1].startsWith('--') && !['--dry', '--no-opening', '--frame-waits'].includes(args[i - 1])));
+if (!id) { console.error('usage: capture-video.mjs <mission id, e.g. m01> --out <dir> [--no-opening] [--opening-sec 17] [--max-frames N] [--frame-waits] [--dry]'); process.exit(2); }
 const OUT = opt('out', '/tmp/capture');
 const FPS = +opt('fps', 30);
 const [W, H] = opt('size', '1280x720').split('x').map(Number);
 const MAX_FRAMES = +opt('max-frames', 0) || Infinity;
+const TRACE = args.includes('--trace'); // per-tick state hashes of both passes (src/debug/sim-trace.js): where drawing parted from the logic-only run
+const TRACE_DUMP = (opt('trace-dump', '') || '').split(':').map(Number); // (--trace-dump a:b: every line of the state kept for ticks a..b of both passes, the first lines that differ printed)
+const NOSHOT = args.includes('--no-shot'); // (with --trace: no screenshots, the run is drawn but not saved: a fast way to find a divergence)
 const DRY = args.includes('--dry'); // no frames: only the cut's timing (video length per stage), to tune the pacing
 const OPENING_SEC = args.includes('--no-opening') ? 0 : +opt('opening-sec', 17); // the art opening's budget (s); 0 = none
+const FRAME_WAITS = args.includes('--frame-waits'); // while everyone waits, frame the guards the wait is for (a cut's `FRAME_WAITS = true` does the same)
 const FR = join(OUT, 'frames');
 const HERE = dirname(fileURLToPath(import.meta.url));
 const HAS = { cut: existsSync(join(HERE, `${id}.cut.mjs`)), walkthrough: existsSync(join(HERE, `${id}.walkthrough.mjs`)) }; // (the optional files: imported only when there, so the page logs no 404)
@@ -53,34 +58,58 @@ try {
   page.setDefaultTimeout(0);
   page.on('console', (m) => { const t = m.text(); if (/^(CHECKPOINT|==|CAP)/.test(t)) console.log(t); });
   // recordings stay clean: no debug corner (info HUD, DEBUG buttons) in a frame, whatever the URL carries
-  await page.addInitScript(() => addEventListener('DOMContentLoaded', () => {
+  const hideDebug = () => addEventListener('DOMContentLoaded', () => {
     const st = document.createElement('style');
     st.textContent = '#dbg-info,#dbg-btn,#dbg-sol-btn,#dbg-wt-btn{display:none!important}';
     document.head.appendChild(st);
-  }));
+  });
+  await page.addInitScript(hideDebug);
   await h.openGame(page, '?test=1');
   const cdp = await page.context().newCDPSession(page);
   let tShot = 0;
-  await page.exposeFunction('__capFrame', async (meta) => {
+  const capFrameFor = (cdp) => async (meta) => { // (the frame writer of a page: its screenshot, numbered in capture order)
     if (nFrames >= MAX_FRAMES) return false;
     const t0 = Date.now();
-    const r = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 90 });
-    tShot += Date.now() - t0;
-    writeFileSync(join(FR, String(nFrames).padStart(6, '0') + '.jpg'), Buffer.from(r.data, 'base64'));
+    if (!NOSHOT) {
+      const r = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 90 });
+      tShot += Date.now() - t0;
+      writeFileSync(join(FR, String(nFrames).padStart(6, '0') + '.jpg'), Buffer.from(r.data, 'base64'));
+    }
     frames.push(meta);
     nFrames++;
     if (nFrames % 300 === 0) console.log(`CAP frame ${nFrames} t=${meta.t.toFixed(1)} speed=${meta.speed.toFixed(1)} (shot avg ${(tShot / nFrames).toFixed(0)} ms)`);
     return nFrames < MAX_FRAMES;
-  });
-  result = await page.evaluate(directorMain, { id, FPS, DRY, OPENING_SEC, HAS, MAX_FRAMES: Number.isFinite(MAX_FRAMES) ? MAX_FRAMES : 0 });
+  };
+  await page.exposeFunction('__capFrame', capFrameFor(cdp));
+  const args0 = { id, FPS, DRY, OPENING_SEC, HAS, FRAME_WAITS, TRACE, TRACE_DUMP, MAX_FRAMES: Number.isFinite(MAX_FRAMES) ? MAX_FRAMES : 0 };
+  // The art opening is drawn in a page of its own, closed when it is done. A drawn world leaves state behind in the art that
+  // later loads in the same page share (the library's LOD states, which the static solids of the next load are measured
+  // from: M14's lorry came out 17 cm shorter, a guard's path round it one waypoint short, and the drawn run parted from the
+  // logic-only one 21 game minutes in and lost its Sapper). The filmed run loads into a page that has drawn nothing, as pass 1's.
+  const openingErrors = [];
+  if (!DRY && OPENING_SEC > 0) {
+    await page.exposeFunction('__openingPage', async (pass1) => {
+      const pa = await h.newPage({ width: W, height: H });
+      pa.setDefaultTimeout(0);
+      pa.on('console', (m) => { const t = m.text(); if (/^(CHECKPOINT|==|CAP)/.test(t)) console.log(t); });
+      await pa.addInitScript(hideDebug);
+      await h.openGame(pa, '?test=1');
+      await pa.exposeFunction('__capFrame', capFrameFor(await pa.context().newCDPSession(pa)));
+      try { return await pa.evaluate(directorMain, { ...args0, MODE: 'opening', PASS1: pass1 }); } finally { openingErrors.push(...h.errors(pa)); await pa.close().catch(() => {}); }
+    });
+  }
+  result = await page.evaluate(directorMain, { ...args0, MODE: 'all', PASS1: null });
   if (DRY) { frames.push(...result.dryFrames); nFrames = frames.length; delete result.dryFrames; }
-  result.errors = h.errors(page).slice(0, 20);
+  result.errors = [...h.errors(page), ...openingErrors].slice(0, 20);
 } finally {
   await h.close();
 }
 if (DRY) summarize();
 writeFileSync(join(OUT, DRY ? 'timeline-dry.json' : 'timeline.json'), JSON.stringify({ id, fps: FPS, size: [W, H], frames, ...result }));
 console.log(`frames ${nFrames}; pass1 ${result.pass1.state} t=${result.pass1.time.toFixed(1)}; pass2 ${result.pass2.state} t=${result.pass2.time.toFixed(1)} detections=${result.pass2.detections} error=${result.pass2.error}`);
+if (result.trace) { const c = result.trace; console.log(`TRACE ticks ${c.n.join(' / ')}: ${c.same ? 'identical every tick' : c.first == null ? 'same ticks, one run longer' : `first tick that differs ${c.first + 1} (t=${((c.first + 1) / 60).toFixed(2)}), lines ${c.units.join(', ')}`}`); }
+console.log(result.worlds.length ? `NOTE the two passes' worlds start from different gameplay data (${result.worlds.length} fields: ${result.worlds.slice(0, 8).map((x) => `${x.field}${x.count ? ` ${x.count.join('/')}` : ''}${x.rows ? ` rows ${x.rows.slice(0, 6)}` : ''}`).join('; ')}): the drawn run may part from pass 1` : "== both passes' worlds start from the same gameplay data");
+if (result.dump1) for (const k of Object.keys(result.dump1)) { const A = result.dump1[k], B = result.dump2[k] || []; const d = A.map((x, i) => (x !== B[i] ? `  [tick ${k}] logic ${x}\n  [tick ${k}] drawn ${B[i]}` : null)).filter(Boolean); if (d.length) { console.log(d.slice(0, 12).join('\n')); break; } }
 console.log(`cone probe (every tick, every live cone): pass1 ${result.pass1.exposures.length} exposures, pass2 ${result.pass2.exposures.length}${[...result.pass1.exposures, ...result.pass2.exposures].slice(0, 6).map((x) => '\n  ' + x).join('')}`);
 
 /** --dry: video seconds per checkpoint step and the speeds used */
@@ -96,7 +125,7 @@ function summarize() {
 }
 
 /* ------------------------------------------------------------------ in the page */
-async function directorMain({ id, FPS, DRY, OPENING_SEC, HAS, MAX_FRAMES }) {
+async function directorMain({ id, FPS, DRY, OPENING_SEC, HAS, FRAME_WAITS: FRAME_WAITS_OPT, TRACE, TRACE_DUMP, MAX_FRAMES, MODE, PASS1 }) {
   const G = window.__game, g = G.game, dt = G.CONFIG.sim.dt;
   const { makeDriver } = await import('/tools/solutions/driver.mjs');
   const { solve } = await import(`/tools/solutions/${id}.solution.mjs`);
@@ -106,7 +135,7 @@ async function directorMain({ id, FPS, DRY, OPENING_SEC, HAS, MAX_FRAMES }) {
   const { tourStops } = await import('/src/ui/tour.js');
   const { planOpening, openingAt, cardAlpha } = await import('/tools/solutions/film-opening.mjs');
   const { captionPlan, captionQueue } = await import('/tools/solutions/film-captions.mjs'); // (which step text is up when: a cut's by checkpoint, else the walkthrough's, one step ahead)
-  const { standHeight } = await import('/tools/solutions/film-camera.mjs'); // (the ground the view is centred on: a deck's height, not the terrain relief's)
+  const { standHeight, waitFrame } = await import('/tools/solutions/film-camera.mjs'); // (the ground the view is centred on: a deck's height, not the terrain relief's; the picture of a wait)
   const { installHandlers } = await import('/src/audio/event-map.js');
   const { ScopeShow } = await import('/src/debug/walkthrough-scope.js');
   const { ambienceFor } = await import('/src/audio/manifest.js');
@@ -189,14 +218,18 @@ async function directorMain({ id, FPS, DRY, OPENING_SEC, HAS, MAX_FRAMES }) {
   g.stop(); // (?test=1: the page's own rAF loop still draws, with real dt, while a frame is awaited — it ran the animations ~3x fast)
   const ev1 = [], seen1 = new Set(), stages1 = [];
   let w = g.world;
+  // (what each pass's world starts from, field by field: the two must match, or the drawn run is not the one pass 1 learnt the timeline of)
+  const fpMod = MODE === 'opening' ? null : await import('/src/debug/gameplay-fingerprint.js'), fp1 = fpMod?.gameplayFingerprint(w, { game: g });
   const off1 = watch(w, ev1);
   let beat1 = 0; // (a line every 5 game minutes: a long pass 1 is not silent)
-  const D1 = makeDriver(w, { step: () => { g.step(dt); objectivesDone(w, seen1, ev1); if (w.time - beat1 >= 300) { beat1 = w.time; console.log(`CAP pass 1 t=${w.time.toFixed(0)}`); } }, dt, quiet: true, log: () => {} });
+  const sim = TRACE ? await import('/src/debug/sim-trace.js') : null, tr1 = sim?.simRecorder({ every: 60 }), tr2 = sim?.simRecorder({ every: 60 }), dump1 = {}, dump2 = {};
+  const dumpAt = (w, tr, dump) => { tr.snap(w); if (TRACE_DUMP.length === 2 && w.tick >= TRACE_DUMP[0] && w.tick <= TRACE_DUMP[1]) dump[w.tick] = sim.simStateLines(w); };
+  const D1 = makeDriver(w, { step: () => { g.step(dt); if (tr1) dumpAt(w, tr1, dump1); objectivesDone(w, seen1, ev1); if (w.time - beat1 >= 300) { beat1 = w.time; console.log(`CAP pass 1 t=${w.time.toFixed(0)}`); } }, dt, quiet: true, log: () => {} });
   let err1 = null;
-  try { await solve(D1, { boardPoint, onStage: (s) => stages1.push({ id: s, t: D1.t }) }); } catch (e) { err1 = String(e?.message || e); }
-  for (let i = 0; i < 600 && g.state === 'playing'; i++) g.step(dt);
+  try { if (MODE !== 'opening') await solve(D1, { boardPoint, onStage: (s) => stages1.push({ id: s, t: D1.t }) }); } catch (e) { err1 = String(e?.message || e); } // (MODE 'opening': the page that draws the art opening; pass 1's numbers come from the page that ran it)
+  for (let i = 0; i < 600 && g.state === 'playing' && MODE !== 'opening'; i++) g.step(dt);
   off1(); D1.dispose();
-  const pass1 = { error: err1, state: g.state, time: w.time, detections: D1.detections(), exposures: D1.exposureReport(), checkpoints: D1.checkpoints.map((c) => ({ name: c.name, t: c.t })), events: ev1, stages: stages1 };
+  const pass1 = { error: err1, state: g.state, time: w.time, detections: PASS1 ? PASS1.detections : D1.detections(), exposures: PASS1 ? PASS1.exposures : D1.exposureReport(), checkpoints: D1.checkpoints.map((c) => ({ name: c.name, t: c.t })), events: ev1, stages: stages1 };
   console.log(`== pass 1: ${pass1.state} t=${pass1.time.toFixed(1)} detections=${pass1.detections} error=${err1}`);
 
   // ---------------------------------------------------------------- the cut: speed windows and camera shots (game time)
@@ -219,10 +252,11 @@ async function directorMain({ id, FPS, DRY, OPENING_SEC, HAS, MAX_FRAMES }) {
   }
   for (const e of ev1.filter((e) => e.kind === 'objective')) windows.push({ t0: e.t - 2, t1: e.t + 4, speed: 1 });
   // (a cut's hooks get the checkpoints' times, the objectives' times and pass 1's events — kills, blasts, charges set (`plant`), objectives — each `{ t, kind, x, y, z, … }`)
-  for (const s of CUT.shots?.(cp, objT, ev1) ?? []) shots.push(s);
-  for (const s of CUT.windows?.(cp, objT, ev1) ?? []) windows.push(s);
-  const follows = CUT.follows?.(cp, objT, ev1) ?? []; // { t0, t1, role, zoom }: the camera stays on that man (not the last one ordered)
-  const notes = CUT.notes?.(cp, objT, ev1) ?? [];     // { t0, t1, text }: a caption for a stretch (game time), in place of the step caption — the step captions only change at checkpoints
+  const hooks = MODE !== 'opening'; // (the opening's page has no pass 1: no cut hook has anything to work from)
+  for (const s of (hooks && CUT.shots?.(cp, objT, ev1)) || []) shots.push(s);
+  for (const s of (hooks && CUT.windows?.(cp, objT, ev1)) || []) windows.push(s);
+  const follows = (hooks && CUT.follows?.(cp, objT, ev1)) || []; // { t0, t1, role, zoom }: the camera stays on that man (not the last one ordered)
+  const notes = (hooks && CUT.notes?.(cp, objT, ev1)) || [];     // { t0, t1, text }: a caption for a stretch (game time), in place of the step caption — the step captions only change at checkpoints
 
   // ---------------------------------------------------------------- shared pieces of the opening and of pass 2
   /** the film camera of the world just loaded: the view may go 20 m past the map's scroll limits, so a man at the map's edge
@@ -283,14 +317,20 @@ async function directorMain({ id, FPS, DRY, OPENING_SEC, HAS, MAX_FRAMES }) {
 
   // ---------------------------------------------------------------- the art opening: a pan over the briefing's places, in a world of its own
   let opening = null; // {dur, stops, frames}
-  if (OPENING_SEC > 0) {
+  const separate = MODE === 'all' && !DRY; // (drawn in a page of its own: see the Node side)
+  if (OPENING_SEC > 0 && separate) opening = (await window.__openingPage({ detections: pass1.detections, exposures: pass1.exposures }))?.opening ?? null;
+  if (OPENING_SEC > 0 && !separate) {
     await G.loadMission(id);
     G.start();
     g.stop();
     const w0 = g.world, def0 = w0.mission || {}, { cam, pitch0, look } = filmCamera();
     const gb0 = w0.commandos.find((c) => c.role === 'greenberet') ?? w0.commandos.find((c) => c.alive) ?? w0.commandos[0];
     let plan = { dur: 0 };
-    try { plan = planOpening(tourStops(w0, def0), { start: gb0 ? { x: gb0.x, z: gb0.z } : null, budget: OPENING_SEC }); } catch (e) { console.log(`== opening skipped: ${e?.message || e}`); } // (the film then opens on the title card alone)
+    try {
+      // (a cut may name the places and their order itself — `openingStops(tourStops, world, def)` — when the game's tour has too few: M12's has no objective or extraction stop)
+      const stops = tourStops(w0, def0), mine = CUT.openingStops?.(stops, w0, def0);
+      plan = planOpening(mine || stops, { start: gb0 ? { x: gb0.x, z: gb0.z } : null, budget: OPENING_SEC, ordered: !!mine });
+    } catch (e) { console.log(`== opening skipped: ${e?.message || e}`); } // (the film then opens on the title card alone)
     if (plan.dur > 0) {
       const mk = mkOverlay();
       mk.badge.style.display = 'none';
@@ -324,11 +364,14 @@ async function directorMain({ id, FPS, DRY, OPENING_SEC, HAS, MAX_FRAMES }) {
     }
   }
 
+  if (MODE === 'opening') return { opening }; // (the page of the art opening ends here)
+
   // ---------------------------------------------------------------- pass 2: the same run, filmed
   await G.loadMission(id);
   G.start();
   g.stop(); // (?test=1: the page's own rAF loop still draws, with real dt, while a frame is awaited — it ran the animations ~3x fast)
   w = g.world;
+  const fp2 = fpMod?.gameplayFingerprint(w, { game: g });
   const ev2 = [], seen2 = new Set();
   const off2 = watch(w, ev2);
   const rec = recordCues(w);
@@ -348,6 +391,7 @@ async function directorMain({ id, FPS, DRY, OPENING_SEC, HAS, MAX_FRAMES }) {
     dt, quiet: true, log: () => {},
     step: async () => {
       g.step(dt);
+      if (tr2) dumpAt(w, tr2, dump2);
       rec.pump();
       objectivesDone(w, seen2, ev2);
       return tick();
@@ -373,6 +417,16 @@ async function directorMain({ id, FPS, DRY, OPENING_SEC, HAS, MAX_FRAMES }) {
   const pass1End = pass1.time;
   const inWin = (t) => windows.filter((x) => t >= x.t0 && t <= x.t1);
   const shotAt = (t) => shots.filter((s) => t >= s.t0 && t <= s.t1).sort((a, b) => (b.prio ?? 0) - (a.prio ?? 0))[0];
+  // Wait framing (opt-in: --frame-waits, or a cut's `export const FRAME_WAITS = true`; film-camera.mjs waitFrame): while everyone
+  // waits the camera shows the waiting man together with the guards the step names (its look / cones in the walkthrough), else the
+  // walkers near him — the game's own always-action rule for the walkthrough, here for the film.
+  const WAIT_FRAMES = FRAME_WAITS_OPT || !!CUT.FRAME_WAITS;
+  const stepEnds = (WT?.steps || []).map((st) => ({ st, t: cp(st.cp) })).filter((x) => Number.isFinite(x.t)).sort((a, b) => a.t - b.t);
+  const waitShot = (f, t) => {
+    const st = stepEnds.find((x) => x.t > t)?.st; // (a step is the stretch that ENDS at its checkpoint)
+    const tags = new Set([...(st?.cones || []), ...(st?.look || [])].filter((r) => typeof r === 'string'));
+    return waitFrame(f, w.enemies, tags, { az: cam.azimuth || 0, el: cam.elevation, width: cam.width, height: cam.height, ppm1: cam.cfg?.pxPerMeterAt1x });
+  };
   // what the commandos are doing, from how they actually moved over the last half second of game time (a man
   // holding a guard in conversation, dug in or waiting for a gap is still): 'walk' (someone walks, runs, rows),
   // 'crawl' (only crawling), null (everyone waits)
@@ -422,7 +476,12 @@ async function directorMain({ id, FPS, DRY, OPENING_SEC, HAS, MAX_FRAMES }) {
     if (s) { tx = s.x; ty = s.y ?? standHeight(w, s.x, s.z); tz = s.z; tzoom = s.zoom ?? 0.7; } // (no y: on the ground there)
     else if (fw && D.c(fw.role)) { const u = D.c(fw.role), f = u.vehicle || u; tx = f.x; ty = f.y ?? 0; tz = f.z; tzoom = fw.zoom ?? 0.8; }
     else if (scoping) { const g0 = scope.seg.target; tx = g0.x; ty = g0.y ?? 0; tz = g0.z; tzoom = 1; } // (the man in the glass, close enough for the lens)
-    else if (focusUnit) { const f = focusUnit.vehicle || focusUnit; tx = f.x; ty = f.y ?? 0; tz = f.z; tzoom = focusUnit.vehicle ? 0.62 : focusUnit.stance === 'crawl' || focusUnit.buried ? 0.8 : 0.7; }
+    else if (focusUnit) {
+      const f = focusUnit.vehicle || focusUnit; tx = f.x; ty = f.y ?? 0; tz = f.z; tzoom = focusUnit.vehicle ? 0.62 : focusUnit.stance === 'crawl' || focusUnit.buried ? 0.8 : 0.7;
+      // (everyone has been waiting for a moment: the man and the guards the wait is for, in one picture; the heights are in the framing, so the target is a ground point)
+      const wf = WAIT_FRAMES && motion == null && idleSince != null && videoT - idleSince > 1.5 ? waitShot(f, t) : null;
+      if (wf) { tx = wf.x; ty = 0; tz = wf.z; tzoom = wf.zoom; }
+    }
     else { const h = D.c('greenberet') ?? w.commandos.find((c) => c.alive) ?? w.commandos[0]; tx = h.x; ty = h.y ?? 0; tz = h.z; } // (nobody ordered yet: the team's first man)
     if (camX == null || Math.hypot(tx - camX, tz - camZ) > 55) { camX = tx; camZ = tz; camY = ty; zoom = tzoom; }
     else {
@@ -545,6 +604,8 @@ async function directorMain({ id, FPS, DRY, OPENING_SEC, HAS, MAX_FRAMES }) {
     pass1,
     pass2: { error: stopped ? 'stopped at --max-frames' : err2, state: g.state, time: w.time, detections: D.detections(), exposures: D.exposureReport(), checkpoints: D.checkpoints.map((c) => ({ name: c.name, t: c.t })), events: ev2, driverEvents: D.events },
     cut: { windows, shots, follows, notes },
+    worlds: fpMod.diffFingerprints(fp1, fp2), // (empty: pass 2 started from the very world pass 1 played)
+    ...(TRACE ? { trace: sim.compareRecordings(tr1.data(), tr2.data()), dump1, dump2 } : {}), // (the first tick the drawn pass parts from the logic-only one, and the lines there)
     ...(DRY ? { dryFrames } : {}),
   };
 }

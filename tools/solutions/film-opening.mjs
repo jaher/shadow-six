@@ -30,6 +30,7 @@ const finite = (s) => s && Number.isFinite(s.x) && Number.isFinite(s.z);
 
 /** A short on-screen label for a briefing stop (the Colonel's own sentence, cut down). */
 export function stopLabel(s) {
+  if (s?.label) return String(s.label); // (a cut names its own stops: m12.cut.mjs)
   const text = String(s?.text || '');
   switch (s?.kind) {
     case 'objective': {
@@ -47,9 +48,14 @@ export function stopLabel(s) {
   }
 }
 
-/** The stops in opening order: objectives, danger, extraction, then the start. `start` (the solution's first focus) replaces the stop of kind 'start'. */
-export function orderStops(stops, start = null) {
+/**
+ * The stops in opening order: objectives, danger, extraction, then the start. `start` (the solution's first focus) replaces the stop of kind 'start'.
+ * `ordered`: the stops come from a cut (`openingStops` in m12.cut.mjs) that owns the list: its order stays and nothing is added, so the opening
+ * ends where the cut's last stop is (a start stop if it names one) and the solution's first frame is a cut from there.
+ */
+export function orderStops(stops, start = null, ordered = false) {
   const ok = (stops || []).filter(finite);
+  if (ordered) return ok;
   const by = (k) => ok.filter((s) => s.kind === k);
   const rest = ok.filter((s) => !['objective', 'danger', 'extraction', 'start'].includes(s.kind));
   const out = [...by('objective'), ...rest, ...by('danger'), ...by('extraction')];
@@ -67,7 +73,7 @@ export function orderStops(stops, start = null) {
  */
 export function planOpening(stops, o = {}) {
   const P = { ...DEFAULTS, ...o };
-  let ws = orderStops(stops, o.start).map((s) => ({ ...s, label: stopLabel(s), dwell: DWELL[s.kind] ?? 1.6 }));
+  let ws = orderStops(stops, o.start, !!o.ordered).map((s) => ({ ...s, label: stopLabel(s), dwell: s.dwell ?? DWELL[s.kind] ?? 1.6 })); // (`dwell`: a cut's own hold)
   if (!ws.length && finite(o.start)) ws = [{ kind: 'start', x: o.start.x, z: o.start.z, label: stopLabel({ kind: 'start' }), dwell: DWELL.start }];
   if (!ws.length) return { dur: 0, titleSec: 0, segs: [], labels: [], stops: [] };
   ws[0].dwell = Math.max(ws[0].dwell, P.titleSec); // the title card's hold
@@ -77,8 +83,8 @@ export function planOpening(stops, o = {}) {
     for (let i = 1; i < list.length; i++) t += Math.max(P.legMin, dist(list[i - 1], list[i]) / P.vMax);
     return t + P.zoomSec * 2;
   };
-  // too long for the budget even at the fastest pan: drop the optional stops (extraction, danger, a second objective)
-  for (const kind of ['extraction', 'danger', 'objective']) {
+  // too long for the budget even at the fastest pan: drop the optional stops (extraction, danger, a second objective); a cut's own list stays
+  for (const kind of o.ordered ? [] : ['extraction', 'danger', 'objective']) {
     while (cost(ws) > P.budget && ws.length > 2) {
       const i = ws.map((w) => w.kind).lastIndexOf(kind);
       if (i <= 0 || (kind === 'objective' && ws.filter((w) => w.kind === 'objective').length < 2)) break;

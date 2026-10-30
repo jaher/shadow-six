@@ -3,7 +3,7 @@
  * Film a mission's solution end to end: the art opening and the full solution captured in the real game, the soundtrack
  * mixed from the game's own audio, one MP4, checked.
  *   node tools/solutions/film-mission.mjs <mission id> [--videos <dir>] [--mp4 <file>] [--ffmpeg <bin>]
- *     [--bitrate 1400k (default) | --crf 26] [--no-opening] [--opening-sec 17] [--keep-frames] [--mix-only] [--sheet]
+ *     [--bitrate 1400k (default) | --crf 26] [--no-opening] [--opening-sec 17] [--frame-waits] [--keep-frames] [--mix-only] [--sheet]
  * Needs tools/solutions/<id>.solution.mjs (the walkthrough / cut files are optional). Run it from a checkout that is not
  * the one other agents drive (it uses the GPU for minutes), in the background: it prints progress lines as it goes.
  *   work dir   <videos>/work/<id>/   frames/, timeline.json (kept; the frames go once the film is good, unless --keep-frames)
@@ -57,6 +57,7 @@ if (!has('--mix-only')) {
   console.log(`== capturing ${id} -> ${WORK}`);
   const args = ['tools/solutions/capture-video.mjs', id, '--out', WORK];
   if (has('--no-opening')) args.push('--no-opening');
+  if (has('--frame-waits')) args.push('--frame-waits');
   if (opt('--opening-sec')) args.push('--opening-sec', opt('--opening-sec'));
   const code = await run('node', args, join(VIDEOS, 'work', `${id}.capture.log`));
   if (!check('capture exited cleanly', code === 0, `exit ${code}`)) finish();
@@ -71,6 +72,7 @@ check('pass 2 (drawn) won', p2.state === 'won' && !p2.error, `${p2.state} t=${p2
 const same = p1.checkpoints.length === p2.checkpoints.length && p1.checkpoints.every((c, i) => c.name === p2.checkpoints[i].name && Math.abs(c.t - p2.checkpoints[i].t) < 1e-6);
 check('both passes\' checkpoints match', same, `${p1.checkpoints.length} / ${p2.checkpoints.length} checkpoints`);
 console.log(`NOTE detections ${p2.detections}, cone exposures ${p1.exposures.length}/${p2.exposures.length} (pass 1 / pass 2; informational: a solution may fight)`);
+if (T.worlds?.length) console.log(`NOTE the two passes' worlds start from different gameplay data (${T.worlds.length} fields: ${T.worlds.slice(0, 8).map((x) => x.field).join(', ')}): the drawn run may part from pass 1 (capture-video.mjs --trace finds where)`);
 if (T.errors?.length) console.log(`NOTE ${T.errors.length} page error(s) while filming, first: ${String(T.errors[0]).slice(0, 200)}`);
 const frames = T.frames.length, secs = frames / T.fps;
 check('frames captured', frames > T.fps * 20 && existsSync(join(WORK, 'frames', '000000.jpg')), `${frames} frames = ${secs.toFixed(1)} s`);

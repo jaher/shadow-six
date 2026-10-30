@@ -858,3 +858,7 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 ## 2026-10-29 — M20: solution and walkthrough (merged 4cb0d31ff), second art pass (merged 375e6f766)
 - Solution: the tank now leaves the court in the real game (opt-in `hullDrawn`, M20 only: applying it globally broke the M6 and M11 solutions). m20-solution won at 5836.3 s, 0 detections / 0 exposures; the cold-link walkthrough matches the logic run tick for tick. Verified at e5d24b306: m00–m16, m19, m20 solution tests, stairs-matrix, unit 2420/0, render-budget, preset-determinism.
 - Art pass 2: forest-edge log piles, range works corner, N Flak ammunition / rangefinder / barrel cases, Luftschutz fire point, wayside cross; floating crate and black HQ porch steps fixed. m20-solution unchanged (5836.3 s, 0/0). Media: commandos-shots/art/m20-p2-before-after.jpg, m20-p2-before-*.jpg, m20-p2-after-*.jpg.
+
+## 2026-10-30 — M10: second art pass (merged d76dfb477), solution and walkthrough (merged 7814454de)
+- Art pass 2: rim wire drawn on the shelf, rebuilt sandbag-rimmed dugout with entrances at the squads' doors, airstrip decal, burnt SdKfz 231 and crater, supply dump, field graves, open stovepipes. Media: commandos-shots/m10art2/art/m10-p2-before-after.jpg.
+- Solution: M10 won on foot, 0 detections / 0 exposures, with walkthrough and test. Unit 2462 passed; m10-solution, m03-solution, debug-solution pass.

@@ -19,7 +19,7 @@ import { startCueFor, CHAPTERS } from '../../src/audio/music-cues.js';
 import { MISSIONS } from '../../src/missions/index.js';
 import { findFfmpeg } from '../../tools/solutions/film-ffmpeg.mjs';
 import { captionPlan, captionQueue, captionText, firstSentence, readingTime, READ_MIN, READ_MAX, CAPTION_MAX } from '../../tools/solutions/film-captions.mjs';
-import { standHeight } from '../../tools/solutions/film-camera.mjs';
+import { standHeight, waitPoints, waitFrame, WAIT_FRAME } from '../../tools/solutions/film-camera.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const musicManifest = JSON.parse(readFileSync(join(ROOT, 'assets/audio/music/manifest.json'), 'utf8'));
@@ -92,6 +92,63 @@ test('opening: labels read like captions', () => {
   assert.equal(stopLabel({ kind: 'start' }), 'The team goes in here');
   const p = planOpening(M1, { start: { x: 16, z: 158 } });
   assert.equal(openingAt(p, 2).label, 'Objective: Destroy the relay station');
+});
+
+test('opening: a cut that names its own stops (M12: the cell, the roofs, the mosque platform, the car) keeps their order, labels and holds, and the opening ends at the last', async () => {
+  const { openingStops } = await import('../../tools/solutions/m12.cut.mjs');
+  const tour = [{ kind: 'start', x: 31, z: 38, text: 'Officer, your 4 men go in here.' }, { kind: 'danger', x: 18.5, z: 36.3, text: 'Watch this spot: 7 guards cover it. Study their cones before you move.' }];
+  const mine = openingStops(tour);
+  assert.deepEqual(mine.map((s) => s.kind), ['objective', 'danger', 'danger', 'extraction']);
+  assert.deepEqual(orderStops(mine, { x: 16, z: 44 }, true), mine); // kept as given: not objectives-first, no start added
+  assert.equal(orderStops(mine, { x: 16, z: 44 }).at(-1).kind, 'start'); // (the tour's own list, by contrast, ends on the team)
+  const p = planOpening(mine, { start: { x: 16, z: 44 }, ordered: true });
+  assert.deepEqual(p.stops.map((s) => s.kind), ['objective', 'danger', 'danger', 'extraction']); // nothing dropped, nothing added
+  assert.ok(p.dur > 12 && p.dur <= 19.5 + 1e-9, `duration ${p.dur}`);
+  assert.equal(openingAt(p, 0).zoom, 2); // the title card over the close-up of the cell
+  near(openingAt(p, 0).x, mine[0].x); near(openingAt(p, 0).z, mine[0].z);
+  const end = openingAt(p, p.dur);
+  near(end.x, mine.at(-1).x); near(end.z, mine.at(-1).z); near(end.zoom, 0.7); // it ends at the car, at the film's zoom
+  assert.ok(p.labels.length === 4 && p.labels.every((l) => l.text.length <= 72), 'one label per stop, short enough for the stage title');
+  assert.ok(p.labels.some((l) => /mosque platform/.test(l.text)) && p.labels.some((l) => /car on the quay/.test(l.text)));
+  assert.equal(stopLabel({ kind: 'danger', label: 'Mine', text: '5 guards' }), 'Mine');
+  const held = planOpening([{ kind: 'danger', x: 5, z: 5, dwell: 2.2 }, { kind: 'danger', x: 50, z: 5, dwell: 0.7 }], { ordered: true });
+  const holds = held.segs.filter((g) => g.kind === 'hold');
+  near(holds[1].t1 - holds[1].t0, 0.7); // (a cut's own `dwell`)
+  assert.ok(planOpening([], { start: { x: 20, z: 30 }, ordered: true }).dur > 3, 'a cut with no stops still opens on the start');
+});
+
+test('m12.cut: the Spy\'s wait behind e6 is time-lapsed, captioned, and clear of the kill\'s real time', async () => {
+  const { windows, notes } = await import('../../tools/solutions/m12.cut.mjs');
+  const at = { D1: 151.2, D2: 334.6 }, cp = (k) => at[k];
+  const ev = [{ t: 39, kind: 'kill', tag: 'e2' }, { t: 333.3, kind: 'kill', tag: 'e6' }, { t: 356.3, kind: 'kill', tag: 'e7' }];
+  const W = windows(cp, () => undefined, ev), N = notes(cp, () => undefined, ev);
+  assert.equal(W.length, 1);
+  assert.ok(W[0].speed >= 32 && W[0].t0 > at.D1 + 15 && W[0].t1 < 333.3 - 6, 'fast, after the climb and the walk, before the director\'s ramp down to the injection (its real time starts 2.5 s before the kill)');
+  assert.equal(N.length, 1);
+  assert.ok(N[0].t0 < W[0].t0 && N[0].t1 > 333.3, 'the caption runs from the climb through the wait to the fall');
+  assert.ok(N[0].text.length <= CAPTION_MAX);
+  // film seconds on screen: the time-lapse, plus the generic kill window (1.25x from 2.5 s before the kill to 2 s after) and the Spy's walk at 4x
+  const film = (W[0].t1 - W[0].t0) / W[0].speed + 4.5 / 1.25 + (W[0].t0 - N[0].t0) / 4;
+  assert.ok(film >= readingTime(N[0].text), `the caption is on screen ${film.toFixed(1)} s`);
+  assert.deepEqual(windows(cp, () => undefined, []), [], 'no kill of e6 in pass 1: no window');
+  assert.deepEqual(notes(() => undefined, () => undefined, ev), []);
+});
+
+test('m14.cut: the wait framing is on, the alarm at gun 4 is explained, and the Sapper\'s two long waits on the turret roof are time-lapsed and captioned', async () => {
+  const { FRAME_WAITS, windows, notes } = await import('../../tools/solutions/m14.cut.mjs');
+  const at = { F2: 1690.4, F5: 1934.3, F7: 2322.9, G1: 2348.1, G2: 2649.0 }, cp = (k) => at[k];
+  assert.equal(FRAME_WAITS, true);
+  const W = windows(cp, () => undefined, []), N = notes(cp, () => undefined, []);
+  assert.equal(W.length, 2);
+  assert.ok(W.every((w) => w.speed >= 32 && w.t1 - w.t0 > 150), 'long waits, time-lapsed');
+  assert.ok(W[0].t0 > at.F5 && W[0].t1 < at.F7, 'the first inside F5 → F7');
+  assert.ok(W[1].t0 > at.G1 + 30 && W[1].t1 < at.G2, 'the second after the blast\'s real time, before the Sapper comes down');
+  assert.equal(N.length, 3);
+  assert.ok(N[0].t0 < at.F2 && N[0].t1 > at.F2 + 30 && /alarm/.test(N[0].text), 'the alarm note covers the moment the bodies are found');
+  assert.ok(N[1].t0 < W[0].t0 && N[1].t1 > W[0].t1 - 20 && N[2].t0 < W[1].t0 && N[2].t1 > W[1].t1 - 60, 'each time-lapse is captioned');
+  assert.ok(N.every((n) => n.text.length <= CAPTION_MAX), 'the captions fit the box');
+  assert.deepEqual(windows(() => undefined, () => undefined, []), [], 'no checkpoints from pass 1: no window');
+  assert.deepEqual(notes(() => undefined, () => undefined, []), []);
 });
 
 // ---------------------------------------------------------------- the soundtrack plan
@@ -487,7 +544,64 @@ test('m11.cut: the Sapper\'s three charges are filmed in real time and the camer
   assert.deepEqual([windows(() => undefined, () => undefined, []), shots(() => undefined, () => undefined, []), notes(() => undefined, () => undefined, [])], [[], [], []], 'a run without those checkpoints or charges gets no cut');
 });
 
+test('m08.cut: the Sniper\'s 16-minute wait is filmed from a wide shot of the store at 36×, ending before the first shot; the start yard\'s wait likewise; the notes can be read', async () => {
+  const { shots, windows, notes } = await import('../../tools/solutions/m08.cut.mjs');
+  const at = { A1: 145.3, Q2: 2658.4, Q3: 3633.1 }, cp = (k) => at[k]; // (the checkpoints of the film's run; the first of the three shots is ~7 s before Q3, its scope show a few seconds before that)
+  const W = windows(cp), S = shots(cp), N = notes(cp);
+  assert.equal(W.length, 2);
+  assert.ok(W.every((x) => x.t1 > x.t0 && x.speed >= 32), 'the waits are time-lapses, not a parked Sniper at 16×');
+  assert.ok(W[0].t1 < at.A1 - 5, 'the start yard\'s window ends before the scope show of the first shot');
+  assert.ok(W[1].t0 > at.Q2 && W[1].t1 <= at.Q3 - 15, 'the store\'s window ends before the first of the three shots');
+  assert.equal(S.length, 1);
+  assert.ok(S[0].t0 > at.Q2 && S[0].t1 <= at.Q3 - 10 && S[0].t1 > S[0].t0, 'the shot lies in the wait and hands over to the kills\' own shots');
+  assert.ok(S[0].zoom <= 0.55, 'a wide shot (64 m across at zoom 0.5): the road, the decoy, the walkers, the roof and the tank decks in one picture');
+  assert.ok(Math.abs(S[0].x - 46) < 8 && S[0].z > 44 && S[0].z < 56, 'centred on the north side of the store');
+  for (let i = 1; i < N.length; i++) assert.ok(N[i].t0 >= N[i - 1].t1 - 1e-9, 'notes do not overlap');
+  for (const n of N) {
+    assert.ok(n.text.length <= CAPTION_MAX, 'a note fits the caption box');
+    let film = 0; // film seconds the note is on screen: each window's share of it, at that window's speed
+    for (const w of W) film += Math.max(0, Math.min(n.t1, w.t1) - Math.max(n.t0, w.t0)) / w.speed;
+    assert.ok(film >= readingTime(n.text), `"${n.text.slice(0, 30)}…" is on screen ${film.toFixed(1)} s: too short to read`);
+  }
+  assert.deepEqual([windows(() => undefined), shots(() => undefined), notes(() => undefined)], [[], [], []], 'a run without those checkpoints gets no cut');
+});
+
 // ---------------------------------------------------------------- the camera's ground and the step captions
+test('m13.cut: the wait framing is on, the Sapper\'s charge and the fuel tanks\' blast are filmed in real time (the rest is the generic director\'s)', async () => {
+  const { FRAME_WAITS, shots, windows, notes } = await import('../../tools/solutions/m13.cut.mjs');
+  assert.equal(FRAME_WAITS, true);
+  const objAt = { o_ship: 2897.1, o_fuel: 2897.3 }, objT = (o) => objAt[o], cp = () => undefined;
+  const ev = [ // (pass 1's events: the Sapper's remote charge under the tanks' cradle; a kill is not a charge)
+    { t: 2295.7, kind: 'kill', tag: 'e16', x: 65.5, y: 0, z: 34.6 },
+    { t: 2315.9, kind: 'plant', what: 'remote', by: 'sapper', x: 76.3, y: 4.4, z: 43.8 },
+  ];
+  const W = windows(cp, objT, ev), S = shots(cp, objT, ev), N = notes(cp, objT, ev);
+  assert.deepEqual([W.length, S.length, N.length], [2, 2, 2], 'the charge and the visit to the tanks');
+  assert.ok(W.every((w) => w.speed <= 1.5 && w.t1 > w.t0), 'real time: the Sapper is a dot at 8x');
+  assert.ok(W[0].t0 < 2315.9 - 1 && W[0].t1 > 2315.9 + 1, 'the charge: from before his hand goes down (1 s) to after the bomb is there');
+  assert.deepEqual([S[0].x, S[0].y, S[0].z], [76.3, 4.4, 43.8], 'the charge is filmed where it was set');
+  // the visit: after the director\'s own shot of the torpedo\'s blast (5 s after it), on the two tanks (76, 33.5) and (77.5, 38.2)
+  assert.ok(S[1].t0 >= 2897.3 + 5 - 1e-9 && S[1].t1 > S[1].t0, 'the visit starts after the director\'s shot of the ship');
+  assert.ok(Math.hypot(S[1].x - 76.75, S[1].z - 35.85) < 3, 'centred on the two tanks');
+  assert.ok(S[1].zoom >= 0.5 && S[1].zoom <= 0.8 && (S[1].prio ?? 0) >= 1, 'a medium shot that wins over a kill shot that overlaps it');
+  near(W[1].t0, S[1].t0, 1e-9, 'the visit\'s window covers its shot'); near(W[1].t1, S[1].t1, 1e-9);
+  for (let i = 1; i < N.length; i++) assert.ok(N[i].t0 >= N[i - 1].t1 - 1e-9, 'notes do not overlap');
+  for (const n of N) {
+    assert.ok(n.text.length <= CAPTION_MAX, 'a note fits the caption box');
+    let film = 0; // film seconds the note is on screen: each window\'s share of it, at that window\'s speed
+    for (const w of W) film += Math.max(0, Math.min(n.t1, w.t1) - Math.max(n.t0, w.t0)) / w.speed;
+    assert.ok(film >= readingTime(n.text), `"${n.text.slice(0, 30)}…" is on screen ${film.toFixed(1)} s: less than its reading time`);
+  }
+  assert.deepEqual([windows(cp, () => undefined, []), shots(cp, () => undefined, []), notes(cp, () => undefined, [])], [[], [], []], 'a run without the charge or the objectives gets no cut');
+  assert.deepEqual(Object.keys(await import('../../tools/solutions/m13.cut.mjs')).sort(), ['FRAME_WAITS', 'notes', 'shots', 'windows'], 'nothing else is overridden: titles, captions and cards stay the generic ones');
+});
+
+test('m15.cut: only the wait framing is switched on (the rest is the generic director\'s)', async () => {
+  const cut = await import('../../tools/solutions/m15.cut.mjs');
+  assert.equal(cut.FRAME_WAITS, true, 'a stealth mission of waits: the camera shows the guards the wait is for');
+  assert.deepEqual(Object.keys(cut), ['FRAME_WAITS'], 'nothing else is overridden: titles, captions, cards, shots and speeds stay the generic ones');
+});
+
 test('film-camera: the view is centred on the walking surface (a deck), not on the terrain relief under it', () => {
   // M5: the summit is a 16 m deck; the barracks' footprint (a 6 m radius here) has no walking surface and the relief under it says 0.5
   const world = { groundY: () => 0.5, grid: { surfaceY: (x, z) => (Math.hypot(x - 100, z - 50) < 6 ? 0 : 16) } };
@@ -497,6 +611,46 @@ test('film-camera: the view is centred on the walking surface (a deck), not on t
   near(standHeight({ groundY: () => 0.3 }, 5, 5), 0.3, 1e-9, 'a world without the grid keeps it too');
   near(standHeight({ grid: { surfaceY: () => NaN } }, 5, 5), 0, 1e-9, 'nothing usable: the ground');
   near(standHeight(null, 5, 5), 0, 1e-9, 'no world: the ground');
+});
+
+test('film-camera: a wait is framed on the waiting man and the guards the step names, each by his whole beat', () => {
+  const man = { x: 50, y: 0, z: 100 };
+  const walker = (tag, x0, z0, x1, z1) => ({ tag, x: x0, z: z0, route: [{ x: x0, z: z0 }, { x: x1, z: z1 }] });
+  const e6 = walker('e6', 81, 108, 74, 108), e7 = walker('e7', 70, 108, 46, 106), sentry = { tag: 'e3', x: 58, z: 96 };
+  // the named guards: the man, then each beat's two ends (a sentry where he stands)
+  const pts = waitPoints(man, [e6, e7, sentry, walker('e9', 5, 80, 9, 84)], new Set(['e6', 'e7', 'e3']));
+  assert.deepEqual(pts.map((p) => [p.x, p.z]), [[50, 100], [81, 108], [74, 108], [70, 108], [46, 106], [58, 96]], 'man, e6\'s beat, e7\'s beat, the sentry');
+  assert.ok(pts.every((p) => p.y === 0), 'heights are carried (the framing maths uses them)');
+  // a guard of the step beyond 48 m does not count; with none left the walkers near the man do (nearest three)
+  assert.equal(waitPoints(man, [walker('e1', 120, 100, 124, 100)], new Set(['e1'])), null, 'named but far, and not near enough to be a walker either');
+  const four = [walker('a', 60, 100, 64, 100), walker('b', 40, 100, 36, 100), walker('c', 50, 110, 54, 110), walker('d', 50, 120, 54, 120)];
+  assert.equal(waitPoints(man, four, new Set(['zz'])).length, 1 + 3 * 2, 'no named guard near: the three nearest walkers, by their beats');
+  assert.equal(waitPoints(man, [sentry], new Set()), null, 'a sentry is no walker: with nothing named there is nothing to show');
+  // the dead, the removed and men on vehicles are not shown
+  assert.equal(waitPoints(man, [{ ...e6, alive: false }, { ...e7, removed: true }, { ...sentry, vehicle: {} }], new Set(['e6', 'e7', 'e3'])), null, 'nobody live to show');
+  // a long patrol counts where it is, not by its 60 m beat; and it is no walker to show when nobody is named
+  const patrol = { ...walker('p11a', 66, 108, 62, 48), x: 66, z: 100 };
+  assert.deepEqual(waitPoints(man, [patrol], new Set(['p11a'])).slice(1).map((p) => [p.x, p.z]), [[66, 100]], 'a named patrol: where he stands');
+  assert.equal(waitPoints(man, [patrol], new Set()), null, 'a patrol on the move is not chased: with nobody else near there is no wait framing');
+  // a walker at the edge of the range does not come and go as he paces: his beat's nearest end counts
+  const edge = (x) => ({ ...walker('e7', 97, 100, 99, 100), x }); // the man is 47 to 49 m from the beat
+  assert.ok(waitPoints(man, [edge(97)], new Set(['e7'])) && waitPoints(man, [edge(99)], new Set(['e7'])), 'in range from his beat\'s nearest end, wherever he is on it (49 m off at the far end)');
+});
+
+test('film-camera: the wait framing keeps the man in the picture, between his guards and a medium shot, never closer than the film\'s usual view', () => {
+  const view = { az: 0, el: (40 * Math.PI) / 180, width: 1280, height: 720, ppm1: 40 };
+  const man = { x: 50, y: 0, z: 100 };
+  const g = (tag, x, z, x1 = x + 3, z1 = z) => ({ tag, x, z, route: [{ x, z }, { x: x1, z: z1 }] });
+  const f = waitFrame(man, [g('e6', 70, 106), g('e7', 46, 108)], new Set(['e6', 'e7']), view);
+  assert.ok(f.zoom >= WAIT_FRAME.opts.minZoom && f.zoom <= WAIT_FRAME.opts.maxZoom, `zoom ${f.zoom} within the wait range`);
+  assert.ok(f.x > 46 && f.x < 73 && f.z > 98 && f.z < 110, 'centred between the man and his guards');
+  // a close guard: no tighter than the usual view
+  const close = waitFrame(man, [g('e6', 53, 101)], new Set(['e6']), view);
+  assert.ok(close.zoom <= WAIT_FRAME.opts.maxZoom + 1e-9, 'a man and one guard close by: the usual view at the closest');
+  // a guard too far to fit with the man (the widest zoom): the man wins, the guard is left out
+  const wide = waitFrame(man, [g('e6', 50, 100 + 46, 50, 100 + 47)], new Set(['e6']), view);
+  assert.ok(wide.zoom >= WAIT_FRAME.opts.minZoom - 1e-9 && Math.hypot(wide.x - man.x, wide.z - man.z) < 30, 'the man stays in the picture');
+  assert.equal(waitFrame(man, [], new Set(['e6']), view), null, 'no guard: no wait framing (the usual view of the man)');
 });
 
 test('film-captions: a step is its first sentence, and the next ones while they fit; a long one is cut at a word', () => {

@@ -36,7 +36,8 @@ if (args.includes('--measure')) {
   const t0 = Date.now();
   try { await solve(D2, { boardPoint }); } catch (e) { error = String(e?.message || e); }
   const obj = Object.fromEntries(D2.world.objectives.map((o) => [o.id, o.done]));
-  raw = { mission: id, mode: 'headless', error, time: D2.t, objectives: obj, detections: D2.detections(), exposures: D2.exposureReport(), checkpoints: D2.checkpoints.map((c) => [c.name.split(' ')[0], c.t]), wallMs: Date.now() - t0, ...rec.result() };
+  const optional = D2.world.objectives.filter((o) => o.required === false).map((o) => o.id);
+  raw = { mission: id, mode: 'headless', error, time: D2.t, objectives: obj, optional, detections: D2.detections(), exposures: D2.exposureReport(), checkpoints: D2.checkpoints.map((c) => [c.name.split(' ')[0], c.t]), wallMs: Date.now() - t0, ...rec.result() };
 } else {
   const { startHarness } = await import('../../tests/harness.mjs');
   const h = await startHarness();
@@ -59,7 +60,8 @@ if (args.includes('--measure')) {
       try { await solve(D, { boardPoint }); } catch (e) { error = String(e && e.message || e); }
       for (let i = 0; i < 600 && G.game.state === 'playing'; i++) G.game.step(dt);
       const obj = Object.fromEntries(D.world.objectives.map((o) => [o.id, o.done]));
-      return { mission: mid, mode: 'browser', error, state: G.game.state, time: D.t, objectives: obj, detections: D.detections(), exposures: D.exposureReport(), checkpoints: D.checkpoints.map((c) => [c.name.split(' ')[0], c.t]), wallMs: performance.now() - t0, ...rec.result() };
+      const optional = D.world.objectives.filter((o) => o.required === false).map((o) => o.id);
+      return { mission: mid, mode: 'browser', error, state: G.game.state, time: D.t, objectives: obj, optional, detections: D.detections(), exposures: D.exposureReport(), checkpoints: D.checkpoints.map((c) => [c.name.split(' ')[0], c.t]), wallMs: performance.now() - t0, ...rec.result() };
     }, [id, every]);
     raw.errors = h.errors(page).slice(0, 20);
   } finally { await h.close(); }
@@ -72,7 +74,8 @@ const m = measureTrail(tr, { from, to });
 const at = attributeTurns(tr, m.turnList);
 const byHelper = {};
 for (const q of tr.orders) if (q.type === 'move') byHelper[q.by ?? 'other'] = (byHelper[q.by ?? 'other'] || 0) + 1;
-const ok = !raw.error && Object.values(raw.objectives || {}).every(Boolean) && raw.detections === 0 && !(raw.exposures || []).length;
+// (the game's own win rule, as run-headless.mjs: every REQUIRED objective done — an optional one may stay undone)
+const ok = !raw.error && Object.entries(raw.objectives || {}).every(([k, done]) => done || raw.optional?.includes(k)) && raw.detections === 0 && !(raw.exposures || []).length;
 console.log(`${ok ? 'WIN' : 'FAIL'} ${raw.mission} (${raw.mode}) t=${(+raw.time).toFixed(1)} detections=${raw.detections} exposures=${(raw.exposures || []).length} error=${raw.error} (${Math.round(raw.wallMs)} ms)`);
 for (const l of (raw.exposures || []).slice(0, 8)) console.log(`  EXPOSED ${l}`);
 const { per, turnList, ...summary } = m;
