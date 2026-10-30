@@ -866,3 +866,7 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 ## 2026-10-30 — M18: second art pass (merged 8ec134e18), solution and walkthrough (merged 6b85fc053)
 - Art pass 2: siding and buffer stop under the boxcar, green explosives case, island boat and reel, fountain setts, burnt-out jeep and crater. Media: commandos-shots/art/m18-p2-before-after.jpg.
 - Solution: lorry to the bridge, three charges, 0 detections / 0 exposures; cheaper bridge-collapse tick; walkthrough lapse-tag hysteresis. Media: commandos-shots/review/sol-m18/m18-sheet.jpg (plus three clips).
+
+## 2026-10-30 — M9: second art pass (merged 503edab82), solution and walkthrough (merged c84832adf)
+- Art pass 2: worn-ground decal with tank ruts and oil, NE lean-to, yellower drums, Panzer III write-off, 88 Flak pit, sand-dusted apron, radar ring clear of the dish. Unit 2474/0; render-budget m09, edges-void-m09, preset-determinism m09 pass. Media: commandos-shots/art/m09-p2-before-after.jpg.
+- Solution: M9 won at 765.7 s, 0 detections / 0 exposures, 18 kills, with walkthrough, debug replay and test. Unit 2481 passed; m09-solution, m03-solution, debug-solution pass.
