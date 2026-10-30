@@ -304,6 +304,9 @@ export class SolutionReplay {
       onCheckpoint: (cp) => this._onCheckpoint(cp),
       onWait: (label) => this._onWait(label),
       pause: () => this._pause(),
+      // (§7.6 ESC while the loaded escape vehicle drives off: a solution that skips the drive-off as a player would —
+      // D.skipEscape(), M4 — does it here too, so the walkthrough ends as the logic run does)
+      skipEscape: () => !!this.game.skipExtraction?.(),
     });
     this.driver = D;
     this.done = this._run(D);
@@ -473,6 +476,9 @@ export class SolutionReplay {
   _step() {
     if (this.stopped) throw new this.sol.SolutionAborted();
     if (this._ready()) { this._tick(); return undefined; }
+    // (a section of the solution's concurrent flows — driver `unpaced`: ticked at once, unpaced, as the logic run does;
+    // the paced wait below parks one flow at a time)
+    if (this.driver?.unpaced && this.game.state === 'playing' && this.game.world === this.world) { this._thinking = false; this.game.step(this.simDt); this.ticks++; return undefined; }
     return new Promise((res, rej) => { this._waiter = { res, rej }; }).then(() => this._tick());
   }
 

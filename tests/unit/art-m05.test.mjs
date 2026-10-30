@@ -282,7 +282,9 @@ test('art m05 pass 2b: the SE bunker\'s east side reads as part of the snowy bun
   for (const m of MISSIONS) for (const s of m.structures || []) {
     if (m.id === 'm05' && s.id === 'g2_bunker') continue;
     const ownAo = m.id === 'm20' && s.id === 'hq' && s.dropAo === 'kit:limestone_smooth';
-    assert.ok(s.hideMats === undefined && s.keepSnowOn === undefined && (s.dropAo === undefined || ownAo), `${m.id}/${s.id} takes the net / AO options`);
+    // (and M4's floating landing stage leaves the jetty model's granite shore abutment off: art2/m04)
+    const ownHide = m.id === 'm04' && s.id === 'pier_float' && s.hideMats === 'fieldstone_grey|granite';
+    assert.ok((s.hideMats === undefined || ownHide) && s.keepSnowOn === undefined && (s.dropAo === undefined || ownAo), `${m.id}/${s.id} takes the net / AO options`);
   }
   const rx = new RegExp(g2.hideMats), keepOn = new RegExp(g2.keepSnowOn);
   // snow triangles (sidecar frame, centroids) lying on the berm's earth: within 0.25 m over the earth under them; hanging on the net's old skirt: over 0.45 m

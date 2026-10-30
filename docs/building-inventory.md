@@ -576,6 +576,13 @@ Each mission lists the §1 ids it needs, with counts. **Bold** marks an objectiv
   - `crane_tower_jib`.
   - `telegraph_pole`s.
   - A climbable cliff.
+  - M17 art pass 2 (`src/art/m17-dressing.js`, every piece drawn to its block, ≥ 6 m off every beat and squad run): an
+    Alsatian vineyard in the rail-fenced field E of the Kommandantur (four rows of bare November vines on the high
+    trellis, `vineyard`, art/vineyard.js, each row B.FENCE); the field W of the camp ploughed for the winter (draped
+    furrows) with a beet clamp on its S headland (`beet_clamp`, art/field-clamp.js); the yard's and the N bank's stores
+    drawn as stores (`stores_pile`, art/stores-pile.js) and the house's log stack as firewood (`log_pile_stack`); the
+    gorge's faces bedded with rock and its stream drawn as running water; the road bridge's approach ramps re-surfaced
+    (they lay as flat reddish sheets); the Kommandantur's setts at its front door; the S-road fence off pole_4.
 - **M19 Frustrate Retaliation (Oldenburg)** [i]:
   - `coal_mine_complex`, `mining_office`, `water_tower_legs` (small).
   - `mine_railway` with `rail_bridge_mine_low`.

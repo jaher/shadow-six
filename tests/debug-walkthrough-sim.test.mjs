@@ -26,7 +26,7 @@ export default async function debugWalkthroughSim(page0, t) {
     const { makeDriver } = await import('/tools/solutions/driver.mjs');
     const { solve } = await import('/tools/solutions/m03.solution.mjs');
     const { boardPoint } = await import('/src/abilities/drive.js');
-    const D = makeDriver(G.game.world, { step: () => { G.game.step(dt); }, dt, quiet: true, log: () => {} });
+    const D = makeDriver(G.game.world, { step: () => { G.game.step(dt); }, dt, quiet: true, log: () => {}, skipEscape: () => G.game.skipExtraction() });
     let error = null;
     try { await solve(D, { boardPoint }); } catch (e) { error = String(e?.message || e); }
     for (let i = 0; i < 600 && G.game.state === 'playing'; i++) G.game.step(dt);

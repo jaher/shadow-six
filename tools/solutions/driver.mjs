@@ -255,7 +255,7 @@ function alongPath(u, dist, stopAtEnd = false) {
  *   pause: () => Promise resolved on a later displayed frame with no tick in between (the live replay): sliced plans
  *   (planSneakAsync, sneak) hand the frame back with it.
  */
-export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet = false, watch = true, aborted = null, onOrder = null, onCheckpoint = null, onWait = null, pause = null } = {}) {
+export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet = false, watch = true, aborted = null, onOrder = null, onCheckpoint = null, onWait = null, pause = null, skipEscape = null } = {}) {
   const w = world;
   // a sliced plan hands the frame back every PLAN_SLICE_MS (`pause`: resolves on a later frame, no tick in between)
   const runGenAsync = async (it) => {
@@ -375,6 +375,15 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
     watchCrewedRafts: () => { crewedRafts = true; },
     /** sneak on foot in straight, decisive dashes (dash.mjs compileDash) instead of the plan's cell clicks: opt-in */
     straightDashes: false,
+    /** set by a solution around a section where two async flows of its own step the world in turn (M4's bridgehead
+     * strike: the Sniper's last shot while the Green Beret and the Marine get away): the logic run steps each tick at
+     * once, so the flows interleave tick by tick; a live replay (debug/solution-replay.js), whose paced step parks one
+     * flow at a time to wait for a frame, ticks such a section unpaced too — else the flows interleave otherwise (or the
+     * parked one is never woken) and the walkthrough parts from the tested run */
+    unpaced: false,
+    /** the player's ESC while the loaded escape vehicle drives off (§7.6, Game.skipExtraction): the drive-off skipped,
+     * the escape done; false where the harness has no game to ask (`skipEscape` option) or nothing is driving off */
+    skipEscape: () => !!skipEscape?.(),
     /** an enemy by tag (e1…e34, st_barr1#0.0.0…) */
     get: (t) => w.enemies.find((e) => e.tag === t || e.id === t) || w.byId?.(t),
     /** a commando by role (greenberet, diver, sapper, spy) */

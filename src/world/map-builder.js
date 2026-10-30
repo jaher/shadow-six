@@ -499,8 +499,14 @@ export function* stampVisualNavG(world, built, points = []) {
   });
   const free = (x, z) => keep.some(([kx, kz, r = 0.9]) => Math.hypot(kx - x, kz - z) < r) || !!(grid.ramps && (grid.nearRamp(x, z, 0.3) || footLane(x, z)));
   let cells = 0, n = 0;
-  // the ways to keep: walkable pieces before the stamps, and the points they join
+  // the ways to keep: walkable pieces before the stamps, and the points they join. In a `deckWays` mission the measured
+  // decks' railings (buildMap's `deck:` stamps) are such stamps too: the pieces are labelled without them, and where they
+  // cut a way they give way like the drawn ones (M4: the pier stair's two flights and the pier deck meet inside each
+  // other's railings, and the boat could not be reached from the plateau)
+  const decks = !grid.deckWays ? [] : [...(grid._navStamps || [])].filter(([key]) => key.startsWith('deck:')).map(([key, set]) => ({ key, levels: [new Set(set), new Set()] }));
+  for (const st of decks) grid.navStamp(st.key, []);
   const labels0 = yield* walkPiecesG(grid), stamps = [];
+  for (const st of decks) { grid.navStamp(st.key, st.levels[0]); stamps.push(st); }
   // (door approaches of the assets' real doors and link ends; a layout's guessed door side is no way point)
   const realDoors = [...(world.structureDoors?.values?.() || [])];
   for (const b of built) if (b.def.doorWay !== false) for (const d of b.library?.doors || []) if (d.approach) realDoors.push([d.approach.x, d.approach.z]);
@@ -723,7 +729,8 @@ export function keepWays(grid, labels0, ways, stamps) { return runSync(keepWaysG
 /** keepWays() as a sliced job (engine/slice.js). */
 export function* keepWaysG(grid, labels0, ways, stamps) {
   let steps = 0;
-  for (let round = 0; round < 16; round++) {
+  // (a `deckWays` mission may take more rounds: M4's pier stair is the last of its many cuts to be reached)
+  for (let round = 0, rounds = grid.deckWays ? 32 : 16; round < rounds; round++) {
     const lab = yield* walkPiecesG(grid), rep = new Map(), cut = [];
     for (const [i, j] of ways) {
       if (!grid.inBounds(i, j)) continue;
@@ -748,7 +755,9 @@ export function* keepWaysG(grid, labels0, ways, stamps) {
     const between = (k) => near(k, 3, (seen) => sides.some(([a, b]) => seen.has(a) && seen.has(b)));
     const rim = (k) => near(k, 2, (seen) => [...seen].some((v) => pocket.has(v)));
     let hems = between;
-    if (!stamps.some((st) => [...stampCells(st)].some((k) => grid.terrain[k] !== T.WATER && between(k)))) hems = rim;
+    // (open water is no walker's way; in a `deckWays` mission a deck over it is: a pier's, a bridge's)
+    const wet = (k) => grid.terrain[k] === T.WATER && !(grid.deckWays && grid.bridge[k]);
+    if (!stamps.some((st) => [...stampCells(st)].some((k) => !wet(k) && between(k)))) hems = rim;
     let moved = 0;
     for (const soft of [true, false]) { // low parts give way first
       for (const st of stamps) {
@@ -759,7 +768,7 @@ export function* keepWaysG(grid, labels0, ways, stamps) {
         let changed = false;
         for (const k of cur) {
           const l = st.lv.get(k) ?? 0;
-          if (l >= last || grid.terrain[k] === T.WATER || !hems(k)) continue; // (deep water: no walker's way)
+          if (l >= last || wet(k) || !hems(k)) continue; // (deep water: no walker's way)
           st.lv.set(k, l + 1); changed = true;
         }
         if (!changed) continue;
@@ -1359,12 +1368,24 @@ export const INSTANCE_MIN = 3;
  * @returns {Promise[]} batch handles
  */
 export function batchLibraryRepeats(libBuilt, parent, log = []) {
-  const groups = new Map();
+  const groups = new Map(), own = new Map();
   for (const b of libBuilt) {
     const d = b.def;
     if (d.flag || d.destructible || d.enterable || d.garrison || b.type === 'gate' || d.nav === true) continue;
-    if (!groups.has(b.library.asset)) groups.set(b.library.asset, []);
-    groups.get(b.library.asset).push(b);
+    // (a per-structure change to the model's own meshes — materials or parts hidden, baked AO off, a snow twin — is
+    // drawn by its own copy: the batch draws the template, and its stamps were measured on the changed copy; M4's
+    // floating landing stage, one of four jetties, without the jetty's shore abutment)
+    const by = d.hideMats || d.hideParts || d.dropAo || d.keepSnowOn ? own : groups;
+    if (!by.has(b.library.asset)) by.set(b.library.asset, []);
+    by.get(b.library.asset).push(b);
+  }
+  // …and the water still sees them as a batch: the water's bed capture leaves instanced meshes out (art/water
+  // _captureKey), so the copies of a repeat the batch would have drawn whole stay out of it too (no foam ring round
+  // one jetty of four; the others too when too few are left to batch)
+  for (const [asset, list] of own) {
+    const rest = groups.get(asset) ?? [];
+    if (list.length + rest.length < INSTANCE_MIN) continue;
+    for (const b of rest.length < INSTANCE_MIN ? list.concat(rest) : list) b.library.object3d.userData.waterIgnore = true;
   }
   const out = [];
   for (const [asset, list] of groups) {
@@ -1640,6 +1661,8 @@ export function* buildMapGen(world, mission, opts = {}) {
   const grid = world.grid;
   // (`hullDrawn`: hulls clear what is drawn, not the walkers' clearance round it — grid.hullBlocked; M20)
   grid.hullDrawn = !!mission.hullDrawn;
+  // (`deckWays`: its decks over water, and their measured railings, are ways keepWays holds open — grid.deckWays; M4)
+  grid.deckWays = !!mission.deckWays;
   const theater = opts.theater || mission.theater || 'temperate';
   const meshes = opts.meshes !== false;
   // final terrain: tree structures keep their grid footprints (fixed occluders) but are drawn by the vegetation system

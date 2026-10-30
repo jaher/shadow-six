@@ -128,3 +128,38 @@ test('driver: a promise step (the live replay waits for the next frame) is await
   await D.until(() => w.time > 0.1, 1, 'time');
   assert.equal(log.length, 7);
 });
+
+test('replay: a section the solution marks unpaced (two flows of its own stepping the world in turn) ticks at once, interleaving as the logic run does; the paced step parks one flow at a time', async () => {
+  const { SolutionReplay } = await import('../../src/debug/solution-replay.js');
+  /** the M4 bridgehead pattern: flow B started inside flow A, both stepping until each is done; the (flow, tick) log */
+  const play = async (makeStep, onDriver = () => {}) => {
+    const { w } = fakeWorld();
+    w.tick = 0;
+    const order = [];
+    const D = makeDriver(w, { step: makeStep(w), quiet: true, log: () => {}, watch: false });
+    onDriver(D);
+    const flow = (name, n) => D.until(() => { order.push(`${name}${w.tick}`); return order.filter((s) => s.startsWith(name)).length > n; }, 5, name);
+    D.unpaced = true;
+    try {
+      const b = (async () => { await flow('b', 4); await D.wait(2 / 60); await flow('b', 7); })();
+      await flow('a', 6);
+      await b;
+    } finally { D.unpaced = false; }
+    return { order: order.join(' '), D };
+  };
+  // the logic run: every step at once
+  const logic = await play((w) => () => { w.time += 1 / 60; w.tick++; });
+  // a live replay with no frame budget at all: only the unpaced section can tick
+  let rp = null;
+  let timer = null;
+  const live = await Promise.race([play((w) => {
+    rp = new SolutionReplay({ world: w, input: {}, state: 'playing', step(dt) { w.time += dt; w.tick++; } }, { id: 'm04', stages: [] });
+    return () => rp._step();
+  }, (D) => { rp.driver = D; }), new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('the flows never finish: a parked flow is never woken')), 2000); })]);
+  clearTimeout(timer);
+  assert.equal(live.order, logic.order, 'the same flows on the same ticks');
+  // (outside such a section a replay with no budget parks the flow until a frame grants a tick)
+  live.D.unpaced = false;
+  const r = rp._step();
+  assert.ok(r && typeof r.then === 'function', 'paced: waits for a frame');
+});

@@ -89,6 +89,7 @@ const SETS = {
   ballast: ['gravel_grey', 0xffffff, 0x77736c, 1.2],
   gravel: ['gravel', 0xffffff, 0x8a7f6d, 1.2],
   mud: ['mud', 0xffffff, 0x4a3d2c, 1.0],
+  stream: ['water_flow', 0x9aa8a2, 0x1d4a4c, 0.8],              // M17 art pass 2: the gorge's stream (streaks along v)
   sand: ['sand', 0xffffff, 0xc2a77a, 0.8],
   cobble: ['cobblestone', 0xffffff, 0x77736b, 1.1],
   glassDirty: ['glass_dirty', 0xffffff, 0x2a3236, 0.5],
@@ -298,7 +299,11 @@ function offsetPoly(poly, dist) {
  * so it closes on the concrete with no bulge through it and no gap opening up the face. A segment may carry a third
  * value, `set` (m): its face then stands that far behind the outline, plumb all the same (M3: the stairs' rock side, set
  * back 0.2 m so a rifle held across the stair clears it — the stair's `ledge` fills the strip, art/dam-stairs.js).
- * @param {object} p prop params: points (world [x,z] or {x,z}), x, z (group origin), rot, h, id, abut?
+ * `taper`: [{ at: [x, z], r, h }, …] (world): the drawn rock falls to `h` m at `at`, rising smoothly back to the full
+ * height over `r` m — only above `taperFloor` (m, default 2.2): everything below it (what a body, a hull or the head
+ * room under an overhang is measured on) is the untapered rock, vertex for vertex, so the walk grid is the same. M4's
+ * fjord cliffs end in thin tongues at the pier stair's gap, drawn at full height as 7–8 m rock blades over the stair.
+ * @param {object} p prop params: points (world [x,z] or {x,z}), x, z (group origin), rot, h, id, abut?, taper?, taperFloor?
  */
 export function buildCliff(p) {
   const h = p.h ?? 6, ox = p.x ?? 0, oz = p.z ?? 0, rot = p.rot ?? 0, c = Math.cos(rot), s = Math.sin(rot);
@@ -328,6 +333,16 @@ export function buildCliff(p) {
   };
   // per ring vertex: how far its face stands behind the outline (a segment's optional third value, `set`), -1 = not on an abutting face
   const abut = ring.map((q) => abutSegs.reduce((m, sg) => (onSeg(q, sg) ? Math.max(m, sg[2]) : m), -1));
+  // `taper`: the drawn height above `taperFloor` squeezed towards each taper point's h (smoothstep over its radius)
+  const floor = p.taperFloor ?? 2.2;
+  const tapers = (p.taper || []).map((q) => ({ at: q.at, r: Math.max(0.5, q.r ?? 6), h: Math.min(h, Math.max(floor + 0.3, q.h ?? floor + 0.5)) }));
+  const squeeze = tapers.length && h > floor + 0.3 ? (lx, lz, y) => {
+    if (y <= floor) return y;
+    const wx = ox + lx * c - lz * s, wz = oz + lx * s + lz * c;
+    let top = h;
+    for (const q of tapers) { const u = Math.min(1, Math.hypot(wx - q.at[0], wz - q.at[1]) / q.r), k = u * u * (3 - 2 * u); top = Math.min(top, q.h + (h - q.h) * k); }
+    return floor + ((y - floor) * (top - floor)) / (h - floor);
+  } : (lx, lz, y) => y;
   const nrm = ring.map((_, i) => {
     const [ax, az] = ring[(i - 1 + N) % N], [bx, bz] = ring[(i + 1) % N], l = Math.hypot(bx - ax, bz - az) || 1;
     return [(bz - az) / l, -(bx - ax) / l];
@@ -364,8 +379,9 @@ export function buildCliff(p) {
       const A = on ? poly[e] : O[e], B = on ? poly[(e + 1) % poly.length] : O[(e + 1) % O.length];
       const dd = on ? Math.min(0, 0.5 * (2.1 * col + 0.35 * fine)) - 0.03 - abut[k] : d + bat;
       const px = A[0] + (B[0] - A[0]) * t + nx * dd, pz = A[1] + (B[1] - A[1]) * t + nz * dd;
-      pos.push(px, yy, pz);
-      uv.push((i === N ? arc : arcs[k]) / 5, yy / 5);
+      const ys = squeeze(px, pz, yy); // (taper: above the floor only; the cap's rim squeezes at the same points)
+      pos.push(px, ys, pz);
+      uv.push((i === N ? arc : arcs[k]) / 5, ys / 5);
       if (l === levels && i < N) top.push([px, yy, pz]);
     }
   }
@@ -393,7 +409,7 @@ export function buildCliff(p) {
       const k = Math.pow(r / RINGS, 0.8);   // blend from the rim height into the rolling top (no step at the rim)
       const Y = flat ? (y + 0.05) * (1 - k) + (h - 0.06 - 0.14 * Math.abs(fbm(X * 0.3, 7.7, Z * 0.3, seed + 5, 3))) * k
         : (y + 0.05) * (1 - k) + (h + 0.6 + 1.6 * fbm(X * 0.09, 7.7, Z * 0.09, seed + 5, 3) + 0.4 * fbm(X * 0.5, 1.3, Z * 0.5, seed + 6, 2)) * k;
-      pos.push(X, Y, Z); uv.push(X / 9 + 0.37, Z / 9 + 0.61);   // wider tiling seen from above
+      pos.push(X, squeeze(X, Z, Y), Z); uv.push(X / 9 + 0.37, Z / 9 + 0.61);   // wider tiling seen from above
     }
   }
   for (let r = 0; r < RINGS; r++) for (let i = 0; i < N; i++) {
@@ -413,6 +429,20 @@ export function buildCliff(p) {
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   g.setIndex(idx);
   g.computeVertexNormals();
+  if (tapers.length) {
+    // a tapered tongue brings its tip's cap down into view. At a thin tongue's sharp tip the cap's mitred inset rings
+    // run far along the tongue and cross: the cap folds, and the vertex normals there average the folded (down-facing)
+    // triangles and point down, drawn black (and snowless) on the up-facing ones. Within a taper's radius a cap vertex
+    // steeper than 60° is pointed up, leaning 30 % its own way: positions untouched, untapered cliffs bit-identical.
+    const P = g.attributes.position, Nm = g.attributes.normal;
+    for (let i = base; i < Nm.count; i++) {
+      if (Nm.getY(i) >= 0.5) continue;
+      const lx = P.getX(i), lz = P.getZ(i), wx = ox + lx * c - lz * s, wz = oz + lx * s + lz * c;
+      if (!tapers.some((q) => Math.hypot(wx - q.at[0], wz - q.at[1]) < q.r)) continue;
+      const nx = 0.3 * Nm.getX(i), nz = 0.3 * Nm.getZ(i), l = Math.hypot(nx, 0.9, nz);
+      Nm.setXYZ(i, nx / l, 0.9 / l, nz / l);
+    }
+  }
   const m = mesh(g, dressingMaterial(p.rockMat || 'rock')); // (`rockMat`: M8's warm desert rock for its S drop)
   m.userData.capStart = base;
   m.name = 'dressing:cliff';

@@ -99,7 +99,11 @@ const TERRAIN = [
 // ---------------------------------------------------------------- structures (dossier §4)
 /** Banks: impassable but see-through (`block: 3` = B.FENCE) so the tank and the Sniper shoot across the inlet. */
 const FENCE = 3;
-const cliff = (id, points, h = 7) => ({ id, type: 'cliff', variant: 'fjord_cliff_grey', points, h, block: FENCE });
+const cliff = (id, points, h = 7, art = {}) => ({ id, type: 'cliff', variant: 'fjord_cliff_grey', points, h, block: FENCE, ...art });
+/** Art pass 2: the two tongues of rock either side of the pier stair's gap are drawn falling to 2.6 m at the gap (they
+ *  stood as 7–8 m blades over the stair; art/dressing.js buildCliff `taper`: above 2.2 m only, so the walk grid round
+ *  them is the same). The gameplay outlines are unchanged. */
+const STAIR_GAP_ART = { hq: { taper: [{ at: [47.6, 55.6], r: 9, h: 2.6 }] }, ne: { taper: [{ at: [45.4, 62.4], r: 9, h: 2.6 }] } };
 const mgRing = (id, x, z, rot) => ({ id, type: 'sandbags', variant: 'mg_nest_sandbag', x, z, rot: deg(rot), ring: { r: 1.6 }, h: 1.0, block: 1 });
 
 const HQ = [
@@ -124,33 +128,41 @@ const HQ = [
   { id: 'gate_outer', type: 'gate', variant: 'barrier_boom', x: 103.9, z: 58.3, rot: deg(315), w: 5.5, open: true, rammable: true },
   // the two garrisons between the walls (indestructible) and the jail hut outside (garrison + jail, bomb-destructible)
   { id: 'garr1', type: 'barracks', variant: 'log_garrison', x: 98.2, z: 7.4, rot: deg(42), w: 6, d: 5, h: 4.5, flag: true, garrison: true, door: 0 },
-  { id: 'garr2', type: 'barracks', variant: 'log_garrison', x: 92.8, z: 2.6, rot: deg(42), w: 6, d: 5, h: 4.5, garrison: true, door: deg(117) },
+  // (the dossier's one long block: garr2 is the half running off the N edge, its eaves meeting garr1's — a join)
+  { id: 'garr2', type: 'barracks', variant: 'log_garrison', x: 92.8, z: 2.6, rot: deg(42), w: 6, d: 5, h: 4.5, garrison: true, door: deg(117), clipAllow: ['garr1'] },
   { id: 'house_a', type: 'house', variant: 'timber_house', x: 97.0, z: 28.0, rot: deg(42), w: 8, d: 6, h: 5, snowRoof: true, enterable: true },
-  { id: 'house_b', type: 'hut', variant: 'timber_shed', x: 90.0, z: 24.5, rot: deg(42), w: 4.5, d: 5, h: 4, enterable: true },
+  // (art pass 2: a Norwegian timber hut that fits its 4.5 × 5 m footprint, relay_station_no; the log cabin it drew was
+  // squeezed to 72 % and still ran 1.7 m past its footprint, its gable porch and roof snow into house_a's W wall)
+  { id: 'house_b', type: 'hut', variant: 'timber_shed', asset: 'relay_station_no_snow', x: 90.0, z: 24.5, rot: deg(42), w: 4.5, d: 5, h: 4, enterable: true },
   { id: 'tent1', type: 'tent', variant: 'tent_large_barrack', x: 108.5, z: 17, rot: deg(42), w: 5, d: 4, h: 3, destructible: true, hp: 60 },
   { id: 'tent2', type: 'tent', variant: 'tent_large_barrack', x: 113.5, z: 22.5, rot: deg(42), w: 5, d: 4, h: 3, destructible: true, hp: 60 },
   // (art pass: 2.6 m E of the dossier's (62, 12), clear of the fjord cliff's crest it straddled)
   { id: 'henhouse', type: 'hut', variant: 'henhouse', x: 64.6, z: 12, rot: 0, w: 3, d: 2, h: 2, destructible: true, hp: 30, asset: 'henhouse_no', nav: false },
   // the jetty: shed at the stair head, timber stair down the cliff, pier deck, low landing stage, MG nest
   { id: 'shed_pier', type: 'hut', variant: 'timber_shed', x: 56.0, z: 51.5, rot: 0, w: 3.5, d: 3.5, h: 3.5, enterable: true, destructible: true, hp: 60 },
-  { id: 'stair_pier1', type: 'pier', variant: 'timber_stair', x: 44.75, z: 60.15, rot: deg(135.8), w: 11.5, d: 2.4 },
+  // (its head landing is let into the rock of cliff_hq's tongue: a join, not a clip)
+  { id: 'stair_pier1', type: 'pier', variant: 'timber_stair', x: 44.75, z: 60.15, rot: deg(135.8), w: 11.5, d: 2.4, clipAllow: ['cliff_hq'] },
   { id: 'stair_pier2', type: 'pier', variant: 'timber_stair', x: 38.25, z: 64.9, rot: deg(158.2), w: 6.5, d: 2.4 },
   { id: 'pier_main', type: 'pier', variant: 'pier_timber', x: 36.5, z: 67.5, rot: 0, w: 11, d: 7 },
-  { id: 'pier_float', type: 'pier', variant: 'landing_stage', x: 37.0, z: 75.0, rot: 0, w: 8, d: 4 },
+  // (art pass 2: the jetty model's shore abutment — granite landing and fieldstone pier, x 41–42.6 — left off the floating
+  // stage: it stood out in the fjord under the moored boat's stern)
+  { id: 'pier_float', type: 'pier', variant: 'landing_stage', x: 37.0, z: 75.0, rot: 0, w: 8, d: 4, hideMats: 'fieldstone_grey|granite' },
   mgRing('mg_pier', 59.4, 63.0, 335),
   // the fjord face below the yard (the stair gap at z 56–62)
   cliff('cliff_hq', [[66.3, 0], [63, 6.6], [59.7, 19.8], [56.4, 33], [54.2, 41.8], [52, 49.5], [49, 55.5], [46.5, 56], [47, 51], [49, 48],
-    [51, 45], [53, 39], [54, 30], [56, 27], [58, 21], [60, 18], [60, 10], [62, 6], [64, 3], [65, 0]]),
-  // single pines in and around the compound (the stair-head one sits off r0's loop point (70.4, 58.9))
-  ...[[61, 22], [63, 34], [60.5, 44], [72, 46.5], [70.5, 53], [68.3, 61.8], [66, 66], [97, 71], [107, 4], [119, 14], [120, 40], [125, 46],
-    [122, 52], [117, 57], [112, 61]].map(([x, z], k) => ({ type: 'pine', x, z, r: 0.45, h: 9 + (k % 5), seed: 401 + k })),
+    [51, 45], [53, 39], [54, 30], [56, 27], [58, 21], [60, 18], [60, 10], [62, 6], [64, 3], [65, 0]], 7, STAIR_GAP_ART.hq),
+  // single pines in and around the compound (the stair-head one sits off r0's loop point (70.4, 58.9)); the first stands
+  // where the placement moved the dossier's (61, 22), clear of the cliff's crest, pinned there (art pass 2: the cliff's
+  // drawing must not move it)
+  ...[[64.784, 23.444, true], [63, 34], [60.5, 44], [72, 46.5], [70.5, 53], [68.3, 61.8], [66, 66], [97, 71], [107, 4], [119, 14], [120, 40], [125, 46],
+    [122, 52], [117, 57], [112, 61]].map(([x, z, fixed], k) => ({ type: 'pine', x, z, r: 0.45, h: 9 + (k % 5), seed: 401 + k, ...(fixed ? { fixed } : {}) })),
 ];
 
 const INLET = [
   // the HQ plateau's S face (stair gap → bridge) and the cliff E of the bridge down to the S edge
   cliff('cliff_ne_w', [[45.5, 62.5], [50, 65], [56, 71], [61.6, 75], [70.4, 79.4], [83.6, 88.2], [94.6, 93.7], [105, 103], [110.3, 110],
     [115.7, 114.3], [119.6, 119.6], [106, 129], [104, 126], [99, 123], [96, 120], [94, 117], [89, 114], [86, 111], [83, 108], [80, 105],
-    [76, 102], [73, 99], [70, 96], [66, 93], [62, 90], [59, 87], [54, 84], [53, 81], [50, 78], [47, 70], [45, 62]], 8),
+    [76, 102], [73, 99], [70, 96], [66, 93], [62, 90], [59, 87], [54, 84], [53, 81], [50, 78], [47, 70], [45, 62]], 8, STAIR_GAP_ART.ne),
   cliff('cliff_ne_e', [[123.4, 121.6], [126.3, 123.7], [131.7, 127], [135.7, 131.7], [141.6, 135.5], [152.7, 144.3], [161.6, 153.2],
     [170.5, 162.1], [174.9, 171], [153, 171], [150, 168], [147, 165], [143, 162], [141, 159], [138, 156], [131.7, 151.7], [125, 146.3],
     [121, 144.3], [116, 141], [111.5, 135.5]], 8),
@@ -195,8 +207,10 @@ const SW_BANK = [
   { id: 'ruin_w1', type: 'ruins', variant: 'wall_ruined_stone', x: 19.5, z: 157, rot: deg(40), w: 5, d: 1, h: 2.2, asset: 'ruin_fieldstone_no_a', nav: false },
   { id: 'ruin_w2', type: 'ruins', variant: 'wall_ruined_stone', x: 22.5, z: 163.5, rot: deg(130), w: 4, d: 1, h: 2.8, asset: 'ruin_fieldstone_no_a', nav: false },
   { id: 'ruin_w3', type: 'ruins', variant: 'wall_ruined_stone', x: 15.5, z: 166.5, rot: deg(40), w: 5, d: 1, h: 1.8, asset: 'ruin_fieldstone_no_a', nav: false },
-  { id: 'debris_logs', type: 'crates', variant: 'timber_debris', x: 40.0, z: 162.0, rot: deg(20), w: 7, d: 3, h: 1.5, block: 1 },
-  { id: 'debris_cart', type: 'crates', variant: 'timber_debris', x: 90.0, z: 161.0, rot: deg(60), w: 4, d: 3, h: 1.5, block: 1 },
+  // (art pass 2, art/m04-dressing.js: they drew as loose planks) spruce logs stacked by the dead siding for a timber wagon;
+  // by the bridge the platelayers' store of sleepers and spare rails
+  { id: 'debris_logs', type: 'crates', variant: 'log_pile_long', label: 'Log pile', x: 40.0, z: 162.0, rot: deg(20), w: 7, d: 3, h: 1.5, block: 1 },
+  { id: 'debris_cart', type: 'crates', variant: 'platelayer_stack', label: 'Sleepers and rails', x: 90.0, z: 161.0, rot: deg(60), w: 4, d: 3, h: 1.5, block: 1 },
   { id: 'rocks_yard1', type: 'rocks', variant: 'granite_spire', x: 10.5, z: 124, rot: 0, w: 6, d: 5, h: 4 },
   { id: 'rocks_yard2', type: 'rocks', variant: 'granite_spire', x: 20, z: 108.5, rot: 0, w: 5, d: 4, h: 3.5 },
   { id: 'rocks_rim', type: 'rocks', variant: 'outcrop', x: 83.5, z: 138.5, rot: 0, w: 5, d: 9, h: 3.5 },
@@ -228,9 +242,12 @@ const NE_BANK = [
   // jail hut outside the outer wall (garrison of 5 + the jail for every patrol; a bomb razes it)
   { id: 'jail_hut', type: 'barracks', variant: 'jail_cell', x: 95.3, z: 65.2, rot: deg(45), w: 5, d: 4, h: 3.5, flag: true, garrison: true,
     jail: true, door: 0, destructible: true, hp: 100, enterable: true, asset: 'jail_guardhouse_no', nav: false },
-  // the RAF air-drop: crate + white parachute canopy spread N (no block)
-  { id: 'crate_drop', type: 'crates', variant: 'airdrop_crate', x: 180.8, z: 33.4, rot: 0, w: 1.2, d: 1.2, h: 1.0, block: 0 },
-  { id: 'canopy', type: 'sign', variant: 'parachute_canopy', x: 180, z: 28.5, rot: deg(90), w: 9, d: 5, h: 0.2, block: 0 },
+  // the RAF air-drop: crate + white parachute canopy spread N (no block). Art pass 2 (art/m04-dressing.js): the supply
+  // crates painted RAF green and stencilled, snow on their lids and drifted round them, and the canopy dragged out by the
+  // wind, its crown still heaped with trapped air, its rigging lines to the riser by the crates (fixed: placed as authored)
+  { id: 'crate_drop', type: 'crates', variant: 'raf_crates', label: 'Supply crates', x: 180.8, z: 33.4, rot: 0, w: 1.2, d: 1.2, h: 1.0, block: 0, fixed: true },
+  // (fixed: placed as authored; its rigging lines end at the crates' riser, local (3.5, -0.3))
+  { id: 'canopy', type: 'sign', variant: 'parachute_spread', x: 180, z: 28.5, rot: deg(90), w: 9, d: 5, h: 0.2, block: 0, fixed: true, riser: [3.5, -0.3] },
   ...forest('forest_w', [[135, 16], [155, 16], [155, 45], [145, 46], [135, 40]], [136, 154, 17, 44], 24, 4401),
   ...forest('forest_e', [[160, 16], [178.5, 16], [178.5, 53], [170, 53], [160, 47.5]], [161, 177.5, 17, 52], 26, 4501),
   ...forest('treeline_n', [[115, 0], [199, 0], [199, 19], [187, 19], [187, 5], [115, 5]], [116, 198, 0.5, 4.5], 16, 4601),
@@ -257,7 +274,9 @@ const DRESSING = [
   // the HQ staff car and a despatch rider's BMW combination parked by the villa's W wall (seen past it, not hidden behind)
   { id: 'kw_villa', type: 'crates', variant: 'vehicle_parked', label: 'Staff car', x: 66, z: 25, rot: deg(90), w: 3.8, d: 1.6, h: 1.4, block: 1, fixed: true, vehicleArt: 'kubelwagen' },
   { id: 'moto_villa', type: 'crates', variant: 'vehicle_parked', label: 'Motorcycle', x: 65.8, z: 19.6, rot: deg(90), w: 2.4, d: 1.7, h: 1.1, block: 1, fixed: true, vehicleArt: 'r75_sidecar' },
-  logs('logs_hb', 86.3, 21.2, 42), logs('logs_jail', 99.5, 67.5, 45), logs('sleepers_y', 14.5, 128.5, 40),
+  logs('logs_hb', 86.3, 21.2, 42), logs('logs_jail', 99.5, 67.5, 45),
+  // (art pass 2: a crib of creosoted sleepers, art/m04-dressing.js; it drew as a log pile)
+  { id: 'sleepers_y', type: 'crates', variant: 'sleeper_stack', label: 'Sleepers', x: 14.5, z: 128.5, rot: deg(40), w: 3, d: 1.5, h: 1, block: 1, fixed: true },
   { id: 'drums_corr', type: 'barrels', variant: 'inert_stack', x: 116.6, z: 26.3, rot: deg(42), w: 2.4, d: 2, h: 1, block: 1, fixed: true },
   { id: 'crates_stair', type: 'crates', x: 57.6, z: 46.6, rot: 0, w: 2, d: 2, h: 1.2, block: 1, fixed: true },
   { id: 'cart_x', type: 'crates', variant: 'handcart', asset: 'handcart_wood', x: 179.5, z: 77.5, rot: deg(45), w: 1.9, d: 1.4, h: 1, block: 1, fixed: true },
@@ -326,7 +345,9 @@ const COMMANDOS = [
 
 /** The RAF air-drop crate: each man takes what he can carry (Sapper: time bomb, Sniper: 3 rounds, Driver: SMG). */
 const INTERACTABLES = [
-  { kind: 'crate', id: 'drop', x: 180.8, z: 33.4, contents: { timeBomb: 1, sniperRifle: 3, smg: 20 } },
+  // (at the crate's N side, where the placement put it beside the placeholder crate stack; pinned there: the art pass's
+  // container lies where the stack stood)
+  { kind: 'crate', id: 'drop', x: 180.511, z: 32.548, fixed: true, contents: { timeBomb: 1, sniperRifle: 3, smg: 20 } },
 ];
 
 // ---------------------------------------------------------------- enemies (dossier §7; retail file, Prima numbers)
@@ -410,7 +431,9 @@ const NE_ENEMIES = [
     P(184.9, 51.3)] }),
   // the outer gate (Prima 34–36): snipe the rear guard e47 first, while the barrier guard e48 looks away
   walker('e46', 34, 123.3, 63.3, 'PINGPONG', 1.7, [P(119.7, 64.7, 0.5), P(123, 63.5), P(134.2, 54.4), P(136.4, 53.6, 0.5)]),
-  post('e47', 35, 104.8, 55.8, 45, true),
+  // (beside the gatehouse's north-east wall: his old post (104.8, 55.8) lay inside the drawn gatehouse, so he spawned in
+  // the gate passage, where the lorry's hull could never plan round him: tests/m04-lorry-round.test.mjs)
+  post('e47', 35, 108.4, 55.6, 45, true),
   post('e48', 36, 109.2, 57.4, 45, false),
   // the lorry driver (Prima 37): unarmed, never raises an alarm, ignores bodies; rides in `truck` (script errands)
   { id: 'e49', prima: 37, soldierType: 'truckDriver', x: 196.5, z: 107.5, heading: deg(224), weapon: null,
@@ -578,6 +601,13 @@ export default {
   script: m04Script,
   // the boat sails W off the map once o1 is done and every living commando is aboard (retail EXIT route DEMO, VEL 3)
   extraction: { vehicleId: 'pboat', spawnAt: { x: BOAT.x, z: BOAT.z, heading: deg(BOAT.h) }, spawnWhen: ['o1'], leave: { x: -6, z: 81.5, speed: 2.7 } },
+  // (the supply lorry clears what the gatehouses draw, not the walkers' clearance round them — grid.hullBlocked: with
+  // it the 4.5 m passage between the two drawn gatehouses at the outer gate left no plan for its hull, and the lorry
+  // stood there from its first round on; tests/m04-lorry-round.test.mjs)
+  hullDrawn: true,
+  // (the pier stair's two flights and the pier deck meet inside each other's measured railings, over the water: without
+  // it no way led from the plateau down to the pier, the ladder and the boat — grid.deckWays)
+  deckWays: true,
   alarmFail: null,
   timeBombFuse: 7.5, // the retail file's fuse for the air-drop charge (the standard is 10 s)
   par: { time: 755 },

@@ -469,6 +469,9 @@ export function walking(e) {
   if (e.vehEye) return true;
   const b = e.brain, now = e.world?.time ?? 0;
   if (e.isMoving || e.path || b?.atWait || !lastMoved.has(e)) lastMoved.set(e, now);
+  // (opt-in `w.sneakStillStatic`: a posted man (no beat) standing still on his post again — back from a look, a few
+  // steps off his spot, a stale path left over — is a post: his own sweep, not a walker's glances)
+  if (e.world?.sneakStillStatic && !e.isMoving && !(e.route?.length > 1) && b?.state === 'IDLE') return false;
   if (e.isMoving || e.path) return true;
   // a file man standing by his leader while the leader is off the beat (at a lure...): he stands, his cone is his own
   const lead = b?._leader?.();
@@ -485,6 +488,10 @@ export function walking(e) {
 export function postHeadings(e) {
   const ph = e.post?.heading;
   if (ph == null) return null;
+  // (opt-in `w.sneakLures`: a post turned to a decoy still pulsing within his hearing keeps facing it — each pulse
+  // holds him round for another 8 s; he turns back only once it stops)
+  if (e.world?.sneakLures && e.brain?.noiseTurnT > 0 && !e.brain?.turn
+    && e.world.interactables?.some((d) => d.interactKind === 'decoy' && d.on && !d.removed && Math.hypot(d.x - e.x, d.z - e.z) <= 13.5)) return [e.heading];
   const tg = e.brain?.turn ? e.brain._turnGoal?.() : null;
   const off = Math.abs(Math.atan2(Math.sin(e.heading - ph), Math.cos(e.heading - ph)));
   if (tg == null && !(e.brain?.noiseTurnT > 0) && off <= 0.1) return null;

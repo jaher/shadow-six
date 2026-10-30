@@ -126,3 +126,122 @@ test('art m04: the set dressing stays ≥ 1.5 m off every route and ≥ 3 m off 
   }
   assert.ok(m04.furniture.length >= 9 && m04.furniture.every((f) => f.block === false));
 });
+
+// ---------------------------------------------------------------- art pass 2 (art/m04-dressing.js, buildCliff taper)
+// What is drawn feeds the walk grid (map-builder vis / body-solid stamps), and the M4 solution's escape plans on it: the
+// pass 2 pieces keep the placeholder's standing geometry where a body or a hull met it (tests below), so the walk stays.
+import { buildCliff, buildCrates } from '../../src/art/dressing.js';
+import { buildRafCrates, buildParachuteSpread, buildLongLogPile, buildSleeperStack, buildPlatelayerStack, crownHeap } from '../../src/art/m04-dressing.js';
+import { buildSignVariant } from '../../src/art/kit-props.js';
+import * as THREE from 'three';
+import { CONFIG } from '../../src/config.js';
+
+const posOf = (g, rx = null) => { const out = []; g.updateMatrixWorld(true); g.traverse((o) => { if (!o.isMesh || (rx && !rx.test(o.material?.name || ''))) return; const gg = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry).clone().applyMatrix4(o.matrixWorld); out.push(...gg.attributes.position.array); }); return out; };
+const boxOf = (g) => new THREE.Box3().setFromObject(g);
+
+test('art2 m04: the air-drop is the placeholder\'s two crates box for box (re-skinned), the pickup and the crates pinned', () => {
+  const c = S('crate_drop'), it = m04.interactables.find((i) => i.id === 'drop');
+  assert.equal(c.variant, 'raf_crates'); assert.ok(c.block === 0 && c.fixed, 'block 0, fixed');
+  assert.ok(it.fixed && it.x === 180.511 && it.z === 32.548, 'the pickup where the placement put it on master');
+  const mine = posOf(buildRafCrates(c), /planks/), old = posOf(buildCrates({ ...c, variant: 'airdrop_crate' }));
+  assert.equal(mine.length, old.length, 'the same crates');
+  assert.ok(mine.every((v, k) => Math.abs(v - old[k]) < 1e-6), 'vertex for vertex');
+});
+
+test('art2 m04: the canopy lies flat (≤ 0.085 m) but for its crown, the placeholder\'s silk heap vertex for vertex', () => {
+  const p = S('canopy');
+  assert.equal(p.variant, 'parachute_spread'); assert.ok(p.block === 0 && p.fixed);
+  const heap = crownHeap(p); const H = posOf(heap);
+  const oldHeap = posOf(buildSignVariant({ ...p, variant: 'parachute_canopy' }), /silk$/);
+  assert.equal(H.length, oldHeap.length, 'the same heap');
+  assert.ok(H.every((v, k) => Math.abs(v - oldHeap[k]) < 1e-6), 'vertex for vertex');
+  const g = buildParachuteSpread(p); let hi = 0;
+  g.traverse((o) => { if (!o.isMesh) return; const P = o.geometry.attributes.position; for (let i = 0; i < P.count; i++) { const x = P.getX(i), z = P.getZ(i); if ((x / 1.8) ** 2 + (z / 1.45) ** 2 > 1) hi = Math.max(hi, P.getY(i)); } });
+  assert.ok(hi <= 0.085, `cloth outside the crown ${hi.toFixed(3)} m`);
+});
+
+test('art2 m04: the stair-gap tongues are drawn low at the gap; below 2.2 m the rock is the untapered one vertex for vertex', () => {
+  for (const [id, at] of [['cliff_hq', [47.6, 55.6]], ['cliff_ne_w', [45.4, 62.4]]]) {
+    const s = S(id);
+    assert.ok(s.taper?.length && !s.abut, `${id}: tapered, its outline's faces as they were`);
+    const a = buildCliff({ ...s, taper: undefined }).children[0].geometry.attributes.position.array;
+    const b = buildCliff(s).children[0].geometry.attributes.position.array;
+    assert.equal(a.length, b.length, id);
+    let near = 0;
+    for (let k = 0; k < a.length; k += 3) {
+      assert.equal(a[k], b[k], `${id} x`); assert.equal(a[k + 2], b[k + 2], `${id} z`);
+      if (a[k + 1] <= 2.2) assert.equal(a[k + 1], b[k + 1], `${id}: below the floor`); else assert.ok(b[k + 1] <= a[k + 1] + 1e-9, `${id}: only ever lower`);
+      if (Math.hypot(b[k] - at[0], b[k + 2] - at[1]) < 1.5) near = Math.max(near, b[k + 1]);
+    }
+    assert.ok(near > 0 && near < 3.6, `${id}: ${near.toFixed(2)} m tall at the gap (a 7–8 m blade before)`);
+  }
+});
+
+test('art2 m04: no up-facing cap triangle of the tapered tongues has a vertex normal pointing down (drawn black)', () => {
+  // built as the map builder builds them: the mesh at the outline's vertex average, the outline carried on past the
+  // map edge (art/props.js cliffEdge); the tongue tips' caps fold (their inset rings cross), so their normals pointed down
+  const edge = { W: m04.size[0], D: m04.size[1], out: CONFIG.apron.width + 12 };
+  for (const id of ['cliff_hq', 'cliff_ne_w']) {
+    const s = S(id), n = s.points.length;
+    const x = s.points.reduce((a, q) => a + q[0], 0) / n, z = s.points.reduce((a, q) => a + q[1], 0) / n;
+    const m = buildCliff({ ...s, x, z, edge }).children[0], g = m.geometry, P = g.attributes.position, N = g.attributes.normal;
+    const I = g.index.array, cap = m.userData.capStart;
+    let up = 0;
+    for (let t = 0; t < I.length; t += 3) {
+      const [a, b, q] = [I[t], I[t + 1], I[t + 2]];
+      if (a < cap) continue;
+      const fy = (P.getZ(b) - P.getZ(a)) * (P.getX(q) - P.getX(a)) - (P.getX(b) - P.getX(a)) * (P.getZ(q) - P.getZ(a));
+      if (!(fy > 0)) continue;
+      up++;
+      for (const v of [a, b, q]) {
+        assert.ok(N.getY(v) >= 0, `${id}: cap triangle ${t / 3} faces up, its vertex ${v} normal points down (${N.getY(v).toFixed(2)}) at (${(P.getX(v) + x).toFixed(1)}, ${P.getY(v).toFixed(1)}, ${(P.getZ(v) + z).toFixed(1)})`);
+      }
+    }
+    assert.ok(up > 500, `${id}: ${up} up-facing cap triangles checked`);
+  }
+});
+
+test('art2 m04: the log pile lies on the placeholder\'s planks; the sleeper and rail stacks stay inside their footprints', () => {
+  const d = S('debris_logs');
+  assert.equal(d.variant, 'log_pile_long');
+  const mine = posOf(buildLongLogPile(d), /^dressing:planks$/), old = posOf(buildCrates({ ...d, variant: 'timber_debris' }));
+  assert.ok(mine.length === old.length && mine.every((v, k) => Math.abs(v - old[k]) < 1e-6), 'the same planks');
+  const pile = boxOf(buildLongLogPile({ ...d, id: 'x' }));
+  assert.ok(pile.max.y < 1.7 && pile.max.y > 0.9, `pile ${pile.max.y.toFixed(2)} m`);
+  for (const [id, fn] of [['sleepers_y', buildSleeperStack], ['debris_cart', buildPlatelayerStack]]) {
+    const s = S(id), b = boxOf(fn(s));
+    assert.ok(b.min.x >= -s.w / 2 - 0.05 && b.max.x <= s.w / 2 + 0.05 && b.min.z >= -s.d / 2 - 0.05 && b.max.z <= s.d / 2 + 0.05, `${id} inside its ${s.w} × ${s.d} footprint`);
+    assert.equal(s.block, 1, `${id}: low cover as before`);
+  }
+});
+
+test('art2 m04: the four static overlaps of master are dealt with in the data (draw, not footprint)', () => withLib(merged(), () => {
+  // house_b: a timber hut that fits its footprint (the log cabin, squeezed to 72 %, still ran 1.7 m into house_a's wall)
+  const hb = S('house_b');
+  assert.equal(hb.asset, 'relay_station_no_snow');
+  assert.ok(hb.x === 90 && hb.z === 24.5 && hb.w === 4.5 && hb.d === 5 && hb.enterable, 'house_b: the same footprint, enterable');
+  assert.equal(pickAsset(hb.type, hb, { theater: 'snow', missionId: 'm04' })?.name, 'relay_station_no_snow');
+  assert.deepEqual(S('garr2').clipAllow, ['garr1'], 'the dossier\'s one long block: the two halves\' eaves meet');
+  assert.ok(S('garr2').x === 92.8 && S('garr2').z === 2.6 && !S('garr2').artFill, 'garr2 as drawn on master');
+  assert.match(S('pier_float').hideMats, /fieldstone_grey/, 'no shore abutment out on the floating stage');
+  assert.deepEqual(S('stair_pier1').clipAllow, ['cliff_hq'], 'the stair head let into the rock tongue');
+  const pin = m04.structures.find((s) => s.type === 'pine' && s.fixed);
+  assert.ok(pin && pin.x === 64.784 && pin.z === 23.444, 'the first HQ pine pinned where the placement put it on master');
+}));
+
+test('art2 m04: a repeat drawn by its own copy (the landing stage) stays out of the water\'s bed capture like its batch', async () => {
+  // master drew the four jetties instanced, and the water's bed capture leaves instanced meshes out: the stage, now its
+  // own copy (no shore abutment), must not gain a foam ring the other three jetties do not have
+  const { batchLibraryRepeats, INSTANCE_MIN } = await import('../../src/world/map-builder.js');
+  assert.equal(INSTANCE_MIN, 3);
+  const lib = (asset, def = {}) => ({ type: 'pier', def, library: { asset, matrix: new THREE.Matrix4(), object3d: new THREE.Group(), dispose() {} } });
+  const jetty = [lib('jt'), lib('jt'), lib('jt'), lib('jt', { hideMats: S('pier_float').hideMats })];
+  const few = [lib('few'), lib('few', { dropAo: 'x' }), lib('few', { hideParts: ['y'] })];
+  const two = [lib('two'), lib('two', { keepSnowOn: 'z' })];
+  const log = [], warn = console.warn; console.warn = () => {};
+  try { await Promise.all(batchLibraryRepeats([...jetty, ...few, ...two], new THREE.Group(), log)); } finally { console.warn = warn; }
+  assert.deepEqual(jetty.map((b) => !!b.batched), [true, true, true, false], 'the three plain jetties instanced, the stage its own copy');
+  assert.deepEqual(jetty.map((b) => !!b.library.object3d.userData.waterIgnore), [false, false, false, true], 'the stage out of the bed capture');
+  assert.ok(few.every((b) => !b.batched && b.library.object3d.userData.waterIgnore), 'too few left to batch: all out, as the batch was');
+  assert.ok(two.every((b) => !b.batched && !b.library.object3d.userData.waterIgnore), 'never a batch: in the capture as before');
+});

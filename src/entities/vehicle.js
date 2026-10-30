@@ -328,6 +328,25 @@ function canSeeUnit(viewer, unit, world) {
  * portcullis, 3.2 m up, the only way out of the N court.) An instanced or skinned mesh counts by its bounding box.
  */
 const _sa = new THREE.Vector3(), _sb = new THREE.Vector3(), _sc = new THREE.Vector3();
+/** Every node of a vehicle's model but the figures drawn on it (crew, riders: art/vehicle-crew.js `vehicleFigure`). */
+function eachHullNode(o, fn) {
+  if (o.userData?.vehicleFigure) return;
+  fn(o);
+  for (const c of o.children) eachHullNode(c, fn);
+}
+const _hb = new THREE.Box3();
+/** Box3.setFromObject(o) (three's expandByObject, not precise) over the model without its figures (eachHullNode). */
+function hullBox(o, b) {
+  eachHullNode(o, (n) => {
+    n.updateWorldMatrix(false, false);
+    const g = n.geometry;
+    if (g === undefined) return;
+    if (n.boundingBox !== undefined) { if (n.boundingBox === null) n.computeBoundingBox(); _hb.copy(n.boundingBox); }
+    else { if (g.boundingBox === null) g.computeBoundingBox(); _hb.copy(g.boundingBox); }
+    b.union(_hb.applyMatrix4(n.matrixWorld));
+  });
+  return b;
+}
 function solidTop(n) {
   const g = n.geometry, P = g?.attributes?.position;
   if (!P || n.isInstancedMesh || n.isSkinnedMesh) { const bb = new THREE.Box3().setFromObject(n); return bb.isEmpty() ? -Infinity : bb.max.y; }
@@ -818,7 +837,12 @@ export class Vehicle extends Entity {
     return typeof gy === 'function' ? gy.call(w, x, z) : 0;
   }
 
-  /** Height of the hull + turret / cab / canvas above its ground (m: the model's bounds — in a `hullDrawn` mission its solid top, no aerial; fallback 2.4). */
+  /**
+   * Height of the hull + turret / cab / canvas above its ground (m: the model's bounds — in a `hullDrawn` mission its
+   * solid top, no aerial; fallback 2.4). The crew and rider figures drawn on it (art/vehicle-crew.js: built and posed
+   * frame by frame, none in a run that draws nothing) are no part of it: with them a drawn run measured M4's
+   * motorcycle with its riders' heads (1.79 m, not 1.09) and drove otherwise under the gatehouses than the tested run.
+   */
   hullHeight() {
     if (this._hullH != null) return this._hullH;
     const o = this.object3d;
@@ -830,11 +854,11 @@ export class Vehicle extends Entity {
         // Elsewhere the model's bounds, as the routes were tuned on: M11's half-tracks, 2.29 m by their hulls and 3.74 m
         // by their aerials, took other ways under the tunnels and stuck)
         let top = -Infinity;
-        o.traverse((n) => { if (n.isMesh) { meshes++; top = Math.max(top, solidTop(n)); } });
+        eachHullNode(o, (n) => { if (n.isMesh) { meshes++; top = Math.max(top, solidTop(n)); } });
         if (meshes && top > -Infinity) h = Math.max(0.5, top - o.position.y);
       } else {
-        o.traverse((n) => { if (n.isMesh) meshes++; });
-        const b = new THREE.Box3().setFromObject(o);
+        eachHullNode(o, (n) => { if (n.isMesh) meshes++; });
+        const b = hullBox(o, new THREE.Box3());
         if (meshes && !b.isEmpty()) h = Math.max(0.5, b.max.y - o.position.y);
       }
     }
@@ -976,12 +1000,12 @@ export class Vehicle extends Entity {
    * Grid cells the hull already overlaps at pose (x, z, h) that a pose test would refuse (a parked spawn touching a
    * wall or eaves): ignored by _poseFree so the hull can still pull away. @returns {Set<number>}
    */
-  _hadCells(x = this.x, z = this.z, h = this.heading) {
+  _hadCells(x = this.x, z = this.z, h = this.heading, margin = POSE_MARGIN) {
     const g = this.world.grid, had = new Set(), y0 = this.y || 0;
     const cell = (px, pz) => { const { i, j } = g.worldToCell(px, pz); return g.inBounds(i, j) ? g.idx(i, j) : -1; };
     this._skipHulls = true; // static cells only: another hull is never driven through
     try {
-      for (const [px, pz] of this._outline(x, z, h, POSE_MARGIN)) if (!this._sweepFree(px, pz, x, z, y0)) had.add(cell(px, pz));
+      for (const [px, pz] of this._outline(x, z, h, margin)) if (!this._sweepFree(px, pz, x, z, y0)) had.add(cell(px, pz));
       for (const [px, pz] of this._wheelPoints(x, z, h)) if (!this.passableAt(px, pz)) had.add(cell(px, pz));
     } finally { this._skipHulls = false; }
     return had;
@@ -1075,7 +1099,7 @@ export class Vehicle extends Entity {
    * cell's answer cached for this one plan. `gatesOpen`: a shut gate / door / boom counts as open (a route waits at it
    * instead of planning around it).
    */
-  _planFree(had, { gatesOpen = false, men = false, noHulls = false } = {}) {
+  _planFree(had, { gatesOpen = false, men = false, noHulls = false, margin = POSE_MARGIN } = {}) {
     const w = this.world, g = w.grid, y0 = this.y || 0, self = this;
     // men on foot nearby are obstacles too when a route plans round one who stays in its way (a sentry on his post)
     const crowd = men && isSolidHull(this) ? w.entitiesInRadius(this.x, this.z, 45, (u) => (u.kind === 'commando' || u.kind === 'enemy') && u.alive
@@ -1132,7 +1156,7 @@ export class Vehicle extends Entity {
       return s === 1;
     };
     // the outline / wheel probes in the hull's own frame, placed per pose without allocating (thousands of poses)
-    const OL = this._outline(0, 0, 0, POSE_MARGIN), WP = this._wheelPoints(0, 0, 0);
+    const OL = this._outline(0, 0, 0, margin), WP = this._wheelPoints(0, 0, 0);
     return (x, z, h) => {
       const c = Math.cos(h), sn = Math.sin(h);
       for (let n = 0; n < WP.length; n++) { const u = WP[n][0], q = WP[n][1]; if (!wheel(x + c * u - sn * q, z + sn * u + c * q)) return false; }
@@ -1168,9 +1192,23 @@ export class Vehicle extends Entity {
     const key = `${x.toFixed(2)},${z.toFixed(2)}|${this.x.toFixed(3)},${this.z.toFixed(3)},${this.heading.toFixed(4)}|${this.fast ? 1 : 0}|${men ? 1 : 0}`;
     const memo = this._planMemo || (this._planMemo = new Map());
     if (memo.has(key)) return memo.get(key);
-    const had = this._hadCells();
+    let had = this._hadCells(), out = yield* this._planDriveSearch(x, z, had, { men, pause });
+    // a hull parked tight — its plan margin already touching what stands round it on both sides, as the straight drive's
+    // nose probes let it into a slot that margin calls blocked (the motorcycle stopped between M4's pier shed and the
+    // woodpile) — would never be planned out again: it plans its way out at the clearance it moves with (MOVE_MARGIN)
+    if (!out && had.size) {
+      had = this._hadCells(this.x, this.z, this.heading, MOVE_MARGIN);
+      out = yield* this._planDriveSearch(x, z, had, { men, pause, margin: MOVE_MARGIN });
+    }
+    if (memo.size > 24) memo.clear();
+    memo.set(key, out);
+    return out;
+  }
+
+  /** planDriveGen's search with the plan margin `margin` (the cells in `had` overlapped where it stands don't count). */
+  * _planDriveSearch(x, z, had, { men = false, pause = null, margin = POSE_MARGIN } = {}) {
     const tol = CONFIG.vehicles.alignDeg * DEG, T = { x, z }, d0 = Math.hypot(x - this.x, z - this.z);
-    const free0 = this._planFree(had, { men }), free = pause?.charge ? (px, pz, h) => { pause.charge(); return free0(px, pz, h); } : free0;
+    const free0 = this._planFree(had, { men, margin }), free = pause?.charge ? (px, pz, h) => { pause.charge(); return free0(px, pz, h); } : free0;
     const plan = yield* planManeuverGen({ x: this.x, z: this.z, h: this.heading }, {
       pause,
       R: this.def.turnRadius, target: T, tol,
@@ -1185,10 +1223,7 @@ export class Vehicle extends Entity {
       },
       maxRev: Math.max(4, this.def.size[0] * 1.2), maxNodes: 2500, // (an unreachable click gives up in ~0.2 s)
     });
-    const out = plan ? { legs: plan.legs, had: [...had] } : null;
-    if (memo.size > 24) memo.clear();
-    memo.set(key, out);
-    return out;
+    return plan ? { legs: plan.legs, had: [...had] } : null;
   }
 
   /** Maneuver state carried in `goal.man` (plain data: saved and restored with the goal). */

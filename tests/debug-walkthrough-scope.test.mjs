@@ -35,7 +35,7 @@ export default async function debugWalkthroughScope(page, t) {
     const w = G.game.world;
     const shots = [];
     w.events.on('shot', (p) => { if (p.weapon === 'sniper') shots.push({ t: w.time, tag: p.target?.tag ?? null }); });
-    const D = makeDriver(w, { step: () => { G.game.step(dt); }, dt, quiet: true, log: () => {} });
+    const D = makeDriver(w, { step: () => { G.game.step(dt); }, dt, quiet: true, log: () => {}, skipEscape: () => G.game.skipExtraction() });
     let error = null;
     try { await solve(D, { boardPoint }); } catch (e) { error = String(e?.message || e); }
     for (let i = 0; i < 600 && G.game.state === 'playing'; i++) G.game.step(dt);

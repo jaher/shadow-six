@@ -46,7 +46,7 @@ const rep = await page.evaluate(async ([mid, minMs, until]) => {
   const gaps = [], ticks = [];
   let stage = '-', lastEnd = -1, helper = new Map();
   const D = makeDriver(G.game.world, {
-    dt, quiet: true, log: () => {},
+    dt, quiet: true, log: () => {}, skipEscape: () => G.game.skipExtraction(),
     step: () => {
       const a = performance.now();
       if (lastEnd >= 0 && a - lastEnd >= minMs) {

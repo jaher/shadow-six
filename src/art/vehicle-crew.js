@@ -293,6 +293,7 @@ export function createCrewFigures(v) {
       if (!seat || v.linkedCrew?.(c)) return;
       const m = createUnitModel({ faction: 'enemy', soldierType: c.soldierType || 'crew', spawnId: c.ref ?? `${v.tag ?? v.id}:crew${i}` });
       if (!m.isReal) return;
+      m.root.userData.vehicleFigure = true; // (drawn per frame: not part of the hull — Vehicle.hullHeight)
       if (seat.p) m.root.position.set(seat.p[0], 0, seat.p[2]);
       const hull = v.model.root.children[0] || v.model.root;   // the hull group (boats bob with it)
       const parent = seat.holder || (seat.parent === 'turret' && v.model.turret ? v.model.turret : hull);
@@ -426,6 +427,7 @@ export function createCrewFigures(v) {
   const startBay = (u, dir, at, seat = null) => {
     const m = createUnitModel(lookOf(u));
     if (!m.isReal) { m.dispose?.(); return; }
+    m.root.userData.vehicleFigure = true;
     const par = vis0();
     par.add(m.root);
     let S = localOf(par, at.x, groundAt(at.x, at.z), at.z), { G, B } = bay();
@@ -561,6 +563,7 @@ export function createCrewFigures(v) {
       if (!seat) return;
       const m = createUnitModel(lookOf(u));
       if (!m.isReal) return;
+      m.root.userData.vehicleFigure = true;
       seat.object.add(m.root);
       const f = { ...seatFigure(m, { anim: seat.anim, dy: seat.dy, holder: seat.object, roof: seat.roof }), k, u };
       const from = fresh(u);

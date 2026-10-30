@@ -204,6 +204,35 @@ test('ways (e): a stamp that cuts a way between mission points steps down; a dec
   assert.equal(deckCrossingKept(before, deckCrossing(d, def, pairs, new Set([d.idx(20, 3)]))), true, 'a post beside the way');
 });
 
+test('ways (e): in a deckWays mission a stamp across a deck over water that cuts a way gives way like one on dry ground (M4: the pier stair cut off the boat); open water never does', async () => {
+  const { walkPieces, keepWays } = await import('../../src/world/map-builder.js');
+  const mk = (deckWays) => {
+    const g = new NavGrid(20, 10);
+    g.deckWays = deckWays; // (the mission's opt-in, M4)
+    g.fillRect(0, 4, 20, 2, 'terrain', 5); // a channel of water across the map, z 4..6
+    g.fillRect(9, 4, 2, 2, 'bridge', 1); // the only way over: a deck, x 9..11
+    const labels0 = walkPieces(g);
+    const rail = new Set(), wet = new Set();
+    for (let i = 18; i < 22; i++) rail.add(g.idx(i, 9)); // a railing across the deck
+    for (let i = 2; i < 8; i++) wet.add(g.idx(i, 9)); // a stamp over the open water beside it
+    const st = { key: 'deck:1', levels: [rail, new Set()] }, sw = { key: 'vis:2', levels: [wet, new Set()] };
+    g.navStamp('deck:1', rail); g.navStamp('vis:2', wet);
+    return { g, labels0, st, sw };
+  };
+  const ways = [[4, 2], [4, 16]]; // a point north and one south of the channel
+  const old = mk(false);
+  keepWays(old.g, old.labels0, ways, [old.st, old.sw]);
+  assert.ok(!old.g.isWalkable(20, 9), 'without the opt-in a deck over water keeps its stamps (as tuned)');
+  const { g, labels0, st, sw } = mk(true);
+  const cut = walkPieces(g);
+  assert.notEqual(cut[g.idx(4, 2)], cut[g.idx(4, 16)], 'the railing cuts the way');
+  assert.ok(keepWays(g, labels0, ways, [st, sw]) >= 1, 'a stamp stepped down');
+  const after = walkPieces(g);
+  assert.equal(after[g.idx(4, 2)], after[g.idx(4, 16)], 'the way over the deck is open again');
+  assert.ok(g.isWalkable(20, 9), 'through the railing on the deck');
+  assert.ok(!sw.lv?.size, 'the stamp over open water keeps its cells');
+});
+
 test('pickups (e): the crate on the ground is walked round and taken from its edge; picked up, the way is free', async () => {
   const { World } = await import('../../src/world/world.js');
   const { createPickup } = await import('../../src/entities/interactables.js');

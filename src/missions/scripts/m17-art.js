@@ -11,6 +11,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { dressingMaterial, boulderGeometry } from '../../art/dressing.js';
 import { carveField } from '../../art/terrain/carve.js';
+import { buildPloughedField } from '../../art/field-clamp.js';
+import { paintedMaterial } from '../../art/kit-props.js';
 
 /** Along-axis layout (local x, m; 0 = the structure centre, +x towards the S lip). */
 export const MB = { nEnd: -10.25, sEnd: 10.25, nLip: -9.15, sLip: 7.55, tip: -0.4, span: 11.4, travel: 9.6, half: 2.5 };
@@ -187,22 +189,91 @@ function dressGorge(w, s, gorge) {
     geo[R() < 0.55 ? 0 : 1].push(g.index ? g.toNonIndexed() : g);
     n++;
   }
+  // art pass 2: the gorge's walls are rock, not the field's earth (the temperate splat has no rock layer, so the carve
+  // painter leaves its faces bare): crags and ledges bedded into the steep faces, their long side along the wall
+  const grad = (x, z) => [(field.at(x + 0.3, z) - field.at(x - 0.3, z)) / 0.6, (field.at(x, z + 0.3) - field.at(x, z - 0.3)) / 0.6];
+  let crags = 0;
+  for (let k = 0; k < 2400 && crags < 95; k++) {
+    const x = x0 + R() * (x1 - x0), z = z0 + R() * (z1 - z0);
+    if (!inPoly(x, z, poly) || x > 30 || x < 4) continue;
+    const dx = x - s.x, dz = z - s.z, lx = dx * c + dz * sn, lz = -dx * sn + dz * c;
+    if (Math.abs(lx) < MB.sEnd + 1.2 && Math.abs(lz) < MB.half + 0.9) continue; // the bridge corridor
+    const y = field.at(x, z), [gx, gz] = grad(x, z), slope = Math.hypot(gx, gz);
+    if (y > -0.5 || y < -4.1 || slope < 0.9) continue;                      // the steep faces only
+    const along = 0.6 + R() * 0.9, up = 0.45 + R() * 0.6, out = 0.28 + R() * 0.22;
+    const gg = boulderGeometry(along, up, out, Math.floor(R() * 1e9), 2);
+    const yaw = Math.atan2(gx, gz);                                        // local z down the face (into the gorge)
+    gg.rotateX(-0.25 - R() * 0.25).rotateY(yaw).translate(x - (gx / slope) * out * 0.35, y + up * 0.15, z - (gz / slope) * out * 0.35);
+    geo[R() < 0.5 ? 0 : 1].push(gg.index ? gg.toNonIndexed() : gg);
+    crags++;
+  }
   const grp = new THREE.Group(); grp.name = 'm17:gorge_rocks';
   ['rock', 'rockDark'].forEach((m, i) => { if (geo[i].length) grp.add(merged(geo[i], dressingMaterial(m), `m17:gorge_rocks:${m}`)); });
-  if (gorge.stream?.length > 1) { // a shallow stream on the bed: a ribbon a few cm over the carve, dark and glossy
-    const pts = [], idx = [];
-    const S = gorge.stream, half = 0.7;
+  if (gorge.stream?.length > 1) { // the stream down the bed: a meandering ribbon a few cm over the carve, its water running W
+    const S = [], pts = [], uvs = [], idx = [];
+    for (let i = 0; i + 1 < gorge.stream.length; i++) {           // resample every ~0.8 m
+      const [ax, az] = gorge.stream[i], [bx, bz] = gorge.stream[i + 1], n = Math.max(1, Math.round(Math.hypot(bx - ax, bz - az) / 0.8));
+      for (let k = 0; k < n; k++) S.push([ax + ((bx - ax) * k) / n, az + ((bz - az) * k) / n]);
+    }
+    S.push(gorge.stream.at(-1));
+    let v = 0;
     for (let i = 0; i < S.length; i++) {
       const a = S[Math.max(0, i - 1)], b = S[Math.min(S.length - 1, i + 1)], tx = b[0] - a[0], tz = b[1] - a[1], L = Math.hypot(tx, tz) || 1;
-      for (const sd of [-1, 1]) { const x = S[i][0] - (tz / L) * half * sd, z = S[i][1] + (tx / L) * half * sd; pts.push(x, field.at(x, z) + 0.05, z); }
+      const half = 0.5 + 0.22 * Math.sin(i * 0.9) + 0.12 * Math.sin(i * 2.3 + 1), wob = 0.25 * Math.sin(i * 0.55);
+      if (i) v += Math.hypot(S[i][0] - S[i - 1][0], S[i][1] - S[i - 1][1]) / 2.2;
+      for (const sd of [-1, 1]) {
+        const o = half * sd + wob, x = S[i][0] - (tz / L) * o, z = S[i][1] + (tx / L) * o;
+        pts.push(x, field.at(x, z) + 0.04, z); uvs.push(sd < 0 ? 0 : 0.6, v);
+      }
       if (i) { const q = (i - 1) * 2; idx.push(q, q + 1, q + 2, q + 1, q + 3, q + 2); }
     }
-    const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3)); sg.setIndex(idx); sg.computeVertexNormals();
-    const water = new THREE.MeshStandardMaterial({ color: 0x1d4a4c, roughness: 0.12, metalness: 0.1, side: THREE.DoubleSide }); water.name = 'm17:stream';
+    const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    sg.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2)); sg.setIndex(idx); sg.computeVertexNormals();
+    const water = dressingMaterial('stream').clone(); water.side = THREE.DoubleSide; water.name = 'm17:stream';
     const m = new THREE.Mesh(sg, water); m.name = 'm17:gorge_stream'; m.receiveShadow = true; grp.add(m);
   }
   root.updateMatrixWorld(true);
   grp.applyMatrix4(root.matrixWorld.clone().invert());
   root.add(grp);
   return n;
+}
+
+let RAMP_MAT = null;
+/**
+ * The library road bridge's two approach ramps (one 8-vertex 'kit:gravel' piece, 0.6 m at the abutment down to the
+ * bank) lay on both banks as flat reddish sheets: drawn instead as the road's beaten earth. A library LOD that loads
+ * later is caught by the same swap on the BEL tick. @returns {number} meshes swapped
+ */
+export function resurfaceApproaches(w, id = 'bridge_road') {
+  const o = w?.structures?.get?.(id)?.object3d;
+  if (!o) return 0;
+  RAMP_MAT ||= Object.assign(paintedMaterial('ballast', 0xa89880).clone(), { name: 'm17:bridge_approach' });
+  let n = 0;
+  o.updateMatrixWorld(true);
+  o.traverse((m) => {
+    if (!m.isMesh || m.userData.m17Ramp || Array.isArray(m.material) || !/kit:gravel/.test(m.material?.name || '')) return;
+    // its own copy (the library geometry is shared), mapped flat in world metres: the asset's UVs stretch one texel
+    const g = m.geometry.clone(), pos = g.attributes.position, uv = new Float32Array(pos.count * 2), v = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) { v.fromBufferAttribute(pos, i).applyMatrix4(m.matrixWorld); uv[2 * i] = v.x / 2.2; uv[2 * i + 1] = v.z / 2.2; }
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    m.geometry = g; m.material = RAMP_MAT; m.userData.m17Ramp = true; m.userData.ownGeo = true; n++;
+  });
+  return n;
+}
+
+/**
+ * Art pass 2 scenery (the script's `visuals`: built as the load ends, idempotent, no sim state): the ploughed field's
+ * field draped on the drawn ground (art/field-clamp.js) and the road bridge's approaches re-surfaced.
+ * @param {object} w world @param {{field?: object, bridge?: string}} o
+ */
+export function buildM17Visuals(w, o = {}) {
+  if (!w?.scene || w._m17Visuals) return;
+  w._m17Visuals = true;
+  const ground = w.terrain?.surfaceAt ? (x, z) => w.terrain.surfaceAt(x, z) : null;
+  if (o.field) { const m = buildPloughedField(o.field, ground); if (m) w.scene.add(m); }
+  if (o.bridge) {
+    resurfaceApproaches(w, o.bridge);
+    let t = 0;
+    w.onBelTick?.(() => { if (++t % 40 === 0) resurfaceApproaches(w, o.bridge); }); // (a LOD attached later)
+  }
 }

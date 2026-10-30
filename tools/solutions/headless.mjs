@@ -15,7 +15,7 @@ import { Entity } from '../../src/entities/entity.js';
 import { admitAtSpawn } from '../../src/entities/interactables.js';
 import { Alarm } from '../../src/ai/alarm.js';
 import { firstAidCarrier, FIRST_AID_DOSES, defaultInventory } from '../../src/items.js';
-import { createObjectives, checkObjectives, updateExtractionVehicle } from '../../src/core/objectives.js';
+import { createObjectives, checkObjectives, updateExtractionVehicle, skipExtractionDrive } from '../../src/core/objectives.js';
 import { CONFIG } from '../../src/config.js';
 import '../../src/abilities/index.js';
 
@@ -45,6 +45,8 @@ export function headlessMission(id, { patch = null } = {}) {
   const dt = CONFIG.sim.dt;
   return {
     world, mission, dt,
+    /** §7.6 ESC while the loaded escape vehicle drives off (Game.skipExtraction): true when the drive was skipped */
+    skipEscape: () => skipExtractionDrive(world, flags),
     step() {
       const w = world;
       w.rebuildSpatial();
@@ -65,7 +67,7 @@ export function headlessMission(id, { patch = null } = {}) {
 export async function headlessDriver(id, o = {}) {
   const { makeDriver } = await import('./driver.mjs');
   const s = headlessMission(id);
-  const D = makeDriver(s.world, { step: s.step, dt: s.dt, ...o });
+  const D = makeDriver(s.world, { step: s.step, dt: s.dt, skipEscape: s.skipEscape, ...o });
   D.sim = s;
   return D;
 }

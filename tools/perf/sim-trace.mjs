@@ -56,7 +56,7 @@ const out = await page.evaluate(async ([mid, every, slice, defer]) => {
     return fnv(parts.join('|'));
   };
   let pauses = 0;
-  const D = makeDriver(w, { dt, quiet: true, log: () => {}, step: () => { flush(); G.game.step(dt); if (w.tick % every === 0) hashes.push(snap()); },
+  const D = makeDriver(w, { dt, quiet: true, log: () => {}, skipEscape: () => G.game.skipExtraction(), step: () => { flush(); G.game.step(dt); if (w.tick % every === 0) hashes.push(snap()); },
     pause: slice ? () => new Promise((res) => { pauses++; setTimeout(res, 0); }) : null });
   let error = null;
   try { await solve(D, { boardPoint }); } catch (e) { error = String(e?.message || e); }

@@ -28,7 +28,7 @@ try {
     const { boardPoint } = await import('/src/abilities/drive.js');
     // logic only: Game.step without a render (__game.step() = game.advance(dt), which also draws a frame)
     const dt = G.CONFIG.sim.dt;
-    const D = makeDriver(G.game.world, { step: () => { G.game.step(dt); }, dt });
+    const D = makeDriver(G.game.world, { step: () => { G.game.step(dt); }, dt, skipEscape: () => G.game.skipExtraction() });
     if (jitter) {
       let seed = jitter;
       const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);

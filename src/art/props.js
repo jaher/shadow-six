@@ -35,6 +35,10 @@ import { buildStooks, buildGardenBeds } from './wheat-stooks.js';
 import { buildBufferStop } from './buffer-stop.js';
 import { buildExplosivesCase } from './explosives-case.js';
 import { buildFieldGraves } from './field-graves.js';
+import { buildVineyard } from './vineyard.js';
+import { buildBeetClamp } from './field-clamp.js';
+import { buildStoresPile } from './stores-pile.js';
+import { M04_PIECE_RX, buildM04Piece, buildParachuteSpread } from './m04-dressing.js';
 import { buildDrumCluster, buildWellVariant, buildGroundSearchlight, buildLampPost, buildSignVariant, buildFenceKit } from './kit-props.js';
 import { buildRailTrack, buildTrench, buildCraterKit } from './kit-terrain.js';
 import { buildKitHouse, buildNissenHut, buildDockCrane } from './kit-buildings.js';
@@ -234,7 +238,9 @@ const BUILDERS = {
     : p.variant === 'wheat_stooks' ? buildStooks(p) : p.variant === 'garden_beds' ? buildGardenBeds(p)
     : p.variant === 'buffer_stop_std' ? buildBufferStop(p) : p.variant === 'explosives_case' ? buildExplosivesCase(p)
     : p.variant === 'field_graves' ? buildFieldGraves(p)
-    : buildCrates(p)), // (M17: art/fuel-drums.js; M16: art/wheat-stooks.js; M18: art/buffer-stop.js, art/explosives-case.js; M10: art/field-graves.js)
+    : p.variant === 'vineyard' ? buildVineyard(p) : p.variant === 'beet_clamp' ? buildBeetClamp(p) : p.variant === 'stores_pile' ? buildStoresPile(p)
+    : M04_PIECE_RX.test(String(p.variant ?? '')) ? buildM04Piece(p)
+    : buildCrates(p)), // (M17: art/fuel-drums.js, art/vineyard.js, art/field-clamp.js, art/stores-pile.js; M16: art/wheat-stooks.js; M18: art/buffer-stop.js, art/explosives-case.js; M10: art/field-graves.js; M4: art/m04-dressing.js)
   generator: (p, def, ctx) => (dressingOn(ctx) ? buildGenerator(p) : box(p.w, p.h ?? 1, p.d, def.mat)),
   barracks: (p, def, ctx) => {
     // placeholder-art pass: a textured kit building when the library has no fitting asset (art/kit-buildings.js)
@@ -480,6 +486,7 @@ const ROUND = {
     if (p.variant === 'flag_pole') return makeFlag({ pole: true, h: p.h ?? 7, theater: ctx?.theater }); // a free-standing enemy flagpole
     // flagpoles (garrison markers, e.g. M14 `flagpole_german`): the animated cloth flag of art/flags.js (browser)
     if (/flagpole/.test(String(p.variant ?? '')) && dressingOn(ctx) && typeof document !== 'undefined') return makeFlag({ pole: true, poleH: p.h ?? 6, theater: ctx?.theater });
+    if (p.variant === 'parachute_spread' && dressingOn(ctx)) return buildParachuteSpread(p); // M4: the air-drop's canopy (art/m04-dressing.js)
     if (dressingOn(ctx)) return buildSignVariant(p);
     const g = new THREE.Group();
     g.add(cyl(0.05, 0.05, p.h, def.mat));

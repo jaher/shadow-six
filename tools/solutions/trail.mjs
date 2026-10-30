@@ -30,7 +30,7 @@ if (args.includes('--measure')) {
   const { solve } = await import(`./${id}.solution.mjs`);
   const S = headlessMission(id);
   const rec = attachTrail(S.world, { every });
-  const D2 = makeDriver(S.world, { step: () => { S.step(); rec.tick(); }, dt: S.dt, quiet: true, log: () => {} });
+  const D2 = makeDriver(S.world, { step: () => { S.step(); rec.tick(); }, dt: S.dt, quiet: true, log: () => {}, skipEscape: S.skipEscape });
   tagDriver(D2);
   let error = null;
   const t0 = Date.now();
@@ -53,7 +53,7 @@ if (args.includes('--measure')) {
       const { solve } = await import(`/tools/solutions/${mid}.solution.mjs`);
       const { boardPoint } = await import('/src/abilities/drive.js');
       const rec = attachTrail(G.game.world, { every });
-      const D = makeDriver(G.game.world, { step: () => { G.game.step(dt); rec.tick(); }, dt, quiet: true, log: () => {} });
+      const D = makeDriver(G.game.world, { step: () => { G.game.step(dt); rec.tick(); }, dt, quiet: true, log: () => {}, skipEscape: () => G.game.skipExtraction() });
       tagDriver(D);
       let error = null;
       const t0 = performance.now();

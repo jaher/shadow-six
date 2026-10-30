@@ -33,7 +33,8 @@
 
 import { GUESTS, setLockedGate, openPen, showCaged, northAlarm, lineUp, investigateBlast } from './scripts/m17.js';
 import { joinStructures } from './schema.js';
-import { buildM17Art } from './scripts/m17-art.js';
+import { buildM17Art, buildM17Visuals } from './scripts/m17-art.js';
+import { M17_DRESSING, M17_TERRAIN, M17_PAVE_HQ, M17_FIELD } from '../art/m17-dressing.js';
 
 const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES
@@ -78,6 +79,7 @@ const TERRAIN = [
   { type: 'poly', terrain: 'ground', points: [C(0, 0), C(55.5, 0), C(55.5, 28), C(44, 28), C(44, 61), C(39.3, 70), C(6, 70), C(6, 50), C(0, 28)] },
   { type: 'poly', terrain: 'ground', points: RAVINE },
   ...Object.values(ROADS).map((points) => ({ type: 'path', terrain: 'road', width: 4, points })),
+  ...M17_TERRAIN, // art pass 2: the ploughed field W of the camp (art/m17-dressing.js)
 ];
 
 // ---------------------------------------------------------------- structures (dossier §5)
@@ -110,8 +112,9 @@ const CAMP = [
   camp('shed_ne', 'hut', 'shed_slatted', C(47.3, 2.8), 5, 3, 2.6, { mat: 'planks', asset: 'shed_tarred_be' }),
   { id: 'water_tank', type: 'well', variant: 'water_tank_caged', x: C(4.4, 22.9)[0], z: C(4.4, 22.9)[1], r: 1.2, h: 3, block: 2 },
   camp('fuel_tank', 'fueltank', 'fuel_tank_elevated', C(33.7, 25), 5, 3, 6, { label: 'Fuel tanks', block: 2, ladderTime: 8.0 }), // (its ladder's climb: the walk round to it, 12 rungs — 3.4 s at the ladder pace was twice too quick)
-  camp('crates_u', 'crates', 'crates_pile', C(47.5, 20.5), 3, 3, 1.5, { block: 1 }),
-  camp('crates_w', 'crates', 'crates_logs', C(15, 21.8), 4, 2, 1.2, { block: 1 }),
+  // art pass 2: the stores drawn as stores (art/stores-pile.js), the house's log stack as its firewood (they drew as plank cubes)
+  camp('crates_u', 'crates', 'stores_pile', C(47.5, 20.5), 3, 3, 1.5, { block: 1, label: 'Stores' }),
+  camp('crates_w', 'crates', 'log_pile', C(15, 21.8), 4, 2, 1.2, { block: 1, asset: 'log_pile_stack', label: 'Firewood' }),
   { id: 'barrel_1', type: 'barrels', variant: 'fuel_explosive', x: C(41.1, 22.3)[0], z: C(41.1, 22.3)[1], r: 0.3, h: 0.9,
     explosive: 'barrel', carriable: true, destructible: true, hp: 1 },
   { id: 'lamp_1', type: 'lamp_post', variant: 'floodlight_loudspeaker', x: C(38, 6)[0], z: C(38, 6)[1] },
@@ -146,8 +149,8 @@ const OUTSIDE = [
   { id: 'mill', type: 'watermill', variant: 'watermill', label: 'The old mill', x: 80, z: 46.5, rot: CAMP_ROT, w: 12, d: 10, h: 9 },
   { id: 'mill_deck', type: 'pier', variant: 'pier_timber', x: 74, z: 55, rot: CAMP_ROT, w: 5, d: 5 },
   { id: 'mg_n_ring', type: 'sandbags', variant: 'mg_nest_sandbag', x: 45.9, z: 53.9, rot: deg(105), ring: { r: 1.6 }, h: 1.0, block: 1 },
-  { id: 'crates_n1', type: 'crates', variant: 'crates', x: 33.5, z: 46.5, rot: deg(316), w: 2, d: 2, h: 1.1, block: 1 },
-  { id: 'crates_n2', type: 'crates', variant: 'crates', x: 22, z: 51.5, rot: deg(2.6), w: 2, d: 2, h: 1.1, block: 1 },
+  { id: 'crates_n1', type: 'crates', variant: 'stores_pile', label: 'Stores', x: 33.5, z: 46.5, rot: deg(316), w: 2, d: 2, h: 1.1, block: 1 },
+  { id: 'crates_n2', type: 'crates', variant: 'stores_pile', label: 'Stores', x: 22, z: 51.5, rot: deg(2.6), w: 2, d: 2, h: 1.1, block: 1 },
   // rocks named in the walkthroughs
   rock('rock_c1', 13, 14, 4, 5, 3), rock('rock_c2', 14, 21, 4, 5, 3), rock('rock_c3', 13.5, 28, 4, 5, 3), rock('rock_c4', 10, 31, 4, 5, 3),
   rock('rock_bn', 38, 59.5, 4, 3), rock('rock_mill', 59, 51, 5, 4, 3), rock('rock_ne', 82, 23, 4, 4),
@@ -173,7 +176,7 @@ const DRESSING = [
 ];
 /** Worn setts: the Kommandantur's forecourt and the apron through the camp's main gate. */
 const PAVEMENTS = [
-  { id: 'pave_hq', surface: 'setts', points: [[29.6, 42.6], [33.6, 45], [35.6, 48.6], [30.6, 48.4], [28.8, 45.2]], wear: 0.6, weeds: 0.45, cracks: 0.3, puddles: 0.2, edge: 'ragged', grid: false },
+  { id: 'pave_hq', surface: 'setts', points: M17_PAVE_HQ, wear: 0.6, weeds: 0.45, cracks: 0.3, puddles: 0.2, edge: 'ragged', grid: false },
   { id: 'pave_gate', surface: 'setts', points: [[69.5, 158.5], [76, 158.5], [76.5, 166], [69, 166]], wear: 0.7, weeds: 0.35, cracks: 0.35, puddles: 0.25, edge: 'ragged', grid: false },
 ];
 /** A fingerpost at the N-road fork, kilometre stones and a Wehrmacht board on the S road, post-and-rail field fences. */
@@ -183,11 +186,11 @@ const FURNITURE = [
   { type: 'milestone', x: 45, z: 178.3, rot: deg(-90), text: 'N 83\nCOLMAR 15', block: false },
   { type: 'milestone', x: 70, z: 178.3, rot: deg(-90), text: 'N 83\nSELESTAT 8', block: false },
   { type: 'fence', variant: 'rail', points: [[42, 27], [56, 27], [70, 27], [70, 36]], h: 1.2, block: false },
-  { type: 'fence', variant: 'rail', points: [[33, 179], [57, 179]], h: 1.2, block: false },
-  { type: 'fence', variant: 'rail', points: [[62, 179], [74, 179.5]], h: 1.2, block: false },
+  { type: 'fence', variant: 'rail', points: [[33, 181.6], [57, 181.6]], h: 1.2, block: false }, // (2.4 m S of pole_4: it ran through the pole)
+  { type: 'fence', variant: 'rail', points: [[62, 181.6], [67.5, 181.6], [74, 179.5]], h: 1.2, block: false }, // (in line across the gap, then N of pole_5)
 ];
 
-const STRUCTURES = [...CAMP, ...OUTSIDE, ...DRESSING];
+const STRUCTURES = [...CAMP, ...OUTSIDE, ...DRESSING, ...M17_DRESSING]; // (art pass 2: the vineyard, the beet clamp)
 
 // ---------------------------------------------------------------- enemies (dossier §8; Prima numbers 1–26)
 /** Lone walker (PINGPONG, 1.0 m/s), starting at the first point facing the second. */
@@ -315,6 +318,11 @@ export const SEND_ON_BLAST = ['e18', 'e19', 'e20', 'e21', 'p17a', 'p17b', 'p17c'
 /** T4: where each of SEND_ON_BLAST runs to look (the patrol by its leader): round the rubble's W side, on the path. */
 export const BLAST_SPOTS = [[57, 88.5], [60.5, 86.2], [54.5, 90], [61.8, 84.4], [52.5, 91], [52.5, 91], [52.5, 91]];
 
+/** The art script: the rolling bridge and the gorge's dressing on the lazy init; the scenery alone (`visuals`, art pass 2:
+ *  the ploughed field, the road bridge's approaches) as the load ends. */
+const SCRIPT = (w) => { buildM17Art(w, OUTSIDE.find((q) => q.id === 'mbridge_deck'), { carves: CARVES, size: [90, 185], poly: RAVINE, stream: STREAM }); };
+SCRIPT.visuals = (w) => buildM17Visuals(w, { field: M17_FIELD, bridge: 'bridge_road' });
+
 export default {
   id: 'm17',
   campaign: 'BEL',
@@ -410,5 +418,5 @@ export default {
   cameraStart: { x: 10, z: 152, zoom: 1 },
   startDisguised: ['spy'],
   // art pass: the sliding bridge's span rides out and back with the lever (visual only, scripts/m17-art.js)
-  script: (w) => { buildM17Art(w, OUTSIDE.find((q) => q.id === 'mbridge_deck'), { carves: CARVES, size: [90, 185], poly: RAVINE, stream: STREAM }); },
+  script: SCRIPT,
 };

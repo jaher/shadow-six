@@ -108,6 +108,24 @@ test('operators and capacity (§3.7, §3.2): Driver drives land, Marine boats fi
   assert.equal(t.canEnter(sp), 'enemy crew aboard');
 });
 
+test('a hull parked tight in a slot it drove into is not stuck for good: a click plans it out at its moving clearance (M4: the motorcycle between the pier shed and the woodpile)', () => {
+  const w = mkWorld();
+  // a 2 m slot along x between two walls (x 30..40): the motorcycle (1.7 m wide) stands in it with 0.15 m a side, a
+  // little skewed, as the straight drive's nose probes leave it there — its plan margin (0.15 m) touches both walls
+  w.grid.fillRect(30, 18, 10, 1.5, 'block', B.HIGH);
+  w.grid.fillRect(30, 21.5, 10, 1.5, 'block', B.HIGH);
+  const dr = commando(w, 'driver', 45, 25);
+  const m = w.spawnVehicle('motorcycle', { x: 38.6, z: 20.5, heading: Math.PI - 0.03 });
+  assert.ok(m.enter(dr));
+  assert.ok(m._hadCells().size > 0, 'its plan margin touches the walls where it stands');
+  assert.equal(m.canDriveTo(20, 20.5), true, 'straight on out of the slot');
+  assert.equal(m.canDriveTo(46, 20.5), true, 'back out of the slot the way it came and round: a click can drive it');
+  assert.ok(dr.issue({ type: 'move', x: 46, z: 20.5, run: true }));
+  step(w, secs(25));
+  assert.ok(Math.hypot(m.x - 46, m.z - 20.5) < 1, `out of the slot and there (${m.x.toFixed(2)},${m.z.toFixed(2)})`);
+  assert.equal(m.canDriveTo(70, 50), true, 'free again');
+});
+
 test('driving (§3.7 + 2026-10-07 car steering): no pivot on the spot — it turns on its turning circle, then a straight line, slow/fast, stops at the first blocking cell; forbidden target', () => {
   const w = mkWorld();
   w.grid.fillRect(50, 0, 2, 60, 'block', B.HIGH); // a wall across the map at x 50..52
@@ -716,6 +734,30 @@ test('hull height: a whip aerial is no part of the hull an arch must clear (M20:
   // elsewhere (no opt-in) the model's bounds, aerial and all, as before
   w.grid.hullDrawn = false; tk._hullH = null;
   near(tk.hullHeight(), 3.2, 1e-6, 'without hullDrawn: the bounds, the aerial tip');
+});
+
+test('hull height: the crew and rider figures drawn on a vehicle are no part of its hull (a drawn run measures what the tested run does: M4\'s motorcycle)', () => {
+  const w = mkWorld(), mc = w.spawnVehicle('motorcycle', { x: 20, z: 30, heading: 0 });
+  const box = (sx, sy, sz, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), new THREE.MeshBasicMaterial()); m.position.set(x, y, z); return m; };
+  const g = new THREE.Group();
+  g.position.set(20, 0, 30);
+  const seat = box(0.4, 0.1, 0.4, 0, 0.95, 0);
+  g.add(box(2.2, 1.0, 0.8, 0, 0.5, 0), seat); // the machine, its saddle to 1.0 m
+  mc.object3d = g;
+  for (const drawn of [true, false]) {
+    w.grid.hullDrawn = drawn; mc._hullH = null;
+    const bare = mc.hullHeight();
+    near(bare, 1.0, 1e-6, `${drawn ? 'hullDrawn' : 'bounds'}: the machine`);
+    // the rider the frames draw on it (art/vehicle-crew.js: a figure under a seat holder, up to 1.8 m)
+    const rider = new THREE.Group();
+    rider.userData.vehicleFigure = true;
+    rider.add(box(0.5, 0.8, 0.4, 0, 0.4, 0));
+    rider.position.set(0, 1.0, 0);
+    seat.add(rider);
+    mc._hullH = null;
+    near(mc.hullHeight(), bare, 1e-6, `${drawn ? 'hullDrawn' : 'bounds'}: the same with its rider drawn on it`);
+    seat.remove(rider);
+  }
 });
 
 test('hull clearance (mission hullDrawn, M20): a hull clears what is drawn, not the walkers\' ring round it — elsewhere both', () => {

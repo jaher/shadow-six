@@ -184,7 +184,8 @@ test('m04 hook: the villa falls only to a bomb on its steps (grenades, a bomb 4 
 test('m04 hook: the air-drop crate gives each man his share; the Sapper holding the bomb completes o2', () => {
   const s = m04Sim(false), w = s.world;
   const crate = w.interactables.find((i) => i.interactKind === 'crate');
-  assert.ok(crate && Math.hypot(crate.x - 180.8, crate.z - 33.4) < 0.1);
+  // (N of the drop's crates, where the game's placement put it beside them: the mission pins it there, art2/m04)
+  assert.ok(crate && Math.hypot(crate.x - 180.511, crate.z - 32.548) < 0.1);
   const sap = s.cmd('sapper'), sn = s.cmd('sniper'), dr = s.cmd('driver');
   for (const c of [sap, sn, dr]) { c.x = 180.8; c.z = 35; crate.interact?.(c) ?? crate.use?.(c); }
   assert.equal(sap.inventory.get('timeBomb'), 1);

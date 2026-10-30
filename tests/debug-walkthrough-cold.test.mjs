@@ -21,7 +21,8 @@
  * for the trees' gun-arc stamp) and play on, the map stamped on buildings still loading: 10-13 gameplay fields off at
  * tick 0 and another run (D1 at 293.17 instead of 293.37; this run ended at 1201.60, not 1201.90 — a 4 Mbit/s link did
  * the same); now the load waits for them (engine/gameplay-inputs.js). SS_COLDWT=m02 (or m02,m03, or late) restricts the
- * runs. ~15 min (M3 at AUTO).
+ * runs; SS_COLDWT=m04@4 (or m07@auto…) plays another mission's cold link at that speed instead (M4 at 4×: ~9 min).
+ * ~15 min (M3 at AUTO).
  */
 
 export const timeout = 3_300_000;
@@ -32,8 +33,10 @@ const RUNS = [
   { key: 'late', id: 'm02', speed: '4', preset: null, late: [[/\/assets\/models\/buildings\//, 30000], [/\/assets\/terrain\//, 70000]] },
 ];
 
-/** The static world fields that must match at tick 0 (entities / interactables may differ by the start trigger's and the selection's timing). */
-const STATIC = /^(grid\.|ground\.|bodySolids|stairs|structures|ladders|water|links)/;
+/** The static world fields that must match at tick 0 (entities / interactables may differ by the start trigger's and the selection's timing).
+ * Not grid.dynamicBlock: the vehicles' per-tick stamp, cleared and stamped again by every step — and by a solution's
+ * look-ahead (sneak.mjs withoutMovers), which a walkthrough runs before its intro card is dismissed (M4: 179 cells). */
+const STATIC = /^(grid\.(?!dynamicBlock)|ground\.|bodySolids|stairs|structures|ladders|water|links)/;
 
 async function logicRun(h, id) {
   const p = await h.newPage();
@@ -55,7 +58,7 @@ async function logicRun(h, id) {
       const onEnd = (state) => () => { end ??= { state, t: w.time }; };
       g.events.on('mission:won', onEnd('won'));
       g.events.on('mission:lost', onEnd('lost'));
-      const D = makeDriver(w, { step: () => { g.step(dt); rec.snap(w); }, dt, quiet: true, log: () => {} });
+      const D = makeDriver(w, { step: () => { g.step(dt); rec.snap(w); }, dt, quiet: true, log: () => {}, skipEscape: () => g.skipExtraction() });
       let error = null;
       try { await solve(D, { boardPoint }); } catch (e) { error = String(e?.message || e); }
       const solT = w.time;
@@ -103,7 +106,8 @@ async function liveRun(h, base, run) {
 export default async function debugWalkthroughCold(page, t) {
   const h = t.harness;
   const only = (process.env.SS_COLDWT || '').split(',').map((s) => s.trim()).filter(Boolean);
-  const runs = RUNS.filter((r) => !only.length || only.includes(r.key) || only.includes(r.id));
+  const extra = only.filter((s) => /^m\d\d@(auto|[\d.]+)$/.test(s)).map((s) => ({ key: s, id: s.split('@')[0], speed: s.split('@')[1], preset: null }));
+  const runs = [...RUNS.filter((r) => !only.length || only.includes(r.key) || only.includes(r.id)), ...extra];
   const { compareRecordings } = await import('../src/debug/sim-trace.js');
   const { diffFingerprints } = await import('../src/debug/gameplay-fingerprint.js');
   const ids = [...new Set(runs.map((r) => r.id))];

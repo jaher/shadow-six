@@ -199,6 +199,12 @@ export class NavGrid {
      */
     this.hullDrawn = false;
     /**
+     * A mission's opt-in (`deckWays`, map-builder): its decks over water are walkers' ways that keepWays reopens like dry
+     * ground, and its measured decks' railings (`deck:` stamps) give way at a cut too (M4: the pier stair's flights and
+     * the pier deck meet inside each other's railings). Elsewhere the stamps stay as they were tuned. @type {boolean}
+     */
+    this.deckWays = false;
+    /**
      * Mission `noWalk` areas (map-builder stampNoWalk; M3: the foot of the dam's face): 1 = nobody may be there, not
      * even a body coming to rest (it is moved out, physics/feedback.js). Their cells are navBlock stamps too. null = none.
      * @type {Uint8Array|null}

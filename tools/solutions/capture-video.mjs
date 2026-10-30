@@ -224,7 +224,7 @@ async function directorMain({ id, FPS, DRY, OPENING_SEC, HAS, FRAME_WAITS: FRAME
   let beat1 = 0; // (a line every 5 game minutes: a long pass 1 is not silent)
   const sim = TRACE ? await import('/src/debug/sim-trace.js') : null, tr1 = sim?.simRecorder({ every: 60 }), tr2 = sim?.simRecorder({ every: 60 }), dump1 = {}, dump2 = {};
   const dumpAt = (w, tr, dump) => { tr.snap(w); if (TRACE_DUMP.length === 2 && w.tick >= TRACE_DUMP[0] && w.tick <= TRACE_DUMP[1]) dump[w.tick] = sim.simStateLines(w); };
-  const D1 = makeDriver(w, { step: () => { g.step(dt); if (tr1) dumpAt(w, tr1, dump1); objectivesDone(w, seen1, ev1); if (w.time - beat1 >= 300) { beat1 = w.time; console.log(`CAP pass 1 t=${w.time.toFixed(0)}`); } }, dt, quiet: true, log: () => {} });
+  const D1 = makeDriver(w, { step: () => { g.step(dt); if (tr1) dumpAt(w, tr1, dump1); objectivesDone(w, seen1, ev1); if (w.time - beat1 >= 300) { beat1 = w.time; console.log(`CAP pass 1 t=${w.time.toFixed(0)}`); } }, dt, quiet: true, log: () => {}, skipEscape: () => g.skipExtraction() });
   let err1 = null;
   try { if (MODE !== 'opening') await solve(D1, { boardPoint, onStage: (s) => stages1.push({ id: s, t: D1.t }) }); } catch (e) { err1 = String(e?.message || e); } // (MODE 'opening': the page that draws the art opening; pass 1's numbers come from the page that ran it)
   for (let i = 0; i < 600 && g.state === 'playing' && MODE !== 'opening'; i++) g.step(dt);
@@ -388,7 +388,7 @@ async function directorMain({ id, FPS, DRY, OPENING_SEC, HAS, FRAME_WAITS: FRAME
   let camX = null, camZ = null, camY = 0, zoom = 0.7;
   const pickFocus = (u) => { if (!u) return; pending = u; };
   const D = makeDriver(w, {
-    dt, quiet: true, log: () => {},
+    dt, quiet: true, log: () => {}, skipEscape: () => g.skipExtraction(), // (§7.6 ESC: as the logic run)
     step: async () => {
       g.step(dt);
       if (tr2) dumpAt(w, tr2, dump2);

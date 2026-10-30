@@ -17,7 +17,9 @@
 export const TRUCK_STOPS = {
   A: { x: 174.5, z: 87.0, walk: [[171.4, 87.9], [170.4, 86.6], [171.0, 79.9]], back: [[170.2, 86.5], [172.1, 88.9]], stay: 5 },
   B: { x: 87.8, z: 31.3, walk: [[84.5, 34.2], [81.7, 36.0], [79.8, 34.2]], back: [[81.2, 35.3], [83.1, 36.4], [85.0, 34.9], [87.2, 34.0]], stay: 5 },
-  C: { x: 173.9, z: 86.5, walk: [[175.8, 82.5], [173.6, 79.2]], back: [[175.8, 82.4], [175.8, 84.6]], stay: 5 },
+  // (C's door spot by the crossing shack as drawn since it moved off the rails: the old one lies inside the log cabin,
+  // and a driver who could never reach it kept the lorry waiting at the crossing for good)
+  C: { x: 173.9, z: 86.5, walk: [[175.8, 82.5], [174.4, 79.8]], back: [[175.8, 82.4], [175.8, 84.6]], stay: 5 },
 };
 /** Level crossing (road × main line) and its two booms. */
 export const CROSSING = { x: 165, z: 77.5, booms: ['boom_x1', 'boom_x2'], closeR: 40, openR: 42, openDelay: 2, clearR: 8 };

@@ -114,7 +114,7 @@ try {
       let end = null;
       g.events.on('mission:won', () => { end ??= w.time; });
       g.events.on('mission:lost', () => { end ??= w.time; });
-      const D = makeDriver(w, { dt, quiet: true, log: () => {}, step: () => { g.step(dt); C.snap(w); } });
+      const D = makeDriver(w, { dt, quiet: true, log: () => {}, skipEscape: () => g.skipExtraction(), step: () => { g.step(dt); C.snap(w); } });
       let error = null;
       try { await solve(D, { boardPoint }); } catch (e) { error = String(e?.message || e); }
       const solved = w.time;
