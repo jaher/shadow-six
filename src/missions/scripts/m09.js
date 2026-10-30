@@ -7,6 +7,7 @@
  *  - DRIVE-OUT (D1b fallback): on waking each tank gets a one-way `STOPPED` route out of its bay as its
  *    brain route (state 'route'). The brain still stops to fire at any commando it sees and resumes the
  *    leg afterwards (vehicle-ai resumeLeg); at the last point it stands and keeps its live cone ('standby'-like).
+ *  - VISUALS (art pass 2): `.visuals` lays the camp's worn ground (art/camp-ruts.js: ruts, tyre tracks, oil) once.
  *  - BLOCKED BAY: a tank still at its bay (within 4 m) with the fuel tanker within 10 m of that bay (in practice:
  *    the tanker parked across the shed front) fires at it; one round explodes a tanker (§3.6). The mission trigger T2 then
  *    wrecks every Panzer within 9 m of the fireball.
@@ -14,6 +15,7 @@
  */
 
 import { normalizeVehicleRoute } from '../../ai/vehicle-ai.js';
+import { buildCampRuts } from '../../art/camp-ruts.js';
 
 /** Tank ids and their drive-out routes (dossier §8.6), m. */
 export const TANK_ROUTES = {
@@ -63,7 +65,8 @@ export function wakeTank(v, pts = TANK_ROUTES[v.tag]) {
 export function m09Script(spec = {}) {
   const tanks = spec.tanks || Object.keys(TANK_ROUTES);
   const tankerId = spec.tanker || 'tanker';
-  return function m09(world) {
+  const script = function m09(world) {
+    buildVisuals(world, spec);
     const S = { bays: {}, awake: false };
     world.m09 = S; // test / debug handle
     const tick = () => {
@@ -84,6 +87,16 @@ export function m09Script(spec = {}) {
     tick();
     world.onBelTick(tick);
   };
+  script.visuals = (world) => buildVisuals(world, spec); // built by Game as the load ends (setpieces.js)
+  return script;
+}
+
+/** Art pass 2: the camp's worn ground (art/camp-ruts.js), one decal, browser only; idempotent. */
+export function buildVisuals(world, spec = {}) {
+  if (!spec.ruts || !world.scene || world._m09Visuals) return;
+  world._m09Visuals = true;
+  const ground = world.terrain?.surfaceAt ? (x, z) => world.terrain.surfaceAt(x, z) : null; // the drawn sand's mounds
+  world.scene.add(buildCampRuts(spec.ruts, ground));
 }
 
 /** T2: the tanker's fireball wrecks every Panzer IV within `r` m (heavy armour ignores barrel/vehicle blasts, §3.7). */

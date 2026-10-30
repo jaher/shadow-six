@@ -1222,7 +1222,9 @@ export class EnemyBrain {
     if (this.phase === 'kneel' && this.pt >= B.kneel) {
       b.bodyNoticed = true;
       b.discovered = true;
-      this._shout('mandown', 'ger_mandown');
+      // (the cry carries where the body lies, as the alarm shout does: a zone that `ignoreFrom`s the place — M18's islands,
+      // whose cries reach no one — is not tripped by a bank guard's "man down!" about a body lying there)
+      this._shout('mandown', 'ger_mandown', { x: b.x, z: b.z });
       w.events.emit('enemy:body-found', { enemy: e, body: b });
       this.onBodyFound(b);
       this.phase = 'shout';

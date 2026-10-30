@@ -444,6 +444,14 @@ Each mission lists the §1 ids it needs, with counts. **Bold** marks an objectiv
   - **`comms_hut_antenna`** (mast in a sandbag ring, and the hut).
   - `barracks_desert`.
   - `house_stone_pitched`, `house_whitewash_flat`.
+  - art pass 2 (`src/art/m09-dressing.js`, every piece drawn to its block and ≥ 6 m off the routes, alarm runs, tank drives
+    and the dossier's walks): the camp's worn ground (`src/art/camp-ruts.js`, one canvas decal draped on the drawn sand:
+    the Panzers' cleated ruts from the bays over the apron to the E gate, the gantry and down through the inner gap and
+    the forecourt, the tanker's and the lorries' tyre tracks, packed lanes, oil on the apron and under the gantry's
+    engine); the NE house's lean-to `lean_to_mud_bq` (2.5×3, worn limewash over mud brick, mono-pitch palm-log / reed /
+    mud roof with a rusty sheet; was the kit box); the yellow drums repainted a true yellow; beyond the NE road the
+    workshop's write-off (library `panzer3_j`, burnt); S of the SE wall, covering the minefield, an 8.8 cm Flak
+    (library `flak88`) in a sandbag pit with its ready ammunition; the apron sand-dusted.
 - **M10 Operation Icarus (El Agheila)** [i, critic]:
   - `trench_ruins` start.
   - `airfield_strip` with a Ju 52 and 2 Ju 87s (optional **D**).

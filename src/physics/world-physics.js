@@ -83,7 +83,7 @@ export class PhysicsWorld {
 
   // ------------------------------------------------------------ events
 
-  queueBlast(ev) { if (ev && Number.isFinite(ev.x) && Number.isFinite(ev.z)) this.blasts.push({ ...ev, tick: this.world.tick }); }
+  queueBlast(ev) { if (ev && Number.isFinite(ev.x) && Number.isFinite(ev.z)) this.blasts.push({ ...ev, ...(ev.blastR != null ? { radius: ev.blastR } : {}), tick: this.world.tick }); }
 
   _onKilled({ unit, cause }) {
     if (!unit || unit.kind === 'vehicle') return;

@@ -28,6 +28,7 @@
 
 import { m09Script, wreckArmourNear } from './scripts/m09.js';
 import { joinStructures } from './schema.js';
+import { M09_DRESSING, M09_RUTS } from '../art/m09-dressing.js';
 
 const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES (§4.1)
@@ -97,7 +98,9 @@ const STRUCTURES = [
   { id: 'bunker', type: 'bunker', variant: 'bunker_sandbag_thatch', asset: 'sandbag_bunker_thatch_bq', nav: false, label: 'Bunker', x: 18.5, z: 50.5, rot: 0, w: 8, d: 7, h: 2.5, mat: 'sandbag',
     destructible: true, bombOnly: false, hp: 100 },
   { id: 'ant', type: 'radio_mast', variant: 'wurzburg_dish', label: 'Aerial', x: 79.5, z: 71, rot: 0, w: 7, d: 7, r: 3.5, h: 7, destructible: true, hp: 100 },
-  { id: 'ant_ring', type: 'sandbags', variant: 'sandbag_ring', x: 79.5, z: 71, rot: deg(45), ring: { r: 4.5, arc: 300 }, h: 1.2, block: 1 },
+  // (art pass 2: rot 78, was 45 — the ring's mouth (rot + 180°: NW to N, still facing the yard) now opens where the dish's
+  // access stairs come down (N); the bags' N arc stood 5–6 cm into them: the clipping audit's one unintended pair)
+  { id: 'ant_ring', type: 'sandbags', variant: 'sandbag_ring', x: 79.5, z: 71, rot: deg(78), ring: { r: 4.5, arc: 300 }, h: 1.2, block: 1 },
   { id: 'comms', type: 'hut', variant: 'comms_hut_antenna', asset: 'comms_hut_antenna_bq', nav: false, label: 'Radio hut', x: 70.5, z: 79.5, rot: 0, w: 8, d: 6, h: 4.5, mat: 'wood', destructible: true, hp: 100 },
   // --- the garrison: the domed two-storey block with its roof terrace (y 4) and outside stairs; NOT a target
   { id: 'barr', type: 'flat_roof_house', variant: 'hq_domed_terraced', asset: 'hq_domed_terraced_bq', nav: false, label: 'Barracks', x: 87, z: 52.5, rot: 0, w: 12, d: 15, h: 4, roofY: 4,
@@ -106,7 +109,8 @@ const STRUCTURES = [
   house('house_n1', 50, 13.5, 7, 7, [48.5, 17], { asset: 'house_stone_bq_a', nav: false }),
   house('house_n2', 57, 21, 7, 7, [54.5, 24.5], { asset: 'house_stone_bq_b', nav: false }),
   flat('house_ne', 64.5, 28, 7, 6, [61, 28], { asset: 'house_flat_white_bq', nav: false }),
-  { id: 'house_ne_annex', type: 'hut', variant: 'lean_to_mudbrick', x: 69, z: 30.5, rot: 0, w: 2.5, d: 3, h: 2.6, mat: 'plaster' },
+  // (art pass 2: its own mud-brick lean-to, the roof falling away from the house; was the kit's flat-roofed box)
+  { id: 'house_ne_annex', type: 'hut', variant: 'lean_to_mudbrick', asset: 'lean_to_mud_bq', nav: false, x: 69, z: 30.5, rot: 0, w: 2.5, d: 3, h: 2.6, mat: 'plaster' },
   ...GANTRY, GANTRY_ART,
   { ...crate('gantry_engine', 35, 49, 1.6, 1.2, 1.2), visual: false },
   // --- props
@@ -120,6 +124,7 @@ const STRUCTURES = [
   { id: 'debris_s2', type: 'sandbags', variant: 'sandbags_collapsed', x: 41, z: 108.5, rot: 0, w: 3, d: 1.5, h: 0.8, block: 1 },
   { id: 'flag_barr', type: 'sign', variant: 'flag_pole', x: 87.5, z: 43, r: 0.15, h: 7, block: 0 },
   ...BUSHES,
+  ...M09_DRESSING, // art pass 2 (art/m09-dressing.js): the workshop's write-off beyond the NE road, the Flak pit covering the minefield
   // --- the minefield edge behind the team (decor only: no live mines, dossier §12 #8)
   ...Array.from({ length: 8 }, (_, k) => ({ id: `mine_sign_${k + 1}`, type: 'sign', variant: 'minefield_warning', x: 6 + k * 12.5, z: 118, r: 0.15, h: 1.2, block: 0, text: 'Achtung Minen' })),
 ];
@@ -132,7 +137,7 @@ const SHED = (lx, lz) => local(20.9, 21.6, deg(315), lx, lz);
 /** The workshop's oil-stained concrete apron in front of the three bays (the Panzers stand on it when they roll out). */
 const PAVEMENTS = [
   { id: 'apron_shed', surface: 'concrete', points: [SHED(-10.5, 4.6), SHED(10.5, 4.6), SHED(9.5, 9.5), SHED(-9.5, 9.5)],
-    wear: 0.7, weeds: 0.05, cracks: 0.2, puddles: 0, edge: 'ragged', grid: false },
+    wear: 0.7, weeds: 0.05, cracks: 0.2, puddles: 0, edge: 'ragged', grid: false, tint: [0.93, 0.86, 0.74] }, // (art pass 2: sand-dusted, not a clean grey slab)
 ];
 const FURNITURE = [
   // the camp's telephone line comes in along the NE road (W verge) to the E gate; a field line runs from the command
@@ -350,7 +355,7 @@ export default {
     { on: 'vehicle:destroyed', match: { vehicle: 'evac' }, once: true, when: (_p, w) => !w.objectives?.find((o) => o.id === 'o6')?.done,
       do: [{ run: (_w, d, p) => d.fail(evacLossText(p.source)) }] },
   ],
-  script: m09Script({ tanks: ['pz1', 'pz2', 'pz3'], tanker: 'tanker' }),
+  script: m09Script({ tanks: ['pz1', 'pz2', 'pz3'], tanker: 'tanker', ruts: M09_RUTS }), // (art pass 2: + the camp's worn ground)
   // our lorry comes in on the W road and parks at (16,95), heading E; with everyone aboard it leaves W
   extraction: {
     vehicleId: 'evac', vehicleType: 'truck', friendly: true, seats: 6, spawnWhen: ['o_ready'],

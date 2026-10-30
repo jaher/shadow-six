@@ -703,6 +703,13 @@ export class Walkthrough extends SolutionReplay {
         // goes on, it goes on as the wait's time-lapse
         if (this._thinking || !this.waitLabel) { this._skipTag(); return; }
         this._lapseFromPlan();
+      } else if (this._skip.plan && this._thinking) {
+        // the same wait's next look-ahead (a check every few ticks): the skip and its tag stay on through the wait — M18's
+        // board-back wait started and ended its skip 19 times in 85 s of game, the tag blinking — a jump again at once
+        // if it began as one (a plan alone)
+        if (this._skip.jump) this._planTurbo();
+        this._skipTag();
+        return;
       }
     }
     if (p.turbo) return;
@@ -759,6 +766,14 @@ export class Walkthrough extends SolutionReplay {
         this._autoLabel();
         return;
       }
+      // (a plan-started skip whose wait goes on between its slow checks: played at the play's own pace, still the wait)
+      if (this._skip.plan && quiet) {
+        p.boost = this.autoPace.step(tg.rate, dt, ceiling);
+        this.autoWhy = 'wait';
+        this._skipTag();
+        this._autoLabel();
+        return;
+      }
       this._endSkip({ cut: false });
     }
     if (!quiet || !worth) this._quietSince = null;
@@ -798,16 +813,23 @@ export class Walkthrough extends SolutionReplay {
     if (this._skip || this.pacer.turbo || !this.auto) return;
     // (a plan inside a wait — the clock runs between its checks — is the wait's time-lapse; a plan alone, a jump)
     const plan = label === PLAN_WAIT && !this.waitLabel;
-    this._skip = { label, t0: this.world.time, wall: performance.now(), turboMs: this.pacer.turboMs, viewMs: this.turboViewMs, turbo: plan };
-    if (plan) {
-      this.pacer.turboMs = SKIP_TICK_MS;
-      this.turboViewMs = SKIP_VIEW_MS;
-      this.pacer.setTurbo(true);
-    }
+    // (`plan`: begun by a long look-ahead, inside a wait or alone; `jump`: alone — it runs like a jump)
+    this._skip = { label, t0: this.world.time, wall: performance.now(), turboMs: this.pacer.turboMs, viewMs: this.turboViewMs, turbo: false, plan: label === PLAN_WAIT, jump: plan };
+    if (plan) this._planTurbo();
     this.autoWhy = 'wait';
     this._capKey = null;
     this._skipTag();
     this._syncBar();
+  }
+
+  /** A skipped plan runs like a jump (the clock stands still: its search by wall time, the view redrawn now and then). */
+  _planTurbo() {
+    const s = this._skip;
+    if (!s || s.turbo) return;
+    s.turbo = true;
+    this.pacer.turboMs = SKIP_TICK_MS;
+    this.turboViewMs = SKIP_VIEW_MS;
+    this.pacer.setTurbo(true);
   }
 
   /** A skipped plan found its move and the solution waits on: the skip goes on as the wait's time-lapse. */

@@ -46,7 +46,7 @@ export function buildPavement(net, ctx = {}) {
   };
   const mat = (surface, r, extra = {}) => {
     const m = pavementMaterial(surface, { theater: ctx.theater, quality, trail: ctx.trail, weather: ctx.weather,
-      wear: r.wear, cracks: r.cracks, patches: r.patches, weeds: r.weeds, puddles: r.puddles, ragged: r.edge === 'ragged', ...extra });
+      wear: r.wear, cracks: r.cracks, patches: r.patches, weeds: r.weeds, puddles: r.puddles, ragged: r.edge === 'ragged', tint: r.tint, ...extra });
     mats.push(m);
     return m;
   };

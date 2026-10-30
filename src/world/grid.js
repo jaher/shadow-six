@@ -548,15 +548,16 @@ export class NavGrid {
    */
   clearOwner(owner) {
     let n = 0, k0 = -1, k1 = -1;
-    for (let k = 0; k < this.size; k++) {
-      if (this.owner[k] === owner) {
-        this.block[k] = B.NONE;
-        this.bridge[k] = 0;
-        this.owner[k] = 0;
-        if (k0 < 0) k0 = k;
-        k1 = k;
-        n++;
-      }
+    // (TypedArray indexOf jumps from one of the owner's cells to the next: a structure's destroy runs this once, in its
+    // blast's tick, where a cell-by-cell loop never optimised cost ~0.8 ms on M18's 120 000 cells; the same cells)
+    const O = this.owner;
+    for (let k = O.indexOf(owner); k >= 0 && k < this.size; k = O.indexOf(owner, k + 1)) {
+      this.block[k] = B.NONE;
+      this.bridge[k] = 0;
+      O[k] = 0;
+      if (k0 < 0) k0 = k;
+      k1 = k;
+      n++;
     }
     if (n) this._bumpRows((k0 / this.cols) | 0, (k1 / this.cols) | 0);
     return n;
@@ -816,11 +817,12 @@ export class NavGrid {
    */
   navStamp(key, cells) {
     const prev = this._navStamps.get(key), next = new Set(cells), vis = WALKER_STAMP.test(key);
-    if (prev) for (const k of prev) if (!next.has(k) && this.navBlock[k]) { this.navBlock[k]--; if (vis && this.visBlock[k]) this.visBlock[k]--; }
-    for (const k of next) if (!prev || !prev.has(k)) { this.navBlock[k] = Math.min(255, this.navBlock[k] + 1); if (vis) this.visBlock[k] = Math.min(255, this.visBlock[k] + 1); }
+    // (the rows of the cells whose count changes — not every row the two sets span: M18's head room re-stamp after the
+    // bridge's fall spans the whole map and changes ~400 cells by the bridge; staticLayers redoes the dirty rows)
+    const r = { j0: Infinity, j1: -Infinity }, cols = this.cols;
+    if (prev) for (const k of prev) if (!next.has(k)) { if (this.navBlock[k]) { this.navBlock[k]--; if (vis && this.visBlock[k]) this.visBlock[k]--; } const j = (k / cols) | 0; if (j < r.j0) r.j0 = j; if (j > r.j1) r.j1 = j; }
+    for (const k of next) if (!prev || !prev.has(k)) { this.navBlock[k] = Math.min(255, this.navBlock[k] + 1); if (vis) this.visBlock[k] = Math.min(255, this.visBlock[k] + 1); const j = (k / cols) | 0; if (j < r.j0) r.j0 = j; if (j > r.j1) r.j1 = j; }
     if (next.size) this._navStamps.set(key, next); else this._navStamps.delete(key);
-    const r = this._rowsOf(next);
-    if (prev) this._rowsOf(prev, r);
     this._bumpRows(r.j0, r.j1);
   }
 
@@ -830,11 +832,10 @@ export class NavGrid {
    */
   hullStamp(key, cells) {
     const prev = this._hullStamps.get(key), next = new Set(cells);
-    if (prev) for (const k of prev) if (!next.has(k) && this.hullBlock[k]) this.hullBlock[k]--;
-    for (const k of next) if (!prev || !prev.has(k)) this.hullBlock[k] = Math.min(255, this.hullBlock[k] + 1);
+    const r = { j0: Infinity, j1: -Infinity }, cols = this.cols; // (the rows of the cells that change: navStamp)
+    if (prev) for (const k of prev) if (!next.has(k)) { if (this.hullBlock[k]) this.hullBlock[k]--; const j = (k / cols) | 0; if (j < r.j0) r.j0 = j; if (j > r.j1) r.j1 = j; }
+    for (const k of next) if (!prev || !prev.has(k)) { this.hullBlock[k] = Math.min(255, this.hullBlock[k] + 1); const j = (k / cols) | 0; if (j < r.j0) r.j0 = j; if (j > r.j1) r.j1 = j; }
     if (next.size) this._hullStamps.set(key, next); else this._hullStamps.delete(key);
-    const r = this._rowsOf(next);
-    if (prev) this._rowsOf(prev, r);
     this._bumpRows(r.j0, r.j1);
   }
 

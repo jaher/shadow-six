@@ -23,6 +23,9 @@
  *  - the red house is an enterable hideout (the engine has no two-door pass-through); the covered way to the
  *    tank runs along its W side instead;
  *  - `sd_w` turns round on the W road at (2,22) (30 s out of sight behind the NW houses) instead of leaving the map;
+ *  - the bridge's deck is not measured on the visual (`deckMeasure: false`, as M16's): walkable at 1.0 m in the game;
+ *  - `sd_w` passes W of the pillbox pb_w (via (15.5,52)) to its halt at (21,63), and `sd_e` turns at (186,65) (2 m off
+ *    house blk_n): the dossier's (24,60) and (187.5,66.5) lie in the drawn models' clearance (the cars stopped for good);
  *  - the bridge falls whole (the deck over water reverts to river, the land approaches stay as road);
  *    scripts/m18.js drowns anyone on the span, keeps the Panzer III immune to bombs and shells, drops the team
  *    prone on the first tick (spawn `stance` is not read) and path-finds the S-road drive-off;
@@ -103,7 +106,14 @@ const BRIDGE_SET = [
   // §5.1 the objective: only `multi_charge` (A + B + C) brings it down; tanks may drive on the deck
   // (open Pratt truss 6 m high, bowstring arch to 14 m over the main span, as M16: the deck, the charges and I_S show)
   { id: 'bridge', type: 'truss_bridge', variant: 'truss_bridge_maas', x: 58.6, z: 81.25, rot: BRIDGE_ROT, w: 85.4, d: 9, h: 14,
-    trussH: 6, arch: [-16.5, 14], mat: 'metalRust', destructible: true, indestructible: true, vehiclesAllowed: true, charges: MARKERS.map((m) => ({ x: m.x, z: m.z })) },
+    trussH: 6, arch: [-16.5, 14], mat: 'metalRust', destructible: true, indestructible: true, vehiclesAllowed: true, charges: MARKERS.map((m) => ({ x: m.x, z: m.z })),
+    // (as M16's: the deck is not measured on the visual. Its overhead bracing and the deck seams over the piers cut a
+    // measured deck into islands, and the rest was stamped as railing: in the real game nobody could set foot on the
+    // deck nor plant a charge. It walks at the visual's level, 1.0 m, with 7 m ramps at the ends: tests/missions/m18)
+    deckMeasure: false, deckTop: 1.0, deckRamp: 7,
+    // (its fall is heard by its three charges, map-wide, in that very tick: no second noise of its own — §5.1; and its
+    // shock is the span going into the river, 12 m, not twice its 43 m radius: every guard on the map knocked about)
+    silentDestroy: true, blastR: 12 },
   { id: 'pb_w', type: 'bunker', variant: 'pillbox_round', asset: 'pillbox_round_be', x: 21, z: 56, rot: deg(110), w: 5, d: 5, h: 3, mat: 'concrete', destructible: true, bunker: true },
   { id: 'pb_e', type: 'bunker', variant: 'pillbox_round', asset: 'pillbox_round_be', x: 87.5, z: 113, rot: deg(20), w: 5, d: 5, h: 3, mat: 'concrete', destructible: true, bunker: true },
   // the green explosives case on I_S (the pickup itself is `items[]`)
@@ -339,10 +349,12 @@ const VEHICLES = [
   // the vacant Panzer III in the NW tank yard: the Driver drives it (the GB may ride along); nothing here can hurt it
   { id: 'pz3', vehicleType: 'panzer3', x: 4, z: 14, heading: deg(30), driveable: true, operators: ['driver'], seats: 2, suspicious: false },
   // two SdKfz 231 on patrol (2 crew each): the W one turns round behind the NW houses, the E one at the crossroads
+  // (each beat clear of the drawn models' clearance, which the headless grid has not: sd_w passes W of the pillbox pb_w
+  // and waits N of it, sd_e turns 2 m off house blk_n's S corner — before, both stopped there for good: tests/m18-cars)
   { id: 'sd_w', vehicleType: 'sdkfz', x: 4, z: 52, heading: deg(300), driveable: false, crew: ['sdw_d', 'sdw_g'],
-    route: { type: 'LOOP', speed: 4, points: [P(4, 52, 20), P(12, 42), P(3, 24, 30), P(12, 42), P(24, 60, 12)] } },
+    route: { type: 'LOOP', speed: 4, points: [P(4, 52, 20), P(12, 42), P(3, 24, 30), P(12, 42), P(15.5, 52), P(21, 63, 12)] } },
   { id: 'sd_e', vehicleType: 'sdkfz', x: 121, z: 128, heading: deg(315), driveable: false, crew: ['sde_d', 'sde_g'],
-    route: { type: 'PINGPONG', speed: 4, points: [P(121, 128, 5), P(135, 117.5), P(187.5, 66.5), P(196, 58, 8)] } },
+    route: { type: 'PINGPONG', speed: 4, points: [P(121, 128, 5), P(135, 117.5), P(186, 65), P(196, 58, 8)] } },
   // the escape lorry by the S road (the Driver drives; four seats)
   { id: 'truck', vehicleType: 'truck', variant: 'opel_canvas', x: 91.5, z: 143.5, heading: deg(345), driveable: true, operators: ['driver'], seats: 4 },
   // the Marine's pneumatic boat in the shallows of the N island (Marine + 2)

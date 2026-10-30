@@ -862,3 +862,7 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 ## 2026-10-30 — M10: second art pass (merged d76dfb477), solution and walkthrough (merged 7814454de)
 - Art pass 2: rim wire drawn on the shelf, rebuilt sandbag-rimmed dugout with entrances at the squads' doors, airstrip decal, burnt SdKfz 231 and crater, supply dump, field graves, open stovepipes. Media: commandos-shots/m10art2/art/m10-p2-before-after.jpg.
 - Solution: M10 won on foot, 0 detections / 0 exposures, with walkthrough and test. Unit 2462 passed; m10-solution, m03-solution, debug-solution pass.
+
+## 2026-10-30 — M18: second art pass (merged 8ec134e18), solution and walkthrough (merged 6b85fc053)
+- Art pass 2: siding and buffer stop under the boxcar, green explosives case, island boat and reel, fountain setts, burnt-out jeep and crater. Media: commandos-shots/art/m18-p2-before-after.jpg.
+- Solution: lorry to the bridge, three charges, 0 detections / 0 exposures; cheaper bridge-collapse tick; walkthrough lapse-tag hysteresis. Media: commandos-shots/review/sol-m18/m18-sheet.jpg (plus three clips).

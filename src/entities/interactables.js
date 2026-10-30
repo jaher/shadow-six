@@ -158,8 +158,13 @@ export class Interactable extends Entity {
       }
       // anyone standing on a collapsing crest goes down with it
       if (this._crestCells?.length || this._deckFell) this._killOnCrest(source);
-      w.events.emit('explosion', { x: this.x, z: this.z, radius: Math.max(4, this.radius * 2), kind: 'structure', source: this });
-      w.emitNoise?.(this.x, this.z, 40, 'explosion', this);
+      // (`blastR`, structure def: the shock wave's own radius — physics/blast-apply's reach is 2.5x it — where twice the
+      // structure's radius is no blast: M18's 85 m bridge falling into the river threw every guard on the map)
+      const blastR = this.params?.blastR ?? this.params?.structure?.blastR;
+      w.events.emit('explosion', { x: this.x, z: this.z, radius: Math.max(4, this.radius * 2), kind: 'structure', source: this, ...(blastR != null ? { blastR } : {}) });
+      // `silentDestroy` (structure def): the charges that bring it down are its noise — heard map-wide in that same tick
+      // (M18's bridge: the span's own 40 m noise sent seven guards on a second search in the third charge's tick)
+      if (!(this.params?.silentDestroy || this.params?.structure?.silentDestroy)) w.emitNoise?.(this.x, this.z, 40, 'explosion', this);
       w.events.emit('structure:destroyed', { id: this.tag ?? this.id, type: this.interactKind, owner: this.owner });
       // `quietDestroy` (structure def): the mission announces this one itself (M14 review: two messages per gun)
       if (!(this.params?.quietDestroy || this.params?.structure?.quietDestroy)) w.events.emit('message', { text: `${this.displayName} destroyed.`, kind: 'info' });

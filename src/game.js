@@ -379,7 +379,9 @@ export class Game {
     const targets = new Set((def.objectives || []).filter((o) => o.type === 'destroy').flatMap((o) => o.targets || []));
     for (const it of world.interactables || []) {
       const ud = it.object3d?.userData, tag = it.tag ?? it.spawn?.id ?? it.id;
-      const f = it.destructible && !it.destroyed && (ud?.stageAlways || targets.has(tag)) ? ud?.prepareDestroy : null;
+      // (a target only a mission set-piece can bring down — M18's bridge, `indestructible` to anything but its three
+      // charges together: multi_charge — is staged too: its ruin was built in the blast's tick, ~0.7 ms of it)
+      const f = !it.destroyed && ((it.destructible && ud?.stageAlways) || targets.has(tag)) ? ud?.prepareDestroy : null;
       const rr = f ? safe(() => f(), 'ruin staging') : null;
       if (rr) { ruins.push(rr); await nextTask(); } // (a ruin a task: a bunker's wreck is ~100 ms of geometry)
     }
@@ -646,6 +648,11 @@ export class Game {
       if (cones && 'forced' in cones && foe) { cones.forced = new Set([foe]); cones.deferForced = false; safe(() => cones.update(), 'warm cone'); cones.deferForced = true; }
       const path = safe(() => this.selection?._pathLine?.(0), 'warm path');
       if (path) path.visible = true; // (made once, hidden again below: shown on every call — a warm-up frame runs in parts)
+      // (and a selection ring with its x-ray ghost: the ghost draws only while the selected man is wholly hidden — the
+      // Marine under water, M18's dive — so its program came first mid-play; XRayPass draws it here with the path's)
+      const ringNew = !this.selection?.rings?.[0], ring = safe(() => this.selection?._ring?.(0), 'warm ring'), ringGhost = ring?.children?.[0];
+      if (ring) { few.push(ring, 'visible', ringNew ? false : ring.visible); ring.visible = true; }
+      if (ringGhost) { few.push(ringGhost, 'visible', ringGhost.visible); ringGhost.visible = true; }
       // (and the x-ray pass over `xrayExtra` too: props carried on a man, the shovel, draw their own silhouette variant)
       const xt = r.xrayTargets;
       if (xrayExtra.length) r.xrayTargets = () => [...(xt?.() || []), ...xrayExtra];

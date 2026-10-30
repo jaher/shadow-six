@@ -303,6 +303,26 @@ test('m18 fix: the islands\' cries do not reach the banks — I_N cleared while 
   assert.equal(b.raise('z_all', 'seen', 97, 28, { sensor: 'seen' }), 'RINT', 'the team seen on I_N');
 });
 
+test('m18 fix: a bank guard who finds a body on the bridge island cries "man down" to nobody — no siren', () => {
+  // the W-bank MG gunner e51 sees the island MG gunner e54 fall dead in his nest (the M18 solution harpoons him from
+  // the water): he kneels, cries "man down" (its noise carries where the body lies, as his alarm shout does) and
+  // searches; P50 on the W road hears him and comes to look — but the bank zone ignores cries about the islands
+  // (enemy-brain _body: the mandown cry used to carry no `about`, and its RINT brought every barracks out)
+  const s = m18Start(), w = s.world;
+  for (const c of w.commandos) { c.x = 199; c.z = 148; }
+  // (when the W road's patrol is down by the gunner's pit, within earshot of his cry)
+  const p50 = s.get('p50'), e51 = s.get('e51');
+  for (let k = 0; k < 400 && Math.hypot(p50.x - e51.x, p50.z - e51.z) > 12; k++) s.run(0.25);
+  assert.ok(Math.hypot(p50.x - e51.x, p50.z - e51.z) <= 12, 'P50 by the W-bank MG pit');
+  s.get('e54').die('test', null);
+  const found = [];
+  w.events.on('enemy:body-found', (p) => found.push(p.enemy?.tag));
+  s.run(60);
+  assert.ok(found.includes('e51'), `the W-bank gunner finds the body (${found.join(',')})`);
+  assert.equal(w.alarm.zonesFired.length, 0, `no zone event (${w.alarm.zonesFired.map((z) => `${z.zone}/${z.cause}`).join(' ')})`);
+  assert.equal(w.alarm.active, false, 'no siren');
+});
+
 test('m18 fix: an early siren with the team still prone at the start walls is survivable (180 s)', () => {
   const s = m18Start(), w = s.world;
   s.run(5);
@@ -378,4 +398,22 @@ test('m18 fix: a grenade on P46 by the SW beach pulls only the men within 45 m (
   s.run(20);
   const came = [...far].filter((e) => e.alive && Math.hypot(e.x - x, e.z - z) < 40).map((e) => e.tag);
   assert.deepEqual(came, [], 'nobody from afar converges');
+});
+
+test('m18 fix: the bridge deck is not measured on the visual (as M16): walkable at deckTop over the three markers, ramps at the ends', async () => {
+  // (sol/m18: measured, the truss's bracing and the deck seams over the piers cut the deck into islands and the rest was
+  // stamped as railing — in the real game nobody could set foot on the deck, the charges could not be planted)
+  const { libraryDecks } = await import('../../src/world/map-library.js');
+  const { B } = await import('../../src/world/grid.js');
+  const def = M().structures.find((s) => s.id === 'bridge');
+  assert.equal(def.deckMeasure, false);
+  const built = { def, type: def.type, owner: 100000, footprints: [{ shape: 'rect', x: def.x, z: def.z, w: def.w, d: def.d, rot: def.rot ?? 0, block: B.HIGH }],
+    library: { ladders: [], roofs: [], climbEdges: [], doors: [], piers: [], bridge: null, scale: [0.58, 0.99, 1], setDoorOpen() {} } };
+  let asked = 0;
+  const [deck] = libraryDecks([built], { measure: () => { asked++; return { heightAt: () => 3.2, parapet: () => true }; } });
+  assert.equal(asked, 0, 'the visual is never measured');
+  assert.ok(deck && !deck.measured, 'unmeasured: no railing stamps over the deck');
+  for (const m of MARKERS) assert.ok(Math.abs(deck.heightAt(m.x, m.z) - def.deckTop) < 1e-6, `marker ${m.id} on the level deck`);
+  const c = Math.cos(def.rot), s = Math.sin(def.rot), at = (u) => deck.heightAt(def.x + u * c, def.z + u * s);
+  assert.ok(at(def.w / 2 - 0.2) < 0.15 && at(-def.w / 2 + 0.2) < 0.15, 'ramps down to the ground at both ends');
 });
