@@ -110,6 +110,12 @@ The Marine dives to the moored rowboat and ferries the team across the river; th
 
 [![Mission 19 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 9 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m19.jpg)](docs/screenshots/storyboards/m19.jpg)
 
+### Mission 20 · Operation Valhalla
+
+The Green Beret climbs the west wall and knifes fifteen guards on the terraces, in the south court and at the gate, and on the north range roof (one drawn up to a decoy on the gatehouse roof, Patrol 57 held at another); the Sniper shoots three, among them the AT gunner; the Sapper fires a remote charge from inside the Panzer III that destroys the headquarters (and the turret guard beside it); the Driver's tank gun destroys both V2 rockets and takes two guards on the way out; all six drive out in the Panzer III. *Game time 97:16 (film 11:38), 0 detections, 21 kills, all 6 commandos alive.*
+
+[![Mission 20 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 13 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m20.jpg)](docs/screenshots/storyboards/m20.jpg)
+
 ### Storyboards to come
 
 The storyboard of each of these missions comes when its film is done (a film needs the mission's scripted solution
@@ -124,7 +130,7 @@ first, see [Status](#status)); until then it keeps its single in-game frame.
 <tr>
 <td align="center" width="33%"><a href="verify/reference/gameplay-m17.png"><img src="verify/reference/gameplay-m17.png" width="100%" alt="Mission 17: The squad moving up the snowy forest road, point man ringed."></a><br><sub><b>Mission 17</b> · Before Dawn</sub></td>
 <td align="center" width="33%"><a href="verify/reference/gameplay-m18.png"><img src="verify/reference/gameplay-m18.png" width="100%" alt="Mission 18: The Maas bridge mid-collapse into the river, charges fired at the three marked points (&quot;THE BRIDGE IS DOWN&quot;)."></a><br><sub><b>Mission 18</b> · The Force of Circumstance</sub></td>
-<td align="center" width="33%"><a href="verify/reference/gameplay-m20.png"><img src="verify/reference/gameplay-m20.png" width="100%" alt="Mission 20: The castle HQ roof blown in and still smoking after the charge."></a><br><sub><b>Mission 20</b> · Operation Valhalla</sub></td>
+<td></td>
 </tr>
 </table>
 
