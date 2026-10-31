@@ -901,3 +901,6 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 
 ## 2026-10-30 — Test-health fixes merged to master (perf lane 1)
 - fix/test-health merged (311bba43f): tests staged on open ground, measurements on settled textures, memory and GPU-memory cycle fixes, doc shots written to tests/out. Unit 2529 passed / 0 failed; 15 GPU tests passed (anti-tiling kit-cost 0.8 ms bound flaked at 0.9-1.0 ms under host load ~10, passed on rerun; bound unchanged).
+
+## 2026-10-30 — M17 art pass 2 and solution merged to master (lane B)
+- Art2 merged 1a50de2fc (Alsatian vineyard, soft-edged ploughed field, beet clamp, rocky gorge with stream, re-surfaced bridge approaches, HQ setts). Solution merged 2ef781001 (win 3228.93 s, 0 detections / 0 exposures, 27 kills; second run reproduces). Media: commandos-shots/art/ and commandos-shots/solutions/m17-sheet.jpg.

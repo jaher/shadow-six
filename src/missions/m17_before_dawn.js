@@ -35,6 +35,7 @@ import { GUESTS, setLockedGate, openPen, showCaged, northAlarm, lineUp, investig
 import { joinStructures } from './schema.js';
 import { buildM17Art, buildM17Visuals } from './scripts/m17-art.js';
 import { M17_DRESSING, M17_TERRAIN, M17_PAVE_HQ, M17_FIELD } from '../art/m17-dressing.js';
+import './scripts/m16.js'; // registers the `deck_underpass` set-piece (the Marine dives under the road bridge, dossier §6)
 
 const deg = (d) => (d * Math.PI) / 180;
 const P = (x, z, wait = 0, look = null) => ({ x, z, wait, look }); // `look` stays in DEGREES
@@ -138,8 +139,11 @@ const OUTSIDE = [
   { id: 'pillbox', type: 'bunker', variant: 'pillbox_round', label: 'Surveillance bunker', x: 63, z: 81, rot: deg(200), w: 5, d: 5, h: 3,
     mat: 'concrete', destructible: true, hp: 100, destroyFx: ['bigBlast'], asset: 'pillbox_round_be' },
   { id: 'gorge', type: 'ravine', variant: 'rock_gorge', points: RAVINE, carved: true }, // drawn by the terrain carve (`carves`)
-  // drawn as the rolling bridge (scripts/m17-art.js): its span follows the set-piece `mbridge`
-  { id: 'mbridge_deck', type: 'mobile_bridge', variant: 'mobile_bridge_sliding', x: 14.8, z: 134.6, rot: deg(75), w: 20.5, d: 5, h: 0.4 },
+  // drawn as the rolling bridge (scripts/m17-art.js): its span follows the set-piece `mbridge`, which alone says where
+  // men can walk (its deck while out, the gap while back). `clip: false`: the drawn span is measured in no nav stamp —
+  // measured at load, slid back onto the north bank, its frame closed both landings of the deck for good, and in the
+  // game nobody could ever cross (the Marine went round through the camp)
+  { id: 'mbridge_deck', type: 'mobile_bridge', variant: 'mobile_bridge_sliding', x: 14.8, z: 134.6, rot: deg(75), w: 20.5, d: 5, h: 0.4, clip: false },
   { id: 'truck_winch', type: 'ruins', variant: 'truck_opel_parked', label: 'Winch lorry', x: 18.5, z: 120.5, rot: deg(120), w: 6.5, d: 2.4, h: 2.8,
     mat: 'olivePaint', block: 2, vehicleArt: 'opel_blitz_cargo' },
   { id: 'crane', type: 'radio_mast', variant: 'crane_tower_jib', x: 20, z: 113, rot: deg(350), r: 1.6, h: 14 }, // jib over the wall (dossier §5.1)
@@ -257,9 +261,11 @@ const LOWER = [ // the lower camp: 2 walkers and the five tower sentries
   walker('e29', null, [P(64, 142.5, 3, 180), P(70.5, 148, 3, 90)]),
   towerman('t1s', 't1', 200), towerman('t2s', 't2', 120), towerman('t3s', 't3', 60), towerman('t4s', 't4', 30), towerman('t5s', 't5', 90),
 ];
-/** e_bk's head: ±40 about 200° (cone 140–260° with the 20° half field): the whole road bridge (160–228°), but
- *  not the back gate (138°), the path from it (≤ 135°) nor the barrel's spot behind him (90°). */
-export const BUNKER_POST = { heading: 200, sweep: 40 };
+/** e_bk's head: ±33 about 200° (cone 147–253° with the 20° half field): the whole road bridge (160–228°), but
+ *  not the back gate (138°), the path from it to behind him (≤ 144.5°: in the game a man lying down rounds the gate's
+ *  east post 1.5–3 m off the wall — the drawn posts' footings keep him off them — at 140–144.5°; at ±40 the cone's edge
+ *  caught him there at the east end of every sweep) nor the barrel's spot behind him (90°). */
+export const BUNKER_POST = { heading: 200, sweep: 33 };
 const BUNKER = [ // the surveillance bunker's one gunner: scans the road bridge, blind to his rear (§8.6)
   { id: 'e_bk', soldierType: 'crew', x: 63, z: 81, heading: deg(BUNKER_POST.heading), structure: 'pillbox', firesOnSight: true,
     vision: { fov: 40, near: 18, far: 36, sweep: BUNKER_POST.sweep }, post: { heading: deg(BUNKER_POST.heading), sweep: BUNKER_POST.sweep } },
@@ -385,6 +391,9 @@ export default {
       lever: { at: LEVER, id: 'lever_bridge' }, crushArea: { poly: CRUSH } },
     { type: 'gate_control', id: 'backgate', control: { at: GATE_BOX, id: 'gate_box', label: 'Gate control box' }, doors: [], open: false },
     { type: 'fuel_valve', id: 'oil', valve: { at: VALVE, id: 'valve' }, clicks: 3, spill: { x: GATEWAY.x, z: GATEWAY.z, r: 4.5 }, growTime: 8, burnTime: 120 },
+    // dossier §6 "a swimmer can pass under it": the road bridge's cells over the river are open to a submerged diver
+    // (as M16/M18's spans); its deck still carries everyone else
+    { type: 'deck_underpass', id: 'deck_underpass', structure: 'bridge_road' },
   ],
   triggers: [
     // D1: the prisoners are drawn in the cage

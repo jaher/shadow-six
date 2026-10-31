@@ -305,12 +305,15 @@ const everInCone = (e, x, z) => {
 };
 const BRIDGE_PT = pt(38, 70.9); // on the road bridge, a quarter of the way from its N end
 const ROUTE = [pt(...BACK_GATE), pt(49.3, 93.5), pt(53, 91), pt(55.5, 89.5), pt(57.5, 88.3)]; // gate → behind the pillbox
+// (and the way a man lying down really takes round the gate's east post in the game, its drawn footings keeping him
+// 1.5–3 m off the wall)
+const CRAWL = [pt(49.3, 92.3), pt(49.5, 90.7), pt(50.4, 90.3), pt(51.2, 90.6), pt(52.2, 90.1)];
 
 test('m17 fix: the pillbox gunner scans the road bridge and is blind to his rear (the barrel spot, the pen, the gate, the path)', () => {
   const s = makeSim(M(), { brains: false }), e = s.get('e_bk');
   assert.ok(e.vision.sweepDeg <= 50, `±${e.vision.sweepDeg}°`);
   assert.ok(everInCone(e, BRIDGE_PT.x, BRIDGE_PT.z), 'he does watch the bridge');
-  for (const p of [pt(63, 84.4), pt(...PEN_GATE), pt(PEN_GATE[0] - 6, PEN_GATE[1] + 3), pt(PEN_GATE[0] + 4, PEN_GATE[1] - 2), pt(58, 106), pt(60, 107), ...ROUTE]) {
+  for (const p of [pt(63, 84.4), pt(...PEN_GATE), pt(PEN_GATE[0] - 6, PEN_GATE[1] + 3), pt(PEN_GATE[0] + 4, PEN_GATE[1] - 2), pt(58, 106), pt(60, 107), ...ROUTE, ...CRAWL]) {
     assert.ok(!everInCone(e, p.x, p.z), `(${p.x}, ${p.z}) is behind him`);
   }
 });
@@ -460,4 +463,18 @@ test('m17 fix: T4 with live brains — the gunner lies buried (nobody finds him)
   assert.deepEqual(Object.keys(near).sort(), [...SEND_ON_BLAST].sort(), `all seven reach the rubble (near: ${Object.keys(near)}; ${SEND_ON_BLAST.map((id) => `${id}@${s.get(id).x.toFixed(0)},${s.get(id).z.toFixed(0)}`)})`);
   const back = SEND_ON_BLAST.filter((id) => { const e = s.get(id); return Math.hypot(e.x - 57, e.z - 88.5) > 15; });
   assert.ok(back.length >= 5, `and head home again (${back.join(',')})`);
+});
+
+test('m17 fix: a diver passes under the road bridge (deck_underpass set-piece, dossier §6 "a swimmer can pass under it")', () => {
+  const m = M();
+  assert.ok((m.setpieces || []).some((s) => s.type === 'deck_underpass' && s.structure === 'bridge_road'), 'the set-piece is declared');
+  const g = loadGrid(m).grid;
+  const len = (p) => p.reduce((a, q, k) => (k ? a + Math.hypot(q.x - p[k - 1].x, q.z - p[k - 1].z) : 0), 0);
+  // before the fix the bridge's cells over the river blocked the diver: from the water W of the deck to the water E of
+  // it he had to climb out and walk round (~49 m); now he swims straight under (~10 m)
+  const dive = findPath(g, 24, 80, 34, 80, { swim: true, dive: true, role: 'diver', maxNodes: 400000 });
+  assert.ok(dive && len(dive) < 15, `divers pass under the deck (path ${dive && len(dive).toFixed(1)} m)`);
+  assert.ok(dive.some((q) => g.underpassAt(q.x, q.z)), 'through the underpass cells');
+  const surf = findPath(g, 24, 80, 34, 80, { swim: true, role: 'diver', noLinks: true, maxNodes: 400000 });
+  assert.ok(!surf || len(surf) > 30, 'walkers and surface swimmers go round by the deck');
 });
