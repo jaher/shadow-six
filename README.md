@@ -17,7 +17,7 @@ A mission with a scripted solution can be filmed: the art opening (the title car
 objective to the team's start), then the whole solution played in the real game with player orders only and captioned
 step by step, down to the *Mission complete* card. Each sheet below is a 4 × 4 contact sheet of one film, in film
 order (click it for the full-size image); the numbers are the film's own: game time, detections, enemies killed,
-commandos alive. More films are on the way. How to make one: [Film a mission](#film-a-mission); the films themselves
+commandos alive. Every mission has its film. How to make one: [Film a mission](#film-a-mission); the films themselves
 are not in the repository.
 
 ### Sandbox (mission 0)
@@ -122,6 +122,12 @@ The Spy takes the German uniform from the clothesline and drives the lorry onto 
 
 [![Mission 16 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 5 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m16.jpg)](docs/screenshots/storyboards/m16.jpg)
 
+### Mission 17 · Before Dawn
+
+The Spy, in a German uniform, walks through the camp to the prison yard's back gate and opens it, injects the four men of the west strip one by one, and slides the bridge out over the gorge by the lever on the winch lorry, so that the Green Beret and the Marine cross; she holds Patrol 17 at the road bridge in talk while the Green Beret knifes its three men, and injects e5 when the Green Beret's decoy has drawn him out of the yard; the Marine, swimming under water, harpoons the three men of Patrol 16 while the Spy holds them, and the Green Beret's decoy behind the bunker turns its gunner away for good; in the prison yard the Green Beret knifes e8, e9 and e10 and the Spy injects e11 and e12; on the north bank the Spy injects e14, e22, e24, e25 and e27, the Marine harpoons e15, e18, e19, e21 and the machine-gunner e23 from the river, and the Green Beret crawls over the road bridge and knifes e20 while the Spy holds him in talk; the Spy then holds Patrol 26 fifty metres from the lorry while the Green Beret opens the cage, and Claude Gilbert and his four men walk out with him, over the road bridge and up the north road, and all eight climb into the lorry. *Game time 53:48 (film 9:26), 0 detections, 27 kills, all 3 commandos alive.*
+
+[![Mission 17 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 9 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m17.jpg)](docs/screenshots/storyboards/m17.jpg)
+
 ### Mission 18 · The Force of Circumstance
 
 The Marine dives under the bridge to the north island, harpoons the sentry beside the moored boat and carries the boat back; he harpoons the machine-gunner and a walker on the bridge island from the water and rows the Sapper over, and the Sapper takes the three German charges from the green case; the Driver takes the lorry, with the other three aboard, up to the end of the bridge deck, where the Germans take it for one of their own; the Sapper crawls out, sets a charge at each of the three marked points and, back at the lorry's door, sets all three off, so that the span falls into the Maas; all four drive out in the lorry. The Green Beret takes no part but to ride in it. *Game time 27:54 (film 4:20), 0 detections, 3 kills, all 4 commandos alive.*
@@ -139,19 +145,6 @@ The Marine dives to the moored rowboat and ferries the team across the river; th
 The Green Beret climbs the west wall and knifes fifteen guards on the terraces, in the south court and at the gate, and on the north range roof (one drawn up to a decoy on the gatehouse roof, Patrol 57 held at another); the Sniper shoots three, among them the AT gunner; the Sapper fires a remote charge from inside the Panzer III that destroys the headquarters (and the turret guard beside it); the Driver's tank gun destroys both V2 rockets and takes two guards on the way out; all six drive out in the Panzer III. *Game time 97:16 (film 11:38), 0 detections, 21 kills, all 6 commandos alive.*
 
 [![Mission 20 storyboard: a 4 × 4 contact sheet of the film, from the title card and the opening pan over the map, through the 13 chapters of the solution, to the "Mission complete" card.](docs/screenshots/storyboards/m20.jpg)](docs/screenshots/storyboards/m20.jpg)
-
-### Storyboards to come
-
-The storyboard of each of these missions comes when its film is done (a film needs the mission's scripted solution
-first, see [Status](#status)); until then it keeps its single in-game frame.
-
-<table>
-<tr>
-<td align="center" width="33%"><a href="verify/reference/gameplay-m17.png"><img src="verify/reference/gameplay-m17.png" width="100%" alt="Mission 17: The squad moving up the snowy forest road, point man ringed."></a><br><sub><b>Mission 17</b> · Before Dawn</sub></td>
-<td></td>
-<td></td>
-</tr>
-</table>
 
 The earlier reference set, an action frame and two scene frames for each of missions 1 to 20, is catalogued in
 [verify/reference/README.md](verify/reference/README.md).
