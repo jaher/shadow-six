@@ -152,7 +152,7 @@ The earlier reference set, an action frame and two scene frames for each of miss
 ## What you get
 
 - **The Behind Enemy Lines campaign**, rebuilt mission by mission from the original's 20 missions: all twenty play
-  now, some more finished than others (see [Status](#status)).
+  now, each with a scripted solution and a film (see [Status](#status)).
 - **Six commandos with their original abilities and weapons**: the Green Beret (knife, decoy, shovel, climbing),
   Sniper, Marine (harpoon, boat, diving gear), Sapper (time and remote bombs, grenades, traps), Driver and Spy
   (uniform, lethal injection); each carries only what he had in 1998.
@@ -175,15 +175,16 @@ The earlier reference set, an action frame and two scene frames for each of miss
 Work in progress. All twenty missions of the *Behind Enemy Lines* campaign are in the build and playable (in
 campaign order, or any of them at once with `?debug`), with art (terrain, water, buildings, vehicles, animated
 soldiers and commandos), vision cones, alarms, the knapsack, stealth kills, carrying bodies, explosives, briefings,
-debriefings, and saving and loading. They are at different stages of finish:
+debriefings, and saving and loading. Where they stand:
 
-- **Art and a scripted solution finished:** the sandbox (M0) and missions 1, 2, 3, 5, 6, 8, 11, 12, 13, 14, 15, 16
-  and 19. A solution is a full run with player orders only that wins without a single detection; it replays in the
-  game, plays as a captioned walkthrough and can be filmed (see [Mission storyboards](#mission-storyboards)).
-- **Solution merged, art in review:** mission 20.
-- **In progress:** missions 10 and 18 (their art is done, their solutions are being written).
-- **Still to come:** missions 4, 7, 9 and 17 (a further art pass and a scripted solution each), the *Beyond the
-  Call of Duty* campaign and some systems and polish. Work is merged and published as it is finished.
+- **Art, a scripted solution and a film finished:** the sandbox (M0) and all twenty missions. A solution is a
+  full run with player orders only that wins without a single detection; it replays in the game, plays as a
+  captioned walkthrough and is filmed (see [Mission storyboards](#mission-storyboards)).
+- **Performance passes** (a steady frame rate through each mission's walkthrough in video mode) are under way:
+  missions 2, 3 and 11 are done, missions 12, 15 and 18 are in progress and the others are queued. Engine-wide
+  work (less garbage per frame, cheaper detailed characters, test-suite health) is merged.
+- **Still to come:** the *Beyond the Call of Duty* campaign and some systems and polish. Work is merged and
+  published as it is finished.
 
 ## System requirements
 
