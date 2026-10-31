@@ -179,6 +179,31 @@ const _v = new THREE.Vector3();
 const _m = new THREE.Matrix4();
 const _up = new THREE.Vector3(0, 1, 0);
 
+/** The pixel-store parameters three reads back (WebGLState.getParameter: a texture's partial updates). */
+const UNPACK_ASKED = ['UNPACK_ROW_LENGTH', 'UNPACK_IMAGE_HEIGHT', 'UNPACK_SKIP_PIXELS', 'UNPACK_SKIP_ROWS', 'UNPACK_SKIP_IMAGES'];
+
+/**
+ * three's renderer.resetState() (engine/gpu-compress.js after its own GL work — each HD encode band, each upload —,
+ * the context-lost refills…) sets every pixel-store parameter to its default and forgets them all; a texture's partial
+ * update (updateRanges: the VFX particle pool's data texture, every frame while smoke or dust is live) then reads them
+ * back with gl.getParameter — a synchronous round trip that waits for the GPU to finish all it was given (an HD encode:
+ * a 97-129 ms frame at the start of M12's walkthrough, a few ms in many frames while upgrades ran). After a reset (and
+ * at the start) they are told to three's cache as the defaults the reset just set: no read-back.
+ */
+function keepPixelStoreKnown(r) {
+  const reset = r.resetState, gl = r.getContext?.();
+  if (typeof reset !== 'function' || typeof r.state?.pixelStorei !== 'function' || !gl) return;
+  const names = UNPACK_ASKED.map((k) => gl[k]).filter((v) => v !== undefined);
+  // (r.state, not a copy: a restored context brings a new WebGLState)
+  const known = () => { if (!gl.isContextLost()) for (const p of names) r.state.pixelStorei(p, 0); };
+  r.resetState = function resetState(...a) {
+    const out = reset.apply(this, a);
+    known();
+    return out;
+  };
+  known();
+}
+
 export class Renderer {
   /**
    * @param {HTMLElement} container element the canvas is appended to
@@ -202,6 +227,7 @@ export class Renderer {
     r.shadowMap.type = THREE.PCFShadowMap;
     r.domElement.tabIndex = 0;
     container.appendChild(r.domElement);
+    keepPixelStoreKnown(r);
     /** @type {THREE.WebGLRenderer} */
     this.renderer = r;
     this.domElement = r.domElement;

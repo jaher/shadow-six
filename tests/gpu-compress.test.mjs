@@ -4,6 +4,7 @@
  *    within quality floors, read back through the GPU's own decoder against three's uncompressed upload (RGB PSNR,
  *    alpha separately): albedo, normal, ORM, a cut-out with alpha;
  *  - the game's compressor calibrates its encoder tier (SwiftShader, ~100× slower than a GPU: compression off);
+ *  - an encode cut into bands of block rows (encodeBand: HD upgrades while the game is played) gives the same blocks;
  *  - after M1 loads, every material map of the scene (≥ 256 px) is on the GPU compressed, except the maps kept as they
  *    are on purpose (water foam / detail normals, foliage leaf ids, stone ids, canvases, render targets).
  * tools/perf/gpu-compress-quality.mjs measures the same on any set of files.
@@ -61,6 +62,16 @@ export default async function (page, t) {
         for (let i = 0; i < A.length; i += 4) { for (let c = 0; c < 3; c++) { const d = A[i + c] - B[i + c]; se += d * d; } const da = A[i + 3] - B[i + 3]; sa += da * da; n++; }
         const ps = (m) => (m ? 10 * Math.log10(255 * 255 / m) : 99);
         out.rows.push({ codec, f, rgb: ps(se / (n * 3)), a: ps(sa / n), bytes: levels.reduce((x, d) => x + d.byteLength, 0), mips: levels.length });
+        // banded encode (the HD upgrades while playing: encodeBand texels per draw, frames between): the same blocks
+        if (f === FILES[0][0] || f === FILES[3][0]) {
+          C.encodeBand = 1 << 16;
+          const bmp2 = await createImageBitmap(await (await fetch('/' + f)).blob(), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+          const lv2 = await C.encodeImage(bmp2, p);
+          C.encodeBand = 0; bmp2.close();
+          let diff = lv2.length === levels.length ? 0 : 1;
+          for (let l = 0; !diff && l < levels.length; l++) { const a = levels[l], b = lv2[l]; if (a.length !== b.length) diff = 1; else for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) { diff++; break; } }
+          out.banded = [...(out.banded || []), { codec, f, same: !diff }];
+        }
         ref.dispose(); ct.dispose(); bmp.close();
       }
       C.dispose();
@@ -78,6 +89,8 @@ export default async function (page, t) {
     t.ok(res.game === res.codecs[0], 'the game installed its compressor with the preferred codec');
     t.ok(res.calibration && res.calibration.tier !== null, `the calibration picked an encoder tier (${res.calibration?.tier})`);
   }
+  for (const b of res.banded || []) t.ok(b.same, `${b.codec} ${b.f.split('/').pop()}: an encode cut into bands (encodeBand) gives the same blocks`);
+  if (!swift) t.ok((res.banded || []).length > 0, 'banded encodes checked');
   for (const r of res.rows) {
     const [, , fb, fa, falpha] = FILES.find((x) => x[0] === r.f);
     const floor = r.codec === 'bc7' ? fb : fa;

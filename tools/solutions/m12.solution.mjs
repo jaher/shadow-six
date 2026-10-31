@@ -187,7 +187,8 @@ async function moveOpen(D, role, pts, { mode = 'walk', maxWait = 300, label = 'm
   // who saw last time first — routeClear `hint`; the same answer, tick for tick, as toCar's)
   const hints = [], hintOf = (i) => (hints[i] ||= { e: null });
   let lastFail = -1;
-  await D.until(() => {
+  // (sliced in the live replay: D.breathe between two checks hands the frame back, no tick in between — same answer)
+  await D.untilAsync(async () => {
     why.length = 0;
     const checks = [];
     if (rise) checks.push((h) => routeClear(D, [[u.x, u.z]], { mode, from: [u.x, u.z], delay: rise / 2, slack: rise / 2 + 0.2, why, pad, except, hint: h }));
@@ -197,7 +198,11 @@ async function moveOpen(D, role, pts, { mode = 'walk', maxWait = 300, label = 'm
     const end = pts[pts.length - 1];
     for (let hh = 0; hh <= hold; hh += 0.5) checks.push((h) => routeClear(D, [end], { mode, from: end, delay: t + hh, slack: 0, why, pad, except, hint: h }));
     if (lastFail >= 0 && lastFail < checks.length && !checks[lastFail](hintOf(lastFail))) return dbg(D, why, label);
-    for (let i = 0; i < checks.length; i++) if (i !== lastFail && !checks[i](hintOf(i))) { lastFail = i; return dbg(D, why, label); }
+    for (let i = 0; i < checks.length; i++) {
+      if (i === lastFail) continue;
+      await D.breathe();
+      if (!checks[i](hintOf(i))) { lastFail = i; return dbg(D, why, label); }
+    }
     return true;
   }, maxWait, `${label} clear`).catch((e) => { throw new Error(`${e.message} [${why.slice(0, 3).join(' ')}]`); });
   await D.stance(role, mode === 'crawl' ? 'crawl' : 'stand');
@@ -513,7 +518,8 @@ export const STAGES = [
       // same answer, tick for tick, without a full pass over every guard while one of them still sees the way)
       const hints = [], hintOf = (i) => (hints[i] ||= { e: null });
       let lastFail = -1;
-      await D.until(() => {
+      // (sliced in the live replay: D.breathe between two checks hands the frame back, no tick in between — same answer)
+      await D.untilAsync(async () => {
         why.length = 0;
         const bp = boardPoint(car, u);
         const key = `${u.x},${u.z},${bp.x},${bp.z},${D.world.grid.version}`;
@@ -533,7 +539,11 @@ export const STAGES = [
         }
         checks.push([`${role} at the car`, (h) => routeClear(D, [[bp.x, bp.z]], { mode: 'walk', from: [bp.x, bp.z], delay: 0.7 + L / 2.3, slack: L / 1.7 - L / 2.3 + 3, why, pad: 1.2, except: held(), hint: h })]);
         if (lastFail >= 0 && lastFail < checks.length && !checks[lastFail][1](hintOf(lastFail))) return dbg(D, why, checks[lastFail][0]);
-        for (let i = 0; i < checks.length; i++) if (i !== lastFail && !checks[i][1](hintOf(i))) { lastFail = i; return dbg(D, why, checks[i][0]); }
+        for (let i = 0; i < checks.length; i++) {
+          if (i === lastFail) continue;
+          await D.breathe();
+          if (!checks[i][1](hintOf(i))) { lastFail = i; return dbg(D, why, checks[i][0]); }
+        }
         return true;
       }, 600, `${role}: the way to the car unwatched`).catch((e) => { throw new Error(`${e.message} [${why.slice(0, 3).join(' ')}]`); });
       await D.stance(role, 'stand');

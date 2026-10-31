@@ -1131,6 +1131,8 @@ function post(f) {
 const isBitmap = (x) => typeof ImageBitmap !== 'undefined' && x instanceof ImageBitmap;
 /** Bytes of source per upload call of a banded upload (engine/slice.js pauses between calls): ~1–3 ms each. */
 const BAND_BYTES = 2 << 20;
+/** What a banded encode yields between two bands: the pump goes on after the next frame, not at once. */
+const BAND_PAUSE = Symbol('band');
 /** Bytes per read-back call (made while the GPU is idle: a plain copy). */
 const READ_BYTES = 1 << 20;
 
@@ -1220,6 +1222,9 @@ export class GpuCompressor {
     this._inflight = []; // issued, waiting for their fence
     this._tick = false;
     this.sliceMs = o.sliceMs ?? 10;
+    /** Texels per encode band (0: a whole level per draw). Set while the game is played (engine/hd-textures.js): the
+     *  GPU work of one task stays a few ms, so the frames are not held behind an atlas's encode. */
+    this.encodeBand = 0;
     this._jobs = new WeakMap(); // original Source → Map(variant → Promise<{source, mipmaps}|null>)
     const el = renderer.domElement;
     this._onLost = () => { this.progs = {}; this.fbo = this.rt = this.vao = this.tab = this.seedTex = null; this.rtSize = [0, 0]; };
@@ -1419,7 +1424,21 @@ export class GpuCompressor {
    * @returns {{sync: WebGLSync, collect: () => Uint8Array[], fail: () => void}} collect (once the fence passed): per
    *   level its blocks (layer arrays: every layer of the level in order)
    */
-  _encodeGl(glTex, { w, h, levels, layers = 0, srgb, weights = null, tier = this.tier, timed = true }) {
+  _encodeGl(glTex, o) {
+    const g = this._encodeGlG(glTex, { ...o, bandTexels: 0 });
+    let r = g.next();
+    while (!r.done) r = g.next();
+    return r.value;
+  }
+
+  /**
+   * _encodeGl as a generator. `bandTexels` > 0 (the HD upgrades while the game is played: `encodeBand`): the encode
+   * draws are cut into bands of block rows (scissored, each read back to its own rows of the pixel buffer) of about
+   * that many texels, and it yields after each — the pump's next task, after the page drew a frame. One draw over a
+   * 2048² atlas's mip chain is ~5.6 Mtexels: up to ~130 ms of GPU at the full tier, which every frame queued behind it
+   * waited for (M12's walkthrough, the first minute of play: 60-100 ms frames every few seconds). The same blocks.
+   */
+  *_encodeGlG(glTex, { w, h, levels, layers = 0, srgb, weights = null, tier = this.tier, timed = true, bandTexels = 0 }) {
     const gl = this.gl, array = layers > 0, nz = Math.max(1, layers);
     const prog = this._program(array, tier);
     const plan = [];
@@ -1429,44 +1448,68 @@ export class GpuCompressor {
       plan.push({ lw, lh, bw: Math.ceil(lw / 4), bh: Math.ceil(lh / 4), off: total, per, bytes: per * nz });
       total += per * nz;
     }
-    this._target(plan[0].bw, plan[0].bh);
-    gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.disable(gl.SCISSOR_TEST); gl.disable(gl.STENCIL_TEST);
-    gl.disable(gl.SAMPLE_ALPHA_TO_COVERAGE); gl.disable(gl.POLYGON_OFFSET_FILL); gl.disable(gl.RASTERIZER_DISCARD);
-    gl.colorMask(true, true, true, true);
-    gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
-    gl.readBuffer(gl.COLOR_ATTACHMENT0);
-    if (!this.vao) this.vao = gl.createVertexArray();
-    gl.bindVertexArray(this.vao);
-    gl.useProgram(prog.p);
-    gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(array ? gl.TEXTURE_2D_ARRAY : gl.TEXTURE_2D, glTex);
-    gl.uniform1i(prog.uSrc, 0);
-    gl.uniform1i(prog.uSrgb, srgb ? 1 : 0);
-    const W = weights || DEFAULT_WEIGHTS;
-    gl.uniform4f(prog.uW, W[0], W[1], W[2], W[3]);
-    gl.uniform1i(prog.uN, 16);
-    if (this.codec === 'astc') {
-      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this._tables()); gl.uniform1i(prog.uTab, 1);
-      if (tier === 2) { gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this._seeds()); gl.uniform1i(prog.uSeeds, 2); }
-      gl.activeTexture(gl.TEXTURE0);
-    }
     const pbo = gl.createBuffer();
-    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
+    // (all the state the draws need: set again after each pause — three drew frames in between)
+    const setup = () => {
+      this._target(plan[0].bw, plan[0].bh);
+      gl.disable(gl.BLEND); gl.disable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE); gl.disable(gl.SCISSOR_TEST); gl.disable(gl.STENCIL_TEST);
+      gl.disable(gl.SAMPLE_ALPHA_TO_COVERAGE); gl.disable(gl.POLYGON_OFFSET_FILL); gl.disable(gl.RASTERIZER_DISCARD);
+      gl.colorMask(true, true, true, true);
+      gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
+      gl.readBuffer(gl.COLOR_ATTACHMENT0);
+      if (!this.vao) this.vao = gl.createVertexArray();
+      gl.bindVertexArray(this.vao);
+      gl.useProgram(prog.p);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(array ? gl.TEXTURE_2D_ARRAY : gl.TEXTURE_2D, glTex);
+      gl.uniform1i(prog.uSrc, 0);
+      gl.uniform1i(prog.uSrgb, srgb ? 1 : 0);
+      const W = weights || DEFAULT_WEIGHTS;
+      gl.uniform4f(prog.uW, W[0], W[1], W[2], W[3]);
+      gl.uniform1i(prog.uN, 16);
+      if (this.codec === 'astc') {
+        gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this._tables()); gl.uniform1i(prog.uTab, 1);
+        if (tier === 2) { gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this._seeds()); gl.uniform1i(prog.uSeeds, 2); }
+        gl.activeTexture(gl.TEXTURE0);
+      }
+      gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
+      gl.pixelStorei(gl.PACK_ALIGNMENT, 4);
+      gl.pixelStorei(gl.PACK_ROW_LENGTH, 0);
+      gl.pixelStorei(gl.PACK_SKIP_ROWS, 0);
+      gl.pixelStorei(gl.PACK_SKIP_PIXELS, 0);
+    };
+    setup();
     gl.bufferData(gl.PIXEL_PACK_BUFFER, total, gl.STREAM_READ);
-    gl.pixelStorei(gl.PACK_ALIGNMENT, 4);
-    gl.pixelStorei(gl.PACK_ROW_LENGTH, 0);
-    gl.pixelStorei(gl.PACK_SKIP_ROWS, 0);
-    gl.pixelStorei(gl.PACK_SKIP_PIXELS, 0);
-    const tq = timed ? this._timerBegin(plan.reduce((a, L) => a + L.lw * L.lh * nz, 0) / 1e6, tier) : null;
+    const banded = bandTexels > 0;
+    // (a timing spans one go: banded encodes — frames drawn between their bands — are not timed)
+    const tq = timed && !banded ? this._timerBegin(plan.reduce((a, L) => a + L.lw * L.lh * nz, 0) / 1e6, tier) : null;
+    let acc = 0;
     for (let l = 0; l < plan.length; l++) {
       const L = plan[l];
-      gl.uniform1i(prog.uLevel, l);
-      gl.uniform2i(prog.uSize, L.lw, L.lh);
-      gl.viewport(0, 0, L.bw, L.bh);
+      // block rows per band (whole levels when not banded)
+      const rows = banded ? Math.max(1, Math.min(L.bh, Math.floor(bandTexels / (L.bw * 16)))) : L.bh;
       for (let z = 0; z < nz; z++) {
-        if (array) gl.uniform1i(prog.uLayer, z);
-        gl.drawArrays(gl.TRIANGLES, 0, 3);
-        gl.readPixels(0, 0, L.bw, L.bh, gl.RGBA_INTEGER, gl.UNSIGNED_INT, L.off + z * L.per);
+        for (let r0 = 0; r0 < L.bh; r0 += rows) {
+          const n = Math.min(rows, L.bh - r0);
+          gl.uniform1i(prog.uLevel, l);
+          gl.uniform2i(prog.uSize, L.lw, L.lh);
+          if (array) gl.uniform1i(prog.uLayer, z);
+          gl.viewport(0, 0, L.bw, L.bh);
+          if (n < L.bh) { gl.enable(gl.SCISSOR_TEST); gl.scissor(0, r0, L.bw, n); }
+          gl.drawArrays(gl.TRIANGLES, 0, 3);
+          if (n < L.bh) gl.disable(gl.SCISSOR_TEST);
+          gl.readPixels(0, r0, L.bw, n, gl.RGBA_INTEGER, gl.UNSIGNED_INT, L.off + z * L.per + r0 * L.bw * 16);
+          acc += L.bw * n * 16;
+          const more = r0 + n < L.bh || z + 1 < nz || l + 1 < plan.length;
+          if (banded && more && acc >= bandTexels) {
+            acc = 0;
+            gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+            gl.flush();
+            this.renderer.resetState(); // three's cached GL state no longer matches
+            yield BAND_PAUSE; // (the pump: the next band after the page drew a frame)
+            setup();
+          }
+        }
       }
     }
     gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
@@ -1564,7 +1607,7 @@ export class GpuCompressor {
       if (mips) gl.generateMipmap(target);
       gl.texParameteri(target, gl.TEXTURE_MIN_FILTER, mips ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
       gl.texParameteri(target, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      const job = this._encodeGl(tex, { w, h, levels, layers, srgb, weights });
+      const job = yield* this._encodeGlG(tex, { w, h, levels, layers, srgb, weights, bandTexels: this.encodeBand || 0 });
       this.stats.mainMs += performance.now() - t1;
       return job;
     } finally {
@@ -1607,7 +1650,12 @@ export class GpuCompressor {
     this._tick = true;
     const go = () => { this._tick = false; this._run(); };
     // (more to do at once: the next task once the page has drawn a frame when one is due — engine/slice.js)
-    if (delay < 0) { if (SLICED) nextTask().then(go); else post(go); } else setTimeout(go, delay);
+    // ('frame': after the next frame the page draws — a banded encode issues one band per frame, so the GPU queue never
+    // holds more than a band ahead of a frame; a hidden page draws none: a timer then)
+    if (delay === 'frame') {
+      if (typeof requestAnimationFrame === 'function' && !(typeof document !== 'undefined' && document.hidden)) requestAnimationFrame(() => post(go));
+      else setTimeout(go, 16);
+    } else if (delay < 0) { if (SLICED) nextTask().then(go); else post(go); } else setTimeout(go, delay);
   }
 
   /** The pump as it was before the responsive load (`?sliced=0` A/B): read-backs as soon as each fence passed. */
@@ -1657,7 +1705,7 @@ export class GpuCompressor {
     //    (reading one job while the next ones' encodes were queued held the page 50–80 ms a read). Fences pass in
     //    order, so the last one issued tells for all of them; then they are read in order, a slice at a time, and no
     //    new encode is issued until they are all read.
-    let reading = false, gpuIdle = true;
+    let reading = false, gpuIdle = true, bandWait = false;
     const last = this._inflight[this._inflight.length - 1];
     if (last && !last.passed) {
       const st = gl.clientWaitSync(last.sync, 0, 0);
@@ -1688,13 +1736,14 @@ export class GpuCompressor {
       if (c.gen) {
         let res;
         try { res = stepFor(c.gen, left()); } catch (e) { this._current = null; c.q.reject(e); continue; }
-        if (!res.done) break; // its slice is used
+        if (!res.done) { if (res.value === BAND_PAUSE) bandWait = true; break; } // its slice is used (or a band issued)
         c.done = res.value;
       }
       this._current = null;
       this._inflight.push({ ...c.done, resolve: c.q.resolve, reject: c.q.reject, t0: performance.now() });
     }
-    if (reading || ((this._current || this._queue.length) && this._inflight.length < this.maxPending)) this._kick(); // more to do: after a yield
+    if (bandWait && !reading) this._kick('frame'); // a band of a banded encode issued: the next one after a frame
+    else if (reading || ((this._current || this._queue.length) && this._inflight.length < this.maxPending)) this._kick(); // more to do: after a yield
     else if (this._inflight.length || this._queue.length || this._current) this._kick(1); // waiting on the GPU
     else this._idleSoon();
   }

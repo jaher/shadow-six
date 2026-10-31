@@ -7,6 +7,7 @@
  */
 
 import { Game, missionList } from './game.js';
+import { loadScreenDown } from './engine/post-load.js';
 import { assets } from './engine/assets.js';
 import { installTestApi } from './debug/test-api.js';
 import { hasQuickSave } from './save.js';
@@ -93,6 +94,10 @@ async function startMission(game, id) {
     return;
   }
   if (!game.hud?.showsBriefing) fallbackBriefing(game, game.missionDef);
+  // (no loading card on this path — a ?mission= link —: the work that waits for one to close, engine/post-load.js —
+  // the bodies' HD textures, the spoken lines, the talking portraits — starts with the briefing, as after the menu's
+  // card, not at the first frame of play: M12 had 176 HD upgrades and its sounds still to do then)
+  loadScreenDown();
 }
 
 function buildTitle(game) {

@@ -256,17 +256,18 @@ function alongPath(u, dist, stopAtEnd = false) {
  *   onWait: what the solution is waiting for (an until's label, a sneak's gap in the cones), null when it goes on —
  *   video mode's AUTO shows it while it runs the wait fast (it changes nothing in the run);
  *   pause: () => Promise resolved on a later displayed frame with no tick in between (the live replay): sliced plans
- *   (planSneakAsync, sneak) hand the frame back with it.
+ *   (planSneakAsync, sneak) hand the frame back with it; frame: () => the replay's displayed-frame count (a slice is then
+ *   the driver's work in one frame, its ticks included).
  */
-export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet = false, watch = true, aborted = null, onOrder = null, onCheckpoint = null, onWait = null, pause = null, skipEscape = null } = {}) {
+export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet = false, watch = true, aborted = null, onOrder = null, onCheckpoint = null, onWait = null, pause = null, skipEscape = null, frame = null } = {}) {
   const w = world;
   // a sliced plan hands the frame back every PLAN_SLICE_MS (`pause`: resolves on a later frame, no tick in between)
   const runGenAsync = async (it) => {
-    let t0 = performance.now();
+    let t0 = frame ? sliceStart() : performance.now();
     for (;;) {
       const r = it.next();
       if (r.done) return r.value;
-      if (pause && performance.now() - t0 > PLAN_SLICE_MS) { await pause(); halt(); t0 = performance.now(); }
+      if (pause && performance.now() - t0 > PLAN_SLICE_MS) { await pause(); halt(); t0 = sliceNew(); }
     }
   };
   const events = [];
@@ -365,7 +366,27 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
   // side tasks (D.meanwhile): checked every tick before it runs, each until it returns true
   const side = [];
   const runSide = () => { for (const f of side.slice()) if (f()) side.splice(side.indexOf(f), 1); };
-  const tick1 = async () => { halt(); if (side.length) runSide(); const r = step(); if (r && typeof r.then === 'function') await r; halt(); if (watch) watchTick(); };
+  // (the start of the current slice of the driver's own work: D.breathe, sliced plans. With `frame` — the live replay's
+  // displayed-frame count — a slice is the frame's: the work between the ticks granted in it counts together, so a
+  // frame of four 4× ticks each followed by a costly check hands the frame back once the checks pass PLAN_SLICE_MS.
+  // The ticks themselves are not the slice's (the replay grants them within its own tick budget): counting them too
+  // paused a sneak's look-ahead at once in every frame of a wait skipped at 4× — M12's 182 s wait at 4×, not ~12×.
+  // Without `frame`: the time since the last tick or pause)
+  let sliceT0 = performance.now(), sliceFrame = null;
+  const sliceStart = () => {
+    if (!frame) return sliceT0;
+    const f = frame();
+    if (f !== sliceFrame) { sliceT0 = performance.now(); sliceFrame = f; }
+    return sliceT0;
+  };
+  const sliceNew = () => { if (!frame) sliceT0 = performance.now(); else sliceStart(); return sliceT0; };
+  const tick1 = async () => {
+    halt(); if (side.length) runSide();
+    const f0 = frame ? (sliceStart(), sliceFrame) : null, t0 = performance.now();
+    const r = step(); if (r && typeof r.then === 'function') await r; halt(); if (watch) watchTick();
+    if (frame && frame() === f0) sliceT0 += performance.now() - t0; // (a tick in this frame: not the slice's work)
+    sliceNew();
+  };
   // parallel flows (D.parallel): two parties ordered at once, each in its own async flow. The world steps once every
   // flow waits on a tick (a barrier), so each flow's waits are driven by the same ticks, in a fixed order (the order the
   // flows parked in); one flow alone steps it at once, as before
@@ -833,6 +854,16 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
     planSneakAsync(tx, tz, o = {}) { return runGenAsync(D.planSneakGen(tx, tz, o)); },
     /** Run any generator the sliced way (sneak.mjs plans): hand the frame back every PLAN_SLICE_MS (`pause`). */
     runSliced(it) { return runGenAsync(it); },
+    /**
+     * Inside an untilAsync predicate made of several costly checks (routeClear over a whole route…): between two of
+     * them, hand the frame back (makeDriver `pause`: a later displayed frame, no tick in between) once the work since
+     * the last tick or pause passed PLAN_SLICE_MS. The world stands still meanwhile, so the answer is the one the
+     * unsliced predicate gives; without a `pause` (headless, tests) it returns at once.
+     */
+    async breathe() {
+      if (!pause || performance.now() - sliceStart() <= PLAN_SLICE_MS) return;
+      await pause(); halt(); sliceNew();
+    },
     /**
      * A side task while the solution goes on with something else: `fn` is called every tick (before it runs) until it
      * returns true — a second man's orders timed by the world (the Spy who talks to a patrol the moment it halts while

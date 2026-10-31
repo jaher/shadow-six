@@ -38,6 +38,13 @@ export const HD_RANK = 6;
 const BRIEF_SLICE_MS = 3, PLAY_SLICE_MS = 2;
 /** While the game is being played: at least this long between two upgrades, and only in an idle period. */
 const PLAY_GAP_MS = 250;
+/** While the game is being played: texels per GPU encode band (engine/gpu-compress.js encodeBand) — ~1.5-6 ms of GPU
+ *  a task at the encoder tiers' cost; a whole 2048² atlas in one go held the frames behind it 60-100 ms. */
+const PLAY_BAND_TEXELS = 1 << 18;
+/** On a hidden view (the briefing's opaque first page): bands four times as large — ~6-25 ms of GPU each — so the
+ *  first frames after it (the tour, play) wait for one band at most, not for a whole atlas still encoding (M12's
+ *  walkthrough start: 166-200 ms frames when its cards took whole atlases). */
+const STILL_BAND_TEXELS = 1 << 20;
 /** HD files named to the early downloads ahead of the one being applied. */
 const AHEAD = 6;
 
@@ -51,6 +58,7 @@ let running = null;
 let kickQueued = false;
 let renderer = null;
 let playing = () => false; // is the game being played (Game: state 'playing')? the upgrades then go gently
+let onScreen = null; // does a moving picture show (play; the briefing's tour over the live map)? encodes go in bands then
 let active = () => true; // is a mission up (Game: a world)? the menus' diorama never upgrades (it draws blurred at 0.5x)
 let deps = null; // test hooks: {fetch, decode, compress, idle}
 export const hdTextureStats = { registered: 0, upgraded: 0, failed: 0, skipped: 0, bytes: 0, ms: 0, pending: 0 };
@@ -135,6 +143,10 @@ export function pendingHdTextures() {
  *   active: false while no mission is up (the menus: nothing upgrades; resumeHdTextures() after a load); renderer: uploads each
  *   upgraded texture at once (else at its next draw); playing: true while the game is played (the briefing / menus:
  *   false) — upgrades then wait PLAY_GAP_MS and an idle period between them, the compressor at PLAY_SLICE_MS;
+ *   onScreen: true while the frames show a moving picture (default: playing) — the game played, but also the briefing's
+ *   tour flying over the live map — the GPU encodes then go in bands of PLAY_BAND_TEXELS, one a frame (a whole atlas in
+ *   one draw held the frames behind it 60-100 ms); a hidden view (the briefing's opaque first page) takes them in
+ *   STILL_BAND_TEXELS bands;
  *   deps: test hooks {fetch(url) → Promise<Blob>, decode(blob, compressed) → Promise<image>,
  *   compress(tex, o) → Promise<tex>, idle() → Promise}
  */
@@ -142,6 +154,7 @@ export function startHdTextures(o = {}) {
   if (OFF || HOLD) return;
   renderer = o.renderer ?? renderer;
   if (o.playing) playing = o.playing;
+  if (o.onScreen) onScreen = o.onScreen;
   if (o.active) active = o.active;
   if (o.deps) deps = o.deps;
   armed = true;
@@ -175,7 +188,11 @@ async function idle() {
   return ric(1000);
 }
 /** The compressor's slice for the current state (a GPU compressor `c`). */
-const sliceFor = (c, load) => { if (c) c.sliceMs = Math.min(load, playing() ? PLAY_SLICE_MS : BRIEF_SLICE_MS); };
+const sliceFor = (c, load) => {
+  if (!c) return;
+  c.sliceMs = Math.min(load, playing() ? PLAY_SLICE_MS : BRIEF_SLICE_MS);
+  c.encodeBand = (onScreen ? onScreen() : playing()) ? PLAY_BAND_TEXELS : STILL_BAND_TEXELS;
+};
 
 async function run() {
   const gen = loadGeneration();
@@ -201,12 +218,15 @@ async function run() {
         for (const t of e.texs) { t.removeEventListener('dispose', onDispose); owner.delete(t); }
         console.warn('[hd-textures] kept the embedded size:', url, err?.message || err);
       }
+      // (the band is this upgrade's: a mission load queued meanwhile encodes in one go, at the load's pace)
+      if (c) c.encodeBand = 0;
       hdTextureStats.ms += (typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0;
       hdTextureStats.pending = entries.size;
       await idle();
     }
   } finally {
     if (c && slice != null) c.sliceMs = slice;
+    if (c) c.encodeBand = 0;
   }
   if (entries.size && active()) setTimeout(queueKick, 0); // registered meanwhile, or paused by a new load: on with them after it
 }
@@ -294,6 +314,6 @@ export function uploadNow(tex) {
 export function resetHdTextures() {
   for (const e of entries.values()) for (const t of e.texs) { t.removeEventListener('dispose', onDispose); owner.delete(t); }
   entries.clear();
-  armed = false; renderer = null; deps = null; regOrder = 0; kickQueued = false; playing = () => false; active = () => true;
+  armed = false; renderer = null; deps = null; regOrder = 0; kickQueued = false; playing = () => false; onScreen = null; active = () => true;
   for (const k of Object.keys(hdTextureStats)) hdTextureStats[k] = 0;
 }

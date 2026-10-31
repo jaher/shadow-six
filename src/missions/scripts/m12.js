@@ -111,10 +111,21 @@ export function stampParapets(world, o = {}) {
   for (const l of g.links || []) for (const e of [l.a, l.b]) if (!skip(e.x, e.z)) ends.push([e.x, e.z]);
   for (const d of o.doors || []) ends.push(d);
   const keep = o.keep || [], roofs = o.roofs || [];
+  // (each cell's roof asked once — a cell is asked again as each of its neighbours' neighbour — and a roof's polygon
+  // only inside its bounding box: the first tick ran this scan for 12-16 ms)
+  const boxes = roofs.map((r) => { let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity; for (const [x, z] of r.poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); } return [x0, z0, x1, z1]; });
+  const roofMemo = new Int16Array(g.cols * g.rows).fill(-2);
   const roofOf = (i, j) => {
+    const k = g.idx(i, j);
+    if (roofMemo[k] !== -2) return roofMemo[k];
     const cx = (i + 0.5) * g.cell, cz = (j + 0.5) * g.cell;
-    for (let r = 0; r < roofs.length; r++) if (inPoly(roofs[r].poly, cx, cz)) return r;
-    return -1;
+    let hit = -1;
+    for (let r = 0; r < roofs.length; r++) {
+      const b = boxes[r];
+      if (cx < b[0] || cx > b[2] || cz < b[1] || cz > b[3]) continue;
+      if (inPoly(roofs[r].poly, cx, cz)) { hit = r; break; }
+    }
+    return (roofMemo[k] = hit);
   };
   const cells = [];
   for (let j = 0; j < g.rows; j++) for (let i = 0; i < g.cols; i++) {

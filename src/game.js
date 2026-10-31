@@ -60,6 +60,9 @@ import { warmAvoidMasks, rewarmAvoidMasks } from './world/body-clearance.js';
 import { warmAreas, rewarmAreas } from './world/pathfinding.js';
 import { digWarmObjects } from './art/shovel-dig.js';
 
+/** The briefing's still page (Game._frame): ms of engine/idle-warm.js work a frame, one task at least (no draw then). */
+const BRIEF_WARM_MS = 10;
+
 /** Let the page paint once (a frame, then a task: the DOM drawn), at most ~50 ms (a hidden tab draws no frames). */
 function paintOnce() {
   if (typeof requestAnimationFrame !== 'function') return Promise.resolve();
@@ -188,7 +191,15 @@ export class Game {
      */
     this.stillScreen = null;
     // the bodies' HD textures stream in after each loading screen (engine/hd-textures.js, perf/download-speed-2)
-    safe(() => startHdTextures({ renderer: this.renderer.renderer, playing: () => this.state === 'playing' && !this.stillScreen?.(), active: () => !!this.world }), 'hd textures');
+    // (video mode's still screens — its title card, a held chapter card, a jump's fast-forward: Walkthrough._stillScreen —
+    // count as the briefing: the upgrades at its pace —
+    // M12's walkthrough had ~175 of them left at Start, each holding a frame 60-100 ms in the first minute of play)
+    const card = () => { const r = this.debug?.mode?.replay; return (!!r && !r.stopped && !!r._stillScreen?.()) || !!this.stillScreen?.(); };
+    // (the encodes go in play's small bands whenever the live map shows — play, video mode's cards over the world, the
+    // briefing's tour —, in larger ones only behind the briefing's opaque first page: an encode under chapter card A
+    // held M12's first frames of play 100-135 ms, the GPU behind it)
+    const played = () => this.state === 'playing' && !card();
+    safe(() => startHdTextures({ renderer: this.renderer.renderer, playing: played, onScreen: () => this.state === 'playing' || (this.state === 'briefing' && !this._viewCovered()), active: () => !!this.world }), 'hd textures');
 
     const createAudio = pick(AudioMod, 'createAudio', 'default');
     this.audio = safe(() => createAudio?.(this.events), 'audio') || null;
@@ -647,8 +658,9 @@ export class Game {
           if (!o.visible) { few.push(o, 'visible', false); o.visible = true; }
           if (o.isInstancedMesh && o.count === 0) oneInstance(o);
         }
-        // every level of detail of the characters (the director zooms in and out: each LOD's own program variants)
-        if (!o.visible && /^LOD\d$/.test(o.name)) lods.push(o);
+        // every level of detail of the characters and of the buildings (the director zooms in and out: each LOD's own
+        // program variants — M12's flat-roofed rows: LOD1/LOD2 without the vertex colours of LOD0, compiled in play)
+        if (!o.visible && /^(LOD|lod)\d$/.test(o.name)) lods.push(o);
       });
       // (one of each program signature among them: programSignature)
       scene.traverseVisible((o) => { if (o.isMesh) seen.add(programSignature(o)); });
@@ -688,6 +700,9 @@ export class Game {
         safe(() => kitBegin(scene, true), 'warm kit batches'); // (and the kit meshes' own programs: keep)
         try {
           safe(() => w.water?.system?.renderMirror?.(), 'warm water mirror'); // (deferred by Game.render's mirrorLater)
+          // (the shadow casters' depth variants assigned over what this frame shows — hidden LODs, staged ruins — not
+          // over the last scan's: engine/program-variants.js; each variant links its depth program in this frame)
+          r._variantScan = -1;
           r.render(0);
         } finally { kitEnd(); }
       }
@@ -1154,6 +1169,10 @@ export class Game {
       const covered = this._viewCovered();
       this._coveredFrames = covered ? (this._coveredFrames || 0) + 1 : 0;
       this.render(dt, alpha, this._coveredFrames <= 2);
+      // the briefing behind its opaque first page: a still screen for the work engine/idle-warm.js keeps for one (the
+      // bodies' clip fits, the first plans' walk areas, the first knife kill's landmarks: 20-80 ms each at first use
+      // mid-play otherwise — the walkthrough does them on its title card)
+      if (covered && this.state === 'briefing' && idleWarm.pending) idleWarm.runFor(BRIEF_WARM_MS);
       // the first frame after a (re)load has acquired its programs: the previous mission's materials may go now
       if (holdingMaterials()) flushMaterialDisposal();
       // textures not drawn yet go to the GPU a few per frame, and their decoded page copy goes (engine/texture-memory.js)
@@ -1243,6 +1262,10 @@ export class Game {
     // the boot screens (disclaimer, ident, title splash: fixed, opaque black) until their fade-out starts
     const bt = this.hud?.boot?.root;
     if (bt?.isConnected && !bt.hidden && !bt.classList.contains('leaving')) return true;
+    // the briefing's first page (the slideshow and the dispatch, ui/briefing.js part 1: opaque black over the whole view;
+    // the Colonel's tour, part 2, flies over the live map)
+    const br = this.hud?.briefing;
+    if (br?.part === 1 && br.root?.isConnected && !br.root.hidden) return true;
     const bd = this.hud?.backdrop;
     return !!(bd?.root && !bd.root.hidden && !bd.dio && bd.root.isConnected);
   }

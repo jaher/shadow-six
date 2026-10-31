@@ -910,3 +910,6 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 
 ## 2026-10-30 — M7 art pass 2 and solution merged to master (lane C)
 - Solution merged 561b68a25 (straighter routes, no quiet stretch over 60 s, 0 detections, won 2238.1 s, 8 kills, 41 checkpoints). Art2 merged 6e0f82051 (start rock, salient reef, canopy in the pine, stores dump, burnt-out lorry, fishermen's gear, h_6 floor fix). Media: commandos-shots/m07verify2/out and commandos-shots/art/m07-p2-before-after.jpg.
+
+## 2026-10-30 — M12 perf merged to master (perf lane 2)
+- perf/m12 merged (eee0f219d): lockstep work and play-start HD encodes in small bands, no GPU round trip after resetState, briefing-time post-load work, skipped waits fast at 4x. Unit 2544 passed. Known: video-perf wall-clock bound still fails on branch and master (shared-host spikes). Media: commandos-shots/perf/m12-perf-before-after.jpg.

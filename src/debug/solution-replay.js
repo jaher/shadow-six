@@ -264,12 +264,14 @@ export class SolutionReplay {
     // (Game.step deferVisuals; flushed here every frame, drawn or not, and by Game.render)
     this._saved.deferVisuals = g.deferVisuals;
     g.deferVisuals = true;
+    this._frameNo = 0;
     g.frame = (dt) => {
+      this._frameNo++; // (the driver's sliced work counts per frame: makeDriver `frame`)
       g.events?.flushLate?.();
       this._frame(dt);
       // a still screen (video mode's title and chapter cards): queued cache fills (engine/idle-warm.js), ≥ 1 a frame and
       // more while they take under IDLE_WARM_MS together (the title card warms a squad's ~150 fitted clips in a few s)
-      if (idleWarm.pending && this._stillScreen?.()) { const t0 = performance.now(); while (idleWarm.runOne() && idleWarm.pending && performance.now() - t0 < IDLE_WARM_MS); }
+      if (idleWarm.pending && this._stillScreen?.()) idleWarm.runFor(IDLE_WARM_MS);
       // fast-forward: the view only every TURBO_VIEW_MS; the frames between just grant ticks (and wake the driver)
       this._viewDt += dt;
       const now = performance.now();
@@ -307,6 +309,7 @@ export class SolutionReplay {
       // (§7.6 ESC while the loaded escape vehicle drives off: a solution that skips the drive-off as a player would —
       // D.skipEscape(), M4 — does it here too, so the walkthrough ends as the logic run does)
       skipEscape: () => !!this.game.skipExtraction?.(),
+      frame: () => this._frameNo,
     });
     this.driver = D;
     this.done = this._run(D);
