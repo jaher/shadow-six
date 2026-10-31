@@ -6,6 +6,8 @@
  * links are left square.
  */
 
+import { hypot2 } from '../core/math.js';
+
 const MAX_TURN_COS = -0.5; // cos 120°
 
 /**
@@ -21,17 +23,17 @@ export function cornerOffset(path, idx, from, tx, tz, r0) {
   // approaching corner W (next leg W → path[idx + 1]) or leaving corner V = the leg's start (previous leg V0 → V)
   // (the two candidates and their unit vectors as plain numbers: asked for every walker every step — the candidate
   // records, direction objects and curve ends were steady garbage; the same tests in the same order)
-  const dW = Math.hypot(W.x - tx, W.z - tz);
+  const dW = hypot2(W.x - tx, W.z - tz);
   const V = idx > 0 ? path[idx - 1] : null, V0 = idx > 1 ? path[idx - 2] : null;
   for (let ci = 0; ci < 2; ci++) {
     let A, C, B, cs;
     if (ci === 0) { if (!(idx + 1 < path.length)) continue; A = idx > 0 ? path[idx - 1] : from; C = W; B = path[idx + 1]; cs = -dW; }
-    else { if (!(V && V0)) continue; A = V0; C = V; B = W; cs = Math.hypot(tx - V.x, tz - V.z); }
+    else { if (!(V && V0)) continue; A = V0; C = V; B = W; cs = hypot2(tx - V.x, tz - V.z); }
     if (!A || C.link || B.link || (A.link && cs < 0)) continue;
     if ((C.y ?? 0) !== (B.y ?? 0) || (A.y ?? 0) !== (C.y ?? 0)) continue;
-    const ix = C.x - A.x, iz = C.z - A.z, il = Math.hypot(ix, iz);
+    const ix = C.x - A.x, iz = C.z - A.z, il = hypot2(ix, iz);
     if (!(il > 1e-6)) continue; // (dir(A, C) null)
-    const ox = B.x - C.x, oz = B.z - C.z, ol = Math.hypot(ox, oz);
+    const ox = B.x - C.x, oz = B.z - C.z, ol = hypot2(ox, oz);
     if (!(ol > 1e-6)) continue; // (dir(C, B) null)
     const dinX = ix / il, dinZ = iz / il, doutX = ox / ol, doutZ = oz / ol;
     const cos = dinX * doutX + dinZ * doutZ;

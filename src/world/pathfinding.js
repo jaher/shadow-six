@@ -172,6 +172,15 @@ function openRows(grid, swim, o, k0, k1) {
   const { block, navBlock, fenceHole, bridge, terrain } = grid, NONE = B.NONE;
   for (let k = k0; k < k1; k++) o[k] = block[k] !== NONE || (navBlock[k] && !fenceHole[k]) ? 0 : bridge[k] ? 1 : terrain[k] === T.WATER ? (swim ? 1 : 0) : 1;
 }
+/**
+ * staticLayers' dive test for cells [k0, k1) into `o` (grid.isWalkable with opts.dive, but for its `underpass` cells,
+ * which a search reads off the grid itself: a deck_underpass set-piece flags them without a new grid version): open
+ * water or shallows, off a bridge, no structure, no nav stamp.
+ */
+function openRowsDive(grid, o, k0, k1) {
+  const { block, navBlock, bridge, terrain } = grid, NONE = B.NONE, W = T.WATER, S = T.SHALLOW;
+  for (let k = k0; k < k1; k++) { const t = terrain[k]; o[k] = (t === W || t === S) && !bridge[k] && block[k] === NONE && !navBlock[k] ? 1 : 0; }
+}
 /** staticLayers' step cost factor for rows [j0, j1) into `m`. */
 function mulRows(grid, m, j0, j1) {
   // (a row per call: one long call with the loop over a row inside was compiled on the stack for the row loop and thrown
@@ -189,7 +198,7 @@ function mulRow(grid, m, j) {
 }
 /** staticLayers for tests: the per-version open / cost layers a search reads (tests/unit/static-layers). */
 export function staticLayersOf(grid, swim = false) { return staticLayers(grid, swim); }
-function staticLayers(grid, swim, costs = true) {
+function staticLayers(grid, swim, costs = true, dive = false) {
   let L = _layers.get(grid);
   if (!L || L.version !== grid.version || L.size !== grid.size || L.links !== grid.links || L.index !== grid._linkIndex) {
     // the grid changed within known rows only since L (NavGrid.dirtyRowsSince: a blast's destroyed solids and nav
@@ -198,17 +207,17 @@ function staticLayers(grid, swim, costs = true) {
     const same = L && L.size === grid.size && L.links === grid.links && L.index === grid._linkIndex;
     const d = same ? grid.dirtyRowsSince?.(L.version) : null;
     const P = d ? L : null;
-    L = { version: grid.version, size: grid.size, links: grid.links, index: grid._linkIndex, open: [null, null], mul: null, linked: undefined };
+    L = { version: grid.version, size: grid.size, links: grid.links, index: grid._linkIndex, open: [null, null, null], mul: null, linked: undefined };
     if (P) {
       const j0 = Math.max(0, d.j0 - 1), j1 = Math.min(grid.rows, d.j1 + 2), k0 = j0 * grid.cols, k1 = j1 * grid.cols;
-      for (const si of [0, 1]) if (P.open[si]) { const o = P.open[si].slice(); if (j1 > j0) openRows(grid, si === 1, o, k0, k1); L.open[si] = o; }
+      for (const si of [0, 1, 2]) if (P.open[si]) { const o = P.open[si].slice(); if (j1 > j0) { if (si === 2) openRowsDive(grid, o, k0, k1); else openRows(grid, si === 1, o, k0, k1); } L.open[si] = o; }
       if (P.mul) { const m = P.mul.slice(); if (j1 > j0) mulRows(grid, m, j0, j1); L.mul = m; }
       L.linked = P.linked;
     }
     _layers.set(grid, L);
   }
-  const si = swim ? 1 : 0, N = grid.size;
-  if (!L.open[si]) { const o = new Uint8Array(N); openRows(grid, swim, o, 0, N); L.open[si] = o; }
+  const si = dive ? 2 : swim ? 1 : 0, N = grid.size;
+  if (!L.open[si]) { const o = new Uint8Array(N); if (dive) openRowsDive(grid, o, 0, N); else openRows(grid, swim, o, 0, N); L.open[si] = o; }
   if (!costs) return L; // (areasFor: the open cells only)
   if (!L.mul) { const m = new Float64Array(N); mulRows(grid, m, 0, grid.rows); L.mul = m; }
   // (the cells a link touches — grid.linksAt's own index — as flags: most expanded cells have none to look up)
@@ -369,6 +378,15 @@ function areasFor(grid, walkOpts, role, opts, hasLinks) {
  * every search answers the same. The walkthrough runs it on its title card (engine/idle-warm.js): M3's first tick built
  * the guards' and the squad's labellings, ~5 ms of it.
  */
+/**
+ * Fill the static layers every search reads (staticLayers: the walk test, the step cost factors and the link flags of
+ * this grid version) now — a cache fill only, the same layers a first search builds lazily: on a still screen
+ * (engine/idle-warm.js) instead of the first tick of play, whose first orders paid ~2-3 ms for them (M18).
+ */
+export function warmPathCosts(grid) {
+  if (grid?.size) staticLayers(grid, false);
+}
+
 export function warmAreas(grid, opts = {}) {
   if (!grid?.size || opts.dive) return;
   const o = { role: opts.role, noLinks: !!opts.noLinks, noWalkLinks: !!opts.noWalkLinks };
@@ -666,10 +684,15 @@ function searchPath(grid, sx, sz, tx, tz, opts, openEnds, info) {
   const terrain = grid.terrain, bridge = grid.bridge;
   // (the common case — on foot or swimming, no ladder ends to open: `open` is grid.isWalkable(walkOpts) — tested inline
   // on the layers, cell by cell: the same answers without the call and its option lookups per neighbour)
-  const fast = !walkOpts.dive && ends === null && !!grid.block && !!grid.navBlock && !!grid.fenceHole && !!bridge && !!terrain, rows = grid.rows;
+  // (a diver too — grid.isWalkable's dive rules: the static layer staticLayers keeps for them, the underpass cells read
+  // off the grid — M18's Marine up the river: ~25k cells a search, 21 ms with the test called cell by cell)
+  const dive = walkOpts.dive, under = grid.underpass;
+  const fast = ends === null && !!grid.block && !!grid.navBlock && !!grid.fenceHole && !!bridge && !!terrain && (!dive || !!under), rows = grid.rows;
   const { block, navBlock, fenceHole, dynamicBlock } = grid, dyn = walkOpts.dynamic, avoid = walkOpts.avoid;
-  const SL = fast ? staticLayers(grid, swim) : null, sOpen = SL ? SL.open[swim ? 1 : 0] : null, mul = SL ? SL.mul : null, linked = SL ? SL.linked : null;
-  const walkK = (q) => sOpen[q] === 1 && !(dyn && dynamicBlock[q] !== B.NONE) && !(avoid && avoid[q]);
+  const SL = fast ? staticLayers(grid, swim, true, dive) : null, sOpen = SL ? SL.open[dive ? 2 : swim ? 1 : 0] : null, mul = SL ? SL.mul : null, linked = SL ? SL.linked : null;
+  // (a diver: an underpass cell is open whatever else; the clearance mask is no diver's — grid.isWalkable)
+  const walkK = dive ? (q) => under[q] !== 0 || (sOpen[q] === 1 && !(dyn && dynamicBlock[q] !== B.NONE))
+    : (q) => sOpen[q] === 1 && !(dyn && dynamicBlock[q] !== B.NONE) && !(avoid && avoid[q]);
   // (grid.canStep, inline: the elevation step, then a ramp / stair run's sides — the grid's own test)
   const elev = grid.elev, runOf = grid.runOf;
   const stepK = (a, q) => Math.abs(elev[a] - elev[q]) <= MAX_STEP && (!runOf || runOf[a] === runOf[q] || grid.canStep(a, q));

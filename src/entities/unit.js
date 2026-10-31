@@ -9,7 +9,7 @@ import { settleBody, fallHeading, settleSolid, settleHands, climbTrack, climbAt,
 import { Entity } from './entity.js';
 import { createUnitModel } from '../art/unit-model.js';
 import { CONFIG, velToSpeed } from '../config.js';
-import { angleTo, turnTowardsAngle, angleDiff, wrapAngle, dist } from '../core/math.js';
+import { angleTo, turnTowardsAngle, angleDiff, wrapAngle, dist, hypot2 } from '../core/math.js';
 import { doubleFields } from '../core/shapes.js';
 import { T, B, MAX_STEP } from '../world/grid.js';
 import { plan as avoidPlan, priority, blocks, givesWay, newPlan } from './avoidance.js';
@@ -69,7 +69,7 @@ export const UNIT_STATES = Object.freeze(['active', 'dead', 'stunned', 'hidden',
 /** One-shot actions a man may play while still moving (a shot on the move, §3.2): his legs keep stepping. */
 const MOVE_ACTIONS = new Set(['shoot', 'aim']);
 /** A man stopped in place: not walking, not carried along on a conveyor belt (moved at the 20 Hz BEL tick: 3 sim steps). */
-const stopped = (n, A, w) => Math.hypot(n.vx || 0, n.vz || 0) < A.moving && !(n._beltTick >= w.tick - 3);
+const stopped = (n, A, w) => hypot2(n.vx || 0, n.vz || 0) < A.moving && !(n._beltTick >= w.tick - 3);
 const _LF = { clearance: 0.3, dynamic: true, elevRef: 0.5 };
 /** The men standing within r of u whom he gives way to (entitiesInRadius with a module filter: no closure per call —
  *  every idle man asks every step). */
@@ -323,7 +323,7 @@ export class Unit extends Entity {
     for (let k = this.pathIndex; k < Math.min(p.length, this.pathIndex + 2); k++) {
       if (!isLadderLeg(p[k])) continue;
       const f = k > this.pathIndex ? p[k - 1] : { x: this.x, z: this.z };
-      return Math.hypot(f.x - this.x, f.z - this.z) < r;
+      return hypot2(f.x - this.x, f.z - this.z) < r;
     }
     return false;
   }
@@ -379,7 +379,7 @@ export class Unit extends Entity {
       const t = this._freeToward(x, z, avoid, q.swim);
       const p = w.findPath(tr.x, tr.z, t.x, t.z, { ...q, avoid, nearRadius: 3 + inf });
       if (!p) continue;
-      const end = p[p.length - 1], miss = Math.hypot(end.x - x, end.z - z), len = pathLength(p);
+      const end = p[p.length - 1], miss = hypot2(end.x - x, end.z - z), len = pathLength(p);
       if (!best) { best = { p, miss, len }; continue; }
       if (miss < best.miss - 0.4 || len < best.len / 1.5 - 2) best = { p, miss, len };
     }
@@ -423,7 +423,7 @@ export class Unit extends Entity {
     const g = this.world.grid, opts = { avoid, swim: !!swim };
     const free = (px, pz) => { const c = g.worldToCell(px, pz); return g.isWalkable(c.i, c.j, opts); };
     if (!avoid || free(x, z)) return { x, z };
-    const d = Math.hypot(this.x - x, this.z - z);
+    const d = hypot2(this.x - x, this.z - z);
     if (d < 1e-3) return { x, z };
     const ux = (this.x - x) / d, uz = (this.z - z) / d;
     const cs = g.cell, ci = Math.floor(x / cs), cj = Math.floor(z / cs), R = Math.ceil(3 / cs);
@@ -432,7 +432,7 @@ export class Unit extends Entity {
     for (let j = cj - R; j <= cj + R && !prone; j++) {
       for (let i = ci - R; i <= ci + R; i++) {
         // (cellCenter written out: an object per cell of the 13 x 13 search)
-        const px = (i + 0.5) * g.cell, pz = (j + 0.5) * g.cell, dx = px - x, dz = pz - z, dd = Math.hypot(dx, dz);
+        const px = (i + 0.5) * g.cell, pz = (j + 0.5) * g.cell, dx = px - x, dz = pz - z, dd = hypot2(dx, dz);
         if (dd >= bd || dd > 3 || dx * ux + dz * uz <= 0 || !g.isWalkable(i, j, opts)) continue;
         bd = dd; bx = px; bz = pz; found = true;
       }
@@ -490,7 +490,7 @@ export class Unit extends Entity {
       const L = this._lieDown, to = (L.to = this._lieDownPose() || { none: true });
       L.px = this.x; L.pz = this.z;
       if (to.none) this._lieDown = null;
-      else this._stanceT = Math.min(CONFIG.units.stanceDown, Math.max(Math.abs(angleDiff(this.heading, to.heading)) / this.turnRate, Math.hypot(to.x - this.x, to.z - this.z) / LIE_SHIFT) + 1 / 60);
+      else this._stanceT = Math.min(CONFIG.units.stanceDown, Math.max(Math.abs(angleDiff(this.heading, to.heading)) / this.turnRate, hypot2(to.x - this.x, to.z - this.z) / LIE_SHIFT) + 1 / 60);
     }
     if (stance === 'crawl') this._crawlRepath();
     this.world?.events.emit('unit:stance', { unit: this, stance });
@@ -511,7 +511,7 @@ export class Unit extends Entity {
     const free = (x, z, h) => fits(x, z, h) && (!solids || bodyGap(w, x, z, h, 'crawl', ign) >= STOP_MARGIN);
     if (free(this.x, this.z, this.heading)) return null;
     const wp = this.path?.[this.pathIndex];
-    if (wp && Math.hypot(wp.x - this.x, wp.z - this.z) > 0.05) {
+    if (wp && hypot2(wp.x - this.x, wp.z - this.z) > 0.05) {
       const want = Math.atan2(wp.z - this.z, wp.x - this.x);
       if (free(this.x, this.z, want)) return { x: this.x, z: this.z, heading: want };
     }
@@ -532,7 +532,7 @@ export class Unit extends Entity {
     if (!L.to) L.to = this._lieDownPose() || { none: true };
     const to = L.to;
     if (!to.none) {
-      const dx = to.x - this.x, dz = to.z - this.z, d = Math.hypot(dx, dz);
+      const dx = to.x - this.x, dz = to.z - this.z, d = hypot2(dx, dz);
       // (never a jump: the last step finishes a short way only; else he lies here, turned only if that fits here)
       const snap = final && d <= LIE_SHIFT * dt + 0.05;
       const step = snap ? d : Math.min(d, LIE_SHIFT * dt);
@@ -565,7 +565,7 @@ export class Unit extends Entity {
     };
     let ax = this.x, az = this.z, hit = false;
     for (let k = Math.max(0, this.pathIndex); k < P.length && !hit; k++) {
-      const L = Math.hypot(P[k].x - ax, P[k].z - az), n = Math.max(1, Math.ceil(L / 0.25));
+      const L = hypot2(P[k].x - ax, P[k].z - az), n = Math.max(1, Math.ceil(L / 0.25));
       for (let q = 1; q <= n && !hit; q++) hit = near(ax + ((P[k].x - ax) * q) / n, az + ((P[k].z - az) * q) / n);
       ax = P[k].x; az = P[k].z;
     }
@@ -818,7 +818,7 @@ export class Unit extends Entity {
   _easeLift(o, alpha) {
     const t = (this.world?.time ?? 0) - (1 - alpha) * CONFIG.sim.dt, simY = this.prevY + (this.y - this.prevY) * alpha;
     const off = o.position.y - simY, L = this._lift;
-    if (L && Math.hypot(o.position.x - L.x, o.position.z - L.z) < 1 && t >= L.t) {
+    if (L && hypot2(o.position.x - L.x, o.position.z - L.z) < 1 && t >= L.t) {
       const dt = t - L.t, v = dt > 0 ? Math.max(L.off - 3 * dt, Math.min(L.off + 1.8 * dt, off)) : L.off;
       o.position.y = simY + v;
       this._lift = { t, off: v, x: o.position.x, z: o.position.z };
@@ -973,7 +973,7 @@ export class Unit extends Entity {
     if (g >= MOVE_MARGIN || !P) return this._keepBodyPrev();
     // a jump no step makes (setPosition, a script or a load placing him): not a step to undo — placed inside a solid,
     // he is put at the nearest pose clear of it
-    if (Math.hypot(this.x - P.x, this.z - P.z) > 1.5) {
+    if (hypot2(this.x - P.x, this.z - P.z) > 1.5) {
       const cp = g < 0 && clearPose(w, this.x, this.z, this.heading, st, { sweep: false, maxDist: 1.5, ignore: ign });
       if (cp) { this.x = cp.x; this.z = cp.z; this.heading = cp.heading; this.prevHeading = cp.heading; }
       return this._keepBodyPrev();
@@ -996,7 +996,7 @@ export class Unit extends Entity {
     if (turning) cands.push(...turns);
     // sliding along it: the same step turned 35° / 70° either way (lying down the body turns with it); not for
     // ever — 3 s of sliding without getting 0.3 m nearer the goal and he counts as blocked (re-plan)
-    const sx = this.x - P.x, sz = this.z - P.z, sl = Math.hypot(sx, sz), mt = this.moveTarget;
+    const sx = this.x - P.x, sz = this.z - P.z, sl = hypot2(sx, sz), mt = this.moveTarget;
     const pr = this._bodyProg;
     if (sl > 1e-4 && this.path && mt && !(pr && pr.t > 3)) {
       for (const a of [0.61, -0.61, 1.22, -1.22]) {
@@ -1014,9 +1014,9 @@ export class Unit extends Entity {
     const wp = this.path?.[this.pathIndex];
     if (wp && mt && !(pr && pr.t > 3)) {
       const want = Math.atan2(wp.z - P.z, wp.x - P.x) + (this.moveHeadingOffset || 0);
-      if (Math.hypot(wp.x - P.x, wp.z - P.z) > 0.05 && Math.abs(angleDiff(P.heading, want)) > 0.35) {
+      if (hypot2(wp.x - P.x, wp.z - P.z) > 0.05 && Math.abs(angleDiff(P.heading, want)) > 0.35) {
         const e = 0.05, gg = (dx, dz) => bodyGap(w, P.x + dx, P.z + dz, P.heading, st, ign);
-        const gx = gg(e, 0) - gg(-e, 0), gz = gg(0, e) - gg(0, -e), gl = Math.hypot(gx, gz), bs = Math.max(sl, this.speed * dt);
+        const gx = gg(e, 0) - gg(-e, 0), gz = gg(0, e) - gg(0, -e), gl = hypot2(gx, gz), bs = Math.max(sl, this.speed * dt);
         if (gl > 1e-4) {
           const bx = P.x + (gx / gl) * bs, bz = P.z + (gz / gl) * bs;
           cands.push([bx, bz, this.heading, true, true], [bx, bz, P.heading, true, true]);
@@ -1031,15 +1031,15 @@ export class Unit extends Entity {
       if (bodyGap(w, x, z, h, st, ign) >= need) { pick = [x, z, h, moved, slide]; break; }
     }
     if (pick?.[4]) {
-      const d = Math.hypot(mt.x - pick[0], mt.z - pick[1]);
+      const d = hypot2(mt.x - pick[0], mt.z - pick[1]);
       if (!pr || d < pr.best - 0.3) this._bodyProg = { best: d, t: 0 }; else pr.t += dt;
     }
     const blockedMove = !pick || !pick[3];
     if (pick) { this.x = pick[0]; this.z = pick[1]; this.heading = pick[2]; } else { this.x = P.x; this.z = P.z; this.heading = P.heading; }
     const t = this.moveTarget;
-    if (blockedMove && this.path && t && Math.hypot(t.x - this.x, t.z - this.z) < 1.2) {
+    if (blockedMove && this.path && t && hypot2(t.x - this.x, t.z - this.z) < 1.2) {
       this._arrive(); // the hull is in the way of his last steps: he stops here (and settles clear of it)
-    } else if (blockedMove && this.path && (Math.hypot(this.x - P.x, this.z - P.z) < 1e-4)) {
+    } else if (blockedMove && this.path && (hypot2(this.x - P.x, this.z - P.z) < 1e-4)) {
       this._bodyBlockT = (this._bodyBlockT || 0) + dt;
       if (this._bodyBlockT > 0.5) {
         this._bodyBlockT = 0;
@@ -1098,7 +1098,7 @@ export class Unit extends Entity {
     let climbing = false, climbTurn = false;
     const sp = this.path.length === 1 && this.path[0].steer ? this.path[0] : null;
     if (sp && step > 1e-9) { // steering at a moving slot: the walk direction turns at a body's rate (no kinks)
-      const dx = sp.x - this.x, dz = sp.z - this.z, d = Math.hypot(dx, dz);
+      const dx = sp.x - this.x, dz = sp.z - this.z, d = hypot2(dx, dz);
       let mx = this._mdirX, mz = this._mdirZ;
       if (d > 1e-6) {
         const tx = dx / d, tz = dz / d;
@@ -1138,7 +1138,7 @@ export class Unit extends Entity {
         let C = this._climb;
         // (he starts the climb facing the wall: turned away from it — back the way he came over it — he turns round on
         // the spot first at his turn rate, not about in one frame as the climb began)
-        if ((!C || C.wp !== wp) && Math.hypot(wp.x - this.x, wp.z - this.z) > 1e-3 && !LOW_STANCES.has(this.stance)) {
+        if ((!C || C.wp !== wp) && hypot2(wp.x - this.x, wp.z - this.z) > 1e-3 && !LOW_STANCES.has(this.stance)) {
           const want = Math.atan2(wp.z - this.z, wp.x - this.x);
           if (Math.abs(angleDiff(this.heading, want)) > CLIMB_TURN) { dirX = Math.cos(want); dirZ = Math.sin(want); step = 0; climbTurn = true; break; }
         }
@@ -1165,7 +1165,7 @@ export class Unit extends Entity {
         continue;
       }
       const dx = wp.x - this.x, dz = wp.z - this.z;
-      const d = Math.hypot(dx, dz);
+      const d = hypot2(dx, dz);
       if (d > 1e-6) { dirX = dx / d; dirZ = dz / d; }
       if (d <= step) {
         this.x = wp.x;
@@ -1185,7 +1185,7 @@ export class Unit extends Entity {
     }
     if (!dirX && !dirZ && av) { dirX = av.fx; dirZ = av.fz; }
     if (!dirX && !dirZ && pivot < 1 && this.path) { // turning round on the spot: toward his waypoint
-      const wp = this.path[this.pathIndex], dx = wp.x - this.x, dz = wp.z - this.z, d = Math.hypot(dx, dz);
+      const wp = this.path[this.pathIndex], dx = wp.x - this.x, dz = wp.z - this.z, d = hypot2(dx, dz);
       if (d > 1e-6) { dirX = dx / d; dirZ = dz / d; }
     }
     if (this._trackOff) { // (no arrival this step: an arrival baked the lane into where he stopped, _arrive)
@@ -1194,7 +1194,7 @@ export class Unit extends Entity {
         this._applyCurve(dt);
         // a curve that ends abruptly (a re-path mid-corner, a patrol's next leg) hands its offset to the lane, which
         // eases it out: the body never jumps
-        if (Math.hypot(this._curveX - cx0, this._curveZ - cz0) > 0.02) { this._laneX += cx0 - this._curveX; this._laneZ += cz0 - this._curveZ; }
+        if (hypot2(this._curveX - cx0, this._curveZ - cz0) > 0.02) { this._laneX += cx0 - this._curveX; this._laneZ += cz0 - this._curveZ; }
         this._applyLane(av, dt);
         this._keepApart(av, x0, z0, stride, dt);
       } else { this.x += lx0; this.z += lz0; }
@@ -1228,7 +1228,7 @@ export class Unit extends Entity {
     this.vx = (this.x - x0) / dt; this.vz = (this.z - z0) / dt;
     // waiting: he shows walking while he still moves (hysteresis — a pace hovering near zero, or a sidestep while he
     // waits, must not flick walk / idle every few frames)
-    const vNow = Math.hypot(this.vx, this.vz);
+    const vNow = hypot2(this.vx, this.vz);
     this._moving = !av?.wait || (this._walkAnim ? this._avScale > 0.03 || vNow > 0.1 : this._avScale > 0.15 || vNow > 0.3);
     if (climbTurn) this._moving = false; // (turning on the spot before a climb: he stands and turns, no stride)
     // Surface height (§10.2 elev): raised areas are reached only through links, so snapping is safe.
@@ -1334,7 +1334,7 @@ export class Unit extends Entity {
     const off = !A.on || !w || !wp || wp.link || this.stance === 'swim' || this.stance === 'dive' || this.state === 'downed' || this.state === 'captured' || this.carriedBy
       || (this._straight && this._straight === this.path);
     const tx = this.x - this._laneX - this._curveX, tz = this.z - this._laneZ - this._curveZ;
-    const dx = off ? 0 : wp.x - tx, dz = off ? 0 : wp.z - tz, d = Math.hypot(dx, dz);
+    const dx = off ? 0 : wp.x - tx, dz = off ? 0 : wp.z - tz, d = hypot2(dx, dz);
     // (the lane is baked into the track by _applyLane(null): zeroing it here would jump the body back onto the track)
     if (off || d < 1e-6) { this._laneV = 0; this._avScale = 1; this._blockT = 0; return null; }
     if (this._ghostIds) { // men he squeezes past: forgotten once he is past them (or after a while: never two men
@@ -1343,7 +1343,7 @@ export class Unit extends Entity {
       this._ghostIds = old ? [] : this._ghostIds.filter((id) => {
         const g = w.byId?.(id);
         if (!g) return false;
-        const gx = g.x - this.x, gz = g.z - this.z, gd = Math.hypot(gx, gz);
+        const gx = g.x - this.x, gz = g.z - this.z, gd = hypot2(gx, gz);
         return gd <= A.clear + 0.3 || (gd <= A.look && gx * dx + gz * dz > 0); // still beside or ahead of me
       });
       if (!this._ghostIds.length) { this._ghostIds = null; this._ghostT = null; }
@@ -1354,10 +1354,10 @@ export class Unit extends Entity {
     const pl = avoidPlan(this, fx, fz, this.speed, side ? -Math.sign(side) * Math.min(Math.abs(side), 0.15) : 0, this._planO || (this._planO = newPlan()));
     // ordered onto a spot a standing man holds: stop beside him (formation) instead of walking into him
     const last = this.pathIndex === this.path.length - 1;
-    if (last && pl.block && priority(this) < 3 && Math.hypot(pl.block.x - this.x, pl.block.z - this.z) < A.clear + 0.05
-      && Math.hypot(pl.block.x - wp.x, pl.block.z - wp.z) < A.clear) return { fx, fz, arrive: true };
+    if (last && pl.block && priority(this) < 3 && hypot2(pl.block.x - this.x, pl.block.z - this.z) < A.clear + 0.05
+      && hypot2(pl.block.x - wp.x, pl.block.z - wp.z) < A.clear) return { fx, fz, arrive: true };
     // sent to a spot another man holds (or reaches first): stop beside it, a body width off
-    if (pl.claim && priority(this) !== 3 && Math.hypot(pl.claim.x - this.x, pl.claim.z - this.z) < A.clear + 0.05 && this._pathLeft(3) < 3) return { fx, fz, arrive: true };
+    if (pl.claim && priority(this) !== 3 && hypot2(pl.claim.x - this.x, pl.claim.z - this.z) < A.clear + 0.05 && this._pathLeft(3) < 3) return { fx, fz, arrive: true };
     // a standing man ahead whom the lane cannot get round (a doorway, a gap between walls), or the man ahead in a
     // file through one: wait short of him instead of squeezing past through his body — an idle teammate standing
     // in the gap steps aside (Unit._yieldFor), anybody else is walked through after the ghost timer
@@ -1377,7 +1377,7 @@ export class Unit extends Entity {
     let held = false;
     if (this._holdFor != null) {
       const h = w.byId?.(this._holdFor);
-      const hx = h ? h.x - this.x : 0, hz = h ? h.z - this.z : 0, hd = Math.hypot(hx, hz);
+      const hx = h ? h.x - this.x : 0, hz = h ? h.z - this.z : 0, hd = hypot2(hx, hz);
       // released once he is past me, or walking off ahead of me (a file through the gap)
       if (!h || !h.path || hx * fx + hz * fz < 0 || hd > A.look || (hd > A.clear + 0.6 && hx * (h.vx || 0) + hz * (h.vz || 0) > 0)) this._holdFor = null;
       else held = true;
@@ -1386,7 +1386,7 @@ export class Unit extends Entity {
       // the gap where we meet is too narrow for both half-dodges: one of us holds where he has room for his lane
       // (it keeps opening while he stands) — the man giving way, unless only I have room here
       const n = pl.meetN, s = side + pl.shift, sx = -fz * pl.shift, sz = fx * pl.shift, nt = Math.min(pl.meetT, A.horizon);
-      const D = Math.max(0.3, v * nt), nvx = n.vx || 0, nvz = n.vz || 0, nv = Math.hypot(nvx, nvz);
+      const D = Math.max(0.3, v * nt), nvx = n.vx || 0, nvz = n.vz || 0, nv = hypot2(nvx, nvz);
       let narrow = false; // anywhere between here and where we meet (a doorway on the way)
       for (let d = Math.min(0.5, D); !narrow && d <= D + 1e-6; d += 0.5) {
         const at = this._trackAhead(d) || { x: tx, z: tz }, k = nv > 1e-6 ? Math.min(d, nv * nt) / nv : 0;
@@ -1408,7 +1408,7 @@ export class Unit extends Entity {
     if (this._blockT > A.ghostAfter) {
       const end = this.path[this.path.length - 1];
       // (and only men standing in the way: a man on the move gets out of it — squeezing past a runner is running inside him)
-      const ghost = pl.blockers.filter((n) => Math.hypot(n.vx || 0, n.vz || 0) <= A.moving && (end.steer || Math.hypot(n.x - end.x, n.z - end.z) >= A.clear)).map((n) => n.id);
+      const ghost = pl.blockers.filter((n) => hypot2(n.vx || 0, n.vz || 0) <= A.moving && (end.steer || hypot2(n.x - end.x, n.z - end.z) >= A.clear)).map((n) => n.id);
       this._ghostIds = [...new Set([...(this._ghostIds || []), ...ghost])]; this._blockT = 0; this._ghostT = w.time;
     }
     const want = pl.wait || cantPass || queued || held || tight ? 0 : pl.slow ? A.dropBack : 1;
@@ -1433,7 +1433,7 @@ export class Unit extends Entity {
     let f = 1;
     while (f > 0 && !this._laneFits(this.x, this.z, o.x * f, o.z * f)) f = Math.max(0, f - 0.25);
     const f0 = this._curveF ?? 1;
-    this._curveF = Math.hypot(o.x, o.z) < 0.01 ? f : f > f0 ? Math.min(f, f0 + 3 * dt) : Math.max(f, f0 - 3 * dt);
+    this._curveF = hypot2(o.x, o.z) < 0.01 ? f : f > f0 ? Math.min(f, f0 + 3 * dt) : Math.max(f, f0 - 3 * dt);
     if (!this._curveF) return;
     this._curveX = o.x * this._curveF; this._curveZ = o.z * this._curveF;
     this.x += this._curveX; this.z += this._curveZ;
@@ -1444,7 +1444,7 @@ export class Unit extends Entity {
    * (CONFIG.units.avoid.wallR) beyond it and 0.3 m either side of it must be walkable ground on his level.
    */
   _laneFits(px, pz, ax, az) {
-    const L = Math.hypot(ax, az);
+    const L = hypot2(ax, az);
     if (L < 1e-6) return true;
     const g = this.world.grid, k = 1 + CONFIG.units.avoid.wallR / L;
     // (one options object refilled: walkableLine only reads it while it runs — asked many times a step per man)
@@ -1467,14 +1467,14 @@ export class Unit extends Entity {
     this._apartHeld = false;
     if (!av || !sep || this.faction !== 'player' || !w?.entitiesInRadius) return;
     let mx = this.x - x0, mz = this.z - z0;
-    const m = Math.hypot(mx, mz);
+    const m = hypot2(mx, mz);
     if (m < 1e-6) return;
     const ghosts = this._ghostIds || [], v = m / dt;
     const near = w.entitiesInRadius(x0, z0, sep + (v * v) / (2 * A.brake) + m + 0.05, (n) => n.faction === this.faction && blocks(this, n) && !ghosts.includes(n.id));
     if (!near.length) return;
     let hit = false;
     for (const n of near) {
-      const rx = x0 - n.x, rz = z0 - n.z, r0 = Math.hypot(rx, rz);
+      const rx = x0 - n.x, rz = z0 - n.z, r0 = hypot2(rx, rz);
       if (r0 < 1e-6) continue;
       // (inside the floor already: no closer at all)
       const ux = rx / r0, uz = rz / r0, rad = mx * ux + mz * uz, gap = Math.max(0, r0 - sep);
@@ -1499,7 +1499,7 @@ export class Unit extends Entity {
     const P = this.path;
     if (!P) return 0;
     let x = this.x - this._laneX - this._curveX, z = this.z - this._laneZ - this._curveZ, L = 0;
-    for (let i = this.pathIndex; i < P.length && L < cap; i++) { L += Math.hypot(P[i].x - x, P[i].z - z); x = P[i].x; z = P[i].z; }
+    for (let i = this.pathIndex; i < P.length && L < cap; i++) { L += hypot2(P[i].x - x, P[i].z - z); x = P[i].x; z = P[i].z; }
     return L;
   }
 
@@ -1511,7 +1511,7 @@ export class Unit extends Entity {
     for (let i = this.pathIndex; i < P.length && left > 1e-6; i++) {
       const wp = P[i];
       if (wp.link) break;
-      const dd = Math.hypot(wp.x - x, wp.z - z);
+      const dd = hypot2(wp.x - x, wp.z - z);
       if (dd >= left) { x += (wp.x - x) * (left / dd); z += (wp.z - z) * (left / dd); left = 0; break; }
       x = wp.x; z = wp.z; left -= dd;
     }
@@ -1533,17 +1533,17 @@ export class Unit extends Entity {
     this._yieldAt = w.time;
     // the walker's way: from his track point along his path, 6 m
     const way = [[u.x - (u._laneX || 0) - (u._curveX || 0), u.z - (u._laneZ || 0) - (u._curveZ || 0)]]; // (his track, not his dodge)
-    for (let i = u.pathIndex, L = 0; i < u.path.length && L < 6; i++) { const p = u.path[i], q = way[way.length - 1]; L += Math.hypot(p.x - q[0], p.z - q[1]); way.push([p.x, p.z]); }
+    for (let i = u.pathIndex, L = 0; i < u.path.length && L < 6; i++) { const p = u.path[i], q = way[way.length - 1]; L += hypot2(p.x - q[0], p.z - q[1]); way.push([p.x, p.z]); }
     const offWay = (x, z) => {
       let m = Infinity;
       for (let i = 1; i < way.length; i++) {
         const [ax, az] = way[i - 1], [bx, bz] = way[i], dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz;
         const t = l2 > 1e-9 ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)) : 0;
-        m = Math.min(m, Math.hypot(x - ax - dx * t, z - az - dz * t));
+        m = Math.min(m, hypot2(x - ax - dx * t, z - az - dz * t));
       }
       return m;
     };
-    const fx = way[1] ? way[1][0] - way[0][0] : 1, fz = way[1] ? way[1][1] - way[0][1] : 0, fl = Math.hypot(fx, fz) || 1;
+    const fx = way[1] ? way[1][0] - way[0][0] : 1, fz = way[1] ? way[1][1] - way[0][1] : 0, fl = hypot2(fx, fz) || 1;
     const o = { clearance: 0.3, dynamic: true, elevRef: g.elevAt(this.x, this.z) };
     const others = w.entitiesInRadius(this.x, this.z, 3).filter((n) => n !== this && blocks(this, n));
     let best = null;
@@ -1553,10 +1553,10 @@ export class Unit extends Entity {
         const dx = (fx / fl) * c - (fz / fl) * sn, dz = (fz / fl) * c + (fx / fl) * sn; // a° off the walker's heading
         const x = this.x + dx * r, z = this.z + dz * r;
         // off his way, and away from him (stepping aside is never a step into the man he makes room for)
-        if (offWay(x, z) < A.clear + 0.15 || Math.hypot(x - u.x, z - u.z) < Math.hypot(this.x - u.x, this.z - u.z) + 0.3 || !g.walkableLine(this.x, this.z, x, z, o) || fireStep(w, this.x, this.z, x, z)) continue;
+        if (offWay(x, z) < A.clear + 0.15 || hypot2(x - u.x, z - u.z) < hypot2(this.x - u.x, this.z - u.z) + 0.3 || !g.walkableLine(this.x, this.z, x, z, o) || fireStep(w, this.x, this.z, x, z)) continue;
         if (w.entitiesInRadius(x, z, A.clear).some((n) => n !== this && blocks(this, n))) continue;
         // nor a step towards anybody else close by (on the way there either)
-        if (others.some((n) => { const d0 = Math.hypot(n.x - this.x, n.z - this.z); return Math.hypot(n.x - x, n.z - z) < d0 || [0.25, 0.5, 0.75].some((k) => Math.hypot(n.x - this.x - (x - this.x) * k, n.z - this.z - (z - this.z) * k) < Math.min(d0, A.clear)); })) continue;
+        if (others.some((n) => { const d0 = hypot2(n.x - this.x, n.z - this.z); return hypot2(n.x - x, n.z - z) < d0 || [0.25, 0.5, 0.75].some((k) => hypot2(n.x - this.x - (x - this.x) * k, n.z - this.z - (z - this.z) * k) < Math.min(d0, A.clear)); })) continue;
         best = { x, z }; break;
       }
       if (best) break;
@@ -1573,7 +1573,7 @@ export class Unit extends Entity {
     if (!A.on || this.state !== 'active' || (this.stance !== 'stand' && this.stance !== 'crouch') || this.pendingAbility || this.carrying || this.carriedBy || (this.y || 0) > 0.3) return;
     const on = standersNear(this, w, A, 0.8);
     if (!on.length) return;
-    const n = on[0], ax = this.x - n.x, az = this.z - n.z, al = Math.hypot(ax, az);
+    const n = on[0], ax = this.x - n.x, az = this.z - n.z, al = hypot2(ax, az);
     const a0 = al > 1e-3 ? Math.atan2(az, ax) : 0, o = { clearance: 0.3, dynamic: true, elevRef: g.elevAt(this.x, this.z) };
     for (const r of [0.6, 0.9, 1.2]) for (const da of [0, 30, -30, 60, -60, 90, -90, 120, -120, 150, -150, 180]) {
       const a = a0 + (da * Math.PI) / 180, x = n.x + Math.cos(a) * (r + 0.35), z = n.z + Math.sin(a) * (r + 0.35);
@@ -1594,7 +1594,7 @@ export class Unit extends Entity {
     if (!A.on || this.state === 'dead' || this.carriedBy || this.vehicle || this.buried || (this.stance !== 'stand' && this.stance !== 'crouch')) return;
     const on = standersNear(this, w, A, 0.6);
     if (!on.length) return;
-    const n = on[0], ax = this.x - n.x, az = this.z - n.z, al = Math.hypot(ax, az), step = Math.min(0.6 * dt, 0.62 - al);
+    const n = on[0], ax = this.x - n.x, az = this.z - n.z, al = hypot2(ax, az), step = Math.min(0.6 * dt, 0.62 - al);
     let a0 = al > 1e-3 ? Math.atan2(az, ax) : 0;
     const e0 = g.elevAt(this.x, this.z), same = (x, z) => g.walkableAt(x, z, { dynamic: true }) && Math.abs(g.elevAt(x, z) - e0) <= 0.3 && !inFire(w, x, z);
     if ((this.y || 0) > 0.3) { // raised (a wall walk): only along the deck — its nav cells do not see the parapet
@@ -1725,7 +1725,7 @@ export class Unit extends Entity {
     // the lane closes as he nears his goal, so he stops on the spot he was sent to (not a dodge off it): a soft
     // cap the lane is steered inside (accel-limited), a hard one twice as wide only as a backstop
     const end = this.path[this.path.length - 1], lastLeg = this.pathIndex === this.path.length - 1;
-    const dEnd = lastLeg && !end.steer ? Math.hypot(end.x - this.x, end.z - this.z) : Infinity;
+    const dEnd = lastLeg && !end.steer ? hypot2(end.x - this.x, end.z - this.z) : Infinity;
     // (not while a patrol is still dodging a man by its waypoint, or closing would walk it into him: it stops off the spot)
     const keep = av.hold;
     // on raised ground (a wall walk, a dam, a bridge deck: elev > 0.3 m) he keeps to the walk's middle — the nav cells

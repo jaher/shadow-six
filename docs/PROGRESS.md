@@ -913,3 +913,6 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 
 ## 2026-10-30 — M12 perf merged to master (perf lane 2)
 - perf/m12 merged (eee0f219d): lockstep work and play-start HD encodes in small bands, no GPU round trip after resetState, briefing-time post-load work, skipped waits fast at 4x. Unit 2544 passed. Known: video-perf wall-clock bound still fails on branch and master (shared-host spikes). Media: commandos-shots/perf/m12-perf-before-after.jpg.
+
+## 2026-10-30 — M18 perf merged to master (perf lane 3)
+- perf/m18 merged (182ac0db3): load -23% (loadMission median 19.8 s to 15.2 s), warm-up matrices once, placement rasters int keys, hypot2, vehicle poses, dive fast path; sim identical (m18-solution won 1674.6 s). Unit 2550 passed. Known: video-perf wall-clock worst-frame bound (66.7 ms) still fails on shared host; own-CPU bounds pass.

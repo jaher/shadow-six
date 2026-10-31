@@ -264,7 +264,7 @@ export function setVehicleZoom(zoom) {
   for (const h of V.live) h.setZoom(zoom);
 }
 
-const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _v = new THREE.Vector3(), _Y = new THREE.Vector3(0, 1, 0);
+const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _v = new THREE.Vector3(), _Y = new THREE.Vector3(0, 1, 0), _off = new THREE.Vector3();
 const vec = (a) => new THREE.Vector3(a[0], a[1], a[2]);
 
 /** Per-instance track materials (UV scroll must not leak to other vehicles). */
@@ -322,17 +322,20 @@ function buildInstance(model, swap, meta) {
   const mk = (list) => (list || []).map((d) => ({ ...d, object: anchor(root, lod0, d) }));
   const sockets = {};
   for (const s of mk(meta?.sockets)) sockets[s.name] = s;
-  return { model, root, lods, parts, wheels, tracks, texs, meta, sockets, muzzles: mk(meta?.muzzles),
+  // (`partList`: the parts in the map's order, walked every tick by drive / driveRods without an iterator)
+  return { model, root, lods, parts, partList: [...parts.values()], wheels, tracks, texs, meta, sockets, muzzles: mk(meta?.muzzles),
     emitters: mk(meta?.emitters), lights: mk(meta?.lights), contacts: mk(meta?.contacts), odo: 0, lod: -1 };
 }
 
 /** Write a part pose to every LOD node: rest ∘ extra rotation, rest + model-space offset. */
 function pose(p, q = null, off = null) {
-  p.nodes.forEach((n, k) => {
-    const r = p.rest[k];
+  // (an index loop: a closure per call was most of the vehicles' per-tick garbage — every wheel of a train, every tick)
+  const ns = p.nodes, rs = p.rest;
+  for (let k = 0; k < ns.length; k++) {
+    const n = ns[k], r = rs[k];
     n.quaternion.copy(r.q); if (q) n.quaternion.multiply(q);
     n.position.copy(r.p); if (off) n.position.add(off);
-  });
+  }
 }
 
 const lim = (d, x) => (d.limits_deg ? Math.min(d.limits_deg[1] * DEG, Math.max(d.limits_deg[0] * DEG, x)) : x);
@@ -351,7 +354,7 @@ function setPartValue(p, t) {
 /** Locomotive valve gear: coupling rods orbit the driving crank, main rods + crossheads follow, links rock. */
 function driveRods(inst) {
   const side = {};
-  for (const p of inst.parts.values()) {
+  for (const p of inst.partList) {
     const d = p.def;
     if (!d.axle && d.kind !== 'crosshead' && d.kind !== 'expansion_link') continue;
     const s = d.node.slice(-2);
@@ -365,7 +368,7 @@ function driveRods(inst) {
     if (d.kind === 'rod_coupling' || d.kind === 'rod_main') {
       const c0y = d.pivot[1] - d.axle[1], c0z = d.pivot[2] - d.axle[2];
       const cy = c0y * Math.cos(a) - c0z * Math.sin(a), cz = c0y * Math.sin(a) + c0z * Math.cos(a);
-      const off = new THREE.Vector3(0, cy - c0y, cz - c0z);
+      const off = _off.set(0, cy - c0y, cz - c0z); // (scratch: read at once by pose and below)
       if (d.kind === 'rod_coupling') { pose(p, null, off); continue; }
       const by = d.pivot[1] + off.y, bz = d.pivot[2] + off.z, se = d.small_end, L = d.length;
       const dir = Math.sign(se[2] - d.pivot[2]) || 1;
@@ -377,7 +380,7 @@ function driveRods(inst) {
       pose(p, _q.setFromAxisAngle(p.axis, (d.limits_deg?.[1] ?? 14) * DEG * -Math.sin(a)));
     }
   }
-  for (const p of inst.parts.values()) if (p.def.kind === 'crosshead' && side[p.def.node.slice(-2)] != null) pose(p, null, _v.set(0, 0, side[p.def.node.slice(-2)]));
+  for (const p of inst.partList) if (p.def.kind === 'crosshead' && side[p.def.node.slice(-2)] != null) pose(p, null, _v.set(0, 0, side[p.def.node.slice(-2)]));
 }
 
 /**
@@ -387,7 +390,7 @@ function driveRods(inst) {
 function drive(inst, dt, o) {
   const dist = (o.speed || 0) * dt; inst.odo += dist;
   const steer = Math.max(-1, Math.min(1, o.steer || 0)), arm = inst.meta?.group === 'armour';
-  for (const p of inst.parts.values()) {
+  for (const p of inst.partList) {
     const d = p.def, k = d.kind;
     if (WHEEL_KINDS.has(k)) {
       p.angle += dist / (d.radius || 0.4);
@@ -442,7 +445,7 @@ export function createVehicleVisual(type, opts = {}) {
   if (opts.wreck === false) r.wreck = null;
   const object3d = new THREE.Group(); object3d.name = `vehicle:${r.asset}`;
   const S = { intact: null, wreck: null, cur: null, destroyed: false, zoom: V.zoom, last: {} };
-  const empty = { parts: new Map(), sockets: {}, emitters: [], contacts: [], muzzles: [], lights: [], meta: null };
+  const empty = { parts: new Map(), partList: [], sockets: {}, emitters: [], contacts: [], muzzles: [], lights: [], meta: null };
   const inst = () => S.cur || empty;
   const show = () => {
     for (const x of [S.intact, S.wreck]) if (x) x.root.visible = x === S.cur;

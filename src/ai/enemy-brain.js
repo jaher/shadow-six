@@ -20,7 +20,7 @@
 import { CONFIG, velToSpeed } from '../config.js';
 import { searchStats } from '../world/pathfinding.js';
 import { hasObstacles, bodyGap, MOVE_MARGIN } from '../world/body-clearance.js';
-import { angleTo, angleDiff, wrapAngle } from '../core/math.js';
+import { angleTo, angleDiff, wrapAngle, hypot2 } from '../core/math.js';
 import { doubleFields } from '../core/shapes.js';
 import { perceive, canSee, hears, coneAt, headTheta, newCone } from './perception.js';
 import { archetypeOf, isPatrolMember } from './archetypes.js';
@@ -76,7 +76,7 @@ const ALERT_OF = { IDLE: 0, REINFORCE: 0, RETURN: 0, DISTRACTED: 0, INVESTIGATE:
 /** Unit direction of the last ≥ 0.5 m of a breadcrumb trail ending at e (falls back to e's heading). */
 function trailDir(tr, e) {
   for (const p of tr) {
-    const dx = e.x - p.x, dz = e.z - p.z, d = Math.hypot(dx, dz);
+    const dx = e.x - p.x, dz = e.z - p.z, d = hypot2(dx, dz);
     if (d >= 0.5) return { x: dx / d, z: dz / d };
   }
   return { x: Math.cos(e.heading), z: Math.sin(e.heading) };
@@ -244,7 +244,7 @@ export class EnemyBrain {
   }
 
   _dist(o) {
-    return Math.hypot(o.x - this.enemy.x, o.z - this.enemy.z);
+    return hypot2(o.x - this.enemy.x, o.z - this.enemy.z);
   }
 
   // ------------------------------------------------------------ public API: stimuli
@@ -321,7 +321,7 @@ export class EnemyBrain {
     if (lvl >= 3) { this.alertT = CONFIG.ai.investigate.look + 10; this.alertBoost = 2; }
     // investigating already, a mate's noise close by (his shot within 8 m: he sees who fired) gives him nowhere new to
     // go: he keeps on (re-aiming at it turned him round on the spot: a file stalled where its own shots kept turning it)
-    if (this.state === 'INVESTIGATE' && n.source?.faction === e.faction && Math.hypot(n.x - e.x, n.z - e.z) <= CONFIG.ai.investigate.mateShot) return;
+    if (this.state === 'INVESTIGATE' && n.source?.faction === e.faction && hypot2(n.x - e.x, n.z - e.z) <= CONFIG.ai.investigate.mateShot) return;
     this._startInvestigate(n.x, n.z, lvl >= 3 ? CONFIG.ai.investigate.runSpeed : CONFIG.ai.investigate.speed);
   }
 
@@ -707,7 +707,7 @@ export class EnemyBrain {
     if (!cone) return null;
     for (const q of w.enemies) {
       if (q === e || !q.alive || q.hp >= q.maxHp || !q.lastHurtBy || q._hurtSeenBy?.has(e)) continue;
-      if (Math.hypot(q.x - e.x, q.z - e.z) > cone.far + 1) continue;
+      if (hypot2(q.x - e.x, q.z - e.z) > cone.far + 1) continue;
       if (canSee(e, { x: q.x, z: q.z, y: q.y || 0, isLow: false, isVisibleToEnemies: true }, w, { cone }) !== 'none') return q;
     }
     return null;
@@ -747,7 +747,7 @@ export class EnemyBrain {
       const R = CONFIG.stealth.noise.halt.radius;
       for (const q of w.enemies) {
         if (q === e || !q.alive || !q.brain || AWARE.has(q.brain.state) || !q.brain.arch.challenges || !q.brain.arch.reacts) continue;
-        if (Math.hypot(q.x - e.x, q.z - e.z) > R) continue;
+        if (hypot2(q.x - e.x, q.z - e.z) > R) continue;
         if (canSee(q, c, w) !== 'none') q.brain._enterChallenge(c, true);
       }
       if (e.flags.raisesAlarmOnSight && this.arch.alarms) this._alarmShout('seen', c.x, c.z); // by-the-book types
@@ -797,7 +797,7 @@ export class EnemyBrain {
   /** Is the held target still where he was told to freeze / visible? */
   _heldViolated(dt) {
     const c = this.target, w = this.world;
-    if (Math.hypot(c.x - this.anchor.x, c.z - this.anchor.z) > CONFIG.ai.halt.moveTol) return true;
+    if (hypot2(c.x - this.anchor.x, c.z - this.anchor.z) > CONFIG.ai.halt.moveTol) return true;
     if (canSee(this.enemy, c, w) === 'none') {
       this.lostT += dt;
       if (this.lostT > CONFIG.ai.holdLost) return true; // fled out of sight
@@ -811,7 +811,7 @@ export class EnemyBrain {
     // (aimed at him in _turnStep: the cone on him, the body turning to him)
     this.aimT -= dt;
     // before the aim completes, the target may still settle; re-shout (3 s cooldown) when he keeps moving
-    if (Math.hypot(c.x - this.anchor.x, c.z - this.anchor.z) > CONFIG.ai.halt.moveTol) {
+    if (hypot2(c.x - this.anchor.x, c.z - this.anchor.z) > CONFIG.ai.halt.moveTol) {
       this.anchor = { x: c.x, z: c.z };
       if (this.world.time - this.shoutT >= CONFIG.ai.halt.cooldown) this._shout('halt', 'ger_halt');
     }
@@ -893,7 +893,7 @@ export class EnemyBrain {
     if (gone) return this._startSearch();
     const isVeh = t.kind === 'vehicle';
     const vis = canSee(e, t, w, { ignoreDisguise: true, dynamic: !isVeh }) !== 'none';
-    const d = Math.hypot(t.x - e.x, t.z - e.z);
+    const d = hypot2(t.x - e.x, t.z - e.z);
     const fixed = e.soldierType === 'mg' || this.arch.script === 'crew' || this.arch.script === 'gunner' || e.state === 'inVehicle' || !!e.spawn?.caged;
     if (vis) {
       this.lostT = 0;
@@ -949,7 +949,7 @@ export class EnemyBrain {
     // out of range or out of sight: run toward the last seen position (3.8 m/s); walkers abandon the route
     const goal = vis ? t : e.lastSeen;
     this._repathT -= dt;
-    if ((!e.isMoving || this._repathT <= 0) && Math.hypot(goal.x - e.x, goal.z - e.z) > 0.8) {
+    if ((!e.isMoving || this._repathT <= 0) && hypot2(goal.x - e.x, goal.z - e.z) > 0.8) {
       this._repathT = 0.5;
       this._go(goal.x, goal.z, CONFIG.ai.chaseSpeed);
     }
@@ -985,7 +985,7 @@ export class EnemyBrain {
   _round(t, W, isVeh) {
     const e = this.enemy, w = this.world;
     if (t.alive === false || t.destroyed) { this.burstLeft = 0; return; }
-    const hit = Math.hypot(t.x - e.x, t.z - e.z) <= (W.range ?? 0) + 0.3 && canSee(e, t, w, { ignoreDisguise: true, dynamic: !isVeh }) !== 'none';
+    const hit = hypot2(t.x - e.x, t.z - e.z) <= (W.range ?? 0) + 0.3 && canSee(e, t, w, { ignoreDisguise: true, dynamic: !isVeh }) !== 'none';
     w.stats.enemyShots = (w.stats.enemyShots || 0) + 1;
     e.playAction(this.arch.script === 'dog' ? 'punch' : 'shoot', 0.2);
     if (this.arch.script !== 'dog') {
@@ -1152,7 +1152,7 @@ export class EnemyBrain {
     if (!c || !c.alive) return this._set('RETURN');
     const A = CONFIG.ai.arrest;
     if (this.phase === 'approach') {
-      if (Math.hypot(c.x - this.anchor.x, c.z - this.anchor.z) > CONFIG.ai.halt.moveTol) return this._enterCombat(c, { seen: true });
+      if (hypot2(c.x - this.anchor.x, c.z - this.anchor.z) > CONFIG.ai.halt.moveTol) return this._enterCombat(c, { seen: true });
       const d = this._dist(c);
       if (d > A.arrive) {
         if (!e.isMoving) this._go(c.x, c.z, A.escortSpeed);
@@ -1183,10 +1183,10 @@ export class EnemyBrain {
     // escort: the prisoner walks to the jail door at 1.8 m/s, the leader follows 1.5 m behind
     const door = this.goal.door;
     if (c.state !== 'captured') return this._set('RETURN');
-    if (!c.isMoving && Math.hypot(c.x - door.x, c.z - door.z) > 0.6) c.moveTo(door.x, door.z);
+    if (!c.isMoving && hypot2(c.x - door.x, c.z - door.z) > 0.6) c.moveTo(door.x, door.z);
     this._repathT -= dt;
     if (this._repathT <= 0 && this._dist(c) > A.arrive) { this._repathT = 0.4; this._go(c.x, c.z, A.escortSpeed * 1.2); }
-    if (Math.hypot(c.x - door.x, c.z - door.z) <= 0.6) this._jail(c);
+    if (hypot2(c.x - door.x, c.z - door.z) <= 0.6) this._jail(c);
   }
 
   _jail(c) {
@@ -1339,10 +1339,10 @@ export class EnemyBrain {
     for (const o of w.enemies || []) {
       const b = o?.brain;
       if (o === e || !o.alive || !b || b.state !== 'DECOY' || !b.goal) continue;
-      if (Math.hypot(b.goal.x - n.x, b.goal.z - n.z) > 1) continue;
+      if (hypot2(b.goal.x - n.x, b.goal.z - n.z) > 1) continue;
       if (b.goal.sx != null) spots.push({ x: b.goal.sx, z: b.goal.sz });
       else { // the first investigator: where he stands, or will stand on his approach line
-        const a = Math.atan2(o.z - n.z, o.x - n.x), r = Math.min(D.standOff, Math.hypot(o.x - n.x, o.z - n.z));
+        const a = Math.atan2(o.z - n.z, o.x - n.x), r = Math.min(D.standOff, hypot2(o.x - n.x, o.z - n.z));
         spots.push({ x: n.x + Math.cos(a) * r, z: n.z + Math.sin(a) * r });
       }
     }
@@ -1352,7 +1352,7 @@ export class EnemyBrain {
       const a = base + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * DECOY_SLOT_ANGLE;
       const p = { x: n.x + Math.cos(a) * r, z: n.z + Math.sin(a) * r };
       if (g?.walkableAt && !g.walkableAt(p.x, p.z)) continue;
-      if (spots.every((q) => Math.hypot(q.x - p.x, q.z - p.z) >= DECOY_SLOT_GAP)) return p;
+      if (spots.every((q) => hypot2(q.x - p.x, q.z - p.z) >= DECOY_SLOT_GAP)) return p;
     }
     return null;
   }
@@ -1379,7 +1379,7 @@ export class EnemyBrain {
     if (this.phase === 'turn') {
       if (!this.turn) this._decoyGo();
     } else if (this.phase === 'go') {
-      const there = g.sx != null ? Math.hypot(g.sx - e.x, g.sz - e.z) <= 0.3 : this._dist(g) <= D.standOff;
+      const there = g.sx != null ? hypot2(g.sx - e.x, g.sz - e.z) <= 0.3 : this._dist(g) <= D.standOff;
       if (there || !e.isMoving) { e.stop(); this.phase = 'stare'; }
     } else {
       this._look(0);
@@ -1407,7 +1407,7 @@ export class EnemyBrain {
     const e = this.enemy, g = this.goal, F = CONFIG.stealth.footprint, w = this.world;
     if (this.phase === 'go') {
       if (this._dist(g) > 0.7 && e.isMoving) return;
-      g.dist += Math.hypot(e.x - g.from.x, e.z - g.from.z);
+      g.dist += hypot2(e.x - g.from.x, e.z - g.from.z);
       g.from = { x: e.x, z: e.z };
       const next = w.ai.footprints.trailFrom(g.print, F.trailFollow);
       if (next && g.dist < F.trailMax) {
@@ -1478,7 +1478,7 @@ export class EnemyBrain {
     // a route waypoint the planner cannot end on exactly counts as reached where his walk back to it ended (WP_NEAR,
     // as on his beat: _route) — else he stood there re-planning the same walk for ever, never back on his beat
     // (M14 e_g3r, back up on the turret roof after a look at a body: 0.64 m short of the roof's east point)
-    const g = this._homeGoal, near = !!g && g.wp === home && !e.isMoving && Math.hypot(g.x - e.x, g.z - e.z) <= 0.5;
+    const g = this._homeGoal, near = !!g && g.wp === home && !e.isMoving && hypot2(g.x - e.x, g.z - e.z) <= 0.5;
     // home, or beside it when another man stands on it (Unit._avoidPlan stops a walker beside a man on his goal)
     if (this._dist(home) <= 0.5 || near || (!e.isMoving && this._homeTaken(home))) {
       e.stop();
@@ -1495,7 +1495,7 @@ export class EnemyBrain {
       if (!this._go(home.x, home.z, CONFIG.ai.investigate.speed, { fallback: false })) { this._set(this.idleState); this._applyHead(); return; }
       // (only a waypoint of his own beat: a post is where he stands on his spawn, a squad slot moves with its leader)
       const end = e.path?.[e.path.length - 1], onRoute = !!e.route?.includes(home);
-      this._homeGoal = onRoute && end && Math.hypot(end.x - home.x, end.z - home.z) <= WP_NEAR ? { wp: home, x: end.x, z: end.z } : null;
+      this._homeGoal = onRoute && end && hypot2(end.x - home.x, end.z - home.z) <= WP_NEAR ? { wp: home, x: end.x, z: end.z } : null;
     }
   }
 
@@ -1541,7 +1541,7 @@ export class EnemyBrain {
   _post(dt) {
     const e = this.enemy;
     const p = e.post || this._home;
-    if (p && Math.hypot(p.x - e.x, p.z - e.z) > 0.6) return this._set('RETURN');
+    if (p && hypot2(p.x - e.x, p.z - e.z) > 0.6) return this._set('RETURN');
     if (this.noiseTurnT > 0) { this._sweep(true); return; } // sweep re-centred on the noise heading
     // back to his post heading on the spot at the eased body rate, sweeping as he turns
     if (e.post && !this.turn && Math.abs(this._turnLeft(e.post.heading)) > TURN_DONE) this._turnTo(e.post.heading, { head: false });
@@ -1557,8 +1557,8 @@ export class EnemyBrain {
       // (a waypoint the planner cannot end on exactly — a mesh's clearance over it in the real game — counts as
       // reached where his last walk to it ended, up to WP_NEAR m short: else he stood there re-planning the same
       // walk for ever, never halting nor walking on. M8 e24 by the store's SW huts)
-      const g = this._wpGoal, near = g && g.wp === wp && !e.isMoving && Math.hypot(g.x - tk.x, g.z - tk.z) <= 0.3;
-      if (Math.hypot(wp.x - tk.x, wp.z - tk.z) > 0.3 && !near) {
+      const g = this._wpGoal, near = g && g.wp === wp && !e.isMoving && hypot2(g.x - tk.x, g.z - tk.z) <= 0.3;
+      if (hypot2(wp.x - tk.x, wp.z - tk.z) > 0.3 && !near) {
         this._look(0);
         if (!e.isMoving) {
           const v = wp.speed ?? this.routeVel;
@@ -1566,7 +1566,7 @@ export class EnemyBrain {
           if (!e.moveTo(wp.x, wp.z)) this._advanceWaypoint();
           else {
             const end = e.path?.[e.path.length - 1];
-            this._wpGoal = end && Math.hypot(end.x - wp.x, end.z - wp.z) <= WP_NEAR ? { wp, x: end.x, z: end.z } : null;
+            this._wpGoal = end && hypot2(end.x - wp.x, end.z - wp.z) <= WP_NEAR ? { wp, x: end.x, z: end.z } : null;
           }
         }
         return;
@@ -1578,8 +1578,8 @@ export class EnemyBrain {
         this._advanceWaypoint();
         let nx = r[this.routeIndex];
         // a LOOP closes on its first point: skip the duplicate too (still pass-through)
-        for (let k = 0; k < r.length && Math.hypot(nx.x - tk.x, nx.z - tk.z) <= 0.3 && !(nx.wait > 0) && nx.look == null && !nx.event; k++) { this._advanceWaypoint(); nx = r[this.routeIndex]; }
-        if (nx !== wp && Math.hypot(nx.x - tk.x, nx.z - tk.z) > 0.3) {
+        for (let k = 0; k < r.length && hypot2(nx.x - tk.x, nx.z - tk.z) <= 0.3 && !(nx.wait > 0) && nx.look == null && !nx.event; k++) { this._advanceWaypoint(); nx = r[this.routeIndex]; }
+        if (nx !== wp && hypot2(nx.x - tk.x, nx.z - tk.z) > 0.3) {
           e.vel = nx.speed ?? this.routeVel;
           if (e.moveTo(nx.x, nx.z)) return;
         }
@@ -1625,7 +1625,7 @@ export class EnemyBrain {
     const e = this.enemy;
     let best = 0, bd = Infinity;
     e.route.forEach((p, k) => {
-      const d = Math.hypot(p.x - e.x, p.z - e.z);
+      const d = hypot2(p.x - e.x, p.z - e.z);
       if (d < bd) { bd = d; best = k; }
     });
     this.routeIndex = best;
@@ -1714,7 +1714,7 @@ export class EnemyBrain {
     if (this._routeHalt()) {
       if (!sq.halt || sq.halt.x !== e.x || sq.halt.z !== e.z) { // frozen at entry: he turns to `look` while he waits
         const dir = trailDir(tr, e), nx = this._nextWaypoint();
-        const nl = nx ? Math.hypot(nx.x - e.x, nx.z - e.z) : 0;
+        const nl = nx ? hypot2(nx.x - e.x, nx.z - e.z) : 0;
         const next = nl > 0.5 ? { x: (nx.x - e.x) / nl, z: (nx.z - e.z) / nl } : null;
         const turn = next ? dir.x * next.x + dir.z * next.z : 1; // cos of the turn onto the next leg
         sq.halt = { x: e.x, z: e.z, dir, next, turn };
@@ -1725,10 +1725,10 @@ export class EnemyBrain {
       return;
     }
     sq.halt = null;
-    if (!tr.length || Math.hypot(tr[0].x - e.x, tr[0].z - e.z) >= 0.3) {
+    if (!tr.length || hypot2(tr[0].x - e.x, tr[0].z - e.z) >= 0.3) {
       if (tr.length >= 2) { // an about turn without a halt (> 120°): the old leg is behind the followers, not the leader
         const a = trailDir(tr.slice(1), tr[0]), bx = e.x - tr[0].x, bz = e.z - tr[0].z;
-        if (a.x * bx + a.z * bz < -0.5 * Math.hypot(bx, bz)) { tr.length = 1; sq.flip = !sq.flip; }
+        if (a.x * bx + a.z * bz < -0.5 * hypot2(bx, bz)) { tr.length = 1; sq.flip = !sq.flip; }
       }
       tr.unshift({ x: e.x, z: e.z });
       if (tr.length > 80) tr.length = 80;
@@ -1743,7 +1743,7 @@ export class EnemyBrain {
     // nor through a solid the grid does not hold (a vehicle hull, a wreck, a crate: body-clearance.js) — those he
     // paths round (Unit._planPath); steering straight walked a file into a passing half-track's way (M11)
     if (!hasObstacles(w) || (e.y || 0) > 1) return true;
-    const dx = p.x - e.x, dz = p.z - e.z, d = Math.hypot(dx, dz), h = Math.atan2(dz, dx), n = Math.ceil(d / 0.5), ign = e._bodyIgnore?.() ?? null;
+    const dx = p.x - e.x, dz = p.z - e.z, d = hypot2(dx, dz), h = Math.atan2(dz, dx), n = Math.ceil(d / 0.5), ign = e._bodyIgnore?.() ?? null;
     for (let k = 1; k <= n; k++) if (bodyGap(w, e.x + (dx * k) / n, e.z + (dz * k) / n, h, e.stance, ign) < MOVE_MARGIN) return false;
     return true;
   }
@@ -1785,7 +1785,7 @@ export class EnemyBrain {
     const trail = sq.trail;
     for (let i = 0; i < trail.length; i++) {
       const p = trail[i];
-      const seg = Math.hypot(p.x - prevX, p.z - prevZ);
+      const seg = hypot2(p.x - prevX, p.z - prevZ);
       if (acc + seg >= want) { const f = seg > 0 ? (want - acc) / seg : 0; pt = { x: prevX + (p.x - prevX) * f, z: prevZ + (p.z - prevZ) * f }; break; }
       acc += seg;
       prevX = p.x; prevZ = p.z;
@@ -1793,13 +1793,13 @@ export class EnemyBrain {
     // trail shorter than the slot (fresh leg after a halt): fall in diagonally, `want` short of the leader on the
     // straight line from this man (no detour back to the halt point, never ahead of the leader)
     if (!pt && sq.trail.length) {
-      const dx = lead.x - e.x, dz = lead.z - e.z, dl = Math.hypot(dx, dz) || 1;
+      const dx = lead.x - e.x, dz = lead.z - e.z, dl = hypot2(dx, dz) || 1;
       // still ahead of a leader walking off past him (an about turn): hold until he has gone by
       // (his walk, not his still turning body; setting off, the way his path goes — a follower must not step off
       // towards a leader about to walk past him, then stop again)
-      let lvx = lead.vx || 0, lvz = lead.vz || 0, ls = Math.hypot(lvx, lvz);
+      let lvx = lead.vx || 0, lvz = lead.vz || 0, ls = hypot2(lvx, lvz);
       const lw = ls <= 0.1 && lead.path ? lead.path[lead.pathIndex] : null;
-      if (lw) { lvx = lw.x - lead.x; lvz = lw.z - lead.z; ls = Math.hypot(lvx, lvz); if (ls < 0.3) ls = 0; }
+      if (lw) { lvx = lw.x - lead.x; lvz = lw.z - lead.z; ls = hypot2(lvx, lvz); if (ls < 0.3) ls = 0; }
       if (ls > 0.1 && -(dx * lvx + dz * lvz) / ls > -0.6) pt = { x: e.x, z: e.z, hold: true };
       else pt = { x: lead.x - (dx / dl) * want, z: lead.z - (dz / dl) * want };
     }
@@ -1862,7 +1862,7 @@ export class EnemyBrain {
    */
   _makeWay(lead) {
     const e = this.enemy, g = this.world.grid;
-    const sp = Math.hypot(lead.vx || 0, lead.vz || 0);
+    const sp = hypot2(lead.vx || 0, lead.vz || 0);
     if (sp < 0.1) return null;
     const fx = lead.vx / sp, fz = lead.vz / sp, rx = e.x - lead.x, rz = e.z - lead.z;
     const along = rx * fx + rz * fz, lat = -rx * fz + rz * fx;
@@ -1888,18 +1888,18 @@ export class EnemyBrain {
     // making way for the leader walking by: a sidestep once begun is walked to its end (an aborted one is a shuffle)
     let way = this._makeWay(lead);
     if (way) this._wayPt = { x: way.x, z: way.z, t: 1.2 };
-    else if (this._wayPt && (this._wayPt.t -= dt) > 0 && Math.hypot(this._wayPt.x - this.enemy.x, this._wayPt.z - this.enemy.z) > CONFIG.ai.squadFollow.stop) way = this._wayPt;
+    else if (this._wayPt && (this._wayPt.t -= dt) > 0 && hypot2(this._wayPt.x - this.enemy.x, this._wayPt.z - this.enemy.z) > CONFIG.ai.squadFollow.stop) way = this._wayPt;
     else this._wayPt = null;
     const halted = !!way || (!!lb?._routeHalt?.() && !lead.isMoving);
     const pt = way || (halted && this._besidePoint(lead)) || this._followPoint(lead);
     if (!pt) return;
     const F = CONFIG.ai.squadFollow;
-    const d = Math.hypot(pt.x - e.x, pt.z - e.z);
+    const d = hypot2(pt.x - e.x, pt.z - e.z);
     const base = lead.isMoving ? lead.speed : 0;
     // catching up: half again a walking pace, a quarter more than a running leader (a soldier, not a sprinter)
     const walk = velToSpeed(this.routeVel), top = Math.max(walk * F.catchUp, base * (base > walk * 1.2 ? 1.25 : F.catchUp));
     // signed slot error along the line to the leader: ahead of his slot he eases off instead of turning back
-    const dl = Math.hypot(lead.x - e.x, lead.z - e.z);
+    const dl = hypot2(lead.x - e.x, lead.z - e.z);
     const err = !halted && dl > 1e-6 ? ((pt.x - e.x) * (lead.x - e.x) + (pt.z - e.z) * (lead.z - e.z)) / dl : d;
     const x = Math.max(0, Math.abs(err) - F.arrive);
     // his real pace last tick caps the controller's memory (he may have reached his slot and stood since)
@@ -1919,8 +1919,8 @@ export class EnemyBrain {
       // (the mates ahead of him in _mates(lead) order — the first k of them — walked in place: no array, no closure)
       const k = this._mateIndex(lead), n = this._matesN, sq = this.world.ai.squads.get(e.squad.id), L = squadList(sq);
       // only men in front of him on his way (one beside him is the avoidance lane's business)
-      const ux = pt.x - e.x, uz = pt.z - e.z, ul = Math.hypot(ux, uz) || 1;
-      let gap = ((lead.x - e.x) * ux + (lead.z - e.z) * uz) / ul > 0.3 ? Math.hypot(lead.x - e.x, lead.z - e.z) : Infinity;
+      const ux = pt.x - e.x, uz = pt.z - e.z, ul = hypot2(ux, uz) || 1;
+      let gap = ((lead.x - e.x) * ux + (lead.z - e.z) * uz) / ul > 0.3 ? hypot2(lead.x - e.x, lead.z - e.z) : Infinity;
       if (k > 0) {
         // mates[j] for j < k: in list order unflipped, from the far end flipped (mates = the filtered list, reversed)
         let idx = 0;
@@ -1930,7 +1930,7 @@ export class EnemyBrain {
           const j = sq.flip ? n - 1 - idx : idx;
           idx++;
           if (j >= k) continue;
-          if (((m.x - e.x) * ux + (m.z - e.z) * uz) / ul > 0.3) gap = Math.min(gap, Math.hypot(m.x - e.x, m.z - e.z));
+          if (((m.x - e.x) * ux + (m.z - e.z) * uz) / ul > 0.3) gap = Math.min(gap, hypot2(m.x - e.x, m.z - e.z));
         }
       }
       // standing behind a mate he waits for a real gap (minGap + gapHyst) before he steps off: a file moving off
@@ -1954,7 +1954,7 @@ export class EnemyBrain {
       e.vel = v / CONFIG.ai.velMul;
       this._repathT -= dt;
       // pure pursuit: aim a little further up the trail than the slot (rounded corners, smooth merge after a halt)
-      const mv = Math.hypot(e.vx || 0, e.vz || 0), bd = (v * v) / (2 * F.decel) + 0.05; // braking to a hold: on his way, a stop's length
+      const mv = hypot2(e.vx || 0, e.vz || 0), bd = (v * v) / (2 * F.decel) + 0.05; // braking to a hold: on his way, a stop's length
       const aim = pt.hold && mv > 0.05 ? { x: e.x + (e.vx / mv) * bd, z: e.z + (e.vz / mv) * bd } : halted || pt.hold ? pt : this._followPoint(lead, F.lookahead) || pt;
       if (this._steerable(aim)) e.steerTo(aim.x, aim.z);
       // (no straight line: a path to the aim point, renewed before its end while the slot moves on — arriving on a
@@ -1975,7 +1975,7 @@ export class EnemyBrain {
     if (!h || !h.alive) return this._post(dt);
     const bx = h.x - Math.cos(h.heading) * 1.5, bz = h.z - Math.sin(h.heading) * 1.5;
     this._repathT -= dt;
-    const d = Math.hypot(bx - e.x, bz - e.z);
+    const d = hypot2(bx - e.x, bz - e.z);
     if (d > 0.6 && this._repathT <= 0) { this._repathT = 0.3; e.vel = (h.vel || this.routeVel) * (d > 3 ? 2 : 1.2); e.moveTo(bx, bz); }
     if (!e.isMoving && !this.turn) e.turnToHeading(h.heading, dt);
     this._sweep(true);
@@ -2065,7 +2065,7 @@ export class EnemyBrain {
     }
     if (!e.isMoving) { this._stuckRef = null; return; }
     const r = this._stuckRef || (this._stuckRef = { x: e.x, z: e.z, t: 0 });
-    if (Math.hypot(e.x - r.x, e.z - r.z) >= P.minMove) { r.x = e.x; r.z = e.z; r.t = 0; return; }
+    if (hypot2(e.x - r.x, e.z - r.z) >= P.minMove) { r.x = e.x; r.z = e.z; r.t = 0; return; }
     r.t += dt;
     if (r.t < P.stuck) return;
     const w = this.world, a = w.rng.next() * Math.PI * 2;
@@ -2089,7 +2089,7 @@ export class EnemyBrain {
     // the first loop waypoint is the exit at 2.7 m/s; the loop proper then starts on that same waypoint.
     // (4 m = the door's nearestWalkable snap radius in alarm._barracksDoor.)
     const end = exit.at(-1) ?? e;
-    if (pts.length && loop.length && Math.hypot(end.x - e.x, end.z - e.z) <= 4) exit.push({ x: pts[0].x, z: pts[0].z, wait: 0, speed: vExit });
+    if (pts.length && loop.length && hypot2(end.x - e.x, end.z - e.z) <= 4) exit.push({ x: pts[0].x, z: pts[0].z, wait: 0, speed: vExit });
     e.route = [...exit, ...pts];
     e.routeMode = 'loop';
     this._loopStart = exit.length;

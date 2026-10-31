@@ -18,6 +18,8 @@
  * @module world/body-clearance
  */
 
+import { hypot2 } from '../core/math.js';
+
 /**
  * Body shapes (m). `front`/`back`: capsule extent ahead / behind the unit position, `r`: capsule radius; `arms`: a
  * second capsule across the body, `at` m behind the unit position, reaching `half` m to each side.
@@ -81,16 +83,16 @@ export function hullRect(v, x = v.x, z = v.z, h = v.heading) {
 
 /** Signed distance from a point to an oriented rect or a disc {x, z, r} (negative inside). */
 export function rectSDF(px, pz, R) {
-  if (R.r != null) return Math.hypot(px - R.x, pz - R.z) - R.r;
+  if (R.r != null) return hypot2(px - R.x, pz - R.z) - R.r;
   const c = Math.cos(R.h), s = Math.sin(R.h), dx = px - R.x, dz = pz - R.z;
   const a = Math.abs(dx * c + dz * s) - R.hl, b = Math.abs(-dx * s + dz * c) - R.hw;
-  return Math.hypot(Math.max(a, 0), Math.max(b, 0)) + Math.min(Math.max(a, b), 0);
+  return hypot2(Math.max(a, 0), Math.max(b, 0)) + Math.min(Math.max(a, b), 0);
 }
 
 function segPointDist(ax, az, bx, bz, px, pz) {
   const ux = bx - ax, uz = bz - az, L2 = ux * ux + uz * uz;
   const t = L2 > 1e-12 ? Math.max(0, Math.min(1, ((px - ax) * ux + (pz - az) * uz) / L2)) : 0;
-  return Math.hypot(ax + ux * t - px, az + uz * t - pz);
+  return hypot2(ax + ux * t - px, az + uz * t - pz);
 }
 
 /**
@@ -99,7 +101,7 @@ function segPointDist(ax, az, bx, bz, px, pz) {
  */
 export function capsuleRectGap(C, R) {
   if (R.r != null) return segPointDist(C.ax, C.az, C.bx, C.bz, R.x, R.z) - R.r - C.r;
-  const len = Math.hypot(C.bx - C.ax, C.bz - C.az);
+  const len = hypot2(C.bx - C.ax, C.bz - C.az);
   const n = Math.max(1, Math.ceil(len / 0.05));
   let d = Infinity;
   for (let k = 0; k <= n; k++) {
@@ -118,7 +120,7 @@ export function capsuleRectGap(C, R) {
 
 /** Bounding radius of an obstacle about its centre. */
 function obsRadius(R) {
-  return R.r != null ? R.r : Math.hypot(R.hl, R.hw);
+  return R.r != null ? R.r : hypot2(R.hl, R.hw);
 }
 
 /** Is this vehicle a solid hull men can't lie or stand under (land vehicles, visible trains, their wrecks)? */
@@ -171,13 +173,13 @@ export function dynamicObstacles(world, ignore = null, near = null) {
   return dynamicInto(world, ignore, !!near, near ? near.x : 0, near ? near.z : 0, near ? near.reach : 0, null) || [];
 }
 
-/** Math.hypot(dx, dz) > lim, the squared distance deciding every case not within 1e-9 of the edge (those: the exact
+/** hypot2(dx, dz) > lim, the squared distance deciding every case not within 1e-9 of the edge (those: the exact
  *  hypot test) — the same answer, without a hypot per obstacle per query (as staticInto). */
 function beyond(dx, dz, lim) {
   const d2 = dx * dx + dz * dz, l2 = lim * lim;
   if (d2 > l2 * (1 + 1e-9) + 1e-12) return true;
   if (d2 < l2 * (1 - 1e-9)) return false;
-  return Math.hypot(dx, dz) > lim;
+  return hypot2(dx, dz) > lim;
 }
 
 /** dynamicObstacles pushed onto `out` (null: an array made at the first one; null back when none) — the same shapes
@@ -191,7 +193,7 @@ function dynamicInto(world, ignore, hasNear, nx, nz, reach, out) {
       if (!isSolidHull(v) || v === ignore || (ignArr && ignore.includes(v))) continue;
       if (hasNear) {
         const d = v.model?.dims;
-        if (beyond(v.x - nx, v.z - nz, Math.hypot(Math.max(v.def.size[0], d?.l || 0), Math.max(v.def.size[1], d?.w || 0)) / 2 + reach)) continue;
+        if (beyond(v.x - nx, v.z - nz, hypot2(Math.max(v.def.size[0], d?.l || 0), Math.max(v.def.size[1], d?.w || 0)) / 2 + reach)) continue;
       }
       const R = hullRect(v); R.src = v; (out ||= []).push(R);
     }
@@ -200,7 +202,7 @@ function dynamicInto(world, ignore, hasNear, nx, nz, reach, out) {
   for (let i = 0; i < ms.length; i++) {
     const it = ms[i];
     if (it === ignore || (ignArr && ignore.includes(it))) continue;
-    if (hasNear && beyond(it.x - nx, it.z - nz, (it.size ? Math.hypot(it.size[0], it.size[1]) / 2 : DRUM_R) + reach)) continue;
+    if (hasNear && beyond(it.x - nx, it.z - nz, (it.size ? hypot2(it.size[0], it.size[1]) / 2 : DRUM_R) + reach)) continue;
     const R = moverShape(it);
     if (R) (out ||= []).push(R);
   }
@@ -266,7 +268,7 @@ function staticInto(world, x, z, reach, out) {
         if (o.rad === undefined || o.rr !== R.r || o.rhl !== R.hl || o.rhw !== R.hw) { o.rad = obsRadius(R); o.rr = R.r; o.rhl = R.hl; o.rhw = R.hw; } // (its radius, kept while its shape is)
         const dx = x - R.x, dz = z - R.z, d2 = dx * dx + dz * dz, lim = o.rad + reach, l2 = lim * lim;
         if (d2 > l2 * (1 + 1e-9) + 1e-12) continue;
-        if (!(d2 < l2 * (1 - 1e-9)) && Math.hypot(dx, dz) > lim) continue;
+        if (!(d2 < l2 * (1 - 1e-9)) && hypot2(dx, dz) > lim) continue;
         (out ||= []).push(o.R);
       }
     }
@@ -312,7 +314,7 @@ function bodyReachOf(stance) {
 /** How far (m) any part of a body in this stance reaches from the unit position. */
 export function bodyReach(stance) {
   const S = bodyShape(stance);
-  return Math.max(S.front, S.back, S.arms ? Math.hypot(S.arms.at, S.arms.half) : 0, CRAWL_LIMBS.has(stance) ? LIMB_REACH : 0);
+  return Math.max(S.front, S.back, S.arms ? hypot2(S.arms.at, S.arms.half) : 0, CRAWL_LIMBS.has(stance) ? LIMB_REACH : 0);
 }
 
 /** The whole body at this pose: capsule, flung-out arms (a corpse on his back), a crawler's limb discs. */
@@ -327,7 +329,7 @@ function bodyParts(x, z, heading, stance) {
 
 function partsGap(B, R) {
   let g = Math.min(capsuleRectGap(B.C, R), B.A ? capsuleRectGap(B.A, R) : Infinity);
-  for (const [px, pz, r] of B.limbs) g = Math.min(g, (R.r != null ? Math.hypot(px - R.x, pz - R.z) - R.r : rectSDF(px, pz, R)) - r);
+  for (const [px, pz, r] of B.limbs) g = Math.min(g, (R.r != null ? hypot2(px - R.x, pz - R.z) - R.r : rectSDF(px, pz, R)) - r);
   return g;
 }
 
@@ -349,7 +351,7 @@ const CRAWL_LIMBS = new Set(['crawl', 'downed']);
  * drawn-up knee 0.64 m to his side just behind the hips, the toes of the straight leg up to 1.07 m behind, 0.37 m out.
  */
 export const LIMBS = [[-0.15, 0.5, 0.17], [-0.15, -0.5, 0.17], [-0.95, 0.3, 0.17], [-0.95, -0.3, 0.17]];
-const LIMB_REACH = Math.max(...LIMBS.map(([a, l, r]) => Math.hypot(a, l) + r));
+const LIMB_REACH = Math.max(...LIMBS.map(([a, l, r]) => hypot2(a, l) + r));
 
 /** Gap of a unit's current body (its stance and heading). */
 export function unitGap(u, world = u.world) {
@@ -377,12 +379,12 @@ function stampObstacle(g, mask, R, pad) {
     for (let i = Math.max(0, c0.i); i <= Math.min(cols - 1, c1.i); i++) {
       const k = j * cols + i, px = (i + 0.5) * cell, pz = (j + 0.5) * cell;
       let inside;
-      if (disc) inside = !beyond(px - R.x, pz - R.z, pad + R.r) && Math.hypot(px - R.x, pz - R.z) - R.r < pad;
+      if (disc) inside = !beyond(px - R.x, pz - R.z, pad + R.r) && hypot2(px - R.x, pz - R.z) - R.r < pad;
       else {
         const dx = px - R.x, dz = pz - R.z;
         const a = Math.abs(dx * c + dz * s) - R.hl, b = Math.abs(-dx * s + dz * c) - R.hw;
         const ma = Math.max(a, 0), mb = Math.max(b, 0), m2 = Math.min(Math.max(a, b), 0);
-        inside = !beyond(ma, mb, pad - m2) && Math.hypot(ma, mb) + m2 < pad;
+        inside = !beyond(ma, mb, pad - m2) && hypot2(ma, mb) + m2 < pad;
       }
       if (inside && !(elev?.[k] >= over)) mask[k] = 1;
     }

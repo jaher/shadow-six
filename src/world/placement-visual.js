@@ -90,6 +90,16 @@ const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3
 /** Raster work (≈ samples) between two looks at the slice clock (engine/slice.js due()): never inside a triangle. */
 const WORK_CHECK = 4096;
 
+// The rasters below sample a triangle every 0.4-0.5 cell: each cell is hit by several samples. A sample's cell is kept
+// under a small integer key (both indices within ±CELL_OFF; "i,j" otherwise) and turned into the "i,j" the results
+// keep once per cell, after the raster (a template string and its hash for every sample were most of M18's load
+// stamps: ~3 s). Same cells, same values, same first-seen order.
+const CELL_OFF = 1 << 13, CELL_MUL = 1 << 14;
+/** A raster cell's key: a small integer (a Smi) for |i|, |j| < CELL_OFF, else the "i,j" string itself. */
+export const cellKey = (i, j) => (i > -CELL_OFF && i < CELL_OFF && j > -CELL_OFF && j < CELL_OFF ? (i + CELL_OFF) * CELL_MUL + (j + CELL_OFF) : `${i},${j}`);
+/** cellKey's "i,j" (a -0 index reads "0", as in a template string). */
+export const cellStr = (k) => (typeof k === 'number' ? `${Math.floor(k / CELL_MUL) - CELL_OFF},${(k % CELL_MUL) - CELL_OFF}` : k);
+
 /**
  * Occupancy of a structure's render triangles within a height band, rasterized at `cell` m and merged into row
  * rectangles (non-convex: a barn's ramp, an L-shaped house, stairs and snow skirts keep their real outline).
@@ -115,7 +125,7 @@ function* planCellsRaw(root, o = {}) {
   const toWorld = ([lx, lz]) => [ox + lx * c + lz * s, oz - lx * s + lz * c];
   const mark = (x, z) => {
     const dx = x - ox, dz = z - oz, lx = dx * c - dz * s, lz = dx * s + dz * c, j = Math.floor(lz / cell);
-    cells.add(`${Math.floor(lx / cell)},${j}`);
+    cells.add(cellKey(Math.floor(lx / cell), j));
     if (o.fit) { rowLo.set(j, Math.min(rowLo.get(j) ?? Infinity, lx)); rowHi.set(j, Math.max(rowHi.get(j) ?? -Infinity, lx)); }
   };
   // (`snow`: a snow triangle, whose part below `wade` is waded through: no occupancy). A big triangle (up to 80k
@@ -160,7 +170,10 @@ function* planCellsRaw(root, o = {}) {
   };
   yield* visit(root);
   if (!cells.size) return null;
-  const filled = o.close === 0 ? cells : yield* closeCellsG(cells, o.close ?? 3);
+  const keys = new Set();
+  let nc = 0;
+  for (const k of cells) { keys.add(cellStr(k)); if ((++nc & 4095) === 0 && due()) yield; }
+  const filled = o.close === 0 ? keys : yield* closeCellsG(keys, o.close ?? 3);
   // merge each row's runs of cells into rectangles
   const rows = new Map();
   let nk = 0;
@@ -198,9 +211,14 @@ function* overheadCellsRaw(root, o = {}, into = new Map()) {
   const TA = new THREE.Vector3(), TB = new THREE.Vector3(), TC = new THREE.Vector3();
   let work = 0;
   root.updateMatrixWorld(true);
+  // (sampled into `acc` under cellKey — a cell `into` already holds keeps its own [lo, hi], updated in place — and the
+  // new cells added to `into` as "i,j" after the raster: cellKey above)
+  const acc = new Map(), seed = into.size > 0;
   const put = (x, z, y) => {
-    const k = `${Math.floor(x / cell)},${Math.floor(z / cell)}`, p = into.get(k);
-    if (!p) into.set(k, [y, y]); else { if (y < p[0]) p[0] = y; if (y > p[1]) p[1] = y; }
+    const k = cellKey(Math.floor(x / cell), Math.floor(z / cell));
+    let p = acc.get(k);
+    if (!p && seed) { p = into.get(cellStr(k)); if (p) acc.set(k, p); }
+    if (!p) acc.set(k, [y, y]); else { if (y < p[0]) p[0] = y; if (y > p[1]) p[1] = y; }
   };
   const visit = function* visit(nd) {
     if (nd.userData?.clip === false || (!nd.visible && !/^lod\d$/.test(nd.name))) return;
@@ -233,6 +251,8 @@ function* overheadCellsRaw(root, o = {}, into = new Map()) {
     for (const c of nd.children) yield* visit(c);
   };
   yield* visit(root);
+  let nc = 0;
+  for (const [k, q] of acc) { const ks = cellStr(k); if (!into.has(ks)) into.set(ks, q); if ((++nc & 4095) === 0 && due()) yield; }
   return into;
 }
 
@@ -277,7 +297,7 @@ function* standingCellsRaw(root, surf, o = {}, into = new Set()) {
             const x = a.x * u + b.x * v + c.x * w, z = a.z * u + b.z * v + c.z * w, y = a.y * u + b.y * v + c.y * w;
             if (y < sl) continue;
             const r = y - surf(x, z);
-            if (r >= lo && r <= hi) into.add(`${Math.floor(x / cell)},${Math.floor(z / cell)}`);
+            if (r >= lo && r <= hi) acc.add(cellKey(Math.floor(x / cell), Math.floor(z / cell)));
           }
           if (n > 64 && (i & 7) === 7 && due()) yield;
         }
@@ -285,7 +305,11 @@ function* standingCellsRaw(root, surf, o = {}, into = new Set()) {
     }
     for (const c of nd.children) yield* visit(c);
   };
+  // (sampled into `acc` under cellKey, added to `into` as "i,j" after the raster: cellKey above)
+  const acc = new Set();
   yield* visit(root);
+  let nc = 0;
+  for (const k of acc) { into.add(cellStr(k)); if ((++nc & 4095) === 0 && due()) yield; }
   return into;
 }
 
@@ -483,7 +507,15 @@ function* lowSurfacesRaw(root, o = {}, into = new Map()) {
   const TA = new THREE.Vector3(), TB = new THREE.Vector3(), TC = new THREE.Vector3();
   let work = 0;
   root.updateMatrixWorld(true);
-  const put = (x, z, y) => { const k = `${Math.floor(x / cell)},${Math.floor(z / cell)}`; const p = into.get(k); if (p === undefined || y > p) into.set(k, y); };
+  // (sampled into `acc` under cellKey — seeded from `into` the first time a cell comes up, when `into` holds any —
+  // and written back as "i,j" after the raster: cellKey above)
+  const acc = new Map(), seed = into.size > 0;
+  const put = (x, z, y) => {
+    const k = cellKey(Math.floor(x / cell), Math.floor(z / cell));
+    let p = acc.get(k);
+    if (p === undefined && seed && !acc.has(k)) { p = into.get(cellStr(k)); acc.set(k, p); }
+    if (p === undefined || y > p) acc.set(k, y);
+  };
   const visit = function* visit(nd) {
     if (nd.userData?.clip === false || nd.userData?.surface === false || (!nd.visible && !/^lod\d$/.test(nd.name))) return;
     if (/^lod[12]$/.test(nd.name)) {
@@ -519,6 +551,8 @@ function* lowSurfacesRaw(root, o = {}, into = new Map()) {
     for (const ch of nd.children) yield* visit(ch);
   };
   yield* visit(root);
+  let nc = 0;
+  for (const [k, v] of acc) { if (v !== undefined) into.set(cellStr(k), v); if ((++nc & 4095) === 0 && due()) yield; }
   return into;
 }
 

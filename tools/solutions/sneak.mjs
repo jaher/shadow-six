@@ -22,6 +22,7 @@ import { T } from '../../src/world/grid.js';
 import { viewerFor } from '../../src/ai/vehicle-ai.js';
 import { goalReachableGen, seesAnyHeads } from './driver.mjs';
 import { compileDashGen, routeFor } from './dash.mjs';
+import { hypot2 } from '../../src/core/math.js';
 
 /** A dash compile run the sliced way when the driver can (D.runSliced: the live replay keeps its frames), else through. */
 function runDash(D, it) {
@@ -100,7 +101,7 @@ export function predictVehicle(v, t) {
     }
   }
   for (const p of queue) {
-    const dx = p.x - x, dz = p.z - z, L = Math.hypot(dx, dz);
+    const dx = p.x - x, dz = p.z - z, L = hypot2(dx, dz);
     if (L > 1e-3) {
       const want = Math.atan2(dz, dx), dh = Math.atan2(Math.sin(want - h), Math.cos(want - h));
       const tt = Math.abs(dh) > 0.35 ? Math.abs(dh) / rate : 0;
@@ -118,7 +119,7 @@ export function predictVehicle(v, t) {
 /** Metres left on a walking unit's current path. */
 function pathLeft(u) {
   let L = 0, x = u.x, z = u.z;
-  for (const p of u.path ? u.path.slice(u.pathIndex ?? 0) : []) { L += Math.hypot(p.x - x, p.z - z); x = p.x; z = p.z; }
+  for (const p of u.path ? u.path.slice(u.pathIndex ?? 0) : []) { L += hypot2(p.x - x, p.z - z); x = p.x; z = p.z; }
   return L;
 }
 
@@ -127,7 +128,7 @@ function alongPath(u, dist, stopAtEnd = false) {
   let x = u.x, z = u.z, h = u.heading;
   const pts = u.path ? u.path.slice(u.pathIndex ?? 0) : [];
   for (const p of pts) {
-    const dx = p.x - x, dz = p.z - z, L = Math.hypot(dx, dz);
+    const dx = p.x - x, dz = p.z - z, L = hypot2(dx, dz);
     if (L < 1e-6) continue;
     h = Math.atan2(dz, dx);
     if (dist <= L) return { x: x + (dx / L) * dist, z: z + (dz / L) * dist, heading: h };
@@ -161,7 +162,7 @@ function trailPoint(e, lead, t) {
   const q = leadAt(lead, t);
   let acc = 0, prev = q;
   const hit = (p) => {
-    const seg = Math.hypot(p.x - prev.x, p.z - prev.z);
+    const seg = hypot2(p.x - prev.x, p.z - prev.z);
     if (acc + seg < want) { acc += seg; prev = p; return null; }
     const f = seg > 0 ? (want - acc) / seg : 0;
     return { x: prev.x + (p.x - prev.x) * f, z: prev.z + (p.z - prev.z) * f, heading: seg > 1e-6 ? Math.atan2(prev.z - p.z, prev.x - p.x) : q.heading, halt: q.halt };
@@ -202,7 +203,7 @@ function legWay(e, from, i) {
   const r = e.route, wp = r[i], w = e.world;
   if (from == null) {
     const P = e.path, end = P?.[P.length - 1];
-    if (!P || !end || Math.hypot(end.x - wp.x, end.z - wp.z) > 1.2) return null;
+    if (!P || !end || hypot2(end.x - wp.x, end.z - wp.z) > 1.2) return null;
     return P.slice(e.pathIndex ?? 0).map((p) => [p.x, p.z]);
   }
   const ver = w.grid?.version ?? 0;
@@ -241,7 +242,7 @@ export function predict(e, t, depth = 0) {
     if (q) return q;
   }
   if (lead && lead !== e && lead.alive && b.state !== 'DISTRACTED' && b.state === lead.brain?.state) {
-    const lag = Math.hypot(e.x - lead.x, e.z - lead.z) / (lead.speed ?? 1.0);
+    const lag = hypot2(e.x - lead.x, e.z - lead.z) / (lead.speed ?? 1.0);
     const q = predict(lead, t, 1), ql = t > lag ? predict(lead, t - lag, 1) : { heading: e.heading };
     // (`w.sneakFileHalt`, opt-in) a file man walking behind his walking leader looks ahead as the leader does (only at
     // a halt does his head sweep: walkerViews' amplitude follows the leader's halt flag, not the man's own sweep)
@@ -260,7 +261,7 @@ export function predict(e, t, depth = 0) {
   // sent to a blast) follows that path, at his pace (running), and stops at its end
   if (onRoute && e.world?.sneakReturnOn && b.state !== 'RETURN' && (e.isMoving || e.path) && e.path?.length) {
     const end = e.path[e.path.length - 1], wp = r[b.routeIndex ?? 0];
-    if (wp && Math.hypot(end.x - wp.x, end.z - wp.z) > 2) return alongPath(e, sp * t, true);
+    if (wp && hypot2(end.x - wp.x, end.z - wp.z) > 2) return alongPath(e, sp * t, true);
   }
   // walking back to his beat (RETURN) he follows his path to it first; then (`w.sneakReturnOn`) on along his beat
   let t0 = 0, p0 = null;
@@ -290,7 +291,7 @@ export function predict(e, t, depth = 0) {
   // from point to point: round the corners the game's nav makes him take (its mesh clearances in the browser)
   const paths = !!e.world?.sneakPaths;
   // (and halts where he was last seen halting at that point: the game's own planner may stop him a little short of it)
-  if (paths && b.atWait && Math.hypot(e.x - r[b.routeIndex ?? 0].x, e.z - r[b.routeIndex ?? 0].z) < 1.5) { let hs = sideOf(HALTS, e); if (hs == null) HALTS.set(e, (hs = {})); hs[b.routeIndex ?? 0] = [e.x, e.z]; }
+  if (paths && b.atWait && hypot2(e.x - r[b.routeIndex ?? 0].x, e.z - r[b.routeIndex ?? 0].z) < 1.5) { let hs = sideOf(HALTS, e); if (hs == null) HALTS.set(e, (hs = {})); hs[b.routeIndex ?? 0] = [e.x, e.z]; }
   let prev = null;
   for (let guard = 0; guard < 64; guard++) {
     const wp = r[i];
@@ -298,7 +299,7 @@ export function predict(e, t, depth = 0) {
     if (pts) {
       let h0 = h, tLeg = 0;
       for (const [px, pz] of pts) {
-        const dx = px - x, dz = pz - z, L = Math.hypot(dx, dz);
+        const dx = px - x, dz = pz - z, L = hypot2(dx, dz);
         if (L <= 1e-6) continue;
         const hp = h; h = Math.atan2(dz, dx);
         if (tLeg > 0) h0 = hp; // (at a corner of the way he turns from the last stretch's heading)
@@ -306,9 +307,9 @@ export function predict(e, t, depth = 0) {
         left -= L / sp; tLeg += L / sp; x = px; z = pz;
       }
       const hs = sideOf(HALTS, e)?.[i];
-      if (hs && Math.hypot(hs[0] - x, hs[1] - z) < 1.5) { x = hs[0]; z = hs[1]; }
+      if (hs && hypot2(hs[0] - x, hs[1] - z) < 1.5) { x = hs[0]; z = hs[1]; }
     } else {
-      const dx = wp.x - x, dz = wp.z - z, L = Math.hypot(dx, dz);
+      const dx = wp.x - x, dz = wp.z - z, L = hypot2(dx, dz);
       if (L > 1e-6) {
         // (setting off on a leg he turns to it at his body's rate: `turnFrom`, `turnT` s into the leg — walkerSees)
         const h0 = h;
@@ -336,7 +337,7 @@ export function predict(e, t, depth = 0) {
 function cryHeadings(q, w, tAbs) {
   const out = [];
   for (const c of w.sneakCries || []) {
-    if (tAbs < c.t || Math.hypot(q.x - c.x, q.z - c.z) > c.r) continue;
+    if (tAbs < c.t || hypot2(q.x - c.x, q.z - c.z) > c.r) continue;
     const to = Math.atan2(c.z - q.z, c.x - q.x), d = Math.atan2(Math.sin(to - q.heading), Math.cos(to - q.heading)), ad = Math.abs(d);
     for (const sg of ad > Math.PI - 0.3 ? [1, -1] : [Math.sign(d) || 1]) {
       const full = Math.sign(d) === sg ? ad : 2 * Math.PI - ad;
@@ -506,7 +507,7 @@ export function postHeadings(e) {
   // (opt-in `w.sneakLures`: a post turned to a decoy still pulsing within his hearing keeps facing it — each pulse
   // holds him round for another 8 s; he turns back only once it stops)
   if (e.world?.sneakLures && e.brain?.noiseTurnT > 0 && !e.brain?.turn
-    && e.world.interactables?.some((d) => d.interactKind === 'decoy' && d.on && !d.removed && Math.hypot(d.x - e.x, d.z - e.z) <= 13.5)) return [e.heading];
+    && e.world.interactables?.some((d) => d.interactKind === 'decoy' && d.on && !d.removed && hypot2(d.x - e.x, d.z - e.z) <= 13.5)) return [e.heading];
   const tg = e.brain?.turn ? e.brain._turnGoal?.() : null;
   const off = Math.abs(Math.atan2(Math.sin(e.heading - ph), Math.cos(e.heading - ph)));
   if (tg == null && !(e.brain?.noiseTurnT > 0) && off <= 0.1) return null;
@@ -553,7 +554,7 @@ export const HULL = 2.1;
 /** The target dummy for viewer position (vx, vz): a boat's is its hull edge nearest the viewer. */
 function dummyFor(w, mode, x, z, vx, vz) {
   if (mode !== 'boat') return dummyAt(w, mode, x, z);
-  const d = Math.hypot(vx - x, vz - z) || 1, f = Math.min(HULL, d * 0.5) / d;
+  const d = hypot2(vx - x, vz - z) || 1, f = Math.min(HULL, d * 0.5) / d;
   return dummyAt(w, mode, x + (vx - x) * f, z + (vz - z) * f);
 }
 
@@ -583,12 +584,12 @@ export function clearFor(D, pts, dur = 2, { mode = 'walk', except = null, why = 
     const far = (e.vision.far ?? 36) + 1;
     const moving = walking(e);
     for (const [x, z] of pts) {
-      if (Math.hypot(e.x - x, e.z - z) > far + (mode === 'boat' ? HULL : 0) + (moving ? (e.vehEye ? 3 : 1.2) * dur + 2 : 0)) continue;
+      if (hypot2(e.x - x, e.z - z) > far + (mode === 'boat' ? HULL : 0) + (moving ? (e.vehEye ? 3 : 1.2) * dur + 2 : 0)) continue;
       for (let t = 0; t <= dur + 1e-6; t += step) {
         let seen;
         if (moving) {
           const q = predict(e, t), d = dummyFor(w, mode, x, z, q.x, q.z);
-          seen = (keepWalker && Math.hypot(q.x - x, q.z - z) < keepWalker) || walkerSees(e, q, d, w, w.time + t)
+          seen = (keepWalker && hypot2(q.x - x, q.z - z) < keepWalker) || walkerSees(e, q, d, w, w.time + t)
             || (wheeling(e, t) && [0, 1, 2, 3, 4, 5, 6, 7].some((r) => walkerSees(e, { ...q, heading: (r * Math.PI) / 4 }, d, w, w.time + t)));
         } else seen = staticSees(e, dummyFor(w, mode, x, z, e.x, e.z), w, t);
         if (seen) { if (why) why.push(`${e.tag}${moving ? '~' : ''}@+${t.toFixed(1)}(${x.toFixed(1)},${z.toFixed(1)})`); return false; }
@@ -617,7 +618,7 @@ export function* routeClearGen(D, pts, { mode = 'walk', from, speed, delay = 0, 
   let t = delay;
   const samples = [[x, z, t]];
   for (const [px, pz] of pts) {
-    const L = Math.hypot(px - x, pz - z), n = Math.max(1, Math.ceil(L / step));
+    const L = hypot2(px - x, pz - z), n = Math.max(1, Math.ceil(L / step));
     for (let k = 1; k <= n; k++) samples.push([x + ((px - x) * k) / n, z + ((pz - z) * k) / n, t + (L * k) / n / sp]);
     t += L / sp; x = px; z = pz;
   }
@@ -637,9 +638,9 @@ export function* routeClearGen(D, pts, { mode = 'walk', from, speed, delay = 0, 
         const tt = Math.max(0, st + o), hull = mode === 'boat' ? HULL : 0;
         let seen;
         // (`pad`: a man at the very edge of a band may be a step nearer than planned: the point `pad` m nearer too)
-        const near = (vx, vz) => { const d = Math.hypot(vx - sx, vz - sz); return pad && d > pad ? [sx + ((vx - sx) * pad) / d, sz + ((vz - sz) * pad) / d] : null; };
+        const near = (vx, vz) => { const d = hypot2(vx - sx, vz - sz); return pad && d > pad ? [sx + ((vx - sx) * pad) / d, sz + ((vz - sz) * pad) / d] : null; };
         if (moving) {
-          const q = predict(e, tt), dd = Math.hypot(q.x - sx, q.z - sz);
+          const q = predict(e, tt), dd = hypot2(q.x - sx, q.z - sz);
           if (dd > far + hull + pad) continue;
           const p2 = near(q.x, q.z);
           seen = dd < keepWalker || walkerSees(e, q, dummyFor(w, mode, sx, sz, q.x, q.z), w, w.time + tt)
@@ -647,7 +648,7 @@ export function* routeClearGen(D, pts, { mode = 'walk', from, speed, delay = 0, 
             // a squad man wheeling round at a corner of its round may face any way
             || (wheel && wheeling(e, tt) && [0, 1, 2, 3, 4, 5, 6, 7].some((r) => walkerSees(e, { ...q, heading: (r * Math.PI) / 4 }, dummyFor(w, mode, sx, sz, q.x, q.z), w, w.time + tt)));
         } else {
-          if (Math.hypot(e.x - sx, e.z - sz) > far + hull + pad) continue;
+          if (hypot2(e.x - sx, e.z - sz) > far + hull + pad) continue;
           const p2 = near(e.x, e.z);
           seen = staticSees(e, dummyFor(w, mode, sx, sz, e.x, e.z), w, tt)
             || (!!p2 && staticSees(e, padded(dummyFor(w, mode, p2[0], p2[1], e.x, e.z), w.grid.elevAt?.(sx, sz) ?? 0), w, tt));
@@ -689,7 +690,7 @@ export function unwitnessed(D, victim, killer, { ahead = 0.4, at = 0, why = null
   const w = D.world;
   for (const e of viewersOf(w)) {
     if (e === victim || except.includes(e)) continue;
-    if (Math.hypot(e.x - victim.x, e.z - victim.z) > (e.vision.far ?? 36) + 2 && Math.hypot(e.x - killer.x, e.z - killer.z) > (e.vision.far ?? 36) + 2) continue;
+    if (hypot2(e.x - victim.x, e.z - victim.z) > (e.vision.far ?? 36) + 2 && hypot2(e.x - killer.x, e.z - killer.z) > (e.vision.far ?? 36) + 2) continue;
     // (`strict`: every 0.2 s, and a walker's head tried at every glance he may give: walkerSees)
     const ts = strict ? Array.from({ length: Math.ceil(ahead / 0.2) + 1 }, (_, k) => at + Math.min(ahead, k * 0.2)) : [at, at + ahead / 2, at + ahead];
     for (const t of ts) {
@@ -723,9 +724,9 @@ export function bodySeen(D, x, z, dur = 120, { step = 0.5, except = [] } = {}) {
     if (except.includes(e) || e.vehEye) continue; // (a vehicle's eye looks for men only: vehicle-ai spotCommando)
     const moving = walking(e), far = (e.vision.far ?? 36) + 1;
     for (let t = 0; t <= dur; t += step) {
-      if (moving) { const q = predict(e, t); if (Math.hypot(q.x - x, q.z - z) > far) continue; if (walkerSees(e, q, d, w, w.time + t)) { out.add(e.tag); break; } }
+      if (moving) { const q = predict(e, t); if (hypot2(q.x - x, q.z - z) > far) continue; if (walkerSees(e, q, d, w, w.time + t)) { out.add(e.tag); break; } }
       else {
-        if (Math.hypot(e.x - x, e.z - z) > far) break;
+        if (hypot2(e.x - x, e.z - z) > far) break;
         if (canSee(e, d, w, { cone: coneAt(e, w.time + t) }) !== 'none') { out.add(e.tag); break; }
         const gc = glanceCone(e, t); // (`w.sneakGlances`: a paired sentry turning to his partner)
         if (gc && pointInCone(gc, x, z) && canSee(e, d, w, { cone: gc }) !== 'none') { out.add(e.tag); break; }
@@ -773,10 +774,10 @@ export function alarmEtaInfo(D, x, z, horizon = 30, { step = 0.5, except = [] } 
     const moving = walking(e), far = (e.vision.far ?? 36) + 1, post = e.flags?.holdsPost || !e.flags?.investigates;
     for (let t = 0; t <= Math.min(horizon, best.t); t += step) {
       let seen = false, q = null;
-      if (moving) { q = predict(e, t); if (Math.hypot(q.x - x, q.z - z) <= far) seen = walkerSees(e, q, d, w, w.time + t); }
-      else { if (Math.hypot(e.x - x, e.z - z) > far) break; seen = canSee(e, d, w, { cone: coneAt(e, w.time + t) }) !== 'none'; }
+      if (moving) { q = predict(e, t); if (hypot2(q.x - x, q.z - z) <= far) seen = walkerSees(e, q, d, w, w.time + t); }
+      else { if (hypot2(e.x - x, e.z - z) > far) break; seen = canSee(e, d, w, { cone: coneAt(e, w.time + t) }) !== 'none'; }
       if (seen) {
-        const at = q ?? e, eta = t + 2.2 + (post ? 0 : Math.hypot(at.x - x, at.z - z) / 1.8);
+        const at = q ?? e, eta = t + 2.2 + (post ? 0 : hypot2(at.x - x, at.z - z) / 1.8);
         if (eta < best.t) best = { t: eta, x: post ? at.x : x, z: post ? at.z : z, tag: e.tag };
         break;
       }
@@ -849,9 +850,9 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     let ok;
     if (mode === 'boat') ok = [[0, 0], [0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]].every(([a, b]) => boat.passableAt(x + a, z + b));
     else { const t = g.terrainAt(x, z); ok = g.walkableAt(x, z, walkOpt) && (o.wade || (t !== T.WATER && t !== T.SHALLOW) || onDeck(g, x, z)); }
-    if (ok) ok = !statics.some((e) => Math.hypot(e.x - x, e.z - z) < keep) && !(o.avoid || []).some(([ax, az, r]) => Math.hypot(ax - x, az - z) < r)
+    if (ok) ok = !statics.some((e) => hypot2(e.x - x, e.z - z) < keep) && !(o.avoid || []).some(([ax, az, r]) => hypot2(ax - x, az - z) < r)
       && !(o.forbid || []).some((poly) => inPoly(poly, x, z)) // (`forbid`: polygons [[x, z], …] never entered, as driver.planSneak)
-      && (mode === 'boat' || !mates.some((m) => Math.hypot(m.x - x, m.z - z) < 1.2));
+      && (mode === 'boat' || !mates.some((m) => hypot2(m.x - x, m.z - z) < 1.2));
     passMemo[c] = ok ? 1 : -1;
     return ok;
   };
@@ -860,8 +861,8 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     const key = a < b ? a * W * H + b : b * W * H + a;
     let ok = edgeMemo.get(key);
     if (ok !== undefined) return ok;
-    const ax = cx(a), az = cz(a), bx = cx(b), bz = cz(b), n = Math.ceil(Math.hypot(bx - ax, bz - az) / 0.25);
-    if (mode === 'boat') { ok = boat.straightReach(bx, bz, ax, az) >= Math.hypot(bx - ax, bz - az) - 0.05; edgeMemo.set(key, ok); return ok; }
+    const ax = cx(a), az = cz(a), bx = cx(b), bz = cz(b), n = Math.ceil(hypot2(bx - ax, bz - az) / 0.25);
+    if (mode === 'boat') { ok = boat.straightReach(bx, bz, ax, az) >= hypot2(bx - ax, bz - az) - 0.05; edgeMemo.set(key, ok); return ok; }
     let pk = -1;
     ok = true;
     for (let s = 0; s <= n && ok; s++) {
@@ -905,7 +906,7 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     if (L) return L;
     const x = cx(c), z = cz(c);
     L = [];
-    for (let i = 0; i < statics.length; i++) { const e = statics[i], far = e.vision?.far ?? 36; if (!(Math.hypot(e.x - x, e.z - z) > far + 1 + hullR)) L.push(i); }
+    for (let i = 0; i < statics.length; i++) { const e = statics[i], far = e.vision?.far ?? 36; if (!(hypot2(e.x - x, e.z - z) > far + 1 + hullR)) L.push(i); }
     return (sCand[c] = L);
   };
   const BLK = 32, dkMin = Math.min(...walkerSlack), dkMax = Math.max(...walkerSlack), wBox = walkers.map(() => []);
@@ -937,7 +938,7 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     for (const i of statCand(c)) {
       if (s) break;
       const e = statics[i];
-      const dd = Math.hypot(e.x - x, e.z - z), far = e.vision?.far ?? 36, near = e.vision?.near ?? far / 2;
+      const dd = hypot2(e.x - x, e.z - z), far = e.vision?.far ?? 36, near = e.vision?.near ?? far / 2;
       for (let sub = 0; sub < SUB; sub++) {
         const ks = k + sub / SUB;
         const cone = o.coneMargin ? inflateCone(sCone(i, ks), o.coneMargin) : sCone(i, ks), d = dummyFor(w, mode, x, z, e.x, e.z);
@@ -956,7 +957,7 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     if (!s) walk: for (let wi = 0; wi < walkers.length; wi++) for (const dk of walkerSlack) {
       const e = walkers[wi];
       if (dk === walkerSlack[0] && !walkerNear(wi, k, x, z)) break; // (out of his reach at every dk: on to the next)
-      const kk = Math.max(0, k + dk), q = predAt(e, kk), dd = Math.hypot(q.x - x, q.z - z), far = e.vision?.far ?? 36;
+      const kk = Math.max(0, k + dk), q = predAt(e, kk), dd = hypot2(q.x - x, q.z - z), far = e.vision?.far ?? 36;
       if (dd > far + walkerPad + 3 + hull) continue;
       const d = dummyFor(w, mode, x, z, q.x, q.z);
       // (`o.keepFrom`: {tag: r} — never within r m of these men, whichever way they face: a patrol file whose men
@@ -980,13 +981,13 @@ export function* planSneakGen(D, tx, tz, o = {}) {
   if (!pass(s1)) { // (a boat's landing click on the bank: the nearest cell it can lie in)
     let best = -1, bd = 2.6;
     for (let dj = -3; dj <= 3; dj++) for (let di = -3; di <= 3; di++) {
-      const c = s1 + dj * W + di, d = Math.hypot(di, dj);
+      const c = s1 + dj * W + di, d = hypot2(di, dj);
       if (c >= 0 && c < W * H && d < bd && pass(c)) { bd = d; best = c; }
     }
     if (best >= 0) { s1 = best; tx = cx(best); tz = cz(best); }
   }
   passMemo[s0] = 1; passMemo[s1] = 1;
-  const hfun = o.shelter ? () => 0 : (c) => Math.hypot(cx(c) - tx, cz(c) - tz) / speed / DT;
+  const hfun = o.shelter ? () => 0 : (c) => hypot2(cx(c) - tx, cz(c) - tz) / speed / DT;
   // (the open list and the reached states in typed arrays, reused plan after plan — state-heap.mjs: no [f, c, k] array
   // per push, no Map and Set of tens of thousands of entries to outlive the young generation; given back at every return)
   const heap = takeHeap(), prev = takeSet();
@@ -1016,7 +1017,7 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     prev.markDone(key); n++;
     // (each state asks seen() of its neighbours, and fresh cells × steps cost more: a slice stays within PLAN_SLICE_MS)
     if ((n & 15) === 0 || work >= 16) { work = 0; yield; }
-    const atGoal = o.shelter || c === s1 || (mode !== 'boat' && Math.hypot(cx(c) - tx, cz(c) - tz) <= 0.55);
+    const atGoal = o.shelter || c === s1 || (mode !== 'boat' && hypot2(cx(c) - tx, cz(c) - tz) <= 0.55);
     if (atGoal && clear(c, k, k + holdK) && (!o.goalOk || o.goalOk(cx(c), cz(c), now + k * DT))) { found = [c, k]; break; }
     if (k >= HS) continue;
     if (clear(c, k + 1 - ma, k + 1 + mb)) push(k + 1 + hfun(c), c, k + 1, key);
@@ -1036,7 +1037,7 @@ export function* planSneakGen(D, tx, tz, o = {}) {
     }
   }
   if (!found) {
-    if (o.why) { let bc = s0, bd = Infinity; for (const key of prev.doneKeys()) { const c = Math.floor(key / (HS + 256)), d = Math.hypot(cx(c) - tx, cz(c) - tz); if (d < bd) { bd = d; bc = c; } } o.why.push(`closest (${cx(bc)},${cz(bc)}) ${bd.toFixed(1)} m, ${n} expanded`); }
+    if (o.why) { let bc = s0, bd = Infinity; for (const key of prev.doneKeys()) { const c = Math.floor(key / (HS + 256)), d = hypot2(cx(c) - tx, cz(c) - tz); if (d < bd) { bd = d; bc = c; } } o.why.push(`closest (${cx(bc)},${cz(bc)}) ${bd.toFixed(1)} m, ${n} expanded`); }
     give();
     __verify?.(D, tx, tz, o, null, performance.now() - t0v);
     return null;
@@ -1087,7 +1088,7 @@ async function sneak0(D, tx, tz, o) {
   const stopped = () => mode === 'boat' ? (boat.speed || 0) < 0.1 && !boat.goal : !u.path && !u.isMoving;
   let plans = 0, fails = 0, gx = tx, gz = tz, noted = false;
   try {
-    while (Math.hypot(u.x - gx, u.z - gz) > tol) {
+    while (hypot2(u.x - gx, u.z - gz) > tol) {
       if (D.t - t0 > maxWait) {
         const why = []; planSneak(D, tx, tz, { ...o, why });
         throw new Error(`sneak ${o.label || ''} → (${tx},${tz}): no way after ${maxWait}s, at (${u.x.toFixed(1)},${u.z.toFixed(1)}) [${why.join(' ')}]`);
@@ -1121,7 +1122,7 @@ async function sneak0(D, tx, tz, o) {
         const r = await D._walkLegs(legs, { role: o.role, u, tol, slack, label: o.label });
         if (r === 'done' && !legs.partial) break;
         if (r === 'done') continue; // (the legs end short of the goal: plan again from there)
-        if (Math.hypot(u.x - gx, u.z - gz) < 0.9 && stopped() && plans > 3) break;
+        if (hypot2(u.x - gx, u.z - gz) < 0.9 && stopped() && plans > 3) break;
         try { D.order(who, { type: 'stop' }); } catch { /* already still */ }
         continue;
       }
@@ -1129,15 +1130,15 @@ async function sneak0(D, tx, tz, o) {
       let a = 0;
       while (a < plan.length - 1) {
         const [ax, az, at] = plan[a];
-        if (Math.hypot(plan[a + 1][0] - ax, plan[a + 1][1] - az) < 1e-6) {
-          let b = a + 1; while (b < plan.length - 1 && Math.hypot(plan[b + 1][0] - ax, plan[b + 1][1] - az) < 1e-6) b++;
+        if (hypot2(plan[a + 1][0] - ax, plan[a + 1][1] - az) < 1e-6) {
+          let b = a + 1; while (b < plan.length - 1 && hypot2(plan[b + 1][0] - ax, plan[b + 1][1] - az) < 1e-6) b++;
           segs.push({ wait: true, until: plan[b][2] }); a = b; continue;
         }
         const dx = Math.sign(plan[a + 1][0] - ax), dz = Math.sign(plan[a + 1][1] - az);
         let b = a + 1;
         while (b < plan.length - 1 && b - a < (o.run ?? 4)) {
           const [bx, bz] = plan[b], [nx, nz] = plan[b + 1];
-          if (Math.hypot(nx - bx, nz - bz) < 1e-6 || Math.sign(nx - bx) !== dx || Math.sign(nz - bz) !== dz) break;
+          if (hypot2(nx - bx, nz - bz) < 1e-6 || Math.sign(nx - bx) !== dx || Math.sign(nz - bz) !== dz) break;
           b++;
         }
         segs.push({ x: plan[b][0], z: plan[b][1], start: at, end: plan[b][2] });
@@ -1181,20 +1182,20 @@ async function sneak0(D, tx, tz, o) {
           late = true; break;
         }
         const ts = D.t;
-        while (Math.hypot(u.x - s.x, u.z - s.z) > tol && D.t < s.end + slack + 1) {
+        while (hypot2(u.x - s.x, u.z - s.z) > tol && D.t < s.end + slack + 1) {
           await D.wait(D.dt);
-          if (D.t > ts + 0.5 && stopped() && Math.hypot(u.x - s.x, u.z - s.z) > tol) break;
+          if (D.t > ts + 0.5 && stopped() && hypot2(u.x - s.x, u.z - s.z) > tol) break;
         }
         const f = D.failed(); if (f) throw new Error(`FAILED sneaking ${o.label || ''}: ${f}`);
-        if (D.t > s.end + slack || Math.hypot(u.x - s.x, u.z - s.z) > tol) { late = true; break; }
+        if (D.t > s.end + slack || hypot2(u.x - s.x, u.z - s.z) > tol) { late = true; break; }
       }
       // (a plan whose legs got him nowhere — a cell the game will not take him to, by a parked hull — is planned again
       // until the guards' places give another: he lies still meanwhile, a wait for video mode; no tick changes)
-      const still = Math.hypot(u.x - p0x, u.z - p0z) < 0.2;
+      const still = hypot2(u.x - p0x, u.z - p0z) < 0.2;
       if (late && still) { D.waitNote?.(`${o.label || 'a man'}: a gap in the cones`); noted = true; } // (again: an until in between said null)
       else if (noted) { D.waitNote?.(null); noted = false; }
       if (!late) break;
-      if (Math.hypot(u.x - gx, u.z - gz) < 0.9 && stopped() && plans > 3) break;
+      if (hypot2(u.x - gx, u.z - gz) < 0.9 && stopped() && plans > 3) break;
       try { D.order(who, { type: 'stop' }); } catch { /* already still */ }
     }
     return true;

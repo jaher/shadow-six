@@ -6,7 +6,7 @@
  * @module world/grid
  */
 
-import { pointInPolygon } from '../core/math.js';
+import { pointInPolygon, hypot2 } from '../core/math.js';
 import { due } from '../engine/slice.js';
 
 /** nav stamp keys that are the walkers' clearances only (grid.visBlock): hulls test their own (hullBlocked) */
@@ -528,7 +528,7 @@ export class NavGrid {
     const wAt = (k) => (Array.isArray(width) ? (width[k] ?? width[width.length - 1]) : width);
     for (let k = 0; k + 1 < pts.length; k++) {
       const [ax, az] = pts[k], [bx, bz] = pts[k + 1];
-      const len = Math.hypot(bx - ax, bz - az);
+      const len = hypot2(bx - ax, bz - az);
       if (len < 1e-6) continue;
       const wa = wAt(k), wb = wAt(k + 1);
       if (wa === wb) { this.fillOrientedRect((ax + bx) / 2, (az + bz) / 2, len, wa, Math.atan2(bz - az, bx - ax), layerName, value, owner); if (due()) yield; continue; }
@@ -544,7 +544,7 @@ export class NavGrid {
     const wAt = (k) => (Array.isArray(width) ? (width[k] ?? width[width.length - 1]) : width);
     for (let k = 0; k + 1 < pts.length; k++) {
       const [ax, az] = pts[k], [bx, bz] = pts[k + 1];
-      const len = Math.hypot(bx - ax, bz - az);
+      const len = hypot2(bx - ax, bz - az);
       if (len < 1e-6) continue;
       const wa = wAt(k), wb = wAt(k + 1);
       if (wa === wb) { this.fillOrientedRect((ax + bx) / 2, (az + bz) / 2, len, wa, Math.atan2(bz - az, bx - ax), layerName, value, owner); continue; }
@@ -591,7 +591,7 @@ export class NavGrid {
    */
   addRamp(r) {
     // (`viewOnly`: a terrain road ramp's slab, for a lying man's pose alone — surfaceY / nearRamp leave it out)
-    const dx = r.bx - r.ax, dz = r.bz - r.az, len = Math.hypot(dx, dz);
+    const dx = r.bx - r.ax, dz = r.bz - r.az, len = hypot2(dx, dz);
     if (!(len > 0.1)) return;
     (this.ramps ||= []).push({ ...r, ux: dx / len, uz: dz / len, len });
   }
@@ -642,7 +642,7 @@ export class NavGrid {
     const segs = [];
     let L = 0;
     for (let i = 0; i + 1 < P.length; i++) {
-      const [ax, az] = P[i], [bx, bz] = P[i + 1], l = Math.hypot(bx - ax, bz - az);
+      const [ax, az] = P[i], [bx, bz] = P[i + 1], l = hypot2(bx - ax, bz - az);
       if (l > 1e-6) { segs.push({ ax, az, ux: (bx - ax) / l, uz: (bz - az) / l, l, s0: L }); L += l; }
     }
     if (!(L > 0.3) || !(r.w > 0)) return null;
@@ -676,7 +676,7 @@ export class NavGrid {
     const last = R.segs.length - 1;
     for (let n = 0; n <= last; n++) {
       const g = R.segs[n], dx = x - g.ax, dz = z - g.az, t = dx * g.ux + dz * g.uz, v = -dx * g.uz + dz * g.ux;
-      const tc = t < 0 ? 0 : t > g.l ? g.l : t, d = Math.hypot(dx - g.ux * tc, dz - g.uz * tc);
+      const tc = t < 0 ? 0 : t > g.l ? g.l : t, d = hypot2(dx - g.ux * tc, dz - g.uz * tc);
       if (best && d >= best.d) continue;
       best = { d, s: g.s0 + ((n === 0 && t < 0) || (n === last && t > g.l) ? t : tc), v };
     }
@@ -798,7 +798,7 @@ export class NavGrid {
    */
   stampDynamic(cx, cz, w, d, rotHeading, value = B.HIGH) {
     const c = Math.cos(rotHeading), s = Math.sin(rotHeading);
-    const r = Math.hypot(w, d) / 2;
+    const r = hypot2(w, d) / 2;
     const c0 = this.worldToCell(cx - r, cz - r), c1 = this.worldToCell(cx + r, cz + r);
     let n = 0;
     for (let j = Math.max(0, c0.j); j <= Math.min(this.rows - 1, c1.j); j++) {
@@ -917,7 +917,7 @@ export class NavGrid {
 
   /** Cells of an oriented rect (centre, w along heading, d across) whose centres lie inside it. */
   rectCells(cx, cz, w, d, heading = 0) {
-    const out = [], c = Math.cos(heading), s = Math.sin(heading), r = Math.hypot(w, d) / 2;
+    const out = [], c = Math.cos(heading), s = Math.sin(heading), r = hypot2(w, d) / 2;
     const c0 = this.worldToCell(cx - r, cz - r), c1 = this.worldToCell(cx + r, cz + r);
     for (let j = Math.max(0, c0.j); j <= Math.min(this.rows - 1, c1.j); j++) for (let i = Math.max(0, c0.i); i <= Math.min(this.cols - 1, c1.i); i++) {
       const p = this.cellCenter(i, j), dx = p.x - cx, dz = p.z - cz;
@@ -1243,7 +1243,7 @@ export class NavGrid {
    * @returns {boolean} true when visible
    */
   sightLine(ax, az, bx, bz, o) {
-    const D = Math.hypot(bx - ax, bz - az);
+    const D = hypot2(bx - ax, bz - az);
     if (!(D > 1e-9)) return true;
     const eye = o.eyeY, s = (o.targetY - eye) / D, low = !!o.targetLow;
     const useDyn = o.dynamic !== false;
@@ -1504,7 +1504,7 @@ export class NavGrid {
     if (this.runs && this.crossesRunSide(ax, az, bx, bz)) return false; // (on to a ramp / stair over its side)
     const r = opts && opts.clearance;
     if (r) {
-      const len = Math.hypot(bx - ax, bz - az);
+      const len = hypot2(bx - ax, bz - az);
       if (len > 1e-6) {
         // (`avoidClearance`: the avoid mask — body clearance, already inflated by the body's reach — kept only that far
         // off by the offset lines; `clearance` is for walls and buildings)
@@ -1545,7 +1545,7 @@ export class NavGrid {
           const i = ci + di, j = cj + dj;
           if (!this.isWalkable(i, j, opts)) continue;
           const px = (i + 0.5) * c, pz = (j + 0.5) * c;
-          const d = Math.hypot(px - x, pz - z);
+          const d = hypot2(px - x, pz - z);
           if (d < bestD && d <= maxDist + c) { bestD = d; best = { x: px, z: pz, i, j }; }
         }
       }

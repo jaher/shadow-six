@@ -31,7 +31,7 @@ import { createVehicleModel, VEHICLE_MODELS } from '../art/vehicles.js';
 import { createLibraryVehicleModel, seatSide, vehicleArtContext } from '../art/vehicle-model.js';
 import { createKitVehicleModel } from '../art/kit-vehicles.js';
 import { createCrewFigures } from '../art/vehicle-crew.js';
-import { angleTo, turnTowardsAngle, angleDiff, headingToRotY } from '../core/math.js';
+import { angleTo, turnTowardsAngle, angleDiff, headingToRotY, hypot2 } from '../core/math.js';
 import { runoutGeometry, runoutState, runoutPose, needsGhost, railExtent } from './rail-runout.js';
 import { B, T, MAX_STEP } from '../world/grid.js';
 import { hullRect, isSolidHull, bodyShape, bodyGap, bodyRectGap, bodyReach } from '../world/body-clearance.js';
@@ -613,8 +613,8 @@ export class Vehicle extends Entity {
     for (const k of pass) {
       const p = this._doorSpot(k), q = this._exitPoint(undefined, undefined, false, unit, k);
       // a door that opens onto a wall / cliff (no standing room by it) is the last choice
-      const shut = !q || Math.hypot(q.x - p.x, q.z - p.z) > 1.2 ? 100 : 0;
-      const d = Math.hypot(p.x - unit.x, p.z - unit.z) + shut;
+      const shut = !q || hypot2(q.x - p.x, q.z - p.z) > 1.2 ? 100 : 0;
+      const d = hypot2(p.x - unit.x, p.z - unit.z) + shut;
       if (d < bd - 1e-6) { bd = d; best = k; }
     }
     return best;
@@ -636,7 +636,7 @@ export class Vehicle extends Entity {
       const ss = seatSide(this.vehicleType, this.def.kind, k), side = this.heading + (ss ? ss.side : 1) * Math.PI / 2;
       return g.walkableAt(p.x + Math.cos(side) * 0.8, p.z + Math.sin(side) * 0.8) && g.walkableAt(p.x, p.z) ? 0 : 3;
     };
-    const da = Math.hypot(a.x - unit.x, a.z - unit.z) + room(a, 0), db = Math.hypot(b.x - unit.x, b.z - unit.z) + room(b, 1);
+    const da = hypot2(a.x - unit.x, a.z - unit.z) + room(a, 0), db = hypot2(b.x - unit.x, b.z - unit.z) + room(b, 1);
     return db < da - 0.5 ? 1 : 0;
   }
 
@@ -728,7 +728,7 @@ export class Vehicle extends Entity {
     const g = w?.grid;
     if (g && !(this.isBoat && (unit.stance === 'swim' || unit.stance === 'dive'))) unit.y = g.surfaceY ? g.surfaceY(p.x, p.z) : g.elevAt(p.x, p.z);
     if (unit.object3d) unit.object3d.visible = true;
-    if (o.walkTo && Math.hypot(o.walkTo.x - p.x, o.walkTo.z - p.z) > 0.6) unit.moveTo?.(o.walkTo.x, o.walkTo.z);
+    if (o.walkTo && hypot2(o.walkTo.x - p.x, o.walkTo.z - p.z) > 0.6) unit.moveTo?.(o.walkTo.x, o.walkTo.z);
     w?.events.emit('vehicle:exit', { vehicle: this, unit });
     return true;
   }
@@ -756,10 +756,10 @@ export class Vehicle extends Entity {
     for (const list of [this.world.commandos, this.world.enemies]) {
       for (const u of list || []) {
         if (u === unit || u.removed || u.vehicle || u.state === 'inVehicle') continue;
-        if (Number.isFinite(u.x) && Math.hypot(u.x - this.x, u.z - this.z) <= R + EXIT_SPACING) others.push(u);
+        if (Number.isFinite(u.x) && hypot2(u.x - this.x, u.z - this.z) <= R + EXIT_SPACING) others.push(u);
       }
     }
-    const taken = (x, z) => others.some((u) => Math.hypot(u.x - x, u.z - z) < EXIT_SPACING);
+    const taken = (x, z) => others.some((u) => hypot2(u.x - x, u.z - z) < EXIT_SPACING);
     let best = null, bd = Infinity, bestAny = null, bdAny = Infinity;
     const step = g.cell;
     for (let dx = -R; dx <= R; dx += step) {
@@ -770,7 +770,7 @@ export class Vehicle extends Entity {
         const { i, j } = g.worldToCell(x, z);
         if (!g.inBounds(i, j) || !g.isWalkable(i, j, { swim })) continue;
         if (this.world.vehicles.some((v) => v !== this && !v.removed && !v.hiddenRail && v._inHull(x, z, 0.3))) continue;
-        const d = Math.hypot(x - want.x, z - want.z);
+        const d = hypot2(x - want.x, z - want.z);
         const pt = g.cellCenter ? g.cellCenter(i, j) : { x, z };
         if (d < bdAny) { bdAny = d; bestAny = pt; }
         if (d < bd && !taken(pt.x, pt.z)) { bd = d; best = pt; }
@@ -783,7 +783,7 @@ export class Vehicle extends Entity {
   _rectDepth(x, z, hx = this.x, hz = this.z, h = this.heading) {
     const dx = x - hx, dz = z - hz, c = Math.cos(h), s = Math.sin(h);
     const a = Math.abs(dx * c + dz * s) - this.def.size[0] / 2, b = Math.abs(-dx * s + dz * c) - this.def.size[1] / 2;
-    return a <= 0 && b <= 0 ? -Math.max(a, b) : -Math.hypot(Math.max(0, a), Math.max(0, b));
+    return a <= 0 && b <= 0 ? -Math.max(a, b) : -hypot2(Math.max(0, a), Math.max(0, b));
   }
 
   /** How deep this hull at pose (x, z, h) and hull `v` overlap (> 0), or minus their gap. */
@@ -800,7 +800,7 @@ export class Vehicle extends Entity {
     // (beyond the hull's circumscribed circle: outside, whatever the heading — the planners ask this of every hull for
     // thousands of points)
     const sz = this.def.size;
-    if (this._hdSize !== sz) { this._hdSize = sz; this._halfDiag = Math.hypot(sz[0], sz[1]) / 2; }
+    if (this._hdSize !== sz) { this._hdSize = sz; this._halfDiag = hypot2(sz[0], sz[1]) / 2; }
     const R = this._halfDiag + margin;
     if (dx > R || dx < -R || dz > R || dz < -R) return false;
     const c = Math.cos(h), s = Math.sin(h);
@@ -879,7 +879,7 @@ export class Vehicle extends Entity {
   _rammable(x, z) {
     if (!this.fast || !this.world?.interactables) return false;
     const it = this.world.interactables.find((o) => !o.destroyed && (o.barrier || o.light || o.interactKind === 'barrier')
-      && Math.hypot(o.x - x, o.z - z) < (o.radius || 1.5) + 1);
+      && hypot2(o.x - x, o.z - z) < (o.radius || 1.5) + 1);
     return !!it;
   }
 
@@ -919,7 +919,7 @@ export class Vehicle extends Entity {
    */
   straightReach(x, z, ox = this.x, oz = this.z, need = Infinity) {
     if (!this.world || !this.def.fast) return 0;
-    const d = Math.hypot(x - ox, z - oz);
+    const d = hypot2(x - ox, z - oz);
     if (d < 1e-3) return 0;
     const h = angleTo(ox, oz, x, z);
     const st = CONFIG.vehicles.probeStep;
@@ -978,7 +978,7 @@ export class Vehicle extends Entity {
     if (g.elev && g.elev[k] > y0 + 0.3) {
       // higher than the hull's floor: the rest of a ramp it stands on (no step up on the way out from its centre),
       // or a ledge / raised walk the corner would swing into
-      const L = Math.hypot(x - ox, z - oz), n = Math.max(1, Math.ceil(L / 0.25));
+      const L = hypot2(x - ox, z - oz), n = Math.max(1, Math.ceil(L / 0.25));
       let prev = g.elevAt(ox, oz) || 0;
       for (let q = 1; q <= n; q++) {
         const e = g.elevAt(ox + ((x - ox) * q) / n, oz + ((z - oz) * q) / n) || 0;
@@ -1068,7 +1068,7 @@ export class Vehicle extends Entity {
   _dynFree(x, z, h, had = null) {
     const w = this.world, g = w.grid;
     const others = w.vehicles.filter((v) => v !== this && !v.removed && !v.hiddenRail && !(v.destroyed && v.wreckBaked)
-      && Math.hypot(v.x - x, v.z - z) < (Math.hypot(...v.def.size) + Math.hypot(...this.def.size)) / 2 + 1);
+      && hypot2(v.x - x, v.z - z) < (Math.hypot(...v.def.size) + Math.hypot(...this.def.size)) / 2 + 1);
     const gates = w.interactables?.some((o) => o.open === false && !o.destroyed);
     if (!others.length && !gates) return true;
     // other hulls: kept 0.1 m clear; one it already touches (two tanks met nose to flank): it may move along it or away,
@@ -1113,7 +1113,7 @@ export class Vehicle extends Entity {
     // men on foot nearby are obstacles too when a route plans round one who stays in its way (a sentry on his post)
     const crowd = men && isSolidHull(this) ? w.entitiesInRadius(this.x, this.z, 45, (u) => (u.kind === 'commando' || u.kind === 'enemy') && u.alive
       && !u.vehicle && u.state !== 'inVehicle' && u.state !== 'carried' && !u.underwater && !((u.y || 0) > 1.5) && u.stance !== 'swim' && u.stance !== 'dive') : [];
-    const reachR = Math.hypot(this.def.size[0], this.def.size[1]) / 2 + 1.5;
+    const reachR = hypot2(this.def.size[0], this.def.size[1]) / 2 + 1.5;
     // a man already close to the hull: it may not come closer to him than it is now, but it may pull away
     const R0 = crowd.length ? hullRect(this, this.x, this.z, this.heading) : null;
     const clear = crowd.map((u) => Math.max(0.07, Math.min(0.3, bodyRectGap(u.x, u.z, u.heading, u.stance, R0) - 0.01)));
@@ -1216,7 +1216,7 @@ export class Vehicle extends Entity {
 
   /** planDriveGen's search with the plan margin `margin` (the cells in `had` overlapped where it stands don't count). */
   * _planDriveSearch(x, z, had, { men = false, pause = null, margin = POSE_MARGIN } = {}) {
-    const tol = CONFIG.vehicles.alignDeg * DEG, T = { x, z }, d0 = Math.hypot(x - this.x, z - this.z);
+    const tol = CONFIG.vehicles.alignDeg * DEG, T = { x, z }, d0 = hypot2(x - this.x, z - this.z);
     const free0 = this._planFree(had, { men, margin }), free = pause?.charge ? (px, pz, h) => { pause.charge(); return free0(px, pz, h); } : free0;
     const plan = yield* planManeuverGen({ x: this.x, z: this.z, h: this.heading }, {
       pause,
@@ -1224,9 +1224,9 @@ export class Vehicle extends Entity {
       free,
       // facing it with a clear line, and that line brings it nearer than it is now (not back up only to hit the same wall)
       goal: (p) => {
-        if (Math.abs(headingError(p, T)) > tol || Math.hypot(x - p.x, z - p.z) <= 0.5) return false;
+        if (Math.abs(headingError(p, T)) > tol || hypot2(x - p.x, z - p.z) <= 0.5) return false;
         // (only whether the line gets far enough: r ≥ 0.5 and d − r < d0 − 0.5 — the probe stops once it does)
-        const d = Math.hypot(x - p.x, z - p.z), need = Math.max(0.5, d - d0 + 0.5 + 1e-6);
+        const d = hypot2(x - p.x, z - p.z), need = Math.max(0.5, d - d0 + 0.5 + 1e-6);
         const r = this.straightReach(x, z, p.x, p.z, need);
         return r >= 0.5 && d - r < d0 - 0.5;
       },
@@ -1355,7 +1355,7 @@ export class Vehicle extends Entity {
   }
 
   /** Is (x, z) where the hull already is (closer than DRIVE_MIN to its centre)? */
-  _there(x, z) { return Math.hypot(x - this.x, z - this.z) < DRIVE_MIN; }
+  _there(x, z) { return hypot2(x - this.x, z - this.z) < DRIVE_MIN; }
 
   /**
    * §3.7 drive: turn in place toward (x, z), then drive in a STRAIGHT line at slow (click) or fast
@@ -1394,7 +1394,7 @@ export class Vehicle extends Entity {
   /** Legacy (placeholder API): land vehicles path over land (A*), boats straight over water. */
   moveTo(x, z) {
     if (!this.world || this.destroyed || !this.def.fast) return false;
-    const path = this.isBoat ? (this.straightReach(x, z) >= Math.hypot(x - this.x, z - this.z) - 0.5 ? [{ x, z }] : null)
+    const path = this.isBoat ? (this.straightReach(x, z) >= hypot2(x - this.x, z - this.z) - 0.5 ? [{ x, z }] : null)
       : this.world.findPath(this.x, this.z, x, z, { swim: false });
     if (!path) return false;
     return this.followPath(path, { fast: true });
@@ -1464,7 +1464,7 @@ export class Vehicle extends Entity {
     if (this.arcDrive) return this._updateArcDrive(dt);
     if (this.waitT > 0) { this.waitT -= dt; this.speed = 0; return; }
     const g = this.goal;
-    const d = Math.hypot(g.x - this.x, g.z - this.z);
+    const d = hypot2(g.x - this.x, g.z - this.z);
     if (d < (g.strict ? 0.3 : 0.8)) return this._nextWaypoint();
     // player driving with no room to turn: back up first (turnPlan), slow, the rear probed like a nose
     // (back < 0: no room behind either, it pulls forward first)
@@ -1536,7 +1536,7 @@ export class Vehicle extends Entity {
     const g = this.goal;
     if (g.man && this._stepManeuver(dt, g)) return;
     if (!g.strict && g.dropped && !g.man) { g.dropped = false; g.planned = false; } // dropped while stuck: plan again from here
-    const d = Math.hypot(g.x - this.x, g.z - this.z);
+    const d = hypot2(g.x - this.x, g.z - this.z);
     if (g.strict && d < 0.3) { this.reversing = false; this.steerK = 0; return this._nextWaypoint(); }
     return g.strict ? this._arcStraight(dt, g, d) : this._arcRoute(dt, g, d);
   }
@@ -1648,21 +1648,21 @@ export class Vehicle extends Entity {
       if (best) { T = best; g.short = { ...best }; }
     }
     // the point behind or inside the turning circle: turn round first (a multi-point turn), then drive to it
-    if (Math.abs(headingError(start, T)) > Math.PI / 2 || Math.abs(2 * Math.sin(headingError(start, T)) / Math.max(0.1, Math.hypot(T.x - start.x, T.z - start.z))) > 1 / R) {
+    if (Math.abs(headingError(start, T)) > Math.PI / 2 || Math.abs(2 * Math.sin(headingError(start, T)) / Math.max(0.1, hypot2(T.x - start.x, T.z - start.z))) > 1 / R) {
       pre = yield* planManeuverGen(start, {
         R, target: T, tol, free, maxRev, maxNodes: 6000, pause,
         goal: (p) => {
           if (Math.abs(headingError(p, T)) > tol) return false;
-          const run = Math.min(3, Math.hypot(T.x - p.x, T.z - p.z) - reach), c = Math.cos(p.h), s = Math.sin(p.h);
+          const run = Math.min(3, hypot2(T.x - p.x, T.z - p.z) - reach), c = Math.cos(p.h), s = Math.sin(p.h);
           for (let t = 0.5; t <= run + 1e-6; t += 0.5) if (!free(p.x + c * t, p.z + s * t, p.h)) return false;
           return true;
         },
       });
       if (pre) start = pre.end;
     }
-    const rest = Math.hypot(T.x - start.x, T.z - start.z) <= reach ? { legs: [] } : yield* planReachGen(start, {
+    const rest = hypot2(T.x - start.x, T.z - start.z) <= reach ? { legs: [] } : yield* planReachGen(start, {
       R, target: T, reach, free, maxRev, maxNodes: 6000, revCost: 3, gearCost: 6, pause,
-      h: (p) => Math.max(0, Math.hypot(T.x - p.x, T.z - p.z) - reach) + Math.max(0, Math.abs(headingError(p, T)) - Math.PI / 3) * R * 0.5,
+      h: (p) => Math.max(0, hypot2(T.x - p.x, T.z - p.z) - reach) + Math.max(0, Math.abs(headingError(p, T)) - Math.PI / 3) * R * 0.5,
     });
     if (!rest) return null;
     return { legs: [...(pre?.legs || []), ...rest.legs], had: [...had], replans: g.replans || 0 };
@@ -1676,9 +1676,9 @@ export class Vehicle extends Entity {
     let reach = g.reach ?? 0.75;
     if (g.reach == null && next && !(cur?.wait > 0)) {
       const th = Math.abs(angleDiff(angleTo(this.x, this.z, g.x, g.z), angleTo(g.x, g.z, next.x, next.z)));
-      if (th < 2.4) reach = Math.max(reach, Math.min(R * Math.tan(th / 2), 0.5 * Math.hypot(next.x - g.x, next.z - g.z)) + 0.3);
+      if (th < 2.4) reach = Math.max(reach, Math.min(R * Math.tan(th / 2), 0.5 * hypot2(next.x - g.x, next.z - g.z)) + 0.3);
     }
-    if (d <= reach + 0.05 || (g.short && Math.hypot(g.short.x - this.x, g.short.z - this.z) <= Math.max(0.8, reach + 0.05))) return this._nextWaypoint();
+    if (d <= reach + 0.05 || (g.short && hypot2(g.short.x - this.x, g.short.z - this.z) <= Math.max(0.8, reach + 0.05))) return this._nextWaypoint();
     if (!g.planned && (g.replans || 0) < 4) {
       // the search runs sliced: at most the world's per-tick planning budget (routeBudget) of pose tests a tick, the
       // hull standing still till its plan is ready (a lorry turning in a cramped lane plans for ~100 ms: never in one
@@ -1738,7 +1738,7 @@ export class Vehicle extends Entity {
         if (r.outcome === 'hold') return;
         continue;
       }
-      if (Math.hypot(o.x - nx, o.z - nz) > (o.radius || 1.5) + 0.5) continue;
+      if (hypot2(o.x - nx, o.z - nz) > (o.radius || 1.5) + 0.5) continue;
       if (o.destroy) o.destroy(this, 'ram'); else o.takeDamage?.(KILL, this, 'ram');
       o.destroyed = true;
       this.world.events.emit('structure:destroyed', { id: o.tag ?? o.id, type: o.interactKind || 'barrier', owner: this });
@@ -1853,7 +1853,7 @@ export class Vehicle extends Entity {
     const w = this.world;
     if (!w || !isSolidHull(this)) return [];
     const R = hullRect(this, x, z, h);
-    const reach = Math.hypot(R.hl, R.hw) + bodyReach('crawl') + 0.1 + margin;
+    const reach = hypot2(R.hl, R.hw) + bodyReach('crawl') + 0.1 + margin;
     return w.entitiesInRadius(x, z, reach, (u) => (u.kind === 'commando' || u.kind === 'enemy') && u.alive
       && !u.vehicle && u.state !== 'inVehicle' && u.state !== 'carried' && !u.underwater && !((u.y || 0) > 1.5)
       && u.stance !== 'swim' && u.stance !== 'dive')
@@ -1951,7 +1951,7 @@ export class Vehicle extends Entity {
     for (let k = 0; k < this.track.length; k++) {
       if (k > 0) {
         const a = this.track[k - 1], b = this.track[k];
-        this.segLen.push(Math.hypot(b.x - a.x, b.z - a.z));
+        this.segLen.push(hypot2(b.x - a.x, b.z - a.z));
         this.trackLen += this.segLen[k - 1];
       }
       if (this.track[k].wait > 0 && k > 0 && k < this.track.length - 1) this.trackStops.push({ s: this.trackLen, wait: this.track[k].wait });
@@ -2022,7 +2022,7 @@ export class Vehicle extends Entity {
     const { lead, out } = runoutState(this, ro.geo, this.world.time, ro.hideAt, dt, late);
     if (this.railRunning) {
       // (in the tick it appears at the track's start its pre-tick pose is where it was hidden: no streak across the map)
-      const jump = Math.hypot(this.x - this.prevX, this.z - this.prevZ) > Math.max(2, 3 * S.speed * dt);
+      const jump = hypot2(this.x - this.prevX, this.z - this.prevZ) > Math.max(2, 3 * S.speed * dt);
       super.syncTransform(jump ? 1 : alpha);
       if (o) o.visible = true;
     } else if (o) {
@@ -2144,7 +2144,7 @@ export class Vehicle extends Entity {
     if (!w || this.destroyed || !target || !this.def.weapons?.length) return false;
     if (!this.driver && !this.crewed) return false; // nobody at the gun
     if (target === this || this.occupants.includes(target)) return false;
-    const d = Math.hypot(target.x - this.x, target.z - this.z);
+    const d = hypot2(target.x - this.x, target.z - this.z);
     const id = this.weaponFor(d, o.weapon);
     if (!id) return false;
     const h = angleTo(this.x, this.z, target.x, target.z);
@@ -2202,7 +2202,7 @@ export class Vehicle extends Entity {
     if (tgt && !('kind' in tgt)) tgt = pointTarget(w, tgt.x, tgt.z, this);
     const aim = tgt || target;
     const m = this.muzzleToward(aim.x, aim.z);
-    const d = Math.hypot(aim.x - this.x, aim.z - this.z);
+    const d = hypot2(aim.x - this.x, aim.z - this.z);
     let hit = false;
     // the gun looks out from the hull's own height (a hull on a ridge fires down over the rim, M11 quarry);
     // never up: targetY is left out, so raised cells above the hull (a bunker roof, a cliff) still block (M11 D4)
@@ -2449,10 +2449,10 @@ const EXPLOSION_CAUSES = new Set(['explosion', 'grenade', 'bomb', 'timeBomb', 'r
 /** First thing at a clicked point for a round: unit, vehicle hull or barrel within 1 m. */
 function pointTarget(world, x, z, self) {
   const near = world.entitiesInRadius(x, z, 8, (e) => e !== self && !e.removed && (
-    ((e.kind === 'commando' || e.kind === 'enemy') && e.alive && !e.vehicle && Math.hypot(e.x - x, e.z - z) < 1)
+    ((e.kind === 'commando' || e.kind === 'enemy') && e.alive && !e.vehicle && hypot2(e.x - x, e.z - z) < 1)
     || (e.kind === 'vehicle' && !e.destroyed && !e.hiddenRail && e._inHull(x, z, 0.5))
-    || ((e.barrel || e.explodeBarrel) && !e.destroyed && Math.hypot(e.x - x, e.z - z) < 1)));
-  near.sort((a, b) => Math.hypot(a.x - x, a.z - z) - Math.hypot(b.x - x, b.z - z));
+    || ((e.barrel || e.explodeBarrel) && !e.destroyed && hypot2(e.x - x, e.z - z) < 1)));
+  near.sort((a, b) => hypot2(a.x - x, a.z - z) - hypot2(b.x - x, b.z - z));
   return near[0] || null;
 }
 

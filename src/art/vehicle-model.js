@@ -25,6 +25,7 @@ import { loadVehicleLibrary, preloadVehicles, createVehicleVisual, vehicleLibrar
 import { resolveLighting } from '../engine/lighting.js';
 import { applyCanvasCover, applyCanvasCoverG } from './cloth-wind.js';
 import { runSliced } from '../engine/slice.js';
+import { withSceneMatrices } from '../engine/matrix-freeze.js';
 import { createStrapCurtain } from './strap-curtain.js';
 import { doorRig, boardFrac } from './door-hand.js';
 import { addPennants } from './vehicle-pennants.js';
@@ -209,8 +210,9 @@ export async function warmVehicleArt(renderer, scene, camera, renderFrame = null
     sm.autoUpdate = true; sm.needsUpdate = true;
     scene.updateMatrixWorld(true);
     // twice: the first frame allocates the sun's shadow map, which the water's mirror pass waits for; the second also
-    // draws the mirror (renderer clipping plane → each vehicle material's clipped program variant)
-    const frames = () => { frame(); sm.needsUpdate = true; frame(); mirrorWarm(renderer, scene, camera, [...vis.map((h) => h.object3d), group]); };
+    // draws the mirror (renderer clipping plane → each vehicle material's clipped program variant). The scene's world
+    // matrices once per call, not once per render inside it (engine/matrix-freeze.js: nothing moves meanwhile)
+    const frames = () => withSceneMatrices(scene, () => { frame(); sm.needsUpdate = true; frame(); mirrorWarm(renderer, scene, camera, [...vis.map((h) => h.object3d), group]); });
     // `precompile(frames)`: their programs linked by the driver first, without blocking (engine/parallel-compile.js)
     if (o.precompile) { await o.precompile(frames); sm.needsUpdate = true; scene.updateMatrixWorld(true); }
     // `runFrames(frames)`: drawn a share of the scene per task (Game: engine/parallel-compile.js framesInParts)

@@ -57,7 +57,7 @@ import { awaitGameplayInput } from './engine/gameplay-inputs.js';
 import { knifeKillFrame, queueContactMarks } from './art/knife-kill.js';
 import { barrelCarryFrame } from './art/barrel-carry.js';
 import { warmAvoidMasks, rewarmAvoidMasks } from './world/body-clearance.js';
-import { warmAreas, rewarmAreas } from './world/pathfinding.js';
+import { warmAreas, rewarmAreas, warmPathCosts } from './world/pathfinding.js';
 import { digWarmObjects } from './art/shovel-dig.js';
 
 /** The briefing's still page (Game._frame): ms of engine/idle-warm.js work a frame, one task at least (no draw then). */
@@ -437,6 +437,7 @@ export class Game {
       idleWarm.clear();
       // (the walk areas the first tick's plans ask for — the guards' patrol routes, the squad's first orders: first in line)
       for (const u of [...world.commandos, ...world.enemies]) idleWarm.add('walk areas', () => { if (this.world === world) warmAreas(world.grid, u.pathQuery?.() || {}); });
+      idleWarm.add('path costs', () => { if (this.world === world) warmPathCosts(world.grid); }); // (the searches' cost layers: the first orders')
       queueIdleWarm(world.entities.filter((e) => e.model?.real)); queueAheadModels(world);
       queueContactMarks([...world.commandos, ...world.enemies], idleWarm); // (the first knife kill's landmarks)
     }, 'idle warm queue');
@@ -634,6 +635,11 @@ export class Game {
     for (const o of extra) scene.add(o);
     try {
       safe(() => charactersFrame(cam, 40), 'warm characters'); // all on screen, the zoom-1 LOD
+      // (the water's mirror waits for this frame's one world-matrix update below, as in Game.render: drawn inside the
+      // terrain frame it updated the whole scene's matrices once more per part — before the first Game.render of a
+      // fresh water system nothing had set mirrorLater)
+      const ws = w.water?.system;
+      if (ws) ws.mirrorLater = true;
       safe(() => this.mapHandle?.frame?.(0, cam), 'warm terrain / water');
       r.fitShadowToView({ groundFootprint: corners });
       scene.updateMatrixWorld();

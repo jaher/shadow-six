@@ -13,6 +13,7 @@
  * `ghostAfter` s, walks on through them (no doorway or ring deadlock). Dead and downed men are not obstacles.
  */
 import { CONFIG } from '../config.js';
+import { hypot2 } from '../core/math.js';
 
 /** Tunables (m, s): see CONFIG.units.avoid. */
 export const AV = () => CONFIG.units.avoid;
@@ -112,17 +113,17 @@ function planIn(u, fx, fz, speed, back, into) {
   // (sent to the same spot as me: whoever is nearer takes it, the other stops beside it — `claim`, Unit._avoidPlan)
   _obsN = 0;
   const mine = u.path && !u.path[u.path.length - 1].steer ? u.path[u.path.length - 1] : null;
-  const myD = mine ? Math.hypot(mine.x - u.x, mine.z - u.z) : Infinity;
+  const myD = mine ? hypot2(mine.x - u.x, mine.z - u.z) : Infinity;
   for (let ni = 0; ni < near.length; ni++) {
     const n = near[ni];
     obsAt(n, n.x, n.z, n.vx || 0, n.vz || 0);
     const g = n.path && n.pathIndex === n.path.length - 1 ? n.path[n.path.length - 1] : null;
-    const gd = g ? Math.hypot(g.x - n.x, g.z - n.z) : Infinity;
+    const gd = g ? hypot2(g.x - n.x, g.z - n.z) : Infinity;
     if (mine) { // his spot (where he stands, or the goal he is nearer to than I am to mine) on top of my goal
       const s = !n.path ? n : g && !g.steer && (gd < myD - 1e-6 || (Math.abs(gd - myD) <= 1e-6 && idKey(n) < idKey(u))) ? g : null;
-      if (s && Math.hypot(s.x - mine.x, s.z - mine.z) < A.clear && (!out.claim || Math.hypot(s.x - u.x, s.z - u.z) < Math.hypot(out.claim.x - u.x, out.claim.z - u.z))) out.claim = { x: s.x, z: s.z, n };
+      if (s && hypot2(s.x - mine.x, s.z - mine.z) < A.clear && (!out.claim || hypot2(s.x - u.x, s.z - u.z) < hypot2(out.claim.x - u.x, out.claim.z - u.z))) out.claim = { x: s.x, z: s.z, n };
     }
-    if (g && !g.steer && priority(n) < 3 && gd < A.arriveLook && !(mine && Math.hypot(g.x - mine.x, g.z - mine.z) < A.clear)) obsAt(n, g.x, g.z, 0, 0);
+    if (g && !g.steer && priority(n) < 3 && gd < A.arriveLook && !(mine && hypot2(g.x - mine.x, g.z - mine.z) < A.clear)) obsAt(n, g.x, g.z, 0, 0);
   }
   const nObs = _obsN, obs = _obs;
   for (let oi = 0; oi < nObs; oi++) {
@@ -134,7 +135,7 @@ function planIn(u, fx, fz, speed, back, into) {
     const rvx = nvx - vux, rvz = nvz - vuz, rv2 = rvx * rvx + rvz * rvz;
     // walking the same way (a group move): left alone while clear; inside each other, the man behind (or, abreast,
     // the higher id) drops back and both ease apart sideways, so a huddle strings out instead of jostling
-    const sn = nMoving ? Math.hypot(nvx, nvz) : 0, d0 = Math.hypot(px, pz), ahead = px * fx + pz * fz;
+    const sn = nMoving ? hypot2(nvx, nvz) : 0, d0 = hypot2(px, pz), ahead = px * fx + pz * fz;
     const close = px * rvx + pz * rvz; // < 0: closing in
     const same = nMoving && (rv2 < A.together * A.together || (nvx * fx + nvz * fz) > A.sameWay * sn);
     // overtaking a slower man ahead (or being overtaken): predicted like any other approach, passed on the left
@@ -144,13 +145,13 @@ function planIn(u, fx, fz, speed, back, into) {
     // Unit._avoidPlan holds him back when there is no room to walk beside the leader
     let behind = false;
     if (nMoving && (nvx * fx + nvz * fz) > A.crossCos * sn) {
-      const mx = fx + nvx / sn, mz = fz + nvz / sn, ml = Math.hypot(mx, mz) || 1, lead = (px * mx + pz * mz) / ml;
+      const mx = fx + nvx / sn, mz = fz + nvz / sn, ml = hypot2(mx, mz) || 1, lead = (px * mx + pz * mz) / ml;
       behind = lead > 0.05 || (lead > -0.05 && idKey(n) < idKey(u));
       if (behind && d0 < A.clear + 0.8 && d0 < out.queueAhead) { out.queue = n; out.queueAhead = d0; }
     }
     if (same && !overtake) { // same way, like pace (a group move)
       if (d0 >= A.clear) { // clear of each other: leave them be — but my lane does not drift back into him (a weave)
-        if (back && Math.hypot(px - back * lx, pz - back * lz) < A.clear + A.hyst) out.calm = false;
+        if (back && hypot2(px - back * lx, pz - back * lz) < A.clear + A.hyst) out.calm = false;
         continue;
       }
       if (ahead > 0.05 || (ahead > -0.05 && idKey(n) < idKey(u))) out.slow = true;
@@ -158,8 +159,8 @@ function planIn(u, fx, fz, speed, back, into) {
     }
     const t = rv2 > 1e-9 ? Math.min(A.horizon, Math.max(0, -close / rv2)) : 0;
     const cx = px + rvx * t, cz = pz + rvz * t;
-    const dmin = Math.hypot(cx, cz);
-    if (back) { const d2 = Math.hypot(cx - back * lx, cz - back * lz); if (d2 < A.clear + A.hyst && d2 < dmin) out.calm = false; }
+    const dmin = hypot2(cx, cz);
+    if (back) { const d2 = hypot2(cx - back * lx, cz - back * lz); if (d2 < A.clear + A.hyst && d2 < dmin) out.calm = false; }
     if (dmin >= A.clear) continue;
     // behind me / drawing apart: never fight an overlap backwards — unless we are inside each other and not
     // drawing apart (two men stacked on one spot walk the same way: they would stay stacked)
@@ -182,7 +183,7 @@ function planIn(u, fx, fz, speed, back, into) {
       const room = (sg) => {
         const qx = u.x + fx * ahead + lx * sg * A.clear, qz = u.z + fz * ahead + lz * sg * A.clear, tq = Math.max(0, ahead) / Math.max(0.3, speed);
         let m = Infinity;
-        for (let qi = 0; qi < nObs; qi++) { const q = obs[qi]; if (q.n !== n) m = Math.min(m, Math.hypot(q.x + q.vx * tq - qx, q.z + q.vz * tq - qz)); }
+        for (let qi = 0; qi < nObs; qi++) { const q = obs[qi]; if (q.n !== n) m = Math.min(m, hypot2(q.x + q.vx * tq - qx, q.z + q.vz * tq - qz)); }
         return m;
       };
       const rl = room(1), rr = room(-1);
