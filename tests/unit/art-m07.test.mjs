@@ -21,6 +21,8 @@ import { fitOnFootprint } from '../../src/art/static-vehicles.js';
 import { MISSIONS } from '../../src/missions/index.js';
 import { loadGrid } from './mission-check.mjs';
 import { B } from '../../src/world/grid.js';
+import { boulderBandHull } from '../../src/art/boulder-row.js';
+import { buildParachuteTree } from '../../src/art/m07-dressing.js';
 
 const P = (f) => new URL(`../../${f}`, import.meta.url);
 const merged = () => {
@@ -293,3 +295,64 @@ test('art m07: the village breathes — no two houses\' roofs (their geometry ab
     assert.equal(out.length, 0, `${h.id}: roof ${out[0]} past its footprint + 2 m`);
   }
 }));
+
+// ---------------------------------------------------------------- art pass 2
+/** Signed distance of (x, z) inside polygon `poly` (positive inside) to its nearest edge, or to edge `only`. */
+const insetOf = (poly, x, z, only = null) => {
+  let c = false;
+  for (let i = 0; i < poly.length; i++) { const [ax, az] = poly[i], [bx, bz] = poly[(i + 1) % poly.length]; if ((az > z) !== (bz > z) && x < ((bx - ax) * (z - az)) / (bz - az) + ax) c = !c; }
+  const edges = only == null ? poly.map((_, i) => i) : [only];
+  const d = Math.min(...edges.map((i) => segD(x, z, poly[i], poly[(i + 1) % poly.length])));
+  return c ? d : -d;
+};
+
+test('art m07 pass 2: the start rock and the salient reef are drawn inside their gameplay polygons (footprint = the polygon; the start rock at body height ≥ 0.6 m inside it, the reef ≥ 0.7 m off its W edge, the rowboat\'s lane)', () => {
+  for (const [id, band, min, edge] of [['rock_start', [0.15, 1.8], 0.6, null], ['rocks_salient', [-0.3, 1.0], 0, 3]]) {
+    const s = S(id), cx = s.points.reduce((a, q) => a + q[0], 0) / s.points.length, cz = s.points.reduce((a, q) => a + q[1], 0) / s.points.length;
+    assert.deepEqual(s.navParts.length, 1, id);
+    assert.deepEqual(s.navParts[0].points.map(([u, v]) => [+(cx + u).toFixed(6), +(cz + v).toFixed(6)]), s.points, `${id}: navParts = its polygon`);
+    assert.equal(s.navParts[0].block, s.block, id);
+    assert.ok(s.fixed, `${id}: fixed (a polygon def has no x/z: relocated, its drawing would start from the origin)`);
+    const local = s.navParts[0].points;
+    for (const b of s.boulders) for (const [x, z] of boulderBandHull(b, ...band)) {
+      assert.ok(insetOf(local, x, z) >= min, `${id}: boulder ${b} reaches ${insetOf(local, x, z).toFixed(2)} m from its edge`);
+      if (edge != null) assert.ok(insetOf(local, x, z, edge) >= 0.7, `${id}: boulder ${b} ${insetOf(local, x, z, edge).toFixed(2)} m off the W edge`);
+    }
+  }
+});
+
+test('art m07 pass 2: the air-drop — the canopy in the pinned pine above a walker\'s head, the lines\' last metre over the crates, the first pass\'s silk heap kept', () => {
+  const p = S('parachute'), a = S('airdrop'), pine = m07.structures.filter((s) => s.type === 'pine')[1];
+  assert.ok(p.fixed && a.fixed && pine.fixed, 'the three keep the first pass\'s placement');
+  assert.deepEqual([pine.x, pine.z], [p.tree[0], p.tree[1]]);
+  assert.equal(a.variant, 'raf_crates');
+  const g = buildParachuteTree({ ...p });
+  let lowSilk = Infinity, far = 0, heap = 0;
+  g.updateMatrixWorld(true);
+  g.traverse((o) => {
+    if (!o.isMesh) return;
+    const P = o.geometry.attributes.position, v = new THREE.Vector3();
+    for (let i = 0; i < P.count; i++) {
+      v.fromBufferAttribute(P, i).applyMatrix4(o.matrixWorld);
+      if (o.name === 'chute:silk') lowSilk = Math.min(lowSilk, v.y);
+      else if (/kit:sign|silk|planks|canvas/.test(o.name) || o.material?.name === 'kit:silk') heap++;
+      else if (o.name !== 'chute:spill' && v.y < 1.8) far = Math.max(far, Math.hypot(v.x + p.x - p.riser[0], v.z + p.z - p.riser[1]));
+    }
+  });
+  assert.ok(lowSilk > 3.2, `canopy hem ${lowSilk.toFixed(2)} m`);
+  assert.ok(far < 0.9, `lines under 1.8 m reach ${far.toFixed(2)} m from the riser (the crates' own clearance: ~0.66 m of boxes + 0.3 m)`);
+});
+
+test('art m07 pass 2: the new dressing stands on ground no route crosses (≥ 3 m off every route, ≥ 5 m off every post, start, item and vehicle) and h_6\'s rorbu ends at the ground', () => {
+  const ids = ['drums_pk', 'stores_pk', 'timber_pk', 'wreck_rf', 'faering_ml', 'gear_ml'];
+  const segs = [];
+  for (const e of m07.enemies) { const pts = [{ x: e.x, z: e.z }, ...(e.route?.points || [])]; for (let i = 0; i + 1 < pts.length; i++) segs.push([[pts[i].x, pts[i].z], [pts[i + 1].x, pts[i + 1].z]]); }
+  for (const b of Object.values(m07.barracks || {})) for (const sq of b.squads || []) for (const r of [sq.exitRoute, sq.loop]) if (r) for (let i = 0; i + 1 < r.length; i++) segs.push([[r[i].x, r[i].z], [r[i + 1].x, r[i + 1].z]]);
+  for (const id of ids) {
+    const s = S(id), r = s.r ?? Math.hypot(s.w, s.d) / 2;
+    assert.ok(s.fixed, `${id} authored`);
+    for (const [a, b] of segs) assert.ok(segD(s.x, s.z, a, b) - r >= 3, `${id} on a route`);
+    for (const q of [...m07.enemies, ...m07.commandos, ...(m07.interactables || []), ...(m07.vehicles || [])]) assert.ok(Math.hypot(q.x - s.x, q.z - s.z) - r >= 5, `${id} vs ${q.id ?? q.role}`);
+  }
+  assert.equal(S('h_6').artFloor, -0.15);
+});

@@ -72,6 +72,9 @@ const wall = (id, points, extra = {}) => ({ id, type: 'wall', variant: 'wall_sto
 const house = (id, x, z, w, d, h, door, variant = 'house_norse_fishing') =>
   ({ id, type: 'house', variant, x, z, rot: 0, w, d, h, mat: 'woodDark', snowRoof: true, enterable: true, door });
 const pine = (x, z, k) => ({ type: 'pine', x, z, r: 0.5, h: 9 + (k % 6), seed: 701 + k });
+/** The pine the air-drop's parachute hangs in (dossier (12,7)): where the first pass's placement moved it, clear of the
+ *  silk heap at its foot (fixed there since art pass 2: the canopy is drawn round it, and the grid-only builds agree). */
+const AIRDROP_PINE = [10.439, 5.831];
 /** The bombed brick houses of the ruins field (T9): scripts/bombed-ruin.js (gameplay = the drawn shell). */
 const ruin = (id, x, z, rot = 0) => bombedRuin(id, x, z, deg(rot));
 /** Art pass: moored = the library motor fishing cutter, beached = the faering rowing boat (oars shipped, some keel-up). */
@@ -136,7 +139,7 @@ const BUILDINGS = [
   { ...house('h_3', 118.5, 88.5, 7, 10, 6, [114.3, 88.5]), asset: 'house_timber_b_snow', artTurn: 1, artFill: 0.8, artOffset: [-0.8, -0.4] }, // front door W
   house('h_4', 99.5, 86, 9, 17, 8, [104.8, 88], 'house_norse_compound'),
   { ...house('h_5', 127, 97, 12, 10, 8, [127, 91.3]), asset: 'house_timber_c_snow', artFill: [0.85, 0.75], artOffset: [0.9, 0.3] },
-  { ...house('h_6', 100.5, 99, 8, 7, 5, [100.5, 103.3]), asset: 'fishing_shed_a_snow', artTurn: 0, artFill: 0.8 }, // front door S
+  { ...house('h_6', 100.5, 99, 8, 7, 5, [100.5, 103.3]), asset: 'fishing_shed_a_snow', artTurn: 0, artFill: 0.8, artFloor: -0.15 }, // front door S (art pass 2: the rorbu's quay piles and ladder end at the ground, artFloor)
   { id: 'boathouse', type: 'house', variant: 'boathouse', x: 137, z: 111, rot: deg(20), w: 8, d: 12, h: 6, mat: 'woodDark', snowRoof: true, asset: 'naust_a_snow', artFill: 0.8 },
   // (the brick shells are bigger than the old 5 × 4 frames: ruin_1 2.5 m W off e6's walk, ruin_2 0.9 m W off ruin_3's
   // wall, ruin_5 2.1 m N and turned round (breach and rubble N) off the beached faering boat_b1, ruin_6 2.5 m E: the
@@ -185,7 +188,7 @@ const WALLS = [
   { id: 'gate_n', type: 'gate', variant: 'gate_stone_piers_timber', x: 28.5, z: 66, rot: deg(40), w: 2.0, h: 3, open: true },
   // the runs end at the gates' piers: joined (clipAllow), not cut back by the library gate's swung leaves
   wall('w_inner', [[29.04, 66.47], [60.5, 94.5]], { clipAllow: ['gate_n'] }),
-  wall('w_ne', [[61.8, 48], [72.4, 56.8]]),
+  wall('w_ne', [[61.8, 48], [72.4, 56.8]], { clipAllow: ['ridge_n'] }), // (its N end built into the ridge's rock face)
   wall('w_ne2', [[74.33, 58.19], [88.5, 69.5]], { clipAllow: ['gate_ne'] }),
   // NE gate: arched double doors, shut and locked (no source uses it)
   { id: 'gate_ne', type: 'gate', variant: 'gate_arched_double', x: 73.5, z: 57.6, rot: deg(38), w: 2.6, h: 3, locked: true },
@@ -194,7 +197,12 @@ const WALLS = [
   wall('w_middle', [[88.5, 69.5], [60.5, 94.5], [42.6, 111.5]]),
   wall('w_salient', [[42.6, 111.5], [64.6, 128], [49.5, 145.5]]),
   // low rocks in the shallows off the wall's S end: nobody wades round it, but gun 23 sees the pen water over them
-  { id: 'rocks_salient', type: 'rocks', points: [[48.7, 145], [50.3, 145], [50.5, 150.5], [48.5, 150.5]], h: 0.7, block: 1 },
+  // (art pass 2: drawn as a reef of snow-capped boulders breaking the surface along its E side from 0.4 m off the wall's end, `fixed` — its one 2.5 m
+  // boulder stood in the map's NW corner at (0.7, 1.8): the placement rules moved it off the wall's end starting from the
+  // origin, a polygon def having no x/z; gameplay the polygon, navParts, local to its centroid (49.5, 147.75))
+  { id: 'rocks_salient', type: 'rocks', points: [[48.7, 145], [50.3, 145], [50.5, 150.5], [48.5, 150.5]], h: 0.7, block: 1, fixed: true,
+    navParts: [{ points: [[-0.8, -2.75], [0.8, -2.75], [1, 2.75], [-1, 2.75]], block: 1 }],
+    boulders: [[0.35, -1.35, 0.85, 1.0, 0.45, 20, 31], [0.38, -0.45, 0.95, 1.15, 0.6, -10, 37], [0.4, 0.7, 0.95, 1.05, 0.5, 35, 41], [0.45, 1.95, 0.9, 1.0, 0.4, 5, 43]] },
 ];
 
 /** Props (dossier §5.4). */
@@ -205,23 +213,35 @@ const PROPS = [
   // the Gatling nest in the middle pocket's E corner (open behind the gunner)
   { id: 'mg_ne_nest', type: 'sandbags', variant: 'mg_nest_sandbag', x: 74.5, z: 68.5, rot: deg(200), ring: { r: 1.8 }, h: 1.0, block: 1 },
   // air-drop crate under a draped parachute (the charges), crate stacks
-  { id: 'airdrop', type: 'crates', variant: 'airdrop_crate', x: 15, z: 4.5, rot: 0, w: 1.2, d: 1.2, h: 1.0, block: 0 },
-  { id: 'parachute', type: 'sign', variant: 'parachute_draped', x: 12, z: 7.8, r: 0.5, h: 3, block: 0 },
+  // (art pass 2: the supply crates RAF green and stencilled, box for box the placeholder's — art/m04-dressing.js; the canopy
+  // caught in the crown of the pine at (12,7) as the sources have it, the rigging lines down to the crates' riser —
+  // art/m07-dressing.js; it was a silk heap at the pine's foot, through its trunk)
+  // (fixed, as the first pass's placement left them: the pine 2 m off its listed spot, clear of the silk heap at its foot)
+  { id: 'airdrop', type: 'crates', variant: 'raf_crates', x: 15, z: 4.5, rot: 0, w: 1.2, d: 1.2, h: 1.0, block: 0, fixed: true },
+  { id: 'parachute', type: 'sign', variant: 'parachute_tree', x: 12, z: 7.8, r: 0.5, h: 3, block: 0, fixed: true, tree: [AIRDROP_PINE[0], AIRDROP_PINE[1], 10], riser: [15, 4.5, 1.0] },
   // (rails clear: crates_1 1.3 m back off the slip rails — its corner stood on their sleepers)
   ...[[19.1, 94.1], [38, 116], [47, 60]].map(([x, z], k) => ({ id: `crates_${k + 1}`, type: 'crates', variant: 'dock_cargo', asset: ['dock_cargo_a', 'dock_cargo_c', 'dock_cargo_b'][k], x, z, rot: 0, w: 2, d: 2, h: 1.2, block: 1 })),
   // the hedgehog in the crag gap
   { id: 'hedgehog_n', type: 'crates', variant: 'czech_hedgehog', x: 46, z: 23, rot: deg(45), w: 1.4, d: 1.4, h: 1.2, block: 1 },
   // rocks: the start rock that hides group B, two boulders, the low chain E of it, the mole rim
-  { id: 'rock_start', type: 'rocks', points: [[100.5, 28], [107.5, 27], [107.5, 36], [101, 36.5]], h: 3, block: 2 },
+  // (art pass 2: drawn as a group of snow-capped granite boulders, art/boulder-row.js — it was one 3 m boulder at the
+  // centroid of its 7 × 9.5 m block. The gameplay stays the polygon (navParts, local to its centroid (104.125, 31.875));
+  // the rock at body height keeps 0.67 m or more inside it. `clip: false`: the B.HIGH block stops men and eyes where the
+  // rock is drawn; the boulders' own body solids, which the old centroid boulder lacked so close to the edge, put the
+  // Green Beret's decoy run round it 0.07 s late and the east party a whole patrol cycle behind)
+  { id: 'rock_start', type: 'rocks', points: [[100.5, 28], [107.5, 27], [107.5, 36], [101, 36.5]], h: 3, block: 2, fixed: true, clip: false,
+    navParts: [{ points: [[-3.625, -3.875], [3.375, -4.875], [3.375, 4.125], [-3.125, 4.625]], block: 2 }],
+    boulders: [[0, -0.15, 5.2, 6.4, 3.0, 4, 11], [1.45, 2.55, 2.2, 1.9, 1.8, 20, 23], [-1.9, -2.55, 2.0, 1.8, 1.6, -15, 5], [-1.9, 2.7, 1.5, 1.3, 1.0, 40, 7]],
+    drifts: [[0.4, 3.9, 4.4, 1.5, 0.35, 0], [3.3, 0.6, 3.2, 1.1, 0.3, 90]] },
   { id: 'rock_nw', type: 'rocks', x: 29.5, z: 10.6, r: 2.5, h: 2.4 },
   { id: 'rock_pocket', type: 'rocks', x: 47, z: 53.5, r: 2.8, h: 2.4 },
   ...[[114, 36], [116.5, 37], [119, 38]].map(([x, z], k) => ({ id: `rock_chain_${k + 1}`, type: 'rocks', x, z, r: 1.2, h: 1, block: 1 })),
   ...[[59, 150], [62, 162], [66, 176], [72, 182.5], [79.5, 181.5], [83, 168], [83, 155]]
     .map(([x, z], k) => ({ id: `rock_mole_${k + 1}`, type: 'rocks', x, z, r: 1.3, h: 0.9, block: 1 })),
   // pines, h 9–14; (59,108) is "the tree near the little corner of the wall"
-  ...[[7, 5.5], [12, 7], [3, 17], [29.5, 4.5], [20, 41.5], [25.5, 44.8], [8.6, 61.6], [45, 32.5], [51.4, 42.5], [59, 4.5], [71.5, 42], [73, 39],
+  ...[[7, 5.5], AIRDROP_PINE, [3, 17], [29.5, 4.5], [20, 41.5], [25.5, 44.8], [8.6, 61.6], [45, 32.5], [51.4, 42.5], [59, 4.5], [71.5, 42], [73, 39],
     [87, 48], [89.5, 44], [86.7, 51], [92.5, 58], [103.5, 20], [54.8, 86], [79, 65.5], [79, 90], [55.4, 110], [59, 108], [64.4, 133],
-    [122.5, 45], [129.5, 18], [133.5, 12], [136.5, 23], [140, 52]].map(([x, z], k) => pine(x, z, k)),
+    [122.5, 45], [129.5, 18], [133.5, 12], [136.5, 23], [140, 52]].map(([x, z], k) => (k === 1 ? { ...pine(x, z, k), fixed: true } : pine(x, z, k))),
 ];
 
 // ---------------------------------------------------------------- art pass: set dressing (low cover, >= 1.5 m off every
@@ -246,6 +266,20 @@ const DRESSING = [
   // kept clear: no log piles by h_2 and h_3, no handcart by h_3)
   dress('logs_h5', 129.5, 103.6, 0, 3, 1.5, LOGS),
   dress('crates_bh', 130.5, 106, 20, 2.2, 2.2, { variant: 'dock_cargo', asset: 'dock_cargo_e', h: 1.2 }),
+  // (art pass 2, on ground no unit crosses in the solution — 9 m or more from every walker, 5 m from the mole's patrol —
+  // and away from the streets and yards: the village keeps its room)
+  // the base's stores dump in the pocket's N corner under the ridge, square to w_ne: fuel drums on dunnage, stores chests under a
+  // tarpaulin, sawn timber for the slipway (art/fuel-drums.js, art/stores-pile.js, the library's timber stack)
+  dress('drums_pk', 50.2, 47.6, 39.7, 3.2, 1.4, { variant: 'fuel_drums', h: 1.6, label: 'Fuel drums' }),
+  dress('stores_pk', 45.6, 46.4, 39.7, 3, 2.2, { variant: 'stores_pile', h: 1.5, label: 'Stores' }),
+  dress('timber_pk', 53.2, 44.9, 39.7, 2.8, 2.2, { variant: 'timber_stack', asset: 'timber_stack_no_snow', h: 0.8 }),
+  // the ruins field's W side: a lorry burnt out in the raid that wrecked the brick houses
+  { id: 'wreck_rf', type: 'ruins', variant: 'vehicle_wreck', label: 'Burnt-out lorry', x: 70.5, z: 101, rot: deg(205), w: 6.2, d: 2.4, h: 2.2, block: 2, fixed: true,
+    vehicleArt: 'opel_blitz_cargo', wreck: true },
+  // the lighthouse mole's E side: a faering hauled up keel-up for the winter, a fisherman's boxes, creels and rope
+  // (art/m07-dressing.js)
+  dress('faering_ml', 79.6, 156, 72, 4, 1.8, { variant: 'boat_beached_overturned', vehicleArt: 'rowboat', vehicleArtHide: ['oar_l', 'oar_r'] }),
+  dress('gear_ml', 78.2, 163.5, 75, 3, 1.6, { variant: 'fish_gear', h: 0.9, label: 'Fishing gear' }),
 ];
 /** Street furniture (visual only, never on the walk grid): Norwegian wooden lamp posts in the village, harbour lamps on
  *  the quay, a telegraph line along the beach road, the dockyard's no-entry board, a fingerpost, a rail fence. */
@@ -455,8 +489,9 @@ export default {
     ['uboat_1', 'pier'], ['uboat_2', 'pier'], ['uboat_1', 'gw_1'], ['uboat_1', 'gw_2'], ['boathouse', 'jetty_e1'], ['boat_m3', 'boat_m4'], ['boat_m7', 'boat_m10']]),
   items: [],
   interactables: [
-    // the air-drop crate: all four time bombs (only the Sapper can take them)
-    { interactKind: 'crate', id: 'drop', x: 15, z: 4.5, contents: { timeBomb: 4 } },
+    // the air-drop crate: all four time bombs (only the Sapper can take them). (art pass 2: pinned where the first pass's
+    // placement moved it, off the crates' drawn boxes — the RAF crates' snow and riser would have moved it 0.6 m again)
+    { interactKind: 'crate', id: 'drop', x: 15.55, z: 5.212, fixed: true, contents: { timeBomb: 4 } },
     // "the curtain": the Spy's uniform on the clothesline by the dockyard gate
     { id: 'uniform_line', interactKind: 'clothesline', x: 18, z: 67.5 },
   ],

@@ -138,7 +138,7 @@ export function buildRafCrates(p) {
 
 let SILK = null;
 /** Cream silk (a shade warmer than the snow), vertex-shaded folds and gore seams; both faces drawn. */
-function silkMaterial() {
+export function silkMaterial() {
   const base = dressingMaterial('canvas');
   if (SILK && SILK.userData.base === base.uuid) return SILK;
   SILK = base.clone(); SILK.userData.base = base.uuid; SILK.name = 'kit:silk_m04';

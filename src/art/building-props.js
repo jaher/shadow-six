@@ -497,6 +497,14 @@ export function libraryVisual(type, p = {}, ctx = {}) {
     const prev = b.object3d.userData.onLodAttached;
     b.object3d.userData.onLodAttached = (...args) => { prev?.(...args); dropAssetAo(b.object3d, rx); };
   }
+  // `artFloor` (m, in the model's own frame: its ground at 0): every vertex below it raised to it, per LOD — a waterside model
+  // drawn on dry land (M7's h_6 rorbu: its quay deck's piles and ladder ran 2.6 m into the ground, the clip audit's
+  // 'buried'). Only what lies under the ground moves: what is drawn above it, and so the walk grid, is unchanged.
+  if (Number.isFinite(p.artFloor)) {
+    floorAsset(b.object3d, p.artFloor);
+    const prev = b.object3d.userData.onLodAttached;
+    b.object3d.userData.onLodAttached = (...args) => { prev?.(...args); floorAsset(b.object3d, p.artFloor); };
+  }
   if (/^oil_tank_column/.test(b.asset)) {
     // M11: the pale pipe run with red flanges and valves to the neighbouring column(s) (art/fuel-pipes.js)
     const same = (q) => q === p || (q.id != null && q.id === p.id && q.x === p.x && q.z === p.z);
@@ -754,6 +762,30 @@ export function hideAssetMats(root, rx, keepOn = null) {
  * shader; textures shared; never the library's shared material, which another mission's building of the asset keeps).
  * @returns {number} meshes newly switched
  */
+/**
+ * Raise every vertex of a library model (`root`, every LOD) lying below `y0` (m, in root's own frame) to `y0` (artFloor). A mesh
+ * is changed once, on its own copy of the geometry (the template's stays as it is).
+ */
+export function floorAsset(root, y0) {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), toRoot = new THREE.Matrix4(), back = new THREE.Matrix4(), v = new THREE.Vector3();
+  let n = 0;
+  root.traverse((o) => {
+    if (!o.isMesh || o.userData.artFloor === y0 || !o.geometry?.attributes?.position) return;
+    toRoot.multiplyMatrices(inv, o.matrixWorld); back.copy(toRoot).invert();
+    const P = o.geometry.attributes.position, low = [];
+    for (let i = 0; i < P.count; i++) { v.fromBufferAttribute(P, i).applyMatrix4(toRoot); if (v.y < y0) low.push(i); }
+    o.userData.artFloor = y0;
+    if (!low.length) return;
+    o.geometry = o.geometry.clone();
+    const Q = o.geometry.attributes.position;
+    for (const i of low) { v.fromBufferAttribute(Q, i).applyMatrix4(toRoot); v.y = y0; v.applyMatrix4(back); Q.setXYZ(i, v.x, v.y, v.z); }
+    Q.needsUpdate = true; o.geometry.computeBoundingBox(); o.geometry.computeBoundingSphere();
+    n += low.length;
+  });
+  return n;
+}
+
 export function dropAssetAo(root, rx) {
   const copies = new Map();
   const has = (m) => m?.aoMap && m.aoMapIntensity !== 0 && rx.test(m.name || '');

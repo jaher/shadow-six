@@ -896,6 +896,9 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 ## 2026-10-30 — Characters detail perf merged to master (perf lane 2)
 - perf/characters-detail merged (d431d3f68): skeletons update once per drawn frame, the kit is instanced, far idle steps are staggered, bones are pruned, the scope lens keeps the kit batches. characters-perf 4.10 ms/frame for 46 characters; unit 2514/0; render-budget m03/m11/m18, m03-solution and debug-walkthrough-sim passed. Later master commits merged in untested; video-perf-mission not run.
 
+## 2026-10-30 — M7: second art pass (art2/m07, not merged yet)
+- Art pass 2: group B's start rock (a 7 × 9.5 m B.HIGH block drawn as one 3 m boulder) drawn as snow-capped granite boulders filling it; the salient's low rocks drawn as a reef where they stand (their boulder stood in the map's NW corner: the placement rules moved the polygon def from the origin — polygon defs have no x/z; other missions' polygon point props may share this, unchecked); the air-drop's RAF crates and the canopy caught in the pine (lines to the riser, silk spilled into the first pass's heap); the pocket's stores dump, a burnt-out Opel Blitz in the ruins field, a faering keel-up and fishing gear on the lighthouse mole; h_6's rorbu piles end at the ground (new library option `artFloor`); w_ne's end in ridge_n declared. Static clip m07: 0 unintended, 0 floating (master: 1 + 1 buried).
+- m07-solution identical to master (won 2238.1, 0/0, the same 8 kills, all 41 checkpoints at the same times): the start rock is `clip: false` (its boulders' body solids made the decoy run 0.07 s late and cost the east party a patrol cycle), and the pine, the crates, the heap and the charges pickup are pinned where the first pass's placement left them. Media: commandos-shots/art/m07-p2-before-after.jpg.
 ## 2026-10-30 — M02 perf merged to master (perf lane 3)
 - perf/m02 merged (25cbc7366): raft-trip wait look-ahead 0.70->0.27 ms/tick, blast path reuse, hypot2/3 allocation 2.1->0.6 GB/run, pixel-store cache, HD upgrades paced on walkthrough still screens; sim identical (m02-solution win 1200.9). Unit 2531 passed. Wall-clock video-perf still shows shared-host spikes (66.7 ms worst); own CPU within bounds.
 
@@ -904,3 +907,6 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 
 ## 2026-10-30 — M17 art pass 2 and solution merged to master (lane B)
 - Art2 merged 1a50de2fc (Alsatian vineyard, soft-edged ploughed field, beet clamp, rocky gorge with stream, re-surfaced bridge approaches, HQ setts). Solution merged 2ef781001 (win 3228.93 s, 0 detections / 0 exposures, 27 kills; second run reproduces). Media: commandos-shots/art/ and commandos-shots/solutions/m17-sheet.jpg.
+
+## 2026-10-30 — M7 art pass 2 and solution merged to master (lane C)
+- Solution merged 561b68a25 (straighter routes, no quiet stretch over 60 s, 0 detections, won 2238.1 s, 8 kills, 41 checkpoints). Art2 merged 6e0f82051 (start rock, salient reef, canopy in the pine, stores dump, burnt-out lorry, fishermen's gear, h_6 floor fix). Media: commandos-shots/m07verify2/out and commandos-shots/art/m07-p2-before-after.jpg.
