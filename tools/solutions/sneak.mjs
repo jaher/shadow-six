@@ -57,13 +57,28 @@ function canSee(e, d, w, o = {}) {
  * (A rail vehicle's own path / goal are its track: it is a mover by its schedule, unless it stands `keep` s more.)
  */
 export function withoutMovers(w, fn, { keep = 0 } = {}) {
+  const off = moversOff(w, { keep });
+  if (!off) return fn();
+  off.enter();
+  try { return fn(); } finally { off.leave(); }
+}
+
+/**
+ * withoutMovers in two halves, for a check sliced over frames (driver runSliced `around`): `enter` stamps the
+ * line-of-sight layer without the movers (chosen now), `leave` puts the game's back; null when nothing moves.
+ */
+export function moversOff(w, { keep = 0 } = {}) {
   // (`keep` s: a rail vehicle standing at a stop that long yet still hides what is behind it)
   const stays = (v) => keep > 0 && (v.speed || 0) < 0.05 && (v.waitT || 0) >= keep;
   const movers = new Set((w.vehicles || []).filter((v) => (v.def?.rail && !stays(v)) || (!v.def?.rail && ((v.speed || 0) > 0.05 || v.goal || v.path))));
-  if (!movers.size || !w.grid?.clearDynamic) return fn();
-  w.grid.clearDynamic();
-  for (const e of w.entities) if (!e.removed && e.stampOccluder && !movers.has(e)) e.stampOccluder(w.grid);
-  try { return fn(); } finally { w.refreshDynamicOccluders(); }
+  if (!movers.size || !w.grid?.clearDynamic) return null;
+  return {
+    enter() {
+      w.grid.clearDynamic();
+      for (const e of w.entities) if (!e.removed && e.stampOccluder && !movers.has(e)) e.stampOccluder(w.grid);
+    },
+    leave() { w.refreshDynamicOccluders(); },
+  };
 }
 
 export function viewersOf(w) {
@@ -138,43 +153,79 @@ function alongPath(u, dist, stopAtEnd = false) {
   return { x: x + Math.cos(h) * dist, z: z + Math.sin(h) * dist, heading: h };
 }
 
-/** the leader's predicted place, memoised per sim time (trailPoint walks back along it in small steps) */
+/**
+ * The leader's predicted places, memoised per sim time in 1/20 s steps (trailPoint walks back along them in 0.1 s steps):
+ * `pts[k]` where he will be k/20 s from now (k <= 0: where he is), `seg[k]` the length from step k back to step k - 2
+ * (NaN until asked: the same hypot a walk would take there) — a step of a walk back is a lookup and an add.
+ */
 const leadMemo = new WeakMap();
-function leadAt(lead, s) {
+function leadTable(lead) {
   const now = lead.world?.time ?? 0;
   let m = leadMemo.get(lead);
-  if (!m || m.now !== now) leadMemo.set(lead, (m = { now, at: new Map() }));
-  const k = Math.round(s * 20);
-  let q = m.at.get(k);
-  if (!q) m.at.set(k, (q = k <= 0 ? { x: lead.x, z: lead.z, heading: lead.heading } : predict(lead, k / 20, 1)));
+  if (!m || m.now !== now) leadMemo.set(lead, (m = { now, pts: [], seg: new Float64Array(0), here: null }));
+  return m;
+}
+function leadPt(m, lead, k) {
+  if (k <= 0) return (m.here ??= { x: lead.x, z: lead.z, heading: lead.heading });
+  const P = m.pts;
+  while (P.length <= k) P.push(undefined);
+  let q = P[k];
+  if (q === undefined) P[k] = (q = predict(lead, k / 20, 1));
   return q;
 }
+function leadSeg(m, lead, k) {
+  if (k >= m.seg.length) { const n = new Float64Array(Math.max(k + 1, 2 * m.seg.length, 256)).fill(NaN); n.set(m.seg); m.seg = n; }
+  let v = m.seg[k];
+  if (v !== v) { const a = leadPt(m, lead, k), p = leadPt(m, lead, k - 2); m.seg[k] = (v = hypot2(p.x - a.x, p.z - a.z)); }
+  return v;
+}
+/** the leader's predicted place `s` s from now (to the 1/20 s) */
+function leadAt(lead, s) { return leadPt(leadTable(lead), lead, Math.round(s * 20)); }
 
 /**
  * Where file man `e` will be `t` s from now (`w.sneakTrail`): his slot, rank × squadSpacing behind the leader along
  * the way the leader will have walked (his predicted beat, then the squad's recorded breadcrumbs), facing the way the
- * file walks there. Null when his rank is unknown.
+ * file walks there. Null when his rank is unknown. (The walk back: each step's length from the leader's table when it
+ * is the table's 0.1 s step — the same hypot of the same points —, worked out here otherwise.)
  */
 function trailPoint(e, lead, t) {
-  const w = e.world, mates = e.brain?._mates?.(lead) || [], k = mates.indexOf(e);
-  if (k < 0) return null;
-  const want = (k + 1) * (CONFIG.ai?.squadSpacing ?? 1.2);
-  const q = leadAt(lead, t);
-  let acc = 0, prev = q;
-  const hit = (p) => {
-    const seg = hypot2(p.x - prev.x, p.z - prev.z);
-    if (acc + seg < want) { acc += seg; prev = p; return null; }
+  const rank = mateIndex(e, lead);
+  if (rank < 0) return null;
+  const w = e.world, want = (rank + 1) * (CONFIG.ai?.squadSpacing ?? 1.2);
+  const m = leadTable(lead);
+  let kp = Math.round(t * 20);
+  const q = leadPt(m, lead, kp);
+  let acc = 0, px = q.x, pz = q.z;
+  const hit = (p, seg) => {
     const f = seg > 0 ? (want - acc) / seg : 0;
-    return { x: prev.x + (p.x - prev.x) * f, z: prev.z + (p.z - prev.z) * f, heading: seg > 1e-6 ? Math.atan2(prev.z - p.z, prev.x - p.x) : q.heading, halt: q.halt };
+    return { x: px + (p.x - px) * f, z: pz + (p.z - pz) * f, heading: seg > 1e-6 ? Math.atan2(pz - p.z, px - p.x) : q.heading, halt: q.halt };
   };
   // back along the leader's predicted way to now (at most 30 s of it: a long halt of his only bunches the file up)
-  for (let s = t - 0.1; s > Math.max(0, t - 30) - 1e-9; s -= 0.1) { const r = hit(leadAt(lead, s)); if (r) return r; }
-  if (t > 30) return { x: prev.x, z: prev.z, heading: q.heading };
-  const r0 = hit({ x: lead.x, z: lead.z }); if (r0) return r0;
-  // then the breadcrumbs he has left (newest first)
+  for (let s = t - 0.1; s > Math.max(0, t - 30) - 1e-9; s -= 0.1) {
+    const k = Math.round(s * 20), p = leadPt(m, lead, k);
+    const seg = kp - k === 2 && kp >= 2 ? leadSeg(m, lead, kp) : hypot2(p.x - px, p.z - pz);
+    if (!(acc + seg < want)) return hit(p, seg);
+    acc += seg; px = p.x; pz = p.z; kp = k;
+  }
+  if (t > 30) return { x: px, z: pz, heading: q.heading };
+  // then where he stands, then the breadcrumbs he has left (newest first)
   const sq = w?.ai?.squads?.get(e.squad.id);
-  for (const p of sq?.trail || []) { const r = hit(p); if (r) return r; }
-  return { x: prev.x - Math.cos(lead.heading) * (want - acc), z: prev.z - Math.sin(lead.heading) * (want - acc), heading: lead.heading };
+  for (const p of [{ x: lead.x, z: lead.z }, ...(sq?.trail || [])]) {
+    const seg = hypot2(p.x - px, p.z - pz);
+    if (!(acc + seg < want)) return hit(p, seg);
+    acc += seg; px = p.x; pz = p.z;
+  }
+  return { x: px - Math.cos(lead.heading) * (want - acc), z: pz - Math.sin(lead.heading) * (want - acc), heading: lead.heading };
+}
+
+/** e's index among his leader's file — enemy-brain _mates(lead).indexOf(e) — without its arrays (several a look). */
+function mateIndex(e, lead) {
+  if (typeof e.brain?._mates !== 'function') return -1;
+  const sq = e.world?.ai?.squads?.get(e.squad.id);
+  if (!sq) return e.brain._mates(lead).indexOf(e); // (as before: whatever _mates makes of it)
+  let n = 0, pos = -1;
+  for (const m of sq.members) if (m.alive && m !== lead && !m.removed) { if (m === e) pos = n; n++; }
+  return pos < 0 ? -1 : sq.flip ? n - 1 - pos : pos;
 }
 
 /**
@@ -274,24 +325,69 @@ export function predict(e, t, depth = 0) {
     if (e.isMoving || e.path) return alongPath(e, sp * t, b && b.state !== 'IDLE' && b.state !== 'REINFORCE' && b.state !== 'RETURN');
     return { x: e.x, z: e.z, heading: e.heading };
   }
-  let x = p0?.x ?? e.x, z = p0?.z ?? e.z, h = p0?.heading ?? e.heading, left = t - t0;
-  let i = b.routeIndex ?? 0, dir = b.routeDir ?? 1;
-  const loop = (b._routeType || e.spawn?.route?.type || e.routeMode || 'PINGPONG').toUpperCase() === 'LOOP' || e.routeMode === 'loop';
-  const loopStart = b._loopStart ?? 0;
+  const x = p0?.x ?? e.x, z = p0?.z ?? e.z, h = p0?.heading ?? e.heading, i = b.routeIndex ?? 0;
+  let left = t - t0;
   const waitLeft = b.atWait && !p0 ? Math.max(0, b.waitT ?? 0) : 0;
-  const halt = (wp, into) => (wp?.look != null ? { x, z, heading: (wp.look * Math.PI) / 180, alt: into <= TURN ? h : undefined, halt: true } : { x, z, heading: h, halt: true });
-  let prevWait = null;
   if (waitLeft > 0) {
     const wp = r[i];
-    if (left <= waitLeft) return halt(wp, left + Math.max(0, (wp?.wait ?? 0) - waitLeft));
-    if (wp?.look != null) h = (wp.look * Math.PI) / 180;
-    left -= waitLeft; prevWait = i; i = nextIdx(i);
+    if (left <= waitLeft) return haltAt(wp, left + Math.max(0, (wp?.wait ?? 0) - waitLeft), x, z, h);
+    left -= waitLeft;
   }
   // (`w.sneakPaths`, opt-in) he walks each leg along the pathfinder's way (his present path on this one), not straight
   // from point to point: round the corners the game's nav makes him take (its mesh clearances in the browser)
   const paths = !!e.world?.sneakPaths;
   // (and halts where he was last seen halting at that point: the game's own planner may stop him a little short of it)
   if (paths && b.atWait && hypot2(e.x - r[b.routeIndex ?? 0].x, e.z - r[b.routeIndex ?? 0].z) < 1.5) { let hs = sideOf(HALTS, e); if (hs == null) HALTS.set(e, (hs = {})); hs[b.routeIndex ?? 0] = [e.x, e.z]; }
+  // the rest of his beat from here, laid out once per guard and sim time (routeOf) and walked for `left` s
+  const R = routeOf(e, b, r, x, z, h, i, waitLeft, paths, sp, !!p0);
+  const ops = R.ops;
+  for (let k = 0; k < ops.length; k++) {
+    const o = ops[k];
+    if (o.wait === undefined) {
+      if (left * sp <= o.L) return { x: o.x + o.dxL * left * sp, z: o.z + o.dzL * left * sp, heading: o.h, halt: false, turnFrom: o.h0, turnT: left };
+      left -= o.dec;
+    } else {
+      if (left <= o.wait) return haltAt(o.wp, left, o.x, o.z, o.h);
+      left -= o.wait;
+    }
+  }
+  return { x: R.x, z: R.z, heading: R.h };
+}
+
+/** A man halted at route point `wp` (`into` s into the halt) at (x, z), having walked in heading h. */
+function haltAt(wp, into, x, z, h) {
+  return wp?.look != null ? { x, z, heading: (wp.look * Math.PI) / 180, alt: into <= TURN ? h : undefined, halt: true } : { x, z, heading: h, halt: true };
+}
+
+/**
+ * predict's walk along walker `e`'s beat from (x, z, heading h) at route point i (after the halt he stands at, if any),
+ * laid out as the steps it takes — for each stretch of way its start, length, headings and the time it takes; for each
+ * halt where, how long and its look — once per guard and sim time (and start), and walked for each look-ahead `left`:
+ * the same numbers (each stretch's L / sp and dx / L worked out the same way), the same tests in the same order as
+ * walking it afresh, at a fraction of the cost (a look along a crawl asks every guard where he is hundreds of times).
+ */
+const ROUTES = new WeakMap();
+function routeOf(e, b, r, x, z, h, i, waitLeft, paths, sp, fromP0) {
+  const now = e.world?.time ?? 0, gv = e.world?.grid?.version ?? 0;
+  const R0 = ROUTES.get(e);
+  if (R0 && R0.now === now && R0.gv === gv && R0.x0 === x && R0.z0 === z && R0.h0 === h && R0.i0 === i && R0.w0 === waitLeft
+    && R0.paths === paths && R0.sp === sp && R0.p0 === fromP0 && R0.dir0 === (b.routeDir ?? 1) && R0.r === r) return R0;
+  const R = { now, gv, x0: x, z0: z, h0: h, i0: i, w0: waitLeft, paths, sp, p0: fromP0, dir0: b.routeDir ?? 1, r, ops: [], x: 0, z: 0, h: 0 };
+  let dir = b.routeDir ?? 1;
+  const loop = (b._routeType || e.spawn?.route?.type || e.routeMode || 'PINGPONG').toUpperCase() === 'LOOP' || e.routeMode === 'loop';
+  const loopStart = b._loopStart ?? 0;
+  const nextIdx = (k) => {
+    if (loop) return k + 1 < r.length ? k + 1 : Math.min(loopStart, r.length - 1);
+    if (k + dir >= r.length || k + dir < 0) dir *= -1;
+    return k + dir;
+  };
+  let prevWait = null;
+  if (waitLeft > 0) {
+    const wp = r[i];
+    if (wp?.look != null) h = (wp.look * Math.PI) / 180;
+    prevWait = i; i = nextIdx(i);
+  }
+  const ops = R.ops;
   let prev = null;
   for (let guard = 0; guard < 64; guard++) {
     const wp = r[i];
@@ -303,8 +399,8 @@ export function predict(e, t, depth = 0) {
         if (L <= 1e-6) continue;
         const hp = h; h = Math.atan2(dz, dx);
         if (tLeg > 0) h0 = hp; // (at a corner of the way he turns from the last stretch's heading)
-        if (left * sp <= L) return { x: x + (dx / L) * left * sp, z: z + (dz / L) * left * sp, heading: h, halt: false, turnFrom: h0, turnT: left };
-        left -= L / sp; tLeg += L / sp; x = px; z = pz;
+        ops.push({ x, z, L, h, h0, dxL: dx / L, dzL: dz / L, dec: L / sp });
+        tLeg += L / sp; x = px; z = pz;
       }
       const hs = sideOf(HALTS, e)?.[i];
       if (hs && hypot2(hs[0] - x, hs[1] - z) < 1.5) { x = hs[0]; z = hs[1]; }
@@ -314,20 +410,17 @@ export function predict(e, t, depth = 0) {
         // (setting off on a leg he turns to it at his body's rate: `turnFrom`, `turnT` s into the leg — walkerSees)
         const h0 = h;
         h = Math.atan2(dz, dx);
-        if (left * sp <= L) return { x: x + (dx / L) * left * sp, z: z + (dz / L) * left * sp, heading: h, halt: false, turnFrom: h0, turnT: left };
-        left -= L / sp; x = wp.x; z = wp.z;
+        ops.push({ x, z, L, h, h0, dxL: dx / L, dzL: dz / L, dec: L / sp });
+        x = wp.x; z = wp.z;
       }
     }
     prev = i;
-    if (wp.wait > 0) { if (left <= wp.wait) return halt(wp, left); if (wp.look != null) h = (wp.look * Math.PI) / 180; left -= wp.wait; }
+    if (wp.wait > 0) { ops.push({ wait: wp.wait, wp, x, z, h }); if (wp.look != null) h = (wp.look * Math.PI) / 180; }
     i = nextIdx(i);
   }
-  return { x, z, heading: h };
-  function nextIdx(k) {
-    if (loop) return k + 1 < r.length ? k + 1 : Math.min(loopStart, r.length - 1);
-    if (k + dir >= r.length || k + dir < 0) dir *= -1;
-    return k + dir;
-  }
+  R.x = x; R.z = z; R.h = h;
+  ROUTES.set(e, R);
+  return R;
 }
 
 /**
@@ -577,8 +670,15 @@ export function wheeling(e, t) {
  * `dur` s? Posted men by their predicted sweep, walkers along their predicted beat (every glance of the head), squad
  * men wheeling round at a turn at any heading. `except`: guards left out (the victim of a kill); `why`: who sees.
  */
-export function clearFor(D, pts, dur = 2, { mode = 'walk', except = null, why = null, step = 0.1, keepWalker = 0 } = {}) {
+export function clearFor(D, pts, dur = 2, o = {}) {
+  const it = clearForGen(D, pts, dur, o);
+  for (;;) { const r = it.next(); if (r.done) return r.value; }
+}
+
+/** clearFor as a generator (the same answer; it yields every few looks: a sliced wait hands the frame back). */
+export function* clearForGen(D, pts, dur = 2, { mode = 'walk', except = null, why = null, step = 0.1, keepWalker = 0 } = {}) {
   const w = D.world;
+  let looks = 0;
   for (const e of viewersOf(w)) {
     if (except?.includes?.(e)) continue;
     const far = (e.vision.far ?? 36) + 1;
@@ -586,6 +686,7 @@ export function clearFor(D, pts, dur = 2, { mode = 'walk', except = null, why = 
     for (const [x, z] of pts) {
       if (hypot2(e.x - x, e.z - z) > far + (mode === 'boat' ? HULL : 0) + (moving ? (e.vehEye ? 3 : 1.2) * dur + 2 : 0)) continue;
       for (let t = 0; t <= dur + 1e-6; t += step) {
+        if ((++looks & 15) === 0) yield;
         let seen;
         if (moving) {
           const q = predict(e, t), d = dummyFor(w, mode, x, z, q.x, q.z);
@@ -717,13 +818,21 @@ export function unwitnessed(D, victim, killer, { ahead = 0.4, at = 0, why = null
 }
 
 /** Guards that would see a body left at (x, z) within `dur` s (sampled every `step` s); [] = safe. */
-export function bodySeen(D, x, z, dur = 120, { step = 0.5, except = [] } = {}) {
+export function bodySeen(D, x, z, dur = 120, o = {}) {
+  const it = bodySeenGen(D, x, z, dur, o);
+  for (;;) { const r = it.next(); if (r.done) return r.value; }
+}
+
+/** bodySeen as a generator (the same answer; it yields every few looks: a sliced wait hands the frame back). */
+export function* bodySeenGen(D, x, z, dur = 120, { step = 0.5, except = [] } = {}) {
   const w = D.world, out = new Set();
   const d = dummyAt(w, 'body', x, z);
+  let looks = 0;
   for (const e of viewersOf(w)) {
     if (except.includes(e) || e.vehEye) continue; // (a vehicle's eye looks for men only: vehicle-ai spotCommando)
     const moving = walking(e), far = (e.vision.far ?? 36) + 1;
     for (let t = 0; t <= dur; t += step) {
+      if ((++looks & 15) === 0) yield;
       if (moving) { const q = predict(e, t); if (hypot2(q.x - x, q.z - z) > far) continue; if (walkerSees(e, q, d, w, w.time + t)) { out.add(e.tag); break; } }
       else {
         if (hypot2(e.x - x, e.z - z) > far) break;

@@ -5,6 +5,8 @@ import { MODE, HOT } from './pool.js';
 import { tornShellGeometry } from './debris.js';
 
 export const SOOT = [0.05, 0.044, 0.039], GREY = [0.32, 0.31, 0.3], DUST = [0.36, 0.3, 0.22], DIRT = [0.2, 0.15, 0.1];
+/** A drum's torn shell / lid flying off a fuel blast (debris.addHero): painted steel glowing as it cools. */
+export const heroMaterial = (paint) => new THREE.MeshStandardMaterial({ color: paint, roughness: 0.55, metalness: 0.6, side: THREE.DoubleSide, emissive: new THREE.Color(1, 0.3, 0.05), emissiveIntensity: 0 });
 export const WOOD = [0.42, 0.42, 0.44];
 export const SURFACE = { // ground-impact colours (dust, clods)
   sand: { dust: [0.5, 0.41, 0.3], clod: [0.15, 0.11, 0.07] }, dirt: { dust: [0.36, 0.3, 0.23], clod: [0.12, 0.09, 0.06] },
@@ -474,8 +476,7 @@ export const RECIPES = {
     if (!chain) vfx.at(0.45, () => smokePuffs(vfx, up(6.5 * s), rng, vfx.n(10), { spread: 1.1 * s, lat: 0.3, vmin: 0.5, vmax: 2, vy: 4.5, s0: 2.4 * s, s1: 7 * s, lmin: 7, lmax: 12, buoy: 3.2, temp: 1100, cool: 0.5, wisp: 0.25 }));
     // torn shell + lid launched, tumbling, landing and smouldering
     const paint = new THREE.Color(o.color ?? 0x3f4a2a);
-    const mkMat = () => new THREE.MeshStandardMaterial({ color: paint, roughness: 0.55, metalness: 0.6, side: THREE.DoubleSide, emissive: new THREE.Color(1, 0.3, 0.05), emissiveIntensity: 0 });
-    const shellMat = mkMat(), lidMat = mkMat();
+    const shellMat = heroMaterial(paint), lidMat = heroMaterial(paint);
     const shell = new THREE.Mesh(tornShellGeometry(rng, 0.29 * s, 0.88 * s), shellMat);
     const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.29 * s, 0.29 * s, 0.03 * s, 22), lidMat);
     const hd = V3(rr(rng, -1, 1), 0, rr(rng, -1, 1)).normalize();

@@ -88,7 +88,9 @@ export function createWindParticles(scene, blow, preset = 'high') {
     return mat;
   };
   const back = new THREE.Mesh(g, makeMat(THREE.BackSide)), mesh = new THREE.Mesh(g, makeMat(THREE.FrontSide));
-  for (const m of [back, mesh]) { m.frustumCulled = false; m.name = 'windParticles'; m.renderOrder = 4; scene.add(m); }
+  // (no GTAO prepass draw: transparent, no depth write, and its positions come from the colour shader alone — the AO's
+  // stock normal material drew every particle as one 1 m quad at the world origin)
+  for (const m of [back, mesh]) { m.frustumCulled = false; m.name = 'windParticles'; m.renderOrder = 4; m.userData.aoExclude = true; scene.add(m); }
   const dir = new THREE.Vector3(), tgt = new THREE.Vector3();
   let lastT = null;
   return {

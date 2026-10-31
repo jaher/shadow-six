@@ -13,6 +13,9 @@ export const PERF = {
   /** InstancedMeshes sharing a material with plain meshes draw with its own variant (engine/program-variants.js
    *  splitInstancedMaterials); off = the shared material, its program re-derived at every switch. */
   instancedVariants: true,
+  /** The depth passes (sun shadow map, GTAO prepass) draw each man one LOD coarser than his colour pass
+   *  (art/humanoid-real.js); off = his colour LOD there too. */
+  depthLod: true,
 };
 
 if (typeof window !== 'undefined') window.__perf = PERF;

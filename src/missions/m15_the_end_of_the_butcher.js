@@ -29,7 +29,7 @@
  *  - (retune, sol/m15) e6 at the head of S1 faces E along the canal walk, not N over the fountain square (see ENEMIES).
  */
 
-import { m15Tick, reachesHQ, destroyHQ, HQ_POINT, GARDEN_DOOR } from './scripts/m15.js';
+import { m15Tick, reachesHQ, destroyHQ, HQ_POINT, GARDEN_DOOR, ruinWarmObjects } from './scripts/m15.js';
 import { joinStructures } from './schema.js';
 import { M15_DRESSING } from '../art/m15-dressing.js';
 
@@ -465,6 +465,8 @@ export default {
     { id: 'o3', text: 'Escape in the van by the north-west road', type: 'escape', vehicleId: 'van', required: true },
   ],
   setpieces: [],
+  // (the load's program warm-up frame draws the wing and the service range in the ruin's look too: scripts/m15.js)
+  warmObjects: ruinWarmObjects,
   triggers: [
     // per-tick glue: the general's hearing and flight, the drive-off (scripts/m15.js)
     { on: 'tick', once: false, when: () => true, do: [{ run: (w) => m15Tick(w) }] },

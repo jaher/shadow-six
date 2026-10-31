@@ -157,25 +157,42 @@ let assignedList = []; // the objects holding one (refreshed by every scan)
 export function assignShadowVariants(scene, renderer = null) {
   let n = 0;
   const list = [];
+  lastRenderer = renderer;
   // visible subtrees only (hidden men's bones, unused LODs): a caster shown later is drawn with three's default until
   // the next scan — correct, only the old program churn for up to 30 frames
   scene.traverseVisible((o) => {
-    // (merged depth meshes are meshes only inside depth passes: engine/depth-merge.js)
-    if (!o.castShadow || !(o.isMesh || o.isInstancedMesh || o.isBatchedMesh || o.isDepthProxy)) return;
-    const mine = assigned.get(o);
-    if (o.customDepthMaterial !== undefined && o.customDepthMaterial !== mine) return; // the owner's own
-    const ok = [].concat(o.material).every((m) => plainDepth(m, renderer));
-    if (!ok) {
-      if (mine) { delete o.customDepthMaterial; assigned.delete(o); }
-      return;
-    }
-    const v = depthVariants.get(depthBase, `${variantKey(o)}|${depthState(o)}`);
-    if (mine !== v) { o.customDepthMaterial = v; assigned.set(o, v); n++; }
-    list.push(o);
+    const r = assignOne(o, renderer);
+    if (r > 0) n++;
+    if (r >= 0) list.push(o);
   });
   assignedList = list;
   return n;
 }
+
+/** One caster: -1 not ours (no caster / the owner's own / not plain), 0 its variant kept, 1 assigned now. */
+function assignOne(o, renderer) {
+  // (merged depth meshes are meshes only inside depth passes: engine/depth-merge.js)
+  if (!o.castShadow || !(o.isMesh || o.isInstancedMesh || o.isBatchedMesh || o.isDepthProxy)) return -1;
+  const mine = assigned.get(o);
+  if (o.customDepthMaterial !== undefined && o.customDepthMaterial !== mine) return -1; // the owner's own
+  const ok = [].concat(o.material).every((m) => plainDepth(m, renderer));
+  if (!ok) {
+    if (mine) { delete o.customDepthMaterial; assigned.delete(o); }
+    return -1;
+  }
+  const v = depthVariants.get(depthBase, `${variantKey(o)}|${depthState(o)}`);
+  if (mine === v) return 0;
+  o.customDepthMaterial = v; assigned.set(o, v);
+  return 1;
+}
+
+let lastRenderer = null; // (the last scan's: its clipping state for plainDepth)
+/**
+ * The scan's variant for one caster it never meets: a part hidden in the colour pass and shown only inside depth passes
+ * (art/humanoid-real.js: a man's next LOD drawn in the shadow map) — without it three's shared default depth material
+ * would switch programs between casters there. Same rules as the scan. @returns {boolean} the caster holds our variant
+ */
+export function assignShadowVariant(o) { return assignOne(o, lastRenderer) >= 0; }
 
 /**
  * Every frame, before the shadow pass: an object whose material became alpha-tested / displaced since the last scan

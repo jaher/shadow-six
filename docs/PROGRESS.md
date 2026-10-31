@@ -916,3 +916,6 @@ Contract: `docs/ARCHITECTURE.md`. Research: `docs/research.md`. Design: `docs/de
 
 ## 2026-10-30 — M18 perf merged to master (perf lane 3)
 - perf/m18 merged (182ac0db3): load -23% (loadMission median 19.8 s to 15.2 s), warm-up matrices once, placement rasters int keys, hypot2, vehicle poses, dive fast path; sim identical (m18-solution won 1674.6 s). Unit 2550 passed. Known: video-perf wall-clock worst-frame bound (66.7 ms) still fails on shared host; own-CPU bounds pass.
+
+## 2026-10-31 — M15 perf merged to master (perf lane 1)
+- perf/m15 merged (424e31f73): depth LOD, exact and sliced sneak look-aheads, ruined-wing and vfx program warm-up, building LOD warm; sim traces identical. Worst frame 150 to 83 ms, long tasks 95 to 2, programs linked in play 3 to 0. Unit 2563 passed. Media: commandos-shots/perf/m15-perf-before-after.jpg.

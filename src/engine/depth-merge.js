@@ -35,12 +35,26 @@ let enabled = true; // off: every proxy skipped, every member drawn (the unmerge
 let kinds = { shadow: true, ao: true };
 const SHADOW_SIDE = { [THREE.FrontSide]: THREE.BackSide, [THREE.BackSide]: THREE.FrontSide, [THREE.DoubleSide]: THREE.DoubleSide };
 
+const hooks = []; // [enter(kind), leave(kind)] around every outermost depth pass (onDepthPass)
 /** Run fn as a depth-only render: 'shadow' (sun shadow map) or 'ao' (GTAO normal/depth prepass). */
 export function inDepthPass(k, fn) {
-  const k0 = kind;
+  const k0 = kind, outer = depth === 0;
   depth++; serial++; kind = k;
-  try { return fn(); } finally { depth--; serial++; kind = k0; }
+  try {
+    if (outer) for (let i = 0; i < hooks.length; i++) hooks[i][0](k);
+    return fn();
+  } finally {
+    if (outer) for (let i = hooks.length - 1; i >= 0; i--) hooks[i][1](k);
+    depth--; serial++; kind = k0;
+  }
 }
+
+/**
+ * Run `enter(kind)` before every outermost depth pass renders and `leave(kind)` after it (also when it throws): scene
+ * changes that only the depth passes should see (art/humanoid-real.js: the men drawn one LOD coarser there). `leave`
+ * must undo whatever `enter` did, so the colour passes never see it.
+ */
+export function onDepthPass(enter, leave) { hooks.push([enter, leave]); }
 const on = () => enabled && kinds[kind] !== false;
 
 /** Turn the merged depth draws on / off at runtime (off = exactly the unmerged passes), optionally per pass kind. */

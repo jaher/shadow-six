@@ -522,6 +522,11 @@ export class Game {
     if (this.world !== world) { safe(() => raftWarm?.done(), 'raft warm-up'); return prog.cancel(), world; }
     // (+ the Spy's take and dressing props: her caps as loose props, the officer's cap, U's bundle — art/spy-actions.js)
     const spyWarm = safe(() => spyWarmObjects(world), 'spy warm-up');
+    // (+ what the mission puts on later — a look its script gives buildings at a blast, M15's ruined wing: the def's
+    // `warmObjects(world)` → {objects, done}, drawn in this frame only)
+    const missionWarm = safe(() => def.warmObjects?.(world), 'mission warm-up');
+    // (+ a fuel blast's flying drum shell: render/vfx warmObjects)
+    const vfxWarm = def.size ? safe(() => world.fx?.vfx?.warmObjects?.(def.size[0] / 2, def.size[1] / 2), 'vfx hero warm-up') : null;
     // (+ the ambient aircraft, built at load: shown over the middle of the map for the warm-up frame — render/flyovers.js)
     if (world.flyovers?.ready) await safeAsync(() => settleWithin(world.flyovers.ready, 4000), 'flyover models');
     const flyWarm = def.size ? safe(() => world.flyovers?.warmShow?.(def.size[0] / 2, 20, def.size[1] / 2), 'flyover warm-up') : null;
@@ -532,7 +537,7 @@ export class Game {
     // re-derived at every switch between the two kinds — engine/program-variants.js)
     safe(() => splitInstancedMaterials(r.scene), 'instanced material variants');
     if (CONFIG.render.warmFrame !== false) {
-      const extra = [...ruins.flatMap((rr) => rr.roots), ...(dig?.objects || []), ...wireWarm, ...(raftWarm?.objects || []), ...(spyWarm?.objects || [])];
+      const extra = [...ruins.flatMap((rr) => rr.roots), ...(dig?.objects || []), ...wireWarm, ...(raftWarm?.objects || []), ...(spyWarm?.objects || []), ...(missionWarm?.objects || []), ...(vfxWarm?.objects || [])];
       const xray = [...(dig?.xray || []), ...(raftWarm?.xray || []), ...(spyWarm?.xray || [])];
       const frame = () => this._warmFrame(extra, xray, 'world'), close = () => this._warmFrame(extra, xray, 'close');
       // the driver links the frames' programs aside first (engine/parallel-compile.js): the frames themselves never wait
@@ -550,6 +555,8 @@ export class Game {
     safe(() => dig?.done(), 'dig warm-up');
     safe(() => raftWarm?.done(), 'raft warm-up');
     safe(() => spyWarm?.done(), 'spy warm-up');
+    safe(() => missionWarm?.done?.(), 'mission warm-up');
+    safe(() => vfxWarm?.done?.(), 'vfx hero warm-up');
     safe(() => flyWarm?.done(), 'flyover warm-up');
     scorchWarm?.removeFromParent();
     if (this.world !== world) return prog.cancel(), world;

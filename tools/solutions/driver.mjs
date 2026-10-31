@@ -261,13 +261,21 @@ function alongPath(u, dist, stopAtEnd = false) {
  */
 export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet = false, watch = true, aborted = null, onOrder = null, onCheckpoint = null, onWait = null, pause = null, skipEscape = null, frame = null } = {}) {
   const w = world;
-  // a sliced plan hands the frame back every PLAN_SLICE_MS (`pause`: resolves on a later frame, no tick in between)
-  const runGenAsync = async (it) => {
-    let t0 = frame ? sliceStart() : performance.now();
-    for (;;) {
-      const r = it.next();
-      if (r.done) return r.value;
-      if (pause && performance.now() - t0 > PLAN_SLICE_MS) { await pause(); halt(); t0 = sliceNew(); }
+  // a sliced plan hands the frame back every PLAN_SLICE_MS (`pause`: resolves on a later frame, no tick in between);
+  // `around` {enter, leave}: what the plan changes in the world while it runs (sneak.mjs moversOff: the line-of-sight
+  // layer without the movers) is put back for the frames between its slices and made again for the next one
+  const runGenAsync = async (it, around = null) => {
+    let t0 = frame ? sliceStart() : performance.now(), done = false;
+    around?.enter();
+    try {
+      for (;;) {
+        const r = it.next();
+        if (r.done) { done = true; return r.value; }
+        if (pause && performance.now() - t0 > PLAN_SLICE_MS) { around?.leave(); await pause(); halt(); around?.enter(); t0 = sliceNew(); }
+      }
+    } finally {
+      if (!done) it.return?.(); // (aborted between slices: the plan's own finally blocks put back what it set)
+      around?.leave();
     }
   };
   const events = [];
@@ -852,8 +860,9 @@ export function makeDriver(world, { step, dt = 1 / 60, log = console.log, quiet 
      * `pause` (headless, tests) it runs straight through.
      */
     planSneakAsync(tx, tz, o = {}) { return runGenAsync(D.planSneakGen(tx, tz, o)); },
-    /** Run any generator the sliced way (sneak.mjs plans): hand the frame back every PLAN_SLICE_MS (`pause`). */
-    runSliced(it) { return runGenAsync(it); },
+    /** Run any generator the sliced way (sneak.mjs plans): hand the frame back every PLAN_SLICE_MS (`pause`); `around`
+     *  {enter(), leave()}: the plan's own world changes, undone for the frames between slices (leave may run twice). */
+    runSliced(it, around = null) { return runGenAsync(it, around); },
     /**
      * Inside an untilAsync predicate made of several costly checks (routeClear over a whole route…): between two of
      * them, hand the frame back (makeDriver `pause`: a later displayed frame, no tick in between) once the work since

@@ -32,7 +32,7 @@ import { onLowerStairs } from '../../src/missions/scripts/m15.js';
 import { GENERAL_PAUSE } from '../../src/missions/m15_the_end_of_the_butcher.js';
 import { boardPoint } from '../../src/abilities/drive.js';
 import { shotSight } from '../../src/abilities/common.js';
-import { sneak, clearFor, routeClear, unwitnessed, bodySeen, predict, viewersOf, walking, walkerSees, staticSees, withoutMovers, wheeling } from './sneak.mjs';
+import { sneak, clearFor, clearForGen, routeClear, routeClearGen, unwitnessed, bodySeen, bodySeenGen, predict, viewersOf, walking, walkerSees, staticSees, withoutMovers, moversOff, wheeling } from './sneak.mjs';
 import { ghost } from './ghost.mjs';
 
 const DBG = !!(globalThis.process?.env?.M15DBG || globalThis.__M3DBG);
@@ -66,14 +66,13 @@ async function dash0(D, role, pts, { mode, maxSec, label, pad, slack, slackRate,
   // its stop is gone a minute later)
   let way = typeof pts === 'function' ? null : pts, wayT = -1;
   const wayNow = () => { if (typeof pts === 'function' && (!way || D.t - wayT >= 2)) { way = pts(); wayT = D.t; } return way; };
-  await waitFor(D, (why) => {
-    const t0 = w.sneakTurns; if (t0 !== true) w.sneakTurns = true;
-    try {
-      const P = wayNow();
-      if (up && mode !== 'crawl' && standSeen(D, [[u.x, u.z, u.y || 0, 0.3], [u.x, u.z, u.y || 0, up]], { slack: 0.4, why, except: except || [] })) return false;
-      if (run && heardRunning(D, [u.x, u.z], P, speeds[0], up, why)) return false;
-      return speeds.every((speed) => routeClear(D, P, { mode: run ? 'walk' : mode, from: [u.x, u.z], speed, delay: up, slack, slackRate, hold, keepWalker, pad, why, except }));
-    } finally { w.sneakTurns = t0; }
+  // (the look along the whole way against every guard, at each pace: sliced over frames in the live replay)
+  await waitForSliced(D, function* (why) {
+    const P = wayNow();
+    if (up && mode !== 'crawl' && standSeen(D, [[u.x, u.z, u.y || 0, 0.3], [u.x, u.z, u.y || 0, up]], { slack: 0.4, why, except: except || [] })) return false;
+    if (run && heardRunning(D, [u.x, u.z], P, speeds[0], up, why)) return false;
+    for (const speed of speeds) if (!(yield* routeClearGen(D, P, { mode: run ? 'walk' : mode, from: [u.x, u.z], speed, delay: up, slack, slackRate, hold, keepWalker, pad, why, except }))) return false;
+    return true;
   }, maxSec, label || `${role} along ${JSON.stringify(typeof pts === 'function' ? '(way)' : pts)}`);
   await D.stance(role, want);
   for (const [x, z] of way) {
@@ -136,6 +135,33 @@ function heardRunning(D, from, pts, speed, delay, why = null) {
   return false;
 }
 
+/**
+ * waitFor for a check written as a generator (`yield*` sneak.mjs routeClearGen…): the same check at the same ticks,
+ * sliced over frames in the live replay (driver runSliced: the frame is handed back every PLAN_SLICE_MS with no tick in
+ * between; the line-of-sight layer is the game's for those frames, without the movers again for the next slice), at once
+ * headless. A dash's look along its whole way against every guard otherwise took 60-130 ms of one frame (stage I).
+ */
+async function waitForSliced(D, gen, maxSec, label, every = 0.2, { keep = 0 } = {}) {
+  const why = [], stats = new Map();
+  let next = -1;
+  await D.untilAsync(async () => {
+    if (D.t + 1e-9 < next) return false;
+    next = D.t + every;
+    why.length = 0;
+    // (as waitFor: movers off the sight layer, the walkers' turns at their halts on — for the slices only)
+    const w = D.world, off = moversOff(w, { keep });
+    let t0;
+    const ok = await D.runSliced(gen(why), {
+      enter() { t0 = w.sneakTurns; w.sneakTurns = true; off?.enter(); },
+      leave() { off?.leave(); w.sneakTurns = t0; },
+    });
+    if (!ok && why[0]) { const k = why[0].replace(/[@(+].*$/, ''); stats.set(k, (stats.get(k) || 0) + 1); }
+    if (!ok && DBG && why[0] && why[0] !== 'not-ready' && globalThis.process?.env?.M15DBGLABEL && label.includes(globalThis.process.env.M15DBGLABEL)) dbg(D, `${label}: ${why.slice(0, 6).join(' ')}`);
+    return ok;
+  }, maxSec, label)
+    .catch((e) => { throw new Error(`${e.message} [${why.slice(0, 5).join(' ')}] {${[...stats].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, n]) => `${k}:${n}`).join(' ')}}`); });
+}
+
 /** wait until `pred` holds (tried every `every` s: the checks look far ahead); the reasons it does not (why[]) go into
  * the timeout error */
 async function waitFor(D, pred, maxSec, label, every = 0.2, { keep = 0 } = {}) {
@@ -175,15 +201,23 @@ async function carryTo(D, role, e, [x, z], via = []) {
  * Would anyone see a man standing at the timed spots `samples` ([x, z, y, t]: t s from now), each tried `slack` s
  * early and late (walkers along their predicted beat, the turns at their halts too; posts by their sweep)?
  */
-function standSeen(D, samples, { slack = 1, why = null, except = [], only = null, keepWalker = 3, low = false, pad = 0.75 } = {}) {
+function standSeen(D, samples, o = {}) {
+  const it = standSeenGen(D, samples, o);
+  for (;;) { const r = it.next(); if (r.done) return r.value; }
+}
+
+/** standSeen as a generator (the same answer; it yields every few looks: a sliced wait hands the frame back) */
+function* standSeenGen(D, samples, { slack = 1, why = null, except = [], only = null, keepWalker = 3, low = false, pad = 0.75 } = {}) {
   const w = D.world, t0 = w.sneakTurns;
   w.sneakTurns = true;
+  let looks = 0;
   try {
     for (const e of viewersOf(w)) {
       if (except.includes(e) || (only && e !== only)) continue;
       const far = (e.vision?.far ?? 36) + 2, moving = walking(e);
       for (const [x, z, y, t] of samples) {
         for (let o = -slack; o <= slack + 1e-6; o += 0.25) {
+          if ((++looks & 15) === 0) { w.sneakTurns = t0; yield; w.sneakTurns = true; }
           const tt = Math.max(0, t + o);
           const d = { x, z, y, isLow: low, isVisibleToEnemies: true, alive: true, kind: 'commando' };
           // (`pad`: at the very edge of a band he may be a step nearer than timed: the spot `pad` m nearer too)
@@ -292,16 +326,18 @@ const BAL = 4.5;
  * foot, up (0.7 s), a step to the rungs, up them (~6.3 s, measured), along the balcony to the rack and dressing behind
  * the laundry (~4.1 s)?
  */
-function climbSeen(D, why) {
+/** Would anyone see the Spy crawl to the ladder's foot and climb to the uniform? (climbSeenGen at once: dev tools) */
+function climbSeen(D, why) { const it = climbSeenGen(D, why); for (;;) { const r = it.next(); if (r.done) return r.value; } }
+function* climbSeenGen(D, why) {
   const sp = D.c('spy'), from = [sp.x, sp.z];
   const L = Math.hypot(CLIMB_START[0] - from[0], CLIMB_START[1] - from[1]);
-  for (const speed of [0.7, 0.9]) if (L > 0.3 && !routeClear(D, [CLIMB_START], { mode: 'crawl', from, speed, slack: 1, pad: 1, why })) return true;
+  for (const speed of [0.7, 0.9]) if (L > 0.3 && !(yield* routeClearGen(D, [CLIMB_START], { mode: 'crawl', from, speed, slack: 1, pad: 1, why }))) return true;
   const tf = L / 0.85, ts = L / 0.7, tm = (tf + ts) / 2, sl = (ts - tf) / 2 + 1;
   const up = tm + 0.7, foot = up + 1.0, top = foot + 6.3;
   const spots = [[...CLIMB_START, 0, up], ...timed(CLIMB_START, [L1_FOOT], 1.2, up),
     ...timed(L1_FOOT, [L1_TOP], Math.hypot(L1_TOP[0] - L1_FOOT[0], L1_TOP[1] - L1_FOOT[1]) / 6.3, foot, 0, BAL),
     ...timed(L1_TOP, RACK_STEPS, 1.0, top, BAL, BAL), [...RACK_STEPS[1], BAL, top + 3.5], [...RACK_STEPS[1], BAL, top + 4.5]];
-  return standSeen(D, spots, { slack: sl, why });
+  return yield* standSeenGen(D, spots, { slack: sl, why });
 }
 
 /** the broken fence's gap onto the square, e12's west halt, the lawn's north-west corner where a body lies unseen */
@@ -319,9 +355,10 @@ const lawnCorner = (x, z) => LAWN_BODIES.some(([a, b]) => Math.hypot(x - a, z - 
  */
 async function ambush(D, victim, { ready = () => true, carry, via = [], carryVia = null, approachVia = null, strikeAt = null, hidden = () => false, stash = null, stashFor = 40, maxSec = 400, reach = 1.0, speed = 2.0, slack = 0.8, haltExact = null, maxT = 14 } = {}) {
   const sp = D.c('spy'), cvia = carryVia ?? via;
-  const seenBy = hidden(...carry) ? [] : bodySeen(D, carry[0], carry[1], 300, { except: [victim] });
+  const seenBy = hidden(...carry) ? [] : await D.runSliced(bodySeenGen(D, carry[0], carry[1], 300, { except: [victim] })); // (300 s of look: sliced)
   if (seenBy.length) D.log(`WARN body spot (${carry}) is seen: ${seenBy.join(',')}`);
-  await waitFor(D, (why) => {
+  // (sliced over frames in the live replay: waitForSliced)
+  await waitForSliced(D, function* (why) {
     if (!ready(victim)) { why.push('not-ready'); return false; }
     // (a body left a while where she can carry it no farther at once: nobody may see it there meanwhile)
     if (stash && bodySeen(D, stash[0], stash[1], stashFor, { except: [victim] }).length) { why.push('stash seen'); return false; }
@@ -345,9 +382,9 @@ async function ambush(D, victim, { ready = () => true, carry, via = [], carryVia
     if (haltExact != null) D.world.sneakHaltExact = haltExact; // (a halted man's head where his sweep puts it, ± that)
     // (and on her feet at his back meanwhile: the needle, his fall, the lift)
     const atBack = []; for (let t = tHit; t < tHit + 2.9; t += 0.5) atBack.push([back[0], back[1], 0, t]);
-    try { if (standSeen(D, [...way, ...atBack, ...carryWay, [...dropAt, 0, carryWay.at(-1)[3] + 0.8]], { slack, why, except: [victim] })) return false; } finally { D.world.sneakHaltExact = h0; }
+    try { if (yield* standSeenGen(D, [...way, ...atBack, ...carryWay, [...dropAt, 0, carryWay.at(-1)[3] + 0.8]], { slack, why, except: [victim] })) return false; } finally { D.world.sneakHaltExact = h0; }
     // (he must not see her coming: his cone as predicted, her on her feet, until she is at his back)
-    if (standSeen(D, way.filter((r) => Math.hypot(r[0] - back[0], r[1] - back[1]) > 1.5), { slack: 0.4, why, keepWalker: 0, only: victim })) return false;
+    if (yield* standSeenGen(D, way.filter((r) => Math.hypot(r[0] - back[0], r[1] - back[1]) > 1.5), { slack: 0.4, why, keepWalker: 0, only: victim })) return false;
     // the body where he falls, until she has him on her shoulder
     if (bodySeen(D, q.x, q.z, tHit + 4, { except: [victim] }).length) { why.push('body seen where he falls'); return false; }
     return true;
@@ -616,8 +653,10 @@ export const STAGES = [
     await D.until(() => e1.x < 22 && e1.z < 125, 120, 'e1 off along the north wall');
     await crawl(D, 'spy', 29.5, 133.5, { box: 5 });
     // (into the gap and up against the inside of the east wall, where e1 will walk past her on the other side of it)
-    await waitFor(D, (why) => routeClear(D, [RUIN_GAP, RUIN_IN, E1_AMBUSH], { mode: 'crawl', from: [sp.x, sp.z], speed: 0.75, slack: 1, pad: 1.5, why })
-      && clearFor(D, [E1_AMBUSH], 25, { mode: 'crawl', why }), 120, 'into the ruin unseen');
+    await waitForSliced(D, function* (why) {
+      return (yield* routeClearGen(D, [RUIN_GAP, RUIN_IN, E1_AMBUSH], { mode: 'crawl', from: [sp.x, sp.z], speed: 0.75, slack: 1, pad: 1.5, why }))
+        && (yield* clearForGen(D, [E1_AMBUSH], 25, { mode: 'crawl', why }));
+    }, 120, 'into the ruin unseen');
     await D.path('spy', [RUIN_GAP, RUIN_IN, E1_AMBUSH]);
     D.checkpoint('A1 the Spy waits in the burned-out house');
     // e1 comes back in through the gap and walks on to his halt in the south-east corner, his back to her: she gets up
@@ -630,7 +669,9 @@ export const STAGES = [
     await D.until(() => !e1.alive, 8, 'e1 injected');
     await D.idle('spy', 5);
     D.checkpoint('A2 the Spy injects e1');
-    await waitFor(D, (why) => clearFor(D, [[sp.x, sp.z], [14, 131], RUIN_NW], 14, { mode: 'walk', why }) && clearFor(D, [[sp.x, sp.z], [14, 131], RUIN_NW], 14, { mode: 'body', why }), 200, 'carry e1 unseen');
+    await waitForSliced(D, function* (why) {
+      return (yield* clearForGen(D, [[sp.x, sp.z], [14, 131], RUIN_NW], 14, { mode: 'walk', why })) && (yield* clearForGen(D, [[sp.x, sp.z], [14, 131], RUIN_NW], 14, { mode: 'body', why }));
+    }, 200, 'carry e1 unseen');
     await carryTo(D, 'spy', e1, RUIN_NW, [[14, 131]]);
     await D.stance('spy', 'crawl');
     D.checkpoint('A3 e1 hidden in the north-west corner');
@@ -702,7 +743,7 @@ export const STAGES = [
     // away west and nobody else looks at the ladder, she climbs it and takes the uniform off the line behind e15
     await crawlLeg(D, 'spy', [FENCE_GAP, FACADE_WAIT], { maxSec: 1500, label: 'the Spy to the balcony\'s foot' });
     D.checkpoint('E2 the Spy under the balcony');
-    await waitFor(D, (why) => !climbSeen(D, why), 1500, 'the climb unwatched');
+    await waitForSliced(D, function* (why) { return !(yield* climbSeenGen(D, why)); }, 1500, 'the climb unwatched');
     await D.stance('spy', 'crawl');
     await D.go('spy', ...CLIMB_START, { tol: 0.4 });
     await D.stance('spy', 'stand');
@@ -740,10 +781,10 @@ export const STAGES = [
     await D.until(() => tramClearOf(tram, 41, 12), 200, 'the tram clear of the crossing');
     await D.path('spy', TO_CEMETERY);
     await D.go('spy', ...E24_BEHIND, { tol: 0.4 });
-    await waitFor(D, (why) => {
+    await waitForSliced(D, function* (why) {
       if (!unwitnessed(D, e24, sp, { ahead: 1.0, why })) return false;
       const way = timed([e24.x, e24.z], [...E24_VIA, E24_BODY], 1.5, 2.9); // (needle, fall, lift: off ~2.9 s on)
-      return !standSeen(D, [[sp.x, sp.z, 0, 0], [sp.x, sp.z, 0, 1.5], ...way, [...E24_BODY, 0, way.at(-1)[3] + 1]], { slack: 0.8, why, except: [e24] });
+      return !(yield* standSeenGen(D, [[sp.x, sp.z, 0, 0], [sp.x, sp.z, 0, 1.5], ...way, [...E24_BODY, 0, way.at(-1)[3] + 1]], { slack: 0.8, why, except: [e24] }));
     }, 900, 'e24 unwatched');
     await inject(D, e24, E24_BODY, E24_VIA);
     D.checkpoint('G1 the Spy injects e24 by the chapel; his body behind the tombs');
@@ -751,12 +792,12 @@ export const STAGES = [
     // a step behind that halt (in uniform nobody minds her), injects him there and carries him into the north-west road
     await D.path('spy', FROM_CEMETERY_W);
     await D.go('spy', ...E20_BEHIND, { tol: 0.4 });
-    await waitFor(D, (why) => {
+    await waitForSliced(D, function* (why) {
       const b = e20.brain;
       if (!(b?.atWait && b.waitT > 2.2 && Math.hypot(e20.x - E20_HALT[0], e20.z - E20_HALT[1]) < 0.6)) { why.push('e20 not at his halt'); return false; }
       const way = timed([e20.x, e20.z], [...E20_VIA, E20_BODY], 1.5, 2.9);
-      if (standSeen(D, [...way, [...E20_BODY, 0, way.at(-1)[3] + 1]], { slack: 0.8, why, except: [e20] })) return false;
-      if (bodySeen(D, e20.x, e20.z, 3.5, { except: [e20] }).length) { why.push('body seen'); return false; }
+      if (yield* standSeenGen(D, [...way, [...E20_BODY, 0, way.at(-1)[3] + 1]], { slack: 0.8, why, except: [e20] })) return false;
+      if ((yield* bodySeenGen(D, e20.x, e20.z, 3.5, { except: [e20] })).length) { why.push('body seen'); return false; }
       return unwitnessed(D, e20, { x: e20.x + 1, z: e20.z + 0.25, y: 0, isVisibleToEnemies: true, alive: true, kind: 'commando' }, { ahead: 1.2, why, except: [e20] });
     }, 1500, 'e20 at his halt, unwatched');
     await inject(D, e20, E20_BODY, E20_VIA);
@@ -789,11 +830,12 @@ export const STAGES = [
     // the Driver gets off at S2 (the west-bound tram lets him out on the north side), crawls through the gate to the
     // van and climbs in when nobody would see him stand at its door
     const bp = boardPoint(van, dr), way = [...S2_TO_GATE, [bp.x, bp.z]];
-    await waitFor(D, (why) => {
+    await waitForSliced(D, function* (why) {
       if (!(tramAt(tram, 'S2W') && tram.waitT > 2)) { why.push('tram not at S2 west-bound'); return false; }
       const ex = tramExit(tram);
-      if (!clearFor(D, [ex], 1.5, { mode: 'walk', why })) return false;
-      return [0.7, 0.8, 0.9].every((speed) => routeClear(D, way, { mode: 'crawl', from: ex, speed, delay: 0.8, slack: 1, pad: 1, why }));
+      if (!(yield* clearForGen(D, [ex], 1.5, { mode: 'walk', why }))) return false;
+      for (const speed of [0.7, 0.8, 0.9]) if (!(yield* routeClearGen(D, way, { mode: 'crawl', from: ex, speed, delay: 0.8, slack: 1, pad: 1, why }))) return false;
+      return true;
     }, 1500, 'S2: the way to the van clear');
     D.order('driver', { type: 'exit' });
     await D.until(() => !dr.vehicle, 5, 'the Driver off the tram');

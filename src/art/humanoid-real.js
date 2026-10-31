@@ -36,6 +36,10 @@ import { syringeWeapon } from './syringe-prop.js';
 import { chargeWeapon } from './demolition-charge.js';
 import { poseOncePerFrame } from '../engine/pose-frame.js';
 import { registerKit, unregisterKit, disposeKit } from './kit-batch.js';
+import { onDepthPass } from '../engine/depth-merge.js';
+import { assignShadowVariant } from '../engine/program-variants.js';
+import { PERF } from '../engine/perf-flags.js';
+import { depthLodParts, depthSwapOn, depthSwapOff } from './depth-lod.js';
 
 const ROOT = new URL('../../assets/characters/', import.meta.url);
 const url = (p) => new URL(p, ROOT).href;
@@ -100,6 +104,26 @@ const BUSY_IDLE = new Set(['look_around']);
 const HALF_IDLE = new Set(['fold_arms']);
 const live = new Set();
 const view = { px: 40, frustum: null, tick: 0 };
+
+/**
+ * Depth LOD: the depth passes (the sun shadow map and the GTAO normal/depth prepass, engine/depth-merge.js inDepthPass)
+ * draw each man one LOD coarser than his colour pass: LOD2 at the default 1x view, LOD1 zoomed in or at ?debug's
+ * full-detail density. They only need his shape at the shadow map's and the AO's resolution, where the next LOD's
+ * silhouette and normals give the same picture (M15's default view, 1280x720: 44 pixels differ by more than 16 levels,
+ * single edge pixels, at most 67; at zoom 2 46 pixels, at most 44; side by side no difference to see), while the skinned
+ * triangles and vertices of those passes halve (M15: 51k of a 1.49 M frame). Which parts to hide and show is asked of
+ * his runtime (its setLOD one step down, then back: the visibility diff) outside any render, whenever his LOD, outfit or
+ * body changed; a depth pass only flips those flags and leaves a man alone whose parts are not as they were found then
+ * (a warm frame hiding duplicates, a part shown since). PERF.depthLod off = the colour LOD everywhere.
+ */
+const dlOn = []; // the men flipped for the current depth pass
+onDepthPass(() => {
+  if (PERF.depthLod === false) return;
+  for (const m of live) if (m._depthSwap(true)) dlOn.push(m);
+}, () => {
+  for (let i = 0; i < dlOn.length; i++) dlOn[i]._depthSwap(false);
+  dlOn.length = 0;
+});
 const _m4 = new THREE.Matrix4(), _sph = new THREE.Sphere(new THREE.Vector3(), 1.3);
 
 /** fnv1a 32-bit (same hash as the pipeline's variety.js). */
@@ -403,6 +427,10 @@ export function createRealHumanoid(opts = {}) {
   const st = { anim: 'idle', o: {}, colors: null, disguise: !!opts.disguise, lodPx: null, acc: 0, n: 0, h: (stagger++ & 3), deadT: 0, frozen: false };
   let land = null, water = null, cur = null;
   const both = () => [land, water].filter(Boolean);
+  // depth LOD (module doc above): the parts of `dl.h` (his body when found) the depth passes hide / show
+  // (assignShadowVariant: the shadow scan never meets a shown-only-in-depth part, art/depth-lod.js)
+  const dl = { h: null, hide: [], show: [], stale: true };
+  const depthLists = () => { dl.stale = false; dl.h = cur; depthLodParts(cur, dl.hide, dl.show, assignShadowVariant); };
 
   const build = async (id, disguiseTpl) => {
     const e = LIB.manifest.characters[id];
@@ -441,6 +469,7 @@ export function createRealHumanoid(opts = {}) {
   };
   const applyLOD = () => {
     const px = st.lodPx ?? view.px, far = px < HALF_RATE_PX;
+    dl.stale = true;
     for (const h of both()) {
       h.autoLOD ? h.autoLOD(px) : h.setLOD && h.setLOD(px >= 60 ? 'LOD0' : px >= 28 ? 'LOD1' : 'LOD2');
       if (h._far === far) continue;
@@ -497,13 +526,23 @@ export function createRealHumanoid(opts = {}) {
       if (Object.keys(pass).length) for (const h of both()) h.setColors && h.setColors(pass);
     },
     setDisguise(on) {
-      st.disguise = !!on; model.disguised = st.disguise;
+      st.disguise = !!on; model.disguised = st.disguise; dl.stale = true;
       if (R.disguise && land && land.setDisguise) land.setDisguise(st.disguise);
     },
     /** LOD override in CSS px per metre (null = follow setCharacterView). */
     setLOD(pxPerMetre) { st.lodPx = pxPerMetre; applyLOD(); },
     _applyLOD: applyLOD,
-    show(part, v) { for (const h of both()) h.show && h.show(part, v); },
+    /** Depth LOD: find his parts again if anything changed (outside renders: setCharacterView). */
+    _depthPrep() { if (dl.stale || dl.h !== cur) depthLists(); },
+    /** Depth LOD: flip him to his depth parts (on: only if they are as found; @returns {boolean} flipped) or back. */
+    _depthSwap(on) {
+      if (!on) { depthSwapOff(dl.hide, dl.show); return false; }
+      if (!dl.hide.length || dl.stale || dl.h !== cur || !root.visible || !body.visible) return false;
+      if (depthSwapOn(dl.hide, dl.show)) return true;
+      dl.stale = true; // (changed since they were found: again before the next frame)
+      return false;
+    },
+    show(part, v) { dl.stale = true; for (const h of both()) h.show && h.show(part, v); },
     /** Equip a weapon prop by name (weapons.glb); a falsy name hides the current one (hands free). */
     setWeapon(name) {
       const rt = LIB.rt[entry.runtime]; if (!rt || !rt.equip) return null;
@@ -574,6 +613,7 @@ export function setCharacterView({ camera = null, pxPerMetre = null } = {}) {
     (view.frustum || (view.frustum = new THREE.Frustum())).setFromProjectionMatrix(_m4);
   }
   if (pxPerMetre != null && pxPerMetre !== view.px) { view.px = pxPerMetre; for (const m of live) m._applyLOD(); }
+  if (PERF.depthLod !== false) for (const m of live) m._depthPrep(); // (depth LOD parts found again where they changed)
 }
 
 /** Dispose every live character (mission unload). */

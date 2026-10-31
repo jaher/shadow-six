@@ -12,7 +12,7 @@ import { LightPool } from './lights.js';
 import { Decals } from './decals.js';
 import { FxPass, NHAZE } from './pass.js';
 import { attachToEngine } from './engine.js';
-import { RECIPES, ALIASES } from './effects.js';
+import { RECIPES, ALIASES, heroMaterial } from './effects.js';
 import { WIND_UNIFORMS } from '../../world/wind.js';
 import { sessionCache } from '../../engine/asset-cache.js';
 import { AMBIENT_RULES } from './ambient.js';
@@ -296,6 +296,19 @@ function makeRuntime(vfx, { eng, gl, u, smoke, hot, amb, lights, decals, debris,
         for (const o of flip) o.visible = false;
       }
     },
+    /**
+     * For the load's warm-up frame (drawn there by every pass, shadow map included): a fuel blast's flying shell in its
+     * material (debris.addHero meshes are made at the blast — M15's tanker linked their program in the blast's frame).
+     * @param {number} x @param {number} z where (the warm-up frame shows the whole map) @returns {{objects, done}}
+     */
+    warmObjects(x = 0, z = 0) {
+      // (its material is kept, not disposed: three frees a program with the last material using it, and the blast's
+      // shells are new materials — this one holds the program until the mission goes: dispose)
+      const mat = (this._heroKeep ||= heroMaterial(new THREE.Color(0x3f4a2a)));
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.05, 0.4), mat);
+      m.castShadow = true; m.receiveShadow = true; m.position.set(x, 0.5, z);
+      return { objects: [m], done: () => { m.removeFromParent(); m.geometry.dispose(); } };
+    },
     /** Deterministic camera-shake offset (m, camera plane) for the host camera controller. */
     shakeOffset() { const t = this.time, a = this.shake * this.shake * 0.35;
       return new THREE.Vector2(Math.sin(t * 61.3) * 0.6 + Math.sin(t * 37.1), Math.cos(t * 53.7) * 0.6 + Math.sin(t * 29.3 + 1)).multiplyScalar(a); },
@@ -314,6 +327,7 @@ function makeRuntime(vfx, { eng, gl, u, smoke, hot, amb, lights, decals, debris,
     dispose() {
       this.detach?.(); this.clear(); smoke.dispose(); hot.dispose(); amb.dispose(); debris.dispose(); decals.dispose(); lights.dispose();
       this.pass.dispose(true); // `textures` belong to the session cache
+      this._heroKeep?.dispose(); this._heroKeep = null;
     },
   };
 }

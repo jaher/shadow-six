@@ -236,9 +236,8 @@ export const HQ_PARTS = ['hq_wing', 'hq_communs'];
  * `hq.destroyed`, so m15Tick re-applies it after a quick load (idempotent). @returns {boolean} any part ruined now
  */
 export function ruinWing(w) {
-  let any = false, burnt = null;
-  // the same burnt material the house got from _applyDestroyedState
-  w.byId?.('hq')?.object3d?.traverse?.((o) => { if (!burnt && o.isMesh) burnt = o.material; });
+  let any = false;
+  const burnt = ruinMaterial(w);
   for (const id of HQ_PARTS) {
     const part = w.structures?.get?.(id)?.object3d;
     if (!part || part.userData.m15Ruined) continue;
@@ -248,6 +247,35 @@ export function ruinWing(w) {
     any = true;
   }
   return any;
+}
+
+/** The material ruinWing puts on the parts: the house's first mesh's (the same burnt material it got from _applyDestroyedState). */
+function ruinMaterial(w) {
+  let burnt = null;
+  w.byId?.('hq')?.object3d?.traverse?.((o) => { if (!burnt && o.isMesh) burnt = o.material; });
+  return burnt;
+}
+
+/**
+ * For the load's program warm-up frame (mission script `warmObjects`): copies of the wing and the service range in the
+ * ruin's material, where they stand — ruinWing's look (that material on their own geometries: no tangents, no second uv
+ * set on the range) linked its programs in the blast's frame otherwise (two of them, 100-300 ms on a cold shader cache).
+ * @returns {{objects: import('three').Object3D[], done: () => void}|null}
+ */
+export function ruinWarmObjects(w) {
+  const burnt = ruinMaterial(w), objects = [];
+  if (!burnt) return null;
+  for (const id of HQ_PARTS) {
+    const part = w.structures?.get?.(id)?.object3d;
+    if (!part || part.userData.m15Ruined) continue;
+    part.updateMatrixWorld(true);
+    const c = part.clone(true);
+    c.matrixAutoUpdate = false;
+    c.matrix.copy(part.matrixWorld);
+    c.traverse((o) => { if (o.isMesh) o.material = burnt; });
+    objects.push(c);
+  }
+  return { objects, done: () => { for (const o of objects) o.removeFromParent(); } };
 }
 
 // ---------------------------------------------------------------- the drive-off
