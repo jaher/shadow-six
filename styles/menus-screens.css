@@ -523,7 +523,6 @@ html.s6-paused #view canvas { filter: saturate(.7); transition: filter 150ms lin
   .mk-tabs { top: calc(12vh + 44px); }
   .mk-lastop { max-width: calc(100vw - 32px); bottom: calc(52px + env(safe-area-inset-bottom)); }
   .mk-hints { left: 16px; right: 16px; justify-content: flex-end; flex-wrap: wrap; }
-  .bd-emblem { top: calc(24vh + 154px - 288 * var(--mr)); transform: translateX(-50%) scale(1.6); transform-origin: 50% 0; } /* ring centre behind the middle of the phone column */
   .mk-servicebook { left: 16px; right: 16px; width: auto; top: 30vh; }
   .mk-pwwrap { top: 46vh; }
 

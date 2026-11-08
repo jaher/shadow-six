@@ -54,6 +54,12 @@ export function menuGradeFilter(theater) {
   return id;
 }
 
+/**
+ * The badge's disc in its own box (assets/ui/emblem-badge-height.svg, 640×480 r; tools/ui/make_emblem.py RING): the
+ * centre as fractions of the box, the inner face's radius as a fraction of its width (158 × 1.02 of 1000 units, 2 per r).
+ */
+export const DISC = { x: 0.5, y: 0.375, r: (158 * 1.02) / 2 / 640 };
+
 /** An inline SVG filter doing freeze()'s oxblood grade (luminance 54/183/19 ÷ 256 → oxbloodLUT), made once; its id. */
 let OX_FILTER = null;
 export function oxbloodFilterId() {
@@ -92,7 +98,10 @@ export class Backdrop {
       visible: () => this.mode === 'frontend' && this.ready && !this.game.world,
       theater: () => this.theater, grade: () => this._grade(), avoid: () => this._textRects(),
     });
-    hud.kit.onScreen = () => this.bombers.interrupt(); // a new card ends a pass in flight
+    hud.kit.onScreen = (id, mode) => { // a new card ends a pass in flight; every render re-seats the column on the disc
+      if (mode !== 'none') this.bombers.interrupt();
+      this._discSoon();
+    };
     this.shade = el('div', 'bd-shade', this.root);
     this.frozen = el('canvas', 'bd-frozen', this.root);
     this.emblem = el('div', 'bd-emblem', this.root);
@@ -102,7 +111,11 @@ export class Backdrop {
     this.stillImg = null;
     this.theater = null;
     this.ready = false; // the still is graded and showing
-    this._onResize = () => { clearTimeout(this._rsT); this._rsT = setTimeout(() => { this._buildEmboss(); this._drawStill(); }, 150); };
+    this._onResize = () => { clearTimeout(this._rsT); this._rsT = setTimeout(() => { this._buildEmboss(); this._drawStill(); this._discLayout(); }, 150); };
+    // the column's seat changes with the input mode (a phone's 44 px finger rows: html.mk-touch) and the fonts
+    this._classMO = typeof MutationObserver === 'function' ? new MutationObserver(() => this._discSoon()) : null;
+    this._classMO?.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    document.fonts?.ready?.then(() => this._discSoon());
     window.addEventListener('resize', this._onResize);
     this._buildEmboss();
     this._subs = [
@@ -134,6 +147,7 @@ export class Backdrop {
     if (mode === 'frontend') this._still();
     else if (mode === 'mission' && !this.frozen.classList.contains('on')) this.freeze();
     if (mode === 'frontend' && !document.hidden) this.bombers.start(); else this.bombers.stop();
+    this._discSoon();
   }
 
   /** The front end's still: the theatre the profile last reached (temperate stands in for one without its own). */
@@ -186,9 +200,9 @@ export class Backdrop {
    */
   async _buildEmboss() {
     const run = (this._embossRun = (this._embossRun || 0) + 1);
-    const r = Math.min(innerWidth / 640, innerHeight / 480);
+    const r = (this.emblem.offsetWidth || 640 * Math.min(innerWidth / 640, innerHeight / 480)) / 640 * (this._embossK || 1);
     const dpr = Math.min(2, devicePixelRatio || 1);
-    const w = Math.max(64, Math.min(1600, Math.round(640 * r * dpr))), h = Math.round(w * 0.75);
+    const w = Math.max(64, Math.min(2048, Math.round(640 * r * dpr))), h = Math.round(w * 0.75);
     const pr = w / 640; // px per r
     let img = this._badgeImg;
     if (!img) {
@@ -263,6 +277,80 @@ export class Backdrop {
     const last = this.hud.profiles?.last?.missionId;
     const next = this.hud.screens?.nextMission?.()?.id;
     return MISSIONS.find((m) => m.id === last) || MISSIONS.find((m) => m.id === next) || MISSIONS[0] || null;
+  }
+
+  /** Re-seat the column on the disc after this frame's layout, and again once a card's entrance has settled. */
+  _discSoon() {
+    cancelAnimationFrame(this._discRaf);
+    this._discRaf = requestAnimationFrame(() => this._discLayout());
+    clearTimeout(this._discT);
+    this._discT = setTimeout(() => this._discLayout(), 450);
+  }
+
+  /**
+   * The menu column on the badge's disc (user: "Center the menu around the circle better"): a card's plain list is
+   * centred on the disc's inner face, its rows centred on it (two columns on a landscape phone: equal, an odd last row
+   * centred across both), and kept inside the face with a margin — a long row
+   * shrinks the type (to 72 %); a column still too big for the face (a phone's 44 px finger rows) grows the badge
+   * about its disc, which slides down when the column would reach the card's title. All from the laid-out geometry
+   * (the badge, the card, the rows), on every card render, resize and input-mode change: no per-device numbers.
+   */
+  _discLayout() {
+    const em = this.emblem, card = this.hud.kit?.card, list = card?.querySelector('.mk-box > .mk-list');
+    const plain = !!list && !list.hidden && list.children.length > 0 && !/\b(centred|wide|slots)\b/.test(list.className) && !list.querySelector('.opt');
+    if (this.mode !== 'frontend' || this.root.hidden || !plain || !em.offsetWidth) {
+      list?.classList.remove('disc');
+      this._seat(1, 0);
+      this.disc = null;
+      return;
+    }
+    list.classList.add('disc');
+    const rows = [...list.children].filter((e) => e.getClientRects().length);
+    for (const e of rows) { e.style.zoom = ''; e.style.gridColumn = e.style.gridRow = e.style.justifySelf = ''; }
+    list.style.gridTemplateRows = list.style.gridAutoColumns = '';
+    if (getComputedStyle(list).display === 'grid') { // a landscape phone's two columns of finger rows: symmetric
+      const n = rows.length, half = Math.floor(n / 2);   // about the disc — equal columns, an odd last row centred across both
+      list.style.gridAutoColumns = '1fr';
+      list.style.gridTemplateRows = n % 2 ? `repeat(${half}, auto) auto` : `repeat(${half}, auto)`;
+      if (n % 2) Object.assign(rows[n - 1].style, { gridColumn: '1 / span 2', gridRow: String(half + 1), justifySelf: 'center' });
+    }
+    const W = this.root.clientWidth, H = this.root.clientHeight, ew = em.offsetWidth, eh = em.offsetHeight;
+    const cx = W / 2 + (DISC.x - 0.5) * ew, cy0 = H / 2 + (DISC.y - 0.5) * eh, r0 = DISC.r * ew, margin = Math.max(8, 0.08 * r0);
+    const reach = () => { // the farthest row corner from the column's centre, and the column's height
+      const lr = list.getBoundingClientRect(), mx = (lr.left + lr.right) / 2, my = (lr.top + lr.bottom) / 2;
+      let m = 0;
+      for (const e of rows) { const q = e.getBoundingClientRect(); m = Math.max(m, Math.hypot(Math.max(mx - q.left, q.right - mx), Math.max(my - q.top, q.bottom - my))); }
+      return [m, lr.height];
+    };
+    let [m, lh] = reach(), fit = 1;
+    // finger rows (a phone's 44 px targets, touch mode or the portrait layout) never shrink: the badge grows instead
+    const finger = document.documentElement.classList.contains('mk-touch') || rows.some((e) => parseFloat(getComputedStyle(e).minHeight) >= 43.5);
+    if (m + margin > r0 && !finger) {
+      fit = Math.max(0.72, (r0 - margin) / m);
+      for (const e of rows) e.style.zoom = fit.toFixed(3);
+      [m, lh] = reach();
+    }
+    const k = Math.max(1, (m + margin) / r0);
+    // between the card's title and its foot: the disc slides down when the column would reach the title
+    const t = card.querySelector('.mk-title')?.getBoundingClientRect();
+    const feet = [...card.querySelectorAll('.mk-footer, .mk-hints')].map((e) => e.getBoundingClientRect()).filter((q) => q.height);
+    const top = t?.height ? t.bottom + margin : 0, bottom = Math.min(H, ...feet.map((q) => q.top)) - margin;
+    let dy = Math.max(0, top - (cy0 - lh / 2));
+    if (cy0 + dy + lh / 2 > bottom) dy = Math.max(top - (cy0 - lh / 2), bottom - lh / 2 - cy0);
+    this._seat(k, dy);
+    // the column's centre on the disc, in its card box's coordinates (the box's layout place, not its slide-in)
+    const box = list.parentElement, cr = card.getBoundingClientRect();
+    list.style.setProperty('--disc-x', `${(cx - cr.left - box.offsetLeft).toFixed(1)}px`);
+    list.style.setProperty('--disc-y', `${(cy0 + dy - cr.top - box.offsetTop).toFixed(1)}px`);
+    this.disc = { cx, cy: cy0 + dy, r: r0 * k, k, fit };
+  }
+
+  /** The badge grown by k about its disc and slid down by dy (px); its emboss is rebuilt sharper when it grows. */
+  _seat(k, dy) {
+    const em = this.emblem;
+    if (k === 1 && !dy) { em.style.removeProperty('--disc-k'); em.style.removeProperty('--disc-dy'); }
+    else { em.style.setProperty('--disc-k', k.toFixed(3)); em.style.setProperty('--disc-dy', `${dy.toFixed(1)}px`); }
+    if (Math.abs(k - (this._embossK || 1)) > 0.12) { this._embossK = k; this._buildEmboss(); }
   }
 
   /** The canvas filter grading this theatre's still (and the planes over it): its SVG grade, else the CSS one. */
@@ -370,6 +458,9 @@ export class Backdrop {
   dispose() {
     this.bombers.dispose();
     if (this.hud.kit?.onScreen) this.hud.kit.onScreen = null;
+    this._classMO?.disconnect();
+    cancelAnimationFrame(this._discRaf);
+    clearTimeout(this._discT);
     window.removeEventListener('resize', this._onResize);
     if (this._sheenURL) URL.revokeObjectURL(this._sheenURL);
     for (const off of this._subs) off?.();

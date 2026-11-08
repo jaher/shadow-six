@@ -448,6 +448,14 @@ large embossed badge over a war picture.
    gunmetal, rendered from its height map: the sunken disc behind the rows dark, the ring and the raven lighter, the
    relief lit from the upper left with darkened grooves and a crisp brass-bright edge (A6), over a soft drop shadow;
    the scene never shows through it. Its 30 s brass light sweep stays.
+5. **The column on the disc** (user, 2026-11-08: "Center the menu around the circle better"): a card's plain list
+   sits centred on the disc's inner face, every row centred on it (the brass hairline grows from the middle, the
+   keyboard ticks flank the row), and inside the face with a margin. `backdrop.js` seats it from the laid-out badge
+   on every card, resize and input-mode change: a long row shrinks its type (to 72 %); a column that is still too big
+   for the face — a phone's 44 px finger rows, one column on a portrait phone, two on a landscape one — grows the
+   badge about its disc and slides it down when the column would reach the title. No per-device numbers
+   (`tests/ui-layout`: centred within 2 % / 3 %, every row inside the face, on the desktop, a phone both ways and a
+   foldable).
 
 **Cost budget:**
 - Downloads: the still (130–230 KB) and, at low priority after the menu is up, the 40 KB Spitfire atlas. No mission
@@ -636,18 +644,18 @@ Choosing **(Y)ES** opens name entry:
 ```
 +----------------------------------------------------------------+
 |  [B1: the theatre still, lit, drifting; Spitfires now and then]|
-|                   ,~~~~ raven wings (emboss) ~~~~,             |
+|                   ,~~~~ raven wings (solid) ~~~~,              |
 |                        M A I N   M E N U                       |  y70-95, stamped steel
 |                       ───────────────────                      |
-|                          NEW GAME                              |  x300, y120, pitch 16
-|                          SAVE GAME           (dim, holds slot) |
-|                        ▸ LOAD GAME  ← cream, Oswald 600, +2r   |
-|                          ═══════            brass hairline     |
-|                          OPTIONS                               |
-|                          CREDITS                               |
-|                          HELP                                  |
-|                          QUIT GAME                             |
-|                  [==== SHADOW SIX plate, 6 rivets ====]        |
+|                            NEW GAME                            |  centred on the disc (320, 180), pitch 16
+|                           SAVE GAME          (dim, holds slot) |
+|                       ▸   LOAD GAME   ◂  ← cream, Oswald 600   |
+|                            ═══════          brass hairline     |
+|                            OPTIONS                             |
+|                            CREDITS                             |
+|                              HELP                              |
+|                           QUIT GAME                            |
+|                    (the disc's ring around them)               |
 |  TINY · LANCE-CORPORAL            ↵ SELECT  ESC BACK  ↑↓ MOVE  |
 +----------------------------------------------------------------+
 ```

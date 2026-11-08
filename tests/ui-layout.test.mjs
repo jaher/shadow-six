@@ -4,12 +4,14 @@
  *  - MAIN: every row, the greyed ones too, reads ≥ 4.5:1 on the pixels under it, over every theatre's still at both
  *    ends of its Ken Burns drift (list scrim + dark band + solid badge);
  *  - B1: the front end shows its theatre still with a band of daylit sky and a dark pool behind the column;
+ *  - MAIN's rows sit centred on the badge's disc and inside its inner face: desktop, a phone both ways, a foldable;
  *  - S06b: the campaign tabs never sit under the map sheet (1280×720 and 400×860); on a phone the mission card
  *    never covers the (B)RIEFING / (S)TART footer, which stays on screen;
  *  - phone rows are ≥ 44 CSS px; SOUND's detail pane never covers its rows;
  *  - desktop 1080p / 1440p / 4K: the HELP folder and the open notebook keep their desktop geometry (the phone fits in
  *    html.mk-touch never leak; tests/touch-game-flow.mjs covers the phones).
  */
+export const timeout = 240_000;
 const HUD = 'window.__game.game.hud';
 
 /** Mean colour of the page pixels inside each rect (CSS px) → [{r,g,b}], from a real screenshot. */
@@ -199,4 +201,45 @@ export default async function uiLayout(page, t) {
     t(d.pages.every((o) => o === 'hidden') && d.hints === 'none', `${w}×${h}: HELP pages clip and show no touch bar on desktop (${d.pages}, ${d.hints})`);
   }
   await page.setViewportSize({ width: 1280, height: 720 });
+
+  // ---- MAIN's column on the badge's disc (user: "Center the menu around the circle better"): the row block centred on
+  // the disc (within 2 % of the width, 3 % of the height) and every row inside its inner face, on the desktop, a phone
+  // both ways (touch: 44 px rows) and a foldable's inner screen
+  // (each in a fresh session on the front end: by now this page's MAIN is the in-mission one, which has no disc)
+  for (const [name, viewport, dpr, touch] of [['desktop 1280x720', { width: 1280, height: 720 }, 1, false], ['phone landscape 844x390', { width: 844, height: 390 }, 3, true],
+    ['phone portrait 390x844', { width: 390, height: 844 }, 3, true], ['foldable inner 884x1104', { width: 884, height: 1104 }, 2, true]]) {
+    const ctx = await t.harness.browser.newContext({ viewport, deviceScaleFactor: dpr, isMobile: touch, hasTouch: touch });
+    await ctx.addInitScript(() => { try { sessionStorage.setItem('shadowsix.rotate.dismissed', '1'); } catch { /* */ } });
+    try {
+      const p = await ctx.newPage();
+      await t.harness.openGame(p);
+      await p.evaluate(() => window.__game.game.hud.screens.openMain());
+      await discCheck(p, t, name);
+    } finally {
+      await ctx.close().catch(() => {});
+    }
+  }
+}
+
+/** The MAIN rows against the backdrop's disc (backdrop.js _discLayout): centred on it, inside its inner face. */
+async function discCheck(p, t, name) {
+  await p.waitForFunction(() => window.__game.game.hud.backdrop.ready && window.__game.game.hud.backdrop.disc, null, { timeout: 15000 });
+  await p.waitForTimeout(700); // the second seat, after the card's entrance
+  const d = await p.evaluate(() => {
+    const disc = window.__game.game.hud.backdrop.disc;
+    const rows = [...document.querySelectorAll('.mk-host .mk-card .mk-list .mk-row')].map((e) => e.getBoundingClientRect());
+    const l = Math.min(...rows.map((b) => b.left)), r = Math.max(...rows.map((b) => b.right)), tp = Math.min(...rows.map((b) => b.top)), bt = Math.max(...rows.map((b) => b.bottom));
+    const far = rows.map((b) => Math.hypot(Math.max(disc.cx - b.left, b.right - disc.cx), Math.max(disc.cy - b.top, b.bottom - disc.cy)));
+    // each visual line of rows (one row, or a grid line of two cells) symmetric about the disc's vertical axis
+    const lines = [];
+    for (const b of rows) { const ln = lines.find((q) => Math.abs(q.y - (b.top + b.bottom) / 2) < 4); if (ln) { ln.l = Math.min(ln.l, b.left); ln.r = Math.max(ln.r, b.right); ln.n++; } else lines.push({ y: (b.top + b.bottom) / 2, l: b.left, r: b.right, n: 1 }); }
+    const skew = Math.max(...lines.map((q) => Math.abs((q.l + q.r) / 2 - disc.cx)));
+    return { disc, n: rows.length, bx: (l + r) / 2, by: (tp + bt) / 2, far: Math.max(...far), lines: lines.map((q) => q.n).join('+'), skew, vw: innerWidth, vh: innerHeight, touch: document.documentElement.classList.contains('mk-touch') };
+  });
+  t.log(`${name}: disc (${d.disc.cx.toFixed(0)}, ${d.disc.cy.toFixed(0)}) r ${d.disc.r.toFixed(0)} x${d.disc.k.toFixed(2)}; rows centre (${d.bx.toFixed(0)}, ${d.by.toFixed(0)}); farthest corner ${d.far.toFixed(0)}; lines ${d.lines}${d.touch ? ' (touch)' : ''}`);
+  t(d.n >= 7, `${name}: MAIN's rows are laid out (${d.n})`);
+  t(Math.abs(d.bx - d.disc.cx) <= 0.02 * d.vw, `${name}: the rows are centred on the disc horizontally (${d.bx.toFixed(1)} vs ${d.disc.cx.toFixed(1)})`);
+  t(Math.abs(d.by - d.disc.cy) <= 0.03 * d.vh, `${name}: the rows are centred on the disc vertically (${d.by.toFixed(1)} vs ${d.disc.cy.toFixed(1)})`);
+  t(d.far <= d.disc.r, `${name}: every row lies inside the disc's inner face (farthest corner ${d.far.toFixed(1)} <= ${d.disc.r.toFixed(1)})`);
+  t(d.skew <= 0.02 * d.vw, `${name}: every line of rows is symmetric about the disc's axis (lines ${d.lines}; worst off-centre ${d.skew.toFixed(1)} px)`);
 }

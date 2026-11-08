@@ -134,6 +134,16 @@
   background: radial-gradient(closest-side, rgba(9, 10, 5, .7), rgba(9, 10, 5, .62) 52%, rgba(9, 10, 5, 0) 100%); }
 .mk-list[hidden]::before { display: none; }
 .mk-list.centred { left: 0; right: 0; align-items: center; }
+/* on the front end a plain list sits centred on the badge's disc, its rows centred on it (backdrop.js _discLayout;
+   user: "Center the menu around the circle better"): the underline grows from the middle, the keyboard ticks flank it */
+.mk-list.disc { left: var(--disc-x, calc(320 * var(--mr))); right: auto; top: var(--disc-y, calc(180 * var(--mr))); transform: translate(-50%, -50%); align-items: center; }
+.mk-list.disc .mk-row { justify-content: center; text-align: center; }
+.mk-list.disc .mk-row .mk-label::after { transform-origin: center; }
+.mk-list.disc .mk-row::before { /* the right-hand tick, mirroring .mk-tab */
+  content: ''; position: absolute; right: calc(-9 * var(--mr)); top: 50%; width: calc(3 * var(--mr)); height: calc(7 * var(--mr));
+  transform: translateY(-50%); background: linear-gradient(180deg, var(--brass-hi), var(--brass) 55%, #6b5420);
+  border-radius: 1px; opacity: 0; transition: opacity var(--t-fast); pointer-events: none; }
+.mk-keynav .mk-list.disc .mk-row.focus::before { opacity: 1; }
 .mk-list.wide { left: calc(150 * var(--mr)); }
 .mk-row {
   position: relative; display: flex; align-items: baseline; gap: calc(6 * var(--mr));
@@ -512,7 +522,9 @@
 /* over the realistic front end the rows take the brighter khaki, and the greyed rows stay readable (4.5:1) */
 .mk-layer[data-bg='frontend'] { --khaki: var(--khaki-hi); --dim-row: #948f70; }
 .bd[data-mode='mission'] .bd-scene, .bd[data-mode='mission'] .bd-shade, .bd[data-mode='mission'] .bd-emblem { display: none; }
-.bd-emblem { position: absolute; left: 50%; top: 50%; width: calc(640 * var(--mr)); height: calc(480 * var(--mr)); transform: translate(-50%, -50%); }
+.bd-emblem { position: absolute; left: 50%; top: 50%; width: calc(640 * var(--mr)); height: calc(480 * var(--mr));
+  /* backdrop.js _discLayout: grown about its disc (k) and slid down (dy) when a card's column needs it */
+  transform: translate(-50%, -50%) translateY(var(--disc-dy, 0px)) scale(var(--disc-k, 1)); transform-origin: 50% 37.5%; }
 .bd-emboss { position: absolute; inset: 0; width: 100%; height: 100%; }
 .bd-sheen { position: absolute; inset: 0; opacity: .5; mix-blend-mode: screen;
   background: linear-gradient(115deg, transparent 38%, rgba(236, 208, 138, .5) 50%, transparent 62%) 0 0 / 300% 100% no-repeat;

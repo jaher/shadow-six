@@ -1335,7 +1335,8 @@ Menus and full-screen screens follow docs/menus-art-direction.md (S01–S22 + am
   `notebook.js` (S17), `debrief.js` (S19/S20), `backdrop.js` (`hud.backdrop.setMode('frontend'|'mission'|'paper'|'off')`:
   B1: the theatre the profile last reached as its baked still, in one filmic grade (an SVG filter in its canvas) and
   drifting in a CSS Ken Burns, a dark band behind the column, the badge as a solid lit iron badge rendered from
-  `assets/ui/emblem-badge-height.svg`, and `menu-bombers.js`'s Spitfire flyover in the still's sky band; B2 oxblood
+  `assets/ui/emblem-badge-height.svg` with the card's plain list seated on its disc (`_discLayout`: centred, inside the
+  inner face; the badge grows for a phone's finger rows), and `menu-bombers.js`'s Spitfire flyover in the still's sky band; B2 oxblood
   frozen frame), `splash-fx.js` (S03 WebGL2 fire
   + searchlight), `splash-planes.js` (S03 Spitfire passes and their bombs), `splash-plate.js` (S03: the plate's
   cover fit and crop on any stage — the crop slides on narrow screens so the burning tank stands clear of the hero —
