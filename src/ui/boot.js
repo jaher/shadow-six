@@ -152,10 +152,10 @@ export class Boot {
     this.planes = new SplashPlanes(pc, { still: this.hud.kit.reducedMotion });
     if (this.planes.alive) this.planes.start();
     else pc.remove();
-    // live fire + volumetric searchlight (WebGL2); the painted fire is the fallback
+    // live fire, smoke + volumetric searchlight (WebGL2); the painted fire is the fallback
     const fxc = el('canvas', 'bt-l fx', art);
     this.fx?.dispose();
-    this.fx = new SplashFx(fxc, { still: this.hud.kit.reducedMotion, fireAt: [0.745, 0.215], fireW: 0.21 });
+    this.fx = new SplashFx(fxc, { still: this.hud.kit.reducedMotion }); // the wreck's fire: splash-fx.js FIRE
     if (this.fx.alive) this.fx.start();
     else {
       fxc.remove();

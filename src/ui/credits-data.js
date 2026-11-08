@@ -306,7 +306,7 @@ export const CREDITS_SECTIONS = [
    ],
    [
     "assets/ui/keyart/sky-{1600,3200}.{avif,webp} (S03 splash background: the burning tank and its field)",
-    "procedural tank wreck and terrain rendered by tools/ui/keyart/herohd/backdrop.py over our sky.svg",
+    "the vehicle library's burnt Panzer IV G (tools/blender/vehicles/armour/scripts/pz4.py, own work) knocked about further (thrown track, penetrations, soot) and procedural terrain, rendered by tools/ui/keyart/herohd/backdrop.py over our sky.svg; the flames and smoke are drawn live by src/ui/splash-fx.js",
     "SHADOW SIX contributors",
     "ours (MIT project licence)"
    ],

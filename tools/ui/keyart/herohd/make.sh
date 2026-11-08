@@ -2,7 +2,8 @@
 # Detailed hero key art (S03 title splash), all stages:
 #   BLENDER=<blender >= 4.2> PY=<python with Pillow >= 11.3> tools/ui/keyart/herohd/make.sh <data dir> <work dir> [stages]
 # stages (default all): build dress render variants plate
-#   plate: the splash background (backdrop.py ground plate over sky.svg minus its flat tank) -> assets/ui/keyart/sky-*
+#   plate: the splash background (backdrop.py ground plate: the vehicle library's burnt Panzer IV, over sky.svg minus its
+#          flat tank and static smoke; needs node for glb_plain.mjs) -> assets/ui/keyart/sky-*
 #   data dir: the CC0 MakeHuman data (mh.py docstring); work dir: char.blend, hero.blend, master.png
 # Output: assets/ui/keyart/hero-{900,1350,1800,2700}.{avif,webp}
 set -e
@@ -20,7 +21,9 @@ for s in $STAGES; do
     plate)    "$B" -b --factory-startup --python "$HERE/backdrop.py" -- "$WORK/ground.png" 3200 1800 "${PLATE_SPP:-256}"
               "$PY" - "$REPO/assets/ui/keyart/sky.svg" "$WORK/sky-notank.svg" <<'PYEOF'
 import sys
-s = open(sys.argv[1]).read(); a = s.index('<path d="M0 735 L1600 720'); open(sys.argv[2], 'w').write(s[:a] + '</svg>\n')
+s = open(sys.argv[1]).read(); a = s.index('<path d="M0 735 L1600 720'); s = s[:a] + '</svg>\n'
+p = s.index('<g filter="url(#plume)"'); s = s[:p] + s[s.index('</g>', p) + 4:]   # the smoke is splash-fx.js's, live
+open(sys.argv[2], 'w').write(s)
 PYEOF
               node "$HERE/rasterize_svg.mjs" "$WORK/sky-notank.svg" "$WORK/sky-notank.png" 3200 1800
               "$PY" "$HERE/variants.py" --plate "$WORK/sky-notank.png" "$WORK/ground.png" "$REPO/assets/ui/keyart" ;;

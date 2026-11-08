@@ -4,7 +4,7 @@
 Then variants.py --plate. Everything procedural (own work): a long-barrelled medium tank in the Panzer IV mould
 (no markings), knocked out and burning, skirts torn away, gun lifted; a churned field with track ruts, grass, debris,
 low ground haze. Transparent above the horizon, where the SVG sky, smoke and searchlight show through."""
-import bpy, bmesh, sys, os, math
+import bpy, bmesh, sys, os, math, subprocess, tempfile, json
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import numpy as np
@@ -86,86 +86,81 @@ def earth(name='earth'):
 steel, ember_m, ground_m = burnt_steel(), ember(), earth()
 rubber = burnt_steel('tracks')
 
-# ---------------------------------------------------------------- the tank (x along the hull, front at -x; z up)
+# ---------------------------------------------------------------- the tank: the library's burnt Panzer IV G
+# (tools/blender/vehicles/armour/scripts/pz4.py, assets/models/vehicles/armour/panzer4_g_burnt.glb: scorched paint,
+# hatches thrown open), decoded to a plain GLB by glb_plain.mjs, then knocked about further for the key art: the gun
+# lifted, the near track sagging off its front run with a road wheel blown off, two penetrations ringed with hot
+# metal, and the fire's sources lit inside (engine deck, open hatches, a fuel pool burning underneath).
+REPO = os.path.abspath(os.path.join(HERE, '../../../..'))
+GLB = os.path.join(tempfile.gettempdir(), 'backdrop_panzer4_g_burnt.glb')
+subprocess.run(['node', os.path.join(HERE, 'glb_plain.mjs'), os.path.join(REPO, 'assets/models/vehicles/armour/panzer4_g_burnt.glb'), GLB], check=True)
 T = bpy.data.objects.new('tank', None); col.objects.link(T)
-L_, Wd = 5.9, 2.88
-box('hull_low', (L_, 1.9, 0.9), (0, 0, 0.95), mat=steel, parent=T)
-hull = box('hull_up', (4.6, Wd, 0.62), (0.45, 0, 1.68), mat=steel, parent=T)
-glacis = box('glacis', (1.1, 1.9, 0.62), (-2.75, 0, 1.12), rot=(0, math.radians(-22), 0), mat=steel, parent=T)
-box('driver_plate', (0.25, Wd, 0.6), (-1.85, 0, 1.68), rot=(0, math.radians(-10), 0), mat=steel, parent=T)
-box('engine_deck', (1.9, 2.4, 0.14), (2.0, 0, 2.03), mat=steel, parent=T)
-box('deck_grille', (0.9, 1.6, 0.06), (2.2, 0, 2.12), mat=ember_m, parent=T, bevel=0.0)   # glowing: the engine is on fire
-for s in (-1, 1):
-    # track run: sprocket front, idler rear, 8 road wheels in pairs, 4 return rollers, the track loop over them
-    y = s * 1.2
-    cyl('sprocket', 0.42, 0.42, (-2.62, y, 0.75), (math.pi / 2, 0, 0), steel, 18, T, 0.02)
-    cyl('idler', 0.4, 0.4, (2.75, y, 0.72), (math.pi / 2, 0, 0), steel, 18, T, 0.02)
-    for i in range(8):
-        cyl('road', 0.235, 0.36, (-1.95 + i * 0.6, y, 0.35), (math.pi / 2, 0, 0), steel, 20, T, 0.02)
-    for i in range(4):
-        cyl('return', 0.11, 0.3, (-1.6 + i * 1.15, y, 1.12), (math.pi / 2, 0, 0), steel, 12, T, 0.01)
-    # track: a ribbon round the run, with grousers
-    pts = []
-    for i in range(48):
-        a = 2 * math.pi * i / 48
-        cx = -2.62 if math.cos(a) < 0 else 2.75
-        pts.append((cx + 0.47 * math.cos(a) * (1.0) + math.cos(a) * 0.0, 0.0, 0.75 + 0.47 * math.sin(a)))
-    bm = bmesh.new()
-    loop = []
-    for i in range(160):
-        t = i / 160
-        # rounded-rectangle side profile
-        per = 2 * 5.37 + 2 * math.pi * 0.47
-        d = t * per
-        if d < 5.37: p = (-2.62 + d, 0.28 + 0.0)
-        elif d < 5.37 + math.pi * 0.47:
-            a = -math.pi / 2 + (d - 5.37) / 0.47; p = (2.75 + 0.47 * math.cos(a), 0.75 + 0.47 * math.sin(a))
-        elif d < 2 * 5.37 + math.pi * 0.47:
-            dd = d - 5.37 - math.pi * 0.47; p = (2.75 - dd, 1.22 - 0.06 * math.sin(math.pi * dd / 5.37))
-        else:
-            a = math.pi / 2 + (d - 2 * 5.37 - math.pi * 0.47) / 0.47; p = (-2.62 + 0.47 * math.cos(a), 0.75 + 0.47 * math.sin(a))
-        g = 0.025 if (i % 2 == 0) else 0.0
-        loop.append(p + (g,))
-    vs = []
-    for (x, z, g) in loop:
-        vs.append((bm.verts.new((x, y - 0.22, z)), bm.verts.new((x, y + 0.22, z))))
-    for i in range(len(vs)):
-        a, b2 = vs[i], vs[(i + 1) % len(vs)]
-        bm.faces.new((a[0], b2[0], b2[1], a[1]))
-    me = bpy.data.meshes.new('track'); bm.to_mesh(me); bm.free()
-    tr = bpy.data.objects.new('track', me); col.objects.link(tr); tr.parent = T
-    sd = tr.modifiers.new('sd', 'SOLIDIFY'); sd.thickness = 0.06
-    tr.data.materials.append(rubber)
-    # side skirts: rail + a few plates left, one hanging askew, the rest torn off
-    box('skirt_rail', (4.6, 0.05, 0.05), (0.2, s * 1.55, 1.62), mat=steel, parent=T, bevel=0.0)
-    for k, (x0, rz, drop) in enumerate(((-1.6, 0.0, 0.0), (-0.6, 0.05, 0.0), (1.4, -0.35, 0.18))):
-        if s > 0 and k == 1: continue
-        box('skirt', (0.95, 0.012, 0.95), (x0, s * 1.6, 1.15 - drop), rot=(0, rz, 0), mat=steel, parent=T, bevel=0.0)
-# turret, traversed a little, gun lifted (as the SVG silhouette: barrel up to the right)
-TT = bpy.data.objects.new('turret', None); col.objects.link(TT); TT.parent = T
-TT.location = (0.1, 0, 2.0); TT.rotation_euler = (0, 0, math.radians(8))
-tur = box('turret_body', (2.3, 1.85, 0.78), (0.15, 0, 0.42), mat=steel, parent=TT, bevel=0.06)
-box('turret_front', (0.4, 1.4, 0.7), (-1.0, 0, 0.4), rot=(0, math.radians(-12), 0), mat=steel, parent=TT)
-cyl('cupola', 0.36, 0.32, (1.0, 0, 0.92), (0, 0, 0), steel, 20, TT, 0.02)
-box('hatch', (0.45, 0.7, 0.04), (0.7, 0.62, 0.95), rot=(math.radians(70), 0, 0), mat=steel, parent=TT)
-box('hatch_glow', (0.5, 0.5, 0.02), (0.6, 0.55, 0.82), mat=ember_m, parent=TT, bevel=0.0)
-G = bpy.data.objects.new('gun', None); col.objects.link(G); G.parent = TT
-G.location = (-1.15, 0, 0.45); G.rotation_euler = (0, math.radians(-14), 0)
-box('mantlet', (0.35, 0.6, 0.5), (-0.1, 0, 0), mat=steel, parent=G)
-cyl('barrel', 0.075, 4.3, (-2.3, 0, 0), (0, math.pi / 2, 0), steel, 18, G)
-cyl('muzzle_brake', 0.13, 0.32, (-4.5, 0, 0), (0, math.pi / 2, 0), steel, 18, G, 0.01)
-# kit on the hull: exhausts, spare track links on the glacis, tow cables, an aerial; the mudguards
-for s in (-1, 1):
-    box('mudguard', (5.4, 0.42, 0.03), (0.2, s * 1.25, 1.42), mat=steel, parent=T, bevel=0.0)
-    cyl('exhaust', 0.07, 0.6, (3.0, s * 0.45, 1.25), (0, math.pi / 2, 0), steel, 12, T)
-    for k in range(3):
-        box('spare_link', (0.12, 0.38, 0.06), (-2.55 + k * 0.05, s * 0.55, 1.35 + k * 0.13), rot=(0, math.radians(-22), 0), mat=rubber, parent=T, bevel=0.0)
-cyl('tow_cable', 0.025, 4.0, (0.4, 1.47, 1.8), (0, math.pi / 2, 0), steel, 8, T)
-cyl('aerial', 0.008, 2.0, (2.3, -1.2, 2.9), (math.radians(8), math.radians(-14), 0), steel, 6, T)
-cyl('spare_wheel', 0.235, 0.12, (1.6, -1.47, 1.9), (math.pi / 2, 0, 0), steel, 18, T)
-# the tank faces the camera's left; placed in the field (see camera below)
-T.location = (6.2, 130.0, -0.05)
-T.rotation_euler = (math.radians(-1.5), math.radians(2.5), math.radians(186))
+before = set(bpy.data.objects)
+bpy.ops.import_scene.gltf(filepath=GLB)
+parts = {o.name: o for o in bpy.data.objects if o not in before}
+for o in parts.values():
+    if o.parent is None: o.parent = T
+P_ = lambda n: parts.get(n)
+# Blender frame of the GLB: +x vehicle left, -y front, z up. Gun lifted a little more than the burnt pose leaves it.
+if P_('gun'): P_('gun').rotation_euler.rotate_axis('X', math.radians(9))
+# the near (right) track has been thrown: its loop sags off the front run and a length of it lies unrolled on the
+# ground ahead of the sprocket; wheel R1 is blown off and lies by the hull
+if P_('track_R'):
+    tr = P_('track_R'); tr.location.z -= 0.09; tr.rotation_euler.rotate_axis('X', math.radians(-4.5))
+    src_ = tr if tr.type == 'MESH' else next((c for c in tr.children_recursive if c.type == 'MESH'), None)
+    tm = src_.material_slots[0].material if src_ and src_.material_slots else rubber
+    # the length lying flat ahead of the sprocket, links up, in the track's own material
+    box('track_thrown', (0.40, 2.6, 0.035), (-1.3, -4.25, 0.03), rot=(0, 0, math.radians(-7)), mat=tm, parent=T, bevel=0.01)
+if P_('wheel_R1'):
+    w1 = P_('wheel_R1'); w1.location.x -= 0.55; w1.location.z -= 0.08; w1.rotation_euler.rotate_axis('Y', math.radians(70))
+for n in ('roller_R1', 'hatch_side_R_f'):
+    if P_(n): P_(n).hide_render = True
+
+
+def disc(name, r, loc, normal, mat, parent=None, seg=24):
+    """A flat disc (penetration hole / glow) at loc facing `normal` (tank frame)."""
+    bm = bmesh.new(); bmesh.ops.create_circle(bm, cap_ends=True, segments=seg, radius=r)
+    me = bpy.data.meshes.new(name); bm.to_mesh(me); bm.free()
+    o = bpy.data.objects.new(name, me); col.objects.link(o); o.data.materials.append(mat)
+    o.location = loc; o.rotation_euler = Vector(normal).to_track_quat('Z', 'Y').to_euler(); o.parent = parent or T
+    return o
+
+
+hole_m = mats.new('hole')[0]; hole_m.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.004, 0.003, 0.002, 1)
+hot_m = ember('hot_rim', 0.9)
+# two penetrations on the near (right, -x) side: turret flank and hull side behind the drive sprocket, each a
+# small black hole in a ring of metal still dull red
+for c, r in (((-0.99, 0.10, 2.18), 0.055), ((-1.47, -1.35, 1.25), 0.065)):
+    disc('pen_rim', r * 1.45, c, (-1, 0, 0), hot_m)
+    disc('pen_hole', r, (c[0] - 0.004, c[1], c[2]), (-1, 0, 0), hole_m)
+# the fire's sources, glowing from inside: engine deck grilles (rear), the open turret and driver hatches, and the
+# fuel burning under the hull (a low glow patch on the ground)
+fire_m = ember('fire_src', 26.0)
+# (positions measured on the imported parts: hull y -2.96 sprocket .. +2.66 idler, turret rear y 1.05, cupola hatches
+#  y ~0.05 z 2.55, driver / radio hatches y -1.66 z 1.65)
+for nm, size, loc in (('deck_glow', (1.5, 1.2), (0.0, 1.8, 1.70)), ('cupola_glow', (0.42, 0.42), (-0.05, 0.05, 2.52)),
+                      ('driver_glow', (0.42, 0.32), (0.75, -1.66, 1.62)), ('radio_glow', (0.42, 0.32), (-0.75, -1.66, 1.62))):
+    bpy.ops.mesh.primitive_plane_add(size=1.0, location=loc); g_ = bpy.context.object; g_.name = nm
+    g_.scale = (size[0], size[1], 1); g_.data.materials.append(fire_m); g_.parent = T
+    g_.visible_camera = False          # light only: the flames themselves are splash-fx.js's, animated
+bpy.ops.mesh.primitive_plane_add(size=1.0, location=(0.0, 0.9, 0.03)); pool = bpy.context.object; pool.name = 'fuel_pool'
+pool.scale = (3.2, 3.6, 1); pool.data.materials.append(ember('fuel', 6.0)); pool.parent = T; pool.visible_camera = False
+# soot: the paint darkens towards the top, where the fire has been licking (turret, deck, upper hull)
+for m in {sl.material for o in parts.values() if o.type == 'MESH' for sl in o.material_slots if sl.material}:
+    nt = m.node_tree; bsdf = next((n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED'), None)
+    lk = bsdf and next((l for l in nt.links if l.to_socket == bsdf.inputs['Base Color']), None)
+    if not lk: continue
+    geo = nt.nodes.new('ShaderNodeNewGeometry'); sep = nt.nodes.new('ShaderNodeSeparateXYZ')
+    nt.links.new(geo.outputs['Position'], sep.inputs[0])                 # world: the tank stands at z 0
+    mr = nt.nodes.new('ShaderNodeMapRange'); mr.inputs['From Min'].default_value = 1.2; mr.inputs['From Max'].default_value = 2.6
+    mr.inputs['To Min'].default_value = 0.0; mr.inputs['To Max'].default_value = 0.75; nt.links.new(sep.outputs['Z'], mr.inputs['Value'])
+    mx = nt.nodes.new('ShaderNodeMix'); mx.data_type = 'RGBA'; mx.blend_type = 'MULTIPLY'
+    nt.links.new(mr.outputs['Result'], mx.inputs[0]); nt.links.new(lk.from_socket, mx.inputs[6])
+    mx.inputs[7].default_value = (0.05, 0.045, 0.04, 1); nt.links.new(mx.outputs[2], bsdf.inputs['Base Color'])
+# the tank faces the camera's right, a little away; placed in the field (see camera below)
+T.location = (5.63, 118.0, -0.05)       # a little nearer than the old silhouette: the real hull is shorter
+T.rotation_euler = (math.radians(-1.0), math.radians(1.5), math.radians(96))
+FIRE_SRC = {'deck': (0.0, 1.8, 1.72), 'cupola': (-0.05, 0.05, 2.62), 'radio': (-0.75, -1.66, 1.68), 'pool': (0.0, 0.9, 0.12)}
 
 # ---------------------------------------------------------------- the field
 bpy.ops.mesh.primitive_plane_add(size=400, location=(0, 120, 0))
@@ -201,7 +196,7 @@ hedge = bpy.data.objects.new('hedge', me); col.objects.link(hedge); hedge.data.m
 rng = np.random.default_rng(4)
 for i in range(40):
     r = rng.uniform(4, 16); a = rng.uniform(0, 2 * math.pi)
-    p = (6.2 + r * math.cos(a), 130.0 + r * math.sin(a) * 0.6, 0.0)
+    p = (5.63 + r * math.cos(a), 118.0 + r * math.sin(a) * 0.6, 0.0)
     s_ = rng.uniform(0.06, 0.3)
     bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=s_, location=p)
     st = bpy.context.object; st.scale = (1.0, rng.uniform(0.6, 1.4), rng.uniform(0.3, 0.7))
@@ -217,8 +212,12 @@ def light(name, kind, loc, energy, color, size=1.0, tgt=None):
     return o
 
 
-light('fire_core', 'POINT', (6.8, 130.5, 3.4), 6000, (1.0, 0.42, 0.12), 1.4)
-light('fire_low', 'POINT', (7.7, 129.0, 1.0), 1500, (1.0, 0.35, 0.1), 2.5)
+# the fire's own light, from its sources: over the engine deck and the turret, and the fuel pool under the hull
+bpy.context.view_layer.update()
+MW = T.matrix_world
+light('fire_core', 'POINT', tuple(MW @ Vector((0.0, 1.6, 3.5))), 5200, (1.0, 0.42, 0.12), 1.4)
+light('fire_turret', 'POINT', tuple(MW @ Vector((-0.05, 0.05, 3.4))), 1800, (1.0, 0.45, 0.14), 0.8)
+light('fire_low', 'POINT', tuple(MW @ Vector((0.0, 0.9, 0.45))), 1600, (1.0, 0.35, 0.1), 2.0)
 light('moon', 'SUN', (0, 0, 10), 0.12, (0.55, 0.66, 1.0)).rotation_euler = (math.radians(55), 0, math.radians(-150))
 w = bpy.data.worlds.new('w'); sc.world = w; w.use_nodes = True
 w.node_tree.nodes['Background'].inputs[0].default_value = (0.012, 0.012, 0.016, 1)
@@ -237,5 +236,15 @@ rutil.setup(SPP)
 sc.render.film_transparent = True
 sc.render.resolution_x, sc.render.resolution_y = W, H
 sc.view_settings.view_transform = 'AgX'; sc.view_settings.look = 'AgX - Medium High Contrast'
+# where the fire's sources land in the frame (x from the left, y from the bottom, 0..1), for splash-fx.js
+from bpy_extras.object_utils import world_to_camera_view
+bpy.context.view_layer.update()
+proj = {}
+for k, v in FIRE_SRC.items():
+    c = world_to_camera_view(sc, cam, T.matrix_world @ Vector(v)); proj[k] = [round(c.x, 4), round(c.y, 4)]
+span = [world_to_camera_view(sc, cam, T.matrix_world @ Vector(v)) for v in ((0, -2.95, 1.0), (0, 2.95, 1.0))]
+proj['tank_len'] = round(abs(span[1].x - span[0].x), 4)
+with open(OUT.replace('.png', '.fire.json'), 'w') as fh: json.dump(proj, fh, indent=1)
+print('FIRE', proj)
 rutil.render(OUT)
 if '--save' in argv: bpy.ops.wm.save_as_mainfile(filepath=OUT.replace('.png', '.blend'))
